@@ -6,11 +6,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
+import src.backend.auth.command.AuthCommandService;
 import src.backend.auth.dto.LoginRequest;
 import src.backend.auth.dto.RefreshRequest;
 import src.backend.auth.dto.SignupRequest;
 import src.backend.auth.dto.TokenResponse;
-import src.backend.auth.service.spec.AuthService;
+import src.backend.auth.query.AuthQueryService;
 import src.backend.global.response.ApiResponse;
 
 /**
@@ -20,25 +21,27 @@ import src.backend.global.response.ApiResponse;
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    private final AuthService authService;
+    private final AuthCommandService authCommandService;
+    private final AuthQueryService authQueryService;
 
-    public AuthController(AuthService authService) {
-        this.authService = authService;
+    public AuthController(AuthCommandService authCommandService, AuthQueryService authQueryService) {
+        this.authCommandService = authCommandService;
+        this.authQueryService = authQueryService;
     }
 
     @PostMapping("/signup")
     public ApiResponse<Void> signup(@Valid @RequestBody SignupRequest request) {
-        authService.signup(request);
+        authCommandService.signup(request);
         return ApiResponse.ok(null);
     }
 
     @PostMapping("/login")
     public ApiResponse<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
-        return ApiResponse.ok(authService.login(request));
+        return ApiResponse.ok(authQueryService.login(request));
     }
 
     @PostMapping("/refresh")
     public ApiResponse<TokenResponse> refresh(@Valid @RequestBody RefreshRequest request) {
-        return ApiResponse.ok(authService.refresh(request.refreshToken()));
+        return ApiResponse.ok(authQueryService.refresh(request.refreshToken()));
     }
 }

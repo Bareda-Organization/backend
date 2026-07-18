@@ -20,7 +20,7 @@ import src.backend.user.repository.spec.UserTenantRoleRepository;
 
 /**
  * 구성원(계정+학원 멤버십) 등록 — 단순 CRUD라 인터페이스 없이 concrete 클래스로 둔다.
- * self-service 가입(AuthService.signup)과 달리, 관리자가 자기 학원 구성원을 프로비저닝하는 경로다.
+ * self-service 가입(AuthCommandService.signup)과 달리, 관리자가 자기 학원 구성원을 프로비저닝하는 경로다.
  */
 @Service
 public class MemberCommandService {

@@ -14,8 +14,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import src.backend.auth.command.AuthCommandService;
 import src.backend.auth.dto.TokenResponse;
-import src.backend.auth.service.spec.AuthService;
+import src.backend.auth.query.AuthQueryService;
 import src.backend.global.security.JwtAuthenticationFilter;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.global.security.SecurityConfig;
@@ -32,11 +33,14 @@ class AuthControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private AuthService authService;
+    private AuthCommandService authCommandService;
+
+    @MockitoBean
+    private AuthQueryService authQueryService;
 
     @Test
     void login_returns_tokens() throws Exception {
-        given(authService.login(any())).willReturn(new TokenResponse("access-x", "refresh-y"));
+        given(authQueryService.login(any())).willReturn(new TokenResponse("access-x", "refresh-y"));
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
