@@ -195,8 +195,8 @@ public interface LocationSource {
 
 | Phase | 내용 | 상태 |
 |---|---|---|
-| 0. 컨벤션 단일화 | `reference.md`(Claude 참조용, 정리) + `CODE_CONVENTIONS.html`(사람용 렌더) 역할분리 확정, `CLAUDE.md`/이 문서 §11.3 갱신 | 🟡 진행중 |
-| 1. 공용 기반 | Kafka(KRaft)+Redis 인프라, `DomainEvent`/`DomainEventPublisher`(Port)+`KafkaEventPublisher`(impl), DB↔Kafka 이중쓰기 정합성(`ApplicationEventPublisher`→`@TransactionalEventListener(AFTER_COMMIT)`→Kafka) | ⬜ 예정 |
+| 0. 컨벤션 단일화 | `reference.md`(Claude 참조용, 정리) + `CODE_CONVENTIONS.html`(사람용 렌더) 역할분리 확정, `CLAUDE.md`/이 문서 §11.3 갱신 | ✅ 완료 |
+| 1. 공용 기반 | Kafka(KRaft)+Redis 인프라, `DomainEvent`/`DomainEventPublisher`(Port)+`KafkaEventPublisher`(impl), DB↔Kafka 이중쓰기 정합성(`ApplicationEventPublisher`→`@TransactionalEventListener(AFTER_COMMIT)`→Kafka) | ✅ 완료 |
 | 2. 기존 12개 모듈 재편 | CQRS 분리 + 인터페이스 정리 + 직접호출→이벤트. 순서(잎 먼저): `notification` → `student·tenant·user·bus·route` → `rideevent·sos·location` → `auth` | ⬜ 예정 |
 | 3. location 실시간 push (플래그십) | `LocationUpdatedEvent`→Redis projection→WebSocket user destination push(`convertAndSendToUser`), SUBSCRIBE 인가(계층별 조회 권한을 push 구독에도 강제), 알림도 WebSocket으로 병행 push | ⬜ 예정 |
 
@@ -257,16 +257,16 @@ public interface LocationSource {
 - [x] `CODE_CONVENTIONS.html`의 "reference.md는 삭제되었다" 콜아웃(91번째 줄) 정정 완료 (사용자 명시 요청으로 진행, 2026-07-18)
 - [x] `CLAUDE.md` 컨벤션 문구 갱신 (reference.md를 컨벤션 우선 참조 문서로 지정, HTML 수정은 요청 시에만)
 - [x] `PROJECT_MASTER_PLAN.md` §11.3/§11.4 갱신 (이 항목)
-- [ ] Phase 0 변경사항 커밋
+- [x] Phase 0 변경사항 커밋 (`1b73734`)
 
-**Phase 1 · 공용 기반 (Kafka + Redis + 이벤트 백본)**
-- [ ] `backend/build.gradle`에 `spring-kafka` 추가
-- [ ] docker-compose에 Kafka(KRaft 모드, Zookeeper 불필요) 서비스 추가
-- [ ] `application.yml`에 `spring.kafka.*`(producer/consumer JSON) 설정, prod는 `${KAFKA_BOOTSTRAP_SERVERS}`
-- [ ] `global/config/RedisConfig` 신규 (RedisTemplate/ConnectionFactory)
-- [ ] `global/event/DomainEvent`(공통 필드: eventId·occurredAt·tenantId) + `DomainEventPublisher`(Port) 신규
-- [ ] `global/infrastructure/KafkaEventPublisher`(impl, KafkaTemplate 래핑) 신규
-- [ ] DB↔Kafka 이중쓰기 정합성 패턴 확립: `ApplicationEventPublisher`(인프로세스) → `@TransactionalEventListener(phase=AFTER_COMMIT)` → `KafkaEventPublisher.publish()`
+**Phase 1 · 공용 기반 (Kafka + Redis + 이벤트 백본)** — ✅ 완료, 커밋 `11f726d`
+- [x] `backend/build.gradle`에 `spring-kafka` 추가
+- [x] docker-compose에 Kafka(KRaft 모드, Zookeeper 불필요) 서비스 추가
+- [x] `application.yml`에 `spring.kafka.*`(producer/consumer JSON) 설정, prod는 `${KAFKA_BOOTSTRAP_SERVERS}`
+- [x] `global/config/RedisConfig` 신규 (RedisTemplate/ConnectionFactory)
+- [x] `global/event/DomainEvent`(공통 필드: eventId·occurredAt·tenantId) + `DomainEventPublisher`(Port) 신규
+- [x] `global/infrastructure/KafkaEventPublisher`(impl, KafkaTemplate 래핑) 신규
+- [x] DB↔Kafka 이중쓰기 정합성 패턴 확립: `ApplicationEventPublisher`(인프로세스) → `@TransactionalEventListener(phase=AFTER_COMMIT)` → `KafkaEventPublisher.publish()` (`TransactionalDomainEventRelay`)
 
 **Phase 2 · 기존 12개 모듈 CQRS+이벤트 재편** (순서: 잎 모듈 먼저)
 - [ ] `notification` — consumer로 전환(다른 모듈 발신 이벤트 구독)
