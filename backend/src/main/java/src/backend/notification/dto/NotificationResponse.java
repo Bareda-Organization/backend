@@ -2,8 +2,8 @@ package src.backend.notification.dto;
 
 import java.time.LocalDateTime;
 
-import src.backend.notification.entity.NotificationLog;
-import src.backend.notification.entity.NotificationType;
+import src.backend.notification.domain.NotificationLog;
+import src.backend.notification.domain.NotificationType;
 
 public record NotificationResponse(
         Long id,

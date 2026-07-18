@@ -23,8 +23,8 @@ import src.backend.location.dto.LocationReportRequest;
 import src.backend.location.dto.LocationView;
 import src.backend.location.repository.spec.LocationRepository;
 import src.backend.location.websocket.LocationSessionRegistry;
-import src.backend.notification.entity.NotificationType;
-import src.backend.notification.service.spec.NotificationService;
+import src.backend.notification.command.spec.NotificationCommandService;
+import src.backend.notification.domain.NotificationType;
 import src.backend.student.entity.Student;
 import src.backend.student.entity.StudentGuardian;
 import src.backend.student.repository.spec.StudentGuardianRepository;
@@ -43,7 +43,7 @@ public class LocationServiceImpl implements LocationService {
     private final StudentGuardianRepository studentGuardianRepository;
     private final BusRepository busRepository;
     private final LocationSessionRegistry sessionRegistry;
-    private final NotificationService notificationService;
+    private final NotificationCommandService notificationCommandService;
     private final Duration lossGrace;
 
     public LocationServiceImpl(LocationRepository locationRepository,
@@ -51,14 +51,14 @@ public class LocationServiceImpl implements LocationService {
                                StudentGuardianRepository studentGuardianRepository,
                                BusRepository busRepository,
                                LocationSessionRegistry sessionRegistry,
-                               NotificationService notificationService,
+                               NotificationCommandService notificationCommandService,
                                @Value("${app.connection.loss-grace-seconds:30}") long lossGraceSeconds) {
         this.locationRepository = locationRepository;
         this.studentRepository = studentRepository;
         this.studentGuardianRepository = studentGuardianRepository;
         this.busRepository = busRepository;
         this.sessionRegistry = sessionRegistry;
-        this.notificationService = notificationService;
+        this.notificationCommandService = notificationCommandService;
         this.lossGrace = Duration.ofSeconds(lossGraceSeconds);
     }
 
@@ -128,10 +128,10 @@ public class LocationServiceImpl implements LocationService {
                 continue; // 아직 유예시간 이내 — 오탐 방지(터널·순간 네트워크 끊김 등)
             }
             studentRepository.findById(studentId).ifPresent(student -> {
-                String dedupKey = NotificationService.dedupKey(
+                String dedupKey = NotificationCommandService.dedupKey(
                         NotificationType.CONNECTION_LOST, studentId, disconnectedAt.toLocalDate(),
                         "disconnect:" + disconnectedAt);
-                notificationService.notify(NotificationType.CONNECTION_LOST, student.getTenant().getId(), studentId,
+                notificationCommandService.notify(NotificationType.CONNECTION_LOST, student.getTenant().getId(), studentId,
                         dedupKey, student.getName() + " 학생의 위치 연결이 끊겼습니다");
             });
         }

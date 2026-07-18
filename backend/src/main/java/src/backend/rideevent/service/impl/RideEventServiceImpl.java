@@ -15,8 +15,8 @@ import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 import src.backend.global.tenant.TenantGuard;
-import src.backend.notification.entity.NotificationType;
-import src.backend.notification.service.spec.NotificationService;
+import src.backend.notification.command.spec.NotificationCommandService;
+import src.backend.notification.domain.NotificationType;
 import src.backend.rideevent.dto.CorrectionRequest;
 import src.backend.rideevent.dto.RecordRideRequest;
 import src.backend.rideevent.dto.RideEventResponse;
@@ -42,18 +42,18 @@ public class RideEventServiceImpl implements RideEventService {
     private final BusRepository busRepository;
     private final StudentRepository studentRepository;
     private final StudentGuardianRepository studentGuardianRepository;
-    private final NotificationService notificationService;
+    private final NotificationCommandService notificationCommandService;
 
     public RideEventServiceImpl(RideEventRepository rideEventRepository,
                                 BusRepository busRepository,
                                 StudentRepository studentRepository,
                                 StudentGuardianRepository studentGuardianRepository,
-                                NotificationService notificationService) {
+                                NotificationCommandService notificationCommandService) {
         this.rideEventRepository = rideEventRepository;
         this.busRepository = busRepository;
         this.studentRepository = studentRepository;
         this.studentGuardianRepository = studentGuardianRepository;
-        this.notificationService = notificationService;
+        this.notificationCommandService = notificationCommandService;
     }
 
     // ── 기록/정정 ──
@@ -177,10 +177,10 @@ public class RideEventServiceImpl implements RideEventService {
         NotificationType type = event.getType() == RideType.BOARD
                 ? NotificationType.BOARD_DONE : NotificationType.ALIGHT_DONE;
         String stage = event.getStopId() != null ? "stop" + event.getStopId() : "bus" + event.getBusId();
-        String dedupKey = NotificationService.dedupKey(
+        String dedupKey = NotificationCommandService.dedupKey(
                 type, event.getStudentId(), event.getOccurredAt().toLocalDate(), stage);
         String verb = event.getType() == RideType.BOARD ? "승차" : "하차";
-        notificationService.notify(type, event.getTenantId(), event.getStudentId(),
+        notificationCommandService.notify(type, event.getTenantId(), event.getStudentId(),
                 dedupKey, studentName + " 학생이 " + verb + "했습니다");
     }
 

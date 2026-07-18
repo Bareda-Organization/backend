@@ -1,10 +1,11 @@
-package src.backend.notification.sender;
+package src.backend.notification.infrastructure.impl;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import src.backend.notification.entity.NotificationLog;
+import src.backend.notification.domain.NotificationLog;
+import src.backend.notification.infrastructure.spec.NotificationSender;
 
 /**
  * MVP 발송 구현 — 실제 푸시·알림톡 대신 로그로 남긴다(발송 추상화의 기본 구현체).

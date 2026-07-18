@@ -12,27 +12,27 @@ import org.springframework.web.bind.annotation.RestController;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.notification.dto.NotificationResponse;
-import src.backend.notification.service.spec.NotificationService;
+import src.backend.notification.query.spec.NotificationQueryService;
 
 /**
- * 알림 조회 API. 발송 자체는 다른 모듈(rideevent 등)이 {@code NotificationService.notify}를
+ * 알림 조회 API. 발송 자체는 다른 모듈(rideevent 등)이 {@code NotificationCommandService.notify}를
  * 호출해 트리거하고, 여기는 역할별 조회 범위(학부모 알림함 / 관리자 학원 이력)만 노출한다.
  */
 @RestController
 @RequestMapping("/api/notifications")
 public class NotificationController {
 
-    private final NotificationService notificationService;
+    private final NotificationQueryService notificationQueryService;
 
-    public NotificationController(NotificationService notificationService) {
-        this.notificationService = notificationService;
+    public NotificationController(NotificationQueryService notificationQueryService) {
+        this.notificationQueryService = notificationQueryService;
     }
 
     /** 학부모: 자녀(형제자매 포함) 알림함. */
     @GetMapping("/children")
     @PreAuthorize("hasRole('PARENT')")
     public ApiResponse<List<NotificationResponse>> children(@AuthenticationPrincipal AuthUser parent) {
-        return ApiResponse.ok(notificationService.getChildrenNotifications(parent));
+        return ApiResponse.ok(notificationQueryService.getChildrenNotifications(parent));
     }
 
     /** 관리자: 학원 알림 이력. */
@@ -40,6 +40,6 @@ public class NotificationController {
     @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
     public ApiResponse<List<NotificationResponse>> tenant(@AuthenticationPrincipal AuthUser admin,
                                                           @RequestParam(required = false) Long tenantId) {
-        return ApiResponse.ok(notificationService.getTenantNotifications(admin, tenantId));
+        return ApiResponse.ok(notificationQueryService.getTenantNotifications(admin, tenantId));
     }
 }

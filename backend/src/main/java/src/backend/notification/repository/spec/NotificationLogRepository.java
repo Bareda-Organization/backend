@@ -4,7 +4,7 @@ import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import src.backend.notification.entity.NotificationLog;
+import src.backend.notification.domain.NotificationLog;
 
 public interface NotificationLogRepository extends JpaRepository<NotificationLog, Long> {
 

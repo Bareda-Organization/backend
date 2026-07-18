@@ -1,4 +1,4 @@
-package src.backend.notification.entity;
+package src.backend.notification.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

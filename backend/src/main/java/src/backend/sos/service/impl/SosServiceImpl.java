@@ -14,8 +14,8 @@ import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 import src.backend.global.tenant.TenantGuard;
 import src.backend.notification.NotificationThresholds;
-import src.backend.notification.entity.NotificationType;
-import src.backend.notification.service.spec.NotificationService;
+import src.backend.notification.command.spec.NotificationCommandService;
+import src.backend.notification.domain.NotificationType;
 import src.backend.sos.dto.SosEventResponse;
 import src.backend.sos.dto.SosTriggerRequest;
 import src.backend.sos.entity.SosEvent;
@@ -28,7 +28,7 @@ import src.backend.student.repository.spec.StudentRepository;
 
 /**
  * {@link SosService} 기본 구현.
- * 발신·에스컬레이션 모두 {@link NotificationService}의 멱등 notify 를 그대로 재사용한다 —
+ * 발신·에스컬레이션 모두 {@link NotificationCommandService}의 멱등 notify 를 그대로 재사용한다 —
  * "3분마다 재확인해도 같은 이벤트는 한 번만 에스컬레이션"이 dedupKey 로 자동 보장된다.
  */
 @Service
@@ -37,16 +37,16 @@ public class SosServiceImpl implements SosService {
     private final SosEventRepository sosEventRepository;
     private final StudentRepository studentRepository;
     private final StudentGuardianRepository studentGuardianRepository;
-    private final NotificationService notificationService;
+    private final NotificationCommandService notificationCommandService;
 
     public SosServiceImpl(SosEventRepository sosEventRepository,
                           StudentRepository studentRepository,
                           StudentGuardianRepository studentGuardianRepository,
-                          NotificationService notificationService) {
+                          NotificationCommandService notificationCommandService) {
         this.sosEventRepository = sosEventRepository;
         this.studentRepository = studentRepository;
         this.studentGuardianRepository = studentGuardianRepository;
-        this.notificationService = notificationService;
+        this.notificationCommandService = notificationCommandService;
     }
 
     @Override
@@ -63,9 +63,9 @@ public class SosServiceImpl implements SosService {
                 .occurredAt(LocalDateTime.now())
                 .build());
 
-        String dedupKey = NotificationService.dedupKey(
+        String dedupKey = NotificationCommandService.dedupKey(
                 NotificationType.SOS, student.getId(), saved.getOccurredAt().toLocalDate(), "trigger:" + saved.getId());
-        notificationService.notify(NotificationType.SOS, saved.getTenantId(), student.getId(),
+        notificationCommandService.notify(NotificationType.SOS, saved.getTenantId(), student.getId(),
                 dedupKey, student.getName() + " 학생이 긴급 SOS를 요청했습니다");
 
         return SosEventResponse.from(saved);
@@ -122,9 +122,9 @@ public class SosServiceImpl implements SosService {
         List<SosEvent> overdue = sosEventRepository.findByStatusAndOccurredAtBefore(SosStatus.OPEN, cutoff);
         for (SosEvent event : overdue) {
             LocalDate date = event.getOccurredAt().toLocalDate();
-            String dedupKey = NotificationService.dedupKey(
+            String dedupKey = NotificationCommandService.dedupKey(
                     NotificationType.SOS, event.getStudentId(), date, "escalate:" + event.getId());
-            notificationService.notify(NotificationType.SOS, event.getTenantId(), event.getStudentId(),
+            notificationCommandService.notify(NotificationType.SOS, event.getTenantId(), event.getStudentId(),
                     dedupKey, "SOS(#" + event.getId() + ")가 3분간 미확인 상태입니다 — 플랫폼관리자 확인 필요");
         }
     }

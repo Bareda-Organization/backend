@@ -1,13 +1,10 @@
-package src.backend.notification.service.spec;
+package src.backend.notification.command.spec;
 
 import java.time.LocalDate;
-import java.util.List;
 
-import src.backend.global.security.AuthUser;
-import src.backend.notification.dto.NotificationResponse;
-import src.backend.notification.entity.NotificationType;
+import src.backend.notification.domain.NotificationType;
 
-public interface NotificationService {
+public interface NotificationCommandService {
 
     /**
      * dedupKey 로 멱등 발송한다 — 이미 같은 키로 발송됐으면 조용히 무시한다.
@@ -19,10 +16,4 @@ public interface NotificationService {
     static String dedupKey(NotificationType type, Long studentId, LocalDate date, Object stage) {
         return type.name() + ":" + studentId + ":" + date + ":" + stage;
     }
-
-    /** 학부모: 자녀(형제자매 포함) 알림함. */
-    List<NotificationResponse> getChildrenNotifications(AuthUser parent);
-
-    /** 관리자: 학원 알림 이력. */
-    List<NotificationResponse> getTenantNotifications(AuthUser admin, Long tenantId);
 }

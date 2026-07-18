@@ -269,7 +269,7 @@ public interface LocationSource {
 - [x] DB↔Kafka 이중쓰기 정합성 패턴 확립: `ApplicationEventPublisher`(인프로세스) → `@TransactionalEventListener(phase=AFTER_COMMIT)` → `KafkaEventPublisher.publish()` (`TransactionalDomainEventRelay`)
 
 **Phase 2 · 기존 12개 모듈 CQRS+이벤트 재편** (순서: 잎 모듈 먼저)
-- [ ] `notification` — consumer로 전환(다른 모듈 발신 이벤트 구독)
+- [x] `notification` — CQRS(`command`/`query`) 분리 + `domain`/`infrastructure` 패키지 재편 완료(엔티티→`domain/`, `NotificationSender` 포트→`infrastructure/{spec,impl}/`, `NotificationService`→`NotificationCommandService`+`NotificationQueryService`). `@KafkaListener` consumer 전환은 아직 아님 — 발신 모듈(rideevent·sos·location) 재편 후 다음 체크리스트 항목에서 한 커밋으로 스위치, 그 전까지는 기존 직접 호출(`notificationCommandService.notify(...)`) 유지
 - [ ] `student` · `tenant` · `user` · `bus` · `route` — CQRS 분리 + 단순 CRUD 인터페이스 제거
 - [ ] `rideevent` · `sos` · `location` — cross-module 발신자, 직접호출→이벤트 전환(발신·수신 양쪽 재편 후 한 커밋 스위치)
 - [ ] `auth` — CQRS 분리(필요 범위만)
