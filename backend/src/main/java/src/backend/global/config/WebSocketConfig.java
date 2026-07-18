@@ -14,7 +14,8 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 import src.backend.global.security.StompAuthChannelInterceptor;
 
 /**
- * 학생 위치 실시간 수신 채널(STOMP over WebSocket) 설정.
+ * 실시간 위치·알림 채널(STOMP over WebSocket) 설정 — 학생 좌표 수신(인바운드)과
+ * 관련자에게로의 push(아웃바운드) 양방향을 이 브로커로 처리한다(Phase 3).
  * heartbeat(기본 10초 간격 ping/pong)를 켜서, REST 폴링보다 훨씬 빠르게 연결 끊김을 감지한다 —
  * 이 heartbeat 타임아웃이 {@code LocationSocketEventListener}/{@code ConnectionLossScheduler}가
  * "학생 연결이 끊겼다"고 판단하는 근거가 된다.
@@ -41,9 +42,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
         registry.setApplicationDestinationPrefixes("/app");
-        // 현재는 서버→클라이언트 브로드캐스트를 이 채널로 하지 않지만(그건 SSE 몫),
-        // heartbeat 협상 자체가 심플 브로커 등록을 전제로 하므로 /topic 을 최소 구성으로 켜둔다.
-        registry.enableSimpleBroker("/topic")
+        // Phase 3: /user 프리픽스로 보낸 메시지는 세션별 목적지(/queue/**-user<sessionId>)로
+        // 재작성되어 심플 브로커를 거쳐 배달된다 — 그래서 /queue 도 브로커 프리픽스로 열어둬야 한다.
+        registry.setUserDestinationPrefix("/user");
+        registry.enableSimpleBroker("/topic", "/queue")
                 .setHeartbeatValue(new long[]{heartbeatMs, heartbeatMs})
                 .setTaskScheduler(heartbeatScheduler());
     }
