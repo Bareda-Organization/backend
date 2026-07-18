@@ -197,7 +197,7 @@ public interface LocationSource {
 |---|---|---|
 | 0. 컨벤션 단일화 | `reference.md`(Claude 참조용, 정리) + `CODE_CONVENTIONS.html`(사람용 렌더) 역할분리 확정, `CLAUDE.md`/이 문서 §11.3 갱신 | ✅ 완료 |
 | 1. 공용 기반 | Kafka(KRaft)+Redis 인프라, `DomainEvent`/`DomainEventPublisher`(Port)+`KafkaEventPublisher`(impl), DB↔Kafka 이중쓰기 정합성(`ApplicationEventPublisher`→`@TransactionalEventListener(AFTER_COMMIT)`→Kafka) | ✅ 완료 |
-| 2. 기존 12개 모듈 재편 | CQRS 분리 + 인터페이스 정리 + 직접호출→이벤트. 순서(잎 먼저): `notification` → `student·tenant·user·bus·route` → `rideevent·sos·location` → `auth` | ⬜ 예정 |
+| 2. 기존 12개 모듈 재편 | CQRS 분리 + 인터페이스 정리 + 직접호출→이벤트. 순서(잎 먼저): `notification` → `student·tenant·user·bus·route` → `rideevent·sos·location` → `auth` | ✅ 완료 |
 | 3. location 실시간 push (플래그십) | `LocationUpdatedEvent`→Redis projection→WebSocket user destination push(`convertAndSendToUser`), SUBSCRIBE 인가(계층별 조회 권한을 push 구독에도 강제), 알림도 WebSocket으로 병행 push | ⬜ 예정 |
 
 - **왜 지금 Kafka인가**: 단일 모놀리식 앱에는 엄밀히 과설계지만, MSA 전환 대비(§17 reference.md)라는 목적 하에 사용자가 트레이드오프를 인지하고 선택.
@@ -272,8 +272,8 @@ public interface LocationSource {
 - [x] `notification` — CQRS(`command`/`query`) 분리 + `domain`/`infrastructure` 패키지 재편 완료(엔티티→`domain/`, `NotificationSender` 포트→`infrastructure/{spec,impl}/`, `NotificationService`→`NotificationCommandService`+`NotificationQueryService`). `@KafkaListener` consumer 전환은 아직 아님 — 발신 모듈(rideevent·sos·location) 재편 후 다음 체크리스트 항목에서 한 커밋으로 스위치, 그 전까지는 기존 직접 호출(`notificationCommandService.notify(...)`) 유지
 - [x] `student` · `tenant` · `user` · `bus` · `route` — CQRS(`command`/`query`) 분리 완료. reference.md §2 기준 단순 CRUD라 spec/impl 분리 없이 concrete 클래스로 전환(기존 5개 spec 인터페이스+impl 삭제), 각 컨트롤러는 Command+Query 두 서비스 주입으로 변경. `domain/` 패키지 리네임(엔티티→domain)은 이번 범위 밖(blast radius 큼, 별도 검토). 커밋 `dc057a7`
 - [x] `rideevent` · `sos` · `location` — CQRS(`command`/`query`) 분리 완료(reference.md §11.3 기준 단순 CRUD류라 concrete 클래스, spec/impl 없음). 직접호출→이벤트 전환도 함께 완료: `StudentBoardedEvent`/`RideCompletedEvent`/`SosTriggeredEvent`/`SosEscalatedEvent`/`StudentConnectionLostEvent` 5종 신규, 발신 3모듈은 `notificationCommandService.notify(...)` 직접 호출 대신 `ApplicationEventPublisher.publishEvent(...)` 발행으로 전환. 알림 모듈에 `DomainEventNotificationConsumer`(`@KafkaListener` 5개)를 추가해 Phase 1 DomainEvent 파이프라인(AFTER_COMMIT→Kafka)의 첫 실사용처가 됨 — 발신·수신 양쪽 재편 후 한 커밋 스위치 원칙대로 진행. 부수적으로 `LocationServiceImpl.reportSelf()`의 `@Transactional(readOnly=true)` 버그(내부에서 쓰기 메서드 `ingest()` 호출)도 `@Transactional`로 수정. 커밋 `6d57e02`
-- [ ] `auth` — CQRS 분리(필요 범위만)
-- [ ] 각 모듈 완료마다 `./gradlew build` green + 커밋
+- [x] `auth` — CQRS(`command`/`query`) 분리 완료: `AuthService`(spec/impl) → `AuthCommandService`(signup) + `AuthQueryService`(login/refresh, DB 쓰기 없는 순수 조회+토큰 발급이라 Query로 분류). reference.md §2 기준 실제 대체 구현체가 없어 spec/impl 없이 concrete 클래스로 전환. auth는 repo만 호출하고 다른 모듈 서비스를 직접호출하지 않아 이벤트 전환 대상 없음("필요 범위만"의 의미). `MemberCommandService` Javadoc의 `AuthService.signup` 참조도 `AuthCommandService.signup`으로 갱신. 커밋 `aa46d80`
+- [x] 각 모듈 완료마다 `./gradlew build` green + 커밋 — Phase 2 전 모듈(`notification`/`student·tenant·user·bus·route`/`rideevent·sos·location`/`auth`)에서 매번 확인 완료
 
 **Phase 3 · location 실시간 push (플래그십)**
 - [ ] `LocationServiceImpl.ingest()`에서 저장 후 `LocationUpdatedEvent` 발행(AFTER_COMMIT→Kafka)
