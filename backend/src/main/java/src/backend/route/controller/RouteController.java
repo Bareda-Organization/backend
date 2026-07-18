@@ -19,7 +19,8 @@ import src.backend.route.dto.CreateRouteRequest;
 import src.backend.route.dto.CreateStopRequest;
 import src.backend.route.dto.RouteResponse;
 import src.backend.route.dto.StopResponse;
-import src.backend.route.service.spec.RouteService;
+import src.backend.route.command.RouteCommandService;
+import src.backend.route.query.RouteQueryService;
 
 /**
  * 노선·정류장 API.
@@ -29,10 +30,12 @@ import src.backend.route.service.spec.RouteService;
 @RequestMapping("/api/routes")
 public class RouteController {
 
-    private final RouteService routeService;
+    private final RouteCommandService routeCommandService;
+    private final RouteQueryService routeQueryService;
 
-    public RouteController(RouteService routeService) {
-        this.routeService = routeService;
+    public RouteController(RouteCommandService routeCommandService, RouteQueryService routeQueryService) {
+        this.routeCommandService = routeCommandService;
+        this.routeQueryService = routeQueryService;
     }
 
     /** 노선 목록(정원 초과 경고 포함) — 관리자. */
@@ -40,13 +43,13 @@ public class RouteController {
     @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
     public ApiResponse<List<RouteResponse>> list(@AuthenticationPrincipal AuthUser admin,
                                                  @RequestParam(required = false) Long tenantId) {
-        return ApiResponse.ok(routeService.listRoutes(admin, tenantId));
+        return ApiResponse.ok(routeQueryService.listRoutes(admin, tenantId));
     }
 
     /** 노선의 정류장 목록(seq 순) — 인증된 사용자. */
     @GetMapping("/{id}/stops")
     public ApiResponse<List<StopResponse>> stops(@PathVariable Long id) {
-        return ApiResponse.ok(routeService.getStops(id));
+        return ApiResponse.ok(routeQueryService.getStops(id));
     }
 
     /** 노선 생성 — 관리자. */
@@ -54,7 +57,7 @@ public class RouteController {
     @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
     public ApiResponse<RouteResponse> create(@AuthenticationPrincipal AuthUser admin,
                                              @Valid @RequestBody CreateRouteRequest request) {
-        return ApiResponse.ok(routeService.createRoute(admin, request));
+        return ApiResponse.ok(routeCommandService.createRoute(admin, request));
     }
 
     /** 정류장 추가 — 관리자. */
@@ -63,6 +66,6 @@ public class RouteController {
     public ApiResponse<StopResponse> addStop(@AuthenticationPrincipal AuthUser admin,
                                              @PathVariable Long id,
                                              @Valid @RequestBody CreateStopRequest request) {
-        return ApiResponse.ok(routeService.addStop(admin, id, request));
+        return ApiResponse.ok(routeCommandService.addStop(admin, id, request));
     }
 }

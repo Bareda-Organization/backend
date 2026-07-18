@@ -1,8 +1,4 @@
-package src.backend.student.service.impl;
-
-import src.backend.student.service.spec.StudentService;
-
-import java.util.List;
+package src.backend.student.command;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,11 +26,11 @@ import src.backend.user.entity.User;
 import src.backend.user.repository.spec.UserRepository;
 
 /**
- * {@link StudentService} 기본 구현 — 학생 등록(배정·보호자 포함)/목록/상세/재배정/보호자추가.
+ * 학생 등록(배정·보호자 포함)/재배정/보호자추가 — 단순 CRUD라 인터페이스 없이 concrete 클래스로 둔다.
  * 학원 격리는 TenantGuard 로, 배정 대상(버스·정류장)의 소속 학원 일치는 헬퍼로 검증한다.
  */
 @Service
-public class StudentServiceImpl implements StudentService {
+public class StudentCommandService {
 
     private final StudentRepository studentRepository;
     private final StudentGuardianRepository studentGuardianRepository;
@@ -43,12 +39,12 @@ public class StudentServiceImpl implements StudentService {
     private final StopRepository stopRepository;
     private final UserRepository userRepository;
 
-    public StudentServiceImpl(StudentRepository studentRepository,
-                              StudentGuardianRepository studentGuardianRepository,
-                              TenantRepository tenantRepository,
-                              BusRepository busRepository,
-                              StopRepository stopRepository,
-                              UserRepository userRepository) {
+    public StudentCommandService(StudentRepository studentRepository,
+                                 StudentGuardianRepository studentGuardianRepository,
+                                 TenantRepository tenantRepository,
+                                 BusRepository busRepository,
+                                 StopRepository stopRepository,
+                                 UserRepository userRepository) {
         this.studentRepository = studentRepository;
         this.studentGuardianRepository = studentGuardianRepository;
         this.tenantRepository = tenantRepository;
@@ -57,7 +53,6 @@ public class StudentServiceImpl implements StudentService {
         this.userRepository = userRepository;
     }
 
-    @Override
     @Transactional
     public StudentDetailResponse create(AuthUser admin, CreateStudentRequest req) {
         Long effectiveTenant = TenantGuard.resolveTenantId(admin, req.tenantId());
@@ -87,22 +82,6 @@ public class StudentServiceImpl implements StudentService {
         return StudentDetailResponse.of(student, studentGuardianRepository.findByStudentId(student.getId()));
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public List<StudentResponse> list(AuthUser admin, Long tenantId) {
-        Long effectiveTenant = TenantGuard.resolveTenantId(admin, tenantId);
-        return studentRepository.findByTenantId(effectiveTenant).stream()
-                .map(StudentResponse::of).toList();
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public StudentDetailResponse get(AuthUser admin, Long studentId) {
-        Student student = loadAccessibleStudent(admin, studentId);
-        return StudentDetailResponse.of(student, studentGuardianRepository.findByStudentId(student.getId()));
-    }
-
-    @Override
     @Transactional
     public StudentResponse updateAssignment(AuthUser admin, Long studentId, UpdateStudentAssignmentRequest req) {
         Student student = loadAccessibleStudent(admin, studentId);
@@ -116,7 +95,6 @@ public class StudentServiceImpl implements StudentService {
         return StudentResponse.of(student);
     }
 
-    @Override
     @Transactional
     public StudentDetailResponse addGuardian(AuthUser admin, Long studentId, LinkGuardianRequest req) {
         Student student = loadAccessibleStudent(admin, studentId);
@@ -127,8 +105,6 @@ public class StudentServiceImpl implements StudentService {
                 .build());
         return StudentDetailResponse.of(student, studentGuardianRepository.findByStudentId(student.getId()));
     }
-
-    // ── 내부 헬퍼 ──
 
     private Student loadAccessibleStudent(AuthUser admin, Long studentId) {
         Student student = studentRepository.findById(studentId)

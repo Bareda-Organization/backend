@@ -18,7 +18,8 @@ import src.backend.bus.dto.AssignmentRequest;
 import src.backend.bus.dto.BusDetailResponse;
 import src.backend.bus.dto.BusResponse;
 import src.backend.bus.dto.CreateBusRequest;
-import src.backend.bus.service.spec.BusService;
+import src.backend.bus.command.BusCommandService;
+import src.backend.bus.query.BusQueryService;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 
@@ -30,31 +31,33 @@ import src.backend.global.security.AuthUser;
 @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
 public class BusController {
 
-    private final BusService busService;
+    private final BusCommandService busCommandService;
+    private final BusQueryService busQueryService;
 
-    public BusController(BusService busService) {
-        this.busService = busService;
+    public BusController(BusCommandService busCommandService, BusQueryService busQueryService) {
+        this.busCommandService = busCommandService;
+        this.busQueryService = busQueryService;
     }
 
     /** 학원 버스 목록(정원 초과 경고 플래그 포함). */
     @GetMapping
     public ApiResponse<List<BusResponse>> list(@AuthenticationPrincipal AuthUser admin,
                                                @RequestParam(required = false) Long tenantId) {
-        return ApiResponse.ok(busService.listBuses(admin, tenantId));
+        return ApiResponse.ok(busQueryService.listBuses(admin, tenantId));
     }
 
     /** 버스 상세 — 노선·기사·탑승/정원·명단. */
     @GetMapping("/{id}")
     public ApiResponse<BusDetailResponse> detail(@AuthenticationPrincipal AuthUser admin,
                                                  @PathVariable Long id) {
-        return ApiResponse.ok(busService.getBus(admin, id));
+        return ApiResponse.ok(busQueryService.getBus(admin, id));
     }
 
     /** 버스 생성. */
     @PostMapping
     public ApiResponse<BusResponse> create(@AuthenticationPrincipal AuthUser admin,
                                            @Valid @RequestBody CreateBusRequest request) {
-        return ApiResponse.ok(busService.createBus(admin, request));
+        return ApiResponse.ok(busCommandService.createBus(admin, request));
     }
 
     /** 배차 변경 — 담당 기사·운행 노선 배정. */
@@ -62,6 +65,6 @@ public class BusController {
     public ApiResponse<BusResponse> assign(@AuthenticationPrincipal AuthUser admin,
                                            @PathVariable Long id,
                                            @Valid @RequestBody AssignmentRequest request) {
-        return ApiResponse.ok(busService.assign(admin, id, request));
+        return ApiResponse.ok(busCommandService.assign(admin, id, request));
     }
 }

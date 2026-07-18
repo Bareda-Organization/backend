@@ -16,7 +16,8 @@ import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.tenant.dto.CreateTenantRequest;
 import src.backend.tenant.dto.TenantResponse;
-import src.backend.tenant.service.spec.TenantService;
+import src.backend.tenant.command.TenantCommandService;
+import src.backend.tenant.query.TenantQueryService;
 
 /**
  * 학원(테넌트) 관리 API. 생성·전체목록은 플랫폼 관리자 전용, 상세는 소속 학원 관리자도 가능.
@@ -25,24 +26,26 @@ import src.backend.tenant.service.spec.TenantService;
 @RequestMapping("/api/tenants")
 public class TenantController {
 
-    private final TenantService tenantService;
+    private final TenantCommandService tenantCommandService;
+    private final TenantQueryService tenantQueryService;
 
-    public TenantController(TenantService tenantService) {
-        this.tenantService = tenantService;
+    public TenantController(TenantCommandService tenantCommandService, TenantQueryService tenantQueryService) {
+        this.tenantCommandService = tenantCommandService;
+        this.tenantQueryService = tenantQueryService;
     }
 
     /** 학원 생성 — 플랫폼 관리자. */
     @PostMapping
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public ApiResponse<TenantResponse> create(@Valid @RequestBody CreateTenantRequest request) {
-        return ApiResponse.ok(tenantService.create(request));
+        return ApiResponse.ok(tenantCommandService.create(request));
     }
 
     /** 전체 학원 목록 — 플랫폼 관리자. */
     @GetMapping
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public ApiResponse<List<TenantResponse>> list() {
-        return ApiResponse.ok(tenantService.list());
+        return ApiResponse.ok(tenantQueryService.list());
     }
 
     /** 학원 상세 — 플랫폼 관리자 또는 소속 학원 관리자. */
@@ -50,6 +53,6 @@ public class TenantController {
     @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
     public ApiResponse<TenantResponse> detail(@AuthenticationPrincipal AuthUser admin,
                                               @PathVariable Long id) {
-        return ApiResponse.ok(tenantService.get(admin, id));
+        return ApiResponse.ok(tenantQueryService.get(admin, id));
     }
 }

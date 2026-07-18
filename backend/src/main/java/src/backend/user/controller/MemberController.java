@@ -17,7 +17,8 @@ import src.backend.global.security.AuthUser;
 import src.backend.user.dto.CreateMemberRequest;
 import src.backend.user.dto.MemberResponse;
 import src.backend.user.entity.Role;
-import src.backend.user.service.spec.MemberService;
+import src.backend.user.command.MemberCommandService;
+import src.backend.user.query.MemberQueryService;
 
 /**
  * 구성원(기사·학부모·학생·학원관리자) 관리 API — 관리자가 계정+멤버십을 등록한다.
@@ -28,17 +29,19 @@ import src.backend.user.service.spec.MemberService;
 @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
 public class MemberController {
 
-    private final MemberService memberService;
+    private final MemberCommandService memberCommandService;
+    private final MemberQueryService memberQueryService;
 
-    public MemberController(MemberService memberService) {
-        this.memberService = memberService;
+    public MemberController(MemberCommandService memberCommandService, MemberQueryService memberQueryService) {
+        this.memberCommandService = memberCommandService;
+        this.memberQueryService = memberQueryService;
     }
 
     /** 구성원 등록 — 계정 생성 + 학원·역할 부여. */
     @PostMapping
     public ApiResponse<MemberResponse> register(@AuthenticationPrincipal AuthUser admin,
                                                 @Valid @RequestBody CreateMemberRequest request) {
-        return ApiResponse.ok(memberService.register(admin, request));
+        return ApiResponse.ok(memberCommandService.register(admin, request));
     }
 
     /** 학원 구성원 목록 — role 지정 시 해당 역할만. */
@@ -46,6 +49,6 @@ public class MemberController {
     public ApiResponse<List<MemberResponse>> list(@AuthenticationPrincipal AuthUser admin,
                                                   @RequestParam(required = false) Long tenantId,
                                                   @RequestParam(required = false) Role role) {
-        return ApiResponse.ok(memberService.list(admin, tenantId, role));
+        return ApiResponse.ok(memberQueryService.list(admin, tenantId, role));
     }
 }

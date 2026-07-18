@@ -19,7 +19,8 @@ import src.backend.global.security.JwtAuthenticationFilter;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.global.security.SecurityConfig;
 import src.backend.tenant.dto.TenantResponse;
-import src.backend.tenant.service.spec.TenantService;
+import src.backend.tenant.command.TenantCommandService;
+import src.backend.tenant.query.TenantQueryService;
 
 /**
  * 학원 생성 컨트롤러의 역할 인가 슬라이스 테스트.
@@ -35,11 +36,14 @@ class TenantControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private TenantService tenantService;
+    private TenantCommandService tenantCommandService;
+
+    @MockitoBean
+    private TenantQueryService tenantQueryService;
 
     @Test
     void create_as_platform_admin_is_allowed() throws Exception {
-        given(tenantService.create(any())).willReturn(new TenantResponse(1L, "한빛학원"));
+        given(tenantCommandService.create(any())).willReturn(new TenantResponse(1L, "한빛학원"));
 
         mockMvc.perform(post("/api/tenants").with(user("p").roles("PLATFORM_ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON)

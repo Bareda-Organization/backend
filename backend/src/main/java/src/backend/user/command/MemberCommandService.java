@@ -1,8 +1,4 @@
-package src.backend.user.service.impl;
-
-import src.backend.user.service.spec.MemberService;
-
-import java.util.List;
+package src.backend.user.command;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -23,29 +19,27 @@ import src.backend.user.repository.spec.UserRepository;
 import src.backend.user.repository.spec.UserTenantRoleRepository;
 
 /**
- * {@link MemberService} 기본 구현 — 관리자에 의한 구성원 계정+멤버십 생성/목록.
- * 학원 격리는 TenantGuard 로 검사한다(학원 관리자는 자기 학원만, 플랫폼 관리자는 지정 학원).
- * 계정 생성 로직은 AuthServiceImpl.signup 과 동일하되, 관리자 인증·테넌트 격리가 앞단에 붙는다.
+ * 구성원(계정+학원 멤버십) 등록 — 단순 CRUD라 인터페이스 없이 concrete 클래스로 둔다.
+ * self-service 가입(AuthService.signup)과 달리, 관리자가 자기 학원 구성원을 프로비저닝하는 경로다.
  */
 @Service
-public class MemberServiceImpl implements MemberService {
+public class MemberCommandService {
 
     private final UserRepository userRepository;
     private final UserTenantRoleRepository userTenantRoleRepository;
     private final TenantRepository tenantRepository;
     private final PasswordEncoder passwordEncoder;
 
-    public MemberServiceImpl(UserRepository userRepository,
-                             UserTenantRoleRepository userTenantRoleRepository,
-                             TenantRepository tenantRepository,
-                             PasswordEncoder passwordEncoder) {
+    public MemberCommandService(UserRepository userRepository,
+                                UserTenantRoleRepository userTenantRoleRepository,
+                                TenantRepository tenantRepository,
+                                PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.userTenantRoleRepository = userTenantRoleRepository;
         this.tenantRepository = tenantRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
-    @Override
     @Transactional
     public MemberResponse register(AuthUser admin, CreateMemberRequest req) {
         if (req.role() == Role.PLATFORM_ADMIN) {
@@ -66,15 +60,5 @@ public class MemberServiceImpl implements MemberService {
         UserTenantRole membership = userTenantRoleRepository.save(UserTenantRole.builder()
                 .user(user).tenant(tenant).role(req.role()).build());
         return MemberResponse.of(membership);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<MemberResponse> list(AuthUser admin, Long tenantId, Role role) {
-        Long effectiveTenant = TenantGuard.resolveTenantId(admin, tenantId);
-        List<UserTenantRole> memberships = (role == null)
-                ? userTenantRoleRepository.findByTenantId(effectiveTenant)
-                : userTenantRoleRepository.findByTenantIdAndRole(effectiveTenant, role);
-        return memberships.stream().map(MemberResponse::of).toList();
     }
 }

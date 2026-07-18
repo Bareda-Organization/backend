@@ -20,7 +20,8 @@ import src.backend.global.security.JwtTokenProvider;
 import src.backend.global.security.SecurityConfig;
 import src.backend.user.dto.MemberResponse;
 import src.backend.user.entity.Role;
-import src.backend.user.service.spec.MemberService;
+import src.backend.user.command.MemberCommandService;
+import src.backend.user.query.MemberQueryService;
 
 /**
  * 구성원 등록 컨트롤러의 역할 인가 슬라이스 테스트.
@@ -37,11 +38,14 @@ class MemberControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private MemberService memberService;
+    private MemberCommandService memberCommandService;
+
+    @MockitoBean
+    private MemberQueryService memberQueryService;
 
     @Test
     void register_as_academy_admin_is_allowed() throws Exception {
-        given(memberService.register(any(), any()))
+        given(memberCommandService.register(any(), any()))
                 .willReturn(new MemberResponse(1L, "driver2@school.com", "박기사", Role.DRIVER, 1L));
 
         mockMvc.perform(post("/api/members").with(user("a").roles("ACADEMY_ADMIN"))

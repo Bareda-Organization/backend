@@ -1,14 +1,9 @@
-package src.backend.bus.service.impl;
-
-import src.backend.bus.service.spec.BusService;
-
-import java.util.List;
+package src.backend.bus.command;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import src.backend.bus.dto.AssignmentRequest;
-import src.backend.bus.dto.BusDetailResponse;
 import src.backend.bus.dto.BusResponse;
 import src.backend.bus.dto.CreateBusRequest;
 import src.backend.bus.entity.Bus;
@@ -19,19 +14,15 @@ import src.backend.global.security.AuthUser;
 import src.backend.global.tenant.TenantGuard;
 import src.backend.route.entity.Route;
 import src.backend.route.repository.spec.RouteRepository;
-import src.backend.student.entity.Student;
 import src.backend.student.repository.spec.StudentRepository;
 import src.backend.tenant.entity.Tenant;
 import src.backend.tenant.repository.spec.TenantRepository;
 import src.backend.user.entity.User;
 import src.backend.user.repository.spec.UserRepository;
 
-/**
- * {@link BusService} 기본 구현 — 목록/상세/생성/배차.
- * 학원 격리는 TenantGuard 로 검사한다(학원 관리자는 자기 학원만, 플랫폼 관리자는 지정 학원).
- */
+/** 버스 생성/배차 — 단순 CRUD라 인터페이스 없이 concrete 클래스로 둔다. 학원 격리는 TenantGuard 로 검사한다. */
 @Service
-public class BusServiceImpl implements BusService {
+public class BusCommandService {
 
     private final BusRepository busRepository;
     private final StudentRepository studentRepository;
@@ -39,11 +30,11 @@ public class BusServiceImpl implements BusService {
     private final TenantRepository tenantRepository;
     private final UserRepository userRepository;
 
-    public BusServiceImpl(BusRepository busRepository,
-                          StudentRepository studentRepository,
-                          RouteRepository routeRepository,
-                          TenantRepository tenantRepository,
-                          UserRepository userRepository) {
+    public BusCommandService(BusRepository busRepository,
+                             StudentRepository studentRepository,
+                             RouteRepository routeRepository,
+                             TenantRepository tenantRepository,
+                             UserRepository userRepository) {
         this.busRepository = busRepository;
         this.studentRepository = studentRepository;
         this.routeRepository = routeRepository;
@@ -51,27 +42,6 @@ public class BusServiceImpl implements BusService {
         this.userRepository = userRepository;
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public List<BusResponse> listBuses(AuthUser admin, Long tenantId) {
-        Long effectiveTenant = TenantGuard.resolveTenantId(admin, tenantId);
-        return busRepository.findByTenantId(effectiveTenant).stream()
-                .map(bus -> BusResponse.of(bus, onboardCount(bus.getId())))
-                .toList();
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public BusDetailResponse getBus(AuthUser admin, Long busId) {
-        Bus bus = loadAccessibleBus(admin, busId);
-        List<Student> roster = studentRepository.findByAssignedBusId(bus.getId());
-        List<BusDetailResponse.RosterEntry> entries = roster.stream()
-                .map(s -> new BusDetailResponse.RosterEntry(s.getId(), s.getName()))
-                .toList();
-        return new BusDetailResponse(BusResponse.of(bus, roster.size()), entries);
-    }
-
-    @Override
     @Transactional
     public BusResponse createBus(AuthUser admin, CreateBusRequest req) {
         Long effectiveTenant = TenantGuard.resolveTenantId(admin, req.tenantId());
@@ -93,7 +63,6 @@ public class BusServiceImpl implements BusService {
         return BusResponse.of(saved, onboardCount(saved.getId()));
     }
 
-    @Override
     @Transactional
     public BusResponse assign(AuthUser admin, Long busId, AssignmentRequest req) {
         Bus bus = loadAccessibleBus(admin, busId);
@@ -105,8 +74,6 @@ public class BusServiceImpl implements BusService {
         }
         return BusResponse.of(bus, onboardCount(bus.getId()));
     }
-
-    // ── 내부 헬퍼 ──
 
     private int onboardCount(Long busId) {
         return studentRepository.findByAssignedBusId(busId).size();
