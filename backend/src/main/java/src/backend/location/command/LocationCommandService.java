@@ -15,6 +15,7 @@ import src.backend.global.security.AuthUser;
 import src.backend.location.dto.LocationOrigin;
 import src.backend.location.dto.LocationPing;
 import src.backend.location.dto.LocationReportRequest;
+import src.backend.location.event.LocationUpdatedEvent;
 import src.backend.location.event.StudentConnectionLostEvent;
 import src.backend.location.repository.spec.LocationRepository;
 import src.backend.location.websocket.LocationSessionRegistry;
@@ -24,8 +25,8 @@ import src.backend.student.repository.spec.StudentRepository;
 /**
  * 실시간 위치 입력(보고/주입) + 연결 끊김 판정 — 단순 CRUD라 인터페이스 없이 concrete 클래스로 둔다(§11.3).
  * 끊김 확정 시 직접 알림 호출 대신 {@link StudentConnectionLostEvent}를 발행해(AFTER_COMMIT → Kafka)
- * 알림 모듈과의 직접 결합을 없앤다. {@code ingest()} 로 좌표를 저장하는 경로 자체는 Phase 3(실시간 push)
- * 범위라 이 단계에서는 이벤트를 발행하지 않는다.
+ * 알림 모듈과의 직접 결합을 없앤다. {@code ingest()} 도 저장 직후 {@link LocationUpdatedEvent}를 발행해
+ * Phase 3 실시간 push(location.projection.LocationPushConsumer)를 깨운다.
  */
 @Service
 public class LocationCommandService {
@@ -56,8 +57,11 @@ public class LocationCommandService {
         ingest(me.getTenant().getId(), me.getId(), req.lat(), req.lng(), LocationOrigin.GPS);
     }
 
+    @Transactional
     public void ingest(Long tenantId, Long studentId, double lat, double lng, LocationOrigin origin) {
-        locationRepository.save(new LocationPing(studentId, tenantId, lat, lng, LocalDateTime.now(), origin));
+        LocalDateTime recordedAt = LocalDateTime.now();
+        locationRepository.save(new LocationPing(studentId, tenantId, lat, lng, recordedAt, origin));
+        eventPublisher.publishEvent(LocationUpdatedEvent.of(tenantId, studentId, lat, lng, origin, recordedAt));
     }
 
     @Transactional
