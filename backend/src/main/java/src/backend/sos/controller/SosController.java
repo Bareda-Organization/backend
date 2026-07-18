@@ -16,9 +16,10 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
+import src.backend.sos.command.SosCommandService;
 import src.backend.sos.dto.SosEventResponse;
 import src.backend.sos.dto.SosTriggerRequest;
-import src.backend.sos.service.spec.SosService;
+import src.backend.sos.query.SosQueryService;
 
 /**
  * SOS API. 발신은 학생만, 확인·종료는 관리자만 — 조회는 4계층이 각자 범위에서.
@@ -27,10 +28,12 @@ import src.backend.sos.service.spec.SosService;
 @RequestMapping("/api/sos-events")
 public class SosController {
 
-    private final SosService sosService;
+    private final SosCommandService sosCommandService;
+    private final SosQueryService sosQueryService;
 
-    public SosController(SosService sosService) {
-        this.sosService = sosService;
+    public SosController(SosCommandService sosCommandService, SosQueryService sosQueryService) {
+        this.sosCommandService = sosCommandService;
+        this.sosQueryService = sosQueryService;
     }
 
     /** 학생: SOS 발신. */
@@ -38,7 +41,7 @@ public class SosController {
     @PreAuthorize("hasRole('STUDENT')")
     public ApiResponse<SosEventResponse> trigger(@AuthenticationPrincipal AuthUser student,
                                                  @Valid @RequestBody SosTriggerRequest request) {
-        return ApiResponse.ok(sosService.trigger(student, request));
+        return ApiResponse.ok(sosCommandService.trigger(student, request));
     }
 
     /** 관리자: 확인(OPEN → ACKNOWLEDGED). */
@@ -46,7 +49,7 @@ public class SosController {
     @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
     public ApiResponse<SosEventResponse> acknowledge(@AuthenticationPrincipal AuthUser admin,
                                                       @PathVariable Long id) {
-        return ApiResponse.ok(sosService.acknowledge(admin, id));
+        return ApiResponse.ok(sosCommandService.acknowledge(admin, id));
     }
 
     /** 관리자: 종료(ACKNOWLEDGED → RESOLVED). */
@@ -54,21 +57,21 @@ public class SosController {
     @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
     public ApiResponse<SosEventResponse> resolve(@AuthenticationPrincipal AuthUser admin,
                                                  @PathVariable Long id) {
-        return ApiResponse.ok(sosService.resolve(admin, id));
+        return ApiResponse.ok(sosCommandService.resolve(admin, id));
     }
 
     /** 학생: 본인 SOS 이력. */
     @GetMapping("/me")
     @PreAuthorize("hasRole('STUDENT')")
     public ApiResponse<List<SosEventResponse>> myEvents(@AuthenticationPrincipal AuthUser student) {
-        return ApiResponse.ok(sosService.getMyEvents(student));
+        return ApiResponse.ok(sosQueryService.getMyEvents(student));
     }
 
     /** 학부모: 자녀 SOS 이력. */
     @GetMapping("/children")
     @PreAuthorize("hasRole('PARENT')")
     public ApiResponse<List<SosEventResponse>> childrenEvents(@AuthenticationPrincipal AuthUser parent) {
-        return ApiResponse.ok(sosService.getChildrenEvents(parent));
+        return ApiResponse.ok(sosQueryService.getChildrenEvents(parent));
     }
 
     /** 관리자: 학원 SOS 이력. */
@@ -76,6 +79,6 @@ public class SosController {
     @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
     public ApiResponse<List<SosEventResponse>> tenantEvents(@AuthenticationPrincipal AuthUser admin,
                                                             @RequestParam(required = false) Long tenantId) {
-        return ApiResponse.ok(sosService.getTenantEvents(admin, tenantId));
+        return ApiResponse.ok(sosQueryService.getTenantEvents(admin, tenantId));
     }
 }

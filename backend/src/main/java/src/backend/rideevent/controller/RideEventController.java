@@ -17,10 +17,11 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
+import src.backend.rideevent.command.RideEventCommandService;
 import src.backend.rideevent.dto.CorrectionRequest;
 import src.backend.rideevent.dto.RecordRideRequest;
 import src.backend.rideevent.dto.RideEventResponse;
-import src.backend.rideevent.service.spec.RideEventService;
+import src.backend.rideevent.query.RideEventQueryService;
 
 /**
  * 승하차 기록 API. 같은 기록을 역할별로 다른 범위에서 조회하도록 엔드포인트를 분리하고,
@@ -30,10 +31,13 @@ import src.backend.rideevent.service.spec.RideEventService;
 @RequestMapping("/api/ride-events")
 public class RideEventController {
 
-    private final RideEventService rideEventService;
+    private final RideEventCommandService rideEventCommandService;
+    private final RideEventQueryService rideEventQueryService;
 
-    public RideEventController(RideEventService rideEventService) {
-        this.rideEventService = rideEventService;
+    public RideEventController(RideEventCommandService rideEventCommandService,
+                               RideEventQueryService rideEventQueryService) {
+        this.rideEventCommandService = rideEventCommandService;
+        this.rideEventQueryService = rideEventQueryService;
     }
 
     /** 기사: 승/하차 기록. */
@@ -41,7 +45,7 @@ public class RideEventController {
     @PreAuthorize("hasRole('DRIVER')")
     public ApiResponse<RideEventResponse> record(@AuthenticationPrincipal AuthUser driver,
                                                  @Valid @RequestBody RecordRideRequest request) {
-        return ApiResponse.ok(rideEventService.record(driver, request));
+        return ApiResponse.ok(rideEventCommandService.record(driver, request));
     }
 
     /** 기사·관리자: 기록 정정(원본 보존, 정정 기록 신규 생성). */
@@ -50,7 +54,7 @@ public class RideEventController {
     public ApiResponse<RideEventResponse> correct(@AuthenticationPrincipal AuthUser actor,
                                                   @PathVariable Long id,
                                                   @Valid @RequestBody CorrectionRequest request) {
-        return ApiResponse.ok(rideEventService.correct(actor, id, request));
+        return ApiResponse.ok(rideEventCommandService.correct(actor, id, request));
     }
 
     /** 학생: 본인 하루치 기록. */
@@ -59,7 +63,7 @@ public class RideEventController {
     public ApiResponse<List<RideEventResponse>> myRecords(
             @AuthenticationPrincipal AuthUser student,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return ApiResponse.ok(rideEventService.getMyRecords(student, date));
+        return ApiResponse.ok(rideEventQueryService.getMyRecords(student, date));
     }
 
     /** 학부모: 자녀(형제자매 포함) 하루치 기록. */
@@ -68,7 +72,7 @@ public class RideEventController {
     public ApiResponse<List<RideEventResponse>> childrenRecords(
             @AuthenticationPrincipal AuthUser parent,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return ApiResponse.ok(rideEventService.getChildrenRecords(parent, date));
+        return ApiResponse.ok(rideEventQueryService.getChildrenRecords(parent, date));
     }
 
     /** 기사: 담당 버스 하루치 기록(명단 이력). */
@@ -78,7 +82,7 @@ public class RideEventController {
             @AuthenticationPrincipal AuthUser driver,
             @PathVariable Long busId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return ApiResponse.ok(rideEventService.getRosterRecords(driver, busId, date));
+        return ApiResponse.ok(rideEventQueryService.getRosterRecords(driver, busId, date));
     }
 
     /** 관리자: 학원 기간 기록(정정 이력 포함). */
@@ -92,6 +96,6 @@ public class RideEventController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
         LocalDate start = from != null ? from : LocalDate.now();
         LocalDate end = to != null ? to : LocalDate.now();
-        return ApiResponse.ok(rideEventService.getTenantRecords(admin, tenantId, studentId, start, end));
+        return ApiResponse.ok(rideEventQueryService.getTenantRecords(admin, tenantId, studentId, start, end));
     }
 }

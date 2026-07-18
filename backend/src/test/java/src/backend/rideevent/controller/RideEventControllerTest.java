@@ -20,10 +20,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import src.backend.global.security.JwtAuthenticationFilter;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.global.security.SecurityConfig;
+import src.backend.rideevent.command.RideEventCommandService;
 import src.backend.rideevent.dto.RideEventResponse;
 import src.backend.rideevent.entity.RideSource;
 import src.backend.rideevent.entity.RideType;
-import src.backend.rideevent.service.spec.RideEventService;
+import src.backend.rideevent.query.RideEventQueryService;
 
 /**
  * 승하차 기록 컨트롤러의 역할 인가 슬라이스 테스트.
@@ -39,7 +40,10 @@ class RideEventControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private RideEventService rideEventService;
+    private RideEventCommandService rideEventCommandService;
+
+    @MockitoBean
+    private RideEventQueryService rideEventQueryService;
 
     @Test
     void post_without_auth_returns_401() throws Exception {
@@ -59,7 +63,7 @@ class RideEventControllerTest {
 
     @Test
     void post_as_driver_is_allowed() throws Exception {
-        given(rideEventService.record(any(), any())).willReturn(sampleResponse());
+        given(rideEventCommandService.record(any(), any())).willReturn(sampleResponse());
 
         mockMvc.perform(post("/api/ride-events").with(user("d").roles("DRIVER"))
                         .contentType(MediaType.APPLICATION_JSON)

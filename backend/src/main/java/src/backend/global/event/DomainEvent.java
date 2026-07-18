@@ -1,6 +1,8 @@
 package src.backend.global.event;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.UUID;
 
 /**
@@ -14,4 +16,9 @@ public interface DomainEvent {
     Instant occurredAt();
 
     Long tenantId();
+
+    /** dedupKey 조립용 — 알림 소비자가 "대상일자"로 쓰는 시스템 기본 시간대 기준 날짜. */
+    default LocalDate occurredDate() {
+        return occurredAt().atZone(ZoneId.systemDefault()).toLocalDate();
+    }
 }

@@ -15,9 +15,10 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
+import src.backend.location.command.LocationCommandService;
 import src.backend.location.dto.LocationReportRequest;
 import src.backend.location.dto.LocationView;
-import src.backend.location.service.spec.LocationService;
+import src.backend.location.query.LocationQueryService;
 
 /**
  * 실시간 위치 API. 학생 앱은 자기 좌표를 보고하고(POST), 나머지 계층은 각자 권한 범위에서 조회한다.
@@ -27,10 +28,13 @@ import src.backend.location.service.spec.LocationService;
 @RequestMapping("/api/locations")
 public class LocationController {
 
-    private final LocationService locationService;
+    private final LocationCommandService locationCommandService;
+    private final LocationQueryService locationQueryService;
 
-    public LocationController(LocationService locationService) {
-        this.locationService = locationService;
+    public LocationController(LocationCommandService locationCommandService,
+                              LocationQueryService locationQueryService) {
+        this.locationCommandService = locationCommandService;
+        this.locationQueryService = locationQueryService;
     }
 
     /** 학생: 자기 현재 위치 보고(실 GPS 전환 대비 엔드포인트, MVP 는 Mock 이 대체). */
@@ -38,7 +42,7 @@ public class LocationController {
     @PreAuthorize("hasRole('STUDENT')")
     public ApiResponse<Void> report(@AuthenticationPrincipal AuthUser student,
                                     @Valid @RequestBody LocationReportRequest request) {
-        locationService.reportSelf(student, request);
+        locationCommandService.reportSelf(student, request);
         return ApiResponse.ok(null);
     }
 
@@ -46,14 +50,14 @@ public class LocationController {
     @GetMapping("/me")
     @PreAuthorize("hasRole('STUDENT')")
     public ApiResponse<LocationView> myLocation(@AuthenticationPrincipal AuthUser student) {
-        return ApiResponse.ok(locationService.getMyLocation(student));
+        return ApiResponse.ok(locationQueryService.getMyLocation(student));
     }
 
     /** 학부모: 자녀(형제자매 포함) 최신 위치 목록. */
     @GetMapping("/children")
     @PreAuthorize("hasRole('PARENT')")
     public ApiResponse<List<LocationView>> childrenLocations(@AuthenticationPrincipal AuthUser parent) {
-        return ApiResponse.ok(locationService.getChildrenLocations(parent));
+        return ApiResponse.ok(locationQueryService.getChildrenLocations(parent));
     }
 
     /** 기사: 담당 버스 탑승 학생들의 최신 위치 목록. */
@@ -61,7 +65,7 @@ public class LocationController {
     @PreAuthorize("hasRole('DRIVER')")
     public ApiResponse<List<LocationView>> busLocations(@AuthenticationPrincipal AuthUser driver,
                                                         @PathVariable Long busId) {
-        return ApiResponse.ok(locationService.getBusLocations(driver, busId));
+        return ApiResponse.ok(locationQueryService.getBusLocations(driver, busId));
     }
 
     /** 관리자: 학원 학생들의 최신 위치 목록(관제). */
@@ -69,6 +73,6 @@ public class LocationController {
     @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
     public ApiResponse<List<LocationView>> tenantLocations(@AuthenticationPrincipal AuthUser admin,
                                                            @RequestParam(required = false) Long tenantId) {
-        return ApiResponse.ok(locationService.getTenantLocations(admin, tenantId));
+        return ApiResponse.ok(locationQueryService.getTenantLocations(admin, tenantId));
     }
 }

@@ -22,9 +22,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import src.backend.global.security.JwtAuthenticationFilter;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.global.security.SecurityConfig;
+import src.backend.location.command.LocationCommandService;
 import src.backend.location.dto.LocationOrigin;
 import src.backend.location.dto.LocationView;
-import src.backend.location.service.spec.LocationService;
+import src.backend.location.query.LocationQueryService;
 
 /**
  * 위치 컨트롤러의 역할 인가 슬라이스 테스트.
@@ -40,7 +41,10 @@ class LocationControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private LocationService locationService;
+    private LocationCommandService locationCommandService;
+
+    @MockitoBean
+    private LocationQueryService locationQueryService;
 
     @Test
     void report_without_auth_returns_401() throws Exception {
@@ -69,7 +73,7 @@ class LocationControllerTest {
 
     @Test
     void children_locations_as_parent_is_allowed() throws Exception {
-        given(locationService.getChildrenLocations(any())).willReturn(List.of(sampleView()));
+        given(locationQueryService.getChildrenLocations(any())).willReturn(List.of(sampleView()));
 
         mockMvc.perform(get("/api/locations/children").with(user("p").roles("PARENT")))
                 .andExpect(status().isOk())
