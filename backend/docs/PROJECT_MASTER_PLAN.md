@@ -270,7 +270,7 @@ public interface LocationSource {
 
 **Phase 2 · 기존 12개 모듈 CQRS+이벤트 재편** (순서: 잎 모듈 먼저)
 - [x] `notification` — CQRS(`command`/`query`) 분리 + `domain`/`infrastructure` 패키지 재편 완료(엔티티→`domain/`, `NotificationSender` 포트→`infrastructure/{spec,impl}/`, `NotificationService`→`NotificationCommandService`+`NotificationQueryService`). `@KafkaListener` consumer 전환은 아직 아님 — 발신 모듈(rideevent·sos·location) 재편 후 다음 체크리스트 항목에서 한 커밋으로 스위치, 그 전까지는 기존 직접 호출(`notificationCommandService.notify(...)`) 유지
-- [ ] `student` · `tenant` · `user` · `bus` · `route` — CQRS 분리 + 단순 CRUD 인터페이스 제거
+- [x] `student` · `tenant` · `user` · `bus` · `route` — CQRS(`command`/`query`) 분리 완료. reference.md §2 기준 단순 CRUD라 spec/impl 분리 없이 concrete 클래스로 전환(기존 5개 spec 인터페이스+impl 삭제), 각 컨트롤러는 Command+Query 두 서비스 주입으로 변경. `domain/` 패키지 리네임(엔티티→domain)은 이번 범위 밖(blast radius 큼, 별도 검토). 커밋 `dc057a7`
 - [ ] `rideevent` · `sos` · `location` — cross-module 발신자, 직접호출→이벤트 전환(발신·수신 양쪽 재편 후 한 커밋 스위치)
 - [ ] `auth` — CQRS 분리(필요 범위만)
 - [ ] 각 모듈 완료마다 `./gradlew build` green + 커밋
