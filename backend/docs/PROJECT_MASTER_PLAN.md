@@ -177,11 +177,31 @@ public interface LocationSource {
 
 **대표 흐름(하원):** ① 학생 앱 위치 전송(Mock) → ② 승차 체크 기록 → 학부모 푸시 → ③ 학부모 앱 지도 실시간 노출 → ④ 근접 5분 전 푸시 → ⑤ 하차 체크 → 기록 저장 → 학부모 푸시 → ⑥ 예정 +10분 미승차면 학부모+관리자 동시 알림.
 
-### 11.3 코드 컨벤션 (이번에 도입)
+### 11.3 코드 컨벤션 (Kafka+CQRS 전면 채택으로 갱신, 2026-07-18)
 
-- **service·repository는 `spec`(인터페이스) / `impl`(구현체) 하위 패키지로 분리.** 예: `bus/service/spec/BusService.java` + `bus/service/impl/BusServiceImpl.java`. 컨트롤러는 `spec`만 의존.
-- **`package-info.java`는 두지 않는다**(패키지 레벨 애너테이션이 필요할 때만 예외).
-- 컴포넌트 스캔은 `src.backend` 하위를 모두 훑으므로 하위 패키지로 나눠도 DI·JPA 탐색에 영향 없음.
+`backend/docs/reference.md`(Backend Architecture & Development Convention v1.0)를 전면 채택하기로 확정 — 기존 "service·repository 전부 spec/impl 분리" 규칙을 아래로 대체한다. **Claude 참조용 원본은 `reference.md`(Markdown, 삭제하지 않고 유지), 사람이 보는 렌더링 버전은 `CODE_CONVENTIONS.html`(HTML, 요청 시에만 갱신)** — 여기는 요약만.
+
+- **spec/impl은 "변경 가능성 있는 포트"만.** 외부 연동·전략 패턴·Mock 필요·MSA 분리 후보(`LocationSource`, `NotificationSender`, `EtaService`, `RouteEngine`, `LocationRepository` 등)만 인터페이스. **단순 CRUD 서비스(Bus/Tenant/Student/Member/Route/RideEvent/Sos)는 구현체 하나만** — 인터페이스 제거.
+- **CQRS**: `command/`(생성·수정·삭제, 이벤트 발행) / `query/`(조회 전용, command 호출 금지)로 분리. 둘 다 concrete, 컨트롤러가 둘 다 주입.
+- **이벤트 우선 통신**: 모듈 간 직접 호출 대신 과거형 이벤트(`RideCompletedEvent`, `StudentBoardedEvent`, `SosTriggeredEvent` 등) → **Kafka** 발행/구독. 즉시 응답 필요한 경우만 예외적으로 직접 호출.
+- **infrastructure/**: 외부 기술(Kafka·Redis·gRPC·S3 등) 어댑터는 여기에만. 비즈니스 계층은 구현 기술을 모른다.
+- `package-info.java`는 두지 않는다(패키지 레벨 애너테이션 필요 시만 예외). 표준 패키지 레이아웃·판단 기준 상세는 §11.4 및 `CODE_CONVENTIONS.html`.
+
+### 11.4 아키텍처 리팩터 로드맵 — Kafka + CQRS + 실시간 push (진행 중)
+
+> 배경: `reference.md`가 기존 코드/컨벤션과 3곳(단순 CRUD 인터페이스·패키지 구조·모듈 간 직접호출)에서 충돌해, **전면 채택 + 기존 12개 모듈 재편**을 결정. 다음 신규 기능(location 실시간 push)을 새 아키텍처의 첫 실적용 사례로 삼는다. 상세 체크리스트는 §12.3.
+>
+> ⚠️ **가드레일**: 한 번에 컴파일 안 되는 거대 변경 금지 — 모듈 단위로 재편하고 **각 Phase 경계에서 `./gradlew build`(테스트 포함) green + 커밋** 후 다음으로. cross-module 이벤트 전환(직접호출→Kafka)은 발신·수신 양쪽 모듈이 모두 재편된 뒤 **한 커밋에서만** 스위치(그 전까지 기존 직접 호출 유지 → 항상 빌드 가능).
+
+| Phase | 내용 | 상태 |
+|---|---|---|
+| 0. 컨벤션 단일화 | `reference.md`(Claude 참조용, 정리) + `CODE_CONVENTIONS.html`(사람용 렌더) 역할분리 확정, `CLAUDE.md`/이 문서 §11.3 갱신 | 🟡 진행중 |
+| 1. 공용 기반 | Kafka(KRaft)+Redis 인프라, `DomainEvent`/`DomainEventPublisher`(Port)+`KafkaEventPublisher`(impl), DB↔Kafka 이중쓰기 정합성(`ApplicationEventPublisher`→`@TransactionalEventListener(AFTER_COMMIT)`→Kafka) | ⬜ 예정 |
+| 2. 기존 12개 모듈 재편 | CQRS 분리 + 인터페이스 정리 + 직접호출→이벤트. 순서(잎 먼저): `notification` → `student·tenant·user·bus·route` → `rideevent·sos·location` → `auth` | ⬜ 예정 |
+| 3. location 실시간 push (플래그십) | `LocationUpdatedEvent`→Redis projection→WebSocket user destination push(`convertAndSendToUser`), SUBSCRIBE 인가(계층별 조회 권한을 push 구독에도 강제), 알림도 WebSocket으로 병행 push | ⬜ 예정 |
+
+- **왜 지금 Kafka인가**: 단일 모놀리식 앱에는 엄밀히 과설계지만, MSA 전환 대비(§17 reference.md)라는 목적 하에 사용자가 트레이드오프를 인지하고 선택.
+- **후속(이번 범위 밖)**: `attendance`·`schedule`·`routing` 상세 구현 계획은 이 리팩터와 독립 — §12.2 백로그에 유지, 이번 Phase 0-3 완료 후 재검토.
 
 ---
 
@@ -220,9 +240,46 @@ public interface LocationSource {
 - [x] ~~기본정보 등록 API~~ — user·tenant·student 서비스·컨트롤러(+멀티테넌시 격리) 완료.
 - [x] ~~notification 모듈~~ — NotificationLog + dedup_key 멱등 + 발송 추상화 + 임계값 상수화 완료. BOARD_DONE/ALIGHT_DONE 트리거 연동. NO_SHOW/APPROACH/SCHEDULE_RESULT 트리거는 각 모듈(routing·schedule) 구현 시 연결.
 - [x] ~~sos 모듈~~ — SosEvent(OPEN→ACKNOWLEDGED→RESOLVED) + 3분 에스컬레이션 완료. 발신/에스컬레이션 모두 notification dedup 재사용으로 중복 방지 검증됨.
-- [ ] **실시간 채널** — WebSocket 또는 Redis Pub/Sub로 위치·알림 push(현재 위치는 조회 방식).
-- [ ] **schedule 모듈** — ScheduleChangeRequest 승인 워크플로(대기/승인/반려 → 명단 자동 갱신).
-- [ ] **attendance 서비스·컨트롤러** — 결석·휴원 승인 시 해당 날짜 명단에서 학생 스킵.
-- [ ] **routing 클라이언트** — OSRM(MVP) → 네이버 Directions, ETA 계산 · 근접 5분 알림 연동.
+- [ ] **실시간 채널(WebSocket push)** — §11.4 Phase 3로 확정·상세화됨. 진행 체크리스트는 §12.3 참조.
+- [ ] **schedule 모듈** — ScheduleChangeRequest 승인 워크플로(대기/승인/반려 → 명단 자동 갱신). Phase 0-3(§11.4) 완료 후 착수.
+- [ ] **attendance 서비스·컨트롤러** — 결석·휴원 승인 시 해당 날짜 명단에서 학생 스킵. Phase 0-3(§11.4) 완료 후 착수.
+- [ ] **routing 클라이언트** — OSRM(MVP) → 네이버 Directions, ETA 계산 · 근접 5분 알림 연동. Phase 0-3(§11.4) 완료 후 착수.
 - [ ] **기사 운행관리** — 운행 세션/일일 로그(운행 전 체크리스트는 정식 출시 때 복원).
 - [ ] **Mock → 실 GPS 전환** — 플래그 토글 + 8장 법적 선행요건(동의 UI·스키마) 충족.
+
+### 12.3 아키텍처 리팩터 체크리스트 — Kafka + CQRS + 실시간 push (§11.4 상세)
+
+> 목표 패키지 레이아웃(모듈당): `controller/ command/ query/ domain/ event/ projection/ repository/ dto/ infrastructure/`. 각 Phase 경계에서 `./gradlew build` green 확인 후 커밋.
+
+**Phase 0 · 컨벤션 단일화**
+- [x] git init + baseline commit
+- [x] `reference.md`는 삭제하지 않고 읽기 쉽게 정리해 Claude 참조용 컨벤션 소스로 유지 (2026-07-18 결정 — HTML 재로딩 토큰비용 문제로 삭제 계획 철회)
+- [x] `CODE_CONVENTIONS.html`의 "reference.md는 삭제되었다" 콜아웃(91번째 줄) 정정 완료 (사용자 명시 요청으로 진행, 2026-07-18)
+- [x] `CLAUDE.md` 컨벤션 문구 갱신 (reference.md를 컨벤션 우선 참조 문서로 지정, HTML 수정은 요청 시에만)
+- [x] `PROJECT_MASTER_PLAN.md` §11.3/§11.4 갱신 (이 항목)
+- [ ] Phase 0 변경사항 커밋
+
+**Phase 1 · 공용 기반 (Kafka + Redis + 이벤트 백본)**
+- [ ] `backend/build.gradle`에 `spring-kafka` 추가
+- [ ] docker-compose에 Kafka(KRaft 모드, Zookeeper 불필요) 서비스 추가
+- [ ] `application.yml`에 `spring.kafka.*`(producer/consumer JSON) 설정, prod는 `${KAFKA_BOOTSTRAP_SERVERS}`
+- [ ] `global/config/RedisConfig` 신규 (RedisTemplate/ConnectionFactory)
+- [ ] `global/event/DomainEvent`(공통 필드: eventId·occurredAt·tenantId) + `DomainEventPublisher`(Port) 신규
+- [ ] `global/infrastructure/KafkaEventPublisher`(impl, KafkaTemplate 래핑) 신규
+- [ ] DB↔Kafka 이중쓰기 정합성 패턴 확립: `ApplicationEventPublisher`(인프로세스) → `@TransactionalEventListener(phase=AFTER_COMMIT)` → `KafkaEventPublisher.publish()`
+
+**Phase 2 · 기존 12개 모듈 CQRS+이벤트 재편** (순서: 잎 모듈 먼저)
+- [ ] `notification` — consumer로 전환(다른 모듈 발신 이벤트 구독)
+- [ ] `student` · `tenant` · `user` · `bus` · `route` — CQRS 분리 + 단순 CRUD 인터페이스 제거
+- [ ] `rideevent` · `sos` · `location` — cross-module 발신자, 직접호출→이벤트 전환(발신·수신 양쪽 재편 후 한 커밋 스위치)
+- [ ] `auth` — CQRS 분리(필요 범위만)
+- [ ] 각 모듈 완료마다 `./gradlew build` green + 커밋
+
+**Phase 3 · location 실시간 push (플래그십)**
+- [ ] `LocationServiceImpl.ingest()`에서 저장 후 `LocationUpdatedEvent` 발행(AFTER_COMMIT→Kafka)
+- [ ] `InMemoryLocationRepository` → `RedisLocationRepository`(infrastructure, TTL+다중 인스턴스)로 교체, `LocationRepository` Port 덕에 `LocationService` 무수정
+- [ ] `WebSocketConfig`에 user destination 활성화(`setUserDestinationPrefix("/user")`), projection consumer가 `convertAndSendToUser(principal, "/queue/location", payload)`로 본인에게만 push
+- [ ] `StompAuthChannelInterceptor`에 SUBSCRIBE 인가 추가 — 구독 destination을 4계층 스코프(본인/자녀/담당버스/테넌트)와 대조
+- [ ] `NotificationSender` Port에 `WebSocketNotificationSender`(infrastructure) 추가 — `LogNotificationSender`와 병행 등록
+- [ ] end-to-end 검증: 자녀 위치 구독→push 도착 / 권한 밖 구독 거부 / BOARD_DONE push / SOS 에스컬레이션 이벤트 경유 동일 동작
+- [ ] 검증 후 §12.1 `location` 행에 "실시간 push" 명시, 이 §12.3 체크리스트 전항목 완료 처리
