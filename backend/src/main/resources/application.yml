@@ -22,6 +22,19 @@ spring:
       host: localhost
       port: 6379
 
+  kafka:
+    bootstrap-servers: localhost:29092   # docker-compose kafka 서비스의 호스트용 PLAINTEXT_HOST 리스너
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: school-bus-backend
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "src.backend.*"
+
 # 외부 경로 API (MVP: OSRM, 정식 전환 시 네이버 Directions 로 교체)
 routing:
   provider: osrm
@@ -78,6 +91,8 @@ spring:
     redis:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
 
 # 운영에서는 Mock 을 끄고 실 학생폰 GPS(push) 로 전환
 app:
