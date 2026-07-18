@@ -1,0 +1,88 @@
+spring:
+  application:
+    name: backend
+  profiles:
+    active: local
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/schoolbus
+    username: schoolbus
+    password: schoolbus
+
+  jpa:
+    hibernate:
+      ddl-auto: update          # 개발 중: 엔티티 기준으로 테이블 자동 생성/변경 (운영 전 Flyway 로 전환 예정)
+    open-in-view: false          # 실무 표준: 영속성 컨텍스트를 뷰까지 끌고 가지 않음
+    properties:
+      hibernate:
+        format_sql: true
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+# 외부 경로 API (MVP: OSRM, 정식 전환 시 네이버 Directions 로 교체)
+routing:
+  provider: osrm
+  osrm:
+    base-url: https://router.project-osrm.org
+  naver:
+    key-id: ${NAVER_DIRECTIONS_KEY_ID:}
+    key: ${NAVER_DIRECTIONS_KEY:}
+
+# 실시간 위치 추적 · SOS 에스컬레이션 점검 주기
+app:
+  location:
+    tick-ms: 3000          # 위치 소스 tick 주기(ms)
+    mock:
+      enabled: true        # Mock GPS 시뮬레이터 (실 GPS 전환 시 false)
+      step: 0.08           # 매 tick 당 진행도 증가폭(0~1 삼각파)
+    gps:
+      enabled: false       # 실 학생폰 GPS push 소스 (실 연동 시 true)
+  sos:
+    escalation-check-ms: 30000   # OPEN 상태 SOS 를 다시 훑는 주기(ms). 임계값 자체는 NotificationThresholds.SOS_ESCALATION(3분)
+  connection:
+    heartbeat-ms: 10000          # STOMP 클라이언트-서버 ping/pong 간격(ms)
+    loss-grace-seconds: 30       # heartbeat 끊김 후 이 시간(초)이 지나야 CONNECTION_LOST 로 확정(오탐 방지)
+    loss-check-ms: 10000         # 끊김 후보를 다시 훑는 스케줄러 주기(ms)
+
+# JWT (운영에서는 반드시 환경변수로 주입)
+jwt:
+  secret: ${JWT_SECRET:local-dev-secret-change-me-please-32bytes-minimum-length}
+  access-token-validity-seconds: 900        # 15분
+  refresh-token-validity-seconds: 1209600   # 14일
+
+---
+# 로컬 개발 프로파일
+spring:
+  config:
+    activate:
+      on-profile: local
+  jpa:
+    properties:
+      hibernate:
+        show_sql: true
+
+---
+# 운영 프로파일 (비밀값은 모두 환경변수)
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+
+# 운영에서는 Mock 을 끄고 실 학생폰 GPS(push) 로 전환
+app:
+  location:
+    mock:
+      enabled: false
+    gps:
+      enabled: true

@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>School-Bus 코드 컨벤션</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css" />
+<style>
+  :root {
+    --bg: #0b1220; --panel: #0f1a2e; --panel2: #0a0f1c; --border: #1e293b;
+    --text: #e2e8f0; --muted: #94a3b8;
+    --cyan: #22d3ee; --green: #34d399; --yellow: #fbbf24; --red: #f87171; --purple: #a78bfa; --pink: #f472b6;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, "Apple SD Gothic Neo", "Pretendard", system-ui, sans-serif;
+    line-height: 1.85; font-size: 16px;
+  }
+  .wrap { display: flex; gap: 28px; max-width: 1280px; margin: 0 auto; padding: 28px 20px 80px; }
+  nav.toc {
+    position: sticky; top: 20px; align-self: flex-start; flex: 0 0 220px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px 14px;
+    max-height: calc(100vh - 40px); overflow-y: auto; font-size: 13.5px;
+  }
+  nav.toc h2 { font-size: 13px; color: var(--cyan); margin: 0 0 10px; letter-spacing: .3px; }
+  nav.toc a { display: block; color: var(--muted); text-decoration: none; padding: 4px 6px; border-radius: 6px; }
+  nav.toc a:hover { color: var(--text); background: rgba(34,211,238,.08); }
+  main { flex: 1; min-width: 0; }
+  h1 { font-size: 27px; margin: 0 0 6px; }
+  .sub { color: var(--muted); margin-bottom: 26px; }
+  h2.sec { font-size: 21px; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 17px; margin: 22px 0 8px; color: var(--cyan); }
+  p, li { max-width: 1000px; }
+  code.inl { background: #16233a; color: var(--pink); padding: 1px 6px; border-radius: 5px; font-size: 14px;
+    font-family: "JetBrains Mono", Menlo, monospace; }
+  table { border-collapse: collapse; width: 100%; max-width: none; margin: 14px 0; font-size: 14.5px; }
+  th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--panel); color: var(--cyan); }
+  .callout { border-left: 3px solid; border-radius: 8px; padding: 12px 16px; margin: 16px 0; background: var(--panel); }
+  .callout.tip { border-color: var(--green); }
+  .callout.warn { border-color: var(--yellow); }
+  .callout.info { border-color: var(--cyan); }
+  .callout b { color: var(--text); }
+
+  .viz-frame { background: var(--panel2); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin: 20px 0; }
+  .viz-title { color: var(--cyan); font: 700 13.5px sans-serif; margin-bottom: 10px; }
+  svg { display: block; }
+
+  .code-card { background: #0a1120; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin: 14px 0; }
+  .code-card-header { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: #0d1526; border-bottom: 1px solid var(--border); }
+  .code-card-dots span { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; background: #334155; }
+  .code-card-lang { color: var(--muted); font-size: 12.5px; font-family: "JetBrains Mono", monospace; }
+  pre[class*="language-"] { margin: 0; border-radius: 0; font-size: 13.5px; }
+  code[class*="language-"] { font-family: "JetBrains Mono", Menlo, monospace; }
+  /* Prism 토큰 색을 디자인 시스템으로 재정의 */
+  .token.keyword { color: var(--purple); }
+  .token.string { color: var(--green); }
+  .token.number { color: var(--yellow); }
+  .token.function, .token.class-name { color: var(--cyan); }
+  .token.comment { color: #64748b; font-style: italic; }
+  .token.annotation, .token.atrule, .token.property { color: var(--pink); }
+
+  @media (max-width: 1024px) {
+    .wrap { flex-direction: column; }
+    nav.toc { position: static; flex: none; width: 100%; max-height: 220px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="toc">
+  <h2>목차</h2>
+  <a href="#intro">0. 원칙</a>
+  <a href="#layer">1. 백엔드 계층</a>
+  <a href="#iface">2. 서비스 인터페이스+구현체</a>
+  <a href="#port">3. 포트/어댑터 교체지점</a>
+  <a href="#resp">4. 공통 응답·예외</a>
+  <a href="#sec">5. 보안·멀티테넌시</a>
+  <a href="#front">6. 프론트 역할 라우팅</a>
+  <a href="#naming">7. 네이밍·포맷</a>
+  <a href="#verify">8. 검증(Two-Pass)</a>
+</nav>
+
+<main>
+  <h1>School-Bus 코드 컨벤션</h1>
+  <div class="sub">이 문서는 백엔드(Spring Boot 4 · Java 25)와 프론트(Next.js App Router)가 실제로 따르고 있는 규칙을 명문화한 것입니다. 새 코드는 이 컨벤션을 준수합니다.</div>
+
+  <h2 class="sec" id="intro">0. 핵심 원칙 한 줄 요약</h2>
+  <p><b>"기능 단위로 패키지를 나누고, 각 계층은 인터페이스(계약)에만 의존하며, 갈아끼울 지점은 포트/어댑터로 뽑는다."</b></p>
+  <ul>
+    <li><b>패키지 = 기능(도메인) 단위</b>: <code class="inl">src.backend.&lt;domain&gt;.{controller,service,repository,entity,dto}</code></li>
+    <li><b>계층 흐름 단방향</b>: Controller → Service → Repository (역방향 의존 금지)</li>
+    <li><b>Service 는 인터페이스 + 구현체</b>로 분리(확장·교체 대비)</li>
+    <li><b>생성자 주입 + final 필드</b>만 사용(필드 <code class="inl">@Autowired</code> 금지)</li>
+    <li><b>Javadoc 은 "무엇"이 아니라 "왜"</b>를 한국어로 설명</li>
+  </ul>
+
+  <h2 class="sec" id="layer">1. 백엔드 계층 구조와 데이터 흐름</h2>
+  <p>한 요청은 아래 순서로 흐릅니다. 각 계층의 책임을 섞지 않는 것이 규칙입니다.</p>
+  <ol>
+    <li><b>Controller</b>: HTTP 매핑 + 입력 검증(<code class="inl">@Valid</code>) + 역할 인가(<code class="inl">@PreAuthorize</code>). 비즈니스 로직 없음</li>
+    <li><b>Service(interface)</b>: 계약. <b>Service(Impl)</b>: 트랜잭션 경계(<code class="inl">@Transactional</code>) + 업무 규칙 + 테넌트 격리 검사</li>
+    <li><b>Repository</b>: 저장/조회만. Spring Data 인터페이스</li>
+    <li><b>응답</b>: 항상 <code class="inl">ApiResponse&lt;T&gt;</code> 로 감싸 반환</li>
+  </ol>
+
+  <div class="viz-frame">
+    <div class="viz-title">📊 요청 → 처리 → 응답 계층 흐름</div>
+    <svg viewBox="0 0 1100 260" xmlns="http://www.w3.org/2000/svg" width="100%">
+      <style>
+        .ar-box { fill: rgba(34,211,238,0.10); stroke: #22d3ee; stroke-width: 1.5; }
+        .ar-boxg { fill: rgba(52,211,153,0.10); stroke: #34d399; stroke-width: 1.5; }
+        .ar-boxy { fill: rgba(251,191,36,0.10); stroke: #fbbf24; stroke-width: 1.5; }
+        .ar-tt { fill: #e2e8f0; font: bold 14px sans-serif; text-anchor: middle; }
+        .ar-mu { fill: #94a3b8; font: 12px sans-serif; text-anchor: middle; }
+        .ar-cap { fill: #64748b; font: 12px sans-serif; text-anchor: start; }
+        .ar-line { stroke: #22d3ee; stroke-width: 1.8; fill: none; }
+        .ar-back { stroke: #34d399; stroke-width: 1.6; fill: none; stroke-dasharray: 5 4; }
+      </style>
+      <defs>
+        <marker id="ar-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#22d3ee"/>
+        </marker>
+        <marker id="ar-arrg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#34d399"/>
+        </marker>
+      </defs>
+      <rect class="ar-box" x="30" y="60" width="160" height="72" rx="8"/>
+      <text class="ar-tt" x="110" y="90">Client</text>
+      <text class="ar-mu" x="110" y="112">앱 / 웹 콘솔</text>
+
+      <rect class="ar-box" x="250" y="60" width="160" height="72" rx="8"/>
+      <text class="ar-tt" x="330" y="90">Controller</text>
+      <text class="ar-mu" x="330" y="112">@PreAuthorize</text>
+
+      <rect class="ar-boxg" x="470" y="60" width="160" height="72" rx="8"/>
+      <text class="ar-tt" x="550" y="88">Service</text>
+      <text class="ar-mu" x="550" y="110">interface + Impl</text>
+
+      <rect class="ar-box" x="690" y="60" width="160" height="72" rx="8"/>
+      <text class="ar-tt" x="770" y="90">Repository</text>
+      <text class="ar-mu" x="770" y="112">Spring Data</text>
+
+      <rect class="ar-boxy" x="910" y="60" width="160" height="72" rx="8"/>
+      <text class="ar-tt" x="990" y="90">PostgreSQL</text>
+      <text class="ar-mu" x="990" y="112">DB</text>
+
+      <path class="ar-line" d="M190,96 L248,96" marker-end="url(#ar-arr)"/>
+      <path class="ar-line" d="M410,96 L468,96" marker-end="url(#ar-arr)"/>
+      <path class="ar-line" d="M630,96 L688,96" marker-end="url(#ar-arr)"/>
+      <path class="ar-line" d="M850,96 L908,96" marker-end="url(#ar-arr)"/>
+
+      <path class="ar-back" d="M990,132 L990,175 L110,175 L110,134" marker-end="url(#ar-arrg)"/>
+      <text class="ar-cap" x="40" y="205">→ 파랑: 요청(request) · @Transactional 은 Service 에서 연다</text>
+      <text class="ar-cap" x="40" y="225">⇠ 초록 점선: 응답(response) — 항상 ApiResponse&lt;T&gt; 로 감싼다</text>
+    </svg>
+  </div>
+
+  <div class="code-card">
+    <div class="code-card-header">
+      <span class="code-card-dots"><span></span><span></span><span></span></span>
+      <span class="code-card-lang">Java · LocationController</span>
+    </div>
+    <pre class="line-numbers"><code class="language-java">@RestController
+@RequestMapping("/api/locations")
+public class LocationController {
+
+    private final LocationService locationService; // 인터페이스에만 의존
+
+    public LocationController(LocationService locationService) { // 생성자 주입
+        this.locationService = locationService;
+    }
+
+    @GetMapping("/children")
+    @PreAuthorize("hasRole('PARENT')")             // 역할 인가는 Controller
+    public ApiResponse&lt;List&lt;LocationView&gt;&gt; children(@AuthenticationPrincipal AuthUser parent) {
+        return ApiResponse.ok(locationService.getChildrenLocations(parent)); // 응답 래핑
+    }
+}</code></pre>
+  </div>
+
+  <h2 class="sec" id="iface">2. 서비스 = 인터페이스 + 구현체 (MUST)</h2>
+  <p>모든 서비스는 <b>계약(interface)</b>과 <b>구현(<code class="inl">*Impl</code>)</b>을 나눕니다. 컨트롤러·테스트는 인터페이스에만 의존하고, Spring 이 런타임에 구현체 빈을 주입합니다. 로직을 확장하거나 구현을 통째로 교체해도(예: 인증을 OAuth 로) 호출부는 그대로입니다.</p>
+
+  <div class="viz-frame">
+    <div class="viz-title">📊 인터페이스 의존 + 구현체 주입(교체 가능)</div>
+    <svg viewBox="0 0 1100 300" xmlns="http://www.w3.org/2000/svg" width="100%">
+      <style>
+        .sv-box { fill: rgba(34,211,238,0.10); stroke: #22d3ee; stroke-width: 1.5; }
+        .sv-boxg { fill: rgba(52,211,153,0.10); stroke: #34d399; stroke-width: 1.5; }
+        .sv-boxp { fill: rgba(167,139,250,0.10); stroke: #a78bfa; stroke-width: 1.4; stroke-dasharray: 5 4; }
+        .sv-tt { fill: #e2e8f0; font: bold 14px sans-serif; text-anchor: middle; }
+        .sv-mu { fill: #94a3b8; font: 12px sans-serif; text-anchor: middle; }
+        .sv-cap { fill: #64748b; font: 12px sans-serif; text-anchor: start; }
+        .sv-l1 { stroke: #22d3ee; stroke-width: 1.8; fill: none; }
+        .sv-l2 { stroke: #34d399; stroke-width: 1.6; fill: none; }
+        .sv-l3 { stroke: #a78bfa; stroke-width: 1.4; fill: none; stroke-dasharray: 5 4; }
+      </style>
+      <defs>
+        <marker id="sv-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#22d3ee"/>
+        </marker>
+        <marker id="sv-arg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#34d399"/>
+        </marker>
+        <marker id="sv-arp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#a78bfa"/>
+        </marker>
+      </defs>
+      <rect class="sv-box" x="40" y="90" width="190" height="70" rx="8"/>
+      <text class="sv-tt" x="135" y="120">Controller</text>
+      <text class="sv-mu" x="135" y="142">/ Test</text>
+
+      <rect class="sv-box" x="440" y="90" width="230" height="70" rx="8"/>
+      <text class="sv-tt" x="555" y="120">«interface»</text>
+      <text class="sv-mu" x="555" y="142">RideEventService</text>
+
+      <rect class="sv-boxg" x="380" y="215" width="230" height="62" rx="8"/>
+      <text class="sv-tt" x="495" y="243">RideEventServiceImpl</text>
+      <text class="sv-mu" x="495" y="263">@Service · @Transactional</text>
+
+      <rect class="sv-boxp" x="700" y="215" width="240" height="62" rx="8"/>
+      <text class="sv-tt" x="820" y="243">(미래) OAuthServiceImpl</text>
+      <text class="sv-mu" x="820" y="263">교체만 하면 됨</text>
+
+      <path class="sv-l1" d="M230,125 L438,125" marker-end="url(#sv-arr)"/>
+      <text class="sv-cap" x="250" y="115">의존(depends on)</text>
+
+      <path class="sv-l2" d="M495,213 L540,162" marker-end="url(#sv-arg)"/>
+      <text class="sv-cap" x="330" y="200">구현(implements)</text>
+
+      <path class="sv-l3" d="M820,213 L640,162" marker-end="url(#sv-arp)"/>
+      <text class="sv-cap" x="760" y="200">대체 구현</text>
+
+      <text class="sv-cap" x="40" y="45">Spring 이 활성 구현체를 골라 주입 — 호출부(Controller/Test)는 어떤 Impl 인지 몰라도 된다</text>
+    </svg>
+  </div>
+
+  <div class="code-card">
+    <div class="code-card-header">
+      <span class="code-card-dots"><span></span><span></span><span></span></span>
+      <span class="code-card-lang">Java · RideEventService (계약)</span>
+    </div>
+    <pre class="line-numbers"><code class="language-java">public interface RideEventService {
+    RideEventResponse record(AuthUser driver, RecordRideRequest req);
+    RideEventResponse correct(AuthUser actor, Long eventId, CorrectionRequest req);
+    List&lt;RideEventResponse&gt; getMyRecords(AuthUser student, LocalDate date);
+}
+
+@Service
+public class RideEventServiceImpl implements RideEventService {
+    // 생성자 주입 · @Override · @Transactional 로 구현
+    @Override
+    @Transactional
+    public RideEventResponse record(AuthUser driver, RecordRideRequest req) { ... }
+}</code></pre>
+  </div>
+
+  <div class="callout tip"><b>흔한 오해:</b> "Spring Data Repository 도 <code class="inl">*Impl</code> 을 직접 만들어야 인터페이스 패턴이다"라고 오해하기 쉽습니다. Repository 는 <b>이미 인터페이스이고 구현체를 Spring 이 프록시로 자동 생성</b>하므로 그 자체가 인터페이스+구현체입니다. 손으로 Impl 을 얹는 것은 오히려 안티패턴입니다.</div>
+
+  <h2 class="sec" id="port">3. 갈아끼울 지점은 포트/어댑터 (교체지점)</h2>
+  <p>"미래에 데이터 소스가 바뀔 것"이 확실한 지점만 별도 <b>포트(인터페이스)</b>로 뽑고, 상황별 <b>어댑터(구현체)</b>를 둡니다. 위치추적이 대표 예입니다 — MVP 는 Mock 좌표, 실서비스는 학생폰 GPS.</p>
+
+  <div class="viz-frame">
+    <div class="viz-title">📊 LocationSource 포트 + 어댑터 교체 (설정 플래그로 전환)</div>
+    <svg viewBox="0 0 1100 320" xmlns="http://www.w3.org/2000/svg" width="100%">
+      <style>
+        .lc-boxc { fill: rgba(34,211,238,0.10); stroke: #22d3ee; stroke-width: 1.5; }
+        .lc-boxg { fill: rgba(52,211,153,0.10); stroke: #34d399; stroke-width: 1.5; }
+        .lc-boxp { fill: rgba(167,139,250,0.10); stroke: #a78bfa; stroke-width: 1.4; stroke-dasharray: 5 4; }
+        .lc-boxy { fill: rgba(251,191,36,0.10); stroke: #fbbf24; stroke-width: 1.5; }
+        .lc-tt { fill: #e2e8f0; font: bold 13.5px sans-serif; text-anchor: middle; }
+        .lc-mu { fill: #94a3b8; font: 12px sans-serif; text-anchor: middle; }
+        .lc-cap { fill: #64748b; font: 12px sans-serif; text-anchor: start; }
+        .lc-l1 { stroke: #fbbf24; stroke-width: 1.7; fill: none; }
+        .lc-l2 { stroke: #34d399; stroke-width: 1.6; fill: none; }
+        .lc-l3 { stroke: #a78bfa; stroke-width: 1.4; fill: none; stroke-dasharray: 5 4; }
+        .lc-l4 { stroke: #22d3ee; stroke-width: 1.7; fill: none; }
+      </style>
+      <defs>
+        <marker id="lc-ary" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#fbbf24"/>
+        </marker>
+        <marker id="lc-arg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#34d399"/>
+        </marker>
+        <marker id="lc-arp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#a78bfa"/>
+        </marker>
+        <marker id="lc-arc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#22d3ee"/>
+        </marker>
+      </defs>
+      <rect class="lc-boxy" x="30" y="120" width="150" height="66" rx="8"/>
+      <text class="lc-tt" x="105" y="148">Scheduler</text>
+      <text class="lc-mu" x="105" y="168">tick() 주기 호출</text>
+
+      <rect class="lc-boxc" x="270" y="120" width="200" height="66" rx="8"/>
+      <text class="lc-tt" x="370" y="148">«port» LocationSource</text>
+      <text class="lc-mu" x="370" y="168">isActive() / tick()</text>
+
+      <rect class="lc-boxg" x="230" y="240" width="200" height="60" rx="8"/>
+      <text class="lc-tt" x="330" y="266">MockLocationSource</text>
+      <text class="lc-mu" x="330" y="286">활성 (mock.enabled=true)</text>
+
+      <rect class="lc-boxp" x="470" y="240" width="200" height="60" rx="8"/>
+      <text class="lc-tt" x="570" y="266">PhoneGpsSource</text>
+      <text class="lc-mu" x="570" y="286">대기 (실 GPS 전환 시)</text>
+
+      <rect class="lc-boxc" x="620" y="120" width="200" height="66" rx="8"/>
+      <text class="lc-tt" x="720" y="148">LocationService</text>
+      <text class="lc-mu" x="720" y="168">ingest(...)</text>
+
+      <rect class="lc-boxc" x="880" y="120" width="190" height="66" rx="8"/>
+      <text class="lc-tt" x="975" y="144">«port» Location</text>
+      <text class="lc-tt" x="975" y="162">Repository</text>
+      <text class="lc-mu" x="975" y="180">InMemory → Redis</text>
+
+      <path class="lc-l1" d="M180,153 L268,153" marker-end="url(#lc-ary)"/>
+      <path class="lc-l2" d="M345,238 L360,188" marker-end="url(#lc-arg)"/>
+      <path class="lc-l3" d="M560,238 L400,188" marker-end="url(#lc-arp)"/>
+      <path class="lc-l4" d="M470,153 L618,153" marker-end="url(#lc-arc)"/>
+      <path class="lc-l4" d="M820,153 L878,153" marker-end="url(#lc-arc)"/>
+
+      <text class="lc-cap" x="30" y="45">두 어댑터 모두 같은 저장 경로(ingest → Repository)로 합류 — 바뀌는 건 "누가 좌표를 만드느냐" 뿐</text>
+      <text class="lc-cap" x="30" y="65">교체 방법: app.location.mock.enabled=false + gps.enabled=true (코드 수정 없이 설정만)</text>
+    </svg>
+  </div>
+
+  <div class="callout info"><b>실측 확인:</b> 관리자 관제 조회 시 Mock 좌표가 <code class="inl">origin=MOCK</code> 으로, 학생이 <code class="inl">POST /api/locations</code> 로 직접 보고하면 <code class="inl">origin=GPS</code> 로 같은 저장소에 합류함을 end-to-end 로 검증했습니다.</div>
+
+  <h2 class="sec" id="resp">4. 공통 응답·예외 처리</h2>
+  <p>성공·실패 모두 <code class="inl">ApiResponse&lt;T&gt;</code> 한 형태로 내려 프론트가 한 가지로 파싱합니다. 예외는 컨트롤러에 흩뿌리지 않고 <code class="inl">GlobalExceptionHandler</code> 한 곳에서 <code class="inl">BusinessException</code>/<code class="inl">ErrorCode</code> 기준으로 상태코드+메시지를 매핑합니다.</p>
+  <div class="code-card">
+    <div class="code-card-header">
+      <span class="code-card-dots"><span></span><span></span><span></span></span>
+      <span class="code-card-lang">Java · 응답 규칙</span>
+    </div>
+    <pre class="line-numbers"><code class="language-java">// 성공
+return ApiResponse.ok(data);            // { success:true, data, message:null }
+// 업무 예외 (Service 에서 던짐)
+throw new BusinessException(ErrorCode.FORBIDDEN, "담당 기사만 처리할 수 있습니다");
+// → GlobalExceptionHandler 가 403 + { success:false, data:null, message } 로 변환</code></pre>
+  </div>
+
+  <h2 class="sec" id="sec">5. 보안 · 멀티테넌시 (권한 이원화)</h2>
+  <p>권한을 두 축으로 나눕니다. 섞으면 "역할은 맞지만 남의 학원 데이터를 보는" 구멍이 생깁니다.</p>
+  <table>
+    <tr><th>축</th><th>무엇</th><th>어디서</th></tr>
+    <tr><td>역할(Role)</td><td>STUDENT/PARENT/DRIVER/ACADEMY_ADMIN/PLATFORM_ADMIN 인가</td><td>Controller <code class="inl">@PreAuthorize("hasRole(...)")</code></td></tr>
+    <tr><td>학원(Tenant) 격리</td><td>"어느 학원 데이터를 볼 수 있나"</td><td>Service 에서 <code class="inl">TenantGuard.resolveTenantId(...)</code></td></tr>
+  </table>
+  <ul>
+    <li>인증은 <b>Spring Security + JWT</b>. 필터가 토큰의 <code class="inl">memberships</code>("tenantId:ROLE") 로 principal 을 복원 → DB 조회 없이 인가</li>
+    <li>세션 없음(STATELESS), 미인증 <code class="inl">401</code> · 권한부족 <code class="inl">403</code></li>
+  </ul>
+
+  <h2 class="sec" id="front">6. 프론트 역할 기반 라우팅</h2>
+  <p>"가상 주소" 하드코딩 대신 <b>Next.js 실제 라우트 + 로그인 게이트 + 역할 가드</b>를 씁니다. 새로고침·뒤로가기·북마크가 살고, 라우트별 레이아웃(폰 셸 vs 웹 셸)이 자연스럽습니다.</p>
+  <ol>
+    <li>로그인 → 백엔드 <code class="inl">/api/auth/login</code>(프록시 경유) → JWT 저장</li>
+    <li>토큰의 role 로 <code class="inl">roleHome(role)</code> 계산 → 모바일이면 <code class="inl">/app/[role]</code>, 웹이면 <code class="inl">/console/[role]</code></li>
+    <li><code class="inl">RoleShell</code> 가드: 세션 없으면 <code class="inl">/login</code>, URL 역할 ≠ 세션 역할이면 자기 홈으로 리다이렉트</li>
+  </ol>
+
+  <div class="viz-frame">
+    <div class="viz-title">📊 로그인 후 역할 라우팅 결정</div>
+    <svg viewBox="0 0 1100 300" xmlns="http://www.w3.org/2000/svg" width="100%">
+      <style>
+        .rt-q { fill: rgba(251,191,36,0.12); stroke: #fbbf24; stroke-width: 1.6; }
+        .rt-g { fill: rgba(52,211,153,0.10); stroke: #34d399; stroke-width: 1.5; }
+        .rt-p { fill: rgba(167,139,250,0.10); stroke: #a78bfa; stroke-width: 1.5; }
+        .rt-r { fill: rgba(248,113,113,0.10); stroke: #f87171; stroke-width: 1.5; }
+        .rt-tt { fill: #e2e8f0; font: bold 13.5px sans-serif; text-anchor: middle; }
+        .rt-mu { fill: #94a3b8; font: 12px sans-serif; text-anchor: middle; }
+        .rt-cap { fill: #64748b; font: 12px sans-serif; text-anchor: start; }
+        .rt-lb { fill: #cbd5e1; font: 12px sans-serif; text-anchor: middle; }
+        .rt-l { stroke: #475569; stroke-width: 1.6; fill: none; }
+      </style>
+      <defs>
+        <marker id="rt-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+        </marker>
+      </defs>
+      <rect class="rt-q" x="410" y="30" width="280" height="60" rx="8"/>
+      <text class="rt-tt" x="550" y="56">로그인 성공 → JWT 의 role?</text>
+      <text class="rt-mu" x="550" y="76">memberships[0] = "tenantId:ROLE"</text>
+
+      <rect class="rt-g" x="120" y="180" width="270" height="66" rx="8"/>
+      <text class="rt-tt" x="255" y="207">/app/[role]  (PhoneFrame)</text>
+      <text class="rt-mu" x="255" y="228">STUDENT · PARENT · DRIVER</text>
+
+      <rect class="rt-p" x="430" y="180" width="270" height="66" rx="8"/>
+      <text class="rt-tt" x="565" y="207">/console/[role] (WebFrame)</text>
+      <text class="rt-mu" x="565" y="228">ACADEMY_ADMIN · PLATFORM_ADMIN</text>
+
+      <rect class="rt-r" x="750" y="180" width="240" height="66" rx="8"/>
+      <text class="rt-tt" x="870" y="207">/login 또는 자기 홈</text>
+      <text class="rt-mu" x="870" y="228">세션 없음 · 역할 불일치</text>
+
+      <path class="rt-l" d="M480,90 L255,178" marker-end="url(#rt-arr)"/>
+      <path class="rt-l" d="M560,90 L565,178" marker-end="url(#rt-arr)"/>
+      <path class="rt-l" d="M640,90 L860,178" marker-end="url(#rt-arr)"/>
+      <text class="rt-lb" x="330" y="140">medium=mobile</text>
+      <text class="rt-lb" x="600" y="130">medium=web</text>
+      <text class="rt-lb" x="800" y="140">가드 실패</text>
+      <text class="rt-cap" x="120" y="285">라우팅 규칙은 lib/roles.js 의 ROLE_CONFIG 한 곳에서 정의 — 화면 추가 시 여기만 수정</text>
+    </svg>
+  </div>
+
+  <div class="code-card">
+    <div class="code-card-header">
+      <span class="code-card-dots"><span></span><span></span><span></span></span>
+      <span class="code-card-lang">JavaScript · lib/roles.js</span>
+    </div>
+    <pre class="line-numbers"><code class="language-javascript">export function roleHome(role) {
+  const cfg = ROLE_CONFIG[role];
+  if (!cfg) return '/login';
+  return cfg.medium === 'mobile' ? `/app/${cfg.key}` : `/console/${cfg.key}`;
+}</code></pre>
+  </div>
+
+  <h2 class="sec" id="naming">7. 네이밍 · 포맷 규칙</h2>
+  <table>
+    <tr><th>대상</th><th>규칙</th><th>예</th></tr>
+    <tr><td>패키지</td><td>소문자, 기능 단위</td><td><code class="inl">src.backend.location.service</code></td></tr>
+    <tr><td>서비스</td><td>인터페이스 <code class="inl">XxxService</code> + 구현 <code class="inl">XxxServiceImpl</code></td><td><code class="inl">LocationService / LocationServiceImpl</code></td></tr>
+    <tr><td>DTO</td><td><code class="inl">record</code>, 요청 <code class="inl">*Request</code> · 응답 <code class="inl">*Response/*View</code></td><td><code class="inl">LocationReportRequest</code></td></tr>
+    <tr><td>엔티티</td><td>Lombok <code class="inl">@Getter</code> + <code class="inl">@Builder</code> + protected 기본생성자, setter 금지</td><td><code class="inl">Bus</code>, <code class="inl">Student</code></td></tr>
+    <tr><td>의존 주입</td><td>생성자 주입 + <code class="inl">final</code> (필드 주입 금지)</td><td>—</td></tr>
+    <tr><td>설정값</td><td><code class="inl">app.&lt;도메인&gt;.&lt;키&gt;</code> + 기본값</td><td><code class="inl">app.location.mock.enabled</code></td></tr>
+    <tr><td>React 컴포넌트</td><td>PascalCase, 파일 1컴포넌트, 클라이언트는 <code class="inl">'use client'</code></td><td><code class="inl">RoleShell.js</code></td></tr>
+    <tr><td>공통 로직</td><td><code class="inl">lib/</code> 에 순수 함수, UI 는 <code class="inl">components/</code></td><td><code class="inl">lib/auth.js</code></td></tr>
+    <tr><td>주석</td><td>한국어, "왜"를 설명</td><td>—</td></tr>
+  </table>
+
+  <h2 class="sec" id="verify">8. 검증(Two-Pass)</h2>
+  <p>문서·코드 변경 후 아래를 확인합니다.</p>
+  <ul>
+    <li><b>Pass 1(정확성)</b>: 본문 규칙이 실제 코드와 일치 · 다이어그램 박스/화살표가 본문 단계와 1:1</li>
+    <li><b>Pass 2(구조)</b>: <code class="inl">&lt;svg&gt;</code> 짝 일치 · <code class="inl">marker id</code> 중복 0 · viz-frame 내 <code class="inl">&lt;pre&gt;</code> 0 · code-card 수 = <code class="inl">language-*</code> 수 · Prism 3종 로드</li>
+  </ul>
+  <div class="callout warn"><b>주의:</b> 이 문서의 규칙은 "지금 코드가 실제로 그렇게 되어 있음"을 전제로 합니다. 코드와 문서가 어긋나면 <b>코드의 실제 동작을 사실로 보고</b> 문서(또는 코드)를 맞춥니다.</div>
+</main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js" data-manual></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-yaml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    if (window.Prism) Prism.highlightAll();
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+# OS
+.DS_Store
+
+# IDE
+.idea/
+*.iml
+
+# Claude Code local (machine-specific overrides, not shared)
+.claude/settings.local.json
+
+# tokensave local cache db
+.tokensave/
+**/.tokensave/
+
+# Backend (Gradle / Spring Boot)
+backend/build/
+backend/.gradle/
+backend/out/
+backend/HELP.md
+!backend/gradle/wrapper/gradle-wrapper.jar
+
+# Frontend (Next.js)
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env.local
+frontend/npm-debug.log*
+
+# Root
+node_modules/

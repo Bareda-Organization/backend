@@ -1,0 +1,818 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>School-Bus 백엔드 아키텍처 & 서버 구성</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css" />
+<style>
+  :root {
+    --bg: #0b1220; --panel: #0f1a2e; --card: #101a2d;
+    --text: #e2e8f0; --muted: #94a3b8; --line: #1e293b;
+    --cyan: #22d3ee; --green: #34d399; --yellow: #fbbf24;
+    --red: #f87171; --purple: #a78bfa; --pink: #f472b6;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, "Apple SD Gothic Neo", "Pretendard", system-ui, sans-serif;
+    line-height: 1.85; font-size: 16px;
+  }
+  .layout { display: flex; align-items: flex-start; gap: 24px; max-width: 1400px; margin: 0 auto; padding: 24px; }
+  nav.toc {
+    position: sticky; top: 24px; flex: 0 0 250px; align-self: flex-start;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 16px; max-height: calc(100vh - 48px); overflow-y: auto;
+  }
+  nav.toc h2 { font-size: 13px; color: var(--cyan); margin: 0 0 10px; letter-spacing: .5px; }
+  nav.toc a { display: block; color: var(--muted); text-decoration: none; font-size: 13.5px; padding: 4px 0; }
+  nav.toc a:hover { color: var(--text); }
+  main { flex: 1; min-width: 0; max-width: none; }
+  h1 { font-size: 27px; margin: 0 0 6px; }
+  h2.sec { font-size: 22px; margin: 40px 0 12px; padding-bottom: 8px; border-bottom: 2px solid var(--line); color: #fff; }
+  h3 { font-size: 18px; margin: 24px 0 8px; color: var(--cyan); }
+  p, li { font-size: 16px; }
+  p, ul, ol, .callout, .code-card, .summary { max-width: 1000px; }
+  .lead { color: var(--muted); }
+  .summary {
+    background: rgba(34,211,238,0.08); border-left: 4px solid var(--cyan);
+    border-radius: 8px; padding: 10px 14px; margin: 12px 0; font-weight: 600;
+  }
+  code.inl { background: #16233a; color: #e2e8f0; padding: 1px 6px; border-radius: 5px; font-size: 14px;
+    font-family: "JetBrains Mono", Menlo, monospace; }
+  .callout { border-radius: 8px; padding: 12px 16px; margin: 14px 0; border: 1px solid var(--line); }
+  .callout.info { background: rgba(34,211,238,0.07); border-color: rgba(34,211,238,0.4); }
+  .callout.tip  { background: rgba(52,211,153,0.07); border-color: rgba(52,211,153,0.4); }
+  .callout.warn { background: rgba(248,113,113,0.07); border-color: rgba(248,113,113,0.4); }
+  .callout b { color: #fff; }
+  table { border-collapse: collapse; width: 100%; max-width: none; margin: 14px 0; font-size: 14.5px; }
+  th, td { border: 1px solid var(--line); padding: 8px 11px; text-align: left; vertical-align: top; }
+  th { background: #14203a; color: #fff; }
+  td code { color: var(--pink); font-family: "JetBrains Mono", Menlo, monospace; font-size: 13.5px; }
+  .viz-frame { background: #0a0f1c; border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin: 18px 0; max-width: none; }
+  .viz-title { color: var(--cyan); font: 700 13.5px sans-serif; margin-bottom: 12px; }
+  svg { display: block; }
+  .code-card { background: #0a0f1c; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin: 14px 0; }
+  .code-card-header { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: #0d1526; border-bottom: 1px solid var(--line); }
+  .code-card-dots span { display: inline-block; width: 11px; height: 11px; border-radius: 50%; background: #334155; margin-right: 5px; }
+  .code-card-lang { color: var(--muted); font-size: 12px; font-family: "JetBrains Mono", Menlo, monospace; }
+  .code-card pre { margin: 0; font-size: 13.5px; }
+  .code-card code { font-family: "JetBrains Mono", Menlo, monospace; }
+  .token.keyword { color: #a78bfa; }
+  .token.string { color: #34d399; }
+  .token.number { color: #fbbf24; }
+  .token.function, .token.class-name { color: #22d3ee; }
+  .token.comment { color: #64748b; font-style: italic; }
+  .token.annotation, .token.atrule, .token.property { color: #f472b6; }
+  @media (max-width: 1024px) {
+    .layout { flex-direction: column; }
+    nav.toc { position: static; flex: none; width: 100%; max-height: 220px; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="toc">
+  <h2>목차</h2>
+  <a href="#intro">0. 이 문서를 읽는 법</a>
+  <a href="#overview">1. 전체 아키텍처</a>
+  <a href="#servers">2. 서버 구성 (컨테이너)</a>
+  <a href="#layers">3. 계층형 구조</a>
+  <a href="#tenancy">4. 멀티 테넌시 설계</a>
+  <a href="#auth">5. 인증·인가 (JWT)</a>
+  <a href="#realtime">6. 실시간 위치 파이프라인</a>
+  <a href="#naver">7. 네이버 경로 프록시</a>
+  <a href="#noti">8. 알림 파이프라인</a>
+  <a href="#data">9. 데이터 모델 → 테이블</a>
+  <a href="#spec">10. 서버 스펙·배포</a>
+  <a href="#steps">11. 구축 순서</a>
+</nav>
+<main>
+
+<h1>School-Bus 백엔드 아키텍처 &amp; 서버 구성</h1>
+<p class="lead">학원 통원버스 멀티 테넌트 플랫폼을 실제로 운영하기 위한 백엔드 설계 가이드. Spring Boot 입문자를 대상으로, 왜 이렇게 구성하는지까지 설명합니다.</p>
+
+<h2 class="sec" id="intro">0. 이 문서를 읽는 법</h2>
+<div class="summary">한 줄 요약: 클라이언트 → Nginx → Spring(API) → PostgreSQL/Redis 로 흐르는 표준 3-tier 구조에, 실시간 위치·알림·외부 경로 API를 붙인 형태입니다.</div>
+<p>이 문서는 <code class="inl">projectInfo.md</code>의 요구사항(5개 역할, 멀티 테넌시 N:M, Mock→실GPS 추상화, 알림 멱등성, 네이버 경로)을 실제 서버 설계로 옮긴 것입니다. 각 장은 <b>① 한 줄 요약 → ② 그림 → ③ 왜 이렇게 하나 → ④ 코드 예시 → ⑤ 흔한 오해</b> 순으로 구성됩니다.</p>
+<div class="callout tip"><b>비유:</b> 백엔드 서버 구성은 "식당 주방"과 같습니다. Nginx는 손님을 받아 자리를 안내하는 <b>홀 매니저</b>, Spring은 주문을 요리로 바꾸는 <b>주방</b>, PostgreSQL은 재료가 보관된 <b>창고</b>, Redis는 자주 쓰는 재료를 손 닿는 곳에 둔 <b>조리대 선반</b>입니다.</p></div>
+
+<h2 class="sec" id="overview">1. 전체 아키텍처</h2>
+<div class="summary">한 줄 요약: 모든 외부 요청은 Nginx 한 곳으로 들어와 Spring API로 전달되고, Spring이 DB·캐시·외부 API를 조율해 응답합니다.</div>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 전체 요청 흐름 (Request → Processing → Response)</div>
+  <svg viewBox="0 0 1120 440" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .ov-box { stroke-width: 1.5; }
+      .ov-tt { fill: #e2e8f0; font: bold 14px sans-serif; text-anchor: middle; }
+      .ov-mu { fill: #94a3b8; font: 12px sans-serif; text-anchor: middle; }
+      .ov-cap { fill: #94a3b8; font: 12px sans-serif; }
+      .ov-line { stroke: #475569; stroke-width: 1.8; fill: none; }
+    </style>
+    <defs>
+      <marker id="ov-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+      </marker>
+    </defs>
+    <!-- clients -->
+    <rect class="ov-box" x="30" y="120" width="180" height="70" rx="10" fill="rgba(34,211,238,0.10)" stroke="#22d3ee"/>
+    <text class="ov-tt" x="120" y="150">모바일 앱</text>
+    <text class="ov-mu" x="120" y="170">학생·학부모·기사</text>
+    <rect class="ov-box" x="30" y="215" width="180" height="70" rx="10" fill="rgba(34,211,238,0.10)" stroke="#22d3ee"/>
+    <text class="ov-tt" x="120" y="245">관리자 웹</text>
+    <text class="ov-mu" x="120" y="265">학원·플랫폼 관리자</text>
+    <!-- nginx -->
+    <rect class="ov-box" x="290" y="165" width="150" height="110" rx="10" fill="rgba(167,139,250,0.10)" stroke="#a78bfa"/>
+    <text class="ov-tt" x="365" y="205">Nginx</text>
+    <text class="ov-mu" x="365" y="225">리버스 프록시</text>
+    <text class="ov-mu" x="365" y="243">TLS 종료·라우팅</text>
+    <!-- spring -->
+    <rect class="ov-box" x="520" y="150" width="200" height="140" rx="10" fill="rgba(52,211,153,0.10)" stroke="#34d399"/>
+    <text class="ov-tt" x="620" y="188">Spring Boot API</text>
+    <text class="ov-mu" x="620" y="208">Controller / Service</text>
+    <text class="ov-mu" x="620" y="226">Repository / Security</text>
+    <text class="ov-mu" x="620" y="252">WebSocket (실시간)</text>
+    <!-- data stores -->
+    <rect class="ov-box" x="800" y="120" width="200" height="70" rx="10" fill="rgba(251,191,36,0.10)" stroke="#fbbf24"/>
+    <text class="ov-tt" x="900" y="150">PostgreSQL</text>
+    <text class="ov-mu" x="900" y="170">영속 데이터</text>
+    <rect class="ov-box" x="800" y="215" width="200" height="70" rx="10" fill="rgba(244,114,182,0.10)" stroke="#f472b6"/>
+    <text class="ov-tt" x="900" y="245">Redis</text>
+    <text class="ov-mu" x="900" y="265">캐시·세션·Pub/Sub</text>
+    <!-- external -->
+    <rect class="ov-box" x="520" y="40" width="200" height="60" rx="10" fill="rgba(248,113,113,0.10)" stroke="#f87171"/>
+    <text class="ov-tt" x="620" y="66">네이버 Directions</text>
+    <text class="ov-mu" x="620" y="86">외부 경로 API</text>
+    <!-- push -->
+    <rect class="ov-box" x="800" y="330" width="200" height="60" rx="10" fill="rgba(248,113,113,0.10)" stroke="#f87171"/>
+    <text class="ov-tt" x="900" y="356">FCM 푸시</text>
+    <text class="ov-mu" x="900" y="376">알림 발송</text>
+    <!-- arrows -->
+    <path class="ov-line" d="M210,155 L288,205" marker-end="url(#ov-arr)"/>
+    <path class="ov-line" d="M210,250 L288,235" marker-end="url(#ov-arr)"/>
+    <path class="ov-line" d="M440,220 L518,220" marker-end="url(#ov-arr)"/>
+    <path class="ov-line" d="M720,180 L798,160" marker-end="url(#ov-arr)"/>
+    <path class="ov-line" d="M720,240 L798,245" marker-end="url(#ov-arr)"/>
+    <path class="ov-line" d="M660,150 L640,102" marker-end="url(#ov-arr)"/>
+    <path class="ov-line" d="M700,290 L860,328" marker-end="url(#ov-arr)"/>
+    <text class="ov-cap" x="455" y="212">REST/JSON</text>
+    <text class="ov-cap" x="30" y="330">① 클라이언트가 요청 → ② Nginx가 TLS 해제 후 Spring으로 전달 → ③ Spring이 DB·캐시·외부 API 조율 → ④ JSON 응답</text>
+  </svg>
+</div>
+
+<p><b>처리 흐름 (번호 순):</b></p>
+<ol>
+  <li>모바일 앱/관리자 웹이 <code class="inl">https://api.도메인/...</code> 로 REST 요청을 보냅니다.</li>
+  <li>Nginx가 유일한 외부 진입점으로서 TLS(HTTPS)를 종료하고, 경로에 따라 Spring 컨테이너로 프록시합니다.</li>
+  <li>Spring이 인증(JWT)을 검사하고, Service가 비즈니스 로직을 수행하며 PostgreSQL(영속)·Redis(캐시)·외부 API(네이버 경로)를 조율합니다.</li>
+  <li>결과를 JSON으로 반환합니다. 실시간 위치는 별도 WebSocket 채널로 밀어줍니다.</li>
+</ol>
+<div class="callout warn"><b>흔한 오해:</b> "프론트(NestJS)와 백엔드(Spring)가 있으니 서버가 둘이면 충분하다"고 생각하기 쉽습니다. 하지만 <b>DB·캐시·리버스 프록시·푸시</b>는 각각 독립 구성요소이며, 특히 <b>외부에 직접 노출되는 건 Nginx 하나뿐</b>이어야 보안·TLS·라우팅을 한 곳에서 통제할 수 있습니다.</div>
+
+<h2 class="sec" id="servers">2. 서버 구성 — Docker Compose 컨테이너</h2>
+<div class="summary">한 줄 요약: 각 구성요소를 개별 컨테이너로 띄우고 <code class="inl">docker-compose</code> 하나로 오케스트레이션합니다.</div>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 컨테이너 구성 (docker-compose 서비스 단위)</div>
+  <svg viewBox="0 0 1120 360" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .dc-tt { fill: #e2e8f0; font: bold 13.5px sans-serif; text-anchor: middle; }
+      .dc-mu { fill: #94a3b8; font: 12px sans-serif; text-anchor: middle; }
+      .dc-cap { fill: #94a3b8; font: 12px sans-serif; }
+      .dc-net { fill: #cbd5e1; font: bold 12px sans-serif; text-anchor: middle; }
+    </style>
+    <!-- host boundary -->
+    <rect x="20" y="20" width="1080" height="240" rx="12" fill="rgba(148,163,184,0.05)" stroke="#334155" stroke-dasharray="6 4"/>
+    <text class="dc-cap" x="36" y="44">Docker Host (VM / 클라우드 인스턴스)</text>
+    <!-- internal network -->
+    <rect x="45" y="60" width="1030" height="120" rx="10" fill="rgba(167,139,250,0.05)" stroke="#a78bfa" stroke-dasharray="4 4"/>
+    <text class="dc-net" x="560" y="78">내부 도커 네트워크 (외부에서 직접 접근 불가)</text>
+    <!-- containers -->
+    <rect x="70" y="95" width="150" height="70" rx="9" fill="rgba(167,139,250,0.12)" stroke="#a78bfa"/>
+    <text class="dc-tt" x="145" y="123">nginx</text>
+    <text class="dc-mu" x="145" y="143">:80 / :443 공개</text>
+    <rect x="270" y="95" width="160" height="70" rx="9" fill="rgba(52,211,153,0.12)" stroke="#34d399"/>
+    <text class="dc-tt" x="350" y="123">backend</text>
+    <text class="dc-mu" x="350" y="143">Spring :8080</text>
+    <rect x="480" y="95" width="160" height="70" rx="9" fill="rgba(34,211,238,0.12)" stroke="#22d3ee"/>
+    <text class="dc-tt" x="560" y="123">frontend</text>
+    <text class="dc-mu" x="560" y="143">NestJS :3000</text>
+    <rect x="690" y="95" width="160" height="70" rx="9" fill="rgba(251,191,36,0.12)" stroke="#fbbf24"/>
+    <text class="dc-tt" x="770" y="123">postgres</text>
+    <text class="dc-mu" x="770" y="143">:5432 (내부)</text>
+    <rect x="900" y="95" width="150" height="70" rx="9" fill="rgba(244,114,182,0.12)" stroke="#f472b6"/>
+    <text class="dc-tt" x="975" y="123">redis</text>
+    <text class="dc-mu" x="975" y="143">:6379 (내부)</text>
+    <!-- volumes -->
+    <rect x="690" y="195" width="160" height="50" rx="9" fill="rgba(251,191,36,0.08)" stroke="#fbbf24" stroke-dasharray="4 3"/>
+    <text class="dc-mu" x="770" y="225">📦 pgdata 볼륨(영속)</text>
+    <line x1="770" y1="165" x2="770" y2="195" stroke="#fbbf24" stroke-width="1.5"/>
+    <text class="dc-cap" x="36" y="300">공개 포트는 nginx의 80·443 뿐. DB·Redis·앱 컨테이너는 내부 네트워크에서만 통신 → 공격 표면 최소화.</text>
+    <text class="dc-cap" x="36" y="326">데이터는 named volume(pgdata)에 저장 → 컨테이너를 재생성해도 DB 내용 보존.</text>
+  </svg>
+</div>
+
+<div class="code-card">
+  <div class="code-card-header">
+    <span class="code-card-dots"><span></span><span></span><span></span></span>
+    <span class="code-card-lang">YAML · docker-compose.yml</span>
+  </div>
+  <pre class="line-numbers"><code class="language-yaml">services:
+  nginx:
+    image: nginx:1.27
+    ports: ["80:80", "443:443"]      # 외부에 공개되는 유일한 포트
+    volumes: ["./nginx.conf:/etc/nginx/conf.d/default.conf:ro"]
+    depends_on: [backend, frontend]
+
+  backend:
+    build: ./backend                 # Spring Boot 이미지 빌드
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/schoolbus
+      SPRING_DATA_REDIS_HOST: redis
+      NAVER_DIRECTIONS_KEY_ID: ${NAVER_DIRECTIONS_KEY_ID}   # 비밀키는 .env 로 주입
+      NAVER_DIRECTIONS_KEY: ${NAVER_DIRECTIONS_KEY}
+    expose: ["8080"]                 # 내부 네트워크에만 노출 (ports 아님)
+    depends_on: [postgres, redis]
+
+  frontend:
+    build: ./frontend
+    expose: ["3000"]
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: schoolbus
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes: ["pgdata:/var/lib/postgresql/data"]   # 영속 볼륨
+
+  redis:
+    image: redis:7
+
+volumes:
+  pgdata:</code></pre>
+</div>
+
+<div class="callout info"><b>포인트:</b> <code class="inl">ports</code>는 호스트 외부로 포트를 여는 것이고, <code class="inl">expose</code>는 내부 네트워크에만 여는 것입니다. backend/postgres/redis에 <code class="inl">ports</code>를 쓰지 않는 이유가 곧 보안 설계입니다.</div>
+
+<h2 class="sec" id="layers">3. 계층형 구조 — Controller / Service / Repository</h2>
+<div class="summary">한 줄 요약: 요청은 항상 Controller(입구) → Service(두뇌) → Repository(창고) 한 방향으로 흐르고, 반대로 되돌아 응답합니다.</div>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 승하차 조회 요청의 계층 이동</div>
+  <svg viewBox="0 0 1100 300" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .ly-tt { fill: #e2e8f0; font: bold 14px sans-serif; text-anchor: middle; }
+      .ly-mu { fill: #94a3b8; font: 12px sans-serif; text-anchor: middle; }
+      .ly-lbl { fill: #cbd5e1; font: 12px sans-serif; text-anchor: middle; }
+      .ly-line { stroke: #475569; stroke-width: 1.8; fill: none; }
+    </style>
+    <defs>
+      <marker id="ly-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+      </marker>
+    </defs>
+    <rect x="40" y="110" width="180" height="80" rx="10" fill="rgba(34,211,238,0.10)" stroke="#22d3ee"/>
+    <text class="ly-tt" x="130" y="145">Controller</text>
+    <text class="ly-mu" x="130" y="167">HTTP 입출력·검증</text>
+    <rect x="320" y="110" width="180" height="80" rx="10" fill="rgba(52,211,153,0.10)" stroke="#34d399"/>
+    <text class="ly-tt" x="410" y="145">Service</text>
+    <text class="ly-mu" x="410" y="167">비즈니스 규칙·권한</text>
+    <rect x="600" y="110" width="180" height="80" rx="10" fill="rgba(251,191,36,0.10)" stroke="#fbbf24"/>
+    <text class="ly-tt" x="690" y="145">Repository</text>
+    <text class="ly-mu" x="690" y="167">쿼리 (JPA)</text>
+    <rect x="880" y="110" width="170" height="80" rx="10" fill="rgba(244,114,182,0.10)" stroke="#f472b6"/>
+    <text class="ly-tt" x="965" y="145">PostgreSQL</text>
+    <text class="ly-mu" x="965" y="167">테이블</text>
+    <!-- forward -->
+    <path class="ly-line" d="M220,140 L318,140" marker-end="url(#ly-arr)"/>
+    <path class="ly-line" d="M500,140 L598,140" marker-end="url(#ly-arr)"/>
+    <path class="ly-line" d="M780,140 L878,140" marker-end="url(#ly-arr)"/>
+    <text class="ly-lbl" x="269" y="128">요청 DTO</text>
+    <text class="ly-lbl" x="549" y="128">엔티티 요구</text>
+    <text class="ly-lbl" x="829" y="128">SQL</text>
+    <!-- back -->
+    <path class="ly-line" d="M878,175 L782,175" marker-end="url(#ly-arr)"/>
+    <path class="ly-line" d="M598,175 L502,175" marker-end="url(#ly-arr)"/>
+    <path class="ly-line" d="M318,175 L222,175" marker-end="url(#ly-arr)"/>
+    <text class="ly-lbl" x="830" y="200">Row</text>
+    <text class="ly-lbl" x="550" y="200">Entity</text>
+    <text class="ly-lbl" x="270" y="200">응답 DTO</text>
+    <text class="ly-mu" x="130" y="240" style="text-anchor:start">위쪽 화살표 = 요청 진행, 아래쪽 = 응답 반환. 각 계층은 자기 옆 계층만 알고, 건너뛰지 않는다.</text>
+  </svg>
+</div>
+
+<p><b>왜 나누나?</b> 역할을 분리하면 ① 테스트가 쉬워지고(Service만 단위 테스트) ② 변경 범위가 작아집니다(DB를 PostgreSQL→다른 것으로 바꿔도 Repository만 수정). 통원 서비스처럼 <b>같은 RideEvent를 4개 역할이 다르게 조회</b>하는 요구사항은 "권한별 필터링"을 Service 한 곳에 모아두는 것이 핵심입니다.</p>
+
+<div class="code-card">
+  <div class="code-card-header">
+    <span class="code-card-dots"><span></span><span></span><span></span></span>
+    <span class="code-card-lang">Java · RideEventController.java</span>
+  </div>
+  <pre class="line-numbers"><code class="language-java">@RestController
+@RequestMapping("/api/ride-events")
+@RequiredArgsConstructor
+public class RideEventController {
+
+    private final RideEventService rideEventService;
+
+    // 학부모가 자녀의 승하차 기록을 날짜로 조회
+    @GetMapping
+    public List&lt;RideEventResponse&gt; list(
+            @AuthenticationPrincipal LoginUser user,   // JWT 에서 꺼낸 로그인 사용자
+            @RequestParam Long studentId,
+            @RequestParam LocalDate date) {
+        // 권한 판단은 Controller 가 아니라 Service 로 위임한다
+        return rideEventService.findFor(user, studentId, date);
+    }
+}</code></pre>
+</div>
+
+<div class="code-card">
+  <div class="code-card-header">
+    <span class="code-card-dots"><span></span><span></span><span></span></span>
+    <span class="code-card-lang">Java · RideEventService.java</span>
+  </div>
+  <pre class="line-numbers"><code class="language-java">@Service
+@RequiredArgsConstructor
+public class RideEventService {
+
+    private final RideEventRepository rideEventRepository;
+    private final AccessPolicy accessPolicy;
+
+    @Transactional(readOnly = true)
+    public List&lt;RideEventResponse&gt; findFor(LoginUser user, Long studentId, LocalDate date) {
+        // 역할별 조회 권한을 한 곳에서 판단 (학부모=본인 자녀만 / 관리자=소속 학원 전체)
+        accessPolicy.assertCanViewStudent(user, studentId);
+        return rideEventRepository
+                .findByStudentIdAndDate(studentId, date)
+                .stream().map(RideEventResponse::from).toList();
+    }
+}</code></pre>
+</div>
+
+<div class="callout warn"><b>흔한 오해:</b> 입문자는 Controller 안에서 바로 Repository를 호출하고 권한 검사·비즈니스 로직까지 다 넣곤 합니다. 그러면 같은 로직이 여러 Controller에 복붙되고, 테스트가 HTTP 요청 없이는 불가능해집니다. <b>Controller는 얇게(입출력 변환만), 로직은 Service에</b>가 원칙입니다.</div>
+
+<h2 class="sec" id="tenancy">4. 멀티 테넌시 설계 — User↔Tenant는 N:M</h2>
+<div class="summary">한 줄 요약: 학부모 1명이 여러 학원에 자녀를 둘 수 있으므로, <code class="inl">tenant_id</code>를 User에 박지 않고 <code class="inl">UserTenantRole</code> 연결 테이블로 표현합니다.</div>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 잘못된 설계(좌) vs 올바른 N:M 설계(우)</div>
+  <svg viewBox="0 0 1100 320" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .mt-tt { fill: #e2e8f0; font: bold 13px sans-serif; text-anchor: middle; }
+      .mt-mu { fill: #94a3b8; font: 12px sans-serif; text-anchor: middle; }
+      .mt-bad { fill: #f87171; font: bold 13px sans-serif; text-anchor: middle; }
+      .mt-good { fill: #34d399; font: bold 13px sans-serif; text-anchor: middle; }
+      .mt-line { stroke: #475569; stroke-width: 1.6; fill: none; }
+    </style>
+    <defs>
+      <marker id="mt-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+      </marker>
+    </defs>
+    <!-- BAD panel -->
+    <rect x="20" y="20" width="500" height="280" rx="10" fill="rgba(248,113,113,0.06)" stroke="#f87171"/>
+    <text class="mt-bad" x="270" y="46">✗ User 에 tenant_id 를 직접 박음</text>
+    <rect x="70" y="80" width="160" height="70" rx="8" fill="rgba(248,113,113,0.12)" stroke="#f87171"/>
+    <text class="mt-tt" x="150" y="108">User</text>
+    <text class="mt-mu" x="150" y="128">tenant_id = A학원</text>
+    <rect x="320" y="80" width="150" height="70" rx="8" fill="rgba(148,163,184,0.10)" stroke="#94a3b8"/>
+    <text class="mt-tt" x="395" y="115">A학원</text>
+    <path class="mt-line" d="M230,115 L318,115" marker-end="url(#mt-arr)"/>
+    <text class="mt-mu" x="270" y="200">자녀가 B학원에도 다니면?</text>
+    <text class="mt-bad" x="270" y="224">→ 표현 불가 · 계정 중복 생성 강요</text>
+    <!-- GOOD panel -->
+    <rect x="580" y="20" width="500" height="280" rx="10" fill="rgba(52,211,153,0.06)" stroke="#34d399"/>
+    <text class="mt-good" x="830" y="46">✓ UserTenantRole 연결 테이블</text>
+    <rect x="610" y="90" width="130" height="60" rx="8" fill="rgba(34,211,238,0.12)" stroke="#22d3ee"/>
+    <text class="mt-tt" x="675" y="125">User</text>
+    <rect x="800" y="70" width="180" height="45" rx="8" fill="rgba(167,139,250,0.12)" stroke="#a78bfa"/>
+    <text class="mt-mu" x="890" y="97">UserTenantRole</text>
+    <rect x="800" y="130" width="180" height="45" rx="8" fill="rgba(167,139,250,0.12)" stroke="#a78bfa"/>
+    <text class="mt-mu" x="890" y="157">UserTenantRole</text>
+    <rect x="1010" y="70" width="60" height="45" rx="8" fill="rgba(148,163,184,0.10)" stroke="#94a3b8"/>
+    <text class="mt-mu" x="1040" y="97">A학원</text>
+    <rect x="1010" y="130" width="60" height="45" rx="8" fill="rgba(148,163,184,0.10)" stroke="#94a3b8"/>
+    <text class="mt-mu" x="1040" y="157">B학원</text>
+    <path class="mt-line" d="M740,110 L798,92" marker-end="url(#mt-arr)"/>
+    <path class="mt-line" d="M740,130 L798,152" marker-end="url(#mt-arr)"/>
+    <path class="mt-line" d="M980,92 L1008,92" marker-end="url(#mt-arr)"/>
+    <path class="mt-line" d="M980,152 L1008,152" marker-end="url(#mt-arr)"/>
+    <text class="mt-good" x="830" y="230">한 User → 여러 (학원, 역할) 조합 자유롭게 표현</text>
+    <text class="mt-mu" x="830" y="256">(user_id, tenant_id, role) 로 학부모·기사 복수 소속 지원</text>
+  </svg>
+</div>
+
+<div class="code-card">
+  <div class="code-card-header">
+    <span class="code-card-dots"><span></span><span></span><span></span></span>
+    <span class="code-card-lang">SQL · schema.sql (멀티 테넌시 핵심)</span>
+  </div>
+  <pre class="line-numbers"><code class="language-sql">CREATE TABLE tenant (            -- 학원
+    id          BIGSERIAL PRIMARY KEY,
+    name        TEXT NOT NULL
+);
+
+CREATE TABLE app_user (          -- 사람 (역할은 여기 박지 않음)
+    id          BIGSERIAL PRIMARY KEY,
+    email       TEXT UNIQUE NOT NULL,
+    password    TEXT NOT NULL
+);
+
+CREATE TABLE user_tenant_role (  -- N:M 연결 + 역할
+    user_id     BIGINT REFERENCES app_user(id),
+    tenant_id   BIGINT REFERENCES tenant(id),
+    role        TEXT NOT NULL,   -- STUDENT/PARENT/DRIVER/ACADEMY_ADMIN/PLATFORM_ADMIN
+    PRIMARY KEY (user_id, tenant_id, role)
+);
+
+-- 학생·버스·기록 등 테넌트 종속 데이터는 tenant_id 컬럼으로 격리
+CREATE TABLE ride_event (
+    id          BIGSERIAL PRIMARY KEY,
+    tenant_id   BIGINT NOT NULL REFERENCES tenant(id),
+    student_id  BIGINT NOT NULL,
+    bus_id      BIGINT NOT NULL,
+    type        TEXT NOT NULL,          -- BOARD / ALIGHT
+    occurred_at TIMESTAMPTZ NOT NULL,
+    lat         DOUBLE PRECISION,
+    lng         DOUBLE PRECISION,
+    stop_id     BIGINT,
+    source      TEXT NOT NULL,          -- qr/nfc/manual/correction
+    corrected_by BIGINT, corrected_at TIMESTAMPTZ, original_ref BIGINT
+);
+CREATE INDEX idx_ride_tenant_student ON ride_event(tenant_id, student_id, occurred_at);</code></pre>
+</div>
+
+<div class="callout tip"><b>테넌트 격리 실전 팁:</b> 모든 테넌트 종속 쿼리에 <code class="inl">tenant_id = ?</code> 조건을 빠뜨리면 다른 학원 데이터가 새어나갑니다. Hibernate <code class="inl">@Filter</code>나 Service 상위의 공통 인터셉터로 <b>로그인 사용자의 tenant_id를 자동 주입</b>하면 실수를 구조적으로 막을 수 있습니다.</div>
+
+<h2 class="sec" id="auth">5. 인증·인가 — 역할 기반 JWT</h2>
+<div class="summary">한 줄 요약: 로그인하면 역할이 담긴 JWT를 발급하고, 이후 요청마다 토큰을 검증해 5개 역할의 접근 범위를 나눕니다.</div>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 로그인 → 보호된 API 호출 시퀀스</div>
+  <svg viewBox="0 0 1100 360" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .au-lbl { fill: #e2e8f0; font: bold 13px sans-serif; text-anchor: middle; }
+      .au-mu { fill: #94a3b8; font: 12px sans-serif; }
+      .au-life { stroke: #334155; stroke-width: 1.4; stroke-dasharray: 4 4; }
+      .au-msg { stroke: #22d3ee; stroke-width: 1.8; fill: none; }
+      .au-msg2 { stroke: #34d399; stroke-width: 1.8; fill: none; }
+    </style>
+    <defs>
+      <marker id="au-arrC" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#22d3ee"/>
+      </marker>
+      <marker id="au-arrG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#34d399"/>
+      </marker>
+    </defs>
+    <!-- actors -->
+    <rect x="60" y="20" width="150" height="46" rx="8" fill="rgba(34,211,238,0.10)" stroke="#22d3ee"/>
+    <text class="au-lbl" x="135" y="48">클라이언트</text>
+    <rect x="475" y="20" width="150" height="46" rx="8" fill="rgba(52,211,153,0.10)" stroke="#34d399"/>
+    <text class="au-lbl" x="550" y="48">Spring Security</text>
+    <rect x="890" y="20" width="150" height="46" rx="8" fill="rgba(251,191,36,0.10)" stroke="#fbbf24"/>
+    <text class="au-lbl" x="965" y="48">DB</text>
+    <line class="au-life" x1="135" y1="66" x2="135" y2="340"/>
+    <line class="au-life" x1="550" y1="66" x2="550" y2="340"/>
+    <line class="au-life" x1="965" y1="66" x2="965" y2="340"/>
+    <!-- messages -->
+    <path class="au-msg" d="M135,100 L548,100" marker-end="url(#au-arrC)"/>
+    <text class="au-mu" x="150" y="92">① POST /auth/login (email, pw)</text>
+    <path class="au-msg" d="M550,130 L963,130" marker-end="url(#au-arrC)"/>
+    <text class="au-mu" x="565" y="122">② 사용자·역할 조회</text>
+    <path class="au-msg2" d="M963,158 L552,158" marker-end="url(#au-arrG)"/>
+    <text class="au-mu" x="600" y="150">③ UserTenantRole 반환</text>
+    <path class="au-msg2" d="M548,188 L137,188" marker-end="url(#au-arrG)"/>
+    <text class="au-mu" x="150" y="180">④ JWT 발급 (roles, tenantIds 포함)</text>
+    <path class="au-msg" d="M135,240 L548,240" marker-end="url(#au-arrC)"/>
+    <text class="au-mu" x="150" y="232">⑤ GET /api/buses  (Authorization: Bearer JWT)</text>
+    <rect x="470" y="258" width="160" height="40" rx="6" fill="rgba(52,211,153,0.10)" stroke="#34d399"/>
+    <text class="au-mu" x="486" y="283">⑥ 토큰 검증·역할 확인</text>
+    <path class="au-msg2" d="M548,325 L137,325" marker-end="url(#au-arrG)"/>
+    <text class="au-mu" x="150" y="317">⑦ 권한 통과 시 응답 / 아니면 403</text>
+  </svg>
+</div>
+
+<div class="code-card">
+  <div class="code-card-header">
+    <span class="code-card-dots"><span></span><span></span><span></span></span>
+    <span class="code-card-lang">Java · SecurityConfig.java</span>
+  </div>
+  <pre class="line-numbers"><code class="language-java">@Configuration
+@EnableMethodSecurity   // @PreAuthorize 활성화
+public class SecurityConfig {
+
+    @Bean
+    SecurityFilterChain filterChain(HttpSecurity http, JwtFilter jwtFilter) throws Exception {
+        http.csrf(csrf -&gt; csrf.disable())            // 토큰 기반이라 CSRF 미사용
+            .sessionManagement(s -&gt; s.sessionCreationPolicy(STATELESS))
+            .authorizeHttpRequests(auth -&gt; auth
+                .requestMatchers("/auth/**").permitAll()
+                .requestMatchers("/api/admin/**").hasRole("PLATFORM_ADMIN")
+                .anyRequest().authenticated())
+            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+        return http.build();
+    }
+}</code></pre>
+</div>
+
+<div class="code-card">
+  <div class="code-card-header">
+    <span class="code-card-dots"><span></span><span></span><span></span></span>
+    <span class="code-card-lang">Java · 메서드 단위 권한 (역할별 분리)</span>
+  </div>
+  <pre class="line-numbers"><code class="language-java">// 학원 관리자만, 그리고 자기 학원 데이터만
+@PreAuthorize("hasRole('ACADEMY_ADMIN')")
+public FleetView getFleet(LoginUser user) {
+    return fleetService.findByTenant(user.tenantId());   // tenant_id 자동 격리
+}</code></pre>
+</div>
+
+<div class="callout warn"><b>흔한 오해:</b> "JWT에 역할을 넣었으니 안전하다"—토큰은 <b>서명 검증만</b> 위변조를 막고, 내용은 누구나 디코딩해 볼 수 있습니다. 따라서 <b>민감 정보를 JWT에 넣지 말고</b>, 만료 시간을 짧게(예: 액세스 15분 + 리프레시 토큰) 두어야 합니다.</div>
+
+<h2 class="sec" id="realtime">6. 실시간 위치 파이프라인 — Mock→실GPS 추상화</h2>
+<div class="summary">한 줄 요약: 위치 "소스"를 인터페이스로 추상화해, 지금은 Mock 좌표를 흘려보내고 나중에 실제 폰 GPS로 소스만 교체합니다.</div>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 위치 수신 → 저장/브로드캐스트 (소스 교체 가능 구조)</div>
+  <svg viewBox="0 0 1100 320" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .rt-tt { fill: #e2e8f0; font: bold 13px sans-serif; text-anchor: middle; }
+      .rt-mu { fill: #94a3b8; font: 12px sans-serif; text-anchor: middle; }
+      .rt-cap { fill: #94a3b8; font: 12px sans-serif; }
+      .rt-line { stroke: #475569; stroke-width: 1.8; fill: none; }
+    </style>
+    <defs>
+      <marker id="rt-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+      </marker>
+    </defs>
+    <!-- sources -->
+    <rect x="30" y="60" width="180" height="55" rx="9" fill="rgba(251,191,36,0.10)" stroke="#fbbf24" stroke-dasharray="5 3"/>
+    <text class="rt-tt" x="120" y="83">MockLocationSource</text>
+    <text class="rt-mu" x="120" y="102">(현재 MVP)</text>
+    <rect x="30" y="140" width="180" height="55" rx="9" fill="rgba(52,211,153,0.10)" stroke="#34d399" stroke-dasharray="5 3"/>
+    <text class="rt-tt" x="120" y="163">PhoneGpsSource</text>
+    <text class="rt-mu" x="120" y="182">(추후 교체)</text>
+    <!-- interface -->
+    <rect x="290" y="95" width="180" height="105" rx="9" fill="rgba(167,139,250,0.10)" stroke="#a78bfa"/>
+    <text class="rt-tt" x="380" y="135">LocationSource</text>
+    <text class="rt-mu" x="380" y="156">(인터페이스)</text>
+    <text class="rt-mu" x="380" y="176">stream(): Flux</text>
+    <!-- service -->
+    <rect x="550" y="95" width="180" height="105" rx="9" fill="rgba(34,211,238,0.10)" stroke="#22d3ee"/>
+    <text class="rt-tt" x="640" y="135">LocationService</text>
+    <text class="rt-mu" x="640" y="156">저장 + 근접판정</text>
+    <text class="rt-mu" x="640" y="176">브로드캐스트</text>
+    <!-- outputs -->
+    <rect x="810" y="55" width="250" height="55" rx="9" fill="rgba(244,114,182,0.10)" stroke="#f472b6"/>
+    <text class="rt-tt" x="935" y="80">WebSocket → 학부모 앱 지도</text>
+    <text class="rt-mu" x="935" y="99">실시간 위치 push</text>
+    <rect x="810" y="130" width="250" height="55" rx="9" fill="rgba(251,191,36,0.10)" stroke="#fbbf24"/>
+    <text class="rt-tt" x="935" y="155">PostgreSQL / Redis</text>
+    <text class="rt-mu" x="935" y="174">최근 위치 캐시·이력</text>
+    <path class="rt-line" d="M210,95 L288,130" marker-end="url(#rt-arr)"/>
+    <path class="rt-line" d="M210,165 L288,160" marker-end="url(#rt-arr)"/>
+    <path class="rt-line" d="M470,147 L548,147" marker-end="url(#rt-arr)"/>
+    <path class="rt-line" d="M730,130 L808,95" marker-end="url(#rt-arr)"/>
+    <path class="rt-line" d="M730,160 L808,155" marker-end="url(#rt-arr)"/>
+    <text class="rt-cap" x="30" y="250">교체 지점은 딱 하나 — 구현체를 MockLocationSource → PhoneGpsSource 로 바꾸면 나머지는 그대로.</text>
+    <text class="rt-cap" x="30" y="275">이것이 projectInfo 4.1의 "Mock 데이터 소스만 교체하면 되도록 추상화" 요구를 만족시키는 방법.</text>
+  </svg>
+</div>
+
+<div class="code-card">
+  <div class="code-card-header">
+    <span class="code-card-dots"><span></span><span></span><span></span></span>
+    <span class="code-card-lang">Java · LocationSource 추상화</span>
+  </div>
+  <pre class="line-numbers"><code class="language-java">// 위치 소스 추상화 — 실 GPS 전환 시 이 인터페이스의 구현만 교체
+public interface LocationSource {
+    Flux&lt;LocationPing&gt; stream(Long studentId);   // 좌표가 계속 흘러나오는 스트림
+}
+
+@Component
+@Profile("mock")                                  // MVP: application-mock.yml 로 활성화
+public class MockLocationSource implements LocationSource {
+    public Flux&lt;LocationPing&gt; stream(Long studentId) {
+        // 정해진 경로 위를 1초 간격으로 이동하는 가짜 좌표
+        return Flux.interval(Duration.ofSeconds(1))
+                   .map(tick -&gt; RouteSimulator.pointAt(studentId, tick));
+    }
+}
+
+// 추후: @Profile("prod") PhoneGpsSource — 클라이언트가 보낸 실제 좌표를 그대로 흘림</code></pre>
+</div>
+
+<div class="callout tip"><b>실시간 전송 방식 선택:</b> 위치처럼 서버가 클라이언트로 계속 밀어주는 데이터는 <b>WebSocket</b>(양방향)이나 <b>SSE</b>(서버→클라 단방향)가 적합합니다. 매초 <code class="inl">GET</code>으로 폴링하면 요청 수가 폭증하므로, 지도 추적에는 push 방식을 권장합니다.</div>
+
+<h2 class="sec" id="naver">7. 네이버 경로 프록시 — 비밀키를 서버에 숨기기</h2>
+<div class="summary">한 줄 요약: 네이버 Directions는 비밀키가 필요해 브라우저에서 직접 못 부르므로, Spring이 대신 호출하고 결과만 프론트에 전달합니다.</div>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 경로 요청: 프론트 → Spring 프록시 → 네이버</div>
+  <svg viewBox="0 0 1100 260" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .nv-tt { fill: #e2e8f0; font: bold 13px sans-serif; text-anchor: middle; }
+      .nv-mu { fill: #94a3b8; font: 12px sans-serif; text-anchor: middle; }
+      .nv-cap { fill: #94a3b8; font: 12px sans-serif; }
+      .nv-line { stroke: #475569; stroke-width: 1.8; fill: none; }
+    </style>
+    <defs>
+      <marker id="nv-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+      </marker>
+    </defs>
+    <rect x="40" y="80" width="200" height="80" rx="10" fill="rgba(34,211,238,0.10)" stroke="#22d3ee"/>
+    <text class="nv-tt" x="140" y="115">프론트 (NestJS)</text>
+    <text class="nv-mu" x="140" y="136">GET /api/routes?from&amp;to</text>
+    <rect x="400" y="70" width="220" height="100" rx="10" fill="rgba(52,211,153,0.10)" stroke="#34d399"/>
+    <text class="nv-tt" x="510" y="105">Spring 프록시</text>
+    <text class="nv-mu" x="510" y="126">비밀키 헤더 추가</text>
+    <text class="nv-mu" x="510" y="146">응답 캐시 (Redis)</text>
+    <rect x="790" y="80" width="240" height="80" rx="10" fill="rgba(248,113,113,0.10)" stroke="#f87171"/>
+    <text class="nv-tt" x="910" y="112">네이버 Directions</text>
+    <text class="nv-mu" x="910" y="133">X-NCP-APIGW-API-KEY-ID</text>
+    <path class="nv-line" d="M240,110 L398,110" marker-end="url(#nv-arr)"/>
+    <path class="nv-line" d="M620,105 L788,105" marker-end="url(#nv-arr)"/>
+    <path class="nv-line" d="M788,140 L622,140" marker-end="url(#nv-arr)"/>
+    <path class="nv-line" d="M398,145 L242,145" marker-end="url(#nv-arr)"/>
+    <text class="nv-cap" x="270" y="103">① 좌표만</text>
+    <text class="nv-cap" x="650" y="98">② 키 붙여 호출</text>
+    <text class="nv-cap" x="650" y="160">③ 경로 좌표</text>
+    <text class="nv-cap" x="270" y="165">④ 폴리라인 반환</text>
+    <text class="nv-cap" x="40" y="215">비밀키는 서버 환경변수에만 존재 → 브라우저 개발자도구에 절대 노출되지 않는다.</text>
+  </svg>
+</div>
+
+<div class="code-card">
+  <div class="code-card-header">
+    <span class="code-card-dots"><span></span><span></span><span></span></span>
+    <span class="code-card-lang">Java · RouteProxyController.java</span>
+  </div>
+  <pre class="line-numbers"><code class="language-java">@RestController
+@RequestMapping("/api/routes")
+@RequiredArgsConstructor
+public class RouteProxyController {
+
+    private final NaverDirectionsClient naver;   // 비밀키를 아는 유일한 곳
+
+    @GetMapping
+    @Cacheable(value = "routes", key = "#from + '_' + #to")   // Redis 캐시로 호출 절약
+    public RouteResponse route(@RequestParam String from, @RequestParam String to) {
+        // 좌표만 받아 네이버에 위임 → 결과 폴리라인을 프론트가 쓰기 쉽게 변환
+        return naver.driving(from, to);
+    }
+}</code></pre>
+</div>
+
+<div class="callout info"><b>운영 근거:</b> 경로는 정류장이 바뀌지 않는 한 결과가 같으므로 <b>Redis에 캐시</b>하면 유료 API 호출 수와 비용을 크게 줄일 수 있습니다. MVP에서는 무료 OSRM으로 이 <code class="inl">NaverDirectionsClient</code> 자리만 채워두었다가, 정식 전환 시 구현체를 갈아끼우면 됩니다(6장 추상화와 동일 패턴).</div>
+
+<h2 class="sec" id="noti">8. 알림 파이프라인 — 멱등성과 오탐 방지</h2>
+<div class="summary">한 줄 요약: 같은 사건이 매 틱 반복 감지돼도 <code class="inl">dedup_key</code>로 1번만 발송하고, GPS 오탐은 연속 N회 관측으로 걸러냅니다.</div>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 미탑승 알림 판정 (연속 3회 + 멱등키)</div>
+  <svg viewBox="0 0 1100 300" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .nt-tt { fill: #e2e8f0; font: bold 13px sans-serif; text-anchor: middle; }
+      .nt-mu { fill: #94a3b8; font: 12px sans-serif; text-anchor: middle; }
+      .nt-q { fill: #fbbf24; font: bold 13px sans-serif; text-anchor: middle; }
+      .nt-line { stroke: #475569; stroke-width: 1.6; fill: none; }
+      .nt-yes { fill: #34d399; font: 12px sans-serif; }
+      .nt-no { fill: #f87171; font: 12px sans-serif; }
+    </style>
+    <defs>
+      <marker id="nt-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+      </marker>
+    </defs>
+    <rect x="30" y="120" width="170" height="60" rx="9" fill="rgba(34,211,238,0.10)" stroke="#22d3ee"/>
+    <text class="nt-tt" x="115" y="147">위치 관측</text>
+    <text class="nt-mu" x="115" y="167">매 틱 조건 검사</text>
+    <rect x="270" y="115" width="190" height="70" rx="9" fill="rgba(251,191,36,0.10)" stroke="#fbbf24"/>
+    <text class="nt-q" x="365" y="143">도착+10분 &amp;</text>
+    <text class="nt-q" x="365" y="163">연속 3회 미승차?</text>
+    <rect x="540" y="115" width="200" height="70" rx="9" fill="rgba(167,139,250,0.10)" stroke="#a78bfa"/>
+    <text class="nt-tt" x="640" y="143">dedup_key 조회</text>
+    <text class="nt-mu" x="640" y="163">이미 발송했나?</text>
+    <rect x="820" y="60" width="240" height="60" rx="9" fill="rgba(52,211,153,0.10)" stroke="#34d399"/>
+    <text class="nt-tt" x="940" y="87">FCM 발송 + 로그 기록</text>
+    <text class="nt-mu" x="940" y="106">학부모·기사·관리자</text>
+    <rect x="820" y="150" width="240" height="55" rx="9" fill="rgba(148,163,184,0.08)" stroke="#94a3b8"/>
+    <text class="nt-mu" x="940" y="182">이미 있음 → 스킵 (재발송 없음)</text>
+    <path class="nt-line" d="M200,150 L268,150" marker-end="url(#nt-arr)"/>
+    <path class="nt-line" d="M460,150 L538,150" marker-end="url(#nt-arr)"/>
+    <path class="nt-line" d="M740,135 L818,100" marker-end="url(#nt-arr)"/>
+    <path class="nt-line" d="M740,165 L818,175" marker-end="url(#nt-arr)"/>
+    <text class="nt-no" x="360" y="205">아니오 → 무시 (단발 이상치·GPS 음영 방지)</text>
+    <text class="nt-yes" x="752" y="95">신규</text>
+    <text class="nt-mu" x="748" y="200" style="text-anchor:start">중복</text>
+  </svg>
+</div>
+
+<div class="code-card">
+  <div class="code-card-header">
+    <span class="code-card-dots"><span></span><span></span><span></span></span>
+    <span class="code-card-lang">Java · NotificationService.java (멱등 발송)</span>
+  </div>
+  <pre class="line-numbers"><code class="language-java">@Service
+@RequiredArgsConstructor
+public class NotificationService {
+
+    private final NotificationLogRepository logRepo;
+    private final PushSender pushSender;
+
+    @Transactional
+    public void notifyNoShow(NoShowEvent e) {
+        // dedup_key = 유형+학생+대상일자+정류장 → 동일 사건은 한 행만 존재
+        String dedupKey = "NOSHOW_%d_%s_%d".formatted(e.studentId(), e.date(), e.stopId());
+        if (logRepo.existsByDedupKey(dedupKey)) return;   // 이미 보냈으면 종료 (멱등)
+
+        logRepo.save(new NotificationLog(dedupKey, e.recipients()));
+        pushSender.sendWithBackoff(e.recipients(), e.message());   // 실패 시 지수 백오프
+    }
+}</code></pre>
+</div>
+
+<div class="callout warn"><b>흔한 오해:</b> "이벤트가 발생하면 곧바로 알림을 보낸다"고 1:1로 설계하면, 버스가 정류장에 머무는 동안 미승차 조건이 매 틱 참이 되어 학부모에게 알림이 수십 번 갑니다. <b>이벤트 감지와 발송은 분리</b>하고, 멱등키로 "이미 알린 사건인가"를 반드시 확인해야 합니다.</div>
+
+<h2 class="sec" id="data">9. 데이터 모델 → 테이블 개요</h2>
+<div class="summary">한 줄 요약: projectInfo 6장의 엔티티를 PostgreSQL 테이블로 옮기고, 테넌트 종속 테이블에는 <code class="inl">tenant_id</code>를 답니다.</div>
+
+<table>
+  <thead><tr><th>테이블</th><th>핵심 컬럼</th><th>설계 포인트</th></tr></thead>
+  <tbody>
+    <tr><td><code>tenant</code></td><td>id, name, 계약·과금</td><td>학원 = 테넌트 루트</td></tr>
+    <tr><td><code>app_user</code></td><td>id, email, password</td><td>역할·소속을 여기 넣지 않음</td></tr>
+    <tr><td><code>user_tenant_role</code></td><td>user_id, tenant_id, role</td><td>N:M 연결 (4장 핵심)</td></tr>
+    <tr><td><code>student</code></td><td>tenant_id, bus_id, guardian_ids</td><td>학생은 단일 학원 종속</td></tr>
+    <tr><td><code>bus</code></td><td>driver_id, seat_capacity, 보험만료일</td><td>물리 좌석 수</td></tr>
+    <tr><td><code>route</code> / <code>stop</code></td><td>정류장 순서, assign_capacity</td><td>배정 정원 = seat와 별개</td></tr>
+    <tr><td><code>ride_event</code></td><td>type, occurred_at, source, corrected_by, original_ref</td><td>정정은 덮어쓰지 말고 새 행</td></tr>
+    <tr><td><code>audit_log</code></td><td>actor, action, before/after</td><td>민감 조작 감사</td></tr>
+    <tr><td><code>sos_event</code></td><td>status(open→ack→resolved), acknowledged_by</td><td>상태 되돌림 불가 · 3분 에스컬레이션</td></tr>
+    <tr><td><code>notification_log</code></td><td>type, recipient, dedup_key, 결과</td><td>멱등·재시도 기록</td></tr>
+  </tbody>
+</table>
+
+<div class="callout tip"><b>마이그레이션 도구:</b> 스키마는 손으로 <code class="inl">CREATE TABLE</code> 하지 말고 <b>Flyway</b>나 <b>Liquibase</b>로 버전 관리하세요. 팀·배포 환경마다 DB 상태를 동일하게 재현할 수 있어, 운영 서비스에서는 사실상 필수입니다.</div>
+
+<h2 class="sec" id="spec">10. 서버 스펙 · 배포 권장</h2>
+<div class="summary">한 줄 요약: MVP는 단일 인스턴스 + docker-compose로 시작하고, 트래픽이 늘면 DB 분리·Spring 다중화·로드밸런서로 확장합니다.</div>
+
+<table>
+  <thead><tr><th>단계</th><th>구성</th><th>권장 스펙(예)</th></tr></thead>
+  <tbody>
+    <tr><td>MVP / 데모</td><td>단일 VM에 compose 전체 (nginx+spring+nest+pg+redis)</td><td>2 vCPU / 4GB RAM / 40GB SSD</td></tr>
+    <tr><td>초기 운영</td><td>앱 VM + <b>관리형 PostgreSQL</b> 분리 (백업·장애조치 위임)</td><td>앱 4 vCPU/8GB, DB 관리형</td></tr>
+    <tr><td>성장기</td><td>Nginx/LB 뒤에 Spring 여러 인스턴스, Redis 공용 세션, 관리형 DB read replica</td><td>수평 확장</td></tr>
+  </tbody>
+</table>
+
+<h3>배포 관점 체크리스트</h3>
+<ol>
+  <li><b>환경 분리:</b> <code class="inl">application-mock.yml</code>(로컬) / <code class="inl">application-prod.yml</code>(운영). 비밀키·DB 암호는 코드가 아닌 <code class="inl">.env</code>·시크릿 매니저로 주입.</li>
+  <li><b>TLS:</b> Nginx에서 Let's Encrypt 인증서로 HTTPS 종료.</li>
+  <li><b>헬스체크:</b> Spring Actuator <code class="inl">/actuator/health</code>를 compose <code class="inl">healthcheck</code>·로드밸런서가 감시.</li>
+  <li><b>로깅·모니터링:</b> 구조화 로그(JSON) + 필요 시 Prometheus/Grafana. SOS·미탑승 같은 안전 이벤트는 별도 알림.</li>
+  <li><b>백업:</b> PostgreSQL 정기 덤프 + 볼륨 스냅샷. 위치·승하차 기록은 법적 보관 요건 확인.</li>
+</ol>
+
+<div class="callout warn"><b>법적 선행조건(projectInfo 4.2):</b> 실제 GPS로 전환하기 전에 <b>위치정보사업 신고, 만 14세 미만 법정대리인 동의 수집 UI·스키마</b>가 준비돼야 합니다. Mock 단계에서는 유예되지만, 동의 데이터 모델은 실 GPS 전환 전에 반드시 구현하세요.</div>
+
+<h2 class="sec" id="steps">11. 권장 구축 순서</h2>
+<div class="summary">한 줄 요약: 인프라 뼈대 → 인증 → 도메인 → 실시간/알림 → 외부 연동 순으로, 매 단계 배포 가능한 상태를 유지합니다.</div>
+
+<ol>
+  <li><b>인프라 뼈대:</b> docker-compose로 nginx+spring+postgres+redis를 띄우고 <code class="inl">/actuator/health</code>가 200 뜨는지 확인.</li>
+  <li><b>스키마 + 마이그레이션:</b> Flyway로 9장 테이블 생성, 멀티 테넌시(<code class="inl">user_tenant_role</code>) 우선.</li>
+  <li><b>인증·인가:</b> 회원가입/로그인, JWT 발급·검증, 5개 역할 <code class="inl">@PreAuthorize</code> 골격.</li>
+  <li><b>핵심 도메인:</b> 승하차 기록(RideEvent) CRUD + 역할별 조회 필터 → 기사 체크 → 관리자 조회.</li>
+  <li><b>실시간 위치:</b> <code class="inl">LocationSource</code> 추상화 + MockLocationSource + WebSocket 브로드캐스트.</li>
+  <li><b>알림:</b> dedup_key 멱등 발송 + FCM 연동 + 미탑승/근접/SOS 정책 상수화.</li>
+  <li><b>외부 경로:</b> RouteProxyController + OSRM 구현(추후 네이버 교체), Redis 캐시.</li>
+  <li><b>운영 기능:</b> 시간변경 승인, 노선 개편(정원 초과 경고), 통계·감사 로그.</li>
+  <li><b>실 GPS 전환:</b> 법적 요건 충족 후 PhoneGpsSource로 소스 교체.</li>
+</ol>
+
+<div class="callout info"><b>마무리:</b> 이 아키텍처의 핵심 아이디어는 세 가지입니다 — ① 외부 노출은 Nginx 하나로 좁히고, ② User↔Tenant를 N:M으로 유연하게, ③ 위치·경로·알림 같은 "교체될 수 있는 부분"을 인터페이스로 추상화해 Mock→실서비스 전환 비용을 최소화한다.</div>
+
+</main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js" data-manual></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-yaml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-sql.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    if (window.Prism) Prism.highlightAll();
+  });
+</script>
+</body>
+</html>

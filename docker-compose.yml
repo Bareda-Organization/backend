@@ -1,0 +1,51 @@
+# 전체 스택을 컨테이너로 기동한다: postgres + redis + backend(Spring) + frontend(Next.js)
+# 실행:  docker compose up -d --build
+#   - 프론트:  http://localhost:3000
+#   - 백엔드:  http://localhost:8080
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: schoolbus
+      POSTGRES_USER: schoolbus
+      POSTGRES_PASSWORD: schoolbus
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U schoolbus"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: ./backend
+    environment:
+      # 컨테이너 내부에서는 서비스 이름(postgres/redis)으로 접속 (localhost 아님)
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/schoolbus
+      SPRING_DATASOURCE_USERNAME: schoolbus
+      SPRING_DATASOURCE_PASSWORD: schoolbus
+      SPRING_DATA_REDIS_HOST: redis
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

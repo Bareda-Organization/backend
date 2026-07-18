@@ -1,0 +1,53 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.1.0'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'src'
+version = '0.0.1-SNAPSHOT'
+description = 'backend'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Web (신형 아티팩트명 — 구 spring-boot-starter-web 아님)
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    // 영속성 (JPA + PostgreSQL)
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    runtimeOnly 'org.postgresql:postgresql'
+    // 보안 (역할 기반 JWT 인증)
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+    // 입력값 검증
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    // 캐시·실시간(Pub/Sub)
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    // 외부 경로 API 호출용 WebClient
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+    // 실시간 위치 수신 채널(STOMP over WebSocket) — 연결 상태(heartbeat)를 프로토콜 차원에서 감지
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    // 보일러플레이트 축소
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
