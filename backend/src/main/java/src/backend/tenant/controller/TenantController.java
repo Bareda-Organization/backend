@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -16,6 +17,7 @@ import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.tenant.dto.CreateTenantRequest;
 import src.backend.tenant.dto.TenantResponse;
+import src.backend.tenant.dto.UpdateTenantLocationRequest;
 import src.backend.tenant.command.TenantCommandService;
 import src.backend.tenant.query.TenantQueryService;
 
@@ -54,5 +56,13 @@ public class TenantController {
     public ApiResponse<TenantResponse> detail(@AuthenticationPrincipal AuthUser admin,
                                               @PathVariable Long id) {
         return ApiResponse.ok(tenantQueryService.get(admin, id));
+    }
+
+    /** 학원 위치(depot) 설정 — routing 노선 계산 기준점, 플랫폼 관리자. */
+    @PatchMapping("/{id}/location")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public ApiResponse<TenantResponse> updateLocation(@PathVariable Long id,
+                                                       @Valid @RequestBody UpdateTenantLocationRequest request) {
+        return ApiResponse.ok(tenantCommandService.updateLocation(id, request));
     }
 }

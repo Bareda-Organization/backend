@@ -49,7 +49,11 @@ public class Student extends BaseTimeEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "stop_id")
-    private Stop boardingStop;    // 기본 승차 정류장
+    private Stop boardingStop;    // 기본 승차 정류장(등원 좌표로도 재사용)
+
+    private String dropoffAddress;   // 하차지(하원) 주소 — 표시용
+    private Double dropoffLat;
+    private Double dropoffLng;
 
     @Builder
     public Student(Tenant tenant, Long userId, String name, Bus assignedBus, Stop boardingStop) {
@@ -68,5 +72,12 @@ public class Student extends BaseTimeEntity {
     /** 기본 승차 정류장 갱신(관리자 재배정 시 사용). */
     public void assignStop(Stop stop) {
         this.boardingStop = stop;
+    }
+
+    /** 하차지(하원) 좌표 갱신 — routing 모듈이 하원 노선 계산에 사용한다. */
+    public void updateDropoff(String dropoffAddress, Double dropoffLat, Double dropoffLng) {
+        this.dropoffAddress = dropoffAddress;
+        this.dropoffLat = dropoffLat;
+        this.dropoffLng = dropoffLng;
     }
 }

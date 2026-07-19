@@ -29,8 +29,19 @@ public class Tenant extends BaseTimeEntity {
     @Column(nullable = false)
     private String name;
 
+    private Double lat;   // 학원 위치(depot) — routing 모듈이 노선 계산 기준점으로 사용
+    private Double lng;
+
     @Builder
-    public Tenant(String name) {
+    public Tenant(String name, Double lat, Double lng) {
         this.name = name;
+        this.lat = lat;
+        this.lng = lng;
+    }
+
+    /** 학원 위치 갱신 — routing 이 depot 좌표로 사용하려면 반드시 설정돼 있어야 한다. */
+    public void updateLocation(Double lat, Double lng) {
+        this.lat = lat;
+        this.lng = lng;
     }
 }

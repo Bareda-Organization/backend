@@ -20,6 +20,7 @@ import src.backend.student.dto.CreateStudentRequest;
 import src.backend.student.dto.LinkGuardianRequest;
 import src.backend.student.dto.StudentDetailResponse;
 import src.backend.student.dto.StudentResponse;
+import src.backend.student.dto.UpdateDropoffRequest;
 import src.backend.student.dto.UpdateStudentAssignmentRequest;
 import src.backend.student.command.StudentCommandService;
 import src.backend.student.query.StudentQueryService;
@@ -67,6 +68,14 @@ public class StudentController {
                                                @PathVariable Long id,
                                                @Valid @RequestBody UpdateStudentAssignmentRequest request) {
         return ApiResponse.ok(studentCommandService.updateAssignment(admin, id, request));
+    }
+
+    /** 하차지(하원) 좌표 설정 — routing 모듈이 하원 노선 계산에 사용. */
+    @PatchMapping("/{id}/dropoff")
+    public ApiResponse<StudentResponse> updateDropoff(@AuthenticationPrincipal AuthUser admin,
+                                                       @PathVariable Long id,
+                                                       @Valid @RequestBody UpdateDropoffRequest request) {
+        return ApiResponse.ok(studentCommandService.updateDropoff(admin, id, request));
     }
 
     /** 보호자 연결 추가. */

@@ -15,6 +15,7 @@ import src.backend.student.dto.CreateStudentRequest;
 import src.backend.student.dto.LinkGuardianRequest;
 import src.backend.student.dto.StudentDetailResponse;
 import src.backend.student.dto.StudentResponse;
+import src.backend.student.dto.UpdateDropoffRequest;
 import src.backend.student.dto.UpdateStudentAssignmentRequest;
 import src.backend.student.entity.Student;
 import src.backend.student.entity.StudentGuardian;
@@ -92,6 +93,13 @@ public class StudentCommandService {
         if (req.boardingStopId() != null) {
             student.assignStop(loadStopInTenant(req.boardingStopId(), tenantId));
         }
+        return StudentResponse.of(student);
+    }
+
+    @Transactional
+    public StudentResponse updateDropoff(AuthUser admin, Long studentId, UpdateDropoffRequest req) {
+        Student student = loadAccessibleStudent(admin, studentId);
+        student.updateDropoff(req.dropoffAddress(), req.dropoffLat(), req.dropoffLng());
         return StudentResponse.of(student);
     }
 

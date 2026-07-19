@@ -7,9 +7,11 @@ import src.backend.tenant.entity.Tenant;
  */
 public record TenantResponse(
         Long id,
-        String name) {
+        String name,
+        Double lat,
+        Double lng) {
 
     public static TenantResponse of(Tenant tenant) {
-        return new TenantResponse(tenant.getId(), tenant.getName());
+        return new TenantResponse(tenant.getId(), tenant.getName(), tenant.getLat(), tenant.getLng());
     }
 }

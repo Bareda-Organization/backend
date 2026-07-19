@@ -11,7 +11,10 @@ public record StudentResponse(
         String name,
         Long userId,
         Long assignedBusId,
-        Long boardingStopId) {
+        Long boardingStopId,
+        String dropoffAddress,
+        Double dropoffLat,
+        Double dropoffLng) {
 
     public static StudentResponse of(Student student) {
         return new StudentResponse(
@@ -20,6 +23,9 @@ public record StudentResponse(
                 student.getName(),
                 student.getUserId(),
                 student.getAssignedBus() != null ? student.getAssignedBus().getId() : null,
-                student.getBoardingStop() != null ? student.getBoardingStop().getId() : null);
+                student.getBoardingStop() != null ? student.getBoardingStop().getId() : null,
+                student.getDropoffAddress(),
+                student.getDropoffLat(),
+                student.getDropoffLng());
     }
 }

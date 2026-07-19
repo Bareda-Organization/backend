@@ -77,10 +77,10 @@ public class DataInitializer implements CommandLineRunner {
         }
         log.info("[seed] 데모 시드 데이터 생성 시작");
 
-        // ── 학원 3곳 ──
-        Tenant hanbit = tenantRepository.save(Tenant.builder().name("한빛학원").build());
-        Tenant gaon = tenantRepository.save(Tenant.builder().name("가온에듀").build());
-        tenantRepository.save(Tenant.builder().name("미래코딩").build());
+        // ── 학원 3곳 (좌표는 routing depot 기준점 — 한빛은 기존 "학원" 정류장 좌표 근방) ──
+        Tenant hanbit = tenantRepository.save(Tenant.builder().name("한빛학원").lat(37.5075).lng(127.0355).build());
+        Tenant gaon = tenantRepository.save(Tenant.builder().name("가온에듀").lat(37.4980).lng(127.0276).build());
+        tenantRepository.save(Tenant.builder().name("미래코딩").lat(37.5145).lng(127.0300).build());
 
         // ── 역할별 계정 (비밀번호 공통) ──
         User studentUser = createUser("student@school.com", "김민준", "010-0000-0001");
@@ -119,14 +119,20 @@ public class DataInitializer implements CommandLineRunner {
                 .insuranceExpiry(LocalDate.of(2026, 8, 15)).build());
 
         // ── 한빛학원 학생 ──
-        // 3호차(정상): 김민준(학생 계정 연결), 이서연, 박도윤
-        studentRepository.save(Student.builder()
+        // 3호차(정상): 김민준(학생 계정 연결), 이서연, 박도윤 — 하차지 좌표는 routing 데모용으로 서로 흩어지게 부여
+        Student kimStudent = studentRepository.save(Student.builder()
                 .tenant(hanbit).userId(studentUser.getId()).name("김민준")
                 .assignedBus(bus3).boardingStop(stopA).build());
-        studentRepository.save(Student.builder()
+        kimStudent.updateDropoff("서울 서초구 자택", 37.4998, 127.0245);
+        studentRepository.save(kimStudent);
+        Student leeStudent = studentRepository.save(Student.builder()
                 .tenant(hanbit).name("이서연").assignedBus(bus3).boardingStop(stopA).build());
-        studentRepository.save(Student.builder()
+        leeStudent.updateDropoff("서울 서초구 자택2", 37.5032, 127.0398);
+        studentRepository.save(leeStudent);
+        Student parkStudent = studentRepository.save(Student.builder()
                 .tenant(hanbit).name("박도윤").assignedBus(bus3).boardingStop(stopB).build());
+        parkStudent.updateDropoff("서울 강남구 자택", 37.5060, 127.0290);
+        studentRepository.save(parkStudent);
         // 1호차(초과): 배정 정원 2인 노선에 3명 → overCapacity
         studentRepository.save(Student.builder()
                 .tenant(hanbit).name("최지우").assignedBus(bus1).boardingStop(stopA).build());

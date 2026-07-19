@@ -43,7 +43,7 @@ class TenantControllerTest {
 
     @Test
     void create_as_platform_admin_is_allowed() throws Exception {
-        given(tenantCommandService.create(any())).willReturn(new TenantResponse(1L, "한빛학원"));
+        given(tenantCommandService.create(any())).willReturn(new TenantResponse(1L, "한빛학원", null, null));
 
         mockMvc.perform(post("/api/tenants").with(user("p").roles("PLATFORM_ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON)
