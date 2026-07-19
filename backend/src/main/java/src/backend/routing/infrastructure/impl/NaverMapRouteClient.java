@@ -11,6 +11,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.routing.domain.GeoMath;
 import src.backend.routing.domain.LatLng;
 import src.backend.routing.infrastructure.spec.MapRouteClient;
 import src.backend.routing.infrastructure.spec.RouteResult;
@@ -87,22 +88,12 @@ public class NaverMapRouteClient implements MapRouteClient {
         List<Double> legHaversineM = new java.util.ArrayList<>();
         double sum = 0;
         for (int i = 0; i < waypoints.size() - 1; i++) {
-            double d = haversineMeters(waypoints.get(i), waypoints.get(i + 1));
+            double d = GeoMath.distanceMeters(waypoints.get(i), waypoints.get(i + 1));
             legHaversineM.add(d);
             sum += d;
         }
         double finalSum = sum == 0 ? 1 : sum;
         return legHaversineM.stream().map(d -> totalDurationS * d / finalSum).toList();
-    }
-
-    private double haversineMeters(LatLng a, LatLng b) {
-        double R = 6371000;
-        double dLat = Math.toRadians(b.lat() - a.lat());
-        double dLng = Math.toRadians(b.lng() - a.lng());
-        double h = Math.sin(dLat / 2) * Math.sin(dLat / 2)
-                + Math.cos(Math.toRadians(a.lat())) * Math.cos(Math.toRadians(b.lat()))
-                * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-        return 2 * R * Math.asin(Math.sqrt(h));
     }
 
     private String serializePolyline(List<List<Double>> path) {
