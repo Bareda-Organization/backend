@@ -3,11 +3,13 @@ package src.backend.notification.infrastructure.impl;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
+import src.backend.global.common.ApprovalStatus;
 import src.backend.location.event.StudentConnectionLostEvent;
 import src.backend.notification.command.spec.NotificationCommandService;
 import src.backend.notification.domain.NotificationType;
 import src.backend.rideevent.event.RideCompletedEvent;
 import src.backend.rideevent.event.StudentBoardedEvent;
+import src.backend.schedule.event.ScheduleResultEvent;
 import src.backend.sos.event.SosEscalatedEvent;
 import src.backend.sos.event.SosTriggeredEvent;
 
@@ -65,5 +67,14 @@ public class DomainEventNotificationConsumer {
                 NotificationType.CONNECTION_LOST, event.studentId(), event.occurredDate(), "disconnect:" + event.occurredAt());
         notificationCommandService.notify(NotificationType.CONNECTION_LOST, event.tenantId(), event.studentId(),
                 dedupKey, event.studentName() + " 학생의 위치 연결이 끊겼습니다");
+    }
+
+    @KafkaListener(topics = "schedule-result")
+    public void onScheduleResult(ScheduleResultEvent event) {
+        String dedupKey = NotificationCommandService.dedupKey(NotificationType.SCHEDULE_RESULT,
+                event.studentId(), event.occurredDate(), "request:" + event.scheduleChangeRequestId());
+        String resultText = event.status() == ApprovalStatus.APPROVED ? "승인" : "반려";
+        notificationCommandService.notify(NotificationType.SCHEDULE_RESULT, event.tenantId(), event.studentId(),
+                dedupKey, event.studentName() + " 학생의 시간 변경 요청이 " + resultText + "되었습니다");
     }
 }
