@@ -231,27 +231,28 @@ public interface LocationSource {
 | `attendance` | ✅ | ✅ | ✅ | ✅ | ✅ 완료 |
 | `notification` | ✅ | ✅ | ✅ | ✅ | ✅ 완료 |
 | `sos` | ✅ | ✅ | ✅ | ✅ | ✅ 완료 |
-| `schedule` (ScheduleChangeRequest) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ 예정 |
+| `schedule` (ScheduleChangeRequest) | ✅ | ✅ | ✅ | ✅ | ✅ 완료 |
 | `routing` (OSRM·네이버 ETA) | — | — | ⬜ | ⬜ | ⬜ 예정 |
 
-진행률: **완료 12 / 부분 0 / 예정 2** (총 14 모듈)
+진행률: **완료 13 / 부분 0 / 예정 1** (총 14 모듈)
 
 - `user`/`tenant`/`student`: `MemberController`+`MemberServiceImpl`, `TenantController`+`TenantServiceImpl`, `StudentController`+`StudentServiceImpl`(배정·보호자 연결 포함) 모두 구현 완료. 등록·조회 모두 `TenantGuard`로 학원 격리 검사.
 - 사용자 계층·권한(2장) 요구사항 — 5계층 `Role` + `UserTenantRole` N:M + `TenantGuard`(학원관리자 자기 학원만/플랫폼관리자 지정 학원) + `RideEventQueryService`의 역할별 조회 스코핑(`getMyRecords`/`getChildrenRecords`/`getRosterRecords`/`getTenantRecords`)까지 구조적으로 완료. PARENT "알림함"은 `notification` 모듈 완료로 함께 해소됨. 남은 건 DRIVER "메모"(기사 운행관리 모듈 몫)뿐 — 권한 구조 자체가 아니라 해당 기능 모듈 미구현 때문.
-- `notification`: `NotificationLog`(dedupKey unique) + `NotificationLogRepository` + `NotificationCommandService`(멱등 `notify` + `dedupKey` 공식 헬퍼) + `NotificationQueryService` + `NotificationSender` 포트(`LogNotificationSender` MVP 구현, `LocationSource`와 동일한 추상화 패턴) + `NotificationController`(`/api/notifications/children` PARENT, `/api/notifications` 관리자) 모두 구현. `NotificationThresholds`(10/5/3분) 상수 정의. **트리거는 BOARD_DONE/ALIGHT_DONE, SOS만 연동됨** — Phase 2에서 직접호출(`RideEventCommandService.record()`, `SosCommandService`가 `NotificationCommandService.notify`를 직접 호출)에서 Kafka 도메인 이벤트 경유(`DomainEventNotificationConsumer`의 `@KafkaListener`가 `notify` 호출)로 전환됨 — NO_SHOW(정류장 도착 감지 필요)·APPROACH(ETA 필요)·SCHEDULE_RESULT(schedule 모듈 필요)는 해당 모듈이 만들어질 때 같은 이벤트 발행 패턴을 따르도록 남겨둠.
+- `notification`: `NotificationLog`(dedupKey unique) + `NotificationLogRepository` + `NotificationCommandService`(멱등 `notify` + `dedupKey` 공식 헬퍼) + `NotificationQueryService` + `NotificationSender` 포트(`LogNotificationSender` MVP 구현, `LocationSource`와 동일한 추상화 패턴) + `NotificationController`(`/api/notifications/children` PARENT, `/api/notifications` 관리자) 모두 구현. `NotificationThresholds`(10/5/3분) 상수 정의. **트리거는 BOARD_DONE/ALIGHT_DONE/SOS/SCHEDULE_RESULT 연동됨** — Phase 2에서 직접호출에서 Kafka 도메인 이벤트 경유(`DomainEventNotificationConsumer`의 `@KafkaListener`가 `notify` 호출)로 전환됐고, Phase 5에서 `SCHEDULE_RESULT`가 최초로 연결됨. NO_SHOW(정류장 도착 감지 필요)·APPROACH(ETA 필요)는 routing(Phase 6) 구현 시 같은 이벤트 발행 패턴을 따르도록 남겨둠.
 - `sos`: `SosEvent`(단방향 상태전이 `acknowledge`/`resolve` 도메인 메서드, 잘못된 전이는 `CONFLICT` 409) + `SosEventRepository` + `SosCommandService`(발신/확인/종료) + `SosQueryService`(역할별 4계층 조회) + `SosController` + `SosEscalationScheduler`(`app.sos.escalation-check-ms`, 기본 30초 폴링) 모두 구현. 발신 즉시·에스컬레이션(3분 미확인) 모두 `NotificationCommandService`의 dedupKey 멱등을 그대로 재사용해 "같은 이벤트 중복 알림 없음"을 스케줄러 코드 없이 보장. 실제 서버 기동 후 발신→확인→종료 상태전이, 권한 가드(403)·상태 가드(409), 백데이트 이벤트로 에스컬레이션 1회만 발송됨을 curl로 검증 완료.
 - `location` 실시간 push (2026-07-19 E2E 검증 완료): `parent@school.com`이 `/user/queue/location` 구독 시 자녀(김민준·이서연) GPS가 ~3초 주기로 push됨(`MockLocationSource`→`LocationUpdatedEvent`→Kafka→`LocationPushConsumer`→`convertAndSendToUser`). `admin@school.com`이 타 테넌트(가온에듀) `/topic/tenant/{id}/location` 구독 시 `StompAuthChannelInterceptor`가 즉시 거부(ERROR frame + 연결 종료), 자기 테넌트 구독은 정상 push. `driver@school.com`의 `POST /api/ride-events`(BOARD) → `parent`의 `/user/queue/notifications`로 BOARD_DONE 즉시 push(`WebSocketNotificationSender`). SOS 발신 즉시 push + 3분 미확인 에스컬레이션 push 모두 동일 채널로 도착 확인. 검증 중 Kafka 이벤트 직렬화 버그(위 §11.4 콜아웃)를 발견·수정.
 - `attendance` (Phase 4, 2026-07-19 완료, 커밋 `de79104`): `sos`를 템플릿으로 서비스화. `AttendanceException.approve/reject`(PENDING만 허용, 잘못된 전이는 `CONFLICT` 409) + `AttendanceCommandService`(신청 생성은 학부모, 본인 자녀만 가능·`FORBIDDEN` 가드) + `AttendanceQueryService`(자녀별/테넌트별 조회 + `getActiveRoster(busId, date)` 명단 스킵 헬퍼 — `StudentRepository.findByAssignedBusId` 결과에서 해당 날짜 `APPROVED` 신고가 있는 학생을 제외) + `AttendanceController`(`/api/attendance-exceptions`). 승인 시 `AttendanceApprovedEvent` 발행(현재 소비자 없음, Phase 6 routing이 당일 replan 트리거로 구독 예정). `getActiveRoster`는 서비스 간 재사용 헬퍼로만 노출하고 별도 컨트롤러 엔드포인트나 다른 모듈 배선은 하지 않음(rideevent 명단·Phase 6 routing이 향후 직접 호출해 소비). docker compose(postgres/redis/kafka)+`bootRun`으로 curl E2E 검증: 생성→타인 자녀 403→미인증 401→관리자 승인 200(processedBy 기록)→재승인 409→children/tenant 조회 정상, Kafka `attendance-approved` 토픽 발행 확인(직렬화 에러 없음). 전용 테스트 파일은 만들지 않음(`sos` 템플릿 선례를 따름).
+- `schedule` (Phase 5, 2026-07-19 완료, 커밋 `94f99c6`): greenfield 신규. `ScheduleChangeRequest`(tenantId/studentId/requestedDate/requestedTime/reason/status/processedBy) + `approve/reject`(attendance와 동일 PENDING 가드, `CONFLICT` 409) + `ScheduleCommandService`(신청은 학부모가 본인 자녀만) + `ScheduleQueryService`(자녀별/테넌트별 조회) + `ScheduleController`(`/api/schedule-change-requests`) — attendance와 동일 구조. **attendance와의 차이**: 승인·반려 **둘 다** `ScheduleResultEvent`(과거형, `status` 필드 포함) 발행 → topic `schedule-result` → `DomainEventNotificationConsumer`에 `onScheduleResult` 리스너 신설 → 그동안 정의만 되고 미사용이던 `NotificationType.SCHEDULE_RESULT`를 최초로 연결. docker compose+`bootRun` curl E2E 검증: 생성→타인 자녀 403→미인증 401→승인 200→재승인 409→반려→children/tenant 조회, `notification_log` 테이블에 SCHEDULE_RESULT 승인/반려 메시지가 정확한 문구로 저장됨을 DB 조회로 직접 확인(Kafka 발행→소비→알림 저장 전체 파이프라인 검증, 직렬화 에러 없음). 전용 테스트 파일은 만들지 않음(선례 따름).
 
 ### 12.2 다음 작업 백로그 (권장 순서)
 
 - [x] ~~기본정보 등록 API~~ — user·tenant·student 서비스·컨트롤러(+멀티테넌시 격리) 완료.
-- [x] ~~notification 모듈~~ — NotificationLog + dedup_key 멱등 + 발송 추상화 + 임계값 상수화 완료. BOARD_DONE/ALIGHT_DONE 트리거 연동. NO_SHOW/APPROACH/SCHEDULE_RESULT 트리거는 각 모듈(routing·schedule) 구현 시 연결.
+- [x] ~~notification 모듈~~ — NotificationLog + dedup_key 멱등 + 발송 추상화 + 임계값 상수화 완료. BOARD_DONE/ALIGHT_DONE/SOS/SCHEDULE_RESULT 트리거 연동. NO_SHOW/APPROACH 트리거는 routing(Phase 6) 구현 시 연결.
 - [x] ~~sos 모듈~~ — SosEvent(OPEN→ACKNOWLEDGED→RESOLVED) + 3분 에스컬레이션 완료. 발신/에스컬레이션 모두 notification dedup 재사용으로 중복 방지 검증됨.
 - [x] ~~실시간 채널(WebSocket push)~~ — §11.4 Phase 3 완료(2026-07-19 E2E 검증). 체크리스트는 §12.3 참조.
 > 아래 항목은 §11.4 로드맵 Phase 4~8로 확정·상세화됨(2026-07-19). 커밋 단위 체크리스트는 §12.3.
 - [x] ~~attendance 서비스화~~ (Phase 4) — 승인 상태전이 + command/query/controller + 당일 명단 스킵 헬퍼 완료(2026-07-19, 커밋 `de79104`). §12.3 Phase 4.
-- [ ] **schedule 모듈** (Phase 5) — ScheduleChangeRequest 승인 워크플로 + `SCHEDULE_RESULT` 알림 연결. §12.3 Phase 5.
+- [x] ~~schedule 모듈~~ (Phase 5) — ScheduleChangeRequest 승인 워크플로 + `SCHEDULE_RESULT` 알림 최초 연결 완료(2026-07-19, 커밋 `94f99c6`). §12.3 Phase 5.
 - [ ] **routing 모듈** (Phase 6, 자동배치 최적화) — 하차지 좌표 + `MapRouteClient`/`RouteEngine` 포트 + sweep·NN·2-opt + `RoutePlan` 승인/배포 + `APPROACH`/`NO_SHOW` 알림. §12.3 Phase 6(6a~6f).
 - [ ] **기사 운행관리** (Phase 7) — 운행 세션/일일 로그(운행 전 체크리스트는 정식 출시 때 복원). §12.3 Phase 7.
 - [ ] **Mock → 실 GPS 전환** (Phase 8) — 플래그 토글 + 8장 법적 선행요건(동의 UI·스키마). §12.3 Phase 8.
@@ -300,11 +301,11 @@ public interface LocationSource {
 - [x] 승인 시 `AttendanceApprovedEvent` 발행(AFTER_COMMIT → Kafka `attendance-approved` 토픽, 현재 소비자 없음 — Phase 6 replan 트리거로 구독 예정)
 - [x] `./gradlew build` green + docker compose(postgres/redis/kafka)+`bootRun` curl E2E 검증(생성/권한가드/승인/중복승인 409/조회/Kafka 발행 확인) + 커밋 `de79104`
 
-**Phase 5 · schedule 모듈 (일정변경 승인 워크플로)** — greenfield, `SCHEDULE_RESULT` 최초 연결
-- [ ] `schedule/entity/ScheduleChangeRequest`(status `ApprovalStatus` 재사용, `approve/reject` 상태전이 + 변경 대상 필드) + `ScheduleChangeRequestRepository`
-- [ ] `ScheduleCommandService` + `ScheduleQueryService` + `ScheduleController`(attendance와 동일 구조)
-- [ ] 승인/반려 시 `ScheduleResultEvent`(과거형) 발행 → topic `schedule-result` → `DomainEventNotificationConsumer`에 `@KafkaListener` 추가 → `NotificationType.SCHEDULE_RESULT`로 `notify`(`dedupKey` 헬퍼). 발신은 command에서 `ApplicationEventPublisher.publishEvent`(직접호출 금지)
-- [ ] `./gradlew build` green + 커밋
+**Phase 5 · schedule 모듈 (일정변경 승인 워크플로)** — ✅ 완료(2026-07-19, 커밋 `94f99c6`), greenfield, `SCHEDULE_RESULT` 최초 연결
+- [x] `schedule/entity/ScheduleChangeRequest`(tenantId/studentId/requestedDate/requestedTime/reason, status `ApprovalStatus` 재사용, `approve/reject` 상태전이 — attendance와 동일 PENDING 가드, `CONFLICT` 409) + `ScheduleChangeRequestRepository`
+- [x] `ScheduleCommandService`(신청은 학부모가 본인 자녀만, `StudentGuardianRepository`로 검증) + `ScheduleQueryService`(자녀별/테넌트별 조회) + `ScheduleController`(`/api/schedule-change-requests`, attendance와 동일 구조)
+- [x] 승인/반려 **둘 다** `ScheduleResultEvent`(과거형, `status` 필드 포함) 발행(command에서 `ApplicationEventPublisher.publishEvent`, 직접호출 없음) → topic `schedule-result` → `DomainEventNotificationConsumer`에 `onScheduleResult` `@KafkaListener` 추가 → `NotificationType.SCHEDULE_RESULT`로 `notify`(`dedupKey` 헬퍼, stage=`request:{id}`)
+- [x] `./gradlew build` green + docker compose(postgres/redis/kafka)+`bootRun` curl E2E 검증(생성/권한가드/승인/반려/재승인 409/조회 + `notification_log`에 SCHEDULE_RESULT 승인·반려 메시지 저장 확인, Kafka 직렬화 에러 없음) + 커밋 `94f99c6`
 
 **Phase 6 · routing 모듈 (자동배치 최적화, 헤드라인)** — 6a~6f 하위단계, 각 경계 build green + 커밋
 - [ ] **6a** — `student/entity/Student`에 `dropoffAddress`·`dropoffLat`·`dropoffLng` + `updateDropoff()` + 등록/변경 API(student command). 등원 좌표는 기존 `boardingStop`(Stop.lat/lng) 재사용, 하원은 신규 하차지. `ddl-auto: update` 자동 반영(운영은 후속 Flyway)
