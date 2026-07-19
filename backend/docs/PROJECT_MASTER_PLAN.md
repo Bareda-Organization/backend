@@ -198,10 +198,11 @@ public interface LocationSource {
 | 0. 컨벤션 단일화 | `reference.md`(Claude 참조용, 정리) + `CODE_CONVENTIONS.html`(사람용 렌더) 역할분리 확정, `CLAUDE.md`/이 문서 §11.3 갱신 | ✅ 완료 |
 | 1. 공용 기반 | Kafka(KRaft)+Redis 인프라, `DomainEvent`/`DomainEventPublisher`(Port)+`KafkaEventPublisher`(impl), DB↔Kafka 이중쓰기 정합성(`ApplicationEventPublisher`→`@TransactionalEventListener(AFTER_COMMIT)`→Kafka) | ✅ 완료 |
 | 2. 기존 12개 모듈 재편 | CQRS 분리 + 인터페이스 정리 + 직접호출→이벤트. 순서(잎 먼저): `notification` → `student·tenant·user·bus·route` → `rideevent·sos·location` → `auth` | ✅ 완료 |
-| 3. location 실시간 push (플래그십) | `LocationUpdatedEvent`→Redis projection→WebSocket user destination push(`convertAndSendToUser`), SUBSCRIBE 인가(계층별 조회 권한을 push 구독에도 강제), 알림도 WebSocket으로 병행 push | ⬜ 예정 |
+| 3. location 실시간 push (플래그십) | `LocationUpdatedEvent`→Redis projection→WebSocket user destination push(`convertAndSendToUser`), SUBSCRIBE 인가(계층별 조회 권한을 push 구독에도 강제), 알림도 WebSocket으로 병행 push | ✅ 완료 (2026-07-19 E2E 검증) |
 
 - **왜 지금 Kafka인가**: 단일 모놀리식 앱에는 엄밀히 과설계지만, MSA 전환 대비(§17 reference.md)라는 목적 하에 사용자가 트레이드오프를 인지하고 선택.
 - **후속(이번 범위 밖)**: `attendance`·`schedule`·`routing` 상세 구현 계획은 이 리팩터와 독립 — §12.2 백로그에 유지, 이번 Phase 0-3 완료 후 재검토.
+- **⚠️ Phase 3 검증 중 발견한 인프라 버그(수정 완료)**: `spring-kafka`의 `JsonSerializer`/`JsonDeserializer`는 아직 클래식 Jackson 2(`com.fasterxml.jackson`)를 쓰는데, 이 프로젝트엔 Boot 4 기본 Jackson 3만 있고 클래식 Jackson 2용 `jackson-datatype-jsr310`이 없어서 **모든 `DomainEvent`의 `occurredAt`(`Instant`) 필드가 Kafka 발행 시 조용히 직렬화 실패**하고 있었다(`TransactionSynchronizationUtils.afterCompletion threw exception` 로그로만 남고 트랜잭션 자체는 커밋됨 — 즉 DB 저장은 되지만 이벤트는 유실). Location뿐 아니라 Phase 2에서 만든 다른 이벤트(`StudentBoardedEvent` 등)도 동일 문제였을 것 — Kafka를 실제로 기동해 본 건 이번이 처음이라 지금까지 발견되지 않았다. `build.gradle`에 `runtimeOnly 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'` 한 줄 추가로 해결(커밋 `e19272a`. 별도로 `RedisConfig`도 Redis 값 직렬화를 Jackson 3 `GenericJacksonJsonRedisSerializer`로 전환하는 컴파일 수정을 커밋 `26fd18c`에서 함께 처리).
 
 ---
 
@@ -218,7 +219,7 @@ public interface LocationSource {
 | `bus` | ✅ | ✅ | ✅ | ✅ | ✅ 완료 |
 | `route` (Route·Stop) | ✅ | ✅ | ✅ | ✅ | ✅ 완료 |
 | `rideevent` | ✅ | ✅ | ✅ | ✅ | ✅ 완료 |
-| `location` (포트·Mock·GPS·스케줄러) | — | ✅ | ✅ | ✅ | ✅ 완료 |
+| `location` (포트·Mock·GPS·스케줄러, 실시간 push) | — | ✅ | ✅ | ✅ | ✅ 완료 |
 | `user` (User·UserTenantRole) | ✅ | ✅ | ✅ | ✅ | ✅ 완료 |
 | `tenant` | ✅ | ✅ | ✅ | ✅ | ✅ 완료 |
 | `student` (Student·StudentGuardian) | ✅ | ✅ | ✅ | ✅ | ✅ 완료 |
@@ -234,13 +235,14 @@ public interface LocationSource {
 - 사용자 계층·권한(2장) 요구사항 — 5계층 `Role` + `UserTenantRole` N:M + `TenantGuard`(학원관리자 자기 학원만/플랫폼관리자 지정 학원) + `RideEventQueryService`의 역할별 조회 스코핑(`getMyRecords`/`getChildrenRecords`/`getRosterRecords`/`getTenantRecords`)까지 구조적으로 완료. PARENT "알림함"은 `notification` 모듈 완료로 함께 해소됨. 남은 건 DRIVER "메모"(기사 운행관리 모듈 몫)뿐 — 권한 구조 자체가 아니라 해당 기능 모듈 미구현 때문.
 - `notification`: `NotificationLog`(dedupKey unique) + `NotificationLogRepository` + `NotificationCommandService`(멱등 `notify` + `dedupKey` 공식 헬퍼) + `NotificationQueryService` + `NotificationSender` 포트(`LogNotificationSender` MVP 구현, `LocationSource`와 동일한 추상화 패턴) + `NotificationController`(`/api/notifications/children` PARENT, `/api/notifications` 관리자) 모두 구현. `NotificationThresholds`(10/5/3분) 상수 정의. **트리거는 BOARD_DONE/ALIGHT_DONE, SOS만 연동됨** — Phase 2에서 직접호출(`RideEventCommandService.record()`, `SosCommandService`가 `NotificationCommandService.notify`를 직접 호출)에서 Kafka 도메인 이벤트 경유(`DomainEventNotificationConsumer`의 `@KafkaListener`가 `notify` 호출)로 전환됨 — NO_SHOW(정류장 도착 감지 필요)·APPROACH(ETA 필요)·SCHEDULE_RESULT(schedule 모듈 필요)는 해당 모듈이 만들어질 때 같은 이벤트 발행 패턴을 따르도록 남겨둠.
 - `sos`: `SosEvent`(단방향 상태전이 `acknowledge`/`resolve` 도메인 메서드, 잘못된 전이는 `CONFLICT` 409) + `SosEventRepository` + `SosCommandService`(발신/확인/종료) + `SosQueryService`(역할별 4계층 조회) + `SosController` + `SosEscalationScheduler`(`app.sos.escalation-check-ms`, 기본 30초 폴링) 모두 구현. 발신 즉시·에스컬레이션(3분 미확인) 모두 `NotificationCommandService`의 dedupKey 멱등을 그대로 재사용해 "같은 이벤트 중복 알림 없음"을 스케줄러 코드 없이 보장. 실제 서버 기동 후 발신→확인→종료 상태전이, 권한 가드(403)·상태 가드(409), 백데이트 이벤트로 에스컬레이션 1회만 발송됨을 curl로 검증 완료.
+- `location` 실시간 push (2026-07-19 E2E 검증 완료): `parent@school.com`이 `/user/queue/location` 구독 시 자녀(김민준·이서연) GPS가 ~3초 주기로 push됨(`MockLocationSource`→`LocationUpdatedEvent`→Kafka→`LocationPushConsumer`→`convertAndSendToUser`). `admin@school.com`이 타 테넌트(가온에듀) `/topic/tenant/{id}/location` 구독 시 `StompAuthChannelInterceptor`가 즉시 거부(ERROR frame + 연결 종료), 자기 테넌트 구독은 정상 push. `driver@school.com`의 `POST /api/ride-events`(BOARD) → `parent`의 `/user/queue/notifications`로 BOARD_DONE 즉시 push(`WebSocketNotificationSender`). SOS 발신 즉시 push + 3분 미확인 에스컬레이션 push 모두 동일 채널로 도착 확인. 검증 중 Kafka 이벤트 직렬화 버그(위 §11.4 콜아웃)를 발견·수정.
 
 ### 12.2 다음 작업 백로그 (권장 순서)
 
 - [x] ~~기본정보 등록 API~~ — user·tenant·student 서비스·컨트롤러(+멀티테넌시 격리) 완료.
 - [x] ~~notification 모듈~~ — NotificationLog + dedup_key 멱등 + 발송 추상화 + 임계값 상수화 완료. BOARD_DONE/ALIGHT_DONE 트리거 연동. NO_SHOW/APPROACH/SCHEDULE_RESULT 트리거는 각 모듈(routing·schedule) 구현 시 연결.
 - [x] ~~sos 모듈~~ — SosEvent(OPEN→ACKNOWLEDGED→RESOLVED) + 3분 에스컬레이션 완료. 발신/에스컬레이션 모두 notification dedup 재사용으로 중복 방지 검증됨.
-- [ ] **실시간 채널(WebSocket push)** — §11.4 Phase 3로 확정·상세화됨. 진행 체크리스트는 §12.3 참조.
+- [x] ~~실시간 채널(WebSocket push)~~ — §11.4 Phase 3 완료(2026-07-19 E2E 검증). 체크리스트는 §12.3 참조.
 - [ ] **schedule 모듈** — ScheduleChangeRequest 승인 워크플로(대기/승인/반려 → 명단 자동 갱신). Phase 0-3(§11.4) 완료 후 착수.
 - [ ] **attendance 서비스·컨트롤러** — 결석·휴원 승인 시 해당 날짜 명단에서 학생 스킵. Phase 0-3(§11.4) 완료 후 착수.
 - [ ] **routing 클라이언트** — OSRM(MVP) → 네이버 Directions, ETA 계산 · 근접 5분 알림 연동. Phase 0-3(§11.4) 완료 후 착수.
@@ -275,11 +277,11 @@ public interface LocationSource {
 - [x] `auth` — CQRS(`command`/`query`) 분리 완료: `AuthService`(spec/impl) → `AuthCommandService`(signup) + `AuthQueryService`(login/refresh, DB 쓰기 없는 순수 조회+토큰 발급이라 Query로 분류). reference.md §2 기준 실제 대체 구현체가 없어 spec/impl 없이 concrete 클래스로 전환. auth는 repo만 호출하고 다른 모듈 서비스를 직접호출하지 않아 이벤트 전환 대상 없음("필요 범위만"의 의미). `MemberCommandService` Javadoc의 `AuthService.signup` 참조도 `AuthCommandService.signup`으로 갱신. 커밋 `aa46d80`
 - [x] 각 모듈 완료마다 `./gradlew build` green + 커밋 — Phase 2 전 모듈(`notification`/`student·tenant·user·bus·route`/`rideevent·sos·location`/`auth`)에서 매번 확인 완료
 
-**Phase 3 · location 실시간 push (플래그십)**
-- [ ] `LocationServiceImpl.ingest()`에서 저장 후 `LocationUpdatedEvent` 발행(AFTER_COMMIT→Kafka)
-- [ ] `InMemoryLocationRepository` → `RedisLocationRepository`(infrastructure, TTL+다중 인스턴스)로 교체, `LocationRepository` Port 덕에 `LocationService` 무수정
-- [ ] `WebSocketConfig`에 user destination 활성화(`setUserDestinationPrefix("/user")`), projection consumer가 `convertAndSendToUser(principal, "/queue/location", payload)`로 본인에게만 push
-- [ ] `StompAuthChannelInterceptor`에 SUBSCRIBE 인가 추가 — 구독 destination을 4계층 스코프(본인/자녀/담당버스/테넌트)와 대조
-- [ ] `NotificationSender` Port에 `WebSocketNotificationSender`(infrastructure) 추가 — `LogNotificationSender`와 병행 등록
-- [ ] end-to-end 검증: 자녀 위치 구독→push 도착 / 권한 밖 구독 거부 / BOARD_DONE push / SOS 에스컬레이션 이벤트 경유 동일 동작
-- [ ] 검증 후 §12.1 `location` 행에 "실시간 push" 명시, 이 §12.3 체크리스트 전항목 완료 처리
+**Phase 3 · location 실시간 push (플래그십)** — ✅ 완료, 커밋 `035af35`(3a)·`21ef52b`(3b)·`494da3d`(3c)·`1aa1184`(3d)·`4276ec5`(3e)·`26fd18c`+`e19272a`(3f 수정)
+- [x] `LocationServiceImpl.ingest()`에서 저장 후 `LocationUpdatedEvent` 발행(AFTER_COMMIT→Kafka)
+- [x] `InMemoryLocationRepository` → `RedisLocationRepository`(infrastructure, TTL+다중 인스턴스)로 교체, `LocationRepository` Port 덕에 `LocationService` 무수정
+- [x] `WebSocketConfig`에 user destination 활성화(`setUserDestinationPrefix("/user")`), projection consumer가 `convertAndSendToUser(principal, "/queue/location", payload)`로 본인에게만 push
+- [x] `StompAuthChannelInterceptor`에 SUBSCRIBE 인가 추가 — 테넌트 브로드캐스트 토픽(`/topic/tenant/{id}/**`)을 관리자 권한과 대조(개인 큐는 user-destination 라우팅 자체가 구조적으로 격리)
+- [x] `NotificationSender` Port에 `WebSocketNotificationSender`(infrastructure) 추가 — `LogNotificationSender`와 병행 등록
+- [x] end-to-end 검증(2026-07-19, docker compose postgres+redis+kafka + host `bootRun`, STOMP 프로브 스크립트로 수행): 자녀 위치 구독→push 도착 / 타 테넌트 구독 거부(자기 테넌트는 허용) / BOARD_DONE push / SOS 발신 즉시 push + 3분 에스컬레이션 push 모두 확인
+- [x] 검증 후 §12.1 `location` 행에 "실시간 push" 명시, 이 §12.3 체크리스트 전항목 완료 처리
