@@ -13,4 +13,8 @@ import src.backend.attendance.entity.AttendanceException;
 public interface AttendanceExceptionRepository extends JpaRepository<AttendanceException, Long> {
 
     List<AttendanceException> findByStudentIdAndTargetDate(Long studentId, LocalDate targetDate);
+
+    List<AttendanceException> findByStudentIdInOrderByTargetDateDesc(List<Long> studentIds);
+
+    List<AttendanceException> findByTenantIdOrderByTargetDateDesc(Long tenantId);
 }

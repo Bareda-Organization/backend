@@ -16,6 +16,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import src.backend.global.common.ApprovalStatus;
 import src.backend.global.common.BaseTimeEntity;
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
 
 /**
  * 결석·휴원 신고. 승인되면 해당 날짜 노선 배정에서 학생을 스킵(명단 자동 갱신)한다.
@@ -60,5 +62,23 @@ public class AttendanceException extends BaseTimeEntity {
         this.targetDate = targetDate;
         this.reason = reason;
         this.status = ApprovalStatus.PENDING;
+    }
+
+    /** 관리자 승인(PENDING → APPROVED). 이후 당일 명단 스킵 대상이 된다. */
+    public void approve(Long adminUserId) {
+        if (status != ApprovalStatus.PENDING) {
+            throw new BusinessException(ErrorCode.CONFLICT, "이미 처리된 신청입니다");
+        }
+        this.status = ApprovalStatus.APPROVED;
+        this.processedBy = adminUserId;
+    }
+
+    /** 관리자 반려(PENDING → REJECTED). */
+    public void reject(Long adminUserId) {
+        if (status != ApprovalStatus.PENDING) {
+            throw new BusinessException(ErrorCode.CONFLICT, "이미 처리된 신청입니다");
+        }
+        this.status = ApprovalStatus.REJECTED;
+        this.processedBy = adminUserId;
     }
 }
