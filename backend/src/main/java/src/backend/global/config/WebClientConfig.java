@@ -22,7 +22,7 @@ import reactor.netty.http.client.HttpClient;
 public class WebClientConfig {
 
     @Bean
-    public WebClient webClient() {
+    public WebClient webClient(WebClient.Builder builder) {
         HttpClient httpClient = HttpClient.create()
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 3000)
                 .responseTimeout(Duration.ofSeconds(5))
@@ -30,6 +30,6 @@ public class WebClientConfig {
                         .addHandlerLast(new ReadTimeoutHandler(5, TimeUnit.SECONDS))
                         .addHandlerLast(new WriteTimeoutHandler(5, TimeUnit.SECONDS)));
 
-        return WebClient.builder().clientConnector(new ReactorClientHttpConnector(httpClient)).build();
+        return builder.clientConnector(new ReactorClientHttpConnector(httpClient)).build();
     }
 }

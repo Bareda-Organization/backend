@@ -38,8 +38,9 @@ dependencies {
     // spring-kafka의 JsonSerializer/Deserializer는 아직 클래식 Jackson 2(com.fasterxml)를 쓴다(Boot 4 기본 Jackson 3와 별개) —
     // java.time.* 지원을 위해 JSR-310 모듈을 명시 추가(classpath에 있으면 findAndRegisterModules()가 자동 등록)
     runtimeOnly 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
-    // 외부 경로 API 호출용 WebClient
-    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+    // 외부 경로 API 호출용 WebClient — Boot 4는 webflux(리액티브 서버)와 webclient(HTTP 클라이언트)가
+    // 별도 스타터로 분리됐다. 이 앱은 서블릿(webmvc) 앱이라 클라이언트 전용인 이 스타터만 필요하다.
+    implementation 'org.springframework.boot:spring-boot-starter-webclient'
     // 실시간 위치 수신 채널(STOMP over WebSocket) — 연결 상태(heartbeat)를 프로토콜 차원에서 감지
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
     // 보일러플레이트 축소
