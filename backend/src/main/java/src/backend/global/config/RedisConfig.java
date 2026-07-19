@@ -4,25 +4,36 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.GenericJacksonJsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 /**
  * RedisConnectionFactory 는 spring-boot-starter-data-redis 가 spring.data.redis.* 설정으로
  * 이미 자동 구성한다 — 여기서는 값 직렬화만 JDK 기본(바이너리)에서 JSON 으로 바꿔,
  * Kafka 이벤트 페이로드와 형식을 맞추고 redis-cli 로 직접 조회·디버깅할 수 있게 한다.
+ *
+ * <p>이 프로젝트는 Spring Boot 4 기본 Jackson 3({@code tools.jackson.databind}) 를 쓴다 —
+ * 그래서 구버전 Jackson 2 기반 {@code GenericJackson2JsonRedisSerializer} 대신 Jackson 3 기반
+ * {@link GenericJacksonJsonRedisSerializer}를 쓴다. Jackson 3 는 {@code java.time.*} 타입을
+ * 별도 모듈 등록 없이 기본 지원해 {@code LocalDateTime} 필드도 그대로 직렬화된다.
+ * {@code enableUnsafeDefaultTyping()} 로 값 타입 정보(@class)를 함께 저장해 조회 시 원래
+ * 도메인 타입으로 복원한다 — 외부 입력이 아니라 우리 도메인 타입만 오가는 내부 캐시라 안전하다.
  */
 @Configuration
 public class RedisConfig {
 
     @Bean
     public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {
+        GenericJacksonJsonRedisSerializer serializer = GenericJacksonJsonRedisSerializer.builder()
+                .enableUnsafeDefaultTyping()
+                .build();
+
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
         template.setKeySerializer(new StringRedisSerializer());
-        template.setValueSerializer(new GenericJackson2JsonRedisSerializer());
+        template.setValueSerializer(serializer);
         template.setHashKeySerializer(new StringRedisSerializer());
-        template.setHashValueSerializer(new GenericJackson2JsonRedisSerializer());
+        template.setHashValueSerializer(serializer);
         template.afterPropertiesSet();
         return template;
     }
