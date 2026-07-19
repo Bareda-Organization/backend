@@ -12,7 +12,6 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
@@ -61,13 +60,13 @@ public class RoutePlan extends BaseTimeEntity {
     @Column(nullable = false)
     private LocalDate serviceDate;
 
-    @Lob
+    @Column(columnDefinition = "TEXT")
     private String polyline;
 
-    @Column(nullable = false)
+    @Column(name = "total_distance_m", nullable = false)
     private double totalDistanceM;
 
-    @Column(nullable = false)
+    @Column(name = "total_duration_s", nullable = false)
     private double totalDurationS;
 
     @OneToMany(mappedBy = "routePlan", cascade = CascadeType.ALL, orphanRemoval = true)
