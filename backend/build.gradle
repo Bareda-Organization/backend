@@ -35,6 +35,9 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     // 모듈 간 이벤트 통신(Kafka) — 신형 아티팩트명(Boot 4 모듈화, KafkaAutoConfiguration 포함)
     implementation 'org.springframework.boot:spring-boot-starter-kafka'
+    // spring-kafka의 JsonSerializer/Deserializer는 아직 클래식 Jackson 2(com.fasterxml)를 쓴다(Boot 4 기본 Jackson 3와 별개) —
+    // java.time.* 지원을 위해 JSR-310 모듈을 명시 추가(classpath에 있으면 findAndRegisterModules()가 자동 등록)
+    runtimeOnly 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
     // 외부 경로 API 호출용 WebClient
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
     // 실시간 위치 수신 채널(STOMP over WebSocket) — 연결 상태(heartbeat)를 프로토콜 차원에서 감지
