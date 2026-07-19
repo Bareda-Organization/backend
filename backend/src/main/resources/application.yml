@@ -43,6 +43,7 @@ routing:
   naver:
     key-id: ${NAVER_DIRECTIONS_KEY_ID:}
     key: ${NAVER_DIRECTIONS_KEY:}
+  max-waypoints: 15   # directions API 1회 호출당 경유지 상한 — 초과 시 구간 분할
 
 # 실시간 위치 추적 · SOS 에스컬레이션 점검 주기
 app:
