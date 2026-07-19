@@ -187,7 +187,7 @@ public interface LocationSource {
 - **infrastructure/**: 외부 기술(Kafka·Redis·gRPC·S3 등) 어댑터는 여기에만. 비즈니스 계층은 구현 기술을 모른다.
 - `package-info.java`는 두지 않는다(패키지 레벨 애너테이션 필요 시만 예외). 표준 패키지 레이아웃·판단 기준 상세는 §11.4 및 `CODE_CONVENTIONS.html`.
 
-### 11.4 아키텍처 리팩터 로드맵 — Kafka + CQRS + 실시간 push (진행 중)
+### 11.4 아키텍처 리팩터 로드맵 — Kafka + CQRS + 실시간 push + 남은 도메인 (진행 중)
 
 > 배경: `reference.md`가 기존 코드/컨벤션과 3곳(단순 CRUD 인터페이스·패키지 구조·모듈 간 직접호출)에서 충돌해, **전면 채택 + 기존 12개 모듈 재편**을 결정. 다음 신규 기능(location 실시간 push)을 새 아키텍처의 첫 실적용 사례로 삼는다. 상세 체크리스트는 §12.3.
 >
@@ -199,9 +199,14 @@ public interface LocationSource {
 | 1. 공용 기반 | Kafka(KRaft)+Redis 인프라, `DomainEvent`/`DomainEventPublisher`(Port)+`KafkaEventPublisher`(impl), DB↔Kafka 이중쓰기 정합성(`ApplicationEventPublisher`→`@TransactionalEventListener(AFTER_COMMIT)`→Kafka) | ✅ 완료 |
 | 2. 기존 12개 모듈 재편 | CQRS 분리 + 인터페이스 정리 + 직접호출→이벤트. 순서(잎 먼저): `notification` → `student·tenant·user·bus·route` → `rideevent·sos·location` → `auth` | ✅ 완료 |
 | 3. location 실시간 push (플래그십) | `LocationUpdatedEvent`→Redis projection→WebSocket user destination push(`convertAndSendToUser`), SUBSCRIBE 인가(계층별 조회 권한을 push 구독에도 강제), 알림도 WebSocket으로 병행 push | ✅ 완료 (2026-07-19 E2E 검증) |
+| 4. attendance 서비스화 | 기존 엔티티·레포 위에 승인 상태전이(`approve`/`reject`) + command/query/controller + 당일 명단 스킵 통합. `sos` 모듈 템플릿 재사용 | ⬜ 예정 |
+| 5. schedule 모듈 | greenfield 일정변경 승인 워크플로(`ScheduleChangeRequest`) + `SCHEDULE_RESULT` 알림 최초 연결 | ⬜ 예정 |
+| 6. routing 모듈 (자동배치 최적화, 헤드라인) | 학생 하차지 좌표 + WebClient/`MapRouteClient` 포트(geocode·directions) + `RouteEngine`(sweep 정원배치 + NN/2-opt) + `RoutePlan`(DRAFT→RECOMMENDED→APPROVED→PUBLISHED) + 당일변경 replan + `APPROACH`/`NO_SHOW` 알림. 6a~6f 하위단계로 분할 | ⬜ 예정 |
+| 7. 기사 운행관리 | 운행 세션/일일 로그(운행 전 체크리스트는 정식 출시 때 복원) | ⬜ 예정 |
+| 8. Mock → 실 GPS 전환 | `app.location` 플래그 토글(Phase 3에서 포트 분리 완료 → 소스만 교체) + 8장 법적 선행요건(동의 UI·이력 스키마) | ⬜ 예정 |
 
 - **왜 지금 Kafka인가**: 단일 모놀리식 앱에는 엄밀히 과설계지만, MSA 전환 대비(§17 reference.md)라는 목적 하에 사용자가 트레이드오프를 인지하고 선택.
-- **후속(이번 범위 밖)**: `attendance`·`schedule`·`routing` 상세 구현 계획은 이 리팩터와 독립 — §12.2 백로그에 유지, 이번 Phase 0-3 완료 후 재검토.
+- **Phase 4~8 확정(2026-07-19)**: 남은 5개 모듈을 이 로드맵으로 흡수. 특히 **routing은 "넓은 범위(자동배치 최적화)"로 확정** — `MVP_RELEASE_TRACKER.md` §4 알고리즘 파이프라인(sweep 배치 + NN/2-opt + 실도로 directions + 당일 replan)을 PROJECT_MASTER_PLAN으로 흡수하며, `Student`에 하차지 좌표 필드 추가(스키마 변경)를 동반한다. 상세 커밋 단위 체크리스트는 §12.3. 개발은 다른 세션에서 이어감(메모리 `school-bus-next-phases` 참조).
 - **⚠️ Phase 3 검증 중 발견한 인프라 버그(수정 완료)**: `spring-kafka`의 `JsonSerializer`/`JsonDeserializer`는 아직 클래식 Jackson 2(`com.fasterxml.jackson`)를 쓰는데, 이 프로젝트엔 Boot 4 기본 Jackson 3만 있고 클래식 Jackson 2용 `jackson-datatype-jsr310`이 없어서 **모든 `DomainEvent`의 `occurredAt`(`Instant`) 필드가 Kafka 발행 시 조용히 직렬화 실패**하고 있었다(`TransactionSynchronizationUtils.afterCompletion threw exception` 로그로만 남고 트랜잭션 자체는 커밋됨 — 즉 DB 저장은 되지만 이벤트는 유실). Location뿐 아니라 Phase 2에서 만든 다른 이벤트(`StudentBoardedEvent` 등)도 동일 문제였을 것 — Kafka를 실제로 기동해 본 건 이번이 처음이라 지금까지 발견되지 않았다. `build.gradle`에 `runtimeOnly 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'` 한 줄 추가로 해결(커밋 `e19272a`. 별도로 `RedisConfig`도 Redis 값 직렬화를 Jackson 3 `GenericJacksonJsonRedisSerializer`로 전환하는 컴파일 수정을 커밋 `26fd18c`에서 함께 처리).
 
 ---
@@ -243,11 +248,12 @@ public interface LocationSource {
 - [x] ~~notification 모듈~~ — NotificationLog + dedup_key 멱등 + 발송 추상화 + 임계값 상수화 완료. BOARD_DONE/ALIGHT_DONE 트리거 연동. NO_SHOW/APPROACH/SCHEDULE_RESULT 트리거는 각 모듈(routing·schedule) 구현 시 연결.
 - [x] ~~sos 모듈~~ — SosEvent(OPEN→ACKNOWLEDGED→RESOLVED) + 3분 에스컬레이션 완료. 발신/에스컬레이션 모두 notification dedup 재사용으로 중복 방지 검증됨.
 - [x] ~~실시간 채널(WebSocket push)~~ — §11.4 Phase 3 완료(2026-07-19 E2E 검증). 체크리스트는 §12.3 참조.
-- [ ] **schedule 모듈** — ScheduleChangeRequest 승인 워크플로(대기/승인/반려 → 명단 자동 갱신). Phase 0-3(§11.4) 완료 후 착수.
-- [ ] **attendance 서비스·컨트롤러** — 결석·휴원 승인 시 해당 날짜 명단에서 학생 스킵. Phase 0-3(§11.4) 완료 후 착수.
-- [ ] **routing 클라이언트** — OSRM(MVP) → 네이버 Directions, ETA 계산 · 근접 5분 알림 연동. Phase 0-3(§11.4) 완료 후 착수.
-- [ ] **기사 운행관리** — 운행 세션/일일 로그(운행 전 체크리스트는 정식 출시 때 복원).
-- [ ] **Mock → 실 GPS 전환** — 플래그 토글 + 8장 법적 선행요건(동의 UI·스키마) 충족.
+> 아래 5개는 §11.4 로드맵 Phase 4~8로 확정·상세화됨(2026-07-19). 커밋 단위 체크리스트는 §12.3. 개발은 다른 세션에서 이어감(메모리 `school-bus-next-phases`).
+- [ ] **attendance 서비스화** (Phase 4) — 승인 상태전이 + command/query/controller + 당일 명단 스킵. §12.3 Phase 4.
+- [ ] **schedule 모듈** (Phase 5) — ScheduleChangeRequest 승인 워크플로 + `SCHEDULE_RESULT` 알림 연결. §12.3 Phase 5.
+- [ ] **routing 모듈** (Phase 6, 자동배치 최적화) — 하차지 좌표 + `MapRouteClient`/`RouteEngine` 포트 + sweep·NN·2-opt + `RoutePlan` 승인/배포 + `APPROACH`/`NO_SHOW` 알림. §12.3 Phase 6(6a~6f).
+- [ ] **기사 운행관리** (Phase 7) — 운행 세션/일일 로그(운행 전 체크리스트는 정식 출시 때 복원). §12.3 Phase 7.
+- [ ] **Mock → 실 GPS 전환** (Phase 8) — 플래그 토글 + 8장 법적 선행요건(동의 UI·스키마). §12.3 Phase 8.
 
 ### 12.3 아키텍처 리팩터 체크리스트 — Kafka + CQRS + 실시간 push (§11.4 상세)
 
@@ -285,3 +291,35 @@ public interface LocationSource {
 - [x] `NotificationSender` Port에 `WebSocketNotificationSender`(infrastructure) 추가 — `LogNotificationSender`와 병행 등록
 - [x] end-to-end 검증(2026-07-19, docker compose postgres+redis+kafka + host `bootRun`, STOMP 프로브 스크립트로 수행): 자녀 위치 구독→push 도착 / 타 테넌트 구독 거부(자기 테넌트는 허용) / BOARD_DONE push / SOS 발신 즉시 push + 3분 에스컬레이션 push 모두 확인
 - [x] 검증 후 §12.1 `location` 행에 "실시간 push" 명시, 이 §12.3 체크리스트 전항목 완료 처리
+
+**Phase 4 · attendance 서비스화 (결석/휴원 승인 → 명단 스킵)** — 템플릿: `sos` 모듈
+- [ ] `attendance/entity/AttendanceException`에 `approve(Long adminUserId)`/`reject(...)` 상태전이 메서드 추가(`SosEvent` 패턴, 잘못된 전이는 `BusinessException(ErrorCode.CONFLICT)`). 현재 `status`(`global/common/ApprovalStatus`, PENDING 기본)·`processedBy` 세터 없음
+- [ ] `AttendanceCommandService`(신청 create + 관리자 approve/reject) + `AttendanceQueryService`(학부모 자녀별/관리자 테넌트별, `TenantGuard.resolveTenantId` 재사용) + `AttendanceController`(`/api/attendance-exceptions`) + 요청/응답 record
+- [ ] 당일 명단 스킵 통합 — `StudentRepository.findByAssignedBusId` 파생 명단에서 `AttendanceExceptionRepository.findByStudentIdAndTargetDate`로 승인된 결석 학생 제외(헬퍼로 노출, rideevent 명단·Phase 6 routing이 소비)
+- [ ] (선택) 승인 시 `AttendanceApprovedEvent` 발행(Phase 6 replan 트리거로 소비) — 발행만 준비하거나 Phase 6e에서 함께
+- [ ] `./gradlew build` green + 커밋
+
+**Phase 5 · schedule 모듈 (일정변경 승인 워크플로)** — greenfield, `SCHEDULE_RESULT` 최초 연결
+- [ ] `schedule/entity/ScheduleChangeRequest`(status `ApprovalStatus` 재사용, `approve/reject` 상태전이 + 변경 대상 필드) + `ScheduleChangeRequestRepository`
+- [ ] `ScheduleCommandService` + `ScheduleQueryService` + `ScheduleController`(attendance와 동일 구조)
+- [ ] 승인/반려 시 `ScheduleResultEvent`(과거형) 발행 → topic `schedule-result` → `DomainEventNotificationConsumer`에 `@KafkaListener` 추가 → `NotificationType.SCHEDULE_RESULT`로 `notify`(`dedupKey` 헬퍼). 발신은 command에서 `ApplicationEventPublisher.publishEvent`(직접호출 금지)
+- [ ] `./gradlew build` green + 커밋
+
+**Phase 6 · routing 모듈 (자동배치 최적화, 헤드라인)** — 6a~6f 하위단계, 각 경계 build green + 커밋
+- [ ] **6a** — `student/entity/Student`에 `dropoffAddress`·`dropoffLat`·`dropoffLng` + `updateDropoff()` + 등록/변경 API(student command). 등원 좌표는 기존 `boardingStop`(Stop.lat/lng) 재사용, 하원은 신규 하차지. `ddl-auto: update` 자동 반영(운영은 후속 Flyway)
+- [ ] **6b** — `global/config`에 첫 `@Bean WebClient`(코드베이스 최초 HTTP 클라이언트) + `routing/infrastructure` `MapRouteClient` 포트(geocode·directions). 어댑터 `NaverMapRouteClient`(실, NCP 키) + `MockMapRouteClient`(키리스 dev, Haversine 가짜 ETA+직선). 선택은 `routing.provider` 게이트(`LocationSource` 패턴) 또는 `@Primary`. `application.yml` `routing.*` 슬롯 예약됨
+- [ ] **6c** — `RouteEngine` 포트 + `HeuristicRouteEngine`: sweep(방위각 정렬, `Route.assignCapacity`/`Bus.seatCapacity` 제약 배치) + nearest-neighbor + 2-opt, 거리 Haversine(외부 호출 0). 순수 계산 + 단위 테스트
+- [ ] **6d** — `routing/entity/RoutePlan`(status DRAFT/RECOMMENDED/APPROVED/PUBLISHED 상태전이, version, busId, direction 등원/하원, polyline, totalDistanceM, totalDurationS) + `RoutePlanStop`(seq, studentId, lat/lng, etaSeconds). 생성 API: 정원+좌표 → 6c 배치·순서 → 6b directions 1회 → `RoutePlan(DRAFT)`. 경유지 상한(~15) 초과 시 구간 분할
+- [ ] **6e** — Phase 4/5 승인 이벤트 소비 → 해당 버스만 국소 replan → `RoutePlan(RECOMMENDED)` + 관리자 `SCHEDULE_RESULT` 알림
+- [ ] **6f** — 관리자 승인/거부 API(`APPROVED`/`PUBLISHED`) + 드라이버 그룹 `PUBLISHED` 수신(pull 또는 STOMP push). `NotificationType.APPROACH`(근접 5분)·`NO_SHOW`(미탑승 10분)를 Phase 3 실시간 위치 + RoutePlan ETA 대조로 트리거(`NotificationThresholds` 상수 정의됨)
+- [ ] 검증: 정원 초과 배정 0 / 2-opt 순서 개선 / directions polyline·ETA 채워짐 / 결석 반영→추천→승인→배포 / 근접·미탑승 push 도착
+
+**Phase 7 · 기사 운행관리 (운행 세션/일일 로그)**
+- [ ] 운행 세션(시작/종료) + 일일 운행 로그 엔티티 + 레포 (운행 전 체크리스트는 정식 출시 때 복원)
+- [ ] command/query/controller — 기사(DRIVER/ATTENDANT) 운행 시작·종료·조회, rideevent 명단(사진·이름·하차지) 연계
+- [ ] `./gradlew build` green + 커밋
+
+**Phase 8 · Mock → 실 GPS 전환**
+- [ ] `app.location.mock.enabled`/`gps.enabled` prod 토글(코드는 Phase 3에서 `MockLocationSource`/`PhoneGpsSource` 포트 분리 완료 → 소스만 교체)
+- [ ] 8장 법적 선행요건 — 위치정보 동의 UI 계약·동의 이력 스키마 충족, 백엔드는 동의 이력 저장/검사 슬롯 제공
+- [ ] `./gradlew build` green + 커밋
