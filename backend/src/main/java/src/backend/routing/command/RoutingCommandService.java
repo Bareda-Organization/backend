@@ -82,6 +82,29 @@ public class RoutingCommandService {
         return RoutePlanResponse.from(saved);
     }
 
+    /** 관리자 승인(DRAFT/RECOMMENDED → APPROVED, Phase 6f). 상태전이 자체는 {@link RoutePlan#approve}. */
+    @Transactional
+    public RoutePlanResponse approve(AuthUser admin, Long id) {
+        RoutePlan plan = findForAdmin(admin, id);
+        plan.approve(admin.userId());
+        return RoutePlanResponse.from(plan);
+    }
+
+    /** 관리자 배포(APPROVED → PUBLISHED, Phase 6f). 배포되면 기사 조회 API에 노출된다. */
+    @Transactional
+    public RoutePlanResponse publish(AuthUser admin, Long id) {
+        RoutePlan plan = findForAdmin(admin, id);
+        plan.publish(admin.userId());
+        return RoutePlanResponse.from(plan);
+    }
+
+    private RoutePlan findForAdmin(AuthUser admin, Long id) {
+        RoutePlan plan = routePlanRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "노선 계획을 찾을 수 없습니다"));
+        TenantGuard.resolveTenantId(admin, plan.getTenantId());
+        return plan;
+    }
+
     /**
      * 결석/일정변경 승인 이벤트를 소비한 국소 replan(Phase 6e) — 관리자 요청이 아니라 시스템이 트리거하므로
      * {@link AuthUser} 없이 studentId 기준으로 동작한다. 해당 학생이 배정된 버스의 방향별 "최신" 계획이
