@@ -6,7 +6,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,14 +22,17 @@ import src.backend.global.security.AuthUser;
 import src.backend.global.tenant.TenantGuard;
 import src.backend.routing.domain.LatLng;
 import src.backend.routing.domain.RouteDirection;
+import src.backend.routing.domain.RoutePlanStatus;
 import src.backend.routing.dto.GenerateRoutePlanRequest;
 import src.backend.routing.dto.RoutePlanResponse;
 import src.backend.routing.engine.spec.RouteEngine;
 import src.backend.routing.entity.RoutePlan;
+import src.backend.routing.event.RoutePlanRecommendedEvent;
 import src.backend.routing.infrastructure.spec.MapRouteClient;
 import src.backend.routing.infrastructure.spec.RouteResult;
 import src.backend.routing.repository.spec.RoutePlanRepository;
 import src.backend.student.entity.Student;
+import src.backend.student.repository.spec.StudentRepository;
 
 /**
  * 노선 계획 생성 — 단순 CRUD가 아니라 orchestration(로스터 조회→알고리즘→directions API→저장)이지만
@@ -36,24 +42,32 @@ import src.backend.student.entity.Student;
 @Service
 public class RoutingCommandService {
 
+    private static final Logger log = LoggerFactory.getLogger(RoutingCommandService.class);
+
     private final RoutePlanRepository routePlanRepository;
     private final BusRepository busRepository;
+    private final StudentRepository studentRepository;
     private final AttendanceQueryService attendanceQueryService;
     private final RouteEngine routeEngine;
     private final MapRouteClient mapRouteClient;
+    private final ApplicationEventPublisher eventPublisher;
     private final int maxWaypoints;
 
     public RoutingCommandService(RoutePlanRepository routePlanRepository,
                                  BusRepository busRepository,
+                                 StudentRepository studentRepository,
                                  AttendanceQueryService attendanceQueryService,
                                  RouteEngine routeEngine,
                                  MapRouteClient mapRouteClient,
+                                 ApplicationEventPublisher eventPublisher,
                                  @Value("${routing.max-waypoints:15}") int maxWaypoints) {
         this.routePlanRepository = routePlanRepository;
         this.busRepository = busRepository;
+        this.studentRepository = studentRepository;
         this.attendanceQueryService = attendanceQueryService;
         this.routeEngine = routeEngine;
         this.mapRouteClient = mapRouteClient;
+        this.eventPublisher = eventPublisher;
         this.maxWaypoints = maxWaypoints;
     }
 
@@ -63,8 +77,44 @@ public class RoutingCommandService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "버스를 찾을 수 없습니다"));
         TenantGuard.resolveTenantId(admin, bus.getTenant().getId());
 
-        LatLng depot = requireDepot(bus);
         LocalDate serviceDate = req.serviceDate() != null ? req.serviceDate() : LocalDate.now();
+        RoutePlan saved = buildPlan(bus, req.direction(), serviceDate, RoutePlanStatus.DRAFT);
+        return RoutePlanResponse.from(saved);
+    }
+
+    /**
+     * 결석/일정변경 승인 이벤트를 소비한 국소 replan(Phase 6e) — 관리자 요청이 아니라 시스템이 트리거하므로
+     * {@link AuthUser} 없이 studentId 기준으로 동작한다. 해당 학생이 배정된 버스의 방향별 "최신" 계획이
+     * 마침 이벤트가 가리키는 날짜({@code eventDate})의 것일 때만(= 그 계획이 실제로 영향받을 때만) 재계산한다.
+     * 실패해도(로스터 0명·정원 초과·경로 API 오류) 기존 계획은 그대로 두고 다음 이벤트로 넘어간다.
+     */
+    @Transactional
+    public void replanForStudent(Long studentId, LocalDate eventDate) {
+        Student student = studentRepository.findById(studentId).orElse(null);
+        if (student == null || student.getAssignedBus() == null) {
+            return; // 배차되지 않은 학생 — 영향받는 노선 계획이 없다
+        }
+        Bus bus = student.getAssignedBus();
+        for (RouteDirection direction : RouteDirection.values()) {
+            routePlanRepository.findTopByBusIdAndDirectionOrderByVersionDesc(bus.getId(), direction)
+                    .filter(existing -> existing.getServiceDate().equals(eventDate))
+                    .ifPresent(existing -> replanDirection(bus, direction, eventDate, student));
+        }
+    }
+
+    private void replanDirection(Bus bus, RouteDirection direction, LocalDate serviceDate, Student triggerStudent) {
+        try {
+            RoutePlan recommended = buildPlan(bus, direction, serviceDate, RoutePlanStatus.RECOMMENDED);
+            eventPublisher.publishEvent(
+                    RoutePlanRecommendedEvent.of(recommended, triggerStudent.getId(), triggerStudent.getName()));
+        } catch (RuntimeException e) {
+            log.warn("[routing] replan 실패, 기존 계획 유지: busId={} direction={} serviceDate={} reason={}",
+                    bus.getId(), direction, serviceDate, e.getMessage());
+        }
+    }
+
+    private RoutePlan buildPlan(Bus bus, RouteDirection direction, LocalDate serviceDate, RoutePlanStatus status) {
+        LatLng depot = requireDepot(bus);
 
         List<Student> roster = attendanceQueryService.getActiveRoster(bus.getId(), serviceDate);
         if (roster.isEmpty()) {
@@ -75,25 +125,26 @@ public class RoutingCommandService {
                     "로스터(" + roster.size() + "명)가 버스 정원(" + bus.getSeatCapacity() + "명)을 초과합니다");
         }
 
-        Map<Long, LatLng> studentPoints = resolveStudentPoints(roster, req.direction());
+        Map<Long, LatLng> studentPoints = resolveStudentPoints(roster, direction);
 
         List<Long> optimizedOrder = routeEngine.optimizeOrder(depot, studentPoints);
-        List<Long> stopOrder = req.direction() == RouteDirection.DROPOFF
+        List<Long> stopOrder = direction == RouteDirection.DROPOFF
                 ? optimizedOrder
                 : reversed(optimizedOrder);
 
-        List<LatLng> waypoints = buildWaypoints(depot, stopOrder, studentPoints, req.direction());
+        List<LatLng> waypoints = buildWaypoints(depot, stopOrder, studentPoints, direction);
         RouteResult routeResult = resolveRoute(waypoints);
 
         int nextVersion = routePlanRepository
-                .findTopByBusIdAndDirectionOrderByVersionDesc(bus.getId(), req.direction())
+                .findTopByBusIdAndDirectionOrderByVersionDesc(bus.getId(), direction)
                 .map(p -> p.getVersion() + 1)
                 .orElse(1);
 
         RoutePlan plan = RoutePlan.builder()
                 .tenantId(bus.getTenant().getId())
                 .busId(bus.getId())
-                .direction(req.direction())
+                .direction(direction)
+                .status(status)
                 .version(nextVersion)
                 .serviceDate(serviceDate)
                 .polyline(routeResult.polyline())
@@ -102,15 +153,14 @@ public class RoutingCommandService {
                 .build();
 
         List<Double> cumulative = cumulativeSeconds(routeResult.legDurationsS());
-        int stopWaypointOffset = req.direction() == RouteDirection.DROPOFF ? 1 : 0;
+        int stopWaypointOffset = direction == RouteDirection.DROPOFF ? 1 : 0;
         for (int i = 0; i < stopOrder.size(); i++) {
             LatLng point = studentPoints.get(stopOrder.get(i));
             long eta = Math.round(cumulative.get(i + stopWaypointOffset));
             plan.addStop(stopOrder.get(i), point.lat(), point.lng(), eta);
         }
 
-        RoutePlan saved = routePlanRepository.save(plan);
-        return RoutePlanResponse.from(saved);
+        return routePlanRepository.save(plan);
     }
 
     private LatLng requireDepot(Bus bus) {

@@ -77,12 +77,12 @@ public class RoutePlan extends BaseTimeEntity {
     private Long publishedBy;
 
     @Builder
-    public RoutePlan(Long tenantId, Long busId, RouteDirection direction, int version, LocalDate serviceDate,
-                     String polyline, double totalDistanceM, double totalDurationS) {
+    public RoutePlan(Long tenantId, Long busId, RouteDirection direction, RoutePlanStatus status, int version,
+                     LocalDate serviceDate, String polyline, double totalDistanceM, double totalDurationS) {
         this.tenantId = tenantId;
         this.busId = busId;
         this.direction = direction;
-        this.status = RoutePlanStatus.DRAFT;
+        this.status = status;
         this.version = version;
         this.serviceDate = serviceDate;
         this.polyline = polyline;

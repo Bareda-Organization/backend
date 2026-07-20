@@ -7,5 +7,6 @@ public enum NotificationType {
     NO_SHOW,
     SOS,
     SCHEDULE_RESULT,
-    CONNECTION_LOST
+    CONNECTION_LOST,
+    ROUTE_RECOMMENDED
 }

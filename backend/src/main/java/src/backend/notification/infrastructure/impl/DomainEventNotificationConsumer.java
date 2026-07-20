@@ -9,6 +9,8 @@ import src.backend.notification.command.spec.NotificationCommandService;
 import src.backend.notification.domain.NotificationType;
 import src.backend.rideevent.event.RideCompletedEvent;
 import src.backend.rideevent.event.StudentBoardedEvent;
+import src.backend.routing.domain.RouteDirection;
+import src.backend.routing.event.RoutePlanRecommendedEvent;
 import src.backend.schedule.event.ScheduleResultEvent;
 import src.backend.sos.event.SosEscalatedEvent;
 import src.backend.sos.event.SosTriggeredEvent;
@@ -76,5 +78,16 @@ public class DomainEventNotificationConsumer {
         String resultText = event.status() == ApprovalStatus.APPROVED ? "승인" : "반려";
         notificationCommandService.notify(NotificationType.SCHEDULE_RESULT, event.tenantId(), event.studentId(),
                 dedupKey, event.studentName() + " 학생의 시간 변경 요청이 " + resultText + "되었습니다");
+    }
+
+    @KafkaListener(topics = "route-plan-recommended")
+    public void onRoutePlanRecommended(RoutePlanRecommendedEvent event) {
+        String stage = "bus" + event.busId() + ":" + event.direction() + ":v" + event.version();
+        String dedupKey = NotificationCommandService.dedupKey(
+                NotificationType.ROUTE_RECOMMENDED, event.triggerStudentId(), event.serviceDate(), stage);
+        String directionText = event.direction() == RouteDirection.DROPOFF ? "하원" : "등원";
+        notificationCommandService.notify(NotificationType.ROUTE_RECOMMENDED, event.tenantId(), event.triggerStudentId(),
+                dedupKey, event.triggerStudentName() + " 학생 변경으로 " + directionText
+                        + " 노선이 재계산되었습니다(검토 필요, v" + event.version() + ")");
     }
 }
