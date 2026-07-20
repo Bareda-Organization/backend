@@ -202,7 +202,7 @@ public interface LocationSource {
 | 4. attendance 서비스화 | 기존 엔티티·레포 위에 승인 상태전이(`approve`/`reject`) + command/query/controller + 당일 명단 스킵 통합. `sos` 모듈 템플릿 재사용 | ✅ 완료 (2026-07-19) |
 | 5. schedule 모듈 | greenfield 일정변경 승인 워크플로(`ScheduleChangeRequest`) + `SCHEDULE_RESULT` 알림 최초 연결 | ✅ 완료 (2026-07-19) |
 | 6. routing 모듈 (자동배치 최적화, 헤드라인) | 학생 하차지 좌표 + WebClient/`MapRouteClient` 포트(geocode·directions) + `RouteEngine`(sweep 정원배치 + NN/2-opt) + `RoutePlan`(DRAFT→RECOMMENDED→APPROVED→PUBLISHED) + 당일변경 replan + `APPROACH`/`NO_SHOW` 알림. 6a~6f 하위단계로 분할 | ✅ 완료 (2026-07-20, `APPROACH`/`NO_SHOW`는 Phase 7 이후로 범위 밖 확정) |
-| 7. 기사 운행관리 | 운행 세션/일일 로그(운행 전 체크리스트는 정식 출시 때 복원) | ⬜ 예정 |
+| 7. 기사 운행관리 | 운행 세션/일일 로그(운행 전 체크리스트는 정식 출시 때 복원) | ✅ 완료 (2026-07-20) |
 | 8. Mock → 실 GPS 전환 | `app.location` 플래그 토글(Phase 3에서 포트 분리 완료 → 소스만 교체) + 8장 법적 선행요건(동의 UI·이력 스키마) | ⬜ 예정 |
 
 - **왜 지금 Kafka인가**: 단일 모놀리식 앱에는 엄밀히 과설계지만, MSA 전환 대비(§17 reference.md)라는 목적 하에 사용자가 트레이드오프를 인지하고 선택.
@@ -233,8 +233,9 @@ public interface LocationSource {
 | `sos` | ✅ | ✅ | ✅ | ✅ | ✅ 완료 |
 | `schedule` (ScheduleChangeRequest) | ✅ | ✅ | ✅ | ✅ | ✅ 완료 |
 | `routing` (OSRM·네이버 ETA, sweep+NN+2-opt) | ✅ | ✅ | ✅ | ✅ | ✅ 완료(6a~6f) |
+| `drivesession` (운행 세션/일일 운행 로그) | ✅ | ✅ | ✅ | ✅ | ✅ 완료(Phase 7) |
 
-진행률: **완료 14 / 부분 0 / 예정 0** (총 14 모듈) — MVP 계획(§11.4 Phase 0~6) 전 모듈 구현 완료. 남은 건 Phase 7(기사 운행관리)·Phase 8(Mock→실 GPS 전환) 신규 확장.
+진행률: **완료 15 / 부분 0 / 예정 0** (총 15 모듈) — MVP 계획(§11.4 Phase 0~7) 전 모듈 구현 완료. 남은 건 Phase 8(Mock→실 GPS 전환) 뿐.
 
 - `user`/`tenant`/`student`: `MemberController`+`MemberServiceImpl`, `TenantController`+`TenantServiceImpl`, `StudentController`+`StudentServiceImpl`(배정·보호자 연결 포함) 모두 구현 완료. 등록·조회 모두 `TenantGuard`로 학원 격리 검사.
 - 사용자 계층·권한(2장) 요구사항 — 5계층 `Role` + `UserTenantRole` N:M + `TenantGuard`(학원관리자 자기 학원만/플랫폼관리자 지정 학원) + `RideEventQueryService`의 역할별 조회 스코핑(`getMyRecords`/`getChildrenRecords`/`getRosterRecords`/`getTenantRecords`)까지 구조적으로 완료. PARENT "알림함"은 `notification` 모듈 완료로 함께 해소됨. 남은 건 DRIVER "메모"(기사 운행관리 모듈 몫)뿐 — 권한 구조 자체가 아니라 해당 기능 모듈 미구현 때문.
@@ -258,6 +259,9 @@ public interface LocationSource {
     - **⚠️ 발견한 버그(6e 파생, 6f 검증 중 수정)**: `NotificationType.ROUTE_RECOMMENDED` 추가 직후엔 위 **함정 3**(CHECK 제약 미갱신)으로 알림 저장이 막혀 있었다 — 스키마 재시딩으로 해결.
     - **✅ curl E2E 검증(2026-07-20)**: 승인 없이 배포 시도 → `CONFLICT` 409 → 승인(RECOMMENDED→APPROVED) 200 → 재승인 → 409 → 배포(APPROVED→PUBLISHED) 200 → 재배포 → 409(위 전이 가드가 예상대로 동작) → 배포 전 기사 조회는 빈 배열 → 배포 직후 기사 조회에 해당 계획 노출 확인 → 기사가 미배정 버스 조회 403 / 학부모가 기사 엔드포인트 호출 403 / 기사가 관리자 엔드포인트(approve) 호출 403 / 미인증 401(생성·기사조회 둘 다) 확인. 서버 로그 Kafka·직렬화 에러 없음.
   - **routing 모듈(Phase 6) 종료**: a~f 전 단계 완료. `NotificationType.APPROACH`(근접 5분)·`NO_SHOW`(미탑승 10분)만 사용자 확정대로 **Phase 7(기사 운행관리, 운행 세션 시작시각 기록) 이후로 범위 밖 확정** — 도착 예상시각 계산에 필요한 실제 운행 시작시각을 기록하는 모듈이 아직 없어서, 근사치로 대체하지 않기로 함.
+- `drivesession` (Phase 7, 2026-07-20 완료, greenfield, 커밋 미생성): "운행 세션(시작/종료)"과 "일일 운행 로그"를 별도 엔티티로 나누지 않고 `DriveSession`(버스·방향·서비스일자별 시작~종료 구간) 하나로 통합 — 그 생애주기 자체가 로그다(불필요한 이중 엔티티 회피). `DriveSession`(tenantId/busId/driverId/direction/serviceDate/routePlanId/status `IN_PROGRESS→COMPLETED`(단방향, `end()` 재호출은 `CONFLICT` 409)) + `DriveSessionRepository`(중복 시작 방지용 `findByBusIdAndDirectionAndServiceDateAndStatus`) + `DriveSessionCommandService`(`start`/`end`, `rideevent`의 `requireAssignedDriver` 패턴 재사용) + `DriveSessionQueryService`(기사: 담당 버스 이력·세션별 명단, 관리자: 학원 전체 이력=법정 운행기록 열람) + `DriveSessionController`(`/api/drive-sessions`, `routing` 6f와 동일하게 역할별로 메서드마다 `@PreAuthorize`). `start()` 시 그 버스·방향·날짜에 **배포된(`PUBLISHED`) `RoutePlan`이 있으면 `routePlanId`를 자동 연결하되, 없어도 시작은 허용**(계획 없는 수동 운행도 막지 않음). 명단 조회는 `AttendanceQueryService.getActiveRoster`를 재사용해 이름·위치(등원=`Stop.name`+좌표, 하원=`dropoffAddress`+좌표)를 반환 — **사진은 `Student`에 필드가 없어 이번 범위에서 제외**(추후 `StorageService` 포트 도입 시 확장, §11.4 reference.md §17 MSA 후보 목록 참조). 체크리스트의 "기사(DRIVER/ATTENDANT)"에서 **ATTENDANT는 구현하지 않음** — 코드베이스에 그런 `Role`이 없고(CLAUDE.md에 이미 "동승보호자는 기사 앱 흐름에 흡수" 확정돼 있음), `rideevent` 등 기존 모듈도 전부 DRIVER 단일 역할로만 처리해온 것과 일관성을 맞춤.
+  - curl E2E 검증(2026-07-20): bus1(3호차) PICKUP 시작 → 배포된 계획 없어 `routePlanId=null` 확인 → DROPOFF 시작 → 6f에서 배포한 `id=6` 계획이 `routePlanId=6`으로 자동 연결됨 확인 → 같은 버스·방향·날짜로 재시작 → `CONFLICT` 409 → 세션 명단 조회 시 그날 이미 결석 승인된 김민준이 로스터에서 자동 제외되고 2명만 반환(6e에서 이미 승인된 결석 신고가 `getActiveRoster`에 그대로 반영됨을 재확인) → 종료 200 → 재종료 시도 409 → 종료 후 같은 방향 재시작 정상(새 세션 id 발급) → 기사가 미배정 버스로 시작 시도 403 → 학부모가 기사 전용 엔드포인트 호출 403 → 기사가 관리자 전용 이력 조회 호출 403 → 미인증 401 → 관리자 학원 전체 이력 조회에 3개 세션(완료 1·진행중 2) 정상 노출. 서버 로그 에러 없음. 전용 테스트 파일은 만들지 않음(attendance/sos 선례 따름).
+  - **다음 착수점**: Phase 8(Mock→실 GPS 전환)뿐 아니라, 이번에 시작시각 기록 기반이 갖춰졌으니 §12.3 Phase 6f에서 보류했던 `APPROACH`/`NO_SHOW` 알림(ETA 계산 필요)을 재검토할 수 있는 상태가 됐다 — 단, 이번 세션 범위에는 포함하지 않음(사용자 확정 필요).
 
 ### 12.2 다음 작업 백로그 (권장 순서)
 
@@ -269,7 +273,7 @@ public interface LocationSource {
 - [x] ~~attendance 서비스화~~ (Phase 4) — 승인 상태전이 + command/query/controller + 당일 명단 스킵 헬퍼 완료(2026-07-19, 커밋 `de79104`). §12.3 Phase 4.
 - [x] ~~schedule 모듈~~ (Phase 5) — ScheduleChangeRequest 승인 워크플로 + `SCHEDULE_RESULT` 알림 최초 연결 완료(2026-07-19, 커밋 `94f99c6`). §12.3 Phase 5.
 - [x] ~~routing 모듈 6a~6f~~ (Phase 6, **전체 완료**) — 하차지/depot 좌표 + `MapRouteClient`/`RouteEngine` 포트 + sweep·NN·2-opt + `RoutePlan` 생성 API(6a~6d, 2026-07-19, 커밋 `f4b88e5`~`a214fd6`) + attendance/schedule 승인 이벤트 소비 국소 replan(6e, 2026-07-20, 커밋 `7f70e91`) + 관리자 승인/배포 API+기사 조회(6f, 2026-07-20) 완료, 전 단계 curl E2E 검증 완료. **`APPROACH`/`NO_SHOW` 알림만 Phase 7 이후로 보류.** §12.3 Phase 6.
-- [ ] **기사 운행관리** (Phase 7) — 운행 세션/일일 로그(운행 전 체크리스트는 정식 출시 때 복원). §12.3 Phase 7.
+- [x] ~~기사 운행관리~~ (Phase 7) — `drivesession` 모듈 신설(운행 세션=일일 로그 통합) + command/query/controller + rideevent 명단 연계(이름·위치, 사진 제외) 완료(2026-07-20, 커밋 미생성). §12.3 Phase 7.
 - [ ] **Mock → 실 GPS 전환** (Phase 8) — 플래그 토글 + 8장 법적 선행요건(동의 UI·스키마). §12.3 Phase 8.
 
 ### 12.3 아키텍처 리팩터 체크리스트 — Kafka + CQRS + 실시간 push (§11.4 상세)
@@ -333,10 +337,10 @@ public interface LocationSource {
 - [x] 6e 검증(2026-07-20): 결석 승인→국소 replan(로스터 감소)+관리자 알림 / 일정변경 승인→국소 replan+관리자 알림(schedule-result 팬아웃 확인) / 반려 시 replan 없음 / 날짜 불일치 시 replan 스킵.
 - [x] 6f 검증(2026-07-20): 승인 전 배포 시도 409 / 승인 200·재승인 409 / 배포 200·재배포 409 / 배포 전후 기사 조회(빈 배열→노출) / 기사·학부모·관리자 교차 역할 403 / 미인증 401. **Phase 6 전체 완료 — 남은 항목 없음.**
 
-**Phase 7 · 기사 운행관리 (운행 세션/일일 로그)**
-- [ ] 운행 세션(시작/종료) + 일일 운행 로그 엔티티 + 레포 (운행 전 체크리스트는 정식 출시 때 복원)
-- [ ] command/query/controller — 기사(DRIVER/ATTENDANT) 운행 시작·종료·조회, rideevent 명단(사진·이름·하차지) 연계
-- [ ] `./gradlew build` green + 커밋
+**Phase 7 · 기사 운행관리 (운행 세션/일일 로그)** — ✅ 완료(2026-07-20)
+- [x] 운행 세션(시작/종료) 엔티티+레포 — `DriveSession`을 일일 운행 로그 자체로 통합(별도 로그 엔티티 없음, 운행 전 체크리스트는 정식 출시 때 복원 예정대로 이번 범위 밖)
+- [x] command/query/controller — 기사(**DRIVER만**, ATTENDANT 역할은 코드베이스에 없어 제외) 운행 시작·종료·세션별 명단 조회, rideevent/attendance 명단(**이름·하차지만**, 사진은 `Student`에 필드가 없어 제외) 연계
+- [x] `./gradlew build` green(`contextLoads` 제외) + curl E2E 검증(시작/중복시작 409/종료/재종료 409/재시작/명단 결석제외/역할별 403/401/관리자 이력조회) — 커밋 예정
 
 **Phase 8 · Mock → 실 GPS 전환**
 - [ ] `app.location.mock.enabled`/`gps.enabled` prod 토글(코드는 Phase 3에서 `MockLocationSource`/`PhoneGpsSource` 포트 분리 완료 → 소스만 교체)

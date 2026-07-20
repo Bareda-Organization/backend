@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-학생 통원(등하원) 경로 관리 서비스의 백엔드. Spring Boot 골격 위에 **일부 도메인이 이미 구현**된 MVP 진행 단계다(auth·bus·route·rideevent·location(Mock/실GPS 추상화)·global 인프라 완료 / user·tenant·student·attendance는 엔티티·레포만 / notification·sos·schedule·routing은 미구현).
+학생 통원(등하원) 경로 관리 서비스의 백엔드. Spring Boot 골격 위에 MVP 15개 모듈(auth·bus·route·rideevent·location·user·tenant·student·attendance·notification·sos·schedule·routing·drivesession·global 인프라) 전체가 엔티티~컨트롤러까지 구현 완료됐다(§11.4 Phase 0~7). 남은 건 Phase 8(Mock→실 GPS 전환)뿐 — 상세는 `PROJECT_MASTER_PLAN.md` §12.1 참조.
 
 - **작업 전 반드시 `backend/docs/PROJECT_MASTER_PLAN.md`(단일 소스)를 먼저 읽는다.** 여기에 기획서(docx) 재정리 요구사항 + 현재 코드 기준 MVP 구현계획 + **모듈별 진행 추적/백로그**가 있다. 진행 상황·큰 변경은 이 문서에 반영한다.
 - 기획 원본은 `backend/docs/학원 통학버스 통합관리 시스템.docx`(불변), 프론트 데모·시나리오 관점의 초기 지시서는 루트 `projectInfo.md`.
