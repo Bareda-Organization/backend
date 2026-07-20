@@ -26,6 +26,8 @@ cd backend
 ./gradlew test --tests '*.메서드명'                             # 단일 테스트 메서드
 ```
 
+앱 기동 후 API 테스트는 Swagger UI(`http://localhost:8080/swagger-ui/index.html`)를 쓴다 — `/api/auth/login` 응답의 `accessToken`을 우측 상단 Authorize에 넣으면 이후 요청에 자동으로 붙는다.
+
 ## Stack / 주요 특이사항
 
 - **Spring Boot 4.1.0**, **Java 25**(toolchain 고정), Gradle. 웹 스타터는 신형 아티팩트명 `spring-boot-starter-webmvc`(테스트는 `spring-boot-starter-webmvc-test`)를 사용한다 — 구버전 `spring-boot-starter-web`이 아님.

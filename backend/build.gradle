@@ -43,6 +43,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-webclient'
     // 실시간 위치 수신 채널(STOMP over WebSocket) — 연결 상태(heartbeat)를 프로토콜 차원에서 감지
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    // API 문서·테스트용 Swagger UI — 3.x 대가 Spring Boot 4(Jackson 3) 지원 최초 라인
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
     // 보일러플레이트 축소
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'

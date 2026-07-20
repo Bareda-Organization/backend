@@ -203,11 +203,12 @@ public interface LocationSource {
 | 5. schedule 모듈 | greenfield 일정변경 승인 워크플로(`ScheduleChangeRequest`) + `SCHEDULE_RESULT` 알림 최초 연결 | ✅ 완료 (2026-07-19) |
 | 6. routing 모듈 (자동배치 최적화, 헤드라인) | 학생 하차지 좌표 + WebClient/`MapRouteClient` 포트(geocode·directions) + `RouteEngine`(sweep 정원배치 + NN/2-opt) + `RoutePlan`(DRAFT→RECOMMENDED→APPROVED→PUBLISHED) + 당일변경 replan + `APPROACH`/`NO_SHOW` 알림. 6a~6f 하위단계로 분할 | ✅ 완료 (2026-07-20, `APPROACH`/`NO_SHOW`는 Phase 7 이후로 범위 밖 확정) |
 | 7. 기사 운행관리 | 운행 세션/일일 로그(운행 전 체크리스트는 정식 출시 때 복원) | ✅ 완료 (2026-07-20) |
-| 8. Mock → 실 GPS 전환 | `app.location` 플래그 토글(Phase 3에서 포트 분리 완료 → 소스만 교체) + 8장 법적 선행요건(동의 UI·이력 스키마) | ⬜ 예정 |
+| 8. Mock → 실 GPS 전환 | `app.location` 플래그 토글(Phase 3에서 포트 분리 완료 → 소스만 교체, prod 프로파일에도 이미 반영돼 있어 **전환 준비 자체는 끝난 상태**) + 8장 법적 선행요건(동의 UI·이력 스키마) | ⬜ **보류(2026-07-20 확정)** — 아래 콜아웃 참조 |
 
 - **왜 지금 Kafka인가**: 단일 모놀리식 앱에는 엄밀히 과설계지만, MSA 전환 대비(§17 reference.md)라는 목적 하에 사용자가 트레이드오프를 인지하고 선택.
 - **Phase 4~8 확정(2026-07-19)**: 남은 5개 모듈을 이 로드맵으로 흡수. 특히 **routing은 "넓은 범위(자동배치 최적화)"로 확정** — `MVP_RELEASE_TRACKER.md` §4 알고리즘 파이프라인(sweep 배치 + NN/2-opt + 실도로 directions + 당일 replan)을 PROJECT_MASTER_PLAN으로 흡수하며, `Student`에 하차지 좌표 필드 추가(스키마 변경)를 동반한다. 상세 커밋 단위 체크리스트는 §12.3. 개발은 다른 세션에서 이어감(메모리 `school-bus-next-phases` 참조).
 - **⚠️ Phase 3 검증 중 발견한 인프라 버그(수정 완료)**: `spring-kafka`의 `JsonSerializer`/`JsonDeserializer`는 아직 클래식 Jackson 2(`com.fasterxml.jackson`)를 쓰는데, 이 프로젝트엔 Boot 4 기본 Jackson 3만 있고 클래식 Jackson 2용 `jackson-datatype-jsr310`이 없어서 **모든 `DomainEvent`의 `occurredAt`(`Instant`) 필드가 Kafka 발행 시 조용히 직렬화 실패**하고 있었다(`TransactionSynchronizationUtils.afterCompletion threw exception` 로그로만 남고 트랜잭션 자체는 커밋됨 — 즉 DB 저장은 되지만 이벤트는 유실). Location뿐 아니라 Phase 2에서 만든 다른 이벤트(`StudentBoardedEvent` 등)도 동일 문제였을 것 — Kafka를 실제로 기동해 본 건 이번이 처음이라 지금까지 발견되지 않았다. `build.gradle`에 `runtimeOnly 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'` 한 줄 추가로 해결(커밋 `e19272a`. 별도로 `RedisConfig`도 Redis 값 직렬화를 Jackson 3 `GenericJacksonJsonRedisSerializer`로 전환하는 컴파일 수정을 커밋 `26fd18c`에서 함께 처리).
+- **⚠️ Phase 8 보류 확정(2026-07-20)**: 8장 법적 선행요건(동의 UI·이력 스키마, `consent` 모듈)은 **실제 모바일 기기로 GPS 연동 테스트를 시작하는 시점까지 개발 보류** — 사용자 확정. MVP는 계속 Mock 데이터로 진행. 단 "실 GPS 전환 준비" 자체(=`LocationSource` 포트 분리, `MockLocationSource`/`PhoneGpsSource` 두 구현체, `application.yml` prod 프로파일의 `mock.enabled: false`/`gps.enabled: true`)는 Phase 1·3에서 이미 끝나 있어 **플래그만 뒤집으면 소스 교체는 즉시 가능한 상태** — 추가 코드 작업 없이 대기. TODO는 §12.2/§12.3 Phase 8에 명시.
 
 ---
 
@@ -219,7 +220,7 @@ public interface LocationSource {
 
 | 모듈 | 엔티티 | 레포 | 서비스 | 컨트롤러 | 상태 |
 |---|:-:|:-:|:-:|:-:|---|
-| `global` (security·error·response·tenant·config) | — | — | — | — | ✅ 완료 |
+| `global` (security·error·response·tenant·config, Swagger UI) | — | — | — | — | ✅ 완료 |
 | `auth` | — | — | ✅ | ✅ | ✅ 완료 |
 | `bus` | ✅ | ✅ | ✅ | ✅ | ✅ 완료 |
 | `route` (Route·Stop) | ✅ | ✅ | ✅ | ✅ | ✅ 완료 |
@@ -235,8 +236,9 @@ public interface LocationSource {
 | `routing` (OSRM·네이버 ETA, sweep+NN+2-opt) | ✅ | ✅ | ✅ | ✅ | ✅ 완료(6a~6f) |
 | `drivesession` (운행 세션/일일 운행 로그) | ✅ | ✅ | ✅ | ✅ | ✅ 완료(Phase 7) |
 
-진행률: **완료 15 / 부분 0 / 예정 0** (총 15 모듈) — MVP 계획(§11.4 Phase 0~7) 전 모듈 구현 완료. 남은 건 Phase 8(Mock→실 GPS 전환) 뿐.
+진행률: **완료 15 / 부분 0 / 예정 0** (총 15 모듈) — MVP 계획(§11.4 Phase 0~7) 전 모듈 구현 완료. **Phase 8(Mock→실 GPS 전환)은 §8 법적요건 부분만 실제 모바일 GPS 테스트 시점까지 보류 확정(2026-07-20) — 상세는 §11.4 콜아웃·§12.3 Phase 8 TODO 참조.**
 
+- **Swagger UI(2026-07-20 추가)**: `springdoc-openapi-starter-webmvc-ui:3.0.3`(Spring Boot 4/Jackson 3 지원 라인) 추가. `OpenApiConfig`(`global/config`)가 JWT Bearer `SecurityScheme`을 등록해 Swagger UI 우측 상단 Authorize에 `/api/auth/login` 응답의 `accessToken`을 넣으면 이후 모든 요청에 자동으로 붙는다. `SecurityConfig`에 `/swagger-ui/**`·`/v3/api-docs/**` `permitAll` 추가(문서·UI 열람 자체는 공개, 보호 API 호출만 토큰 필요). 로컬 실행 중 `http://localhost:8080/swagger-ui/index.html`. curl로 `/v3/api-docs` 200 + `securitySchemes.bearerAuth` 등록 + 52개 경로 노출 확인.
 - `user`/`tenant`/`student`: `MemberController`+`MemberServiceImpl`, `TenantController`+`TenantServiceImpl`, `StudentController`+`StudentServiceImpl`(배정·보호자 연결 포함) 모두 구현 완료. 등록·조회 모두 `TenantGuard`로 학원 격리 검사.
 - 사용자 계층·권한(2장) 요구사항 — 5계층 `Role` + `UserTenantRole` N:M + `TenantGuard`(학원관리자 자기 학원만/플랫폼관리자 지정 학원) + `RideEventQueryService`의 역할별 조회 스코핑(`getMyRecords`/`getChildrenRecords`/`getRosterRecords`/`getTenantRecords`)까지 구조적으로 완료. PARENT "알림함"은 `notification` 모듈 완료로 함께 해소됨. 남은 건 DRIVER "메모"(기사 운행관리 모듈 몫)뿐 — 권한 구조 자체가 아니라 해당 기능 모듈 미구현 때문.
 - `notification`: `NotificationLog`(dedupKey unique) + `NotificationLogRepository` + `NotificationCommandService`(멱등 `notify` + `dedupKey` 공식 헬퍼) + `NotificationQueryService` + `NotificationSender` 포트(`LogNotificationSender` MVP 구현, `LocationSource`와 동일한 추상화 패턴) + `NotificationController`(`/api/notifications/children` PARENT, `/api/notifications` 관리자) 모두 구현. `NotificationThresholds`(10/5/3분) 상수 정의. **트리거는 BOARD_DONE/ALIGHT_DONE/SOS/SCHEDULE_RESULT 연동됨** — Phase 2에서 직접호출에서 Kafka 도메인 이벤트 경유(`DomainEventNotificationConsumer`의 `@KafkaListener`가 `notify` 호출)로 전환됐고, Phase 5에서 `SCHEDULE_RESULT`가 최초로 연결됨. NO_SHOW(정류장 도착 감지 필요)·APPROACH(ETA 필요)는 routing(Phase 6) 구현 시 같은 이벤트 발행 패턴을 따르도록 남겨둠.
@@ -274,7 +276,7 @@ public interface LocationSource {
 - [x] ~~schedule 모듈~~ (Phase 5) — ScheduleChangeRequest 승인 워크플로 + `SCHEDULE_RESULT` 알림 최초 연결 완료(2026-07-19, 커밋 `94f99c6`). §12.3 Phase 5.
 - [x] ~~routing 모듈 6a~6f~~ (Phase 6, **전체 완료**) — 하차지/depot 좌표 + `MapRouteClient`/`RouteEngine` 포트 + sweep·NN·2-opt + `RoutePlan` 생성 API(6a~6d, 2026-07-19, 커밋 `f4b88e5`~`a214fd6`) + attendance/schedule 승인 이벤트 소비 국소 replan(6e, 2026-07-20, 커밋 `7f70e91`) + 관리자 승인/배포 API+기사 조회(6f, 2026-07-20) 완료, 전 단계 curl E2E 검증 완료. **`APPROACH`/`NO_SHOW` 알림만 Phase 7 이후로 보류.** §12.3 Phase 6.
 - [x] ~~기사 운행관리~~ (Phase 7) — `drivesession` 모듈 신설(운행 세션=일일 로그 통합) + command/query/controller + rideevent 명단 연계(이름·위치, 사진 제외) 완료(2026-07-20, 커밋 `8afca13`). §12.3 Phase 7.
-- [ ] **Mock → 실 GPS 전환** (Phase 8) — 플래그 토글 + 8장 법적 선행요건(동의 UI·스키마). §12.3 Phase 8.
+- [ ] **TODO(보류, 2026-07-20 확정)** Mock → 실 GPS 전환 (Phase 8) — 플래그 토글 자체는 준비 완료, 8장 법적 선행요건(동의 UI·이력 스키마, `consent` 모듈)만 **실제 모바일 GPS 연동 테스트 시작 시점까지 보류**. §12.3 Phase 8.
 
 ### 12.3 아키텍처 리팩터 체크리스트 — Kafka + CQRS + 실시간 push (§11.4 상세)
 
@@ -342,7 +344,7 @@ public interface LocationSource {
 - [x] command/query/controller — 기사(**DRIVER만**, ATTENDANT 역할은 코드베이스에 없어 제외) 운행 시작·종료·세션별 명단 조회, rideevent/attendance 명단(**이름·하차지만**, 사진은 `Student`에 필드가 없어 제외) 연계
 - [x] `./gradlew build` green(`contextLoads` 제외) + curl E2E 검증(시작/중복시작 409/종료/재종료 409/재시작/명단 결석제외/역할별 403/401/관리자 이력조회) — 커밋 `8afca13`
 
-**Phase 8 · Mock → 실 GPS 전환**
-- [ ] `app.location.mock.enabled`/`gps.enabled` prod 토글(코드는 Phase 3에서 `MockLocationSource`/`PhoneGpsSource` 포트 분리 완료 → 소스만 교체)
-- [ ] 8장 법적 선행요건 — 위치정보 동의 UI 계약·동의 이력 스키마 충족, 백엔드는 동의 이력 저장/검사 슬롯 제공
-- [ ] `./gradlew build` green + 커밋
+**Phase 8 · Mock → 실 GPS 전환** — ⬜ **보류(2026-07-20 확정, 실제 모바일 GPS 연동 테스트 시작 시점까지)**, MVP는 Mock 데이터로 계속 진행
+- [x] `app.location.mock.enabled`/`gps.enabled` prod 토글(Phase 3에서 `MockLocationSource`/`PhoneGpsSource` 포트 분리 + `application.yml` prod 프로파일 반영까지 이미 완료 — **전환 준비는 끝났고, 플래그만 뒤집으면 됨**. 새 코드 불필요)
+- [ ] **TODO** 8장 법적 선행요건 — 위치정보 동의 UI 계약·동의 이력 스키마 충족, 백엔드는 동의 이력 저장/검사 슬롯(`consent` 모듈 등) 제공. **실제 모바일 기기로 GPS 연동 테스트를 시작할 때 착수** — 그 전에는 법적 검토·UI 계약이 확정되지 않아 스키마를 먼저 만들 근거가 부족하다는 사용자 판단으로 보류.
+- [ ] (착수 시) `./gradlew build` green + 커밋

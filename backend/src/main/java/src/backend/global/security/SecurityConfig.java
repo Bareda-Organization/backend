@@ -17,7 +17,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * 보안 설정.
  * 토큰 기반이라 세션을 만들지 않고(STATELESS), CSRF 를 끈다.
  * JwtAuthenticationFilter 를 표준 인증 필터 앞에 끼워 매 요청 토큰을 검증한다.
- * 인증/회원가입(/api/auth/**)과 헬스체크만 공개, 그 외는 인증 필요.
+ * 인증/회원가입(/api/auth/**)과 헬스체크·Swagger UI만 공개, 그 외는 인증 필요.
  * 세밀한 역할 인가는 각 컨트롤러의 @PreAuthorize 로 처리한다(@EnableMethodSecurity).
  *
  * /ws/** 는 예외 — WebSocket 업그레이드(HTTP 핸드셰이크) 자체엔 아직 토큰이 없고(네이티브
@@ -44,6 +44,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers("/ws/**").permitAll()
+                        // API 테스트용 Swagger UI(springdoc) — 문서·UI 자체는 공개, 보호 API 호출은 Authorize 로 넣은 토큰이 검증
+                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         .anyRequest().authenticated())
                 // 인증 안 된 요청은 403 대신 401 로 응답(토큰 필요함을 명확히)
                 .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
