@@ -2,6 +2,7 @@ package src.backend.drivesession.controller;
 
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.Parameter;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -66,7 +67,7 @@ public class DriveSessionController {
     @GetMapping("/bus/{busId}")
     @PreAuthorize("hasRole('DRIVER')")
     public ApiResponse<List<DriveSessionResponse>> busHistory(@AuthenticationPrincipal AuthUser driver,
-                                                               @PathVariable Long busId) {
+                                                               @Parameter(example = "1") @PathVariable Long busId) {
         return ApiResponse.ok(driveSessionQueryService.getBusHistory(driver, busId));
     }
 
@@ -74,7 +75,7 @@ public class DriveSessionController {
     @GetMapping
     @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
     public ApiResponse<List<DriveSessionResponse>> tenantHistory(@AuthenticationPrincipal AuthUser admin,
-                                                                  @RequestParam(required = false) Long tenantId) {
+                                                                  @Parameter(example = "1") @RequestParam(required = false) Long tenantId) {
         return ApiResponse.ok(driveSessionQueryService.getTenantHistory(admin, tenantId));
     }
 }

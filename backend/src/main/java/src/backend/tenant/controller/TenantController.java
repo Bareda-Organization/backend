@@ -2,6 +2,7 @@ package src.backend.tenant.controller;
 
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.Parameter;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -54,14 +55,14 @@ public class TenantController {
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
     public ApiResponse<TenantResponse> detail(@AuthenticationPrincipal AuthUser admin,
-                                              @PathVariable Long id) {
+                                              @Parameter(example = "1") @PathVariable Long id) {
         return ApiResponse.ok(tenantQueryService.get(admin, id));
     }
 
     /** 학원 위치(depot) 설정 — routing 노선 계산 기준점, 플랫폼 관리자. */
     @PatchMapping("/{id}/location")
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
-    public ApiResponse<TenantResponse> updateLocation(@PathVariable Long id,
+    public ApiResponse<TenantResponse> updateLocation(@Parameter(example = "1") @PathVariable Long id,
                                                        @Valid @RequestBody UpdateTenantLocationRequest request) {
         return ApiResponse.ok(tenantCommandService.updateLocation(id, request));
     }

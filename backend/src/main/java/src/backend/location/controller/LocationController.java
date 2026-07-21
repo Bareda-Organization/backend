@@ -2,6 +2,7 @@ package src.backend.location.controller;
 
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.Parameter;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -64,7 +65,7 @@ public class LocationController {
     @GetMapping("/bus/{busId}")
     @PreAuthorize("hasRole('DRIVER')")
     public ApiResponse<List<LocationView>> busLocations(@AuthenticationPrincipal AuthUser driver,
-                                                        @PathVariable Long busId) {
+                                                        @Parameter(example = "1") @PathVariable Long busId) {
         return ApiResponse.ok(locationQueryService.getBusLocations(driver, busId));
     }
 
@@ -72,7 +73,7 @@ public class LocationController {
     @GetMapping
     @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
     public ApiResponse<List<LocationView>> tenantLocations(@AuthenticationPrincipal AuthUser admin,
-                                                           @RequestParam(required = false) Long tenantId) {
+                                                           @Parameter(example = "1") @RequestParam(required = false) Long tenantId) {
         return ApiResponse.ok(locationQueryService.getTenantLocations(admin, tenantId));
     }
 }

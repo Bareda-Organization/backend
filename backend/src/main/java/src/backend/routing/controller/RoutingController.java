@@ -3,6 +3,7 @@ package src.backend.routing.controller;
 import java.time.LocalDate;
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.Parameter;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -72,8 +73,8 @@ public class RoutingController {
     @GetMapping
     @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
     public ApiResponse<List<RoutePlanResponse>> list(@AuthenticationPrincipal AuthUser admin,
-                                                      @RequestParam(required = false) Long tenantId,
-                                                      @RequestParam(required = false) Long busId) {
+                                                      @Parameter(example = "1") @RequestParam(required = false) Long tenantId,
+                                                      @Parameter(example = "1") @RequestParam(required = false) Long busId) {
         return ApiResponse.ok(routingQueryService.list(admin, tenantId, busId));
     }
 
@@ -82,8 +83,8 @@ public class RoutingController {
     @PreAuthorize("hasRole('DRIVER')")
     public ApiResponse<List<RoutePlanResponse>> driverPublished(
             @AuthenticationPrincipal AuthUser driver,
-            @PathVariable Long busId,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate serviceDate) {
+            @Parameter(example = "1") @PathVariable Long busId,
+            @Parameter(example = "2026-07-20") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate serviceDate) {
         return ApiResponse.ok(routingQueryService.getPublishedForDriver(driver, busId, serviceDate));
     }
 }

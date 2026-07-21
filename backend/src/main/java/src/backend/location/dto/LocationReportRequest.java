@@ -1,5 +1,6 @@
 package src.backend.location.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 
 /**
@@ -8,6 +9,6 @@ import jakarta.validation.constraints.NotNull;
  * 좌표를 만들어내는 쪽(디바이스 GPS ↔ Mock 시뮬레이터)만 교체한다.
  */
 public record LocationReportRequest(
-        @NotNull Double lat,
-        @NotNull Double lng) {
+        @NotNull @Schema(example = "37.4998") Double lat,
+        @NotNull @Schema(example = "127.0245") Double lng) {
 }

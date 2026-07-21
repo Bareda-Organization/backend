@@ -2,6 +2,7 @@ package src.backend.user.controller;
 
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.Parameter;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -47,8 +48,8 @@ public class MemberController {
     /** 학원 구성원 목록 — role 지정 시 해당 역할만. */
     @GetMapping
     public ApiResponse<List<MemberResponse>> list(@AuthenticationPrincipal AuthUser admin,
-                                                  @RequestParam(required = false) Long tenantId,
-                                                  @RequestParam(required = false) Role role) {
+                                                  @Parameter(example = "1") @RequestParam(required = false) Long tenantId,
+                                                  @Parameter(example = "DRIVER") @RequestParam(required = false) Role role) {
         return ApiResponse.ok(memberQueryService.list(admin, tenantId, role));
     }
 }

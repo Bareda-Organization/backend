@@ -2,6 +2,7 @@ package src.backend.sos.controller;
 
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.Parameter;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -78,7 +79,7 @@ public class SosController {
     @GetMapping
     @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
     public ApiResponse<List<SosEventResponse>> tenantEvents(@AuthenticationPrincipal AuthUser admin,
-                                                            @RequestParam(required = false) Long tenantId) {
+                                                            @Parameter(example = "1") @RequestParam(required = false) Long tenantId) {
         return ApiResponse.ok(sosQueryService.getTenantEvents(admin, tenantId));
     }
 }

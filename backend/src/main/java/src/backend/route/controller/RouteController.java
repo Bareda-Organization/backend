@@ -2,6 +2,7 @@ package src.backend.route.controller;
 
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.Parameter;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -42,13 +43,13 @@ public class RouteController {
     @GetMapping
     @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
     public ApiResponse<List<RouteResponse>> list(@AuthenticationPrincipal AuthUser admin,
-                                                 @RequestParam(required = false) Long tenantId) {
+                                                 @Parameter(example = "1") @RequestParam(required = false) Long tenantId) {
         return ApiResponse.ok(routeQueryService.listRoutes(admin, tenantId));
     }
 
     /** 노선의 정류장 목록(seq 순) — 인증된 사용자. */
     @GetMapping("/{id}/stops")
-    public ApiResponse<List<StopResponse>> stops(@PathVariable Long id) {
+    public ApiResponse<List<StopResponse>> stops(@Parameter(example = "1") @PathVariable Long id) {
         return ApiResponse.ok(routeQueryService.getStops(id));
     }
 
@@ -64,7 +65,7 @@ public class RouteController {
     @PostMapping("/{id}/stops")
     @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
     public ApiResponse<StopResponse> addStop(@AuthenticationPrincipal AuthUser admin,
-                                             @PathVariable Long id,
+                                             @Parameter(example = "1") @PathVariable Long id,
                                              @Valid @RequestBody CreateStopRequest request) {
         return ApiResponse.ok(routeCommandService.addStop(admin, id, request));
     }

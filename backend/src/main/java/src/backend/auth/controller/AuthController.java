@@ -5,6 +5,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import src.backend.auth.command.AuthCommandService;
 import src.backend.auth.dto.LoginRequest;
@@ -19,6 +20,7 @@ import src.backend.global.response.ApiResponse;
  */
 @RestController
 @RequestMapping("/api/auth")
+@Tag(name = "0. 인증(Auth)", description = "다른 API를 테스트하려면 여기서 먼저 로그인해 accessToken을 발급받고, 우측 상단 Authorize에 입력한다.")
 public class AuthController {
 
     private final AuthCommandService authCommandService;

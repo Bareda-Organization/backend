@@ -3,6 +3,7 @@ package src.backend.rideevent.controller;
 import java.time.LocalDate;
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.Parameter;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -62,7 +63,7 @@ public class RideEventController {
     @PreAuthorize("hasRole('STUDENT')")
     public ApiResponse<List<RideEventResponse>> myRecords(
             @AuthenticationPrincipal AuthUser student,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+            @Parameter(example = "2026-07-20") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return ApiResponse.ok(rideEventQueryService.getMyRecords(student, date));
     }
 
@@ -71,7 +72,7 @@ public class RideEventController {
     @PreAuthorize("hasRole('PARENT')")
     public ApiResponse<List<RideEventResponse>> childrenRecords(
             @AuthenticationPrincipal AuthUser parent,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+            @Parameter(example = "2026-07-20") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return ApiResponse.ok(rideEventQueryService.getChildrenRecords(parent, date));
     }
 
@@ -80,8 +81,8 @@ public class RideEventController {
     @PreAuthorize("hasRole('DRIVER')")
     public ApiResponse<List<RideEventResponse>> busRecords(
             @AuthenticationPrincipal AuthUser driver,
-            @PathVariable Long busId,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+            @Parameter(example = "1") @PathVariable Long busId,
+            @Parameter(example = "2026-07-20") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return ApiResponse.ok(rideEventQueryService.getRosterRecords(driver, busId, date));
     }
 
@@ -90,10 +91,10 @@ public class RideEventController {
     @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
     public ApiResponse<List<RideEventResponse>> tenantRecords(
             @AuthenticationPrincipal AuthUser admin,
-            @RequestParam(required = false) Long tenantId,
-            @RequestParam(required = false) Long studentId,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+            @Parameter(example = "1") @RequestParam(required = false) Long tenantId,
+            @Parameter(example = "1") @RequestParam(required = false) Long studentId,
+            @Parameter(example = "2026-07-20") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @Parameter(example = "2026-07-20") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
         LocalDate start = from != null ? from : LocalDate.now();
         LocalDate end = to != null ? to : LocalDate.now();
         return ApiResponse.ok(rideEventQueryService.getTenantRecords(admin, tenantId, studentId, start, end));

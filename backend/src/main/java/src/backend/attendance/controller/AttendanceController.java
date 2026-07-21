@@ -2,6 +2,7 @@ package src.backend.attendance.controller;
 
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.Parameter;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -72,7 +73,7 @@ public class AttendanceController {
     @GetMapping
     @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
     public ApiResponse<List<AttendanceExceptionResponse>> tenant(@AuthenticationPrincipal AuthUser admin,
-                                                                  @RequestParam(required = false) Long tenantId) {
+                                                                  @Parameter(example = "1") @RequestParam(required = false) Long tenantId) {
         return ApiResponse.ok(attendanceQueryService.getTenantExceptions(admin, tenantId));
     }
 }

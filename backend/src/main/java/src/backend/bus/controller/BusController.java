@@ -2,6 +2,7 @@ package src.backend.bus.controller;
 
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.Parameter;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -42,14 +43,14 @@ public class BusController {
     /** 학원 버스 목록(정원 초과 경고 플래그 포함). */
     @GetMapping
     public ApiResponse<List<BusResponse>> list(@AuthenticationPrincipal AuthUser admin,
-                                               @RequestParam(required = false) Long tenantId) {
+                                               @Parameter(example = "1") @RequestParam(required = false) Long tenantId) {
         return ApiResponse.ok(busQueryService.listBuses(admin, tenantId));
     }
 
     /** 버스 상세 — 노선·기사·탑승/정원·명단. */
     @GetMapping("/{id}")
     public ApiResponse<BusDetailResponse> detail(@AuthenticationPrincipal AuthUser admin,
-                                                 @PathVariable Long id) {
+                                                 @Parameter(example = "1") @PathVariable Long id) {
         return ApiResponse.ok(busQueryService.getBus(admin, id));
     }
 
@@ -63,7 +64,7 @@ public class BusController {
     /** 배차 변경 — 담당 기사·운행 노선 배정. */
     @PatchMapping("/{id}/assignment")
     public ApiResponse<BusResponse> assign(@AuthenticationPrincipal AuthUser admin,
-                                           @PathVariable Long id,
+                                           @Parameter(example = "1") @PathVariable Long id,
                                            @Valid @RequestBody AssignmentRequest request) {
         return ApiResponse.ok(busCommandService.assign(admin, id, request));
     }
