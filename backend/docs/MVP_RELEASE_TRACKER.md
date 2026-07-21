@@ -13,8 +13,10 @@
 > 자동배차·경로를 **제안(RECOMMENDED)** 으로 먼저 관리자에게 제공 → 검토 → **승인(confirm) 시 배차 확정 + 배포**.
 
 > **🎉 F1~F4 전체 구현+검증+커밋 완료(2026-07-21~22):** §2 P(MVP)의 F2·F4·F1·F3가 모두 완료됐다(아래 체크박스 참조).
-> §0에서 확정한 MVP 필수 기능 5개(버스 실시간위치·이벤트 재최적화·노선배포·배차최적화·승하차)가 전부 갖춰졌다. 다음 우선순위는
-> **G5**(테스트 커버리지, P1) 또는 **G4·G6**(P2) — 우선순위는 사용자 확인 후 진행한다.
+> §0에서 확정한 MVP 필수 기능 5개(버스 실시간위치·이벤트 재최적화·노선배포·배차최적화·승하차)가 전부 갖춰졌다.
+
+> **✅ G5(테스트 커버리지) 완료(2026-07-22):** 8개 모듈(attendance/schedule/sos/drivesession/bus/route/student/notification)
+> 전체에 단위테스트 추가, `./gradlew test` 97/97 통과(Docker 기동 상태 확인). **다음 우선순위는 G4·G6(P2)** — 착수 전 사용자 확인.
 
 ## 0. MVP 출시 범위 확정 (사용자 정의, 2026-07-21)
 
@@ -65,7 +67,7 @@ F1·F4의 설계 확인 항목도 결정 완료 — 상세는 위 "설계 확정
 | **G5** | 회귀 안전망                                         | 테스트 파일 10개뿐(`auth`/`global.event`/`global.security`/`location`/`rideevent`/`routing.engine`(유닛)/`tenant`/`user`) — `attendance`/`schedule`/`sos`/`drivesession`/`bus`/`route`/`student`/`notification` 등은 curl 수동검증만 있고 자동 테스트가 전혀 없음(각 모듈 완료 기록에 반복적으로 "전용 테스트 파일은 만들지 않음" 명시) |
 | **G6** | NCP 실키 검증                                      | `NaverMapRouteClient`가 실키 없이 스펙만으로 구현(코드 주석에 명시). 2026-07-21 사용자가 실키를 `.env.example`에 채워 검증 가능해짐. ⚠️ 코드 주석: "NCP Direction 15는 waypoint 총합 5개 제한, 6d의 15개 청킹 상한과 별도 재검토 필요"                                                                                                     |
 
-**우선순위 (사용자 확정, 2026-07-21): 안전 기능(G2·G3·G1) → 테스트(G5) → 나머지(G4·G6)**
+**우선순위 (사용자 확정, 2026-07-21): 안전 기능(G2·G3·G1) → 테스트(G5) → 나머지(G4·G6)** — G2·G3·G1·G5 모두 완료(2026-07-22), 남은 건 G4·G6.
 
 ---
 
@@ -163,15 +165,20 @@ F1·F4의 설계 확인 항목도 결정 완료 — 상세는 위 "설계 확정
 
 **P1 · 테스트 커버리지 (안전망)**
 
-- [ ] **G5 — 리스크 큰 모듈부터 자동 테스트 추가** (1차 4개 완료, 2026-07-22): `attendance`→`schedule`→`sos`→`drivesession` 순으로
-  승인 상태전이·권한가드·중복처리(409) 케이스 우선 커버 완료 — `AttendanceCommandServiceTest`(8)·`ScheduleCommandServiceTest`(7)·
-  `SosCommandServiceTest`(8, OPEN→ACKNOWLEDGED→RESOLVED 단계 스킵 차단 포함)·`DriveSessionCommandServiceTest`(12, G2 차내잔류방지·
-  G1 APPROACH/NO_SHOW 판정 로직 첫 자동 테스트). 전부 Spring 컨텍스트 없는 순수 Mockito 단위테스트(
-  `TransactionalDomainEventRelayTest` 패턴), 엔티티 id는 `ReflectionTestUtils.setField`로 주입. **다음: `bus`/`route`/`student`/
-  `notification` 커맨드·쿼리 서비스 단위테스트 추가**(2차).
+- [x] **G5 — 리스크 큰 모듈부터 자동 테스트 추가** (완료, 2026-07-22): **1차**(안전기능 우선) `attendance`→`schedule`→`sos`→
+  `drivesession` 순으로 승인 상태전이·권한가드·중복처리(409) 케이스 우선 커버 — `AttendanceCommandServiceTest`(8)·
+  `ScheduleCommandServiceTest`(7)·`SosCommandServiceTest`(8, OPEN→ACKNOWLEDGED→RESOLVED 단계 스킵 차단 포함)·
+  `DriveSessionCommandServiceTest`(12, G2 차내잔류방지·G1 APPROACH/NO_SHOW 판정 로직 첫 자동 테스트).
+  **2차** `bus`/`route`/`student`/`notification` 커맨드·쿼리 서비스 — `BusCommandServiceTest`(5)·`BusQueryServiceTest`(6, overCapacity
+  판정)·`RouteCommandServiceTest`(4)·`RouteQueryServiceTest`(2, 여러 버스에 걸친 배정 인원 합산 로직)·`StudentCommandServiceTest`(7,
+  F2 이벤트 발행 조건 — no-op 스킵/old·new busId/dropoff는 배정버스 있을 때만)·`NotificationCommandServiceImplTest`(3, dedupKey
+  멱등 — 신규 저장/기존키 스킵/save 경쟁 시 unique 제약 위반 방어). 전부 Spring 컨텍스트 없는 순수 Mockito 단위테스트(
+  `TransactionalDomainEventRelayTest` 패턴), 엔티티 id는 `ReflectionTestUtils.setField`로 주입.
   <br>⚠️ **함정**: `ApplicationEventPublisher.publishEvent`는 `(ApplicationEvent)`/`(Object)` 오버로드가 있어 `verify(...).publishEvent(any())`처럼
   타입 없는 `any()`를 쓰면 엉뚱한 오버로드에 매칭돼 "Wanted but not invoked"로 실패한다(실제로는 정확히 1번 호출됨) — 항상
   `any(Object.class)` 또는 구체 이벤트 타입(`any(ApproachEvent.class)`)으로 타입을 명시할 것.
+  <br>**검증**: `./gradlew test` **97/97 통과**(21개 테스트 클래스, Docker postgres/redis/kafka 기동 상태에서
+  `BackendApplicationTests.contextLoads()` 포함 전체 확인).
 
 **P2 · 나머지**
 
