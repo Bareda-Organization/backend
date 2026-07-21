@@ -3,8 +3,8 @@
 > **문서 성격 (2026-07-21 전면 개편):** `PROJECT_MASTER_PLAN.md`가 프로젝트 전체 단일 소스(SoT)다. 이 문서는 그 하위 문서로, **"엔티티~컨트롤러는 있지만 요구사항 대비
 비어있는" 백엔드 안전/알림 갭(G1~G6)만 추적**하는 실행 체크리스트다. 큰 그림·요구사항·모듈 완료 정의는 `PROJECT_MASTER_PLAN.md`, 코드 컨벤션은 `reference.md`를 따른다.
 
-> **진행 상황(2026-07-21 갱신):** P0(G2·G3·G1)·F2·Flyway·Swagger·env 보안 조치는 `main`에 커밋 완료(상세는 `git log`). **F4는
-구현+curl E2E 검증까지 완료됐으나 아직 미커밋**(다음 커밋 요청 시 전용 커밋으로 반영). G5(테스트)·G4·G6·F1·F3는 아직 `[ ]` 미체크.
+> **진행 상황(2026-07-21 갱신):** P0(G2·G3·G1)·F2·F4·Flyway·Swagger·env 보안 조치 모두 `main`에 커밋 완료(상세는 `git log`).
+**F1은 구현+curl E2E 검증까지 완료됐으나 아직 미커밋**(다음 커밋 요청 시 반영). G5(테스트)·G4·G6·F3는 아직 `[ ]` 미체크.
 **같은 날 사용자가 §0의 MVP 기능 스코프를 확정** — F1~F4가 새 최우선 순위(§2 P(MVP))로 추가됨.
 
 > **설계 확정(2026-07-21):** F1~F4 전체 구현 계획을 확정하고 아래 §2에 반영했다. 순서는 **F2 → F4 → F1 → F3**(사용자 확정). 설계 확인이 필요했던
@@ -12,8 +12,8 @@
 > 기사)에게 push 도달(학부모도 함께 받으나 사용자가 MVP 이후 학부모 알림 추가 예정이라 허용). **F4 흐름**: 트래커 원안의 "즉시 `assignedBus` 갱신"을 정정 —
 > 자동배차·경로를 **제안(RECOMMENDED)** 으로 먼저 관리자에게 제공 → 검토 → **승인(confirm) 시 배차 확정 + 배포**.
 
-> **F2·F4 구현+검증 완료(2026-07-21):** §2 P(MVP)의 F2·F4가 모두 완료됐다(아래 체크박스 참조). F2는 커밋 완료, **F4는 아직 미커밋**.
-> **다음 착수점은 F1**(버스 단위 실시간 위치) — 위 §2 F1 항목의 "설계 확인 필요" 사항부터 다시 확인하고 시작한다.
+> **F2·F4·F1 구현+검증 완료(2026-07-21):** §2 P(MVP)의 F2·F4·F1이 완료됐다(아래 체크박스 참조, F1은 아직 미커밋).
+> **다음 착수점은 F3**(노선 배포 시 기사 알림) — §2 P(MVP)의 마지막 항목이며 완료 시 F1~F4 전체가 마무리된다.
 
 ## 0. MVP 출시 범위 확정 (사용자 정의, 2026-07-21)
 
@@ -87,7 +87,7 @@ F1·F4의 설계 확인 항목도 결정 완료 — 상세는 위 "설계 확정
   replan 없음, 알림 정확히 +2건만 추가) 확인 ④ 박도윤 bus1→bus2 재배정 → **이전 버스(bus1) PICKUP/DROPOFF·신규 버스(bus2) PICKUP 3개 모두** 버전
   +1(알림 +3건), 양쪽 로스터도 정확히 갱신(bus1은 박도윤 제거 2명, bus2는 박도윤 포함 4명) 확인 ⑤ bus2 DROPOFF(당일 계획 없음)는 그대로 미생성(에러 없이
   안전하게 스킵) 확인. `./gradlew compileJava`+`test` 26/26 통과, 서버 로그에 replan 실패·예외 없음.
-- [x] **F4 — 배차 최적화(멀티버스 자동 배정, 검토 게이트)** (2026-07-21 완료, 미커밋): "즉시 배정 갱신"이 아니라 **제안(propose) → 관리자 검토 → 확정(confirm) 시 배차+배포** 2단계로 구현 완료.
+- [x] **F4 — 배차 최적화(멀티버스 자동 배정, 검토 게이트)** (2026-07-21 완료, 커밋 완료): "즉시 배정 갱신"이 아니라 **제안(propose) → 관리자 검토 → 확정(confirm) 시 배차+배포** 2단계로 구현 완료.
   - **신규 파일**
     - `routing/domain/BusCapacity.java` — `record BusCapacity(Long busId, int seatCapacity)`. engine 포트가 JPA 엔티티에 의존하지 않도록 하는 순수 값 타입(`LatLng`와 동일 위치·성격).
     - `routing/engine/spec/BusAssigner.java` — `Optional<Map<Long, List<Long>>> assign(LatLng depot, Map<Long, LatLng> studentPoints, List<BusCapacity> buses)`. 반환 map의 key=busId, value=배정된 studentId 리스트(방문순서 아님 — 순서 최적화는 기존 `RouteEngine`이 뒤에서 별도 수행). 총원 > 총정원이면 `Optional.empty()`.
@@ -110,15 +110,21 @@ F1·F4의 설계 확인 항목도 결정 완료 — 상세는 위 "설계 확정
   - **F3(기사 알림)와의 관계**: F3가 아직 구현되지 않아 `publish()`는 상태전이만 하고 알림을 쏘지 않는다 — **F4는 F3를 기다릴 필요 없이 그대로 구현 가능**(confirm 시점에 알림이 안 갈 뿐, 배차·배포 자체는 정상 동작). F3가 나중에 `publish()`에 이벤트 발행을 추가하면 F4는 코드 변경 없이 자동으로 알림까지 받게 된다.
   - 기존 수동 배정(`updateAssignment`)·generate/approve/publish는 그대로 공존. ⚠️ §4 문서의 "파이프라인 구현·검증 완료" 문구는 순서최적화(3~5단계)만 가리키던 것으로 정정됨 — 배정(2단계 Sweep)은 이번 신규.
   - **curl E2E 검증(한빛학원, tenantId=1, 2026-07-21):** ① `POST /auto-assign`(PICKUP, bus1/2 정원 25/25) → 학생 6명 전원이 정원 넉넉한 bus1 하나에 배정(RECOMMENDED, `Student.bus_id` 불변) 확인 → `confirm` → 200 + `PUBLISHED` + DB `student.bus_id` 전원 1로 커밋 확인 → 같은 planId 재confirm → 409 CONFLICT(`RoutePlan.approve()` 상태가드 재사용) 확인 ② bus1 정원을 SQL로 3으로 축소 후 재실행 → **bus1(id 순 정렬로 먼저 채워짐)에 방위각순 3명, 나머지 3명은 bus2**로 정확히 분산 확인(정렬 버그 발견·수정 후) ③ bus1·bus2 정원을 2·2(합 4)로 축소 → `POST /auto-assign` → 400 "전체 정원(4명) 초과: 대상 6명" 확인 후 정원 25/25로 원복 ④ `direction=DROPOFF` 호출 → 하차좌표 없는 3명(최지우·정하율·강서준)이 `excludedStudentNames`에 정확히 보고되고 나머지 3명만 계획에 포함되는지 확인. `./gradlew compileJava`+`test` 30/30 통과(신규 `SweepAssignerTest` 4건 포함), 서버 로그에 실제 오류 없음(정원초과 400은 의도된 로그).
-- [ ] **F1 — 버스 단위 실시간 위치(설계 확인 필요)**: 기존 `LocationSource`/`LocationRepository` 포트 재사용. ①`LocationPing`(
-  `location/dto/LocationPing.java`)에 `busId` 필드 추가(또는 병렬 타입 `BusLocationPing`) ②기사 앱이 주기 보고할 신규
-  `POST /api/locations/bus`(busId+lat+lng) ③`LocationRepository.findLatestByBus(busId)` ④관리자용
-  `GET /api/locations/tenant/{id}/buses`(테넌트 전체 버스 위치 목록, 지도 표시용) 신설. Mock 모드는 `MockLocationSource`가 학생별로 만들던 트레이스를 버스
-  단위 1개로 단순화 가능(학생 앱이 이 MVP 스코프 밖이라 더 적합). 기존 학생 단위 `POST /api/locations`·조회 API는 그대로 유지(제거 안 함). 검증(예정): 기사 로그인 → 버스 위치
-  보고 → 관리자가 테넌트 버스 위치 목록 조회 시 반영 확인.
-  <br>**확정 설계(2026-07-21):** 학생 위치 모듈은 그대로 두고 **버스 단위 병렬 경로**를 미러로 추가 — `BusLocationPing`(dto) + `BusLocationRepository`(port)+`InMemoryBusLocationRepository`(버스별 최신 1건, Redis 병행은 후속) +
-  `BusLocationCommandService.report(driver, busId, lat, lng)`(`bus.driver==driver.userId` 가드) + `BusLocationQueryService.getTenantBusLocations(admin, tenantId)`(`TenantGuard` 사용) + `BusLocationView`.
-  엔드포인트 `POST /api/locations/bus`(DRIVER)·`GET /api/locations/buses?tenantId=`(관리자). Mock은 `MockBusLocationSource implements LocationSource`를 **추가**만 하면 됨(기존 `LocationSimulationScheduler`가 모든 소스를 폴리모픽 tick, 학생 Mock 유지) — 플래그 `app.location.bus-mock.enabled`.
+- [x] **F1 — 버스 단위 실시간 위치** (2026-07-21 완료): 학생 위치 모듈은 그대로 두고 **버스 단위 병렬 경로**를 미러로 추가 — `BusLocationPing`(dto)
+  + `BusLocationRepository`(port)/`InMemoryBusLocationRepository`(버스별 최신 1건, Redis 병행은 후속) + `BusLocationCommandService`
+  (`reportSelf(driver, req)` — `bus.driver.id==driver.userId` 가드, `ingest(tenantId, busId, lat, lng, origin)`) +
+  `BusLocationQueryService.getTenantBusLocations(admin, tenantId)`(`TenantGuard` 사용) + `BusLocationView`. 엔드포인트
+  `POST /api/locations/bus`(DRIVER, busId+lat+lng)·`GET /api/locations/buses?tenantId=`(관리자) — 기존 `LocationController`에 추가.
+  Mock은 `MockBusSimulationPlan`(버스 노선 첫/마지막 정류장 구간)+`MockBusLocationSource implements LocationSource`를 새로 추가만 했고
+  기존 `LocationSimulationScheduler`가 다형적으로 tick(스케줄러 변경 없음). 실 기사 GPS 대비 no-op `DriverGpsSource`도 `PhoneGpsSource`와
+  대칭으로 추가(`app.location.bus-mock.enabled`/`bus-gps.enabled` 플래그, `PhoneGpsSource`/`app.location.gps.enabled`와 동일 패턴).
+  기존 학생 단위 API·모듈은 무변경. DB 마이그레이션 불필요(휘발성 in-memory, 학생 위치와 동일 설계).
+  <br>**curl E2E 검증(한빛학원, tenantId=1, 2026-07-21):** Mock 스케줄러가 노선 있는 bus1(3호차)만 자동으로 좌표 이동시키는지 확인
+  (bus2/1호차는 노선에 정류장이 없어 자연히 제외 — 버그 아님) → 기사(`driver@school.com`, 담당 bus1)가 `POST /api/locations/bus`로
+  임의 좌표 보고 → 즉시 `GET /api/locations/buses`에 `origin=GPS`로 반영(Mock의 마지막 값을 덮어씀) 확인 → 담당 아닌 bus2에 보고 시도 →
+  403("담당 기사만 보고할 수 있습니다") 확인 → 기존 학생 단위 `GET /api/locations` 회귀 없음 확인. `LocationControllerTest`(`@WebMvcTest`
+  슬라이스)에 신규 생성자 의존성(`BusLocationCommandService`/`BusLocationQueryService`) `@MockitoBean` 추가 + 역할 인가 테스트 5건
+  추가(기존 컨벤션 그대로: 미인증 401·잘못된 역할 403·허용 역할 200). `./gradlew compileJava`+`test` 35/35 통과, 서버 로그에 실제 오류 없음.
 - [ ] **F3 — 노선 배포 시 기사 알림(publish 트리거 추가)**: `RoutingCommandService.publish()`(
   `routing/command/RoutingCommandService.java:94-99`)에 `RoutePlanPublishedEvent`(신규) 발행 추가 →
   `DomainEventNotificationConsumer`(`notification/infrastructure/impl/DomainEventNotificationConsumer.java`)에 리스너 추가(

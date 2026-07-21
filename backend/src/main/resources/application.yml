@@ -57,6 +57,10 @@ app:
       step: 0.08           # 매 tick 당 진행도 증가폭(0~1 삼각파)
     gps:
       enabled: false       # 실 학생폰 GPS push 소스 (실 연동 시 true)
+    bus-mock:
+      enabled: true        # 버스 단위 Mock GPS 시뮬레이터(F1) — 실 기사 GPS 전환 시 false
+    bus-gps:
+      enabled: false       # 실 기사 단말 GPS push 소스(F1) — 실 연동 시 true
   sos:
     escalation-check-ms: 30000   # OPEN 상태 SOS 를 다시 훑는 주기(ms). 임계값 자체는 NotificationThresholds.SOS_ESCALATION(3분)
   connection:
@@ -108,4 +112,8 @@ app:
     mock:
       enabled: false
     gps:
+      enabled: true
+    bus-mock:
+      enabled: false
+    bus-gps:
       enabled: true
