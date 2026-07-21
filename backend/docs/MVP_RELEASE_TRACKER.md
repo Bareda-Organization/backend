@@ -3,17 +3,18 @@
 > **문서 성격 (2026-07-21 전면 개편):** `PROJECT_MASTER_PLAN.md`가 프로젝트 전체 단일 소스(SoT)다. 이 문서는 그 하위 문서로, **"엔티티~컨트롤러는 있지만 요구사항 대비
 비어있는" 백엔드 안전/알림 갭(G1~G6)만 추적**하는 실행 체크리스트다. 큰 그림·요구사항·모듈 완료 정의는 `PROJECT_MASTER_PLAN.md`, 코드 컨벤션은 `reference.md`를 따른다.
 
-> **진행 상황(2026-07-21 갱신):** P0(G2·G3·G1)·F2·F4·Flyway·Swagger·env 보안 조치 모두 `main`에 커밋 완료(상세는 `git log`).
-**F1은 구현+curl E2E 검증까지 완료됐으나 아직 미커밋**(다음 커밋 요청 시 반영). G5(테스트)·G4·G6·F3는 아직 `[ ]` 미체크.
-**같은 날 사용자가 §0의 MVP 기능 스코프를 확정** — F1~F4가 새 최우선 순위(§2 P(MVP))로 추가됨.
+> **진행 상황(2026-07-21 갱신):** P0(G2·G3·G1)·F2·F4·F1·Flyway·Swagger·env 보안 조치 모두 `main`에 커밋 완료(상세는 `git log`).
+**F3는 구현+curl E2E 검증까지 완료됐으나 아직 미커밋**(다음 커밋 요청 시 반영) — 이로써 §0의 MVP 필수 기능(F1~F4) 전체가 구현·검증
+완료됐다. G5(테스트)·G4·G6는 아직 `[ ]` 미체크. **같은 날 사용자가 §0의 MVP 기능 스코프를 확정** — F1~F4가 새 최우선 순위(§2 P(MVP))로 추가됨.
 
 > **설계 확정(2026-07-21):** F1~F4 전체 구현 계획을 확정하고 아래 §2에 반영했다. 순서는 **F2 → F4 → F1 → F3**(사용자 확정). 설계 확인이 필요했던
 > 2건도 결정됨 — **F3 수신자**: 기존 studentId 기준 push 경로 재사용(스키마 변경 없음), 배포된 `RoutePlan`의 첫 정차 학생을 알림 키로 써서 그 학생의 담당 기사(=배포 대상 버스
 > 기사)에게 push 도달(학부모도 함께 받으나 사용자가 MVP 이후 학부모 알림 추가 예정이라 허용). **F4 흐름**: 트래커 원안의 "즉시 `assignedBus` 갱신"을 정정 —
 > 자동배차·경로를 **제안(RECOMMENDED)** 으로 먼저 관리자에게 제공 → 검토 → **승인(confirm) 시 배차 확정 + 배포**.
 
-> **F2·F4·F1 구현+검증 완료(2026-07-21):** §2 P(MVP)의 F2·F4·F1이 완료됐다(아래 체크박스 참조, F1은 아직 미커밋).
-> **다음 착수점은 F3**(노선 배포 시 기사 알림) — §2 P(MVP)의 마지막 항목이며 완료 시 F1~F4 전체가 마무리된다.
+> **🎉 F1~F4 전체 구현+검증 완료(2026-07-21):** §2 P(MVP)의 F2·F4·F1·F3가 모두 완료됐다(아래 체크박스 참조, F3는 아직 미커밋).
+> §0에서 확정한 MVP 필수 기능 5개(버스 실시간위치·이벤트 재최적화·노선배포·배차최적화·승하차)가 전부 갖춰졌다. 다음 우선순위는
+> **G5**(테스트 커버리지, P1) 또는 **G4·G6**(P2) — 우선순위는 사용자 확인 후 진행한다.
 
 ## 0. MVP 출시 범위 확정 (사용자 정의, 2026-07-21)
 
@@ -74,7 +75,7 @@ F1·F4의 설계 확인 항목도 결정 완료 — 상세는 위 "설계 확정
 
 **P(MVP) · §0에서 확정한 MVP 필수 기능 갭 (신규 최우선, 2026-07-21)**
 
-- [x] **F2 — 배정/하차지 변경 시 자동 재최적화 배선** (2026-07-21 완료, 미커밋): `StudentCommandService`에 `ApplicationEventPublisher` 주입.
+- [x] **F2 — 배정/하차지 변경 시 자동 재최적화 배선** (2026-07-21 완료, 커밋 완료): `StudentCommandService`에 `ApplicationEventPublisher` 주입.
   `updateAssignment`(변경 전 `oldBusId` 캡처, 실제 필드 변경이 있을 때만 발행)·`updateDropoff`(배정 버스가 있을 때만 발행)가 각각 신규
   `StudentAssignmentChangedEvent`(tenantId/studentId/oldBusId/newBusId/serviceDate)·`StudentDropoffChangedEvent`(tenantId/studentId/busId/serviceDate)를
   발행하도록 배선(토픽명은 `KafkaEventPublisher.toTopic`가 클래스명에서 자동 유도, 신규 설정 불필요). `RoutingCommandService`의 버스별 replan 루프를
@@ -110,7 +111,7 @@ F1·F4의 설계 확인 항목도 결정 완료 — 상세는 위 "설계 확정
   - **F3(기사 알림)와의 관계**: F3가 아직 구현되지 않아 `publish()`는 상태전이만 하고 알림을 쏘지 않는다 — **F4는 F3를 기다릴 필요 없이 그대로 구현 가능**(confirm 시점에 알림이 안 갈 뿐, 배차·배포 자체는 정상 동작). F3가 나중에 `publish()`에 이벤트 발행을 추가하면 F4는 코드 변경 없이 자동으로 알림까지 받게 된다.
   - 기존 수동 배정(`updateAssignment`)·generate/approve/publish는 그대로 공존. ⚠️ §4 문서의 "파이프라인 구현·검증 완료" 문구는 순서최적화(3~5단계)만 가리키던 것으로 정정됨 — 배정(2단계 Sweep)은 이번 신규.
   - **curl E2E 검증(한빛학원, tenantId=1, 2026-07-21):** ① `POST /auto-assign`(PICKUP, bus1/2 정원 25/25) → 학생 6명 전원이 정원 넉넉한 bus1 하나에 배정(RECOMMENDED, `Student.bus_id` 불변) 확인 → `confirm` → 200 + `PUBLISHED` + DB `student.bus_id` 전원 1로 커밋 확인 → 같은 planId 재confirm → 409 CONFLICT(`RoutePlan.approve()` 상태가드 재사용) 확인 ② bus1 정원을 SQL로 3으로 축소 후 재실행 → **bus1(id 순 정렬로 먼저 채워짐)에 방위각순 3명, 나머지 3명은 bus2**로 정확히 분산 확인(정렬 버그 발견·수정 후) ③ bus1·bus2 정원을 2·2(합 4)로 축소 → `POST /auto-assign` → 400 "전체 정원(4명) 초과: 대상 6명" 확인 후 정원 25/25로 원복 ④ `direction=DROPOFF` 호출 → 하차좌표 없는 3명(최지우·정하율·강서준)이 `excludedStudentNames`에 정확히 보고되고 나머지 3명만 계획에 포함되는지 확인. `./gradlew compileJava`+`test` 30/30 통과(신규 `SweepAssignerTest` 4건 포함), 서버 로그에 실제 오류 없음(정원초과 400은 의도된 로그).
-- [x] **F1 — 버스 단위 실시간 위치** (2026-07-21 완료): 학생 위치 모듈은 그대로 두고 **버스 단위 병렬 경로**를 미러로 추가 — `BusLocationPing`(dto)
+- [x] **F1 — 버스 단위 실시간 위치** (2026-07-21 완료, 커밋 완료): 학생 위치 모듈은 그대로 두고 **버스 단위 병렬 경로**를 미러로 추가 — `BusLocationPing`(dto)
   + `BusLocationRepository`(port)/`InMemoryBusLocationRepository`(버스별 최신 1건, Redis 병행은 후속) + `BusLocationCommandService`
   (`reportSelf(driver, req)` — `bus.driver.id==driver.userId` 가드, `ingest(tenantId, busId, lat, lng, origin)`) +
   `BusLocationQueryService.getTenantBusLocations(admin, tenantId)`(`TenantGuard` 사용) + `BusLocationView`. 엔드포인트
@@ -125,30 +126,34 @@ F1·F4의 설계 확인 항목도 결정 완료 — 상세는 위 "설계 확정
   403("담당 기사만 보고할 수 있습니다") 확인 → 기존 학생 단위 `GET /api/locations` 회귀 없음 확인. `LocationControllerTest`(`@WebMvcTest`
   슬라이스)에 신규 생성자 의존성(`BusLocationCommandService`/`BusLocationQueryService`) `@MockitoBean` 추가 + 역할 인가 테스트 5건
   추가(기존 컨벤션 그대로: 미인증 401·잘못된 역할 403·허용 역할 200). `./gradlew compileJava`+`test` 35/35 통과, 서버 로그에 실제 오류 없음.
-- [ ] **F3 — 노선 배포 시 기사 알림(publish 트리거 추가)**: `RoutingCommandService.publish()`(
-  `routing/command/RoutingCommandService.java:94-99`)에 `RoutePlanPublishedEvent`(신규) 발행 추가 →
-  `DomainEventNotificationConsumer`(`notification/infrastructure/impl/DomainEventNotificationConsumer.java`)에 리스너 추가(
-  `NotificationType.ROUTE_RECOMMENDED` 재사용 또는 신규 `ROUTE_PUBLISHED` 타입) → 기존 `WebSocketNotificationSender`가
-  `driverUserId()`의 `/queue/notifications`로 자동 push(배선만 추가, 신규 인프라 불필요). §3에 있던 "기사 라우팅 STOMP push 전환" 항목을 이 F3로 승격(중복
-  제거). 검증(예정): 관리자 publish 호출 → 담당 기사 WebSocket 세션에 알림 도착 확인.
-  <br>**확정 설계(2026-07-21):** 알림 파이프라인이 studentId 기준이라 배포 알림의 키로 **배포된 계획의 첫 정차 학생**(`plan.getStops().get(0).getStudentId()`, 배포 계획엔 정차≥1 보장)을 사용 →
-  `WebSocketNotificationSender`가 그 학생의 담당 기사(=배포 대상 버스 기사) `/queue/notifications`로 push(기사 포착 O). 학부모/테넌트 병행 수신은 사용자가 허용(MVP 이후 학부모 알림 추가 예정). 신규
-  `NotificationType.ROUTE_PUBLISHED` + `V5__notification_log_add_route_published_type.sql`(V4와 동일 CHECK 제약 재정의 패턴 — "배포됨(운행 시작)"은 "추천됨(검토 필요)"과 의미가 달라 신규 타입).
-  `RoutePlanPublishedEvent`(→토픽 `route-plan-published`)는 `RoutingCommandService.publish()`와 F4 `confirmAutoAssign`의 publish 직후 발행. `DomainEventNotificationConsumer`에 리스너 추가, dedupKey stage=`"published:bus"+busId+":"+direction+":v"+version`.
+- [x] **F3 — 노선 배포 시 기사 알림(publish 트리거 추가)** (2026-07-21 완료, 커밋 전): 알림 파이프라인이 studentId 기준이라 배포 알림의
+  키로 **배포된 계획의 첫 정차 학생**(`plan.getStops().get(0).getStudentId()`, 배포 계획엔 정차≥1 보장)을 사용 → 기존
+  `WebSocketNotificationSender`(무변경, `PushTargetResolver.resolveDriverUserId`가 이미 `student.assignedBus.driver`를 풀어줌)가
+  그 학생의 담당 기사(=배포 대상 버스 기사) `/queue/notifications`로 push. 신규 `NotificationType.ROUTE_PUBLISHED` +
+  `V5__notification_log_add_route_published_type.sql`(V4와 동일 CHECK 제약 재정의 패턴). 신규 `RoutePlanPublishedEvent`(→토픽
+  `route-plan-published`)는 `RoutingCommandService`의 신규 private `publishAndNotify(plan, adminUserId)`(← `plan.publish()` +
+  이벤트 발행) 공용 헬퍼에서 발행 — 관리자 수동 `publish()`와 F4 `confirmAutoAssign`의 publish 양쪽이 이 헬퍼를 같이 써서 두 경로
+  모두 알림이 간다. `DomainEventNotificationConsumer`에 리스너 추가, dedupKey stage=`"published:bus"+busId+":"+direction+":v"+version`.
   ⚠️ 수용된 MVP 한계: 대표 학생이 generate~publish 사이 다른 버스로 재배정되면 push 대상 기사가 어긋날 수 있음(정상 흐름에선 발생 안 함) — 정밀 대상이 필요해지면 버스/기사 전용 push 경로로 승격.
+  <br>**curl E2E 검증(한빛학원, 2026-07-21):** generate→approve→publish(PICKUP, bus1) → `notification_log`에 `ROUTE_PUBLISHED`
+  1건(대표학생=최지우, dedupKey에 busId·direction·version 정확히 반영, 메시지 "등원 노선이 배포되었습니다(운행 시작, v9)") 확인 →
+  같은 planId 재publish → 409(`RoutePlan.publish()` 상태가드 재사용) 확인 → F4 `auto-assign`(DROPOFF)+`confirm` → **이 경로에서도**
+  `ROUTE_PUBLISHED` 알림이 별도로 발행됨(대표학생=이서연) 확인, 즉 공용 헬퍼가 양쪽 경로 모두 커버함을 실증. `./gradlew compileJava`+
+  `test` 35/35 통과(V5 마이그레이션이 `BackendApplicationTests`의 실제 Postgres 컨텍스트로 적용되는 것도 함께 확인), 서버 로그에
+  실제 오류 없음.
 
 **P0 · 안전 기능 (최우선)**
 
-- [x] **G2 — 차내 잔류 방지** (2026-07-21 완료, 미커밋): `DriveSessionCommandService.end()`가 세션 시작 이후 해당 버스의 승하차 기록을 학생별로 훑어 마지막
+- [x] **G2 — 차내 잔류 방지** (2026-07-21 완료, 커밋 완료): `DriveSessionCommandService.end()`가 세션 시작 이후 해당 버스의 승하차 기록을 학생별로 훑어 마지막
   기록이 `BOARD`(하차 미기록)인 학생이 있으면 `CONFLICT` 409로 종료를 차단(`requireNoOnboardStudents`). curl E2E 검증: 1명 BOARD만 기록된 상태로 종료
   시도 → 409("하차 처리되지 않은 학생이 있어 운행을 종료할 수 없습니다") 확인 → 전원 ALIGHT 기록 후 재시도 → 200 정상 종료 확인.
-- [x] **G3 — 보호자 인계완료 상태 구분** (2026-07-21 완료, 미커밋): `RideType`에 `HANDOVER` 추가(제안대로 학년 제한 없이 전 학생 대상 **선택적 기록**으로 구현,
+- [x] **G3 — 보호자 인계완료 상태 구분** (2026-07-21 완료, 커밋 완료): `RideType`에 `HANDOVER` 추가(제안대로 학년 제한 없이 전 학생 대상 **선택적 기록**으로 구현,
   강제/차단 정책은 보류). `HandoverCompletedEvent` 발행 → `NotificationType.HANDOVER_DONE` 알림 연결. 기존 `POST /api/ride-events`(
   `type=HANDOVER`)로 바로 기록되고 `RideEventResponse.type`으로 조회 시 ALIGHT와 구분됨. Hibernate가 V1에 생성해둔 `ride_event`/
   `notification_log`의 `type` CHECK 제약이 신규 값을 막아 `db/migration/V3__ride_event_add_handover_type.sql`+
   `V4__notification_log_add_handover_done_type.sql` 추가. curl E2E 검증: HANDOVER 기록 → 200 + `notification_log`에
   HANDOVER_DONE 1건 저장 확인.
-- [x] **G1 — APPROACH/NO_SHOW 알림 트리거** (2026-07-21 완료, 미커밋): `DriveSessionCommandService.checkApproachAndNoShow()`(신규
+- [x] **G1 — APPROACH/NO_SHOW 알림 트리거** (2026-07-21 완료, 커밋 완료): `DriveSessionCommandService.checkApproachAndNoShow()`(신규
   `ApproachNoShowScheduler`가 `app.drivesession.approach-check-ms`(기본 15초) 주기 호출)가 진행 중 등원(PICKUP) 세션의 배포된
   `RoutePlan.stops`를 훑어, 정류장별 ETA(`session.startedAt + etaSeconds`) 기준 도착 5분 전이면 `ApproachEvent`, +10분 미승차면
   `NoShowEvent`를 발행 → `NotificationType.APPROACH`/`NO_SHOW` 알림 연결(`NotificationCommandService`의 dedupKey 멱등 재사용,

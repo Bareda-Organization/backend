@@ -35,6 +35,7 @@ import src.backend.routing.engine.spec.BusAssigner;
 import src.backend.routing.engine.spec.RouteEngine;
 import src.backend.routing.entity.RoutePlan;
 import src.backend.routing.entity.RoutePlanStop;
+import src.backend.routing.event.RoutePlanPublishedEvent;
 import src.backend.routing.event.RoutePlanRecommendedEvent;
 import src.backend.routing.infrastructure.spec.MapRouteClient;
 import src.backend.routing.infrastructure.spec.RouteResult;
@@ -102,12 +103,24 @@ public class RoutingCommandService {
         return RoutePlanResponse.from(plan);
     }
 
-    /** 관리자 배포(APPROVED → PUBLISHED, Phase 6f). 배포되면 기사 조회 API에 노출된다. */
+    /** 관리자 배포(APPROVED → PUBLISHED, Phase 6f). 배포되면 기사 조회 API에 노출되고, 담당 기사에게 알림이 간다(F3). */
     @Transactional
     public RoutePlanResponse publish(AuthUser admin, Long id) {
         RoutePlan plan = findForAdmin(admin, id);
-        plan.publish(admin.userId());
+        publishAndNotify(plan, admin.userId());
         return RoutePlanResponse.from(plan);
+    }
+
+    /**
+     * F3: 배포 직후 {@link RoutePlanPublishedEvent}를 발행해 담당 기사에게 알림을 보낸다. 알림 파이프라인이
+     * studentId 기준이라 배포 계획의 첫 정차 학생을 대표로 삼는다(배포 계획은 정차 ≥ 1 보장). 관리자 수동
+     * 배포({@link #publish})·F4 자동배정 확정({@link #confirmAutoAssign}) 양쪽에서 공용으로 쓴다.
+     */
+    private void publishAndNotify(RoutePlan plan, Long adminUserId) {
+        plan.publish(adminUserId);
+        RoutePlanStop first = plan.getStops().get(0);
+        String studentName = studentRepository.findById(first.getStudentId()).map(Student::getName).orElse("학생");
+        eventPublisher.publishEvent(RoutePlanPublishedEvent.of(plan, first.getStudentId(), studentName));
     }
 
     private RoutePlan findForAdmin(AuthUser admin, Long id) {
@@ -182,7 +195,7 @@ public class RoutingCommandService {
                         .ifPresent(student -> student.assignBus(busRepository.getReferenceById(plan.getBusId())));
             }
             plan.approve(admin.userId());
-            plan.publish(admin.userId());
+            publishAndNotify(plan, admin.userId());
             results.add(RoutePlanResponse.from(plan));
         }
         return results;

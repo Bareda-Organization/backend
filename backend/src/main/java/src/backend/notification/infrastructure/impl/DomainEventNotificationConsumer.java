@@ -13,6 +13,7 @@ import src.backend.rideevent.event.HandoverCompletedEvent;
 import src.backend.rideevent.event.RideCompletedEvent;
 import src.backend.rideevent.event.StudentBoardedEvent;
 import src.backend.routing.domain.RouteDirection;
+import src.backend.routing.event.RoutePlanPublishedEvent;
 import src.backend.routing.event.RoutePlanRecommendedEvent;
 import src.backend.schedule.event.ScheduleResultEvent;
 import src.backend.sos.event.SosEscalatedEvent;
@@ -117,5 +118,15 @@ public class DomainEventNotificationConsumer {
         notificationCommandService.notify(NotificationType.ROUTE_RECOMMENDED, event.tenantId(), event.triggerStudentId(),
                 dedupKey, event.triggerStudentName() + " 학생 변경으로 " + directionText
                         + " 노선이 재계산되었습니다(검토 필요, v" + event.version() + ")");
+    }
+
+    @KafkaListener(topics = "route-plan-published")
+    public void onRoutePlanPublished(RoutePlanPublishedEvent event) {
+        String stage = "published:bus" + event.busId() + ":" + event.direction() + ":v" + event.version();
+        String dedupKey = NotificationCommandService.dedupKey(
+                NotificationType.ROUTE_PUBLISHED, event.representativeStudentId(), event.serviceDate(), stage);
+        String directionText = event.direction() == RouteDirection.DROPOFF ? "하원" : "등원";
+        notificationCommandService.notify(NotificationType.ROUTE_PUBLISHED, event.tenantId(), event.representativeStudentId(),
+                dedupKey, directionText + " 노선이 배포되었습니다(운행 시작, v" + event.version() + ")");
     }
 }
