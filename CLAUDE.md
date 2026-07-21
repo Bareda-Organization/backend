@@ -28,7 +28,7 @@ cd backend
 
 앱 기동 후 API 테스트는 Swagger UI(`http://localhost:8080/swagger-ui/index.html`)를 쓴다 — `/api/auth/login` 응답의 `accessToken`을 우측 상단 Authorize에 넣으면 이후 요청에 자동으로 붙는다. 로그인 계정은 Flyway 시드(`db/migration-local/V2__seed_data.sql`) 참조 — 비밀번호는 모두 `password`.
 
-**로컬 DB를 완전히 초기화**하려면(스키마 꼬임 등): `docker compose rm -f postgres && docker volume rm school-bus_pgdata && docker compose up -d postgres` 후 `bootRun` — Flyway가 스키마(V1)+데모 시드(V2)를 자동으로 다시 구성한다(수동 `DROP SCHEMA` 불필요, `DataInitializer`는 2026-07-20 삭제됨).
+**로컬 postgres는 의도적으로 영속 볼륨이 없다**(2026-07-22~, Swagger로 반복 테스트해도 항상 시드 상태로 되돌리기 위함) — `docker compose down`(컨테이너 제거) 후 `docker compose up -d postgres redis kafka`로 다시 띄우면 Flyway가 스키마(V1)+데모 시드(V2)를 매번 자동으로 새로 구성한다(수동 `DROP SCHEMA`/`volume rm` 불필요, `DataInitializer`는 2026-07-20 삭제됨). `stop`/`start`(컨테이너를 제거하지 않음)는 데이터가 유지된다 — 리셋하려면 반드시 `down`을 거칠 것.
 
 ## Stack / 주요 특이사항
 

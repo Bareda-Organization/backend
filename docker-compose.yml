@@ -11,8 +11,9 @@ services:
       POSTGRES_PASSWORD: schoolbus
     ports:
       - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
+    # 의도적으로 영속 볼륨을 두지 않는다 — Swagger로 반복 테스트하는 동안 쌓이는 변경사항을
+    # "docker compose down" 이후엔 항상 시드(V1+V2) 상태로 되돌리기 위함. stop/start(컨테이너
+    # 유지)는 데이터가 남고, down 후 up(컨테이너 재생성)에서만 초기화된다.
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U schoolbus"]
       interval: 5s
@@ -67,6 +68,3 @@ services:
       - "3000:3000"
     depends_on:
       - backend
-
-volumes:
-  pgdata:

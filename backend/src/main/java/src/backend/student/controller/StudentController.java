@@ -3,6 +3,7 @@ package src.backend.student.controller;
 import java.util.List;
 
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,6 +30,7 @@ import src.backend.student.query.StudentQueryService;
 /**
  * 학생 관리 API(관리자 전용). 학원 격리는 서비스 계층(TenantGuard)에서 검사한다.
  */
+@Tag(name = "04. 학생(Student)", description = "학생 등록·배정(버스/정류장)·하차지 설정·보호자 연결. 관리자 전용.")
 @RestController
 @RequestMapping("/api/students")
 @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")

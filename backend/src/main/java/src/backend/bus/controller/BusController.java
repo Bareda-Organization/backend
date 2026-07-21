@@ -3,6 +3,7 @@ package src.backend.bus.controller;
 import java.util.List;
 
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,6 +28,7 @@ import src.backend.global.security.AuthUser;
 /**
  * 버스 관리 API(관리자 전용). 학원 격리는 서비스 계층(TenantGuard)에서 검사한다.
  */
+@Tag(name = "05. 버스(Bus)", description = "버스 등록·조회·기사/노선 배정. 관리자 전용.")
 @RestController
 @RequestMapping("/api/buses")
 @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")

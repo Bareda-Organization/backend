@@ -3,6 +3,7 @@ package src.backend.tenant.controller;
 import java.util.List;
 
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,6 +26,7 @@ import src.backend.tenant.query.TenantQueryService;
 /**
  * 학원(테넌트) 관리 API. 생성·전체목록은 플랫폼 관리자 전용, 상세는 소속 학원 관리자도 가능.
  */
+@Tag(name = "02. 학원(Tenant)", description = "학원(테넌트) 등록·조회·위치 설정. 생성·전체목록은 플랫폼 관리자 전용.")
 @RestController
 @RequestMapping("/api/tenants")
 public class TenantController {

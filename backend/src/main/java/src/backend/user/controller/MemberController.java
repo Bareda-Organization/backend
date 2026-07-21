@@ -3,6 +3,7 @@ package src.backend.user.controller;
 import java.util.List;
 
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,6 +26,7 @@ import src.backend.user.query.MemberQueryService;
  * 구성원(기사·학부모·학생·학원관리자) 관리 API — 관리자가 계정+멤버십을 등록한다.
  * 학원 격리는 서비스 계층(TenantGuard)에서 검사한다.
  */
+@Tag(name = "03. 사용자(Member)", description = "학원 소속 계정(기사·학부모·학생·관리자) 등록·조회. 관리자 전용.")
 @RestController
 @RequestMapping("/api/members")
 @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")

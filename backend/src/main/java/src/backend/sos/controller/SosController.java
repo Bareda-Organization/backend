@@ -3,6 +3,7 @@ package src.backend.sos.controller;
 import java.util.List;
 
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,6 +26,7 @@ import src.backend.sos.query.SosQueryService;
 /**
  * SOS API. 발신은 학생만, 확인·종료는 관리자만 — 조회는 4계층이 각자 범위에서.
  */
+@Tag(name = "13. SOS", description = "긴급 SOS 발신·확인·해제, 자동 에스컬레이션. 발신은 학생, 확인·종료는 관리자.")
 @RestController
 @RequestMapping("/api/sos-events")
 public class SosController {

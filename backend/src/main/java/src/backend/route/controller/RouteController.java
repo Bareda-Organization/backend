@@ -3,6 +3,7 @@ package src.backend.route.controller;
 import java.util.List;
 
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,6 +28,7 @@ import src.backend.route.query.RouteQueryService;
  * 노선·정류장 API.
  * 목록·생성·정류장 추가는 관리자 전용, 정류장 조회는 인증된 사용자면 가능.
  */
+@Tag(name = "06. 노선(Route)", description = "노선·정류장 등록·조회. 목록·생성·정류장 추가는 관리자 전용.")
 @RestController
 @RequestMapping("/api/routes")
 public class RouteController {

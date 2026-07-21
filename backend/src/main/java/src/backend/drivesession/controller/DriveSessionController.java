@@ -3,6 +3,7 @@ package src.backend.drivesession.controller;
 import java.util.List;
 
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,6 +28,7 @@ import src.backend.global.security.AuthUser;
  * 운행 세션(기사 운행 시작/종료, Phase 7) API. 관리자·기사 엔드포인트가 갈려
  * 클래스 레벨 대신 메서드마다 {@code @PreAuthorize}를 둔다(rideevent·routing과 동일 스타일).
  */
+@Tag(name = "10. 운행세션(DriveSession)", description = "기사 운행 시작/종료, 근접·미승차 판정용 세션 상태, 일일 운행 로그.")
 @RestController
 @RequestMapping("/api/drive-sessions")
 public class DriveSessionController {

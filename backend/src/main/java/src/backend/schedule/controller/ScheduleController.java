@@ -3,6 +3,7 @@ package src.backend.schedule.controller;
 import java.util.List;
 
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,6 +26,7 @@ import src.backend.schedule.query.ScheduleQueryService;
 /**
  * 등하원 시간 변경 요청 API. 신청은 학부모만, 승인·반려는 관리자만 — 조회는 학부모/관리자가 각자 범위에서.
  */
+@Tag(name = "12. 일정변경(Schedule)", description = "등하원 시간 변경 요청·승인·반려. 신청은 학부모, 승인·반려는 관리자.")
 @RestController
 @RequestMapping("/api/schedule-change-requests")
 public class ScheduleController {

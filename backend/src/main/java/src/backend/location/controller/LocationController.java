@@ -2,7 +2,9 @@ package src.backend.location.controller;
 
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,6 +31,7 @@ import src.backend.location.query.LocationQueryService;
  * 실시간 위치 API. 학생 앱은 자기 좌표를 보고하고(POST), 나머지 계층은 각자 권한 범위에서 조회한다.
  * 역할 제한은 @PreAuthorize 로, 세밀한 학원·담당 격리는 서비스 계층에서 추가 검사한다(승하차 기록과 동일).
  */
+@Tag(name = "08. 위치(Location)", description = "학생·버스 실시간 위치 보고·조회(F1). 보고는 각 역할 본인, 조회는 역할별 권한 범위에서.")
 @RestController
 @RequestMapping("/api/locations")
 public class LocationController {
@@ -74,6 +77,7 @@ public class LocationController {
     /** 기사: 담당 버스 탑승 학생들의 최신 위치 목록. */
     @GetMapping("/bus/{busId}")
     @PreAuthorize("hasRole('DRIVER')")
+    @Operation(tags = {"00. MVP 사용 API", "08. 위치(Location)"})
     public ApiResponse<List<LocationView>> busLocations(@AuthenticationPrincipal AuthUser driver,
                                                         @Parameter(example = "1") @PathVariable Long busId) {
         return ApiResponse.ok(locationQueryService.getBusLocations(driver, busId));
@@ -90,6 +94,7 @@ public class LocationController {
     /** 기사: 담당 버스의 현재 위치 보고(실 GPS 전환 대비 엔드포인트, MVP는 Mock이 대체, F1). */
     @PostMapping("/bus")
     @PreAuthorize("hasRole('DRIVER')")
+    @Operation(tags = {"00. MVP 사용 API", "08. 위치(Location)"})
     public ApiResponse<Void> reportBusLocation(@AuthenticationPrincipal AuthUser driver,
                                                @Valid @RequestBody BusLocationReportRequest request) {
         busLocationCommandService.reportSelf(driver, request);
@@ -99,6 +104,7 @@ public class LocationController {
     /** 관리자: 학원 버스들의 최신 위치 목록(관제 지도 표시용, F1). */
     @GetMapping("/buses")
     @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
+    @Operation(tags = {"00. MVP 사용 API", "08. 위치(Location)"})
     public ApiResponse<List<BusLocationView>> tenantBusLocations(
             @AuthenticationPrincipal AuthUser admin,
             @Parameter(example = "1") @RequestParam(required = false) Long tenantId) {

@@ -3,7 +3,9 @@ package src.backend.rideevent.controller;
 import java.time.LocalDate;
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -28,6 +30,7 @@ import src.backend.rideevent.query.RideEventQueryService;
  * 승하차 기록 API. 같은 기록을 역할별로 다른 범위에서 조회하도록 엔드포인트를 분리하고,
  * @PreAuthorize 로 역할을 제한한다(세밀한 학원 격리는 서비스 계층에서 추가 검사).
  */
+@Tag(name = "09. 승하차(RideEvent)", description = "승하차(BOARD/ALIGHT/HANDOVER) 기록·정정·조회. 기록은 기사, 조회는 역할별 범위에서.")
 @RestController
 @RequestMapping("/api/ride-events")
 public class RideEventController {
@@ -44,6 +47,7 @@ public class RideEventController {
     /** 기사: 승/하차 기록. */
     @PostMapping
     @PreAuthorize("hasRole('DRIVER')")
+    @Operation(tags = {"00. MVP 사용 API", "09. 승하차(RideEvent)"})
     public ApiResponse<RideEventResponse> record(@AuthenticationPrincipal AuthUser driver,
                                                  @Valid @RequestBody RecordRideRequest request) {
         return ApiResponse.ok(rideEventCommandService.record(driver, request));
@@ -61,6 +65,7 @@ public class RideEventController {
     /** 학생: 본인 하루치 기록. */
     @GetMapping("/me")
     @PreAuthorize("hasRole('STUDENT')")
+    @Operation(tags = {"00. MVP 사용 API", "09. 승하차(RideEvent)"})
     public ApiResponse<List<RideEventResponse>> myRecords(
             @AuthenticationPrincipal AuthUser student,
             @Parameter(example = "2026-07-20") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
@@ -70,6 +75,7 @@ public class RideEventController {
     /** 학부모: 자녀(형제자매 포함) 하루치 기록. */
     @GetMapping("/children")
     @PreAuthorize("hasRole('PARENT')")
+    @Operation(tags = {"00. MVP 사용 API", "09. 승하차(RideEvent)"})
     public ApiResponse<List<RideEventResponse>> childrenRecords(
             @AuthenticationPrincipal AuthUser parent,
             @Parameter(example = "2026-07-20") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
@@ -79,6 +85,7 @@ public class RideEventController {
     /** 기사: 담당 버스 하루치 기록(명단 이력). */
     @GetMapping("/bus/{busId}")
     @PreAuthorize("hasRole('DRIVER')")
+    @Operation(tags = {"00. MVP 사용 API", "09. 승하차(RideEvent)"})
     public ApiResponse<List<RideEventResponse>> busRecords(
             @AuthenticationPrincipal AuthUser driver,
             @Parameter(example = "1") @PathVariable Long busId,

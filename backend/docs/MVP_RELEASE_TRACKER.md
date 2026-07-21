@@ -25,6 +25,26 @@ G4는 폐기 확정(사용자 확정, 아래 §1·§2 참조). F2/F4/F1/F3/G1~G5
 > (URI 인코딩·응답 스키마 불일치·연속 중복좌표 거부)을 발견·수정하고, waypoint 실측 한도(경유지 5개/start·goal 포함 총 7개)를
 > 확정했다. `routing.provider` 기본값을 `naver`로 전환(사용자 확정, 아래 §2 G6 참조). **P(MVP)·P0·P1·P2 전부 완료 — 남은 건
 > §3(업그레이드 로드맵, MVP 범위 밖)뿐.**
+>
+> **🔧 Swagger·로컬DB 재현성 정비(2026-07-22, 프론트 재작성 준비):** §2 백로그 완료 후, 사용자가 "곧 프론트를 다른 프레임워크로
+> 새로 짜면서 Swagger로 반복 API 테스트할 예정"이라고 밝혀 아래를 정비했다(신규 F/G 항목 아님, MVP 기능 자체 변경 없음).
+> - **Swagger 태그 정리**: 전 컨트롤러 14개에 `@Tag(name="01~14. 한글명")` 추가(기존엔 Auth만 태그가 있었음). `springdoc.
+>   swagger-ui.tags-sorter: alpha`가 태그명을 **문자열**로 정렬하므로 `1~14`가 아니라 **`01~14`로 zero-padding**해야 `10`이
+>   `2`보다 앞에 오는 걸 방지한다(처음 패딩 없이 붙였다가 `/v3/api-docs` 재확인 중 발견해 수정).
+> - **"00. MVP 사용 API" 그룹 신설**: 실제 §0 MVP 5개 기능이 쓰는 엔드포인트 18개(로그인 2·위치 3·승하차 4·배차 7·알림 2)만
+>   골라 `@Operation(tags={"00. MVP 사용 API", "원래태그"})`로 이중 태깅 — Swagger UI 최상단에 이 18개만 모아 보여주고, 각
+>   API는 원래 카테고리에도 그대로 남는다. 비MVP(회원가입·수동 generate·정정·학생단위 위치 등)는 제외됨을 `/v3/api-docs`로
+>   확인. 태그 설명은 여러 컨트롤러에 걸쳐 있어 클래스 레벨 `@Tag`로는 등록이 안 돼 `OpenApiConfig`의 `OpenAPI.tags(...)`에
+>   명시적으로 등록.
+> - **Swagger 예시값 ↔ 시드 데이터 전수 대조**: 전 컨트롤러/DTO의 `@Schema(example=...)`/`@Parameter(example=...)`를 `V2__seed_
+>   data.sql`과 대조 — 기존 값은 대부분 이미 정확히 맞아 있었고(예: `RecordRideRequest`의 studentId=1·stopId=1·좌표가 실제
+>   김민준·정류장A와 전부 일치), **`ConfirmAutoAssignRequest.planIds` 예시만 `[2, 4]`(근거 없는 값)로 어긋나 있어 `[1, 2]`(신선한
+>   시드에서 auto-assign 첫 호출 시 실제로 생성될 plan id)로 수정**했다.
+> - **로컬 postgres 영속 볼륨 제거**: `docker-compose.yml`의 `pgdata` 볼륨을 없애 **`docker compose down` 후 `up`마다 Flyway가
+>   V1~V5를 자동 재적용**하도록 바꿨다(`stop`/`start`는 데이터 유지, `down`을 거쳐야 초기화). 반복 Swagger 테스트로 쌓이는 변경
+>   (이번 세션 중 F4 테스트로 학생 배정이 전부 bus1로 쏠린 것 등)이 다음 실행까지 남지 않는다. `docker compose down && docker
+>   compose up -d postgres redis kafka` + `bootRun` 재기동으로 실제 재현 확인(학생 1~3=bus1, 4~6=bus2로 정확히 원복) +
+>   `./gradlew test` 97/97 유지.
 
 ## 0. MVP 출시 범위 확정 (사용자 정의, 2026-07-21)
 

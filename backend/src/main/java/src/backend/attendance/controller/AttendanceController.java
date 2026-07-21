@@ -3,6 +3,7 @@ package src.backend.attendance.controller;
 import java.util.List;
 
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,6 +26,7 @@ import src.backend.global.security.AuthUser;
 /**
  * 결석·휴원 신고 API. 신고는 학부모만, 승인·반려는 관리자만 — 조회는 학부모/관리자가 각자 범위에서.
  */
+@Tag(name = "11. 결석(Attendance)", description = "결석·휴원 신고·승인·반려. 신고는 학부모, 승인·반려는 관리자.")
 @RestController
 @RequestMapping("/api/attendance-exceptions")
 public class AttendanceController {
