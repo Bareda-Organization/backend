@@ -18,6 +18,7 @@ backend/.gradle/
 backend/out/
 backend/HELP.md
 !backend/gradle/wrapper/gradle-wrapper.jar
+backend/.env
 
 # Frontend (Next.js)
 frontend/node_modules/
