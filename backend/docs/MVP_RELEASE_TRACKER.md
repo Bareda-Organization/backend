@@ -163,8 +163,15 @@ F1·F4의 설계 확인 항목도 결정 완료 — 상세는 위 "설계 확정
 
 **P1 · 테스트 커버리지 (안전망)**
 
-- [ ] **G5 — 리스크 큰 모듈부터 자동 테스트 추가**: `attendance` → `schedule` → `sos` → `drivesession` 순(승인 상태전이·권한가드·중복처리 409 케이스 우선).
-  이후 `bus`/`route`/`student`/`notification` 커맨드·쿼리 서비스 단위테스트 추가
+- [ ] **G5 — 리스크 큰 모듈부터 자동 테스트 추가** (1차 4개 완료, 2026-07-22): `attendance`→`schedule`→`sos`→`drivesession` 순으로
+  승인 상태전이·권한가드·중복처리(409) 케이스 우선 커버 완료 — `AttendanceCommandServiceTest`(8)·`ScheduleCommandServiceTest`(7)·
+  `SosCommandServiceTest`(8, OPEN→ACKNOWLEDGED→RESOLVED 단계 스킵 차단 포함)·`DriveSessionCommandServiceTest`(12, G2 차내잔류방지·
+  G1 APPROACH/NO_SHOW 판정 로직 첫 자동 테스트). 전부 Spring 컨텍스트 없는 순수 Mockito 단위테스트(
+  `TransactionalDomainEventRelayTest` 패턴), 엔티티 id는 `ReflectionTestUtils.setField`로 주입. **다음: `bus`/`route`/`student`/
+  `notification` 커맨드·쿼리 서비스 단위테스트 추가**(2차).
+  <br>⚠️ **함정**: `ApplicationEventPublisher.publishEvent`는 `(ApplicationEvent)`/`(Object)` 오버로드가 있어 `verify(...).publishEvent(any())`처럼
+  타입 없는 `any()`를 쓰면 엉뚱한 오버로드에 매칭돼 "Wanted but not invoked"로 실패한다(실제로는 정확히 1번 호출됨) — 항상
+  `any(Object.class)` 또는 구체 이벤트 타입(`any(ApproachEvent.class)`)으로 타입을 명시할 것.
 
 **P2 · 나머지**
 
