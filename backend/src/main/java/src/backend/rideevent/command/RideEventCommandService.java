@@ -17,6 +17,7 @@ import src.backend.rideevent.dto.RideEventResponse;
 import src.backend.rideevent.entity.RideEvent;
 import src.backend.rideevent.entity.RideSource;
 import src.backend.rideevent.entity.RideType;
+import src.backend.rideevent.event.HandoverCompletedEvent;
 import src.backend.rideevent.event.RideCompletedEvent;
 import src.backend.rideevent.event.StudentBoardedEvent;
 import src.backend.rideevent.repository.spec.RideEventRepository;
@@ -25,8 +26,8 @@ import src.backend.student.repository.spec.StudentRepository;
 
 /**
  * 승하차 기록/정정 — 단순 CRUD라 인터페이스 없이 concrete 클래스로 둔다(§11.3).
- * 기록 완료 시 직접 알림 호출 대신 {@link StudentBoardedEvent}/{@link RideCompletedEvent}를
- * 발행해(AFTER_COMMIT → Kafka) 알림 모듈과의 직접 결합을 없앤다.
+ * 기록 완료 시 직접 알림 호출 대신 {@link StudentBoardedEvent}/{@link RideCompletedEvent}/
+ * {@link HandoverCompletedEvent}를 발행해(AFTER_COMMIT → Kafka) 알림 모듈과의 직접 결합을 없앤다.
  */
 @Service
 public class RideEventCommandService {
@@ -74,10 +75,10 @@ public class RideEventCommandService {
                 .source(RideSource.MANUAL)
                 .build());
 
-        if (saved.getType() == RideType.BOARD) {
-            eventPublisher.publishEvent(StudentBoardedEvent.of(saved, student.getName()));
-        } else {
-            eventPublisher.publishEvent(RideCompletedEvent.of(saved, student.getName()));
+        switch (saved.getType()) {
+            case BOARD -> eventPublisher.publishEvent(StudentBoardedEvent.of(saved, student.getName()));
+            case ALIGHT -> eventPublisher.publishEvent(RideCompletedEvent.of(saved, student.getName()));
+            case HANDOVER -> eventPublisher.publishEvent(HandoverCompletedEvent.of(saved, student.getName()));
         }
         return RideEventResponse.from(saved);
     }

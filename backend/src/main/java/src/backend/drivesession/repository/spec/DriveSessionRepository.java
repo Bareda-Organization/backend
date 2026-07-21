@@ -19,4 +19,7 @@ public interface DriveSessionRepository extends JpaRepository<DriveSession, Long
     List<DriveSession> findByBusIdOrderByStartedAtDesc(Long busId);
 
     List<DriveSession> findByTenantIdOrderByStartedAtDesc(Long tenantId);
+
+    /** APPROACH/NO_SHOW 스케줄러(G1) — 판정 대상인 진행 중 등원 세션만 훑는다. */
+    List<DriveSession> findByStatusAndDirection(DriveSessionStatus status, RouteDirection direction);
 }

@@ -4,9 +4,12 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 import src.backend.global.common.ApprovalStatus;
+import src.backend.drivesession.event.ApproachEvent;
+import src.backend.drivesession.event.NoShowEvent;
 import src.backend.location.event.StudentConnectionLostEvent;
 import src.backend.notification.command.spec.NotificationCommandService;
 import src.backend.notification.domain.NotificationType;
+import src.backend.rideevent.event.HandoverCompletedEvent;
 import src.backend.rideevent.event.RideCompletedEvent;
 import src.backend.rideevent.event.StudentBoardedEvent;
 import src.backend.routing.domain.RouteDirection;
@@ -45,6 +48,31 @@ public class DomainEventNotificationConsumer {
                 NotificationType.ALIGHT_DONE, event.studentId(), event.occurredDate(), stage);
         notificationCommandService.notify(NotificationType.ALIGHT_DONE, event.tenantId(), event.studentId(),
                 dedupKey, event.studentName() + " 학생이 하차했습니다");
+    }
+
+    @KafkaListener(topics = "handover-completed")
+    public void onHandoverCompleted(HandoverCompletedEvent event) {
+        String stage = event.stopId() != null ? "stop" + event.stopId() : "bus" + event.busId();
+        String dedupKey = NotificationCommandService.dedupKey(
+                NotificationType.HANDOVER_DONE, event.studentId(), event.occurredDate(), stage);
+        notificationCommandService.notify(NotificationType.HANDOVER_DONE, event.tenantId(), event.studentId(),
+                dedupKey, event.studentName() + " 학생이 보호자에게 인계되었습니다");
+    }
+
+    @KafkaListener(topics = "approach")
+    public void onApproach(ApproachEvent event) {
+        String dedupKey = NotificationCommandService.dedupKey(
+                NotificationType.APPROACH, event.studentId(), event.occurredDate(), "stop:" + event.routePlanStopId());
+        notificationCommandService.notify(NotificationType.APPROACH, event.tenantId(), event.studentId(),
+                dedupKey, event.studentName() + " 학생의 정류장 도착이 임박했습니다");
+    }
+
+    @KafkaListener(topics = "no-show")
+    public void onNoShow(NoShowEvent event) {
+        String dedupKey = NotificationCommandService.dedupKey(
+                NotificationType.NO_SHOW, event.studentId(), event.occurredDate(), "stop:" + event.routePlanStopId());
+        notificationCommandService.notify(NotificationType.NO_SHOW, event.tenantId(), event.studentId(),
+                dedupKey, event.studentName() + " 학생이 정류장 도착 후 10분간 승차하지 않았습니다");
     }
 
     @KafkaListener(topics = "sos-triggered")

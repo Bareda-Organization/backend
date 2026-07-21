@@ -4,8 +4,8 @@ import java.time.Duration;
 
 /**
  * 알림 임계값(문서·코드 공통 상수) — PROJECT_MASTER_PLAN.md 7장 표와 동일하다.
- * NO_SHOW·APPROACH 는 routing/기사 운행관리 모듈에서, SOS 는 sos 모듈에서 이 상수를 참조해
- * 스케줄러 판정에 사용한다(해당 모듈 구현 전까지는 값만 정의).
+ * NO_SHOW·APPROACH 는 {@code DriveSessionCommandService.checkApproachAndNoShow}가,
+ * SOS_ESCALATION 은 sos 모듈이 이 상수를 참조해 스케줄러 판정에 사용한다.
  */
 public final class NotificationThresholds {
 
