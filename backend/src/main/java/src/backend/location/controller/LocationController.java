@@ -77,7 +77,6 @@ public class LocationController {
     /** 기사: 담당 버스 탑승 학생들의 최신 위치 목록. */
     @GetMapping("/bus/{busId}")
     @PreAuthorize("hasRole('DRIVER')")
-    @Operation(tags = {"00. MVP 사용 API", "08. 위치(Location)"})
     public ApiResponse<List<LocationView>> busLocations(@AuthenticationPrincipal AuthUser driver,
                                                         @Parameter(example = "1") @PathVariable Long busId) {
         return ApiResponse.ok(locationQueryService.getBusLocations(driver, busId));

@@ -31,11 +31,15 @@ G4는 폐기 확정(사용자 확정, 아래 §1·§2 참조). F2/F4/F1/F3/G1~G6
 > - **Swagger 태그 정리**: 전 컨트롤러 14개에 `@Tag(name="01~14. 한글명")` 추가(기존엔 Auth만 태그가 있었음). `springdoc.
 >   swagger-ui.tags-sorter: alpha`가 태그명을 **문자열**로 정렬하므로 `1~14`가 아니라 **`01~14`로 zero-padding**해야 `10`이
 >   `2`보다 앞에 오는 걸 방지한다(처음 패딩 없이 붙였다가 `/v3/api-docs` 재확인 중 발견해 수정).
-> - **"00. MVP 사용 API" 그룹 신설**: 실제 §0 MVP 5개 기능이 쓰는 엔드포인트 18개(로그인 2·위치 3·승하차 4·배차 7·알림 2)만
->   골라 `@Operation(tags={"00. MVP 사용 API", "원래태그"})`로 이중 태깅 — Swagger UI 최상단에 이 18개만 모아 보여주고, 각
+> - **"00. MVP 사용 API" 그룹 신설**: 실제 §0 MVP 5개 기능이 쓰는 엔드포인트 17개(로그인 2·위치 2·승하차 4·배차 7·알림 2)만
+>   골라 `@Operation(tags={"00. MVP 사용 API", "원래태그"})`로 이중 태깅 — Swagger UI 최상단에 이 17개만 모아 보여주고, 각
 >   API는 원래 카테고리에도 그대로 남는다. 비MVP(회원가입·수동 generate·정정·학생단위 위치 등)는 제외됨을 `/v3/api-docs`로
 >   확인. 태그 설명은 여러 컨트롤러에 걸쳐 있어 클래스 레벨 `@Tag`로는 등록이 안 돼 `OpenApiConfig`의 `OpenAPI.tags(...)`에
->   명시적으로 등록.
+>   명시적으로 등록. (최초엔 `GET /api/locations/bus/{busId}`를 F1로 잘못 포함시켰다가 — 실제로는 "버스 위치"가 아니라
+>   "기사가 보는 자기 반 학생 위치 목록"이라 MVP 스코프가 아님을 재확인 후 18→17로 정정.)
+> - **`backend/docs/MVP_API_SPEC.md` 신규**: 위 17개 엔드포인트 전체의 설명·요청/응답 필드·예외코드, WebSocket(STOMP) 연결·
+>   재연결·구독/발행 destination, 스케줄러·폴링 주기를 코드와 전수 대조해 정리한 명세서(Markdown — 사용자가 명시적으로
+>   `.md`로 요청, 이 문서의 전역 HTML 정책과 다름).
 > - **Swagger 예시값 ↔ 시드 데이터 전수 대조**: 전 컨트롤러/DTO의 `@Schema(example=...)`/`@Parameter(example=...)`를 `V2__seed_
 >   data.sql`과 대조 — 기존 값은 대부분 이미 정확히 맞아 있었고(예: `RecordRideRequest`의 studentId=1·stopId=1·좌표가 실제
 >   김민준·정류장A와 전부 일치), **`ConfirmAutoAssignRequest.planIds` 예시만 `[2, 4]`(근거 없는 값)로 어긋나 있어 `[1, 2]`(신선한
