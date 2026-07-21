@@ -1,7 +1,8 @@
-# 전체 스택을 컨테이너로 기동한다: postgres + redis + backend(Spring) + frontend(Next.js)
+# 기본 실행 대상: postgres + redis + kafka + backend(Spring) — frontend는 profile로 분리해 기본에서 제외.
 # 실행:  docker compose up -d --build
-#   - 프론트:  http://localhost:3000
 #   - 백엔드:  http://localhost:8080
+# 기존 프론트(Next.js)까지 같이 띄우려면:  docker compose --profile frontend up -d --build
+#   - 프론트:  http://localhost:3000
 services:
   postgres:
     image: postgres:16
@@ -63,6 +64,7 @@ services:
         condition: service_started
 
   frontend:
+    profiles: ["frontend"]   # 기본 `docker compose up`에서는 제외 — 새 프론트엔드로 작업 중일 때 불필요한 빌드/기동 방지
     build: ./frontend
     ports:
       - "3000:3000"

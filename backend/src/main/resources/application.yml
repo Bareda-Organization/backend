@@ -69,6 +69,10 @@ app:
     loss-check-ms: 10000         # 끊김 후보를 다시 훑는 스케줄러 주기(ms)
   drivesession:
     approach-check-ms: 15000     # 진행 중 등원 세션의 APPROACH/NO_SHOW 후보를 다시 훑는 주기(ms). 임계값은 NotificationThresholds.APPROACH(5분)/NO_SHOW(10분)
+  # /api/** CORS 허용 출처 — 새 프론트엔드 프레임워크 개발 서버가 다른 포트에서 붙을 때 대비
+  # (콤마로 구분된 문자열). 목록에 없는 포트를 쓰면 이 값에 추가하거나 CORS_ALLOWED_ORIGINS로 오버라이드.
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173,http://localhost:4200,http://localhost:8081,http://127.0.0.1:3000,http://127.0.0.1:5173}
 
 # JWT (운영에서는 반드시 환경변수로 주입)
 jwt:
@@ -106,8 +110,11 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
 
-# 운영에서는 Mock 을 끄고 실 학생폰 GPS(push) 로 전환
+# 운영은 localhost 개발 출처를 신뢰하면 안 되므로 기본값 없이 환경변수로만 명시 주입(미설정 시 빈 목록 = 전부 차단)
+# + Mock 을 끄고 실 학생폰 GPS(push) 로 전환
 app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
   location:
     mock:
       enabled: false
