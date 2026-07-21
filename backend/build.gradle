@@ -24,6 +24,10 @@ dependencies {
     // 영속성 (JPA + PostgreSQL)
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     runtimeOnly 'org.postgresql:postgresql'
+    // 스키마 마이그레이션 — Boot 4는 flyway-core 단독으로는 자동설정되지 않고 전용 스타터가 필요하다.
+    // PostgreSQL 지원은 Flyway 10+부터 별도 모듈로 분리돼 flyway-database-postgresql도 함께 필요.
+    implementation 'org.springframework.boot:spring-boot-starter-flyway'
+    runtimeOnly 'org.flywaydb:flyway-database-postgresql'
     // 보안 (역할 기반 JWT 인증)
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'io.jsonwebtoken:jjwt-api:0.12.6'

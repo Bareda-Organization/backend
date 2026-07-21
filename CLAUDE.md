@@ -26,11 +26,14 @@ cd backend
 ./gradlew test --tests '*.메서드명'                             # 단일 테스트 메서드
 ```
 
-앱 기동 후 API 테스트는 Swagger UI(`http://localhost:8080/swagger-ui/index.html`)를 쓴다 — `/api/auth/login` 응답의 `accessToken`을 우측 상단 Authorize에 넣으면 이후 요청에 자동으로 붙는다.
+앱 기동 후 API 테스트는 Swagger UI(`http://localhost:8080/swagger-ui/index.html`)를 쓴다 — `/api/auth/login` 응답의 `accessToken`을 우측 상단 Authorize에 넣으면 이후 요청에 자동으로 붙는다. 로그인 계정은 Flyway 시드(`db/migration-local/V2__seed_data.sql`) 참조 — 비밀번호는 모두 `password`.
+
+**로컬 DB를 완전히 초기화**하려면(스키마 꼬임 등): `docker compose rm -f postgres && docker volume rm school-bus_pgdata && docker compose up -d postgres` 후 `bootRun` — Flyway가 스키마(V1)+데모 시드(V2)를 자동으로 다시 구성한다(수동 `DROP SCHEMA` 불필요, `DataInitializer`는 2026-07-20 삭제됨).
 
 ## Stack / 주요 특이사항
 
 - **Spring Boot 4.1.0**, **Java 25**(toolchain 고정), Gradle. 웹 스타터는 신형 아티팩트명 `spring-boot-starter-webmvc`(테스트는 `spring-boot-starter-webmvc-test`)를 사용한다 — 구버전 `spring-boot-starter-web`이 아님.
+- **스키마는 Flyway가 관리**(`spring-boot-starter-flyway`+`flyway-database-postgresql`, 2026-07-20부터)한다 — `ddl-auto: validate`로 Hibernate는 검증만. 새 컬럼/테이블이 필요하면 `db/migration/V{n}__설명.sql`을 새로 추가한다(기존 `V1__init_schema.sql` 수정 금지). 로컬 전용 데모 시드는 별도 위치 `db/migration-local/`(local 프로파일에서만 `spring.flyway.locations`에 추가돼 prod엔 안 들어감).
 - 기본 패키지가 `src.backend`이고 Gradle `group = 'src'`이다(비관례적). 새 클래스는 이 `src.backend` 하위에 두어 `@SpringBootApplication` 컴포넌트 스캔 범위를 유지한다.
 - **코드 컨벤션 상세는 `backend/docs/reference.md`(Claude 참조용, Markdown)를 먼저 읽는다.** spec/impl 판단기준·패키지 구조·CQRS·Event 규칙 등 전체 원칙이 정리돼 있다. 사람이 브라우저로 보는 동일 내용의 렌더링 버전은 `backend/docs/CODE_CONVENTIONS.html`(시각화 포함) — 둘은 원칙은 같고 매체만 다르며, Claude는 세션마다 `reference.md`를 참조한다.
 - **핵심 요약**: service·repository는 "구현이 바뀔 가능성이 있는가"를 기준으로만 `spec`(인터페이스) / `impl`(구현체) 하위 패키지로 분리한다(단순 CRUD는 분리하지 않음) — 예 `bus/service/spec/BusService.java` + `bus/service/impl/BusServiceImpl.java`. 컨트롤러 등은 `spec`만 의존한다. `package-info.java`는 두지 않는다(패키지 레벨 애너테이션이 필요할 때만 예외).
