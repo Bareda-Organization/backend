@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -107,9 +108,8 @@ public class RoutingCommandService {
 
     /**
      * 결석/일정변경 승인 이벤트를 소비한 국소 replan(Phase 6e) — 관리자 요청이 아니라 시스템이 트리거하므로
-     * {@link AuthUser} 없이 studentId 기준으로 동작한다. 해당 학생이 배정된 버스의 방향별 "최신" 계획이
-     * 마침 이벤트가 가리키는 날짜({@code eventDate})의 것일 때만(= 그 계획이 실제로 영향받을 때만) 재계산한다.
-     * 실패해도(로스터 0명·정원 초과·경로 API 오류) 기존 계획은 그대로 두고 다음 이벤트로 넘어간다.
+     * {@link AuthUser} 없이 studentId 기준으로 동작한다. 해당 학생이 배정된 버스의 "최신" 계획이 마침
+     * 이벤트가 가리키는 날짜({@code eventDate})의 것일 때만(= 그 계획이 실제로 영향받을 때만) 재계산한다.
      */
     @Transactional
     public void replanForStudent(Long studentId, LocalDate eventDate) {
@@ -117,19 +117,49 @@ public class RoutingCommandService {
         if (student == null || student.getAssignedBus() == null) {
             return; // 배차되지 않은 학생 — 영향받는 노선 계획이 없다
         }
-        Bus bus = student.getAssignedBus();
-        for (RouteDirection direction : RouteDirection.values()) {
-            routePlanRepository.findTopByBusIdAndDirectionOrderByVersionDesc(bus.getId(), direction)
-                    .filter(existing -> existing.getServiceDate().equals(eventDate))
-                    .ifPresent(existing -> replanDirection(bus, direction, eventDate, student));
+        replanForBus(student.getAssignedBus(), studentId, student.getName(), eventDate);
+    }
+
+    /**
+     * F2: 배정 버스 변경 이벤트를 소비한 국소 replan — 이전 버스·신규 버스 각각의 당일 계획을 재계산한다.
+     * 정류장만 바뀌어 old/new 버스가 같으면 한 번만 수행해 외부 경로 API 중복 호출을 막는다.
+     */
+    @Transactional
+    public void replanForAssignmentChange(Long studentId, Long oldBusId, Long newBusId, LocalDate eventDate) {
+        Student student = studentRepository.findById(studentId).orElse(null);
+        if (student == null) {
+            return;
+        }
+        replanForBusId(oldBusId, studentId, student.getName(), eventDate);
+        if (!Objects.equals(oldBusId, newBusId)) {
+            replanForBusId(newBusId, studentId, student.getName(), eventDate);
         }
     }
 
-    private void replanDirection(Bus bus, RouteDirection direction, LocalDate serviceDate, Student triggerStudent) {
+    private void replanForBusId(Long busId, Long triggerStudentId, String triggerStudentName, LocalDate eventDate) {
+        if (busId == null) {
+            return;
+        }
+        busRepository.findById(busId)
+                .ifPresent(bus -> replanForBus(bus, triggerStudentId, triggerStudentName, eventDate));
+    }
+
+    /** 버스 하나의 방향별(PICKUP/DROPOFF) "당일 최신 계획이 있을 때만" 재계산 — replanForStudent/replanForAssignmentChange 공용. */
+    private void replanForBus(Bus bus, Long triggerStudentId, String triggerStudentName, LocalDate eventDate) {
+        for (RouteDirection direction : RouteDirection.values()) {
+            routePlanRepository.findTopByBusIdAndDirectionOrderByVersionDesc(bus.getId(), direction)
+                    .filter(existing -> existing.getServiceDate().equals(eventDate))
+                    .ifPresent(existing -> replanDirection(bus, direction, eventDate, triggerStudentId, triggerStudentName));
+        }
+    }
+
+    /** 실패해도(로스터 0명·정원 초과·경로 API 오류) 기존 계획은 그대로 두고 다음 이벤트로 넘어간다. */
+    private void replanDirection(Bus bus, RouteDirection direction, LocalDate serviceDate,
+                                  Long triggerStudentId, String triggerStudentName) {
         try {
             RoutePlan recommended = buildPlan(bus, direction, serviceDate, RoutePlanStatus.RECOMMENDED);
             eventPublisher.publishEvent(
-                    RoutePlanRecommendedEvent.of(recommended, triggerStudent.getId(), triggerStudent.getName()));
+                    RoutePlanRecommendedEvent.of(recommended, triggerStudentId, triggerStudentName));
         } catch (RuntimeException e) {
             log.warn("[routing] replan 실패, 기존 계획 유지: busId={} direction={} serviceDate={} reason={}",
                     bus.getId(), direction, serviceDate, e.getMessage());

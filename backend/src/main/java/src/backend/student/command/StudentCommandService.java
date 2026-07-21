@@ -1,5 +1,8 @@
 package src.backend.student.command;
 
+import java.time.LocalDate;
+
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +22,8 @@ import src.backend.student.dto.UpdateDropoffRequest;
 import src.backend.student.dto.UpdateStudentAssignmentRequest;
 import src.backend.student.entity.Student;
 import src.backend.student.entity.StudentGuardian;
+import src.backend.student.event.StudentAssignmentChangedEvent;
+import src.backend.student.event.StudentDropoffChangedEvent;
 import src.backend.student.repository.spec.StudentGuardianRepository;
 import src.backend.student.repository.spec.StudentRepository;
 import src.backend.tenant.entity.Tenant;
@@ -39,19 +44,22 @@ public class StudentCommandService {
     private final BusRepository busRepository;
     private final StopRepository stopRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public StudentCommandService(StudentRepository studentRepository,
                                  StudentGuardianRepository studentGuardianRepository,
                                  TenantRepository tenantRepository,
                                  BusRepository busRepository,
                                  StopRepository stopRepository,
-                                 UserRepository userRepository) {
+                                 UserRepository userRepository,
+                                 ApplicationEventPublisher eventPublisher) {
         this.studentRepository = studentRepository;
         this.studentGuardianRepository = studentGuardianRepository;
         this.tenantRepository = tenantRepository;
         this.busRepository = busRepository;
         this.stopRepository = stopRepository;
         this.userRepository = userRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -87,11 +95,20 @@ public class StudentCommandService {
     public StudentResponse updateAssignment(AuthUser admin, Long studentId, UpdateStudentAssignmentRequest req) {
         Student student = loadAccessibleStudent(admin, studentId);
         Long tenantId = student.getTenant().getId();
+        Long oldBusId = student.getAssignedBus() != null ? student.getAssignedBus().getId() : null;
+        boolean changed = false;
         if (req.assignedBusId() != null) {
             student.assignBus(loadBusInTenant(req.assignedBusId(), tenantId));
+            changed = true;
         }
         if (req.boardingStopId() != null) {
             student.assignStop(loadStopInTenant(req.boardingStopId(), tenantId));
+            changed = true;
+        }
+        if (changed) {
+            Long newBusId = student.getAssignedBus() != null ? student.getAssignedBus().getId() : null;
+            eventPublisher.publishEvent(
+                    StudentAssignmentChangedEvent.of(tenantId, studentId, oldBusId, newBusId, LocalDate.now()));
         }
         return StudentResponse.of(student);
     }
@@ -100,6 +117,10 @@ public class StudentCommandService {
     public StudentResponse updateDropoff(AuthUser admin, Long studentId, UpdateDropoffRequest req) {
         Student student = loadAccessibleStudent(admin, studentId);
         student.updateDropoff(req.dropoffAddress(), req.dropoffLat(), req.dropoffLng());
+        if (student.getAssignedBus() != null) {
+            eventPublisher.publishEvent(StudentDropoffChangedEvent.of(
+                    student.getTenant().getId(), studentId, student.getAssignedBus().getId(), LocalDate.now()));
+        }
         return StudentResponse.of(student);
     }
 
