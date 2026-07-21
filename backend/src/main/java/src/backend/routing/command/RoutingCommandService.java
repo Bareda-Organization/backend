@@ -2,10 +2,12 @@ package src.backend.routing.command;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,19 +23,25 @@ import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 import src.backend.global.tenant.TenantGuard;
+import src.backend.routing.domain.BusCapacity;
 import src.backend.routing.domain.LatLng;
 import src.backend.routing.domain.RouteDirection;
 import src.backend.routing.domain.RoutePlanStatus;
+import src.backend.routing.dto.AutoAssignRequest;
+import src.backend.routing.dto.AutoAssignResponse;
 import src.backend.routing.dto.GenerateRoutePlanRequest;
 import src.backend.routing.dto.RoutePlanResponse;
+import src.backend.routing.engine.spec.BusAssigner;
 import src.backend.routing.engine.spec.RouteEngine;
 import src.backend.routing.entity.RoutePlan;
+import src.backend.routing.entity.RoutePlanStop;
 import src.backend.routing.event.RoutePlanRecommendedEvent;
 import src.backend.routing.infrastructure.spec.MapRouteClient;
 import src.backend.routing.infrastructure.spec.RouteResult;
 import src.backend.routing.repository.spec.RoutePlanRepository;
 import src.backend.student.entity.Student;
 import src.backend.student.repository.spec.StudentRepository;
+import src.backend.tenant.entity.Tenant;
 
 /**
  * 노선 계획 생성 — 단순 CRUD가 아니라 orchestration(로스터 조회→알고리즘→directions API→저장)이지만
@@ -50,6 +58,7 @@ public class RoutingCommandService {
     private final StudentRepository studentRepository;
     private final AttendanceQueryService attendanceQueryService;
     private final RouteEngine routeEngine;
+    private final BusAssigner busAssigner;
     private final MapRouteClient mapRouteClient;
     private final ApplicationEventPublisher eventPublisher;
     private final int maxWaypoints;
@@ -59,6 +68,7 @@ public class RoutingCommandService {
                                  StudentRepository studentRepository,
                                  AttendanceQueryService attendanceQueryService,
                                  RouteEngine routeEngine,
+                                 BusAssigner busAssigner,
                                  MapRouteClient mapRouteClient,
                                  ApplicationEventPublisher eventPublisher,
                                  @Value("${routing.max-waypoints:15}") int maxWaypoints) {
@@ -67,6 +77,7 @@ public class RoutingCommandService {
         this.studentRepository = studentRepository;
         this.attendanceQueryService = attendanceQueryService;
         this.routeEngine = routeEngine;
+        this.busAssigner = busAssigner;
         this.mapRouteClient = mapRouteClient;
         this.eventPublisher = eventPublisher;
         this.maxWaypoints = maxWaypoints;
@@ -104,6 +115,77 @@ public class RoutingCommandService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "노선 계획을 찾을 수 없습니다"));
         TenantGuard.resolveTenantId(admin, plan.getTenantId());
         return plan;
+    }
+
+    /**
+     * F4: 테넌트 전체 활성 로스터를 버스별로 자동 배정(제안)한다. 이 시점엔 {@code Student.assignedBus}를
+     * 바꾸지 않는다 — 계획의 stops 가 제안 로스터를 겸하고, 실제 배정 커밋은 {@link #confirmAutoAssign}에서 이뤄진다.
+     */
+    @Transactional
+    public AutoAssignResponse autoAssign(AuthUser admin, AutoAssignRequest req) {
+        Long tenantId = TenantGuard.resolveTenantId(admin, req.tenantId());
+        LocalDate serviceDate = req.serviceDate() != null ? req.serviceDate() : LocalDate.now();
+
+        List<Bus> buses = busRepository.findByTenantId(tenantId).stream()
+                .sorted(Comparator.comparing(Bus::getId))
+                .toList();
+        if (buses.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "배차 가능한 버스가 없습니다");
+        }
+        LatLng depot = requireDepot(buses.get(0).getTenant());
+
+        List<Student> roster = attendanceQueryService.getActiveRosterForTenant(tenantId, serviceDate);
+        Map<Long, LatLng> points = new LinkedHashMap<>();
+        List<String> excluded = new ArrayList<>();
+        for (Student student : roster) {
+            LatLng point = req.direction() == RouteDirection.PICKUP ? boardingPoint(student) : dropoffPoint(student);
+            if (point == null) {
+                excluded.add(student.getName());
+            } else {
+                points.put(student.getId(), point);
+            }
+        }
+        if (points.isEmpty()) {
+            return new AutoAssignResponse(List.of(), excluded);
+        }
+
+        List<BusCapacity> capacities = buses.stream()
+                .map(bus -> new BusCapacity(bus.getId(), bus.getSeatCapacity()))
+                .toList();
+        Map<Long, List<Long>> assignment = busAssigner.assign(depot, points, capacities)
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INPUT,
+                        "전체 정원(" + capacities.stream().mapToInt(BusCapacity::seatCapacity).sum()
+                                + "명) 초과: 대상 " + points.size() + "명"));
+
+        Map<Long, Student> studentById = roster.stream().collect(Collectors.toMap(Student::getId, s -> s));
+        List<RoutePlanResponse> plans = new ArrayList<>();
+        for (Bus bus : buses) {
+            List<Long> studentIds = assignment.get(bus.getId());
+            if (studentIds == null || studentIds.isEmpty()) {
+                continue; // 이 버스엔 배정된 학생이 없음 — 계획 생성 생략
+            }
+            List<Student> busRoster = studentIds.stream().map(studentById::get).toList();
+            RoutePlan plan = buildPlan(bus, req.direction(), serviceDate, RoutePlanStatus.RECOMMENDED, busRoster);
+            plans.add(RoutePlanResponse.from(plan));
+        }
+        return new AutoAssignResponse(plans, excluded);
+    }
+
+    /** F4: 검토를 마친 RECOMMENDED 계획들을 확정 — 학생 배정을 커밋하고 승인·배포까지 이어서 수행한다. */
+    @Transactional
+    public List<RoutePlanResponse> confirmAutoAssign(AuthUser admin, List<Long> planIds) {
+        List<RoutePlanResponse> results = new ArrayList<>();
+        for (Long planId : planIds) {
+            RoutePlan plan = findForAdmin(admin, planId);
+            for (RoutePlanStop stop : plan.getStops()) {
+                studentRepository.findById(stop.getStudentId())
+                        .ifPresent(student -> student.assignBus(busRepository.getReferenceById(plan.getBusId())));
+            }
+            plan.approve(admin.userId());
+            plan.publish(admin.userId());
+            results.add(RoutePlanResponse.from(plan));
+        }
+        return results;
     }
 
     /**
@@ -167,12 +249,18 @@ public class RoutingCommandService {
     }
 
     private RoutePlan buildPlan(Bus bus, RouteDirection direction, LocalDate serviceDate, RoutePlanStatus status) {
-        LatLng depot = requireDepot(bus);
-
         List<Student> roster = attendanceQueryService.getActiveRoster(bus.getId(), serviceDate);
         if (roster.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "생성할 로스터가 없습니다(당일 활성 학생 0명)");
         }
+        return buildPlan(bus, direction, serviceDate, status, roster);
+    }
+
+    /** F4 자동배정처럼 로스터를 외부(Sweep 결과)에서 받는 경우용 — 좌표해석 이후 로직은 기존과 동일. */
+    private RoutePlan buildPlan(Bus bus, RouteDirection direction, LocalDate serviceDate, RoutePlanStatus status,
+                                List<Student> roster) {
+        LatLng depot = requireDepot(bus.getTenant());
+
         if (roster.size() > bus.getSeatCapacity()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "로스터(" + roster.size() + "명)가 버스 정원(" + bus.getSeatCapacity() + "명)을 초과합니다");
@@ -216,11 +304,11 @@ public class RoutingCommandService {
         return routePlanRepository.save(plan);
     }
 
-    private LatLng requireDepot(Bus bus) {
-        if (bus.getTenant().getLat() == null || bus.getTenant().getLng() == null) {
+    private LatLng requireDepot(Tenant tenant) {
+        if (tenant.getLat() == null || tenant.getLng() == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "학원 위치(depot)가 설정되지 않았습니다");
         }
-        return new LatLng(bus.getTenant().getLat(), bus.getTenant().getLng());
+        return new LatLng(tenant.getLat(), tenant.getLng());
     }
 
     private Map<Long, LatLng> resolveStudentPoints(List<Student> roster, RouteDirection direction) {

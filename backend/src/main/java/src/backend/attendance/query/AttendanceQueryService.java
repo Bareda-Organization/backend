@@ -67,6 +67,20 @@ public class AttendanceQueryService {
                 .toList();
     }
 
+    /**
+     * 테넌트 전체 활성 로스터(결석 제외) — F4 자동배차가 버스 배정과 무관하게 "이 학원 전체 학생 중
+     * 오늘 등하원해야 하는 학생"을 구할 때 쓴다. {@link #getActiveRoster}와 달리 배정된 버스 여부와
+     * 무관하게 테넌트 전체를 본다(미배정 학생 포함).
+     */
+    @Transactional(readOnly = true)
+    public List<Student> getActiveRosterForTenant(Long tenantId, LocalDate date) {
+        return studentRepository.findByTenantId(tenantId).stream()
+                .filter(student -> attendanceExceptionRepository
+                        .findByStudentIdAndTargetDate(student.getId(), date).stream()
+                        .noneMatch(exception -> exception.getStatus() == ApprovalStatus.APPROVED))
+                .toList();
+    }
+
     private List<AttendanceExceptionResponse> toResponses(List<AttendanceException> exceptions) {
         return exceptions.stream().map(AttendanceExceptionResponse::from).toList();
     }

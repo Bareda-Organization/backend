@@ -20,6 +20,9 @@ import jakarta.validation.Valid;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.routing.command.RoutingCommandService;
+import src.backend.routing.dto.AutoAssignRequest;
+import src.backend.routing.dto.AutoAssignResponse;
+import src.backend.routing.dto.ConfirmAutoAssignRequest;
 import src.backend.routing.dto.GenerateRoutePlanRequest;
 import src.backend.routing.dto.RoutePlanResponse;
 import src.backend.routing.query.RoutingQueryService;
@@ -46,6 +49,22 @@ public class RoutingController {
     public ApiResponse<RoutePlanResponse> generate(@AuthenticationPrincipal AuthUser admin,
                                                     @Valid @RequestBody GenerateRoutePlanRequest request) {
         return ApiResponse.ok(routingCommandService.generate(admin, request));
+    }
+
+    /** 관리자: 멀티버스 자동 배정(제안) — Sweep 클러스터링으로 버스별 RECOMMENDED 계획을 만든다(배정 확정 전, F4). */
+    @PostMapping("/auto-assign")
+    @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
+    public ApiResponse<AutoAssignResponse> autoAssign(@AuthenticationPrincipal AuthUser admin,
+                                                       @Valid @RequestBody AutoAssignRequest request) {
+        return ApiResponse.ok(routingCommandService.autoAssign(admin, request));
+    }
+
+    /** 관리자: 자동 배정 확정 — 학생 배정을 커밋하고 승인·배포까지 이어서 수행한다(F4). */
+    @PostMapping("/auto-assign/confirm")
+    @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
+    public ApiResponse<List<RoutePlanResponse>> confirmAutoAssign(@AuthenticationPrincipal AuthUser admin,
+                                                                   @Valid @RequestBody ConfirmAutoAssignRequest request) {
+        return ApiResponse.ok(routingCommandService.confirmAutoAssign(admin, request.planIds()));
     }
 
     /** 관리자: 승인(DRAFT/RECOMMENDED → APPROVED). */

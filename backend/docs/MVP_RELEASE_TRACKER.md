@@ -3,7 +3,8 @@
 > **문서 성격 (2026-07-21 전면 개편):** `PROJECT_MASTER_PLAN.md`가 프로젝트 전체 단일 소스(SoT)다. 이 문서는 그 하위 문서로, **"엔티티~컨트롤러는 있지만 요구사항 대비
 비어있는" 백엔드 안전/알림 갭(G1~G6)만 추적**하는 실행 체크리스트다. 큰 그림·요구사항·모듈 완료 정의는 `PROJECT_MASTER_PLAN.md`, 코드 컨벤션은 `reference.md`를 따른다.
 
-> **진행 상황(2026-07-21 갱신):** P0(G2·G3·G1) 구현+curl E2E 검증 완료(미커밋). §5 env 보안 조치도 완료. G5(테스트)·G4·G6는 아직 `[ ]` 미체크.
+> **진행 상황(2026-07-21 갱신):** P0(G2·G3·G1)·F2·Flyway·Swagger·env 보안 조치는 `main`에 커밋 완료(상세는 `git log`). **F4는
+구현+curl E2E 검증까지 완료됐으나 아직 미커밋**(다음 커밋 요청 시 전용 커밋으로 반영). G5(테스트)·G4·G6·F1·F3는 아직 `[ ]` 미체크.
 **같은 날 사용자가 §0의 MVP 기능 스코프를 확정** — F1~F4가 새 최우선 순위(§2 P(MVP))로 추가됨.
 
 > **설계 확정(2026-07-21):** F1~F4 전체 구현 계획을 확정하고 아래 §2에 반영했다. 순서는 **F2 → F4 → F1 → F3**(사용자 확정). 설계 확인이 필요했던
@@ -11,8 +12,8 @@
 > 기사)에게 push 도달(학부모도 함께 받으나 사용자가 MVP 이후 학부모 알림 추가 예정이라 허용). **F4 흐름**: 트래커 원안의 "즉시 `assignedBus` 갱신"을 정정 —
 > 자동배차·경로를 **제안(RECOMMENDED)** 으로 먼저 관리자에게 제공 → 검토 → **승인(confirm) 시 배차 확정 + 배포**.
 
-> **F2 구현+검증 완료(2026-07-21, 미커밋):** §2 P(MVP)의 F2가 완료됐다(아래 체크박스 참조). **다음 착수점은 F4**(멀티버스 자동 배정) — 별도 세션에서
-> 전용 탐색·설계부터 시작한다.
+> **F2·F4 구현+검증 완료(2026-07-21):** §2 P(MVP)의 F2·F4가 모두 완료됐다(아래 체크박스 참조). F2는 커밋 완료, **F4는 아직 미커밋**.
+> **다음 착수점은 F1**(버스 단위 실시간 위치) — 위 §2 F1 항목의 "설계 확인 필요" 사항부터 다시 확인하고 시작한다.
 
 ## 0. MVP 출시 범위 확정 (사용자 정의, 2026-07-21)
 
@@ -86,11 +87,11 @@ F1·F4의 설계 확인 항목도 결정 완료 — 상세는 위 "설계 확정
   replan 없음, 알림 정확히 +2건만 추가) 확인 ④ 박도윤 bus1→bus2 재배정 → **이전 버스(bus1) PICKUP/DROPOFF·신규 버스(bus2) PICKUP 3개 모두** 버전
   +1(알림 +3건), 양쪽 로스터도 정확히 갱신(bus1은 박도윤 제거 2명, bus2는 박도윤 포함 4명) 확인 ⑤ bus2 DROPOFF(당일 계획 없음)는 그대로 미생성(에러 없이
   안전하게 스킵) 확인. `./gradlew compileJava`+`test` 26/26 통과, 서버 로그에 replan 실패·예외 없음.
-- [ ] **F4 — 배차 최적화(멀티버스 자동 배정, 검토 게이트)**: "즉시 배정 갱신"이 아니라 **제안(propose) → 관리자 검토 → 확정(confirm) 시 배차+배포** 2단계. 아래는 탐색 없이 바로 구현 가능한 수준의 상세 스펙(2026-07-21 확정, 코드 미착수).
+- [x] **F4 — 배차 최적화(멀티버스 자동 배정, 검토 게이트)** (2026-07-21 완료, 미커밋): "즉시 배정 갱신"이 아니라 **제안(propose) → 관리자 검토 → 확정(confirm) 시 배차+배포** 2단계로 구현 완료.
   - **신규 파일**
     - `routing/domain/BusCapacity.java` — `record BusCapacity(Long busId, int seatCapacity)`. engine 포트가 JPA 엔티티에 의존하지 않도록 하는 순수 값 타입(`LatLng`와 동일 위치·성격).
     - `routing/engine/spec/BusAssigner.java` — `Optional<Map<Long, List<Long>>> assign(LatLng depot, Map<Long, LatLng> studentPoints, List<BusCapacity> buses)`. 반환 map의 key=busId, value=배정된 studentId 리스트(방문순서 아님 — 순서 최적화는 기존 `RouteEngine`이 뒤에서 별도 수행). 총원 > 총정원이면 `Optional.empty()`.
-    - `routing/engine/impl/SweepAssigner.java` — `@Component implements BusAssigner`(기존 `HeuristicRouteEngine`과 동일 위치·패턴). depot 기준 방위각 `Math.atan2(lng차, lat차)`로 학생 정렬 → 버스를 파라미터 순서대로 순회하며 `seatCapacity`까지 채움.
+    - `routing/engine/impl/SweepAssigner.java` — `@Component implements BusAssigner`(기존 `HeuristicRouteEngine`과 동일 위치·패턴). 방위각은 직접 계산하지 않고 기존 `GeoMath.bearingDegrees(depot, point)`(0~360도, `HeuristicRouteEngine`이 이미 쓰는 유틸)를 재사용 → 정렬 후 버스를 파라미터 순서대로 순회하며 `seatCapacity`까지 채움.
     - `routing/dto/AutoAssignRequest.java` — `record(Long tenantId, RouteDirection direction, LocalDate serviceDate)`(serviceDate 생략 시 오늘).
     - `routing/dto/AutoAssignResponse.java` — `record(List<RoutePlanResponse> plans, List<String> excludedStudentNames)`.
     - `routing/dto/ConfirmAutoAssignRequest.java` — `record(List<Long> planIds)`.
@@ -102,13 +103,13 @@ F1·F4의 설계 확인 항목도 결정 완료 — 상세는 위 "설계 확정
       - `private RoutePlan buildPlan(Bus, RouteDirection, LocalDate, RoutePlanStatus)` → 내부에서 `attendanceQueryService.getActiveRoster(bus.getId(), serviceDate)` 호출 후 아래 신규 오버로드로 위임(기존 "로스터 0명 예외" 가드는 이 래퍼에만 유지, 동작 변화 없는 순수 리팩터).
       - `private RoutePlan buildPlan(Bus, RouteDirection, LocalDate, RoutePlanStatus, List<Student> roster)` 신규 — 로스터를 파라미터로 받는 것 외 기존 로직 그대로(좌표해석→`routeEngine.optimizeOrder`→`resolveRoute`→저장).
       - `requireDepot(Bus bus)` → `requireDepot(Tenant tenant)`로 파라미터 타입 변경(`bus.getTenant()` 호출부만 `.getTenant()` 붙여서 이관) — auto-assign은 특정 버스가 아니라 테넌트 단위로 depot을 구하므로.
-      - `public AutoAssignResponse autoAssign(AuthUser admin, AutoAssignRequest req)` 신규: ① `TenantGuard.resolveTenantId(admin, req.tenantId())` ② `busRepository.findByTenantId(tenantId)`(비어있으면 400) ③ `requireDepot(buses.get(0).getTenant())` ④ `attendanceQueryService.getActiveRosterForTenant(tenantId, serviceDate)` → direction별 `boardingPoint`/`dropoffPoint`로 좌표 조회, null이면 `excluded`에 이름 담고 제외 ⑤ 좌표 있는 학생 0명이면 빈 `AutoAssignResponse(List.of(), excluded)` 즉시 반환(에러 아님) ⑥ `busAssigner.assign(depot, points, busCapacities)`(empty면 400 "전체 정원 N명 초과: 대상 M명") ⑦ 버스별 배정 studentId가 1명 이상이면 `buildPlan(bus, direction, serviceDate, RECOMMENDED, busRoster)` 호출(0명 배정 버스는 계획 생성 생략) → `AutoAssignResponse(plans, excluded)` 반환.
+      - `public AutoAssignResponse autoAssign(AuthUser admin, AutoAssignRequest req)` 신규: ① `TenantGuard.resolveTenantId(admin, req.tenantId())` ② `busRepository.findByTenantId(tenantId)` 후 **`Bus::getId` 기준 정렬**(⚠️ 정렬 없이는 버스 배열 순서가 DB 반환 순서에 좌우돼 매번 다른 버스부터 채워지는 비결정적 버그였음 — curl 검증 중 발견해 수정)(비어있으면 400) ③ `requireDepot(buses.get(0).getTenant())` ④ `attendanceQueryService.getActiveRosterForTenant(tenantId, serviceDate)` → direction별 `boardingPoint`/`dropoffPoint`로 좌표 조회, null이면 `excluded`에 이름 담고 제외 ⑤ 좌표 있는 학생 0명이면 빈 `AutoAssignResponse(List.of(), excluded)` 즉시 반환(에러 아님) ⑥ `busAssigner.assign(depot, points, busCapacities)`(empty면 400 "전체 정원 N명 초과: 대상 M명") ⑦ 버스별 배정 studentId가 1명 이상이면 `buildPlan(bus, direction, serviceDate, RECOMMENDED, busRoster)` 호출(0명 배정 버스는 계획 생성 생략) → `AutoAssignResponse(plans, excluded)` 반환.
       - `public List<RoutePlanResponse> confirmAutoAssign(AuthUser admin, List<Long> planIds)` 신규: 각 planId를 기존 `findForAdmin(admin, id)`로 로드 → `plan.getStops()`의 각 `studentId`에 대해 `studentRepository.findById(...).ifPresent(s -> s.assignBus(busRepository.getReferenceById(plan.getBusId())))`로 배정 커밋 → 기존 `plan.approve(admin.userId())` → `plan.publish(admin.userId())` 그대로 재사용(상태 가드 자동 적용, 이미 승인/배포된 planId 재전달 시 CONFLICT 409로 자연 방어).
     - `routing/controller/RoutingController.java`: `POST /api/route-plans/auto-assign`·`POST /api/route-plans/auto-assign/confirm`(둘 다 `@PreAuthorize("hasAnyRole('ACADEMY_ADMIN','PLATFORM_ADMIN')")`).
   - **DB 마이그레이션 불필요** — `RoutePlanStatus`(RECOMMENDED/APPROVED/PUBLISHED)·`Student.assignedBus` 모두 기존 컬럼/enum 값 그대로 사용.
   - **F3(기사 알림)와의 관계**: F3가 아직 구현되지 않아 `publish()`는 상태전이만 하고 알림을 쏘지 않는다 — **F4는 F3를 기다릴 필요 없이 그대로 구현 가능**(confirm 시점에 알림이 안 갈 뿐, 배차·배포 자체는 정상 동작). F3가 나중에 `publish()`에 이벤트 발행을 추가하면 F4는 코드 변경 없이 자동으로 알림까지 받게 된다.
   - 기존 수동 배정(`updateAssignment`)·generate/approve/publish는 그대로 공존. ⚠️ §4 문서의 "파이프라인 구현·검증 완료" 문구는 순서최적화(3~5단계)만 가리키던 것으로 정정됨 — 배정(2단계 Sweep)은 이번 신규.
-  - **검증 계획(다음 세션)**: `compileJava`+`test`(신규 `SweepAssignerTest` 포함) 후 curl E2E(한빛학원, tenantId=1, bus 1/2 각 seatCapacity=25) — ① 현재 시드 학생 6명은 두 버스 정원 합(50) 대비 훨씬 적어 정원초과 케이스는 재현 안 됨 → 임시로 좌표 있는 더미 학생을 정원 합계 이상 추가하거나 SQL로 `bus.seat_capacity`를 일시적으로 낮춰 테스트 후 원복 ② `POST /api/route-plans/auto-assign`(tenantId=1, direction=PICKUP) → `plans`가 버스 수 이하로 생성되는지, 좌표 없는 학생이 `excluded`에 뜨는지 확인(이 호출은 `Student.assignedBus`를 아직 안 바꾸므로 F2 검증 중 수동 재배정한 기존 배정을 덮어쓰지 않음) ③ `POST /api/route-plans/auto-assign/confirm`(planIds) → `PUBLISHED` 확인 + DB에서 각 학생 `assigned_bus_id` 갱신 확인 ④ 같은 planId로 confirm 재호출 → 409 CONFLICT 확인 ⑤ 정원초과 케이스 → 400 확인 후 임시 데이터 원복.
+  - **curl E2E 검증(한빛학원, tenantId=1, 2026-07-21):** ① `POST /auto-assign`(PICKUP, bus1/2 정원 25/25) → 학생 6명 전원이 정원 넉넉한 bus1 하나에 배정(RECOMMENDED, `Student.bus_id` 불변) 확인 → `confirm` → 200 + `PUBLISHED` + DB `student.bus_id` 전원 1로 커밋 확인 → 같은 planId 재confirm → 409 CONFLICT(`RoutePlan.approve()` 상태가드 재사용) 확인 ② bus1 정원을 SQL로 3으로 축소 후 재실행 → **bus1(id 순 정렬로 먼저 채워짐)에 방위각순 3명, 나머지 3명은 bus2**로 정확히 분산 확인(정렬 버그 발견·수정 후) ③ bus1·bus2 정원을 2·2(합 4)로 축소 → `POST /auto-assign` → 400 "전체 정원(4명) 초과: 대상 6명" 확인 후 정원 25/25로 원복 ④ `direction=DROPOFF` 호출 → 하차좌표 없는 3명(최지우·정하율·강서준)이 `excludedStudentNames`에 정확히 보고되고 나머지 3명만 계획에 포함되는지 확인. `./gradlew compileJava`+`test` 30/30 통과(신규 `SweepAssignerTest` 4건 포함), 서버 로그에 실제 오류 없음(정원초과 400은 의도된 로그).
 - [ ] **F1 — 버스 단위 실시간 위치(설계 확인 필요)**: 기존 `LocationSource`/`LocationRepository` 포트 재사용. ①`LocationPing`(
   `location/dto/LocationPing.java`)에 `busId` 필드 추가(또는 병렬 타입 `BusLocationPing`) ②기사 앱이 주기 보고할 신규
   `POST /api/locations/bus`(busId+lat+lng) ③`LocationRepository.findLatestByBus(busId)` ④관리자용
