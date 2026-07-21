@@ -1,5 +1,7 @@
 package src.backend.global.error;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -14,6 +16,8 @@ import src.backend.global.response.ApiResponse;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException e) {
@@ -40,8 +44,10 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(ErrorCode.INVALID_INPUT.getStatus()).body(ApiResponse.fail(message));
     }
 
+    /** 클라이언트에겐 상세를 감추되, 서버 로그엔 스택트레이스를 남겨야 원인 추적이 가능하다. */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleUnexpected(Exception e) {
+        log.error("[unexpected] {}", e.getMessage(), e);
         return ResponseEntity.status(ErrorCode.INTERNAL_ERROR.getStatus())
                 .body(ApiResponse.fail(ErrorCode.INTERNAL_ERROR.getMessage()));
     }

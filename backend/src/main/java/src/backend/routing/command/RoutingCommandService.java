@@ -72,7 +72,7 @@ public class RoutingCommandService {
                                  BusAssigner busAssigner,
                                  MapRouteClient mapRouteClient,
                                  ApplicationEventPublisher eventPublisher,
-                                 @Value("${routing.max-waypoints:15}") int maxWaypoints) {
+                                 @Value("${routing.max-waypoints:7}") int maxWaypoints) {
         this.routePlanRepository = routePlanRepository;
         this.busRepository = busRepository;
         this.studentRepository = studentRepository;

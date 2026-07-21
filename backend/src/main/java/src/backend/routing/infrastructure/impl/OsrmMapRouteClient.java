@@ -16,9 +16,10 @@ import src.backend.routing.infrastructure.spec.MapRouteClient;
 import src.backend.routing.infrastructure.spec.RouteResult;
 
 /**
- * OSRM(Open Source Routing Machine) 공개 데모 서버 어댑터 — MVP 기본값, 키 불필요.
- * {@code routing.provider}(기본값 osrm)로 활성화된다. 실제 서버(router.project-osrm.org)에
- * curl 로 실동작을 확인했다(서울 좌표 요청 시 정상 legs/geometry 응답).
+ * OSRM(Open Source Routing Machine) 공개 데모 서버 어댑터 — 키 불필요, {@code routing.provider=osrm}로
+ * 활성화(G6 이후 기본값은 {@link NaverMapRouteClient}로 전환됐고, OSRM은 property 자체가 없을 때의
+ * fallback{@code matchIfMissing = true}으로 남는다). 실제 서버(router.project-osrm.org)에 curl 로
+ * 실동작을 확인했다(서울 좌표 요청 시 정상 legs/geometry 응답).
  */
 @Component
 @ConditionalOnProperty(name = "routing.provider", havingValue = "osrm", matchIfMissing = true)
