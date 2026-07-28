@@ -1,7 +1,8 @@
 # MVP API 명세서
 
-> 새 프론트엔드(다른 프레임워크로 재작성)가 실제로 호출할 **MVP 5개 기능의 API만** 정리한 명세서다. 전체 API는
-> Swagger UI(`http://localhost:8080/swagger-ui/index.html`)의 **"00. MVP 사용 API"** 그룹과 정확히 1:1 대응한다(17개).
+> 새 프론트엔드(Flutter로 재작성)가 실제로 호출할 **MVP 5개 기능의 API만** 정리한 명세서다. 전체 API는
+> Swagger UI(`http://localhost:8080/swagger-ui/index.html`)의 **"00. MVP 사용 API"** 그룹과 정확히 1:1 대응한다(18개
+> — 2026-07-28 `GET /api/buses/me` 추가로 17→18).
 > 회원가입·수동 노선생성(`/generate`)·기록 정정·학생단위 위치조회 등 MVP 화면에서 안 쓰는 API는 여기 없다 —
 > 필요해지면 Swagger UI에서 나머지 카테고리를 그대로 참고하면 된다.
 >
@@ -10,7 +11,7 @@
 ## 목차
 
 1. [공통 규약](#1-공통-규약)
-2. [인증(Auth)](#2-인증auth)
+2. [인증(Auth) · 세션 부트스트랩](#2-인증auth--세션-부트스트랩)
 3. [위치(Location, F1 — 버스 단위)](#3-위치location-f1--버스-단위)
 4. [승하차(RideEvent)](#4-승하차rideevent)
 5. [배차·노선계획(Routing, F4)](#5-배차노선계획routing-f4)
@@ -91,7 +92,13 @@ accessToken이 15분마다 만료되므로, 프론트는 만료 임박(또는 40
 
 ---
 
-## 2. 인증(Auth)
+## 2. 인증(Auth) · 세션 부트스트랩
+
+> 로그인 응답에는 토큰만 들어 있고 **사용자 정보(역할·userId·tenantId)를 주는 `/me` 엔드포인트가 없다.**
+> 클라이언트는 accessToken(JWT) payload를 직접 디코딩해 세션을 구성한다 — 클레임은
+> `sub`(userId) · `email` · `memberships`(`"tenantId:ROLE"` 배열) · `type`(`access`/`refresh`).
+> 플랫폼 관리자는 소속 학원이 없어 `":PLATFORM_ADMIN"`처럼 **tenantId 자리가 빈 문자열**로 온다.
+> 서명 검증은 서버가 매 요청 수행하므로 클라이언트는 화면 분기용으로만 읽으면 된다.
 
 ### 2.1 로그인
 
@@ -142,6 +149,39 @@ accessToken이 15분마다 만료되므로, 프론트는 만료 임박(또는 40
 | 401 | `UNAUTHORIZED` | 유효하지 않은 토큰입니다 | 서명 불일치·만료·형식 오류 |
 | 401 | `UNAUTHORIZED` | refresh 토큰이 아닙니다 | accessToken을 여기 잘못 넣음 |
 | 401 | `UNAUTHORIZED` | 인증이 필요합니다(기본 메시지) | 토큰이 가리키는 유저가 이미 삭제됨 |
+
+### 2.3 내 담당 버스 조회 (기사)
+
+`GET /api/buses/me` — 권한: `DRIVER` *(2026-07-28 신설)*
+
+**기사 앱의 부트스트랩 API다.** 기사용 API는 전부 `busId`를 입력으로 받는데(§3.2, §4.4, §5.6, `/api/drive-sessions/*`)
+기사가 그걸 알아낼 수단이 없어 추가했다. `GET /api/buses`(목록)는 관리자 전용이고 JWT 클레임에도 busId가 없다.
+**로그인 직후 1회 호출해 `busId`를 세션에 캐시**하고 이후 기사 화면 전체에서 재사용한다.
+
+**Request**: 없음(토큰의 userId로 담당 버스를 찾는다)
+
+**Response 200** (`BusResponse`)
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1, "tenantId": 1, "name": "3호차", "plateNumber": "12가3456",
+    "seatCapacity": 25, "assignCapacity": 25, "onboard": 3, "overCapacity": false,
+    "driverId": 3, "driverName": "박기사", "routeId": 1, "routeName": "A노선",
+    "insuranceExpiry": "2027-01-01"
+  },
+  "message": null
+}
+```
+
+**예외**
+
+| HTTP | 코드명 | message | 조건 |
+|---|---|---|---|
+| 403 | `FORBIDDEN` | 접근 권한이 없습니다 | DRIVER 가 아닌 역할이 호출 |
+| 404 | `NOT_FOUND` | 담당 버스가 없습니다 | 그 기사에게 배차된 버스가 없음(아직 관리자가 배차 안 함) |
+
+⚠️ 도메인상 기사 1명 = 버스 1대지만 스키마에 유니크 제약이 없다 — 데이터가 꼬여 2대 이상이면 **id가 가장 작은 1대**를 반환한다(에러 아님).
 
 ---
 

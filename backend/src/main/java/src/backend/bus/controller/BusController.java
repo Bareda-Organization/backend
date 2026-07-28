@@ -2,6 +2,7 @@ package src.backend.bus.controller;
 
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -40,6 +41,17 @@ public class BusController {
     public BusController(BusCommandService busCommandService, BusQueryService busQueryService) {
         this.busCommandService = busCommandService;
         this.busQueryService = busQueryService;
+    }
+
+    /**
+     * 기사 본인의 담당 버스 — 기사 앱이 자기 busId 를 알아내는 진입점.
+     * 이 클래스는 기본이 관리자 전용이라 메서드 레벨 {@code @PreAuthorize} 로 DRIVER 만 열어 덮어쓴다.
+     */
+    @GetMapping("/me")
+    @PreAuthorize("hasRole('DRIVER')")
+    @Operation(tags = {"00. MVP 사용 API", "05. 버스(Bus)"})
+    public ApiResponse<BusResponse> myBus(@AuthenticationPrincipal AuthUser driver) {
+        return ApiResponse.ok(busQueryService.getMyBus(driver));
     }
 
     /** 학원 버스 목록(정원 초과 경고 플래그 포함). */

@@ -36,6 +36,18 @@ public class BusQueryService {
                 .toList();
     }
 
+    /**
+     * 기사 본인의 담당 버스. 기사용 API(노선 조회·위치 보고·승하차)가 전부 busId 를 입력으로 받는데
+     * 기사가 그걸 알아낼 수단이 없어 추가했다 — 기사 앱은 로그인 직후 1회 호출해 busId 를 캐시한다.
+     */
+    @Transactional(readOnly = true)
+    public BusResponse getMyBus(AuthUser driver) {
+        return busRepository.findByDriverIdOrderByIdAsc(driver.userId()).stream()
+                .findFirst()
+                .map(bus -> BusResponse.of(bus, onboardCount(bus.getId())))
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "담당 버스가 없습니다"));
+    }
+
     @Transactional(readOnly = true)
     public BusDetailResponse getBus(AuthUser admin, Long busId) {
         Bus bus = loadAccessibleBus(admin, busId);
