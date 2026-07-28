@@ -97,7 +97,7 @@
 <div class="summary">한 줄 요약: 클라이언트 → Spring Boot API(CQRS) → PostgreSQL/Redis 로 흐르는 요청 흐름에, Kafka 이벤트 버스와 WebSocket(STOMP) 실시간 push를 더한 구조입니다.</div>
 <p>이 문서는 <code class="inl">projectInfo.md</code>의 요구사항(5개 역할, 멀티 테넌시 N:M, Mock→실GPS 추상화, 알림 멱등성, 외부 경로 API)을 <b>실제 코드 기준</b>으로 정리한 것입니다(단일 소스는 <code class="inl">backend/docs/PROJECT_MASTER_PLAN.md</code>·<code class="inl">reference.md</code>). 각 장은 <b>① 한 줄 요약 → ② 그림 → ③ 왜 이렇게 하나 → ④ 코드 예시 → ⑤ 흔한 오해</b> 순으로 구성됩니다.</p>
 <div class="callout tip"><b>비유:</b> 백엔드 서버 구성은 "식당 주방"과 같습니다. 지금 MVP 단계에는 손님을 안내하는 홀 매니저(Nginx)가 아직 없어 손님이 주방(Spring)에 직접 주문합니다. PostgreSQL은 재료가 보관된 <b>창고</b>, Redis는 자주 쓰는 재료를 손 닿는 곳에 둔 <b>조리대 선반</b>(위치 좌표 캐시), <b>Kafka는 조리팀↔알림팀이 서로 쪽지를 주고받는 사내 메신저</b>입니다 — 조리팀(rideevent)이 "승차 완료" 쪽지를 메신저에 올리면, 알림팀(notification)이 그걸 보고 학부모에게 알립니다.</div>
-<div class="callout warn"><b>실제 구성과 다른 점(중요):</b> 이 프로젝트의 <code class="inl">docker-compose.yml</code>에는 <b>Nginx가 없습니다</b> — backend(:8080)·frontend(:3000)·postgres(:5432)·redis(:6379)·kafka(:29092) 포트가 모두 호스트에 직접 열려 있는 <b>로컬 개발용 구성</b>입니다. Nginx/TLS 종료는 §10에서 "운영 전환 시 할 일"로 남겨둡니다.</div>
+<div class="callout warn"><b>실제 구성과 다른 점(중요):</b> 이 프로젝트의 <code class="inl">docker-compose.yml</code>에는 <b>Nginx가 없습니다</b> — backend(:8080)·postgres(:5432)·redis(:6379)·kafka(:29092) 포트가 모두 호스트에 직접 열려 있는 <b>로컬 개발용 구성</b>입니다(frontend(:3000)는 <code class="inl">--profile frontend</code>를 붙일 때만 함께 뜹니다). Nginx/TLS 종료는 §10에서 "운영 전환 시 할 일"로 남겨둡니다.</div>
 
 <h2 class="sec" id="overview">1. 전체 아키텍처</h2>
 <div class="summary">한 줄 요약: 클라이언트 요청은 Spring Boot API(Controller→Command/Query)가 바로 받고, DB 커밋 이후에만 Kafka로 이벤트가 나가 Consumer가 알림·실시간 위치 push를 처리합니다.</div>
@@ -126,7 +126,7 @@
     <text class="ov-mu" x="115" y="242">학원·플랫폼 관리자</text>
     <!-- external routing api -->
     <rect class="ov-box" x="290" y="20" width="230" height="55" rx="10" fill="rgba(248,113,113,0.10)" stroke="#f87171"/>
-    <text class="ov-tt" x="405" y="42">OSRM(기본) / 네이버(옵션)</text>
+    <text class="ov-tt" x="405" y="42">네이버(기본) / OSRM(대체)</text>
     <text class="ov-mu" x="405" y="60">외부 경로 API (routing.provider)</text>
     <!-- spring -->
     <rect class="ov-box" x="290" y="95" width="230" height="170" rx="10" fill="rgba(52,211,153,0.10)" stroke="#34d399"/>
@@ -181,10 +181,10 @@
 <div class="callout warn"><b>흔한 오해:</b> "프론트와 백엔드가 있으니 서버가 둘이면 충분하다"고 생각하기 쉽습니다. 실제로는 <b>DB(PostgreSQL)·캐시(Redis)·이벤트 버스(Kafka)</b>가 각각 독립 컨테이너이며, 지금은 그 앞에 리버스 프록시(Nginx)가 없어 <b>백엔드 포트(8080)가 호스트에 그대로 열려 있는 로컬 개발 구성</b>입니다 — 운영 전환 시 반드시 보강해야 할 지점입니다(§10).</div>
 
 <h2 class="sec" id="servers">2. 서버 구성 — Docker Compose 컨테이너</h2>
-<div class="summary">한 줄 요약: 실제 <code class="inl">docker-compose.yml</code>은 backend·frontend·postgres·redis·kafka 5개 서비스이며, 아직 리버스 프록시 없이 전부 호스트 포트로 직접 열려 있는 로컬 개발 구성입니다.</div>
+<div class="summary">한 줄 요약: 실제 <code class="inl">docker-compose.yml</code>의 기본 실행 대상은 backend·postgres·redis·kafka 4개 서비스(frontend는 <code class="inl">--profile frontend</code> 지정 시에만 추가)이며, 아직 리버스 프록시 없이 전부 호스트 포트로 직접 열려 있는 로컬 개발 구성입니다.</div>
 
 <div class="viz-frame">
-  <div class="viz-title">📊 컨테이너 구성 (실제 docker-compose.yml 5개 서비스)</div>
+  <div class="viz-title">📊 컨테이너 구성 (기본 4개 서비스 + frontend는 profile 분리)</div>
   <svg viewBox="0 0 1120 300" xmlns="http://www.w3.org/2000/svg" width="100%">
     <style>
       .dc-tt { fill: #e2e8f0; font: bold 13.5px sans-serif; text-anchor: middle; }
@@ -193,14 +193,14 @@
     </style>
     <!-- host boundary -->
     <rect x="20" y="20" width="1080" height="240" rx="12" fill="rgba(148,163,184,0.05)" stroke="#334155" stroke-dasharray="6 4"/>
-    <text class="dc-cap" x="36" y="44">Docker Host — 5개 서비스 전부 host 포트에 직접 매핑(⚠ 운영 전 보강 필요, §10)</text>
+    <text class="dc-cap" x="36" y="44">Docker Host — 기본 실행 4개(frontend는 --profile frontend 시에만), 전부 host 포트에 직접 매핑(⚠ 운영 전 보강 필요, §10)</text>
     <!-- containers -->
     <rect x="60" y="70" width="190" height="70" rx="9" fill="rgba(52,211,153,0.12)" stroke="#34d399"/>
     <text class="dc-tt" x="155" y="98">backend</text>
     <text class="dc-mu" x="155" y="118">Spring Boot :8080</text>
-    <rect x="270" y="70" width="170" height="70" rx="9" fill="rgba(34,211,238,0.12)" stroke="#22d3ee"/>
-    <text class="dc-tt" x="355" y="98">frontend</text>
-    <text class="dc-mu" x="355" y="118">Next.js :3000</text>
+    <rect x="270" y="70" width="170" height="70" rx="9" fill="rgba(34,211,238,0.12)" stroke="#22d3ee" stroke-dasharray="5 3"/>
+    <text class="dc-tt" x="355" y="98">frontend (profile)</text>
+    <text class="dc-mu" x="355" y="118">Next.js :3000 — 기본 제외</text>
     <rect x="460" y="70" width="170" height="70" rx="9" fill="rgba(251,191,36,0.12)" stroke="#fbbf24"/>
     <text class="dc-tt" x="545" y="98">postgres:16</text>
     <text class="dc-mu" x="545" y="118">:5432</text>
@@ -210,9 +210,10 @@
     <rect x="820" y="70" width="210" height="70" rx="9" fill="rgba(167,139,250,0.12)" stroke="#a78bfa"/>
     <text class="dc-tt" x="925" y="98">kafka (KRaft)</text>
     <text class="dc-mu" x="925" y="118">:29092(호스트) / :9092(내부)</text>
-    <!-- volumes -->
-    <rect x="460" y="180" width="170" height="50" rx="9" fill="rgba(251,191,36,0.08)" stroke="#fbbf24" stroke-dasharray="4 3"/>
-    <text class="dc-mu" x="545" y="210">📦 pgdata 볼륨(영속)</text>
+    <!-- no persistent volume (intentional) -->
+    <rect x="420" y="180" width="250" height="50" rx="9" fill="rgba(251,191,36,0.08)" stroke="#fbbf24" stroke-dasharray="4 3"/>
+    <text class="dc-mu" x="545" y="202">영속 볼륨 없음(의도적)</text>
+    <text class="dc-mu" x="545" y="220">down→up 시 항상 시드(V1+V2)로 리셋</text>
     <line x1="545" y1="140" x2="545" y2="180" stroke="#fbbf24" stroke-width="1.5"/>
     <text class="dc-cap" x="36" y="270">backend는 depends_on(postgres healthy, redis/kafka started)으로 기동 순서 보장. kafka는 Zookeeper 없이 KRaft 모드로 컨트롤러 역할을 겸임.</text>
   </svg>
@@ -231,7 +232,7 @@
       POSTGRES_USER: schoolbus
       POSTGRES_PASSWORD: schoolbus
     ports: ["5432:5432"]
-    volumes: ["pgdata:/var/lib/postgresql/data"]
+    # 의도적으로 영속 볼륨 없음 — down 후 up 하면 항상 Flyway 시드(V1+V2) 상태로 리셋
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U schoolbus"]
 
@@ -261,15 +262,13 @@
       kafka: { condition: service_started }
 
   frontend:
+    profiles: ["frontend"]   # 기본 `docker compose up`에서는 제외
     build: ./frontend
     ports: ["3000:3000"]
-    depends_on: [backend]
-
-volumes:
-  pgdata:</code></pre>
+    depends_on: [backend]</code></pre>
 </div>
 
-<div class="callout warn"><b>지금 구성과 "이상적인" 구성의 차이:</b> <code class="inl">ports</code>(호스트 공개)와 <code class="inl">expose</code>(내부 네트워크 전용)는 다른 지시어인데, 지금 compose는 <b>5개 서비스 전부 <code class="inl">ports</code></b>를 씁니다 — 로컬에서 <code class="inl">psql</code>·<code class="inl">redis-cli</code>·<code class="inl">kafka-console-consumer</code>로 직접 붙어 디버깅하기 위한 MVP 편의입니다. 운영 전환 시 postgres·redis·kafka는 <code class="inl">expose</code>로 좁히고, 외부 공개는 Nginx(또는 클라우드 로드밸런서) 뒤의 backend/frontend 포트로만 한정해야 합니다.</div>
+<div class="callout warn"><b>지금 구성과 "이상적인" 구성의 차이:</b> <code class="inl">ports</code>(호스트 공개)와 <code class="inl">expose</code>(내부 네트워크 전용)는 다른 지시어인데, 지금 compose는 <b>정의된 5개 서비스 전부 <code class="inl">ports</code></b>를 씁니다(기본 실행은 frontend 제외 4개) — 로컬에서 <code class="inl">psql</code>·<code class="inl">redis-cli</code>·<code class="inl">kafka-console-consumer</code>로 직접 붙어 디버깅하기 위한 MVP 편의입니다. 운영 전환 시 postgres·redis·kafka는 <code class="inl">expose</code>로 좁히고, 외부 공개는 Nginx(또는 클라우드 로드밸런서) 뒤의 backend/frontend 포트로만 한정해야 합니다.</div>
 
 <h2 class="sec" id="layers">3. 계층형 구조 — CQRS + 이벤트 기반 모듈 통신</h2>
 <div class="summary">한 줄 요약: 같은 모듈 안에서는 Controller → Command/Query Service(대부분 인터페이스 없는 구현체) → Repository 로 흐르고, 모듈을 넘어가는 통신은 직접 호출 대신 커밋 후 Kafka 이벤트로 분리합니다.</div>
@@ -501,7 +500,7 @@ create table ride_event (
     tenant_id   bigint not null,
     student_id  bigint not null,
     bus_id      bigint not null,
-    type        varchar(255) not null check (type in ('BOARD','ALIGHT')),
+    type        varchar(255) not null check (type in ('BOARD','ALIGHT','HANDOVER')),  -- HANDOVER는 V3에서 추가
     occurred_at timestamp(6) not null,
     lat float(53), lng float(53),
     stop_id     bigint,
@@ -577,6 +576,7 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.csrf(csrf -&gt; csrf.disable())
+            .cors(Customizer.withDefaults())   // app.cors.allowed-origins 사전 허용 목록(CorsConfigurationSource 빈)
             .sessionManagement(s -&gt; s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -&gt; auth
                 .requestMatchers("/api/auth/**").permitAll()
@@ -738,8 +738,8 @@ public class MockLocationSource implements LocationSource {
     <text class="nv-mu" x="395" y="126">거리=Haversine(외부 호출 0회)</text>
     <rect x="550" y="45" width="230" height="110" rx="10" fill="rgba(251,191,36,0.10)" stroke="#fbbf24"/>
     <text class="nv-tt" x="665" y="72">MapRouteClient (포트)</text>
-    <text class="nv-mu" x="665" y="94">OSRM(기본) @ConditionalOnProperty</text>
-    <text class="nv-mu" x="665" y="110">routing.provider=osrm|naver</text>
+    <text class="nv-mu" x="665" y="94">네이버(기본) @ConditionalOnProperty</text>
+    <text class="nv-mu" x="665" y="110">routing.provider=naver|osrm</text>
     <text class="nv-mu" x="665" y="128">확정 순서로 실도로거리 1회 호출</text>
     <rect x="820" y="55" width="240" height="90" rx="10" fill="rgba(52,211,153,0.10)" stroke="#34d399"/>
     <text class="nv-tt" x="940" y="85">RoutePlan 저장</text>
@@ -797,7 +797,7 @@ public class MockLocationSource implements LocationSource {
     <span class="code-card-dots"><span></span><span></span><span></span></span>
     <span class="code-card-lang">Java · MapRouteClient 포트 + provider 스위치 (실제 코드)</span>
   </div>
-  <pre class="line-numbers"><code class="language-java">// 실도로 경로 조회 포트 — 구현체 교체 가능(OSRM 기본/네이버 유료)
+  <pre class="line-numbers"><code class="language-java">// 실도로 경로 조회 포트 — 구현체 교체 가능(현재 기본 네이버, OSRM은 대체 — matchIfMissing은 "설정 누락 시" OSRM 폴백)
 public interface MapRouteClient {
     RouteResult route(List&lt;LatLng&gt; orderedWaypoints);
 }
@@ -811,7 +811,7 @@ public class OsrmMapRouteClient implements MapRouteClient { /* ... */ }
 public class NaverMapRouteClient implements MapRouteClient { /* ... */ }</code></pre>
 </div>
 
-<div class="callout info"><b>운영 근거:</b> <code class="inl">LocationSource</code>(§6)와 같은 패턴 — 여러 소스를 동시에 굴리는 게 아니라 <b>단일 활성 빈</b>을 골라야 해서 <code class="inl">@ConditionalOnProperty</code>로 선택합니다. MVP는 무료 OSRM(<code class="inl">routing.osrm.base-url</code>)이 기본이고, <code class="inl">routing.provider=naver</code> + <code class="inl">NAVER_DIRECTIONS_KEY_ID</code>/<code class="inl">NAVER_DIRECTIONS_KEY</code> 환경변수만 채우면 정식 전환됩니다 — 호출부(<code class="inl">HeuristicRouteEngine</code>, <code class="inl">RoutingCommandService</code>)는 무엇을 쓰는지 전혀 모릅니다.</div>
+<div class="callout info"><b>운영 근거:</b> <code class="inl">LocationSource</code>(§6)와 같은 패턴 — 여러 소스를 동시에 굴리는 게 아니라 <b>단일 활성 빈</b>을 골라야 해서 <code class="inl">@ConditionalOnProperty</code>로 선택합니다. 현재 기본값은 <b>네이버 Directions</b>(<code class="inl">routing.provider=naver</code>, NCP 실키 E2E 검증 후 전환 완료 — <code class="inl">NAVER_DIRECTIONS_KEY_ID</code>/<code class="inl">NAVER_DIRECTIONS_KEY</code> 환경변수 필요)이고, <code class="inl">routing.provider=osrm</code>으로 바꾸면 무료 OSRM(<code class="inl">routing.osrm.base-url</code>)으로 되돌릴 수 있습니다 — 호출부(<code class="inl">HeuristicRouteEngine</code>, <code class="inl">RoutingCommandService</code>)는 무엇을 쓰는지 전혀 모릅니다.</div>
 
 <h2 class="sec" id="noti">8. 알림 파이프라인 — 멱등성과 오탐 방지</h2>
 <div class="summary">한 줄 요약: 스케줄러가 같은 사건을 반복 확인해도 <code class="inl">dedupKey</code>로 1번만 발송하고, 연결 끊김 같은 순간 오탐은 <b>유예시간(grace period)</b>으로 걸러냅니다(연속 관측 카운트 방식 아님).</div>
@@ -886,12 +886,12 @@ public class NotificationCommandServiceImpl implements NotificationCommandServic
 }</code></pre>
 </div>
 
-<p><b>알림 유형(<code class="inl">notification_log.type</code> CHECK 제약, 실제 8종):</b> <code class="inl">BOARD_DONE</code>·<code class="inl">ALIGHT_DONE</code>(승하차 완료, rideevent 발행)·<code class="inl">SOS</code>(발신+3분 미확인 에스컬레이션, sos 발행)·<code class="inl">SCHEDULE_RESULT</code>(시간변경 승인/반려, schedule 발행)·<code class="inl">CONNECTION_LOST</code>(location 발행)·<code class="inl">ROUTE_RECOMMENDED</code>(결석/시간변경으로 인한 노선 재계산, routing 발행) — 전부 <code class="inl">DomainEventNotificationConsumer</code> 하나가 7개 Kafka 토픽을 <code class="inl">@KafkaListener</code>로 소비합니다. <code class="inl">APPROACH</code>·<code class="inl">NO_SHOW</code>는 타입만 정의돼 있고 아직 발행하는 쪽이 없습니다(ETA·정류장 도착 감지가 필요해 후속 과제로 남음).</p>
+<p><b>알림 유형(<code class="inl">notification_log.type</code> CHECK 제약, 실제 10종):</b> <code class="inl">BOARD_DONE</code>·<code class="inl">ALIGHT_DONE</code>·<code class="inl">HANDOVER_DONE</code>(승차·하차·보호자인계 완료, rideevent 발행)·<code class="inl">APPROACH</code>·<code class="inl">NO_SHOW</code>(도착 5분 전 근접·도착+10분 미승차, drivesession의 <code class="inl">ApproachNoShowScheduler</code> 발행)·<code class="inl">SOS</code>(발신+3분 미확인 에스컬레이션, sos 발행)·<code class="inl">SCHEDULE_RESULT</code>(시간변경 승인/반려, schedule 발행)·<code class="inl">CONNECTION_LOST</code>(location 발행)·<code class="inl">ROUTE_RECOMMENDED</code>(결석/시간변경으로 인한 노선 재계산, routing 발행)·<code class="inl">ROUTE_PUBLISHED</code>(노선 배포, routing 발행) — 전부 <code class="inl">DomainEventNotificationConsumer</code> 하나가 11개 Kafka 토픽을 <code class="inl">@KafkaListener</code>로 소비합니다.</p>
 
 <div class="callout warn"><b>흔한 오해:</b> "여러 번 관측해서 N회 이상이면 알림"이라고 생각하기 쉽지만, 이 프로젝트의 실제 방식은 <b>카운트가 아니라 시간(grace period)</b>입니다 — 최초 끊김 시각을 <code class="inl">LocationSessionRegistry</code>에 <code class="inl">putIfAbsent</code>로 고정해두고, 스케줄러가 그 시각과 지금을 비교해 유예시간이 지났는지만 봅니다. dedupKey가 그 고정된 시각을 포함하므로, 유예시간이 지난 뒤 스케줄러가 몇 번을 더 확인하든 <b>최초 1번만</b> 실제 알림이 나갑니다.</div>
 
 <h2 class="sec" id="data">9. 데이터 모델 → 테이블 개요</h2>
-<div class="summary">한 줄 요약: 실제 <code class="inl">db/migration/V1__init_schema.sql</code>(Flyway 베이스라인) 기준 16개 테이블이며, 테넌트 종속 테이블에는 모두 <code class="inl">tenant_id</code>가 있습니다.</div>
+<div class="summary">한 줄 요약: 실제 <code class="inl">db/migration/V1__init_schema.sql</code>(Flyway 베이스라인, 16개 테이블) + 증분 마이그레이션 V3~V5(HANDOVER·알림 타입 확장) 기준이며, 테넌트 종속 테이블에는 모두 <code class="inl">tenant_id</code>가 있습니다.</div>
 
 <table>
   <thead><tr><th>테이블</th><th>핵심 컬럼</th><th>설계 포인트</th></tr></thead>
@@ -903,26 +903,26 @@ public class NotificationCommandServiceImpl implements NotificationCommandServic
     <tr><td><code>student_guardian</code></td><td>student_id, guardian_id, relation</td><td>unique(student_id, guardian_id) — 형제자매도 각자 연결</td></tr>
     <tr><td><code>bus</code></td><td>tenant_id, driver_id, route_id, seat_capacity, insurance_expiry</td><td>기사·노선은 nullable(미배차 허용)</td></tr>
     <tr><td><code>route</code> / <code>stop</code></td><td>assign_capacity / seq, lat, lng</td><td>배정 정원(assign_capacity) ≠ 좌석 수(seat_capacity)</td></tr>
-    <tr><td><code>ride_event</code></td><td>type(BOARD/ALIGHT), source(QR/NFC/MANUAL/CORRECTION), corrected_by, original_ref</td><td>정정은 덮어쓰지 않고 새 행(원본 보존)</td></tr>
+    <tr><td><code>ride_event</code></td><td>type(BOARD/ALIGHT/HANDOVER), source(QR/NFC/MANUAL/CORRECTION), corrected_by, original_ref</td><td>정정은 덮어쓰지 않고 새 행(원본 보존)</td></tr>
     <tr><td><code>sos_event</code></td><td>status(OPEN→ACKNOWLEDGED→RESOLVED), acknowledged_by, resolved_by</td><td>단방향 상태 전이 · 3분 미확인 에스컬레이션</td></tr>
     <tr><td><code>schedule_change_request</code></td><td>requested_date, requested_time, status(PENDING/APPROVED/REJECTED)</td><td>학부모 신청 → 관리자 승인/반려</td></tr>
     <tr><td><code>attendance_exception</code></td><td>type(ABSENCE/LEAVE), target_date, status</td><td>승인 시 routing 로컬 재계산 트리거</td></tr>
     <tr><td><code>route_plan</code> / <code>route_plan_stop</code></td><td>status(DRAFT/RECOMMENDED/APPROVED/PUBLISHED), version, polyline, eta_seconds</td><td>버스당 최신 계획만(버전 증가), §7</td></tr>
     <tr><td><code>drive_session</code></td><td>bus_id, driver_id, direction, status(IN_PROGRESS/COMPLETED), started_at/ended_at</td><td>기사 운행 시작~종료 로그(법정 기록)</td></tr>
-    <tr><td><code>notification_log</code></td><td>type(8종 CHECK), dedup_key(unique), message</td><td>멱등 발송 기록, 수신자는 저장 안 하고 발송 시점에 <code>PushTargetResolver</code>로 계산</td></tr>
+    <tr><td><code>notification_log</code></td><td>type(10종 CHECK), dedup_key(unique), message</td><td>멱등 발송 기록, 수신자는 저장 안 하고 발송 시점에 <code>PushTargetResolver</code>로 계산</td></tr>
   </tbody>
 </table>
 <p class="lead" style="font-size:14px">※ 위치(location) 좌표는 테이블이 아니라 <b>Redis</b>에 TTL로만 보관합니다(§6) — 이력이 필요 없는 "최신 좌표 1개"라 RDBMS에 넣지 않는 의도적 설계입니다.</p>
 
-<div class="callout tip"><b>마이그레이션 도구(실제 적용 완료, 2026-07-20):</b> 스키마는 <b>Flyway</b>(<code class="inl">spring-boot-starter-flyway</code> + <code class="inl">flyway-database-postgresql</code>)가 관리합니다 — 위 16개 테이블은 <code class="inl">db/migration/V1__init_schema.sql</code> 단일 베이스라인이고, <code class="inl">spring.jpa.hibernate.ddl-auto</code>는 <code class="inl">validate</code>로 낮춰 Hibernate가 스키마를 바꾸지 못하게 막습니다. 새 컬럼/테이블이 필요하면 <code class="inl">V1</code>을 고치는 게 아니라 <code class="inl">V2, V3...</code> 새 마이그레이션 파일을 추가합니다. 로컬 전용 데모 시드(<code class="inl">db/migration-local/V2__seed_data.sql</code>)는 <code class="inl">local</code> 프로파일에서만 스캔 경로에 추가돼 운영 DB엔 절대 들어가지 않습니다.</div>
+<div class="callout tip"><b>마이그레이션 도구(실제 적용 완료, 2026-07-20):</b> 스키마는 <b>Flyway</b>(<code class="inl">spring-boot-starter-flyway</code> + <code class="inl">flyway-database-postgresql</code>)가 관리합니다 — 위 16개 테이블은 <code class="inl">db/migration/V1__init_schema.sql</code> 베이스라인이고, 이후 실제로 <code class="inl">V3</code>(ride_event HANDOVER 타입)·<code class="inl">V4</code>(HANDOVER_DONE 알림)·<code class="inl">V5</code>(ROUTE_PUBLISHED 알림) 증분 마이그레이션이 추가됐습니다. <code class="inl">spring.jpa.hibernate.ddl-auto</code>는 <code class="inl">validate</code>로 낮춰 Hibernate가 스키마를 바꾸지 못하게 막고, 새 컬럼/테이블이 필요하면 기존 파일을 고치는 게 아니라 <code class="inl">V6, V7...</code> 새 마이그레이션 파일을 추가합니다. 로컬 전용 데모 시드(<code class="inl">db/migration-local/V2__seed_data.sql</code>)는 <code class="inl">local</code> 프로파일에서만 스캔 경로에 추가돼 운영 DB엔 절대 들어가지 않습니다.</div>
 
 <h2 class="sec" id="spec">10. 서버 스펙 · 배포 권장</h2>
-<div class="summary">한 줄 요약: 지금은 5개 컨테이너를 단일 호스트에서 <code class="inl">docker compose up --build</code>로 띄우는 MVP 단계이며, 운영 전환 시 리버스 프록시·포트 축소·DB 분리가 필요합니다.</div>
+<div class="summary">한 줄 요약: 지금은 기본 4개 컨테이너(backend·pg·redis·kafka)를 단일 호스트에서 <code class="inl">docker compose up --build</code>로 띄우는 MVP 단계이며, 운영 전환 시 리버스 프록시·포트 축소·DB 분리가 필요합니다.</div>
 
 <table>
   <thead><tr><th>단계</th><th>구성</th><th>권장 스펙(예)</th></tr></thead>
   <tbody>
-    <tr><td>MVP / 데모 (현재)</td><td>단일 VM에 compose 5종(backend+frontend+pg+redis+kafka), 포트 전부 호스트 공개</td><td>2 vCPU / 4GB RAM / 40GB SSD</td></tr>
+    <tr><td>MVP / 데모 (현재)</td><td>단일 VM에 compose 기본 4종(backend+pg+redis+kafka, frontend는 profile 선택), 포트 전부 호스트 공개</td><td>2 vCPU / 4GB RAM / 40GB SSD</td></tr>
     <tr><td>운영 전환 1단계</td><td>Nginx(TLS 종료) 추가 + postgres/redis/kafka 포트를 <code class="inl">expose</code>로 축소</td><td>앱 4 vCPU/8GB</td></tr>
     <tr><td>초기 운영</td><td>앱 VM + <b>관리형 PostgreSQL/Kafka</b> 분리(백업·장애조치 위임)</td><td>DB·브로커 관리형 서비스</td></tr>
     <tr><td>성장기</td><td>LB 뒤에 Spring 다중 인스턴스, Kafka 파티션 확장, DB read replica</td><td>수평 확장</td></tr>
@@ -936,7 +936,7 @@ public class NotificationCommandServiceImpl implements NotificationCommandServic
   <li><b>API 테스트/문서(구현됨):</b> springdoc Swagger UI(<code class="inl">/swagger-ui/index.html</code>) — 로그인 후 accessToken을 Authorize에 넣으면 역할별 보호 API까지 한 화면에서 테스트 가능.</li>
   <li><b>헬스체크:</b> <code class="inl">/actuator/health</code> + postgres <code class="inl">healthcheck</code>(compose <code class="inl">depends_on: condition: service_healthy</code>)로 기동 순서 보장.</li>
   <li><b>로깅·모니터링:</b> 현재는 콘솔 로그(SLF4J)만 — 구조화 로그(JSON)·Prometheus/Grafana는 후속 과제. SOS·연결끊김 같은 안전 이벤트는 Kafka 이벤트 자체가 감사 추적점이 된다.</li>
-  <li><b>백업:</b> PostgreSQL 정기 덤프 + <code class="inl">pgdata</code> 볼륨 스냅샷. 위치는 Redis TTL이라 백업 대상이 아니고, 승하차·SOS 기록은 법적 보관 요건 확인 필요.</li>
+  <li><b>백업:</b> PostgreSQL 정기 덤프(현재 로컬 compose는 의도적으로 영속 볼륨이 없어 백업 개념이 없음 — 운영 전환 시 영속 볼륨 구성 + 스냅샷 필수). 위치는 Redis TTL이라 백업 대상이 아니고, 승하차·SOS 기록은 법적 보관 요건 확인 필요.</li>
 </ol>
 
 <div class="callout warn"><b>법적 선행조건(Phase 8, 현재 보류 확정):</b> 실제 GPS로 전환하기 전에 <b>위치정보사업 신고, 만 14세 미만 법정대리인 동의 수집 UI·스키마</b>가 준비돼야 합니다 — 2026-07-20 사용자 확정으로 <code class="inl">PhoneGpsSource</code> 활성화(Mock→실GPS 전환)는 실기기 연동·법적 요건 충족 시점까지 보류 중입니다(상세: <code class="inl">PROJECT_MASTER_PLAN.md</code> §12.1).</div>

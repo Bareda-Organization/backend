@@ -285,14 +285,14 @@ OR-Tools는 품질↑지만 네이티브 의존성·모델링 비용이 MVP엔 �
 
 ## 5. ⚠ 리스크 / 전제
 
-- **네이버 실키 확보(2026-07-21)** — `NAVER_DIRECTIONS_KEY_ID`/`NAVER_DIRECTIONS_KEY`를 `.env.example`에 입력했으나 **G6(NCP 실키 E2E
-  검증)는 아직 미실행**. `routing.provider`는 여전히 기본값 `osrm`.
+- **네이버 실키 검증 완료(2026-07-21, G6)** — `NAVER_DIRECTIONS_KEY_ID`/`NAVER_DIRECTIONS_KEY`로 NCP Direction 15 실키 E2E 검증을
+  마치고 `routing.provider` 기본값을 `naver`로 전환(§2 G6). OSRM은 `routing.provider=osrm`으로 되돌릴 수 있는 대체 구현으로 유지.
 - **✅ env 키 보안 조치 완료 (2026-07-21)** — 실키가 git-tracked 파일인 `backend/.env.example`에 uncommitted 상태로 노출돼 있던 문제를 커밋 전에 정리:
     1. `backend/.env`(신규, untracked) 생성 — 실제 키 값 이전(공백 제거)
     2. `backend/.env.example`의 `NAVER_DIRECTIONS_KEY_ID`/`NAVER_DIRECTIONS_KEY`를 원래 git 히스토리 상태(빈 값)로 복원
     3. 루트 `.gitignore`의 `# Backend (Gradle / Spring Boot)` 블록에 `backend/.env` 패턴 추가
     4. `frontend/.env.local`의 네이버 지도 키(`NEXT_PUBLIC_NAVER_MAP_ID`)는 이미 git 추적 밖이라 조치 불필요
-- **네이버 Directions 경유지 상한(~15)** → NCP Direction 15는 실제로는 waypoint 총합 5개 제한이 있어(코드 주석) G6 검증 시 청킹 로직 재조정 필요할 수 있음.
+- **네이버 Directions 경유지 상한** → G6 실측으로 확정: 경유지 5개 + start/goal 포함 **총 7개**가 API 1회 호출당 한도. `routing.max-waypoints`를 15→7로 수정 완료(초과 시 앱 레벨 청킹으로 분할 후 병합 — G6에서 10 waypoint 청킹도 검증).
 - **프론트(Next.js)는 백엔드 범위 밖** — 백엔드는 역할별 API 계약만 제공. 실연동은 §3 업그레이드 로드맵 항목.
 - **DB 스키마** — Flyway로 전환 완료(2026-07-20). 신규 컬럼/제약 변경은 `db/migration/V{n}__설명.sql`로 추가.
 

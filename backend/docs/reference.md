@@ -33,7 +33,7 @@
 location/
 ├── command/
 ├── query/
-├── domain/
+├── entity/
 ├── event/
 ├── projection/
 ├── repository/
@@ -42,17 +42,17 @@ location/
 └── infrastructure/
 ```
 
-외부 연동은 `infrastructure` 아래에 둔다.
+외부 연동은 `infrastructure` 아래에 둔다. 엔티티 패키지 이름은 `entity/`가 표준이다(현재 코드 기준 — notification·routing 두 모듈만 역사적 이유로 `domain/`을 쓰고 있으며, 일괄 rename은 범위 밖으로 확정됨. `PROJECT_MASTER_PLAN.md` §12.3 참조).
 
 ## 4. spec / impl 구조
 
 ```
-notification/service/
+notification/infrastructure/
 ├── spec/
 │   └── NotificationSender
 └── impl/
-    ├── FcmNotificationSender
-    └── LogNotificationSender
+    ├── LogNotificationSender
+    └── WebSocketNotificationSender
 ```
 
 Controller는 spec만 의존한다.
@@ -127,10 +127,13 @@ Command·Query를 Event 이름에 사용하지 않는다.
 | Port | 구현 후보 |
 | --- | --- |
 | `LocationSource` | Mock, Phone, Bus, Beacon |
-| `NotificationSender` | FCM, SMS, Kakao, Email |
-| `RouteEngine` | OSRM, Naver, Google |
+| `NotificationSender` | Log, WebSocket (후보: FCM, SMS, Kakao, Email) |
+| `MapRouteClient` | OSRM, Naver (후보: Google) — 실도로 경로/거리 조회 |
+| `RouteEngine` | Heuristic(sweep+NN+2-opt) (후보: 외부 최적화 엔진) — 방문 순서 결정 |
 | `EtaService` | Internal, gRPC, AI ETA |
 | `StorageService` | Local, S3, MinIO |
+
+주의: `MapRouteClient`(외부 지도 API로 실도로 경로를 얻는 포트)와 `RouteEngine`(정차 순서를 계산하는 알고리즘 포트)은 서로 다른 포트다 — OSRM/네이버 스위치는 `MapRouteClient` 쪽이다.
 
 ## 16. 새로운 기능 추가 원칙
 

@@ -88,12 +88,12 @@
   <h1>School-Bus 코드 컨벤션</h1>
   <div class="sub">이 문서는 백엔드(Spring Boot 4 · Java 25)와 프론트(Next.js App Router)가 따르는 규칙을 명문화한 캐논(canon) 문서입니다.</div>
 
-  <div class="callout info"><b>2026-07-18 갱신:</b> <code class="inl">reference.md</code>(Backend Architecture &amp; Development Convention v1.0)의 원칙(SOLID·DIP·CQRS·Event Driven·MSA 대비)을 이 문서에 흡수했습니다. <code class="inl">reference.md</code>는 삭제되지 않았습니다 — Claude가 매 세션 재참조하는 원본(Markdown, 토큰 효율)으로 유지되며, 이 문서는 같은 원칙을 사람이 브라우저로 보기 좋게 시각화한 렌더링 버전입니다. <b>기존 12개 모듈은 아직 예전 방식(서비스 전부 spec/impl 분리, 직접 호출)이며, Phase 2 모듈별 재편으로 이 문서의 규칙에 순차 전환됩니다</b> — 전환 현황은 <code class="inl">PROJECT_MASTER_PLAN.md</code> 12장.</div>
+  <div class="callout info"><b>2026-07-18 갱신:</b> <code class="inl">reference.md</code>(Backend Architecture &amp; Development Convention v1.0)의 원칙(SOLID·DIP·CQRS·Event Driven·MSA 대비)을 이 문서에 흡수했습니다. <code class="inl">reference.md</code>는 삭제되지 않았습니다 — Claude가 매 세션 재참조하는 원본(Markdown, 토큰 효율)으로 유지되며, 이 문서는 같은 원칙을 사람이 브라우저로 보기 좋게 시각화한 렌더링 버전입니다. <b>Phase 2 모듈별 재편은 완료됐습니다 — 현재 15개 모듈 전체가 이 문서의 규칙(선별적 spec/impl 분리, 이벤트 기반 통신)을 따릅니다</b> — 이력·상세는 <code class="inl">PROJECT_MASTER_PLAN.md</code> 12장.</div>
 
   <h2 class="sec" id="intro">0. 핵심 원칙 한 줄 요약</h2>
   <p><b>"패키지는 기능 단위로 나누고, 쓰기(Command)와 읽기(Query)를 분리하며, 모듈 간 통신은 이벤트(Kafka)로, 갈아끼울 지점만 포트/어댑터로 뽑는다."</b></p>
   <ul>
-    <li><b>패키지 = 기능(도메인) 단위</b>: <code class="inl">src.backend.&lt;domain&gt;.{controller,command,query,domain,event,projection,repository,dto,infrastructure}</code></li>
+    <li><b>패키지 = 기능(도메인) 단위</b>: <code class="inl">src.backend.&lt;domain&gt;.{controller,command,query,entity,event,projection,repository,dto,infrastructure}</code> — 엔티티 패키지는 <code class="inl">entity/</code>가 표준(notification·routing 두 모듈만 역사적 이유로 <code class="inl">domain/</code> 사용, 일괄 rename은 범위 밖 확정)</li>
     <li><b>계층 흐름 단방향</b>: Controller → Command/Query → Domain/Repository (역방향 의존 금지)</li>
     <li><b>spec/impl 은 "바뀔 가능성이 있는 것"에만</b>: 단순 CRUD 는 concrete 클래스 하나로 충분</li>
     <li><b>CQRS</b>: Command(쓰기)와 Query(읽기)를 분리하고, Command 는 Query 를 호출하지 않는다</li>
@@ -221,7 +221,7 @@ public class LocationController {
       <text class="pk-mu" x="905" y="108">command 호출 금지</text>
 
       <rect class="pk-c4" x="30" y="145" width="330" height="70" rx="8"/>
-      <text class="pk-tt" x="195" y="171">domain</text>
+      <text class="pk-tt" x="195" y="171">entity</text>
       <text class="pk-mu" x="195" y="189">@Entity · enum</text>
       <text class="pk-mu" x="195" y="203">상태전이 메서드</text>
 
@@ -533,7 +533,7 @@ public class DomainEventRelay {
       <span class="code-card-lang">Java · global/infrastructure/KafkaEventPublisher</span>
     </div>
     <pre class="line-numbers"><code class="language-java">public interface DomainEventPublisher {           // global/event/ — port
-    void publish(Object event);
+    void publish(DomainEvent event);
 }
 
 @Component                                          // global/infrastructure/ — impl
@@ -541,8 +541,10 @@ public class KafkaEventPublisher implements DomainEventPublisher {
     private final KafkaTemplate&lt;String, Object&gt; kafkaTemplate;
 
     @Override
-    public void publish(Object event) {
-        kafkaTemplate.send(event.getClass().getSimpleName(), event);
+    public void publish(DomainEvent event) {
+        // 토픽 = 클래스명에서 Event 접미사 제거 후 케밥 케이스 (RideCompletedEvent → ride-completed)
+        // 파티션 키 = tenantId — 같은 학원 이벤트는 같은 파티션에 쌓여 발생 순서 보장
+        kafkaTemplate.send(toTopic(event.getClass()), String.valueOf(event.tenantId()), event);
     }
 }</code></pre>
   </div>
@@ -677,7 +679,7 @@ throw new BusinessException(ErrorCode.FORBIDDEN, "담당 기사만 처리할 수
     <li><b>Pass 1(정확성)</b>: 본문 규칙이 실제 코드와 일치 · 다이어그램 박스/화살표가 본문 단계와 1:1</li>
     <li><b>Pass 2(구조)</b>: <code class="inl">&lt;svg&gt;</code> 짝 일치 · <code class="inl">marker id</code> 중복 0 · viz-frame 내 <code class="inl">&lt;pre&gt;</code> 0 · code-card 수 = <code class="inl">language-*</code> 수 · Prism 3종 로드</li>
   </ul>
-  <div class="callout warn"><b>주의:</b> 이 문서는 <b>목표(canon) 컨벤션</b>입니다. 코드와 문서가 어긋나면 코드의 실제 동작을 사실로 보고 문서(또는 코드)를 맞추는 것이 원칙이지만, <b>4장(CQRS·이벤트·Infrastructure)만은 예외</b>입니다 — 기존 12개 모듈은 아직 이 규칙 이전 방식(spec/impl 전면 분리, 직접 호출)이며 Phase 2 리팩터로 순차 전환됩니다. 전환 전까지는 <code class="inl">PROJECT_MASTER_PLAN.md</code> 12장의 진행 상태를 함께 확인하세요.</div>
+  <div class="callout warn"><b>주의:</b> 이 문서는 <b>목표(canon) 컨벤션</b>입니다. 코드와 문서가 어긋나면 코드의 실제 동작을 사실로 보고 문서(또는 코드)를 맞추는 것이 원칙입니다. Phase 2 모듈 재편은 완료돼 현재 15개 모듈이 4장(CQRS·이벤트·Infrastructure) 규칙을 따르며, 남은 알려진 편차는 엔티티 패키지 이름(2장 — notification·routing만 <code class="inl">domain/</code>) 하나입니다. 이력은 <code class="inl">PROJECT_MASTER_PLAN.md</code> 12장 참조.</div>
 </main>
 </div>
 

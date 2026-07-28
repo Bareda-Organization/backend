@@ -38,7 +38,7 @@ spring:
       properties:
         spring.json.trusted.packages: "src.backend.*"
 
-# 외부 경로 API (MVP: OSRM, 정식 전환 시 네이버 Directions 로 교체)
+# 외부 경로 API (기본: 네이버 Directions — G6 실키 검증 후 전환. osrm 으로 바꾸면 무료 OSRM 대체)
 routing:
   provider: naver
   osrm:
