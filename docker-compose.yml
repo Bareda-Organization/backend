@@ -57,6 +57,13 @@ services:
 
   backend:
     build: ./backend
+    # 외부 API 키(NCP 네이버 Directions 등). git 에 없는 파일이라 required:false 로 둔다 —
+    # 키 없이도 기동은 되고, 배차(auto-assign)만 401 로 실패한다.
+    # ⚠️ 이게 없으면 routing.provider=naver 인 배차 API 가 "서버 오류"로만 보인다.
+    #    키가 없는 환경에서는 ROUTING_PROVIDER=osrm 로 우회할 수 있다.
+    env_file:
+      - path: ./backend/.env
+        required: false
     environment:
       # 컨테이너 내부에서는 서비스 이름(postgres/redis/kafka)으로 접속 (localhost 아님)
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/schoolbus
