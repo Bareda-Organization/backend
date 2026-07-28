@@ -2,6 +2,8 @@
 
 전역 에이전트 7개(`convention-auditor` · `debugger` · `diff-reviewer` · `docs-drift-auditor` · `security-reviewer` · `test-runner` · `test-writer`)가 이 저장소에서 동작할 때 참조하는 **사실 노트**다. 절차·판단기준은 전역 에이전트 정의(`~/.claude/agents/*.md`)에 있고, 여기에는 **이 프로젝트에서만 참인 값**만 적는다. 에이전트를 프로젝트에 복제하지 않는다.
 
+**프로젝트 전용 에이전트 2개**가 `.claude/agents/` 에 따로 있다 — `ui-implementer` · `design-system-auditor`(2026-07-29 신설). 전역 7개에 **없는 역할**이라 복제가 아니다. 전역 에이전트로 대체되면 삭제한다.
+
 작성일 2026-07-28 / 검증 방식: 소스 직접 확인(앱 미기동)
 
 ---
@@ -168,6 +170,35 @@ cd backend
 - **`projectInfo.md`·`학원 통학버스 통합관리 시스템.docx`는 기획 원본(불변)** 이라 코드와 어긋나는 게 정상이다. 대조 대상이 아니다.
 - 주기·기본값은 `backend/src/main/resources/application.yml`을 **직접 읽어** 대조한다(미커밋 수정분이 자주 있다).
 - 결과는 `backend/report/YYYY-MM-DD-주제.md`로 남긴다. **문서와 코드 어느 쪽도 고치지 않는다.**
+
+---
+
+## ui-implementer / design-system-auditor *(프론트엔드 전용, 2026-07-29 신설)*
+
+> 이 둘만 **`backend/` 가 아니라 `frontend/` 에서** 동작한다. 위의 Gradle·Spring 사실은 해당 없다.
+
+| 항목 | 값 |
+|---|---|
+| 작업 디렉터리 | **`frontend/`** |
+| SDK | Flutter **3.44.8** / Dart **3.12.2** — `/opt/homebrew/bin/flutter` (PATH 에 있다) |
+| 상태관리 | `flutter_riverpod` **only**. `riverpod_annotation`/`generator` 는 analyzer 충돌로 **의도적 제외** — provider 는 손으로 선언한다 |
+| 검사 명령 | `flutter analyze`(무경고) · `dart format --set-exit-if-changed lib/` · `flutter test` |
+| 테스트 기준선 | **203건 전건 통과**(단위 194 + 위젯 9). 이 수가 줄면 회귀다 |
+
+**규칙 문서 3종** — 지정 없이 "컨벤션대로"라고만 하면 이 셋을 뜻한다:
+
+| 문서 | 무엇 |
+|---|---|
+| `frontend/docs/DESIGN_SYSTEM.md` | 화면이 어떻게 보여야 하는가 (토큰·상태 계약·컴포넌트) |
+| `frontend/docs/FLUTTER_CODE_CONVENTIONS.md` | 코드를 어떻게 쓰는가 + §9 검사 체크리스트 |
+| `frontend/docs/DESIGN_BRIEF_DRIVER_MOBILE.md` | **요구 근거**. 시안과 어긋나면 이쪽이 이긴다 |
+
+- **체크리스트 분담**: C-1~C-7 = `convention-auditor` / **C-8 = `design-system-auditor`**. 중복 지적하지 않는다
+- `ui-implementer` 는 **git 명령을 쓰지 않는다.** 커밋은 메인이 한다 — 에이전트가 보고 단계에서 죽어도 편집분이 디스크에 남게 하려는 것이다(2026-07-28 에 에이전트 4개 중 3개가 토큰 한도로 사망한 이력이 있다)
+- `ui-implementer` 를 병렬로 띄울 땐 **파일 집합이 겹치지 않게** 나눈다. 담당 표는 `frontend/docs/DESIGN_MIGRATION_PLAN.md` §화면 ↔ 파일 대응표
+- 워크트리 격리(`isolation: "worktree"`)를 **쓰지 않는다** — 격리 워크트리에서 죽으면 임시 디렉터리째 유실된다
+- 감사 보고서는 `frontend/report/YYYY-MM-DD-주제.md` (백엔드는 `backend/report/`)
+- 브라우저 확인은 `http://localhost/` (nginx :80 단일 진입점). Docker 기동은 **사용자에게 요청**하고, 옛 화면이 보이면 service worker 캐시를 의심한다(`FLUTTER_FRONTEND_PLAN.md` §9)
 
 ---
 
