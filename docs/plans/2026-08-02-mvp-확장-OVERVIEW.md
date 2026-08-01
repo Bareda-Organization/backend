@@ -308,7 +308,7 @@ public final class LocationChangeThresholds {
 
 | 단계 | 태스크 | 선행 | 병렬 가능 | 상태 |
 |---|---|---|---|---|
-| P0 | `FE-0` 미커밋 1,732줄 정리·커밋 | — | ✅ BE와 무관 | ⬜ |
+| P0 | `FE-0` 미커밋 1,732줄 정리·커밋 | — | ✅ BE와 무관 | ✅ **완료 2026-08-02** (커밋 10건, `flutter analyze`·`test 293개` 통과) |
 | P0 | `BE-11` 회원가입 권한 상승 차단 | — | ✅ | ⬜ |
 | P1 | `BE-1` 스키마·시드 확장 | — | ❌ 단독 | ⬜ |
 | P1 | `BE-2` `Role.ATTENDANT` + 엔티티 필드 | `BE-1` | ❌ 단독 | ⬜ |
@@ -330,7 +330,7 @@ public final class LocationChangeThresholds {
 | P5 | `FE-5` 관리자 버스 상세 확장 | `FE-1` `BE-6` | ✅ | ⬜ |
 | P5 | `FE-6` 관리자 배차 편집·비교 | **`FE-5`** `BE-5` | ⚠️ `FE-5` 다음에 순차 | ⬜ |
 | P5 | `FE-7`~`FE-10` 학부모 앱 | `FE-1` `BE-9` `BE-10` | ✅ | ⬜ |
-| P6 | `DOC-1`~`DOC-5` 문서 갱신 | 전부 | ❌ 순차(같은 파일군을 만진다) | ⬜ |
+| P6 | `DOC-1`~`DOC-5` SoT 문서 갱신 → [**전용 계획서**](./2026-08-02-mvp-확장-DOC-문서갱신.md) | 전부 | ❌ 순차(같은 파일군을 만진다) | ⬜ |
 
 ### 에이전트 배치
 
@@ -349,12 +349,18 @@ public final class LocationChangeThresholds {
 > **공유**하므로 한 에이전트가 순차로 처리한다.
 > `FE-1`·`FE-2` 산출물(`AppRoutes`·`Role`·`RoleRedirect`·인물 카드 위젯)은 **모든 묶음이 읽기만** 하고 수정하지 않는다.
 
-### P6 문서 갱신 범위 (`DOC-*`)
+### P6 문서 갱신 (`DOC-1`~`DOC-5`)
 
-| ID | 파일 | 고칠 곳 |
-|---|---|---|
-| `DOC-1` | `docs/PRODUCT_SPEC.md` | §2 6계층 표 · §3.1 엔티티 17개 · §3.3 enum 3종 추가 · **§4.1 승인 정책 개정** · §5 판정 주체 · §11 매트릭스 전면 · §12 갭 재계산 |
-| `DOC-2` | `docs/USER_FLOWS.md` | 선탑자 플로우 신규 · 학부모 플로우 신규 · 기사 플로우 수정(승하차 제거) |
-| `DOC-3` | `docs/API_SPEC.md` | 신규 6 + 권한변경 6 + 확장 2 + STOMP 2 · enum 사전 |
-| `DOC-4` | `docs/ARCHITECTURE.md` | 시뮬레이션 엔진 · 버스 위치 실시간 파이프라인 · 역할 6개 |
-| `DOC-5` | `CLAUDE.md` · `docs/README.md` | V1 수정 허용 규칙(D-D) · 현황 요약 갱신 |
+**단계별 지시는 [`2026-08-02-mvp-확장-DOC-문서갱신.md`](./2026-08-02-mvp-확장-DOC-문서갱신.md) 에 있다.** 여기 중복하지 않는다.
+
+| ID | 대상 |
+|---|---|
+| `DOC-1` | `docs/PRODUCT_SPEC.md` — 가장 무겁다(§2·§3·§4.1·§5·§7·§11·§12) |
+| `DOC-2` | `docs/USER_FLOWS.md` |
+| `DOC-3` | `docs/API_SPEC.md` |
+| `DOC-4` | `docs/ARCHITECTURE.md` |
+| `DOC-5` | `CLAUDE.md` · `docs/README.md` |
+
+⚠️ **구현이 끝나기 전에는 손대지 않는다.** `docs/` 4종은 기획서가 아니라 **실측 기록**이고,
+`PRODUCT_SPEC.md` §11 은 스스로를 *"지금 실제로 되는 것의 유일한 근거"* 로 규정한다 —
+구현 전에 ✅ 를 적으면 그 자체가 허위가 된다.
