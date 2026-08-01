@@ -1,0 +1,1837 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>학원 통학버스 통합관리 — 아키텍처</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Nanum+Pen+Script&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css" />
+<link rel="stylesheet" href="assets/sketch.css" />
+</head>
+<body>
+<div class="layout">
+
+<nav class="toc">
+  <h2>목차</h2>
+  <ol>
+    <li><a href="#c1">1. 전체 구성</a></li>
+    <li><a href="#c2">2. 기술 스택</a></li>
+    <li><a href="#c3">3. 백엔드 모듈 구조</a></li>
+    <li class="lv2"><a href="#c3-1">3.1 도메인 모듈 14개</a></li>
+    <li class="lv2"><a href="#c3-2">3.2 계층 규칙</a></li>
+    <li class="lv2"><a href="#c3-3">3.3 CQRS 분리 실태</a></li>
+    <li class="lv2"><a href="#c3-4">3.4 의존 방향 · 순환</a></li>
+    <li><a href="#c4">4. 프론트엔드 구조</a></li>
+    <li><a href="#c5">5. 인증 · 인가</a></li>
+    <li><a href="#c6">6. 멀티테넌시</a></li>
+    <li class="lv2"><a href="#c6-1">6.1 UserTenantRole</a></li>
+    <li class="lv2"><a href="#c6-2">6.2 tenant_id 보유 현황</a></li>
+    <li class="lv2"><a href="#c6-3">6.3 격리 강제 지점</a></li>
+    <li class="lv2"><a href="#c6-4">6.4 리스크</a></li>
+    <li><a href="#c7">7. 데이터 모델</a></li>
+    <li><a href="#c8">8. 실시간 위치 파이프라인</a></li>
+    <li><a href="#c9">9. 비동기 · 이벤트</a></li>
+    <li class="lv2"><a href="#c9-1">9.1 도메인 이벤트 2단 릴레이</a></li>
+    <li class="lv2"><a href="#c9-2">9.2 Kafka</a></li>
+    <li class="lv2"><a href="#c9-3">9.3 Redis 용도</a></li>
+    <li class="lv2"><a href="#c9-4">9.4 WebSocket(STOMP)</a></li>
+    <li class="lv2"><a href="#c9-5">9.5 스케줄러 4개</a></li>
+    <li><a href="#c10">10. 스키마 관리 — Flyway</a></li>
+    <li><a href="#c11">11. 인프라 — Docker Compose</a></li>
+    <li><a href="#c12">12. 아키텍처 리스크</a></li>
+    <li><a href="#apx">부록 — 요약 통계</a></li>
+  </ol>
+</nav>
+
+<main class="content">
+
+<h1>학원 통학버스 통합관리 — 아키텍처</h1>
+<p class="subtitle">Flutter 앱 하나(기사·관리자 겸용)가 nginx를 거쳐 Spring Boot 단일 서버에 붙고, 서버는 PostgreSQL(영속) · Redis(최신 좌표) · Kafka(도메인 이벤트) 세 인프라를 나눠 쓰며, 실시간 전달은 STOMP WebSocket과 REST 폴링이 혼재한다.</p>
+
+<p>이 문서는 <strong>시스템 전체가 어떻게 맞물리는지</strong>를 다룬다. 백엔드 한 모듈의 내부 구현·클래스 단위 상세는 다루지 않는다.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>문서</th><th>범위</th><th>관계</th></tr></thead>
+  <tbody>
+    <tr><td><strong>ARCHITECTURE.md</strong> (이 문서)</td><td>백엔드 + 프론트엔드 + 인프라를 아우르는 상위 뷰. 경계·데이터 흐름·설계 제약</td><td>—</td></tr>
+    <tr><td><code>backend/docs/BACKEND_ARCHITECTURE.html</code></td><td><strong>백엔드 한정 심화판</strong>. 모듈 내부 구조·클래스 다이어그램</td><td>존치. 이 문서와 중복 서술하지 않는다</td></tr>
+    <tr><td><code>backend/docs/reference.md</code></td><td>백엔드 코드 컨벤션 원칙(spec/impl 판단기준·CQRS·Event 규칙)</td><td>3장이 이 원칙의 <strong>실제 준수 현황</strong>을 기록한다</td></tr>
+    <tr><td><code>frontend/docs/FLUTTER_CODE_CONVENTIONS.md</code></td><td>프론트 코드 컨벤션</td><td>4장이 이 원칙의 실제 준수 현황을 기록한다</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>자매 문서: <a href="index.html">문서 지도</a> · <a href="product-spec.html">제품 사양서</a> · <a href="user-flows.html">유저플로우</a> · <a href="api-spec.html">API 명세서</a></p>
+
+<div class="callout note">
+  <span class="ct">서술 규칙</span>
+  <p>이 문서의 모든 수치·구조는 코드 실측값이며 출처 파일을 괄호로 병기했다. 근거를 찾지 못한 항목은 <code>※ 미확인:</code> 으로 표시했다.
+  <strong>“설정은 있으나 실제로는 쓰이지 않는” 항목은 그렇게 명시</strong>했다 — 있는 것처럼 읽히면 안 되기 때문이다.</p>
+</div>
+
+<h2 class="sec" id="c1">1. 전체 구성 — 앱(Flutter) · API(Spring) · 인프라</h2>
+
+<h3>1.1 런타임 구성 요소</h3>
+
+<p>브라우저·앱이 닿는 입구는 <strong>nginx 하나뿐</strong>이다. 백엔드·프론트엔드 컨테이너는 호스트에 포트를 열지 않는다(<code>docker-compose.yml:74-77</code>, <code>:100-101</code>).</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>계층</th><th>구성 요소</th><th>역할</th><th>호스트 노출</th></tr></thead>
+  <tbody>
+    <tr><td>클라이언트</td><td>Flutter 앱 (Web 빌드가 컨테이너에 탑재)</td><td>기사 2화면 + 관리자 4화면</td><td>—</td></tr>
+    <tr><td>엣지</td><td>nginx <code>proxy</code></td><td><code>/</code> → 프론트, <code>/api</code>·<code>/ws</code>·<code>/swagger-ui</code> → 백엔드</td><td><strong><code>80:80</code></strong> (유일한 입구)</td></tr>
+    <tr><td>애플리케이션</td><td>Spring Boot <code>backend</code></td><td>REST 64여 개 · STOMP · 스케줄러 4개 · Kafka 프로듀서/컨슈머</td><td><code>expose: 8080</code>만</td></tr>
+    <tr><td>영속</td><td>PostgreSQL 16</td><td>테이블 16개. 스키마는 Flyway 관리</td><td><code>5432:5432</code> (DB 툴용)</td></tr>
+    <tr><td>캐시</td><td>Redis 7</td><td><strong>학생 최신 좌표 1건</strong>(TTL 9초) 전용</td><td><code>6379:6379</code></td></tr>
+    <tr><td>메시징</td><td>Kafka 3.9 (KRaft)</td><td>도메인 이벤트 15종 릴레이</td><td><code>29092:29092</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>인프라 포트를 호스트에 남긴 이유는 “인프라만 컨테이너로 띄우고 백엔드는 IDE에서 <code>./gradlew bootRun</code>으로 돌리는 개발 방식”을 위해서다(<code>docker-compose.yml:11-12</code>).</p>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 전체 구성 — nginx 단일 입구와 Docker Compose 경계</div>
+  <svg viewBox="0 0 1100 490" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .ar1-cli   { fill:rgba(124,58,237,0.10); stroke:#7c3aed; stroke-width:2; }
+      .ar1-edge  { fill:rgba(219,39,119,0.10); stroke:#db2777; stroke-width:2; }
+      .ar1-app   { fill:rgba(14,116,144,0.10); stroke:#0e7490; stroke-width:2; }
+      .ar1-infra { fill:rgba(4,120,87,0.10);  stroke:#047857; stroke-width:2; }
+      .ar1-zone  { fill:rgba(58,53,49,0.03);  stroke:#c0b6a8; stroke-width:2; stroke-dasharray:7 5; }
+      .ar1-tt    { fill:#3a3531; font:bold 14px sans-serif; text-anchor:middle; }
+      .ar1-st    { fill:#6b6359; font:11.5px sans-serif; text-anchor:middle; }
+      .ar1-lb    { fill:#6b6359; font:11.5px sans-serif; }
+      .ar1-hd    { fill:#0e7490; font:bold 13px sans-serif; }
+      .ar1-port  { fill:#db2777; font:bold 11.5px sans-serif; text-anchor:middle; }
+      .ar1-line  { stroke:#c0b6a8; stroke-width:2; fill:none; }
+    </style>
+    <defs>
+      <marker id="ar1-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#c0b6a8"/>
+      </marker>
+    </defs>
+
+    <rect class="ar1-zone" x="205" y="52" width="865" height="404" rx="14"/>
+    <text class="ar1-hd" x="222" y="76" style="text-anchor:start">Docker Compose — 서비스 6개 · 영속 볼륨 0개</text>
+
+    <rect class="ar1-cli" x="30" y="196" width="160" height="104" rx="10"/>
+    <text class="ar1-tt" x="110" y="228">Flutter 앱</text>
+    <text class="ar1-st" x="110" y="250">기사 2화면</text>
+    <text class="ar1-st" x="110" y="270">관리자 4화면</text>
+    <text class="ar1-st" x="110" y="290">Web · 모바일</text>
+
+    <rect class="ar1-edge" x="232" y="196" width="150" height="104" rx="10"/>
+    <text class="ar1-tt" x="307" y="234">nginx proxy</text>
+    <text class="ar1-st" x="307" y="256">유일한 입구</text>
+    <text class="ar1-port" x="307" y="282">80:80</text>
+
+    <rect class="ar1-app" x="432" y="112" width="180" height="82" rx="10"/>
+    <text class="ar1-tt" x="522" y="144">frontend 컨테이너</text>
+    <text class="ar1-st" x="522" y="166">Flutter Web 정적 빌드</text>
+    <text class="ar1-st" x="522" y="184">expose 80 · 호스트 노출 없음</text>
+
+    <rect class="ar1-app" x="432" y="248" width="180" height="130" rx="10"/>
+    <text class="ar1-tt" x="522" y="278">Spring Boot backend</text>
+    <text class="ar1-st" x="522" y="300">REST 68 + STOMP 1</text>
+    <text class="ar1-st" x="522" y="320">스케줄러 4 · 컨슈머 3</text>
+    <text class="ar1-st" x="522" y="340">Kafka 프로듀서 1</text>
+    <text class="ar1-st" x="522" y="362">expose 8080만</text>
+
+    <rect class="ar1-infra" x="700" y="98" width="230" height="80" rx="10"/>
+    <text class="ar1-tt" x="815" y="128">PostgreSQL 16</text>
+    <text class="ar1-st" x="815" y="150">테이블 16 · Flyway 관리</text>
+    <text class="ar1-port" x="815" y="169">5432:5432</text>
+
+    <rect class="ar1-infra" x="700" y="208" width="230" height="80" rx="10"/>
+    <text class="ar1-tt" x="815" y="238">Redis 7</text>
+    <text class="ar1-st" x="815" y="260">학생 최신 좌표 1건 · TTL 9초</text>
+    <text class="ar1-port" x="815" y="279">6379:6379</text>
+
+    <rect class="ar1-infra" x="700" y="318" width="230" height="80" rx="10"/>
+    <text class="ar1-tt" x="815" y="348">Kafka 3.9 (KRaft)</text>
+    <text class="ar1-st" x="815" y="370">도메인 이벤트 15종 릴레이</text>
+    <text class="ar1-port" x="815" y="389">29092:29092</text>
+
+    <path class="ar1-line" d="M190,248 L228,248" marker-end="url(#ar1-arr)"/>
+    <path class="ar1-line" d="M382,232 L410,232 L410,153 L428,153" marker-end="url(#ar1-arr)"/>
+    <path class="ar1-line" d="M382,264 L410,264 L410,300 L428,300" marker-end="url(#ar1-arr)"/>
+    <text class="ar1-lb" x="392" y="146">/</text>
+    <text class="ar1-lb" x="392" y="330">/api · /ws</text>
+    <text class="ar1-lb" x="392" y="348">/swagger-ui</text>
+
+    <path class="ar1-line" d="M612,290 L656,290 L656,138 L696,138" marker-end="url(#ar1-arr)"/>
+    <path class="ar1-line" d="M612,300 L656,300 L656,248 L696,248" marker-end="url(#ar1-arr)"/>
+    <path class="ar1-line" d="M612,312 L656,312 L656,358 L696,358" marker-end="url(#ar1-arr)"/>
+
+    <text class="ar1-lb" x="958" y="132">JPA · Flyway</text>
+    <text class="ar1-lb" x="958" y="242">RedisTemplate</text>
+    <text class="ar1-lb" x="958" y="352">KafkaTemplate</text>
+
+    <text class="ar1-lb" x="30" y="330" style="text-anchor:start">API_BASE_URL = "" (상대경로)</text>
+    <text class="ar1-lb" x="30" y="350" style="text-anchor:start">→ 프론트·API가 같은 출처(:80)</text>
+    <text class="ar1-lb" x="30" y="370" style="text-anchor:start">→ 브라우저 CORS 자체가 발생하지 않음</text>
+
+    <text class="ar1-lb" x="222" y="432" style="text-anchor:start">인프라 3종만 호스트에 포트를 남긴다 — “인프라는 컨테이너, 백엔드는 IDE에서 bootRun” 개발 방식을 위해서다.</text>
+  </svg>
+  <div class="viz-cap">외부에서 열리는 포트는 <code>80</code> 하나(+개발용 인프라 3종). 백엔드·프론트 컨테이너는 호스트에 직접 노출되지 않는다.</div>
+</div>
+
+<h3>1.2 요청이 흐르는 세 갈래</h3>
+
+<p>같은 앱이 목적에 따라 세 가지 경로를 동시에 쓴다. 이게 이 시스템의 전체 그림이다.</p>
+
+<ol>
+  <li><strong>일반 REST</strong> — 앱 → nginx <code>/api/</code> → Spring Controller → Service(command/query) → Repository → PostgreSQL → <code>ApiResponse</code> 래퍼로 응답
+    <ul><li>프론트가 실제로 호출하는 REST 엔드포인트는 <strong>22개</strong>, 백엔드가 제공하는 REST는 <strong>68개</strong>(+STOMP 1) → <strong>사용률 약 32%</strong>. 구현은 됐지만 화면이 없는 API가 대부분이다</li></ul>
+  </li>
+  <li><strong>실시간 push (WebSocket)</strong> — 도메인 이벤트 → Kafka → 컨슈머 → STOMP destination → 앱이 구독
+    <ul><li>실제로 이 경로를 타는 건 <strong>알림뿐</strong>이다. 프론트의 STOMP 구독 destination은 2개(<code>/topic/tenant/{id}/notifications</code>, <code>/user/queue/notifications</code>)이고 위치 구독은 코드에 없다(<code>stomp_gateway_impl.dart</code>, <code>notification_repository.dart:23,27</code>)</li></ul>
+  </li>
+  <li><strong>폴링</strong> — 관제 화면이 3초마다 <code>GET /api/locations/buses</code> 재조회(<code>bus_monitor_controller.dart:93</code>)
+    <ul><li>버스 위치는 이벤트를 발행하지 않아 push 경로가 없기 때문이다(8.2절)</li></ul>
+  </li>
+</ol>
+
+<h3>1.3 설계 의도 — 왜 이렇게 갈랐는가</h3>
+
+<ul>
+  <li><strong>nginx 단일 입구</strong>: 프론트와 API가 같은 출처(:80)가 되어 브라우저 CORS가 아예 발생하지 않는다(<code>docker-compose.yml:9</code>). 프론트 빌드 인자 <code>API_BASE_URL=""</code>로 상대경로를 쓰므로 주소가 localhost든 배포 도메인이든 <strong>같은 번들이 그대로 동작</strong>한다(<code>:92-95</code>).</li>
+  <li><strong>Redis를 좌표 전용으로 한정</strong>: 위치는 “최신 1건”만 의미가 있고 이력은 필요 없다고 판단한 결과다. 그래서 RDB가 아니라 TTL 있는 Redis에 넣는다(8.1절 6단계).</li>
+  <li><strong>Kafka를 중간에 둔 이유</strong>: 승하차·SOS·미승차 같은 사건이 발생했을 때 발행 모듈이 알림 모듈을 직접 호출하지 않게 하려는 것이다(<code>reference.md</code> §6 “서비스 간 직접 호출 최소화”). 실제로 <code>RideEventCommandService</code>는 <code>NotificationService</code>를 모른다.</li>
+</ul>
+
+<h2 class="sec" id="c2">2. 기술 스택 — 실측 버전</h2>
+
+<h3>2.1 백엔드 (<code>backend/build.gradle</code>)</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>항목</th><th>값</th><th>비고</th></tr></thead>
+  <tbody>
+    <tr><td>Spring Boot</td><td><strong>4.1.0</strong> (<code>:3</code>)</td><td>웹 스타터는 신형 아티팩트명 <code>spring-boot-starter-webmvc</code> — 구버전 <code>-web</code>이 아니다</td></tr>
+    <tr><td>Java toolchain</td><td><strong>25</strong> (<code>:13</code>)</td><td></td></tr>
+    <tr><td>Gradle group</td><td><code>src</code>, 기본 패키지 <code>src.backend</code> (<code>:7</code>)</td><td>비관례적. 새 클래스는 반드시 이 하위에 둬야 컴포넌트 스캔이 닿는다</td></tr>
+    <tr><td>DB 드라이버</td><td><code>org.postgresql:postgresql</code> (runtimeOnly)</td><td></td></tr>
+    <tr><td>스키마 관리</td><td><code>spring-boot-starter-flyway</code> + <code>flyway-database-postgresql</code></td><td><code>ddl-auto: validate</code> (10장)</td></tr>
+    <tr><td>보안</td><td><code>spring-boot-starter-security</code> + jjwt <strong>0.12.6</strong></td><td></td></tr>
+    <tr><td>메시징·캐시</td><td><code>spring-boot-starter-kafka</code>(신형 이름), <code>-data-redis</code>, <code>-websocket</code></td><td></td></tr>
+    <tr><td>외부 호출</td><td><code>spring-boot-starter-webclient</code> (reactor-netty)</td><td>routing 모듈이 <code>.block()</code>으로 동기 호출</td></tr>
+    <tr><td>API 문서</td><td>springdoc <strong>3.0.3</strong></td><td>3.x가 Spring Boot 4(Jackson 3) 지원 최초 라인</td></tr>
+    <tr><td>JSON</td><td><strong>Jackson 3</strong>(Boot 4 기본). Jackson 2는 <code>jackson-datatype-jsr310</code>만 runtimeOnly로 잔존</td><td>spring-kafka 직렬화가 아직 Jackson 2를 쓰기 때문</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="callout warn">
+  <span class="ct"><code>spring-boot-starter-actuator</code>가 없다</span>
+  <p><code>SecurityConfig.java:61</code>이 <code>/actuator/health</code>를 permitAll 하지만 <strong>해당 엔드포인트는 존재하지 않는다</strong>(grep 무매칭). 헬스체크 URL로 쓸 수 없다.</p>
+</div>
+
+<p>컨테이너 이미지는 멀티스테이지 — <code>eclipse-temurin:25-jdk</code>로 <code>bootJar</code> 빌드 후 <code>eclipse-temurin:25-jre</code>에 jar만 복사(<code>backend/Dockerfile</code>).</p>
+
+<h3>2.2 프론트엔드 (<code>frontend/pubspec.yaml</code>)</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>항목</th><th>버전</th><th>채택 이유(주석 실측)</th></tr></thead>
+  <tbody>
+    <tr><td>Dart SDK</td><td><code>^3.12.0</code></td><td>Docker 빌드 이미지(<code>ghcr.io/cirruslabs/flutter:stable</code>)의 Dart가 3.12.0이라 하한을 낮춰 맞춤</td></tr>
+    <tr><td>상태관리</td><td><code>flutter_riverpod ^3.4.1</code></td><td><strong>코드생성(<code>riverpod_generator</code>) 미사용</strong> — Flutter 3.44.8 번들 analyzer와 충돌. provider를 손으로 선언한다</td></tr>
+    <tr><td>라우팅</td><td><code>go_router ^17.3.0</code></td><td><code>redirect</code> 훅 한 곳에서 역할 분기·미로그인 차단</td></tr>
+    <tr><td>HTTP</td><td><code>dio ^5.11.0</code></td><td>interceptor로 JWT 부착 + 401 자동 refresh를 한 군데로 모음</td></tr>
+    <tr><td>직렬화</td><td><code>freezed_annotation ^3.1.0</code>, <code>json_annotation ^4.12.0</code></td><td><code>ApiResponse&lt;T&gt;</code> 제네릭 언랩을 타입 안전하게</td></tr>
+    <tr><td>토큰 보관</td><td><code>flutter_secure_storage ^10.3.1</code></td><td>모바일 Keychain/Keystore, 웹은 WebCrypto</td></tr>
+    <tr><td>실시간</td><td><code>stomp_dart_client ^3.0.1</code></td><td>백엔드가 <strong>SockJS 미사용 순수 STOMP</strong>라 그대로 맞음</td></tr>
+    <tr><td>지도</td><td><code>flutter_map ^8.3.1</code> + OSM 타일</td><td><code>flutter_naver_map</code>이 <strong>Web 미지원</strong>이라 채택 불가</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>지도는 네이버/구글이 아니라 <strong>OpenStreetMap 타일</strong>이다(<code>flutter_map_adapter.dart:204</code>). 단, 서버 측 경로 계산은 네이버 Directions를 기본값으로 쓴다(9장·12장) — 클라이언트 지도와 서버 경로 API의 공급자가 서로 다르다.</p>
+
+<h3>2.3 인프라 이미지</h3>
+
+<p><code>postgres:16</code> · <code>redis:7</code> · <code>apache/kafka:3.9.0</code>(KRaft, Zookeeper 없음) · <code>nginx:alpine</code> (<code>docker-compose.yml</code>).</p>
+
+<h2 class="sec" id="c3">3. 백엔드 모듈 구조</h2>
+
+<h3 id="c3-1">3.1 도메인 모듈 14개 + global 인프라</h3>
+
+<p>패키지 최상위는 업무 단위로 갈라져 있다(기술 단위 <code>controller/</code>·<code>service/</code>로 가르지 않았다 — 기능 하나를 고칠 때 한 폴더만 열면 되게 하려는 의도다).</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>모듈</th><th>책임</th><th>대표 엔티티</th></tr></thead>
+  <tbody>
+    <tr><td><code>auth</code></td><td>로그인·회원가입·토큰 재발급(JWT 발급 진입점)</td><td>(엔티티 없음, User 재사용)</td></tr>
+    <tr><td><code>user</code></td><td>계정(User)·학원별 역할 멤버십(UserTenantRole)·멤버 관리</td><td><code>User</code>, <code>UserTenantRole</code></td></tr>
+    <tr><td><code>tenant</code></td><td>학원(테넌트) 등록·조회·위치 갱신</td><td><code>Tenant</code></td></tr>
+    <tr><td><code>student</code></td><td>학생 등록·버스/정류장 배정·보호자 연결·하차지 변경</td><td><code>Student</code>, <code>StudentGuardian</code></td></tr>
+    <tr><td><code>bus</code></td><td>버스 등록·기사/노선 배차</td><td><code>Bus</code></td></tr>
+    <tr><td><code>route</code></td><td><strong>정적 노선·정류장 마스터</strong>(레거시 성격, 12장 R6)</td><td><code>Route</code>, <code>Stop</code></td></tr>
+    <tr><td><code>routing</code></td><td><strong>일자별 경로 최적화·배차·배포</strong>, 외부 지도 API 연동</td><td><code>RoutePlan</code>, <code>RoutePlanStop</code></td></tr>
+    <tr><td><code>drivesession</code></td><td>기사 운행 세션 시작/종료·로스터·APPROACH/NO_SHOW 판정</td><td><code>DriveSession</code></td></tr>
+    <tr><td><code>rideevent</code></td><td>승·하차·인계 기록 생성·정정·계층별 조회</td><td><code>RideEvent</code></td></tr>
+    <tr><td><code>location</code></td><td>실시간 위치 수집(학생·버스)·저장·WebSocket push·연결끊김 판정</td><td><strong>엔티티 없음</strong>(RDB 미영속)</td></tr>
+    <tr><td><code>attendance</code></td><td>결석·휴원 등 출결 예외 신청·승인</td><td><code>AttendanceException</code></td></tr>
+    <tr><td><code>schedule</code></td><td>등하원 시간 변경 요청 신청·승인</td><td><code>ScheduleChangeRequest</code></td></tr>
+    <tr><td><code>sos</code></td><td>학생 긴급 SOS 발동·확인·에스컬레이션</td><td><code>SosEvent</code></td></tr>
+    <tr><td><code>notification</code></td><td>도메인 이벤트 → 알림 로그 변환·발송, 알림 임계값 상수 보관</td><td><code>NotificationLog</code></td></tr>
+    <tr><td><code>global</code></td><td>공통 인프라 — 보안·에러·이벤트 포트·Kafka·Redis·WebSocket 설정·<code>TenantGuard</code>·push 대상 해석</td><td><strong>엔티티 없음</strong>(<code>BaseTimeEntity</code>는 공통 상위 클래스)</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><code>location</code>에 엔티티가 없는 게 이 구조의 특징이다 — 위치는 <strong>RDB에 남기지 않고</strong> Redis/메모리에 최신 1건만 둔다.</p>
+
+<h3 id="c3-2">3.2 계층 규칙 — controller / command·query / repository / entity / dto</h3>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 백엔드 계층 흐름과 CQRS 분리 실태</div>
+  <svg viewBox="0 0 1100 470" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .ar2-ctl  { fill:rgba(219,39,119,0.10); stroke:#db2777; stroke-width:2; }
+      .ar2-cmd  { fill:rgba(14,116,144,0.10); stroke:#0e7490; stroke-width:2; }
+      .ar2-qry  { fill:rgba(124,58,237,0.10); stroke:#7c3aed; stroke-width:2; }
+      .ar2-repo { fill:rgba(4,120,87,0.10);  stroke:#047857; stroke-width:2; }
+      .ar2-dom  { fill:rgba(180,83,9,0.10);  stroke:#b45309; stroke-width:2; }
+      .ar2-note { fill:rgba(58,53,49,0.03);  stroke:#c0b6a8; stroke-width:1.5; stroke-dasharray:6 4; }
+      .ar2-tt   { fill:#3a3531; font:bold 13.5px sans-serif; text-anchor:middle; }
+      .ar2-st   { fill:#6b6359; font:11.5px sans-serif; text-anchor:middle; }
+      .ar2-lb   { fill:#6b6359; font:11.5px sans-serif; }
+      .ar2-hd   { fill:#0e7490; font:bold 13px sans-serif; }
+      .ar2-warn { fill:#dc2626; font:bold 12px sans-serif; }
+      .ar2-line { stroke:#c0b6a8; stroke-width:2; fill:none; }
+      .ar2-x    { stroke:#dc2626; stroke-width:2; fill:none; stroke-dasharray:5 4; }
+    </style>
+    <defs>
+      <marker id="ar2-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#c0b6a8"/>
+      </marker>
+      <marker id="ar2-arrx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#dc2626"/>
+      </marker>
+    </defs>
+
+    <text class="ar2-hd" x="40" y="30" style="text-anchor:start">모듈 하나의 표준 레이아웃 — 14개 모듈 전부가 command + query 를 갖는다</text>
+
+    <rect class="ar2-ctl" x="40" y="52" width="180" height="88" rx="10"/>
+    <text class="ar2-tt" x="130" y="82">controller/</text>
+    <text class="ar2-st" x="130" y="104">REST + STOMP 진입</text>
+    <text class="ar2-st" x="130" y="124">@Valid · @PreAuthorize</text>
+
+    <rect class="ar2-cmd" x="290" y="30" width="200" height="88" rx="10"/>
+    <text class="ar2-tt" x="390" y="60">command/ — 쓰기</text>
+    <text class="ar2-st" x="390" y="82">비즈니스 규칙 · 격리 판단</text>
+    <text class="ar2-st" x="390" y="102">도메인 이벤트 발행</text>
+
+    <rect class="ar2-qry" x="290" y="146" width="200" height="88" rx="10"/>
+    <text class="ar2-tt" x="390" y="176">query/ — 읽기</text>
+    <text class="ar2-st" x="390" y="198">조회 전용</text>
+    <text class="ar2-st" x="390" y="218">계층별 권한 범위 적용</text>
+
+    <rect class="ar2-repo" x="570" y="88" width="190" height="88" rx="10"/>
+    <text class="ar2-tt" x="665" y="118">repository/spec/</text>
+    <text class="ar2-st" x="665" y="140">Spring Data 인터페이스</text>
+    <text class="ar2-st" x="665" y="160">JPA 접근만</text>
+
+    <rect class="ar2-dom" x="830" y="88" width="210" height="88" rx="10"/>
+    <text class="ar2-tt" x="935" y="114">entity/ (일부 domain/)</text>
+    <text class="ar2-st" x="935" y="136">JPA 엔티티</text>
+    <text class="ar2-st" x="935" y="158">상태 전이 규칙이 여기 산다</text>
+
+    <path class="ar2-line" d="M220,84 L262,84 L262,74 L286,74" marker-end="url(#ar2-arr)"/>
+    <path class="ar2-line" d="M220,108 L262,108 L262,190 L286,190" marker-end="url(#ar2-arr)"/>
+    <path class="ar2-line" d="M490,74 L530,74 L530,120 L566,120" marker-end="url(#ar2-arr)"/>
+    <path class="ar2-line" d="M490,190 L530,190 L530,144 L566,144" marker-end="url(#ar2-arr)"/>
+    <path class="ar2-line" d="M760,132 L826,132" marker-end="url(#ar2-arr)"/>
+
+    <path class="ar2-x" d="M390,146 L390,122" marker-end="url(#ar2-arrx)"/>
+    <text class="ar2-warn" x="404" y="138" style="text-anchor:start">Command 는 Query 를 호출하지 않는다</text>
+
+    <rect class="ar2-note" x="40" y="264" width="480" height="168" rx="12"/>
+    <text class="ar2-hd" x="60" y="290" style="text-anchor:start">CQRS 라고 부르지만 — 저장소는 하나다</text>
+    <text class="ar2-lb" x="60" y="316" style="text-anchor:start">· 14개 모듈 전부 command / query 패키지 보유 (예외 없음)</text>
+    <text class="ar2-lb" x="60" y="338" style="text-anchor:start">· 같은 JPA 엔티티 · 같은 테이블을 두 서비스가 나눠 쓸 뿐</text>
+    <text class="ar2-lb" x="60" y="360" style="text-anchor:start">· 읽기 전용 별도 저장소로 간 것은 위치(Redis) 하나뿐</text>
+    <text class="ar2-lb" x="60" y="382" style="text-anchor:start">· 그것도 projection/ 패키지가 Kafka 이벤트를 소비하는 형태</text>
+    <text class="ar2-warn" x="60" y="410" style="text-anchor:start">user/service/{spec,impl} 은 .java 0개인 빈 디렉터리 (스캐폴딩 잔재)</text>
+
+    <rect class="ar2-note" x="560" y="264" width="480" height="168" rx="12"/>
+    <text class="ar2-hd" x="580" y="290" style="text-anchor:start">spec/impl 로 실제 분리한 곳은 4군데뿐</text>
+    <text class="ar2-lb" x="580" y="316" style="text-anchor:start">· notification — command · query · infrastructure 3계층 모두 (유일)</text>
+    <text class="ar2-lb" x="580" y="338" style="text-anchor:start">· location — repository 만 (Redis @Primary / InMemory)</text>
+    <text class="ar2-lb" x="580" y="360" style="text-anchor:start">· routing — engine · infrastructure (RouteEngine · MapRouteClient)</text>
+    <text class="ar2-lb" x="580" y="382" style="text-anchor:start">· location/source — LocationSource 구현 4종</text>
+    <text class="ar2-lb" x="580" y="410" style="text-anchor:start">나머지 10개 모듈은 인터페이스 없이 concrete 클래스 하나 — 의도된 선택</text>
+  </svg>
+  <div class="viz-cap">기준은 “구현이 바뀔 가능성이 있는가” 하나다. 바뀔 이유가 없는 단순 CRUD는 <strong>일부러 나누지 않았다</strong>.</div>
+</div>
+
+<p>모듈 하나의 표준 레이아웃(<code>reference.md</code> §3):</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>패키지</th><th>담는 것</th></tr></thead>
+  <tbody>
+    <tr><td><code>controller/</code></td><td>REST(+STOMP) 진입. 검증·인증주체 확인·서비스 호출만</td></tr>
+    <tr><td><code>command/</code></td><td>쓰기 서비스 (CQRS의 C)</td></tr>
+    <tr><td><code>query/</code></td><td>읽기 서비스 (CQRS의 Q)</td></tr>
+    <tr><td><code>repository/spec/</code></td><td>Spring Data 인터페이스</td></tr>
+    <tr><td><code>entity/</code> (일부 모듈은 <code>domain/</code>)</td><td>JPA 엔티티. <strong>상태 전이 규칙이 여기 산다</strong></td></tr>
+    <tr><td><code>dto/</code></td><td>Request/Response record</td></tr>
+    <tr><td><code>event/</code></td><td>도메인 이벤트 record</td></tr>
+    <tr><td><code>infrastructure/</code></td><td>외부 기술 어댑터 (필요한 모듈만)</td></tr>
+    <tr><td><code>projection/</code></td><td>이벤트를 읽기 모델로 투영 (<code>location</code>만)</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>엔티티 패키지 이름은 <code>entity/</code>가 표준이며, <code>notification</code>·<code>routing</code> 두 모듈만 역사적 이유로 <code>domain/</code>을 쓴다(일괄 rename은 범위 밖으로 확정).</p>
+
+<p>각 계층이 지켜야 할 선(<code>reference.md</code> §9~§13):</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>계층</th><th>해도 되는 일</th><th>하면 안 되는 일</th></tr></thead>
+  <tbody>
+    <tr><td>Controller</td><td>요청 검증(<code>@Valid</code>), <code>@AuthenticationPrincipal AuthUser</code> 수령, 서비스 호출</td><td>비즈니스 로직</td></tr>
+    <tr><td>Service(command/query)</td><td>비즈니스 규칙, 권한·격리 판단, 이벤트 발행</td><td>HTTP·Redis·Kafka·JPA 구현을 직접 아는 것(Port로 접근)</td></tr>
+    <tr><td>Repository</td><td>JPA 접근만</td><td>비즈니스 로직</td></tr>
+    <tr><td>Entity</td><td><strong>상태 전이 검증</strong>(예 <code>SosEvent.acknowledge()</code>)</td><td>—</td></tr>
+    <tr><td>DTO</td><td>요청/응답 매핑</td><td>엔티티를 그대로 노출하는 것</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>상태 전이 검증이 서비스가 아니라 엔티티 안에 있다</strong>는 게 이 코드베이스의 일관된 선택이다. 예: <code>DriveSession.end()</code>가 IN_PROGRESS가 아니면 <code>CONFLICT</code>를 던지고(<code>DriveSession.java:79-85</code>), 커맨드 서비스는 권한만 확인한 뒤 이 메서드를 호출한다. 상태 규칙을 여러 서비스가 각자 복사하지 않게 하려는 의도다.</p>
+
+<p><strong>spec/impl 분리는 “구현이 바뀔 가능성이 있는가” 하나로만 판단한다</strong>(<code>reference.md</code> §2). 실제로 분리한 곳은 4군데뿐이다:</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>모듈</th><th>분리 대상</th><th>포트 → 구현체</th></tr></thead>
+  <tbody>
+    <tr><td><code>notification</code></td><td>command·query·infrastructure <strong>3계층 모두</strong> (유일)</td><td><code>NotificationSender</code> → <code>LogNotificationSender</code>, <code>WebSocketNotificationSender</code></td></tr>
+    <tr><td><code>location</code></td><td>repository만</td><td><code>LocationRepository</code> → <code>InMemoryLocationRepository</code>, <code>RedisLocationRepository</code>(<code>@Primary</code>)</td></tr>
+    <tr><td><code>routing</code></td><td>engine·infrastructure</td><td><code>RouteEngine</code> → <code>HeuristicRouteEngine</code> / <code>BusAssigner</code> → <code>SweepAssigner</code> / <code>MapRouteClient</code> → <code>NaverMapRouteClient</code>, <code>OsrmMapRouteClient</code></td></tr>
+    <tr><td><code>location/source</code></td><td>위치 소스</td><td><code>LocationSource</code> → <code>MockLocationSource</code>, <code>PhoneGpsSource</code>, <code>MockBusLocationSource</code>, <code>DriverGpsSource</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>나머지 10개 모듈의 command/query는 <strong>인터페이스 없이 concrete 클래스 하나</strong>다. 코드 주석이 “단순 CRUD라 인터페이스 없이 concrete 클래스로 둔다”라고 이유를 명시한다(예 <code>bus/command/BusCommandService.java:23</code>).</p>
+
+<div class="callout note">
+  <span class="ct">흔한 오해</span>
+  <p>“spec/impl로 나눠야 좋은 설계”가 아니다. 구현이 하나뿐이고 바뀔 이유가 없는데 인터페이스를 만들면 파일만 두 배가 되고 추적만 어려워진다. 이 저장소는 그래서 <strong>의도적으로 대부분을 나누지 않았다.</strong></p>
+</div>
+
+<p>단, <strong>repository는 구현체가 없어도 전부 <code>repository/spec/</code>에 둔다</strong>(예 <code>bus/repository/spec/BusRepository.java</code>). <code>location</code>만 예외적으로 <code>repository/impl/</code>에 실제 구현 클래스(Redis/InMemory)를 갖는다.</p>
+
+<h3 id="c3-3">3.3 CQRS — 실제 분리 실태</h3>
+
+<p><strong>14개 도메인 모듈 전부가 <code>command</code> + <code>query</code> 패키지를 갖는다</strong>(<code>find</code> 실측). 즉 CQRS 분리는 예외 없이 적용됐다.</p>
+
+<ul>
+  <li><code>command</code> = 생성·수정·삭제, <code>query</code> = 조회 전용. <strong>Command는 Query를 호출하지 않는다</strong>(<code>reference.md</code> §7).</li>
+  <li>다만 이것은 <strong>“읽기 모델·쓰기 모델 DB를 분리한 CQRS”가 아니다.</strong> 같은 JPA 엔티티·같은 테이블을 두 서비스가 나눠 쓸 뿐이다. 읽기 전용 별도 저장소로 간 것은 위치(Redis) 하나뿐이고, 그것도 <code>projection/</code> 패키지(<code>location/projection/LocationPushConsumer.java</code>)를 통해 Kafka 이벤트를 소비하는 형태다.</li>
+  <li>CLAUDE.md가 언급하는 <code>service/{spec,impl}</code> 레이아웃은 <strong>이 저장소의 실제 컨벤션이 아니다</strong> — 실제는 <code>command</code>/<code>query</code>다. <code>user/service/spec</code>·<code>user/service/impl</code> 디렉터리가 남아 있지만 <strong><code>.java</code> 파일이 0개인 빈 디렉터리</strong>다(스캐폴딩 잔재).</li>
+</ul>
+
+<h3 id="c3-4">3.4 모듈 간 의존 방향 · 순환 의존</h3>
+
+<p><code>import src.backend.*</code> 집계 실측:</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>모듈</th><th>의존하는 모듈</th></tr></thead>
+  <tbody>
+    <tr><td><code>tenant</code></td><td>global</td></tr>
+    <tr><td><code>user</code></td><td>global, tenant</td></tr>
+    <tr><td><code>auth</code></td><td>global, tenant, user</td></tr>
+    <tr><td><code>attendance</code> / <code>schedule</code></td><td>global, student</td></tr>
+    <tr><td><code>rideevent</code></td><td>bus, global, student</td></tr>
+    <tr><td><code>location</code></td><td>bus, global, route, student</td></tr>
+    <tr><td><code>route</code></td><td>bus, global, student, tenant</td></tr>
+    <tr><td><code>student</code></td><td>bus, global, route, tenant, user</td></tr>
+    <tr><td><code>bus</code></td><td>global, route, student, tenant, user</td></tr>
+    <tr><td><code>sos</code></td><td>global, notification, student</td></tr>
+    <tr><td><code>routing</code></td><td>attendance, bus, global, schedule, student, tenant</td></tr>
+    <tr><td><code>drivesession</code></td><td>attendance, bus, global, notification, rideevent, routing, student</td></tr>
+    <tr><td><code>notification</code></td><td>drivesession, global, location, rideevent, routing, schedule, sos, student</td></tr>
+    <tr><td><code>global</code></td><td>student, user</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>대체로 <strong>아래에서 위로(기반 → 응용)</strong> 흐른다: <code>tenant → user → student/bus/route → rideevent/drivesession/routing → notification</code>. <code>notification</code>이 가장 많은 모듈을 의존하는 건 모든 이벤트의 종착지이기 때문이다.</p>
+
+<p><strong>순환 의존 5건 (실측)</strong> — 성격이 세 가지로 갈린다:</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>순환</th><th>성격</th><th>근거</th></tr></thead>
+  <tbody>
+    <tr><td><code>bus</code> ↔ <code>route</code></td><td><strong>구조적</strong> — JPA 연관관계(<code>Bus.route</code>)와 조회 서비스가 모듈 경계에서 만남</td><td><code>Bus.java:19</code>, <code>RouteQueryService.java:8</code></td></tr>
+    <tr><td><code>bus</code> ↔ <code>student</code></td><td><strong>구조적</strong> — 동일</td><td><code>Student.java:16</code>, <code>BusQueryService.java:16-17</code></td></tr>
+    <tr><td><code>drivesession</code> ↔ <code>notification</code></td><td><strong>상수 참조 1개 때문</strong> — <code>NotificationThresholds</code> 하나를 가져다 쓰느라 생긴 역방향</td><td><code>DriveSessionCommandService.java:27</code> ↔ <code>DomainEventNotificationConsumer.java:7-8</code></td></tr>
+    <tr><td><code>sos</code> ↔ <code>notification</code></td><td><strong>상수 참조 1개 때문</strong> — 동일</td><td><code>SosCommandService.java:13</code> ↔ <code>DomainEventNotificationConsumer.java:19-20</code></td></tr>
+    <tr><td><code>global</code> ↔ <code>student</code>·<code>user</code></td><td><strong>공통 인프라가 도메인을 앎</strong> — <code>PushTargetResolver</code>가 학생을 조회하고 <code>AuthUser</code>가 <code>Role</code> enum을 씀</td><td><code>global/push/PushTargetResolver.java</code>, <code>global/security/AuthUser.java:13</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="callout info">
+  <span class="ct">주의 — 런타임 결합이 아니다</span>
+  <p><code>drivesession</code>↔<code>notification</code>·<code>sos</code>↔<code>notification</code>은 <strong>런타임 결합이 아니다.</strong> 이벤트 흐름 자체는 Kafka로 단방향(발행 모듈 → notification)이고, 역방향은 컴파일 타임 상수 참조뿐이다. 그래도 모듈을 MSA로 떼어내려는 순간 걸림돌이 되므로 12장에 리스크로 남긴다.</p>
+</div>
+
+<h2 class="sec" id="c4">4. 프론트엔드 구조</h2>
+
+<p>Flutter 단일 앱이 기사·관리자 두 역할을 모두 담는다. 로그인 후 JWT의 역할에 따라 라우터가 다른 셸로 보낸다(5.3절).</p>
+
+<h3>4.1 feature-first 레이어</h3>
+
+<p>폴더는 <strong>기능 단위</strong>로 먼저 가르고, 그 안을 계층으로 나눈다. <strong><code>features/</code> 이름은 백엔드 모듈명을 그대로 쓴다</strong> — “이 화면이 어느 백엔드 모듈을 부르는지”를 폴더만 보고 알게 하려는 규칙이다(<code>FLUTTER_CODE_CONVENTIONS.md</code> §2).</p>
+
+<ul>
+  <li><strong><code>lib/main.dart</code>, <code>lib/bootstrap.dart</code></strong> — 진입점·전역 초기화·에러 핸들링·<code>ProviderScope</code> 구성(포트 override가 여기 모인다)</li>
+  <li><strong><code>lib/app/</code></strong> — 앱 셸. <code>router/</code>(go_router 정의·경로 상수·역할 리다이렉트), <code>theme/</code>(색·간격 토큰), <code>shell/</code>(기사·관리자 셸). <strong>개별 기능 화면을 두지 않는다</strong></li>
+  <li><strong><code>lib/core/</code></strong> — 기술 계층 = 백엔드의 <code>infrastructure</code>
+    <ul>
+      <li><code>api/</code> — <code>api_client</code>(dio 조립) · <code>api_response</code>(<code>{success,data,message}</code> 언랩) · <code>api_exception</code>(status → 앱 예외) · <code>interceptor/</code></li>
+      <li><code>ws/</code> <code>storage/</code> <code>map/</code> <code>location/</code> — 각각 <code>spec/</code>(포트) + <code>impl/</code>(구현)</li>
+      <li><code>ui/</code>(공용 로딩·에러·빈상태 위젯) · <code>util/</code>(외부 의존 없는 순수 함수)</li>
+    </ul>
+  </li>
+  <li><strong><code>lib/features/&lt;백엔드 모듈명&gt;/</code></strong>
+    <ul>
+      <li><code>data/dto/</code> + <code>data/*_repository.dart</code> — 서버 계약 그대로 + HTTP 호출만</li>
+      <li><code>domain/</code> — 앱이 쓰는 모델 (<strong>필요할 때만</strong>)</li>
+      <li><code>application/</code> — provider·notifier. 상태 규칙</li>
+      <li><code>presentation/screen/</code>, <code>presentation/widget/</code> — 화면</li>
+    </ul>
+  </li>
+  <li><strong><code>lib/shared/domain/</code></strong> — 여러 feature가 공유하는 모델(<code>Role</code>, <code>AuthSession</code> 등)</li>
+</ul>
+
+<p><strong>백엔드 계층과의 대응</strong>(<code>FLUTTER_CODE_CONVENTIONS.md</code> §3):</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>백엔드</th><th>프론트</th><th>금지</th></tr></thead>
+  <tbody>
+    <tr><td>Controller</td><td><code>presentation/</code></td><td>비즈니스 판단, <code>dio</code> 직접 호출</td></tr>
+    <tr><td>Service</td><td><code>application/</code></td><td><code>dio</code>·<code>stomp</code>·<code>geolocator</code> 직접 사용, <code>BuildContext</code> 의존</td></tr>
+    <tr><td>Repository</td><td><code>data/*_repository.dart</code></td><td>비즈니스 로직, 상태 보관</td></tr>
+    <tr><td>Infrastructure</td><td><code>core/</code></td><td>특정 feature 지식</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>의존은 <strong><code>presentation → application → data → core</code></strong> 단방향이다. <strong>화면이 <code>dio</code>를 import 하면 그 자체로 위반</strong>이다.</p>
+
+<p><strong>DTO ↔ domain 분리 기준</strong>은 백엔드 spec/impl과 같은 질문(“서버 표현이 바뀔 여지가 있는가”)을 쓴다. 모든 DTO에 도메인 모델을 짝지어 만들지 않는다.</p>
+<ul>
+  <li>만드는 경우: <code>RoutePlanResponse.polyline</code>(JSON <strong>문자열</strong>, <code>[lng, lat]</code> 순서 → <code>List&lt;LatLng&gt;</code>로 파싱 필요), JWT <code>memberships: ["1:ACADEMY_ADMIN"]</code> → <code>AuthSession</code>, 여러 API를 합쳐야 완성되는 화면 모델</li>
+  <li>안 만드는 경우: <code>BusResponse</code>·<code>NotificationResponse</code> 등 이미 화면에 맞는 응답 — DTO를 그대로 쓴다</li>
+  <li>변환은 <strong>repository에서만</strong> 한다(<code>toDomain()</code>). application·presentation에서 JSON을 파싱하지 않는다.</li>
+</ul>
+
+<div class="callout warn">
+  <span class="ct">컨벤션 문서가 스스로 기록한 기존 위반 1건</span>
+  <p><code>features/rideevent/application/driver_roster_controller.dart</code> → <code>features/drivesession/application/</code> 직접 import (§9 C-1). 새 코드가 이걸 선례로 삼지 말라고 명시돼 있다.</p>
+</div>
+
+<h3>4.2 포트-어댑터 — 무엇을 왜 spec/impl로 갈랐는가</h3>
+
+<p>백엔드 <code>reference.md</code> §15와 <strong>같은 기준</strong>을 적용해, 교체 가능성이 있는 기술 <strong>4개만</strong> 포트로 뽑았다.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>포트 (<code>core/*/spec/</code>)</th><th>현재 구현</th><th>포트로 만든 이유</th></tr></thead>
+  <tbody>
+    <tr><td><code>MapViewAdapter</code></td><td><code>FlutterMapAdapter</code> (flutter_map + OSM)</td><td><code>flutter_naver_map</code>이 <strong>Web 미지원</strong>이라 지금은 OSM. 나중에 네이버/구글로 교체 가능해야 함</td></tr>
+    <tr><td><code>LocationSource</code></td><td><code>MockLocationSource</code>(기본), <code>GpsLocationSource</code>(geolocator)</td><td>기사 화면에서 토글로 전환, Phase 8에서 실 GPS로 넘어가야 함</td></tr>
+    <tr><td><code>StompGateway</code></td><td><code>StompGatewayImpl</code></td><td>실시간 동작을 테스트에서 Fake로 대체해야 함</td></tr>
+    <tr><td><code>TokenStorage</code></td><td><code>SecureTokenStorage</code></td><td>테스트에서 인메모리 Mock 필요</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>배선은 <code>bootstrap()</code> 한 곳에서 <code>overrideWithValue</code>로 주입한다(<code>bootstrap.dart:68</code>, <code>:72-83</code>). override를 빼먹으면 포트 기본 구현이 <code>UnimplementedError</code>를 던져 <strong>런타임에 즉시 드러난다</strong>(<code>map_view_adapter.dart:120-124</code>) — 조용히 잘못 동작하는 것보다 낫다는 판단이다.</p>
+
+<p><strong>포트를 만들지 않은 것</strong>: <code>ApiConfig</code>, 각 feature의 repository(서버가 하나뿐이라 교체 대상이 아님).</p>
+
+<p>지도 어댑터의 중립 모델은 <code>GeoPoint</code>이고(<code>map_view_adapter.dart:6</code>), 마커 종류는 5개(<code>bus</code>/<code>stop</code>/<code>upcomingStop</code>/<code>visitedStop</code>/<code>depot</code>). 카메라 자동 fit 시 <strong>버스 마커는 제외</strong>한다 — 움직이는 마커 때문에 화면이 계속 리셋되는 걸 막으려는 것이다(<code>flutter_map_adapter.dart:150-155</code>).</p>
+
+<h3>4.3 상태관리 — Riverpod provider 계보</h3>
+
+<p><code>flutter_riverpod</code> 3.x를 <strong>코드 생성 없이</strong> 손으로 선언한다(2.2절 사유).</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>화면</th><th>최상위 controller</th><th>무엇을 호출하나</th></tr></thead>
+  <tbody>
+    <tr><td>기사 · 오늘의 노선</td><td><code>driverRouteControllerProvider</code></td><td><code>GET /api/route-plans/driver/{busId}</code></td></tr>
+    <tr><td>└ 위치 전송 패널</td><td><code>driverLocationControllerProvider</code></td><td>5초 타이머 → <code>POST /api/locations/bus</code></td></tr>
+    <tr><td>기사 · 승하차 명단</td><td><code>driveSessionControllerProvider</code> + <code>driverRosterControllerProvider</code></td><td><code>POST/GET/PATCH /api/drive-sessions/*</code>, <code>POST/GET /api/ride-events</code></td></tr>
+    <tr><td>관리자 · 관제 지도</td><td><code>busMonitorControllerProvider</code></td><td>초기 <code>GET /api/buses</code> + 3초마다 <code>GET /api/locations/buses</code></td></tr>
+    <tr><td>└ 상세 패널</td><td><code>busDirectoryProvider</code> · <code>adminBusSessionProvider</code> · <code>adminBusRideEventsProvider</code> · <code>adminBusRoutePlansProvider</code></td><td>4개를 <strong>화면에서 조립</strong></td></tr>
+    <tr><td>관리자 · 배차</td><td><code>adminDispatchControllerProvider</code></td><td><code>POST /api/route-plans/auto-assign</code> → <code>/confirm</code></td></tr>
+    <tr><td>관리자 · 노선</td><td><code>adminRoutePlansProvider</code> + <code>adminRoutePlanDetailProvider(id)</code></td><td><code>GET /api/route-plans</code>, <code>/{id}</code></td></tr>
+    <tr><td>관리자 · 알림</td><td><code>notificationFeedControllerProvider</code> (autoDispose)</td><td><code>GET /api/notifications</code> + STOMP 구독</td></tr>
+    <tr><td>전역</td><td><code>authControllerProvider</code>, <code>adminTenantProvider</code></td><td>세션·테넌트 선택</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>특징 세 가지:</p>
+
+<ol>
+  <li><strong>라이프사이클 연동</strong> — 관제 폴링과 기사 위치 전송은 앱이 백그라운드로 가면 <code>pause()</code>, 돌아오면 <code>resume()</code>한다(<code>admin_monitor_screen.dart:70-79</code>, <code>driver_location_card.dart:48-58</code>). 배터리·트래픽 낭비를 막는 목적이다.</li>
+  <li><strong>정리(dispose)를 명시</strong> — 알림 피드 provider는 dispose 시 구독 취소 + <code>gateway.disconnect()</code>를 수행한다(<code>notification_feed_controller.dart:109-113</code>).</li>
+  <li><strong>화면이 조립 지점</strong> — 관제 상세 패널은 서로 다른 feature의 provider 4개를 화면에서 <code>ref.watch</code>로 합친다. 컨벤션이 이를 <strong>유일하게 허용한 계층 교차 예외</strong>로 규정한다(조건: <code>presentation/</code>일 것, 읽기만 할 것, 상대가 없어도 내 화면은 그려질 것 — <code>FLUTTER_CODE_CONVENTIONS.md</code> §9 C-1).</li>
+</ol>
+
+<p>에러 처리 규약: <strong>HTTP status로만 분기한다.</strong> 백엔드 실패 응답에 에러 코드 필드가 없어(12장 R11) <code>message</code> 문자열 파싱은 금지돼 있다.</p>
+
+<h2 class="sec" id="c5">5. 인증 · 인가</h2>
+
+<h3>5.1 JWT 발급·검증·클레임 구조</h3>
+
+<p>발급·검증은 <code>global/security/JwtTokenProvider.java</code> 한 클래스가 담당한다(jjwt 0.12.6, HMAC-SHA, 키는 <code>jwt.secret</code>의 UTF-8 바이트 — <code>:40</code>).</p>
+
+<p><strong>클레임 구조</strong> (<code>JwtTokenProvider.java:53-64</code>):</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>클레임</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td><code>sub</code></td><td>userId (문자열)</td></tr>
+    <tr><td><code>email</code></td><td>이메일</td></tr>
+    <tr><td><code>memberships</code></td><td><strong><code>"tenantId:ROLE"</code> 문자열 배열</strong>. 플랫폼 관리자는 tenantId가 빈 문자열 → null로 복원</td></tr>
+    <tr><td><code>type</code></td><td><code>"access"</code> / <code>"refresh"</code></td></tr>
+    <tr><td><code>iat</code> / <code>exp</code></td><td>발급·만료 시각</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>요청 처리 흐름 (request → 처리 → response)</strong>:</p>
+
+<ol>
+  <li>앱이 <code>Authorization: Bearer &lt;accessToken&gt;</code> 헤더로 요청(<code>AuthInterceptor.onRequest</code>, <code>auth_interceptor.dart:63-75</code>)</li>
+  <li>Spring 필터 체인의 <code>JwtAuthenticationFilter</code>(<code>OncePerRequestFilter</code>)가 헤더를 읽는다. <strong><code>Authorization</code> 헤더만 인식</strong>하고 쿠키·쿼리는 보지 않는다(<code>:26-27</code>, <code>:57-63</code>)</li>
+  <li>토큰을 파싱해 <strong><code>type</code>이 <code>access</code>인 것만</strong> SecurityContext에 세팅(<code>:42</code>). 위조·만료면 <strong>예외를 삼키고 익명으로 진행</strong>한다 — 최종 거부는 <code>authorizeHttpRequests</code>가 한다</li>
+  <li>principal은 <code>AuthUser</code> record(<code>userId</code>, <code>email</code>, <code>memberships</code>)로 복원된다</li>
+  <li>컨트롤러 메서드의 <code>@PreAuthorize</code>가 역할을 검사 → 통과하면 서비스로, 실패하면 <code>AccessDeniedException</code> → 전역 핸들러가 <strong>403</strong></li>
+</ol>
+
+<p>핵심 설계 결정: <strong>토큰에 멤버십을 실어 필터가 DB 조회 없이 principal을 복원한다</strong>(<code>AuthUser.java:73-74</code> 주석). 요청마다 <code>user_tenant_role</code>을 조회하지 않아 빠르지만, <strong>역할을 바꿔도 기존 액세스 토큰에는 즉시 반영되지 않는다</strong>(최대 15분 지연). refresh 시점에는 DB에서 멤버십을 다시 읽어 재인코딩하므로 그때 반영된다(<code>AuthQueryService.java:69-74</code>).</p>
+
+<div class="callout note">
+  <span class="ct">흔한 오해</span>
+  <p>JWT는 “서버가 기억하는 세션”이 아니다. 발급한 순간 서버는 그 토큰을 잊는다 — 그래서 <strong>로그아웃해도 토큰 자체는 만료 전까지 유효</strong>하다. 이 저장소에도 로그아웃·토큰 무효화 엔드포인트가 없고, 프론트 로그아웃은 로컬 저장소를 지우는 것이 전부다(<code>auth_controller.dart:44-47</code>).</p>
+</div>
+
+<h3>5.2 토큰 수명과 리프레시 — 백엔드 설정 ↔ 프론트 인터셉터</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>항목</th><th>값</th><th>출처</th></tr></thead>
+  <tbody>
+    <tr><td><code>jwt.access-token-validity-seconds</code></td><td><strong>900초 = 15분</strong></td><td><code>application.yml:80</code></td></tr>
+    <tr><td><code>jwt.refresh-token-validity-seconds</code></td><td><strong>1209600초 = 14일</strong></td><td><code>application.yml:81</code></td></tr>
+    <tr><td><code>jwt.secret</code></td><td><code>${JWT_SECRET:local-dev-secret-change-me-please-32bytes-minimum-length}</code></td><td><code>application.yml:79</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>프론트 쪽 대응(<code>core/api/interceptor/auth_interceptor.dart</code>):</p>
+
+<ol>
+  <li>401 수신 → 저장된 refreshToken으로 <code>POST /api/auth/refresh</code> <strong>1회</strong> 시도 → 성공하면 원 요청 재시도(<code>:77-101</code>)</li>
+  <li>동시에 여러 401이 터져도 <code>_inFlightRefresh</code>로 <strong>재발급을 1회로 합친다</strong>(<code>:52-54</code>, <code>:103-113</code>) — 토큰 5개를 동시에 발급받아 서로 덮어쓰는 사고를 막는다</li>
+  <li>재시도는 <strong>인터셉터가 없는 별도 Dio</strong> + <code>auth_retried</code> 플래그로 무한 루프를 차단(<code>:31-36</code>, <code>:56-57</code>)</li>
+  <li>재발급 실패 → <code>onSessionExpired()</code> → <code>AuthController.state = null</code> → go_router의 <code>refreshListenable</code>이 감지해 <code>/login</code>으로(<code>auth_controller.dart:60-62</code>, <code>app_router.dart:26</code>)</li>
+  <li>순환 의존 회피를 위해 재발급은 <code>SessionRefresher</code> 포트를 통해 <code>ref.read</code>로 늦게 해석한다(<code>api_client.dart:154-169</code>)</li>
+</ol>
+
+<p>STOMP도 CONNECT 실패 시 토큰을 재발급받아 재시도하며, <strong>재연결마다 저장소에서 토큰을 새로 읽어</strong> 싣는다(<code>stomp_gateway_impl.dart:165-178</code>).</p>
+
+<p>앱 시작 시 세션 복원은 저장된 accessToken을 파싱만 하고 <strong>만료 검사를 하지 않는다</strong> — 만료면 첫 요청이 401을 받고 위 흐름이 알아서 처리하기 때문이다(<code>auth_repository.dart:57-63</code>).</p>
+
+<p>토큰 보관은 <code>flutter_secure_storage</code>(iOS Keychain / Android Keystore / Web은 WebCrypto). 웹에서는 XSS 시 탈취 가능하며, <strong>accessToken 15분 수명이 그 완화 장치</strong>라고 코드 주석이 밝히고 있다(<code>secure_token_storage.dart:10-11</code>).</p>
+
+<h3>5.3 역할(Role) 5종과 접근 정책</h3>
+
+<p><code>Role</code> enum: <code>STUDENT</code> · <code>PARENT</code> · <code>DRIVER</code> · <code>ACADEMY_ADMIN</code> · <code>PLATFORM_ADMIN</code> (<code>user/entity/Role.java</code>).
+<strong>역할은 User에 직접 박지 않고 <code>UserTenantRole</code>(학원별 역할)로 부여한다</strong> — 같은 사람이 학원 A에서는 학부모, 학원 B에서는 관리자일 수 있기 때문이다(6.1절).</p>
+
+<p><strong>필터 체인 구성</strong> (<code>global/security/SecurityConfig.java:54-70</code>):</p>
+
+<ol>
+  <li><code>csrf().disable()</code> — 세션 쿠키를 안 쓰는 stateless API라 CSRF 대상이 아니다</li>
+  <li><code>cors(...)</code> — <code>app.cors.allowed-origins</code> 목록만 허용, <code>/api/**</code>에만 적용</li>
+  <li><code>sessionCreationPolicy(STATELESS)</code></li>
+  <li><code>authorizeHttpRequests</code> — permitAll 경로 외 <code>anyRequest().authenticated()</code></li>
+  <li><code>exceptionHandling</code> — 미인증 시 403이 아니라 <strong>401</strong>(<code>HttpStatusEntryPoint(UNAUTHORIZED)</code>)</li>
+  <li><code>addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)</code></li>
+  <li><code>PasswordEncoder</code> = <code>BCryptPasswordEncoder</code></li>
+</ol>
+
+<p><strong>permitAll 경로 5개 패턴</strong>: <code>/api/auth/**</code> · <code>/actuator/health</code>(2.1절 — 엔드포인트 자체가 없음) · <code>/ws/**</code> · <code>/swagger-ui/**</code>+<code>/swagger-ui.html</code> · <code>/v3/api-docs/**</code>.
+<code>/ws/**</code>를 연 이유는 <strong>HTTP 핸드셰이크에는 토큰을 실을 수 없기 때문</strong>이고, 대신 STOMP CONNECT 프레임에서 <code>StompAuthChannelInterceptor</code>가 인증한다(<code>SecurityConfig.java:31-33</code>).</p>
+
+<p><strong>인가는 경로 규칙이 아니라 컨트롤러의 <code>@PreAuthorize</code> 메서드 보안이다</strong>(<code>@EnableMethodSecurity</code>, <code>SecurityConfig.java:41</code>). 실측 <strong>55개소</strong>(클래스 레벨 3 + 메서드 레벨 52):</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>역할</th><th>대표 접근 범위</th></tr></thead>
+  <tbody>
+    <tr><td><code>PLATFORM_ADMIN</code> 단독</td><td>테넌트 생성·수정·목록 (<code>TenantController.java:44,51,66</code>)</td></tr>
+    <tr><td><code>ACADEMY_ADMIN</code> + <code>PLATFORM_ADMIN</code></td><td>모든 관리자 조회·승인·배차. 클래스 레벨 일괄 지정 3곳(<code>StudentController:36</code>, <code>BusController:35</code>, <code>MemberController:32</code>)</td></tr>
+    <tr><td><code>DRIVER</code></td><td>승하차 기록, 운행 세션, 버스 위치 보고, 기사용 노선 조회</td></tr>
+    <tr><td><code>STUDENT</code></td><td>자기 위치 보고·조회, SOS 발동</td></tr>
+    <tr><td><code>PARENT</code></td><td>자녀 조회, 출결·스케줄 신청</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="callout warn">
+  <span class="ct">역할 검사만으로는 격리가 안 된다</span>
+  <p><code>AuthUser.authorities()</code>는 멤버십의 역할을 <code>ROLE_*</code> authority로 변환하면서 <strong>“어느 학원에서 얻은 역할인지”를 잃는다</strong>(<code>AuthUser.java:40-46</code>). 여러 학원 멤버십이 있으면 <strong>역할 합집합</strong>이 된다. 그래서 서비스 계층의 <code>TenantGuard</code>가 반드시 한 번 더 필요하다(6.3절).</p>
+</div>
+
+<p><strong>프론트 측 역할 라우팅</strong> (<code>app/router/role_redirect.dart:18-60</code>):</p>
+
+<ol>
+  <li>토큰 복원 중이면 splash에 묶어둔다</li>
+  <li>세션 없음 → <code>/login</code></li>
+  <li>로그인은 됐으나 MVP 미지원 역할(학생·학부모) → <code>/login</code>에 머물며 “준비 중” 배너</li>
+  <li>로그인 상태로 <code>/login</code>·<code>/</code>에 있으면 역할 홈으로 — 관리자 → <code>/admin/monitor</code>, 기사 → <code>/driver/route</code></li>
+  <li>경로 접두어 가드 — <code>/admin*</code>은 <code>role.isAdmin</code>, <code>/driver*</code>은 <code>role == DRIVER</code></li>
+</ol>
+
+<p><strong>정의된 역할 5개 중 화면이 있는 역할은 3개</strong>다(기사 2화면, 학원 관리자·플랫폼 관리자 각 4화면 — 두 관리자는 화면이 완전히 동일하고 tenant 결정 방식만 다르다). 학생·학부모는 0화면이다.</p>
+
+<h2 class="sec" id="c6">6. 멀티테넌시 — 이 시스템의 핵심 제약</h2>
+
+<p>여러 학원(테넌트)의 데이터가 <strong>같은 테이블에 섞여 저장</strong>되고, 애플리케이션 코드가 <code>tenant_id</code>로 갈라 보여준다. 학원마다 DB를 따로 두는 방식이 아니다.</p>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 격리가 강제되는 지점 — 4가지 방식과 DB 레벨 격리 부재</div>
+  <svg viewBox="0 0 1100 480" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .ar3-g1   { fill:rgba(4,120,87,0.10);  stroke:#047857; stroke-width:2; }
+      .ar3-g2   { fill:rgba(180,83,9,0.10);  stroke:#b45309; stroke-width:2; }
+      .ar3-g3   { fill:rgba(14,116,144,0.10); stroke:#0e7490; stroke-width:2; }
+      .ar3-g4   { fill:rgba(124,58,237,0.10); stroke:#7c3aed; stroke-width:2; }
+      .ar3-db   { fill:rgba(220,38,38,0.06); stroke:#dc2626; stroke-width:2; stroke-dasharray:7 5; }
+      .ar3-bad  { fill:rgba(220,38,38,0.12); stroke:#dc2626; stroke-width:2.5; }
+      .ar3-tt   { fill:#3a3531; font:bold 13.5px sans-serif; text-anchor:middle; }
+      .ar3-st   { fill:#6b6359; font:11.5px sans-serif; text-anchor:middle; }
+      .ar3-num  { fill:#3a3531; font:bold 15px sans-serif; text-anchor:middle; }
+      .ar3-lb   { fill:#6b6359; font:11.5px sans-serif; }
+      .ar3-hd   { fill:#0e7490; font:bold 13px sans-serif; }
+      .ar3-red  { fill:#dc2626; font:bold 13px sans-serif; }
+      .ar3-redl { fill:#dc2626; font:11.5px sans-serif; }
+      .ar3-line { stroke:#c0b6a8; stroke-width:2; fill:none; }
+      .ar3-redln{ stroke:#dc2626; stroke-width:2.5; fill:none; }
+    </style>
+    <defs>
+      <marker id="ar3-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#c0b6a8"/>
+      </marker>
+      <marker id="ar3-arrred" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#dc2626"/>
+      </marker>
+    </defs>
+
+    <text class="ar3-hd" x="40" y="28" style="text-anchor:start">격리는 전부 서비스 계층 — 인터셉터 · AOP · Hibernate 필터가 아니다</text>
+
+    <rect class="ar3-g1" x="40"  y="44" width="240" height="150" rx="10"/>
+    <text class="ar3-num" x="160" y="72">① TenantGuard 호출</text>
+    <text class="ar3-tt"  x="160" y="98">26개소 · 18개 서비스</text>
+    <text class="ar3-st"  x="160" y="122">관리자 목록 조회 · 등록</text>
+    <text class="ar3-st"  x="160" y="142">PLATFORM_ADMIN 은 tenantId 필수</text>
+    <text class="ar3-st"  x="160" y="162">ACADEMY_ADMIN 은 소속 자동 대입</text>
+    <text class="ar3-st"  x="160" y="182">불일치 시 403</text>
+
+    <rect class="ar3-g2" x="300" y="44" width="240" height="150" rx="10"/>
+    <text class="ar3-num" x="420" y="72">② 인라인 재구현</text>
+    <text class="ar3-tt"  x="420" y="98">5개소</text>
+    <text class="ar3-st"  x="420" y="122">isPlatformAdmin()</text>
+    <text class="ar3-st"  x="420" y="142">|| belongsToTenant(...)</text>
+    <text class="ar3-st"  x="420" y="166">승인 · 반려 · 확인 · 정정</text>
+    <text class="ar3-st"  x="420" y="186">같은 규칙의 복사본</text>
+
+    <rect class="ar3-g3" x="560" y="44" width="240" height="150" rx="10"/>
+    <text class="ar3-num" x="680" y="72">③ 본인 · 담당자 확인</text>
+    <text class="ar3-tt"  x="680" y="98">기사 · 학생 엔드포인트</text>
+    <text class="ar3-st"  x="680" y="122">버스의 driver.id == 요청자</text>
+    <text class="ar3-st"  x="680" y="142">요청자 userId 로 학생 역조회</text>
+    <text class="ar3-st"  x="680" y="166">tenantId 를 클라이언트가</text>
+    <text class="ar3-st"  x="680" y="186">보내지 않는다</text>
+
+    <rect class="ar3-g4" x="820" y="44" width="240" height="150" rx="10"/>
+    <text class="ar3-num" x="940" y="72">④ 관계 기반</text>
+    <text class="ar3-tt"  x="940" y="98">학부모 엔드포인트</text>
+    <text class="ar3-st"  x="940" y="122">student_guardian 연결 확인</text>
+    <text class="ar3-st"  x="940" y="146">아니면 “자녀가 아닙니다” 403</text>
+    <text class="ar3-st"  x="940" y="170">위조 여지 없음</text>
+
+    <path class="ar3-line" d="M160,194 L160,246" marker-end="url(#ar3-arr)"/>
+    <path class="ar3-line" d="M420,194 L420,246" marker-end="url(#ar3-arr)"/>
+    <path class="ar3-line" d="M680,194 L680,246" marker-end="url(#ar3-arr)"/>
+    <path class="ar3-line" d="M940,194 L940,246" marker-end="url(#ar3-arr)"/>
+
+    <rect class="ar3-db" x="40" y="252" width="1020" height="96" rx="12"/>
+    <text class="ar3-red" x="60" y="280" style="text-anchor:start">PostgreSQL — 단일 스키마 · 모든 학원 데이터가 같은 테이블에 혼재</text>
+    <text class="ar3-redl" x="60" y="304" style="text-anchor:start">DB 레벨 격리 0건 — Hibernate @Filter · PostgreSQL RLS · @TenantId · 자동 조건 주입 전부 무매칭</text>
+    <text class="ar3-redl" x="60" y="326" style="text-anchor:start">새 조회 메서드에서 tenantId 를 빠뜨리면 컴파일러도 테스트도 잡아주지 않고 조용히 전 학원 데이터가 나간다</text>
+
+    <rect class="ar3-bad" x="40" y="376" width="470" height="80" rx="10"/>
+    <text class="ar3-red"  x="60" y="404" style="text-anchor:start">격리가 아예 없는 엔드포인트 1건</text>
+    <text class="ar3-redl" x="60" y="426" style="text-anchor:start">GET /api/routes/{id}/stops — @PreAuthorize 없음 · AuthUser 안 받음</text>
+    <text class="ar3-redl" x="60" y="446" style="text-anchor:start">인증만 됐으면 남의 학원 정류장 이름 · 좌표를 읽는다</text>
+
+    <path class="ar3-redln" d="M275,376 L275,352" marker-end="url(#ar3-arrred)"/>
+
+    <text class="ar3-lb" x="550" y="400" style="text-anchor:start">STOMP 구독 격리는 별도다 — /topic/tenant/{id}/** 구독만 검사하며</text>
+    <text class="ar3-lb" x="550" y="422" style="text-anchor:start">PLATFORM_ADMIN 이거나 (ACADEMY_ADMIN &amp;&amp; 해당 테넌트 소속)이어야 통과한다.</text>
+    <text class="ar3-lb" x="550" y="444" style="text-anchor:start">개인 큐 /user/queue/** 는 Spring user-destination 이 본인 배달을 보장해 검사하지 않는다.</text>
+  </svg>
+  <div class="viz-cap">격리 규칙을 고치려면 <strong>여섯 군데</strong>(TenantGuard + 인라인 5)를 함께 고쳐야 한다. 아래 DB 층은 아무것도 막아주지 않는다.</div>
+</div>
+
+<h3 id="c6-1">6.1 User ↔ Tenant N:M을 UserTenantRole로 푼 이유</h3>
+
+<p><code>User</code> 엔티티에는 <strong><code>tenant_id</code>가 없다</strong>(<code>user/entity/User.java</code>). 대신 조인 엔티티 <code>UserTenantRole(user, tenant, role)</code>이 소속과 역할을 함께 들고 있다.</p>
+
+<p>이유는 코드 주석이 직접 밝힌다 — <strong>“학부모가 여러 학원에 자녀를 둘 수 있으므로 User–Tenant는 N:M”</strong>(<code>User.java:16-17</code>). 여기에 두 가지가 더 얹힌다:</p>
+
+<ul>
+  <li><strong>역할은 학원마다 다를 수 있다.</strong> 같은 사람이 A학원에서는 기사, B학원에서는 학부모일 수 있다. 그래서 role이 User가 아니라 이 조인 테이블에 붙는다.</li>
+  <li><strong>플랫폼 관리자는 소속이 없다.</strong> <code>UserTenantRole.tenant</code>가 <code>@ManyToOne(LAZY)</code>에 <strong>nullable</strong>이라, 플랫폼 관리자는 <code>tenant_id = NULL</code>인 전역 역할 한 줄로 표현된다(<code>UserTenantRole.java:43-45</code>). JWT 클레임에서는 <code>":PLATFORM_ADMIN"</code>처럼 tenantId가 빈 문자열로 인코딩된다.</li>
+</ul>
+
+<p>unique 제약은 <code>(user_id, tenant_id, role)</code>이다 — 같은 학원에서 같은 역할을 두 번 부여할 수 없되, <strong>한 학원에서 여러 역할은 가능</strong>한 구조다.</p>
+
+<h3 id="c6-2">6.2 tenant_id 보유 엔티티 11개 / 미보유 4개</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>구분</th><th>엔티티</th><th>형태</th></tr></thead>
+  <tbody>
+    <tr><td><strong>FK 연관으로 보유</strong> (4)</td><td><code>UserTenantRole</code>(nullable) · <code>Student</code> · <code>Bus</code> · <code>Route</code></td><td><code>@ManyToOne Tenant</code></td></tr>
+    <tr><td><strong>평문 <code>Long</code> 컬럼으로 보유</strong> (7)</td><td><code>RideEvent</code> · <code>DriveSession</code> · <code>AttendanceException</code> · <code>ScheduleChangeRequest</code> · <code>SosEvent</code> · <code>NotificationLog</code> · <code>RoutePlan</code></td><td>FK 제약 없음</td></tr>
+    <tr><td><strong>미보유 — 부모 경유 격리</strong> (4)</td><td><code>StudentGuardian</code>(Student 경유) · <code>Stop</code>(Route 경유) · <code>RoutePlanStop</code>(RoutePlan 경유) · <code>User</code>(UserTenantRole로 분리)</td><td>—</td></tr>
+    <tr><td>루트 (1)</td><td><code>Tenant</code></td><td>자기 자신이 테넌트</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>두 가지 형태가 공존하는 게 우연이 아니다. <strong>마스터 데이터(학생·버스·노선)는 엔티티 연관 + FK</strong>로, <strong>이벤트성 데이터(승하차·운행·알림·SOS)는 평문 <code>Long</code> + FK 없음</strong>으로 통일돼 있다(7.3절에서 이유를 설명).</p>
+
+<h3 id="c6-3">6.3 격리가 실제로 강제되는 지점</h3>
+
+<p><strong>인터셉터·AOP·Hibernate 필터가 아니라, 서비스 계층에서 정적 헬퍼를 명시 호출</strong>하는 방식이다.</p>
+
+<p><code>TenantGuard.resolveTenantId(AuthUser admin, Long requested)</code> (<code>global/tenant/TenantGuard.java:22-40</code>):</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>요청자</th><th><code>requested</code></th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>PLATFORM_ADMIN</code></td><td><code>null</code></td><td><code>INVALID_INPUT</code> “tenantId가 필요합니다” → <strong>400</strong></td></tr>
+    <tr><td><code>PLATFORM_ADMIN</code></td><td>지정</td><td>그대로 통과 — <strong>어느 학원이든 조회 가능</strong></td></tr>
+    <tr><td><code>ACADEMY_ADMIN</code></td><td><code>null</code></td><td>본인 소속(<code>primaryTenantId()</code>)으로 자동 대입. 소속 없으면 <strong>403</strong></td></tr>
+    <tr><td><code>ACADEMY_ADMIN</code></td><td>지정</td><td><code>belongsToTenant(requested)</code> 실패 시 <strong>403</strong></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>플랫폼 관리자에게 tenantId를 <strong>강제</strong>하는 게 포인트다. 전 학원 데이터를 한꺼번에 긁는 실수를 막는 안전장치다.</p>
+
+<p><strong>호출 지점 실측 26개소</strong> (18개 서비스) — attendance 1 · schedule 1 · route 3 · notification 1 · location 2 · student 4 · bus 4 · user 2 · drivesession 1 · rideevent 1 · routing 5 · sos 1.</p>
+
+<p>격리 방식은 실제로 <strong>네 갈래</strong>다:</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>방식</th><th>적용 대상</th><th>예</th></tr></thead>
+  <tbody>
+    <tr><td>① <code>TenantGuard</code> 호출</td><td>관리자 목록 조회·등록 (26개소, 18개 서비스)</td><td><code>GET /api/locations</code>, <code>GET /api/buses</code></td></tr>
+    <tr><td>② <strong>인라인 재구현</strong> (<code>isPlatformAdmin() || belongsToTenant(...)</code>)</td><td>관리자 단건 처리(승인·반려·확인·종료·정정) <strong>5개소</strong></td><td><code>AttendanceCommandService.java:80-82</code>, <code>ScheduleCommandService.java:85-87</code>, <code>SosCommandService.java:87-89</code>, <code>TenantQueryService.java:35-37</code>, <code>RideEventCommandService.java:116</code></td></tr>
+    <tr><td>③ <strong>본인/담당자 확인</strong></td><td>기사·학생 엔드포인트</td><td>버스의 <code>driver.id == 요청자 userId</code>(<code>BusLocationCommandService.java:37-39</code>), 요청자 userId로 학생 역조회(<code>LocationCommandService.java:54-57</code>)</td></tr>
+    <tr><td>④ <strong>관계 기반</strong></td><td>학부모 엔드포인트</td><td><code>student_guardian</code> 연결 확인 → 아니면 “자녀가 아닙니다” 403. <strong>tenantId를 클라이언트가 보내는 경로가 아예 없어 위조 여지가 없다</strong></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>STOMP 구독 격리</strong>는 별도다(<code>StompAuthChannelInterceptor:66-80</code>). <code>/topic/tenant/{tenantId}/**</code> 구독만 검사하며, <code>PLATFORM_ADMIN</code>이거나 (<code>ACADEMY_ADMIN</code> &amp;&amp; 해당 테넌트 소속)이어야 통과한다. 개인 큐 <code>/user/queue/**</code>는 Spring user-destination 라우팅이 본인 세션 배달을 보장하므로 검사하지 않는다.</p>
+
+<h3 id="c6-4">6.4 ⚠ 리스크</h3>
+
+<p>이 절의 항목은 12장 R1~R4에 개선 방향과 함께 정리했다. 여기서는 사실만 짚는다.</p>
+
+<div class="callout danger">
+  <span class="ct">1. DB 레벨 격리가 없다</span>
+  <p>Hibernate <code>@Filter</code>, PostgreSQL RLS, 인터셉터 기반 자동 조건 주입 — 어느 것도 코드에 없다(<code>grep -rE "@Filter|RowLevelSecurity|@TenantId"</code> 무매칭).
+  <strong>모든 격리는 개발자가 매번 손으로 <code>tenantId</code>를 쿼리 조건에 넘기는 것에 의존한다.</strong> 새 조회 메서드에서 그걸 빠뜨리면 조용히 전 학원 데이터가 새어나간다.</p>
+</div>
+
+<div class="callout warn">
+  <span class="ct">2. 격리 로직이 이원화돼 있다</span>
+  <p><code>TenantGuard</code> 26개소 + 같은 조건을 인라인으로 다시 쓴 5개소. 규칙을 고치려면 <code>TenantGuard</code> 하나로 끝나지 않고 인라인 다섯 군데를 함께 고쳐야 한다.</p>
+</div>
+
+<div class="callout danger">
+  <span class="ct">3. 격리가 아예 없는 엔드포인트가 1개 있다 — <code>GET /api/routes/{id}/stops</code></span>
+  <p><code>@PreAuthorize</code>도 없고 <code>AuthUser</code>를 파라미터로 받지도 않아(<code>RouteController.java:53-56</code>, <code>RouteQueryService.java:45-50</code>),
+  <strong>인증만 됐으면 누구나 다른 학원의 정류장 이름·좌표를 읽을 수 있다.</strong> 프론트가 이 엔드포인트를 쓰지 않아 드러나지 않았을 뿐이다.</p>
+</div>
+
+<div class="callout danger">
+  <span class="ct">4. <code>POST /api/auth/signup</code>이 요청 body의 <code>tenantId</code>·<code>role</code>을 그대로 신뢰한다</span>
+  <p><code>permitAll</code>이므로 <strong>누구나 임의 학원의 <code>ACADEMY_ADMIN</code>으로 self-signup 할 수 있다</strong>(<code>AuthCommandService.java:50-62</code>). 존재 확인만 하고 “가입해도 되는가”는 묻지 않는다.</p>
+</div>
+
+<h2 class="sec" id="c7">7. 데이터 모델 — 엔티티 16개와 관계</h2>
+
+<p><code>@Entity</code>가 붙은 클래스는 <strong>16개</strong>이고, <code>V1__init_schema.sql</code>의 <code>create table</code>도 <strong>16개</strong>다 — <strong>1:1 대응하며 고아 테이블·고아 엔티티가 없다.</strong></p>
+
+<p>공통 규약:</p>
+<ul>
+  <li>모든 엔티티가 <code>@Id @GeneratedValue(IDENTITY) Long id</code> + <code>@NoArgsConstructor(PROTECTED)</code> + <code>@Getter</code> + 생성용 <code>@Builder</code>를 공유한다. <strong>setter가 없다</strong> — 상태 변경은 의미 있는 도메인 메서드(<code>assignBus()</code>, <code>approve()</code>, <code>end()</code>)로만 한다.</li>
+  <li><strong><code>BaseTimeEntity</code>는 엔티티가 아니다.</strong> <code>@Entity</code>가 아니라 <code>@MappedSuperclass</code> + <code>@EntityListeners(AuditingEntityListener.class)</code>가 붙은 <strong>생성·수정 시각 공통 베이스</strong>이며, 테이블로 매핑되지 않는다(<code>global/common/BaseTimeEntity.java:19-21</code>). 16개 엔티티 중 <strong>15개가 이걸 상속</strong>한다 — 유일한 예외가 <code>RoutePlanStop</code>이고, 스키마에도 그 테이블만 <code>created_at</code>/<code>updated_at</code>이 없어 코드와 DDL이 일치한다.</li>
+</ul>
+
+<h3>7.1 관계 목록 (ERD 대용)</h3>
+
+<p><strong>FK 제약이 있는 관계 13건</strong> (<code>V1__init_schema.sql:227-290</code>):</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>부모</th><th>자식</th><th>FK 컬럼</th><th>NULL</th></tr></thead>
+  <tbody>
+    <tr><td>Tenant</td><td>UserTenantRole</td><td><code>user_tenant_role.tenant_id</code></td><td>허용(플랫폼 관리자)</td></tr>
+    <tr><td>User</td><td>UserTenantRole</td><td><code>user_tenant_role.user_id</code></td><td>불가</td></tr>
+    <tr><td>Tenant</td><td>Student</td><td><code>student.tenant_id</code></td><td>불가</td></tr>
+    <tr><td>Tenant</td><td>Bus</td><td><code>bus.tenant_id</code></td><td>불가</td></tr>
+    <tr><td>Tenant</td><td>Route</td><td><code>route.tenant_id</code></td><td>불가</td></tr>
+    <tr><td>Route</td><td>Stop</td><td><code>stop.route_id</code></td><td>불가</td></tr>
+    <tr><td>Route</td><td>Bus</td><td><code>bus.route_id</code></td><td>허용(미배차)</td></tr>
+    <tr><td>User(DRIVER)</td><td>Bus</td><td><code>bus.driver_id</code></td><td>허용(미배차)</td></tr>
+    <tr><td>Bus</td><td>Student</td><td><code>student.bus_id</code></td><td>허용</td></tr>
+    <tr><td>Stop</td><td>Student</td><td><code>student.stop_id</code></td><td>허용</td></tr>
+    <tr><td>Student</td><td>StudentGuardian</td><td><code>student_guardian.student_id</code></td><td>불가</td></tr>
+    <tr><td>User(PARENT)</td><td>StudentGuardian</td><td><code>student_guardian.guardian_id</code></td><td>불가</td></tr>
+    <tr><td>RoutePlan</td><td>RoutePlanStop</td><td><code>route_plan_stop.route_plan_id</code></td><td>불가</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>N:M을 조인 엔티티로 푼 관계 2건</strong>:</p>
+<ul>
+  <li><code>User ↔ Tenant</code> → <code>UserTenantRole</code> (+<code>role</code>), unique(user_id, tenant_id, role)</li>
+  <li><code>Student ↔ User(보호자)</code> → <code>StudentGuardian</code> (+<code>relation</code>), unique(student_id, guardian_id)</li>
+</ul>
+
+<p><strong>FK 없이 애플리케이션 레벨로만 유지되는 참조</strong> — 이벤트성 테이블 전부. 대표 예:</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>테이블</th><th>평문 참조 컬럼</th></tr></thead>
+  <tbody>
+    <tr><td><code>ride_event</code></td><td>tenant_id, student_id, bus_id, stop_id, corrected_by, <strong>original_ref(자기참조)</strong></td></tr>
+    <tr><td><code>drive_session</code></td><td>tenant_id, bus_id, driver_id, route_plan_id</td></tr>
+    <tr><td><code>route_plan</code></td><td>tenant_id, bus_id, approved_by, published_by</td></tr>
+    <tr><td><code>route_plan_stop</code></td><td>student_id</td></tr>
+    <tr><td><code>attendance_exception</code> / <code>schedule_change_request</code></td><td>tenant_id, student_id, processed_by</td></tr>
+    <tr><td><code>sos_event</code></td><td>tenant_id, student_id, acknowledged_by, resolved_by</td></tr>
+    <tr><td><code>notification_log</code></td><td>tenant_id, student_id</td></tr>
+    <tr><td><code>student</code></td><td><strong><code>user_id</code></strong> — 학생 로그인 계정 연결. <code>@ManyToOne</code>이 아닌 <code>Long</code>이라 FK 제약이 없다</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>7.2 FK 있는 관계 vs 애플리케이션 레벨 참조</h3>
+
+<p>경계선이 명확하다:</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th></th><th>FK 있음 (13건)</th><th>FK 없음</th></tr></thead>
+  <tbody>
+    <tr><td>성격</td><td><strong>마스터 데이터</strong> — 학원·계정·학생·버스·노선·정류장</td><td><strong>이벤트/트랜잭션 데이터</strong> — 승하차·운행·계획·출결·SOS·알림</td></tr>
+    <tr><td>매핑</td><td><code>@ManyToOne(LAZY)</code> 엔티티 연관</td><td>평문 <code>Long</code> 필드</td></tr>
+    <tr><td>격리</td><td>부모 체인을 타고 감</td><td><code>tenant_id</code> 컬럼 직접 보유</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>7.3 왜 이벤트성 테이블은 FK를 걸지 않았는가</h3>
+
+<p>코드가 이유를 직접 밝힌다 — <strong>“대용량 테이블이라 연관 엔티티 대신 식별자(Long)로 참조하고 tenant_id로 격리한다”</strong>(<code>RideEvent.java:22</code>). 정리하면 세 가지 효과가 있다:</p>
+
+<ol>
+  <li><strong>쓰기 성능</strong> — FK가 있으면 INSERT마다 부모 존재 확인(참조 무결성 체크)이 붙는다. 승하차 기록처럼 초당 다건이 쌓이는 테이블에서는 이 비용이 누적된다.</li>
+  <li><strong>N+1과 lazy 로딩 사고 회피</strong> — <code>@ManyToOne</code>을 걸면 조회할 때마다 프록시가 따라오고, 목록을 순회하며 <code>getStudent().getName()</code>을 부르는 순간 쿼리가 학생 수만큼 나간다. <code>Long studentId</code>만 들고 있으면 그런 일이 구조적으로 생기지 않는다.</li>
+  <li><strong>모듈 분리 여지</strong> — <code>rideevent</code>가 <code>student</code> 엔티티를 컴파일 타임에 참조하지 않으므로, 나중에 별도 서비스로 떼어낼 때 걸림돌이 적다(<code>reference.md</code> §17 MSA 전환 원칙).</li>
+</ol>
+
+<p>대가는 분명하다: <strong>DB가 무결성을 보장하지 않는다.</strong> 존재하지 않는 <code>student_id</code>를 가진 <code>ride_event</code>가 들어가도 DB는 막지 않고, 학생을 지워도 기록이 고아로 남는다. 이건 트레이드오프이지 실수가 아니다 — 다만 삭제 API가 없어서(현재 <code>DELETE</code> 엔드포인트가 <strong>0개</strong>) 아직 문제가 드러나지 않은 상태다.</p>
+
+<p><strong>정정(correction)도 같은 철학이다.</strong> <code>RideEvent.correct()</code>는 원본을 덮어쓰지 않고 <code>correctedBy</code>/<code>correctedAt</code>/<code>originalRef</code>를 채운 <strong>새 행</strong>을 만든다(<code>RideEventCommandService.java:92-105</code>). <code>RoutePlan</code>도 재계산 시 기존 행을 고치지 않고 <code>version + 1</code>인 새 행을 만든다(<code>RoutePlan.java:31</code>). <strong>이력을 지우지 않는 것</strong>이 이 도메인의 일관된 원칙이다 — 사고가 났을 때 “누가 언제 무엇을 바꿨는지”가 남아야 하기 때문이다.</p>
+
+<h3>7.4 상태머신 — 전이 검증이 있는 것 5개</h3>
+
+<p>전이 로직은 <strong>전부 엔티티 도메인 메서드 안</strong>에 있고, 커맨드 서비스는 권한·전제만 확인하고 호출한다.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>엔티티</th><th>전이</th><th>위반 시</th></tr></thead>
+  <tbody>
+    <tr><td><code>RoutePlan</code></td><td>DRAFT·RECOMMENDED → APPROVED → PUBLISHED</td><td><code>CONFLICT</code>. <strong>PUBLISHED 이후 전이 없음</strong>(취소·철회 메서드 부재)</td></tr>
+    <tr><td><code>DriveSession</code></td><td>(생성)IN_PROGRESS → COMPLETED</td><td><code>CONFLICT</code> “이미 종료된 운행입니다”. 추가로 <strong>차내 잔류 학생이 있으면 종료 차단</strong></td></tr>
+    <tr><td><code>SosEvent</code></td><td>OPEN → ACKNOWLEDGED → RESOLVED</td><td><code>CONFLICT</code>. <strong>OPEN에서 RESOLVED로 건너뛸 수 없다</strong> — 누가 대응했는지 반드시 남기려는 의도</td></tr>
+    <tr><td><code>AttendanceException</code></td><td>PENDING → APPROVED / REJECTED</td><td><code>CONFLICT</code> “이미 처리된 신청입니다”. 종착 상태(되돌리기 없음)</td></tr>
+    <tr><td><code>ScheduleChangeRequest</code></td><td>PENDING → APPROVED / REJECTED</td><td>동일</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="callout warn">
+  <span class="ct">전이 검증이 없는 것 — <code>RideType</code>(BOARD/ALIGHT/HANDOVER)</span>
+  <p><code>RideEventCommandService.record()</code>는 요청 <code>type</code>을 그대로 새 행으로 저장할 뿐, “승차 없이 하차”, “이미 하차한 학생을 또 하차” 같은 순서·중복을 검사하지 않는다.
+  수행하는 검증은 ① 담당 기사 여부 ② 학생과 버스의 테넌트 일치 두 가지뿐이다. 현재는 <strong>기사 앱이 버튼을 하나만 노출해서</strong> 막고 있을 뿐이라, 직접 API를 호출하면 뚫린다(12장 R16).</p>
+</div>
+
+<p><code>RideSource</code>는 상태머신이 아니라 분류값이며, <code>record()</code>는 항상 <code>MANUAL</code>, <code>correct()</code>는 항상 <code>CORRECTION</code>으로 하드코딩된다 — <strong><code>QR</code>/<code>NFC</code> 값을 쓰는 코드 경로가 현재 없다.</strong></p>
+
+<h2 class="sec" id="c8">8. 실시간 위치 파이프라인 — Mock → 실 GPS 추상화</h2>
+
+<div class="callout warn">
+  <span class="ct">먼저 알아야 할 것: 위치 파이프라인이 두 개이고 서로 다르게 동작한다</span>
+  <p><strong>push 파이프라인이 완비된 쪽(학생)은 프론트에 화면이 없고, 화면이 있는 쪽(버스)은 push가 없다.</strong></p>
+</div>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th></th><th>학생 위치</th><th>버스 위치</th></tr></thead>
+  <tbody>
+    <tr><td>저장소</td><td><strong>Redis</strong> (<code>loc:{studentId}</code>, TTL 9초)</td><td><strong>InMemory</strong> (ConcurrentHashMap)</td></tr>
+    <tr><td>이벤트 발행</td><td>O (<code>LocationUpdatedEvent</code>)</td><td><strong>X</strong></td></tr>
+    <tr><td>클라이언트 전달</td><td>Kafka → STOMP <strong>push</strong></td><td><strong>없음 → REST 폴링</strong></td></tr>
+    <tr><td>관리자 화면 사용</td><td>프론트에 화면 없음</td><td>관제 지도가 3초 폴링</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 위치 데이터 파이프라인 — 버스는 폴링, 학생만 push</div>
+  <svg viewBox="0 0 1100 520" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .ar4-src  { fill:rgba(124,58,237,0.10); stroke:#7c3aed; stroke-width:2; }
+      .ar4-api  { fill:rgba(14,116,144,0.10); stroke:#0e7490; stroke-width:2; }
+      .ar4-store{ fill:rgba(4,120,87,0.10);  stroke:#047857; stroke-width:2; }
+      .ar4-poll { fill:rgba(180,83,9,0.10);  stroke:#b45309; stroke-width:2; }
+      .ar4-miss { fill:rgba(220,38,38,0.10); stroke:#dc2626; stroke-width:2; stroke-dasharray:6 4; }
+      .ar4-swap { fill:none; stroke:#db2777; stroke-width:2; stroke-dasharray:5 4; }
+      .ar4-tt   { fill:#3a3531; font:bold 13px sans-serif; text-anchor:middle; }
+      .ar4-st   { fill:#6b6359; font:11px sans-serif; text-anchor:middle; }
+      .ar4-lb   { fill:#6b6359; font:11.5px sans-serif; }
+      .ar4-hd   { fill:#0e7490; font:bold 13px sans-serif; }
+      .ar4-hd2  { fill:#b45309; font:bold 13px sans-serif; }
+      .ar4-red  { fill:#dc2626; font:bold 12px sans-serif; }
+      .ar4-pink { fill:#db2777; font:bold 11.5px sans-serif; }
+      .ar4-line { stroke:#c0b6a8; stroke-width:2; fill:none; }
+      .ar4-back { stroke:#b45309; stroke-width:2; fill:none; stroke-dasharray:6 4; }
+    </style>
+    <defs>
+      <marker id="ar4-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#c0b6a8"/>
+      </marker>
+      <marker id="ar4-arry" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#b45309"/>
+      </marker>
+    </defs>
+
+    <text class="ar4-hd2" x="40" y="28" style="text-anchor:start">① 버스 위치 — 화면은 있으나 push 가 없다</text>
+
+    <rect class="ar4-src" x="40" y="44" width="200" height="92" rx="10"/>
+    <text class="ar4-tt" x="140" y="72">기사 앱</text>
+    <text class="ar4-st" x="140" y="94">5초 타이머</text>
+    <text class="ar4-st" x="140" y="114">LocationSource.read()</text>
+    <text class="ar4-st" x="140" y="130">기본값 = Mock</text>
+
+    <rect class="ar4-api" x="290" y="44" width="210" height="92" rx="10"/>
+    <text class="ar4-tt" x="395" y="72">POST /api/locations/bus</text>
+    <text class="ar4-st" x="395" y="96">BusLocationCommandService</text>
+    <text class="ar4-st" x="395" y="116">driver.id == 요청자 검증</text>
+    <text class="ar4-st" x="395" y="132">들어온 좌표는 전부 GPS 로 기록</text>
+
+    <rect class="ar4-store" x="550" y="44" width="210" height="92" rx="10"/>
+    <text class="ar4-tt" x="655" y="72">InMemoryBusLocationRepository</text>
+    <text class="ar4-st" x="655" y="96">ConcurrentHashMap</text>
+    <text class="ar4-st" x="655" y="116">재시작 시 휘발</text>
+    <text class="ar4-st" x="655" y="132">다중 인스턴스 미공유</text>
+
+    <rect class="ar4-poll" x="820" y="44" width="220" height="92" rx="10"/>
+    <text class="ar4-tt" x="930" y="72">관리자 관제 지도</text>
+    <text class="ar4-st" x="930" y="96">3초마다 재조회</text>
+    <text class="ar4-st" x="930" y="116">GET /api/locations/buses</text>
+    <text class="ar4-st" x="930" y="132">백그라운드 시 pause()</text>
+
+    <path class="ar4-line" d="M240,90 L286,90" marker-end="url(#ar4-arr)"/>
+    <path class="ar4-line" d="M500,90 L546,90" marker-end="url(#ar4-arr)"/>
+    <path class="ar4-back" d="M816,112 L770,112" marker-end="url(#ar4-arry)"/>
+    <text class="ar4-hd2" x="790" y="164" style="text-anchor:middle">↑ 폴링 (pull)</text>
+
+    <rect class="ar4-miss" x="290" y="176" width="470" height="56" rx="10"/>
+    <text class="ar4-red" x="310" y="200" style="text-anchor:start">이벤트를 발행하지 않는다 — ApplicationEventPublisher 가 아예 주입돼 있지 않다</text>
+    <text class="ar4-red" x="310" y="220" style="text-anchor:start">→ Kafka · STOMP 경로가 전혀 없다. 그래서 WebSocket 이 아니라 폴링이다.</text>
+
+    <text class="ar4-hd" x="40" y="286" style="text-anchor:start">② 학생 위치 — push 는 완비, 화면이 없다</text>
+
+    <rect class="ar4-src" x="40" y="302" width="200" height="96" rx="10"/>
+    <text class="ar4-tt" x="140" y="330">LocationSource</text>
+    <text class="ar4-st" x="140" y="352">MockLocationSource (기본)</text>
+    <text class="ar4-st" x="140" y="372">PhoneGpsSource (no-op)</text>
+    <text class="ar4-st" x="140" y="390">스케줄러 3초 tick</text>
+
+    <rect class="ar4-api" x="290" y="302" width="210" height="96" rx="10"/>
+    <text class="ar4-tt" x="395" y="330">LocationCommandService</text>
+    <text class="ar4-tt" x="395" y="350">.ingest(...)</text>
+    <text class="ar4-st" x="395" y="372">REST · STOMP · Mock 이</text>
+    <text class="ar4-st" x="395" y="390">모두 여기로 수렴</text>
+
+    <rect class="ar4-store" x="550" y="302" width="210" height="96" rx="10"/>
+    <text class="ar4-tt" x="655" y="330">RedisLocationRepository</text>
+    <text class="ar4-st" x="655" y="352">키 loc:{studentId}</text>
+    <text class="ar4-st" x="655" y="372">TTL 9초 (tick 3초 × 3)</text>
+    <text class="ar4-st" x="655" y="390">최신 1건만 · 이력 없음</text>
+
+    <rect class="ar4-api" x="820" y="302" width="220" height="96" rx="10"/>
+    <text class="ar4-tt" x="930" y="330">Kafka → STOMP push</text>
+    <text class="ar4-st" x="930" y="352">location-updated 토픽</text>
+    <text class="ar4-st" x="930" y="372">/user/{id}/queue/location</text>
+    <text class="ar4-st" x="930" y="390">/topic/tenant/{id}/location</text>
+
+    <path class="ar4-line" d="M240,350 L286,350" marker-end="url(#ar4-arr)"/>
+    <path class="ar4-line" d="M500,350 L546,350" marker-end="url(#ar4-arr)"/>
+    <path class="ar4-line" d="M760,350 L816,350" marker-end="url(#ar4-arr)"/>
+
+    <rect class="ar4-swap" x="40" y="424" width="200" height="66" rx="10"/>
+    <text class="ar4-pink" x="140" y="448">🔁 Mock ↔ 실 GPS 교체 지점</text>
+    <text class="ar4-st" x="140" y="468">app.location.mock.enabled</text>
+    <text class="ar4-st" x="140" y="484">/ gps.enabled — 여기서만 갈린다</text>
+
+    <text class="ar4-lb" x="290" y="446" style="text-anchor:start">교체는 위 1~4단계에만 영향을 준다. ingest() 이후 경로는 Mock 이든 실 GPS 든 완전히 동일하다.</text>
+    <text class="ar4-lb" x="290" y="468" style="text-anchor:start">실 GPS 소스가 no-op 인 이유 — Mock 은 서버가 좌표를 끌어오지만(pull) 실 GPS 는 단말이 밀어넣는다(push).</text>
+    <text class="ar4-red" x="290" y="490" style="text-anchor:start">prod 프로파일은 이미 반대로 작성돼 있다 — 설정 전환은 준비 완료, 실제 단말 연동만 미검증.</text>
+  </svg>
+  <div class="viz-cap">관제 지도가 움직이는 건 WebSocket이 아니라 <strong>3초 REST 폴링</strong>이다. STOMP는 알림에만 쓰인다.</div>
+</div>
+
+<h3>8.1 학생 위치 — 생성 → 저장 → push 전체 경로</h3>
+
+<p>Mock 경로(MVP 기본값) 기준. 실 GPS는 1~5단계만 다르고 6단계부터 완전히 같다.</p>
+
+<ol>
+  <li><strong>트리거</strong> — <code>LocationSimulationScheduler.tick()</code>이 <code>app.location.tick-ms</code>(<strong>3초</strong>, <code>application.yml:54</code>)마다 실행</li>
+  <li><strong>활성 소스 선별</strong> — 주입된 <code>List&lt;LocationSource&gt;</code> 4개를 순회하며 <code>isActive()</code>가 true인 것만 <code>tick()</code>. 기본값에서는 <code>MockLocationSource</code>와 <code>MockBusLocationSource</code> 2개가 활성</li>
+  <li><strong>이동 계획 로딩</strong> — <code>MockSimulationPlan.build()</code>가 <code>@Transactional(readOnly=true)</code>로 학생·버스·노선의 lazy 연관을 안전하게 읽어 좌표만 담은 <code>Leg</code> record로 변환. 대상은 “배정 버스 + 승차 정류장이 모두 있는 학생”. <strong>자기호출로 프록시를 못 타는 문제를 피하려고 별도 빈으로 분리</strong>했다(<code>MockSimulationPlan.java:17-20</code>)</li>
+  <li><strong>좌표 생성</strong> — 학생별 진행도를 <code>step</code>(0.08)만큼 올리고 삼각파로 변환해 출발↔도착 좌표를 선형보간</li>
+  <li><strong>수집 진입</strong> — <code>LocationCommandService.ingest(tenantId, studentId, lat, lng, MOCK)</code> (<code>@Transactional</code>)</li>
+  <li><strong>저장</strong> — <code>locationRepository.save(...)</code> → <code>@Primary</code>인 <code>RedisLocationRepository</code>가 키 <code>loc:{studentId}</code>에 <strong>TTL 9초</strong>(tick 3초 × 3)로 SET. 값은 Jackson 3 JSON + <code>@class</code> 타입 정보. <strong>학생별 최신 1건만 유지되고 이력은 남지 않는다</strong></li>
+  <li><strong>이벤트 발행(1단)</strong> — 같은 트랜잭션 안에서 <code>ApplicationEventPublisher.publishEvent(LocationUpdatedEvent.of(...))</code></li>
+  <li><strong>커밋 후 릴레이(2단)</strong> — <code>TransactionalDomainEventRelay</code>가 <code>@TransactionalEventListener(AFTER_COMMIT)</code>로 받아 <code>DomainEventPublisher.publish()</code> 호출</li>
+  <li><strong>Kafka 발행</strong> — 클래스명 <code>LocationUpdatedEvent</code> → 토픽 <strong><code>location-updated</code></strong>로 자동 변환, 파티션 키 = <code>tenantId</code>. 실패 시 로그만 남기고 <strong>재시도 없음</strong></li>
+  <li><strong>Kafka 소비</strong> — <code>LocationPushConsumer.onLocationUpdated()</code>(<code>@KafkaListener</code>)</li>
+  <li><strong>push 대상 해석</strong> — <code>PushTargetResolver.resolve(studentId)</code>가 학생 본인·보호자 전원·담당 기사·소속 학원 id를 조회해 <code>PushTargets</code>로 반환. 학생이 없으면 전체 스킵</li>
+  <li><strong>DTO 변환</strong> — <code>LocationView(studentId, studentName, lat, lng, recordedAt, origin)</code>. <code>Instant</code> → 시스템 기본 시간대 <code>LocalDateTime</code></li>
+  <li><strong>개인 큐 push</strong> — <code>convertAndSendToUser</code>로 본인·보호자·담당 기사에게 <code>/queue/location</code> → Spring이 <code>/user/{userId}/queue/location</code>으로 재작성해 해당 세션에만 배달</li>
+  <li><strong>테넌트 토픽 브로드캐스트</strong> — <code>/topic/tenant/{tenantId}/location</code> → 그 학원 관리자 전원</li>
+  <li><strong>클라이언트 수신</strong> — 심플 브로커가 <code>/ws/location</code>에 연결된 STOMP 세션에 전달. <code>/topic/tenant/**</code> 구독은 <code>StompAuthChannelInterceptor</code>가 소속 검증</li>
+</ol>
+
+<p><strong>곁가지 — 연결 끊김 감지</strong>: STOMP <code>SessionConnectedEvent</code>/<code>SessionDisconnectEvent</code>를 받아 <code>LocationSessionRegistry</code>에 기록하고(<code>LocationSocketEventListener:31,36</code>), <code>ConnectionLossScheduler</code>가 10초마다 스캔해 <strong>끊긴 지 30초</strong>(<code>app.connection.loss-grace-seconds</code>) 넘은 학생만 <code>StudentConnectionLostEvent</code>로 올린다. 30초 유예를 둔 건 터널·순간 끊김 오탐을 막기 위해서다.</p>
+
+<h3>8.2 ⚠ 현재 관제는 WebSocket이 아니라 3초 REST 폴링이다</h3>
+
+<p>기사 앱 → 서버 → 관리자 화면 경로는 이렇게 끊겨 있다:</p>
+
+<ol>
+  <li>기사 앱이 <strong>5초 타이머</strong>로 <code>LocationSource.read()</code> → <code>POST /api/locations/bus</code> (<code>driver_location_controller.dart:76</code>, <code>:160-184</code>)</li>
+  <li><code>BusLocationCommandService.reportSelf()</code> — 버스의 <code>driver.id == 요청자 userId</code> 검증 후 통과</li>
+  <li><code>busLocationRepository.save(...)</code> → <strong><code>InMemoryBusLocationRepository</code></strong>(ConcurrentHashMap). Redis 구현이 없어 재시작 시 휘발, 다중 인스턴스 미공유</li>
+  <li><strong>이벤트를 발행하지 않는다</strong> — <code>BusLocationCommandService</code>에 <code>ApplicationEventPublisher</code>가 <strong>아예 주입돼 있지 않다</strong>(생성자 실측). 따라서 Kafka·STOMP 경로가 전혀 없다</li>
+  <li>관리자 화면이 <strong>3초마다</strong> <code>GET /api/locations/buses</code> 재조회 (<code>bus_monitor_controller.dart:93</code>, <code>:162-201</code>)</li>
+</ol>
+
+<p>프론트 코드 주석도 “location 채널은 전부 학생 위치”라고 기술한다. <strong>STOMP는 알림에만 쓰이고, 지도 위 버스는 폴링으로 움직인다.</strong></p>
+
+<p>부수 효과 두 가지:</p>
+<ul>
+  <li>기사 앱이 5초마다 보내고 관리자가 3초마다 읽으므로, 화면 갱신 주기가 실제 데이터 신선도보다 짧다(같은 좌표를 여러 번 읽는다).</li>
+  <li>서버 응답의 <code>recordedAt</code>에 타임존이 없어(12장 R5) 프론트가 <strong>절대 시각 대신 “클라이언트 수신 시각”으로 신선도를 계산</strong>하고 있다(<code>monitored_bus.dart:42-50</code>).</li>
+</ul>
+
+<h3>8.3 Mock / 실 GPS 교체 지점</h3>
+
+<p>이 시스템의 핵심 설계 제약은 “MVP는 Mock으로 하되 <strong>데이터 소스만 교체</strong>하면 실 GPS로 넘어갈 수 있어야 한다”였다. 실제 구현은 <code>LocationSource</code> 포트 + 설정 플래그 조합이다.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>대상</th><th>포트</th><th>Mock 구현</th><th>실 GPS 구현</th><th>전환 플래그</th></tr></thead>
+  <tbody>
+    <tr><td>학생 위치</td><td><code>LocationSource</code></td><td><code>MockLocationSource</code></td><td><code>PhoneGpsSource</code>(<strong>no-op</strong> — 좌표는 앱이 <code>POST /api/locations</code>로 push)</td><td><code>app.location.mock.enabled</code> / <code>gps.enabled</code></td></tr>
+    <tr><td>버스 위치</td><td><code>LocationSource</code></td><td><code>MockBusLocationSource</code></td><td><code>DriverGpsSource</code>(no-op — <code>POST /api/locations/bus</code>)</td><td><code>app.location.bus-mock.enabled</code> / <code>bus-gps.enabled</code></td></tr>
+    <tr><td>알림 발송</td><td><code>NotificationSender</code></td><td><code>LogNotificationSender</code>(로그만)</td><td><strong>없음</strong> — FCM·알림톡 어댑터 미구현</td><td>구현체 추가 시 자동 fan-out</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>기본값</strong>(<code>application.yml:56-63</code>): <code>mock.enabled=true</code>, <code>gps.enabled=false</code>, <code>bus-mock.enabled=true</code>, <code>bus-gps.enabled=false</code>.
+<strong><code>prod</code> 프로파일은 이미 반대로 작성돼 있다</strong>(<code>:118-126</code>) — 즉 <strong>설정 전환은 준비 완료, 실제 단말 연동만 미검증</strong>이다.</p>
+
+<p>실 GPS 소스가 <code>no-op</code>인 이유는 방향이 반대이기 때문이다. Mock은 서버가 좌표를 <strong>끌어오지만</strong>(pull), 실 GPS는 단말이 <strong>밀어넣는다</strong>(push). 그래서 <code>PhoneGpsSource.tick()</code>은 아무 일도 하지 않고, 대신 REST/STOMP 진입점이 같은 <code>ingest()</code>로 수렴한다(8.1절 6단계부터 동일).</p>
+
+<div class="callout warn">
+  <span class="ct">기사 앱의 기본값이 Mock이다</span>
+  <p>프론트 쪽 대응 포트도 같은 구조다 — <code>LocationSourceFactory</code> → <code>MockLocationSource</code>(기본) / <code>GpsLocationSource</code>(geolocator).
+  기사가 전송 스위치를 켜면 기본으로 노선 polyline을 따라 왕복하는 가상 좌표가 나간다(약 43km/h). 실 GPS를 쓰려면 매번 수동 전환해야 한다(<code>driver_location_controller.dart:21</code>).
+  또한 서버는 기사 앱의 Mock/GPS 토글과 무관하게 <code>POST /api/locations/bus</code>로 들어온 좌표를 <strong>전부 <code>GPS</code>로 기록</strong>한다 — 상세 패널의 “출처: 단말/시뮬레이터” 표기가 실제를 반영하지 못한다(<code>bus_location_dto.dart:29-33</code>).</p>
+</div>
+
+<h2 class="sec" id="c9">9. 비동기 · 이벤트</h2>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 이벤트 2단 릴레이 — 발행 · Kafka · 컨슈머 · STOMP push</div>
+  <svg viewBox="0 0 1100 540" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .ar5-pub  { fill:rgba(14,116,144,0.10); stroke:#0e7490; stroke-width:2; }
+      .ar5-rel  { fill:rgba(4,120,87,0.10);  stroke:#047857; stroke-width:2; }
+      .ar5-kfk  { fill:rgba(124,58,237,0.10); stroke:#7c3aed; stroke-width:2; }
+      .ar5-out  { fill:rgba(219,39,119,0.10); stroke:#db2777; stroke-width:2; }
+      .ar5-sch  { fill:rgba(180,83,9,0.10);  stroke:#b45309; stroke-width:2; }
+      .ar5-bad  { fill:rgba(220,38,38,0.10); stroke:#dc2626; stroke-width:2; stroke-dasharray:6 4; }
+      .ar5-tt   { fill:#3a3531; font:bold 13px sans-serif; text-anchor:middle; }
+      .ar5-st   { fill:#6b6359; font:11px sans-serif; text-anchor:middle; }
+      .ar5-lb   { fill:#6b6359; font:11.5px sans-serif; }
+      .ar5-hd   { fill:#0e7490; font:bold 13px sans-serif; }
+      .ar5-hd3  { fill:#b45309; font:bold 13px sans-serif; }
+      .ar5-red  { fill:#dc2626; font:bold 12.5px sans-serif; }
+      .ar5-redl { fill:#dc2626; font:11.5px sans-serif; }
+      .ar5-line { stroke:#c0b6a8; stroke-width:2; fill:none; }
+    </style>
+    <defs>
+      <marker id="ar5-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#c0b6a8"/>
+      </marker>
+    </defs>
+
+    <text class="ar5-hd" x="40" y="28" style="text-anchor:start">발행 측은 Kafka 를 모른다 — 커밋 이후에만 프로세스 밖으로 나간다</text>
+
+    <rect class="ar5-pub" x="40" y="44" width="215" height="92" rx="10"/>
+    <text class="ar5-tt" x="148" y="72">도메인 서비스</text>
+    <text class="ar5-st" x="148" y="94">publishEvent(domainEvent)</text>
+    <text class="ar5-st" x="148" y="114">동기 · 트랜잭션 경계 안</text>
+    <text class="ar5-st" x="148" y="130">이벤트 15종 / 발행 15개소</text>
+
+    <rect class="ar5-rel" x="285" y="44" width="235" height="92" rx="10"/>
+    <text class="ar5-tt" x="402" y="72">TransactionalDomainEventRelay</text>
+    <text class="ar5-st" x="402" y="94">@TransactionalEventListener</text>
+    <text class="ar5-st" x="402" y="112">phase = AFTER_COMMIT</text>
+    <text class="ar5-st" x="402" y="130">롤백된 트랜잭션은 나가지 않는다</text>
+
+    <rect class="ar5-rel" x="550" y="44" width="230" height="92" rx="10"/>
+    <text class="ar5-tt" x="665" y="72">DomainEventPublisher (포트)</text>
+    <text class="ar5-st" x="665" y="94">구현 = KafkaEventPublisher</text>
+    <text class="ar5-st" x="665" y="112">토픽명은 클래스명에서 자동 유도</text>
+    <text class="ar5-st" x="665" y="130">XxxEvent → xxx (케밥케이스)</text>
+
+    <rect class="ar5-kfk" x="810" y="44" width="230" height="92" rx="10"/>
+    <text class="ar5-tt" x="925" y="72">Kafka — 토픽 15</text>
+    <text class="ar5-st" x="925" y="94">파티션 키 = tenantId</text>
+    <text class="ar5-st" x="925" y="112">같은 학원은 순서 보장</text>
+    <text class="ar5-st" x="925" y="130">전부 프로듀서 · 컨슈머 존재</text>
+
+    <path class="ar5-line" d="M255,90 L281,90" marker-end="url(#ar5-arr)"/>
+    <path class="ar5-line" d="M520,90 L546,90" marker-end="url(#ar5-arr)"/>
+    <path class="ar5-line" d="M780,90 L806,90" marker-end="url(#ar5-arr)"/>
+
+    <path class="ar5-line" d="M925,136 L925,182" marker-end="url(#ar5-arr)"/>
+    <path class="ar5-line" d="M925,158 L550,158 L550,182" marker-end="url(#ar5-arr)"/>
+    <path class="ar5-line" d="M925,158 L200,158 L200,182" marker-end="url(#ar5-arr)"/>
+
+    <rect class="ar5-pub" x="40" y="186" width="320" height="92" rx="10"/>
+    <text class="ar5-tt" x="200" y="212">DomainEventNotificationConsumer</text>
+    <text class="ar5-st" x="200" y="234">group: school-bus-backend · 토픽 11개</text>
+    <text class="ar5-st" x="200" y="254">승하차 · 인계 · approach · no-show · SOS 2종</text>
+    <text class="ar5-st" x="200" y="272">연결끊김 · 스케줄결과 · 노선추천 · 노선배포</text>
+
+    <rect class="ar5-pub" x="390" y="186" width="320" height="92" rx="10"/>
+    <text class="ar5-tt" x="550" y="212">LocationPushConsumer</text>
+    <text class="ar5-st" x="550" y="234">group: school-bus-backend · 토픽 1개</text>
+    <text class="ar5-st" x="550" y="254">location-updated</text>
+    <text class="ar5-st" x="550" y="272">projection 패키지 = 읽기 모델 투영</text>
+
+    <rect class="ar5-pub" x="740" y="186" width="320" height="92" rx="10"/>
+    <text class="ar5-tt" x="900" y="212">RoutingReplanEventConsumer</text>
+    <text class="ar5-st" x="900" y="234">group: school-bus-backend-routing (별도)</text>
+    <text class="ar5-st" x="900" y="254">토픽 4개 · 출결 · 스케줄 · 배정 · 하차지</text>
+    <text class="ar5-st" x="900" y="272">같은 group 이면 fan-out 이 안 된다</text>
+
+    <path class="ar5-line" d="M200,278 L200,308" marker-end="url(#ar5-arr)"/>
+    <path class="ar5-line" d="M550,278 L550,308" marker-end="url(#ar5-arr)"/>
+    <path class="ar5-line" d="M900,278 L900,308" marker-end="url(#ar5-arr)"/>
+
+    <rect class="ar5-out" x="40" y="312" width="670" height="78" rx="10"/>
+    <text class="ar5-tt" x="375" y="338">STOMP 아웃바운드 4 destination — 심플 브로커 (/topic, /queue)</text>
+    <text class="ar5-st" x="375" y="360">/user/{userId}/queue/location · /topic/tenant/{tenantId}/location</text>
+    <text class="ar5-st" x="375" y="380">/user/{userId}/queue/notifications · /topic/tenant/{tenantId}/notifications</text>
+
+    <rect class="ar5-kfk" x="740" y="312" width="320" height="78" rx="10"/>
+    <text class="ar5-tt" x="900" y="342">routing 재계획 트리거</text>
+    <text class="ar5-st" x="900" y="366">경로 재계산 · 프론트 push 없음</text>
+
+    <rect class="ar5-sch" x="40" y="418" width="500" height="106" rx="10"/>
+    <text class="ar5-hd3" x="60" y="442" style="text-anchor:start">별도 트리거 — @Scheduled 4개 (전부 활성)</text>
+    <text class="ar5-lb" x="60" y="464" style="text-anchor:start">· LocationSimulationScheduler 3초 · ConnectionLossScheduler 10초</text>
+    <text class="ar5-lb" x="60" y="484" style="text-anchor:start">· ApproachNoShowScheduler 15초 · SosEscalationScheduler 30초</text>
+    <text class="ar5-lb" x="60" y="506" style="text-anchor:start">매 틱 전수 재평가 · 알림은 dedupKey 멱등으로 1회만 나간다</text>
+
+    <rect class="ar5-bad" x="560" y="418" width="500" height="106" rx="10"/>
+    <text class="ar5-red" x="580" y="442" style="text-anchor:start">⚠ 설정만 있고 실제로는 없는 것</text>
+    <text class="ar5-redl" x="580" y="464" style="text-anchor:start">· DLT · errorHandler 부재 — @KafkaListener 16개소 어디에도 없다</text>
+    <text class="ar5-redl" x="580" y="484" style="text-anchor:start">· Outbox 가 아니다 — 커밋 직후 릴레이 직전에 죽으면 이벤트 유실</text>
+    <text class="ar5-redl" x="580" y="506" style="text-anchor:start">· 분산 락 부재 — 인스턴스를 늘리면 스케줄러 4개가 중복 실행된다</text>
+  </svg>
+  <div class="viz-cap">알림 누락은 이 도메인에서 안전 문제로 직결된다(미승차·SOS). 그래서 DLT 부재가 단순 운영 이슈가 아니다.</div>
+</div>
+
+<h3 id="c9-1">9.1 도메인 이벤트 발행·구독 — 2단 릴레이</h3>
+
+<p><strong>발행 측은 Kafka를 모른다.</strong> 도메인 서비스는 Spring <code>ApplicationEventPublisher.publishEvent(domainEvent)</code>만 호출하고, <code>TransactionalDomainEventRelay</code>의 <code>@TransactionalEventListener(phase = AFTER_COMMIT)</code>가 <strong>커밋 이후에만</strong> <code>DomainEventPublisher</code> 포트로 릴레이한다. 구현체가 <code>KafkaEventPublisher</code>다.</p>
+
+<p>단계로 풀면:</p>
+
+<ol>
+  <li>도메인 서비스가 <code>publishEvent(domainEvent)</code> — <strong>동기, 트랜잭션 경계 안</strong></li>
+  <li>트랜잭션 커밋</li>
+  <li><code>TransactionalDomainEventRelay</code>가 <code>AFTER_COMMIT</code>으로 수신</li>
+  <li><code>DomainEventPublisher</code>(포트) 호출</li>
+  <li><code>KafkaEventPublisher</code>(구현)가 Kafka로 발행 — <strong>비동기, 프로세스 경계 밖</strong></li>
+</ol>
+
+<p>이렇게 두 단으로 나눈 이유:</p>
+<ul>
+  <li><strong>롤백된 트랜잭션의 이벤트가 밖으로 나가지 않는다.</strong> “승차 기록 저장은 실패했는데 학부모에게 승차 알림이 갔다”를 구조적으로 막는다.</li>
+  <li><strong>서비스가 Kafka를 몰라도 된다.</strong> 나중에 Kafka를 RabbitMQ로 바꿔도 <code>DomainEventPublisher</code> 구현체만 갈면 된다.</li>
+</ul>
+
+<div class="callout warn">
+  <span class="ct">한계도 코드 주석이 스스로 밝힌다</span>
+  <p><code>TransactionalDomainEventRelay.java:12-13</code> — <strong>Outbox 패턴이 아니다.</strong> 커밋 직후 릴레이 직전에 프로세스가 죽으면 이벤트가 유실된다.</p>
+</div>
+
+<p><strong>공통 이벤트 계약</strong>: 모든 도메인 이벤트는 <code>DomainEvent</code> 인터페이스의 3필드 <code>eventId(UUID)</code> / <code>occurredAt(Instant)</code> / <code>tenantId(Long)</code>를 갖는다. <code>occurredDate()</code> 기본 메서드가 알림 dedupKey 조립에 쓰인다.</p>
+
+<p><strong>발행 지점 15개소 / 15종</strong>:</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>모듈</th><th>이벤트</th><th>유도 토픽</th></tr></thead>
+  <tbody>
+    <tr><td>attendance</td><td><code>AttendanceApprovedEvent</code></td><td><code>attendance-approved</code></td></tr>
+    <tr><td>schedule</td><td><code>ScheduleResultEvent</code> (승인·반려 공용)</td><td><code>schedule-result</code></td></tr>
+    <tr><td>location</td><td><code>LocationUpdatedEvent</code>, <code>StudentConnectionLostEvent</code></td><td><code>location-updated</code>, <code>student-connection-lost</code></td></tr>
+    <tr><td>student</td><td><code>StudentAssignmentChangedEvent</code>, <code>StudentDropoffChangedEvent</code></td><td><code>student-assignment-changed</code>, <code>student-dropoff-changed</code></td></tr>
+    <tr><td>drivesession</td><td><code>ApproachEvent</code>, <code>NoShowEvent</code></td><td><code>approach</code>, <code>no-show</code></td></tr>
+    <tr><td>rideevent</td><td><code>StudentBoardedEvent</code>, <code>RideCompletedEvent</code>, <code>HandoverCompletedEvent</code> (<code>RideType</code>에 따라 셋 중 하나)</td><td><code>student-boarded</code>, <code>ride-completed</code>, <code>handover-completed</code></td></tr>
+    <tr><td>routing</td><td><code>RoutePlanPublishedEvent</code>, <code>RoutePlanRecommendedEvent</code></td><td><code>route-plan-published</code>, <code>route-plan-recommended</code></td></tr>
+    <tr><td>sos</td><td><code>SosTriggeredEvent</code>, <code>SosEscalatedEvent</code></td><td><code>sos-triggered</code>, <code>sos-escalated</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>이벤트 이름은 <strong>과거형</strong>이다(<code>reference.md</code> §14) — “무슨 일이 일어났다”를 알리는 것이지 “무엇을 하라”고 명령하는 게 아니기 때문이다.</p>
+
+<p>Spring <code>@EventListener</code>는 위 릴레이 외에 2개뿐이다 — STOMP <code>SessionConnectedEvent</code>/<code>SessionDisconnectEvent</code>를 받는 <code>LocationSocketEventListener</code>.</p>
+
+<h3 id="c9-2">9.2 Kafka — 실제 동작 여부</h3>
+
+<p><strong>설정만 있는 게 아니라 실제 동작 경로다. 토픽 15개 전부 프로듀서와 컨슈머가 모두 존재한다.</strong></p>
+
+<ul>
+  <li><strong>프로듀서는 <code>KafkaEventPublisher</code> 하나뿐</strong>(<code>KafkaTemplate&lt;String,Object&gt;</code>).</li>
+  <li><strong>토픽명은 이벤트 클래스명에서 자동 유도</strong>된다: <code>XxxEvent</code> → <code>Event</code> 접미사 제거 → 케밥케이스 소문자. 새 이벤트를 만들면 토픽 상수를 따로 등록할 필요가 없다.</li>
+  <li><strong>파티션 키 = <code>tenantId</code></strong> → 같은 학원의 이벤트는 같은 파티션 = <strong>순서 보장</strong>. 다른 학원끼리는 순서를 보장하지 않으며, 그래도 되는 도메인이다.</li>
+  <li>payload는 이벤트 record를 그대로 JSON 직렬화(<code>JsonSerializer</code>/<code>JsonDeserializer</code>, 신뢰 패키지 <code>src.backend.*</code>).</li>
+</ul>
+
+<p><strong>컨슈머 클래스 3개 / <code>@KafkaListener</code> 16개소</strong>:</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>클래스</th><th>consumer group</th><th>구독 토픽 수</th></tr></thead>
+  <tbody>
+    <tr><td><code>notification/.../DomainEventNotificationConsumer</code></td><td><code>school-bus-backend</code>(기본)</td><td><strong>11개</strong> — 승하차·인계·approach·no-show·SOS 2종·연결끊김·스케줄결과·노선추천·노선배포</td></tr>
+    <tr><td><code>location/projection/LocationPushConsumer</code></td><td><code>school-bus-backend</code>(기본)</td><td><strong>1개</strong> — <code>location-updated</code></td></tr>
+    <tr><td><code>routing/.../RoutingReplanEventConsumer</code></td><td><strong><code>school-bus-backend-routing</code></strong></td><td><strong>4개</strong> — <code>attendance-approved</code>, <code>schedule-result</code>, <code>student-assignment-changed</code>, <code>student-dropoff-changed</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><code>schedule-result</code>를 두 컨슈머가 구독하므로 routing 쪽은 <strong>별도 group id를 명시해야 fan-out이 된다</strong> — 같은 그룹이면 둘 중 하나만 받는다(Kafka의 컨슈머 그룹 동작). 코드 주석이 이 이유를 명시한다.</p>
+
+<div class="callout danger">
+  <span class="ct">⚠ 설정만 있고 실제로는 없는 것</span>
+  <p><strong><code>NewTopic</code> 빈이 없다.</strong> 토픽은 브로커의 <code>KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"</code>(<code>docker-compose.yml:54</code>)로 최초 발행 시 자동 생성된다 → <strong>파티션 수·복제 계수를 코드로 통제하지 못한다.</strong></p>
+  <p><strong>컨슈머 실패 처리가 없다.</strong> <code>@KafkaListener</code> 16개소 어디에도 <code>errorHandler</code>·DLT(<code>@RetryableTopic</code>) 설정이 없다. 소비 중 예외가 나면 기본 재시도 후 로그만 남고 메시지가 사라진다.</p>
+</div>
+
+<h3 id="c9-3">9.3 Redis 용도</h3>
+
+<p><strong>용도가 딱 하나다 — 학생 최신 좌표 저장소.</strong> <code>RedisLocationRepository</code>가 <code>RedisTemplate</code>을 쓰는 유일한 지점이다.</p>
+
+<ul>
+  <li>키 <code>loc:{studentId}</code>, TTL = <code>app.location.tick-ms × 3</code> = 기본 <strong>9초</strong></li>
+  <li>값 직렬화는 <code>RedisConfig</code>가 Jackson 3 기반 <code>GenericJacksonJsonRedisSerializer</code> + <code>enableUnsafeDefaultTyping()</code>(타입 정보 <code>@class</code> 저장). 커넥션 팩토리는 Boot 자동 구성</li>
+  <li><code>@Primary</code>로 등록돼 <code>InMemoryLocationRepository</code>를 대체한다</li>
+</ul>
+
+<div class="callout warn">
+  <span class="ct">⚠ 설정·주석과 실제가 다른 지점</span>
+  <p><code>build.gradle</code> 주석은 Redis를 “캐시·실시간(Pub/Sub)”이라 적었지만, <strong><code>@Cacheable</code>·<code>@EnableCaching</code>·<code>RedisMessageListenerContainer</code>가 전부 무매칭</strong>이다. 캐시·Pub/Sub·세션·분산락 어디에도 쓰지 않는다.</p>
+  <p><strong>알림 중복 억제도 Redis가 아니다</strong> — DB unique 제약(<code>notification_log.dedup_key</code>) + 앱 레벨 선체크 2단이다.
+  <strong>버스 좌표는 Redis를 안 쓴다</strong> — <code>InMemoryBusLocationRepository</code>만 존재. 학생/버스 사이에 비대칭이 있다(8.2절).
+  <code>InMemoryLocationRepository</code>는 <code>@Primary</code>에 밀려 런타임에 선택되지 않으며, 프로덕션 코드에서 참조하는 곳이 없고 테스트만 쓴다 — 사실상 사문화된 폴백.</p>
+</div>
+
+<h3 id="c9-4">9.4 WebSocket(STOMP) 구성과 destination</h3>
+
+<p>설정은 <code>global/config/WebSocketConfig.java</code>(<code>@EnableWebSocketMessageBroker</code>).</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>항목</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td>endpoint</td><td><code>/ws/location</code>, <code>setAllowedOriginPatterns("*")</code></td></tr>
+    <tr><td>SockJS</td><td><strong>사용 안 함</strong>(네이티브 WebSocket) — 프론트 <code>stomp_dart_client</code>가 그대로 맞음</td></tr>
+    <tr><td>애플리케이션 prefix</td><td><code>/app</code></td></tr>
+    <tr><td>user destination prefix</td><td><code>/user</code></td></tr>
+    <tr><td>브로커</td><td><strong>심플 브로커</strong>(<code>/topic</code>, <code>/queue</code>) — 외부 메시지 브로커 미사용</td></tr>
+    <tr><td>heartbeat</td><td>양방향 <code>app.connection.heartbeat-ms</code>(기본 <strong>10000ms</strong>), 전용 <code>ThreadPoolTaskScheduler</code>(poolSize 1)</td></tr>
+    <tr><td>인바운드 인터셉터</td><td><code>StompAuthChannelInterceptor</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>destination 전체 5개</strong> (인바운드 1 + 아웃바운드 4):</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>방향</th><th>destination</th><th>payload</th><th>대상</th></tr></thead>
+  <tbody>
+    <tr><td>IN</td><td><code>/app/location</code></td><td><code>LocationReportRequest</code>(<code>@Valid</code>) — REST <code>POST /api/locations</code>와 <strong>동일 계약</strong></td><td>학생 앱</td></tr>
+    <tr><td>OUT</td><td><code>/user/{userId}/queue/location</code></td><td><code>LocationView</code></td><td>학생 본인·학부모 전원·담당 기사</td></tr>
+    <tr><td>OUT</td><td><code>/topic/tenant/{tenantId}/location</code></td><td><code>LocationView</code></td><td>해당 학원 관리자</td></tr>
+    <tr><td>OUT</td><td><code>/user/{userId}/queue/notifications</code></td><td><code>NotificationResponse</code></td><td>학생 본인·학부모 전원·담당 기사</td></tr>
+    <tr><td>OUT</td><td><code>/topic/tenant/{tenantId}/notifications</code></td><td><code>NotificationResponse</code></td><td>해당 학원 관리자</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>두 발행자(<code>LocationPushConsumer</code>, <code>WebSocketNotificationSender</code>)가 push 대상 해석을 <code>global/push/PushTargetResolver</code>로 공유한다 — <code>PushTargets(studentName, studentUserId, guardianUserIds, driverUserId, tenantId)</code>.</p>
+
+<p><strong>인증 시점</strong>: <code>CONNECT</code> 프레임에서 <code>Authorization: Bearer</code> 네이티브 헤더를 검사하고, 통과하면 <code>accessor.setUser(AuthUser)</code>로 세션에 principal을 고정한다. <strong>이후 프레임은 재검증하지 않는다</strong> — 결과적으로 <strong>토큰이 만료돼도 기존 STOMP 세션은 계속 살아 있다</strong>(12장 R13).</p>
+
+<div class="callout warn">
+  <span class="ct"><code>/app/location</code>에는 역할 검사가 없다</span>
+  <p>REST 대응 엔드포인트의 <code>hasRole('STUDENT')</code>가 이 채널에는 적용되지 않는다(<code>LocationSocketController.java:28-31</code>) — 다만 서비스가 요청자 userId로 학생을 역조회하므로 <strong>남의 좌표를 위조할 수는 없다.</strong></p>
+</div>
+
+<p>프론트 STOMP 게이트웨이(<code>StompGatewayImpl</code>)는 heartbeat 10초, 재연결 3초 간격, <strong>연속 실패 5회면 포기</strong>, 재연결 시 등록된 구독을 전부 재-SUBSCRIBE 한다.</p>
+
+<h3 id="c9-5">9.5 스케줄러 목록과 주기 — 4개, 전부 활성</h3>
+
+<p><code>@EnableScheduling</code>은 <code>BackendApplication.java:8</code>. 비활성·주석처리된 스케줄러는 <strong>없다</strong>.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>스케줄러</th><th>주기 설정 키</th><th>기본값</th><th>하는 일</th></tr></thead>
+  <tbody>
+    <tr><td><code>LocationSimulationScheduler</code></td><td><code>app.location.tick-ms</code></td><td><strong>3초</strong></td><td>활성 <code>LocationSource</code>를 순회하며 <code>tick()</code></td></tr>
+    <tr><td><code>ConnectionLossScheduler</code></td><td><code>app.connection.loss-check-ms</code></td><td><strong>10초</strong></td><td>끊긴 지 30초(<code>loss-grace-seconds</code>) 넘은 학생에 <code>StudentConnectionLostEvent</code></td></tr>
+    <tr><td><code>ApproachNoShowScheduler</code></td><td><code>app.drivesession.approach-check-ms</code></td><td><strong>15초</strong></td><td>IN_PROGRESS + PICKUP 세션 대상, APPROACH/NO_SHOW 판정</td></tr>
+    <tr><td><code>SosEscalationScheduler</code></td><td><code>app.sos.escalation-check-ms</code></td><td><strong>30초</strong></td><td>OPEN 상태 SOS 전수 스캔, 3분 초과 시 <code>SosEscalatedEvent</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>공통 설계:</p>
+<ul>
+  <li>4개 모두 <code>try/catch (Exception)</code>으로 감싸 <strong>한 번의 실패가 다음 주기를 막지 않게</strong> 한다.</li>
+  <li>매 틱마다 조건을 <strong>전수 재평가</strong>하지만, 알림은 <code>dedupKey</code> 멱등으로 1회만 나간다. “이미 보냈는지”를 스케줄러가 기억할 필요가 없어지는 구조다.</li>
+</ul>
+
+<p><strong>임계값과 주기가 분리돼 있다는 점이 중요하다.</strong> yml에 있는 건 “얼마나 자주 검사하는가”(주기)뿐이고, “언제 발동하는가”(임계값)는 <strong>코드 상수</strong>다:</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>상수 (<code>notification/NotificationThresholds.java</code>)</th><th>값</th><th>의미</th></tr></thead>
+  <tbody>
+    <tr><td><code>NO_SHOW</code></td><td><code>Duration.ofMinutes(10)</code></td><td>정류소 도착 +10분 미승차</td></tr>
+    <tr><td><code>APPROACH</code></td><td><code>Duration.ofMinutes(5)</code></td><td>도착 예상 5분 전</td></tr>
+    <tr><td><code>SOS_ESCALATION</code></td><td><code>Duration.ofMinutes(3)</code></td><td>관리자 미확인 3분 → 플랫폼 관리자 에스컬레이션</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>예외적으로 <code>app.connection.loss-grace-seconds</code>(<strong>30초</strong>)만 임계값인데 설정으로 나가 있다.</p>
+
+<div class="callout warn">
+  <span class="ct">⚠ 스케줄러 관점의 공백 (12장 R8과 연결)</span>
+  <p><strong>NO_SHOW 판정이 하원(DROPOFF)에는 없다</strong> — <code>IN_PROGRESS</code> + <code>PICKUP</code>만 조회한다. 코드 주석은 “하원은 학원에서 이미 승차한 상태로 출발”이라 의도된 설계라고 밝힌다.</p>
+  <p><strong>RoutePlan 없이 시작한 수동 운행은 판정 제외</strong> — ETA 근거가 없어 아예 스킵된다.
+  <strong>ETA가 실시간 위치가 아니라 “세션 시작시각 + 계획 etaSeconds” 근사</strong>다. 실제 버스 좌표를 반영하지 않아 지연 운행 시 판정이 어긋난다.</p>
+  <p><strong>운행 세션 자동 종료 스케줄러가 없다.</strong> 기사가 종료를 안 누르면 IN_PROGRESS로 남아 계속 스캔 대상이 된다. <code>※ 미확인:</code> 그 경우의 운영 정책은 코드에서 확인할 수 없다.
+  <strong>데이터 정리(retention) 배치가 없다</strong> — <code>notification_log</code>·<code>ride_event</code>가 무한히 쌓인다.</p>
+</div>
+
+<h2 class="sec" id="c10">10. 스키마 관리 — Flyway</h2>
+
+<p><strong>스키마의 단일 소스는 Flyway이고, Hibernate는 검증만 한다.</strong></p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>설정</th><th>값</th><th>의미</th></tr></thead>
+  <tbody>
+    <tr><td><code>spring.jpa.hibernate.ddl-auto</code></td><td><strong><code>validate</code></strong></td><td>엔티티 ↔ 실제 스키마 일치만 검증. <strong>어긋나면 애플리케이션이 기동 실패한다</strong></td></tr>
+    <tr><td><code>spring.flyway.locations</code></td><td><code>classpath:db/migration</code> (전 프로파일)</td><td></td></tr>
+    <tr><td><code>spring.flyway.locations</code> (local)</td><td><code>classpath:db/migration,classpath:db/migration-local</code></td><td>데모 시드를 여기서만 추가</td></tr>
+    <tr><td><code>spring.jpa.open-in-view</code></td><td><code>false</code></td><td>뷰 렌더링 중 lazy 로딩으로 커넥션을 붙들지 않게 하려는 설정</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>마이그레이션 파일 5개</strong>:</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>위치</th><th>파일</th><th>내용</th></tr></thead>
+  <tbody>
+    <tr><td><code>db/migration/</code> (전 프로파일)</td><td><code>V1__init_schema.sql</code></td><td>베이스라인 — 테이블 16 + 인덱스 2 + FK 13</td></tr>
+    <tr><td></td><td><code>V3__ride_event_add_handover_type.sql</code></td><td><code>ride_event.type</code> CHECK에 <code>HANDOVER</code> 추가</td></tr>
+    <tr><td></td><td><code>V4__notification_log_add_handover_done_type.sql</code></td><td><code>notification_log.type</code> CHECK에 <code>HANDOVER_DONE</code> 추가(9종)</td></tr>
+    <tr><td></td><td><code>V5__notification_log_add_route_published_type.sql</code></td><td>같은 CHECK에 <code>ROUTE_PUBLISHED</code> 추가(<strong>10종</strong>)</td></tr>
+    <tr><td><code>db/migration-local/</code> (local 전용)</td><td><code>V2__seed_data.sql</code></td><td>데모 시드 — 테넌트 3 · 계정 5 · 노선 3 · 정류장 3 · 버스 3 · 학생 6 · 보호자연결 2</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>V1은 Hibernate가 생성한 DDL을 그대로 채택한 것이고(FK 이름이 자동 생성 해시), <strong>이후 변경은 새 버전 파일로만 추가하며 V1은 수정하지 않는다.</strong></p>
+
+<div class="callout warn">
+  <span class="ct">V2가 스키마 경로가 아니라 시드 경로에 있다</span>
+  <p>prod 프로파일에서는 <code>migration-local</code>이 로드되지 않으므로 <strong>버전 2가 통째로 건너뛰어져 V1 → V3로 이어진다</strong>(Flyway 기본 <code>outOfOrder=false</code>). 의도된 배치이지만, 나중에 누군가 V2를 스키마 변경으로 착각해 재사용하면 충돌한다.</p>
+</div>
+
+<p>명시 인덱스는 2개뿐이다 — <code>idx_ride_tenant_student(tenant_id, student_id, occurred_at)</code>, <code>idx_sos_status_occurred(status, occurred_at)</code>. 둘 다 “테넌트 + 대상 + 시간순”이라는 이 시스템의 대표 조회 패턴에 맞춘 것이다.</p>
+
+<p>unique 제약 4개: <code>app_user.email</code> · <code>notification_log.dedup_key</code> · <code>student_guardian(student_id, guardian_id)</code> · <code>user_tenant_role(user_id, tenant_id, role)</code>.</p>
+
+<p><strong>엔티티 정의 ↔ 실제 스키마 어긋남: 없음.</strong> enum CHECK 제약과 자바 enum 상수가 전부 일치하고(<code>RideType</code>3↔V3, <code>NotificationType</code>10↔V5, <code>Role</code>5↔V1 등), 원시 타입(<code>double</code>)은 not null·박스 타입(<code>Double</code>)은 nullable로 일관되게 반영돼 있다. <code>※ 참고:</code> 정적 대조 결과이며 실제 기동 검증은 하지 않았다(Docker 미기동).</p>
+
+<p><strong>로컬 DB에 영속 볼륨을 두지 않은 것도 이 구조의 일부다.</strong> <code>docker compose down</code> 후 <code>up</code> 하면 Flyway가 V1(스키마)+V2(시드)를 매번 새로 깔아 <strong>항상 같은 시드 상태로 되돌아간다</strong>(<code>docker-compose.yml:26-28</code>). Swagger로 반복 테스트하면서 쌓인 데이터를 지우려는 목적이다. 단 <code>stop</code>/<code>start</code>(컨테이너 유지)는 데이터가 남으므로 리셋하려면 반드시 <code>down</code>을 거쳐야 한다.</p>
+
+<h2 class="sec" id="c11">11. 인프라 — Docker Compose 구성</h2>
+
+<h3>11.1 서비스 6개</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>서비스</th><th>이미지/빌드</th><th>호스트 포트</th><th>depends_on</th></tr></thead>
+  <tbody>
+    <tr><td><code>postgres</code></td><td><code>postgres:16</code></td><td><code>5432:5432</code></td><td>—</td></tr>
+    <tr><td><code>redis</code></td><td><code>redis:7</code></td><td><code>6379:6379</code></td><td>—</td></tr>
+    <tr><td><code>kafka</code></td><td><code>apache/kafka:3.9.0</code></td><td><code>29092:29092</code></td><td>—</td></tr>
+    <tr><td><code>backend</code></td><td><code>build: ./backend</code></td><td><strong>없음</strong> (<code>expose: 8080</code>)</td><td>postgres(healthy) · redis · kafka</td></tr>
+    <tr><td><code>frontend</code></td><td><code>build: ./frontend</code></td><td><strong>없음</strong> (<code>expose: 80</code>)</td><td>backend</td></tr>
+    <tr><td><code>proxy</code></td><td><code>nginx:alpine</code></td><td><strong><code>80:80</code></strong></td><td>backend · frontend</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="callout warn">
+  <span class="ct">영속 볼륨이 0개다</span>
+  <p>컨테이너를 지우면 DB·Redis·Kafka 데이터가 전부 사라진다(10장 사유). 운영으로 가려면 반드시 손봐야 할 지점이다.</p>
+</div>
+
+<ul>
+  <li><strong>postgres healthcheck</strong>: <code>pg_isready -U schoolbus</code>, interval 5s / timeout 3s / retries 5. backend가 <code>condition: service_healthy</code>로 기다린다 — 시작 순서 경쟁을 막는 장치다.</li>
+  <li><strong>Kafka는 KRaft 모드</strong>(Zookeeper 컨테이너 불필요). 리스너 3개: <code>PLAINTEXT://:9092</code>(컨테이너 간), <code>CONTROLLER://:9093</code>, <code>PLAINTEXT_HOST://:29092</code>(호스트에서 <code>bootRun</code> 할 때).</li>
+  <li><strong>backend 환경변수</strong>로 DB/Redis/Kafka 호스트를 서비스명으로 덮어쓴다(<code>postgres</code>/<code>redis</code>/<code>kafka</code>). 외부 API 키는 <code>./backend/.env</code>를 <code>required: false</code>로 읽으므로, <strong>키가 없어도 기동은 되고 배차(auto-assign)만 401로 실패</strong>한다. 대안은 <code>ROUTING_PROVIDER=osrm</code>.</li>
+  <li><strong>frontend 빌드 인자</strong>: <code>API_BASE_URL: ""</code>(상대경로 → 같은 출처), <code>ENABLE_QUICK_LOGIN: "true"</code> — <strong>후자는 시드 계정 목록을 로그인 화면에 노출하므로 운영 이미지에서는 빼야 한다</strong>고 주석이 명시한다.</li>
+  <li>컨테이너 안에서 실행되는 프론트는 <strong>Web 타깃뿐</strong>이다(모바일 앱은 컨테이너에서 실행할 수 없다).</li>
+</ul>
+
+<h3>11.2 nginx 리버스 프록시 (<code>infra/proxy/nginx.conf</code>)</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>경로</th><th>대상</th><th>타임아웃</th></tr></thead>
+  <tbody>
+    <tr><td><code>/api/</code></td><td><code>backend_pool</code></td><td>connect 5s / read 30s</td></tr>
+    <tr><td><code>/ws/</code></td><td><code>backend_pool</code></td><td>HTTP/1.1 + Upgrade, read/send <strong>3600s</strong>, <code>proxy_buffering off</code></td></tr>
+    <tr><td><code>^/(swagger-ui|v3/api-docs)</code></td><td><code>backend_pool</code></td><td>—</td></tr>
+    <tr><td><code>/</code></td><td><code>frontend_pool</code></td><td>—</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><code>client_max_body_size 10m</code>.</p>
+
+<p>WebSocket 경로만 타임아웃이 1시간인 이유는 명확하다 — 연결을 오래 유지하는 게 목적이라 30초 read timeout이면 계속 끊긴다. <code>proxy_buffering off</code>도 같은 이유(버퍼링하면 실시간성이 사라진다).</p>
+
+<p><strong>upstream <code>backend_pool</code>은 <code>least_conn</code> + <code>server backend:8080</code> 단일 인스턴스</strong>다. 설정 파일 주석이 다중화 전 선결 조건 3가지를 스스로 명시한다:</p>
+
+<ol>
+  <li><code>@Scheduled</code> 4개가 인스턴스마다 중복 실행 → 리더 선출/분산 락 필요</li>
+  <li>위치 저장소가 InMemory</li>
+  <li>WebSocket 세션이 인스턴스 종속</li>
+</ol>
+
+<p><code>※</code> 이 중 ②는 <strong>부분적으로 낡은 서술</strong>이다 — 학생 좌표는 이미 <code>RedisLocationRepository</code>가 <code>@Primary</code>이고, <strong>버스 좌표만 여전히 InMemory</strong>다(9.3절).</p>
+
+<h3>11.3 애플리케이션 설정 (<code>application.yml</code>)</h3>
+
+<p>프로파일별 별도 파일이 없다 — <strong><code>application.yml</code> 하나에 <code>---</code> 문서 구분자로 3개(default/local/prod)가 들어 있다.</strong></p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>프로파일</th><th>특징</th></tr></thead>
+  <tbody>
+    <tr><td>default</td><td>DB/Redis/Kafka를 <code>localhost</code>로. <code>spring.profiles.active: local</code></td></tr>
+    <tr><td><code>local</code></td><td><code>flyway.locations</code>에 <code>db/migration-local</code> 추가 → 데모 시드 적용</td></tr>
+    <tr><td><code>prod</code></td><td>DB/Redis/Kafka 접속을 <strong>전부 환경변수</strong>로(<code>${DB_URL}</code> 등). <code>app.cors.allowed-origins: ${CORS_ALLOWED_ORIGINS:}</code> — <strong>기본값이 없어 미설정 시 전부 차단</strong>. Mock 끄고 실 GPS 켬</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>주요 커스텀 설정:</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>키</th><th>값</th><th>용도</th></tr></thead>
+  <tbody>
+    <tr><td><code>routing.provider</code></td><td><code>naver</code> (기본)</td><td><code>osrm</code>으로 바꾸면 키 없이 무료 대체</td></tr>
+    <tr><td><code>routing.osrm.base-url</code></td><td><code>https://router.project-osrm.org</code></td><td><strong>공개 데모 서버 — 운영 SLA 없음</strong></td></tr>
+    <tr><td><code>routing.naver.key-id</code> / <code>key</code></td><td><code>${NAVER_DIRECTIONS_KEY_ID:}</code> / <code>${NAVER_DIRECTIONS_KEY:}</code></td><td><strong>기본값 빈 문자열</strong></td></tr>
+    <tr><td><code>routing.max-waypoints</code></td><td><strong>7</strong></td><td>NCP Direction 15 실측(mid-waypoint 5 + start/goal 2). 초과 시 구간 분할 호출</td></tr>
+    <tr><td><code>app.cors.allowed-origins</code></td><td>localhost 6종(3000/5173/4200/8081 등)</td><td></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong><code>server.port</code> 설정이 없다</strong> → Spring 기본 8080. <strong><code>logging.*</code> 설정도 없다</strong> → Boot 기본 레벨.</p>
+
+<p><strong>WebClient 타임아웃</strong>(<code>global/config/WebClientConfig.java</code>): connect <strong>3000ms</strong>, response <strong>5초</strong>, read/write <strong>5초</strong>. routing 모듈이 <code>.block()</code>으로 동기 호출한다.</p>
+
+<h3>11.4 외부 경로 API 어댑터</h3>
+
+<p><code>MapRouteClient</code> 포트에 구현 2개가 붙어 있다.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>구현</th><th>활성 조건</th><th>특징</th></tr></thead>
+  <tbody>
+    <tr><td><code>NaverMapRouteClient</code></td><td><code>routing.provider=naver</code> (기본)</td><td>NCP Direction 15, <code>option=trafast</code>. <strong>leg별 duration을 NCP가 주지 않아 구간 Haversine 거리 비례로 근사</strong> → 개별 stop ETA는 근사값. 연속 중복 좌표(같은 정류장 학생)는 호출 전 접는다</td></tr>
+    <tr><td><code>OsrmMapRouteClient</code></td><td><code>routing.provider=osrm</code> 또는 property 부재 시 fallback</td><td>키 불필요. leg duration을 OSRM이 직접 주므로 <strong>근사 없음</strong></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><code>routing.max-waypoints</code>(7)를 넘으면 경계를 공유하는 구간으로 나눠 여러 번 호출하고 거리·시간·polyline을 병합한다. ⚠ 청킹은 구간별 독립 호출이라 <strong>전역 최적 경로가 아니라 “이어붙인 경로”</strong>다.</p>
+
+<p><code>※ 미확인:</code> 두 어댑터의 재시도·서킷브레이커 유무는 확인하지 않았다.</p>
+
+<p><strong>경로 최적화 알고리즘 자체는 외부 API가 아니라 자체 구현이다</strong> — <code>HeuristicRouteEngine</code>(sweep 정렬 → nearest-neighbor → 2-opt, <strong>Haversine 직선거리</strong> 사용, 최적화 단계 외부 호출 0회)이 순서를 정하고, 확정된 순서에 대해서만 <code>MapRouteClient</code>로 실도로 거리·ETA를 받는다. 버스 배정은 <code>SweepAssigner</code>(depot 기준 방위각 정렬 후 좌석 정원만큼 순차 절단)가 담당하며, <strong>반영하는 제약은 <code>seatCapacity</code> 하나뿐</strong>이다(시간창·부하 분산·기사 배정 여부·보험 만료는 미반영).</p>
+
+
+<h2 class="sec" id="c12">12. 아키텍처 리스크 · 개선 후보</h2>
+<p>실측에서 드러난 것만 적는다. 각 항목은 <strong>사실 → 영향 → 개선 방향</strong> 한 줄씩이다.</p>
+<h3>보안 · 격리</h3>
+<div class="callout danger">
+  <span class="ct">R1. DB 레벨 테넌트 격리가 없다</span>
+  <p><strong>사실</strong> — Hibernate <code>@Filter</code>·RLS·자동 조건 주입 어느 것도 없다. 모든 격리가 서비스 코드의 명시적 <code>tenantId</code> 전달에 의존한다.</p>
+  <p><strong>영향</strong> — 새 조회 메서드에서 조건을 빠뜨리면 <strong>조용히 전 학원 데이터가 노출된다.</strong> 컴파일러도 테스트도 잡아주지 않는다.</p>
+  <p><strong>개선</strong> — PostgreSQL RLS 또는 Hibernate <code>@Filter</code>를 도입해 “빠뜨리면 데이터가 안 나오는” 구조로 뒤집는다. 최소한 리포지토리 메서드 이름에 <code>ByTenantId</code>를 강제하는 컨벤션 검사라도 넣는다.</p>
+</div>
+<div class="callout warn">
+  <span class="ct">R2. 격리 로직이 이원화돼 있다</span>
+  <p><strong>사실</strong> — <code>TenantGuard</code> 26개소 + 같은 조건(<code>isPlatformAdmin() || belongsToTenant(...)</code>)을 인라인으로 재구현한 5개소(attendance·schedule·sos의 승인 계열, tenant 상세, rideevent 정정).</p>
+  <p><strong>영향</strong> — 격리 규칙을 바꾸려면 여섯 군데를 고쳐야 하고, 한 곳을 놓치면 규칙이 갈린다.</p>
+  <p><strong>개선</strong> — 인라인 5개소를 <code>TenantGuard.requireAccessTo(admin, entityTenantId)</code> 같은 두 번째 헬퍼로 흡수한다(반환값이 아니라 검증만 하는 형태라 <code>resolveTenantId</code>와 시그니처가 다르다).</p>
+</div>
+<div class="callout danger">
+  <span class="ct">R3. <code>GET /api/routes/{id}/stops</code>에 격리가 없다</span>
+  <p><strong>사실</strong> — <code>@PreAuthorize</code>도 없고 <code>AuthUser</code>를 받지도 않는다. 인증된 사용자면 누구나 다른 학원의 정류장 이름·좌표를 읽는다.</p>
+  <p><strong>영향</strong> — 학원 A의 기사가 학원 B의 정류장 위치를 조회할 수 있다. 프론트가 이 엔드포인트를 쓰지 않아 드러나지 않았을 뿐이다.</p>
+  <p><strong>개선</strong> — <code>AuthUser</code>를 받아 노선의 tenantId를 <code>TenantGuard</code>로 검증한다. <strong>한 줄짜리 수정이다.</strong></p>
+</div>
+<div class="callout danger">
+  <span class="ct">R4. <code>POST /api/auth/signup</code>이 tenantId·role을 그대로 신뢰한다</span>
+  <p><strong>사실</strong> — <code>permitAll</code> + 요청 body의 역할을 검증 없이 수용 → <strong>누구나 임의 학원의 <code>ACADEMY_ADMIN</code>으로 가입 가능</strong>하다.</p>
+  <p><strong>영향</strong> — 데모 환경에서는 편의지만, 그대로 배포하면 <strong>인증 체계 전체가 무의미해진다.</strong></p>
+  <p><strong>개선</strong> — self-signup은 <code>PARENT</code>/<code>STUDENT</code>로 제한하고 관리자·기사 계정은 초대·승인 경로로만 만든다. 현재 프론트에 회원가입 화면이 없으므로 <strong>엔드포인트를 닫아도 지금은 잃는 기능이 없다.</strong></p>
+</div>
+<div class="callout warn">
+  <span class="ct">R13. STOMP 세션에 토큰 만료가 반영되지 않는다</span>
+  <p><strong>사실</strong> — CONNECT 시 1회만 검증하고 이후 프레임은 재검증하지 않는다.</p>
+  <p><strong>영향</strong> — 액세스 토큰이 만료되고 권한이 회수돼도 <strong>이미 연결된 세션은 계속 메시지를 받는다.</strong></p>
+  <p><strong>개선</strong> — 주기적 재검증(heartbeat에 편승) 또는 서버 측 세션 만료 타이머를 둔다.</p>
+</div>
+<h3>데이터 · API 계약</h3>
+<div class="callout warn">
+  <span class="ct">R5. 응답 시각에 타임존이 없다</span>
+  <p><strong>사실</strong> — 모든 응답 시각이 <code>LocalDateTime</code>/<code>LocalDate</code>/<code>LocalTime</code>이고, <strong><code>spring.jackson.*</code> 설정·커스텀 <code>ObjectMapper</code>·<code>@JsonFormat</code>이 프로젝트 전체에 0건</strong>이다(grep 확인). DB 컬럼도 <code>timestamp</code>이지 <code>timestamptz</code>가 아니며, <code>TZ</code> 환경변수도 없다.</p>
+  <p><strong>영향</strong> — 응답이 <code>"2026-07-29T14:30:00"</code>처럼 오프셋 없이 나간다. 클라이언트가 이를 UTC로 해석하면 정확히 <strong>9시간 어긋난다.</strong> 게다가 <code>LocalDateTime.now()</code>가 JVM 기본 타임존을 따르므로 <strong>호스트에서 <code>bootRun</code>(KST)</strong> 하느냐 <strong>컨테이너로 띄우느냐(대개 UTC)</strong>에 따라 저장값 자체가 달라진다. 현재 프론트는 절대 시각을 포기하고 “클라이언트 수신 시각”으로 신선도를 계산 중이다.</p>
+  <p><strong>개선</strong> — (a) DTO를 <code>OffsetDateTime</code>/<code>Instant</code>로 바꾸고 DB를 <code>timestamptz</code>로 옮기거나, (b) “오프셋 없는 문자열 = KST 로컬시각”을 계약으로 못박고 양쪽에 적용한다. <strong><code>spring.jackson.time-zone</code> 설정만으로는 해결되지 않는다</strong> — <code>LocalDateTime</code> 직렬화에는 오프셋이 붙지 않기 때문이다.</p>
+</div>
+<div class="callout warn">
+  <span class="ct">R11. 에러 응답에 코드 필드가 없다</span>
+  <p><strong>사실</strong> — <code>ApiResponse(success, data, message)</code> 3필드가 전부다. <code>ErrorCode</code> enum이 8종 있지만 <strong>이름이 응답 body에 실리지 않는다.</strong> 또한 인증 실패(401)만 필터 체인이 처리해 <strong>body 없는 빈 응답</strong>이라 래퍼조차 안 탄다.</p>
+  <p><strong>영향</strong> — 프론트가 에러 종류를 구분하려면 <strong>HTTP 상태 + 한글 메시지 문자열 매칭</strong> 외에 방법이 없다. 컨벤션이 문자열 매칭을 금지하고 있으므로 사실상 상태코드만으로 분기 중이다. 메시지 문구를 바꾸면 클라이언트가 깨진다.</p>
+  <p><strong>개선</strong> — <code>ApiResponse</code>에 <code>code</code> 필드를 추가하고 <code>GlobalExceptionHandler</code>가 <code>ErrorCode.name()</code>을 실어 보낸다. 401 경로도 <code>AuthenticationEntryPoint</code>를 커스텀해 같은 래퍼로 통일한다.</p>
+</div>
+<div class="callout warn">
+  <span class="ct">R12. 페이징이 전혀 없다</span>
+  <p><strong>사실</strong> — <code>Pageable</code>/<code>PageRequest</code>/<code>Page</code>를 참조하는 파일이 <strong>0개</strong>다. 모든 목록 API가 <code>ApiResponse&lt;List&lt;T&gt;&gt;</code>로 전건을 내려주고, 정렬은 리포지토리 메서드 이름에 고정돼 있다(<code>...OrderByOccurredAtDesc</code> 등).</p>
+  <p><strong>영향</strong> — 알림 이력·SOS 이력·승하차 기록이 학원 규모에 비례해 무한히 커진다. 데모 규모에서는 문제없지만 <strong>운영에서는 첫 병목</strong>이 된다.</p>
+  <p><strong>개선</strong> — 이력성 목록(<code>/api/notifications</code>, <code>/api/ride-events</code>, <code>/api/sos-events</code>)부터 커서 페이징을 도입한다. 프론트가 <code>GET /api/drive-sessions</code>·<code>GET /api/ride-events</code>에서 <strong>전체를 받아 클라이언트가 필터링</strong>하고 있으므로, 서버 필터 파라미터 추가가 같이 필요하다.</p>
+</div>
+<div class="callout warn">
+  <span class="ct">R16. 승하차 순서 검증이 서버에 없다</span>
+  <p><strong>사실</strong> — <code>RideEventCommandService.record()</code>가 순서·중복을 검사하지 않는다. 승차 없이 하차를 보내도 200이 온다.</p>
+  <p><strong>영향</strong> — 현재는 기사 앱이 버튼을 하나만 노출해 막고 있을 뿐이라, 다른 클라이언트나 직접 호출은 막히지 않는다. <strong>기록 무결성이 UI에 의존한다.</strong></p>
+  <p><strong>개선</strong> — <code>record()</code>에서 해당 학생의 마지막 <code>RideEvent</code>를 조회해 허용 전이(<code>BOARD → ALIGHT → HANDOVER</code>)만 통과시킨다. 상태 전이를 엔티티에 두는 이 저장소의 기존 패턴과도 맞는다.</p>
+</div>
+<h3>구조 · 운영</h3>
+<div class="callout warn">
+  <span class="ct">R6. <code>route</code>(레거시)와 <code>routing</code>(신규)이 이중 구조다</span>
+  <p><strong>사실</strong> — 두 모듈은 테이블·엔티티가 완전히 분리돼 있고, 겹치는 지점은 <strong>PICKUP 승차 좌표 하나</strong>뿐이다(<code>Student.boardingStop</code>의 lat/lng를 routing이 읽어 쓴다). <code>Stop.seq</code>는 routing이 쓰지 않고 스스로 순서를 다시 계산한다. <strong>정원 개념도 이원화</strong>돼 있다 — <code>Route.assignCapacity</code>는 경고 표시용, <code>Bus.seatCapacity</code>는 실제 배정 판단용이며 <strong>둘은 동기화되지 않는다.</strong></p>
+  <p><strong>영향</strong> — 한 버스가 <code>Bus.route</code>(고정 노선)와 <code>RoutePlan</code>(당일 계획) 두 개의 순서를 동시에 가질 수 있고, <strong>정합성을 맞추는 코드가 없다.</strong> 프론트는 <code>/api/routes</code> 계열 4개를 하나도 호출하지 않는다.</p>
+  <p><strong>개선</strong> — <code>route</code>를 “정류장 마스터 데이터”로 역할을 명시적으로 축소하고(문서·API 태그에 표기), <code>Bus.route</code>가 당일 운행 순서를 뜻하지 않음을 계약으로 못박는다. 정원은 한쪽으로 통일하거나 두 값의 의미 차이를 응답에 드러낸다.</p>
+</div>
+<div class="callout warn">
+  <span class="ct">R7. 버스 위치에 push 경로가 없어 관제가 폴링이다</span>
+  <p><strong>사실</strong> — <code>BusLocationCommandService</code>에 <code>ApplicationEventPublisher</code>가 주입돼 있지 않아 이벤트를 발행하지 않는다. 관제 화면은 3초 REST 폴링.</p>
+  <p><strong>영향</strong> — 학생 위치용 Kafka→STOMP 파이프라인이 완비돼 있는데 <strong>정작 화면이 있는 버스 위치는 쓰지 못한다.</strong> 관제 화면 수가 늘수록 서버 부하가 선형 증가한다.</p>
+  <p><strong>개선</strong> — <code>BusLocationUpdatedEvent</code>를 추가해 학생 위치와 같은 경로(Kafka → <code>/topic/tenant/{id}/location</code>)를 타게 한다. 8.1절 6단계 이후를 그대로 재사용할 수 있으므로 <strong>신규 코드가 적다.</strong></p>
+</div>
+<div class="callout warn">
+  <span class="ct">R9. 버스 좌표 저장소가 InMemory다</span>
+  <p><strong>사실</strong> — <code>InMemoryBusLocationRepository</code>(ConcurrentHashMap)만 존재하고 Redis 구현이 없다.</p>
+  <p><strong>영향</strong> — 재시작 시 전 버스 위치가 사라지고, 인스턴스를 늘리면 공유되지 않는다. 학생 좌표(Redis)와 비대칭이다.</p>
+  <p><strong>개선</strong> — <code>RedisLocationRepository</code>와 같은 패턴으로 <code>RedisBusLocationRepository</code>를 추가한다. 포트가 이미 있으므로 <strong>기존 코드 수정 없이 구현체 추가만으로 끝난다.</strong></p>
+</div>
+<div class="callout warn">
+  <span class="ct">R8. 스케줄러에 분산 안전장치가 없다 — 수평 확장 불가</span>
+  <p><strong>사실</strong> — <code>@Scheduled</code> 4개 모두 리더 선출·분산 락 없이 무조건 실행된다. nginx upstream도 단일 인스턴스로 고정돼 있다.</p>
+  <p><strong>영향</strong> — 백엔드를 2대 이상 띄우면 같은 판정이 인스턴스마다 돈다. 알림은 <code>dedupKey</code> unique 제약으로 중복이 막히지만 <strong>Kafka로는 중복 이벤트가 그대로 발행된다.</strong></p>
+  <p><strong>개선</strong> — ShedLock 같은 분산 락 또는 스케줄러 전용 인스턴스 프로파일(<code>@ConditionalOnProperty</code>)을 도입한다. R9와 함께 해결해야 수평 확장이 열린다.</p>
+</div>
+<div class="callout danger">
+  <span class="ct">R10. Kafka 컨슈머 오류 처리와 Outbox가 없다</span>
+  <p><strong>사실</strong> — <code>@KafkaListener</code> 16개소에 <code>errorHandler</code>·DLT 설정이 없고, 릴레이는 AFTER_COMMIT 방식이라 Outbox가 아니다. <code>NewTopic</code> 빈이 없어 파티션·복제 계수도 브로커 자동 생성에 맡긴다.</p>
+  <p><strong>영향</strong> — 커밋 직후 프로세스가 죽으면 이벤트가 유실되고, 소비 중 예외가 나면 메시지가 로그만 남기고 사라진다. <strong>알림 누락은 이 도메인에서 안전 문제로 직결된다</strong>(미승차·SOS).</p>
+  <p><strong>개선</strong> — (a) <code>@RetryableTopic</code> + DLT를 붙여 실패 메시지를 보존하고, (b) 중요도 높은 이벤트(SOS·NO_SHOW)부터 Outbox 테이블 기반 릴레이로 옮긴다.</p>
+</div>
+<div class="callout warn">
+  <span class="ct">R14. 모듈 순환 의존 5건</span>
+  <p><strong>사실</strong> — <code>bus</code>↔<code>route</code>, <code>bus</code>↔<code>student</code>(JPA 연관 유래), <code>drivesession</code>↔<code>notification</code>, <code>sos</code>↔<code>notification</code>(상수 <code>NotificationThresholds</code> 참조 유래), <code>global</code>↔<code>student</code>·<code>user</code>.</p>
+  <p><strong>영향</strong> — 런타임 문제는 없지만, MSA로 떼어내려는 순간 컴파일이 안 된다. 특히 상수 참조 2건은 <strong>가치 대비 손해가 큰 순환</strong>이다.</p>
+  <p><strong>개선</strong> — <code>NotificationThresholds</code>를 <code>global/policy</code>로 올리면 순환 2건이 즉시 사라진다(<strong>가장 저렴한 개선</strong>). <code>global</code>↔<code>student</code> 순환은 <code>PushTargetResolver</code>를 <code>notification</code> 모듈로 옮기는 방향을 검토한다.</p>
+</div>
+<div class="callout warn">
+  <span class="ct">R15. actuator 의존성 없이 <code>/actuator/health</code>를 permitAll 한다</span>
+  <p><strong>사실</strong> — <code>SecurityConfig.java:61</code>에 경로는 열려 있으나 <code>spring-boot-starter-actuator</code>가 <code>build.gradle</code>에 없다 → <strong>엔드포인트가 존재하지 않는다.</strong></p>
+  <p><strong>영향</strong> — 헬스체크 URL로 쓸 수 없다. docker-compose backend 서비스에 healthcheck가 없는 것도 이 때문으로 보인다.</p>
+  <p><strong>개선</strong> — actuator를 추가하고 <code>/actuator/health</code>만 노출한다(<code>management.endpoints.web.exposure.include=health</code>). 그러면 compose·프록시·오케스트레이터가 공통으로 쓸 준비 상태 신호가 생긴다.</p>
+</div>
+<h3>인프라 · 운영 환경</h3>
+<div class="callout warn">
+  <span class="ct">R17. 영속 볼륨이 0개다</span>
+  <p><strong>사실</strong> — postgres·redis·kafka 어디에도 볼륨이 없다(로컬 리셋 편의를 위한 <strong>의도된 설정</strong>).</p>
+  <p><strong>영향</strong> — 그대로 배포하면 컨테이너 재생성 시 전 데이터가 사라진다.</p>
+  <p><strong>개선</strong> — prod용 compose/오케스트레이터 매니페스트를 별도 파일로 분리하고 볼륨을 붙인다. 현재 파일은 <strong>로컬 개발 전용</strong>임을 문서와 파일명으로 명시한다.</p>
+</div>
+<div class="callout warn">
+  <span class="ct">R18. 외부 경로 API 기본값이 키 없이는 실패한다</span>
+  <p><strong>사실</strong> — <code>routing.provider</code>의 기본값이 <code>naver</code>인데 키는 git에 없는 <code>.env</code>로만 주입된다. 대안 <code>osrm</code>은 공개 데모 서버(<code>router.project-osrm.org</code>)라 운영 SLA가 없다.</p>
+  <p><strong>영향</strong> — 키가 없는 환경에서 배차 API가 “서버 오류”로만 보인다.</p>
+  <p><strong>개선</strong> — 키 부재를 기동 시점에 감지해 명확한 경고 로그를 남기거나 자동으로 <code>osrm</code> fallback 한다. 운영에서는 OSRM 자체 호스팅을 검토한다.</p>
+</div>
+<div class="callout warn">
+  <span class="ct">R19. <code>ENABLE_QUICK_LOGIN=true</code>가 compose 기본값이다</span>
+  <p><strong>사실</strong> — 프론트 빌드 인자로 켜져 있어 로그인 화면에 시드 계정 4개(비밀번호 <code>password</code>)가 노출된다. Dockerfile 기본값은 false.</p>
+  <p><strong>영향</strong> — 인증을 우회하지는 않지만 계정 목록이 그대로 보인다.</p>
+  <p><strong>개선</strong> — 운영 빌드에서는 반드시 제거한다(주석에도 명시돼 있다). 배포 파이프라인이 생기면 이 인자를 prod 프로파일에서 강제 false로 고정한다.</p>
+</div>
+<h2 class="sec" id="apx">부록 — 요약 통계</h2>
+<div class="table-wrap">
+<table>
+<thead><tr><th>항목</th><th>수</th></tr></thead>
+<tbody>
+<tr><td>백엔드 도메인 모듈</td><td><strong>14</strong> (+ <code>global</code> = 15)</td></tr>
+<tr><td>모듈 간 순환 의존</td><td><strong>5건</strong></td></tr>
+<tr><td><code>@Entity</code> / DB 테이블</td><td><strong>16 / 16</strong> (1:1, 고아 없음)</td></tr>
+<tr><td>DB FK 제약 / 명시 인덱스 / unique 제약</td><td><strong>13 / 2 / 4</strong></td></tr>
+<tr><td>Flyway 마이그레이션</td><td><strong>5</strong> (V1·V3·V4·V5 공통 + V2 local 전용)</td></tr>
+<tr><td>도메인 enum / 상태 전이 검증이 있는 상태머신</td><td><strong>10 / 5</strong></td></tr>
+<tr><td>Kafka 토픽</td><td><strong>15</strong> (전부 프로듀서·컨슈머 존재)</td></tr>
+<tr><td>Kafka 컨슈머 클래스 / <code>@KafkaListener</code></td><td><strong>3 / 16</strong></td></tr>
+<tr><td>도메인 이벤트 종류 / 발행 지점</td><td><strong>15종 / 15개소</strong></td></tr>
+<tr><td>STOMP destination</td><td><strong>5</strong> (인바운드 1 + 아웃바운드 4)</td></tr>
+<tr><td><code>@Scheduled</code> 스케줄러</td><td><strong>4</strong> (전부 활성)</td></tr>
+<tr><td><code>@PreAuthorize</code> 적용</td><td><strong>55개소</strong> (클래스 3 + 메서드 52)</td></tr>
+<tr><td><code>TenantGuard</code> 호출 / 인라인 격리 검사</td><td><strong>26개소 / 5개소</strong></td></tr>
+<tr><td>permitAll 경로 패턴</td><td><strong>5</strong></td></tr>
+<tr><td>백엔드 컨트롤러 / 엔드포인트</td><td><strong>15개</strong>(location만 REST+STOMP 2개) <strong>/ 69개</strong>(REST 68 + STOMP 1)</td></tr>
+<tr><td>프론트가 실제 호출하는 REST 엔드포인트</td><td><strong>22</strong> (사용률 32%)</td></tr>
+<tr><td>프론트 라우트 / 화면이 있는 역할</td><td><strong>9 / 3</strong>(정의된 역할 5)</td></tr>
+<tr><td>에러 코드 enum / 전역 예외 핸들러</td><td><strong>8 / 4</strong></td></tr>
+<tr><td>백엔드 테스트 파일</td><td><strong>21</strong></td></tr>
+<tr><td>docker-compose 서비스 / 영속 볼륨</td><td><strong>6 / 0</strong></td></tr>
+</tbody>
+</table>
+</div>
+<div class="callout note"><span class="ct">테스트가 없는 영역</span><p>Kafka 컨슈머 3종, STOMP 인증(<code>StompAuthChannelInterceptor</code>), 스케줄러 4개, <code>RedisLocationRepository</code>, <code>TenantGuard</code>, <code>PushTargetResolver</code>, <code>MapRouteClient</code> 구현 2종.</p></div>
+<h3>※ 미확인 항목</h3>
+<ol>
+<li><code>rideevent</code>·<code>drivesession</code> command 계층의 개별 권한 검증 방식(<code>TenantGuard</code> 미호출은 확인, 대체 검증 코드의 전모는 미확인)</li>
+<li>기사가 운행 종료를 누르지 않은 <code>DriveSession</code>의 운영 처리 정책</li>
+<li><code>NaverMapRouteClient</code>·<code>OsrmMapRouteClient</code>의 재시도·서킷브레이커 유무</li>
+<li><code>ApiResponse</code> 래퍼를 벗어나 <code>ResponseEntity</code>를 직접 반환하는 컨트롤러가 있는지(일부 컨트롤러만 전수 확인)</li>
+<li><code>flutter_secure_storage</code>의 웹 빌드 시 실제 저장 매체</li>
+<li><code>routing.max-waypoints</code> 청킹 경로의 실행 검증(정적 코드만 확인 — 관련 보고서 <code>backend/report/2026-07-29-route-optimization-verification.md</code>가 저장소에 존재)</li>
+</ol>
+<div class="doc-footer">School-Bus 아키텍처 · 원본 <code>docs/ARCHITECTURE.md</code> · 코드 실측 기준 2026-08-01 · <a href="index.html">문서 지도</a> · <a href="product-spec.html">제품 사양서</a> · <a href="user-flows.html">유저플로우</a> · <a href="api-spec.html">API 명세서</a></div>
+
+</main>
+</div>
+</body>
+</html>

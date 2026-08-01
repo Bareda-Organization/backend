@@ -1,0 +1,1312 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>School-Bus 유저플로우</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Nanum+Pen+Script&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/sketch.css" />
+</head>
+<body>
+<div class="layout">
+
+<nav class="toc">
+  <h2>목차</h2>
+  <ol>
+    <li><a href="#read">0. 읽는 법</a></li>
+    <li><a href="#roles">1. 역할별 진입 지도</a></li>
+    <li><a href="#part-a"><strong>A부. 구현된 플로우</strong></a></li>
+    <li class="lv2"><a href="#a1">A1. 인증 · 세션 · 로그아웃</a></li>
+    <li class="lv2"><a href="#a2">A2. 기사 — 운행 시작~종료</a></li>
+    <li class="lv2"><a href="#a3">A3. 기사 — 노선 · 위치 전송</a></li>
+    <li class="lv2"><a href="#a4">A4. 관리자 — 버스 관제</a></li>
+    <li class="lv2"><a href="#a5">A5. 관리자 — 자동 배차</a></li>
+    <li class="lv2"><a href="#a6">A6. 관리자 — 노선 계획 조회</a></li>
+    <li class="lv2"><a href="#a7">A7. 관리자 — 알림 확인</a></li>
+    <li><a href="#part-b"><strong>B부. 설계됐으나 미구현</strong></a></li>
+    <li class="lv2"><a href="#b1">B1. 학부모 — 자녀 등하원 확인</a></li>
+    <li class="lv2"><a href="#b2">B2. 학생 — 본인 기록 · SOS</a></li>
+    <li class="lv2"><a href="#b3">B3. 결석 신고 → 승인</a></li>
+    <li class="lv2"><a href="#b4">B4. 등하원 시간 변경 요청</a></li>
+    <li class="lv2"><a href="#b5">B5. 승하차 기록 정정</a></li>
+    <li class="lv2"><a href="#b6">B6. 기초 데이터 등록</a></li>
+    <li class="lv2"><a href="#b7">B7. 예외 자동 판정 (구현·제약)</a></li>
+    <li><a href="#part-c"><strong>C. 플로우 관점 갭 요약</strong></a></li>
+    <li class="lv2"><a href="#c1">C-1. 여정별로 본 끊김</a></li>
+    <li class="lv2"><a href="#c2">C-2. 갱신 시점</a></li>
+  </ol>
+  <p class="subtitle" style="margin-top:12px">자매 문서 —
+  <a href="index.html">문서 지도</a> ·
+  <a href="product-spec.html">제품 사양서</a> ·
+  <a href="architecture.html">아키텍처</a> ·
+  <a href="api-spec.html">API 명세서</a></p>
+</nav>
+
+<main class="content">
+
+<h1>학원 통학버스 통합관리 — 유저플로우</h1>
+<p class="subtitle">누가 → 어떤 화면에서 → 무엇을 누르면 → 어떤 API가 호출되고 → 무엇이 바뀌는가 · 코드 실측 기준</p>
+
+<div class="callout info">
+  <span class="ct">이 문서가 추적하는 것</span>
+  <p>화면·API·상태 전이는 전부 <strong>코드 실측</strong> 기준이며, 기획서에만 있고 코드에 없는 것은 B부로 분리했다.
+  원본은 <code>docs/USER_FLOWS.md</code> 이고 이 HTML은 같은 내용의 사람용 렌더다.</p>
+</div>
+
+<h2 class="sec" id="read">0. 읽는 법</h2>
+
+<h3>0.1 표기 규칙</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>표기</th><th>뜻</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge done">✅ 구현</span></td><td>프론트 화면 + 백엔드 API가 <strong>둘 다</strong> 있고 실제로 이어져 동작한다</td></tr>
+    <tr><td><span class="badge todo">⬜ 미구현</span></td><td>백엔드 API는 있으나 <strong>프론트 화면이 없다</strong>(또는 그 반대) — 사용자가 도달할 수 없다</td></tr>
+    <tr><td><span class="badge risk">⚠ 한계</span></td><td>동작은 하지만 정확성·안전성에 구멍이 있다</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>0.2 부(部) 구분</h3>
+
+<ul>
+  <li><strong>A부 — 구현된 플로우</strong>: 앱을 켜서 손으로 따라갈 수 있는 여정. 현재 화면이 있는 역할은
+  <code>DRIVER</code>(2화면), <code>ACADEMY_ADMIN</code>·<code>PLATFORM_ADMIN</code>(각 4화면, 두 역할의 화면은 동일) <strong>3개뿐</strong>이다.</li>
+  <li><strong>B부 — 설계됐으나 미구현인 플로우</strong>: 기획서에 있고 백엔드도 대부분 구현돼 있으나, 프론트 화면이 없어
+  <strong>사용자가 실행할 수 없는</strong> 여정. 각 항목에 “백엔드는 어디까지 돼 있는가”를 실측으로 명시했다.</li>
+  <li><strong>C장 — 갭 요약</strong>: A와 B 사이에서 사용자 여정이 실제로 끊기는 지점.</li>
+</ul>
+
+<h3>0.3 플로우 표기 형식</h3>
+
+<p>각 플로우는 다음 4블록으로 쓴다.</p>
+<ol>
+  <li><strong>전제</strong> — 이 플로우를 시작할 수 있는 조건(역할·데이터)</li>
+  <li><strong>단계 표</strong> — 사용자 행동 / 화면 / 호출 API / 결과(어떤 엔티티·상태가 바뀌는가)</li>
+  <li><strong>분기·예외</strong> — 에러 응답과 앱의 복구 동작</li>
+  <li><strong>⚠ 이 플로우의 한계</strong> — 동작하되 신뢰할 수 없는 지점</li>
+</ol>
+
+<h3>0.4 전 API 공통 규약 (모든 단계에 적용)</h3>
+
+<ul>
+  <li>성공·실패 모두 <code>{success, data, message}</code> 단일 래퍼. 성공 시 <code>message</code>는 <strong>항상 null</strong>이고, 실패 시 <code>data</code>가 null이다.</li>
+  <li><strong>응답에 에러 코드 필드가 없다.</strong> 프론트는 HTTP 상태코드 + 한글 메시지 문자열로만 분기한다.</li>
+  <li><strong>인증 실패(401)만 예외</strong> — Security 필터 체인의 <code>HttpStatusEntryPoint</code>가 처리하므로 <strong>body 없는 빈 응답</strong>이다. 래퍼를 타지 않는다.</li>
+  <li>생성(POST)도 <strong>200</strong>이다. 201을 반환하는 엔드포인트가 없다.</li>
+  <li><strong>페이징이 없다.</strong> 모든 목록 API가 전건을 반환하고 정렬은 서버가 고정한다.</li>
+  <li>시각 필드는 전부 <code>LocalDateTime</code>/<code>LocalDate</code>/<code>LocalTime</code> — <strong>오프셋 없는 ISO 문자열</strong>(<code>"2026-07-29T14:30:00"</code>)이다.
+  오프셋을 실을 타입 자체가 아니므로 “오프셋 없는 문자열 = KST 로컬시각”으로 읽어야 한다.</li>
+  <li>테넌트 격리는 3가지 방식뿐이다: ① 관리자 조회 → <code>TenantGuard.resolveTenantId</code> ② 기사 → <code>bus.driver</code>/<code>session.driverId</code> 와 JWT <code>userId</code> 대조
+  ③ 학생·학부모 → <code>student.user_id</code>/<code>student_guardian</code> 관계. <strong>③은 tenantId를 클라이언트가 보내는 경로 자체가 없어 위조 여지가 없다.</strong></li>
+</ul>
+
+<h3>0.5 테스트 계정 (로컬 시드, 비밀번호 전부 <code>password</code>)</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>이메일</th><th>역할</th><th>소속</th><th>이 문서에서 도달 가능한 화면</th></tr></thead>
+  <tbody>
+    <tr><td><code>driver@school.com</code></td><td>DRIVER</td><td>한빛학원</td><td>A2·A3</td></tr>
+    <tr><td><code>admin@school.com</code></td><td>ACADEMY_ADMIN</td><td>한빛학원</td><td>A4~A7</td></tr>
+    <tr><td><code>platform@school.com</code></td><td>PLATFORM_ADMIN</td><td>전역(tenant=NULL)</td><td>A4~A7 (+ 학원 선택)</td></tr>
+    <tr><td><code>student@school.com</code></td><td>STUDENT</td><td>한빛학원</td><td><strong>없음</strong> — 로그인 후 “준비 중” 배너</td></tr>
+    <tr><td><code>parent@school.com</code></td><td>PARENT</td><td>한빛학원</td><td><strong>없음</strong> — 로그인 후 “준비 중” 배너</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>시드는 <code>db/migration-local/V2__seed_data.sql</code>(local 프로파일 전용). 학원 3·버스 3·학생 6·정류장 3·보호자연결 2가 들어 있고,
+<strong>운행 기록·노선계획·알림 시드는 없다</strong> — A2·A5를 직접 돌려야 데이터가 생긴다.</p>
+
+<h2 class="sec" id="roles">1. 역할별 진입 지도</h2>
+
+<p>로그인 성공 직후 어디에 떨어지는가. 판정은 <code>RoleRedirect.resolve()</code> 한 곳에서만 한다.</p>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 로그인 → 역할 판정 → 5갈래 — 어디에 떨어지고 무엇을 볼 수 있는가</div>
+  <svg viewBox="0 0 1100 430" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .uf1-on   { fill:rgba(14,116,144,0.10); stroke:#0e7490; stroke-width:2; }
+      .uf1-ok   { fill:rgba(4,120,87,0.10);   stroke:#047857; stroke-width:2; }
+      .uf1-off  { fill:rgba(220,38,38,0.08);  stroke:#dc2626; stroke-width:2; stroke-dasharray:6 4; }
+      .uf1-tt   { fill:#3a3531; font:bold 13.5px sans-serif; text-anchor:middle; }
+      .uf1-st   { fill:#6b6359; font:11.5px sans-serif; text-anchor:middle; }
+      .uf1-no   { fill:#dc2626; font:bold 13px sans-serif; text-anchor:middle; }
+      .uf1-lb   { fill:#6b6359; font:11.5px sans-serif; }
+      .uf1-hd   { fill:#0e7490; font:bold 13px sans-serif; }
+      .uf1-line { stroke:#c0b6a8; stroke-width:1.8; fill:none; }
+      .uf1-dash { stroke:#dc2626; stroke-width:1.6; fill:none; stroke-dasharray:5 4; }
+    </style>
+    <defs>
+      <marker id="uf1-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#c0b6a8"/>
+      </marker>
+      <marker id="uf1-arrx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#dc2626"/>
+      </marker>
+    </defs>
+
+    <text class="uf1-hd" x="30" y="24" style="text-anchor:start">role_redirect.dart — 판정은 한 곳에서만 한다</text>
+
+    <rect class="uf1-on" x="420" y="36" width="260" height="50" rx="10"/>
+    <text class="uf1-tt" x="550" y="58">로그인</text>
+    <text class="uf1-st" x="550" y="76">POST /api/auth/login</text>
+
+    <path class="uf1-line" d="M550,86 L550,110" marker-end="url(#uf1-arr)"/>
+
+    <rect class="uf1-on" x="420" y="112" width="260" height="50" rx="10"/>
+    <text class="uf1-tt" x="550" y="134">RoleRedirect.resolve()</text>
+    <text class="uf1-st" x="550" y="152">JWT 클레임의 역할로 분기</text>
+
+    <path class="uf1-line" d="M550,162 L550,180"/>
+    <path class="uf1-line" d="M118,180 L982,180"/>
+    <path class="uf1-line" d="M118,180 L118,196" marker-end="url(#uf1-arr)"/>
+    <path class="uf1-line" d="M334,180 L334,196" marker-end="url(#uf1-arr)"/>
+    <path class="uf1-line" d="M550,180 L550,196" marker-end="url(#uf1-arr)"/>
+    <path class="uf1-dash" d="M766,180 L766,196" marker-end="url(#uf1-arrx)"/>
+    <path class="uf1-dash" d="M982,180 L982,196" marker-end="url(#uf1-arrx)"/>
+
+    <rect class="uf1-ok"  x="20"  y="198" width="196" height="42" rx="9"/>
+    <text class="uf1-tt" x="118" y="224">DRIVER</text>
+    <rect class="uf1-ok"  x="236" y="198" width="196" height="42" rx="9"/>
+    <text class="uf1-tt" x="334" y="224">ACADEMY_ADMIN</text>
+    <rect class="uf1-ok"  x="452" y="198" width="196" height="42" rx="9"/>
+    <text class="uf1-tt" x="550" y="224">PLATFORM_ADMIN</text>
+    <rect class="uf1-off" x="668" y="198" width="196" height="42" rx="9"/>
+    <text class="uf1-no" x="766" y="224">STUDENT</text>
+    <rect class="uf1-off" x="884" y="198" width="196" height="42" rx="9"/>
+    <text class="uf1-no" x="982" y="224">PARENT</text>
+
+    <path class="uf1-line" d="M118,240 L118,264" marker-end="url(#uf1-arr)"/>
+    <path class="uf1-line" d="M334,240 L334,264" marker-end="url(#uf1-arr)"/>
+    <path class="uf1-line" d="M550,240 L550,264" marker-end="url(#uf1-arr)"/>
+    <path class="uf1-dash" d="M766,240 L766,264" marker-end="url(#uf1-arrx)"/>
+    <path class="uf1-dash" d="M982,240 L982,264" marker-end="url(#uf1-arrx)"/>
+
+    <rect class="uf1-ok"  x="20"  y="266" width="196" height="42" rx="9"/>
+    <text class="uf1-st" x="118" y="292">/driver/route</text>
+    <rect class="uf1-ok"  x="236" y="266" width="196" height="42" rx="9"/>
+    <text class="uf1-st" x="334" y="292">/admin/monitor</text>
+    <rect class="uf1-ok"  x="452" y="266" width="196" height="42" rx="9"/>
+    <text class="uf1-st" x="550" y="292">/admin/monitor</text>
+    <rect class="uf1-off" x="668" y="266" width="196" height="42" rx="9"/>
+    <text class="uf1-st" x="766" y="292">/login 에 머무름</text>
+    <rect class="uf1-off" x="884" y="266" width="196" height="42" rx="9"/>
+    <text class="uf1-st" x="982" y="292">/login 에 머무름</text>
+
+    <rect class="uf1-ok"  x="20"  y="330" width="196" height="72" rx="9"/>
+    <text class="uf1-tt" x="118" y="354">화면 2개</text>
+    <text class="uf1-st" x="118" y="374">오늘의 노선</text>
+    <text class="uf1-st" x="118" y="392">승하차 명단</text>
+
+    <rect class="uf1-ok"  x="236" y="330" width="196" height="72" rx="9"/>
+    <text class="uf1-tt" x="334" y="354">화면 4개</text>
+    <text class="uf1-st" x="334" y="374">관제 지도 · 배차</text>
+    <text class="uf1-st" x="334" y="392">노선 · 알림</text>
+
+    <rect class="uf1-ok"  x="452" y="330" width="196" height="72" rx="9"/>
+    <text class="uf1-tt" x="550" y="354">화면 4개 (동일)</text>
+    <text class="uf1-st" x="550" y="374">+ 학원 드롭다운 선택</text>
+    <text class="uf1-st" x="550" y="392">GET /api/tenants</text>
+
+    <rect class="uf1-off" x="668" y="330" width="196" height="72" rx="9"/>
+    <text class="uf1-no" x="766" y="356">화면 0개</text>
+    <text class="uf1-st" x="766" y="378">“준비 중” 배너</text>
+    <text class="uf1-st" x="766" y="396">막다른 길</text>
+
+    <rect class="uf1-off" x="884" y="330" width="196" height="72" rx="9"/>
+    <text class="uf1-no" x="982" y="356">화면 0개</text>
+    <text class="uf1-st" x="982" y="378">“준비 중” 배너</text>
+    <text class="uf1-st" x="982" y="396">막다른 길</text>
+
+    <text class="uf1-lb" x="30" y="322" style="text-anchor:start">↓ 접근 가능한 화면 — 로그인·토큰 발급은 5역할 모두 성공한다. 막힌 것은 화면뿐이다.</text>
+  </svg>
+  <div class="viz-cap">진한 실선(구현)과 붉은 점선(미구현)의 대비가 곧 MVP 범위다. 학생·학부모는 토큰까지 받고도 갈 곳이 없다.</div>
+</div>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>역할</th><th>MVP 지원</th><th>랜딩 경로</th><th>접근 가능한 화면</th><th>하단 탭</th></tr></thead>
+  <tbody>
+    <tr><td><code>DRIVER</code></td><td><span class="badge done">✅</span></td><td><code>/driver/route</code></td><td>2개</td><td>오늘의 노선 · 승하차 명단</td></tr>
+    <tr><td><code>ACADEMY_ADMIN</code></td><td><span class="badge done">✅</span></td><td><code>/admin/monitor</code></td><td>4개</td><td>관제 지도 · 배차 · 노선 · 알림</td></tr>
+    <tr><td><code>PLATFORM_ADMIN</code></td><td><span class="badge done">✅</span></td><td><code>/admin/monitor</code></td><td>4개 (학원 관리자와 <strong>동일 화면</strong>)</td><td>동일</td></tr>
+    <tr><td><code>STUDENT</code></td><td><span class="badge todo">⬜</span></td><td><code>/login</code> 에 머무름</td><td><strong>0개</strong></td><td>—</td></tr>
+    <tr><td><code>PARENT</code></td><td><span class="badge todo">⬜</span></td><td><code>/login</code> 에 머무름</td><td><strong>0개</strong></td><td>—</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>리다이렉트 판정 순서</strong> (<code>role_redirect.dart:18-60</code>)</p>
+<ol>
+  <li>토큰 복원 중(<code>isRestoring</code>) → splash 이외 전부 <code>/</code> 로 붙잡아 둔다</li>
+  <li><code>session == null</code> → <code>/login</code></li>
+  <li>로그인은 됐으나 <code>!role.isSupportedInMvp</code>(학생·학부모) → <code>/login</code> 에 머물게 하고 화면에 “준비 중” 배너를 띄운다</li>
+  <li>로그인 상태로 <code>/login</code> 또는 <code>/</code> 에 있으면 → 역할 홈으로</li>
+  <li>경로 접두어 가드 — <code>/admin*</code> 은 <code>role.isAdmin</code>, <code>/driver*</code> 은 <code>role == DRIVER</code></li>
+</ol>
+
+<p><strong>두 관리자 역할의 유일한 차이는 tenant 결정 방식이다.</strong></p>
+<ul>
+  <li><code>ACADEMY_ADMIN</code> — JWT 클레임의 <code>tenantId</code> 고정. 화면에 읽기 전용 배지만 보인다.</li>
+  <li><code>PLATFORM_ADMIN</code> — <code>GET /api/tenants</code> 로 전체 학원 목록을 받아 드롭다운에서 선택한다. 단, 관제·알림 화면은 이 선택을 따르지 않는다(→ C7).</li>
+</ul>
+
+<div class="callout warn">
+  <span class="ct">학생·학부모의 실제 화면</span>
+  <p><code>LoginScreen</code> 안의 <code>_UnsupportedRoleNotice</code> 배너 + “다른 계정으로 로그인” 버튼. 로그인 자체는 성공하고 토큰도 발급되므로,
+  <strong>Swagger나 직접 호출로는 학생·학부모 API를 전부 쓸 수 있다</strong> — 막힌 건 화면뿐이다.</p>
+</div>
+
+<h2 class="sec" id="part-a">A부. 구현된 플로우 <span class="badge done">구현</span></h2>
+
+<p>여기 있는 여정은 앱을 켜서 <strong>손으로 그대로 따라갈 수 있다.</strong> 화면이 있는 역할은 기사·학원 관리자·플랫폼 관리자 3개뿐이다.</p>
+
+<h2 class="sec" id="a1">A1. 인증 — 로그인 · 세션 복원 · 토큰 만료 · 로그아웃 <span class="badge done">구현</span></h2>
+
+<p><strong>전제</strong>: 없음. 앱의 모든 여정이 여기서 시작한다.</p>
+
+<h3>A1-1. 로그인 <span class="badge done">✅</span></h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>#</th><th>사용자 행동</th><th>화면</th><th>호출 API</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>앱 실행</td><td><code>/</code> (splash)</td><td>—</td><td><code>AuthController.build()</code> → <code>restore()</code>. 저장소의 accessToken을 파싱만 하고 <strong>만료 검사는 하지 않는다</strong></td></tr>
+    <tr><td>2</td><td>(토큰 없음)</td><td>→ <code>/login</code></td><td>—</td><td><code>session == null</code> 이므로 라우터가 로그인으로 보낸다</td></tr>
+    <tr><td>3</td><td>이메일·비밀번호 입력 후 <code>로그인</code></td><td><code>/login</code></td><td><code>POST /api/auth/login</code></td><td>서버가 <code>UserTenantRole</code> 전체를 읽어 <code>"tenantId:ROLE"</code> 배열로 인코딩한 access·refresh 토큰 발급. <strong>이후 모든 API의 테넌트 판단은 DB 재조회 없이 이 클레임에서 복원된다</strong></td></tr>
+    <tr><td>4</td><td>(자동)</td><td>—</td><td>—</td><td><code>SecureTokenStorage.save()</code> — 두 토큰을 <strong>항상 함께</strong> 저장(refresh 회전 대응). iOS Keychain / Android Keystore / Web은 WebCrypto</td></tr>
+    <tr><td>5</td><td>(자동)</td><td>—</td><td>—</td><td><code>JwtDecoder.toSession()</code> 이 <strong>토큰 payload를 직접 파싱</strong>해 세션을 만든다 — 사용자 정보 조회 API가 없기 때문. MVP 지원 역할을 우선 선택하고, 없으면 첫 멤버십</td></tr>
+    <tr><td>6</td><td>(자동, 역할이 <code>DRIVER</code>일 때만)</td><td>—</td><td><code>GET /api/buses/me</code></td><td>busId를 세션에 얹는다. <strong>실패해도 로그인은 성공</strong> — 이후 명단·노선 화면에서 busId가 없어 빈 상태가 된다</td></tr>
+    <tr><td>7</td><td>(자동)</td><td>→ 역할 홈</td><td>—</td><td>관리자 → <code>/admin/monitor</code>, 기사 → <code>/driver/route</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>A1-2. 세션 복원 (재실행) <span class="badge done">✅</span></h3>
+
+<p>앱을 다시 켜면 3~6단계를 건너뛰고 저장된 accessToken을 파싱해 바로 역할 홈으로 간다.
+<strong>만료 검사를 하지 않으므로</strong>, 만료된 토큰이면 첫 API 요청이 401을 받고 A1-3으로 넘어간다.</p>
+
+<h3>A1-3. 토큰 만료 · 자동 재발급 <span class="badge done">✅</span></h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>#</th><th>계기</th><th>처리</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>아무 API가 401</td><td><code>AuthInterceptor.onError</code></td><td>저장된 refreshToken으로 <code>POST /api/auth/refresh</code> <strong>1회</strong> 시도</td></tr>
+    <tr><td>2</td><td>재발급 성공</td><td>—</td><td>새 토큰 저장 후 <strong>원 요청을 그대로 재시도</strong>. 사용자는 아무것도 못 느낀다</td></tr>
+    <tr><td>3</td><td>재발급 실패</td><td><code>onSessionExpired()</code></td><td>저장소 clear → <code>AuthController.state = null</code> → 라우터가 <code>/login</code> 으로</td></tr>
+  </tbody>
+</table>
+</div>
+
+<ul>
+  <li>동시에 401이 여러 개 터져도 <code>_inFlightRefresh</code> 로 <strong>재발급을 1회로 합친다.</strong></li>
+  <li>재시도는 인터셉터가 없는 별도 Dio + <code>auth_retried</code> 플래그로 무한 루프를 막는다.</li>
+  <li>재발급 시 서버가 멤버십을 <strong>DB에서 다시 읽어</strong> 재인코딩한다 → 권한이 바뀌었으면 이때 반영된다.</li>
+  <li>STOMP도 CONNECT 실패 시 같은 경로로 토큰을 재발급받고 재시도한다.</li>
+</ul>
+
+<h3>A1-4. 로그아웃 <span class="badge done">✅</span></h3>
+
+<p>앱바 우측 계정 팝업 → <code>로그아웃</code> → <code>TokenStorage.clear()</code> + 상태 null → 라우터가 <code>/login</code> 으로.</p>
+
+<div class="callout info">
+  <span class="ct">분기·예외</span>
+  <p>· 로그인 실패(이메일 없음 / 비밀번호 불일치) → <strong>둘 다 401 <code>INVALID_CREDENTIALS</code></strong> “이메일 또는 비밀번호가 올바르지 않습니다”.
+  서버가 두 경우를 구분해 알려주지 않는다(계정 존재 여부 노출 방지).<br />
+  · 학생·학부모 계정으로 로그인 → <strong>성공한다.</strong> 토큰도 발급된다. 다만 라우터가 <code>/login</code> 에 붙잡아 두고 “준비 중” 배너를 띄운다.<br />
+  · <code>PLATFORM_ADMIN</code> 은 멤버십의 tenantId가 빈 문자열(<code>":PLATFORM_ADMIN"</code>)로 인코딩되며, <code>JwtDecoder</code> 가 이 케이스를 따로 처리한다.</p>
+</div>
+
+<div class="callout warn">
+  <span class="ct">⚠ 이 플로우의 한계</span>
+  <p>· <strong>서버 측 로그아웃이 없다.</strong> 백엔드 <code>AuthController</code> 는 signup·login·refresh 3개뿐이고 토큰 무효화(블랙리스트·회전 기록) 로직이 없다.
+  로그아웃해도 <strong>이미 발급된 refresh 토큰은 만료 전까지 계속 유효</strong>하다.<br />
+  · <strong>회원가입 화면이 없다.</strong> <code>POST /api/auth/signup</code> 은 <code>permitAll</code> 로 열려 있으나 앱에 진입점이 없다.
+  그런데 그 API는 요청 body의 <code>tenantId</code>·<code>role</code> 을 그대로 신뢰하므로,
+  <strong>누구나 임의 학원의 <code>ACADEMY_ADMIN</code> 으로 self-signup 할 수 있다</strong> — 화면이 없는 게 오히려 유일한 방어막인 상태다.<br />
+  · 웹 빌드에서는 XSS 시 토큰 탈취가 가능하다. accessToken 15분 수명이 유일한 완화 장치다.<br />
+  · 세션의 사용자 이름·소속 학원명은 토큰 클레임에 있는 것만 쓴다 — <strong>사용자 프로필 조회 API 자체가 없다.</strong></p>
+</div>
+
+<h2 class="sec" id="a2">A2. 기사 — 운행 시작부터 종료까지 (주 시나리오) <span class="badge done">구현</span></h2>
+
+<p><strong>전제</strong>: 역할 <code>DRIVER</code>, 담당 버스가 배정돼 있어야 한다(<code>GET /api/buses/me</code> 가 busId를 준다).
+버스에 <code>driver_id</code> 가 비어 있으면 이 플로우 전체가 시작되지 않는다.</p>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 기사 운행 시퀀스 — 운행 시작 → 정류장별 승하차 기록 → 운행 종료</div>
+  <svg viewBox="0 0 1100 420" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .uf2-box  { fill:rgba(14,116,144,0.10); stroke:#0e7490; stroke-width:2; }
+      .uf2-act  { fill:rgba(4,120,87,0.10);   stroke:#047857; stroke-width:2; }
+      .uf2-warn { fill:rgba(180,83,9,0.10);   stroke:#b45309; stroke-width:2; }
+      .uf2-evt  { fill:rgba(124,58,237,0.10); stroke:#7c3aed; stroke-width:1.6; }
+      .uf2-tt   { fill:#3a3531; font:bold 13.5px sans-serif; text-anchor:middle; }
+      .uf2-api  { fill:#0e7490; font:11px monospace; text-anchor:middle; }
+      .uf2-st   { fill:#6b6359; font:11px sans-serif; text-anchor:middle; }
+      .uf2-lb   { fill:#6b6359; font:11.5px sans-serif; }
+      .uf2-hd   { fill:#0e7490; font:bold 13px sans-serif; }
+      .uf2-wt   { fill:#b45309; font:bold 12.5px sans-serif; text-anchor:middle; }
+      .uf2-line { stroke:#c0b6a8; stroke-width:2; fill:none; }
+      .uf2-back { stroke:#7c3aed; stroke-width:1.6; fill:none; stroke-dasharray:5 4; }
+    </style>
+    <defs>
+      <marker id="uf2-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#c0b6a8"/>
+      </marker>
+      <marker id="uf2-arrv" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#7c3aed"/>
+      </marker>
+    </defs>
+
+    <text class="uf2-hd" x="26" y="24" style="text-anchor:start">① 준비 — 담당 버스와 진행 중 세션 확인</text>
+
+    <rect class="uf2-box" x="26"  y="34" width="240" height="92" rx="10"/>
+    <text class="uf2-tt"  x="146" y="58">1. 담당 버스 확인</text>
+    <text class="uf2-api" x="146" y="80">GET /api/buses/me</text>
+    <text class="uf2-st"  x="146" y="100">id 오름차순 첫 1대만</text>
+    <text class="uf2-st"  x="146" y="117">없으면 404</text>
+
+    <path class="uf2-line" d="M266,80 L296,80" marker-end="url(#uf2-arr)"/>
+
+    <rect class="uf2-box" x="300" y="34" width="240" height="92" rx="10"/>
+    <text class="uf2-tt"  x="420" y="58">2. 진행 중 세션 조회</text>
+    <text class="uf2-api" x="420" y="80">GET /api/drive-sessions</text>
+    <text class="uf2-api" x="420" y="96">/bus/{busId}</text>
+    <text class="uf2-st"  x="420" y="117">앱이 IN_PROGRESS 를 골라낸다</text>
+
+    <path class="uf2-line" d="M540,80 L570,80" marker-end="url(#uf2-arr)"/>
+
+    <rect class="uf2-act" x="574" y="34" width="240" height="92" rx="10"/>
+    <text class="uf2-tt"  x="694" y="58">4. 운행 시작</text>
+    <text class="uf2-api" x="694" y="80">POST /api/drive-sessions</text>
+    <text class="uf2-api" x="694" y="96">/start</text>
+    <text class="uf2-st"  x="694" y="117">DriveSession status=IN_PROGRESS</text>
+
+    <path class="uf2-line" d="M814,80 L844,80" marker-end="url(#uf2-arr)"/>
+
+    <rect class="uf2-box" x="848" y="34" width="226" height="92" rx="10"/>
+    <text class="uf2-tt"  x="961" y="58">5. 당일 명단</text>
+    <text class="uf2-api" x="961" y="80">GET /api/drive-sessions</text>
+    <text class="uf2-api" x="961" y="96">/{id}/roster</text>
+    <text class="uf2-st"  x="961" y="117">APPROVED 결석자 제외</text>
+
+    <path class="uf2-line" d="M961,126 L961,150 L146,150 L146,190" marker-end="url(#uf2-arr)"/>
+
+    <text class="uf2-hd" x="26" y="180" style="text-anchor:start">② 정류장별 기록 — 이 구간을 정차마다 반복한다</text>
+
+    <rect class="uf2-act" x="26"  y="190" width="240" height="92" rx="10"/>
+    <text class="uf2-tt"  x="146" y="214">7. 승차 · 하차 · 인계</text>
+    <text class="uf2-api" x="146" y="236">POST /api/ride-events</text>
+    <text class="uf2-st"  x="146" y="256">RideEvent 생성 · source=MANUAL</text>
+    <text class="uf2-st"  x="146" y="273">occurredAt=now() 고정</text>
+
+    <path class="uf2-line" d="M266,236 L296,236" marker-end="url(#uf2-arr)"/>
+
+    <rect class="uf2-evt" x="300" y="190" width="240" height="92" rx="10"/>
+    <text class="uf2-tt"  x="420" y="214">도메인 이벤트 발행</text>
+    <text class="uf2-st"  x="420" y="236">StudentBoarded · RideCompleted</text>
+    <text class="uf2-st"  x="420" y="254">HandoverCompleted</text>
+    <text class="uf2-st"  x="420" y="273">→ Kafka → 알림 파이프라인</text>
+
+    <path class="uf2-line" d="M540,236 L570,236" marker-end="url(#uf2-arr)"/>
+
+    <rect class="uf2-box" x="574" y="190" width="240" height="92" rx="10"/>
+    <text class="uf2-tt"  x="694" y="214">8. 명단 재조회</text>
+    <text class="uf2-api" x="694" y="236">GET /api/ride-events</text>
+    <text class="uf2-api" x="694" y="252">/bus/{busId}?date=</text>
+    <text class="uf2-st"  x="694" y="273">낙관적 갱신 없음 — 왕복 2회 후 반영</text>
+
+    <path class="uf2-back" d="M694,282 L694,300 L146,300 L146,282" marker-end="url(#uf2-arrv)"/>
+    <text class="uf2-lb" x="330" y="316" style="text-anchor:start">정차마다 반복 — 다음 학생 · 다음 정류장</text>
+
+    <path class="uf2-line" d="M814,236 L844,236" marker-end="url(#uf2-arr)"/>
+
+    <rect class="uf2-act" x="848" y="190" width="226" height="92" rx="10"/>
+    <text class="uf2-tt"  x="961" y="214">10. 운행 종료</text>
+    <text class="uf2-api" x="961" y="236">PATCH /api/drive-sessions</text>
+    <text class="uf2-api" x="961" y="252">/{id}/end</text>
+    <text class="uf2-st"  x="961" y="273">status=COMPLETED · endedAt=now()</text>
+
+    <path class="uf2-line" d="M961,282 L961,336" marker-end="url(#uf2-arr)"/>
+
+    <rect class="uf2-warn" x="700" y="338" width="374" height="66" rx="10"/>
+    <text class="uf2-wt" x="887" y="362">차내 잔류 방지 — 409 로 종료 차단</text>
+    <text class="uf2-st" x="887" y="384">마지막 기록이 BOARD 인 학생이 남아 있으면 종료 불가</text>
+
+    <text class="uf2-lb" x="26" y="360" style="text-anchor:start">3. 운행 전 화면에서는 GET /api/ride-events/bus/{busId} 로 직전 운행 요약을 보여준다.</text>
+    <text class="uf2-lb" x="26" y="382" style="text-anchor:start">6. 명단 진입 직후에도 같은 API로 학생별 현재 상태(미승차·승차완료·하차완료·인계완료)를 계산한다.</text>
+    <text class="uf2-lb" x="26" y="404" style="text-anchor:start">9. 상단 “다음 정차” 카드를 누르면 API 호출 없이 A3(오늘의 노선)으로 이동한다.</text>
+  </svg>
+  <div class="viz-cap">쓰기 호출은 운행 시작 · 승하차 기록 · 운행 종료 3개뿐이고, 나머지는 전부 재조회다.</div>
+</div>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>#</th><th>사용자 행동</th><th>화면</th><th>호출 API</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>하단 탭 <code>승하차 명단</code></td><td><code>/driver/roster</code></td><td><code>GET /api/buses/me</code></td><td>담당 버스 1대. <strong>여러 대여도 id 오름차순 첫 번째만</strong> 반환. 없으면 404 “담당 버스가 없습니다”</td></tr>
+    <tr><td>2</td><td>(자동)</td><td><code>/driver/roster</code></td><td><code>GET /api/drive-sessions/bus/{busId}</code></td><td>해당 버스의 <strong>전체 운행 이력</strong>을 받아 앱이 <code>IN_PROGRESS</code> 를 골라낸다. 있으면 3을 건너뛰고 5로</td></tr>
+    <tr><td>3</td><td>(자동, 운행 전 화면)</td><td><code>DriveStartView</code></td><td><code>GET /api/ride-events/bus/{busId}</code></td><td>직전 운행 요약(처리 인원)을 계산해 카드에 표시</td></tr>
+    <tr><td>4</td><td>방향 선택(<code>등원</code>/<code>하원</code>) 후 <code>운행 시작</code></td><td><code>DriveStartView</code></td><td><code>POST /api/drive-sessions/start</code><br /><code>{busId, direction, serviceDate?}</code></td><td><strong><code>DriveSession</code> 신규 생성</strong> — <code>status=IN_PROGRESS</code>, <code>startedAt=now()</code>, <code>tenantId</code>는 요청이 아니라 <code>bus.tenant</code> 에서 파생. 같은 날·같은 버스·같은 방향의 <code>PUBLISHED</code> <code>RoutePlan</code> 이 있으면 <code>routePlanId</code> 로 <strong>자동 연결</strong>, 없으면 null로 두고 시작은 허용</td></tr>
+    <tr><td>5</td><td>(자동)</td><td><code>/driver/roster</code></td><td><code>GET /api/drive-sessions/{id}/roster</code></td><td>당일 명단. <code>AttendanceQueryService.getActiveRoster</code> 를 거쳐 <strong>APPROVED 결석자가 제외</strong>된다. <code>PICKUP</code> 이면 <code>student.boardingStop</code> 의 이름·좌표, <code>DROPOFF</code> 면 <code>dropoffAddress</code>/<code>dropoffLat</code>/<code>dropoffLng</code> 를 위치로 준다</td></tr>
+    <tr><td>6</td><td>(자동)</td><td><code>/driver/roster</code></td><td><code>GET /api/ride-events/bus/{busId}?date=</code></td><td>오늘 기록을 받아 학생별 현재 상태(미승차/승차완료/하차완료/인계완료)를 계산</td></tr>
+    <tr><td>7</td><td>학생 행의 <code>승차</code>/<code>하차</code>/<code>인계</code> 버튼</td><td><code>/driver/roster</code></td><td><code>POST /api/ride-events</code><br /><code>{busId, studentId, type}</code></td><td><strong><code>RideEvent</code> 신규 생성</strong> — <code>source=MANUAL</code> 하드코딩, <code>occurredAt=now()</code> 고정, <code>stopId</code> 생략 시 학생의 기본 승차 정류장으로 대체. type별로 <code>StudentBoardedEvent</code>/<code>RideCompletedEvent</code>/<code>HandoverCompletedEvent</code> 발행 → Kafka → 알림 파이프라인</td></tr>
+    <tr><td>8</td><td>(자동)</td><td><code>/driver/roster</code></td><td><code>GET /api/ride-events/bus/{busId}?date=</code></td><td>명단 재조회. <strong>낙관적 갱신을 하지 않으므로</strong> 버튼을 누르면 왕복 2회가 끝난 뒤에야 행이 바뀐다</td></tr>
+    <tr><td>9</td><td>상단 “다음 정차” 카드 탭</td><td>→ <code>/driver/route</code></td><td>—</td><td>A3으로 이동(로컬 라우팅)</td></tr>
+    <tr><td>10</td><td><code>운행 종료</code> → 시트에서 확인</td><td><code>EndDriveSheet</code></td><td><code>PATCH /api/drive-sessions/{id}/end</code></td><td><strong><code>DriveSession.status = COMPLETED</code>, <code>endedAt = now()</code></strong>. 종료 요약(처리 인원·소요시간)을 보여준다</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="callout info">
+  <span class="ct">분기·예외</span>
+  <p>· <strong>4에서 409 “이미 진행 중인 운행이 있습니다”</strong> — <code>(busId, direction, serviceDate)</code> 조합에 <code>IN_PROGRESS</code> 세션이 이미 있을 때.
+  앱은 에러를 띄우지 않고 <strong>2단계 재조회로 복구</strong>해 진행 중 세션 화면으로 들어간다.<br />
+  · <strong>10에서 409 “하차 처리되지 않은 학생이 있어 운행을 종료할 수 없습니다”</strong> — <strong>차내 잔류 방지</strong>.
+  세션 <code>startedAt</code>~현재 사이 해당 버스의 승하차 기록을 학생별로 훑어 <strong>마지막이 <code>BOARD</code> 인 학생이 하나라도 있으면</strong> 종료를 막는다.
+  기사는 해당 학생을 하차·인계 처리한 뒤 다시 눌러야 한다.<br />
+  · <strong>403 “담당 기사만 처리할 수 있습니다”</strong> — 1·2·5·7에서 <code>bus.driver</code> 가 JWT <code>userId</code> 와 다를 때.
+  10은 <code>session.driverId</code> 기준이라 메시지가 “본인이 시작한 운행만 종료할 수 있습니다”로 다르다.<br />
+  · <strong>400 “학생과 버스의 학원이 다릅니다”</strong> — 7에서 <code>student.tenant</code> ≠ <code>bus.tenant</code> 일 때.<br />
+  · 5에서 학생의 정류장/하차좌표가 없으면 위치 3필드가 모두 null로 온다 → 지도에 찍히지 않는다.</p>
+</div>
+
+<div class="callout warn">
+  <span class="ct">⚠ 이 플로우의 한계</span>
+  <p>· <strong>승하차 순서 검증이 서버에 없다.</strong> 승차 기록 없이 하차를 보내도 서버는 200을 준다. 이미 하차한 학생을 또 하차시켜도 막지 않는다.
+  앱이 <strong>버튼을 하나만 노출하는 방식으로 막고 있을 뿐</strong>이라, Swagger나 다른 클라이언트에서는 순서가 뒤엉킨 기록을 만들 수 있다. 유일한 간접 방어는 10단계의 잔류 검사다.<br />
+  · <strong>QR·NFC 경로가 미구현이다.</strong> <code>RideSource</code> enum에 <code>QR</code>/<code>NFC</code> 가 정의돼 있지만 <code>source</code> 가 <code>MANUAL</code> 로 하드코딩돼
+  <strong>이 API로는 절대 생성되지 않는다.</strong> 기획서의 “명단 + 사진 + NFC/RFID + QR 병행” 중 실제로 되는 건 기사 수동 하나다.<br />
+  · <strong><code>occurredAt</code> 이 항상 <code>now()</code>다.</strong> 통신이 끊겼다 복구된 뒤 “아까 3시에 탔던 것”으로 기록할 수단이 없다. 과거 시각 기록은 정정 API(→ B5)로만 가능한데 그 화면이 없다.<br />
+  · <strong>잘못 누르면 되돌릴 수 없다.</strong> <code>POST /api/ride-events/{id}/correction</code> 이 구현돼 있으나 프론트가 호출하지 않는다(→ B5).<br />
+  · <strong>“현재 진행 중인 세션” 전용 API가 없다.</strong> 2단계가 버스 전체 이력을 받아 앱에서 <code>IN_PROGRESS</code> 를 찾는 구조라, 운행이 쌓일수록 응답이 커진다.
+  게다가 이 목록은 <strong>다른 기사가 만든 세션도 포함</strong>한다(필터가 버스 담당 여부뿐).<br />
+  · <strong>세션 경계를 <code>driveSessionId</code> 가 아니라 <code>busId</code> + 시간창으로 판별한다.</strong> <code>RideEvent</code> 에 세션 FK가 없어서다.
+  “버스당 <code>IN_PROGRESS</code> 는 1개”라는 전제에 의존하므로, 그 전제가 깨지면 잔류 검사·요약 집계가 어긋난다.<br />
+  · <strong>배차를 확정하지 않고 운행을 시작하면 <code>routePlanId</code> 가 null이 되고, 그 세션은 APPROACH·NO_SHOW 자동 판정 대상에서 통째로 제외된다</strong>(→ B7, C6).<br />
+  · 명단은 조회 시점 스냅샷이다. 운행 중 관리자가 결석을 승인해도 <strong>기사가 새로고침하기 전까지 반영되지 않는다.</strong></p>
+</div>
+
+<h2 class="sec" id="a3">A3. 기사 — 오늘의 노선 확인 · 위치 전송 <span class="badge done">구현</span></h2>
+
+<p><strong>전제</strong>: 역할 <code>DRIVER</code> + busId. 노선이 보이려면 관리자가 <strong>A5(배차 확정)를 이미 마쳐</strong> <code>PUBLISHED</code> 계획이 있어야 한다.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>#</th><th>사용자 행동</th><th>화면</th><th>호출 API</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>하단 탭 <code>오늘의 노선</code></td><td><code>/driver/route</code></td><td><code>GET /api/route-plans/driver/{busId}?serviceDate=</code></td><td>담당 버스의 당일 <code>PUBLISHED</code> 계획 목록(등원·하원). 지도에 polyline + 정차 마커, 하단에 정차 시트</td></tr>
+    <tr><td>2</td><td>(자동, 병합)</td><td><code>/driver/route</code></td><td>—</td><td>A2의 명단 상태를 함께 watch해 정차별 진행률(방문/미방문)을 표시</td></tr>
+    <tr><td>3</td><td><code>등원</code>/<code>하원</code> 세그먼트</td><td><code>/driver/route</code></td><td>—</td><td><strong>로컬 상태만 변경.</strong> 재조회하지 않는다</td></tr>
+    <tr><td>4</td><td>위치 카드의 <code>전송</code> 스위치 On</td><td><code>DriverLocationCard</code></td><td>(아래 5 반복)</td><td>5초 주기 타이머 시작</td></tr>
+    <tr><td>5</td><td>(자동, 5초마다)</td><td>—</td><td><code>POST /api/locations/bus</code><br /><code>{busId, lat, lng}</code></td><td>서버가 <code>InMemoryBusLocationRepository</code>(<code>ConcurrentHashMap</code>)에 <strong>버스당 최신 1건만</strong> 덮어쓴다. <code>tenantId</code> 는 <code>bus.tenant</code> 에서 파생, <code>origin</code> 은 <strong><code>GPS</code> 로 하드코딩</strong></td></tr>
+    <tr><td>6</td><td><code>Mock</code>/<code>실 GPS</code> 세그먼트</td><td><code>DriverLocationCard</code></td><td>—</td><td>좌표 생성 소스 교체. <strong>기본값은 Mock</strong></td></tr>
+    <tr><td>7</td><td>앱을 백그라운드로</td><td>—</td><td>—</td><td>타이머 자동 pause. 복귀하면 resume</td></tr>
+    <tr><td>8</td><td>카메라 버튼(확대·축소·내 위치·전체 경로)</td><td><code>/driver/route</code></td><td>—</td><td>지도 카메라 로컬 조작. API 호출 없음</td></tr>
+    <tr><td>9</td><td>당겨서 새로고침</td><td><code>/driver/route</code></td><td><code>GET /api/route-plans/driver/{busId}</code></td><td>1을 재실행</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="callout info">
+  <span class="ct">분기·예외</span>
+  <p>· <strong>403</strong> — <code>bus.driver</code> ≠ JWT <code>userId</code> 일 때. 1(조회)·5(보고) 양쪽 모두.<br />
+  · <strong>노선이 없으면</strong> 빈 상태 화면이 뜬다. 관리자가 배차를 확정하지 않았거나, 확정했더라도 <code>serviceDate</code> 가 다르면 비어 있다.<br />
+  · <strong>Mock 소스는 노선 polyline을 따라 왕복하는 가상 좌표를 만든다</strong>(약 60m/read ≈ 43km/h).
+  따라서 <strong>노선이 없으면 Mock이 예외를 던져 위치 전송 자체가 중단된다.</strong> 실 GPS로 전환하면 노선 없이도 전송된다.<br />
+  · 5의 응답은 <code>data = null</code> 인 빈 성공이다. 서버가 좌표 유효 범위(위경도)를 <strong>검증하지 않는다</strong> — 어떤 숫자든 저장된다.</p>
+</div>
+
+<div class="callout warn">
+  <span class="ct">⚠ 이 플로우의 한계</span>
+  <p>· <strong>Mock이 앱과 서버 양쪽에 있다.</strong> 앱 쪽 기본 좌표 출처가 Mock인 데다, <strong>서버도 독립적으로 버스 좌표를 만들고 있다</strong> —
+  <code>MockBusLocationSource</code>(<code>app.location.bus-mock.enabled=true</code>)가 <code>LocationSimulationScheduler</code> 의 3초 틱에 얹혀 삼각파 보간 좌표를 저장한다.
+  즉 <strong>기사가 전송을 켜지 않아도 관제 지도에 버스가 움직인다.</strong> 같은 저장소(버스당 최신 1건)를 쓰므로 기사 앱과 서버 Mock이 <strong>서로 덮어쓴다.</strong>
+  실 GPS로 넘어가려면 앱 토글만이 아니라 서버 설정(<code>bus-mock.enabled=false</code> + <code>bus-gps.enabled=true</code>)도 함께 꺼야 한다.<br />
+  · <strong>기사 앱이 보낸 좌표는 <code>origin</code> 이 토글과 무관하게 항상 <code>GPS</code> 로 저장된다.</strong> 서버 Mock 경로는 <code>MOCK</code> 으로 남으므로,
+  관제 상세 패널의 “출처: 단말/시뮬레이터” 표기는 <strong>“누가 마지막에 썼는가”를 보여줄 뿐 기사 앱의 Mock 여부는 반영하지 못한다.</strong><br />
+  · <strong>버스 위치는 서버 재시작 시 전부 소실된다.</strong> Redis 구현이 없고 in-memory 맵이다(학생 위치는 Redis를 쓰지만 TTL 9초).<br />
+  · <strong>버스 위치 보고는 이벤트를 발행하지 않는다.</strong> 학생 위치는 Kafka → STOMP push로 이어지지만 버스는 그 경로가 없어, 관리자 관제가 <strong>3초 REST 폴링</strong>에 의존한다(→ A4).<br />
+  · <strong>재배차가 일어나면 <code>version</code> 이 올라간 새 계획 행이 생기는데 서버가 방향으로만 정렬해 준다.</strong> 앱이 직접 최신 version을 골라내 방어하고 있다 — 서버 정렬 수정이 정공법이라고 코드 주석이 명시한다.<br />
+  · <strong>노선 계획 응답에 정류장 이름과 학원(depot) 좌표가 없다.</strong> <code>RoutePlanStop</code> 은 <code>studentId</code> + 좌표 + ETA뿐이라, 운행 전에는 정차를 “N번 정차”로 표시하고
+  학원 위치는 <strong>polyline의 첫 점을 학원으로 간주</strong>해 추정한다. 정류장 이름은 A2의 명단에서만 온다.<br />
+  · ETA는 <code>세션 startedAt + etaSeconds</code> 근사다. 실제 출발이 지연되면 전부 밀린다.</p>
+</div>
+
+<h2 class="sec" id="a4">A4. 관리자 — 버스 관제 <span class="badge done">구현</span></h2>
+
+<p><strong>전제</strong>: 역할 <code>ACADEMY_ADMIN</code> 또는 <code>PLATFORM_ADMIN</code>. 의미 있는 화면이 되려면 기사가 A3에서 위치 전송을 켜고 있어야 한다.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>#</th><th>사용자 행동</th><th>화면</th><th>호출 API</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>로그인 직후 / 탭 <code>관제 지도</code></td><td><code>/admin/monitor</code></td><td><code>GET /api/buses?tenantId=</code></td><td>학원 버스 목록(이름·차량번호·좌석·배정인원·담당기사·보험만료)</td></tr>
+    <tr><td>2</td><td>(자동, 1 직후 순차)</td><td><code>/admin/monitor</code></td><td><code>GET /api/locations/buses?tenantId=</code></td><td>최신 좌표 목록. <strong>좌표가 없는 버스는 서버가 아예 제외</strong>하므로, 앱이 1의 목록과 병합해 “위치 미보고”로 구분한다</td></tr>
+    <tr><td>3</td><td>(자동, 3초마다)</td><td><code>/admin/monitor</code></td><td><code>GET /api/locations/buses?tenantId=</code></td><td><strong>위치만</strong> 재조회. 버스 목록은 다시 받지 않는다. <strong>WebSocket이 아니라 폴링이다</strong></td></tr>
+    <tr><td>4</td><td>버스 타일 또는 지도 마커 탭</td><td><code>/admin/monitor</code></td><td>(아래 5~8)</td><td><code>select(busId)</code> — 로컬 상태. 우측/하단에 <code>BusDetailPanel</code> 이 열린다</td></tr>
+    <tr><td>5</td><td>(패널 조립)</td><td><code>BusDetailPanel</code></td><td><code>GET /api/buses?tenantId=</code></td><td>버스 명부(이름 해석)</td></tr>
+    <tr><td>6</td><td>(패널 조립)</td><td><code>BusDetailPanel</code></td><td><code>GET /api/drive-sessions?tenantId=</code></td><td>학원 전체 운행 이력을 받아 <strong>앱이 busId로 필터</strong>해 현재 세션(있으면 <code>IN_PROGRESS</code>)을 찾는다</td></tr>
+    <tr><td>7</td><td>(패널 조립)</td><td><code>BusDetailPanel</code></td><td><code>GET /api/ride-events?tenantId=&amp;from=&amp;to=</code></td><td>학원 전체 당일 기록을 받아 <strong>앱이 busId + 세션 시간창으로 필터</strong>해 탑승 현황을 계산</td></tr>
+    <tr><td>8</td><td>(패널 조립)</td><td><code>BusDetailPanel</code></td><td><code>GET /api/route-plans?tenantId=&amp;busId=</code></td><td><code>PUBLISHED</code> 최신본만 골라 경로를 그린다</td></tr>
+    <tr><td>9</td><td><code>전체 보기</code></td><td><code>/admin/monitor</code></td><td>—</td><td><code>select(null)</code> — 패널 닫고 전체 fit</td></tr>
+    <tr><td>10</td><td><code>전체 새로고침</code></td><td><code>/admin/monitor</code></td><td>1 + 2</td><td>버스 목록까지 재조회</td></tr>
+    <tr><td>11</td><td>앱을 백그라운드로</td><td>—</td><td>—</td><td>폴링 pause. 복귀 시 resume</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="callout info">
+  <span class="ct">분기·예외</span>
+  <p>· <strong><code>PLATFORM_ADMIN</code> 이 <code>tenantId</code> 를 생략하면 400 “tenantId가 필요합니다”.</strong> 그래서 앱이 폴백값을 넣는데, 그 값이 <strong>하드코딩 <code>1</code>(한빛학원)</strong> 이다.<br />
+  · <code>ACADEMY_ADMIN</code> 은 <code>tenantId</code> 를 생략하면 서버가 본인 소속으로 채운다. 남의 학원 id를 넣으면 403.<br />
+  · 버스가 0대면 “버스 관리에서 버스를 먼저 등록하면…” 이라는 빈 상태 안내가 뜬다 — <strong>그 화면은 존재하지 않는다</strong>(→ C1).<br />
+  · 기사가 위치 전송을 끄면 좌표는 사라지지 않고 <strong>마지막 값이 그대로 남는다</strong>(TTL이 없는 in-memory 맵). 앱은 신선도를 계산해 “오래됨”으로 표시한다.<br />
+  · <strong>기사가 아무도 앱을 켜지 않아도 버스가 움직인다.</strong> 서버의 <code>MockBusLocationSource</code> 가 3초마다 좌표를 만들기 때문이다(→ A3의 한계).
+  데모에는 편하지만, <strong>“이 마커가 실제 기사 단말인가 서버 시뮬레이터인가”를 화면에서 확신할 수 없다.</strong></p>
+</div>
+
+<div class="callout warn">
+  <span class="ct">⚠ 이 플로우의 한계</span>
+  <p>· <strong>플랫폼 관리자의 tenant가 화면마다 어긋난다.</strong> 지도·목록은 <strong>항상 <code>tenantId=1</code> 고정</strong>인데,
+  같은 화면의 상세 패널·노선 조회는 드롭다운 선택값(<code>adminTenantProvider</code>)을 쓴다.
+  배차·노선 화면에서 다른 학원을 골라도 <strong>관제 지도만 1번 학원을 계속 보여준다.</strong> 관제 화면에는 학원 선택 UI 자체가 없고 읽기 전용 태그만 있다.<br />
+  · <strong><code>recordedAt</code> 에 타임존이 없어 절대 시각을 화면에 쓸 수 없다.</strong> 서버가 <code>LocalDateTime</code> 을 그대로 직렬화하므로 9시간 어긋난다.
+  앱은 신선도를 <strong>클라이언트 수신 시각</strong> 기준으로 대체 계산한다 — 즉 “서버가 언제 기록했는지”는 화면에 표시되지 않는다.<br />
+  · <strong>필터·집계를 전부 클라이언트가 한다.</strong> <code>GET /api/drive-sessions</code> 와 <code>GET /api/ride-events</code> 에 busId 필터가 없어 학원 전체를 받아 앱에서 거른다.
+  날짜 단위라 등원·하원 기록이 섞여 오고, 세션 구간 분리도 앱 몫이다. 페이지네이션도 없다.<br />
+  · <strong>3초 폴링이다.</strong> 버스가 늘어나면 그대로 부하가 된다. STOMP는 알림에만 쓰이고 위치 채널 구독 코드는 프론트에 없다.<br />
+  · <code>onboard</code> 는 “현재 탑승 인원”이 아니라 <strong>배정 인원</strong>이다(<code>student.assigned_bus_id</code> 개수). 실제 탑승 인원은 7의 기록을 앱이 집계해 따로 만든다.</p>
+</div>
+
+<h2 class="sec" id="a5">A5. 관리자 — 자동 배차 (제안 → 검토 → 확정) <span class="badge done">구현</span></h2>
+
+<p><strong>전제</strong>: 역할 <code>ACADEMY_ADMIN</code>/<code>PLATFORM_ADMIN</code>. <strong>학원에 depot 좌표(<code>tenant.lat/lng</code>)가 설정돼 있어야 하고</strong>,
+버스가 1대 이상, 좌표를 가진 학생이 1명 이상 있어야 한다. 이 플로우의 결과물이 A3(기사 노선)의 입력이다.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>#</th><th>사용자 행동</th><th>화면</th><th>호출 API</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>탭 <code>배차</code></td><td><code>/admin/dispatch</code></td><td><code>GET /api/buses?tenantId=</code><br /><code>GET /api/students?tenantId=</code></td><td>이름 해석용 보조 조회(버스명·학생명)</td></tr>
+    <tr><td>2</td><td>방향(<code>등원</code>/<code>하원</code>)·운행일 선택</td><td><code>/admin/dispatch</code></td><td>—</td><td>로컬 상태 변경 + <strong>이전 제안 폐기</strong>. 서버에 만들어 둔 RECOMMENDED 계획은 지워지지 않고 DB에 남는다</td></tr>
+    <tr><td>3</td><td><code>제안 받기</code></td><td><code>/admin/dispatch</code></td><td><code>POST /api/route-plans/auto-assign</code><br /><code>{tenantId, direction, serviceDate?}</code></td><td>서버가 ① 활성 로스터(APPROVED 결석자 제외) 조회 → ② <code>SweepAssigner</code> 로 버스 배정 → ③ <code>HeuristicRouteEngine</code> 으로 정차 순서 최적화 → ④ 외부 경로 API로 실거리·ETA 획득 → ⑤ <strong>버스마다 <code>RoutePlan</code>(status=<code>RECOMMENDED</code>) 생성.</strong> 학생 배정(<code>student.assigned_bus</code>)은 <strong>아직 커밋하지 않는다</strong></td></tr>
+    <tr><td>4</td><td>제안 검토</td><td><code>/admin/dispatch</code></td><td>—</td><td>버스별 카드 + 지도 미리보기(polyline·정차 순서). 좌표가 없어 빠진 학생은 <code>excludedStudentNames</code> 로 별도 표시</td></tr>
+    <tr><td>5</td><td><code>이대로 확정하기</code></td><td><code>/admin/dispatch</code></td><td><code>POST /api/route-plans/auto-assign/confirm</code><br /><code>{planIds}</code></td><td>한 트랜잭션에서 ① 각 정차 학생에게 <strong><code>student.assignBus(bus)</code> 커밋</strong> → ② <code>approve()</code>(→<code>APPROVED</code>) → ③ <code>publish()</code>(→<code>PUBLISHED</code>) → ④ <code>RoutePlanPublishedEvent</code> 발행. <strong>이 시점부터 기사 앱(A3)에 노선이 보인다</strong></td></tr>
+    <tr><td>6</td><td><code>노선 목록에서 보기</code></td><td>→ <code>/admin/routes</code></td><td>—</td><td>A6으로 이동</td></tr>
+    <tr><td>7</td><td><code>다른 방향 배차하기</code></td><td><code>/admin/dispatch</code></td><td>—</td><td><code>reset()</code> — 화면 초기화</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>배차 알고리즘 실측 (3단계의 내부)</h3>
+
+<ul>
+  <li><strong>버스 배정 = <code>SweepAssigner</code></strong> — depot 기준 학생 좌표의 <strong>방위각으로 정렬</strong>한 뒤,
+  버스를 <strong>id 오름차순</strong>으로 순회하며 <code>seatCapacity</code> 만큼 순차로 잘라 담는다. 반영하는 제약은 <strong>좌석 정원 하나뿐</strong>이다.</li>
+  <li><strong>정차 순서 = <code>HeuristicRouteEngine</code></strong> — sweep 정렬(결정적 초기 순서) → nearest-neighbor → 2-opt(최대 1000패스).
+  거리는 <strong>Haversine 직선거리</strong>이고 이 단계에서 외부 API를 부르지 않는다.</li>
+  <li><strong>실거리·ETA = <code>MapRouteClient</code></strong> — 순서 확정 후 1회 호출. 기본 provider는 <code>naver</code>(NCP Direction 15)이고,
+  키가 없거나 <code>routing.provider=osrm</code> 이면 OSRM 공개 데모 서버로 폴백한다.
+  waypoint가 <code>routing.max-waypoints</code>(기본 7)를 넘으면 구간을 나눠 여러 번 호출하고 이어붙인다.</li>
+  <li><strong>방향 처리</strong> — <code>DROPOFF</code> 는 <code>[depot, ...순서]</code>, <code>PICKUP</code> 은 최적 순서를 뒤집어 <code>[...역순, depot]</code>.
+  “대칭거리에서는 depot 고정 최적경로를 뒤집어도 총거리가 같다”는 성질에 기대 최적화를 1회만 수행한다.</li>
+</ul>
+
+<div class="callout info">
+  <span class="ct">분기·예외</span>
+  <p>· <strong>버스 0대 → 400 “배차 가능한 버스가 없습니다”</strong><br />
+  · <strong>전체 좌석 합계 &lt; 배정 대상 학생 수 → 400</strong> (정원 초과)<br />
+  · <strong>좌표를 가진 학생 0명 → 200이지만 <code>plans</code> 가 비고 <code>excludedStudentNames</code> 만 온다.</strong> 에러가 아니라 빈 제안이다.<br />
+  · <strong>depot(<code>tenant.lat/lng</code>) 미설정 → 400 “학원 위치(depot)가 설정되지 않았습니다”.</strong> 학원을 만들 때 좌표를 생략하면 이 상태가 된다.<br />
+  · <strong>5에서 409 → 앱이 “이미 확정됨”으로 처리하고 버튼을 잠근다.</strong> 계획이 이미 <code>PUBLISHED</code> 라 상태 전이가 거부된 경우다.<br />
+  · <strong>학생이 한 명도 배정되지 않은 버스는 계획 자체를 만들지 않는다</strong> — 제안 목록에서 그 버스가 통째로 빠진다.<br />
+  · <code>PLATFORM_ADMIN</code> 은 <code>tenantId</code> 필수(400), <code>ACADEMY_ADMIN</code> 은 남의 학원 지정 시 403.</p>
+</div>
+
+<div class="callout warn">
+  <span class="ct">⚠ 이 플로우의 한계</span>
+  <p>· <strong>기획서 4장의 최적화 제약이 대부분 반영되지 않는다.</strong> 실제로 반영되는 건 <code>seatCapacity</code> 하나다.
+  미반영: 시간창(등원 도착 마감·하원 출발시각), 버스 간 부하 분산, <strong>형제자매 동일 차량</strong>, 학생별 최대 탑승시간, 최대 도보거리, 기사 배정 여부, 보험 만료, 진행방향 반대편 하차 방지.
+  앞 버스부터 정원까지 꽉 채우므로 <strong>마지막 버스가 비는 편향이 구조적으로 발생한다.</strong><br />
+  · <strong><code>Route.assignCapacity</code>(노선 배정 정원)를 배차 판단에 쓰지 않는다.</strong> 그 값은 경고 표시(<code>overCapacity</code>)에만 쓰이고,
+  실제 배정·거부는 <code>Bus.seatCapacity</code> 로만 한다. 두 값은 동기화되지 않는다.<br />
+  · <strong>개별 승인/배포 UI가 없다.</strong> <code>PATCH /{id}/approve</code>·<code>/publish</code>·<code>POST /generate</code> 가 구현돼 있으나 프론트는 auto-assign + confirm 경로만 쓴다.
+  즉 <strong>“제안을 일부만 골라 확정”이나 “수동으로 계획 만들기”가 앱에서 불가능</strong>하다.<br />
+  · <strong>확정을 되돌릴 수 없다.</strong> <code>PUBLISHED</code> 이후 상태 전이가 존재하지 않는다(취소·철회 메서드 없음).
+  잘못 확정하면 다시 배차해 <code>version</code> 이 올라간 새 행을 만드는 수밖에 없고, 낡은 계획 행은 계속 남는다.<br />
+  · <strong>배포 알림이 우회 구현이다.</strong> 알림 파이프라인이 <code>studentId</code> 기준이라, <code>RoutePlanPublishedEvent</code> 는
+  <strong>계획의 첫 정차 학생을 대표로 삼아</strong> 알림 1건만 만든다. 게다가 기사에게는 알림 화면이 없어 도달하지 않는다(→ C9).<br />
+  · <strong>2에서 “이전 제안 폐기”는 화면에서만 일어난다.</strong> 서버의 <code>RECOMMENDED</code> 계획은 남아 노선 목록(A6)에 계속 보인다.<br />
+  · <code>excludedStudentNames</code> 로 빠진 학생은 <strong>아무 조치 없이 배차에서 사라진다.</strong> 좌표를 채워 넣을 화면이 없어(→ B6) 앱 안에서는 해결할 방법이 없다.</p>
+</div>
+
+<h2 class="sec" id="a6">A6. 관리자 — 노선 계획 조회 <span class="badge done">구현</span></h2>
+
+<p><strong>전제</strong>: 역할 <code>ACADEMY_ADMIN</code>/<code>PLATFORM_ADMIN</code>. A5를 최소 1회 실행해야 볼 게 생긴다.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>#</th><th>사용자 행동</th><th>화면</th><th>호출 API</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>탭 <code>노선</code></td><td><code>/admin/routes</code></td><td><code>GET /api/route-plans?tenantId=&amp;busId=</code></td><td>계획 목록(<code>createdAt</code> 내림차순). 카드에 방향·상태·버전·총거리·총시간</td></tr>
+    <tr><td>2</td><td>(자동)</td><td><code>/admin/routes</code></td><td><code>GET /api/buses?tenantId=</code></td><td>버스 이름 해석</td></tr>
+    <tr><td>3</td><td>버스 필터 ChoiceChip</td><td><code>/admin/routes</code></td><td>1 재호출</td><td><strong>서버 재조회</strong>(클라이언트 필터가 아니다)</td></tr>
+    <tr><td>4</td><td>카드 탭</td><td>→ <code>/admin/routes/{id}</code></td><td><code>GET /api/route-plans/{id}</code></td><td>같은 위젯 위에 상세 패널. 경로 지도 + 정차 순서(seq·studentId·ETA)</td></tr>
+    <tr><td>5</td><td>새로고침</td><td><code>/admin/routes</code></td><td>1 재호출</td><td>—</td></tr>
+    <tr><td>6</td><td>(빈 상태) <code>배차 화면으로</code></td><td>→ <code>/admin/dispatch</code></td><td>—</td><td>A5로 이동</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="callout info">
+  <span class="ct">분기·예외</span>
+  <p>· <code>/admin/routes/:id</code> 는 목록 라우트의 <strong>자식</strong>이라 같은 위젯을 그린다. 화면이 path parameter를 직접 읽어 상세 패널을 열지, 별도 화면으로 전환하지 않는다.<br />
+  · 남의 학원 계획 id를 넣으면 403(<code>ACADEMY_ADMIN</code>). <code>PLATFORM_ADMIN</code> 은 어느 학원이든 통과한다.<br />
+  · 계획이 0건이면 빈 상태 + A5로 가는 버튼.</p>
+</div>
+
+<div class="callout warn">
+  <span class="ct">⚠ 이 플로우의 한계</span>
+  <p>· <strong>정류장 이름이 없다.</strong> <code>RoutePlanStop</code> 은 <code>studentId</code> + 좌표 + <code>etaSeconds</code> 뿐이라, 정차를 “N번 정차”로만 표시한다. 학생 이름은 별도 조회로 붙여야 한다.<br />
+  · <strong>상태·기간 필터가 없다.</strong> <code>DRAFT</code>/<code>RECOMMENDED</code>/<code>APPROVED</code>/<code>PUBLISHED</code> 와 <strong>모든 version 이 한 목록에 섞여</strong> 내려온다.
+  재배차를 여러 번 하면 낡은 행이 계속 쌓이고, 어느 게 오늘 실제로 도는 계획인지 화면에서 구분이 어렵다.<br />
+  · <strong>읽기 전용이다.</strong> 이 화면에서 계획을 승인·배포·삭제·수정할 수 없다.<br />
+  · 페이지네이션이 없어 전건이 내려온다.</p>
+</div>
+
+<h2 class="sec" id="a7">A7. 관리자 — 알림 확인 (이력 + 실시간) <span class="badge done">구현</span></h2>
+
+<p><strong>전제</strong>: 역할 <code>ACADEMY_ADMIN</code>/<code>PLATFORM_ADMIN</code>. 알림이 생기려면 A2(승하차 기록)나 A5(배포), 또는 B7의 자동 판정이 먼저 일어나야 한다.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>#</th><th>사용자 행동</th><th>화면</th><th>호출 API</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>탭 <code>알림</code></td><td><code>/admin/notifications</code></td><td><code>GET /api/notifications?tenantId=</code></td><td>학원 알림 이력(<code>createdAt</code> 내림차순). 유형·학생·메시지·시각</td></tr>
+    <tr><td>2</td><td>(자동)</td><td><code>/admin/notifications</code></td><td><code>WS /ws/location</code> (STOMP CONNECT)</td><td>CONNECT 프레임의 <strong><code>Authorization: Bearer</code> 네이티브 헤더</strong>로 1회 인증. 재연결마다 저장소에서 토큰을 새로 읽는다</td></tr>
+    <tr><td>3</td><td>(자동)</td><td><code>/admin/notifications</code></td><td><code>SUBSCRIBE /topic/tenant/{tenantId}/notifications</code></td><td>실시간 피드 구독. 새로 들어온 항목은 하이라이트 표시</td></tr>
+    <tr><td>4</td><td><code>새 표시 지우기</code></td><td><code>/admin/notifications</code></td><td>—</td><td>하이라이트만 해제(읽음 처리가 아니다)</td></tr>
+    <tr><td>5</td><td><code>새로고침</code></td><td><code>/admin/notifications</code></td><td>1 + 2 + 3 재실행</td><td><code>invalidateSelf()</code> — <strong>구독까지 재생성</strong>한다</td></tr>
+    <tr><td>6</td><td>연결 상태 칩 탭</td><td><code>/admin/notifications</code></td><td>5와 동일</td><td>끊긴 상태에서 수동 재연결</td></tr>
+    <tr><td>7</td><td>다른 탭으로 이동</td><td>—</td><td>STOMP DISCONNECT</td><td>provider가 autoDispose라 구독 취소 + <code>gateway.disconnect()</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>알림이 만들어지는 경로 (서버 측)</h3>
+
+<p>각 모듈이 도메인 이벤트를 발행하면 <code>NotificationCommandService.notify</code> 가 ① <code>dedupKey</code> 중복 체크 → ② <code>NotificationLog</code> 저장(DB unique 제약이 최종 방어)
+→ ③ 등록된 모든 <code>NotificationSender</code> 로 fan-out 한다. <code>WebSocketNotificationSender</code> 는
+<strong>학생 본인·보호자들·담당 기사의 개인 큐(<code>/user/queue/notifications</code>) + 학원 토픽(<code>/topic/tenant/{id}/notifications</code>)</strong> 네 방향으로 동시에 보낸다.</p>
+
+<p><code>NotificationType</code> 10종: <code>BOARD_DONE</code> · <code>ALIGHT_DONE</code> · <code>HANDOVER_DONE</code> · <code>APPROACH</code> · <code>NO_SHOW</code> ·
+<code>SOS</code> · <code>SCHEDULE_RESULT</code> · <code>CONNECTION_LOST</code> · <code>ROUTE_RECOMMENDED</code> · <code>ROUTE_PUBLISHED</code></p>
+
+<div class="callout info">
+  <span class="ct">분기·예외</span>
+  <p>· <strong>SUBSCRIBE 인가 검사</strong> — <code>/topic/tenant/{id}/**</code> 는 <code>PLATFORM_ADMIN</code> 이거나 (<code>ACADEMY_ADMIN</code> 이면서 해당 학원 소속)이어야 한다.
+  아니면 “이 학원의 관제 채널을 구독할 권한이 없습니다”로 거부된다. <strong><code>STUDENT</code>·<code>PARENT</code>·<code>DRIVER</code> 는 이 토픽을 구독할 수 없다.</strong><br />
+  · CONNECT에 Authorization 헤더가 없으면 연결 자체가 거부된다. access 토큰이 아니어도 거부.<br />
+  · 재연결은 <strong>3초 간격, 연속 5회 실패하면 포기</strong>한다. 이후에는 사용자가 6을 눌러야 한다.<br />
+  · 재연결에 성공하면 등록된 구독을 <strong>전부 재-SUBSCRIBE</strong> 한다.<br />
+  · <code>ACADEMY_ADMIN</code> 은 1에서 <code>tenantId</code> 를 생략한다(서버가 채움). <code>PLATFORM_ADMIN</code> 은 필수.</p>
+</div>
+
+<div class="callout warn">
+  <span class="ct">⚠ 이 플로우의 한계</span>
+  <p>· <strong>알림 발송 API가 없다.</strong> <code>NotificationController</code> 는 조회 2개뿐이고, 발송은 다른 모듈이 서비스를 직접 호출해 트리거한다.
+  즉 <strong>관리자가 임의 공지를 보낼 수단이 앱에도 API에도 없다.</strong><br />
+  · <strong>읽음/안읽음 상태가 없다.</strong> <code>NotificationLog</code> 에 그런 컬럼이 없어 4는 클라이언트 하이라이트 해제일 뿐이다. 다시 들어오면 전부 “읽은 것”처럼 보인다.<br />
+  · <strong>플랫폼 관리자는 알림도 학원 1로 고정된다.</strong> 드롭다운 선택을 따르지 않는다(관제와 같은 하드코딩 문제, → C7).<br />
+  · <strong>기사·학부모·학생에게 가는 개인 큐(<code>/user/queue/notifications</code>)를 구독하는 화면이 하나도 없다.</strong>
+  구독 코드는 프론트에 있으나 그 코드를 쓰는 화면이 없어 <strong>도달 불가능한 경로</strong>다. 서버는 열심히 보내지만 받는 앱이 없다(→ C9).<br />
+  · 페이지네이션이 없어 이력이 쌓이면 전건이 그대로 내려온다.</p>
+</div>
+
+<h2 class="sec" id="part-b">B부. 설계됐으나 미구현인 플로우 <span class="badge todo">미구현</span></h2>
+
+<p>여기 있는 플로우는 <strong>기획서에 있고 백엔드도 대부분 구현돼 있으나, 프론트 화면이 없어 사용자가 실행할 수 없다.</strong>
+각 항목의 “백엔드 실측” 블록은 <em>프론트만 붙이면 되는가, 백엔드도 손대야 하는가</em> 를 판단하기 위한 것이다.</p>
+
+<div class="callout note">
+  <span class="ct">B7만 성격이 다르다</span>
+  <p>예외 자동 판정(미승차·근접·SOS 에스컬레이션)은 <strong>미구현이 아니라 구현돼 있고 지금도 자동 실행 중</strong>이다.
+  사용자가 누르는 플로우가 아니라 서버가 스스로 도는 판정이라 여기 묶었을 뿐이며,
+  B7의 쟁점은 “없다”가 아니라 <strong>“돌지만 제약이 있고, 결과를 볼 화면이 없다”</strong> 이다.</p>
+</div>
+
+<p>프론트 전체가 호출하는 REST 엔드포인트는 <strong>22개</strong>이고, 백엔드 매핑은 <strong>68개</strong>다 — <strong>사용률 32%.</strong> 나머지 대부분이 이 B부에 해당한다.
+참고로 <strong>프론트의 <code>ApiClient</code> 에는 <code>put</code>·<code>delete</code> 메서드가 아예 없다.</strong>
+쓰기 호출은 login·refresh·위치보고·승하차·운행시작·운행종료·배차 <strong>7개뿐</strong>이다.</p>
+
+<h2 class="sec" id="b1">B1. 학부모 — 자녀 등하원 확인 <span class="badge todo">미구현</span></h2>
+
+<p>기획상 학부모는 이 서비스의 <strong>주 수요자</strong>다(자녀가 탔는지, 어디쯤인지, 무사히 내렸는지). 현재 화면 0개.</p>
+
+<h3>의도된 플로우</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>#</th><th>사용자 행동</th><th>(있어야 할) 화면</th><th>호출 API</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>로그인</td><td><code>/parent/home</code></td><td><code>POST /api/auth/login</code></td><td>세션</td></tr>
+    <tr><td>2</td><td>홈 진입</td><td><code>/parent/home</code></td><td><code>GET /api/ride-events/children?date=</code></td><td>자녀(형제자매 포함) 오늘 승하차 기록</td></tr>
+    <tr><td>3</td><td>지도 보기</td><td><code>/parent/map</code></td><td><code>GET /api/locations/children</code></td><td>자녀 최신 위치</td></tr>
+    <tr><td>4</td><td>알림함</td><td><code>/parent/notifications</code></td><td><code>GET /api/notifications/children</code></td><td>자녀 관련 알림 이력</td></tr>
+    <tr><td>5</td><td>실시간 수신</td><td>(전역)</td><td><code>SUBSCRIBE /user/queue/notifications</code></td><td>승차완료·하차완료·근접·미승차·SOS push</td></tr>
+    <tr><td>6</td><td>신고·요청</td><td>→ B3 / B4</td><td>—</td><td>—</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>백엔드는 어디까지 돼 있는가 (실측)</h3>
+
+<ul>
+  <li><strong>학부모 전용 엔드포인트 6개가 전부 구현돼 있다</strong>: <code>GET /api/ride-events/children</code>, <code>GET /api/locations/children</code>,
+  <code>GET /api/notifications/children</code>, <code>GET /api/attendance-exceptions/children</code>, <code>GET /api/schedule-change-requests/children</code>,
+  <code>GET /api/sos-events/children</code>. 여기에 쓰기 2개(B3·B4)가 더 있다.</li>
+  <li>전부 <code>@PreAuthorize("hasRole('PARENT')")</code> + <strong><code>student_guardian</code> 관계 기반 격리</strong>다.
+  tenantId를 클라이언트가 보내는 경로가 없어 위조 여지가 없다. 시드에도 형제자매 케이스(이부모 → 김민준·이서연)가 들어 있어 바로 테스트할 수 있다.</li>
+  <li>실시간 push 대상 해석(<code>PushTargetResolver</code>)이 이미 보호자를 포함한다 — <code>WebSocketNotificationSender</code> 가 모든 보호자의
+  <code>/user/queue/notifications</code> 로 보낸다. <strong>프론트에 그 구독 코드도 이미 있다</strong>(<code>_FeedScope</code> 의 <code>usesPersonalQueue</code>). 쓰는 화면만 없다.</li>
+  <li><strong>자녀 위치는 학생 앱이 없어도 값이 나온다</strong> — MVP 기본 설정에서 <strong>서버가 스스로 학생 좌표를 만들고 있기 때문</strong>이다.
+  <code>LocationSimulationScheduler</code> 가 3초마다 돌며 <code>MockLocationSource</code>(<code>app.location.mock.enabled=true</code>)가
+  <strong>배정 버스 + 승차 정류장이 모두 있는 학생</strong>의 좌표를 정류장↔학원 사이 삼각파로 보간해 <code>ingest(..., origin=MOCK)</code> 한다.
+  이후 경로(Redis 저장 → <code>LocationUpdatedEvent</code> → Kafka → STOMP push)는 실 GPS와 <strong>완전히 동일</strong>하다.
+  즉 이 화면은 <strong>붙이는 즉시 움직이는 데이터를 볼 수 있다.</strong></li>
+</ul>
+
+<div class="callout warn">
+  <span class="ct">⚠ 붙이기 전에 알아야 할 것</span>
+  <p>· <strong>좌표를 못 받는 자녀는 응답에서 조용히 제외된다.</strong> Redis TTL이 약 9초(<code>tick-ms 3000</code> × 3)라 소스가 멈추면 곧 사라지고,
+  배정 버스나 승차 정류장이 없는 학생은 애초에 Mock 대상이 아니다 → “자녀 3명인데 응답 1건”이 정상 동작이다.
+  <code>GET /api/locations/me</code> 는 좌표가 없으면 404 “아직 위치 정보가 없습니다”를 낸다.<br />
+  · <strong>위치 이력이 없다.</strong> Redis에 학생별 <strong>최신 1건만</strong> 남고 이력 조회 API 자체가 존재하지 않는다. “오늘 아이가 어떤 경로로 갔는지”는 조회할 수 없다.<br />
+  · 기획 7장의 “학부모에게 <strong>자녀 관련 제한 위치만</strong> 제공” 원칙은 API 설계에 반영돼 있다 — 학부모가 버스 전체 위치를 보는 엔드포인트는 없다.</p>
+</div>
+
+<div class="callout ok">
+  <span class="ct">결론</span>
+  <p><strong>프론트만 붙이면 되는 영역이다.</strong> 위치까지 포함해 서버 쪽 파이프라인이 전부 살아 있으므로(Mock 소스 → Redis → Kafka → STOMP), 화면을 붙이면 곧바로 동작한다.
+  실 GPS 전환은 <code>prod</code> 프로파일에 이미 준비돼 있고 <strong>설정 스위치만 바꾸면 되는 상태</strong>다 — 학생 앱(B2)은 실데이터로 넘어갈 때 필요해진다.</p>
+</div>
+
+<h2 class="sec" id="b2">B2. 학생 — 본인 기록 · SOS <span class="badge todo">미구현</span></h2>
+
+<h3>의도된 플로우</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>#</th><th>사용자 행동</th><th>(있어야 할) 화면</th><th>호출 API</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>앱 실행(백그라운드)</td><td>(전역)</td><td><code>POST /api/locations</code> 또는 STOMP <code>/app/location</code></td><td>본인 좌표 보고 → Redis 저장 → <code>LocationUpdatedEvent</code> → Kafka → 학부모·기사·관리자에게 push</td></tr>
+    <tr><td>2</td><td>홈</td><td><code>/student/home</code></td><td><code>GET /api/ride-events/me?date=</code></td><td>오늘 내 승하차 기록</td></tr>
+    <tr><td>3</td><td>내 위치</td><td><code>/student/home</code></td><td><code>GET /api/locations/me</code></td><td>최신 좌표 1건</td></tr>
+    <tr><td>4</td><td><strong>SOS 버튼</strong></td><td><code>/student/sos</code></td><td><code>POST /api/sos-events</code></td><td><code>SosEvent</code> 생성(<code>status=OPEN</code>) → <code>SosTriggeredEvent</code> → 학부모·관리자 즉시 알림</td></tr>
+    <tr><td>5</td><td>내 SOS 이력</td><td><code>/student/sos</code></td><td><code>GET /api/sos-events/me</code></td><td>발신 이력 + 처리 상태</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>백엔드는 어디까지 돼 있는가 (실측)</h3>
+
+<ul>
+  <li>학생 전용 엔드포인트: <code>POST /api/locations</code>, <code>GET /api/locations/me</code>, <code>GET /api/ride-events/me</code>,
+  <code>POST /api/sos-events</code>, <code>GET /api/sos-events/me</code> — <strong>5개 전부 구현</strong>.
+  격리는 <code>student.user_id</code> ↔ JWT <code>userId</code> 로, 타인 조회 경로 자체가 없다.</li>
+  <li><strong>위치 보고는 REST와 STOMP 두 경로가 있고 같은 서비스 메서드를 공유한다.</strong> STOMP는 <code>@MessageMapping("/location")</code>(전송 목적지 <code>/app/location</code>).</li>
+  <li>위치 연결 끊김 감지도 이미 있다: <code>LocationSessionRegistry</code> 가 학생별 STOMP 세션을 추적하고,
+  끊긴 뒤 <code>loss-grace-seconds</code>(기본 30초)를 넘기면 <code>StudentConnectionLostEvent</code> → <code>CONNECTION_LOST</code> 알림.</li>
+  <li>프론트에 <strong><code>sos</code> 모듈이 아예 없다</strong>(<code>features/</code> 하위에 디렉터리 자체가 없음).</li>
+</ul>
+
+<div class="callout danger">
+  <span class="ct">⚠ 붙이기 전에 반드시 고쳐야 할 2건</span>
+  <p>· <strong>STOMP 경로에는 역할 검사가 없다.</strong> REST는 <code>hasRole('STUDENT')</code> 로 막히지만 이 채널은
+  <strong>인증만 되면 어떤 역할이든 호출 가능</strong>하다(실제로는 <code>userId</code> 로 <code>Student</code> 를 못 찾으면 404로 실패). 학생 앱을 붙일 때 같이 손봐야 할 지점이다.<br />
+  · <strong><code>SosTriggerRequest</code> 에 검증 애너테이션이 하나도 없다.</strong> <code>@Valid</code> 는 붙어 있으나 <code>lat</code>/<code>lng</code> 에 <code>@NotNull</code> 이 없어
+  <strong>좌표 없이도 SOS가 생성된다</strong> — “어디서 눌렀는지 모르는 SOS”가 정상 저장된다.</p>
+</div>
+
+<div class="callout ok">
+  <span class="ct">결론</span>
+  <p><strong>프론트만 붙이면 되나, 붙이기 전에 STOMP 역할 검사와 SOS 좌표 검증 2건을 백엔드에서 고쳐야 한다.</strong></p>
+</div>
+
+<h2 class="sec" id="b3">B3. 결석 신고 → 승인 → 명단 반영 <span class="badge todo">미구현</span></h2>
+
+<p><strong>이 사슬은 백엔드에서 실제로 끝까지 연결돼 있다.</strong> 끊긴 건 양 끝의 화면뿐이다.</p>
+
+<h3>의도된 플로우</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>#</th><th>사용자</th><th>행동</th><th>(있어야 할) 화면</th><th>호출 API</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>학부모</td><td>자녀·유형(결석/휴원)·날짜·사유 입력 후 신고</td><td><code>/parent/absence</code></td><td><code>POST /api/attendance-exceptions</code></td><td><code>AttendanceException</code> 생성 — <code>status=PENDING</code> <strong>강제</strong>(클라이언트가 지정 불가), <code>tenantId</code> 는 학생 레코드에서 서버가 채움</td></tr>
+    <tr><td>2</td><td>관리자</td><td>대기 목록 확인</td><td><code>/admin/absence</code></td><td><code>GET /api/attendance-exceptions?tenantId=</code></td><td>학원 신고 이력(<code>targetDate</code> 내림차순)</td></tr>
+    <tr><td>3</td><td>관리자</td><td><code>승인</code></td><td><code>/admin/absence</code></td><td><code>PATCH /api/attendance-exceptions/{id}/approve</code></td><td><code>status=APPROVED</code>, <code>processedBy</code> 기록 → <strong><code>AttendanceApprovedEvent</code> 발행</strong></td></tr>
+    <tr><td>4</td><td>(자동)</td><td>—</td><td>—</td><td>Kafka <code>attendance-approved</code></td><td><code>RoutingReplanEventConsumer</code> 가 받아 해당 학생 배정 버스의 <strong>노선 국소 재계산</strong> → <code>version+1</code> 인 새 <code>RECOMMENDED</code> 계획 생성</td></tr>
+    <tr><td>5</td><td>(자동)</td><td>—</td><td>—</td><td>—</td><td>기사 명단(A2-5)의 <code>getActiveRoster</code> 가 <strong>그 날짜 APPROVED 결석자를 제외</strong>한다 → 명단에서 자동으로 빠진다</td></tr>
+    <tr><td>6</td><td>학부모</td><td>결과 확인</td><td><code>/parent/absence</code></td><td><code>GET /api/attendance-exceptions/children</code></td><td>처리 상태 확인</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>백엔드는 어디까지 돼 있는가 (실측)</h3>
+
+<ul>
+  <li><strong>엔드포인트 5개 전부 구현.</strong> <code>POST</code>(PARENT) / <code>approve</code>·<code>reject</code>(ADMIN) / <code>children</code>(PARENT) / 목록(ADMIN).</li>
+  <li>격리: 학부모는 <code>requireGuardianOf</code> — 남의 자녀 studentId를 body에 넣으면 403 “자녀가 아닙니다”. 관리자는 대상 레코드의 tenantId 역검사.</li>
+  <li>상태 가드: <code>PENDING</code> 이 아니면 409 “이미 처리된 신청입니다”. <strong><code>APPROVED</code>/<code>REJECTED</code> 는 종착 상태로 되돌리기가 없다.</strong></li>
+  <li><strong>4·5의 연결은 실제로 동작한다</strong> — 명단 제외(<code>getActiveRoster</code>)는 <code>DriveSessionQueryService</code>(기사 명단)와 <code>RoutingCommandService</code>(배차)가 둘 다 호출하고 있다.</li>
+  <li>프론트에 <code>attendance</code> 모듈이 없다. 기사 명단 화면이 “결석 신고된 학생은 자동으로 빠집니다”라고 <strong>안내만 하고 있다</strong> — 신고를 넣을 화면이 없으니 실제로는 항상 전원 명단이다.</li>
+</ul>
+
+<div class="callout warn">
+  <span class="ct">⚠ 백엔드 쪽 결함</span>
+  <p>· <strong>반려(<code>reject</code>)는 이벤트를 발행하지 않는다.</strong> 승인과 비대칭이라 <strong>반려 시 학부모에게 결과 통지가 가지 않는다.</strong>
+  (같은 구조인 schedule 모듈은 반려에도 이벤트를 쏜다.)<br />
+  · <strong>목록에 status·기간 필터가 없다.</strong> “대기중만 보기”를 서버가 지원하지 않아 전건을 받아 프론트가 걸러야 한다.<br />
+  · replan 조건이 좁다 — <strong>해당 학생 배정 버스의 방향별 최신 계획의 <code>serviceDate</code> 가 이벤트 날짜와 같을 때만</strong> 재계산한다.
+  즉 내일 결석을 오늘 신고하면(오늘자 계획만 있으면) 노선 재계산은 일어나지 않는다. 다만 5의 명단 제외는 날짜 기준이라 정상 작동한다.</p>
+</div>
+
+<div class="callout ok">
+  <span class="ct">결론</span>
+  <p><strong>프론트 2화면(학부모 신고 / 관리자 승인)만 붙이면 사슬이 완성된다.</strong> 백엔드에서 같이 고칠 것은 반려 이벤트 누락 1건.</p>
+</div>
+
+<h2 class="sec" id="b4">B4. 등하원 시간 변경 요청 → 승인 <span class="badge todo">미구현</span></h2>
+
+<h3>의도된 플로우 (구조가 B3과 거의 1:1 대칭이다)</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>#</th><th>사용자</th><th>행동</th><th>(있어야 할) 화면</th><th>호출 API</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>학부모</td><td>자녀·날짜·희망시각·사유 입력</td><td><code>/parent/schedule</code></td><td><code>POST /api/schedule-change-requests</code></td><td><code>ScheduleChangeRequest</code> 생성 — <code>status=PENDING</code> 강제</td></tr>
+    <tr><td>2</td><td>관리자</td><td>대기 목록</td><td><code>/admin/schedule</code></td><td><code>GET /api/schedule-change-requests?tenantId=</code></td><td>요청 이력(<code>requestedDate</code> 내림차순)</td></tr>
+    <tr><td>3</td><td>관리자</td><td><code>승인</code> / <code>반려</code></td><td><code>/admin/schedule</code></td><td><code>PATCH /{id}/approve</code> 또는 <code>/reject</code></td><td>상태 전이 + <strong>양쪽 모두 <code>ScheduleResultEvent</code> 발행</strong> → <code>SCHEDULE_RESULT</code> 알림</td></tr>
+    <tr><td>4</td><td>학부모</td><td>결과 확인</td><td><code>/parent/schedule</code></td><td><code>GET /api/schedule-change-requests/children</code></td><td>—</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>백엔드는 어디까지 돼 있는가 (실측)</h3>
+
+<ul>
+  <li><strong>엔드포인트 5개 전부 구현.</strong> 격리·상태 가드는 B3과 동일 패턴(409 “이미 처리된 요청입니다”).</li>
+  <li>반려도 이벤트를 발행한다 — <strong>이 점만은 B3보다 낫다.</strong></li>
+</ul>
+
+<div class="callout danger">
+  <span class="ct">⚠ 화면을 붙여도 해결되지 않는 지점</span>
+  <p>· <strong>승인해도 실제 운행 스케줄·노선에 반영되는 로직이 없다.</strong> <code>approve()</code> 가 하는 일은 <code>status</code> 를 <code>APPROVED</code> 로 바꾸고 알림 이벤트를 쏘는 것 <strong>뿐</strong>이다.
+  “17:30에 태워주세요”가 <code>route_plan</code>·<code>drive_session</code> 어디에도 전파되지 않는다. B3의 결석 승인이 replan까지 이어지는 것과 대조적이다.<br />
+  · 애초에 <strong>운행 시각을 담는 모델 자체가 없다.</strong> <code>RoutePlan</code> 은 <code>serviceDate</code> + 정차별 <code>etaSeconds</code> 만 갖고 있고,
+  계획의 출발 시각은 “세션을 시작한 시각”으로 사후 결정된다. 즉 승인된 희망시각을 반영하려면 <strong>모델부터 손봐야 한다.</strong><br />
+  · 기획 4장의 임시 변동 절차 5단계(신청 → <strong>시스템 정원·노선 영향 자동확인</strong> → 승인/거절 → 기사·동승보호자 전달·확인 → 학부모 최종 안내) 중
+  <strong>2·4단계가 통째로 없다.</strong> 승인 전 영향 분석도, 기사에게 전달·확인받는 단계도 구현돼 있지 않다.</p>
+</div>
+
+<div class="callout ok">
+  <span class="ct">결론</span>
+  <p><strong>프론트만 붙여서는 완성되지 않는다.</strong> 화면을 붙이면 “요청하고 승인받는 흉내”까지는 되지만 운행이 실제로 바뀌지 않는다. 시각 모델 도입이 선행돼야 한다.</p>
+</div>
+
+<h2 class="sec" id="b5">B5. 승하차 기록 정정 <span class="badge todo">미구현</span></h2>
+
+<h3>의도된 플로우</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>#</th><th>사용자</th><th>행동</th><th>(있어야 할) 화면</th><th>호출 API</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>기사/관리자</td><td>잘못 기록된 항목 선택</td><td><code>/driver/roster</code> 상세 또는 <code>/admin/rides</code></td><td>—</td><td>원본 <code>RideEvent</code> id 확보</td></tr>
+    <tr><td>2</td><td>기사/관리자</td><td>올바른 유형·시각·정류장 입력 후 <code>정정</code></td><td>정정 시트</td><td><code>POST /api/ride-events/{id}/correction</code></td><td><strong>원본을 덮어쓰지 않고 정정 기록을 새로 만든다</strong> — <code>source=CORRECTION</code>, <code>correctedBy=요청자</code>, <code>correctedAt=now</code>, <code>originalRef=원본 id</code></td></tr>
+    <tr><td>3</td><td>—</td><td>이력 확인</td><td><code>/admin/rides</code></td><td><code>GET /api/ride-events?tenantId=&amp;from=&amp;to=</code></td><td>원본과 정정본이 <strong>둘 다</strong> 조회된다(append-only)</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>백엔드는 어디까지 돼 있는가 (실측)</h3>
+
+<ul>
+  <li><strong><code>POST /api/ride-events/{id}/correction</code> 1개가 구현돼 있다.</strong> 권한은 <code>hasAnyRole('DRIVER','ACADEMY_ADMIN','PLATFORM_ADMIN')</code>.</li>
+  <li>body 필드: <code>type</code>(필수), <code>occurredAt</code>·<code>stopId</code>(생략 시 <strong>원본 값 승계</strong>), <code>lat</code>/<code>lng</code>(선택).</li>
+  <li>프론트는 이 API를 호출하지 않는다. 앱은 “기록은 되돌릴 수 없다”고 <strong>안내만 한다.</strong></li>
+</ul>
+
+<div class="callout danger">
+  <span class="ct">⚠ 같이 고쳐야 할 결함</span>
+  <p>· <strong><code>lat</code>/<code>lng</code> 는 생략해도 원본을 승계하지 않고 그대로 null로 저장된다</strong> — <code>stopId</code>·<code>occurredAt</code> 의 fallback과 처리가 다르다. 정정하면 좌표가 사라지는 셈이다.<br />
+  · <strong>인가에 결함이 있다.</strong> 검사가 “PLATFORM_ADMIN이거나 <code>belongsToTenant(원본.tenantId)</code>” 이므로,
+  <strong>같은 학원 소속이기만 하면 담당이 아닌 버스의 기록도 기사가 정정할 수 있다.</strong><br />
+  · 정정의 정정(체인)에 제한이 없고, 이미 정정한 원본을 또 정정하는 것도 막지 않는다.</p>
+</div>
+
+<div class="callout ok">
+  <span class="ct">결론</span>
+  <p><strong>프론트만 붙이면 되나, 인가 검사와 좌표 승계 2건은 같이 고쳐야 한다.</strong> 법정 운행기록의 정확성이 걸린 부분이라 우선순위가 낮지 않다.</p>
+</div>
+
+<h2 class="sec" id="b6">B6. 기초 데이터 등록 (버스 · 학생 · 회원 · 학원) <span class="badge todo">미구현</span></h2>
+
+<p><strong>이것이 없으면 A부 전체가 시작되지 않는다.</strong> 현재 데이터는 Flyway 로컬 시드로만 존재한다.</p>
+
+<h3>의도된 플로우</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>#</th><th>사용자</th><th>행동</th><th>(있어야 할) 화면</th><th>호출 API</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>플랫폼 관리자</td><td>학원 등록</td><td><code>/platform/tenants</code></td><td><code>POST /api/tenants</code></td><td><code>Tenant</code> 생성. <strong>lat/lng를 생략하면 depot 미설정이 되어 A5 배차가 400으로 실패한다</strong></td></tr>
+    <tr><td>2</td><td>플랫폼 관리자</td><td>학원 위치 지정</td><td><code>/platform/tenants/{id}</code></td><td><code>PATCH /api/tenants/{id}/location</code></td><td>depot 좌표 설정. <strong>학원 관리자는 자기 학원 depot도 설정할 수 없다</strong>(PLATFORM_ADMIN 전용)</td></tr>
+    <tr><td>3</td><td>관리자</td><td>기사·학부모·학생 계정 생성</td><td><code>/admin/members</code></td><td><code>POST /api/members</code></td><td><code>User</code> + <code>UserTenantRole</code> 생성(BCrypt). <code>PLATFORM_ADMIN</code> 역할은 이 경로로 등록 불가(400)</td></tr>
+    <tr><td>4</td><td>관리자</td><td>노선·정류장 등록</td><td><code>/admin/routes/master</code></td><td><code>POST /api/routes</code><br /><code>POST /api/routes/{id}/stops</code></td><td><code>Route</code> + <code>Stop</code>. 정류장은 학생의 기본 승차지가 된다</td></tr>
+    <tr><td>5</td><td>관리자</td><td>버스 등록</td><td><code>/admin/buses</code></td><td><code>POST /api/buses</code></td><td><code>Bus</code> 생성(이름·차량번호·좌석수·담당기사·노선·보험만료)</td></tr>
+    <tr><td>6</td><td>관리자</td><td>배차 변경</td><td><code>/admin/buses/{id}</code></td><td><code>PATCH /api/buses/{id}/assignment</code></td><td>담당 기사·운행 노선 변경</td></tr>
+    <tr><td>7</td><td>관리자</td><td>학생 등록</td><td><code>/admin/students</code></td><td><code>POST /api/students</code></td><td><code>Student</code> 생성 + 버스·정류장 배정 + 보호자 연결을 한 번에</td></tr>
+    <tr><td>8</td><td>관리자</td><td>하차지 좌표 설정</td><td><code>/admin/students/{id}</code></td><td><code>PATCH /api/students/{id}/dropoff</code></td><td><code>dropoffLat/Lng</code> — <strong>하원 배차 계산의 입력.</strong> 이게 없으면 그 학생은 A5에서 <code>excludedStudentNames</code> 로 빠진다</td></tr>
+    <tr><td>9</td><td>관리자</td><td>재배정</td><td><code>/admin/students/{id}</code></td><td><code>PATCH /api/students/{id}/assignment</code></td><td>버스·정류장 변경 → <code>StudentAssignmentChangedEvent</code> → 노선 국소 replan</td></tr>
+    <tr><td>10</td><td>관리자</td><td>보호자 연결</td><td><code>/admin/students/{id}</code></td><td><code>POST /api/students/{id}/guardians</code></td><td><code>student_guardian</code> — <strong>B1 학부모 플로우 전체의 전제</strong>다</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>백엔드는 어디까지 돼 있는가 (실측)</h3>
+
+<ul>
+  <li><strong>엔드포인트 15개가 전부 구현돼 있다</strong> (tenant 4 · member 2 · bus 5 · student 6 중 조회 제외 쓰기 경로 포함). 스텁은 없다.</li>
+  <li>격리는 대부분 <code>TenantGuard</code> 로 잡혀 있다 — 학원 관리자가 남의 학원에 계정·버스·학생을 심을 수 없다.</li>
+  <li>프론트에는 이 화면이 하나도 없고, <code>ApiClient</code> 에 <code>put</code>·<code>delete</code> 메서드조차 없다.
+  관제 화면의 빈 상태가 <strong>“버스 관리에서 버스를 먼저 등록하면…” 이라고 안내하지만 그 화면이 존재하지 않는다.</strong></li>
+</ul>
+
+<div class="callout danger">
+  <span class="ct">⚠ 백엔드 검증 결함이 가장 많은 영역</span>
+  <p>· <strong><code>driverId</code> 검증이 없다.</strong> <code>POST /api/buses</code>·<code>PATCH /{id}/assignment</code> 는 <code>driverId</code> 를 <strong>존재 여부만</strong> 확인하고
+  <strong>역할이 DRIVER인지도, 같은 학원인지도 검사하지 않는다.</strong> 학부모나 타 학원 기사를 담당 기사로 지정할 수 있다.<br />
+  · <strong><code>POST /api/students</code> 의 <code>userId</code>(학생 계정)는 존재 확인조차 없이 그대로 저장된다.</strong>
+  보호자(<code>guardianUserId</code>)는 존재만 확인하고 역할·테넌트 검증이 없으며, 중복 연결 방지도 없다.<br />
+  · <strong>배정 해제 수단이 없다.</strong> 버스·기사·정류장 배정 API가 전부 “null = 변경 없음”으로 해석하므로, 한 번 배정하면 <strong>앱은커녕 API로도 해제할 수 없다.</strong><br />
+  · <strong>수정·삭제 API가 거의 없다.</strong> <code>MemberController</code> 는 생성·조회뿐이라 <strong>기사 퇴사 처리·계정 비활성화가 불가능</strong>하다. 전 모듈 통틀어 <code>DELETE</code> 매핑이 0개다.<br />
+  · <strong><code>GET /api/routes/{id}/stops</code> 는 격리 검증이 없다.</strong> <code>AuthUser</code> 를 받지 않아 <strong>인증된 아무나 타 학원 정류장 이름·좌표를 읽을 수 있다.</strong><br />
+  · <code>POST /api/routes/{id}/stops</code> 는 <code>seq</code> 중복·연속성을 검사하지 않는다.</p>
+</div>
+
+<div class="callout ok">
+  <span class="ct">결론</span>
+  <p><strong>프론트 화면이 가장 많이 필요한 영역이자, 백엔드 검증 결함도 가장 많은 영역이다.</strong> 화면을 붙이면 위 검증 구멍이 곧바로 실사용 경로에 노출된다.</p>
+</div>
+
+<h2 class="sec" id="b7">B7. 예외 자동 판정 — 구현돼 자동 실행 중이나 제약이 있다 <span class="badge part">구현·제약</span></h2>
+
+<div class="callout warn">
+  <span class="ct">이 장을 “미구현”으로 읽으면 틀린다</span>
+  <p><strong>미승차(NO_SHOW)·근접(APPROACH) 판정과 SOS 에스컬레이션은 전부 <code>@Scheduled</code> 로 실제 자동 실행된다.</strong>
+  알림 멱등도 <code>dedupKey</code> unique 제약으로 구현돼 있다.
+  <strong>이 장만 성격이 다르다</strong> — 사용자 행동이 아니라 <strong>서버가 스스로 도는 판정</strong>이라 화면 유무와 무관하게 이미 동작하며, B부에 묶인 이유는 그 때문이다.
+  아래의 쟁점은 전부 <strong>동작하는 판정의 제약</strong>이지 “없다”가 아니다.</p>
+</div>
+
+<h3>B7-1. 판정별 실측 상태</h3>
+
+<p><code>@Scheduled</code> 는 백엔드 전체에 <strong>4개뿐이고 전부 활성</strong>이다(<code>@ConditionalOnProperty</code> 로 끄는 구조가 아니며, 비활성·주석처리된 것이 0개).
+<code>@EnableScheduling</code> 은 <code>BackendApplication</code> 에 붙어 있다. 4개 모두 <code>try/catch</code> 로 감싸 한 번의 실패가 다음 주기를 막지 않는다.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>판정</th><th>기획 임계</th><th>구현</th><th>자동 실행</th><th>주기</th></tr></thead>
+  <tbody>
+    <tr><td><strong>미승차(NO_SHOW)</strong></td><td>정류소 도착 <strong>+10분</strong></td><td><span class="badge done">✅</span></td><td><span class="badge done">✅ 돈다</span></td><td><code>ApproachNoShowScheduler</code> — <code>app.drivesession.approach-check-ms</code>, 기본 <strong>15초</strong></td></tr>
+    <tr><td><strong>근접(APPROACH)</strong></td><td>도착 예상 <strong>5분 전</strong></td><td><span class="badge done">✅</span></td><td><span class="badge done">✅ 돈다</span></td><td>위와 <strong>같은 스케줄러</strong></td></tr>
+    <tr><td><strong>SOS 에스컬레이션</strong></td><td>관리자 미확인 <strong>+3분</strong></td><td><span class="badge done">✅</span></td><td><span class="badge done">✅ 돈다</span></td><td><code>SosEscalationScheduler</code> — <code>app.sos.escalation-check-ms</code>, 기본 <strong>30초</strong></td></tr>
+    <tr><td><strong>연결 끊김(CONNECTION_LOST)</strong></td><td>—</td><td><span class="badge done">✅</span></td><td><span class="badge done">✅ 돈다</span></td><td><code>ConnectionLossScheduler</code> — 기본 <strong>10초</strong> 주기, grace <strong>30초</strong></td></tr>
+    <tr><td><strong>위치 시뮬레이션 tick</strong></td><td>—</td><td><span class="badge done">✅</span></td><td><span class="badge done">✅ 돈다</span></td><td><code>LocationSimulationScheduler</code> — 기본 <strong>3초</strong>. 활성 소스만 tick (→ B7-4)</td></tr>
+    <tr><td><strong>차내 잔류 방지</strong></td><td>종료 전 탑승 0 확인</td><td><span class="badge done">✅</span></td><td>—</td><td>스케줄러가 아니라 <strong>운행 종료 시 동기 차단</strong>(A2-10의 409)</td></tr>
+    <tr><td><strong>보호자 부재</strong></td><td>하차위치 도착 → 대기·연락 → 관리자 보고</td><td><span class="badge todo">❌ 없음</span></td><td>—</td><td>이벤트·스케줄러·<code>NotificationType</code> 값이 <strong>모두 존재하지 않는다</strong></td></tr>
+    <tr><td><strong>연속 N회 관측 게이트</strong></td><td>GPS 오탐 방지</td><td><span class="badge todo">❌ 없음</span></td><td>—</td><td>매 틱 재평가 + <code>dedupKey</code> 멱등으로 대체</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>임계값 3개(<code>NO_SHOW</code> 10분 / <code>APPROACH</code> 5분 / <code>SOS_ESCALATION</code> 3분)는 <code>NotificationThresholds</code> 에 <strong>코드 하드코딩</strong>돼 있다 — 설정으로 바꿀 수 없다.
+값 자체는 기획 7장 표와 일치한다.</p>
+
+<h3>B7-2. 미승차·근접 판정이 실제로 도는 방식</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>#</th><th>계기</th><th>처리</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>15초마다</td><td><code>IN_PROGRESS</code> + <strong><code>PICKUP</code></strong> 세션만 조회</td><td>하원(<code>DROPOFF</code>)은 학원에서 이미 승차한 상태로 출발하므로 대상이 아니다</td></tr>
+    <tr><td>2</td><td>—</td><td><strong><code>routePlanId</code> 가 null인 세션은 건너뛴다</strong></td><td>계획 없이 시작한 수동 운행은 ETA를 계산할 수 없다</td></tr>
+    <tr><td>3</td><td>—</td><td>세션 시작 이후 이 버스에서 <code>BOARD</code> 기록이 있는 학생을 제외</td><td>이미 탄 학생은 판정 대상이 아니다</td></tr>
+    <tr><td>4</td><td>—</td><td>정차별 <code>ETA = session.startedAt + stop.etaSeconds</code> 로 근사</td><td>실제 도착 시각이 아니라 <strong>계획 기준 추정치</strong>다</td></tr>
+    <tr><td>5</td><td><code>ETA-5분 ≤ now &lt; ETA</code></td><td><code>ApproachEvent</code> 발행</td><td>→ <code>APPROACH</code> 알림</td></tr>
+    <tr><td>6</td><td><code>now ≥ ETA+10분</code></td><td><code>NoShowEvent</code> 발행</td><td>→ <code>NO_SHOW</code> 알림</td></tr>
+    <tr><td>7</td><td>알림 발송</td><td><code>dedupKey</code> 중복 체크</td><td>매 틱 조건을 다시 평가하지만 <strong>학생당 최초 1회만</strong> 실제 발송된다</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>멱등은 2단 방어다 — 앱 레벨 <code>existsByDedupKey</code> 선체크 + <strong>DB <code>notification_log.dedup_key</code> unique 제약</strong>(동시 틱 경쟁 시 예외를 잡아 조용히 무시).</p>
+
+<h3>B7-3. SOS 에스컬레이션</h3>
+
+<p>30초마다 <code>OPEN</code> 상태로 <strong>3분</strong> 넘게 남아 있는 <code>SosEvent</code> 를 훑어 <code>SosEscalatedEvent</code> 를 발행한다.
+전용 인덱스 <code>idx_sos_status_occurred (status, occurred_at)</code> 가 이 쿼리를 정확히 커버한다.
+<strong>수동 실행 엔드포인트는 없다</strong> — 스케줄러가 유일한 트리거다.</p>
+
+<p>상태머신은 <code>OPEN → ACKNOWLEDGED → RESOLVED</code> 단방향이고, <strong><code>OPEN</code> 에서 바로 <code>RESOLVED</code> 로 건너뛸 수 없다</strong>(누가 대응했는지 반드시 남기려는 의도, 409로 거부).</p>
+
+<h3>B7-4. ⚠ 이 플로우의 한계 (판정은 돌지만 아래가 제약이다)</h3>
+
+<div class="callout warn">
+  <span class="ct">① 판정 범위의 구멍</span>
+  <p>· <strong>NO_SHOW 판정이 등원(<code>PICKUP</code>)에만 걸려 있다.</strong> <code>checkApproachAndNoShow()</code> 가 <code>IN_PROGRESS</code> + <code>PICKUP</code> 세션만 조회하므로
+  <strong>하원의 미하차·미인계는 자동 감지되지 않는다.</strong> “하원은 학원에서 이미 승차한 상태로 출발한다”는 이유로 의도된 설계라고 코드 주석이 밝히고 있으나,
+  결과적으로 <strong>기획 6장의 3대 예외 중 ‘보호자 부재’가 자동 판정 대상에서 빠지는 원인</strong>이 된다.<br />
+  · <strong><code>RoutePlan</code> 없이 시작한 수동 운행은 판정에서 통째로 제외된다.</strong> <code>routePlanId == null</code> 이면 건너뛴다.
+  A2는 배차를 확정하지 않아도 운행 시작을 허용하므로, <strong>“배차 확정 → 운행 시작” 순서를 지켰을 때만 이 판정이 작동한다.</strong><br />
+  · <strong>보호자 부재 플로우가 통째로 없다.</strong> 기획 6장의 “하차위치 도착 → 대기·연락 → 연락 실패 → 관리자 보고 → 재탑승·복귀”에 대응하는 코드가 없다.
+  <code>HANDOVER</code> 라는 <code>RideType</code> 이 있어 <strong>“인계했다”는 기록은 가능하지만 “인계 못 했다”는 판정은 불가능</strong>하다.</p>
+</div>
+
+<div class="callout warn">
+  <span class="ct">② 판정 정확도</span>
+  <p>· <strong>ETA가 실시간 버스 좌표가 아니라 “세션 시작시각 + 계획 <code>etaSeconds</code>” 근사다.</strong> 실제 <code>BusLocationRepository</code> 의 좌표를 전혀 반영하지 않으므로,
+  <strong>출발이 지연되면 모든 정차 ETA가 그만큼 밀려 근접·미승차 판정이 통째로 어긋난다.</strong> 버스가 실제로 정류소에 도착했는지와 무관하게 시계만 보고 판정한다.<br />
+  · 그 <code>etaSeconds</code> 자체도 근사다 — <code>NaverMapRouteClient</code> 는 leg별 duration을 제공받지 못해 <strong>구간 Haversine 거리 비례로 배분</strong>한다(OSRM은 실제 duration을 준다).
+  즉 provider에 따라 판정 시점이 달라진다.<br />
+  · <strong>연속 N회 관측 게이트가 없다.</strong> 기획 7장이 GPS 단발 이상치 오탐 방지를 위해 명시한 조건인데, 매 틱 단발 판정 + dedup 멱등으로만 처리한다.
+  지금은 시간 기반 판정이라 GPS 이상치의 영향을 받지 않지만, <strong>실 GPS 도착 판정으로 바꾸는 순간 반드시 필요해진다.</strong></p>
+</div>
+
+<div class="callout danger">
+  <span class="ct">③ 운영 안전장치</span>
+  <p>· <strong>운행 세션을 자동으로 닫는 스케줄러가 없다.</strong> 기사가 종료를 누르지 않으면 세션이 <code>IN_PROGRESS</code> 로 영원히 남고,
+  <strong>15초마다 계속 APPROACH/NO_SHOW 스캔 대상이 된다.</strong> 방치된 세션이 쌓일수록 매 틱 비용이 늘고, 다음 날 같은 버스로 운행을 시작하면 A2-4의 409(중복 세션)에 걸릴 수도 있다.
+  ※ 기사가 종료를 누르지 않는 경우의 처리 정책은 코드에서 확인되지 않는다.<br />
+  · <strong>스케줄러 4개 모두 리더 선출·분산 락이 없다.</strong> 백엔드를 <strong>2대 이상 띄우면 같은 판정이 인스턴스마다 중복 실행</strong>된다.
+  알림 자체는 <code>dedupKey</code> unique 제약이 막아주지만 <strong>Kafka로는 중복 이벤트가 그대로 발행된다.</strong>
+  현재 리버스 프록시 설정이 이 제약을 명시적으로 경고하고 있다 — 즉 <strong>지금 구조는 백엔드 단일 인스턴스를 전제한다.</strong><br />
+  · <strong>Kafka 컨슈머에 실패 처리가 없다.</strong> <code>@KafkaListener</code> 어디에도 <code>errorHandler</code>·DLT 설정이 없어, 알림 소비 중 예외가 나면 기본 재시도 후
+  <strong>메시지가 유실된다.</strong> 판정은 정상이었는데 알림만 조용히 사라지는 경우가 생긴다.</p>
+</div>
+
+<div class="callout danger">
+  <span class="ct">④ 결과를 볼 사람이 없다 (플로우 관점의 핵심)</span>
+  <p>· 판정 결과는 <code>WebSocketNotificationSender</code> 가 <strong>학생 본인·보호자 전원·담당 기사의 개인 큐(<code>/user/queue/notifications</code>) + 학원 토픽</strong> 네 방향으로 정상 발송한다.
+  그런데 <strong>개인 큐를 구독하는 화면이 하나도 없다</strong> — 학부모·학생 화면은 0개고, 기사에게는 알림 화면 자체가 없다.<br />
+  · 실제로 사람이 보는 건 <strong>관리자 화면이 구독하는 학원 토픽 하나뿐</strong>이다. 즉 “학생이 안 탔다”는 판정이 <strong>정작 학부모에게 도달하지 않는다.</strong>
+  기획 7장의 NO_SHOW 대상은 “학부모 + 관리자”인데 절반만 닿는다(→ C6).<br />
+  · <strong>판정을 사람이 뒤집을 수단도 없다.</strong> “미승차로 찍혔는데 실제로는 탔다”를 정정하는 경로가 알림 쪽에는 없다(승하차 기록 정정은 B5, 그마저 화면이 없다).</p>
+</div>
+
+<h2 class="sec" id="part-c">C. 플로우 관점 갭 요약 <span class="badge risk">끊김</span></h2>
+
+<p>A부와 B부를 겹쳐 놓았을 때 <strong>사용자 여정이 실제로 끊기는 지점</strong>만 모았다.
+개별 기능 누락이 아니라 <strong>“여기서 다음으로 갈 수 없다”</strong> 를 기준으로 골랐다.</p>
+
+<p><strong>심각도 기준</strong></p>
+<ul>
+  <li><strong>치명</strong> — 이 상태로는 서비스 자체가 성립하지 않는다(데이터를 만들 수 없거나, 핵심 사용자 계층이 통째로 없거나, 안전 기능이 작동 불가)</li>
+  <li><strong>높음</strong> — 다른 플로우가 이미 그 기능을 전제하고 안내까지 하는데 실행 경로가 없다</li>
+  <li><strong>중간</strong> — 동작은 하나 신뢰할 수 없거나, 되돌릴 수 없거나, 화면 간 값이 어긋난다</li>
+</ul>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>#</th><th>갭</th><th>심각도</th><th>어디서 끊기는가</th></tr></thead>
+  <tbody>
+    <tr><td>C1</td><td><strong>기초 데이터를 앱에서 만들 수 없다</strong></td><td><span class="badge risk">치명</span></td><td>A4 관제 빈 상태가 <em>“버스 관리에서 버스를 먼저 등록하면…”</em> 이라고 안내하는데 <strong>그 화면이 존재하지 않는다.</strong> 학원·회원·버스·학생·정류장 등록 API 15개가 전부 구현돼 있으나 프론트에는 화면도, <code>ApiClient.put</code>/<code>delete</code> 메서드조차 없다. → 신규 학원 온보딩이 <strong>Flyway 시드나 Swagger 직접 호출로만 가능</strong>하다 (B6)</td></tr>
+    <tr><td>C2</td><td><strong>5계층 중 2계층(학생·학부모)의 여정이 통째로 없다</strong></td><td><span class="badge risk">치명</span></td><td>로그인은 성공하는데 <code>/login</code> 에 붙잡혀 “준비 중” 배너만 본다. 학부모·학생 전용 엔드포인트 11개가 유휴 상태다. A2에서 기사가 승하차를 기록하면 알림이 정상 발송되지만 <strong>받을 앱이 없다</strong> (B1·B2)</td></tr>
+    <tr><td>C3</td><td><strong>SOS를 발신할 수도, 처리할 수도 없다</strong></td><td><span class="badge risk">치명</span></td><td>에스컬레이션 스케줄러(30초 주기, 3분 임계)는 <strong>실제로 돌고 있는데 <code>OPEN</code> 이벤트를 만들 경로가 앱에 없다.</strong> 관리자의 확인·종료 화면도 없어 프론트에 <code>sos</code> 모듈 자체가 존재하지 않는다. 기획상 안전 핵심 기능 (B2·B7)</td></tr>
+    <tr><td>C4</td><td><strong>결석 신고 → 명단 제외 사슬이 양 끝에서 끊긴다</strong></td><td><span class="badge part">높음</span></td><td>백엔드는 신고 → 승인 → replan → <code>getActiveRoster</code> 제외까지 <strong>실제로 연결돼 있다.</strong> 그런데 A2의 기사 명단 화면이 <em>“결석 신고된 학생은 자동으로 빠집니다”</em> 라고 <strong>안내만 하고</strong>, 신고 화면도 승인 화면도 없어 <strong>실제로는 항상 전원 명단</strong>이다 (B3)</td></tr>
+    <tr><td>C5</td><td><strong>잘못 기록한 승하차를 되돌릴 수 없다</strong></td><td><span class="badge part">높음</span></td><td>A2-7에서 오조작하면 끝이다. <code>POST /api/ride-events/{id}/correction</code> 이 구현돼 있으나 프론트가 호출하지 않고, 앱은 <em>“되돌릴 수 없다”</em> 고 안내만 한다. 법정 운행기록의 정확성이 걸린 지점 (B5)</td></tr>
+    <tr><td>C6</td><td><strong>자동 판정은 도는데 결과를 볼 사람이 앱에 없다</strong></td><td><span class="badge part">높음</span></td><td>미승차·근접·SOS 에스컬레이션은 <strong>실제로 자동 실행된다</strong>(15초·30초 주기). 판정 결과도 학생·보호자·기사의 개인 큐로 <strong>정상 발송된다.</strong> 그런데 <strong>그 큐를 구독하는 화면이 하나도 없어</strong>(학부모·학생 0화면, 기사 알림 화면 없음) 실제로 닿는 건 관리자 토픽뿐이다. 기획 7장의 NO_SHOW 대상은 “학부모 + 관리자”인데 <strong>절반만 닿는다</strong> (B7-4④)</td></tr>
+    <tr><td>C6-1</td><td><strong>그 미승차 판정마저 절반의 세션에만 걸린다</strong></td><td><span class="badge part">높음</span></td><td>판정 조건이 <code>PICKUP</code> + <strong><code>routePlanId != null</code></strong> 이다. A2는 배차를 확정하지 않아도 운행 시작을 허용하므로 그 경우 세션 전체가 판정에서 빠진다. 게다가 <strong>하원(<code>DROPOFF</code>)은 아예 대상이 아니라</strong> 미하차·미인계가 자동 감지되지 않는다 (A2·B7-4①)</td></tr>
+    <tr><td>C6-2</td><td><strong>ETA가 실제 버스 위치와 무관하다</strong></td><td><span class="badge part">높음</span></td><td>판정 기준이 “세션 시작시각 + 계획 <code>etaSeconds</code>” 근사라 <strong>실시간 버스 좌표를 전혀 보지 않는다.</strong> 출발이 15분 늦으면 근접·미승차 판정이 통째로 15분 어긋나는데, <strong>정작 그 버스의 실제 좌표는 서버가 이미 갖고 있다</strong>(A4가 그걸 보여준다). 관제 화면과 판정 로직이 서로 다른 세계를 본다 (A4·B7-4②)</td></tr>
+    <tr><td>C7</td><td><strong>플랫폼 관리자의 “지금 보고 있는 학원”이 화면마다 다르다</strong></td><td><span class="badge todo">중간</span></td><td>배차·노선 화면은 드롭다운 선택을 따르지만, <strong>관제 지도와 알림은 하드코딩된 학원 1로 고정</strong>된다. 다른 학원을 골라 배차한 뒤 관제로 넘어가면 여전히 1번 학원을 본다. 관제 화면에는 학원 선택 UI 자체가 없다 (A4·A7)</td></tr>
+    <tr><td>C8</td><td><strong>확정한 배차를 되돌릴 수 없다</strong></td><td><span class="badge todo">중간</span></td><td><code>PUBLISHED</code> 이후 상태 전이가 존재하지 않는다. 잘못 확정하면 재배차로 <code>version+1</code> 새 행을 만드는 수밖에 없고, 낡은 계획은 A6 목록에 계속 쌓인다. 상태·버전 필터가 없어 <strong>어느 게 오늘 도는 계획인지 화면에서 구분이 어렵다</strong> (A5·A6)</td></tr>
+    <tr><td>C9</td><td><strong>기사가 앱에서 알림을 볼 수 없다</strong></td><td><span class="badge todo">중간</span></td><td>기사 셸에는 탭이 2개(노선·명단)뿐이다. <code>/user/queue/notifications</code> 구독 코드는 프론트에 <strong>이미 있으나 쓰는 화면이 없어 도달 불가능</strong>하다. A5에서 배차를 확정하면 <code>ROUTE_PUBLISHED</code> 알림이 담당 기사에게 발송되지만 기사는 알 수 없고, 노선 화면을 직접 새로고침해야 한다 (A5·A7)</td></tr>
+    <tr><td>C10</td><td><strong>화면의 시각을 신뢰할 수 없다</strong></td><td><span class="badge todo">중간</span></td><td>서버가 <code>LocalDateTime</code> 을 오프셋 없이 직렬화해 클라이언트 해석에 따라 9시간 어긋난다. A4는 이를 우회하려고 신선도를 <strong>클라이언트 수신 시각</strong>으로 대체 계산 중이라, <strong>서버가 실제로 기록한 시각이 화면에 표시되지 않는다.</strong> <code>spring.jackson.time-zone</code> 설정으로는 해결되지 않고 타입·컬럼을 바꿔야 한다</td></tr>
+    <tr><td>C11</td><td><strong>계정을 만들 정상 경로가 없는데, 비정상 경로는 열려 있다</strong></td><td><span class="badge todo">중간</span></td><td>회원가입 화면도 관리자 계정 생성 화면도 없다. 그런데 <code>POST /api/auth/signup</code> 은 <code>permitAll</code> + 요청 body의 <code>tenantId</code>·<code>role</code> 을 그대로 신뢰하므로 <strong>누구나 임의 학원의 <code>ACADEMY_ADMIN</code> 으로 가입할 수 있다.</strong> 화면이 없는 것이 유일한 방어막인 상태다 (A1·B6)</td></tr>
+    <tr><td>C12</td><td><strong>일정 변경을 승인해도 운행이 바뀌지 않는다</strong></td><td><span class="badge todo">중간</span></td><td>승인이 하는 일은 상태 변경 + 알림뿐이다. 희망 시각이 <code>route_plan</code>·<code>drive_session</code> 어디에도 전파되지 않는다. <strong>애초에 운행 시각을 담는 모델이 없어</strong> 화면만 붙여서는 해결되지 않는다 (B4)</td></tr>
+    <tr><td>C13</td><td><strong>보호자 부재 예외가 통째로 없다</strong></td><td><span class="badge todo">중간</span></td><td>기획 6장의 3대 예외 중 미승차·SOS는 구현됐으나 보호자 부재는 이벤트·스케줄러·알림 유형이 <strong>모두 존재하지 않는다.</strong> <code>HANDOVER</code> 기록으로 “인계했다”는 남길 수 있지만 “인계 못 했다”는 판정할 수 없다. C6-1(하원이 판정 대상이 아님)과 같은 뿌리다 (B7-4①)</td></tr>
+    <tr><td>C14</td><td><strong>운행 세션이 방치되면 영원히 스캔된다</strong></td><td><span class="badge todo">중간</span></td><td>기사가 A2-10(운행 종료)을 누르지 않으면 세션이 <code>IN_PROGRESS</code> 로 남고 <strong>15초마다 계속 판정 스캔 대상이 된다.</strong> 시간 경과로 세션을 닫는 스케줄러가 없다. 다음 날 같은 버스·방향으로 시작하려 하면 A2-4의 409(중복 세션)에 걸릴 수도 있다 — 앱은 이 409를 “진행 중 세션 복구”로 처리하므로 <strong>기사가 어제 세션을 오늘 것으로 착각하고 이어받게 된다</strong> (A2·B7-4③)</td></tr>
+    <tr><td>C15</td><td><strong>버스 마커가 진짜 기사인지 서버 시뮬레이터인지 화면에서 알 수 없다</strong></td><td><span class="badge todo">중간</span></td><td>서버의 <code>MockBusLocationSource</code> 가 3초마다 버스 좌표를 만들고, 기사 앱도 5초마다 같은 저장소에 쓴다. 둘이 <strong>서로 덮어쓰는데</strong> 기사 앱 경로는 <code>origin</code> 을 항상 <code>GPS</code> 로 박아 넣는다. 데모에서는 “기사가 앱을 안 켜도 버스가 움직여” 편하지만, <strong>실 운행에서는 위치 신뢰도를 판단할 근거가 사라진다</strong> (A3·A4)</td></tr>
+    <tr><td>C16</td><td><strong>백엔드를 2대 이상 띄우면 판정이 중복된다</strong></td><td><span class="badge todo">중간</span></td><td>스케줄러 4개 전부 리더 선출·분산 락이 없다. 알림은 <code>dedupKey</code> unique 제약이 막지만 <strong>Kafka로는 중복 이벤트가 그대로 발행</strong>된다. 즉 <strong>현재 구조는 백엔드 단일 인스턴스를 전제</strong>하며, 리버스 프록시 설정이 이 제약을 명시적으로 경고하고 있다. 스케일아웃 시점에 반드시 먼저 풀어야 할 매듭 (B7-4③)</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 class="sec" id="c1">C-1. 여정별로 본 끊김</h2>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 끊긴 여정 — 서버는 도는데 볼 화면이 없어 끊기는 구조</div>
+  <svg viewBox="0 0 1100 640" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .uf3-ok   { fill:rgba(4,120,87,0.10);  stroke:#047857; stroke-width:2; }
+      .uf3-no   { fill:rgba(220,38,38,0.08); stroke:#dc2626; stroke-width:2; stroke-dasharray:6 4; }
+      .uf3-t    { fill:#3a3531; font:bold 12px sans-serif; text-anchor:middle; }
+      .uf3-tn   { fill:#dc2626; font:bold 12px sans-serif; text-anchor:middle; }
+      .uf3-s    { fill:#6b6359; font:10.5px sans-serif; text-anchor:middle; }
+      .uf3-lb   { fill:#3a3531; font:bold 12.5px sans-serif; }
+      .uf3-note { fill:#6b6359; font:11.5px sans-serif; }
+      .uf3-gap  { fill:#dc2626; font:bold 11.5px sans-serif; }
+      .uf3-hd   { fill:#0e7490; font:bold 13px sans-serif; }
+      .uf3-line { stroke:#047857; stroke-width:2; fill:none; }
+      .uf3-dash { stroke:#dc2626; stroke-width:1.8; fill:none; stroke-dasharray:5 4; }
+    </style>
+    <defs>
+      <marker id="uf3-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#047857"/>
+      </marker>
+      <marker id="uf3-arrx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#dc2626"/>
+      </marker>
+    </defs>
+
+    <text class="uf3-hd" x="24" y="24">초록 실선 = 실제로 갈 수 있는 구간 · 붉은 점선 = 화면이 없어 끊기는 지점</text>
+
+    <text class="uf3-lb" x="24" y="68">[관리자 온보딩]</text>
+    <rect class="uf3-no" x="180" y="42" width="126" height="42" rx="9"/>
+    <text class="uf3-tn" x="243" y="68">학원 등록 ✗</text>
+    <path class="uf3-dash" d="M306,63 L324,63" marker-end="url(#uf3-arrx)"/>
+    <rect class="uf3-no" x="328" y="42" width="126" height="42" rx="9"/>
+    <text class="uf3-tn" x="391" y="68">회원 등록 ✗</text>
+    <path class="uf3-dash" d="M454,63 L472,63" marker-end="url(#uf3-arrx)"/>
+    <rect class="uf3-no" x="476" y="42" width="126" height="42" rx="9"/>
+    <text class="uf3-tn" x="539" y="68">버스 등록 ✗</text>
+    <path class="uf3-dash" d="M602,63 L620,63" marker-end="url(#uf3-arrx)"/>
+    <rect class="uf3-no" x="624" y="42" width="126" height="42" rx="9"/>
+    <text class="uf3-tn" x="687" y="68">학생 등록 ✗</text>
+    <path class="uf3-line" d="M750,63 L768,63" marker-end="url(#uf3-arr)"/>
+    <rect class="uf3-ok" x="772" y="42" width="126" height="42" rx="9"/>
+    <text class="uf3-t"  x="835" y="68">배차 ✅</text>
+    <path class="uf3-line" d="M898,63 L916,63" marker-end="url(#uf3-arr)"/>
+    <rect class="uf3-ok" x="920" y="42" width="126" height="42" rx="9"/>
+    <text class="uf3-t"  x="983" y="68">관제 ✅</text>
+    <text class="uf3-gap" x="180" y="104">C1 — 여기서부터 앱으로 못 간다. 등록 API 15개는 전부 있으나 화면이 없다</text>
+
+    <text class="uf3-lb" x="24" y="144">[기사 하루]</text>
+    <rect class="uf3-ok" x="180" y="118" width="126" height="42" rx="9"/>
+    <text class="uf3-t"  x="243" y="144">로그인 ✅</text>
+    <path class="uf3-line" d="M306,139 L324,139" marker-end="url(#uf3-arr)"/>
+    <rect class="uf3-ok" x="328" y="118" width="126" height="42" rx="9"/>
+    <text class="uf3-t"  x="391" y="144">노선 확인 ✅</text>
+    <path class="uf3-line" d="M454,139 L472,139" marker-end="url(#uf3-arr)"/>
+    <rect class="uf3-ok" x="476" y="118" width="126" height="42" rx="9"/>
+    <text class="uf3-t"  x="539" y="144">운행 시작 ✅</text>
+    <path class="uf3-line" d="M602,139 L620,139" marker-end="url(#uf3-arr)"/>
+    <rect class="uf3-ok" x="624" y="118" width="126" height="42" rx="9"/>
+    <text class="uf3-t"  x="687" y="144">승하차 기록 ✅</text>
+    <path class="uf3-line" d="M750,139 L768,139" marker-end="url(#uf3-arr)"/>
+    <rect class="uf3-ok" x="772" y="118" width="126" height="42" rx="9"/>
+    <text class="uf3-t"  x="835" y="144">운행 종료 ✅</text>
+    <text class="uf3-gap" x="180" y="176">C9 — 배차 변경·배포 알림을 못 받는다 (기사에게 알림 화면이 없다)</text>
+    <text class="uf3-gap" x="180" y="194">C5 — 승하차를 잘못 눌러도 복구할 수 없다 (정정 API는 있으나 호출하지 않는다)</text>
+
+    <text class="uf3-lb" x="24" y="238">[학부모 하루]</text>
+    <rect class="uf3-ok" x="180" y="212" width="126" height="42" rx="9"/>
+    <text class="uf3-t"  x="243" y="230">로그인 ✅</text>
+    <text class="uf3-s"  x="243" y="246">토큰은 발급된다</text>
+    <path class="uf3-dash" d="M306,233 L324,233" marker-end="url(#uf3-arrx)"/>
+    <rect class="uf3-no" x="328" y="212" width="126" height="42" rx="9"/>
+    <text class="uf3-tn" x="391" y="230">이후 전부 ✗</text>
+    <text class="uf3-s"  x="391" y="246">화면 0개</text>
+    <text class="uf3-gap" x="180" y="270">C2 — “준비 중” 배너에서 끝난다. 학부모·학생 전용 엔드포인트 11개가 유휴 상태다</text>
+
+    <text class="uf3-lb" x="24" y="314">[안전 사고]</text>
+    <rect class="uf3-no" x="180" y="288" width="126" height="42" rx="9"/>
+    <text class="uf3-tn" x="243" y="314">SOS 발신 ✗</text>
+    <path class="uf3-dash" d="M306,309 L324,309" marker-end="url(#uf3-arrx)"/>
+    <rect class="uf3-no" x="328" y="288" width="126" height="42" rx="9"/>
+    <text class="uf3-tn" x="391" y="314">관리자 확인 ✗</text>
+    <path class="uf3-dash" d="M454,309 L472,309" marker-end="url(#uf3-arrx)"/>
+    <rect class="uf3-ok" x="476" y="288" width="180" height="42" rx="9"/>
+    <text class="uf3-t"  x="566" y="306">3분 에스컬레이션 ✅</text>
+    <text class="uf3-s"  x="566" y="322">30초 주기로 돌고 있다</text>
+    <text class="uf3-gap" x="180" y="346">C3 — 스케줄러는 대기 중인데 입구가 없다 (프론트에 sos 모듈 자체가 없다)</text>
+
+    <text class="uf3-lb" x="24" y="390">[결석]</text>
+    <rect class="uf3-no" x="180" y="364" width="126" height="42" rx="9"/>
+    <text class="uf3-tn" x="243" y="390">학부모 신고 ✗</text>
+    <path class="uf3-dash" d="M306,385 L324,385" marker-end="url(#uf3-arrx)"/>
+    <rect class="uf3-no" x="328" y="364" width="126" height="42" rx="9"/>
+    <text class="uf3-tn" x="391" y="390">관리자 승인 ✗</text>
+    <path class="uf3-dash" d="M454,385 L472,385" marker-end="url(#uf3-arrx)"/>
+    <rect class="uf3-ok" x="476" y="364" width="126" height="42" rx="9"/>
+    <text class="uf3-t"  x="539" y="390">replan ✅</text>
+    <path class="uf3-line" d="M602,385 L620,385" marker-end="url(#uf3-arr)"/>
+    <rect class="uf3-ok" x="624" y="364" width="126" height="42" rx="9"/>
+    <text class="uf3-t"  x="687" y="390">명단 제외 ✅</text>
+    <path class="uf3-line" d="M750,385 L768,385" marker-end="url(#uf3-arr)"/>
+    <rect class="uf3-ok" x="772" y="364" width="126" height="42" rx="9"/>
+    <text class="uf3-t"  x="835" y="390">기사 명단 ✅</text>
+    <text class="uf3-gap" x="180" y="422">C4 — 백엔드는 이어져 있는데 입구가 없다. 그래서 실제로는 항상 전원 명단이다</text>
+
+    <text class="uf3-lb" x="24" y="466">[미승차 감지]</text>
+    <rect class="uf3-ok" x="180" y="440" width="126" height="42" rx="9"/>
+    <text class="uf3-t"  x="243" y="466">운행 시작 ✅</text>
+    <path class="uf3-line" d="M306,461 L324,461" marker-end="url(#uf3-arr)"/>
+    <rect class="uf3-ok" x="328" y="440" width="126" height="42" rx="9"/>
+    <text class="uf3-t"  x="391" y="458">15초 주기 판정 ✅</text>
+    <text class="uf3-s"  x="391" y="474">ApproachNoShow 스케줄러</text>
+    <path class="uf3-line" d="M454,461 L472,461" marker-end="url(#uf3-arr)"/>
+    <rect class="uf3-ok" x="476" y="440" width="126" height="42" rx="9"/>
+    <text class="uf3-t"  x="539" y="466">알림 생성 ✅</text>
+    <path class="uf3-line" d="M602,461 L620,461" marker-end="url(#uf3-arr)"/>
+    <rect class="uf3-ok" x="624" y="440" width="126" height="42" rx="9"/>
+    <text class="uf3-t"  x="687" y="466">관리자 수신 ✅</text>
+
+    <path class="uf3-dash" d="M539,482 L539,527 L768,527" marker-end="url(#uf3-arrx)"/>
+    <rect class="uf3-no" x="772" y="506" width="180" height="42" rx="9"/>
+    <text class="uf3-tn" x="862" y="524">학부모 수신 ✗</text>
+    <text class="uf3-s"  x="862" y="540">개인 큐를 볼 화면이 없다</text>
+
+    <text class="uf3-gap"  x="180" y="576">C6 — 판정도 발송도 정상인데 개인 큐를 구독하는 화면이 하나도 없다</text>
+    <text class="uf3-note" x="180" y="596">C6-1 — 판정은 PICKUP + routePlan 이 있을 때만 걸린다 (하원은 대상이 아니다)</text>
+    <text class="uf3-note" x="180" y="616">C6-2 — ETA가 실제 버스 위치와 무관하다 (세션 시작시각 + 계획 etaSeconds 근사)</text>
+  </svg>
+  <div class="viz-cap">서버 파이프라인은 초록으로 이어져 있는데, 사람이 닿는 마지막 한 칸이 붉은 점선으로 끊긴다. 이것이 이 문서의 핵심 그림이다.</div>
+</div>
+
+<div class="callout note">
+  <span class="ct">출구가 없는 것과 입구가 없는 것은 다르다</span>
+  <p>C1·C2·C3·C4는 <strong>백엔드가 이미 완성돼 있고 화면만 없다</strong> — 프론트 작업으로 해소된다.
+  반면 C6-2(ETA 근거)·C12(일정변경 반영)·C13(보호자 부재)는 <strong>모델·로직 자체가 없어</strong> 화면을 붙여도 해결되지 않는다.
+  착수 순서를 정할 때 이 둘을 섞지 않는 것이 중요하다.</p>
+</div>
+
+<h2 class="sec" id="c2">C-2. 이 문서를 갱신해야 하는 시점</h2>
+
+<ul>
+  <li>프론트에 <strong>새 화면·새 라우트</strong>가 생겼을 때 → 해당 항목을 B부에서 A부로 옮기고, C장의 해당 갭을 지운다</li>
+  <li><strong>API 경로·요청 필드가 바뀌었을 때</strong> → 단계 표의 “호출 API”와 “결과”를 함께 고친다(경로만 고치면 상태 변화 서술이 어긋난다)</li>
+  <li><strong>상태머신·임계값이 바뀌었을 때</strong> → B7 표와 A2의 분기·예외를 함께 본다</li>
+  <li>이 문서의 API 경로는 전부 실측값이다. <strong>추측으로 채우지 않는다</strong> — 확인이 안 되면 “미확인”이라고 쓴다</li>
+</ul>
+
+<div class="doc-footer">
+  School-Bus 유저플로우 · 원본 <code>docs/USER_FLOWS.md</code> · 코드 실측 기준 2026-08-01 ·
+  자매 문서 <a href="index.html">문서 지도</a> · <a href="product-spec.html">제품 사양서</a> · <a href="architecture.html">아키텍처</a> · <a href="api-spec.html">API 명세서</a>
+</div>
+
+</main>
+</div>
+</body>
+</html>

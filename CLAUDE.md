@@ -4,14 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-학생 통원(등하원) 경로 관리 서비스의 백엔드. Spring Boot 골격 위에 MVP 15개 모듈(auth·bus·route·rideevent·location·user·tenant·student·attendance·notification·sos·schedule·routing·drivesession·global 인프라) 전체가 엔티티~컨트롤러까지 구현 완료됐다(§11.4 Phase 0~7). 남은 건 Phase 8(Mock→실 GPS 전환)뿐 — 상세는 `PROJECT_MASTER_PLAN.md` §12.1 참조.
+학원 통원버스 운행·학생 등하원 관리 **멀티 테넌트 플랫폼**. 백엔드(Spring Boot) + 프론트엔드(Flutter).
 
-- **작업 전 반드시 `backend/docs/PROJECT_MASTER_PLAN.md`(단일 소스)를 먼저 읽는다.** 여기에 기획서(docx) 재정리 요구사항 + 현재 코드 기준 MVP 구현계획 + **모듈별 진행 추적/백로그**가 있다. 진행 상황·큰 변경은 이 문서에 반영한다.
-- 기획 원본은 `backend/docs/학원 통학버스 통합관리 시스템.docx`(불변), 프론트 데모·시나리오 관점의 초기 지시서는 루트 `projectInfo.md`.
+백엔드는 14개 도메인 모듈 + global 인프라가 엔티티~컨트롤러까지 구현돼 있고, 프론트는 **기사 앱(2화면) + 관리자(4화면)** 까지 붙어 있다. **학생·학부모 화면은 아직 없다** — 백엔드 API는 준비돼 있으나 프론트가 호출하지 않는다.
 
-- 서비스: 학원 통원버스 운행·학생 등하원 관리 **멀티 테넌트 플랫폼** (모바일 앱 + 관리자 웹)
+- **작업 전 반드시 [`docs/README.md`](docs/README.md) 를 먼저 읽는다.** 제품 사양 4종(`PRODUCT_SPEC` · `USER_FLOWS` · `ARCHITECTURE` · `API_SPEC`)의 진입점이며, 이 4개가 **단일 소스(SoT)** 다. 구현 상태는 `✅ 구현 / 🟡 부분 / ⬜ 미구현` 으로 표기돼 있으니 **기획된 것과 구현된 것을 혼동하지 않는다.**
+- 백엔드 **구현 계획·진행 추적·백로그**는 `backend/docs/PROJECT_MASTER_PLAN.md` §11~12. 백엔드 작업이 진행되면 여기에 반영한다.
+- 기획 원본은 `backend/docs/학원 통학버스 통합관리 시스템.docx`(불변). 루트 `projectInfo.md` 는 **역사적 원본**이라 현재 사실과 어긋난다 — 결정 경위 추적 시에만 본다.
+- 사실이 여러 문서에서 어긋나면 **`docs/` 가 기준이다.**
+
 - 사용자 5계층: 학생 / 학부모 / 운전기사 / 학원 관리자 / 플랫폼 관리자 — 학원 관리자와 플랫폼 관리자는 권한 범위가 완전히 다른 별개 역할
-- 멀티 테넌시: `tenant_id`(학원) 컬럼 기반 데이터 격리 우선 검토
+- 멀티 테넌시: `User`↔`Tenant` 는 N:M 이며 `UserTenantRole(user_id, tenant_id, role)` 연결 테이블로 표현한다. `User` 에 `tenant_id` 를 직접 박지 않는다. 격리는 DB 레벨(RLS·`@Filter`)이 아니라 **애플리케이션 코드**에서 강제된다.
 
 ## Build & run (backend)
 

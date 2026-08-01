@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>School-Bus 문서 지도</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Nanum+Pen+Script&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/sketch.css" />
+</head>
+<body>
+<div class="layout">
+
+<nav class="toc">
+  <h2>목차</h2>
+  <ol>
+    <li><a href="#docs">1. 문서 4종</a></li>
+    <li><a href="#status">2. 지금 상태</a></li>
+    <li><a href="#notation">3. 표기 규칙</a></li>
+    <li><a href="#gap">4. 가장 큰 갭</a></li>
+    <li><a href="#others">5. 모듈별 심화 문서</a></li>
+    <li><a href="#rule">6. 문서 포맷 규칙</a></li>
+  </ol>
+</nav>
+
+<main class="content">
+
+<h1>School-Bus 문서 지도</h1>
+<p class="subtitle">학원 통학버스 통합관리 서비스 — 제품 사양 진입점 · 2026-08-01 기준</p>
+
+<div class="callout info">
+  <span class="ct">이 폴더가 단일 소스(SoT)다</span>
+  <p>아래 4개 문서가 백엔드·프론트엔드를 아우르는 상위 계약이다. 각 모듈의 심화 문서는 여기에 종속되며,
+  <strong>사실이 어긋나면 이쪽이 기준</strong>이다. 원본은 저장소의 <code>docs/*.md</code> 이고 이 HTML은 같은 내용의 렌더다.</p>
+</div>
+
+<h2 class="sec" id="docs">1. 문서 4종</h2>
+
+<div class="doc-grid">
+  <a class="doc-card" href="product-spec.html">
+    <h3>제품 사양서</h3>
+    <p>서비스 목적 · 사용자 계층 · 도메인 데이터 · 배차 · 승하차 · 예외 · 알림 정책 · 법적 요건 · 로드맵
+    <strong>+ MVP 구현 범위 매트릭스 · 미구현 갭 목록</strong></p>
+  </a>
+  <a class="doc-card" href="user-flows.html">
+    <h3>유저플로우</h3>
+    <p>역할별 진입 지도 + 플로우별 “행동 → 화면 → API → 결과” 추적.
+    <strong>A부 구현됨 / B부 설계됨·미구현</strong> 으로 분리</p>
+  </a>
+  <a class="doc-card" href="architecture.html">
+    <h3>아키텍처</h3>
+    <p>백엔드 모듈 구조 · 프론트 레이어 · 인증인가 · 멀티테넌시 · 데이터 모델 · 실시간 파이프라인 · 비동기 · 인프라
+    <strong>+ 아키텍처 리스크</strong></p>
+  </a>
+  <a class="doc-card" href="api-spec.html">
+    <h3>API 명세서</h3>
+    <p>전체 엔드포인트(권한 · 테넌트 격리 · 구현 상태 · 프론트 사용 여부) + 공통 규약 · enum 사전 · WebSocket</p>
+  </a>
+</div>
+
+<p><strong>처음 보는 경우 읽는 순서:</strong> 제품 사양서 → 유저플로우 → 아키텍처 → API 명세서</p>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 문서 관계 — 무엇이 무엇을 규정하는가</div>
+  <svg viewBox="0 0 1100 400" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .ix-sot  { fill:rgba(14,116,144,0.10); stroke:#0e7490; stroke-width:2; }
+      .ix-sub  { fill:rgba(107,99,89,0.08); stroke:#c0b6a8; stroke-width:1.5; }
+      .ix-src  { fill:rgba(124,58,237,0.10); stroke:#7c3aed; stroke-width:1.5; }
+      .ix-tt   { fill:#3a3531; font:bold 14px sans-serif; text-anchor:middle; }
+      .ix-st   { fill:#6b6359; font:11.5px sans-serif; text-anchor:middle; }
+      .ix-lb   { fill:#6b6359; font:11px sans-serif; }
+      .ix-hd   { fill:#0e7490; font:bold 13px sans-serif; }
+      .ix-hd2  { fill:#6b6359; font:bold 13px sans-serif; }
+      .ix-line { stroke:#c0b6a8; stroke-width:1.5; fill:none; }
+      .ix-dash { stroke:#c0b6a8; stroke-width:1.5; fill:none; stroke-dasharray:5 4; }
+    </style>
+    <defs>
+      <marker id="ix-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#c0b6a8"/>
+      </marker>
+    </defs>
+
+    <text class="ix-hd" x="40" y="28" style="text-anchor:start">docs/ — 단일 소스 (제품 계약)</text>
+
+    <rect class="ix-sot" x="40"  y="44" width="235" height="62" rx="10"/>
+    <text class="ix-tt" x="157" y="70">PRODUCT_SPEC</text>
+    <text class="ix-st" x="157" y="90">무엇을 만드는가 · 어디까지 됐나</text>
+
+    <rect class="ix-sot" x="295" y="44" width="235" height="62" rx="10"/>
+    <text class="ix-tt" x="412" y="70">USER_FLOWS</text>
+    <text class="ix-st" x="412" y="90">누가 · 어떻게 쓰는가</text>
+
+    <rect class="ix-sot" x="550" y="44" width="235" height="62" rx="10"/>
+    <text class="ix-tt" x="667" y="70">ARCHITECTURE</text>
+    <text class="ix-st" x="667" y="90">어떻게 만들어졌는가</text>
+
+    <rect class="ix-sot" x="805" y="44" width="235" height="62" rx="10"/>
+    <text class="ix-tt" x="922" y="70">API_SPEC</text>
+    <text class="ix-st" x="922" y="90">프론트 ↔ 백엔드 계약</text>
+
+    <path class="ix-line" d="M157,106 L157,150" marker-end="url(#ix-arr)"/>
+    <path class="ix-line" d="M412,106 L412,150" marker-end="url(#ix-arr)"/>
+    <path class="ix-line" d="M667,106 L667,150" marker-end="url(#ix-arr)"/>
+    <path class="ix-line" d="M922,106 L922,150" marker-end="url(#ix-arr)"/>
+
+    <text class="ix-hd2" x="40" y="180" style="text-anchor:start">모듈별 심화 문서 — 위 계약에 종속된다</text>
+
+    <rect class="ix-sub" x="40"  y="196" width="235" height="58" rx="10"/>
+    <text class="ix-tt" x="157" y="220">PROJECT_MASTER_PLAN</text>
+    <text class="ix-st" x="157" y="240">백엔드 구현계획 · 진행추적</text>
+
+    <rect class="ix-sub" x="295" y="196" width="235" height="58" rx="10"/>
+    <text class="ix-tt" x="412" y="220">FLUTTER_FRONTEND_PLAN</text>
+    <text class="ix-st" x="412" y="240">프론트 구현계획 · 진행추적</text>
+
+    <rect class="ix-sub" x="550" y="196" width="235" height="58" rx="10"/>
+    <text class="ix-tt" x="667" y="220">BACKEND_ARCHITECTURE</text>
+    <text class="ix-st" x="667" y="240">백엔드 한정 심화판</text>
+
+    <rect class="ix-sub" x="805" y="196" width="235" height="58" rx="10"/>
+    <text class="ix-tt" x="922" y="220">reference · CONVENTIONS</text>
+    <text class="ix-st" x="922" y="240">코드 컨벤션</text>
+
+    <text class="ix-hd2" x="40" y="292" style="text-anchor:start">근거 원본 — 참조만, 갱신하지 않는다</text>
+
+    <rect class="ix-src" x="40"  y="308" width="360" height="56" rx="10"/>
+    <text class="ix-tt" x="220" y="331">기획서 .docx</text>
+    <text class="ix-st" x="220" y="351">불변 원본 · 원문 근거 확인용</text>
+
+    <rect class="ix-src" x="420" y="308" width="360" height="56" rx="10"/>
+    <text class="ix-tt" x="600" y="331">projectInfo.md</text>
+    <text class="ix-st" x="600" y="351">역사적 원본 · 현재 사실과 어긋남</text>
+
+    <path class="ix-dash" d="M220,308 L220,262 L157,262" marker-end="url(#ix-arr)"/>
+    <path class="ix-dash" d="M600,308 L600,275" marker-end="url(#ix-arr)"/>
+    <text class="ix-lb" x="612" y="288">경위 추적 시에만</text>
+
+    <path class="ix-line" d="M1055,75 L1075,75 L1075,225 L1050,225" marker-end="url(#ix-arr)"/>
+    <text class="ix-lb" x="905" y="278">↑ 어긋나면 위쪽이 기준</text>
+  </svg>
+  <div class="viz-cap">위 4종이 계약이고 아래는 그 구현 세부다. 아래에서 위를 바꾸지 않는다.</div>
+</div>
+
+<h2 class="sec" id="status">2. 지금 상태</h2>
+
+<p>MVP는 <strong>기사 앱 + 관리자 웹</strong>까지 동작하고, <strong>학생·학부모 앱은 화면이 없다.</strong></p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>역할</th><th>정의</th><th>화면</th><th>상태</th></tr></thead>
+  <tbody>
+    <tr><td>운전기사 <code>DRIVER</code></td><td>✔</td><td>2 — 오늘의 노선 · 승하차 명단</td><td><span class="badge done">구현</span></td></tr>
+    <tr><td>학원 관리자 <code>ACADEMY_ADMIN</code></td><td>✔</td><td>4 — 관제 · 배차 · 노선 · 알림</td><td><span class="badge done">구현</span></td></tr>
+    <tr><td>플랫폼 관리자 <code>PLATFORM_ADMIN</code></td><td>✔</td><td>4 — 학원 관리자와 동일<sup>*</sup></td><td><span class="badge part">부분</span></td></tr>
+    <tr><td>학생 <code>STUDENT</code></td><td>✔</td><td>0 — 로그인 후 “준비 중” 배너</td><td><span class="badge todo">미구현</span></td></tr>
+    <tr><td>학부모 <code>PARENT</code></td><td>✔</td><td>0 — 로그인 후 “준비 중” 배너</td><td><span class="badge todo">미구현</span></td></tr>
+  </tbody>
+</table>
+</div>
+<p class="subtitle"><sup>*</sup> 화면 구성은 같고 tenant 결정 방식만 다르다 — 학원 관리자는 JWT 고정, 플랫폼 관리자는 드롭다운 선택.</p>
+
+<div class="callout warn">
+  <span class="ct">백엔드가 앞서 있다</span>
+  <p>SOS · 결석 신고 · 일정 변경 · 버스/학생/회원 등록 · 승하차 정정은 <strong>백엔드에 이미 구현돼 있으나 프론트가 호출하지 않는다.</strong>
+  미승차·근접·SOS 에스컬레이션 자동 판정도 스케줄러로 <strong>실제 동작하지만, 그 결과를 볼 화면이 없다.</strong>
+  새 기능을 만들기 전에 <a href="api-spec.html">API 명세서</a> 부록 A 매트릭스에서 이미 있는지 확인할 것.</p>
+</div>
+
+<h2 class="sec" id="notation">3. 표기 규칙</h2>
+
+<p>문서 전반에서 구현 상태를 아래 4개 기호로만 표시한다. <strong>기획된 것과 구현된 것을 반드시 가른다.</strong></p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>기호</th><th>뜻</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge done">✅ 구현</span></td><td>실제 동작한다</td></tr>
+    <tr><td><span class="badge part">🟡 부분</span></td><td>동작하나 하드코딩 · Mock · 제약이 섞여 있다</td></tr>
+    <tr><td><span class="badge todo">⬜ 미구현</span></td><td>설계 · 기획만 있다</td></tr>
+    <tr><td><span class="badge out">➖ 범위 밖</span></td><td>MVP 대상이 아니다</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><code>⚠</code> 는 함정·리스크, <code>※ 미확인:</code> 은 조사 범위에서 확인하지 못한 항목이다.
+<strong>근거 없는 서술을 두지 않는다</strong> — 사실에는 파일 경로나 엔드포인트가 붙는다.</p>
+
+<h2 class="sec" id="gap">4. 가장 큰 갭</h2>
+
+<p>상세와 우선순위는 <a href="product-spec.html">제품 사양서</a> 11~12장에 있다. 요약하면 사용자 여정이 끊기는 지점은 다음과 같다.</p>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 기능은 있는데 볼 화면이 없다 — 데이터 흐름의 종착점 부재</div>
+  <svg viewBox="0 0 1100 260" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .gp-ok   { fill:rgba(4,120,87,0.10);  stroke:#047857; stroke-width:2; }
+      .gp-mid  { fill:rgba(14,116,144,0.10); stroke:#0e7490; stroke-width:2; }
+      .gp-no   { fill:rgba(220,38,38,0.08);  stroke:#dc2626; stroke-width:2; stroke-dasharray:6 4; }
+      .gp-tt   { fill:#3a3531; font:bold 13.5px sans-serif; text-anchor:middle; }
+      .gp-st   { fill:#6b6359; font:11.5px sans-serif; text-anchor:middle; }
+      .gp-no-t { fill:#dc2626; font:bold 13.5px sans-serif; text-anchor:middle; }
+      .gp-lb   { fill:#6b6359; font:11.5px sans-serif; }
+      .gp-line { stroke:#c0b6a8; stroke-width:2; fill:none; }
+    </style>
+    <defs>
+      <marker id="gp-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#c0b6a8"/>
+      </marker>
+    </defs>
+
+    <text class="gp-lb" x="40" y="30" style="text-anchor:start">예: 미승차(NO_SHOW) 판정</text>
+
+    <rect class="gp-ok" x="40" y="46" width="200" height="66" rx="10"/>
+    <text class="gp-tt" x="140" y="72">스케줄러 판정</text>
+    <text class="gp-st" x="140" y="92">도착 +10분 · 자동 실행</text>
+
+    <path class="gp-line" d="M240,79 L296,79" marker-end="url(#gp-arr)"/>
+
+    <rect class="gp-ok" x="300" y="46" width="200" height="66" rx="10"/>
+    <text class="gp-tt" x="400" y="72">알림 생성 · 멱등</text>
+    <text class="gp-st" x="400" y="92">dedup_key UNIQUE</text>
+
+    <path class="gp-line" d="M500,79 L556,79" marker-end="url(#gp-arr)"/>
+
+    <rect class="gp-mid" x="560" y="46" width="200" height="66" rx="10"/>
+    <text class="gp-tt" x="660" y="72">DB 저장 · STOMP 발행</text>
+    <text class="gp-st" x="660" y="92">notification_log</text>
+
+    <path class="gp-line" d="M760,79 L816,79" marker-end="url(#gp-arr)"/>
+
+    <rect class="gp-no" x="820" y="46" width="220" height="66" rx="10"/>
+    <text class="gp-no-t" x="930" y="72">학부모 화면 없음</text>
+    <text class="gp-st" x="930" y="92">여기서 끊긴다</text>
+
+    <text class="gp-lb" x="40" y="160" style="text-anchor:start">같은 구조로 끊기는 기능</text>
+    <text class="gp-lb" x="40" y="184" style="text-anchor:start">· SOS — 백엔드 6개 엔드포인트 + 에스컬레이션 스케줄러 구현, 발신·확인 화면 없음</text>
+    <text class="gp-lb" x="40" y="206" style="text-anchor:start">· 결석 신고 · 일정 변경 — 승인 워크플로 구현, 신청·승인 화면 모두 없음</text>
+    <text class="gp-lb" x="40" y="228" style="text-anchor:start">· 기초 데이터 등록 — 관제 화면이 “버스를 먼저 등록하세요”라 안내하지만 그 화면이 없다</text>
+  </svg>
+  <div class="viz-cap">백엔드가 앞서 있다는 것은 좋은 소식이다 — 남은 일이 “만들기”가 아니라 “붙이기”라는 뜻이다.</div>
+</div>
+
+<h2 class="sec" id="others">5. 모듈별 심화 문서</h2>
+
+<p>이 폴더가 상위 계약이고, 아래는 각 모듈의 구현 세부다. <strong>사실이 어긋나면 이 폴더가 기준이다.</strong></p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>문서</th><th>성격</th></tr></thead>
+  <tbody>
+    <tr><td><code>backend/docs/PROJECT_MASTER_PLAN.md</code></td><td>백엔드 <strong>구현 계획 · 진행 추적 · 백로그</strong> (기획 부분은 제품 사양서로 이관됨)</td></tr>
+    <tr><td><code>backend/docs/reference.md</code></td><td>백엔드 코드 컨벤션 — spec/impl 판단기준 · CQRS · Event 규칙</td></tr>
+    <tr><td><code>backend/docs/BACKEND_ARCHITECTURE.html</code></td><td>백엔드 한정 아키텍처 심화판</td></tr>
+    <tr><td><code>backend/docs/API_ENDPOINTS.html</code></td><td>백엔드 API 심화판</td></tr>
+    <tr><td><code>frontend/docs/FLUTTER_FRONTEND_PLAN.md</code></td><td>프론트 구현 계획 · 진행 추적</td></tr>
+    <tr><td><code>frontend/docs/FLUTTER_CODE_CONVENTIONS.md</code></td><td>프론트 코드 컨벤션</td></tr>
+    <tr><td><code>frontend/docs/DESIGN_SYSTEM.md</code></td><td>디자인 시스템 — 색 · 간격 · 컴포넌트 · 상태 표기</td></tr>
+    <tr><td><code>backend/docs/…시스템.docx</code></td><td>기획 <strong>원본</strong>(불변) — 원문 근거가 필요할 때만</td></tr>
+    <tr><td><code>projectInfo.md</code> (루트)</td><td>초기 작업 지시서 — <strong>역사적 원본</strong>. 현재 사실과 어긋나므로 참고용</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 class="sec" id="rule">6. 문서 포맷 규칙</h2>
+
+<ul>
+  <li>저장소의 <code>docs/*.md</code> <strong>4종이 원본</strong>이다. 이 <code>html/</code> 은 같은 내용의 사람용 렌더다.</li>
+  <li><strong>원본을 고쳤다고 HTML을 자동 동기화하지 않는다</strong> — 필요하면 별도로 요청한다.</li>
+  <li>Claude가 매 세션 재참조하는 문서는 토큰 효율을 위해 <strong>Markdown으로 유지</strong>한다.</li>
+  <li>이 HTML 5종은 <code>assets/sketch.css</code> 를 공유한다. 색·간격을 바꿀 일이 있으면 그 파일만 고친다.</li>
+</ul>
+
+<div class="doc-footer">
+  School-Bus 문서 지도 · 원본 <code>docs/README.md</code> · 코드 실측 기준 2026-08-01
+</div>
+
+</main>
+</div>
+</body>
+</html>
