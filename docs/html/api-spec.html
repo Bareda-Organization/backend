@@ -942,7 +942,7 @@
 
 <div class="callout warn">
   <span class="ct">주의</span>
-  <p><strong>당일 <code>APPROVED</code> 결석 신고가 있는 학생은 자동으로 빠진다</strong>(<code>attendance</code> 모듈의 <code>getActiveRoster</code> 사용).</p>
+  <p><strong>당일 <code>APPROVED</code> 결석 신고가 있는 학생은 자동으로 빠진다</strong>(<code>attendance</code> 모듈의 <code>ActiveRosterReader.forBus</code> 사용).</p>
   <p><code>direction</code> 에 따라 위치 3필드의 출처가 통째로 바뀐다: <code>PICKUP</code> → 학생의 <code>boardingStop</code> 이름·좌표 /
   <code>DROPOFF</code> → <code>dropoffAddress</code>·<code>dropoffLat</code>·<code>dropoffLng</code>. <strong>해당 정보가 없으면 세 필드 모두 null 이다.</strong></p>
   <p>학생 사진 필드는 없다(<code>Student</code> 엔티티에 없음).</p>
@@ -2357,8 +2357,8 @@
 <h3>14.x 노출되지 않은 헬퍼 (API 아님)</h3>
 
 <ul>
-<li><code>getActiveRoster(busId, date)</code> — 버스 배정 명단에서 그날 <code>APPROVED</code> 결석자를 제외한 <strong>당일 실제 명단</strong>. <code>GET /api/drive-sessions/{id}/roster</code> 가 사용한다.</li>
-<li><code>getActiveRosterForTenant(tenantId, date)</code> — 테넌트 전체 활성 로스터. <strong>자동 배차(<code>auto-assign</code>)가 사용한다.</strong></li>
+<li><code>ActiveRosterReader.forBus(busId, date)</code> — 버스 배정 명단에서 그날 <code>APPROVED</code> 결석자를 제외한 <strong>당일 실제 명단</strong>. <code>GET /api/drive-sessions/{id}/roster</code> 가 사용한다.</li>
+<li><code>ActiveRosterReader.forTenant(tenantId, date)</code> — 테넌트 전체 활성 로스터. <strong>자동 배차(<code>auto-assign</code>)가 사용한다.</strong></li>
 </ul>
 
 <p>두 메서드에는 별도 엔드포인트가 없다.</p>
