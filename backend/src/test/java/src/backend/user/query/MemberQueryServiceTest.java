@@ -55,7 +55,7 @@ class MemberQueryServiceTest {
                 guardian(10L, "김민준", TENANT_ID, "모"),
                 guardian(11L, "타학원형제", OTHER_TENANT_ID, "모")));   // 형제가 다른 학원 — 제외돼야 한다
 
-        MemberDetailResponse detail = service.get(admin(), TARGET_ID);
+        MemberDetailResponse detail = service.get(admin(), TARGET_ID, null);
 
         assertThat(detail.assignedBuses()).extracting(MemberDetailResponse.BusRef::busId).containsExactly(1L, 2L);
         assertThat(detail.assignedBuses()).extracting(MemberDetailResponse.BusRef::asAttendant)
@@ -69,7 +69,7 @@ class MemberQueryServiceTest {
     void get_otherTenantMember_throwsNotFound() {
         given(userTenantRoleRepository.findByUserIdAndTenantId(TARGET_ID, TENANT_ID)).willReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.get(admin(), TARGET_ID))
+        assertThatThrownBy(() -> service.get(admin(), TARGET_ID, null))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.NOT_FOUND);

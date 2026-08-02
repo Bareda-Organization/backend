@@ -64,7 +64,7 @@ class MemberCommandServiceTest {
     void update_otherTenantMember_throwsNotFound() {
         given(userTenantRoleRepository.findByUserIdAndTenantId(TARGET_ID, TENANT_ID)).willReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.update(admin(), TARGET_ID, profileOnly("새이름")))
+        assertThatThrownBy(() -> service.update(admin(), TARGET_ID, null, profileOnly("새이름")))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.NOT_FOUND);
@@ -74,7 +74,7 @@ class MemberCommandServiceTest {
     void update_roleToPlatformAdmin_throwsInvalidInput() {
         givenMembership(TARGET_ID, Role.DRIVER);
 
-        assertThatThrownBy(() -> service.update(admin(), TARGET_ID,
+        assertThatThrownBy(() -> service.update(admin(), TARGET_ID, null,
                 new UpdateMemberRequest(null, null, null, null, Role.PLATFORM_ADMIN)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
@@ -86,7 +86,7 @@ class MemberCommandServiceTest {
     void update_self_throwsInvalidInput() {
         givenMembership(ADMIN_ID, Role.ACADEMY_ADMIN);
 
-        assertThatThrownBy(() -> service.update(admin(), ADMIN_ID,
+        assertThatThrownBy(() -> service.update(admin(), ADMIN_ID, null,
                 new UpdateMemberRequest(null, null, null, null, Role.PARENT)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
@@ -98,7 +98,7 @@ class MemberCommandServiceTest {
     void update_emailUnchanged_doesNotCheckDuplicate() {
         UserTenantRole membership = givenMembership(TARGET_ID, Role.DRIVER);
 
-        service.update(admin(), TARGET_ID,
+        service.update(admin(), TARGET_ID, null,
                 new UpdateMemberRequest("driver@school.com", "정기사", null, null, null));
 
         verify(userRepository, never()).existsByEmail(anyString());
@@ -114,7 +114,7 @@ class MemberCommandServiceTest {
     void update_blankEmailAndName_areTreatedAsNotProvided() {
         UserTenantRole membership = givenMembership(TARGET_ID, Role.DRIVER);
 
-        service.update(admin(), TARGET_ID, new UpdateMemberRequest("", "  ", null, null, null));
+        service.update(admin(), TARGET_ID, null, new UpdateMemberRequest("", "  ", null, null, null));
 
         assertThat(membership.getUser().getEmail()).isEqualTo("driver@school.com");
         assertThat(membership.getUser().getName()).isEqualTo("김기사");
@@ -126,7 +126,7 @@ class MemberCommandServiceTest {
     void resetPassword_targetIsAdmin_throwsInvalidInput() {
         givenMembership(TARGET_ID, Role.ACADEMY_ADMIN);
 
-        assertThatThrownBy(() -> service.resetPassword(admin(), TARGET_ID, new ResetPasswordRequest("newpassword")))
+        assertThatThrownBy(() -> service.resetPassword(admin(), TARGET_ID, null, new ResetPasswordRequest("newpassword")))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
@@ -138,7 +138,7 @@ class MemberCommandServiceTest {
         UserTenantRole membership = givenMembership(TARGET_ID, Role.DRIVER);
         given(passwordEncoder.encode("newpassword")).willReturn("{bcrypt}hashed");
 
-        service.resetPassword(admin(), TARGET_ID, new ResetPasswordRequest("newpassword"));
+        service.resetPassword(admin(), TARGET_ID, null, new ResetPasswordRequest("newpassword"));
 
         assertThat(membership.getUser().getPassword()).isEqualTo("{bcrypt}hashed");
     }
@@ -149,7 +149,7 @@ class MemberCommandServiceTest {
         givenMembership(TARGET_ID, Role.DRIVER);
         given(busRepository.findByDriverIdAndTenantId(TARGET_ID, TENANT_ID)).willReturn(List.of(bus(1L, "3호차")));
 
-        assertThatThrownBy(() -> service.removeMembership(admin(), TARGET_ID))
+        assertThatThrownBy(() -> service.removeMembership(admin(), TARGET_ID, null))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("3호차")
                 .extracting(e -> ((BusinessException) e).getErrorCode())
@@ -164,7 +164,7 @@ class MemberCommandServiceTest {
         given(busRepository.findByAttendantIdAndTenantId(TARGET_ID, TENANT_ID)).willReturn(List.of());
         given(studentGuardianRepository.findByGuardianId(TARGET_ID)).willReturn(List.of());
 
-        service.removeMembership(admin(), TARGET_ID);
+        service.removeMembership(admin(), TARGET_ID, null);
 
         verify(userTenantRoleRepository).delete(membership);
         verify(userRepository, never()).delete(any());

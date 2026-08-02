@@ -80,8 +80,8 @@ public class MemberCommandService {
 
     /** 이름·전화·사진·이메일·역할 수정. 전달된 필드만 갱신한다(null = 그대로). */
     @Transactional
-    public MemberResponse update(AuthUser admin, Long userId, UpdateMemberRequest req) {
-        UserTenantRole membership = loadAccessibleMembership(admin, userId);
+    public MemberResponse update(AuthUser admin, Long userId, Long tenantId, UpdateMemberRequest req) {
+        UserTenantRole membership = loadAccessibleMembership(admin, userId, tenantId);
         // ① 자기 자신은 이 경로로 못 고친다. 관리자가 스스로를 PARENT 로 바꾸면
         //    그 순간 화면에서 쫓겨나고 되돌릴 권한도 사라진다.
         if (userId.equals(admin.userId())) {
@@ -116,8 +116,8 @@ public class MemberCommandService {
      * ⚠️ 이미 발급된 JWT 는 즉시 만료되지 않는다(토큰 무효화 장치가 없다).
      */
     @Transactional
-    public void resetPassword(AuthUser admin, Long userId, ResetPasswordRequest req) {
-        UserTenantRole membership = loadAccessibleMembership(admin, userId);
+    public void resetPassword(AuthUser admin, Long userId, Long tenantId, ResetPasswordRequest req) {
+        UserTenantRole membership = loadAccessibleMembership(admin, userId, tenantId);
         // 학원 관리자끼리 서로의 비밀번호를 바꿀 수 있으면 계정 탈취 경로가 된다.
         // 이 API 가 다루는 대상은 "관리자가 대신 관리해 주는 계정"뿐이다.
         if (membership.getRole() == Role.ACADEMY_ADMIN || membership.getRole() == Role.PLATFORM_ADMIN) {
@@ -131,20 +131,20 @@ public class MemberCommandService {
      * 버스 배정·보호자 연결이 남아 있으면 CONFLICT 로 거부하고 <b>무엇이 막는지</b>까지 알려준다(I-7).
      */
     @Transactional
-    public void removeMembership(AuthUser admin, Long userId) {
-        UserTenantRole membership = loadAccessibleMembership(admin, userId);
+    public void removeMembership(AuthUser admin, Long userId, Long tenantId) {
+        UserTenantRole membership = loadAccessibleMembership(admin, userId, tenantId);
         if (userId.equals(admin.userId())) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "본인 계정은 해제할 수 없습니다");
         }
-        Long tenantId = membership.getTenant().getId();
+        Long effectiveTenant = membership.getTenant().getId();
         List<String> blockers = new ArrayList<>();
-        busRepository.findByDriverIdAndTenantId(userId, tenantId)
+        busRepository.findByDriverIdAndTenantId(userId, effectiveTenant)
                 .forEach(b -> blockers.add(b.getName() + " 기사"));
-        busRepository.findByAttendantIdAndTenantId(userId, tenantId)
+        busRepository.findByAttendantIdAndTenantId(userId, effectiveTenant)
                 .forEach(b -> blockers.add(b.getName() + " 선탑자"));
         studentGuardianRepository.findByGuardianId(userId).stream()
                 // 형제가 다른 학원에 다닐 수 있다 — 이 학원의 연결만 해제를 막는다.
-                .filter(sg -> sg.getStudent().getTenant().getId().equals(tenantId))
+                .filter(sg -> sg.getStudent().getTenant().getId().equals(effectiveTenant))
                 .forEach(sg -> blockers.add(sg.getStudent().getName() + " 보호자"));
         if (!blockers.isEmpty()) {
             throw new BusinessException(ErrorCode.CONFLICT,
@@ -158,8 +158,8 @@ public class MemberCommandService {
      * ⚠️ userRepository.findById 로 시작하지 않는다. 그러면 다른 학원 사용자도 찾아지고,
      * 뒤에 붙이는 검사를 한 번이라도 빠뜨리면 전 학원 계정 조회기가 된다.
      */
-    private UserTenantRole loadAccessibleMembership(AuthUser admin, Long userId) {
-        Long effectiveTenant = TenantGuard.resolveTenantId(admin, null);
+    private UserTenantRole loadAccessibleMembership(AuthUser admin, Long userId, Long tenantId) {
+        Long effectiveTenant = TenantGuard.resolveTenantId(admin, tenantId);
         return userTenantRoleRepository.findByUserIdAndTenantId(userId, effectiveTenant)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "이 학원의 구성원이 아닙니다"));
     }

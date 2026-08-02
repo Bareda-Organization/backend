@@ -49,11 +49,11 @@ public class MemberQueryService {
      * 참조 현황(배정 버스·담당 학생)을 함께 담아 화면이 "지울 수 있는가"를 한 번에 판단하게 한다(I-7).
      */
     @Transactional(readOnly = true)
-    public MemberDetailResponse get(AuthUser admin, Long userId) {
-        UserTenantRole membership = loadAccessibleMembership(admin, userId);
-        Long tenantId = membership.getTenant().getId();
-        List<Bus> asDriver = busRepository.findByDriverIdAndTenantId(userId, tenantId);
-        List<Bus> asAttendant = busRepository.findByAttendantIdAndTenantId(userId, tenantId);
+    public MemberDetailResponse get(AuthUser admin, Long userId, Long tenantId) {
+        UserTenantRole membership = loadAccessibleMembership(admin, userId, tenantId);
+        Long effectiveTenant = membership.getTenant().getId();
+        List<Bus> asDriver = busRepository.findByDriverIdAndTenantId(userId, effectiveTenant);
+        List<Bus> asAttendant = busRepository.findByAttendantIdAndTenantId(userId, effectiveTenant);
         List<StudentGuardian> guarded = studentGuardianRepository.findByGuardianId(userId);
         return MemberDetailResponse.of(membership, asDriver, asAttendant, guarded);
     }
@@ -62,9 +62,12 @@ public class MemberQueryService {
      * 요청자 학원의 구성원만 통과시킨다 — 여기가 이 서비스의 유일한 격리 지점이다.
      * ⚠️ userRepository.findById 로 시작하지 않는다: 멤버십을 먼저 찾는 순서가 격리를 구조적으로 보장한다.
      * 다른 학원 구성원은 403 이 아니라 404 다 — 존재 여부조차 알려주지 않는다.
+     *
+     * <p>tenantId 는 학원 관리자에겐 생략 가능(본인 학원)하고 지정하면 소속 여부를 검증받는다.
+     * 플랫폼 관리자는 소속 학원이 없어 <b>반드시 지정</b>해야 한다 — 안 그러면 대상 학원을 정할 수 없다.
      */
-    private UserTenantRole loadAccessibleMembership(AuthUser admin, Long userId) {
-        Long effectiveTenant = TenantGuard.resolveTenantId(admin, null);
+    private UserTenantRole loadAccessibleMembership(AuthUser admin, Long userId, Long tenantId) {
+        Long effectiveTenant = TenantGuard.resolveTenantId(admin, tenantId);
         return userTenantRoleRepository.findByUserIdAndTenantId(userId, effectiveTenant)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "이 학원의 구성원이 아닙니다"));
     }

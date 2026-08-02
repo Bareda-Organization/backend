@@ -71,8 +71,9 @@ public class MemberController {
                     + "다른 학원 구성원 id 를 넣으면 404 다(존재 여부도 알려주지 않는다).")
     @GetMapping("/{id}")
     public ApiResponse<MemberDetailResponse> detail(@AuthenticationPrincipal AuthUser admin,
-                                                    @Parameter(example = "3") @PathVariable Long id) {
-        return ApiResponse.ok(memberQueryService.get(admin, id));
+                                                    @Parameter(example = "3") @PathVariable Long id,
+                                                    @Parameter(example = "1", description = "대상 학원 id. 학원 관리자는 생략 가능(본인 학원), 플랫폼 관리자는 필수") @RequestParam(required = false) Long tenantId) {
+        return ApiResponse.ok(memberQueryService.get(admin, id, tenantId));
     }
 
     /** 구성원 수정 — 전달된 필드만 갱신한다. */
@@ -83,8 +84,9 @@ public class MemberController {
     @PatchMapping("/{id}")
     public ApiResponse<MemberResponse> update(@AuthenticationPrincipal AuthUser admin,
                                               @Parameter(example = "3") @PathVariable Long id,
+                                              @Parameter(example = "1", description = "대상 학원 id. 학원 관리자는 생략 가능(본인 학원), 플랫폼 관리자는 필수") @RequestParam(required = false) Long tenantId,
                                               @Valid @RequestBody UpdateMemberRequest request) {
-        return ApiResponse.ok(memberCommandService.update(admin, id, request));
+        return ApiResponse.ok(memberCommandService.update(admin, id, tenantId, request));
     }
 
     /** 관리자 강제 비밀번호 재설정 — 응답에 비밀번호를 담지 않는다. */
@@ -94,8 +96,9 @@ public class MemberController {
     @PatchMapping("/{id}/password")
     public ApiResponse<Void> resetPassword(@AuthenticationPrincipal AuthUser admin,
                                            @Parameter(example = "3") @PathVariable Long id,
+                                           @Parameter(example = "1", description = "대상 학원 id. 학원 관리자는 생략 가능(본인 학원), 플랫폼 관리자는 필수") @RequestParam(required = false) Long tenantId,
                                            @Valid @RequestBody ResetPasswordRequest request) {
-        memberCommandService.resetPassword(admin, id, request);
+        memberCommandService.resetPassword(admin, id, tenantId, request);
         return ApiResponse.ok(null);
     }
 
@@ -106,8 +109,9 @@ public class MemberController {
                     + "버스 배정·보호자 연결이 남아 있으면 409 로 거부하고 무엇이 막는지 메시지에 담는다.")
     @DeleteMapping("/{id}")
     public ApiResponse<Void> remove(@AuthenticationPrincipal AuthUser admin,
-                                    @Parameter(example = "3") @PathVariable Long id) {
-        memberCommandService.removeMembership(admin, id);
+                                    @Parameter(example = "3") @PathVariable Long id,
+                                    @Parameter(example = "1", description = "대상 학원 id. 학원 관리자는 생략 가능(본인 학원), 플랫폼 관리자는 필수") @RequestParam(required = false) Long tenantId) {
+        memberCommandService.removeMembership(admin, id, tenantId);
         return ApiResponse.ok(null);
     }
 }
