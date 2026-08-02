@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -12,6 +14,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -24,14 +27,19 @@ import src.backend.global.security.AuthUser;
 import src.backend.route.entity.Stop;
 import src.backend.routing.domain.LatLng;
 import src.backend.routing.domain.RouteDirection;
+import src.backend.routing.domain.RoutePlanStatus;
 import src.backend.routing.dto.GenerateRoutePlanRequest;
 import src.backend.routing.dto.RoutePlanResponse;
+import src.backend.routing.dto.SimulateRoutePlanRequest;
+import src.backend.routing.dto.StudentOverride;
+import src.backend.routing.dto.StudentOverride.OverrideAction;
 import src.backend.routing.engine.RoutePlanComputer;
 import src.backend.routing.engine.spec.BusAssigner;
 import src.backend.routing.engine.spec.RouteEngine;
 import src.backend.routing.entity.RoutePlan;
 import src.backend.routing.infrastructure.spec.MapRouteClient;
 import src.backend.routing.infrastructure.spec.RouteResult;
+import src.backend.routing.query.RoutePlanSimulationService;
 import src.backend.routing.repository.spec.RoutePlanRepository;
 import src.backend.student.entity.Student;
 import src.backend.student.repository.spec.StudentRepository;
@@ -42,6 +50,7 @@ import src.backend.user.entity.Role;
  * 노선 계획 생성의 <b>특성 테스트</b>(characterization test) — BE-4 리팩터링(계산부를 RoutePlanComputer 로 분리)
  * 전후로 동작이 달라지지 않았음을 고정한다. 경로 계산 포트 2개는 외부 호출 없는 결정적 Fake 로 대체해
  * "최적화 품질"이 아니라 <b>정차 배치·ETA 오프셋·검사 순서·좌표 우선순위</b>를 검증한다.
+ * <p>뒤쪽 {@code applySimulation_*} 5건은 BE-5(시뮬레이션 채택) 몫으로, 정원 거부·배정 커밋·version+1 신규 행(I-5)을 고정한다.
  */
 class RoutingCommandServiceTest {
 
@@ -61,9 +70,13 @@ class RoutingCommandServiceTest {
     private final FakeMapRouteClient mapRouteClient = new FakeMapRouteClient();
     private final RoutePlanComputer computer = new RoutePlanComputer(routeEngine, mapRouteClient, 7);
 
+    /** 시뮬레이션은 mock 이 아니라 실제 구현을 쓴다 — 채택(apply)이 "서버 재계산" 결과를 저장하는지가 검증 대상이라서. */
+    private final RoutePlanSimulationService simulationService = new RoutePlanSimulationService(
+            routePlanRepository, busRepository, studentRepository, attendanceQueryService, computer);
+
     private final RoutingCommandService service = new RoutingCommandService(
             routePlanRepository, busRepository, studentRepository, attendanceQueryService,
-            busAssigner, eventPublisher, computer);
+            busAssigner, eventPublisher, computer, simulationService);
 
     /** 구간당 1000m·60s 고정 — 정차가 1개 줄면 델타가 정확히 −1000m/−60s 로 나온다. 외부 호출 없음. */
     static class FakeMapRouteClient implements MapRouteClient {
@@ -175,6 +188,89 @@ class RoutingCommandServiceTest {
                 });
     }
 
+    // ── BE-5: 시뮬레이션 채택(applySimulation) ──
+
+    @Test
+    void applySimulation_addOverride_commitsAssignedBusOnStudent() {
+        Bus bus = bus(25, tenant(37.500, 127.000));
+        givenBus(bus);
+        givenRoster(dropoffStudent(101L, 37.501, 127.001));
+        Student added = dropoffStudent(201L, 37.505, 127.005);
+        given(studentRepository.findById(201L)).willReturn(Optional.of(added));
+
+        service.applySimulation(admin(), simulateRequest(RouteDirection.DROPOFF,
+                new StudentOverride(201L, OverrideAction.ADD, 37.505, 127.005)));
+
+        // 채택은 시뮬레이션과 달리 배정을 실제로 커밋한다
+        assertThat(added.getAssignedBus()).isNotNull();
+        assertThat(added.getAssignedBus().getId()).isEqualTo(BUS_ID);
+    }
+
+    @Test
+    void applySimulation_pickupMoveOverride_commitsPickupCoordinates() {
+        Bus bus = bus(25, tenant(37.500, 127.000));
+        givenBus(bus);
+        Student moved = pickupStudent(101L, 37.400, 127.400);
+        givenRoster(moved);
+        given(studentRepository.findById(101L)).willReturn(Optional.of(moved));
+
+        service.applySimulation(admin(), simulateRequest(RouteDirection.PICKUP,
+                new StudentOverride(101L, OverrideAction.MOVE, 37.520, 127.520)));
+
+        // D-K: 등원 좌표는 학생 자체 컬럼에 저장된다
+        assertThat(moved.getPickupLat()).isEqualTo(37.520);
+        assertThat(moved.getPickupLng()).isEqualTo(127.520);
+        // 공유 Stop 은 절대 건드리지 않는다 — 같은 정류장의 다른 학생이 함께 움직이면 안 된다
+        assertThat(moved.getBoardingStop().getLat()).isEqualTo(37.400);
+        assertThat(moved.getBoardingStop().getLng()).isEqualTo(127.400);
+    }
+
+    @Test
+    void applySimulation_overSeatCapacity_throwsInvalidInput() {
+        Bus bus = bus(1, tenant(37.500, 127.000));
+        givenBus(bus);
+        givenRoster(dropoffStudent(101L, 37.501, 127.001), dropoffStudent(102L, 37.502, 127.002));
+
+        // 시뮬레이션(보여주기)은 정원 초과를 허용하지만 저장 경로는 거부한다
+        assertThatThrownBy(() -> service.applySimulation(admin(), simulateRequest(RouteDirection.DROPOFF)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    void applySimulation_savesNewVersionRow() {
+        Bus bus = bus(25, tenant(37.500, 127.000));
+        givenBus(bus);
+        givenRoster(dropoffStudent(101L, 37.501, 127.001), dropoffStudent(102L, 37.502, 127.002));
+        givenLatestPlan(existingPlan(3, RoutePlanStatus.PUBLISHED));
+
+        RoutePlanResponse response = service.applySimulation(admin(), simulateRequest(RouteDirection.DROPOFF));
+
+        assertThat(response.version()).isEqualTo(4);
+        assertThat(response.status()).isEqualTo(RoutePlanStatus.PUBLISHED);   // 승인 배포까지 이어서 수행한다
+    }
+
+    @Test
+    void applySimulation_doesNotMutateExistingPlan() {
+        Bus bus = bus(25, tenant(37.500, 127.000));
+        givenBus(bus);
+        givenRoster(dropoffStudent(101L, 37.501, 127.001), dropoffStudent(102L, 37.502, 127.002));
+        RoutePlan baseline = existingPlan(3, RoutePlanStatus.PUBLISHED);
+        givenLatestPlan(baseline);
+
+        service.applySimulation(admin(), simulateRequest(RouteDirection.DROPOFF));
+
+        // I-5: 기존 행은 한 글자도 바뀌지 않는다
+        assertThat(baseline.getVersion()).isEqualTo(3);
+        assertThat(baseline.getStatus()).isEqualTo(RoutePlanStatus.PUBLISHED);
+        assertThat(baseline.getStops()).hasSize(2);
+
+        ArgumentCaptor<RoutePlan> savedPlan = ArgumentCaptor.forClass(RoutePlan.class);
+        verify(routePlanRepository, times(1)).save(savedPlan.capture());
+        assertThat(savedPlan.getValue()).isNotSameAs(baseline);
+    }
+
     // ── fixtures ──
 
     private void givenBus(Bus bus) {
@@ -186,8 +282,29 @@ class RoutingCommandServiceTest {
         given(attendanceQueryService.getActiveRoster(BUS_ID, SERVICE_DATE)).willReturn(List.of(students));
     }
 
+    private void givenLatestPlan(RoutePlan plan) {
+        given(routePlanRepository.findTopByBusIdAndDirectionOrderByVersionDesc(BUS_ID, plan.getDirection()))
+                .willReturn(Optional.of(plan));
+    }
+
     private GenerateRoutePlanRequest request(RouteDirection direction) {
         return new GenerateRoutePlanRequest(BUS_ID, direction, SERVICE_DATE);
+    }
+
+    private SimulateRoutePlanRequest simulateRequest(RouteDirection direction, StudentOverride... overrides) {
+        return new SimulateRoutePlanRequest(BUS_ID, direction, SERVICE_DATE, List.of(overrides));
+    }
+
+    /** baseline 역할의 저장된 최신 계획 — 정차 2개·4000m·240s. */
+    private RoutePlan existingPlan(int version, RoutePlanStatus status) {
+        RoutePlan plan = RoutePlan.builder()
+                .tenantId(TENANT_ID).busId(BUS_ID).direction(RouteDirection.DROPOFF).status(status)
+                .version(version).serviceDate(SERVICE_DATE).polyline("[[37.5,127.0]]")
+                .totalDistanceM(4000.0).totalDurationS(240.0).build();
+        ReflectionTestUtils.setField(plan, "id", 900L);
+        plan.addStop(101L, 37.501, 127.001, 60L);
+        plan.addStop(102L, 37.502, 127.002, 120L);
+        return plan;
     }
 
     private Bus bus(int seatCapacity, Tenant tenant) {
