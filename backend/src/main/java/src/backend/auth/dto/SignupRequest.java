@@ -8,13 +8,14 @@ import src.backend.user.entity.Role;
 
 /**
  * 회원가입 요청.
- * PLATFORM_ADMIN 은 tenantId 없이 가입(전역 역할), 나머지 역할은 tenantId 필수.
+ * 가입 가능한 역할은 STUDENT·PARENT·DRIVER 뿐이며 tenantId 는 필수다.
+ * ATTENDANT·ACADEMY_ADMIN·PLATFORM_ADMIN 은 관리자가 부여하는 역할이라 403 으로 거부된다.
  */
 public record SignupRequest(
         @NotBlank @Email @Schema(example = "new.parent@school.com") String email,
         @NotBlank @Schema(example = "password") String password,
         @NotBlank @Schema(example = "김하늘") String name,
         @Schema(example = "010-1234-5678") String phone,
-        @Schema(example = "1", description = "소속 학원 id(한빛학원). PLATFORM_ADMIN 가입 시 생략") Long tenantId,
+        @NotNull @Schema(example = "1", description = "소속 학원 id(한빛학원). 필수") Long tenantId,
         @NotNull @Schema(example = "PARENT") Role role) {
 }
