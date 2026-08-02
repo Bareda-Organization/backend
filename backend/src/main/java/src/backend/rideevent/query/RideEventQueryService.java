@@ -68,10 +68,10 @@ public class RideEventQueryService {
     }
 
     @Transactional(readOnly = true)
-    public List<RideEventResponse> getRosterRecords(AuthUser driver, Long busId, LocalDate date) {
+    public List<RideEventResponse> getRosterRecords(AuthUser actor, Long busId, LocalDate date) {
         Bus bus = busRepository.findById(busId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "버스를 찾을 수 없습니다"));
-        requireAssignedDriver(bus, driver);
+        requireAssignedCrew(bus, actor);
         LocalDateTime[] range = dayRange(date);
         return toResponses(rideEventRepository
                 .findByBusIdAndOccurredAtBetweenOrderByOccurredAtAsc(busId, range[0], range[1]));
@@ -91,9 +91,12 @@ public class RideEventQueryService {
         return toResponses(events);
     }
 
-    private void requireAssignedDriver(Bus bus, AuthUser driver) {
-        if (bus.getDriver() == null || !bus.getDriver().getId().equals(driver.userId())) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "담당 기사만 처리할 수 있습니다");
+    /** 기사 또는 선탑자 본인만 그 버스의 기록을 볼 수 있다. */
+    private void requireAssignedCrew(Bus bus, AuthUser actor) {
+        boolean isDriver = bus.getDriver() != null && bus.getDriver().getId().equals(actor.userId());
+        boolean isAttendant = bus.getAttendant() != null && bus.getAttendant().getId().equals(actor.userId());
+        if (!isDriver && !isAttendant) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "담당 기사·선탑자만 처리할 수 있습니다");
         }
     }
 

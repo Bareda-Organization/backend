@@ -57,20 +57,20 @@ public class DriveSessionController {
         return ApiResponse.ok(driveSessionCommandService.end(driver, id));
     }
 
-    /** 기사: 이 운행 세션의 당일 명단(이름·위치, 결석 자동 제외). */
+    /** 기사·선탑자: 이 운행 세션의 당일 명단(이름·사진·위치, 결석 자동 제외). */
     @GetMapping("/{id}/roster")
-    @PreAuthorize("hasRole('DRIVER')")
-    public ApiResponse<List<DriveSessionRosterEntry>> roster(@AuthenticationPrincipal AuthUser driver,
+    @PreAuthorize("hasAnyRole('DRIVER', 'ATTENDANT')")
+    public ApiResponse<List<DriveSessionRosterEntry>> roster(@AuthenticationPrincipal AuthUser crew,
                                                               @PathVariable Long id) {
-        return ApiResponse.ok(driveSessionQueryService.getRoster(driver, id));
+        return ApiResponse.ok(driveSessionQueryService.getRoster(crew, id));
     }
 
-    /** 기사: 담당 버스 운행 이력. */
+    /** 기사·선탑자: 담당 버스 운행 이력. 선탑자 앱은 여기서 진행 중인 세션 id 를 고른다(§4.1 사슬). */
     @GetMapping("/bus/{busId}")
-    @PreAuthorize("hasRole('DRIVER')")
-    public ApiResponse<List<DriveSessionResponse>> busHistory(@AuthenticationPrincipal AuthUser driver,
+    @PreAuthorize("hasAnyRole('DRIVER', 'ATTENDANT')")
+    public ApiResponse<List<DriveSessionResponse>> busHistory(@AuthenticationPrincipal AuthUser crew,
                                                                @Parameter(example = "1") @PathVariable Long busId) {
-        return ApiResponse.ok(driveSessionQueryService.getBusHistory(driver, busId));
+        return ApiResponse.ok(driveSessionQueryService.getBusHistory(crew, busId));
     }
 
     /** 관리자: 학원 운행 이력(법정 운행기록 열람). */

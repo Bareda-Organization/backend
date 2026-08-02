@@ -30,7 +30,7 @@ import src.backend.rideevent.query.RideEventQueryService;
  * 승하차 기록 API. 같은 기록을 역할별로 다른 범위에서 조회하도록 엔드포인트를 분리하고,
  * @PreAuthorize 로 역할을 제한한다(세밀한 학원 격리는 서비스 계층에서 추가 검사).
  */
-@Tag(name = "09. 승하차(RideEvent)", description = "승하차(BOARD/ALIGHT/HANDOVER) 기록·정정·조회. 기록은 기사, 조회는 역할별 범위에서.")
+@Tag(name = "09. 승하차(RideEvent)", description = "승하차(BOARD/ALIGHT/HANDOVER) 기록·정정·조회. 기록은 선탑자, 조회는 역할별 범위에서.")
 @RestController
 @RequestMapping("/api/ride-events")
 public class RideEventController {
@@ -44,18 +44,18 @@ public class RideEventController {
         this.rideEventQueryService = rideEventQueryService;
     }
 
-    /** 기사: 승/하차 기록. */
+    /** 선탑자: 승/하차 기록. 기사는 기록하지 않는다(D-J). */
     @PostMapping
-    @PreAuthorize("hasRole('DRIVER')")
+    @PreAuthorize("hasRole('ATTENDANT')")
     @Operation(tags = {"00. MVP 사용 API", "09. 승하차(RideEvent)"})
-    public ApiResponse<RideEventResponse> record(@AuthenticationPrincipal AuthUser driver,
+    public ApiResponse<RideEventResponse> record(@AuthenticationPrincipal AuthUser attendant,
                                                  @Valid @RequestBody RecordRideRequest request) {
-        return ApiResponse.ok(rideEventCommandService.record(driver, request));
+        return ApiResponse.ok(rideEventCommandService.record(attendant, request));
     }
 
-    /** 기사·관리자: 기록 정정(원본 보존, 정정 기록 신규 생성). */
+    /** 선탑자·관리자: 기록 정정(원본 보존, 정정 기록 신규 생성). */
     @PostMapping("/{id}/correction")
-    @PreAuthorize("hasAnyRole('DRIVER', 'ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
+    @PreAuthorize("hasAnyRole('ATTENDANT', 'ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
     public ApiResponse<RideEventResponse> correct(@AuthenticationPrincipal AuthUser actor,
                                                   @PathVariable Long id,
                                                   @Valid @RequestBody CorrectionRequest request) {
@@ -82,15 +82,15 @@ public class RideEventController {
         return ApiResponse.ok(rideEventQueryService.getChildrenRecords(parent, date));
     }
 
-    /** 기사: 담당 버스 하루치 기록(명단 이력). */
+    /** 기사·선탑자: 담당 버스 하루치 기록(명단 이력). */
     @GetMapping("/bus/{busId}")
-    @PreAuthorize("hasRole('DRIVER')")
+    @PreAuthorize("hasAnyRole('DRIVER', 'ATTENDANT')")
     @Operation(tags = {"00. MVP 사용 API", "09. 승하차(RideEvent)"})
     public ApiResponse<List<RideEventResponse>> busRecords(
-            @AuthenticationPrincipal AuthUser driver,
+            @AuthenticationPrincipal AuthUser crew,
             @Parameter(example = "1") @PathVariable Long busId,
             @Parameter(example = "2026-07-20") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return ApiResponse.ok(rideEventQueryService.getRosterRecords(driver, busId, date));
+        return ApiResponse.ok(rideEventQueryService.getRosterRecords(crew, busId, date));
     }
 
     /** 관리자: 학원 기간 기록(정정 이력 포함). */

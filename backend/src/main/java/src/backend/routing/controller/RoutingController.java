@@ -106,14 +106,14 @@ public class RoutingController {
         return ApiResponse.ok(routingQueryService.list(admin, tenantId, busId));
     }
 
-    /** 기사: 담당 버스의 당일(또는 지정일) 배포 완료 노선(등원/하원, pull 방식). */
+    /** 기사·선탑자: 담당 버스의 당일(또는 지정일) 배포 완료 노선(등원/하원, pull 방식). */
     @GetMapping("/driver/{busId}")
-    @PreAuthorize("hasRole('DRIVER')")
+    @PreAuthorize("hasAnyRole('DRIVER', 'ATTENDANT')")
     @Operation(tags = {"00. MVP 사용 API", "07. 배차·노선계획(Routing)"})
     public ApiResponse<List<RoutePlanResponse>> driverPublished(
-            @AuthenticationPrincipal AuthUser driver,
+            @AuthenticationPrincipal AuthUser crew,
             @Parameter(example = "1") @PathVariable Long busId,
             @Parameter(example = "2026-07-20") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate serviceDate) {
-        return ApiResponse.ok(routingQueryService.getPublishedForDriver(driver, busId, serviceDate));
+        return ApiResponse.ok(routingQueryService.getPublishedForDriver(crew, busId, serviceDate));
     }
 }

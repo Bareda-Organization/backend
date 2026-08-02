@@ -44,14 +44,14 @@ public class BusController {
     }
 
     /**
-     * 기사 본인의 담당 버스 — 기사 앱이 자기 busId 를 알아내는 진입점.
-     * 이 클래스는 기본이 관리자 전용이라 메서드 레벨 {@code @PreAuthorize} 로 DRIVER 만 열어 덮어쓴다.
+     * 기사·선탑자 본인의 담당 버스 — 담당자 앱이 자기 busId 를 알아내는 진입점.
+     * 이 클래스는 기본이 관리자 전용이라 메서드 레벨 {@code @PreAuthorize} 로 DRIVER·ATTENDANT 만 열어 덮어쓴다.
      */
     @GetMapping("/me")
-    @PreAuthorize("hasRole('DRIVER')")
+    @PreAuthorize("hasAnyRole('DRIVER', 'ATTENDANT')")
     @Operation(tags = {"00. MVP 사용 API", "05. 버스(Bus)"})
-    public ApiResponse<BusResponse> myBus(@AuthenticationPrincipal AuthUser driver) {
-        return ApiResponse.ok(busQueryService.getMyBus(driver));
+    public ApiResponse<BusResponse> myBus(@AuthenticationPrincipal AuthUser crew) {
+        return ApiResponse.ok(busQueryService.getMyBus(crew));
     }
 
     /** 학원 버스 목록(정원 초과 경고 플래그 포함). */

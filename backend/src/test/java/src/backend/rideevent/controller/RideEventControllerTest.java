@@ -28,7 +28,7 @@ import src.backend.rideevent.query.RideEventQueryService;
 
 /**
  * 승하차 기록 컨트롤러의 역할 인가 슬라이스 테스트.
- * 미인증 → 401, 학생(권한 부족) → 403, 기사(허용) → 200 을 확인한다.
+ * 미인증 → 401, 기사(권한 이관으로 제외) → 403, 선탑자(허용) → 200 을 확인한다.
  */
 @WebMvcTest(RideEventController.class)
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class, JwtTokenProvider.class})
@@ -62,14 +62,19 @@ class RideEventControllerTest {
     }
 
     @Test
-    void post_as_driver_is_allowed() throws Exception {
+    void post_as_driver_returns_403() throws Exception {
+        mockMvc.perform(post("/api/ride-events").with(user("d").roles("DRIVER"))
+                        .contentType(MediaType.APPLICATION_JSON).content(BODY))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void post_as_attendant_is_allowed() throws Exception {
         given(rideEventCommandService.record(any(), any())).willReturn(sampleResponse());
 
-        mockMvc.perform(post("/api/ride-events").with(user("d").roles("DRIVER"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(BODY))
+        mockMvc.perform(post("/api/ride-events").with(user("a").roles("ATTENDANT"))
+                        .contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.type").value("BOARD"));
     }
 

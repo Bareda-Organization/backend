@@ -23,6 +23,7 @@ import src.backend.rideevent.event.StudentBoardedEvent;
 import src.backend.rideevent.repository.spec.RideEventRepository;
 import src.backend.student.entity.Student;
 import src.backend.student.repository.spec.StudentRepository;
+import src.backend.user.entity.Role;
 
 /**
  * 승하차 기록/정정 — 단순 CRUD라 인터페이스 없이 concrete 클래스로 둔다(§11.3).
@@ -48,10 +49,10 @@ public class RideEventCommandService {
     }
 
     @Transactional
-    public RideEventResponse record(AuthUser driver, RecordRideRequest req) {
+    public RideEventResponse record(AuthUser actor, RecordRideRequest req) {
         Bus bus = busRepository.findById(req.busId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "버스를 찾을 수 없습니다"));
-        requireAssignedDriver(bus, driver);
+        requireAssignedAttendant(bus, actor);
 
         Student student = studentRepository.findById(req.studentId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "학생을 찾을 수 없습니다"));
@@ -106,19 +107,22 @@ public class RideEventCommandService {
         return RideEventResponse.from(correction);
     }
 
-    private void requireAssignedDriver(Bus bus, AuthUser driver) {
-        if (bus.getDriver() == null || !bus.getDriver().getId().equals(driver.userId())) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "담당 기사만 처리할 수 있습니다");
+    /** 승하차 기록은 그 버스에 배정된 선탑자 본인만 가능하다(I-2). */
+    private void requireAssignedAttendant(Bus bus, AuthUser actor) {
+        if (bus.getAttendant() == null || !bus.getAttendant().getId().equals(actor.userId())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "담당 선탑자만 처리할 수 있습니다");
         }
     }
 
     private void requireCorrectionPermission(AuthUser actor, RideEvent original) {
-        if (actor.isPlatformAdmin() || actor.belongsToTenant(original.getTenantId())) {
-            return; // 학원 관리자·플랫폼 관리자
+        if (actor.isPlatformAdmin()
+                || (actor.hasRole(Role.ACADEMY_ADMIN) && actor.belongsToTenant(original.getTenantId()))) {
+            return; // 관리자
         }
         Bus bus = busRepository.findById(original.getBusId()).orElse(null);
-        if (bus != null && bus.getDriver() != null && bus.getDriver().getId().equals(actor.userId())) {
-            return; // 담당 기사
+        if (bus != null && bus.getAttendant() != null
+                && bus.getAttendant().getId().equals(actor.userId())) {
+            return; // 그 기록이 난 버스의 담당 선탑자 본인
         }
         throw new BusinessException(ErrorCode.FORBIDDEN);
     }

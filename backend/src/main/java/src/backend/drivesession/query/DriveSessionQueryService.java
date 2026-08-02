@@ -38,12 +38,12 @@ public class DriveSessionQueryService {
         this.attendanceQueryService = attendanceQueryService;
     }
 
-    /** 기사: 담당 버스 운행 이력. */
+    /** 기사·선탑자: 담당 버스 운행 이력. 선탑자 앱은 여기서 진행 중인 세션 id 를 고른다(§4.1 사슬). */
     @Transactional(readOnly = true)
-    public List<DriveSessionResponse> getBusHistory(AuthUser driver, Long busId) {
+    public List<DriveSessionResponse> getBusHistory(AuthUser actor, Long busId) {
         Bus bus = busRepository.findById(busId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "버스를 찾을 수 없습니다"));
-        requireAssignedDriver(bus, driver);
+        requireAssignedCrew(bus, actor);
         return driveSessionRepository.findByBusIdOrderByStartedAtDesc(busId).stream()
                 .map(DriveSessionResponse::from).toList();
     }
@@ -56,13 +56,17 @@ public class DriveSessionQueryService {
                 .map(DriveSessionResponse::from).toList();
     }
 
-    /** 기사: 이 운행 세션의 당일 명단(rideevent·attendance 명단 연계, 결석 자동 제외). */
+    /** 기사·선탑자: 이 운행 세션의 당일 명단(rideevent·attendance 명단 연계, 결석 자동 제외). */
     @Transactional(readOnly = true)
-    public List<DriveSessionRosterEntry> getRoster(AuthUser driver, Long sessionId) {
+    public List<DriveSessionRosterEntry> getRoster(AuthUser actor, Long sessionId) {
         DriveSession session = driveSessionRepository.findById(sessionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "운행 세션을 찾을 수 없습니다"));
-        if (!session.getDriverId().equals(driver.userId())) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "본인이 시작한 운행만 조회할 수 있습니다");
+        if (!session.getDriverId().equals(actor.userId())) {
+            Bus bus = busRepository.findById(session.getBusId())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "버스를 찾을 수 없습니다"));
+            if (bus.getAttendant() == null || !bus.getAttendant().getId().equals(actor.userId())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN, "본인이 시작한 운행 또는 담당 선탑자만 조회할 수 있습니다");
+            }
         }
         List<Student> roster = attendanceQueryService.getActiveRoster(session.getBusId(), session.getServiceDate());
         return roster.stream().map(student -> toRosterEntry(student, session.getDirection())).toList();
@@ -70,19 +74,26 @@ public class DriveSessionQueryService {
 
     private DriveSessionRosterEntry toRosterEntry(Student student, RouteDirection direction) {
         if (direction == RouteDirection.PICKUP) {
+            // D-K: 학생 전용 pickup 좌표가 있으면 우선, 없으면 공유 boardingStop 으로 폴백
+            if (student.getPickupLat() != null && student.getPickupLng() != null) {
+                return new DriveSessionRosterEntry(student.getId(), student.getName(), student.getPhotoUrl(),
+                        student.getPickupAddress(), student.getPickupLat(), student.getPickupLng());
+            }
             var stop = student.getBoardingStop();
-            return new DriveSessionRosterEntry(student.getId(), student.getName(),
+            return new DriveSessionRosterEntry(student.getId(), student.getName(), student.getPhotoUrl(),
                     stop != null ? stop.getName() : null,
-                    stop != null ? stop.getLat() : null,
-                    stop != null ? stop.getLng() : null);
+                    stop != null ? stop.getLat() : null, stop != null ? stop.getLng() : null);
         }
-        return new DriveSessionRosterEntry(student.getId(), student.getName(),
+        return new DriveSessionRosterEntry(student.getId(), student.getName(), student.getPhotoUrl(),
                 student.getDropoffAddress(), student.getDropoffLat(), student.getDropoffLng());
     }
 
-    private void requireAssignedDriver(Bus bus, AuthUser driver) {
-        if (bus.getDriver() == null || !bus.getDriver().getId().equals(driver.userId())) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "담당 기사만 조회할 수 있습니다");
+    /** 기사 또는 선탑자 본인만 그 버스의 운행 이력을 볼 수 있다. */
+    private void requireAssignedCrew(Bus bus, AuthUser actor) {
+        boolean isDriver = bus.getDriver() != null && bus.getDriver().getId().equals(actor.userId());
+        boolean isAttendant = bus.getAttendant() != null && bus.getAttendant().getId().equals(actor.userId());
+        if (!isDriver && !isAttendant) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "담당 기사·선탑자만 조회할 수 있습니다");
         }
     }
 }
