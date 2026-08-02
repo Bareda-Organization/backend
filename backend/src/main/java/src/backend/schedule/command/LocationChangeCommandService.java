@@ -150,6 +150,13 @@ public class LocationChangeCommandService {
         }
 
         applyCoordinates(student, req);
+        // ⚠️ 모듈 간 Command→Command 동기 호출이다(§6 의 명시된 예외). 이벤트로 돌리면 안 되는 이유:
+        //    반환값이 곧 응답 계약이다 — appliedPlanId 가 LocationChangeRequest 컬럼에 저장되고
+        //    LocationChangeRequestResponse.appliedPlanId 로 학부모 앱에 나간다. 비동기로 바꾸면 이 값이
+        //    항상 null 이 되어 REPLANNED 의 뜻이 "재계산·재배포됨" 에서 "예약됨" 으로 바뀐다(Swagger 문서 포함).
+        //    후속 파급(기사 알림)은 여기서 직접 하지 않고 republishForBus 안의 RoutePlanPublishedEvent 로 흐른다.
+        //    ⚠️ 순서 의존: applyCoordinates 가 먼저다. republishForBus 는 같은 트랜잭션에서 로스터를 다시
+        //    읽으므로(auto-flush) 방금 바꾼 좌표로 재계산된다 — 두 줄의 순서를 바꾸면 옛 좌표로 계산된다.
         Long newPlanId = routingCommandService.republishForBus(bus.getId(), req.direction(), date, parent.userId());
         return finish(parent, student, req, date, LocationChangeDecision.REPLANNED,
                 delta.distanceM(), delta.durationS(), newPlanId, "노선을 재계산해 반영했습니다");

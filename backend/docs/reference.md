@@ -82,6 +82,10 @@ private final NotificationSender notificationSender;
 - 권장: `RideEvent` → Kafka → `Notification`
 - 금지: `RideService` → `NotificationService` → `HistoryService` → `StatisticsService` (직접 체이닝 호출)
 
+**예외 — 호출 결과가 동기 응답 계약의 일부일 때만** 모듈 간 직접 호출을 허용한다. 결과가 그대로 응답 필드가 되는 호출은 이벤트로 돌리면 그 필드가 항상 null이 되어 API 의미가 바뀐다(계약 변경). 이 예외를 쓸 땐 두 가지를 지킨다 — ① 호출 지점에 "왜 이벤트가 아닌가"를 주석으로 남긴다, ② 응답에 필요한 값만 동기로 받고 후속 파급(알림·통계 등)은 이벤트로 흘린다.
+
+예: `LocationChangeCommandService` → `RoutingCommandService.republishForBus` — 반환된 planId가 `LocationChangeRequestResponse.appliedPlanId`이고, 기사 알림은 그 안에서 `RoutePlanPublishedEvent`로 나간다.
+
 ## 7. CQRS 원칙
 
 - **Command**: 생성 · 수정 · 삭제

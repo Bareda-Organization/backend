@@ -132,6 +132,29 @@ class LocationChangeCommandServiceTest {
         verify(locationChangeRequestRepository).save(any());
     }
 
+    /**
+     * 재계산은 <b>바뀐 좌표</b>로 이뤄져야 한다 — {@code republishForBus} 가 불리는 시점에 학생 좌표가 이미
+     * 갱신돼 있어야 같은 트랜잭션의 auto-flush 로 새 좌표가 로스터에 반영된다. 두 줄의 순서가 뒤집히면
+     * 옛 좌표로 계산된 노선이 PUBLISHED 로 배포되고 응답만 "반영됐다"가 된다(조용한 실패).
+     */
+    @Test
+    void create_withinThreshold_updatesCoordinatesBeforeRecomputing() {
+        Student student = dropoffStudent(bus(25));
+        givenGuardianOf(student);
+        givenSaveEchoesWithId();
+        givenBaselinePlan();
+        givenComparison(500.0, 200.0, 2, 25);
+        given(routingCommandService.republishForBus(BUS_ID, RouteDirection.DROPOFF, TARGET_DATE, PARENT_ID))
+                .willAnswer(inv -> {
+                    assertThat(student.getDropoffLat()).isEqualTo(NEW_LAT);   // 호출 시점에 이미 갱신돼 있다
+                    assertThat(student.getDropoffLng()).isEqualTo(NEW_LNG);
+                    return 777L;
+                });
+
+        assertThat(service.create(parent(), request(RouteDirection.DROPOFF)).appliedPlanId()).isEqualTo(777L);
+        verify(routingCommandService).republishForBus(BUS_ID, RouteDirection.DROPOFF, TARGET_DATE, PARENT_ID);
+    }
+
     @Test
     void create_exceedsDurationOnly_returnsRejectedAndKeepsCoordinates() {
         Student student = dropoffStudent(bus(25));
