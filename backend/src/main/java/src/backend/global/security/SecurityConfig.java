@@ -104,9 +104,18 @@ public class SecurityConfig {
      * {@code @Import(SecurityConfig.class)} 로 이 클래스만 들여온다. 다른 클래스로 옮기면
      * 슬라이스마다 @Import 를 추가해야 하고, 하나라도 빠뜨리면 그 슬라이스에서만
      * 권한 확장이 안 돼 허용 경로가 조용히 403 이 된다.
+     *
+     * <p><b>이 클래스에서 유일하게 {@code static} 인 @Bean 이다 — 지우지 말 것.</b>
+     * 메서드 시큐리티 인프라는 이 빈을 BeanPostProcessor 단계에서 참조하는데, 인스턴스
+     * 메서드로 두면 그때 {@code SecurityConfig} 자체가 먼저 만들어져야 하고, 그러면
+     * 생성자 의존인 {@code JwtAuthenticationFilter} 까지 후처리가 끝나기 전에 끌려 나온다.
+     * {@code static} 이면 설정 클래스를 인스턴스화하지 않고 빈만 만들 수 있어 그 사슬이 끊긴다
+     * (스프링 시큐리티 레퍼런스의 RoleHierarchy 예제도 전부 {@code static} 이다).
+     * 이 메서드가 인스턴스 상태를 안 쓰기 때문에 가능한 것이고, 옆의 다른 @Bean 들은
+     * {@code jwtAuthenticationFilter}·{@code allowedOrigins} 를 쓰므로 static 이 될 수 없다.
      */
     @Bean
-    RoleHierarchy roleHierarchy() {
+    static RoleHierarchy roleHierarchy() {
         return RoleHierarchyImpl.fromHierarchy(RolePermissions.HIERARCHY);
     }
 }
