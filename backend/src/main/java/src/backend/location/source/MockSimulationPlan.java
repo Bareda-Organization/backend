@@ -38,7 +38,8 @@ public class MockSimulationPlan {
     public List<Leg> build() {
         List<Leg> legs = new ArrayList<>();
         for (Student student : studentRepository.findAll()) {
-            if (student.getAssignedBus() == null || student.getBoardingStop() == null) {
+            // 퇴원(비활성) 학생은 시뮬레이션 대상이 아니다(I-9) — 조회 계층이 어차피 걸러내므로 좌표를 만들 이유가 없다.
+            if (!student.isActive() || student.getAssignedBus() == null || student.getBoardingStop() == null) {
                 continue;
             }
             var route = student.getAssignedBus().getRoute();

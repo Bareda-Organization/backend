@@ -51,7 +51,7 @@ public class PushTargetResolver {
     @Transactional(readOnly = true)
     public Optional<BusPushTargets> resolveForBus(Long busId) {
         return busRepository.findById(busId).map(bus -> {
-            List<Long> studentIds = studentRepository.findByAssignedBusId(busId).stream()
+            List<Long> studentIds = studentRepository.findByAssignedBusIdAndActiveTrue(busId).stream()
                     .map(Student::getId).toList();
             List<Long> guardianUserIds = studentIds.isEmpty() ? List.of()
                     : studentGuardianRepository.findWithGuardianByStudentIdIn(studentIds).stream()

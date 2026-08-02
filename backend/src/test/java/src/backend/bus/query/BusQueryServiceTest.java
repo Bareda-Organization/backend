@@ -61,7 +61,7 @@ class BusQueryServiceTest {
         Route route = route(10L, TENANT_ID, 2); // 정원 2명
         Bus bus = bus(1L, TENANT_ID, route);
         given(busRepository.findByTenantId(TENANT_ID)).willReturn(List.of(bus));
-        given(studentRepository.findByAssignedBusIdIn(List.of(1L))).willReturn(List.of(
+        given(studentRepository.findByAssignedBusIdInAndActiveTrue(List.of(1L))).willReturn(List.of(
                 student(1L, bus), student(2L, bus), student(3L, bus))); // 3명 배정 — 정원 초과
 
         List<BusResponse> responses = service.listBuses(admin, TENANT_ID);
@@ -77,7 +77,7 @@ class BusQueryServiceTest {
         Route route = route(10L, TENANT_ID, 25);
         Bus bus = bus(1L, TENANT_ID, route);
         given(busRepository.findByTenantId(TENANT_ID)).willReturn(List.of(bus));
-        given(studentRepository.findByAssignedBusIdIn(List.of(1L))).willReturn(List.of(student(1L, bus)));
+        given(studentRepository.findByAssignedBusIdInAndActiveTrue(List.of(1L))).willReturn(List.of(student(1L, bus)));
 
         List<BusResponse> responses = service.listBuses(admin, TENANT_ID);
 
@@ -89,7 +89,7 @@ class BusQueryServiceTest {
         AuthUser admin = authUser(TENANT_ID, Role.ACADEMY_ADMIN);
         Bus bus = bus(1L, TENANT_ID, null); // 노선 미배정
         given(busRepository.findByTenantId(TENANT_ID)).willReturn(List.of(bus));
-        given(studentRepository.findByAssignedBusIdIn(List.of(1L)))
+        given(studentRepository.findByAssignedBusIdInAndActiveTrue(List.of(1L)))
                 .willReturn(List.of(student(1L, bus), student(2L, bus)));
 
         List<BusResponse> responses = service.listBuses(admin, TENANT_ID);
@@ -105,14 +105,14 @@ class BusQueryServiceTest {
         Bus first = bus(1L, TENANT_ID, null);
         Bus second = bus(2L, TENANT_ID, null);
         given(busRepository.findByTenantId(TENANT_ID)).willReturn(List.of(first, second));
-        given(studentRepository.findByAssignedBusIdIn(List.of(1L, 2L)))
+        given(studentRepository.findByAssignedBusIdInAndActiveTrue(List.of(1L, 2L)))
                 .willReturn(List.of(student(1L, first), student(2L, first), student(3L, second)));
 
         List<BusResponse> responses = service.listBuses(admin, TENANT_ID);
 
         assertThat(responses).extracting(BusResponse::onboard).containsExactly(2, 1);
-        verify(studentRepository, times(1)).findByAssignedBusIdIn(any());
-        verify(studentRepository, never()).findByAssignedBusId(anyLong());
+        verify(studentRepository, times(1)).findByAssignedBusIdInAndActiveTrue(any());
+        verify(studentRepository, never()).findByAssignedBusIdAndActiveTrue(anyLong());
     }
 
     @Test
@@ -143,7 +143,7 @@ class BusQueryServiceTest {
         AuthUser admin = authUser(TENANT_ID, Role.ACADEMY_ADMIN);
         Bus bus = bus(1L, TENANT_ID, null);
         given(busRepository.findById(1L)).willReturn(Optional.of(bus));
-        given(studentRepository.findByAssignedBusId(1L)).willReturn(List.of(student(1L, bus)));
+        given(studentRepository.findByAssignedBusIdAndActiveTrue(1L)).willReturn(List.of(student(1L, bus)));
 
         BusDetailResponse response = service.getBus(admin, 1L, SERVICE_DATE);
 
@@ -161,7 +161,7 @@ class BusQueryServiceTest {
         Bus bus = busWithCrew(1L, TENANT_ID, user(20L, "박기사", "010-2222-2222"), attendant);
         Student student = student(5L, bus);
         given(busRepository.findById(1L)).willReturn(Optional.of(bus));
-        given(studentRepository.findByAssignedBusId(1L)).willReturn(List.of(student));
+        given(studentRepository.findByAssignedBusIdAndActiveTrue(1L)).willReturn(List.of(student));
         given(studentGuardianRepository.findWithGuardianByStudentIdIn(List.of(5L)))
                 .willReturn(List.of(guardian(student, user(40L, "김보호", "010-4444-4444"), "모")));
 
@@ -186,7 +186,7 @@ class BusQueryServiceTest {
         AuthUser admin = authUser(TENANT_ID, Role.ACADEMY_ADMIN);
         Bus bus = bus(1L, TENANT_ID, null);
         given(busRepository.findById(1L)).willReturn(Optional.of(bus));
-        given(studentRepository.findByAssignedBusId(1L)).willReturn(List.of());
+        given(studentRepository.findByAssignedBusIdAndActiveTrue(1L)).willReturn(List.of());
         given(routePlanRepository.findByBusIdAndServiceDateAndStatusOrderByDirectionAsc(
                 eq(1L), eq(SERVICE_DATE), eq(RoutePlanStatus.PUBLISHED)))
                 .willReturn(List.of(publishedPlan(70L)));
@@ -211,7 +211,7 @@ class BusQueryServiceTest {
         AuthUser driver = authUser(TENANT_ID, Role.DRIVER);
         Bus bus = busWithDriver(1L, TENANT_ID, user(driver.userId()));
         given(busRepository.findByDriverIdOrderByIdAsc(driver.userId())).willReturn(List.of(bus));
-        given(studentRepository.findByAssignedBusId(1L)).willReturn(List.of(student(1L, bus), student(2L, bus)));
+        given(studentRepository.findByAssignedBusIdAndActiveTrue(1L)).willReturn(List.of(student(1L, bus), student(2L, bus)));
 
         BusResponse response = service.getMyBus(driver);
 
@@ -237,7 +237,7 @@ class BusQueryServiceTest {
         User driverUser = user(driver.userId());
         given(busRepository.findByDriverIdOrderByIdAsc(driver.userId()))
                 .willReturn(List.of(busWithDriver(1L, TENANT_ID, driverUser), busWithDriver(2L, TENANT_ID, driverUser)));
-        given(studentRepository.findByAssignedBusId(1L)).willReturn(List.of());
+        given(studentRepository.findByAssignedBusIdAndActiveTrue(1L)).willReturn(List.of());
 
         assertThat(service.getMyBus(driver).id()).isEqualTo(1L);
     }

@@ -26,13 +26,16 @@ import src.backend.student.dto.StudentDetailResponse;
 import src.backend.student.dto.StudentResponse;
 import src.backend.student.dto.UpdateDropoffRequest;
 import src.backend.student.dto.UpdateStudentAssignmentRequest;
+import src.backend.student.dto.UpdateStudentRequest;
 import src.backend.student.command.StudentCommandService;
 import src.backend.student.query.StudentQueryService;
 
 /**
  * 학생 관리 API(관리자 전용). 학원 격리는 서비스 계층(TenantGuard)에서 검사한다.
  */
-@Tag(name = "04. 학생(Student)", description = "학생 등록·배정(버스/정류장)·하차지 설정·보호자 연결/해제. 관리자 전용.")
+@Tag(name = "04. 학생(Student)",
+        description = "학생 등록·인적정보 수정·퇴원(비활성) 처리·배정(버스/정류장)·하차지 설정·보호자 연결/해제. 관리자 전용. "
+                + "⚠️ 퇴원은 행을 지우지 않고 active=false 로만 바꾼다 — 목록은 기본적으로 활성 학생만 준다.")
 @RestController
 @RequestMapping("/api/students")
 @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
@@ -53,11 +56,15 @@ public class StudentController {
         return ApiResponse.ok(studentCommandService.create(admin, request));
     }
 
-    /** 학원 학생 목록. */
+    /** 학원 학생 목록 — 기본은 재원(활성) 학생만. */
+    @Operation(summary = "학생 목록",
+            description = "기본값은 **활성(재원) 학생만**이다. 퇴원 처리된 학생까지 보려면 `includeInactive=true` 를 준다. "
+                    + "기본을 '전부'로 두면 퇴원생이 배차·명단·시뮬레이션에 계속 끼어든다.")
     @GetMapping
     public ApiResponse<List<StudentResponse>> list(@AuthenticationPrincipal AuthUser admin,
-                                                   @Parameter(example = "1") @RequestParam(required = false) Long tenantId) {
-        return ApiResponse.ok(studentQueryService.list(admin, tenantId));
+                                                   @Parameter(example = "1") @RequestParam(required = false) Long tenantId,
+                                                   @RequestParam(defaultValue = "false") boolean includeInactive) {
+        return ApiResponse.ok(studentQueryService.list(admin, tenantId, includeInactive));
     }
 
     /** 학생 상세 — 버스·정류장·보호자 포함. */
@@ -65,6 +72,29 @@ public class StudentController {
     public ApiResponse<StudentDetailResponse> detail(@AuthenticationPrincipal AuthUser admin,
                                                      @Parameter(example = "1") @PathVariable Long id) {
         return ApiResponse.ok(studentQueryService.get(admin, id));
+    }
+
+    /** 인적 정보 수정 — 이름·전화·사진. 배차·하차지는 아래 전용 PATCH 가 담당한다. */
+    @Operation(summary = "학생 인적 정보 수정",
+            description = "전달한 필드만 갱신한다(생략하면 그대로). 이름·전화·사진은 노선에 영향이 없어 "
+                    + "노선 재계획을 트리거하지 않는다 — 배차·하차지 변경은 각각 `/assignment` · `/dropoff` 를 쓴다.")
+    @PatchMapping("/{id}")
+    public ApiResponse<StudentResponse> updateProfile(@AuthenticationPrincipal AuthUser admin,
+                                                      @Parameter(example = "1") @PathVariable Long id,
+                                                      @Valid @RequestBody UpdateStudentRequest request) {
+        return ApiResponse.ok(studentCommandService.updateProfile(admin, id, request));
+    }
+
+    /** 퇴원 처리 — 행을 지우지 않고 비활성으로 바꾼다. 갱신된 상태를 돌려준다. */
+    @Operation(summary = "퇴원 처리(비활성화)",
+            description = "⚠️ 물리 삭제가 아니다 — `active=false` 로만 바꾼다. 과거 승하차 기록이 이 학생을 참조하므로 "
+                    + "행을 지우면 감사 추적이 끊긴다. 배정 버스도 지우지 않는다(어느 버스에서 빠졌는지 남긴다) — "
+                    + "명단·배차·시뮬레이션에서 빠지는 것은 조회 계층이 보장한다. "
+                    + "204 가 아니라 갱신된 학생 정보를 돌려주므로 화면이 재조회 없이 목록을 회색 처리할 수 있다.")
+    @DeleteMapping("/{id}")
+    public ApiResponse<StudentResponse> deactivate(@AuthenticationPrincipal AuthUser admin,
+                                                   @Parameter(example = "1") @PathVariable Long id) {
+        return ApiResponse.ok(studentCommandService.deactivate(admin, id));
     }
 
     /** 재배정 — 담당 버스·기본 승차 정류장. */

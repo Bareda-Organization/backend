@@ -65,13 +65,13 @@ public class LocationQueryService {
         if (bus.getDriver() == null || !bus.getDriver().getId().equals(driver.userId())) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "담당 기사만 조회할 수 있습니다");
         }
-        return viewsFor(studentRepository.findByAssignedBusId(busId));
+        return viewsFor(studentRepository.findByAssignedBusIdAndActiveTrue(busId));
     }
 
     @Transactional(readOnly = true)
     public List<LocationView> getTenantLocations(AuthUser admin, Long tenantId) {
         Long effectiveTenant = TenantGuard.resolveTenantId(admin, tenantId);
-        return viewsFor(studentRepository.findByTenantId(effectiveTenant));
+        return viewsFor(studentRepository.findByTenantIdAndActiveTrue(effectiveTenant));
     }
 
     /** 학생 목록 → 최신 좌표가 있는 학생만 뷰로 변환(아직 좌표 없는 학생은 제외). */

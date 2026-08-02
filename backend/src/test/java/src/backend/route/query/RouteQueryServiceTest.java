@@ -46,8 +46,8 @@ class RouteQueryServiceTest {
         Bus busC = bus(3L, TENANT_ID, null); // 이 노선과 무관한 버스
         given(routeRepository.findByTenantId(TENANT_ID)).willReturn(List.of(route));
         given(busRepository.findByTenantId(TENANT_ID)).willReturn(List.of(busA, busB, busC));
-        given(studentRepository.findByAssignedBusId(1L)).willReturn(List.of(student(1L), student(2L)));
-        given(studentRepository.findByAssignedBusId(2L)).willReturn(List.of(student(3L)));
+        given(studentRepository.findByAssignedBusIdAndActiveTrue(1L)).willReturn(List.of(student(1L), student(2L)));
+        given(studentRepository.findByAssignedBusIdAndActiveTrue(2L)).willReturn(List.of(student(3L)));
 
         List<RouteResponse> responses = service.listRoutes(admin, TENANT_ID);
 
@@ -63,7 +63,7 @@ class RouteQueryServiceTest {
         Bus bus = bus(1L, TENANT_ID, route);
         given(routeRepository.findByTenantId(TENANT_ID)).willReturn(List.of(route));
         given(busRepository.findByTenantId(TENANT_ID)).willReturn(List.of(bus));
-        given(studentRepository.findByAssignedBusId(1L)).willReturn(List.of(student(1L), student(2L), student(3L)));
+        given(studentRepository.findByAssignedBusIdAndActiveTrue(1L)).willReturn(List.of(student(1L), student(2L), student(3L)));
 
         List<RouteResponse> responses = service.listRoutes(admin, TENANT_ID);
 

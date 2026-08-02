@@ -50,7 +50,7 @@ public class BusQueryService {
         Long effectiveTenant = TenantGuard.resolveTenantId(admin, tenantId);
         List<Bus> buses = busRepository.findByTenantId(effectiveTenant);
         Map<Long, Long> onboardByBus = studentRepository
-                .findByAssignedBusIdIn(buses.stream().map(Bus::getId).toList()).stream()
+                .findByAssignedBusIdInAndActiveTrue(buses.stream().map(Bus::getId).toList()).stream()
                 .collect(Collectors.groupingBy(s -> s.getAssignedBus().getId(), Collectors.counting()));
         return buses.stream()
                 .map(bus -> BusResponse.of(bus, onboardByBus.getOrDefault(bus.getId(), 0L).intValue()))
@@ -81,7 +81,7 @@ public class BusQueryService {
     public BusDetailResponse getBus(AuthUser admin, Long busId, LocalDate date) {
         Bus bus = loadAccessibleBus(admin, busId);                       // TenantGuard 통과
         LocalDate serviceDate = date != null ? date : LocalDate.now();
-        List<Student> roster = studentRepository.findByAssignedBusId(bus.getId());
+        List<Student> roster = studentRepository.findByAssignedBusIdAndActiveTrue(bus.getId());
         Map<Long, List<StudentGuardian>> guardiansByStudent = roster.isEmpty() ? Map.of()
                 : studentGuardianRepository
                         .findWithGuardianByStudentIdIn(roster.stream().map(Student::getId).toList()).stream()
@@ -126,7 +126,7 @@ public class BusQueryService {
     }
 
     private int onboardCount(Long busId) {
-        return studentRepository.findByAssignedBusId(busId).size();
+        return studentRepository.findByAssignedBusIdAndActiveTrue(busId).size();
     }
 
     private Bus loadAccessibleBus(AuthUser admin, Long busId) {
