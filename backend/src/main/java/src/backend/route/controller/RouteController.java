@@ -5,7 +5,6 @@ import java.util.List;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -18,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
+import src.backend.global.security.authz.CanManageRoutes;
 import src.backend.route.dto.CreateRouteRequest;
 import src.backend.route.dto.CreateStopRequest;
 import src.backend.route.dto.RouteResponse;
@@ -47,7 +47,7 @@ public class RouteController {
             description = "배정 정원 대비 인원과 초과 경고를 함께 준다. `tenantId` 는 학원 관리자면 생략 가능, 플랫폼 관리자는 필수다. "
                     + "시드 기준 한빛학원은 1(하원 A노선)·2(하원 B노선, 정원 2)다.")
     @GetMapping
-    @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
+    @CanManageRoutes
     public ApiResponse<List<RouteResponse>> list(@AuthenticationPrincipal AuthUser admin,
                                                  @Parameter(example = "1") @RequestParam(required = false) Long tenantId) {
         return ApiResponse.ok(routeQueryService.listRoutes(admin, tenantId));
@@ -67,7 +67,7 @@ public class RouteController {
     @Operation(summary = "노선 등록",
             description = "`assignCapacity` 는 이 노선에 배정할 수 있는 학생 수 상한이며, 버스 좌석 수(`Bus.seatCapacity`)와는 별개다.")
     @PostMapping
-    @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
+    @CanManageRoutes
     public ApiResponse<RouteResponse> create(@AuthenticationPrincipal AuthUser admin,
                                              @Valid @RequestBody CreateRouteRequest request) {
         return ApiResponse.ok(routeCommandService.createRoute(admin, request));
@@ -78,7 +78,7 @@ public class RouteController {
             description = "⚠️ 정류장은 **여러 학생이 공유하는 행**이다 — 특정 학생 한 명의 위치를 바꾸려고 이 좌표를 고치면 "
                     + "같은 정류장을 쓰는 다른 학생까지 통째로 끌려간다. 개인별 위치는 학생 쪽 `/dropoff`·위치 변경 신청으로 바꾼다.")
     @PostMapping("/{id}/stops")
-    @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
+    @CanManageRoutes
     public ApiResponse<StopResponse> addStop(@AuthenticationPrincipal AuthUser admin,
                                              @Parameter(example = "1", description = "노선 id(1=하원 A노선)") @PathVariable Long id,
                                              @Valid @RequestBody CreateStopRequest request) {
