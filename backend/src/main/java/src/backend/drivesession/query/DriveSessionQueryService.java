@@ -5,7 +5,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import src.backend.attendance.query.AttendanceQueryService;
+import src.backend.attendance.roster.ActiveRosterReader;
 import src.backend.bus.access.BusCrewGuard;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.spec.BusRepository;
@@ -29,14 +29,14 @@ public class DriveSessionQueryService {
 
     private final DriveSessionRepository driveSessionRepository;
     private final BusRepository busRepository;
-    private final AttendanceQueryService attendanceQueryService;
+    private final ActiveRosterReader activeRosterReader;
 
     public DriveSessionQueryService(DriveSessionRepository driveSessionRepository,
                                     BusRepository busRepository,
-                                    AttendanceQueryService attendanceQueryService) {
+                                    ActiveRosterReader activeRosterReader) {
         this.driveSessionRepository = driveSessionRepository;
         this.busRepository = busRepository;
-        this.attendanceQueryService = attendanceQueryService;
+        this.activeRosterReader = activeRosterReader;
     }
 
     /** 기사·선탑자: 담당 버스 운행 이력. 선탑자 앱은 여기서 진행 중인 세션 id 를 고른다(§4.1 사슬). */
@@ -69,7 +69,7 @@ public class DriveSessionQueryService {
                 throw new BusinessException(ErrorCode.FORBIDDEN, "본인이 시작한 운행 또는 담당 선탑자만 조회할 수 있습니다");
             }
         }
-        List<Student> roster = attendanceQueryService.getActiveRoster(session.getBusId(), session.getServiceDate());
+        List<Student> roster = activeRosterReader.forBus(session.getBusId(), session.getServiceDate());
         return roster.stream().map(student -> toRosterEntry(student, session.getDirection())).toList();
     }
 

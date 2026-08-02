@@ -13,7 +13,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import src.backend.attendance.query.AttendanceQueryService;
+import src.backend.attendance.roster.ActiveRosterReader;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.spec.BusRepository;
 import src.backend.global.error.BusinessException;
@@ -49,18 +49,18 @@ public class RoutePlanSimulationService {
     private final RoutePlanRepository routePlanRepository;
     private final BusRepository busRepository;
     private final StudentRepository studentRepository;
-    private final AttendanceQueryService attendanceQueryService;
+    private final ActiveRosterReader activeRosterReader;
     private final RoutePlanComputer computer;
 
     public RoutePlanSimulationService(RoutePlanRepository routePlanRepository,
                                       BusRepository busRepository,
                                       StudentRepository studentRepository,
-                                      AttendanceQueryService attendanceQueryService,
+                                      ActiveRosterReader activeRosterReader,
                                       RoutePlanComputer computer) {
         this.routePlanRepository = routePlanRepository;
         this.busRepository = busRepository;
         this.studentRepository = studentRepository;
-        this.attendanceQueryService = attendanceQueryService;
+        this.activeRosterReader = activeRosterReader;
         this.computer = computer;
     }
 
@@ -102,7 +102,7 @@ public class RoutePlanSimulationService {
         LocalDate serviceDate = reqDate != null ? reqDate : LocalDate.now();
 
         Map<Long, LatLng> points = new LinkedHashMap<>();   // 삽입 순서 유지
-        for (Student s : attendanceQueryService.getActiveRoster(bus.getId(), serviceDate)) {
+        for (Student s : activeRosterReader.forBus(bus.getId(), serviceDate)) {
             LatLng p = RoutePlanComputer.pointOf(s, direction);
             if (p != null) {
                 points.put(s.getId(), p);   // 좌표 없는 학생은 조용히 제외 — 한 명 때문에 비교 화면이 죽으면 안 된다

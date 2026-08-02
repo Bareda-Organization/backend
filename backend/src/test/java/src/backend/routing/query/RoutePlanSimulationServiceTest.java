@@ -16,7 +16,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import src.backend.attendance.query.AttendanceQueryService;
+import src.backend.attendance.roster.ActiveRosterReader;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.spec.BusRepository;
 import src.backend.global.error.BusinessException;
@@ -53,7 +53,7 @@ class RoutePlanSimulationServiceTest {
     private final RoutePlanRepository routePlanRepository = mock(RoutePlanRepository.class);
     private final BusRepository busRepository = mock(BusRepository.class);
     private final StudentRepository studentRepository = mock(StudentRepository.class);
-    private final AttendanceQueryService attendanceQueryService = mock(AttendanceQueryService.class);
+    private final ActiveRosterReader activeRosterReader = mock(ActiveRosterReader.class);
 
     /** 삽입 순서를 그대로 돌려주는 결정적 엔진 — 최적화 품질이 아니라 배치·오프셋을 검증한다. */
     private final RouteEngine routeEngine = (depot, points) -> new ArrayList<>(points.keySet());
@@ -61,7 +61,7 @@ class RoutePlanSimulationServiceTest {
     private final RoutePlanComputer computer = new RoutePlanComputer(routeEngine, mapRouteClient, 7);
 
     private final RoutePlanSimulationService service = new RoutePlanSimulationService(
-            routePlanRepository, busRepository, studentRepository, attendanceQueryService, computer);
+            routePlanRepository, busRepository, studentRepository, activeRosterReader, computer);
 
     /** 구간당 1000m·60s 고정 — 정차가 1개 줄면 델타가 정확히 −1000m/−60s 로 나온다. 외부 호출 없음. */
     static class FakeMapRouteClient implements MapRouteClient {
@@ -218,7 +218,7 @@ class RoutePlanSimulationServiceTest {
     }
 
     private void givenRoster(Student... students) {
-        given(attendanceQueryService.getActiveRoster(BUS_ID, SERVICE_DATE)).willReturn(List.of(students));
+        given(activeRosterReader.forBus(BUS_ID, SERVICE_DATE)).willReturn(List.of(students));
         given(studentRepository.findAllById(any())).willReturn(List.of(students));
     }
 

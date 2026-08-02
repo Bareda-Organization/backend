@@ -15,7 +15,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import src.backend.attendance.query.AttendanceQueryService;
+import src.backend.attendance.roster.ActiveRosterReader;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.spec.BusRepository;
 import src.backend.global.error.BusinessException;
@@ -58,7 +58,7 @@ public class RoutingCommandService {
     private final RoutePlanRepository routePlanRepository;
     private final BusRepository busRepository;
     private final StudentRepository studentRepository;
-    private final AttendanceQueryService attendanceQueryService;
+    private final ActiveRosterReader activeRosterReader;
     private final BusAssigner busAssigner;
     private final ApplicationEventPublisher eventPublisher;
     private final RoutePlanComputer computer;
@@ -67,7 +67,7 @@ public class RoutingCommandService {
     public RoutingCommandService(RoutePlanRepository routePlanRepository,
                                  BusRepository busRepository,
                                  StudentRepository studentRepository,
-                                 AttendanceQueryService attendanceQueryService,
+                                 ActiveRosterReader activeRosterReader,
                                  BusAssigner busAssigner,
                                  ApplicationEventPublisher eventPublisher,
                                  RoutePlanComputer computer,
@@ -75,7 +75,7 @@ public class RoutingCommandService {
         this.routePlanRepository = routePlanRepository;
         this.busRepository = busRepository;
         this.studentRepository = studentRepository;
-        this.attendanceQueryService = attendanceQueryService;
+        this.activeRosterReader = activeRosterReader;
         this.busAssigner = busAssigner;
         this.eventPublisher = eventPublisher;
         this.computer = computer;
@@ -145,7 +145,7 @@ public class RoutingCommandService {
         }
         LatLng depot = computer.requireDepot(buses.get(0).getTenant());
 
-        List<Student> roster = attendanceQueryService.getActiveRosterForTenant(tenantId, serviceDate);
+        List<Student> roster = activeRosterReader.forTenant(tenantId, serviceDate);
         Map<Long, LatLng> points = new LinkedHashMap<>();
         List<String> excluded = new ArrayList<>();
         for (Student student : roster) {
@@ -339,7 +339,7 @@ public class RoutingCommandService {
     }
 
     private RoutePlan buildPlan(Bus bus, RouteDirection direction, LocalDate serviceDate, RoutePlanStatus status) {
-        List<Student> roster = attendanceQueryService.getActiveRoster(bus.getId(), serviceDate);
+        List<Student> roster = activeRosterReader.forBus(bus.getId(), serviceDate);
         if (roster.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "생성할 로스터가 없습니다(당일 활성 학생 0명)");
         }

@@ -19,7 +19,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import src.backend.attendance.query.AttendanceQueryService;
+import src.backend.attendance.roster.ActiveRosterReader;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.spec.BusRepository;
 import src.backend.global.error.BusinessException;
@@ -38,6 +38,8 @@ import src.backend.routing.engine.RoutePlanComputer;
 import src.backend.routing.engine.spec.BusAssigner;
 import src.backend.routing.engine.spec.RouteEngine;
 import src.backend.routing.entity.RoutePlan;
+import src.backend.routing.entity.RoutePlanStop;
+import src.backend.routing.event.RoutePlanPublishedEvent;
 import src.backend.routing.infrastructure.spec.MapRouteClient;
 import src.backend.routing.infrastructure.spec.RouteResult;
 import src.backend.routing.query.RoutePlanSimulationService;
@@ -58,11 +60,13 @@ class RoutingCommandServiceTest {
     private static final Long TENANT_ID = 1L;
     private static final Long BUS_ID = 10L;
     private static final LocalDate SERVICE_DATE = LocalDate.of(2026, 8, 2);
+    /** P2(위치 변경)를 신청한 학부모 — republishForBus 의 actor 다(관리자가 아니다). */
+    private static final Long PARENT_ID = 500L;
 
     private final RoutePlanRepository routePlanRepository = mock(RoutePlanRepository.class);
     private final BusRepository busRepository = mock(BusRepository.class);
     private final StudentRepository studentRepository = mock(StudentRepository.class);
-    private final AttendanceQueryService attendanceQueryService = mock(AttendanceQueryService.class);
+    private final ActiveRosterReader activeRosterReader = mock(ActiveRosterReader.class);
     private final BusAssigner busAssigner = mock(BusAssigner.class);
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
 
@@ -73,10 +77,10 @@ class RoutingCommandServiceTest {
 
     /** 시뮬레이션은 mock 이 아니라 실제 구현을 쓴다 — 채택(apply)이 "서버 재계산" 결과를 저장하는지가 검증 대상이라서. */
     private final RoutePlanSimulationService simulationService = new RoutePlanSimulationService(
-            routePlanRepository, busRepository, studentRepository, attendanceQueryService, computer);
+            routePlanRepository, busRepository, studentRepository, activeRosterReader, computer);
 
     private final RoutingCommandService service = new RoutingCommandService(
-            routePlanRepository, busRepository, studentRepository, attendanceQueryService,
+            routePlanRepository, busRepository, studentRepository, activeRosterReader,
             busAssigner, eventPublisher, computer, simulationService);
 
     /** 구간당 1000m·60s 고정 — 정차가 1개 줄면 델타가 정확히 −1000m/−60s 로 나온다. 외부 호출 없음. */
@@ -296,6 +300,68 @@ class RoutingCommandServiceTest {
         assertThat(savedPlan.getValue()).isNotSameAs(baseline);
     }
 
+    // ── BE-10: P2 자동 적용(republishForBus) ──
+
+    /**
+     * 학부모 위치 변경(P2)이 동기로 기대는 계약을 고정한다 — 반환값이 그대로
+     * {@code LocationChangeRequest.appliedPlanId} 와 응답 {@code appliedPlanId} 가 되므로,
+     * "저장된 새 계획의 id 를 돌려준다"가 깨지면 학부모 앱에 보이는 값이 바뀐다(reference.md §6 예외).
+     */
+    @Test
+    void republishForBus_returnsIdOfNewlyPublishedVersion() {
+        givenBus(bus(25, tenant(37.500, 127.000)));
+        givenSaveAssignsId(1234L);
+        givenRoster(dropoffStudent(101L, 37.501, 127.001), dropoffStudent(102L, 37.502, 127.002));
+        givenLatestPlan(existingPlan(3, RoutePlanStatus.PUBLISHED));
+
+        Long planId = service.republishForBus(BUS_ID, RouteDirection.DROPOFF, SERVICE_DATE, PARENT_ID);
+
+        assertThat(planId).isEqualTo(1234L);
+        ArgumentCaptor<RoutePlan> saved = ArgumentCaptor.forClass(RoutePlan.class);
+        verify(routePlanRepository).save(saved.capture());
+        assertThat(saved.getValue().getVersion()).isEqualTo(4);                       // I-5: 새 행
+        // D-H: 관리자 승인 단계가 없다 — RECOMMENDED 에서 멈추지 않고 PUBLISHED 까지 간다.
+        // 여기서 멈추면 기사 조회 API(PUBLISHED 만 노출)에 새 노선이 안 보여 "반영됐다"는 응답이 거짓이 된다.
+        assertThat(saved.getValue().getStatus()).isEqualTo(RoutePlanStatus.PUBLISHED);
+        assertThat(saved.getValue().getApprovedBy()).isEqualTo(PARENT_ID);            // 촉발한 학부모가 남는다
+        assertThat(saved.getValue().getPublishedBy()).isEqualTo(PARENT_ID);
+        verify(eventPublisher).publishEvent(any(RoutePlanPublishedEvent.class));      // F3: 기사 알림
+    }
+
+    /** 재계산 명단은 {@link ActiveRosterReader} 가 정한다 — 승인 결석자는 새 노선의 정차에서 빠진다. */
+    @Test
+    void republishForBus_planStopsFollowActiveRoster() {
+        givenBus(bus(25, tenant(37.500, 127.000)));
+        givenSaveAssignsId(1234L);
+        givenRoster(dropoffStudent(101L, 37.501, 127.001));   // 102 는 결석 승인돼 명단에서 빠진 상태
+        givenLatestPlan(existingPlan(3, RoutePlanStatus.PUBLISHED));
+
+        service.republishForBus(BUS_ID, RouteDirection.DROPOFF, SERVICE_DATE, PARENT_ID);
+
+        ArgumentCaptor<RoutePlan> saved = ArgumentCaptor.forClass(RoutePlan.class);
+        verify(routePlanRepository).save(saved.capture());
+        assertThat(saved.getValue().getStops()).extracting(RoutePlanStop::getStudentId).containsExactly(101L);
+    }
+
+    /**
+     * 로스터 0명이면 예외로 끝난다 — 조용히 성공하지 않는다는 것이 중요하다.
+     * 호출자({@code LocationChangeCommandService})가 이 예외로 트랜잭션을 롤백해
+     * "좌표는 바뀌었는데 노선은 옛날 것" 상태를 만들지 않는다.
+     */
+    @Test
+    void republishForBus_emptyRoster_throwsInvalidInputAndSavesNothing() {
+        givenBus(bus(25, tenant(37.500, 127.000)));
+        givenRoster();
+
+        assertThatThrownBy(() -> service.republishForBus(BUS_ID, RouteDirection.DROPOFF, SERVICE_DATE, PARENT_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+
+        verify(routePlanRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any(RoutePlanPublishedEvent.class));
+    }
+
     // ── fixtures ──
 
     private void givenBus(Bus bus) {
@@ -303,8 +369,17 @@ class RoutingCommandServiceTest {
         given(routePlanRepository.save(any(RoutePlan.class))).willAnswer(inv -> inv.getArgument(0));
     }
 
+    /** 저장 시 id 를 채워 돌려준다 — republishForBus 의 반환값(appliedPlanId)이 이 id 다. */
+    private void givenSaveAssignsId(Long planId) {
+        given(routePlanRepository.save(any(RoutePlan.class))).willAnswer(inv -> {
+            RoutePlan plan = inv.getArgument(0);
+            ReflectionTestUtils.setField(plan, "id", planId);
+            return plan;
+        });
+    }
+
     private void givenRoster(Student... students) {
-        given(attendanceQueryService.getActiveRoster(BUS_ID, SERVICE_DATE)).willReturn(List.of(students));
+        given(activeRosterReader.forBus(BUS_ID, SERVICE_DATE)).willReturn(List.of(students));
     }
 
     private void givenLatestPlan(RoutePlan plan) {

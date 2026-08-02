@@ -50,6 +50,8 @@ location/
 `global/`이 아니라 판정 대상을 소유한 도메인에 두는 이유: `global`은 모든 모듈이 의존하는 바닥이라 특정 도메인 Repository를 참조하면 의존이 역전된다.
 형태 2가지 — 의존 없으면 `public final class` + `static`(`bus/access/BusCrewGuard`), Repository가 필요하면 스프링 빈(`student/access/GuardianAccess`). `global/tenant/TenantGuard`는 도메인 무관이라 `global`에 있는 예외(static).
 
+같은 이유로 **여러 모듈이 공유하는 순수 조회 규칙**도 `query/` 밖에 둔다 — 호출자에 Command 서비스가 섞이는 순간 `query/`는 §7 위반을 만든다. 판정이면 `access/`, 명단·집계 같은 읽기 규칙이면 그 이름의 패키지를 만든다(`attendance/roster/ActiveRosterReader` = "당일 실제 명단" 규칙, 기사 앱·노선 계산·시뮬레이션 3곳이 공유). 표준 레이아웃에 항상 있는 패키지가 아니라 필요한 모듈에만 둔다.
+
 ## 4. spec / impl 구조
 
 ```
@@ -86,6 +88,8 @@ private final NotificationSender notificationSender;
 - **Query**: 조회 전용
 
 Command는 Query를 호출하지 않는다.
+
+Command에 조회가 필요하면 Query 서비스를 부르는 대신 §3의 공유 읽기 계층(`access/`·`roster/`)으로 내린다. 그 규칙을 Query 서비스도 함께 쓰면 "명단이 두 벌"이 되는 것도 막힌다.
 
 ## 8. Projection 원칙
 

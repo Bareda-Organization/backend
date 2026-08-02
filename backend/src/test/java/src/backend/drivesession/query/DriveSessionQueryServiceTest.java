@@ -12,7 +12,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import src.backend.attendance.query.AttendanceQueryService;
+import src.backend.attendance.roster.ActiveRosterReader;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.spec.BusRepository;
 import src.backend.drivesession.dto.DriveSessionResponse;
@@ -37,10 +37,10 @@ class DriveSessionQueryServiceTest {
 
     private final DriveSessionRepository driveSessionRepository = mock(DriveSessionRepository.class);
     private final BusRepository busRepository = mock(BusRepository.class);
-    private final AttendanceQueryService attendanceQueryService = mock(AttendanceQueryService.class);
+    private final ActiveRosterReader activeRosterReader = mock(ActiveRosterReader.class);
 
     private final DriveSessionQueryService service = new DriveSessionQueryService(
-            driveSessionRepository, busRepository, attendanceQueryService);
+            driveSessionRepository, busRepository, activeRosterReader);
 
     private static final Long TENANT_ID = 1L;
 
@@ -78,7 +78,7 @@ class DriveSessionQueryServiceTest {
         Student student = student(1L, "김민준", "https://cdn.example.com/students/1.jpg",
                 stop("정류장 A", 37.5010, 127.0275));
         student.updatePickup("자택 앞", 37.5002, 127.0262);
-        given(attendanceQueryService.getActiveRoster(1L, session.getServiceDate()))
+        given(activeRosterReader.forBus(1L, session.getServiceDate()))
                 .willReturn(List.of(student));
 
         List<DriveSessionRosterEntry> roster = service.getRoster(actor, 5L);
