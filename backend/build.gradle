@@ -63,3 +63,34 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
 }
+
+/**
+ * backend/.env 를 bootRun 의 환경변수로 주입한다.
+ *
+ * 컨테이너로 띄울 때는 docker-compose 의 `env_file: ./backend/.env` 가 이 일을 하지만,
+ * 로컬에서 `./gradlew bootRun` 으로 띄우면 아무도 .env 를 읽지 않는다 — Spring Boot 는 .env 를
+ * 지원하지 않는다. 그래서 NAVER_DIRECTIONS_KEY_ID/KEY 가 빈 값으로 남고, NCP 가 401 을 주어
+ * 배차 시뮬레이션(/api/route-plans/simulate·/simulate/apply·generate·auto-assign)과
+ * 학부모 위치변경의 REPLANNED 경로가 전부 500 으로 죽는다.
+ *
+ * .env 는 .gitignore 대상이라 없는 환경(CI 등)도 정상이다 — 그때는 조용히 건너뛰고
+ * application.yml 의 기본값(빈 문자열)이 그대로 쓰인다.
+ */
+tasks.named('bootRun') {
+    def envFile = file('.env')
+    if (envFile.exists()) {
+        envFile.readLines('UTF-8').each { line ->
+            def trimmed = line.trim()
+            if (trimmed.isEmpty() || trimmed.startsWith('#') || !trimmed.contains('=')) {
+                return
+            }
+            def idx = trimmed.indexOf('=')
+            def key = trimmed.substring(0, idx).trim()
+            // 값에 = 가 들어갈 수 있으므로 첫 = 만 기준으로 자른다. 따옴표는 벗긴다.
+            def value = trimmed.substring(idx + 1).trim().replaceAll(/^["']|["']$/, '')
+            if (!key.isEmpty()) {
+                environment key, value
+            }
+        }
+    }
+}
