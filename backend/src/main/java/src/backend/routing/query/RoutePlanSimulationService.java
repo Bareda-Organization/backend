@@ -139,6 +139,14 @@ public class RoutePlanSimulationService {
             if (!student.getTenant().getId().equals(bus.getTenant().getId())) {
                 throw new BusinessException(ErrorCode.FORBIDDEN);   // 타 학원 학생 끌어오기 차단
             }
+            // I-9: override 는 getActiveRoster(활성 필터)를 거치지 않고 학생을 직접 주입하는 경로다.
+            // 여기서 막지 않으면 퇴원 학생이 비교 결과에 되살아나고, 채택(apply)까지 가면
+            // 배포된 노선의 정차로 저장돼 그 보호자에게 근접·미승차 알림이 나간다.
+            // REMOVE 는 위에서 이미 빠져나갔다 — 빼는 것은 비활성이어도 언제나 허용한다.
+            if (!student.isActive()) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT,
+                        "비활성(퇴원) 학생은 배차에 넣을 수 없습니다: studentId=" + o.studentId());
+            }
             points.put(o.studentId(), new LatLng(o.lat(), o.lng()));
         }
     }

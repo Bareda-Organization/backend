@@ -143,6 +143,40 @@ class RoutePlanSimulationServiceTest {
         assertThat(result.seatCapacity()).isEqualTo(2);
     }
 
+    /**
+     * I-9 회귀 — override 는 getActiveRoster 를 거치지 않고 학생을 직접 주입하므로,
+     * 여기서 막지 않으면 퇴원(active=false) 학생이 시뮬레이션 결과에 되살아난다.
+     */
+    @Test
+    void compare_addOverrideOnInactiveStudent_throwsInvalidInput() {
+        givenBus(bus(25, TENANT_ID));
+        givenRoster(dropoffStudent(101L));
+        Student inactive = dropoffStudent(999L);
+        inactive.deactivate();
+        given(studentRepository.findById(999L)).willReturn(Optional.of(inactive));
+
+        assertThatThrownBy(() -> service.compare(BUS_ID, RouteDirection.DROPOFF, SERVICE_DATE,
+                List.of(add(999L, 37.51, 127.03))))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    /** 반대로 REMOVE 는 비활성이어도 통과해야 한다 — 빼는 것은 언제나 안전하고, 막으면 정리를 할 수 없다. */
+    @Test
+    void compare_removeOverrideOnInactiveStudent_isAllowed() {
+        givenBus(bus(25, TENANT_ID));
+        Student inactive = dropoffStudent(102L);
+        inactive.deactivate();
+        givenRoster(dropoffStudent(101L), inactive);
+
+        RoutePlanComparison result = service.compare(BUS_ID, RouteDirection.DROPOFF, SERVICE_DATE,
+                List.of(remove(102L)));
+
+        assertThat(result.candidate().stops()).extracting(RoutePlanComparison.StopView::studentId)
+                .containsExactly(101L);
+    }
+
     @Test
     void compare_savesNothing() {
         givenBus(bus(25, TENANT_ID));
@@ -195,6 +229,10 @@ class RoutePlanSimulationServiceTest {
 
     private StudentOverride remove(Long studentId) {
         return new StudentOverride(studentId, StudentOverride.OverrideAction.REMOVE, null, null);
+    }
+
+    private StudentOverride add(Long studentId, double lat, double lng) {
+        return new StudentOverride(studentId, StudentOverride.OverrideAction.ADD, lat, lng);
     }
 
     private RoutePlan baselinePlan(int version, double distanceM, double durationS, Long... studentIds) {

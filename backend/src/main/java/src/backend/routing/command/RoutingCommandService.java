@@ -263,6 +263,12 @@ public class RoutingCommandService {
                 student.assignBus(null);
                 continue;
             }
+            // I-9: 쓰기 경로는 자기 전제를 스스로 검사한다. 시뮬레이션(applyOverrides)이 먼저 같은 검사를
+            // 하지만, 그건 다른 클래스의 조회 메서드라 여기서 기대면 결합이 보이지 않아 깨지기 쉽다.
+            if (!student.isActive()) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT,
+                        "비활성(퇴원) 학생은 배차에 넣을 수 없습니다: studentId=" + o.studentId());
+            }
             student.assignBus(bus);   // ADD · MOVE 공통
             if (req.direction() == RouteDirection.PICKUP) {
                 student.updatePickup(student.getPickupAddress(), o.lat(), o.lng());

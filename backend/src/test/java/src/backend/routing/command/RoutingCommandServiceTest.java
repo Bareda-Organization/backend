@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import java.time.LocalDate;
@@ -204,6 +205,30 @@ class RoutingCommandServiceTest {
         // 채택은 시뮬레이션과 달리 배정을 실제로 커밋한다
         assertThat(added.getAssignedBus()).isNotNull();
         assertThat(added.getAssignedBus().getId()).isEqualTo(BUS_ID);
+    }
+
+    /**
+     * I-9 회귀 — 채택 경로가 뚫리면 피해가 가장 크다. commitOverrides 가 assignBus 로 퇴원 학생을
+     * 버스에 되돌리고, 이어지는 persistPlan 이 그 학생을 PUBLISHED 노선의 정차로 저장한다.
+     * 그러면 DriveSessionCommandService 가 plan.getStops() 를 순회하며 퇴원생 보호자에게
+     * 근접·미승차 알림까지 보낸다.
+     */
+    @Test
+    void applySimulation_addOverrideOnInactiveStudent_throwsInvalidInputAndDoesNotAssignBus() {
+        givenBus(bus(25, tenant(37.500, 127.000)));
+        givenRoster(dropoffStudent(101L, 37.501, 127.001));
+        Student inactive = dropoffStudent(201L, 37.505, 127.005);
+        inactive.deactivate();
+        given(studentRepository.findById(201L)).willReturn(Optional.of(inactive));
+
+        assertThatThrownBy(() -> service.applySimulation(admin(), simulateRequest(RouteDirection.DROPOFF,
+                new StudentOverride(201L, OverrideAction.ADD, 37.505, 127.005))))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+
+        assertThat(inactive.getAssignedBus()).isNull();          // 배정이 커밋되지 않았다
+        verify(routePlanRepository, never()).save(any());        // 노선도 저장되지 않았다
     }
 
     @Test
