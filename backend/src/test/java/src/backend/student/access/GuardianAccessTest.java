@@ -1,7 +1,7 @@
 package src.backend.student.access;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
@@ -53,10 +53,11 @@ class GuardianAccessTest {
         given(studentGuardianRepository.findByGuardianId(PARENT_ID))
                 .willReturn(List.of(studentGuardian(otherStudent)));
 
-        assertThatThrownBy(() -> guardianAccess.requireGuardianOf(parent, STUDENT_ID))
-                .isInstanceOf(BusinessException.class)
-                .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(ErrorCode.FORBIDDEN);
+        BusinessException ex = catchThrowableOfType(BusinessException.class,
+                () -> guardianAccess.requireGuardianOf(parent, STUDENT_ID));
+
+        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+        assertThat(ex).hasMessageContaining("자녀가 아닙니다");
     }
 
     @Test
@@ -64,17 +65,36 @@ class GuardianAccessTest {
         AuthUser parent = authUser(PARENT_ID, Role.PARENT);
         given(studentGuardianRepository.findByGuardianId(PARENT_ID)).willReturn(List.of());
 
-        assertThatThrownBy(() -> guardianAccess.requireGuardianOf(parent, STUDENT_ID))
-                .isInstanceOf(BusinessException.class)
-                .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(ErrorCode.FORBIDDEN);
+        BusinessException ex = catchThrowableOfType(BusinessException.class,
+                () -> guardianAccess.requireGuardianOf(parent, STUDENT_ID));
+
+        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+        assertThat(ex).hasMessageContaining("자녀가 아닙니다");
+    }
+
+    @Test
+    void requireGuardianOf_deactivatedStudent_throwsForbiddenWithDeactivatedMessage() {
+        AuthUser parent = authUser(PARENT_ID, Role.PARENT);
+        Student student = student(STUDENT_ID);
+        student.deactivate(); // 퇴원 처리 — active=false
+        given(studentGuardianRepository.findByGuardianId(PARENT_ID))
+                .willReturn(List.of(studentGuardian(student)));
+
+        BusinessException ex = catchThrowableOfType(BusinessException.class,
+                () -> guardianAccess.requireGuardianOf(parent, STUDENT_ID));
+
+        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+        assertThat(ex).hasMessageContaining("퇴원");
     }
 
     private Student student(Long id) {
         Tenant tenant = Tenant.builder().name("한빛학원").build();
         ReflectionTestUtils.setField(tenant, "id", TENANT_ID);
+        // Student.builder() 는 active 필드를 받지 않는다 — 엔티티 필드 기본값(active=true, 재학 중)이
+        // 그대로 적용된다는 전제로 이 테스트들은 "재학 중인 자녀" 케이스를 검증한다.
         Student student = Student.builder().tenant(tenant).name("김민준").build();
         ReflectionTestUtils.setField(student, "id", id);
+        assertThat(student.isActive()).isTrue();
         return student;
     }
 
