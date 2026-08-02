@@ -5,7 +5,6 @@ import java.util.List;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,6 +16,9 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
+import src.backend.global.security.authz.CanManageScheduleRequests;
+import src.backend.global.security.authz.CanReadOwnChildren;
+import src.backend.global.security.authz.CanSubmitGuardianRequest;
 import src.backend.schedule.command.LocationChangeCommandService;
 import src.backend.schedule.dto.CreateLocationChangeRequest;
 import src.backend.schedule.dto.LocationChangeRequestResponse;
@@ -44,7 +46,7 @@ public class LocationChangeController {
 
     /** 학부모: 자녀 등하원 위치 변경 신청(자동 판정). */
     @PostMapping
-    @PreAuthorize("hasRole('PARENT')")
+    @CanSubmitGuardianRequest
     @Operation(summary = "등하원 위치 변경 신청 (학부모, 자동 판정)",
             description = """
                     자녀의 승차지(PICKUP)·하차지(DROPOFF) 좌표를 바꿔 달라고 신청한다. **관리자 승인 단계가 없다** —
@@ -77,7 +79,7 @@ public class LocationChangeController {
 
     /** 학부모: 내 신청 이력. */
     @GetMapping("/children")
-    @PreAuthorize("hasRole('PARENT')")
+    @CanReadOwnChildren
     @Operation(summary = "내 신청 이력 (학부모)",
             description = "연결된 자녀 전원의 신청 이력. 반려(`REJECTED`)·차단(`BLOCKED`) 건도 판정 사유(`reason`)와 함께 나온다 — "
                     + "학부모가 '왜 안 됐는지'를 앱에서 그대로 읽게 하기 위해서다. 파라미터가 없어 남의 자녀 이력을 볼 수 없다.",
@@ -88,7 +90,7 @@ public class LocationChangeController {
 
     /** 관리자: 학원 신청 이력(반려·차단 포함 — 감사 목적). */
     @GetMapping
-    @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
+    @CanManageScheduleRequests
     @Operation(summary = "학원 신청 이력 (관리자, 감사용)",
             description = "⚠️ **승인·반려 권한이 아니다** — 판정은 이미 서버가 끝냈고 관리자는 결과를 열람만 한다. "
                     + "이 저장소에는 별도 감사 로그 테이블이 없어서, 이 목록이 '누가 무엇을 시도했는지'의 유일한 기록이다. "
