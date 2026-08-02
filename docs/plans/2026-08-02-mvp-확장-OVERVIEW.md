@@ -122,6 +122,12 @@ fix(frontend): 학부모 지도 구독 해제 누락 수정 [FE-8]
 - **I-8.** 삭제 계열 API(`DELETE /api/members/{id}`, `DELETE /api/students/{id}`)는 **`app_user`·`student` 행을 물리 삭제하지 않는다**(D-O)
 - **I-9.** `active = false` 인 학생은 **명단·배차·시뮬레이션 대상에서 제외**된다. 조회 계층이 기본으로 걸러낸다(`BE-13`)
 
+> **`location_change_request` 컬럼 정본(2026-08-02 `BE-1` 구현으로 확정)** — `BE-10` 엔티티는 여기에 맞춘다.
+> `delta_distance_m` · `delta_duration_s` · `new_lat`(NN) · `new_lng`(NN) · `target_date`(NN) · `applied_plan_id` ·
+> `created_at` · `id` · `requested_by`(NN) · `student_id`(NN) · `tenant_id`(NN) · `updated_at` ·
+> `decision`(NN, CHECK) · `direction`(NN, CHECK) · `new_address` · `reason`.
+> 초안이 쓰던 `lat`/`lng`/`label`/`result_route_plan_id` 는 **폐기**다.
+
 ---
 
 ## 3. 데이터 모델 변경 (전체)
@@ -276,6 +282,7 @@ public record StudentOverride(
 }
 
 // routing/dto/RoutePlanComparison.java — 비교 결과 (BE-4)
+// ⚠️ 컴포넌트 순서는 이 선언이 정본이다 — seatCapacity 는 delta 다음 마지막 자리다.
 public record RoutePlanComparison(
         Snapshot baseline,              // 현재 최신 계획. 없으면 null
         Snapshot candidate,
@@ -292,7 +299,8 @@ public record RoutePlanComparison(
 
     public record StopView(
             int seq, Long studentId, String studentName,
-            String label,               // 정류장명(PICKUP) 또는 하차지 주소(DROPOFF)
+            String label,               // PICKUP = pickupAddress → 없으면 boardingStop.name / DROPOFF = dropoffAddress
+                                        // 전부 비면 "좌표 지정". 라벨 우선순위는 좌표 우선순위(D-K)와 같은 순서다
             double lat, double lng, long etaSeconds) {}
 
     public record Delta(
