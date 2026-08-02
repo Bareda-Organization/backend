@@ -5,7 +5,6 @@ import java.util.List;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,6 +13,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
+import src.backend.global.security.authz.CanMonitorOperations;
+import src.backend.global.security.authz.CanReadOwnChildren;
 import src.backend.notification.dto.NotificationResponse;
 import src.backend.notification.query.spec.NotificationQueryService;
 
@@ -34,7 +35,7 @@ public class NotificationController {
 
     /** 학부모: 자녀(형제자매 포함) 알림함. */
     @GetMapping("/children")
-    @PreAuthorize("hasRole('PARENT')")
+    @CanReadOwnChildren
     @Operation(summary = "알림함 (학부모)",
             description = "자녀 승하차·근접·미승차·노선 배포·**등하원 위치 변경 판정 결과(LOCATION_CHANGE_RESULT)** 알림이 쌓인다. "
                     + "발송은 다른 모듈이 트리거하고 여기는 조회만 한다.",
@@ -45,7 +46,7 @@ public class NotificationController {
 
     /** 관리자: 학원 알림 이력. */
     @GetMapping
-    @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
+    @CanMonitorOperations
     @Operation(summary = "학원 알림 이력 (관리자)",
             description = "`tenantId` 는 학원 관리자면 생략 가능, 플랫폼 관리자는 필수다.",
             tags = {"00. MVP 사용 API", "14. 알림(Notification)"})
