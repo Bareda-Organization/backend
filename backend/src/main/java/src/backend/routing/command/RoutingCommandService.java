@@ -226,6 +226,25 @@ public class RoutingCommandService {
     }
 
     /**
+     * P2 자동 적용 전용(BE-10) — 재계산해 새 version 을 만들고 승인·배포까지 한 번에 한다(D-H, 무승인).
+     * <p>기존 {@link #replanForStudent} 계열은 {@code RECOMMENDED} 에서 멈춰 관리자 승인을 기다리는데,
+     * 학부모 위치 변경은 승인 단계가 없다 — 그대로 두면 기사·선탑자 조회 API({@code PUBLISHED} 만 노출)에
+     * 새 노선이 보이지 않아 "반영됐다"고 응답해놓고 실제 운행은 옛 노선으로 돈다.
+     * <p>{@code actorUserId}(신청한 학부모)가 {@code approvedBy}·{@code publishedBy} 에 남는데,
+     * "누가 촉발했는지" 를 남기려는 의도적 선택이다.
+     * <p>인가는 호출자({@code LocationChangeCommandService})가 이미 끝냈다 — 이 메서드를 컨트롤러에 직접 노출하지 마라.
+     */
+    @Transactional
+    public Long republishForBus(Long busId, RouteDirection direction, LocalDate serviceDate, Long actorUserId) {
+        Bus bus = busRepository.findById(busId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "버스를 찾을 수 없습니다"));
+        RoutePlan plan = buildPlan(bus, direction, serviceDate, RoutePlanStatus.RECOMMENDED);
+        plan.approve(actorUserId);
+        publishAndNotify(plan, actorUserId);   // 기존 private 메서드 재사용
+        return plan.getId();
+    }
+
+    /**
      * 변경안을 Student 에 커밋한다. 방향에 따라 저장 위치가 다르다 —
      * PICKUP 은 pickupLat/pickupLng(D-K), DROPOFF 는 dropoffLat/dropoffLng.
      * boardingStop 은 여러 학생이 공유하는 Stop 이라 절대 건드리지 않는다.
