@@ -1,6 +1,7 @@
 package src.backend.user.repository.spec;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -19,4 +20,10 @@ public interface UserTenantRoleRepository extends JpaRepository<UserTenantRole, 
 
     /** 학원 내 특정 역할 구성원(예: 기사 배차 드롭다운). */
     List<UserTenantRole> findByTenantIdAndRole(Long tenantId, Role role);
+
+    /**
+     * "이 사람이 이 학원 구성원인가"를 한 번에 본다 — 구성원 상세·수정·해제의 유일한 격리 지점.
+     * 사용자부터 찾고 나중에 학원을 검사하면 검사 한 번을 빠뜨리는 순간 전 학원 계정 조회기가 된다.
+     */
+    Optional<UserTenantRole> findByUserIdAndTenantId(Long userId, Long tenantId);
 }

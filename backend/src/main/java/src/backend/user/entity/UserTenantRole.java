@@ -54,4 +54,13 @@ public class UserTenantRole extends BaseTimeEntity {
         this.tenant = tenant;
         this.role = role;
     }
+
+    /**
+     * 이 학원에서의 역할 변경.
+     * ⚠️ unique(user_id, tenant_id, role) 이라 같은 사람이 그 학원에서 이미 그 역할을 갖고 있으면
+     * 제약 위반이 난다 — 호출자가 먼저 중복을 검사한다.
+     */
+    public void changeRole(Role role) {
+        this.role = role;
+    }
 }

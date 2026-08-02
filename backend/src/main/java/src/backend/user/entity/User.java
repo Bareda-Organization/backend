@@ -48,4 +48,30 @@ public class User extends BaseTimeEntity {
         this.phone = phone;
         this.photoUrl = photoUrl;
     }
+
+    /**
+     * 인적 정보 갱신 — null 은 "그대로"다.
+     * ⚠️ User–Tenant 는 N:M 이라 이 값은 이 사람이 속한 모든 학원에서 함께 바뀐다.
+     */
+    public void updateProfile(String name, String phone, String photoUrl) {
+        if (name != null) {
+            this.name = name;
+        }
+        if (phone != null) {
+            this.phone = phone;
+        }
+        if (photoUrl != null) {
+            this.photoUrl = photoUrl;
+        }
+    }
+
+    /** 로그인 ID(이메일) 변경 — 중복 검사는 호출자가 먼저 한다. */
+    public void changeEmail(String email) {
+        this.email = email;
+    }
+
+    /** 비밀번호 변경 — 인코딩된 값만 넣는다(평문 금지). */
+    public void changePassword(String encodedPassword) {
+        this.password = encodedPassword;
+    }
 }
