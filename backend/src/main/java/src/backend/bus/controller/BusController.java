@@ -1,10 +1,12 @@
 package src.backend.bus.controller;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -61,11 +63,18 @@ public class BusController {
         return ApiResponse.ok(busQueryService.listBuses(admin, tenantId));
     }
 
-    /** 버스 상세 — 노선·기사·탑승/정원·명단. */
+    /**
+     * 버스 상세 — 버스·기사·선탑자·당일 배포 노선·명단(보호자 포함).
+     * 개인정보 밀도가 가장 높은 응답이라 클래스 레벨 관리자 전용 권한을 그대로 둔다(메서드 레벨로 열지 않는다).
+     * {@code date} 를 비우면 오늘 기준이다.
+     */
     @GetMapping("/{id}")
-    public ApiResponse<BusDetailResponse> detail(@AuthenticationPrincipal AuthUser admin,
-                                                 @Parameter(example = "1") @PathVariable Long id) {
-        return ApiResponse.ok(busQueryService.getBus(admin, id));
+    public ApiResponse<BusDetailResponse> detail(
+            @AuthenticationPrincipal AuthUser admin,
+            @Parameter(example = "1") @PathVariable Long id,
+            @Parameter(example = "2026-08-02") @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        return ApiResponse.ok(busQueryService.getBus(admin, id, date));
     }
 
     /** 버스 생성. */
