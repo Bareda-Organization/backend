@@ -35,7 +35,10 @@ public class NotificationController {
     /** 학부모: 자녀(형제자매 포함) 알림함. */
     @GetMapping("/children")
     @PreAuthorize("hasRole('PARENT')")
-    @Operation(tags = {"00. MVP 사용 API", "14. 알림(Notification)"})
+    @Operation(summary = "알림함 (학부모)",
+            description = "자녀 승하차·근접·미승차·노선 배포·**등하원 위치 변경 판정 결과(LOCATION_CHANGE_RESULT)** 알림이 쌓인다. "
+                    + "발송은 다른 모듈이 트리거하고 여기는 조회만 한다.",
+            tags = {"00. MVP 사용 API", "14. 알림(Notification)"})
     public ApiResponse<List<NotificationResponse>> children(@AuthenticationPrincipal AuthUser parent) {
         return ApiResponse.ok(notificationQueryService.getChildrenNotifications(parent));
     }
@@ -43,9 +46,11 @@ public class NotificationController {
     /** 관리자: 학원 알림 이력. */
     @GetMapping
     @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
-    @Operation(tags = {"00. MVP 사용 API", "14. 알림(Notification)"})
+    @Operation(summary = "학원 알림 이력 (관리자)",
+            description = "`tenantId` 는 학원 관리자면 생략 가능, 플랫폼 관리자는 필수다.",
+            tags = {"00. MVP 사용 API", "14. 알림(Notification)"})
     public ApiResponse<List<NotificationResponse>> tenant(@AuthenticationPrincipal AuthUser admin,
-                                                          @Parameter(example = "1") @RequestParam(required = false) Long tenantId) {
+                                                          @Parameter(example = "1", description = "학원 id. 학원 관리자는 생략 가능, 플랫폼 관리자는 필수") @RequestParam(required = false) Long tenantId) {
         return ApiResponse.ok(notificationQueryService.getTenantNotifications(admin, tenantId));
     }
 }
