@@ -42,6 +42,38 @@ import src.backend.student.entity.Student;
  * <p>⚠️ 인가 책임: 요청 DTO 에 busId 가 없고 대상 버스를 {@code student.getAssignedBus()} 에서 유도한다.
  * {@link RoutePlanSimulationService#compare}는 인가를 하지 않고 busId 를 그대로 신뢰하므로,
  * "그 학생의 보호자인가" 에 더해 "그 버스가 그 학생의 버스인가" 까지 이 서비스가 보장해야 한다.
+ *
+ * <h3>⚠️ 알려진 위험 — 쓰기 트랜잭션이 외부 지도 API 를 기다린다 (2026-08-03 확인, 미해결)</h3>
+ * {@code create} 하나가 {@code @Transactional} 이고, 그 안에서 지도 API 호출이 <b>최대 2번</b> 일어난다 —
+ * 4단계 {@link RoutePlanSimulationService#compare} 와 {@code republishForBus} 각각의 경로 재계산이다.
+ * 한 번의 재계산도 HTTP 1회가 아니다: {@code RoutePlanComputer.resolveRoute} 가 waypoint 상한
+ * ({@code routing.max-waypoints}, 기본 7)을 넘으면 구간을 나눠 여러 번 부르고, 호출당 타임아웃은
+ * {@code WebClientConfig} 기준 5초다. 25인승 만석이면 REPLANNED 경로 하나가 HTTP 약 10회 —
+ * 최악의 경우 수십 초 동안 <b>DB 커넥션과 쓰기 트랜잭션이 열린 채</b> 잡혀 있고, 지도 API 가 느려지면
+ * 커넥션 풀 고갈로 번진다.
+ *
+ * <p><b>그럼에도 트랜잭션을 쪼개지 않은 이유</b>(쪼개면 지금보다 나빠진다):
+ * <ul>
+ *   <li><b>원자성</b> — 좌표 갱신과 노선 재배포가 한 단위다. 나누면 재계산 실패 시 "좌표는 바뀌었는데
+ *       노선은 옛 것" 이 남고, 되돌릴 보상 로직이 없다. 지금은 통째로 롤백된다.</li>
+ *   <li><b>dirty checking</b> — {@code applyCoordinates} 는 영속 상태 {@link Student} 를 그냥 수정한다.
+ *       {@code spring.jpa.open-in-view=false} 라 트랜잭션 밖에서는 이 엔티티가 detached 이고,
+ *       변경이 <b>예외 없이 조용히 사라진다</b>.</li>
+ *   <li><b>읽기 순서</b> — {@code republishForBus} 는 같은 트랜잭션의 auto-flush 덕분에 방금 바꾼 좌표를
+ *       본다. 경계를 나누면 "좌표 커밋이 먼저" 라는 보이지 않는 순서 제약이 생긴다.</li>
+ *   <li><b>이벤트 시점</b> — {@code finish} 가 발행하는 {@link LocationChangeResultEvent} 는
+ *       {@code TransactionalDomainEventRelay} 가 {@code AFTER_COMMIT} 에서만 Kafka 로 릴레이한다.
+ *       트랜잭션 밖에서 발행하면 리스너가 아예 실행되지 않아 <b>학부모 결과 알림이 조용히 유실</b>된다.</li>
+ *   <li><b>실효</b> — 이 메서드에서 {@code @Transactional} 을 떼도 HTTP 는 여전히 트랜잭션 안이다.
+ *       {@code RoutePlanSimulationService.compare} 는 그 자체가 {@code @Transactional(readOnly=true)} 이고
+ *       {@code republishForBus} 는 {@code @Transactional} 이다. 즉 이 경계만 바꿔서는 얻는 게 없다.</li>
+ * </ul>
+ *
+ * <p><b>진짜 해법</b>은 "계산 중에는 커넥션을 쥐지 않는" 구조다 — 로스터·계획 로딩을 짧은 트랜잭션으로
+ * 끝내고 지도 API 는 트랜잭션 밖에서 부른 뒤, 저장만 다시 짧은 트랜잭션으로 여는 것. 이는
+ * {@code RoutePlanSimulationService}·{@code RoutingCommandService} 양쪽을 함께 손대야 해서 별도 작업으로 둔다.
+ * 그때까지 <b>완화책</b>: 지도 API 타임아웃(5초)을 늘리지 말 것, 커넥션 풀 크기와
+ * {@code routing.max-waypoints} 를 함께 볼 것.
  */
 @Service
 public class LocationChangeCommandService {
