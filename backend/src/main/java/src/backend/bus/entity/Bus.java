@@ -21,8 +21,9 @@ import src.backend.tenant.entity.Tenant;
 import src.backend.user.entity.User;
 
 /**
- * 통원 버스 — 담당 기사·운행 노선·물리 좌석 수를 가진다.
- * driver 는 User(역할 DRIVER)를 참조하되 배차 전이면 null 가능.
+ * 통원 버스 — 담당 기사·선탑자·운행 노선·물리 좌석 수를 가진다.
+ * driver(역할 DRIVER)는 운전·운행 세션을, attendant(역할 ATTENDANT)는 승하차 기록을 맡는다.
+ * 둘 다 배차 전이면 null 가능.
  */
 @Entity
 @Table(name = "bus")
@@ -51,6 +52,10 @@ public class Bus extends BaseTimeEntity {
     private User driver;          // 담당 기사 (미배차 시 null)
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "attendant_id")
+    private User attendant;       // 담당 선탑자(승하차 기록 주체). 스키마상 nullable 이지만 운영상 항상 배정한다(I-1)
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "route_id")
     private Route route;          // 운행 노선
 
@@ -58,12 +63,13 @@ public class Bus extends BaseTimeEntity {
 
     @Builder
     public Bus(Tenant tenant, String name, String plateNumber, int seatCapacity,
-               User driver, Route route, LocalDate insuranceExpiry) {
+               User driver, User attendant, Route route, LocalDate insuranceExpiry) {
         this.tenant = tenant;
         this.name = name;
         this.plateNumber = plateNumber;
         this.seatCapacity = seatCapacity;
         this.driver = driver;
+        this.attendant = attendant;
         this.route = route;
         this.insuranceExpiry = insuranceExpiry;
     }
@@ -71,6 +77,11 @@ public class Bus extends BaseTimeEntity {
     /** 담당 기사 배차(관리자 배차 변경). null 이면 배차 해제. */
     public void assignDriver(User driver) {
         this.driver = driver;
+    }
+
+    /** 담당 선탑자 배정(관리자 배차 변경). null 이면 배정 해제. */
+    public void assignAttendant(User attendant) {
+        this.attendant = attendant;
     }
 
     /** 운행 노선 배정(관리자 배차 변경). */

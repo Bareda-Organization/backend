@@ -38,11 +38,14 @@ public class User extends BaseTimeEntity {
 
     private String phone;
 
+    private String photoUrl;   // 프로필 사진 URL. 업로드 API 없이 문자열만 둔다(D-G)
+
     @Builder
-    public User(String email, String password, String name, String phone) {
+    public User(String email, String password, String name, String phone, String photoUrl) {
         this.email = email;
         this.password = password;
         this.name = name;
         this.phone = phone;
+        this.photoUrl = photoUrl;
     }
 }
