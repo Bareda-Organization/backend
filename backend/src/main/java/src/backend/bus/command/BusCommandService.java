@@ -1,5 +1,7 @@
 package src.backend.bus.command;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,9 +56,13 @@ public class BusCommandService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "학원을 찾을 수 없습니다"));
 
         Route route = req.routeId() != null ? loadRouteInTenant(req.routeId(), effectiveTenant) : null;
-        User driver = req.driverId() != null
-                ? loadUserWithRole(req.driverId(), effectiveTenant, Role.DRIVER)
-                : null;
+        User driver = null;
+        if (req.driverId() != null) {
+            // 아직 버스가 없으니 제외할 busId 도 없다 — 다른 차에 배정돼 있으면 무조건 막는다(I-6).
+            ensureNotAssignedElsewhere(
+                    busRepository.findByDriverIdAndTenantId(req.driverId(), effectiveTenant), null, "기사");
+            driver = loadUserWithRole(req.driverId(), effectiveTenant, Role.DRIVER);
+        }
 
         Bus saved = busRepository.save(Bus.builder()
                 .tenant(tenant)
@@ -75,9 +81,13 @@ public class BusCommandService {
         Bus bus = loadAccessibleBus(admin, busId);
         Long tenantId = bus.getTenant().getId();
         if (req.driverId() != null) {
+            ensureNotAssignedElsewhere(
+                    busRepository.findByDriverIdAndTenantId(req.driverId(), tenantId), busId, "기사");
             bus.assignDriver(loadUserWithRole(req.driverId(), tenantId, Role.DRIVER));
         }
         if (req.attendantId() != null) {
+            ensureNotAssignedElsewhere(
+                    busRepository.findByAttendantIdAndTenantId(req.attendantId(), tenantId), busId, "선탑자");
             bus.assignAttendant(loadUserWithRole(req.attendantId(), tenantId, Role.ATTENDANT));
         }
         if (req.routeId() != null) {
@@ -104,6 +114,24 @@ public class BusCommandService {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "노선이 이 학원 소속이 아닙니다");
         }
         return route;
+    }
+
+    /**
+     * 같은 학원에서 이미 다른 버스에 배정된 사람인지 본다(I-6).
+     *
+     * <p>⚠️ 자기 버스(busId)로의 재배정은 통과시킨다 — 화면이 전체 폼을 그대로 PATCH 하기 때문에
+     * 노선만 바꾸는 요청도 같은 담당자 id 를 다시 보낸다. 이 필터가 없으면 그 요청이 409 로 막힌다.
+     * 생성(createBus) 시에는 아직 id 가 없어 busId 가 null 이고, 그러면 아무것도 제외되지 않는다.
+     * 역할 교차(A버스 기사이면서 B버스 선탑자)는 의도적으로 검사하지 않는다(OVERVIEW §4.6).
+     */
+    private void ensureNotAssignedElsewhere(List<Bus> holders, Long busId, String label) {
+        holders.stream()
+                .filter(b -> !b.getId().equals(busId))
+                .findFirst()
+                .ifPresent(b -> {
+                    throw new BusinessException(ErrorCode.CONFLICT,
+                            "이미 " + b.getName() + " 에 " + label + "로 배정돼 있습니다");
+                });
     }
 
     /** 그 학원에서 요구 역할을 가진 사용자만 통과시킨다 — 역할·테넌트 둘 다 검사한다. */

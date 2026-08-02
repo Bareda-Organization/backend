@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
+import src.backend.student.dto.StudentResponse;
 import src.backend.user.command.MemberCommandService;
 import src.backend.user.dto.CreateMemberRequest;
 import src.backend.user.dto.MemberDetailResponse;
@@ -113,5 +114,18 @@ public class MemberController {
                                     @Parameter(example = "1", description = "대상 학원 id. 학원 관리자는 생략 가능(본인 학원), 플랫폼 관리자는 필수") @RequestParam(required = false) Long tenantId) {
         memberCommandService.removeMembership(admin, id, tenantId);
         return ApiResponse.ok(null);
+    }
+
+    /** 학부모 기준 역방향 자녀 목록 — 읽기 전용(연결 편집은 학생 쪽 한 곳에서만 한다). */
+    @Operation(summary = "학부모의 자녀 목록(역방향 조회)",
+            description = "이 학부모와 연결된 학생들. 형제가 다른 학원에 다니면 요청자 학원 것만 나온다. "
+                    + "⚠️ 비활성(퇴원) 학생도 포함한다 — 관리자가 연결을 정리하려면 전부 보여야 한다. "
+                    + "연결 추가·해제는 /api/students/{id}/guardians 쪽에서 한다.")
+    @GetMapping("/{id}/students")
+    public ApiResponse<List<StudentResponse>> students(
+            @AuthenticationPrincipal AuthUser admin,
+            @Parameter(example = "2", description = "학부모 user id") @PathVariable Long id,
+            @Parameter(example = "1", description = "대상 학원 id. 학원 관리자는 생략 가능(본인 학원), 플랫폼 관리자는 필수") @RequestParam(required = false) Long tenantId) {
+        return ApiResponse.ok(memberQueryService.studentsOf(admin, id, tenantId));
     }
 }

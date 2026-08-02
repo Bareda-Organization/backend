@@ -16,6 +16,7 @@ import src.backend.bus.repository.spec.BusRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
+import src.backend.student.dto.StudentResponse;
 import src.backend.student.entity.Student;
 import src.backend.student.entity.StudentGuardian;
 import src.backend.student.repository.spec.StudentGuardianRepository;
@@ -70,6 +71,34 @@ class MemberQueryServiceTest {
         given(userTenantRoleRepository.findByUserIdAndTenantId(TARGET_ID, TENANT_ID)).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.get(admin(), TARGET_ID, null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    /**
+     * 역방향 조회 — 형제가 다른 학원에 다닐 수 있어 요청자 학원 것만 돌려준다(BE-14).
+     * 비활성 학생은 여기서 걸러내지 않는다: 관리자가 "연결된 전부"를 봐야 연결을 정리할 수 있다.
+     */
+    @Test
+    void studentsOf_otherTenantSibling_isExcluded() {
+        given(userTenantRoleRepository.findByUserIdAndTenantId(TARGET_ID, TENANT_ID))
+                .willReturn(Optional.of(membership(Role.PARENT)));
+        given(studentGuardianRepository.findByGuardianId(TARGET_ID)).willReturn(List.of(
+                guardian(10L, "김민준", TENANT_ID, "모"),
+                guardian(11L, "타학원형제", OTHER_TENANT_ID, "모")));
+
+        List<StudentResponse> children = service.studentsOf(admin(), TARGET_ID, null);
+
+        assertThat(children).extracting(StudentResponse::id).containsExactly(10L);
+    }
+
+    /** 다른 학원 학부모 id 로는 자녀 목록도 볼 수 없다 — 격리는 멤버십 우선 조회 한 곳에서 끝난다. */
+    @Test
+    void studentsOf_otherTenantGuardian_throwsNotFound() {
+        given(userTenantRoleRepository.findByUserIdAndTenantId(TARGET_ID, TENANT_ID)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.studentsOf(admin(), TARGET_ID, null))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.NOT_FOUND);
