@@ -1,0 +1,25 @@
+package src.backend.global.security.authz;
+
+import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+import org.springframework.security.access.prepost.PreAuthorize;
+
+/**
+ * 학원 단위 관제 읽기 권한 — 학생·버스 위치, 알림, 승하차 이력, 운행 이력.
+ *
+ * <p>필요 권한 {@code operations:monitor}. 현재 부여 역할은 학원 관리자·플랫폼 관리자이지만,
+ * <b>어느 역할이 이 권한을 갖는지는 {@link RolePermissions} 한 곳에서만 정한다</b> —
+ * 그래서 이 애너테이션에는 역할 이름이 없고, 새 역할이 생겨도 이 파일과 컨트롤러는 바뀌지 않는다.
+ *
+ * <p>도메인 4개에 걸쳐 있지만 관제 화면에서 함께 보는 것들이라 한 권한으로 묶었다.
+ */
+@Target({ElementType.METHOD})
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+@PreAuthorize("hasAuthority('" + Permissions.OPERATIONS_MONITOR + "')")
+public @interface CanMonitorOperations {
+}
