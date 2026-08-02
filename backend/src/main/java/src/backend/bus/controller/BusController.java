@@ -7,7 +7,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -27,6 +26,8 @@ import src.backend.bus.command.BusCommandService;
 import src.backend.bus.query.BusQueryService;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
+import src.backend.global.security.authz.CanManageBuses;
+import src.backend.global.security.authz.CanReadAssignedBus;
 
 /**
  * 버스 관리 API(관리자 전용). 학원 격리는 서비스 계층(TenantGuard)에서 검사한다.
@@ -34,7 +35,7 @@ import src.backend.global.security.AuthUser;
 @Tag(name = "05. 버스(Bus)", description = "버스 등록·조회·기사/노선 배정. 관리자 전용.")
 @RestController
 @RequestMapping("/api/buses")
-@PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
+@CanManageBuses
 public class BusController {
 
     private final BusCommandService busCommandService;
@@ -47,10 +48,11 @@ public class BusController {
 
     /**
      * 기사·선탑자 본인의 담당 버스 — 담당자 앱이 자기 busId 를 알아내는 진입점.
-     * 이 클래스는 기본이 관리자 전용이라 메서드 레벨 {@code @PreAuthorize} 로 DRIVER·ATTENDANT 만 열어 덮어쓴다.
+     * 이 클래스는 기본이 관리자 전용이라 메서드 레벨 권한 애너테이션으로 담당 승무원에게만 열어 덮어쓴다
+     * (메서드 레벨이 클래스 레벨을 이긴다 — 둘이 합쳐지지 않으므로 관리자는 여기에 도달하지 못한다).
      */
     @GetMapping("/me")
-    @PreAuthorize("hasAnyRole('DRIVER', 'ATTENDANT')")
+    @CanReadAssignedBus
     @Operation(summary = "내 담당 버스(기사·선탑자)",
             description = "토큰 주인이 기사 또는 선탑자로 배정된 버스 1대를 돌려준다. 파라미터가 없어 남의 버스를 볼 수 없다. "
                     + "담당자 앱이 가장 먼저 부르는 API 다 — 여기서 얻은 busId 로 명단·노선·운행세션을 이어서 조회한다. "

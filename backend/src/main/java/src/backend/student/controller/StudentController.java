@@ -5,7 +5,6 @@ import java.util.List;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
+import src.backend.global.security.authz.CanManageStudents;
 import src.backend.student.dto.CreateStudentRequest;
 import src.backend.student.dto.LinkGuardianRequest;
 import src.backend.student.dto.StudentDetailResponse;
@@ -38,7 +38,7 @@ import src.backend.student.query.StudentQueryService;
                 + "⚠️ 퇴원은 행을 지우지 않고 active=false 로만 바꾼다 — 목록은 기본적으로 활성 학생만 준다.")
 @RestController
 @RequestMapping("/api/students")
-@PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
+@CanManageStudents
 public class StudentController {
 
     private final StudentCommandService studentCommandService;
