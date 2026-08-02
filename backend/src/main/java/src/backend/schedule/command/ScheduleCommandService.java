@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
+import src.backend.global.tenant.TenantGuard;
 import src.backend.schedule.dto.CreateScheduleChangeRequest;
 import src.backend.schedule.dto.ScheduleChangeRequestResponse;
 import src.backend.schedule.entity.ScheduleChangeRequest;
@@ -73,9 +74,7 @@ public class ScheduleCommandService {
     private ScheduleChangeRequest findForAdmin(AuthUser admin, Long id) {
         ScheduleChangeRequest request = scheduleChangeRequestRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "요청을 찾을 수 없습니다"));
-        if (!admin.isPlatformAdmin() && !admin.belongsToTenant(request.getTenantId())) {
-            throw new BusinessException(ErrorCode.FORBIDDEN);
-        }
+        TenantGuard.resolveTenantId(admin, request.getTenantId());
         return request;
     }
 

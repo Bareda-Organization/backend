@@ -12,6 +12,7 @@ import src.backend.attendance.repository.spec.AttendanceExceptionRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
+import src.backend.global.tenant.TenantGuard;
 import src.backend.student.access.GuardianAccess;
 import src.backend.student.entity.Student;
 
@@ -68,9 +69,7 @@ public class AttendanceCommandService {
     private AttendanceException findForAdmin(AuthUser admin, Long id) {
         AttendanceException exception = attendanceExceptionRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "신청을 찾을 수 없습니다"));
-        if (!admin.isPlatformAdmin() && !admin.belongsToTenant(exception.getTenantId())) {
-            throw new BusinessException(ErrorCode.FORBIDDEN);
-        }
+        TenantGuard.resolveTenantId(admin, exception.getTenantId());
         return exception;
     }
 }
