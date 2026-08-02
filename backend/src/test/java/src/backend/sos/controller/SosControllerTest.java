@@ -1,5 +1,6 @@
 package src.backend.sos.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -12,7 +13,9 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -35,6 +38,9 @@ class SosControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private ApplicationContext context;
 
     @MockitoBean
     private SosCommandService sosCommandService;
@@ -93,5 +99,20 @@ class SosControllerTest {
     void myEvents_without_auth_returns_401() throws Exception {
         mockMvc.perform(get("/api/sos-events/me"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    /**
+     * 역할→권한 부여표를 실어 나르는 {@code RoleHierarchy} 빈이 컨텍스트에 있는지 직접 단언한다.
+     *
+     * <p>이 빈이 없으면 {@code hasAuthority('...')} 가 절대 참이 될 수 없어 허용 경로가 <b>전부</b> 403 이 되는데,
+     * 그때 실패 메시지는 "200 을 기대했는데 403" 뿐이라 원인이 읽히지 않는다. 게다가 부여표 자체를 검증하는
+     * {@link src.backend.global.security.authz.RolePermissionsTest} 는 빈과 무관하게 초록으로 남아
+     * 오히려 엉뚱한 곳을 보게 만든다. 실패 지점을 원인 가까이로 끌어오려고 둔 한 줄이다.
+     */
+    @Test
+    void roleHierarchy_빈이_컨텍스트에_등록돼_있다() {
+        assertThat(context.getBeanProvider(RoleHierarchy.class).getIfAvailable())
+                .as("SecurityConfig.roleHierarchy() 가 사라지면 권한 애너테이션이 전부 막힌다")
+                .isNotNull();
     }
 }

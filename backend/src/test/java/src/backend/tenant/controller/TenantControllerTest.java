@@ -3,6 +3,7 @@ package src.backend.tenant.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -51,6 +52,25 @@ class TenantControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.name").value("한빛학원"));
+    }
+
+    /**
+     * tenant:read 배선 실측 — 생성은 플랫폼 관리자 전용이지만 상세는 학원 관리자에게도 열려 있어,
+     * 이 컨트롤러 안에서 권한이 갈리는 지점이다. (어느 학원을 볼 수 있는지는 서비스 계층이 따로 검사한다.)
+     */
+    @Test
+    void detail_as_academy_admin_is_allowed() throws Exception {
+        given(tenantQueryService.get(any(), any())).willReturn(new TenantResponse(1L, "한빛학원", null, null));
+
+        mockMvc.perform(get("/api/tenants/1").with(user("a").roles("ACADEMY_ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("한빛학원"));
+    }
+
+    @Test
+    void detail_as_parent_returns_403() throws Exception {
+        mockMvc.perform(get("/api/tenants/1").with(user("p").roles("PARENT")))
+                .andExpect(status().isForbidden());
     }
 
     @Test

@@ -35,6 +35,7 @@ import src.backend.rideevent.query.RideEventQueryService;
 class RideEventControllerTest {
 
     private static final String BODY = "{\"busId\":1,\"studentId\":1,\"type\":\"BOARD\"}";
+    private static final String CORRECTION_BODY = "{\"type\":\"BOARD\"}";
 
     @Autowired
     private MockMvc mockMvc;
@@ -76,6 +77,29 @@ class RideEventControllerTest {
                         .contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.type").value("BOARD"));
+    }
+
+    /**
+     * ride:correct 배선 실측 — 정정은 승하차 기록과 달리 <b>관리자에게도</b> 열려 있는 유일한 지점이라
+     * 기록(선탑자 전용)과 정정(선탑자+관리자)의 경계를 함께 고정한다.
+     */
+    @Test
+    void correct_as_academy_admin_is_allowed() throws Exception {
+        given(rideEventCommandService.correct(any(), any(), any())).willReturn(sampleResponse());
+
+        mockMvc.perform(post("/api/ride-events/1/correction").with(user("a").roles("ACADEMY_ADMIN"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(CORRECTION_BODY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    void correct_as_driver_returns_403() throws Exception {
+        mockMvc.perform(post("/api/ride-events/1/correction").with(user("d").roles("DRIVER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(CORRECTION_BODY))
+                .andExpect(status().isForbidden());
     }
 
     private RideEventResponse sampleResponse() {
