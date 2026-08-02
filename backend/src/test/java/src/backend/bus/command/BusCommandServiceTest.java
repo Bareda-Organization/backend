@@ -27,11 +27,13 @@ import src.backend.tenant.entity.Tenant;
 import src.backend.tenant.repository.spec.TenantRepository;
 import src.backend.user.entity.Role;
 import src.backend.user.entity.User;
+import src.backend.user.entity.UserTenantRole;
 import src.backend.user.repository.spec.UserRepository;
+import src.backend.user.repository.spec.UserTenantRoleRepository;
 
 /**
  * 버스 생성/배차 단위 테스트 — 크로스테넌트 검증(노선이 다른 학원 소속이면 차단)·
- * TenantGuard 접근권한 가드를 우선 검증한다(G5 2차).
+ * TenantGuard 접근권한 가드·담당자 역할 검증(기사/선탑자)을 검증한다(G5 2차, BE-7).
  */
 class BusCommandServiceTest {
 
@@ -40,9 +42,11 @@ class BusCommandServiceTest {
     private final RouteRepository routeRepository = mock(RouteRepository.class);
     private final TenantRepository tenantRepository = mock(TenantRepository.class);
     private final UserRepository userRepository = mock(UserRepository.class);
+    private final UserTenantRoleRepository userTenantRoleRepository = mock(UserTenantRoleRepository.class);
 
     private final BusCommandService service = new BusCommandService(
-            busRepository, studentRepository, routeRepository, tenantRepository, userRepository);
+            busRepository, studentRepository, routeRepository, tenantRepository,
+            userRepository, userTenantRoleRepository);
 
     private static final Long TENANT_ID = 1L;
     private static final Long OTHER_TENANT_ID = 2L;
@@ -52,7 +56,7 @@ class BusCommandServiceTest {
         AuthUser admin = authUser(TENANT_ID, Role.ACADEMY_ADMIN);
         given(tenantRepository.findById(TENANT_ID)).willReturn(Optional.of(tenant(TENANT_ID)));
         given(routeRepository.findById(10L)).willReturn(Optional.of(route(10L, TENANT_ID, 25)));
-        given(userRepository.findById(20L)).willReturn(Optional.of(user(20L, "박기사")));
+        givenMember(20L, "박기사", TENANT_ID, Role.DRIVER);
         given(studentRepository.findByAssignedBusId(any())).willReturn(List.of());
         given(busRepository.save(any(Bus.class))).willAnswer(inv -> {
             Bus bus = inv.getArgument(0);
@@ -86,11 +90,11 @@ class BusCommandServiceTest {
         AuthUser admin = authUser(TENANT_ID, Role.ACADEMY_ADMIN);
         Bus bus = bus(1L, TENANT_ID, null, null);
         given(busRepository.findById(1L)).willReturn(Optional.of(bus));
-        given(userRepository.findById(20L)).willReturn(Optional.of(user(20L, "박기사")));
+        givenMember(20L, "박기사", TENANT_ID, Role.DRIVER);
         given(routeRepository.findById(10L)).willReturn(Optional.of(route(10L, TENANT_ID, 25)));
         given(studentRepository.findByAssignedBusId(1L)).willReturn(List.of());
 
-        BusResponse response = service.assign(admin, 1L, new AssignmentRequest(20L, 10L));
+        BusResponse response = service.assign(admin, 1L, new AssignmentRequest(20L, null, 10L));
 
         assertThat(response.driverId()).isEqualTo(20L);
         assertThat(response.routeId()).isEqualTo(10L);
@@ -102,10 +106,73 @@ class BusCommandServiceTest {
         Bus bus = bus(1L, OTHER_TENANT_ID, null, null); // 다른 학원 버스
         given(busRepository.findById(1L)).willReturn(Optional.of(bus));
 
-        assertThatThrownBy(() -> service.assign(admin, 1L, new AssignmentRequest(20L, null)))
+        assertThatThrownBy(() -> service.assign(admin, 1L, new AssignmentRequest(20L, null, null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    void assign_withAttendantId_assignsAttendant() {
+        AuthUser admin = authUser(TENANT_ID, Role.ACADEMY_ADMIN);
+        Bus bus = bus(1L, TENANT_ID, null, null);
+        given(busRepository.findById(1L)).willReturn(Optional.of(bus));
+        givenMember(30L, "이선탑", TENANT_ID, Role.ATTENDANT);
+        given(studentRepository.findByAssignedBusId(1L)).willReturn(List.of());
+
+        service.assign(admin, 1L, new AssignmentRequest(null, 30L, null));
+
+        assertThat(bus.getAttendant()).isNotNull();
+        assertThat(bus.getAttendant().getId()).isEqualTo(30L);
+    }
+
+    @Test
+    void assign_driverIdIsParentRole_throwsInvalidInput() {
+        AuthUser admin = authUser(TENANT_ID, Role.ACADEMY_ADMIN);
+        given(busRepository.findById(1L)).willReturn(Optional.of(bus(1L, TENANT_ID, null, null)));
+        givenMember(40L, "학부모", TENANT_ID, Role.PARENT); // 같은 학원이지만 역할이 기사가 아니다
+
+        assertThatThrownBy(() -> service.assign(admin, 1L, new AssignmentRequest(40L, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    void assign_driverFromOtherTenant_throwsInvalidInput() {
+        AuthUser admin = authUser(TENANT_ID, Role.ACADEMY_ADMIN);
+        given(busRepository.findById(1L)).willReturn(Optional.of(bus(1L, TENANT_ID, null, null)));
+        givenMember(50L, "타학원기사", OTHER_TENANT_ID, Role.DRIVER); // 역할은 기사지만 다른 학원 소속
+
+        assertThatThrownBy(() -> service.assign(admin, 1L, new AssignmentRequest(50L, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    void assign_attendantIdIsDriverRole_throwsInvalidInput() {
+        AuthUser admin = authUser(TENANT_ID, Role.ACADEMY_ADMIN);
+        given(busRepository.findById(1L)).willReturn(Optional.of(bus(1L, TENANT_ID, null, null)));
+        givenMember(60L, "박기사", TENANT_ID, Role.DRIVER); // 기사를 선탑자 자리에 넣을 수 없다
+
+        assertThatThrownBy(() -> service.assign(admin, 1L, new AssignmentRequest(null, 60L, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    void createBus_driverIdIsParentRole_throwsInvalidInput() {
+        AuthUser admin = authUser(TENANT_ID, Role.ACADEMY_ADMIN);
+        given(tenantRepository.findById(TENANT_ID)).willReturn(Optional.of(tenant(TENANT_ID)));
+        givenMember(40L, "학부모", TENANT_ID, Role.PARENT);
+        CreateBusRequest req = new CreateBusRequest(TENANT_ID, "4호차", null, 25, 40L, null, null);
+
+        assertThatThrownBy(() -> service.createBus(admin, req))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
     }
 
     @Test
@@ -130,6 +197,14 @@ class BusCommandServiceTest {
         Route route = Route.builder().tenant(tenant(tenantId)).name("A노선").assignCapacity(assignCapacity).build();
         ReflectionTestUtils.setField(route, "id", id);
         return route;
+    }
+
+    /** userId 사용자가 tenantId 학원에서 role 을 가진 것으로 스텁한다(존재 + 역할·소속 두 조회를 함께 준비). */
+    private void givenMember(Long userId, String name, Long tenantId, Role role) {
+        User member = user(userId, name);
+        given(userRepository.findById(userId)).willReturn(Optional.of(member));
+        given(userTenantRoleRepository.findByUserId(userId))
+                .willReturn(List.of(new UserTenantRole(member, tenant(tenantId), role)));
     }
 
     private User user(Long id, String name) {
