@@ -26,7 +26,10 @@ import src.backend.routing.dto.AutoAssignRequest;
 import src.backend.routing.dto.AutoAssignResponse;
 import src.backend.routing.dto.ConfirmAutoAssignRequest;
 import src.backend.routing.dto.GenerateRoutePlanRequest;
+import src.backend.routing.dto.RoutePlanComparison;
 import src.backend.routing.dto.RoutePlanResponse;
+import src.backend.routing.dto.SimulateRoutePlanRequest;
+import src.backend.routing.query.RoutePlanSimulationService;
 import src.backend.routing.query.RoutingQueryService;
 
 /**
@@ -40,10 +43,14 @@ public class RoutingController {
 
     private final RoutingCommandService routingCommandService;
     private final RoutingQueryService routingQueryService;
+    private final RoutePlanSimulationService routePlanSimulationService;
 
-    public RoutingController(RoutingCommandService routingCommandService, RoutingQueryService routingQueryService) {
+    public RoutingController(RoutingCommandService routingCommandService,
+                             RoutingQueryService routingQueryService,
+                             RoutePlanSimulationService routePlanSimulationService) {
         this.routingCommandService = routingCommandService;
         this.routingQueryService = routingQueryService;
+        this.routePlanSimulationService = routePlanSimulationService;
     }
 
     /** 관리자: 자동배치 계획 생성 — sweep+NN+2-opt 로 순서 최적화 후 directions API 1회(또는 청킹) 호출. */
@@ -70,6 +77,28 @@ public class RoutingController {
     public ApiResponse<List<RoutePlanResponse>> confirmAutoAssign(@AuthenticationPrincipal AuthUser admin,
                                                                    @Valid @RequestBody ConfirmAutoAssignRequest request) {
         return ApiResponse.ok(routingCommandService.confirmAutoAssign(admin, request.planIds()));
+    }
+
+    /** 관리자: 배차 변경안 시뮬레이션 — 저장하지 않고 baseline vs candidate 를 비교한다(요구 8). */
+    @PostMapping("/simulate")
+    @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
+    @Operation(summary = "배차 변경안 비교(미저장)",
+            description = "overrides 를 적용해 노선을 재계산하고 거리·시간·정차 수 델타를 돌려준다. 어떤 행도 저장하지 않는다.",
+            tags = {"00. MVP 사용 API", "07. 배차·노선계획(Routing)"})
+    public ApiResponse<RoutePlanComparison> simulate(@AuthenticationPrincipal AuthUser admin,
+                                                      @Valid @RequestBody SimulateRoutePlanRequest request) {
+        return ApiResponse.ok(routePlanSimulationService.simulate(admin, request));
+    }
+
+    /** 관리자: 배차 변경안 채택 — 요청의 overrides 로 서버가 재계산해 배정 커밋 + version+1 계획 배포까지 수행한다. */
+    @PostMapping("/simulate/apply")
+    @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
+    @Operation(summary = "배차 변경안 채택",
+            description = "요청의 overrides 로 서버가 다시 계산해 저장한다(비교 응답을 그대로 보내지 않는다). 정원을 초과하면 거부한다.",
+            tags = {"00. MVP 사용 API", "07. 배차·노선계획(Routing)"})
+    public ApiResponse<RoutePlanResponse> applySimulation(@AuthenticationPrincipal AuthUser admin,
+                                                           @Valid @RequestBody SimulateRoutePlanRequest request) {
+        return ApiResponse.ok(routingCommandService.applySimulation(admin, request));
     }
 
     /** 관리자: 승인(DRAFT/RECOMMENDED → APPROVED). */

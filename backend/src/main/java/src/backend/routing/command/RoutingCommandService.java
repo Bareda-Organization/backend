@@ -31,12 +31,16 @@ import src.backend.routing.dto.AutoAssignRequest;
 import src.backend.routing.dto.AutoAssignResponse;
 import src.backend.routing.dto.GenerateRoutePlanRequest;
 import src.backend.routing.dto.RoutePlanResponse;
+import src.backend.routing.dto.SimulateRoutePlanRequest;
+import src.backend.routing.dto.StudentOverride;
 import src.backend.routing.engine.RoutePlanComputer;
 import src.backend.routing.engine.spec.BusAssigner;
 import src.backend.routing.entity.RoutePlan;
 import src.backend.routing.entity.RoutePlanStop;
 import src.backend.routing.event.RoutePlanPublishedEvent;
 import src.backend.routing.event.RoutePlanRecommendedEvent;
+import src.backend.routing.query.RoutePlanSimulationService;
+import src.backend.routing.query.RoutePlanSimulationService.SimulationOutcome;
 import src.backend.routing.repository.spec.RoutePlanRepository;
 import src.backend.student.entity.Student;
 import src.backend.student.repository.spec.StudentRepository;
@@ -58,6 +62,7 @@ public class RoutingCommandService {
     private final BusAssigner busAssigner;
     private final ApplicationEventPublisher eventPublisher;
     private final RoutePlanComputer computer;
+    private final RoutePlanSimulationService simulationService;
 
     public RoutingCommandService(RoutePlanRepository routePlanRepository,
                                  BusRepository busRepository,
@@ -65,7 +70,8 @@ public class RoutingCommandService {
                                  AttendanceQueryService attendanceQueryService,
                                  BusAssigner busAssigner,
                                  ApplicationEventPublisher eventPublisher,
-                                 RoutePlanComputer computer) {
+                                 RoutePlanComputer computer,
+                                 RoutePlanSimulationService simulationService) {
         this.routePlanRepository = routePlanRepository;
         this.busRepository = busRepository;
         this.studentRepository = studentRepository;
@@ -73,6 +79,7 @@ public class RoutingCommandService {
         this.busAssigner = busAssigner;
         this.eventPublisher = eventPublisher;
         this.computer = computer;
+        this.simulationService = simulationService;
     }
 
     @Transactional
@@ -190,6 +197,60 @@ public class RoutingCommandService {
             results.add(RoutePlanResponse.from(plan));
         }
         return results;
+    }
+
+    /**
+     * 시뮬레이션 채택(BE-5) — 변경안을 배정에 커밋하고 version+1 계획을 승인·배포까지 수행한다.
+     * <p>⚠️ 화면이 본 비교 결과({@code RoutePlanComparison})를 받지 않는다. 요청의 {@code overrides} 만 받아
+     * <b>서버가 다시 계산</b>한다 — 클라이언트가 보낸 거리·시간·정차 순서를 그대로 저장하면 조작된 값이 DB 에 들어간다.
+     * 관리자 인가·테넌트 격리는 {@link RoutePlanSimulationService#computeCandidate}가 수행한다.
+     */
+    @Transactional
+    public RoutePlanResponse applySimulation(AuthUser admin, SimulateRoutePlanRequest req) {
+        SimulationOutcome outcome = simulationService.computeCandidate(admin, req);
+        Bus bus = outcome.bus();
+
+        // "보여주기는 관대, 저장은 엄격" — 시뮬레이션은 정원 초과도 보여주지만 저장은 거부한다(기존 buildPlan 과 같은 규칙)
+        if (outcome.candidateStudentIds().size() > bus.getSeatCapacity()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "변경안(" + outcome.candidateStudentIds().size() + "명)이 버스 정원("
+                            + bus.getSeatCapacity() + "명)을 초과합니다");
+        }
+
+        commitOverrides(bus, req);
+        RoutePlan plan = persistPlan(bus, req.direction(), outcome.serviceDate(),
+                RoutePlanStatus.RECOMMENDED, outcome.candidate());   // outcome 재사용 = 경로 API 재호출 없음
+        plan.approve(admin.userId());
+        publishAndNotify(plan, admin.userId());   // confirmAutoAssign 과 동일한 approve → publish 흐름
+        return RoutePlanResponse.from(plan);
+    }
+
+    /**
+     * 변경안을 Student 에 커밋한다. 방향에 따라 저장 위치가 다르다 —
+     * PICKUP 은 pickupLat/pickupLng(D-K), DROPOFF 는 dropoffLat/dropoffLng.
+     * boardingStop 은 여러 학생이 공유하는 Stop 이라 절대 건드리지 않는다.
+     * <p>주소 문자열은 기존 값을 그대로 넘긴다 — 관리자는 지도에서 점만 찍으므로 주소를 null 로 덮으면
+     * 다음 비교 화면의 정차 라벨이 "좌표 지정"으로 퇴화한다(역지오코딩은 범위 밖).
+     */
+    private void commitOverrides(Bus bus, SimulateRoutePlanRequest req) {
+        if (req.overrides() == null) {
+            return;
+        }
+        for (StudentOverride o : req.overrides()) {
+            Student student = studentRepository.findById(o.studentId())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                            "학생을 찾을 수 없습니다: " + o.studentId()));
+            if (o.action() == StudentOverride.OverrideAction.REMOVE) {
+                student.assignBus(null);
+                continue;
+            }
+            student.assignBus(bus);   // ADD · MOVE 공통
+            if (req.direction() == RouteDirection.PICKUP) {
+                student.updatePickup(student.getPickupAddress(), o.lat(), o.lng());
+            } else {
+                student.updateDropoff(student.getDropoffAddress(), o.lat(), o.lng());
+            }
+        }
     }
 
     /**
