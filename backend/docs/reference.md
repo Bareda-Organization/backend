@@ -39,10 +39,16 @@ location/
 ├── repository/
 ├── dto/
 ├── controller/
+├── access/         # 선택
 └── infrastructure/
 ```
 
 외부 연동은 `infrastructure` 아래에 둔다. 엔티티 패키지 이름은 `entity/`가 표준이다(현재 코드 기준 — notification·routing 두 모듈만 역사적 이유로 `domain/`을 쓰고 있으며, 일괄 rename은 범위 밖으로 확정됨. `PROJECT_MASTER_PLAN.md` §12.3 참조).
+
+`access/`는 **선택** 패키지다. "이 사용자가 이 리소스를 만질 수 있는가" 판정만 담으며, 같은 판정이 2곳 이상에서 필요할 때만 만든다.
+`query/`가 아니라 `access/`에 두는 이유: 호출자가 Command 서비스인 경우가 많아 `query/`에 두면 §7이 금지한 "Command가 Query를 호출"이 새로 생긴다.
+`global/`이 아니라 판정 대상을 소유한 도메인에 두는 이유: `global`은 모든 모듈이 의존하는 바닥이라 특정 도메인 Repository를 참조하면 의존이 역전된다.
+형태 2가지 — 의존 없으면 `public final class` + `static`(`bus/access/BusCrewGuard`), Repository가 필요하면 스프링 빈(`student/access/GuardianAccess`). `global/tenant/TenantGuard`는 도메인 무관이라 `global`에 있는 예외(static).
 
 ## 4. spec / impl 구조
 
