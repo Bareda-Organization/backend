@@ -19,4 +19,10 @@ public interface BusRepository extends JpaRepository<Bus, Long> {
      * (Optional 로 받으면 데이터가 꼬였을 때 500 이 난다).
      */
     List<Bus> findByDriverIdOrderByIdAsc(Long driverId);
+
+    /**
+     * 담당 선탑자 기준 조회 — 선탑자 앱이 자기 busId 를 알아내는 진입점(GET /api/buses/me).
+     * driver 와 같은 이유로 유니크 제약이 없어 List 로 받고 호출부에서 첫 건을 쓴다.
+     */
+    List<Bus> findByAttendantIdOrderByIdAsc(Long attendantId);
 }

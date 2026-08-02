@@ -37,13 +37,15 @@ public class BusQueryService {
     }
 
     /**
-     * 기사 본인의 담당 버스. 기사용 API(노선 조회·위치 보고·승하차)가 전부 busId 를 입력으로 받는데
-     * 기사가 그걸 알아낼 수단이 없어 추가했다 — 기사 앱은 로그인 직후 1회 호출해 busId 를 캐시한다.
+     * 기사·선탑자 본인의 담당 버스. 담당자용 API(노선 조회·위치 보고·승하차)가 전부 busId 를 입력으로 받는데
+     * 담당자가 그걸 알아낼 수단이 없어 추가했다 — 담당자 앱은 로그인 직후 1회 호출해 busId 를 캐시한다.
      */
     @Transactional(readOnly = true)
-    public BusResponse getMyBus(AuthUser driver) {
-        return busRepository.findByDriverIdOrderByIdAsc(driver.userId()).stream()
+    public BusResponse getMyBus(AuthUser crew) {
+        // 기사 배정을 먼저 보고, 없으면 선탑자 배정을 본다(한 사람이 둘 다인 경우는 없다).
+        return busRepository.findByDriverIdOrderByIdAsc(crew.userId()).stream()
                 .findFirst()
+                .or(() -> busRepository.findByAttendantIdOrderByIdAsc(crew.userId()).stream().findFirst())
                 .map(bus -> BusResponse.of(bus, onboardCount(bus.getId())))
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "담당 버스가 없습니다"));
     }

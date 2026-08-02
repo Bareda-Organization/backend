@@ -1,8 +1,8 @@
 package src.backend.drivesession.dto;
 
 /**
- * 운행 세션 명단 1건 — 이름·위치만(사진은 {@code Student}에 아직 필드가 없어 제외,
- * 추후 StorageService 포트 도입 시 함께 확장).
+ * 운행 세션 명단 1건 — 이름·사진·승하차 위치. 선탑자 앱의 인물 카드가 그대로 소비한다.
  */
-public record DriveSessionRosterEntry(Long studentId, String name, String location, Double lat, Double lng) {
+public record DriveSessionRosterEntry(Long studentId, String name, String photoUrl,
+                                      String location, Double lat, Double lng) {
 }
