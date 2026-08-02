@@ -16,6 +16,12 @@ public interface DriveSessionRepository extends JpaRepository<DriveSession, Long
     Optional<DriveSession> findByBusIdAndDirectionAndServiceDateAndStatus(
             Long busId, RouteDirection direction, LocalDate serviceDate, DriveSessionStatus status);
 
+    /**
+     * P2 위치 변경 차단 판정(I-4) — 상태를 보지 않는 존재 확인.
+     * 위 {@code findBy...AndStatus}는 "진행 중"만 찾지만 I-4 는 <b>종료된 세션도</b> 거부 대상이라 따로 필요하다.
+     */
+    boolean existsByBusIdAndDirectionAndServiceDate(Long busId, RouteDirection direction, LocalDate serviceDate);
+
     List<DriveSession> findByBusIdOrderByStartedAtDesc(Long busId);
 
     List<DriveSession> findByTenantIdOrderByStartedAtDesc(Long tenantId);

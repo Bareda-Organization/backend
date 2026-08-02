@@ -15,6 +15,7 @@ import src.backend.rideevent.event.StudentBoardedEvent;
 import src.backend.routing.domain.RouteDirection;
 import src.backend.routing.event.RoutePlanPublishedEvent;
 import src.backend.routing.event.RoutePlanRecommendedEvent;
+import src.backend.schedule.event.LocationChangeResultEvent;
 import src.backend.schedule.event.ScheduleResultEvent;
 import src.backend.sos.event.SosEscalatedEvent;
 import src.backend.sos.event.SosTriggeredEvent;
@@ -107,6 +108,15 @@ public class DomainEventNotificationConsumer {
         String resultText = event.status() == ApprovalStatus.APPROVED ? "승인" : "반려";
         notificationCommandService.notify(NotificationType.SCHEDULE_RESULT, event.tenantId(), event.studentId(),
                 dedupKey, event.studentName() + " 학생의 시간 변경 요청이 " + resultText + "되었습니다");
+    }
+
+    /** P2 위치 변경 자동 판정 결과 — 승인 대기가 없어 신청 즉시 결과가 나가므로 사유 문구를 그대로 전달한다. */
+    @KafkaListener(topics = "location-change-result")
+    public void onLocationChangeResult(LocationChangeResultEvent event) {
+        String dedupKey = NotificationCommandService.dedupKey(NotificationType.LOCATION_CHANGE_RESULT,
+                event.studentId(), event.occurredDate(), "request:" + event.locationChangeRequestId());
+        notificationCommandService.notify(NotificationType.LOCATION_CHANGE_RESULT, event.tenantId(),
+                event.studentId(), dedupKey, event.studentName() + " 학생 위치 변경 요청: " + event.reason());
     }
 
     @KafkaListener(topics = "route-plan-recommended")
