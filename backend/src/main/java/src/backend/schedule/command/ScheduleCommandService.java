@@ -12,9 +12,8 @@ import src.backend.schedule.dto.ScheduleChangeRequestResponse;
 import src.backend.schedule.entity.ScheduleChangeRequest;
 import src.backend.schedule.event.ScheduleResultEvent;
 import src.backend.schedule.repository.spec.ScheduleChangeRequestRepository;
+import src.backend.student.access.GuardianAccess;
 import src.backend.student.entity.Student;
-import src.backend.student.entity.StudentGuardian;
-import src.backend.student.repository.spec.StudentGuardianRepository;
 import src.backend.student.repository.spec.StudentRepository;
 
 /**
@@ -26,23 +25,23 @@ import src.backend.student.repository.spec.StudentRepository;
 public class ScheduleCommandService {
 
     private final ScheduleChangeRequestRepository scheduleChangeRequestRepository;
-    private final StudentGuardianRepository studentGuardianRepository;
+    private final GuardianAccess guardianAccess;
     private final StudentRepository studentRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     public ScheduleCommandService(ScheduleChangeRequestRepository scheduleChangeRequestRepository,
-                                  StudentGuardianRepository studentGuardianRepository,
+                                  GuardianAccess guardianAccess,
                                   StudentRepository studentRepository,
                                   ApplicationEventPublisher eventPublisher) {
         this.scheduleChangeRequestRepository = scheduleChangeRequestRepository;
-        this.studentGuardianRepository = studentGuardianRepository;
+        this.guardianAccess = guardianAccess;
         this.studentRepository = studentRepository;
         this.eventPublisher = eventPublisher;
     }
 
     @Transactional
     public ScheduleChangeRequestResponse create(AuthUser parent, CreateScheduleChangeRequest req) {
-        Student student = requireGuardianOf(parent, req.studentId());
+        Student student = guardianAccess.requireGuardianOf(parent, req.studentId());
 
         ScheduleChangeRequest saved = scheduleChangeRequestRepository.save(ScheduleChangeRequest.builder()
                 .tenantId(student.getTenant().getId())
@@ -69,14 +68,6 @@ public class ScheduleCommandService {
         request.reject(admin.userId());
         eventPublisher.publishEvent(ScheduleResultEvent.of(request, studentNameOf(request)));
         return ScheduleChangeRequestResponse.from(request);
-    }
-
-    private Student requireGuardianOf(AuthUser parent, Long studentId) {
-        return studentGuardianRepository.findByGuardianId(parent.userId()).stream()
-                .map(StudentGuardian::getStudent)
-                .filter(s -> s.getId().equals(studentId))
-                .findFirst()
-                .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN, "자녀가 아닙니다"));
     }
 
     private ScheduleChangeRequest findForAdmin(AuthUser admin, Long id) {

@@ -38,12 +38,10 @@ import src.backend.schedule.dto.LocationChangeRequestResponse;
 import src.backend.schedule.entity.LocationChangeDecision;
 import src.backend.schedule.entity.LocationChangeRequest;
 import src.backend.schedule.repository.spec.LocationChangeRequestRepository;
+import src.backend.student.access.GuardianAccess;
 import src.backend.student.entity.Student;
-import src.backend.student.entity.StudentGuardian;
-import src.backend.student.repository.spec.StudentGuardianRepository;
 import src.backend.tenant.entity.Tenant;
 import src.backend.user.entity.Role;
-import src.backend.user.entity.User;
 
 /**
  * 학부모 등하원 위치 변경 자동 판정 단위 테스트(BE-10) — 4개 판정 분기(BLOCKED/APPLIED/REPLANNED/REJECTED)와
@@ -68,7 +66,7 @@ class LocationChangeCommandServiceTest {
 
     private final LocationChangeRequestRepository locationChangeRequestRepository =
             mock(LocationChangeRequestRepository.class);
-    private final StudentGuardianRepository studentGuardianRepository = mock(StudentGuardianRepository.class);
+    private final GuardianAccess guardianAccess = mock(GuardianAccess.class);
     private final DriveSessionRepository driveSessionRepository = mock(DriveSessionRepository.class);
     private final RoutePlanRepository routePlanRepository = mock(RoutePlanRepository.class);
     private final RoutePlanSimulationService simulationService = mock(RoutePlanSimulationService.class);
@@ -76,7 +74,7 @@ class LocationChangeCommandServiceTest {
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
 
     private final LocationChangeCommandService service = new LocationChangeCommandService(
-            locationChangeRequestRepository, studentGuardianRepository, driveSessionRepository,
+            locationChangeRequestRepository, guardianAccess, driveSessionRepository,
             routePlanRepository, simulationService, routingCommandService, eventPublisher);
 
     @Test
@@ -170,7 +168,8 @@ class LocationChangeCommandServiceTest {
 
     @Test
     void create_notGuardian_throwsForbidden() {
-        given(studentGuardianRepository.findByGuardianId(PARENT_ID)).willReturn(List.of());
+        given(guardianAccess.requireGuardianOf(parent(), STUDENT_ID))
+                .willThrow(new BusinessException(ErrorCode.FORBIDDEN, "자녀가 아닙니다"));
 
         assertThatThrownBy(() -> service.create(parent(), request(RouteDirection.DROPOFF)))
                 .isInstanceOf(BusinessException.class)
@@ -202,9 +201,7 @@ class LocationChangeCommandServiceTest {
     // ── fixtures ──
 
     private void givenGuardianOf(Student student) {
-        User guardian = User.builder().email("parent@school.com").name("이부모").password("x").build();
-        StudentGuardian link = StudentGuardian.builder().student(student).guardian(guardian).relation("모").build();
-        given(studentGuardianRepository.findByGuardianId(PARENT_ID)).willReturn(List.of(link));
+        given(guardianAccess.requireGuardianOf(parent(), STUDENT_ID)).willReturn(student);
     }
 
     /** 저장 시 id 를 채워 돌려준다 — 이벤트·응답이 요청 id 를 필요로 한다. */

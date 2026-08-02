@@ -25,12 +25,10 @@ import src.backend.global.common.ApprovalStatus;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
+import src.backend.student.access.GuardianAccess;
 import src.backend.student.entity.Student;
-import src.backend.student.entity.StudentGuardian;
-import src.backend.student.repository.spec.StudentGuardianRepository;
 import src.backend.tenant.entity.Tenant;
 import src.backend.user.entity.Role;
-import src.backend.user.entity.User;
 
 /**
  * 결석·휴원 신고 승인 워크플로 단위 테스트 — 상태전이(PENDING→APPROVED/REJECTED)·권한가드(보호자/테넌트)·
@@ -40,11 +38,11 @@ import src.backend.user.entity.User;
 class AttendanceCommandServiceTest {
 
     private final AttendanceExceptionRepository attendanceExceptionRepository = mock(AttendanceExceptionRepository.class);
-    private final StudentGuardianRepository studentGuardianRepository = mock(StudentGuardianRepository.class);
+    private final GuardianAccess guardianAccess = mock(GuardianAccess.class);
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
 
     private final AttendanceCommandService service = new AttendanceCommandService(
-            attendanceExceptionRepository, studentGuardianRepository, eventPublisher);
+            attendanceExceptionRepository, guardianAccess, eventPublisher);
 
     private static final Long TENANT_ID = 1L;
     private static final Long STUDENT_ID = 10L;
@@ -53,8 +51,7 @@ class AttendanceCommandServiceTest {
     void create_asGuardian_savesAndReturnsResponse() {
         AuthUser parent = authUser(100L, TENANT_ID, Role.PARENT);
         Student student = student(STUDENT_ID, TENANT_ID);
-        given(studentGuardianRepository.findByGuardianId(100L))
-                .willReturn(List.of(studentGuardian(student)));
+        given(guardianAccess.requireGuardianOf(parent, STUDENT_ID)).willReturn(student);
         CreateAttendanceExceptionRequest req = new CreateAttendanceExceptionRequest(
                 STUDENT_ID, AttendanceType.ABSENCE, LocalDate.now(), "감기");
         given(attendanceExceptionRepository.save(any(AttendanceException.class))).willAnswer(inv -> {
@@ -72,7 +69,8 @@ class AttendanceCommandServiceTest {
     @Test
     void create_notGuardian_throwsForbidden() {
         AuthUser parent = authUser(100L, TENANT_ID, Role.PARENT);
-        given(studentGuardianRepository.findByGuardianId(100L)).willReturn(List.of()); // 이 학생의 보호자가 아님
+        given(guardianAccess.requireGuardianOf(parent, STUDENT_ID))
+                .willThrow(new BusinessException(ErrorCode.FORBIDDEN, "자녀가 아닙니다")); // 이 학생의 보호자가 아님
         CreateAttendanceExceptionRequest req = new CreateAttendanceExceptionRequest(
                 STUDENT_ID, AttendanceType.ABSENCE, LocalDate.now(), null);
 
@@ -170,11 +168,6 @@ class AttendanceCommandServiceTest {
         Student student = Student.builder().tenant(tenant).name("김민준").build();
         ReflectionTestUtils.setField(student, "id", id);
         return student;
-    }
-
-    private StudentGuardian studentGuardian(Student student) {
-        User guardian = User.builder().email("parent@school.com").name("이부모").password("x").build();
-        return StudentGuardian.builder().student(student).guardian(guardian).relation("모").build();
     }
 
     private AuthUser authUser(Long userId, Long tenantId, Role role) {

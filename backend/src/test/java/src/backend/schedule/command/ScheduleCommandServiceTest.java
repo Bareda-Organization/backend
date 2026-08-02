@@ -25,13 +25,11 @@ import src.backend.schedule.dto.ScheduleChangeRequestResponse;
 import src.backend.schedule.entity.ScheduleChangeRequest;
 import src.backend.schedule.repository.spec.ScheduleChangeRequestRepository;
 import src.backend.global.common.ApprovalStatus;
+import src.backend.student.access.GuardianAccess;
 import src.backend.student.entity.Student;
-import src.backend.student.entity.StudentGuardian;
-import src.backend.student.repository.spec.StudentGuardianRepository;
 import src.backend.student.repository.spec.StudentRepository;
 import src.backend.tenant.entity.Tenant;
 import src.backend.user.entity.Role;
-import src.backend.user.entity.User;
 
 /**
  * 등하원 시간 변경 요청 승인 워크플로 단위 테스트 — 상태전이(PENDING→APPROVED/REJECTED)·권한가드(보호자/테넌트)·
@@ -41,12 +39,12 @@ import src.backend.user.entity.User;
 class ScheduleCommandServiceTest {
 
     private final ScheduleChangeRequestRepository scheduleChangeRequestRepository = mock(ScheduleChangeRequestRepository.class);
-    private final StudentGuardianRepository studentGuardianRepository = mock(StudentGuardianRepository.class);
+    private final GuardianAccess guardianAccess = mock(GuardianAccess.class);
     private final StudentRepository studentRepository = mock(StudentRepository.class);
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
 
     private final ScheduleCommandService service = new ScheduleCommandService(
-            scheduleChangeRequestRepository, studentGuardianRepository, studentRepository, eventPublisher);
+            scheduleChangeRequestRepository, guardianAccess, studentRepository, eventPublisher);
 
     private static final Long TENANT_ID = 1L;
     private static final Long STUDENT_ID = 10L;
@@ -55,7 +53,7 @@ class ScheduleCommandServiceTest {
     void create_asGuardian_savesAndReturnsResponse() {
         AuthUser parent = authUser(100L, TENANT_ID, Role.PARENT);
         Student student = student(STUDENT_ID, TENANT_ID);
-        given(studentGuardianRepository.findByGuardianId(100L)).willReturn(List.of(studentGuardian(student)));
+        given(guardianAccess.requireGuardianOf(parent, STUDENT_ID)).willReturn(student);
         CreateScheduleChangeRequest req = new CreateScheduleChangeRequest(
                 STUDENT_ID, LocalDate.now(), LocalTime.of(17, 30), "병원 진료");
         given(scheduleChangeRequestRepository.save(any(ScheduleChangeRequest.class))).willAnswer(inv -> {
@@ -73,7 +71,8 @@ class ScheduleCommandServiceTest {
     @Test
     void create_notGuardian_throwsForbidden() {
         AuthUser parent = authUser(100L, TENANT_ID, Role.PARENT);
-        given(studentGuardianRepository.findByGuardianId(100L)).willReturn(List.of());
+        given(guardianAccess.requireGuardianOf(parent, STUDENT_ID))
+                .willThrow(new BusinessException(ErrorCode.FORBIDDEN, "자녀가 아닙니다"));
         CreateScheduleChangeRequest req = new CreateScheduleChangeRequest(
                 STUDENT_ID, LocalDate.now(), LocalTime.of(17, 30), null);
 
@@ -163,11 +162,6 @@ class ScheduleCommandServiceTest {
         Student student = Student.builder().tenant(tenant).name("김민준").build();
         ReflectionTestUtils.setField(student, "id", id);
         return student;
-    }
-
-    private StudentGuardian studentGuardian(Student student) {
-        User guardian = User.builder().email("parent@school.com").name("이부모").password("x").build();
-        return StudentGuardian.builder().student(student).guardian(guardian).relation("모").build();
     }
 
     private AuthUser authUser(Long userId, Long tenantId, Role role) {

@@ -12,9 +12,8 @@ import src.backend.attendance.repository.spec.AttendanceExceptionRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
+import src.backend.student.access.GuardianAccess;
 import src.backend.student.entity.Student;
-import src.backend.student.entity.StudentGuardian;
-import src.backend.student.repository.spec.StudentGuardianRepository;
 
 /**
  * 결석·휴원 신고 생성/승인/반려 — 단순 CRUD라 인터페이스 없이 concrete 클래스로 둔다(§11.3).
@@ -25,20 +24,20 @@ import src.backend.student.repository.spec.StudentGuardianRepository;
 public class AttendanceCommandService {
 
     private final AttendanceExceptionRepository attendanceExceptionRepository;
-    private final StudentGuardianRepository studentGuardianRepository;
+    private final GuardianAccess guardianAccess;
     private final ApplicationEventPublisher eventPublisher;
 
     public AttendanceCommandService(AttendanceExceptionRepository attendanceExceptionRepository,
-                                    StudentGuardianRepository studentGuardianRepository,
+                                    GuardianAccess guardianAccess,
                                     ApplicationEventPublisher eventPublisher) {
         this.attendanceExceptionRepository = attendanceExceptionRepository;
-        this.studentGuardianRepository = studentGuardianRepository;
+        this.guardianAccess = guardianAccess;
         this.eventPublisher = eventPublisher;
     }
 
     @Transactional
     public AttendanceExceptionResponse create(AuthUser parent, CreateAttendanceExceptionRequest req) {
-        Student student = requireGuardianOf(parent, req.studentId());
+        Student student = guardianAccess.requireGuardianOf(parent, req.studentId());
 
         AttendanceException saved = attendanceExceptionRepository.save(AttendanceException.builder()
                 .tenantId(student.getTenant().getId())
@@ -64,14 +63,6 @@ public class AttendanceCommandService {
         AttendanceException exception = findForAdmin(admin, id);
         exception.reject(admin.userId());
         return AttendanceExceptionResponse.from(exception);
-    }
-
-    private Student requireGuardianOf(AuthUser parent, Long studentId) {
-        return studentGuardianRepository.findByGuardianId(parent.userId()).stream()
-                .map(StudentGuardian::getStudent)
-                .filter(s -> s.getId().equals(studentId))
-                .findFirst()
-                .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN, "자녀가 아닙니다"));
     }
 
     private AttendanceException findForAdmin(AuthUser admin, Long id) {

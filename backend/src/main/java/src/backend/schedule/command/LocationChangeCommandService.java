@@ -10,8 +10,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import src.backend.bus.entity.Bus;
 import src.backend.drivesession.repository.spec.DriveSessionRepository;
-import src.backend.global.error.BusinessException;
-import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 import src.backend.routing.command.RoutingCommandService;
 import src.backend.routing.domain.RouteDirection;
@@ -28,9 +26,8 @@ import src.backend.schedule.entity.LocationChangeDecision;
 import src.backend.schedule.entity.LocationChangeRequest;
 import src.backend.schedule.event.LocationChangeResultEvent;
 import src.backend.schedule.repository.spec.LocationChangeRequestRepository;
+import src.backend.student.access.GuardianAccess;
 import src.backend.student.entity.Student;
-import src.backend.student.entity.StudentGuardian;
-import src.backend.student.repository.spec.StudentGuardianRepository;
 
 /**
  * 학부모 등하원 위치 변경 요청의 자동 판정(P2) — 단순 CRUD가 아니라 orchestration 이지만
@@ -50,7 +47,7 @@ import src.backend.student.repository.spec.StudentGuardianRepository;
 public class LocationChangeCommandService {
 
     private final LocationChangeRequestRepository locationChangeRequestRepository;
-    private final StudentGuardianRepository studentGuardianRepository;
+    private final GuardianAccess guardianAccess;
     private final DriveSessionRepository driveSessionRepository;
     private final RoutePlanRepository routePlanRepository;
     private final RoutePlanSimulationService simulationService;
@@ -58,14 +55,14 @@ public class LocationChangeCommandService {
     private final ApplicationEventPublisher eventPublisher;
 
     public LocationChangeCommandService(LocationChangeRequestRepository locationChangeRequestRepository,
-                                        StudentGuardianRepository studentGuardianRepository,
+                                        GuardianAccess guardianAccess,
                                         DriveSessionRepository driveSessionRepository,
                                         RoutePlanRepository routePlanRepository,
                                         RoutePlanSimulationService simulationService,
                                         RoutingCommandService routingCommandService,
                                         ApplicationEventPublisher eventPublisher) {
         this.locationChangeRequestRepository = locationChangeRequestRepository;
-        this.studentGuardianRepository = studentGuardianRepository;
+        this.guardianAccess = guardianAccess;
         this.driveSessionRepository = driveSessionRepository;
         this.routePlanRepository = routePlanRepository;
         this.simulationService = simulationService;
@@ -75,7 +72,7 @@ public class LocationChangeCommandService {
 
     @Transactional
     public LocationChangeRequestResponse create(AuthUser parent, CreateLocationChangeRequest req) {
-        Student student = requireGuardianOf(parent, req.studentId());   // 1. 보호자 검증(아니면 FORBIDDEN)
+        Student student = guardianAccess.requireGuardianOf(parent, req.studentId());   // 1. 보호자 검증(아니면 FORBIDDEN)
         Bus bus = student.getAssignedBus();
         LocalDate date = req.targetDate() != null ? req.targetDate() : LocalDate.now();
 
@@ -169,13 +166,5 @@ public class LocationChangeCommandService {
 
         eventPublisher.publishEvent(LocationChangeResultEvent.of(saved, student.getName()));
         return LocationChangeRequestResponse.from(saved);
-    }
-
-    private Student requireGuardianOf(AuthUser parent, Long studentId) {
-        return studentGuardianRepository.findByGuardianId(parent.userId()).stream()
-                .map(StudentGuardian::getStudent)
-                .filter(s -> s.getId().equals(studentId))
-                .findFirst()
-                .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN, "자녀가 아닙니다"));
     }
 }
