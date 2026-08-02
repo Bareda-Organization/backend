@@ -11,7 +11,6 @@ import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,24 +24,22 @@ import src.backend.global.security.AuthUser;
 import src.backend.global.tenant.TenantGuard;
 import src.backend.routing.domain.BusCapacity;
 import src.backend.routing.domain.LatLng;
+import src.backend.routing.domain.PlannedRoute;
 import src.backend.routing.domain.RouteDirection;
 import src.backend.routing.domain.RoutePlanStatus;
 import src.backend.routing.dto.AutoAssignRequest;
 import src.backend.routing.dto.AutoAssignResponse;
 import src.backend.routing.dto.GenerateRoutePlanRequest;
 import src.backend.routing.dto.RoutePlanResponse;
+import src.backend.routing.engine.RoutePlanComputer;
 import src.backend.routing.engine.spec.BusAssigner;
-import src.backend.routing.engine.spec.RouteEngine;
 import src.backend.routing.entity.RoutePlan;
 import src.backend.routing.entity.RoutePlanStop;
 import src.backend.routing.event.RoutePlanPublishedEvent;
 import src.backend.routing.event.RoutePlanRecommendedEvent;
-import src.backend.routing.infrastructure.spec.MapRouteClient;
-import src.backend.routing.infrastructure.spec.RouteResult;
 import src.backend.routing.repository.spec.RoutePlanRepository;
 import src.backend.student.entity.Student;
 import src.backend.student.repository.spec.StudentRepository;
-import src.backend.tenant.entity.Tenant;
 
 /**
  * 노선 계획 생성 — 단순 CRUD가 아니라 orchestration(로스터 조회→알고리즘→directions API→저장)이지만
@@ -58,30 +55,24 @@ public class RoutingCommandService {
     private final BusRepository busRepository;
     private final StudentRepository studentRepository;
     private final AttendanceQueryService attendanceQueryService;
-    private final RouteEngine routeEngine;
     private final BusAssigner busAssigner;
-    private final MapRouteClient mapRouteClient;
     private final ApplicationEventPublisher eventPublisher;
-    private final int maxWaypoints;
+    private final RoutePlanComputer computer;
 
     public RoutingCommandService(RoutePlanRepository routePlanRepository,
                                  BusRepository busRepository,
                                  StudentRepository studentRepository,
                                  AttendanceQueryService attendanceQueryService,
-                                 RouteEngine routeEngine,
                                  BusAssigner busAssigner,
-                                 MapRouteClient mapRouteClient,
                                  ApplicationEventPublisher eventPublisher,
-                                 @Value("${routing.max-waypoints:7}") int maxWaypoints) {
+                                 RoutePlanComputer computer) {
         this.routePlanRepository = routePlanRepository;
         this.busRepository = busRepository;
         this.studentRepository = studentRepository;
         this.attendanceQueryService = attendanceQueryService;
-        this.routeEngine = routeEngine;
         this.busAssigner = busAssigner;
-        this.mapRouteClient = mapRouteClient;
         this.eventPublisher = eventPublisher;
-        this.maxWaypoints = maxWaypoints;
+        this.computer = computer;
     }
 
     @Transactional
@@ -145,13 +136,13 @@ public class RoutingCommandService {
         if (buses.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "배차 가능한 버스가 없습니다");
         }
-        LatLng depot = requireDepot(buses.get(0).getTenant());
+        LatLng depot = computer.requireDepot(buses.get(0).getTenant());
 
         List<Student> roster = attendanceQueryService.getActiveRosterForTenant(tenantId, serviceDate);
         Map<Long, LatLng> points = new LinkedHashMap<>();
         List<String> excluded = new ArrayList<>();
         for (Student student : roster) {
-            LatLng point = req.direction() == RouteDirection.PICKUP ? boardingPoint(student) : dropoffPoint(student);
+            LatLng point = RoutePlanComputer.pointOf(student, req.direction());
             if (point == null) {
                 excluded.add(student.getName());
             } else {
@@ -272,23 +263,23 @@ public class RoutingCommandService {
     /** F4 자동배정처럼 로스터를 외부(Sweep 결과)에서 받는 경우용 — 좌표해석 이후 로직은 기존과 동일. */
     private RoutePlan buildPlan(Bus bus, RouteDirection direction, LocalDate serviceDate, RoutePlanStatus status,
                                 List<Student> roster) {
-        LatLng depot = requireDepot(bus.getTenant());
+        computer.requireDepot(bus.getTenant());   // ⚠️ 순서 보존: depot 미설정이 정원 초과보다 먼저 걸려야 한다
 
         if (roster.size() > bus.getSeatCapacity()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "로스터(" + roster.size() + "명)가 버스 정원(" + bus.getSeatCapacity() + "명)을 초과합니다");
         }
-
         Map<Long, LatLng> studentPoints = resolveStudentPoints(roster, direction);
+        return persistPlan(bus, direction, serviceDate, status,
+                computer.computeRoute(bus, direction, studentPoints));
+    }
 
-        List<Long> optimizedOrder = routeEngine.optimizeOrder(depot, studentPoints);
-        List<Long> stopOrder = direction == RouteDirection.DROPOFF
-                ? optimizedOrder
-                : reversed(optimizedOrder);
-
-        List<LatLng> waypoints = buildWaypoints(depot, stopOrder, studentPoints, direction);
-        RouteResult routeResult = resolveRoute(waypoints);
-
+    /**
+     * 계산 결과를 version+1 인 <b>새 행</b>으로 저장한다(I-5 — 기존 행은 수정하지 않는다).
+     * BE-5 의 시뮬레이션 채택도 이 메서드로 합류해 "계산은 한 번, 저장은 한 곳"을 유지한다.
+     */
+    private RoutePlan persistPlan(Bus bus, RouteDirection direction, LocalDate serviceDate, RoutePlanStatus status,
+                                  PlannedRoute route) {
         int nextVersion = routePlanRepository
                 .findTopByBusIdAndDirectionOrderByVersionDesc(bus.getId(), direction)
                 .map(p -> p.getVersion() + 1)
@@ -301,36 +292,24 @@ public class RoutingCommandService {
                 .status(status)
                 .version(nextVersion)
                 .serviceDate(serviceDate)
-                .polyline(routeResult.polyline())
-                .totalDistanceM(routeResult.totalDistanceM())
-                .totalDurationS(routeResult.totalDurationS())
+                .polyline(route.polyline())
+                .totalDistanceM(route.totalDistanceM())
+                .totalDurationS(route.totalDurationS())
                 .build();
 
-        List<Double> cumulative = cumulativeSeconds(routeResult.legDurationsS());
-        int stopWaypointOffset = direction == RouteDirection.DROPOFF ? 1 : 0;
-        for (int i = 0; i < stopOrder.size(); i++) {
-            LatLng point = studentPoints.get(stopOrder.get(i));
-            long eta = Math.round(cumulative.get(i + stopWaypointOffset));
-            plan.addStop(stopOrder.get(i), point.lat(), point.lng(), eta);
+        for (int i = 0; i < route.stopStudentIds().size(); i++) {
+            LatLng point = route.stopPoints().get(i);
+            plan.addStop(route.stopStudentIds().get(i), point.lat(), point.lng(), route.stopEtaSeconds().get(i));
         }
 
         return routePlanRepository.save(plan);
-    }
-
-    private LatLng requireDepot(Tenant tenant) {
-        if (tenant.getLat() == null || tenant.getLng() == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "학원 위치(depot)가 설정되지 않았습니다");
-        }
-        return new LatLng(tenant.getLat(), tenant.getLng());
     }
 
     private Map<Long, LatLng> resolveStudentPoints(List<Student> roster, RouteDirection direction) {
         Map<Long, LatLng> points = new LinkedHashMap<>();
         List<String> missing = new ArrayList<>();
         for (Student student : roster) {
-            LatLng point = direction == RouteDirection.PICKUP
-                    ? boardingPoint(student)
-                    : dropoffPoint(student);
+            LatLng point = RoutePlanComputer.pointOf(student, direction);
             if (point == null) {
                 missing.add(student.getName());
             } else {
@@ -341,85 +320,5 @@ public class RoutingCommandService {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "좌표가 없는 학생이 있습니다: " + missing);
         }
         return points;
-    }
-
-    private LatLng boardingPoint(Student student) {
-        if (student.getBoardingStop() == null) {
-            return null;
-        }
-        return new LatLng(student.getBoardingStop().getLat(), student.getBoardingStop().getLng());
-    }
-
-    private LatLng dropoffPoint(Student student) {
-        if (student.getDropoffLat() == null || student.getDropoffLng() == null) {
-            return null;
-        }
-        return new LatLng(student.getDropoffLat(), student.getDropoffLng());
-    }
-
-    /** DROPOFF: [depot, ...순서대로]. PICKUP: [...역순, depot] — 대칭거리에서 depot고정 최적경로를 뒤집어도 총거리는 동일하다는 성질 이용. */
-    private List<LatLng> buildWaypoints(LatLng depot, List<Long> stopOrder, Map<Long, LatLng> points,
-                                        RouteDirection direction) {
-        List<LatLng> waypoints = new ArrayList<>();
-        if (direction == RouteDirection.DROPOFF) {
-            waypoints.add(depot);
-            for (Long id : stopOrder) {
-                waypoints.add(points.get(id));
-            }
-        } else {
-            for (Long id : stopOrder) {
-                waypoints.add(points.get(id));
-            }
-            waypoints.add(depot);
-        }
-        return waypoints;
-    }
-
-    private List<Long> reversed(List<Long> order) {
-        List<Long> copy = new ArrayList<>(order);
-        java.util.Collections.reverse(copy);
-        return copy;
-    }
-
-    private List<Double> cumulativeSeconds(List<Double> legDurationsS) {
-        List<Double> cumulative = new ArrayList<>(legDurationsS.size() + 1);
-        cumulative.add(0.0);
-        double running = 0;
-        for (double leg : legDurationsS) {
-            running += leg;
-            cumulative.add(running);
-        }
-        return cumulative;
-    }
-
-    /** waypoint 가 상한을 넘으면 경계를 공유하는 구간으로 나눠 여러 번 호출 후 병합한다. */
-    private RouteResult resolveRoute(List<LatLng> waypoints) {
-        if (waypoints.size() <= maxWaypoints) {
-            return mapRouteClient.route(waypoints);
-        }
-        double totalDistance = 0;
-        double totalDuration = 0;
-        List<Double> legDurations = new ArrayList<>();
-        StringBuilder polylineBuilder = new StringBuilder("[");
-        boolean first = true;
-        int start = 0;
-        while (start < waypoints.size() - 1) {
-            int end = Math.min(start + maxWaypoints - 1, waypoints.size() - 1);
-            RouteResult chunkResult = mapRouteClient.route(waypoints.subList(start, end + 1));
-            totalDistance += chunkResult.totalDistanceM();
-            totalDuration += chunkResult.totalDurationS();
-            legDurations.addAll(chunkResult.legDurationsS());
-            String p = chunkResult.polyline();
-            if (!first) {
-                polylineBuilder.append(',');
-            }
-            if (p != null && p.length() >= 2) {
-                polylineBuilder.append(p, 1, p.length() - 1);
-            }
-            first = false;
-            start = end;
-        }
-        polylineBuilder.append(']');
-        return new RouteResult(totalDistance, totalDuration, legDurations, polylineBuilder.toString());
     }
 }
