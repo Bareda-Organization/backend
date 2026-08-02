@@ -109,4 +109,12 @@ public class LocationController {
             @Parameter(example = "1") @RequestParam(required = false) Long tenantId) {
         return ApiResponse.ok(busLocationQueryService.getTenantBusLocations(admin, tenantId));
     }
+
+    /** 학부모: 자녀가 탄 버스들의 최신 위치(P1). busId 를 입력받지 않아 타 버스 노출이 구조적으로 불가능하다. */
+    @GetMapping("/children/buses")
+    @PreAuthorize("hasRole('PARENT')")
+    @Operation(tags = {"00. MVP 사용 API", "08. 위치(Location)"})
+    public ApiResponse<List<BusLocationView>> childrenBusLocations(@AuthenticationPrincipal AuthUser parent) {
+        return ApiResponse.ok(busLocationQueryService.getChildrenBusLocations(parent));
+    }
 }
