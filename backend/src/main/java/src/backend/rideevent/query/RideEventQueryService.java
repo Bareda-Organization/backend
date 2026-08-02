@@ -7,6 +7,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import src.backend.bus.access.BusCrewGuard;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.spec.BusRepository;
 import src.backend.global.error.BusinessException;
@@ -24,7 +25,7 @@ import src.backend.student.repository.spec.StudentRepository;
 /**
  * 승하차 기록 역할별 조회 — 단순 CRUD라 인터페이스 없이 concrete 클래스로 둔다(§11.3).
  * CQRS 원칙(§7)에 따라 {@link src.backend.rideevent.command.RideEventCommandService}를 호출하지 않고,
- * 필요한 권한 검사(담당 기사 확인)는 작게 중복해 둔다.
+ * 담당자 검사는 {@link src.backend.bus.access.BusCrewGuard}에 위임한다.
  */
 @Service
 public class RideEventQueryService {
@@ -71,7 +72,7 @@ public class RideEventQueryService {
     public List<RideEventResponse> getRosterRecords(AuthUser actor, Long busId, LocalDate date) {
         Bus bus = busRepository.findById(busId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "버스를 찾을 수 없습니다"));
-        requireAssignedCrew(bus, actor);
+        BusCrewGuard.requireAssignedCrew(bus, actor);
         LocalDateTime[] range = dayRange(date);
         return toResponses(rideEventRepository
                 .findByBusIdAndOccurredAtBetweenOrderByOccurredAtAsc(busId, range[0], range[1]));
@@ -89,15 +90,6 @@ public class RideEventQueryService {
                 : rideEventRepository.findByTenantIdAndOccurredAtBetweenOrderByOccurredAtAsc(
                         effectiveTenant, start, end);
         return toResponses(events);
-    }
-
-    /** 기사 또는 선탑자 본인만 그 버스의 기록을 볼 수 있다. */
-    private void requireAssignedCrew(Bus bus, AuthUser actor) {
-        boolean isDriver = bus.getDriver() != null && bus.getDriver().getId().equals(actor.userId());
-        boolean isAttendant = bus.getAttendant() != null && bus.getAttendant().getId().equals(actor.userId());
-        if (!isDriver && !isAttendant) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "담당 기사·선탑자만 처리할 수 있습니다");
-        }
     }
 
     private LocalDateTime[] dayRange(LocalDate date) {

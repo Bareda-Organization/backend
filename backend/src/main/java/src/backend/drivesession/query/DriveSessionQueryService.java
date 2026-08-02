@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import src.backend.attendance.query.AttendanceQueryService;
+import src.backend.bus.access.BusCrewGuard;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.spec.BusRepository;
 import src.backend.drivesession.dto.DriveSessionResponse;
@@ -43,7 +44,7 @@ public class DriveSessionQueryService {
     public List<DriveSessionResponse> getBusHistory(AuthUser actor, Long busId) {
         Bus bus = busRepository.findById(busId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "버스를 찾을 수 없습니다"));
-        requireAssignedCrew(bus, actor);
+        BusCrewGuard.requireAssignedCrew(bus, actor);
         return driveSessionRepository.findByBusIdOrderByStartedAtDesc(busId).stream()
                 .map(DriveSessionResponse::from).toList();
     }
@@ -86,14 +87,5 @@ public class DriveSessionQueryService {
         }
         return new DriveSessionRosterEntry(student.getId(), student.getName(), student.getPhotoUrl(),
                 student.getDropoffAddress(), student.getDropoffLat(), student.getDropoffLng());
-    }
-
-    /** 기사 또는 선탑자 본인만 그 버스의 운행 이력을 볼 수 있다. */
-    private void requireAssignedCrew(Bus bus, AuthUser actor) {
-        boolean isDriver = bus.getDriver() != null && bus.getDriver().getId().equals(actor.userId());
-        boolean isAttendant = bus.getAttendant() != null && bus.getAttendant().getId().equals(actor.userId());
-        if (!isDriver && !isAttendant) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "담당 기사·선탑자만 조회할 수 있습니다");
-        }
     }
 }

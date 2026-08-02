@@ -6,6 +6,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import src.backend.bus.access.BusCrewGuard;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.spec.BusRepository;
 import src.backend.global.error.BusinessException;
@@ -54,19 +55,10 @@ public class RoutingQueryService {
     public List<RoutePlanResponse> getPublishedForDriver(AuthUser actor, Long busId, LocalDate serviceDate) {
         Bus bus = busRepository.findById(busId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "버스를 찾을 수 없습니다"));
-        requireAssignedCrew(bus, actor);
+        BusCrewGuard.requireAssignedCrew(bus, actor);
         LocalDate date = serviceDate != null ? serviceDate : LocalDate.now();
         return routePlanRepository
                 .findByBusIdAndServiceDateAndStatusOrderByDirectionAsc(busId, date, RoutePlanStatus.PUBLISHED)
                 .stream().map(RoutePlanResponse::from).toList();
-    }
-
-    /** 기사 또는 선탑자 본인만 그 버스의 노선을 볼 수 있다. */
-    private void requireAssignedCrew(Bus bus, AuthUser actor) {
-        boolean isDriver = bus.getDriver() != null && bus.getDriver().getId().equals(actor.userId());
-        boolean isAttendant = bus.getAttendant() != null && bus.getAttendant().getId().equals(actor.userId());
-        if (!isDriver && !isAttendant) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "담당 기사·선탑자만 조회할 수 있습니다");
-        }
     }
 }
