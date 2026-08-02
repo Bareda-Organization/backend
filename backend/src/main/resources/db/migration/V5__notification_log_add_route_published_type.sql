@@ -6,4 +6,5 @@ alter table notification_log
 alter table notification_log
     add constraint notification_log_type_check
     check ((type in ('BOARD_DONE', 'ALIGHT_DONE', 'HANDOVER_DONE', 'APPROACH', 'NO_SHOW', 'SOS',
-                      'SCHEDULE_RESULT', 'CONNECTION_LOST', 'ROUTE_RECOMMENDED', 'ROUTE_PUBLISHED')));
+                      'SCHEDULE_RESULT', 'CONNECTION_LOST', 'ROUTE_RECOMMENDED', 'ROUTE_PUBLISHED',
+                      'LOCATION_CHANGE_RESULT')));

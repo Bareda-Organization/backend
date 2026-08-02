@@ -14,6 +14,9 @@ DECLARE
     v_driver_user_id   bigint;
     v_admin_user_id    bigint;
     v_platform_user_id bigint;
+    v_att3_user_id     bigint;
+    v_att1_user_id     bigint;
+    v_gaon_att_user_id bigint;
     v_route_a_id   bigint;
     v_route_b_id   bigint;
     v_gaon_route_id bigint;
@@ -21,6 +24,7 @@ DECLARE
     v_stop_b_id    bigint;
     v_bus3_id      bigint;
     v_bus1_id      bigint;
+    v_gaon_bus_id  bigint;
     v_kim_student_id bigint;
     v_lee_student_id bigint;
 BEGIN
@@ -33,16 +37,27 @@ BEGIN
         VALUES ('미래코딩', 37.5145, 127.0300, now(), now());
 
     -- ── 역할별 계정(비밀번호 공통 "password") ──
-    INSERT INTO app_user (email, name, password, phone, created_at, updated_at)
-        VALUES ('student@school.com', '김민준', v_hash, '010-0000-0001', now(), now()) RETURNING id INTO v_student_user_id;
-    INSERT INTO app_user (email, name, password, phone, created_at, updated_at)
-        VALUES ('parent@school.com', '이부모', v_hash, '010-0000-0002', now(), now()) RETURNING id INTO v_parent_user_id;
-    INSERT INTO app_user (email, name, password, phone, created_at, updated_at)
-        VALUES ('driver@school.com', '박기사', v_hash, '010-0000-0003', now(), now()) RETURNING id INTO v_driver_user_id;
-    INSERT INTO app_user (email, name, password, phone, created_at, updated_at)
-        VALUES ('admin@school.com', '한빛관리자', v_hash, '010-0000-0004', now(), now()) RETURNING id INTO v_admin_user_id;
-    INSERT INTO app_user (email, name, password, phone, created_at, updated_at)
-        VALUES ('platform@school.com', '플랫폼관리자', v_hash, '010-0000-0005', now(), now()) RETURNING id INTO v_platform_user_id;
+    -- 사진은 데모용 외부 URL(pravatar). 오프라인·차단 환경에서 404 가 나도
+    -- 프론트는 이니셜 플레이스홀더로 폴백해야 하며 화면이 깨져선 안 된다.
+    INSERT INTO app_user (email, name, password, phone, photo_url, created_at, updated_at)
+        VALUES ('student@school.com', '김민준', v_hash, '010-0000-0001', 'https://i.pravatar.cc/150?img=11', now(), now()) RETURNING id INTO v_student_user_id;
+    INSERT INTO app_user (email, name, password, phone, photo_url, created_at, updated_at)
+        VALUES ('parent@school.com', '이부모', v_hash, '010-0000-0002', 'https://i.pravatar.cc/150?img=45', now(), now()) RETURNING id INTO v_parent_user_id;
+    INSERT INTO app_user (email, name, password, phone, photo_url, created_at, updated_at)
+        VALUES ('driver@school.com', '박기사', v_hash, '010-0000-0003', 'https://i.pravatar.cc/150?img=13', now(), now()) RETURNING id INTO v_driver_user_id;
+    INSERT INTO app_user (email, name, password, phone, photo_url, created_at, updated_at)
+        VALUES ('admin@school.com', '한빛관리자', v_hash, '010-0000-0004', 'https://i.pravatar.cc/150?img=32', now(), now()) RETURNING id INTO v_admin_user_id;
+    INSERT INTO app_user (email, name, password, phone, photo_url, created_at, updated_at)
+        VALUES ('platform@school.com', '플랫폼관리자', v_hash, '010-0000-0005', 'https://i.pravatar.cc/150?img=60', now(), now()) RETURNING id INTO v_platform_user_id;
+
+    -- 선탑자(ATTENDANT) — 버스 3대에 1:1 로 붙는다(I-1). 시드는 최소 데모 상태만 만들고,
+    -- 계정을 늘리는 것은 관리자 화면(BE-12 / FE-11)의 몫이다(D-M).
+    INSERT INTO app_user (email, name, password, phone, photo_url, created_at, updated_at)
+        VALUES ('attendant3@school.com', '최선탑', v_hash, '010-0000-0006', 'https://i.pravatar.cc/150?img=5', now(), now()) RETURNING id INTO v_att3_user_id;
+    INSERT INTO app_user (email, name, password, phone, photo_url, created_at, updated_at)
+        VALUES ('attendant1@school.com', '윤선탑', v_hash, '010-0000-0007', 'https://i.pravatar.cc/150?img=9', now(), now()) RETURNING id INTO v_att1_user_id;
+    INSERT INTO app_user (email, name, password, phone, photo_url, created_at, updated_at)
+        VALUES ('gaon.attendant@school.com', '가온선탑', v_hash, '010-0000-0008', 'https://i.pravatar.cc/150?img=25', now(), now()) RETURNING id INTO v_gaon_att_user_id;
 
     INSERT INTO user_tenant_role (user_id, tenant_id, role, created_at, updated_at)
         VALUES (v_student_user_id, v_hanbit_id, 'STUDENT', now(), now());
@@ -54,6 +69,12 @@ BEGIN
         VALUES (v_admin_user_id, v_hanbit_id, 'ACADEMY_ADMIN', now(), now());
     INSERT INTO user_tenant_role (user_id, tenant_id, role, created_at, updated_at)
         VALUES (v_platform_user_id, NULL, 'PLATFORM_ADMIN', now(), now());   -- 플랫폼 관리자는 전역 역할(tenant 없음)
+    INSERT INTO user_tenant_role (user_id, tenant_id, role, created_at, updated_at)
+        VALUES (v_att3_user_id, v_hanbit_id, 'ATTENDANT', now(), now());
+    INSERT INTO user_tenant_role (user_id, tenant_id, role, created_at, updated_at)
+        VALUES (v_att1_user_id, v_hanbit_id, 'ATTENDANT', now(), now());
+    INSERT INTO user_tenant_role (user_id, tenant_id, role, created_at, updated_at)
+        VALUES (v_gaon_att_user_id, v_gaon_id, 'ATTENDANT', now(), now());   -- 가온에듀 소속 — 크로스테넌트 차단 검증용
 
     -- ── 한빛학원 노선·정류장 ──
     INSERT INTO route (tenant_id, name, assign_capacity, created_at, updated_at)
@@ -70,31 +91,42 @@ BEGIN
         VALUES (v_hanbit_id, '하원 B노선', 2, now(), now()) RETURNING id INTO v_route_b_id;
 
     -- ── 한빛학원 버스 ──
-    INSERT INTO bus (tenant_id, name, plate_number, seat_capacity, driver_id, route_id, insurance_expiry, created_at, updated_at)
-        VALUES (v_hanbit_id, '3호차', '서울12가3456', 25, v_driver_user_id, v_route_a_id, DATE '2026-12-31', now(), now())
+    INSERT INTO bus (tenant_id, name, plate_number, seat_capacity, driver_id, attendant_id, route_id, insurance_expiry, created_at, updated_at)
+        VALUES (v_hanbit_id, '3호차', '서울12가3456', 25, v_driver_user_id, v_att3_user_id, v_route_a_id, DATE '2026-12-31', now(), now())
         RETURNING id INTO v_bus3_id;
-    INSERT INTO bus (tenant_id, name, plate_number, seat_capacity, driver_id, route_id, insurance_expiry, created_at, updated_at)
-        VALUES (v_hanbit_id, '1호차', '서울34나5678', 25, NULL, v_route_b_id, DATE '2026-08-15', now(), now())   -- 기사 미배차
+    INSERT INTO bus (tenant_id, name, plate_number, seat_capacity, driver_id, attendant_id, route_id, insurance_expiry, created_at, updated_at)
+        VALUES (v_hanbit_id, '1호차', '서울34나5678', 25, NULL, v_att1_user_id, v_route_b_id, DATE '2026-08-15', now(), now())   -- 기사 미배차, 선탑자는 배정
         RETURNING id INTO v_bus1_id;
 
     -- ── 한빛학원 학생 ──
+    -- 등원(pickup) 좌표는 6명 중 3명(김민준·박도윤·최지우)에게만 준다 — D-K 우선순위 규칙의 두 갈래를
+    -- 시드만으로 검증하기 위해서다. 좌표가 있으면 그것을, 없으면 stop_id(공유 정류장)를 쓴다.
+    -- 버스 2대 각각이 "좌표 학생 + 폴백 학생"을 동시에 갖도록 섞어 뒀다.
+    -- stop_id 는 좌표를 준 학생도 그대로 유지한다 — 규칙은 정류장을 지우는 게 아니라 좌표를 우선하는 것이다.
+
     -- 3호차(정상): 김민준(학생 계정 연결), 이서연, 박도윤 — 하차지 좌표는 routing 데모용으로 서로 흩어지게 부여
-    INSERT INTO student (tenant_id, user_id, name, bus_id, stop_id, dropoff_address, dropoff_lat, dropoff_lng, created_at, updated_at)
-        VALUES (v_hanbit_id, v_student_user_id, '김민준', v_bus3_id, v_stop_a_id, '서울 서초구 자택', 37.4998, 127.0245, now(), now())
+    INSERT INTO student (tenant_id, user_id, name, phone, photo_url, bus_id, stop_id,
+                         pickup_address, pickup_lat, pickup_lng, dropoff_address, dropoff_lat, dropoff_lng, created_at, updated_at)
+        VALUES (v_hanbit_id, v_student_user_id, '김민준', '010-1000-0001', 'https://i.pravatar.cc/150?img=11', v_bus3_id, v_stop_a_id,
+                '서울 서초구 자택 앞', 37.5002, 127.0262, '서울 서초구 자택', 37.4998, 127.0245, now(), now())
         RETURNING id INTO v_kim_student_id;
-    INSERT INTO student (tenant_id, user_id, name, bus_id, stop_id, dropoff_address, dropoff_lat, dropoff_lng, created_at, updated_at)
-        VALUES (v_hanbit_id, NULL, '이서연', v_bus3_id, v_stop_a_id, '서울 서초구 자택2', 37.5032, 127.0398, now(), now())
+    INSERT INTO student (tenant_id, user_id, name, phone, photo_url, bus_id, stop_id, dropoff_address, dropoff_lat, dropoff_lng, created_at, updated_at)
+        VALUES (v_hanbit_id, NULL, '이서연', '010-1000-0002', 'https://i.pravatar.cc/150?img=47', v_bus3_id, v_stop_a_id, '서울 서초구 자택2', 37.5032, 127.0398, now(), now())
         RETURNING id INTO v_lee_student_id;
-    INSERT INTO student (tenant_id, user_id, name, bus_id, stop_id, dropoff_address, dropoff_lat, dropoff_lng, created_at, updated_at)
-        VALUES (v_hanbit_id, NULL, '박도윤', v_bus3_id, v_stop_b_id, '서울 강남구 자택', 37.5060, 127.0290, now(), now());
+    INSERT INTO student (tenant_id, user_id, name, phone, photo_url, bus_id, stop_id,
+                         pickup_address, pickup_lat, pickup_lng, dropoff_address, dropoff_lat, dropoff_lng, created_at, updated_at)
+        VALUES (v_hanbit_id, NULL, '박도윤', '010-1000-0003', 'https://i.pravatar.cc/150?img=14', v_bus3_id, v_stop_b_id,
+                '서울 강남구 자택 앞', 37.5051, 127.0322, '서울 강남구 자택', 37.5060, 127.0290, now(), now());
 
     -- 1호차(초과): 배정 정원 2인 노선에 3명 → overCapacity
-    INSERT INTO student (tenant_id, user_id, name, bus_id, stop_id, created_at, updated_at)
-        VALUES (v_hanbit_id, NULL, '최지우', v_bus1_id, v_stop_a_id, now(), now());
-    INSERT INTO student (tenant_id, user_id, name, bus_id, stop_id, created_at, updated_at)
-        VALUES (v_hanbit_id, NULL, '정하율', v_bus1_id, v_stop_a_id, now(), now());
-    INSERT INTO student (tenant_id, user_id, name, bus_id, stop_id, created_at, updated_at)
-        VALUES (v_hanbit_id, NULL, '강서준', v_bus1_id, v_stop_b_id, now(), now());
+    INSERT INTO student (tenant_id, user_id, name, phone, photo_url, bus_id, stop_id,
+                         pickup_address, pickup_lat, pickup_lng, created_at, updated_at)
+        VALUES (v_hanbit_id, NULL, '최지우', '010-1000-0004', 'https://i.pravatar.cc/150?img=26', v_bus1_id, v_stop_a_id,
+                '서울 서초구 아파트 정문', 37.4995, 127.0288, now(), now());
+    INSERT INTO student (tenant_id, user_id, name, phone, photo_url, bus_id, stop_id, created_at, updated_at)
+        VALUES (v_hanbit_id, NULL, '정하율', '010-1000-0005', 'https://i.pravatar.cc/150?img=31', v_bus1_id, v_stop_a_id, now(), now());
+    INSERT INTO student (tenant_id, user_id, name, phone, photo_url, bus_id, stop_id, created_at, updated_at)
+        VALUES (v_hanbit_id, NULL, '강서준', '010-1000-0006', 'https://i.pravatar.cc/150?img=52', v_bus1_id, v_stop_b_id, now(), now());
 
     -- ── 학부모 ↔ 자녀 연결(형제자매: 김민준·이서연) ──
     INSERT INTO student_guardian (student_id, guardian_id, relation, created_at, updated_at)
@@ -105,6 +137,7 @@ BEGIN
     -- ── 가온에듀: 크로스 테넌트 조회용 최소 데이터(플랫폼 관리자 데모) ──
     INSERT INTO route (tenant_id, name, assign_capacity, created_at, updated_at)
         VALUES (v_gaon_id, '가온 1노선', 25, now(), now()) RETURNING id INTO v_gaon_route_id;
-    INSERT INTO bus (tenant_id, name, plate_number, seat_capacity, route_id, insurance_expiry, created_at, updated_at)
-        VALUES (v_gaon_id, '2호차', '서울56다7890', 25, v_gaon_route_id, DATE '2027-03-01', now(), now());
+    INSERT INTO bus (tenant_id, name, plate_number, seat_capacity, attendant_id, route_id, insurance_expiry, created_at, updated_at)
+        VALUES (v_gaon_id, '2호차', '서울56다7890', 25, v_gaon_att_user_id, v_gaon_route_id, DATE '2027-03-01', now(), now())
+        RETURNING id INTO v_gaon_bus_id;
 END $$;
