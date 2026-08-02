@@ -7,7 +7,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,6 +19,12 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
+import src.backend.global.security.authz.CanCorrectRideEvent;
+import src.backend.global.security.authz.CanMonitorOperations;
+import src.backend.global.security.authz.CanReadAssignedBus;
+import src.backend.global.security.authz.CanReadOwnChildren;
+import src.backend.global.security.authz.CanReadOwnRecords;
+import src.backend.global.security.authz.CanRecordRideEvent;
 import src.backend.rideevent.command.RideEventCommandService;
 import src.backend.rideevent.dto.CorrectionRequest;
 import src.backend.rideevent.dto.RecordRideRequest;
@@ -28,7 +33,7 @@ import src.backend.rideevent.query.RideEventQueryService;
 
 /**
  * 승하차 기록 API. 같은 기록을 역할별로 다른 범위에서 조회하도록 엔드포인트를 분리하고,
- * @PreAuthorize 로 역할을 제한한다(세밀한 학원 격리는 서비스 계층에서 추가 검사).
+ * 권한 애너테이션으로 역할을 제한한다(세밀한 학원 격리는 서비스 계층에서 추가 검사).
  */
 @Tag(name = "09. 승하차(RideEvent)", description = "승하차(BOARD/ALIGHT/HANDOVER) 기록·정정·조회. 기록은 선탑자, 조회는 역할별 범위에서.")
 @RestController
@@ -46,7 +51,7 @@ public class RideEventController {
 
     /** 선탑자: 승/하차 기록. 기사는 기록하지 않는다(D-J). */
     @PostMapping
-    @PreAuthorize("hasRole('ATTENDANT')")
+    @CanRecordRideEvent
     @Operation(summary = "승하차 기록 (선탑자 전용)",
             description = "⚠️ **2026-08-02 확장으로 권한이 기사(DRIVER)에서 선탑자(ATTENDANT)로 넘어갔다.** "
                     + "기사 토큰으로 부르면 403 이다 — 기사는 이제 조회만 한다. "
@@ -61,7 +66,7 @@ public class RideEventController {
 
     /** 선탑자·관리자: 기록 정정(원본 보존, 정정 기록 신규 생성). */
     @PostMapping("/{id}/correction")
-    @PreAuthorize("hasAnyRole('ATTENDANT', 'ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
+    @CanCorrectRideEvent
     @Operation(summary = "승하차 기록 정정 (선탑자·관리자)",
             description = "⚠️ 권한이 기사에서 **선탑자**로 넘어갔다(관리자는 그대로). "
                     + "원본 행을 고치지 않고 **정정 기록을 새로 만든다** — 잘못 찍힌 기록도 감사 추적을 위해 남긴다. "
@@ -74,7 +79,7 @@ public class RideEventController {
 
     /** 학생: 본인 하루치 기록. */
     @GetMapping("/me")
-    @PreAuthorize("hasRole('STUDENT')")
+    @CanReadOwnRecords
     @Operation(summary = "내 승하차 기록 (학생)",
             description = "`date` 를 비우면 오늘이다. 학생 앱은 아직 없어 Swagger 검증용 경로에 가깝다.",
             tags = {"00. MVP 사용 API", "09. 승하차(RideEvent)"})
@@ -86,7 +91,7 @@ public class RideEventController {
 
     /** 학부모: 자녀(형제자매 포함) 하루치 기록. */
     @GetMapping("/children")
-    @PreAuthorize("hasRole('PARENT')")
+    @CanReadOwnChildren
     @Operation(summary = "자녀 승하차 기록 (학부모)",
             description = "연결된 자녀 전원(형제자매 포함)의 하루치 기록. `date` 를 비우면 오늘이다. "
                     + "학부모 앱이 '지금 탔는지/내렸는지'를 판단하는 근거이며, 버스 위치(`/api/locations/children/buses`)와 짝으로 쓴다.",
@@ -99,7 +104,7 @@ public class RideEventController {
 
     /** 기사·선탑자: 담당 버스 하루치 기록(명단 이력). */
     @GetMapping("/bus/{busId}")
-    @PreAuthorize("hasAnyRole('DRIVER', 'ATTENDANT')")
+    @CanReadAssignedBus
     @Operation(summary = "담당 버스 승하차 기록 (기사·선탑자)",
             description = "⚠️ **2026-08-02 확장으로 선탑자(ATTENDANT)에게도 열렸다**(기존에는 기사 전용). "
                     + "기록은 못 하지만 조회는 기사도 그대로 할 수 있다. 본인 담당 버스가 아니면 거부된다. "
@@ -114,7 +119,7 @@ public class RideEventController {
 
     /** 관리자: 학원 기간 기록(정정 이력 포함). */
     @GetMapping
-    @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
+    @CanMonitorOperations
     @Operation(summary = "학원 승하차 기록 (관리자)",
             description = "기간 조회다. `from`·`to` 를 둘 다 생략하면 **오늘 하루**만 나온다(전체 이력이 아니다). "
                     + "`studentId` 로 한 학생만 좁힐 수 있고, 정정 기록도 함께 나온다.")

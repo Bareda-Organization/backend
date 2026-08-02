@@ -5,7 +5,6 @@ import java.util.List;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -24,10 +23,13 @@ import src.backend.drivesession.dto.StartDriveSessionRequest;
 import src.backend.drivesession.query.DriveSessionQueryService;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
+import src.backend.global.security.authz.CanMonitorOperations;
+import src.backend.global.security.authz.CanOperateDrive;
+import src.backend.global.security.authz.CanReadAssignedBus;
 
 /**
  * 운행 세션(기사 운행 시작/종료, Phase 7) API. 관리자·기사 엔드포인트가 갈려
- * 클래스 레벨 대신 메서드마다 {@code @PreAuthorize}를 둔다(rideevent·routing과 동일 스타일).
+ * 클래스 레벨 대신 메서드마다 권한 애너테이션을 둔다(rideevent·routing과 동일 스타일).
  */
 @Tag(name = "10. 운행세션(DriveSession)",
         description = "운행 시작/종료(기사 전용), 근접·미승차 판정용 세션 상태, 일일 운행 로그. "
@@ -47,7 +49,7 @@ public class DriveSessionController {
 
     /** 기사: 운행 시작. */
     @PostMapping("/start")
-    @PreAuthorize("hasRole('DRIVER')")
+    @CanOperateDrive
     @Operation(summary = "운행 시작 (기사 전용)",
             description = "⚠️ 승하차 기록은 선탑자로 넘어갔지만 **운행 세션 시작·종료는 기사가 그대로 유지**한다 — "
                     + "선탑자 토큰으로 부르면 403 이다. 본인 담당 버스만 시작할 수 있고, `serviceDate` 를 비우면 오늘이다. "
@@ -61,7 +63,7 @@ public class DriveSessionController {
 
     /** 기사: 운행 종료. */
     @PatchMapping("/{id}/end")
-    @PreAuthorize("hasRole('DRIVER')")
+    @CanOperateDrive
     @Operation(summary = "운행 종료 (기사 전용)",
             description = "시작과 마찬가지로 **기사만** 가능하다. `{id}` 는 `POST /api/drive-sessions/start` 응답 또는 "
                     + "`GET /api/drive-sessions/bus/{busId}` 에서 얻은 세션 id 다(시드에는 세션이 없으므로 먼저 하나 시작해야 한다).",
@@ -73,7 +75,7 @@ public class DriveSessionController {
 
     /** 기사·선탑자: 이 운행 세션의 당일 명단(이름·사진·위치, 결석 자동 제외). */
     @GetMapping("/{id}/roster")
-    @PreAuthorize("hasAnyRole('DRIVER', 'ATTENDANT')")
+    @CanReadAssignedBus
     @Operation(summary = "운행 명단 (기사·선탑자)",
             description = "⚠️ **2026-08-02 확장으로 선탑자(ATTENDANT)에게 열렸다.** 선탑자 앱의 승하차 체크 화면이 이걸 그린다. "
                     + "학생별 **이름·사진(photoUrl)·승하차지 좌표**를 주며, 승인된 결석 신고가 있는 학생은 자동으로 빠진다. "
@@ -87,7 +89,7 @@ public class DriveSessionController {
 
     /** 기사·선탑자: 담당 버스 운행 이력. 선탑자 앱은 여기서 진행 중인 세션 id 를 고른다(§4.1 사슬). */
     @GetMapping("/bus/{busId}")
-    @PreAuthorize("hasAnyRole('DRIVER', 'ATTENDANT')")
+    @CanReadAssignedBus
     @Operation(summary = "담당 버스 운행 이력 (기사·선탑자)",
             description = "⚠️ **2026-08-02 확장으로 선탑자에게 열렸다** — 이 한 칸이 막히면 선탑자 앱이 세션 id 를 알 수 없어 "
                     + "명단 화면이 통째로 뜨지 않는다. 담당자 앱의 호출 순서는 "
@@ -101,7 +103,7 @@ public class DriveSessionController {
 
     /** 관리자: 학원 운행 이력(법정 운행기록 열람). */
     @GetMapping
-    @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
+    @CanMonitorOperations
     @Operation(summary = "학원 운행 이력 (관리자)",
             description = "법정 운행기록 열람용. `tenantId` 는 학원 관리자면 생략 가능, 플랫폼 관리자는 필수다. "
                     + "관제 화면은 버스 상세(`GET /api/buses/{id}`)와 달리 갱신이 잦은 이 정보를 따로 폴링한다.")

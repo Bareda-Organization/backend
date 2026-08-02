@@ -5,7 +5,6 @@ import java.util.List;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
+import src.backend.global.security.authz.CanManageMembers;
 import src.backend.student.dto.StudentResponse;
 import src.backend.user.command.MemberCommandService;
 import src.backend.user.dto.CreateMemberRequest;
@@ -40,7 +40,7 @@ import src.backend.user.query.MemberQueryService;
         description = "학원 소속 계정(기사·선탑자·학부모·관리자) 등록·조회·수정·해제. 선탑자(ATTENDANT) 포함. 관리자 전용.")
 @RestController
 @RequestMapping("/api/members")
-@PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
+@CanManageMembers
 public class MemberController {
 
     private final MemberCommandService memberCommandService;
