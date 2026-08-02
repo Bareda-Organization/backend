@@ -4,6 +4,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -17,6 +19,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import src.backend.global.security.authz.RolePermissions;
 
 import java.util.Arrays;
 import java.util.List;
@@ -89,5 +93,20 @@ public class SecurityConfig {
     @Bean
     PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    /**
+     * 역할 → 권한(permission) 부여표를 인가 평가에 연결한다.
+     * {@code @EnableMethodSecurity} 가 이 빈을 자동으로 집어가(@Autowired(required=false))
+     * {@code hasAuthority('student:manage')} 를 평가할 때 주체의 ROLE_* 를 권한으로 확장해 준다.
+     *
+     * 별도 @Configuration 으로 빼지 않고 여기 두는 이유: @WebMvcTest 슬라이스 6개가
+     * {@code @Import(SecurityConfig.class)} 로 이 클래스만 들여온다. 다른 클래스로 옮기면
+     * 슬라이스마다 @Import 를 추가해야 하고, 하나라도 빠뜨리면 그 슬라이스에서만
+     * 권한 확장이 안 돼 허용 경로가 조용히 403 이 된다.
+     */
+    @Bean
+    RoleHierarchy roleHierarchy() {
+        return RoleHierarchyImpl.fromHierarchy(RolePermissions.HIERARCHY);
     }
 }
