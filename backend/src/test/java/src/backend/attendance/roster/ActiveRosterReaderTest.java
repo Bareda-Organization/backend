@@ -24,6 +24,12 @@ import src.backend.tenant.entity.Tenant;
  * 여기서 판정이 바뀌면 세 화면이 동시에 바뀐다.
  *
  * <p>핵심은 <b>승인된 신고만 제외</b>한다는 것 — 신청(PENDING)·반려(REJECTED)는 여전히 명단에 남는다.
+ *
+ * <p>⚠️ <b>이 테스트가 못 잡는 것</b>: 퇴원(active=false) 필터는 리포지토리 <b>메서드명</b>
+ * ({@code findByAssignedBusIdAndActiveTrue}·{@code findByTenantIdAndActiveTrue})이 담보한다. 여기서는
+ * 그 메서드를 mock 하므로, 누가 {@code ...AndActiveTrue} 가 없는 메서드로 갈아끼워도 이 테스트는 통과한다.
+ * 퇴원 학생이 명단에 되살아나는 결함(커밋 {@code ded41c8} 의 H-1 이 같은 축이었다)을 잡으려면
+ * 리포지토리 슬라이스 테스트가 필요한데 이 저장소에는 아직 없다 — 메서드명을 바꿀 땐 사람이 확인해야 한다.
  */
 class ActiveRosterReaderTest {
 

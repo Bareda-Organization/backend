@@ -95,6 +95,10 @@ Command는 Query를 호출하지 않는다.
 
 Command에 조회가 필요하면 Query 서비스를 부르는 대신 §3의 공유 읽기 계층(`access/`·`roster/`)으로 내린다. 그 규칙을 Query 서비스도 함께 쓰면 "명단이 두 벌"이 되는 것도 막힌다.
 
+**예외 — 계산 결과가 Command의 판정·저장 입력일 때만** Command가 Query 서비스를 직접 호출할 수 있다. 판별 기준 3개를 모두 만족해야 한다: ① 단순 조회가 아니라 외부 API·최적화가 걸린 **무거운 계산**이고 ② 그 결과가 Command의 판정 근거이자 저장 대상이며 ③ 같은 계산을 Query 진입점도 그대로 노출한다. 이때 공유 읽기 계층으로 내리면 계산이 두 벌이 되어 외부 API 호출이 배로 늘고, 화면이 본 값과 저장된 값이 갈라진다. 허용하는 대신 지킬 것 — ⓐ 그 Query 서비스는 아무것도 저장하지 않는다(`@Transactional(readOnly = true)` 유지) ⓑ 인가를 누가 책임지는지 양쪽 javadoc에 적는다(Query 진입점과 내부 호출의 인가 주체가 다르다).
+
+현재 해당하는 곳은 `RoutingCommandService`·`LocationChangeCommandService` → `RoutePlanSimulationService`(시뮬레이션 델타) **2곳뿐이며, 이 예외에 기대는 새 호출을 늘리지 않는다.**
+
 ## 8. Projection 원칙
 
 Projection은 읽기 모델만 생성한다. 비즈니스 로직을 작성하지 않는다.

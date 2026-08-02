@@ -522,7 +522,7 @@ RideType           상태머신 없음 — 순서·중복 검증이 서버에 �
 | lat / lng | Double | 위 location 에 대응하는 좌표. nullable |
 
 **주의**
-- **당일 `APPROVED` 결석 신고가 있는 학생은 자동으로 빠진다**(`attendance` 모듈의 `getActiveRoster` 사용).
+- **당일 `APPROVED` 결석 신고가 있는 학생은 자동으로 빠진다**(`attendance` 모듈의 `ActiveRosterReader.forBus` 사용).
 - `direction` 에 따라 위치 3필드의 출처가 통째로 바뀐다: `PICKUP` → 학생의 `boardingStop` 이름·좌표 / `DROPOFF` → `dropoffAddress`·`dropoffLat`·`dropoffLng`. **해당 정보가 없으면 세 필드 모두 null 이다.**
 - 학생 사진 필드는 없다(`Student` 엔티티에 없음).
 
@@ -1694,8 +1694,8 @@ depot 기준으로 학생 좌표의 **방위각(bearing)을 계산해 정렬**�
 
 ### 14.x 노출되지 않은 헬퍼 (API 아님)
 
-- `getActiveRoster(busId, date)` — 버스 배정 명단에서 그날 `APPROVED` 결석자를 제외한 **당일 실제 명단**. `GET /api/drive-sessions/{id}/roster` 가 사용한다.
-- `getActiveRosterForTenant(tenantId, date)` — 테넌트 전체 활성 로스터. **자동 배차(`auto-assign`)가 사용한다.**
+- `ActiveRosterReader.forBus(busId, date)` — 버스 배정 명단에서 그날 `APPROVED` 결석자를 제외한 **당일 실제 명단**. `GET /api/drive-sessions/{id}/roster` 가 사용한다.
+- `ActiveRosterReader.forTenant(tenantId, date)` — 테넌트 전체 활성 로스터. **자동 배차(`auto-assign`)가 사용한다.**
 
 두 메서드에는 별도 엔드포인트가 없다.
 

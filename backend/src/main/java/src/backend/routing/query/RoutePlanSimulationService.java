@@ -39,6 +39,13 @@ import src.backend.student.repository.spec.StudentRepository;
 /**
  * 배차 변경안 시뮬레이션. baseline(저장된 최신 계획) vs candidate(변경안 재계산)를 비교한다.
  * 어떤 행도 저장하지 않는다(I-3). 요구 8과 P2 가 공유한다(D-I).
+ *
+ * <p>⚠️ 이 클래스는 Query 인데 Command 두 곳({@code RoutingCommandService.applySimulation},
+ * {@code LocationChangeCommandService.create})이 직접 주입받는다 — reference.md §7 의 <b>명시된 예외</b>다.
+ * 조회가 아니라 지도 API 가 걸린 무거운 계산이고, 그 결과가 곧 판정 근거이자 저장 대상이며, 같은 계산을
+ * REST 진입점({@link #simulate})도 노출하기 때문이다. 공유 읽기 계층으로 내리면 계산이 두 벌이 되어
+ * 외부 API 호출이 배로 늘고 화면이 본 값과 저장된 값이 갈라진다.
+ * 그 대가로 <b>여기서는 아무것도 저장하지 않는다</b>(readOnly 유지)는 것과 인가 주체를 아래 메서드별로 명시한다.
  */
 @Service
 public class RoutePlanSimulationService {
@@ -139,7 +146,7 @@ public class RoutePlanSimulationService {
             if (!student.getTenant().getId().equals(bus.getTenant().getId())) {
                 throw new BusinessException(ErrorCode.FORBIDDEN);   // 타 학원 학생 끌어오기 차단
             }
-            // I-9: override 는 getActiveRoster(활성 필터)를 거치지 않고 학생을 직접 주입하는 경로다.
+            // I-9: override 는 ActiveRosterReader.forBus(활성 필터)를 거치지 않고 학생을 직접 주입하는 경로다.
             // 여기서 막지 않으면 퇴원 학생이 비교 결과에 되살아나고, 채택(apply)까지 가면
             // 배포된 노선의 정차로 저장돼 그 보호자에게 근접·미승차 알림이 나간다.
             // REMOVE 는 위에서 이미 빠져나갔다 — 빼는 것은 비활성이어도 언제나 허용한다.

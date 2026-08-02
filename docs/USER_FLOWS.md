@@ -150,7 +150,7 @@
 | 2 | (자동) | `/driver/roster` | `GET /api/drive-sessions/bus/{busId}` | 해당 버스의 **전체 운행 이력**을 받아 앱이 `IN_PROGRESS` 를 골라낸다. 있으면 3을 건너뛰고 5로 |
 | 3 | (자동, 운행 전 화면) | `DriveStartView` | `GET /api/ride-events/bus/{busId}` | 직전 운행 요약(처리 인원)을 계산해 카드에 표시 |
 | 4 | 방향 선택(`등원`/`하원`) 후 `운행 시작` | `DriveStartView` | `POST /api/drive-sessions/start`<br>`{busId, direction, serviceDate?}` | **`DriveSession` 신규 생성** — `status=IN_PROGRESS`, `startedAt=now()`, `tenantId`는 요청이 아니라 `bus.tenant` 에서 파생. 같은 날·같은 버스·같은 방향의 `PUBLISHED` `RoutePlan` 이 있으면 `routePlanId` 로 **자동 연결**, 없으면 null로 두고 시작은 허용 |
-| 5 | (자동) | `/driver/roster` | `GET /api/drive-sessions/{id}/roster` | 당일 명단. `AttendanceQueryService.getActiveRoster` 를 거쳐 **APPROVED 결석자가 제외**된다. `PICKUP` 이면 `student.boardingStop` 의 이름·좌표, `DROPOFF` 면 `dropoffAddress`/`dropoffLat`/`dropoffLng` 를 위치로 준다 |
+| 5 | (자동) | `/driver/roster` | `GET /api/drive-sessions/{id}/roster` | 당일 명단. `ActiveRosterReader.forBus` 를 거쳐 **APPROVED 결석자가 제외**된다. `PICKUP` 이면 `student.boardingStop` 의 이름·좌표, `DROPOFF` 면 `dropoffAddress`/`dropoffLat`/`dropoffLng` 를 위치로 준다 |
 | 6 | (자동) | `/driver/roster` | `GET /api/ride-events/bus/{busId}?date=` | 오늘 기록을 받아 학생별 현재 상태(미승차/승차완료/하차완료/인계완료)를 계산 |
 | 7 | 학생 행의 `승차`/`하차`/`인계` 버튼 | `/driver/roster` | `POST /api/ride-events`<br>`{busId, studentId, type}` | **`RideEvent` 신규 생성** — `source=MANUAL` 하드코딩, `occurredAt=now()` 고정, `stopId` 생략 시 학생의 기본 승차 정류장으로 대체. type별로 `StudentBoardedEvent`/`RideCompletedEvent`/`HandoverCompletedEvent` 발행 → Kafka → 알림 파이프라인 |
 | 8 | (자동) | `/driver/roster` | `GET /api/ride-events/bus/{busId}?date=` | 명단 재조회. **낙관적 갱신을 하지 않으므로** 버튼을 누르면 왕복 2회가 끝난 뒤에야 행이 바뀐다 |
@@ -436,7 +436,7 @@
 | 2 | 관리자 | 대기 목록 확인 | `/admin/absence` | `GET /api/attendance-exceptions?tenantId=` | 학원 신고 이력(`targetDate` 내림차순) |
 | 3 | 관리자 | `승인` | `/admin/absence` | `PATCH /api/attendance-exceptions/{id}/approve` | `status=APPROVED`, `processedBy` 기록 → **`AttendanceApprovedEvent` 발행** |
 | 4 | (자동) | — | — | Kafka `attendance-approved` | `RoutingReplanEventConsumer` 가 받아 해당 학생 배정 버스의 **노선 국소 재계산** → `version+1` 인 새 `RECOMMENDED` 계획 생성 |
-| 5 | (자동) | — | — | — | 기사 명단(A2-5)의 `getActiveRoster` 가 **그 날짜 APPROVED 결석자를 제외**한다 → 명단에서 자동으로 빠진다 |
+| 5 | (자동) | — | — | — | 기사 명단(A2-5)의 `ActiveRosterReader.forBus` 가 **그 날짜 APPROVED 결석자를 제외**한다 → 명단에서 자동으로 빠진다 |
 | 6 | 학부모 | 결과 확인 | `/parent/absence` | `GET /api/attendance-exceptions/children` | 처리 상태 확인 |
 
 **백엔드는 어디까지 돼 있는가 (실측)**
@@ -444,7 +444,7 @@
 - **엔드포인트 5개 전부 구현.** `POST`(PARENT) / `approve`·`reject`(ADMIN) / `children`(PARENT) / 목록(ADMIN).
 - 격리: 학부모는 `requireGuardianOf` — 남의 자녀 studentId를 body에 넣으면 403 "자녀가 아닙니다". 관리자는 대상 레코드의 tenantId 역검사.
 - 상태 가드: `PENDING` 이 아니면 409 "이미 처리된 신청입니다". **`APPROVED`/`REJECTED` 는 종착 상태로 되돌리기가 없다.**
-- **4·5의 연결은 실제로 동작한다** — 명단 제외(`getActiveRoster`)는 `DriveSessionQueryService`(기사 명단)와 `RoutingCommandService`(배차)가 둘 다 호출하고 있다.
+- **4·5의 연결은 실제로 동작한다** — 명단 제외(`ActiveRosterReader.forBus`)는 `DriveSessionQueryService`(기사 명단)와 `RoutingCommandService`(배차)가 둘 다 호출하고 있다.
 - ⚠ **반려(`reject`)는 이벤트를 발행하지 않는다.** 승인과 비대칭이라 **반려 시 학부모에게 결과 통지가 가지 않는다.** (같은 구조인 schedule 모듈은 반려에도 이벤트를 쏜다.)
 - ⚠ **목록에 status·기간 필터가 없다.** "대기중만 보기"를 서버가 지원하지 않아 전건을 받아 프론트가 걸러야 한다.
 - ⚠ replan 조건이 좁다 — **해당 학생 배정 버스의 방향별 최신 계획의 `serviceDate` 가 이벤트 날짜와 같을 때만** 재계산한다. 즉 내일 결석을 오늘 신고하면(오늘자 계획만 있으면) 노선 재계산은 일어나지 않는다. 다만 5의 명단 제외는 날짜 기준이라 정상 작동한다.
@@ -621,7 +621,7 @@ A부와 B부를 겹쳐 놓았을 때 **사용자 여정이 실제로 끊기는 �
 | C1 | **기초 데이터를 앱에서 만들 수 없다** | 치명 | A4 관제 빈 상태가 *"버스 관리에서 버스를 먼저 등록하면…"* 이라고 안내하는데 **그 화면이 존재하지 않는다.** 학원·회원·버스·학생·정류장 등록 API 15개가 전부 구현돼 있으나 프론트에는 화면도, `ApiClient.put`/`delete` 메서드조차 없다. → 신규 학원 온보딩이 **Flyway 시드나 Swagger 직접 호출로만 가능**하다 (B6) |
 | C2 | **5계층 중 2계층(학생·학부모)의 여정이 통째로 없다** | 치명 | 로그인은 성공하는데 `/login` 에 붙잡혀 "준비 중" 배너만 본다. 학부모·학생 전용 엔드포인트 11개가 유휴 상태다. A2에서 기사가 승하차를 기록하면 알림이 정상 발송되지만 **받을 앱이 없다** (B1·B2) |
 | C3 | **SOS를 발신할 수도, 처리할 수도 없다** | 치명 | 에스컬레이션 스케줄러(30초 주기, 3분 임계)는 **실제로 돌고 있는데 `OPEN` 이벤트를 만들 경로가 앱에 없다.** 관리자의 확인·종료 화면도 없어 프론트에 `sos` 모듈 자체가 존재하지 않는다. 기획상 안전 핵심 기능 (B2·B7) |
-| C4 | **결석 신고 → 명단 제외 사슬이 양 끝에서 끊긴다** | 높음 | 백엔드는 신고 → 승인 → replan → `getActiveRoster` 제외까지 **실제로 연결돼 있다.** 그런데 A2의 기사 명단 화면이 *"결석 신고된 학생은 자동으로 빠집니다"* 라고 **안내만 하고**, 신고 화면도 승인 화면도 없어 **실제로는 항상 전원 명단**이다 (B3) |
+| C4 | **결석 신고 → 명단 제외 사슬이 양 끝에서 끊긴다** | 높음 | 백엔드는 신고 → 승인 → replan → `ActiveRosterReader.forBus` 제외까지 **실제로 연결돼 있다.** 그런데 A2의 기사 명단 화면이 *"결석 신고된 학생은 자동으로 빠집니다"* 라고 **안내만 하고**, 신고 화면도 승인 화면도 없어 **실제로는 항상 전원 명단**이다 (B3) |
 | C5 | **잘못 기록한 승하차를 되돌릴 수 없다** | 높음 | A2-7에서 오조작하면 끝이다. `POST /api/ride-events/{id}/correction` 이 구현돼 있으나 프론트가 호출하지 않고, 앱은 *"되돌릴 수 없다"* 고 안내만 한다. 법정 운행기록의 정확성이 걸린 지점 (B5) |
 | C6 | **자동 판정은 도는데 결과를 볼 사람이 앱에 없다** | 높음 | 미승차·근접·SOS 에스컬레이션은 **실제로 자동 실행된다**(15초·30초 주기). 판정 결과도 학생·보호자·기사의 개인 큐로 **정상 발송된다.** 그런데 **그 큐를 구독하는 화면이 하나도 없어**(학부모·학생 0화면, 기사 알림 화면 없음) 실제로 닿는 건 관리자 토픽뿐이다. 기획 7장의 NO_SHOW 대상은 "학부모 + 관리자"인데 **절반만 닿는다** (B7-4④) |
 | C6-1 | **그 미승차 판정마저 절반의 세션에만 걸린다** | 높음 | 판정 조건이 `PICKUP` + **`routePlanId != null`** 이다. A2는 배차를 확정하지 않아도 운행 시작을 허용하므로 그 경우 세션 전체가 판정에서 빠진다. 게다가 **하원(`DROPOFF`)은 아예 대상이 아니라** 미하차·미인계가 자동 감지되지 않는다 (A2·B7-4①) |

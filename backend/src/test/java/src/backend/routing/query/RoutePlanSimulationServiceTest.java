@@ -144,7 +144,7 @@ class RoutePlanSimulationServiceTest {
     }
 
     /**
-     * I-9 회귀 — override 는 getActiveRoster 를 거치지 않고 학생을 직접 주입하므로,
+     * I-9 회귀 — override 는 ActiveRosterReader.forBus 를 거치지 않고 학생을 직접 주입하므로,
      * 여기서 막지 않으면 퇴원(active=false) 학생이 시뮬레이션 결과에 되살아난다.
      */
     @Test
