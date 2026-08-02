@@ -28,11 +28,17 @@ public class StudentQueryService {
         this.studentGuardianRepository = studentGuardianRepository;
     }
 
+    /**
+     * 학원 학생 목록. 기본은 <b>활성(재원) 학생만</b>이다(I-9) —
+     * 기본값을 "전부"로 두면 퇴원생이 배차·명단·시뮬레이션에 계속 끼어든다.
+     */
     @Transactional(readOnly = true)
-    public List<StudentResponse> list(AuthUser admin, Long tenantId) {
+    public List<StudentResponse> list(AuthUser admin, Long tenantId, boolean includeInactive) {
         Long effectiveTenant = TenantGuard.resolveTenantId(admin, tenantId);
-        return studentRepository.findByTenantId(effectiveTenant).stream()
-                .map(StudentResponse::of).toList();
+        List<Student> students = includeInactive
+                ? studentRepository.findByTenantId(effectiveTenant)
+                : studentRepository.findByTenantIdAndActiveTrue(effectiveTenant);
+        return students.stream().map(StudentResponse::of).toList();
     }
 
     @Transactional(readOnly = true)

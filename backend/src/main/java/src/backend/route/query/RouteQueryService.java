@@ -53,7 +53,7 @@ public class RouteQueryService {
     private int assignedCount(Route route) {
         return busRepository.findByTenantId(route.getTenant().getId()).stream()
                 .filter(bus -> bus.getRoute() != null && bus.getRoute().getId().equals(route.getId()))
-                .mapToInt(bus -> studentRepository.findByAssignedBusId(bus.getId()).size())
+                .mapToInt(bus -> studentRepository.findByAssignedBusIdAndActiveTrue(bus.getId()).size())
                 .sum();
     }
 }

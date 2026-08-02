@@ -29,6 +29,7 @@ import src.backend.student.dto.StudentDetailResponse;
 import src.backend.student.dto.StudentResponse;
 import src.backend.student.dto.UpdateDropoffRequest;
 import src.backend.student.dto.UpdateStudentAssignmentRequest;
+import src.backend.student.dto.UpdateStudentRequest;
 import src.backend.student.entity.Student;
 import src.backend.student.entity.StudentGuardian;
 import src.backend.student.event.StudentAssignmentChangedEvent;
@@ -155,6 +156,94 @@ class StudentCommandServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    // ── 인적 정보 수정 · 퇴원(비활성) 처리 (BE-13) ──
+
+    @Test
+    void updateProfile_otherTenantStudent_throwsForbidden() {
+        AuthUser otherAdmin = authUser(999L);
+        given(studentRepository.findById(STUDENT_ID)).willReturn(Optional.of(student(STUDENT_ID, TENANT_ID, null)));
+
+        assertThatThrownBy(() -> service.updateProfile(otherAdmin, STUDENT_ID,
+                new UpdateStudentRequest("바뀐이름", null, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    /** null 은 "지워라"가 아니라 "그대로"다 — 이름만 고치는 요청이 전화번호를 날리면 안 된다. */
+    @Test
+    void updateProfile_nullFields_keepsExistingValues() {
+        AuthUser admin = authUser(TENANT_ID);
+        Student student = student(STUDENT_ID, TENANT_ID, null);
+        student.updateProfile("김민준", "010-1111-2222", "https://cdn/old.jpg");
+        given(studentRepository.findById(STUDENT_ID)).willReturn(Optional.of(student));
+
+        StudentResponse response = service.updateProfile(admin, STUDENT_ID,
+                new UpdateStudentRequest("박서준", null, null));
+
+        assertThat(response.name()).isEqualTo("박서준");
+        assertThat(response.phone()).isEqualTo("010-1111-2222");
+        assertThat(response.photoUrl()).isEqualTo("https://cdn/old.jpg");
+    }
+
+    /** 인적 정보는 노선에 영향이 없다 — 이름 오타 수정이 노선 재배포를 부르면 안 된다. */
+    @Test
+    void updateProfile_publishesNoEvent() {
+        AuthUser admin = authUser(TENANT_ID);
+        given(studentRepository.findById(STUDENT_ID))
+                .willReturn(Optional.of(student(STUDENT_ID, TENANT_ID, bus(1L, TENANT_ID))));
+
+        service.updateProfile(admin, STUDENT_ID, new UpdateStudentRequest("박서준", "010-0000-0000", null));
+
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
+    }
+
+    /** 퇴원은 물리 삭제가 아니다(D-O) — 행이 남아야 과거 승하차 기록의 주체가 유지된다. */
+    @Test
+    void deactivate_setsActiveFalse_andKeepsRow() {
+        AuthUser admin = authUser(TENANT_ID);
+        Student student = student(STUDENT_ID, TENANT_ID, null);
+        given(studentRepository.findById(STUDENT_ID)).willReturn(Optional.of(student));
+
+        StudentResponse response = service.deactivate(admin, STUDENT_ID);
+
+        assertThat(response.active()).isFalse();
+        assertThat(student.isActive()).isFalse();
+        verify(studentRepository, never()).delete(any());
+    }
+
+    /** 배차돼 있던 학생이 빠지면 그 버스 노선이 낡는다 — 재계획 신호를 보내되 배정은 지우지 않는다. */
+    @Test
+    void deactivate_assignedStudent_publishesAssignmentEventAndKeepsBus() {
+        AuthUser admin = authUser(TENANT_ID);
+        Student student = student(STUDENT_ID, TENANT_ID, bus(1L, TENANT_ID));
+        given(studentRepository.findById(STUDENT_ID)).willReturn(Optional.of(student));
+
+        StudentResponse response = service.deactivate(admin, STUDENT_ID);
+
+        ArgumentCaptor<StudentAssignmentChangedEvent> captor =
+                ArgumentCaptor.forClass(StudentAssignmentChangedEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().oldBusId()).isEqualTo(1L);
+        assertThat(captor.getValue().newBusId()).isNull();
+        // "어느 버스에서 빠졌는지"를 남긴다 — 명단에서 빼는 일은 리포지토리 필터가 한다.
+        assertThat(response.assignedBusId()).isEqualTo(1L);
+        assertThat(student.getAssignedBus()).isNotNull();
+    }
+
+    @Test
+    void deactivate_alreadyInactive_throwsConflict() {
+        AuthUser admin = authUser(TENANT_ID);
+        Student student = student(STUDENT_ID, TENANT_ID, null);
+        student.deactivate();
+        given(studentRepository.findById(STUDENT_ID)).willReturn(Optional.of(student));
+
+        assertThatThrownBy(() -> service.deactivate(admin, STUDENT_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
     }
 
     // ── 보호자 연결·해제 (BE-14) ──

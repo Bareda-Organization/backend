@@ -60,7 +60,7 @@ public class AttendanceQueryService {
      */
     @Transactional(readOnly = true)
     public List<Student> getActiveRoster(Long busId, LocalDate date) {
-        return studentRepository.findByAssignedBusId(busId).stream()
+        return studentRepository.findByAssignedBusIdAndActiveTrue(busId).stream()
                 .filter(student -> attendanceExceptionRepository
                         .findByStudentIdAndTargetDate(student.getId(), date).stream()
                         .noneMatch(exception -> exception.getStatus() == ApprovalStatus.APPROVED))
@@ -74,7 +74,7 @@ public class AttendanceQueryService {
      */
     @Transactional(readOnly = true)
     public List<Student> getActiveRosterForTenant(Long tenantId, LocalDate date) {
-        return studentRepository.findByTenantId(tenantId).stream()
+        return studentRepository.findByTenantIdAndActiveTrue(tenantId).stream()
                 .filter(student -> attendanceExceptionRepository
                         .findByStudentIdAndTargetDate(student.getId(), date).stream()
                         .noneMatch(exception -> exception.getStatus() == ApprovalStatus.APPROVED))

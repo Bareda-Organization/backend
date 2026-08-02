@@ -104,4 +104,21 @@ public class Student extends BaseTimeEntity {
         this.dropoffLat = dropoffLat;
         this.dropoffLng = dropoffLng;
     }
+
+    /** 인적 정보만 갱신한다. null 은 "그대로" — 배차·하차지는 전용 메서드가 따로 있다. */
+    public void updateProfile(String name, String phone, String photoUrl) {
+        if (name != null) this.name = name;
+        if (phone != null) this.phone = phone;
+        if (photoUrl != null) this.photoUrl = photoUrl;
+    }
+
+    /** 퇴원 처리. 행을 지우지 않는다(D-O) — 과거 승하차 기록의 주체가 사라지면 감사 추적이 끊긴다. */
+    public void deactivate() {
+        this.active = false;
+    }
+
+    /** 되돌리기용 — 아직 API 로 노출하지 않는다(없으면 나중에 세터를 여는 유혹이 생긴다). */
+    public void reactivate() {
+        this.active = true;
+    }
 }

@@ -57,7 +57,7 @@ class BusCommandServiceTest {
         given(tenantRepository.findById(TENANT_ID)).willReturn(Optional.of(tenant(TENANT_ID)));
         given(routeRepository.findById(10L)).willReturn(Optional.of(route(10L, TENANT_ID, 25)));
         givenMember(20L, "박기사", TENANT_ID, Role.DRIVER);
-        given(studentRepository.findByAssignedBusId(any())).willReturn(List.of());
+        given(studentRepository.findByAssignedBusIdAndActiveTrue(any())).willReturn(List.of());
         given(busRepository.save(any(Bus.class))).willAnswer(inv -> {
             Bus bus = inv.getArgument(0);
             ReflectionTestUtils.setField(bus, "id", 1L);
@@ -92,7 +92,7 @@ class BusCommandServiceTest {
         given(busRepository.findById(1L)).willReturn(Optional.of(bus));
         givenMember(20L, "박기사", TENANT_ID, Role.DRIVER);
         given(routeRepository.findById(10L)).willReturn(Optional.of(route(10L, TENANT_ID, 25)));
-        given(studentRepository.findByAssignedBusId(1L)).willReturn(List.of());
+        given(studentRepository.findByAssignedBusIdAndActiveTrue(1L)).willReturn(List.of());
 
         BusResponse response = service.assign(admin, 1L, new AssignmentRequest(20L, null, 10L));
 
@@ -118,7 +118,7 @@ class BusCommandServiceTest {
         Bus bus = bus(1L, TENANT_ID, null, null);
         given(busRepository.findById(1L)).willReturn(Optional.of(bus));
         givenMember(30L, "이선탑", TENANT_ID, Role.ATTENDANT);
-        given(studentRepository.findByAssignedBusId(1L)).willReturn(List.of());
+        given(studentRepository.findByAssignedBusIdAndActiveTrue(1L)).willReturn(List.of());
 
         service.assign(admin, 1L, new AssignmentRequest(null, 30L, null));
 
@@ -227,7 +227,7 @@ class BusCommandServiceTest {
         given(busRepository.findByDriverIdAndTenantId(20L, TENANT_ID)).willReturn(List.of(bus));   // 자기 자신뿐
         givenMember(20L, "박기사", TENANT_ID, Role.DRIVER);
         given(routeRepository.findById(10L)).willReturn(Optional.of(route(10L, TENANT_ID, 25)));
-        given(studentRepository.findByAssignedBusId(1L)).willReturn(List.of());
+        given(studentRepository.findByAssignedBusIdAndActiveTrue(1L)).willReturn(List.of());
 
         BusResponse response = service.assign(admin, 1L, new AssignmentRequest(20L, null, 10L));
 

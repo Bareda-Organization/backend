@@ -20,6 +20,7 @@ import src.backend.student.dto.StudentDetailResponse;
 import src.backend.student.dto.StudentResponse;
 import src.backend.student.dto.UpdateDropoffRequest;
 import src.backend.student.dto.UpdateStudentAssignmentRequest;
+import src.backend.student.dto.UpdateStudentRequest;
 import src.backend.student.entity.Student;
 import src.backend.student.entity.StudentGuardian;
 import src.backend.student.event.StudentAssignmentChangedEvent;
@@ -125,6 +126,39 @@ public class StudentCommandService {
         if (student.getAssignedBus() != null) {
             eventPublisher.publishEvent(StudentDropoffChangedEvent.of(
                     student.getTenant().getId(), studentId, student.getAssignedBus().getId(), LocalDate.now()));
+        }
+        return StudentResponse.of(student);
+    }
+
+    /**
+     * 인적 정보(이름·전화·사진) 수정. null 필드는 그대로 둔다.
+     * ⚠️ 도메인 이벤트를 발행하지 않는다 — 이름·전화·사진은 노선에 영향이 없다.
+     * 여기서 재계획을 트리거하면 이름 오타 하나를 고칠 때마다 노선이 다시 배포된다.
+     */
+    @Transactional
+    public StudentResponse updateProfile(AuthUser admin, Long studentId, UpdateStudentRequest req) {
+        Student student = loadAccessibleStudent(admin, studentId);
+        student.updateProfile(req.name(), req.phone(), req.photoUrl());
+        return StudentResponse.of(student);
+    }
+
+    /**
+     * 퇴원 처리 — 행을 지우지 않고 active=false 로 바꾼다(D-O·I-8).
+     * ⚠️ assignedBus 를 null 로 지우지 않는다. 지우면 "어느 버스에서 빠졌는지"가 사라져 되돌릴 수도,
+     * 추적할 수도 없다. 명단에서 빼는 일은 리포지토리의 ...AndActiveTrue 조회가 이미 해 준다(I-9).
+     */
+    @Transactional
+    public StudentResponse deactivate(AuthUser admin, Long studentId) {
+        Student student = loadAccessibleStudent(admin, studentId);
+        if (!student.isActive()) {
+            throw new BusinessException(ErrorCode.CONFLICT, "이미 비활성 상태입니다");
+        }
+        student.deactivate();
+        // 배차돼 있던 학생이 빠지면 그 버스의 노선이 낡는다 — 재계획 신호를 보낸다.
+        if (student.getAssignedBus() != null) {
+            eventPublisher.publishEvent(StudentAssignmentChangedEvent.of(
+                    student.getTenant().getId(), studentId,
+                    student.getAssignedBus().getId(), null, LocalDate.now()));
         }
         return StudentResponse.of(student);
     }

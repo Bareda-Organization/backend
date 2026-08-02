@@ -97,7 +97,7 @@ public class BusCommandService {
     }
 
     private int onboardCount(Long busId) {
-        return studentRepository.findByAssignedBusId(busId).size();
+        return studentRepository.findByAssignedBusIdAndActiveTrue(busId).size();
     }
 
     private Bus loadAccessibleBus(AuthUser admin, Long busId) {
