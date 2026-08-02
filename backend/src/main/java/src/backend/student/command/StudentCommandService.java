@@ -28,8 +28,10 @@ import src.backend.student.repository.spec.StudentGuardianRepository;
 import src.backend.student.repository.spec.StudentRepository;
 import src.backend.tenant.entity.Tenant;
 import src.backend.tenant.repository.spec.TenantRepository;
+import src.backend.user.entity.Role;
 import src.backend.user.entity.User;
 import src.backend.user.repository.spec.UserRepository;
+import src.backend.user.repository.spec.UserTenantRoleRepository;
 
 /**
  * 학생 등록(배정·보호자 포함)/재배정/보호자추가 — 단순 CRUD라 인터페이스 없이 concrete 클래스로 둔다.
@@ -44,6 +46,7 @@ public class StudentCommandService {
     private final BusRepository busRepository;
     private final StopRepository stopRepository;
     private final UserRepository userRepository;
+    private final UserTenantRoleRepository userTenantRoleRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     public StudentCommandService(StudentRepository studentRepository,
@@ -52,6 +55,7 @@ public class StudentCommandService {
                                  BusRepository busRepository,
                                  StopRepository stopRepository,
                                  UserRepository userRepository,
+                                 UserTenantRoleRepository userTenantRoleRepository,
                                  ApplicationEventPublisher eventPublisher) {
         this.studentRepository = studentRepository;
         this.studentGuardianRepository = studentGuardianRepository;
@@ -59,6 +63,7 @@ public class StudentCommandService {
         this.busRepository = busRepository;
         this.stopRepository = stopRepository;
         this.userRepository = userRepository;
+        this.userTenantRoleRepository = userTenantRoleRepository;
         this.eventPublisher = eventPublisher;
     }
 
@@ -83,7 +88,7 @@ public class StudentCommandService {
             for (CreateStudentRequest.GuardianLink link : req.guardians()) {
                 studentGuardianRepository.save(StudentGuardian.builder()
                         .student(student)
-                        .guardian(loadUser(link.guardianUserId()))
+                        .guardian(loadGuardianInTenant(link.guardianUserId(), effectiveTenant))
                         .relation(link.relation())
                         .build());
             }
@@ -127,12 +132,31 @@ public class StudentCommandService {
     @Transactional
     public StudentDetailResponse addGuardian(AuthUser admin, Long studentId, LinkGuardianRequest req) {
         Student student = loadAccessibleStudent(admin, studentId);
+        // student_guardian 에 unique(student_id, guardian_id) 가 있어 DB 는 막지만, 그대로 두면 500 이 난다.
+        if (studentGuardianRepository.findByStudentIdAndGuardianId(studentId, req.guardianUserId()).isPresent()) {
+            throw new BusinessException(ErrorCode.CONFLICT, "이미 연결된 보호자입니다");
+        }
         studentGuardianRepository.save(StudentGuardian.builder()
                 .student(student)
-                .guardian(loadUser(req.guardianUserId()))
+                .guardian(loadGuardianInTenant(req.guardianUserId(), student.getTenant().getId()))
                 .relation(req.relation())
                 .build());
         return StudentDetailResponse.of(student, studentGuardianRepository.findByStudentId(student.getId()));
+    }
+
+    /**
+     * 보호자 연결 해제 — student_guardian 행만 지운다.
+     * 학부모 계정(app_user)도 학생(student)도 남는다(D-O 는 그 두 테이블을 지키는 규칙이고,
+     * 연결 행은 누구의 기록도 참조하지 않는다). 보호자 0명인 학생은 정상 상태라 "마지막 보호자"를 막지 않는다.
+     */
+    @Transactional
+    public StudentDetailResponse removeGuardian(AuthUser admin, Long studentId, Long guardianUserId) {
+        Student student = loadAccessibleStudent(admin, studentId);   // 학원 격리는 학생 쪽에서 끝난다
+        StudentGuardian link = studentGuardianRepository
+                .findByStudentIdAndGuardianId(studentId, guardianUserId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "연결된 보호자가 아닙니다"));
+        studentGuardianRepository.delete(link);
+        return StudentDetailResponse.of(student, studentGuardianRepository.findByStudentId(studentId));
     }
 
     private Student loadAccessibleStudent(AuthUser admin, Long studentId) {
@@ -160,8 +184,17 @@ public class StudentCommandService {
         return stop;
     }
 
-    private User loadUser(Long userId) {
-        return userRepository.findById(userId)
+    /** 그 학원의 PARENT 계정만 보호자로 연결한다 — BusCommandService.loadUserWithRole 과 같은 규칙이다. */
+    private User loadGuardianInTenant(Long userId, Long tenantId) {
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "보호자를 찾을 수 없습니다"));
+        boolean granted = userTenantRoleRepository.findByUserId(userId).stream()
+                .anyMatch(utr -> utr.getRole() == Role.PARENT
+                        && utr.getTenant() != null && utr.getTenant().getId().equals(tenantId));
+        if (!granted) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "이 학원의 학부모 계정이 아닙니다(userId=" + userId + ")");
+        }
+        return user;
     }
 }

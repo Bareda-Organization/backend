@@ -24,10 +24,13 @@ import src.backend.global.security.AuthUser;
 import src.backend.route.entity.Route;
 import src.backend.route.entity.Stop;
 import src.backend.route.repository.spec.StopRepository;
+import src.backend.student.dto.LinkGuardianRequest;
+import src.backend.student.dto.StudentDetailResponse;
 import src.backend.student.dto.StudentResponse;
 import src.backend.student.dto.UpdateDropoffRequest;
 import src.backend.student.dto.UpdateStudentAssignmentRequest;
 import src.backend.student.entity.Student;
+import src.backend.student.entity.StudentGuardian;
 import src.backend.student.event.StudentAssignmentChangedEvent;
 import src.backend.student.event.StudentDropoffChangedEvent;
 import src.backend.student.repository.spec.StudentGuardianRepository;
@@ -35,7 +38,10 @@ import src.backend.student.repository.spec.StudentRepository;
 import src.backend.tenant.entity.Tenant;
 import src.backend.tenant.repository.spec.TenantRepository;
 import src.backend.user.entity.Role;
+import src.backend.user.entity.User;
+import src.backend.user.entity.UserTenantRole;
 import src.backend.user.repository.spec.UserRepository;
+import src.backend.user.repository.spec.UserTenantRoleRepository;
 
 /**
  * 학생 재배정/하차지 변경 단위 테스트 — F2(이벤트 발행 조건: no-op 스킵·old/new busId·dropoff는
@@ -50,11 +56,12 @@ class StudentCommandServiceTest {
     private final BusRepository busRepository = mock(BusRepository.class);
     private final StopRepository stopRepository = mock(StopRepository.class);
     private final UserRepository userRepository = mock(UserRepository.class);
+    private final UserTenantRoleRepository userTenantRoleRepository = mock(UserTenantRoleRepository.class);
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
 
     private final StudentCommandService service = new StudentCommandService(
             studentRepository, studentGuardianRepository, tenantRepository, busRepository,
-            stopRepository, userRepository, eventPublisher);
+            stopRepository, userRepository, userTenantRoleRepository, eventPublisher);
 
     private static final Long TENANT_ID = 1L;
     private static final Long STUDENT_ID = 10L;
@@ -150,6 +157,80 @@ class StudentCommandServiceTest {
                 .isEqualTo(ErrorCode.FORBIDDEN);
     }
 
+    // ── 보호자 연결·해제 (BE-14) ──
+
+    /** 아무 계정이나 보호자로 붙일 수 있으면 기사·선탑자도 학부모 자리에 들어간다. */
+    @Test
+    void addGuardian_userIsNotParentRole_throwsInvalidInput() {
+        AuthUser admin = authUser(TENANT_ID);
+        given(studentRepository.findById(STUDENT_ID)).willReturn(Optional.of(student(STUDENT_ID, TENANT_ID, null)));
+        given(studentGuardianRepository.findByStudentIdAndGuardianId(STUDENT_ID, 40L)).willReturn(Optional.empty());
+        givenMember(40L, TENANT_ID, Role.DRIVER);   // 같은 학원이지만 역할이 학부모가 아니다
+
+        assertThatThrownBy(() -> service.addGuardian(admin, STUDENT_ID, new LinkGuardianRequest(40L, "부")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    void addGuardian_guardianFromOtherTenant_throwsInvalidInput() {
+        AuthUser admin = authUser(TENANT_ID);
+        given(studentRepository.findById(STUDENT_ID)).willReturn(Optional.of(student(STUDENT_ID, TENANT_ID, null)));
+        given(studentGuardianRepository.findByStudentIdAndGuardianId(STUDENT_ID, 41L)).willReturn(Optional.empty());
+        givenMember(41L, 999L, Role.PARENT);   // 역할은 학부모지만 다른 학원 소속
+
+        assertThatThrownBy(() -> service.addGuardian(admin, STUDENT_ID, new LinkGuardianRequest(41L, "모")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    /** unique(student_id, guardian_id) 로 DB 도 막지만 그대로 두면 500 이 난다 — 409 로 되돌린다. */
+    @Test
+    void addGuardian_alreadyLinked_throwsConflict() {
+        AuthUser admin = authUser(TENANT_ID);
+        Student student = student(STUDENT_ID, TENANT_ID, null);
+        given(studentRepository.findById(STUDENT_ID)).willReturn(Optional.of(student));
+        given(studentGuardianRepository.findByStudentIdAndGuardianId(STUDENT_ID, 42L))
+                .willReturn(Optional.of(link(student, user(42L))));
+
+        assertThatThrownBy(() -> service.addGuardian(admin, STUDENT_ID, new LinkGuardianRequest(42L, "모")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+    }
+
+    @Test
+    void removeGuardian_notLinked_throwsNotFound() {
+        AuthUser admin = authUser(TENANT_ID);
+        given(studentRepository.findById(STUDENT_ID)).willReturn(Optional.of(student(STUDENT_ID, TENANT_ID, null)));
+        given(studentGuardianRepository.findByStudentIdAndGuardianId(STUDENT_ID, 43L)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.removeGuardian(admin, STUDENT_ID, 43L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    /** 연결 행만 지운다 — 학부모 계정(app_user)도 학생도 남는다(D-O). */
+    @Test
+    void removeGuardian_deletesLinkOnly() {
+        AuthUser admin = authUser(TENANT_ID);
+        Student student = student(STUDENT_ID, TENANT_ID, null);
+        StudentGuardian existing = link(student, user(44L));
+        given(studentRepository.findById(STUDENT_ID)).willReturn(Optional.of(student));
+        given(studentGuardianRepository.findByStudentIdAndGuardianId(STUDENT_ID, 44L)).willReturn(Optional.of(existing));
+        given(studentGuardianRepository.findByStudentId(STUDENT_ID)).willReturn(List.of());
+
+        StudentDetailResponse detail = service.removeGuardian(admin, STUDENT_ID, 44L);
+
+        assertThat(detail.guardians()).isEmpty();
+        verify(studentGuardianRepository).delete(existing);
+        verify(userRepository, never()).delete(any());
+        verify(studentRepository, never()).delete(any());
+    }
+
     private Student student(Long id, Long tenantId, Bus assignedBus) {
         Student student = Student.builder().tenant(tenant(tenantId)).name("김민준").assignedBus(assignedBus).build();
         ReflectionTestUtils.setField(student, "id", id);
@@ -177,5 +258,23 @@ class StudentCommandServiceTest {
 
     private AuthUser authUser(Long tenantId) {
         return new AuthUser(100L, "admin@school.com", List.of(new AuthUser.Membership(tenantId, Role.ACADEMY_ADMIN)));
+    }
+
+    private User user(Long id) {
+        User user = User.builder().email("u" + id + "@school.com").name("사용자" + id).password("x").build();
+        ReflectionTestUtils.setField(user, "id", id);
+        return user;
+    }
+
+    private StudentGuardian link(Student student, User guardian) {
+        return StudentGuardian.builder().student(student).guardian(guardian).relation("모").build();
+    }
+
+    /** userId 사용자가 tenantId 학원에서 role 을 가진 것으로 스텁한다(존재 + 역할·소속 두 조회를 함께 준비). */
+    private void givenMember(Long userId, Long tenantId, Role role) {
+        User member = user(userId);
+        given(userRepository.findById(userId)).willReturn(Optional.of(member));
+        given(userTenantRoleRepository.findByUserId(userId))
+                .willReturn(List.of(new UserTenantRole(member, tenant(tenantId), role)));
     }
 }

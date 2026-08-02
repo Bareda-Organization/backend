@@ -2,10 +2,12 @@ package src.backend.student.controller;
 
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,7 +32,7 @@ import src.backend.student.query.StudentQueryService;
 /**
  * 학생 관리 API(관리자 전용). 학원 격리는 서비스 계층(TenantGuard)에서 검사한다.
  */
-@Tag(name = "04. 학생(Student)", description = "학생 등록·배정(버스/정류장)·하차지 설정·보호자 연결. 관리자 전용.")
+@Tag(name = "04. 학생(Student)", description = "학생 등록·배정(버스/정류장)·하차지 설정·보호자 연결/해제. 관리자 전용.")
 @RestController
 @RequestMapping("/api/students")
 @PreAuthorize("hasAnyRole('ACADEMY_ADMIN', 'PLATFORM_ADMIN')")
@@ -87,5 +89,18 @@ public class StudentController {
                                                           @Parameter(example = "1") @PathVariable Long id,
                                                           @Valid @RequestBody LinkGuardianRequest request) {
         return ApiResponse.ok(studentCommandService.addGuardian(admin, id, request));
+    }
+
+    /** 보호자 연결 해제 — 연결 행만 지운다. */
+    @Operation(summary = "보호자 연결 해제",
+            description = "⚠️ 물리 삭제가 아니다 — student_guardian 연결 행만 지우고 학부모 계정·학생은 그대로 남긴다. "
+                    + "보호자가 0명이 되는 것도 허용한다(학원이 직접 인계하는 경우). "
+                    + "갱신된 학생 상세를 돌려주므로 화면이 재조회 없이 목록을 다시 그린다.")
+    @DeleteMapping("/{id}/guardians/{guardianUserId}")
+    public ApiResponse<StudentDetailResponse> removeGuardian(
+            @AuthenticationPrincipal AuthUser admin,
+            @Parameter(example = "1") @PathVariable Long id,
+            @Parameter(example = "2") @PathVariable Long guardianUserId) {
+        return ApiResponse.ok(studentCommandService.removeGuardian(admin, id, guardianUserId));
     }
 }

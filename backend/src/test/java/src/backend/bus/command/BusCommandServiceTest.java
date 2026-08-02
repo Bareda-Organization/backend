@@ -186,6 +186,70 @@ class BusCommandServiceTest {
                 .isEqualTo(ErrorCode.INVALID_INPUT);
     }
 
+    // ── 중복 배정 금지 I-6 (BE-14) ──
+
+    /** 한 기사가 두 대에 동시에 배정되면 "어느 차에 탔는가"를 데이터가 답하지 못한다. */
+    @Test
+    void assign_driverAlreadyOnAnotherBus_throwsConflict() {
+        AuthUser admin = authUser(TENANT_ID, Role.ACADEMY_ADMIN);
+        given(busRepository.findById(1L)).willReturn(Optional.of(bus(1L, TENANT_ID, null, null)));
+        given(busRepository.findByDriverIdAndTenantId(20L, TENANT_ID))
+                .willReturn(List.of(bus(2L, TENANT_ID, null, null)));   // 이미 다른 차의 기사
+
+        assertThatThrownBy(() -> service.assign(admin, 1L, new AssignmentRequest(20L, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+    }
+
+    @Test
+    void assign_attendantAlreadyOnAnotherBus_throwsConflict() {
+        AuthUser admin = authUser(TENANT_ID, Role.ACADEMY_ADMIN);
+        given(busRepository.findById(1L)).willReturn(Optional.of(bus(1L, TENANT_ID, null, null)));
+        given(busRepository.findByAttendantIdAndTenantId(30L, TENANT_ID))
+                .willReturn(List.of(bus(2L, TENANT_ID, null, null)));
+
+        assertThatThrownBy(() -> service.assign(admin, 1L, new AssignmentRequest(null, 30L, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+    }
+
+    /**
+     * 화면이 전체 폼을 그대로 PATCH 하므로 노선만 바꾸는 요청도 같은 기사 id 를 다시 보낸다.
+     * 자기 버스로의 재배정까지 막으면 이 흔한 요청이 409 로 죽는다.
+     */
+    @Test
+    void assign_sameBusReassign_passes() {
+        AuthUser admin = authUser(TENANT_ID, Role.ACADEMY_ADMIN);
+        Bus bus = bus(1L, TENANT_ID, null, null);
+        given(busRepository.findById(1L)).willReturn(Optional.of(bus));
+        given(busRepository.findByDriverIdAndTenantId(20L, TENANT_ID)).willReturn(List.of(bus));   // 자기 자신뿐
+        givenMember(20L, "박기사", TENANT_ID, Role.DRIVER);
+        given(routeRepository.findById(10L)).willReturn(Optional.of(route(10L, TENANT_ID, 25)));
+        given(studentRepository.findByAssignedBusId(1L)).willReturn(List.of());
+
+        BusResponse response = service.assign(admin, 1L, new AssignmentRequest(20L, null, 10L));
+
+        assertThat(response.driverId()).isEqualTo(20L);
+        assertThat(response.routeId()).isEqualTo(10L);
+    }
+
+    /** 생성 시점에도 같은 규칙이다 — 버스를 만들면서 이미 다른 차의 기사를 꽂을 수 있다. */
+    @Test
+    void createBus_driverAlreadyOnAnotherBus_throwsConflict() {
+        AuthUser admin = authUser(TENANT_ID, Role.ACADEMY_ADMIN);
+        given(tenantRepository.findById(TENANT_ID)).willReturn(Optional.of(tenant(TENANT_ID)));
+        given(busRepository.findByDriverIdAndTenantId(20L, TENANT_ID))
+                .willReturn(List.of(bus(2L, TENANT_ID, null, null)));
+        CreateBusRequest req = new CreateBusRequest(TENANT_ID, "4호차", null, 25, 20L, null, null);
+
+        assertThatThrownBy(() -> service.createBus(admin, req))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+    }
+
     private Bus bus(Long id, Long tenantId, User driver, Route route) {
         Bus bus = Bus.builder().tenant(tenant(tenantId)).name("3호차").seatCapacity(25)
                 .driver(driver).route(route).build();

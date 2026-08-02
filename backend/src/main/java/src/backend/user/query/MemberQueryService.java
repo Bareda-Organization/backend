@@ -11,6 +11,7 @@ import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 import src.backend.global.tenant.TenantGuard;
+import src.backend.student.dto.StudentResponse;
 import src.backend.student.entity.StudentGuardian;
 import src.backend.student.repository.spec.StudentGuardianRepository;
 import src.backend.user.dto.MemberDetailResponse;
@@ -56,6 +57,23 @@ public class MemberQueryService {
         List<Bus> asAttendant = busRepository.findByAttendantIdAndTenantId(userId, effectiveTenant);
         List<StudentGuardian> guarded = studentGuardianRepository.findByGuardianId(userId);
         return MemberDetailResponse.of(membership, asDriver, asAttendant, guarded);
+    }
+
+    /**
+     * 학부모 기준 역방향 자녀 조회 — 학생↔학부모 연결을 학부모 쪽에서 본다.
+     *
+     * <p>⚠️ 비활성(퇴원) 학생을 걸러내지 않는다. 관리자가 "이 학부모와 연결된 전부"를 봐야 연결을 정리할 수 있다
+     * (I-9 는 명단·배차·시뮬레이션에 걸리는 규칙이지 관계 조회가 아니다). 화면이 배지로 구분한다.
+     */
+    @Transactional(readOnly = true)
+    public List<StudentResponse> studentsOf(AuthUser admin, Long guardianUserId, Long tenantId) {
+        UserTenantRole membership = loadAccessibleMembership(admin, guardianUserId, tenantId);
+        Long effectiveTenant = membership.getTenant().getId();
+        return studentGuardianRepository.findByGuardianId(guardianUserId).stream()
+                // 형제가 다른 학원에 다닐 수 있다 — 요청자 학원 것만 돌려준다.
+                .filter(sg -> sg.getStudent().getTenant().getId().equals(effectiveTenant))
+                .map(sg -> StudentResponse.of(sg.getStudent()))
+                .toList();
     }
 
     /**
