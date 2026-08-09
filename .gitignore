@@ -20,6 +20,11 @@ backend/HELP.md
 !backend/gradle/wrapper/gradle-wrapper.jar
 backend/.env
 
+# 배포 (운영 시크릿 — 커밋 금지)
+# Swagger UI basic auth 계정 파일. 생성:
+#   docker run --rm httpd:alpine htpasswd -nbB <아이디> '<비밀번호>' > infra/proxy/.htpasswd
+infra/proxy/.htpasswd
+
 # Frontend (Next.js)
 frontend/node_modules/
 frontend/.next/
