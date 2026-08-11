@@ -51,9 +51,9 @@
 
 ### 2.1 리소스 생성 순서 요약
 
-VPC 기본 사용 → EC2(+ EIP) → ECR → S3 버킷 2개 → IAM 인스턴스 역할 → IAM OIDC 역할 → SSM 파라미터 9개 → EC2 부트스트랩 → 인증서 발급 → 도메인 연결 → nginx 설정 치환 → **`.htpasswd` 생성(EC2)** → GitHub 시크릿·변수 등록 → 최초 배포.
+VPC 기본 사용 → EC2(+ EIP) → ECR → S3 버킷 2개 → IAM 인스턴스 역할 → IAM OIDC 역할 → SSM 파라미터 9개 → EC2 부트스트랩 → 도메인 연결 → 인증서 발급 → nginx 설정 치환 → **`.htpasswd` 생성(EC2)** → GitHub 시크릿·변수 등록 → 최초 배포.
 
-**⚠️ 순서가 중요한 지점 둘**: (a) 인증서는 `docker compose up`(proxy 포함)을 **한 번도 돌리기 전에** 발급해야 한다 — 인증서가 없으면 nginx 의 443 블록이 기동 자체를 못 해 순환 의존이 생긴다. (b) `docker-compose.prod.yml` 의 proxy 서비스가 요구하는 `infra/proxy/.htpasswd` 는 `.gitignore:26` 에 등록된 비밀 파일이다 — 저장소에도 배포용 S3 버킷에도 두지 않고 **EC2 에 직접 1회 생성**한다(이유·절차는 §2.12). 최초 배포(§2.14) 전에 반드시 끝낼 것.
+**⚠️ 순서가 중요한 지점 셋**: (a) `api` A 레코드(§2.9)를 인증서 발급(§2.10)보다 **먼저** 끝내야 한다 — HTTP-01 챌린지가 도메인을 조회해 EIP 로 접속하므로 A 레코드가 없으면 최초 발급이 실패한다. (b) 그 인증서는 `docker compose up`(proxy 포함)을 **한 번도 돌리기 전에** 발급해야 한다 — 인증서가 없으면 nginx 의 443 블록이 기동 자체를 못 해 순환 의존이 생긴다. (c) `docker-compose.prod.yml` 의 proxy 서비스가 요구하는 `infra/proxy/.htpasswd` 는 `.gitignore:26` 에 등록된 비밀 파일이다 — 저장소에도 배포용 S3 버킷에도 두지 않고 **EC2 에 직접 1회 생성**한다(이유·절차는 §2.12). 최초 배포(§2.14) 전에 반드시 끝낼 것.
 
 리전은 `ap-northeast-2`(서울)로 고정 — `deploy.sh`·`backup-db.sh`·`docker-compose.prod.yml`(`awslogs-region` 기본값)·`deploy-backend.yml`(`env.AWS_REGION`)이 모두 이 값을 기본값으로 쓴다. `deploy-web.yml` 은 AWS 를 호출하지 않아 region 개념 자체가 부재.
 
@@ -315,9 +315,24 @@ sudo BACKUP_BUCKET=<백업버킷> bash bootstrap-ec2.sh
 
 `cronie` 를 명시적으로 설치하는 이유 — Amazon Linux 2023 은 cron 을 기본 포함하지 않는다(AWS 는 systemd timer 대체를 권고). 없는 채로 두면 백업이 조용히 영원히 미실행. 스크립트 마지막의 `systemctl is-active crond` 검사가 그 상태로 완료 처리되는 것을 막는다.
 
-### 2.9 인증서 최초 발급
+### 2.9 도메인 연결
 
-**docker compose 를 한 번도 올리기 전에 실행한다** — proxy 컨테이너가 아직 없어 80 포트가 비어 있어야 `certonly --standalone` 이 성공한다. 같은 SSM 세션 안에서:
+- `api.<도메인>` → A 레코드 → §2.4 의 Elastic IP
+- `app.<도메인>` → Vercel 프로젝트 생성 후 Vercel "Domains" 설정에서 안내하는 CNAME/A 레코드로 연결(Vercel 콘솔 절차를 따른다)
+
+**`api` A 레코드는 §2.10 인증서 발급보다 먼저 끝내야 한다.** Let's Encrypt 의 HTTP-01 챌린지는 Let's Encrypt 서버가 `api.<도메인>` 을 직접 조회해 EIP 의 80 포트로 접속하는 방식이라, A 레코드가 없거나 아직 전파되지 않았으면 발급이 실패한다. `app` 쪽 레코드는 인증서와 무관하므로 나중에 해도 된다.
+
+전파 확인(로컬에서):
+
+```bash
+dig +short api.<도메인>    # §2.4 의 Elastic IP 가 나와야 한다
+```
+
+### 2.10 인증서 최초 발급
+
+**전제: §2.9 의 `api` A 레코드가 EIP 를 가리키고 있어야 한다**(HTTP-01 챌린지가 도메인으로 되돌아온다).
+
+**docker compose 를 한 번도 올리기 전에 실행한다** — proxy 컨테이너가 아직 없어 80 포트가 비어 있어야 `certonly --standalone` 이 성공한다. SSM Session Manager 로 EC2 에 접속해(§2.8 과 같은 방법):
 
 ```bash
 cd /opt/school-bus/infra/certbot
@@ -325,11 +340,6 @@ sudo ./init-cert.sh api.<도메인> <운영담당 이메일>
 ```
 
 발급된 인증서는 `school-bus_certbot-conf` 도커 볼륨에 저장된다(`init-cert.sh` 의 `CONF_VOLUME` — compose 프로젝트명이 디렉터리명 `school-bus` 에서 나오므로 `/opt/school-bus` 외 경로에 배치했다면 `CONF_VOLUME` 환경변수로 맞춘다).
-
-### 2.10 도메인 연결
-
-- `api.<도메인>` → A 레코드 → §2.4 의 Elastic IP
-- `app.<도메인>` → Vercel 프로젝트 생성 후 Vercel "Domains" 설정에서 안내하는 CNAME/A 레코드로 연결(Vercel 콘솔 절차를 따른다)
 
 ### 2.11 nginx 설정 치환
 
