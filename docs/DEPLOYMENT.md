@@ -53,9 +53,9 @@
 
 VPC 기본 사용 → EC2(+ EIP) → ECR → S3 버킷 2개 → IAM 인스턴스 역할 → IAM OIDC 역할 → SSM 파라미터 9개 → EC2 부트스트랩 → 인증서 발급 → 도메인 연결 → nginx 설정 치환 → GitHub 시크릿·변수 등록 → 최초 배포.
 
-**⚠️ 순서가 중요한 지점 둘**: (a) 인증서는 `docker compose up`(proxy 포함)을 **한 번도 돌리기 전에** 발급해야 한다 — 인증서가 없으면 nginx 의 443 블록이 기동 자체를 못 해 순환 의존이 생긴다. (b) `docker-compose.prod.yml` 의 proxy 서비스가 요구하는 `infra/proxy/.htpasswd` 는 `.gitignore:26` 에 등록된 비밀 파일이라 GitHub Actions 의 git 체크아웃에 **존재하지 않는다** — §2.7·§5 의 경고를 반드시 읽을 것.
+**⚠️ 순서가 중요한 지점 둘**: (a) 인증서는 `docker compose up`(proxy 포함)을 **한 번도 돌리기 전에** 발급해야 한다 — 인증서가 없으면 nginx 의 443 블록이 기동 자체를 못 해 순환 의존이 생긴다. (b) `docker-compose.prod.yml` 의 proxy 서비스가 요구하는 `infra/proxy/.htpasswd` 는 `.gitignore:26` 에 등록된 비밀 파일이다 — 저장소에도 배포용 S3 버킷에도 두지 않고 **EC2 에 직접 1회 생성**한다(이유·절차는 §2.12). 최초 배포(§2.14) 전에 반드시 끝낼 것.
 
-리전은 전 구간 `ap-northeast-2`(서울)로 고정 — `deploy.sh`·`backup-db.sh`·`docker-compose.prod.yml`·GitHub Actions 워크플로 2개가 모두 이 값을 기본값으로 쓴다.
+리전은 `ap-northeast-2`(서울)로 고정 — `deploy.sh`·`backup-db.sh`·`docker-compose.prod.yml`(`awslogs-region` 기본값)·`deploy-backend.yml`(`env.AWS_REGION`)이 모두 이 값을 기본값으로 쓴다. `deploy-web.yml` 은 AWS 를 호출하지 않아 region 개념 자체가 부재.
 
 ### 2.2 VPC·보안그룹
 
@@ -161,7 +161,7 @@ EIP=$(aws ec2 describe-addresses --allocation-ids "$ALLOC_ID" --query 'Addresses
 echo "인스턴스 ID: $INSTANCE_ID / 고정 IP: $EIP"
 ```
 
-Elastic IP 를 붙이는 이유 — 인스턴스를 재시작(`stop`/`start`)하면 퍼블릭 IP 가 바뀐다. 도메인 A 레코드가 가리키는 대상이 계속 유효하려면 고정 IP 가 필요하다. `t3.medium`(4GB) 선정 근거·디스크 30GB 산정 근거는 설계 문서 §2.8 참조.
+Elastic IP 를 붙이는 이유 — 인스턴스를 재시작(`stop`/`start`)하면 퍼블릭 IP 가 바뀐다. 도메인 A 레코드가 가리키는 대상이 계속 유효하려면 고정 IP 가 필요하다. `t3.medium`(4GB) 선정 근거는 설계 문서 §2.8(메모리 사이징 표) 참조. 디스크 30GB 는 설계 문서에 별도 산정 근거가 없는 값 — 부족 시 EBS 볼륨 확장으로 대응.
 
 ### 2.5 ECR·S3 버킷
 
@@ -318,7 +318,7 @@ sudo ./init-cert.sh api.<도메인> <운영담당 이메일>
 
 ### 2.11 nginx 설정 치환
 
-`infra/proxy/nginx.prod.conf` 에 `api.example.com`(2곳)·`app.example.com`(1곳)이 자리표시자로 박혀 있다. nginx 는 환경변수를 못 읽으므로 파일 자체를 고쳐 커밋한다.
+`infra/proxy/nginx.prod.conf` 에 `api.example.com`(4곳 — `server_name` 2곳, `ssl_certificate`·`ssl_certificate_key` 각 1곳)·`app.example.com`(1곳)이 자리표시자로 박혀 있다. nginx 는 환경변수를 못 읽으므로 파일 자체를 고쳐 커밋한다.
 
 ```bash
 sed -i '' 's/api\.example\.com/api.<도메인>/g; s/app\.example\.com/app.<도메인>/g' \
@@ -331,16 +331,43 @@ git commit -m "chore(deploy): nginx 도메인 치환"
 
 ### 2.12 Swagger Basic Auth 계정 (`.htpasswd`)
 
-`docker-compose.prod.yml` 의 proxy 서비스가 `infra/proxy/.htpasswd` 를 필수로 마운트한다. 이 파일은 **`.gitignore:26` 에 등록돼 있어 git 커밋 대상이 아니다** — 즉 GitHub Actions 의 "배포 파일 S3 동기화" 스텝(`aws s3 sync infra s3://$BUCKET/infra --delete`)이 사용하는 로컬 체크아웃에도 존재하지 않는다.
+`docker-compose.prod.yml` 의 proxy 서비스가 `infra/proxy/.htpasswd` 를 필수로 마운트한다. 이 파일은 `.gitignore:26` 에 등록돼 있어 git 커밋 대상이 아니다.
+
+**저장소·S3 를 거치지 않고 EC2 에 직접 생성한다.** `.github/workflows/deploy-backend.yml` 의 두 `s3 sync`(러너→S3, S3→EC2)는 각각 `--exclude "proxy/.htpasswd"` 를 붙여 이 파일을 동기화 대상에서 제외한다. `aws s3 sync` 의 `--exclude` 는 전송뿐 아니라 `--delete` 삭제 후보 판정에도 같은 패턴을 적용하므로(`aws s3 sync help`), 설령 S3 에 이 파일을 올려도 EC2 로는 내려받아지지 않는다 — 즉 이 파일을 다루는 유일하게 유효한 경로는 EC2 로컬 디스크뿐이다.
+
+SSM Session Manager 로 EC2 에 접속해(§2.4 의 인스턴스 ID 사용) 최초 1회 생성한다:
 
 ```bash
-docker run --rm httpd:alpine htpasswd -nbB <Swagger계정> '<Swagger비밀번호>' > infra/proxy/.htpasswd
-aws s3 cp infra/proxy/.htpasswd "s3://<배포버킷>/infra/proxy/.htpasswd"
+aws ssm start-session --target "$INSTANCE_ID"
 ```
 
-**⚠️ 알려진 함정 — `--delete` 옵션이 이 파일을 지운다.** `aws s3 sync infra s3://$BUCKET/infra --delete` 는 로컬(git 체크아웃)에 없는 S3 객체를 전부 지운다. `.htpasswd` 는 git 에 없으므로 **`infra/**` 나 `backend/**` 를 건드리는 배포가 한 번이라도 돌면 S3 와 EC2 양쪽에서 함께 삭제된다**(EC2 측도 `aws s3 sync s3://$BUCKET/infra /opt/school-bus/infra --delete` 로 S3 를 그대로 미러링하기 때문). 파일이 사라지면 nginx 가 `auth_basic_user_file` 대상을 열지 못해 프록시 컨테이너 기동이 깨질 수 있다.
+접속한 세션 안에서:
 
-**대응**: `infra/**` 가 걸리는 배포(=사실상 매 백엔드 배포) 직후마다 위 `aws s3 cp` 한 줄을 다시 실행한다. 이 파일을 영구히 살려두는 코드 레벨 해결(예: 별도 S3 접두사로 분리)은 이번 배포 범위에 없다 — 반복 재업로드가 현재 유일한 대응이며, 자동화가 필요하면 별도 태스크로 처리한다.
+```bash
+sudo mkdir -p /opt/school-bus/infra/proxy
+sudo docker run --rm httpd:alpine htpasswd -nbB <Swagger계정> '<Swagger비밀번호>' \
+  | sudo tee /opt/school-bus/infra/proxy/.htpasswd > /dev/null
+```
+
+최초 배포(§2.14) 전에 끝내야 한다 — 없으면 proxy 컨테이너가 `auth_basic_user_file` 대상을 열지 못해 기동에 실패한다.
+
+**즉시 복구 — Swagger UI 가 401 을 내거나 proxy 컨테이너가 재시작을 반복할 때**(EC2 디스크 손상·수동 삭제 등 배포 경로 밖의 원인으로 파일이 사라진 경우):
+
+```bash
+# 1) SSM Session Manager 로 EC2 접속
+aws ssm start-session --target "$INSTANCE_ID"
+
+# 2) 파일 재생성 (EC2 위에서)
+sudo mkdir -p /opt/school-bus/infra/proxy
+sudo docker run --rm httpd:alpine htpasswd -nbB <Swagger계정> '<Swagger비밀번호>' \
+  | sudo tee /opt/school-bus/infra/proxy/.htpasswd > /dev/null
+
+# 3) proxy 컨테이너 재기동 (바인드 마운트라 컨테이너를 다시 띄워야 반영)
+sudo docker compose -f /opt/school-bus/docker-compose.prod.yml \
+  --env-file /opt/school-bus/.env restart proxy
+```
+
+배포가 이 파일을 지우던 결함은 위 `--exclude` 적용으로 이미 해소돼 배포 후 재업로드가 불필요하다(§5) — 그래도 파일이 없는 상태를 만났다면 위 절차로 즉시 복구한다.
 
 ### 2.13 GitHub 시크릿·변수 등록
 
@@ -428,7 +455,7 @@ aws ssm put-parameter --name /school-bus/demo/SEED_PASSWORD_HASH --type SecureSt
 
 동시 배포 처리: 백엔드는 `concurrency: cancel-in-progress: false` — 겹치면 취소 대신 줄을 세운다(옛 이미지가 새 이미지를 덮어쓰는 사고 방지). 웹은 `cancel-in-progress: true` — 마지막 push 만 반영된다.
 
-**`infra/**` 가 걸리는 배포마다 §2.12 의 `.htpasswd` S3 재업로드를 반드시 반복한다** — 잊으면 Swagger UI 인증 파일이 사라져 프록시가 영향을 받을 수 있다.
+`.htpasswd` 는 `infra/**` 배포에 영향받지 않는다 — `deploy-backend.yml` 의 두 `s3 sync` 가 `--exclude "proxy/.htpasswd"` 로 이 파일을 동기화·삭제 대상에서 제외한다(§2.12). 배포마다 재업로드는 불필요.
 
 ---
 
@@ -492,7 +519,7 @@ docker compose -f /opt/school-bus/docker-compose.prod.yml --env-file /opt/school
 | 배차·시뮬레이션 500 | NCP 키 3개, 또는 `ROUTING_PROVIDER=osrm` 폴백 |
 | 컨테이너가 자꾸 죽음 | `free -h` 로 메모리, `docker stats`, 스왑 활성 여부 |
 | 인증서 만료 | `docker compose logs certbot`, 80 포트 개방 여부 |
-| Swagger UI 401/기동 실패 | §2.12 의 `.htpasswd` S3 삭제 여부(직전 배포가 `infra/**` 를 건드렸는지) |
+| Swagger UI 401/기동 실패 | §2.12 의 즉시 복구 절차(EC2 에 `.htpasswd` 재생성 → `proxy` 컨테이너 재기동) |
 
 ---
 
