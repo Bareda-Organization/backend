@@ -52,6 +52,22 @@ class DeploymentConfigGuardTest {
     }
 
     @Test
+    @DisplayName("prod·demo 프로파일의 WebSocket 허용 출처에 와일드카드 기본값이 없다")
+    void deployProfilesRequireExplicitWsOrigins() {
+        // 공통 섹션의 기본값은 `${WS_ALLOWED_ORIGIN_PATTERNS:*}` 다 — 배포 프로파일이 이 키를
+        // 다시 적지 않으면 그 `*` 를 조용히 상속해 **모든 출처에서 WebSocket 이 허용된다.**
+        // REST 와 달리 STOMP 핸드셰이크는 CORS 필터를 타지 않아 이 값이 유일한 방어선이고,
+        // 뚫려도 앱은 정상 기동하므로 배포 후에도 드러나지 않는다.
+        for (String profile : new String[] {"prod", "demo"}) {
+            assertThat(sectionOf("on-profile: " + profile))
+                    .as("%s 프로파일은 WS_ALLOWED_ORIGIN_PATTERNS 를 기본값 없이 요구해야 한다"
+                            + " (빠뜨리면 공통 섹션의 와일드카드 `*` 를 상속한다)", profile)
+                    .contains("    allowed-origin-patterns: ${WS_ALLOWED_ORIGIN_PATTERNS}")
+                    .doesNotContain("allowed-origin-patterns: ${WS_ALLOWED_ORIGIN_PATTERNS:");
+        }
+    }
+
+    @Test
     @DisplayName("demo 프로파일은 Mock 위치 소스를 켠다")
     void demoEnablesMock() {
         String demoSection = sectionOf("on-profile: demo");
