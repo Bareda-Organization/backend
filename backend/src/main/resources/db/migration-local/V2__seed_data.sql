@@ -1,8 +1,9 @@
 -- 로컬 개발 전용 데모 시드 — DataInitializer.java(2026-07-20 Flyway 전환으로 제거)를 그대로 SQL로 옮겼다.
 -- 프론트 frontend/lib/simulation.js 의 학원(한빛/가온/미래)·정류장·버스·학생 구성과 맞춘다.
--- 비밀번호는 모두 "password"(BCryptPasswordEncoder 기본 strength 10으로 사전 생성한 해시를 그대로 사용).
--- 이 위치(db/migration-local)는 application.yml의 local 프로파일에서만 Flyway 스캔 경로에 추가되므로
--- prod에는 절대 적용되지 않는다.
+-- 비밀번호 해시는 Flyway placeholder(seedPasswordHash)로 주입한다 — 프로파일마다 다른 값을 쓰기 위해서다.
+--   local: application.yml 에 박힌 기본값(평문 "password")
+--   demo : SSM Parameter Store 의 값(공개 도메인이라 "password" 를 쓰면 안 된다)
+-- 이 위치(db/migration-local)는 local·demo 프로파일에서만 스캔에 추가되므로 prod 에는 적용되지 않는다.
 --
 -- ── 이 시드가 시연 가능하게 하는 것(2026-08-02 보강) ──────────────────────────────
 -- 1) 계정·버스·학생·노선: 로그인 → 역할별 목록 조회까지 데이터 없이 비는 화면이 없다.
@@ -13,7 +14,7 @@
 
 DO $$
 DECLARE
-    v_hash        varchar := '$2a$10$Noeszx0nzJUfNo4ubCD03eNfMVfMD9feMo04y/8DHiFLUBF.JZ/Fq';
+    v_hash        varchar := '${seedPasswordHash}';
     v_hanbit_id    bigint;
     v_gaon_id      bigint;
     v_student_user_id  bigint;

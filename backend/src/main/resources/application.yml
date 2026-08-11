@@ -104,6 +104,10 @@ spring:
       on-profile: local
   flyway:
     locations: classpath:db/migration,classpath:db/migration-local   # 스키마 + 데모 시드데이터(prod엔 적용 안 됨)
+    placeholders:
+      # BCryptPasswordEncoder(strength 10)로 사전 생성한 평문 "password" 의 해시.
+      # 로컬 전용이라 파일에 박아둔다 — demo·prod 는 절대 이 값을 쓰지 않는다.
+      seedPasswordHash: "$2a$10$Noeszx0nzJUfNo4ubCD03eNfMVfMD9feMo04y/8DHiFLUBF.JZ/Fq"
 
 ---
 # 운영 프로파일 (비밀값은 모두 환경변수)
