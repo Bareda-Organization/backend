@@ -134,6 +134,8 @@ services:
       # 웹이 Vercel(app.<도메인>)로 분리돼 API 와 출처가 달라졌다 — 로컬의 same-origin 이점이 사라진다.
       # 여기 없는 출처에서 온 요청은 브라우저가 차단한다. 목록에 스킴(https://)까지 정확히 적을 것.
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?CORS_ALLOWED_ORIGINS 미설정}
+      # WebSocket 핸드셰이크는 CORS 필터를 타지 않고 자체 origin 검사를 한다 — 별도로 줘야 한다.
+      WS_ALLOWED_ORIGIN_PATTERNS: ${WS_ALLOWED_ORIGIN_PATTERNS:?WS_ALLOWED_ORIGIN_PATTERNS 미설정}
       # JWT 서명 키. 로컬 기본값이 코드에 박혀 있으므로 운영에서는 반드시 덮어쓴다.
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET 미설정}
       # demo 프로파일의 Flyway placeholder. 미주입 시 기동이 실패하는 게 정상이다 —

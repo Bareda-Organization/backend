@@ -26,17 +26,21 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final StompAuthChannelInterceptor authChannelInterceptor;
     private final long heartbeatMs;
+    private final String[] allowedOriginPatterns;
 
     public WebSocketConfig(StompAuthChannelInterceptor authChannelInterceptor,
-                           @Value("${app.connection.heartbeat-ms:10000}") long heartbeatMs) {
+                           @Value("${app.connection.heartbeat-ms:10000}") long heartbeatMs,
+                           @Value("${app.ws.allowed-origin-patterns}") String[] allowedOriginPatterns) {
         this.authChannelInterceptor = authChannelInterceptor;
         this.heartbeatMs = heartbeatMs;
+        this.allowedOriginPatterns = allowedOriginPatterns;
     }
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // 네이티브 모바일 클라이언트 전용 채널이라 브라우저 CORS origin 제한을 걸지 않는다(MVP).
-        registry.addEndpoint("/ws/location").setAllowedOriginPatterns("*");
+        // 로컬은 "*", 배포는 웹(Vercel) 출처만 허용한다 — 웹이 API 와 다른 출처가 됐기 때문이다.
+        // 네이티브 앱은 Origin 헤더를 보내지 않아 이 제한에 걸리지 않는다.
+        registry.addEndpoint("/ws/location").setAllowedOriginPatterns(allowedOriginPatterns);
     }
 
     @Override
