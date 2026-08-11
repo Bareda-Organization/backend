@@ -110,7 +110,11 @@ jobs:
           # pull + 최대 3분 헬스체크로 100초를 넘기는 게 정상 경로이므로, waiter 를 쓰면 배포가
           # 진행 중인데도 거짓 실패로 보고된다. get-command-invocation 을 직접 폴링해
           # 종료 상태(Success/Cancelled/TimedOut/Failed/Cancelling)로만 판정한다.
-          MAX_WAIT_SECONDS=600
+          # 20분. 최초 배포는 백엔드 이미지(~400MB) + postgres·redis·kafka·nginx·certbot
+          # 최초 pull(~700MB) + kafka start_period 40s + backend start_period 90s +
+          # Flyway 마이그레이션 + 스모크 최대 180s 로 10분을 쉽게 넘긴다. 상한이 짧으면
+          # 배포는 성공했는데 워크플로만 실패를 찍고, 운영자가 재실행해 중복 배포가 큐에 쌓인다.
+          MAX_WAIT_SECONDS=1200
           POLL_INTERVAL_SECONDS=10
           ELAPSED=0
           STATUS="Unknown"

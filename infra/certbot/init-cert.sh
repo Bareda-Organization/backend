@@ -38,6 +38,12 @@ docker run --rm -p 80:80 \
 
 echo
 echo "발급 완료: /etc/letsencrypt/live/$DOMAIN/"
-echo "다음 단계:"
-echo "  1) infra/proxy/nginx.prod.conf 의 api.example.com 을 $DOMAIN 으로 바꾼다"
-echo "  2) docker compose -f /opt/school-bus/docker-compose.prod.yml up -d"
+echo "다음 단계 — docs/DEPLOYMENT.md §2.11~§2.14 를 순서대로 따른다:"
+echo "  §2.11 nginx 도메인 치환. **로컬 저장소에서** infra/proxy/nginx.prod.conf 의"
+echo "        api.example.com 을 $DOMAIN 으로 바꿔 커밋한다."
+echo "        ⚠️ EC2 의 파일을 직접 고치면 다음 배포의 s3 sync --delete 가 말없이 되돌린다."
+echo "  §2.12 EC2 에 infra/proxy/.htpasswd 를 생성한다(없으면 proxy 가 기동하지 못한다)."
+echo "  §2.13 GitHub 시크릿·변수를 등록한다."
+echo "  §2.14 최초 배포. GitHub Actions(deploy-backend.yml)가 돌린다."
+echo "        ⚠️ 여기서 docker compose up 을 직접 하지 않는다 — 컨테이너가 요구하는"
+echo "           /opt/school-bus/.env 는 배포 시 deploy.sh 가 SSM 에서 만든다(아직 부재)."

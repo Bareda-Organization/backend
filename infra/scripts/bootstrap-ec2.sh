@@ -10,10 +10,15 @@ BACKUP_BUCKET="${BACKUP_BUCKET:?BACKUP_BUCKET 미설정 — DB 백업이 갈 S3 
 COMPOSE_VERSION="v2.29.7"
 APP_DIR=/opt/school-bus
 
-echo "== 1. docker 설치 =="
+echo "== 1. docker·cron 설치 =="
 dnf update -y
-dnf install -y docker
+# ⚠️ cronie 를 함께 깐다. Amazon Linux 2023 은 cron 을 **기본 포함하지 않는다**(AWS 는
+#    systemd timer 대체를 권고한다). 없는 채로 두면 아래 5단계가 /etc/cron.d 를 못 찾아
+#    부트스트랩이 마지막에 하드 실패하거나, 디렉터리만 있고 crond 가 안 돌아 DB 백업이
+#    조용히 영원히 실행되지 않는다 — 알람이 없어 복구가 필요한 날에야 알게 된다.
+dnf install -y docker cronie
 systemctl enable --now docker
+systemctl enable --now crond
 
 echo "== 2. compose v2 플러그인 설치 =="
 # Amazon Linux 2023 에는 docker-compose-plugin 패키지가 없어 바이너리를 직접 놓는다.
@@ -48,6 +53,15 @@ BACKUP_BUCKET=${BACKUP_BUCKET}
 10 3 * * * root ${APP_DIR}/infra/scripts/backup-db.sh >> /var/log/schoolbus-backup.log 2>&1
 EOF
 chmod 644 /etc/cron.d/schoolbus-backup
+
+# 크론 파일을 놓는 것만으로는 부족하다 — crond 가 실제로 돌고 있어야 한다.
+# 여기서 확인해 두지 않으면 백업 미실행을 복구가 필요한 날까지 아무도 모른다.
+if ! systemctl is-active --quiet crond; then
+    echo "오류: crond 가 실행 중이 아니다 — DB 백업이 돌지 않는다." >&2
+    systemctl status crond --no-pager >&2 || true
+    exit 1
+fi
+echo "crond 활성 확인 — 백업 크론이 매일 03:10 에 실행된다."
 
 echo
 echo "부트스트랩 완료. 다음 단계:"
