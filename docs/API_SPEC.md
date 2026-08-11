@@ -1991,11 +1991,13 @@ Authorization: Bearer <accessToken>
 
 ## 18. 부록 B — 테스트 계정 · 시드 데이터
 
-로컬 데모 시드는 `backend/src/main/resources/db/migration-local/V2__seed_data.sql` 이 넣는다. **local 프로파일에서만 적용**되며 prod 에는 들어가지 않는다.
+데모 시드는 `backend/src/main/resources/db/migration-local/V2__seed_data.sql` 이 넣는다. **`local`·`demo` 두 프로파일에서만 적용**되며 `prod` 에는 들어가지 않는다(`demo` 는 배포 환경에서 쓰는 프로파일 — 시드가 없으면 관리자 계정을 만들 방법이 없어 아무도 로그인할 수 없다).
 
 > 로컬 postgres 에는 영속 볼륨이 없다. `docker compose down` 후 `docker compose up -d postgres redis kafka` 하면 Flyway 가 스키마(V1)+시드(V2)를 **매번 새로 구성**한다. `stop`/`start` 는 데이터가 유지되므로, 리셋하려면 반드시 `down` 을 거쳐야 한다.
 
-### 테스트 계정 5개 — 비밀번호는 전부 `password`
+### 테스트 계정 5개 — 비밀번호는 `local` 에서만 전부 `password`
+
+> ⚠️ **`demo`(배포 환경)의 비밀번호는 `password` 가 아니다.** 시드 비밀번호 해시는 Flyway placeholder `seedPasswordHash` 로 주입한다 — `local` 은 `application.yml` 의 기본값(평문 `password`)을 쓰고, `demo` 는 `${SEED_PASSWORD_HASH}` 라 기본값이 없어 SSM 에서 받은 값이 없으면 기동 자체가 실패한다. 계정 목록·역할은 두 프로파일이 동일하다.
 
 | 이메일 | 이름 | 역할 | 소속 학원 |
 |---|---|---|---|

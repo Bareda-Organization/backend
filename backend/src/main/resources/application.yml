@@ -18,7 +18,7 @@ spring:
         format_sql: true
 
   flyway:
-    locations: classpath:db/migration   # 스키마 마이그레이션(전 프로파일 공통). local 프로파일은 시드 데이터 위치를 추가로 더한다.
+    locations: classpath:db/migration   # 스키마 마이그레이션(전 프로파일 공통). local·demo 프로파일은 시드 데이터 위치를 추가로 더한다.
 
   data:
     redis:

@@ -757,7 +757,7 @@ Spring `@EventListener`는 위 릴레이 외에 2개뿐이다 — STOMP `Session
 |---|---|---|
 | `spring.jpa.hibernate.ddl-auto` | **`validate`** | 엔티티 ↔ 실제 스키마 일치만 검증. **어긋나면 애플리케이션이 기동 실패한다** |
 | `spring.flyway.locations` | `classpath:db/migration` (전 프로파일) | |
-| `spring.flyway.locations` (local) | `classpath:db/migration,classpath:db/migration-local` | 데모 시드를 여기서만 추가 |
+| `spring.flyway.locations` (`local`·`demo`) | `classpath:db/migration,classpath:db/migration-local` | 데모 시드를 이 두 프로파일에서만 추가. `prod` 에는 들어가지 않는다 |
 | `spring.jpa.open-in-view` | `false` | 뷰 렌더링 중 lazy 로딩으로 커넥션을 붙들지 않게 하려는 설정 |
 
 **마이그레이션 파일 5개**:
@@ -768,7 +768,7 @@ Spring `@EventListener`는 위 릴레이 외에 2개뿐이다 — STOMP `Session
 | | `V3__ride_event_add_handover_type.sql` | `ride_event.type` CHECK에 `HANDOVER` 추가 |
 | | `V4__notification_log_add_handover_done_type.sql` | `notification_log.type` CHECK에 `HANDOVER_DONE` 추가(9종) |
 | | `V5__notification_log_add_route_published_type.sql` | 같은 CHECK에 `ROUTE_PUBLISHED` 추가(**10종**) |
-| `db/migration-local/` (local 전용) | `V2__seed_data.sql` | 데모 시드 — 테넌트 3 · 계정 5 · 노선 3 · 정류장 3 · 버스 3 · 학생 6 · 보호자연결 2 |
+| `db/migration-local/` (`local`·`demo` 전용) | `V2__seed_data.sql` | 데모 시드 — 테넌트 3 · 계정 5 · 노선 3 · 정류장 3 · 버스 3 · 학생 6 · 보호자연결 2. 비밀번호 해시는 Flyway placeholder `seedPasswordHash` 로 주입한다(`local` 은 평문 `password` 의 해시가 기본값, `demo` 는 `${SEED_PASSWORD_HASH}` 라 기본값이 부재 — 미주입 시 기동 실패) |
 
 V1은 Hibernate가 생성한 DDL을 그대로 채택한 것이고(FK 이름이 자동 생성 해시), **이후 변경은 새 버전 파일로만 추가하며 V1은 수정하지 않는다.**
 
@@ -827,13 +827,14 @@ WebSocket 경로만 타임아웃이 1시간인 이유는 명확하다 — 연결
 
 ### 11.3 애플리케이션 설정 (`application.yml`)
 
-프로파일별 별도 파일이 없다 — **`application.yml` 하나에 `---` 문서 구분자로 3개(default/local/prod)가 들어 있다.**
+프로파일별 별도 파일이 없다 — **`application.yml` 하나에 `---` 문서 구분자로 4개(default/local/prod/demo)가 들어 있다.**
 
 | 프로파일 | 특징 |
 |---|---|
 | default | DB/Redis/Kafka를 `localhost`로. `spring.profiles.active: local` |
-| `local` | `flyway.locations`에 `db/migration-local` 추가 → 데모 시드 적용 |
+| `local` | `flyway.locations`에 `db/migration-local` 추가 → 데모 시드 적용. `seedPasswordHash` 기본값이 평문 `password` 의 해시 |
 | `prod` | DB/Redis/Kafka 접속을 **전부 환경변수**로(`${DB_URL}` 등). `app.cors.allowed-origins: ${CORS_ALLOWED_ORIGINS:}` — **기본값이 없어 미설정 시 전부 차단**. Mock 끄고 실 GPS 켬 |
+| `demo` | **실제 배포에 쓰는 프로파일.** `prod` 를 상속하지 않고 접속 블록을 다시 적는다. `prod` 와 두 가지가 다르다 — (1) 데모 시드 로드(`db/migration-local` 추가). 시드가 없으면 `PLATFORM_ADMIN`·`ACADEMY_ADMIN` 을 API 로 만들 수 없어 **아무도 로그인할 수 없다** (2) Mock 위치 소스 활성. 실 기사 단말이 없어 `prod` 설정이면 버스가 정지 상태로 보인다. `seedPasswordHash` 는 `${SEED_PASSWORD_HASH}` 로 **기본값 부재** — 미주입 시 기동 실패(조용히 `password` 로 뜨는 사고 방지) |
 
 주요 커스텀 설정:
 
@@ -969,9 +970,9 @@ WebSocket 경로만 타임아웃이 1시간인 이유는 명확하다 — 연결
 - 개선: 키 부재를 기동 시점에 감지해 명확한 경고 로그를 남기거나 자동으로 `osrm` fallback 한다. 운영에서는 OSRM 자체 호스팅을 검토한다.
 
 **R19. `ENABLE_QUICK_LOGIN=true`가 compose 기본값이다**
-- 사실: 프론트 빌드 인자로 켜져 있어 로그인 화면에 시드 계정 4개(비밀번호 `password`)가 노출된다. Dockerfile 기본값은 false.
+- 사실: 로컬 `docker-compose.yml:99`이 빌드 인자로 켜 두어 로그인 화면에 시드 계정 4개(로컬 비밀번호 `password`)가 노출된다. Dockerfile 기본값은 false.
 - 영향: 인증을 우회하지는 않지만 계정 목록이 그대로 보인다.
-- 개선: 운영 빌드에서는 반드시 제거한다(주석에도 명시돼 있다). 배포 파이프라인이 생기면 이 인자를 prod 프로파일에서 강제 false로 고정한다.
+- 개선: **배포 경로는 해소됐다** — `.github/workflows/deploy-web.yml:44`가 `--dart-define=ENABLE_QUICK_LOGIN=false`를 고정으로 넘긴다. 남은 노출은 로컬 compose 빌드뿐이라 수용 범위다.
 
 ---
 

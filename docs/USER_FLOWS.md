@@ -43,7 +43,7 @@
 - 시각 필드는 전부 `LocalDateTime`/`LocalDate`/`LocalTime` — **오프셋 없는 ISO 문자열**(`"2026-07-29T14:30:00"`)이다. 오프셋을 실을 타입 자체가 아니므로 "오프셋 없는 문자열 = KST 로컬시각"으로 읽어야 한다.
 - 테넌트 격리는 3가지 방식뿐이다: ① 관리자 조회 → `TenantGuard.resolveTenantId` ② 기사 → `bus.driver`/`session.driverId` 와 JWT `userId` 대조 ③ 학생·학부모 → `student.user_id`/`student_guardian` 관계. **③은 tenantId를 클라이언트가 보내는 경로 자체가 없어 위조 여지가 없다.**
 
-### 0.5 테스트 계정 (로컬 시드, 비밀번호 전부 `password`)
+### 0.5 테스트 계정 (데모 시드, `local` 에서만 비밀번호가 전부 `password`)
 
 | 이메일 | 역할 | 소속 | 이 문서에서 도달 가능한 화면 |
 |---|---|---|---|
@@ -53,7 +53,7 @@
 | `student@school.com` | STUDENT | 한빛학원 | **없음** — 로그인 후 "준비 중" 배너 |
 | `parent@school.com` | PARENT | 한빛학원 | **없음** — 로그인 후 "준비 중" 배너 |
 
-시드는 `db/migration-local/V2__seed_data.sql`(local 프로파일 전용). 학원 3·버스 3·학생 6·정류장 3·보호자연결 2가 들어 있고, **운행 기록·노선계획·알림 시드는 없다** — A2·A5를 직접 돌려야 데이터가 생긴다.
+시드는 `db/migration-local/V2__seed_data.sql`(`local`·`demo` 프로파일 전용, `prod` 미적용). 학원 3·버스 3·학생 6·정류장 3·보호자연결 2가 들어 있고, **운행 기록·노선계획·알림 시드는 없다** — A2·A5를 직접 돌려야 데이터가 생긴다. 비밀번호는 `local` 에서만 `password` 다(`demo` 는 SSM 주입값 — `API_SPEC.md` §18 참조).
 
 ---
 
