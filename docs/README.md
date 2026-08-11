@@ -19,6 +19,8 @@
 
 **읽는 순서 (처음 이 저장소를 보는 경우):** PRODUCT_SPEC → USER_FLOWS → ARCHITECTURE → API_SPEC
 
+배포 관련 문서는 이 4종과 별도다 — 운영 절차는 **[DEPLOYMENT.md](DEPLOYMENT.md)**, 설계 근거(관리형 서비스 채택 검토·차단 결함·비용)는 **[superpowers/specs/2026-08-10-mvp-배포-design.md](superpowers/specs/2026-08-10-mvp-배포-design.md)**.
+
 ---
 
 ## 2. 표기 규칙

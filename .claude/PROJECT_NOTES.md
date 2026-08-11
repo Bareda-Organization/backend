@@ -91,7 +91,7 @@ cd backend
 - **DTO**: Entity를 직접 반환하지 않는다. Request DTO → Service → Response DTO.
 - **Event 이름은 과거형** (`LocationUpdatedEvent`, `StudentBoardedEvent`). Command·Query 어휘를 이벤트명에 쓰지 않는다. 서비스 간 직접 체이닝 호출 금지, Kafka 경유 우선.
 - **응답 규약**: `ApiResponse<T> { success, data, message }` 3필드뿐 — **머신리더블 `errorCode` 필드는 없다**(의도된 설계). 예외는 `BusinessException` + `ErrorCode` enum(8종), 전역 처리는 `GlobalExceptionHandler`. `@Valid` 실패는 `findFirst()`로 **첫 필드 오류 1개만** `"필드명: 메시지"` 형식으로 반환한다.
-- **마이그레이션**: 새 컬럼/테이블은 `src/main/resources/db/migration/V{n}__설명.sql`을 **새로 추가**한다. **`V1__init_schema.sql` 수정 금지.** 로컬 데모 시드는 `db/migration-local/`(local 프로파일에서만 로드, prod 미적용).
+- **마이그레이션**: 새 컬럼/테이블은 `src/main/resources/db/migration/V{n}__설명.sql`을 **새로 추가**한다. **`V1__init_schema.sql` 수정 금지.** 데모 시드는 `db/migration-local/`(**`local`·`demo` 두 프로파일에서만 로드**, prod 미적용). 시드 비밀번호 해시는 Flyway placeholder `seedPasswordHash`로 주입 — local은 `application.yml` 기본값(평문 `password`), demo는 SSM 값(기본값 없음).
 - **`package-info.java`를 두지 않는다** (패키지 레벨 애너테이션이 필요할 때만 예외).
 
 ---
@@ -134,7 +134,7 @@ cd backend
   3. STOMP 브로커 스레드에서 `/user/queue/**`·`/topic/tenant/{id}/**` push. `PushTargetResolver`가 대상을 못 찾으면 개인 큐뿐 아니라 **토픽 broadcast까지 통째로 skip**된다.
   4. `@Scheduled` 4종: 위치 tick 3,000ms / 연결끊김 점검 10,000ms(유예 30초) / 등원 접근 점검 15,000ms / SOS 에스컬레이션 30,000ms. 주기값은 `application.yml`의 `app.*` 하위.
 - **Mock 위치 소스가 기본 켜져 있다** — 학생(`app.location.mock.enabled`)·**버스(`app.location.bus-mock.enabled`) 둘 다 local 기본 `true`**. 좌표가 저절로 움직이는 건 버그가 아니다. prod 프로파일에서는 둘 다 `false`, 실 GPS push가 `true`.
-- 로그인 계정은 Flyway 시드(`db/migration-local/V2__seed_data.sql`) 참조 — **비밀번호는 전부 `password`**.
+- 로그인 계정은 Flyway 시드(`db/migration-local/V2__seed_data.sql`) 참조 — **로컬**의 비밀번호는 전부 `password`(배포 환경은 다름).
 
 ---
 
