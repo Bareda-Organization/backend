@@ -21,8 +21,8 @@ backend/HELP.md
 backend/.env
 
 # 배포 (운영 시크릿 — 커밋 금지)
-# Swagger UI basic auth 계정 파일. 생성:
-#   docker run --rm httpd:alpine htpasswd -nbB <아이디> '<비밀번호>' > infra/proxy/.htpasswd
+# Swagger UI basic auth 계정 파일. 작업 트리에 만들지 않고 EC2 에서 직접 생성한다
+# (절차: docs/DEPLOYMENT.md §2.12). 실수로 만들어졌을 때를 대비해 여기서도 막아 둔다.
 infra/proxy/.htpasswd
 
 # Frontend (Next.js)

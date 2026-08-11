@@ -51,7 +51,7 @@
 
 ### 2.1 리소스 생성 순서 요약
 
-VPC 기본 사용 → EC2(+ EIP) → ECR → S3 버킷 2개 → IAM 인스턴스 역할 → IAM OIDC 역할 → SSM 파라미터 9개 → EC2 부트스트랩 → 인증서 발급 → 도메인 연결 → nginx 설정 치환 → GitHub 시크릿·변수 등록 → 최초 배포.
+VPC 기본 사용 → EC2(+ EIP) → ECR → S3 버킷 2개 → IAM 인스턴스 역할 → IAM OIDC 역할 → SSM 파라미터 9개 → EC2 부트스트랩 → 인증서 발급 → 도메인 연결 → nginx 설정 치환 → **`.htpasswd` 생성(EC2)** → GitHub 시크릿·변수 등록 → 최초 배포.
 
 **⚠️ 순서가 중요한 지점 둘**: (a) 인증서는 `docker compose up`(proxy 포함)을 **한 번도 돌리기 전에** 발급해야 한다 — 인증서가 없으면 nginx 의 443 블록이 기동 자체를 못 해 순환 의존이 생긴다. (b) `docker-compose.prod.yml` 의 proxy 서비스가 요구하는 `infra/proxy/.htpasswd` 는 `.gitignore:26` 에 등록된 비밀 파일이다 — 저장소에도 배포용 S3 버킷에도 두지 않고 **EC2 에 직접 1회 생성**한다(이유·절차는 §2.12). 최초 배포(§2.14) 전에 반드시 끝낼 것.
 
@@ -74,7 +74,7 @@ aws ec2 authorize-security-group-ingress --group-id "$SG_ID" --protocol tcp --po
 aws ec2 authorize-security-group-ingress --group-id "$SG_ID" --protocol tcp --port 443 --cidr 0.0.0.0/0
 ```
 
-인바운드는 **80·443 뿐**(검증 기준 §8-8 참조). 22 번(SSH) 은 열지 않는다 — 접속은 SSM Session Manager 로만 한다(`bootstrap-ec2.sh` 주석 참조).
+인바운드는 **80·443 뿐**(검증 기준 §2.14 의 8번 항목 참조). 22 번(SSH) 은 열지 않는다 — 접속은 SSM Session Manager 로만 한다(`bootstrap-ec2.sh` 주석 참조).
 
 ### 2.3 IAM 인스턴스 역할
 
@@ -126,6 +126,15 @@ cat > ec2-inline-policy.json <<JSON
       "Effect": "Allow",
       "Action": ["s3:PutObject", "s3:GetObject", "s3:ListBucket"],
       "Resource": ["arn:aws:s3:::<백업버킷>", "arn:aws:s3:::<백업버킷>/*"]
+    },
+    {
+      "Sid": "CloudWatchLogsWrite",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup", "logs:CreateLogStream",
+        "logs:PutLogEvents", "logs:DescribeLogStreams"
+      ],
+      "Resource": "arn:aws:logs:ap-northeast-2:<계정ID>:log-group:/school-bus/demo*"
     }
   ]
 }
@@ -139,6 +148,8 @@ aws iam add-role-to-instance-profile \
 ```
 
 `SsmParameterDecrypt` 를 `*` 로 둔 이유 — 기본 AWS 관리형 SSM 키(`alias/aws/ssm`)는 IAM 정책 리소스에 별칭으로 안전하게 좁히기 어렵다. 자체 KMS 키를 쓴다면 해당 키 ARN 으로 좁힌다.
+
+**`CloudWatchLogsWrite` 는 생략 불가.** `docker-compose.prod.yml` 이 6개 서비스 전부에 `driver: awslogs` + `awslogs-create-group: "true"` 를 건다. Docker 는 로깅 드라이버를 **컨테이너 프로세스 시작 전에** 초기화하고 awslogs 는 그 시점에 `CreateLogGroup`·`CreateLogStream` 을 동기 호출하므로, 권한이 없으면 `failed to initialize logging driver: AccessDeniedException` 으로 **컨테이너 기동 자체가 실패**한다(postgres 부터 막혀 최초 배포가 통째로 실패). 두 관리형 정책(`AmazonSSMManagedInstanceCore`·`AmazonEC2ContainerRegistryReadOnly`) 어느 쪽도 `logs:*` 를 주지 않는다. 리소스 끝의 `*` 는 로그그룹(`:log-group:/school-bus/demo`)과 그 안의 스트림(`:log-group:/school-bus/demo:log-stream:*`)을 함께 덮기 위한 것 — 떼면 `CreateLogStream` 이 거부된다. 로그그룹명은 compose 의 `awslogs-group` 값과 일치해야 한다. CloudWatch 수집 자체를 쓰지 않겠다면 compose 의 `x-logging` 앵커와 각 서비스의 `logging: *cloudwatch` 줄을 빼는 쪽이 맞다.
 
 ### 2.4 EC2 생성
 
@@ -267,7 +278,7 @@ aws iam put-role-policy --role-name school-bus-gha-role \
   --policy-name school-bus-gha-inline --policy-document file://gha-permissions.json
 ```
 
-역할 ARN(`arn:aws:iam::<계정ID>:role/school-bus-gha-role`)을 §2.9 의 `AWS_DEPLOY_ROLE_ARN` 시크릿에 등록한다.
+역할 ARN(`arn:aws:iam::<계정ID>:role/school-bus-gha-role`)을 §2.13 의 `AWS_DEPLOY_ROLE_ARN` 시크릿에 등록한다.
 
 ### 2.7 SSM 파라미터 등록
 
@@ -279,7 +290,9 @@ aws iam put-role-policy --role-name school-bus-gha-role \
 
 ```bash
 # 1) 로컬 저장소 루트에서 — CI 가 매 배포마다 하는 것과 동일한 동작을 최초 1회 수동으로 수행
-aws s3 sync infra "s3://<배포버킷>/infra"
+#    --exclude 는 CI(deploy-backend.yml)와 동일하게 붙인다. 작업 트리에 실수로 만들어 둔
+#    .htpasswd 가 배포용 S3 버킷에 시크릿 그대로 올라가는 걸 막는다.
+aws s3 sync infra "s3://<배포버킷>/infra" --exclude "proxy/.htpasswd"
 aws s3 cp docker-compose.prod.yml "s3://<배포버킷>/docker-compose.prod.yml"
 
 # 2) SSM Session Manager 로 EC2 접속 (SSH 불필요)
@@ -298,7 +311,9 @@ cd /opt/school-bus/infra/scripts
 sudo BACKUP_BUCKET=<백업버킷> bash bootstrap-ec2.sh
 ```
 
-`bootstrap-ec2.sh` 가 하는 일(주석 근거): docker·compose v2 플러그인 설치, `/opt/school-bus` 디렉터리 생성, 스왑 2GB(배포 순간 신·구 컨테이너 동시 실행 시 OOM 방지), DB 백업 크론(매일 03:10, `/etc/cron.d/schoolbus-backup`) 등록.
+`bootstrap-ec2.sh` 가 하는 일(주석 근거): docker·`cronie` 설치, compose v2 플러그인 설치, `/opt/school-bus` 디렉터리 생성, 스왑 2GB(배포 순간 신·구 컨테이너 동시 실행 시 OOM 방지), DB 백업 크론(매일 03:10, `/etc/cron.d/schoolbus-backup`) 등록, `crond` 활성 확인.
+
+`cronie` 를 명시적으로 설치하는 이유 — Amazon Linux 2023 은 cron 을 기본 포함하지 않는다(AWS 는 systemd timer 대체를 권고). 없는 채로 두면 백업이 조용히 영원히 미실행. 스크립트 마지막의 `systemctl is-active crond` 검사가 그 상태로 완료 처리되는 것을 막는다.
 
 ### 2.9 인증서 최초 발급
 
@@ -327,7 +342,7 @@ git add infra/proxy/nginx.prod.conf
 git commit -m "chore(deploy): nginx 도메인 치환"
 ```
 
-(macOS `sed -i ''` 기준 — Linux 는 `sed -i` 로 따옴표 없이 실행한다.) 이 커밋을 `main` 에 push 하면 §2.13 최초 배포가 자동으로 트리거된다. 아직 GitHub 시크릿을 안 넣었다면 워크플로가 실패하니 §2.12 를 먼저 끝낸다.
+(macOS `sed -i ''` 기준 — Linux 는 `sed -i` 로 따옴표 없이 실행한다.) 이 커밋을 `main` 에 push 하면 §2.14 최초 배포가 자동으로 트리거된다. `.htpasswd`(§2.12)와 GitHub 시크릿(§2.13)을 아직 안 넣었다면 워크플로가 실패하니 그 둘을 먼저 끝낸다.
 
 ### 2.12 Swagger Basic Auth 계정 (`.htpasswd`)
 
@@ -399,6 +414,8 @@ sudo docker compose -f /opt/school-bus/docker-compose.prod.yml \
 8. `nmap <EIP>` 기준 개방 포트가 80·443 뿐(22·5432·6379·9092 폐쇄)
 9. `pg_dump` 백업이 S3 에 적재, 복구 리허설 1회 성공(§7)
 
+**최초 배포는 10분 이상 걸릴 수 있다.** 이미지 6종을 처음 받고(백엔드 ~400MB + 인프라 ~700MB) kafka·backend 의 `start_period`(40s·90s)와 Flyway 마이그레이션이 순차로 붙는다. 워크플로의 상태 판정 상한은 이를 감안한 20분(`MAX_WAIT_SECONDS=1200`) — 진행 중인데 실패로 오판해 운영자가 재실행하면 중복 배포가 큐에 쌓인다(`concurrency: cancel-in-progress: false`).
+
 ---
 
 ## 3. SSM 파라미터 목록
@@ -413,9 +430,11 @@ sudo docker compose -f /opt/school-bus/docker-compose.prod.yml \
 | `/school-bus/demo/SEED_PASSWORD_HASH` | SecureString | §4 참조. `demo` 프로파일이 Flyway placeholder `seedPasswordHash` 로 주입 — 미주입 시 기동 실패가 정상(placeholder 미해결) |
 | `/school-bus/demo/CORS_ALLOWED_ORIGINS` | String | `https://app.<도메인>`(REST 전용. `SecurityConfig.java:39` 의 `app.cors.allowed-origins` 로 주입, `/api/**` 에만 적용) |
 | `/school-bus/demo/WS_ALLOWED_ORIGIN_PATTERNS` | String | `https://app.<도메인>`(STOMP 전용. **`CORS_ALLOWED_ORIGINS` 와 별개** — WebSocket 핸드셰이크는 CORS 필터를 타지 않고 `WebSocketConfig` 의 `setAllowedOriginPatterns` 로 별도 검증) |
-| `/school-bus/demo/NAVER_DIRECTIONS_KEY_ID` | SecureString | NCP 콘솔에서 Directions API 발급 |
-| `/school-bus/demo/NAVER_DIRECTIONS_KEY` | SecureString | NCP 콘솔에서 Directions API 발급 |
+| `/school-bus/demo/NAVER_DIRECTIONS_KEY_ID` | SecureString | NCP 콘솔에서 Directions API 발급. **키 미보유 시에도 반드시 등록** — 아래 참고 |
+| `/school-bus/demo/NAVER_DIRECTIONS_KEY` | SecureString | NCP 콘솔에서 Directions API 발급. **키 미보유 시에도 반드시 등록** — 아래 참고 |
 | `/school-bus/demo/ROUTING_PROVIDER` | String | `naver`(NCP 키 없으면 `osrm` 로 무료 대체 — `application.yml` 의 `routing.provider`) |
+
+**⚠️ NCP 키가 없어도 위 두 항목은 등록해야 한다.** `deploy.sh` 의 `get_param` 은 9개 전부를 필수로 보고, 파라미터가 없거나 값이 비면 **1단계에서 배포를 중단**한다(`ROUTING_PROVIDER=osrm` 만 등록하고 두 키를 비워두면 배포 자체가 진행되지 않는다). `osrm` 폴백을 쓰려면 두 항목에 `unused` 같은 임의 문자열을 넣어 등록하고 `ROUTING_PROVIDER` 를 `osrm` 으로 둔다 — `osrm` 일 때 앱은 이 두 값을 읽지 않는다. "필수 9개" 라는 단순한 계약을 유지하려는 의도적 설계(선택 항목을 섞으면 어떤 값이 비어도 되는지가 스크립트·문서·compose 세 곳에서 갈린다).
 
 ```bash
 # String 예시
@@ -427,7 +446,7 @@ aws ssm put-parameter --name /school-bus/demo/DB_PASSWORD --type SecureString \
   --value "$(openssl rand -base64 24)"
 ```
 
-**⚠️ 배포자 참고**: 위 9개 중 `SEED_PASSWORD_HASH`·`WS_ALLOWED_ORIGIN_PATTERNS` 를 실제로 읽어 쓰는 `demo` 프로파일·placeholder 배선은 이 절차서 작성 시점 기준 **별도 태스크로 진행 중**이다. 이름은 계획에서 이미 확정됐으므로 파라미터는 여기 표대로 먼저 등록해 두되, 배포 전에 `backend/src/main/resources/application.yml` 에 `demo` 프로파일과 `app.ws.allowed-origin-patterns` 류 설정이 실제로 반영됐는지 확인한다.
+**배포자 참고**: `SEED_PASSWORD_HASH`·`WS_ALLOWED_ORIGIN_PATTERNS` 를 읽어 쓰는 `demo` 프로파일·Flyway placeholder 배선은 `backend/src/main/resources/application.yml` 에 반영 완료. 두 값 모두 기본값 없이 요구하므로 미등록 시 컨테이너가 기동 단계에서 실패한다(조용히 약한 값으로 뜨지 않는다). 이 성질은 `DeploymentConfigGuardTest` 가 회귀를 막는다.
 
 ---
 
@@ -468,6 +487,8 @@ aws ssm put-parameter --name /school-bus/demo/SEED_PASSWORD_HASH --type SecureSt
 sudo /opt/school-bus/infra/scripts/deploy.sh <이전_커밋_SHA>
 ```
 
+**`<이전_커밋_SHA>` 는 40자 full SHA 다.** 워크플로가 `${{ github.sha }}`(40자)로 태그를 붙여 push 하므로, GitHub 화면에서 흔히 보이는 short SHA(7자)로 부르면 ECR 에 그런 태그가 없어 `pull` 단계에서 막힌다. `git rev-parse <short>` 로 펼쳐 쓴다.
+
 `<이전_커밋_SHA>` 는 ECR 에 그 태그의 이미지가 아직 남아 있어야 동작한다(이미지 보관 주기를 별도로 관리하지 않으므로 오래된 태그는 수동 정리 전까지 계속 남는다). `deploy.sh` 는 **백엔드 이미지 태그만 되돌린다** — `infra/`·`docker-compose.prod.yml` 자체는 EC2 에 이미 동기화된 최신 상태 그대로 유지된다. 즉 인프라 설정까지 과거로 되돌리려면 별도로 그 시점의 파일을 S3/EC2 에 다시 올려야 한다.
 
 ---
@@ -477,8 +498,8 @@ sudo /opt/school-bus/infra/scripts/deploy.sh <이전_커밋_SHA>
 **반드시 1회 수행 후 결과를 이 문서 하단(§7.1)에 기록한다.** 이번 절차서 작성 시점에는 실 AWS 계정·백업 데이터가 없어 **미수행** — 최초 배포 완료 후 담당자가 직접 1회 실행하고 결과를 남긴다.
 
 ```bash
-aws s3 cp s3://<백업버킷>/db/<날짜시각>.sql.gz - | gunzip \
-  | docker compose -f /opt/school-bus/docker-compose.prod.yml --env-file /opt/school-bus/.env \
+sudo aws s3 cp s3://<백업버킷>/db/<날짜시각>.sql.gz - | gunzip \
+  | sudo docker compose -f /opt/school-bus/docker-compose.prod.yml --env-file /opt/school-bus/.env \
     exec -T postgres psql -U schoolbus schoolbus
 ```
 
@@ -487,15 +508,15 @@ aws s3 cp s3://<백업버킷>/db/<날짜시각>.sql.gz - | gunzip \
 **⚠️ 위 명령을 그대로 실행하면 대상이 이미 데이터가 들어 있는 운영 DB(`schoolbus`) 라는 점에 주의한다.** `backup-db.sh` 의 `pg_dump` 는 `--clean` 옵션 없이 순수 `CREATE`/`INSERT` 구문만 담으므로, 이미 같은 스키마·데이터가 있는 대상에 그대로 흘려보내면 "이미 존재함" 류 오류가 대량으로 찍힌다(파괴적이지는 않으나 리허설로서 신뢰하기 어렵다). **복구 절차 자체를 검증**하려면 스크래치 DB 를 만들어 그쪽에 복원하는 편이 안전하다:
 
 ```bash
-docker compose -f /opt/school-bus/docker-compose.prod.yml --env-file /opt/school-bus/.env \
+sudo docker compose -f /opt/school-bus/docker-compose.prod.yml --env-file /opt/school-bus/.env \
   exec -T postgres createdb -U schoolbus schoolbus_restore_test
 
-aws s3 cp s3://<백업버킷>/db/<날짜시각>.sql.gz - | gunzip \
-  | docker compose -f /opt/school-bus/docker-compose.prod.yml --env-file /opt/school-bus/.env \
+sudo aws s3 cp s3://<백업버킷>/db/<날짜시각>.sql.gz - | gunzip \
+  | sudo docker compose -f /opt/school-bus/docker-compose.prod.yml --env-file /opt/school-bus/.env \
     exec -T postgres psql -U schoolbus schoolbus_restore_test
 
 # 확인 후 정리
-docker compose -f /opt/school-bus/docker-compose.prod.yml --env-file /opt/school-bus/.env \
+sudo docker compose -f /opt/school-bus/docker-compose.prod.yml --env-file /opt/school-bus/.env \
   exec -T postgres dropdb -U schoolbus schoolbus_restore_test
 ```
 
@@ -516,7 +537,7 @@ docker compose -f /opt/school-bus/docker-compose.prod.yml --env-file /opt/school
 | 로그인 401 만 반복 | `SEED_PASSWORD_HASH` 가 실제 비밀번호와 맞는지 |
 | 브라우저 CORS 오류 | `CORS_ALLOWED_ORIGINS` 에 스킴 포함 정확한 출처가 있는지 |
 | WebSocket 만 연결 실패 | `WS_ALLOWED_ORIGIN_PATTERNS`, nginx `/ws/` 블록의 Upgrade 헤더 |
-| 배차·시뮬레이션 500 | NCP 키 3개, 또는 `ROUTING_PROVIDER=osrm` 폴백 |
+| 배차·시뮬레이션 500 | NCP 키, 또는 `ROUTING_PROVIDER=osrm` 폴백. **폴백을 쓸 때도 `NAVER_DIRECTIONS_KEY_ID`·`NAVER_DIRECTIONS_KEY` 는 임의 값으로 등록돼 있어야 한다**(§3) — 비어 있으면 다음 배포가 `deploy.sh` 1단계에서 중단 |
 | 컨테이너가 자꾸 죽음 | `free -h` 로 메모리, `docker stats`, 스왑 활성 여부 |
 | 인증서 만료 | `docker compose logs certbot`, 80 포트 개방 여부 |
 | Swagger UI 401/기동 실패 | §2.12 의 즉시 복구 절차(EC2 에 `.htpasswd` 재생성 → `proxy` 컨테이너 재기동) |
