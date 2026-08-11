@@ -136,6 +136,9 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?CORS_ALLOWED_ORIGINS 미설정}
       # JWT 서명 키. 로컬 기본값이 코드에 박혀 있으므로 운영에서는 반드시 덮어쓴다.
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET 미설정}
+      # demo 프로파일의 Flyway placeholder. 미주입 시 기동이 실패하는 게 정상이다 —
+      # 조용히 약한 기본값("password")으로 뜨는 것보다 안전하다.
+      SEED_PASSWORD_HASH: ${SEED_PASSWORD_HASH:?SEED_PASSWORD_HASH 미설정}
       # 없으면 배차·시뮬레이션·노선 생성이 전부 500 이 된다. 키를 못 구하면 ROUTING_PROVIDER=osrm 로 우회.
       NAVER_DIRECTIONS_KEY_ID: ${NAVER_DIRECTIONS_KEY_ID:-}
       NAVER_DIRECTIONS_KEY: ${NAVER_DIRECTIONS_KEY:-}
