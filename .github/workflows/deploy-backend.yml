@@ -71,11 +71,16 @@ jobs:
 
       # compose·nginx·스크립트 변경분을 EC2 에 전달하는 통로.
       # 저장소를 EC2 에 클론하지 않는다 — 비공개 저장소 자격증명을 서버에 두지 않기 위해서다.
+      #
+      # infra/proxy/.htpasswd(Swagger Basic Auth 계정 파일)는 운영자가 EC2 에 직접
+      # 생성하는 시크릿이라 저장소·CI 어디에도 두지 않는다(.gitignore:26). --delete 는
+      # 필터로 제외된 파일을 삭제 대상에서도 제외하므로(`aws s3 sync help` 의 --delete
+      # 설명) --exclude 로 지키지 않으면 이 파일이 배포마다 S3·EC2 양쪽에서 삭제된다.
       - name: 배포 파일 S3 동기화
         env:
           BUCKET: ${{ secrets.DEPLOY_BUCKET }}
         run: |
-          aws s3 sync infra "s3://$BUCKET/infra" --delete
+          aws s3 sync infra "s3://$BUCKET/infra" --delete --exclude "proxy/.htpasswd"
           aws s3 cp docker-compose.prod.yml "s3://$BUCKET/docker-compose.prod.yml"
 
       - name: EC2 배포 (SSM Send Command)
@@ -90,7 +95,7 @@ jobs:
             --comment "deploy $TAG" \
             --parameters commands="[
               'set -e',
-              'aws s3 sync s3://$BUCKET/infra /opt/school-bus/infra --delete',
+              'aws s3 sync s3://$BUCKET/infra /opt/school-bus/infra --delete --exclude proxy/.htpasswd',
               'aws s3 cp s3://$BUCKET/docker-compose.prod.yml /opt/school-bus/docker-compose.prod.yml',
               'chmod +x /opt/school-bus/infra/scripts/*.sh /opt/school-bus/infra/certbot/*.sh',
               '/opt/school-bus/infra/scripts/deploy.sh $TAG'
@@ -98,18 +103,50 @@ jobs:
             --query 'Command.CommandId' --output text)
 
           echo "CommandId=$CMD_ID"
-          # wait 는 실패 상태에서도 비정상 종료하므로, 상태는 아래에서 직접 읽어 판정한다.
-          aws ssm wait command-executed --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" || true
 
+          # aws ssm wait command-executed 는 delay 5초 × maxAttempts 20 = 100초 고정 상한이고
+          # --delay/--max-attempts 오버라이드를 제공하지 않는다(botocore ssm waiters-2.json,
+          # `aws ssm wait command-executed help`). deploy.sh 는 SSM get-parameter 9회 + ECR
+          # pull + 최대 3분 헬스체크로 100초를 넘기는 게 정상 경로이므로, waiter 를 쓰면 배포가
+          # 진행 중인데도 거짓 실패로 보고된다. get-command-invocation 을 직접 폴링해
+          # 종료 상태(Success/Cancelled/TimedOut/Failed/Cancelling)로만 판정한다.
+          MAX_WAIT_SECONDS=600
+          POLL_INTERVAL_SECONDS=10
+          ELAPSED=0
+          STATUS="Unknown"
+
+          while [ "$ELAPSED" -lt "$MAX_WAIT_SECONDS" ]; do
+            # get-command-invocation 은 명령이 아직 인스턴스에 도달하기 전이면
+            # InvocationDoesNotExist 로 에러를 반환할 수 있다(SSM waiter 도 이 에러를 retry
+            # 대상으로 취급한다) — 이 구간을 실패로 오판하지 않도록 STATUS 를 그대로 두고
+            # 다음 폴링으로 넘어간다. 실패한 호출의 결과로 STATUS 를 덮어쓰지 않는다.
+            if POLLED_STATUS="$(aws ssm get-command-invocation --command-id "$CMD_ID" \
+                  --instance-id "$INSTANCE_ID" --query Status --output text 2>&1)"; then
+              STATUS="$POLLED_STATUS"
+              case "$STATUS" in
+                Success | Cancelled | TimedOut | Failed | Cancelling) break ;;
+              esac
+            elif [[ "$POLLED_STATUS" != *InvocationDoesNotExist* ]]; then
+              echo "::warning::get-command-invocation 조회 실패, 재시도: $POLLED_STATUS"
+            fi
+            sleep "$POLL_INTERVAL_SECONDS"
+            ELAPSED=$((ELAPSED + POLL_INTERVAL_SECONDS))
+          done
+
+          echo "최종 상태: $STATUS (경과 ${ELAPSED}s)"
           aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
-            --query StandardOutputContent --output text
+            --query StandardOutputContent --output text || true
 
-          STATUS=$(aws ssm get-command-invocation --command-id "$CMD_ID" \
-            --instance-id "$INSTANCE_ID" --query Status --output text)
-
-          if [ "$STATUS" != "Success" ]; then
-            echo "::error::배포 실패 (status=$STATUS)"
-            aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
-              --query StandardErrorContent --output text
-            exit 1
+          if [ "$STATUS" = "Success" ]; then
+            echo "배포 성공"
+            exit 0
           fi
+
+          if [ "$ELAPSED" -ge "$MAX_WAIT_SECONDS" ]; then
+            echo "::error::배포 상태 판정 상한(${MAX_WAIT_SECONDS}s) 초과 — 배포가 아직 진행 중일 수 있음 (status=$STATUS)"
+          else
+            echo "::error::배포 실패 (status=$STATUS)"
+          fi
+          aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+            --query StandardErrorContent --output text || true
+          exit 1
