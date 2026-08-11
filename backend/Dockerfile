@@ -12,6 +12,11 @@ RUN ./gradlew bootJar --no-daemon
 # --- 실행 단계: JRE 만 담아 가볍게 ---
 FROM eclipse-temurin:25-jre
 WORKDIR /app
+# docker-compose.prod.yml 의 healthcheck 가 컨테이너 안에서 curl 로 /actuator/health 를 친다.
+# JRE 이미지에 curl 이 포함된다는 보장이 없어 명시적으로 설치한다(없으면 healthcheck 가
+# 영원히 실패해 proxy 가 기동하지 않는다).
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/build/libs/*.jar app.jar
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]

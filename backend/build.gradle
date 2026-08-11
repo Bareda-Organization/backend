@@ -49,6 +49,10 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
     // API 문서·테스트용 Swagger UI — 3.x 대가 Spring Boot 4(Jackson 3) 지원 최초 라인
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
+    // 배포 검증·컨테이너 healthcheck 용 헬스 엔드포인트.
+    // ⚠️ Spring Boot 기본 health 에 Kafka 인디케이터는 없다 — DataSource·Redis·디스크·ping 만 포함된다.
+    //    Kafka 장애는 이걸로 감지되지 않으므로 CloudWatch 로그로 확인한다.
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
     // 보일러플레이트 축소
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
