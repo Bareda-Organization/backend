@@ -202,6 +202,11 @@ public interface LocationSource {
 - [x] ~~기사 운행관리~~ (Phase 7) — `drivesession` 모듈 신설(운행 세션=일일 로그 통합) + command/query/controller + rideevent 명단 연계(이름·위치, 사진 제외) 완료(2026-07-20, 커밋 `8afca13`). §12.3 Phase 7.
 - [ ] **TODO(보류, 2026-07-20 확정)** Mock → 실 GPS 전환 (Phase 8) — 플래그 토글 자체는 준비 완료, 8장 법적 선행요건(동의 UI·이력 스키마, `consent` 모듈)만 **실제 모바일 GPS 연동 테스트 시작 시점까지 보류**. §12.3 Phase 8.
 
+> **2026-08-21 신규 라운드 — 백엔드 MVP 갭 보완(BG-1~BG-20).** 위 Phase 0~8 과 별개로, 실제 코드 대조에서 확인된 잔여 갭 12건(+범위 밖 8건)의
+> 실행 계획·진행 추적은 [`plans/2026-08-21-백엔드-MVP-갭-보완.md`](./plans/2026-08-21-백엔드-MVP-갭-보완.md) 가 담당한다.
+> 승하차 순서 서버 검증·위치 출처 기록·응답 시각 타임존·시간변경 승인의 실제 반영·결석 반려 알림·배정 해제 수단 등이 대상이다.
+> **§11.2 범위 표의 `알림 ⬜ 예정`·`기본정보 등록 🟡 부분` 은 §12.1 실제 상태와 어긋난 낡은 값이다**(정정 항목 `DOC-2`).
+
 ### 12.3 아키텍처 리팩터 체크리스트 — Kafka + CQRS + 실시간 push (§11.4 상세)
 
 > 목표 패키지 레이아웃(모듈당): `controller/ command/ query/ domain/ event/ projection/ repository/ dto/ infrastructure/`. 각 Phase 경계에서 `./gradlew build` green 확인 후 커밋.
