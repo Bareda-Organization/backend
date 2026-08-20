@@ -61,6 +61,11 @@ app:
       enabled: true        # 버스 단위 Mock GPS 시뮬레이터(F1) — 실 기사 GPS 전환 시 false
     bus-gps:
       enabled: false       # 실 기사 단말 GPS push 소스(F1) — 실 연동 시 true
+    # 버스 최신 좌표의 Redis 보관 시간(초). 학생 좌표 TTL(tick-ms * 3 = 9초)과 분리한다 —
+    # 학생은 3초 tick 이 근거인데 버스는 기사 앱이 5초 주기로 POST /api/locations/bus 에 보고해
+    # 근거가 다르다. 15초는 보고 3회 연속 누락까지 허용하는 값이며, 그 뒤에는 만료돼
+    # 관제 조회 결과에서 빠진다(보고를 멈춘 버스를 계속 "여기 있음"으로 표시하지 않기 위함).
+    bus-ttl-seconds: 15
   sos:
     escalation-check-ms: 30000   # OPEN 상태 SOS 를 다시 훑는 주기(ms). 임계값 자체는 NotificationThresholds.SOS_ESCALATION(3분)
   connection:
