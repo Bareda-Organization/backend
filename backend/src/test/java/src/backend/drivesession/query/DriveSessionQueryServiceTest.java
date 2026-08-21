@@ -18,6 +18,7 @@ import src.backend.bus.repository.spec.BusRepository;
 import src.backend.drivesession.dto.DriveSessionResponse;
 import src.backend.drivesession.dto.DriveSessionRosterEntry;
 import src.backend.drivesession.entity.DriveSession;
+import src.backend.drivesession.entity.DriveSessionStatus;
 import src.backend.drivesession.repository.spec.DriveSessionRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
@@ -68,6 +69,50 @@ class DriveSessionQueryServiceTest {
 
         assertThat(history).hasSize(1);
         assertThat(history.get(0).id()).isEqualTo(5L);
+    }
+
+    @Test
+    void getBusHistory_withStatusFilter_returnsOnlyMatchingStatus() {
+        // BG-7: status 를 주면 findByBusIdAndStatusOrderByStartedAtDesc 로 걸러야 한다.
+        AuthUser actor = authUser(200L, Role.ATTENDANT);
+        Bus bus = bus(1L, user(200L, "attendant@school.com", "김선탑"), user(300L, "driver@school.com", "박기사"));
+        given(busRepository.findById(1L)).willReturn(Optional.of(bus));
+        given(driveSessionRepository.findByBusIdAndStatusOrderByStartedAtDesc(1L, DriveSessionStatus.IN_PROGRESS))
+                .willReturn(List.of(session(5L, 1L, 300L, RouteDirection.PICKUP)));
+
+        List<DriveSessionResponse> history = service.getBusHistory(actor, 1L, DriveSessionStatus.IN_PROGRESS);
+
+        assertThat(history).hasSize(1);
+        assertThat(history.get(0).id()).isEqualTo(5L);
+    }
+
+    @Test
+    void getBusHistory_withoutStatus_fallsBackToFullHistory_backwardCompatible() {
+        // 하위 호환 — status 를 생략(null)하면 기존 findByBusIdOrderByStartedAtDesc 경로 그대로 전체 이력을 준다.
+        // 프론트가 이미 전체 이력을 받아 IN_PROGRESS 를 골라내는 구조라, 이 기본 동작이 바뀌면 기사 앱·관리자 화면이 즉시 깨진다.
+        AuthUser actor = authUser(200L, Role.ATTENDANT);
+        Bus bus = bus(1L, user(200L, "attendant@school.com", "김선탑"), user(300L, "driver@school.com", "박기사"));
+        given(busRepository.findById(1L)).willReturn(Optional.of(bus));
+        given(driveSessionRepository.findByBusIdOrderByStartedAtDesc(1L))
+                .willReturn(List.of(session(5L, 1L, 300L, RouteDirection.PICKUP),
+                        session(6L, 1L, 300L, RouteDirection.DROPOFF)));
+
+        List<DriveSessionResponse> history = service.getBusHistory(actor, 1L, null);
+
+        assertThat(history).hasSize(2);
+    }
+
+    @Test
+    void getBusHistory_withStatusFilter_byAttendantOfAnotherBus_stillThrowsForbidden() {
+        // 인가는 status 유무와 무관하게 담당 버스 확인이 먼저 돈다(기존 CanReadAssignedBus 동작 유지 확인).
+        AuthUser actor = authUser(999L, Role.ATTENDANT);
+        Bus bus = bus(1L, user(200L, "attendant@school.com", "김선탑"), user(300L, "driver@school.com", "박기사"));
+        given(busRepository.findById(1L)).willReturn(Optional.of(bus));
+
+        assertThatThrownBy(() -> service.getBusHistory(actor, 1L, DriveSessionStatus.IN_PROGRESS))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
     }
 
     @Test

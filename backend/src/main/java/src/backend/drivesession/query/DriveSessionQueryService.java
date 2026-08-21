@@ -12,6 +12,7 @@ import src.backend.bus.repository.spec.BusRepository;
 import src.backend.drivesession.dto.DriveSessionResponse;
 import src.backend.drivesession.dto.DriveSessionRosterEntry;
 import src.backend.drivesession.entity.DriveSession;
+import src.backend.drivesession.entity.DriveSessionStatus;
 import src.backend.drivesession.repository.spec.DriveSessionRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
@@ -39,22 +40,44 @@ public class DriveSessionQueryService {
         this.activeRosterReader = activeRosterReader;
     }
 
-    /** 기사·선탑자: 담당 버스 운행 이력. 선탑자 앱은 여기서 진행 중인 세션 id 를 고른다(§4.1 사슬). */
+    /** 기사·선탑자: 담당 버스 운행 이력(전체). 선탑자 앱은 여기서 진행 중인 세션 id 를 고른다(§4.1 사슬). */
     @Transactional(readOnly = true)
     public List<DriveSessionResponse> getBusHistory(AuthUser actor, Long busId) {
+        return getBusHistory(actor, busId, null);
+    }
+
+    /**
+     * 기사·선탑자: 담당 버스 운행 이력. BG-7 — {@code status} 가 있으면 그 상태만 골라 응답 크기를 줄인다
+     * (주로 진행 중 세션 조회용). {@code null} 이면 위 전체 이력 오버로드와 동일하게 동작해 하위 호환을 지킨다.
+     */
+    @Transactional(readOnly = true)
+    public List<DriveSessionResponse> getBusHistory(AuthUser actor, Long busId, DriveSessionStatus status) {
         Bus bus = busRepository.findById(busId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "버스를 찾을 수 없습니다"));
         BusCrewGuard.requireAssignedCrew(bus, actor);
-        return driveSessionRepository.findByBusIdOrderByStartedAtDesc(busId).stream()
-                .map(DriveSessionResponse::from).toList();
+        List<DriveSession> sessions = status == null
+                ? driveSessionRepository.findByBusIdOrderByStartedAtDesc(busId)
+                : driveSessionRepository.findByBusIdAndStatusOrderByStartedAtDesc(busId, status);
+        return sessions.stream().map(DriveSessionResponse::from).toList();
     }
 
-    /** 관리자: 학원 운행 이력(법정 운행기록 열람). */
+    /** 관리자: 학원 운행 이력(법정 운행기록 열람, 전체). */
     @Transactional(readOnly = true)
     public List<DriveSessionResponse> getTenantHistory(AuthUser admin, Long tenantId) {
+        return getTenantHistory(admin, tenantId, null);
+    }
+
+    /**
+     * 관리자: 학원 운행 이력. BG-7 — {@code status} 가 있으면 그 상태만 골라 응답 크기를 줄인다
+     * (관제 화면이 진행 중인 세션만 폴링할 때). {@code null} 이면 전체 이력 오버로드와 동일하다.
+     */
+    @Transactional(readOnly = true)
+    public List<DriveSessionResponse> getTenantHistory(AuthUser admin, Long tenantId, DriveSessionStatus status) {
         Long effectiveTenant = TenantGuard.resolveTenantId(admin, tenantId);
-        return driveSessionRepository.findByTenantIdOrderByStartedAtDesc(effectiveTenant).stream()
-                .map(DriveSessionResponse::from).toList();
+        List<DriveSession> sessions = status == null
+                ? driveSessionRepository.findByTenantIdOrderByStartedAtDesc(effectiveTenant)
+                : driveSessionRepository.findByTenantIdAndStatusOrderByStartedAtDesc(effectiveTenant, status);
+        return sessions.stream().map(DriveSessionResponse::from).toList();
     }
 
     /** 기사·선탑자: 이 운행 세션의 당일 명단(rideevent·attendance 명단 연계, 결석 자동 제외). */

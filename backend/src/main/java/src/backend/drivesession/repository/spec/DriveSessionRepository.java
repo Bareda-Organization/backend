@@ -26,6 +26,12 @@ public interface DriveSessionRepository extends JpaRepository<DriveSession, Long
 
     List<DriveSession> findByTenantIdOrderByStartedAtDesc(Long tenantId);
 
+    /** BG-7 — 담당 버스 이력 중 특정 상태(주로 IN_PROGRESS)만 골라 응답 크기를 줄인다. */
+    List<DriveSession> findByBusIdAndStatusOrderByStartedAtDesc(Long busId, DriveSessionStatus status);
+
+    /** BG-7 — 학원 이력 중 특정 상태만. 관제 화면이 진행 중인 세션만 폴링할 때 쓴다. */
+    List<DriveSession> findByTenantIdAndStatusOrderByStartedAtDesc(Long tenantId, DriveSessionStatus status);
+
     /** APPROACH/NO_SHOW 스케줄러(G1) — 판정 대상인 진행 중 등원 세션만 훑는다. */
     List<DriveSession> findByStatusAndDirection(DriveSessionStatus status, RouteDirection direction);
 }

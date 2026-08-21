@@ -20,6 +20,7 @@ import src.backend.drivesession.command.DriveSessionCommandService;
 import src.backend.drivesession.dto.DriveSessionResponse;
 import src.backend.drivesession.dto.DriveSessionRosterEntry;
 import src.backend.drivesession.dto.StartDriveSessionRequest;
+import src.backend.drivesession.entity.DriveSessionStatus;
 import src.backend.drivesession.query.DriveSessionQueryService;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
@@ -94,11 +95,14 @@ public class DriveSessionController {
             description = "⚠️ **2026-08-02 확장으로 선탑자에게 열렸다** — 이 한 칸이 막히면 선탑자 앱이 세션 id 를 알 수 없어 "
                     + "명단 화면이 통째로 뜨지 않는다. 담당자 앱의 호출 순서는 "
                     + "`GET /api/buses/me` → `GET /api/drive-sessions/bus/{busId}` → `GET /api/drive-sessions/{id}/roster` 다. "
-                    + "'진행 중 세션'만 주는 전용 API 가 없어 전체 이력을 받아 앱이 고른다(endedAt 이 null 인 것).",
+                    + "`status=IN_PROGRESS` 를 주면 진행 중인 세션만 돌려준다(BG-7) — "
+                    + "**`status` 를 생략하면 기존과 동일하게 전체 이력을 준다(하위 호환).** "
+                    + "기존 앱은 전체 이력을 받아 `endedAt` 이 null 인 것을 골랐는데, 이제는 `status=IN_PROGRESS` 로 서버가 직접 걸러줄 수 있다.",
             tags = {"00. MVP 사용 API", "10. 운행세션(DriveSession)"})
     public ApiResponse<List<DriveSessionResponse>> busHistory(@AuthenticationPrincipal AuthUser crew,
-                                                               @Parameter(example = "1", description = "버스 id(1=3호차)") @PathVariable Long busId) {
-        return ApiResponse.ok(driveSessionQueryService.getBusHistory(crew, busId));
+                                                               @Parameter(example = "1", description = "버스 id(1=3호차)") @PathVariable Long busId,
+                                                               @Parameter(description = "생략 시 전체 이력. `IN_PROGRESS` 로 주면 진행 중인 세션만") @RequestParam(required = false) DriveSessionStatus status) {
+        return ApiResponse.ok(driveSessionQueryService.getBusHistory(crew, busId, status));
     }
 
     /** 관리자: 학원 운행 이력(법정 운행기록 열람). */
@@ -106,9 +110,12 @@ public class DriveSessionController {
     @CanMonitorOperations
     @Operation(summary = "학원 운행 이력 (관리자)",
             description = "법정 운행기록 열람용. `tenantId` 는 학원 관리자면 생략 가능, 플랫폼 관리자는 필수다. "
-                    + "관제 화면은 버스 상세(`GET /api/buses/{id}`)와 달리 갱신이 잦은 이 정보를 따로 폴링한다.")
+                    + "관제 화면은 버스 상세(`GET /api/buses/{id}`)와 달리 갱신이 잦은 이 정보를 따로 폴링한다. "
+                    + "`status=IN_PROGRESS` 를 주면 관제 화면이 진행 중인 세션만 폴링할 수 있다(BG-7) — "
+                    + "**`status` 를 생략하면 기존과 동일하게 전체 이력을 준다(하위 호환).**")
     public ApiResponse<List<DriveSessionResponse>> tenantHistory(@AuthenticationPrincipal AuthUser admin,
-                                                                  @Parameter(example = "1", description = "학원 id. 학원 관리자는 생략 가능, 플랫폼 관리자는 필수") @RequestParam(required = false) Long tenantId) {
-        return ApiResponse.ok(driveSessionQueryService.getTenantHistory(admin, tenantId));
+                                                                  @Parameter(example = "1", description = "학원 id. 학원 관리자는 생략 가능, 플랫폼 관리자는 필수") @RequestParam(required = false) Long tenantId,
+                                                                  @Parameter(description = "생략 시 전체 이력. `IN_PROGRESS` 로 주면 진행 중인 세션만") @RequestParam(required = false) DriveSessionStatus status) {
+        return ApiResponse.ok(driveSessionQueryService.getTenantHistory(admin, tenantId, status));
     }
 }

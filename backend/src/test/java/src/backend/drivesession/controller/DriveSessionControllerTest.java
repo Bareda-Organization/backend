@@ -20,6 +20,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import src.backend.drivesession.command.DriveSessionCommandService;
+import src.backend.drivesession.entity.DriveSessionStatus;
 import src.backend.drivesession.query.DriveSessionQueryService;
 import src.backend.global.security.JwtAuthenticationFilter;
 import src.backend.global.security.JwtTokenProvider;
@@ -47,11 +48,32 @@ class DriveSessionControllerTest {
 
     @Test
     void busHistory_as_attendant_is_allowed() throws Exception {
-        given(driveSessionQueryService.getBusHistory(any(), eq(1L))).willReturn(List.of());
+        // status 를 안 주면 컨트롤러가 status=null 로 서비스를 호출해야 한다(하위 호환 — 전체 이력).
+        given(driveSessionQueryService.getBusHistory(any(), eq(1L), eq(null))).willReturn(List.of());
 
         mockMvc.perform(get("/api/drive-sessions/bus/1").with(user("a").roles("ATTENDANT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    void busHistory_withStatusParam_passesStatusToService() throws Exception {
+        // BG-7 — status=IN_PROGRESS 쿼리 파라미터가 그대로 서비스까지 전달되는지 확인.
+        given(driveSessionQueryService.getBusHistory(any(), eq(1L), eq(DriveSessionStatus.IN_PROGRESS)))
+                .willReturn(List.of());
+
+        mockMvc.perform(get("/api/drive-sessions/bus/1").queryParam("status", "IN_PROGRESS")
+                        .with(user("a").roles("ATTENDANT")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    void busHistory_as_unassignedCrew_stillReturns403() throws Exception {
+        // status 파라미터 추가가 기존 CanReadAssignedBus 인가를 우회하지 않는지 확인(권한은 컨트롤러 진입 전 애너테이션에서 걸린다).
+        mockMvc.perform(get("/api/drive-sessions/bus/1").queryParam("status", "IN_PROGRESS")
+                        .with(user("a").roles("PARENT")))
+                .andExpect(status().isForbidden());
     }
 
     @Test
