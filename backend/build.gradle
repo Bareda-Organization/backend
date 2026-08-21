@@ -56,6 +56,13 @@ dependencies {
     // 지표 수집 — actuator 지표를 Prometheus 스크레이프 형식으로 노출한다.
     // 이 의존성 하나로 HTTP 요청·JVM·HikariCP·Tomcat·Kafka 컨슈머 지표가 자동 등록된다.
     implementation 'io.micrometer:micrometer-registry-prometheus'
+    // @Scheduled·@KafkaListener 를 감싸 계측하기 위한 AOP.
+    // 계측 호출을 도메인 메서드 안에 넣지 않으려고 쓴다 — observability 가 도메인을 참조할 뿐,
+    // 도메인은 observability 를 모른다(설계 문서 §5.3).
+    // Boot 4.1부터 spring-boot-starter-aop는 spring-boot-starter-aspectj로 개명됐다(구 좌표는
+    // 4.x BOM에 없어 org.springframework.boot:spring-boot-starter-aop: 처럼 버전 없이 실패한다) —
+    // 신형 아티팩트명을 쓴다(webmvc와 같은 패턴).
+    implementation 'org.springframework.boot:spring-boot-starter-aspectj'
     // 보일러플레이트 축소
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
@@ -70,6 +77,9 @@ dependencies {
     // resttestclient 가 restclient(RestTemplateBuilder)를 전이 의존하지 않아 별도로 추가한다.
     testImplementation 'org.springframework.boot:spring-boot-resttestclient'
     testImplementation 'org.springframework.boot:spring-boot-restclient'
+    // AOP 프록시가 실제 @Scheduled 빈에 걸리는지는 컨텍스트를 띄워 몇 초 기다려야 확인된다 —
+    // 폴링 대기를 재시도 없이 표현하기 위해 추가.
+    testImplementation 'org.awaitility:awaitility'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
