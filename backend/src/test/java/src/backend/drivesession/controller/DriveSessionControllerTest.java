@@ -77,6 +77,38 @@ class DriveSessionControllerTest {
     }
 
     @Test
+    void tenantHistory_withStatusParam_passesStatusToService() throws Exception {
+        // BG-7 — 관리자 엔드포인트도 status 쿼리 파라미터가 서비스까지 전달되는지 확인(기사 쪽과 대응).
+        given(driveSessionQueryService.getTenantHistory(any(), eq(1L), eq(DriveSessionStatus.IN_PROGRESS)))
+                .willReturn(List.of());
+
+        mockMvc.perform(get("/api/drive-sessions").queryParam("tenantId", "1")
+                        .queryParam("status", "IN_PROGRESS")
+                        .with(user("a").roles("ACADEMY_ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    void tenantHistory_withoutStatus_passesNullToService_backwardCompatible() throws Exception {
+        // status 를 안 주면 컨트롤러가 status=null 로 서비스를 호출해야 한다(하위 호환 — 전체 이력).
+        given(driveSessionQueryService.getTenantHistory(any(), eq(1L), eq(null))).willReturn(List.of());
+
+        mockMvc.perform(get("/api/drive-sessions").queryParam("tenantId", "1")
+                        .with(user("a").roles("ACADEMY_ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    void tenantHistory_as_nonAdmin_returns403() throws Exception {
+        // status 파라미터 추가가 CanMonitorOperations 인가를 우회하지 않는지 확인.
+        mockMvc.perform(get("/api/drive-sessions").queryParam("status", "IN_PROGRESS")
+                        .with(user("a").roles("ATTENDANT")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void roster_as_attendant_is_allowed() throws Exception {
         given(driveSessionQueryService.getRoster(any(), eq(1L))).willReturn(List.of());
 

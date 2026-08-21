@@ -116,6 +116,58 @@ class DriveSessionQueryServiceTest {
     }
 
     @Test
+    void getTenantHistory_withStatusFilter_returnsOnlyMatchingStatus() {
+        // BG-7: status 를 주면 findByTenantIdAndStatusOrderByStartedAtDesc 로 걸러야 한다(관리자 엔드포인트).
+        AuthUser admin = authUser(500L, Role.ACADEMY_ADMIN);
+        given(driveSessionRepository.findByTenantIdAndStatusOrderByStartedAtDesc(TENANT_ID, DriveSessionStatus.IN_PROGRESS))
+                .willReturn(List.of(session(5L, 1L, 300L, RouteDirection.PICKUP)));
+
+        List<DriveSessionResponse> history = service.getTenantHistory(admin, TENANT_ID, DriveSessionStatus.IN_PROGRESS);
+
+        assertThat(history).hasSize(1);
+        assertThat(history.get(0).id()).isEqualTo(5L);
+    }
+
+    @Test
+    void getTenantHistory_withoutStatus_fallsBackToFullHistory_backwardCompatible() {
+        // 하위 호환 — status 를 생략(null)하면 기존 findByTenantIdOrderByStartedAtDesc 경로 그대로 전체 이력을 준다.
+        // 관제 화면이 이미 전체 이력을 폴링하는 구조라, 이 기본 동작이 바뀌면 관리자 화면이 즉시 깨진다.
+        AuthUser admin = authUser(500L, Role.ACADEMY_ADMIN);
+        given(driveSessionRepository.findByTenantIdOrderByStartedAtDesc(TENANT_ID))
+                .willReturn(List.of(session(5L, 1L, 300L, RouteDirection.PICKUP),
+                        session(6L, 1L, 300L, RouteDirection.DROPOFF)));
+
+        List<DriveSessionResponse> history = service.getTenantHistory(admin, TENANT_ID, null);
+
+        assertThat(history).hasSize(2);
+    }
+
+    @Test
+    void getTenantHistory_academyAdminOmittingTenantId_resolvesToOwnTenant() {
+        // TenantGuard — 학원 관리자가 tenantId 를 생략하면 본인 소속 학원(TENANT_ID)으로 해석돼야 한다.
+        AuthUser admin = authUser(500L, Role.ACADEMY_ADMIN);
+        given(driveSessionRepository.findByTenantIdOrderByStartedAtDesc(TENANT_ID))
+                .willReturn(List.of(session(5L, 1L, 300L, RouteDirection.PICKUP)));
+
+        List<DriveSessionResponse> history = service.getTenantHistory(admin, null, null);
+
+        assertThat(history).hasSize(1);
+    }
+
+    @Test
+    void getTenantHistory_academyAdminRequestingOtherTenant_throwsForbidden() {
+        // TenantGuard — 학원 관리자가 소속 밖 tenantId(TENANT_ID 가 아닌 999L)를 요청하면 학원 격리를 어기므로 거부돼야 한다.
+        // status 유무와 무관하게 걸려야 하므로 IN_PROGRESS 를 함께 준다.
+        AuthUser admin = authUser(500L, Role.ACADEMY_ADMIN); // TENANT_ID(1L) 소속
+        Long otherTenantId = 999L;
+
+        assertThatThrownBy(() -> service.getTenantHistory(admin, otherTenantId, DriveSessionStatus.IN_PROGRESS))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    @Test
     void getRoster_pickup_includesPhotoUrlAndPrefersPickupCoords() {
         AuthUser actor = authUser(300L, Role.DRIVER); // 본인이 시작한 운행
         DriveSession session = session(5L, 1L, 300L, RouteDirection.PICKUP);
