@@ -1,0 +1,109 @@
+/* 바래다 색상 — 의미 별칭. 컴포넌트는 항상 이 레이어만 참조합니다. */
+:root{
+  --bg-base:var(--page-tint);            /* 세 제품 모든 화면의 기본 바탕 */
+  --bg-subtle:var(--green-100);          /* 알림 목록·타임라인 바탕 */
+  --surface-card:var(--white);
+  --surface-raised:var(--white);
+  --surface-inverse:var(--green-600);    /* 강조 블록·브랜드 스플래시 (크롬에는 쓰지 않습니다) */
+
+  /* 크롬 — 헤더·사이드바. 화이트 셸: 크롬은 색이 아니라 얇은 선으로 구분합니다 */
+  --surface-chrome:var(--off-white);
+  --text-on-chrome:var(--ink);
+  --text-on-chrome-muted:var(--stone-500);
+  --border-chrome:#E2E6E3;
+  --nav-text:var(--stone-600);
+  --nav-active-bg:var(--green-100);
+  --nav-active-text:var(--green-600);
+  --surface-sunken:var(--green-50);
+
+  --text-primary:var(--ink);
+  --text-secondary:#5C665F;
+  --text-tertiary:var(--stone-400);
+  --text-inverse:var(--white);
+  --text-on-inverse-muted:var(--green-200);
+  --text-brand:var(--green-600);
+  --text-link:var(--green-600);
+  --text-link-hover:var(--green-700);
+
+  --border-subtle:var(--stone-200);
+  --border-default:var(--stone-300);
+  --border-strong:var(--green-600);
+  --border-inverse:rgba(255,255,255,.18);
+
+  --accent-primary:var(--green-600);
+  --accent-primary-hover:var(--green-700);
+  --accent-primary-press:var(--green-800);
+  --accent-primary-soft:var(--green-100);
+  --accent-secondary:var(--amber-500);
+  --accent-secondary-soft:var(--amber-100);
+
+  /* 상태 — 세 제품에서 같은 상태는 항상 같은 색 */
+  --status-boarded:var(--green-600);     /* 승차 완료 / 정상 운행 */
+  --status-boarded-soft:var(--green-100);
+  --status-moving:var(--amber-ink);      /* 이동 중 / 도착 지연 — 흰 배경 대비 확보 */
+  --status-moving-soft:var(--amber-100);
+  --status-missed:var(--red-ink);        /* 미탑승 / 긴급 */
+  --status-missed-soft:var(--red-100);
+  --status-idle:var(--stone-500);        /* 운행 전 / 종료 / 비활성 */
+  --status-idle-soft:var(--stone-100);
+
+  --focus-ring:var(--green-500);
+  --overlay-scrim:rgba(18,33,28,.48);
+  --map-route:var(--green-600);
+  --map-bus:var(--amber-500);
+}
+
+/* 다크 — 야간 하원 화면과 매니저 앱.
+   화이트 셸과 같은 원칙: 면은 중립 잉크(그린 위 그린 금지), 색은 액션과 상태에만.
+   다크가 필요한 컨테이너(또는 html)에 data-theme="dark"를 붙이면 적용됩니다. */
+[data-theme="dark"]{
+  --bg-base:#0F1412;
+  --bg-subtle:#171E1B;
+  --surface-card:#181F1D;
+  --surface-raised:#212927;
+  --surface-inverse:var(--green-600);
+  --surface-sunken:#0A0E0D;
+
+  --surface-chrome:#131917;
+  --text-on-chrome:#EDF2EF;
+  --text-on-chrome-muted:#A3AFAA;
+  --border-chrome:rgba(237,242,239,.13);
+  --nav-text:#A3AFAA;
+  --nav-active-bg:rgba(245,166,35,.18);
+  --nav-active-text:var(--amber-400);
+
+  --text-primary:#EDF2EF;
+  --text-secondary:#A3AFAA;
+  --text-tertiary:#7D8884;
+  --text-inverse:#1A1206;
+  --text-on-inverse-muted:var(--green-200);
+  --text-brand:var(--amber-500);
+  --text-link:var(--amber-500);
+  --text-link-hover:var(--amber-300);
+
+  --border-subtle:rgba(237,242,239,.13);
+  --border-default:rgba(237,242,239,.24);
+  --border-strong:var(--amber-500);
+  --border-inverse:rgba(237,242,239,.13);
+
+  --accent-primary:var(--amber-500);
+  --accent-primary-hover:var(--amber-400);
+  --accent-primary-press:var(--amber-600);
+  --accent-primary-soft:rgba(245,166,35,.16);
+  --accent-secondary:#5FD0AC;
+  --accent-secondary-soft:rgba(95,208,172,.16);
+
+  --status-boarded:#5FD0AC;
+  --status-boarded-soft:rgba(95,208,172,.16);
+  --status-moving:var(--amber-500);
+  --status-moving-soft:rgba(245,166,35,.16);
+  --status-missed:var(--red-300);
+  --status-missed-soft:rgba(240,138,122,.18);
+  --status-idle:#93A09B;
+  --status-idle-soft:rgba(237,242,239,.09);
+
+  --focus-ring:var(--amber-400);
+  --overlay-scrim:rgba(4,8,7,.66);
+  --map-route:#5FD0AC;
+  --map-bus:var(--amber-500);
+}

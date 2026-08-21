@@ -194,7 +194,7 @@ enum 이름은 응답에 실리지 않는다(위 경고 참조). 숫자 코드�
 | `RouteDirection` | `PICKUP` / `DROPOFF` | 등원 / 하원. routing·drivesession 공용 |
 | `RoutePlanStatus` | `DRAFT` / `RECOMMENDED` / `APPROVED` / `PUBLISHED` | 노선 계획 상태. **PUBLISHED 이후 철회 없음** |
 | `SosStatus` | `OPEN` / `ACKNOWLEDGED` / `RESOLVED` | 단방향. **OPEN→RESOLVED 직행 불가** |
-| `LocationOrigin` | `GPS` / `MOCK` | 위치 출처. **서버가 항상 `GPS` 로 기록한다**(5·3장 주의 참조) |
+| `LocationOrigin` | `GPS` / `MOCK` | 위치 출처. 단말이 보고에 실어 보낸 값을 서버가 그대로 기록한다(생략 시 `GPS`) |
 
 **상태 전이 규칙 요약** (위반 시 전부 `409 CONFLICT`)
 
@@ -335,7 +335,7 @@ RideType           상태머신 없음 — 순서·중복 검증이 서버에 �
 
 **주의**
 - ⚠ **저장은 되지만 이벤트를 발행하지 않는다.** 학생 위치(`POST /api/locations`)와 달리 Kafka→STOMP push 로 이어지지 않아, 관리자 관제는 `GET /api/locations/buses` **3초 폴링**에 의존한다.
-- ⚠ `origin` 이 **항상 `GPS` 로 하드코딩**된다. 기사 앱이 Mock 좌표를 보내도 서버 기록은 `GPS` 이므로, 응답의 `origin` 으로 실제 Mock 여부를 판별할 수 없다.
+- `origin` 은 **요청 본문의 값을 그대로 저장**한다(2026-08-21~). 기사 앱이 Mock 토글이면 `MOCK` 을 실어 보내므로 응답의 `origin` 으로 실제 Mock 여부를 판별할 수 있다. ⚠ 단 이는 **단말 자기신고**라 서버가 검증하지 않는다. 필드를 생략한 요청은 `GPS` 로 간주한다(구버전 클라이언트 하위호환).
 - MVP 기본 좌표 소스는 이 경로가 아니라 서버 측 Mock 이다 — `DriverGpsSource` 는 `app.location.bus-gps.enabled=false` 로 기본 비활성이고, `LocationSimulationScheduler` 가 활성 소스만 주기적으로 tick 한다.
 
 ### `GET /api/locations/buses` — 학원 버스 위치 목록(관제)  ✅프론트 사용
@@ -360,7 +360,7 @@ RideType           상태머신 없음 — 순서·중복 검증이 서버에 �
 | busName | String | |
 | lat / lng | double | |
 | recordedAt | LocalDateTime | **오프셋 없음**(1.5 참조) |
-| origin | LocationOrigin | 실질적으로 항상 `GPS` |
+| origin | LocationOrigin | 좌표를 만든 소스. 단말 보고는 자기신고값, 서버 Mock 은 `MOCK` |
 
 > **`TenantGuard.resolveTenantId(admin, requested)` 규칙 (관리자 조회 전반 공통)**
 >

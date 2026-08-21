@@ -1,0 +1,23 @@
+/* 바래다 모서리·테두리·그림자 — 그림자는 항상 그린 기반, 낮고 넓게 */
+:root{
+  --radius-xs:4px; --radius-sm:8px; --radius-md:12px; --radius-lg:16px;
+  --radius-xl:20px; --radius-2xl:28px; --radius-pill:999px;
+  --radius-card:16px; --radius-control:12px; --radius-sheet:24px;
+
+  --border-w:1px; /* @kind spacing */ --border-w-strong:2px; /* @kind spacing */
+  --border-hairline:1px solid var(--border-subtle);
+
+  --shadow-none:none;
+  --shadow-sm:0 1px 2px rgba(18,33,28,.06);
+  --shadow-card:0 1px 3px rgba(18,33,28,.06),0 6px 16px -8px rgba(18,33,28,.10);
+  --shadow-raised:0 2px 6px rgba(18,33,28,.08),0 16px 32px -16px rgba(18,33,28,.16);
+  --shadow-sheet:0 -8px 32px -12px rgba(18,33,28,.22);
+  --shadow-inset:inset 0 1px 0 rgba(255,255,255,.5);
+  --focus-shadow:0 0 0 3px color-mix(in oklch,var(--focus-ring) 32%,transparent);
+}
+[data-theme="dark"]{
+  --shadow-sm:0 1px 2px rgba(0,0,0,.32);
+  --shadow-card:0 1px 3px rgba(0,0,0,.34),0 6px 16px -8px rgba(0,0,0,.44);
+  --shadow-raised:0 2px 6px rgba(0,0,0,.38),0 16px 32px -16px rgba(0,0,0,.55);
+  --shadow-inset:inset 0 1px 0 rgba(255,255,255,.06);
+}

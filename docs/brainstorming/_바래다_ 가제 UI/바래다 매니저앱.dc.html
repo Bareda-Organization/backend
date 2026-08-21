@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/design-system-9e66e1f4-ca98-403f-b475-218acd32f809/tokens/fonts.css">
+  <link rel="stylesheet" href="_ds/design-system-9e66e1f4-ca98-403f-b475-218acd32f809/tokens/colors.css">
+  <link rel="stylesheet" href="_ds/design-system-9e66e1f4-ca98-403f-b475-218acd32f809/tokens/semantic.css">
+  <link rel="stylesheet" href="_ds/design-system-9e66e1f4-ca98-403f-b475-218acd32f809/tokens/typography.css">
+  <link rel="stylesheet" href="_ds/design-system-9e66e1f4-ca98-403f-b475-218acd32f809/tokens/space.css">
+  <link rel="stylesheet" href="_ds/design-system-9e66e1f4-ca98-403f-b475-218acd32f809/tokens/shape.css">
+  <link rel="stylesheet" href="_ds/design-system-9e66e1f4-ca98-403f-b475-218acd32f809/tokens/motion.css">
+  <link rel="stylesheet" href="_ds/design-system-9e66e1f4-ca98-403f-b475-218acd32f809/tokens/base.css">
+  <link rel="stylesheet" href="_ds/design-system-9e66e1f4-ca98-403f-b475-218acd32f809/styles.css">
+  <script src="_ds/design-system-9e66e1f4-ca98-403f-b475-218acd32f809/_ds_bundle.js"></script>
+  <style>
+    body { margin: 0; }
+    :root { --seg-track: #0B100E; --seg-thumb: #2E3B36; }
+    a { color: var(--text-brand); }
+    a:hover { filter: brightness(.94); }
+  </style>
+</helmet>
+<div data-theme="{{ theme }}" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px 20px;background:var(--bg-base)">
+  <div data-theme="{{ theme }}" style="width:390px;height:844px;border-radius:28px;overflow:hidden;background:var(--bg-base);color:var(--text-primary);box-shadow:var(--shadow-raised);display:flex;flex-direction:column;position:relative">
+
+    <sc-if value="{{ isLogin }}" hint-placeholder-val="{{ true }}">
+      <div style="height:100%;display:flex;flex-direction:column;padding:0 20px 28px">
+        <div style="padding:64px 0 0">
+          <div style="font:var(--fw-bold) 11px/1 var(--font-sans);letter-spacing:.18em;color:var(--text-brand)">BARAEDA MANAGER</div>
+          <div style="margin-top:14px;font-family:var(--font-serif);font-weight:800;font-size:30px;line-height:1.25;letter-spacing:-.03em;color:var(--text-primary)">오늘 운행을<br>시작합니다</div>
+          <div style="margin-top:10px;font:var(--fw-light) 14px/1.7 var(--font-sans);color:var(--text-secondary)">호차는 코드로 자동 배정됩니다. 따로 고르지 않아도 됩니다.</div>
+        </div>
+        <div style="margin-top:auto">
+          <div style="--bg-subtle:var(--seg-track);--surface-card:var(--seg-thumb);border-radius:var(--radius-control)">
+            <x-import component-from-global-scope="DesignSystem_9e66e1.SegmentedControl" options="{{ roles }}" value="{{ role }}" onChange="{{ setRole }}" block="{{ true }}" hint-size="100%,44px"></x-import>
+          </div>
+          <div style="margin-top:18px">
+            <x-import component-from-global-scope="DesignSystem_9e66e1.CodeInput" label="{{ codeLabel }}" value="{{ code }}" onChange="{{ setCode }}" error="{{ codeError }}" hint="{{ codeHint }}" hint-size="100%,96px"></x-import>
+          </div>
+          <div style="margin-top:18px">
+            <x-import component-from-global-scope="DesignSystem_9e66e1.Button" size="lg" block="{{ true }}" onClick="{{ signIn }}" disabled="{{ cannotSignIn }}" hint-size="100%,52px">로그인</x-import>
+          </div>
+          <div style="margin-top:14px;text-align:center;font:var(--fw-light) 13px/1.5 var(--font-sans);color:var(--text-tertiary)">신규 가입은 학원 데스크에서 코드를 발급받습니다.</div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isHome }}">
+      <x-import component-from-global-scope="DesignSystem_9e66e1.AppHeader" title="담당 운행 노선" subtitle="{{ headerMeta }}" hint-size="100%,56px"></x-import>
+      <div style="flex:1;min-height:0;overflow-y:auto">
+        <div style="padding:18px 20px 0">
+          <div style="font:var(--fw-light) 13px/1.4 var(--font-sans);color:var(--text-secondary)">8월 11일 화요일</div>
+          <h2 style="margin:4px 0 0;font-size:24px">오늘 담당 노선 2건</h2>
+          <div style="margin-top:8px;font:var(--fw-light) 13px/1.7 var(--font-sans);color:var(--text-secondary)">노선은 출발 30분 전에 확정됩니다. 확정 후 변경분은 색으로 표시됩니다.</div>
+        </div>
+        <div style="padding:16px 20px 0;display:flex;flex-direction:column;gap:12px">
+          <div onClick="{{ goStops }}" style="cursor:pointer">
+            <x-import component-from-global-scope="DesignSystem_9e66e1.Card" padding="{{ 18 }}" hint-size="100%,150px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <x-import component-from-global-scope="DesignSystem_9e66e1.StatusPill" status="moving" hint-size="auto,24px">운행 중</x-import>
+                <span style="font:var(--fw-bold) 15px/1 var(--font-sans);font-variant-numeric:tabular-nums">3-2호차 · 등원</span>
+                <span style="margin-left:auto;color:var(--text-tertiary);display:grid;place-items:center">
+                  <x-import component-from-global-scope="DesignSystem_9e66e1.Icon" name="chevron-right" size="{{ 18 }}" hint-size="18px,18px"></x-import>
+                </span>
+              </div>
+              <div style="margin-top:12px;font-family:var(--font-serif);font-weight:800;font-size:20px;line-height:1.3;color:var(--text-primary)">8:30 출발 · 정류장 4곳</div>
+              <div style="margin-top:8px;font:var(--fw-light) 13px/1.7 var(--font-sans);color:var(--text-secondary)">탑승 예정 12명 · 기사 박정호 · 동승 매니저 김윤정</div>
+              <div style="margin-top:12px;display:flex;gap:8px">
+                <x-import component-from-global-scope="DesignSystem_9e66e1.Badge" tone="added" hint-size="auto,22px">추가 1명</x-import>
+                <x-import component-from-global-scope="DesignSystem_9e66e1.Badge" tone="removed" hint-size="auto,22px">삭제 1명</x-import>
+              </div>
+            </x-import>
+          </div>
+          <x-import component-from-global-scope="DesignSystem_9e66e1.Card" padding="{{ 18 }}" hint-size="100%,110px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <x-import component-from-global-scope="DesignSystem_9e66e1.StatusPill" status="idle" hint-size="auto,24px">운행 전</x-import>
+              <span style="font:var(--fw-bold) 15px/1 var(--font-sans);font-variant-numeric:tabular-nums">3-2호차 · 하원</span>
+            </div>
+            <div style="margin-top:12px;font-family:var(--font-serif);font-weight:800;font-size:20px;line-height:1.3;color:var(--text-primary)">20:00 출발 · 정류장 4곳</div>
+            <div style="margin-top:8px;font:var(--fw-light) 13px/1.7 var(--font-sans);color:var(--text-secondary)">노선은 19:30에 확정됩니다.</div>
+          </x-import>
+        </div>
+        <div style="padding:20px 20px 24px">
+          <x-import component-from-global-scope="DesignSystem_9e66e1.Button" size="lg" block="{{ true }}" icon="bus" onClick="{{ goDrive }}" hint-size="100%,52px">운행모드 시작</x-import>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isStops }}">
+      <x-import component-from-global-scope="DesignSystem_9e66e1.AppHeader" tone="plain" back="{{ true }}" onBack="{{ goHome }}" title="정류장 리스트" subtitle="3-2호차 · 등원" hint-size="100%,56px"></x-import>
+      <div style="flex:1;min-height:0;overflow-y:auto">
+        <div style="padding:14px 20px 0;font:var(--fw-light) 13px/1.7 var(--font-sans);color:var(--text-secondary)">정류장을 누르면 그 정류장 탑승자 명단이 열립니다.</div>
+        <div style="padding:14px 20px 24px">
+          <x-import component-from-global-scope="DesignSystem_9e66e1.Card" padding="{{ 18 }}" hint-size="100%,300px">
+            <x-import component-from-global-scope="DesignSystem_9e66e1.StopTimeline" stops="{{ stops }}" onSelect="{{ openRoster }}" hint-size="100%,260px"></x-import>
+          </x-import>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isDrive }}">
+      <x-import component-from-global-scope="DesignSystem_9e66e1.AppHeader" title="운행모드" subtitle="{{ headerMeta }}" hint-size="100%,56px"></x-import>
+      <div style="flex:1;min-height:0;overflow-y:auto">
+        <div style="padding:16px 20px 0">
+          <x-import component-from-global-scope="DesignSystem_9e66e1.RunSummaryCard" bus="3-2호차" leg="등원" status="moving" statusLabel="이동 중" eta="다음 정류장까지 약 4분" currentStop="대치사거리" nextStop="은마아파트" driver="박정호" manager="김윤정" hint-size="100%,190px"></x-import>
+        </div>
+        <div style="padding:18px 20px 0">
+          <h3 style="margin:0;font-size:19px">현재 이동 중인 정류장</h3>
+        </div>
+        <div style="padding:10px 20px 0">
+          <div onClick="{{ openRoster }}" style="cursor:pointer">
+            <x-import component-from-global-scope="DesignSystem_9e66e1.Card" tone="mist" padding="{{ 16 }}" hint-size="100%,108px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font:var(--fw-medium) 16px/1.3 var(--font-sans)">대치사거리</span>
+                <span style="margin-left:auto;font:var(--fw-bold) 14px/1 var(--font-sans);font-variant-numeric:tabular-nums;color:var(--status-moving)">8:44 도착 예정</span>
+              </div>
+              <div style="margin-top:6px;font:var(--fw-light) 13px/1.6 var(--font-sans);color:var(--text-secondary)">서울 강남구 대치동 902</div>
+              <div style="margin-top:10px;display:flex;align-items:center;gap:8px;font:var(--fw-medium) 13px/1 var(--font-sans);color:var(--text-brand)">
+                <x-import component-from-global-scope="DesignSystem_9e66e1.Icon" name="users-round" size="{{ 15 }}" hint-size="15px,15px"></x-import>
+                <span>이 정류장 탑승자 4명 보기</span>
+              </div>
+            </x-import>
+          </div>
+        </div>
+        <div style="padding:18px 20px 0">
+          <h3 style="margin:0;font-size:19px">다음 정류장</h3>
+        </div>
+        <div style="padding:10px 20px 0">
+          <div onClick="{{ openRoster }}" style="cursor:pointer">
+            <x-import component-from-global-scope="DesignSystem_9e66e1.Card" padding="{{ 16 }}" hint-size="100%,100px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font:var(--fw-medium) 16px/1.3 var(--font-sans)">은마아파트</span>
+                <span style="margin-left:auto;font:var(--fw-bold) 14px/1 var(--font-sans);font-variant-numeric:tabular-nums;color:var(--text-secondary)">8:51 도착 예정</span>
+              </div>
+              <div style="margin-top:6px;font:var(--fw-light) 13px/1.6 var(--font-sans);color:var(--text-secondary)">서울 강남구 대치동 316</div>
+              <div style="margin-top:10px;display:flex;align-items:center;gap:8px;font:var(--fw-medium) 13px/1 var(--font-sans);color:var(--text-brand)">
+                <x-import component-from-global-scope="DesignSystem_9e66e1.Icon" name="users-round" size="{{ 15 }}" hint-size="15px,15px"></x-import>
+                <span>이 정류장 탑승자 5명 보기</span>
+              </div>
+            </x-import>
+          </div>
+        </div>
+        <sc-if value="{{ arriveSent }}">
+          <div style="padding:16px 20px 0">
+            <x-import component-from-global-scope="DesignSystem_9e66e1.AlertBanner" tone="boarded" title="도착 알림을 보냈습니다" hint-size="100%,68px">대치사거리 탑승자 4명의 보호자에게 전송됐습니다.</x-import>
+          </div>
+        </sc-if>
+        <div style="padding:20px 20px 24px;display:flex;flex-direction:column;gap:10px">
+          <x-import component-from-global-scope="DesignSystem_9e66e1.Button" size="lg" block="{{ true }}" icon="bell" onClick="{{ sendArrive }}" hint-size="100%,52px">도착 알림 전송</x-import>
+          <x-import component-from-global-scope="DesignSystem_9e66e1.Button" variant="secondary" size="lg" block="{{ true }}" icon="clock" onClick="{{ goDelay }}" hint-size="100%,52px">도착 지연 알림 전송</x-import>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isRoster }}">
+      <x-import component-from-global-scope="DesignSystem_9e66e1.AppHeader" tone="plain" back="{{ true }}" onBack="{{ backFromRoster }}" title="대치사거리" subtitle="3-2호차 · 등원 · 8:44 도착 예정" hint-size="100%,56px"></x-import>
+      <div style="flex:1;min-height:0;overflow-y:auto">
+        <div style="padding:16px 20px 0;display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+          <x-import component-from-global-scope="DesignSystem_9e66e1.StatCard" label="탑승 완료" value="{{ boardedCount }}" unit="명" tone="boarded" hint-size="100%,84px"></x-import>
+          <x-import component-from-global-scope="DesignSystem_9e66e1.StatCard" label="대기" value="{{ waitingCount }}" unit="명" tone="neutral" hint-size="100%,84px"></x-import>
+          <x-import component-from-global-scope="DesignSystem_9e66e1.StatCard" label="미등원" value="{{ absentCount }}" unit="명" tone="missed" hint-size="100%,84px"></x-import>
+        </div>
+        <sc-if value="{{ isCompanion }}">
+          <div style="padding:14px 20px 0;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <x-import component-from-global-scope="DesignSystem_9e66e1.Button" variant="soft" size="sm" block="{{ true }}" onClick="{{ allBoard }}" hint-size="100%,36px">일괄 탑승</x-import>
+            <x-import component-from-global-scope="DesignSystem_9e66e1.Button" variant="soft" size="sm" block="{{ true }}" onClick="{{ allAlight }}" hint-size="100%,36px">일괄 하차</x-import>
+          </div>
+        </sc-if>
+        <div style="padding:14px 20px 24px;display:flex;flex-direction:column;gap:12px">
+          <sc-for list="{{ riders }}" as="r" hint-placeholder-count="4">
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <x-import component-from-global-scope="DesignSystem_9e66e1.StudentRow" name="{{ r.name }}" meta="{{ r.meta }}" ride="{{ r.ride }}" hint-size="100%,64px"></x-import>
+              <sc-if value="{{ isCompanion }}">
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:0 4px">
+                  <x-import component-from-global-scope="DesignSystem_9e66e1.Button" size="sm" block="{{ true }}" variant="{{ r.vBoarded }}" onClick="{{ r.setBoarded }}" hint-size="100%,36px">탑승</x-import>
+                  <x-import component-from-global-scope="DesignSystem_9e66e1.Button" size="sm" block="{{ true }}" variant="{{ r.vAbsent }}" onClick="{{ r.setAbsent }}" hint-size="100%,36px">미등원</x-import>
+                  <x-import component-from-global-scope="DesignSystem_9e66e1.Button" size="sm" block="{{ true }}" variant="{{ r.vAlighted }}" onClick="{{ r.setAlighted }}" hint-size="100%,36px">하차</x-import>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+          <sc-if value="{{ isDriver }}" hint-placeholder-val="{{ true }}">
+            <div style="margin-top:6px;font:var(--fw-light) 12px/1.7 var(--font-sans);color:var(--text-tertiary)">탑승 상태는 동승 매니저가 결정합니다. 기사 화면에서는 확인만 됩니다.</div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isDelay }}">
+      <x-import component-from-global-scope="DesignSystem_9e66e1.AppHeader" tone="plain" back="{{ true }}" onBack="{{ goDrive }}" title="도착 지연 알림" hint-size="100%,56px"></x-import>
+      <div style="flex:1;min-height:0;overflow-y:auto">
+        <div style="padding:18px 20px 28px">
+          <h2 style="margin:0;font-size:24px">도착 지연 알림</h2>
+          <div style="margin-top:8px;font:var(--fw-light) 14px/1.7 var(--font-sans);color:var(--text-secondary)">대치사거리 이후 정류장 탑승자의 보호자에게 전송됩니다.</div>
+          <div style="margin-top:20px">
+            <x-import component-from-global-scope="DesignSystem_9e66e1.Select" label="지연 사유" options="{{ reasonOptions }}" value="{{ reason }}" onChange="{{ onReason }}" hint-size="100%,68px"></x-import>
+          </div>
+          <div style="margin-top:16px">
+            <x-import component-from-global-scope="DesignSystem_9e66e1.Textarea" label="보호자에게 보낼 메시지" rows="{{ 3 }}" value="{{ message }}" onChange="{{ onMessage }}" hint-size="100%,110px"></x-import>
+          </div>
+          <div style="margin-top:18px">
+            <x-import component-from-global-scope="DesignSystem_9e66e1.DelayPicker" value="{{ delay }}" onChange="{{ onDelay }}" hint-size="100%,44px"></x-import>
+          </div>
+          <div style="margin-top:20px">
+            <x-import component-from-global-scope="DesignSystem_9e66e1.Card" tone="mist" padding="{{ 16 }}" hint-size="100%,90px">
+              <div style="font:var(--fw-medium) 13px/1 var(--font-sans);color:var(--text-secondary)">전송될 내용</div>
+              <div style="margin-top:8px;font:var(--fw-regular) 14px/1.7 var(--font-sans)">{{ delayPreview }}</div>
+            </x-import>
+          </div>
+          <div style="margin-top:20px">
+            <x-import component-from-global-scope="DesignSystem_9e66e1.Button" size="lg" block="{{ true }}" onClick="{{ sendDelay }}" hint-size="100%,52px">지연 알림 전송</x-import>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isDelayDone }}">
+      <x-import component-from-global-scope="DesignSystem_9e66e1.AppHeader" tone="plain" title="전송 완료" hint-size="100%,56px"></x-import>
+      <div style="flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;padding:0 20px 40px">
+        <div style="display:grid;place-items:center;width:56px;height:56px;border-radius:999px;background:var(--bg-subtle);color:var(--status-boarded);margin:0 auto">
+          <x-import component-from-global-scope="DesignSystem_9e66e1.Icon" name="circle-check" size="{{ 28 }}" hint-size="28px,28px"></x-import>
+        </div>
+        <h2 style="margin:18px 0 0;font-size:24px;text-align:center">지연 알림을 보냈습니다</h2>
+        <div style="margin-top:10px;text-align:center;font:var(--fw-light) 14px/1.75 var(--font-sans);color:var(--text-secondary);text-wrap:pretty">{{ delayPreview }}</div>
+        <div style="margin-top:22px">
+          <x-import component-from-global-scope="DesignSystem_9e66e1.Button" size="lg" block="{{ true }}" onClick="{{ goRosterFromDone }}" hint-size="100%,52px">탑승자 명단으로</x-import>
+        </div>
+        <div style="margin-top:10px">
+          <x-import component-from-global-scope="DesignSystem_9e66e1.Button" variant="ghost" block="{{ true }}" onClick="{{ goDrive }}" hint-size="100%,44px">운행모드로 돌아가기</x-import>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isMap }}">
+      <x-import component-from-global-scope="DesignSystem_9e66e1.AppHeader" title="금일 노선 지도" subtitle="{{ headerMeta }}" hint-size="100%,56px"></x-import>
+      <div style="flex:1;min-height:0;overflow:hidden;position:relative">
+        <x-import component-from-global-scope="MapSurface" from="./MapSurface.jsx" height="{{ mapBig }}" stops="{{ stops }}" busAt="{{ busAt }}" dark="{{ true }}" hint-size="100%,100%"></x-import>
+        <div style="position:absolute;left:0;right:0;bottom:0;background:var(--surface-card);border-radius:24px 24px 0 0;box-shadow:var(--shadow-sheet);padding:14px 20px 20px">
+          <div style="width:40px;height:4px;border-radius:999px;background:var(--border-subtle);margin:0 auto 14px"></div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <h3 style="margin:0;font-size:19px">3-2호차 전체 노선</h3>
+            <span style="margin-left:auto;font:var(--fw-bold) 13px/1 var(--font-sans);color:var(--status-moving)">현재 대치사거리</span>
+          </div>
+          <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:12px;background:var(--bg-subtle)">
+              <x-import component-from-global-scope="DesignSystem_9e66e1.Badge" tone="added" hint-size="auto,22px">신규</x-import>
+              <span style="font:var(--fw-medium) 14px/1.4 var(--font-sans)">삼성래미안 정류장이 추가됐습니다</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:12px;background:var(--bg-subtle)">
+              <x-import component-from-global-scope="DesignSystem_9e66e1.Badge" tone="removed" hint-size="auto,22px">삭제</x-import>
+              <span style="font:var(--fw-medium) 14px/1.4 var(--font-sans)">개포우성 정류장이 오늘 빠졌습니다</span>
+            </div>
+          </div>
+          <div style="margin-top:14px">
+            <x-import component-from-global-scope="DesignSystem_9e66e1.Button" block="{{ true }}" onClick="{{ goStops }}" hint-size="100%,44px">정류장 리스트 보기</x-import>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showTabs }}">
+      <x-import component-from-global-scope="DesignSystem_9e66e1.TabBar" items="{{ tabItems }}" value="{{ tab }}" onChange="{{ setTab }}" hint-size="100%,64px"></x-import>
+    </sc-if>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:430,&quot;height&quot;:900},&quot;nightMode&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;테마&quot;}}">
+class Component extends DCLogic {
+  state = {
+    signed: false, role: '버스기사', code: '', codeError: '',
+    tab: 'home', page: null,
+    arriveSent: false,
+    reason: '도로 정체', message: '도로 정체로 도착이 늦어지고 있습니다.', delay: 5,
+    riders: [
+      { name: '김하준', meta: '3학년 2반 · 010-2XXX-8814', ride: 'boarded' },
+      { name: '이서윤', meta: '3학년 1반 · 010-4XXX-2201', ride: 'waiting' },
+      { name: '박도윤', meta: '2학년 4반 · 010-7XXX-9930', ride: 'waiting' },
+      { name: '최수민', meta: '3학년 2반 · 010-3XXX-1174', ride: 'absent' },
+    ],
+  };
+
+  stops() {
+    return [
+      { name: '한화아파트', address: '대치동 316-1', time: '8:37', state: 'done', riders: 4 },
+      { name: '대치사거리', address: '대치동 902', time: '8:44', state: 'current', riders: 4, missed: 1 },
+      { name: '은마아파트', address: '대치동 316', time: '8:51', state: 'next', riders: 5 },
+      { name: '한빛학원 앞', address: '대치동 977', time: '8:58', state: 'upcoming', riders: 0 },
+    ];
+  }
+
+  setRide(i, ride) {
+    this.setState(s => ({ riders: s.riders.map((r, n) => (n === i ? { ...r, ride } : r)) }));
+  }
+
+  renderVals() {
+    const s = this.state;
+    const companion = s.role === '동승자';
+    const page = s.page;
+    const count = (k) => s.riders.filter(r => r.ride === k).length;
+    return {
+      theme: (this.props.nightMode ?? true) ? 'dark' : 'light',
+      roles: ['버스기사', '동승자'],
+      role: s.role,
+      setRole: (v) => this.setState({ role: v, codeError: '' }),
+      codeLabel: s.role + ' 코드',
+      codeHint: s.codeError ? '' : '학원에서 발급받은 6자리 코드를 입력해 주세요',
+      codeError: s.codeError,
+      code: s.code,
+      setCode: (v) => this.setState({ code: v, codeError: '' }),
+      cannotSignIn: s.code.length < 6,
+      signIn: () => {
+        if (s.code === '000000') { this.setState({ codeError: '코드가 맞지 않습니다. 학원 데스크에 문의해 주세요.', code: '' }); return; }
+        this.setState({ signed: true, tab: 'home', page: null });
+      },
+
+      isLogin: !s.signed,
+      isHome: s.signed && !page && s.tab === 'home',
+      isDrive: s.signed && !page && s.tab === 'drive',
+      isMap: s.signed && !page && s.tab === 'map',
+      isStops: s.signed && page === 'stops',
+      isRoster: s.signed && page === 'roster',
+      isDelay: s.signed && page === 'delay',
+      isDelayDone: s.signed && page === 'delayDone',
+      showTabs: s.signed && !page,
+
+      isCompanion: companion,
+      isDriver: !companion,
+      headerMeta: '3-2호차 · ' + s.role + (companion ? ' 김윤정' : ' 박정호'),
+
+      stops: this.stops(),
+      busAt: 0.42, mapBig: 700,
+
+      goHome: () => this.setState({ page: null, tab: 'home' }),
+      goDrive: () => this.setState({ page: null, tab: 'drive' }),
+      goStops: () => this.setState({ page: 'stops' }),
+      openRoster: () => this.setState({ page: 'roster' }),
+      backFromRoster: () => this.setState({ page: null }),
+      goRosterFromDone: () => this.setState({ page: 'roster' }),
+      goDelay: () => this.setState({ page: 'delay' }),
+      tab: s.tab,
+      setTab: (v) => this.setState({ tab: v, page: null }),
+      tabItems: [
+        { value: 'home', label: '담당 노선', icon: 'list' },
+        { value: 'drive', label: '운행모드', icon: 'bus' },
+        { value: 'map', label: '지도', icon: 'map-pin' },
+      ],
+
+      arriveSent: s.arriveSent,
+      sendArrive: () => {
+        this.setState({ arriveSent: true });
+        clearTimeout(this._t);
+        this._t = setTimeout(() => this.setState({ arriveSent: false }), 3200);
+      },
+
+      riders: s.riders.map((r, i) => ({
+        name: r.name, meta: r.meta, ride: r.ride,
+        vBoarded: r.ride === 'boarded' ? 'primary' : 'soft',
+        vAbsent: r.ride === 'absent' ? 'danger' : 'soft',
+        vAlighted: r.ride === 'alighted' ? 'primary' : 'soft',
+        setBoarded: () => this.setRide(i, 'boarded'),
+        setAbsent: () => this.setRide(i, 'absent'),
+        setAlighted: () => this.setRide(i, 'alighted'),
+      })),
+      boardedCount: count('boarded'),
+      waitingCount: count('waiting'),
+      absentCount: count('absent'),
+      allBoard: () => this.setState(st => ({ riders: st.riders.map(r => (r.ride === 'absent' ? r : { ...r, ride: 'boarded' })) })),
+      allAlight: () => this.setState(st => ({ riders: st.riders.map(r => (r.ride === 'absent' ? r : { ...r, ride: 'alighted' })) })),
+
+      reasonOptions: ['도로 정체', '기상 악화', '차량 점검', '앞 정류장 대기'],
+      reason: s.reason,
+      onReason: (e) => this.setState({ reason: e.target.value, message: e.target.value + '으로 도착이 늦어지고 있습니다.' }),
+      message: s.message,
+      onMessage: (e) => this.setState({ message: e.target.value }),
+      delay: s.delay,
+      onDelay: (m) => this.setState({ delay: m }),
+      delayPreview: '3-2호차가 약 ' + s.delay + '분 늦어집니다. ' + s.message,
+      sendDelay: () => this.setState({ page: 'delayDone' }),
+    };
+  }
+}
+</script>
+</body>
+</html>

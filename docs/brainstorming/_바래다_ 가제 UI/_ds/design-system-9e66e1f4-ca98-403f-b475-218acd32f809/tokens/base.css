@@ -1,0 +1,14 @@
+/* 바래다 기본 리셋 — 문서 기본값만. 컴포넌트 스타일은 여기에 두지 않습니다. */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg-base);color:var(--text-primary);font:var(--text-body);
+  text-wrap:pretty;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{margin:0;font-family:var(--font-serif);font-weight:var(--fw-bold);letter-spacing:-0.02em;line-height:1.2;color:var(--text-primary)}
+h1{font-size:var(--fs-h1)}h2{font-size:var(--fs-h2)}h3{font-size:var(--fs-h3)}h4{font-size:var(--fs-body-lg)}
+p{margin:0 0 var(--space-4)}
+small{font:var(--text-caption);letter-spacing:var(--ls-caption);color:var(--text-secondary)}
+a{color:var(--text-link);text-decoration:none;border-bottom:1px solid color-mix(in oklch,var(--text-link) 32%,transparent);transition:var(--transition-control)}
+a:hover{color:var(--text-link-hover);border-bottom-color:var(--text-link-hover)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
+::selection{background:var(--green-200);color:var(--green-900)}

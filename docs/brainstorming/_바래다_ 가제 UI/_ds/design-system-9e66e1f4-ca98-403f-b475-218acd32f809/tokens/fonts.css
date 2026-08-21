@@ -1,0 +1,4 @@
+/* 바래다 웹폰트 — 나눔명조(제목/브랜드) + Noto Sans KR(본문/UI)
+   원본 폰트 바이너리를 제공받지 못해 Google Fonts CDN에서 로드합니다.
+   자체 호스팅으로 바꾸려면 아래 @import를 지우고 @font-face 블록에 실제 woff2 경로를 넣으세요. */
+@import url('https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
