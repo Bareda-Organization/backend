@@ -1,4 +1,4 @@
-package src.backend.observability;
+package src.backend.observability.metrics;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -7,7 +7,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import src.backend.observability.metrics.SchedulerHealthMetrics;
 
 /** 시간 흐름은 주입한 시계로 조작해 대기 없이 검증한다. */
 class SchedulerHealthMetricsTest {

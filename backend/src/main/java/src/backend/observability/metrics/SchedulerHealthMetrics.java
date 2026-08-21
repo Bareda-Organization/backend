@@ -34,17 +34,19 @@ public class SchedulerHealthMetrics {
     private final LongSupplier clockMillis;
     private final Map<String, AtomicLong> lastSuccessMillis = new ConcurrentHashMap<>();
 
-    // 생성자가 둘이라 Spring이 어느 쪽을 주입 대상으로 쓸지 판단할 수 없다(둘 다 public이면
-    // "no default constructor found"로 기동 실패) — @Autowired로 실사용 생성자를 명시한다.
+    // 생성자가 둘이라 Spring이 어느 쪽을 주입 대상으로 쓸지 판단할 수 없다. Spring은
+    // getDeclaredConstructors()로 접근제어자와 무관하게 모든 생성자를 보므로 2-인자 생성자를
+    // package-private으로 둬도 모호성은 그대로 남는다 — "no default constructor found"로
+    // 기동 실패하니 @Autowired로 실사용 생성자를 명시한다.
     @Autowired
     public SchedulerHealthMetrics(MeterRegistry registry) {
         this(registry, System::currentTimeMillis);
     }
 
-    // 테스트 전용 시계 주입 생성자. package-private로 두면 테스트 클래스(src.backend.observability)와
-    // 이 클래스(src.backend.observability.metrics)가 서로 다른 패키지라 접근이 막힌다 —
-    // 자바는 모듈(JPMS) 없이 "패키지+하위패키지"만 허용하는 접근제어자가 없어 public으로 연다.
-    public SchedulerHealthMetrics(MeterRegistry registry, LongSupplier clockMillis) {
+    // 테스트 전용 시계 주입 생성자. 이 저장소는 테스트 패키지를 대상 클래스 패키지와 1:1로 맞추는
+    // 관행이라(bus/command, route/query 등과 동일) 테스트가 같은 패키지(src.backend.observability.metrics)에
+    // 있으므로 package-private으로 충분하다 — 공개 API 표면을 넓힐 필요가 없다.
+    SchedulerHealthMetrics(MeterRegistry registry, LongSupplier clockMillis) {
         this.registry = registry;
         this.clockMillis = clockMillis;
     }
