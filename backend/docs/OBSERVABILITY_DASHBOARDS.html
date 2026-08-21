@@ -1,0 +1,628 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>School-Bus 관제 대시보드 가이드 — Grafana 4장 43패널</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&family=Gaegu:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css" />
+<style>
+  :root {
+    --paper:#f4f1ea; --card:#fffdf8; --soft:#faf7f0; --panel:#f0e9da;
+    --rule:#d8cfc0;  --line:#c0b6a8; --border:#c0b6a8;
+    --ink:#3a3531;   --text:#3a3531; --muted:#6b6359;
+    --accent:#0e7490; --green:#047857; --yellow:#b45309;
+    --red:#dc2626;    --purple:#7c3aed; --pink:#db2777;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--text);
+    font-family: "Gaegu", "Apple SD Gothic Neo", "Pretendard", system-ui, sans-serif;
+    line-height: 1.85; font-size: 16px;
+  }
+  .layout { display: flex; align-items: flex-start; gap: 24px; max-width: 1360px; margin: 0 auto; padding: 24px; }
+  nav.toc {
+    position: sticky; top: 24px; flex: 0 0 260px; align-self: flex-start;
+    background: var(--card); border: 2px solid var(--ink); border-radius: 12px;
+    box-shadow: 3px 4px 0 rgba(58,53,49,.10);
+    padding: 16px; max-height: calc(100vh - 48px); overflow-y: auto;
+  }
+  nav.toc h2 { font-family: "Nanum Pen Script", cursive; font-size: 20px; color: var(--accent); margin: 0 0 10px; }
+  nav.toc a { display: block; color: var(--muted); text-decoration: none; font-size: 13.5px; padding: 4px 0; }
+  nav.toc a:hover { color: var(--ink); }
+  nav.toc .sub { padding-left: 12px; font-size: 12.5px; }
+  main { flex: 1; min-width: 0; max-width: none; }
+  h1 { font-family: "Nanum Pen Script", cursive; font-size: 40px; margin: 0 0 6px; color: var(--ink); }
+  h2.sec { font-size: 24px; margin: 44px 0 12px; padding-bottom: 8px; border-bottom: 2px solid var(--ink); color: var(--ink); }
+  h3.sub { font-size: 19px; margin: 26px 0 10px; color: var(--accent); }
+  h4 { font-size: 16px; margin: 18px 0 6px; color: var(--ink); }
+  p, li { font-size: 16px; }
+  p, ul, ol, .callout, .code-card, .summary { max-width: 1000px; }
+  .lead { color: var(--muted); }
+  .summary {
+    background: rgba(14,116,144,0.08); border-left: 4px solid var(--accent);
+    border-radius: 8px; padding: 10px 14px; margin: 12px 0; font-weight: 700;
+  }
+  code.inl { background: var(--panel); color: var(--ink); padding: 1px 6px; border-radius: 5px; font-size: 14px;
+    font-family: "JetBrains Mono", Menlo, monospace; border: 1px solid var(--rule); }
+  .callout { border-radius: 10px; padding: 12px 16px; margin: 14px 0; border: 2px solid var(--ink); box-shadow: 3px 4px 0 rgba(58,53,49,.08); }
+  .callout.info { background: rgba(14,116,144,0.06); }
+  .callout.tip  { background: rgba(4,120,87,0.06); }
+  .callout.warn { background: rgba(180,83,9,0.08); }
+  .callout.crit { background: rgba(220,38,38,0.07); }
+  .callout b { color: var(--ink); }
+  table { border-collapse: collapse; width: 100%; max-width: none; margin: 14px 0; font-size: 14.5px; }
+  th, td { border: 1px solid var(--rule); padding: 8px 11px; text-align: left; vertical-align: top; }
+  th { background: var(--panel); color: var(--ink); }
+  tr:nth-child(even) td { background: rgba(240,233,218,0.4); }
+  td code.inl { font-size: 12.5px; }
+  .ok  { color: var(--green); font-weight: 700; }
+  .bad { color: var(--red); font-weight: 700; }
+  .cau { color: var(--yellow); font-weight: 700; }
+  .viz-frame { background: var(--card); border: 2px solid var(--ink); border-radius: 12px; padding: 18px; margin: 20px 0;
+    max-width: none; box-shadow: 3px 4px 0 rgba(58,53,49,.10); }
+  .viz-title { color: var(--accent); font: 700 15px "Gaegu", sans-serif; margin-bottom: 12px; }
+  svg { display: block; max-width: 100%; }
+  .code-card { background: var(--soft); border: 2px solid var(--ink); border-radius: 12px; overflow: hidden; margin: 14px 0;
+    box-shadow: 3px 4px 0 rgba(58,53,49,.10); }
+  .code-card-header { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--panel); border-bottom: 2px solid var(--ink); }
+  .code-card-dots span { display: inline-block; width: 11px; height: 11px; border-radius: 50%; background: var(--line); margin-right: 5px; }
+  .code-card-lang { color: var(--muted); font-size: 12px; font-family: "JetBrains Mono", Menlo, monospace; }
+  .code-card pre { margin: 0; font-size: 13.5px; background: var(--soft) !important; }
+  .code-card code { font-family: "JetBrains Mono", Menlo, monospace; }
+  .token.comment { color: #8a8278 !important; font-style: italic; }
+  .token.keyword { color: #7c3aed !important; font-weight: 600; }
+  .token.string { color: #047857 !important; }
+  .token.number { color: #b45309 !important; }
+  .token.function, .token.class-name { color: #0e7490 !important; }
+  .token.annotation, .token.atrule, .token.property { color: #db2777 !important; }
+  .badge { display: inline-block; font-size: 12px; padding: 1px 9px; border-radius: 999px; border: 1.5px solid var(--ink); margin-right: 4px; }
+  .badge.b-panel { background: rgba(14,116,144,0.10); color: var(--accent); border-color: var(--accent); }
+  @media (max-width: 1024px) {
+    .layout { flex-direction: column; }
+    nav.toc { position: static; flex: none; width: 100%; max-height: 260px; }
+  }
+  @media (max-width: 760px) {
+    table { display: block; overflow-x: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="toc">
+  <h2>목차</h2>
+  <a href="#intro">0. 이 문서를 읽는 법</a>
+  <a href="#access">1. 접근 방법·주의사항</a>
+  <a href="#overview">2. 전체 지도 — 4장 43패널</a>
+  <a href="#dash-api">3. 대시보드 1 — API 개요</a>
+  <a href="#dash-server">4. 대시보드 2 — 서버·JVM</a>
+  <a href="#dash-data">5. 대시보드 3 — 데이터 계층</a>
+  <a href="#dash-pipeline">6. 대시보드 4 — 파이프라인 생존</a>
+  <a href="#combos">7. 핵심 조합 — 단독 패널로는 원인 판별 불가</a>
+  <a class="sub" href="#combo1">7.1 Redis 지연 → 스레드 소진 → 지표 소실</a>
+  <a class="sub" href="#combo2">7.2 축출과 TTL 만료 — 구분 불가</a>
+  <a class="sub" href="#combo3">7.3 HikariCP·Postgres — 따로 보면 안 됨</a>
+  <a class="sub" href="#combo4">7.4 경과 게이지의 한계</a>
+  <a class="sub" href="#combo5">7.5 버스 위치 origin 태그</a>
+  <a class="sub" href="#combo6">7.6 MON-1 이 넓힌 Redis 반경</a>
+  <a href="#boundary">8. 경계 — 이 대시보드가 보여주지 않는 것</a>
+  <a href="#limits">9. 이 대시보드가 대체하지 않는 것</a>
+</nav>
+<main>
+
+<h1>School-Bus 관제 대시보드 가이드</h1>
+<p class="lead">Grafana 대시보드 4장 43패널을 읽는 법 정리. 기획서·설계서가 아니라 <code class="inl">infra/observability/grafana/dashboards/*.json</code> 실물 대조 결과가 근거.</p>
+
+<h2 class="sec" id="intro">0. 이 문서를 읽는 법</h2>
+<div class="summary">패널 하나하나의 PromQL 나열이 아니라 "무엇을 재는가 · 정상은 어떤 모양인가 · 문제는 어떤 증상인가 · 그때 어디를 보는가" 네 축으로 정리한 참조 문서.</div>
+<p>대시보드 4장은 서로 독립된 화면이 아니라 <b>원인 추적 경로</b> 하나로 이어짐. 대시보드 1(API)에서 증상을 발견하면 대시보드 2(서버) → 3(데이터) → 4(파이프라인) 순으로 원인 후보를 좁혀가는 구조. 43패널 전체를 같은 밀도로 설명하지 않고, 대시보드별 표는 패널 묶음으로 압축하되 <b>단독 패널로는 원인을 가릴 수 없는 조합 6개</b>(§7)만 개별 서술 — 이 문서의 값어치가 여기 집중.</p>
+<div class="callout warn"><b>주의:</b> 관리형 APM·알람 SaaS 없이 Prometheus + Grafana 자체호스팅으로 구성된 시스템. §9 에 이 구성의 구조적 한계를 별도로 씀.</div>
+
+<h2 class="sec" id="access">1. 접근 방법·주의사항</h2>
+<table>
+  <tr><th>대상</th><th>주소</th><th>비고</th></tr>
+  <tr><td>Grafana</td><td><code class="inl">http://localhost:3000</code></td><td>계정 <code class="inl">admin</code> / <code class="inl">admin</code></td></tr>
+  <tr><td>Prometheus</td><td><code class="inl">http://localhost:9090</code></td><td>PromQL 직접 실행·타깃 상태 확인용</td></tr>
+</table>
+<div class="callout warn"><b>운영 노출 미구성.</b> 현재 로컬 전용. 서브도메인 발급 + IP 제한 2단계가 예정 상태이며 아직 미착수.</div>
+<div class="callout crit"><b>macOS 로컬의 "호스트" 정체.</b> node-exporter 가 관측하는 대상은 맥 자체가 아니라 <b>Docker Desktop 이 띄운 리눅스 VM</b>. <code class="inl">시스템 load average</code>·<code class="inl">호스트 메모리 가용</code>·<code class="inl">디스크 사용률</code> 세 패널은 맥 실측치가 아니고, 운영(EC2, 리눅스 단일 인스턴스)에서만 실제 호스트 값을 봄. 디스크 사용률 패널은 spec 이 가정한 <code class="inl">mountpoint="/host"</code> 자체가 이 환경에 없어, 실측 결과 Docker Desktop VM 의 <code class="inl">/var/lib/docker</code> 를 대신 사용 — 로컬-운영 간 수치 비교 자체가 무의미.</div>
+
+<h2 class="sec" id="overview">2. 전체 지도 — 대시보드 4장 43패널</h2>
+<div class="summary">1(API) → 2(서버) → 3(데이터) → 4(파이프라인) 순서가 대체로 원인 추적 순서와 일치. 각 대시보드는 3개 내외 그룹(row)으로 다시 나뉨.</div>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 대시보드 4장 지도 — 43패널의 위치</div>
+  <svg viewBox="0 0 1100 470" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .ov-box  { fill: rgba(14,116,144,0.08); stroke: #0e7490; stroke-width: 1.8; }
+      .ov-tt   { fill: #3a3531; font: bold 16px sans-serif; }
+      .ov-mu   { fill: #6b6359; font: 14px sans-serif; }
+      .ov-cnt  { fill: #db2777; font: bold 14px sans-serif; }
+      .ov-chip { fill: #faf7f0; stroke: #c0b6a8; stroke-width: 1.2; }
+      .ov-chiptt { fill: #3a3531; font: 12.5px sans-serif; }
+      .ov-line { stroke: #c0b6a8; stroke-width: 2; fill: none; }
+    </style>
+    <defs>
+      <marker id="ov-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#c0b6a8"/>
+      </marker>
+    </defs>
+
+    <!-- Dashboard 1 -->
+    <rect class="ov-box" x="30" y="20" width="230" height="150" rx="10"/>
+    <text class="ov-tt" x="145" y="48" text-anchor="middle">1. API 개요</text>
+    <text class="ov-cnt" x="145" y="68" text-anchor="middle">6패널</text>
+    <text class="ov-mu" x="145" y="90" text-anchor="middle">요청률·에러율·상태코드</text>
+    <text class="ov-mu" x="145" y="108" text-anchor="middle">p95·p99·느린 API</text>
+    <rect class="ov-chip" x="55" y="122" width="180" height="34" rx="6"/>
+    <text class="ov-chiptt" x="145" y="143" text-anchor="middle">증상 발견 시작점</text>
+
+    <!-- Dashboard 2 -->
+    <rect class="ov-box" x="290" y="20" width="250" height="150" rx="10"/>
+    <text class="ov-tt" x="415" y="48" text-anchor="middle">2. 서버·JVM</text>
+    <text class="ov-cnt" x="415" y="68" text-anchor="middle">18패널 · 3그룹</text>
+    <text class="ov-chip" x="0" y="0"/>
+    <rect class="ov-chip" x="310" y="80" width="90" height="24" rx="12"/>
+    <text class="ov-chiptt" x="355" y="97" text-anchor="middle">스레드</text>
+    <rect class="ov-chip" x="410" y="80" width="115" height="24" rx="12"/>
+    <text class="ov-chiptt" x="467" y="97" text-anchor="middle">HikariCP</text>
+    <rect class="ov-chip" x="310" y="112" width="215" height="24" rx="12"/>
+    <text class="ov-chiptt" x="417" y="129" text-anchor="middle">부하·자원(CPU·메모리·디스크)</text>
+    <text class="ov-mu" x="415" y="155" text-anchor="middle">"왜 느려지는가"의 1차 원인 후보</text>
+
+    <!-- Dashboard 3 -->
+    <rect class="ov-box" x="570" y="20" width="250" height="150" rx="10"/>
+    <text class="ov-tt" x="695" y="48" text-anchor="middle">3. 데이터 계층</text>
+    <text class="ov-cnt" x="695" y="68" text-anchor="middle">13패널 · 3그룹</text>
+    <rect class="ov-chip" x="590" y="80" width="90" height="24" rx="12"/>
+    <text class="ov-chiptt" x="635" y="97" text-anchor="middle">Postgres</text>
+    <rect class="ov-chip" x="690" y="80" width="80" height="24" rx="12"/>
+    <text class="ov-chiptt" x="730" y="97" text-anchor="middle">Redis</text>
+    <rect class="ov-chip" x="780" y="80" width="80" height="24" rx="12"/>
+    <text class="ov-chiptt" x="820" y="97" text-anchor="middle">Kafka</text>
+    <text class="ov-mu" x="695" y="120" text-anchor="middle">서버 지표만으로 안 잡히는</text>
+    <text class="ov-mu" x="695" y="138" text-anchor="middle">저장소별 원인 후보</text>
+
+    <!-- Dashboard 4 -->
+    <rect class="ov-box" x="850" y="20" width="220" height="150" rx="10"/>
+    <text class="ov-tt" x="960" y="48" text-anchor="middle">4. 파이프라인 생존</text>
+    <text class="ov-cnt" x="960" y="68" text-anchor="middle">6패널 · 3그룹</text>
+    <text class="ov-mu" x="960" y="90" text-anchor="middle">스케줄러 · Kafka 컨슈머</text>
+    <text class="ov-mu" x="960" y="108" text-anchor="middle">위치·알림·STOMP 세션</text>
+    <rect class="ov-chip" x="875" y="122" width="170" height="34" rx="6"/>
+    <text class="ov-chiptt" x="960" y="143" text-anchor="middle">"비즈니스 로직이 도는가"</text>
+
+    <!-- arrows -->
+    <line class="ov-line" x1="260" y1="95" x2="288" y2="95" marker-end="url(#ov-arr)"/>
+    <line class="ov-line" x1="540" y1="95" x2="568" y2="95" marker-end="url(#ov-arr)"/>
+    <line class="ov-line" x1="820" y1="95" x2="848" y2="95" marker-end="url(#ov-arr)"/>
+
+    <!-- lower band: 핵심 조합 -->
+    <rect x="30" y="200" width="1040" height="250" rx="10" fill="rgba(220,38,38,0.05)" stroke="#dc2626" stroke-width="1.6" stroke-dasharray="5,4"/>
+    <text x="550" y="228" text-anchor="middle" fill="#dc2626" font="bold 16px sans-serif">§7. 핵심 조합 — 4개 대시보드를 가로질러야 보이는 것</text>
+
+    <rect class="ov-chip" x="55" y="248" width="230" height="60" rx="8"/>
+    <text class="ov-chiptt" x="170" y="270" text-anchor="middle" font-weight="bold">7.1 Redis 지연</text>
+    <text class="ov-chiptt" x="170" y="288" text-anchor="middle">스레드 소진 → 지표 소실</text>
+    <text class="ov-mu" x="170" y="304" text-anchor="middle" style="font-size:12px">(2·4 조합)</text>
+
+    <rect class="ov-chip" x="305" y="248" width="230" height="60" rx="8"/>
+    <text class="ov-chiptt" x="420" y="270" text-anchor="middle" font-weight="bold">7.3 HikariCP</text>
+    <text class="ov-chiptt" x="420" y="288" text-anchor="middle">↔ Postgres 동시 확인</text>
+    <text class="ov-mu" x="420" y="304" text-anchor="middle" style="font-size:12px">(2·3 조합)</text>
+
+    <rect class="ov-chip" x="555" y="248" width="230" height="60" rx="8"/>
+    <text class="ov-chiptt" x="670" y="270" text-anchor="middle" font-weight="bold">7.2 축출 vs TTL</text>
+    <text class="ov-chiptt" x="670" y="288" text-anchor="middle">둘 다 "버스가 사라짐"</text>
+    <text class="ov-mu" x="670" y="304" text-anchor="middle" style="font-size:12px">(3 단독, 관측 부재 시 혼동)</text>
+
+    <rect class="ov-chip" x="805" y="248" width="230" height="60" rx="8"/>
+    <text class="ov-chiptt" x="920" y="270" text-anchor="middle" font-weight="bold">7.4 경과 게이지</text>
+    <text class="ov-chiptt" x="920" y="288" text-anchor="middle">"돌고는 있다"만 보장</text>
+    <text class="ov-mu" x="920" y="304" text-anchor="middle" style="font-size:12px">(4 단독, 내부 예외 삼킴)</text>
+
+    <text class="ov-mu" x="550" y="345" text-anchor="middle" style="font-size:13px">§7.1·§7.4·§7.6 세 조합은 2026-08-21 같은 실험(Redis 정지) 한 번으로 동시에 실측 확인 — §7.1 그림에서 함께 다룸</text>
+    <text class="ov-mu" x="550" y="368" text-anchor="middle" style="font-size:13px">읽는 순서: 증상 발견(①1) → 서버 자원 확인(②2) → 저장소 확인(③3) → 파이프라인 확인(④4) → 위 조합 대조(⑤7)</text>
+
+    <rect x="55" y="392" width="990" height="46" rx="8" fill="rgba(180,83,9,0.08)" stroke="#b45309" stroke-width="1.4"/>
+    <text x="550" y="420" text-anchor="middle" fill="#b45309" font="bold 13px sans-serif">§8 — 승하차 기록·SOS 처리 현황·결석 신고는 이 4장에 없음(관리자 웹의 몫, 그 화면도 아직 미구현)</text>
+  </svg>
+</div>
+
+<h2 class="sec" id="dash-api">3. 대시보드 1 — API 개요 (<code class="inl">school-bus-api</code>, 6패널)</h2>
+<div class="summary">가장 먼저 보는 화면 — "지금 요청이 정상적으로 처리되고 있는가"를 요청률·에러율·응답시간 세 축으로 확인.</div>
+<table>
+  <tr><th>패널</th><th>정상 모습</th><th>문제 증상</th><th>그다음 확인</th></tr>
+  <tr>
+    <td>엔드포인트별 요청률<br><span class="lead" style="font-size:12.5px">(uri·method 별 req/s)</span></td>
+    <td class="ok">트래픽 패턴에 맞는 분포</td>
+    <td class="bad">특정 uri 만 급격히 증가(쏠림) · 전체가 0 근처(요청이 backend 에 도달 못 함)</td>
+    <td>상태코드 분포 · nginx·proxy 로그</td>
+  </tr>
+  <tr>
+    <td>전체 에러율(%)</td>
+    <td class="ok">0% 근처</td>
+    <td class="bad">5% 초과 지속 — 클라이언트가 체감하는 실패 빈도</td>
+    <td>상태코드 분포로 4xx/5xx 구분</td>
+  </tr>
+  <tr>
+    <td>상태코드 분포</td>
+    <td class="ok">2xx 위주</td>
+    <td class="bad">4xx 증가 → 클라이언트 요청 문제(잘못된 파라미터·인증 만료) · <span class="bad">5xx 증가</span> → 서버 결함</td>
+    <td>응답시간 p95/p99 · 백엔드 로그(스택트레이스)</td>
+  </tr>
+  <tr>
+    <td>응답시간 p95(엔드포인트별)</td>
+    <td class="ok">엔드포인트 간 큰 편차 없음</td>
+    <td class="bad">특정 uri 만 p95 가 눈에 띄게 높음</td>
+    <td>그 API 의 쿼리·외부 호출 의심 → §5 데이터 계층</td>
+  </tr>
+  <tr>
+    <td>응답시간 p99(엔드포인트별)</td>
+    <td class="ok">p95 와 비슷한 궤적</td>
+    <td class="bad">p95 는 정상인데 p99 만 튐 → 일부 요청만 드물게 느려지는 꼬리 지연</td>
+    <td>GC 일시정지 시간(§4) — GC 로 인한 순간 지연 의심</td>
+  </tr>
+  <tr>
+    <td>느린 API 상위 10<br><span class="lead" style="font-size:12.5px">(table 패널)</span></td>
+    <td class="ok">시점마다 다른 엔드포인트가 오르내림</td>
+    <td class="cau">트래픽이 거의 없는 엔드포인트에서 <code class="inl">histogram_quantile</code> 이 NaN 반환 가능 — 이는 결함이 아니라 표본 부족</td>
+    <td>p95/p99 그래프로 실제 추세 재확인</td>
+  </tr>
+</table>
+
+<h2 class="sec" id="dash-server">4. 대시보드 2 — 서버·JVM (<code class="inl">school-bus-server</code>, 18패널·3그룹)</h2>
+<div class="summary">API 대시보드에서 지연·에러 신호를 봤을 때 "서버 프로세스 안쪽" 원인을 찾는 화면 — 스레드 / DB 커넥션(HikariCP) / 부하·자원 세 그룹.</div>
+
+<h3 class="sub">4.1 스레드</h3>
+<table>
+  <tr><th>패널</th><th>정상 모습</th><th>문제 증상</th><th>그다음 확인</th></tr>
+  <tr><td>JVM 스레드 수<br><span class="lead" style="font-size:12.5px">(live·daemon·peak)</span></td>
+    <td class="ok">live 가 일정 범위에서 등락</td>
+    <td class="bad">live 가 지속 우상향 — 스레드가 반환되지 않는 누수 의심</td>
+    <td>스레드 상태 분해</td></tr>
+  <tr><td>스레드 상태 분해<br><span class="lead" style="font-size:12.5px">(RUNNABLE·WAITING·TIMED_WAITING·BLOCKED)</span></td>
+    <td class="ok">대부분 RUNNABLE·TIMED_WAITING, BLOCKED 는 0 근처</td>
+    <td class="bad">BLOCKED 증가 → 락 경합 · <span class="bad">WAITING 급증</span> → 외부 자원 대기 누적(§7.1 핵심 지표)</td>
+    <td>Tomcat 스레드 풀 · §7.1</td></tr>
+  <tr><td>Tomcat 스레드 풀<br><span class="lead" style="font-size:12.5px">(busy·current·config_max)</span></td>
+    <td class="ok">busy 가 max 대비 여유</td>
+    <td class="bad">busy 가 config_max 근접 — 새 요청이 스레드를 못 얻어 대기·타임아웃</td>
+    <td>Tomcat 포화율(%)</td></tr>
+  <tr><td>Tomcat 포화율(%)</td>
+    <td class="ok">로컬 기본 max 200 기준 70% 미만</td>
+    <td class="bad">70% 초과 지속 — 트래픽 증가 시 스레드 고갈 위험 구간</td>
+    <td>§7.1(Redis 지연이 이 값을 밀어 올리는 실측 경로)</td></tr>
+</table>
+
+<h3 class="sub">4.2 DB 커넥션(HikariCP)</h3>
+<table>
+  <tr><th>패널</th><th>정상 모습</th><th>문제 증상</th><th>그다음 확인</th></tr>
+  <tr><td>커넥션 상태<br><span class="lead" style="font-size:12.5px">(active·idle·pending)</span></td>
+    <td class="ok">pending 0 유지</td>
+    <td class="bad">pending 0 초과 지속 — 풀 크기 부족 또는 커넥션 미반환 쿼리 존재</td>
+    <td>커넥션 사용시간 · §7.3</td></tr>
+  <tr><td>커넥션 획득 대기시간<br><span class="lead" style="font-size:12.5px">(평균·최대)</span></td>
+    <td class="ok">짧고 안정</td>
+    <td class="bad">평균·최대 동반 상승 — 풀 압박</td>
+    <td>커넥션 타임아웃 누적</td></tr>
+  <tr><td>커넥션 타임아웃 누적</td>
+    <td class="ok">0</td>
+    <td class="bad">0 초과 — 풀 고갈로 요청이 커넥션을 못 받고 실패</td>
+    <td>전체 에러율(§3)</td></tr>
+  <tr><td>풀 사용률(%)</td>
+    <td class="ok">여유 구간</td>
+    <td class="bad">90% 초과 지속 — pending 대기·타임아웃으로 이어지기 쉬운 구간</td>
+    <td>§7.3(Postgres 쪽 상한과 동시 확인)</td></tr>
+</table>
+
+<h3 class="sub">4.3 부하·자원</h3>
+<table>
+  <tr><th>패널</th><th>정상 모습</th><th>문제 증상</th><th>그다음 확인</th></tr>
+  <tr><td>시스템 load average <span class="cau">⚠</span></td><td class="ok">코어 수 대비 낮은 값</td><td class="bad">지속 상승 — CPU 경합</td><td>CPU 사용률<br><span class="lead" style="font-size:12px">macOS 로컬은 §1 주의 대상</span></td></tr>
+  <tr><td>CPU 사용률<br><span class="lead" style="font-size:12.5px">(process vs system)</span></td><td class="ok">process 가 system 대비 낮은 비중</td><td class="bad">process 값이 system 에 근접 — backend 가 CPU 대부분 점유</td><td>JVM heap · GC 일시정지 시간</td></tr>
+  <tr><td>JVM heap<br><span class="lead" style="font-size:12.5px">(used vs max)</span></td><td class="ok">GC 이후 used 하락</td><td class="bad">used 가 max 에 붙어 유지 — 메모리 누수 또는 힙 크기 부족</td><td>GC 일시정지 시간</td></tr>
+  <tr><td>JVM non-heap<br><span class="lead" style="font-size:12.5px">(used vs max, 메타스페이스·코드캐시)</span></td><td class="ok">완만한 증가 후 정체</td><td class="bad">used 가 max 근접 — 클래스 로딩 과다 의심</td><td>파일 디스크립터</td></tr>
+  <tr><td>호스트 메모리 가용 <span class="cau">⚠</span></td><td class="ok">여유 있음</td><td class="bad">0 근접 — OOM 으로 컨테이너 재시작 위험</td><td>스왑<br><span class="lead" style="font-size:12px">macOS 로컬은 §1 주의 대상</span></td></tr>
+  <tr><td>GC 일시정지 시간</td><td class="ok">낮은 비율</td><td class="bad">값 상승(예: 0.1 = 5분 중 30초를 GC 로 소모) — 그 구간 요청이 GC 로 지연됐을 가능성</td><td>응답시간 p99(§3) · JVM heap</td></tr>
+  <tr><td>디스크 사용률(%) <span class="cau">⚠</span></td><td class="ok">여유 있음</td><td class="bad">상승 지속 — 로그·이미지 누적 의심</td><td>DB 크기(§5)<br><span class="lead" style="font-size:12px">실측: mountpoint 는 <code class="inl">/var/lib/docker</code>(§1)</span></td></tr>
+  <tr><td>파일 디스크립터<br><span class="lead" style="font-size:12.5px">(open vs max)</span></td><td class="ok">open 이 max 대비 여유</td><td class="bad">open 이 max 근접 — "Too many open files" 임박</td><td>커넥션 상태 · 연결 클라이언트 수(§5)</td></tr>
+  <tr><td>커넥션 사용시간<br><span class="lead" style="font-size:12.5px">(체크아웃~반환, 평균·최대)</span></td><td class="ok">짧고 안정</td><td class="bad">상승 — 쿼리가 커넥션을 오래 쥐고 있음(느린 쿼리 의심)</td><td>응답시간 p95(§3) · 락 보유 수(§5)</td></tr>
+  <tr><td>스왑</td><td class="ok">0 유지</td><td class="bad">스왑 사용 시작 — 물리 메모리 부족으로 페이지 아웃, 응답 지연 급증 가능</td><td>호스트 메모리 가용 · JVM heap</td></tr>
+</table>
+
+<h2 class="sec" id="dash-data">5. 대시보드 3 — 데이터 계층 (<code class="inl">school-bus-data</code>, 13패널·3그룹)</h2>
+<div class="summary">서버 자원은 정상인데 지연·에러가 지속될 때 보는 화면 — Postgres / Redis / Kafka 세 저장소별로 나뉨.</div>
+
+<h3 class="sub">5.1 Postgres <span class="lead" style="font-size:13px">(datname="schoolbus" 필터)</span></h3>
+<table>
+  <tr><th>패널</th><th>정상 모습</th><th>문제 증상</th><th>그다음 확인</th></tr>
+  <tr><td>활성 커넥션 / 상한</td><td class="ok">여유 있음</td><td class="bad">상한 근접 — 신규 커넥션 시도가 거부됨</td><td>HikariCP 커넥션 상태 · <b>§7.3(사각지대 있음)</b></td></tr>
+  <tr><td>커밋·롤백률(schoolbus)</td><td class="ok">커밋 위주</td><td class="bad">롤백 비율 눈에 띄게 증가 — 예외로 인한 트랜잭션 실패 증가</td><td>전체 에러율(§3) · 백엔드 로그</td></tr>
+  <tr><td>락 보유 수(모드별, schoolbus)</td><td class="ok">낮은 수준</td><td class="bad">특정 모드 급증 — 경합 의심<br><span class="lead" style="font-size:12px">⚠ postgres_exporter 는 승인(granted) 여부를 구분하지 않아 대기 중인 락도 함께 잡힘</span></td><td>데드락 누적</td></tr>
+  <tr><td>데드락 누적(schoolbus)</td><td class="ok">0</td><td class="bad">0 초과 — 두 트랜잭션이 서로 락을 기다리다 한쪽이 강제 종료됨</td><td>원인 쿼리 즉시 특정(느린 쿼리 로그)</td></tr>
+  <tr><td>캐시 적중률(schoolbus)</td><td class="ok">1(100%) 근접</td><td class="bad">하락 시작 — 디스크 read 증가로 응답 지연 위험</td><td>DB 크기 · 커넥션 사용시간(§4)</td></tr>
+  <tr><td>DB 크기(schoolbus)</td><td class="ok">완만한 증가</td><td class="bad">급격한 증가 — 대량 삽입 또는 정리되지 않는 로그성 테이블 의심</td><td>커밋률 추세와 대조</td></tr>
+</table>
+
+<h3 class="sub">5.2 Redis</h3>
+<table>
+  <tr><th>패널</th><th>정상 모습</th><th>문제 증상</th><th>그다음 확인</th></tr>
+  <tr><td>사용 메모리 / 상한</td><td class="ok">여유 있음</td><td class="bad">상한 근접 — allkeys-lru 로 오래된 키부터 강제 축출(§7.2)<br><span class="lead" style="font-size:12px">⚠ 운영은 128MB 제한(<code class="inl">docker-compose.prod.yml</code>). 로컬은 <code class="inl">redis:7</code> 기본 이미지라 메모리 제한 없음 — 이 조합은 로컬에서 재현되지 않음</span></td><td>축출 건수</td></tr>
+  <tr><td>축출 건수(Eviction)</td><td class="ok">0</td><td class="bad">0 초과 — TTL 만료가 아니라 메모리 압박으로 위치 좌표가 조기 삭제(§7.2 핵심 지표)</td><td>사용 메모리 / 상한 · 키 수</td></tr>
+  <tr><td>키 수</td><td class="ok">완만한 등락(TTL 순환)</td><td class="bad">급격한 증가 — TTL 미설정 또는 만료 실패 의심</td><td>축출 건수</td></tr>
+  <tr><td>초당 명령 수</td><td class="ok">트래픽에 비례</td><td class="bad">급락 — 클라이언트 연결 문제 또는 Redis 장애 · 급등 — 예상 밖 폴링·재시도 루프</td><td>연결 클라이언트 수 · §7.1</td></tr>
+  <tr><td>연결 클라이언트 수</td><td class="ok">안정된 수 유지</td><td class="bad">계속 증가만 하고 줄지 않음 — backend 가 커넥션을 정리하지 못하는 누수 · 갑자기 0 — Redis 자체가 재시작됨</td><td>§7.1·§7.6(2026-08-21 실측과 직결)</td></tr>
+</table>
+
+<h3 class="sub">5.3 Kafka</h3>
+<table>
+  <tr><th>패널</th><th>정상 모습</th><th>문제 증상</th><th>그다음 확인</th></tr>
+  <tr><td>컨슈머 소비 지연(토픽별)</td><td class="ok">0 근처</td><td class="bad">지속 증가 — 컨슈머가 발행 속도를 따라가지 못함</td><td>Kafka 처리량(짝 패널) · §6.2</td></tr>
+  <tr><td>Kafka 처리량(토픽별)</td><td class="ok">지연과 별개로 꾸준</td><td class="bad">지연↑ + 처리량↓ → 컨슈머 정지 · 지연↑ + 처리량 유지 → 발행량이 처리 용량 초과</td><td>Kafka 소비 실패(§6.2)</td></tr>
+</table>
+
+<h2 class="sec" id="dash-pipeline">6. 대시보드 4 — 파이프라인 생존 (<code class="inl">school-bus-pipeline</code>, 6패널·3그룹)</h2>
+<div class="summary">서버·데이터 계층이 다 정상인데도 실제 비즈니스 흐름(위치 보고·알림·스케줄러)이 도는지 확인하는 화면 — 유일하게 App 계층 자체 계측(<code class="inl">schoolbus_*</code> 커스텀 메트릭).</div>
+
+<h3 class="sub">6.1 스케줄러</h3>
+<table>
+  <tr><th>패널</th><th>정상 모습</th><th>문제 증상</th><th>그다음 확인</th></tr>
+  <tr><td>스케줄러 마지막 성공 후 경과<br><span class="lead" style="font-size:12.5px">(스케줄러별, 주기: location-simulation 3초·connection-loss 10초·approach-no-show 15초·sos-escalation 30초 점검 주기)</span></td>
+    <td class="ok">각자 주기 안에서 값이 반복 리셋</td>
+    <td class="bad">특정 스케줄러만 경과 지속 증가 — 그 스케줄러 정지(§7.1·§7.4 실측)</td>
+    <td>스케줄러 실패율 · §7.4</td></tr>
+  <tr><td>스케줄러 실패율</td>
+    <td class="ok">0</td>
+    <td class="cau">0 이어도 안심 금지 — 내부에서 예외를 이미 잡는 구조라 정지 상황에서도 0 유지 가능(§7.4 핵심, 2026-08-21 실측으로 확인된 한계)</td>
+    <td>§7.4</td></tr>
+</table>
+
+<h3 class="sub">6.2 Kafka 컨슈머</h3>
+<table>
+  <tr><th>패널</th><th>정상 모습</th><th>문제 증상</th><th>그다음 확인</th></tr>
+  <tr><td>Kafka 소비 실패(컨슈머별)<br><span class="lead" style="font-size:12.5px">(실측 태그 4종: domain-event-notification·location-push·bus-location-push·routing-replan-event)</span></td>
+    <td class="ok">0</td>
+    <td class="bad">0 초과 — 역직렬화 실패 등 컨슈머 예외 발생</td>
+    <td>컨슈머 소비 지연(§5.3)</td></tr>
+</table>
+
+<h3 class="sub">6.3 위치·알림·세션</h3>
+<table>
+  <tr><th>패널</th><th>정상 모습</th><th>문제 증상</th><th>그다음 확인</th></tr>
+  <tr><td>버스 위치 수신률<br><span class="lead" style="font-size:12.5px">(origin: GPS/MOCK 별)</span></td>
+    <td class="ok">GPS 또는 MOCK 으로 지속 유입</td>
+    <td class="bad">0 — 위치 보고 자체가 정지</td>
+    <td>§7.5(GPS 대 서버 Mock 구분)</td></tr>
+  <tr><td>활성 STOMP 세션</td>
+    <td class="ok">열려 있는 관제 화면 수만큼</td>
+    <td class="cau">0 이 계속 유지돼도 그 자체가 장애 신호는 아님 — 다만 실시간 push 를 받는 화면이 하나도 없다는 뜻</td>
+    <td>운영 접속 현황 확인(수동)</td></tr>
+  <tr><td>알림 발송률(유형별)</td>
+    <td class="ok">이벤트 발생에 비례</td>
+    <td class="bad">0 지속 — 파이프라인 정지 <b>또는</b> 트리거 이벤트(하차·지연·SOS 등) 자체가 미발생, 상위 이벤트 로그로만 구분 가능</td>
+    <td>Kafka 소비 실패 · 백엔드 로그</td></tr>
+</table>
+
+<h2 class="sec" id="combos">7. 핵심 조합 — 단독 패널로는 원인을 가릴 수 없는 것</h2>
+<div class="summary">이 문서의 값어치는 43패널 나열이 아니라 이 6개 — 전부 2026-08-21 실측(<code class="inl">docker compose stop/start redis</code> 등)으로 확인된 사실이지 추측이 아님.</div>
+
+<h3 class="sub" id="combo1">7.1 Redis 지연이 스레드로 나타나고, 지표 엔드포인트까지 응답 불가</h3>
+<p><code class="inl">spring.data.redis.timeout</code> 미설정 — <code class="inl">backend/src/main/java/src/backend/global/config/RedisConfig.java</code> 는 직렬화만 담당, 타임아웃은 어디서도 지정하지 않아 Lettuce 기본값 <b>60초</b> 그대로 적용. Redis 가 느려지면 요청 스레드가 최대 60초까지 점유될 수 있다는 뜻.</p>
+<div class="callout crit"><b>실측(2026-08-21, <code class="inl">docker compose stop redis</code> → 75초 대기 → <code class="inl">start</code> → 50초 대기):</b> Tomcat 스레드가 소진돼 <code class="inl">/actuator/prometheus</code> 스크레이프 자체가 타임아웃됨. Prometheus 가 backend 타깃을 <code class="inl">down</code>(<code class="inl">context deadline exceeded</code>)으로 표시하며 <b>모든 지표가 조회 불가</b> 상태가 됨. 관측이 가장 필요한 순간에 대시보드가 통째로 비는 셈 — 복구 후 약 60초 뒤 자동 회복.</div>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 Redis 정지 실험 타임라인 — 세 지표가 동시에 반응(2026-08-21 실측값)</div>
+  <svg viewBox="0 0 1100 560" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .rx-tt   { fill: #3a3531; font: bold 16px sans-serif; }
+      .rx-lbl  { fill: #3a3531; font: 14px sans-serif; }
+      .rx-mu   { fill: #6b6359; font: 13px sans-serif; }
+      .rx-cap  { fill: #6b6359; font: 12.5px sans-serif; }
+      .rx-num  { fill: #db2777; font: bold 13px sans-serif; }
+      .rx-axis { stroke: #c0b6a8; stroke-width: 1.5; }
+      .rx-good { fill: rgba(4,120,87,0.12); stroke: #047857; stroke-width: 1.6; }
+      .rx-bad  { fill: rgba(220,38,38,0.14); stroke: #dc2626; stroke-width: 1.6; }
+      .rx-flat { stroke: #7c3aed; stroke-width: 2.5; stroke-dasharray: 6,4; fill: none; }
+      .rx-rise { stroke: #dc2626; stroke-width: 2.5; fill: none; }
+    </style>
+    <defs>
+      <marker id="rx-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#c0b6a8"/>
+      </marker>
+    </defs>
+
+    <!-- time axis -->
+    <line class="rx-axis" x1="230" y1="60" x2="1060" y2="60" marker-end="url(#rx-arr)"/>
+    <text class="rx-lbl" x="230" y="42" text-anchor="middle">t=0s</text>
+    <text class="rx-cap" x="230" y="80" text-anchor="middle">redis stop</text>
+    <text class="rx-lbl" x="520" y="42" text-anchor="middle">t=75s</text>
+    <text class="rx-cap" x="520" y="80" text-anchor="middle">redis start</text>
+    <text class="rx-lbl" x="820" y="42" text-anchor="middle">t=125s</text>
+    <text class="rx-cap" x="820" y="80" text-anchor="middle">여전히 down</text>
+    <text class="rx-lbl" x="1010" y="42" text-anchor="middle">t=135s</text>
+    <text class="rx-cap" x="1010" y="80" text-anchor="middle">5/5 자동 회복</text>
+    <line class="rx-axis" x1="230" y1="55" x2="230" y2="530" stroke-dasharray="3,3"/>
+    <line class="rx-axis" x1="520" y1="55" x2="520" y2="530" stroke-dasharray="3,3"/>
+    <line class="rx-axis" x1="820" y1="55" x2="820" y2="530" stroke-dasharray="3,3"/>
+    <line class="rx-axis" x1="1010" y1="55" x2="1010" y2="530" stroke-dasharray="3,3"/>
+
+    <!-- blackout band -->
+    <rect class="rx-bad" x="520" y="100" width="490" height="410" opacity="0.5"/>
+    <text class="rx-num" x="765" y="118" text-anchor="middle" style="fill:#dc2626">지표 조회 불가 구간 — Prometheus 가 backend 타깃을 down 으로 표시</text>
+
+    <!-- Lane 1: Tomcat / scrape -->
+    <text class="rx-tt" x="40" y="145">① Tomcat 스레드 · 스크레이프</text>
+    <rect class="rx-good" x="230" y="128" width="290" height="30" rx="4"/>
+    <text class="rx-cap" x="375" y="148" text-anchor="middle">정상 응답</text>
+    <rect class="rx-bad" x="520" y="128" width="290" height="30" rx="4"/>
+    <text class="rx-cap" x="665" y="148" text-anchor="middle" style="fill:#3a3531">스레드 소진 누적 → 스크레이프 타임아웃</text>
+    <rect class="rx-good" x="810" y="128" width="250" height="30" rx="4"/>
+    <text class="rx-cap" x="935" y="148" text-anchor="middle">자동 회복</text>
+
+    <!-- Lane 2: scheduler age gauge -->
+    <text class="rx-tt" x="40" y="210">② 스케줄러 마지막 성공 후 경과</text>
+    <text class="rx-mu" x="40" y="230">connection-loss</text>
+    <path class="rx-rise" d="M 230 250 L 500 220"/>
+    <text class="rx-num" x="240" y="270">2.3s</text>
+    <text class="rx-num" x="470" y="210">14.4s(증가)</text>
+    <text class="rx-mu" x="40" y="300">location-simulation</text>
+    <path class="rx-rise" d="M 230 320 L 500 260"/>
+    <text class="rx-num" x="240" y="340">3.9s</text>
+    <text class="rx-num" x="470" y="252">26.6s(증가)</text>
+    <text class="rx-mu" x="40" y="368">sos-escalation</text>
+    <path class="rx-flat" d="M 230 350 L 500 360" style="stroke:#0e7490"/>
+    <text class="rx-num" x="240" y="388" style="fill:#0e7490">17.1s → 14.6s</text>
+    <text class="rx-cap" x="620" y="388" style="fill:#0e7490">Redis 미의존 — 영향 없음(§7.6)</text>
+
+    <!-- Lane 3: failure counter -->
+    <text class="rx-tt" x="40" y="440">③ 스케줄러 실패율(<tspan style="font-family:monospace;font-size:13px">schoolbus_scheduler_failures_total</tspan>)</text>
+    <line class="rx-flat" x1="230" y1="470" x2="1060" y2="470"/>
+    <text class="rx-num" x="1040" y="465" text-anchor="end">0 그대로(§7.4)</text>
+
+    <text class="rx-cap" x="40" y="515">스케줄러 4개가 내부에서 예외를 이미 잡으므로(§7.4) 실패 카운터는 정지 구간 내내 증가하지 않음 — 정지를 드러내는 것은 ② 경과 게이지뿐.</text>
+    <text class="rx-cap" x="40" y="535">location-simulation 도 함께 정지한 것은 버스 좌표를 Redis 로 옮기며 이 스케줄러가 Redis 에 의존하게 됐기 때문(§7.6, MON-1).</text>
+  </svg>
+</div>
+
+<h3 class="sub" id="combo2">7.2 Redis 축출과 TTL 만료 — 구분 불가</h3>
+<p>운영(<code class="inl">docker-compose.prod.yml:56</code>)은 <code class="inl">maxmemory 128mb</code> + <code class="inl">allkeys-lru</code>. 메모리가 차면 <b>위치 좌표가 TTL(버스 15초) 만료 전에 축출</b>됨. 관제 지도에서 버스가 사라지는 현상은 같지만 원인이 TTL 이 아니라 메모리 압박인 경우, <code class="inl">redis_evicted_keys_total</code> 패널 없이는 두 원인을 못 가림.</p>
+<div class="callout warn"><b>로컬 재현 안 됨:</b> 로컬 <code class="inl">docker-compose.yml:35-38</code> 의 redis 는 <code class="inl">maxmemory</code> 설정이 없는 <code class="inl">redis:7</code> 기본 이미지 — 이 조합은 운영 전용 특성. 로컬에서 축출 건수 패널이 계속 0 이어도 정상.</div>
+
+<h3 class="sub" id="combo3">7.3 HikariCP 와 Postgres 커넥션 — 따로 보면 안 됨</h3>
+<p>앱이 보는 풀 상태(§4.2)와 DB 가 보는 실제 세션 수(§5.1)가 어긋나면 커넥션 누수 또는 풀 설정 오류. 한쪽만 보면 판별 불가.</p>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 두 렌즈 비교 — HikariCP ↔ Postgres, 그리고 사각지대</div>
+  <svg viewBox="0 0 1100 380" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .hp-box  { fill: rgba(14,116,144,0.08); stroke: #0e7490; stroke-width: 1.8; }
+      .hp-tt   { fill: #3a3531; font: bold 16px sans-serif; }
+      .hp-mu   { fill: #6b6359; font: 14px sans-serif; }
+      .hp-warn { fill: rgba(180,83,9,0.10); stroke: #b45309; stroke-width: 1.8; stroke-dasharray: 6,4; }
+      .hp-line { stroke: #c0b6a8; stroke-width: 2; fill: none; }
+      .hp-cap  { fill: #b45309; font: 13px sans-serif; }
+    </style>
+    <defs>
+      <marker id="hp-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#c0b6a8"/>
+      </marker>
+    </defs>
+
+    <rect class="hp-box" x="40" y="30" width="420" height="160" rx="10"/>
+    <text class="hp-tt" x="250" y="60" text-anchor="middle">HikariCP(앱이 보는 값)</text>
+    <text class="hp-mu" x="250" y="90" text-anchor="middle">active · idle · pending</text>
+    <text class="hp-mu" x="250" y="112" text-anchor="middle">풀 사용률 = active / max</text>
+    <text class="hp-mu" x="250" y="140" text-anchor="middle">backend 프로세스 1개 기준</text>
+    <text class="hp-mu" x="250" y="164" text-anchor="middle">(우리 앱이 쥔 커넥션만 집계)</text>
+
+    <rect class="hp-box" x="640" y="30" width="420" height="160" rx="10"/>
+    <text class="hp-tt" x="850" y="60" text-anchor="middle">Postgres pg_stat_activity(서버가 보는 값)</text>
+    <text class="hp-mu" x="850" y="90" text-anchor="middle"><tspan style="font-family:monospace;font-size:13px">datname="schoolbus"</tspan> 세션 수</text>
+    <text class="hp-mu" x="850" y="112" text-anchor="middle">상한 = <tspan style="font-family:monospace;font-size:13px">max_connections</tspan>(서버 전역)</text>
+    <text class="hp-mu" x="850" y="140" text-anchor="middle">schoolbus DB 만 필터링된 값</text>
+    <text class="hp-mu" x="850" y="164" text-anchor="middle">(다른 DB 세션은 안 잡힘)</text>
+
+    <line class="hp-line" x1="460" y1="110" x2="638" y2="110" marker-end="url(#hp-arr)"/>
+    <line class="hp-line" x1="638" y1="130" x2="460" y2="130" marker-end="url(#hp-arr)"/>
+    <text class="hp-mu" x="550" y="100" text-anchor="middle" style="font-size:12.5px">비교</text>
+
+    <rect class="hp-warn" x="180" y="240" width="740" height="110" rx="10"/>
+    <text class="hp-cap" x="550" y="268" text-anchor="middle" font-weight="bold">사각지대 — 활성 커넥션 패널만으로는 안 잡히는 경우</text>
+    <text class="hp-cap" x="550" y="294" text-anchor="middle">schoolbus 세션 수는 상한 대비 여유로운데, <tspan font-weight="bold">다른 DB 의 관리자 세션</tspan>이 서버 전역</text>
+    <text class="hp-cap" x="550" y="316" text-anchor="middle"><tspan style="font-family:monospace;font-size:12.5px">max_connections</tspan> 을 갉아먹어 schoolbus 의 신규 커넥션이 거부되는 상황 — 이 두 패널만으론 원인 미특정</text>
+  </svg>
+</div>
+
+<h3 class="sub" id="combo4">7.4 스케줄러 경과 게이지의 한계 — "돌고는 있다"만 확인 가능</h3>
+<p>스케줄러 4개(<code class="inl">location-simulation</code>·<code class="inl">connection-loss</code>·<code class="inl">approach-no-show</code>·<code class="inl">sos-escalation</code>)는 <b>메서드 내부에서 예외를 이미 잡으므로</b> 실패 카운터가 거의 오르지 않음. §7.1 실험 내내 <code class="inl">schoolbus_scheduler_failures_total</code> 이 <b>끝까지 0</b> — Redis 정지를 드러낸 것은 경과 게이지뿐.</p>
+
+<div class="code-card">
+  <div class="code-card-header">
+    <span class="code-card-dots"><span></span><span></span><span></span></span>
+    <span class="code-card-lang">Java · LocationSimulationScheduler.tick()</span>
+  </div>
+  <pre class="line-numbers"><code class="language-java">@Scheduled(fixedDelayString = "${app.location.tick-ms:3000}")
+public void tick() {
+    for (LocationSource source : sources) {
+        if (!source.isActive()) {
+            continue;
+        }
+        try {
+            source.tick();
+        } catch (Exception e) {
+            // 한 소스의 실패가 다음 틱·다른 소스를 막지 않도록 삼킨다(로그만 남김).
+            log.warn("[location] 소스 '{}' 틱 실패: {}", source.label(), e.getMessage());
+        }
+    }
+}</code></pre>
+</div>
+<p>계측 aspect(<code class="inl">ScheduledTaskMetricsAspect</code>)는 <code class="inl">@Scheduled</code> 메서드 <b>밖으로 던져진</b> 예외만 <code class="inl">recordFailure</code> 로 집계. 위 코드처럼 메서드 안에서 <code class="inl">catch</code> 로 삼키면 aspect 의 <code class="inl">catch</code> 구간에 도달하지 않아 실패로 잡히지 않음 — <b>내부 판정이 실패해도 메서드는 성공 반환</b>하는 구조. 이 대시보드로는 안 잡힘. 초록불(실패율 0)을 보고 안심할 근거로 삼지 않음.</p>
+
+<h3 class="sub" id="combo5">7.5 버스 위치 origin 태그 — 실단말과 서버 Mock 구분</h3>
+<p>버스 위치 수신률 패널의 <code class="inl">origin</code> 태그가 <code class="inl">MOCK</code> 만 증가하면 기사 앱을 아무도 켜지 않은 상태. 데모 환경은 서버 Mock(<code class="inl">MockBusLocationSource</code>)이 3초마다 좌표를 자동 생성하므로, <code class="inl">GPS</code> 태그가 전혀 없어도 대시보드는 계속 정상으로 보임 — "실단말 연결 여부"는 이 태그로만 구분됨.</p>
+
+<h3 class="sub" id="combo6">7.6 MON-1 이 넓힌 Redis 반경</h3>
+<p>§7.1 실험에서 <code class="inl">location-simulation</code> 스케줄러도 함께 정지 — 버스 좌표를 Redis 로 옮기면서(<code class="inl">RedisBusLocationRepository</code>) 이 스케줄러가 Redis 에 의존하게 됨. "Redis 와 무관한 스케줄러"라는 가정은 코드만 봐서는 드러나지 않고, §7.1 과 같은 장애 주입 실험으로만 확인됨.</p>
+
+<h2 class="sec" id="boundary">8. 경계 — 이 대시보드가 보여주지 않는 것</h2>
+<div class="summary">Grafana = "시스템이 살아 있는가" · 관리자 웹 = "운영이 잘 되고 있는가" — 서로 대체 관계가 아니라 분업 관계.</div>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 Grafana ↔ 관리자 웹 — 책임 분리</div>
+  <svg viewBox="0 0 1100 420" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .bd-box  { fill: rgba(14,116,144,0.08); stroke: #0e7490; stroke-width: 1.8; }
+      .bd-box2 { fill: rgba(124,58,237,0.08); stroke: #7c3aed; stroke-width: 1.8; }
+      .bd-tt   { fill: #3a3531; font: bold 16px sans-serif; }
+      .bd-mu   { fill: #6b6359; font: 14px sans-serif; }
+      .bd-warn { fill: #dc2626; font: bold 13px sans-serif; }
+      .bd-cap  { fill: #6b6359; font: 12.5px sans-serif; }
+    </style>
+    <rect class="bd-box" x="40" y="30" width="470" height="290" rx="10"/>
+    <text class="bd-tt" x="275" y="60" text-anchor="middle">Grafana — "시스템이 살아 있는가"</text>
+    <text class="bd-mu" x="275" y="90" text-anchor="middle">HTTP 요청률·에러율·응답시간</text>
+    <text class="bd-mu" x="275" y="112" text-anchor="middle">JVM·Tomcat·HikariCP</text>
+    <text class="bd-mu" x="275" y="134" text-anchor="middle">Postgres·Redis·Kafka 지표</text>
+    <text class="bd-mu" x="275" y="156" text-anchor="middle">스케줄러·컨슈머 생존 여부</text>
+    <text class="bd-cap" x="275" y="200" text-anchor="middle">식별자(학생 ID·이름 등) 태그를 지표에 넣지 않음</text>
+    <text class="bd-cap" x="275" y="220" text-anchor="middle">이유: cardinality 폭증(태그값마다 시계열 1개 추가)</text>
+    <text class="bd-cap" x="275" y="240" text-anchor="middle">+ 개인정보가 모니터링 시스템으로 유입되는 경로 자체를 차단</text>
+    <text class="bd-cap" x="275" y="270" text-anchor="middle" font-weight="bold">→ "누가·몇 번" 은 여기서 원천적으로 안 보임</text>
+
+    <rect class="bd-box2" x="590" y="30" width="470" height="290" rx="10"/>
+    <text class="bd-tt" x="825" y="60" text-anchor="middle">관리자 웹 — "운영이 잘 되고 있는가"</text>
+    <text class="bd-mu" x="825" y="90" text-anchor="middle">승하차 기록 (학생별)</text>
+    <text class="bd-mu" x="825" y="112" text-anchor="middle">SOS 처리 현황 (건별)</text>
+    <text class="bd-mu" x="825" y="134" text-anchor="middle">결석 신고 (신청·승인)</text>
+    <text class="bd-warn" x="825" y="180" text-anchor="middle">이 화면 자체가 아직 미구현</text>
+    <text class="bd-cap" x="825" y="205" text-anchor="middle">PRODUCT_SPEC.md §12 O2(SOS 화면 부재)</text>
+    <text class="bd-cap" x="825" y="225" text-anchor="middle">O3(결석 신고·승인 화면 부재)</text>
+    <text class="bd-cap" x="825" y="245" text-anchor="middle">O4(버스·학생·회원 등록 화면 부재)</text>
+    <text class="bd-cap" x="825" y="275" text-anchor="middle">백엔드 API·스케줄러는 이미 동작 중 — 화면만 없음</text>
+
+    <rect x="290" y="345" width="520" height="55" rx="8" fill="rgba(180,83,9,0.08)" stroke="#b45309" stroke-width="1.4"/>
+    <text x="550" y="365" text-anchor="middle" fill="#b45309" font="bold 13px sans-serif">두 화면 모두 "정상"이어야 서비스가 실제로 돌고 있다고 말할 수 있음</text>
+    <text x="550" y="385" text-anchor="middle" fill="#b45309" style="font-size:12.5px">— 어느 한쪽으로 다른 쪽을 대신할 수 없음</text>
+  </svg>
+</div>
+
+<h2 class="sec" id="limits">9. 이 대시보드가 대체하지 않는 것</h2>
+<div class="callout crit"><b>구조적 한계 — EC2 가 죽으면 대시보드도 함께 정지.</b> 자체호스팅 Prometheus·Grafana 는 관측 대상과 같은 인스턴스에서 동작 — 관측 대상이 사라지면 관측 도구도 함께 사라짐. 그래서 <b>CloudWatch 알람은 이 대시보드로 대체되지 않고 여전히 필요</b>하나, 해당 항목(MON-13)은 현재 착수 전 상태.</div>
+<p><code class="inl">docs/DEPLOYMENT.md</code> §10 "알려진 한계"의 <b>"알람·APM 부재 — CloudWatch Logs 만 수집, 장애 인지는 수동"</b> 서술은 이 문서 작성 시점에도 그대로 사실. Grafana 대시보드는 "장애가 났을 때 원인을 빠르게 좁히는 도구"이지, "장애 발생을 능동적으로 알려주는 도구"가 아님 — 알림·알람 채널이 없으면 결국 사람이 화면을 열어봐야 발견됨.</p>
+
+</main>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js" data-manual></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    if (window.Prism) Prism.highlightAll();
+  });
+</script>
+</body>
+</html>
