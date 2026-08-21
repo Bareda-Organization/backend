@@ -93,7 +93,7 @@ springdoc:
   swagger-ui:
     tags-sorter: alpha   # 태그 이름 알파벳순 정렬 — 인증(AuthController)에 "0. " 접두사를 붙여 최상단 고정
 
-# 배포 검증·컨테이너 healthcheck 전용. health 하나만 노출하고 상세는 감춘다 —
+# 배포 검증·컨테이너 healthcheck(health)·Prometheus 스크레이프(prometheus) 전용. 상세는 감춘다 —
 # 상세를 켜면 DB URL·Redis 호스트 같은 인프라 정보가 인증 없이 노출된다.
 # 외부 접근은 nginx(infra/proxy/nginx.prod.conf)가 /actuator 를 404 로 막는다.
 management:

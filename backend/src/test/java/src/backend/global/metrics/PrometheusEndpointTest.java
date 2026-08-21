@@ -59,13 +59,16 @@ class PrometheusEndpointTest {
     }
 
     /**
-     * URI 태그가 경로 패턴으로 묶이는지 확인하는 음성 대조.
+     * URI 태그가 경로 패턴으로 묶이는지 확인한다.
      * id 별로 시계열이 갈라지면(`/api/buses/1`, `/api/buses/2` …) 시계열 수가 무한히 늘어
      * Prometheus 메모리가 급증한다. 패턴(`{id}`)으로 묶여야 한다.
      *
      * 시드 관리자로 로그인해 실제 토큰으로 호출한다 — 미인증 요청은 Security 필터에서 끊겨
-     * 핸들러 매핑 전에 반환되므로 uri 라벨이 아예 기록되지 않고, 그러면 doesNotContain
-     * assert 가 공허하게 참이 되어 아무것도 검증하지 못한다.
+     * 핸들러 매핑 전에 반환되므로 uri 라벨이 아예 기록되지 않고, 그러면 raw id 미포함 검증만으로는
+     * "패턴으로 잘 묶였다"와 "요청 자체가 관측되지 않았다"를 구분하지 못한다(둘 다 raw id 는 없다).
+     * 그래서 부정 검증(raw id 미포함) 앞에 긍정 검증(패턴 태그 포함) 을 둔다 — 후자가 실패하면
+     * 요청이 관측되지 않았다는 뜻이라 공허한 통과가 구조적으로 막힌다.
+     * 두 버스(3호차·1호차)는 로그인한 관리자와 같은 학원(한빛) 소속이라 둘 다 200 을 받는다.
      */
     @Test
     void uriTag_isPathPattern_notRawId() {
@@ -74,8 +77,12 @@ class PrometheusEndpointTest {
         authHeaders.setBearerAuth(accessToken);
         HttpEntity<Void> authRequest = new HttpEntity<>(authHeaders);
 
-        restTemplate.exchange(baseUrl() + "/api/buses/1", HttpMethod.GET, authRequest, String.class);
-        restTemplate.exchange(baseUrl() + "/api/buses/2", HttpMethod.GET, authRequest, String.class);
+        ResponseEntity<String> bus1Response =
+                restTemplate.exchange(baseUrl() + "/api/buses/1", HttpMethod.GET, authRequest, String.class);
+        ResponseEntity<String> bus2Response =
+                restTemplate.exchange(baseUrl() + "/api/buses/2", HttpMethod.GET, authRequest, String.class);
+        assertThat(bus1Response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(bus2Response.getStatusCode()).isEqualTo(HttpStatus.OK);
 
         HttpHeaders acceptHeaders = new HttpHeaders();
         acceptHeaders.setAccept(java.util.List.of(MediaType.ALL));
@@ -83,6 +90,7 @@ class PrometheusEndpointTest {
                 baseUrl() + "/actuator/prometheus", HttpMethod.GET, new HttpEntity<>(acceptHeaders), String.class);
         String body = response.getBody();
 
+        assertThat(body).contains("uri=\"/api/buses/{id}\"");
         assertThat(body).doesNotContain("uri=\"/api/buses/1\"");
         assertThat(body).doesNotContain("uri=\"/api/buses/2\"");
     }
