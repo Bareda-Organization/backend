@@ -561,8 +561,8 @@
     {
       "id": 8,
       "type": "timeseries",
-      "title": "커넥션 획득 대기시간 (평균)",
-      "description": "커넥션을 요청해서 실제로 받기까지 걸린 평균 시간. 주의: 이 배포판의 HikariCP 메트릭은 hikaricp_connections_acquire_seconds_bucket(히스토그램) 을 노출하지 않아 spec 의 p95 패널을 그대로 만들 수 없다 — sum/count 로 만든 평균으로 대체했다. 평균이 늘어나면 풀 크기 부족이나 DB 자체 지연을 의심한다.",
+      "title": "커넥션 획득 대기시간 (평균·최대)",
+      "description": "커넥션을 요청해서 실제로 받기까지 걸린 시간. 평균은 rate(_sum)/rate(_count) 로 계산한 5분 평균이고, 최대는 hikaricp_connections_acquire_seconds_max(직전 관측 구간의 최댓값, 감쇠형 게이지)다. 평균만 보면 짧은 스파이크가 희석돼 묻히므로 최대를 함께 본다 — 평균은 낮은데 최대만 튀면 드물게 발생하는 지연 스파이크(순간적인 풀 고갈·DB 응답 지연)가 있다는 뜻이다.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -647,6 +647,11 @@
           "refId": "A",
           "expr": "rate(hikaricp_connections_acquire_seconds_sum{job=\"backend\"}[5m]) / rate(hikaricp_connections_acquire_seconds_count{job=\"backend\"}[5m])",
           "legendFormat": "평균 획득 대기시간"
+        },
+        {
+          "refId": "B",
+          "expr": "hikaricp_connections_acquire_seconds_max{job=\"backend\"}",
+          "legendFormat": "최대"
         }
       ]
     },
@@ -843,7 +848,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 34
+        "y": 42
       },
       "panels": []
     },
@@ -860,7 +865,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 35
+        "y": 43
       },
       "fieldConfig": {
         "defaults": {
@@ -962,7 +967,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 35
+        "y": 43
       },
       "fieldConfig": {
         "defaults": {
@@ -1059,7 +1064,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 43
+        "y": 51
       },
       "fieldConfig": {
         "defaults": {
@@ -1156,7 +1161,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 43
+        "y": 51
       },
       "fieldConfig": {
         "defaults": {
@@ -1253,7 +1258,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 51
+        "y": 59
       },
       "fieldConfig": {
         "defaults": {
@@ -1345,7 +1350,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 51
+        "y": 59
       },
       "fieldConfig": {
         "defaults": {
@@ -1396,7 +1401,7 @@
               }
             ]
           },
-          "unit": "s"
+          "unit": "percentunit"
         },
         "overrides": []
       },
@@ -1437,7 +1442,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 59
+        "y": 67
       },
       "fieldConfig": {
         "defaults": {
@@ -1529,7 +1534,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 59
+        "y": 67
       },
       "fieldConfig": {
         "defaults": {
@@ -1610,6 +1615,200 @@
           "refId": "B",
           "expr": "process_files_max_files{job=\"backend\"}",
           "legendFormat": "max"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "type": "timeseries",
+      "title": "커넥션 사용시간",
+      "description": "커넥션을 커넥션풀에서 꺼내 실제로 쥐고 있던 시간(체크아웃~반환). 평균은 rate(_sum)/rate(_count), 최대는 hikaricp_connections_usage_seconds_max(직전 구간 최댓값)다. §6.1 의 취지대로 긴 트랜잭션 탐지용 — 평균은 낮은데 최대만 크게 튀면 커밋을 늦게 하거나 트랜잭션 안에서 외부 호출을 하는 쿼리가 섞여 있다는 신호다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max",
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(hikaricp_connections_usage_seconds_sum{job=\"backend\"}[5m]) / rate(hikaricp_connections_usage_seconds_count{job=\"backend\"}[5m])",
+          "legendFormat": "평균"
+        },
+        {
+          "refId": "B",
+          "expr": "hikaricp_connections_usage_seconds_max{job=\"backend\"}",
+          "legendFormat": "최대"
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "스왑",
+      "description": "호스트의 스왑 사용량(SwapTotal 대비 SwapTotal-SwapFree). 스왑이 실제로 쓰이기 시작하면 물리 메모리가 부족해 디스크로 페이지 아웃이 일어나고 있다는 뜻이라 응답 지연이 급격히 나빠질 수 있는 구간이다. 주의: node_load1 등 다른 node 패널과 같은 이유로 이 값도 macOS 로컬에서는 맥 자체가 아니라 Docker Desktop 이 띄우는 리눅스 VM 의 스왑이다 — 맥의 실제 스왑 사용량으로 해석하면 안 된다. 운영(EC2, 리눅스)에서는 실제 호스트 스왑을 그대로 반영한다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 75
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max",
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_memory_SwapTotal_bytes - node_memory_SwapFree_bytes",
+          "legendFormat": "사용중"
+        },
+        {
+          "refId": "B",
+          "expr": "node_memory_SwapTotal_bytes",
+          "legendFormat": "전체"
         }
       ]
     }
