@@ -40,6 +40,19 @@ class BoardingStatusResolverTest {
                 .isEqualTo(BoardingStatus.BOARDED);
     }
 
+    /**
+     * 서버가 승하차 순서를 검증하지 않아(BG-1, {@code RideEventCommandService}가 버스·학생·학원만
+     * 확인하고 직전 상태를 조회하지 않음) BOARD 기록 없이 ALIGHT 만 들어오는 입력이 실제로 가능하다.
+     * 지금은 ALIGHTED 를 반환하는데, 나중에 우선순위 조건이 "BOARD 도 있어야 ALIGHTED"로 좁혀지면
+     * 이 입력이 조용히 MISSED 로 뒤바뀔 수 있어 이 조합을 별도로 고정한다.
+     */
+    @Test
+    void alight_withoutBoard_isStillAlighted() {
+        assertThat(BoardingStatusResolver.resolve(
+                List.of(RideType.ALIGHT), NOW.minusMinutes(30), NOW, MISSED))
+                .isEqualTo(BoardingStatus.ALIGHTED);
+    }
+
     /** 세션이 아직 시작 안 됐으면 도달 시각을 계산할 근거가 없다 — 전원 예정이다. */
     @Test
     void noRecord_beforeSessionStart_isUpcoming() {
@@ -67,9 +80,17 @@ class BoardingStatusResolverTest {
     }
 
     @Test
-    void noRecord_exactlyAtThresholdBoundary_isMissed() {
+    void noRecord_pastThresholdByOneSecond_isMissed() {
         assertThat(BoardingStatusResolver.resolve(List.of(), NOW.minusMinutes(10).minusSeconds(1), NOW, MISSED))
                 .isEqualTo(BoardingStatus.MISSED);
+    }
+
+    /** 임계 직전(경과 = threshold - 1초)은 아직 PENDING — 부등호가 {@code >=}에서 {@code >}로 뒤집혀도
+     *  이 테스트와 {@link #noRecord_pastThreshold_isMissed}(정각) 양쪽에서 실패가 걸린다. */
+    @Test
+    void noRecord_justBeforeThreshold_isPending() {
+        assertThat(BoardingStatusResolver.resolve(List.of(), NOW.minusMinutes(10).plusSeconds(1), NOW, MISSED))
+                .isEqualTo(BoardingStatus.PENDING);
     }
 
     @Test
