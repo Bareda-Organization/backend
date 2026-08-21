@@ -408,14 +408,14 @@
 </table>
 
 <h2 class="sec" id="combos">7. 핵심 조합 — 단독 패널로는 원인을 가릴 수 없는 것</h2>
-<div class="summary">이 문서의 값어치는 43패널 나열이 아니라 이 6개 — 전부 2026-08-21 실측(<code class="inl">docker compose stop/start redis</code> 등)으로 확인된 사실이지 추측이 아님.</div>
+<div class="summary">이 문서의 값어치는 43패널 나열이 아니라 이 6개 — 2026-08-21 <code class="inl">docker compose stop/start redis</code> 실측에서 나온 사실이지 추측이 아님. 다만 아래 타임라인의 눈금 전부가 관측 시각은 아님 — t=0s(정지 명령)·t=75s(재시작 명령)는 실측 시각이고, t=125s·t=135s(자동 회복)는 그 실측 대기시간(정지 75초·재시작 후 대기 50초)에서 산출한 재구성 시각.</div>
 
 <h3 class="sub" id="combo1">7.1 Redis 지연이 스레드로 나타나고, 지표 엔드포인트까지 응답 불가</h3>
 <p><code class="inl">spring.data.redis.timeout</code> 미설정 — <code class="inl">backend/src/main/java/src/backend/global/config/RedisConfig.java</code> 는 직렬화만 담당, 타임아웃은 어디서도 지정하지 않아 Lettuce 기본값 <b>60초</b> 그대로 적용. Redis 가 느려지면 요청 스레드가 최대 60초까지 점유될 수 있다는 뜻.</p>
 <div class="callout crit"><b>실측(2026-08-21, <code class="inl">docker compose stop redis</code> → 75초 대기 → <code class="inl">start</code> → 50초 대기):</b> Tomcat 스레드가 소진돼 <code class="inl">/actuator/prometheus</code> 스크레이프 자체가 타임아웃됨. Prometheus 가 backend 타깃을 <code class="inl">down</code>(<code class="inl">context deadline exceeded</code>)으로 표시하며 <b>모든 지표가 조회 불가</b> 상태가 됨. 관측이 가장 필요한 순간에 대시보드가 통째로 비는 셈 — 복구 후 약 60초 뒤 자동 회복.</div>
 
 <div class="viz-frame">
-  <div class="viz-title">📊 Redis 정지 실험 타임라인 — 세 지표가 동시에 반응(2026-08-21 실측값)</div>
+  <div class="viz-title">📊 Redis 정지 실험 타임라인 — 실측 대기시간에서 산출한 재구성 타임라인(2026-08-21)</div>
   <svg viewBox="0 0 1100 560" xmlns="http://www.w3.org/2000/svg" width="100%">
     <style>
       .rx-tt   { fill: #3a3531; font: bold 16px sans-serif; }
@@ -443,8 +443,9 @@
     <text class="rx-cap" x="520" y="80" text-anchor="middle">redis start</text>
     <text class="rx-lbl" x="820" y="42" text-anchor="middle">t=125s</text>
     <text class="rx-cap" x="820" y="80" text-anchor="middle">여전히 down</text>
-    <text class="rx-lbl" x="1010" y="42" text-anchor="middle">t=135s</text>
+    <text class="rx-lbl" x="1010" y="42" text-anchor="middle">약 t=135s</text>
     <text class="rx-cap" x="1010" y="80" text-anchor="middle">5/5 자동 회복</text>
+    <text class="rx-cap" x="1010" y="94" text-anchor="middle">(복구 후 약 60초, 산출값)</text>
     <line class="rx-axis" x1="230" y1="55" x2="230" y2="530" stroke-dasharray="3,3"/>
     <line class="rx-axis" x1="520" y1="55" x2="520" y2="530" stroke-dasharray="3,3"/>
     <line class="rx-axis" x1="820" y1="55" x2="820" y2="530" stroke-dasharray="3,3"/>

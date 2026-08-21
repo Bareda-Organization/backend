@@ -119,6 +119,15 @@ management:
     tags:
       # 지표에 붙는 공통 태그. 나중에 인스턴스가 늘면 여기서 구분한다.
       application: school-bus
+    web:
+      server:
+        # management.metrics.web.server.max-uri-tags 기본값은 100(Boot 4.1 도 동일 경로,
+        # spring-boot-micrometer-metrics 모듈 소속으로 확인). 이 저장소의 매핑 애너테이션이
+        # 82개고 여기에 /actuator/health·/actuator/prometheus·swagger 경로·NOT_FOUND·
+        # REDIRECTION 이 각각 별도 uri 태그값으로 더해져 기본 상한에 가깝다. 상한을 넘으면
+        # 예외 없이 WARN 로그 한 줄만 남기고 새 uri 태그의 미터가 조용히 누락돼(엔드포인트가
+        # API 대시보드에서 소리 없이 사라짐), 여유를 두고 150 으로 올린다.
+        max-uri-tags: 150
     distribution:
       # 백분위수는 기본 비활성이다. 이 설정이 없으면 대시보드의 p95·p99 패널이 빈 값이 된다.
       percentiles-histogram:

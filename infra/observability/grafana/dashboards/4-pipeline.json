@@ -44,6 +44,78 @@
   },
   "panels": [
     {
+      "id": 10,
+      "type": "stat",
+      "title": "타깃 생존 (up)",
+      "description": "up 은 Prometheus 가 스크레이프 성공 여부로 직접 만드는 시계열이라, 타깃이 죽어도(스크레이프 타임아웃 포함) 값 자체는 조회된다 — 이 대시보드 43패널 중 유일하게 그렇다. 이 값이 0 이면 나머지 패널의 'No data' 는 트래픽 부재가 아니라 수집 자체의 중단이다(§7.1: Redis 지연 → Tomcat 스레드 소진 → 스크레이프 타임아웃 → backend 타깃 down 사례). 그래서 이 패널을 맨 위에 둔다 — 원인 판별은 항상 여기서 시작한다: 0 이면 아래 패널들의 빈 그래프를 곧바로 '이벤트가 없다'로 해석하지 말 것.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "UP"
+                },
+                "0": {
+                  "text": "DOWN"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "value_and_name",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up",
+          "legendFormat": "{{job}}"
+        }
+      ]
+    },
+    {
       "id": 1,
       "type": "row",
       "title": "스케줄러",
@@ -52,7 +124,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 0
+        "y": 4
       },
       "panels": []
     },
@@ -69,7 +141,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 1
+        "y": 5
       },
       "fieldConfig": {
         "defaults": {
@@ -274,7 +346,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 10
+        "y": 14
       },
       "fieldConfig": {
         "defaults": {
@@ -362,7 +434,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 18
+        "y": 22
       },
       "panels": []
     },
@@ -379,7 +451,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 19
+        "y": 23
       },
       "fieldConfig": {
         "defaults": {
@@ -467,7 +539,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 27
+        "y": 31
       },
       "panels": []
     },
@@ -484,7 +556,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 28
+        "y": 32
       },
       "fieldConfig": {
         "defaults": {
@@ -576,7 +648,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 28
+        "y": 32
       },
       "fieldConfig": {
         "defaults": {
@@ -668,7 +740,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 36
+        "y": 40
       },
       "fieldConfig": {
         "defaults": {
