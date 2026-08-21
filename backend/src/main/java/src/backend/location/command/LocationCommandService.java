@@ -53,8 +53,9 @@ public class LocationCommandService {
     public void reportSelf(AuthUser student, LocationReportRequest req) {
         Student me = studentRepository.findByUserId(student.userId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "학생 정보를 찾을 수 없습니다"));
-        // 트랜잭션 안에서 lazy 한 tenant 를 안전하게 읽어 좌표 출처(GPS)로 저장 경로에 합류시킨다.
-        ingest(me.getTenant().getId(), me.getId(), req.lat(), req.lng(), LocationOrigin.GPS);
+        // tenant 는 lazy 라 이 트랜잭션 안에서 읽어야 한다. origin 은 학생 단말이 자기신고한 값이라
+        // 서버가 검증하지 않고 그대로 저장하며, 생략하면 요청 DTO 가 GPS 로 채운다.
+        ingest(me.getTenant().getId(), me.getId(), req.lat(), req.lng(), req.origin());
     }
 
     @Transactional

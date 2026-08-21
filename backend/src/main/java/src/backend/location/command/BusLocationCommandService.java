@@ -45,7 +45,9 @@ public class BusLocationCommandService {
         if (bus.getDriver() == null || !bus.getDriver().getId().equals(driver.userId())) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "담당 기사만 보고할 수 있습니다");
         }
-        ingest(bus.getTenant().getId(), req.busId(), req.lat(), req.lng(), LocationOrigin.GPS);
+        // origin 은 기사 단말이 자기신고한 값이다 — 서버가 좌표 생성 주체를 확인할 수단이 없어 검증하지 않고,
+        // 관제 화면이 "단말/시뮬레이터"를 구분해 표시하는 용도로만 쓴다. 생략하면 요청 DTO 가 GPS 로 채운다.
+        ingest(bus.getTenant().getId(), req.busId(), req.lat(), req.lng(), req.origin());
     }
 
     @Transactional
