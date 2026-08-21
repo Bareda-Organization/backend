@@ -91,6 +91,54 @@ class OperationsSummaryQueryServiceTest {
                 .containsExactly(2L);
     }
 
+    /**
+     * 만료 당일(daysRemaining == 0) 경계 — 보험은 만료일 당일까지 유효하므로 expired 가 아니라
+     * expiring 이어야 한다(그날 운행은 적법, 다음 날부터 무보험). {@code isBefore(today)}를
+     * {@code isEqual} 이하로 바꾸면 이 테스트가 깨진다.
+     */
+    @Test
+    void compliance_expiryIsToday_classifiedAsExpiringNotExpired() {
+        Bus expiresToday = bus(1L, null, LocalDate.now());
+        given(busRepository.findByTenantId(TENANT_ID)).willReturn(List.of(expiresToday));
+
+        OperationsSummary summary = service.getSummary(admin(), TENANT_ID);
+
+        assertThat(summary.compliance().insuranceExpired()).isEmpty();
+        assertThat(summary.compliance().insuranceExpiring())
+                .extracting(OperationsSummary.Compliance.InsuranceBus::busId).containsExactly(1L);
+    }
+
+    /**
+     * 임박 경계 안쪽(daysRemaining == 30) — 여전히 expiring 이어야 한다. {@code <= 30}을
+     * {@code < 30}으로 바꾸면 이 테스트가 깨진다.
+     */
+    @Test
+    void compliance_daysRemaining30_stillClassifiedAsExpiring() {
+        Bus atBoundary = bus(1L, null, LocalDate.now().plusDays(30));
+        given(busRepository.findByTenantId(TENANT_ID)).willReturn(List.of(atBoundary));
+
+        OperationsSummary summary = service.getSummary(admin(), TENANT_ID);
+
+        assertThat(summary.compliance().insuranceExpired()).isEmpty();
+        assertThat(summary.compliance().insuranceExpiring())
+                .extracting(OperationsSummary.Compliance.InsuranceBus::busId).containsExactly(1L);
+    }
+
+    /**
+     * 임박 경계 밖(daysRemaining == 31) — 어느 목록에도 들어가지 않아야 한다. 이 케이스가 없으면
+     * 임박 판정의 상한이 사라져도(모든 미래 날짜를 임박으로 잡아도) 테스트가 통과해버린다.
+     */
+    @Test
+    void compliance_daysRemaining31_excludedFromBothLists() {
+        Bus justOutside = bus(1L, null, LocalDate.now().plusDays(31));
+        given(busRepository.findByTenantId(TENANT_ID)).willReturn(List.of(justOutside));
+
+        OperationsSummary summary = service.getSummary(admin(), TENANT_ID);
+
+        assertThat(summary.compliance().insuranceExpired()).isEmpty();
+        assertThat(summary.compliance().insuranceExpiring()).isEmpty();
+    }
+
     // ── attendance: absent 는 당일 승인된 결석만 ──
 
     @Test
@@ -114,6 +162,29 @@ class OperationsSummaryQueryServiceTest {
         assertThat(summary.attendance().absent()).isEqualTo(1);
         assertThat(summary.attendance().expected()).isEqualTo(1); // 배정 2명 - absent 1명
         assertThat(summary.pending().attendancePending()).isEqualTo(1); // 날짜 무관, PENDING 전부
+    }
+
+    /**
+     * 버스 미배정 학생의 결석 신고는 absent 에도, expected 계산에도 영향을 주면 안 된다 — 배정이
+     * 없으면 애초에 어느 회차에도 속하지 않아 "탑승 예정에서 뺄 대상"이 아니기 때문이다.
+     */
+    @Test
+    void attendance_unassignedStudentAbsence_excludedFromAbsentAndExpected() {
+        Bus bus = bus(1L, null, null);
+        Student assigned = student(1L, bus);
+        Student unassigned = student(2L, null); // 버스 미배정
+        given(busRepository.findByTenantId(TENANT_ID)).willReturn(List.of(bus));
+        given(studentRepository.findByTenantIdAndActiveTrue(TENANT_ID)).willReturn(List.of(assigned, unassigned));
+
+        AttendanceException unassignedApprovedToday = attendanceException(2L, LocalDate.now());
+        unassignedApprovedToday.approve(9L);
+        given(attendanceExceptionRepository.findByTenantIdOrderByTargetDateDesc(TENANT_ID))
+                .willReturn(List.of(unassignedApprovedToday));
+
+        OperationsSummary summary = service.getSummary(admin(), TENANT_ID);
+
+        assertThat(summary.attendance().absent()).isEqualTo(0);
+        assertThat(summary.attendance().expected()).isEqualTo(1); // 배정 1명, 결석 반영 대상 없음
     }
 
     // ── dispatch.busesWithoutCrew: 기사 vs 선탑자 구분 ──

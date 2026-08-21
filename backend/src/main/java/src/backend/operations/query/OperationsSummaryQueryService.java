@@ -10,6 +10,7 @@ import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -277,11 +278,17 @@ public class OperationsSummaryQueryService {
             long daysRemaining = ChronoUnit.DAYS.between(today, expiry);
             OperationsSummary.Compliance.InsuranceBus entry =
                     new OperationsSummary.Compliance.InsuranceBus(bus.getId(), bus.getName(), expiry, daysRemaining);
+            // 보험은 통상 만료일 당일까지 유효하다 — 그날 운행은 적법하고 다음 날부터 무보험이다.
+            // 그래서 만료 당일(daysRemaining == 0)은 expired 가 아니라 expiring 이다: 즉시 운행
+            // 중단 대상이 아니라 "오늘 안에 갱신해야 하는" 대상으로 분류한다. isBefore(today) 를
+            // 쓰는 이유가 이것이다 — isEqual(또는 그 이하) 로 바꾸면 만료 당일이 expired 로 넘어가
+            // 이 근거가 깨진다.
             if (expiry.isBefore(today)) {
                 expired.add(entry);
             } else if (daysRemaining <= INSURANCE_EXPIRING_SOON_DAYS) {
                 expiring.add(entry);
             }
+            // daysRemaining > 30(예: 31)이면 두 목록 어디에도 안 들어간다 — 상한이 있다.
         }
         return new OperationsSummary.Compliance(expired, expiring);
     }
@@ -302,11 +309,20 @@ public class OperationsSummaryQueryService {
     /**
      * MON-06 — 탑승 예정(expected) 은 버스에 배정된 활성 학생 중 당일 승인된 결석을 뺀 값이다.
      * absent 는 그 결석 건수 자체다. {@code absent ≠ no_show}(기획 C-02) — 사전 승인된 결석만 센다.
+     *
+     * <p>absent 는 버스 미배정 학생의 결석 신고를 세지 않는다 — 배정이 없으면 애초에 어느 회차에도
+     * 속하지 않아 "탑승 예정에서 뺄 대상"이 아니기 때문이다. 이 필터가 없으면 미배정 학생의 결석이
+     * 섞여 expected(=assignedCount − absent)가 실제보다 작게 나온다.
      */
     private OperationsSummary.Attendance buildAttendance(Long tenant, List<Student> activeStudents, LocalDate today) {
-        long assignedCount = activeStudents.stream().filter(s -> s.getAssignedBus() != null).count();
+        Set<Long> assignedStudentIds = activeStudents.stream()
+                .filter(s -> s.getAssignedBus() != null)
+                .map(Student::getId)
+                .collect(Collectors.toSet());
+        long assignedCount = assignedStudentIds.size();
         long absent = attendanceExceptionRepository.findByTenantIdOrderByTargetDateDesc(tenant).stream()
                 .filter(e -> e.getTargetDate().equals(today) && e.getStatus() == ApprovalStatus.APPROVED)
+                .filter(e -> assignedStudentIds.contains(e.getStudentId()))
                 .count();
         long expected = Math.max(0, assignedCount - absent);
         return new OperationsSummary.Attendance(expected, absent);
