@@ -192,14 +192,14 @@ DRAFT / RECOMMENDED  --approve-->  APPROVED  --publish-->  PUBLISHED
 | 구간 | 방식 | 상태 |
 |---|---|---|
 | 기사 앱 → 서버 (버스 위치) | 5초 주기 `POST /api/locations/bus` | ✅ 단, **기본 좌표원이 Mock** |
-| 서버 → 관리자 (관제) | **3초 REST 폴링** `GET /api/locations/buses` | 🟡 실시간 push 아님 |
+| 서버 → 관리자 (관제) | Kafka → STOMP `/topic/tenant/{id}/bus-locations` | ✅ 백엔드만 — **프론트는 아직 3초 REST 폴링** |
 | 학생 앱 → 서버 (학생 위치) | REST 또는 STOMP `/app/location` | ✅ 백엔드만 (학생 앱 없음) |
 | 서버 → 학생·학부모·기사 (학생 위치 push) | Kafka → STOMP `/user/queue/location` | ✅ 백엔드만 (구독 화면 없음) |
 | 서버 → 관리자 (알림 push) | STOMP `/topic/tenant/{tenantId}/notifications` | ✅ 구현·사용 중 |
 
-- **버스 위치는 저장은 되지만 이벤트를 발행하지 않아 실시간 push로 이어지지 않는다.** 그래서 관제 화면이 폴링에 의존한다.
-- 학생 위치는 Redis에 **최신 1건만 약 9초 TTL**로 보관한다 — **위치 이력 조회 API는 존재하지 않는다.**
-- 버스 위치는 인메모리 맵에 최신 1건만 저장되며 **서버 재시작 시 휘발**된다.
+- **버스 위치도 이벤트를 발행해 실시간 push 로 이어진다**(`BusLocationUpdatedEvent` → Kafka → `BusLocationPushConsumer`). 관제 화면이 폴링을 쓰는 것은 **프론트 미전환** 때문이지 서버에 경로가 없어서가 아니다.
+- 위치는 Redis에 **최신 1건만** 보관한다 — 학생 TTL 약 9초(`tick-ms`×3), 버스 TTL **15초**(`app.location.bus-ttl-seconds`). **위치 이력 조회 API는 존재하지 않는다.**
+- 버스 좌표는 TTL 만료 시 관제 조회에서 제외된다 — 보고를 멈춘 버스가 마지막 위치에 계속 표시되지 않는다(2026-08-21~).
 
 ### 7.2 알림 파이프라인
 
@@ -297,11 +297,11 @@ dedup_key = (유형 + 학생 + 대상일자 + 정류장/단계)
 | 기능 | 기획 | 백엔드 | 프론트 | 근거 |
 |---|---|---|---|---|
 | 버스 위치 보고(기사 → 서버) | ✅ | ✅ | 🟡 | `POST /api/locations/bus` 5초 주기. **기본 좌표원이 Mock**, 실 GPS는 수동 전환 |
-| 버스 관제 지도(관리자) | ✅ | ✅ | 🟡 | `GET /api/locations/buses` **3초 REST 폴링**. WebSocket push 아님 |
+| 버스 관제 지도(관리자) | ✅ | ✅ | 🟡 | 백엔드는 STOMP push 완비. **프론트가 `GET /api/locations/buses` 3초 폴링 유지**(MON-6) |
 | 버스 상세 패널(세션·명단·노선 종합) | ✅ | ✅ | ✅ | 4개 조회를 화면에서 조립 |
 | 학생 위치 보고(학생 폰 GPS) | ✅ | ✅ | ⬜ | `POST /api/locations` · STOMP `/app/location` — **학생 앱 없음** |
 | 학생 위치 조회(본인·자녀·기사) | ✅ | ✅ | ⬜ | `/me` · `/children` · `/bus/{busId}` — 호출 화면 없음 |
-| 위치 이력 조회 | ✅ | ⬜ | ⬜ | Redis 최신 1건 · 약 9초 TTL. **이력 API 자체가 없다** |
+| 위치 이력 조회 | ✅ | ⬜ | ⬜ | Redis 최신 1건(학생 9초·버스 15초 TTL). **이력 API 자체가 없다** |
 | 도보 경로 안내 | ✅ | ⬜ | ⬜ | 미착수 |
 | 학부모 통합 실시간 추적(도보→대기→탑승 연결) | ✅ | ⬜ | ⬜ | 미착수 |
 
