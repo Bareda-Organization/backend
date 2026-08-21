@@ -93,6 +93,14 @@ springdoc:
   swagger-ui:
     tags-sorter: alpha   # 태그 이름 알파벳순 정렬 — 인증(AuthController)에 "0. " 접두사를 붙여 최상단 고정
 
+server:
+  tomcat:
+    mbeanregistry:
+      # Tomcat 스레드 풀 지표(tomcat.threads.*)는 MBean 레지스트리가 켜져 있어야
+      # Micrometer 의 TomcatMetrics 가 읽을 수 있다. 기본값 false 라 켜지 않으면
+      # tomcat_sessions_* 만 나오고 스레드 포화를 관측할 수 없다(설계 §6.1 스레드 패널).
+      enabled: true
+
 # 배포 검증·컨테이너 healthcheck(health)·Prometheus 스크레이프(prometheus) 전용. 상세는 감춘다 —
 # 상세를 켜면 DB URL·Redis 호스트 같은 인프라 정보가 인증 없이 노출된다.
 # 외부 접근은 nginx(infra/proxy/nginx.prod.conf)가 /actuator 를 404 로 막는다.
