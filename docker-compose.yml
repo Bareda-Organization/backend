@@ -114,3 +114,58 @@ services:
     depends_on:
       - backend
       - frontend
+
+  # ── 관측 스택 ──────────────────────────────────────────────────────────────
+  # 설계 근거: docs/superpowers/specs/2026-08-21-관제-대시보드-design.md
+  # exporter 들은 호스트에 포트를 열지 않는다 — Prometheus 가 컨테이너 네트워크에서만 긁는다.
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      # 로컬은 보존 7일이면 충분하다(운영은 15일). 디스크와 메모리를 아낀다.
+      - --storage.tsdb.retention.time=7d
+    volumes:
+      - ./infra/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      # 대시보드는 Grafana 로 보지만, 지표 이름·라벨을 직접 확인할 때 필요하다.
+      - "9090:9090"
+    depends_on:
+      - backend
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.16.0
+    environment:
+      DATA_SOURCE_NAME: "postgresql://schoolbus:schoolbus@postgres:5432/schoolbus?sslmode=disable"
+    expose:
+      - "9187"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.67.0
+    environment:
+      REDIS_ADDR: "redis://redis:6379"
+    expose:
+      - "9121"
+    depends_on:
+      - redis
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    # 호스트의 CPU·메모리·디스크를 읽기 위해 루트 파일시스템을 읽기 전용으로 마운트한다.
+    # rslave 전파는 Docker Desktop(macOS)의 VM 루트가 shared/slave 마운트가 아니라서
+    # "path / is mounted on / but it is not a shared or slave mount" 로 기동이 실패한다 —
+    # 로컬은 실제 리눅스 호스트가 아니라 VM 안이므로 전파 옵션 없이 ro 마운트만으로 충분하다.
+    #
+    # ⚠ macOS 로컬에서 node-exporter 가 보는 "호스트"는 맥 자체가 아니라
+    #   Docker Desktop 이 띄우는 리눅스 VM 이다 — 여기서 나오는 디스크·load average 수치는
+    #   맥의 실제 값이 아니라 그 VM의 값이다(컨테이너들이 실제로 도는 곳이라 관측할 가치는 있다).
+    #   운영(리눅스 EC2, docker-compose.prod.yml)에서는 이 rootfs 마운트가 정상 동작해
+    #   실제 호스트를 그대로 본다 — 이번 범위가 아니라 여기서는 건드리지 않는다.
+    command:
+      - --path.rootfs=/host
+    volumes:
+      - /:/host:ro
+    expose:
+      - "9100"

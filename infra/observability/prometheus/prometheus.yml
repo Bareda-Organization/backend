@@ -1,0 +1,31 @@
+# 스크레이프 주기 15초 — 더 짧게 잡으면 시계열 증가폭 대비 관측 이득이 없다.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Spring Boot — 이 job 하나에서 HTTP 요청·JVM·HikariCP·Tomcat·Kafka 컨슈머·커스텀 지표가 모두 나온다.
+  - job_name: backend
+    metrics_path: /actuator/prometheus
+    static_configs:
+      # 백엔드를 컨테이너로 띄운 경우(docker compose up backend).
+      - targets: ['backend:8080']
+      # IDE 에서 ./gradlew bootRun 으로 띄우는 경우 위 줄을 아래로 바꾼다:
+      # - targets: ['host.docker.internal:8080']
+
+  - job_name: postgres
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  - job_name: redis
+    static_configs:
+      - targets: ['redis-exporter:9121']
+
+  - job_name: node
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # Prometheus 자기 자신 — 스크레이프가 밀리는지(scrape duration)를 보기 위해 둔다.
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
