@@ -29,8 +29,12 @@ import java.util.List;
  * 보안 설정.
  * 토큰 기반이라 세션을 만들지 않고(STATELESS), CSRF 를 끈다.
  * JwtAuthenticationFilter 를 표준 인증 필터 앞에 끼워 매 요청 토큰을 검증한다.
- * 인증/회원가입(/api/auth/**)과 헬스체크·Swagger UI만 공개, 그 외는 인증 필요.
+ * 인증/회원가입(/api/auth/**)과 헬스체크·Swagger UI·/actuator/prometheus(한 경로만, /actuator/** 전체 아님)만 공개, 그 외는 인증 필요.
  * 세밀한 역할 인가는 각 컨트롤러의 @PreAuthorize 로 처리한다(@EnableMethodSecurity).
+ *
+ * /actuator/prometheus 가 공개인 이유 — Prometheus 는 JWT 를 들고 스크레이프하지 않아 인증으로는
+ * 통과할 방법이 없다. 접근 경계는 인증이 아니라 네트워크다(nginx 가 외부의 /actuator 를 404 로 막고,
+ * Prometheus 는 compose 내부망에서 backend:8080 으로만 닿는다).
  *
  * /ws/** 는 예외 — WebSocket 업그레이드(HTTP 핸드셰이크) 자체엔 아직 토큰이 없고(네이티브
  * WebSocket 클라이언트는 임의 헤더를 못 붙이는 경우가 많음), 인증은 STOMP CONNECT 프레임에서
