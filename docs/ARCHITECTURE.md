@@ -29,7 +29,7 @@
 | 엣지 | nginx `proxy` | `/` → 프론트, `/api`·`/ws`·`/swagger-ui` → 백엔드 | **`80:80`** (유일한 입구) |
 | 애플리케이션 | Spring Boot `backend` | REST 64여 개 · STOMP · 스케줄러 4개 · Kafka 프로듀서/컨슈머 | `expose: 8080`만 |
 | 영속 | PostgreSQL 16 | 테이블 16개. 스키마는 Flyway 관리 | `5432:5432` (DB 툴용) |
-| 캐시 | Redis 7 | **학생 최신 좌표 1건**(TTL 9초) 전용 | `6379:6379` |
+| 캐시 | Redis 7 | **최신 좌표 1건** 전용 — 학생(TTL 9초)·버스(TTL 15초) | `6379:6379` |
 | 메시징 | Kafka 3.9 (KRaft) | 도메인 이벤트 15종 릴레이 | `29092:29092` |
 
 인프라 포트를 호스트에 남긴 이유는 "인프라만 컨테이너로 띄우고 백엔드는 IDE에서 `./gradlew bootRun`으로 돌리는 개발 방식"을 위해서다(`docker-compose.yml:11-12`).
@@ -541,9 +541,9 @@ unique 제약은 `(user_id, tenant_id, role)`이다 — 같은 학원에서 같�
 
 | | 학생 위치 | 버스 위치 |
 |---|---|---|
-| 저장소 | **Redis** (`loc:{studentId}`, TTL 9초) | **InMemory** (ConcurrentHashMap) |
-| 이벤트 발행 | O (`LocationUpdatedEvent`) | **X** |
-| 클라이언트 전달 | Kafka → STOMP **push** | **없음 → REST 폴링** |
+| 저장소 | **Redis** (`loc:{studentId}`, TTL 9초) | **Redis** (`busloc:{busId}`, TTL 15초) |
+| 이벤트 발행 | O (`LocationUpdatedEvent`) | O (`BusLocationUpdatedEvent`) |
+| 클라이언트 전달 | Kafka → STOMP **push** | Kafka → STOMP **push**. 단 **프론트가 아직 3초 REST 폴링**을 쓴다 |
 | 관리자 화면 사용 | 프론트에 화면 없음 | 관제 지도가 3초 폴링 |
 
 즉 **push 파이프라인이 완비된 쪽(학생)은 프론트에 화면이 없고, 화면이 있는 쪽(버스)은 push가 없다.**
@@ -576,9 +576,9 @@ Mock 경로(MVP 기본값) 기준. 실 GPS는 1~5단계만 다르고 6단계부�
 
 1. 기사 앱이 **5초 타이머**로 `LocationSource.read()` → `POST /api/locations/bus` (`driver_location_controller.dart:76`, `:160-184`)
 2. `BusLocationCommandService.reportSelf()` — 버스의 `driver.id == 요청자 userId` 검증 후 통과
-3. `busLocationRepository.save(...)` → **`InMemoryBusLocationRepository`**(ConcurrentHashMap). Redis 구현이 없어 재시작 시 휘발, 다중 인스턴스 미공유
-4. **이벤트를 발행하지 않는다** — `BusLocationCommandService`에 `ApplicationEventPublisher`가 **아예 주입돼 있지 않다**(생성자 실측). 따라서 Kafka·STOMP 경로가 전혀 없다
-5. 관리자 화면이 **3초마다** `GET /api/locations/buses` 재조회 (`bus_monitor_controller.dart:93`, `:162-201`)
+3. `busLocationRepository.save(...)` → **`RedisBusLocationRepository`**(`@Primary`, 키 `busloc:{busId}`, TTL 15초). 재시작 후에도 유지되고 만료 시 조회에서 제외된다
+4. `BusLocationUpdatedEvent` 발행 → Kafka `bus-location-updated` → `BusLocationPushConsumer` → `/topic/tenant/{id}/bus-locations`(관리자)·`/user/queue/bus-location`(학부모) **push**
+5. ⚠ **그런데 관리자 화면은 여전히 3초마다** `GET /api/locations/buses` 재조회한다 — 서버는 push 중인데 프론트가 미전환이다(MON-6) (`bus_monitor_controller.dart:93`, `:162-201`)
 
 프론트 코드 주석도 "location 채널은 전부 학생 위치"라고 기술한다. **STOMP는 알림에만 쓰이고, 지도 위 버스는 폴링으로 움직인다.**
 
@@ -680,7 +680,7 @@ Spring `@EventListener`는 위 릴레이 외에 2개뿐이다 — STOMP `Session
 ⚠ **설정·주석과 실제가 다른 지점**:
 - `build.gradle` 주석은 Redis를 "캐시·실시간(Pub/Sub)"이라 적었지만, **`@Cacheable`·`@EnableCaching`·`RedisMessageListenerContainer`가 전부 무매칭**이다. 캐시·Pub/Sub·세션·분산락 어디에도 쓰지 않는다.
 - **알림 중복 억제도 Redis가 아니다** — DB unique 제약(`notification_log.dedup_key`) + 앱 레벨 선체크 2단이다.
-- **버스 좌표는 Redis를 안 쓴다** — `InMemoryBusLocationRepository`만 존재. 학생/버스 사이에 비대칭이 있다(8.2절).
+- **버스 좌표도 Redis를 쓴다**(2026-08-21~) — `RedisBusLocationRepository`(`@Primary`, TTL 15초). 학생/버스 비대칭은 해소됐다(8.2절).
 - `InMemoryLocationRepository`는 `@Primary`에 밀려 런타임에 선택되지 않으며, 프로덕션 코드에서 참조하는 곳이 없고 테스트만 쓴다 — 사실상 사문화된 폴백.
 
 ### 9.4 WebSocket(STOMP) 구성과 destination
@@ -927,15 +927,16 @@ WebSocket 경로만 타임아웃이 1시간인 이유는 명확하다 — 연결
 - 영향: 한 버스가 `Bus.route`(고정 노선)와 `RoutePlan`(당일 계획) 두 개의 순서를 동시에 가질 수 있고, **정합성을 맞추는 코드가 없다.** 프론트는 `/api/routes` 계열 4개를 하나도 호출하지 않는다.
 - 개선: `route`를 "정류장 마스터 데이터"로 역할을 명시적으로 축소하고(문서·API 태그에 표기), `Bus.route`가 당일 운행 순서를 뜻하지 않음을 계약으로 못박는다. 정원은 한쪽으로 통일하거나 두 값의 의미 차이를 응답에 드러낸다.
 
-**R7. 버스 위치에 push 경로가 없어 관제가 폴링이다**
-- 사실: `BusLocationCommandService`에 `ApplicationEventPublisher`가 주입돼 있지 않아 이벤트를 발행하지 않는다. 관제 화면은 3초 REST 폴링.
+**R7. 버스 위치에 push 경로가 없어 관제가 폴링이다** — ✅ **백엔드 해소, 프론트 잔존**
+- 사실(갱신): `BusLocationCommandService`가 `BusLocationUpdatedEvent`를 발행하고 `BusLocationPushConsumer`가 `/topic/tenant/{id}/bus-locations`로 push 한다. **남은 것은 프론트 전환뿐**이며 관제 화면은 아직 3초 REST 폴링이다(MON-6).
+- 옛 사실(2026-08-21 이전): 이벤트 발행 경로가 부재해 push 자체가 불가.
 - 영향: 학생 위치용 Kafka→STOMP 파이프라인이 완비돼 있는데 정작 화면이 있는 버스 위치는 쓰지 못한다. 관제 화면 수가 늘수록 서버 부하가 선형 증가한다.
 - 개선: `BusLocationUpdatedEvent`를 추가해 학생 위치와 같은 경로(Kafka → `/topic/tenant/{id}/location`)를 타게 한다. 8.1절 6단계 이후를 그대로 재사용할 수 있으므로 신규 코드가 적다.
 
-**R9. 버스 좌표 저장소가 InMemory다**
-- 사실: `InMemoryBusLocationRepository`(ConcurrentHashMap)만 존재하고 Redis 구현이 없다.
-- 영향: 재시작 시 전 버스 위치가 사라지고, 인스턴스를 늘리면 공유되지 않는다. 학생 좌표(Redis)와 비대칭이다.
-- 개선: `RedisLocationRepository`와 같은 패턴으로 `RedisBusLocationRepository`를 추가한다. 포트가 이미 있으므로 **기존 코드 수정 없이 구현체 추가만으로 끝난다.**
+**R9. 버스 좌표 저장소가 InMemory다** — ✅ **해소**(2026-08-21, `a57ed43`)
+- 조치: `RedisBusLocationRepository`(`@Primary`, 키 `busloc:{busId}`, TTL `app.location.bus-ttl-seconds` 기본 15초) 추가. 예측대로 포트 시그니처·서비스 계층 수정은 부재했다.
+- 해소된 것: 재시작 시 좌표 소실, 인스턴스 간 미공유, 그리고 **보고 중단 후 마지막 좌표가 영구 잔존하던 문제**(TTL 만료 시 관제 조회에서 제외).
+- ⚠ 잔존: `spring.data.redis.timeout` 미설정(Lettuce 기본 60초)이라 Redis **지연** 시 요청 스레드 점유가 길다 — MON-14 로 추적.
 
 **R8. 스케줄러에 분산 안전장치가 없다 — 수평 확장 불가**
 - 사실: `@Scheduled` 4개 모두 리더 선출·분산 락 없이 무조건 실행된다. nginx upstream도 단일 인스턴스로 고정돼 있다.

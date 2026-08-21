@@ -188,7 +188,7 @@
 | 2 | (자동, 병합) | `/driver/route` | — | A2의 명단 상태를 함께 watch해 정차별 진행률(방문/미방문)을 표시 |
 | 3 | `등원`/`하원` 세그먼트 | `/driver/route` | — | **로컬 상태만 변경.** 재조회하지 않는다 |
 | 4 | 위치 카드의 `전송` 스위치 On | `DriverLocationCard` | (아래 5 반복) | 5초 주기 타이머 시작 |
-| 5 | (자동, 5초마다) | — | `POST /api/locations/bus`<br>`{busId, lat, lng}` | 서버가 `InMemoryBusLocationRepository`(`ConcurrentHashMap`)에 **버스당 최신 1건만** 덮어쓴다. `tenantId` 는 `bus.tenant` 에서 파생, `origin` 은 **`GPS` 로 하드코딩** |
+| 5 | (자동, 5초마다) | — | `POST /api/locations/bus`<br>`{busId, lat, lng}` | 서버가 `RedisBusLocationRepository`(키 `busloc:{busId}`, **TTL 15초**)에 **버스당 최신 1건만** 덮어쓴다. `tenantId` 는 `bus.tenant` 에서 파생, `origin` 은 **`GPS` 로 하드코딩** |
 | 6 | `Mock`/`실 GPS` 세그먼트 | `DriverLocationCard` | — | 좌표 생성 소스 교체. **기본값은 Mock** |
 | 7 | 앱을 백그라운드로 | — | — | 타이머 자동 pause. 복귀하면 resume |
 | 8 | 카메라 버튼(확대·축소·내 위치·전체 경로) | `/driver/route` | — | 지도 카메라 로컬 조작. API 호출 없음 |
@@ -205,8 +205,8 @@
 
 - **Mock이 앱과 서버 양쪽에 있다.** 앱 쪽 기본 좌표 출처가 Mock인 데다, **서버도 독립적으로 버스 좌표를 만들고 있다** — `MockBusLocationSource`(`app.location.bus-mock.enabled=true`)가 `LocationSimulationScheduler` 의 3초 틱에 얹혀 삼각파 보간 좌표를 저장한다. 즉 **기사가 전송을 켜지 않아도 관제 지도에 버스가 움직인다.** 같은 저장소(버스당 최신 1건)를 쓰므로 기사 앱과 서버 Mock이 **서로 덮어쓴다.** 실 GPS로 넘어가려면 앱 토글만이 아니라 서버 설정(`bus-mock.enabled=false` + `bus-gps.enabled=true`)도 함께 꺼야 한다.
 - **기사 앱이 보낸 좌표는 `origin` 이 토글과 무관하게 항상 `GPS` 로 저장된다.** 서버 Mock 경로는 `MOCK` 으로 남으므로, 관제 상세 패널의 "출처: 단말/시뮬레이터" 표기는 **"누가 마지막에 썼는가"를 보여줄 뿐 기사 앱의 Mock 여부는 반영하지 못한다.**
-- **버스 위치는 서버 재시작 시 전부 소실된다.** Redis 구현이 없고 in-memory 맵이다(학생 위치는 Redis를 쓰지만 TTL 9초).
-- **버스 위치 보고는 이벤트를 발행하지 않는다.** 학생 위치는 Kafka → STOMP push로 이어지지만 버스는 그 경로가 없어, 관리자 관제가 **3초 REST 폴링**에 의존한다(→ A4).
+- **버스 위치도 Redis에 보관된다**(2026-08-21~). 키 `busloc:{busId}`, **TTL 15초** — 서버 재시작 후에도 유지되고, 보고가 15초 끊기면 만료돼 관제 목록에서 빠진다(학생은 TTL 9초).
+- **버스 위치 보고도 이벤트를 발행한다.** `BusLocationUpdatedEvent` → Kafka → `/topic/tenant/{id}/bus-locations` push 가 동작한다. 그런데 **관리자 관제는 아직 3초 REST 폴링**이다 — 서버가 아니라 프론트가 미전환이다(→ A4).
 - **재배차가 일어나면 `version` 이 올라간 새 계획 행이 생기는데 서버가 방향으로만 정렬해 준다.** 앱이 직접 최신 version을 골라내 방어하고 있다 — 서버 정렬 수정이 정공법이라고 코드 주석이 명시한다.
 - **노선 계획 응답에 정류장 이름과 학원(depot) 좌표가 없다.** `RoutePlanStop` 은 `studentId` + 좌표 + ETA뿐이라, 운행 전에는 정차를 "N번 정차"로 표시하고 학원 위치는 **polyline의 첫 점을 학원으로 간주**해 추정한다. 정류장 이름은 A2의 명단에서만 온다.
 - ETA는 `세션 startedAt + etaSeconds` 근사다. 실제 출발이 지연되면 전부 밀린다.
@@ -236,7 +236,7 @@
 - **`PLATFORM_ADMIN` 이 `tenantId` 를 생략하면 400 "tenantId가 필요합니다".** 그래서 앱이 폴백값을 넣는데, 그 값이 **하드코딩 `1`(한빛학원)** 이다.
 - `ACADEMY_ADMIN` 은 `tenantId` 를 생략하면 서버가 본인 소속으로 채운다. 남의 학원 id를 넣으면 403.
 - 버스가 0대면 "버스 관리에서 버스를 먼저 등록하면…" 이라는 빈 상태 안내가 뜬다 — **그 화면은 존재하지 않는다**(→ C1).
-- 기사가 위치 전송을 끄면 좌표는 사라지지 않고 **마지막 값이 그대로 남는다**(TTL이 없는 in-memory 맵). 앱은 신선도를 계산해 "오래됨"으로 표시한다.
+- 기사가 위치 전송을 끄면 **15초 뒤 좌표가 만료돼 관제 목록에서 빠진다**(`busloc:{busId}` TTL). 그전까지는 마지막 값이 남고, 앱은 신선도를 계산해 "오래됨"으로 표시한다. ⚠ 단 서버 Mock(`bus-mock.enabled=true`)이 켜져 있으면 3초마다 덮어써 만료가 발생하지 않는다.
 - **기사가 아무도 앱을 켜지 않아도 버스가 움직인다.** 서버의 `MockBusLocationSource` 가 3초마다 좌표를 만들기 때문이다(→ A3의 한계). 데모에는 편하지만, **"이 마커가 실제 기사 단말인가 서버 시뮬레이터인가"를 화면에서 확신할 수 없다.**
 
 **⚠ 이 플로우의 한계**

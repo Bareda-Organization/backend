@@ -311,9 +311,9 @@ RideType           상태머신 없음 — 순서·중복 검증이 서버에 �
 | 대상 | 구현 | 보관 |
 |---|---|---|
 | 학생 위치 | `RedisLocationRepository` (`@Primary`) | 키 `loc:{studentId}`, **최신 1건만**, TTL = `app.location.tick-ms`(기본 3000ms)×3 ≈ **9초** |
-| 버스 위치 | `InMemoryBusLocationRepository` | `ConcurrentHashMap`, **최신 1건만**, 앱 재시작 시 휘발 |
+| 버스 위치 | `RedisBusLocationRepository` (`@Primary`) | 키 `busloc:{busId}`, **최신 1건만**, TTL = `app.location.bus-ttl-seconds`(기본 **15초**) |
 
-> **위치 "이력 조회" API 는 존재하지 않는다.** 두 저장소 모두 최신 1건만 갖고, 학생 위치는 마지막 보고 후 약 9초가 지나면 사라진다. 궤적을 그리려면 클라이언트가 폴링 결과를 직접 누적해야 한다.
+> **위치 "이력 조회" API 는 존재하지 않는다.** 두 저장소 모두 최신 1건만 갖고, 마지막 보고 후 학생은 약 9초·버스는 15초가 지나면 사라진다. 궤적을 그리려면 클라이언트가 폴링 결과를 직접 누적해야 한다.
 
 ### `POST /api/locations/bus` — 버스 위치 보고  ✅프론트 사용
 

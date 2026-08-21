@@ -40,7 +40,7 @@
 **⚠️ 단일 인스턴스 제약 — 백엔드 인스턴스를 늘리면 안 된다.** `docker-compose.prod.yml`(backend 서비스 주석)·`infra/proxy/nginx.prod.conf`(`upstream backend_pool` 주석)에 동일한 경고가 있다. 이유 3가지:
 
 1. `@Scheduled` 4개(위치 시뮬레이션·연결끊김·근접/미승차·SOS 에스컬레이션)가 인스턴스마다 중복 실행돼 같은 알림이 여러 번 발송
-2. 버스 위치가 `InMemoryBusLocationRepository` — 인스턴스 간 공유 불가(학생 위치는 `RedisLocationRepository` 로 이미 해결)
+2. ~~버스 위치가 `InMemoryBusLocationRepository` — 인스턴스 간 공유 불가~~ → **해소**(2026-08-21, `RedisBusLocationRepository`). **단 이것만으로 증설 조건은 성립하지 않는다** — 1·3이 그대로 남아 금지는 유지한다
 3. WebSocket STOMP 세션이 인스턴스에 고정 — Redis 브로커 릴레이 없이는 로드밸런싱 불가
 
 해소하려면 위 3가지를 먼저 손봐야 한다. 상세는 설계 문서 §4.2 참조.

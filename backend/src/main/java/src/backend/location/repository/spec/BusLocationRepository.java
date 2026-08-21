@@ -6,7 +6,9 @@ import src.backend.location.dto.BusLocationPing;
 
 /**
  * 버스 실시간 위치 저장소의 계약 — "버스별 최신 좌표 1건"을 보관한다.
- * 학생 단위 {@link LocationRepository}와 동일한 설계(휘발성, in-memory 우선)를 버스 단위로 미러링한다(F1).
+ * 학생 단위 {@link LocationRepository}와 동일한 설계(Redis + TTL 우선)를 버스 단위로 미러링한다(F1).
+ * 구현은 {@code RedisBusLocationRepository}(@Primary, TTL 15초)이고 {@code InMemoryBusLocationRepository}는
+ * Redis 없이 도는 환경을 위한 대안으로 남아 있다.
  */
 public interface BusLocationRepository {
 
