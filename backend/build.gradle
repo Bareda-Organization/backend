@@ -53,6 +53,9 @@ dependencies {
     // ⚠️ Spring Boot 기본 health 에 Kafka 인디케이터는 없다 — DataSource·Redis·디스크·ping 만 포함된다.
     //    Kafka 장애는 이걸로 감지되지 않으므로 CloudWatch 로그로 확인한다.
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    // 지표 수집 — actuator 지표를 Prometheus 스크레이프 형식으로 노출한다.
+    // 이 의존성 하나로 HTTP 요청·JVM·HikariCP·Tomcat·Kafka 컨슈머 지표가 자동 등록된다.
+    implementation 'io.micrometer:micrometer-registry-prometheus'
     // 보일러플레이트 축소
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
@@ -61,6 +64,12 @@ dependencies {
 
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testImplementation 'org.springframework.security:spring-security-test'
+    // 실서버(RANDOM_PORT) 기동 테스트용 TestRestTemplate — Boot 4에서 별도 아티팩트로 분리됐다.
+    // MockMvc 는 ServerHttpObservationFilter 를 거치지 않을 수 있어 http_server_requests 지표
+    // 검증에는 쓸 수 없다(PrometheusEndpointTest 참고).
+    // resttestclient 가 restclient(RestTemplateBuilder)를 전이 의존하지 않아 별도로 추가한다.
+    testImplementation 'org.springframework.boot:spring-boot-resttestclient'
+    testImplementation 'org.springframework.boot:spring-boot-restclient'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

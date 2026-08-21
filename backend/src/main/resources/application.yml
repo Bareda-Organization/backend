@@ -100,10 +100,27 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        # prometheus 를 더하지만 외부 도달은 여전히 불가하다 —
+        # nginx(infra/proxy/nginx.prod.conf)가 /actuator 를 404 로 막고,
+        # Prometheus 는 compose 내부 네트워크에서 backend:8080 으로 직접 스크레이프한다.
+        include: health,prometheus
   endpoint:
     health:
       show-details: never
+  metrics:
+    tags:
+      # 지표에 붙는 공통 태그. 나중에 인스턴스가 늘면 여기서 구분한다.
+      application: school-bus
+    distribution:
+      # 백분위수는 기본 비활성이다. 이 설정이 없으면 대시보드의 p95·p99 패널이 빈 값이 된다.
+      percentiles-histogram:
+        http.server.requests: true
+      # 히스토그램 버킷 범위. 하한을 5ms 로 두는 이유는 대부분의 조회 API 가 그 아래로 내려가지 않아서고,
+      # 상한 10s 는 외부 경로 API(OSRM·네이버 Directions) 호출이 섞인 배차 API 를 담기 위해서다.
+      minimum-expected-value:
+        http.server.requests: 5ms
+      maximum-expected-value:
+        http.server.requests: 10s
 
 ---
 # 로컬 개발 프로파일
