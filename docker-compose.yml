@@ -135,6 +135,9 @@ services:
   postgres-exporter:
     image: prometheuscommunity/postgres-exporter:v0.16.0
     environment:
+      # 평문 비밀번호 — 이 파일은 로컬 전용이라 구조적 위험은 낮다(운영은 docker-compose.prod.yml 이
+      # ${DB_PASSWORD:?...} 로 환경변수 주입해 분리돼 있음). 관측 스택을 운영으로 옮길 때는
+      # 이 줄을 그대로 복사하지 말고 docker-compose.prod.yml 의 환경변수 주입 방식을 따를 것.
       DATA_SOURCE_NAME: "postgresql://schoolbus:schoolbus@postgres:5432/schoolbus?sslmode=disable"
     expose:
       - "9187"
@@ -169,3 +172,25 @@ services:
       - /:/host:ro
     expose:
       - "9100"
+
+  # 대시보드는 이 서비스에서 본다. datasource·대시보드 폴더는 파일로 프로비저닝한다 —
+  # UI에서 손으로 등록하면 컨테이너를 다시 만들 때(down 후 up) 사라지고 재현이 안 된다.
+  grafana:
+    image: grafana/grafana:11.5.0
+    environment:
+      # ⚠️ 로컬 전용 값이다. 운영 노출(2단계) 시 반드시 바꾼다 — 기본 계정을 유지한 채
+      #    서브도메인을 열면 그 시점에 관리 콘솔이 그대로 공개된다.
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      # 익명 열람 비활성. 로컬이라도 습관을 운영과 다르게 들이지 않는다.
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      # 외부 플러그인·뉴스 패널 등 바깥으로 나가는 호출을 끈다.
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+    volumes:
+      - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
