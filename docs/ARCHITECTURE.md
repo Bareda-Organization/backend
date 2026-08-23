@@ -13,6 +13,8 @@
 
 자매 문서: [PRODUCT_SPEC.md](./PRODUCT_SPEC.md) · [USER_FLOWS.md](./USER_FLOWS.md) · [API_SPEC.md](./API_SPEC.md)
 
+> **최종 실측 2026-08-23** — 수치를 재측정해 8건을 정정했다(모듈 14→16, 엔티티·테이블 16→17, Kafka 토픽 15→17, 컨트롤러 15→17, REST 68→85, 컨슈머 3→4, actuator 부재→존재, 버스 위치 push 부재→존재). 그림으로 압축한 요약본은 [html/architecture-overview.html](./html/architecture-overview.html).
+>
 > **서술 규칙**: 이 문서의 모든 수치·구조는 코드 실측값이며 출처 파일을 괄호로 병기했다. 근거를 찾지 못한 항목은 `※ 미확인:`으로 표시했다. **"설정은 있으나 실제로는 쓰이지 않는" 항목은 그렇게 명시**했다 — 있는 것처럼 읽히면 안 되기 때문이다.
 
 ---
@@ -27,10 +29,10 @@
 |---|---|---|---|
 | 클라이언트 | Flutter 앱 (Web 빌드가 컨테이너에 탑재) | 기사 2화면 + 관리자 4화면 | — |
 | 엣지 | nginx `proxy` | `/` → 프론트, `/api`·`/ws`·`/swagger-ui` → 백엔드 | **`80:80`** (유일한 입구) |
-| 애플리케이션 | Spring Boot `backend` | REST 64여 개 · STOMP · 스케줄러 4개 · Kafka 프로듀서/컨슈머 | `expose: 8080`만 |
-| 영속 | PostgreSQL 16 | 테이블 16개. 스키마는 Flyway 관리 | `5432:5432` (DB 툴용) |
+| 애플리케이션 | Spring Boot `backend` | REST 매핑 85개 · STOMP · 스케줄러 4개 · Kafka 프로듀서/컨슈머 | `expose: 8080`만 |
+| 영속 | PostgreSQL 16 | 테이블 17개. 스키마는 Flyway 관리 | `5432:5432` (DB 툴용) |
 | 캐시 | Redis 7 | **최신 좌표 1건** 전용 — 학생(TTL 9초)·버스(TTL 15초) | `6379:6379` |
-| 메시징 | Kafka 3.9 (KRaft) | 도메인 이벤트 15종 릴레이 | `29092:29092` |
+| 메시징 | Kafka 3.9 (KRaft) | 도메인 이벤트 토픽 17종 릴레이 | `29092:29092` |
 | 관측 | Prometheus 3 + Grafana 11 | 지표 수집·대시보드 4장. `/actuator/prometheus` 를 내부망에서만 스크레이프 | `9090:9090` · `3000:3000` |
 
 인프라 포트를 호스트에 남긴 이유는 "인프라만 컨테이너로 띄우고 백엔드는 IDE에서 `./gradlew bootRun`으로 돌리는 개발 방식"을 위해서다(`docker-compose.yml:11-12`).
@@ -40,11 +42,11 @@
 같은 앱이 목적에 따라 세 가지 경로를 동시에 쓴다. 이게 이 시스템의 전체 그림이다.
 
 1. **일반 REST** — 앱 → nginx `/api/` → Spring Controller → Service(command/query) → Repository → PostgreSQL → `ApiResponse` 래퍼로 응답
-   - 프론트가 실제로 호출하는 REST 엔드포인트는 **22개**, 백엔드가 제공하는 REST는 **68개**(+STOMP 1) → **사용률 약 32%**. 구현은 됐지만 화면이 없는 API가 대부분이다
+   - 프론트가 실제로 호출하는 REST 엔드포인트는 **22개**, 백엔드가 제공하는 REST 매핑은 **85개** → **사용률 약 26%**. 구현은 됐지만 화면이 없는 API가 대부분이다
 2. **실시간 push (WebSocket)** — 도메인 이벤트 → Kafka → 컨슈머 → STOMP destination → 앱이 구독
    - 실제로 이 경로를 타는 건 **알림뿐**이다. 프론트의 STOMP 구독 destination은 2개(`/topic/tenant/{id}/notifications`, `/user/queue/notifications`)이고 위치 구독은 코드에 없다(`stomp_gateway_impl.dart`, `notification_repository.dart:23,27`)
 3. **폴링** — 관제 화면이 3초마다 `GET /api/locations/buses` 재조회(`bus_monitor_controller.dart:93`)
-   - 버스 위치는 이벤트를 발행하지 않아 push 경로가 없기 때문이다(8.2절)
+   - ⚠ 서버 측 push 경로는 버스 위치까지 **이미 완비**돼 있다(`BusLocationPushConsumer` → `/topic/tenant/{id}/bus-locations`). 폴링이 남은 것은 프론트가 미전환이기 때문이다(8.2절)
 
 ### 1.3 설계 의도 — 왜 이렇게 갈랐는가
 
@@ -71,7 +73,7 @@
 | API 문서 | springdoc **3.0.3** | 3.x가 Spring Boot 4(Jackson 3) 지원 최초 라인 |
 | JSON | **Jackson 3**(Boot 4 기본). Jackson 2는 `jackson-datatype-jsr310`만 runtimeOnly로 잔존 | spring-kafka 직렬화가 아직 Jackson 2를 쓰기 때문 |
 
-⚠ **`spring-boot-starter-actuator`가 없다.** `SecurityConfig.java:61`이 `/actuator/health`를 permitAll 하지만 **해당 엔드포인트는 존재하지 않는다**(grep 무매칭). 헬스체크 URL로 쓸 수 없다.
+✅ **`spring-boot-starter-actuator` + `micrometer-registry-prometheus` 가 추가돼 있다**(`build.gradle:55,58`). 노출은 `health,prometheus` 두 개로 한정하고 상세는 감춘다(`application.yml` prod 섹션) — 헬스체크와 지표 스크레이프에 실제로 쓰인다.
 
 컨테이너 이미지는 멀티스테이지 — `eclipse-temurin:25-jdk`로 `bootJar` 빌드 후 `eclipse-temurin:25-jre`에 jar만 복사(`backend/Dockerfile`).
 
@@ -98,7 +100,7 @@
 
 ## 3. 백엔드 모듈 구조
 
-### 3.1 도메인 모듈 14개 + global 인프라
+### 3.1 도메인 모듈 16개 + global 인프라
 
 패키지 최상위는 업무 단위로 갈라져 있다(기술 단위 `controller/`·`service/`로 가르지 않았다 — 기능 하나를 고칠 때 한 폴더만 열면 되게 하려는 의도다).
 
@@ -118,9 +120,11 @@
 | `schedule` | 등하원 시간 변경 요청 신청·승인 | `ScheduleChangeRequest` |
 | `sos` | 학생 긴급 SOS 발동·확인·에스컬레이션 | `SosEvent` |
 | `notification` | 도메인 이벤트 → 알림 로그 변환·발송, 알림 임계값 상수 보관 | `NotificationLog` |
+| `operations` | 관리자 운영 현황·요약 조회(버스별 운행 상태·탑승 집계) | **엔티티 없음**(다른 모듈 데이터를 조합해 읽기만) |
+| `observability` | 지표 계측 — `@Scheduled`·`@KafkaListener` AOP 래핑, STOMP 세션 수·버스 좌표 신선도 | **엔티티 없음** |
 | `global` | 공통 인프라 — 보안·에러·이벤트 포트·Kafka·Redis·WebSocket 설정·`TenantGuard`·push 대상 해석 | **엔티티 없음**(`BaseTimeEntity`는 공통 상위 클래스) |
 
-`location`에 엔티티가 없는 게 이 구조의 특징이다 — 위치는 **RDB에 남기지 않고** Redis/메모리에 최신 1건만 둔다.
+`location`·`operations`·`observability` 세 모듈에 엔티티가 없는 게 이 구조의 특징이다 — `location` 은 위치를 **RDB에 남기지 않고** Redis/메모리에 최신 1건만 두고, 나머지 둘은 각각 조회 전용·계측 전용이다.
 
 ### 3.2 계층 규칙 — controller / command·query / repository / entity / dto
 
@@ -328,7 +332,7 @@ Flutter 단일 앱이 기사·관리자 두 역할을 모두 담는다. 로그�
 |---|---|---|
 | `jwt.access-token-validity-seconds` | **900초 = 15분** | `application.yml:80` |
 | `jwt.refresh-token-validity-seconds` | **1209600초 = 14일** | `application.yml:81` |
-| `jwt.secret` | `${JWT_SECRET:local-dev-secret-change-me-please-32bytes-minimum-length}` | `application.yml:79` |
+| `jwt.secret` | `${JWT_SECRET}` — **공통 섹션에 기본값 없음**(미주입 시 기동 실패). 개발용 기본값은 `local` 프로파일에만 존재 | `application.yml` 공통 `jwt` 블록 · `local` 블록 |
 
 프론트 쪽 대응(`core/api/interceptor/auth_interceptor.dart`):
 
@@ -359,7 +363,7 @@ STOMP도 CONNECT 실패 시 토큰을 재발급받아 재시도하며, **재연�
 6. `addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)`
 7. `PasswordEncoder` = `BCryptPasswordEncoder`
 
-**permitAll 경로 5개 패턴**: `/api/auth/**` · `/actuator/health`(2.1절 — 엔드포인트 자체가 없음) · `/ws/**` · `/swagger-ui/**`+`/swagger-ui.html` · `/v3/api-docs/**`.
+**permitAll 경로 6개 패턴**: `/api/auth/**` · `/actuator/health` · `/actuator/prometheus`(Prometheus 는 JWT 를 들고 스크레이프하지 않아 인증으로 통과할 방법이 없다 — 경계는 네트워크다) · `/ws/**` · `/swagger-ui/**`+`/swagger-ui.html` · `/v3/api-docs/**`.
 `/ws/**`를 연 이유는 **HTTP 핸드셰이크에는 토큰을 실을 수 없기 때문**이고, 대신 STOMP CONNECT 프레임에서 `StompAuthChannelInterceptor`가 인증한다(`SecurityConfig.java:31-33`).
 
 **인가는 경로 규칙이 아니라 컨트롤러의 `@PreAuthorize` 메서드 보안이다**(`@EnableMethodSecurity`, `SecurityConfig.java:41`). 실측 **55개소**(클래스 레벨 3 + 메서드 레벨 52):
@@ -446,12 +450,12 @@ unique 제약은 `(user_id, tenant_id, role)`이다 — 같은 학원에서 같�
 
 1. **DB 레벨 격리가 없다.** Hibernate `@Filter`, PostgreSQL RLS, 인터셉터 기반 자동 조건 주입 — 어느 것도 코드에 없다(`grep -rE "@Filter|RowLevelSecurity|@TenantId"` 무매칭). **모든 격리는 개발자가 매번 손으로 `tenantId`를 쿼리 조건에 넘기는 것에 의존한다.** 새 조회 메서드에서 그걸 빠뜨리면 조용히 전 학원 데이터가 새어나간다.
 2. **격리 로직이 이원화돼 있다.** `TenantGuard` 26개소 + 같은 조건을 인라인으로 다시 쓴 5개소. 규칙을 고치려면 `TenantGuard` 하나로 끝나지 않고 인라인 다섯 군데를 함께 고쳐야 한다.
-3. **격리가 아예 없는 엔드포인트가 1개 있다** — `GET /api/routes/{id}/stops`. `@PreAuthorize`도 없고 `AuthUser`를 파라미터로 받지도 않아(`RouteController.java:53-56`, `RouteQueryService.java:45-50`), **인증만 됐으면 누구나 다른 학원의 정류장 이름·좌표를 읽을 수 있다.** 프론트가 이 엔드포인트를 쓰지 않아 드러나지 않았을 뿐이다.
+3. ~~**격리가 아예 없는 엔드포인트가 1개 있다**~~ — `GET /api/routes/{id}/stops` 는 **2026-08-23 해소**(12장 R3). 서비스 계층에서 노선의 소유 학원을 검증하며, 같은 결함의 재발은 `ControllerAuthorizationConventionTest` 가 매핑 메서드 단위로 막는다.
 4. **`POST /api/auth/signup`이 요청 body의 `tenantId`·`role`을 그대로 신뢰한다.** `permitAll`이므로 **누구나 임의 학원의 `ACADEMY_ADMIN`으로 self-signup 할 수 있다**(`AuthCommandService.java:50-62`). 존재 확인만 하고 "가입해도 되는가"는 묻지 않는다.
 
 ---
 
-## 7. 데이터 모델 — 엔티티 16개와 관계
+## 7. 데이터 모델 — 엔티티 17개와 관계
 
 `@Entity`가 붙은 클래스는 **16개**이고, `V1__init_schema.sql`의 `create table`도 **16개**다 — **1:1 대응하며 고아 테이블·고아 엔티티가 없다.**
 
@@ -775,7 +779,7 @@ V1은 Hibernate가 생성한 DDL을 그대로 채택한 것이고(FK 이름이 �
 
 ⚠ **V2가 스키마 경로가 아니라 시드 경로에 있다.** prod 프로파일에서는 `migration-local`이 로드되지 않으므로 **버전 2가 통째로 건너뛰어져 V1 → V3로 이어진다**(Flyway 기본 `outOfOrder=false`). 의도된 배치이지만, 나중에 누군가 V2를 스키마 변경으로 착각해 재사용하면 충돌한다.
 
-명시 인덱스는 2개뿐이다 — `idx_ride_tenant_student(tenant_id, student_id, occurred_at)`, `idx_sos_status_occurred(status, occurred_at)`. 둘 다 "테넌트 + 대상 + 시간순"이라는 이 시스템의 대표 조회 패턴에 맞춘 것이다.
+명시 인덱스는 **16개**다(2026-08-23 기준). 원래 2개였고 — `idx_ride_tenant_student(tenant_id, student_id, occurred_at)`, `idx_sos_status_occurred(status, occurred_at)` — 여기에 V6 이 조회 인덱스 14종을 더했다. PostgreSQL 은 외래키에 인덱스를 자동 생성하지 않아 `tenant_id` 필터가 전부 순차 스캔이던 상태를 해소한 것이다. unique 제약이 이미 인덱스를 만드는 컬럼(`user_tenant_role(user_id, ...)` · `student_guardian(student_id, ...)`)은 중복 생성하지 않았다.
 
 unique 제약 4개: `app_user.email` · `notification_log.dedup_key` · `student_guardian(student_id, guardian_id)` · `user_tenant_role(user_id, tenant_id, role)`.
 
@@ -884,10 +888,10 @@ WebSocket 경로만 타임아웃이 1시간인 이유는 명확하다 — 연결
 - 영향: 격리 규칙을 바꾸려면 여섯 군데를 고쳐야 하고, 한 곳을 놓치면 규칙이 갈린다.
 - 개선: 인라인 5개소를 `TenantGuard.requireAccessTo(admin, entityTenantId)` 같은 두 번째 헬퍼로 흡수한다(반환값이 아니라 검증만 하는 형태라 `resolveTenantId`와 시그니처가 다르다).
 
-**R3. `GET /api/routes/{id}/stops`에 격리가 없다**
-- 사실: `@PreAuthorize`도 없고 `AuthUser`를 받지도 않는다. 인증된 사용자면 누구나 다른 학원의 정류장 이름·좌표를 읽는다.
-- 영향: 학원 A의 기사가 학원 B의 정류장 위치를 조회할 수 있다. 프론트가 이 엔드포인트를 쓰지 않아 드러나지 않았을 뿐이다.
-- 개선: `AuthUser`를 받아 노선의 tenantId를 `TenantGuard`로 검증한다. 한 줄짜리 수정이다.
+**R3. ~~`GET /api/routes/{id}/stops`에 격리가 없다~~ — 해소됨(2026-08-23)**
+- `RouteQueryService.getStops(AuthUser, Long)` 가 노선의 소유 학원을 조회해 `isPlatformAdmin() || belongsToTenant()` 를 검증한다. 다른 학원 노선은 403.
+- 권한 애너테이션은 붙이지 않았다 — 기사·학부모·학생도 자기 학원 정류장은 봐야 하므로 고칠 대상이 권한(2층)이 아니라 범위(3층)였다.
+- 재발 방지: `ControllerAuthorizationConventionTest` 가 **매핑 메서드 단위**로 인가 부재를 검출한다. 의도적으로 여는 엔드포인트는 `METHOD_LEVEL_EXEMPT` 에 사유와 함께 등록해야 통과한다.
 
 **R4. `POST /api/auth/signup`이 tenantId·role을 그대로 신뢰한다**
 - 사실: `permitAll` + 요청 body의 역할을 검증 없이 수용 → **누구나 임의 학원의 `ACADEMY_ADMIN`으로 가입 가능**하다.
@@ -954,17 +958,17 @@ WebSocket 경로만 타임아웃이 1시간인 이유는 명확하다 — 연결
 - 영향: 런타임 문제는 없지만, MSA로 떼어내려는 순간 컴파일이 안 된다. 특히 상수 참조 2건은 **가치 대비 손해가 큰 순환**이다.
 - 개선: `NotificationThresholds`를 `global/policy`로 올리면 순환 2건이 즉시 사라진다(가장 저렴한 개선). `global`↔`student` 순환은 `PushTargetResolver`를 `notification` 모듈로 옮기는 방향을 검토한다.
 
-**R15. actuator 의존성 없이 `/actuator/health`를 permitAll 한다**
-- 사실: `SecurityConfig.java:61`에 경로는 열려 있으나 `spring-boot-starter-actuator`가 `build.gradle`에 없다 → **엔드포인트가 존재하지 않는다.**
-- 영향: 헬스체크 URL로 쓸 수 없다. docker-compose backend 서비스에 healthcheck가 없는 것도 이 때문으로 보인다.
-- 개선: actuator를 추가하고 `/actuator/health`만 노출한다(`management.endpoints.web.exposure.include=health`). 그러면 compose·프록시·오케스트레이터가 공통으로 쓸 준비 상태 신호가 생긴다.
+**R15. ~~actuator 의존성 없이 `/actuator/health`를 permitAll 한다~~ — 해소됨(2026-08-23 확인)**
+- `spring-boot-starter-actuator` + `micrometer-registry-prometheus` 가 `build.gradle:55,58` 에 추가됐고, 노출은 `health,prometheus` 로 한정됐다.
+- 외부 도달은 nginx 가 `/actuator` 를 404 로 막아 차단하고, Prometheus 는 compose 내부망에서만 스크레이프한다.
+
+---
 
 ### 인프라 · 운영 환경
 
-**R17. 영속 볼륨이 0개다**
-- 사실: postgres·redis·kafka 어디에도 볼륨이 없다(로컬 리셋 편의를 위한 **의도된 설정**).
-- 영향: 그대로 배포하면 컨테이너 재생성 시 전 데이터가 사라진다.
-- 개선: prod용 compose/오케스트레이터 매니페스트를 별도 파일로 분리하고 볼륨을 붙인다. 현재 파일은 **로컬 개발 전용**임을 문서와 파일명으로 명시한다.
+**R17. ~~영속 볼륨이 0개다~~ — 운영 경로는 해소됨(2026-08-23 확인)**
+- `docker-compose.prod.yml` 이 별도 파일로 분리됐고 볼륨 4개(`postgres-data`·`kafka-data`·`certbot-conf`·`certbot-www`)가 붙었다.
+- 로컬 `docker-compose.yml` 의 볼륨 0개는 **의도된 설정으로 존치** — `down` 후 재기동하면 Flyway 가 스키마 V1 + 데모 시드 V2 를 매번 새로 구성한다.
 
 **R18. 외부 경로 API 기본값이 키 없이는 실패한다**
 - 사실: `routing.provider`의 기본값이 `naver`인데 키는 git에 없는 `.env`로만 주입된다. 대안 `osrm`은 공개 데모 서버(`router.project-osrm.org`)라 운영 SLA가 없다.
@@ -982,26 +986,26 @@ WebSocket 경로만 타임아웃이 1시간인 이유는 명확하다 — 연결
 
 | 항목 | 수 |
 |---|---|
-| 백엔드 도메인 모듈 | **14** (+ `global` = 15) |
+| 백엔드 도메인 모듈 | **16** (+ `global` = 17) |
 | 모듈 간 순환 의존 | **5건** |
-| `@Entity` / DB 테이블 | **16 / 16** (1:1, 고아 없음) |
-| DB FK 제약 / 명시 인덱스 / unique 제약 | **13 / 2 / 4** |
-| Flyway 마이그레이션 | **5** (V1·V3·V4·V5 공통 + V2 local 전용) |
+| `@Entity` / DB 테이블 | **17 / 17** (1:1, 고아 없음) |
+| DB FK 제약 / 명시 인덱스 / unique 제약 | **13 / 16 / 4** |
+| Flyway 마이그레이션 | **6** (V1·V3·V4·V5·V6 공통 + V2 local 전용) |
 | 도메인 enum / 상태 전이 검증이 있는 상태머신 | **10 / 5** |
-| Kafka 토픽 | **15** (전부 프로듀서·컨슈머 존재) |
-| Kafka 컨슈머 클래스 / `@KafkaListener` | **3 / 16** |
-| 도메인 이벤트 종류 / 발행 지점 | **15종 / 15개소** |
+| Kafka 토픽 | **17** (전부 프로듀서·컨슈머 존재) |
+| Kafka 컨슈머 클래스 / `@KafkaListener` | **4 / 18** |
+| 도메인 이벤트 종류 / 발행 지점 | **17종** |
 | STOMP destination | **5** (인바운드 1 + 아웃바운드 4) |
 | `@Scheduled` 스케줄러 | **4** (전부 활성) |
 | `@PreAuthorize` 적용 | **55개소** (클래스 3 + 메서드 52) |
 | `TenantGuard` 호출 / 인라인 격리 검사 | **26개소 / 5개소** |
-| permitAll 경로 패턴 | **5** |
-| 백엔드 컨트롤러 / 엔드포인트 | **15개**(location만 REST+STOMP 2개) **/ 69개**(REST 68 + STOMP 1) |
-| 프론트가 실제 호출하는 REST 엔드포인트 | **22** (사용률 약 32%) |
+| permitAll 경로 패턴 | **6** |
+| 백엔드 컨트롤러 / 엔드포인트 | **17개**(location만 REST+STOMP 2개) **/ 85개**(REST 매핑 실측) |
+| 프론트가 실제 호출하는 REST 엔드포인트 | **22** (사용률 약 26%) |
 | 프론트 라우트 / 화면이 있는 역할 | **9 / 3**(정의된 역할 5) |
 | 에러 코드 enum / 전역 예외 핸들러 | **8 / 4** |
-| 백엔드 테스트 파일 | **21** |
-| docker-compose 서비스 / 영속 볼륨 | **6 / 0** |
+| 백엔드 테스트 파일 | **59** |
+| docker-compose 서비스 / 영속 볼륨 | 로컬 **11 / 0** · 운영 **6 / 4** |
 
 **테스트가 없는 영역**(참고): Kafka 컨슈머 3종, STOMP 인증(`StompAuthChannelInterceptor`), 스케줄러 4개, `RedisLocationRepository`, `TenantGuard`, `PushTargetResolver`, `MapRouteClient` 구현 2종.
 

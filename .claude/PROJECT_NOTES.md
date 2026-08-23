@@ -107,7 +107,10 @@ cd backend
 - **멀티테넌트 격리 — 신규 관리자 API 리뷰 시 최우선 체크**: `global/tenant/TenantGuard.resolveTenantId(authUser, tenantId)`를 반드시 경유해야 한다. PLATFORM_ADMIN이 `tenantId`를 생략하면 400, 다른 학원 자원 접근은 403. 이 가드를 우회해 `tenantId`를 그대로 신뢰하는 코드가 크로스테넌트 유출 경로다.
 - **시크릿 보관**:
   - 실제 값은 **`backend/.env`(gitignore, 커밋 금지)**. `backend/.env.example`은 **키 값을 빈 채로 유지**한다 — 여기에 실키가 들어가면 유출이다(특히 `NAVER_DIRECTIONS_KEY_ID` / `NAVER_DIRECTIONS_KEY`).
-  - `JWT_SECRET`은 미설정 시 `application.yml:79`의 로컬 기본값(`local-dev-secret-change-me...`)으로 뜬다 — **prod에서 이 기본값이 쓰이면 치명적**이므로 환경변수 주입 여부를 확인한다.
+  - `JWT_SECRET`은 **공통 섹션에 기본값이 없다**(2026-08-23 변경). 개발용 기본값은 `local` 프로파일 블록에만 있어,
+    `prod`·`demo` 로 뜨면서 `JWT_SECRET` 이 없으면 **애플리케이션이 기동에 실패한다**(플레이스홀더 미해결).
+    `JwtTokenProvider` 가 `@Value` 생성자 주입이라 실패 시점이 첫 토큰 발급이 아니라 기동 시점이다.
+    `DeploymentConfigGuardTest` 가 이 상태를 고정한다 — 공통 섹션에 기본값을 되살리면 테스트가 깨진다.
   - `docker-compose.yml`의 `schoolbus/schoolbus` DB 자격증명은 로컬 전용이며 prod 프로파일은 `${DB_URL}` 등 환경변수만 쓴다.
 - **CORS**: `app.cors.allowed-origins`(콤마 구분)로 `/api/**`에만 적용. local은 개발 포트 6개 기본 허용, **prod는 기본값이 비어 있어 미설정 시 전부 차단**(의도된 설계).
 - **비밀번호**: BCrypt(`BCryptPasswordEncoder`). 로그인 실패 메시지는 이메일 미존재/비밀번호 불일치를 **의도적으로 구분하지 않는다**(사용자 열거 방지).
