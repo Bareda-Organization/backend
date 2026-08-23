@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import src.backend.user.entity.Role;
 
 /**
@@ -13,7 +14,7 @@ import src.backend.user.entity.Role;
  */
 public record SignupRequest(
         @NotBlank @Email @Schema(example = "new.parent@school.com") String email,
-        @NotBlank @Schema(example = "password") String password,
+        @NotBlank @Size(min = 8) @Schema(example = "password") String password,
         @NotBlank @Schema(example = "김하늘") String name,
         @Schema(example = "010-1234-5678") String phone,
         @NotNull @Schema(example = "1", description = "소속 학원 id(한빛학원). 필수") Long tenantId,
