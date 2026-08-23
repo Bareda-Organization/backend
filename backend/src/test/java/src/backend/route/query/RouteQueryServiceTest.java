@@ -1,9 +1,11 @@
 package src.backend.route.query;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
+import java.util.Optional;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -11,9 +13,12 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.spec.BusRepository;
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 import src.backend.route.dto.RouteResponse;
 import src.backend.route.entity.Route;
+import src.backend.route.entity.Stop;
 import src.backend.route.repository.spec.RouteRepository;
 import src.backend.route.repository.spec.StopRepository;
 import src.backend.student.entity.Student;
@@ -71,6 +76,49 @@ class RouteQueryServiceTest {
         assertThat(responses.get(0).overCapacity()).isTrue();
     }
 
+    @Test
+    void getStops_다른학원_노선이면_FORBIDDEN() {
+        Tenant other = tenantWithId(2L);
+        Route route = routeOf(10L, other);
+        given(routeRepository.findById(10L)).willReturn(Optional.of(route));
+
+        AuthUser outsider = authUserOfTenant(1L);   // 소속은 1번 학원
+
+        assertThatThrownBy(() -> service.getStops(outsider, 10L))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    void getStops_같은학원_노선이면_정류장을_돌려준다() {
+        Tenant mine = tenantWithId(1L);
+        Route route = routeOf(10L, mine);
+        given(routeRepository.findById(10L)).willReturn(Optional.of(route));
+        given(stopRepository.findByRouteIdOrderBySeqAsc(10L)).willReturn(List.of(stopOf(100L, "정문")));
+
+        AuthUser member = authUserOfTenant(1L);
+
+        assertThat(service.getStops(member, 10L)).hasSize(1);
+    }
+
+    @Test
+    void getStops_플랫폼관리자는_다른학원_노선도_볼_수_있다() {
+        Route route = routeOf(10L, tenantWithId(2L));
+        given(routeRepository.findById(10L)).willReturn(Optional.of(route));
+        given(stopRepository.findByRouteIdOrderBySeqAsc(10L)).willReturn(List.of(stopOf(100L, "정문")));
+
+        assertThat(service.getStops(platformAdmin(), 10L)).hasSize(1);
+    }
+
+    @Test
+    void getStops_없는_노선이면_NOT_FOUND() {
+        given(routeRepository.findById(99L)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getStops(authUserOfTenant(1L), 99L))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.NOT_FOUND);
+    }
+
     private Bus bus(Long id, Long tenantId, Route route) {
         Bus bus = Bus.builder().tenant(tenant(tenantId)).name("버스" + id).seatCapacity(25).route(route).build();
         ReflectionTestUtils.setField(bus, "id", id);
@@ -97,5 +145,29 @@ class RouteQueryServiceTest {
 
     private AuthUser authUser(Long tenantId, Role role) {
         return new AuthUser(100L, "admin@school.com", List.of(new AuthUser.Membership(tenantId, role)));
+    }
+
+    private Tenant tenantWithId(Long id) {
+        return tenant(id);
+    }
+
+    private Route routeOf(Long id, Tenant tenant) {
+        Route route = Route.builder().tenant(tenant).name("A노선").assignCapacity(10).build();
+        ReflectionTestUtils.setField(route, "id", id);
+        return route;
+    }
+
+    private Stop stopOf(Long id, String name) {
+        Stop stop = Stop.builder().route(routeOf(10L, tenantWithId(1L))).name(name).seq(1).lat(37.5).lng(127.0).build();
+        ReflectionTestUtils.setField(stop, "id", id);
+        return stop;
+    }
+
+    private AuthUser authUserOfTenant(Long tenantId) {
+        return authUser(tenantId, Role.PARENT);
+    }
+
+    private AuthUser platformAdmin() {
+        return new AuthUser(999L, "platform@admin.com", List.of(new AuthUser.Membership(null, Role.PLATFORM_ADMIN)));
     }
 }

@@ -6,6 +6,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import src.backend.bus.repository.spec.BusRepository;
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 import src.backend.global.tenant.TenantGuard;
 import src.backend.route.dto.RouteResponse;
@@ -42,8 +44,18 @@ public class RouteQueryService {
                 .toList();
     }
 
+    /**
+     * 정류장 목록 — 학원 구성원이면 역할과 무관하게 볼 수 있다(기사·학부모·학생 포함).
+     * 다만 <b>다른 학원의 노선은 볼 수 없다</b> — 정류장 좌표는 그 학원의 운행 구역을 드러낸다.
+     */
     @Transactional(readOnly = true)
-    public List<StopResponse> getStops(Long routeId) {
+    public List<StopResponse> getStops(AuthUser user, Long routeId) {
+        Route route = routeRepository.findById(routeId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "노선을 찾을 수 없습니다"));
+        Long ownerTenantId = route.getTenant().getId();
+        if (!user.isPlatformAdmin() && !user.belongsToTenant(ownerTenantId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
         return stopRepository.findByRouteIdOrderBySeqAsc(routeId).stream()
                 .map(StopResponse::from)
                 .toList();

@@ -52,6 +52,39 @@ class ControllerAuthorizationConventionTest {
                 .isEmpty();
     }
 
+    /**
+     * 인가 애너테이션이 하나도 없는 매핑을 찾는다. 클래스 레벨 애너테이션이 있으면 그 컨트롤러는 통과다.
+     *
+     * <p>이 규칙이 없어서 {@code GET /api/routes/{id}/stops} 가 인가 없이 배포됐다(2026-08-23 리뷰 ①).
+     * "인증만 되면 누구나"가 의도인 엔드포인트는 {@link #INTENTIONALLY_OPEN} 에 이름을 적어
+     * <b>의도임을 코드로 선언</b>하게 한다 — 빠뜨린 것과 구별되지 않으면 규칙이 아니다.
+     *
+     * <p>{@code LocationSocketController} 는 REST {@code @PreAuthorize} 인가 체계 밖의 STOMP
+     * {@code @MessageMapping} 컨트롤러다 — 인가는 CONNECT 시 1회 인증된 {@link java.security.Principal}
+     * 로 이루어지고, 처리 로직({@code reportSelf})도 그 principal 의 {@code userId} 로만 자기 학생 레코드를
+     * 조회해 다른 테넌트·다른 사용자 데이터에 닿을 수 없다 — {@code @Can*} 애너테이션 메커니즘 자체가
+     * 적용되지 않는 통로라 이 검사 대상이 아니다.
+     */
+    private static final List<String> INTENTIONALLY_OPEN = List.of("LocationSocketController.java");
+
+    @Test
+    void 인가_애너테이션이_없는_컨트롤러가_없다() {
+        List<String> unguarded = new ArrayList<>();
+        for (Path file : controllerSources()) {
+            String source = String.join("\n", readLines(file));
+            String name = file.getFileName().toString();
+            if (name.equals("AuthController.java") || INTENTIONALLY_OPEN.contains(name)) {
+                continue;   // 로그인·회원가입은 permitAll 경로다
+            }
+            if (!source.contains("@Can")) {
+                unguarded.add(name);
+            }
+        }
+        assertThat(unguarded)
+                .as("컨트롤러에 인가 애너테이션이 하나도 없다 — global/security/authz 의 애너테이션을 붙인다")
+                .isEmpty();
+    }
+
     /** 위반 지점을 {@code 파일:줄: 내용} 형태로 모은다 — 실패 메시지만 보고 고칠 곳을 알 수 있게. */
     private List<String> violations(String... forbidden) {
         List<String> found = new ArrayList<>();

@@ -57,10 +57,11 @@ public class RouteController {
     @Operation(summary = "노선의 정류장 목록",
             description = "seq 순으로 준다. ⚠️ 이 노선(`Route`)·정류장(`Stop`)은 **행정용 마스터 데이터**이고, "
                     + "실제 운행 경로는 매일 계산되는 노선 계획(`/api/route-plans`)이다 — 둘을 혼동하지 않는다. "
-                    + "학원 관리자 외 역할도 인증만 되면 조회할 수 있다(정류장은 개인정보가 아니다).")
+                    + "학원 관리자 외 역할(기사·선탑자·학부모·학생)도 조회할 수 있다. 단 **자기 학원 노선만** 볼 수 있다 — 다른 학원 노선은 403.")
     @GetMapping("/{id}/stops")
-    public ApiResponse<List<StopResponse>> stops(@Parameter(example = "1", description = "노선 id(1=하원 A노선)") @PathVariable Long id) {
-        return ApiResponse.ok(routeQueryService.getStops(id));
+    public ApiResponse<List<StopResponse>> stops(@AuthenticationPrincipal AuthUser user,
+                                                 @Parameter(example = "1", description = "노선 id(1=하원 A노선)") @PathVariable Long id) {
+        return ApiResponse.ok(routeQueryService.getStops(user, id));
     }
 
     /** 노선 생성 — 관리자. */
