@@ -68,7 +68,7 @@ class RouteQueryServiceTest {
     }
 
     @Test
-    void getStops_다른학원_노선이면_FORBIDDEN() {
+    void getStops_otherTenantRoute_throwsForbidden() {
         Tenant other = tenantWithId(2L);
         Route route = routeOf(10L, other);
         given(routeRepository.findById(10L)).willReturn(Optional.of(route));
@@ -81,7 +81,7 @@ class RouteQueryServiceTest {
     }
 
     @Test
-    void getStops_같은학원_노선이면_정류장을_돌려준다() {
+    void getStops_sameTenantRoute_returnsStops() {
         Tenant mine = tenantWithId(1L);
         Route route = routeOf(10L, mine);
         given(routeRepository.findById(10L)).willReturn(Optional.of(route));
@@ -93,7 +93,7 @@ class RouteQueryServiceTest {
     }
 
     @Test
-    void getStops_플랫폼관리자는_다른학원_노선도_볼_수_있다() {
+    void getStops_platformAdmin_readsAnyTenantRoute() {
         Route route = routeOf(10L, tenantWithId(2L));
         given(routeRepository.findById(10L)).willReturn(Optional.of(route));
         given(stopRepository.findByRouteIdOrderBySeqAsc(10L)).willReturn(List.of(stopOf(100L, "정문")));
@@ -102,7 +102,7 @@ class RouteQueryServiceTest {
     }
 
     @Test
-    void getStops_없는_노선이면_NOT_FOUND() {
+    void getStops_unknownRoute_throwsNotFound() {
         given(routeRepository.findById(99L)).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.getStops(authUserOfTenant(1L), 99L))

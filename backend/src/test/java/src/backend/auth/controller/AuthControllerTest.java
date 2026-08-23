@@ -73,7 +73,7 @@ class AuthControllerTest {
     }
 
     @Test
-    void signup_비밀번호가_8자_미만이면_400() throws Exception {
+    void signup_passwordShorterThanMinimum_returns400() throws Exception {
         String body = """
                 {"email":"new@school.com","password":"short7c","name":"김하늘","tenantId":1,"role":"PARENT"}
                 """;
