@@ -154,7 +154,7 @@ spring:
       # BCryptPasswordEncoder(strength 10)로 사전 생성한 평문 "password" 의 해시.
       # 로컬 전용이라 파일에 박아둔다 — demo·prod 는 절대 이 값을 쓰지 않는다.
       seedPasswordHash: "$2a$10$Noeszx0nzJUfNo4ubCD03eNfMVfMD9feMo04y/8DHiFLUBF.JZ/Fq"
-  # 로컬 전용 개발 키 — 이 값은 저장소에 공개돼 있으므로 로컬 밖에서 쓰지 않는다.
+# 로컬 전용 개발 키 — 이 값은 저장소에 공개돼 있으므로 로컬 밖에서 쓰지 않는다.
 jwt:
   secret: ${JWT_SECRET:local-dev-secret-change-me-please-32bytes-minimum-length}
 

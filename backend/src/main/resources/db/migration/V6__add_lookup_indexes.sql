@@ -7,9 +7,12 @@
 --   user_tenant_role(user_id, tenant_id, role) → user_id 선두 인덱스 존재
 --   student_guardian(student_id, guardian_id)  → student_id 커버, guardian_id 는 미커버라 아래에 추가
 --
--- 계획서 후보 15종 중 bus(route_id) 는 뺐다 — BusRepository 및 전체 호출부를 훑어도
--- Bus 를 route_id 로 필터링하는 조회가 없다(Route 조회는 RouteRepository.findById 로 Route.id 를
--- 직접 찾는 것이라 Bus.route_id 인덱스와 무관하다). 근거 없는 인덱스는 쓰기 비용만 늘린다.
+-- 계획서 후보 15종 중 bus(route_id) 는 뺐다. bus 는 본질적으로 작은 테이블이다(학원당 수십 대,
+-- 현 시드 실측 bus=3건) — 작은 테이블은 인덱스가 있어도 플래너가 순차 스캔을 고른다.
+-- StudentRepository.countByAssignedBus_Route_IdAndActiveTrue(Task 5) 가 bus.route_id 로
+-- 필터링하는 조인을 실제로 쓰지만, 이 조인에서 선택도가 높은 쪽은 student.bus_id 이고 그
+-- 인덱스(idx_student_bus)는 이 파일에 이미 포함돼 있다. 버스가 수천 대 규모가 되면 그때
+-- bus(route_id) 인덱스를 별도 마이그레이션으로 추가한다.
 
 create index idx_student_tenant_active   on student (tenant_id, active);
 create index idx_student_bus             on student (bus_id);

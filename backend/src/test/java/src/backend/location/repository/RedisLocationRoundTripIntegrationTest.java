@@ -1,6 +1,7 @@
 package src.backend.location.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.LocalDateTime;
 
@@ -27,6 +28,10 @@ class RedisLocationRoundTripIntegrationTest {
 
     private static final String LOCATION_KEY = "test:loc:roundtrip";
     private static final String BUS_LOCATION_KEY = "test:busloc:roundtrip";
+    private static final String DISALLOWED_KEY = "test:disallowed:roundtrip";
+
+    private record DisallowedPayload(String value) {
+    }
 
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
@@ -35,6 +40,7 @@ class RedisLocationRoundTripIntegrationTest {
     void cleanUp() {
         redisTemplate.delete(LOCATION_KEY);
         redisTemplate.delete(BUS_LOCATION_KEY);
+        redisTemplate.delete(DISALLOWED_KEY);
     }
 
     @Test
@@ -63,5 +69,18 @@ class RedisLocationRoundTripIntegrationTest {
                 .as("Map 이 아니라 BusLocationPing 타입 자체로 복원돼야 한다 — @class 허용 목록이 걸려 있음을 증명한다")
                 .isInstanceOf(BusLocationPing.class)
                 .isEqualTo(ping);
+    }
+
+    @Test
+    void typeOutsideAllowlist_isRejectedAtReadTime() {
+        // write(set) 는 @class 타입 문자열을 검증 없이 그대로 저장한다 — 거부는 read(get) 시점,
+        // PolymorphicTypeValidator 가 역직렬화 대상 타입을 허용 목록과 대조할 때 일어난다.
+        // 누군가 RedisConfig 를 enableUnsafeDefaultTyping() 으로 되돌리면 이 테스트가 실패해 잡아낸다.
+        redisTemplate.opsForValue().set(DISALLOWED_KEY, new DisallowedPayload("x"));
+
+        assertThatThrownBy(() -> redisTemplate.opsForValue().get(DISALLOWED_KEY))
+                .as("허용 목록(LocationPing·BusLocationPing) 밖 타입은 read 시점에 거부돼야 한다")
+                .hasMessageContaining("PolymorphicTypeValidator")
+                .hasMessageContaining("denied resolution");
     }
 }
