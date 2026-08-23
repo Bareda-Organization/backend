@@ -5,7 +5,6 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import src.backend.bus.repository.spec.BusRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
@@ -23,16 +22,13 @@ public class RouteQueryService {
 
     private final RouteRepository routeRepository;
     private final StopRepository stopRepository;
-    private final BusRepository busRepository;
     private final StudentRepository studentRepository;
 
     public RouteQueryService(RouteRepository routeRepository,
                              StopRepository stopRepository,
-                             BusRepository busRepository,
                              StudentRepository studentRepository) {
         this.routeRepository = routeRepository;
         this.stopRepository = stopRepository;
-        this.busRepository = busRepository;
         this.studentRepository = studentRepository;
     }
 
@@ -61,11 +57,8 @@ public class RouteQueryService {
                 .toList();
     }
 
-    /** 이 노선을 운행하는 버스들에 배정된 학생 수 합계(정원 초과 판정용). */
+    /** 이 노선을 운행하는 버스들에 배정된 학생 수(정원 초과 판정용) — count 한 번으로 센다. */
     private int assignedCount(Route route) {
-        return busRepository.findByTenantId(route.getTenant().getId()).stream()
-                .filter(bus -> bus.getRoute() != null && bus.getRoute().getId().equals(route.getId()))
-                .mapToInt(bus -> studentRepository.findByAssignedBusIdAndActiveTrue(bus.getId()).size())
-                .sum();
+        return (int) studentRepository.countByAssignedBus_Route_IdAndActiveTrue(route.getId());
     }
 }

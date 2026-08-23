@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import java.util.Optional;
 import java.util.List;
@@ -11,8 +12,6 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import src.backend.bus.entity.Bus;
-import src.backend.bus.repository.spec.BusRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
@@ -21,54 +20,46 @@ import src.backend.route.entity.Route;
 import src.backend.route.entity.Stop;
 import src.backend.route.repository.spec.RouteRepository;
 import src.backend.route.repository.spec.StopRepository;
-import src.backend.student.entity.Student;
 import src.backend.student.repository.spec.StudentRepository;
 import src.backend.tenant.entity.Tenant;
 import src.backend.user.entity.Role;
 
 /**
- * 노선 조회 단위 테스트 — 이 노선을 운행하는 "여러 버스"에 배정된 학생 수를 합산해 정원 초과를
- * 판정하는 로직(assignedCount 집계)을 우선 검증한다(G5 2차, RouteQueryService 고유 로직).
+ * 노선 조회 단위 테스트 — 이 노선을 운행하는 버스들에 배정된 학생 수를 count 한 번으로 집계해
+ * 정원 초과를 판정하는 로직(assignedCount 집계)을 우선 검증한다(G5 2차, RouteQueryService 고유 로직).
  */
 class RouteQueryServiceTest {
 
     private final RouteRepository routeRepository = mock(RouteRepository.class);
     private final StopRepository stopRepository = mock(StopRepository.class);
-    private final BusRepository busRepository = mock(BusRepository.class);
     private final StudentRepository studentRepository = mock(StudentRepository.class);
 
     private final RouteQueryService service = new RouteQueryService(
-            routeRepository, stopRepository, busRepository, studentRepository);
+            routeRepository, stopRepository, studentRepository);
 
     private static final Long TENANT_ID = 1L;
 
     @Test
-    void listRoutes_sumsAssignedAcrossMultipleBusesOnSameRoute() {
+    void listRoutes_countsAssignedStudentsWithSingleQuery() {
         AuthUser admin = authUser(TENANT_ID, Role.ACADEMY_ADMIN);
         Route route = route(10L, TENANT_ID, 3); // 정원 3명
-        Bus busA = bus(1L, TENANT_ID, route);
-        Bus busB = bus(2L, TENANT_ID, route); // 같은 노선을 운행하는 다른 버스
-        Bus busC = bus(3L, TENANT_ID, null); // 이 노선과 무관한 버스
         given(routeRepository.findByTenantId(TENANT_ID)).willReturn(List.of(route));
-        given(busRepository.findByTenantId(TENANT_ID)).willReturn(List.of(busA, busB, busC));
-        given(studentRepository.findByAssignedBusIdAndActiveTrue(1L)).willReturn(List.of(student(1L), student(2L)));
-        given(studentRepository.findByAssignedBusIdAndActiveTrue(2L)).willReturn(List.of(student(3L)));
+        given(studentRepository.countByAssignedBus_Route_IdAndActiveTrue(10L)).willReturn(3L);
 
         List<RouteResponse> responses = service.listRoutes(admin, TENANT_ID);
 
         assertThat(responses).hasSize(1);
-        assertThat(responses.get(0).assignedCount()).isEqualTo(3); // busA(2) + busB(1)
+        assertThat(responses.get(0).assignedCount()).isEqualTo(3);
         assertThat(responses.get(0).overCapacity()).isFalse(); // 정원 3, 정확히 3명
+        verify(studentRepository).countByAssignedBus_Route_IdAndActiveTrue(10L); // count 한 번으로 집계
     }
 
     @Test
     void listRoutes_exceedsCapacity_marksOverCapacity() {
         AuthUser admin = authUser(TENANT_ID, Role.ACADEMY_ADMIN);
         Route route = route(10L, TENANT_ID, 2); // 정원 2명
-        Bus bus = bus(1L, TENANT_ID, route);
         given(routeRepository.findByTenantId(TENANT_ID)).willReturn(List.of(route));
-        given(busRepository.findByTenantId(TENANT_ID)).willReturn(List.of(bus));
-        given(studentRepository.findByAssignedBusIdAndActiveTrue(1L)).willReturn(List.of(student(1L), student(2L), student(3L)));
+        given(studentRepository.countByAssignedBus_Route_IdAndActiveTrue(10L)).willReturn(3L);
 
         List<RouteResponse> responses = service.listRoutes(admin, TENANT_ID);
 
@@ -119,22 +110,10 @@ class RouteQueryServiceTest {
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.NOT_FOUND);
     }
 
-    private Bus bus(Long id, Long tenantId, Route route) {
-        Bus bus = Bus.builder().tenant(tenant(tenantId)).name("버스" + id).seatCapacity(25).route(route).build();
-        ReflectionTestUtils.setField(bus, "id", id);
-        return bus;
-    }
-
     private Route route(Long id, Long tenantId, int assignCapacity) {
         Route route = Route.builder().tenant(tenant(tenantId)).name("A노선").assignCapacity(assignCapacity).build();
         ReflectionTestUtils.setField(route, "id", id);
         return route;
-    }
-
-    private Student student(Long id) {
-        Student student = Student.builder().tenant(tenant(TENANT_ID)).name("학생" + id).build();
-        ReflectionTestUtils.setField(student, "id", id);
-        return student;
     }
 
     private Tenant tenant(Long id) {

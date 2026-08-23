@@ -15,6 +15,7 @@ import src.backend.student.entity.Student;
  * - findByAssignedBusIdAndActiveTrue: 버스별 탑승 명단·정원 계산
  * - findByAssignedBusIdInAndActiveTrue: 버스 목록 화면의 N+1 제거(버스 수만큼 나던 쿼리를 1회로)
  * - findByTenantId: 관리자 목록의 "비활성 포함" 옵션 전용
+ * - countByAssignedBus_Route_IdAndActiveTrue: 노선별 배정 인원 집계(정원 초과 판정, N+1 제거)
  *
  * ⚠️ 필터를 {@code @Where}·{@code @Filter} 같은 전역 장치로 넣지 않고 **메서드 이름**에 박는다(I-9).
  * 전역 필터는 조용히 걸러져 "왜 안 나오지"를 추적할 수 없고, 비활성까지 봐야 하는 화면이 빠져나갈 구멍도 없다.
@@ -32,4 +33,13 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
 
     /** 비활성(퇴원) 학생까지 포함한 학원 전체 — 관리자 목록의 {@code includeInactive=true} 전용이다. */
     List<Student> findByTenantId(Long tenantId);
+
+    /**
+     * 이 노선을 운행하는 버스에 배정된 재원생 수(정원 초과 판정용).
+     *
+     * <p>중첩 경로라 밑줄로 끊는다 — {@code AssignedBusRouteId} 로 붙여 쓰면 Spring Data 가
+     * {@code assignedBus.routeId} 로 잘못 끊을 수 있다. 이 파일의 다른 메서드가 밑줄을 안 쓰는 것은
+     * 단일 단계 경로라 모호하지 않아서다.
+     */
+    long countByAssignedBus_Route_IdAndActiveTrue(Long routeId);
 }
