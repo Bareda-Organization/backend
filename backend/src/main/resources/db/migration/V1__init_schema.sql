@@ -3,6 +3,12 @@
 -- (수기 작성 시 오타·누락 위험을 피하기 위함 — enum CHECK 제약, FK, unique 제약, 인덱스까지 Hibernate가 실제로 만드는 것과 동일).
 -- ⚠️ 2026-08-02(MVP 확장, OVERVIEW D-D): 로컬 DB에 영속 볼륨이 없어 매번 재구성되므로, 개발 단계에 한해
 -- 이 파일을 직접 수정한다. 고치면 체크섬이 바뀌므로 `docker compose down` 후 `up` 으로 컨테이너를 제거해야 한다.
+-- ⚠️ 2026-08-23: 옛 V3~V6 을 이 파일에 흡수하고 파일 4개를 삭제했다(CLAUDE.md 의 Flyway 정책).
+--   V3 ride_event.type 에 HANDOVER · V4 notification_log.type 에 HANDOVER_DONE
+--   V5 notification_log.type 에 ROUTE_PUBLISHED·LOCATION_CHANGE_RESULT · V6 조회 인덱스 14종
+--   → 각각 아래 create table 의 CHECK 제약과 인덱스 절에 반영돼 있다.
+-- 이 병합은 **어떤 영속 환경에도 적용된 적이 없어서** 가능했다. demo·prod 에 한 번이라도 적용된
+-- 뒤에는 이 파일을 고칠 수 없고 V{n} 추가만 허용된다 — 그 시점에 이 주석을 갱신할 것.
 
     create table app_user (
         created_at timestamp(6),
@@ -89,7 +95,7 @@
         updated_at timestamp(6),
         dedup_key varchar(255) not null unique,
         message varchar(255) not null,
-        type varchar(255) not null check ((type in ('BOARD_DONE','ALIGHT_DONE','APPROACH','NO_SHOW','SOS','SCHEDULE_RESULT','CONNECTION_LOST','ROUTE_RECOMMENDED'))),
+        type varchar(255) not null check ((type in ('BOARD_DONE','ALIGHT_DONE','HANDOVER_DONE','APPROACH','NO_SHOW','SOS','SCHEDULE_RESULT','CONNECTION_LOST','ROUTE_RECOMMENDED','ROUTE_PUBLISHED','LOCATION_CHANGE_RESULT'))),
         primary key (id)
     );
 
@@ -108,7 +114,7 @@
         tenant_id bigint not null,
         updated_at timestamp(6),
         source varchar(255) not null check ((source in ('QR','NFC','MANUAL','CORRECTION'))),
-        type varchar(255) not null check ((type in ('BOARD','ALIGHT'))),
+        type varchar(255) not null check ((type in ('BOARD','ALIGHT','HANDOVER'))),
         primary key (id)
     );
 
@@ -252,6 +258,33 @@
 
     create index idx_sos_status_occurred
        on sos_event (status, occurred_at);
+
+    -- 조회 인덱스 (2026-08-23 리뷰 ⑧에서 보강, 옛 V6). PostgreSQL 은 외래키 컬럼에 인덱스를
+    -- 자동으로 만들지 않는다. 이 시스템은 거의 모든 조회에 tenant_id 필터가 붙는데 인덱스가
+    -- 없어 순차 스캔이 됐다.
+    --
+    -- 이미 unique 제약으로 인덱스가 생기는 컬럼은 넣지 않았다:
+    --   user_tenant_role(user_id, tenant_id, role) → user_id 선두 인덱스 존재
+    --   student_guardian(student_id, guardian_id)  → student_id 커버, guardian_id 는 미커버라 아래에 추가
+    --
+    -- 후보 15종 중 bus(route_id) 는 뺐다. bus 는 작은 테이블이라(학원당 수십 대, 현 시드 실측 3건)
+    -- 인덱스가 있어도 플래너가 순차 스캔을 고른다. StudentRepository
+    -- .countByAssignedBus_Route_IdAndActiveTrue 가 bus.route_id 조인을 쓰지만 그 조인에서 선택도가
+    -- 높은 쪽은 student.bus_id 이고 그 인덱스(idx_student_bus)는 아래에 있다.
+    create index idx_student_tenant_active   on student (tenant_id, active);
+    create index idx_student_bus             on student (bus_id);
+    create index idx_student_user            on student (user_id);
+    create index idx_bus_tenant              on bus (tenant_id);
+    create index idx_route_tenant            on route (tenant_id);
+    create index idx_stop_route_seq          on stop (route_id, seq);
+    create index idx_guardian_by_guardian    on student_guardian (guardian_id);
+    create index idx_drive_session_tenant    on drive_session (tenant_id, service_date);
+    create index idx_drive_session_bus       on drive_session (bus_id);
+    create index idx_attendance_student_date on attendance_exception (student_id, target_date);
+    create index idx_schedule_req_student    on schedule_change_request (student_id);
+    create index idx_location_req_student    on location_change_request (student_id);
+    create index idx_notification_tenant     on notification_log (tenant_id, student_id);
+    create index idx_route_plan_tenant_date  on route_plan (tenant_id, service_date);
 
     alter table if exists bus
        add constraint fk_bus_attendant
