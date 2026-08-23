@@ -19,6 +19,8 @@
 
 **읽는 순서 (처음 이 저장소를 보는 경우):** PRODUCT_SPEC → USER_FLOWS → ARCHITECTURE → API_SPEC
 
+구조를 **그림으로 먼저 훑고 싶으면** [html/architecture-overview.html](html/architecture-overview.html) 을 연다 — 런타임 구성·요청 3갈래·모듈 지도·계층 통과·인증인가 3층·이벤트 릴레이·위치 파이프라인을 SVG 7개로 압축한 요약본이다(실측 2026-08-23). `ARCHITECTURE.md` 를 대체하지 않으며, 서술과 리스크 목록은 원본을 본다.
+
 배포 관련 문서는 이 4종과 별도다 — 운영 절차는 **[DEPLOYMENT.md](DEPLOYMENT.md)**, 설계 근거(관리형 서비스 채택 검토·차단 결함·비용)는 **[superpowers/specs/2026-08-10-mvp-배포-design.md](superpowers/specs/2026-08-10-mvp-배포-design.md)**.
 
 ---
@@ -74,7 +76,7 @@ MVP는 **기사 앱 + 관리자 웹**까지 동작하고, **학생·학부모 �
 
 ## 5. 문서 포맷 규칙
 
-- 이 폴더의 `.md` **4종이 원본**이다. `html/` 은 같은 내용의 사람용 렌더다.
+- 이 폴더의 `.md` **4종이 원본**이다. `html/` 은 같은 내용의 사람용 렌더다 — 단 `html/architecture-overview.html` 은 렌더가 아니라 **그림 중심의 독립 요약본**이며 원본이 없다.
 - **원본을 고쳤다고 HTML을 자동 동기화하지 않는다** — 필요하면 별도로 요청한다.
 - Claude가 매 세션 재참조하는 문서는 토큰 효율을 위해 **Markdown으로 유지**한다.
 - 새 기술 문서를 HTML로 만들 때는 전역 `html-docs` 정책(sketch 테마·인라인 SVG·Prism code-card)을 따른다.

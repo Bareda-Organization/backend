@@ -1,0 +1,937 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>School-Bus 아키텍처 한눈에 보기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Nanum+Pen+Script&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css" />
+<style>
+:root{
+  --paper:#f4f1ea; --card:#fffdf8; --soft:#faf7f0; --panel:#f0e9da;
+  --rule:#d8cfc0;  --line:#c0b6a8; --border:#c0b6a8;
+  --ink:#3a3531;   --text:#3a3531; --muted:#6b6359;
+  --accent:#0e7490; --green:#047857; --yellow:#b45309;
+  --red:#dc2626;   --purple:#7c3aed; --pink:#db2777;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--paper); color:var(--text);
+  font-family:"Gaegu","Apple SD Gothic Neo","Pretendard",sans-serif;
+  font-size:18px; line-height:1.8;
+}
+.wrap{max-width:1180px; margin:0 auto; padding:32px 20px 96px}
+header.hero{
+  background:var(--card); border:2px solid var(--ink); border-radius:16px;
+  box-shadow:3px 4px 0 rgba(58,53,49,.10); padding:26px 30px; margin-bottom:26px;
+}
+h1{font-family:"Nanum Pen Script",cursive; font-size:52px; margin:0 0 6px; letter-spacing:.5px}
+.sub{color:var(--muted); font-size:17px; margin:0}
+.meta{margin-top:14px; font-size:15.5px; color:var(--muted)}
+.meta b{color:var(--accent)}
+h2{
+  font-family:"Nanum Pen Script",cursive; font-size:36px; margin:44px 0 14px;
+  border-bottom:2px solid var(--ink); padding-bottom:6px;
+}
+h3{font-size:22px; margin:26px 0 10px; color:var(--ink)}
+p{margin:10px 0}
+a{color:var(--accent)}
+code{font-family:"JetBrains Mono",Menlo,monospace; font-size:15px; background:var(--panel); padding:1px 6px; border-radius:5px}
+nav.toc{
+  position:sticky; top:14px; z-index:20; background:var(--card);
+  border:2px solid var(--ink); border-radius:14px; box-shadow:3px 4px 0 rgba(58,53,49,.10);
+  padding:12px 18px; margin-bottom:22px; font-size:16px;
+}
+nav.toc b{font-family:"Nanum Pen Script",cursive; font-size:22px; margin-right:12px}
+nav.toc a{margin-right:14px; white-space:nowrap; text-decoration:none; border-bottom:1.5px dashed var(--line)}
+.viz-frame{
+  background:var(--card); border:2px solid var(--ink); border-radius:12px;
+  padding:18px; margin:18px 0; box-shadow:3px 4px 0 rgba(58,53,49,.10);
+}
+.viz-title{color:var(--accent); font-weight:700; font-size:17px; margin-bottom:10px}
+.viz-frame svg{display:block}
+.cap{font-size:15.5px; color:var(--muted); margin-top:10px; border-top:1px dashed var(--rule); padding-top:8px}
+table{
+  width:100%; border-collapse:collapse; margin:14px 0; background:var(--card);
+  border:2px solid var(--ink); border-radius:10px; overflow:hidden; font-size:16px;
+}
+th,td{border-bottom:1px solid var(--rule); padding:8px 12px; text-align:left; vertical-align:top}
+th{background:var(--panel); font-weight:700}
+tr:last-child td{border-bottom:none}
+.callout{
+  border:2px solid var(--ink); border-left-width:8px; border-radius:12px;
+  background:var(--card); padding:14px 18px; margin:16px 0; box-shadow:3px 4px 0 rgba(58,53,49,.10);
+}
+.callout.warn{border-left-color:var(--yellow)}
+.callout.bad{border-left-color:var(--red)}
+.callout.ok{border-left-color:var(--green)}
+.callout.info{border-left-color:var(--accent)}
+.callout .t{font-weight:700; display:block; margin-bottom:4px}
+.code-card{
+  border:2px solid var(--ink); border-radius:12px; overflow:hidden;
+  box-shadow:3px 4px 0 rgba(58,53,49,.10); margin:16px 0; background:var(--soft);
+}
+.code-card-header{
+  display:flex; align-items:center; gap:12px; padding:8px 14px;
+  background:var(--panel); border-bottom:2px solid var(--ink);
+}
+.code-card-dots{display:flex; gap:6px}
+.code-card-dots span{width:11px; height:11px; border-radius:50%; border:1.5px solid var(--ink); display:block}
+.code-card-dots span:nth-child(1){background:#e9a09a}
+.code-card-dots span:nth-child(2){background:#e8ce8a}
+.code-card-dots span:nth-child(3){background:#a5c8a8}
+.code-card-lang{font-size:14.5px; color:var(--muted); font-family:"JetBrains Mono",Menlo,monospace}
+.code-card pre[class*="language-"]{margin:0 !important; background:var(--soft) !important; font-size:14.5px}
+.code-card code[class*="language-"]{background:transparent !important; text-shadow:none !important; font-family:"JetBrains Mono",Menlo,monospace}
+.token.comment{color:#8a8278 !important; font-style:italic !important}
+.token.keyword{color:#7c3aed !important; font-weight:600 !important}
+.token.string{color:#047857 !important}
+.token.number{color:#b45309 !important}
+.token.function,.token.class-name{color:#0e7490 !important}
+.token.annotation,.token.atrule,.token.property{color:#db2777 !important}
+.line-numbers .line-numbers-rows{border-right-color:var(--rule) !important}
+.tagline{display:inline-block; border:1.5px solid var(--ink); border-radius:20px; padding:1px 10px; font-size:14.5px; margin-right:6px}
+.tag-ok{background:rgba(4,120,87,.10)}
+.tag-part{background:rgba(180,83,9,.10)}
+.tag-no{background:rgba(220,38,38,.10)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>School-Bus 아키텍처 한눈에 보기</h1>
+  <p class="sub">한 줄 요약 — Flutter 앱 하나가 nginx 단일 입구를 거쳐 Spring Boot 단일 인스턴스에 붙고, 서버는 PostgreSQL(영속) · Redis(최신 좌표) · Kafka(도메인 이벤트) 셋을 용도별로 나눠 쓰며, 클라이언트 전달은 STOMP push 와 REST 폴링이 공존.</p>
+  <div class="meta">
+    실측 기준 <b>2026-08-23</b> · 브랜치 <code>feat/mvp-deployment</code> · 근거는 저장소 코드 직접 측정.<br>
+    상세 서술은 <a href="../ARCHITECTURE.md">docs/ARCHITECTURE.md</a>(단일 소스) 참조. 이 문서는 <b>구조를 그림으로 압축한 요약본</b>이며, 마지막 장에 SoT 문서와 어긋난 수치를 별도로 정리.
+  </div>
+</header>
+
+<nav class="toc">
+  <b>목차</b>
+  <a href="#s1">1 런타임 구성</a>
+  <a href="#s2">2 요청 3갈래</a>
+  <a href="#s3">3 모듈 지도</a>
+  <a href="#s4">4 계층 통과</a>
+  <a href="#s5">5 인증·인가</a>
+  <a href="#s6">6 이벤트 릴레이</a>
+  <a href="#s7">7 위치 파이프라인</a>
+  <a href="#s8">8 실측 수치</a>
+</nav>
+
+<!-- ================= 1 ================= -->
+<h2 id="s1">1. 런타임 구성 — 컨테이너 하나하나가 무엇을 맡는가</h2>
+
+<p>바깥에서 닿는 포트는 <b>nginx 의 80 하나</b>. 백엔드·프론트엔드 컨테이너는 호스트에 포트를 열지 않고 compose 내부망에서만 서로 부름. 프론트 빌드가 <code>API_BASE_URL=""</code> 상대경로를 쓰므로 같은 번들이 localhost 든 배포 도메인이든 그대로 동작하고, 출처가 같아 브라우저 CORS 자체가 발생하지 않음.</p>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 런타임 구성도 — Docker 구역 경계와 클라이언트 2종 (로컬·개발 기준)</div>
+  <svg viewBox="0 0 1100 600" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .rt-b  { fill: rgba(14,116,144,0.10); stroke: #0e7490; stroke-width: 1.8; }
+      .rt-g  { fill: rgba(4,120,87,0.10);   stroke: #047857; stroke-width: 1.8; }
+      .rt-p  { fill: rgba(124,58,237,0.10); stroke: #7c3aed; stroke-width: 1.8; }
+      .rt-y  { fill: rgba(180,83,9,0.10);   stroke: #b45309; stroke-width: 1.8; }
+      .rt-k  { fill: rgba(14,116,144,0.04); stroke: #0e7490; stroke-width: 2.5; stroke-dasharray: 10 6; }
+      .rt-tt { fill: #3a3531; font: bold 16px sans-serif; text-anchor: middle; }
+      .rt-mu { fill: #6b6359; font: 14px sans-serif; text-anchor: middle; }
+      .rt-sm { fill: #6b6359; font: 13px sans-serif; text-anchor: middle; }
+      .rt-hd { fill: #3a3531; font: bold 16px sans-serif; }
+      .rt-kh { fill: #0e7490; font: bold 16px sans-serif; }
+      .rt-l  { stroke: #c0b6a8; stroke-width: 1.8; fill: none; }
+    </style>
+    <defs>
+      <marker id="rt-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#c0b6a8"/>
+      </marker>
+    </defs>
+
+    <text class="rt-hd" x="20" y="30">Docker 밖 — 클라이언트</text>
+    <rect class="rt-b" x="20" y="44" width="182" height="104" rx="10"/>
+    <text class="rt-tt" x="111" y="70">웹 브라우저</text>
+    <text class="rt-mu" x="111" y="94">Flutter Web 번들</text>
+    <text class="rt-sm" x="111" y="116">관리자 4화면 · 기사 2화면</text>
+    <text class="rt-sm" x="111" y="136">현재 유일하게 쓰이는 클라이언트</text>
+
+    <rect class="rt-b" x="20" y="164" width="182" height="104" rx="10"/>
+    <text class="rt-tt" x="111" y="190">모바일 기기</text>
+    <text class="rt-mu" x="111" y="214">flutter run (Android · iOS)</text>
+    <text class="rt-sm" x="111" y="236">같은 코드베이스, 다른 빌드 타깃</text>
+    <text class="rt-sm" x="111" y="256">컨테이너에서 실행 불가</text>
+
+    <rect class="rt-k" x="222" y="20" width="858" height="418" rx="14"/>
+    <text class="rt-kh" x="240" y="46">docker compose 구역 — 컨테이너 11개, 같은 내부 네트워크</text>
+    <text class="rt-sm" x="240" y="66" style="text-anchor:start">이 경계 안에서는 서로 서비스 이름(backend:8080 · postgres:5432)으로 부른다. 경계를 넘는 것은 proxy 의 80 하나뿐.</text>
+
+    <rect class="rt-g" x="242" y="140" width="158" height="146" rx="10"/>
+    <text class="rt-tt" x="321" y="168">proxy</text>
+    <text class="rt-mu" x="321" y="192">nginx · 80:80</text>
+    <text class="rt-sm" x="321" y="216">호스트에 열린 유일한 포트</text>
+    <text class="rt-sm" x="321" y="244">/ → frontend</text>
+    <text class="rt-sm" x="321" y="268">/api·/ws → backend</text>
+
+    <path class="rt-l" d="M202,96 L239,150" marker-end="url(#rt-arr)"/>
+    <path class="rt-l" d="M202,216 L239,216" marker-end="url(#rt-arr)"/>
+
+    <path class="rt-l" d="M400,170 L437,140" marker-end="url(#rt-arr)"/>
+    <path class="rt-l" d="M400,256 L437,276" marker-end="url(#rt-arr)"/>
+
+    <rect class="rt-b" x="440" y="84" width="190" height="86" rx="10"/>
+    <text class="rt-tt" x="535" y="110">frontend</text>
+    <text class="rt-mu" x="535" y="132">nginx + Flutter Web 정적 번들</text>
+    <text class="rt-sm" x="535" y="154">expose 80 · 호스트 비공개</text>
+
+    <rect class="rt-b" x="440" y="196" width="190" height="180" rx="10"/>
+    <text class="rt-tt" x="535" y="222">backend</text>
+    <text class="rt-mu" x="535" y="244">Spring Boot 4.1 · Java 25</text>
+    <text class="rt-sm" x="535" y="268">expose 8080 · 호스트 비공개</text>
+    <text class="rt-sm" x="535" y="290">컨트롤러 17 · REST 매핑 85</text>
+    <text class="rt-sm" x="535" y="310">도메인 모듈 16 + global</text>
+    <text class="rt-sm" x="535" y="330">@Scheduled 4 · STOMP 브로커</text>
+    <text class="rt-sm" x="535" y="352">인스턴스 1개 고정</text>
+
+    <path class="rt-l" d="M630,240 L676,140" marker-end="url(#rt-arr)"/>
+    <path class="rt-l" d="M630,270 L676,232" marker-end="url(#rt-arr)"/>
+    <path class="rt-l" d="M630,300 L676,320" marker-end="url(#rt-arr)"/>
+
+    <rect class="rt-g" x="679" y="106" width="200" height="66" rx="10"/>
+    <text class="rt-tt" x="779" y="132">postgres 16</text>
+    <text class="rt-sm" x="779" y="156">테이블 17 · Flyway 관리</text>
+
+    <rect class="rt-p" x="679" y="198" width="200" height="66" rx="10"/>
+    <text class="rt-tt" x="779" y="224">redis 7</text>
+    <text class="rt-sm" x="779" y="248">최신 좌표 1건 · TTL 9 / 15초</text>
+
+    <rect class="rt-y" x="679" y="290" width="200" height="66" rx="10"/>
+    <text class="rt-tt" x="779" y="316">kafka 3.9</text>
+    <text class="rt-sm" x="779" y="340">도메인 이벤트 토픽 17종</text>
+
+    <rect class="rt-b" x="894" y="102" width="180" height="126" rx="10"/>
+    <text class="rt-tt" x="984" y="128">prometheus</text>
+    <text class="rt-sm" x="984" y="150">+ grafana · 대시보드 4장</text>
+    <text class="rt-sm" x="984" y="172">backend:8080 스크레이프</text>
+    <text class="rt-sm" x="984" y="194">(/actuator/prometheus)</text>
+    <text class="rt-sm" x="984" y="216">보존 7일 · 운영 15일</text>
+
+    <rect class="rt-b" x="894" y="248" width="180" height="112" rx="10"/>
+    <text class="rt-tt" x="984" y="274">exporter 3종</text>
+    <text class="rt-sm" x="984" y="298">postgres · redis · node</text>
+    <text class="rt-sm" x="984" y="320">호스트 포트 비공개</text>
+    <text class="rt-sm" x="984" y="342">내부망에서만 수집</text>
+
+    <path class="rt-l" d="M912,248 L912,230" marker-end="url(#rt-arr)"/>
+    <path class="rt-l" d="M892,185 L648,185 L648,236 L634,236" marker-end="url(#rt-arr)" stroke-dasharray="6 4"/>
+
+    <text class="rt-sm" x="242" y="318" style="text-anchor:start">DB · Redis · Kafka 는</text>
+    <text class="rt-sm" x="242" y="338" style="text-anchor:start">호스트 포트를 남겨 둔다 —</text>
+    <text class="rt-sm" x="242" y="358" style="text-anchor:start">인프라만 컨테이너로 띄우고</text>
+    <text class="rt-sm" x="242" y="378" style="text-anchor:start">백엔드는 IDE 에서 bootRun</text>
+    <text class="rt-sm" x="242" y="398" style="text-anchor:start">하는 개발 방식을 위해서다.</text>
+
+    <text class="rt-hd" x="20" y="480">Docker 밖 — 외부 서비스</text>
+    <rect class="rt-y" x="20" y="494" width="280" height="76" rx="10"/>
+    <text class="rt-tt" x="160" y="520">OpenStreetMap 타일</text>
+    <text class="rt-sm" x="160" y="542">클라이언트 지도 배경(flutter_map)</text>
+    <text class="rt-sm" x="160" y="562">브라우저·단말이 직접 호출</text>
+
+    <rect class="rt-y" x="320" y="494" width="300" height="76" rx="10"/>
+    <text class="rt-tt" x="470" y="520">네이버 Directions API</text>
+    <text class="rt-sm" x="470" y="542">경로 계산 기본값 · 대안 OSRM</text>
+    <text class="rt-sm" x="470" y="562">backend 가 WebClient 로 호출</text>
+
+    <path class="rt-l" d="M111,268 L111,492" marker-end="url(#rt-arr)" stroke-dasharray="6 4"/>
+    <path class="rt-l" d="M500,376 L470,492" marker-end="url(#rt-arr)" stroke-dasharray="6 4"/>
+
+    <text class="rt-sm" x="650" y="516" style="text-anchor:start">점선 테두리 = docker compose 로 함께 뜨고 함께 내려가는 범위.</text>
+    <text class="rt-sm" x="650" y="538" style="text-anchor:start">점선 화살표 = 경계를 넘는 외부 호출(아래)과 내부망 지표 수집(오른쪽).</text>
+    <text class="rt-sm" x="650" y="560" style="text-anchor:start">영속 볼륨 0개 — 로컬은 매 기동마다 Flyway 가 시드까지 새로 구성.</text>
+  </svg>
+  <div class="cap">파란 상자 = 요청 경로 위의 처리 주체, 초록 = 영속·경계, 보라 = 휘발성 저장, 노랑 = 비동기 전달·외부 의존. <b>웹 브라우저와 모바일 기기는 Docker 경계 밖</b>이고, 컨테이너로 띄울 수 있는 프론트 타깃은 <b>Web 뿐</b> — 컨테이너 안에서 Android·iOS 앱을 실행할 방법이 없어 모바일은 항상 경계 밖에서 <code>flutter run</code> 으로 붙는다. <code>frontend</code> 컨테이너가 서빙하는 것은 소스가 아니라 <b>빌드된 정적 번들</b>이며, 그래서 UI 를 반복 수정할 때는 재빌드가 느려 로컬 실행이 권장됨.</div>
+</div>
+
+<div class="callout warn">
+  <span class="t">백엔드 인스턴스를 늘리면 깨지는 것</span>
+  <code>@Scheduled</code> 작업 4개가 중복 실행되고, WebSocket 세션 레지스트리(<code>LocationSessionRegistry</code>)와 InMemory 위치 저장소가 프로세스 로컬이라 인스턴스마다 다른 답을 냄. 수평 확장 전에 스케줄러 리더 선출과 STOMP 브로커 릴레이가 선행 조건.
+</div>
+
+<p>같은 코드가 <b>로컬과 운영에서 서로 다르게 묶인다.</b> 특히 웹이 어디에 놓이는지가 갈리고, 그 차이가 CORS 설정까지 이어진다.</p>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 로컬 vs 운영 — 웹이 놓이는 위치와 Docker 구역의 범위</div>
+  <svg viewBox="0 0 1100 540" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .dp-pa { fill: rgba(58,53,49,0.03); stroke: #c0b6a8; stroke-width: 1.5; }
+      .dp-k  { fill: rgba(14,116,144,0.04); stroke: #0e7490; stroke-width: 2.5; stroke-dasharray: 10 6; }
+      .dp-b  { fill: rgba(14,116,144,0.10); stroke: #0e7490; stroke-width: 1.8; }
+      .dp-g  { fill: rgba(4,120,87,0.10);   stroke: #047857; stroke-width: 1.8; }
+      .dp-y  { fill: rgba(180,83,9,0.10);   stroke: #b45309; stroke-width: 1.8; }
+      .dp-tt { fill: #3a3531; font: bold 15px sans-serif; text-anchor: middle; }
+      .dp-mu { fill: #6b6359; font: 13px sans-serif; text-anchor: middle; }
+      .dp-hd { fill: #3a3531; font: bold 16px sans-serif; }
+      .dp-kh { fill: #0e7490; font: bold 14px sans-serif; }
+      .dp-l  { stroke: #c0b6a8; stroke-width: 1.8; fill: none; }
+    </style>
+    <defs>
+      <marker id="dp-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#c0b6a8"/>
+      </marker>
+    </defs>
+
+    <rect class="dp-pa" x="20" y="20" width="520" height="392" rx="12"/>
+    <text class="dp-hd" x="36" y="46">로컬 — docker compose · 서비스 11개</text>
+
+    <rect class="dp-b" x="40" y="62" width="180" height="56" rx="9"/>
+    <text class="dp-tt" x="130" y="86">웹 브라우저</text><text class="dp-mu" x="130" y="106">http://localhost/</text>
+    <path class="dp-l" d="M130,118 L130,146" marker-end="url(#dp-arr)"/>
+
+    <rect class="dp-k" x="32" y="146" width="496" height="250" rx="12"/>
+    <text class="dp-kh" x="46" y="168">Docker 구역 — 화면·API·인프라·관측 전부 한 덩어리</text>
+
+    <rect class="dp-g" x="48" y="182" width="180" height="60" rx="9"/>
+    <text class="dp-tt" x="138" y="206">proxy · nginx</text><text class="dp-mu" x="138" y="226">80:80 유일 입구</text>
+
+    <path class="dp-l" d="M228,200 L256,192" marker-end="url(#dp-arr)"/>
+    <path class="dp-l" d="M228,228 L256,266" marker-end="url(#dp-arr)"/>
+
+    <rect class="dp-b" x="259" y="164" width="252" height="56" rx="9"/>
+    <text class="dp-tt" x="385" y="188">frontend 컨테이너</text><text class="dp-mu" x="385" y="208">Flutter Web 정적 번들 서빙</text>
+
+    <rect class="dp-b" x="259" y="242" width="252" height="56" rx="9"/>
+    <text class="dp-tt" x="385" y="266">backend</text><text class="dp-mu" x="385" y="286">Spring Boot · expose 8080</text>
+
+    <path class="dp-l" d="M385,298 L385,322" marker-end="url(#dp-arr)"/>
+    <rect class="dp-y" x="259" y="322" width="252" height="60" rx="9"/>
+    <text class="dp-tt" x="385" y="346">postgres · redis · kafka</text><text class="dp-mu" x="385" y="366">호스트 포트 공개(개발 편의)</text>
+
+    <rect class="dp-b" x="48" y="262" width="180" height="120" rx="9"/>
+    <text class="dp-tt" x="138" y="286">관측 스택</text><text class="dp-mu" x="138" y="308">prometheus</text>
+    <text class="dp-mu" x="138" y="328">grafana</text><text class="dp-mu" x="138" y="348">exporter 3종</text>
+    <text class="dp-mu" x="138" y="370">보존 7일</text>
+
+    <rect class="dp-pa" x="560" y="20" width="520" height="392" rx="12"/>
+    <text class="dp-hd" x="576" y="46">운영 — EC2 1대 · 서비스 6개</text>
+
+    <rect class="dp-b" x="580" y="62" width="180" height="56" rx="9"/>
+    <text class="dp-tt" x="670" y="86">웹 브라우저</text><text class="dp-mu" x="670" y="106">https://도메인</text>
+
+    <path class="dp-l" d="M760,78 L796,78" marker-end="url(#dp-arr)"/>
+    <text class="dp-mu" x="778" y="66">화면</text>
+
+    <rect class="dp-g" x="799" y="50" width="262" height="80" rx="9"/>
+    <text class="dp-tt" x="930" y="74">Vercel — Docker 밖</text>
+    <text class="dp-mu" x="930" y="96">Flutter Web 정적 호스팅</text>
+    <text class="dp-mu" x="930" y="116">GitHub Actions 가 prebuilt 업로드</text>
+
+    <path class="dp-l" d="M670,118 L670,146" marker-end="url(#dp-arr)"/>
+    <text class="dp-mu" x="700" y="140" style="text-anchor:start">/api · /ws</text>
+
+    <rect class="dp-k" x="572" y="146" width="496" height="250" rx="12"/>
+    <text class="dp-kh" x="586" y="168">Docker 구역 — API 와 인프라만. 화면 컨테이너가 없다</text>
+
+    <rect class="dp-g" x="588" y="182" width="212" height="76" rx="9"/>
+    <text class="dp-tt" x="694" y="206">proxy · nginx</text>
+    <text class="dp-mu" x="694" y="226">443 TLS 종단 · 80 은 리다이렉트</text>
+    <text class="dp-mu" x="694" y="246">/actuator 는 404 로 차단</text>
+
+    <path class="dp-l" d="M800,220 L832,220" marker-end="url(#dp-arr)"/>
+    <rect class="dp-b" x="835" y="182" width="220" height="76" rx="9"/>
+    <text class="dp-tt" x="945" y="206">backend</text>
+    <text class="dp-mu" x="945" y="226">healthcheck 통과 후 기동</text>
+    <text class="dp-mu" x="945" y="246">인스턴스 1개 고정</text>
+
+    <path class="dp-l" d="M945,258 L945,286" marker-end="url(#dp-arr)"/>
+    <rect class="dp-y" x="835" y="286" width="220" height="76" rx="9"/>
+    <text class="dp-tt" x="945" y="310">postgres · redis · kafka</text>
+    <text class="dp-mu" x="945" y="330">볼륨 4개로 데이터 영속</text>
+    <text class="dp-mu" x="945" y="350">호스트 포트 비공개</text>
+
+    <rect class="dp-b" x="588" y="286" width="212" height="76" rx="9"/>
+    <text class="dp-tt" x="694" y="310">certbot</text>
+    <text class="dp-mu" x="694" y="330">Let&#39;s Encrypt 인증서 자동 갱신</text>
+    <text class="dp-mu" x="694" y="350">nginx 는 6시간마다 reload</text>
+
+    <text class="dp-mu" x="20" y="446" style="text-anchor:start">핵심 차이 — 운영에는 frontend 컨테이너가 없다. 웹은 Vercel 이 서빙하고 EC2 는 API 전용이다(nginx.prod.conf 에 `/` 라우팅이 부재).</text>
+    <text class="dp-mu" x="20" y="472" style="text-anchor:start">그래서 로컬에서 사라졌던 CORS 가 운영에서 다시 발생 — REST 는 app.cors.allowed-origins, WebSocket 은 ws.allowed-origin-patterns 를 각각 주입해야 한다.</text>
+    <text class="dp-mu" x="20" y="498" style="text-anchor:start">WebSocket 핸드셰이크는 CORS 필터를 타지 않아 두 번째 값이 유일한 방어선이고, prod 프로파일은 기본값을 두지 않아 미주입 시 기동이 실패한다.</text>
+    <text class="dp-mu" x="20" y="524" style="text-anchor:start">배포 경로도 갈린다 — 웹은 GitHub Actions 가 빌드해 Vercel 로 올리고, 백엔드는 EC2 에서 docker-compose.prod.yml 로 재기동한다.</text>
+  </svg>
+  <div class="cap">두 패널의 점선 구역 넓이가 다른 것이 요점 — 로컬은 화면까지 Docker 안에 있어 <b>같은 출처(:80)</b> 가 되고 CORS 가 아예 발생하지 않지만, 운영은 화면이 Vercel 로 빠져 <b>출처가 갈리므로</b> 허용 목록 주입이 필수 조건이 됨. 로컬에서 CORS 를 한 번도 만나지 않다가 운영에서 처음 겪게 되는 구조이므로, 배포 전에 이 두 설정값을 반드시 확인.</div>
+</div>
+
+<!-- ================= 2 ================= -->
+<h2 id="s2">2. 요청 3갈래 — 같은 앱이 세 경로를 동시에 사용</h2>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 데이터 플로우 — REST · WebSocket push · 폴링</div>
+  <svg viewBox="0 0 1100 400" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .ch-b { fill: rgba(14,116,144,0.10); stroke: #0e7490; stroke-width: 1.8; }
+      .ch-y { fill: rgba(180,83,9,0.10);   stroke: #b45309; stroke-width: 1.8; }
+      .ch-r { fill: rgba(220,38,38,0.10);  stroke: #dc2626; stroke-width: 1.8; }
+      .ch-tt { fill: #3a3531; font: bold 15px sans-serif; text-anchor: middle; }
+      .ch-mu { fill: #6b6359; font: 13px sans-serif; text-anchor: middle; }
+      .ch-hd { fill: #3a3531; font: bold 16px sans-serif; }
+      .ch-l  { stroke: #c0b6a8; stroke-width: 1.8; fill: none; }
+    </style>
+    <defs>
+      <marker id="ch-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#c0b6a8"/>
+      </marker>
+    </defs>
+
+    <text class="ch-hd" x="25" y="30">① 일반 REST — 화면이 데이터를 요청</text>
+    <rect class="ch-b" x="25" y="44" width="150" height="56" rx="9"/><text class="ch-tt" x="100" y="70">앱</text><text class="ch-mu" x="100" y="90">dio + JWT</text>
+    <path class="ch-l" d="M175,72 L200,72" marker-end="url(#ch-arr)"/>
+    <rect class="ch-b" x="204" y="44" width="150" height="56" rx="9"/><text class="ch-tt" x="279" y="70">nginx /api</text><text class="ch-mu" x="279" y="90">동일 출처</text>
+    <path class="ch-l" d="M354,72 L379,72" marker-end="url(#ch-arr)"/>
+    <rect class="ch-b" x="383" y="44" width="150" height="56" rx="9"/><text class="ch-tt" x="458" y="70">Controller</text><text class="ch-mu" x="458" y="90">권한 애너테이션</text>
+    <path class="ch-l" d="M533,72 L558,72" marker-end="url(#ch-arr)"/>
+    <rect class="ch-b" x="562" y="44" width="160" height="56" rx="9"/><text class="ch-tt" x="642" y="70">Command / Query</text><text class="ch-mu" x="642" y="90">쓰기·읽기 분리</text>
+    <path class="ch-l" d="M722,72 L747,72" marker-end="url(#ch-arr)"/>
+    <rect class="ch-b" x="751" y="44" width="150" height="56" rx="9"/><text class="ch-tt" x="826" y="70">Repository</text><text class="ch-mu" x="826" y="90">JPA</text>
+    <path class="ch-l" d="M901,72 L926,72" marker-end="url(#ch-arr)"/>
+    <rect class="ch-b" x="930" y="44" width="145" height="56" rx="9"/><text class="ch-tt" x="1002" y="70">PostgreSQL</text><text class="ch-mu" x="1002" y="90">ApiResponse 로 회신</text>
+
+    <text class="ch-hd" x="25" y="150">② 실시간 push — 사건이 화면을 갱신</text>
+    <rect class="ch-y" x="25" y="164" width="150" height="56" rx="9"/><text class="ch-tt" x="100" y="190">도메인 서비스</text><text class="ch-mu" x="100" y="210">publishEvent</text>
+    <path class="ch-l" d="M175,192 L200,192" marker-end="url(#ch-arr)"/>
+    <rect class="ch-y" x="204" y="164" width="150" height="56" rx="9"/><text class="ch-tt" x="279" y="190">커밋 후 릴레이</text><text class="ch-mu" x="279" y="210">AFTER_COMMIT</text>
+    <path class="ch-l" d="M354,192 L379,192" marker-end="url(#ch-arr)"/>
+    <rect class="ch-y" x="383" y="164" width="150" height="56" rx="9"/><text class="ch-tt" x="458" y="190">Kafka 토픽 17</text><text class="ch-mu" x="458" y="210">키 = tenantId</text>
+    <path class="ch-l" d="M533,192 L558,192" marker-end="url(#ch-arr)"/>
+    <rect class="ch-y" x="562" y="164" width="160" height="56" rx="9"/><text class="ch-tt" x="642" y="190">컨슈머 4종</text><text class="ch-mu" x="642" y="210">알림 · 위치 · 재계획</text>
+    <path class="ch-l" d="M722,192 L747,192" marker-end="url(#ch-arr)"/>
+    <rect class="ch-y" x="751" y="164" width="150" height="56" rx="9"/><text class="ch-tt" x="826" y="190">STOMP 목적지</text><text class="ch-mu" x="826" y="210">/topic · /user/queue</text>
+    <path class="ch-l" d="M901,192 L926,192" marker-end="url(#ch-arr)"/>
+    <rect class="ch-y" x="930" y="164" width="145" height="56" rx="9"/><text class="ch-tt" x="1002" y="190">앱 구독</text><text class="ch-mu" x="1002" y="210">현재 알림만 수신</text>
+
+    <text class="ch-hd" x="25" y="270">③ 폴링 — 관제 지도가 스스로 재조회</text>
+    <rect class="ch-r" x="25" y="284" width="150" height="56" rx="9"/><text class="ch-tt" x="100" y="310">관제 화면</text><text class="ch-mu" x="100" y="330">3초 타이머</text>
+    <path class="ch-l" d="M175,312 L200,312" marker-end="url(#ch-arr)"/>
+    <rect class="ch-r" x="204" y="284" width="200" height="56" rx="9"/><text class="ch-tt" x="304" y="310">GET /api/locations/buses</text><text class="ch-mu" x="304" y="330">스냅샷 조회</text>
+    <path class="ch-l" d="M404,312 L429,312" marker-end="url(#ch-arr)"/>
+    <rect class="ch-r" x="433" y="284" width="200" height="56" rx="9"/><text class="ch-tt" x="533" y="310">Redis busloc:{busId}</text><text class="ch-mu" x="533" y="330">TTL 15초</text>
+
+    <text class="ch-mu" x="655" y="306" style="text-anchor:start">②의 push 경로가 버스 위치까지 이미 완비돼 있는데도</text>
+    <text class="ch-mu" x="655" y="328" style="text-anchor:start">프론트가 미전환이라 ③이 남아 있는 상태.</text>
+
+    <text class="ch-mu" x="25" y="378" style="text-anchor:start">백엔드가 제공하는 REST 매핑 85개 중 프론트가 실제로 호출하는 것은 22개 — 구현은 끝났으나 호출할 화면이 없는 API 가 다수.</text>
+  </svg>
+  <div class="cap">붉은 계열(③)은 정상 설계가 아니라 <b>전환이 남은 구간</b>을 뜻함. ①과 ②의 차이는 방향 — ①은 화면이 필요할 때 끌어오고, ②는 사건이 났을 때 서버가 밀어냄. ②의 중간에 Kafka 를 끼운 이유는 발행 모듈이 알림 모듈을 직접 부르지 않게 하려는 것이고, 실제로 <code>RideEventCommandService</code> 는 <code>NotificationService</code> 를 모름.</div>
+</div>
+
+<!-- ================= 3 ================= -->
+<h2 id="s3">3. 백엔드 모듈 지도 — 업무 단위 16개 + 공통 인프라</h2>
+
+<p>패키지 최상위를 <code>controller/</code> · <code>service/</code> 같은 기술 단위가 아니라 <b>업무 단위</b>로 가름. 기능 하나를 고칠 때 폴더 하나만 열면 되게 하려는 의도이며, 각 모듈 안에서 다시 <code>controller · command · query · repository · entity · event</code> 로 나뉨.</p>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 모듈 지도 — 책임군별 배치</div>
+  <svg viewBox="0 0 1100 530" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .mm-pa { fill: rgba(58,53,49,0.03); stroke: #c0b6a8; stroke-width: 1.5; }
+      .mm-c1 { fill: rgba(14,116,144,0.10); stroke: #0e7490; stroke-width: 1.6; }
+      .mm-c2 { fill: rgba(124,58,237,0.10); stroke: #7c3aed; stroke-width: 1.6; }
+      .mm-c3 { fill: rgba(4,120,87,0.10);   stroke: #047857; stroke-width: 1.6; }
+      .mm-c4 { fill: rgba(220,38,38,0.10);  stroke: #dc2626; stroke-width: 1.6; }
+      .mm-c5 { fill: rgba(180,83,9,0.10);   stroke: #b45309; stroke-width: 1.6; }
+      .mm-hd { fill: #3a3531; font: bold 16px sans-serif; }
+      .mm-nm { fill: #3a3531; font: bold 15px sans-serif; }
+      .mm-mu { fill: #6b6359; font: 13px sans-serif; }
+    </style>
+
+    <rect class="mm-pa" x="20" y="20" width="262" height="232" rx="10"/>
+    <text class="mm-hd" x="34" y="46">기준정보</text>
+    <text class="mm-mu" x="34" y="66">누가·무엇이 존재하는가</text>
+    <rect class="mm-c1" x="34" y="76" width="234" height="30" rx="7"/><text class="mm-nm" x="44" y="96">tenant · 학원(테넌트)</text>
+    <rect class="mm-c1" x="34" y="112" width="234" height="30" rx="7"/><text class="mm-nm" x="44" y="132">user · 계정 + 역할 멤버십</text>
+    <rect class="mm-c1" x="34" y="148" width="234" height="30" rx="7"/><text class="mm-nm" x="44" y="168">student · 학생 + 보호자</text>
+    <rect class="mm-c1" x="34" y="184" width="234" height="30" rx="7"/><text class="mm-nm" x="44" y="204">bus · 차량 + 배차</text>
+    <rect class="mm-c1" x="34" y="220" width="234" height="26" rx="7"/><text class="mm-nm" x="44" y="239">route · 정적 노선·정류장</text>
+
+    <rect class="mm-pa" x="294" y="20" width="262" height="232" rx="10"/>
+    <text class="mm-hd" x="308" y="46">계획 · 배차</text>
+    <text class="mm-mu" x="308" y="66">오늘 어떻게 돌 것인가</text>
+    <rect class="mm-c2" x="308" y="76" width="234" height="30" rx="7"/><text class="mm-nm" x="318" y="96">routing · 일자별 경로 최적화</text>
+    <rect class="mm-c2" x="308" y="112" width="234" height="30" rx="7"/><text class="mm-nm" x="318" y="132">schedule · 등하원 변경 요청</text>
+    <text class="mm-mu" x="308" y="162">routing 은 외부 지도 API(네이버 Directions</text>
+    <text class="mm-mu" x="308" y="182">기본 · OSRM 대안)를 WebClient 로 호출.</text>
+    <text class="mm-mu" x="308" y="208">route 는 마스터 데이터, routing 은 그날의</text>
+    <text class="mm-mu" x="308" y="228">실행 계획 — 이름이 비슷하나 역할이 다름.</text>
+
+    <rect class="mm-pa" x="568" y="20" width="262" height="232" rx="10"/>
+    <text class="mm-hd" x="582" y="46">운행 실행</text>
+    <text class="mm-mu" x="582" y="66">지금 무슨 일이 벌어지는가</text>
+    <rect class="mm-c3" x="582" y="76" width="234" height="30" rx="7"/><text class="mm-nm" x="592" y="96">drivesession · 운행 세션·로스터</text>
+    <rect class="mm-c3" x="582" y="112" width="234" height="30" rx="7"/><text class="mm-nm" x="592" y="132">location · 실시간 좌표(엔티티 부재)</text>
+    <rect class="mm-c3" x="582" y="148" width="234" height="30" rx="7"/><text class="mm-nm" x="592" y="168">rideevent · 승·하차·인계 기록</text>
+    <text class="mm-mu" x="582" y="198">drivesession 이 근접(APPROACH)·미승차</text>
+    <text class="mm-mu" x="582" y="218">(NO_SHOW) 를 스케줄러로 자동 판정.</text>
+    <text class="mm-mu" x="582" y="240">location 만 RDB 에 남기지 않음.</text>
+
+    <rect class="mm-pa" x="842" y="20" width="238" height="232" rx="10"/>
+    <text class="mm-hd" x="856" y="46">예외 · 안전</text>
+    <text class="mm-mu" x="856" y="66">정상 흐름을 벗어난 사건</text>
+    <rect class="mm-c4" x="856" y="76" width="210" height="30" rx="7"/><text class="mm-nm" x="866" y="96">attendance · 결석·휴원</text>
+    <rect class="mm-c4" x="856" y="112" width="210" height="30" rx="7"/><text class="mm-nm" x="866" y="132">sos · 긴급 호출·에스컬레이션</text>
+    <text class="mm-mu" x="856" y="164">두 모듈 모두 승인 절차가 있는</text>
+    <text class="mm-mu" x="856" y="184">상태머신을 보유.</text>
+    <text class="mm-mu" x="856" y="212">SOS 는 30초 주기 스케줄러가</text>
+    <text class="mm-mu" x="856" y="232">미확인 건을 단계 상승.</text>
+
+    <rect class="mm-pa" x="20" y="266" width="262" height="160" rx="10"/>
+    <text class="mm-hd" x="34" y="292">조회 · 전달</text>
+    <text class="mm-mu" x="34" y="312">사건을 사람에게 보여주는 층</text>
+    <rect class="mm-c5" x="34" y="322" width="234" height="30" rx="7"/><text class="mm-nm" x="44" y="342">operations · 관리자 운영 현황</text>
+    <rect class="mm-c5" x="34" y="358" width="234" height="30" rx="7"/><text class="mm-nm" x="44" y="378">notification · 알림 변환·발송</text>
+    <text class="mm-mu" x="34" y="406">operations 는 조회 전용(엔티티 부재).</text>
+
+    <rect class="mm-pa" x="294" y="266" width="262" height="160" rx="10"/>
+    <text class="mm-hd" x="308" y="292">관측</text>
+    <text class="mm-mu" x="308" y="312">시스템 자신의 상태</text>
+    <rect class="mm-c5" x="308" y="322" width="234" height="30" rx="7"/><text class="mm-nm" x="318" y="342">observability · 지표 계측</text>
+    <text class="mm-mu" x="308" y="372">AOP 로 @Scheduled · @KafkaListener 를</text>
+    <text class="mm-mu" x="308" y="392">감싸 실패·지연을 Micrometer 지표로 배출.</text>
+    <text class="mm-mu" x="308" y="414">STOMP 세션 수·버스 좌표 신선도 포함.</text>
+
+    <rect class="mm-pa" x="568" y="266" width="512" height="160" rx="10"/>
+    <text class="mm-hd" x="582" y="292">global — 모든 모듈이 공유하는 공통 인프라</text>
+    <rect class="mm-c1" x="580" y="306" width="150" height="30" rx="7"/><text class="mm-nm" x="590" y="326">security · 인증</text>
+    <rect class="mm-c1" x="740" y="306" width="170" height="30" rx="7"/><text class="mm-nm" x="750" y="326">authz · 권한 부여표</text>
+    <rect class="mm-c1" x="920" y="306" width="150" height="30" rx="7"/><text class="mm-nm" x="930" y="326">tenant · 격리</text>
+    <rect class="mm-c1" x="580" y="342" width="150" height="30" rx="7"/><text class="mm-nm" x="590" y="362">event · 릴레이</text>
+    <rect class="mm-c1" x="740" y="342" width="170" height="30" rx="7"/><text class="mm-nm" x="750" y="362">response · 응답 래퍼</text>
+    <rect class="mm-c1" x="920" y="342" width="150" height="30" rx="7"/><text class="mm-nm" x="930" y="362">error · 예외 변환</text>
+    <rect class="mm-c1" x="580" y="378" width="150" height="30" rx="7"/><text class="mm-nm" x="590" y="398">config · 설정</text>
+    <rect class="mm-c1" x="740" y="378" width="170" height="30" rx="7"/><text class="mm-nm" x="750" y="398">push · 대상 해석</text>
+    <rect class="mm-c1" x="920" y="378" width="150" height="30" rx="7"/><text class="mm-nm" x="930" y="398">infrastructure</text>
+
+    <text class="mm-mu" x="20" y="462" style="text-anchor:start">모듈 간 순환 의존 5건이 남아 있음(SoT 문서 12장) — 새 모듈을 추가할 때 이 방향을 늘리지 않는 것이 규칙.</text>
+    <text class="mm-mu" x="20" y="486" style="text-anchor:start">service · repository 는 "구현이 바뀔 가능성"이 있을 때만 spec(인터페이스) / impl(구현체) 로 분리. 단순 CRUD 는 분리하지 않음.</text>
+    <text class="mm-mu" x="20" y="510" style="text-anchor:start">컨트롤러는 언제나 spec 만 의존 — 예: location 은 Redis 구현과 InMemory 구현 두 개를 두고 @Primary 로 선택.</text>
+  </svg>
+  <div class="cap">색은 책임군 구분일 뿐 호출 방향이 아님. 판정 기준은 "이 모듈이 답하는 질문" — 기준정보는 <b>존재</b>, 계획은 <b>예정</b>, 실행은 <b>현재</b>, 예외는 <b>이탈</b>, 조회·전달은 <b>표현</b>. <code>location</code> 과 <code>operations</code> 에만 엔티티가 없는 이유도 여기서 나옴: 하나는 휘발성 좌표만 다루고, 하나는 다른 모듈의 데이터를 조합해 읽기만 함.</div>
+</div>
+
+<!-- ================= 4 ================= -->
+<h2 id="s4">4. 요청 1건이 통과하는 계층 — Controller · Service · Repository</h2>
+
+<p>Spring 의 기본 3계층 위에 이 저장소가 얹은 규칙이 둘. 하나는 <b>서비스를 command 와 query 로 가르는 것</b>(쓰기 트랜잭션과 읽기 전용 조회를 섞지 않음), 다른 하나는 <b>응답을 <code>ApiResponse&lt;T&gt;</code> 로 통일하는 것</b>(성공·실패 형태가 같아 프론트가 한 번만 언랩).</p>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 요청 → 처리 → 응답 경로와 예외 우회로</div>
+  <svg viewBox="0 0 1100 400" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .ly-b { fill: rgba(14,116,144,0.10); stroke: #0e7490; stroke-width: 1.8; }
+      .ly-g { fill: rgba(4,120,87,0.10);   stroke: #047857; stroke-width: 1.8; }
+      .ly-r { fill: rgba(220,38,38,0.10);  stroke: #dc2626; stroke-width: 1.8; }
+      .ly-p { fill: rgba(124,58,237,0.10); stroke: #7c3aed; stroke-width: 1.8; }
+      .ly-tt { fill: #3a3531; font: bold 15px sans-serif; text-anchor: middle; }
+      .ly-mu { fill: #6b6359; font: 13px sans-serif; text-anchor: middle; }
+      .ly-l  { stroke: #c0b6a8; stroke-width: 1.8; fill: none; }
+      .ly-rl { stroke: #dc2626; stroke-width: 1.6; fill: none; }
+    </style>
+    <defs>
+      <marker id="ly-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#c0b6a8"/>
+      </marker>
+      <marker id="ly-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#dc2626"/>
+      </marker>
+    </defs>
+
+    <rect class="ly-b" x="25" y="120" width="140" height="64" rx="9"/>
+    <text class="ly-tt" x="95" y="146">HTTP 요청</text><text class="ly-mu" x="95" y="168">Bearer 토큰 동반</text>
+    <path class="ly-l" d="M165,152 L192,152" marker-end="url(#ly-arr)"/>
+
+    <rect class="ly-p" x="196" y="120" width="160" height="64" rx="9"/>
+    <text class="ly-tt" x="276" y="146">Jwt 인증 필터</text><text class="ly-mu" x="276" y="168">AuthUser 세팅</text>
+    <path class="ly-l" d="M356,152 L383,152" marker-end="url(#ly-arr)"/>
+
+    <rect class="ly-b" x="387" y="120" width="170" height="64" rx="9"/>
+    <text class="ly-tt" x="472" y="146">Controller</text><text class="ly-mu" x="472" y="168">권한 애너테이션 · 입력 검증</text>
+
+    <path class="ly-l" d="M557,138 L600,86" marker-end="url(#ly-arr)"/>
+    <path class="ly-l" d="M557,166 L600,218" marker-end="url(#ly-arr)"/>
+
+    <rect class="ly-g" x="604" y="46" width="190" height="64" rx="9"/>
+    <text class="ly-tt" x="699" y="72">CommandService</text><text class="ly-mu" x="699" y="94">@Transactional · 상태 변경</text>
+
+    <rect class="ly-g" x="604" y="192" width="190" height="64" rx="9"/>
+    <text class="ly-tt" x="699" y="218">QueryService</text><text class="ly-mu" x="699" y="240">readOnly = true · 조회 전용</text>
+
+    <path class="ly-l" d="M794,78 L838,140" marker-end="url(#ly-arr)"/>
+    <path class="ly-l" d="M794,224 L838,166" marker-end="url(#ly-arr)"/>
+
+    <rect class="ly-b" x="842" y="120" width="150" height="64" rx="9"/>
+    <text class="ly-tt" x="917" y="146">Repository</text><text class="ly-mu" x="917" y="168">spec ↔ impl</text>
+    <path class="ly-l" d="M992,152 L1030,152" marker-end="url(#ly-arr)"/>
+    <text class="ly-mu" x="1042" y="140">DB ·</text>
+    <text class="ly-mu" x="1042" y="162">Redis</text>
+
+    <path class="ly-l" d="M917,190 L917,300 L480,300" marker-end="url(#ly-arr)" stroke-dasharray="7 5"/>
+    <text class="ly-mu" x="700" y="290">결과 DTO 를 ApiResponse&lt;T&gt; 로 감싸 회신</text>
+
+    <rect class="ly-r" x="25" y="240" width="330" height="72" rx="9"/>
+    <text class="ly-tt" x="190" y="266">GlobalExceptionHandler</text>
+    <text class="ly-mu" x="190" y="288">도메인 예외 → 에러 코드 8종 + HTTP 상태</text>
+    <text class="ly-mu" x="190" y="306">모든 계층의 예외가 여기 한 곳으로 수렴</text>
+    <path class="ly-rl" d="M604,235 L370,272" marker-end="url(#ly-red)" stroke-dasharray="6 4"/>
+    <path class="ly-rl" d="M604,92 L580,92 L580,246 L360,262" marker-end="url(#ly-red)" stroke-dasharray="6 4"/>
+
+    <text class="ly-mu" x="25" y="358" style="text-anchor:start">붉은 점선 = 예외 경로. 컨트롤러가 try-catch 로 잡지 않고 던지면 전역 핸들러가 같은 ApiResponse 형태로 변환하므로, 성공·실패 응답의 껍데기가 동일.</text>
+    <text class="ly-mu" x="25" y="382" style="text-anchor:start">흔한 오해 — QueryService 에 readOnly 를 붙이면 "빨라진다"가 아니라, 쓰기 플러시를 막아 조회 도중 의도치 않은 UPDATE 가 나가는 것을 차단하는 것이 본래 목적.</text>
+  </svg>
+  <div class="cap">위아래로 갈라진 두 초록 상자가 CQRS 분리 지점 — 같은 도메인이라도 <b>쓰기 트랜잭션</b>과 <b>읽기 조회</b>가 다른 클래스에 있음. 점선 회신 화살표가 Repository 에서 출발하는 이유는 반환 경로에서 추가 처리가 없기 때문이며, 컨트롤러는 DTO 를 <code>ApiResponse</code> 로 감싸기만 함.</div>
+</div>
+
+<!-- ================= 5 ================= -->
+<h2 id="s5">5. 인증 · 인가 — 세 층이 서로 다른 질문에 답변</h2>
+
+<p>세 층이 각각 <b>누구인가 · 무엇을 할 수 있는가 · 그 데이터에 닿아도 되는가</b> 를 나눠 맡음. 특히 세 번째가 이 시스템의 핵심 제약인데, 멀티 테넌시 격리를 DB 레벨(RLS)이 아니라 <b>애플리케이션 코드</b>에서 강제하기 때문.</p>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 인가 3층 구조와 STOMP 우회로</div>
+  <svg viewBox="0 0 1100 440" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .az-b { fill: rgba(14,116,144,0.10); stroke: #0e7490; stroke-width: 1.8; }
+      .az-p { fill: rgba(124,58,237,0.10); stroke: #7c3aed; stroke-width: 1.8; }
+      .az-g { fill: rgba(4,120,87,0.10);   stroke: #047857; stroke-width: 1.8; }
+      .az-y { fill: rgba(180,83,9,0.10);   stroke: #b45309; stroke-width: 1.8; }
+      .az-pa{ fill: rgba(58,53,49,0.03);   stroke: #c0b6a8; stroke-width: 1.5; }
+      .az-tt { fill: #3a3531; font: bold 16px sans-serif; }
+      .az-nm { fill: #3a3531; font: bold 14px sans-serif; text-anchor: middle; }
+      .az-mu { fill: #6b6359; font: 13px sans-serif; }
+      .az-ct { fill: #6b6359; font: 13px sans-serif; text-anchor: middle; }
+      .az-l  { stroke: #c0b6a8; stroke-width: 1.8; fill: none; }
+    </style>
+    <defs>
+      <marker id="az-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#c0b6a8"/>
+      </marker>
+    </defs>
+
+    <rect class="az-pa" x="20" y="20" width="740" height="112" rx="10"/>
+    <text class="az-tt" x="34" y="46">1층 · 누구인가 (토큰)</text>
+    <rect class="az-b" x="34" y="58" width="200" height="58" rx="9"/>
+    <text class="az-nm" x="134" y="82">JwtAuthenticationFilter</text><text class="az-ct" x="134" y="103">매 요청 서명·만료 검증</text>
+    <path class="az-l" d="M234,87 L264,87" marker-end="url(#az-arr)"/>
+    <rect class="az-b" x="268" y="58" width="200" height="58" rx="9"/>
+    <text class="az-nm" x="368" y="82">AuthUser</text><text class="az-ct" x="368" y="103">userId + ROLE_* 멤버십</text>
+    <text class="az-mu" x="486" y="82">토큰에는 ROLE_* 만 존재.</text>
+    <text class="az-mu" x="486" y="104">권한 이름은 담기지 않음.</text>
+
+    <path class="az-l" d="M390,132 L390,158" marker-end="url(#az-arr)"/>
+
+    <rect class="az-pa" x="20" y="160" width="740" height="126" rx="10"/>
+    <text class="az-tt" x="34" y="186">2층 · 무엇을 할 수 있는가 (권한)</text>
+    <rect class="az-p" x="34" y="198" width="210" height="72" rx="9"/>
+    <text class="az-nm" x="139" y="222">권한 애너테이션 20종</text><text class="az-ct" x="139" y="243">@CanManageBuses 등</text><text class="az-ct" x="139" y="261">컨트롤러에 부착</text>
+    <path class="az-l" d="M244,234 L274,234" marker-end="url(#az-arr)"/>
+    <rect class="az-p" x="278" y="198" width="210" height="72" rx="9"/>
+    <text class="az-nm" x="383" y="222">hasAuthority('bus:manage')</text><text class="az-ct" x="383" y="243">자원:행위 형태의 권한</text><text class="az-ct" x="383" y="261">역할 이름이 등장하지 않음</text>
+    <path class="az-l" d="M488,234 L518,234" marker-end="url(#az-arr)"/>
+    <rect class="az-p" x="522" y="198" width="222" height="72" rx="9"/>
+    <text class="az-nm" x="633" y="222">RolePermissions.HIERARCHY</text><text class="az-ct" x="633" y="243">역할 → 권한 부여표 33줄</text><text class="az-ct" x="633" y="261">"누가 무엇을" 의 유일한 출처</text>
+
+    <path class="az-l" d="M390,286 L390,312" marker-end="url(#az-arr)"/>
+
+    <rect class="az-pa" x="20" y="314" width="740" height="112" rx="10"/>
+    <text class="az-tt" x="34" y="340">3층 · 그 데이터에 닿아도 되는가 (범위)</text>
+    <rect class="az-g" x="34" y="352" width="172" height="58" rx="9"/>
+    <text class="az-nm" x="120" y="376">TenantGuard</text><text class="az-ct" x="120" y="397">소속 학원으로 질의 한정</text>
+    <rect class="az-g" x="216" y="352" width="172" height="58" rx="9"/>
+    <text class="az-nm" x="302" y="376">GuardianAccess</text><text class="az-ct" x="302" y="397">보호자 ↔ 자녀 연결 확인</text>
+    <rect class="az-g" x="398" y="352" width="172" height="58" rx="9"/>
+    <text class="az-nm" x="484" y="376">BusCrewGuard</text><text class="az-ct" x="484" y="397">담당 기사·선탑자 확인</text>
+    <rect class="az-g" x="580" y="352" width="164" height="58" rx="9"/>
+    <text class="az-nm" x="662" y="376">ActiveRosterReader</text><text class="az-ct" x="662" y="397">오늘 탑승 명단 확인</text>
+
+    <rect class="az-pa" x="776" y="20" width="304" height="406" rx="10"/>
+    <text class="az-tt" x="790" y="46">WebSocket 은 별도 경로</text>
+    <rect class="az-y" x="790" y="60" width="276" height="86" rx="9"/>
+    <text class="az-nm" x="928" y="86">StompAuthChannelInterceptor</text>
+    <text class="az-ct" x="928" y="108">CONNECT 프레임에서 토큰 검증</text>
+    <text class="az-ct" x="928" y="128">/topic/tenant/{id}/** 소속 확인</text>
+    <text class="az-mu" x="790" y="174">HTTP 핸드셰이크에는 토큰을 붙일 수</text>
+    <text class="az-mu" x="790" y="196">없는 클라이언트가 많아 /ws/** 는</text>
+    <text class="az-mu" x="790" y="218">필터 단계에서 permitAll.</text>
+    <text class="az-mu" x="790" y="248">대신 STOMP 프레임에서 검증하므로</text>
+    <text class="az-mu" x="790" y="270">이 경로는 2층(@PreAuthorize)을</text>
+    <text class="az-mu" x="790" y="292">타지 않음.</text>
+    <text class="az-mu" x="790" y="326">→ 새 역할을 추가하면 부여표 한 줄로</text>
+    <text class="az-mu" x="790" y="348">끝나지만, 이 파일 하나만은 따로</text>
+    <text class="az-mu" x="790" y="370">확인 필요.</text>
+    <text class="az-mu" x="790" y="402">개인 큐(/user/queue/**)는 Spring 이</text>
+    <text class="az-mu" x="790" y="422">세션별로 재작성해 추가 검사 불필요.</text>
+  </svg>
+  <div class="cap">2층에서 <b>역할 문자열이 컨트롤러에 등장하지 않는 것</b>이 이 구조의 핵심 — 컨트롤러는 "버스를 관리할 권한"만 요구하고, 그 권한을 어떤 역할이 갖는지는 부여표 파일 하나가 결정. 노란 패널은 예외 경로이며 정상 설계에 포함되나, 2층을 우회하므로 역할 변경 시 별도 점검 대상. 3층이 없으면 A 학원 관리자가 B 학원 학생을 조회 가능 — 격리가 코드에만 있는 만큼 이 층의 누락이 곧 보안 결함. 누락 여부를 사람 눈에 맡기지 않도록 <code>ControllerAuthorizationConventionTest</code> 가 <b>매핑 메서드 단위</b>로 2층 부재를 검출 — 의도적으로 여는 매핑은 근거와 함께 <code>METHOD_LEVEL_EXEMPT</code> 에 등록해야 통과(2026-08-23 기준 2건: <code>RouteController#stops</code> · <code>LocationSocketController#report</code>, 둘 다 3층을 서비스 계층이 담당).</div>
+</div>
+
+<div class="code-card">
+  <div class="code-card-header">
+    <span class="code-card-dots"><span></span><span></span><span></span></span>
+    <span class="code-card-lang">Java · global/security/authz/CanManageBuses.java</span>
+  </div>
+  <pre class="line-numbers"><code class="language-java">@Target({ElementType.METHOD, ElementType.TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+@PreAuthorize("hasAuthority('" + Permissions.BUS_MANAGE + "')")
+public @interface CanManageBuses {
+}
+
+// 컨트롤러 사용부 — 역할 이름이 등장하지 않는다
+@CanManageBuses
+@PostMapping
+public ApiResponse&lt;BusResponse&gt; register(@RequestBody BusCreateRequest request) { ... }</code></pre>
+</div>
+
+<!-- ================= 6 ================= -->
+<h2 id="s6">6. 도메인 이벤트 — 커밋 이후에만 나가는 2단 릴레이</h2>
+
+<p>발행 측은 Kafka 를 모름. 도메인 서비스는 Spring 의 <code>ApplicationEventPublisher.publishEvent()</code> 만 부르고, 커밋 이후에 동작하는 리스너가 Kafka 로 옮김. 이렇게 가른 이유는 <b>DB 롤백과 메시지 발행이 어긋나는 상황</b>을 막기 위해서.</p>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 이벤트 릴레이 — 트랜잭션 경계와 소비자 fan-out</div>
+  <svg viewBox="0 0 1100 420" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .ev-b { fill: rgba(14,116,144,0.10); stroke: #0e7490; stroke-width: 1.8; }
+      .ev-y { fill: rgba(180,83,9,0.10);   stroke: #b45309; stroke-width: 1.8; }
+      .ev-g { fill: rgba(4,120,87,0.10);   stroke: #047857; stroke-width: 1.8; }
+      .ev-tx{ fill: none; stroke: #7c3aed; stroke-width: 2; stroke-dasharray: 8 5; }
+      .ev-tt { fill: #3a3531; font: bold 15px sans-serif; text-anchor: middle; }
+      .ev-mu { fill: #6b6359; font: 13px sans-serif; text-anchor: middle; }
+      .ev-hd { fill: #7c3aed; font: bold 14px sans-serif; }
+      .ev-l  { stroke: #c0b6a8; stroke-width: 1.8; fill: none; }
+    </style>
+    <defs>
+      <marker id="ev-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#c0b6a8"/>
+      </marker>
+    </defs>
+
+    <rect class="ev-tx" x="20" y="46" width="330" height="150" rx="12"/>
+    <text class="ev-hd" x="34" y="70">트랜잭션 경계 안</text>
+    <rect class="ev-b" x="34" y="84" width="140" height="94" rx="9"/>
+    <text class="ev-tt" x="104" y="112">도메인 서비스</text><text class="ev-mu" x="104" y="134">DB 쓰기</text><text class="ev-mu" x="104" y="156">+ publishEvent</text>
+    <path class="ev-l" d="M174,131 L200,131" marker-end="url(#ev-arr)"/>
+    <rect class="ev-b" x="204" y="84" width="134" height="94" rx="9"/>
+    <text class="ev-tt" x="271" y="112">DomainEvent</text><text class="ev-mu" x="271" y="134">eventId · occurredAt</text><text class="ev-mu" x="271" y="156">tenantId</text>
+
+    <path class="ev-l" d="M350,131 L392,131" marker-end="url(#ev-arr)"/>
+    <text class="ev-mu" x="371" y="112">커밋</text>
+
+    <rect class="ev-y" x="396" y="84" width="180" height="94" rx="9"/>
+    <text class="ev-tt" x="486" y="112">Transactional</text><text class="ev-tt" x="486" y="132">DomainEventRelay</text><text class="ev-mu" x="486" y="156">AFTER_COMMIT 에서만 실행</text>
+
+    <path class="ev-l" d="M576,131 L606,131" marker-end="url(#ev-arr)"/>
+    <rect class="ev-y" x="610" y="84" width="170" height="94" rx="9"/>
+    <text class="ev-tt" x="695" y="112">Kafka 발행</text><text class="ev-mu" x="695" y="134">클래스명 → 토픽 자동 변환</text><text class="ev-mu" x="695" y="156">파티션 키 = tenantId</text>
+
+    <path class="ev-l" d="M780,131 L812,131" marker-end="url(#ev-arr)"/>
+    <rect class="ev-y" x="816" y="84" width="268" height="94" rx="9"/>
+    <text class="ev-tt" x="950" y="112">토픽 17종</text><text class="ev-mu" x="950" y="134">student-boarded · sos-triggered · no-show</text><text class="ev-mu" x="950" y="156">location-updated · route-plan-published …</text>
+
+    <path class="ev-l" d="M950,178 L950,206 L160,206 L160,238" marker-end="url(#ev-arr)"/>
+
+    <rect class="ev-g" x="25" y="242" width="248" height="88" rx="9"/>
+    <text class="ev-tt" x="149" y="264">DomainEvent</text>
+    <text class="ev-tt" x="149" y="282">NotificationConsumer</text>
+    <text class="ev-mu" x="149" y="304">사건 → 알림 로그 변환·발송</text>
+    <text class="ev-mu" x="149" y="323">dedupKey 로 중복 알림 차단</text>
+
+    <path class="ev-l" d="M950,206 L420,206 L420,238" marker-end="url(#ev-arr)"/>
+    <rect class="ev-g" x="289" y="242" width="248" height="88" rx="9"/>
+    <text class="ev-tt" x="413" y="268">LocationPushConsumer</text>
+    <text class="ev-mu" x="413" y="292">학생 좌표 → 개인 큐 + 테넌트 토픽</text>
+    <text class="ev-mu" x="413" y="314">본인 · 보호자 · 담당 기사 · 관리자</text>
+
+    <path class="ev-l" d="M950,206 L677,206 L677,238" marker-end="url(#ev-arr)"/>
+    <rect class="ev-g" x="553" y="242" width="248" height="88" rx="9"/>
+    <text class="ev-tt" x="677" y="268">BusLocationPushConsumer</text>
+    <text class="ev-mu" x="677" y="292">버스 좌표 → 관리자 · 학부모</text>
+    <text class="ev-mu" x="677" y="314">경로는 완비, 프론트가 미구독</text>
+
+    <path class="ev-l" d="M950,206 L941,238" marker-end="url(#ev-arr)"/>
+    <rect class="ev-g" x="817" y="242" width="248" height="88" rx="9"/>
+    <text class="ev-tt" x="941" y="268">RoutingReplanEventConsumer</text>
+    <text class="ev-mu" x="941" y="292">배정·하차지 변경 감지</text>
+    <text class="ev-mu" x="941" y="314">경로 재계획 트리거</text>
+
+    <text class="ev-mu" x="25" y="368" style="text-anchor:start">보라 점선 안에서 발행된 이벤트는 롤백되면 릴레이 메서드 자체가 호출되지 않음 — "DB 는 되돌아갔는데 알림만 나가는" 불일치가 구조적으로 차단.</text>
+    <text class="ev-mu" x="25" y="392" style="text-anchor:start">남은 트레이드오프: 커밋 직후·릴레이 직전에 프로세스가 죽으면 이벤트 유실 가능. 완전한 재현이 필요해지면 Outbox 패턴으로 승격하는 것이 다음 단계.</text>
+  </svg>
+  <div class="cap">보라 점선은 트랜잭션 경계이고, 릴레이 상자가 그 <b>바깥</b>에 있는 것이 이 그림의 핵심 — 경계 안에서 Kafka 를 부르면 롤백된 사건의 알림이 이미 나간 뒤가 됨. 소비자 4종은 같은 토픽 집합을 나눠 듣고 서로를 모름. <code>BusLocationPushConsumer</code> 만 회색 없이 "미구독"이라 표기한 이유는 서버 측 경로가 완성돼 있고 클라이언트 전환만 남았기 때문.</div>
+</div>
+
+<div class="code-card">
+  <div class="code-card-header">
+    <span class="code-card-dots"><span></span><span></span><span></span></span>
+    <span class="code-card-lang">Java · global/event/TransactionalDomainEventRelay.java</span>
+  </div>
+  <pre class="line-numbers"><code class="language-java">@Component
+public class TransactionalDomainEventRelay {
+
+    private final DomainEventPublisher domainEventPublisher;
+
+    public TransactionalDomainEventRelay(DomainEventPublisher domainEventPublisher) {
+        this.domainEventPublisher = domainEventPublisher;
+    }
+
+    // 커밋 이후에만 호출된다. 롤백되면 이 메서드 자체가 실행되지 않는다.
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void relay(DomainEvent event) {
+        domainEventPublisher.publish(event);
+    }
+}</code></pre>
+</div>
+
+<!-- ================= 7 ================= -->
+<h2 id="s7">7. 실시간 위치 — 학생과 버스, 두 파이프라인</h2>
+
+<p>이 시스템에는 위치 경로가 <b>둘</b>이고 진행 상태가 서로 다름. 설계 제약은 "MVP 는 Mock 으로 하되 데이터 소스만 갈아끼우면 실 GPS 로 넘어갈 것" 이었고, 실제 구현은 <code>LocationSource</code> 포트 + 설정 플래그 조합.</p>
+
+<div class="viz-frame">
+  <div class="viz-title">📊 위치 파이프라인 두 갈래 — 생성부터 화면까지</div>
+  <svg viewBox="0 0 1100 460" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .lp-b { fill: rgba(14,116,144,0.10); stroke: #0e7490; stroke-width: 1.8; }
+      .lp-p { fill: rgba(124,58,237,0.10); stroke: #7c3aed; stroke-width: 1.8; }
+      .lp-y { fill: rgba(180,83,9,0.10);   stroke: #b45309; stroke-width: 1.8; }
+      .lp-r { fill: rgba(220,38,38,0.10);  stroke: #dc2626; stroke-width: 1.8; }
+      .lp-g { fill: rgba(4,120,87,0.10);   stroke: #047857; stroke-width: 1.8; }
+      .lp-tt { fill: #3a3531; font: bold 14.5px sans-serif; text-anchor: middle; }
+      .lp-mu { fill: #6b6359; font: 13px sans-serif; text-anchor: middle; }
+      .lp-hd { fill: #3a3531; font: bold 16px sans-serif; }
+      .lp-l  { stroke: #c0b6a8; stroke-width: 1.8; fill: none; }
+    </style>
+    <defs>
+      <marker id="lp-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#c0b6a8"/>
+      </marker>
+    </defs>
+
+    <text class="lp-hd" x="25" y="32">학생 위치 — push 경로 완비, 그러나 볼 화면 부재</text>
+    <rect class="lp-b" x="25" y="46" width="176" height="70" rx="9"/>
+    <text class="lp-tt" x="113" y="72">MockLocationSource</text><text class="lp-mu" x="113" y="93">3초 tick 으로 좌표 생성</text><text class="lp-mu" x="113" y="110">(실 GPS 는 앱이 POST)</text>
+    <path class="lp-l" d="M201,81 L223,81" marker-end="url(#lp-arr)"/>
+    <rect class="lp-b" x="225" y="46" width="205" height="70" rx="9"/>
+    <text class="lp-tt" x="328" y="72">ingest()</text><text class="lp-mu" x="328" y="93">REST · STOMP · Mock 이</text><text class="lp-mu" x="328" y="110">모두 이 한 곳으로 수렴</text>
+    <path class="lp-l" d="M430,81 L450,81" marker-end="url(#lp-arr)"/>
+    <rect class="lp-p" x="452" y="46" width="176" height="70" rx="9"/>
+    <text class="lp-tt" x="540" y="72">Redis loc:{studentId}</text><text class="lp-mu" x="540" y="93">TTL 9초 = tick × 3</text><text class="lp-mu" x="540" y="110">최신 1건만 유지 · 이력 부재</text>
+    <path class="lp-l" d="M628,81 L648,81" marker-end="url(#lp-arr)"/>
+    <rect class="lp-y" x="650" y="46" width="186" height="70" rx="9"/>
+    <text class="lp-tt" x="743" y="72">Kafka</text><text class="lp-mu" x="743" y="93">location-updated</text><text class="lp-mu" x="743" y="110">→ LocationPushConsumer</text>
+    <path class="lp-l" d="M836,81 L854,81" marker-end="url(#lp-arr)"/>
+    <rect class="lp-y" x="856" y="46" width="218" height="70" rx="9"/>
+    <text class="lp-tt" x="965" y="72">STOMP push</text><text class="lp-mu" x="965" y="93">/user/queue/location</text><text class="lp-mu" x="965" y="110">/topic/tenant/{id}/location</text>
+
+    <text class="lp-hd" x="25" y="176">버스 위치 — 볼 화면 존재, 그러나 폴링으로 갱신</text>
+    <rect class="lp-b" x="25" y="190" width="176" height="70" rx="9"/>
+    <text class="lp-tt" x="113" y="216">기사 앱</text><text class="lp-mu" x="113" y="237">5초 주기 전송</text><text class="lp-mu" x="113" y="254">기본값이 Mock 좌표</text>
+    <path class="lp-l" d="M201,225 L223,225" marker-end="url(#lp-arr)"/>
+    <rect class="lp-b" x="225" y="190" width="205" height="70" rx="9"/>
+    <text class="lp-tt" x="328" y="216">POST /api/locations/bus</text><text class="lp-mu" x="328" y="237">담당 기사 본인인지 검증</text><text class="lp-mu" x="328" y="254">(BusCrewGuard)</text>
+    <path class="lp-l" d="M430,225 L450,225" marker-end="url(#lp-arr)"/>
+    <rect class="lp-p" x="452" y="190" width="176" height="70" rx="9"/>
+    <text class="lp-tt" x="540" y="216">Redis busloc:{busId}</text><text class="lp-mu" x="540" y="237">TTL 15초 (독립 설정)</text><text class="lp-mu" x="540" y="254">재시작 후에도 유지</text>
+    <path class="lp-l" d="M628,225 L648,225" marker-end="url(#lp-arr)"/>
+    <rect class="lp-y" x="650" y="190" width="186" height="70" rx="9"/>
+    <text class="lp-tt" x="743" y="216">Kafka</text><text class="lp-mu" x="743" y="237">bus-location-updated</text><text class="lp-mu" x="743" y="254">→ BusLocationPushConsumer</text>
+    <path class="lp-l" d="M836,225 L854,225" marker-end="url(#lp-arr)"/>
+    <rect class="lp-y" x="856" y="190" width="218" height="70" rx="9"/>
+    <text class="lp-tt" x="965" y="216">STOMP push</text><text class="lp-mu" x="965" y="237">/topic/tenant/{id}/bus-locations</text><text class="lp-mu" x="965" y="254">/user/queue/bus-location</text>
+
+    <rect class="lp-r" x="700" y="292" width="374" height="72" rx="9"/>
+    <text class="lp-tt" x="887" y="318">관제 지도는 위 push 를 구독하지 않음</text>
+    <text class="lp-mu" x="887" y="340">3초마다 GET /api/locations/buses 재조회</text>
+    <text class="lp-mu" x="887" y="358">서버는 밀고 있는데 클라이언트가 끌어가는 상태</text>
+    <path class="lp-l" d="M965,260 L965,290" marker-end="url(#lp-arr)" stroke-dasharray="6 4"/>
+
+    <rect class="lp-g" x="25" y="292" width="560" height="72" rx="9"/>
+    <text class="lp-tt" x="305" y="316">교체 지점 — 포트 하나와 설정 플래그로 Mock ↔ 실 GPS 전환</text>
+    <text class="lp-mu" x="305" y="338">LocationSource 구현이 Mock(서버가 좌표를 끌어옴) / 실 GPS(단말이 밀어넣음)로 갈리고,</text>
+    <text class="lp-mu" x="305" y="356">실 GPS 구현은 의도적으로 no-op — 진입점만 REST·STOMP 로 바뀌고 이후 경로는 완전히 동일</text>
+
+    <text class="lp-mu" x="25" y="400" style="text-anchor:start">곁가지 — ConnectionLossScheduler 가 10초마다 STOMP 세션을 훑어, 끊긴 지 30초 넘은 학생만 StudentConnectionLostEvent 로 승격. 유예 30초는 터널·순간 끊김 오탐을 막기 위한 값.</text>
+    <text class="lp-mu" x="25" y="428" style="text-anchor:start">prod 프로파일의 플래그는 이미 실 GPS 쪽으로 작성돼 있음 — 설정 전환은 준비 완료이고 실제 단말 연동만 미검증.</text>
+  </svg>
+  <div class="cap">두 줄이 같은 모양인데 끝만 다른 것이 요점 — 위쪽은 전달까지 갔으나 <b>수신자 화면이 없고</b>, 아래쪽은 화면이 있으나 <b>수신 방식이 폴링</b>. 붉은 상자는 결함이 아니라 전환 잔여분이며, 초록 상자가 Mock↔실GPS 교체가 실제로 가능한 근거(진입점 이후 경로가 공유됨).</div>
+</div>
+
+<div class="callout bad">
+  <span class="t">폴링이 남아 만드는 두 가지 부작용</span>
+  기사 앱이 5초마다 보내는데 관제는 3초마다 읽으므로 같은 좌표를 여러 번 읽음 — 화면 갱신 주기가 실제 데이터 신선도보다 짧음. 또한 응답의 <code>recordedAt</code> 에 타임존이 없어 프론트가 절대 시각 대신 "클라이언트 수신 시각"으로 신선도를 계산 중.
+</div>
+
+<!-- ================= 8 ================= -->
+<h2 id="s8">8. 실측 수치와 SoT 문서와의 차이</h2>
+
+<h3>8.1 코드 직접 측정값 (2026-08-23)</h3>
+
+<table>
+  <thead><tr><th>항목</th><th>값</th><th>측정 방법</th></tr></thead>
+  <tbody>
+    <tr><td>도메인 모듈</td><td><b>16</b> (+ <code>global</code>)</td><td><code>src/backend/</code> 하위 최상위 패키지</td></tr>
+    <tr><td>컨트롤러 / REST 매핑</td><td><b>17 / 85</b></td><td><code>@RestController</code> · <code>@*Mapping</code> 개수</td></tr>
+    <tr><td>엔티티 / 테이블</td><td><b>17 / 17</b></td><td><code>@Entity</code> 파일 · <code>V1__init_schema.sql</code> 의 CREATE TABLE</td></tr>
+    <tr><td>Kafka 토픽 / 리스너</td><td><b>17 / 18</b></td><td><code>@KafkaListener(topics = …)</code> 의 고유 토픽 수</td></tr>
+    <tr><td>Kafka 컨슈머 클래스</td><td><b>4</b></td><td>알림 1 · 위치 2 · 재계획 1</td></tr>
+    <tr><td><code>@Scheduled</code> 작업</td><td><b>4</b></td><td>위치 시뮬레이션 3초 · 연결끊김 10초 · 근접/미승차 15초 · SOS 30초</td></tr>
+    <tr><td>권한 애너테이션 / 부여표</td><td><b>20종 / 33줄</b></td><td><code>global/security/authz/</code></td></tr>
+    <tr><td>Flyway 마이그레이션</td><td><b>5 + 1</b></td><td>공통 V1·V3·V4·V5·V6 + local/demo 전용 시드 V2</td></tr>
+    <tr><td>프론트 라우트 / 화면 있는 역할</td><td><b>9 / 3</b></td><td><code>app_routes.dart</code> · 정의된 역할은 5</td></tr>
+    <tr><td>compose 서비스 (로컬 / 운영)</td><td><b>11 / 6</b></td><td>로컬은 관측·exporter 포함, 운영은 certbot 포함</td></tr>
+  </tbody>
+</table>
+
+<h3>8.2 SoT 문서에서 정정한 항목 (2026-08-23)</h3>
+
+<p>SoT 문서(2026-08-21)의 수치가 코드보다 뒤처져 있던 항목이며, <b>2026-08-23 에 원본 <code>ARCHITECTURE.md</code> 를 모두 정정 완료</b>. 아래는 무엇이 어떻게 달라졌는지의 기록이고, 지금은 원본과 이 문서의 수치가 일치.</p>
+
+<table>
+  <thead><tr><th>항목</th><th>문서 서술</th><th>코드 실측</th><th>원인</th></tr></thead>
+  <tbody>
+    <tr><td>도메인 모듈</td><td>14</td><td><b>16</b></td><td><code>observability</code> · <code>operations</code> 추가</td></tr>
+    <tr><td>엔티티 / 테이블</td><td>16 / 16</td><td><b>17 / 17</b></td><td><code>LocationChangeRequest</code> 추가</td></tr>
+    <tr><td>Kafka 토픽</td><td>15</td><td><b>17</b></td><td>하차지 변경 · 배정 변경 계열 추가</td></tr>
+    <tr><td>컨트롤러</td><td>15</td><td><b>17</b></td><td><code>OperationsController</code> · <code>OperationsSummaryController</code></td></tr>
+    <tr><td>Kafka 컨슈머 클래스</td><td>3</td><td><b>4</b></td><td><code>BusLocationPushConsumer</code> 신설</td></tr>
+    <tr><td>버스 위치 push</td><td>"이벤트 발행이 없어 push 경로 부재"</td><td><b>경로 존재</b></td><td>서버는 push 중, 프론트만 미전환</td></tr>
+    <tr><td>actuator</td><td>"의존성이 없어 <code>/actuator/health</code> 가 존재하지 않음"</td><td><b>존재</b></td><td><code>build.gradle:55,58</code> 에 추가됨. 리스크 R15 해소</td></tr>
+    <tr><td>영속 볼륨</td><td>"0개 — 그대로 배포하면 전 데이터 소멸"</td><td><b>운영 4개</b></td><td>운영 compose 분리로 R17 해소. 로컬 0개는 의도된 설정으로 존치</td></tr>
+    <tr><td>CQRS 분리 실태</td><td>"14개 모듈 전부"</td><td><b>16개 중 14개</b></td><td><code>operations</code> 는 조회 전용이라 <code>query</code> 만, <code>observability</code> 는 계측이라 둘 다 부재</td></tr>
+    <tr><td>Redis 값 역직렬화</td><td><code>enableUnsafeDefaultTyping()</code></td><td><b>좌표 DTO 2종만 허용</b></td><td><code>BasicPolymorphicTypeValidator</code> 로 <code>LocationPing</code>·<code>BusLocationPing</code> 만 개방(2026-08-23 보완)</td></tr>
+    <tr><td>Flyway 마이그레이션</td><td>공통 4</td><td><b>공통 5</b></td><td><code>V6__add_lookup_indexes.sql</code> 추가 — <code>tenant_id</code>·FK 조회 인덱스 14종</td></tr>
+    <tr><td>테넌트 격리 호출</td><td><code>TenantGuard</code> 26개소</td><td><b>정적 호출 + 전용 접근 객체</b></td><td>인가 간접층 도입으로 <code>GuardianAccess</code>·<code>BusCrewGuard</code>·<code>ActiveRosterReader</code> 로 분산</td></tr>
+  </tbody>
+</table>
+
+<div class="callout info">
+  <span class="t">이어서 볼 문서</span>
+  전체 서술과 리스크 목록은 <a href="../ARCHITECTURE.md">docs/ARCHITECTURE.md</a>, 화면·API 계약은 <a href="../API_SPEC.md">API_SPEC.md</a>, 구현 범위와 미구현 갭은 <a href="../PRODUCT_SPEC.md">PRODUCT_SPEC.md</a> 11~12장. 배포 절차는 <a href="../DEPLOYMENT.md">DEPLOYMENT.md</a>.
+</div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js" data-manual></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-kotlin.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-lua.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-yaml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-http.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-protobuf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    if (window.Prism) Prism.highlightAll();
+  });
+</script>
+</body>
+</html>

@@ -29,7 +29,7 @@
 |---|---|---|---|
 | 클라이언트 | Flutter 앱 (Web 빌드가 컨테이너에 탑재) | 기사 2화면 + 관리자 4화면 | — |
 | 엣지 | nginx `proxy` | `/` → 프론트, `/api`·`/ws`·`/swagger-ui` → 백엔드 | **`80:80`** (유일한 입구) |
-| 애플리케이션 | Spring Boot `backend` | REST 매핑 85개 · STOMP · 스케줄러 4개 · Kafka 프로듀서/컨슈머 | `expose: 8080`만 |
+| 애플리케이션 | Spring Boot `backend` | REST 매핑 85개 · STOMP `@MessageMapping` 1개 · 스케줄러 4개 · Kafka 프로듀서/컨슈머 | `expose: 8080`만 |
 | 영속 | PostgreSQL 16 | 테이블 17개. 스키마는 Flyway 관리 | `5432:5432` (DB 툴용) |
 | 캐시 | Redis 7 | **최신 좌표 1건** 전용 — 학생(TTL 9초)·버스(TTL 15초) | `6379:6379` |
 | 메시징 | Kafka 3.9 (KRaft) | 도메인 이벤트 토픽 17종 릴레이 | `29092:29092` |
@@ -173,7 +173,7 @@
 
 ### 3.3 CQRS — 실제 분리 실태
 
-**14개 도메인 모듈 전부가 `command` + `query` 패키지를 갖는다**(`find` 실측). 즉 CQRS 분리는 예외 없이 적용됐다.
+**도메인 모듈 16개 중 14개가 `command` + `query` 패키지를 둘 다 갖는다**(`find` 실측). 나머지 2개는 쓰기가 아예 없어서 갈릴 대상이 아니다 — `operations`는 관리자 조회 전용이라 `query`만 있고, `observability`는 도메인 서비스가 아니라 계측(`aspect`·`listener`·`metrics`·`sender`)이라 둘 다 없다.
 
 - `command` = 생성·수정·삭제, `query` = 조회 전용. **Command는 Query를 호출하지 않는다**(`reference.md` §7).
 - 다만 이것은 **"읽기 모델·쓰기 모델 DB를 분리한 CQRS"가 아니다.** 같은 JPA 엔티티·같은 테이블을 두 서비스가 나눠 쓸 뿐이다. 읽기 전용 별도 저장소로 간 것은 위치(Redis) 하나뿐이고, 그것도 `projection/` 패키지(`location/projection/LocationPushConsumer.java`)를 통해 Kafka 이벤트를 소비하는 형태다.
@@ -320,7 +320,7 @@ Flutter 단일 앱이 기사·관리자 두 역할을 모두 담는다. 로그�
 2. Spring 필터 체인의 `JwtAuthenticationFilter`(`OncePerRequestFilter`)가 헤더를 읽는다. **`Authorization` 헤더만 인식**하고 쿠키·쿼리는 보지 않는다(`:26-27`, `:57-63`)
 3. 토큰을 파싱해 **`type`이 `access`인 것만** SecurityContext에 세팅(`:42`). 위조·만료면 **예외를 삼키고 익명으로 진행**한다 — 최종 거부는 `authorizeHttpRequests`가 한다
 4. principal은 `AuthUser` record(`userId`, `email`, `memberships`)로 복원된다
-5. 컨트롤러 메서드의 `@PreAuthorize`가 역할을 검사 → 통과하면 서비스로, 실패하면 `AccessDeniedException` → 전역 핸들러가 **403**
+5. 컨트롤러 메서드의 `@Can*` 권한 애너테이션(내부적으로 `@PreAuthorize`를 메타 애너테이션으로 감싼 것)이 역할을 검사 → 통과하면 서비스로, 실패하면 `AccessDeniedException` → 전역 핸들러가 **403**
 
 핵심 설계 결정: **토큰에 멤버십을 실어 필터가 DB 조회 없이 principal을 복원한다**(`AuthUser.java:73-74` 주석). 요청마다 `user_tenant_role`을 조회하지 않아 빠르지만, **역할을 바꿔도 기존 액세스 토큰에는 즉시 반영되지 않는다**(최대 15분 지연). refresh 시점에는 DB에서 멤버십을 다시 읽어 재인코딩하므로 그때 반영된다(`AuthQueryService.java:69-74`).
 
@@ -330,8 +330,8 @@ Flutter 단일 앱이 기사·관리자 두 역할을 모두 담는다. 로그�
 
 | 항목 | 값 | 출처 |
 |---|---|---|
-| `jwt.access-token-validity-seconds` | **900초 = 15분** | `application.yml:80` |
-| `jwt.refresh-token-validity-seconds` | **1209600초 = 14일** | `application.yml:81` |
+| `jwt.access-token-validity-seconds` | **900초 = 15분** | `application.yml:92` |
+| `jwt.refresh-token-validity-seconds` | **1209600초 = 14일** | `application.yml:93` |
 | `jwt.secret` | `${JWT_SECRET}` — **공통 섹션에 기본값 없음**(미주입 시 기동 실패). 개발용 기본값은 `local` 프로파일에만 존재 | `application.yml` 공통 `jwt` 블록 · `local` 블록 |
 
 프론트 쪽 대응(`core/api/interceptor/auth_interceptor.dart`):
@@ -366,12 +366,14 @@ STOMP도 CONNECT 실패 시 토큰을 재발급받아 재시도하며, **재연�
 **permitAll 경로 6개 패턴**: `/api/auth/**` · `/actuator/health` · `/actuator/prometheus`(Prometheus 는 JWT 를 들고 스크레이프하지 않아 인증으로 통과할 방법이 없다 — 경계는 네트워크다) · `/ws/**` · `/swagger-ui/**`+`/swagger-ui.html` · `/v3/api-docs/**`.
 `/ws/**`를 연 이유는 **HTTP 핸드셰이크에는 토큰을 실을 수 없기 때문**이고, 대신 STOMP CONNECT 프레임에서 `StompAuthChannelInterceptor`가 인증한다(`SecurityConfig.java:31-33`).
 
-**인가는 경로 규칙이 아니라 컨트롤러의 `@PreAuthorize` 메서드 보안이다**(`@EnableMethodSecurity`, `SecurityConfig.java:41`). 실측 **55개소**(클래스 레벨 3 + 메서드 레벨 52):
+**인가는 경로 규칙이 아니라 컨트롤러의 `@Can*` 커스텀 메서드 보안 애너테이션이다**(`@EnableMethodSecurity`, `SecurityConfig.java:41`). **`@PreAuthorize`는 컨트롤러에 직접 쓰지 않는다** — `global/security/authz/`에 정의된 `@Can*` 애너테이션 **20종**(`CanManageStudents`·`CanManageBuses`·`CanTriggerSos` 등) 각각의 내부에서 메타 애너테이션으로 한 번씩만 쓰이고, 역할→권한 매핑은 `RolePermissions.HIERARCHY` **한 곳**에서만 결정한다(컨트롤러·애너테이션은 역할 이름을 모른다). 같은 저장소의 `ControllerAuthorizationConventionTest`가 컨트롤러에 `@PreAuthorize`를 직접 쓰는 것을 금지해 이 구조를 강제한다 — **다음 사람도 컨트롤러에 `@PreAuthorize`를 직접 붙이면 안 된다.**
+
+이 20종 `@Can*` 애너테이션이 컨트롤러에 실측 **64개소**(클래스 레벨 3 + 메서드 레벨 61) 적용돼 있다:
 
 | 역할 | 대표 접근 범위 |
 |---|---|
-| `PLATFORM_ADMIN` 단독 | 테넌트 생성·수정·목록 (`TenantController.java:44,51,66`) |
-| `ACADEMY_ADMIN` + `PLATFORM_ADMIN` | 모든 관리자 조회·승인·배차. 클래스 레벨 일괄 지정 3곳(`StudentController:36`, `BusController:35`, `MemberController:32`) |
+| `PLATFORM_ADMIN` 단독 | 테넌트 생성·수정·위치설정 (`TenantController.java:49,58,78` — `@CanManageTenants`) |
+| `ACADEMY_ADMIN` + `PLATFORM_ADMIN` | 모든 관리자 조회·승인·배차. 클래스 레벨 일괄 지정 3곳(`StudentController` · `BusController` · `MemberController`) |
 | `DRIVER` | 승하차 기록, 운행 세션, 버스 위치 보고, 기사용 노선 조회 |
 | `STUDENT` | 자기 위치 보고·조회, SOS 발동 |
 | `PARENT` | 자녀 조회, 출결·스케줄 신청 |
@@ -457,11 +459,11 @@ unique 제약은 `(user_id, tenant_id, role)`이다 — 같은 학원에서 같�
 
 ## 7. 데이터 모델 — 엔티티 17개와 관계
 
-`@Entity`가 붙은 클래스는 **16개**이고, `V1__init_schema.sql`의 `create table`도 **16개**다 — **1:1 대응하며 고아 테이블·고아 엔티티가 없다.**
+`@Entity`가 붙은 클래스는 **17개**이고, `V1__init_schema.sql`의 `create table`도 **17개**다 — **1:1 대응하며 고아 테이블·고아 엔티티가 없다.**
 
 공통 규약:
 - 모든 엔티티가 `@Id @GeneratedValue(IDENTITY) Long id` + `@NoArgsConstructor(PROTECTED)` + `@Getter` + 생성용 `@Builder`를 공유한다. **setter가 없다** — 상태 변경은 의미 있는 도메인 메서드(`assignBus()`, `approve()`, `end()`)로만 한다.
-- **`BaseTimeEntity`는 엔티티가 아니다.** `@Entity`가 아니라 `@MappedSuperclass` + `@EntityListeners(AuditingEntityListener.class)`가 붙은 **생성·수정 시각 공통 베이스**이며, 테이블로 매핑되지 않는다(`global/common/BaseTimeEntity.java:19-21`). 16개 엔티티 중 **15개가 이걸 상속**한다 — 유일한 예외가 `RoutePlanStop`이고, 스키마에도 그 테이블만 `created_at`/`updated_at`이 없어 코드와 DDL이 일치한다.
+- **`BaseTimeEntity`는 엔티티가 아니다.** `@Entity`가 아니라 `@MappedSuperclass` + `@EntityListeners(AuditingEntityListener.class)`가 붙은 **생성·수정 시각 공통 베이스**이며, 테이블로 매핑되지 않는다(`global/common/BaseTimeEntity.java:19-21`). 17개 엔티티 중 **16개가 이걸 상속**한다 — 유일한 예외가 `RoutePlanStop`이고, 스키마에도 그 테이블만 `created_at`/`updated_at`이 없어 코드와 DDL이 일치한다.
 
 ### 7.1 관계 목록 (ERD 대용)
 
@@ -679,7 +681,7 @@ Spring `@EventListener`는 위 릴레이 외에 2개뿐이다 — STOMP `Session
 **용도가 딱 하나다 — 학생 최신 좌표 저장소.** `RedisLocationRepository`가 `RedisTemplate`을 쓰는 유일한 지점이다.
 
 - 키 `loc:{studentId}`, TTL = `app.location.tick-ms × 3` = 기본 **9초**
-- 값 직렬화는 `RedisConfig`가 Jackson 3 기반 `GenericJacksonJsonRedisSerializer` + `enableUnsafeDefaultTyping()`(타입 정보 `@class` 저장). 커넥션 팩토리는 Boot 자동 구성
+- 값 직렬화는 `RedisConfig`가 Jackson 3 기반 `GenericJacksonJsonRedisSerializer`(타입 정보 `@class` 저장). 역직렬화 허용 타입은 `BasicPolymorphicTypeValidator`로 **좌표 DTO 2종(`LocationPing`·`BusLocationPing`)만** 열어 둔다(2026-08-23~) — 그 전에는 `enableUnsafeDefaultTyping()`이라 Redis 값을 바꿔 넣을 수 있는 사람이 임의 클래스를 역직렬화시킬 수 있었다. 커넥션 팩토리는 Boot 자동 구성
 - `@Primary`로 등록돼 `InMemoryLocationRepository`를 대체한다
 
 ⚠ **설정·주석과 실제가 다른 지점**:
@@ -769,7 +771,7 @@ Spring `@EventListener`는 위 릴레이 외에 2개뿐이다 — STOMP `Session
 
 | 위치 | 파일 | 내용 |
 |---|---|---|
-| `db/migration/` (전 프로파일) | `V1__init_schema.sql` | 베이스라인 — 테이블 16 + 인덱스 2 + FK 13 |
+| `db/migration/` (전 프로파일) | `V1__init_schema.sql` | 베이스라인 — 테이블 17 + 인덱스 2 + FK 13 |
 | | `V3__ride_event_add_handover_type.sql` | `ride_event.type` CHECK에 `HANDOVER` 추가 |
 | | `V4__notification_log_add_handover_done_type.sql` | `notification_log.type` CHECK에 `HANDOVER_DONE` 추가(9종) |
 | | `V5__notification_log_add_route_published_type.sql` | 같은 CHECK에 `ROUTE_PUBLISHED` 추가(**10종**) |
@@ -997,14 +999,14 @@ WebSocket 경로만 타임아웃이 1시간인 이유는 명확하다 — 연결
 | 도메인 이벤트 종류 / 발행 지점 | **17종** |
 | STOMP destination | **5** (인바운드 1 + 아웃바운드 4) |
 | `@Scheduled` 스케줄러 | **4** (전부 활성) |
-| `@PreAuthorize` 적용 | **55개소** (클래스 3 + 메서드 52) |
+| `@Can*` 권한 애너테이션 정의 / 컨트롤러 적용 개소 | **20종** / **64개소**(클래스 3 + 메서드 61) — `@PreAuthorize`는 이 20종 정의 내부에만 있고 컨트롤러에는 없다 |
 | `TenantGuard` 호출 / 인라인 격리 검사 | **26개소 / 5개소** |
 | permitAll 경로 패턴 | **6** |
-| 백엔드 컨트롤러 / 엔드포인트 | **17개**(location만 REST+STOMP 2개) **/ 85개**(REST 매핑 실측) |
+| 백엔드 컨트롤러 / 엔드포인트 | **17개**(location만 REST+STOMP 2개) **/ REST 85개 + STOMP 1개**(실측) |
 | 프론트가 실제 호출하는 REST 엔드포인트 | **22** (사용률 약 26%) |
 | 프론트 라우트 / 화면이 있는 역할 | **9 / 3**(정의된 역할 5) |
 | 에러 코드 enum / 전역 예외 핸들러 | **8 / 4** |
-| 백엔드 테스트 파일 | **59** |
+| 백엔드 테스트 파일 | **59**(`*Test.java`) — `BackendApplicationTests.java` 1개 별도(합 **60**) |
 | docker-compose 서비스 / 영속 볼륨 | 로컬 **11 / 0** · 운영 **6 / 4** |
 
 **테스트가 없는 영역**(참고): Kafka 컨슈머 3종, STOMP 인증(`StompAuthChannelInterceptor`), 스케줄러 4개, `RedisLocationRepository`, `TenantGuard`, `PushTargetResolver`, `MapRouteClient` 구현 2종.
