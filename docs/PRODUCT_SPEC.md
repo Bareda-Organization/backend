@@ -474,7 +474,7 @@ dedup_key = (유형 + 학생 + 대상일자 + 정류장/단계)
 - **정정 권한이 넓다:** ✅ **해소**(2026-08-23). `requireCorrectionPermission` 이 플랫폼관리자 · 해당 학원 관리자 · **그 기록이 난 버스의 담당 선탑자 본인** 세 경우만 통과시킨다(`RideEventCommandService.java:117~128`). "같은 학원이면 담당 아닌 버스도 정정" 경로는 사라졌다.
 - **참조 무결성 미검증:** 🟡 **부분 해소**(BE-7). 버스 담당자 지정은 `loadUserWithRole(userId, tenantId, Role.DRIVER)` 로 **역할·소속을 둘 다** 검사하고(`BusCommandService.java:138~149`), 보호자 연결도 같은 방식이다(`StudentCommandService.java:222~231`). ⚠ **남은 것**: 학생 등록의 연결 계정은 여전히 **존재 확인이 없다** — `req.userId()` 를 그대로 엔티티에 넣는다(`StudentCommandService.java:82`).
 - **입력 검증 느슨:** 🟡 **부분 해소**(2026-08-23). 비밀번호는 가입·구성원 생성·재설정 3경로 모두 `@Size(min = 8)` 이 붙었다(`SignupRequest.java:17` · `CreateMemberRequest.java:18` · `ResetPasswordRequest.java:14`). ⚠ **남은 것**: 좌표 위경도 범위 검증 부재 — `LocationReportRequest` 의 `lat`·`lng` 에 `@NotNull` 뿐이고 백엔드 전체에 `@DecimalMin`·`@DecimalMax` 사용처가 0건이다.
-- **성능:** 🟡 **부분 해소**(2026-08-23). N+1 은 두 목록 모두 제거됐다 — 노선은 count 쿼리 한 번(`RouteQueryService.assignedCount` → `countByAssignedBus_Route_IdAndActiveTrue`), 버스는 배정 학생을 `IN` 조회 한 번으로 읽어 버스별로 접는다(`BusQueryService.java:52~54`). 조회 인덱스도 `V6__add_lookup_indexes.sql` 로 14종 추가(`tenant_id` 복합·FK 컬럼). ⚠ **남은 것**: 페이지네이션 부재 — 백엔드 전체에 `Pageable` 사용처가 0건이다.
+- **성능:** 🟡 **부분 해소**(2026-08-23). N+1 은 두 목록 모두 제거됐다 — 노선은 count 쿼리 한 번(`RouteQueryService.assignedCount` → `countByAssignedBus_Route_IdAndActiveTrue`), 버스는 배정 학생을 `IN` 조회 한 번으로 읽어 버스별로 접는다(`BusQueryService.java:52~54`). 조회 인덱스도 14종 추가(`tenant_id` 복합·FK 컬럼) — 옛 `V6__add_lookup_indexes.sql` 이며 2026-08-23 에 `V1__init_schema.sql` 로 흡수됐다. ⚠ **남은 것**: 페이지네이션 부재 — 백엔드 전체에 `Pageable` 사용처가 0건이다.
 
 ### 12.5 MVP 완성에 필요한 최소 항목
 

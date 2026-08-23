@@ -767,19 +767,16 @@ Spring `@EventListener`는 위 릴레이 외에 2개뿐이다 — STOMP `Session
 | `spring.flyway.locations` (`local`·`demo`) | `classpath:db/migration,classpath:db/migration-local` | 데모 시드를 이 두 프로파일에서만 추가. `prod` 에는 들어가지 않는다 |
 | `spring.jpa.open-in-view` | `false` | 뷰 렌더링 중 lazy 로딩으로 커넥션을 붙들지 않게 하려는 설정 |
 
-**마이그레이션 파일 5개**:
+**마이그레이션 파일 2개**(2026-08-23에 옛 V3~V6을 V1로 흡수하고 4개를 삭제):
 
 | 위치 | 파일 | 내용 |
 |---|---|---|
-| `db/migration/` (전 프로파일) | `V1__init_schema.sql` | 베이스라인 — 테이블 17 + 인덱스 2 + FK 13 |
-| | `V3__ride_event_add_handover_type.sql` | `ride_event.type` CHECK에 `HANDOVER` 추가 |
-| | `V4__notification_log_add_handover_done_type.sql` | `notification_log.type` CHECK에 `HANDOVER_DONE` 추가(9종) |
-| | `V5__notification_log_add_route_published_type.sql` | 같은 CHECK에 `ROUTE_PUBLISHED` 추가(**10종**) |
+| `db/migration/` (전 프로파일) | `V1__init_schema.sql` | 스키마 전체 — 테이블 17 + 인덱스 16 + FK 13. `ride_event.type` CHECK 3종(`HANDOVER` 포함), `notification_log.type` CHECK **11종** |
 | `db/migration-local/` (`local`·`demo` 전용) | `V2__seed_data.sql` | 데모 시드 — 테넌트 3 · 계정 5 · 노선 3 · 정류장 3 · 버스 3 · 학생 6 · 보호자연결 2. 비밀번호 해시는 Flyway placeholder `seedPasswordHash` 로 주입한다(`local` 은 평문 `password` 의 해시가 기본값, `demo` 는 `${SEED_PASSWORD_HASH}` 라 기본값이 부재 — 미주입 시 기동 실패) |
 
-V1은 Hibernate가 생성한 DDL을 그대로 채택한 것이고(FK 이름이 자동 생성 해시), **이후 변경은 새 버전 파일로만 추가하며 V1은 수정하지 않는다.**
+V1은 Hibernate가 생성한 DDL을 그대로 채택한 것이다(FK 이름이 자동 생성 해시). **개발 단계에서는 새 버전을 쌓지 않고 V1을 직접 고친 뒤 로컬 DB를 재구성한다** — `docker compose down` 후 `up`. 파일을 고치면 체크섬이 바뀌어 이미 적용된 DB는 `FlywayValidateException`으로 기동에 실패하는데, 이는 결함이 아니라 **재구성 누락 신호**다. demo·prod에 한 번이라도 적용된 뒤에는 원칙이 뒤집혀 **V1 수정 금지·`V{n}` 추가만 허용**이다(운영 DB는 볼륨이 있어 재구성 불가).
 
-⚠ **V2가 스키마 경로가 아니라 시드 경로에 있다.** prod 프로파일에서는 `migration-local`이 로드되지 않으므로 **버전 2가 통째로 건너뛰어져 V1 → V3로 이어진다**(Flyway 기본 `outOfOrder=false`). 의도된 배치이지만, 나중에 누군가 V2를 스키마 변경으로 착각해 재사용하면 충돌한다.
+⚠ **V2가 스키마 경로가 아니라 시드 경로에 있다.** prod 프로파일에서는 `migration-local`이 로드되지 않으므로 **버전 2가 통째로 건너뛰어진다**(Flyway 기본 `outOfOrder=false`). 의도된 배치이지만, 나중에 누군가 V2를 스키마 변경으로 착각해 재사용하면 충돌한다.
 
 명시 인덱스는 **16개**다(2026-08-23 기준). 원래 2개였고 — `idx_ride_tenant_student(tenant_id, student_id, occurred_at)`, `idx_sos_status_occurred(status, occurred_at)` — 여기에 V6 이 조회 인덱스 14종을 더했다. PostgreSQL 은 외래키에 인덱스를 자동 생성하지 않아 `tenant_id` 필터가 전부 순차 스캔이던 상태를 해소한 것이다. unique 제약이 이미 인덱스를 만드는 컬럼(`user_tenant_role(user_id, ...)` · `student_guardian(student_id, ...)`)은 중복 생성하지 않았다.
 
@@ -992,7 +989,7 @@ WebSocket 경로만 타임아웃이 1시간인 이유는 명확하다 — 연결
 | 모듈 간 순환 의존 | **5건** |
 | `@Entity` / DB 테이블 | **17 / 17** (1:1, 고아 없음) |
 | DB FK 제약 / 명시 인덱스 / unique 제약 | **13 / 16 / 4** |
-| Flyway 마이그레이션 | **6** (V1·V3·V4·V5·V6 공통 + V2 local 전용) |
+| Flyway 마이그레이션 | **2** (V1 공통 + V2 local 전용) — 옛 V3~V6은 2026-08-23에 V1로 흡수 |
 | 도메인 enum / 상태 전이 검증이 있는 상태머신 | **10 / 5** |
 | Kafka 토픽 | **17** (전부 프로듀서·컨슈머 존재) |
 | Kafka 컨슈머 클래스 / `@KafkaListener` | **4 / 18** |
