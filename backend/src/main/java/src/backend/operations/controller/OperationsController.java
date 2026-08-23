@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanMonitorOperations;
+import src.backend.operations.dto.BusOperationDetail;
 import src.backend.operations.dto.BusOperationSummary;
 import src.backend.operations.query.OperationsQueryService;
 
@@ -48,5 +50,21 @@ public class OperationsController {
             @Parameter(example = "1", description = "학원 id. 학원 관리자는 생략 가능, 플랫폼 관리자는 필수")
             @RequestParam(required = false) Long tenantId) {
         return ApiResponse.ok(operationsQueryService.getBusOperations(admin, tenantId));
+    }
+
+    @GetMapping("/buses/{busId}")
+    @CanMonitorOperations
+    @Operation(summary = "버스 1대 상세 (관리자)",
+            description = "선택한 버스의 학생별 상태 + 경로 — 목록 화면에서 버스 하나를 골랐을 때의 상세 화면용. "
+                    + "`students[].status` 는 목록과 같은 5종(waiting/boarded/alighted/absent/no_show)이고, "
+                    + "`students[].guardians[]` 로 보호자 연락처를 함께 내려 미탑승 발견 시 바로 연락할 수 있게 한다. "
+                    + "⚠️ `routePlan` 은 당일 배포된 계획이 없으면 null 이다(버스·학생 명단은 계획과 무관하게 유효해 404 로 다루지 않는다). "
+                    + "⚠️ `routePlan.stops[].reachedAtEstimate` 와 `session.startedAt` 기반의 정차 도달 시각은 전부 "
+                    + "세션 시작 시각 + 계획 ETA 로 계산한 추정치다 — 실제 도달 시각을 기록하는 수단이 없다.",
+            tags = {"16. 운영현황(Operations)"})
+    public ApiResponse<BusOperationDetail> busDetail(
+            @AuthenticationPrincipal AuthUser admin,
+            @Parameter(example = "1", description = "버스 id") @PathVariable Long busId) {
+        return ApiResponse.ok(operationsQueryService.getBusOperationDetail(admin, busId));
     }
 }

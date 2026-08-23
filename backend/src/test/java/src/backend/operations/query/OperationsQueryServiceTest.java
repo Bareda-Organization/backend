@@ -1,6 +1,7 @@
 package src.backend.operations.query;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -24,21 +25,28 @@ import src.backend.bus.repository.spec.BusRepository;
 import src.backend.drivesession.dto.DriveSessionResponse;
 import src.backend.drivesession.entity.DriveSessionStatus;
 import src.backend.drivesession.query.DriveSessionQueryService;
+import src.backend.global.error.BusinessException;
 import src.backend.global.security.AuthUser;
 import src.backend.location.dto.BusLocationPing;
 import src.backend.location.dto.LocationOrigin;
 import src.backend.location.repository.spec.BusLocationRepository;
+import src.backend.operations.domain.BoardingStatus;
+import src.backend.operations.dto.BusOperationDetail;
 import src.backend.operations.dto.BusOperationSummary;
 import src.backend.operations.dto.BusSessionStatus;
 import src.backend.rideevent.entity.RideEvent;
 import src.backend.rideevent.entity.RideSource;
 import src.backend.rideevent.entity.RideType;
 import src.backend.rideevent.repository.spec.RideEventRepository;
+import src.backend.route.entity.Route;
+import src.backend.route.entity.Stop;
 import src.backend.routing.domain.RouteDirection;
 import src.backend.routing.domain.RoutePlanStatus;
 import src.backend.routing.entity.RoutePlan;
 import src.backend.routing.repository.spec.RoutePlanRepository;
 import src.backend.student.entity.Student;
+import src.backend.student.entity.StudentGuardian;
+import src.backend.student.repository.spec.StudentGuardianRepository;
 import src.backend.student.repository.spec.StudentRepository;
 import src.backend.tenant.entity.Tenant;
 import src.backend.user.entity.Role;
@@ -61,10 +69,11 @@ class OperationsQueryServiceTest {
     private final RoutePlanRepository routePlanRepository = mock(RoutePlanRepository.class);
     private final BusLocationRepository busLocationRepository = mock(BusLocationRepository.class);
     private final DriveSessionQueryService driveSessionQueryService = mock(DriveSessionQueryService.class);
+    private final StudentGuardianRepository studentGuardianRepository = mock(StudentGuardianRepository.class);
 
     private final OperationsQueryService service = new OperationsQueryService(
             busRepository, studentRepository, rideEventRepository, attendanceExceptionRepository,
-            routePlanRepository, busLocationRepository, driveSessionQueryService);
+            routePlanRepository, busLocationRepository, driveSessionQueryService, studentGuardianRepository);
 
     // ── N+1 회피: 버스 수에 비례해 저장소 호출이 늘지 않는다 ──
 
@@ -349,6 +358,192 @@ class OperationsQueryServiceTest {
         assertThat(counts.waiting()).isEqualTo(1);
         assertThat(counts.total()).isEqualTo(
                 counts.boarded() + counts.alighted() + counts.waiting() + counts.absent() + counts.noShow());
+    }
+
+    // ── 버스 1대 상세(getBusOperationDetail, BG-21 §4.2) ──
+
+    @Test
+    void getBusOperationDetail_throwsNotFound_whenBusMissing() {
+        given(busRepository.findById(99L)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getBusOperationDetail(admin(), 99L))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void getBusOperationDetail_marksApprovedAbsence_asAbsent_notNoShow() {
+        Bus bus = bus(1L, null);
+        Student absentStudent = student(1L, bus);
+        given(busRepository.findById(1L)).willReturn(Optional.of(bus));
+        given(studentRepository.findByAssignedBusIdAndActiveTrue(1L)).willReturn(List.of(absentStudent));
+        given(rideEventRepository.findByStudentIdInAndOccurredAtBetweenOrderByOccurredAtAsc(any(), any(), any()))
+                .willReturn(List.of());
+        AttendanceException approvedToday = attendanceException(1L, LocalDate.now());
+        approvedToday.approve(9L);
+        given(attendanceExceptionRepository.findByTenantIdOrderByTargetDateDesc(TENANT_ID))
+                .willReturn(List.of(approvedToday));
+        given(routePlanRepository.findByTenantIdAndBusIdOrderByCreatedAtDesc(TENANT_ID, 1L)).willReturn(List.of());
+        // 세션은 20분 전 시작 — 결석 승인이 없으면 미승차 임계값(10분)을 넘겨 NO_SHOW 로 잡힐 상황.
+        DriveSessionResponse inProgress = driveSession(1L, DriveSessionStatus.IN_PROGRESS,
+                LocalDateTime.now().minusMinutes(20));
+        given(driveSessionQueryService.getTenantHistory(admin(), TENANT_ID, DriveSessionStatus.IN_PROGRESS))
+                .willReturn(List.of(inProgress));
+        given(driveSessionQueryService.getTenantHistory(admin(), TENANT_ID, DriveSessionStatus.COMPLETED))
+                .willReturn(List.of());
+        given(studentGuardianRepository.findWithGuardianByStudentIdIn(any())).willReturn(List.of());
+
+        BusOperationDetail detail = service.getBusOperationDetail(admin(), 1L);
+
+        assertThat(detail.students()).hasSize(1);
+        assertThat(detail.students().get(0).status()).isEqualTo(BoardingStatus.ABSENT);
+    }
+
+    @Test
+    void getBusOperationDetail_allWaiting_whenSessionNotStarted() {
+        Bus bus = bus(1L, null);
+        Student s1 = student(1L, bus);
+        Student s2 = student(2L, bus);
+        given(busRepository.findById(1L)).willReturn(Optional.of(bus));
+        given(studentRepository.findByAssignedBusIdAndActiveTrue(1L)).willReturn(List.of(s1, s2));
+        given(rideEventRepository.findByStudentIdInAndOccurredAtBetweenOrderByOccurredAtAsc(any(), any(), any()))
+                .willReturn(List.of());
+        given(attendanceExceptionRepository.findByTenantIdOrderByTargetDateDesc(TENANT_ID)).willReturn(List.of());
+        given(routePlanRepository.findByTenantIdAndBusIdOrderByCreatedAtDesc(TENANT_ID, 1L)).willReturn(List.of());
+        given(driveSessionQueryService.getTenantHistory(any(), any(), any())).willReturn(List.of());
+        given(studentGuardianRepository.findWithGuardianByStudentIdIn(any())).willReturn(List.of());
+
+        BusOperationDetail detail = service.getBusOperationDetail(admin(), 1L);
+
+        assertThat(detail.session().status()).isEqualTo(BusSessionStatus.NOT_STARTED);
+        assertThat(detail.students()).extracting(BusOperationDetail.StudentStatus::status)
+                .containsOnly(BoardingStatus.WAITING);
+    }
+
+    @Test
+    void getBusOperationDetail_routePlanNull_whenNoPublishedPlanToday() {
+        Bus bus = bus(1L, null);
+        given(busRepository.findById(1L)).willReturn(Optional.of(bus));
+        given(studentRepository.findByAssignedBusIdAndActiveTrue(1L)).willReturn(List.of());
+        given(rideEventRepository.findByStudentIdInAndOccurredAtBetweenOrderByOccurredAtAsc(any(), any(), any()))
+                .willReturn(List.of());
+        given(attendanceExceptionRepository.findByTenantIdOrderByTargetDateDesc(TENANT_ID)).willReturn(List.of());
+        given(routePlanRepository.findByTenantIdAndBusIdOrderByCreatedAtDesc(TENANT_ID, 1L)).willReturn(List.of());
+        given(driveSessionQueryService.getTenantHistory(any(), any(), any())).willReturn(List.of());
+
+        BusOperationDetail detail = service.getBusOperationDetail(admin(), 1L);
+
+        // 계획이 없어도 200 으로 응답한다 — 버스·학생 명단은 계획과 무관하게 유효한 정보다.
+        assertThat(detail.routePlan()).isNull();
+        assertThat(detail.students()).isEmpty();
+    }
+
+    @Test
+    void getBusOperationDetail_includesStopNameAndSeq_fromPublishedPlan() {
+        Bus bus = bus(1L, null);
+        Route route = Route.builder().tenant(tenant()).name("1노선").assignCapacity(20).build();
+        Stop stopEntity = Stop.builder().route(route).name("행복아파트").seq(1).lat(37.1).lng(127.1).build();
+        Student student = Student.builder().tenant(tenant()).name("학생1").assignedBus(bus)
+                .boardingStop(stopEntity).build();
+        ReflectionTestUtils.setField(student, "id", 1L);
+
+        given(busRepository.findById(1L)).willReturn(Optional.of(bus));
+        given(studentRepository.findByAssignedBusIdAndActiveTrue(1L)).willReturn(List.of(student));
+        given(rideEventRepository.findByStudentIdInAndOccurredAtBetweenOrderByOccurredAtAsc(any(), any(), any()))
+                .willReturn(List.of());
+        given(attendanceExceptionRepository.findByTenantIdOrderByTargetDateDesc(TENANT_ID)).willReturn(List.of());
+        RoutePlan plan = routePlan(10L, 1L, RouteDirection.PICKUP, RoutePlanStatus.PUBLISHED, 1);
+        plan.addStop(1L, 37.1, 127.1, 300L);
+        given(routePlanRepository.findByTenantIdAndBusIdOrderByCreatedAtDesc(TENANT_ID, 1L)).willReturn(List.of(plan));
+        given(driveSessionQueryService.getTenantHistory(any(), any(), any())).willReturn(List.of());
+        given(studentGuardianRepository.findWithGuardianByStudentIdIn(any())).willReturn(List.of());
+
+        BusOperationDetail detail = service.getBusOperationDetail(admin(), 1L);
+
+        assertThat(detail.routePlan()).isNotNull();
+        assertThat(detail.routePlan().stops()).hasSize(1);
+        assertThat(detail.routePlan().stops().get(0).name()).isEqualTo("행복아파트");
+        assertThat(detail.routePlan().stops().get(0).seq()).isEqualTo(1);
+        assertThat(detail.students().get(0).stopName()).isEqualTo("행복아파트");
+        assertThat(detail.students().get(0).stopSeq()).isEqualTo(1);
+    }
+
+    @Test
+    void getBusOperationDetail_includesGuardianContacts() {
+        Bus bus = bus(1L, null);
+        Student student = student(1L, bus);
+        User guardianUser = User.builder()
+                .email("mom@school.com").name("김엄마").password("x").phone("010-1234-5678").build();
+        ReflectionTestUtils.setField(guardianUser, "id", 50L);
+        StudentGuardian link = StudentGuardian.builder().student(student).guardian(guardianUser).relation("모").build();
+
+        given(busRepository.findById(1L)).willReturn(Optional.of(bus));
+        given(studentRepository.findByAssignedBusIdAndActiveTrue(1L)).willReturn(List.of(student));
+        given(rideEventRepository.findByStudentIdInAndOccurredAtBetweenOrderByOccurredAtAsc(any(), any(), any()))
+                .willReturn(List.of());
+        given(attendanceExceptionRepository.findByTenantIdOrderByTargetDateDesc(TENANT_ID)).willReturn(List.of());
+        given(routePlanRepository.findByTenantIdAndBusIdOrderByCreatedAtDesc(TENANT_ID, 1L)).willReturn(List.of());
+        given(driveSessionQueryService.getTenantHistory(any(), any(), any())).willReturn(List.of());
+        given(studentGuardianRepository.findWithGuardianByStudentIdIn(List.of(1L))).willReturn(List.of(link));
+
+        BusOperationDetail detail = service.getBusOperationDetail(admin(), 1L);
+
+        assertThat(detail.students().get(0).guardians()).hasSize(1);
+        BusOperationDetail.GuardianView guardian = detail.students().get(0).guardians().get(0);
+        assertThat(guardian.name()).isEqualTo("김엄마");
+        assertThat(guardian.phone()).isEqualTo("010-1234-5678");
+        assertThat(guardian.relation()).isEqualTo("모");
+    }
+
+    @Test
+    void getBusOperationDetail_stopNameNull_whenPlanHasNoStopForStudent() {
+        Bus bus = bus(1L, null);
+        Route route = Route.builder().tenant(tenant()).name("1노선").assignCapacity(20).build();
+        Stop stopEntity = Stop.builder().route(route).name("행복아파트").seq(1).lat(37.1).lng(127.1).build();
+        Student student = Student.builder().tenant(tenant()).name("학생1").assignedBus(bus)
+                .boardingStop(stopEntity).build();
+        ReflectionTestUtils.setField(student, "id", 1L);
+
+        given(busRepository.findById(1L)).willReturn(Optional.of(bus));
+        given(studentRepository.findByAssignedBusIdAndActiveTrue(1L)).willReturn(List.of(student));
+        given(rideEventRepository.findByStudentIdInAndOccurredAtBetweenOrderByOccurredAtAsc(any(), any(), any()))
+                .willReturn(List.of());
+        given(attendanceExceptionRepository.findByTenantIdOrderByTargetDateDesc(TENANT_ID)).willReturn(List.of());
+        // 계획은 없지만 세션은 진행 중 — 방향(PICKUP)은 세션에서 확정되므로 정차 이름을 구할 근거는 생긴다.
+        given(routePlanRepository.findByTenantIdAndBusIdOrderByCreatedAtDesc(TENANT_ID, 1L)).willReturn(List.of());
+        given(driveSessionQueryService.getTenantHistory(any(), any(), any()))
+                .willReturn(List.of(driveSession(1L, DriveSessionStatus.IN_PROGRESS, LocalDateTime.now().minusMinutes(5))));
+        given(studentGuardianRepository.findWithGuardianByStudentIdIn(any())).willReturn(List.of());
+
+        BusOperationDetail detail = service.getBusOperationDetail(admin(), 1L);
+
+        // 계획에 이 학생의 정차가 없으면 순서와 이름을 함께 비운다. 이름만 채우면 화면에
+        // "정차 순서는 빈칸인데 이름은 있는" 행이 생겨 DTO 계약(둘 다 null)과 어긋난다.
+        assertThat(detail.students().get(0).stopSeq()).isNull();
+        assertThat(detail.students().get(0).stopName()).isNull();
+    }
+
+    @Test
+    void getBusOperationDetail_countsEventsRecordedOnPreviousBus_afterReassignment() {
+        Bus currentBus = bus(2L, null);
+        Student student = student(1L, currentBus);
+        // 오전에 1호차로 기록된 승차 — 낮에 2호차로 재배정돼 명단은 2호차에 있다.
+        RideEvent boardedOnOldBus = rideEvent(1L, 1L, RideType.BOARD);
+
+        given(busRepository.findById(2L)).willReturn(Optional.of(currentBus));
+        given(studentRepository.findByAssignedBusIdAndActiveTrue(2L)).willReturn(List.of(student));
+        given(rideEventRepository.findByStudentIdInAndOccurredAtBetweenOrderByOccurredAtAsc(
+                List.of(1L), LocalDate.now().atStartOfDay(), LocalDate.now().plusDays(1).atStartOfDay()))
+                .willReturn(List.of(boardedOnOldBus));
+        given(attendanceExceptionRepository.findByTenantIdOrderByTargetDateDesc(TENANT_ID)).willReturn(List.of());
+        given(routePlanRepository.findByTenantIdAndBusIdOrderByCreatedAtDesc(TENANT_ID, 2L)).willReturn(List.of());
+        given(driveSessionQueryService.getTenantHistory(any(), any(), any())).willReturn(List.of());
+        given(studentGuardianRepository.findWithGuardianByStudentIdIn(any())).willReturn(List.of());
+
+        BusOperationDetail detail = service.getBusOperationDetail(admin(), 2L);
+
+        // 목록 API 는 학원 전체를 studentId 로 접어 이 기록을 BOARDED 로 반영한다. 상세가 busId 로
+        // 거르면 같은 학생이 목록에선 BOARDED, 상세에선 WAITING 으로 갈린다.
+        assertThat(detail.students().get(0).status()).isEqualTo(BoardingStatus.BOARDED);
     }
 
     // ── helpers ──

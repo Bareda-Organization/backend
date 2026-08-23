@@ -2,6 +2,7 @@ package src.backend.operations.query;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -19,12 +20,15 @@ import src.backend.drivesession.dto.DriveSessionResponse;
 import src.backend.drivesession.entity.DriveSessionStatus;
 import src.backend.drivesession.query.DriveSessionQueryService;
 import src.backend.global.common.ApprovalStatus;
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 import src.backend.global.tenant.TenantGuard;
 import src.backend.location.repository.spec.BusLocationRepository;
 import src.backend.notification.NotificationThresholds;
 import src.backend.operations.domain.BoardingStatus;
 import src.backend.operations.domain.BoardingStatusResolver;
+import src.backend.operations.dto.BusOperationDetail;
 import src.backend.operations.dto.BusOperationSummary;
 import src.backend.operations.dto.BusSessionStatus;
 import src.backend.rideevent.entity.RideEvent;
@@ -36,6 +40,8 @@ import src.backend.routing.entity.RoutePlan;
 import src.backend.routing.entity.RoutePlanStop;
 import src.backend.routing.repository.spec.RoutePlanRepository;
 import src.backend.student.entity.Student;
+import src.backend.student.entity.StudentGuardian;
+import src.backend.student.repository.spec.StudentGuardianRepository;
 import src.backend.student.repository.spec.StudentRepository;
 
 /**
@@ -56,6 +62,7 @@ public class OperationsQueryService {
     private final RoutePlanRepository routePlanRepository;
     private final BusLocationRepository busLocationRepository;
     private final DriveSessionQueryService driveSessionQueryService;
+    private final StudentGuardianRepository studentGuardianRepository;
 
     public OperationsQueryService(BusRepository busRepository,
                                   StudentRepository studentRepository,
@@ -63,7 +70,8 @@ public class OperationsQueryService {
                                   AttendanceExceptionRepository attendanceExceptionRepository,
                                   RoutePlanRepository routePlanRepository,
                                   BusLocationRepository busLocationRepository,
-                                  DriveSessionQueryService driveSessionQueryService) {
+                                  DriveSessionQueryService driveSessionQueryService,
+                                  StudentGuardianRepository studentGuardianRepository) {
         this.busRepository = busRepository;
         this.studentRepository = studentRepository;
         this.rideEventRepository = rideEventRepository;
@@ -71,6 +79,7 @@ public class OperationsQueryService {
         this.routePlanRepository = routePlanRepository;
         this.busLocationRepository = busLocationRepository;
         this.driveSessionQueryService = driveSessionQueryService;
+        this.studentGuardianRepository = studentGuardianRepository;
     }
 
     /** 관리자: 학원 버스별 운행 현황 목록. `tenantId` 는 학원 관리자면 생략 가능, 플랫폼 관리자는 필수다. */
@@ -137,6 +146,166 @@ public class OperationsQueryService {
                         publishedPlanByBus.getOrDefault(bus.getId(), Map.of()),
                         inProgressByBus.get(bus.getId()), completedTodayByBus.get(bus.getId()), now))
                 .toList();
+    }
+
+    /**
+     * 관리자: 버스 1대 상세 — 학생별 상태 + 경로(설계 §4.2). 목록 API({@link #getBusOperations})와
+     * 판정 규칙(§3)은 같지만 버스 1대만 다루므로 학원 전체를 조회해 접는 대신 이 버스 하나로
+     * 좁힌 저장소 메서드({@code findByAssignedBusIdAndActiveTrue}·{@code findByBusIdAndOccurredAt...})를
+     * 쓴다 — 학원 전체를 훑을 필요가 없다.
+     *
+     * <p>노선 계획이 없으면(당일 미배포·미생성) {@code routePlan} 이 null 인 응답을 200 으로 돌려준다.
+     * 버스·학생 명단은 노선 계획과 무관하게 유효한 정보이고, 계획 부재는 "아직 배차 준비 중"인 정상
+     * 상태라 404 로 다룰 근거가 없다 — 404 는 busId 자체가 없을 때만 쓴다.
+     */
+    @Transactional(readOnly = true)
+    public BusOperationDetail getBusOperationDetail(AuthUser admin, Long busId) {
+        Bus bus = busRepository.findById(busId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "버스를 찾을 수 없습니다"));
+        Long effectiveTenant = TenantGuard.resolveTenantId(admin, bus.getTenant().getId());
+
+        LocalDate today = LocalDate.now();
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime startOfDay = today.atStartOfDay();
+        LocalDateTime endOfDay = today.plusDays(1).atStartOfDay();
+
+        List<Student> roster = studentRepository.findByAssignedBusIdAndActiveTrue(busId);
+
+        // 명단의 학생 id 로 조회한다 — busId 로 조회하면 목록 API 와 답이 갈린다. RideEvent.busId 는
+        // 기록 당시의 버스이고 명단은 현재 배정이라, 당일 중 배정이 바뀐 학생(StudentCommandService
+        // .updateAssignment)의 오전 기록이 busId 필터에서 빠져 상세만 WAITING·NO_SHOW 로 판정한다.
+        // 목록 API 는 학원 전체를 studentId 로 접으므로 그 기록을 반영한다(BOARDED).
+        Map<Long, List<RideEvent>> eventsByStudent = rideEventRepository
+                .findByStudentIdInAndOccurredAtBetweenOrderByOccurredAtAsc(
+                        roster.stream().map(Student::getId).toList(), startOfDay, endOfDay).stream()
+                .collect(Collectors.groupingBy(RideEvent::getStudentId));
+
+        // 당일 승인 결석 — 목록 API 와 같은 이유로 학생별 개별 조회(ActiveRosterReader)를 쓰지 않는다.
+        Set<Long> approvedAbsentTodayStudentIds = attendanceExceptionRepository
+                .findByTenantIdOrderByTargetDateDesc(effectiveTenant).stream()
+                .filter(e -> e.getStatus() == ApprovalStatus.APPROVED && e.getTargetDate().equals(today))
+                .map(AttendanceException::getStudentId)
+                .collect(Collectors.toSet());
+
+        // 이 버스의 당일 배포 계획 — 방향별 최신 버전 하나로 접는다(목록 API 와 같은 패턴).
+        Map<RouteDirection, RoutePlan> plansForBus = routePlanRepository
+                .findByTenantIdAndBusIdOrderByCreatedAtDesc(effectiveTenant, busId).stream()
+                .filter(p -> p.getStatus() == RoutePlanStatus.PUBLISHED && p.getServiceDate().equals(today))
+                .collect(Collectors.toMap(RoutePlan::getDirection, p -> p,
+                        (a, b) -> a.getVersion() >= b.getVersion() ? a : b,
+                        () -> new EnumMap<>(RouteDirection.class)));
+
+        DriveSessionResponse inProgress = driveSessionQueryService
+                .getTenantHistory(admin, effectiveTenant, DriveSessionStatus.IN_PROGRESS).stream()
+                .filter(s -> s.busId().equals(busId))
+                .findFirst().orElse(null);
+        DriveSessionResponse completedToday = driveSessionQueryService
+                .getTenantHistory(admin, effectiveTenant, DriveSessionStatus.COMPLETED).stream()
+                .filter(s -> s.busId().equals(busId) && s.serviceDate().equals(today))
+                .max(Comparator.comparing(DriveSessionResponse::startedAt))
+                .orElse(null);
+        DriveSessionResponse session = inProgress != null ? inProgress : completedToday;
+        BusSessionStatus sessionStatus = inProgress != null ? BusSessionStatus.IN_PROGRESS
+                : completedToday != null ? BusSessionStatus.COMPLETED
+                : BusSessionStatus.NOT_STARTED;
+        RouteDirection direction = resolveDirection(session, plansForBus);
+        LocalDateTime sessionStartedAt = session != null ? session.startedAt() : null;
+
+        RoutePlan plan = direction != null ? plansForBus.get(direction) : null;
+        Map<Long, RoutePlanStop> stopByStudent = plan == null ? Map.of()
+                : plan.getStops().stream()
+                        .collect(Collectors.toMap(RoutePlanStop::getStudentId, s -> s, (a, b) -> a));
+
+        List<Long> studentIds = roster.stream().map(Student::getId).toList();
+        Map<Long, List<StudentGuardian>> guardiansByStudent = studentIds.isEmpty() ? Map.of()
+                : studentGuardianRepository.findWithGuardianByStudentIdIn(studentIds).stream()
+                        .collect(Collectors.groupingBy(sg -> sg.getStudent().getId()));
+
+        List<BusOperationDetail.StudentStatus> students = roster.stream()
+                .map(student -> toStudentStatus(student, direction, eventsByStudent,
+                        approvedAbsentTodayStudentIds, stopByStudent, guardiansByStudent, sessionStartedAt, now))
+                .toList();
+
+        BusOperationDetail.RoutePlanInfo routePlanInfo = plan == null ? null
+                : new BusOperationDetail.RoutePlanInfo(plan.getVersion(), plan.getPolyline(),
+                        plan.getStops().stream()
+                                .map(stop -> toStopInfo(stop, roster, direction, sessionStartedAt))
+                                .toList());
+
+        return new BusOperationDetail(
+                new BusOperationDetail.BusInfo(bus.getId(), bus.getName()),
+                new BusOperationDetail.SessionInfo(
+                        session != null ? session.id() : null, direction, sessionStatus, sessionStartedAt),
+                routePlanInfo,
+                students);
+    }
+
+    private BusOperationDetail.StudentStatus toStudentStatus(Student student, RouteDirection direction,
+                                                             Map<Long, List<RideEvent>> eventsByStudent,
+                                                             Set<Long> approvedAbsentTodayStudentIds,
+                                                             Map<Long, RoutePlanStop> stopByStudent,
+                                                             Map<Long, List<StudentGuardian>> guardiansByStudent,
+                                                             LocalDateTime sessionStartedAt,
+                                                             LocalDateTime now) {
+        List<RideEvent> events = eventsByStudent.getOrDefault(student.getId(), List.of());
+        List<RideType> recordedTypes = events.stream().map(RideEvent::getType).toList();
+        boolean approvedAbsence = approvedAbsentTodayStudentIds.contains(student.getId());
+        RoutePlanStop stop = stopByStudent.get(student.getId());
+        LocalDateTime stopReachedAt = sessionStartedAt == null ? null
+                : BoardingStatusResolver.estimateStopReachedAt(
+                        sessionStartedAt, stop != null ? stop.getEtaSeconds() : 0L);
+        BoardingStatus status = BoardingStatusResolver.resolve(
+                approvedAbsence, recordedTypes, stopReachedAt, now, NotificationThresholds.NO_SHOW);
+        LocalDateTime recordedAt = events.stream()
+                .map(RideEvent::getOccurredAt)
+                .max(LocalDateTime::compareTo)
+                .orElse(null);
+        List<BusOperationDetail.GuardianView> guardians = guardiansByStudent
+                .getOrDefault(student.getId(), List.of()).stream()
+                .map(sg -> new BusOperationDetail.GuardianView(sg.getGuardian().getId(),
+                        sg.getGuardian().getName(), sg.getRelation(), sg.getGuardian().getPhone()))
+                .toList();
+
+        return new BusOperationDetail.StudentStatus(student.getId(), student.getName(), status,
+                stop != null ? stop.getSeq() : null,
+                // stopSeq 와 같은 조건으로 묶는다 — 계획에 이 학생이 없는데 이름만 채우면 화면에
+                // "정차 순서는 빈칸인데 정차 이름은 있는" 행이 생겨 DTO 계약(둘 다 null)과 어긋난다.
+                stop != null ? resolveStopName(student, direction) : null, recordedAt, guardians);
+    }
+
+    private BusOperationDetail.RoutePlanInfo.StopInfo toStopInfo(RoutePlanStop stop, List<Student> roster,
+                                                                 RouteDirection direction,
+                                                                 LocalDateTime sessionStartedAt) {
+        Student student = roster.stream()
+                .filter(s -> s.getId().equals(stop.getStudentId()))
+                .findFirst().orElse(null);
+        LocalDateTime reachedAtEstimate = sessionStartedAt == null ? null
+                : BoardingStatusResolver.estimateStopReachedAt(sessionStartedAt, stop.getEtaSeconds());
+        return new BusOperationDetail.RoutePlanInfo.StopInfo(stop.getSeq(),
+                student != null ? resolveStopName(student, direction) : null,
+                stop.getLat(), stop.getLng(), stop.getEtaSeconds(), reachedAtEstimate);
+    }
+
+    /**
+     * 정차 이름 — {@link RoutePlanStop} 은 정류장을 studentId·좌표로만 표현해 이름이 없다(§4.2 갭).
+     * 학생 전용 pickup 좌표가 있으면 그 주소, 없으면 공유 {@code Stop} 엔티티의 이름을 쓴다(D-K,
+     * {@code DriveSessionQueryService.toRosterEntry} 와 같은 우선순위 — 화면마다 다른 이름을 대면
+     * 관리자가 같은 정류장을 다른 곳으로 오인한다). 하원(DROPOFF)은 공유 정류장 개념이 없어 학생별
+     * 하차지 주소를 그대로 쓴다. 방향을 특정할 수 없으면(direction == null) 어느 주소가 맞는지
+     * 판단할 근거가 없어 null 로 둔다.
+     */
+    private String resolveStopName(Student student, RouteDirection direction) {
+        if (direction == RouteDirection.PICKUP) {
+            if (student.getPickupLat() != null && student.getPickupLng() != null) {
+                return student.getPickupAddress();
+            }
+            var stop = student.getBoardingStop();
+            return stop != null ? stop.getName() : null;
+        }
+        if (direction == RouteDirection.DROPOFF) {
+            return student.getDropoffAddress();
+        }
+        return null;
     }
 
     private BusOperationSummary toSummary(Bus bus, List<Student> roster,
