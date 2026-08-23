@@ -77,6 +77,31 @@ class DeploymentConfigGuardTest {
                 .contains("    bus-mock:\n      enabled: true");
     }
 
+    @Test
+    @DisplayName("jwt 서명키에 공통 기본값이 없다")
+    void jwt_서명키에_공통_기본값이_없다() {
+        // 첫 프로파일 구분자(---) 이전 = 공통 섹션. 공통 섹션에 기본값을 두면 prod·demo 가
+        // JWT_SECRET 을 빠뜨려도 저장소에 공개된 키로 조용히 기동하고, 그 키로 아무 역할의
+        // 토큰이나 위조할 수 있다(ws.allowed-origin-patterns 와 같은 방침).
+        String common = applicationYml.substring(0, applicationYml.indexOf("\n---"));
+
+        assertThat(common)
+                .as("공통 섹션에 기본값을 두면 prod 에서 JWT_SECRET 미주입 시 저장소에 공개된 키로 조용히 기동한다")
+                .contains("${JWT_SECRET}")
+                .doesNotContain("${JWT_SECRET:");
+    }
+
+    @Test
+    @DisplayName("local 프로파일은 jwt 서명키에 개발용 기본값을 둔다")
+    void localProfileHasJwtSecretDefault() {
+        // 공통 섹션에서 기본값을 뺀 대신, local 프로파일이 개발 편의를 위해 기본값을 되살린다.
+        // 이 값이 실제로 다른 프로파일로 새지 않는지는 위 jwt_서명키에_공통_기본값이_없다() 가 막는다.
+        String localSection = sectionOf("on-profile: local");
+        assertThat(localSection)
+                .as("local 프로파일은 JWT_SECRET 미주입 시에도 개발용 기본값으로 기동해야 한다")
+                .contains("${JWT_SECRET:local-dev-secret-change-me-please-32bytes-minimum-length}");
+    }
+
     /** `---` 로 구분된 프로파일 문서 중 표식(marker)을 포함한 것을 돌려준다. */
     private String sectionOf(String marker) {
         for (String section : applicationYml.split("(?m)^---$")) {

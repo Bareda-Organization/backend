@@ -83,9 +83,12 @@ app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173,http://localhost:4200,http://localhost:8081,http://127.0.0.1:3000,http://127.0.0.1:5173}
 
-# JWT (운영에서는 반드시 환경변수로 주입)
+# JWT — 서명 키는 프로파일별로 주입한다.
+# 여기에 기본값을 두지 않는 이유: 두면 prod 에서 JWT_SECRET 을 빠뜨려도 저장소에 공개된 키로
+# 조용히 기동하고, 그 키로 아무 역할의 토큰이나 위조할 수 있다. 미주입 시 기동 실패가 맞다
+# (ws.allowed-origin-patterns 와 같은 방침).
 jwt:
-  secret: ${JWT_SECRET:local-dev-secret-change-me-please-32bytes-minimum-length}
+  secret: ${JWT_SECRET}
   access-token-validity-seconds: 900        # 15분
   refresh-token-validity-seconds: 1209600   # 14일
 
@@ -151,6 +154,9 @@ spring:
       # BCryptPasswordEncoder(strength 10)로 사전 생성한 평문 "password" 의 해시.
       # 로컬 전용이라 파일에 박아둔다 — demo·prod 는 절대 이 값을 쓰지 않는다.
       seedPasswordHash: "$2a$10$Noeszx0nzJUfNo4ubCD03eNfMVfMD9feMo04y/8DHiFLUBF.JZ/Fq"
+  # 로컬 전용 개발 키 — 이 값은 저장소에 공개돼 있으므로 로컬 밖에서 쓰지 않는다.
+jwt:
+  secret: ${JWT_SECRET:local-dev-secret-change-me-please-32bytes-minimum-length}
 
 ---
 # 운영 프로파일 (비밀값은 모두 환경변수)
