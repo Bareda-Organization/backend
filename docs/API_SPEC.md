@@ -95,10 +95,10 @@
 
 | 상태 | 로그인 | API 접근 |
 |---|---|---|
-| `PENDING` | 성공 — 토큰 발급 | `GET /auth/signup-status` · `POST /auth/logout` **2개만**. 그 외 전 API `403 AUTH_PENDING` |
-| `ACTIVE` | 성공 | 역할별 권한 범위 |
-| `REJECTED` | 성공 | `PENDING` 의 2개 + `POST /auth/signup/reapply` **3개**. 대기 화면에 거절 사유 노출 — 재신청은 거절 이후에만 가능 |
-| `BLOCKED` | 실패 `403 AUTH_ACCOUNT_BLOCKED` | 접근 부재 — 해제는 메인 관리자 |
+| `pending` | 성공 — 토큰 발급 | `GET /auth/signup-status` · `POST /auth/logout` **2개만**. 그 외 전 API `403 AUTH_PENDING` |
+| `active` | 성공 | 역할별 권한 범위 |
+| `rejected` | 성공 | `pending` 의 2개 + `POST /auth/signup/reapply` **3개**. 대기 화면에 거절 사유 노출 — 재신청은 거절 이후에만 가능 |
+| `blocked` | 실패 `403 AUTH_ACCOUNT_BLOCKED` | 접근 부재 — 해제는 메인 관리자 |
 
 **판정 위치는 서버 인가 계층** (C-01 · FEATURE_SPEC §3.6). 채택 근거는 PRD §6.4.
 
@@ -181,8 +181,8 @@ HTTP 상태 코드 + 본문. 본문 형태는 전 엔드포인트 공통.
 | 코드 | HTTP | 발생 조건 |
 |---|:-:|---|
 | `TOKEN_EXPIRED` | 401 | access 토큰 만료, 또는 로그아웃·계정 차단으로 무효화 → 재로그인 요구 (§1.2) |
-| `AUTH_PENDING` | 403 | `PENDING` 계정이 허용 2개(승인 대기 조회 `GET /auth/signup-status` · `POST /auth/logout`) 밖 호출. `REJECTED` 는 `POST /auth/signup/reapply` 1개 추가 (§1.4) |
-| `AUTH_ACCOUNT_BLOCKED` | 403 | `BLOCKED` 계정의 호출 — 해제는 메인 관리자 (C-11) |
+| `AUTH_PENDING` | 403 | `pending` 계정이 허용 2개(승인 대기 조회 `GET /auth/signup-status` · `POST /auth/logout`) 밖 호출. `rejected` 는 `POST /auth/signup/reapply` 1개 추가 (§1.4) |
+| `AUTH_ACCOUNT_BLOCKED` | 403 | `blocked` 계정의 호출 — 해제는 메인 관리자 (C-11) |
 | `FORBIDDEN` | 403 | 역할 권한 밖 호출 (FEATURE_SPEC §6 권한 매트릭스) |
 | `ACADEMY_SCOPE_VIOLATION` | 403 | 소속 학원 밖 자원 요청 (§1.5). 메인 관리자 콘솔(§6)은 예외 |
 | `VALIDATION_FAILED` | 422 | 필수 필드 누락 · 형식 위반 |
@@ -248,37 +248,37 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
-| `account_status` | enum | `PENDING` 고정 |
+| `account_status` | enum | `pending` 고정 |
 | `requested_at` | datetime | 신청 일시 |
 | `approver` | enum | `staff`(관계자 승인) · `system_admin`(메인 관리자 승인). `role=staff` 는 `system_admin` |
 
-`SignupRequest` 생성 + 계정 `PENDING`. **메인 관리자는 이 경로로 가입 불가** — 내부 발급.
+`SignupRequest` 생성 + 계정 `pending`. **메인 관리자는 이 경로로 가입 불가** — 내부 발급.
 
 **에러** — `409 DUPLICATE_LOGIN_ID` · `404 ACADEMY_NOT_FOUND`(비활성 학원 포함) · `422 VALIDATION_FAILED`
 
 ### 2.3 GET /auth/signup-status
 
-승인 대기 화면 (AUTH-03). `PENDING` · `REJECTED` 토큰으로 호출 가능한 조회.
+승인 대기 화면 (AUTH-03). `pending` · `rejected` 토큰으로 호출 가능한 조회.
 
-**권한** 전 역할 (`PENDING` · `REJECTED` 포함) · **기능 ID** AUTH-03 · P-01
+**권한** 전 역할 (`pending` · `rejected` 포함) · **기능 ID** AUTH-03 · P-01
 
 **응답**
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|:-:|---|
-| `status` | enum | ● | `PENDING` · `ACTIVE` · `REJECTED` |
+| `status` | enum | ● | `pending` · `active` · `rejected` |
 | `academy.name` · `academy.region` · `academy.code` | string | ● | 신청 학원 |
 | `requested_at` | datetime | ● | 신청 일시 |
-| `reject_reason` | string | ○ | `REJECTED` 일 때만 |
+| `reject_reason` | string | ○ | `rejected` 일 때만 |
 | `academy_contact` | string | ● | 학원 문의처 |
 
-**에러** — §1.11 공통 항목 외 고유 에러 부재. `PENDING` · `REJECTED` 허용 경로라 `403 AUTH_PENDING` 미발생 (§1.4).
+**에러** — §1.11 공통 항목 외 고유 에러 부재. `pending` · `rejected` 허용 경로라 `403 AUTH_PENDING` 미발생 (§1.4).
 
 ### 2.4 POST /auth/signup/reapply
 
 거절 후 재신청 — 학원 재선택 (AUTH-03).
 
-**권한** `REJECTED` 계정 · **요청** `academy_id` (string, 필수) · **응답** `status` = `PENDING`, `requested_at` · **에러** `409 REAPPLY_NOT_ALLOWED`(`REJECTED` 아닌 상태) · `404 ACADEMY_NOT_FOUND`
+**권한** `rejected` 계정 · **요청** `academy_id` (string, 필수) · **응답** `status` = `pending`, `requested_at` · **에러** `409 REAPPLY_NOT_ALLOWED`(`rejected` 아닌 상태) · `404 ACADEMY_NOT_FOUND`
 
 ### 2.5 POST /auth/login
 
@@ -293,12 +293,12 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | `access_token` | string | 단기 토큰. 앱·웹 공통으로 본문에 담김 |
 | `refresh_token` | string | 장기 토큰. **`X-Client-Type: app` 일 때만 본문에 담김** — `web` 이면 본문에서 빠지고 `Set-Cookie` 로 전달 (§1.2.1) |
 | `role` | enum | `parent` · `student` · `driver` · `escort` · `staff` · `system_admin` |
-| `status` | enum | `PENDING` · `ACTIVE` · `REJECTED` |
+| `status` | enum | `pending` · `active` · `rejected` |
 | `account_id` | string | 계정 식별자 |
 | `academy` | object | `id` · `name` — `system_admin` 은 `null` |
 
 - `X-Client-Type: web` 이면 응답 헤더에 `Set-Cookie: refresh_token=…; HttpOnly; Secure; SameSite=Strict; Path=/api/auth; Max-Age={refresh 만료까지의 초}` 가 붙는다 (§1.2.1).
-- `PENDING` · `REJECTED` 도 **로그인 성공 + 토큰 발급**. 접근 범위만 §1.4 로 축소.
+- `pending` · `rejected` 도 **로그인 성공 + 토큰 발급**. 접근 범위만 §1.4 로 축소.
 - 실패 **5회** 누적 시 **계정 단위** 차단 — IP 차단 부재 (C-11). 이후 `403 AUTH_ACCOUNT_BLOCKED`, 해제는 메인 관리자.
 - 매니저 앱은 계정에 배정된 호차가 자동 결정 — 사용자의 호차 선택 부재.
 
@@ -320,11 +320,11 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 로그아웃 (AUTH-09). refresh 토큰 무효화. 정본 API명세서에 경로 미기재 — AUTH-09 · §1.4 의 로그아웃 허용 규칙에서 도출.
 
-**권한** 전 역할 (`PENDING` 포함) · **요청** `refresh_token` (string) — §2.6 과 같이 **쿠키 우선, 없으면 본문** · **응답** `204`
+**권한** 전 역할 (`pending` 포함) · **요청** `refresh_token` (string) — §2.6 과 같이 **쿠키 우선, 없으면 본문** · **응답** `204`
 
 **웹 응답에는 쿠키 삭제 지시가 함께 붙는다** — `Set-Cookie: refresh_token=; Max-Age=0; Path=/api/auth` (속성은 발급 시와 동일해야 브라우저가 같은 쿠키로 인식). 서버측 무효화만 하고 이 헤더를 빠뜨리면 브라우저에 죽은 쿠키가 남아 다음 접속이 `401` 한 번을 더 거친다.
 
-**에러** — `401 TOKEN_EXPIRED`(전달된 `refresh_token` 이 이미 무효화). `PENDING` 허용 경로라 `403 AUTH_PENDING` 미발생.
+**에러** — `401 TOKEN_EXPIRED`(전달된 `refresh_token` 이 이미 무효화). `pending` 허용 경로라 `403 AUTH_PENDING` 미발생.
 
 ### 2.8 POST /auth/password
 
@@ -355,7 +355,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 ### 2.10 GET /me
 
-본인 프로필 (C-14 자동 로그인 · 계정 상태 게이트 §1.4). **전 역할 공통이며 `PENDING`·`REJECTED` 도 호출 가능** — 대기 화면이 상태를 알아야 함.
+본인 프로필 (C-14 자동 로그인 · 계정 상태 게이트 §1.4). **전 역할 공통이며 `pending`·`rejected` 도 호출 가능** — 대기 화면이 상태를 알아야 함.
 
 **권한** 인증된 전 역할
 
@@ -365,13 +365,13 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 |---|---|:-:|---|
 | `account_id` · `login_id` · `name` · `phone` | — | ● | 계정 기본 |
 | `role` | enum | ● | §9.1 |
-| `status` | enum | ● | `PENDING` · `ACTIVE` · `REJECTED` |
+| `status` | enum | ● | `pending` · `active` · `rejected` |
 | `academy` | object | ○ | `id` · `name` — `system_admin` 은 `null` |
 | `student_id` | string | ○ | `role=student` 일 때 **본인 학생 레코드** |
 | `manager_id` · `manager_role` | string · enum | ○ | `role=driver`·`escort` 일 때 |
 | `linked_student_count` | integer | ○ | `role=parent` 일 때 연결 자녀 수 |
 
-**이 엔드포인트가 필요한 이유 둘.** ① **학생 계정이 본인 `student_id` 를 얻을 경로가 부재** — `GET /me/students`(§3.1)는 학부모 전용이고 학생용 조회는 전부 `/students/{id}/...` 형태라, 이것이 없으면 학생 앱의 첫 화면부터 호출이 불가. ② `POST /auth/refresh`(§2.6) 응답이 토큰 2개뿐이라 **앱 재실행 후 `role`·`status` 재취득 수단이 부재** — `PENDING` 화면 분기가 성립하지 않음.
+**이 엔드포인트가 필요한 이유 둘.** ① **학생 계정이 본인 `student_id` 를 얻을 경로가 부재** — `GET /me/students`(§3.1)는 학부모 전용이고 학생용 조회는 전부 `/students/{id}/...` 형태라, 이것이 없으면 학생 앱의 첫 화면부터 호출이 불가. ② `POST /auth/refresh`(§2.6) 응답이 토큰 2개뿐이라 **앱 재실행 후 `role`·`status` 재취득 수단이 부재** — `pending` 화면 분기가 성립하지 않음.
 
 **에러** — §1.11 공통 항목 외 고유 에러 부재.
 
@@ -379,7 +379,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 푸시 수신 단말 등록·해지 (NTF-12). **알림 전 종류의 전제** — 이 등록이 없으면 서버가 발송 대상 단말을 특정 불가.
 
-**권한** 인증된 전 역할 (`PENDING` 포함 — 승인 결과 알림이 대상)
+**권한** 인증된 전 역할 (`pending` 포함 — 승인 결과 알림이 대상)
 
 **요청 (등록)**
 
@@ -1095,7 +1095,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 **수락 시 계정 ↔ 실제 레코드 연결이 필수** (AUTH-11) — 누락 시 `422 LINK_REQUIRED`. 연결 부재 계정은 데이터 접근 불가.
 
-**응답** — `account_status`(`ACTIVE` · `REJECTED`) · `decided_at`. 결과는 신청자에게 알림 통지.
+**응답** — `account_status`(`active` · `rejected`) · `decided_at`. 결과는 신청자에게 알림 통지.
 
 다자녀는 **연결 추가만** 수행 — 학부모 재가입 부재.
 
@@ -1579,9 +1579,9 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | `accept` | boolean | ● | |
 | `reject_reason` | string | 조건부 | `accept=false` 필수 |
 
-**학원당 1명 유지** — 이미 `ACTIVE` 관계자가 있는 학원의 추가 승인은 `409 STAFF_QUOTA_EXCEEDED`.
+**학원당 1명 유지** — 이미 `active` 관계자가 있는 학원의 추가 승인은 `409 STAFF_QUOTA_EXCEEDED`.
 
-**응답** — `account_status`(`ACTIVE` · `REJECTED`) · `decided_at`.
+**응답** — `account_status`(`active` · `rejected`) · `decided_at`.
 
 **에러** — `409 STAFF_QUOTA_EXCEEDED`(학원당 관계자 **1명** 초과 승인) · `409 APPROVAL_ALREADY_DECIDED`(이미 처리된 요청) · `404 SIGNUP_REQUEST_NOT_FOUND` · `422 VALIDATION_FAILED`(`accept=false` 인데 `reject_reason` 부재)
 
@@ -1605,7 +1605,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 관계자 계정은 학생 개인정보 전체에 접근 — 퇴사 즉시 비활성화가 요건.
 
-**에러** — `404 ACCOUNT_NOT_FOUND` · `409 STAFF_QUOTA_EXCEEDED`(`status=active` 전환 대상 학원에 이미 `ACTIVE` 관계자 존재)
+**에러** — `404 ACCOUNT_NOT_FOUND` · `409 STAFF_QUOTA_EXCEEDED`(`status=active` 전환 대상 학원에 이미 `active` 관계자 존재)
 
 ### 6.8 GET /admin/academies/{id}/runs/live
 
@@ -1711,9 +1711,9 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 로그인 차단 해제 (AUTH-06, O-03).
 
-**요청** 본문 부재 · **응답** `account_status`(`ACTIVE`) · `unblocked_by` · `unblocked_at` · **이력** 처리자·일시 저장
+**요청** 본문 부재 · **응답** `account_status`(`active`) · `unblocked_by` · `unblocked_at` · **이력** 처리자·일시 저장
 
-**에러** — `404 ACCOUNT_NOT_FOUND` · `409 ACCOUNT_NOT_BLOCKED`(`BLOCKED` 아닌 계정의 해제 시도)
+**에러** — `404 ACCOUNT_NOT_FOUND` · `409 ACCOUNT_NOT_BLOCKED`(`blocked` 아닌 계정의 해제 시도)
 
 ### 6.13 감사 · 접속 이력
 
@@ -1776,14 +1776,14 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 |---|:-:|---|
 | `INVALID_CREDENTIALS` | 401 | 아이디·비밀번호 불일치. `details.remaining_attempts` 로 잔여 시도 안내 |
 | `TOKEN_EXPIRED` | 401 | access·refresh 만료, 로그아웃·차단으로 무효화 → 재로그인 요구 |
-| `AUTH_PENDING` | 403 | `PENDING` 계정이 승인 대기 조회·재신청·로그아웃 외 API 호출 (C-01 · §1.4) |
+| `AUTH_PENDING` | 403 | `pending` 계정이 승인 대기 조회·재신청·로그아웃 외 API 호출 (C-01 · §1.4) |
 | `AUTH_ACCOUNT_BLOCKED` | 403 | 로그인 실패 **5회** 누적으로 계정 단위 차단. 해제는 메인 관리자 (C-11) |
 | `DUPLICATE_LOGIN_ID` | 409 | 가입 시 로그인 아이디 중복 |
-| `REAPPLY_NOT_ALLOWED` | 409 | `REJECTED` 아닌 상태에서 재신청 |
+| `REAPPLY_NOT_ALLOWED` | 409 | `rejected` 아닌 상태에서 재신청 |
 | `LINK_CODE_INVALID` | 403 | 자녀 연결 인증 코드 만료·불일치 (P-02 · S-05) |
 | `LINK_REQUIRED` | 422 | 가입 승인 시 계정 ↔ 학생·매니저 레코드 연결 누락 (AUTH-11) |
 | `ACCOUNT_NOT_FOUND` | 404 | 미존재 계정 지정 — 복구 요청의 미등록 전화번호, 관계자 계정·차단 계정 처리 대상 부재 |
-| `ACCOUNT_NOT_BLOCKED` | 409 | `BLOCKED` 아닌 계정에 차단 해제 시도 (AUTH-06) |
+| `ACCOUNT_NOT_BLOCKED` | 409 | `blocked` 아닌 계정에 차단 해제 시도 (AUTH-06) |
 | `VERIFICATION_CODE_INVALID` | 403 | 아이디·비밀번호 복구의 SMS 인증 코드 만료·불일치 (AUTH-08) |
 
 ### 8.2 인가 · 격리
@@ -1856,7 +1856,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 
 ### 9.2 계정 상태 (`Account.status`)
 
-`PENDING` · `ACTIVE` · `REJECTED` · `BLOCKED` — 접근 범위는 §1.4.
+`pending` · `active` · `rejected` · `blocked` — 접근 범위는 §1.4.
 
 ### 9.3 운행 상태 (`Run.status`)
 

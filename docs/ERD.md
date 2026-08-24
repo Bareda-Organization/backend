@@ -225,8 +225,8 @@ erDiagram
 | `phone` | varchar(30) | NN | 연락처. 아이디·비밀번호 복구의 인증 수단 (AUTH-08) |
 | `email` | varchar(120) | | 관계자 계정 수정 대상에만 등장하는 값 (API_SPEC §6.7) |
 | `role` | varchar(20) | NN | `parent` · `student` · `driver` · `escort` · `staff` · `system_admin`. CHECK |
-| `status` | varchar(10) | NN | `PENDING` · `ACTIVE` · `REJECTED` · `BLOCKED`. CHECK |
-| `failed_attempts` | integer | NN default 0 | 로그인 연속 실패 횟수. **5회** 도달 시 `BLOCKED` (C-11) |
+| `status` | varchar(10) | NN | `pending` · `active` · `rejected` · `blocked`. CHECK |
+| `failed_attempts` | integer | NN default 0 | 로그인 연속 실패 횟수. **5회** 도달 시 `blocked` (C-11) |
 | `blocked_at` | timestamptz | | 차단 일시 |
 | `block_reason` | varchar(100) | | 차단 사유 — 차단 목록의 `reason` |
 | `unblocked_by` | bigint | | 해제 처리자 계정. 이력 요건 (AUTH-06 · API_SPEC §6.12) |
@@ -955,7 +955,7 @@ erDiagram
 | `run_rider` | `status IN ('waiting','boarded','alighted','absent','no_show')` | 탑승 상태 5종 (C-02) |
 | `run` | `status IN ('idle','confirmed','moving','finished')` | 운행 상태 4종 |
 | `run` | `confirm_at = depart_time - interval '30 minutes'` | 확정 시점 **출발 30분 전** (C-03) |
-| `account` | `status IN ('PENDING','ACTIVE','REJECTED','BLOCKED')` | 계정 상태 4종 |
+| `account` | `status IN ('pending','active','rejected','blocked')` | 계정 상태 4종 |
 | `account` | `role = 'system_admin' OR academy_id IS NOT NULL` | 메인 관리자 외 전 계정은 학원 소속 (API_SPEC §1.5) |
 | `account` | `failed_attempts BETWEEN 0 AND 5` | 로그인 차단 **5회** (C-11) |
 | `change_request` | `status IN ('pending','approved','rejected','auto_rejected')` | 변경 요청 상태 4종 |
@@ -1054,7 +1054,7 @@ erDiagram
 | `manager` | **soft delete** (`deleted_at`) | 배치된 회차가 있으면 삭제 차단(`409 MANAGER_ASSIGNED`). 해제 후 삭제 (MGR-04) |
 | `academy` | **soft delete** (`status='inactive'`) | 물리 삭제 부재. 검색 제외 + 신규 가입 차단, **기존 사용자 로그인은 유지** (ACAD-04 · O-01). 완전 삭제 조건은 미확정 (PRD §10.1 S) |
 | `academy_staff` | **비활성화** (`status='inactive'`) | 퇴사 시 즉시 권한 회수 (ACAD-06) |
-| `account` | **상태 전이** | `BLOCKED` · `REJECTED` 는 행 유지. 물리 삭제 경로 부재 |
+| `account` | **상태 전이** | `blocked` · `rejected` 는 행 유지. 물리 삭제 경로 부재 |
 | `guardian_student` | **연결 해제** (`unlinked_at`) | 퇴원 시 해제, 과거 이력 보존 (UF-P-01) |
 | `waypoint` | 배포 전 **hard delete** / 배포 후 `removed_at` | 배포 전 취소는 흔적 불필요, 배포 후 제거는 미리보기 → 배포 절차를 거쳐 이력 존치 (A-15) |
 | `link_request` · `link_code` · `refresh_token` | **hard delete** | 만료분 정리 배치 대상. 감사 가치 부재 |

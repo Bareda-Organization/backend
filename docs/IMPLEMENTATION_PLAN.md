@@ -83,7 +83,7 @@
 | 모듈 | 판정 | 근거 |
 |---|---|---|
 | `tenant/` · `user/` (`Tenant`·`User`·`UserTenantRole`·`Role`) | **폐기 · 재작성** | `User`↔`Tenant` N:M 연결 테이블 모델. 새 사양은 계정 1개가 학원 1곳에 속하며 `account.role`·`account.academy_id` 두 컬럼으로 표현 (`ARCHITECTURE §5.3` · `ERD` `account` CHECK). 역할 값도 `ATTENDANT` → `escort` 등 6종 전면 교체 (`API_SPEC §9.1`) |
-| `auth/` | **폐기 · 재작성** | 이메일+비밀번호 즉시 로그인 전제. 새 사양은 form 가입 → 학원 검색·선택 → 승인으로 활성화이고 `PENDING` 상태에도 토큰을 발급하되 API 2개만 허용 (`C-01` · `API_SPEC §1.4`). 승인 주체가 역할별로 갈림(관계자 / 메인 관리자)도 부재 |
+| `auth/` | **폐기 · 재작성** | 이메일+비밀번호 즉시 로그인 전제. 새 사양은 form 가입 → 학원 검색·선택 → 승인으로 활성화이고 `pending` 상태에도 토큰을 발급하되 API 2개만 허용 (`C-01` · `API_SPEC §1.4`). 승인 주체가 역할별로 갈림(관계자 / 메인 관리자)도 부재 |
 | `route/` (`Route`·`Stop`) | **폐기 · 재작성** | `stop.route_id` + `seq` 로 **공용 정류장**을 노선에 매단 구조. `C-12` 는 공용 정류장 개념 자체가 부재이며, 승하차지는 학생 요일별 주소 좌표에서 생성돼 **학원이 소유하는 마스터**(`ERD` `stop.academy_id`)이고 노선은 `run_stop` 이 참조 |
 | `routing/` (`RoutePlan`·`RoutePlanStop` · engine · infrastructure) | **폐기 · 재작성** | 배차 시뮬레이션 모델. 새 사양은 `confirmed_route` + `route_version` + `run_stop` + `waypoint` 4테이블과 출발 30분 전 도래 배치가 축 (`RTE-02` · `ARCHITECTURE §8`·`§9`). **외부 지도 API 어댑터의 호출·구간 분할 골격은 참고 가치** — §1.5 |
 | `schedule/` (`ScheduleChangeRequest`·`LocationChangeRequest`·`LocationChangeDecision`) | **폐기 · 재작성** | 요청 모델에 3구간 판정·회차당 1회 한도·자동 거절이 부재 (`C-04` · `ERD` `boarding_intent.change_used_count` CHECK) |
@@ -233,7 +233,7 @@
 |---|---|---|
 | **학원** | 3곳 — A(주 시나리오) · B(격리 검증) · C(`inactive`, 비활성화 후 로그인 유지 검증) | `ARCHITECTURE §6.1` · `O-01` |
 | **계정 — 역할 6종** | `system_admin` 1 · `staff` A·B 각 1 · `parent` · `student` · `driver` · `escort` 를 A 에 복수, B 에 각 1 | `API_SPEC §9.1` |
-| **계정 — 상태 4종** | `ACTIVE` 다수 · `PENDING` (parent 1 + staff 1) · `REJECTED` (student 1, 거절 사유 보유) · `BLOCKED` (driver 1, 실패 횟수 상한) | `API_SPEC §9.2` · `C-11` |
+| **계정 — 상태 4종** | `active` 다수 · `pending` (parent 1 + staff 1) · `rejected` (student 1, 거절 사유 보유) · `blocked` (driver 1, 실패 횟수 상한) | `API_SPEC §9.2` · `C-11` |
 | **학생 · 보호자** | A 학원 5명. 그중 2명이 같은 보호자에 연결(다자녀 UI 노출 조건) · 학생 계정 미연결 1명(`AUTH-11` 미연결 상태 확인) | `P-02` · `ATT-03` |
 | **요일별 주소** | 학생당 요일 7 × 방향 2 = 14행. UNIQUE 조합 준수 | `P-05` · `C-16` · `ERD §5.1` |
 | **자녀 연결** | `link_request` 1건(대기) · `link_code` 1건(유효) | `P-02` · `S-05` |
@@ -281,7 +281,7 @@
 | **시간 의존** | `Clock.fixed` 로 고정 — **두 시계 분리**(배치가 25분 전에 돌아도 판정은 출발−30분) · 운행 시작 창 · 미승차 대기 · ②구간 마감(출발 시각 도달 **또는** 운행 시작 중 먼저) | JUnit + `Clock` |
 | **동시성** | **조건부 UPDATE 멱등** — 두 스레드가 같은 회차를 동시에 확정 시도할 때 갱신 행 수가 1/0 으로 갈림 · 오프라인 큐 `client_key` 중복 전송 | Testcontainers |
 | **통합** | 저장소 · 트랜잭션 경계 · 제약 위반 예외(`DataIntegrityViolationException` 기반 멱등, `TECH_DECISIONS §9.2`) | Testcontainers (PostgreSQL · Redis) |
-| **인가** | **역할 6종 × 권한 카탈로그 전수** · 계정 상태 게이트(`PENDING` 2개 · `REJECTED` 3개) · **학원 격리** · 보호자↔자녀 · 매니저↔회차 | `spring-security-test` |
+| **인가** | **역할 6종 × 권한 카탈로그 전수** · 계정 상태 게이트(`pending` 2개 · `rejected` 3개) · **학원 격리** · 보호자↔자녀 · 매니저↔회차 | `spring-security-test` |
 | **개인정보** | **역할별 응답 DTO 에 L2 마스킹 적용 · L3 필드 미포함** (`FEATURE_SPEC §6.3`). 매니저 앱 응답에 보호자 번호 **원본이 실리지 않는지** | MockMvc + 직렬화 결과 대조 |
 | **아웃박스** | 커밋 후 즉시 발송이 실패해도 워커가 `pending` 을 회수 · `dedup_key` 로 중복 차단 | Testcontainers + Awaitility |
 | **스케줄러** | 도래분 폴링이 실제로 대상 회차를 집는지 · 실패 시 `idle` 복귀 후 다음 틱 재시도 | Awaitility |
@@ -595,10 +595,10 @@ void 확정_시각이_도래하면_idle_회차가_confirmed_로_전이한다() {
 **refresh 토큰의 전달 수단이 클라이언트별로 갈린다** (`API_SPEC §1.2.1` · `TECH_DECISIONS §2.4`). 앱은 응답 본문, 웹은 `HttpOnly` 쿠키다. **갈림은 컨트롤러 한 층에만 두고** 서비스·저장소는 클라이언트 종류를 모른다 — 발급·적재·무효화 규칙이 전송 수단과 무관하기 때문. 쿠키 조립은 **한 곳(쿠키 조립기)에 모은다**. 엔드포인트마다 손으로 `ResponseCookie` 를 만들면 `Secure` 한 개가 빠진 경로가 생기고, 그 누락은 로컬에서 재현되지 않는다.
 
 **완료 조건**
-- Swagger 에서 흐름 완주: 학원 검색 → 가입 → `PENDING` 상태 조회 → (승인은 Phase 3) → 로그인 → 토큰 재발급 → 로그아웃
-- `PENDING` 토큰으로 허용 2개 외 API 호출 시 전부 `403 AUTH_PENDING`
-- `REJECTED` 토큰은 3개까지 허용
-- `BLOCKED` 계정 로그인 시 `403 AUTH_ACCOUNT_BLOCKED`
+- Swagger 에서 흐름 완주: 학원 검색 → 가입 → `pending` 상태 조회 → (승인은 Phase 3) → 로그인 → 토큰 재발급 → 로그아웃
+- `pending` 토큰으로 허용 2개 외 API 호출 시 전부 `403 AUTH_PENDING`
+- `rejected` 토큰은 3개까지 허용
+- `blocked` 계정 로그인 시 `403 AUTH_ACCOUNT_BLOCKED`
 - 로그인 실패 누적이 상한에 도달하면 계정 단위 차단, 성공 시 카운터 초기화
 - A학원 `staff` 토큰으로 B학원 자원 조회 시 `403 ACADEMY_SCOPE_VIOLATION` — **목록 조회에서도 성립**
 - `X-Client-Type: web` 로그인 응답 — 본문에 `refresh_token` 부재 + `Set-Cookie` 에 `HttpOnly`·`Secure`·`SameSite=Strict`·`Path=/api/auth` 4속성 전부 존재
@@ -621,12 +621,12 @@ void 확정_시각이_도래하면_idle_회차가_confirmed_로_전이한다() {
 
 **승인 주체가 둘로 갈림** — 학부모·학생·매니저는 관계자가, 관계자는 메인 관리자가 승인. 학원당 관계자 1명은 `academy_staff(academy_id)` UNIQUE 가 강제하고 초과 시 `409 STAFF_QUOTA_EXCEEDED`.
 
-**계정↔레코드 연결이 승인의 일부** (`AUTH-11`) — 연결 없이 승인하면 `ACTIVE` 이면서 데이터 접근이 불가한 계정이 생김.
+**계정↔레코드 연결이 승인의 일부** (`AUTH-11`) — 연결 없이 승인하면 `active` 이면서 데이터 접근이 불가한 계정이 생김.
 
 **완료 조건**
 - Swagger 완주: 메인 관리자 로그인 → 학원 등록 → 관계자 가입 요청 승인 → 관계자 로그인 → 학부모 가입 요청 승인·거절
 - 같은 학원에 두 번째 관계자 승인 시 `409`
-- 거절된 계정이 재신청으로 `PENDING` 복귀
+- 거절된 계정이 재신청으로 `pending` 복귀
 - 학원 비활성화 후에도 기존 사용자 로그인 유지, 신규 가입만 차단
 - 차단 계정 해제 후 로그인 성공 + 처리자·일시 이력 적재
 

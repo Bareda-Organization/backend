@@ -25,7 +25,7 @@
 |---|---|---|
 | 인증·인가 | Spring Security — **역할·권한까지만** | Security 로 학원 격리 |
 | 권한 모델 | **RBAC** — 권한 상수 enum + 역할↔권한 매핑(코드) | DB 권한 테이블 · Security ACL · 토큰에 권한 적재 |
-| enum 매핑 | **`code()` 값 기반 컨버터 + `@JsonValue`**(§6.2) | `@Enumerated(STRING)` 의 `Enum.name()` 의존 |
+| enum 표기 | DB·wire **소문자 snake_case** · Java 상수 대문자 · 공유 컨버터로 연결(§6.2) | `@Enumerated(STRING)` · 표기를 한 층에 맞춰 통일 |
 | 토큰 전송 | access = `Authorization` 헤더(앱·웹 공통) · refresh = 앱은 기기 보안 저장소 · 웹은 **HttpOnly 쿠키** | access 를 쿠키로 전송 · 앱에 HttpOnly 적용 · CSRF 동기화 토큰 |
 | 민감 데이터 | 역할별 응답 DTO + 조회 시 마스킹 + L3 감사 로그 | 엔티티 직렬화 · `@JsonIgnore` 의존 |
 | 배치 | `@Scheduled` + `ThreadPoolTaskExecutor` + ShedLock | **Spring Batch** · Quartz |
@@ -56,7 +56,7 @@ Spring Security 는 기능이 넓어 "쓴다"만으로는 범위가 안 잡힌�
 |---|---|---|
 | `SecurityFilterChain` | 경로별 인증 필요 여부 선언 | 비인증 허용 5개 경로 vs 나머지 (API_SPEC §1.2) |
 | **커스텀 JWT 인증 필터** | 헤더의 토큰을 검증해 인증 주체를 만듦 | jjwt 로 파싱, 실패 시 `401 TOKEN_EXPIRED` |
-| **커스텀 `AuthorizationManager`** | 계정 상태 게이트 ①층 | `PENDING`·`REJECTED`·`BLOCKED` 차단, 허용 목록 방식 |
+| **커스텀 `AuthorizationManager`** | 계정 상태 게이트 ①층 | `pending`·`rejected`·`blocked` 차단, 허용 목록 방식 |
 | `@PreAuthorize` 메서드 보안 | 역할 권한 ②층 | 역할 6종 × 기능 |
 | `PasswordEncoder` (BCrypt) | 비밀번호 해싱·대조 | 가입·로그인·비밀번호 변경 |
 | STOMP `ChannelInterceptor` | WebSocket **구독 시점** 인가 | 연결만 인증하고 구독 경로를 검사하지 않으면 토큰 보유자가 남의 채널을 구독 |
@@ -84,7 +84,7 @@ Spring Security 는 기능이 넓어 "쓴다"만으로는 범위가 안 잡힌�
 
 | 층 | 구현 위치 | 근거 |
 |---|---|---|
-| ① 계정 상태 게이트 | Security **필터/인터셉터 한 곳** — 허용 목록 + 기본 차단 | `PENDING` 은 2개 API만 허용. 컨트롤러에 흩으면 새 엔드포인트마다 누락 가능성 |
+| ① 계정 상태 게이트 | Security **필터/인터셉터 한 곳** — 허용 목록 + 기본 차단 | `pending` 은 2개 API만 허용. 컨트롤러에 흩으면 새 엔드포인트마다 누락 가능성 |
 | ② 역할 권한 | Security **메서드 보안** — `@PreAuthorize` | 역할 6종 × 기능. 선언적으로 |
 | ③ 자원 소속 | **저장소·서비스 계층** | 학원 격리 · 보호자↔자녀 · 매니저↔회차 |
 
@@ -422,27 +422,34 @@ Clock at0735 = Clock.fixed(Instant.parse("2026-08-24T07:35:00Z"), SEOUL);
 
 `Instant` 를 쓰지 않는 이유 — 저장·비교에는 충분하나 로그·응답에서 사람이 읽을 때 매번 시간대를 얹어야 한다. `Clock` 주입(§6)과의 결합도 `OffsetDateTime.now(clock)` 로 동일하다.
 
-### 6.2 enum ↔ DB·wire 문자열 — 이름이 아니라 값으로 잇는다
+### 6.2 enum 표기 — DB·wire 는 소문자 snake_case, Java 상수는 대문자
 
-**결정:** Java enum 상수는 관례대로 대문자로 두고, DB·wire 문자열은 **각 상수가 들고 있는 값(`code`)** 으로 표현한다. `@Enumerated(STRING)` 이 쓰는 `Enum.name()` 에 의존하지 않는다.
+**결정:** enum 값의 DB 저장 문자열과 API 응답 문자열은 **소문자 snake_case** 로 통일한다(`API_SPEC §9`). Java enum 상수는 언어 관례대로 **대문자 SNAKE_CASE** 를 유지하고, 둘은 `name().toLowerCase()` 관계로 잇는다.
 
-사양의 enum 값 표기가 **한 벌이 아니다** — `API_SPEC §9` 의 33개 개념 중 32개가 소문자 snake_case(`parent` · `confirmed` · `login_id`)인데 `account.status` 하나만 대문자(`PENDING`)다. `@Enumerated(STRING)` 은 상수 이름과 저장 문자열이 **같아야만** 동작하므로, 어느 한쪽 관례로 통일해도 나머지가 전부 깨진다.
-
-```java
-/** 계정 상태. DB·wire 문자열은 code() 가 정하며 상수 이름과 무관하다. */
-public enum AccountStatus implements CodedEnum {
-    PENDING("PENDING"), ACTIVE("ACTIVE"), REJECTED("REJECTED"), BLOCKED("BLOCKED");
-    // Role 은 같은 구조로 PARENT("parent") · DRIVER("driver") …
-}
+```
+Java 상수        DB·wire 값
+SYSTEM_ADMIN  ↔  system_admin
+CONFIRMED     ↔  confirmed
+PENDING       ↔  pending
 ```
 
-- **JPA** — `CodedEnum` 을 받는 추상 컨버터 하나를 두고 enum 마다 `@Converter(autoApply = true)` 하위 클래스를 3줄로 붙인다. 필드마다 애너테이션을 달지 않는다
-- **Jackson** — `code()` 에 `@JsonValue`, 역직렬화에 `@JsonCreator`. 응답·요청 문자열이 사양 값과 일치
-- **DB CHECK 제약과의 대조는 테스트로 고정한다** — enum 의 `code()` 집합과 `ERD` 의 CHECK 허용값이 일치하는지 검사. 이것이 없으면 값 하나가 어긋나도 그 값이 실제로 쓰이는 순간까지 드러나지 않는다
+**두 층의 관례가 다른 것이 정상이다.** 대문자는 "Java 에서 이것이 상수"라는 표시이고, 소문자 snake_case 는 PostgreSQL 의 식별자 관례(따옴표 없는 식별자를 소문자로 접음)와 이 API 의 필드 명명(`academy_id` · `depart_time`)에 맞춘 것이다. 한쪽을 다른 쪽에 맞추면 **그 층의 관례가 깨진다.**
 
-**이 방식을 택한 이유** — 표기를 한쪽으로 통일하려면 사양 문서 8종에서 124곳을 고쳐야 하고, 산문에 섞인 같은 단어까지 함께 바뀌는 사고가 난다. 값을 데이터로 다루면 **사양이 뭐라고 적혀 있든 매핑이 성립**하고, 표기 통일은 계약 정리 사안으로 분리된다.
+**2026-08-25 이전에는 `account.status` 하나만 대문자(`PENDING`)였다.** 33개 enum 중 32개가 소문자인데 하나만 어긋난 상태라, `@Enumerated(STRING)`(상수 이름을 그대로 저장)을 쓰면 **32개가 깨지고 그 하나만 우연히 맞는** 역방향 함정이 있었다. 사양 문서 8종의 118곳을 소문자로 통일해 해소했다.
 
-⚠ **남은 계약 사안** — 클라이언트 입장에서 `role` 은 소문자인데 `status` 만 대문자인 것은 여전히 일관성 결함이다. 위 결정은 이것이 **구현을 막지 않게** 만들 뿐 해소하지는 않는다. 표기 통일 여부는 별건으로 판단한다.
+#### 연결 수단
+
+| 층 | 방법 |
+|---|---|
+| **JPA** | `CodedEnum` 을 받는 추상 `AttributeConverter` 하나 + enum 마다 `@Converter(autoApply = true)` 하위 클래스 3줄. 필드마다 애너테이션을 달지 않음 |
+| **Jackson (입력)** | `ACCEPT_CASE_INSENSITIVE_ENUMS` 로 역직렬화 |
+| **Jackson (출력)** | 전역 직렬화 모듈 하나로 `name().toLowerCase()` 를 내보냄. enum 마다 `@JsonValue` 를 다는 방식은 33곳에 같은 코드가 복제됨 |
+
+**`@Enumerated(STRING)` 을 쓰지 않는 이유** — 상수 이름과 저장 문자열이 같아야만 동작하는데, 위 결정은 둘을 의도적으로 다르게 둔다. 변환을 한 곳에 모아두면 표기 규칙이 바뀔 때 고칠 곳이 컨버터 하나다.
+
+#### 되돌아가지 않게 하는 장치
+
+**enum 의 값 집합과 `ERD` 의 CHECK 허용값이 일치하는지 테스트로 고정한다.** 값 하나가 어긋나도 그 값이 실제로 쓰이는 순간까지 드러나지 않고, 그 순간은 대개 운영이다. Phase 1 의 스키마 대조 테스트에 포함한다.
 
 ---
 
