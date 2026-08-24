@@ -49,14 +49,16 @@
 
 ## 1. 전체 구조 — 도메인 그룹
 
-39개 테이블을 4개 그룹으로 분할. 그룹별 개수는 신설분(`verification_code`·`device_token` 그룹 ① · `emergency_alert` 그룹 ④) 반영 기준.
+39개 테이블을 4개 그룹으로 분할. 아래 소계는 §3 의 테이블 정의를 직접 센 값이며 2026-08-24 신설 3개(`verification_code` 그룹 ② · `device_token`·`emergency_alert` 그룹 ④)가 포함된 기준.
 
 | 그룹 | 테이블 수 | 범위 |
 |---|:-:|---|
 | ① 학원 · 계정 · 권한 | 7 | 테넌트, 로그인 계정, 가입 승인, 토큰 |
-| ② 학생 · 보호자 · 주소 | 6 | 학생 레코드, 보호자 연결, 요일별 승하차 주소 |
+| ② 학생 · 보호자 · 주소 | 7 | 학생 레코드, 보호자 연결, 요일별 승하차 주소, 인증 코드 |
 | ③ 차량 · 인력 · 운행 · 노선 | 13 | 차량, 매니저, 스케줄, 회차, 고정·확정 노선, 승하차지, 탑승자 |
-| ④ 요청 · 예외 · 알림 · 이력 | 10 | 탑승 의사, 변경 요청, 미승차, 예외 보고, 위치, 알림, 감사 |
+| ④ 요청 · 예외 · 알림 · 이력 | 12 | 탑승 의사, 변경 요청, 미승차, 예외 보고, 위치, 알림, 단말, 감사 |
+
+⚠ **이 표의 소계는 §3 의 `####` 항목 수와 일치해야 함.** 2026-08-25 이전 판이 7·6·13·10(=36)으로 어긋나 있었고, 신설 테이블의 소속 그룹 서술도 실제 정의 위치와 달랐음. 테이블을 더하거나 옮기면 이 표를 함께 고침.
 
 ### 1.1 그룹 간 연결 개요
 
@@ -361,7 +363,7 @@ erDiagram
 | `id` | bigint | PK | |
 | `phone` | varchar(20) | NN | 인증 대상 전화번호 |
 | `code` | varchar(10) | NN | 발급 코드 |
-| `purpose` | varchar(20) | NN | `recover_id` · `recover_password`. CHECK |
+| `purpose` | varchar(20) | NN | `login_id` · `password`. CHECK. **값은 `POST /auth/recover` 의 `type` 과 동일한 리터럴** — 같은 개념에 값을 두 벌 두면 변환표가 필요하고, 그 변환표가 어디에도 없으면 구현 시점에 처음 드러남 (API_SPEC §2.9 · §9) |
 | `expires_at` | timestamptz | NN | 만료 시각 |
 | `consumed_at` | timestamptz | | 사용 시각. NULL 이면 미사용 |
 | `attempt_count` | integer | NN default 0 | 대조 시도 횟수 |
@@ -831,7 +833,7 @@ erDiagram
 | `actor_account_id` | bigint | | 행위자 계정. 로그인 실패는 계정 미확정 가능성 존재 |
 | `actor_login_id` | varchar(50) | | 로그인 아이디 스냅샷 |
 | `category` 🆕 | varchar(20) | NN | `data_access`(SYS-01) · `login`(SYS-02). 두 조회 경로를 가르는 값. CHECK |
-| `action` | varchar(20) | NN | `read` · `update` · `delete` · `login_success` · `login_fail` · `block` · `unblock`. CHECK |
+| `action` | varchar(20) | NN | `read` · `update` · `delete` · `login_success` · `login_fail` · `block` · `unblock`. CHECK. `GET /admin/login-history` 는 이 값을 그대로 노출하지 않고 **투영**함 — `login_success`→`result=success` · `login_fail`→`result=fail` · `block`·`unblock`→`block_event` (API_SPEC §6) |
 | `target_type` | varchar(50) | | 대상 자원 종류 |
 | `target_id` | bigint | | 대상 자원 식별자 |
 | `ip` | inet | | 접속 IP. `category=login` 대상 |
@@ -873,6 +875,10 @@ erDiagram
 | `run` → `confirmed_route` | 1 : 0..1 | `run_id` | CASCADE | 확정 전(`status='idle'`)에는 행 부재 — `409 RUN_NOT_CONFIRMED` 의 근거 |
 | `confirmed_route` → `route_version` | 1 : N | `confirmed_route_id` | CASCADE | |
 | `route_version` → `confirmed_route.current_version_id` | 1 : 1 | `current_version_id` | SET NULL | 순환 참조라 **지연 검사(DEFERRABLE)** 로 설정 |
+
+⚠ **순환 FK 는 `CREATE TABLE` 안에 적을 수 없음.** `confirmed_route.current_version_id` 와 `route_version.confirmed_route_id` 가 서로를 참조하므로 어느 쪽을 먼저 만들어도 상대 테이블이 아직 부재. `V1__init_schema.sql` 은 **두 테이블을 FK 없이 먼저 만들고, 그 뒤 `ALTER TABLE confirmed_route ADD CONSTRAINT … FOREIGN KEY (current_version_id) REFERENCES route_version(id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED` 로 추가**해야 함. 이 절차를 빠뜨리면 마이그레이션 실행 자체가 실패하며, 앱 기동 전에 드러남.
+
+`INITIALLY DEFERRED` 가 필요한 이유는 생성 순서가 아니라 **삽입 순서** — 확정 노선과 첫 배포 버전이 같은 트랜잭션에서 생기므로, 즉시 검사면 어느 쪽을 먼저 넣어도 상대 행이 아직 부재.
 | `route_version` → `run_stop` | 1 : N | `route_version_id` | CASCADE | 버전 폐기 시 정차 목록도 폐기 |
 | `stop` → `run_stop` | 1 : N | `stop_id` | RESTRICT | |
 | `waypoint` → `run_stop` | 1 : N | `waypoint_id` | RESTRICT | |

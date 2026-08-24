@@ -69,7 +69,7 @@
 | `global/event/` (`DomainEvent`·`DomainEventPublisher`·`TransactionalDomainEventRelay`) | **살림 · 보강** | `AFTER_COMMIT` 발행 지점은 유지. `TECH_DECISIONS §7` 의 아웃박스를 얹어야 함 |
 | `global/config/` (`JpaAuditingConfig`·`RedisConfig`·`WebClientConfig`·`WebSocketConfig`) | **살림** | 설정 골격이 새 사양과 충돌 부재 |
 | `global/config/OpenApiConfig` | **재작성** | 시드 설명·계정표가 옛 데이터 기준. §3 의 `SeedFixtures` 참조 방식으로 승격 |
-| `global/common/BaseTimeEntity` | **살림** | 생성·수정 시각 감사 필드 |
+| `global/common/BaseTimeEntity` | **살림 · 타입 교체** | 생성·수정 시각 감사 필드. 현재 `LocalDateTime` 인데 `ERD §2` 가 전 시각 컬럼을 `timestamptz` 로 규정 — **`OffsetDateTime` 으로 교체**(`TECH_DECISIONS §6.1`). 이 클래스를 39개 엔티티가 상속하므로 Phase 1 착수 전에 바꿈 |
 | `global/common/ApprovalStatus` | **폐기** | 옛 도메인 enum. 새 상태값은 `API_SPEC §9.2` · `§9.6` |
 | `global/tenant/TenantGuard` | **패턴 살림 · 재작성** | "역할만으로 부족하다"는 판단은 `ARCHITECTURE §5.1` ③층과 동일. 다만 N:M 멤버십 전제라 코드는 재작성 |
 | `observability/` (aspect · metrics · listener) | **살림 · 구독 대상 교체** | `@Scheduled`·`@KafkaListener` 를 AOP 로 감싸 계측하는 방식은 `ARCHITECTURE §13.3` 의 "확정 배치 도래→완료 지연" 지표가 그대로 요구. 리스너의 구독 이벤트만 교체 |
@@ -188,6 +188,8 @@
 > Boot 4 는 자동설정 패키지가 모듈별로 재편돼 `FlywayMigrationStrategy` 의 패키지가 Boot 3 과 다를 가능성이 존재. Phase 1 착수 시 실제 좌표를 확인할 것.
 
 **`prod`·`demo` 에서 절대 불가하도록 하는 안전장치 5겹**
+
+⚠ **5겹이 전부 대등하지 않음.** 2026-08-25 조사 결과 실제 성격은 **런타임 인터록 4겹 + 빌드 시점 회귀 게이트 1개**. ①(`@Profile("local")`)과 ②(다중 프로파일 재확인)는 순차 보완 관계이고, ③(접속 URL 검사)과 ④(`clean-disabled`, Flyway 엔진 레벨)는 서로 다른 축이라 진짜 독립. **⑤(`DeploymentConfigGuardTest`)는 런타임에 아무것도 막지 못하며 CI 가 이 테스트를 실제로 실행할 때만 유효** — CI 를 건너뛴 배포에서는 ⑤가 부재한 것과 같음. 겹 수를 세어 안심하지 않는다.
 
 운영 DB 를 지우는 사고는 되돌리기 불가. 한 겹으로 두지 않는다.
 
@@ -562,11 +564,15 @@ void 확정_시각이_도래하면_idle_회차가_confirmed_로_전이한다() {
 | **참조** | `ERD §3`·`§4`·`§5` · `ARCHITECTURE §12` · §2 · §3 |
 | **산출물** | 마이그레이션 2파일 · 엔티티 **39** · `SeedFixtures` · 대조 테스트 3종 |
 
+⚠ **`ddl-auto: validate` 는 컬럼·타입·이름만 검사하고 CHECK 제약·partial UNIQUE·FK 지연 설정을 전혀 보지 않는다.** 즉 **Phase 1 통과가 정원 계산식·확정 시각식·`run_stop` 배타 조건 같은 불변식의 보장을 뜻하지 않는다.** 그 불변식들은 각 도메인 Phase 가 `§4.6` 사이클로 테스트를 붙여야 검증된다.
+
+⚠ **시드의 PK 를 시퀀스 자동 증가에 맡기지 않고 SQL 에서 명시 고정한다.** `SeedFixtures` 상수가 PK 를 담는데, 시드 앞쪽에 행을 하나 끼워 넣는 것만으로 뒤쪽 상수가 전부 어긋나기 때문. 사양에 정해진 바가 없어 여기서 확정한다.
+
 **엔티티는 필드 매핑과 연관관계까지만.** 상태 전이 메서드·정책 판정은 각 도메인 Phase 에서 붙인다. 지금 전부 매핑해 두는 이유는 `ddl-auto: validate` 가 **매핑된 엔티티만** 검사하기 때문 — 일부만 매핑하면 나머지 테이블의 어긋남이 한참 뒤에 드러남.
 
 **완료 조건**
-- `docker compose down` → `up -d postgres redis kafka` → 기동 시 38 테이블 생성 + 시드 적재
-- `ddl-auto: validate` 통과 (엔티티 38개 전부 매핑된 상태)
+- `docker compose down` → `up -d postgres redis kafka` → 기동 시 **39** 테이블 생성 + 시드 적재
+- `ddl-auto: validate` 통과 (엔티티 **39**개 전부 매핑된 상태)
 - 재기동 시 `clean` → `migrate` 로 시드가 초기 상태로 복귀
 - `DeploymentConfigGuardTest` — `prod`·`demo` 프로파일에서 `clean-disabled=true` 이고 전략 빈 부재
 - `SeedFixturesContractTest` 통과
@@ -1007,7 +1013,7 @@ void 확정_시각이_도래하면_idle_회차가_confirmed_로_전이한다() {
 
 | Phase | 이름 | 선행 | 우선순위 | 상태 | 비고 |
 |:-:|---|:-:|:-:|:-:|---|
-| **0** | 걷어내기 · 골격 세우기 | — | — | ⬜ | |
+| **0** | 걷어내기 · 골격 세우기 | — | — | 🟡 | 옛 도메인 15개 제거·`global` 정리 완료(`949d703`). 남은 것 — 의존성·설정·모듈 골격, 기동·Swagger 실증 |
 | **1** | 스키마 · 엔티티 매핑 · 시드 · Swagger 골격 | 0 | — | ⬜ | 테이블 39 (§2.3) |
 | **2** | 인증 · 계정 상태 게이트 · RBAC · 학원 격리 | 1 | P0 | ⬜ | |
 | **3** | 학원 · 관계자 승인 · 메인 관리자 콘솔 기초 | 2 | P0 | ⬜ | 오픈 이슈 R·S |
@@ -1076,7 +1082,7 @@ void 확정_시각이_도래하면_idle_회차가_confirmed_로_전이한다() {
 
 | 항목 | 내용 | 처리 |
 |---|---|---|
-| **테이블 수 선언 불일치** | `ERD §1` · `FEATURE_SPEC §3.2` 가 36 으로 선언하나 `ERD §3` 의 항목은 38 (§2.3) | 구현은 38 기준. 문서 정정은 별건 |
+| **테이블 수 선언 불일치** ✅ 해소 | 2026-08-25 실측 정정 — `ERD §3` 의 `####` 항목이 **39**(그룹별 7·7·13·12). `ERD §1` 소계표(7·6·13·10)와 이 문서 Phase 1 완료 조건의 38 표기를 39 로 맞춤. `FEATURE_SPEC §3.2` 는 이미 39 로 일치 | 구현 기준 **39**. 세 문서 전부 일치 |
 | **`PRD §7.1` 미배치 6건** | 도메인 STU·MGR·BUS 와 기능 RTE-01·RTE-07·ATT-03 이 P0~P2 어디에도 미기재 | 실행 순서상 Phase 5·6·8 에 포함. 우선순위 배치 확정은 별건 |
 | **🔸 표기 항목의 존치 여부** | 구 기획에서 흡수한 항목의 존치가 미확정 (`FEATURE_SPEC §0`) | 구현 착수 전 해당 Phase 에서 확인. `grep -n '🔸' docs/*.md` |
 | **`API_SPEC §10` [조정 중] 항목** | 배차·노선 최적화 정책 확정 전까지 경로·권한·목적만 예약 | Phase 8 착수 시 요청·응답 세부 확정 필요 |

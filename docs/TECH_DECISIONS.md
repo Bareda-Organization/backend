@@ -25,6 +25,7 @@
 |---|---|---|
 | 인증·인가 | Spring Security — **역할·권한까지만** | Security 로 학원 격리 |
 | 권한 모델 | **RBAC** — 권한 상수 enum + 역할↔권한 매핑(코드) | DB 권한 테이블 · Security ACL · 토큰에 권한 적재 |
+| enum 매핑 | **`code()` 값 기반 컨버터 + `@JsonValue`**(§6.2) | `@Enumerated(STRING)` 의 `Enum.name()` 의존 |
 | 토큰 전송 | access = `Authorization` 헤더(앱·웹 공통) · refresh = 앱은 기기 보안 저장소 · 웹은 **HttpOnly 쿠키** | access 를 쿠키로 전송 · 앱에 HttpOnly 적용 · CSRF 동기화 토큰 |
 | 민감 데이터 | 역할별 응답 DTO + 조회 시 마스킹 + L3 감사 로그 | 엔티티 직렬화 · `@JsonIgnore` 의존 |
 | 배치 | `@Scheduled` + `ThreadPoolTaskExecutor` + ShedLock | **Spring Batch** · Quartz |
@@ -32,7 +33,7 @@
 | 경합 전이 | JPA **`@Modifying` 조건부 UPDATE** | 변경 감지(dirty checking)로 처리 |
 | 외부 지도 API | Resilience4j (TimeLimiter · CircuitBreaker · Bulkhead) | 무방비 동기 호출 |
 | 이벤트 | **트랜잭셔널 아웃박스**(즉시 발송 + 워커 재시도) | `AFTER_COMMIT` 단독 · 트랜잭션 안 발송 |
-| 시각 | **`Clock` 빈 주입** | `LocalDateTime.now()` 직접 호출 |
+| 시각 | **`Clock` 빈 주입** · 타입은 **`OffsetDateTime`**(§6.1) | `LocalDateTime.now()` 직접 호출 · `LocalDateTime` 필드 |
 | 조회 | **전 구간 JPA** — 무거운 조회는 DTO 프로젝션 + fetch join | JdbcClient · QueryDSL · MyBatis |
 | 추상화 | 교체 축만 `spec`/`impl` 인터페이스 분리 (ARCHITECTURE §3.2.1) | 단순 CRUD 까지 인터페이스 |
 | 응답 | 역할별 DTO + 공통 응답 봉투 | 엔티티 직렬화 |
@@ -409,6 +410,42 @@ Clock at0735 = Clock.fixed(Instant.parse("2026-08-24T07:35:00Z"), SEOUL);
 
 ---
 
+### 6.1 시각 타입 — `OffsetDateTime`
+
+**결정:** 엔티티의 시각 필드는 전부 `OffsetDateTime`. `LocalDateTime` 을 쓰지 않는다.
+
+`ERD §2` 가 전 시각 컬럼을 `timestamptz` 로 규정하고 기준 시간대를 `Asia/Seoul` 로 둔다. `LocalDateTime` 은 **오프셋을 버리는 타입**이라 `timestamptz` 와 왕복하면 값이 조용히 이동한다 — DB 는 UTC 로 저장하고 돌려줄 때 세션 시간대를 적용하는데, `LocalDateTime` 은 그 시간대 정보를 담을 자리가 없어 "몇 시인지" 만 남고 "어디 기준인지" 가 사라진다.
+
+이 시스템에서 특히 위험한 이유는 **판정의 축이 시각**이기 때문이다. 확정 배치(출발 30분 전 도래) · 운행 시작 창 · ②구간 마감이 전부 시각 비교이고, 오프셋이 한 번 어긋나면 **비교 결과만 틀리고 예외는 발생하지 않는다.**
+
+현재 `global/common/BaseTimeEntity` 가 `LocalDateTime` 을 쓰고 있고 **39개 엔티티가 이 클래스를 상속**하므로, Phase 1 이 엔티티를 만들기 전에 교체한다.
+
+`Instant` 를 쓰지 않는 이유 — 저장·비교에는 충분하나 로그·응답에서 사람이 읽을 때 매번 시간대를 얹어야 한다. `Clock` 주입(§6)과의 결합도 `OffsetDateTime.now(clock)` 로 동일하다.
+
+### 6.2 enum ↔ DB·wire 문자열 — 이름이 아니라 값으로 잇는다
+
+**결정:** Java enum 상수는 관례대로 대문자로 두고, DB·wire 문자열은 **각 상수가 들고 있는 값(`code`)** 으로 표현한다. `@Enumerated(STRING)` 이 쓰는 `Enum.name()` 에 의존하지 않는다.
+
+사양의 enum 값 표기가 **한 벌이 아니다** — `API_SPEC §9` 의 33개 개념 중 32개가 소문자 snake_case(`parent` · `confirmed` · `login_id`)인데 `account.status` 하나만 대문자(`PENDING`)다. `@Enumerated(STRING)` 은 상수 이름과 저장 문자열이 **같아야만** 동작하므로, 어느 한쪽 관례로 통일해도 나머지가 전부 깨진다.
+
+```java
+/** 계정 상태. DB·wire 문자열은 code() 가 정하며 상수 이름과 무관하다. */
+public enum AccountStatus implements CodedEnum {
+    PENDING("PENDING"), ACTIVE("ACTIVE"), REJECTED("REJECTED"), BLOCKED("BLOCKED");
+    // Role 은 같은 구조로 PARENT("parent") · DRIVER("driver") …
+}
+```
+
+- **JPA** — `CodedEnum` 을 받는 추상 컨버터 하나를 두고 enum 마다 `@Converter(autoApply = true)` 하위 클래스를 3줄로 붙인다. 필드마다 애너테이션을 달지 않는다
+- **Jackson** — `code()` 에 `@JsonValue`, 역직렬화에 `@JsonCreator`. 응답·요청 문자열이 사양 값과 일치
+- **DB CHECK 제약과의 대조는 테스트로 고정한다** — enum 의 `code()` 집합과 `ERD` 의 CHECK 허용값이 일치하는지 검사. 이것이 없으면 값 하나가 어긋나도 그 값이 실제로 쓰이는 순간까지 드러나지 않는다
+
+**이 방식을 택한 이유** — 표기를 한쪽으로 통일하려면 사양 문서 8종에서 124곳을 고쳐야 하고, 산문에 섞인 같은 단어까지 함께 바뀌는 사고가 난다. 값을 데이터로 다루면 **사양이 뭐라고 적혀 있든 매핑이 성립**하고, 표기 통일은 계약 정리 사안으로 분리된다.
+
+⚠ **남은 계약 사안** — 클라이언트 입장에서 `role` 은 소문자인데 `status` 만 대문자인 것은 여전히 일관성 결함이다. 위 결정은 이것이 **구현을 막지 않게** 만들 뿐 해소하지는 않는다. 표기 통일 여부는 별건으로 판단한다.
+
+---
+
 ## 7. 이벤트 — 트랜잭셔널 아웃박스
 
 **결정:** 유실이 곤란한 통지는 **상태 변경과 같은 트랜잭션에서 DB 에 적재**하고, 발송은 커밋 후 즉시 시도 + 워커 재시도 2단으로 한다. `@TransactionalEventListener(AFTER_COMMIT)` **단독은 재시도 보장이 없어** 쓰지 않는다.
@@ -594,7 +631,8 @@ io.github.resilience4j:resilience4j-spring-boot3
 // 캐시 (Redis 는 이미 있음)
 org.springframework.boot:spring-boot-starter-cache
 // 통합 테스트
-org.testcontainers:postgresql · org.testcontainers:junit-jupiter
+org.testcontainers:testcontainers-postgresql · org.testcontainers:testcontainers-junit-jupiter
+//   ⚠ Boot 4.1.0 이 관리하는 testcontainers-bom:2.0.5 의 개명된 좌표. 구 좌표(postgresql · junit-jupiter)는 이 BOM 에 부재
 org.springframework.boot:spring-boot-testcontainers
 ```
 
