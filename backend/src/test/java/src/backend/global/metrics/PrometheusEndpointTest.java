@@ -6,17 +6,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-
-import src.backend.auth.dto.LoginRequest;
-import src.backend.auth.dto.TokenResponse;
-import src.backend.global.response.ApiResponse;
 
 /**
  * 지표 노출 경로 테스트. Prometheus 가 스크레이프하는 유일한 통로이므로,
@@ -58,54 +53,6 @@ class PrometheusEndpointTest {
         assertThat(response.getBody()).contains("http_server_requests_seconds_bucket");
     }
 
-    /**
-     * URI 태그가 경로 패턴으로 묶이는지 확인한다.
-     * id 별로 시계열이 갈라지면(`/api/buses/1`, `/api/buses/2` …) 시계열 수가 무한히 늘어
-     * Prometheus 메모리가 급증한다. 패턴(`{id}`)으로 묶여야 한다.
-     *
-     * 시드 관리자로 로그인해 실제 토큰으로 호출한다 — 미인증 요청은 Security 필터에서 끊겨
-     * 핸들러 매핑 전에 반환되므로 uri 라벨이 아예 기록되지 않고, 그러면 raw id 미포함 검증만으로는
-     * "패턴으로 잘 묶였다"와 "요청 자체가 관측되지 않았다"를 구분하지 못한다(둘 다 raw id 는 없다).
-     * 그래서 부정 검증(raw id 미포함) 앞에 긍정 검증(패턴 태그 포함) 을 둔다 — 후자가 실패하면
-     * 요청이 관측되지 않았다는 뜻이라 공허한 통과가 구조적으로 막힌다.
-     * 두 버스(3호차·1호차)는 로그인한 관리자와 같은 학원(한빛) 소속이라 둘 다 200 을 받는다.
-     */
-    @Test
-    void uriTag_isPathPattern_notRawId() {
-        String accessToken = loginAsAdmin();
-        HttpHeaders authHeaders = new HttpHeaders();
-        authHeaders.setBearerAuth(accessToken);
-        HttpEntity<Void> authRequest = new HttpEntity<>(authHeaders);
-
-        ResponseEntity<String> bus1Response =
-                restTemplate.exchange(baseUrl() + "/api/buses/1", HttpMethod.GET, authRequest, String.class);
-        ResponseEntity<String> bus2Response =
-                restTemplate.exchange(baseUrl() + "/api/buses/2", HttpMethod.GET, authRequest, String.class);
-        assertThat(bus1Response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(bus2Response.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-        HttpHeaders acceptHeaders = new HttpHeaders();
-        acceptHeaders.setAccept(java.util.List.of(MediaType.ALL));
-        ResponseEntity<String> response = restTemplate.exchange(
-                baseUrl() + "/actuator/prometheus", HttpMethod.GET, new HttpEntity<>(acceptHeaders), String.class);
-        String body = response.getBody();
-
-        assertThat(body).contains("uri=\"/api/buses/{id}\"");
-        assertThat(body).doesNotContain("uri=\"/api/buses/1\"");
-        assertThat(body).doesNotContain("uri=\"/api/buses/2\"");
-    }
-
-    /** 시드 관리자(admin@school.com / password)로 로그인해 accessToken 을 발급받는다. */
-    private String loginAsAdmin() {
-        HttpEntity<LoginRequest> loginRequest = new HttpEntity<>(new LoginRequest("admin@school.com", "password"));
-
-        ResponseEntity<ApiResponse<TokenResponse>> response = restTemplate.exchange(
-                baseUrl() + "/api/auth/login",
-                HttpMethod.POST,
-                loginRequest,
-                new ParameterizedTypeReference<>() {});
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        return response.getBody().data().accessToken();
-    }
+    // uriTag_isPathPattern_notRawId(경로 패턴 태그 묶임 검증)는 검증 대상이던 옛 버스 조회 API가
+    // 삭제되며 함께 없앴다 — 새 컨트롤러가 생기는 대로(Phase 2+) 그 엔드포인트를 대상으로 되돌린다.
 }

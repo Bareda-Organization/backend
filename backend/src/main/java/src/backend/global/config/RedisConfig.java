@@ -9,9 +9,6 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 import tools.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import tools.jackson.databind.jsontype.PolymorphicTypeValidator;
 
-import src.backend.location.dto.BusLocationPing;
-import src.backend.location.dto.LocationPing;
-
 /**
  * RedisConnectionFactory 는 spring-boot-starter-data-redis 가 spring.data.redis.* 설정으로
  * 이미 자동 구성한다 — 여기서는 값 직렬화만 JDK 기본(바이너리)에서 JSON 으로 바꿔,
@@ -22,9 +19,11 @@ import src.backend.location.dto.LocationPing;
  * {@link GenericJacksonJsonRedisSerializer}를 쓴다. Jackson 3 는 {@code java.time.*} 타입을
  * 별도 모듈 등록 없이 기본 지원해 {@code LocalDateTime} 필드도 그대로 직렬화된다.
  * 값 타입 정보(@class)를 함께 저장해 조회 시 원래 도메인 타입으로 복원하되,
- * {@link PolymorphicTypeValidator} 로 역직렬화 가능한 타입을 이 저장소가 실제로 넣는
- * 좌표 DTO 2종({@link LocationPing}·{@link BusLocationPing})으로 강제한다 — 저장 값에
+ * {@link PolymorphicTypeValidator} 로 역직렬화 가능한 타입을 화이트리스트로만 허용한다 — 저장 값에
  * 심긴 {@code @class} 문자열이 임의 타입을 만들 수 있는 다형 역직렬화 취약점을 차단한다.
+ *
+ * <p>옛 좌표 DTO 2종(위치 도메인)이 삭제되며 허용 목록이 지금은 비어 있다 —
+ * 새 좌표·이벤트 DTO 가 이 저장소에 값으로 들어갈 때 {@code allowIfSubType} 으로 추가한다.
  */
 @Configuration
 public class RedisConfig {
@@ -32,8 +31,6 @@ public class RedisConfig {
     @Bean
     public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {
         PolymorphicTypeValidator typeValidator = BasicPolymorphicTypeValidator.builder()
-                .allowIfSubType(LocationPing.class)
-                .allowIfSubType(BusLocationPing.class)
                 .build();
 
         GenericJacksonJsonRedisSerializer serializer = GenericJacksonJsonRedisSerializer.builder()

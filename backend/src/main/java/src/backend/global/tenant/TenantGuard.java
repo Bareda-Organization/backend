@@ -6,36 +6,22 @@ import src.backend.global.security.AuthUser;
 
 /**
  * 멀티 테넌시 접근 검증 헬퍼.
- * "어느 학원 데이터를 볼 수 있나"는 역할(@PreAuthorize)만으로는 부족하다 —
- * 학원 관리자는 자기 학원만, 플랫폼 관리자는 지정한 학원을 볼 수 있게 서비스 계층에서 검사한다.
+ * "어느 학원 데이터를 볼 수 있나"는 역할(@PreAuthorize)만으로는 부족해 서비스 계층에서 검사한다.
+ *
+ * <p>옛 {@code User}↔{@code Tenant} N:M 멤버십 전제(플랫폼 관리자의 임의 학원 접근 등)는
+ * {@code AuthUser} 가 단일 소속으로 축소되며 성립하지 않게 됐다 — 지금은 본인 소속 학원 하나로만
+ * 판단하고, 역할별 접근 범위 재설계는 Phase 2 로 미룬다.
  */
 public final class TenantGuard {
 
     private TenantGuard() {
     }
 
-    /**
-     * 관리자가 조회 대상으로 삼을 학원 id 를 결정·검증한다.
-     * - 플랫폼 관리자: 어느 학원이든 가능하지만 tenantId 를 반드시 지정해야 한다.
-     * - 학원 관리자: 미지정 시 본인 소속 학원으로, 지정 시 소속 학원인지 검증한다.
-     */
+    /** 관리자가 조회 대상으로 삼을 학원 id 를 결정·검증한다 — 지정 시 본인 소속과 일치해야 한다. */
     public static Long resolveTenantId(AuthUser admin, Long requested) {
-        if (admin.isPlatformAdmin()) {
-            if (requested == null) {
-                throw new BusinessException(ErrorCode.INVALID_INPUT, "tenantId가 필요합니다");
-            }
-            return requested;
-        }
-        if (requested == null) {
-            Long primary = admin.primaryTenantId();
-            if (primary == null) {
-                throw new BusinessException(ErrorCode.FORBIDDEN);
-            }
-            return primary;
-        }
-        if (!admin.belongsToTenant(requested)) {
+        if (admin.academyId() == null || (requested != null && !requested.equals(admin.academyId()))) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
-        return requested;
+        return admin.academyId();
     }
 }

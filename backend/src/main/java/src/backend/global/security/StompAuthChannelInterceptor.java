@@ -13,7 +13,6 @@ import org.springframework.stereotype.Component;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
-import src.backend.user.entity.Role;
 
 /**
  * STOMP CONNECT 프레임에서 한 번만 인증한다(REST 의 매 요청 검증과 다르게, 세션 수립 시 1회).
@@ -22,6 +21,9 @@ import src.backend.user.entity.Role;
  * <p>SUBSCRIBE 는 목적지별로 추가 인가가 필요할 때만 검사한다 — 개인 큐(/user/queue/**)는
  * Spring 의 user-destination 라우팅이 "본인 세션에만" 배달을 구조적으로 보장해 검사가 필요 없고,
  * 관리자용 테넌트 브로드캐스트 토픽(/topic/tenant/{tenantId}/**)만 소속 학원인지 확인한다(Phase 3d).
+ *
+ * <p>역할별 세분화(플랫폼 관리자의 전역 접근 등)는 {@code AuthUser} 축소로 성립하지 않게 됐다 —
+ * 지금은 소속 학원 일치만 검사하고, 역할 타입화가 끝나는 대로 Phase 2 가 되돌린다.
  */
 @Component
 public class StompAuthChannelInterceptor implements ChannelInterceptor {
@@ -73,8 +75,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             return; // 테넌트 브로드캐스트 토픽이 아니면(개인 큐 등) 이 검사 대상이 아니다.
         }
         Long tenantId = Long.valueOf(matcher.group(1));
-        if (!(accessor.getUser() instanceof AuthUser admin)
-                || !(admin.isPlatformAdmin() || (admin.hasRole(Role.ACADEMY_ADMIN) && admin.belongsToTenant(tenantId)))) {
+        if (!(accessor.getUser() instanceof AuthUser admin) || !tenantId.equals(admin.academyId())) {
             throw new IllegalArgumentException("이 학원의 관제 채널을 구독할 권한이 없습니다");
         }
     }

@@ -2,8 +2,6 @@ package src.backend.global.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.List;
-
 import org.junit.jupiter.api.Test;
 
 import io.jsonwebtoken.Claims;
@@ -19,26 +17,22 @@ class JwtTokenProviderTest {
 
     @Test
     void access_token_round_trip() {
-        String token = provider.createAccessToken(7L, "driver@school.com", List.of("1:DRIVER"));
+        String token = provider.createAccessToken(7L, 1L, "driver");
 
         Claims claims = provider.parse(token);
 
         assertThat(claims.getSubject()).isEqualTo("7");
-        assertThat(claims.get("email", String.class)).isEqualTo("driver@school.com");
         assertThat(provider.isAccessToken(claims)).isTrue();
         assertThat(provider.isRefreshToken(claims)).isFalse();
 
-        AuthUser principal = AuthUser.fromEncoded(
-                Long.valueOf(claims.getSubject()),
-                claims.get("email", String.class),
-                claims.get("memberships", List.class));
-        assertThat(principal.belongsToTenant(1L)).isTrue();
-        assertThat(principal.authorities()).extracting("authority").containsExactly("ROLE_DRIVER");
+        AuthUser principal = provider.resolveAuthUser(claims);
+        assertThat(principal.academyId()).isEqualTo(1L);
+        assertThat(principal.authorities()).extracting("authority").containsExactly("ROLE_driver");
     }
 
     @Test
     void refresh_token_is_flagged_as_refresh() {
-        String token = provider.createRefreshToken(7L, "driver@school.com", List.of("1:DRIVER"));
+        String token = provider.createRefreshToken(7L, 1L, "driver");
 
         Claims claims = provider.parse(token);
 
@@ -47,14 +41,12 @@ class JwtTokenProviderTest {
     }
 
     @Test
-    void platform_admin_membership_has_null_tenant() {
-        String token = provider.createAccessToken(9L, "platform@school.com", List.of(":PLATFORM_ADMIN"));
+    void account_without_academy_resolves_to_null_academy_id() {
+        String token = provider.createAccessToken(9L, null, "system_admin");
 
         Claims claims = provider.parse(token);
-        AuthUser principal = AuthUser.fromEncoded(9L, "platform@school.com",
-                claims.get("memberships", List.class));
+        AuthUser principal = provider.resolveAuthUser(claims);
 
-        assertThat(principal.isPlatformAdmin()).isTrue();
-        assertThat(principal.tenantIds()).isEmpty();
+        assertThat(principal.academyId()).isNull();
     }
 }

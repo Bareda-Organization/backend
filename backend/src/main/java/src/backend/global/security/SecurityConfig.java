@@ -20,8 +20,6 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import src.backend.global.security.authz.RolePermissions;
-
 import java.util.Arrays;
 import java.util.List;
 
@@ -121,9 +119,13 @@ public class SecurityConfig {
      * (스프링 시큐리티 레퍼런스의 RoleHierarchy 예제도 전부 {@code static} 이다).
      * 이 메서드가 인스턴스 상태를 안 쓰기 때문에 가능한 것이고, 옆의 다른 @Bean 들은
      * {@code jwtAuthenticationFilter}·{@code allowedOrigins} 를 쓰므로 static 이 될 수 없다.
+     *
+     * <p>부여표({@code RolePermissions.HIERARCHY})는 그 대상이던 {@code Role} enum 과 함께 삭제됐다
+     * (재작성은 Phase 2) — 부여표가 생기기 전까지는 빈 계층을 반환해, 이 빈이 존재해야만 성립하는
+     * 위 @WebMvcTest 슬라이스들의 전제를 그대로 유지한다.
      */
     @Bean
     static RoleHierarchy roleHierarchy() {
-        return RoleHierarchyImpl.fromHierarchy(RolePermissions.HIERARCHY);
+        return RoleHierarchyImpl.fromHierarchy("");
     }
 }
