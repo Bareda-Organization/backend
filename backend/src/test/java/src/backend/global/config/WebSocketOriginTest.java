@@ -24,7 +24,7 @@ class WebSocketOriginTest {
         StompAuthChannelInterceptor interceptor = mock(StompAuthChannelInterceptor.class);
         String[] origins = {"https://app.example.com", "https://preview.example.com"};
 
-        WebSocketConfig config = new WebSocketConfig(interceptor, 10_000L, origins);
+        WebSocketConfig config = new WebSocketConfig(interceptor, origins);
 
         StompEndpointRegistry registry = mock(StompEndpointRegistry.class);
         StompWebSocketEndpointRegistration registration = mock(StompWebSocketEndpointRegistration.class);

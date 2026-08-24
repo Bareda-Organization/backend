@@ -14,25 +14,24 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 import src.backend.global.security.StompAuthChannelInterceptor;
 
 /**
- * 실시간 위치·알림 채널(STOMP over WebSocket) 설정 — 학생 좌표 수신(인바운드)과
- * 관련자에게로의 push(아웃바운드) 양방향을 이 브로커로 처리한다(Phase 3).
- * heartbeat(기본 10초 간격 ping/pong)를 켜서, REST 폴링보다 훨씬 빠르게 연결 끊김을 감지한다 —
- * 이 heartbeat 타임아웃이 {@code LocationSocketEventListener}/{@code ConnectionLossScheduler}가
- * "학생 연결이 끊겼다"고 판단하는 근거가 된다.
+ * 실시간 위치·알림 채널(STOMP over WebSocket) 설정.
+ * heartbeat(ping/pong) 간격은 정책 값이 아니라 프로토콜 상수라 {@link #HEARTBEAT_MS} 로 코드에 고정한다
+ * — 옛 도메인({@code LocationSocketEventListener}·{@code ConnectionLossScheduler})은 바래다 재구축(Phase 0)에서
+ * 제거됐고, 이 브로커의 재사용(구독 채널·메시지 규격)은 Phase 3 이후 새로 설계한다.
  */
 @Configuration
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
+    /** STOMP heartbeat(ping/pong) 간격(ms) — 조절 대상 정책이 아니라 고정 프로토콜 상수(IMPLEMENTATION_PLAN §7 규칙 10). */
+    private static final long HEARTBEAT_MS = 10_000;
+
     private final StompAuthChannelInterceptor authChannelInterceptor;
-    private final long heartbeatMs;
     private final String[] allowedOriginPatterns;
 
     public WebSocketConfig(StompAuthChannelInterceptor authChannelInterceptor,
-                           @Value("${app.connection.heartbeat-ms:10000}") long heartbeatMs,
                            @Value("${app.ws.allowed-origin-patterns}") String[] allowedOriginPatterns) {
         this.authChannelInterceptor = authChannelInterceptor;
-        this.heartbeatMs = heartbeatMs;
         this.allowedOriginPatterns = allowedOriginPatterns;
     }
 
@@ -50,7 +49,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         // 재작성되어 심플 브로커를 거쳐 배달된다 — 그래서 /queue 도 브로커 프리픽스로 열어둬야 한다.
         registry.setUserDestinationPrefix("/user");
         registry.enableSimpleBroker("/topic", "/queue")
-                .setHeartbeatValue(new long[]{heartbeatMs, heartbeatMs})
+                .setHeartbeatValue(new long[]{HEARTBEAT_MS, HEARTBEAT_MS})
                 .setTaskScheduler(heartbeatScheduler());
     }
 
