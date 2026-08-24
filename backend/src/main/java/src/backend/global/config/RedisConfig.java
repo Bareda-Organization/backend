@@ -17,7 +17,7 @@ import tools.jackson.databind.jsontype.PolymorphicTypeValidator;
  * <p>이 프로젝트는 Spring Boot 4 기본 Jackson 3({@code tools.jackson.databind}) 를 쓴다 —
  * 그래서 구버전 Jackson 2 기반 {@code GenericJackson2JsonRedisSerializer} 대신 Jackson 3 기반
  * {@link GenericJacksonJsonRedisSerializer}를 쓴다. Jackson 3 는 {@code java.time.*} 타입을
- * 별도 모듈 등록 없이 기본 지원해 {@code LocalDateTime} 필드도 그대로 직렬화된다.
+ * 별도 모듈 등록 없이 기본 지원해 {@code OffsetDateTime} 필드도 그대로 직렬화된다.
  * 값 타입 정보(@class)를 함께 저장해 조회 시 원래 도메인 타입으로 복원하되,
  * {@link PolymorphicTypeValidator} 로 역직렬화 가능한 타입을 화이트리스트로만 허용한다 — 저장 값에
  * 심긴 {@code @class} 문자열이 임의 타입을 만들 수 있는 다형 역직렬화 취약점을 차단한다.
