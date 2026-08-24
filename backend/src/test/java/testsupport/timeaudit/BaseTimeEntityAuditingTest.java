@@ -13,6 +13,7 @@ import java.time.ZoneOffset;
 
 import javax.sql.DataSource;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -74,6 +75,13 @@ class BaseTimeEntityAuditingTest {
 
     @Autowired
     private MutableClock clock;
+
+    /** MutableClock 은 컨텍스트에 하나뿐인 공유 빈이라, 이전 테스트가 넘긴 시각이 다음 테스트로 새어 들어간다 —
+     *  각 테스트 전에 최초 고정 시각으로 되돌려 실행 순서와 무관하게 만든다. */
+    @BeforeEach
+    void 공유_Clock_을_최초_고정_시각으로_되돌린다() {
+        clock.advanceTo(FIXED_INSTANT);
+    }
 
     @Test
     void 고정된_Clock_을_주입하면_엔티티의_createdAt_이_그_시각으로_채워진다() {
