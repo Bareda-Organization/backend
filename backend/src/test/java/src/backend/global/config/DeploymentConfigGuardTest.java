@@ -104,6 +104,27 @@ class DeploymentConfigGuardTest {
                 .contains("${JWT_SECRET:local-dev-secret-change-me-please-32bytes-minimum-length}");
     }
 
+    @Test
+    @DisplayName("겹④ — 공통·prod·demo 섹션은 clean-disabled 를 true 로 명시하고 local 만 false 다")
+    void flywayCleanDisabledIsExplicitPerProfile() {
+        // Flyway 10+ 기본값도 true 이나, "Spring 계층(전략 빈)이 전부 뚫려도 라이브러리가 거부한다"는
+        // 마지막 방어선을 기본값에 암묵적으로 맡기지 않고 파일에 명시로 고정한다(§2 겹4).
+        String common = applicationYml.substring(0, applicationYml.indexOf("\n---"));
+        assertThat(common)
+                .as("공통 섹션은 clean-disabled: true 를 명시해야 한다")
+                .contains("clean-disabled: true");
+
+        for (String profile : new String[] {"prod", "demo"}) {
+            assertThat(sectionOf("on-profile: " + profile))
+                    .as("%s 프로파일 섹션은 clean-disabled: true 를 명시해야 한다", profile)
+                    .contains("clean-disabled: true");
+        }
+
+        assertThat(sectionOf("on-profile: local"))
+                .as("local 프로파일만 clean-disabled: false 로 열어야 한다")
+                .contains("clean-disabled: false");
+    }
+
     /** `---` 로 구분된 프로파일 문서 중 표식(marker)을 포함한 것을 돌려준다. */
     private String sectionOf(String marker) {
         for (String section : applicationYml.split("(?m)^---$")) {

@@ -19,6 +19,9 @@ spring:
 
   flyway:
     locations: classpath:db/migration   # 스키마 마이그레이션(전 프로파일 공통). local·demo 프로파일은 시드 데이터 위치를 추가로 더한다.
+    # Flyway 10+ 기본값도 true 이나, Spring 계층(전략 빈)이 전부 뚫려도 라이브러리 자체가
+    # clean() 을 거부하도록 명시로 고정한다 — local 블록만 false 로 되돌린다(§3.2 겹4).
+    clean-disabled: true
 
   data:
     redis:
@@ -125,6 +128,7 @@ spring:
       on-profile: local
   flyway:
     locations: classpath:db/migration,classpath:db/migration-local   # 스키마 + 데모 시드데이터(prod엔 적용 안 됨)
+    clean-disabled: false   # local 만 되살린다 — 재기동마다 LocalFlywayCleanStrategy 가 clean() 후 migrate() 한다(§3.2)
     placeholders:
       # BCryptPasswordEncoder(strength 10)로 사전 생성한 평문 "password" 의 해시.
       # 로컬 전용이라 파일에 박아둔다 — demo·prod 는 절대 이 값을 쓰지 않는다.
@@ -149,6 +153,8 @@ spring:
       port: ${REDIS_PORT:6379}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+  flyway:
+    clean-disabled: true   # 공통 섹션과 같은 값이나, 배포 설정은 상속보다 한눈에 보이는 편을 우선한다(demo 섹션과 동일 방침)
 
 # 운영은 localhost 개발 출처를 신뢰하면 안 되므로 기본값 없이 환경변수로만 명시 주입(미설정 시 빈 목록 = 전부 차단)
 app:
@@ -185,6 +191,7 @@ spring:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
   flyway:
     locations: classpath:db/migration,classpath:db/migration-local
+    clean-disabled: true   # demo 는 시드를 적재하되 clean() 은 여전히 금지 — 운영과 같은 볼륨 영속 DB 다
     placeholders:
       # ⚠️ 기본값을 두지 않는다. 기본값을 두면 주입을 깜빡했을 때 조용히 "password" 로 떠서
       #    공개 도메인에 PLATFORM_ADMIN 계정이 열린 채 배포된다. 미주입 시 기동 실패가 맞다.
