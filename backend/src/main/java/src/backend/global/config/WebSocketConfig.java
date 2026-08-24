@@ -15,15 +15,15 @@ import src.backend.global.security.StompAuthChannelInterceptor;
 
 /**
  * 실시간 위치·알림 채널(STOMP over WebSocket) 설정.
- * heartbeat(ping/pong) 간격은 정책 값이 아니라 프로토콜 상수라 {@link #HEARTBEAT_MS} 로 코드에 고정한다
+ * heartbeat(ping/pong) 간격은 사양이 정한 정책 값이 아니라 연결 유지용 운영값이라 {@link #HEARTBEAT_MS} 로 코드에 고정한다
  * — 옛 도메인({@code LocationSocketEventListener}·{@code ConnectionLossScheduler})은 바래다 재구축(Phase 0)에서
- * 제거됐고, 이 브로커의 재사용(구독 채널·메시지 규격)은 Phase 3 이후 새로 설계한다.
+ * 제거됐고, 이 브로커의 재사용(구독 채널·메시지 규격)은 Phase 10(위치 · 실시간 전달 · 근접 알림)에서 새로 설계한다.
  */
 @Configuration
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-    /** STOMP heartbeat(ping/pong) 간격(ms) — 조절 대상 정책이 아니라 고정 프로토콜 상수(IMPLEMENTATION_PLAN §7 규칙 10). */
+    /** STOMP heartbeat(ping/pong) 간격(ms) — 사양이 정한 정책 값이 아니라 연결 유지용 운영값이라 코드에 고정한다(IMPLEMENTATION_PLAN §7 규칙 10). */
     private static final long HEARTBEAT_MS = 10_000;
 
     private final StompAuthChannelInterceptor authChannelInterceptor;
