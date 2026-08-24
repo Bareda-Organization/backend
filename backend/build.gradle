@@ -37,6 +37,10 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     // 캐시·실시간(Pub/Sub)
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    // 캐시 추상화(@Cacheable 등) — 실제 저장소는 위 Redis 를 그대로 쓴다. 이 스타터가 있어야
+    // CacheManager 자동설정이 붙는다(TECH_DECISIONS §11). 이 Phase 에서는 의존성만 추가하고
+    // @EnableCaching 은 켜지 않는다 — 활성화는 해당 기능이 실제로 생기는 Phase 소관.
+    implementation 'org.springframework.boot:spring-boot-starter-cache'
     // 모듈 간 이벤트 통신(Kafka) — 신형 아티팩트명(Boot 4 모듈화, KafkaAutoConfiguration 포함)
     implementation 'org.springframework.boot:spring-boot-starter-kafka'
     // spring-kafka의 JsonSerializer/Deserializer는 아직 클래식 Jackson 2(com.fasterxml)를 쓴다(Boot 4 기본 Jackson 3와 별개) —
@@ -63,6 +67,17 @@ dependencies {
     // 4.x BOM에 없어 org.springframework.boot:spring-boot-starter-aop: 처럼 버전 없이 실패한다) —
     // 신형 아티팩트명을 쓴다(webmvc와 같은 패턴).
     implementation 'org.springframework.boot:spring-boot-starter-aspectj'
+    // 스케줄 분산 락(증설 대비) — 인스턴스가 1개인 지금은 실질적 경합이 없지만, 나중에 인스턴스를
+    // 늘렸을 때 같은 @Scheduled 배치가 중복 실행되지 않도록 미리 넣어 둔다(TECH_DECISIONS §11·§12.1).
+    // Spring Boot BOM 이 관리하지 않는 좌표라 버전을 명시한다. 이 Phase 에서는 의존성만 추가하고
+    // @EnableSchedulerLock 은 붙이지 않는다 — 활성화·락 테이블 생성은 배치가 실제로 생기는 Phase 소관.
+    implementation 'net.javacrumbs.shedlock:shedlock-spring:6.9.2'
+    implementation 'net.javacrumbs.shedlock:shedlock-provider-jdbc-template:6.9.2'
+    // 외부 API(지도 경로 API 등) 보호용 서킷 브레이커. 아티팩트명이 spring-boot3 이지만
+    // 이 프로젝트는 Boot 4.1.0 이다 — 자동설정 충돌 가능성을 build/test 로 확인해야 한다(TECH_DECISIONS §11).
+    // Spring Boot BOM 이 관리하지 않는 좌표라 버전을 명시한다. 이 Phase 에서는 의존성만 추가하고
+    // @CircuitBreaker 는 붙이지 않는다 — 활성화는 외부 API 클라이언트가 실제로 생기는 Phase 소관.
+    implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.3.0'
     // 보일러플레이트 축소
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
@@ -80,6 +95,15 @@ dependencies {
     // AOP 프록시가 실제 @Scheduled 빈에 걸리는지는 컨텍스트를 띄워 몇 초 기다려야 확인된다 —
     // 폴링 대기를 재시도 없이 표현하기 위해 추가.
     testImplementation 'org.awaitility:awaitility'
+    // 실제 PostgreSQL 컨테이너로 통합 테스트를 띄우기 위함(H2 미사용, IMPLEMENTATION_PLAN §7 규칙 15) —
+    // Flyway 마이그레이션·JPA 매핑이 로컬/배포와 같은 DB 엔진으로 검증돼야 한다.
+    // Spring Boot 4.1.0 이 관리하는 testcontainers-bom 이 2.0.5 다. 이 버전부터 개별 모듈
+    // 아티팩트명이 testcontainers-<모듈명> 형태로 개명됐다(구 좌표 org.testcontainers:postgresql ·
+    // org.testcontainers:junit-jupiter 는 2.0.5 BOM 에 존재하지 않음) — webmvc 와 같은 개명 사례.
+    testImplementation 'org.testcontainers:testcontainers-postgresql'
+    testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+    // Spring Boot 의 ServiceConnection 자동설정으로 컨테이너와 spring.datasource.* 를 자동 연결한다.
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
