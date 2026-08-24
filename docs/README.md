@@ -45,7 +45,7 @@ grep -n '🔸' docs/FEATURE_SPEC.md docs/PRD.md docs/USER_FLOWS.md docs/API_SPEC
 |---|---|
 | **[ARCHITECTURE.md](ARCHITECTURE.md)** | 모듈 경계 · 계층 규칙 · 인가 3층 · **노선 계산 파이프라인** · **시간 기반 배치**(출발 30분 전 도래) · 실시간 전달 · 인프라 · 리스크 |
 | **[ERD.md](ERD.md)** | 테이블 39개 · 컬럼 · 관계 · 제약 · 인덱스 · 학원 격리 · 보존 정책. Mermaid ERD 5장 |
-| **[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)** | **구현 추적의 메인 문서** — 현 코드 처분 방침 · Flyway 재작성 · Mock/Swagger 일치 · 테스트·부하 테스트 전략 · Phase 0~14 + F1~F4 · 진행 추적 표. **세션 재개 시 여기부터** |
+| **[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)** | **구현 추적의 메인 문서** — 현 코드 처분 방침 · Flyway 재작성 · Mock/Swagger 일치 · 테스트·부하 테스트 전략 · **기능 단위 TDD 사이클(§4.6)** · Phase 0~14 + F1~F4 · 횡단 규칙 21개 · 진행 추적 표. **세션 재개 시 여기부터** |
 | **[TECH_DECISIONS.md](TECH_DECISIONS.md)** | **기술 선택과 불채택** — Security 경계 · 배치 · 상태 전이 · 시각 주입 · 운영 · 관측 · 장애 대응. 왜 그 라이브러리를 **안 쓰기로** 했는지의 근거 |
 | **[DEPLOYMENT.md](DEPLOYMENT.md)** | 운영 배포 절차. 설계 근거는 [superpowers/specs/2026-08-10-mvp-배포-design.md](superpowers/specs/2026-08-10-mvp-배포-design.md) |
 

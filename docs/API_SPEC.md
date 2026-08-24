@@ -51,11 +51,35 @@
 
 | 항목 | 규칙 |
 |---|---|
-| 인증 헤더 | `Authorization: Bearer {access_token}` |
+| 인증 헤더 | `Authorization: Bearer {access_token}` — **앱·웹 공통.** access 토큰은 쿠키로 전송하지 않음 |
 | access 토큰 | 단기. 만료 시 `401 TOKEN_EXPIRED` |
-| refresh 토큰 | 장기, 기기 보관. `POST /auth/refresh` 로 access 재발급 — 자동 로그인의 근거 |
+| refresh 토큰 | 장기. `POST /auth/refresh` 로 access 재발급 — 자동 로그인의 근거. **전달 수단은 클라이언트 종류로 가름** (§1.2.1) |
 | 무효화 | refresh 만료 · 로그아웃 · 계정 차단 시 무효화 후 재로그인 요구 (`401`) |
 | 비인증 허용 경로 | `GET /academies/search` · `POST /auth/signup` · `POST /auth/login` · `POST /auth/refresh` · `POST /auth/recover` **5개만** |
+
+#### 1.2.1 refresh 토큰의 전달 수단
+
+| 클라이언트 | 판정 근거 | 서버 → 클라이언트 | 클라이언트 → 서버 |
+|---|---|---|---|
+| **앱** (매니저 · 학부모 · 학생) | `X-Client-Type: app` 또는 헤더 부재(기본값) | 응답 본문 `refresh_token` | 요청 본문 `refresh_token` |
+| **웹** (관계자 웹 · 메인 관리자 콘솔) | `X-Client-Type: web` | `Set-Cookie: refresh_token=…` | 쿠키 자동 동봉 (`credentials: include`) |
+
+**웹 응답 본문에 `refresh_token` 을 함께 담지 않음** — 담으면 페이지 스크립트가 읽을 수 있어 HttpOnly 가 무의미.
+
+**쿠키 속성** — 4개 전부 필수이며 하나라도 빠지면 결함.
+
+| 속성 | 값 | 빠지면 |
+|---|---|---|
+| `HttpOnly` | — | 페이지 스크립트가 `document.cookie` 로 탈취 가능 |
+| `Secure` | — | 평문 구간에서 전송돼 중간자에 노출. `http://localhost` 는 브라우저가 보안 컨텍스트로 취급하므로 로컬 개발에서도 유지 |
+| `SameSite` | `Strict` | 외부 사이트가 유발한 요청에 쿠키가 동봉돼 CSRF 성립 |
+| `Path` | `/api/auth` | `/api` 전 요청에 쿠키가 붙어 노출 지점이 증가 |
+
+`Max-Age` 는 refresh 만료 시각과 일치.
+
+⚠ **웹 콘솔과 API 는 같은 등록 도메인(eTLD+1) 아래 배포해야 함** — `app.<도메인>` · `api.<도메인>`(DEPLOYMENT §2.9)이 이 조건을 충족. 서로 다른 사이트로 갈라 배포하면 `SameSite=Strict` 에서 쿠키가 전송되지 않아 웹 자동 로그인이 동작하지 않음. `SameSite=None` 으로 낮추면 CSRF 방어가 사라지므로 대안이 아님.
+
+⚠ **CORS 는 출처를 명시해야 함** — 쿠키를 동봉하는 요청에는 `Access-Control-Allow-Origin: *` 를 쓸 수 없고 `Access-Control-Allow-Credentials: true` 가 필요 (`app.cors.allowed-origins`).
 
 ### 1.3 공통 헤더
 
@@ -64,6 +88,7 @@
 | `Authorization` | 요청 | 조건부 | 비인증 허용 경로 5개 외 전부 필수 |
 | `Content-Type` | 요청 | ● | 본문이 있는 요청에 `application/json` |
 | `X-Client-Version` | 요청 | ○ | 앱 버전. 강제 업데이트 판정용 |
+| `X-Client-Type` | 요청 | ○ | `app` · `web`. **`POST /auth/login` 에서만 의미를 가짐** — refresh 를 본문으로 줄지 쿠키로 줄지 판정 (§1.2.1). 미전달 시 `app`. `refresh`·`logout` 은 쿠키 존재 여부로 판정하므로 불필요 |
 | `X-Request-Id` | 요청·응답 | ○ | 요청 추적 식별자. 미전달 시 서버 생성 후 응답에 반영 |
 
 ### 1.4 계정 상태 게이트 (C-01 · 3.6)
@@ -259,19 +284,20 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 로그인 (AUTH-04·05). **비인증 허용.**
 
-**요청** — `login_id` (string, 필수) · `password` (string, 필수)
+**요청** — `login_id` (string, 필수) · `password` (string, 필수) · 헤더 `X-Client-Type` (`app` · `web`, 미전달 시 `app`)
 
 **응답**
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
-| `access_token` | string | 단기 토큰 |
-| `refresh_token` | string | 장기 토큰. 기기 보관 |
+| `access_token` | string | 단기 토큰. 앱·웹 공통으로 본문에 담김 |
+| `refresh_token` | string | 장기 토큰. **`X-Client-Type: app` 일 때만 본문에 담김** — `web` 이면 본문에서 빠지고 `Set-Cookie` 로 전달 (§1.2.1) |
 | `role` | enum | `parent` · `student` · `driver` · `escort` · `staff` · `system_admin` |
 | `status` | enum | `PENDING` · `ACTIVE` · `REJECTED` |
 | `account_id` | string | 계정 식별자 |
 | `academy` | object | `id` · `name` — `system_admin` 은 `null` |
 
+- `X-Client-Type: web` 이면 응답 헤더에 `Set-Cookie: refresh_token=…; HttpOnly; Secure; SameSite=Strict; Path=/api/auth; Max-Age={refresh 만료까지의 초}` 가 붙는다 (§1.2.1).
 - `PENDING` · `REJECTED` 도 **로그인 성공 + 토큰 발급**. 접근 범위만 §1.4 로 축소.
 - 실패 **5회** 누적 시 **계정 단위** 차단 — IP 차단 부재 (C-11). 이후 `403 AUTH_ACCOUNT_BLOCKED`, 해제는 메인 관리자.
 - 매니저 앱은 계정에 배정된 호차가 자동 결정 — 사용자의 호차 선택 부재.
@@ -282,15 +308,23 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 토큰 재발급 (C-14). **비인증 허용** — refresh 토큰이 인증 수단.
 
-**요청** `refresh_token` (string, 필수) · **응답** `access_token`, `refresh_token`(회전 시) · **에러** `401 TOKEN_EXPIRED`(만료·로그아웃·차단으로 무효화) → 재로그인 요구
+**요청** — `refresh_token` (string). **앱만 본문에 담고, 웹은 `refresh_token` 쿠키로 전송**하므로 본문이 비어 있음.
+
+**판정** — 서버는 **쿠키를 먼저 보고, 없으면 본문**을 읽는다. 쿠키로 들어온 요청은 웹으로 간주해 응답도 `Set-Cookie` 로 돌려준다 — 이 경로는 `X-Client-Type` 을 요구하지 않음.
+
+**응답** — `access_token`(본문). 회전한 refresh 는 앱이면 본문 `refresh_token`, 웹이면 `Set-Cookie`(속성은 §1.2.1 과 동일).
+
+**에러** — `401 TOKEN_EXPIRED`(만료·로그아웃·차단으로 무효화) → 재로그인 요구. 쿠키·본문 어디에도 refresh 가 없으면 `401 TOKEN_EXPIRED`.
 
 ### 2.7 POST /auth/logout
 
 로그아웃 (AUTH-09). refresh 토큰 무효화. 정본 API명세서에 경로 미기재 — AUTH-09 · §1.4 의 로그아웃 허용 규칙에서 도출.
 
-**권한** 전 역할 (`PENDING` 포함) · **요청** `refresh_token` (string, 필수) · **응답** `204`
+**권한** 전 역할 (`PENDING` 포함) · **요청** `refresh_token` (string) — §2.6 과 같이 **쿠키 우선, 없으면 본문** · **응답** `204`
 
-**에러** — `401 TOKEN_EXPIRED`(본문 `refresh_token` 이 이미 무효화). `PENDING` 허용 경로라 `403 AUTH_PENDING` 미발생.
+**웹 응답에는 쿠키 삭제 지시가 함께 붙는다** — `Set-Cookie: refresh_token=; Max-Age=0; Path=/api/auth` (속성은 발급 시와 동일해야 브라우저가 같은 쿠키로 인식). 서버측 무효화만 하고 이 헤더를 빠뜨리면 브라우저에 죽은 쿠키가 남아 다음 접속이 `401` 한 번을 더 거친다.
+
+**에러** — `401 TOKEN_EXPIRED`(전달된 `refresh_token` 이 이미 무효화). `PENDING` 허용 경로라 `403 AUTH_PENDING` 미발생.
 
 ### 2.8 POST /auth/password
 
@@ -301,7 +335,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | `current_password` | string | ● | 현재 비밀번호 |
 | `new_password` | string | ● | 새 비밀번호 |
 
-**에러** — `401 INVALID_CREDENTIALS` · `422 VALIDATION_FAILED`. 성공 시 기존 refresh 토큰 전량 무효화.
+**에러** — `401 INVALID_CREDENTIALS` · `422 VALIDATION_FAILED`. 성공 시 기존 refresh 토큰 전량 무효화 — 웹 호출이면 §2.7 과 같은 쿠키 삭제 지시를 함께 반환.
 
 ### 2.9 POST /auth/recover
 

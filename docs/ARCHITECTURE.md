@@ -91,7 +91,7 @@
 | 상태관리 | `flutter_riverpod` | 코드생성 미사용 — analyzer 충돌 회피, provider 를 손으로 선언 |
 | 라우팅 | `go_router` | `redirect` 훅 한 곳에서 **계정 상태·역할 분기**를 처리 (§5.2·§5.3) |
 | HTTP | `dio` | interceptor 로 JWT 부착 + 401 자동 refresh 를 한 군데로 모음 |
-| 토큰 보관 | `flutter_secure_storage` | refresh 토큰 기기 보관 (C-14) |
+| 토큰 보관 | `flutter_secure_storage` | **앱 전용** — refresh 토큰 기기 보관 (C-14). 웹 빌드(F3·F4)는 HttpOnly 쿠키를 쓰므로 이 저장소를 경유하지 않음 (§5.4) |
 | 실시간 | `stomp_dart_client` | 백엔드가 SockJS 미사용 순수 STOMP |
 | 지도 | **네이버 지도 SDK** (C-18) | 서버 경로 계산과 **같은 공급자**로 맞춰 계산 결과와 화면 표시가 어긋나지 않게 함 |
 
@@ -304,7 +304,11 @@ data (repository → dto → api client)
 
 ### 5.4 토큰
 
-access(단기) + refresh(장기, 기기 보관). 앱 실행 시 refresh 로 자동 재발급 (C-14). refresh 만료·로그아웃·차단 시 무효화.
+access(단기) + refresh(장기). 실행·새로고침 시 refresh 로 자동 재발급 (C-14). refresh 만료·로그아웃·차단 시 무효화.
+
+**refresh 보관 위치가 클라이언트별로 갈린다** — 앱은 기기 보안 저장소, 웹(관계자 웹 · 메인 관리자 콘솔)은 서버가 내리는 HttpOnly 쿠키. access 는 양쪽 모두 `Authorization` 헤더이며 웹은 메모리에만 보관한다. 계약은 `API_SPEC §1.2.1`, 근거는 `TECH_DECISIONS §2.4`.
+
+이 갈림은 **서버에서 컨트롤러 한 층에만 나타난다** — 토큰 발급·적재·무효화 규칙은 전송 수단과 무관하므로 서비스·저장소 계층은 클라이언트 종류를 모른다.
 
 **로그인 실패 5회 누적 시 계정 단위 차단** (C-11). 실패 카운터는 계정 레코드에 두고, 성공 시 초기화. IP 단위 차단은 하지 않음 — 근거는 PRD §6.4.
 

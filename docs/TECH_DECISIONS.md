@@ -25,6 +25,7 @@
 |---|---|---|
 | 인증·인가 | Spring Security — **역할·권한까지만** | Security 로 학원 격리 |
 | 권한 모델 | **RBAC** — 권한 상수 enum + 역할↔권한 매핑(코드) | DB 권한 테이블 · Security ACL · 토큰에 권한 적재 |
+| 토큰 전송 | access = `Authorization` 헤더(앱·웹 공통) · refresh = 앱은 기기 보안 저장소 · 웹은 **HttpOnly 쿠키** | access 를 쿠키로 전송 · 앱에 HttpOnly 적용 · CSRF 동기화 토큰 |
 | 민감 데이터 | 역할별 응답 DTO + 조회 시 마스킹 + L3 감사 로그 | 엔티티 직렬화 · `@JsonIgnore` 의존 |
 | 배치 | `@Scheduled` + `ThreadPoolTaskExecutor` + ShedLock | **Spring Batch** · Quartz |
 | 상태 전이 | **JPA 엔티티 메서드** + 허용 전이 상수 | **Spring StateMachine** |
@@ -63,7 +64,7 @@ Spring Security 는 기능이 넓어 "쓴다"만으로는 범위가 안 잡힌�
 |---|---|
 | OAuth2 / OIDC / `oauth2-resource-server` | 자체 발급 토큰. 외부 인증 제공자 부재 |
 | Security 의 `formLogin()` 필터 · 세션 · `RememberMe` | **stateless** — 토큰 기반이라 서버 세션 부재. ⚠ 제품 사양의 "form 로그인"(C-01)과 **다른 말** — 아래 참조 |
-| CSRF 보호 | 세션 쿠키를 쓰지 않으므로 대상 밖. 명시적으로 비활성화 |
+| CSRF 토큰 (`CsrfTokenRepository`) | 인증 수단이 `Authorization` 헤더라 대상 밖. **웹의 refresh 쿠키 1개는 예외이나 CSRF 토큰이 아니라 `SameSite=Strict` 로 막는다** — 근거는 §2.4. Spring Security 의 CSRF 필터는 비활성화 유지 |
 | Spring Security **ACL** | 도메인 객체 단위 권한 테이블. 학원 격리는 조건 한 줄이라 ACL 은 과함 (③층은 저장소가 담당) |
 | `@Secured` · `@RolesAllowed` | `@PreAuthorize` 하나로 통일 — 표현식을 쓸 수 있어 조건이 늘어도 형태가 유지 |
 
@@ -144,6 +145,53 @@ static final Map&lt;Role, Set&lt;Permission&gt;&gt; ROLE_PERMISSIONS = Map.of(
 ⚠ **`@JsonIgnore` 로 가리지 않는다.** 같은 엔티티가 여러 역할의 응답에 쓰이면 애너테이션 하나로는 역할별 분기가 불가능하고, 내부 호출에서는 여전히 값이 실려 다닌다.
 
 **역할 문자열을 컨트롤러에 흩지 않는다.** 권한 판정은 위 상수를 거치고 역할↔권한 매핑을 한 파일에 모은다.
+
+---
+
+## 2.4 토큰 전송 — access 는 헤더, refresh 는 클라이언트별로 가른다
+
+**결정:** access 토큰은 앱·웹 모두 `Authorization: Bearer` 헤더로 전송한다. refresh 토큰만 전달 수단을 가르며, 앱은 응답 본문 + 기기 보안 저장소, 웹은 `HttpOnly` 쿠키다. 계약은 [API_SPEC §1.2.1](./API_SPEC.md), 정책 본문은 [FEATURE_SPEC C-14](./FEATURE_SPEC.md), 채택 이유는 [PRD §6.4](./PRD.md).
+
+### 2.4.1 HttpOnly 가 앱에서 하는 일이 없는 이유
+
+`HttpOnly` 는 **페이지 스크립트가 `document.cookie` 로 그 쿠키를 읽지 못하게** 하는 플래그다. 즉 방어 대상은 XSS 하나다.
+
+| 환경 | XSS 존재 | 쿠키 저장소의 주인 | HttpOnly 의 효과 |
+|---|---|---|---|
+| 브라우저 (관계자 웹 · 메인 관리자 콘솔) | 존재 | 브라우저 런타임 | **유효** — 스크립트가 값을 읽을 수단이 사라짐 |
+| Flutter 앱 (매니저 · 학부모 · 학생) | 부재 (DOM 부재) | 앱 프로세스 자신 | **부재** — 서버가 플래그를 붙여도 `dio` 가 그대로 읽음 |
+
+앱의 실제 위협은 XSS 가 아니라 **기기 탈취 · 루팅 · 앱 데이터 추출**이고, 대응 수단은 OS 키체인(iOS Keychain · Android Keystore)이다. 그래서 앱은 `flutter_secure_storage` 를 유지한다 (`ARCHITECTURE §2.2`).
+
+### 2.4.2 access 까지 쿠키로 옮기지 않는 이유 셋
+
+1. **전 엔드포인트가 CSRF 방어 대상이 된다.** refresh 만 쿠키면 방어할 경로가 `/auth` 3개이고, access 까지 쿠키면 69개 전부다.
+2. **STOMP 구독 인가가 흔들린다.** WebSocket 핸드셰이크는 브라우저에서 `Authorization` 헤더를 붙일 수 없어 이 프로젝트는 CONNECT 프레임 헤더로 토큰을 넘긴다 (`ARCHITECTURE §10.2`). access 를 쿠키 전용으로 만들면 그 경로가 성립하지 않는다.
+3. **앱과 웹의 인증 경로가 완전히 갈린다.** 서버가 두 벌의 인증 필터를 갖게 되고, 한쪽만 고쳐지는 결함이 생긴다.
+
+refresh 하나만 쿠키로 내리면 **탈취 시 노출되는 것은 수명이 짧은 access 뿐**이라 실익의 대부분을 얻으면서 변경 범위는 `/auth/login` · `/auth/refresh` · `/auth/logout` 3개에 갇힌다.
+
+### 2.4.3 CSRF 를 토큰이 아니라 `SameSite` 로 막는 이유
+
+쿠키가 하나 생기면 CSRF 가 성립할 수 있다. **`HttpOnly` 는 읽기만 막고 사용은 막지 못하기 때문**이다 — 공격자 페이지가 값을 못 읽어도 `fetch('/api/auth/refresh', {credentials:'include'})` 를 호출하면 브라우저가 쿠키를 대신 붙인다.
+
+대응은 셋을 겹친다.
+
+| 수단 | 막는 것 |
+|---|---|
+| `SameSite=Strict` | 외부 사이트가 유발한 요청에 쿠키 미동봉 — CSRF 성립 자체를 차단 |
+| CORS 허용 출처 명시 | 공격자 페이지가 응답 본문(새 access 토큰)을 읽지 못함 |
+| `Path=/api/auth` | 쿠키가 붙는 요청을 3개 엔드포인트로 한정 |
+
+**CSRF 토큰(동기화 토큰)은 도입하지 않는다.** 이 쿠키가 붙는 경로가 3개뿐이고 그중 상태를 바꾸는 것은 refresh 회전과 로그아웃이며, `SameSite=Strict` 가 이미 요청 도달 자체를 막는다. 토큰 방식을 얹으면 발급·검증·재발급 경로가 늘고 stateless 전제와 부딪힌다.
+
+⚠ **`SameSite=Strict` 는 웹 콘솔과 API 가 같은 등록 도메인(eTLD+1)일 때만 성립한다.** 배포 구성이 `app.<도메인>` · `api.<도메인>`(`DEPLOYMENT §2.9`)이라 충족한다. 콘솔을 별도 사이트로 옮기면 이 결정이 무너지므로, 옮길 때 이 절을 먼저 재검토한다.
+
+### 2.4.4 흔한 오해
+
+> "쿠키로 보내면 토큰이 안전해진다."
+
+**보관 위치를 바꾼 것이지 탈취 경로를 없앤 것이 아니다.** `HttpOnly` 단독으로는 CSRF 를 막지 못하고, `Secure` 없이는 평문 구간에서 노출되며, 서버측 무효화 수단이 없으면 유출된 refresh 를 회수할 방법이 부재하다. 이 프로젝트는 `refresh_token` 테이블(`ERD`)로 무효화 축을 이미 갖고 있고, 그 위에 §2.4.3 의 세 수단을 겹쳐야 의미가 성립한다.
 
 ---
 
