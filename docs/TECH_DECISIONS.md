@@ -422,6 +422,38 @@ Clock at0735 = Clock.fixed(Instant.parse("2026-08-24T07:35:00Z"), SEOUL);
 
 `Instant` 를 쓰지 않는 이유 — 저장·비교에는 충분하나 로그·응답에서 사람이 읽을 때 매번 시간대를 얹어야 한다. `Clock` 주입(§6)과의 결합도 `OffsetDateTime.now(clock)` 로 동일하다.
 
+### 6.1.1 구현 형태 — 2026-08-25 실측
+
+`Clock` 은 `global/config/ClockConfig` 의 빈 하나이고, 기준 시간대는 `ERD §2` 가 정한 값을 따른다. 테스트는 이 빈을 고정·가변 `Clock` 으로 덮어써 시각 의존 로직을 결정론적으로 검증한다.
+
+**JPA Auditing 은 기본 제공자를 쓰면 주입한 `Clock` 을 무시한다.** `@EnableJpaAuditing` 만 붙이면 `createdAt`·`updatedAt` 이 시스템 시계로 채워져, **테스트는 통과하는데 시각이 고정되지 않는** 형태가 된다. `dateTimeProviderRef` 로 직접 물려야 한다.
+
+```java
+@EnableJpaAuditing(dateTimeProviderRef = "auditingDateTimeProvider")
+public class JpaAuditingConfig {
+
+    /** 주입된 Clock 을 경유해 감사 시각을 OffsetDateTime 으로 공급한다. */
+    @Bean
+    public DateTimeProvider auditingDateTimeProvider(Clock clock) {
+        return () -> Optional.of(OffsetDateTime.now(clock));
+    }
+}
+```
+
+**Spring Data 의 기본 `DateTimeProvider` 는 `OffsetDateTime` 을 만들지 못한다** — 커스텀 provider 없이 `OffsetDateTime` 필드에 auditing 을 걸면 저장 시점에 `InvalidDataAccessApiUsageException` 이 발생한다. 추측이 아니라 예외 스택으로 확인한 사실이며, 위 형태가 필요한 이유다.
+
+#### 검증에서 드러난 사실 3가지
+
+| 사실 | 근거 |
+|---|---|
+| `LocalDateTime` 필드는 PostgreSQL 에 **`timestamp without time zone`** 으로 만들어진다 | 타입을 되돌려 격리 실행했을 때 `information_schema.columns` 대조가 `expected: "timestamp with time zone" but was: "timestamp without time zone"` 로 실패 |
+| `createdAt` 보존의 실제 보장 주체는 `@Column(updatable = false)` 가 **아니라** `AuditingHandler` 다 | 그 애너테이션을 제거해도 테스트가 통과 — `AuditingHandler` 가 `@PreUpdate` 에서 `updatedAt` 만 갱신하고 `createdAt` 을 아예 건드리지 않기 때문 |
+| 테스트용 가변 `Clock` 을 컨텍스트 빈으로 두면 **테스트 간 상태가 샌다** | `@DataJpaTest` 는 클래스 내 전 메서드가 같은 컨텍스트를 재사용. 시각을 옮긴 뒤 되돌리지 않으면 **실행 순서에 따라 결과가 갈리고, 그 실패는 "Clock 라우팅 파손" 으로 오독된다**. 각 테스트 전에 초기 시각으로 되돌린다 |
+
+세 번째는 앞으로 시각 의존 테스트를 쓸 때마다 걸리는 함정이다. `@DirtiesContext` 로도 막히지만 컨텍스트를 매번 새로 띄워 Testcontainers 기동 비용이 테스트마다 붙으므로, **초기화 훅으로 되돌리는 편**을 쓴다.
+
+---
+
 ### 6.2 enum 표기 — DB·wire 는 소문자 snake_case, Java 상수는 대문자
 
 **결정:** enum 값의 DB 저장 문자열과 API 응답 문자열은 **소문자 snake_case** 로 통일한다(`API_SPEC §9`). Java enum 상수는 언어 관례대로 **대문자 SNAKE_CASE** 를 유지하고, 둘은 `name().toLowerCase()` 관계로 잇는다.
