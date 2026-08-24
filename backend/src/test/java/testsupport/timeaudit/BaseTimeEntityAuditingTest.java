@@ -8,6 +8,7 @@ import java.sql.Statement;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 
 import javax.sql.DataSource;
@@ -57,6 +58,8 @@ class BaseTimeEntityAuditingTest {
 
     /** 판정 시각 — 시스템 시각과 반드시 달라야 "Clock 을 실제로 경유했다"는 것을 증명할 수 있다. */
     private static final Instant FIXED_INSTANT = Instant.parse("2026-08-24T07:35:00Z");
+    /** 수정 시점 판정 시각 — createdAt 과 달라야 "값이 실제로 보존된 것"과 "고정값이라 우연히 같은 것"을 구분할 수 있다. */
+    private static final Instant SECOND_FIXED_INSTANT = Instant.parse("2026-08-24T09:10:00Z");
     private static final ZoneOffset SEOUL_OFFSET = ZoneOffset.ofHours(9);
 
     @Container
@@ -68,6 +71,9 @@ class BaseTimeEntityAuditingTest {
 
     @Autowired
     private DataSource dataSource;
+
+    @Autowired
+    private MutableClock clock;
 
     @Test
     void 고정된_Clock_을_주입하면_엔티티의_createdAt_이_그_시각으로_채워진다() {
@@ -88,15 +94,18 @@ class BaseTimeEntityAuditingTest {
         AuditingProbeEntity saved = repository.saveAndFlush(AuditingProbeEntity.of("A"));
         OffsetDateTime originalCreatedAt = saved.getCreatedAt();
 
+        clock.advanceTo(SECOND_FIXED_INSTANT);
         saved.changeLabel("B");
         AuditingProbeEntity updated = repository.saveAndFlush(saved);
 
-        assertThat(updated.getCreatedAt())
-                .as("수정해도 createdAt 은 최초 생성 시각을 유지해야 한다")
-                .isEqualTo(originalCreatedAt);
-        assertThat(updated.getUpdatedAt().toInstant())
-                .as("updatedAt 도 같은 고정 Clock 값이어야 한다 — 다르면 시스템 시계를 읽은 것")
+        assertThat(updated.getCreatedAt().toInstant())
+                .as("수정해도 createdAt 은 최초 생성 시각(%s)을 유지해야 한다 — 갱신 시각(%s)으로 바뀌면 안 된다",
+                        FIXED_INSTANT, SECOND_FIXED_INSTANT)
                 .isEqualTo(FIXED_INSTANT);
+        assertThat(updated.getUpdatedAt().toInstant())
+                .as("updatedAt 은 수정 시점의 두 번째 고정 Clock 값(%s)이어야 한다 — createdAt 과 같으면 시계가 안 바뀐 것",
+                        SECOND_FIXED_INSTANT)
+                .isEqualTo(SECOND_FIXED_INSTANT);
     }
 
     @Test
@@ -122,13 +131,45 @@ class BaseTimeEntityAuditingTest {
         }
     }
 
-    /** RED 단계에서도 컴파일되도록 Clock 만 고정 — dateTimeProviderRef 연결은 GREEN-2 대상이다. */
+    /** 테스트가 직접 시각을 앞으로 넘겨 createdAt · updatedAt 을 서로 다른 시각으로 갈라 보기 위한 설정. */
     @TestConfiguration
     static class FixedClockConfig {
 
         @Bean
-        Clock clock() {
-            return Clock.fixed(FIXED_INSTANT, SEOUL_OFFSET);
+        MutableClock clock() {
+            return new MutableClock(FIXED_INSTANT, SEOUL_OFFSET);
+        }
+    }
+
+    /** 저장 시점 사이에 시각을 앞으로 넘길 수 있는 고정 Clock — {@code Clock.fixed} 는 항상 같은 값만 내어 준다. */
+    private static final class MutableClock extends Clock {
+
+        private Instant instant;
+        private final ZoneId zone;
+
+        private MutableClock(Instant instant, ZoneId zone) {
+            this.instant = instant;
+            this.zone = zone;
+        }
+
+        /** 다음 저장부터 이 시각을 반환하도록 앞으로 넘긴다. */
+        void advanceTo(Instant instant) {
+            this.instant = instant;
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return zone;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return new MutableClock(instant, zone);
+        }
+
+        @Override
+        public Instant instant() {
+            return instant;
         }
     }
 }
