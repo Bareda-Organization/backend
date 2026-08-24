@@ -2,9 +2,30 @@
 
 전역 에이전트 7개(`convention-auditor` · `debugger` · `diff-reviewer` · `docs-drift-auditor` · `security-reviewer` · `test-runner` · `test-writer`)가 이 저장소에서 동작할 때 참조하는 **사실 노트**다. 절차·판단기준은 전역 에이전트 정의(`~/.claude/agents/*.md`)에 있고, 여기에는 **이 프로젝트에서만 참인 값**만 적는다. 에이전트를 프로젝트에 복제하지 않는다.
 
-**프로젝트 전용 에이전트 2개**가 `.claude/agents/` 에 따로 있다 — `ui-implementer` · `design-system-auditor`(2026-07-29 신설). 전역 7개에 **없는 역할**이라 복제가 아니다. 전역 에이전트로 대체되면 삭제한다.
+**프로젝트 전용 에이전트는 부재.** `.claude/agents/` 는 비어 있다.
 
-작성일 2026-07-28 / 검증 방식: 소스 직접 확인(앱 미기동)
+작성일 2026-07-28 / 최종 갱신 2026-08-25 / 검증 방식: 소스 직접 확인(앱 미기동)
+
+---
+
+## 현재 작업 범위 — **백엔드 전용** (2026-08-25 사용자 확정)
+
+이 절을 가장 먼저 읽는다. 아래 4개가 세션 시작 시점의 전제다.
+
+| 항목 | 내용 |
+|---|---|
+| **작업 범위** | **`backend/` 만.** 프론트엔드는 착수 대상 밖 |
+| **사양·설계의 정본** | **`docs/` 10종.** 진입점은 [`docs/README.md`](../docs/README.md) — 여기서 시작한다 |
+| **구현 추적** | [`docs/IMPLEMENTATION_PLAN.md`](../docs/IMPLEMENTATION_PLAN.md) **§8 진행 추적 표가 단일 창구.** 진행 상태를 다른 문서에 적지 않는다 |
+| **코드 컨벤션** | `backend/docs/reference.md` (Claude 참조용 Markdown) |
+
+**프론트 작업은 범위 밖이다.** 사양(`FEATURE_SPEC` · `USER_FLOWS` 등)에 프론트 요구가 그대로 남아 있으나 **만들 것이 사라진 것이 아니라 지금 만들지 않는 것**이며, 사양에서 지우지 않는다. `IMPLEMENTATION_PLAN` Phase F1~F4 는 `➖ 범위 밖` 으로 고정돼 상태 갱신 대상이 아니다.
+
+- 백엔드 Phase **15개**(0~14)가 갱신 대상, 프론트 Phase **4개**(F1~F4)가 범위 밖
+- 프론트 문서로 남은 것은 `frontend/docs/` 3개 — `FLUTTER_CODE_CONVENTIONS.md` · `DESIGN_SYSTEM.md` · `FRONTEND_SETUP.md`. **재개 시점의 규칙 원본으로 존치하되 갱신 대상이 아니다**
+- 프론트 전용 에이전트 2개(`ui-implementer` · `design-system-auditor`)는 **삭제됨**. 프론트 작업 요청을 받으면 범위 밖임을 먼저 알린다
+
+⚠ **아래 절 중 옛 도메인 코드를 서술한 부분은 `IMPLEMENTATION_PLAN` Phase 0(걷어내기) 시점에 무효가 된다.** 해당 위치에 `무효 예정` 표기를 붙여 뒀다 — 표기가 붙은 값을 근거로 지적하지 않는다.
 
 ---
 
@@ -27,6 +48,8 @@ Boot 4 특유의 아티팩트 분리(주석이 `build.gradle`에 상세히 있�
 ---
 
 ## test-runner
+
+> ⚠ **무효 예정** — 아래 테스트 수치(21파일·97메서드·1건 실패 기준선)는 **옛 도메인 코드의 테스트 기준**이다. `IMPLEMENTATION_PLAN` Phase 0 이 도메인 15개를 걷어내면 함께 소멸한다. **명령·Docker 판별법은 그대로 유효**하고 수치만 무효.
 
 ```bash
 cd backend
@@ -85,18 +108,20 @@ cd backend
 - **레이어 구조** (모듈당 표준):
   `command/` `query/` `entity/` `event/` `projection/` `repository/` `dto/` `controller/` `infrastructure/`
 - **spec/impl 분리 기준은 단 하나 — "구현이 변경될 가능성이 있는가"**. 외부 연동·전략 패턴·복수 구현체·Mock 필요·MSA 분리 후보만 `spec/`+`impl/`로 나눈다. 단순 CRUD(`StudentService`·`BusService`·`TenantService` 등)는 **인터페이스를 만들지 않는 게 맞다** — "인터페이스가 없다"를 위반으로 잡지 말 것.
-- **알려진 예외 — 지적 금지**: 엔티티 패키지 표준은 `entity/`지만 **`notification`·`routing` 두 모듈은 역사적 이유로 `domain/`을 쓴다.** 일괄 rename은 범위 밖으로 확정(`PROJECT_MASTER_PLAN.md` §12.3).
+- **엔티티 패키지는 예외 없이 `entity/`.** 옛 코드의 `notification`·`routing` 이 `domain/` 을 쓰던 것은 2026-08-24 재작성으로 소멸.
 - **CQRS**: Command(생성·수정·삭제)는 **Query를 호출하지 않는다**. Projection은 읽기 모델만 만들고 비즈니스 로직을 두지 않는다.
 - **계층 책임**: Controller는 검증·인증사용자 확인·서비스 호출만 / Service는 HTTP·Redis·Kafka·JPA를 직접 알지 않고 Port(spec) 경유 / Repository는 JPA 접근만 / 외부 기술은 `infrastructure/`.
 - **DTO**: Entity를 직접 반환하지 않는다. Request DTO → Service → Response DTO.
 - **Event 이름은 과거형** (`LocationUpdatedEvent`, `StudentBoardedEvent`). Command·Query 어휘를 이벤트명에 쓰지 않는다. 서비스 간 직접 체이닝 호출 금지, Kafka 경유 우선.
 - **응답 규약**: `ApiResponse<T> { success, data, message }` 3필드뿐 — **머신리더블 `errorCode` 필드는 없다**(의도된 설계). 예외는 `BusinessException` + `ErrorCode` enum(8종), 전역 처리는 `GlobalExceptionHandler`. `@Valid` 실패는 `findFirst()`로 **첫 필드 오류 1개만** `"필드명: 메시지"` 형식으로 반환한다.
-- **마이그레이션**: 새 컬럼/테이블은 `src/main/resources/db/migration/V{n}__설명.sql`을 **새로 추가**한다. **`V1__init_schema.sql` 수정 금지.** 데모 시드는 `db/migration-local/`(**`local`·`demo` 두 프로파일에서만 로드**, prod 미적용). 시드 비밀번호 해시는 Flyway placeholder `seedPasswordHash`로 주입 — local은 `application.yml` 기본값(평문 `password`), demo는 SSM 값(기본값 없음).
+- **마이그레이션 — 2026-08-24 방향 전환으로 규칙이 뒤집혔다.** 첫 배포 이전인 현재는 **`V1__init_schema.sql` 을 직접 수정하고 로컬 DB 를 재구성**한다(`docker compose down` → `up -d postgres redis kafka`). 버전을 쌓지 않는다. 옛 규칙("`V{n}` 추가, V1 수정 금지")은 **첫 배포 이후에 되살아난다** — 근거와 전환 시점은 `docs/IMPLEMENTATION_PLAN.md` §2.1·§2.2. 데모 시드는 `db/migration-local/`(**`local`·`demo` 두 프로파일에서만 로드**, prod 미적용). 시드 비밀번호 해시는 Flyway placeholder `seedPasswordHash`로 주입 — local은 `application.yml` 기본값(평문 `password`), demo는 SSM 값(기본값 없음).
 - **`package-info.java`를 두지 않는다** (패키지 레벨 애너테이션이 필요할 때만 예외).
 
 ---
 
 ## security-reviewer
+
+> ⚠ **일부 무효 예정** — **살아남는 것**: JWT Bearer 필터 배치 · `STATELESS` · 공개 경로 목록 · `/ws/**` permitAll 의 근거 · 시크릿 보관 · CORS · BCrypt · 로그인 실패 메시지 미구분. **Phase 0·2 에서 소멸하는 것**: Role 5종 목록 · `AuthUser` 의 `List<Membership>` · `TenantGuard` 경유 규칙 — 새 모델은 계정 1개가 학원 1곳에 속하고 역할 6종이며 격리는 저장소 계층에서 강제한다 (`ARCHITECTURE §5`·`§6` · `IMPLEMENTATION_PLAN` Phase 2).
 
 - **인증 방식**: JWT Bearer. `JwtAuthenticationFilter`를 `UsernamePasswordAuthenticationFilter` **앞에** 삽입, 세션 `STATELESS`, CSRF 비활성 (`global/security/SecurityConfig.java`).
 - **공개 경로(permitAll)** — 이 목록이 늘어나면 반드시 근거를 따진다:
@@ -119,7 +144,11 @@ cd backend
 
 ## debugger
 
+> ⚠ **일부 무효 예정** — **포트별 증상표·로그 포맷·비동기 스레드 모델의 기제(커밋 후 발행 · dedup skip · STOMP push)는 유효**. **Phase 0 에서 소멸하는 것**: `@Scheduled` 4종의 구체 주기 · Mock 위치 소스 기본값 · `V2__seed_data.sql` 의 계정 구성 — 옛 도메인 설정 블록(`app.location.mock` · `app.sos` · `app.drivesession` · `app.connection`)이 폐기 대상이다 (`IMPLEMENTATION_PLAN` §1.2).
+
 **포트별 증상표** — 실패를 보면 먼저 여기를 대조한다.
+
+`3000 frontend` 행은 참고용 — 프론트는 현재 착수 대상 밖이다.
 
 | 포트 | 서비스 | 꺼져 있을 때의 증상 |
 |---|---|---|
@@ -146,70 +175,39 @@ cd backend
 - **기준 브랜치: `main`.** `origin/HEAD`가 설정돼 있지 않으므로 `git symbolic-ref`에 의존하지 말고 `main`을 직접 쓴다. 현재 원격 추적 브랜치 구성이 없으니 `git diff main...HEAD`가 아니라 작업 트리 diff 기준으로 보는 편이 안전하다.
 - **코드 그래프 도구 있음**: 루트 `.tokensave/`. 영향범위 확인은 `tokensave_impact` / `tokensave_callers` / `tokensave_affected` 를 쓰고 Explore agent를 띄우지 않는다. 툴로 부족하면 `.tokensave/tokensave.db`(테이블 `nodes`·`edges`·`files`)에 SQL로 직접 질의.
 - **리뷰 시 함께 볼 것**:
-  - 새 마이그레이션이 `V1__init_schema.sql`을 고치지 않았는가, 엔티티 변경에 대응하는 `V{n}` 파일이 있는가(`ddl-auto: validate`라 없으면 기동 자체가 실패한다).
-  - 새 관리자 API가 `TenantGuard`를 경유하는가.
-  - 새 엔드포인트를 MVP로 노출한다면 `@Operation(tags={"00. MVP 사용 API", "<원래 태그>"})` 이중 태깅이 맞는지 — 현재 MVP 태그는 **정확히 17개**이며 개수가 바뀌면 `docs/MVP_API_SPEC.md`·`docs/MVP_RELEASE_TRACKER.md`도 함께 갱신 대상이다.
-- **문서 반영 규칙**: 진행 상황·큰 변경은 `backend/docs/PROJECT_MASTER_PLAN.md`(단일 소스)에 반영한다. **Markdown 원본을 고쳤다고 대응 HTML을 자동 동기화하지 않는다** — HTML은 사용자가 명시 요청할 때만.
+  - 엔티티 변경이 스키마에 반영됐는가(`ddl-auto: validate`라 없으면 기동 자체가 실패한다). **반영 방식은 첫 배포 이전인 현재 `V1__init_schema.sql` 직접 수정 + 로컬 DB 재구성**이다 — 위 `convention-auditor` 절 참조.
+  - 새 API 가 학원 격리를 저장소 계층에서 강제하는가 (`ARCHITECTURE §6.1`). **`TenantGuard` 경유 검사는 Phase 0·2 이후 무효** — 옛 N:M 멤버십 전제다.
+  - 전 엔드포인트에 Swagger 가 적용됐고 예시가 `SeedFixtures` 를 참조하는가 (`docs/IMPLEMENTATION_PLAN.md` §3.3). **`"00. MVP 사용 API"` 이중 태깅 체계는 2026-08-24 방향 전환으로 폐기.**
+- **문서 반영 규칙**: 진행 상황·큰 변경은 `docs/IMPLEMENTATION_PLAN.md` §8 진행 추적 표(단일 창구)에 반영한다. **Markdown 원본을 고쳤다고 대응 HTML을 자동 동기화하지 않는다** — HTML은 사용자가 명시 요청할 때만.
 - **보고서 산출물**: 리뷰·감사·분석 결과는 대화에만 남기지 말고 `backend/report/YYYY-MM-DD-주제.md`로 쓴다. **수정 지시가 없으면 보고만 하고 코드는 건드리지 않는다.**
 
 ---
 
 ## docs-drift-auditor
 
-이 저장소는 문서를 계약처럼 쓴다. 아래 4개가 **계약 문서**이며, 지정이 없으면 이 목록이 대상이다.
+이 저장소는 문서를 계약처럼 쓴다. 사양·설계의 정본은 `docs/` 10종(진입점 `docs/README.md`)이고, 그중 아래 4개가 **대조 대상**이다. 지정이 없으면 이 목록을 본다.
 
 | 문서 | 성격 | 드리프트 시 영향 |
 |---|---|---|
-| `backend/docs/MVP_API_SPEC.md` | 프론트가 보고 구현하는 API 계약 | **가장 높음** — 필드·부수효과가 틀리면 프론트가 깨진다 |
-| `backend/docs/MVP_RELEASE_TRACKER.md` | MVP 범위·진행 상태의 기준 | 범위 판단이 틀어진다 |
-| `backend/docs/PROJECT_MASTER_PLAN.md` | 기획+구현계획 단일 소스 | 완료/미완 표기가 실제와 어긋난다 |
+| `docs/API_SPEC.md` | 엔드포인트 계약의 정의처 | **가장 높음** — 필드·부수효과가 틀리면 구현이 계약과 갈린다 |
+| `docs/FEATURE_SPEC.md` | 공통 규칙·상태머신·권한의 정의처 | 규칙 판정이 호출 지점마다 갈린다 |
+| `docs/IMPLEMENTATION_PLAN.md` | 구현 순서·진행 추적 단일 창구 | 완료/미완 표기가 실제와 어긋난다 |
 | `backend/docs/reference.md` | 코드 컨벤션 원본 | `convention-auditor`가 틀린 근거로 지적한다 |
 
-- **기준선 수치**: Swagger `"00. MVP 사용 API"` 태그는 **정확히 17개**(로그인 2 · 위치 2 · 승하차 4 · 배차 7 · 알림 2). 개수가 바뀌면 위 4개 문서 중 앞의 둘이 함께 갱신돼야 한다. 세는 법:
-  ```bash
-  grep -rc '00. MVP 사용 API' backend/src/main/java --include=*.java
-  ```
+- **대조 범위는 `backend/` 뿐이다.** 프론트는 착수 대상 밖이라 `frontend/` 코드와 `frontend/docs/` 3종은 드리프트 지적 대상이 아니다 — 갱신하지 않기로 한 문서를 "낡았다"고 올리지 않는다.
+- **기준선 수치는 부재.** 옛 기준선이던 Swagger `"00. MVP 사용 API"` 태그 17개는 **2026-08-24 방향 전환으로 무효**(태그 체계 자체가 폐기). 새 기준선은 Phase 1 이후 `IMPLEMENTATION_PLAN` §2.3 의 테이블 수와 §3.3 의 대조 테스트 3종이 대신한다.
 - **`backend/docs/*.html`은 대조 대상이 아니다.** `CODE_CONVENTIONS.html` 등은 `reference.md`의 사람용 렌더이며 **원칙만 동기화하고 자동 동기화하지 않는다**(의도된 설계). HTML이 Markdown과 다르다는 지적은 올리지 않는다.
-- **`projectInfo.md`·`학원 통학버스 통합관리 시스템.docx`는 기획 원본(불변)** 이라 코드와 어긋나는 게 정상이다. 대조 대상이 아니다.
+- **`backend/docs/학원 통학버스 통합관리 시스템.docx` 는 기획 원본(불변)** 이라 코드와 어긋나는 게 정상이다. 대조 대상이 아니다. (`projectInfo.md` 는 2026-08-24 삭제)
 - 주기·기본값은 `backend/src/main/resources/application.yml`을 **직접 읽어** 대조한다(미커밋 수정분이 자주 있다).
 - 결과는 `backend/report/YYYY-MM-DD-주제.md`로 남긴다. **문서와 코드 어느 쪽도 고치지 않는다.**
 
 ---
 
-## ui-implementer / design-system-auditor *(프론트엔드 전용, 2026-07-29 신설)*
-
-> 이 둘만 **`backend/` 가 아니라 `frontend/` 에서** 동작한다. 위의 Gradle·Spring 사실은 해당 없다.
-
-| 항목 | 값 |
-|---|---|
-| 작업 디렉터리 | **`frontend/`** |
-| SDK | Flutter **3.44.8** / Dart **3.12.2** — `/opt/homebrew/bin/flutter` (PATH 에 있다) |
-| 상태관리 | `flutter_riverpod` **only**. `riverpod_annotation`/`generator` 는 analyzer 충돌로 **의도적 제외** — provider 는 손으로 선언한다 |
-| 검사 명령 | `flutter analyze`(무경고) · `dart format --set-exit-if-changed lib/` · `flutter test` |
-| 테스트 기준선 | **203건 전건 통과**(단위 194 + 위젯 9). 이 수가 줄면 회귀다 |
-
-**규칙 문서 3종** — 지정 없이 "컨벤션대로"라고만 하면 이 셋을 뜻한다:
-
-| 문서 | 무엇 |
-|---|---|
-| `frontend/docs/DESIGN_SYSTEM.md` | 화면이 어떻게 보여야 하는가 (토큰·상태 계약·컴포넌트) |
-| `frontend/docs/FLUTTER_CODE_CONVENTIONS.md` | 코드를 어떻게 쓰는가 + §9 검사 체크리스트 |
-| `frontend/docs/DESIGN_BRIEF_DRIVER_MOBILE.md` | **요구 근거**. 시안과 어긋나면 이쪽이 이긴다 |
-
-- **체크리스트 분담**: C-1~C-7 = `convention-auditor` / **C-8 = `design-system-auditor`**. 중복 지적하지 않는다
-- `ui-implementer` 는 **git 명령을 쓰지 않는다.** 커밋은 메인이 한다 — 에이전트가 보고 단계에서 죽어도 편집분이 디스크에 남게 하려는 것이다(2026-07-28 에 에이전트 4개 중 3개가 토큰 한도로 사망한 이력이 있다)
-- `ui-implementer` 를 병렬로 띄울 땐 **파일 집합이 겹치지 않게** 나눈다. 담당 표는 `frontend/docs/DESIGN_MIGRATION_PLAN.md` §화면 ↔ 파일 대응표
-- 워크트리 격리(`isolation: "worktree"`)를 **쓰지 않는다** — 격리 워크트리에서 죽으면 임시 디렉터리째 유실된다
-- 감사 보고서는 `frontend/report/YYYY-MM-DD-주제.md` (백엔드는 `backend/report/`)
-- 브라우저 확인은 `http://localhost/` (nginx :80 단일 진입점). Docker 기동은 **사용자에게 요청**하고, 옛 화면이 보이면 service worker 캐시를 의심한다(`FLUTTER_FRONTEND_PLAN.md` §9)
-
----
-
 ## 알려진 함정
 
-작업 중 발견한 이 저장소 특유의 함정을 누적한다. 근거(파일:라인, 명령, 날짜)를 같이 남긴다.
+작업 중 발견한 이 저장소 특유의 함정을 누적한다. 근거(파일:라인, 명령, 날짜)를 같이 남긴다. **날짜가 붙은 항목은 그 시점의 기록**이라 대상 파일이 이후 삭제됐을 수 있다 — 교훈만 취한다.
 
-- **2026-07-28** — `MVP_API_SPEC.md:503`(§8 비고)이 "버스 위치는 Mock 소스가 없어 기사가 직접 보고해야 한다"고 서술하지만 **사실과 반대**다. `location/source/MockBusLocationSource.java:20,32`가 `app.location.bus-mock.enabled` 기본 `true`(`application.yml:60-61`)로 3초마다 버스 좌표를 자동 생성한다. 같은 문서 `:171`(`"origin":"MOCK"`)·`:191`과도 모순. **문서를 근거로 위치 기능 동작을 판단하면 틀린다.**
+- **2026-07-28** *(대상 문서 `MVP_API_SPEC.md` 는 이후 삭제 — 교훈만 유효)* — `MVP_API_SPEC.md:503`(§8 비고)이 "버스 위치는 Mock 소스가 없어 기사가 직접 보고해야 한다"고 서술하지만 **사실과 반대**다. `location/source/MockBusLocationSource.java:20,32`가 `app.location.bus-mock.enabled` 기본 `true`(`application.yml:60-61`)로 3초마다 버스 좌표를 자동 생성한다. 같은 문서 `:171`(`"origin":"MOCK"`)·`:191`과도 모순. **문서를 근거로 위치 기능 동작을 판단하면 틀린다.**
 - **2026-07-28** — `git symbolic-ref --short refs/remotes/origin/HEAD` 가 실패한다(`origin/HEAD` 미설정). 기준 브랜치를 명령으로 얻으려는 절차는 이 저장소에서 무조건 실패하므로 `main` 을 직접 쓴다.
 - **2026-07-28** — 문서 검증 에이전트에게 문서만 지정하면 **`backend/report/` 의 기존 보고서를 먼저 찾아 읽는다**(`docs-drift-auditor` 실측). 그러면 "기존 지적 N건 재현"이 독립 재현이 아니게 된다. 교차검증이 목적이면 프롬프트에 **기존 보고서 열람 금지**를 명시한다.
 - **2026-07-28** — 문서 검증은 **문서 전체를 한 에이전트에 맡기지 말고 섹션별로 쪼개 병렬로 돌린다.** `MVP_API_SPEC.md` 실측: 전체 패스 1개 = 신규 1건 / 섹션 패스 3개 = 신규 11건. 전체 패스는 계약 일치 여부 확인용으로만 쓴다.

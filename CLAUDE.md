@@ -8,9 +8,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 백엔드는 14개 도메인 모듈 + global 인프라가 엔티티~컨트롤러까지 구현돼 있고, 프론트는 **기사 앱(2화면) + 관리자(4화면)** 까지 붙어 있다. **학생·학부모 화면은 아직 없다** — 백엔드 API는 준비돼 있으나 프론트가 호출하지 않는다.
 
-- **작업 전 반드시 [`docs/README.md`](docs/README.md) 를 먼저 읽는다.** 제품 사양 4종(`PRODUCT_SPEC` · `USER_FLOWS` · `ARCHITECTURE` · `API_SPEC`)의 진입점이며, 이 4개가 **단일 소스(SoT)** 다. 구현 상태는 `✅ 구현 / 🟡 부분 / ⬜ 미구현` 으로 표기돼 있으니 **기획된 것과 구현된 것을 혼동하지 않는다.**
-- 백엔드 **구현 계획·진행 추적·백로그**는 `backend/docs/PROJECT_MASTER_PLAN.md` §11~12. 백엔드 작업이 진행되면 여기에 반영한다.
-- 기획 원본은 `backend/docs/학원 통학버스 통합관리 시스템.docx`(불변). 루트 `projectInfo.md` 는 **역사적 원본**이라 현재 사실과 어긋난다 — 결정 경위 추적 시에만 본다.
+**단, 위는 현재 상태의 서술이고 앞으로의 작업 범위는 `backend/` 로 한정한다** (2026-08-25 사용자 확정). 프론트엔드는 착수 대상 밖이며 `IMPLEMENTATION_PLAN` Phase F1~F4 가 `➖ 범위 밖` 으로 고정돼 있다. 사양에 프론트 요구가 그대로 남아 있는 것은 **만들 것이 사라진 것이 아니라 지금 만들지 않기 때문**이므로 사양에서 지우지 않는다.
+
+- **작업 전 반드시 [`docs/README.md`](docs/README.md) 를 먼저 읽는다.** 제품 사양 4종(`FEATURE_SPEC` · `PRD` · `USER_FLOWS` · `API_SPEC`)의 진입점이며, 이 4개가 **단일 소스(SoT)** 다. **2026-08-24 서비스 방향 전환으로 전면 재작성됐고, 순수 기획(To-Be)이라 구현 상태 표기가 없다** — 현재 코드는 상당 부분이 이 사양과 어긋나며 앞으로 사양에 맞춰 수정할 대상이다.
+- **기반 문서는 `docs/FEATURE_SPEC.md`** — 공통 규칙 C-01~16, 정책 상수(확정 30분 전 · ②구간 회차당 1회 · 운행 시작 ±3분 등), 엔티티·상태머신, 기능 ID 체계가 여기서 정의되고 나머지 3종이 이를 참조한다. 새 기능 ID·상태값을 만들지 않는다.
+- 문서의 `🔸` 는 구 기획에서 흡수해 **존치 미확정**인 항목이다 — 확정 사실로 취급하지 않는다. (근거 없는 신규 설계를 표시하던 `🆕` 는 2026-08-24 전건 승인되어 제거됐다.)
+- **설계 문서는 `docs/ARCHITECTURE.md`(모듈·인가·노선 파이프라인·시간 기반 배치)와 `docs/ERD.md`(테이블·제약·인덱스)** 다. 둘 다 사양 4종에서 유도한 **To-Be 설계**이며 현재 코드와 다르다 — 코드를 이 설계에 맞추는 것이 앞으로의 작업이고, 방향 전환 이전의 코드 실측본은 `git show HEAD:docs/ARCHITECTURE.md` 로 본다.
+- **이 서비스의 중심축은 시간이다** — 회차 `idle → confirmed` 전이는 사용자 조작이 아니라 **출발 30분 전 도래**가 일으킨다(`ARCHITECTURE §9`). 배치는 30초 폴링 + 조건부 UPDATE 멱등이고, "실행 시각"과 "판정 시각(출발−30분)" 두 시계를 절대 섞지 않는다.
+- **구현 계획·진행 추적은 [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) 단일 창구다.** 세션 재개 시 §8 진행 추적 표에서 현재 Phase 를 확인하고, 작업이 끝나면 그 표를 갱신한다. 횡단 규칙은 §7.
+- 기획 원본은 `backend/docs/학원 통학버스 통합관리 시스템.docx`(불변) 하나다. 루트 `projectInfo.md` 는 **2026-08-24 삭제** — 내용이 두 세대 낡아 오인용 위험이 컸다. 필요하면 `git show HEAD:projectInfo.md`.
 - 사실이 여러 문서에서 어긋나면 **`docs/` 가 기준이다.**
 
 - 사용자 5계층: 학생 / 학부모 / 운전기사 / 학원 관리자 / 플랫폼 관리자 — 학원 관리자와 플랫폼 관리자는 권한 범위가 완전히 다른 별개 역할
@@ -45,12 +51,12 @@ cd backend
 - **코드 컨벤션 상세는 `backend/docs/reference.md`(Claude 참조용, Markdown)를 먼저 읽는다.** spec/impl 판단기준·패키지 구조·CQRS·Event 규칙 등 전체 원칙이 정리돼 있다. 사람이 브라우저로 보는 동일 내용의 렌더링 버전은 `backend/docs/CODE_CONVENTIONS.html`(시각화 포함) — 둘은 원칙은 같고 매체만 다르며, Claude는 세션마다 `reference.md`를 참조한다.
 - **핵심 요약**: service·repository는 "구현이 바뀔 가능성이 있는가"를 기준으로만 `spec`(인터페이스) / `impl`(구현체) 하위 패키지로 분리한다(단순 CRUD는 분리하지 않음) — 예 `bus/service/spec/BusService.java` + `bus/service/impl/BusServiceImpl.java`. 컨트롤러 등은 `spec`만 의존한다. `package-info.java`는 두지 않는다(패키지 레벨 애너테이션이 필요할 때만 예외).
 
-**설계 제약·데이터 모델·MVP 범위는 `docs/` 를 본다** — 위치추적 Mock 추상화, 승하차 계층별 권한, 엔티티 구조, MVP 구현 범위가 `docs/PRODUCT_SPEC.md`(§2·§5·§7·§11)와 `docs/ARCHITECTURE.md`(§7)에 실측 기준으로 정리돼 있다.
+**설계 제약·데이터 모델·기능 범위는 `docs/` 를 본다** — 공통 규칙·엔티티·상태머신·권한은 `docs/FEATURE_SPEC.md`(§2·§3·§6), 정책 채택 이유와 우선순위는 `docs/PRD.md`(§6·§7), 엔드포인트 계약은 `docs/API_SPEC.md`. 현 코드의 구조(위치추적 Mock 추상화 등)는 `docs/ARCHITECTURE.md`(§7·§8) — 단 이쪽은 신규 사양 미반영 상태다.
 
 ## 응답/문서 규칙
 
 이 사용자는 Spring 입문 단계의 백엔드 개발자다. 전역 `~/.claude/CLAUDE.md` 규칙(한글 응답, 개념별 1줄 요약 → 번호 흐름 → request→처리→response, Controller/Service/Repository 연계 설명, 흔한 오해 1개 포함)을 따른다.
 
-**문서 포맷 규칙**: 사람이 브라우저로 보는 기술문서(아키텍처·규칙 등)는 전역 정책대로 HTML+인라인 SVG로 작성한다. 단 **Claude가 매 세션 재참조하는 기획·진행추적·컨벤션 문서(`PROJECT_MASTER_PLAN.md`, `reference.md` 등)는 토큰 효율을 위해 Markdown으로 유지**한다(HTML의 SVG·CSS 골격은 재로딩 비용만 크다). 같은 내용의 인간용 HTML 렌더(예: `CODE_CONVENTIONS.html`)가 별도로 존재할 수 있으며, 둘은 원칙만 동기화하고 서로 대체하지 않는다.
+**문서 포맷 규칙**: 사람이 브라우저로 보는 기술문서(아키텍처·규칙 등)는 전역 정책대로 HTML+인라인 SVG로 작성한다. 단 **Claude가 매 세션 재참조하는 사양·설계·진행추적·컨벤션 문서(`docs/` 8종, `reference.md` 등)는 토큰 효율을 위해 Markdown으로 유지**한다(HTML의 SVG·CSS 골격은 재로딩 비용만 크다). 같은 내용의 인간용 HTML 렌더(예: `CODE_CONVENTIONS.html`)가 별도로 존재할 수 있으며, 둘은 원칙만 동기화하고 서로 대체하지 않는다.
 
-**HTML 문서 수정 규칙 (2026-07-18 확정)**: `CODE_CONVENTIONS.html` 등 사람용 HTML 문서는 **사용자가 명시적으로 요청한 경우에만** 생성·수정한다. Markdown 원본(`reference.md`, `PROJECT_MASTER_PLAN.md` 등)을 바꿨다고 해서 대응하는 HTML을 자동으로 동기화하지 않는다 — 필요하면 사용자가 별도로 요청한다.
+**HTML 문서 수정 규칙 (2026-07-18 확정)**: `CODE_CONVENTIONS.html` 등 사람용 HTML 문서는 **사용자가 명시적으로 요청한 경우에만** 생성·수정한다. Markdown 원본(`reference.md` 등)을 바꿨다고 해서 대응하는 HTML을 자동으로 동기화하지 않는다 — 필요하면 사용자가 별도로 요청한다.
