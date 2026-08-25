@@ -10,12 +10,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 
 /**
  * 학원 격리를 <b>빠뜨린 저장소 조회를 실패로 만드는</b> 회귀 방지 테스트 — 이 태스크의 핵심 산출물이다.
@@ -30,7 +26,7 @@ import org.springframework.data.repository.query.Param;
  * <ol>
  *   <li><b>학원으로 좁혀짐</b> — 메서드 이름 · {@code @Query} 본문 · {@code @Param} 중 어디든 학원 조건</li>
  *   <li><b>부모 경유로 좁혀짐</b> — {@code @Query} 가 부모의 {@code academyId} 를 조인 조건에 씀.
- *       1과 같은 술어({@link #isNarrowedByAcademy})로 판정된다 — 쿼리 본문에 학원 식별자가 있으면 참이라,
+ *       1과 같은 술어({@link AcademyScopeRule#isNarrowedByAcademy})로 판정된다 — 쿼리 본문에 학원 식별자가 있으면 참이라,
  *       자식 테이블에 컬럼이 없어도 조인 조건이 있으면 잡힌다</li>
  *   <li><b>{@link AcademyScopeExempt}</b> 로 좁히지 않는 근거를 밝힘</li>
  * </ol>
@@ -52,9 +48,12 @@ import org.springframework.data.repository.query.Param;
  *       속하지 않는다({@link #ERD_OUT_OF_SCOPE_TABLES})</li>
  * </ul>
  *
- * <p>클래스가 {@code reference.md §20.2} 의 200줄을 넘는다 — 수집 코드는 {@link AcademyScopeScan} 으로
- * 이미 갈랐고, 남은 것은 <b>한 규칙의 단언들과 그 규칙의 정의처인 ERD 표</b>라 더 나누면 표와 그 표를
- * 쓰는 단언이 다른 파일에 놓여 정의처가 흩어진다.
+ * <p>클래스가 {@code reference.md §20.2} 의 200줄을 넘는다 — 바뀌는 계기가 다른 두 축을 이미 갈랐다.
+ * <b>수집</b>(패키지 워킹·리플렉션·소스 텍스트)은 {@link AcademyScopeScan}, <b>판정 술어</b>
+ * ("좁혀졌다"·"전건 조회다" 의 정의)는 {@link AcademyScopeRule}. 여기 남은 것은 <b>ERD §6.1 표 3개와
+ * 그 표에 거는 단언들</b>이라 더 나누면 표와 그 표를 쓰는 단언이 다른 파일에 놓여 정의처가 흩어진다.
+ * 잔여 초과분은 대부분 <b>단언 하나하나가 무엇을 막는지 적은 주석</b>이다 — 이 검사는 실패 메시지를
+ * 읽는 사람이 규칙의 근거까지 함께 봐야 꺼 버리지 않는다.
  */
 class AcademyScopeRepositoryConventionTest {
 
@@ -88,12 +87,19 @@ class AcademyScopeRepositoryConventionTest {
             "notification_setting", "refresh_token");
 
     /**
-     * ERD §6.1 의 두 분류 <b>어디에도 속하지 않는</b> 테이블 — 학원 격리 규칙의 대상 밖이다.
+     * ERD §6.1 <b>서두</b>가 두 분류 어디에도 두지 않는다고 지목한 테이블 2개 — 학원 격리 규칙의 대상
+     * 밖이다. 위 두 상수와 마찬가지로 <b>문서를 그대로 옮긴 것</b>이며 코드에서 유도하지 않는다.
      *
      * <p>{@code academy} 는 테넌트 루트 자신이라 자기 자신으로 좁힌다는 말이 성립하지 않고,
-     * {@code system_admin} 은 학원 소속이 부재해 전 학원 범위다. 이 집합을 명시해 두는 이유는
-     * <b>ERD 표에 없는 새 테이블의 저장소가 조용히 검사 대상 밖으로 빠지는 것</b>을 막기 위함이다
-     * ({@link #모든_저장소의_엔티티가_ERD_6_1_의_분류_안에_있다}).
+     * {@code system_admin} 은 학원 소속이 부재한 전 학원 범위 계정이라 좁힐 학원 자체가 없다.
+     * {@code system_admin} 을 부모 경유로 세면 부모 경유가 21개가 되어 <b>ERD §6.2 의 소계 20 과
+     * 어긋난다</b> — 문서도 그 근거를 서두에 함께 적고 있다.
+     *
+     * <p>이 집합을 명시해 두는 이유는 <b>ERD 표에 없는 새 테이블의 저장소가 조용히 검사 대상 밖으로
+     * 빠지는 것</b>을 막기 위함이다({@link #모든_저장소의_엔티티가_ERD_6_1_의_분류_안에_있다}).
+     * 세 상수의 값 전부가 "문서의 충실한 사본" 이라는 전제에서 나오므로, 문서와 어긋나는 것을 발견하면
+     * <b>코드에서 말없이 교정하지 말고 문서를 먼저 고친다</b> — 사본이 원본과 달라지는 순간 이 장치는
+     * 아무것도 보증하지 않는다.
      */
     private static final Set<String> ERD_OUT_OF_SCOPE_TABLES = Set.of("academy", "system_admin");
 
@@ -113,23 +119,30 @@ class AcademyScopeRepositoryConventionTest {
             "RefreshTokenRepository#findAllByAccountIdAndRevokedAtIsNull",
             "VerificationCodeRepository#findTopByPhoneAndPurposeOrderByCreatedAtDesc");
 
-    /**
-     * 학원 범위 저장소에 호출하면 격리가 통째로 빠지는 상속 메서드 — {@code JpaRepository} 가 전부 물려준다.
-     *
-     * <p>이름만 적고 접합자({@code .} · {@code ::})는 {@link #BULK_READ_JOINERS} 로 따로 순회한다 —
-     * {@code repo.findAll()} 만 막고 {@code repo::findAll} 을 놓치면 회피가 <b>메서드 참조로 쓰는 것</b>
-     * 하나로 끝난다.
-     */
-    private static final List<String> UNSCOPED_BULK_READS = List.of("findAll", "findAllById", "count");
-
-    /** 저장소 필드와 메서드 이름을 잇는 두 형태 — 호출({@code .})과 메서드 참조({@code ::}). */
-    private static final List<String> BULK_READ_JOINERS = List.of(".", "::");
-
     @Test
     void 소스_루트가_존재한다() {
         assertThat(AcademyScopeScan.SOURCE_ROOT)
                 .as("작업 디렉토리가 backend/ 가 아니면 아래 스캔이 전부 공집합으로 초록이 된다")
                 .isDirectory();
+    }
+
+    /**
+     * 저장소 수집의 <b>정수 하한</b> — 아래 세 검사가 전부 이 목록을 순회하므로, 목록이 비면 규칙이
+     * 지켜진 것과 구별되지 않는다.
+     *
+     * <p>{@link AcademyScopeScan#repositoryInterfaces()} 가 {@code repository} 라는 <b>패키지 이름</b>에
+     * 결합돼 있어, 저장소를 {@code persistence} 같은 다른 이름에 두면 수집이 통째로 공집합이 된다.
+     * 엔티티 쪽은 17·20 이라는 정수 하한이 있으나 저장소 쪽에는 부재해, 개별 검사의
+     * {@code isNotEmpty()} 만으로는 <b>9개 중 8개가 사라지는</b> 형태를 못 잡는다(리뷰 라운드 2 m-2).
+     *
+     * <p>하한을 등호 아닌 <b>이상</b>으로 둔 것은 Phase 5·9 가 저장소를 더할 때 이 단언이 먼저 깨지는
+     * 것을 피하기 위함이다 — 여기서 막을 것은 증가가 아니라 <b>수집 실패로 인한 감소</b>다.
+     */
+    @Test
+    void 학원_범위_저장소가_최소_9개_수집된다() {
+        assertThat(scopeGovernedRepositories().stream().map(Class::getSimpleName).sorted().toList())
+                .as("수집된 저장소가 하한 미만 — repository 패키지 이름이 바뀌었거나 저장소가 다른 곳으로 옮겨졌다")
+                .hasSizeGreaterThanOrEqualTo(9);
     }
 
     /**
@@ -213,7 +226,7 @@ class AcademyScopeRepositoryConventionTest {
                 .isNotEmpty();
 
         List<String> unmarked = methods.stream()
-                .filter(method -> !isNarrowedByAcademy(method))
+                .filter(method -> !AcademyScopeRule.isNarrowedByAcademy(method))
                 .filter(method -> method.getAnnotation(AcademyScopeExempt.class) == null)
                 .map(AcademyScopeScan::key)
                 .sorted()
@@ -256,7 +269,7 @@ class AcademyScopeRepositoryConventionTest {
             assertThat(method.getAnnotation(AcademyScopeExempt.class))
                     .as("%s 의 예외 표시가 사라졌다 — 다음 사람이 격리 누락으로 오인한다", AcademyScopeScan.key(method))
                     .isNotNull();
-            assertThat(isNarrowedByAcademy(method))
+            assertThat(AcademyScopeRule.isNarrowedByAcademy(method))
                     .as("%s 에 학원 조건이 붙었다 — 소속 미상 상태에서 시작하는 흐름이라 조회가 항상 0건이 된다",
                             AcademyScopeScan.key(method))
                     .isFalse();
@@ -283,7 +296,7 @@ class AcademyScopeRepositoryConventionTest {
             for (String repositoryName : scopedRepositoryNames) {
                 for (String field : AcademyScopeScan.fieldNamesOfType(body, repositoryName)) {
                     inspectedFields++;
-                    violations.addAll(bulkReadsIn(body, field, source));
+                    violations.addAll(AcademyScopeRule.bulkReadsIn(body, field, source));
                 }
             }
         }
@@ -296,51 +309,8 @@ class AcademyScopeRepositoryConventionTest {
                 .isEmpty();
     }
 
-    // ── 규칙 판정 ──────────────────────────────────────────────────────────
+    // ── 검사 대상 수집 ─────────────────────────────────────────────────────
 
-    /**
-     * 한 소스에서 주어진 저장소 필드의 전건 조회 사용을 전부 찾는다.
-     *
-     * <p>정규식으로 <b>낱말 경계</b>를 함께 요구한다 — {@code findAll} 을 단순 부분 문자열로 찾으면
-     * {@code findAllByAcademyIdAndDeletedAtIsNull} 처럼 <b>좁혀진</b> 조회까지 위반으로 세어,
-     * 규칙을 지킨 코드가 실패하고 결국 검사를 꺼 버리게 된다.
-     */
-    private static List<String> bulkReadsIn(String body, String field, Path source) {
-        List<String> found = new ArrayList<>();
-        for (String bulkRead : UNSCOPED_BULK_READS) {
-            for (String joiner : BULK_READ_JOINERS) {
-                String call = field + joiner + bulkRead;
-                Matcher matcher = Pattern.compile("\\b" + Pattern.quote(call) + "\\b").matcher(body);
-                if (matcher.find()) {
-                    found.add(source.getFileName() + ": " + call);
-                }
-            }
-        }
-        return found;
-    }
-
-    /**
-     * 학원 조건이 걸려 있으면 좁혀진 것으로 센다 — 메서드 이름 · {@code @Query} 본문 · {@code @Param}
-     * 셋 중 어디든 하나면 참이다. {@code @Query} 본문을 보는 축이 <b>부모 경유 조인</b>을 잡는다.
-     *
-     * <p><b>이름 기반 판정은 넓다</b> — {@code getName().contains("AcademyId")} 만 보므로
-     * {@code findAllByAcademyIdIsNull} · {@code countByAcademyIdNot} 처럼 학원을 좁히는 것이 아니라
-     * <b>뒤집는</b> 이름도 통과한다. 좁힘의 의미까지 이름으로 판정하려면 Spring Data 파서를 흉내내야
-     * 하는데, 그 흉내가 틀리면 규칙을 지킨 조회가 실패한다. 현재 그런 메서드는 부재하고, 생기면
-     * {@code AcademyScopeIsolationTest} 의 HTTP 왕복 대조가 결과 행으로 잡는다.
-     */
-    private static boolean isNarrowedByAcademy(Method method) {
-        if (method.getName().contains("AcademyId")) {
-            return true;
-        }
-        Query query = method.getAnnotation(Query.class);
-        if (query != null && (query.value().contains("academyId") || query.value().contains("academy_id"))) {
-            return true;
-        }
-        return Arrays.stream(method.getParameterAnnotations())
-                .flatMap(Arrays::stream)
-                .anyMatch(annotation -> annotation instanceof Param param && param.value().equals("academyId"));
-    }
 
     /** ERD §6.1 에 등재된 테이블(직접 보유 17 + 부모 경유 20)의 저장소 — 두 분류가 같은 규칙을 받는다. */
     private static List<Class<?>> scopeGovernedRepositories() {
