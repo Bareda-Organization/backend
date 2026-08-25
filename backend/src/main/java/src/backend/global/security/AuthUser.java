@@ -67,6 +67,6 @@ public record AuthUser(Long accountId, Long academyId, Role role, AccountStatus 
 
     /** 플랫폼 전역 범위(학원 격리 예외) 여부 — {@code academyId == null} 을 여기저기서 직접 비교하지 않게 한다. */
     public boolean hasPlatformScope() {
-        return role == Role.SYSTEM_ADMIN;
+        return role.hasPlatformScope();
     }
 }

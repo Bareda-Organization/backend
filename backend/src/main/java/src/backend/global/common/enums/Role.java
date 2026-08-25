@@ -28,6 +28,20 @@ public enum Role {
     /** 플랫폼 전 학원 범위 권한 보유자. */
     SYSTEM_ADMIN;
 
+    /**
+     * 플랫폼 전 학원 범위 여부 — 학원 격리의 예외이자 {@code account.academy_id} 가 null 일 수 있는
+     * 유일한 역할이다(ck_account_academy_scope).
+     *
+     * <p>이 판정을 역할 enum 에 둔 이유는 {@link src.backend.global.security.AuthUser} 가 아직 없는
+     * 자리에서도 같은 답이 필요하기 때문이다 — 로그인 응답 조립은 토큰을 발급하기 전 단계라
+     * {@code AuthUser} 가 없고, 여기가 없으면 그 자리가 {@code academyId == null} 을 직접 견주게 된다.
+     * 그러면 "플랫폼 범위" 의 정의가 역할 기준과 학원 식별자 기준 둘로 갈리고, DB 제약이
+     * system_admin 의 academy_id 보유를 금지하지 않으므로 두 정의는 실제로 다른 답을 낸다.
+     */
+    public boolean hasPlatformScope() {
+        return this == SYSTEM_ADMIN;
+    }
+
     /** {@link Role} 을 소문자 snake_case 컬럼 값으로 잇는 JPA 컨버터. */
     @Converter
     public static class Db extends LowerCaseEnumConverter<Role> {
