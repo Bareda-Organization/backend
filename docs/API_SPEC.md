@@ -306,7 +306,9 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 - 실패 **5회** 누적 시 **계정 단위** 차단 — IP 차단 부재 (C-11). 이후 `403 AUTH_ACCOUNT_BLOCKED`, 해제는 메인 관리자.
 - 매니저 앱은 계정에 배정된 호차가 자동 결정 — 사용자의 호차 선택 부재.
 
-**에러** — `401 INVALID_CREDENTIALS`(`details.remaining_attempts` 포함) · `403 AUTH_ACCOUNT_BLOCKED`
+**에러** — `401 INVALID_CREDENTIALS`(`details.remaining_attempts` 포함) · `403 AUTH_ACCOUNT_BLOCKED` · `403 AUTH_STAFF_INACTIVE`(퇴사 처리된 관계자, §6.7 · §8.1)
+
+⚠ **`AUTH_STAFF_INACTIVE` 판정은 비밀번호 대조를 통과한 뒤에 한다.** 앞에 두면 아이디만으로 "실재하고 퇴사한 관계자" 를 알려 주는 계정 열거 채널이 하나 늘고, 그 탐색은 실패 카운터를 올리지 않아 횟수 제한도 받지 않는다. `AUTH_ACCOUNT_BLOCKED` 가 대조 **앞**인 것과 갈리는데, 그쪽은 이미 상한을 채워 카운터가 더 오를 자리가 부재한 상태라 교환의 내용이 다르다.
 
 ### 2.6 POST /auth/refresh
 
@@ -1609,6 +1611,10 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 관계자 계정은 학생 개인정보 전체에 접근 — 퇴사 즉시 비활성화가 요건.
 
+**퇴사 처리(`status=inactive`)가 하는 것은 둘이다** — ① 그 계정의 refresh 토큰 **전량 무효화**(C-14, 지금 열려 있는 세션을 끊는다) ② 이후 **로그인 거부** `403 AUTH_STAFF_INACTIVE`(§2.5 · §8.1). **①만으로는 요건이 성립하지 않는다** — 비밀번호를 아는 퇴사자가 다시 로그인하면 `role=staff` 권한을 그대로 되찾기 때문이다. 반대로 `status=active` 로 되돌리면 둘 다 즉시 풀린다 (Ruling 143).
+
+`account.status` 는 이 전환에서 **바뀌지 않는다** — 계정 상태 4종(`pending`·`active`·`rejected`·`blocked`)에 `inactive` 가 부재하고, 퇴사는 계정의 생명주기가 아니라 **그 학원에서의 재직 여부**라 `academy_staff.status` 가 표현한다.
+
 **에러** — `404 ACCOUNT_NOT_FOUND` · `409 STAFF_QUOTA_EXCEEDED`(`status=active` 전환 대상 학원에 이미 `active` 관계자 존재)
 
 ### 6.8 GET /admin/academies/{id}/runs/live
@@ -1784,6 +1790,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `AUTH_PENDING` | 403 | `pending` 계정이 **허용 목록**(`GET /auth/signup-status` · `POST /auth/logout` · `GET /me` · `POST`·`DELETE /me/devices`, §1.4) 밖 호출. `rejected` 는 `POST /auth/signup/reapply` **1개 추가** (C-01 · §1.4). ⚠ **`pending` 에게 재신청은 허용되지 않는다** — `AUTH-03` 이 "재신청은 거절 이후에만" 을 규정 |
 | `AUTH_ACCOUNT_BLOCKED` | 403 | 로그인 실패 **5회** 누적으로 계정 단위 차단. 해제는 메인 관리자 (C-11) |
 | `AUTH_REJECTED` | 403 | `rejected` 계정이 **허용 6개**(`pending` 의 5개 + `POST /auth/signup/reapply`) 밖 호출. `AUTH_PENDING` 과 코드를 나눈 이유 — `§1.4` 가 대기 화면에 **거절 사유**를 노출하라고 규정하는데, 두 상태가 같은 코드를 쓰면 클라이언트가 "승인 대기 중" 과 "거절됨" 을 구별할 수단이 부재 (2026-08-25 신설) |
+| `AUTH_STAFF_INACTIVE` | 403 | 퇴사 처리된(`academy_staff.status='inactive'`) 관계자 계정의 **로그인**. `§6.7` 이 "퇴사 즉시 권한 회수" 를 요건으로 규정하는데, refresh 토큰 무효화만으로는 **그 순간의 세션**만 끊겨 비밀번호를 아는 퇴사자가 재로그인해 `role=staff` 권한을 그대로 되찾는다. 판정 대상은 `academy_staff` **행이 있고 그 상태가 `inactive` 인 경우뿐**이다 — 행이 부재한 것은 퇴사가 아니라 **아직 승인 전**(`§6.4` 승인 큐의 축)이라 `pending` 관계자의 대기 화면 진입을 막지 않는다. `account.status` 에는 대응 값이 부재하다(4종에 `inactive` 없음) (2026-08-26 신설, Ruling 143) |
 | `DUPLICATE_LOGIN_ID` | 409 | 가입 시 로그인 아이디 중복 |
 | `REAPPLY_NOT_ALLOWED` | 409 | `rejected` 아닌 상태에서 재신청 |
 | `LINK_CODE_INVALID` | 403 | 자녀 연결 인증 코드 만료·불일치 (P-02 · S-05) |

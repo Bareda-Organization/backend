@@ -33,6 +33,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class AuditLog {
 
+    /** {@code target_type} 이 계정을 가리킬 때의 값 — 조회 Phase 가 이 문자열로 대상 종류를 가른다. */
+    private static final String TARGET_TYPE_ACCOUNT = "account";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
@@ -90,5 +93,31 @@ public class AuditLog {
     /** 감사 대상 동작이 일어났을 때 최소 상태로 생성한다 — 행위자·대상 식별 필드는 도메인 Phase 가 채운다. */
     public static AuditLog forOccurrence(AuditCategory category, AuditAction action, OffsetDateTime occurredAt) {
         return new AuditLog(category, action, occurredAt);
+    }
+
+    /**
+     * 메인 관리자가 로그인 차단을 해제한 사실을 남긴다(AUTH-06 · API_SPEC §6.12).
+     *
+     * <p>{@code category} 가 {@link AuditCategory#LOGIN} 인 이유는 ERD §3.6 이 {@code block}·
+     * {@code unblock} 을 로그인·차단 이력 쪽 값으로 정의하고, §6.13 의 접속 이력 조회가 이 두 값을
+     * {@code block_event} 로 투영하기 때문이다 — {@code data_access} 로 넣으면 그 화면에서 사라진다.
+     *
+     * <p>{@code blockEvent} 는 false 로 둔다. 그 컬럼은 "이 <b>시도</b>가 차단을 유발했는지" 를 뜻하며
+     * (ERD §3.6), 해제는 차단을 유발하지 않는다 — {@code action} 이 그리는 축과 다른 축이다.
+     *
+     * @param academyId      대상 계정의 소속 학원. 메인 관리자 계정이면 {@code null}
+     * @param actorAccountId 해제를 실행한 메인 관리자
+     * @param actorLoginId   그 관리자의 로그인 아이디 스냅샷 — 계정이 나중에 사라져도 표시값이 남아야 한다
+     * @param targetAccountId 차단이 풀린 계정
+     */
+    public static AuditLog forAccountUnblock(Long academyId, Long actorAccountId, String actorLoginId,
+            Long targetAccountId, OffsetDateTime occurredAt) {
+        AuditLog log = new AuditLog(AuditCategory.LOGIN, AuditAction.UNBLOCK, occurredAt);
+        log.academyId = academyId;
+        log.actorAccountId = actorAccountId;
+        log.actorLoginId = actorLoginId;
+        log.targetType = TARGET_TYPE_ACCOUNT;
+        log.targetId = targetAccountId;
+        return log;
     }
 }
