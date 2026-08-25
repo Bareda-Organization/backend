@@ -137,6 +137,29 @@ class AcademyScopeIsolationTest {
         return java.util.Arrays.stream(trimmed.split(",")).map(String::trim).map(Long::valueOf).toList();
     }
 
+    /**
+     * 퇴원생(soft delete)이 <b>학원 경로와 메인 관리자 경로 양쪽에서</b> 빠지는지 본다.
+     *
+     * <p>학원 경로만 검사하면 메인 관리자 경로가 {@code findAll()} 로 되돌아가도 통과한다 — 그 형태는
+     * 학원 격리는 지키면서 {@code deleted_at} 만 잃어, 같은 화면이 학원을 고르느냐에 따라 퇴원생이
+     * 나왔다 사라진다(ERD §7.1). 시드에 퇴원생이 부재해 이 테스트가 직접 만들고 되돌린다.
+     */
+    @Test
+    void 퇴원생은_학원_경로와_메인_관리자_경로_양쪽에서_빠진다() throws Exception {
+        Long withdrawn = academyAStudentIds.get(0);
+        jdbcTemplate.update("UPDATE student SET deleted_at = now() WHERE id = ?", withdrawn);
+        try {
+            assertThat(listAs(staffA(), null))
+                    .as("학원 경로에 퇴원생이 남았다")
+                    .doesNotContain(withdrawn);
+            assertThat(listAs(systemAdmin(), null))
+                    .as("메인 관리자 경로에 퇴원생이 남았다 — 전 학원 조회가 deleted_at 조건을 잃었다")
+                    .doesNotContain(withdrawn);
+        } finally {
+            jdbcTemplate.update("UPDATE student SET deleted_at = NULL WHERE id = ?", withdrawn);
+        }
+    }
+
     private List<Long> studentIdsOf(Long academyId) {
         return jdbcTemplate.queryForList(
                 "SELECT id FROM student WHERE academy_id = ? AND deleted_at IS NULL", Long.class, academyId);

@@ -8,8 +8,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
@@ -41,8 +44,20 @@ class AcademyScopeSingleJudgmentPointTest {
     /**
      * {@code 파일명:근거} 형태의 예외 목록. 비어 있는 것이 정상이며, 채울 때는 <b>왜 판정 지점을 거칠 수
      * 없는지</b>를 적는다. 근거 없이 이름만 적으면 그 파일에 대조가 하나 더 늘어도 가려진다.
+     *
+     * <p><b>근거는 문서가 아니라 형식으로 강제된다</b> — {@link #ALLOWED_ENTRY} 에 맞지 않는 항목은
+     * 파일명을 내주지 않아 아무 파일도 면제하지 못한다. 형식만 주석에 적고 검사는 맨 파일명과 대조하면
+     * 주석대로 근거를 적은 항목이 영영 일치하지 않고, 다음 사람은 테스트를 초록으로 만들기 위해
+     * <b>근거를 떼어내는 쪽으로</b> 수렴한다. 그러면 이 목록의 목적이 그대로 뒤집힌다.
      */
     private static final List<String> ALLOWED = List.of();
+
+    /**
+     * 예외 항목의 형태 — {@code 파일명.java : 근거} 이고 근거가 <b>공백이 아니어야</b> 한다.
+     * 목록이 비어 있는 동안에도 이 규칙이 검사되도록, 순회 단언과 별도로
+     * {@link #예외_항목은_근거를_함께_적어야_면제된다} 가 형태 자체를 직접 고정한다.
+     */
+    private static final Pattern ALLOWED_ENTRY = Pattern.compile("^(\\w+\\.java)\\s*:\\s*(\\S.*)$");
 
     /** 학원 식별자를 다른 값과 견주는 형태 — 이것이 곧 "판정" 이다. */
     private static final List<Pattern> COMPARISON_SHAPES = List.of(
@@ -74,6 +89,24 @@ class AcademyScopeSingleJudgmentPointTest {
                 .isNotEmpty();
     }
 
+    /**
+     * 예외 목록의 <b>형식 규칙 자체</b>를 고정한다 — 목록이 비어 있어도 성립해야 한다. 목록을 순회하는
+     * 단언만 두면 비어 있는 동안 아무것도 검사하지 않아, 첫 항목을 넣는 사람이 형식을 어겨도 알 수 없다.
+     */
+    @Test
+    void 예외_항목은_근거를_함께_적어야_면제된다() {
+        assertThat(exemptedFileName("StompAuthChannelInterceptor.java"))
+                .as("파일명만 적은 항목이 면제되면 근거를 떼는 것이 가장 쉬운 길이 된다")
+                .isEmpty();
+        assertThat(exemptedFileName("StompAuthChannelInterceptor.java: 판정 지점을 거칠 수 없는 이유"))
+                .as("주석이 요구하는 형태가 면제되지 않으면 다음 사람은 근거를 떼는 쪽으로 수렴한다")
+                .contains("StompAuthChannelInterceptor.java");
+
+        assertThat(ALLOWED).allSatisfy(entry -> assertThat(exemptedFileName(entry))
+                .as("%s — 근거가 부재해 이 항목은 아무 파일도 면제하지 못한다", entry)
+                .isPresent());
+    }
+
     @Test
     void 판정_지점_밖에는_학원_대조가_없다() {
         List<String> violations = comparisonsOutsideJudgmentPoint(COMPARISON_SHAPES);
@@ -95,14 +128,32 @@ class AcademyScopeSingleJudgmentPointTest {
     // ── 스캔 ──────────────────────────────────────────────────────────────
 
     private static List<String> comparisonsOutsideJudgmentPoint(List<Pattern> shapes) {
+        Set<String> exempted = exemptedFileNames();
         List<String> hits = new ArrayList<>();
         for (Path source : javaSources(SOURCE_ROOT)) {
-            if (source.startsWith(JUDGMENT_POINT) || ALLOWED.contains(source.getFileName().toString())) {
+            if (source.startsWith(JUDGMENT_POINT) || exempted.contains(source.getFileName().toString())) {
                 continue;
             }
             hits.addAll(matches(source, shapes));
         }
         return hits;
+    }
+
+    /**
+     * 예외 항목에서 파일명을 뽑는다 — 근거가 부재하면 빈 {@link Optional} 이라 그 항목은 면제로
+     * 성립하지 않는다. 즉 근거를 적지 않은 예외는 <b>동작하지 않는다</b>.
+     */
+    private static Optional<String> exemptedFileName(String entry) {
+        Matcher matcher = ALLOWED_ENTRY.matcher(entry.strip());
+        return matcher.matches() ? Optional.of(matcher.group(1)) : Optional.empty();
+    }
+
+    /** 근거를 갖춰 실제로 면제되는 파일명. 형식을 어긴 항목은 여기서 조용히 빠진다. */
+    private static Set<String> exemptedFileNames() {
+        return ALLOWED.stream()
+                .map(AcademyScopeSingleJudgmentPointTest::exemptedFileName)
+                .flatMap(Optional::stream)
+                .collect(Collectors.toSet());
     }
 
     private static List<String> comparisonsIn(Path root) {
