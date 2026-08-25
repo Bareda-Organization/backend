@@ -34,6 +34,9 @@ import src.backend.global.error.ErrorCode;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Account extends BaseTimeEntity {
 
+    /** 로그인 실패 상한(C-11) — 도달하면 계정을 차단한다. {@code ck_account_failed_attempts} CHECK(0~5)와 같은 값이다. */
+    private static final int MAX_FAILED_ATTEMPTS = 5;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
@@ -134,5 +137,36 @@ public class Account extends BaseTimeEntity {
         }
         this.academyId = newAcademyId;
         this.status = AccountStatus.PENDING;
+    }
+
+    /**
+     * 로그인 실패를 1회 누적한다(API_SPEC §2.5 · C-11) — 누적치가 상한에 도달하면 즉시 {@code blocked}
+     * 로 전이한다. 도달 전까지는 카운터만 올리고 상태는 바꾸지 않는다.
+     *
+     * @return 이 실패 이후 남은 시도 횟수({@code INVALID_CREDENTIALS.details.remaining_attempts}) — 상한 도달 시 0
+     */
+    public int recordLoginFailure(OffsetDateTime now) {
+        this.failedAttempts++;
+        if (this.failedAttempts >= MAX_FAILED_ATTEMPTS) {
+            this.status = AccountStatus.BLOCKED;
+            this.blockedAt = now;
+            this.blockReason = "로그인 실패 " + MAX_FAILED_ATTEMPTS + "회 누적(C-11)";
+            return 0;
+        }
+        return MAX_FAILED_ATTEMPTS - this.failedAttempts;
+    }
+
+    /**
+     * 로그인 성공 시 실패 카운터를 초기화한다(API_SPEC §2.5) — 이게 없으면 한 번 실패한 계정이
+     * 이후 계속 성공해도 카운터가 상한에 조금씩 가까워지다 결국 무고하게 차단된다.
+     */
+    public void recordLoginSuccess(OffsetDateTime now) {
+        this.failedAttempts = 0;
+        this.lastLoginAt = now;
+    }
+
+    /** 비밀번호를 변경한다(API_SPEC §2.8·§2.9) — 새 해시는 호출자(PasswordEncoder)가 만들어 넘긴다. */
+    public void changePassword(String newPasswordHash) {
+        this.passwordHash = newPasswordHash;
     }
 }

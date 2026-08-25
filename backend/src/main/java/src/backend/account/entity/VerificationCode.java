@@ -14,6 +14,9 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
+
 /**
  * 아이디·비밀번호 복구 인증 코드 — {@code POST /auth/recover} 가 만료·불일치를 판정하려면
  * 서버가 발급분을 보관해야 한다(ERD §3.2 · AUTH-08 · API_SPEC §2.9 · §8.1).
@@ -72,5 +75,23 @@ public class VerificationCode {
     public static VerificationCode issue(String phone, String code, VerificationPurpose purpose,
             OffsetDateTime expiresAt, OffsetDateTime createdAt) {
         return new VerificationCode(phone, code, purpose, expiresAt, createdAt);
+    }
+
+    /**
+     * 제출된 코드가 유효한지 판정한다(API_SPEC §2.9) — 이미 소비됐거나 만료됐거나 값이 다르면
+     * {@link BusinessException}({@code VERIFICATION_CODE_INVALID}). 대조 시도 자체는 성공·실패 여부와
+     * 무관하게 {@code attempt_count} 에 기록한다 — 상한 강제는 API_SPEC 에 규정이 없어 이 메서드가
+     * 강제하지 않는다(Task 4 판단, 보고서 ⑥ 참고).
+     */
+    public void assertValid(String inputCode, OffsetDateTime now) {
+        this.attemptCount++;
+        if (consumedAt != null || now.isAfter(expiresAt) || !code.equals(inputCode)) {
+            throw new BusinessException(ErrorCode.VERIFICATION_CODE_INVALID);
+        }
+    }
+
+    /** 검증에 성공해 이 코드를 소비 처리한다 — 같은 코드로 두 번 복구를 진행하지 못하게 한다. */
+    public void consume(OffsetDateTime now) {
+        this.consumedAt = now;
     }
 }

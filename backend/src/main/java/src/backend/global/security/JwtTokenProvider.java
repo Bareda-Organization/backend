@@ -2,6 +2,7 @@ package src.backend.global.security;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.UUID;
 
 import javax.crypto.SecretKey;
 
@@ -58,10 +59,19 @@ public class JwtTokenProvider {
         return build(accountId, academyId, role, status, TYPE_REFRESH, refreshValidityMs);
     }
 
+    /**
+     * {@code jti}(id) 클레임이 반드시 필요하다 — 이것 없이는 같은 계정에 대해 같은 밀리초에 발급된
+     * 두 토큰(subject·academyId·role·status·type·issuedAt·expiration 이 전부 같음)이 서명까지
+     * 바이트 단위로 동일해져, {@code refresh_token.token_hash} UNIQUE 제약을 어기고 두 번째 저장이
+     * {@code 500}으로 죽는다(Task 4 가 {@code AuthControllerTest} 로 재현·발견, 보고서 ⑤ — 로그인
+     * 직후 곧바로 refresh 하는 것처럼 같은 계정에 대한 토큰 발급이 짧은 간격으로 겹치면 실제로도 날 수
+     * 있는 운영 결함이었다).
+     */
     private String build(Long accountId, Long academyId, Role role, AccountStatus status, String type,
             long validityMs) {
         Date now = new Date();
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .subject(String.valueOf(accountId))
                 .claim(CLAIM_ACADEMY_ID, academyId)
                 .claim(CLAIM_ROLE, role.name())

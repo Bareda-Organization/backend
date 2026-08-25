@@ -21,10 +21,11 @@ import src.backend.global.security.JwtTokenProvider;
 /**
  * §2.10 {@code GET /me} — 전 역할 공통 본인 프로필.
  *
- * <p>{@code pending}·{@code rejected} 도 호출 가능하다는 API_SPEC 본문과 달리, Task 3·4 부착
- * 지침(p2-task-2-report.md)이 이 엔드포인트에 계정 상태 게이트 애너테이션을 붙이지 않기로
- * 확정했다 — 그래서 {@code pending} 토큰은 여기서 403 {@code AUTH_PENDING} 을 받는다. 이 테스트가
- * 그 편차를 그대로 단언한다(브리프 §6 goal sentence).
+ * <p>{@code pending}·{@code rejected} 도 호출 가능하다는 API_SPEC 본문 그대로, Task 4 가
+ * {@code MeController.me()} 에 {@code @AllowedWhenPending} 을 부착해 이 편차를 해소했다
+ * (2026-08-25) — 이전에는 p2-task-2-report.md 의 부착 지침에 따라 게이트 애너테이션 없이
+ * 403 {@code AUTH_PENDING} 을 반환했으나, 대기 화면이 상태를 알아야 하는 API_SPEC 본문 요구를
+ * 우선해 뒤집었다(브리프 §7 goal sentence, 의도된 RED #3 GREEN 전환).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -51,7 +52,7 @@ class MeControllerTest {
                     + "VALUES ((SELECT id FROM academy WHERE code = 'P2T3MEAQQQQ'), "
                     + "'p2t3pendingme', 'x', '대기자', '010-0000-0005', 'parent', 'pending')"
     })
-    void pending_계정이_me_를_부르면_403_AUTH_PENDING_이다() throws Exception {
+    void pending_계정도_me_를_부르면_본인_프로필을_받는다() throws Exception {
         Long academyId = academyRepository.findAll().stream()
                 .filter(a -> a.getCode().equals("P2T3MEAQQQQ"))
                 .findFirst().orElseThrow().getId();
@@ -60,8 +61,9 @@ class MeControllerTest {
                 AccountStatus.PENDING);
 
         mockMvc.perform(get("/api/v1/me").header("Authorization", token))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error.code").value("AUTH_PENDING"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.login_id").value("p2t3pendingme"))
+                .andExpect(jsonPath("$.data.status").value("pending"));
     }
 
     @Test

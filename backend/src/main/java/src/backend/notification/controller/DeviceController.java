@@ -14,11 +14,16 @@ import jakarta.validation.Valid;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanRegisterDevice;
+import src.backend.global.security.gate.AllowedWhenPending;
 import src.backend.notification.command.DeviceCommandService;
 import src.backend.notification.dto.DeviceRegisterRequest;
 import src.backend.notification.dto.DeviceRegisterResponse;
 
-/** 푸시 단말 등록·해지(API_SPEC §2.11). */
+/**
+ * 푸시 단말 등록·해지(API_SPEC §2.11). {@code pending} 계정도 대기 중 알림을 받을 단말을 등록해야
+ * 해 {@code @AllowedWhenPending} 을 인가 축({@code @CanRegisterDevice})과 함께 붙인다 — 두 축은
+ * 겸하지 않되 한 핸들러가 각 축에서 하나씩 갖는 것은 허용된다(SignupController 선례, Task 4).
+ */
 @RestController
 public class DeviceController {
 
@@ -29,6 +34,7 @@ public class DeviceController {
     }
 
     @CanRegisterDevice
+    @AllowedWhenPending
     @PostMapping("/me/devices")
     public ResponseEntity<ApiResponse<DeviceRegisterResponse>> register(
             @AuthenticationPrincipal AuthUser authUser, @Valid @RequestBody DeviceRegisterRequest request) {
@@ -37,6 +43,7 @@ public class DeviceController {
     }
 
     @CanRegisterDevice
+    @AllowedWhenPending
     @DeleteMapping("/me/devices/{token}")
     public ResponseEntity<Void> revoke(@AuthenticationPrincipal AuthUser authUser, @PathVariable String token) {
         deviceCommandService.revoke(authUser.accountId(), token);

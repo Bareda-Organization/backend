@@ -28,6 +28,10 @@ public enum ErrorCode {
     ACADEMY_NOT_FOUND(HttpStatus.NOT_FOUND, "학원을 찾을 수 없습니다"),
     // rejected 상태가 아닌 계정이 재신청을 시도할 때(API_SPEC §2.4).
     REAPPLY_NOT_ALLOWED(HttpStatus.CONFLICT, "재신청할 수 없는 상태입니다"),
+    // access·refresh 만료, 또는 로그아웃·계정 차단으로 무효화된 토큰(API_SPEC §1.2·§2.6·§2.7·§8.1) — 재로그인 요구.
+    TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "토큰이 만료되었습니다. 다시 로그인해 주세요"),
+    // 아이디·비밀번호 복구(AUTH-08)의 SMS 인증 코드가 만료·불일치할 때(API_SPEC §2.9·§8.1).
+    VERIFICATION_CODE_INVALID(HttpStatus.FORBIDDEN, "인증번호가 올바르지 않거나 만료되었습니다"),
 
     // ── 학원 격리 ────────────────────────────────────────────────────────────────
     // 계열별로 구역을 나눠 둔다 — 인증 계열은 위쪽 AUTH_* 무리에서 자란다. 새 코드를 그 무리

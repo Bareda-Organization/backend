@@ -126,11 +126,11 @@ class AccountStatusGateInterceptorTest {
      * {@link GateTestController} 는 이 테스트와 같은 커밋의 같은 저자가 쓴 픽스처라, 그것만 세면
      * 프로덕션 컨트롤러의 부착 누락을 검출하지 못한다(리뷰 라운드 1 Important #1) —
      * {@code src/main} 을 직접 스캔한다({@code ControllerAuthorizationConventionTest} 의 소스
-     * 스캔·의도적 RED 선례를 따른다, Ruling 73). 컨트롤러가 0개인 지금은 RED(0 개)이고, Task 3·4 가
-     * 실제 핸들러에 애너테이션을 붙이는 순간 GREEN 으로 전환된다.
+     * 스캔·의도적 RED 선례를 따른다, Ruling 73). Task 4 가 로그인·refresh·로그아웃·비밀번호 변경·
+     * 복구와 {@code /me}·기기 등록·해지의 게이트 부착을 마치며 2/3 → 5/6 으로 전환됐다.
      */
     @Test
-    void 허용_애너테이션이_붙은_실제_핸들러_수가_pending_2개_rejected_3개다() {
+    void 허용_애너테이션이_붙은_실제_핸들러_수가_pending_5개_rejected_6개다() {
         Path sourceRoot = Path.of("src/main/java/src/backend");
         assertThat(sourceRoot).as("테스트 작업 디렉토리가 backend/ 가 아니면 경로를 고쳐야 한다").isDirectory();
 
@@ -138,11 +138,12 @@ class AccountStatusGateInterceptorTest {
         long allowedWhenRejected = countAnnotatedMethods(sourceRoot, "@AllowedWhenRejected");
 
         assertThat(allowedWhenPending)
-                .as("pending 이 통과해야 하는 실제 핸들러는 승인 대기 조회·로그아웃 2개다(API_SPEC §1.4)")
-                .isEqualTo(2);
+                .as("pending 이 통과해야 하는 실제 핸들러는 승인 대기 조회·본인 프로필 조회·로그아웃·기기 등록·"
+                        + "기기 해지 5개다(API_SPEC §1.4·§2.7·§2.10·§2.11)")
+                .isEqualTo(5);
         assertThat(allowedWhenPending + allowedWhenRejected)
-                .as("rejected 가 통과해야 하는 실제 핸들러는 pending 의 2개 + 재신청 1개, 총 3개다(API_SPEC §1.4)")
-                .isEqualTo(3);
+                .as("rejected 가 통과해야 하는 실제 핸들러는 pending 의 5개 + 재신청 1개, 총 6개다(API_SPEC §1.4)")
+                .isEqualTo(6);
     }
 
     /** {@code src/main} 소스를 줄 단위로 스캔해 지정한 애너테이션이 정확히 붙은 줄의 개수를 센다. */

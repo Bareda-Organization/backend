@@ -34,9 +34,15 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
      * <p>엔티티에 세터가 없어(불변 필드) 벌크 JPQL UPDATE 로 처리했다 — 조회 후 각 행을 순회하며
      * 저장하는 대신, 위 조회와 동일한 조건으로 한 번에 갱신해 부분 인덱스 조건과 어긋나지 않게 한다.
      *
+     * <p>{@code flushAutomatically = true} 가 반드시 필요하다 — 호출부(로그인 차단 전이·비밀번호
+     * 변경·비밀번호 복구)는 전부 이 호출 직전에 {@code Account} 엔티티를 먼저 변경(mutate)해 둔다.
+     * {@code clearAutomatically} 만 켜면 벌크 UPDATE 뒤 영속성 컨텍스트를 비우는 시점에 그 미반영
+     * (flush 전) {@code Account} 변경분이 플러시되지 않은 채 통째로 버려진다 — 즉 이 벌크 쿼리를 켜는
+     * 순간 직전에 바꾼 계정 상태가 조용히 롤백된 것처럼 사라진다(운영 결함, Task 4 발견·수정).
+     *
      * @return 실제로 무효화된 행 수
      */
-    @Modifying(clearAutomatically = true)
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("UPDATE RefreshToken t SET t.revokedAt = :revokedAt "
             + "WHERE t.accountId = :accountId AND t.revokedAt IS NULL")
     int revokeAllValidByAccountId(@Param("accountId") Long accountId, @Param("revokedAt") OffsetDateTime revokedAt);

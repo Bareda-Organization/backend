@@ -22,10 +22,11 @@ import src.backend.student.repository.StudentRepository;
 
 /**
  * 본인 프로필 조회(API_SPEC §2.10) — role 별 부가 필드(student_id · manager_id/role ·
- * linked_student_count)를 함께 채운다. {@code pending}·{@code rejected} 도 호출 가능하다고
- * API_SPEC 본문은 적지만, Task 3·4 부착 지침(p2-task-2-report.md)이 이 엔드포인트에 계정 상태
- * 게이트 애너테이션을 붙이지 않기로 확정했다 — 이 서비스는 그 결정을 그대로 따르고, 편차는
- * 태스크 보고서에 남긴다.
+ * linked_student_count)를 함께 채운다. {@code pending}·{@code rejected} 도 호출 가능하다는
+ * API_SPEC 본문대로, {@code MeController.me()} 에 {@code @AllowedWhenPending} 이 붙어 있다
+ * (Task 4, 2026-08-25) — 이전에 p2-task-2-report.md 부착 지침이 게이트 애너테이션을 붙이지 않기로
+ * 했던 결정을 뒤집었다. 이 서비스 자체는 role 만 보고 응답을 채울 뿐, 게이트 판정에는 관여하지
+ * 않는다.
  */
 @Service
 public class MeQueryService {

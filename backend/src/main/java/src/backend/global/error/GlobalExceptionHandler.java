@@ -24,10 +24,17 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    /**
+     * {@code details} 가 있으면(예: {@code INVALID_CREDENTIALS.remaining_attempts}, API_SPEC §2.5)
+     * {@link ErrorResponse}의 3-인자 팩토리로 함께 싣는다 — 없으면 기존 2-인자 형태와 동일하다.
+     */
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ErrorResponse> handleBusiness(BusinessException e) {
         ErrorCode code = e.getErrorCode();
-        return ResponseEntity.status(code.getStatus()).body(ErrorResponse.of(code.name(), code.getMessage()));
+        ErrorResponse body = e.getDetails() == null
+                ? ErrorResponse.of(code.name(), code.getMessage())
+                : ErrorResponse.of(code.name(), code.getMessage(), e.getDetails());
+        return ResponseEntity.status(code.getStatus()).body(body);
     }
 
     /**
