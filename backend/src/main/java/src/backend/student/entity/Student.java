@@ -16,6 +16,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import src.backend.global.common.BaseTimeEntity;
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
 
 /**
  * 학생 — 노선·명단·알림이 모두 참조하는 중심 레코드다. 계정보다 먼저 생성되며 계정 연결은
@@ -102,5 +104,20 @@ public class Student extends BaseTimeEntity {
             boolean canGoAlone) {
         return new Student(academyId, name, studentPhone, photoUrl, gender, birthDate, grade, className,
                 seatNo, note, canGoAlone);
+    }
+
+    /**
+     * 가입 승인 시점에 계정을 연결한다(AUTH-11 · API_SPEC §5.2) — 학생 레코드는 계정보다 먼저
+     * 만들어지므로 연결은 등록이 아니라 별도 전이다.
+     *
+     * <p>이미 <b>다른</b> 계정이 붙어 있으면 {@link BusinessException}({@code ALREADY_LINKED}) —
+     * 덮어쓰면 앞 계정이 자기 데이터에 닿을 근거를 잃는데, 응답은 200 이라 아무도 알아채지 못한다.
+     * 같은 계정을 다시 연결하는 것은 결과가 같으므로 통과시킨다.
+     */
+    public void linkAccount(Long newAccountId) {
+        if (this.accountId != null && !this.accountId.equals(newAccountId)) {
+            throw new BusinessException(ErrorCode.ALREADY_LINKED);
+        }
+        this.accountId = newAccountId;
     }
 }

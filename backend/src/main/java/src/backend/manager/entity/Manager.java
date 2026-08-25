@@ -20,6 +20,8 @@ import lombok.NoArgsConstructor;
 
 import src.backend.global.common.BaseTimeEntity;
 import src.backend.global.common.enums.ManagerRole;
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
 
 /**
  * 운행인력 — 기사·동승자를 한 테이블에 두고 {@code role} 로 가르며, 이 값이 앱 권한을 결정한다
@@ -80,5 +82,19 @@ public class Manager extends BaseTimeEntity {
     public static Manager register(Long academyId, String name, String phone, ManagerRole role,
             Map<String, Object> workHours) {
         return new Manager(academyId, name, phone, role, workHours);
+    }
+
+    /**
+     * 가입 승인 시점에 계정을 연결한다(AUTH-11 · API_SPEC §5.2) — {@code accountId} 가 승인 전
+     * {@code NULL} 인 것이 정상이며 이 전이가 그 자리를 채운다.
+     *
+     * <p>이미 다른 계정이 붙어 있으면 {@link BusinessException}({@code ALREADY_LINKED}) — 덮어쓰면
+     * 앞 계정이 배치된 회차 명단에 닿을 근거를 잃고, 새 계정이 그 회차를 대신 받는다.
+     */
+    public void linkAccount(Long newAccountId) {
+        if (this.accountId != null && !this.accountId.equals(newAccountId)) {
+            throw new BusinessException(ErrorCode.ALREADY_LINKED);
+        }
+        this.accountId = newAccountId;
     }
 }

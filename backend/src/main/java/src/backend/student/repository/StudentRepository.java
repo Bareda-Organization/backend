@@ -36,4 +36,16 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
             + "호출부가 AcademyScope.resolveListScope 의 빈 Optional(= 플랫폼 범위 + 학원 미지정) 에서만 "
             + "부른다는 전제 — 학원이 지정된 경로에서 부르면 격리가 통째로 빠진다")
     List<Student> findAllByDeletedAtIsNullOrderByNameAsc();
+
+    /**
+     * 가입 승인이 연결할 학생 1건(AUTH-11 · API_SPEC §5.2) — 학원 조건이 <b>쿼리에 고정</b>돼 있다.
+     *
+     * <p>{@code findById} 로 꺼내 뒤에서 대조하지 않는 이유는, 이 경로에서 학원이 어긋난 결과가
+     * {@code 403} 이 아니라 {@code 404 STUDENT_NOT_FOUND} 여야 하기 때문이다(§5.2) — 조건을 쿼리에
+     * 넣으면 "없음" 과 "남의 학원" 이 같은 빈 결과가 되어 존재 여부가 응답에서 사라진다.
+     *
+     * <p>퇴원생({@code deleted_at})은 대상 밖이다 — 명단에서 빠진 학생에 새 학부모를 잇는 것은
+     * 연결이 아니라 되살리기다.
+     */
+    Optional<Student> findByIdAndAcademyIdAndDeletedAtIsNull(Long id, Long academyId);
 }

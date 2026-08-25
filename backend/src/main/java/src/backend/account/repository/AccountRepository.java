@@ -60,4 +60,16 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
             + "GROUP BY a.academyId")
     List<AcademyCount> countByAcademyIdInGroupedByAcademyId(@Param("academyIds") Collection<Long> academyIds,
             @Param("roles") Collection<Role> roles, @Param("statuses") Collection<AccountStatus> statuses);
+
+    /**
+     * 여러 계정의 이름·연락처를 한 번에 가져온다 — 메인 관리자 콘솔의 관계자 가입 요청 목록
+     * (API_SPEC §6.4)이 요청 행에 신청자 정보를 채울 때 쓴다.
+     *
+     * <p>학원 조건을 함께 걸 수 없는 것이 §6.3 의 {@link #findAllByAcademyIdAndIdIn} 과 갈리는
+     * 지점이다 — 그쪽은 목록 전체가 한 학원이고 이쪽은 한 페이지에 여러 학원이 섞인다.
+     */
+    @AcademyScopeExempt(reason = "§6.4 메인 관리자 콘솔의 전 학원 조회(ARCHITECTURE §6.2 격리 예외) — 한 페이지에 여러 학원이 "
+            + "섞여 좁힐 학원이 부재. 호출부가 승인 큐 조회가 돌려준 account_id 만 넘긴다는 전제 — 요청 파라미터의 "
+            + "식별자를 넘기면 임의 계정의 연락처를 읽는 통로가 된다")
+    List<Account> findAllByIdIn(Collection<Long> ids);
 }
