@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -89,15 +90,25 @@ public class JwtTokenProvider {
     /**
      * 검증된 클레임 → {@link AuthUser}. REST 필터·STOMP 인증 인터셉터가 공용으로 쓴다.
      *
-     * <p>{@code status} 클레임이 없는 토큰은 {@link AccountStatus#valueOf}(인자 null)에서
-     * {@link NullPointerException}으로 즉시 실패한다 — 그런 토큰을 조용히 통과시키면 계정 상태
-     * 게이트가 상태 미상 요청 전체를 열어 버리므로, 늦게 실패하는 것보다 여기서 바로 막는 편이 낫다.
+     * <p>{@code role}·{@code status} 클레임이 없는 토큰은 여기서 {@link JwtException}으로 실패한다 —
+     * 그런 토큰을 조용히 통과시키면 계정 상태 게이트가 상태 미상 요청 전체를 열어 버리므로, 늦게
+     * 실패하는 것보다 여기서 바로 막는 편이 낫다(리뷰 라운드 1 Critical #1). {@code Enum.valueOf(Class,
+     * null)}은 {@link IllegalArgumentException}이 아니라 {@link NullPointerException}을 던지는데,
+     * 그 타입 그대로 호출부까지 새 나가면 {@link JwtAuthenticationFilter}·{@link
+     * StompAuthChannelInterceptor}의 {@code catch (JwtException | IllegalArgumentException e)} 절이
+     * 놓쳐 {@code GlobalExceptionHandler}가 못 잡는 API_SPEC §1.10 형식 밖 500이 된다(리뷰 라운드 2
+     * Important #10). 그래서 여기서 {@link IllegalArgumentException}·{@link NullPointerException}을
+     * 전부 붙잡아 {@link JwtException}으로 통일한다 — 호출부 catch 절을 그대로 둬도 계속 막힌다.
      */
     public AuthUser resolveAuthUser(Claims claims) {
-        Long accountId = Long.valueOf(claims.getSubject());
-        Number academyId = claims.get(CLAIM_ACADEMY_ID, Number.class);
-        Role role = Role.valueOf(claims.get(CLAIM_ROLE, String.class));
-        AccountStatus status = AccountStatus.valueOf(claims.get(CLAIM_STATUS, String.class));
-        return new AuthUser(accountId, academyId == null ? null : academyId.longValue(), role, status);
+        try {
+            Long accountId = Long.valueOf(claims.getSubject());
+            Number academyId = claims.get(CLAIM_ACADEMY_ID, Number.class);
+            Role role = Role.valueOf(claims.get(CLAIM_ROLE, String.class));
+            AccountStatus status = AccountStatus.valueOf(claims.get(CLAIM_STATUS, String.class));
+            return new AuthUser(accountId, academyId == null ? null : academyId.longValue(), role, status);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            throw new JwtException("토큰 클레임을 해석할 수 없습니다", e);
+        }
     }
 }
