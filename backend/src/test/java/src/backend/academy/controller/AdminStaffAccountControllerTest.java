@@ -106,6 +106,28 @@ class AdminStaffAccountControllerTest {
                 .andExpect(jsonPath("$.data.has_next").isBoolean());
     }
 
+    /**
+     * {@code total_count} 는 <b>관계자 행 수</b>와 같다 — 계정 전체 수가 아니다.
+     *
+     * <p>이 단언이 목록의 대상 조건을 고정하는 <b>유일한</b> 자리다. 항목 배열만 보는 단언은 조건이
+     * 빠져도 통과한다 — 서비스가 관계자 행이 없는 계정을 항목 조립 단계에서 한 번 더 걸러내기
+     * 때문이다. 그 경우 {@code items[]} 는 맞는데 {@code total_count} 와 페이지 경계가 전 계정 기준이
+     * 되어, 관리자가 2페이지를 눌러도 아무것도 없는 화면을 계속 받는다(음성 대조 M8 에서 실측).
+     */
+    @Test
+    void 관계자_계정_목록의_total_count_는_academy_staff_행_수와_같다() throws Exception {
+        int staffRows = jdbcTemplate.queryForObject("SELECT count(*) FROM academy_staff", Integer.class);
+        int allAccounts = jdbcTemplate.queryForObject("SELECT count(*) FROM account", Integer.class);
+
+        assertThat(allAccounts)
+                .as("계정 수와 관계자 행 수가 같으면 이 단언은 조건이 빠진 구현도 통과시킨다")
+                .isGreaterThan(staffRows);
+
+        mockMvc.perform(get("/api/v1/admin/staff-accounts").header("Authorization", 메인관리자_토큰()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total_count").value(staffRows));
+    }
+
     // ── 목표 7 · refresh 토큰 무효화 ──────────────────────────────────────
 
     /**
