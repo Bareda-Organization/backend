@@ -19,6 +19,23 @@ class PageParamsTest {
 
     private static final Sort FALLBACK = Sort.by(Sort.Direction.ASC, "name");
 
+    /**
+     * §1.8 이 정한 <b>값 자체</b>를 사양에서 손으로 옮겨 고정한다 — 기본 20 · 최대 100 · 0 기점.
+     *
+     * <p>아래 단언들은 상수를 읽어 쓴다. 이름이 바뀌어도 따라가라는 뜻인데, 그 대가로 <b>값이 바뀌면
+     * 함께 따라가서</b> 상한을 1000 으로 넓혀도 전부 통과한다 — 실측으로 확인한 사실이다(변형 M4 가
+     * 살아남았다). 그래서 값을 사양에서 직접 옮긴 축을 따로 둔다. 두 축의 출처가 달라야
+     * 한쪽의 실수를 다른 쪽이 잡는다(Ruling 103 과 같은 이유).
+     */
+    @Test
+    void 페이지_기본값과_상한은_사양이_정한_0_20_100_이다() {
+        assertThat(PageParams.DEFAULT_PAGE).isZero();
+        assertThat(PageParams.DEFAULT_SIZE).isEqualTo(20);
+        assertThat(PageParams.MAX_SIZE)
+                .as("상한이 넓어지면 size=1000 한 번이 전량 조회에 가까워진다")
+                .isEqualTo(100);
+    }
+
     /** 값을 주지 않으면 §1.8 기본값(page 0 · size 20)이다. */
     @Test
     void 값을_주지_않으면_page_0_size_20_이다() {
