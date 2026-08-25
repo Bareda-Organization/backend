@@ -76,6 +76,12 @@ public enum ErrorCode {
     ALREADY_LINKED(HttpStatus.CONFLICT, "이미 연결된 대상입니다"),
     // blocked 아닌 계정에 차단 해제 시도(AUTH-06 · API_SPEC §8.1).
     ACCOUNT_NOT_BLOCKED(HttpStatus.CONFLICT, "차단된 계정이 아닙니다"),
+    // 퇴사 처리된(academy_staff.status='inactive') 관계자의 로그인(API_SPEC §2.5·§6.7·§8.1, Ruling 143).
+    // refresh 무효화는 그 순간의 세션만 끊으므로, 이 코드가 없으면 비밀번호를 아는 퇴사자가 다시
+    // 로그인해 role=staff 권한을 되찾는다 — 관계자는 학생 개인정보 전체에 접근한다(§6.7).
+    // AUTH_ACCOUNT_BLOCKED 와 코드를 나눈 이유는 클라이언트의 다음 동작이 갈리기 때문이다 —
+    // 차단은 관리자에게 해제를 요청할 자리이고, 퇴사는 요청할 대상 자체가 부재한 자리다.
+    AUTH_STAFF_INACTIVE(HttpStatus.FORBIDDEN, "퇴사 처리된 계정입니다"),
 
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다");
 
