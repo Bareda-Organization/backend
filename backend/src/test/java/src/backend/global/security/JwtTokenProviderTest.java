@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 import io.jsonwebtoken.Claims;
+import src.backend.global.common.enums.Role;
 
 /**
  * JWT 발급 → 검증 왕복 단위 테스트(스프링 컨텍스트 없이).
@@ -17,7 +18,7 @@ class JwtTokenProviderTest {
 
     @Test
     void access_token_round_trip() {
-        String token = provider.createAccessToken(7L, 1L, "driver");
+        String token = provider.createAccessToken(7L, 1L, Role.DRIVER);
 
         Claims claims = provider.parse(token);
 
@@ -27,12 +28,12 @@ class JwtTokenProviderTest {
 
         AuthUser principal = provider.resolveAuthUser(claims);
         assertThat(principal.academyId()).isEqualTo(1L);
-        assertThat(principal.authorities()).extracting("authority").containsExactly("ROLE_driver");
+        assertThat(principal.authorities()).extracting("authority").containsExactly("ROLE_DRIVER");
     }
 
     @Test
     void refresh_token_is_flagged_as_refresh() {
-        String token = provider.createRefreshToken(7L, 1L, "driver");
+        String token = provider.createRefreshToken(7L, 1L, Role.DRIVER);
 
         Claims claims = provider.parse(token);
 
@@ -42,7 +43,7 @@ class JwtTokenProviderTest {
 
     @Test
     void account_without_academy_resolves_to_null_academy_id() {
-        String token = provider.createAccessToken(9L, null, "system_admin");
+        String token = provider.createAccessToken(9L, null, Role.SYSTEM_ADMIN);
 
         Claims claims = provider.parse(token);
         AuthUser principal = provider.resolveAuthUser(claims);

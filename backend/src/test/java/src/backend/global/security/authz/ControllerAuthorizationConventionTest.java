@@ -108,6 +108,32 @@ class ControllerAuthorizationConventionTest {
                 .isEmpty();
     }
 
+    /**
+     * 조율자 Ruling 73 — 검사 대상 핸들러 수의 하한을 건다.
+     *
+     * <p>Phase 0 에서는 컨트롤러가 0개라 {@link #인가_애너테이션이_없는_매핑_메서드가_없다} 가
+     * "위반이 없다"와 "검사할 게 없다"를 구별하지 못한 채 늘 초록이었다 — 이 테스트가 그 구멍을 막는다.
+     *
+     * <p><b>지금(Phase 2 Task 1 시점)은 컨트롤러가 아직 0개라 이 단언이 RED 다 — 정상이다.</b>
+     * Task 3·4 가 이 어휘 위에 실제 컨트롤러를 얹으면 GREEN 으로 전환된다(조율자가 확인 예정).
+     * RED 를 감추려고 {@code @Disabled} 를 붙이지 않는다 — "검사 대상 없음"과 "규칙 준수"를 다시
+     * 구별 못 하게 되어 이 테스트를 추가한 이유 자체가 사라진다.
+     *
+     * <p>하한값 1 은 잠정값이다 — Task 3·4 가 컨트롤러를 만들면 그때의 실제 핸들러 수(예: Phase 2
+     * 엔드포인트 11개)로 올리는 것이 맞다. 지금은 "0개는 안 된다"만 고정한다.
+     */
+    @Test
+    void 검사_대상_핸들러가_하나도_없으면_실패한다() {
+        List<String> authzAnnotationNames = authzAnnotationNames();
+        List<MappingMethod> mappings = allMappingMethods(authzAnnotationNames);
+
+        assertThat(mappings.size())
+                .as("인가 검사 대상 매핑 메서드가 최소 1개는 있어야 한다 — 0개면 위의 인가 검사들이 "
+                        + "'규칙 준수'와 '검사 대상 없음'을 구별하지 못한 채 항상 통과한다. 하한값 1 은 "
+                        + "잠정값이며 Task 3·4 가 컨트롤러를 만들면 실제 필요 핸들러 수로 올린다")
+                .isGreaterThanOrEqualTo(1);
+    }
+
     private record MappingMethod(String fileName, String methodName,
                                   boolean classLevelProtected, boolean methodLevelProtected) {}
 

@@ -7,18 +7,33 @@ import java.util.List;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
+import src.backend.global.common.enums.Role;
+
 /**
  * 인증된 사용자(요청 주체). SecurityContext 의 principal 로 들어가며,
  * 컨트롤러에서 {@code @AuthenticationPrincipal AuthUser} 로 주입받는다.
  *
- * <p>계정 1개가 학원 1곳에 속하는 단일 소속 모델로 축소했다 — 옛 {@code User}↔{@code Tenant} N:M
- * 멤버십 목록은 더 이상 없고 {@code academyId} 하나뿐이다. 역할 타입화(Role enum)와
- * 계정 상태({@code PENDING} 등) 게이트는 규칙 `AUTH-02` 재작성 대상(Phase 2)이라 여기 없다.
+ * <p>계정 1개가 학원 1곳에 속하는 단일 소속 모델이다 — 옛 {@code User}↔{@code Tenant} N:M
+ * 멤버십 목록은 없고 {@code academyId} 하나뿐이다. {@code role} 은 문자열이 아니라 {@link Role}
+ * 이라 오탈자·대소문자 혼용이 컴파일 에러가 되고, {@code RolePermissions} 부여표·
+ * {@code hasAuthority(...)} 애너테이션과 같은 상수만 참조한다.
+ *
+ * <p>{@code academyId} 가 null 인 것은 {@link Role#SYSTEM_ADMIN} 뿐이라는 사실을 컴팩트 생성자로
+ * 강제한다 — {@code ck_account_academy_scope} DB 제약(V1__init_schema.sql)과 동일한 조건이라,
+ * 이 제약을 위반하는 행이 있다면 DB 에 들어가기 전에 여기서 먼저 걸린다. system_admin 이
+ * academyId 를 가지는 것까지 막지는 않는다 — DB 제약 자체가 그것까지는 금지하지 않는다.
  *
  * <p>{@link Principal}도 구현해 STOMP 세션(CONNECT 시 1회 인증)의 사용자로도 그대로 쓴다 —
  * REST 요청 인증과 WebSocket 세션 인증이 같은 타입을 공유한다.
  */
-public record AuthUser(Long accountId, Long academyId, String role) implements Principal {
+public record AuthUser(Long accountId, Long academyId, Role role) implements Principal {
+
+    public AuthUser {
+        if (role != Role.SYSTEM_ADMIN && academyId == null) {
+            throw new IllegalStateException(
+                    "system_admin 이 아닌 역할은 academyId 가 null 일 수 없다(ck_account_academy_scope): role=" + role);
+        }
+    }
 
     /** {@link Principal#getName()} — STOMP 세션 등 Principal 이 필요한 곳에서 식별자로 쓴다. */
     @Override
@@ -28,6 +43,11 @@ public record AuthUser(Long accountId, Long academyId, String role) implements P
 
     /** ROLE_* authority 단일 값(멤버십이 여러 개이던 옛 모델과 달리 항상 정확히 하나). */
     public Collection<GrantedAuthority> authorities() {
-        return List.of(new SimpleGrantedAuthority("ROLE_" + role));
+        return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
+    }
+
+    /** 플랫폼 전역 범위(학원 격리 예외) 여부 — {@code academyId == null} 을 여기저기서 직접 비교하지 않게 한다. */
+    public boolean hasPlatformScope() {
+        return role == Role.SYSTEM_ADMIN;
     }
 }
