@@ -632,8 +632,8 @@ void 확정_시각이_도래하면_idle_회차가_confirmed_로_전이한다() {
 
 **완료 조건**
 - Swagger 에서 흐름 완주: 학원 검색 → 가입 → `pending` 상태 조회 → (승인은 Phase 3) → 로그인 → 토큰 재발급 → 로그아웃
-- `pending` 토큰으로 허용 2개 외 API 호출 시 전부 `403 AUTH_PENDING`
-- `rejected` 토큰은 3개까지 허용
+- `pending` 토큰으로 허용 **5개**(`GET /auth/signup-status` · `POST /auth/logout` · `GET /me` · `POST /me/devices` · `DELETE /me/devices/{token}`) 외 API 호출 시 전부 `403 AUTH_PENDING`
+- `rejected` 토큰은 **6개**까지 허용(`pending` 의 5개 + `POST /auth/signup/reapply`), 거부 시 `403 AUTH_REJECTED`
 - `blocked` 계정 로그인 시 `403 AUTH_ACCOUNT_BLOCKED`
 - 로그인 실패 누적이 상한에 도달하면 계정 단위 차단, 성공 시 카운터 초기화
 - A학원 `staff` 토큰으로 B학원 자원 조회 시 `403 ACADEMY_SCOPE_VIOLATION` — **목록 조회에서도 성립**
