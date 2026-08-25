@@ -152,7 +152,7 @@ class RefreshTokenRepositoryTest {
      * (보완 리뷰 Minor #3).
      *
      * <p>클래스 트랜잭션을 걷어냈으므로 이 메서드가 만든 행은 테스트 종료 후에도 롤백되지 않는다 —
-     * 재실행(스위트를 두 번 연속 돌리는 검증 포함) 시 UNIQUE 제약과 충돌하지 않도록 {@code finally}
+     * 재실행(테스트 전체 묶음을 두 번 연속 돌리는 검증 포함) 시 UNIQUE 제약과 충돌하지 않도록 {@code finally}
      * 에서 직접 지운다.
      */
     @Test
