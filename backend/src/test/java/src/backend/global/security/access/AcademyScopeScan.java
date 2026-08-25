@@ -24,9 +24,10 @@ import jakarta.persistence.Table;
  * {@link AcademyScopeRepositoryConventionTest} 가 쓰는 <b>수집 전담</b> 도우미 — 무엇이 규칙
  * 위반인지는 여기서 판정하지 않는다.
  *
- * <p>규칙(ERD §6.1 표 · 좁혀짐의 정의 · 예외 목록)과 수집(엔티티·저장소·소스 텍스트 긁기)을 가른
- * 이유는 바뀌는 축이 다르기 때문이다 — 규칙은 사양이 바뀔 때, 수집은 패키지 구조나 빌드 배치가
- * 바뀔 때 바뀐다. 한 클래스에 두면 사양 변경 때마다 스캔 코드를 함께 읽어야 한다.
+ * <p>규칙과 수집(엔티티·저장소·소스 텍스트 긁기)을 가른 이유는 바뀌는 축이 다르기 때문이다 —
+ * 수집은 패키지 구조나 빌드 배치가 바뀔 때 바뀌고, 규칙은 그와 무관하게 바뀐다. 규칙 쪽도 다시
+ * 둘로 갈라 <b>ERD §6.1 표와 단언</b>은 {@link AcademyScopeRepositoryConventionTest},
+ * <b>좁혀짐·전건 조회의 정의</b>는 {@link AcademyScopeRule} 이 갖는다.
  *
  * <p>리플렉션과 소스 텍스트를 함께 쓴다 — 반환 타입·애너테이션은 리플렉션이 정확하고, 호출부
  * ({@code findAll()} 사용 여부)는 컴파일된 클래스만으로는 필드 이름과 이어 붙이기 어렵다.
@@ -43,7 +44,12 @@ final class AcademyScopeScan {
     private AcademyScopeScan() {
     }
 
-    /** {@code repository} 패키지의 Spring Data 저장소 인터페이스 전부. */
+    /**
+     * {@code repository} 패키지의 Spring Data 저장소 인터페이스 전부.
+     *
+     * <p>패키지 <b>이름</b>에 결합돼 있어 저장소를 다른 이름의 패키지로 옮기면 결과가 공집합이 된다.
+     * 호출하는 테스트가 {@code 학원_범위_저장소가_최소_9개_수집된다} 로 정수 하한을 둬 그 감소를 잡는다.
+     */
     static List<Class<?>> repositoryInterfaces() {
         return classesUnder("repository").stream()
                 .filter(Repository.class::isAssignableFrom)

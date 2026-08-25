@@ -26,7 +26,9 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
      * <p>조건이 {@code ix_refresh_token_account_active}(부분 인덱스, {@code WHERE revoked_at IS NULL})
      * 와 정확히 일치해야 그 인덱스를 탄다 — {@code revokedAt IS NULL} 을 빼면 전체 스캔으로 떨어진다.
      */
-    @AcademyScopeExempt(reason = "§2.8 계정 단위 전량 무효화 — 대상이 계정 하나라 학원 범위가 판정에 개입 부재")
+    @AcademyScopeExempt(reason = "§2.8 계정 단위 전량 무효화 — 대상이 계정 하나라 학원 범위가 판정에 개입 부재. "
+            + "호출부가 인증·본인확인을 마치고 특정한 계정의 id 만 넘긴다는 전제 — 요청 파라미터의 accountId 를 "
+            + "그대로 넘기면 타 학원 계정의 토큰 목록을 열람할 수 있다(revokeAllValidByAccountId 와 같은 전제)")
     List<RefreshToken> findAllByAccountIdAndRevokedAtIsNull(Long accountId);
 
     /**
