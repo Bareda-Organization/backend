@@ -53,6 +53,11 @@ public class LoginCommandService {
      * {@code pending}·{@code rejected} 도 로그인은 성공한다(API_SPEC §2.5) — 접근 범위 축소는
      * 계정 상태 게이트(§1.4)가 별도로 담당한다. 이 메서드는 자격 증명과 차단 여부만 본다.
      *
+     * <p>미등록 {@code login_id} 도 존재하는 계정의 첫 실패와 <b>본문 형태가 같아야 한다</b> —
+     * {@code details.remaining_attempts} 를 한쪽에만 실으면 상태 코드가 같아도 그 유무로 계정 존재
+     * 여부를 가려낼 수 있다(계정 열거, 리뷰 라운드 1 I5). 미등록에는 누적할 카운터가 없으므로
+     * "아직 한 번도 실패하지 않은 계정" 과 같은 값인 {@link Account#MAX_FAILED_ATTEMPTS} 를 싣는다.
+     *
      * <p>실패 시 {@link Account#recordLoginFailure} 가 상한 도달을 판정해 {@code blocked} 로
      * 전이시키면, 그 즉시 계정의 유효 refresh 토큰을 전량 무효화한다 — API_SPEC §1.2 는 "차단 시
      * 무효화"만 적고 트리거를 명시하지 않는데, 이 로그인 경로에서의 차단도 그 트리거에 포함시킨
@@ -61,7 +66,8 @@ public class LoginCommandService {
     @Transactional
     public LoginResult login(String loginId, String rawPassword) {
         Account account = accountRepository.findByLoginId(loginId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_CREDENTIALS));
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_CREDENTIALS,
+                        new LoginFailureDetail(Account.MAX_FAILED_ATTEMPTS)));
         account.assertNotBlocked();
 
         OffsetDateTime now = OffsetDateTime.now(clock);

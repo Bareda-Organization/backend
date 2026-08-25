@@ -34,8 +34,15 @@ import src.backend.global.error.ErrorCode;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Account extends BaseTimeEntity {
 
-    /** 로그인 실패 상한(C-11) — 도달하면 계정을 차단한다. {@code ck_account_failed_attempts} CHECK(0~5)와 같은 값이다. */
-    private static final int MAX_FAILED_ATTEMPTS = 5;
+    /**
+     * 로그인 실패 상한(C-11) — 도달하면 계정을 차단한다. {@code ck_account_failed_attempts} CHECK(0~5)와
+     * 같은 값이다.
+     *
+     * <p>{@code public} 인 이유는 미존재 계정의 실패 응답이 이 값을 그대로 실어야 하기 때문이다
+     * (리뷰 라운드 1 I5) — 존재하는 계정의 첫 실패와 응답 형태를 맞추지 않으면 {@code details} 유무만
+     * 보고 계정 존재 여부를 가려낼 수 있다.
+     */
+    public static final int MAX_FAILED_ATTEMPTS = 5;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

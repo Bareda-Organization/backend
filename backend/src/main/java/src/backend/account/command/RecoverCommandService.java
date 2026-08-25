@@ -53,7 +53,19 @@ public class RecoverCommandService {
         this.clock = clock;
     }
 
-    @Transactional
+    /**
+     * {@code noRollbackFor} 가 이 경로의 안전장치다 — 코드 대조에 실패하면
+     * {@code VERIFICATION_CODE_INVALID} 를 던지는데, 기본 규칙대로 롤백하면 방금 올린
+     * {@code attempt_count} 가 함께 사라져 상한이 영원히 도달하지 않는다. 그러면 공격자는 6자리
+     * 코드를 무제한 대조할 수 있고, 성공 즉시 응답 본문의 임시 비밀번호로 계정을 가져간다
+     * (리뷰 라운드 1 C1). 커밋을 유지해야 누적이 남는다.
+     *
+     * <p>이 메서드가 던지는 {@link BusinessException} 중 나머지 셋({@code VALIDATION_FAILED} ·
+     * {@code ACCOUNT_NOT_FOUND} · 코드 부재)은 전부 쓰기 이전 지점에서 나므로 커밋해도 남는 변경이
+     * 부재하다. <b>이 메서드에 쓰기를 추가하는 사람은 그 전제가 유지되는지 먼저 확인해야 한다</b> —
+     * 확인 없이 얹으면 실패 응답을 받은 요청이 절반만 반영된 상태로 커밋된다.
+     */
+    @Transactional(noRollbackFor = BusinessException.class)
     public RecoverResponse recover(String rawType, String phone, String submittedCode) {
         VerificationPurpose purpose = parsePurpose(rawType);
         Account account = accountRepository.findByPhone(phone)
@@ -66,20 +78,35 @@ public class RecoverCommandService {
         return verifyAndRecover(account, phone, purpose, submittedCode, now);
     }
 
-    /** 인증 코드 미전달 = 발송 요청(API_SPEC §2.9) — 새 코드를 발급해 저장한다. */
+    /**
+     * 인증 코드 미전달 = 발송 요청(API_SPEC §2.9) — 새 코드를 발급해 저장한다.
+     *
+     * <p>저장 전에 같은 연락처·목적의 미소비 코드를 전부 무효화한다 — 재발급으로 대조 상한을
+     * 우회하는 경로를 막는 조치이며, 상한 자체({@code VerificationCode.MAX_ATTEMPTS})의 성립 조건이다
+     * (리뷰 라운드 1 C1-④).
+     */
     private RecoverResponse sendCode(String phone, VerificationPurpose purpose, OffsetDateTime now) {
+        verificationCodeRepository.invalidateUnconsumedByPhoneAndPurpose(phone, purpose, now);
         String code = generateNumericCode();
         verificationCodeRepository.save(
                 VerificationCode.issue(phone, code, purpose, now.plusMinutes(CODE_VALIDITY_MINUTES), now));
         return RecoverResponse.ofCodeSent();
     }
 
+    /**
+     * 코드 대조 실패도 {@code attempt_count} 를 남겨야 하므로, 판정은 예외가 아니라
+     * {@link VerificationCode#verify} 의 반환값으로 받는다 — 던지는 자리는 여기 한 곳이고, 그
+     * 시점에는 누적이 이미 엔티티에 반영돼 있다({@link #recover} 의 {@code noRollbackFor} 가 그
+     * 반영분을 커밋한다).
+     */
     private RecoverResponse verifyAndRecover(Account account, String phone, VerificationPurpose purpose,
             String submittedCode, OffsetDateTime now) {
         VerificationCode latest = verificationCodeRepository
                 .findTopByPhoneAndPurposeOrderByCreatedAtDesc(phone, purpose)
                 .orElseThrow(() -> new BusinessException(ErrorCode.VERIFICATION_CODE_INVALID));
-        latest.assertValid(submittedCode, now);
+        if (!latest.verify(submittedCode, now)) {
+            throw new BusinessException(ErrorCode.VERIFICATION_CODE_INVALID);
+        }
         latest.consume(now);
 
         if (purpose == VerificationPurpose.LOGIN_ID) {
