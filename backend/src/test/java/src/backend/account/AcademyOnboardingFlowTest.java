@@ -78,6 +78,8 @@ class AcademyOnboardingFlowTest {
         long academyId = ((Number) JsonPath.read(본문(등록), "$.data.academy_id")).longValue();
         String academyCode = JsonPath.read(본문(등록), "$.data.code");
 
+        가입_경로에서_찾을_수_있다(academyCode, academyId);
+
         가입한다("staff", "p3t2flowstaff", "010-0000-6001", academyId);
         long 관계자_요청 = 관계자_요청_식별자(adminToken, academyCode);
 
@@ -124,6 +126,21 @@ class AcademyOnboardingFlowTest {
     }
 
     // ── 도우미 ────────────────────────────────────────────────────────────
+
+    /**
+     * 서버가 생성한 학원 코드로 가입용 검색을 부르고, 나온 학원이 방금 등록한 그 학원인지 본다.
+     *
+     * <p>등록 응답의 {@code code} 를 뒤 단계가 목록 대조(어느 요청이 이 학원 것인가)에만 쓰면 코드
+     * 생성기가 <b>실제 가입 경로</b>에 닿는지는 아무도 검사하지 않는다 — 학부모·관계자가 학원을 고르는
+     * 유일한 수단이 이 검색이라(API_SPEC §2.1), 코드가 검색에 걸리지 않으면 등록한 학원에 아무도
+     * 가입할 수 없다. 식별자까지 대조해야 "같은 이름의 다른 학원이 나온" 경우와 갈린다.
+     */
+    private void 가입_경로에서_찾을_수_있다(String academyCode, long academyId) throws Exception {
+        mockMvc.perform(get("/api/v1/academies/search").param("q", academyCode))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].id").value(String.valueOf(academyId)));
+    }
 
     private String 로그인한다(String loginId, String password, String expectedStatus) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
