@@ -15,14 +15,16 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import src.backend.global.common.enums.Role;
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
 
 /**
  * 회원가입 승인 요청 — 계정 생성과 활성화를 분리하는 승인 큐다. 재신청은 새 행을 쌓아 처리
  * 이력을 남긴다(ERD §3.1 · AUTH-01·03·10 · ACAD-05 · C-01).
  *
  * <p>{@code created_at}/{@code updated_at} 쌍이 없어 {@code BaseTimeEntity} 를 상속하지 않는다
- * ({@code requested_at} 만 존재). Phase 1 은 필드 매핑까지이므로 승인·거절 시점에 채워지는
- * {@code decided_by}/{@code decided_at}/{@code reject_reason} 은 이 태스크에서 값을 넣지 않는다.
+ * ({@code requested_at} 만 존재). {@code decided_by}/{@code decided_at}/{@code reject_reason} 은
+ * {@link #accept}/{@link #reject} 가 채운다.
  */
 @Entity
 @Table(name = "signup_request")
@@ -84,5 +86,38 @@ public class SignupRequest {
     public static SignupRequest uponSubmission(Long academyId, Long accountId, Role requestedRole,
             ApproverType approverType, OffsetDateTime requestedAt) {
         return new SignupRequest(academyId, accountId, requestedRole, approverType, requestedAt);
+    }
+
+    /**
+     * 아직 처리되지 않은 건인지 확인한다 — 아니면 {@code 409 APPROVAL_ALREADY_DECIDED}(API_SPEC §5.2·§6.5).
+     *
+     * <p>{@link #accept}/{@link #reject} 안에도 같은 확인이 있지만 승인 서비스가 <b>먼저</b> 부른다 —
+     * 수락 경로는 마감 전에 레코드 연결·정원 판정을 하므로, 여기서 걸러 두지 않으면 이미 처리된 건에
+     * 대해 {@code 422 LINK_REQUIRED} 같은 다른 코드가 먼저 나가 원인이 뒤바뀐다.
+     */
+    public void assertPending() {
+        if (status != SignupRequestStatus.PENDING) {
+            throw new BusinessException(ErrorCode.APPROVAL_ALREADY_DECIDED);
+        }
+    }
+
+    /** 수락으로 마감한다(AUTH-10 · ACAD-05) — 처리자·일시를 함께 적재해 승인 이력을 남긴다. */
+    public void accept(Long decidedBy, OffsetDateTime decidedAt) {
+        assertPending();
+        this.status = SignupRequestStatus.ACCEPTED;
+        this.decidedBy = decidedBy;
+        this.decidedAt = decidedAt;
+    }
+
+    /**
+     * 거절로 마감한다(AUTH-10 · ACAD-05) — 사유는 대기 화면이 그대로 보여 주므로(API_SPEC §1.4)
+     * 호출자가 비워 둘 수 없다.
+     */
+    public void reject(Long decidedBy, OffsetDateTime decidedAt, String rejectReason) {
+        assertPending();
+        this.status = SignupRequestStatus.REJECTED;
+        this.decidedBy = decidedBy;
+        this.decidedAt = decidedAt;
+        this.rejectReason = rejectReason;
     }
 }

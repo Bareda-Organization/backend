@@ -159,6 +159,30 @@ public class Account extends BaseTimeEntity {
     }
 
     /**
+     * 가입 요청이 수락되어 계정을 활성화한다(AUTH-10 · API_SPEC §5.2·§6.5).
+     *
+     * <p>{@code pending} 이 아니면 {@link BusinessException}({@code APPROVAL_ALREADY_DECIDED}) —
+     * 승인 큐의 요청 행과 계정 상태가 어긋난 건을 통과시키면 차단·거절된 계정이 승인 경로로 되살아난다.
+     * 요청 행 쪽 확인({@code SignupRequest#assertPending})과 겹쳐 보이지만 보는 대상이 다르다.
+     */
+    public void approveSignup() {
+        assertAwaitingDecision();
+        this.status = AccountStatus.ACTIVE;
+    }
+
+    /** 가입 요청이 거절되어 계정을 {@code rejected} 로 만든다(AUTH-10 · §5.2·§6.5) — 재신청은 이 상태에서만 열린다. */
+    public void rejectSignup() {
+        assertAwaitingDecision();
+        this.status = AccountStatus.REJECTED;
+    }
+
+    private void assertAwaitingDecision() {
+        if (status != AccountStatus.PENDING) {
+            throw new BusinessException(ErrorCode.APPROVAL_ALREADY_DECIDED);
+        }
+    }
+
+    /**
      * 로그인 실패를 1회 누적한다(API_SPEC §2.5 · C-11) — 누적치가 상한에 도달하면 즉시 {@code blocked}
      * 로 전이한다. 도달 전까지는 카운터만 올리고 상태는 바꾸지 않는다.
      *
