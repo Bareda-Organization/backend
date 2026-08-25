@@ -161,9 +161,10 @@ public class Account extends BaseTimeEntity {
     /**
      * 가입 요청이 수락되어 계정을 활성화한다(AUTH-10 · API_SPEC §5.2·§6.5).
      *
-     * <p>{@code pending} 이 아니면 {@link BusinessException}({@code APPROVAL_ALREADY_DECIDED}) —
-     * 승인 큐의 요청 행과 계정 상태가 어긋난 건을 통과시키면 차단·거절된 계정이 승인 경로로 되살아난다.
-     * 요청 행 쪽 확인({@code SignupRequest#assertPending})과 겹쳐 보이지만 보는 대상이 다르다.
+     * <p>요청 행 쪽 확인({@code SignupRequest#assertPending})과 겹쳐 보이지만 보는 대상이 다르다 —
+     * 그쪽은 "이 요청이 처리됐나", 이쪽은 "이 계정이 지금 승인을 받을 수 있는 상태인가" 다. 둘이
+     * 갈리는 실제 경로가 있다: {@code pending} 계정도 로그인은 되므로(§1.4) 승인을 기다리는 동안
+     * 실패 5회로 {@code blocked} 가 될 수 있고, 그때 요청은 여전히 대기 중이다.
      */
     public void approveSignup() {
         assertAwaitingDecision();
@@ -176,7 +177,21 @@ public class Account extends BaseTimeEntity {
         this.status = AccountStatus.REJECTED;
     }
 
+    /**
+     * 승인·거절을 받을 수 있는 상태인지 본다 — 두 경우를 <b>다른 코드로</b> 가른다.
+     *
+     * <p>{@code blocked} 는 {@code AUTH_ACCOUNT_BLOCKED}(403)다. 통과시키면 승인이 차단을 조용히
+     * 풀어, 로그인 실패 5회로 잠긴 계정이 관계자 승인 한 번으로 되살아난다 — 해제 권한은 메인
+     * 관리자에게만 있다(AUTH-06 · C-11). {@code APPROVAL_ALREADY_DECIDED} 로 뭉뚱그리면 화면에
+     * "이미 처리된 요청" 이 뜨는데 그 건은 큐에 그대로 남아 있어, 관계자가 원인을 찾을 수단이 부재하다.
+     *
+     * <p>그 밖의 비-{@code pending}({@code active}·{@code rejected})은 요청 행과 계정이 어긋난
+     * 상태이므로 {@code APPROVAL_ALREADY_DECIDED} 다.
+     */
     private void assertAwaitingDecision() {
+        if (status == AccountStatus.BLOCKED) {
+            throw new BusinessException(ErrorCode.AUTH_ACCOUNT_BLOCKED);
+        }
         if (status != AccountStatus.PENDING) {
             throw new BusinessException(ErrorCode.APPROVAL_ALREADY_DECIDED);
         }

@@ -252,6 +252,32 @@ class SignupApprovalControllerTest {
                 .isTrue();
     }
 
+    /**
+     * 승인 대기 중 차단된 계정은 승인으로 되살아나지 않는다 — {@code 403 AUTH_ACCOUNT_BLOCKED}.
+     *
+     * <p>{@code pending} 계정도 로그인은 되므로(§1.4) 승인을 기다리는 동안 실패 5회로
+     * {@code blocked} 가 될 수 있고, 그때 가입 요청은 여전히 대기 중이라 관계자 큐에 남아 있다.
+     * 승인이 통과하면 <b>차단이 조용히 풀린다</b> — 해제 권한은 메인 관리자에게만 있다(AUTH-06).
+     *
+     * <p>이 단언은 음성 대조에서 나왔다(변형 M13) — 계정 쪽 상태 확인을 통째로 지워도 요청 행 쪽
+     * 확인이 남아 다른 단언이 전부 통과했다. 두 확인이 보는 대상이 다르다는 것을 고정한다.
+     */
+    @Test
+    @Sql(statements = {
+            "INSERT INTO signup_request (account_id, academy_id, requested_role, approver_type, status, "
+                    + "requested_at) VALUES ((SELECT id FROM account WHERE login_id = 'driverBlocked'), 1, "
+                    + "'driver', 'staff', 'pending', now())"
+    })
+    void 승인_대기_중_차단된_계정을_수락하려_하면_403_AUTH_ACCOUNT_BLOCKED_다() throws Exception {
+        처리한다(요청_식별자("driverBlocked"), ACADEMY_A, "{\"accept\": true, \"link\": {\"manager_id\": 7}}")
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("AUTH_ACCOUNT_BLOCKED"));
+
+        assertThat(계정_상태(계정_식별자("driverBlocked")))
+                .as("승인이 차단을 풀면 실패 5회로 잠긴 계정이 관계자 승인 한 번으로 되살아난다")
+                .isEqualTo("blocked");
+    }
+
     // ── AUTH-11 계정 ↔ 레코드 연결 ─────────────────────────────────────────
 
     /**
