@@ -170,9 +170,29 @@ cd backend
 
 ---
 
+## task-gate-reviewer
+
+- **입력 4종은 조율자가 파일 경로로 준다** — 브리프 · 구현자 보고서 · diff 패키지(`커밋목록 + stat + -U10` 을 한 파일에) · 전역 제약. 하나라도 없으면 `BLOCKED`
+- **이 저장소의 사양 정본은 `docs/` 다.** 브리프·재료 문서와 `docs/` 가 어긋나면 `docs/` 가 이긴다. 재료 문서 `.superpowers/sdd/IMPLEMENTATION_PLAN/phase1-*.md` 는 **조사 산출물이라 낡은 값을 포함**한다 — 그것을 근거로 지적하지 마라
+- **코드 컨벤션 근거는 `backend/docs/reference.md` §19·§20** 이다. §19 는 "기본 한 문장, 둘째 문장은 다른 질문에 답할 때만" 이며 **문장 수를 세어 결함으로 매기지 않는다**(2026-08-25 개정)
+- **TDD 사이클(RED 선관측)의 적용 경계는 `docs/IMPLEMENTATION_PLAN.md §4.6.4`** — 마이그레이션 SQL · `application.yml` 같은 선언과 **엔티티 필드 매핑**은 미적용, 판정 로직과 대조 테스트는 적용. 조율자가 태스크마다 경계를 지정하므로 그것을 우선한다
+- 결과는 응답에 담는다. 별도 보고서 파일을 만들지 않는다 (조율자가 원장에 옮긴다)
+
+---
+
+## goal-verifier
+
+- **작업 디렉터리는 `backend/`.** Gradle wrapper 사용
+- **`./gradlew clean` 을 쓰지 마라** — 여러 에이전트가 Gradle 데몬을 공유한다. 재실행이 필요하면 `--rerun-tasks`
+- **`bootRun` 은 포트 8080 고정**이라 공유 자원이다. 목표 표가 명시적으로 요구할 때만 띄우고, 끝나면 종료 후 `lsof -i :8080` 으로 해제를 확인한다
+- **Docker 는 목표 표가 지시할 때만 만진다.** `docker compose down` 은 로컬 postgres 를 시드 상태로 되돌리는 정상 절차이나 다른 에이전트의 컨테이너도 함께 죽인다. **`-v` 는 어떤 경우에도 붙이지 마라**
+- **테스트 결과 집계는 `backend/build/test-results/test/TEST-*.xml` 의 `tests=`·`failures=`·`errors=` 를 직접 세는 편이 정확하다** — 콘솔 요약보다 신뢰할 수 있고 클래스별로 갈린다
+
+---
+
 ## diff-reviewer
 
-- **기준 브랜치: `main`.** `origin/HEAD`가 설정돼 있지 않으므로 `git symbolic-ref`에 의존하지 말고 `main`을 직접 쓴다. 현재 원격 추적 브랜치 구성이 없으니 `git diff main...HEAD`가 아니라 작업 트리 diff 기준으로 보는 편이 안전하다.
+- **기준 브랜치: `main`.** 2026-08-25 재확인 — `git symbolic-ref --short refs/remotes/origin/HEAD` 가 이제 `origin/main` 을 정상 반환한다(이전 기록의 "무조건 실패" 는 낡음). 다만 값이 `main` 이므로 결과는 같다.
 - **코드 그래프 도구 있음**: 루트 `.tokensave/`. 영향범위 확인은 `tokensave_impact` / `tokensave_callers` / `tokensave_affected` 를 쓰고 Explore agent를 띄우지 않는다. 툴로 부족하면 `.tokensave/tokensave.db`(테이블 `nodes`·`edges`·`files`)에 SQL로 직접 질의.
 - **리뷰 시 함께 볼 것**:
   - 엔티티 변경이 스키마에 반영됐는가(`ddl-auto: validate`라 없으면 기동 자체가 실패한다). **반영 방식은 첫 배포 이전인 현재 `V1__init_schema.sql` 직접 수정 + 로컬 DB 재구성**이다 — 위 `convention-auditor` 절 참조.
@@ -208,7 +228,7 @@ cd backend
 작업 중 발견한 이 저장소 특유의 함정을 누적한다. 근거(파일:라인, 명령, 날짜)를 같이 남긴다. **날짜가 붙은 항목은 그 시점의 기록**이라 대상 파일이 이후 삭제됐을 수 있다 — 교훈만 취한다.
 
 - **2026-07-28** *(대상 문서 `MVP_API_SPEC.md` 는 이후 삭제 — 교훈만 유효)* — `MVP_API_SPEC.md:503`(§8 비고)이 "버스 위치는 Mock 소스가 없어 기사가 직접 보고해야 한다"고 서술하지만 **사실과 반대**다. `location/source/MockBusLocationSource.java:20,32`가 `app.location.bus-mock.enabled` 기본 `true`(`application.yml:60-61`)로 3초마다 버스 좌표를 자동 생성한다. 같은 문서 `:171`(`"origin":"MOCK"`)·`:191`과도 모순. **문서를 근거로 위치 기능 동작을 판단하면 틀린다.**
-- **2026-07-28** — `git symbolic-ref --short refs/remotes/origin/HEAD` 가 실패한다(`origin/HEAD` 미설정). 기준 브랜치를 명령으로 얻으려는 절차는 이 저장소에서 무조건 실패하므로 `main` 을 직접 쓴다.
+- ~~**2026-07-28** — `git symbolic-ref --short refs/remotes/origin/HEAD` 가 실패한다~~ → **2026-08-25 해소.** 같은 명령이 `origin/main` 을 정상 반환한다. 그 사이에 `origin/HEAD` 가 설정된 것으로 보인다. **낡은 함정 항목을 근거로 절차를 건너뛰지 마라 — 명령으로 확인하는 편이 맞다.**
 - **2026-07-28** — 문서 검증 에이전트에게 문서만 지정하면 **`backend/report/` 의 기존 보고서를 먼저 찾아 읽는다**(`docs-drift-auditor` 실측). 그러면 "기존 지적 N건 재현"이 독립 재현이 아니게 된다. 교차검증이 목적이면 프롬프트에 **기존 보고서 열람 금지**를 명시한다.
 - **2026-07-28** — 문서 검증은 **문서 전체를 한 에이전트에 맡기지 말고 섹션별로 쪼개 병렬로 돌린다.** `MVP_API_SPEC.md` 실측: 전체 패스 1개 = 신규 1건 / 섹션 패스 3개 = 신규 11건. 전체 패스는 계약 일치 여부 확인용으로만 쓴다.
 - **2026-07-28** — 전역 `rtk` hook 이 `grep`·`ls` 출력을 압축해 내용을 삼키는 경우가 있다(`grep -n '^#' reference.md` → `19 matches in 0 files` 만 출력). 파일 목차·목록을 확보할 땐 Read 툴을 쓰거나 `rtk proxy '<원본명령>'` 으로 우회한다.
