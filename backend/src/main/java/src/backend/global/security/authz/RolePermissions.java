@@ -20,15 +20,12 @@ import src.backend.global.common.enums.Role;
  * 허용하면 다음 사람이 역할 간 상속을 추가하는 순간 하위 역할 전용 권한이 상위 역할에게 조용히
  * 열린다(FEATURE_SPEC §6.2, reference.md §3). {@code RolePermissionsTest} 가 이를 고정한다.
  *
- * <h2>배선 — {@code SecurityConfig} 는 이 태스크가 고치지 않는다</h2>
+ * <h2>배선 — {@code SecurityConfig.roleHierarchy()}</h2>
  *
- * <p>{@code SecurityConfig.roleHierarchy()} 는 이 부여표가 옛 5역할 모델과 함께 삭제됐던 동안의
- * 자리표시자로 빈 계층({@code RoleHierarchyImpl.fromHierarchy("")})을 반환하는 채로 남아 있다.
- * {@code SecurityConfig} 는 계정 상태 게이트 태스크(Task 2)가 단독 소유해 여기서 고치지 않았다
- * (조율자 Ruling 71). 이 필드가 다시 생겼으니 {@code roleHierarchy()} 반환문을
- * {@code RoleHierarchyImpl.fromHierarchy(RolePermissions.HIERARCHY)} 로 바꾸는 한 줄이 남아
- * 있다 — 그 전까지는 컨트롤러의 {@code hasAuthority(...)} 평가가 전부 거부로 떨어진다
- * (자세한 내용은 p2-task-1-report.md).
+ * <p>{@code SecurityConfig.roleHierarchy()} 가 이 필드를 읽어 빈으로 등록한다(Phase 2 Task 3,
+ * Ruling 76). 그 배선이 없으면 컨트롤러의 {@code hasAuthority(...)} 평가가 전부 거부로 떨어져
+ * <b>모든 인가 애너테이션이 403 을 낸다</b> — 부여표가 비어 있는 것과 배선이 빠진 것은 증상이 같다.
+ * 이 필드를 옮기거나 이름을 바꾸면 그 한 곳을 함께 고친다(자세한 경위는 p2-task-1-report.md).
  */
 public final class RolePermissions {
 

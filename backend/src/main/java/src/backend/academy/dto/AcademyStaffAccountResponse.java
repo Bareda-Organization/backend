@@ -1,7 +1,8 @@
 package src.backend.academy.dto;
 
+import java.util.Locale;
+
 import src.backend.academy.entity.AcademyStaff;
-import src.backend.academy.entity.StaffStatus;
 import src.backend.account.entity.Account;
 
 /**
@@ -13,10 +14,10 @@ import src.backend.account.entity.Account;
  *               둘은 생명주기가 달라, 계정은 살아 있는데 그 학원에서는 퇴사한 상태가 존재한다
  */
 public record AcademyStaffAccountResponse(Long accountId, String name, String loginId, String phone,
-        StaffStatus status) {
+        String status) {
 
     public static AcademyStaffAccountResponse from(AcademyStaff staff, Account account) {
         return new AcademyStaffAccountResponse(account.getId(), account.getName(), account.getLoginId(),
-                account.getPhone(), staff.getStatus());
+                account.getPhone(), staff.getStatus().name().toLowerCase(Locale.ROOT));
     }
 }

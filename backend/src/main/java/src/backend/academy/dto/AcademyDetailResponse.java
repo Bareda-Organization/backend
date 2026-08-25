@@ -1,9 +1,9 @@
 package src.backend.academy.dto;
 
 import java.util.List;
+import java.util.Locale;
 
 import src.backend.academy.entity.Academy;
-import src.backend.academy.entity.AcademyStatus;
 
 /**
  * 학원 상세(API_SPEC §6.3 GET) — §6.1 항목에 주소·연락처·메모·관계자 목록·운영 지표를 더한 형태다.
@@ -13,14 +13,15 @@ import src.backend.academy.entity.AcademyStatus;
  * 정하고 있어 그쪽을 따랐다. 두 가지 일을 하고 있어서가 아니라 상세 화면 하나가 그만큼을 요구한다.
  */
 public record AcademyDetailResponse(Long id, String code, String name, String region,
-        long staffCount, long userCount, AcademyStatus status,
+        long staffCount, long userCount, String status,
         String address, String contact, String memo,
         List<AcademyStaffAccountResponse> staffAccounts, AcademyStatsResponse stats) {
 
     public static AcademyDetailResponse from(Academy academy, long staffCount, long userCount,
             List<AcademyStaffAccountResponse> staffAccounts) {
         return new AcademyDetailResponse(academy.getId(), academy.getCode(), academy.getName(),
-                academy.getRegion(), staffCount, userCount, academy.getStatus(),
+                academy.getRegion(), staffCount, userCount,
+                academy.getStatus().name().toLowerCase(Locale.ROOT),
                 academy.getAddress(), academy.getContact(), academy.getMemo(),
                 staffAccounts, AcademyStatsResponse.empty());
     }

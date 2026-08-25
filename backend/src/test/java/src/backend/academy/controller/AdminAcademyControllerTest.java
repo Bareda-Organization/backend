@@ -7,6 +7,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.nio.charset.StandardCharsets;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -17,8 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jayway.jsonpath.JsonPath;
 
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
@@ -44,9 +45,6 @@ class AdminAcademyControllerTest {
 
     @Autowired
     private JwtTokenProvider tokenProvider;
-
-    @Autowired
-    private ObjectMapper objectMapper;
 
     /**
      * 생성된 코드는 혼동 문자를 빼고 8자여야 한다(Ruling 140).
@@ -295,22 +293,22 @@ class AdminAcademyControllerTest {
         return "{\"name\":\"%s\",\"region\":\"%s\"}".formatted(name, region);
     }
 
-    private JsonNode 등록한다(String name, String region) throws Exception {
+    private String 등록한다(String name, String region) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/admin/academies")
                         .header("Authorization", 메인관리자_토큰())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(등록_본문(name, region)))
                 .andExpect(status().isCreated())
                 .andReturn();
-        return objectMapper.readTree(result.getResponse().getContentAsString()).path("data");
+        return 본문(result);
     }
 
     private String 등록하고_코드를_받는다(String name, String region) throws Exception {
-        return 등록한다(name, region).path("code").asText();
+        return JsonPath.read(등록한다(name, region), "$.data.code");
     }
 
     private long 등록하고_식별자를_받는다(String name, String region) throws Exception {
-        return 등록한다(name, region).path("academy_id").asLong();
+        return ((Number) JsonPath.read(등록한다(name, region), "$.data.academy_id")).longValue();
     }
 
     private void 비활성화한다(long academyId) throws Exception {
@@ -326,7 +324,7 @@ class AdminAcademyControllerTest {
                         .header("Authorization", 메인관리자_토큰()))
                 .andExpect(status().isOk())
                 .andReturn();
-        return objectMapper.readTree(result.getResponse().getContentAsString()).path("data").path("code").asText();
+        return JsonPath.read(본문(result), "$.data.code");
     }
 
     /** {@code @Sql} 로 심은 행의 식별자는 목록 조회로 되찾는다 — 자동 생성 키라 SQL 문에 적을 수 없다. */
@@ -336,7 +334,11 @@ class AdminAcademyControllerTest {
                         .param("q", code))
                 .andExpect(status().isOk())
                 .andReturn();
-        return objectMapper.readTree(result.getResponse().getContentAsString())
-                .path("data").path("items").get(0).path("id").asLong();
+        return ((Number) JsonPath.read(본문(result), "$.data.items[0].id")).longValue();
+    }
+
+    /** 응답 본문을 UTF-8 로 읽는다 — 기본 인코딩으로 읽으면 한글 필드가 깨져 대조가 어긋난다. */
+    private String 본문(MvcResult result) throws Exception {
+        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 }
