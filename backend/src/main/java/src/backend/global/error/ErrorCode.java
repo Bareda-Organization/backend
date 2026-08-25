@@ -27,7 +27,7 @@ public enum ErrorCode {
     // 미존재 계정 지정(API_SPEC §8.1) — 가입 상태 조회·재신청·본인 프로필 조회가 대상 계정을 못 찾을 때.
     ACCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "계정을 찾을 수 없습니다"),
     // 필수 필드 누락·형식 위반(API_SPEC §1.11) — Bean Validation·필수 쿼리 파라미터 부재가 공유한다.
-    VALIDATION_FAILED(HttpStatus.UNPROCESSABLE_ENTITY, "입력값이 올바르지 않습니다"),
+    VALIDATION_FAILED(HttpStatus.UNPROCESSABLE_CONTENT, "입력값이 올바르지 않습니다"),
     // 회원가입(AUTH-01)에서 login_id 중복(API_SPEC §2.2).
     DUPLICATE_LOGIN_ID(HttpStatus.CONFLICT, "이미 사용 중인 아이디입니다"),
     // 회원가입·재신청이 존재하지 않거나 비활성인 학원을 가리킬 때(API_SPEC §2.2·§2.4).

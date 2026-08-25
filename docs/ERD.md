@@ -1016,7 +1016,8 @@ erDiagram
 
 기준은 **"그 테이블을 학원 범위로 직접 조회하는가"**. 부모를 조인해야만 학원이 결정되는 테이블은 컬럼을 두지 않음.
 
-테넌트 루트인 **`academy` 자신은 두 분류 어디에도 속하지 않는다** — 아래 표는 나머지를 대상으로 함.
+테넌트 루트인 **`academy` 자신과 `system_admin` 은 두 분류 어디에도 속하지 않는다** — 아래 표는 나머지를 대상으로 함.
+`system_admin` 은 학원 소속이 부재한 전 학원 범위 계정이라 좁힐 학원 자체가 없다. **부모 경유로 세면 §6.2 의 소계 20 과 어긋난다**(21이 됨).
 
 | 구분 | 테이블 | 근거 |
 |---|---|---|
@@ -1033,7 +1034,6 @@ erDiagram
 | | `confirmed_route` · `route_version` · `run_stop` · `run_rider` · `assignment` · `waypoint` · `boarding_intent` · `run_position` | `run` 경유 |
 | | `no_show_case` · `no_show_contact` · `rider_status_history` | `run_rider` 경유 |
 | | `notification_setting` · `refresh_token` | `account` 경유 |
-| | `system_admin` | 학원 소속 부재 — 전 학원 범위 |
 
 ### 6.2 보유 여부가 스키마에 남기는 결과
 
