@@ -71,7 +71,7 @@
 | `global/config/OpenApiConfig` | **재작성** | 시드 설명·계정표가 옛 데이터 기준. §3 의 `SeedFixtures` 참조 방식으로 승격 |
 | `global/common/BaseTimeEntity` | **살림 · 타입 교체** | 생성·수정 시각 감사 필드. 현재 `LocalDateTime` 인데 `ERD §2` 가 전 시각 컬럼을 `timestamptz` 로 규정 — **`OffsetDateTime` 으로 교체**(`TECH_DECISIONS §6.1`). 이 클래스를 39개 엔티티가 상속하므로 Phase 1 착수 전에 바꿈 |
 | `global/common/ApprovalStatus` | **폐기** | 옛 도메인 enum. 새 상태값은 `API_SPEC §9.2` · `§9.6` |
-| `global/tenant/TenantGuard` | **패턴 살림 · 재작성** | "역할만으로 부족하다"는 판단은 `ARCHITECTURE §5.1` ③층과 동일. 다만 N:M 멤버십 전제라 코드는 재작성 |
+| `global/tenant/TenantGuard` | **패턴 살림 · 재작성** | "역할만으로 부족하다"는 판단은 `ARCHITECTURE §5.1` ③층과 동일. 다만 N:M 멤버십 전제라 코드는 재작성. **✅ 2026-08-25 Phase 2 Task 5 에서 이행** — `global/security/access/AcademyScope` 로 대체하고 원본은 삭제. 호출처 0건이었고 분기 4개 중 3개는 보존, 1개(academyId null 판정)는 `AuthUser` 컴팩트 생성자로 이동 |
 | `observability/` (aspect · metrics · listener) | **살림 · 구독 대상 교체** | `@Scheduled`·`@KafkaListener` 를 AOP 로 감싸 계측하는 방식은 `ARCHITECTURE §13.3` 의 "확정 배치 도래→완료 지연" 지표가 그대로 요구. 리스너의 구독 이벤트만 교체 |
 | `docker-compose.yml` · `docker-compose.prod.yml` · `infra/` | **살림** | postgres 영속 볼륨 부재 구성 · nginx TLS·프록시 · Prometheus/Grafana 스택이 `ARCHITECTURE §13` 과 일치 |
 | `docs/DEPLOYMENT.md` | **살림 · 갱신 대기** | 배포 절차는 유효. 시드 계정표는 §3 확정 후 갱신 |
