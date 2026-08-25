@@ -95,9 +95,11 @@
 
 | 상태 | 로그인 | API 접근 |
 |---|---|---|
-| `pending` | 성공 — 토큰 발급 | `GET /auth/signup-status` · `POST /auth/logout` **2개만**. 그 외 전 API `403 AUTH_PENDING` |
+| `pending` | 성공 — 토큰 발급 | `GET /auth/signup-status` · `POST /auth/logout` · **`GET /me`**(§2.10) · **`POST`·`DELETE /me/devices`**(§2.11). 그 외 전 API `403 AUTH_PENDING` |
 | `active` | 성공 | 역할별 권한 범위 |
-| `rejected` | 성공 | `pending` 의 2개 + `POST /auth/signup/reapply` **3개**. 대기 화면에 거절 사유 노출 — 재신청은 거절 이후에만 가능 |
+| `rejected` | 성공 | `pending` 의 것 + `POST /auth/signup/reapply` **1개 추가**. 대기 화면에 거절 사유 노출 — 재신청은 거절 이후에만 가능. 거부 시 `403 AUTH_REJECTED`(§8.1) |
+
+⚠ **2026-08-25 정정 — 이 표가 원래 `pending` 을 "2개만" 으로 적어 `§2.10`·`§2.11` 과 모순이었다.** 두 절이 각각 명시한다 — `§2.10` "**전 역할 공통이며 `pending`·`rejected` 도 호출 가능** — 대기 화면이 상태를 알아야 함", `§2.11` "**인증된 전 역할(`pending` 포함 — 승인 결과 알림이 대상)**". **두 절의 근거가 구체적이고 기능적이라 이쪽이 이긴다** — `/me` 가 없으면 앱 재실행 후 `role`·`status` 재취득 수단이 부재해 **대기 화면 분기 자체가 성립하지 않고**(`§2.6` 응답이 토큰 2개뿐), `/me/devices` 가 없으면 **승인 결과 푸시를 받을 단말이 등록되지 않는다.** "2개" 라는 수치는 그 두 절이 신설되기 전 판의 잔존으로 보인다.
 | `blocked` | 실패 `403 AUTH_ACCOUNT_BLOCKED` | 접근 부재 — 해제는 메인 관리자 |
 
 **판정 위치는 서버 인가 계층** (C-01 · FEATURE_SPEC §3.6). 채택 근거는 PRD §6.4.
@@ -1776,8 +1778,9 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 |---|:-:|---|
 | `INVALID_CREDENTIALS` | 401 | 아이디·비밀번호 불일치. `details.remaining_attempts` 로 잔여 시도 안내 |
 | `TOKEN_EXPIRED` | 401 | access·refresh 만료, 로그아웃·차단으로 무효화 → 재로그인 요구 |
-| `AUTH_PENDING` | 403 | `pending` 계정이 승인 대기 조회·재신청·로그아웃 외 API 호출 (C-01 · §1.4) |
+| `AUTH_PENDING` | 403 | `pending` 계정이 **허용 목록**(`GET /auth/signup-status` · `POST /auth/logout` · `GET /me` · `POST`·`DELETE /me/devices`, §1.4) 밖 호출. `rejected` 는 `POST /auth/signup/reapply` **1개 추가** (C-01 · §1.4). ⚠ **`pending` 에게 재신청은 허용되지 않는다** — `AUTH-03` 이 "재신청은 거절 이후에만" 을 규정 |
 | `AUTH_ACCOUNT_BLOCKED` | 403 | 로그인 실패 **5회** 누적으로 계정 단위 차단. 해제는 메인 관리자 (C-11) |
+| `AUTH_REJECTED` | 403 | `rejected` 계정이 **허용 3개** 밖 호출. `AUTH_PENDING` 과 코드를 나눈 이유 — `§1.4` 가 대기 화면에 **거절 사유**를 노출하라고 규정하는데, 두 상태가 같은 코드를 쓰면 클라이언트가 "승인 대기 중" 과 "거절됨" 을 구별할 수단이 부재 (2026-08-25 신설) |
 | `DUPLICATE_LOGIN_ID` | 409 | 가입 시 로그인 아이디 중복 |
 | `REAPPLY_NOT_ALLOWED` | 409 | `rejected` 아닌 상태에서 재신청 |
 | `LINK_CODE_INVALID` | 403 | 자녀 연결 인증 코드 만료·불일치 (P-02 · S-05) |
