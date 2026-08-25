@@ -7,12 +7,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.Map;
+
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.servlet.http.Cookie;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
@@ -21,6 +24,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.jayway.jsonpath.JsonPath;
@@ -62,6 +67,13 @@ class AuthControllerTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    /**
+     * 쿠키 {@code Max-Age} 단언이 쓰는 값 — 테스트에 숫자를 박으면 설정만 바뀌었을 때 테스트가 먼저
+     * 깨지는 대신 조용히 옛 값을 요구한다. 설정과 같은 자리에서 읽어 둘이 함께 움직이게 한다.
+     */
+    @Value("${jwt.refresh-token-validity-seconds}")
+    private long refreshTokenValiditySeconds;
+
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -70,6 +82,12 @@ class AuthControllerTest {
         Account account = accountRepository.save(Account.forSignup(academy.getId(), loginId,
                 passwordEncoder.encode(RAW_PASSWORD), "인증테스트", phone, null, Role.PARENT));
         return account.getId();
+    }
+
+    /** {@code system_admin} 은 소속 학원이 없다 — {@code ck_account_academy_scope} 가 이 역할에만 NULL 을 허용한다. */
+    private void createSystemAdminAccount(String loginId, String phone) {
+        accountRepository.save(Account.forSignup(null, loginId, passwordEncoder.encode(RAW_PASSWORD),
+                "플랫폼관리자", phone, null, Role.SYSTEM_ADMIN));
     }
 
     /**
@@ -106,6 +124,15 @@ class AuthControllerTest {
         return JsonPath.read(result.getResponse().getContentAsString(), jsonPath);
     }
 
+    /**
+     * JSON 객체 하나를 {@link Map} 으로 읽는다 — {@code jsonPath()} 매처로는 "키가 빠짐" 과 "키가 있고
+     * 값이 null" 을 가르지 못하기 때문이다({@code exists()} 는 값이 null 이면 실패하고
+     * {@code doesNotExist()} 는 값이 null 이어도 통과한다). {@code Map.containsKey} 만이 둘을 가른다.
+     */
+    private Map<String, Object> readObject(MvcResult result, String jsonPath) throws Exception {
+        return JsonPath.read(result.getResponse().getContentAsString(), jsonPath);
+    }
+
     private String extractCookieValue(MvcResult result) {
         String setCookie = result.getResponse().getHeader(HttpHeaders.SET_COOKIE);
         assertThat(setCookie).as("Set-Cookie 헤더가 있어야 한다").isNotNull();
@@ -128,7 +155,15 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.error.code").value("AUTH_ACCOUNT_BLOCKED"));
     }
 
-    /** 목표 문장 — 로그인 실패가 상한(C-11=5)에 도달하면 계정이 blocked 로 전이한다. */
+    /**
+     * 목표 문장 — 로그인 실패가 상한(C-11=5)에 도달하면 계정이 blocked 로 전이한다.
+     *
+     * <p>회차마다 {@code details.remaining_attempts} 를 <b>값까지</b> 본다(4·3·2·1) — 존재만 보면
+     * "항상 0" 구현이 통과한다. 이 필드는 API_SPEC 이 이 문서에서 처음 정한 신규 결정이라 선례가
+     * 없고, {@code ErrorResponse.details} 의 타입이 {@code Object} 라 전역 snake_case 전략이 그
+     * 하위까지 내려가는지도 이 단언이 유일한 확인 수단이다({@code remainingAttempts} 로 나가면 여기서
+     * 걸린다).
+     */
     @Test
     void 로그인_실패가_상한에_도달하면_계정이_blocked_로_전이한다() throws Exception {
         Long accountId = createAccount("P2T4AUT02", "p2t4failcapqqq", "010-7000-0002");
@@ -138,7 +173,8 @@ class AuthControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(loginBody("p2t4failcapqqq", "wrong-password")))
                     .andExpect(status().isUnauthorized())
-                    .andExpect(jsonPath("$.error.code").value("INVALID_CREDENTIALS"));
+                    .andExpect(jsonPath("$.error.code").value("INVALID_CREDENTIALS"))
+                    .andExpect(jsonPath("$.error.details.remaining_attempts").value(4 - i));
         }
         // 5번째 실패 — 이 시점부터 401 이 아니라 403 AUTH_ACCOUNT_BLOCKED 로 바뀐다.
         mockMvc.perform(post("/api/v1/auth/login")
@@ -171,6 +207,40 @@ class AuthControllerTest {
         assertThat(accountRepository.findById(accountId).orElseThrow().getFailedAttempts()).isZero();
     }
 
+    /**
+     * 목표 문장 — 미등록 login_id 의 실패 응답이 존재하는 계정의 첫 실패와 형태·값까지 같다(계정 열거 차단).
+     *
+     * <p>상태 코드와 에러 코드만 맞추고 {@code details} 유무가 갈리면, 공격자는 본문 모양만 보고
+     * "이 아이디는 존재한다" 를 알아낸다. 두 응답을 같은 테스트에서 나란히 읽어 대조한다 — 나눠
+     * 쓰면 한쪽만 바뀌었을 때 둘 다 통과한다.
+     */
+    @Test
+    void 미등록_login_id_의_실패_응답이_존재하는_계정의_첫_실패와_같다() throws Exception {
+        createAccount("P2T4AUT16", "p2t4enumexists", "010-7000-0016");
+
+        MvcResult unknown = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginBody("p2t4enumabsent", "wrong-password")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("INVALID_CREDENTIALS"))
+                .andExpect(jsonPath("$.error.details.remaining_attempts").value(5))
+                .andReturn();
+
+        MvcResult known = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginBody("p2t4enumexists", "wrong-password")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("INVALID_CREDENTIALS"))
+                .andReturn();
+
+        assertThat(readObject(unknown, "$.error").keySet())
+                .as("에러 본문의 키 집합이 갈리면 그 차이만으로 계정 존재를 가려낼 수 있다")
+                .isEqualTo(readObject(known, "$.error").keySet());
+        assertThat(readObject(unknown, "$.error.details").keySet())
+                .as("details 의 키 집합도 같아야 한다 — 한쪽에만 실리면 유무가 곧 신호다")
+                .isEqualTo(readObject(known, "$.error.details").keySet());
+    }
+
     // ── §2.5 로그인 — 클라이언트별 refresh 전달(브리프 §3) ──────────────────
 
     /** 목표 문장 — web 로그인 응답 본문에 refresh_token 키가 부재한다. */
@@ -201,7 +271,32 @@ class AuthControllerTest {
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Secure")))
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("SameSite=Strict")))
                 // API_SPEC §1.2.1 본문의 /api/auth 는 낡은 값 — Ruling 102 로 /api/v1/auth 가 맞다(보고서 ⑤).
-                .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Path=/api/v1/auth")));
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Path=/api/v1/auth")))
+                // Max-Age 가 빠지면 세션 쿠키가 돼 브라우저를 닫는 순간 자동 로그인이 소멸한다 —
+                // 로컬에서는 브라우저를 안 닫으니 재현되지 않고, 값이 -1 이어도 나머지 4속성은 그대로다.
+                .andExpect(header().string(HttpHeaders.SET_COOKIE,
+                        containsString("Max-Age=" + refreshTokenValiditySeconds)));
+    }
+
+    /**
+     * 목표 문장 — system_admin 로그인 응답의 academy 는 키가 빠지는 것이 아니라 null 로 있다(§2.5).
+     *
+     * <p>단언에 {@code jsonPath} 매처를 쓰지 않는 이유는 {@link #readObject} 주석에 적었다.
+     */
+    @Test
+    void system_admin_로그인_응답의_academy_는_키가_있고_값이_null_이다() throws Exception {
+        createSystemAdminAccount("p2t4sysadminqq", "010-7000-0015");
+
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginBody("p2t4sysadminqq", RAW_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.role").value("system_admin"))
+                .andReturn();
+
+        Map<String, Object> data = readObject(result, "$.data");
+        assertThat(data).as("academy 키 자체가 빠지면 안 된다 — §2.5 는 null 값으로 규정").containsKey("academy");
+        assertThat(data.get("academy")).as("system_admin 의 academy 는 null 이다").isNull();
     }
 
     // ── §2.6 refresh ─────────────────────────────────────────────────────
@@ -247,6 +342,52 @@ class AuthControllerTest {
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Max-Age=0")));
     }
 
+    /**
+     * 목표 문장 — 단말 A 로그아웃은 A 의 refresh 만 무효화하고 단말 B 는 계속 재발급받는다(Ruling 99).
+     *
+     * <p>두 단언을 <b>한 테스트에 함께</b> 둔다. 나누면 무효화 범위가 잘못돼도 한쪽은 통과한다 —
+     * 로그아웃이 아무것도 무효화하지 않으면 "A 가 401" 만 깨지고, 계정 전량을 무효화하면 "B 가 200"
+     * 만 깨진다. 지난 라운드에는 둘 다 부재해, 로그아웃 본체를 통째로 지워도 14건이 전건 통과했다.
+     *
+     * <p>말미에 §2.6 회전 검증을 얹는다 — B 가 재발급을 받으면 B 의 <b>옛</b> 토큰은 그 자리에서
+     * 무효화돼야 한다. 살아 있으면 한 번 탈취된 refresh 토큰이 영구 유효해진다.
+     */
+    @Test
+    void 단말_A_로그아웃은_A_토큰만_무효화하고_단말_B_는_유지한다() throws Exception {
+        createAccount("P2T4AUT17", "p2t4twodevice", "010-7000-0017");
+        MvcResult deviceALogin = login("p2t4twodevice", RAW_PASSWORD, "app");
+        String deviceARefresh = readField(deviceALogin, "$.data.refresh_token");
+        String deviceAAccess = readField(deviceALogin, "$.data.access_token");
+        String deviceBRefresh = readField(login("p2t4twodevice", RAW_PASSWORD, "app"), "$.data.refresh_token");
+        assertThat(deviceARefresh).as("단말별 refresh 토큰이 갈려야 이 테스트가 성립한다").isNotEqualTo(deviceBRefresh);
+
+        mockMvc.perform(post("/api/v1/auth/logout")
+                        .header("Authorization", "Bearer " + deviceAAccess)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refresh_token\": \"%s\"}".formatted(deviceARefresh)))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refresh_token\": \"%s\"}".formatted(deviceARefresh)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("TOKEN_EXPIRED"));
+
+        String rotatedBRefresh = readField(mockMvc.perform(post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refresh_token\": \"%s\"}".formatted(deviceBRefresh)))
+                .andExpect(status().isOk())
+                .andReturn(), "$.data.refresh_token");
+        assertThat(rotatedBRefresh).as("§2.6 회전 — 재발급은 새 refresh 를 내려야 한다").isNotEqualTo(deviceBRefresh);
+
+        // m4 — 회전 직후 옛 토큰 재사용은 401 이다.
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refresh_token\": \"%s\"}".formatted(deviceBRefresh)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("TOKEN_EXPIRED"));
+    }
+
     /** 목표 문장 — pending 계정도 로그아웃할 수 있다(§1.4 허용 5개 중 하나). */
     @Test
     void pending_계정도_로그아웃할_수_있다() throws Exception {
@@ -265,7 +406,14 @@ class AuthControllerTest {
 
     // ── §2.8 비밀번호 변경 ───────────────────────────────────────────────
 
-    /** §2.8 성공 시 기존 refresh 토큰을 전량 무효화한다 — 회전 전 토큰으로 재발급이 더는 안 된다. */
+    /**
+     * §2.8 성공 시 기존 refresh 토큰을 전량 무효화한다 — 회전 전 토큰으로 재발급이 더는 안 된다.
+     *
+     * <p>말미에 <b>새 비밀번호가 실제로 반영됐는지</b>를 로그인 두 번으로 확인한다. 이 단언이 없으면
+     * 사용자가 204 를 받고도 비밀번호가 그대로인 상태를 스위트가 검출하지 못한다 — 지난 라운드에
+     * 실재했던 결함({@code RefreshTokenRepository} 의 {@code flushAutomatically} 누락)이 정확히 그
+     * 형태였고, 토큰 무효화만 보는 단언은 그 결함을 통과시켰다.
+     */
     @Test
     void 비밀번호_변경_성공_시_기존_refresh_토큰이_전량_무효화된다() throws Exception {
         Long accountId = createAccount("P2T4AUT09", "p2t4pwchangeqq", "010-7000-0009");
@@ -287,6 +435,40 @@ class AuthControllerTest {
                         .content("{\"refresh_token\": \"%s\"}".formatted(refreshToken)))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error.code").value("TOKEN_EXPIRED"));
+
+        // 본체 — 새 비밀번호로는 로그인되고 옛 비밀번호로는 안 된다(204 만 받고 반영이 사라진 상태를 가른다).
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginBody("p2t4pwchangeqq", "new-password5678!")))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginBody("p2t4pwchangeqq", RAW_PASSWORD)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("INVALID_CREDENTIALS"));
+    }
+
+    /**
+     * §2.8 웹 호출은 §2.7 과 같은 쿠키 삭제 지시를 함께 돌려준다 — 전량 무효화로 죽은 쿠키가
+     * 브라우저에 남으면 다음 접속이 401 을 한 번 더 거친다.
+     */
+    @Test
+    void web_비밀번호_변경_응답에_Max_Age_0_쿠키_삭제_지시가_있다() throws Exception {
+        Long accountId = createAccount("P2T4AUT18", "p2t4pwwebqqqqq", "010-7000-0018");
+        activateAccount(accountId);
+        MvcResult loginResult = login("p2t4pwwebqqqqq", RAW_PASSWORD, "web");
+        String accessToken = readField(loginResult, "$.data.access_token");
+
+        mockMvc.perform(post("/api/v1/auth/password")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .cookie(new Cookie(COOKIE_NAME, extractCookieValue(loginResult)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"current_password\": \"%s\", \"new_password\": \"new-password5678!\"}"
+                                .formatted(RAW_PASSWORD)))
+                .andExpect(status().isNoContent())
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Max-Age=0")))
+                // 발급 시와 속성이 같아야 브라우저가 같은 쿠키로 인식해 지운다(§2.7).
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Path=/api/v1/auth")));
     }
 
     /** §2.8 현재 비밀번호가 틀리면 401 INVALID_CREDENTIALS — 새 비밀번호로 바뀌지 않아야 한다. */
@@ -374,5 +556,109 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(loginBody("p2t4recoverpw", temporaryPassword)))
                 .andExpect(status().isOk());
+    }
+
+    /**
+     * 목표 문장 — 인증 코드를 5회 틀리면 그 뒤로는 <b>옳은 코드도</b> 거부된다.
+     *
+     * <p>이 메서드만 클래스 {@code @Transactional} 밖에서 돈다({@code NOT_SUPPORTED}). 검증 대상이
+     * "실패 누적이 커밋되는가" 인데, 테스트 트랜잭션 안에서는 요청이 실패해도 실제 롤백이 일어나지
+     * 않아 <b>누적을 잃는 구현과 지키는 구현이 같은 결과를 낸다</b> — 트랜잭션 안에 두면 이 단언은
+     * 아무것도 검사하지 못한다. 대신 커밋된 행이 남으므로 앞뒤로 직접 지운다.
+     *
+     * <p>6회째에 <b>옳은</b> 코드를 넣는 것이 핵심이다. 틀린 코드를 넣으면 상한이 있든 없든 403 이라
+     * 두 구현이 갈리지 않는다.
+     */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void 인증_코드를_5회_틀리면_옳은_코드도_거부된다() throws Exception {
+        String academyCode = "P2T4AUT19";
+        String loginId = "p2t4reccapqqq";
+        String phone = "010-7000-0019";
+        deleteRecoverFixture(academyCode, loginId, phone);
+        try {
+            createAccount(academyCode, loginId, phone);
+            requestRecoverCode(phone).andExpect(status().isOk());
+            String code = latestCode(phone);
+            String wrongCode = code.equals("000000") ? "111111" : "000000";
+
+            for (int i = 0; i < 5; i++) {
+                submitRecoverCode(phone, wrongCode)
+                        .andExpect(status().isForbidden())
+                        .andExpect(jsonPath("$.error.code").value("VERIFICATION_CODE_INVALID"));
+            }
+            assertThat(latestAttemptCount(phone))
+                    .as("실패한 대조가 커밋되지 않으면 상한은 영원히 도달하지 않는다")
+                    .isEqualTo(5);
+
+            submitRecoverCode(phone, code)
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.error.code").value("VERIFICATION_CODE_INVALID"));
+        } finally {
+            deleteRecoverFixture(academyCode, loginId, phone);
+        }
+    }
+
+    /**
+     * 목표 문장 — 코드를 재발급하면 이전 미소비 코드가 함께 무효화된다.
+     *
+     * <p>단언을 응답이 아니라 DB 로 하는 이유 — 대조는 최신 1건만 보므로, 무효화를 빼도 옛 코드
+     * 제출은 어차피 "최신과 값이 다름" 으로 403 이 된다. 즉 응답만 보면 이 조치가 있으나 없으나
+     * 같다. 살아 있는 코드가 몇 건인지 세는 것만이 둘을 가른다 — 옛 코드가 유효한 채로 쌓이면
+     * 상한(위 테스트)을 재발급으로 우회할 수 있다.
+     */
+    @Test
+    void 코드를_재발급하면_이전_미소비_코드가_무효화된다() throws Exception {
+        String phone = "010-7000-0020";
+        createAccount("P2T4AUT20", "p2t4recreissu", phone);
+
+        requestRecoverCode(phone).andExpect(status().isOk());
+        String firstCode = latestCode(phone);
+        requestRecoverCode(phone).andExpect(status().isOk());
+        String secondCode = latestCode(phone);
+        assertThat(secondCode).as("재발급이 실제로 새 코드를 만들어야 이 테스트가 성립한다").isNotEqualTo(firstCode);
+
+        Integer aliveCodes = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM verification_code WHERE phone = ? AND consumed_at IS NULL",
+                Integer.class, phone);
+        assertThat(aliveCodes).as("재발급 뒤 살아 있는 코드는 최신 1건뿐이어야 한다").isEqualTo(1);
+    }
+
+    // ── §2.9 보조 ────────────────────────────────────────────────────────
+
+    private ResultActions requestRecoverCode(String phone) throws Exception {
+        return mockMvc.perform(post("/api/v1/auth/recover")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"type\": \"password\", \"phone\": \"%s\"}".formatted(phone)));
+    }
+
+    private ResultActions submitRecoverCode(String phone, String code) throws Exception {
+        return mockMvc.perform(post("/api/v1/auth/recover")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"type\": \"password\", \"phone\": \"%s\", \"verification_code\": \"%s\"}"
+                        .formatted(phone, code)));
+    }
+
+    private String latestCode(String phone) {
+        return jdbcTemplate.queryForObject(
+                "SELECT code FROM verification_code WHERE phone = ? ORDER BY created_at DESC, id DESC LIMIT 1",
+                String.class, phone);
+    }
+
+    private int latestAttemptCount(String phone) {
+        return jdbcTemplate.queryForObject(
+                "SELECT attempt_count FROM verification_code WHERE phone = ? ORDER BY created_at DESC, id DESC LIMIT 1",
+                Integer.class, phone);
+    }
+
+    /**
+     * 트랜잭션 밖에서 도는 테스트의 픽스처를 지운다 — 남기면 다음 실행이 UNIQUE 제약에서 실패한다.
+     * {@code refresh_token} 은 {@code fk_refresh_token_account} 가 CASCADE 라 계정과 함께 지워지고,
+     * {@code account} → {@code academy} 는 RESTRICT 라 순서를 지켜야 한다.
+     */
+    private void deleteRecoverFixture(String academyCode, String loginId, String phone) {
+        jdbcTemplate.update("DELETE FROM verification_code WHERE phone = ?", phone);
+        jdbcTemplate.update("DELETE FROM account WHERE login_id = ?", loginId);
+        jdbcTemplate.update("DELETE FROM academy WHERE code = ?", academyCode);
     }
 }

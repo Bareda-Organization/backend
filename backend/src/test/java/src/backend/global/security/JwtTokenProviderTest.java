@@ -45,6 +45,23 @@ class JwtTokenProviderTest {
         assertThat(provider.isAccessToken(claims)).isFalse();
     }
 
+    /**
+     * 같은 인자로 두 번 발급한 refresh 토큰은 서로 달라야 한다 — 같으면 두 단말이 <b>한 문자열</b>을
+     * 나눠 갖게 되고, {@code refresh_token.token_hash} 가 UNIQUE 라 두 번째 로그인이 저장 단계에서
+     * 실패한다. 값을 가르는 유일한 재료가 {@code jti} 이므로 이 단언이 곧 {@code jti} 회귀 단언이다.
+     *
+     * <p>인자를 완전히 같게 두는 것이 핵심이다 — 발급 시각(초 단위)까지 같아질 확률이 지배적인
+     * 조건에서만 {@code jti} 부재가 확실히 드러난다. 로그인과 재발급을 견주는 통합 테스트는 두 호출이
+     * 다른 밀리초에 떨어지면 {@code jti} 없이도 통과해, 느린 머신에서 변형이 살아남는다.
+     */
+    @Test
+    void 같은_인자로_발급한_refresh_토큰_두_개는_서로_다르다() {
+        String first = provider.createRefreshToken(7L, 1L, Role.DRIVER, AccountStatus.ACTIVE);
+        String second = provider.createRefreshToken(7L, 1L, Role.DRIVER, AccountStatus.ACTIVE);
+
+        assertThat(first).isNotEqualTo(second);
+    }
+
     @Test
     void account_without_academy_resolves_to_null_academy_id() {
         String token = provider.createAccessToken(9L, null, Role.SYSTEM_ADMIN, AccountStatus.ACTIVE);
