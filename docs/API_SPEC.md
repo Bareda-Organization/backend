@@ -1778,11 +1778,12 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 
 | 코드 | HTTP | 발생 조건 |
 |---|:-:|---|
+| `UNAUTHORIZED` | 401 | 자격 증명이 **아예 없는** 접근 — 토큰 미동봉 STOMP `CONNECT` 등. `TOKEN_EXPIRED` 와 합치지 않는 이유는 클라이언트의 다음 동작이 갈리기 때문 — 만료는 재발급을 시도할 자리이고, 부재는 로그인부터 해야 할 자리다 (2026-08-25 등재) |
 | `INVALID_CREDENTIALS` | 401 | 아이디·비밀번호 불일치. `details.remaining_attempts` 로 잔여 시도 안내 |
 | `TOKEN_EXPIRED` | 401 | access·refresh 만료, 로그아웃·차단으로 무효화 → 재로그인 요구 |
 | `AUTH_PENDING` | 403 | `pending` 계정이 **허용 목록**(`GET /auth/signup-status` · `POST /auth/logout` · `GET /me` · `POST`·`DELETE /me/devices`, §1.4) 밖 호출. `rejected` 는 `POST /auth/signup/reapply` **1개 추가** (C-01 · §1.4). ⚠ **`pending` 에게 재신청은 허용되지 않는다** — `AUTH-03` 이 "재신청은 거절 이후에만" 을 규정 |
 | `AUTH_ACCOUNT_BLOCKED` | 403 | 로그인 실패 **5회** 누적으로 계정 단위 차단. 해제는 메인 관리자 (C-11) |
-| `AUTH_REJECTED` | 403 | `rejected` 계정이 **허용 3개** 밖 호출. `AUTH_PENDING` 과 코드를 나눈 이유 — `§1.4` 가 대기 화면에 **거절 사유**를 노출하라고 규정하는데, 두 상태가 같은 코드를 쓰면 클라이언트가 "승인 대기 중" 과 "거절됨" 을 구별할 수단이 부재 (2026-08-25 신설) |
+| `AUTH_REJECTED` | 403 | `rejected` 계정이 **허용 6개**(`pending` 의 5개 + `POST /auth/signup/reapply`) 밖 호출. `AUTH_PENDING` 과 코드를 나눈 이유 — `§1.4` 가 대기 화면에 **거절 사유**를 노출하라고 규정하는데, 두 상태가 같은 코드를 쓰면 클라이언트가 "승인 대기 중" 과 "거절됨" 을 구별할 수단이 부재 (2026-08-25 신설) |
 | `DUPLICATE_LOGIN_ID` | 409 | 가입 시 로그인 아이디 중복 |
 | `REAPPLY_NOT_ALLOWED` | 409 | `rejected` 아닌 상태에서 재신청 |
 | `LINK_CODE_INVALID` | 403 | 자녀 연결 인증 코드 만료·불일치 (P-02 · S-05) |
