@@ -2,6 +2,8 @@ package src.backend.account.controller;
 
 import jakarta.validation.Valid;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -37,8 +39,8 @@ public class SignupController {
 
     @PublicEndpoint
     @PostMapping("/auth/signup")
-    public ApiResponse<SignupResponse> signup(@Valid @RequestBody SignupRequestPayload payload) {
-        return ApiResponse.ok(signupCommandService.signup(payload));
+    public ResponseEntity<ApiResponse<SignupResponse>> signup(@Valid @RequestBody SignupRequestPayload payload) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(signupCommandService.signup(payload)));
     }
 
     @AuthenticatedOnly

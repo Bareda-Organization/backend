@@ -102,7 +102,7 @@ class NotificationEntitySchemaValidationTest extends MigratedPostgresTestBase {
     void deviceToken_이_account_FK_를_만족하며_저장되고_platform_enum_이_왕복한다() {
         long accountId = 학부모_계정을_만든다();
 
-        DeviceToken token = DeviceToken.register(accountId, "device-1", "fcm-token-1", DevicePlatform.ANDROID);
+        DeviceToken token = DeviceToken.register(accountId, "device-1", "fcm-token-1", DevicePlatform.ANDROID, null);
         entityManager.persist(token);
         entityManager.flush();
         entityManager.clear();

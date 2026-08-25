@@ -190,6 +190,28 @@ class ControllerAuthorizationConventionTest {
     }
 
     /**
+     * Ruling 103 — {@code PublicEndpoints} 프로덕션 상수(시큐리티 매처가 실제로 쓰는 값)까지 더해
+     * 3원 대조로 만든다: ① 소스의 {@code @PublicEndpoint} 애너테이션(위 테스트) ② 이 테스트가 보는
+     * {@code PublicEndpoints} 상수 ③ {@link #EXPECTED_PUBLIC_ENDPOINTS} 하드코딩 목록.
+     *
+     * <p>{@code EXPECTED_PUBLIC_ENDPOINTS} 는 여전히 하드코딩을 유지한다(Ruling 103) —
+     * {@code PublicEndpoints} 를 참조해 만들면 그 상수 자체가 잘못 채워져도 대조 대상이 같은 값을
+     * 베껴 항상 일치해 버려 회귀를 못 잡는다. 세 값의 출처(소스 애너테이션·상수 클래스·사양에서 손으로
+     * 옮긴 리터럴)가 서로 독립적이어야 어느 한쪽의 실수를 다른 쪽이 잡는다.
+     */
+    @Test
+    void PublicEndpoints_상수는_EXPECTED_PUBLIC_ENDPOINTS_와_정확히_일치한다() {
+        List<String> fromConstant = new ArrayList<>();
+        src.backend.global.security.PublicEndpoints.GET_ENDPOINTS.forEach(path -> fromConstant.add("GET " + path));
+        src.backend.global.security.PublicEndpoints.POST_ENDPOINTS.forEach(path -> fromConstant.add("POST " + path));
+
+        assertThat(fromConstant)
+                .as("PublicEndpoints(SecurityConfig 가 실제로 쓰는 상수)와 EXPECTED_PUBLIC_ENDPOINTS(사양에서 "
+                        + "손으로 옮긴 하드코딩) 가 어긋난다 — 둘 중 하나가 최신 사양을 놓쳤다")
+                .containsExactlyInAnyOrderElementsOf(EXPECTED_PUBLIC_ENDPOINTS);
+    }
+
+    /**
      * @param endpointId 매핑 애너테이션에서 뽑은 {@code "HTTP메서드 경로"}(예: {@code "POST /auth/login"}).
      *                   경로 리터럴을 못 찾으면 {@code "?"}. {@code @MessageMapping}(STOMP)은
      *                   HTTP 메서드가 없어 애너테이션 이름 대문자(예: {@code "MESSAGEMAPPING"})를 대신 쓴다.

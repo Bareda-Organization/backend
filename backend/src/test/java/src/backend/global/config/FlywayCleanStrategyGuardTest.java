@@ -1,6 +1,7 @@
 package src.backend.global.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -161,6 +162,41 @@ class FlywayCleanStrategyGuardTest {
                 .isInstanceOf(IllegalStateException.class);
 
         verify(flyway, never()).clean();
+    }
+
+    @DisplayName("Phase 2 Task 3 Ruling 89 — app.flyway-clean.suppressed 가 true 면 clean 을 호출하지 않고 migrate 만 한다")
+    @Test
+    void migrateSkipsCleanWhenSuppressed() {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("local");
+        environment.setProperty("app.flyway-clean.suppressed", "true");
+        LocalFlywayCleanStrategy strategy = new LocalFlywayCleanStrategy(environment);
+
+        Flyway flyway = mock(Flyway.class);
+
+        strategy.migrate(flyway);
+
+        verify(flyway, never()).clean();
+        verify(flyway).migrate();
+    }
+
+    @DisplayName("Phase 2 Task 3 Ruling 89 — suppressed 면 원격 데이터소스라도 예외 없이 migrate 만 한다")
+    @Test
+    void migrateSkipsRemoteDataSourceRejectionWhenSuppressed() {
+        // suppressed 가 겹③ 판정 자체를 건너뛴다는 것을 잠그는 테스트다 — getConfiguration()/getUrl()
+        // 을 스텁하지 않아도(즉 호출되지 않아도) migrate() 가 예외 없이 끝나야 한다.
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("local");
+        environment.setProperty("app.flyway-clean.suppressed", "true");
+        LocalFlywayCleanStrategy strategy = new LocalFlywayCleanStrategy(environment);
+
+        Flyway flyway = mock(Flyway.class);
+
+        assertThatCode(() -> strategy.migrate(flyway)).doesNotThrowAnyException();
+
+        verify(flyway, never()).clean();
+        verify(flyway).migrate();
+        verify(flyway, never()).getConfiguration();
     }
 
     @DisplayName("겹③(폴백) — getUrl() 이 null 이어도 DataSource 메타데이터가 localhost 면 clean 한다")

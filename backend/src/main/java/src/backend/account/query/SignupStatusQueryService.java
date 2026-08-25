@@ -31,9 +31,9 @@ public class SignupStatusQueryService {
     @Transactional(readOnly = true)
     public SignupStatusResponse getStatus(Long accountId) {
         Account account = accountRepository.findById(accountId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
         SignupRequest latest = signupRequestRepository.findTopByAccountIdOrderByRequestedAtDesc(accountId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
         Academy academy = academyRepository.findById(account.getAcademyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACADEMY_NOT_FOUND));
         return SignupStatusResponse.of(account, academy, latest);

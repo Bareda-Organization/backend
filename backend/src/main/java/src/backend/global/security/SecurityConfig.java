@@ -21,6 +21,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import src.backend.global.config.ApiPathPrefixConfig;
 import src.backend.global.security.authz.RolePermissions;
 
 import java.util.Arrays;
@@ -67,13 +68,14 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // ControllerAuthorizationConventionTest.EXPECTED_PUBLIC_ENDPOINTS 와 정확히 같은
-                        // 경로를 쓴다 — 컨트롤러의 @RequestMapping 리터럴은 접두사 없는 bare path 라
-                        // (Ruling 80), 이 매처도 접두사를 붙이지 않는다. 예전 "/api/auth/**" 는 실제
-                        // 컨트롤러 경로와 맞지 않아 아무 요청도 매치하지 못하던 자리표시자였다(Task 3 가 배선).
-                        .requestMatchers(HttpMethod.GET, "/academies/search").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/auth/signup", "/auth/login", "/auth/refresh",
-                                "/auth/recover").permitAll()
+                        // 실제 요청 경로는 ApiPathPrefixConfig 가 컨트롤러 핸들러 등록 시점에 API_PREFIX 를
+                        // 붙인 결과라 이 매처도 같은 접두사를 붙여야 한다(Ruling 102) — PublicEndpoints(Ruling
+                        // 103) 의 bare path 에 여기서 접두사를 조립한다. ControllerAuthorizationConventionTest
+                        // .EXPECTED_PUBLIC_ENDPOINTS 는 소스 텍스트(bare path)를 스캔하므로 접두사가 없다 —
+                        // 그 목록과 이 매처가 다른 표현(bare vs 접두사 포함)을 쓰는 것은 각자가 보는 대상이
+                        // 다르기 때문이지 불일치가 아니다.
+                        .requestMatchers(HttpMethod.GET, withPrefix(PublicEndpoints.GET_ENDPOINTS)).permitAll()
+                        .requestMatchers(HttpMethod.POST, withPrefix(PublicEndpoints.POST_ENDPOINTS)).permitAll()
                         .requestMatchers("/actuator/health").permitAll()
                         // Prometheus 는 JWT 를 들고 스크레이프하지 않는다 — 여기를 막으면 인증을 통과할 방법이 없어
                         // 스크레이프 자체가 401 로 실패한다. 접근 경계는 이 필터가 아니라 네트워크다
@@ -87,6 +89,11 @@ public class SecurityConfig {
                 .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
+    }
+
+    /** {@code PublicEndpoints} 의 bare path 각각에 {@link ApiPathPrefixConfig#API_PREFIX} 를 붙인다. */
+    private static String[] withPrefix(List<String> barePaths) {
+        return barePaths.stream().map(path -> ApiPathPrefixConfig.API_PREFIX + path).toArray(String[]::new);
     }
 
     /**

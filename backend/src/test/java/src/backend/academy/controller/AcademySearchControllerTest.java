@@ -39,7 +39,7 @@ class AcademySearchControllerTest {
     void 학원_검색은_inactive_학원을_반환하지_않는다() throws Exception {
         academyRepository.save(Academy.register("P2T3ACTQQQQ", "학원P2T3QQQQ활성", "서울", null, null));
 
-        mockMvc.perform(get("/academies/search").param("q", "P2T3QQQQ"))
+        mockMvc.perform(get("/api/v1/academies/search").param("q", "P2T3QQQQ"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(1))
                 .andExpect(jsonPath("$.data.items[0].code").value("P2T3ACTQQQQ"));
@@ -47,7 +47,7 @@ class AcademySearchControllerTest {
 
     @Test
     void q_파라미터가_없으면_422_VALIDATION_FAILED_이다() throws Exception {
-        mockMvc.perform(get("/academies/search"))
+        mockMvc.perform(get("/api/v1/academies/search"))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }

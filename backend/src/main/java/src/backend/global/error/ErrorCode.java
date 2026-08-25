@@ -8,7 +8,6 @@ import org.springframework.http.HttpStatus;
  */
 public enum ErrorCode {
 
-    INVALID_INPUT(HttpStatus.BAD_REQUEST, "입력값이 올바르지 않습니다"),
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "인증이 필요합니다"),
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다"),
     FORBIDDEN(HttpStatus.FORBIDDEN, "접근 권한이 없습니다"),
@@ -19,7 +18,8 @@ public enum ErrorCode {
     AUTH_REJECTED(HttpStatus.FORBIDDEN, "가입이 거절된 계정입니다"),
     // blocked 계정의 로그인·API 호출(API_SPEC §1.4·§8.1) — 자격 오류(401)와 구분해야 재시도가 실패 카운터를 올리지 않는다.
     AUTH_ACCOUNT_BLOCKED(HttpStatus.FORBIDDEN, "차단된 계정입니다. 관리자에게 문의하세요"),
-    NOT_FOUND(HttpStatus.NOT_FOUND, "대상을 찾을 수 없습니다"),
+    // 미존재 계정 지정(API_SPEC §8.1) — 가입 상태 조회·재신청·본인 프로필 조회가 대상 계정을 못 찾을 때.
+    ACCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "계정을 찾을 수 없습니다"),
     // 필수 필드 누락·형식 위반(API_SPEC §1.11) — Bean Validation·필수 쿼리 파라미터 부재가 공유한다.
     VALIDATION_FAILED(HttpStatus.UNPROCESSABLE_ENTITY, "입력값이 올바르지 않습니다"),
     // 회원가입(AUTH-01)에서 login_id 중복(API_SPEC §2.2).

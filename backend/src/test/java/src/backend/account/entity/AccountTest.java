@@ -52,4 +52,19 @@ class AccountTest {
         assertThatCode(rejected::assertNotBlocked).doesNotThrowAnyException();
         assertThatCode(active::assertNotBlocked).doesNotThrowAnyException();
     }
+
+    @Test
+    void active_계정의_재신청은_409_REAPPLY_NOT_ALLOWED_이다() {
+        // AccountStatusGateInterceptor 는 active 계정을 그대로 통과시켜(재신청 API 에 게이트를 걸지 않음),
+        // 이 엔티티 메서드의 상태 가드가 active 계정의 재신청을 막는 유일한 방어선이다.
+        Account active = Account.forSignup(1L, "login5", "hash", "이름", "010-0000-0005", null, Role.PARENT);
+        ReflectionTestUtils.setField(active, "status", AccountStatus.ACTIVE);
+
+        assertThatThrownBy(() -> active.reapply(2L))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.REAPPLY_NOT_ALLOWED));
+
+        assertThat(ErrorCode.REAPPLY_NOT_ALLOWED.getStatus().value()).isEqualTo(409);
+    }
 }

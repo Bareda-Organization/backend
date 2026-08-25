@@ -1,5 +1,7 @@
 package src.backend.account.query;
 
+import java.util.Locale;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,7 +51,7 @@ public class MeQueryService {
     @Transactional(readOnly = true)
     public MeResponse getMe(Long accountId) {
         Account account = accountRepository.findById(accountId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
         Role role = account.getRole();
 
         MeResponse.Academy academy = resolveAcademy(account, role);
@@ -60,9 +62,9 @@ public class MeQueryService {
         Integer linkedStudentCount = role == Role.PARENT ? resolveLinkedStudentCount(accountId) : null;
 
         return new MeResponse(account.getId(), account.getLoginId(), account.getName(), account.getPhone(),
-                role.name().toLowerCase(), account.getStatus().name().toLowerCase(), academy, studentId,
-                manager == null ? null : String.valueOf(manager.getId()),
-                manager == null ? null : manager.getRole().name().toLowerCase(), linkedStudentCount);
+                role.name().toLowerCase(Locale.ROOT), account.getStatus().name().toLowerCase(Locale.ROOT), academy,
+                studentId, manager == null ? null : String.valueOf(manager.getId()),
+                manager == null ? null : manager.getRole().name().toLowerCase(Locale.ROOT), linkedStudentCount);
     }
 
     /** {@code system_admin} 은 소속 학원이 없어 {@code null} 을 그대로 돌려준다(API_SPEC §2.10). */

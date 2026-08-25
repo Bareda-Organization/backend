@@ -52,9 +52,9 @@ class AccountStatusGateInterceptorTest {
     void pending_토큰은_허용_애너테이션이_붙은_핸들러를_통과한다() throws Exception {
         String token = bearer(AccountStatus.PENDING);
 
-        mockMvc.perform(get("/gate-test/signup-status").header("Authorization", token))
+        mockMvc.perform(get("/api/v1/gate-test/signup-status").header("Authorization", token))
                 .andExpect(status().isOk());
-        mockMvc.perform(post("/gate-test/logout").header("Authorization", token))
+        mockMvc.perform(post("/api/v1/gate-test/logout").header("Authorization", token))
                 .andExpect(status().isOk());
     }
 
@@ -62,7 +62,7 @@ class AccountStatusGateInterceptorTest {
     void pending_토큰이_애너테이션_없는_핸들러를_부르면_403_AUTH_PENDING_이다() throws Exception {
         String token = bearer(AccountStatus.PENDING);
 
-        mockMvc.perform(get("/gate-test/protected").header("Authorization", token))
+        mockMvc.perform(get("/api/v1/gate-test/protected").header("Authorization", token))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("AUTH_PENDING"));
     }
@@ -71,11 +71,11 @@ class AccountStatusGateInterceptorTest {
     void rejected_토큰은_pending_허용분에_더해_재신청_핸들러도_통과한다() throws Exception {
         String token = bearer(AccountStatus.REJECTED);
 
-        mockMvc.perform(get("/gate-test/signup-status").header("Authorization", token))
+        mockMvc.perform(get("/api/v1/gate-test/signup-status").header("Authorization", token))
                 .andExpect(status().isOk());
-        mockMvc.perform(post("/gate-test/logout").header("Authorization", token))
+        mockMvc.perform(post("/api/v1/gate-test/logout").header("Authorization", token))
                 .andExpect(status().isOk());
-        mockMvc.perform(post("/gate-test/reapply").header("Authorization", token))
+        mockMvc.perform(post("/api/v1/gate-test/reapply").header("Authorization", token))
                 .andExpect(status().isOk());
     }
 
@@ -84,7 +84,7 @@ class AccountStatusGateInterceptorTest {
     void pending_토큰으로_재신청_핸들러를_부르면_403_이다() throws Exception {
         String token = bearer(AccountStatus.PENDING);
 
-        mockMvc.perform(post("/gate-test/reapply").header("Authorization", token))
+        mockMvc.perform(post("/api/v1/gate-test/reapply").header("Authorization", token))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("AUTH_PENDING"));
     }
@@ -94,7 +94,7 @@ class AccountStatusGateInterceptorTest {
     void rejected_토큰이_허용분_밖_핸들러를_부르면_403_AUTH_REJECTED_이다() throws Exception {
         String token = bearer(AccountStatus.REJECTED);
 
-        mockMvc.perform(get("/gate-test/protected").header("Authorization", token))
+        mockMvc.perform(get("/api/v1/gate-test/protected").header("Authorization", token))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("AUTH_REJECTED"));
     }
@@ -103,7 +103,7 @@ class AccountStatusGateInterceptorTest {
     void active_토큰은_게이트를_그대로_통과한다() throws Exception {
         String token = bearer(AccountStatus.ACTIVE);
 
-        mockMvc.perform(get("/gate-test/protected").header("Authorization", token))
+        mockMvc.perform(get("/api/v1/gate-test/protected").header("Authorization", token))
                 .andExpect(status().isOk());
     }
 
@@ -117,7 +117,7 @@ class AccountStatusGateInterceptorTest {
     void blocked_토큰은_허용_애너테이션이_붙은_핸들러에서도_403_AUTH_ACCOUNT_BLOCKED_이다() throws Exception {
         String token = bearer(AccountStatus.BLOCKED);
 
-        mockMvc.perform(get("/gate-test/signup-status").header("Authorization", token))
+        mockMvc.perform(get("/api/v1/gate-test/signup-status").header("Authorization", token))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("AUTH_ACCOUNT_BLOCKED"));
     }

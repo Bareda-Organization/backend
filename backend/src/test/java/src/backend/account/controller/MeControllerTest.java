@@ -59,7 +59,7 @@ class MeControllerTest {
         String token = "Bearer " + tokenProvider.createAccessToken(accountId, academyId, Role.PARENT,
                 AccountStatus.PENDING);
 
-        mockMvc.perform(get("/me").header("Authorization", token))
+        mockMvc.perform(get("/api/v1/me").header("Authorization", token))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("AUTH_PENDING"));
     }
@@ -80,7 +80,7 @@ class MeControllerTest {
         String token = "Bearer " + tokenProvider.createAccessToken(accountId, academyId, Role.PARENT,
                 AccountStatus.ACTIVE);
 
-        mockMvc.perform(get("/me").header("Authorization", token))
+        mockMvc.perform(get("/api/v1/me").header("Authorization", token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.login_id").value("p2t3activeme"))
                 .andExpect(jsonPath("$.data.role").value("parent"))

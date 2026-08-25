@@ -69,7 +69,7 @@ class DeviceControllerTest {
         String firstPayload = """
                 {"token": "fcm-token-1", "platform": "android", "device_id": "device-abc"}
                 """;
-        mockMvc.perform(post("/me/devices").header("Authorization", token)
+        mockMvc.perform(post("/api/v1/me/devices").header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON).content(firstPayload))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.device_id").value("device-abc"));
@@ -77,7 +77,7 @@ class DeviceControllerTest {
         String secondPayload = """
                 {"token": "fcm-token-2", "platform": "android", "device_id": "device-abc"}
                 """;
-        mockMvc.perform(post("/me/devices").header("Authorization", token)
+        mockMvc.perform(post("/api/v1/me/devices").header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON).content(secondPayload))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.device_id").value("device-abc"));
@@ -88,6 +88,42 @@ class DeviceControllerTest {
         assertThat(deviceTokenRepository.findAll().stream()
                 .filter(dt -> dt.getAccountId().equals(accountId) && dt.getDeviceId().equals("device-abc"))
                 .count()).isEqualTo(1);
+    }
+
+    @Test
+    @Sql(statements = {
+            "INSERT INTO academy (code, name, region, status) "
+                    + "VALUES ('P2T3APVQQQQ', '학원P2T3APV버전', '서울', 'active')",
+            "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) "
+                    + "VALUES ((SELECT id FROM academy WHERE code = 'P2T3APVQQQQ'), "
+                    + "'p2t3apvqqqq', 'x', '버전테스트', '010-0000-0009', 'parent', 'active')"
+    })
+    void 단말_등록은_app_version_을_보내면_저장하고_생략하면_NULL_로_저장한다() throws Exception {
+        Long academyId = academyRepository.findAll().stream()
+                .filter(a -> a.getCode().equals("P2T3APVQQQQ"))
+                .findFirst().orElseThrow().getId();
+        Long accountId = accountRepository.findByLoginId("p2t3apvqqqq").orElseThrow().getId();
+        String token = "Bearer " + tokenProvider.createAccessToken(accountId, academyId, Role.PARENT,
+                AccountStatus.ACTIVE);
+
+        String withVersion = """
+                {"token": "fcm-with-version", "platform": "android", "device_id": "device-with-version",
+                 "app_version": "1.2.3"}
+                """;
+        mockMvc.perform(post("/api/v1/me/devices").header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON).content(withVersion))
+                .andExpect(status().isCreated());
+        assertThat(deviceTokenRepository.findByAccountIdAndDeviceId(accountId, "device-with-version"))
+                .isPresent().get().extracting(dt -> dt.getAppVersion()).isEqualTo("1.2.3");
+
+        String withoutVersion = """
+                {"token": "fcm-without-version", "platform": "android", "device_id": "device-without-version"}
+                """;
+        mockMvc.perform(post("/api/v1/me/devices").header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON).content(withoutVersion))
+                .andExpect(status().isCreated());
+        assertThat(deviceTokenRepository.findByAccountIdAndDeviceId(accountId, "device-without-version"))
+                .isPresent().get().extracting(dt -> dt.getAppVersion()).isNull();
     }
 
     @Test
@@ -109,18 +145,26 @@ class DeviceControllerTest {
         String payload = """
                 {"token": "fcm-token-revoke", "platform": "ios", "device_id": "device-xyz"}
                 """;
-        mockMvc.perform(post("/me/devices").header("Authorization", token)
+        mockMvc.perform(post("/api/v1/me/devices").header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON).content(payload))
                 .andExpect(status().isCreated());
 
-        mockMvc.perform(delete("/me/devices/{token}", "fcm-token-revoke").header("Authorization", token))
+        mockMvc.perform(delete("/api/v1/me/devices/{token}", "fcm-token-revoke").header("Authorization", token))
                 .andExpect(status().isNoContent());
+        var revokedAtAfterFirstCall = deviceTokenRepository.findByAccountIdAndToken(accountId, "fcm-token-revoke")
+                .orElseThrow().getRevokedAt();
+        assertThat(revokedAtAfterFirstCall).isNotNull();
 
         // 이미 해지된 것을 다시 해지해도(또는 존재하지 않는 토큰이어도) 멱등하게 204.
-        mockMvc.perform(delete("/me/devices/{token}", "fcm-token-revoke").header("Authorization", token))
+        mockMvc.perform(delete("/api/v1/me/devices/{token}", "fcm-token-revoke").header("Authorization", token))
                 .andExpect(status().isNoContent());
-        mockMvc.perform(delete("/me/devices/{token}", "no-such-token").header("Authorization", token))
+        mockMvc.perform(delete("/api/v1/me/devices/{token}", "no-such-token").header("Authorization", token))
                 .andExpect(status().isNoContent());
+
+        // 두 번째 해지 호출이 최초 해지 시각을 새 시각으로 덮어쓰지 않는다(이력 보존, DeviceToken.revoke Javadoc).
+        var revokedAtAfterSecondCall = deviceTokenRepository.findByAccountIdAndToken(accountId, "fcm-token-revoke")
+                .orElseThrow().getRevokedAt();
+        assertThat(revokedAtAfterSecondCall).isEqualTo(revokedAtAfterFirstCall);
     }
 
     @Test
@@ -133,16 +177,17 @@ class DeviceControllerTest {
 
         for (Role role : Role.values()) {
             String loginId = "p2t3role" + role.name().toLowerCase();
+            Long accountAcademyId = role == Role.SYSTEM_ADMIN ? null : academyId;
             var account = accountRepository.save(src.backend.account.entity.Account.forSignup(
-                    role == Role.SYSTEM_ADMIN ? null : academyId, loginId, "x", "역할" + role.name(),
-                    "010-1111-0000", null, role));
-            String token = "Bearer " + tokenProvider.createAccessToken(account.getId(), academyId, role,
+                    accountAcademyId, loginId, "x", "역할" + role.name(), "010-1111-0000", null, role));
+            // JWT 의 academy_id 는 계정 행의 소속과 같아야 한다 — system_admin 은 소속 학원이 없어(§2.10) 둘 다 null.
+            String token = "Bearer " + tokenProvider.createAccessToken(account.getId(), accountAcademyId, role,
                     AccountStatus.ACTIVE);
             String payload = """
                     {"token": "fcm-%s", "platform": "web", "device_id": "device-%s"}
                     """.formatted(role.name(), role.name());
 
-            mockMvc.perform(post("/me/devices").header("Authorization", token)
+            mockMvc.perform(post("/api/v1/me/devices").header("Authorization", token)
                             .contentType(MediaType.APPLICATION_JSON).content(payload))
                     .andExpect(status().isCreated());
         }

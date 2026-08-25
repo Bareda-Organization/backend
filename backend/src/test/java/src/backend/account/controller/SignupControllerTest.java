@@ -61,8 +61,8 @@ class SignupControllerTest {
                 }
                 """.formatted(academy.getId());
 
-        mockMvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON).content(payload))
-                .andExpect(status().isOk())
+        mockMvc.perform(post("/api/v1/auth/signup").contentType(MediaType.APPLICATION_JSON).content(payload))
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.account_status").value("pending"));
 
         assertThat(accountRepository.findByLoginId("p2t3signupqqqq").orElseThrow().getStatus())
@@ -88,7 +88,7 @@ class SignupControllerTest {
         String token = "Bearer " + tokenProvider.createAccessToken(accountId, academyId, Role.PARENT,
                 AccountStatus.PENDING);
 
-        mockMvc.perform(get("/auth/signup-status").header("Authorization", token))
+        mockMvc.perform(get("/api/v1/auth/signup-status").header("Authorization", token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("pending"));
     }
@@ -114,14 +114,14 @@ class SignupControllerTest {
 
         String pendingToken = "Bearer " + tokenProvider.createAccessToken(pendingId, academyId, Role.PARENT,
                 AccountStatus.PENDING);
-        mockMvc.perform(post("/auth/signup/reapply").header("Authorization", pendingToken)
+        mockMvc.perform(post("/api/v1/auth/signup/reapply").header("Authorization", pendingToken)
                         .contentType(MediaType.APPLICATION_JSON).content(reapplyBody))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("AUTH_PENDING"));
 
         String rejectedToken = "Bearer " + tokenProvider.createAccessToken(rejectedId, academyId, Role.PARENT,
                 AccountStatus.REJECTED);
-        mockMvc.perform(post("/auth/signup/reapply").header("Authorization", rejectedToken)
+        mockMvc.perform(post("/api/v1/auth/signup/reapply").header("Authorization", rejectedToken)
                         .contentType(MediaType.APPLICATION_JSON).content(reapplyBody))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("pending"));

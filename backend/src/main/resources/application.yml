@@ -4,6 +4,12 @@ spring:
   profiles:
     active: local
 
+  # API_SPEC 의 모든 필드가 snake_case 다(Ruling 104) — DTO 마다 @JsonProperty 를 손으로 붙이는 대신
+  # 전역 네이밍 전략으로 고정한다. camelCase 자바 필드명을 자동 변환하므로, 새 DTO 를 추가할 때도
+  # 이 규칙만 지키면 애너테이션 없이 API_SPEC 과 맞는다.
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+
   datasource:
     url: jdbc:postgresql://localhost:5432/schoolbus
     username: schoolbus

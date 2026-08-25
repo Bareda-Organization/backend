@@ -2,6 +2,7 @@ package src.backend.notification.command;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.util.Locale;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,8 +36,9 @@ public class DeviceCommandService {
                 .ifPresent(deviceTokenRepository::delete);
         deviceTokenRepository.flush();
 
-        DevicePlatform platform = DevicePlatform.valueOf(request.platform().toUpperCase());
-        DeviceToken deviceToken = DeviceToken.register(accountId, request.deviceId(), request.token(), platform);
+        DevicePlatform platform = DevicePlatform.valueOf(request.platform().toUpperCase(Locale.ROOT));
+        DeviceToken deviceToken = DeviceToken.register(accountId, request.deviceId(), request.token(), platform,
+                request.appVersion());
         deviceTokenRepository.save(deviceToken);
 
         return new DeviceRegisterResponse(deviceToken.getDeviceId(), deviceToken.getCreatedAt());

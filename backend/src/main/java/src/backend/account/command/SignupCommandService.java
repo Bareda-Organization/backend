@@ -2,7 +2,9 @@ package src.backend.account.command;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.util.Locale;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,18 +45,30 @@ public class SignupCommandService {
         this.clock = clock;
     }
 
-    /** form 회원가입(AUTH-01) — 계정을 {@code pending} 으로 만들고 승인 요청을 큐에 쌓는다. */
+    /**
+     * form 회원가입(AUTH-01) — 계정을 {@code pending} 으로 만들고 승인 요청을 큐에 쌓는다.
+     *
+     * <p>{@code existsByLoginId} 사전 확인은 대부분의 중복을 저렴하게 걸러내지만, 동시에 같은
+     * {@code login_id} 로 두 요청이 들어오면 둘 다 사전 확인을 통과한 뒤 {@code uk_account_login_id}
+     * UNIQUE 제약에서 충돌한다(TOCTOU) — {@code saveAndFlush} 로 즉시 반영해 그 충돌을
+     * {@link DataIntegrityViolationException} 으로 잡아 409 {@code DUPLICATE_LOGIN_ID} 로
+     * 옮긴다. 이게 없으면 전역 예외 처리기의 catch-all 로 떨어져 500 이 된다.
+     */
     @Transactional
     public SignupResponse signup(SignupRequestPayload payload) {
         if (accountRepository.existsByLoginId(payload.loginId())) {
             throw new BusinessException(ErrorCode.DUPLICATE_LOGIN_ID);
         }
         Academy academy = findActiveAcademy(payload.academyId());
-        Role role = Role.valueOf(payload.role().toUpperCase());
+        Role role = Role.valueOf(payload.role().toUpperCase(Locale.ROOT));
 
         Account account = Account.forSignup(academy.getId(), payload.loginId(),
                 passwordEncoder.encode(payload.password()), payload.name(), payload.phone(), null, role);
-        accountRepository.save(account);
+        try {
+            accountRepository.saveAndFlush(account);
+        } catch (DataIntegrityViolationException e) {
+            throw new BusinessException(ErrorCode.DUPLICATE_LOGIN_ID);
+        }
 
         ApproverType approverType = approverTypeFor(role);
         OffsetDateTime requestedAt = OffsetDateTime.now(clock);
@@ -68,7 +82,7 @@ public class SignupCommandService {
     @Transactional
     public ReapplyResponse reapply(Long accountId, ReapplyRequestPayload payload) {
         Account account = accountRepository.findById(accountId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
         Academy academy = findActiveAcademy(payload.academyId());
 
         account.reapply(academy.getId());
@@ -78,7 +92,7 @@ public class SignupCommandService {
         signupRequestRepository.save(SignupRequest.uponSubmission(academy.getId(), account.getId(),
                 account.getRole(), approverType, requestedAt));
 
-        return new ReapplyResponse(account.getStatus().name().toLowerCase(), requestedAt);
+        return new ReapplyResponse(account.getStatus().name().toLowerCase(Locale.ROOT), requestedAt);
     }
 
     /** role=staff 는 메인 관리자가, 그 외 역할은 학원 관계자가 승인한다(API_SPEC §2.2). */
