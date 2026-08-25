@@ -3,9 +3,12 @@ package src.backend.global.common.converter;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Locale;
+
 import org.junit.jupiter.api.Test;
 
 import src.backend.global.common.enums.Role;
+import src.backend.run.entity.RunStatus;
 
 /**
  * {@link LowerCaseEnumConverter} 자체의 변환 규칙을 {@link Role} 을 표본 삼아 검증한다.
@@ -41,5 +44,27 @@ class LowerCaseEnumConverterTest {
     void enum_에_없는_DB_값은_예외로_실패한다() {
         assertThatThrownBy(() -> converter.convertToEntityAttribute("not_a_role"))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    /**
+     * JVM 기본 로케일이 터키어면 {@code toLowerCase()}/{@code toUpperCase()} 가 {@code I}/{@code i}
+     * 를 점 유무가 다른 문자로 바꾼다 — {@code Locale.ROOT} 명시가 빠지면 이 단언이 실패한다.
+     * 다른 테스트에 영향을 주지 않도록 {@code try/finally} 로 기본 로케일을 반드시 원복한다.
+     */
+    @Test
+    void 터키어_로케일에서도_대소문자_변환이_로케일_불변으로_동작한다() {
+        Locale original = Locale.getDefault();
+        RunStatus.Db runStatusConverter = new RunStatus.Db();
+        try {
+            Locale.setDefault(Locale.forLanguageTag("tr"));
+
+            String dbValue = runStatusConverter.convertToDatabaseColumn(RunStatus.IDLE);
+            assertThat(dbValue).isEqualTo("idle");
+
+            RunStatus restored = runStatusConverter.convertToEntityAttribute("confirmed");
+            assertThat(restored).isEqualTo(RunStatus.CONFIRMED);
+        } finally {
+            Locale.setDefault(original);
+        }
     }
 }

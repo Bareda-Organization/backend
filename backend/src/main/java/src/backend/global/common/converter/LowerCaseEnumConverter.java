@@ -1,5 +1,7 @@
 package src.backend.global.common.converter;
 
+import java.util.Locale;
+
 import jakarta.persistence.AttributeConverter;
 
 /**
@@ -21,10 +23,16 @@ public abstract class LowerCaseEnumConverter<E extends Enum<E>> implements Attri
         this.enumType = enumType;
     }
 
-    /** 상수를 소문자 snake_case 문자열로 바꾼다. {@code null} 은 그대로 통과시킨다. */
+    /**
+     * 상수를 소문자 snake_case 문자열로 바꾼다. {@code null} 은 그대로 통과시킨다.
+     *
+     * <p>{@link Locale#ROOT} 를 명시한다 — JVM 기본 로케일이 터키어·아제르바이잔어({@code tr}·
+     * {@code az})면 {@code toLowerCase()} 가 {@code I} 를 점 없는 {@code ı}(U+0131)로 바꿔
+     * {@code IDLE} 같은 상수가 CHECK 제약이 모르는 값으로 저장된다.
+     */
     @Override
     public String convertToDatabaseColumn(E attribute) {
-        return attribute == null ? null : attribute.name().toLowerCase();
+        return attribute == null ? null : attribute.name().toLowerCase(Locale.ROOT);
     }
 
     /**
@@ -32,9 +40,13 @@ public abstract class LowerCaseEnumConverter<E extends Enum<E>> implements Attri
      *
      * <p>enum 에 없는 값은 {@link IllegalArgumentException} 으로 실패시킨다 — 조용히 {@code null} 을
      * 돌려주면 CHECK 제약 밖의 값이 DB 에 들어갔을 때 애플리케이션이 정상으로 보인다.
+     *
+     * <p>{@link Locale#ROOT} 를 명시한다 — 터키어 로케일에서 {@code toUpperCase()} 는 소문자
+     * {@code i} 를 점 있는 {@code İ}(U+0130)로 올려, {@code "active"} 처럼 {@code i} 를 포함한
+     * 값 대부분이 {@link Enum#valueOf} 에서 실패한다(쓰기 쪽 오염과 별개로 읽기 쪽에서 발생).
      */
     @Override
     public E convertToEntityAttribute(String dbData) {
-        return dbData == null ? null : Enum.valueOf(enumType, dbData.toUpperCase());
+        return dbData == null ? null : Enum.valueOf(enumType, dbData.toUpperCase(Locale.ROOT));
     }
 }
