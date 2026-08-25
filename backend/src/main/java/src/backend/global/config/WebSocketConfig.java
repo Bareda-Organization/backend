@@ -11,6 +11,7 @@ import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBr
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
+import src.backend.global.error.StompErrorFrameHandler;
 import src.backend.global.security.StompAuthChannelInterceptor;
 
 /**
@@ -40,6 +41,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         // 로컬은 "*", 배포는 웹(Vercel) 출처만 허용한다 — 웹이 API 와 다른 출처가 됐기 때문이다.
         // 네이티브 앱은 Origin 헤더를 보내지 않아 이 제한에 걸리지 않는다.
         registry.addEndpoint("/ws/location").setAllowedOriginPatterns(allowedOriginPatterns);
+        // 거부 사유를 REST 와 같은 어휘(ErrorCode 이름)로 ERROR 프레임에 싣는다 — 기본 변환기는 채널
+        // 인터셉터의 예외를 감싼 바깥 예외 문구만 실어 클라이언트가 원인을 특정하지 못한다.
+        registry.setErrorHandler(new StompErrorFrameHandler());
     }
 
     @Override

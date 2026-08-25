@@ -11,7 +11,7 @@ import src.backend.global.security.access.AcademyScopeExempt;
 public interface AccountRepository extends JpaRepository<Account, Long> {
 
     /** 회원가입 아이디 중복 확인(API_SPEC §2.2 {@code DUPLICATE_LOGIN_ID}). */
-    @AcademyScopeExempt(reason = "§2.2 아이디는 전 학원 통틀어 유일 — 학원별로 좁히면 타 학원과 같은 아이디를 허용해 로그인이 어느 계정인지 결정 불가")
+    @AcademyScopeExempt(reason = "§2.2 격리 예외가 아니라 유일성 제약 자체 — 아이디는 전 학원 통틀어 유일해야 하고, 학원별로 좁혀 세면 타 학원과 같은 아이디를 허용하게 되어 로그인 시 어느 계정인지 결정할 수단이 부재")
     boolean existsByLoginId(String loginId);
 
     /** 로그인 아이디로 계정을 찾는다(API_SPEC §2.5 로그인). */

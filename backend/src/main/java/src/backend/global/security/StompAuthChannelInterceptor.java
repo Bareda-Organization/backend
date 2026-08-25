@@ -11,6 +11,10 @@ import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.stereotype.Component;
 
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
+import src.backend.global.security.access.AcademyScope;
+
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 
@@ -22,8 +26,9 @@ import io.jsonwebtoken.JwtException;
  * Spring 의 user-destination 라우팅이 "본인 세션에만" 배달을 구조적으로 보장해 검사가 필요 없고,
  * 관리자용 테넌트 브로드캐스트 토픽(/topic/tenant/{tenantId}/**)만 소속 학원인지 확인한다(Phase 3d).
  *
- * <p>역할별 세분화(플랫폼 관리자의 전역 접근 등)는 {@code AuthUser} 축소로 성립하지 않게 됐다 —
- * 지금은 소속 학원 일치만 검사하고, 역할 타입화가 끝나는 대로 Phase 2 가 되돌린다.
+ * <p>학원 대조는 {@link AcademyScope} 하나가 판정한다 — 여기에 직접 쓰면 메인 관리자를 거부하는 등
+ * REST 경로와 규칙이 갈린다(실제로 그랬다). {@code /topic/tenant/...} 경로의 옛 어휘는 클라이언트
+ * 계약이라 Phase 10 에서 바꾼다.
  */
 @Component
 public class StompAuthChannelInterceptor implements ChannelInterceptor {
@@ -74,9 +79,9 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         if (!matcher.matches()) {
             return; // 테넌트 브로드캐스트 토픽이 아니면(개인 큐 등) 이 검사 대상이 아니다.
         }
-        Long tenantId = Long.valueOf(matcher.group(1));
-        if (!(accessor.getUser() instanceof AuthUser admin) || !tenantId.equals(admin.academyId())) {
-            throw new IllegalArgumentException("이 학원의 관제 채널을 구독할 권한이 없습니다");
+        if (!(accessor.getUser() instanceof AuthUser subscriber)) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
+        AcademyScope.assertAccessible(subscriber, Long.valueOf(matcher.group(1)));
     }
 }

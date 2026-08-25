@@ -61,14 +61,17 @@ class AcademyScopeRepositoryConventionTest {
             "audit_log", "exception_report", "emergency_alert");
 
     /**
-     * 학원으로 좁히면 <b>깨지는</b> 조회 — 로그인·토큰 재발급·계정 복구는 소속을 아직 모르는 상태에서
+     * 학원으로 좁히면 <b>깨지는</b> 조회 6개 — 로그인·토큰 재발급·계정 복구는 소속을 아직 모르는 상태에서
      * 시작하고, 소속을 알아야 좁힐 수 있는데 좁혀야 소속을 안다는 순환이 된다(Ruling 100).
      *
-     * <p>{@code AccountRepository.findByLoginId} 도 같은 성질이나, 이 목록은 조율자가 확정한 4개만
-     * 담는다 — 확정 사실과 판단을 섞지 않기 위함이다.
+     * <p>{@code existsByLoginId} 만은 근거가 다르다 — 격리 예외가 아니라 <b>유일성 제약 그 자체</b>다.
+     * 아이디는 전 학원 통틀어 유일해야 하는데 학원별로 좁혀 세면 타 학원과 같은 아이디를 허용하게 되고,
+     * 그러면 로그인 시 어느 계정인지 결정할 수단이 사라진다.
      */
     private static final List<String> MUST_STAY_UNSCOPED = List.of(
             "AccountRepository#findByPhone",
+            "AccountRepository#findByLoginId",
+            "AccountRepository#existsByLoginId",
             "RefreshTokenRepository#findByTokenHash",
             "RefreshTokenRepository#findAllByAccountIdAndRevokedAtIsNull",
             "VerificationCodeRepository#findTopByPhoneAndPurposeOrderByCreatedAtDesc");
@@ -142,7 +145,7 @@ class AcademyScopeRepositoryConventionTest {
      * 조건을 넣는 절반짜리 변경도 실패로 만든다.
      */
     @Test
-    void 로그인과_복구_경로_조회_4개는_학원으로_좁혀지지_않은_채_남는다() {
+    void 로그인과_복구_경로_조회_6개는_학원으로_좁혀지지_않은_채_남는다() {
         List<Method> named = allRepositoryMethods().stream()
                 .filter(method -> MUST_STAY_UNSCOPED.contains(key(method)))
                 .toList();
