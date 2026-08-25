@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import lombok.RequiredArgsConstructor;
+
 import src.backend.account.dto.RecoverResponse;
 import src.backend.account.entity.Account;
 import src.backend.account.entity.VerificationCode;
@@ -27,6 +29,7 @@ import src.backend.global.error.ErrorCode;
  * 비밀번호 복구는 발급한 임시 비밀번호를 응답 본문에 그대로 실어 돌려준다(별도 통지 채널 부재).
  */
 @Service
+@RequiredArgsConstructor
 public class RecoverCommandService {
 
     /** SMS 인증 코드 유효기간(Task 4 판단 — API_SPEC 미규정, 보고서 ⑥). */
@@ -42,16 +45,6 @@ public class RecoverCommandService {
     private final PasswordEncoder passwordEncoder;
     private final Clock clock;
     private final SecureRandom random = new SecureRandom();
-
-    public RecoverCommandService(AccountRepository accountRepository,
-            VerificationCodeRepository verificationCodeRepository, RefreshTokenRepository refreshTokenRepository,
-            PasswordEncoder passwordEncoder, Clock clock) {
-        this.accountRepository = accountRepository;
-        this.verificationCodeRepository = verificationCodeRepository;
-        this.refreshTokenRepository = refreshTokenRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.clock = clock;
-    }
 
     /**
      * {@code noRollbackFor} 가 이 경로의 안전장치다 — 코드 대조에 실패하면

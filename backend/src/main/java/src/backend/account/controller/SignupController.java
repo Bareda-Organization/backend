@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import lombok.RequiredArgsConstructor;
+
 import src.backend.account.command.SignupCommandService;
 import src.backend.account.dto.ReapplyRequestPayload;
 import src.backend.account.dto.ReapplyResponse;
@@ -26,16 +28,11 @@ import src.backend.global.security.gate.AllowedWhenRejected;
 
 /** 회원가입·가입 심사 상태 조회·거절 후 재신청(AUTH-01·AUTH-03, API_SPEC §2.2·§2.3·§2.4). */
 @RestController
+@RequiredArgsConstructor
 public class SignupController {
 
     private final SignupCommandService signupCommandService;
     private final SignupStatusQueryService signupStatusQueryService;
-
-    public SignupController(SignupCommandService signupCommandService,
-            SignupStatusQueryService signupStatusQueryService) {
-        this.signupCommandService = signupCommandService;
-        this.signupStatusQueryService = signupStatusQueryService;
-    }
 
     @PublicEndpoint
     @PostMapping("/auth/signup")

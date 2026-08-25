@@ -21,6 +21,9 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import lombok.RequiredArgsConstructor;
+
 import src.backend.global.config.ApiPathPrefixConfig;
 import src.backend.global.security.authz.RolePermissions;
 
@@ -50,16 +53,13 @@ import java.util.List;
 @Configuration
 @EnableWebSecurity   // HttpSecurity 등 보안 인프라 빈 등록(앱·슬라이스 테스트 공통)
 @EnableMethodSecurity
+@RequiredArgsConstructor
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Value("${app.cors.allowed-origins:}")
     private String allowedOrigins;
-
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
-        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
-    }
 
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http) throws Exception {

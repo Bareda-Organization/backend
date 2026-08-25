@@ -5,6 +5,8 @@ import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.springframework.stereotype.Component;
 
+import lombok.RequiredArgsConstructor;
+
 import src.backend.observability.metrics.SchedulerHealthMetrics;
 
 /**
@@ -18,13 +20,10 @@ import src.backend.observability.metrics.SchedulerHealthMetrics;
  */
 @Aspect
 @Component
+@RequiredArgsConstructor
 public class ScheduledTaskMetricsAspect {
 
     private final SchedulerHealthMetrics metrics;
-
-    public ScheduledTaskMetricsAspect(SchedulerHealthMetrics metrics) {
-        this.metrics = metrics;
-    }
 
     @Around("@annotation(org.springframework.scheduling.annotation.Scheduled)")
     public Object measure(ProceedingJoinPoint joinPoint) throws Throwable {

@@ -6,6 +6,8 @@ import java.time.OffsetDateTime;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import lombok.RequiredArgsConstructor;
+
 import src.backend.account.entity.RefreshToken;
 import src.backend.account.repository.RefreshTokenRepository;
 import src.backend.global.error.BusinessException;
@@ -17,15 +19,11 @@ import src.backend.global.error.ErrorCode;
  * 토큰 1건만 무효화하고, 같은 계정의 다른 단말 세션은 건드리지 않는다.
  */
 @Service
+@RequiredArgsConstructor
 public class LogoutCommandService {
 
     private final RefreshTokenRepository refreshTokenRepository;
     private final Clock clock;
-
-    public LogoutCommandService(RefreshTokenRepository refreshTokenRepository, Clock clock) {
-        this.refreshTokenRepository = refreshTokenRepository;
-        this.clock = clock;
-    }
 
     /**
      * 인증 필터가 이미 액세스 토큰으로 신원을 확인했으므로, 이 refresh 토큰이 그 신원의 소유인지

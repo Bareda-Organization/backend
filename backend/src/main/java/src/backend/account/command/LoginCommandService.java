@@ -8,6 +8,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import lombok.RequiredArgsConstructor;
+
 import src.backend.academy.entity.Academy;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.account.dto.LoginFailureDetail;
@@ -26,6 +28,7 @@ import src.backend.global.security.JwtTokenProvider;
  * {@code AuthController} 가 판단한다(브리프 §3).
  */
 @Service
+@RequiredArgsConstructor
 public class LoginCommandService {
 
     private final AccountRepository accountRepository;
@@ -34,20 +37,8 @@ public class LoginCommandService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final Clock clock;
+    @Value("${jwt.refresh-token-validity-seconds}")
     private final long refreshValiditySeconds;
-
-    public LoginCommandService(AccountRepository accountRepository, AcademyRepository academyRepository,
-            RefreshTokenRepository refreshTokenRepository, PasswordEncoder passwordEncoder,
-            JwtTokenProvider jwtTokenProvider, Clock clock,
-            @Value("${jwt.refresh-token-validity-seconds}") long refreshValiditySeconds) {
-        this.accountRepository = accountRepository;
-        this.academyRepository = academyRepository;
-        this.refreshTokenRepository = refreshTokenRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.jwtTokenProvider = jwtTokenProvider;
-        this.clock = clock;
-        this.refreshValiditySeconds = refreshValiditySeconds;
-    }
 
     /**
      * {@code pending}·{@code rejected} 도 로그인은 성공한다(API_SPEC §2.5) — 접근 범위 축소는

@@ -15,6 +15,8 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
+import lombok.RequiredArgsConstructor;
+
 /**
  * 모든 요청에서 한 번 실행되며, Authorization: Bearer 토큰을 검증해
  * SecurityContext 에 인증 정보를 채운다.
@@ -25,16 +27,13 @@ import jakarta.servlet.http.HttpServletResponse;
  * 그 자동 등록을 꺼 둔다(그 메서드 Javadoc에 이중 실행이 왜 인증을 지우는지 적어 뒀다).
  */
 @Component
+@RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String HEADER = "Authorization";
     private static final String PREFIX = "Bearer ";
 
     private final JwtTokenProvider tokenProvider;
-
-    public JwtAuthenticationFilter(JwtTokenProvider tokenProvider) {
-        this.tokenProvider = tokenProvider;
-    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)

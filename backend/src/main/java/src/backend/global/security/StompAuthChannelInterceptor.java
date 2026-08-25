@@ -11,6 +11,8 @@ import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.stereotype.Component;
 
+import lombok.RequiredArgsConstructor;
+
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.access.AcademyScope;
@@ -31,6 +33,7 @@ import io.jsonwebtoken.JwtException;
  * 계약이라 Phase 10 에서 바꾼다.
  */
 @Component
+@RequiredArgsConstructor
 public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     private static final String HEADER = "Authorization";
@@ -38,10 +41,6 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
     private static final Pattern TENANT_TOPIC_PATTERN = Pattern.compile("^/topic/tenant/(\\d+)/.*");
 
     private final JwtTokenProvider tokenProvider;
-
-    public StompAuthChannelInterceptor(JwtTokenProvider tokenProvider) {
-        this.tokenProvider = tokenProvider;
-    }
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {

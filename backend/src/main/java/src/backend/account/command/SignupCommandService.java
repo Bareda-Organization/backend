@@ -10,6 +10,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import lombok.RequiredArgsConstructor;
+
 import src.backend.academy.entity.Academy;
 import src.backend.academy.entity.AcademyStatus;
 import src.backend.academy.repository.AcademyRepository;
@@ -28,6 +30,7 @@ import src.backend.global.error.ErrorCode;
 
 /** 가입 신청 생명주기(AUTH-01·AUTH-03, API_SPEC §2.2·§2.4) — 최초 신청과 거절 후 재신청을 함께 다룬다. */
 @Service
+@RequiredArgsConstructor
 public class SignupCommandService {
 
     /** V1__init_schema.sql 의 UNIQUE 제약명 — TOCTOU 충돌을 이 제약으로만 좁혀 잡는 데 쓴다. */
@@ -38,16 +41,6 @@ public class SignupCommandService {
     private final AcademyRepository academyRepository;
     private final PasswordEncoder passwordEncoder;
     private final Clock clock;
-
-    public SignupCommandService(AccountRepository accountRepository,
-            SignupRequestRepository signupRequestRepository, AcademyRepository academyRepository,
-            PasswordEncoder passwordEncoder, Clock clock) {
-        this.accountRepository = accountRepository;
-        this.signupRequestRepository = signupRequestRepository;
-        this.academyRepository = academyRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.clock = clock;
-    }
 
     /**
      * form 회원가입(AUTH-01) — 계정을 {@code pending} 으로 만들고 승인 요청을 큐에 쌓는다.

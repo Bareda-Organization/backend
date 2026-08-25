@@ -4,6 +4,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import lombok.RequiredArgsConstructor;
+
 import src.backend.account.dto.MeResponse;
 import src.backend.account.query.MeQueryService;
 import src.backend.global.response.ApiResponse;
@@ -17,13 +19,10 @@ import src.backend.global.security.gate.AllowedWhenPending;
  * 확인, MeControllerTest 리네임(Task 4).
  */
 @RestController
+@RequiredArgsConstructor
 public class MeController {
 
     private final MeQueryService meQueryService;
-
-    public MeController(MeQueryService meQueryService) {
-        this.meQueryService = meQueryService;
-    }
 
     @AuthenticatedOnly
     @AllowedWhenPending

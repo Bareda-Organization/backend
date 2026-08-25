@@ -5,6 +5,8 @@ import java.util.Locale;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import lombok.RequiredArgsConstructor;
+
 import src.backend.academy.entity.Academy;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.account.dto.MeResponse;
@@ -29,6 +31,7 @@ import src.backend.student.repository.StudentRepository;
  * 않는다.
  */
 @Service
+@RequiredArgsConstructor
 public class MeQueryService {
 
     private final AccountRepository accountRepository;
@@ -37,17 +40,6 @@ public class MeQueryService {
     private final GuardianRepository guardianRepository;
     private final GuardianStudentRepository guardianStudentRepository;
     private final ManagerRepository managerRepository;
-
-    public MeQueryService(AccountRepository accountRepository, AcademyRepository academyRepository,
-            StudentRepository studentRepository, GuardianRepository guardianRepository,
-            GuardianStudentRepository guardianStudentRepository, ManagerRepository managerRepository) {
-        this.accountRepository = accountRepository;
-        this.academyRepository = academyRepository;
-        this.studentRepository = studentRepository;
-        this.guardianRepository = guardianRepository;
-        this.guardianStudentRepository = guardianStudentRepository;
-        this.managerRepository = managerRepository;
-    }
 
     @Transactional(readOnly = true)
     public MeResponse getMe(Long accountId) {

@@ -17,6 +17,9 @@ import org.springframework.web.bind.annotation.RestController;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.Schema;
+
+import lombok.RequiredArgsConstructor;
+
 import src.backend.account.command.LoginCommandService;
 import src.backend.account.command.LoginResult;
 import src.backend.account.command.LogoutCommandService;
@@ -50,6 +53,7 @@ import src.backend.global.security.gate.AllowedWhenPending;
  * 로그인은 {@code X-Client-Type} 헤더(§2.5), 그 외 refresh 계열은 쿠키 우선·본문 차선(§2.6·§2.7)이다.
  */
 @RestController
+@RequiredArgsConstructor
 public class AuthController {
 
     private static final String CLIENT_TYPE_WEB = "web";
@@ -61,17 +65,6 @@ public class AuthController {
     private final PasswordChangeCommandService passwordChangeCommandService;
     private final RecoverCommandService recoverCommandService;
     private final RefreshTokenCookieAssembler cookieAssembler;
-
-    public AuthController(LoginCommandService loginCommandService, RefreshCommandService refreshCommandService,
-            LogoutCommandService logoutCommandService, PasswordChangeCommandService passwordChangeCommandService,
-            RecoverCommandService recoverCommandService, RefreshTokenCookieAssembler cookieAssembler) {
-        this.loginCommandService = loginCommandService;
-        this.refreshCommandService = refreshCommandService;
-        this.logoutCommandService = logoutCommandService;
-        this.passwordChangeCommandService = passwordChangeCommandService;
-        this.recoverCommandService = recoverCommandService;
-        this.cookieAssembler = cookieAssembler;
-    }
 
     /**
      * 로그인(API_SPEC §2.5) — {@code X-Client-Type: web} 이면 refresh 토큰을 본문에서 빼고

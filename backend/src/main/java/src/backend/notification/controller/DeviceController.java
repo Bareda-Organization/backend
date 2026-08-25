@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
 
+import lombok.RequiredArgsConstructor;
+
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanRegisterDevice;
@@ -25,13 +27,10 @@ import src.backend.notification.dto.DeviceRegisterResponse;
  * 겸하지 않되 한 핸들러가 각 축에서 하나씩 갖는 것은 허용된다(SignupController 선례, Task 4).
  */
 @RestController
+@RequiredArgsConstructor
 public class DeviceController {
 
     private final DeviceCommandService deviceCommandService;
-
-    public DeviceController(DeviceCommandService deviceCommandService) {
-        this.deviceCommandService = deviceCommandService;
-    }
 
     @CanRegisterDevice
     @AllowedWhenPending

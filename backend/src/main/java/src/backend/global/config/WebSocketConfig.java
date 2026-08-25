@@ -11,6 +11,8 @@ import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBr
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
+import lombok.RequiredArgsConstructor;
+
 import src.backend.global.error.StompErrorFrameHandler;
 import src.backend.global.security.StompAuthChannelInterceptor;
 
@@ -22,19 +24,15 @@ import src.backend.global.security.StompAuthChannelInterceptor;
  */
 @Configuration
 @EnableWebSocketMessageBroker
+@RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     /** STOMP heartbeat(ping/pong) 간격(ms) — 사양이 정한 정책 값이 아니라 연결 유지용 운영값이라 코드에 고정한다(IMPLEMENTATION_PLAN §7 규칙 10). */
     private static final long HEARTBEAT_MS = 10_000;
 
     private final StompAuthChannelInterceptor authChannelInterceptor;
+    @Value("${app.ws.allowed-origin-patterns}")
     private final String[] allowedOriginPatterns;
-
-    public WebSocketConfig(StompAuthChannelInterceptor authChannelInterceptor,
-                           @Value("${app.ws.allowed-origin-patterns}") String[] allowedOriginPatterns) {
-        this.authChannelInterceptor = authChannelInterceptor;
-        this.allowedOriginPatterns = allowedOriginPatterns;
-    }
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {

@@ -7,6 +7,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import lombok.RequiredArgsConstructor;
+
 import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
 import src.backend.account.repository.RefreshTokenRepository;
@@ -18,20 +20,13 @@ import src.backend.global.error.ErrorCode;
  * refresh 토큰을 전량 무효화한다(재로그인 강제).
  */
 @Service
+@RequiredArgsConstructor
 public class PasswordChangeCommandService {
 
     private final AccountRepository accountRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final Clock clock;
-
-    public PasswordChangeCommandService(AccountRepository accountRepository,
-            RefreshTokenRepository refreshTokenRepository, PasswordEncoder passwordEncoder, Clock clock) {
-        this.accountRepository = accountRepository;
-        this.refreshTokenRepository = refreshTokenRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.clock = clock;
-    }
 
     /** 현재 비밀번호 불일치 시 {@code 401 INVALID_CREDENTIALS}(API_SPEC §2.8) — 형식 오류는 {@code @Valid} 가 앞단에서 걸러 {@code 422} 로 응답한다. */
     @Transactional

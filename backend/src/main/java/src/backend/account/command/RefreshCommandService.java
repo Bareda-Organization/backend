@@ -9,6 +9,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
+
+import lombok.RequiredArgsConstructor;
+
 import src.backend.account.entity.Account;
 import src.backend.account.entity.RefreshToken;
 import src.backend.account.repository.AccountRepository;
@@ -23,23 +26,15 @@ import src.backend.global.security.JwtTokenProvider;
  * 내릴지의 판정은 전부 {@code AuthController} 몫이다.
  */
 @Service
+@RequiredArgsConstructor
 public class RefreshCommandService {
 
     private final AccountRepository accountRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final Clock clock;
+    @Value("${jwt.refresh-token-validity-seconds}")
     private final long refreshValiditySeconds;
-
-    public RefreshCommandService(AccountRepository accountRepository,
-            RefreshTokenRepository refreshTokenRepository, JwtTokenProvider jwtTokenProvider, Clock clock,
-            @Value("${jwt.refresh-token-validity-seconds}") long refreshValiditySeconds) {
-        this.accountRepository = accountRepository;
-        this.refreshTokenRepository = refreshTokenRepository;
-        this.jwtTokenProvider = jwtTokenProvider;
-        this.clock = clock;
-        this.refreshValiditySeconds = refreshValiditySeconds;
-    }
 
     /**
      * refresh 토큰을 회전한다 — 서명·만료(JWT 자체) 검증에 실패하거나, DB 상 이미 무효화된

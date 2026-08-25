@@ -7,6 +7,8 @@ import java.util.Locale;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import lombok.RequiredArgsConstructor;
+
 import src.backend.notification.dto.DeviceRegisterRequest;
 import src.backend.notification.dto.DeviceRegisterResponse;
 import src.backend.notification.entity.DevicePlatform;
@@ -15,15 +17,11 @@ import src.backend.notification.repository.DeviceTokenRepository;
 
 /** 푸시 단말 등록·해지(NTF-12, API_SPEC §2.11). */
 @Service
+@RequiredArgsConstructor
 public class DeviceCommandService {
 
     private final DeviceTokenRepository deviceTokenRepository;
     private final Clock clock;
-
-    public DeviceCommandService(DeviceTokenRepository deviceTokenRepository, Clock clock) {
-        this.deviceTokenRepository = deviceTokenRepository;
-        this.clock = clock;
-    }
 
     /**
      * 단말을 등록한다 — 같은 {@code (accountId, deviceId)} 행이 이미 있으면 삭제 후 새로 만든다

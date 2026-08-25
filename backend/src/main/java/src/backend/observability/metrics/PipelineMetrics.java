@@ -4,6 +4,8 @@ import org.springframework.stereotype.Component;
 
 import io.micrometer.core.instrument.MeterRegistry;
 
+import lombok.RequiredArgsConstructor;
+
 /**
  * 비동기 파이프라인이 살아 있는지를 계측한다 — 지금은 Kafka 소비 실패 하나뿐이다.
  * 위치 수신·알림 발송 계측은 그 대상 도메인이 재작성되는 대로 되돌아온다.
@@ -15,13 +17,10 @@ import io.micrometer.core.instrument.MeterRegistry;
  * 막고, 개인 식별 정보가 지표에 섞이지 않게 한다.
  */
 @Component
+@RequiredArgsConstructor
 public class PipelineMetrics {
 
     private final MeterRegistry registry;
-
-    public PipelineMetrics(MeterRegistry registry) {
-        this.registry = registry;
-    }
 
     /** Kafka 메시지 처리 중 예외 발생. 증가가 멈추지 않으면 그 컨슈머가 계속 실패하는 중이다. */
     public void kafkaConsumeFailed(String consumer) {

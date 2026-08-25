@@ -5,6 +5,8 @@ import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.springframework.stereotype.Component;
 
+import lombok.RequiredArgsConstructor;
+
 import src.backend.observability.metrics.PipelineMetrics;
 
 /**
@@ -17,13 +19,10 @@ import src.backend.observability.metrics.PipelineMetrics;
  */
 @Aspect
 @Component
+@RequiredArgsConstructor
 public class KafkaListenerMetricsAspect {
 
     private final PipelineMetrics metrics;
-
-    public KafkaListenerMetricsAspect(PipelineMetrics metrics) {
-        this.metrics = metrics;
-    }
 
     @Around("@annotation(org.springframework.kafka.annotation.KafkaListener)")
     public Object measure(ProceedingJoinPoint joinPoint) throws Throwable {
