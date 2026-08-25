@@ -38,11 +38,23 @@ public class Account extends BaseTimeEntity {
      * 로그인 실패 상한(C-11) — 도달하면 계정을 차단한다. {@code ck_account_failed_attempts} CHECK(0~5)와
      * 같은 값이다.
      *
-     * <p>{@code public} 인 이유는 미존재 계정의 실패 응답이 이 값을 그대로 실어야 하기 때문이다
-     * (리뷰 라운드 1 I5) — 존재하는 계정의 첫 실패와 응답 형태를 맞추지 않으면 {@code details} 유무만
-     * 보고 계정 존재 여부를 가려낼 수 있다.
+     * <p>{@code public} 인 이유는 이 상한을 검증하는 테스트가 회차 수를 여기서 끌어 써야 하기
+     * 때문이다 — 테스트에 5 를 박아 두면 상한을 바꿨을 때 테스트가 옛 값을 조용히 요구한다.
      */
     public static final int MAX_FAILED_ATTEMPTS = 5;
+
+    /**
+     * 첫 실패 뒤 남는 시도 횟수 — 미등록 {@code login_id} 의 실패 응답이 실어야 하는 값이다
+     * ({@code INVALID_CREDENTIALS.details.remaining_attempts}, API_SPEC §2.5).
+     *
+     * <p>미등록에는 누적할 카운터가 부재해 {@link #recordLoginFailure} 를 부를 수 없다. 그런데 그 응답의
+     * 숫자가 존재 계정의 첫 실패와 다르면, 공격자는 후보 아이디에 틀린 비밀번호를 <b>한 번</b> 보내고
+     * 5 인지 4 인지만 보고 계정 존재를 판정한다(계정 열거, 리뷰 라운드 2 I-1).
+     *
+     * <p>이름을 붙여 한 곳에서만 정의하는 이유는, 두 자리가 각자 {@code MAX_FAILED_ATTEMPTS - 1} 을
+     * 계산하면 C-11 상한이 바뀔 때 한쪽만 따라가고 그 순간 열거가 되살아나기 때문이다.
+     */
+    public static final int REMAINING_AFTER_FIRST_FAILURE = MAX_FAILED_ATTEMPTS - 1;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -149,6 +161,10 @@ public class Account extends BaseTimeEntity {
     /**
      * 로그인 실패를 1회 누적한다(API_SPEC §2.5 · C-11) — 누적치가 상한에 도달하면 즉시 {@code blocked}
      * 로 전이한다. 도달 전까지는 카운터만 올리고 상태는 바꾸지 않는다.
+     *
+     * <p>첫 실패({@code failedAttempts == 1})의 반환값은 {@link #REMAINING_AFTER_FIRST_FAILURE} 와
+     * 같다 — 미등록 {@code login_id} 의 응답이 그 상수를 실어 두 응답이 갈리지 않게 한다. 이 등식이
+     * 깨지면 숫자 하나로 계정 존재가 드러나므로 {@code AuthControllerTest} 가 두 응답을 대조한다.
      *
      * @return 이 실패 이후 남은 시도 횟수({@code INVALID_CREDENTIALS.details.remaining_attempts}) — 상한 도달 시 0
      */

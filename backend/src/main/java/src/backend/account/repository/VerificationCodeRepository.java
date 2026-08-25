@@ -38,6 +38,12 @@ public interface VerificationCodeRepository extends JpaRepository<VerificationCo
      * 버려진다. 지금 호출부는 직전에 엔티티를 변경하지 않지만, 그 전제는 호출부가 늘어나면 언제든
      * 깨지고 깨진 자리는 조용히 실패한다.
      *
+     * <p>{@code clearAutomatically} 는 반대 방향의 위험도 함께 만든다 — <b>이 호출 뒤에는 호출 이전에
+     * 로드한 엔티티가 전부 detach 된다.</b> {@code RecoverCommandService#recover} 는 이 호출보다 먼저
+     * {@code account} 를 로드하므로, 이 줄 뒤에 {@code account.changePassword(...)} 같은 변경이 한 줄만
+     * 들어와도 그 변경은 더티 체킹 대상에서 빠져 예외도 로그도 없이 사라진다. 뒤에서 다시 변경하려면
+     * 재조회해야 한다(리뷰 라운드 2 m-3).
+     *
      * @return 실제로 무효화된 행 수
      */
     @AcademyScopeExempt(reason = "§2.9 계정 복구 — 전화번호만 들고 시작해 소속 학원이 미상")

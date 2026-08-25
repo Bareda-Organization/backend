@@ -53,10 +53,17 @@ public class LoginCommandService {
      * {@code pending}·{@code rejected} 도 로그인은 성공한다(API_SPEC §2.5) — 접근 범위 축소는
      * 계정 상태 게이트(§1.4)가 별도로 담당한다. 이 메서드는 자격 증명과 차단 여부만 본다.
      *
-     * <p>미등록 {@code login_id} 도 존재하는 계정의 첫 실패와 <b>본문 형태가 같아야 한다</b> —
-     * {@code details.remaining_attempts} 를 한쪽에만 실으면 상태 코드가 같아도 그 유무로 계정 존재
-     * 여부를 가려낼 수 있다(계정 열거, 리뷰 라운드 1 I5). 미등록에는 누적할 카운터가 없으므로
-     * "아직 한 번도 실패하지 않은 계정" 과 같은 값인 {@link Account#MAX_FAILED_ATTEMPTS} 를 싣는다.
+     * <p>미등록 {@code login_id} 도 존재하는 계정의 첫 실패와 <b>본문 형태와 값이 같아야 한다</b> —
+     * {@code details.remaining_attempts} 를 한쪽에만 실으면 그 유무가, 양쪽에 싣더라도 값이 갈리면
+     * 그 숫자가 곧 계정 존재 신호다(계정 열거, 리뷰 라운드 1 I5 · 라운드 2 I-1). 미등록에는 누적할
+     * 카운터가 부재하므로 {@link Account#REMAINING_AFTER_FIRST_FAILURE} 를 싣는다.
+     *
+     * <p><b>이 조치가 막는 것과 남는 것.</b> 막는 것은 <b>1회 프로브</b>뿐이다 — 2회째부터는 존재
+     * 계정이 3·2·1 로 줄고 미등록은 계속 같은 값을 내려 다시 갈린다. 그리고 이 필드를 어떻게 손봐도
+     * 열거는 닫히지 않는다 — 상한을 채운 계정은 {@code blocked} 로 전이해 응답이 403
+     * {@code AUTH_ACCOUNT_BLOCKED} 로 바뀌고 미등록은 계속 401 이므로, <b>잠금 동작 자체가 열거
+     * 채널</b>이고 응답 본문만으로는 원리상 닫을 수 없다. 실질 대응은 시도 빈도 제한이며 그것은
+     * Phase 14(운영 게이트)에 등재돼 있다(Ruling 127) — 이 경로에서 만들지 않는다.
      *
      * <p>실패 시 {@link Account#recordLoginFailure} 가 상한 도달을 판정해 {@code blocked} 로
      * 전이시키면, 그 즉시 계정의 유효 refresh 토큰을 전량 무효화한다 — API_SPEC §1.2 는 "차단 시
@@ -67,7 +74,7 @@ public class LoginCommandService {
     public LoginResult login(String loginId, String rawPassword) {
         Account account = accountRepository.findByLoginId(loginId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_CREDENTIALS,
-                        new LoginFailureDetail(Account.MAX_FAILED_ATTEMPTS)));
+                        new LoginFailureDetail(Account.REMAINING_AFTER_FIRST_FAILURE)));
         account.assertNotBlocked();
 
         OffsetDateTime now = OffsetDateTime.now(clock);
