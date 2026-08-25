@@ -18,7 +18,8 @@ import src.backend.global.common.BaseTimeEntity;
  * 학원 관계자 — DB 레벨(UNIQUE) 제약 2개로 정원을 강제하는 자리다(ERD §3.1 · ACAD-05·06 · O-02).
  * 이름·연락처는 {@code account} 가 보유하므로 여기서 중복 보관하지 않는다.
  *
- * <p>{@code uk_academy_staff_academy(academy_id)} — 학원당 관계자 1명 정원.
+ * <p>{@code uk_academy_staff_academy_active(academy_id) WHERE status = 'active'} — 학원당 <b>재직</b>
+ * 관계자 1명 정원. 조건이 없으면 학원당 행이 평생 1개라 퇴사 뒤 새 관계자를 승인할 수 없다(Ruling 139).
  * <p>{@code uk_academy_staff_account(account_id)} — 같은 계정이 두 학원의 관계자를 겸할 수 없다.
  */
 @Entity

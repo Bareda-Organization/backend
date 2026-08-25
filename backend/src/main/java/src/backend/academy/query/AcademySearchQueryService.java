@@ -12,6 +12,7 @@ import src.backend.academy.dto.AcademySearchResponse;
 import src.backend.academy.entity.Academy;
 import src.backend.academy.entity.AcademyStatus;
 import src.backend.academy.repository.AcademyRepository;
+import src.backend.global.persistence.LikeEscape;
 
 /** 가입용 학원 검색 유스케이스(AUTH-02, API_SPEC §2.1). */
 @Service
@@ -30,17 +31,8 @@ public class AcademySearchQueryService {
     /** 비활성 학원은 제외한다 — 신규 가입 대상에서 빼는 O-01 규칙. */
     public AcademySearchResponse search(String q) {
         Pageable pageable = PageRequest.of(0, MAX_RESULTS);
-        List<Academy> academies = academyRepository.searchByStatus(AcademyStatus.ACTIVE, escapeLikeWildcards(q),
+        List<Academy> academies = academyRepository.searchByStatus(AcademyStatus.ACTIVE, LikeEscape.escape(q),
                 pageable);
         return AcademySearchResponse.from(academies);
-    }
-
-    /**
-     * LIKE 패턴의 {@code %}·{@code _} 는 각각 "0개 이상"·"1개" 와일드카드라 사용자 입력에 그대로
-     * 들어가면 의도치 않은 매칭이 폭넓어진다({@code q="%"} 가 전체 매칭). {@code \} 부터 먼저
-     * 이스케이프해야 뒤이어 붙이는 {@code \%}·{@code \_} 가 다시 이스케이프되지 않는다.
-     */
-    private String escapeLikeWildcards(String q) {
-        return q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 }

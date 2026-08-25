@@ -854,7 +854,7 @@ erDiagram
 | `academy` → `academy_setting` | 1 : 1 | `academy_id` | CASCADE | 학원 없이 설정 무의미 |
 | `academy` → `account` | 1 : N | `academy_id` | RESTRICT | 학원은 물리 삭제 부재 |
 | `academy` → `signup_request` | 1 : N | `academy_id` | RESTRICT | |
-| `academy` → `academy_staff` | 1 : 0..1 | `academy_id` | RESTRICT | 학원당 1명 (UK) |
+| `academy` → `academy_staff` | 1 : 0..1 | `academy_id` | RESTRICT | 학원당 **재직** 1명 (partial UK). 퇴사 행은 남으므로 행 자체는 여러 개 가능 |
 | `academy` → `student` · `guardian` · `manager` · `bus` · `stop` · `schedule` · `route` · `run` | 1 : N | `academy_id` | RESTRICT | 테넌트 소속 |
 | `account` → `signup_request` | 1 : N | `account_id` | CASCADE | 재신청마다 행 추가 |
 | `account` → `refresh_token` | 1 : N | `account_id` | CASCADE | 계정 소멸 시 토큰도 소멸 |
@@ -922,7 +922,7 @@ erDiagram
 |---|---|---|
 | `academy(code)` | UK | 학원 코드 고유값. 자동 생성이라 충돌은 **서버가 재생성으로 흡수** — 클라이언트 에러 부재 (ACAD-02) |
 | `account(login_id)` | UK | 로그인 아이디 중복 차단 (AUTH-01) |
-| `academy_staff(academy_id)` | UK | **학원당 관계자 1명** — 초과 승인 차단 `409 STAFF_QUOTA_EXCEEDED` (C-01 · ACAD-05) |
+| `academy_staff(academy_id)` | UK (partial, `status='active'` 한정) | **학원당 재직 관계자 1명** — 초과 승인 차단 `409 STAFF_QUOTA_EXCEEDED` (C-01 · ACAD-05). 조건이 없으면 학원당 행이 평생 1개라 퇴사(`status='inactive'`, ACAD-06) 뒤 새 관계자 승인이 영구 불가 |
 | `academy_staff(account_id)` · `system_admin(account_id)` | UK | 계정 1:1 |
 | `student(account_id)` · `guardian(account_id)` · `manager(account_id)` | UK (partial, `NOT NULL` 한정) | 한 계정이 두 레코드에 연결되는 상태 차단 (AUTH-11) |
 | `guardian_student(guardian_id, student_id)` | UK | 같은 자녀 중복 연결 차단 — `409 ALREADY_LINKED` (P-02) |
@@ -1005,6 +1005,7 @@ erDiagram
 | `audit_log(academy_id, occurred_at desc)` · `audit_log(actor_account_id, occurred_at desc)` | 감사·접속 이력 필터 (SYS-01·02) |
 | `rider_status_history(run_rider_id, changed_at desc)` | 되돌리기 대상의 직전 상태 조회 (BRD-05) |
 | `refresh_token(account_id)` partial `WHERE revoked_at IS NULL` | 로그아웃·차단 시 유효 토큰 전량 무효화 (C-14) |
+| `academy_staff(academy_id)` partial `WHERE status = 'active'` | 정원 판정(재직자 수)과 학원의 현 관계자 조회. UK 가 겸함 (ACAD-05·06) |
 
 **학원 격리 선행 인덱스** — 학원 범위로 직접 조회하는 테이블(`academy_setting` · `signup_request` · `academy_staff` · `account` · `student` · `guardian` · `manager` · `bus` · `stop` · `schedule` · `route` · `run` · `change_request` · `notification_log` · `audit_log` · `exception_report` · `emergency_alert` — §6.1 의 직접 보유 17개)은 복합 인덱스의 **첫 컬럼을 `academy_id`** 로 둠. 격리 조건이 모든 쿼리에 무조건 붙는 술어이기 때문.
 

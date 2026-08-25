@@ -1,10 +1,16 @@
 package src.backend.account.repository;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import src.backend.account.entity.Account;
+import src.backend.global.common.enums.Role;
+import src.backend.global.persistence.AcademyCount;
 import src.backend.global.security.access.AcademyScopeExempt;
 
 /** {@link Account} 영속성 접근. */
@@ -28,4 +34,24 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
      */
     @AcademyScopeExempt(reason = "§2.9 계정 복구 — 전화번호만 들고 시작해 소속 학원이 미상")
     Optional<Account> findByPhone(String phone);
+
+    /**
+     * 학원의 특정 계정들을 가져온다 — 메인 관리자 콘솔의 학원 상세({@code staff_accounts[]}, API_SPEC §6.3)가
+     * {@code academy_staff} 행에 이름·아이디·연락처를 채울 때 쓴다.
+     *
+     * <p>식별자만으로 찾지 않고 학원 조건을 함께 거는 이유는, 이 조회에 학원이 걸리지 않으면
+     * {@code academy_staff} 행이 가리키는 계정이 실제로 그 학원 소속인지 아무도 보지 않게 되기 때문이다.
+     */
+    List<Account> findAllByAcademyIdAndIdIn(Long academyId, Collection<Long> ids);
+
+    /**
+     * 학원별 소속 사용자 수(API_SPEC §6.1 {@code user_count}) — 역할을 인자로 받아 무엇을 세는지
+     * 호출부가 정한다.
+     *
+     * <p>한 페이지의 학원 전부를 한 번에 센다 — 학원마다 세면 한 페이지(최대 100건)가 질의 100건이 된다.
+     */
+    @Query("SELECT a.academyId AS academyId, COUNT(a) AS total FROM Account a "
+            + "WHERE a.academyId IN :academyIds AND a.role IN :roles GROUP BY a.academyId")
+    List<AcademyCount> countByAcademyIdInGroupedByAcademyId(@Param("academyIds") Collection<Long> academyIds,
+            @Param("roles") Collection<Role> roles);
 }

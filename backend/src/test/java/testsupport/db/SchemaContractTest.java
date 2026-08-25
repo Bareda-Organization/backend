@@ -82,6 +82,33 @@ class SchemaContractTest extends MigratedPostgresTestBase {
         }
     }
 
+    /**
+     * 학원당 관계자 1명 정원(C-01 · ACAD-05)이 <b>재직 중인 행만</b> 대상으로 서는지 본다(Ruling 139).
+     *
+     * <p>조건이 없으면 학원당 {@code academy_staff} 행이 평생 1개라, 퇴사({@code status='inactive'},
+     * ACAD-06) 뒤 그 학원은 새 관계자를 영원히 승인할 수 없다 — {@code §6.5} 가 계속
+     * {@code 409 STAFF_QUOTA_EXCEEDED} 를 던진다. 정원은 "행이 1개" 가 아니라 "재직자가 1명" 이다.
+     *
+     * <p>조건식 문자열은 PostgreSQL 이 {@code pg_indexes.indexdef} 로 되돌려 주는 형태를 실측해 적었다 —
+     * {@code status} 가 {@code varchar} 라 {@code (status)::text} 로 캐스팅된 형태로 나온다. 손으로
+     * 지어낸 형태({@code WHERE (status = 'active')})를 적으면 스키마가 옳아도 실패한다.
+     */
+    @Test
+    void 학원_관계자_정원_UNIQUE_는_재직_중인_행만_대상으로_한다() throws SQLException {
+        List<String> definitions = queryColumn("""
+                SELECT indexdef FROM pg_indexes
+                WHERE schemaname = 'public' AND tablename = 'academy_staff' AND indexdef LIKE '%(academy_id)%'
+                """);
+
+        assertThat(definitions)
+                .as("academy_staff(academy_id) 유니크 인덱스가 1개여야 한다")
+                .hasSize(1);
+        assertThat(definitions.getFirst())
+                .as("academy_staff(academy_id) 는 status='active' 조건부 UNIQUE 여야 한다 — 조건이 빠지면 퇴사한 학원에 새 관계자를 승인할 수 없다")
+                .contains("CREATE UNIQUE INDEX")
+                .contains("WHERE ((status)::text = 'active'::text)");
+    }
+
     @Test
     void 확정_노선의_현재_버전_FK_는_지연_검사로_선언된다() throws SQLException {
         List<String> deferral = queryColumn("""

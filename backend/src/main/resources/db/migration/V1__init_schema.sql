@@ -97,7 +97,8 @@ CREATE TABLE academy_staff (
     status     varchar(10) NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
-    CONSTRAINT uk_academy_staff_academy UNIQUE (academy_id),
+    -- 학원당 1명 정원은 조건부 UNIQUE 라 표 제약으로 쓸 수 없다 — 아래 "조건부 UNIQUE" 절의
+    -- uk_academy_staff_academy_active 인덱스가 담당한다(Ruling 139).
     CONSTRAINT uk_academy_staff_account UNIQUE (account_id),
     CONSTRAINT fk_academy_staff_academy FOREIGN KEY (academy_id) REFERENCES academy (id) ON DELETE RESTRICT,
     CONSTRAINT fk_academy_staff_account FOREIGN KEY (account_id) REFERENCES account (id) ON DELETE RESTRICT,
@@ -742,6 +743,12 @@ CREATE TABLE audit_log (
 CREATE UNIQUE INDEX uk_student_account_id ON student (account_id) WHERE account_id IS NOT NULL;
 CREATE UNIQUE INDEX uk_guardian_account_id ON guardian (account_id) WHERE account_id IS NOT NULL;
 CREATE UNIQUE INDEX uk_manager_account_id ON manager (account_id) WHERE account_id IS NOT NULL;
+
+-- 학원당 관계자 정원 1명(C-01 · ACAD-05). 표 제약이 아니라 인덱스인 이유는 조건부 UNIQUE 를 표
+-- 제약으로 쓸 수 없기 때문이고, 조건이 필요한 이유는 정원이 "행 1개" 가 아니라 "재직자 1명" 이기
+-- 때문이다 — 조건 없이 걸면 퇴사(status='inactive', ACAD-06) 뒤 그 학원은 새 관계자를 영원히
+-- 승인할 수 없다(Ruling 139). uk_academy_staff_account 는 account_id 가 NOT NULL 이라 조건 없이 둔다.
+CREATE UNIQUE INDEX uk_academy_staff_academy_active ON academy_staff (academy_id) WHERE status = 'active';
 
 
 -- =====================================================================================

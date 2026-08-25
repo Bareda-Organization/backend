@@ -4,6 +4,9 @@ import java.util.Locale;
 
 import jakarta.persistence.AttributeConverter;
 
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+
 /**
  * enum 상수를 소문자 snake_case DB 값으로 잇는 공용 변환기 — 이 스키마의 CHECK 제약은 전부 소문자
  * 값을 요구하는데 {@code @Enumerated(EnumType.STRING)} 은 {@code Enum.name()}(대문자)을 그대로
@@ -13,15 +16,15 @@ import jakarta.persistence.AttributeConverter;
  * 한다 — 별도 파일을 늘리지 않도록, 이 클래스는 각 enum 파일 안에 {@code Db} 라는 이름의 중첩
  * {@code @Converter} 정적 클래스로 상속해서 쓴다(예: {@code Role.Db}).
  *
+ * <p>생성자 접근 수준을 {@code protected} 로 지정한다 — 하위 클래스가 {@code super(X.class)} 를
+ * 명시 호출하므로, Lombok 기본값인 {@code public} 이 아니라 원래 선언과 같은 수준이어야 의미가 같다.
+ *
  * @param <E> 변환 대상 enum 타입
  */
+@RequiredArgsConstructor(access = AccessLevel.PROTECTED)
 public abstract class LowerCaseEnumConverter<E extends Enum<E>> implements AttributeConverter<E, String> {
 
     private final Class<E> enumType;
-
-    protected LowerCaseEnumConverter(Class<E> enumType) {
-        this.enumType = enumType;
-    }
 
     /**
      * 상수를 소문자 snake_case 문자열로 바꾼다. {@code null} 은 그대로 통과시킨다.

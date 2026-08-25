@@ -109,6 +109,18 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
+/*
+ * lombok.config 를 compileJava 의 입력으로 등록한다.
+ *
+ * Gradle 은 애노테이션 프로세서의 설정 파일을 자동으로 추적하지 않는다 — 등록하지 않으면
+ * lombok.config 만 고쳤을 때 compileJava 가 UP-TO-DATE 로 건너뛰어 재컴파일이 부재한다.
+ * 그러면 다음 사람이 설정을 고치고 초록을 보고서 "설정이 먹었다"로 오인하는데, 실제로는
+ * 옛 생성 코드가 build/classes 에 그대로 남아 있는 상태다(p3-lombok-report.md §2).
+ */
+tasks.named('compileJava') {
+    inputs.file('lombok.config').withPropertyName('lombokConfig')
+}
+
 tasks.named('test') {
     useJUnitPlatform()
     // LocalFlywayCleanStrategy 가 clean() 을 건너뛰게 한다(Phase 2 Task 3, Ruling 89) — 여러

@@ -2,10 +2,17 @@ package src.backend.global.error;
 
 import org.springframework.http.HttpStatus;
 
+import lombok.RequiredArgsConstructor;
+
 /**
  * 서비스 전역에서 재사용하는 에러 코드.
  * HTTP 상태와 기본 메시지를 한 곳에 모아 응답 일관성을 유지한다.
+ *
+ * <p>{@code @RequiredArgsConstructor} 는 enum 에 {@code private} 생성자를 만든다 — 상수 선언이
+ * 그대로 그 생성자를 부른다. 파라미터 순서는 <b>필드 선언 순서</b>({@code status} → {@code message})라,
+ * 두 필드의 타입이 달라 순서가 뒤바뀌면 컴파일이 깨진다.
  */
+@RequiredArgsConstructor
 public enum ErrorCode {
 
     // 자격 증명이 아예 없는 접근 — 토큰 미동봉 STOMP CONNECT 등(API_SPEC §8).
@@ -48,15 +55,32 @@ public enum ErrorCode {
     // 때문이다 — 클라이언트가 "없는 자원" 과 "남의 학원 자원" 을 구별해야 화면 문구가 갈린다.
     ACADEMY_SCOPE_VIOLATION(HttpStatus.FORBIDDEN, "소속 학원 밖 자원입니다"),
 
+    // ── 학원 · 관계자 승인 · 계정 관리(Phase 3) ──────────────────────────────────
+    // 이 무리는 Phase 3 의 세 태스크가 나눠 쓴다. 세 태스크가 각자 이 파일에 상수를 더하면 같은 줄
+    // 부근을 셋이 건드려 병합을 손으로 합치게 되므로, 선행 태스크(T1)가 한 번에 전부 더하고 나머지는
+    // 쓰기만 한다. HTTP 코드와 이름은 API_SPEC §8 에러 사전에서 그대로 옮겼다.
+    //
+    // 학원당 재직 관계자 1명 정원 초과(API_SPEC §6.5·§6.7·§8.5) — 승인과 status=active 전환 두 경로가 공유한다.
+    STAFF_QUOTA_EXCEEDED(HttpStatus.CONFLICT, "이미 관계자가 있는 학원입니다"),
+    // 이미 수락·거절된 승인 건의 재처리(API_SPEC §6.5·§8.3).
+    APPROVAL_ALREADY_DECIDED(HttpStatus.CONFLICT, "이미 처리된 요청입니다"),
+    // 미존재 가입 요청 지정(API_SPEC §5.2·§6.5·§8.5).
+    SIGNUP_REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "가입 요청을 찾을 수 없습니다"),
+    // 가입 승인 시 계정 ↔ 학생·매니저 레코드 연결 누락(AUTH-11 · API_SPEC §8.1) — 400 이 아니라 422 다.
+    LINK_REQUIRED(HttpStatus.UNPROCESSABLE_CONTENT, "연결할 대상을 지정해야 합니다"),
+    // 미존재 학생 지정(API_SPEC §8.5).
+    STUDENT_NOT_FOUND(HttpStatus.NOT_FOUND, "학생을 찾을 수 없습니다"),
+    // 미존재 매니저 지정(MGR-03·04 · API_SPEC §8.5).
+    MANAGER_NOT_FOUND(HttpStatus.NOT_FOUND, "매니저를 찾을 수 없습니다"),
+    // 이미 연결된 자녀 재연결(P-02 · API_SPEC §8.5).
+    ALREADY_LINKED(HttpStatus.CONFLICT, "이미 연결된 대상입니다"),
+    // blocked 아닌 계정에 차단 해제 시도(AUTH-06 · API_SPEC §8.1).
+    ACCOUNT_NOT_BLOCKED(HttpStatus.CONFLICT, "차단된 계정이 아닙니다"),
+
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다");
 
     private final HttpStatus status;
     private final String message;
-
-    ErrorCode(HttpStatus status, String message) {
-        this.status = status;
-        this.message = message;
-    }
 
     public HttpStatus getStatus() {
         return status;
