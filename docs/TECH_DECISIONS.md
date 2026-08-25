@@ -174,7 +174,7 @@ refresh 하나만 쿠키로 내리면 **탈취 시 노출되는 것은 수명이
 
 ### 2.4.3 CSRF 를 토큰이 아니라 `SameSite` 로 막는 이유
 
-쿠키가 하나 생기면 CSRF 가 성립할 수 있다. **`HttpOnly` 는 읽기만 막고 사용은 막지 못하기 때문**이다 — 공격자 페이지가 값을 못 읽어도 `fetch('/api/auth/refresh', {credentials:'include'})` 를 호출하면 브라우저가 쿠키를 대신 붙인다.
+쿠키가 하나 생기면 CSRF 가 성립할 수 있다. **`HttpOnly` 는 읽기만 막고 사용은 막지 못하기 때문**이다 — 공격자 페이지가 값을 못 읽어도 `fetch('/api/v1/auth/refresh', {credentials:'include'})` 를 호출하면 브라우저가 쿠키를 대신 붙인다.
 
 대응은 셋을 겹친다.
 

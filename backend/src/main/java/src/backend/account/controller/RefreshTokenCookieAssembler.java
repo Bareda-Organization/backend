@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 public class RefreshTokenCookieAssembler {
 
     static final String COOKIE_NAME = "refresh_token";
-    private static final String COOKIE_PATH = "/api/v1/auth"; // Ruling 102 — API_SPEC §1.2.1 본문의 /api/auth 는 낡은 값
+    private static final String COOKIE_PATH = "/api/v1/auth"; // 베이스 경로 접두사 포함 — 그래야 /api/v1/auth/refresh 에 동봉된다(API_SPEC §1.2.1)
     private static final String SAME_SITE = "Strict";
 
     /** 로그인·refresh 성공 시 발급한다 — {@code maxAge} 는 refresh 토큰의 남은 유효기간(초)이다. */

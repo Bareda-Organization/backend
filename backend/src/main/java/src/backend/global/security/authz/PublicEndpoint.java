@@ -9,7 +9,7 @@ import java.lang.annotation.Target;
  * 인증 없이 호출 가능한 엔드포인트에 붙인다(API_SPEC §2.1·2.2·2.5·2.6·2.9 — 학원 검색·회원가입·
  * 로그인·토큰재발급·아이디비밀번호복구). {@code @PreAuthorize} 를 달지 않는 순수 표식(marker)
  * 애너테이션이다 — 실제 인증 생략은 {@code SecurityConfig} 의 {@code authorizeHttpRequests}
- * 매처(예: {@code requestMatchers("/api/auth/login").permitAll()})가 강제한다(Task 2·3 소유).
+ * 매처(예: {@code requestMatchers("/api/v1/auth/login").permitAll()})가 강제한다(Task 2·3 소유).
  * SpEL 에는 {@code permitAll()} 이라는 표현식이 없어(그건 HttpSecurity 매처 개념이다)
  * {@code @PreAuthorize("permitAll()")} 로 흉내 내면 평가 시점에 예외가 난다.
  *

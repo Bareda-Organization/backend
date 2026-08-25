@@ -295,7 +295,7 @@ class AuthControllerTest {
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("HttpOnly")))
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Secure")))
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("SameSite=Strict")))
-                // API_SPEC §1.2.1 본문의 /api/auth 는 낡은 값 — Ruling 102 로 /api/v1/auth 가 맞다(보고서 ⑤).
+                // 베이스 경로 접두사를 포함해야 /api/v1/auth/refresh 에 실제로 동봉된다(API_SPEC §1.2.1).
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Path=/api/v1/auth")))
                 // Max-Age 가 빠지면 세션 쿠키가 돼 브라우저를 닫는 순간 자동 로그인이 소멸한다 —
                 // 로컬에서는 브라우저를 안 닫으니 재현되지 않고, 값이 -1 이어도 나머지 4속성은 그대로다.
