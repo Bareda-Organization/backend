@@ -65,7 +65,7 @@
 | `global/response/ApiResponse` | **살림 · 형식 대조** | 공통 봉투 개념은 유지하되 `API_SPEC §1.1` 형식과 대조 후 확정 |
 | `global/security/` (`JwtTokenProvider`·`JwtAuthenticationFilter`·`SecurityConfig`·`StompAuthChannelInterceptor`) | **골격 살림** | JWT 발급·검증·필터 체인·STOMP 인증 채널 인터셉터는 구조가 그대로 필요 (`C-14` · `ARCHITECTURE §10.2`) |
 | `global/security/AuthUser` | **재작성** | 멤버십을 훑는 N:M 전제. 새 모델은 `account.role` + `account.academy_id` 단일 소속 (`ARCHITECTURE §5.3`) |
-| `global/security/authz/` (`Permissions`·`RolePermissions` + 메타 애너테이션 21개) | **패턴 살림 · 내용 교체** | 권한 상수 경유 · `RoleHierarchyImpl` 을 부여표로 전용하는 방식은 `FEATURE_SPEC §6.2` 가 요구하는 것과 동일. 상수 27종·역할 6종으로 재작성하고 애너테이션 이름은 옛 기능명(`CanRecordRideEvent` 등)이라 폐기 |
+| `global/security/authz/` (`Permissions`·`RolePermissions` + 메타 애너테이션 21개) | **패턴 살림 · 내용 교체** | 권한 상수 경유 · `RoleHierarchyImpl` 을 부여표로 전용하는 방식은 `FEATURE_SPEC §6.2` 가 요구하는 것과 동일. 상수 **31종**·역할 6종으로 재작성하고 애너테이션 이름은 옛 기능명(`CanRecordRideEvent` 등)이라 폐기 |
 | `global/event/` (`DomainEvent`·`DomainEventPublisher`·`TransactionalDomainEventRelay`) | **살림 · 보강** | `AFTER_COMMIT` 발행 지점은 유지. `TECH_DECISIONS §7` 의 아웃박스를 얹어야 함 |
 | `global/config/` (`JpaAuditingConfig`·`RedisConfig`·`WebClientConfig`·`WebSocketConfig`) | **살림** | 설정 골격이 새 사양과 충돌 부재 |
 | `global/config/OpenApiConfig` | **재작성** | 시드 설명·계정표가 옛 데이터 기준. §3 의 `SeedFixtures` 참조 방식으로 승격 |
@@ -624,7 +624,7 @@ void 확정_시각이_도래하면_idle_회차가_confirmed_로_전이한다() {
 | **선행** | Phase 1 |
 | **기능 ID** | AUTH-01 · 02 · 03 · 04 · 05 · 07 · 08 · 09 (P0) |
 | **참조** | `API_SPEC §1.4`·`§1.5`·`§2` · `FEATURE_SPEC §6.2` · `TECH_DECISIONS §2` |
-| **산출물** | `account` 모듈 · 권한 상수 27종 · 역할↔권한 부여표 · 계정 상태 필터 · 저장소 격리 강제 · **refresh 쿠키 조립기 1개** |
+| **산출물** | `account` 모듈 · 권한 상수 **31종** · 역할↔권한 부여표 · 계정 상태 필터 · 저장소 격리 강제 · **refresh 쿠키 조립기 1개** |
 
 **세 층을 각각 다른 지점에 둔다.** ① 계정 상태 게이트는 필터·인터셉터 **한 곳**에 허용 목록 방식으로 두고 기본 차단. ② 역할 권한은 권한 상수 경유 메타 애너테이션. ③ 자원 소속 검증은 저장소 계층.
 
@@ -637,7 +637,7 @@ void 확정_시각이_도래하면_idle_회차가_confirmed_로_전이한다() {
 - `blocked` 계정 로그인 시 `403 AUTH_ACCOUNT_BLOCKED`
 - 로그인 실패 누적이 상한에 도달하면 계정 단위 차단, 성공 시 카운터 초기화
 - A학원 `staff` 토큰으로 B학원 자원 조회 시 `403 ACADEMY_SCOPE_VIOLATION` — **목록 조회에서도 성립**
-- `X-Client-Type: web` 로그인 응답 — 본문에 `refresh_token` 부재 + `Set-Cookie` 에 `HttpOnly`·`Secure`·`SameSite=Strict`·`Path=/api/auth` 4속성 전부 존재
+- `X-Client-Type: web` 로그인 응답 — 본문에 `refresh_token` 부재 + `Set-Cookie` 에 `HttpOnly`·`Secure`·`SameSite=Strict`·`Path=/api/v1/auth` 4속성 전부 존재
 - 쿠키만 담은 `POST /auth/refresh` 가 access 재발급 성공, 본문·쿠키 모두 부재 시 `401 TOKEN_EXPIRED`
 - 웹 로그아웃 응답에 `Max-Age=0` 쿠키 삭제 지시 존재
 - `ControllerAuthorizationConventionTest` — 인가 애너테이션 누락 핸들러 0건
@@ -845,6 +845,8 @@ void 확정_시각이_도래하면_idle_회차가_confirmed_로_전이한다() {
 
 ### Phase 10 — 위치 · 실시간 전달 · 근접 알림
 
+⚠ **Phase 2 에서 이월된 필수 항목 (2026-08-25, Ruling 87)** — **계정 상태 게이트가 STOMP 축을 덮지 않는다.** `StompAuthChannelInterceptor` 가 CONNECT 시 상태 판정 없이 `AuthUser` 를 세션에 심고 `SecurityConfig` 가 `/ws/**` 를 `permitAll` 이라, `pending` 토큰으로 **세션 수립·구독이 가능**하다. Phase 2 의 게이트는 `HandlerInterceptor` 라 STOMP 프레임 경로에 부재하다. 지금 위험이 잠재적인 이유는 **구독할 채널과 데이터가 이 Phase 의 산출물**이기 때문이며, **채널을 만드는 이 Phase 가 반드시 닫는다.** 완료 조건에 "`pending` 토큰의 CONNECT·SUBSCRIBE 가 거부된다" 를 포함할 것.
+
 | 항목 | 내용 |
 |---|---|
 | **범위** | `LOC-01~03` · `NTF-04` · `ARCHITECTURE §10` · WebSocket 채널 4종 |
@@ -1051,7 +1053,7 @@ void 확정_시각이_도래하면_idle_회차가_confirmed_로_전이한다() {
 | Phase | 이름 | 선행 | 우선순위 | 상태 | 비고 |
 |:-:|---|:-:|:-:|:-:|---|
 | **0** | 걷어내기 · 골격 세우기 | — | — | **✅** | 완료 조건 4항 전부 실증(2026-08-25). 시각 축 정정(`Clock` 빈 · `OffsetDateTime`)을 Phase 1 선행으로 함께 수행 |
-| **1** | 스키마 · 엔티티 매핑 · 시드 · Swagger 골격 | 0 | — | ⬜ | 테이블 39 (§2.3). 착수 전 조사 3종 완료 — `.superpowers/sdd/IMPLEMENTATION_PLAN/phase1-{schema-facts,entity-mapping,seed-swagger}.md` |
+| **1** | 스키마 · 엔티티 매핑 · 시드 · Swagger 골격 | 0 | — | **✅** | 완료 조건 6항 전부 실증(2026-08-25). 테이블 **39** · 엔티티 **39** · 스위트 32클래스 177테스트 실패 0. 최종 리뷰 이월 5건(T2 Minor 3 · T3 파싱 하한 가드 · T5 Minor 2) + 조율자 직접 편집 2건(`V1:183` guardian FK · `ERD §4.1` 행 분리) |
 | **2** | 인증 · 계정 상태 게이트 · RBAC · 학원 격리 | 1 | P0 | ⬜ | |
 | **3** | 학원 · 관계자 승인 · 메인 관리자 콘솔 기초 | 2 | P0 | ⬜ | 오픈 이슈 R·S |
 | **4** | 알림 아웃박스 골격 | 3 | P0 | ⬜ | |
@@ -1069,6 +1071,30 @@ void 확정_시각이_도래하면_idle_회차가_confirmed_로_전이한다() {
 | **F2** | 학부모 · 학생 앱 | 8·10·12 | P0 | **➖** | **2026-08-25 확정으로 범위 밖.** 재개 시 오픈 이슈 P |
 | **F3** | 관계자 웹 | 8·13 | P0/P1 | **➖** | **2026-08-25 확정으로 범위 밖.** 재개 시 오픈 이슈 P·Q |
 | **F4** | 메인 관리자 콘솔 | 3·13 | P1 | **➖** | **2026-08-25 확정으로 범위 밖.** 재개 시 오픈 이슈 P |
+
+### 8.1 병렬 가능 구간 — Phase 진입 시 판정표 (2026-08-25 신설)
+
+위 표의 **선행 열은 "읽는 순서" 로 적힌 곳이 섞여 있다.** 진짜 의존과 완화 가능한 것을 갈라 둔다. **Phase 에 진입할 때 이 표를 먼저 보고, "재판정" 인 항목은 그 Phase 절의 완료 조건을 읽어 확정한다.**
+
+| 구간 | 계획상 선행 | 판정 | 근거 |
+|---|:-:|:-:|---|
+| **4 ‖ 5** | 각각 3 | **확정 — 병렬 가능** | Phase 5 절이 이미 명시 — "선행 Phase 3 (**Phase 4 는 알림 발행에만 필요**)". 두 Phase 를 동시에 띄운다 |
+| 5 → 6 → 7 → 8 → 9 | 직렬 | **진짜 의존** | 데이터가 앞 단계에서 만들어져야 뒷 단계가 존재. 노선 계산 → 확정 배치 → 탑승 의사·3구간 → 명단 → 승하차. **쪼개지 않는다** |
+| 10 ← 9 | 9 | **진짜 의존** | 위치는 운행 중 회차(`status='moving'`)가 있어야 찍힌다 |
+| **11 ← 10** | 10 | **완화 가능 — 부분** | `EXC-01`(미승차)·`EXC-02·03`(예외 보고)은 **9(운행 실행)만 필요**하고 위치를 쓰지 않는다. `EXC-04`(비상 알림)는 `emergency_alert.lat`/`lng` 가 **nullable** 이나 `ERD` 가 "미전달 시 **최신 수신 좌표로 대체**" 로 규정해 그 폴백만 `run_position`(10)을 요구. **⇒ 11 을 둘로 갈라 EXC-01~03 을 10 과 병렬로 돌릴 수 있다** |
+| **12 ← 11** | 11 | **완화 가능** | ⚠ `NTF-12`(푸시 단말)는 **Phase 12 절이 이미 "Phase 2 와 함께 나가야 한다" 고 명시**했고 실제로 Phase 2 에서 구현 중(`API_SPEC §2.11`). `NTF-07`(설정 on/off)은 `notification_setting`+account 만 필요. `NTF-08~11`(목록·읽음·배지)은 `notification_log` **조회**라 **아웃박스(4) 이후 구현 가능**. ⇒ **12 는 4 이후 착수 가능**. 단 완료 판정은 알림이 실제로 쌓인 상태가 필요하므로 **구현 시점과 판정 시점을 가른다** |
+| **13 ← 12** | 12 | **재판정 필요** | 관제는 타 모듈 테이블의 **읽기 전용 프로젝션**이고 테이블은 Phase 1 에 전부 존재. Phase 13 절이 `GET /staff/runs/live` 를 "**WS 증분 방송 이전의 초기 스냅샷**" 이라 규정해 **10 과 짝**이지 12 와의 연결은 약해 보인다. ⇒ **13 ← 10·11 일 가능성.** 착수 전 `MON-01~07` 완료 조건을 읽어 확정 |
+| **14 ← 13** | 13 | **재판정 필요 — 앞당길 이유가 있다** | `SYS-02`(접속 이력)는 **Phase 2 인증 계층만 필요**하고, 보존 정리는 Phase 1 테이블 위에서 돈다. ⚠ **더 중요한 것 — 감사 기제(AOP·인터셉터)를 늦게 붙이면 앞선 전 Phase 의 엔드포인트에 소급 적용해야 하고, 일찍 붙이면 이후 Phase 가 자동으로 기록된다.** 병렬 여부가 아니라 **순서 자체를 앞당길 후보** |
+
+**판정 원칙 셋**
+
+1. **데이터 파이프라인은 쪼개지 않는다** — 5→9 는 앞 단계가 뒷 단계의 입력을 만든다
+2. **읽기 전용 프로젝션과 횡단 기제(감사·알림 조회)는 선행이 약하다** — 테이블이 있으면 구현·테스트가 되고, 완료 판정만 데이터를 요구한다. **구현 시점과 판정 시점을 가르면 병렬 폭이 넓어진다**
+3. **같은 모듈 안에서 층(컨트롤러/서비스/저장소)을 나눠 병렬로 돌리지 않는다** — 인터페이스가 확정되기 전에 양쪽이 가정을 세우고 어긋나면 둘 다 재작업. Phase 2 에서 `AuthUser` 를 두 태스크가 각자 고쳐 조율자가 손으로 합친 전례가 실재(Ruling 78)
+
+**Phase 내 태스크 병렬은 일의 성격을 따른다** — **데이터 모델은 넓게 쪼개지고 기능은 깊게 쌓인다.** Phase 1(엔티티 39개)은 폭 4까지 갔고, Phase 2(인증 모듈)는 층 구조라 폭 2다. 기능 Phase 에서 폭을 넓히려면 **아래층을 앞 태스크가 완성**해야 한다(Phase 2 에서 T3 이 저장소를 완성해 T4‖T5 를 연 것이 그 예).
+
+---
 
 **F1~F4 의 `➖` 는 성격이 다르다** — 아래 목록은 **사양이 만들지 않기로 정한 기능**이고, F1~F4 는 **사양에 남아 있으나 지금 착수하지 않는 것**. 우선순위 열의 P0/P1 을 남겨 둔 이유가 이것이며, 재개 시 Phase F1~F4 절의 확인 4가지를 먼저 밟는다.
 
