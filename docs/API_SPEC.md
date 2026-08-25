@@ -299,7 +299,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | `account_id` | string | 계정 식별자 |
 | `academy` | object | `id` · `name` — `system_admin` 은 `null` |
 
-- `X-Client-Type: web` 이면 응답 헤더에 `Set-Cookie: refresh_token=…; HttpOnly; Secure; SameSite=Strict; Path=/api/auth; Max-Age={refresh 만료까지의 초}` 가 붙는다 (§1.2.1).
+- `X-Client-Type: web` 이면 응답 헤더에 `Set-Cookie: refresh_token=…; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth; Max-Age={refresh 만료까지의 초}` 가 붙는다 (§1.2.1).
 - `pending` · `rejected` 도 **로그인 성공 + 토큰 발급**. 접근 범위만 §1.4 로 축소.
 - 실패 **5회** 누적 시 **계정 단위** 차단 — IP 차단 부재 (C-11). 이후 `403 AUTH_ACCOUNT_BLOCKED`, 해제는 메인 관리자.
 - 매니저 앱은 계정에 배정된 호차가 자동 결정 — 사용자의 호차 선택 부재.
@@ -324,7 +324,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 **권한** 전 역할 (`pending` 포함) · **요청** `refresh_token` (string) — §2.6 과 같이 **쿠키 우선, 없으면 본문** · **응답** `204`
 
-**웹 응답에는 쿠키 삭제 지시가 함께 붙는다** — `Set-Cookie: refresh_token=; Max-Age=0; Path=/api/auth` (속성은 발급 시와 동일해야 브라우저가 같은 쿠키로 인식). 서버측 무효화만 하고 이 헤더를 빠뜨리면 브라우저에 죽은 쿠키가 남아 다음 접속이 `401` 한 번을 더 거친다.
+**웹 응답에는 쿠키 삭제 지시가 함께 붙는다** — `Set-Cookie: refresh_token=; Max-Age=0; Path=/api/v1/auth` (속성은 발급 시와 동일해야 브라우저가 같은 쿠키로 인식). 서버측 무효화만 하고 이 헤더를 빠뜨리면 브라우저에 죽은 쿠키가 남아 다음 접속이 `401` 한 번을 더 거친다.
 
 **에러** — `401 TOKEN_EXPIRED`(전달된 `refresh_token` 이 이미 무효화). `pending` 허용 경로라 `403 AUTH_PENDING` 미발생.
 
