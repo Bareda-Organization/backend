@@ -43,6 +43,14 @@ import src.backend.global.common.enums.Role;
  *
  * <p>클라이언트 종류 판정은 두 갈래(브리프 §3.2)라 각각 별도로 검증한다 — 로그인은
  * {@code X-Client-Type} 헤더, refresh·로그아웃·비밀번호 변경은 쿠키 우선·본문 차선.
+ *
+ * <p><b>{@code reference.md §20.2} 의 200줄을 넘긴 채 두는 이유</b>(§19 요구) — 다섯 절이 픽스처 헬퍼
+ * 14개를 공유하고, 그중 {@code createAccount} · {@code login} · {@code readField} · {@code readObject} ·
+ * {@code loginBody} 5개는 절을 가리지 않고 쓰인다. 절 단위로 나누면 이 5개를 상위 클래스로 올리거나
+ * 복제해야 하는데, 상위 클래스는 {@code @SpringBootTest} 픽스처를 상속으로 잇는 형태라 어느 하위가
+ * 무엇을 쓰는지 읽어서 알 수 없게 되고, 복제는 §2.5 계약이 바뀔 때 한쪽만 고쳐질 자리를 만든다.
+ * 절 사이 결합도 실재한다 — §2.8·§2.9 단언이 "바뀐 비밀번호로 §2.5 로그인이 되는가" 로 끝난다.
+ * 헬퍼 공유가 사라지는 시점(§2.9 가 자체 픽스처만 쓰게 되는 등)이 오면 그때 분리한다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -84,9 +92,16 @@ class AuthControllerTest {
         return account.getId();
     }
 
-    /** {@code system_admin} 은 소속 학원이 없다 — {@code ck_account_academy_scope} 가 이 역할에만 NULL 을 허용한다. */
-    private void createSystemAdminAccount(String loginId, String phone) {
-        accountRepository.save(Account.forSignup(null, loginId, passwordEncoder.encode(RAW_PASSWORD),
+    /**
+     * {@code system_admin} 계정을 만든다. {@code academyId} 에 {@code null} 과 실제 학원 둘 다 넘길 수
+     * 있게 열어 둔 이유는, {@code ck_account_academy_scope} 가
+     * {@code role = 'system_admin' OR academy_id IS NOT NULL} 이라 <b>소속을 가진 system_admin 도
+     * 스키마가 허용</b>하기 때문이다. §2.5 의 "{@code system_admin} 은 academy 가 null" 이 소속 유무가
+     * 아니라 역할로 판정될 때만 참인데, {@code null} 만 넘기면 두 판정이 갈리는 입력이 픽스처에
+     * 부재해 그 차이가 검증되지 않는다(리뷰 라운드 2 m-1).
+     */
+    private void createSystemAdminAccount(Long academyId, String loginId, String phone) {
+        accountRepository.save(Account.forSignup(academyId, loginId, passwordEncoder.encode(RAW_PASSWORD),
                 "플랫폼관리자", phone, null, Role.SYSTEM_ADMIN));
     }
 
@@ -168,13 +183,15 @@ class AuthControllerTest {
     void 로그인_실패가_상한에_도달하면_계정이_blocked_로_전이한다() throws Exception {
         Long accountId = createAccount("P2T4AUT02", "p2t4failcapqqq", "010-7000-0002");
 
-        for (int i = 0; i < 4; i++) {
+        // 회차 수와 기대값을 C-11 상한에서 끌어 쓴다 — 4·5 를 박아 두면 상한을 바꿨을 때 옛 값을 요구한다.
+        for (int i = 0; i < Account.MAX_FAILED_ATTEMPTS - 1; i++) {
             mockMvc.perform(post("/api/v1/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(loginBody("p2t4failcapqqq", "wrong-password")))
                     .andExpect(status().isUnauthorized())
                     .andExpect(jsonPath("$.error.code").value("INVALID_CREDENTIALS"))
-                    .andExpect(jsonPath("$.error.details.remaining_attempts").value(4 - i));
+                    .andExpect(jsonPath("$.error.details.remaining_attempts")
+                            .value(Account.MAX_FAILED_ATTEMPTS - 1 - i));
         }
         // 5번째 실패 — 이 시점부터 401 이 아니라 403 AUTH_ACCOUNT_BLOCKED 로 바뀐다.
         mockMvc.perform(post("/api/v1/auth/login")
@@ -213,6 +230,12 @@ class AuthControllerTest {
      * <p>상태 코드와 에러 코드만 맞추고 {@code details} 유무가 갈리면, 공격자는 본문 모양만 보고
      * "이 아이디는 존재한다" 를 알아낸다. 두 응답을 같은 테스트에서 나란히 읽어 대조한다 — 나눠
      * 쓰면 한쪽만 바뀌었을 때 둘 다 통과한다.
+     *
+     * <p><b>키 집합만 견주면 부족하다</b> — 한쪽이 5, 한쪽이 4 여도 키는 같아서 통과하는데 그 숫자
+     * 하나가 곧 계정 존재 신호다(리뷰 라운드 2 I-1). 그래서 {@code details} 를 <b>값까지</b> 통째로
+     * 대조하고, 그 값이 {@link Account#REMAINING_AFTER_FIRST_FAILURE} 인지도 함께 못박는다.
+     *
+     * <p>이 단언이 막는 것은 1회 프로브뿐이며 남는 한계는 {@code LoginCommandService} javadoc 에 적었다.
      */
     @Test
     void 미등록_login_id_의_실패_응답이_존재하는_계정의_첫_실패와_같다() throws Exception {
@@ -223,7 +246,6 @@ class AuthControllerTest {
                         .content(loginBody("p2t4enumabsent", "wrong-password")))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error.code").value("INVALID_CREDENTIALS"))
-                .andExpect(jsonPath("$.error.details.remaining_attempts").value(5))
                 .andReturn();
 
         MvcResult known = mockMvc.perform(post("/api/v1/auth/login")
@@ -236,9 +258,12 @@ class AuthControllerTest {
         assertThat(readObject(unknown, "$.error").keySet())
                 .as("에러 본문의 키 집합이 갈리면 그 차이만으로 계정 존재를 가려낼 수 있다")
                 .isEqualTo(readObject(known, "$.error").keySet());
-        assertThat(readObject(unknown, "$.error.details").keySet())
-                .as("details 의 키 집합도 같아야 한다 — 한쪽에만 실리면 유무가 곧 신호다")
-                .isEqualTo(readObject(known, "$.error.details").keySet());
+        assertThat(readObject(unknown, "$.error.details"))
+                .as("details 는 키 집합이 아니라 값까지 같아야 한다 — 5 인지 4 인지가 곧 계정 존재 신호다")
+                .isEqualTo(readObject(known, "$.error.details"));
+        assertThat(readObject(known, "$.error.details").get("remaining_attempts"))
+                .as("존재 계정의 첫 실패는 상한에서 1 을 뺀 값이고, 미등록도 같은 상수를 싣는다")
+                .isEqualTo(Account.REMAINING_AFTER_FIRST_FAILURE);
     }
 
     // ── §2.5 로그인 — 클라이언트별 refresh 전달(브리프 §3) ──────────────────
@@ -285,7 +310,7 @@ class AuthControllerTest {
      */
     @Test
     void system_admin_로그인_응답의_academy_는_키가_있고_값이_null_이다() throws Exception {
-        createSystemAdminAccount("p2t4sysadminqq", "010-7000-0015");
+        createSystemAdminAccount(null, "p2t4sysadminqq", "010-7000-0015");
 
         MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -297,6 +322,33 @@ class AuthControllerTest {
         Map<String, Object> data = readObject(result, "$.data");
         assertThat(data).as("academy 키 자체가 빠지면 안 된다 — §2.5 는 null 값으로 규정").containsKey("academy");
         assertThat(data.get("academy")).as("system_admin 의 academy 는 null 이다").isNull();
+    }
+
+    /**
+     * 목표 문장 — academy_id 를 보유한 system_admin 의 로그인 응답도 academy 가 null 이다(§2.5).
+     *
+     * <p>{@code AuthController} 가 소속 유무({@code academyId == null})가 아니라 <b>역할</b>로 판정해야만
+     * 참인 문장이다 — 위 테스트는 두 판정이 같은 답을 내는 입력만 쓰므로 판정을 소속 유무로 되돌려도
+     * 통과한다(리뷰 라운드 2 m-1). 이 조합은 {@code ck_account_academy_scope} 가 허용하므로 실재 가능한
+     * 입력이고, 소속 유무로 판정하면 이 계정에만 {@code academy} 객체가 실려 §2.5 를 어긴다.
+     */
+    @Test
+    void academy_id_를_보유한_system_admin_의_로그인_응답도_academy_가_null_이다() throws Exception {
+        Academy academy = academyRepository.save(Academy.register("P2T4AUT21", "학원P2T4AUT21", "서울", null, null));
+        createSystemAdminAccount(academy.getId(), "p2t4sysadminaf", "010-7000-0021");
+
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginBody("p2t4sysadminaf", RAW_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.role").value("system_admin"))
+                .andReturn();
+
+        Map<String, Object> data = readObject(result, "$.data");
+        assertThat(data).as("academy 키 자체가 빠지면 안 된다 — §2.5 는 null 값으로 규정").containsKey("academy");
+        assertThat(data.get("academy"))
+                .as("소속이 있어도 system_admin 이면 academy 는 null 이다 — 소속 유무가 아니라 역할로 판정")
+                .isNull();
     }
 
     // ── §2.6 refresh ─────────────────────────────────────────────────────
@@ -451,6 +503,10 @@ class AuthControllerTest {
     /**
      * §2.8 웹 호출은 §2.7 과 같은 쿠키 삭제 지시를 함께 돌려준다 — 전량 무효화로 죽은 쿠키가
      * 브라우저에 남으면 다음 접속이 401 을 한 번 더 거친다.
+     *
+     * <p>말미에 <b>app 호출에는 붙지 않는 것</b>까지 본다. "붙는다" 만 단언하면 조건을 없애고 무조건
+     * 붙이는 구현이 통과하는데, §2.8 은 "<b>웹 호출이면</b>" 이라 그 조건이 계약의 일부다(리뷰 라운드
+     * 2 m-2). 웹 판정은 쿠키 동봉 여부이므로 app 호출은 쿠키를 보내지 않는 것으로 표현한다.
      */
     @Test
     void web_비밀번호_변경_응답에_Max_Age_0_쿠키_삭제_지시가_있다() throws Exception {
@@ -469,6 +525,19 @@ class AuthControllerTest {
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Max-Age=0")))
                 // 발급 시와 속성이 같아야 브라우저가 같은 쿠키로 인식해 지운다(§2.7).
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Path=/api/v1/auth")));
+
+        // app 호출(쿠키 미동봉)에는 삭제 지시가 붙지 않는다 — 쿠키를 쓰지 않는 클라이언트에 보낼 이유가 부재.
+        Long appAccountId = createAccount("P2T4AUT22", "p2t4pwappqqqqq", "010-7000-0022");
+        activateAccount(appAccountId);
+        String appAccessToken = readField(login("p2t4pwappqqqqq", RAW_PASSWORD, "app"), "$.data.access_token");
+
+        mockMvc.perform(post("/api/v1/auth/password")
+                        .header("Authorization", "Bearer " + appAccessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"current_password\": \"%s\", \"new_password\": \"new-password5678!\"}"
+                                .formatted(RAW_PASSWORD)))
+                .andExpect(status().isNoContent())
+                .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
     }
 
     /** §2.8 현재 비밀번호가 틀리면 401 INVALID_CREDENTIALS — 새 비밀번호로 바뀌지 않아야 한다. */
