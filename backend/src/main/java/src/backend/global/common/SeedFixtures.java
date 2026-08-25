@@ -7,8 +7,10 @@ package src.backend.global.common;
  *
  * <p>모든 상수는 {@code public static final String} 이다 — bigint PK 도 문자열로 담는다. 애너테이션
  * 값은 컴파일 타임 상수식만 허용하므로, 타입을 섞으면 "애너테이션에 쓸 수 있는 상수"와 "못 쓰는
- * 상수"가 갈린다. bigint 컬럼과 비교할 때는 호출부가 {@code Long.parseLong(...)} 로 변환한다
- * ({@code SeedFixturesContractTest#조회한다} 참고).
+ * 상수"가 갈린다. bigint 컬럼과 비교할 때 문자열을 그대로 바인딩하면 타입 불일치로 죽거나 항상
+ * 0건이 되므로, {@code SeedFixturesContractTest} 의 조회는 전부 SQL 에서 {@code ?::bigint} 로
+ * 캐스트한다 — 새 체크를 추가할 때 이 캐스트를 빠뜨리면 그 체크는 상시 거짓 실패하거나 거짓
+ * 통과한다. ({@code Long.parseLong} 변환 자체는 {@code asBigint} 데모 테스트 1곳에서만 예시로 보인다.)
  *
  * <p><b>시각 값은 상수 대상 밖이다.</b> 시드의 출발 시각(depart_time 등)은 {@code now()} 기준 상대값이라
  * 기동마다 달라진다 — 상수로 만들면 이 클래스를 참조하는 계약 테스트가 매 기동마다 실패한다. Swagger
