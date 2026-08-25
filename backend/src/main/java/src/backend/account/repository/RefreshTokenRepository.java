@@ -10,11 +10,13 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import src.backend.account.entity.RefreshToken;
+import src.backend.global.security.access.AcademyScopeExempt;
 
 /** {@link RefreshToken} 영속성 접근. */
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
 
     /** {@code token_hash} UNIQUE 제약을 그대로 탄다(API_SPEC §2.6 토큰 재발급). */
+    @AcademyScopeExempt(reason = "§2.6 재발급 — 토큰 해시만 들고 시작해 소속 학원이 미상")
     Optional<RefreshToken> findByTokenHash(String tokenHash);
 
     /**
@@ -23,6 +25,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
      * <p>조건이 {@code ix_refresh_token_account_active}(부분 인덱스, {@code WHERE revoked_at IS NULL})
      * 와 정확히 일치해야 그 인덱스를 탄다 — {@code revokedAt IS NULL} 을 빼면 전체 스캔으로 떨어진다.
      */
+    @AcademyScopeExempt(reason = "§2.8 계정 단위 전량 무효화 — 대상이 계정 하나라 학원 범위가 판정에 개입 부재")
     List<RefreshToken> findAllByAccountIdAndRevokedAtIsNull(Long accountId);
 
     /**

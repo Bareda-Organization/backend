@@ -5,6 +5,7 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import src.backend.account.entity.VerificationCode;
+import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.account.entity.VerificationPurpose;
 
 /** {@link VerificationCode} 영속성 접근. */
@@ -15,5 +16,6 @@ public interface VerificationCodeRepository extends JpaRepository<VerificationCo
      * 사용자가 제출한 코드를 이 결과와 대조한다). 같은 연락처·목적으로 재발송이 일어나면 이전 코드는
      * 무효 취급해야 하므로 최신 1건만 본다.
      */
+    @AcademyScopeExempt(reason = "§2.9 계정 복구 — 전화번호만 들고 시작해 소속 학원이 미상")
     Optional<VerificationCode> findTopByPhoneAndPurposeOrderByCreatedAtDesc(String phone, VerificationPurpose purpose);
 }

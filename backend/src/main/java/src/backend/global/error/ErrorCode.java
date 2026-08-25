@@ -18,6 +18,10 @@ public enum ErrorCode {
     AUTH_REJECTED(HttpStatus.FORBIDDEN, "가입이 거절된 계정입니다"),
     // blocked 계정의 로그인·API 호출(API_SPEC §1.4·§8.1) — 자격 오류(401)와 구분해야 재시도가 실패 카운터를 올리지 않는다.
     AUTH_ACCOUNT_BLOCKED(HttpStatus.FORBIDDEN, "차단된 계정입니다. 관리자에게 문의하세요"),
+    // 소속 학원 밖 자원 요청(API_SPEC §1.5·§8.1) — 메인 관리자 콘솔(§6)만 예외다. 404 가 아니라 403 인
+    // 이유는, 존재 여부를 알려 주지 않는 편이 안전해 보여도 사양이 격리 위반을 별도 코드로 구분하도록
+    // 정했기 때문이다 — 클라이언트가 "없는 자원" 과 "남의 학원 자원" 을 구별해야 화면 문구가 갈린다.
+    ACADEMY_SCOPE_VIOLATION(HttpStatus.FORBIDDEN, "소속 학원 밖 자원입니다"),
     // 미존재 계정 지정(API_SPEC §8.1) — 가입 상태 조회·재신청·본인 프로필 조회가 대상 계정을 못 찾을 때.
     ACCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "계정을 찾을 수 없습니다"),
     // 필수 필드 누락·형식 위반(API_SPEC §1.11) — Bean Validation·필수 쿼리 파라미터 부재가 공유한다.
