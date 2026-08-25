@@ -3,6 +3,7 @@ package src.backend.global.security;
 import java.io.IOException;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
@@ -36,22 +37,41 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         String token = resolveToken(request);
+        System.err.println("[DEBUG] thread=" + Thread.currentThread()
+                + " strategyClass=" + SecurityContextHolder.getContextHolderStrategy().getClass()
+                + " strategy=" + System.identityHashCode(SecurityContextHolder.getContextHolderStrategy())
+                + " ctxBefore=" + System.identityHashCode(SecurityContextHolder.getContext())
+                + " ctxClass=" + SecurityContextHolder.getContext().getClass());
+        System.err.println("[DEBUG] token=" + token);
         if (token != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
                 Claims claims = tokenProvider.parse(token);
+                System.err.println("[DEBUG] claims=" + claims);
                 if (tokenProvider.isAccessToken(claims)) {
                     AuthUser principal = tokenProvider.resolveAuthUser(claims);
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(principal, null, principal.authorities());
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                    SecurityContext ctx = SecurityContextHolder.getContext();
+                    ctx.setAuthentication(authentication);
+                    System.err.println("[DEBUG] ctxUsedToSet=" + System.identityHashCode(ctx)
+                            + " set auth=" + SecurityContextHolder.getContext().getAuthentication()
+                            + " ctxRightAfterSet=" + System.identityHashCode(SecurityContextHolder.getContext()));
+                } else {
+                    System.err.println("[DEBUG] not access token, type claim=" + claims.get("type"));
                 }
             } catch (JwtException | IllegalArgumentException e) {
+                System.err.println("[DEBUG] jwt exception: " + e);
                 // 위조·만료 토큰은 인증을 세우지 않는다(익명으로 진행 → 보호 자원이면 401/403)
                 SecurityContextHolder.clearContext();
             }
         }
+        System.err.println("[DEBUG] req=" + System.identityHashCode(request) + " " + request.getClass());
         chain.doFilter(request, response);
+        System.err.println("[DEBUG] after chain: strategyClass=" + SecurityContextHolder.getContextHolderStrategy().getClass()
+                + " strategy=" + System.identityHashCode(SecurityContextHolder.getContextHolderStrategy())
+                + " ctxAfter=" + System.identityHashCode(SecurityContextHolder.getContext())
+                + " authAfter=" + SecurityContextHolder.getContext().getAuthentication());
     }
 
     private String resolveToken(HttpServletRequest request) {

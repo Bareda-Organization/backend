@@ -14,8 +14,11 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.core.context.SecurityContextHolder;
+import jakarta.servlet.Filter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -75,8 +78,24 @@ public class SecurityConfig {
                         .anyRequest().authenticated())
                 // 인증 안 된 요청은 403 대신 401 로 응답(토큰 필요함을 명확히)
                 .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(debugFilter("AFTER_JWT"), JwtAuthenticationFilter.class)
+                .addFilterAfter(debugFilter("AFTER_ANON"), AnonymousAuthenticationFilter.class);
         return http.build();
+    }
+
+    private static Filter debugFilter(String tag) {
+        return (req, res, chain) -> {
+            System.err.println("[DEBUG-" + tag + "-BEFORE] thread=" + Thread.currentThread()
+                    + " auth=" + SecurityContextHolder.getContext().getAuthentication()
+                    + " ctx=" + System.identityHashCode(SecurityContextHolder.getContext())
+                    + " req=" + System.identityHashCode(req));
+            new Throwable("stack-at-" + tag).printStackTrace();
+            chain.doFilter(req, res);
+            System.err.println("[DEBUG-" + tag + "-AFTER] auth="
+                    + SecurityContextHolder.getContext().getAuthentication()
+                    + " ctx=" + System.identityHashCode(SecurityContextHolder.getContext()));
+        };
     }
 
     @Bean

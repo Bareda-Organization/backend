@@ -1,0 +1,69 @@
+package src.backend.global.security.gate;
+
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
+import org.springframework.web.method.HandlerMethod;
+import org.springframework.web.servlet.HandlerInterceptor;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
+import src.backend.global.security.AuthUser;
+
+/**
+ * 계정 상태 게이트(C-01 · API_SPEC §1.4) — pending·rejected 계정이 허용 목록 밖 핸들러를
+ * 호출하면 컨트롤러에 닿기 전에 차단한다. 판정 지점을 이 한 곳으로 모아, 새 엔드포인트가
+ * 애너테이션 없이 추가돼도 기본값이 차단이 되게 한다(허용 목록 방식).
+ *
+ * <p>{@code active} 는 그대로 통과시켜 역할 권한(②층)·자원 격리(③층) 판정으로 넘긴다.
+ * {@code blocked} 는 로그인 단계에서 이미 걸러지는 상태라({@code Account.assertNotBlocked}) 이
+ * 게이트까지 도달하면 이례적인 상황이나, 방어적으로 여기서도 동일하게 차단한다.
+ */
+@Component
+public class AccountStatusGateInterceptor implements HandlerInterceptor {
+
+    private static final String ACTIVE = "active";
+    private static final String PENDING = "pending";
+    private static final String REJECTED = "rejected";
+
+    @Override
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
+        if (true) {
+            return true; // RED 관측용 임시 스텁 — 게이트 미구현 상태를 재현한다
+        }
+        if (!(handler instanceof HandlerMethod handlerMethod)) {
+            return true; // 정적 리소스 등 컨트롤러가 아닌 핸들러는 게이트 대상이 아니다.
+        }
+        AuthUser authUser = resolveAuthUser();
+        if (authUser == null || authUser.status() == null || ACTIVE.equals(authUser.status())) {
+            return true; // 미인증 요청은 인증 계층이 처리하고, active 는 이 게이트를 통과한다.
+        }
+
+        boolean allowedWhenPending = handlerMethod.hasMethodAnnotation(AllowedWhenPending.class);
+        if (PENDING.equals(authUser.status())) {
+            if (!allowedWhenPending) {
+                throw new BusinessException(ErrorCode.AUTH_PENDING);
+            }
+            return true;
+        }
+        if (REJECTED.equals(authUser.status())) {
+            boolean allowedWhenRejected = handlerMethod.hasMethodAnnotation(AllowedWhenRejected.class);
+            if (!allowedWhenPending && !allowedWhenRejected) {
+                throw new BusinessException(ErrorCode.AUTH_PENDING);
+            }
+            return true;
+        }
+        throw new BusinessException(ErrorCode.AUTH_ACCOUNT_BLOCKED);
+    }
+
+    private AuthUser resolveAuthUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof AuthUser authUser) {
+            return authUser;
+        }
+        return null;
+    }
+}

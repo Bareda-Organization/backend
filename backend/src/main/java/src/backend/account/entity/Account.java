@@ -16,6 +16,8 @@ import lombok.NoArgsConstructor;
 
 import src.backend.global.common.BaseTimeEntity;
 import src.backend.global.common.enums.Role;
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
 
 /**
  * 로그인 계정 — 전 인원(학생·학부모·기사·동승자·관계자·플랫폼 관리자)이 form 가입으로 만드는
@@ -102,5 +104,17 @@ public class Account extends BaseTimeEntity {
     public static Account forSignup(Long academyId, String loginId, String passwordHash, String name,
             String phone, String email, Role role) {
         return new Account(academyId, loginId, passwordHash, name, phone, email, role);
+    }
+
+    /**
+     * {@code blocked} 계정의 로그인을 막는다(API_SPEC §1.4) — 그 외 상태(pending·rejected·active)는
+     * 로그인 자체는 허용하므로 여기서 걸리지 않는다. 통과하면 아무 것도 하지 않고, 아니면
+     * {@link BusinessException}({@code AUTH_ACCOUNT_BLOCKED}, 401 이 아닌 403).
+     *
+     * <p>로그인 서비스(Task 4)가 비밀번호 대조보다 먼저 호출한다 — 자격 오류(401)로 응답하면
+     * 사용자가 비밀번호가 틀린 줄 알고 재시도하고, 그 재시도가 실패 카운터를 다시 올리게 된다.
+     */
+    public void assertNotBlocked() {
+        // RED 관측용 임시 스텁 — 미구현 상태를 재현한다
     }
 }

@@ -18,7 +18,7 @@ class JwtTokenProviderTest {
 
     @Test
     void access_token_round_trip() {
-        String token = provider.createAccessToken(7L, 1L, Role.DRIVER);
+        String token = provider.createAccessToken(7L, 1L, Role.DRIVER, "active");
 
         Claims claims = provider.parse(token);
 
@@ -33,7 +33,7 @@ class JwtTokenProviderTest {
 
     @Test
     void refresh_token_is_flagged_as_refresh() {
-        String token = provider.createRefreshToken(7L, 1L, Role.DRIVER);
+        String token = provider.createRefreshToken(7L, 1L, Role.DRIVER, "active");
 
         Claims claims = provider.parse(token);
 
@@ -43,11 +43,21 @@ class JwtTokenProviderTest {
 
     @Test
     void account_without_academy_resolves_to_null_academy_id() {
-        String token = provider.createAccessToken(9L, null, Role.SYSTEM_ADMIN);
+        String token = provider.createAccessToken(9L, null, Role.SYSTEM_ADMIN, "active");
 
         Claims claims = provider.parse(token);
         AuthUser principal = provider.resolveAuthUser(claims);
 
         assertThat(principal.academyId()).isNull();
+    }
+
+    @Test
+    void 계정_상태_클레임이_왕복해도_보존된다() {
+        String token = provider.createAccessToken(7L, 1L, "parent", "pending");
+
+        Claims claims = provider.parse(token);
+        AuthUser principal = provider.resolveAuthUser(claims);
+
+        assertThat(principal.status()).isEqualTo("pending");
     }
 }

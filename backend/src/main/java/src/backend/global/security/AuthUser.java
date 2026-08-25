@@ -23,10 +23,15 @@ import src.backend.global.common.enums.Role;
  * 이 제약을 위반하는 행이 있다면 DB 에 들어가기 전에 여기서 먼저 걸린다. system_admin 이
  * academyId 를 가지는 것까지 막지는 않는다 — DB 제약 자체가 그것까지는 금지하지 않는다.
  *
+ * <p>{@code status} 는 발급 시점의 계정 상태({@code pending}·{@code active}·{@code rejected}·
+ * {@code blocked}, 소문자)를 토큰에서 그대로 옮긴 값이다 — {@code global.security.gate} 의
+ * 계정 상태 게이트가 이 값만 보고 pending·rejected 계정의 API 접근을 허용 목록으로 제한한다
+ * (API_SPEC §1.4). 상태가 바뀐 뒤 반영되려면 재로그인(재발급)이 필요하다.
+ *
  * <p>{@link Principal}도 구현해 STOMP 세션(CONNECT 시 1회 인증)의 사용자로도 그대로 쓴다 —
  * REST 요청 인증과 WebSocket 세션 인증이 같은 타입을 공유한다.
  */
-public record AuthUser(Long accountId, Long academyId, Role role) implements Principal {
+public record AuthUser(Long accountId, Long academyId, Role role, String status) implements Principal {
 
     public AuthUser {
         if (role != Role.SYSTEM_ADMIN && academyId == null) {
