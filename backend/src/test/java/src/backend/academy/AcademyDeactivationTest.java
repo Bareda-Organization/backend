@@ -21,6 +21,7 @@ import src.backend.academy.entity.Academy;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
+import src.backend.global.common.SeedFixtures;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
@@ -42,6 +43,9 @@ import jakarta.persistence.PersistenceContext;
 class AcademyDeactivationTest {
 
     private static final String RAW_PASSWORD = "password1234!";
+
+    /** 시드 계정의 비밀번호 — local 프로파일의 Flyway placeholder 가 이 평문의 해시를 심는다. */
+    private static final String SEED_PASSWORD = "password";
 
     private static final String ACADEMY_NAME = "P3T1비활성화학원RR";
 
@@ -96,6 +100,32 @@ class AcademyDeactivationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"login_id\":\"p3t1deactdriver\",\"password\":\"%s\"}".formatted(RAW_PASSWORD)))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.access_token").isNotEmpty());
+    }
+
+    /**
+     * 비활성 학원 소속 <b>관계자</b>의 로그인도 200 이다 — 위 단언의 기사 축과 짝이다(Ruling 146-3).
+     *
+     * <p>기사 계정 하나로는 이 조건을 다 덮지 못한다. {@code role='staff'} 만 로그인 경로에서
+     * {@code academy_staff} 재직 검사를 <b>추가로</b> 통과해야 하기 때문이다(AUTH_STAFF_INACTIVE,
+     * Ruling 143) — 그 검사가 학원 상태까지 보게 되면 <b>비활성 학원의 재직 관계자가 전원 로그인
+     * 불가</b>가 되는데, 기사 축 단언은 그 경로를 지나지 않아 초록으로 남는다.
+     *
+     * <p>학원 비활성화(T1)와 재직 검사(T3)의 교차점이라 어느 쪽도 자기 범위로 보지 않았던 자리다.
+     *
+     * <p>재료는 자체 픽스처가 아니라 시드 {@code staffC} 다 — 세 성질을 동시에 갖춘 계정이라야
+     * 이 단언이 성립하고, 시드가 이미 그것을 보유한다(직접 확인: 학원 3 {@code BARAEDA-C} 가
+     * {@code inactive} · 계정 {@code staffC} 가 {@code role=staff status=active} · {@code academy_staff}
+     * 에 그 계정의 {@code active} 행). {@code SeedFixturesContractTest} 가 이 성질들을 별도로 고정한다.
+     */
+    @Test
+    void 비활성_학원_소속_재직_관계자의_로그인도_200_이다() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"login_id\":\"%s\",\"password\":\"%s\"}"
+                                .formatted(SeedFixtures.STAFF_C_LOGIN_ID, SEED_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("active"))
                 .andExpect(jsonPath("$.data.access_token").isNotEmpty());
     }
 

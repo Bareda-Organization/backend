@@ -15,9 +15,14 @@ import org.springframework.http.HttpStatus;
  * 상수에서 유도하면 상수가 잘못 채워져도 대조 대상이 같은 값을 베껴 항상 일치한다
  * ({@code EXPECTED_PUBLIC_ENDPOINTS} 와 같은 이유의 독립 축이다, Ruling 103).
  *
- * <p>여기 담긴 8종은 T1 이 <b>소비자보다 먼저</b> 더한 것들이다. T2·T3 이 각자 이 파일에 상수를 더하면
- * 병합 충돌이 확정이라 선행 태스크가 한 번에 더했고, 그래서 <b>지금은 이 코드들을 던지는 자리가
- * 부재</b>하다. 소비자가 없는 동안 상태 코드가 틀린 채로 남아 있으면 T2·T3 이 그것을 사실로 삼는다.
+ * <p>이 중 8종은 T1 이 <b>소비자보다 먼저</b> 더한 것들이다. T2·T3 이 각자 이 파일에 상수를 더하면
+ * 병합 충돌이 확정이라 선행 태스크가 한 번에 더했고, 그래서 <b>T1 시점에는 이 코드들을 던지는 자리가
+ * 부재</b>했다. 소비자가 없는 동안 상태 코드가 틀린 채로 남아 있으면 T2·T3 이 그것을 사실로 삼는다.
+ *
+ * <p>9번째 {@code SIGNUP_TARGET_BLOCKED} 는 T2 의 {@code AUTH_ACCOUNT_BLOCKED} 재사용을 걷어내며
+ * 더한 것이다(Ruling 147). 여기 실은 이유는 <b>403 이 아니라 409</b> 라는 판정이 이 표에서만 고정되기
+ * 때문이다 — 요청 주체는 인가돼 있고 막는 것은 대상 자원의 상태라 {@code APPROVAL_ALREADY_DECIDED}
+ * 와 같은 형태다. 상수 선언만 두면 다음 사람이 "차단이니 403" 으로 되돌려도 아무것도 실패하지 않는다.
  */
 class ErrorCodeCatalogTest {
 
@@ -30,11 +35,12 @@ class ErrorCodeCatalogTest {
             ErrorCode.STUDENT_NOT_FOUND, HttpStatus.NOT_FOUND,
             ErrorCode.MANAGER_NOT_FOUND, HttpStatus.NOT_FOUND,
             ErrorCode.ALREADY_LINKED, HttpStatus.CONFLICT,
-            ErrorCode.ACCOUNT_NOT_BLOCKED, HttpStatus.CONFLICT));
+            ErrorCode.ACCOUNT_NOT_BLOCKED, HttpStatus.CONFLICT,
+            ErrorCode.SIGNUP_TARGET_BLOCKED, HttpStatus.CONFLICT));
 
     @Test
-    void Phase_3_이_쓰는_에러_코드_8종의_HTTP_상태가_사양과_같다() {
-        assertThat(SPEC_STATUS).hasSize(8);
+    void Phase_3_이_쓰는_에러_코드_9종의_HTTP_상태가_사양과_같다() {
+        assertThat(SPEC_STATUS).hasSize(9);
         assertThat(SPEC_STATUS).allSatisfy((code, expected) ->
                 assertThat(code.getStatus())
                         .as("%s 의 HTTP 상태가 API_SPEC §8 과 어긋난다", code.name())

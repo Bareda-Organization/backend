@@ -1105,7 +1105,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 다자녀는 **연결 추가만** 수행 — 학부모 재가입 부재.
 
-**에러** — `422 LINK_REQUIRED`(수락 시 학생·매니저 레코드 연결 누락) · `409 APPROVAL_ALREADY_DECIDED`(이미 처리된 요청) · `404 SIGNUP_REQUEST_NOT_FOUND` · `404 STUDENT_NOT_FOUND`(`link.student_ids[]` 대상 부재) · `404 MANAGER_NOT_FOUND`(`link.manager_id` 대상 부재) · `403 FORBIDDEN`(`role=staff` 요청 — 메인 관리자 경로 §6.5) · `422 VALIDATION_FAILED`(`accept=false` 인데 `reject_reason` 부재)
+**에러** — `422 LINK_REQUIRED`(수락 시 학생·매니저 레코드 연결 누락) · `409 APPROVAL_ALREADY_DECIDED`(이미 처리된 요청) · `409 SIGNUP_TARGET_BLOCKED`(승인 대상 계정이 `blocked` — §8.1) · `404 SIGNUP_REQUEST_NOT_FOUND` · `404 STUDENT_NOT_FOUND`(`link.student_ids[]` 대상 부재) · `404 MANAGER_NOT_FOUND`(`link.manager_id` 대상 부재) · `403 FORBIDDEN`(`role=staff` 요청 — 메인 관리자 경로 §6.5) · `422 VALIDATION_FAILED`(`accept=false` 인데 `reject_reason` 부재)
 
 ### 5.3 GET /staff/dashboard
 
@@ -1589,7 +1589,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 **응답** — `account_status`(`active` · `rejected`) · `decided_at`.
 
-**에러** — `409 STAFF_QUOTA_EXCEEDED`(학원당 관계자 **1명** 초과 승인) · `409 APPROVAL_ALREADY_DECIDED`(이미 처리된 요청) · `404 SIGNUP_REQUEST_NOT_FOUND` · `422 VALIDATION_FAILED`(`accept=false` 인데 `reject_reason` 부재)
+**에러** — `409 STAFF_QUOTA_EXCEEDED`(학원당 관계자 **1명** 초과 승인) · `409 APPROVAL_ALREADY_DECIDED`(이미 처리된 요청) · `409 SIGNUP_TARGET_BLOCKED`(승인 대상 계정이 `blocked` — §8.1) · `404 SIGNUP_REQUEST_NOT_FOUND` · `422 VALIDATION_FAILED`(`accept=false` 인데 `reject_reason` 부재)
 
 ### 6.6 GET /admin/staff-accounts
 
@@ -1789,6 +1789,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `TOKEN_EXPIRED` | 401 | access·refresh 만료, 로그아웃·차단으로 무효화 → 재로그인 요구 |
 | `AUTH_PENDING` | 403 | `pending` 계정이 **허용 목록**(`GET /auth/signup-status` · `POST /auth/logout` · `GET /me` · `POST`·`DELETE /me/devices`, §1.4) 밖 호출. `rejected` 는 `POST /auth/signup/reapply` **1개 추가** (C-01 · §1.4). ⚠ **`pending` 에게 재신청은 허용되지 않는다** — `AUTH-03` 이 "재신청은 거절 이후에만" 을 규정 |
 | `AUTH_ACCOUNT_BLOCKED` | 403 | 로그인 실패 **5회** 누적으로 계정 단위 차단. 해제는 메인 관리자 (C-11) |
+| `SIGNUP_TARGET_BLOCKED` | 409 | 가입 승인(`§5.2`·`§6.5`) 대상 계정이 `blocked` — **요청 주체는 정상 권한 보유**. `pending` 계정도 로그인은 되므로(`§1.4`) 승인 대기 중 실패 5회로 차단될 수 있고, 그때 통과시키면 승인이 차단을 조용히 풀어 해제 권한(AUTH-06)을 우회한다. ⚠ **위 `AUTH_ACCOUNT_BLOCKED` 를 재사용하지 않는다** — 그쪽은 **차단된 계정 자신의 호출**(`§1.11`)이라 승인 화면에 "차단된 계정입니다. 관리자에게 문의하세요" 가 뜨면 승인자가 자신이 차단된 것으로 오해한다. ⚠ **403 이 아니라 409 인 이유** — 요청 주체는 인가돼 있고 막는 것은 **대상 자원의 상태**다. `§8.3` `APPROVAL_ALREADY_DECIDED` 와 같은 형태이며, 같은 승인 경로의 같은 성격의 거부가 403·409 로 갈리면 클라이언트가 분기를 두 벌 만든다 (2026-08-26 신설, Ruling 147) |
 | `AUTH_REJECTED` | 403 | `rejected` 계정이 **허용 6개**(`pending` 의 5개 + `POST /auth/signup/reapply`) 밖 호출. `AUTH_PENDING` 과 코드를 나눈 이유 — `§1.4` 가 대기 화면에 **거절 사유**를 노출하라고 규정하는데, 두 상태가 같은 코드를 쓰면 클라이언트가 "승인 대기 중" 과 "거절됨" 을 구별할 수단이 부재 (2026-08-25 신설) |
 | `AUTH_STAFF_INACTIVE` | 403 | 퇴사 처리된(`academy_staff.status='inactive'`) 관계자 계정의 **로그인**. `§6.7` 이 "퇴사 즉시 권한 회수" 를 요건으로 규정하는데, refresh 토큰 무효화만으로는 **그 순간의 세션**만 끊겨 비밀번호를 아는 퇴사자가 재로그인해 `role=staff` 권한을 그대로 되찾는다. 판정 대상은 `academy_staff` **행이 있고 그 상태가 `inactive` 인 경우뿐**이다 — 행이 부재한 것은 퇴사가 아니라 **아직 승인 전**(`§6.4` 승인 큐의 축)이라 `pending` 관계자의 대기 화면 진입을 막지 않는다. `account.status` 에는 대응 값이 부재하다(4종에 `inactive` 없음) (2026-08-26 신설, Ruling 143) |
 | `DUPLICATE_LOGIN_ID` | 409 | 가입 시 로그인 아이디 중복 |

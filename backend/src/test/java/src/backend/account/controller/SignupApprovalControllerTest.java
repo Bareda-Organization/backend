@@ -253,11 +253,17 @@ class SignupApprovalControllerTest {
     }
 
     /**
-     * 승인 대기 중 차단된 계정은 승인으로 되살아나지 않는다 — {@code 403 AUTH_ACCOUNT_BLOCKED}.
+     * 승인 대기 중 차단된 계정은 승인으로 되살아나지 않는다 — {@code 409 SIGNUP_TARGET_BLOCKED}.
      *
      * <p>{@code pending} 계정도 로그인은 되므로(§1.4) 승인을 기다리는 동안 실패 5회로
      * {@code blocked} 가 될 수 있고, 그때 가입 요청은 여전히 대기 중이라 관계자 큐에 남아 있다.
      * 승인이 통과하면 <b>차단이 조용히 풀린다</b> — 해제 권한은 메인 관리자에게만 있다(AUTH-06).
+     *
+     * <p>코드가 {@code AUTH_ACCOUNT_BLOCKED} 가 아닌 이유(Ruling 147) — 그 코드의 정의는
+     * <b>요청 주체 자신</b>이 차단된 경우(§1.11)이고, 여기서 차단된 것은 <b>승인 대상</b>이다.
+     * 재사용하면 승인 화면에 "차단된 계정입니다. 관리자에게 문의하세요" 가 떠 정상 권한을 가진
+     * 관계자가 자신이 차단된 것으로 오해한다. 403 이 아니라 409 인 것은 요청 주체가 인가돼 있고
+     * 막는 것이 대상 자원의 상태이기 때문이다 — {@code APPROVAL_ALREADY_DECIDED} 와 같은 형태다.
      *
      * <p>이 단언은 음성 대조에서 나왔다(변형 M13) — 계정 쪽 상태 확인을 통째로 지워도 요청 행 쪽
      * 확인이 남아 다른 단언이 전부 통과했다. 두 확인이 보는 대상이 다르다는 것을 고정한다.
@@ -268,10 +274,10 @@ class SignupApprovalControllerTest {
                     + "requested_at) VALUES ((SELECT id FROM account WHERE login_id = 'driverBlocked'), 1, "
                     + "'driver', 'staff', 'pending', now())"
     })
-    void 승인_대기_중_차단된_계정을_수락하려_하면_403_AUTH_ACCOUNT_BLOCKED_다() throws Exception {
+    void 승인_대기_중_차단된_계정을_수락하려_하면_409_SIGNUP_TARGET_BLOCKED_다() throws Exception {
         처리한다(요청_식별자("driverBlocked"), ACADEMY_A, "{\"accept\": true, \"link\": {\"manager_id\": 7}}")
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error.code").value("AUTH_ACCOUNT_BLOCKED"));
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("SIGNUP_TARGET_BLOCKED"));
 
         assertThat(계정_상태(계정_식별자("driverBlocked")))
                 .as("승인이 차단을 풀면 실패 5회로 잠긴 계정이 관계자 승인 한 번으로 되살아난다")

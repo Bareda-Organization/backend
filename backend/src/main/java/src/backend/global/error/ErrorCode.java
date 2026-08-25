@@ -82,6 +82,14 @@ public enum ErrorCode {
     // AUTH_ACCOUNT_BLOCKED 와 코드를 나눈 이유는 클라이언트의 다음 동작이 갈리기 때문이다 —
     // 차단은 관리자에게 해제를 요청할 자리이고, 퇴사는 요청할 대상 자체가 부재한 자리다.
     AUTH_STAFF_INACTIVE(HttpStatus.FORBIDDEN, "퇴사 처리된 계정입니다"),
+    // 가입 승인 대상 계정이 blocked — 요청 주체는 정상 권한 보유(API_SPEC §5.2·§6.5·§8.1, Ruling 147).
+    // AUTH_ACCOUNT_BLOCKED 를 재사용하지 않는 이유는 그 코드가 "요청 주체 자신이 차단"(§1.11)을
+    // 가리키기 때문이다 — 재사용하면 승인 화면에 "차단된 계정입니다. 관리자에게 문의하세요" 가 떠
+    // 정상 권한을 가진 승인자가 자신이 차단된 것으로 오해한다.
+    // 403 이 아니라 409 인 것은 요청 주체가 인가돼 있고 막는 것이 대상 자원의 상태이기 때문이다 —
+    // 같은 승인 경로의 APPROVAL_ALREADY_DECIDED 와 같은 형태이며, 같은 성격의 거부가 403·409 로
+    // 갈리면 클라이언트가 분기를 두 벌 만들게 된다.
+    SIGNUP_TARGET_BLOCKED(HttpStatus.CONFLICT, "차단된 계정은 승인할 수 없습니다"),
 
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다");
 

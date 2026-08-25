@@ -180,17 +180,23 @@ public class Account extends BaseTimeEntity {
     /**
      * 승인·거절을 받을 수 있는 상태인지 본다 — 두 경우를 <b>다른 코드로</b> 가른다.
      *
-     * <p>{@code blocked} 는 {@code AUTH_ACCOUNT_BLOCKED}(403)다. 통과시키면 승인이 차단을 조용히
+     * <p>{@code blocked} 는 {@code SIGNUP_TARGET_BLOCKED}(409)다. 통과시키면 승인이 차단을 조용히
      * 풀어, 로그인 실패 5회로 잠긴 계정이 관계자 승인 한 번으로 되살아난다 — 해제 권한은 메인
      * 관리자에게만 있다(AUTH-06 · C-11). {@code APPROVAL_ALREADY_DECIDED} 로 뭉뚱그리면 화면에
      * "이미 처리된 요청" 이 뜨는데 그 건은 큐에 그대로 남아 있어, 관계자가 원인을 찾을 수단이 부재하다.
+     *
+     * <p>{@code AUTH_ACCOUNT_BLOCKED} 를 쓰지 않는 이유(Ruling 147) — 그 코드는 <b>요청 주체 자신</b>이
+     * 차단된 경우를 가리킨다(§1.11). 여기서 차단된 것은 <b>승인 대상</b>이고 요청 주체는 정상 권한을
+     * 가진 관계자·메인 관리자다. 재사용하면 승인 화면에 "차단된 계정입니다. 관리자에게 문의하세요" 가
+     * 떠 승인자가 자신이 차단된 것으로 오해한다. 403 이 아니라 409 인 것은 막는 것이 권한이 아니라
+     * <b>대상 자원의 상태</b>이기 때문이며, 바로 아래 {@code APPROVAL_ALREADY_DECIDED} 와 같은 형태다.
      *
      * <p>그 밖의 비-{@code pending}({@code active}·{@code rejected})은 요청 행과 계정이 어긋난
      * 상태이므로 {@code APPROVAL_ALREADY_DECIDED} 다.
      */
     private void assertAwaitingDecision() {
         if (status == AccountStatus.BLOCKED) {
-            throw new BusinessException(ErrorCode.AUTH_ACCOUNT_BLOCKED);
+            throw new BusinessException(ErrorCode.SIGNUP_TARGET_BLOCKED);
         }
         if (status != AccountStatus.PENDING) {
             throw new BusinessException(ErrorCode.APPROVAL_ALREADY_DECIDED);
