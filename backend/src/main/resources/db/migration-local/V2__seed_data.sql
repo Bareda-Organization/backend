@@ -18,7 +18,8 @@
 --    — 그래야 "A 계정으로 B 데이터 조회 시 공집합" 격리 검증이 실제로 무언가를 격리한 것이 된다.
 
 -- ── 그룹① 학원 · 계정 · 권한 ─────────────────────────────────────────────────
--- 학원 A(운영중, 메인 데모) · B(운영중, 격리 검증용 독립 계통) · C(운영정지, 목록 필터 데모)
+-- 학원 A(운영중, 메인 데모) · B(운영중, 격리 검증용 독립 계통) ·
+-- C(운영정지, O-01 "비활성화해도 기존 사용자 로그인 유지" 시연용 — staffC 계정 1개 보유)
 INSERT INTO academy (id, code, name, region, contact, status, created_at, updated_at)
 OVERRIDING SYSTEM VALUE
 VALUES
@@ -56,22 +57,28 @@ VALUES
     (16, 2, 'driverB1', '${seedPasswordHash}', '남기사', '010-6000-0001', 'driver', 'active', 0, NULL, NULL, now(), now()),
     (17, 1, 'escortA1', '${seedPasswordHash}', '서동승', '010-7000-0001', 'escort', 'active', 0, NULL, NULL, now(), now()),
     (18, 1, 'escortA2', '${seedPasswordHash}', '문동승', '010-7000-0002', 'escort', 'active', 0, NULL, NULL, now(), now()),
-    (19, 2, 'escortB1', '${seedPasswordHash}', '류동승', '010-8000-0001', 'escort', 'active', 0, NULL, NULL, now(), now());
+    (19, 2, 'escortB1', '${seedPasswordHash}', '류동승', '010-8000-0001', 'escort', 'active', 0, NULL, NULL, now(), now()),
+    -- 학원 C(inactive) 소속 active 계정 — FEATURE_SPEC O-01("비활성화해도 기존 사용자 로그인 유지")을
+    -- Swagger 로 시연하려면 로그인할 기존 사용자가 있어야 한다(§3.4 명시 시나리오의 재료).
+    (20, 3, 'staffC', '${seedPasswordHash}', '한관리', '010-9000-0001', 'staff', 'active', 0, NULL, NULL, now(), now());
 
--- 가입 요청: 대기 2건(staff·parent) + 거절 1건(student, 거절 사유 보유) — SIGNUP-01~04 화면.
+-- 가입 요청: 대기 2건(staff·parent) + 거절 1건(student, 거절 사유 보유) + 승인 1건(staffA 의 과거
+-- 이력) — SIGNUP-01~04 화면에서 3개 상태(pending/accepted/rejected)를 전부 조회할 수 있게 한다.
 INSERT INTO signup_request (id, account_id, academy_id, requested_role, approver_type, status,
                              requested_at, decided_by, decided_at, reject_reason)
 OVERRIDING SYSTEM VALUE
 VALUES
     (1, 4, 1, 'staff', 'system_admin', 'pending', now() - interval '2 days', NULL, NULL, NULL),
     (2, 8, 1, 'parent', 'staff', 'pending', now() - interval '1 day', NULL, NULL, NULL),
-    (3, 11, 1, 'student', 'staff', 'rejected', now() - interval '3 days', 2, now() - interval '2 days', '재학증명서 미제출');
+    (3, 11, 1, 'student', 'staff', 'rejected', now() - interval '3 days', 2, now() - interval '2 days', '재학증명서 미제출'),
+    (4, 2, 1, 'staff', 'system_admin', 'accepted', now() - interval '5 days', 1, now() - interval '4 days', NULL);
 
 INSERT INTO academy_staff (id, academy_id, account_id, status, created_at, updated_at)
 OVERRIDING SYSTEM VALUE
 VALUES
     (1, 1, 2, 'active', now(), now()),
-    (2, 2, 3, 'active', now(), now());
+    (2, 2, 3, 'active', now(), now()),
+    (3, 3, 20, 'active', now(), now());
 
 INSERT INTO system_admin (id, account_id, created_at)
 OVERRIDING SYSTEM VALUE
@@ -174,6 +181,8 @@ VALUES
     (4, 1, 18, 'escort', '문동승', '010-7000-0002', '{"start":"07:40","end":"17:40"}'::jsonb, now(), now()),
     (5, 2, 16, 'driver', '남기사', '010-6000-0001', '{"start":"07:30","end":"17:30"}'::jsonb, now(), now()),
     (6, 2, 19, 'escort', '류동승', '010-8000-0001', '{"start":"07:30","end":"17:30"}'::jsonb, now(), now()),
+    -- id=7: §3.4 명시 인원(A 기사 2명) 초과분이지만 blocked 계정(driverBlocked, id=15)의 매니저
+    -- 프로필을 시연하려는 의도적 추가다 — §3.4 대조만으로 "초과분"이라 오인해 지우지 말 것.
     (7, 1, 15, 'driver', '차단기사', '010-5000-0099', NULL, now(), now());
 
 -- 정기 배차: 오늘 요일 기준으로 버스별 등원·하원 각 1건씩(SCH-01) — dow(0=일)를 mon~sun 배열로 변환.
