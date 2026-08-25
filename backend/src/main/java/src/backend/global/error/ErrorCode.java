@@ -9,7 +9,10 @@ import org.springframework.http.HttpStatus;
 public enum ErrorCode {
 
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "인증이 필요합니다"),
-    INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다"),
+    // 이 시스템의 로그인 식별자는 login_id 이지 이메일이 아니다(API_SPEC §2.2·§2.5).
+    // 옛 문구("이메일 또는...")가 남아 있어 사용자가 존재하지 않는 이메일 필드를 찾게 만드는
+    // 결함이었다 — Task 4 발견·수정.
+    INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "아이디 또는 비밀번호가 올바르지 않습니다"),
     FORBIDDEN(HttpStatus.FORBIDDEN, "접근 권한이 없습니다"),
     // pending 계정이 허용 목록 밖 API 를 호출할 때(API_SPEC §1.4·§8.1) — 401 이 아니라 403.
     AUTH_PENDING(HttpStatus.FORBIDDEN, "승인 대기 중인 계정입니다"),
