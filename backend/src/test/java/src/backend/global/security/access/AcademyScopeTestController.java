@@ -24,6 +24,11 @@ import src.backend.student.repository.StudentRepository;
  *
  * <p>목록 응답이 학생 id 만 담는 이유는 격리 여부가 <b>어느 학원 행이 섞였는가</b> 로만 판정되기
  * 때문이다. 자원 표현(DTO)은 그 소유 Phase 가 정한다.
+ *
+ * <p><b>이 형태를 Phase 3 {@code /admin/**} 이 복사할 때</b> — 학원 경로와 메인 관리자 경로는 학원
+ * 조건만 다르고 {@code deleted_at IS NULL} 은 <b>양쪽 다 필요</b>하다. 한쪽만 걸면 같은 화면이 학원을
+ * 고르느냐에 따라 퇴원생이 나왔다 사라진다. 여기서도 두 경로가 각각 그 조건을 가진 저장소 메서드를
+ * 부른다 — {@code findAll()} 로 대신하면 조건이 빠진다.
  */
 @RestController
 class AcademyScopeTestController {
@@ -40,7 +45,7 @@ class AcademyScopeTestController {
             @RequestParam(name = "academy_id", required = false) Long requestedAcademyId) {
         return AcademyScope.resolveListScope(authUser, requestedAcademyId)
                 .map(studentRepository::findAllByAcademyIdAndDeletedAtIsNullOrderByNameAsc)
-                .orElseGet(studentRepository::findAll)
+                .orElseGet(studentRepository::findAllByDeletedAtIsNullOrderByNameAsc)
                 .stream()
                 .map(Student::getId)
                 .toList();

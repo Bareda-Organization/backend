@@ -48,6 +48,9 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
      *
      * @return 실제로 무효화된 행 수
      */
+    @AcademyScopeExempt(reason = "§2.8 계정 단위 전량 무효화 — 대상이 계정 하나라 학원 범위가 판정에 개입 부재. "
+            + "호출부(로그인 차단 전이·비밀번호 변경·복구)가 인증·본인확인을 마치고 특정한 계정의 id 만 넘긴다는 "
+            + "전제 — 요청 파라미터의 accountId 를 넘기면 타 학원 계정의 토큰을 무효화할 수 있다")
     @Transactional
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("UPDATE RefreshToken t SET t.revokedAt = :revokedAt "
@@ -66,6 +69,8 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
      *
      * @return 실제로 무효화된 행 수(0 이면 이미 무효화됐거나 존재하지 않는 토큰)
      */
+    @AcademyScopeExempt(reason = "§2.7 로그아웃 — 토큰 해시만 들고 시작해 소속 학원이 미상(findByTokenHash 와 같은 근거). "
+            + "해시가 token_hash UNIQUE 로 행 1건을 특정하므로 학원 조건을 더해도 좁혀지는 것이 부재")
     @Transactional
     @Modifying(clearAutomatically = true)
     @Query("UPDATE RefreshToken t SET t.revokedAt = :revokedAt "
