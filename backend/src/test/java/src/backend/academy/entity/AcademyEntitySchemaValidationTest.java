@@ -98,7 +98,8 @@ class AcademyEntitySchemaValidationTest extends MigratedPostgresTestBase {
                 Statement statement = connection.createStatement();
                 ResultSet resultSet = statement.executeQuery(
                         "SELECT column_default FROM information_schema.columns "
-                                + "WHERE table_name = 'academy_setting' AND column_name = 'no_show_wait_minutes'")) {
+                                + "WHERE table_schema = 'public' AND table_name = 'academy_setting' "
+                                + "AND column_name = 'no_show_wait_minutes'")) {
             assertThat(resultSet.next()).as("컬럼 자체가 없으면 스키마가 어긋난 것").isTrue();
             String columnDefault = resultSet.getString("column_default");
             assertThat(columnDefault)

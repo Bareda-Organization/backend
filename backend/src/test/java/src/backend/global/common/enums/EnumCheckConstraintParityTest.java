@@ -10,12 +10,14 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -177,5 +179,28 @@ class EnumCheckConstraintParityTest {
         assertThat(enumDbValues)
                 .as(() -> enumName + " 의 DB 값 집합이 " + constraintNames + " 의 값 목록과 정확히 일치해야 한다")
                 .isEqualTo(checkValues);
+    }
+
+    /**
+     * {@code enumToCheckMapping()} 은 제약 이름을 손으로 나열한 목록이라, 새 값 목록형 CHECK 가
+     * V1 에 추가되고 이 목록에 줄을 안 넣으면 위 파라미터화 테스트는 그 존재조차 모른 채 통과한다.
+     *
+     * <p>정본은 스키마다 — {@code checkValuesByConstraintName}(V1 파싱 결과)에는 있는데
+     * {@code enumToCheckMapping()} 이 참조하지 않는 제약 이름이 하나라도 있으면 실패시켜, "매핑에
+     * 줄 추가를 잊었다"는 사실과 그 제약 이름을 실패 메시지에 그대로 드러낸다.
+     */
+    @Test
+    void V1_의_값_목록형_CHECK_는_전부_enumToCheckMapping_에_매핑돼_있어야_한다() {
+        Set<String> mappedConstraintNames = enumToCheckMapping()
+                .flatMap(arguments -> ((Set<String>) arguments.get()[2]).stream())
+                .collect(Collectors.toSet());
+
+        Set<String> unmapped = new TreeSet<>(checkValuesByConstraintName.keySet());
+        unmapped.removeAll(mappedConstraintNames);
+
+        assertThat(unmapped)
+                .as(() -> "V1__init_schema.sql 에 있는 값 목록형 CHECK 중 enumToCheckMapping() 이 "
+                        + "참조하지 않는 것: " + unmapped)
+                .isEmpty();
     }
 }
