@@ -222,19 +222,52 @@ class ControllerAuthorizationConventionTest {
                                   boolean classLevelProtected, boolean methodLevelProtected,
                                   List<String> protectingAnnotations) {}
 
-    /** 이 패키지에 실존하는 인가 애너테이션의 단순 이름 목록(확장자 제거). 하드코딩하지 않고 매번 스캔한다. */
+    /**
+     * 이 패키지에 실존하는 인가 애너테이션의 단순 이름 목록(확장자 제거). 하드코딩하지 않고 매번 스캔한다.
+     *
+     * <p>파일명만 보고 애너테이션이라 단정하지 않는다 — 이 디렉터리엔 {@code RolePermissions}·
+     * {@code Permissions} 처럼 애너테이션이 아닌 상수 보관용 클래스도 함께 있다(보완 리뷰 Minor #7).
+     * {@link #declaresAnnotationType} 로 실제 {@code @interface} 선언인지 걸러낸다 — 걸러내지
+     * 않으면 이 목록의 이름이 "이 디렉터리의 파일" 이 아니라 "인가 애너테이션" 이라는 이 메서드의
+     * 이름과 어긋난다.
+     */
     private List<String> authzAnnotationNames() {
         if (!Files.isDirectory(AUTHZ_ANNOTATION_ROOT)) {
             return List.of();
         }
         try (Stream<Path> paths = Files.list(AUTHZ_ANNOTATION_ROOT)) {
-            return paths.map(p -> p.getFileName().toString())
-                    .filter(name -> name.endsWith(".java"))
+            return paths.filter(p -> p.getFileName().toString().endsWith(".java"))
+                    .filter(this::declaresAnnotationType)
+                    .map(p -> p.getFileName().toString())
                     .map(name -> name.substring(0, name.length() - ".java".length()))
                     .toList();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    /** 파일 내용에 {@code @interface <파일명>} 선언이 실제로 있는지 본다(보완 리뷰 Minor #7). */
+    private boolean declaresAnnotationType(Path file) {
+        String fileName = file.getFileName().toString();
+        String simpleName = fileName.substring(0, fileName.length() - ".java".length());
+        try {
+            return Files.readString(file).contains("@interface " + simpleName);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * {@link #authzAnnotationNames()} 가 파일명만으로 판단하면 {@code RolePermissions}·
+     * {@code Permissions}(애너테이션이 아닌 상수 클래스)까지 인가 애너테이션으로 잘못 취급한다
+     * (보완 리뷰 Minor #7) — 실제 {@code @interface} 선언 3개만 남는지 잠근다.
+     */
+    @Test
+    void authzAnnotationNames_은_실제_interface_선언만_포함한다() {
+        List<String> names = authzAnnotationNames();
+
+        assertThat(names).contains("PublicEndpoint", "CanRegisterDevice", "AuthenticatedOnly")
+                .doesNotContain("RolePermissions", "Permissions");
     }
 
     private List<MappingMethod> allMappingMethods(List<String> authzAnnotationNames) {

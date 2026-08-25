@@ -42,7 +42,7 @@ class JwtAuthenticationFilterTest {
     void status_클레임이_없는_토큰으로_보호_자원을_호출하면_인증_없이_통과돼_401_이다() throws Exception {
         String token = signedTokenMissing("status");
 
-        mockMvc.perform(get("/jwt-filter-test/protected").header("Authorization", "Bearer " + token))
+        mockMvc.perform(get("/api/v1/jwt-filter-test/protected").header("Authorization", "Bearer " + token))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -50,7 +50,7 @@ class JwtAuthenticationFilterTest {
     void role_클레임이_없는_토큰으로_보호_자원을_호출하면_인증_없이_통과돼_401_이다() throws Exception {
         String token = signedTokenMissing("role");
 
-        mockMvc.perform(get("/jwt-filter-test/protected").header("Authorization", "Bearer " + token))
+        mockMvc.perform(get("/api/v1/jwt-filter-test/protected").header("Authorization", "Bearer " + token))
                 .andExpect(status().isUnauthorized());
     }
 

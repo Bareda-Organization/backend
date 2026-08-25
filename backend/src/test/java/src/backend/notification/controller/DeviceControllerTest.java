@@ -6,6 +6,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.Locale;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -176,7 +178,7 @@ class DeviceControllerTest {
                 .findFirst().orElseThrow().getId();
 
         for (Role role : Role.values()) {
-            String loginId = "p2t3role" + role.name().toLowerCase();
+            String loginId = "p2t3role" + role.name().toLowerCase(Locale.ROOT);
             Long accountAcademyId = role == Role.SYSTEM_ADMIN ? null : academyId;
             var account = accountRepository.save(src.backend.account.entity.Account.forSignup(
                     accountAcademyId, loginId, "x", "역할" + role.name(), "010-1111-0000", null, role));

@@ -9,10 +9,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.jdbc.Sql;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import src.backend.academy.entity.Academy;
+import src.backend.academy.query.AcademySearchQueryService;
 import src.backend.academy.repository.AcademyRepository;
 
 /**
@@ -50,5 +52,43 @@ class AcademySearchControllerTest {
         mockMvc.perform(get("/api/v1/academies/search"))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+    }
+
+    /**
+     * 검색어 {@code "%"} 는 LIKE 와일드카드가 아니라 리터럴 문자로 취급돼야 한다(보완 리뷰 Important #3,
+     * C-4) — 이스케이프가 없으면 {@code q="%"} 가 전체 활성 학원과 매칭돼 비인증 엔드포인트로 전체
+     * 목록을 열람하는 통로가 된다. 이름에 리터럴 {@code %} 를 포함한 학원은 매칭되고, 포함하지 않은
+     * 학원은 매칭되지 않아야 이스케이프가 실제로 걸렸다는 증거가 된다 — 둘 다 확인해야 "우연히 전부
+     * 매칭됨"과 구별된다.
+     */
+    @Test
+    void 검색어_퍼센트는_와일드카드가_아니라_리터럴_문자로_취급된다() throws Exception {
+        academyRepository.save(Academy.register("P2T3PCT1QQQ", "학원%퍼센트포함QQQQ", "서울", null, null));
+        academyRepository.save(Academy.register("P2T3PCT2QQQ", "학원퍼센트미포함QQQQ", "서울", null, null));
+
+        mockMvc.perform(get("/api/v1/academies/search").param("q", "%"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[?(@.code == 'P2T3PCT1QQQ')]").exists())
+                .andExpect(jsonPath("$.data.items[?(@.code == 'P2T3PCT2QQQ')]").doesNotExist());
+    }
+
+    /**
+     * 검색 결과는 {@link AcademySearchQueryService} 의 {@code MAX_RESULTS} 를 넘지 않아야 한다
+     * (보완 리뷰 Important #3, C-4) — 비인증 공개 엔드포인트라 상한이 없으면 {@code q} 를 넓게 잡아
+     * 전체 활성 학원 목록을 한 번에 끌어낼 수 있다. 상한값은 하드코딩하지 않고 리플렉션으로 원본
+     * 상수를 그대로 읽어, 상수가 바뀌어도 이 테스트가 따라간다.
+     */
+    @Test
+    void 검색_결과는_MAX_RESULTS_를_넘지_않는다() throws Exception {
+        int maxResults = (int) ReflectionTestUtils.getField(AcademySearchQueryService.class, "MAX_RESULTS");
+        for (int i = 0; i < maxResults + 5; i++) {
+            String suffix = String.format("%02d", i);
+            academyRepository.save(
+                    Academy.register("P2T3CAP" + suffix + "Q", "학원상한테스트QQQQ" + suffix, "서울", null, null));
+        }
+
+        mockMvc.perform(get("/api/v1/academies/search").param("q", "상한테스트QQQQ"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(maxResults));
     }
 }

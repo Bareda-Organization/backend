@@ -143,4 +143,37 @@ class RefreshTokenRepositoryTest {
         RefreshToken deviceB = refreshTokenRepository.findByTokenHash("hash-logout-6-b").orElseThrow();
         assertThat(deviceB.getRevokedAt()).isNull();
     }
+
+    /**
+     * {@code @Modifying} 쿼리는 명시적 트랜잭션이 있어야 실행된다 — 이 클래스는 {@code @Transactional}
+     * 이라 평소엔 그 우산 아래서 돌아 이 메서드 자체의 트랜잭션 경계가 있는지 없는지가 드러나지
+     * 않는다. 이 테스트만 {@code NOT_SUPPORTED} 로 클래스 트랜잭션을 걷어내, 호출부(Task 4)가
+     * {@code @Transactional} 을 깜빡해도 이 메서드가 스스로 트랜잭션을 열어 동작하는지 직접 본다
+     * (보완 리뷰 Minor #3).
+     *
+     * <p>클래스 트랜잭션을 걷어냈으므로 이 메서드가 만든 행은 테스트 종료 후에도 롤백되지 않는다 —
+     * 재실행(스위트를 두 번 연속 돌리는 검증 포함) 시 UNIQUE 제약과 충돌하지 않도록 {@code finally}
+     * 에서 직접 지운다.
+     */
+    @Test
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
+    void revokeByTokenHash_은_호출부_트랜잭션이_없어도_동작한다() {
+        Academy academy = academyRepository.save(
+                Academy.register("P2T3RTKQQQQ7", "학원P2T3RTK토큰", "서울", null, null));
+        Account account = accountRepository.save(Account.forSignup(academy.getId(), "p2t3rtkfindqqq7", "x",
+                "토큰테스트", "010-8888-0007", null, Role.PARENT));
+        try {
+            OffsetDateTime now = OffsetDateTime.now();
+            refreshTokenRepository.save(
+                    RefreshToken.issue(account.getId(), "hash-notx-7", now, now.plusDays(14), "device-a"));
+
+            int count = refreshTokenRepository.revokeByTokenHash("hash-notx-7", now.plusMinutes(1));
+
+            assertThat(count).isEqualTo(1);
+        } finally {
+            refreshTokenRepository.findByTokenHash("hash-notx-7").ifPresent(refreshTokenRepository::delete);
+            accountRepository.deleteById(account.getId());
+            academyRepository.deleteById(academy.getId());
+        }
+    }
 }

@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.Locale;
 
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,9 @@ import src.backend.global.error.ErrorCode;
 @Service
 public class SignupCommandService {
 
+    /** V1__init_schema.sql 의 UNIQUE 제약명 — TOCTOU 충돌을 이 제약으로만 좁혀 잡는 데 쓴다. */
+    private static final String LOGIN_ID_UNIQUE_CONSTRAINT = "uk_account_login_id";
+
     private final AccountRepository accountRepository;
     private final SignupRequestRepository signupRequestRepository;
     private final AcademyRepository academyRepository;
@@ -53,6 +57,10 @@ public class SignupCommandService {
      * UNIQUE 제약에서 충돌한다(TOCTOU) — {@code saveAndFlush} 로 즉시 반영해 그 충돌을
      * {@link DataIntegrityViolationException} 으로 잡아 409 {@code DUPLICATE_LOGIN_ID} 로
      * 옮긴다. 이게 없으면 전역 예외 처리기의 catch-all 로 떨어져 500 이 된다.
+     *
+     * <p>제약명을 {@link #LOGIN_ID_UNIQUE_CONSTRAINT} 로 좁혀 확인한다(보완 리뷰 Minor #1) — 좁히지
+     * 않으면 이 계정에 앞으로 다른 UNIQUE·FK 제약이 늘었을 때 그 위반까지 전부 "아이디 중복" 으로
+     * 잘못 답하게 된다.
      */
     @Transactional
     public SignupResponse signup(SignupRequestPayload payload) {
@@ -67,6 +75,9 @@ public class SignupCommandService {
         try {
             accountRepository.saveAndFlush(account);
         } catch (DataIntegrityViolationException e) {
+            if (!isLoginIdUniqueViolation(e)) {
+                throw e;
+            }
             throw new BusinessException(ErrorCode.DUPLICATE_LOGIN_ID);
         }
 
@@ -93,6 +104,12 @@ public class SignupCommandService {
                 account.getRole(), approverType, requestedAt));
 
         return new ReapplyResponse(account.getStatus().name().toLowerCase(Locale.ROOT), requestedAt);
+    }
+
+    /** 원인 체인에서 {@link ConstraintViolationException} 을 찾아 제약명이 login_id UNIQUE 인지만 본다. */
+    private boolean isLoginIdUniqueViolation(DataIntegrityViolationException e) {
+        return e.getCause() instanceof ConstraintViolationException cve
+                && LOGIN_ID_UNIQUE_CONSTRAINT.equals(cve.getConstraintName());
     }
 
     /** role=staff 는 메인 관리자가, 그 외 역할은 학원 관계자가 승인한다(API_SPEC §2.2). */

@@ -69,6 +69,34 @@ class SignupControllerTest {
                 .isEqualTo(AccountStatus.PENDING);
     }
 
+    /**
+     * 이미 쓰이는 {@code login_id} 로 가입하면 409 {@code DUPLICATE_LOGIN_ID} 여야 한다(보완 리뷰
+     * Important #4, C-5) — 이 단언이 없으면 {@code existsByLoginId} 사전 확인과 {@code
+     * DataIntegrityViolationException} catch 절 둘 다 실제로 이 경로에서 호출되는지 아무도 보증하지
+     * 않는다. 같은 payload 로 두 번 호출해, 두 번째 호출이 사전 확인에서 걸리는 것까지 확인한다.
+     */
+    @Test
+    void 이미_존재하는_login_id_로_가입하면_409_DUPLICATE_LOGIN_ID_이다() throws Exception {
+        Academy academy = academyRepository.save(Academy.register("P2T3DUPQQQQ", "학원P2T3DUP중복", "서울", null, null));
+        String payload = """
+                {
+                  "role": "parent",
+                  "login_id": "p2t3dupqqqq",
+                  "password": "password1234",
+                  "name": "중복테스트",
+                  "phone": "010-0000-0005",
+                  "academy_id": "%d"
+                }
+                """.formatted(academy.getId());
+
+        mockMvc.perform(post("/api/v1/auth/signup").contentType(MediaType.APPLICATION_JSON).content(payload))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/v1/auth/signup").contentType(MediaType.APPLICATION_JSON).content(payload))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("DUPLICATE_LOGIN_ID"));
+    }
+
     @Test
     @Sql(statements = {
             "INSERT INTO academy (code, name, region, status) "

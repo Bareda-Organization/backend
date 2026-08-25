@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import src.backend.account.entity.RefreshToken;
 import src.backend.global.security.access.AcademyScopeExempt;
@@ -40,8 +41,14 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
      * (flush 전) {@code Account} 변경분이 플러시되지 않은 채 통째로 버려진다 — 즉 이 벌크 쿼리를 켜는
      * 순간 직전에 바꾼 계정 상태가 조용히 롤백된 것처럼 사라진다(운영 결함, Task 4 발견·수정).
      *
+     * <p>{@link Transactional} 을 메서드에 직접 단 이유는 별개다 — {@code @Modifying} 쿼리는 명시적
+     * 트랜잭션 안에서만 실행되므로, 호출부가 {@code @Transactional} 을 잊으면 그 자리에서
+     * {@code InvalidDataAccessApiUsageException} 으로 실패한다(보완 리뷰 Minor #3). 호출부 트랜잭션에
+     * 얹혀가는 대신 여기에 달아, 잊어도 이 메서드 하나는 항상 동작한다.
+     *
      * @return 실제로 무효화된 행 수
      */
+    @Transactional
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("UPDATE RefreshToken t SET t.revokedAt = :revokedAt "
             + "WHERE t.accountId = :accountId AND t.revokedAt IS NULL")
@@ -54,8 +61,12 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
      * <p>{@code WHERE} 에 {@code t.revokedAt IS NULL} 을 넣어 이미 해지된 행은 다시 갱신하지
      * 않는다 — 로그아웃을 두 번 호출해도 최초 해지 시각이 덮어써지지 않게 하기 위함.
      *
+     * <p>{@link #revokeAllValidByAccountId} 와 같은 이유로 {@link Transactional} 을 단다(보완 리뷰
+     * Minor #3) — 호출부가 트랜잭션을 잊어도 이 메서드 자체가 트랜잭션 경계를 갖는다.
+     *
      * @return 실제로 무효화된 행 수(0 이면 이미 무효화됐거나 존재하지 않는 토큰)
      */
+    @Transactional
     @Modifying(clearAutomatically = true)
     @Query("UPDATE RefreshToken t SET t.revokedAt = :revokedAt "
             + "WHERE t.tokenHash = :tokenHash AND t.revokedAt IS NULL")
