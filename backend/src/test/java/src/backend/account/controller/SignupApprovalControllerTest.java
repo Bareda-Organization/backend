@@ -145,6 +145,24 @@ class SignupApprovalControllerTest {
                 .isEqualTo("pending");
     }
 
+    /**
+     * <b>거절</b>도 마찬가지로 {@code 403} 이다 — 축 분리는 수락 경로에만 있는 것이 아니다.
+     *
+     * <p>위 수락 단언만으로는 부족하다는 것이 음성 대조로 드러났다(변형 M1) — 승인 주체 확인을
+     * 통째로 지워도 수락은 {@code SignupAccountLinker} 의 마지막 분기가 같은 {@code 403} 을 내
+     * 그 단언이 계속 통과한다. 거절은 연결 경로를 타지 않으므로, 이 단언이 없으면 관계자가 자기
+     * 학원의 <b>후임 지원자를 거절</b>할 수 있고 그 거절은 200 으로 조용히 성립한다.
+     */
+    @Test
+    void 관계자가_role_staff_요청을_거절하려_해도_403_FORBIDDEN_이다() throws Exception {
+        처리한다(STAFF_REQUEST, ACADEMY_A, 거절_본문("후임 거절 시도"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+
+        assertThat(요청_상태(STAFF_REQUEST)).isEqualTo("pending");
+        assertThat(계정_상태(4L)).isEqualTo("pending");
+    }
+
     /** 타 학원 요청은 소속 밖 자원이다(§1.5) — {@code 403 ACADEMY_SCOPE_VIOLATION}. */
     @Test
     void 관계자는_타_학원_가입_요청을_처리할_수_없다() throws Exception {
