@@ -37,4 +37,18 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
     @Query("UPDATE RefreshToken t SET t.revokedAt = :revokedAt "
             + "WHERE t.accountId = :accountId AND t.revokedAt IS NULL")
     int revokeAllValidByAccountId(@Param("accountId") Long accountId, @Param("revokedAt") OffsetDateTime revokedAt);
+
+    /**
+     * 로그아웃 요청에 담긴 토큰 1건만 무효화한다(API_SPEC §2.7) — 같은 계정의 다른 유효 토큰(다른
+     * 단말)은 건드리지 않는다.
+     *
+     * <p>{@code WHERE} 에 {@code t.revokedAt IS NULL} 을 넣어 이미 해지된 행은 다시 갱신하지
+     * 않는다 — 로그아웃을 두 번 호출해도 최초 해지 시각이 덮어써지지 않게 하기 위함.
+     *
+     * @return 실제로 무효화된 행 수(0 이면 이미 무효화됐거나 존재하지 않는 토큰)
+     */
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE RefreshToken t SET t.revokedAt = :revokedAt "
+            + "WHERE t.tokenHash = :tokenHash AND t.revokedAt IS NULL")
+    int revokeByTokenHash(@Param("tokenHash") String tokenHash, @Param("revokedAt") OffsetDateTime revokedAt);
 }

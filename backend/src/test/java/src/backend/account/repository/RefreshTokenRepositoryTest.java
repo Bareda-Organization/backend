@@ -96,4 +96,51 @@ class RefreshTokenRepositoryTest {
         RefreshToken reloaded = refreshTokenRepository.findByTokenHash("hash-already-3").orElseThrow();
         assertThat(reloaded.getRevokedAt()).isEqualTo(firstRevokedAt);
     }
+
+    /** §2.7 로그아웃 — 요청 토큰 1건을 무효화하면 반환값 1, 재조회 시 해지 시각이 채워진다. */
+    @Test
+    void revokeByTokenHash_은_유효한_토큰을_무효화하고_1을_반환한다() {
+        Long accountId = createAccount("p2t3rtkfindqqq4", "010-8888-0004");
+        OffsetDateTime now = OffsetDateTime.now();
+        refreshTokenRepository.save(RefreshToken.issue(accountId, "hash-logout-4", now, now.plusDays(14), "device-a"));
+        OffsetDateTime revokedAt = now.plusMinutes(1);
+
+        int count = refreshTokenRepository.revokeByTokenHash("hash-logout-4", revokedAt);
+
+        assertThat(count).isEqualTo(1);
+        RefreshToken reloaded = refreshTokenRepository.findByTokenHash("hash-logout-4").orElseThrow();
+        assertThat(reloaded.getRevokedAt()).isEqualTo(revokedAt);
+    }
+
+    /** §2.7 로그아웃 재호출 — 이미 해지된 토큰을 다시 부르면 반환값 0, 최초 해지 시각을 덮어쓰지 않는다. */
+    @Test
+    void revokeByTokenHash_은_이미_해지된_토큰을_다시_해지하지_않는다() {
+        Long accountId = createAccount("p2t3rtkfindqqq5", "010-8888-0005");
+        OffsetDateTime now = OffsetDateTime.now();
+        refreshTokenRepository.save(RefreshToken.issue(accountId, "hash-logout-5", now, now.plusDays(14), "device-a"));
+        OffsetDateTime firstRevokedAt = now.plusMinutes(1);
+        int firstCount = refreshTokenRepository.revokeByTokenHash("hash-logout-5", firstRevokedAt);
+        assertThat(firstCount).isEqualTo(1);
+
+        OffsetDateTime secondRevokedAt = firstRevokedAt.plusMinutes(1);
+        int secondCount = refreshTokenRepository.revokeByTokenHash("hash-logout-5", secondRevokedAt);
+
+        assertThat(secondCount).isEqualTo(0);
+        RefreshToken reloaded = refreshTokenRepository.findByTokenHash("hash-logout-5").orElseThrow();
+        assertThat(reloaded.getRevokedAt()).isEqualTo(firstRevokedAt);
+    }
+
+    /** §2.7 로그아웃 — 단말 A 로그아웃이 같은 계정의 다른 유효 토큰(단말 B)을 건드리지 않는다. */
+    @Test
+    void revokeByTokenHash_은_같은_계정의_다른_유효_토큰을_건드리지_않는다() {
+        Long accountId = createAccount("p2t3rtkfindqqq6", "010-8888-0006");
+        OffsetDateTime now = OffsetDateTime.now();
+        refreshTokenRepository.save(RefreshToken.issue(accountId, "hash-logout-6-a", now, now.plusDays(14), "device-a"));
+        refreshTokenRepository.save(RefreshToken.issue(accountId, "hash-logout-6-b", now, now.plusDays(14), "device-b"));
+
+        refreshTokenRepository.revokeByTokenHash("hash-logout-6-a", now.plusMinutes(1));
+
+        RefreshToken deviceB = refreshTokenRepository.findByTokenHash("hash-logout-6-b").orElseThrow();
+        assertThat(deviceB.getRevokedAt()).isNull();
+    }
 }
