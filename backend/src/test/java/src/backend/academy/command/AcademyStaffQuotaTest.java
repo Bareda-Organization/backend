@@ -178,6 +178,48 @@ class AcademyStaffQuotaTest {
                 .isEqualTo(ErrorCode.STAFF_QUOTA_EXCEEDED);
     }
 
+    /**
+     * 정원이 이미 찬 학원의 거부는 <b>DB 에 닿기 전에</b> 끝나 같은 트랜잭션의 다음 작업을 망가뜨리지 않는다.
+     *
+     * <p>선검사를 지우고 DB 제약에만 맡겨도 응답 코드는 똑같이 {@code 409} 라, 앞 단언들만으로는
+     * 선검사가 있으나 없으나 구별되지 않는다 — <b>실측으로 확인한 사실</b>이다(변형 M3 이 살아남았다).
+     * 구별되는 지점은 여기다. 제약 위반이 한 번 터지면 그 영속성 컨텍스트는 더 쓸 수 없어, 같은
+     * 트랜잭션에서 이어지는 작업이 전부 딸려 죽는다. T3 의 {@code §6.7} 은 관계자 상태와 계정 정보를
+     * 한 요청에서 함께 고치므로 그 차이가 그대로 드러난다.
+     */
+    @Test
+    @Sql(statements = {
+            "INSERT INTO academy (code, name, region, status) VALUES ('P3T1QUOTA7', 'P3T1정원학원7', '대전', 'active')",
+            "INSERT INTO academy (code, name, region, status) VALUES ('P3T1QUOTA8', 'P3T1정원학원8', '대전', 'active')",
+            "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) VALUES "
+                    + "((SELECT id FROM academy WHERE code = 'P3T1QUOTA7'), 'p3t1q7a', 'x', '기존재직', "
+                    + "'010-0000-3010', 'staff', 'active')",
+            "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) VALUES "
+                    + "((SELECT id FROM academy WHERE code = 'P3T1QUOTA7'), 'p3t1q7b', 'x', '초과지원', "
+                    + "'010-0000-3011', 'staff', 'pending')",
+            "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) VALUES "
+                    + "((SELECT id FROM academy WHERE code = 'P3T1QUOTA8'), 'p3t1q8a', 'x', '다른학원지원', "
+                    + "'010-0000-3012', 'staff', 'pending')",
+            "INSERT INTO academy_staff (academy_id, account_id, status) VALUES "
+                    + "((SELECT id FROM academy WHERE code = 'P3T1QUOTA7'), "
+                    + "(SELECT id FROM account WHERE login_id = 'p3t1q7a'), 'active')"
+    })
+    void 정원_초과_거부는_DB_에_닿기_전에_끝나_같은_트랜잭션의_다음_작업을_망가뜨리지_않는다() {
+        Long fullAcademyId = 학원_식별자("P3T1QUOTA7");
+        Long otherAcademyId = 학원_식별자("P3T1QUOTA8");
+
+        assertThatThrownBy(() -> academyStaffQuota.enforce(fullAcademyId,
+                () -> academyStaffRepository.save(
+                        AcademyStaff.uponApproval(fullAcademyId, 계정_식별자("p3t1q7b")))))
+                .isInstanceOf(BusinessException.class);
+
+        assertThatCode(() -> academyStaffQuota.enforce(otherAcademyId,
+                () -> academyStaffRepository.save(
+                        AcademyStaff.uponApproval(otherAcademyId, 계정_식별자("p3t1q8a")))))
+                .as("앞 거부가 제약 위반으로 났다면 영속성 컨텍스트가 이미 망가져 이 작업도 함께 죽는다")
+                .doesNotThrowAnyException();
+    }
+
     /** 정원과 무관한 제약 위반은 {@code 409 STAFF_QUOTA_EXCEEDED} 로 바뀌지 않는다 — 원인을 감추지 않는다. */
     @Test
     @Sql(statements = {
