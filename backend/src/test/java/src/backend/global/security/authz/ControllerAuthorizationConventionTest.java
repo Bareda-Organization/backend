@@ -8,6 +8,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
@@ -50,6 +53,26 @@ class ControllerAuthorizationConventionTest {
     private static final List<String> MAPPING_ANNOTATIONS = List.of(
             "@GetMapping", "@PostMapping", "@PutMapping", "@PatchMapping", "@DeleteMapping",
             "@RequestMapping", "@MessageMapping");
+
+    private static final Map<String, String> HTTP_METHOD_BY_MAPPING_ANNOTATION = Map.of(
+            "@GetMapping", "GET", "@PostMapping", "POST", "@PutMapping", "PUT",
+            "@PatchMapping", "PATCH", "@DeleteMapping", "DELETE");
+
+    /**
+     * 조율자 Ruling 77 — {@code @PublicEndpoint} 가 붙은 엔드포인트의 <b>허용 목록</b>.
+     * API_SPEC §2.1·2.2·2.5·2.6·2.9(학원검색·회원가입·로그인·토큰재발급·아이디비밀번호복구)에서
+     * 그대로 옮겼다 — 컨트롤러·메서드 이름이 아니라 "HTTP 메서드 + 경로"로 고정한 이유는, 이 값이
+     * 사양에서 바로 나와 Task 3·4 가 어떤 클래스·메서드 이름을 고르든 흔들리지 않기 때문이다.
+     *
+     * <p>지금(Phase 2 Task 1 시점)은 컨트롤러가 0개라 실제 집합이 공집합이고, 이 목록과
+     * 비교하면 <b>정상적으로 RED</b> 다 — 하한 단언과 같은 취지로, 5개가 나타나야 GREEN 이 된다.
+     */
+    private static final List<String> EXPECTED_PUBLIC_ENDPOINTS = List.of(
+            "GET /academies/search",
+            "POST /auth/signup",
+            "POST /auth/login",
+            "POST /auth/refresh",
+            "POST /auth/recover");
 
     /**
      * 컨트롤러 소스 루트가 실제로 존재하는지 먼저 확인한다.
@@ -134,8 +157,48 @@ class ControllerAuthorizationConventionTest {
                 .isGreaterThanOrEqualTo(1);
     }
 
-    private record MappingMethod(String fileName, String methodName,
-                                  boolean classLevelProtected, boolean methodLevelProtected) {}
+    /**
+     * 조율자 Ruling 77 — {@code @PublicEndpoint} 는 탈출구(누구나 붙이면 인증을 생략시킬 수 있다)라
+     * 붙은 엔드포인트의 집합을 {@link #EXPECTED_PUBLIC_ENDPOINTS} 허용 목록과 <b>양방향</b>으로
+     * 정확히 대조한다. {@code containsExactlyInAnyOrderElementsOf} 를 쓰므로 두 방향 모두 잡는다.
+     * <ul>
+     *   <li>목록에 없는 엔드포인트에 새로 붙이면(과다 공개) — 실제 집합에 목록에 없는 원소가 생겨 실패</li>
+     *   <li>목록에 있는데 애너테이션이 빠지면(엔드포인트 실종·이름 변경) — 실제 집합에서 그 원소가 빠져 실패</li>
+     * </ul>
+     * 누가 민감한 엔드포인트에 실수로(혹은 편의상) {@code @PublicEndpoint} 를 붙여도 이 목록을
+     * 함께 고치지 않으면 통과하지 않으므로, 공개 범위를 넓히는 것이 항상 의도적이고 리뷰 가능한
+     * 행위가 된다.
+     *
+     * <p><b>지금은 컨트롤러가 0개라 실제 집합이 공집합이고, RED 다 — 정상이다.</b> Task 3 가
+     * §2.1·2.2·2.5·2.6·2.9 를 저 경로 그대로 구현하면 GREEN 으로 전환된다.
+     */
+    @Test
+    void PublicEndpoint_가_붙은_엔드포인트_집합이_허용목록과_정확히_일치한다() {
+        List<String> authzAnnotationNames = authzAnnotationNames();
+        List<MappingMethod> mappings = allMappingMethods(authzAnnotationNames);
+
+        List<String> actualPublicEndpoints = mappings.stream()
+                .filter(m -> m.protectingAnnotations().contains("PublicEndpoint"))
+                .map(MappingMethod::endpointId)
+                .toList();
+
+        assertThat(actualPublicEndpoints)
+                .as("@PublicEndpoint 가 붙은 엔드포인트 집합은 EXPECTED_PUBLIC_ENDPOINTS 허용 목록과 "
+                        + "정확히 같아야 한다 — 새로 붙었거나(과다 공개) 목록에 있는데 사라지면(엔드포인트 실종) "
+                        + "둘 다 실패한다")
+                .containsExactlyInAnyOrderElementsOf(EXPECTED_PUBLIC_ENDPOINTS);
+    }
+
+    /**
+     * @param endpointId 매핑 애너테이션에서 뽑은 {@code "HTTP메서드 경로"}(예: {@code "POST /auth/login"}).
+     *                   경로 리터럴을 못 찾으면 {@code "?"}. {@code @MessageMapping}(STOMP)은
+     *                   HTTP 메서드가 없어 애너테이션 이름 대문자(예: {@code "MESSAGEMAPPING"})를 대신 쓴다.
+     * @param protectingAnnotations 이 메서드에 실효되는 인가 애너테이션 이름들 — 메서드 레벨이 있으면
+     *                              그것만, 없으면 클래스 레벨 것들(메서드 레벨이 클래스 레벨을 이긴다).
+     */
+    private record MappingMethod(String fileName, String methodName, String endpointId,
+                                  boolean classLevelProtected, boolean methodLevelProtected,
+                                  List<String> protectingAnnotations) {}
 
     /** 이 패키지에 실존하는 인가 애너테이션의 단순 이름 목록(확장자 제거). 하드코딩하지 않고 매번 스캔한다. */
     private List<String> authzAnnotationNames() {
@@ -173,21 +236,42 @@ class ControllerAuthorizationConventionTest {
         String className = fileName.substring(0, fileName.length() - ".java".length());
 
         int classDeclIndex = indexOfClassDecl(lines, className);
-        boolean classLevelProtected = hasAuthzAnnotation(lines, 0, classDeclIndex, authzAnnotationNames);
+        List<String> classLevelAnnotations = authzAnnotationsPresent(lines, 0, classDeclIndex, authzAnnotationNames);
 
         List<Integer> methodStarts = publicMemberSignatureIndices(lines);
 
         List<MappingMethod> methods = new ArrayList<>();
         int zoneStart = classDeclIndex + 1;
         for (int idx : methodStarts) {
-            if (hasMappingAnnotation(lines, zoneStart, idx)) {
-                boolean methodLevelProtected = hasAuthzAnnotation(lines, zoneStart, idx, authzAnnotationNames);
-                methods.add(new MappingMethod(fileName, extractMethodName(lines.get(idx)),
-                        classLevelProtected, methodLevelProtected));
+            String mappingLine = mappingAnnotationLine(lines, zoneStart, idx);
+            if (mappingLine != null) {
+                List<String> methodLevelAnnotations =
+                        authzAnnotationsPresent(lines, zoneStart, idx, authzAnnotationNames);
+                List<String> effectiveAnnotations =
+                        methodLevelAnnotations.isEmpty() ? classLevelAnnotations : methodLevelAnnotations;
+                methods.add(new MappingMethod(fileName, extractMethodName(lines.get(idx)), endpointId(mappingLine),
+                        !classLevelAnnotations.isEmpty(), !methodLevelAnnotations.isEmpty(), effectiveAnnotations));
             }
             zoneStart = idx + 1;
         }
         return methods;
+    }
+
+    /** {@code "HTTP메서드 경로"} 식별자를 만든다 — 클래스·메서드 이름이 아니라 사양의 실제 계약으로 대조하기 위해서다. */
+    private String endpointId(String mappingLine) {
+        String annotationName = MAPPING_ANNOTATIONS.stream()
+                .filter(a -> mappingLine.equals(a) || mappingLine.startsWith(a + "("))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("매핑 애너테이션이 아닌 줄이다: " + mappingLine));
+
+        String httpMethod = HTTP_METHOD_BY_MAPPING_ANNOTATION.get(annotationName);
+        if (httpMethod == null) {
+            Matcher requestMethod = Pattern.compile("RequestMethod\\.(\\w+)").matcher(mappingLine);
+            httpMethod = requestMethod.find() ? requestMethod.group(1) : annotationName.substring(1).toUpperCase();
+        }
+        Matcher pathLiteral = Pattern.compile("\"([^\"]+)\"").matcher(mappingLine);
+        String path = pathLiteral.find() ? pathLiteral.group(1) : "?";
+        return httpMethod + " " + path;
     }
 
     private int indexOfClassDecl(List<String> lines, String className) {
@@ -224,29 +308,32 @@ class ControllerAuthorizationConventionTest {
         return trimmedLine.substring("public ".length(), trimmedLine.indexOf('(')).trim();
     }
 
-    private boolean hasAuthzAnnotation(List<String> lines, int fromInclusive, int toExclusive,
-                                        List<String> authzAnnotationNames) {
+    /** 주어진 구간(클래스 레벨 또는 메서드 레벨)에 실존하는 인가 애너테이션 이름들을 전부 모은다. */
+    private List<String> authzAnnotationsPresent(List<String> lines, int fromInclusive, int toExclusive,
+                                                  List<String> authzAnnotationNames) {
+        List<String> found = new ArrayList<>();
         for (int i = fromInclusive; i < toExclusive; i++) {
             String trimmed = lines.get(i).trim();
             for (String annotationName : authzAnnotationNames) {
                 if (trimmed.equals("@" + annotationName) || trimmed.startsWith("@" + annotationName + "(")) {
-                    return true;
+                    found.add(annotationName);
                 }
             }
         }
-        return false;
+        return found;
     }
 
-    private boolean hasMappingAnnotation(List<String> lines, int fromInclusive, int toExclusive) {
+    /** 구간 안의 매핑 애너테이션 줄 원문을 돌려준다(경로·HTTP 메서드 추출용) — 없으면 {@code null}. */
+    private String mappingAnnotationLine(List<String> lines, int fromInclusive, int toExclusive) {
         for (int i = fromInclusive; i < toExclusive; i++) {
             String trimmed = lines.get(i).trim();
             for (String annotation : MAPPING_ANNOTATIONS) {
                 if (trimmed.equals(annotation) || trimmed.startsWith(annotation + "(")) {
-                    return true;
+                    return trimmed;
                 }
             }
         }
-        return false;
+        return null;
     }
 
     /** 위반 지점을 {@code 파일:줄: 내용} 형태로 모은다 — 실패 메시지만 보고 고칠 곳을 알 수 있게. */
