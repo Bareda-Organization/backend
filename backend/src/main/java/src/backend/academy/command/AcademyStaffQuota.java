@@ -6,8 +6,6 @@ import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
-import jakarta.persistence.EntityManager;
-
 import lombok.RequiredArgsConstructor;
 
 import src.backend.academy.entity.StaffStatus;
@@ -46,14 +44,20 @@ public class AcademyStaffQuota {
 
     private final AcademyStaffRepository academyStaffRepository;
 
-    private final EntityManager entityManager;
-
     /**
      * 정원 판정을 통과시킨 뒤 관계자 행을 바꾸는 작업을 실행한다.
      *
-     * <p>{@code action} 실행 후 즉시 flush 하는 것이 이 메서드의 핵심이다 — flush 하지 않으면 INSERT 가
-     * 커밋 시점까지 미뤄져 제약 위반이 이 {@code try} 밖에서 터지고, 그때는 이미 응답 변환 경로를
-     * 지나쳐 {@code 500} 이 나간다.
+     * <p>{@code action} 실행 후 즉시 flush 하는 것이 이 메서드의 핵심이다 — <b>상태 전이</b>(§6.7
+     * {@code status=active})는 변경 감지로만 DB 에 닿아서, flush 하지 않으면 {@code UPDATE} 가 커밋
+     * 시점까지 미뤄지고 제약 위반이 이 {@code try} 밖에서 터진다. 그때는 이미 응답 변환 경로를 지나쳐
+     * {@code 500} 이 나간다. 새 행을 넣는 승인 경로(§6.5)는 {@code IDENTITY} 키를 받으려고
+     * {@code save()} 시점에 이미 나가므로 이 flush 가 없어도 잡힌다 — <b>두 경로가 다르다는 것이
+     * 음성 대조로 실측됐다</b>(변형 M2).
+     *
+     * <p>{@link jakarta.persistence.EntityManager} 가 아니라 <b>저장소의</b> flush 를 부르는 것도
+     * 같은 이유로 중요하다. {@code EntityManager} 를 직접 부르면 Hibernate 의
+     * {@code ConstraintViolationException} 이 번역되지 않은 채 올라와 아래 {@code catch} 를 그대로
+     * 지나친다 — 예외 번역은 {@code @Repository} 빈을 거칠 때만 붙는다(실측).
      *
      * @param academyId 정원을 판정할 학원
      * @param action    관계자 행을 만들거나 {@code active} 로 되돌리는 작업
@@ -63,7 +67,7 @@ public class AcademyStaffQuota {
         assertWithinQuota(academyId);
         try {
             T result = action.get();
-            entityManager.flush();
+            academyStaffRepository.flush();
             return result;
         } catch (DataIntegrityViolationException e) {
             if (isQuotaViolation(e)) {

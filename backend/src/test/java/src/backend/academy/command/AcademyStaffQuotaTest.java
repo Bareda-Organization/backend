@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -129,6 +131,47 @@ class AcademyStaffQuotaTest {
         assertThatThrownBy(() -> academyStaffQuota.enforce(academyId, () -> {
             academyStaffRepository.save(AcademyStaff.uponApproval(academyId, first));
             return academyStaffRepository.save(AcademyStaff.uponApproval(academyId, second));
+        }))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.STAFF_QUOTA_EXCEEDED);
+    }
+
+    /**
+     * <b>상태 전이</b>로 정원을 넘겨도 {@code 409} 다 — 새 행을 넣는 경로와 별개의 축이다(§6.7).
+     *
+     * <p>앞 단언(두 행 삽입)만으로는 {@code enforce} 의 flush 가 고정되지 않는다. 삽입은
+     * {@code IDENTITY} 키를 받으려고 {@code save()} 시점에 이미 DB 로 나가서, flush 를 지워도
+     * 위반이 같은 {@code try} 안에서 터진다 — <b>실측으로 확인한 사실</b>이다(변형 M2 가 살아남았다).
+     *
+     * <p>변경 감지로만 DB 에 닿는 이 경로는 다르다. flush 가 없으면 {@code UPDATE} 가 커밋 시점까지
+     * 미뤄져 위반이 {@code enforce} 밖에서 터지고, 그때는 이미 {@code 409} 로 옮길 자리를 지나쳐
+     * {@code 500} 이 나간다. T3 의 {@code status=active} 전환이 바로 이 경로다.
+     */
+    @Test
+    @Sql(statements = {
+            "INSERT INTO academy (code, name, region, status) VALUES ('P3T1QUOTA6', 'P3T1정원학원6', '인천', 'active')",
+            "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) VALUES "
+                    + "((SELECT id FROM academy WHERE code = 'P3T1QUOTA6'), 'p3t1q6a', 'x', '복직1', "
+                    + "'010-0000-3008', 'staff', 'active')",
+            "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) VALUES "
+                    + "((SELECT id FROM academy WHERE code = 'P3T1QUOTA6'), 'p3t1q6b', 'x', '복직2', "
+                    + "'010-0000-3009', 'staff', 'active')",
+            "INSERT INTO academy_staff (academy_id, account_id, status) VALUES "
+                    + "((SELECT id FROM academy WHERE code = 'P3T1QUOTA6'), "
+                    + "(SELECT id FROM account WHERE login_id = 'p3t1q6a'), 'inactive')",
+            "INSERT INTO academy_staff (academy_id, account_id, status) VALUES "
+                    + "((SELECT id FROM academy WHERE code = 'P3T1QUOTA6'), "
+                    + "(SELECT id FROM account WHERE login_id = 'p3t1q6b'), 'inactive')"
+    })
+    void 상태_전이가_선검사를_지난_뒤_DB_에_거부돼도_409_STAFF_QUOTA_EXCEEDED_로_옮겨진다() {
+        Long academyId = 학원_식별자("P3T1QUOTA6");
+        List<AcademyStaff> 퇴사자들 = academyStaffRepository.findAllByAcademyIdOrderByIdAsc(academyId);
+
+        // 호출 시점 재직자가 0명이라 선검사는 지난다 — 동시 전환 2건이 각자 선검사를 통과한 것과 같은 형태다.
+        assertThatThrownBy(() -> academyStaffQuota.enforce(academyId, () -> {
+            퇴사자들.forEach(AcademyStaff::reinstate);
+            return null;
         }))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())

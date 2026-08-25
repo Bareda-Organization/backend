@@ -53,4 +53,18 @@ public class AcademyStaff extends BaseTimeEntity {
     public static AcademyStaff uponApproval(Long academyId, Long accountId) {
         return new AcademyStaff(academyId, accountId);
     }
+
+    /**
+     * 퇴사한 관계자를 재직으로 되돌린다(ACAD-06, API_SPEC §6.7 {@code status=active}).
+     *
+     * <p>재입사는 새 행이 아니라 <b>기존 행을 되돌려</b> 처리한다 — {@code uk_academy_staff_account} 가
+     * 계정당 행 1개를 강제하므로 새로 만들면 그 제약에 걸린다(Ruling 139).
+     *
+     * <p>이 전이는 <b>변경 감지</b>로만 DB 에 닿는다 — 새 행을 넣는 승인 경로와 달리 저장 호출이
+     * 부재해, 정원 판정이 flush 를 하지 않으면 조건부 UNIQUE 위반이 커밋 시점까지 미뤄져
+     * {@code 409} 로 옮길 자리를 지나쳐 버린다({@code AcademyStaffQuota#enforce}).
+     */
+    public void reinstate() {
+        this.status = StaffStatus.ACTIVE;
+    }
 }
