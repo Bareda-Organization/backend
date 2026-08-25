@@ -4,11 +4,14 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import src.backend.account.entity.Account;
+import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.persistence.AcademyCount;
 import src.backend.global.security.access.AcademyScopeExempt;
@@ -54,4 +57,37 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
             + "WHERE a.academyId IN :academyIds AND a.role IN :roles GROUP BY a.academyId")
     List<AcademyCount> countByAcademyIdInGroupedByAcademyId(@Param("academyIds") Collection<Long> academyIds,
             @Param("roles") Collection<Role> roles);
+
+    /**
+     * 차단 계정 목록(API_SPEC §6.10 {@code GET /admin/blocked-accounts}) — 호출부가 {@code blocked} 를 넘긴다.
+     *
+     * <p>상태를 상수로 박지 않고 인자로 받는 이유는, 박아 두면 이 조회의 이름과 조건이 갈릴 때
+     * (예: 나중에 {@code rejected} 목록이 필요해질 때) 같은 형태의 조회가 하나 더 복제되기 때문이다.
+     *
+     * <p>정렬은 {@code Pageable} 이 실어 온다 — 파생 쿼리 이름에 {@code OrderBy} 를 박으면
+     * {@code Pageable} 의 정렬과 어느 쪽이 이기는지가 호출부에서 보이지 않는다.
+     */
+    @AcademyScopeExempt(reason = "§6.10 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
+            + "차단 해제는 계정 단위 조치라 대상을 학원으로 좁히면 운영사가 어느 학원에서 사고가 났는지 "
+            + "알아야만 목록을 볼 수 있게 된다. 예외를 여는 판정은 컨트롤러의 @CanUnblockAccount 하나다")
+    Page<Account> findAllByStatus(AccountStatus status, Pageable pageable);
+
+    /**
+     * 관계자 계정 목록(API_SPEC §6.6 {@code GET /admin/staff-accounts}).
+     *
+     * <p>{@code role='staff'} 가 아니라 <b>{@code academy_staff} 행의 존재</b>로 대상을 정한다 — 역할만
+     * 보면 아직 승인되지 않아 어느 학원에도 소속되지 않은 계정이 함께 실리고, 그러면 관리자가 그
+     * 계정을 퇴사·재직 전환하려 하게 된다. 승인 대기 축은 §6.4 승인 큐가 따로 맡는다.
+     *
+     * <p>조인이 아니라 {@code EXISTS} 인 이유는 이 조회의 <b>결과가 계정</b>이어서다 — 조인으로 쓰면
+     * 정렬 속성이 어느 쪽 것인지 호출부에서 갈리고, {@code academy_staff} 행이 늘면 계정이 중복된다.
+     */
+    @AcademyScopeExempt(reason = "§6.6 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
+            + "응답이 academy_name 을 실어 어느 학원 관계자인지 드러내는 것이 이 화면의 요건이라 "
+            + "학원으로 좁히면 화면이 성립하지 않는다. 예외 판정은 컨트롤러의 @CanManageStaffAccount 하나다")
+    @Query(value = "SELECT a FROM Account a WHERE EXISTS "
+            + "(SELECT 1 FROM AcademyStaff s WHERE s.accountId = a.id)",
+            countQuery = "SELECT COUNT(a) FROM Account a WHERE EXISTS "
+                    + "(SELECT 1 FROM AcademyStaff s WHERE s.accountId = a.id)")
+    Page<Account> findStaffAccountsForConsole(Pageable pageable);
 }

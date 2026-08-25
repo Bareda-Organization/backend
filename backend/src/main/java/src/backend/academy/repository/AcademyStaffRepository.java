@@ -2,6 +2,7 @@ package src.backend.academy.repository;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -10,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 import src.backend.academy.entity.AcademyStaff;
 import src.backend.academy.entity.StaffStatus;
 import src.backend.global.persistence.AcademyCount;
+import src.backend.global.security.access.AcademyScopeExempt;
 
 /** {@link AcademyStaff} 영속성 접근. */
 public interface AcademyStaffRepository extends JpaRepository<AcademyStaff, Long> {
@@ -35,4 +37,26 @@ public interface AcademyStaffRepository extends JpaRepository<AcademyStaff, Long
             + "WHERE s.academyId IN :academyIds AND s.status = :status GROUP BY s.academyId")
     List<AcademyCount> countByAcademyIdInGroupedByAcademyId(@Param("academyIds") Collection<Long> academyIds,
             @Param("status") StaffStatus status);
+
+    /**
+     * 계정이 어느 학원의 관계자인지 찾는다(API_SPEC §6.7 {@code PATCH /admin/staff-accounts/{id}}).
+     *
+     * <p>{@code uk_academy_staff_account} 가 계정당 행 1개를 강제하므로 결과는 최대 1건이다 — 즉
+     * 한 계정이 두 학원의 관계자를 겸할 수 없고, 재입사도 새 행이 아니라 기존 행을 되돌린다(Ruling 139).
+     */
+    @AcademyScopeExempt(reason = "§6.7 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
+            + "대상 학원은 이 조회의 결과로 비로소 결정되므로 학원을 조건에 넣으려면 이미 알고 있어야 한다는 "
+            + "순환이 된다. account_id UNIQUE 가 행 1건을 특정해 학원 조건을 더해도 좁혀지는 것이 부재")
+    Optional<AcademyStaff> findByAccountId(Long accountId);
+
+    /**
+     * 계정 여럿의 관계자 행을 한 번에 가져온다(API_SPEC §6.6 목록의 {@code status}·소속 학원).
+     *
+     * <p>한 페이지의 계정 전부를 한 번에 찾는다 — 계정마다 {@link #findByAccountId} 를 부르면
+     * 한 페이지(최대 100건)가 질의 100건이 된다.
+     */
+    @AcademyScopeExempt(reason = "§6.6 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
+            + "대상 계정 집합은 앞선 조회(AccountRepository#findStaffAccountsForConsole)가 확정한 id 목록이라 "
+            + "여기서 학원으로 좁히면 그 목록의 일부가 이유 없이 사라져 행과 계정의 짝이 어긋난다")
+    List<AcademyStaff> findAllByAccountIdIn(Collection<Long> accountIds);
 }

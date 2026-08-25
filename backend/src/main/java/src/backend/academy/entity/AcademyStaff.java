@@ -67,4 +67,19 @@ public class AcademyStaff extends BaseTimeEntity {
     public void reinstate() {
         this.status = StaffStatus.ACTIVE;
     }
+
+    /**
+     * 퇴사 처리한다(ACAD-06, API_SPEC §6.7 {@code status=inactive}) — 행을 지우지 않고 상태만 옮긴다.
+     *
+     * <p>물리 삭제하지 않는 이유는 ERD §7 이 이 테이블의 소멸 방식을 <b>비활성화</b>로 규정하기
+     * 때문이다. 지우면 그 학원에 누가 언제 관계자였는지가 사라지고, 계정은 남아 있는데 소속 이력만
+     * 없는 상태가 된다.
+     *
+     * <p><b>권한 회수는 이 메서드가 하지 않는다.</b> 행 상태를 바꾸는 것만으로는 그 계정이 들고 있는
+     * refresh 토큰이 살아 있어 access 토큰을 계속 재발급받는다 — 무효화는 호출부
+     * ({@code StaffAccountCommandService})가 같은 트랜잭션에서 함께 한다(PRD §6 C-14).
+     */
+    public void resign() {
+        this.status = StaffStatus.INACTIVE;
+    }
 }

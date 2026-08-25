@@ -192,4 +192,41 @@ public class Account extends BaseTimeEntity {
     public void changePassword(String newPasswordHash) {
         this.passwordHash = newPasswordHash;
     }
+
+    /**
+     * 메인 관리자가 로그인 차단을 해제한다(AUTH-06 · API_SPEC §6.12) — {@code blocked} 가 아니면
+     * {@link BusinessException}({@code ACCOUNT_NOT_BLOCKED}, 409).
+     *
+     * <p><b>{@code failedAttempts} 초기화가 이 메서드의 절반이다.</b> 상태만 {@code active} 로 돌리고
+     * 카운터를 두면 상한을 채운 값이 남아 <b>다음 1회 실패로 즉시 재차단</b>된다. 그런데 해제 직후의
+     * 로그인은 성공하고, 성공하는 순간 {@link #recordLoginSuccess} 가 카운터를 0 으로 돌려놓아
+     * "해제 후 로그인 200" 만 보는 단언으로는 이 결함을 관측할 수단이 부재하다.
+     *
+     * <p>{@code blockedAt}·{@code blockReason} 은 지우지 않는다 — 마지막 차단이 언제 왜 걸렸는지는
+     * 해제 뒤에도 남아야 하는 이력이고, {@code unblockedAt} 과 짝을 이뤄 한 사건의 시작과 끝이 된다.
+     *
+     * @param actorAccountId 해제를 실행한 메인 관리자 계정({@code unblocked_by})
+     */
+    public void unblock(Long actorAccountId, OffsetDateTime now) {
+        if (status != AccountStatus.BLOCKED) {
+            throw new BusinessException(ErrorCode.ACCOUNT_NOT_BLOCKED);
+        }
+        this.status = AccountStatus.ACTIVE;
+        this.failedAttempts = 0;
+        this.unblockedBy = actorAccountId;
+        this.unblockedAt = now;
+    }
+
+    /**
+     * 관계자 계정의 이름·연락처·이메일을 고친다(ACAD-06 · API_SPEC §6.7) — {@code null} 인 항목은 그대로 둔다.
+     *
+     * <p>{@code loginId}·{@code role}·{@code academyId} 를 인자로 받지 않는 것이 "그 셋은 수정 대상 밖"
+     * 을 강제하는 방식이다({@code Academy.update} 가 {@code code} 를 받지 않는 것과 같은 형태) —
+     * 요청 본문에 실려 와도 이 메서드까지 닿을 경로가 부재하다.
+     */
+    public void changeProfile(String newName, String newPhone, String newEmail) {
+        this.name = newName == null ? this.name : newName;
+        this.phone = newPhone == null ? this.phone : newPhone;
+        this.email = newEmail == null ? this.email : newEmail;
+    }
 }
