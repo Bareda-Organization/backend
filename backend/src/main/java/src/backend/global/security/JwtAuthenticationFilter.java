@@ -3,7 +3,6 @@ package src.backend.global.security;
 import java.io.IOException;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
@@ -20,6 +19,10 @@ import jakarta.servlet.http.HttpServletResponse;
  * 모든 요청에서 한 번 실행되며, Authorization: Bearer 토큰을 검증해
  * SecurityContext 에 인증 정보를 채운다.
  * 토큰이 없거나 유효하지 않으면 인증 없이 통과시킨다(보호 자원이면 이후 인가 단계에서 차단).
+ *
+ * <p>{@code @Component} 이면서 {@code Filter} 라 서블릿 컨테이너 자동 등록 대상도 된다 — 시큐리티
+ * 체인 밖에서 중복 실행되지 않도록 {@link SecurityConfig#jwtAuthenticationFilterRegistration}가
+ * 그 자동 등록을 꺼 둔다(그 메서드 Javadoc에 이중 실행이 왜 인증을 지우는지 적어 뒀다).
  */
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -37,41 +40,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         String token = resolveToken(request);
-        System.err.println("[DEBUG] thread=" + Thread.currentThread()
-                + " strategyClass=" + SecurityContextHolder.getContextHolderStrategy().getClass()
-                + " strategy=" + System.identityHashCode(SecurityContextHolder.getContextHolderStrategy())
-                + " ctxBefore=" + System.identityHashCode(SecurityContextHolder.getContext())
-                + " ctxClass=" + SecurityContextHolder.getContext().getClass());
-        System.err.println("[DEBUG] token=" + token);
         if (token != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
                 Claims claims = tokenProvider.parse(token);
-                System.err.println("[DEBUG] claims=" + claims);
                 if (tokenProvider.isAccessToken(claims)) {
                     AuthUser principal = tokenProvider.resolveAuthUser(claims);
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(principal, null, principal.authorities());
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                    SecurityContext ctx = SecurityContextHolder.getContext();
-                    ctx.setAuthentication(authentication);
-                    System.err.println("[DEBUG] ctxUsedToSet=" + System.identityHashCode(ctx)
-                            + " set auth=" + SecurityContextHolder.getContext().getAuthentication()
-                            + " ctxRightAfterSet=" + System.identityHashCode(SecurityContextHolder.getContext()));
-                } else {
-                    System.err.println("[DEBUG] not access token, type claim=" + claims.get("type"));
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
                 }
             } catch (JwtException | IllegalArgumentException e) {
-                System.err.println("[DEBUG] jwt exception: " + e);
                 // 위조·만료 토큰은 인증을 세우지 않는다(익명으로 진행 → 보호 자원이면 401/403)
                 SecurityContextHolder.clearContext();
             }
         }
-        System.err.println("[DEBUG] req=" + System.identityHashCode(request) + " " + request.getClass());
         chain.doFilter(request, response);
-        System.err.println("[DEBUG] after chain: strategyClass=" + SecurityContextHolder.getContextHolderStrategy().getClass()
-                + " strategy=" + System.identityHashCode(SecurityContextHolder.getContextHolderStrategy())
-                + " ctxAfter=" + System.identityHashCode(SecurityContextHolder.getContext())
-                + " authAfter=" + SecurityContextHolder.getContext().getAuthentication());
     }
 
     private String resolveToken(HttpServletRequest request) {

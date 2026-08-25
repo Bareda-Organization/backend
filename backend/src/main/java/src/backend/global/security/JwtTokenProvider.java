@@ -14,6 +14,8 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import src.backend.global.common.enums.Role;
 
+import src.backend.global.common.enums.Role;
+
 /**
  * JWT 발급·검증 담당(jjwt 0.12.6).
  * access(짧게)·refresh(길게) 두 종류를 발급하며, 토큰에 담는 정보는

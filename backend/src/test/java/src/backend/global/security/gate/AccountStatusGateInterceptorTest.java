@@ -14,6 +14,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 
+import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.global.security.SecurityConfig;
 
@@ -38,7 +39,7 @@ class AccountStatusGateInterceptorTest {
     private JwtTokenProvider tokenProvider;
 
     private String bearer(String status) {
-        return "Bearer " + tokenProvider.createAccessToken(1L, 10L, "parent", status);
+        return "Bearer " + tokenProvider.createAccessToken(1L, 10L, Role.PARENT, status);
     }
 
     @Test

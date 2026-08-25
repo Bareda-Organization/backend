@@ -31,9 +31,6 @@ public class AccountStatusGateInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-        if (true) {
-            return true; // RED 관측용 임시 스텁 — 게이트 미구현 상태를 재현한다
-        }
         if (!(handler instanceof HandlerMethod handlerMethod)) {
             return true; // 정적 리소스 등 컨트롤러가 아닌 핸들러는 게이트 대상이 아니다.
         }

@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 import io.jsonwebtoken.Claims;
 import src.backend.global.common.enums.Role;
 
+import src.backend.global.common.enums.Role;
+
 /**
  * JWT 발급 → 검증 왕복 단위 테스트(스프링 컨텍스트 없이).
  * secret·유효기간을 직접 주입해 access/refresh 구분과 클레임 복원을 확인한다.
@@ -53,7 +55,7 @@ class JwtTokenProviderTest {
 
     @Test
     void 계정_상태_클레임이_왕복해도_보존된다() {
-        String token = provider.createAccessToken(7L, 1L, "parent", "pending");
+        String token = provider.createAccessToken(7L, 1L, Role.PARENT, "pending");
 
         Claims claims = provider.parse(token);
         AuthUser principal = provider.resolveAuthUser(claims);

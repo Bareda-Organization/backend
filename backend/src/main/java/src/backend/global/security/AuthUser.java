@@ -33,6 +33,7 @@ import src.backend.global.common.enums.Role;
  */
 public record AuthUser(Long accountId, Long academyId, Role role, String status) implements Principal {
 
+    /** {@code system_admin} 이 아닌 역할은 {@code academyId} 가 null 일 수 없다(ck_account_academy_scope). */
     public AuthUser {
         if (role != Role.SYSTEM_ADMIN && academyId == null) {
             throw new IllegalStateException(

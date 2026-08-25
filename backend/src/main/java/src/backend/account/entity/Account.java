@@ -115,6 +115,8 @@ public class Account extends BaseTimeEntity {
      * 사용자가 비밀번호가 틀린 줄 알고 재시도하고, 그 재시도가 실패 카운터를 다시 올리게 된다.
      */
     public void assertNotBlocked() {
-        // RED 관측용 임시 스텁 — 미구현 상태를 재현한다
+        if (status == AccountStatus.BLOCKED) {
+            throw new BusinessException(ErrorCode.AUTH_ACCOUNT_BLOCKED);
+        }
     }
 }

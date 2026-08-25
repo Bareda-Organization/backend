@@ -1,6 +1,7 @@
 package src.backend.global.security;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -14,11 +15,8 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.core.context.SecurityContextHolder;
-import jakarta.servlet.Filter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -78,24 +76,26 @@ public class SecurityConfig {
                         .anyRequest().authenticated())
                 // 인증 안 된 요청은 403 대신 401 로 응답(토큰 필요함을 명확히)
                 .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterAfter(debugFilter("AFTER_JWT"), JwtAuthenticationFilter.class)
-                .addFilterAfter(debugFilter("AFTER_ANON"), AnonymousAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
-    private static Filter debugFilter(String tag) {
-        return (req, res, chain) -> {
-            System.err.println("[DEBUG-" + tag + "-BEFORE] thread=" + Thread.currentThread()
-                    + " auth=" + SecurityContextHolder.getContext().getAuthentication()
-                    + " ctx=" + System.identityHashCode(SecurityContextHolder.getContext())
-                    + " req=" + System.identityHashCode(req));
-            new Throwable("stack-at-" + tag).printStackTrace();
-            chain.doFilter(req, res);
-            System.err.println("[DEBUG-" + tag + "-AFTER] auth="
-                    + SecurityContextHolder.getContext().getAuthentication()
-                    + " ctx=" + System.identityHashCode(SecurityContextHolder.getContext()));
-        };
+    /**
+     * {@code JwtAuthenticationFilter} 는 {@code @Component} 라 서블릿 컨테이너 자동 등록 대상이기도
+     * 하다 — 이 빈이 없으면 Boot(및 {@code @WebMvcTest}의 MockMvc 자동 구성)가 그 필터를 위
+     * {@code addFilterBefore}(시큐리티 체인 내부)와 별개로 체인 밖에서 한 번 더 돌린다.
+     * 두 번째 실행은 {@code OncePerRequestFilter}의 "이미 처리함" 표식(클래스명 기준, 같은 빈이라 공유됨)
+     * 때문에 조용히 건너뛰는데, 문제는 그 앞: 바깥 실행이 인증을 세워도 {@code SecurityContextHolderFilter}가
+     * 시큐리티 체인 진입 시 컨텍스트를 새로 초기화해 그 인증을 지워버리고, 안쪽 실행은 건너뛰어 다시 세우지
+     * 못한다 — 결과적으로 유효한 토큰을 들고도 익명으로 처리돼 401 이 난다(컨트롤러가 하나도 없던 동안
+     * 실제 인증 요청 테스트가 없어 드러나지 않았던 결함).
+     */
+    @Bean
+    FilterRegistrationBean<JwtAuthenticationFilter> jwtAuthenticationFilterRegistration(
+            JwtAuthenticationFilter filter) {
+        FilterRegistrationBean<JwtAuthenticationFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false); // 시큐리티 체인 안에서만 돌린다 — 체인 밖 이중 등록을 막는다
+        return registration;
     }
 
     @Bean
