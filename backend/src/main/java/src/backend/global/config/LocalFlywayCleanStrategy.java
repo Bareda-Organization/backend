@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * {@code local} 기동마다 DB 를 통째로 비우고 스키마·시드를 새로 적재해, Swagger 로 어지럽힌 상태를 항상
- * 초기화된 상태로 되돌린다(`phase1-seed-swagger.md §3.2` 요구사항 4). {@code clean()} 은 되돌릴 수 없는
+ * 초기화된 상태로 되돌린다(`docs/IMPLEMENTATION_PLAN.md §3.2` 요구사항 4). {@code clean()} 은 되돌릴 수 없는
  * 삭제라 이 클래스 하나가 안전장치 5겹 중 2겹(겹②·겹③)을 직접 맡는다 — 나머지(겹①·④·⑤)는
  * {@code @Profile}·{@code application.yml}·가드 테스트로 이 클래스 밖에 있다.
  */
@@ -79,12 +79,14 @@ public class LocalFlywayCleanStrategy implements FlywayMigrationStrategy {
             return false;
         }
         // 부분 문자열 contains() 판정은 "jdbc:postgresql://prod-db.example.com/x?opt=localhost" 같은
-        // 값을 통과시킨다 — 반드시 URI 로 파싱해 host 세그먼트만 비교한다. 파싱 자체가 실패하면
-        // 판정 불가능한 형태이므로 안전 쪽(거부)으로 처리한다.
+        // 값을 통과시킨다 — 반드시 URI 로 파싱해 host 세그먼트만 비교한다. 파싱 자체가 실패하거나
+        // (URISyntaxException) host 를 특정할 수 없는 형태(멀티호스트 페일오버 URL·호스트 생략·
+        // Set.of(...) 는 contains(null) 에서 NPE 를 던지므로 null 가드 필수)면 판정 불가능하므로
+        // 안전 쪽(거부)으로 처리한다.
         String withoutJdbcPrefix = jdbcUrl.startsWith("jdbc:") ? jdbcUrl.substring("jdbc:".length()) : jdbcUrl;
         try {
             String host = new URI(withoutJdbcPrefix).getHost();
-            return ALLOWED_CLEAN_HOSTS.contains(host);
+            return host != null && ALLOWED_CLEAN_HOSTS.contains(host);
         } catch (URISyntaxException e) {
             return false;
         }

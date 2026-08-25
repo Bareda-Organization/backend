@@ -20,7 +20,7 @@ spring:
   flyway:
     locations: classpath:db/migration   # 스키마 마이그레이션(전 프로파일 공통). local·demo 프로파일은 시드 데이터 위치를 추가로 더한다.
     # Flyway 10+ 기본값도 true 이나, Spring 계층(전략 빈)이 전부 뚫려도 라이브러리 자체가
-    # clean() 을 거부하도록 명시로 고정한다 — local 블록만 false 로 되돌린다(§3.2 겹4).
+    # clean() 을 거부하도록 명시로 고정한다 — local 블록만 false 로 되돌린다(docs/IMPLEMENTATION_PLAN.md §3.2 겹4).
     clean-disabled: true
 
   data:
@@ -128,7 +128,7 @@ spring:
       on-profile: local
   flyway:
     locations: classpath:db/migration,classpath:db/migration-local   # 스키마 + 데모 시드데이터(prod엔 적용 안 됨)
-    clean-disabled: false   # local 만 되살린다 — 재기동마다 LocalFlywayCleanStrategy 가 clean() 후 migrate() 한다(§3.2)
+    clean-disabled: false   # local 만 되살린다 — 재기동마다 LocalFlywayCleanStrategy 가 clean() 후 migrate() 한다(docs/IMPLEMENTATION_PLAN.md §3.2)
     placeholders:
       # BCryptPasswordEncoder(strength 10)로 사전 생성한 평문 "password" 의 해시.
       # 로컬 전용이라 파일에 박아둔다 — demo·prod 는 절대 이 값을 쓰지 않는다.

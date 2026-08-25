@@ -107,22 +107,27 @@ class DeploymentConfigGuardTest {
     @Test
     @DisplayName("겹④ — 공통·prod·demo 섹션은 clean-disabled 를 true 로 명시하고 local 만 false 다")
     void flywayCleanDisabledIsExplicitPerProfile() {
-        // Flyway 10+ 기본값도 true 이나, "Spring 계층(전략 빈)이 전부 뚫려도 라이브러리가 거부한다"는
-        // 마지막 방어선을 기본값에 암묵적으로 맡기지 않고 파일에 명시로 고정한다(§2 겹4).
+        // Flyway 10+ 기본값도 true 이나, "겹①~③ 이 전부 뚫려도 라이브러리가 거부한다"는 마지막
+        // 방어선을 기본값에 암묵적으로 맡기지 않고 파일에 명시로 고정한다(docs/IMPLEMENTATION_PLAN.md
+        // §3.2 겹4). true 존재만 보면 같은 섹션에 반대값이 중복 키로 잘못 복사돼도(YAML 은 뒤 값이
+        // 이겨 최후 방어선이 조용히 무력화돼도) 못 잡으므로 반대값의 부재까지 함께 건다.
         String common = applicationYml.substring(0, applicationYml.indexOf("\n---"));
         assertThat(common)
-                .as("공통 섹션은 clean-disabled: true 를 명시해야 한다")
-                .contains("clean-disabled: true");
+                .as("공통 섹션은 clean-disabled: true 를 명시하고 false 중복 키가 없어야 한다")
+                .contains("clean-disabled: true")
+                .doesNotContain("clean-disabled: false");
 
         for (String profile : new String[] {"prod", "demo"}) {
             assertThat(sectionOf("on-profile: " + profile))
-                    .as("%s 프로파일 섹션은 clean-disabled: true 를 명시해야 한다", profile)
-                    .contains("clean-disabled: true");
+                    .as("%s 프로파일 섹션은 clean-disabled: true 를 명시하고 false 중복 키가 없어야 한다", profile)
+                    .contains("clean-disabled: true")
+                    .doesNotContain("clean-disabled: false");
         }
 
         assertThat(sectionOf("on-profile: local"))
-                .as("local 프로파일만 clean-disabled: false 로 열어야 한다")
-                .contains("clean-disabled: false");
+                .as("local 프로파일만 clean-disabled: false 로 열고 true 중복 키가 없어야 한다")
+                .contains("clean-disabled: false")
+                .doesNotContain("clean-disabled: true");
     }
 
     /** `---` 로 구분된 프로파일 문서 중 표식(marker)을 포함한 것을 돌려준다. */
