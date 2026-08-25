@@ -22,9 +22,10 @@ import lombok.Getter;
 public abstract class BaseTimeEntity {
 
     @CreatedDate
-    @Column(updatable = false)
+    @Column(name = "created_at", updatable = false)
     private OffsetDateTime createdAt;
 
     @LastModifiedDate
+    @Column(name = "updated_at")
     private OffsetDateTime updatedAt;
 }
