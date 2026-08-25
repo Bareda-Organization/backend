@@ -29,6 +29,16 @@ public class LocalFlywayCleanStrategy implements FlywayMigrationStrategy {
     private static final Set<String> ALLOWED_CLEAN_HOSTS = Set.of("localhost", "127.0.0.1");
 
     /**
+     * Gradle {@code test} 태스크만 심는 프로퍼티(build.gradle) — 참이면 clean() 을 건너뛰고 migrate() 만
+     * 한다(Phase 2 Task 3, Ruling 89). 이 클래스가 원래 지키려는 것은 "bootRun 개발 편의" 이지 테스트가
+     * 아니다 — 여러 {@code @SpringBootTest} 컨텍스트가 한 JVM 안에서 같은 로컬 Postgres 를 공유할 때,
+     * 한쪽의 clean() 이 다른 쪽이 검증 중인 스키마를 지워 {@code SchemaManagementException}(missing
+     * table)을 냈다. clean() 을 빼도 migrate() 는 멱등이라 스키마가 이미 있든 없든 안전하다.
+     * bootRun 은 이 프로퍼티가 없어 종전처럼 매 기동마다 clean() 한다.
+     */
+    private final boolean cleanSuppressed;
+
+    /**
      * 겹② — {@code @Profile} 이 실수로 삭제·오탈자가 나도 살아남도록, 활성 프로파일을 여기서
      * 직접 재확인해 위험 프로파일이 섞여 있으면 빈 생성 시점(=컨텍스트 기동 시점)에 실패시킨다.
      */
@@ -39,11 +49,20 @@ public class LocalFlywayCleanStrategy implements FlywayMigrationStrategy {
                         "local 과 위험 프로파일(" + profile + ")이 함께 활성화됐다 — Flyway clean() 대상이 될 수 없다.");
             }
         }
+        this.cleanSuppressed = environment.getProperty("app.flyway-clean.suppressed", Boolean.class, false);
     }
 
-    /** 데이터소스가 실제로 localhost 를 가리킬 때만 clean() 후 migrate() 한다. 아니면 clean() 을 호출하지 않고 예외를 던진다. */
+    /**
+     * 데이터소스가 실제로 localhost 를 가리킬 때만 clean() 후 migrate() 한다. 아니면 clean() 을 호출하지 않고 예외를 던진다.
+     * {@link #cleanSuppressed} 면 이 판정 자체를 건너뛰고 migrate() 만 한다 — clean() 을 아예 안 부르므로
+     * localhost 검증(안전장치 겹③)이 지키려는 위험이 애초에 발생하지 않는다.
+     */
     @Override
     public void migrate(Flyway flyway) {
+        if (cleanSuppressed) {
+            flyway.migrate();
+            return;
+        }
         String jdbcUrl = resolveJdbcUrl(flyway.getConfiguration());
         if (!isLocalHost(jdbcUrl)) {
             throw new IllegalStateException(

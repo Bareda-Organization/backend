@@ -64,4 +64,13 @@ public class DeviceToken extends BaseTimeEntity {
     public static DeviceToken register(Long accountId, String deviceId, String token, DevicePlatform platform) {
         return new DeviceToken(accountId, deviceId, token, platform);
     }
+
+    /**
+     * 수동 해지(API_SPEC §2.11 {@code DELETE /me/devices/{token}}) — 행을 지우지 않고
+     * {@code revoked_at} 만 채운다. 무효 토큰 정리(발송 실패 기반, 알림 발송 로직 소관)와 달리
+     * 해지는 이력을 남겨야 할 사용자 조작이라 삭제 대신 마킹으로 처리한다.
+     */
+    public void revoke(OffsetDateTime revokedAt) {
+        this.revokedAt = revokedAt;
+    }
 }

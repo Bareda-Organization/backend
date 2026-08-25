@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
@@ -20,6 +21,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import src.backend.global.security.authz.RolePermissions;
 
 import java.util.Arrays;
 import java.util.List;
@@ -28,7 +30,8 @@ import java.util.List;
  * 보안 설정.
  * 토큰 기반이라 세션을 만들지 않고(STATELESS), CSRF 를 끈다.
  * JwtAuthenticationFilter 를 표준 인증 필터 앞에 끼워 매 요청 토큰을 검증한다.
- * 인증/회원가입(/api/auth/**)과 헬스체크·Swagger UI·/actuator/prometheus(한 경로만, /actuator/** 전체 아님)만 공개, 그 외는 인증 필요.
+ * 공개 경로(§2.1·2.2·2.5·2.6·2.9 — 학원검색·회원가입·로그인·토큰재발급·복구)와 헬스체크·Swagger UI·
+ * /actuator/prometheus(한 경로만, /actuator/** 전체 아님)만 공개, 그 외는 인증 필요.
  * 세밀한 역할 인가는 각 컨트롤러의 @PreAuthorize 로 처리한다(@EnableMethodSecurity).
  *
  * /actuator/prometheus 가 공개인 이유 — Prometheus 는 JWT 를 들고 스크레이프하지 않아 인증으로는
@@ -64,7 +67,13 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll()
+                        // ControllerAuthorizationConventionTest.EXPECTED_PUBLIC_ENDPOINTS 와 정확히 같은
+                        // 경로를 쓴다 — 컨트롤러의 @RequestMapping 리터럴은 접두사 없는 bare path 라
+                        // (Ruling 80), 이 매처도 접두사를 붙이지 않는다. 예전 "/api/auth/**" 는 실제
+                        // 컨트롤러 경로와 맞지 않아 아무 요청도 매치하지 못하던 자리표시자였다(Task 3 가 배선).
+                        .requestMatchers(HttpMethod.GET, "/academies/search").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/auth/signup", "/auth/login", "/auth/refresh",
+                                "/auth/recover").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
                         // Prometheus 는 JWT 를 들고 스크레이프하지 않는다 — 여기를 막으면 인증을 통과할 방법이 없어
                         // 스크레이프 자체가 401 로 실패한다. 접근 경계는 이 필터가 아니라 네트워크다
@@ -139,12 +148,13 @@ public class SecurityConfig {
      * 이 메서드가 인스턴스 상태를 안 쓰기 때문에 가능한 것이고, 옆의 다른 @Bean 들은
      * {@code jwtAuthenticationFilter}·{@code allowedOrigins} 를 쓰므로 static 이 될 수 없다.
      *
-     * <p>부여표({@code RolePermissions.HIERARCHY})는 그 대상이던 {@code Role} enum 과 함께 삭제됐다
-     * (재작성은 Phase 2) — 부여표가 생기기 전까지는 빈 계층을 반환해, 이 빈이 존재해야만 성립하는
-     * 위 @WebMvcTest 슬라이스들의 전제를 그대로 유지한다.
+     * <p>부여표는 Phase 2 Task 1 이 {@code RolePermissions.HIERARCHY} 로 재작성했다(권한 31종,
+     * FEATURE_SPEC §6.2). Task 1 은 자리표시자였던 이 반환문을 자신의 소유가 아니라는 이유로
+     * 바꾸지 않았고(Ruling 71), Task 3 가 그 부여표를 실제로 처음 소비하며 이 한 줄을 배선한다
+     * (Ruling 76) — 이전까지는 {@code hasAuthority(...)} 기반 애너테이션이 전부 거부로 떨어졌다.
      */
     @Bean
     static RoleHierarchy roleHierarchy() {
-        return RoleHierarchyImpl.fromHierarchy("");
+        return RoleHierarchyImpl.fromHierarchy(RolePermissions.HIERARCHY);
     }
 }

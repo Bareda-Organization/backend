@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.data.jpa.autoconfigure.DataJpaRepositoriesAutoConfiguration;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase.Replace;
 import org.springframework.boot.persistence.autoconfigure.EntityScan;
@@ -40,7 +41,7 @@ import testsupport.db.MigratedPostgresTestBase;
 @DataJpaTest(properties = {
         "spring.jpa.hibernate.ddl-auto=validate",
         "spring.flyway.enabled=false"
-})
+}, excludeAutoConfiguration = DataJpaRepositoriesAutoConfiguration.class)
 @AutoConfigureTestDatabase(replace = Replace.NONE)
 @ContextConfiguration(classes = BackendApplication.class)
 @EntityScan(basePackageClasses = RunRider.class)

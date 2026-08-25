@@ -20,8 +20,14 @@ public enum ErrorCode {
     // blocked 계정의 로그인·API 호출(API_SPEC §1.4·§8.1) — 자격 오류(401)와 구분해야 재시도가 실패 카운터를 올리지 않는다.
     AUTH_ACCOUNT_BLOCKED(HttpStatus.FORBIDDEN, "차단된 계정입니다. 관리자에게 문의하세요"),
     NOT_FOUND(HttpStatus.NOT_FOUND, "대상을 찾을 수 없습니다"),
-    CONFLICT(HttpStatus.CONFLICT, "이미 처리된 요청입니다"),
-    DUPLICATE_EMAIL(HttpStatus.CONFLICT, "이미 가입된 이메일입니다"),
+    // 필수 필드 누락·형식 위반(API_SPEC §1.11) — Bean Validation·필수 쿼리 파라미터 부재가 공유한다.
+    VALIDATION_FAILED(HttpStatus.UNPROCESSABLE_ENTITY, "입력값이 올바르지 않습니다"),
+    // 회원가입(AUTH-01)에서 login_id 중복(API_SPEC §2.2).
+    DUPLICATE_LOGIN_ID(HttpStatus.CONFLICT, "이미 사용 중인 아이디입니다"),
+    // 회원가입·재신청이 존재하지 않거나 비활성인 학원을 가리킬 때(API_SPEC §2.2·§2.4).
+    ACADEMY_NOT_FOUND(HttpStatus.NOT_FOUND, "학원을 찾을 수 없습니다"),
+    // rejected 상태가 아닌 계정이 재신청을 시도할 때(API_SPEC §2.4).
+    REAPPLY_NOT_ALLOWED(HttpStatus.CONFLICT, "재신청할 수 없는 상태입니다"),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다");
 
     private final HttpStatus status;

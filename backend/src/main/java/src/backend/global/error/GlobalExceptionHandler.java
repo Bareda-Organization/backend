@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -39,14 +40,30 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(code.getStatus()).body(ErrorResponse.of(code.name(), code.getMessage()));
     }
 
+    /**
+     * {@code @Valid} 바디 검증 실패(API_SPEC §1.11 {@code VALIDATION_FAILED}, 422) — 이 핸들러가
+     * 이 저장소 최초의 {@code @Valid} DTO 를 다루는 소비자라(Phase 2 Task 3), 기존
+     * {@code INVALID_INPUT}(400)을 참조하는 다른 코드가 없어 사양값으로 바로 맞췄다.
+     */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException e) {
-        ErrorCode code = ErrorCode.INVALID_INPUT;
+        ErrorCode code = ErrorCode.VALIDATION_FAILED;
         String message = e.getBindingResult().getFieldErrors().stream()
                 .findFirst()
                 .map(err -> err.getField() + ": " + err.getDefaultMessage())
                 .orElse(code.getMessage());
         return ResponseEntity.status(code.getStatus()).body(ErrorResponse.of(code.name(), message));
+    }
+
+    /**
+     * 필수 {@code @RequestParam} 누락(예: {@code GET /academies/search} 의 {@code q}) — 손대지 않으면
+     * 이 예외가 아래 catch-all 로 떨어져 422 가 아니라 500 으로 응답한다(API_SPEC §2.1 {@code VALIDATION_FAILED}).
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErrorResponse> handleMissingParameter(MissingServletRequestParameterException e) {
+        ErrorCode code = ErrorCode.VALIDATION_FAILED;
+        return ResponseEntity.status(code.getStatus())
+                .body(ErrorResponse.of(code.name(), e.getParameterName() + " 파라미터가 필요합니다"));
     }
 
     /** 클라이언트에겐 상세를 감추되, 서버 로그엔 스택트레이스를 남겨야 원인 추적이 가능하다. */

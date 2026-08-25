@@ -120,4 +120,19 @@ public class Account extends BaseTimeEntity {
             throw new BusinessException(ErrorCode.AUTH_ACCOUNT_BLOCKED);
         }
     }
+
+    /**
+     * 가입 거절 후 재신청한다(AUTH-03·API_SPEC §2.4) — {@code rejected} 상태에서만 허용되고,
+     * 재신청 시점에 학원을 다시 선택할 수 있어 {@code academyId} 도 함께 갱신한다.
+     *
+     * <p>{@code rejected} 가 아니면 {@link BusinessException}({@code REAPPLY_NOT_ALLOWED}) —
+     * pending·active·blocked 계정이 이 경로로 상태를 되돌리는 것을 막는다.
+     */
+    public void reapply(Long newAcademyId) {
+        if (status != AccountStatus.REJECTED) {
+            throw new BusinessException(ErrorCode.REAPPLY_NOT_ALLOWED);
+        }
+        this.academyId = newAcademyId;
+        this.status = AccountStatus.PENDING;
+    }
 }

@@ -111,6 +111,11 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    // LocalFlywayCleanStrategy 가 clean() 을 건너뛰게 한다(Phase 2 Task 3, Ruling 89) — 여러
+    // @SpringBootTest 컨텍스트가 한 JVM 안에서 같은 로컬 Postgres 를 공유할 때, 한쪽의 clean() 이
+    // 다른 쪽이 검증 중인 스키마를 지워 SchemaManagementException(missing table)을 내는 것을 막는다.
+    // bootRun 에는 이 프로퍼티를 심지 않아 개발 편의(매 기동마다 초기화)는 그대로 유지된다.
+    systemProperty 'app.flyway-clean.suppressed', 'true'
 }
 
 /**
