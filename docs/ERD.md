@@ -859,7 +859,8 @@ erDiagram
 | `account` → `signup_request` | 1 : N | `account_id` | CASCADE | 재신청마다 행 추가 |
 | `account` → `refresh_token` | 1 : N | `account_id` | CASCADE | 계정 소멸 시 토큰도 소멸 |
 | `account` → `academy_staff` · `system_admin` | 1 : 0..1 | `account_id` | RESTRICT | |
-| `account` → `student` · `guardian` · `manager` | 1 : 0..1 | `account_id` | SET NULL | 계정과 레코드는 별개 수명 — 계정이 사라져도 학생 레코드는 존치 |
+| `account` → `student` · `manager` | 1 : 0..1 | `account_id` | SET NULL | 계정과 레코드는 별개 수명 — 계정이 사라져도 레코드는 존치. 두 컬럼 모두 nullable (학생은 `AUTH-11` 미연결이 정상, 매니저는 가입 승인 전 NULL) |
+| `account` → `guardian` | 1 : 1 | `account_id` | **RESTRICT** | **2026-08-25 정정** — `guardian.account_id` 는 **NN**(§3.2)이라 `SET NULL` 을 걸면 계정 삭제가 NOT NULL 위반으로 실패해 어느 의도도 달성되지 않음. 보호자 레코드는 학부모 가입(`P-02`)으로만 생겨 계정 없는 보호자가 미성립. 계정을 지우려면 보호자 레코드를 먼저 정리해야 하고 그 사실이 오류에 드러나야 함 |
 | `account` → `notification_setting` | 1 : 0..1 | `account_id` | CASCADE | 학부모·학생 계정에만 행이 생성 |
 | `account` → `device_token` | 1 : N | `account_id` | CASCADE | 한 계정이 여러 기기 보유 |
 | `guardian` → `guardian_student` | 1 : N | `guardian_id` | CASCADE | |

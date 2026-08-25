@@ -179,7 +179,8 @@ CREATE TABLE guardian (
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT fk_guardian_academy FOREIGN KEY (academy_id) REFERENCES academy (id) ON DELETE RESTRICT,
-    CONSTRAINT fk_guardian_account FOREIGN KEY (account_id) REFERENCES account (id) ON DELETE SET NULL
+    -- account_id 가 NN 이라 SET NULL 을 걸면 계정 삭제 시 NOT NULL 위반으로 실패한다 (ERD §4.1 정정, 2026-08-25).
+    CONSTRAINT fk_guardian_account FOREIGN KEY (account_id) REFERENCES account (id) ON DELETE RESTRICT
 );
 
 -- 보호자 ↔ 학생 연결. 다자녀를 재가입 없이 연결 추가로 처리하는 유일 경로.
