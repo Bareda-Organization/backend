@@ -94,4 +94,28 @@ class AuditLogEntitySchemaValidationTest extends MigratedPostgresTestBase {
         assertThat(found.getDetail())
                 .isEqualTo(Map.of("field", "phone", "before", "010-0000-0000"));
     }
+
+    @Test
+    void auditLog_의_ip_inet_컬럼이_실제_값으로_왕복한다() {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.of("+09:00"));
+
+        AuditLog log = AuditLog.forOccurrence(AuditCategory.LOGIN, AuditAction.LOGIN_SUCCESS, now);
+        entityManager.persist(log);
+        entityManager.flush();
+        entityManager.clear();
+
+        // ip 도 팩토리 대상이 아니라(부속 필드), inet 매핑이 non-null 값에서도 INSERT·조회 양쪽에서
+        // 성공하는지 확인하려면 네이티브 SQL 로 직접 채워야 한다 — persist 만으로는 항상 NULL 이라
+        // SqlTypes.INET 의 실제 바인딩 경로(pgjdbc 파라미터 타입)를 통과하지 못한다.
+        entityManager.createNativeQuery(
+                        "UPDATE audit_log SET ip = CAST(:ip AS inet) WHERE id = :id")
+                .setParameter("ip", "192.168.0.1")
+                .setParameter("id", log.getId())
+                .executeUpdate();
+        entityManager.clear();
+
+        AuditLog found = entityManager.find(AuditLog.class, log.getId());
+
+        assertThat(found.getIp()).isEqualTo("192.168.0.1");
+    }
 }
