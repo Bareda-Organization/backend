@@ -26,6 +26,7 @@ import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
+import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
@@ -53,6 +54,21 @@ public class AdminAcademyQueryService {
      * 가 따로 세고, 메인 관리자는 학원 소속이 부재하다.
      */
     private static final Collection<Role> MEMBER_ROLES = List.of(Role.PARENT, Role.STUDENT, Role.DRIVER, Role.ESCORT);
+
+    /**
+     * {@code user_count} 가 세는 계정 상태(Ruling 142) — <b>소속이 확정됐고 아직 종료되지 않은 것</b>.
+     *
+     * <p>{@code staff_count}(재직자만 셈)와 같은 원칙으로 묶은 결과다. 사양이 상태 필터를 명시하지
+     * 않아 조율자가 판정했고, 두 필드가 서로 다른 테이블의 서로 다른 상태값을 쓰므로 값 이름이 아니라
+     * 원칙으로 맞춘다.
+     *
+     * <p>제외 — {@code pending}(승인 전이라 소속 미확정) · {@code rejected}(소속된 적 부재).
+     * <b>{@code blocked} 는 포함</b>한다 — 로그인 차단은 소속 상태에서의 일시 정지이지 소속 종료가
+     * 아니다. 빼면 계정을 하나 차단할 때마다 학원 규모가 줄어드는 것으로 보여, 그 값을 보고 판단하는
+     * 메인 관리자가 오도된다.
+     */
+    private static final Collection<AccountStatus> MEMBER_STATUSES =
+            List.of(AccountStatus.ACTIVE, AccountStatus.BLOCKED);
 
     /**
      * {@code sort} 가 받는 필드(API_SPEC §1.8) — 왼쪽이 API 이름, 오른쪽이 엔티티 속성이다.
@@ -98,7 +114,7 @@ public class AdminAcademyQueryService {
         Map<Long, Long> staffCounts = countByAcademy(academyStaffRepository
                 .countByAcademyIdInGroupedByAcademyId(academyIds, StaffStatus.ACTIVE));
         Map<Long, Long> userCounts = countByAcademy(accountRepository
-                .countByAcademyIdInGroupedByAcademyId(academyIds, MEMBER_ROLES));
+                .countByAcademyIdInGroupedByAcademyId(academyIds, MEMBER_ROLES, MEMBER_STATUSES));
 
         return PageResponse.of(page, page.getContent().stream()
                 .map(academy -> AcademySummaryResponse.from(academy,
@@ -113,7 +129,7 @@ public class AdminAcademyQueryService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACADEMY_NOT_FOUND));
         long staffCount = academyStaffRepository.countByAcademyIdAndStatus(academyId, StaffStatus.ACTIVE);
         long userCount = accountRepository
-                .countByAcademyIdInGroupedByAcademyId(List.of(academyId), MEMBER_ROLES).stream()
+                .countByAcademyIdInGroupedByAcademyId(List.of(academyId), MEMBER_ROLES, MEMBER_STATUSES).stream()
                 .mapToLong(AcademyCount::getTotal)
                 .sum();
         return AcademyDetailResponse.from(academy, staffCount, userCount, staffAccounts(academyId));

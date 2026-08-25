@@ -46,9 +46,12 @@ class AcademyStaffQuotaConcurrencyTest {
 
     private static final String ACADEMY_CODE = "P3T1CONC";
 
-    /** 먼저 들어간 트랜잭션이 INSERT 를 보낸 뒤 커밋을 미루는 시간 — 뒤 요청이 같은 창에 들어오게 한다. */
-    private static final long HOLD_MILLIS = 500;
-
+    /**
+     * 스레드 하나가 상대를 기다리는 상한 — <b>정상 흐름에서는 소진되지 않는다.</b>
+     *
+     * <p>여기 걸리면 상대가 죽었거나 DB 잠금이 안 풀린 것이라, 그때는 테스트가 매달리는 대신
+     * 실패로 드러나야 한다.
+     */
     private static final long TIMEOUT_SECONDS = 20;
 
     @Autowired
@@ -85,12 +88,30 @@ class AcademyStaffQuotaConcurrencyTest {
         secondAccountId = 계정을_만든다("p3t1conc2", "010-0000-4002");
     }
 
+    /**
+     * 이 클래스는 실제 커밋을 남기므로 지우는 것도 직접 한다 — 자식부터 부모 순이다(FK RESTRICT).
+     *
+     * <p>세 삭제를 각각 감싸는 이유는 <b>앞 문장이 실패하면 뒤가 통째로 건너뛰어지기</b> 때문이다.
+     * 그러면 부모만 남거나 자식만 남은 상태로 다음 실행이 시작해, 실패 원인이 이 테스트가 아니라
+     * 픽스처 준비 쪽으로 옮겨 붙는다. 삭제 실패 자체는 여기서 숨기지 않고 마지막에 다시 던진다.
+     */
     @AfterEach
     void 뒷정리한다() {
-        jdbcTemplate.update("DELETE FROM academy_staff WHERE academy_id IN "
-                + "(SELECT id FROM academy WHERE code = ?)", ACADEMY_CODE);
-        jdbcTemplate.update("DELETE FROM account WHERE login_id IN ('p3t1conc1', 'p3t1conc2')");
-        jdbcTemplate.update("DELETE FROM academy WHERE code = ?", ACADEMY_CODE);
+        RuntimeException 실패 = null;
+        for (String 삭제 : List.of(
+                "DELETE FROM academy_staff WHERE academy_id IN (SELECT id FROM academy WHERE code = '"
+                        + ACADEMY_CODE + "')",
+                "DELETE FROM account WHERE login_id IN ('p3t1conc1', 'p3t1conc2')",
+                "DELETE FROM academy WHERE code = '" + ACADEMY_CODE + "'")) {
+            try {
+                jdbcTemplate.update(삭제);
+            } catch (RuntimeException e) {
+                실패 = e;
+            }
+        }
+        if (실패 != null) {
+            throw 실패;
+        }
     }
 
     /**
@@ -104,39 +125,49 @@ class AcademyStaffQuotaConcurrencyTest {
     @Test
     void 같은_학원에_동시에_두_요청이_들어오면_성공_1건_실패_1건이다() throws Exception {
         CountDownLatch 먼저_들어갔다 = new CountDownLatch(1);
+        CountDownLatch 나중도_착수했다 = new CountDownLatch(1);
         ExecutorService pool = Executors.newFixedThreadPool(2);
+        List<Optional<ErrorCode>> results;
         try {
-            Future<Optional<ErrorCode>> 먼저 = pool.submit(() -> 승인한다(firstAccountId, 먼저_들어갔다));
+            Future<Optional<ErrorCode>> 먼저 = pool.submit(() -> 승인한다(firstAccountId, 먼저_들어갔다, 나중도_착수했다));
             Future<Optional<ErrorCode>> 나중 = pool.submit(() -> {
                 먼저_들어갔다.await(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-                return 승인한다(secondAccountId, null);
+                나중도_착수했다.countDown();
+                return 승인한다(secondAccountId, null, null);
             });
 
-            List<Optional<ErrorCode>> results = List.of(
-                    먼저.get(TIMEOUT_SECONDS, TimeUnit.SECONDS), 나중.get(TIMEOUT_SECONDS, TimeUnit.SECONDS));
-
-            assertThat(results.stream().filter(Optional::isEmpty).count())
-                    .as("성공은 정확히 1건이어야 한다 — 2건이면 정원이 샌 것이고 0건이면 정상 승인까지 막힌 것이다")
-                    .isEqualTo(1);
-            assertThat(results.stream().flatMap(Optional::stream).toList())
-                    .as("실패는 500 이 아니라 409 STAFF_QUOTA_EXCEEDED 여야 한다")
-                    .containsExactly(ErrorCode.STAFF_QUOTA_EXCEEDED);
-            assertThat(academyStaffRepository.countByAcademyIdAndStatus(academyId, StaffStatus.ACTIVE))
-                    .as("응답과 무관하게 DB 에 남은 재직자도 1명이어야 한다")
-                    .isEqualTo(1);
+            results = List.of(먼저.get(TIMEOUT_SECONDS, TimeUnit.SECONDS),
+                    나중.get(TIMEOUT_SECONDS, TimeUnit.SECONDS));
         } finally {
+            // 뒷정리가 잠금을 기다리지 않도록 두 트랜잭션이 끝난 것을 먼저 확인한다 — 앞의 get() 이
+            // 시간 초과로 끊겼다면 스레드가 아직 행을 잡고 있을 수 있다.
             pool.shutdownNow();
+            pool.awaitTermination(TIMEOUT_SECONDS, TimeUnit.SECONDS);
         }
+
+        assertThat(results.stream().filter(Optional::isEmpty).count())
+                .as("성공은 정확히 1건이어야 한다 — 2건이면 정원이 샌 것이고 0건이면 정상 승인까지 막힌 것이다")
+                .isEqualTo(1);
+        assertThat(results.stream().flatMap(Optional::stream).toList())
+                .as("실패는 500 이 아니라 409 STAFF_QUOTA_EXCEEDED 여야 한다")
+                .containsExactly(ErrorCode.STAFF_QUOTA_EXCEEDED);
+        assertThat(academyStaffRepository.countByAcademyIdAndStatus(academyId, StaffStatus.ACTIVE))
+                .as("응답과 무관하게 DB 에 남은 재직자도 1명이어야 한다")
+                .isEqualTo(1);
     }
 
     /**
      * 한 트랜잭션 안에서 정원 판정을 통과시켜 관계자 행을 넣는다 — T2 의 {@code §6.5} 승인이 할 일과 같다.
      *
-     * @param 들어갔음 INSERT 를 보낸 직후 내리는 신호. {@code null} 이면 신호를 내지 않고, 신호를 내는
-     *               쪽은 상대가 같은 창에 들어오도록 커밋을 잠시 미룬다
+     * <p>두 신호로 겹침을 만든다. 고정 대기({@code Thread.sleep})를 쓰지 않는 이유는 그 값이 기계 속도에
+     * 묶여, 느린 기계에서는 겹침이 사라지고 빠른 기계에서는 그만큼 매번 낭비되기 때문이다.
+     *
+     * @param 들어갔음   INSERT 를 보낸 직후 내리는 신호 — 상대가 이때부터 착수한다
+     * @param 상대가_착수 상대가 착수했다는 신호. 이것을 받고서야 커밋한다 — 커밋을 미루는 동안 상대가
+     *                  같은 창에 들어온다. {@code null} 이면 기다리지 않고 바로 커밋한다
      * @return 성공이면 빈 값, 정원 위반이면 그 에러 코드
      */
-    private Optional<ErrorCode> 승인한다(Long accountId, CountDownLatch 들어갔음) {
+    private Optional<ErrorCode> 승인한다(Long accountId, CountDownLatch 들어갔음, CountDownLatch 상대가_착수) {
         TransactionTemplate transaction = new TransactionTemplate(transactionManager);
         try {
             return transaction.execute(status -> {
@@ -144,8 +175,8 @@ class AcademyStaffQuotaConcurrencyTest {
                         () -> academyStaffRepository.save(AcademyStaff.uponApproval(academyId, accountId)));
                 if (들어갔음 != null) {
                     들어갔음.countDown();
-                    잠시_커밋을_미룬다();
                 }
+                상대가_착수할_때까지_커밋을_미룬다(상대가_착수);
                 return Optional.<ErrorCode>empty();
             });
         } catch (BusinessException e) {
@@ -153,9 +184,12 @@ class AcademyStaffQuotaConcurrencyTest {
         }
     }
 
-    private void 잠시_커밋을_미룬다() {
+    private void 상대가_착수할_때까지_커밋을_미룬다(CountDownLatch 상대가_착수) {
+        if (상대가_착수 == null) {
+            return;
+        }
         try {
-            Thread.sleep(HOLD_MILLIS);
+            상대가_착수.await(TIMEOUT_SECONDS, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import src.backend.account.entity.Account;
+import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.persistence.AcademyCount;
 import src.backend.global.security.access.AcademyScopeExempt;
@@ -45,13 +46,18 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     List<Account> findAllByAcademyIdAndIdIn(Long academyId, Collection<Long> ids);
 
     /**
-     * 학원별 소속 사용자 수(API_SPEC §6.1 {@code user_count}) — 역할을 인자로 받아 무엇을 세는지
+     * 학원별 소속 사용자 수(API_SPEC §6.1 {@code user_count}) — 역할과 상태를 인자로 받아 무엇을 세는지
      * 호출부가 정한다.
+     *
+     * <p><b>상태를 거는 것이 이 조회의 핵심이다</b>(Ruling 142). 걸지 않으면 승인 대기·거절된 계정까지
+     * 합산돼, 짝 필드 {@code staff_count}(재직자만 셈)와 같은 응답 안에서 집계 기준이 갈린다 — 관리자가
+     * 읽는 "소속 사용자 수" 가 실제보다 부풀려진다.
      *
      * <p>한 페이지의 학원 전부를 한 번에 센다 — 학원마다 세면 한 페이지(최대 100건)가 질의 100건이 된다.
      */
     @Query("SELECT a.academyId AS academyId, COUNT(a) AS total FROM Account a "
-            + "WHERE a.academyId IN :academyIds AND a.role IN :roles GROUP BY a.academyId")
+            + "WHERE a.academyId IN :academyIds AND a.role IN :roles AND a.status IN :statuses "
+            + "GROUP BY a.academyId")
     List<AcademyCount> countByAcademyIdInGroupedByAcademyId(@Param("academyIds") Collection<Long> academyIds,
-            @Param("roles") Collection<Role> roles);
+            @Param("roles") Collection<Role> roles, @Param("statuses") Collection<AccountStatus> statuses);
 }

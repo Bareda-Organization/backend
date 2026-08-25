@@ -260,6 +260,72 @@ class AdminAcademyControllerTest {
                 .andExpect(jsonPath("$.data.stats.moving_bus_count").value(0));
     }
 
+    /**
+     * {@code user_count} 는 <b>소속이 확정됐고 아직 종료되지 않은</b> 계정만 센다(Ruling 142).
+     *
+     * <p>같은 학원에 소속 역할 계정 4개를 심는다 — {@code active} · {@code blocked} · {@code pending} ·
+     * {@code rejected}. 기대값 <b>2</b> 하나가 세 방향을 동시에 고정한다.
+     * <ul>
+     *   <li>{@code blocked} 를 빼면 1 — 차단은 소속 상태의 일시 정지이지 종료가 아니라, 빼면 계정을
+     *       차단할 때마다 학원 규모가 줄어드는 것으로 보인다</li>
+     *   <li>{@code pending} 이나 {@code rejected} 를 세면 3 이나 4 — 승인 전이거나 소속된 적이 없는
+     *       계정까지 합산돼 관리자가 읽는 값이 부풀려진다. <b>상태 조건을 아예 안 걸면 4</b> 다</li>
+     * </ul>
+     * 관계자({@code role='staff'})는 세지 않는다 — {@code staff_count} 가 따로 세므로 여기 넣으면 두 번
+     * 세어진다. 그 계정도 함께 심어 역할 필터가 실제로 걸리는지 같은 자리에서 본다.
+     */
+    @Test
+    @Sql(statements = {
+            "INSERT INTO academy (code, name, region, status) VALUES ('P3T1USRQQ', 'P3T1사용자수학원', '부산', 'active')",
+            "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) VALUES "
+                    + "((SELECT id FROM academy WHERE code = 'P3T1USRQQ'), 'p3t1uactive', 'x', '활성학부모', "
+                    + "'010-0000-5001', 'parent', 'active')",
+            "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) VALUES "
+                    + "((SELECT id FROM academy WHERE code = 'P3T1USRQQ'), 'p3t1ublocked', 'x', '차단동승자', "
+                    + "'010-0000-5002', 'escort', 'blocked')",
+            "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) VALUES "
+                    + "((SELECT id FROM academy WHERE code = 'P3T1USRQQ'), 'p3t1upending', 'x', '대기학부모', "
+                    + "'010-0000-5003', 'parent', 'pending')",
+            "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) VALUES "
+                    + "((SELECT id FROM academy WHERE code = 'P3T1USRQQ'), 'p3t1urejected', 'x', '거절학생', "
+                    + "'010-0000-5004', 'student', 'rejected')",
+            "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) VALUES "
+                    + "((SELECT id FROM academy WHERE code = 'P3T1USRQQ'), 'p3t1ustaff', 'x', '관계자', "
+                    + "'010-0000-5005', 'staff', 'active')"
+    })
+    void user_count_는_활성과_차단만_세고_대기와_거절과_관계자는_세지_않는다() throws Exception {
+        long academyId = 목록에서_식별자를_찾는다("P3T1USRQQ");
+
+        mockMvc.perform(get("/api/v1/admin/academies/" + academyId).header("Authorization", 메인관리자_토큰()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.user_count").value(2));
+    }
+
+    /** 목록의 {@code user_count} 도 상세와 같은 기준이다 — 두 경로가 갈리면 화면마다 다른 수가 보인다. */
+    @Test
+    @Sql(statements = {
+            "INSERT INTO academy (code, name, region, status) VALUES ('P3T1USLQQ', 'P3T1사용자수목록', '대전', 'active')",
+            "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) VALUES "
+                    + "((SELECT id FROM academy WHERE code = 'P3T1USLQQ'), 'p3t1lactive', 'x', '활성기사', "
+                    + "'010-0000-5006', 'driver', 'active')",
+            "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) VALUES "
+                    + "((SELECT id FROM academy WHERE code = 'P3T1USLQQ'), 'p3t1lblocked', 'x', '차단학생', "
+                    + "'010-0000-5007', 'student', 'blocked')",
+            "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) VALUES "
+                    + "((SELECT id FROM academy WHERE code = 'P3T1USLQQ'), 'p3t1lpending', 'x', '대기학부모', "
+                    + "'010-0000-5008', 'parent', 'pending')",
+            "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) VALUES "
+                    + "((SELECT id FROM academy WHERE code = 'P3T1USLQQ'), 'p3t1lrejected', 'x', '거절학생', "
+                    + "'010-0000-5009', 'student', 'rejected')"
+    })
+    void 목록의_user_count_도_상세와_같은_기준으로_센다() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/academies")
+                        .header("Authorization", 메인관리자_토큰())
+                        .param("q", "P3T1USLQQ"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].user_count").value(2));
+    }
+
     /** 미등록 학원 지정은 {@code 404 ACADEMY_NOT_FOUND} 다(§6.3). */
     @Test
     void 없는_학원의_상세_조회는_404_ACADEMY_NOT_FOUND_다() throws Exception {
