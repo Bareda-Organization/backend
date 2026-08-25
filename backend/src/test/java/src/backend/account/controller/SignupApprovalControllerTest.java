@@ -180,6 +180,23 @@ class SignupApprovalControllerTest {
                 .andExpect(jsonPath("$.error.code").value("APPROVAL_ALREADY_DECIDED"));
     }
 
+    /**
+     * 이미 처리된 건은 <b>연결 누락보다 먼저</b> 걸린다 — {@code 409} 이지 {@code 422 LINK_REQUIRED} 가 아니다.
+     *
+     * <p>순서가 뒤집히면 관계자 화면이 "자녀를 지정하세요" 를 띄운다 — 지정해도 두 번째 호출에서
+     * 다시 막히므로, 사용자는 무엇이 문제인지 모른 채 같은 화면을 반복하게 된다. 위
+     * {@code 이미_처리된_요청을_다시_처리하면_409} 는 거절→거절이라 이 순서를 검사하지 못한다.
+     */
+    @Test
+    void 이미_처리된_요청을_link_없이_수락하려_하면_LINK_REQUIRED_가_아니라_409_다() throws Exception {
+        처리한다(PARENT_REQUEST, ACADEMY_A, 거절_본문("먼저 거절"))
+                .andExpect(status().isOk());
+
+        처리한다(PARENT_REQUEST, ACADEMY_A, "{\"accept\": true}")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("APPROVAL_ALREADY_DECIDED"));
+    }
+
     /** {@code accept=false} 인데 사유가 없으면 {@code 422 VALIDATION_FAILED} 다(§5.2). */
     @Test
     void accept_false_인데_reject_reason_이_없으면_422_VALIDATION_FAILED_다() throws Exception {

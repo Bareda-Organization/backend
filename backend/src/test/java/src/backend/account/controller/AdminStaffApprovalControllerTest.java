@@ -208,6 +208,23 @@ class AdminStaffApprovalControllerTest {
                 .andExpect(jsonPath("$.error.code").value("APPROVAL_ALREADY_DECIDED"));
     }
 
+    /**
+     * 이미 처리된 건은 <b>정원 판정보다 먼저</b> 걸린다 — 두 응답이 같은 {@code 409} 라 코드로 가른다.
+     *
+     * <p>순서가 뒤집히면 이미 거절한 요청을 다시 수락하려 할 때 {@code STAFF_QUOTA_EXCEEDED} 가
+     * 나가 "정원이 찼다" 로 읽힌다 — 정원을 비워도 여전히 막히므로 메인 관리자는 원인을 찾을 수단을 잃는다.
+     * 시드 학원 A 는 이미 재직 관계자가 있어 두 판정이 <b>둘 다</b> 걸릴 수 있는 상태다.
+     */
+    @Test
+    void 이미_처리된_관계자_요청의_재수락은_STAFF_QUOTA_EXCEEDED_가_아니라_APPROVAL_ALREADY_DECIDED_다() throws Exception {
+        처리한다(STAFF_REQUEST_ON_FULL_ACADEMY, "{\"accept\": false, \"reject_reason\": \"먼저 거절\"}")
+                .andExpect(status().isOk());
+
+        처리한다(STAFF_REQUEST_ON_FULL_ACADEMY, "{\"accept\": true}")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("APPROVAL_ALREADY_DECIDED"));
+    }
+
     /** {@code accept=false} 인데 사유가 없으면 {@code 422 VALIDATION_FAILED} 다(§6.5). */
     @Test
     void 관계자_요청_거절에_reject_reason_이_없으면_422_VALIDATION_FAILED_다() throws Exception {
