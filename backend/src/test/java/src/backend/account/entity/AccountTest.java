@@ -1,11 +1,13 @@
 package src.backend.account.entity;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
@@ -36,14 +38,18 @@ class AccountTest {
     @Test
     void pending_rejected_active_계정은_로그인이_막히지_않는다() {
         Account pending = Account.forSignup(1L, "login2", "hash", "이름", "010-0000-0002", null, Role.PARENT);
-        pending.assertNotBlocked(); // forSignup 직후 기본값이 PENDING
+        // forSignup 직후 기본값이 PENDING
 
         Account rejected = Account.forSignup(1L, "login3", "hash", "이름", "010-0000-0003", null, Role.PARENT);
         ReflectionTestUtils.setField(rejected, "status", AccountStatus.REJECTED);
-        rejected.assertNotBlocked();
 
         Account active = Account.forSignup(1L, "login4", "hash", "이름", "010-0000-0004", null, Role.PARENT);
         ReflectionTestUtils.setField(active, "status", AccountStatus.ACTIVE);
-        active.assertNotBlocked();
+
+        // 암묵적 무예외(호출만 하고 끝)로는 assertNotBlocked 가 조용히 삼킨 예외와 구별되지 않는다 —
+        // 명시적으로 "예외가 없다" 를 단언해야 한다(리뷰 라운드 1 Minor #2).
+        assertThatCode(pending::assertNotBlocked).doesNotThrowAnyException();
+        assertThatCode(rejected::assertNotBlocked).doesNotThrowAnyException();
+        assertThatCode(active::assertNotBlocked).doesNotThrowAnyException();
     }
 }

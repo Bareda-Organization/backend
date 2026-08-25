@@ -12,8 +12,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-import src.backend.global.common.enums.Role;
-
+import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 
 /**
@@ -22,9 +21,10 @@ import src.backend.global.common.enums.Role;
  * subject=accountId, academyId, role, status, type(access/refresh) 이다.
  * secret·유효기간은 application.yml 의 jwt.* 에서 주입한다.
  *
- * <p>{@code role} 클레임은 {@link Role#name()}(대문자, 예: {@code "DRIVER"})으로 저장한다 —
- * {@link #resolveAuthUser} 가 {@link Role#valueOf(String)} 으로 되읽으므로, 발급·복원 양쪽이
- * 같은 표기를 쓰지 않으면 즉시 {@link IllegalArgumentException} 이 난다.
+ * <p>{@code role}·{@code status} 클레임은 각각 {@link Role#name()}·{@link AccountStatus#name()}
+ * (대문자, 예: {@code "DRIVER"}·{@code "PENDING"})으로 저장한다 — {@link #resolveAuthUser} 가
+ * {@code valueOf(String)} 으로 되읽으므로, 발급·복원 양쪽이 같은 표기를 쓰지 않으면 즉시
+ * {@link IllegalArgumentException} 이 난다.
  */
 @Component
 public class JwtTokenProvider {
@@ -49,21 +49,22 @@ public class JwtTokenProvider {
         this.refreshValidityMs = refreshValiditySeconds * 1000;
     }
 
-    public String createAccessToken(Long accountId, Long academyId, Role role, String status) {
+    public String createAccessToken(Long accountId, Long academyId, Role role, AccountStatus status) {
         return build(accountId, academyId, role, status, TYPE_ACCESS, accessValidityMs);
     }
 
-    public String createRefreshToken(Long accountId, Long academyId, Role role, String status) {
+    public String createRefreshToken(Long accountId, Long academyId, Role role, AccountStatus status) {
         return build(accountId, academyId, role, status, TYPE_REFRESH, refreshValidityMs);
     }
 
-    private String build(Long accountId, Long academyId, Role role, String status, String type, long validityMs) {
+    private String build(Long accountId, Long academyId, Role role, AccountStatus status, String type,
+            long validityMs) {
         Date now = new Date();
         return Jwts.builder()
                 .subject(String.valueOf(accountId))
                 .claim(CLAIM_ACADEMY_ID, academyId)
                 .claim(CLAIM_ROLE, role.name())
-                .claim(CLAIM_STATUS, status)
+                .claim(CLAIM_STATUS, status.name())
                 .claim(CLAIM_TYPE, type)
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + validityMs))
@@ -85,12 +86,18 @@ public class JwtTokenProvider {
         return TYPE_REFRESH.equals(claims.get(CLAIM_TYPE, String.class));
     }
 
-    /** 검증된 클레임 → {@link AuthUser}. REST 필터·STOMP 인증 인터셉터가 공용으로 쓴다. */
+    /**
+     * 검증된 클레임 → {@link AuthUser}. REST 필터·STOMP 인증 인터셉터가 공용으로 쓴다.
+     *
+     * <p>{@code status} 클레임이 없는 토큰은 {@link AccountStatus#valueOf}(인자 null)에서
+     * {@link NullPointerException}으로 즉시 실패한다 — 그런 토큰을 조용히 통과시키면 계정 상태
+     * 게이트가 상태 미상 요청 전체를 열어 버리므로, 늦게 실패하는 것보다 여기서 바로 막는 편이 낫다.
+     */
     public AuthUser resolveAuthUser(Claims claims) {
         Long accountId = Long.valueOf(claims.getSubject());
         Number academyId = claims.get(CLAIM_ACADEMY_ID, Number.class);
         Role role = Role.valueOf(claims.get(CLAIM_ROLE, String.class));
-        String status = claims.get(CLAIM_STATUS, String.class);
+        AccountStatus status = AccountStatus.valueOf(claims.get(CLAIM_STATUS, String.class));
         return new AuthUser(accountId, academyId == null ? null : academyId.longValue(), role, status);
     }
 }

@@ -22,6 +22,7 @@ import jakarta.persistence.EntityManager;
 import src.backend.BackendApplication;
 import src.backend.global.config.ClockConfig;
 import src.backend.global.config.JpaAuditingConfig;
+import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 
 import testsupport.db.MigratedPostgresTestBase;

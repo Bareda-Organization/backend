@@ -12,8 +12,11 @@ public enum ErrorCode {
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "인증이 필요합니다"),
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다"),
     FORBIDDEN(HttpStatus.FORBIDDEN, "접근 권한이 없습니다"),
-    // pending·rejected 계정이 허용 목록 밖 API 를 호출할 때(API_SPEC §1.4·§8.1) — 401 이 아니라 403.
+    // pending 계정이 허용 목록 밖 API 를 호출할 때(API_SPEC §1.4·§8.1) — 401 이 아니라 403.
     AUTH_PENDING(HttpStatus.FORBIDDEN, "승인 대기 중인 계정입니다"),
+    // rejected 계정이 허용 목록 밖 API 를 호출할 때(API_SPEC §8.1, 2026-08-25 신설) — AUTH_PENDING 과
+    // 코드를 나눠, "승인 대기 중"과 "거절됨"을 클라이언트가 구별해 대기 화면에 거절 사유를 보여줄 수 있게 한다.
+    AUTH_REJECTED(HttpStatus.FORBIDDEN, "가입이 거절된 계정입니다"),
     // blocked 계정의 로그인·API 호출(API_SPEC §1.4·§8.1) — 자격 오류(401)와 구분해야 재시도가 실패 카운터를 올리지 않는다.
     AUTH_ACCOUNT_BLOCKED(HttpStatus.FORBIDDEN, "차단된 계정입니다. 관리자에게 문의하세요"),
     NOT_FOUND(HttpStatus.NOT_FOUND, "대상을 찾을 수 없습니다"),

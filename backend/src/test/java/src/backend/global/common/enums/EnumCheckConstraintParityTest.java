@@ -26,7 +26,6 @@ import jakarta.persistence.AttributeConverter;
 
 import src.backend.academy.entity.AcademyStatus;
 import src.backend.academy.entity.StaffStatus;
-import src.backend.account.entity.AccountStatus;
 import src.backend.account.entity.ApproverType;
 import src.backend.account.entity.SignupRequestStatus;
 import src.backend.account.entity.VerificationPurpose;
