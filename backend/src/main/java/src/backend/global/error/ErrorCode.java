@@ -96,6 +96,11 @@ public enum ErrorCode {
     // 학원 조건을 쿼리에 넣어 "없음" 과 "남의 학원" 을 같은 빈 결과로 만들면 존재 여부가 응답에서
     // 사라진다(StudentRepository#findByIdAndAcademyIdAndDeletedAtIsNull 과 같은 형태).
     BUS_NOT_FOUND(HttpStatus.NOT_FOUND, "차량을 찾을 수 없습니다"),
+    // 같은 학원에 같은 호차 재등록(BUS-02·03 · API_SPEC §5.12·§8.5, Ruling 164).
+    // 422 가 아니라 409 인 것은 요청 형식이 틀린 것이 아니라 자원이 충돌한 것이기 때문이다 —
+    // DUPLICATE_LOGIN_ID(409)와 같은 형태이고, 클라이언트가 "입력을 고쳐라" 와 "이미 있다" 를
+    // 같은 코드로 받으면 화면 문구를 가려 그릴 수 없다.
+    DUPLICATE_BUS_NO(HttpStatus.CONFLICT, "이미 등록된 호차입니다"),
     // 회차에 배치된 매니저 삭제(MGR-04 · API_SPEC §5.13·§8.5).
     // 403 이 아니라 409 인 것은 요청 주체가 인가돼 있고 막는 것이 대상 자원의 상태이기 때문이다 —
     // STAFF_QUOTA_EXCEEDED·APPROVAL_ALREADY_DECIDED 와 같은 형태다.

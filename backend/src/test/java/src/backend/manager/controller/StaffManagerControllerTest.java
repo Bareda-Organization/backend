@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.util.List;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
@@ -61,6 +62,9 @@ class StaffManagerControllerTest {
     private static final long STAFF_B_ACCOUNT_ID = 3L;
 
     private static final long ACADEMY_B_ID = 2L;
+
+    /** 페이징 단언이 쓰는 페이지 크기 — 학원 A 의 실제 매니저 수보다 작아야 다음 페이지가 생긴다. */
+    private static final int PAGE_SIZE = 2;
 
     /** 회차 확정 예정 시각 = 출발 30분 전(ERD {@code ck_run_confirm_at} · C-03). */
     private static final int CONFIRM_LEAD_MINUTES = 30;
@@ -274,6 +278,49 @@ class StaffManagerControllerTest {
                 .andExpect(jsonPath("$.data.name").value("전환기사"));
     }
 
+    /**
+     * 요청한 {@code size} 가 <b>실제로 반환 건수를 제한</b>하고, 다음 페이지가 나머지를 담는다(§1.8).
+     *
+     * <p>차량 목록과 같은 축이다 — 같은 공백이 이 저장소의 목록 API 전반에서 발견됐다(게이트 리뷰
+     * A1). 매니저 쪽에 따로 거는 이유는 두 서비스가 각자 {@code Pageable} 을 만들어, 한쪽을 고쳐도
+     * 다른 쪽은 그대로 남기 때문이다.
+     */
+    @Test
+    void 매니저_목록은_요청한_size_보다_많은_행을_반환하지_않고_다음_페이지가_나머지를_담는다() throws Exception {
+        등록된_매니저_id(관계자A_토큰(), "페이징기사1", "010-9600-0001");
+        등록된_매니저_id(관계자A_토큰(), "페이징기사2", "010-9600-0002");
+
+        String 첫_페이지 = 페이지_본문(관계자A_토큰(), 0, PAGE_SIZE);
+        String 둘째_페이지 = 페이지_본문(관계자A_토큰(), 1, PAGE_SIZE);
+
+        assertThat(JsonPath.<List<Object>>read(첫_페이지, "$.data.items"))
+                .as("요청 size 를 무시하고 전건을 반환하면 안 된다").hasSize(PAGE_SIZE);
+        assertThat(JsonPath.<Integer>read(첫_페이지, "$.data.total_count"))
+                .as("total_count 는 한 페이지 건수가 아니라 전체 행 수다").isGreaterThan(PAGE_SIZE);
+        assertThat(JsonPath.<Boolean>read(첫_페이지, "$.data.has_next")).isTrue();
+        assertThat(JsonPath.<List<Integer>>read(둘째_페이지, "$.data.items[*].id"))
+                .as("다음 페이지가 앞 페이지와 겹치면 뒤쪽 매니저에 닿을 수단이 부재하다")
+                .doesNotContainAnyElementsOf(JsonPath.read(첫_페이지, "$.data.items[*].id"));
+    }
+
+    /**
+     * {@code total_count} 가 <b>실제 행 수</b>를 따른다 — 한 건을 등록하면 정확히 1 늘어난다.
+     *
+     * <p>보고서 §2.8 에서 스스로 신고한 공백이 이 자리다. 총수를 절대값으로 고정하기 어렵다는 판단은
+     * 맞았으나, <b>증분</b>으로 재면 시드와 무관하게 고정된다. {@code size=1} 로 불러 페이지 건수와
+     * 총수를 갈라 두는 것이 {@code items.size()} 위조를 드러내는 축이다.
+     */
+    @Test
+    void 매니저_total_count_는_등록한_행_수만큼_증가한다() throws Exception {
+        int before = 총수(관계자A_토큰());
+
+        등록된_매니저_id(관계자A_토큰(), "총수확인기사", "010-9700-0001");
+
+        assertThat(총수(관계자A_토큰()))
+                .as("total_count 가 페이지에 담긴 건수를 되돌려주면 등록해도 값이 움직이지 않는다")
+                .isEqualTo(before + 1);
+    }
+
     // ── 학원 격리 (규칙 7) ────────────────────────────────────────────────
 
     /** 다른 학원의 매니저를 {@code {id}} 로 지목하면 {@code 404 MANAGER_NOT_FOUND} 다 — 존재 여부를 흘리지 않는다. */
@@ -386,6 +433,18 @@ class StaffManagerControllerTest {
                 .andExpect(status().isOk())
                 .andReturn();
         return ((Number) JsonPath.read(본문(result), "$.data.id")).longValue();
+    }
+
+    private String 페이지_본문(String token, int page, int size) throws Exception {
+        return 본문(mockMvc.perform(get("/api/v1/staff/managers?page=%d&size=%d".formatted(page, size))
+                .header("Authorization", token))
+                .andExpect(status().isOk())
+                .andReturn());
+    }
+
+    /** {@code size=1} 로 물어 페이지 건수와 총수가 갈린 상태에서 총수를 읽는다. */
+    private int 총수(String token) throws Exception {
+        return JsonPath.read(페이지_본문(token, 0, 1), "$.data.total_count");
     }
 
     private String 목록_본문(String token) throws Exception {

@@ -71,28 +71,28 @@ public class Bus extends BaseTimeEntity {
     /**
      * 차량 정보를 고친다(BUS-03, §5.12) — {@code null} 인 인자는 <b>고치지 않는다</b>는 뜻이다.
      *
-     * <p>{@code seating} 이 오면 학생 정원을 다시 계산한다. 정원만 갈아 끼우고 계산을 건너뛰면 DB
-     * CHECK 가 그 UPDATE 를 거부해 {@code 500} 이 되고, 그 실패가 정원 정책이 아니라 저장 계층의
-     * 문제로 보인다.
+     * <p>{@code capacity} 만 받고 승무 인원은 받지 않는 것이 이 시그니처의 요점이다 — <b>정원을 바꿔도
+     * 기사·동승자 수는 이 차량이 지금 들고 있는 값 그대로</b>이고, 학생 정원만 그에 맞게 다시 계산된다.
+     * 그 이어받기를 호출부에 맡기면 호출부마다 승무 인원을 어디서 가져올지가 갈리고, 기본값(1·1)으로
+     * 되돌리는 구현과 이어받는 구현이 <b>지금은 같은 값을 내</b> 아무 단언에도 걸리지 않는다
+     * (게이트 리뷰 A4 가 실증). 학원별 승무 인원이 생기는 Phase 에서 조용히 죽는 자리라 여기로 옮겼다.
+     *
+     * <p>정원만 갈아 끼우고 학생 정원 재계산을 건너뛰면 DB CHECK 가 그 UPDATE 를 거부해 {@code 500} 이
+     * 되고, 그 실패가 정원 정책이 아니라 저장 계층의 문제로 보인다.
      */
-    public void update(String busNo, String plateNo, BusSeating seating, Boolean operable) {
+    public void update(String busNo, String plateNo, Integer capacity, Boolean operable) {
         if (busNo != null) {
             this.busNo = busNo;
         }
         if (plateNo != null) {
             this.plateNo = plateNo;
         }
-        if (seating != null) {
-            applySeating(seating);
+        if (capacity != null) {
+            applySeating(new BusSeating(capacity, this.driverCount, this.escortCount));
         }
         if (operable != null) {
             this.operable = operable;
         }
-    }
-
-    /** 현재 승무 인원 구성 — 정원만 바꾸는 수정이 기사·동승자 수를 그대로 이어받게 한다. */
-    public BusSeating seating() {
-        return new BusSeating(capacity, driverCount, escortCount);
     }
 
     private void applySeating(BusSeating seating) {
