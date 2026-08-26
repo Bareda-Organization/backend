@@ -107,6 +107,13 @@ public enum ErrorCode {
     // ⚠ 삭제가 soft delete(deleted_at UPDATE)라 manager→assignment 의 FK RESTRICT 는 발동하지 않는다.
     // DB 가 이것을 막지 못하므로 이 코드를 던지는 선검사가 유일한 방어다.
     MANAGER_ASSIGNED(HttpStatus.CONFLICT, "회차에 배치된 매니저는 삭제할 수 없습니다"),
+    // ── 알림 아웃박스(Phase 4) ──────────────────────────────────────────────────
+    // 같은 dedup_key 의 알림이 이미 적재돼 있을 때(ERD notification_log UNIQUE) — 이벤트가 두 번
+    // 배달됐다는 뜻이다. 그 거부를 옮기지 않으면 DataIntegrityViolationException 이 전역 핸들러의
+    // catch-all 로 떨어져 사용자에게 500 이 나가고, "서버가 고장났다" 와 "이미 통지했다" 가
+    // 구별되지 않는다(AcademyStaffQuota 의 STAFF_QUOTA_EXCEEDED 와 같은 형태).
+    // 403 이 아니라 409 인 것은 막는 것이 권한이 아니라 대상 자원의 상태이기 때문이다.
+    DUPLICATE_NOTIFICATION(HttpStatus.CONFLICT, "이미 적재된 알림입니다"),
 
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다");
 

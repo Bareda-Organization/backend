@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.function.Consumer;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
@@ -11,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.account.dto.SignupDecisionResponse;
 import src.backend.account.entity.Account;
 import src.backend.account.entity.SignupRequest;
+import src.backend.account.event.SignupDecidedEvent;
 import src.backend.account.repository.AccountRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
@@ -32,6 +34,8 @@ public class SignupDecision {
 
     private final AccountRepository accountRepository;
 
+    private final ApplicationEventPublisher eventPublisher;
+
     private final Clock clock;
 
     /**
@@ -42,6 +46,12 @@ public class SignupDecision {
      * ②거절은 사유 검증을 <b>어떤 상태 변경보다 먼저</b> 한다 — 뒤에 두면 422 를 돌려주면서 계정만
      * 거절 상태로 남는다. ③수락은 {@code onAccept} 를 계정 전이보다 먼저 부른다 — 정원 초과로 막힐
      * 승인이 계정을 활성화해 두는 것을 막는다.
+     *
+     * <p>{@link SignupDecidedEvent} 를 <b>여기서</b> 발행하는 이유는 이 메서드가 결정 경로 4개
+     * (승인 축 2 × 결과 2)가 모두 지나는 유일한 자리이기 때문이다. 호출부 둘에 나눠 두면 네 경로 중
+     * 하나를 빠뜨려도 {@code decide} 응답은 그대로 200 이라 아무 테스트도 그것을 보지 못한다.
+     * 알림 모듈을 직접 부르지 않고 이벤트만 던지는 것은 §7 규칙 17 — 직접 부르면 푸시 실패가
+     * 이 트랜잭션을 롤백시킨다.
      *
      * @param request  마감할 요청. 대기 상태가 아니면 {@code 409 APPROVAL_ALREADY_DECIDED}
      * @param decision 수락 여부와 거절 사유
@@ -54,16 +64,18 @@ public class SignupDecision {
         Account account = accountRepository.findById(request.getAccountId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
         OffsetDateTime decidedAt = OffsetDateTime.now(clock);
+        String rejectReason = decision.accept() ? null : requireRejectReason(decision.rejectReason());
 
         if (decision.accept()) {
             onAccept.accept(account);
             account.approveSignup();
             request.accept(deciderId, decidedAt);
         } else {
-            String reason = requireRejectReason(decision.rejectReason());
             account.rejectSignup();
-            request.reject(deciderId, decidedAt, reason);
+            request.reject(deciderId, decidedAt, rejectReason);
         }
+        eventPublisher.publishEvent(new SignupDecidedEvent(account.getAcademyId(), account.getId(),
+                account.getName(), account.getRole(), decision.accept(), rejectReason, decidedAt));
         return SignupDecisionResponse.of(account.getStatus(), decidedAt);
     }
 
