@@ -16,6 +16,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor;
 
+import src.backend.notification.command.NotificationDispatcher;
 import src.backend.notification.domain.NotificationRetryPolicy;
 import src.backend.notification.entity.NotificationLog;
 import src.backend.notification.entity.PushState;
@@ -42,6 +43,12 @@ class NotificationOutboxWorkerTest {
     /** 시드의 재시도 상한 초과 행 — 워커의 회수 대상 밖이다. */
     private static final long 시드_포기_행 = 9L;
 
+    /** 이 클래스가 직접 심는 행의 {@code dedup_key} 접두 — 뒷정리가 이 값 하나로 자기 행만 지운다. */
+    private static final String 픽스처_키_접두 = "p4t1worker:";
+
+    /** 픽스처 행의 수신 계정 — 시드 {@code notification_log} 에 없는 값이다(이 테이블은 FK 부재). */
+    private static final long 픽스처_계정 = 4005L;
+
     /** 시드에서 이미 발송이 끝난 행 8건 — 회수 대상 밖이다. */
     private static final List<Long> 시드_발송완료_행 = List.of(1L, 2L, 3L, 5L, 6L, 7L, 8L, 10L);
 
@@ -59,6 +66,9 @@ class NotificationOutboxWorkerTest {
 
     @Autowired
     private NotificationRetryPolicy retryPolicy;
+
+    @Autowired
+    private NotificationDispatcher notificationDispatcher;
 
     @Autowired
     private Clock clock;
@@ -94,6 +104,7 @@ class NotificationOutboxWorkerTest {
                        sent_at = NULL, fail_reason = NULL
                  WHERE id = ?
                 """, 시드_미발송_행);
+        jdbcTemplate.update("DELETE FROM notification_log WHERE dedup_key LIKE ?", 픽스처_키_접두 + "%");
     }
 
     /**
@@ -127,6 +138,76 @@ class NotificationOutboxWorkerTest {
     }
 
     /**
+     * 방금 시도한 행은 최소 간격이 지나기 전에는 <b>다시 집히지 않는다</b> — 선점 조건의
+     * {@code last_attempt_at} 술어가 지키는 성질이고, {@code MIN_RETRY_INTERVAL} 이 0 이면 무너진다.
+     *
+     * <p><b>경합으로 재지 않는다.</b> 스레드 둘로 같은 행을 겨냥하는 단언
+     * ({@code 같은_pending_행을_워커_둘이_집어도_발송은_1회다})도 이 상수가 0 이면 실패하지만
+     * <b>매번은 아니다</b> — 두 스레드가 각자 자기 시계를 읽는 순서가 결과를 가르기 때문이다. 진 쪽이
+     * 이긴 쪽보다 <b>먼저</b> 시계를 읽었으면 0 간격에서도 선점이 막혀 변형이 살아남는다(리뷰가 3회
+     * 실행에 1회 생존을 실측). 여기서는 시도 시각을 픽스처가 못박고 배달을 <b>한 번만</b> 걸어,
+     * 그 순서 자체를 없앤다.
+     *
+     * <p>P5-T2 의 {@code pg_stat_activity} 대기 기법은 이 자리에 맞지 않는다. 그쪽 비결정성은
+     * "어느 층이 잡는가"(선검사 vs DB 제약)였고 상대가 잠금을 기다리는 것을 확인하면 층이 고정된다.
+     * 여기 비결정성은 <b>두 스레드의 시계 읽기 순서</b>라 잠금 대기 상태가 그것을 말해 주지 않는다.
+     * 게다가 선점 UPDATE 는 저장소 안에서 {@code REQUIRES_NEW} 로 열고 닫혀, 테스트가 그 트랜잭션을
+     * 열어 둔 채 상대를 기다리게 할 지점 자체가 부재하다.
+     */
+    @Test
+    void 방금_시도한_행은_최소_간격_전에는_다시_집히지_않는다() {
+        long 대상 = 픽스처_행을_심는다("recent-attempt", "pending", 1, OffsetDateTime.now(clock));
+
+        notificationDispatcher.dispatch(대상);
+
+        Map<String, Object> row = 알림_행(대상);
+        assertThat((Integer) row.get("push_attempts"))
+                .as("최소 간격이 0 이면 방금 시도한 행을 곧바로 다시 집어, 죽은 단말 하나가 워커의 매 틱을 잡아먹는다")
+                .isEqualTo(1);
+        assertThat(row.get("push_state"))
+                .as("다시 집혔다면 발송까지 뒤따라 상태가 옮겨졌을 것이다")
+                .isEqualTo("pending");
+    }
+
+    /**
+     * 회수 <b>질의</b>도 백오프 술어를 독자적으로 갖는지 본다 — 방금 시도한 행이 후보에 실리면 안 된다.
+     *
+     * <p>바로 위 단언과 겹쳐 보이지만 <b>보는 층이 다르다.</b> 선점 UPDATE 가 같은 조건을 독립으로
+     * 갖고 있어, 질의에서만 조건을 지워도 선점이 대신 막아 위 단언은 통과한다(리뷰가 축 g 로 실측).
+     * 그러면 워커는 매 틱마다 아직 기다려야 할 행 전부를 읽어 선점을 시도하고, 나중에 선점 쪽 조건을
+     * 지우는 사람은 <b>남은 방어가 부재하다는 것을 모른 채</b> 지운다.
+     */
+    @Test
+    void 방금_시도한_행은_회수_후보에서_빠진다() {
+        long 대상 = 픽스처_행을_심는다("recent-candidate", "pending", 1, OffsetDateTime.now(clock));
+
+        assertThat(회수_후보())
+                .as("아직 기다려야 할 행이 후보에 실리면 백오프가 질의 단계에서 통째로 사라진 것이다")
+                .doesNotContain(대상);
+    }
+
+    /**
+     * {@code failed} 행은 <b>재시도 상한에 닿지 않았어도</b> 회수 대상 밖이다 — 지키는 것은
+     * {@code push_state} 술어다.
+     *
+     * <p>시드의 {@code failed} 행(id=9)으로는 이것이 갈리지 않는다. 그 행은
+     * {@code push_attempts=3} 으로 상한과 같아 {@code push_state} 조건을 지워도 <b>시도 횟수
+     * 술어</b>에서 걸린다. 그래서 상한 미만인 {@code failed} 행을 직접 심어 두 술어를 가른다 —
+     * 시드는 고치지 않는다.
+     *
+     * <p>상한 미만의 {@code failed} 는 지금 코드가 만들지 않지만, 운영자가 수동으로 포기시키거나
+     * 상한을 낮추는 순간 생긴다. 그때 이 술어가 없으면 <b>포기한 알림이 되살아난다.</b>
+     */
+    @Test
+    void 상한_미만이어도_failed_행은_회수_후보에서_빠진다() {
+        long 대상 = 픽스처_행을_심는다("failed-below-limit", "failed", 1, null);
+
+        assertThat(회수_후보())
+                .as("포기한 알림이 다시 나가면 수신자는 실패로 끝난 통지를 뒤늦게 받는다")
+                .doesNotContain(대상);
+    }
+
+    /**
      * 회수 <b>질의 자체</b>가 {@code pending} 행만 돌려주는지 본다 — ERD §5 의 부분 인덱스
      * ({@code WHERE push_state='pending'})가 가리키는 술어를 그대로 고정한다.
      *
@@ -137,13 +218,7 @@ class NotificationOutboxWorkerTest {
      */
     @Test
     void 회수_후보_질의는_pending_행만_돌려준다() {
-        OffsetDateTime now = OffsetDateTime.now(clock);
-
-        List<Long> candidates = notificationLogRepository.findRetryCandidates(PushState.PENDING,
-                        NotificationRetryPolicy.MAX_ATTEMPTS, retryPolicy.attemptedBefore(now),
-                        PageRequest.of(0, 100)).stream()
-                .map(NotificationLog::getId)
-                .toList();
+        List<Long> candidates = 회수_후보();
 
         assertThat(candidates)
                 .as("시드의 미발송 행이 후보에 없으면 아래 두 단언은 빈 결과 위에서 통과한다")
@@ -172,6 +247,35 @@ class NotificationOutboxWorkerTest {
                         SELECT push_state, push_attempts, sent_at FROM notification_log WHERE id = ?
                         """, id)));
         return snapshot;
+    }
+
+    /** 지금 시각 기준으로 워커가 집을 후보의 식별자 목록 — 워커가 쓰는 인자를 그대로 넘긴다. */
+    private List<Long> 회수_후보() {
+        return notificationLogRepository.findRetryCandidates(PushState.PENDING,
+                        NotificationRetryPolicy.MAX_ATTEMPTS,
+                        retryPolicy.attemptedBefore(OffsetDateTime.now(clock)), PageRequest.of(0, 100))
+                .stream()
+                .map(NotificationLog::getId)
+                .toList();
+    }
+
+    /**
+     * 이 클래스 전용 알림 행 하나를 심는다 — 시드를 고치지 않고 술어를 가르기 위한 재료다.
+     *
+     * @param lastAttemptAt 마지막 시도 시각. {@code null} 이면 아직 시도한 적이 없는 행이다
+     */
+    private long 픽스처_행을_심는다(String 키, String pushState, int pushAttempts,
+            OffsetDateTime lastAttemptAt) {
+        String dedupKey = 픽스처_키_접두 + 키;
+        jdbcTemplate.update("""
+                INSERT INTO notification_log (academy_id, recipient_account_id, recipient_name,
+                        recipient_role, type, title, body, push_state, push_attempts, last_attempt_at,
+                        dedup_key, created_at)
+                VALUES (1, ?, '조대기', 'parent', 'signup_decided', '가입 심사 안내',
+                        '가입 심사 결과가 나왔습니다.', CAST(? AS varchar), ?, ?, ?, now())
+                """, 픽스처_계정, pushState, pushAttempts, lastAttemptAt, dedupKey);
+        return jdbcTemplate.queryForObject("SELECT id FROM notification_log WHERE dedup_key = ?",
+                Long.class, dedupKey);
     }
 
     private Map<String, Object> 알림_행(long id) {
