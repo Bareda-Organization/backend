@@ -16,6 +16,8 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
+import src.backend.student.entity.Guardian;
+import src.backend.student.repository.LinkedChild;
 
 /**
  * 목표 8(이월 Ruling 117) — 학부모 → {@code GuardianStudent} 연결 확인이 <b>한 지점</b>에서 나는지
@@ -132,8 +134,57 @@ class GuardianChildAccessTest {
                 .isEqualTo(ErrorCode.FORBIDDEN);
     }
 
+    /**
+     * 타 학원 자녀는 <b>목록에도</b> 섞이지 않는다(§1.5).
+     *
+     * <p>위 "타 학원 보호자는 닿지 못한다" 는 단건 판정({@link GuardianChildAccess#assertLinkedChild})
+     * 만 지난다 — 목록 쪽 학원 조건을 지워도 그 단언은 그대로 통과한다. 단건은 막는데 목록이 새는
+     * 상태가 {@code ARCHITECTURE §6.1} 이 지목한 사고 지점이라 축을 따로 세운다.
+     *
+     * <p>학원을 넘는 연결 행을 <b>일부러 심어</b> 본다. 오늘 쓰기 경로
+     * ({@code ChildLinkCommandService.requestLink} 의 {@code findByLoginIdAndAcademyId})가 같은 학원
+     * 쌍만 허용해 이런 행은 실제로 태어나지 않는다 — 그래서 이 조건은 지금 아무것도 막지 않는 것처럼
+     * 보이고, 그것이 리뷰에서 이 조건을 지워도 아무 시험이 물지 않은 이유다. 쓰기 경로가 훗날
+     * 바뀌면(관리자 데이터 보정·별도 등록 경로) 이 조건이 유일한 저지선이 되고, 그때 무너져도
+     * 화면에는 남의 학원 아이가 자녀 목록에 한 줄 늘어난 것으로만 보인다.
+     *
+     * <p>같은 학원 자녀가 <b>여전히 나오는 것</b>을 함께 본다. 없으면 목록을 통째로 비우는 구현이
+     * "섞이지 않았다" 를 그대로 지나간다.
+     */
+    @Test
+    void 타_학원_자녀는_자녀_목록에_섞이지_않는다() {
+        long 학원B_자녀 = 학생_식별자(SeedFixtures.STUDENT_B1_LOGIN_ID);
+        학원을_넘는_연결을_심는다(GUARDIAN_SIBLINGS_ACCOUNT, 학원B_자녀);
+
+        Guardian guardian = guardianChildAccess.requireGuardian(보호자(GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A));
+
+        assertThat(guardianChildAccess.linkedChildren(guardian))
+                .extracting(LinkedChild::getStudentId)
+                .as("연결 행이 학원을 넘어 존재해도 목록은 자기 학원으로 좁혀야 한다")
+                .contains(SIBLING_1_ID)
+                .doesNotContain(학원B_자녀);
+    }
+
     private AuthUser 보호자(long accountId, Long academyId) {
         return new AuthUser(accountId, academyId, Role.PARENT, AccountStatus.ACTIVE);
+    }
+
+    /** 로그인 아이디로 학생 식별자를 얻는다 — 시드 번호를 손으로 옮겨 적으면 시드가 바뀔 때 조용히 어긋난다. */
+    private long 학생_식별자(String loginId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT s.id FROM student s JOIN account a ON a.id = s.account_id WHERE a.login_id = ?",
+                Long.class, loginId);
+    }
+
+    /**
+     * 학원을 넘는 연결 행을 직접 넣는다 — 쓰기 경로로는 만들 수 없는 상태라 SQL 로 심는다.
+     *
+     * <p>조회 API 로 대조군을 만들면 그 API 가 잘못돼도 대조군이 함께 틀려 아무것도 못 잡는다.
+     */
+    private void 학원을_넘는_연결을_심는다(long guardianAccountId, long studentId) {
+        jdbcTemplate.update("INSERT INTO guardian_student (guardian_id, student_id, linked_at)"
+                        + " VALUES ((SELECT id FROM guardian WHERE account_id = ?), ?, now())",
+                guardianAccountId, studentId);
     }
 
     private void 연결을_해제한다(long guardianAccountId, long studentId) {
