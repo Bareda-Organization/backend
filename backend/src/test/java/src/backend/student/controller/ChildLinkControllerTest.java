@@ -415,6 +415,28 @@ class ChildLinkControllerTest {
     }
 
     /**
+     * {@code student_id} 는 <b>JSON 문자열</b>이다(§3.1 · Ruling 171).
+     *
+     * <p>위 시험들의 {@code ?(@.student_id == '4')} 필터로는 이것이 고정되지 않는다 — JsonPath 의
+     * 비교가 느슨해 <b>숫자 {@code 4} 도 문자열 {@code '4'} 와 같다고 판정</b>한다. 실제로 DTO 를
+     * 숫자로 되돌리는 변형을 심었더니 목록 시험 전부가 통과했다(수정 라운드 1 음성 대조 N6).
+     *
+     * <p>그래서 값이 아니라 <b>타입</b>을 본다. 숫자로 나가면 JavaScript 클라이언트가 2^53 을 넘는
+     * 식별자에서 값을 잃고, 그때는 요청이 실패하는 것이 아니라 <b>다른 학생을 가리킨다.</b>
+     */
+    @Test
+    void 자녀_목록의_student_id_는_JSON_문자열이다() throws Exception {
+        MvcResult result = mockMvc.perform(get(CHILDREN)
+                        .header("Authorization", 토큰(GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A, Role.PARENT)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        assertThat((Object) JsonPath.read(본문(result), "$.data.items[0].student_id"))
+                .as("bigint PK 를 숫자로 내보내면 클라이언트가 큰 값에서 정밀도를 잃는다")
+                .isInstanceOf(String.class);
+    }
+
+    /**
      * 연결이 해제된 자녀({@code unlinked_at})는 목록에서 빠진다(ERD {@code guardian_student}).
      *
      * <p>남아 있으면 퇴원으로 관계가 끝난 뒤에도 옛 보호자가 자녀 정보를 계속 조회한다.

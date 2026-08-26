@@ -488,6 +488,49 @@ class StaffStudentControllerTest {
                 .andExpect(jsonPath("$.data.items[?(@.student_id == '%d')]".formatted(안_찾을_학생)).isEmpty());
     }
 
+    /**
+     * {@code student_id} 는 <b>JSON 문자열</b>이다(Ruling 171) — 목록 · 상세 · 퇴원 응답 셋 다.
+     *
+     * <p><b>{@code .value(String.valueOf(...))} 로는 이것이 고정되지 않는다.</b> MockMvc 의
+     * {@code jsonPath(...).value(Object)} 는 실제 값의 타입이 기대값과 다르면 <b>기대 타입으로 다시
+     * 읽어</b> 비교하므로, 숫자 {@code 4} 도 {@code "4"} 와 같다고 판정한다. 실제로 DTO 를 숫자로
+     * 되돌리는 변형을 심었더니 이 클래스 전체가 통과했다(수정 라운드 1 음성 대조 N7).
+     *
+     * <p>그래서 값이 아니라 <b>타입</b>을 본다. 세 응답을 함께 보는 이유는 DTO 가 셋이라 하나만
+     * 고정하면 나머지 둘이 조용히 숫자로 되돌아가기 때문이다.
+     *
+     * <p>숫자로 나가면 JavaScript 클라이언트가 2^53 을 넘는 식별자에서 값을 잃고, 그때는 요청이
+     * 실패하는 것이 아니라 <b>다른 학생을 가리킨다.</b>
+     */
+    @Test
+    void 학생_응답의_student_id_는_JSON_문자열이다() throws Exception {
+        long studentId = 등록한다(등록_본문("P5T1식별자타입", null));
+
+        MvcResult 목록 = mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A))
+                        .param("q", "P5T1식별자타입"))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertThat((Object) JsonPath.read(본문(목록), "$.data.items[0].student_id"))
+                .as("목록 items[].student_id")
+                .isInstanceOf(String.class);
+
+        MvcResult 상세 = mockMvc.perform(get(BASE + "/" + studentId)
+                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertThat((Object) JsonPath.read(본문(상세), "$.data.student_id"))
+                .as("상세 student_id")
+                .isInstanceOf(String.class);
+
+        MvcResult 퇴원 = mockMvc.perform(delete(BASE + "/" + studentId)
+                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertThat((Object) JsonPath.read(본문(퇴원), "$.data.student_id"))
+                .as("퇴원 student_id")
+                .isInstanceOf(String.class);
+    }
+
     // ── 도우미 ────────────────────────────────────────────────────────────
 
     private String 관계자_토큰(Long academyId) {
