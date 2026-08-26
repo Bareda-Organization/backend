@@ -148,6 +148,42 @@ class NotificationOutboxConcurrencyTest {
     }
 
     /**
+     * 이미 발송이 끝난 행에 발송이 다시 걸려도 아무 일도 일어나지 않는다 — 선점 UPDATE 의
+     * {@code push_state='pending'} 조건이 유일한 방어인 자리다.
+     *
+     * <p>워커 경로는 회수 질의가 {@code pending} 으로 좁혀 주지만, <b>즉시 발송은 행 식별자를 받아
+     * 곧장 부른다</b> — 워커가 먼저 보낸 뒤 즉시 발송이 뒤늦게 도착하는 순서에서는 이 조건이
+     * 없으면 그대로 두 번 나간다. 음성 대조에서 이 조건만 지운 변형이 다른 단언을 전부 통과했다.
+     */
+    @Test
+    void 이미_sent_인_행은_다시_발송되지_않는다() {
+        long notificationId = 발송완료_행을_심는다(DEDUP_KEY_PREFIX + "already-sent");
+        발송_횟수.set(0);
+
+        notificationDispatcher.dispatch(notificationId);
+
+        assertThat(발송_횟수.get())
+                .as("이미 보낸 알림이 다시 나가면 수신자는 같은 통지를 두 번 받는다")
+                .isZero();
+        assertThat(시도_횟수(notificationId))
+                .as("시도 횟수가 늘면 선점이 성립한 것이고, 그러면 발송도 뒤따랐어야 한다")
+                .isEqualTo(1);
+    }
+
+    /** 발송이 끝난 행 하나를 직접 심는다 — 아웃박스를 거치면 즉시 발송이 상태를 다시 건드린다. */
+    private long 발송완료_행을_심는다(String dedupKey) {
+        jdbcTemplate.update("""
+                INSERT INTO notification_log (academy_id, recipient_account_id, recipient_name,
+                        recipient_role, type, title, body, push_state, push_attempts, sent_at, dedup_key,
+                        created_at)
+                VALUES (1, 8, '조대기', 'parent', 'signup_decided', '가입 심사 안내',
+                        '가입 심사 결과가 나왔습니다.', 'sent', 1, now(), ?, now())
+                """, dedupKey);
+        return jdbcTemplate.queryForObject("SELECT id FROM notification_log WHERE dedup_key = ?", Long.class,
+                dedupKey);
+    }
+
+    /**
      * 적재 직후 {@code AFTER_COMMIT} 이 이미 한 번 발송한 상태를 <b>적재 직후</b>로 되돌린다.
      *
      * <p>되돌리지 않으면 이 테스트가 보려는 "두 실행이 아직 아무도 집지 않은 행을 동시에 집는" 상황
