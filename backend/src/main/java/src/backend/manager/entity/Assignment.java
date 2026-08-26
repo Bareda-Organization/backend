@@ -73,4 +73,23 @@ public class Assignment {
             Long assignedBy) {
         return new Assignment(runId, managerId, role, assignedAt, assignedBy);
     }
+
+    /**
+     * 이미 채워진 자리에 다른 매니저를 넣는다(MGR-05, API_SPEC §5.14) — 관리 화면에서 담당자를 바꾸는
+     * 정상 조작이라 거부하지 않는다.
+     *
+     * <p><b>확인 응답을 함께 지운다</b>({@code ackedRouteVersionId}·{@code ackedAt}) — 앞 담당자가
+     * 노선을 확인했다는 기록이지 새 담당자가 확인했다는 기록이 아니다. 남겨 두면 노선을 한 번도 보지
+     * 않은 기사가 확인 완료로 표시된다.
+     *
+     * <p>{@code role} 은 바뀌지 않는다 — 자리가 곧 역할이고, 바꾸려면 그 자리의 배치를 지우는 것이지
+     * 이 행의 역할을 뒤집는 것이 아니다({@code uk_assignment_run_role} 이 그 자리를 하나로 고정한다).
+     */
+    public void reassign(Long newManagerId, OffsetDateTime assignedAt, Long assignedBy) {
+        this.managerId = newManagerId;
+        this.assignedAt = assignedAt;
+        this.assignedBy = assignedBy;
+        this.ackedRouteVersionId = null;
+        this.ackedAt = null;
+    }
 }

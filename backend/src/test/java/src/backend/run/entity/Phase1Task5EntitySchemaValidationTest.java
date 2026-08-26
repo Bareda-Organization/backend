@@ -45,6 +45,7 @@ import src.backend.routing.entity.RouteVersionSource;
 import src.backend.routing.entity.RunStop;
 import src.backend.routing.entity.Waypoint;
 import src.backend.schedule.entity.Schedule;
+import src.backend.schedule.entity.SchedulePlan;
 
 import testsupport.db.MigratedPostgresTestBase;
 
@@ -157,8 +158,8 @@ class Phase1Task5EntitySchemaValidationTest extends MigratedPostgresTestBase {
         Long academyId = insertAcademy();
         Long busId = insertBus(academyId);
 
-        Schedule schedule = Schedule.register(academyId, busId, Weekday.MON, Direction.TO_ACADEMY,
-                LocalTime.of(7, 30), "정문", "학원", 40);
+        Schedule schedule = Schedule.register(academyId, new SchedulePlan(busId, Weekday.MON,
+                Direction.TO_ACADEMY, LocalTime.of(7, 30), "정문", "학원", 40, null));
         entityManager.persist(schedule);
         entityManager.flush();
         entityManager.clear();
@@ -197,8 +198,8 @@ class Phase1Task5EntitySchemaValidationTest extends MigratedPostgresTestBase {
     void run_이_idle_상태로_생성되고_스케줄을_참조한다() {
         Long academyId = insertAcademy();
         Long busId = insertBus(academyId);
-        Schedule schedule = Schedule.register(academyId, busId, Weekday.MON, Direction.TO_ACADEMY,
-                LocalTime.of(7, 30), "정문", "학원", 40);
+        Schedule schedule = Schedule.register(academyId, new SchedulePlan(busId, Weekday.MON,
+                Direction.TO_ACADEMY, LocalTime.of(7, 30), "정문", "학원", 40, null));
         entityManager.persist(schedule);
         entityManager.flush();
 

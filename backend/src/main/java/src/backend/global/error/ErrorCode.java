@@ -107,6 +107,28 @@ public enum ErrorCode {
     // ⚠ 삭제가 soft delete(deleted_at UPDATE)라 manager→assignment 의 FK RESTRICT 는 발동하지 않는다.
     // DB 가 이것을 막지 못하므로 이 코드를 던지는 선검사가 유일한 방어다.
     MANAGER_ASSIGNED(HttpStatus.CONFLICT, "회차에 배치된 매니저는 삭제할 수 없습니다"),
+
+    // ── 스케줄 · 회차 · 배치(Phase 5 Task 5) ─────────────────────────────────────
+    // 미존재 스케줄 지정(SCH-01 · API_SPEC §5.10·§8.5). 다른 학원의 스케줄을 지목한 경우도 이 코드다
+    // — BUS_NOT_FOUND 와 같은 형태로, 학원 조건을 쿼리에 넣어 "없음" 과 "남의 학원" 을 같은 빈 결과로
+    // 만들면 존재 여부가 응답에서 사라진다.
+    SCHEDULE_NOT_FOUND(HttpStatus.NOT_FOUND, "스케줄을 찾을 수 없습니다"),
+    // 같은 차량·요일·방향·출발 시각 조합의 스케줄 중복(SCH-01 · API_SPEC §5.10·§8.5, Ruling 153).
+    // 422 가 아니라 409 인 것은 요청 형식이 아니라 자원이 충돌한 것이기 때문이다 — DUPLICATE_BUS_NO 와
+    // 같은 형태다.
+    DUPLICATE_SCHEDULE(HttpStatus.CONFLICT, "이미 등록된 운행 스케줄입니다"),
+    // 미존재 회차 지정(SCH-03 · API_SPEC §5.10·§5.14·§8.4). 타 학원 회차도 이 코드다.
+    RUN_NOT_FOUND(HttpStatus.NOT_FOUND, "회차를 찾을 수 없습니다"),
+    // 같은 차량·날짜·방향·출발 시각의 회차를 임시 추가로 다시 만들려는 시도(SCH-03 · §5.10·§8.4).
+    // ⚠ 일일 회차 생성 배치(SCH-02)는 이 코드를 내지 않는다 — 배치의 중복 실행은 재기동·수동 재실행이라는
+    // 정상 동작이라 오류가 아니라 무시이고, 이미 있는 회차를 조용히 건너뛴다. 같은 UNIQUE 제약이
+    // 두 경로에서 다르게 읽히는 것이 요점이다.
+    DUPLICATE_RUN(HttpStatus.CONFLICT, "이미 등록된 회차입니다"),
+    // 한 회차의 같은 역할을 두 요청이 동시에 채우려 함 — assignment(run_id, role) UNIQUE 위반
+    // (MGR-05 · API_SPEC §5.14·§8.4). 순차 요청은 교체로 처리되므로 이 코드가 나오는 것은 경합뿐이다.
+    // ⚠ 근무 시간·중복 배치 충돌과 다른 축이다 — 그쪽은 경고이고 저장되지만(MGR-06 · Ruling 152)
+    // 이쪽은 저장 자체가 거부된다. 두 축을 섞으면 경고가 차단으로 굳는다.
+    DUPLICATE_ASSIGNMENT(HttpStatus.CONFLICT, "이미 배치된 역할입니다"),
     // ── 알림 아웃박스(Phase 4) ──────────────────────────────────────────────────
     // 같은 dedup_key 의 알림이 이미 적재돼 있을 때(ERD notification_log UNIQUE) — 이벤트가 두 번
     // 배달됐다는 뜻이다. 그 거부를 옮기지 않으면 DataIntegrityViolationException 이 전역 핸들러의

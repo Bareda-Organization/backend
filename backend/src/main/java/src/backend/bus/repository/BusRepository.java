@@ -1,5 +1,7 @@
 package src.backend.bus.repository;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
@@ -29,6 +31,15 @@ public interface BusRepository extends JpaRepository<Bus, Long> {
      * 과 같은 형태).
      */
     Optional<Bus> findByIdAndAcademyId(Long id, Long academyId);
+
+    /**
+     * 여러 차량을 한 번에 읽는다 — 목록 응답이 행마다 호차를 붙일 때 쓴다(SCH-01 · SCH-02).
+     *
+     * <p>{@code findAllById} 를 쓰지 않는 이유는 그것이 <b>학원 조건을 붙일 자리가 부재한</b> 전건
+     * 조회이기 때문이다(횡단 규칙 7 · {@code AcademyScopeRepositoryConventionTest}) — id 목록이 어디서
+     * 왔든 남의 학원 차량이 섞이면 그 호차가 목록에 실린다.
+     */
+    List<Bus> findAllByAcademyIdAndIdIn(Long academyId, Collection<Long> ids);
 
     /**
      * 같은 학원에 같은 호차가 이미 있는지 본다 — {@code uk_bus_academy_bus_no} 위반을 저장 전에 막는다.

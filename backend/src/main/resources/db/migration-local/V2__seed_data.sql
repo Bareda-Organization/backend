@@ -172,15 +172,41 @@ VALUES
     (3, 2, '1호차', '34나1111', 12, 1, 1, 10, true, now(), now());
 
 -- 매니저(기사·동승자) — A 기사2·동승자2(+차단 1) · B 각 1.
+--
+-- work_hours 는 Ruling 150 이 고정한 형태다 — {"요일": [{"start":"HH:mm","end":"HH:mm"}, ...]}.
+-- 요일 키가 없으면 그 요일 근무 없음이고, 값이 배열인 것은 오전·오후로 갈리는 근무가 실재하기 때문이다.
+-- jsonb 는 스키마가 부재해 DB 가 이 형태를 막지 못하므로, 여기서 어긋나면 MGR-06 겹침 판정이
+-- 시드 매니저를 되읽는 순간 막힌다(Ruling 162 — 옛 시드는 요일 키 없는 평평한 객체였다).
+--
+-- 6명을 같은 시각으로 두지 않는다. 시드는 그럴듯한 데모 데이터가 아니라 검증 재료이고,
+-- 전원이 같은 근무 시간이면 배치 충돌 경고(MGR-06)를 시험할 재료가 부재하다. 회차 출발 시각
+-- (등원 08:00~08:20 · 하원 16:00~16:20)에 대해 아래 넷이 갈린다.
+--   강기사·서동승·남기사 = 오전+오후 · 7일   → 등원·하원 모두 적합(경고 부재)
+--   오기사               = 오전만  · 7일     → 하원 배치 시 근무 시간 밖
+--   문동승               = 오후만  · 7일     → 등원 배치 시 근무 시간 밖
+--   류동승               = 오전+오후 · 평일만 → 주말 배치 시 요일 키 부재(= 그 요일 근무 없음)
+--   차단기사(id=7)       = NULL              → 판정 근거 부재. "적합해서 조용한 것"과 갈리는 별도 경고
 INSERT INTO manager (id, academy_id, account_id, role, name, phone, work_hours, created_at, updated_at)
 OVERRIDING SYSTEM VALUE
 VALUES
-    (1, 1, 13, 'driver', '강기사', '010-5000-0001', '{"start":"07:30","end":"17:30"}'::jsonb, now(), now()),
-    (2, 1, 14, 'driver', '오기사', '010-5000-0002', '{"start":"07:40","end":"17:40"}'::jsonb, now(), now()),
-    (3, 1, 17, 'escort', '서동승', '010-7000-0001', '{"start":"07:30","end":"17:30"}'::jsonb, now(), now()),
-    (4, 1, 18, 'escort', '문동승', '010-7000-0002', '{"start":"07:40","end":"17:40"}'::jsonb, now(), now()),
-    (5, 2, 16, 'driver', '남기사', '010-6000-0001', '{"start":"07:30","end":"17:30"}'::jsonb, now(), now()),
-    (6, 2, 19, 'escort', '류동승', '010-8000-0001', '{"start":"07:30","end":"17:30"}'::jsonb, now(), now()),
+    (1, 1, 13, 'driver', '강기사', '010-5000-0001',
+        (SELECT jsonb_object_agg(d, '[{"start":"07:00","end":"10:00"},{"start":"15:30","end":"18:30"}]'::jsonb)
+           FROM unnest(ARRAY['mon','tue','wed','thu','fri','sat','sun']) d), now(), now()),
+    (2, 1, 14, 'driver', '오기사', '010-5000-0002',
+        (SELECT jsonb_object_agg(d, '[{"start":"07:00","end":"10:00"}]'::jsonb)
+           FROM unnest(ARRAY['mon','tue','wed','thu','fri','sat','sun']) d), now(), now()),
+    (3, 1, 17, 'escort', '서동승', '010-7000-0001',
+        (SELECT jsonb_object_agg(d, '[{"start":"07:00","end":"10:00"},{"start":"15:30","end":"18:30"}]'::jsonb)
+           FROM unnest(ARRAY['mon','tue','wed','thu','fri','sat','sun']) d), now(), now()),
+    (4, 1, 18, 'escort', '문동승', '010-7000-0002',
+        (SELECT jsonb_object_agg(d, '[{"start":"15:30","end":"18:30"}]'::jsonb)
+           FROM unnest(ARRAY['mon','tue','wed','thu','fri','sat','sun']) d), now(), now()),
+    (5, 2, 16, 'driver', '남기사', '010-6000-0001',
+        (SELECT jsonb_object_agg(d, '[{"start":"07:00","end":"10:00"},{"start":"15:30","end":"18:30"}]'::jsonb)
+           FROM unnest(ARRAY['mon','tue','wed','thu','fri','sat','sun']) d), now(), now()),
+    (6, 2, 19, 'escort', '류동승', '010-8000-0001',
+        (SELECT jsonb_object_agg(d, '[{"start":"07:00","end":"10:00"},{"start":"15:30","end":"18:30"}]'::jsonb)
+           FROM unnest(ARRAY['mon','tue','wed','thu','fri']) d), now(), now()),
     -- id=7: §3.4 명시 인원(A 기사 2명) 초과분이지만 blocked 계정(driverBlocked, id=15)의 매니저
     -- 프로필을 시연하려는 의도적 추가다 — §3.4 대조만으로 "초과분"이라 오인해 지우지 말 것.
     (7, 1, 15, 'driver', '차단기사', '010-5000-0099', NULL, now(), now());

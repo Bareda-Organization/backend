@@ -143,8 +143,8 @@ class AuthFlowIntegrationTest {
      * 것이 곧 사고 지점이 된다. Phase 2 시점에는 프로덕션 핸들러가 12개뿐이라 허용 밖이
      * {@code POST /auth/password}·{@code POST /auth/signup/reapply} 둘이었고 그래서 거부측이 2개였다 —
      * Phase 3 이 핸들러를 12개 늘려(총 24개) 그 근거가 소멸했으므로 목록을 함께 늘렸다(Ruling 133,
-     * Phase 3 목표 6). Phase 5 가 학생 관리 5개와 차량·매니저 7개를 같은 이유로 더했다. 개수를
-     * 채우려고 엔드포인트를 새로 만들지 않는다.
+     * Phase 3 목표 6). Phase 5 가 학생 관리 5개 · 차량·매니저 7개 ·
+     * 스케줄 4개 · 회차와 배치 4개를 같은 이유로 더했다. 개수를 채우려고 엔드포인트를 새로 만들지 않는다.
      */
     @Test
     void pending_토큰은_허용_5개를_통과하고_허용_밖_실제_엔드포인트_전부에서_403_AUTH_PENDING_이다() throws Exception {
@@ -170,9 +170,10 @@ class AuthFlowIntegrationTest {
     void 거부측_목록이_허용_목록_밖_실제_핸들러_전부와_일치한다() {
         List<String> all = AccountStatusGateEndpoints.productionEndpoints(handlerMapping, handlerMethod -> true);
         assertThat(all)
-                .as("프로덕션 핸들러 36개 — 늘었는데 이 단언만 고치면 거부측 목록이 낡는다. "
-                        + "Phase 2 의 12 + Phase 3 의 12 + Phase 5 의 12(학생 5 + 차량·매니저 7)")
-                .hasSize(36);
+                .as("프로덕션 핸들러 44개 — 늘었는데 이 단언만 고치면 거부측 목록이 낡는다. "
+                        + "Phase 2 의 12 + Phase 3 의 12 + Phase 5 의 20"
+                        + "(학생 5 + 차량·매니저 7 + 스케줄 4 + 회차·배치 4)")
+                .hasSize(44);
 
         assertThat(AccountStatusGateEndpoints.productionEndpoints(
                 handlerMapping, AccountStatusGateEndpoints::deniedWhenPending))
