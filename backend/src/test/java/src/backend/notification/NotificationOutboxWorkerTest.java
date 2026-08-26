@@ -2,6 +2,8 @@ package src.backend.notification;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Clock;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -10,9 +12,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor;
 
+import src.backend.notification.domain.NotificationRetryPolicy;
+import src.backend.notification.entity.NotificationLog;
+import src.backend.notification.entity.PushState;
+import src.backend.notification.repository.NotificationLogRepository;
 import src.backend.notification.scheduler.NotificationOutboxWorker;
 
 /**
@@ -47,9 +54,40 @@ class NotificationOutboxWorkerTest {
     @Autowired
     private ScheduledAnnotationBeanPostProcessor scheduledPostProcessor;
 
+    @Autowired
+    private NotificationLogRepository notificationLogRepository;
+
+    @Autowired
+    private NotificationRetryPolicy retryPolicy;
+
+    @Autowired
+    private Clock clock;
+
+    /**
+     * 시드 알림 10건의 <b>발송 상태를 전부</b> 시드 값으로 되돌린다.
+     *
+     * <p>미발송 행 하나만 되돌리면 부족하다. 같은 클래스의 다른 테스트가 {@code sweep()} 을 이미
+     * 돌린 뒤라면 발송 완료 행의 {@code push_attempts} 가 그 실행으로 이미 올라가 있고, 그 값을
+     * "이전" 으로 찍는 순간 <b>회수 조건이 빠진 워커도 통과한다</b> — 두 번째 실행은 백오프에 막혀
+     * 더 올리지 못하기 때문이다. 음성 대조에서 실제로 그 형태로 변형이 살아남아 이 되돌리기를 넓혔다.
+     *
+     * <p>{@code last_attempt_at} 을 함께 비우는 것이 요점이다 — 그것이 남아 있으면 백오프가 워커를
+     * 막아, 회수 조건을 검사하는 자리에 도달하지 못한다.
+     */
     @BeforeEach
     @AfterEach
     void 시드_알림을_되돌린다() {
+        jdbcTemplate.update("""
+                UPDATE notification_log
+                   SET push_state = 'sent', push_attempts = 1, last_attempt_at = NULL, fail_reason = NULL
+                 WHERE id IN (1, 2, 3, 5, 6, 7, 8, 10)
+                """);
+        jdbcTemplate.update("""
+                UPDATE notification_log
+                   SET push_state = 'failed', push_attempts = 3, last_attempt_at = NULL, sent_at = NULL,
+                       fail_reason = 'FCM 토큰 만료'
+                 WHERE id = ?
+                """, 시드_포기_행);
         jdbcTemplate.update("""
                 UPDATE notification_log
                    SET push_state = 'pending', push_attempts = 0, last_attempt_at = NULL,
@@ -86,6 +124,32 @@ class NotificationOutboxWorkerTest {
         assertThat((Integer) row.get("push_attempts"))
                 .as("시도 횟수가 늘지 않으면 재시도 상한 판정이 영영 성립하지 않아 포기할 수단이 부재하다")
                 .isEqualTo(1);
+    }
+
+    /**
+     * 회수 <b>질의 자체</b>가 {@code pending} 행만 돌려주는지 본다 — ERD §5 의 부분 인덱스
+     * ({@code WHERE push_state='pending'})가 가리키는 술어를 그대로 고정한다.
+     *
+     * <p>아래 {@code push_attempts 불변} 단언과 겹쳐 보이지만 <b>보는 자리가 다르다.</b> 발송 직전의
+     * 선점 UPDATE 도 같은 조건을 갖고 있어, 회수 질의에서 조건을 지워도 선점이 대신 막아 그 단언은
+     * 통과한다(음성 대조 실측). 그러면 워커는 매 틱마다 이미 끝난 행 전부를 읽어 선점을 시도하고,
+     * 나중에 선점 조건까지 지우는 사람은 <b>남은 방어가 하나도 없다는 것을 모른 채</b> 지운다.
+     */
+    @Test
+    void 회수_후보_질의는_pending_행만_돌려준다() {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+
+        List<Long> candidates = notificationLogRepository.findRetryCandidates(PushState.PENDING,
+                        NotificationRetryPolicy.MAX_ATTEMPTS, retryPolicy.attemptedBefore(now),
+                        PageRequest.of(0, 100)).stream()
+                .map(NotificationLog::getId)
+                .toList();
+
+        assertThat(candidates)
+                .as("시드의 미발송 행이 후보에 없으면 아래 두 단언은 빈 결과 위에서 통과한다")
+                .contains(시드_미발송_행)
+                .doesNotContainAnyElementsOf(시드_발송완료_행)
+                .doesNotContain(시드_포기_행);
     }
 
     @Test
