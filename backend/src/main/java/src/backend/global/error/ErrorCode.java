@@ -91,6 +91,14 @@ public enum ErrorCode {
     // 갈리면 클라이언트가 분기를 두 벌 만들게 된다.
     SIGNUP_TARGET_BLOCKED(HttpStatus.CONFLICT, "차단된 계정은 승인할 수 없습니다"),
 
+    // ── 알림 아웃박스(Phase 4) ──────────────────────────────────────────────────
+    // 같은 dedup_key 의 알림이 이미 적재돼 있을 때(ERD notification_log UNIQUE) — 이벤트가 두 번
+    // 배달됐다는 뜻이다. 그 거부를 옮기지 않으면 DataIntegrityViolationException 이 전역 핸들러의
+    // catch-all 로 떨어져 사용자에게 500 이 나가고, "서버가 고장났다" 와 "이미 통지했다" 가
+    // 구별되지 않는다(AcademyStaffQuota 의 STAFF_QUOTA_EXCEEDED 와 같은 형태).
+    // 403 이 아니라 409 인 것은 막는 것이 권한이 아니라 대상 자원의 상태이기 때문이다.
+    DUPLICATE_NOTIFICATION(HttpStatus.CONFLICT, "이미 적재된 알림입니다"),
+
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다");
 
     private final HttpStatus status;

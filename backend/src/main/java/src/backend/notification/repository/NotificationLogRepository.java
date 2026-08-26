@@ -94,21 +94,29 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
             Pageable limit);
 
     /**
-     * 발송을 시도했다는 사실을 행에 남긴다 — 시도 횟수를 올리고 마지막 시도 시각을 찍는다.
+     * 발송할 행을 <b>선점</b>한다 — 시도 횟수를 올리고 마지막 시도 시각을 찍는 한 번의 조건부 UPDATE 다.
      *
-     * <p>시도 기록이 없으면 재시도 상한도 지수 백오프도 판정할 근거가 부재해, 죽은 단말 하나가
-     * 워커의 매 틱을 영원히 잡아먹는다.
+     * <p>시도 기록과 선점이 같은 문장인 것이 요점이다. 기록만 하는 무조건 UPDATE 로 두면 즉시 발송과
+     * 워커가 <b>둘 다</b> 통과해 수신자가 같은 알림을 두 번 받는다 — 그때도 행은 1건이라
+     * {@code dedup_key} UNIQUE 는 아무것도 막지 못한다. 이 경합은 INSERT 경합이 아니라 선점 경합이다.
      *
-     * @return 1 = 기록함
+     * <p>{@code lastAttemptAt} 조건이 선점의 본체다. 진 쪽은 이긴 쪽의 UPDATE 가 커밋될 때까지 행
+     * 잠금에서 기다렸다가 <b>새 값으로</b> 조건을 다시 보고 0 행을 얻는다. 그래서
+     * {@code MIN_RETRY_INTERVAL} 이 0 이면 안 된다 — 0 이면 방금 찍힌 시각도 조건을 통과한다.
+     *
+     * @param attemptedBefore 이 시각보다 이전에 시도된 행만 다시 집을 수 있다
+     * @return 1 = 선점 성공, 0 = 다른 실행이 이미 집었거나 {@code pending} 이 아님
      */
-    @AcademyScopeExempt(reason = "아웃박스 발송 시도 기록 — markSent 와 같은 축이다. 대상이 id 로 특정된 "
+    @AcademyScopeExempt(reason = "아웃박스 발송 선점 — markSent 와 같은 축이다. 대상이 id 로 특정된 "
             + "단건이고 학원 범위가 판정에 개입 부재")
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             update NotificationLog n
                set n.pushAttempts = n.pushAttempts + 1, n.lastAttemptAt = :now
-             where n.id = :id
+             where n.id = :id and n.pushState = :pending
+               and (n.lastAttemptAt is null or n.lastAttemptAt <= :attemptedBefore)
             """)
-    int recordAttempt(@Param("id") Long id, @Param("now") OffsetDateTime now);
+    int claim(@Param("id") Long id, @Param("pending") PushState pending,
+            @Param("attemptedBefore") OffsetDateTime attemptedBefore, @Param("now") OffsetDateTime now);
 }

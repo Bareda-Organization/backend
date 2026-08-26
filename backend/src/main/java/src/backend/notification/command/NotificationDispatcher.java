@@ -42,6 +42,9 @@ public class NotificationDispatcher {
     /**
      * 한 건을 발송한다. 발송 실패는 예외로 새어 나가지 않고 행에 기록된다 — 즉시 발송 경로가
      * {@code AFTER_COMMIT} 리스너라, 예외를 던지면 <b>이미 커밋된</b> 상태 변경의 응답이 뒤집힌다.
+     *
+     * <p><b>선점에 실패하면 아무것도 하지 않는다.</b> 즉시 발송과 워커가 같은 행을 겨냥하는 것은
+     * 정상이며(하나는 빠르라고, 하나는 잃지 말라고 있다), 둘 다 보내는 것이 사고다.
      */
     public void dispatch(Long notificationId) {
         NotificationLog target = notificationLogRepository.findById(notificationId).orElse(null);
@@ -49,7 +52,10 @@ public class NotificationDispatcher {
             return;
         }
         OffsetDateTime now = OffsetDateTime.now(clock);
-        notificationLogRepository.recordAttempt(notificationId, now);
+        if (notificationLogRepository.claim(notificationId, PushState.PENDING,
+                retryPolicy.attemptedBefore(now), now) == 0) {
+            return;
+        }
         send(target, target.getPushAttempts() + 1, now);
     }
 
