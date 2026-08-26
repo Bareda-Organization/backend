@@ -30,7 +30,10 @@ public final class AccountStatusGateEndpoints {
     /**
      * {@code rejected} 계정이 두드리면 {@code 403 AUTH_REJECTED} 여야 하는 실제 핸들러 — 허용 6개
      * ({@code @AllowedWhenPending} 5 + {@code @AllowedWhenRejected} 1)와 {@code @PublicEndpoint} 5개를
-     * 뺀 나머지 전부다. 경로는 컨트롤러 소스의 bare path 로 적고 접두사는 {@link #request} 가 붙인다.
+     * 뺀 나머지 전부다. 경로는 컨트롤러 소스의 bare path 로 적고 접두사는 {@link #uriOf} 가 붙인다.
+     *
+     * <p>Phase 5 가 {@code /staff/buses} 3개와 {@code /staff/managers} 4개를 더했다 — 차량·매니저는
+     * 관계자 전용 관리 화면이라 승인 대기·거절 계정에 열어 줄 근거가 부재하다.
      */
     public static final List<String> DENIED_WHEN_REJECTED = List.of(
             "POST /auth/password",
@@ -45,7 +48,14 @@ public final class AccountStatusGateEndpoints {
             "GET /admin/staff-signup-requests",
             "POST /admin/staff-signup-requests/{id}/decide",
             "GET /staff/signup-requests",
-            "POST /staff/signup-requests/{id}/decide");
+            "POST /staff/signup-requests/{id}/decide",
+            "GET /staff/buses",
+            "POST /staff/buses",
+            "PATCH /staff/buses/{id}",
+            "GET /staff/managers",
+            "POST /staff/managers",
+            "PATCH /staff/managers/{id}",
+            "DELETE /staff/managers/{id}");
 
     /** {@code pending} 의 거부측 — {@code rejected} 거부측에 재신청 1개를 더한다({@code @AllowedWhenRejected} 는 pending 을 열지 않는다). */
     public static final List<String> DENIED_WHEN_PENDING = concat(DENIED_WHEN_REJECTED, "POST /auth/signup/reapply");

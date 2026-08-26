@@ -31,9 +31,10 @@ import src.backend.global.error.ErrorCode;
  * 이 태스크(Phase 1) 범위 밖이다. {@code deletedAt} 은 soft delete 컬럼이며 필터(`@Where` 등)를
  * 이 태스크에서 붙이지 않는다.
  *
- * <p>{@code workHours} 는 등록 시점에 비어 있을 수 있어(nullable) 팩토리 파라미터로 직접 받는다 —
- * {@code Academy.register()} 가 nullable {@code address}·{@code contact} 를 직접 받는 것과 같은
- * 패턴이다.
+ * <p>{@code workHours} 는 {@code jsonb} 라 스키마가 부재하고 DB 가 형태를 막지 못한다 — 형태를
+ * 고정하고 검증하는 자리는 {@link WorkHours} 이고, 이 엔티티는 <b>그 타입을 거친 값만</b> 담는다.
+ * 컬럼 타입이 {@code Map} 인 것은 읽기 쪽 때문이다 — 이 타입이 생기기 전에 적재된 행이 실재해
+ * (로컬 시드), 강타입으로 읽으면 그 행을 조회하는 것만으로 실패한다.
  */
 @Entity
 @Table(name = "manager")
@@ -70,18 +71,60 @@ public class Manager extends BaseTimeEntity {
     @Column(name = "deleted_at")
     private OffsetDateTime deletedAt;
 
-    private Manager(Long academyId, String name, String phone, ManagerRole role, Map<String, Object> workHours) {
+    private Manager(Long academyId, ManagerProfile profile) {
         this.academyId = academyId;
-        this.name = name;
-        this.phone = phone;
-        this.role = role;
-        this.workHours = workHours;
+        this.name = profile.name();
+        this.phone = profile.phone();
+        this.role = profile.role();
+        this.workHours = columnValueOf(profile.workHours());
     }
 
-    /** 학원 관리자가 기사·동승자를 등록할 때 생성한다(MGR-01) — 계정 연결은 이후 별도로 채워진다. */
-    public static Manager register(Long academyId, String name, String phone, ManagerRole role,
-            Map<String, Object> workHours) {
-        return new Manager(academyId, name, phone, role, workHours);
+    /** 학원 관계자가 기사·동승자를 등록할 때 생성한다(MGR-02, §5.13) — 계정 연결은 이후 별도로 채워진다. */
+    public static Manager register(Long academyId, ManagerProfile profile) {
+        return new Manager(academyId, profile);
+    }
+
+    /**
+     * 매니저 정보를 고친다(MGR-03, §5.13) — {@code null} 인 항목은 <b>고치지 않는다</b>는 뜻이다.
+     *
+     * <p>{@code role} 변경이 곧 앱 권한 변경이다(C-06 · §5.13) — 기사를 동승자로 바꾸면 그 계정이
+     * 승하차를 기록할 수 있게 되고 운행 시작 권한을 잃는다.
+     */
+    public void update(ManagerProfile profile) {
+        if (profile.name() != null) {
+            this.name = profile.name();
+        }
+        if (profile.phone() != null) {
+            this.phone = profile.phone();
+        }
+        if (profile.role() != null) {
+            this.role = profile.role();
+        }
+        if (profile.workHours() != null) {
+            this.workHours = columnValueOf(profile.workHours());
+        }
+    }
+
+    /**
+     * 매니저를 삭제한다(MGR-04, §5.13) — 행을 지우지 않고 {@code deletedAt} 을 채우는 soft delete 다
+     * (ERD §7.1).
+     *
+     * <p>행을 남기는 이유는 지난 회차의 {@code assignment} 가 이 행을 가리키기 때문이다 — 지우면
+     * 과거 운행의 담당자가 누구였는지 답할 수단이 사라진다.
+     *
+     * <p>시각을 파라미터로 받는다(Ruling 62 · 횡단 규칙 1) — 호출부가 {@code Clock} 에서 얻어 넘긴다.
+     */
+    public void delete(OffsetDateTime deletedAt) {
+        this.deletedAt = deletedAt;
+    }
+
+    /** 이미 삭제된 매니저인가 — 목록에서 빠지고 다시 삭제되지 않는다. */
+    public boolean isDeleted() {
+        return deletedAt != null;
+    }
+
+    private static Map<String, Object> columnValueOf(WorkHours workHours) {
+        return workHours == null ? null : workHours.toColumnValue();
     }
 
     /**

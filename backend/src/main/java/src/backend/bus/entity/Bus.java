@@ -16,9 +16,9 @@ import src.backend.global.common.BaseTimeEntity;
 /**
  * 차량 — 정원 초과 차단의 기준값을 보유한다(ERD §3.3 · BUS-01~04 · A-11).
  *
- * <p>{@code student_capacity} 는 {@code capacity - driver_count - escort_count} 의 DB
- * CHECK(`ck_bus_student_capacity`)로 정합성이 강제되는 계산값이지만, 그 계산 자체는 이 태스크의
- * 범위 밖(Phase 5)이라 팩토리는 호출자가 미리 계산해 넘긴 값을 그대로 저장한다.
+ * <p>{@code studentCapacity} 를 파라미터로 받지 않고 {@link BusSeating} 이 계산한 값만 담는다 —
+ * 요청이 실어 보낸 정원을 그대로 저장하는 경로를 <b>타입에서 없앤 것</b>이 §5.12 의 "응답 전용,
+ * 관계자가 입력하지 않음" 을 지키는 방식이다.
  */
 @Entity
 @Table(name = "bus")
@@ -55,26 +55,50 @@ public class Bus extends BaseTimeEntity {
     @Column(name = "operable", nullable = false)
     private boolean operable;
 
-    private Bus(Long academyId, String busNo, String plateNo, int capacity, int driverCount, int escortCount,
-            int studentCapacity) {
+    private Bus(Long academyId, String busNo, String plateNo, BusSeating seating) {
         this.academyId = academyId;
         this.busNo = busNo;
         this.plateNo = plateNo;
-        this.capacity = capacity;
-        this.driverCount = driverCount;
-        this.escortCount = escortCount;
-        this.studentCapacity = studentCapacity;
         this.operable = true;
+        applySeating(seating);
+    }
+
+    /** 학원 관계자가 차량을 등록할 때 생성한다(BUS-02, §5.12) — 운행 가능 상태로 시작한다. */
+    public static Bus register(Long academyId, String busNo, String plateNo, BusSeating seating) {
+        return new Bus(academyId, busNo, plateNo, seating);
     }
 
     /**
-     * 학원 관리자가 차량을 등록할 때 생성한다(BUS-01) — 운행 가능 상태로 시작한다.
+     * 차량 정보를 고친다(BUS-03, §5.12) — {@code null} 인 인자는 <b>고치지 않는다</b>는 뜻이다.
      *
-     * <p>{@code studentCapacity} 는 DB CHECK 가 {@code capacity - driverCount - escortCount} 와
-     * 일치하는지 검증할 값이며, 그 계산은 호출자(Phase 5) 책임이다.
+     * <p>{@code seating} 이 오면 학생 정원을 다시 계산한다. 정원만 갈아 끼우고 계산을 건너뛰면 DB
+     * CHECK 가 그 UPDATE 를 거부해 {@code 500} 이 되고, 그 실패가 정원 정책이 아니라 저장 계층의
+     * 문제로 보인다.
      */
-    public static Bus register(Long academyId, String busNo, String plateNo, int capacity, int driverCount,
-            int escortCount, int studentCapacity) {
-        return new Bus(academyId, busNo, plateNo, capacity, driverCount, escortCount, studentCapacity);
+    public void update(String busNo, String plateNo, BusSeating seating, Boolean operable) {
+        if (busNo != null) {
+            this.busNo = busNo;
+        }
+        if (plateNo != null) {
+            this.plateNo = plateNo;
+        }
+        if (seating != null) {
+            applySeating(seating);
+        }
+        if (operable != null) {
+            this.operable = operable;
+        }
+    }
+
+    /** 현재 승무 인원 구성 — 정원만 바꾸는 수정이 기사·동승자 수를 그대로 이어받게 한다. */
+    public BusSeating seating() {
+        return new BusSeating(capacity, driverCount, escortCount);
+    }
+
+    private void applySeating(BusSeating seating) {
+        this.capacity = seating.capacity();
+        this.driverCount = seating.driverCount();
+        this.escortCount = seating.escortCount();
+        this.studentCapacity = seating.studentCapacity();
     }
 }
