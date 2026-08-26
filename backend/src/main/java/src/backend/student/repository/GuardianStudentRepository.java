@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.student.entity.GuardianStudent;
 
+/** {@link GuardianStudent} 영속성 접근. */
 public interface GuardianStudentRepository extends JpaRepository<GuardianStudent, Long> {
     /** 해지되지 않은(unlinked_at IS NULL) 연결만 센다 — §2.10 linked_student_count. */
     @AcademyScopeExempt(reason = "§2.10 본인 연결 학생 수 — guardian_student 는 guardian 부모 경유라 보호자가 곧 학원 범위. "
@@ -27,6 +28,49 @@ public interface GuardianStudentRepository extends JpaRepository<GuardianStudent
             + "호출부가 토큰 계정으로 찾은 Guardian 의 id 와 학원 조건으로 좁혀 조회한 Student 의 id 만 넘긴다는 전제 — "
             + "요청 파라미터의 guardianId 를 넘기면 타 학원 보호자의 연결 여부가 새어 이 예외가 우회로가 된다")
     boolean existsByGuardianIdAndStudentId(Long guardianId, Long studentId);
+
+    /**
+     * 이 보호자가 <b>지금</b> 이 자녀에 닿을 수 있는가 — 학부모 API 접근 범위 판정의 근거다(§1.5).
+     *
+     * <p>{@code unlinked_at IS NULL} 이 조건에 들어간다. 위 {@link #existsByGuardianIdAndStudentId}
+     * 와 <b>일부러 다른 조건</b>이다 — 저쪽은 UNIQUE 제약(해지 여부 부재)과 짝을 맞춰 재연결을 막는
+     * 물음이고, 이쪽은 "지금 보호자인가" 를 묻는다. 해지된 연결을 살아 있는 것으로 세면 퇴원으로
+     * 관계가 끝난 뒤에도 옛 보호자가 자녀 정보를 계속 조회한다(ERD §7.1 · UF-P-01).
+     *
+     * <p>학원 조건은 {@code student} 부모를 조인해 건다(ERD §6.1 부모 경유).
+     */
+    @Query("""
+            SELECT COUNT(gs) > 0 FROM GuardianStudent gs
+            JOIN Student s ON s.id = gs.studentId
+            WHERE gs.guardianId = :guardianId
+              AND gs.studentId = :studentId
+              AND gs.unlinkedAt IS NULL
+              AND s.academyId = :academyId
+            """)
+    boolean existsActiveLink(@Param("guardianId") Long guardianId, @Param("studentId") Long studentId,
+            @Param("academyId") Long academyId);
+
+    /**
+     * 한 보호자의 자녀 목록(ATT-03, §3.1) — 해지되지 않은 연결만이다.
+     *
+     * <p>{@link LinkedChild} 로 <b>네 값만</b> 꺼낸다. {@code Student} 를 통째로 꺼내면 사진·특이사항이
+     * 함께 손에 들어오고, 그러면 응답 조립이 그것을 빼는 데 성공해야만 §1.12 가 지켜진다.
+     *
+     * <p>정렬을 고정한다 — 자녀 선택 UI(2명 이상일 때 노출)의 순서가 새로고침마다 바뀌면 사용자가
+     * 매번 다른 자리에서 같은 아이를 찾는다.
+     */
+    @Query("""
+            SELECT gs.studentId AS studentId, s.name AS name, s.className AS className,
+                   gs.linkedAt AS linkedAt
+            FROM GuardianStudent gs
+            JOIN Student s ON s.id = gs.studentId
+            WHERE gs.guardianId = :guardianId
+              AND gs.unlinkedAt IS NULL
+              AND s.academyId = :academyId
+            ORDER BY gs.linkedAt ASC, gs.studentId ASC
+            """)
+    List<LinkedChild> findLinkedChildren(@Param("guardianId") Long guardianId,
+            @Param("academyId") Long academyId);
 
     /**
      * 학생들의 보호자 연락처를 한 번에 모은다(A-10, API_SPEC §5.11 {@code items[].guardian_phone}).

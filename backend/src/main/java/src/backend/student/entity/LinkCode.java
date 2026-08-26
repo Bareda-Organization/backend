@@ -58,4 +58,27 @@ public class LinkCode {
             OffsetDateTime createdAt) {
         return new LinkCode(linkRequestId, code, expiresAt, createdAt);
     }
+
+    /**
+     * 이 코드를 지금 쓸 수 있는지 판정한다 — 아직 쓰지 않았고 만료 시각을 넘기지 않았을 때만 참이다.
+     *
+     * <p>{@code used_at} 과 {@code expires_at} 을 <b>한 메서드에서</b> 본다. 호출부가 둘을 따로
+     * 물으면 응답을 갈라 답할 자리가 생기는데, {@code §3.4} 는 만료·불일치·재사용을 같은
+     * {@code 403 LINK_CODE_INVALID} 로 답하도록 규정한다.
+     *
+     * <p>만료 경계는 <b>만료 시각 그 순간까지 유효</b>다({@code !now.isAfter(expiresAt)}) —
+     * {@code VerificationCode#verify} 와 같은 형태로 두어, 같은 시스템 안에서 "만료" 의 뜻이 두 갈래로
+     * 갈리지 않게 한다.
+     *
+     * @param now 주입된 {@code Clock} 에서 얻은 현재 시각(횡단 규칙 1) — 시스템 시계를 이 안에서
+     *            직접 부르면 만료 단언을 고정할 수단이 사라진다
+     */
+    public boolean isUsable(OffsetDateTime now) {
+        return usedAt == null && !now.isAfter(expiresAt);
+    }
+
+    /** 연결이 성립해 이 코드를 소비 처리한다 — 재사용 차단의 유일한 근거가 이 값이다(ERD §3.2). */
+    public void markUsed(OffsetDateTime now) {
+        this.usedAt = now;
+    }
 }

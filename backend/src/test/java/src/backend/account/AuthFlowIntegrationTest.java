@@ -138,13 +138,13 @@ class AuthFlowIntegrationTest {
      * <p>허용 5개를 골라서 부르지 않는 이유는 이 단언의 목적이 "허용 목록에서 하나가 빠지는 사고" 를
      * 잡는 것이기 때문이다 — 고르면 고르지 않은 것이 곧 사고 지점이 된다.
      *
-     * <p>거부측은 허용 밖 실제 핸들러 <b>19개 전부</b>다({@code AccountStatusGateEndpoints}) — 정본의
+     * <p>거부측은 허용 밖 실제 핸들러 <b>전부</b>다({@code AccountStatusGateEndpoints}) — 정본의
      * 완료 조건 문면이 "허용 5개 외 API 호출 시 <b>전부</b> 403" 이라 일부만 골라 두드리면 고르지 않은
      * 것이 곧 사고 지점이 된다. Phase 2 시점에는 프로덕션 핸들러가 12개뿐이라 허용 밖이
      * {@code POST /auth/password}·{@code POST /auth/signup/reapply} 둘이었고 그래서 거부측이 2개였다 —
      * Phase 3 이 핸들러를 12개 늘려(총 24개) 그 근거가 소멸했으므로 목록을 함께 늘렸다(Ruling 133,
-     * Phase 3 목표 6). Phase 5 의 학생 관리 5개도 같은 이유로 더했다(총 29개). 개수를 채우려고
-     * 엔드포인트를 새로 만들지 않는다.
+     * Phase 3 목표 6). Phase 5 의 학생 관리 5개(총 29개)와 자녀 연결 4개(총 33개)도 같은 이유로
+     * 더했다. 개수를 채우려고 엔드포인트를 새로 만들지 않는다.
      */
     @Test
     void pending_토큰은_허용_5개를_통과하고_허용_밖_실제_엔드포인트_전부에서_403_AUTH_PENDING_이다() throws Exception {
@@ -170,9 +170,9 @@ class AuthFlowIntegrationTest {
     void 거부측_목록이_허용_목록_밖_실제_핸들러_전부와_일치한다() {
         List<String> all = AccountStatusGateEndpoints.productionEndpoints(handlerMapping, handlerMethod -> true);
         assertThat(all)
-                .as("프로덕션 핸들러 29개 — 늘었는데 이 단언만 고치면 거부측 목록이 낡는다. "
-                        + "Phase 2 의 12 + Phase 3 의 12 + Phase 5 학생 관리 5")
-                .hasSize(29);
+                .as("프로덕션 핸들러 33개 — 늘었는데 이 단언만 고치면 거부측 목록이 낡는다. "
+                        + "Phase 2 의 12 + Phase 3 의 12 + Phase 5 학생 관리 5 + Phase 5 자녀 연결 4")
+                .hasSize(33);
 
         assertThat(AccountStatusGateEndpoints.productionEndpoints(
                 handlerMapping, AccountStatusGateEndpoints::deniedWhenPending))
@@ -194,7 +194,7 @@ class AuthFlowIntegrationTest {
      * 부재해져 대기 화면과 재신청 화면을 가려 그릴 수 없다.
      *
      * <p>재신청은 계정을 {@code rejected → pending} 으로 되돌리므로 6개 중 마지막에 부른다 — 거부측
-     * 18개를 먼저 두드리는 것도 같은 이유다. 상태가 {@code pending} 으로 돌아간 뒤에 두드리면 거부
+     * 전부를 먼저 두드리는 것도 같은 이유다. 상태가 {@code pending} 으로 돌아간 뒤에 두드리면 거부
      * 코드가 {@code AUTH_PENDING} 이 되어 이 테스트가 검사하려는 것이 사라진다.
      */
     @Test

@@ -54,6 +54,27 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     Optional<Student> findByIdAndAcademyIdAndDeletedAtIsNull(Long id, Long academyId);
 
     /**
+     * 학부모가 연결 요청에 적어 낸 {@code student_login_id} 로 자녀를 찾는다(P-02, §3.2).
+     *
+     * <p>학생의 로그인 아이디는 {@code student} 가 아니라 <b>연결된 계정</b>에 있다(AUTH-11) — 그래서
+     * {@code Account} 를 조인한다. 계정이 아직 붙지 않은 학생은 이 조회에 잡히지 않으며 그것이
+     * 사양이다(C-13 — 자녀 연결 인증 코드가 학생 계정을 전제).
+     *
+     * <p>학원 조건과 퇴원 여부를 <b>쿼리에 고정</b>한다. 남의 학원 학생이 {@code 403} 이 아니라
+     * {@code 404 STUDENT_NOT_FOUND} 여야 하기 때문이다(§3.2 · Ruling 163) — 조건을 쿼리에 넣으면
+     * "없음" 과 "남의 학원" 이 같은 빈 결과가 되어, 학원 밖 사람이 아이디 존재 여부를 훑을 수 없다.
+     */
+    @Query("""
+            SELECT s FROM Student s
+            JOIN Account a ON a.id = s.accountId
+            WHERE a.loginId = :loginId
+              AND s.academyId = :academyId
+              AND s.deletedAt IS NULL
+            """)
+    Optional<Student> findByLoginIdAndAcademyId(@Param("loginId") String loginId,
+            @Param("academyId") Long academyId);
+
+    /**
      * 관계자 웹의 학생 목록·검색(STU-01, API_SPEC §5.11) — 학원과 퇴원 여부가 <b>쿼리에 고정</b>돼
      * 호출부가 빼먹을 자리가 부재하다.
      *
