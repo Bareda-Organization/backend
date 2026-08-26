@@ -94,6 +94,31 @@ class SignupDecidedDispatchFailureTest {
                 .isEqualTo("active");
     }
 
+    /**
+     * 거절 쪽도 같은 성질을 갖는지 본다 — 목표 2 ③이 {@code active}(승인)와 {@code rejected}(거절)를
+     * 함께 적은 자리다.
+     *
+     * <p>수락만 보면 부족한 이유는 실제로 <b>거절 경로만 빠뜨리는</b> 사고가 이 축에서 나기
+     * 때문이다(목표 1 의 음성 대조 M1 이 같은 형태였다). 거절이 롤백되면 신청자는 거절된 줄 모른 채
+     * 대기 화면에 남고, 재신청 경로(AUTH-03)는 {@code rejected} 에서만 열리므로 함께 막힌다.
+     */
+    @Test
+    void 발송이_실패해도_가입_거절_트랜잭션은_롤백되지_않는다() throws Exception {
+        long requestId = 학부모_대기_요청("no", "010-4200-0003");
+
+        거절한다(requestId).andExpect(status().isOk());
+
+        assertThat(요청_상태(requestId))
+                .as("발송 실패가 거절을 되돌리면 관계자는 같은 건을 다시 처리해야 한다")
+                .isEqualTo("rejected");
+        assertThat(계정_상태(LOGIN_ID_PREFIX + "no"))
+                .as("거절했는데 계정이 pending 으로 남으면 재신청 경로가 열리지 않는다")
+                .isEqualTo("rejected");
+        assertThat(알림_행(LOGIN_ID_PREFIX + "no"))
+                .as("거절 통지도 재시도 대상으로 남아야 한다")
+                .hasSize(1);
+    }
+
     @Test
     void 발송이_실패하면_알림_행이_pending_으로_남고_fail_reason_이_기록된다() throws Exception {
         long requestId = 학부모_대기_요청("row", "010-4200-0002");
@@ -120,15 +145,25 @@ class SignupDecidedDispatchFailureTest {
                 "P4T1실패" + suffix, phone, "parent", "staff");
     }
 
+    private String 관계자_토큰() {
+        return "Bearer " + tokenProvider.createAccessToken(SignupDecidedFixture.SEED_STAFF_ACCOUNT,
+                SignupDecidedFixture.SEED_ACADEMY_A, Role.STAFF, AccountStatus.ACTIVE);
+    }
+
     private org.springframework.test.web.servlet.ResultActions 수락한다(long requestId) throws Exception {
         return mockMvc.perform(post("/api/v1/staff/signup-requests/" + requestId + "/decide")
-                .header("Authorization", "Bearer " + tokenProvider.createAccessToken(
-                        SignupDecidedFixture.SEED_STAFF_ACCOUNT, SignupDecidedFixture.SEED_ACADEMY_A,
-                        Role.STAFF, AccountStatus.ACTIVE))
+                .header("Authorization", 관계자_토큰())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"accept": true, "link": {"student_ids": [%d]}}
                         """.formatted(SignupDecidedFixture.SEED_STUDENT_A1)));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions 거절한다(long requestId) throws Exception {
+        return mockMvc.perform(post("/api/v1/staff/signup-requests/" + requestId + "/decide")
+                .header("Authorization", 관계자_토큰())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"accept\": false, \"reject_reason\": \"제출 서류가 부족합니다\"}"));
     }
 
     private String 요청_상태(long requestId) {
