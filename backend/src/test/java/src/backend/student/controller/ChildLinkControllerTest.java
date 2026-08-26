@@ -262,7 +262,7 @@ class ChildLinkControllerTest {
 
         코드_입력(GUARDIAN_SIBLINGS_ACCOUNT, code)
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.student_id").value((int) STUDENT_A4_ID))
+                .andExpect(jsonPath("$.data.student_id").value(String.valueOf(STUDENT_A4_ID)))
                 .andExpect(jsonPath("$.data.name").value(학생_이름(STUDENT_A4_ID)));
 
         entityManager.flush();
@@ -396,9 +396,9 @@ class ChildLinkControllerTest {
         mockMvc.perform(get(CHILDREN).header("Authorization", 토큰(GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A,
                         Role.PARENT)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[?(@.student_id == %d)]".formatted(SIBLING_1_ID)).isNotEmpty())
-                .andExpect(jsonPath("$.data.items[?(@.student_id == %d)]".formatted(SIBLING_2_ID)).isNotEmpty())
-                .andExpect(jsonPath("$.data.items[?(@.student_id == %d)]".formatted(UNLINKED_STUDENT_ID))
+                .andExpect(jsonPath("$.data.items[?(@.student_id == '%d')]".formatted(SIBLING_1_ID)).isNotEmpty())
+                .andExpect(jsonPath("$.data.items[?(@.student_id == '%d')]".formatted(SIBLING_2_ID)).isNotEmpty())
+                .andExpect(jsonPath("$.data.items[?(@.student_id == '%d')]".formatted(UNLINKED_STUDENT_ID))
                         .isEmpty());
     }
 
@@ -408,9 +408,9 @@ class ChildLinkControllerTest {
         mockMvc.perform(get(CHILDREN).header("Authorization", 토큰(GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A,
                         Role.PARENT)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[?(@.student_id == %d)].name".formatted(SIBLING_1_ID))
+                .andExpect(jsonPath("$.data.items[?(@.student_id == '%d')].name".formatted(SIBLING_1_ID))
                         .value(학생_이름(SIBLING_1_ID)))
-                .andExpect(jsonPath("$.data.items[?(@.student_id == %d)].linked_at".formatted(SIBLING_1_ID))
+                .andExpect(jsonPath("$.data.items[?(@.student_id == '%d')].linked_at".formatted(SIBLING_1_ID))
                         .isNotEmpty());
     }
 
@@ -427,8 +427,8 @@ class ChildLinkControllerTest {
         mockMvc.perform(get(CHILDREN).header("Authorization", 토큰(GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A,
                         Role.PARENT)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[?(@.student_id == %d)]".formatted(SIBLING_1_ID)).isEmpty())
-                .andExpect(jsonPath("$.data.items[?(@.student_id == %d)]".formatted(SIBLING_2_ID)).isNotEmpty());
+                .andExpect(jsonPath("$.data.items[?(@.student_id == '%d')]".formatted(SIBLING_1_ID)).isEmpty())
+                .andExpect(jsonPath("$.data.items[?(@.student_id == '%d')]".formatted(SIBLING_2_ID)).isNotEmpty());
     }
 
     /**

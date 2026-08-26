@@ -23,12 +23,16 @@ public record ChildListResponse(List<Item> items) {
     /**
      * 자녀 1명 — 식별과 선택에 필요한 최소값 4개가 §3.1 이 정한 전부다.
      *
-     * @param name 알림 문구에 필수로 들어가는 값이라 비어 있을 수 없다(ATT-03)
+     * @param studentId §3.1 이 타입을 <b>{@code string}</b> 으로 명시한다. bigint PK 를 문자열로 내보내는
+     *                  것이 어색해 보여도 {@code GET /me}(§2.10)의 {@code student_id} 가 이미 같은
+     *                  형태라, 학생·학부모 앱이 두 응답에서 받은 값을 그대로 견줄 수 있다
+     * @param name      알림 문구에 필수로 들어가는 값이라 비어 있을 수 없다(ATT-03)
      */
-    public record Item(Long studentId, String name, String className, OffsetDateTime linkedAt) {
+    public record Item(String studentId, String name, String className, OffsetDateTime linkedAt) {
 
         public static Item from(LinkedChild child) {
-            return new Item(child.getStudentId(), child.getName(), child.getClassName(), child.getLinkedAt());
+            return new Item(String.valueOf(child.getStudentId()), child.getName(), child.getClassName(),
+                    child.getLinkedAt());
         }
     }
 }
