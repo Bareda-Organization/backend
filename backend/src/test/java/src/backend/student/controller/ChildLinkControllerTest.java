@@ -388,6 +388,31 @@ class ChildLinkControllerTest {
                 .andExpect(jsonPath("$.error.code").value("ALREADY_LINKED"));
     }
 
+    /**
+     * 연결 응답의 {@code student_id} 도 <b>JSON 문자열</b>이다(§3.4 · Ruling 171).
+     *
+     * <p>위 "{@code guardian_student} 행이 생긴다" 가 쓰는
+     * {@code jsonPath(...).value(String.valueOf(...))} 로는 이것이 고정되지 않는다 — 그 대조는 값을
+     * 견주기 전에 타입을 강제 변환해 <b>숫자 {@code 4} 와 문자열 {@code "4"} 를 구별하지 못한다.</b>
+     * DTO 를 숫자로 되돌리는 변형을 심었더니 그 시험이 그대로 통과했다(수정 라운드 2 음성 대조 N9).
+     *
+     * <p>자녀 목록(§3.1)에는 같은 형태의 단언이 이미 있는데 이 응답만 빠져 있었다. 한 클라이언트가
+     * 연결 직후 받은 식별자를 그대로 목록·상세 요청에 쓰는 자리라, 두 응답이 형태를 가르면 큰 식별자
+     * 에서 <b>다른 학생을 가리키는</b> 값이 만들어진다.
+     */
+    @Test
+    void 연결_응답의_student_id_는_JSON_문자열이다() throws Exception {
+        String code = 요청하고_코드를_받는다();
+
+        MvcResult result = 코드_입력(GUARDIAN_SIBLINGS_ACCOUNT, code)
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        assertThat((Object) JsonPath.read(본문(result), "$.data.student_id"))
+                .as("bigint PK 를 숫자로 내보내면 클라이언트가 큰 값에서 정밀도를 잃는다")
+                .isInstanceOf(String.class);
+    }
+
     // ── 자녀 목록 (ATT-03, §3.1) ─────────────────────────────────────────
 
     /** 목록에는 <b>내 자녀만</b> 나온다(§1.5 — 학부모는 연결된 자녀 범위). */
