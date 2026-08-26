@@ -1389,7 +1389,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 정원 검증의 기준은 `student_capacity`. 초과 시 `409 CAPACITY_EXCEEDED` — 현재 인원과 정원을 `details` 에 반환 (BUS-04). 정원 축소로 기배정 인원이 초과하면 경고.
 
-**에러** — `409 CAPACITY_EXCEEDED`(학생 탑승 가능 인원 초과 — `details` 에 현재 인원·정원) · `404 BUS_NOT_FOUND`(`PATCH` 대상 부재)
+**에러** — `409 CAPACITY_EXCEEDED`(학생 탑승 가능 인원 초과 — `details` 에 현재 인원·정원) · `409 DUPLICATE_BUS_NO`(같은 학원에 같은 호차 — 등록·수정 공통, 2026-08-26 신설 · Ruling 164) · `404 BUS_NOT_FOUND`(`PATCH` 대상 부재)
 
 ### 5.13 매니저 관리 (MGR-01~04, A-12)
 
@@ -1896,6 +1896,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `NOTIFICATION_NOT_FOUND` | 404 | 미존재 알림 지정 (NTF-08) |
 | `MANAGER_NOT_FOUND` | 404 | 미존재 매니저 지정 (MGR-03·04) |
 | `BUS_NOT_FOUND` | 404 | 미존재 차량 지정 (BUS-03) |
+| `DUPLICATE_BUS_NO` | 409 | 같은 학원에 이미 있는 호차로 등록·수정 — 유일성 범위는 `(academy_id, bus_no)` 라 다른 학원의 같은 호차는 허용 (BUS-02·03) |
 
 ---
 

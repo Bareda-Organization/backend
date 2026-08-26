@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.BeforeAll;
@@ -26,6 +27,7 @@ import jakarta.persistence.EntityManager;
 import src.backend.BackendApplication;
 import src.backend.academy.entity.Academy;
 import src.backend.bus.entity.Bus;
+import src.backend.bus.entity.BusSeating;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Weekday;
@@ -33,6 +35,8 @@ import src.backend.global.config.ClockConfig;
 import src.backend.global.config.JpaAuditingConfig;
 import src.backend.manager.entity.Assignment;
 import src.backend.manager.entity.Manager;
+import src.backend.manager.entity.ManagerProfile;
+import src.backend.manager.entity.WorkHours;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.Route;
 import src.backend.routing.entity.RouteStop;
@@ -88,7 +92,7 @@ class Phase1Task5EntitySchemaValidationTest extends MigratedPostgresTestBase {
     }
 
     private Long insertBus(Long academyId) {
-        Bus bus = Bus.register(academyId, "1호차", "12가1234", 45, 1, 1, 43);
+        Bus bus = Bus.register(academyId, "1호차", "12가1234", new BusSeating(45, 1, 1));
         entityManager.persist(bus);
         entityManager.flush();
         return bus.getId();
@@ -117,7 +121,7 @@ class Phase1Task5EntitySchemaValidationTest extends MigratedPostgresTestBase {
     void bus_가_저장되고_조회된다() {
         Long academyId = insertAcademy();
 
-        Bus bus = Bus.register(academyId, "2호차", "34나5678", 45, 1, 1, 43);
+        Bus bus = Bus.register(academyId, "2호차", "34나5678", new BusSeating(45, 1, 1));
         entityManager.persist(bus);
         entityManager.flush();
         entityManager.clear();
@@ -134,8 +138,8 @@ class Phase1Task5EntitySchemaValidationTest extends MigratedPostgresTestBase {
     void manager_가_등록되고_계정_연결_전에는_account_id가_null이며_근무시간_jsonb가_보존된다() {
         Long academyId = insertAcademy();
 
-        Manager manager = Manager.register(academyId, "김기사", "010-1234-5678", ManagerRole.DRIVER,
-                Map.of("mon", Map.of("start", "07:00", "end", "09:00")));
+        Manager manager = Manager.register(academyId, new ManagerProfile("김기사", "010-1234-5678", ManagerRole.DRIVER,
+                WorkHours.of(Map.of("mon", List.of(Map.of("start", "07:00", "end", "09:00"))))));
         entityManager.persist(manager);
         entityManager.flush();
         entityManager.clear();
@@ -145,7 +149,7 @@ class Phase1Task5EntitySchemaValidationTest extends MigratedPostgresTestBase {
         assertThat(found.getRole()).isEqualTo(ManagerRole.DRIVER);
         assertThat(found.getAccountId()).as("가입 승인 전에는 계정 미연결(AUTH-11)").isNull();
         assertThat(found.getDeletedAt()).isNull();
-        assertThat(found.getWorkHours()).containsKey("mon");
+        assertThat(found.getWorkHours()).containsEntry("mon", List.of(Map.of("start", "07:00", "end", "09:00")));
     }
 
     @Test
@@ -305,7 +309,8 @@ class Phase1Task5EntitySchemaValidationTest extends MigratedPostgresTestBase {
         Long academyId = insertAcademy();
         Long busId = insertBus(academyId);
         Run run = insertRun(academyId, busId, null);
-        Manager manager = Manager.register(academyId, "김기사", "010-1234-5678", ManagerRole.DRIVER, null);
+        Manager manager = Manager.register(academyId,
+                new ManagerProfile("김기사", "010-1234-5678", ManagerRole.DRIVER, null));
         entityManager.persist(manager);
         entityManager.flush();
 

@@ -432,7 +432,7 @@ erDiagram
 | `name` | varchar(50) | NN | |
 | `phone` | varchar(30) | NN | 관제 화면에서 원문 노출 (O-05) |
 | `role` | varchar(10) | NN | `driver` · `escort`. **이 값이 앱 권한을 결정**. CHECK |
-| `work_hours` | jsonb | | 근무 시간. 배치 충돌 검증 근거 (MGR-06). **구조화된 시간 범위**(요일 × 시작·종료)를 담고 자유 텍스트를 두지 않음 — 텍스트면 충돌 검증이 불가 (2026-08-24 확정) |
+| `work_hours` | jsonb | | 근무 시간. 배치 충돌 검증 근거 (MGR-06). **구조화된 시간 범위**(요일 × 시작·종료)를 담고 자유 텍스트를 두지 않음 — 텍스트면 충돌 검증이 불가 (2026-08-24 확정). 형태는 `{"mon": [{"start": "07:00", "end": "10:00"}, {"start": "16:00", "end": "19:00"}]}` — **키는 요일 7종**(`API_SPEC §9.8` `weekday` 와 같은 값 공간)이고 키 부재 = 그 요일 근무 없음, **값은 구간 배열**(오전·오후로 갈리는 근무가 실재), 시각은 **`HH:mm` 문자열**(`schedule.depart_time` 과 같은 축에서 비교), **자정을 넘는 구간은 미수용**(허용하면 겹침 판정이 두 배로 복잡). jsonb 는 스키마가 부재해 DB 가 이 형태를 강제 불가 — 저장 시점 검증이 유일한 방어이고 그 자리는 `manager/entity/WorkHours` 하나다 (Ruling 150, 2026-08-26 확정) |
 | `deleted_at` | timestamptz | | soft delete. 배치 중이면 삭제 차단 (MGR-04) |
 | `created_at` · `updated_at` | timestamptz | NN | |
 

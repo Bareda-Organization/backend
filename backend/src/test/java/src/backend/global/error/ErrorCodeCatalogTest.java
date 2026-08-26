@@ -57,4 +57,30 @@ class ErrorCodeCatalogTest {
     void ACADEMY_NOT_FOUND_는_404_다() {
         assertThat(ErrorCode.ACADEMY_NOT_FOUND.getStatus()).isEqualTo(HttpStatus.NOT_FOUND);
     }
+
+    /** API_SPEC §8.5 의 "코드 | HTTP" 열에서 Phase 5 차량·매니저 관리가 쓰는 2종을 그대로 옮긴 것. */
+    private static final Map<ErrorCode, HttpStatus> PHASE_5_SPEC_STATUS = Map.of(
+            ErrorCode.BUS_NOT_FOUND, HttpStatus.NOT_FOUND,
+            ErrorCode.MANAGER_ASSIGNED, HttpStatus.CONFLICT,
+            ErrorCode.DUPLICATE_BUS_NO, HttpStatus.CONFLICT);
+
+    /**
+     * {@code MANAGER_ASSIGNED} 가 <b>403 이 아니라 409</b> 라는 판정이 이 표에서만 고정된다 — 요청
+     * 주체는 인가돼 있고 막는 것은 대상 자원의 상태라 {@code STAFF_QUOTA_EXCEEDED} 와 같은 형태다.
+     *
+     * <p>{@code BUS_NOT_FOUND} 가 404 인 것은 <b>다른 학원의 차량을 지목한 경우도 이 코드</b>이기
+     * 때문에 함께 고정한다 — 403 으로 되돌리면 "없음" 과 "남의 학원" 이 갈려 존재 여부가 드러난다.
+     *
+     * <p>{@code DUPLICATE_BUS_NO} 가 <b>422 가 아니라 409</b> 인 것도 여기서만 고정된다(Ruling 164) —
+     * 요청 형식이 틀린 것이 아니라 자원이 충돌한 것이라 {@code DUPLICATE_LOGIN_ID} 와 같은 형태다.
+     * 상수 선언만 두면 다음 사람이 "입력 오류니 422" 로 되돌려도 아무것도 실패하지 않는다.
+     */
+    @Test
+    void Phase_5_차량_매니저가_쓰는_에러_코드_3종의_HTTP_상태가_사양과_같다() {
+        assertThat(PHASE_5_SPEC_STATUS).hasSize(3);
+        assertThat(PHASE_5_SPEC_STATUS).allSatisfy((code, expected) ->
+                assertThat(code.getStatus())
+                        .as("%s 의 HTTP 상태가 API_SPEC §8.5 와 어긋난다", code.name())
+                        .isEqualTo(expected));
+    }
 }
