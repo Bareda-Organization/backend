@@ -451,7 +451,9 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 **권한** 학생 · **요청** 본문 부재 · **응답** `201` — `code`(string) · `expires_at`(datetime)
 
-**에러** — §1.11 공통 항목 외 고유 에러 부재.
+**대기 중인 연결 요청이 선행 조건**이다 — `link_code` 는 `link_request` 에 매달리므로(ERD) 요청 없이 코드를 만들 수단이 부재. 대기 중이고 만료되지 않은 요청이 여럿이면 **가장 최근 1건**에 붙는다.
+
+**에러** — `404 LINK_REQUEST_NOT_FOUND`(대기 중인 연결 요청 부재)
 
 ### 3.4 POST /me/students/link
 
@@ -1889,6 +1891,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `ACADEMY_NOT_FOUND` | 404 | 미등록·비활성 학원 지정 |
 | `STUDENT_NOT_FOUND` | 404 | 미존재 학생 |
 | `ALREADY_LINKED` | 409 | 이미 연결된 자녀 재연결 |
+| `LINK_REQUEST_NOT_FOUND` | 404 | 학생이 인증 코드 생성(`§3.3`)을 호출했는데 **대기 중이고 만료되지 않은 연결 요청이 부재**. `link_code.link_request_id` 가 FK NN 이라 요청 없이 코드를 만들 수단 자체가 부재하다 — `§3.3` 은 이 경우를 규정하지 않았으나 빈칸은 금지가 아니라 미완이다(Ruling 143). `403 LINK_CODE_INVALID`(만료·불일치·재사용)와 코드를 나눈 이유는 **주체와 다음 동작이 다르기** 때문이다 — 저쪽은 학부모가 코드를 다시 받아야 할 자리이고, 이쪽은 **학생**에게 "부모에게 연결 요청을 다시 보내 달라"고 안내할 자리다. 404 인 것은 지목된 자원(대기 중인 요청)이 없는 형태가 `SIGNUP_REQUEST_NOT_FOUND`·`APPROVAL_NOT_FOUND` 와 같기 때문 (2026-08-26 신설, Ruling 170) |
 | `VALIDATION_FAILED` | 422 | 필수 누락·형식 위반. 지연 시간이 **5분 단위**가 아닌 경우 포함 |
 | `SIGNUP_REQUEST_NOT_FOUND` | 404 | 미존재 가입 요청 지정 (AUTH-10 · ACAD-05) |
 | `APPROVAL_NOT_FOUND` | 404 | 미존재 승인 요청 지정 (REQ-04) |

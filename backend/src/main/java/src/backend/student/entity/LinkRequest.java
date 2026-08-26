@@ -62,4 +62,15 @@ public class LinkRequest {
             OffsetDateTime expiresAt) {
         return new LinkRequest(guardianId, studentId, requestedAt, expiresAt);
     }
+
+    /**
+     * 코드 입력이 끝나 연결이 성립한 요청으로 표시한다(P-02 ③).
+     *
+     * <p>{@code EXPIRED} 로 가는 전이는 여기 두지 않는다 — 만료는 사람의 조작이 아니라 시각 도래라
+     * 판정 주체가 정리 배치이고(ERD §7.1 {@code link_request} hard delete), 조회는 전부
+     * {@code expires_at} 을 직접 견주므로 상태값이 뒤늦게 바뀌어도 판정이 흔들리지 않는다.
+     */
+    public void complete() {
+        this.status = LinkRequestStatus.COMPLETED;
+    }
 }

@@ -60,7 +60,12 @@ public final class AccountStatusGateEndpoints {
             "GET /staff/managers",
             "POST /staff/managers",
             "PATCH /staff/managers/{id}",
-            "DELETE /staff/managers/{id}");
+            "DELETE /staff/managers/{id}",
+            // 자녀 목록·연결 3단계(§3.1~§3.4) — 승인된 학부모·학생의 기능이라 허용 목록 밖이다(Ruling 145).
+            "GET /me/students",
+            "POST /me/students/link-requests",
+            "POST /me/link-code",
+            "POST /me/students/link");
 
     /** {@code pending} 의 거부측 — {@code rejected} 거부측에 재신청 1개를 더한다({@code @AllowedWhenRejected} 는 pending 을 열지 않는다). */
     public static final List<String> DENIED_WHEN_PENDING = concat(DENIED_WHEN_REJECTED, "POST /auth/signup/reapply");

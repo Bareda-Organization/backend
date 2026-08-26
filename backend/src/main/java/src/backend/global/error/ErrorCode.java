@@ -74,6 +74,18 @@ public enum ErrorCode {
     MANAGER_NOT_FOUND(HttpStatus.NOT_FOUND, "매니저를 찾을 수 없습니다"),
     // 이미 연결된 자녀 재연결(P-02 · API_SPEC §8.5).
     ALREADY_LINKED(HttpStatus.CONFLICT, "이미 연결된 대상입니다"),
+
+    // ── 자녀 연결 3단계(Phase 5, P-02 · S-05) ────────────────────────────
+    // 자녀 연결 인증 코드의 만료·불일치·재사용(API_SPEC §3.4·§8.1) — 셋을 같은 코드로 답한다.
+    // 갈라 답하면 "이 코드는 실재하는데 만료됐다"·"이 코드는 이미 쓰였다" 가 미인증 응답으로 새어,
+    // 6자리 숫자를 훑는 쪽이 어느 값이 실재하는지 가려낼 수 있다.
+    LINK_CODE_INVALID(HttpStatus.FORBIDDEN, "인증 코드가 올바르지 않거나 만료되었습니다"),
+    // 대기 중인 연결 요청 없이 학생이 코드 생성을 호출(S-05 · API_SPEC §3.3).
+    // ⚠ §3.3 은 이 경우의 코드를 규정하지 않으나(고유 에러 부재) link_code.link_request_id 가 FK NN 이라
+    // 요청 없이 코드를 만들 수단 자체가 부재하다. 404 를 고른 것은 지목된 자원(대기 중인 요청)이 없는
+    // 형태가 SIGNUP_REQUEST_NOT_FOUND·APPROVAL_NOT_FOUND(§8.5)와 같기 때문이다(Ruling 143 — 사양의
+    // 빈칸은 금지가 아니라 미완). 조율자 판정 대상으로 보고서에 신고했다.
+    LINK_REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "대기 중인 연결 요청이 없습니다"),
     // blocked 아닌 계정에 차단 해제 시도(AUTH-06 · API_SPEC §8.1).
     ACCOUNT_NOT_BLOCKED(HttpStatus.CONFLICT, "차단된 계정이 아닙니다"),
     // 퇴사 처리된(academy_staff.status='inactive') 관계자의 로그인(API_SPEC §2.5·§6.7·§8.1, Ruling 143).

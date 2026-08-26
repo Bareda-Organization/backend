@@ -13,10 +13,18 @@ import src.backend.student.entity.Student;
  *
  * <p>학생 정보 전체를 다시 싣지 않는다 — 퇴원 응답은 명단에서 빠진 학생을 화면에 그리는 자리가
  * 아니고, 여기 얹으면 목록에서 뺀 개인정보가 삭제 응답으로 다시 나간다(§1.12).
+ *
+ * <p><b>{@code studentId} 는 문자열이다</b>(Ruling 171). {@code API_SPEC} 의 {@code *_id} 타입 표기가
+ * {@code string} 20건 · {@code integer}/{@code number} 0건이고, {@code §3.1}·{@code §2.10} 이 같은
+ * 이름을 {@code string} 으로 명시한다. {@code §5.11} 은 타입을 적지 않아 처음에는 {@code Long} 이었다.
+ *
+ * <p>근거는 표기 통일이 아니라 <b>정밀도</b>다 — JavaScript 의 {@code number} 는 2^53 을 넘으면
+ * 값을 잃는다. {@code bigint} PK 를 숫자로 내보내는 계약은 언젠가 조용히 틀린 식별자를 주고, 그때는
+ * 요청이 실패하는 것이 아니라 <b>다른 학생을 가리킨다.</b> 지금 안 아픈 이유는 시드 id 가 한 자리여서일 뿐이다.
  */
-public record StudentWithdrawalResponse(Long studentId, OffsetDateTime deletedAt) {
+public record StudentWithdrawalResponse(String studentId, OffsetDateTime deletedAt) {
 
     public static StudentWithdrawalResponse from(Student student) {
-        return new StudentWithdrawalResponse(student.getId(), student.getDeletedAt());
+        return new StudentWithdrawalResponse(String.valueOf(student.getId()), student.getDeletedAt());
     }
 }
