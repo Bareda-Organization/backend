@@ -48,19 +48,23 @@ public class NotificationDispatcher {
         if (target == null) {
             return;
         }
-        send(target);
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        notificationLogRepository.recordAttempt(notificationId, now);
+        send(target, target.getPushAttempts() + 1, now);
     }
 
-    /** 발송하고 결과를 옮긴다 — 성공은 {@code sent}, 실패는 사유를 남긴 채 상한에 따라 갈린다. */
-    private void send(NotificationLog target) {
-        OffsetDateTime now = OffsetDateTime.now(clock);
+    /**
+     * 발송하고 결과를 옮긴다 — 성공은 {@code sent}, 실패는 사유를 남긴 채 상한에 따라 갈린다.
+     *
+     * @param attempts 이번 시도까지 포함한 횟수. 읽어 둔 엔티티는 시도 기록 <b>이전</b>의 값이라
+     *                 그대로 쓰면 상한 판정이 한 회차씩 늦어져 실제로는 4회를 시도한다
+     */
+    private void send(NotificationLog target, int attempts, OffsetDateTime now) {
         try {
             pushSender.send(PushMessage.from(target));
             notificationLogRepository.markSent(target.getId(), PushState.PENDING, PushState.SENT, now);
         } catch (RuntimeException e) {
-            PushState nextState = retryPolicy.exhausted(target.getPushAttempts())
-                    ? PushState.FAILED
-                    : PushState.PENDING;
+            PushState nextState = retryPolicy.exhausted(attempts) ? PushState.FAILED : PushState.PENDING;
             notificationLogRepository.markAttemptFailed(target.getId(), PushState.PENDING, nextState,
                     failReason(e));
         }

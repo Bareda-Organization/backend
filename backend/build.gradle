@@ -129,6 +129,12 @@ tasks.named('test') {
     // bootRun 에는 이 프로퍼티를 심지 않아 개발 편의(매 기동마다 초기화)는 그대로 유지된다.
     systemProperty 'app.flyway-clean.suppressed', 'true'
 
+    // 아웃박스 워커의 자동 폴링을 테스트 실행 동안 미룬다(하루). @Scheduled 가 배경에서 돌면
+    // 테스트가 만든 pending 행을 워커가 테스트보다 먼저 집어, 회수·선점 검증이 실행 순서에 따라
+    // 갈린다. 빈을 없애지 않고 시각만 미루는 이유는, 없애면 @Scheduled 배선 자체가 어느 테스트에도
+    // 걸리지 않아 애너테이션을 지워도 초록이 되기 때문이다.
+    systemProperty 'app.notification.outbox.initial-delay-ms', '86400000'
+
     // 병렬 작업용 DB 격리 — `-PtestDbUrl=jdbc:postgresql://localhost:5432/<이름>` 을 주면
     // 그 데이터베이스로 테스트한다. 에이전트를 2개 이상 동시에 돌릴 때 서로의 행을 밟아
     // "코드 결함처럼 보이는 환경 실패" 가 나는 것을 막는다. 주지 않으면 기본값(schoolbus)이라

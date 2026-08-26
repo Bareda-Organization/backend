@@ -3,6 +3,7 @@ package src.backend.notification.repository;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -89,5 +90,25 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
              order by n.createdAt
             """)
     List<NotificationLog> findRetryCandidates(@Param("pending") PushState pending,
-            @Param("maxAttempts") int maxAttempts, @Param("attemptedBefore") OffsetDateTime attemptedBefore);
+            @Param("maxAttempts") int maxAttempts, @Param("attemptedBefore") OffsetDateTime attemptedBefore,
+            Pageable limit);
+
+    /**
+     * 발송을 시도했다는 사실을 행에 남긴다 — 시도 횟수를 올리고 마지막 시도 시각을 찍는다.
+     *
+     * <p>시도 기록이 없으면 재시도 상한도 지수 백오프도 판정할 근거가 부재해, 죽은 단말 하나가
+     * 워커의 매 틱을 영원히 잡아먹는다.
+     *
+     * @return 1 = 기록함
+     */
+    @AcademyScopeExempt(reason = "아웃박스 발송 시도 기록 — markSent 와 같은 축이다. 대상이 id 로 특정된 "
+            + "단건이고 학원 범위가 판정에 개입 부재")
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update NotificationLog n
+               set n.pushAttempts = n.pushAttempts + 1, n.lastAttemptAt = :now
+             where n.id = :id
+            """)
+    int recordAttempt(@Param("id") Long id, @Param("now") OffsetDateTime now);
 }
