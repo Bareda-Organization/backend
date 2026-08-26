@@ -7,7 +7,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Locale;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -85,6 +87,11 @@ class StaffRunAssignmentControllerTest {
 
     /** 오전만 근무하는 매니저에게는 근무 시간 밖인 시각(하원 회차). */
     private static final String AFTERNOON = "16:00";
+
+    /** 종일 근무자의 오전 구간 경계 — 시드가 07:00~10:00 으로 둔 그 양끝이다(V2 주석 참조). */
+    private static final String WORK_START = "07:00";
+
+    private static final String WORK_END = "10:00";
 
     @Autowired
     private MockMvc mockMvc;
@@ -310,6 +317,76 @@ class StaffRunAssignmentControllerTest {
         배치한다(관계자A_토큰(), 등원, 강기사_종일, null).andExpect(status().isOk());
 
         배치한다(관계자A_토큰(), 하원, 강기사_종일, null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.warnings.length()").value(0));
+    }
+
+    /**
+     * 근무 구간의 <b>양끝은 근무 시간 안</b>이다 — 07:00~10:00 근무자에게 07:00 회차도 10:00 회차도
+     * 경고를 내지 않는다.
+     *
+     * <p>경계를 한쪽이라도 배타로 두면 <b>출근 시각 정각에 출발하는 회차가 전부 경고</b>가 된다.
+     * 등원 회차는 근무 시작 시각에 맞춰 짜는 것이 정상이라 이 경계가 실제로 늘 밟힌다 — 그 상태에서는
+     * 경고가 항상 켜져 있어 관계자가 읽기를 그만두고, 진짜 충돌까지 함께 묻힌다.
+     *
+     * <p>양끝을 <b>함께</b> 보는 이유는 한쪽만 보면 반대쪽이 검사되지 않은 채 남기 때문이다.
+     */
+    @Test
+    void 근무_구간의_양끝_시각은_근무_시간_안이다() throws Exception {
+        long 시작_정각 = 회차를_만든다(BUS_A1_ID, WORK_START);
+        long 종료_정각 = 회차를_만든다(BUS_A1_ID, WORK_END);
+
+        배치한다(관계자A_토큰(), 시작_정각, 강기사_종일, null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.warnings.length()").value(0));
+        배치한다(관계자A_토큰(), 종료_정각, 강기사_종일, null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.warnings.length()").value(0));
+    }
+
+    /**
+     * 같은 매니저를 <b>같은 자리에 다시</b> 지정해도 중복 배치가 아니다 — 자기 자신을 겹침으로 세지
+     * 않는다.
+     *
+     * <p>중복 배치 판정이 지금 배치하는 회차를 제외하지 않으면, 관리 화면이 같은 값을 그대로 다시
+     * 보내는 것만으로 {@code MANAGER_DOUBLE_BOOKED} 가 뜬다. 화면이 저장 버튼을 두 번 누르는 것과
+     * 구별되지 않는 조작이라 실제로 늘 발생하고, 그때 나오는 경고는 <b>거짓</b>이다.
+     */
+    @Test
+    void 같은_매니저를_같은_자리에_다시_지정해도_중복_배치_경고가_아니다() throws Exception {
+        long runId = 회차를_만든다(BUS_A1_ID, MORNING);
+        배치한다(관계자A_토큰(), runId, 강기사_종일, null).andExpect(status().isOk());
+
+        배치한다(관계자A_토큰(), runId, 강기사_종일, null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.warnings.length()").value(0));
+
+        assertThat(배치_행_수(runId, "driver")).isEqualTo(1);
+    }
+
+    /**
+     * 요일 판정은 <b>주입된 시계의 시간대</b>를 따른다(Ruling 165 ①) — {@code ZoneId} 를 코드에 다시
+     * 적은 구현을 막는다.
+     *
+     * <p>{@code run.depart_time} 은 {@code timestamptz} 라 같은 순간이 시간대에 따라 <b>다른 요일</b>이
+     * 된다. {@link #SERVICE_DATE} 08:00 은 {@code Asia/Seoul} 기준 수요일이지만 UTC 로 보면 전날
+     * 화요일 23:00 이다. 그래서 근무 요일을 수요일 하나로 좁혀 두면, 시간대를 잘못 고른 구현만
+     * 요일 키를 찾지 못해 {@code WORK_HOURS_MISMATCH} 를 낸다.
+     *
+     * <p>근무 시간을 이 테스트 안에서 좁히는 이유는 시드 매니저가 7요일 전부를 채우고 있어
+     * <b>요일을 틀려도 결과가 같기</b> 때문이다 — 시드를 고치면 다른 테스트의 전제가 함께 바뀐다.
+     * 이 클래스는 {@code @Transactional} 이라 갱신이 테스트 끝에 되돌아간다.
+     */
+    @Test
+    void 요일_판정은_주입된_시계의_시간대를_따른다() throws Exception {
+        String 서울_기준_요일 = LocalDate.parse(SERVICE_DATE).getDayOfWeek().name()
+                .substring(0, 3).toLowerCase(Locale.ROOT);
+        jdbcTemplate.update("UPDATE manager SET work_hours = ?::jsonb WHERE id = ?",
+                "{\"%s\":[{\"start\":\"%s\",\"end\":\"%s\"}]}".formatted(서울_기준_요일, WORK_START, WORK_END),
+                강기사_종일);
+        long runId = 회차를_만든다(BUS_A1_ID, MORNING);
+
+        배치한다(관계자A_토큰(), runId, 강기사_종일, null)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.warnings.length()").value(0));
     }
