@@ -45,7 +45,12 @@ public final class AccountStatusGateEndpoints {
             "GET /admin/staff-signup-requests",
             "POST /admin/staff-signup-requests/{id}/decide",
             "GET /staff/signup-requests",
-            "POST /staff/signup-requests/{id}/decide");
+            "POST /staff/signup-requests/{id}/decide",
+            "GET /staff/students",
+            "POST /staff/students",
+            "GET /staff/students/{id}",
+            "PATCH /staff/students/{id}",
+            "DELETE /staff/students/{id}");
 
     /** {@code pending} 의 거부측 — {@code rejected} 거부측에 재신청 1개를 더한다({@code @AllowedWhenRejected} 는 pending 을 열지 않는다). */
     public static final List<String> DENIED_WHEN_PENDING = concat(DENIED_WHEN_REJECTED, "POST /auth/signup/reapply");
