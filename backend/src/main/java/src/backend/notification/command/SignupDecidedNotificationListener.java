@@ -6,7 +6,8 @@ import org.springframework.stereotype.Component;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.account.event.SignupDecidedEvent;
-import src.backend.notification.domain.SignupDecidedMessage;
+import src.backend.notification.domain.spec.NotificationComposer;
+import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.notification.entity.NotificationType;
 
 /**
@@ -33,10 +34,16 @@ public class SignupDecidedNotificationListener {
 
     private final NotificationOutbox notificationOutbox;
 
+    /**
+     * 문구 생성은 교체 축이라 포트를 거친다(§7 규칙 12) — Spring 이 타입 파라미터
+     * ({@link SignupDecidedEvent})로 이 종류의 구현체를 골라 준다.
+     */
+    private final NotificationComposer<SignupDecidedEvent> signupDecidedComposer;
+
     /** 신청자 본인 앞으로 발송 대기 행을 적재한다 — 수락·거절 <b>양쪽</b>이 대상이다(§9.7). */
     @EventListener
     public void appendSignupDecided(SignupDecidedEvent event) {
-        SignupDecidedMessage message = SignupDecidedMessage.of(event.accepted(), event.rejectReason());
+        NotificationMessage message = signupDecidedComposer.compose(event);
         notificationOutbox.append(new NotificationDraft(event.academyId(), event.accountId(),
                 event.accountName(), event.accountRole(), NotificationType.SIGNUP_DECIDED,
                 message.title(), message.body(),
