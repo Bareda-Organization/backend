@@ -17,6 +17,8 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -243,6 +245,37 @@ class ChildLinkControllerTest {
         코드_생성(STUDENT_B1_ACCOUNT, ACADEMY_B)
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("LINK_REQUEST_NOT_FOUND"));
+    }
+
+    /**
+     * 대기 중이 <b>아닌</b> 요청으로는 코드를 만들 수 없다 — {@code 404 LINK_REQUEST_NOT_FOUND}.
+     *
+     * <p>위 "요청이 없으면" 과 갈린 자리다. 저쪽은 요청 <b>행이 없는</b> 경우고 이쪽은 행이 있는데
+     * 상태가 {@code pending} 이 아닌 경우다 — 상태 조건이 없는 구현은 저쪽을 그대로 지나간다.
+     *
+     * <p>{@code expires_at} 은 <b>건드리지 않는다.</b> 두 축을 함께 움직이면 만료 조건이 물어서
+     * 거부한 것인지 상태 조건이 물어서 거부한 것인지 구별되지 않는다.
+     *
+     * <p>거부 코드만이 아니라 <b>{@code link_code} 행이 늘지 않은 것</b>까지 본다. 성립한 요청으로
+     * 코드가 재발급되면 이미 쓰인 연결에 살아 있는 자격 증명이 하나 더 생기고, 오늘은
+     * {@code assertNotLinked} 와 {@code uk_guardian_student} 가 뒤에서 막아 화면에 아무 이상이
+     * 드러나지 않는다 — 그 두 겹이 걷히는 날 이 조건이 유일한 저지선이 된다.
+     */
+    @ParameterizedTest(name = "status={0}")
+    @ValueSource(strings = {"completed", "expired"})
+    void 대기_중이_아닌_요청으로는_코드를_만들_수_없다(String status) throws Exception {
+        long requestId = 연결을_요청한다(GUARDIAN_SIBLINGS_ACCOUNT, SeedFixtures.STUDENT_A4_LOGIN_ID);
+        요청_상태를_바꾼다(requestId, status);
+
+        코드_생성(STUDENT_A4_ACCOUNT, ACADEMY_A)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("LINK_REQUEST_NOT_FOUND"));
+
+        entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM link_code WHERE link_request_id = ?",
+                Integer.class, requestId))
+                .as("거부했다면 코드가 만들어지면 안 된다 — 응답 코드만 보면 만들어 놓고 404 를 내는 구현과 같다")
+                .isEqualTo(0);
     }
 
     /** 학생 레코드가 없는 계정(학부모)은 코드를 만들 수 없다(§3.3 권한 학생). */
@@ -576,6 +609,19 @@ class ChildLinkControllerTest {
         entityManager.flush();
         jdbcTemplate.update("UPDATE link_code SET expires_at = ? WHERE code = ?",
                 Timestamp.from(expiresAt.toInstant()), code);
+        entityManager.clear();
+    }
+
+    /**
+     * 요청의 상태만 옮긴다 — {@code expires_at} 은 그대로 둔다.
+     *
+     * <p>{@code clear()} 가 {@link #코드_만료를_옮긴다} 와 같은 이유로 필수다. 방금 만든
+     * {@code LinkRequest} 가 이 트랜잭션의 영속성 컨텍스트에 남아 있어, 지우지 않으면 다음 조회가
+     * <b>상태를 바꾸기 전 엔티티</b>를 돌려주고 단언이 아무것도 검사하지 않는다.
+     */
+    private void 요청_상태를_바꾼다(long requestId, String status) {
+        entityManager.flush();
+        jdbcTemplate.update("UPDATE link_request SET status = ? WHERE id = ?", status, requestId);
         entityManager.clear();
     }
 
