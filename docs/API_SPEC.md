@@ -1060,6 +1060,49 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 **에러** — `403 FORBIDDEN`(배치되지 않은 회차) · `404 RUN_NOT_FOUND`
 
+### 4.16 GET /runs/{runId}/navigation
+
+외부 내비게이션 앱 연동 (**RUN-08**, M-09). **2026-08-26 신설 — 사용자 요청.**
+
+확정 노선을 티맵·카카오내비로 넘기기 위한 **좌표열**을 반환한다. **서버는 딥링크 URL 을 만들지 않는다** — 아래 "서버가 하는 일 / 앱이 하는 일" 참조.
+
+**권한** 해당 회차에 배치된 기사·동승자 (§4.3 과 같은 범위)
+
+**요청 (query)**
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---|---|:-:|---|
+| `provider` | enum | ● | `tmap` · `kakao` — **경유지 상한이 앱마다 달라** 서버가 이 값으로 자를 개수를 정한다 |
+| `scope` | enum | ○ | `next`(기본 — 다음 목적지 1개) · `remaining`(남은 전 구간) |
+
+**응답**
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|:-:|---|
+| `provider` | enum | ● | 요청값 반향 |
+| `origin` | object | ○ | `lat` · `lng` · `name` — 출발지. `moving` 이면 **미반환**(앱이 현재 위치를 쓴다) |
+| `waypoints[]` | array | ● | 경유지. `lat` · `lng` · `name` · `stop_id` · `seq`. **순서가 곧 주행 순서** |
+| `destination` | object | ● | `lat` · `lng` · `name` · `stop_id` — 최종 목적지 |
+| `truncated` | boolean | ● | 상한 때문에 **잘렸는지 여부** |
+| `truncated_reason` | string | ○ | `truncated=true` 일 때만 — 앱에 표시할 안내 문구 |
+| `total_remaining_stops` | integer | ● | 자르기 **전** 남은 승하차지 수. `waypoints.length + 1` 과 다를 수 있다 |
+
+**서버가 하는 일 / 앱이 하는 일**
+
+| 서버 | 앱 |
+|---|---|
+| 승하차지 순서 확정 · `skipped` 제외 · 도착 완료분 제외 · **앱별 상한만큼 자르기** · 잘린 사실 표시 | 딥링크(URL scheme) 조립 · 앱 미설치 시 스토어 폴백 · 사용자 선택 |
+
+**딥링크를 서버가 만들지 않는 이유** — URL scheme 은 OS·앱 버전·설치 여부·스토어 폴백까지 묶인 **클라이언트 영역**이고, 서버가 만들면 스킴이 바뀔 때마다 서버를 배포해야 한다. 반대로 **자를 개수 판단은 서버가 한다** — 앱이 자르면 클라이언트마다 다르게 잘라 같은 회차가 기기마다 다른 경로로 안내된다.
+
+**`skipped` 승하차지는 넘기지 않는다** — `C-05` 는 "미경유는 **표시만**, 재최적화·경로 안내 부재" 인데, 내비에 넘기는 것은 표시가 아니라 **주행 안내**라 실제로 가지 않을 지점을 넣으면 기사를 그리로 보낸다.
+
+**`arrived_at` 이 찍힌 승하차지는 제외**한다 — 이미 지난 지점이다.
+
+⚠ **경유지 상한 값은 미확정** (오픈 이슈 **V**). 앱별 실측 전까지 `scope=next` 만 신뢰할 수 있다.
+
+**에러** — `409 RUN_NOT_CONFIRMED`(확정 전 `idle` 회차) · `409 NAV_NO_REMAINING_STOP`(남은 승하차지 부재 — 전 구간 도착 완료) · `404 RUN_NOT_FOUND` · `403 FORBIDDEN`(배치되지 않은 회차)
+
 ---
 
 ## 5. 관계자 웹
@@ -1808,6 +1851,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `ACADEMY_SCOPE_VIOLATION` | 403 | 소속 학원 밖 자원 요청 (§1.5) |
 | `ESCORT_ONLY` | 403 | **동승자 전용 조작을 기사가 호출** — 승하차 상태 변경(C-06) · 지연 알림 발신(M-05) |
 | `DRIVER_ONLY` | 403 | 운행 시작·도착 처리를 동승자가 호출 |
+| `NAV_NO_REMAINING_STOP` | 409 | 외부 내비 연동 요청인데 남은 승하차지가 부재 — 전 구간 도착 완료 (RUN-08 · §4.16) |
 
 ### 8.3 시간 창 · 한도
 
@@ -1947,6 +1991,8 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `emergency.type` | `accident` · `vehicle_fault` · `student_emergency` · `etc` | EXC-04. **`report_type` 과 별개** — 예외 보고는 관계자 통지, 비상은 관계자+메인 관리자 동시 + 팝업 |
 | `contact_attempt` | `call` · `message` / `answered` · `no_answer` | EXC-01 연락 시도 |
 | `gender` | `male` · `female` | 학생 기본 정보 |
+| `nav_provider` | `tmap` · `kakao` | 외부 내비게이션 앱 (RUN-08 · §4.16). **경유지 상한이 앱마다 달라** 서버가 자를 개수를 이 값으로 정한다 |
+| `nav_scope` | `next` · `remaining` | 내비에 넘길 범위 — 다음 목적지 1개 · 남은 전 구간 (RUN-08) |
 | `academy_status` | `active` · `inactive` | 비활성화해도 기존 로그인 유지 (ACAD-04) |
 
 ---
