@@ -51,6 +51,28 @@ public interface GuardianStudentRepository extends JpaRepository<GuardianStudent
             @Param("academyId") Long academyId);
 
     /**
+     * 한 학생의 <b>살아 있는</b> 보호자 연결 전부 — 퇴원 시 해제 대상이다(STU-04 · ERD §7.1).
+     *
+     * <p>위 {@link #findLinkedChildren} 의 반대 방향이다. 학생 1명에 보호자가 여럿일 수 있어 목록으로
+     * 돌려주며, 이미 해제된 것은 조건에서 빠져 재퇴원이 옛 해제 시각을 덮지 않는다.
+     *
+     * <p>{@code @Modifying} 대량 UPDATE 가 아니라 엔티티를 꺼내 오는 이유는 상태 전이를 엔티티
+     * 메서드에 두기 때문이다(횡단 규칙 2). 경합 전이가 아니라 조건부 UPDATE 가 필요한 자리도 아니고,
+     * 한 학생의 보호자는 실무상 한둘이라 꺼내는 비용이 문제가 되는 자리도 아니다.
+     *
+     * <p>학원 조건은 {@code student} 부모를 조인해 건다(ERD §6.1 부모 경유).
+     */
+    @Query("""
+            SELECT gs FROM GuardianStudent gs
+            JOIN Student s ON s.id = gs.studentId
+            WHERE gs.studentId = :studentId
+              AND gs.unlinkedAt IS NULL
+              AND s.academyId = :academyId
+            """)
+    List<GuardianStudent> findActiveLinksOfStudent(@Param("studentId") Long studentId,
+            @Param("academyId") Long academyId);
+
+    /**
      * 한 보호자의 자녀 목록(ATT-03, §3.1) — 해지되지 않은 연결만이다.
      *
      * <p>{@link LinkedChild} 로 <b>네 값만</b> 꺼낸다. {@code Student} 를 통째로 꺼내면 사진·특이사항이

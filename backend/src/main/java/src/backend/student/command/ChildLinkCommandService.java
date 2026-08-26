@@ -5,6 +5,9 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
+
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,6 +67,17 @@ public class ChildLinkCommandService {
 
     /** 코드 자릿수 — {@code link_code.code} 가 {@code varchar(10)} 이고 학생이 불러 주는 값이다. */
     private static final int CODE_LENGTH = 6;
+
+    /**
+     * 같은 자녀 중복 연결을 막는 제약 이름({@code V1__init_schema.sql}).
+     *
+     * <p>이름으로 가려 번역하는 이유는 이 저장이 {@code guardian_student} 의 FK 두 개
+     * ({@code fk_guardian_student_guardian}·{@code fk_guardian_student_student})도 함께 지나기
+     * 때문이다. 제약을 가리지 않고 {@code DataIntegrityViolationException} 을 통째로 409 로 옮기면
+     * 사라진 보호자·학생을 가리킨 저장까지 "이미 연결된 대상입니다" 로 응답해 원인을 감춘다
+     * ({@code BusCommandService} 가 호차 제약에 같은 형태를 쓴다).
+     */
+    private static final String GUARDIAN_STUDENT_UNIQUE_CONSTRAINT = "uk_guardian_student";
 
     private final GuardianChildAccess guardianChildAccess;
 
@@ -135,12 +149,43 @@ public class ChildLinkCommandService {
         Student student = studentRepository.findByIdAndAcademyIdAndDeletedAtIsNull(
                 linkRequest.getStudentId(), guardian.getAcademyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.STUDENT_NOT_FOUND));
-        assertNotLinked(guardian, student.getId());
 
         linkCode.markUsed(now);
         linkRequest.complete();
-        guardianStudentRepository.save(GuardianStudent.uponLink(guardian.getId(), student.getId(), now));
+        saveLink(guardian, student, now);
         return ChildLinkedResponse.from(student);
+    }
+
+    /**
+     * 연결 행을 남긴다 — 중복은 선검사에서든 DB 거부에서든 같은 {@code 409 ALREADY_LINKED} 다
+     * (Ruling 164 의 요구가 Ruling 173 으로 이 자리에도 걸렸다).
+     *
+     * <p><b>{@link #assertNotLinked} 만으로는 부족하다.</b> 요청을 여러 번 보내면 살아 있는 코드가
+     * 둘 이상 생기고, 두 창에서 각각 넣으면 두 트랜잭션이 서로의 미커밋 INSERT 를 보지 못한 채 둘 다
+     * 선검사를 지난다. 그 뒤 {@code uk_guardian_student} 가 하나를 거부하는데, 그것을 옮기지 않으면
+     * 사용자에게 {@code 500} 이 나가 "서버가 고장났다" 와 "이미 연결됐다" 가 구별되지 않는다.
+     *
+     * <p><b>{@link jakarta.persistence.EntityManager} 가 아니라 저장소의 flush 를 부른다</b> — 예외
+     * 번역({@code DataIntegrityViolationException})은 {@code @Repository} 빈을 거칠 때만 붙어,
+     * {@code EntityManager} 를 직접 부르면 Hibernate 예외가 이 {@code catch} 를 그대로 지나친다.
+     */
+    private void saveLink(Guardian guardian, Student student, OffsetDateTime now) {
+        assertNotLinked(guardian, student.getId());
+        try {
+            guardianStudentRepository.save(GuardianStudent.uponLink(guardian.getId(), student.getId(), now));
+            guardianStudentRepository.flush();
+        } catch (DataIntegrityViolationException e) {
+            if (isDuplicateLink(e)) {
+                throw new BusinessException(ErrorCode.ALREADY_LINKED);
+            }
+            throw e;
+        }
+    }
+
+    /** 원인 체인에서 {@link ConstraintViolationException} 을 찾아 거부한 주체가 연결 제약인지만 본다. */
+    private boolean isDuplicateLink(DataIntegrityViolationException e) {
+        return e.getCause() instanceof ConstraintViolationException cve
+                && GUARDIAN_STUDENT_UNIQUE_CONSTRAINT.equals(cve.getConstraintName());
     }
 
     /**

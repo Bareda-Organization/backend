@@ -150,7 +150,7 @@ class StaffStudentControllerTest {
         mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A))
                         .param("q", 시드_학생_이름(SEED_SIBLING_1)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].student_id").value((int) SEED_SIBLING_1))
+                .andExpect(jsonPath("$.data.items[0].student_id").value(String.valueOf(SEED_SIBLING_1)))
                 .andExpect(jsonPath("$.data.items[0].guardian_phone").value(phone));
     }
 
@@ -190,7 +190,7 @@ class StaffStudentControllerTest {
 
         mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A)).param("q", "P5T1미연결학생"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].student_id").value((int) studentId))
+                .andExpect(jsonPath("$.data.items[0].student_id").value(String.valueOf(studentId)))
                 .andExpect(jsonPath("$.data.items[0].guardian_phone").value((Object) null))
                 .andExpect(jsonPath("$.data.items[0].bus_no").value((Object) null))
                 .andExpect(jsonPath("$.data.items[0].stop_name").value((Object) null));
@@ -212,7 +212,7 @@ class StaffStudentControllerTest {
 
         mockMvc.perform(get(BASE + "/" + academyBStudentId).header("Authorization", 관계자_토큰(ACADEMY_B)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.student_id").value((int) academyBStudentId));
+                .andExpect(jsonPath("$.data.student_id").value(String.valueOf(academyBStudentId)));
     }
 
     /**
@@ -226,12 +226,12 @@ class StaffStudentControllerTest {
 
         mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A)).param("size", "100"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[?(@.student_id == %d)]".formatted(academyBStudentId))
+                .andExpect(jsonPath("$.data.items[?(@.student_id == '%d')]".formatted(academyBStudentId))
                         .isEmpty());
 
         mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_B)).param("size", "100"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[?(@.student_id == %d)]".formatted(academyBStudentId))
+                .andExpect(jsonPath("$.data.items[?(@.student_id == '%d')]".formatted(academyBStudentId))
                         .isNotEmpty());
     }
 
@@ -295,7 +295,7 @@ class StaffStudentControllerTest {
 
         mockMvc.perform(delete(BASE + "/" + studentId).header("Authorization", 관계자_토큰(ACADEMY_A)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.student_id").value((int) studentId))
+                .andExpect(jsonPath("$.data.student_id").value(String.valueOf(studentId)))
                 .andExpect(jsonPath("$.data.deleted_at").isNotEmpty());
 
         entityManager.flush();
@@ -484,8 +484,8 @@ class StaffStudentControllerTest {
 
         mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A)).param("q", "가나다"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[?(@.student_id == %d)]".formatted(찾을_학생)).isNotEmpty())
-                .andExpect(jsonPath("$.data.items[?(@.student_id == %d)]".formatted(안_찾을_학생)).isEmpty());
+                .andExpect(jsonPath("$.data.items[?(@.student_id == '%d')]".formatted(찾을_학생)).isNotEmpty())
+                .andExpect(jsonPath("$.data.items[?(@.student_id == '%d')]".formatted(안_찾을_학생)).isEmpty());
     }
 
     // ── 도우미 ────────────────────────────────────────────────────────────
@@ -504,7 +504,7 @@ class StaffStudentControllerTest {
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isCreated())
                 .andReturn();
-        return ((Number) JsonPath.read(본문(result), "$.data.student_id")).longValue();
+        return Long.parseLong(JsonPath.read(본문(result), "$.data.student_id"));
     }
 
     private String 본문(MvcResult result) throws Exception {

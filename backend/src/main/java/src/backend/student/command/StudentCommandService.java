@@ -19,6 +19,7 @@ import src.backend.student.dto.StudentWithdrawalResponse;
 import src.backend.student.entity.Gender;
 import src.backend.student.entity.Student;
 import src.backend.student.entity.StudentProfile;
+import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StudentRepository;
 
 /**
@@ -27,6 +28,9 @@ import src.backend.student.repository.StudentRepository;
  * <p>세 경로 모두 <b>같은 저장소 조회</b>({@code findByIdAndAcademyIdAndDeletedAtIsNull})로 대상을
  * 꺼낸다 — 학원 조건과 퇴원 여부가 쿼리에 붙어 있어, "남의 학원 학생" 과 "없는 학생" 이 같은 빈 결과가
  * 되고 그대로 {@code 404 STUDENT_NOT_FOUND} 가 된다(§5.11). {@code 403} 이면 존재 여부가 새어 나간다.
+ *
+ * <p>{@code guardian_student} 를 함께 만지는 것은 퇴원 하나뿐이다(Ruling 172) — 연결을 <b>만드는</b>
+ * 경로는 자녀 연결(P-02)이 소유하고 여기서 열지 않는다.
  */
 @Service
 @RequiredArgsConstructor
@@ -34,6 +38,8 @@ import src.backend.student.repository.StudentRepository;
 public class StudentCommandService {
 
     private final StudentRepository studentRepository;
+
+    private final GuardianStudentRepository guardianStudentRepository;
 
     private final Clock clock;
 
@@ -59,15 +65,34 @@ public class StudentCommandService {
     }
 
     /**
-     * 퇴원 처리한다(STU-04) — {@code deleted_at} 만 채우는 soft delete 다.
+     * 퇴원 처리한다(STU-04) — 학생에 {@code deleted_at} 을 채우는 soft delete 이고, <b>보호자 연결도
+     * 함께 해제</b>한다(ERD §7.1 · UF-P-01 · Ruling 172).
      *
      * <p>이미 퇴원한 학생은 조회 조건에서 빠져 {@code 404} 가 된다 — 두 번째 요청이 성공하면
      * 퇴원 시각이 뒤로 밀려, 언제 명단에서 빠졌는지가 마지막 클릭 시각으로 덮인다.
+     *
+     * <p><b>연결 해제를 여기서 하는 이유</b> — 학부모 앱의 접근 범위 판정은 {@code unlinked_at IS NULL}
+     * 을 보는데(§1.5), 학생 쪽만 지우고 연결을 남기면 <b>퇴원한 자녀가 옛 보호자의 목록에 계속
+     * 남는다.</b> 두 값이 같은 사건("이 학생은 더 이상 이 학원의 학생이 아니다")을 가리키므로 같은
+     * 트랜잭션에서 함께 움직인다.
      */
     public StudentWithdrawalResponse withdraw(AuthUser requester, Long studentId) {
         Student student = find(requester, studentId);
-        student.withdraw(OffsetDateTime.now(clock));
+        OffsetDateTime at = OffsetDateTime.now(clock);
+        student.withdraw(at);
+        unlinkGuardians(student, at);
         return StudentWithdrawalResponse.from(student);
+    }
+
+    /**
+     * 그 학생의 살아 있는 보호자 연결을 전부 해제한다 — <b>행은 지우지 않는다</b>(과거 이력 보존).
+     *
+     * <p>대상을 학생으로 좁히는 것이 요점이다. 보호자로 좁히면 형제 중 하나가 퇴원할 때 <b>나머지
+     * 자녀까지</b> 앱에서 사라진다.
+     */
+    private void unlinkGuardians(Student student, OffsetDateTime at) {
+        guardianStudentRepository.findActiveLinksOfStudent(student.getId(), student.getAcademyId())
+                .forEach(link -> link.unlink(at));
     }
 
     private Student find(AuthUser requester, Long studentId) {

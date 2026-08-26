@@ -53,4 +53,19 @@ public class GuardianStudent {
     public static GuardianStudent uponLink(Long guardianId, Long studentId, OffsetDateTime linkedAt) {
         return new GuardianStudent(guardianId, studentId, linkedAt);
     }
+
+    /**
+     * 퇴원으로 보호자 관계가 끝난 시점을 기록한다(STU-04 · ERD §7.1 · UF-P-01).
+     *
+     * <p><b>행을 지우지 않는 것이 규정이다.</b> 지우면 목록에서 빠지는 결과는 같지만 "이 학생을 누가
+     * 데려갔었나" 를 되짚을 수단이 사라진다. 그래서 소멸이 아니라 <b>끝난 시각의 기록</b>이다.
+     *
+     * <p>이미 해제된 연결은 다시 덮지 않는다 — 덮으면 관계가 끝난 시각이 마지막 조작 시각으로 밀려,
+     * 보존하려던 이력이 그 순간 거짓이 된다({@code Student#withdraw} 가 재퇴원을 막는 것과 같은 근거).
+     */
+    public void unlink(OffsetDateTime at) {
+        if (unlinkedAt == null) {
+            this.unlinkedAt = at;
+        }
+    }
 }
