@@ -141,6 +141,25 @@ public enum ErrorCode {
     // ⚠ 근무 시간·중복 배치 충돌과 다른 축이다 — 그쪽은 경고이고 저장되지만(MGR-06 · Ruling 152)
     // 이쪽은 저장 자체가 거부된다. 두 축을 섞으면 경고가 차단으로 굳는다.
     DUPLICATE_ASSIGNMENT(HttpStatus.CONFLICT, "이미 배치된 역할입니다"),
+    // ── 요일별 주소 · 주소 검증 · 승하차지 매칭(Phase 5 Task 4) ──────────────────
+    // 지오코딩이 "그런 주소는 없다"(totalCount == 0)고 답했을 때(P-05 · STU-05 · API_SPEC §3.7·§8.5).
+    // 이 코드가 나오면 weekly_address 행은 남지 않는다 — 저장 보류가 사양이라 verified=false 행을
+    // 적재하지 않는다(ERD weekly_address.verified).
+    ADDRESS_VERIFICATION_FAILED(HttpStatus.UNPROCESSABLE_CONTENT, "주소를 확인할 수 없습니다"),
+    // 지오코딩 공급자에 닿지 못했을 때 — 네트워크 오류 · 5xx · 서킷 개방(API_SPEC §8.5, Ruling 157).
+    // ⚠ 위 ADDRESS_VERIFICATION_FAILED 와 합치지 않는다. 두 경우에 사용자가 할 일이 정반대다 —
+    // 저쪽은 주소를 고쳐 다시 보낼 자리이고, 이쪽은 같은 주소를 이따가 다시 보낼 자리다. 합치면
+    // 네이버가 5분 멈춘 동안 학부모 전원이 "우리 집 주소가 틀렸다" 는 안내를 받는다.
+    // 422 가 아니라 503 인 것은 요청이 잘못된 것이 아니라 서버가 지금 처리할 수 없기 때문이다.
+    ADDRESS_VERIFICATION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "주소 확인 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요"),
+    // 한 요청의 entries[] 가 같은 (weekday, direction) 칸을 두 번 담았을 때 —
+    // weekly_address(student_id, weekday, direction) UNIQUE 위반(P-05 · C-16 · API_SPEC §3.7·§8.5).
+    // ⚠ 요청을 <b>다시</b> 보내는 것은 이 코드가 아니라 덮어쓰기다 — 같은 칸을 나중에 고치는 것은
+    // 정상 동작(§3.7 즉시 반영, Ruling 151)이고, 막는 것은 한 요청 안의 자기모순뿐이다.
+    // 422 가 아니라 409 인 것은 요청 형식이 아니라 자원이 충돌한 것이기 때문이다 — DUPLICATE_BUS_NO ·
+    // DUPLICATE_SCHEDULE 과 같은 형태이며, 판정은 애플리케이션 선검사가 아니라 DB UNIQUE 다.
+    DUPLICATE_WEEKLY_ADDRESS(HttpStatus.CONFLICT, "같은 요일·방향의 주소가 중복됐습니다"),
+
     // ── 알림 아웃박스(Phase 4) ──────────────────────────────────────────────────
     // 같은 dedup_key 의 알림이 이미 적재돼 있을 때(ERD notification_log UNIQUE) — 이벤트가 두 번
     // 배달됐다는 뜻이다. 그 거부를 옮기지 않으면 DataIntegrityViolationException 이 전역 핸들러의
