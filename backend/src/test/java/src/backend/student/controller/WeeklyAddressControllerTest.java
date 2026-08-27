@@ -76,6 +76,18 @@ class WeeklyAddressControllerTest {
     /** 번지가 30 벌어져 약 330m 떨어진 주소 — 임계 밖이다. */
     private static final String FAR_ADDRESS = "서울시 테스트로 130";
 
+    /**
+     * 번지 4 차이 — {@code 0.0004}도 × 111,320m 로 약 <b>44.5m</b>, 임계(50m) 바로 안쪽이다.
+     *
+     * <p>{@link #NEAR_ADDRESS}(약 11m)·{@link #FAR_ADDRESS}(약 334m)만으로는 임계가 <b>존재한다</b>는
+     * 것만 고정되고 그 <b>값</b>은 고정되지 않는다 — 실제로 50을 300으로 여섯 배 늘려도 15건이 전부
+     * 초록이었다(게이트 리뷰 실측). 경계 양쪽을 함께 밟아야 값이 잠긴다.
+     */
+    private static final String JUST_INSIDE_ADDRESS = "서울시 테스트로 104";
+
+    /** 번지 5 차이 — 약 <b>55.7m</b> 로 임계 바로 바깥이다. 후보 상자 안이면서 원 밖인 지점이기도 하다. */
+    private static final String JUST_OUTSIDE_ADDRESS = "서울시 테스트로 105";
+
     /** 끝에 번지가 없어 공급자가 결과 0건으로 답하는 주소. */
     private static final String UNVERIFIABLE_ADDRESS = "번지가 없는 어딘가";
 
@@ -262,6 +274,35 @@ class WeeklyAddressControllerTest {
 
         assertThat(승하차지(SIBLING_2_ID, "wed", "to_academy"))
                 .isNotEqualTo(승하차지(SIBLING_1_ID, "wed", "to_academy"));
+    }
+
+    /**
+     * 임계 <b>바로 안쪽</b>(약 44.5m)의 두 주소는 한 승하차지로 묶인다.
+     *
+     * <p>아래 바깥쪽 단언과 짝이다 — 둘이 함께 임계를 {@code (44.5, 55.7]} 구간에 가둔다. 한쪽만
+     * 있으면 임계를 0으로 만들거나 무한대로 늘리는 변경 중 한 방향만 걸린다.
+     */
+    @Test
+    void 임계_바로_안쪽인_44m_떨어진_두_주소는_같은_stop_에_묶인다() throws Exception {
+        주소를_저장한다(GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A, SIBLING_1_ID, 항목("sat", "to_academy", ADDRESS));
+        주소를_저장한다(GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A, SIBLING_2_ID,
+                항목("sat", "to_academy", JUST_INSIDE_ADDRESS));
+
+        assertThat(승하차지(SIBLING_2_ID, "sat", "to_academy"))
+                .as("임계 안인데 갈렸다 — MERGE_RADIUS_METERS 가 44.5m 아래로 줄었다")
+                .isEqualTo(승하차지(SIBLING_1_ID, "sat", "to_academy"));
+    }
+
+    /** 임계 <b>바로 바깥</b>(약 55.7m)의 두 주소는 갈린다 — 값을 위에서 눌러 고정하는 쪽이다. */
+    @Test
+    void 임계_바로_바깥인_56m_떨어진_두_주소는_다른_stop_이_된다() throws Exception {
+        주소를_저장한다(GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A, SIBLING_1_ID, 항목("sun", "to_academy", ADDRESS));
+        주소를_저장한다(GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A, SIBLING_2_ID,
+                항목("sun", "to_academy", JUST_OUTSIDE_ADDRESS));
+
+        assertThat(승하차지(SIBLING_2_ID, "sun", "to_academy"))
+                .as("임계 밖인데 묶였다 — MERGE_RADIUS_METERS 가 55.7m 위로 늘었다")
+                .isNotEqualTo(승하차지(SIBLING_1_ID, "sun", "to_academy"));
     }
 
     /**
