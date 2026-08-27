@@ -1,9 +1,16 @@
 package src.backend.account;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+
+import com.jayway.jsonpath.JsonPath;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +20,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -157,31 +165,64 @@ class StaffEmploymentLoginTest {
 
     private void 재직_상태를_바꾼다(long accountId, String status) throws Exception {
         mockMvc.perform(patch("/api/v1/admin/staff-accounts/" + accountId)
-                        .header("Authorization", "Bearer " + tokenProvider.createAccessToken(
-                                SYSTEM_ADMIN_ACCOUNT_ID, null, Role.SYSTEM_ADMIN, AccountStatus.ACTIVE))
+                        .header("Authorization", 메인_관리자_토큰())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"%s\"}".formatted(status)))
                 .andExpect(status().isOk());
     }
 
     /**
-     * 학원 1곳 + 재직 관계자 1명을 SQL 로 만든다 — 학원마다 재직 1명 정원이라 계정마다 학원을 따로 만든다.
+     * 학원 1곳 + 재직 관계자 1명을 <b>실제 경로</b>로 만든다 — 학원 등록(§6.2) → 관계자 가입(§2.2) →
+     * 메인 관리자 승인(§6.5). 학원마다 재직 1명 정원이라(§6.4) 계정마다 학원을 따로 만든다.
      *
-     * <p>엔티티가 아니라 SQL 인 이유는 {@code account.status='active'} 로 시작해야 하는데 가입 승인
-     * 전이(pending → active)가 Task 2 소유라, 지금 그 경로를 부르면 이 테스트가 남의 산출물에 묶이기 때문이다.
+     * <p>SQL 세 줄이었다가 바뀐 자리다(목표 10). SQL 은 {@code academy_staff} 행을 <b>직접</b> 넣어,
+     * 승인이 그 행을 만들지 못하게 되어도 이 테스트는 그대로 초록이다 — 그러면 "퇴사한 관계자를 막는가"
+     * 는 검사하면서 <b>애초에 재직 행이 생기는가</b> 는 아무도 검사하지 않는 상태가 된다. 승인 경로로
+     * 만들면 그 둘이 한 시험 안에서 함께 선다.
      */
-    private long 재직_관계자를_만든다(String loginId) {
-        String code = loginId.toUpperCase();
-        jdbcTemplate.update("INSERT INTO academy (code, name, region, status) VALUES (?, ?, '서울', 'active')",
-                code, "P3T3재직학원" + loginId);
-        long academyId = jdbcTemplate.queryForObject("SELECT id FROM academy WHERE code = ?", Long.class, code);
-        jdbcTemplate.update("INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) "
-                        + "VALUES (?, ?, ?, ?, '010-0000-0000', 'staff', 'active')",
-                academyId, loginId, passwordEncoder.encode(RAW_PASSWORD), "관계자" + loginId);
-        long accountId = jdbcTemplate.queryForObject("SELECT id FROM account WHERE login_id = ?", Long.class, loginId);
-        jdbcTemplate.update("INSERT INTO academy_staff (academy_id, account_id, status) VALUES (?, ?, 'active')",
-                academyId, accountId);
-        return accountId;
+    private long 재직_관계자를_만든다(String loginId) throws Exception {
+        String adminToken = 메인_관리자_토큰();
+        MvcResult 학원 = mockMvc.perform(post("/api/v1/admin/academies")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\": \"P3T3재직학원%s\", \"region\": \"서울\"}".formatted(loginId)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long academyId = ((Number) JsonPath.read(본문(학원), "$.data.academy_id")).longValue();
+
+        mockMvc.perform(post("/api/v1/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"role": "staff", "login_id": "%s", "password": "%s", "name": "관계자%s",
+                                 "phone": "010-0000-0000", "academy_id": "%d"}
+                                """.formatted(loginId, RAW_PASSWORD, loginId, academyId)))
+                .andExpect(status().isCreated());
+
+        MvcResult 큐 = mockMvc.perform(get("/api/v1/admin/staff-signup-requests")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        List<Integer> ids = JsonPath.read(본문(큐),
+                "$.data.items[?(@.academy.id == '%d')].request_id".formatted(academyId));
+        assertThat(ids).as("등록한 학원의 관계자 요청이 승인 큐에 1건 떠야 픽스처가 성립한다").hasSize(1);
+
+        mockMvc.perform(post("/api/v1/admin/staff-signup-requests/" + ids.get(0) + "/decide")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accept\": true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.account_status").value("active"));
+
+        return jdbcTemplate.queryForObject("SELECT id FROM account WHERE login_id = ?", Long.class, loginId);
+    }
+
+    private String 메인_관리자_토큰() {
+        return "Bearer " + tokenProvider.createAccessToken(SYSTEM_ADMIN_ACCOUNT_ID, null, Role.SYSTEM_ADMIN,
+                AccountStatus.ACTIVE);
+    }
+
+    private String 본문(MvcResult result) throws Exception {
+        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 
     /** 시드 계정의 비밀번호를 이 테스트가 아는 값으로 바꾼다 — 시드 해시가 담은 평문에 기대지 않는다. */

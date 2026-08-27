@@ -105,14 +105,14 @@ class StaffScheduleControllerTest {
      */
     @Test
     void 같은_차량_요일_방향_출발시각_조합을_두_번_등록하면_거부된다() throws Exception {
-        등록한다(관계자A_토큰(), BUS_A_ID, "tue", "to_academy", FREE_TIME).andExpect(status().isOk());
+        등록한다(관계자A_토큰(), BUS_A_ID, "tue", "to_academy", FREE_TIME).andExpect(status().isCreated());
 
         등록한다(관계자A_토큰(), BUS_A_ID, "tue", "to_academy", FREE_TIME)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("DUPLICATE_SCHEDULE"));
 
         등록한다(관계자A_토큰(), BUS_A_ID, "tue", "from_academy", FREE_TIME)
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
     }
 
     /** 다른 학원의 차량을 지목한 등록은 {@code 404 BUS_NOT_FOUND} 다 — 그 차량의 존재 여부를 드러내지 않는다. */
@@ -145,7 +145,7 @@ class StaffScheduleControllerTest {
     /** 수정도 유일성 조합을 받는다 — 시각만 옮겨도 기존 스케줄과 겹치면 {@code 409} 다. */
     @Test
     void 수정으로_다른_스케줄과_같은_조합이_되면_거부된다() throws Exception {
-        등록한다(관계자A_토큰(), BUS_A_ID, "fri", "to_academy", "09:10").andExpect(status().isOk());
+        등록한다(관계자A_토큰(), BUS_A_ID, "fri", "to_academy", "09:10").andExpect(status().isCreated());
         long scheduleId = 등록된_스케줄_id(관계자A_토큰(), BUS_A_ID, "fri", "to_academy", "09:20");
 
         수정한다(관계자A_토큰(), scheduleId, "{\"depart_time\":\"09:10\"}")
@@ -261,7 +261,7 @@ class StaffScheduleControllerTest {
     private long 등록된_스케줄_id(String token, long busId, String weekday, String direction, String departTime)
             throws Exception {
         MvcResult result = 등록한다(token, busId, weekday, direction, departTime)
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andReturn();
         return ((Number) JsonPath.read(본문(result), "$.data.id")).longValue();
     }

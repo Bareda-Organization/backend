@@ -74,7 +74,7 @@ class StaffBusControllerTest {
         int capacity = 16;
 
         등록한다(관계자A_토큰(), "{\"bus_no\":\"9호차\",\"plate_no\":\"99가9999\",\"capacity\":%d}".formatted(capacity))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.capacity").value(capacity))
                 .andExpect(jsonPath("$.data.student_capacity").value(
                         capacity - BusSeating.DEFAULT_DRIVER_COUNT - BusSeating.DEFAULT_ESCORT_COUNT))
@@ -92,7 +92,7 @@ class StaffBusControllerTest {
     void 요청에_student_capacity_를_실어도_서버_계산값으로_저장된다() throws Exception {
         MvcResult result = 등록한다(관계자A_토큰(),
                 "{\"bus_no\":\"8호차\",\"plate_no\":\"88가8888\",\"capacity\":16,\"student_capacity\":99}")
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.student_capacity").value(14))
                 .andReturn();
 
@@ -131,7 +131,7 @@ class StaffBusControllerTest {
     void 운행_불가로_등록하면_그_값이_저장된다() throws Exception {
         MvcResult result = 등록한다(관계자A_토큰(),
                 "{\"bus_no\":\"정비중호차\",\"plate_no\":\"12나1200\",\"capacity\":16,\"operable\":false}")
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.operable").value(false))
                 .andReturn();
         long busId = ((Number) JsonPath.read(본문(result), "$.data.id")).longValue();
@@ -189,7 +189,7 @@ class StaffBusControllerTest {
     @Test
     void 같은_학원에_같은_호차를_다시_등록하면_409_DUPLICATE_BUS_NO_이다() throws Exception {
         등록한다(관계자A_토큰(), "{\"bus_no\":\"중복호차\",\"plate_no\":\"10가1000\",\"capacity\":16}")
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
 
         등록한다(관계자A_토큰(), "{\"bus_no\":\"중복호차\",\"plate_no\":\"10가2000\",\"capacity\":16}")
                 .andExpect(status().isConflict())
@@ -205,10 +205,10 @@ class StaffBusControllerTest {
     @Test
     void 다른_학원은_같은_호차를_쓸_수_있다() throws Exception {
         등록한다(관계자A_토큰(), "{\"bus_no\":\"공용호차\",\"plate_no\":\"10가3000\",\"capacity\":16}")
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
 
         등록한다(관계자B_토큰(), "{\"bus_no\":\"공용호차\",\"plate_no\":\"10가4000\",\"capacity\":16}")
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
     }
 
     /**
@@ -222,7 +222,7 @@ class StaffBusControllerTest {
     @Test
     void 호차_수정으로_같은_학원의_기존_호차와_겹치면_409_DUPLICATE_BUS_NO_이다() throws Exception {
         등록한다(관계자A_토큰(), "{\"bus_no\":\"선점호차\",\"plate_no\":\"10가5000\",\"capacity\":16}")
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
         long busId = 등록된_차량_id(관계자A_토큰(), "바꿀호차", "10가6000", 16);
 
         수정한다(관계자A_토큰(), busId, "{\"bus_no\":\"선점호차\"}")
@@ -356,7 +356,7 @@ class StaffBusControllerTest {
     private long 등록된_차량_id(String token, String busNo, String plateNo, int capacity) throws Exception {
         MvcResult result = 등록한다(token,
                 "{\"bus_no\":\"%s\",\"plate_no\":\"%s\",\"capacity\":%d}".formatted(busNo, plateNo, capacity))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andReturn();
         return ((Number) JsonPath.read(본문(result), "$.data.id")).longValue();
     }

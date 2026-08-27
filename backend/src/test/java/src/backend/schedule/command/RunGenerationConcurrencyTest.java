@@ -128,14 +128,15 @@ class RunGenerationConcurrencyTest {
         int 배치가_만든_수;
         try {
             Future<Void> 먼저 = pool.submit(() -> {
-                먼저_INSERT_하고_상대가_막힐_때까지_커밋을_미룬다();
+                먼저_INSERT_하고_상대가_막힐_때까지_커밋을_미룬다(먼저_들어갔다);
                 return null;
             });
+            // 배치는 상대의 INSERT 가 실제로 들어간 뒤에 출발한다. 상한에 걸려 그냥 출발하면 배치가
+            // 혼자 회차를 만들고, 그것은 아래 생성 건수 단언이 1 로 실패시킨다.
             Future<Integer> 배치 = pool.submit(() -> {
                 먼저_들어갔다.await(TIMEOUT_SECONDS, TimeUnit.SECONDS);
                 return runGenerationService.generate(serviceDate);
             });
-            먼저_들어갔다.countDown();
 
             배치가_만든_수 = 배치.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
             먼저.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -170,13 +171,20 @@ class RunGenerationConcurrencyTest {
      * <p>이 대기가 이 테스트의 결정성을 만든다 — 상대가 잠금을 기다린다는 것은 상대의 선검사가 이미
      * 끝났고(내 행이 미커밋이라 보이지 않았고) 이제 DB 만 남았다는 뜻이라, 내가 커밋하는 순간 상대는
      * <b>반드시</b> 제약 위반을 받는다.
+     *
+     * <p><b>배치를 푸는 신호를 이 메서드가 INSERT 직후에 보낸다</b>({@code 먼저_들어갔다}). 신호를
+     * 호출부에서 보내면 두 스레드는 순서 없이 출발하고, 배치가 먼저 커밋해 버리면 이쪽의
+     * {@code create} 가 <b>선검사</b>에서 {@code DUPLICATE_RUN} 을 던져 그대로 밖으로 나간다 — 배치
+     * 경로만 그 예외를 삼키기 때문이다. 실제로 그 형태로 6회 중 1회 실패했고, INSERT 앞에 300ms 를
+     * 넣어 순서를 뒤집으면 3회 중 3회 같은 자리에서 실패한다.
      */
-    private void 먼저_INSERT_하고_상대가_막힐_때까지_커밋을_미룬다() {
+    private void 먼저_INSERT_하고_상대가_막힐_때까지_커밋을_미룬다(CountDownLatch 먼저_들어갔다) {
         Schedule schedule = scheduleRepository.findById(scheduleId).orElseThrow();
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
             runCommandService.create(new RunDraft(schedule.getAcademyId(), schedule.getBusId(), schedule.getId(),
                     serviceDate, schedule.getDirection(), schedule.getDepartTime(), schedule.getOriginName(),
                     schedule.getDestinationName(), schedule.getEstDurationMin()));
+            먼저_들어갔다.countDown();
             상대가_INSERT_에서_대기할_때까지_커밋을_미룬다();
         });
     }

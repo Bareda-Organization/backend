@@ -149,14 +149,14 @@ class StaffRunControllerTest {
     @Test
     void 같은_조합의_회차를_두_번_추가하면_거부된다() throws Exception {
         임시_추가한다(관계자A_토큰(), BUS_A_ID, SERVICE_DATE, "to_academy", "07:55")
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
 
         임시_추가한다(관계자A_토큰(), BUS_A_ID, SERVICE_DATE, "to_academy", "07:55")
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("DUPLICATE_RUN"));
 
         임시_추가한다(관계자A_토큰(), BUS_A_ID, OTHER_DATE, "to_academy", "07:55")
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
     }
 
     // ── SCH-03 임시 취소 ──────────────────────────────────────────────────
@@ -284,7 +284,7 @@ class StaffRunControllerTest {
     private long 임시_추가된_회차_id(String token, long busId, String serviceDate, String direction,
             String departTime) throws Exception {
         MvcResult result = 임시_추가한다(token, busId, serviceDate, direction, departTime)
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andReturn();
         return ((Number) JsonPath.read(본문(result), "$.data.id")).longValue();
     }

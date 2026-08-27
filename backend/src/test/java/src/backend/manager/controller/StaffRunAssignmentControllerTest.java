@@ -461,7 +461,7 @@ class StaffRunAssignmentControllerTest {
                         {"bus_id":%d,"service_date":"%s","direction":"to_academy","depart_time":"%s",
                          "origin_name":"배치 검증 집결지","destination_name":"바래다학원"}"""
                         .formatted(busId, SERVICE_DATE, departTime)))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andReturn();
         return ((Number) JsonPath.read(본문(result), "$.data.id")).longValue();
     }

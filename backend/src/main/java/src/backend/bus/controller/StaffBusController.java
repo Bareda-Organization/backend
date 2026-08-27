@@ -5,9 +5,11 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
@@ -51,6 +53,7 @@ public class StaffBusController {
     /** 차량 등록(BUS-02, §5.12) — 응답의 {@code student_capacity} 는 서버 계산값이다. */
     @CanManageBus
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<BusResponse> register(@AuthenticationPrincipal AuthUser requester,
             @Valid @RequestBody BusRegisterRequest request) {
         return ApiResponse.ok(busCommandService.register(requester, request));

@@ -93,11 +93,11 @@ class StaffManagerControllerTest {
     @Test
     void 매니저를_등록하면_role_이_driver_또는_escort_로만_저장된다() throws Exception {
         등록한다(관계자A_토큰(), "{\"name\":\"신기사\",\"phone\":\"010-9000-0001\",\"role\":\"driver\"}")
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.role").value("driver"));
 
         등록한다(관계자A_토큰(), "{\"name\":\"신동승\",\"phone\":\"010-9000-0002\",\"role\":\"escort\"}")
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.role").value("escort"));
 
         등록한다(관계자A_토큰(), "{\"name\":\"신정비\",\"phone\":\"010-9000-0003\",\"role\":\"mechanic\"}")
@@ -116,7 +116,7 @@ class StaffManagerControllerTest {
         등록한다(관계자A_토큰(), """
                 {"name":"이교대","phone":"010-9000-0010","role":"driver",
                  "work_hours":{"mon":[{"start":"07:00","end":"10:00"},{"start":"16:00","end":"19:00"}]}}""")
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.work_hours.mon.length()").value(2))
                 .andExpect(jsonPath("$.data.work_hours.mon[0].start").value("07:00"))
                 .andExpect(jsonPath("$.data.work_hours.mon[1].end").value("19:00"));
@@ -419,7 +419,7 @@ class StaffManagerControllerTest {
     private long 등록된_매니저_id(String token, String name, String phone) throws Exception {
         MvcResult result = 등록한다(token,
                 "{\"name\":\"%s\",\"phone\":\"%s\",\"role\":\"driver\"}".formatted(name, phone))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andReturn();
         return ((Number) JsonPath.read(본문(result), "$.data.id")).longValue();
     }
@@ -430,7 +430,7 @@ class StaffManagerControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"bus_no\":\"%s\",\"plate_no\":\"%s\",\"capacity\":%d}"
                         .formatted(busNo, plateNo, capacity)))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andReturn();
         return ((Number) JsonPath.read(본문(result), "$.data.id")).longValue();
     }
