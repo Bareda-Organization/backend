@@ -3,8 +3,7 @@ package src.backend.student.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -25,9 +24,11 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
-import org.springframework.http.MediaType;
+import org.springframework.http.HttpMethod;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -250,10 +251,9 @@ class StaffStudentControllerTest {
         long academyBStudentId = 학원_B_시드_학생();
         String before = 시드_학생_이름(academyBStudentId);
 
-        mockMvc.perform(patch(BASE + "/" + academyBStudentId).header("Authorization", 관계자_토큰(ACADEMY_A))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"name":"P5T1남의학원수정","note":"침입","can_go_alone":true}"""))
+        mockMvc.perform(수정_요청(academyBStudentId, """
+                                {"name":"P5T1남의학원수정","note":"침입","can_go_alone":true}""")
+                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("STUDENT_NOT_FOUND"));
 
@@ -460,10 +460,9 @@ class StaffStudentControllerTest {
                 .andExpect(jsonPath("$.data.note").value("땅콩 알레르기"))
                 .andExpect(jsonPath("$.data.can_go_alone").value(true));
 
-        mockMvc.perform(patch(BASE + "/" + studentId).header("Authorization", 관계자_토큰(ACADEMY_A))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"note":"보호자 동행 필요","can_go_alone":false}"""))
+        mockMvc.perform(수정_요청(studentId, """
+                                {"note":"보호자 동행 필요","can_go_alone":false}""")
+                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get(BASE + "/" + studentId).header("Authorization", 관계자_토큰(ACADEMY_A)))
@@ -543,11 +542,23 @@ class StaffStudentControllerTest {
     }
 
     private long 등록한다(String body) throws Exception {
-        MvcResult result = mockMvc.perform(post(BASE).header("Authorization", 관계자_토큰(ACADEMY_A))
-                        .contentType(MediaType.APPLICATION_JSON).content(body))
+        MvcResult result = mockMvc.perform(multipart(BASE).file(데이터_파트(body))
+                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
                 .andExpect(status().isCreated())
                 .andReturn();
         return Long.parseLong(JsonPath.read(본문(result), "$.data.student_id"));
+    }
+
+    /**
+     * 등록·수정은 {@code multipart/form-data} 다(§1.1 · Ruling 159) — 사진 없이 부를 때도 형식은
+     * 같고, 다른 항목은 JSON 파트 {@code data} 에 담긴다.
+     */
+    private MockMultipartFile 데이터_파트(String json) {
+        return new MockMultipartFile("data", "", "application/json", json.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private MockMultipartHttpServletRequestBuilder 수정_요청(long studentId, String json) {
+        return multipart(HttpMethod.PATCH, BASE + "/" + studentId).file(데이터_파트(json));
     }
 
     private String 본문(MvcResult result) throws Exception {

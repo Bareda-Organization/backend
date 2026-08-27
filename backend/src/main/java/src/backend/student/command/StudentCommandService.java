@@ -19,6 +19,8 @@ import src.backend.student.dto.StudentWithdrawalResponse;
 import src.backend.student.entity.Gender;
 import src.backend.student.entity.Student;
 import src.backend.student.entity.StudentProfile;
+import src.backend.student.photo.StudentPhotoWriter;
+import src.backend.student.photo.spec.StudentPhoto;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StudentRepository;
 
@@ -28,6 +30,9 @@ import src.backend.student.repository.StudentRepository;
  * <p>세 경로 모두 <b>같은 저장소 조회</b>({@code findByIdAndAcademyIdAndDeletedAtIsNull})로 대상을
  * 꺼낸다 — 학원 조건과 퇴원 여부가 쿼리에 붙어 있어, "남의 학원 학생" 과 "없는 학생" 이 같은 빈 결과가
  * 되고 그대로 {@code 404 STUDENT_NOT_FOUND} 가 된다(§5.11). {@code 403} 이면 존재 여부가 새어 나간다.
+ *
+ * <p>사진 파일은 {@link StudentPhotoWriter} 를 거쳐 트랜잭션 안에서 저장된다(STU-02·03) — 저장에
+ * 실패하면 예외가 그대로 올라가 학생 행이 남지 않고, 행이 롤백되면 저장했던 파일이 지워진다.
  *
  * <p>{@code guardian_student} 를 함께 만지는 것은 퇴원 하나뿐이다(Ruling 172) — 연결을 <b>만드는</b>
  * 경로는 자녀 연결(P-02)이 소유하고 여기서 열지 않는다.
@@ -41,25 +46,36 @@ public class StudentCommandService {
 
     private final GuardianStudentRepository guardianStudentRepository;
 
+    private final StudentPhotoWriter studentPhotoWriter;
+
     private final Clock clock;
 
     /**
      * 학생을 등록한다(STU-02) — 소속 학원은 토큰이 정한다(§1.5).
      *
+     * @param photo 올라온 사진. {@code null} 이면 사진 없이 등록되며 그것이 정상이다(§5.11 선택 필드)
      * @return 등록된 학생의 식별자 — 응답 조립은 조회 쪽이 맡는다(§1.9 "변경 후 자원 상태를 반환")
      */
-    public Long register(AuthUser requester, StudentRegisterRequest request) {
+    public Long register(AuthUser requester, StudentRegisterRequest request, StudentPhoto photo) {
         StudentProfile profile = new StudentProfile(request.name(), request.studentPhone(),
-                request.photoUrl(), parseGender(request.gender()), request.birthDate(), request.grade(),
+                studentPhotoWriter.store(photo), parseGender(request.gender()), request.birthDate(),
+                request.grade(),
                 request.className(), request.seatNo(), request.note(), request.canGoAlone());
         return studentRepository.save(Student.register(academyOf(requester), profile)).getId();
     }
 
-    /** 학생 정보를 고친다(STU-03 · 07 · 08) — 보낸 항목만 반영된다. */
-    public Long update(AuthUser requester, Long studentId, StudentUpdateRequest request) {
+    /**
+     * 학생 정보를 고친다(STU-03 · 07 · 08) — 보낸 항목만 반영된다.
+     *
+     * <p>사진을 새로 올리면 옛 파일은 커밋 뒤에 지워진다 — 안 지우면 교체할 때마다 아무도 가리키지
+     * 않는 파일이 디스크에 쌓인다.
+     */
+    public Long update(AuthUser requester, Long studentId, StudentUpdateRequest request,
+            StudentPhoto photo) {
         Student student = find(requester, studentId);
         student.update(new StudentProfile(requirePresent(request.name()), request.studentPhone(),
-                request.photoUrl(), parseGender(request.gender()), request.birthDate(), request.grade(),
+                studentPhotoWriter.replace(student.getPhotoUrl(), photo), parseGender(request.gender()),
+                request.birthDate(), request.grade(),
                 request.className(), request.seatNo(), request.note(), request.canGoAlone()));
         return student.getId();
     }
