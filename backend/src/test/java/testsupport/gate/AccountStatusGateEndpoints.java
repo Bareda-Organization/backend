@@ -76,7 +76,10 @@ public final class AccountStatusGateEndpoints {
             "GET /me/students",
             "POST /me/students/link-requests",
             "POST /me/link-code",
-            "POST /me/students/link");
+            "POST /me/students/link",
+            // 요일별 등하원 주소(§3.7) — 승인된 학부모의 기능이라 허용 목록 밖이다(Ruling 145).
+            "GET /students/{id}/weekly-address",
+            "PATCH /students/{id}/weekly-address");
 
     /** {@code pending} 의 거부측 — {@code rejected} 거부측에 재신청 1개를 더한다({@code @AllowedWhenRejected} 는 pending 을 열지 않는다). */
     public static final List<String> DENIED_WHEN_PENDING = concat(DENIED_WHEN_REJECTED, "POST /auth/signup/reapply");
