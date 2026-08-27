@@ -1,10 +1,16 @@
 package src.backend.academy;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+
+import com.jayway.jsonpath.JsonPath;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -12,15 +18,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
 
-import src.backend.academy.entity.Academy;
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.account.entity.Account;
-import src.backend.account.repository.AccountRepository;
 import src.backend.global.common.SeedFixtures;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
@@ -49,41 +51,122 @@ class AcademyDeactivationTest {
 
     private static final String ACADEMY_NAME = "P3T1비활성화학원RR";
 
+    private static final String STAFF_LOGIN_ID = "p3t1deactstaff";
+
+    private static final String DRIVER_LOGIN_ID = "p3t1deactdriver";
+
     @Autowired
     private MockMvc mockMvc;
 
     @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private PasswordEncoder passwordEncoder;
-
-    @Autowired
     private JwtTokenProvider tokenProvider;
-
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
 
     @PersistenceContext
     private EntityManager entityManager;
 
     private Long academyId;
 
-    /** 활성 학원 1곳과 그 학원 소속의 <b>활성 계정</b> 1개 — 비활성화 뒤에도 살아 있어야 하는 쪽이다. */
+    /**
+     * 활성 학원 1곳과 그 학원 소속의 <b>활성 기사 계정</b> 1개 — 비활성화 뒤에도 살아 있어야 하는 쪽이다.
+     *
+     * <p><b>저장소·raw UPDATE 로 심지 않고 실제 경로를 그대로 탄다</b>(목표 10). 옛 픽스처는 계정을
+     * 만들고 {@code UPDATE account SET status='active'} 로 활성화했는데, 그것은 <b>AUTH-11 이 있을 수
+     * 없다고 규정한 상태</b>다 — 승인은 기사에게 {@code link.manager_id} 를 요구하므로(§5.2) 매니저
+     * 레코드에 연결되지 않은 활성 기사 계정은 운영에서 만들어질 수 없다. 그런 계정으로 로그인 경계를
+     * 재면 운영에서 나올 수 없는 데이터를 검사하는 셈이다.
+     *
+     * <p>그래서 학원 등록(§6.2) → 관계자 가입·메인 관리자 승인(§6.5) → 관계자 로그인 →
+     * <b>매니저 등록(MGR-02)</b> → 기사 가입 → 관계자 승인({@code link.manager_id}) 순으로 만든다.
+     * 학원마다 재직 관계자가 1명이라(§6.4 정원) 이 학원의 승인자는 이 학원 관계자여야 한다.
+     */
     @BeforeEach
-    void 활성_학원과_기존_계정을_만든다() {
-        Academy academy = academyRepository.save(Academy.register("P3T1DEACT", ACADEMY_NAME, "울산", null, null));
-        academyId = academy.getId();
-        Account account = accountRepository.save(Account.forSignup(academyId, "p3t1deactdriver",
-                passwordEncoder.encode(RAW_PASSWORD), "재직기사", "010-0000-2001", null, Role.DRIVER));
-        // 가입 승인(pending → active)은 T2 가 만들 경로라 아직 엔티티 메서드가 부재하다. 여기서
-        // 필요한 것은 그 전이 자체가 아니라 "이미 활성인 기존 계정" 이라는 상태이므로 raw UPDATE 로
-        // 심는다 — 심은 뒤 1차 캐시를 비우지 않으면 이후 조회가 UPDATE 이전 객체를 그대로 돌려준다.
-        jdbcTemplate.update("UPDATE account SET status = 'active' WHERE id = ?", account.getId());
-        entityManager.clear();
+    void 활성_학원과_기존_계정을_만든다() throws Exception {
+        String adminToken = 메인_관리자_토큰();
+        MvcResult 학원 = mockMvc.perform(post("/api/v1/admin/academies")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\": \"%s\", \"region\": \"울산\"}".formatted(ACADEMY_NAME)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        academyId = ((Number) JsonPath.read(본문(학원), "$.data.academy_id")).longValue();
+
+        가입한다("staff", STAFF_LOGIN_ID, "010-0000-2003");
+        mockMvc.perform(post("/api/v1/admin/staff-signup-requests/" + 관계자_요청_식별자(adminToken) + "/decide")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accept\": true}"))
+                .andExpect(status().isOk());
+
+        String staffToken = "Bearer " + JsonPath.<String>read(
+                본문(로그인한다(STAFF_LOGIN_ID, RAW_PASSWORD).andExpect(status().isOk()).andReturn()),
+                "$.data.access_token");
+
+        MvcResult 매니저 = mockMvc.perform(post("/api/v1/staff/managers")
+                        .header("Authorization", staffToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\": \"재직기사\", \"phone\": \"010-0000-2001\", \"role\": \"driver\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long managerId = ((Number) JsonPath.read(본문(매니저), "$.data.id")).longValue();
+
+        가입한다("driver", DRIVER_LOGIN_ID, "010-0000-2001");
+        mockMvc.perform(post("/api/v1/staff/signup-requests/" + 기사_요청_식별자(staffToken) + "/decide")
+                        .header("Authorization", staffToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accept\": true, \"link\": {\"manager_id\": %d}}".formatted(managerId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.account_status").value("active"));
+        entityManager.flush();
+    }
+
+    // ── 픽스처 도우미 ─────────────────────────────────────────────────────
+
+    private String 메인_관리자_토큰() {
+        return "Bearer " + tokenProvider.createAccessToken(1L, null, Role.SYSTEM_ADMIN, AccountStatus.ACTIVE);
+    }
+
+    private ResultActions 로그인한다(String loginId, String password) throws Exception {
+        return mockMvc.perform(post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"login_id\": \"%s\", \"password\": \"%s\"}".formatted(loginId, password)));
+    }
+
+    private void 가입한다(String role, String loginId, String phone) throws Exception {
+        mockMvc.perform(post("/api/v1/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"role": "%s", "login_id": "%s", "password": "%s", "name": "비활성화-%s",
+                                 "phone": "%s", "academy_id": "%d"}
+                                """.formatted(role, loginId, RAW_PASSWORD, loginId, phone, academyId)))
+                .andExpect(status().isCreated());
+    }
+
+    /** 메인 관리자 큐는 전 학원 범위라 <b>방금 만든 학원</b>의 요청만 골라낸다. */
+    private long 관계자_요청_식별자(String adminToken) throws Exception {
+        MvcResult result = mockMvc.perform(get("/api/v1/admin/staff-signup-requests")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        List<Integer> ids = JsonPath.read(본문(result),
+                "$.data.items[?(@.academy.id == '%d')].request_id".formatted(academyId));
+        assertThat(ids)
+                .as("등록한 학원의 관계자 요청이 메인 관리자 큐에 1건 떠야 픽스처가 성립한다").hasSize(1);
+        return ids.get(0).longValue();
+    }
+
+    private long 기사_요청_식별자(String staffToken) throws Exception {
+        MvcResult result = mockMvc.perform(get("/api/v1/staff/signup-requests")
+                        .header("Authorization", staffToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        List<Integer> ids = JsonPath.read(본문(result), "$.data.items[*].request_id");
+        assertThat(ids)
+                .as("이 학원의 승인 큐에는 기사 요청 1건만 있어야 한다").hasSize(1);
+        return ids.get(0).longValue();
+    }
+
+    private String 본문(MvcResult result) throws Exception {
+        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 
     /**
@@ -98,7 +181,7 @@ class AcademyDeactivationTest {
 
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"login_id\":\"p3t1deactdriver\",\"password\":\"%s\"}".formatted(RAW_PASSWORD)))
+                        .content("{\"login_id\":\"%s\",\"password\":\"%s\"}".formatted(DRIVER_LOGIN_ID, RAW_PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.access_token").isNotEmpty());
     }

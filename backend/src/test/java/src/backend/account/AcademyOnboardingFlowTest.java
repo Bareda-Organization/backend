@@ -2,6 +2,7 @@ package src.backend.account;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -20,6 +21,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,8 +34,9 @@ import org.springframework.transaction.annotation.Transactional;
  * 가입할 수 있는가" 를 아무도 검사하지 않는다. 그래서 앞 단계 응답값({@code academy_id} · 생성된
  * {@code code} · {@code request_id})만을 뒤 단계 입력으로 넘기고, 시드는 메인 관리자 자격 하나만 쓴다.
  *
- * <p>학생 레코드 1건만 raw INSERT 로 심는다 — 학생 등록 API(STU-01)는 Phase 5 소유라 이 시점에
- * 부재하고, AUTH-11 이 요구하는 연결 대상이 없으면 학부모 수락이 성립하지 않는다.
+ * <p>학부모 수락에는 AUTH-11 이 요구하는 연결 대상(학생)이 필요하다. 그 학생을 <b>승인된 관계자가
+ * 등록 API(STU-01)로 직접 만든다</b> — Phase 3 시점에는 그 API 가 부재해 raw INSERT 로 심었던
+ * 자리이며, Phase 5 가 API 를 만들면서 실제 경로로 바꿨다(목표 10).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -91,7 +94,7 @@ class AcademyOnboardingFlowTest {
                 .andExpect(jsonPath("$.data.account_status").value("active"));
 
         String staffToken = 로그인한다("p3t2flowstaff", NEW_PASSWORD, "active");
-        long studentId = 학생을_심는다(academyId);
+        long studentId = 학생을_등록한다(staffToken);
 
         가입한다("parent", "p3t2flowparent", "010-0000-6002", academyId);
         long 수락할_요청 = 학부모_요청_식별자(staffToken, "p3t2flowparent");
@@ -188,11 +191,25 @@ class AcademyOnboardingFlowTest {
         return ids.get(0).longValue();
     }
 
-    private long 학생을_심는다(long academyId) {
-        jdbcTemplate.update(
-                "INSERT INTO student (academy_id, name, can_go_alone) VALUES (?, 'P3T2흐름학생', false)", academyId);
-        return jdbcTemplate.queryForObject(
-                "SELECT id FROM student WHERE academy_id = ? AND name = 'P3T2흐름학생'", Long.class, academyId);
+    /**
+     * 방금 승인된 관계자가 <b>자기 학원의 학생을 실제 등록 경로로</b> 만든다 (STU-01, §5.11).
+     *
+     * <p>raw INSERT 였다가 바뀐 자리다 — Phase 3 시점에는 학생 등록 API 가 부재했다. SQL 은 <b>API 가
+     * 만들어 내지 못하는 상태</b>도 만들 수 있어(학원 범위를 벗어난 학생·필수 값이 빠진 학생), 그
+     * 위에서 초록인 흐름은 운영에서 나올 수 없는 데이터를 검사하게 된다. 학생을 등록 API 로 만들면
+     * 이 흐름이 "승인된 관계자가 곧바로 학생을 등록할 수 있는가" 까지 함께 밟는다.
+     *
+     * <p>등록은 멀티파트이고 JSON 은 {@code data} 파트다(§1.1).
+     */
+    private long 학생을_등록한다(String staffToken) throws Exception {
+        MvcResult result = mockMvc.perform(multipart("/api/v1/staff/students")
+                        .file(new MockMultipartFile("data", "", "application/json",
+                                "{\"name\": \"P3T2흐름학생\", \"can_go_alone\": false}"
+                                        .getBytes(StandardCharsets.UTF_8)))
+                        .header("Authorization", staffToken))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return Long.parseLong(JsonPath.read(본문(result), "$.data.student_id"));
     }
 
     private String 계정_상태(String loginId) {
