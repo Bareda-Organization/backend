@@ -1393,7 +1393,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 |---|---|:-:|---|
 | `name` | string | ● | 이름 |
 | `student_phone` | string | ○ | 학생 연락처 (C-13 — 휴대전화 보유 학생만 대상) |
-| `photo` | file · string | ○ | 사진. **육안 확인 전용** — 얼굴인식 부재 |
+| `photo` | file | ○ | 사진. **육안 확인 전용** — 얼굴인식 부재 |
 | `gender` | enum | ○ | `male` · `female` |
 | `birth_date` · `grade` | — | ○ | 생년월일 · 나이(학년) |
 | `class_name` | string | ○ | 반 |
