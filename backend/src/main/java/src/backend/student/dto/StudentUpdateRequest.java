@@ -14,6 +14,9 @@ import jakarta.validation.constraints.Size;
  * {@code name}·{@code can_go_alone} 이 필수고 수정은 전부 선택이라, 한 타입으로 겸하면 필수 검증을
  * 애너테이션이 아니라 서비스 분기로 옮기게 되고 그 분기는 두 경로 중 한쪽에서 조용히 빠질 수 있다.
  *
+ * <p>사진은 {@link StudentRegisterRequest} 와 같은 이유로 여기 부재하다(Ruling 160) — 멀티파트의
+ * 파일 파트 {@code photo} 로 온다.
+ *
  * <p>{@code canGoAlone} 이 {@link Boolean} 인 것은 "언급하지 않음" 과 {@code false} 를 갈라야 하기
  * 때문이다 — {@code boolean} 이면 이름만 고치는 요청이 혼자 귀가 가능 여부를 매번 {@code false} 로
  * 되돌린다(STU-08).
@@ -21,7 +24,6 @@ import jakarta.validation.constraints.Size;
 public record StudentUpdateRequest(
         @Size(max = 50) String name,
         @Size(max = 30) String studentPhone,
-        @Size(max = 255) String photoUrl,
         String gender,
         LocalDate birthDate,
         @Size(max = 20) String grade,

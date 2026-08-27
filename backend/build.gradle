@@ -149,6 +149,11 @@ tasks.named('test') {
     // 6 인 이유는 동시성 테스트가 스레드 2개 × (바깥 트랜잭션 + REQUIRES_NEW) 만큼을 동시에 쥐기 때문이다.
     systemProperty 'spring.datasource.hikari.maximum-pool-size', '6'
 
+    // 학생 사진을 빌드 디렉터리 안에 쓴다 — 기본값(./var/photos)을 그대로 쓰면 테스트가 만든
+    // 파일이 저장소 작업 트리에 남아 `git status` 를 더럽히고, 워크트리를 갈아탈 때 따라다닌다.
+    systemProperty 'app.photo.local.root',
+            layout.buildDirectory.dir('test-photos').get().asFile.absolutePath
+
     // 병렬 작업용 DB 격리 — `-PtestDbUrl=jdbc:postgresql://localhost:5432/<이름>` 을 주면
     // 그 데이터베이스로 테스트한다. 에이전트를 2개 이상 동시에 돌릴 때 서로의 행을 밟아
     // "코드 결함처럼 보이는 환경 실패" 가 나는 것을 막는다. 주지 않으면 기본값(schoolbus)이라
