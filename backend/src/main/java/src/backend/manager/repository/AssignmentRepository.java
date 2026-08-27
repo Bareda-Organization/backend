@@ -1,16 +1,26 @@
 package src.backend.manager.repository;
 
-import org.springframework.data.jpa.repository.JpaRepository;
+import java.time.OffsetDateTime;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
 
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.security.access.AcademyScopeExempt;
+import src.backend.manager.dto.AssignedManagerView;
 import src.backend.manager.entity.Assignment;
 
 /**
- * {@link Assignment} 영속성 접근 — 지금은 <b>배치 여부 판정</b>(MGR-04) 하나만 쓰고, 배치 자체를
- * 만드는 경로(§5.14 {@code PATCH /staff/runs/{runId}/assignment})는 아직 부재하다.
+ * {@link Assignment} 영속성 접근 — <b>배치 여부 판정</b>(MGR-04)과 배치 자체를 만들고 되읽는 경로
+ * (§5.14 {@code PATCH /staff/runs/{runId}/assignment})가 함께 있다.
  *
- * <p>배치 API 보다 이 저장소가 먼저 있는 이유는 <b>삭제 차단이 배치의 존재에 기대기</b> 때문이다 —
- * MGR-04 를 만들려면 "배치돼 있다" 를 물을 자리가 먼저 있어야 한다.
+ * <p>{@code assignment} 는 {@code academy_id} 컬럼이 부재한 <b>부모 경유</b> 테이블이라(ERD §6.1·§6.2)
+ * 학원 조건을 걸 자리가 조인뿐이다 — 아래 {@code @Query} 둘이 그 조인을 들고 있고, 나머지는
+ * {@link AcademyScopeExempt} 로 좁히지 않는 근거를 밝힌다.
  */
 public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
 
@@ -32,4 +42,50 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
             + "호출부가 학원 조건으로 좁혀 조회한 Manager 의 id 만 넘긴다는 전제 — 요청 파라미터의 "
             + "managerId 를 넘기면 타 학원 매니저의 배치 여부가 새어 이 예외가 우회로가 된다")
     boolean existsByManagerId(Long managerId);
+
+    /**
+     * 그 회차의 그 자리에 이미 붙어 있는 배치(MGR-05, §5.14) — 있으면 <b>교체</b>이고 없으면 신규다.
+     *
+     * <p>이미 배치된 역할에 다른 매니저를 지정하는 것은 관리 화면의 정상 조작이라 거부하지 않는다.
+     * 조회하지 않고 매번 새로 넣으면 {@code uk_assignment_run_role} 이 그 정상 조작을 409 로 막는다.
+     */
+    @AcademyScopeExempt(reason = "회차의 한 자리를 지목하는 조회라 학원을 좁힐 대상이 runId 뿐이다 — "
+            + "호출부가 이미 학원으로 좁혀 꺼낸 Run 의 id 만 넘긴다는 전제이고, 요청 파라미터의 runId 를 "
+            + "그대로 넘기면 타 학원 회차의 배치가 교체 대상이 되어 이 예외가 우회로가 된다")
+    Optional<Assignment> findByRunIdAndRole(Long runId, ManagerRole role);
+
+    /**
+     * 여러 회차의 배치를 매니저 이름과 함께 한 번에 읽는다(§5.10·§5.14 {@code assignments[]}).
+     *
+     * <p>학원 조건이 {@code manager} 쪽에 걸려 있다 — 조건이 빠지면 회차 id 만 알면 남의 학원 매니저
+     * 이름이 응답에 실린다.
+     *
+     * <p>삭제된 매니저({@code deleted_at})도 싣는다 — 지난 회차의 담당자가 그만뒀다고 해서 그날 누가
+     * 운행했는지가 사라지면 안 된다(MGR-04 를 soft delete 로 둔 이유와 같다).
+     */
+    @Query("SELECT new src.backend.manager.dto.AssignedManagerView(a.runId, a.managerId, m.name, a.role) "
+            + "FROM Assignment a, Manager m "
+            + "WHERE m.id = a.managerId AND m.academyId = :academyId AND a.runId IN :runIds "
+            + "ORDER BY a.runId, a.role")
+    List<AssignedManagerView> findAssignedManagers(@Param("academyId") Long academyId,
+            @Param("runIds") Collection<Long> runIds);
+
+    /**
+     * 그 매니저가 <b>같은 출발 시각</b>의 다른 회차에도 배치돼 있는가(MGR-06 {@code MANAGER_DOUBLE_BOOKED}).
+     *
+     * <p>회차를 <b>점(출발 시각)으로 판정한다</b>(Ruling 165 ②) — {@code run.est_duration_min} 이
+     * nullable 이고 이 시점의 회차는 노선 계산 이전이라 대개 비어 있어, 구간으로 두면 "판정 불가" 가
+     * 조용히 "경고 없음" 이 된다. 그 한계는 §5.14 에 적어 두었다.
+     *
+     * <p>취소된 회차를 세지 않는다 — 임시 취소한 회차의 배치는 그 시각을 점유하지 않는다.
+     *
+     * <p>이 판정은 {@code work_hours} 를 <b>보지 않는다</b>(Ruling 165 ③) — 근무 시간이 없다고 해서
+     * 같은 시각에 두 대를 몰 수 있는 것은 아니라, 근무 시간 판정과 묶으면 이쪽이 근무 시간 미기재
+     * 매니저에서 조용히 사라진다.
+     */
+    @Query("SELECT COUNT(a) > 0 FROM Assignment a, Run r "
+            + "WHERE r.id = a.runId AND a.managerId = :managerId AND r.academyId = :academyId "
+            + "AND r.departTime = :departTime AND r.canceledAt IS NULL AND r.id <> :excludedRunId")
+    boolean existsOverlappingAssignment(@Param("academyId") Long academyId, @Param("managerId") Long managerId,
+            @Param("departTime") OffsetDateTime departTime, @Param("excludedRunId") Long excludedRunId);
 }

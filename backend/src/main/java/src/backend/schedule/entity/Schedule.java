@@ -65,23 +65,76 @@ public class Schedule extends BaseTimeEntity {
     @Column(name = "active", nullable = false)
     private boolean active;
 
-    private Schedule(Long academyId, Long busId, Weekday weekday, Direction direction, LocalTime departTime,
-            String originName, String destinationName, Integer estDurationMin) {
+    private Schedule(Long academyId, SchedulePlan plan) {
         this.academyId = academyId;
-        this.busId = busId;
-        this.weekday = weekday;
-        this.direction = direction;
-        this.departTime = departTime;
-        this.originName = originName;
-        this.destinationName = destinationName;
-        this.estDurationMin = estDurationMin;
-        this.active = true;
+        this.busId = plan.busId();
+        this.weekday = plan.weekday();
+        this.direction = plan.direction();
+        this.departTime = plan.departTime();
+        this.originName = plan.originName();
+        this.destinationName = plan.destinationName();
+        this.estDurationMin = plan.estDurationMin();
+        this.active = plan.active() == null || plan.active();
     }
 
-    /** 학원 관리자가 정규 운행 스케줄을 등록할 때 생성한다(SCH-01) — 활성 상태로 시작한다. */
-    public static Schedule register(Long academyId, Long busId, Weekday weekday, Direction direction,
-            LocalTime departTime, String originName, String destinationName, Integer estDurationMin) {
-        return new Schedule(academyId, busId, weekday, direction, departTime, originName, destinationName,
-                estDurationMin);
+    /**
+     * 학원 관리자가 정규 운행 스케줄을 등록할 때 생성한다(SCH-01) — {@code active} 를 주지 않으면
+     * 활성으로 시작한다.
+     */
+    public static Schedule register(Long academyId, SchedulePlan plan) {
+        return new Schedule(academyId, plan);
+    }
+
+    /**
+     * 스케줄을 고친다(SCH-01, §5.10) — {@code null} 인 항목은 <b>고치지 않는다</b>는 뜻이다.
+     *
+     * <p>유일성 조합 넷을 고칠 수 있게 두는 것이 사양이다(§5.10) — 출발 시각만 옮기는 것이 실제
+     * 운영의 조작이라, 그 넷을 불변으로 두면 스케줄을 지우고 다시 만드는 것 말고 방법이 없어진다.
+     * 그러면 이미 만들어진 회차의 {@code schedule_id} 가 함께 끊긴다.
+     */
+    public void update(SchedulePlan plan) {
+        if (plan.busId() != null) {
+            this.busId = plan.busId();
+        }
+        if (plan.weekday() != null) {
+            this.weekday = plan.weekday();
+        }
+        if (plan.direction() != null) {
+            this.direction = plan.direction();
+        }
+        if (plan.departTime() != null) {
+            this.departTime = plan.departTime();
+        }
+        if (plan.originName() != null) {
+            this.originName = plan.originName();
+        }
+        if (plan.destinationName() != null) {
+            this.destinationName = plan.destinationName();
+        }
+        if (plan.estDurationMin() != null) {
+            this.estDurationMin = plan.estDurationMin();
+        }
+        if (plan.active() != null) {
+            this.active = plan.active();
+        }
+    }
+
+    /**
+     * 요청이 유일성 조합 넷 중 <b>실제로 값을 바꾸는</b> 항목을 담고 있는가 — 담지 않았으면 중복
+     * 판정 대상 밖이다.
+     *
+     * <p>같은 값을 그대로 다시 보내는 요청을 걸러내지 않으면 자기 자신을 중복으로 세어 {@code 409}
+     * 가 된다({@code BusCommandService.renamesBusNo} 와 같은 형태) — 그러면 출발지 이름만 고치려고
+     * 조합 값을 함께 보낸 클라이언트가 막힌다.
+     */
+    public boolean movesSlot(SchedulePlan plan) {
+        return changes(plan.busId(), this.busId)
+                || changes(plan.weekday(), this.weekday)
+                || changes(plan.direction(), this.direction)
+                || changes(plan.departTime(), this.departTime);
+    }
+
+    private static boolean changes(Object requested, Object current) {
+        return requested != null && !requested.equals(current);
     }
 }

@@ -121,4 +121,23 @@ public class Run extends BaseTimeEntity {
         return new Run(academyId, busId, scheduleId, serviceDate, direction, departTime, confirmAt, originName,
                 destinationName, estDurationMin);
     }
+
+    /**
+     * 특정일 회차를 임시로 취소한다(SCH-03, API_SPEC §5.10) — 행을 지우지 않고 {@code canceledAt} 을
+     * 채운다.
+     *
+     * <p>행을 남기는 이유는 정규 스케줄이 불변이기 때문이다 — 휴원·특강 같은 예외일은 <b>그날의
+     * 회차에만</b> 표시되어야 하고, 지우면 "오늘은 쉬기로 했다" 와 "회차가 아직 안 만들어졌다" 가
+     * 구별되지 않는다. 다음 배치가 지워진 회차를 그대로 다시 만들기까지 한다.
+     *
+     * <p>시각을 파라미터로 받는다(횡단 규칙 1) — 호출부가 주입된 {@code Clock} 에서 얻어 넘긴다.
+     */
+    public void cancel(OffsetDateTime canceledAt) {
+        this.canceledAt = canceledAt;
+    }
+
+    /** 이미 취소된 회차인가 — 배치 충돌 판정(MGR-06)이 이 회차를 세지 않는다. */
+    public boolean isCanceled() {
+        return canceledAt != null;
+    }
 }

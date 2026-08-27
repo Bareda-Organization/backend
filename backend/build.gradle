@@ -135,6 +135,12 @@ tasks.named('test') {
     // 걸리지 않아 애너테이션을 지워도 초록이 되기 때문이다.
     systemProperty 'app.notification.outbox.initial-delay-ms', '86400000'
 
+    // 일일 회차 생성 배치를 테스트 실행 동안 끈다(Spring 의 비활성 cron 표현식 '-'). 배경 배치가
+    // 테스트가 만든 스케줄을 먼저 집으면 "이 실행이 몇 건 만들었나" 단언이 실행 시각에 따라 갈린다.
+    // 빈을 없애지 않고 표현식만 바꾸는 이유는 위 아웃박스 워커와 같다 — 없애면 @Scheduled 배선이
+    // 어느 테스트에도 걸리지 않아 애너테이션을 지워도 초록이 된다.
+    systemProperty 'app.run.generation.cron', '-'
+
     // 커넥션 풀 상한을 낮춘다. @SpringBootTest 컨텍스트는 한 번 뜨면 JVM 이 끝날 때까지 캐시에 남고
     // 각자 Hikari 풀(기본 상한 10)을 붙든 채로 있다 — 컨텍스트가 예닐곱이면 그 한 번의 실행만으로
     // 70 개를 쥔다. 로컬 Postgres 는 max_connections=100 이고 에이전트가 동시에 두셋 돌므로,

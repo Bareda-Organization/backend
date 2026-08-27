@@ -65,6 +65,40 @@ public record WorkHours(Map<Weekday, List<Interval>> byWeekday) {
         return new WorkHours(parsed);
     }
 
+    /**
+     * 저장된 {@code jsonb} 원문을 되읽는다 — 배치 충돌 판정(MGR-06)이 쓰는 유일한 입구다.
+     *
+     * <p>검증을 {@link #of} 와 <b>공유</b>한다. 읽기 전용 파서를 따로 두면 쓰기가 막는 형태를 읽기가
+     * 허용하게 되고, 그 틈으로 들어온 행에서 겹침 판정이 조용히 틀린다.
+     *
+     * <p><b>형태가 어긋난 행은 예외로 드러낸다.</b> "근무 시간 없음" 으로 삼키지 않는 이유는 그것이
+     * {@code WORK_HOURS_NOT_SET}(판정 근거 부재)과 구별되지 않기 때문이다 — 등록 시 비워 둔 것은
+     * 정상 상태이고, 형태가 깨진 것은 고쳐야 할 데이터 결함이라 같은 응답으로 답하면 아무도 그것을
+     * 알아채지 못한다(Ruling 162 가 시드에서 실제로 겪은 형태다).
+     *
+     * @param column 엔티티가 들고 있는 {@code jsonb} 원문. {@code null} 이거나 비면 근무 시간 미기재
+     */
+    @SuppressWarnings("unchecked")
+    public static WorkHours fromColumnValue(Map<String, Object> column) {
+        if (column == null || column.isEmpty()) {
+            return null;
+        }
+        return of((Map<String, List<Map<String, String>>>) (Map<String, ?>) column);
+    }
+
+    /**
+     * 그 요일 그 시각이 근무 구간 안인가 — {@code MGR-06} 의 {@code WORK_HOURS_MISMATCH} 판정이다.
+     *
+     * <p>요일 키가 없으면 그 요일 근무 없음이므로 거짓이다(Ruling 150). 경계는 <b>양끝을 포함</b>한다 —
+     * 07:00~10:00 근무자에게 07:00 출발 회차를 붙이는 것은 정상 배치이고, 그것을 경고로 내면 실제
+     * 운영에서 경고가 늘 켜져 있어 아무도 읽지 않게 된다.
+     */
+    public boolean covers(Weekday weekday, LocalTime time) {
+        List<Interval> intervals = byWeekday.get(weekday);
+        return intervals != null && intervals.stream()
+                .anyMatch(interval -> !time.isBefore(interval.start()) && !time.isAfter(interval.end()));
+    }
+
     /** {@code jsonb} 컬럼에 담을 형태로 되돌린다 — 요일 키는 소문자, 시각은 {@code HH:mm} 문자열이다. */
     public Map<String, Object> toColumnValue() {
         Map<String, Object> column = new LinkedHashMap<>();

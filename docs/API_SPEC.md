@@ -1326,15 +1326,54 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 **에러** — §1.11 공통 항목 외 고유 에러 부재. 배차 정책 확정 후 추가.
 
-### 5.10 GET /staff/schedules — **[조정 중]**
-
-운행 스케줄 CRUD (SCH-01~03, A-09).
+### 5.10 운행 스케줄 · 일일 회차 (SCH-01~03, A-09)
 
 **권한** 학원 관계자 · **목적** 요일·시간별 운행 계획 등록 → 일일 회차 자동 생성. 특정일 회차 임시 추가·취소 포함, 정규 스케줄 불변
 
-요청·응답 세부는 배차 정책 확정 후 기술.
+⚠ **`[조정 중]` 을 2026-08-26 해제했다**(Ruling 153). 보류 사유였던 "배차 정책 확정 후" 가 실제로 가리키던 것은 **동승자 자동 배정**(§5.14)이고, 스케줄 CRUD·회차 생성·임시 조정은 `ERD schedule`·`run` 이 컬럼·CHECK·UNIQUE 까지 확정 문면을 달고 있어 배차 정책과 무관하다.
 
-**에러** — §1.11 공통 항목 외 고유 에러 부재. 배차 정책 확정 후 추가.
+| 메서드 · 경로 | 기능 ID | 설명 |
+|---|---|---|
+| `GET /staff/schedules` | SCH-01 | 목록 (§1.8 페이징) |
+| `POST /staff/schedules` | SCH-01 | 등록 |
+| `PATCH /staff/schedules/{id}` | SCH-01 | 수정 — `active=false` 로 두면 다음 회차 생성부터 제외 |
+| `DELETE /staff/schedules/{id}` | SCH-01 | 삭제. **행을 지운다**(soft delete 부재) — 이미 만들어진 회차는 `run.schedule_id` 가 NULL 이 되어 그대로 남는다 (`ERD` FK `SET NULL`) |
+| `GET /staff/runs?service_date=` | SCH-02 | 그 날짜의 회차 목록. 생략하면 **오늘** |
+| `POST /staff/runs` | SCH-03 | 특정일 회차 **임시 추가** — 스케줄에 없는 1회성 운행 |
+| `DELETE /staff/runs/{id}` | SCH-03 | 특정일 회차 **임시 취소** — 행을 지우지 않고 `canceled_at` 을 채운다 |
+
+⚠ **`GET /staff/runs` 는 `§5.18 GET /staff/runs/live` 와 다른 것이다** — 이쪽은 날짜로 보는 **회차 목록**(SCH-02 결과 확인), 저쪽은 관제용 **실시간 스냅샷**(MON-07)이다. 경로가 비슷해도 합치지 않는다.
+
+**`POST` · `PATCH /staff/schedules` 요청**
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|:-:|---|
+| `bus_id` | integer | ● | 운행 차량. 소속 학원 밖이면 `404 BUS_NOT_FOUND` |
+| `weekday` | enum | ● | `mon`~`sun` (§9.8) |
+| `direction` | enum | ● | `to_academy` · `from_academy` (§9.7) |
+| `depart_time` | string | ● | `HH:mm`. **날짜가 없는 시각**이고, 회차 생성 시 `service_date` 와 합쳐 확정된다 |
+| `origin_name` · `destination_name` | string | ● | 출발지 · 도착지. 운행 카드의 표시값 |
+| `est_duration_min` | integer | ○ | 예상 소요시간(분) |
+| `active` | boolean | ○ | 기본 `true`. `false` 인 스케줄은 회차를 만들지 않는다 |
+
+`PATCH` 는 보낸 필드만 고친다. **`bus_id`·`weekday`·`direction`·`depart_time` 넷이 유일성 조합**이라, 그중 하나만 고쳐도 기존 스케줄과 충돌하면 `409 DUPLICATE_SCHEDULE`.
+
+**응답** — `id` · `bus_id` · `bus_no` · `weekday` · `direction` · `depart_time` · `origin_name` · `destination_name` · `est_duration_min` · `active`
+
+**`POST /staff/runs` 요청**(임시 추가) — `bus_id` · `service_date`(`YYYY-MM-DD`) · `direction` · `depart_time`(`HH:mm`) · `origin_name` · `destination_name` · `est_duration_min`(선택). 만들어진 회차는 **`schedule_id` 가 비어 있다** — 그것이 정규 스케줄에서 나온 회차와 임시 회차를 가르는 유일한 표시다.
+
+**회차 응답 항목** — `id` · `bus_id` · `bus_no` · `schedule_id` · `service_date` · `direction` · `depart_time` · `confirm_at` · `status` · `origin_name` · `destination_name` · `est_duration_min` · `canceled_at` · `assignments[]`(`manager_id` · `name` · `role`)
+
+- `depart_time`·`confirm_at` 은 **날짜를 포함한 시각**(`timestamptz`)이다. 스케줄의 `HH:mm` 을 `service_date` 와 합칠 때 시간대는 서비스 기준 시간대(`Asia/Seoul`, `ERD §2`)를 쓴다
+- **`confirm_at` = `depart_time` − 30분**이며 파생이 아니라 저장된 컬럼이다 (`C-03` · `ERD run`). 확정 배치가 "실행 시각이 지난 회차" 를 매 실행마다 조회하기 때문에 컬럼으로 둔다
+- `assignments[]` 를 함께 싣는 이유는 이 목록이 배치 화면의 읽기 축이기 때문이다 — 빼면 `§5.14` 로 배치한 결과를 되읽을 경로가 부재해진다
+
+**일일 회차 생성 (SCH-02)** — 하루 1회 도는 배치가 그날 요일의 **`active=true` 스케줄**로 회차를 만든다. 전용 엔드포인트를 두지 않는다.
+
+- **중복 실행은 오류가 아니라 무시다.** 재기동·수동 재실행이 정상 동작이므로 이미 있는 회차는 조용히 건너뛰고 생성 건수만 센다
+- 멱등의 근거는 **`run(bus_id, service_date, direction, depart_time)` UNIQUE** 이고 애플리케이션 선검사가 아니다 — 동시 2회 실행은 서로의 미커밋 INSERT 를 보지 못한 채 둘 다 선검사를 지난다
+
+**에러** — `404 SCHEDULE_NOT_FOUND`(`PATCH`·`DELETE` 대상 부재) · `404 BUS_NOT_FOUND`(지정 차량 부재·타 학원) · `409 DUPLICATE_SCHEDULE`(같은 `bus_id`·`weekday`·`direction`·`depart_time` 조합 중복) · `404 RUN_NOT_FOUND`(`DELETE /staff/runs/{id}` 대상 부재) · `409 DUPLICATE_RUN`(같은 차량·날짜·방향·출발 시각 회차 중복 추가) — 이상 2026-08-26 신설 (Ruling 153)
 
 ### 5.11 학생 관리 (STU-01~08, A-10)
 
@@ -1413,15 +1452,63 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 **에러** — `409 MANAGER_ASSIGNED`(회차에 배치된 매니저 삭제) · `404 MANAGER_NOT_FOUND`(`PATCH` · `DELETE` 대상 부재)
 
-### 5.14 PATCH /staff/runs/{runId}/assignment — **[조정 중]**
+### 5.14 PATCH /staff/runs/{runId}/assignment
 
 매니저 배치 (MGR-05·06, A-12).
 
-**권한** 학원 관계자 · **목적** 회차별 기사·동승자 배치. 동승자는 배차 시 자동 배정(수동 변경 가능), 시간 충돌 경고 반환
+**권한** 학원 관계자 · **목적** 회차별 기사·동승자 배치. 시간 충돌 경고 반환
 
-요청·응답 세부는 배차 정책 확정 후 기술.
+⚠ **`[조정 중]` 중 `MGR-05` 수동 배치와 `MGR-06` 충돌 경고만 2026-08-26 확정했다**(Ruling 153). **동승자 자동 배정은 여전히 미확정이며 Phase 6 소유**다 — 소요 시간(`run.est_duration_min`)이 노선 계산의 산출물이라 그것 없이는 근무 시간 충돌을 판정할 근거가 부재하다. 이 절이 규정하는 것은 **관계자가 손으로 지정하는 경로**뿐이다.
 
-**에러** — §1.11 공통 항목 외 고유 에러 부재. 근무 시간 불일치·동일 매니저 중복 배치는 **경고 반환**이고 차단 부재 (MGR-06 · UF-M-06).
+**요청** — 둘 다 선택이나 **최소 하나는 필요**하다(둘 다 비면 `422 VALIDATION_FAILED`).
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `driver_manager_id` | integer | 기사로 배치할 매니저. 그 매니저의 `role` 이 `driver` 가 아니면 `404 MANAGER_NOT_FOUND` |
+| `escort_manager_id` | integer | 동승자로 배치할 매니저. 그 매니저의 `role` 이 `escort` 가 아니면 `404 MANAGER_NOT_FOUND` |
+
+역할이 어긋난 지정을 404 로 답하는 것은 `§5.2` 가입 승인의 `link.manager_id` 와 같은 형태다 — `manager.role` 이 곧 앱 권한이라(C-06), 기사를 동승자 자리에 넣으면 그 계정이 승하차를 기록할 수 있는지가 보는 곳마다 갈린다.
+
+**이미 배치된 역할에 다른 매니저를 지정하면 교체**다. 관리 화면에서 담당자를 바꾸는 것이 정상 조작이라 거부하지 않는다.
+
+**응답**
+
+```json
+{
+  "run_id": 8,
+  "assignments": [
+    { "manager_id": 12, "name": "강기사", "role": "driver" },
+    { "manager_id": 31, "name": "서동승", "role": "escort" }
+  ],
+  "warnings": [
+    { "code": "WORK_HOURS_MISMATCH", "manager_id": 12, "role": "driver",
+      "message": "근무 시간 밖입니다" }
+  ]
+}
+```
+
+`assignments[]` 는 이번 요청이 바꾼 것만이 아니라 **그 회차의 현재 배치 전부**다 — 기사만 바꾼 요청이 동승자를 지운 것처럼 보이지 않게 한다.
+
+**충돌은 경고이고 차단이 부재하다** (MGR-06 · UF-M-06 · `PRD §6` · `USER_FLOWS`). **저장은 되고**(200, `assignment` 행이 실제로 생긴다) 판정 결과가 `warnings[]` 에 실린다. 근무 시간은 학원이 매니저에게 물어 적어 둔 참고값이고 당일 대체·연장이 실재하므로, 차단으로 두면 **오늘 실제로 태울 수 있는 기사를 시스템이 배치 불가로 만든다**.
+
+**경고 3종** (2026-08-26 확정, Ruling 165)
+
+| `code` | 무엇을 대조하나 | 언제 |
+|---|---|---|
+| `WORK_HOURS_MISMATCH` | 회차 출발 시각 ↔ 그 매니저의 `work_hours` | 그 요일 키가 없거나, 어느 구간에도 들지 않을 때 |
+| `MANAGER_DOUBLE_BOOKED` | 그 매니저의 **같은 날 다른 배치**(`assignment` → `run` 조인) | 취소되지 않은 다른 회차와 **출발 시각이 같을** 때. `work_hours` 를 보지 않는다 |
+| `WORK_HOURS_NOT_SET` | — | `work_hours` 가 비어 있어 **판정할 근거가 부재**할 때 |
+
+- **세 판정은 서로 독립이다.** 묶으면 `MANAGER_DOUBLE_BOOKED` 가 근무 시간 미기재 매니저에서 조용히 사라지는데, 근무 시간이 없다고 해서 같은 시각에 두 대를 몰 수 있는 것은 아니다
+- **`WORK_HOURS_NOT_SET` 은 "경고 없음" 이 아니다.** 근무 시간은 등록 시 선택 항목이라 비어 있는 것이 정상 상태이며, 코드를 따로 두어야 클라이언트가 **"적합해서 조용한 것" 과 "판정하지 못한 것"** 을 가른다
+- **충돌이 없으면 `warnings[]` 는 빈 배열**이다 — 항상 무언가를 담는 구현과 구별되어야 한다
+- ⚠ **회차는 구간이 아니라 점(출발 시각)으로 판정한다.** `run.est_duration_min` 이 nullable 이고 이 시점의 회차는 노선 계산 이전이라 대개 비어 있어, 구간으로 두면 **"판정 불가" 가 조용히 "경고 없음" 이 된다.** 한계가 있다 — 07:00 출발·2시간 운행을 07:00~08:00 근무자에게 배치해도 경고가 나오지 않는다. `est_duration_min` 이 실제로 채워지는 Phase 6 에서 구간 판정으로 올릴지 재판정한다
+- 시간대는 서비스 기준 시간대(`Asia/Seoul`, `ERD §2`)를 쓴다 — 요일과 시각 판정이 같은 시계를 본다
+- **근무 구간의 경계는 양끝을 포함한다** — 07:00~10:00 근무자에게 07:00 회차도 10:00 회차도 경고가 아니다. 등원 회차는 근무 시작 시각에 맞춰 짜는 것이 정상이라 이 경계가 늘 밟히며, 배타로 두면 경고가 항상 켜져 있어 진짜 충돌까지 함께 묻힌다
+
+**차단하는 것은 따로 있다.** `assignment(run_id, role)` UNIQUE 가 **회차당 기사 1명 · 동승자 1명**을 강제하며, 동시 요청 2건이 같은 역할을 채우려 하면 하나는 `409 DUPLICATE_ASSIGNMENT` 다. 배치된 매니저의 삭제는 `409 MANAGER_ASSIGNED`(§5.13)가 막는다. **경고 축과 차단 축을 섞지 않는다.**
+
+**에러** — `404 RUN_NOT_FOUND`(대상 회차 부재·타 학원) · `404 MANAGER_NOT_FOUND`(대상 매니저 부재·타 학원·역할 불일치) · `409 DUPLICATE_ASSIGNMENT`(같은 역할을 동시에 채우려는 요청 경합, 2026-08-26 신설) · `422 VALIDATION_FAILED`(기사·동승자를 둘 다 비워 보냄)
 
 ### 5.15 POST /staff/runs/{runId}/waypoints
 
@@ -1876,6 +1963,8 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `RUN_NOT_MOVING` | 409 | `moving` 아닌 회차에 위치 업로드·승하차 처리 |
 | `RUN_NOT_FOUND` | 404 | 존재하지 않는 회차 |
 | `RUN_ALREADY_STARTED` | 409 | 이미 `moving` · `finished` 인 회차에 운행 시작 요청 (RUN-02 · §9.3 운행 상태 전이) |
+| `DUPLICATE_RUN` | 409 | 같은 차량·날짜·방향·출발 시각의 회차를 **임시 추가**(§5.10 `POST /staff/runs`)로 다시 만들려는 시도. 유일성 근거는 `run(bus_id, service_date, direction, depart_time)` UNIQUE 다. ⚠ **일일 회차 생성 배치(SCH-02)는 이 코드를 내지 않는다** — 배치의 중복 실행은 재기동·수동 재실행이라는 정상 동작이라 오류가 아니라 무시이고, 이미 있는 회차를 조용히 건너뛴다. 같은 제약이 두 경로에서 다르게 읽히는 것이 요점이라 여기 적어 둔다 (2026-08-26 신설, Ruling 153) |
+| `DUPLICATE_ASSIGNMENT` | 409 | 한 회차의 **같은 역할**을 두 요청이 동시에 채우려 함 — `assignment(run_id, role)` UNIQUE 위반 (§5.14 · MGR-05). 순차 요청은 교체로 처리되므로 이 코드가 나오는 것은 경합뿐이다. ⚠ 근무 시간·중복 배치 충돌과 **다른 축**이다 — 그쪽은 경고이고 저장되지만(MGR-06) 이쪽은 저장 자체가 거부된다 (2026-08-26 신설, Ruling 153) |
 | `RIDER_NOT_FOUND` | 404 | 미존재 탑승자, 또는 `absent` 로 명단에서 제외된 탑승자 지정 |
 | `STOP_NOT_FOUND` | 404 | 해당 회차에 존재하지 않는 승하차지 지정 |
 | `NO_SHOW_CASE_NOT_FOUND` | 404 | `no_show` 미처리 탑승자에 연락 시도 기록 (EXC-01) |
@@ -1900,6 +1989,8 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `MANAGER_NOT_FOUND` | 404 | 미존재 매니저 지정 (MGR-03·04) |
 | `BUS_NOT_FOUND` | 404 | 미존재 차량 지정 (BUS-03) |
 | `DUPLICATE_BUS_NO` | 409 | 같은 학원에 이미 있는 호차로 등록·수정 — 유일성 범위는 `(academy_id, bus_no)` 라 다른 학원의 같은 호차는 허용 (BUS-02·03) |
+| `SCHEDULE_NOT_FOUND` | 404 | 미존재 스케줄 지정 (SCH-01 · §5.10 `PATCH`·`DELETE`). 다른 학원의 스케줄을 `{id}` 로 지목한 경우도 이 코드다 — 학원 조건을 쿼리에 넣어 "없음" 과 "남의 학원" 을 같은 빈 결과로 만들면 존재 여부가 응답에서 사라진다 (2026-08-26 신설, Ruling 153) |
+| `DUPLICATE_SCHEDULE` | 409 | 같은 `bus_id`·`weekday`·`direction`·`depart_time` 조합의 스케줄 중복 등록·수정 — 유일성 근거는 `schedule(bus_id, weekday, direction, depart_time)` UNIQUE (SCH-01 · §5.10). 422 가 아니라 409 인 것은 요청 형식이 아니라 자원이 충돌한 것이기 때문이며 `DUPLICATE_BUS_NO` 와 같은 형태다 (2026-08-26 신설, Ruling 153) |
 
 ---
 
