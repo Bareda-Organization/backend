@@ -81,10 +81,13 @@ resilience4j:
       geocoding:
         max-attempts: 3
         wait-duration: 200ms
-        # 서킷이 열려 어댑터가 이미 "닿지 못했다"로 답한 것은 재시도 대상이 아니다 —
-        # 재시도하면 열린 서킷을 세 번 두드리고 응답만 그만큼 늦어진다.
+        # 서킷이 이미 열려 호출을 막은 것은 재시도 대상이 아니다 — 재시도해 봐야 열린 서킷을
+        # 세 번 두드리고 wait-duration 만큼 응답이 늦어질 뿐 공급자에는 닿지 않는다.
+        #
+        # 여기에 GeocodingUnavailableException 을 적으면 안 된다. 그것은 fallbackMethod 가 만드는
+        # 포트 예외라, 적는 순간 "일시 실패를 재시도한다"는 이 설정 자체가 무력화된다.
         ignore-exceptions:
-          - src.backend.student.geocoding.spec.GeocodingUnavailableException
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
   circuitbreaker:
     instances:
       geocoding:

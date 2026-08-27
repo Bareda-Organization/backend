@@ -69,10 +69,17 @@ public class NaverGeocodingClient implements GeocodingClient {
      * <p>{@code fallbackMethod} 는 <b>서킷이 열린 동안</b>과 호출이 예외로 끝났을 때만 불린다. 결과
      * 0건은 정상 응답이라 여기로 오지 않으며, 그것이 "주소가 틀렸다" 와 "지금 못 부른다" 를 가르는
      * 지점이다.
+     *
+     * <p><b>{@code fallbackMethod} 가 {@code @Retry} 쪽에 있어야 한다.</b> 두 애스펙트의 순서는
+     * Retry 가 바깥 · CircuitBreaker 가 안쪽으로 고정돼 있다(각 {@code order} 2147483642 · 2147483643).
+     * 안쪽에 fallback 을 걸면 첫 실패를 안쪽이 {@link GeocodingUnavailableException} 으로 삼켜
+     * 바깥 Retry 에게는 <b>성공한 호출</b>로 보이고, {@code max-attempts: 3} 을 적어 둔 채로 실제
+     * 호출은 한 번만 나간다 — 설정과 동작이 갈리는데 응답 코드는 그대로라 화면에 드러나지 않는다.
+     * {@code NaverGeocodingResilienceTest} 가 도달한 호출 수를 세어 이 순서를 고정한다.
      */
     @Override
-    @CircuitBreaker(name = RESILIENCE_INSTANCE, fallbackMethod = "unavailable")
-    @Retry(name = RESILIENCE_INSTANCE)
+    @CircuitBreaker(name = RESILIENCE_INSTANCE)
+    @Retry(name = RESILIENCE_INSTANCE, fallbackMethod = "unavailable")
     public Optional<GeocodedPoint> geocode(String address) {
         GeocodeResponse response = webClient.get()
                 .uri(geocodeUri(address))
