@@ -6,10 +6,12 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
@@ -63,6 +65,7 @@ public class StaffRunController {
     /** 특정일 회차 임시 추가(SCH-03, §5.10) — 만들어진 회차는 {@code schedule_id} 가 비어 있다. */
     @CanManageSchedule
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<RunResponse> add(@AuthenticationPrincipal AuthUser requester,
             @Valid @RequestBody RunCreateRequest request) {
         return ApiResponse.ok(runCommandService.add(requester, request));
