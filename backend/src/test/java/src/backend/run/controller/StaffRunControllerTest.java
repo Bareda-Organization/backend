@@ -3,6 +3,7 @@ package src.backend.run.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -72,6 +73,9 @@ class StaffRunControllerTest {
     private static final String SERVICE_DATE = "2031-05-14";
 
     private static final String OTHER_DATE = "2031-05-15";
+
+    /** 시드 학원 A 의 종일 근무 기사 — 배치를 실어 되읽는 시험이 쓴다(§5.14). */
+    private static final long DRIVER_A_ID = 1L;
 
     @Autowired
     private MockMvc mockMvc;
@@ -221,12 +225,19 @@ class StaffRunControllerTest {
     /**
      * 날짜를 주지 않으면 <b>오늘</b>이다 — 기준은 주입된 {@code Clock} 이다.
      *
-     * <p>시드가 오늘 날짜의 회차를 들고 있어 그것이 실리는 것으로 판정한다. 시드가 비면 이 단언이
-     * 아무것도 검사하지 않으므로 그 사실을 먼저 확인한다.
+     * <p>오늘 회차를 <b>이 시험이 직접 만든다.</b> 시드의 {@code run.service_date} 는
+     * {@code CURRENT_DATE} 라 <b>마이그레이션이 실제로 돈 날</b>에 매이는데 여기 {@code Clock} 은
+     * 고정값이라, 시드에 기대면 <b>두 날이 같을 때만 통과</b>한다 — 실제로 시드를 넣은 다음 날부터
+     * 결정론적으로 실패했다.
+     *
+     * <p>회차 수가 0 이면 아래 단언이 아무것도 검사하지 않으므로 그 사실을 먼저 확인한다. 직접
+     * 만들어 두었으므로 이제 그 가드는 <b>만드는 경로가 깨진 것</b>을 잡는다.
      */
     @Test
     void 날짜를_주지_않으면_오늘_회차를_돌려준다() throws Exception {
         LocalDate 오늘 = LocalDate.now(clock);
+        임시_추가된_회차_id(관계자A_토큰(), BUS_A_ID, 오늘.toString(), "to_academy", "07:20");
+
         Integer 오늘_회차_수 = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM run WHERE academy_id = ? AND service_date = ?", Integer.class,
                 ACADEMY_A_ID, 오늘);
@@ -237,14 +248,17 @@ class StaffRunControllerTest {
         assertThat(ids).hasSize(오늘_회차_수);
     }
 
-    /** 회차 목록은 그 회차의 배치를 함께 싣는다 — 배치 결과를 되읽는 유일한 경로다(§5.14). */
+    /**
+     * 회차 목록은 그 회차의 배치를 함께 싣는다 — 배치 결과를 되읽는 유일한 경로다(§5.14).
+     *
+     * <p>회차와 배치를 <b>이 시험이 직접 만든다</b> — 시드 회차는 {@code CURRENT_DATE} 에 매여
+     * 고정 {@code Clock} 과 날이 갈리기 때문이다(위 시험 주석과 같은 이유).
+     */
     @Test
     void 회차_목록은_그_회차의_배치를_함께_싣는다() throws Exception {
         LocalDate 오늘 = LocalDate.now(clock);
-        Long 배치가_있는_회차 = jdbcTemplate.queryForObject(
-                "SELECT r.id FROM run r WHERE r.academy_id = ? AND r.service_date = ? AND EXISTS "
-                        + "(SELECT 1 FROM assignment a WHERE a.run_id = r.id) ORDER BY r.id LIMIT 1",
-                Long.class, ACADEMY_A_ID, 오늘);
+        long 배치가_있는_회차 = 임시_추가된_회차_id(관계자A_토큰(), BUS_A_ID, 오늘.toString(), "to_academy", "07:25");
+        기사를_배치한다(관계자A_토큰(), 배치가_있는_회차, DRIVER_A_ID);
 
         String body = 목록_본문(관계자A_토큰(), null);
 
@@ -277,6 +291,15 @@ class StaffRunControllerTest {
 
     private ResultActions 취소한다(String token, long runId) throws Exception {
         return mockMvc.perform(delete("/api/v1/staff/runs/" + runId).header("Authorization", token));
+    }
+
+    /** 배치도 실제 경로(§5.14)로 만든다 — SQL 로 심으면 API 가 만들어 내지 못하는 상태를 검사하게 된다. */
+    private void 기사를_배치한다(String token, long runId, long driverManagerId) throws Exception {
+        mockMvc.perform(patch("/api/v1/staff/runs/" + runId + "/assignment")
+                .header("Authorization", token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"driver_manager_id\":%d,\"escort_manager_id\":null}".formatted(driverManagerId)))
+                .andExpect(status().isOk());
     }
 
     private String 목록_본문(String token, String serviceDate) throws Exception {
