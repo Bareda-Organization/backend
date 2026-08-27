@@ -1,6 +1,7 @@
 package src.backend.manager.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -391,7 +392,62 @@ class StaffRunAssignmentControllerTest {
                 .andExpect(jsonPath("$.data.warnings.length()").value(0));
     }
 
+    // ── 저장소의 학원 조건 (리뷰 Important 2) ─────────────────────────────
+
+    /**
+     * 배치를 되읽을 때 <b>남의 학원 매니저는 실리지 않는다</b> — {@code findAssignedManagers} 의
+     * {@code m.academyId} 조건이 그것을 막는다.
+     *
+     * <p>이 상태는 <b>쓰기 경로로는 만들 수 없다</b> — {@code PATCH .../assignment} 가 매니저의 소속을
+     * 먼저 검사하기 때문이다. 그래서 SQL 로 심는다. 도달 불가라는 이유로 단언을 두지 않으면, 그 검사를
+     * 무르게 하는 변경이 들어왔을 때 <b>여기가 유일한 저지선인데 아무도 지키지 않는 상태</b>가 된다.
+     *
+     * <p>새는 값이 <b>매니저 이름</b>이라 격리가 무너지면 그대로 타 학원의 개인정보 노출이다.
+     */
+    @Test
+    void 배치_조회는_타_학원_매니저를_싣지_않는다() throws Exception {
+        long runId = 회차를_만든다(BUS_A1_ID, MORNING);
+        타_학원_매니저를_SQL_로_배치한다(runId, 남기사_학원B);
+
+        String body = 본문(mockMvc.perform(get("/api/v1/staff/runs?service_date=" + SERVICE_DATE)
+                .header("Authorization", 관계자A_토큰()))
+                .andExpect(status().isOk())
+                .andReturn());
+
+        assertThat(JsonPath.<List<String>>read(body,
+                "$.data[?(@.id == %d)].assignments[*].name".formatted(runId)))
+                .as("타 학원 매니저가 실리면 이름이 그대로 새어 나간다")
+                .isEmpty();
+    }
+
+    /**
+     * 중복 배치 판정은 <b>같은 학원 안에서만</b> 본다 — {@code existsOverlappingAssignment} 의
+     * {@code r.academyId} 조건이다.
+     *
+     * <p>타 학원 회차에 같은 매니저가 걸려 있어도 경고를 만들지 않는다. 만들면 관계자는 자기가 볼 수도
+     * 고칠 수도 없는 회차 때문에 경고를 받고, 그 경고는 <b>지울 방법이 부재</b>하다.
+     *
+     * <p>여기서도 SQL 로 심는다 — 매니저는 한 학원에만 속하므로 쓰기 경로가 이 상태를 못 만든다.
+     */
+    @Test
+    void 중복_배치_경고는_타_학원_회차를_세지_않는다() throws Exception {
+        long 타학원_회차 = 회차를_만든다(관계자B_토큰(), BUS_B_ID, MORNING);
+        타_학원_매니저를_SQL_로_배치한다(타학원_회차, 강기사_종일);
+        long 우리_회차 = 회차를_만든다(BUS_A1_ID, MORNING);
+
+        배치한다(관계자A_토큰(), 우리_회차, 강기사_종일, null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.warnings[?(@.code == 'MANAGER_DOUBLE_BOOKED')]")
+                        .doesNotExist());
+    }
+
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────
+
+    /** 쓰기 경로가 막는 <b>학원을 넘는 배치</b>를 심는다 — 저장소의 학원 조건을 재려면 이 수밖에 없다. */
+    private void 타_학원_매니저를_SQL_로_배치한다(long runId, long managerId) {
+        jdbcTemplate.update("INSERT INTO assignment (run_id, manager_id, role, assigned_at) "
+                + "VALUES (?, ?, 'driver', now())", runId, managerId);
+    }
 
     private long 회차를_만든다(long busId, String departTime) throws Exception {
         return 회차를_만든다(관계자A_토큰(), busId, departTime);
