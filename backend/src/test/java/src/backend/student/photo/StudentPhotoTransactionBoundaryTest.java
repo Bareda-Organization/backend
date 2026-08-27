@@ -203,6 +203,39 @@ class StudentPhotoTransactionBoundaryTest {
                 .exists();
     }
 
+    /**
+     * 교체가 롤백되면 <b>옛 파일은 그대로 남는다</b> — 옛 파일 삭제가 커밋 뒤인 이유가 이것이다.
+     *
+     * <p>지우는 시점을 트랜잭션 <b>안</b>으로 옮기면 롤백된 뒤 <b>학생 행은 옛 주소를 가리키는데 그
+     * 파일은 이미 사라진</b> 상태가 된다. 되돌릴 수단이 부재하고, 응답은 {@code 422} 라 아무도 그
+     * 일이 벌어진 줄 모른다.
+     *
+     * <p>새 파일이 지워지는 것과는 <b>반대 방향</b>이다 — 커밋되지 못한 요청에서 새 파일은 지우고 옛
+     * 파일은 남긴다. 한쪽만 단언하면 <b>둘 다 지우는</b> 구현과 <b>둘 다 남기는</b> 구현 중 하나가
+     * 그대로 통과한다.
+     */
+    @Test
+    void 수정이_롤백되면_옛_사진은_지워지지_않는다() throws Exception {
+        long studentId = 등록한다(NAME_PREFIX + "롤백교체");
+        String 옛_파일 = photoStorage.stored.getFirst();
+
+        mockMvc.perform(multipart(HttpMethod.PATCH, BASE + "/" + studentId)
+                        .file(데이터_파트("{\"gender\":\"자몽\"}"))
+                        .file(사진_파트(jpeg()))
+                        .header("Authorization", 관계자_토큰()))
+                .andExpect(status().isUnprocessableEntity());
+
+        assertThat(photoStorage.stored)
+                .as("옛 파일 삭제 시점을 검사하려면 교체 저장이 실제로 일어난 뒤여야 한다")
+                .hasSize(2);
+        assertThat(파일(옛_파일))
+                .as("커밋되지 못한 교체가 옛 파일을 지우면 학생 행이 사라진 파일을 가리킨다")
+                .exists();
+        assertThat(파일(photoStorage.stored.getLast()))
+                .as("롤백된 요청이 만든 새 파일은 남으면 안 된다")
+                .doesNotExist();
+    }
+
     // ── 도우미 ────────────────────────────────────────────────────────────
 
     private long 등록한다(String name) throws Exception {
