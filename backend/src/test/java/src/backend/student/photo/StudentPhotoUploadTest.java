@@ -158,6 +158,21 @@ class StudentPhotoUploadTest {
                 .andExpect(status().isCreated());
     }
 
+    /**
+     * JSON 파트가 통째로 빠진 요청은 {@code 422} 다 — 손대지 않으면 {@code 500} 으로 나간다.
+     *
+     * <p>사진 없이 등록하는 정상 경로({@code data} 만 보냄)와 <b>반대 방향</b>이다. 둘을 함께 두지
+     * 않으면 "파트를 하나도 안 보내도 되는" 구현과 구별되지 않는다.
+     */
+    @Test
+    void 데이터_파트가_없는_요청은_422_다() throws Exception {
+        mockMvc.perform(multipart(BASE)
+                        .file(new MockMultipartFile("photo", "face.png", "image/png", png()))
+                        .header("Authorization", 관계자_토큰()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+    }
+
     /** 수정으로도 사진이 붙는다(STU-03) — 등록만 열려 있으면 사진을 나중에 넣을 수단이 부재하다. */
     @Test
     void 수정으로_사진을_올리면_photo_url_이_바뀐다() throws Exception {
