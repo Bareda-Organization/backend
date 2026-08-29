@@ -36,9 +36,12 @@ public interface WeeklyAddressRepository extends JpaRepository<WeeklyAddress, Lo
     /**
      * 명단 학생들이 그 요일 · 그 방향에 서는 승하차지(C-16, 노선 계산 ①단계) — 학생 한 명당 최대 1행이다.
      *
-     * <p>{@code verified} 와 {@code stopId IS NOT NULL} 을 조건에 <b>거는 것이 요점</b>이다. 검증을
-     * 통과하지 못한 칸은 좌표도 승하차지도 비어 있는데, 조건 없이 꺼내면 그 행이 "주소가 있다" 로
-     * 세어져 좌표 미확보 학생이 분리되지 않는다 — 그 학생은 명단에도 정차지에도 없는 채로 사라진다.
+     * <p>{@code verified} 와 {@code stopId IS NOT NULL} 은 <b>두 번째 방어선</b>이다. 좌표 미확보
+     * 학생을 실제로 갈라내는 것은 호출부(노선 계산 ①단계)가 승하차지 번호를 못 얻은 학생을 분리하는
+     * 쪽이고, 둘 중 어느 조건을 지워도 지금은 결과가 같다(음성 대조 N11·N12 로 실측 — 검증 전 행은
+     * {@code stop_id} 도 비어 있어 서로를 가린다). 그래도 남겨 두는 이유는 <b>검증을 통과한 칸만
+     * 계산에 들어간다</b> 는 규칙(ERD {@code weekly_address.verified})이 적힌 자리가 여기뿐이라,
+     * 지우면 {@code stop_id} 를 검증 없이 채우는 경로가 생겼을 때 그 행이 조용히 정차지가 된다.
      *
      * <p>학원 조건을 {@code Student} 조인으로 거는 이유는 {@code weekly_address} 에
      * {@code academy_id} 컬럼이 부재하기 때문이다(ERD §6.1 부모 경유).
