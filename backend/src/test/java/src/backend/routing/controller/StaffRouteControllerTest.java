@@ -284,8 +284,7 @@ class StaffRouteControllerTest {
     @Test
     void 노선_목록은_소속_학원_것만_돌려준다() throws Exception {
         편성한다(관계자B_토큰(), BUS_B_ID, "tue", "to_academy", List.of(STOP_OF_B)).andExpect(status().isCreated());
-        String bodyOfA = 본문(mockMvc.perform(get("/api/v1/staff/routes?size=100")
-                .header("Authorization", 관계자A_토큰())).andExpect(status().isOk()).andReturn());
+        String bodyOfA = 목록_본문(관계자A_토큰(), "size=100");
 
         assertThat((int) JsonPath.read(bodyOfA, "$.data.items.length()"))
                 .as("목록이 비면 아래 부재 단언은 아무것도 검사하지 않는다").isPositive();
@@ -327,6 +326,112 @@ class StaffRouteControllerTest {
                 Integer.class, routeId))
                 .as("순번은 1부터 빈틈 없이 이어져야 한다 — 재배열이 순번을 건너뛰면 기사 화면에서 한 자리가 사라진다")
                 .containsExactly(1, 2, 3, 4);
+    }
+
+
+    /**
+     * 페이징 봉투 4개 필드가 <b>실제 값</b>으로 나온다(API_SPEC §1.8) — {@code page}·{@code size}·
+     * {@code total_count}·{@code has_next}.
+     *
+     * <p><b>{@code size} 를 크게 줘서 페이징을 우회하면 이 넷이 아무 단언의 대상이 되지 않는다</b>
+     * (수정 라운드 1 Important 2 · Ruling 168). 그래서 여러 쪽에 걸치도록 편성해 두고 {@code size} 를
+     * 작게 준다.
+     *
+     * <p>마지막 쪽에서 {@code has_next} 가 {@code false} 인 것을 함께 본다 — 첫 쪽만 보면 항상
+     * {@code true} 를 실어 보내는 구현이 통과하고, 그러면 클라이언트가 빈 쪽을 한 번 더 요청한다.
+     */
+    @Test
+    void 목록이_페이징_봉투_네_필드를_실제_값으로_돌려준다() throws Exception {
+        int 시드_편성수 = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM route WHERE academy_id = ?", Integer.class, ACADEMY_A_ID);
+        assertThat(시드_편성수).as("시드 편성이 0건이면 아래 총계가 내가 만든 것만 세는 값이 된다").isEqualTo(1);
+        편성한다(관계자A_토큰(), BUS_A_ID, "mon", "to_academy", STOPS_OF_A).andExpect(status().isCreated());
+        편성한다(관계자A_토큰(), BUS_A_ID, "mon", "from_academy", List.of()).andExpect(status().isCreated());
+        편성한다(관계자A_토큰(), BUS_A_ID, "tue", "to_academy", List.of()).andExpect(status().isCreated());
+
+        String 첫쪽 = 목록_본문(관계자A_토큰(), "page=0&size=2");
+        assertThat((int) JsonPath.read(첫쪽, "$.data.items.length()")).isEqualTo(2);
+        assertThat((int) JsonPath.read(첫쪽, "$.data.page")).isZero();
+        assertThat((int) JsonPath.read(첫쪽, "$.data.size")).isEqualTo(2);
+        assertThat((int) JsonPath.read(첫쪽, "$.data.total_count"))
+                .as("총계는 쪽 크기가 아니라 학원 전체 편성 수다 — 시드 1 + 새로 만든 3")
+                .isEqualTo(4);
+        assertThat((boolean) JsonPath.read(첫쪽, "$.data.has_next")).isTrue();
+
+        String 둘째쪽 = 목록_본문(관계자A_토큰(), "page=1&size=2");
+        assertThat((int) JsonPath.read(둘째쪽, "$.data.page")).isEqualTo(1);
+        assertThat((int) JsonPath.read(둘째쪽, "$.data.total_count")).isEqualTo(4);
+        assertThat((boolean) JsonPath.read(둘째쪽, "$.data.has_next"))
+                .as("마지막 쪽인데 다음이 있다고 답하면 클라이언트가 빈 쪽을 한 번 더 요청한다")
+                .isFalse();
+        assertThat(JsonPath.<List<Integer>>read(첫쪽, "$.data.items[*].id"))
+                .as("두 쪽이 같은 항목을 담으면 페이지 위치가 반영되지 않은 것이다")
+                .doesNotContainAnyElementsOf(JsonPath.read(둘째쪽, "$.data.items[*].id"));
+    }
+
+    /**
+     * {@code sort} 는 허용 목록({@code RouteQueryService.SORTABLE_FIELDS})에 있는 필드만 받고, 그
+     * 차례로 돌려준다(§1.8 {@code {필드}:{asc|desc}}).
+     *
+     * <p>거부 축을 함께 보는 것이 요점이다 — 목록에 없는 이름을 그대로 정렬 속성으로 넘기면
+     * Spring Data 가 {@code PropertyReferenceException} 을 던져 {@code 422} 여야 할 입력이
+     * {@code 500} 이 되고, 그 예외 문구가 엔티티 필드 목록을 밖으로 실어 나른다.
+     *
+     * <p>내가 만든 셋만 골라 차례를 본다 — 시드 편성의 이름이 한글이라 전체 목록의 차례는 DB 대조
+     * 순서(collation)에 달려 있고, 그것은 이 코드가 정하는 것이 아니다.
+     */
+    @Test
+    void 목록_정렬은_허용_필드만_받고_그_차례로_돌려준다() throws Exception {
+        이름을_주어_편성한다("SORT-A", BUS_A_ID, "wed", "to_academy");
+        이름을_주어_편성한다("SORT-C", BUS_A_ID, "wed", "from_academy");
+        이름을_주어_편성한다("SORT-B", BUS_A_ID, "thu", "to_academy");
+
+        List<String> 내림차순 = JsonPath.<List<String>>read(
+                        목록_본문(관계자A_토큰(), "size=100&sort=name:desc"), "$.data.items[*].name")
+                .stream().filter(name -> name != null && name.startsWith("SORT-")).toList();
+
+        assertThat(내림차순)
+                .as("sort 를 무시하면 기본 정렬(차량·요일·방향)이 나와 A·C·B 차례가 된다")
+                .containsExactly("SORT-C", "SORT-B", "SORT-A");
+
+        mockMvc.perform(get("/api/v1/staff/routes?sort=academy_id:asc")
+                        .header("Authorization", 관계자A_토큰()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+    }
+
+    /**
+     * 삭제한 조합은 <b>같은 조합으로 다시 편성된다</b> — 삭제가 행을 지우는 것이라 유일성 자리가
+     * 비기 때문이다(수정 라운드 1 Minor 1).
+     *
+     * <p>지금은 {@code route} 에 {@code deleted_at} 이 부재해 구조적으로 성립하나, 이 저장소는 소프트
+     * 삭제가 유일성 자리를 점유한 채 남는 형태를 <b>두 번</b> 밟았다(Ruling 139 · Phase 5 이월②).
+     * 나중에 누가 {@code route} 에 소프트 삭제를 도입하면 그때 이 단언이 실패해 알린다.
+     */
+    @Test
+    void 삭제한_조합은_같은_조합으로_다시_편성할_수_있다() throws Exception {
+        long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "sat", "from_academy", STOPS_OF_A);
+
+        삭제한다(관계자A_토큰(), routeId).andExpect(status().isOk());
+        entityManager.flush();
+
+        편성한다(관계자A_토큰(), BUS_A_ID, "sat", "from_academy", STOPS_OF_A)
+                .andExpect(status().isCreated());
+    }
+
+    /**
+     * 정차지가 없는 편성에 최적화를 불러도 오류가 아니다(수정 라운드 1 Minor 2).
+     *
+     * <p>차량·요일·방향 칸을 먼저 잡아 두고 승하차지를 나중에 채우는 조작이 실재하므로, 그 중간
+     * 상태에 최적화가 닿는 것은 조작 실수이지 사고가 아니다. 거부하면 화면이 설명할 이유가 부재하다.
+     */
+    @Test
+    void 정차지가_없는_편성에_최적화를_불러도_오류가_아니다() throws Exception {
+        long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "sun", "from_academy", List.of());
+
+        String body = 본문(최적화한다(관계자A_토큰(), routeId).andExpect(status().isOk()).andReturn());
+
+        assertThat((int) JsonPath.read(body, "$.data.stops.length()")).isZero();
     }
 
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────
@@ -380,6 +485,24 @@ class StaffRouteControllerTest {
                 .content("""
                         {"origin":{"lat":37.565000,"lng":126.977000},
                          "destination":{"lat":37.570500,"lng":126.982000}}"""));
+    }
+
+    private String 목록_본문(String token, String query) throws Exception {
+        return 본문(mockMvc.perform(get("/api/v1/staff/routes?" + query).header("Authorization", token))
+                .andExpect(status().isOk())
+                .andReturn());
+    }
+
+    /** 이름만 갈라 편성한다 — 정렬 시험이 이름 차례를 봐야 해서 이름을 밖에서 준다. */
+    private void 이름을_주어_편성한다(String name, long busId, String weekday, String direction)
+            throws Exception {
+        mockMvc.perform(post("/api/v1/staff/routes")
+                        .header("Authorization", 관계자A_토큰())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"bus_id":%d,"weekday":"%s","direction":"%s","name":"%s","stop_ids":[]}"""
+                                .formatted(busId, weekday, direction, name)))
+                .andExpect(status().isCreated());
     }
 
     private String 본문(MvcResult result) throws Exception {
