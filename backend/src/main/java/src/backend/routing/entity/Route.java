@@ -53,17 +53,63 @@ public class Route extends BaseTimeEntity {
     @Column(name = "active", nullable = false)
     private boolean active;
 
-    private Route(Long academyId, Long busId, Weekday weekday, Direction direction, String name) {
+    private Route(Long academyId, RoutePlan plan) {
         this.academyId = academyId;
-        this.busId = busId;
-        this.weekday = weekday;
-        this.direction = direction;
-        this.name = name;
-        this.active = true;
+        this.busId = plan.busId();
+        this.weekday = plan.weekday();
+        this.direction = plan.direction();
+        this.name = plan.name();
+        this.active = plan.active() == null || plan.active();
     }
 
-    /** 학원 관리자가 요일·방향별 고정 노선 편성을 등록할 때 생성한다(RTE-01) — 활성 상태로 시작한다. */
-    public static Route register(Long academyId, Long busId, Weekday weekday, Direction direction, String name) {
-        return new Route(academyId, busId, weekday, direction, name);
+    /**
+     * 학원 관리자가 요일·방향별 고정 노선 편성을 등록할 때 생성한다(RTE-01) — {@code active} 를 주지
+     * 않으면 활성으로 시작한다.
+     */
+    public static Route register(Long academyId, RoutePlan plan) {
+        return new Route(academyId, plan);
+    }
+
+    /**
+     * 편성을 고친다(RTE-01, §5.9) — {@code null} 인 항목은 <b>고치지 않는다</b>는 뜻이다.
+     *
+     * <p>유일성 조합 셋을 고칠 수 있게 두는 것이 사양이다 — 차량 교체·요일 이동이 실제 운영의
+     * 조작이라, 그 셋을 불변으로 두면 편성을 지우고 다시 만드는 것 말고 방법이 없어지고 그러면
+     * 정차 순서가 FK CASCADE 로 함께 사라진다.
+     */
+    public void update(RoutePlan plan) {
+        if (plan.busId() != null) {
+            this.busId = plan.busId();
+        }
+        if (plan.weekday() != null) {
+            this.weekday = plan.weekday();
+        }
+        if (plan.direction() != null) {
+            this.direction = plan.direction();
+        }
+        if (plan.name() != null) {
+            this.name = plan.name();
+        }
+        if (plan.active() != null) {
+            this.active = plan.active();
+        }
+    }
+
+    /**
+     * 요청이 유일성 조합 셋 중 <b>실제로 값을 바꾸는</b> 항목을 담고 있는가 — 담지 않았으면 중복
+     * 판정 대상 밖이다.
+     *
+     * <p>같은 값을 그대로 다시 보내는 요청을 걸러내지 않으면 자기 자신을 중복으로 세어 {@code 409}
+     * 가 된다({@code Schedule#movesSlot} 과 같은 형태) — 그러면 이름만 고치려고 조합 값을 함께 보낸
+     * 클라이언트가 막힌다.
+     */
+    public boolean movesSlot(RoutePlan plan) {
+        return changes(plan.busId(), this.busId)
+                || changes(plan.weekday(), this.weekday)
+                || changes(plan.direction(), this.direction);
+    }
+
+    private static boolean changes(Object requested, Object current) {
+        return requested != null && !requested.equals(current);
     }
 }

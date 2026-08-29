@@ -39,6 +39,7 @@ import src.backend.manager.entity.ManagerProfile;
 import src.backend.manager.entity.WorkHours;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.Route;
+import src.backend.routing.entity.RoutePlan;
 import src.backend.routing.entity.RouteStop;
 import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.entity.RouteVersionSource;
@@ -178,7 +179,8 @@ class Phase1Task5EntitySchemaValidationTest extends MigratedPostgresTestBase {
         Long busId = insertBus(academyId);
         Long stopId = insertStop(academyId);
 
-        Route route = Route.register(academyId, busId, Weekday.MON, Direction.TO_ACADEMY, "1노선");
+        Route route = Route.register(academyId,
+                new RoutePlan(busId, Weekday.MON, Direction.TO_ACADEMY, "1노선", null));
         entityManager.persist(route);
         entityManager.flush();
 

@@ -168,6 +168,17 @@ public enum ErrorCode {
     // 403 이 아니라 409 인 것은 막는 것이 권한이 아니라 대상 자원의 상태이기 때문이다.
     DUPLICATE_NOTIFICATION(HttpStatus.CONFLICT, "이미 적재된 알림입니다"),
 
+    // ── 고정 노선 편성(Phase 6, RTE-01 · RTE-09 · A-08) ──────────────────────────
+    // 미존재 고정 노선 지정(API_SPEC §5.9 · §8.5, Ruling 180). 다른 학원의 노선을 지목한 경우도 이
+    // 코드다 — 학원 조건을 쿼리에 넣어 "없음" 과 "남의 학원" 을 같은 빈 결과로 만들면 존재 여부가
+    // 응답에서 사라진다(BUS_NOT_FOUND · SCHEDULE_NOT_FOUND 와 같은 형태).
+    ROUTE_NOT_FOUND(HttpStatus.NOT_FOUND, "노선을 찾을 수 없습니다"),
+    // 같은 차량·요일·방향 조합의 고정 노선 중복(RTE-01 · §5.9 · §8.5, Ruling 180) —
+    // uk_route_bus_weekday_direction 위반. 422 가 아니라 409 인 것은 요청 형식이 아니라 자원이
+    // 충돌한 것이기 때문이다(DUPLICATE_BUS_NO · DUPLICATE_SCHEDULE 과 같은 형태).
+    // ⚠ 판정의 근거는 애플리케이션 선검사가 아니라 DB UNIQUE 다 — 동시 요청 2건은 서로의 미커밋
+    // INSERT 를 못 봐 둘 다 선검사를 지나고, 그 거부를 옮기지 않으면 500 이 샌다.
+    DUPLICATE_ROUTE(HttpStatus.CONFLICT, "이미 편성된 차량·요일·방향입니다"),
     // ── 노선 계산 · 외부 지도 API(Phase 6) ────────────────────────────────────
     // 외부 도로 경로 API 의 서킷이 열린 상태에서 온디맨드(승인 미리보기 · 경유 지점 지정)가 호출했을 때
     // (API_SPEC §8.5 · TECH_DECISIONS §8 · ARCHITECTURE §8.3).
