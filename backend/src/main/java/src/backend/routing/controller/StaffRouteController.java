@@ -22,6 +22,7 @@ import src.backend.global.response.PageResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanManageRoute;
 import src.backend.routing.command.RouteCommandService;
+import src.backend.routing.command.RouteOptimizeService;
 import src.backend.routing.dto.RouteDetailResponse;
 import src.backend.routing.dto.RouteListRequest;
 import src.backend.routing.dto.RouteOptimizeRequest;
@@ -48,6 +49,8 @@ public class StaffRouteController {
     private final RouteQueryService routeQueryService;
 
     private final RouteCommandService routeCommandService;
+
+    private final RouteOptimizeService routeOptimizeService;
 
     /** 고정 노선 목록(RTE-01 · A-08, §5.9) — 비활성 편성도 실린다. */
     @CanManageRoute
@@ -101,6 +104,6 @@ public class StaffRouteController {
     @PostMapping("/{id}/optimize")
     public ApiResponse<RouteDetailResponse> optimize(@AuthenticationPrincipal AuthUser requester,
             @PathVariable Long id, @Valid @RequestBody RouteOptimizeRequest request) {
-        return ApiResponse.ok(routeCommandService.optimize(requester, id, request));
+        return ApiResponse.ok(routeOptimizeService.optimize(requester, id, request));
     }
 }
