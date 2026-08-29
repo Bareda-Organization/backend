@@ -32,6 +32,7 @@ import com.sun.net.httpserver.HttpServer;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.github.resilience4j.retry.Retry;
 import io.github.resilience4j.retry.RetryRegistry;
 
 import src.backend.global.error.ErrorCode;
@@ -129,8 +130,11 @@ class NaverDirectionsResilienceTest {
      * 일시 실패는 {@code max-attempts} 만큼 다시 부른다.
      *
      * <p>도달한 호출 수로 세는 이유는, 결과만 보면 재시도가 걸린 경우와 걸리지 않은 경우가 <b>똑같이
-     * {@code fallbackUsed=true}</b> 라 구별할 수단이 부재하기 때문이다. {@code fallbackMethod} 를
-     * {@code @CircuitBreaker} 쪽으로 옮기면 이 단언이 1을 보고 실패한다.
+     * {@code fallbackUsed=true}</b> 라 구별할 수단이 부재하기 때문이다.
+     *
+     * <p>⚠ <b>이 단언은 애스펙트 순서를 고정하지 않는다</b>(2026-08-29 실측) — {@code fallbackMethod}
+     * 를 {@code @CircuitBreaker} 쪽으로 옮겨도 폴백이 예외를 던지는 한 호출 수는 그대로 3이다.
+     * 순서를 무는 것은 아래 서킷 시험의 <b>재시도 없이 실패한 호출 수</b> 단언이다.
      */
     @Test
     void 일시_실패는_설정한_횟수만큼_다시_부른다() {
@@ -236,6 +240,8 @@ class NaverDirectionsResilienceTest {
         Duration 상한 = Duration.ofSeconds(2);
         서킷을_연속_실패로_연다(상한);
         PROVIDER_HITS.set(0);
+        Retry retry = retryRegistry.retry(NaverDirectionsGateway.RESILIENCE_INSTANCE);
+        long 재시도_없이_실패한_호출 = retry.getMetrics().getNumberOfFailedCallsWithoutRetryAttempt();
 
         long 온디맨드_시작 = System.nanoTime();
         assertThatThrownBy(() -> mapRouteClient.route(요청(지점_두개(), 상한, CallerPolicy.ON_DEMAND)))
@@ -257,6 +263,10 @@ class NaverDirectionsResilienceTest {
         assertThat(PROVIDER_HITS.get())
                 .as("서킷이 열렸는데 공급자에 요청이 나갔다 — 서킷이 아무것도 막지 않는 상태다")
                 .isZero();
+        assertThat(retry.getMetrics().getNumberOfFailedCallsWithoutRetryAttempt())
+                .as("서킷 개방이 재시도 대상이 됐다 — fallbackMethod 가 @CircuitBreaker 쪽에 붙어 "
+                        + "CallNotPermittedException 이 포트 예외로 바뀌는 바람에 ignore-exceptions 가 안 먹는 형태다")
+                .isEqualTo(재시도_없이_실패한_호출 + 2);
     }
 
     /**

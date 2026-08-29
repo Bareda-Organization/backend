@@ -80,10 +80,17 @@ public class NaverDirectionsGateway {
      * 구간 하나의 도로 값을 {@code segment.size() - 1} 개로 돌려준다.
      *
      * <p><b>{@code fallbackMethod} 가 {@code @Retry} 쪽에 있어야 한다.</b> 두 애스펙트의 순서는
-     * Retry 가 바깥 · CircuitBreaker 가 안쪽으로 고정돼 있다. 안쪽에 fallback 을 걸면 첫 실패를
-     * 안쪽이 {@link MapRouteUnavailableException} 으로 삼켜 바깥 Retry 에게는 <b>성공한 호출</b>로
-     * 보이고, {@code max-attempts} 를 적어 둔 채로 실제 호출은 한 번만 나간다 — Phase 5 가 실제로
-     * 밟은 형태다. {@code NaverDirectionsResilienceTest} 가 도달한 호출 수를 세어 이 순서를 고정한다.
+     * Retry 가 바깥 · CircuitBreaker 가 안쪽으로 고정돼 있다({@code order} 2147483642 · 2147483643).
+     * 안쪽에 fallback 을 걸면 {@link io.github.resilience4j.circuitbreaker.CallNotPermittedException}
+     * 이 바깥 Retry 에 닿기 전에 {@link MapRouteUnavailableException} 으로 바뀌어,
+     * {@code ignore-exceptions} 가 그것을 알아보지 못한다 — <b>서킷이 열려 있는데도 재시도가 돌아</b>
+     * 열린 서킷을 세 번 두드리고 {@code wait-duration} 만큼 응답만 늦어진다. 공급자에는 닿지 않고
+     * 응답 코드도 그대로라 어느 기능 시험에도 드러나지 않는다.
+     *
+     * <p>⚠ <b>도달한 호출 수만으로는 이 배치를 가릴 수 없다</b>(2026-08-29 실측) — 폴백이 값을
+     * 돌려주지 않고 예외를 던지므로 두 배치 모두 {@code max-attempts} 만큼 공급자를 부른다. 순서를
+     * 고정하는 것은 {@code NaverDirectionsResilienceTest} 의 <b>재시도 없이 실패한 호출 수</b>
+     * 단언이고, 호출 수 단언이 잡는 것은 재시도가 아예 안 걸린 상태다.
      *
      * @throws MapRouteUnavailableException 공급자에 닿지 못한 전부 — 타임아웃 · 5xx · 서킷 개방
      */
