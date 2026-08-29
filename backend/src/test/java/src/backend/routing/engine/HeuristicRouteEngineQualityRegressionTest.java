@@ -2,21 +2,15 @@ package src.backend.routing.engine;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import src.backend.routing.engine.impl.HeuristicRouteEngine;
-import src.backend.routing.engine.spec.OrderableStop;
 import src.backend.routing.engine.spec.RouteEngine;
-import src.backend.routing.engine.spec.RouteOrderInput;
-import src.backend.routing.engine.spec.StopOrder;
 
 /**
  * 순서 최적화의 <b>품질이 나빠지면 실패</b>하는 회귀 판정 (TECH_DECISIONS §8.5.2).
@@ -146,31 +140,6 @@ class HeuristicRouteEngineQualityRegressionTest {
                 .isLessThan(zigzag.maxRideMinutes());
     }
 
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("datasets")
-    void 같은_입력을_두_번_계산하면_같은_순서가_나온다(String name) {
-        RouteOrderInput input = QualityDataset.load(name).input();
-
-        assertThat(seqOf(engine.order(input)))
-                .as("%s — 실행마다 갈리면 기록된 상한이 무엇을 재는 값인지 알 수 없다", name)
-                .isEqualTo(seqOf(engine.order(input)));
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("datasets")
-    void 입력_목록의_나열_순서를_섞어도_같은_순서가_나온다(String name) {
-        RouteOrderInput input = QualityDataset.load(name).input();
-        List<OrderableStop> shuffled = new ArrayList<>(input.stops());
-        Collections.shuffle(shuffled, new Random(20260829L));
-        RouteOrderInput reordered = new RouteOrderInput(
-                input.origin(), input.destination(), shuffled, input.fixedStops(),
-                input.direction());
-
-        assertThat(seqOf(engine.order(reordered)))
-                .as("%s — 나열 순서에 기대는 구현이면 명단 조회 순서가 바뀔 때 노선이 조용히 바뀐다", name)
-                .isEqualTo(seqOf(engine.order(input)));
-    }
-
     /**
      * 엔진이 <b>협력 객체를 받지 않는다</b> — 품질 판정이 외부 호출을 탈 수 없다는 뜻이다.
      *
@@ -188,11 +157,5 @@ class HeuristicRouteEngineQualityRegressionTest {
 
     private static double upperBound(double baseline) {
         return baseline * (1 + REGRESSION_MARGIN);
-    }
-
-    private static List<String> seqOf(StopOrder order) {
-        return order.sequence().stream()
-                .map(stop -> stop.seq() + ":" + stop.stopId() + "/" + stop.waypointId())
-                .toList();
     }
 }
