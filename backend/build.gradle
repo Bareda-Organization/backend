@@ -172,6 +172,33 @@ tasks.named('test') {
     if (project.hasProperty('testDbUrl')) {
         systemProperty 'spring.datasource.url', project.property('testDbUrl')
     }
+
+    // 워커 힙 상한을 명시한다(Ruling 188). 이전에는 이 값이 없어 워커가 JVM 기본 힙(이 호스트는
+    // 물리 메모리의 25% 어고닉 산정 — 실측 4096m)으로 떴다. 그런데도 student.photo 4~5건이
+    // OutOfMemoryError: Java heap space 로 실패했다(Phase 5 634 tests 전건 통과 → 763 tests 로 늘며
+    // 드러남) — 어고닉 상한이 넉넉해 보여도 이 호스트는 실제 여유가 200MB 안팎이라, 그 큰 상한을
+    // 믿고 GC 를 게을리하다 힙을 실제로 더 늘려야 하는 시점에 OS 가 그 커밋 요청을 들어주지 못하는
+    // 형태로 터진다(스와핑이 아니라 진짜 OutOfMemoryError 로 나타나는 이유).
+    //
+    // 1024m 로 고정한 근거 — 763 테스트 전체 묶음을 반복 실행해 얻은 실측이다(p6-t7-report.md).
+    //   512m  → FAIL (student.photo 7건 실패, OutOfMemoryError 재현 — 이 값 아래로 낮추면 증상이
+    //           돌아온다는 음성 대조)
+    //   768m  → PASS (763 tests, 실패 0)
+    //   1024m → PASS (763 tests, 실패 0, 여기서 채택 — 실측 통과선(768m) 위로 여유를 둔 하한+안전폭)
+    //   2048m → PASS 이지만 G1 실사용량이 최대 610MB 안팎에 그쳐 더 올릴 근거가 없다(과다 확보는
+    //           스와핑만 늘린다)
+    // 캐시된 @SpringBootTest 컨텍스트 수는 실측으로 "예닐곱"(155행 주석)이 아니라 최대 26 개였다
+    // (한 실행에서 HikariPool-26 까지 생성 — 컨텍스트 캐시 상한 32 를 넘지 않아 전부 살아있다).
+    // 이 주석은 정정하지 않는다 — 커넥션 풀 상한(6)의 근거는 컨텍스트 수가 아니라 동시성 테스트의
+    // 스레드 점유량이라 값 자체는 여전히 맞고, 여기서 "예닐곱"을 근거로 재인용하지 않기 위해서다.
+    //
+    // forkEvery(워커를 주기적으로 재기동해 누적을 끊는 처방)와 비교했다 — 힙 상한 없이
+    // forkEvery=15 만으로도 OOM 은 사라졌지만(763 tests, 실패 0) 9분 50초가 걸렸다. 같은 결과를
+    // 1024m 힙 상한은 4분 28초에 낸다(2배 이상 빠름) — forkEvery 는 포크마다 @SpringBootTest 컨텍스트
+    // 캐시를 버려 매번 다시 띄우기 때문이다. 그래서 forkEvery 가 아니라 maxHeapSize 를 택한다.
+    // maxParallelForks 는 손대지 않는다 — 이 호스트는 메모리가 병목이라 동시 워커를 늘리면 지금
+    // 문제를 그대로 키운다.
+    maxHeapSize = '1024m'
 }
 
 /**
