@@ -10,6 +10,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
@@ -40,6 +41,9 @@ public class NaverDirectionsGateway {
     private static final String KEY_ID_HEADER = "x-ncp-apigw-api-key-id";
 
     private static final String KEY_HEADER = "x-ncp-apigw-api-key";
+
+    /** NCP 가 경유지를 가르는 문자 — URI 에 그대로 실을 수 없어 인코딩을 거친다. */
+    private static final String WAYPOINT_SEPARATOR = "|";
 
     /** 연결 자체가 안 되는 경우의 상한 — 응답 대기 상한은 호출자가 요청마다 주입한다. */
     private static final int CONNECT_TIMEOUT_MILLIS = 3000;
@@ -113,19 +117,23 @@ public class NaverDirectionsGateway {
     /**
      * 첫 지점이 {@code start}, 마지막이 {@code goal}, 나머지가 {@code waypoints} 다 — NCP 는
      * <b>경도를 먼저</b> 적는다.
+     *
+     * <p>{@code encode()} 없이 문자열을 이어 {@code URI.create} 로 넘기면 경유지 구분자 {@code |} 가
+     * URI 에 쓸 수 없는 문자라 요청이 만들어지기도 전에 깨진다 — 그 실패는 예외가 폴백에 삼켜져
+     * <b>"경유지가 있는 요청만 조용히 근사값이 되는"</b> 형태로 나타난다(실측).
      */
     private URI drivingUri(List<GeoPoint> segment) {
-        GeoPoint start = segment.getFirst();
-        GeoPoint goal = segment.getLast();
-        StringBuilder url = new StringBuilder(baseUrl).append(DRIVING_PATH)
-                .append("?start=").append(coordinate(start))
-                .append("&goal=").append(coordinate(goal));
+        UriComponentsBuilder url = UriComponentsBuilder.fromUriString(baseUrl)
+                .path(DRIVING_PATH)
+                .queryParam("start", coordinate(segment.getFirst()))
+                .queryParam("goal", coordinate(segment.getLast()));
         List<GeoPoint> middle = segment.subList(1, segment.size() - 1);
         if (!middle.isEmpty()) {
-            url.append("&waypoints=")
-                    .append(middle.stream().map(NaverDirectionsGateway::coordinate).collect(Collectors.joining("|")));
+            url.queryParam("waypoints", middle.stream()
+                    .map(NaverDirectionsGateway::coordinate)
+                    .collect(Collectors.joining(WAYPOINT_SEPARATOR)));
         }
-        return URI.create(url.toString());
+        return url.build().encode().toUri();
     }
 
     private static String coordinate(GeoPoint point) {
