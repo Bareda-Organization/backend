@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.student.domain.StopProximity;
 import src.backend.student.entity.Stop;
 import src.backend.student.geocoding.spec.GeocodedPoint;
+import src.backend.student.repository.StopMergeLookup;
 import src.backend.student.repository.StopRepository;
 
 /**
@@ -18,9 +19,9 @@ import src.backend.student.repository.StopRepository;
  * <p>이것이 "공용 정류장" 을 만드는 것은 아니다(ERD {@code stop}) — 같은 주소를 쓰는 학생이 한
  * 승하차지로 묶이는 것은 <b>매칭 결과</b>이지 정류장 편성이 아니고, 편성은 Phase 6 노선 계산의 일이다.
  *
- * <p>매칭 범위는 <b>학원 안</b>이다. 그 조건은 이 클래스가 아니라
- * {@link StopRepository#findNearbyInAcademy} 쿼리에 박혀 있다 — 호출부에 두면 조건 하나가 빠져도
- * 동작하고, 그때 다른 학원의 승하차지에 학생이 붙는다.
+ * <p>매칭 범위는 <b>학원 안</b>이고, 학원 잠금도 같은 자리에 있다 — 둘 다 이 클래스가 아니라
+ * {@link StopMergeLookup#lockAcademyAndFindNearby} 가 갖는다. 호출부에 두면 조건이든 잠금이든
+ * 하나가 빠져도 동작하고, 그때 다른 학원의 승하차지에 학생이 붙거나 같은 자리에 승하차지가 둘 생긴다.
  */
 @Component
 @RequiredArgsConstructor
@@ -36,6 +37,10 @@ public class StopMatcher {
      *
      * <p>가장 가까운 것을 고르는 이유는 임계 안에 후보가 둘 이상 있을 수 있기 때문이다. 아무거나
      * 고르면 같은 주소가 조회 순서에 따라 다른 승하차지에 붙어, 두 번 저장했을 때 결과가 갈린다.
+     *
+     * <p><b>부르는 쪽이 트랜잭션을 열고 있어야 한다</b> — 학원 잠금이 그 트랜잭션이 끝날 때 풀리므로,
+     * 트랜잭션이 없으면 잠금이 곧바로 풀려 임계 구역이 성립하지 않는다. 그 경우 조용히 지나가지 않고
+     * {@link IllegalStateException} 이 난다.
      */
     public Stop matchOrCreate(Long academyId, GeocodedPoint point) {
         return nearest(academyId, point)
@@ -45,7 +50,8 @@ public class StopMatcher {
 
     private Optional<Stop> nearest(Long academyId, GeocodedPoint point) {
         return stopRepository
-                .findNearbyInAcademy(academyId, point.lat(), point.lng(), StopProximity.searchBoxDegrees(point.lat()))
+                .lockAcademyAndFindNearby(academyId, point.lat(), point.lng(),
+                        StopProximity.searchBoxDegrees(point.lat()))
                 .stream()
                 .filter(stop -> distanceTo(stop, point) <= StopProximity.MERGE_RADIUS_METERS)
                 .min(Comparator.comparingDouble(stop -> distanceTo(stop, point)));
