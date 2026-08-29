@@ -37,6 +37,9 @@ public final class AccountStatusGateEndpoints {
      *
      * <p>이어서 {@code /staff/schedules} 4개와 {@code /staff/runs} 4개(회차 조회·임시 추가·임시 취소·
      * 매니저 배치)를 더했다 — 운행 계획과 그날의 회차도 같은 관리 화면이라 근거가 같다.
+     *
+     * <p>Phase 6 이 {@code /staff/routes} 6개(고정 노선 CRUD 5 + 순서 최적화 1)를 더했다 — 편성은
+     * 학원 관계자의 관리 화면이라 근거가 같다.
      */
     public static final List<String> DENIED_WHEN_REJECTED = List.of(
             "POST /auth/password",
@@ -72,6 +75,13 @@ public final class AccountStatusGateEndpoints {
             "POST /staff/runs",
             "DELETE /staff/runs/{id}",
             "PATCH /staff/runs/{runId}/assignment",
+            // 고정 노선 편성·최적화(§5.9 · Ruling 180) — 관계자 전용 관리 화면이라 근거가 위와 같다.
+            "GET /staff/routes",
+            "POST /staff/routes",
+            "GET /staff/routes/{id}",
+            "PATCH /staff/routes/{id}",
+            "DELETE /staff/routes/{id}",
+            "POST /staff/routes/{id}/optimize",
             // 자녀 목록·연결 3단계(§3.1~§3.4) — 승인된 학부모·학생의 기능이라 허용 목록 밖이다(Ruling 145).
             "GET /me/students",
             "POST /me/students/link-requests",
