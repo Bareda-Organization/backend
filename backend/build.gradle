@@ -173,12 +173,12 @@ tasks.named('test') {
         systemProperty 'spring.datasource.url', project.property('testDbUrl')
     }
 
-    // 워커 힙 상한을 명시한다(Ruling 188). 이전에는 이 값이 없어 워커가 JVM 기본 힙(이 호스트는
-    // 물리 메모리의 25% 어고닉 산정 — 실측 4096m)으로 떴다. 그런데도 student.photo 4~5건이
-    // OutOfMemoryError: Java heap space 로 실패했다(Phase 5 634 tests 전건 통과 → 763 tests 로 늘며
-    // 드러남) — 어고닉 상한이 넉넉해 보여도 이 호스트는 실제 여유가 200MB 안팎이라, 그 큰 상한을
-    // 믿고 GC 를 게을리하다 힙을 실제로 더 늘려야 하는 시점에 OS 가 그 커밋 요청을 들어주지 못하는
-    // 형태로 터진다(스와핑이 아니라 진짜 OutOfMemoryError 로 나타나는 이유).
+    // 워커 힙 상한을 명시한다(Ruling 188). 이전에는 이 값이 없어 워커가 Gradle Test 태스크의
+    // 기본 힙(실측 -Xmx512m — `--info` 로 워커 커맨드라인을 grep 하면 보인다. 어고닉 산정 25%가
+    // 아니라 Gradle 자체 기본값이다)으로 떴다. Phase 5 는 같은 512m 으로 634 tests 전건 통과했지만
+    // 763 tests 로 늘며 student.photo 4~5건이 OutOfMemoryError: Java heap space 로 실패하기
+    // 시작했다 — 컨텍스트 캐시 누적으로 묶음이 커진 만큼 512m 이 부족해진 것이고, 512m 을 그대로
+    // 명시해 돌려도 기본값과 동일하게 재현된다(p6-t7-report.md 음성 대조).
     //
     // 1024m 로 고정한 근거 — 763 테스트 전체 묶음을 반복 실행해 얻은 실측이다(p6-t7-report.md).
     //   512m  → FAIL (student.photo 7건 실패, OutOfMemoryError 재현 — 이 값 아래로 낮추면 증상이
