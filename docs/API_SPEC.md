@@ -1316,15 +1316,48 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 **에러** — `409 CAPACITY_EXCEEDED`(도착 버스 정원 초과 — 현재 인원·정원 병기) · `403 CHANGE_WINDOW_CLOSED`(② 구간 이후는 추가에 해당 — UF-M-04)
 
-### 5.9 GET /staff/routes — **[조정 중]**
+### 5.9 고정 노선 편성 · 정차 순서 최적화 (RTE-01 · RTE-09, A-08)
 
-고정 노선 관리 (RTE-01, A-08).
+**권한** 학원 관계자 · **목적** 학생 요일별 주소 기반 노선 편성, 정차 순서 최적화. 당일 확정 노선(30분 전 산출)과 별개
 
-**권한** 학원 관계자 · **목적** 학생 요일별 주소 기반 노선 편성·최적화, 배치 매니저 표시. 당일 확정 노선(30분 전 산출)과 별개
+⚠ **`[조정 중]` 을 2026-08-29 부분 해제했다**(Ruling 180, §5.10 과 같은 논리). 보류 사유였던 "배차 정책 확정 후" 가 실제로 가리키던 것은 **최적화 트리거·가중치**(오픈 이슈 G)이고, 편성 CRUD 는 `ERD route`·`route_stop` 이 컬럼·UNIQUE·CHECK 까지 확정 문면을 달고 있어 가중치와 무관하다. **아직 해제되지 않은 것은 아래 "미확정으로 남긴 것" 뿐이다.**
 
-최적화 트리거·조건은 배차 정책 확정 후 기술.
+| 메서드 · 경로 | 기능 ID | 설명 |
+|---|---|---|
+| `GET /staff/routes` | RTE-01 | 목록 (§1.8 페이징). **비활성 편성도 실린다** — 편성 이력을 화면에서 되살릴 수 있어야 한다 |
+| `POST /staff/routes` | RTE-01 | 편성. 응답 `201` |
+| `GET /staff/routes/{id}` | RTE-01 | 상세 — 정차 순서를 `seq` 차례로 함께 싣는다 |
+| `PATCH /staff/routes/{id}` | RTE-01 | 수정 — §1.9 대로 변경 후 자원 상태를 그대로 반환 |
+| `DELETE /staff/routes/{id}` | RTE-01 | 삭제. **행을 지운다**(soft delete 부재) — 정차 순서도 `route_stop` FK CASCADE 로 함께 사라진다 |
+| `POST /staff/routes/{id}/optimize` | RTE-09 | 정차 순서 최적화. 결과는 상세와 같은 형태 |
 
-**에러** — §1.11 공통 항목 외 고유 에러 부재. 배차 정책 확정 후 추가.
+**`POST` · `PATCH /staff/routes` 요청**
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|:-:|---|
+| `bus_id` | integer | ● | 운행 차량. 소속 학원 밖이면 `404 BUS_NOT_FOUND` |
+| `weekday` | enum | ● | `mon`~`sun` (§9.8) |
+| `direction` | enum | ● | `to_academy` · `from_academy` (§9.7) |
+| `name` | string | ○ | 편성 이름. 최대 100자 |
+| `active` | boolean | ○ | 기본 `true` |
+| `stop_ids` | integer[] | ○ | 정차할 승하차지. **배열 순서가 그대로 `seq` 가 된다** — 최적화를 호출하기 전까지 관계자가 정한 차례가 유지된다 |
+
+`PATCH` 는 보낸 필드만 고친다. **`bus_id`·`weekday`·`direction` 셋이 유일성 조합**이라, 그중 하나만 고쳐도 기존 편성과 충돌하면 `409 DUPLICATE_ROUTE`.
+
+- 유일성의 근거는 **`route(bus_id, weekday, direction)` UNIQUE**(`uk_route_bus_weekday_direction`)이고 애플리케이션 선검사가 아니다. 선검사는 흔한 경우의 응답을 다듬을 뿐이고, **동시 2요청은 서로의 미커밋 INSERT 를 보지 못한 채 둘 다 선검사를 지난다** — 제약 위반을 `409` 로 번역하지 않으면 그 경합이 `500` 으로 샌다 (§5.10 일일 회차 생성과 같은 형태)
+- `stop_ids` 를 보내면 **기존 정차 순서를 전부 대체**한다. 일부만 고치는 경로를 두지 않는 것은 순번이 배열 전체의 성질이라 부분 수정의 의미가 정해지지 않기 때문이다
+
+**응답** — `id` · `bus_id` · `bus_no` · `weekday` · `direction` · `name` · `active`. 상세·편성·수정·최적화는 여기에 **`stops[]`**(`stop_id` · `seq` · `name` · `lat` · `lng`)를 더한다.
+
+**`POST /staff/routes/{id}/optimize` 요청** — `origin`(`lat`·`lng`) · `destination`(`lat`·`lng`) **둘 다 필수**
+
+⚠ **좌표를 호출자가 넘기는 것은 현재 스키마에서 유일한 선택지다**(Ruling 184). `academy`·`route` 어느 쪽에도 **좌표 컬럼이 부재**하다. 서버가 정차지 중 하나를 골라 기준점으로 쓰는 안은 **그 고름이 요청·응답 어디에도 남지 않아 산출 조건이 관측 불가**가 되어 기각했다 — `TECH_DECISIONS §8.5.1`("왜 이 순서로 돌았나를 재현 가능하게")과 정면으로 어긋난다. **Phase 7 이 `academy` 좌표 컬럼을 추가하면 이 계약이 바뀐다.**
+
+**최적화는 명시적 호출뿐이다** — 편성·수정이 순서를 자동으로 재배열하지 않는다. 가중치가 미확정인 상태(오픈 이슈 G)에서 자동 재배열을 두면 **기준 없는 재배열이 조용히 돌아 관계자가 정한 차례가 이유 없이 뒤집힌다.**
+
+**미확정으로 남긴 것** — 최적화 **자동 트리거**와 **가중치 기준**. 가중치는 `PRD §7.1` 이 P2 후속(F-01)에 뒀고, 오픈 이슈 G 가 닫히기 전까지 트리거를 만들지 않는다.
+
+**에러** — `409 DUPLICATE_ROUTE`(같은 차량·요일·방향이 이미 편성됨) · `404 ROUTE_NOT_FOUND` · `404 BUS_NOT_FOUND` · `503 MAP_ROUTE_UNAVAILABLE`(외부 도로 경로 API 서킷 개방 — §8)
 
 ### 5.10 운행 스케줄 · 일일 회차 (SCH-01~03, A-09)
 
@@ -1992,6 +2025,8 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `SCHEDULE_NOT_FOUND` | 404 | 미존재 스케줄 지정 (SCH-01 · §5.10 `PATCH`·`DELETE`). 다른 학원의 스케줄을 `{id}` 로 지목한 경우도 이 코드다 — 학원 조건을 쿼리에 넣어 "없음" 과 "남의 학원" 을 같은 빈 결과로 만들면 존재 여부가 응답에서 사라진다 (2026-08-26 신설, Ruling 153) |
 | `MAP_ROUTE_UNAVAILABLE` | 503 | 외부 도로 경로 API 의 **서킷이 열린 상태**에서 온디맨드 계산(②구간 승인 미리보기 · 경유 지점 지정)이 호출됨 (`TECH_DECISIONS §8` · `ARCHITECTURE §8.3`). ⚠ **배치 호출은 이 코드를 내지 않는다** — 사용자가 대기 중이 아니라 직선거리 근사로 진행하고 그 사실을 `route_version.fallback_used` 에 남긴다. ⚠ **단발 타임아웃·5xx 도 이 코드가 아니다** — 온디맨드라도 폴백으로 결과를 돌려준다. 서킷 개방만 가르는 이유는 그것이 **연속 실패가 확인된 상태**라 근사값이 계속 나올 것이고, 관리자는 화면에 뜬 그 근사 경로를 실제 경로로 믿고 승인하기 때문이다. 422 가 아니라 503 인 것은 요청이 잘못된 것이 아니라 서버가 지금 처리할 수 없기 때문이며 `ADDRESS_VERIFICATION_UNAVAILABLE` 와 같은 형태다 (2026-08-29 신설, Phase 6) |
 | `DUPLICATE_SCHEDULE` | 409 | 같은 `bus_id`·`weekday`·`direction`·`depart_time` 조합의 스케줄 중복 등록·수정 — 유일성 근거는 `schedule(bus_id, weekday, direction, depart_time)` UNIQUE (SCH-01 · §5.10). 422 가 아니라 409 인 것은 요청 형식이 아니라 자원이 충돌한 것이기 때문이며 `DUPLICATE_BUS_NO` 와 같은 형태다 (2026-08-26 신설, Ruling 153) |
+| `ROUTE_NOT_FOUND` | 404 | 미존재 고정 노선 지정 (RTE-01 · §5.9 `GET`·`PATCH`·`DELETE`·`optimize`). **다른 학원의 편성을 `{id}` 로 지목한 경우도 이 코드다** — `SCHEDULE_NOT_FOUND` 와 같은 처리이며, 학원 조건을 쿼리에 넣어 "없음" 과 "남의 학원" 을 같은 빈 결과로 만든다 (2026-08-29 신설, Ruling 180) |
+| `DUPLICATE_ROUTE` | 409 | 같은 `bus_id`·`weekday`·`direction` 조합의 고정 노선 중복 편성·수정 — 유일성 근거는 `route(bus_id, weekday, direction)` UNIQUE(`uk_route_bus_weekday_direction`)이고 애플리케이션 선검사가 아니다 (RTE-01 · §5.9). **동시 2요청은 서로의 미커밋 INSERT 를 보지 못한 채 둘 다 선검사를 지나므로**, 제약 위반을 이 코드로 번역하지 않으면 그 경합이 500 으로 샌다. 422 가 아니라 409 인 것은 `DUPLICATE_SCHEDULE`·`DUPLICATE_BUS_NO` 와 같은 형태다 (2026-08-29 신설, Ruling 180) |
 
 ---
 
@@ -2101,8 +2136,15 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 |---|---|---|
 | `POST /staff/runs/{runId}/forced-add` | RTE-06 · A-06 | 노선 강제 추가 — ① 구간 전용 |
 | `POST /staff/students/{id}/transfer` | RTE-07 · A-07 | 수동 조정 · 버스 간 이동 — 양쪽 노선 재최적화 |
-| `GET /staff/routes` | RTE-01 · A-08 | 고정 노선 CRUD · 최적화 |
-| `GET /staff/schedules` | SCH-01~03 · A-09 | 운행 스케줄 CRUD · 회차 임시 조정 |
-| `PATCH /staff/runs/{runId}/assignment` | MGR-05·06 · A-12 | 매니저 배치 · 충돌 검증 |
+
+**해제된 항목** — 이 표에서 지운 것이고 되돌아오지 않는다. 각 절의 해제 note 가 근거다.
+
+| 경로 | 해제 시점 · 근거 | 옮겨 간 곳 |
+|---|---|---|
+| `GET /staff/routes` | 2026-08-29 **부분 해제** (Ruling 180) | **§5.9**. 최적화 **자동 트리거·가중치**만 미확정으로 남았다 |
+| `GET /staff/schedules` | 2026-08-26 해제 (Ruling 153) | §5.10 |
+| `PATCH /staff/runs/{runId}/assignment` | 2026-08-26 **부분 해제** (Ruling 153) | **§5.14**. **동승자 자동 배정**만 미확정으로 남았다 — 엔드포인트가 아니라 노선 계산 파이프라인 ⑤단계다(`ARCHITECTURE §8.2`) |
+
+⚠ **이 절은 파생본이라 정본이 닫혀도 자동으로 따라오지 않는다.** 실제로 위 3행이 해제 후에도 표에 남아 있었다(Ruling 185). **한 행을 고칠 일이 생기면 표 전체를 각 절과 대조한다** — 하나가 낡아 있으면 나머지도 낡아 있다.
 
 관련 오픈 이슈(노선 최적화 알고리즘 기준, 승하차지 상세 관리, 지도 SDK 선정, 지오코딩 API)는 [PRD.md](./PRD.md) 참조.
