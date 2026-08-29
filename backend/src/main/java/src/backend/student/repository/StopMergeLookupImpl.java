@@ -13,8 +13,15 @@ import src.backend.student.entity.Stop;
 /**
  * {@link StopMergeLookup} 구현 — 두 문장을 한 메서드에 묶어 잠금이 조회보다 앞서는 것을 보장한다.
  *
- * <p>Spring Data 조각(fragment) 규약이 이름을 {@code StopMergeLookup} + {@code Impl} 로, 위치를
- * 저장소 기본 패키지 아래로 고정하므로 {@code spec}/{@code impl} 로 가르지 않는다.
+ * <p>{@code spec}/{@code impl} 로 가르지 않은 것은 프레임워크 제약 때문이 아니라 {@code CLAUDE.md} 의
+ * 분리 기준("구현이 바뀔 가능성이 있는가")에 걸리지 않기 때문이다 — 구현 후보가 PostgreSQL 자문 잠금
+ * 하나뿐이고, 인터페이스를 둔 목적도 교체가 아니라 <b>잠금 없는 후보 조회를 없애는 것</b>이다.
+ *
+ * <p>그래도 나중에 가르려거든 <b>인터페이스 패키지의 하위</b>에 두어야 한다. Spring Data 는 조각
+ * 구현을 인터페이스가 놓인 패키지와 그 하위에서만 찾는다 — 실측: {@code repository}+{@code repository.impl}
+ * 과 {@code repository.spec}+{@code repository.spec.impl} 은 뜨고, 형제로 놓은
+ * {@code repository.spec}+{@code repository.impl} 은 구현을 못 찾아 메서드 이름으로 쿼리를 만들려다
+ * 컨텍스트가 죽는다({@code No property 'lockAcademy' found for type 'Stop'}).
  */
 class StopMergeLookupImpl implements StopMergeLookup {
 
@@ -27,6 +34,13 @@ class StopMergeLookupImpl implements StopMergeLookup {
      *
      * <p>대가는 매칭에 성공해 생성하지 않는 경로까지 학원 단위로 직렬화되는 것이고, 받아들이는 근거는
      * 승하차지 생성이 학생 등록·주소 수정 시점에만 도는 저빈도 연산이라는 것이다.
+     *
+     * <p><b>{@code lock_timeout} 을 걸지 않는다.</b> 대기 시간의 상한은 잠금을 쥔 트랜잭션의 길이인데,
+     * 그 트랜잭션에는 외부 호출이 부재하고(지오코딩은 {@code AddressVerification} 이 트랜잭션 밖에서
+     * 끝낸다 — §7 규칙 16) 남는 것은 로컬 DB 작업뿐이라 상한이 이미 좁다. 반대로 시간 제한을 걸면
+     * 대기가 <b>오류</b>로 바뀌는데, 그때 호출부가 할 수 있는 일이 재시도뿐이라 같은 잠금 경합을 다시
+     * 만든다. 값의 성격도 정책 상수(§7 규칙 10)가 아니라 인프라 가드라 코드 상수로 박을 자리가 아니다.
+     * 저빈도 연산이라는 전제가 깨지면(대량 일괄 등록) Ruling 179 의 대가와 함께 재판정할 항목이다.
      */
     private static final String ACADEMY_LOCK_SQL =
             "SELECT pg_advisory_xact_lock(hashtext('stop:' || cast(:academyId as text)))";
