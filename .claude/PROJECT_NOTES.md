@@ -2,7 +2,9 @@
 
 전역 에이전트 7개(`convention-auditor` · `debugger` · `diff-reviewer` · `docs-drift-auditor` · `security-reviewer` · `test-runner` · `test-writer`)가 이 저장소에서 동작할 때 참조하는 **사실 노트**다. 절차·판단기준은 전역 에이전트 정의(`~/.claude/agents/*.md`)에 있고, 여기에는 **이 프로젝트에서만 참인 값**만 적는다. 에이전트를 프로젝트에 복제하지 않는다.
 
-**프로젝트 전용 에이전트는 부재.** `.claude/agents/` 는 비어 있다.
+**프로젝트 전용 에이전트 2종이 `.claude/agents/` 에 있다**(`7aa44be` 로 신설) — `task-gate-reviewer` · `goal-verifier`. **둘 다 `model: sonnet` 을 정의에 달고 있다.** 나머지는 전역 정의(`~/.claude/agents/`)를 쓴다.
+
+⚠ **모델 자리를 채울 때 정의 파일을 `grep -m1 '^model:'` 로 확인한다**(전역 규칙 `parallel-agents-git.md §4.1`). **`head`·`sed` 로 훑으면 전역 rtk hook 이 출력을 압축해 `model:` 줄을 삼킨다** — 2026-08-29 에 실제로 "정의에 `model` 이 없다" 로 잘못 읽었다(아래 "알려진 함정" 의 rtk 압축 항목과 같은 기제다).
 
 작성일 2026-07-28 / 최종 갱신 2026-08-25 / 검증 방식: 소스 직접 확인(앱 미기동)
 
