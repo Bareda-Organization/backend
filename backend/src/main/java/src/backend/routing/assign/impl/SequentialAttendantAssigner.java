@@ -27,9 +27,10 @@ import src.backend.routing.assign.spec.RejectReason;
  * 결과를 손으로 고칠 때 "왜 이 사람이 아니었나" 를 전부 보여줘야 하고, 선정 이후 후보를 건너뛰면
  * 그 정보가 응답에서 사라진다.
  *
- * <p>한 후보가 두 판정에 모두 걸리면 <b>근무 시간을 먼저</b> 본다 — 근무 시간 밖인 사람은 애초에
- * 그 회차를 몰 수 없는 사람이고, 중복 배치는 "몰 수는 있으나 이미 다른 곳에 있다"는 다른 종류의
- * 결격이다.
+ * <p>한 후보가 여러 판정에 걸리면 <b>{@code WORK_HOURS_NOT_SET} → {@code OUT_OF_WORK_HOURS} →
+ * {@code ALREADY_ASSIGNED}</b> 순으로 본다(Ruling 186·187) — 판정 근거가 아예 없는 상태를 판정
+ * 결과가 있는 상태보다 먼저 보고, 근무 시간 밖인 사람은 애초에 그 회차를 몰 수 없는 사람이라 몰 수는
+ * 있으나 이미 다른 곳에 있는 중복 배치보다 앞선다.
  *
  * <p>요일 판정은 <b>주입된 {@code Clock} 의 zone</b> 을 쓴다({@code AssignmentConflictDetector} 와
  * 같은 관례, Ruling 165 ①) — {@code ZoneId} 를 코드에 다시 적으면 테스트가 시계를 갈아끼워도 요일
@@ -62,9 +63,12 @@ public class SequentialAttendantAssigner implements AttendantAssigner {
         return new AttendantAssignment(selected, rejections);
     }
 
-    /** 통과하면 {@code null} — 두 판정 중 걸린 것을 앞의 것부터 먼저 본다. */
+    /** 통과하면 {@code null} — 세 판정 중 걸린 것을 우선순위대로 먼저 본다. */
     private RejectReason rejectionReasonOf(AttendantCandidate candidate, OffsetDateTime runStart,
             OffsetDateTime runEnd) {
+        if (candidate.workHours() == null) {
+            return RejectReason.WORK_HOURS_NOT_SET;
+        }
         if (!withinWorkHours(candidate.workHours(), runStart, runEnd)) {
             return RejectReason.OUT_OF_WORK_HOURS;
         }
@@ -75,16 +79,14 @@ public class SequentialAttendantAssigner implements AttendantAssigner {
     }
 
     /**
-     * 근무 시간 미등록({@code null})도 판정 근거 부재이므로 근무 시간 밖으로 다룬다 — 이 포트의
-     * {@link RejectReason} 은 2종뿐이라 수동 배치처럼 {@code WORK_HOURS_NOT_SET} 을 따로 두지 않는다.
+     * 등록된 근무 시간이 그 회차 시간대를 커버하는가 — {@code workHours} 가 {@code null} 인 경우는
+     * 호출부({@link #rejectionReasonOf})가 {@code WORK_HOURS_NOT_SET} 으로 먼저 걸러 이 메서드에
+     * 들어오지 않는다.
      *
      * <p>회차가 자정을 넘어 시작·종료 요일이 갈리면 즉시 근무 시간 밖이다 — {@link WorkHours} 는
      * 자정을 넘는 구간을 담지 않으므로 어떤 근무 구간도 그런 창을 커버할 수 없다.
      */
     private boolean withinWorkHours(WorkHours workHours, OffsetDateTime runStart, OffsetDateTime runEnd) {
-        if (workHours == null) {
-            return false;
-        }
         Weekday startWeekday = weekdayOf(runStart);
         if (startWeekday != weekdayOf(runEnd)) {
             return false;

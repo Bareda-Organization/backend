@@ -78,7 +78,7 @@ class SequentialAttendantAssignerTest {
     }
 
     @Test
-    @DisplayName("근무 시간을 등록하지 않은 매니저는 OUT_OF_WORK_HOURS 로 거절한다")
+    @DisplayName("근무 시간을 등록하지 않은 매니저는 WORK_HOURS_NOT_SET 으로 거절한다")
     void rejectsCandidateWithoutRegisteredWorkHours() {
         AttendantAssignInput input = inputWith(30,
                 new AttendantCandidate(1L, null, List.of()));
@@ -87,7 +87,7 @@ class SequentialAttendantAssignerTest {
 
         assertThat(result.managerId()).isNull();
         assertThat(result.rejections())
-                .containsExactly(new AssignRejection(1L, RejectReason.OUT_OF_WORK_HOURS));
+                .containsExactly(new AssignRejection(1L, RejectReason.WORK_HOURS_NOT_SET));
     }
 
     @Test
@@ -189,6 +189,32 @@ class SequentialAttendantAssignerTest {
         assertThat(result.managerId()).isNull();
         assertThat(result.rejections())
                 .containsExactly(new AssignRejection(1L, RejectReason.OUT_OF_WORK_HOURS));
+    }
+
+    @Test
+    @DisplayName("근무 시간 미등록과 중복 배치에 모두 걸리면 WORK_HOURS_NOT_SET 이 우선한다")
+    void reportsWorkHoursNotSetBeforeAlreadyAssignedWhenBothApply() {
+        AttendantCandidate both = new AttendantCandidate(1L, null,
+                List.of(new BusyWindow(MON_08_00.minusMinutes(10), MON_08_00.plusMinutes(10))));
+        AttendantAssignInput input = inputWith(30, both);
+
+        AttendantAssignment result = assigner.assign(input);
+
+        assertThat(result.rejections())
+                .containsExactly(new AssignRejection(1L, RejectReason.WORK_HOURS_NOT_SET));
+    }
+
+    @Test
+    @DisplayName("여러 후보가 모두 통과하면 목록 순서상 첫 번째가 선정된다 (Ruling 187)")
+    void selectsFirstPassingCandidateWhenMultipleQualify() {
+        AttendantCandidate first = new AttendantCandidate(1L, workHours("07:00", "10:00"), List.of());
+        AttendantCandidate second = new AttendantCandidate(2L, workHours("07:00", "10:00"), List.of());
+        AttendantAssignInput input = inputWith(30, first, second);
+
+        AttendantAssignment result = assigner.assign(input);
+
+        assertThat(result.managerId()).isEqualTo(1L);
+        assertThat(result.rejections()).isEmpty();
     }
 
     private static WorkHours workHours(String start, String end) {
