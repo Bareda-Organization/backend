@@ -57,12 +57,28 @@ final class TwoOptRefiner {
     /** 구간을 뒤집으면 양 끝 두 변만 갈린다 — 안쪽 변은 방향만 바뀌고 길이가 같다. */
     private static double gainMetersOf(
             RouteSlots slots, RouteOrderInput input, int from, int to) {
-        GeoPoint before = TourCost.pointAt(slots, input, from - 1);
-        GeoPoint first = TourCost.pointAt(slots, input, from);
-        GeoPoint last = TourCost.pointAt(slots, input, to);
-        GeoPoint after = TourCost.pointAt(slots, input, to + 1);
+        GeoPoint before = pointAt(slots, input, from - 1);
+        GeoPoint first = pointAt(slots, input, from);
+        GeoPoint last = pointAt(slots, input, to);
+        GeoPoint after = pointAt(slots, input, to + 1);
         return before.distanceMetersTo(first) + last.distanceMetersTo(after)
                 - before.distanceMetersTo(last) - first.distanceMetersTo(after);
+    }
+
+    /**
+     * 자리 범위를 벗어난 색인은 출발지·도착지로 읽는다.
+     *
+     * <p>바깥 두 점을 자리표에 넣지 않는 이유는, 넣으면 그 둘도 뒤집기 후보가 되어 매 단계마다
+     * "이 자리는 건드리면 안 된다" 를 다시 확인하게 되기 때문이다.
+     */
+    private static GeoPoint pointAt(RouteSlots slots, RouteOrderInput input, int index) {
+        if (index < 0) {
+            return input.origin();
+        }
+        if (index >= slots.size()) {
+            return input.destination();
+        }
+        return slots.at(index).point();
     }
 
     /** 뒤집기 후보 한 건 — {@code gainMeters} 가 0 이하면 둘 수를 못 찾았다는 뜻이다. */
