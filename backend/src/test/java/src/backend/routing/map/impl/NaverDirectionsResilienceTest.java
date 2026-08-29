@@ -13,7 +13,11 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -31,6 +35,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.bulkhead.BulkheadRegistry;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.github.resilience4j.retry.Retry;
 import io.github.resilience4j.retry.RetryRegistry;
@@ -68,6 +73,9 @@ import src.backend.routing.map.spec.RoadRouteRequest;
 })
 class NaverDirectionsResilienceTest {
 
+    /** 대역이 동시에 처리할 수 있는 요청 수 — 격벽 상한보다 넉넉해야 상한이 이쪽에서 정해지지 않는다. */
+    private static final int PROVIDER_THREADS = 16;
+
     /** 공급자에 도달한 요청 수 — 재시도·구간 분할이 실제로 걸렸는지를 이 값으로 가린다. */
     private static final AtomicInteger PROVIDER_HITS = new AtomicInteger();
 
@@ -79,6 +87,12 @@ class NaverDirectionsResilienceTest {
 
     /** 참이면 500 만 돌려준다 — 재시도·서킷 개방을 만드는 입력이다. */
     private static final AtomicInteger FAIL_MODE = new AtomicInteger();
+
+    /** 지금 공급자 안에 들어와 있는 요청 수 — 격벽이 실제로 무는지를 이 값으로만 잴 수 있다. */
+    private static final AtomicInteger IN_FLIGHT = new AtomicInteger();
+
+    /** 위 값의 최고치. 설정만 붙이고 아무것도 막지 않는 상태와 구별하는 유일한 근거다. */
+    private static final AtomicInteger PEAK_IN_FLIGHT = new AtomicInteger();
 
     /**
      * 공급자 대역.
@@ -97,6 +111,9 @@ class NaverDirectionsResilienceTest {
 
     @Autowired
     private CircuitBreakerRegistry circuitBreakerRegistry;
+
+    @Autowired
+    private BulkheadRegistry bulkheadRegistry;
 
     /** 상한을 테스트에 옮겨 적지 않는다 — 옮겨 적으면 yml 값이 바뀔 때 두 값이 조용히 갈린다. */
     @Value("${app.routing.map.max-waypoints}")
@@ -124,6 +141,8 @@ class NaverDirectionsResilienceTest {
         POINTS_PER_REQUEST.clear();
         RESPONSE_DELAY_MILLIS.set(0);
         FAIL_MODE.set(0);
+        IN_FLIGHT.set(0);
+        PEAK_IN_FLIGHT.set(0);
     }
 
     /**
@@ -270,6 +289,73 @@ class NaverDirectionsResilienceTest {
     }
 
     /**
+     * 목표 5 하위 — 동시 호출이 상한을 넘으면 <b>공급자에 그만큼만 들어간다</b>
+     * ({@code TECH_DECISIONS §8} 격벽 · {@code ARCHITECTURE §9.4} 레이트리밋 초과 방지).
+     *
+     * <p>이 검사가 없으면 {@code max-concurrent-calls: 4} 를 적어 둔 채 아무것도 막지 않는 상태와
+     * 구별할 수단이 부재하다 — 동시 도래가 몰려도 결과는 전부 정상이라 화면에 드러나지 않고,
+     * 드러나는 자리는 공급자의 레이트리밋 거부뿐이다. <b>그래서 상한값이 아니라 공급자 안에 실제로
+     * 몇 개가 동시에 들어와 있었는지</b>(대역이 직접 센 최고치)를 판정 기준으로 쓴다.
+     *
+     * <p>하한({@code isBetween} 의 2)을 함께 두는 이유는, 어쩌다 한 개씩만 들어갔으면 상한 단언이
+     * <b>겹침이 부재한 채로</b> 통과해 아무것도 검사하지 않기 때문이다.
+     */
+    @Test
+    void 동시_호출이_상한을_넘으면_공급자에_상한만큼만_들어간다() throws Exception {
+        int 상한 = 동시_호출_상한();
+        int 동시_요청 = 상한 + 4;
+        RESPONSE_DELAY_MILLIS.set(500);
+
+        List<RoadRoute> 결과 = 동시에_부른다(동시_요청, Duration.ofSeconds(5));
+
+        long 거부된_호출 = 결과.stream().filter(RoadRoute::fallbackUsed).count();
+        assertThat(PEAK_IN_FLIGHT.get())
+                .as("공급자 안에 동시에 들어와 있던 최고치 — 상한을 넘으면 격벽이 아무것도 막지 않는 것이고, "
+                        + "2 미만이면 겹침 자체가 없어 이 시험이 아무것도 검사하지 않은 것이다")
+                .isBetween(2, 상한);
+        assertThat(거부된_호출)
+                .as("상한보다 많이 걸었는데 하나도 거부되지 않았다 — 격벽이 안 걸렸다")
+                .isPositive();
+        assertThat(PROVIDER_HITS.get())
+                .as("거부된 호출이 공급자에 닿았다 — 격벽이 막는 것은 스레드가 아니라 공급자로 나가는 요청이다")
+                .isEqualTo((int) (동시_요청 - 거부된_호출));
+    }
+
+    /**
+     * 격벽 거부는 <b>재시도되지 않고</b> <b>서킷 집계에도 들어가지 않는다</b> — 애스펙트 순서를 무는
+     * 자리다.
+     *
+     * <p>⚠ 위 시험(동시 진입 수)은 <b>순서를 고정하지 못한다.</b> 격벽이 재시도 바깥에 있어도 공급자
+     * 동시 진입은 같은 값으로 묶인다. 순서가 어긋난 상태 — {@code fallbackMethod} 가 안쪽에 붙어
+     * {@code BulkheadFullException} 이 바깥 {@code @Retry} 에 닿기 전에 포트 예외로 바뀌는 형태 —
+     * 는 {@code ignore-exceptions} 가 그것을 못 알아봐 <b>거부를 세 번 재시도</b>하는 것으로만
+     * 드러난다. 이 태스크가 이미 한 번 밟은 함정이라(도달 호출 수로는 안 잡힌다) 지표로 잰다.
+     *
+     * <p>서킷이 닫힌 채로 남는지를 함께 보는 이유는, 격벽 거부가 실패로 집계되면 <b>동시 도래가 한 번
+     * 몰린 것만으로 서킷이 열려</b> 그 뒤의 온디맨드가 전부 {@code 503} 을 받기 때문이다. 공급자는
+     * 멀쩡한데 자기 보호 장치 둘이 서로를 넘어뜨리는 형태다.
+     */
+    @Test
+    void 격벽_거부는_재시도되지_않고_서킷_집계에도_들어가지_않는다() throws Exception {
+        int 동시_요청 = 동시_호출_상한() + 4;
+        RESPONSE_DELAY_MILLIS.set(500);
+        Retry retry = retryRegistry.retry(NaverDirectionsGateway.RESILIENCE_INSTANCE);
+        long 재시도_없이_실패한_호출 = retry.getMetrics().getNumberOfFailedCallsWithoutRetryAttempt();
+
+        List<RoadRoute> 결과 = 동시에_부른다(동시_요청, Duration.ofSeconds(5));
+
+        long 거부된_호출 = 결과.stream().filter(RoadRoute::fallbackUsed).count();
+        assertThat(거부된_호출).isPositive();
+        assertThat(retry.getMetrics().getNumberOfFailedCallsWithoutRetryAttempt() - 재시도_없이_실패한_호출)
+                .as("격벽 거부가 재시도 대상이 됐다 — fallbackMethod 가 안쪽에 붙어 BulkheadFullException 이 "
+                        + "포트 예외로 바뀌는 바람에 ignore-exceptions 가 안 먹는 형태다")
+                .isEqualTo(거부된_호출);
+        assertThat(circuitBreakerRegistry.circuitBreaker(NaverDirectionsGateway.RESILIENCE_INSTANCE).getState())
+                .as("격벽 거부가 공급자 장애로 집계돼 서킷이 열렸다 — 그 순간부터 온디맨드가 503 을 받는다")
+                .isEqualTo(CircuitBreaker.State.CLOSED);
+    }
+
+    /**
      * {@code MAP_ROUTE_UNAVAILABLE} 이 <b>503</b> 이라는 판정이 여기서만 고정된다(API_SPEC §8.5).
      *
      * <p>사양에서 손으로 옮긴 리터럴을 쓴다 — 상수에서 유도하면 상수가 잘못 채워져도 대조 대상이
@@ -293,6 +379,38 @@ class NaverDirectionsResilienceTest {
         assertThat(breaker.getState())
                 .as("연속 실패가 쌓였는데 서킷이 열리지 않았다 — minimum-number-of-calls·failure-rate-threshold 확인")
                 .isEqualTo(CircuitBreaker.State.OPEN);
+    }
+
+    /** yml 값을 테스트에 옮겨 적지 않는다 — 옮겨 적으면 상한이 바뀔 때 두 값이 조용히 갈린다. */
+    private int 동시_호출_상한() {
+        return bulkheadRegistry.bulkhead(NaverDirectionsGateway.RESILIENCE_INSTANCE)
+                .getBulkheadConfig().getMaxConcurrentCalls();
+    }
+
+    /**
+     * 지정한 수만큼 <b>같은 순간에</b> 건다 — 빗장으로 출발을 맞추지 않으면 앞선 호출이 이미 끝나
+     * 겹침이 생기지 않고, 그때 상한 단언은 아무것도 검사하지 않는다.
+     */
+    private List<RoadRoute> 동시에_부른다(int 요청_수, Duration timeout) throws Exception {
+        ExecutorService 일꾼 = Executors.newFixedThreadPool(요청_수);
+        CountDownLatch 출발 = new CountDownLatch(1);
+        try {
+            List<Future<RoadRoute>> 진행 = new ArrayList<>(요청_수);
+            for (int i = 0; i < 요청_수; i++) {
+                진행.add(일꾼.submit(() -> {
+                    출발.await();
+                    return mapRouteClient.route(요청(지점_두개(), timeout, CallerPolicy.BATCH));
+                }));
+            }
+            출발.countDown();
+            List<RoadRoute> 결과 = new ArrayList<>(요청_수);
+            for (Future<RoadRoute> each : 진행) {
+                결과.add(each.get(30, TimeUnit.SECONDS));
+            }
+            return 결과;
+        } finally {
+            일꾼.shutdownNow();
+        }
     }
 
     private static RoadRouteRequest 요청(List<GeoPoint> points, Duration timeout, CallerPolicy caller) {
@@ -321,7 +439,7 @@ class NaverDirectionsResilienceTest {
         try {
             HttpServer server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
             // 지연 응답을 겹쳐 받으려면 처리 스레드가 여럿이어야 한다 — 기본 실행기는 요청을 줄 세운다.
-            server.setExecutor(Executors.newFixedThreadPool(4));
+            server.setExecutor(Executors.newFixedThreadPool(PROVIDER_THREADS));
             server.createContext("/", NaverDirectionsResilienceTest::응답한다);
             server.start();
             return server;
@@ -333,7 +451,12 @@ class NaverDirectionsResilienceTest {
     private static void 응답한다(HttpExchange exchange) throws IOException {
         PROVIDER_HITS.incrementAndGet();
         POINTS_PER_REQUEST.add(지점_수(exchange.getRequestURI()));
-        지연한다();
+        PEAK_IN_FLIGHT.accumulateAndGet(IN_FLIGHT.incrementAndGet(), Math::max);
+        try {
+            지연한다();
+        } finally {
+            IN_FLIGHT.decrementAndGet();
+        }
         // Content-Type 을 붙이지 않으면 WebClient 가 본문을 읽지 못해 정상 응답까지 폴백으로 떨어진다 —
         // 그러면 이 클래스의 "정상 경로" 단언이 전부 폴백을 보고 실패한다(실제로 그렇게 나왔다).
         exchange.getResponseHeaders().add("Content-Type", "application/json");
