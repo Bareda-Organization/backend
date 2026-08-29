@@ -99,6 +99,26 @@ public record WorkHours(Map<Weekday, List<Interval>> byWeekday) {
                 .anyMatch(interval -> !time.isBefore(interval.start()) && !time.isAfter(interval.end()));
     }
 
+    /**
+     * 그 요일의 {@code [start, end]} 구간 전체가 한 근무 구간 안인가 — 동승자 자동 배정
+     * ({@code ARCHITECTURE §8.2} ⑤)의 {@code OUT_OF_WORK_HOURS} 판정이다.
+     *
+     * <p>{@link #covers(Weekday, LocalTime)} 와 같은 이유로 <b>양끝을 포함</b>한다 — 회차 종료가
+     * 근무 종료 시각과 정확히 같은 배치는 정상이고, 그것을 밖으로 치면 경계에 걸친 모든 정상 배치가
+     * 자동 배정에서 매번 걸러진다.
+     *
+     * <p>구간 전체가 <b>한 근무 구간 안에 들어야 한다</b> — 등원·하원으로 갈린 두 구간 사이에 걸치면
+     * (중간에 휴게가 있으면) 그 사이는 근무가 아니므로 커버로 보지 않는다.
+     *
+     * <p>{@code start} 와 {@code end} 가 같은 요일이라는 전제다 — 자정을 넘는 회차의 요일 판정은
+     * 호출부의 일이다({@code byWeekday} 자체가 자정을 넘는 구간을 담지 않는다).
+     */
+    public boolean coversWindow(Weekday weekday, LocalTime start, LocalTime end) {
+        List<Interval> intervals = byWeekday.get(weekday);
+        return intervals != null && intervals.stream()
+                .anyMatch(interval -> !start.isBefore(interval.start()) && !end.isAfter(interval.end()));
+    }
+
     /** {@code jsonb} 컬럼에 담을 형태로 되돌린다 — 요일 키는 소문자, 시각은 {@code HH:mm} 문자열이다. */
     public Map<String, Object> toColumnValue() {
         Map<String, Object> column = new LinkedHashMap<>();
