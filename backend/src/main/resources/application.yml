@@ -58,16 +58,6 @@ spring:
       properties:
         spring.json.trusted.packages: "src.backend.*"
 
-# 외부 경로 API (기본: 네이버 Directions — G6 실키 검증 후 전환. osrm 으로 바꾸면 무료 OSRM 대체)
-routing:
-  provider: naver
-  osrm:
-    base-url: https://router.project-osrm.org
-  naver:
-    key-id: ${NAVER_DIRECTIONS_KEY_ID:}
-    key: ${NAVER_DIRECTIONS_KEY:}
-  max-waypoints: 7   # NCP Direction 15 실측: mid-waypoints 최대 5개 + start/goal = 총 7개(초과 시 구간 분할)
-
 # 주소 → 좌표 변환 (C-18 네이버 확정, Ruling 157). stub 으로 바꾸면 결정론적 스텁이 뜬다 —
 # 테스트 전체 묶음은 build.gradle 이 이 값을 stub 으로 넘겨 돈다(네트워크·요금·NCP 계정 상태가
 # 판정을 바꾸면 그 초록은 코드에 대해 아무것도 말하지 않는다).
@@ -99,6 +89,17 @@ resilience4j:
         # 포트 예외라, 적는 순간 "일시 실패를 재시도한다"는 이 설정 자체가 무력화된다.
         ignore-exceptions:
           - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+      # 지도 경로도 같은 이유로 재시도를 둔다. wait-duration 이 지오코딩보다 짧은 것은 이쪽 호출자가
+      # 승인 화면에서 대기 중일 수 있기 때문이다 — 주입한 타임아웃은 1회 요청의 상한이라, 재시도가
+      # 붙으면 관리자가 실제로 기다리는 시간은 그 배수가 된다(ARCHITECTURE §8.3).
+      mapRoute:
+        max-attempts: 3
+        wait-duration: 100ms
+        # 서킷 개방과 격벽 거부는 둘 다 "공급자에 닿지도 못한 것" 이라 재시도 대상이 아니다.
+        # 재시도해 봐야 닫힌 문을 세 번 두드리고 wait-duration 만큼 응답만 늦어진다.
+        ignore-exceptions:
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+          - io.github.resilience4j.bulkhead.BulkheadFullException
   circuitbreaker:
     instances:
       geocoding:
@@ -110,8 +111,52 @@ resilience4j:
         wait-duration-in-open-state: 10s
         permitted-number-of-calls-in-half-open-state: 3
         automatic-transition-from-open-to-half-open-enabled: true
+      # 지오코딩과 값이 같으나 인스턴스를 가른다 — 네이버 Geocoding 이 죽었다고 Directions 호출까지
+      # 막으면 주소 하나 때문에 노선 계산 전체가 근사값으로 떨어진다. 둘은 서로 다른 상품이다.
+      mapRoute:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        # 격벽이 거부한 호출은 공급자 장애가 아니다 — 공급자는 멀쩡한데 우리가 스스로 막은 것이다.
+        # 집계에 넣으면 동시 도래가 한 번 몰린 것만으로 실패율이 임계를 넘어 서킷이 열리고,
+        # 그 순간부터 온디맨드가 503 을 받는다. 자기 보호 장치가 서로를 넘어뜨리는 형태다.
+        ignore-exceptions:
+          - io.github.resilience4j.bulkhead.BulkheadFullException
+  # 동시 호출 수 제한(TECH_DECISIONS §8 · ARCHITECTURE §9.4) — 동시 도래가 몰려도 공급자
+  # 레이트리밋을 넘지 않게 한다. 서킷·재시도가 "공급자가 이미 아플 때" 를 다룬다면 격벽은
+  # "우리가 공급자를 아프게 만드는 것" 을 막는다.
+  bulkhead:
+    instances:
+      mapRoute:
+        # ⚠ NCP 가 공개한 레이트리밋을 실측하지 못해 보수적으로 잡은 잠정값이다(2026-08-29).
+        # 공급자 제약이라 정책 상수가 아니라 환경 인프라값이고, 실측되면 이 값만 고친다.
+        max-concurrent-calls: 4
+        # 0 = 대기 없이 즉시 거부. 대기를 두면 호출자가 주입한 타임아웃 예산 밖의 시간이 앞에
+        # 붙어, 관리자가 승인 화면에서 얼마를 기다릴지를 이 yml 값이 정하게 된다 —
+        # ARCHITECTURE §8.3 이 타임아웃을 호출자 주입으로 정한 이유와 정면으로 어긋난다.
+        # 거부의 결과는 이미 정의된 경로(단발 실패 → 직선거리 근사)로 흡수된다.
+        max-wait-duration: 0
 
 app:
+  # 노선 계산 ③단계의 외부 도로 경로 API(ARCHITECTURE §8.2). provider 가 구현체를 고른다 —
+  # 기본값은 실 API(naver)이고, 테스트 전체 묶음은 build.gradle 이 stub 으로 넘겨 돈다(지오코딩과 같은
+  # 이유 — 네트워크·요금·NCP 계정 상태가 판정을 바꾸면 그 초록은 코드에 대해 아무것도 말하지 않는다).
+  routing:
+    map:
+      provider: naver
+      # 공급자 제약이라 정책 상수가 아니다(§7 규칙 10 의 환경 인프라값) — NCP Direction 은 1회 호출당
+      # 경유지 5개 + start/goal = 총 7개다. 넘으면 어댑터가 구간을 나눠 부르고 결과를 이어 붙인다.
+      max-waypoints: 7
+      naver:
+        # ⚠️ maps.apigw.ntruss.com 이다 — 구 호스트는 이 자격증명으로 401 을 낸다(지오코딩 주석 참조).
+        base-url: https://maps.apigw.ntruss.com
+        # NCP 자격증명은 상품별이 아니라 애플리케이션 단위라 지오코딩과 같은 키를 쓴다.
+        key-id: ${NAVER_MAPS_KEY_ID:${NAVER_DIRECTIONS_KEY_ID:}}
+        key: ${NAVER_MAPS_KEY:${NAVER_DIRECTIONS_KEY:}}
   # 학생 사진 저장(§5.11 · Ruling 159). storage 값이 PhotoStorage 구현체를 고른다 —
   # 운영 저장 위치(S3 등)는 아직 미정이라(오픈 이슈 W) 지금은 로컬 디스크 하나뿐이다.
   # 위치·주소 접두사만 여기 둔다. 5MB 상한과 이미지 3종은 사양이 정한 정책값이라 코드 상수다.

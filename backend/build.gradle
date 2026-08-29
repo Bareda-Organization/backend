@@ -147,6 +147,11 @@ tasks.named('test') {
     // 조건부 통합 테스트(NaverGeocodingClientLiveTest)가 따로 검증한다.
     systemProperty 'geocoding.provider', 'stub'
 
+    // 도로 경로도 같은 이유로 결정론적 스텁에 고정한다. 실 어댑터는 로컬 HTTP 서버를 공급자 자리에
+    // 세운 보호 시험(NaverDirectionsResilienceTest)과 자격증명이 있을 때만 도는 실 네트워크 시험
+    // (NaverDirectionsClientLiveTest)이 따로 검증한다.
+    systemProperty 'app.routing.map.provider', 'stub'
+
     // 커넥션 풀 상한을 낮춘다. @SpringBootTest 컨텍스트는 한 번 뜨면 JVM 이 끝날 때까지 캐시에 남고
     // 각자 Hikari 풀(기본 상한 10)을 붙든 채로 있다 — 컨텍스트가 예닐곱이면 그 한 번의 실행만으로
     // 70 개를 쥔다. 로컬 Postgres 는 max_connections=100 이고 에이전트가 동시에 두셋 돌므로,

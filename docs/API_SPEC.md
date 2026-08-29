@@ -1990,6 +1990,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `BUS_NOT_FOUND` | 404 | 미존재 차량 지정 (BUS-03) |
 | `DUPLICATE_BUS_NO` | 409 | 같은 학원에 이미 있는 호차로 등록·수정 — 유일성 범위는 `(academy_id, bus_no)` 라 다른 학원의 같은 호차는 허용 (BUS-02·03) |
 | `SCHEDULE_NOT_FOUND` | 404 | 미존재 스케줄 지정 (SCH-01 · §5.10 `PATCH`·`DELETE`). 다른 학원의 스케줄을 `{id}` 로 지목한 경우도 이 코드다 — 학원 조건을 쿼리에 넣어 "없음" 과 "남의 학원" 을 같은 빈 결과로 만들면 존재 여부가 응답에서 사라진다 (2026-08-26 신설, Ruling 153) |
+| `MAP_ROUTE_UNAVAILABLE` | 503 | 외부 도로 경로 API 의 **서킷이 열린 상태**에서 온디맨드 계산(②구간 승인 미리보기 · 경유 지점 지정)이 호출됨 (`TECH_DECISIONS §8` · `ARCHITECTURE §8.3`). ⚠ **배치 호출은 이 코드를 내지 않는다** — 사용자가 대기 중이 아니라 직선거리 근사로 진행하고 그 사실을 `route_version.fallback_used` 에 남긴다. ⚠ **단발 타임아웃·5xx 도 이 코드가 아니다** — 온디맨드라도 폴백으로 결과를 돌려준다. 서킷 개방만 가르는 이유는 그것이 **연속 실패가 확인된 상태**라 근사값이 계속 나올 것이고, 관리자는 화면에 뜬 그 근사 경로를 실제 경로로 믿고 승인하기 때문이다. 422 가 아니라 503 인 것은 요청이 잘못된 것이 아니라 서버가 지금 처리할 수 없기 때문이며 `ADDRESS_VERIFICATION_UNAVAILABLE` 와 같은 형태다 (2026-08-29 신설, Phase 6) |
 | `DUPLICATE_SCHEDULE` | 409 | 같은 `bus_id`·`weekday`·`direction`·`depart_time` 조합의 스케줄 중복 등록·수정 — 유일성 근거는 `schedule(bus_id, weekday, direction, depart_time)` UNIQUE (SCH-01 · §5.10). 422 가 아니라 409 인 것은 요청 형식이 아니라 자원이 충돌한 것이기 때문이며 `DUPLICATE_BUS_NO` 와 같은 형태다 (2026-08-26 신설, Ruling 153) |
 
 ---
