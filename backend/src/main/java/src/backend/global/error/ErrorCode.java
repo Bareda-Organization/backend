@@ -168,6 +168,17 @@ public enum ErrorCode {
     // 403 이 아니라 409 인 것은 막는 것이 권한이 아니라 대상 자원의 상태이기 때문이다.
     DUPLICATE_NOTIFICATION(HttpStatus.CONFLICT, "이미 적재된 알림입니다"),
 
+    // ── 노선 계산 · 외부 지도 API(Phase 6) ────────────────────────────────────
+    // 외부 도로 경로 API 의 서킷이 열린 상태에서 온디맨드(승인 미리보기 · 경유 지점 지정)가 호출했을 때
+    // (API_SPEC §8.5 · TECH_DECISIONS §8 · ARCHITECTURE §8.3).
+    // ⚠ 배치 호출은 이 코드를 내지 않는다 — 사용자가 대기 중이 아니라 직선거리 근사로 진행하고
+    // 그 사실을 route_version.fallback_used 에 남긴다. 단발 타임아웃도 이 코드가 아니다.
+    // 서킷 개방만 가르는 이유는 그것이 연속 실패가 확인된 상태라 근사값이 계속 나올 것이고,
+    // 관리자는 화면에 뜬 그 근사 경로를 실제 경로로 믿고 승인하기 때문이다.
+    // 422 가 아니라 503 인 것은 요청이 잘못된 것이 아니라 서버가 지금 처리할 수 없기 때문이다
+    // (ADDRESS_VERIFICATION_UNAVAILABLE 와 같은 형태).
+    MAP_ROUTE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "경로 조회 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요"),
+
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다");
 
     private final HttpStatus status;

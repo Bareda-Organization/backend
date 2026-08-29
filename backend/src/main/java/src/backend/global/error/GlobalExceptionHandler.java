@@ -12,6 +12,7 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 import src.backend.global.response.ErrorResponse;
+import src.backend.routing.map.spec.MapRouteUnavailableException;
 
 /**
  * 모든 컨트롤러의 예외를 한 곳에서 처리한다.
@@ -99,6 +100,24 @@ public class GlobalExceptionHandler {
         log.warn("[upload] 허용 크기 초과 {}", e.getMessage());
         return ResponseEntity.status(code.getStatus())
                 .body(ErrorResponse.of(code.name(), "첨부 파일이 허용 크기를 넘었습니다"));
+    }
+
+    /**
+     * 외부 도로 경로 포트가 올린 {@link MapRouteUnavailableException} 을 {@code 503} 으로 옮긴다.
+     *
+     * <p>{@code GeocodingUnavailableException}(호출부 한 곳에서 번역)과 <b>다르게</b> 여기 두는
+     * 이유는 이 포트의 호출부가 여럿이기 때문이다 — 확정 배치 · 승인 미리보기 · 경유 지점 지정이
+     * 각자 번역하면 한 곳만 빠져도 아래 catch-all 로 떨어져 {@code 500} 이 나가고, 그 응답은
+     * "지도 API 가 지금 안 된다" 와 "서버가 고장났다" 를 구별하지 못한다.
+     *
+     * <p>어댑터가 상태 코드를 정하지 않는다는 원칙은 그대로다 — 어댑터는 포트 예외만 던지고,
+     * 코드를 정하는 것은 API 계층인 이 클래스다.
+     */
+    @ExceptionHandler(MapRouteUnavailableException.class)
+    public ResponseEntity<ErrorResponse> handleMapRouteUnavailable(MapRouteUnavailableException e) {
+        ErrorCode code = ErrorCode.MAP_ROUTE_UNAVAILABLE;
+        log.warn("[map-route] 도로 경로 조회 불가 {}", e.getMessage());
+        return ResponseEntity.status(code.getStatus()).body(ErrorResponse.of(code.name(), code.getMessage()));
     }
 
     /** 클라이언트에겐 상세를 감추되, 서버 로그엔 스택트레이스를 남겨야 원인 추적이 가능하다. */
