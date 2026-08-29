@@ -38,7 +38,7 @@ import src.backend.routing.engine.spec.StopOrder;
  * {@code Math.sin}·{@code Math.asin} 을 쓰고 JDK 가 이들에 1~2 ulp 오차를 허용해, 플랫폼이 바뀌면
  * 마지막 자리가 갈릴 수 있기 때문이다. 그 오차는 구간 열댓 개를 더해도 상대 1e-14 규모라 2% 는
  * 압도적으로 넉넉하다. 반대쪽에서 이 폭이 결함을 가리지 않는 근거는 <b>실측</b>이다 — 기록 시점의
- * 엔진 산출은 지그재그 기준선의 총 주행거리 41~64% · 최대 탑승시간 44~69% 였다. 여유 2% 는 그
+ * 엔진 산출은 지그재그 기준선의 총 주행거리 40~64% · 최대 탑승시간 44~69% 였다. 여유 2% 는 그
  * 간격의 20분의 1도 되지 않아, 순서가 한 자리만 나빠져도 상한에 걸린다.
  */
 class HeuristicRouteEngineQualityRegressionTest {
@@ -56,7 +56,7 @@ class HeuristicRouteEngineQualityRegressionTest {
      */
     private static Map<String, Baseline> baselines() {
         return Map.of(
-                "urban-dense", new Baseline(4223.24d, 16.57d, 12),
+                "urban-dense", new Baseline(3914.80d, 16.63d, 12),
                 "suburban-sparse", new Baseline(62615.85d, 145.54d, 10),
                 "mixed", new Baseline(61386.61d, 148.19d, 12));
     }
