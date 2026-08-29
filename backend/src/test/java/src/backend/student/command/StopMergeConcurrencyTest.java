@@ -7,11 +7,14 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -39,8 +42,8 @@ import src.backend.student.geocoding.spec.GeocodedPoint;
  * 스레드가 그것을 공유해 "서로의 미커밋 INSERT 를 보지 못하는" 상황 자체가 만들어지지 않고, 그러면
  * 이 클래스의 모든 단언이 아무것도 검사하지 않는다. 대신 만든 행을 {@link #뒷정리한다()} 가 직접 지운다.
  *
- * <p>스레드 수가 4인 것은 {@code build.gradle} 이 테스트 커넥션 풀 상한을 6으로 낮춰 두었기 때문이다 —
- * 더 늘리면 잠금이 아니라 커넥션 고갈로 매달려, 실패가 코드 결함과 구별되지 않는다.
+ * <p>동시 요청을 4건으로 두는 것은 {@code build.gradle} 이 테스트 커넥션 풀 상한을 6으로 낮춰 두었기
+ * 때문이다 — 더 늘리면 트랜잭션을 연 채 모이는 동안 풀이 비어, 실패가 코드 결함과 구별되지 않는다.
  */
 @SpringBootTest
 class StopMergeConcurrencyTest {
@@ -68,8 +71,6 @@ class StopMergeConcurrencyTest {
     private static final long 대기_상한_초 = 20;
 
     private static final long 물어보는_간격_밀리초 = 50;
-
-    private static final int 스레드_수 = 4;
 
     @Autowired
     private StopMatcher stopMatcher;
@@ -213,26 +214,23 @@ class StopMergeConcurrencyTest {
     // ── 도우미 ────────────────────────────────────────────────────────────
 
     /**
-     * 지점마다 스레드를 하나씩 두고 <b>출발을 맞춰</b> 동시에 병합을 부른다.
+     * 지점마다 스레드를 하나씩 두고 <b>트랜잭션을 열어 둔 채</b> 출발을 맞춰 병합을 부른다.
      *
-     * <p>출발 신호가 없으면 스레드 생성 순서대로 순차 실행이 되어 아무것도 검사하지 않는다. 신호 전에
-     * 각 스레드가 짧은 트랜잭션을 한 번 지나 커넥션을 미리 확보해 두는 것도 같은 이유다 — 커넥션
-     * 생성 시간이 스레드마다 달라 겹침이 줄어든다.
+     * <p><b>출발선이 트랜잭션 안에 있는 것이 이 도우미의 요점이다.</b> 트랜잭션 밖에서 신호만 맞추면
+     * 스레드마다 트랜잭션 시작·커넥션 확보 시간이 달라, 잠금을 빼고 돌려도 앞 스레드가 커밋을 마친
+     * 뒤에 뒤 스레드가 조회하는 실행이 섞인다 — 그때는 뒤 스레드가 앞의 승하차지에 붙어 <b>결함이 있는
+     * 채로 통과</b>한다(실측: 3회 중 1회). 각자 짧은 조회를 한 번 지나 트랜잭션과 커넥션을 실제로 연
+     * 뒤에 모이면, 출발 이후 남은 것은 조회뿐이라 조회 구간이 반드시 겹친다.
      */
     private List<Long> 동시에_확보한다(List<GeocodedPoint> 지점들) throws Exception {
-        CountDownLatch 출발 = new CountDownLatch(1);
-        ExecutorService pool = Executors.newFixedThreadPool(스레드_수);
+        CyclicBarrier 출발선 = new CyclicBarrier(지점들.size());
+        ExecutorService pool = Executors.newFixedThreadPool(지점들.size());
         List<Long> 받은_식별자 = new ArrayList<>();
         try {
             List<Future<Long>> 결과 = new ArrayList<>();
             for (GeocodedPoint 지점 : 지점들) {
-                결과.add(pool.submit(() -> {
-                    커넥션을_미리_확보한다();
-                    출발.await(대기_상한_초, TimeUnit.SECONDS);
-                    return 확보한다(지점);
-                }));
+                결과.add(pool.submit(() -> 트랜잭션을_열고_기다렸다가_확보한다(출발선, 지점)));
             }
-            출발.countDown();
             for (Future<Long> 하나 : 결과) {
                 받은_식별자.add(하나.get(대기_상한_초, TimeUnit.SECONDS));
             }
@@ -241,6 +239,22 @@ class StopMergeConcurrencyTest {
             pool.awaitTermination(대기_상한_초, TimeUnit.SECONDS);
         }
         return 받은_식별자;
+    }
+
+    /** 트랜잭션을 실제로 연 다음 출발선에서 모이고, 신호가 떨어지면 곧바로 병합을 부른다. */
+    private Long 트랜잭션을_열고_기다렸다가_확보한다(CyclicBarrier 출발선, GeocodedPoint 지점) {
+        return new TransactionTemplate(transactionManager).execute(status -> {
+            jdbcTemplate.queryForObject("SELECT 1", Integer.class);
+            try {
+                출발선.await(대기_상한_초, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(e);
+            } catch (BrokenBarrierException | TimeoutException e) {
+                throw new IllegalStateException(e);
+            }
+            return stopMatcher.matchOrCreate(학원_A, 지점).getId();
+        });
     }
 
     /**
@@ -293,11 +307,6 @@ class StopMergeConcurrencyTest {
     private Long 확보한다(GeocodedPoint 지점) {
         return new TransactionTemplate(transactionManager)
                 .execute(status -> stopMatcher.matchOrCreate(학원_A, 지점).getId());
-    }
-
-    private void 커넥션을_미리_확보한다() {
-        new TransactionTemplate(transactionManager)
-                .execute(status -> jdbcTemplate.queryForObject("SELECT 1", Integer.class));
     }
 
     private Integer 행_수() {
