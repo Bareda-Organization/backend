@@ -1,7 +1,6 @@
 package src.backend.student.command;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -44,23 +43,36 @@ import src.backend.student.geocoding.spec.GeocodedPoint;
  *
  * <p>동시 요청을 4건으로 두는 것은 {@code build.gradle} 이 테스트 커넥션 풀 상한을 6으로 낮춰 두었기
  * 때문이다 — 더 늘리면 트랜잭션을 연 채 모이는 동안 풀이 비어, 실패가 코드 결함과 구별되지 않는다.
+ *
+ * <p>잠금이 <b>어디까지 미치는가</b>(학원 단위인가 · 트랜잭션 밖에서도 유효한가)는 여기가 아니라
+ * {@code StopMergeLockScopeTest} 가 잰다. 이 클래스는 "중복이 생기는가" 한 가지만 본다.
+ *
+ * <p>{@code reference.md §20.2} 의 200줄을 파일 길이로는 넘긴 채 둔다 — <b>주석과 빈 줄을 뺀 본문은
+ * 184줄</b>이고, 넘는 분량은 §19 가 테스트 클래스에 허용한 서술 주석이다. 남은 넷은 같은 좌표 구역과
+ * 같은 뒷정리 계약(비트랜잭션이라 만든 행을 손으로 지운다)을 공유하므로 더 가르지 않았다 — 가르면 그
+ * 계약이 세 번째 클래스에 복제되고, 한쪽만 고쳐지면 남은 행이 다음 실행의 행 수 단언을 무너뜨린다.
  */
 @SpringBootTest
 class StopMergeConcurrencyTest {
 
     /** 시드 승하차지(학원 A 4곳)와 겹치지 않는 좌표를 쓴다 — 겹치면 시드 행에 붙어 행 수 단언이 무의미해진다. */
-    private static final BigDecimal 기준_위도 = new BigDecimal("37.700000");
+    private static final BigDecimal 기준_위도 = new BigDecimal("37.700400");
 
     private static final BigDecimal 기준_경도 = new BigDecimal("127.050000");
 
     /**
      * 기준점에서 북쪽으로 약 30m — 임계(50m) <b>안</b>이라 병합 대상이지만 좌표는 다르다.
      *
-     * <p>이 좌표가 따로 필요한 이유는 잠금 범위를 좌표·격자로 좁히면 여기서 새기 때문이다. 두 점이
-     * 서로 다른 잠금을 잡으면 직렬화되지 않아 둘 다 후보 부재로 판정한다(Ruling 179 가 격자 키를
-     * 기각한 것과 같은 구멍).
+     * <p>두 값은 <b>반올림 경계를 사이에 두도록</b> 골랐다(소수점 3·4·5자리 어디서 잘라도 다른 칸:
+     * {@code 37.700}/{@code 37.701}, {@code 37.7004}/{@code 37.7007}). 잠금 범위를 좌표·격자로 좁힌
+     * 구현이 이 시험을 <b>우연히 통과</b>하는 것을 줄이기 위한 것이다 — 실제로 앞선 실측에서 두 값이
+     * 같은 칸에 들어가 3자리 격자 변형을 놓쳤다.
+     *
+     * <p>그래도 이 시험은 격자 크기와 자르는 방식(반올림·버림)에 <b>여전히 의존</b>한다. 30m 를 한 칸에
+     * 담는 성긴 격자는 여기서 안 잡힌다. 격자 크기에 기대지 않는 단언은
+     * {@code StopMergeLockScopeTest#같은_학원_안에서는_먼_좌표끼리도_서로_막는다} 쪽이다.
      */
-    private static final BigDecimal 인접_위도 = new BigDecimal("37.700270");
+    private static final BigDecimal 인접_위도 = new BigDecimal("37.700670");
 
     private static final long 학원_A = 1L;
 
@@ -142,8 +154,10 @@ class StopMergeConcurrencyTest {
      * 행 2개로 실패한다. 위의 두 동시 시험은 타이밍에 따라 그 뒤집기를 통과시킬 수 있어 이 축을
      * 대신하지 못한다.
      *
-     * <p>경쟁 트랜잭션이 잠금 키를 <b>학원 기준으로 직접 계산해</b> 잡는다 — 프로덕션이 키를 좌표로
-     * 좁히면 이 잠금이 상대를 막지 못해 {@code 상대가_자문잠금을_기다렸다} 가 거짓이 된다.
+     * <p>경쟁 트랜잭션이 잠금 키를 <b>학원 기준으로 직접 계산해</b> 잡는다. 프로덕션 상수를 끌어다 쓰지
+     * 않고 일부러 두 번 적은 것이다 — 상수를 공유하면 이 시험이 프로덕션 키를 <b>따라가</b> 키가 바뀌어도
+     * 계속 통과한다. 두 번 적으면 키가 갈리는 순간 상대를 막지 못해 아래 첫 단언이 <b>실패로</b> 드러난다
+     * (실측: 좌표 키 변형에서 그렇게 실패했다). 복식부기와 같은 이유이고, 조용히 통과하는 쪽이 아니다.
      */
     @Test
     void 잠금을_먼저_잡으므로_대기_중_커밋된_승하차지에_붙는다() throws Exception {
@@ -190,25 +204,6 @@ class StopMergeConcurrencyTest {
 
         assertThat(둘째_요청).isEqualTo(첫_요청);
         assertThat(행_수()).isEqualTo(1);
-    }
-
-    /**
-     * 트랜잭션 밖에서 부르면 거부한다 — 그 자리에서 막지 않으면 아무것도 막지 못한 채 초록이 된다.
-     *
-     * <p>{@code pg_advisory_xact_lock} 은 트랜잭션 종료 시 풀리므로, 트랜잭션이 없으면 문장이 끝나는
-     * 즉시 풀려 임계 구역이 성립하지 않는다. 그런데도 응답은 정상이라 중복 생성은 동시 요청에서만
-     * 드러난다.
-     */
-    @Test
-    void 트랜잭션_밖에서_부르면_거부한다() {
-        assertThatThrownBy(() -> stopMatcher.matchOrCreate(학원_A, 지점(기준_위도, 기준_경도, 표식 + " 트랜잭션밖")))
-                .as("저장소 프록시가 IllegalStateException 을 Spring 예외로 옮기므로 근본 원인으로 가린다")
-                .hasRootCauseInstanceOf(IllegalStateException.class);
-
-        assertThat(행_수())
-                .as("막지 못하면 저장은 성공한다 — 저장 자체는 저장소가 자기 트랜잭션을 열어 처리하므로, "
-                        + "잠금만 조용히 무력해진 채 승하차지가 남는다")
-                .isEqualTo(0);
     }
 
     // ── 도우미 ────────────────────────────────────────────────────────────
