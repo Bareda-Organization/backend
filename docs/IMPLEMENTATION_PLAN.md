@@ -794,6 +794,14 @@ void 확정_시각이_도래하면_idle_회차가_confirmed_로_전이한다() {
 - 확정 시 기사·동승자에 `route_changed` 알림 발행
 - **배치 도래→완료 지연 지표**가 `/actuator/prometheus` 에 노출
 
+**⚠ 선행 Phase 가 등재한 것 3건 (착수 전 목표 표에 반드시 옮긴다)**
+
+| # | 항목 | 등재 근거 |
+|:-:|---|---|
+| 1 | **매니저 삭제 후 그 연결 계정의 로그인 제한** — 기사·동승자 축 | Phase 5 T7 리뷰가 Important 로 지적. 절반은 단언으로 고정됐고 **나머지 절반은 Phase 7 이 명단을 만들어야 검사 대상이 생긴다.** 등재하지 않으면 근거 없이 굳는다 |
+| 2 | **확정 배치가 `origin`·`destination` 좌표를 어디서 얻는가** | **Ruling 184**(2026-08-29) — Phase 6 은 `optimize` 에서 **호출자가 좌표를 넘기게** 했다(`academy`·`route` 에 좌표 컬럼 부재). ⚠ **확정 배치는 사용자 입력 없이 도므로 그 길이 막힌다.** `academy` 에 좌표 컬럼을 추가할지가 **Phase 7 의 선행 판정**이고, 택하면 `POST /staff/routes/{id}/optimize` 계약이 함께 바뀐다 |
+| 3 | **`AcademyScopeRepositoryConventionTest` 가 이름만 보고 통과한다** | Phase 6 T5 리뷰 실측 — JPQL 의 `AND r.academyId` 를 지워도 전건 통과. `AcademyScopeRule` 자바독이 예고한 한계이고 **Phase 7 이 조인을 늘리면 그만큼 넓어진다** |
+
 ---
 
 ### Phase 8 — 탑승 의사 · 변경 요청 · 3구간 승인 · 관계자 노선 조작
