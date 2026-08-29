@@ -46,6 +46,9 @@ public class RouteStopArranger {
      * @return 승하차지 id → 그 승하차지. 요청 순서는 담기지 않으므로 순번은 호출부의 목록이 정한다
      */
     public Map<Long, Stop> resolve(Long academyId, List<Long> stopIds) {
+        // 아래 두 가드가 빈 목록도 그대로 통과시키므로 이 이른 반환은 정합성이 아니라 <b>왕복 한 번</b>을
+        // 아끼는 것이다 — 음성 대조에서 이 줄을 지워도 실패하는 단언이 부재했다(수정 라운드 1 R1-N6).
+        // 지워도 동작은 같으니 "여기서 막고 있다" 로 읽지 마라.
         if (stopIds.isEmpty()) {
             return Map.of();
         }
