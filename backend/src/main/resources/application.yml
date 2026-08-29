@@ -95,8 +95,11 @@ resilience4j:
       mapRoute:
         max-attempts: 3
         wait-duration: 100ms
+        # 서킷 개방과 격벽 거부는 둘 다 "공급자에 닿지도 못한 것" 이라 재시도 대상이 아니다.
+        # 재시도해 봐야 닫힌 문을 세 번 두드리고 wait-duration 만큼 응답만 늦어진다.
         ignore-exceptions:
           - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+          - io.github.resilience4j.bulkhead.BulkheadFullException
   circuitbreaker:
     instances:
       geocoding:
@@ -118,6 +121,25 @@ resilience4j:
         wait-duration-in-open-state: 10s
         permitted-number-of-calls-in-half-open-state: 3
         automatic-transition-from-open-to-half-open-enabled: true
+        # 격벽이 거부한 호출은 공급자 장애가 아니다 — 공급자는 멀쩡한데 우리가 스스로 막은 것이다.
+        # 집계에 넣으면 동시 도래가 한 번 몰린 것만으로 실패율이 임계를 넘어 서킷이 열리고,
+        # 그 순간부터 온디맨드가 503 을 받는다. 자기 보호 장치가 서로를 넘어뜨리는 형태다.
+        ignore-exceptions:
+          - io.github.resilience4j.bulkhead.BulkheadFullException
+  # 동시 호출 수 제한(TECH_DECISIONS §8 · ARCHITECTURE §9.4) — 동시 도래가 몰려도 공급자
+  # 레이트리밋을 넘지 않게 한다. 서킷·재시도가 "공급자가 이미 아플 때" 를 다룬다면 격벽은
+  # "우리가 공급자를 아프게 만드는 것" 을 막는다.
+  bulkhead:
+    instances:
+      mapRoute:
+        # ⚠ NCP 가 공개한 레이트리밋을 실측하지 못해 보수적으로 잡은 잠정값이다(2026-08-29).
+        # 공급자 제약이라 정책 상수가 아니라 환경 인프라값이고, 실측되면 이 값만 고친다.
+        max-concurrent-calls: 4
+        # 0 = 대기 없이 즉시 거부. 대기를 두면 호출자가 주입한 타임아웃 예산 밖의 시간이 앞에
+        # 붙어, 관리자가 승인 화면에서 얼마를 기다릴지를 이 yml 값이 정하게 된다 —
+        # ARCHITECTURE §8.3 이 타임아웃을 호출자 주입으로 정한 이유와 정면으로 어긋난다.
+        # 거부의 결과는 이미 정의된 경로(단발 실패 → 직선거리 근사)로 흡수된다.
+        max-wait-duration: 0
 
 app:
   # 노선 계산 ③단계의 외부 도로 경로 API(ARCHITECTURE §8.2). provider 가 구현체를 고른다 —

@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import io.github.resilience4j.bulkhead.annotation.Bulkhead;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
@@ -79,6 +80,12 @@ public class NaverDirectionsGateway {
     /**
      * 구간 하나의 도로 값을 {@code segment.size() - 1} 개로 돌려준다.
      *
+     * <p><b>{@code @Bulkhead} 는 동시 호출 수를 막는다</b>({@code TECH_DECISIONS §8} ·
+     * {@code ARCHITECTURE §9.4}) — 상한을 넘은 호출은 <b>기다리지 않고 거부</b>된다
+     * ({@code max-wait-duration: 0}). 대기를 두면 호출자가 주입한 타임아웃 예산 밖의 시간이 앞에
+     * 붙어, 관리자가 승인 화면에서 얼마를 기다릴지를 yml 값이 정하게 된다. 거부는 단발 실패와 같은
+     * 경로로 흡수되어 직선거리 근사가 된다 — 서킷 개방과 달리 {@code ON_DEMAND} 라도 오류가 아니다.
+     *
      * <p><b>{@code fallbackMethod} 가 {@code @Retry} 쪽에 있어야 한다.</b> 두 애스펙트의 순서는
      * Retry 가 바깥 · CircuitBreaker 가 안쪽으로 고정돼 있다({@code order} 2147483642 · 2147483643).
      * 안쪽에 fallback 을 걸면 {@link io.github.resilience4j.circuitbreaker.CallNotPermittedException}
@@ -94,6 +101,7 @@ public class NaverDirectionsGateway {
      *
      * @throws MapRouteUnavailableException 공급자에 닿지 못한 전부 — 타임아웃 · 5xx · 서킷 개방
      */
+    @Bulkhead(name = RESILIENCE_INSTANCE)
     @CircuitBreaker(name = RESILIENCE_INSTANCE)
     @Retry(name = RESILIENCE_INSTANCE, fallbackMethod = "unavailable")
     public List<RoadLeg> legsOf(List<GeoPoint> segment, Duration timeout) {
@@ -125,9 +133,14 @@ public class NaverDirectionsGateway {
      * 첫 지점이 {@code start}, 마지막이 {@code goal}, 나머지가 {@code waypoints} 다 — NCP 는
      * <b>경도를 먼저</b> 적는다.
      *
-     * <p>{@code encode()} 없이 문자열을 이어 {@code URI.create} 로 넘기면 경유지 구분자 {@code |} 가
-     * URI 에 쓸 수 없는 문자라 요청이 만들어지기도 전에 깨진다 — 그 실패는 예외가 폴백에 삼켜져
-     * <b>"경유지가 있는 요청만 조용히 근사값이 되는"</b> 형태로 나타난다(실측).
+     * <p><b>문자열을 이어 {@code URI.create} 로 넘기면 안 된다</b> — 경유지 구분자 {@code |} 는
+     * URI 에 쓸 수 없는 문자라 {@code IllegalArgumentException} 이 나고, 그 예외가 폴백에 삼켜져
+     * <b>"경유지가 있는 요청만 조용히 근사값이 되는"</b> 형태로 나타난다(이 저장소가 실제로 그
+     * 상태였다). 그것을 막는 것은 {@link UriComponentsBuilder} 로 조립하는 것 자체다.
+     *
+     * <p>⚠ 부하를 지는 것은 {@code .encode()} 가 <b>아니다</b> — 이 입력에서는 {@code build().toUri()}
+     * 와 결과가 같다(spring-web 7.0.8 실측: 둘 다 {@code %7C}). 좌표·호스트 밖의 문자가 섞일 때를
+     * 위해 남겨 둔 것이고, {@code |} 처리의 근거로 읽으면 안 된다.
      */
     private URI drivingUri(List<GeoPoint> segment) {
         UriComponentsBuilder url = UriComponentsBuilder.fromUriString(baseUrl)
