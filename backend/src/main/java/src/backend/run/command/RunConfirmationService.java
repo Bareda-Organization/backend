@@ -20,6 +20,10 @@ import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.observability.metrics.RunConfirmationMetrics;
+import src.backend.request.entity.ChangeRequest;
+import src.backend.request.entity.ChangeRequestStatus;
+import src.backend.request.entity.ChangeRequestType;
+import src.backend.request.repository.ChangeRequestRepository;
 import src.backend.routing.domain.GeoPoint;
 import src.backend.routing.entity.Route;
 import src.backend.routing.entity.RouteStop;
@@ -80,6 +84,8 @@ public class RunConfirmationService {
     private final StopRepository stopRepository;
 
     private final WeeklyAddressRepository weeklyAddressRepository;
+
+    private final ChangeRequestRepository changeRequestRepository;
 
     private final RouteComputationPipeline pipeline;
 
@@ -152,7 +158,20 @@ public class RunConfirmationService {
                 .collect(Collectors.toMap(StudentDailyStop::getStudentId, StudentDailyStop::getStopId,
                         (first, duplicate) -> first));
 
-        DailyRoster roster = DailyRoster.of(run.getAcademyId(), weekday, run.getDirection(), studentIds);
+        // P-06 일일 변경(승인된 경유지 이동)이 요일별 주소를 이긴다 — DailyStopResolver.studentToStop 과
+        // 같은 우선순위(그 클래스 자바독). 여기서 studentStops 에도 같은 값을 덮어써야 fingerprint·
+        // run_rider 가 실제로 계산에 쓰인 경유지와 일치한다 — roster 쪽에만 넣으면 노선은 바뀐 자리로
+        // 서는데 학생의 배정 기록만 옛 경유지로 남는다.
+        Map<Long, Long> stopOverrides = changeRequestRepository
+                .findAllByAcademyIdAndRunIdAndTypeAndStatusOrderByRequestedAtAsc(run.getAcademyId(), run.getId(),
+                        ChangeRequestType.RELOCATE, ChangeRequestStatus.APPROVED)
+                .stream()
+                .collect(Collectors.toMap(ChangeRequest::getStudentId, ChangeRequest::getNewStopId,
+                        (first, last) -> last));
+        studentStops.putAll(stopOverrides);
+
+        DailyRoster roster = new DailyRoster(run.getAcademyId(), weekday, run.getDirection(), studentIds,
+                stopOverrides);
         ComputationPolicy policy = new ComputationPolicy(MAP_TIMEOUT, CallerPolicy.BATCH,
                 RouteVersionSource.CONFIRM_BATCH);
         RouteComputationInput input = new RouteComputationInput(roster, origin, destination, List.of(),
