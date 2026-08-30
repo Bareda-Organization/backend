@@ -138,6 +138,15 @@ public class ChangeRequest {
         this.newStopId = newStopId;
     }
 
+    /**
+     * ②구간 접수 시 승인 마감 시각을 정한다(REQ-04) — 회차 출발 시각과 같다(API_SPEC §5.6). ①구간
+     * 자동 승인 건은 이 메서드를 부르지 않아 {@code deadline_at} 이 {@code null} 로 남는다 — 이미
+     * 승인이 끝난 건에 마감을 실을 이유가 없다.
+     */
+    public void assignDeadline(OffsetDateTime deadlineAt) {
+        this.deadlineAt = deadlineAt;
+    }
+
     /** 아직 대기 중이 아니면 {@code 409 APPROVAL_ALREADY_DECIDED} — 세 전이 메서드가 공유하는 가드. */
     public void assertPending() {
         if (status != ChangeRequestStatus.PENDING) {
