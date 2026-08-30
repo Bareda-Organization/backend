@@ -76,4 +76,15 @@ public class RunRider extends BaseTimeEntity {
     public static RunRider uponConfirmation(Long runId, Long studentId, Long stopId) {
         return new RunRider(runId, studentId, stopId);
     }
+
+    /**
+     * ③구간(운행 시작 후) 미등원 토글이 반영될 때 부재로 표시한다(ATT-01·02, API_SPEC §3.6).
+     *
+     * <p>{@code changedAt} 만 남기고 {@code note}·{@code seat_no} 는 건드리지 않는다 — 자리 배정은
+     * 재최적화가 없는 이 구간에서 바뀔 이유가 없다(C-04 ③ · C-05, 노선·순번 불변).
+     */
+    public void markAbsent(OffsetDateTime changedAt) {
+        this.status = RiderStatus.ABSENT;
+        this.changedAt = changedAt;
+    }
 }

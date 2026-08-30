@@ -4,9 +4,11 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -24,6 +26,7 @@ import src.backend.request.entity.ChangeRequest;
 import src.backend.request.entity.ChangeRequestStatus;
 import src.backend.request.entity.ChangeRequestType;
 import src.backend.request.repository.ChangeRequestRepository;
+import src.backend.request.repository.BoardingIntentRepository;
 import src.backend.routing.domain.GeoPoint;
 import src.backend.routing.entity.Route;
 import src.backend.routing.entity.RouteStop;
@@ -49,6 +52,8 @@ import src.backend.student.repository.WeeklyAddressRepository;
  * {@link #confirmOne} 을 부른다).
  *
  * <p><b>이 클래스는 {@code @Transactional} 이 아니다.</b> {@link RouteComputationPipeline#compute}
+
+/**
  * 는 외부 지도 API 를 호출하는데, 그 호출을 트랜잭션 안에 넣으면 공급자가 느린 만큼 DB 커넥션을 붙든
  * 채 대기한다(그 클래스 자신의 javadoc 이 명시한 설계). 그래서 "읽기 → 계산" 은 여기서 트랜잭션 밖에
  * 두고, "확정 표시(idle → confirmed) + 4종 산출물 저장 + 이벤트 발행" 만 별도 빈
@@ -86,6 +91,7 @@ public class RunConfirmationService {
     private final WeeklyAddressRepository weeklyAddressRepository;
 
     private final ChangeRequestRepository changeRequestRepository;
+    private final BoardingIntentRepository boardingIntentRepository;
 
     private final RouteComputationPipeline pipeline;
 
@@ -153,8 +159,15 @@ public class RunConfirmationService {
 
         List<StudentDailyStop> dailyStops = weeklyAddressRepository.findDailyStopsByStopIds(run.getAcademyId(),
                 stopIds, weekday, run.getDirection());
-        List<Long> studentIds = dailyStops.stream().map(StudentDailyStop::getStudentId).distinct().toList();
+        // ①구간 탑승 의사 토글(riding=false)이 남긴 학생은 여기서 걸러낸다 — DailyRoster 를 만들기
+        // 전이라 노선 계산도 run_rider 도 이 학생을 아예 보지 않는다(목표 1, P-03).
+        Set<Long> excludedStudentIds = new HashSet<>(
+                boardingIntentRepository.findStudentIdsByRunIdAndRidingFalse(run.getId()));
+        List<Long> studentIds = dailyStops.stream().map(StudentDailyStop::getStudentId).distinct()
+                .filter(studentId -> !excludedStudentIds.contains(studentId))
+                .toList();
         Map<Long, Long> studentStops = dailyStops.stream()
+                .filter(stop -> !excludedStudentIds.contains(stop.getStudentId()))
                 .collect(Collectors.toMap(StudentDailyStop::getStudentId, StudentDailyStop::getStopId,
                         (first, duplicate) -> first));
 
@@ -198,6 +211,8 @@ public class RunConfirmationService {
 
     /**
      * 그 날짜의 요일 — {@code route.weekday} 의 값 공간으로 옮긴다({@code RunGenerationService.weekdayOf}
+
+    /**
      * 와 같은 계산). {@code LocalDate} 자체가 요일을 들고 있으므로 시계를 보지 않는다.
      */
     private Weekday weekdayOf(LocalDate serviceDate) {

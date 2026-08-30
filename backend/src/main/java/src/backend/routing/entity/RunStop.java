@@ -86,4 +86,14 @@ public class RunStop {
     public static RunStop forWaypoint(Long routeVersionId, Long waypointId, int seq, OffsetDateTime eta) {
         return new RunStop(routeVersionId, null, waypointId, seq, eta);
     }
+
+    /**
+     * ③구간 미등원 토글로 그 승하차지에 남은 탑승자가 0명이 되면 경유하되 정차하지 않음으로
+     * 표시한다(API_SPEC §3.6 ③ · C-05). {@code seq} 는 건드리지 않는다 — 이 구간은 재최적화가 없어
+     * 나머지 정차 순번이 그대로 유지돼야 한다.
+     */
+    public void markSkipped(String skipNotice) {
+        this.change = ChangeType.SKIPPED;
+        this.skipNotice = skipNotice;
+    }
 }
