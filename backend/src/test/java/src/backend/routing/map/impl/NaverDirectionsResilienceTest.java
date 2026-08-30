@@ -76,6 +76,16 @@ class NaverDirectionsResilienceTest {
     /** 대역이 동시에 처리할 수 있는 요청 수 — 격벽 상한보다 넉넉해야 상한이 이쪽에서 정해지지 않는다. */
     private static final int PROVIDER_THREADS = 16;
 
+    /**
+     * 격벽 상한 위로 <b>더</b> 걸 거절 호출 수 — 4가 아니라 이렇게 큰 이유는 아래 두 시험이 잡는
+     * {@code NaverDirectionsGateway.unavailable} 리플렉션 경합(2026-08-29 실측)이 <b>스레드
+     * 스케줄러의 실제 선점 여부</b>에 달려 있어, 거절 호출을 몇 개만 동시에 걸면 한산한 머신에서는
+     * 경합 구간이 열리지 않고 그냥 통과하기 때문이다({@code +4} 로는 단독 실행 3회 중 1회 재현,
+     * {@code +500} 으로는 5회 중 5회 재현 — 조율자 실측). 경합을 여는 것은 대기시간이 아니라
+     * <b>동시에 거절되는 호출 수 자체</b>라, sleep 을 늘리지 않고 이 값을 늘린다.
+     */
+    private static final int REJECTED_CALLS_TO_RACE_THE_FALLBACK = 500;
+
     /** 공급자에 도달한 요청 수 — 재시도·구간 분할이 실제로 걸렸는지를 이 값으로 가린다. */
     private static final AtomicInteger PROVIDER_HITS = new AtomicInteger();
 
@@ -299,11 +309,16 @@ class NaverDirectionsResilienceTest {
      *
      * <p>하한({@code isBetween} 의 2)을 함께 두는 이유는, 어쩌다 한 개씩만 들어갔으면 상한 단언이
      * <b>겹침이 부재한 채로</b> 통과해 아무것도 검사하지 않기 때문이다.
+     *
+     * <p>⚠ 거절 호출을 {@link #REJECTED_CALLS_TO_RACE_THE_FALLBACK} 개나 거는 이유는 격벽 자체가
+     * 아니라 <b>거절이 {@code NaverDirectionsGateway.unavailable} 로 번역되는 경로</b>를 겨냥해서다
+     * — 그 경로가 리플렉션 경합으로 깨지면 이 시험은 단언 실패가 아니라
+     * {@code UndeclaredThrowableException} 으로 죽는다(2026-08-29 실측).
      */
     @Test
     void 동시_호출이_상한을_넘으면_공급자에_상한만큼만_들어간다() throws Exception {
         int 상한 = 동시_호출_상한();
-        int 동시_요청 = 상한 + 4;
+        int 동시_요청 = 상한 + REJECTED_CALLS_TO_RACE_THE_FALLBACK;
         RESPONSE_DELAY_MILLIS.set(500);
 
         List<RoadRoute> 결과 = 동시에_부른다(동시_요청, Duration.ofSeconds(5));
@@ -337,7 +352,7 @@ class NaverDirectionsResilienceTest {
      */
     @Test
     void 격벽_거부는_재시도되지_않고_서킷_집계에도_들어가지_않는다() throws Exception {
-        int 동시_요청 = 동시_호출_상한() + 4;
+        int 동시_요청 = 동시_호출_상한() + REJECTED_CALLS_TO_RACE_THE_FALLBACK;
         RESPONSE_DELAY_MILLIS.set(500);
         Retry retry = retryRegistry.retry(NaverDirectionsGateway.RESILIENCE_INSTANCE);
         long 재시도_없이_실패한_호출 = retry.getMetrics().getNumberOfFailedCallsWithoutRetryAttempt();

@@ -123,8 +123,19 @@ public class NaverDirectionsGateway {
      *
      * <p>{@code private} 이 아닌 것은 Resilience4j 가 리플렉션으로 찾기 때문이고, 시그니처가 원
      * 메서드 + {@link Throwable} 인 것도 그 규약이다.
+     *
+     * <p>⚠ <b>{@code public} 이어야 한다 — package-private 으로는 부족하다</b>(2026-08-29 실측,
+     * resilience4j-spring6 2.3.0). {@code FallbackMethod.invoke()} 는 이 메서드의 {@link
+     * java.lang.reflect.Method} 객체를 클래스당 하나로 캐시해 모든 호출이 공유한다. package-private
+     * 이면 호출마다 {@code setAccessible(true)} 로 열었다가 {@code finally} 에서 다시 {@code false}
+     * 로 되돌리는데(그 메서드가 public 이면 이 토글 자체가 생략된다), <b>동시에 여러 스레드가 같은
+     * {@code Method} 객체에서 이 토글을 밟으면</b> 한 스레드가 {@code invoke()} 를 부르기 직전에 다른
+     * 스레드가 이미 {@code false} 로 되돌려 놓아 {@link IllegalAccessException} 이 난다. 격벽이
+     * 순간적으로 여러 건을 한꺼번에 거절할 때(동시 도래가 상한을 넘을 때)만 이 경합이 열리므로,
+     * 순차 호출뿐인 서킷 개방 시험에서는 한 번도 걸리지 않았다 — {@code public} 이면 이 토글 자체가
+     * 없어 경합도 없다.
      */
-    List<RoadLeg> unavailable(List<GeoPoint> segment, Duration timeout, Throwable cause) {
+    public List<RoadLeg> unavailable(List<GeoPoint> segment, Duration timeout, Throwable cause) {
         throw new MapRouteUnavailableException("도로 경로 조회 실패: 지점 " + segment.size() + "개", cause,
                 cause instanceof CallNotPermittedException);
     }
