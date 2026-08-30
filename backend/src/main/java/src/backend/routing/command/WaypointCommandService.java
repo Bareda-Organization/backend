@@ -109,7 +109,7 @@ public class WaypointCommandService {
         Run run = loadRunInWindow(requester, runId);
         GeoPoint point = resolvePoint(request);
 
-        waypointRepository.deleteAllUnappliedByRunId(run.getId());
+        waypointRepository.deleteAllUnappliedByRunIdAndAcademyId(run.getId(), run.getAcademyId());
         Waypoint waypoint = waypointRepository.save(Waypoint.forRun(run.getId(), request.label(), request.address(),
                 point.lat(), point.lng(), request.note(), requester.accountId(), OffsetDateTime.now(clock)));
 

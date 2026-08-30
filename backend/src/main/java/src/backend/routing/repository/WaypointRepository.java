@@ -52,8 +52,17 @@ public interface WaypointRepository extends JpaRepository<Waypoint, Long> {
      * 배포되지 않은(applied=false) 경유 지점 행을 회차 단위로 전부 지운다 — 관계자가 같은 회차에
      * 미리보기를 다시 호출할 때 이전 미리보기 행이 고아로 쌓이지 않도록, 새 행을 만들기 직전에 부른다
      * ({@code WaypointCommandService.add}). 이미 배포된(applied=true) 행은 대상이 아니다.
+     *
+     * <p>{@code academy_id} 컬럼이 부재해 학원 조건을 붙일 자리가 {@code Run} 조인뿐이다(ERD §6.1
+     * 부모 경유). JPQL DELETE 는 FROM 절에 조인을 못 받아 서브쿼리로 건다. 호출부
+     * ({@code WaypointCommandService#loadRunInWindow})가 이미 {@code Run} 을 학원으로 조회해
+     * 뒀어도, 이 조회 자체가 학원 조건을 갖도록 다시 건다 — 횡단 규칙 7(저장소 조회 규약)이 개별
+     * 조회마다 조건을 요구한다.
      */
     @Modifying
-    @Query("DELETE FROM Waypoint w WHERE w.runId = :runId AND w.applied = false")
-    void deleteAllUnappliedByRunId(@Param("runId") Long runId);
+    @Query("""
+            DELETE FROM Waypoint w WHERE w.runId = :runId AND w.applied = false
+              AND EXISTS (SELECT 1 FROM Run r WHERE r.id = :runId AND r.academyId = :academyId)
+            """)
+    void deleteAllUnappliedByRunIdAndAcademyId(@Param("runId") Long runId, @Param("academyId") Long academyId);
 }
