@@ -82,9 +82,20 @@ public class RunRider extends BaseTimeEntity {
      *
      * <p>{@code changedAt} 만 남기고 {@code note}·{@code seat_no} 는 건드리지 않는다 — 자리 배정은
      * 재최적화가 없는 이 구간에서 바뀔 이유가 없다(C-04 ③ · C-05, 노선·순번 불변).
+     *
+     * <p>②구간 취소형 승인(API_SPEC §5.6 "명단 제외(absent)")도 같은 메서드를 쓴다 — 행을 지우지
+     * 않고 상태만 바꾼다. {@link src.backend.request.preview.ApprovalPreviewResolver#candidateRosterOf}
+     * 가 {@code ABSENT} 를 이미 명단 조립에서 제외하므로, 이후 같은 회차의 다른 승인·재계산이 이
+     * 학생을 다시 태우지 않는다.
      */
     public void markAbsent(OffsetDateTime changedAt) {
         this.status = RiderStatus.ABSENT;
+        this.changedAt = changedAt;
+    }
+
+    /** 관리자의 ②구간 경유지 이동형 승인(API_SPEC §5.6, P-06)으로 오늘의 승하차지를 바꾼다. */
+    public void relocateTo(Long newStopId, OffsetDateTime changedAt) {
+        this.stopId = newStopId;
         this.changedAt = changedAt;
     }
 }

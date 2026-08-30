@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.request.entity.ChangeRequest;
 import src.backend.request.entity.BoardingIntent;
 import src.backend.request.event.ChangeRequestAutoRejectedEvent;
+import src.backend.request.preview.spec.ApprovalPreviewCache;
 import src.backend.request.repository.BoardingIntentRepository;
 import src.backend.request.repository.ChangeRequestRepository;
 
@@ -33,6 +34,8 @@ public class ChangeRequestAutoRejectionPersistence {
 
     private final BoardingIntentRepository boardingIntentRepository;
 
+    private final ApprovalPreviewCache previewCache;
+
     private final ApplicationEventPublisher eventPublisher;
 
     /**
@@ -46,6 +49,10 @@ public class ChangeRequestAutoRejectionPersistence {
      * 그 즉시 반환한다 — 이미 처리됐거나(관리자 승인·거절), 동시에 도는 다른 호출이 먼저 이겼거나,
      * 대상이 없는 것이다. 어느 쪽이든 이 메서드가 할 일은 남지 않는다.
      *
+     * <p>{@link ApprovalPreviewCache#evict}를 여기서 부른다 — 종결 상태로 넘어가는 3가지 경로(승인·
+     * 거절·자동거절) 중 이 경로만 T4 가 남겨 뒀던 자리다({@code ApprovalPreviewCache} javadoc 참고).
+     * 이 호출이 빠지면 자동 거절된 건의 낡은 미리보기가 캐시에 계속 남는다.
+     *
      * @return 실제로 자동 거절을 반영했으면 {@code true}, 아니면(경쟁 패배 포함) {@code false}
      */
     @Transactional
@@ -58,6 +65,7 @@ public class ChangeRequestAutoRejectionPersistence {
         ChangeRequest request = changeRequestRepository.findById(changeRequestId).orElseThrow();
         boardingIntentRepository.findByRunIdAndStudentId(request.getRunId(), request.getStudentId())
                 .ifPresent(BoardingIntent::restoreChangeQuota);
+        previewCache.evict(changeRequestId);
         eventPublisher.publishEvent(new ChangeRequestAutoRejectedEvent(request.getAcademyId(), request.getId(),
                 request.getRunId(), request.getStudentId(), request.getRequestedBy(), decidedAt));
         return true;
