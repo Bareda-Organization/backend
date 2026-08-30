@@ -163,6 +163,9 @@ class StaffWaypointControllerTest {
         assertThat(현재_버전_번호(s.runId)).as("배포는 버전 번호를 1 올려야 한다").isEqualTo(beforeVersionNo + 1);
         assertThat(jdbcTemplate.queryForObject("SELECT applied FROM waypoint WHERE id = ?", Boolean.class, waypointId))
                 .isTrue();
+        assertThat(현재_버전에_경유_지점이_포함됐나(s.runId, waypointId))
+                .as("버전 번호만 오르고 그 지점이 실제 노선(run_stop)에 안 들어가면 안 된다")
+                .isTrue();
         verify(routeChangedListener, times(1)).appendRouteChanged(any());
     }
 
@@ -207,6 +210,9 @@ class StaffWaypointControllerTest {
                 "SELECT count(*) FROM waypoint WHERE id = ? AND removed_at IS NOT NULL", Integer.class, waypointId))
                 .as("배포된 삭제는 removed_at 을 채워야 한다")
                 .isEqualTo(1);
+        assertThat(현재_버전에_경유_지점이_포함됐나(s.runId, waypointId))
+                .as("버전 번호만 오르고 그 지점이 실제 노선(run_stop)에서 안 빠지면 안 된다")
+                .isFalse();
         verify(routeChangedListener, times(1)).appendRouteChanged(any());
     }
 
@@ -368,6 +374,15 @@ class StaffWaypointControllerTest {
         return jdbcTemplate.queryForObject(
                 "SELECT seq FROM run_stop WHERE route_version_id = ? AND waypoint_id = ?", Integer.class, versionId,
                 waypointId);
+    }
+
+    /** 버전 번호만이 아니라 <b>현재 버전의 run_stop 에 그 경유 지점이 실제로 들어갔는지</b> 확인한다. */
+    private boolean 현재_버전에_경유_지점이_포함됐나(long runId, long waypointId) {
+        long versionId = 현재_버전_id(runId);
+        int count = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM run_stop WHERE route_version_id = ? AND waypoint_id = ?", Integer.class,
+                versionId, waypointId);
+        return count > 0;
     }
 
     private String 토큰(long academyId) {
