@@ -1,6 +1,5 @@
 package src.backend.manager.repository;
 
-import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -13,6 +12,7 @@ import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.manager.dto.AssignedManagerAccountView;
 import src.backend.manager.dto.AssignedManagerView;
+import src.backend.manager.dto.ManagerRunWindow;
 import src.backend.manager.entity.Assignment;
 
 /**
@@ -72,11 +72,14 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
             @Param("runIds") Collection<Long> runIds);
 
     /**
-     * 그 매니저가 <b>같은 출발 시각</b>의 다른 회차에도 배치돼 있는가(MGR-06 {@code MANAGER_DOUBLE_BOOKED}).
+     * 그 매니저가 배치된 다른 회차들의 시간 창 후보(MGR-06 {@code MANAGER_DOUBLE_BOOKED}, Ruling 193).
      *
-     * <p>회차를 <b>점(출발 시각)으로 판정한다</b>(Ruling 165 ②) — {@code run.est_duration_min} 이
-     * nullable 이고 이 시점의 회차는 노선 계산 이전이라 대개 비어 있어, 구간으로 두면 "판정 불가" 가
-     * 조용히 "경고 없음" 이 된다. 그 한계는 §5.14 에 적어 두었다.
+     * <p>겹침 자체는 <b>여기서 계산하지 않는다</b> — {@code run.est_duration_min} 이 nullable 이고
+     * null 일 때 점으로 접는 규칙이 {@code AssignmentConflictDetector#windowEnd} 에 이미 있는 도메인
+     * 판단이다. 같은 규칙을 SQL 에 다시 적으면 둘이 갈릴 때 아무도 못 알아챈다 — 그래서 후보만 좁게
+     * 추리고 겹침 판정은 그 도메인 메서드에 맡긴다. 예전에는 {@code r.departTime = :departTime} 로
+     * <b>출발 시각이 정확히 같을 때만</b> 점 판정했었다 — 근무 시간 축은 이미 구간으로 올라가 있는데
+     * 이쪽만 점으로 남아 등원 직후 하원처럼 <b>구간이 겹치지만 출발 시각이 다른</b> 배치를 놓쳤다.
      *
      * <p>취소된 회차를 세지 않는다 — 임시 취소한 회차의 배치는 그 시각을 점유하지 않는다.
      *
@@ -84,11 +87,12 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
      * 같은 시각에 두 대를 몰 수 있는 것은 아니라, 근무 시간 판정과 묶으면 이쪽이 근무 시간 미기재
      * 매니저에서 조용히 사라진다.
      */
-    @Query("SELECT COUNT(a) > 0 FROM Assignment a, Run r "
+    @Query("SELECT new src.backend.manager.dto.ManagerRunWindow(r.departTime, r.estDurationMin) "
+            + "FROM Assignment a, Run r "
             + "WHERE r.id = a.runId AND a.managerId = :managerId AND r.academyId = :academyId "
-            + "AND r.departTime = :departTime AND r.canceledAt IS NULL AND r.id <> :excludedRunId")
-    boolean existsOverlappingAssignment(@Param("academyId") Long academyId, @Param("managerId") Long managerId,
-            @Param("departTime") OffsetDateTime departTime, @Param("excludedRunId") Long excludedRunId);
+            + "AND r.canceledAt IS NULL AND r.id <> :excludedRunId")
+    List<ManagerRunWindow> findManagerRunWindows(@Param("academyId") Long academyId,
+            @Param("managerId") Long managerId, @Param("excludedRunId") Long excludedRunId);
 
     /**
      * 그 회차에 배치된 기사·동승자를 계정 식별자와 함께 읽는다 — {@code route_changed} 알림(Phase 7 T3)의

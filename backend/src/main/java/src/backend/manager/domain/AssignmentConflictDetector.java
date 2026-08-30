@@ -34,11 +34,12 @@ import src.backend.run.entity.Run;
  * <p>시간대는 <b>주입된 {@code Clock} 의 zone</b> 이다(Ruling 165 ①) — {@code ZoneId} 를 코드에 다시
  * 적으면 테스트가 시계를 갈아끼워도 요일 판정만 시스템 시간대를 따라 남는다.
  *
- * <p><b>두 경고가 점·구간 판정을 서로 다르게 쓴다</b>(Phase 7 목표 12, Ruling 165 ② 재판정) —
- * {@code WORK_HOURS_MISMATCH} 는 {@code est_duration_min} 이 있으면 <b>구간</b>({@link
- * #windowEnd(Run)})으로 올렸고, {@code MANAGER_DOUBLE_BOOKED} 는 여전히 <b>점</b>(출발 시각
- * 일치, {@code AssignmentRepository#existsOverlappingAssignment})이다. 이유는 클래스 하단의
- * {@code windowEnd} 자바독을 본다.
+ * <p><b>두 경고가 이제 같은 구간 판정을 쓴다</b>(Phase 7 목표 12 · Phase 8 목표 13, Ruling 165 ②
+ * · Ruling 193) — {@code WORK_HOURS_MISMATCH} 와 {@code MANAGER_DOUBLE_BOOKED} 모두 {@link
+ * #windowEnd(OffsetDateTime, Integer)} 가 만든 구간으로 겹침을 가른다. {@code est_duration_min}
+ * 이 없으면 시작 시각과 같은 점으로 접혀 예전 점 판정과 값이 같아진다 — 두 판정이 서로 다른 축을
+ * 쓰던 비대칭(Ruling 193 이전, {@code AssignmentRepository#existsOverlappingAssignment} 가
+ * 출발 시각 일치만 봤다)이 이 판정으로 해소됐다.
  */
 @Component
 @RequiredArgsConstructor
@@ -111,26 +112,48 @@ public class AssignmentConflictDetector {
      * 경우를 "판정 불가" 로 두지 않고 기존 점 판정으로 접어, 값이 없다고 경고가 조용히 사라지지
      * 않는다.
      *
-     * <p><b>{@code MANAGER_DOUBLE_BOOKED} 는 이 종료 시각을 쓰지 않는다</b> — 두 회차 모두
-     * {@code est_duration_min} 이 없을 수 있는 자리에서 배타적 구간 겹침(뒤 회차가 앞 회차 종료
-     * 직후 시작하는 것을 겹침으로 보지 않는 경계)과 "출발 시각이 같으면 겹친다" 는 기존 점 판정을
-     * 동시에 만족하려면 교집합 규칙이 하나 더 필요하고, 그 자리가 이번 판정의 범위 밖이다 — Ruling
-     * 초안은 {@code p7-task-7-report.md} 를 본다.
+     * <p>{@code MANAGER_DOUBLE_BOOKED}(Ruling 193, Phase 8 목표 13)도 <b>이제 이 규칙을 그대로
+     * 쓴다</b> — 근무 시간 축과 다른 종료 시각 규칙을 따로 둘 이유가 없고, 두 개를 유지하면 다음
+     * 사람이 어느 쪽을 따라야 할지 모른다. {@link #windowEnd(OffsetDateTime, Integer)} 가 실제 계산을
+     * 맡는다 — 후보 창(다른 회차)은 {@link Run} 엔티티 없이 저장소 결과로만 들어오기 때문이다.
      */
     private OffsetDateTime windowEnd(Run run) {
-        Integer estDurationMin = run.getEstDurationMin();
-        return estDurationMin == null ? run.getDepartTime() : run.getDepartTime().plusMinutes(estDurationMin);
+        return windowEnd(run.getDepartTime(), run.getEstDurationMin());
     }
 
     /**
-     * 같은 시각의 다른 회차에도 배치돼 있는가 — 이 판정은 {@code work_hours} 를 보지 않는다.
+     * 시작 시각과 소요 분으로 종료 시각을 만든다 — {@link #windowEnd(Run)} 과 겹침 판정
+     * {@link #doubleBooked} 양쪽이 같은 null 처분 규칙을 쓰도록 회차 없이도 부를 수 있게 뺐다.
+     */
+    private OffsetDateTime windowEnd(OffsetDateTime start, Integer estDurationMin) {
+        return estDurationMin == null ? start : start.plusMinutes(estDurationMin);
+    }
+
+    /**
+     * 다른 회차와 운행 구간이 겹치는 배치가 있는가(Ruling 193, Phase 8 목표 13) — 이 판정은
+     * {@code work_hours} 를 보지 않는다.
      *
      * <p>지금 배치하려는 회차 자신을 제외한다 — 기사를 그대로 두고 동승자만 바꾸는 요청이 자기 자신을
      * 중복으로 세는 것을 막는다.
+     *
+     * <p><b>겹침은 양끝을 포함</b>한다({@link WorkHours#coversWindow} 와 같은 규칙, {@link
+     * #overlaps} 참조) — 등원 회차가 끝나자마자 하원 회차가 시작하는 것처럼 <b>이어 붙는</b> 배치를
+     * 겹침으로 본다. 배타로 두면 그 형태(같은 기사가 쉴 틈 없이 바로 다음 회차를 몬다)가 경고 없이
+     * 통과한다.
      */
     private boolean doubleBooked(Run run, Manager manager) {
-        return assignmentRepository.existsOverlappingAssignment(run.getAcademyId(), manager.getId(),
-                run.getDepartTime(), run.getId());
+        OffsetDateTime start = run.getDepartTime();
+        OffsetDateTime end = windowEnd(run);
+        return assignmentRepository.findManagerRunWindows(run.getAcademyId(), manager.getId(), run.getId())
+                .stream()
+                .anyMatch(window -> overlaps(start, end, window.departTime(),
+                        windowEnd(window.departTime(), window.estDurationMin())));
+    }
+
+    /** 두 구간 {@code [start1,end1]}·{@code [start2,end2]} 가 겹치는가 — 양끝을 포함한다. */
+    private boolean overlaps(OffsetDateTime start1, OffsetDateTime end1, OffsetDateTime start2,
+            OffsetDateTime end2) {
+        return !start1.isAfter(end2) && !start2.isAfter(end1);
     }
 
     /** 주어진 시각의 요일 — 주입된 {@code Clock} 의 시간대로 옮겨 본다. */
