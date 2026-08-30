@@ -100,7 +100,15 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
      *
      * <p>학원 조건이 {@link #findAssignedManagers} 와 같은 자리(조인된 {@code manager})에 걸려 있다.
      * 삭제된 매니저({@code deleted_at})는 담지 않는다 — 그만둔 매니저에게 새 회차 확정을 알릴 이유가
-     * 없고, {@code accountId} 가 이미 다른 매니저로 재배정됐을 수 있어 알림이 엉뚱한 사람에게 간다.
+     * 없다. 다만 이 조건이 정상 흐름에서 실제로 걸러내는 행은 없다: MGR-04(
+     * {@code AssignmentRepository#existsByManagerId})가 배치가 남아 있는 매니저의 삭제 자체를
+     * 막아, "배치는 있는데 매니저는 삭제됨" 이라는 상태가 애초에 만들어지지 않는다(Phase 8 목표 17
+     * — 이전에는 "{@code accountId} 가 다른 매니저로 재배정될 위험" 을 근거로 적었으나, 계정 재연결
+     * 자체가 {@code Manager#linkAccount} 의 {@code ALREADY_LINKED} 가드로 막혀 있어 그 서술은
+     * 부정확했다). 그래서 이 조건은 지금 당장 걸러내는 것이 있어서가 아니라, MGR-04 의 보장이
+     * 훗날 완화될 때를 대비한 <b>방어적 불변 조건</b>으로 남겨 둔다 — 도달 가능성은
+     * {@code RunRouteConfirmedNotificationTest#삭제된_매니저는_알림을_받지_않는다} 가 서비스 계층
+     * 가드를 우회해 상태를 직접 만들어 SQL 수준에서 고정한다.
      */
     @Query("SELECT new src.backend.manager.dto.AssignedManagerAccountView(a.managerId, m.accountId, m.name, a.role) "
             + "FROM Assignment a, Manager m "
