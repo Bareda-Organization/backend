@@ -160,6 +160,27 @@ class RunRouteConfirmedNotificationTest {
                 null));
     }
 
+    /**
+     * 계정이 연결된 매니저를 그 회차에 배치한 뒤 <b>엔티티를 직접 조작해</b> 삭제한다(Phase 8 목표 17).
+     *
+     * <p>{@code ManagerCommandService.delete} 를 거치지 않는다 — MGR-04 가 배치된 매니저의 삭제를
+     * 원천 차단해 정상 흐름으로는 "배치는 있는데 매니저는 삭제됨" 이라는 상태 자체를 만들 수 없다.
+     * {@code AssignmentRepository#findAssignedManagerAccounts} 의 {@code deletedAt IS NULL} 필터가
+     * 실제로 이 행을 거르는지는 이렇게 가드를 우회해 상태를 직접 만들어야만 검증할 수 있다.
+     */
+    private void 삭제된_매니저를_만든다(long academyId, long runId, ManagerRole role, String name) {
+        Manager manager = managerRepository
+                .save(Manager.register(academyId, new ManagerProfile(name, "010-0000-0000", role, null)));
+        Account account = accountRepository.save(Account.forSignup(academyId, name + academyId, "x", name,
+                "010-0000-0000", null, role == ManagerRole.DRIVER ? Role.DRIVER : Role.ESCORT));
+        manager.linkAccount(account.getId());
+        managerRepository.save(manager);
+        assignmentRepository.save(Assignment.uponAssignment(runId, manager.getId(), role, OffsetDateTime.now(clock),
+                null));
+        manager.delete(OffsetDateTime.now(clock));
+        managerRepository.save(manager);
+    }
+
     private long 확정_대상_회차를_만든다(RunConfirmationFixtures fixtures, long academyId, long busId) {
         long firstStop = fixtures.stop(academyId, "37.560000", "126.970000");
         long lastStop = fixtures.stop(academyId, "37.561000", "126.971000");
@@ -235,6 +256,23 @@ class RunRouteConfirmedNotificationTest {
         confirmationService.confirmOne(runId);
 
         assertThat(알림_행수(runId)).as("계정 연결된 동승자 1명만 알림을 받아야 한다").isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("목표17 — 배치 뒤 곧바로 삭제된 매니저(MGR-04 가 정상 흐름에서는 막는 상태)는 알림을 받지 않는다")
+    void 삭제된_매니저는_알림을_받지_않는다() {
+        RunConfirmationFixtures fixtures = fixtures();
+        long academyId = fixtures.academyWithCoordinates();
+        long busId = fixtures.bus(academyId);
+        long runId = 확정_대상_회차를_만든다(fixtures, academyId, busId);
+        삭제된_매니저를_만든다(academyId, runId, ManagerRole.DRIVER, "삭제된기사");
+        배치된_매니저를_만든다(academyId, runId, ManagerRole.ESCORT, "동승자");
+
+        confirmationService.confirmOne(runId);
+
+        assertThat(알림_행수(runId))
+                .as("findAssignedManagerAccounts 의 deletedAt IS NULL 필터가 삭제된 기사를 걸러 동승자 1명만 남아야 한다")
+                .isEqualTo(1);
     }
 
     @Test

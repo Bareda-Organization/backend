@@ -118,22 +118,32 @@ final class AcademyScopeRule {
     private static final Pattern BLOCK_COMMENT = Pattern.compile("/\\*.*?\\*/", Pattern.DOTALL);
 
     /**
+     * 학원 식별자 자체를 찾는다 — {@code camelCase}·{@code snake_case} 두 표기를 함께 받는다
+     * (JPQL 프로퍼티 경로는 앞쪽, {@code nativeQuery} 컬럼명은 뒤쪽). 양옆에 {@code \b} 를 둬
+     * {@code academyIdOverride}·{@code academyIdentifier} 처럼 <b>앞만 같고 실제로는 다른
+     * 식별자</b>가 부분 일치로 참이 되는 것을 막는다 — 그런 컬럼도 뒤에 글자가 이어지면 단어
+     * 경계가 없어 매치되지 않는다(Phase 8 목표 16).
+     */
+    private static final Pattern ACADEMY_ID_TOKEN = Pattern.compile("\\bacademyId\\b|\\bacademy_id\\b");
+
+    /**
      * {@code @Query} 본문의 <b>{@code WHERE} 절 안</b>에 학원 식별자가 있는지 본다 — SQL 문법을
      * 파싱하지 않고 절 경계(위 {@link #CONDITION_END})와 주석만 걷어내는 <b>텍스트 판정</b>이다.
      *
      * <p><b>어디까지 판정하는지</b> — {@code WHERE} 부터 {@code GROUP BY}·{@code ORDER BY}·
-     * {@code HAVING} 직전(또는 문자열 끝)까지의 구간에서 {@code academyId}·{@code academy_id} 부분
-     * 문자열을 찾는다. 주석은 먼저 걷어내 {@code -- AND r.academyId = :academyId} 처럼 조건인 척하는
-     * 주석이 참을 만들지 않게 한다. {@code SELECT} 절의 별칭({@code AS academyId})은 애초에
-     * {@code WHERE} 앞이라 이 구간에 들지 않는다.
+     * {@code HAVING} 직전(또는 문자열 끝)까지의 구간에서 {@link #ACADEMY_ID_TOKEN} 을 찾는다.
+     * 주석은 먼저 걷어내 {@code -- AND r.academyId = :academyId} 처럼 조건인 척하는 주석이 참을
+     * 만들지 않게 한다. {@code SELECT} 절의 별칭({@code AS academyId})은 애초에 {@code WHERE} 앞이라
+     * 이 구간에 들지 않는다.
      *
-     * <p><b>어디부터 포기하는지</b> — 절 <b>경계</b>만 볼 뿐 조건의 <b>구조</b>는 안 본다. 예를 들어
-     * {@code WHERE r.academyIdOverride = :x} 처럼 학원과 무관한 컬럼이 우연히 그 이름을 포함해도
-     * 참으로 센다(현재 그런 컬럼은 부재). 이 한계를 넘으려면 JPQL 파서가 필요하고, 그 무게가
-     * 이 검사가 감당할 범위를 넘는다 — 놓친 회피는 {@code AcademyScopeIsolationTest} 의 HTTP 왕복
-     * 대조가 결과 행으로 잡는다. {@code WHERE} 자체가 없으면(현재 학원 범위 비예외 조회 중 그런
-     * 메서드는 부재) 좁혀지지 않은 것으로 본다 — 조건이 있는지 모를 때는 없는 쪽으로 판정해야
-     * 이 검사의 실패 방향이 "과잉 통과" 가 아니라 "과잉 거부" 가 된다.
+     * <p><b>어디부터 포기하는지</b> — 절 <b>경계</b>와 <b>토큰 경계</b>만 볼 뿐 조건의 <b>구조</b>는
+     * 안 본다. 예를 들어 {@code WHERE r.academyId = :x AND r.deletedAt IS NOT NULL} 처럼 조건이
+     * 있어도 실제로는 무의미하게 매번 참인 형태까지는 못 잡는다. 이 한계를 넘으려면 JPQL 파서가
+     * 필요하고, 그 무게가 이 검사가 감당할 범위를 넘는다 — 놓친 회피는
+     * {@code AcademyScopeIsolationTest} 의 HTTP 왕복 대조가 결과 행으로 잡는다. {@code WHERE}
+     * 자체가 없으면(현재 학원 범위 비예외 조회 중 그런 메서드는 부재) 좁혀지지 않은 것으로 본다 —
+     * 조건이 있는지 모를 때는 없는 쪽으로 판정해야 이 검사의 실패 방향이 "과잉 통과" 가 아니라
+     * "과잉 거부" 가 된다.
      */
     static boolean conditionClauseContainsAcademyId(String jpql) {
         String withoutComments = BLOCK_COMMENT.matcher(jpql).replaceAll(" ");
@@ -148,6 +158,6 @@ final class AcademyScopeRule {
         int conditionEnd = end.find(where.end()) ? end.start() : withoutComments.length();
 
         String condition = withoutComments.substring(where.end(), conditionEnd);
-        return condition.contains("academyId") || condition.contains("academy_id");
+        return ACADEMY_ID_TOKEN.matcher(condition).find();
     }
 }

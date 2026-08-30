@@ -26,6 +26,14 @@ import src.backend.global.common.enums.Weekday;
  * 흡수</b>한다 — 던지면 그 회차 하나가 통째로 재시도 루프에 걸리고, 조용히 삼키면 관측 수단이
  * 없어지므로 흡수하되 {@code WARN} 로그로 호출자의 결함을 드러낸다.
  *
+ * <p><b>이 안전망은 중복만 흡수한다 — {@code null} 원소까지 거르도록 넓히지 않는다</b>
+ * (Phase 8 목표 15). {@code null} 이 섞여 들어오는 것은 중복과 달리 "같은 학생이 두 번
+ * 실렸다" 는 흔한 조립 실수가 아니라 명단을 만드는 쪽의 다른 결함이라, 이 계층이 흡수할
+ * 대상이 아니다. {@link List#copyOf} 가 {@code null} 원소를 거부하는 것을 그대로 둬 이
+ * 생성 시점에 곧바로 {@link NullPointerException} 으로 드러나게 한다 — {@code distinct()}
+ * 앞에 {@code null} 을 걸러내는 코드를 추가하면 이 신호가 조용히 사라지고, 결함은 더 뒤
+ * (좌표 해석 단계)에서 원인 불명으로만 나타난다.
+ *
  * @param academyId     학원 격리의 기준 — 이 학원 밖의 승하차지는 좌표를 얻지 못한 것으로 다룬다
  * @param weekday       요일별 주소(P-05)를 고르는 축
  * @param direction     등원·하원
