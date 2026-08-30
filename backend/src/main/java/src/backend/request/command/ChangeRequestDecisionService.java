@@ -1,9 +1,11 @@
 package src.backend.request.command;
 
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -11,8 +13,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.academy.entity.Academy;
+import src.backend.academy.repository.AcademyRepository;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
@@ -24,18 +29,26 @@ import src.backend.request.dto.DecideChangeRequestResponse;
 import src.backend.request.entity.ChangeRequest;
 import src.backend.request.entity.ChangeRequestType;
 import src.backend.request.event.ChangeRequestDecidedEvent;
+import src.backend.request.preview.ApprovalPreviewResolver;
+import src.backend.request.preview.ApprovalPreviewResolver.OriginDestination;
 import src.backend.request.preview.spec.ApprovalPreview;
 import src.backend.request.preview.spec.ApprovalPreviewCache;
 import src.backend.request.repository.ChangeRequestRepository;
 import src.backend.routing.engine.spec.OrderedStop;
 import src.backend.routing.entity.ConfirmedRoute;
+import src.backend.routing.entity.Route;
+import src.backend.routing.entity.RouteStop;
 import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.entity.RouteVersionSource;
 import src.backend.routing.entity.RunStop;
+import src.backend.routing.pipeline.DailyRoster;
 import src.backend.routing.pipeline.RouteComputation;
 import src.backend.routing.repository.ConfirmedRouteRepository;
+import src.backend.routing.repository.RouteRepository;
+import src.backend.routing.repository.RouteStopRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
+import src.backend.run.domain.RunConfirmationFingerprint;
 import src.backend.run.entity.Run;
 import src.backend.run.event.RunRouteConfirmedEvent;
 import src.backend.run.repository.RunRepository;
@@ -55,6 +68,12 @@ import src.backend.run.repository.RunRepository;
  * 다르면(완전히 빠진 요청 포함, {@code null} 은 어떤 캐시 토큰과도 같을 수 없다) {@code 409
  * PREVIEW_STALE} 로 막는다. 이 검사를 생략하면 화면에서 본 것과 다른 노선이 배포돼도 상태 코드·버전
  * 숫자만 보는 검증으로는 걸리지 않는다.
+ *
+ * <p><b>토큰 일치만으로는 부족하다</b> — 같은 회차에 대기 중인 다른 승인 건이 먼저 결정되면, 이
+ * 요청의 토큰은 캐시에 그대로 남아 있어도(아직 이 건은 처리 전이라 evict 되지 않는다) 그 토큰이
+ * 가리키는 계산은 이미 낡은 명단을 전제한 것이다. 그래서 승인 시점에 {@code ApprovalQueryService.detail}
+ * 과 <b>같은 재료</b>(현재 명단·기준점)로 지문을 다시 뽑아 {@link ApprovalPreview#fingerprint()} 와
+ * 대조하고, 어긋나면 토큰이 일치해도 {@code 409 PREVIEW_STALE} 로 막는다(§ approve 지문 재계산).
  */
 @Service
 @RequiredArgsConstructor
@@ -67,6 +86,14 @@ public class ChangeRequestDecisionService {
     private final RunRiderRepository runRiderRepository;
 
     private final ApprovalPreviewCache previewCache;
+
+    private final ApprovalPreviewResolver previewResolver;
+
+    private final AcademyRepository academyRepository;
+
+    private final RouteRepository routeRepository;
+
+    private final RouteStopRepository routeStopRepository;
 
     private final ConfirmedRouteRepository confirmedRouteRepository;
 
@@ -123,6 +150,11 @@ public class ChangeRequestDecisionService {
         RouteComputation computation = preview.computation();
 
         List<RunRider> riders = runRiderRepository.findAllByRunIdAndAcademyId(run.getId(), academyId);
+
+        // 지문 재검증 — 이 토큰이 발급된 뒤 같은 회차의 다른 승인 건이 먼저 결정돼 명단이 바뀌었으면
+        // 토큰 문자열은 여전히 일치해도 그 계산은 이미 낡은 명단을 전제한 것이다(§ 클래스 javadoc).
+        assertFingerprintFresh(cr, run, academyId, riders, preview.fingerprint());
+
         RunRider target = riders.stream()
                 .filter(rider -> rider.getStudentId().equals(cr.getStudentId()))
                 .findFirst()
@@ -199,6 +231,41 @@ public class ChangeRequestDecisionService {
 
         return new DecideChangeRequestResponse("rejected", false, currentVersionNo, requester.accountId(),
                 decidedAt);
+    }
+
+    /**
+     * 미리보기 지문 재검증 — {@code ApprovalQueryService.detail} 이 토큰을 발급할 때 쓴 것과 <b>같은
+     * 재료</b>(현재 명단·기준점)로 지문을 다시 뽑는다. 새 계산 경로를 만들지 않고
+     * {@link ApprovalPreviewResolver} 의 조립 메서드를 그대로 재사용한다 — 이 재료가 하나라도
+     * 상세 조회 때와 달라지면(가장 흔한 경우가 그 사이 결정된 다른 승인 건이 명단을 바꾼 것) 지문이
+     * 어긋나 여기서 잡힌다.
+     */
+    private void assertFingerprintFresh(ChangeRequest cr, Run run, Long academyId, List<RunRider> riders,
+            String cachedFingerprint) {
+        Weekday weekday = weekdayOf(run.getServiceDate());
+        Academy academy = academyRepository.findById(academyId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ACADEMY_NOT_FOUND));
+        if (!academy.hasCoordinates()) {
+            throw new BusinessException(ErrorCode.ACADEMY_COORDINATES_MISSING);
+        }
+        Route route = routeRepository
+                .findByAcademyIdAndBusIdAndWeekdayAndDirection(academyId, run.getBusId(), weekday, run.getDirection())
+                .orElseThrow(() -> new BusinessException(ErrorCode.ROUTE_NOT_CONFIGURED_FOR_RUN));
+        List<RouteStop> routeStops = routeStopRepository.findAllOrderedByRouteIdAndAcademyId(route.getId(), academyId);
+        OriginDestination originDestination = previewResolver.originDestinationOf(academy, routeStops,
+                run.getDirection(), academyId);
+        DailyRoster roster = previewResolver.candidateRosterOf(cr, run, weekday, riders);
+        String freshFingerprint = RunConfirmationFingerprint.of(academyId, weekday, run.getDirection(),
+                run.getDepartTime(), originDestination.origin(), originDestination.destination(),
+                roster.stopOverrides(), List.of());
+        if (!freshFingerprint.equals(cachedFingerprint)) {
+            throw new BusinessException(ErrorCode.PREVIEW_STALE);
+        }
+    }
+
+    /** 그 날짜의 요일 — {@code ApprovalQueryService.weekdayOf} 와 같은 계산(중복 헬퍼 관례). */
+    private Weekday weekdayOf(LocalDate serviceDate) {
+        return Weekday.valueOf(serviceDate.getDayOfWeek().name().substring(0, 3).toUpperCase(Locale.ROOT));
     }
 
     /** {@code computation.stops()} 와 {@code etas()} 는 자리로 대응한다({@code RunConfirmationPersistence} 와 같은 헬퍼). */

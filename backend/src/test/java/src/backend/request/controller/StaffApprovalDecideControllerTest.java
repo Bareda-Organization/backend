@@ -283,6 +283,41 @@ class StaffApprovalDecideControllerTest {
                 .andExpect(jsonPath("$.error.code").value("PREVIEW_STALE"));
     }
 
+    /**
+     * 토큰 문자열이 일치해도 <b>그 사이 같은 회차의 다른 승인 건이 먼저 결정</b>돼 명단이 바뀌면
+     * 지문이 어긋나 {@code 409 PREVIEW_STALE} 이어야 한다 — 게이트 리뷰가 재현한 시나리오(대기 A·B
+     * 두 건 → 둘 다 미리보기 조회 → A 승인 → B 의 토큰은 A 승인 이전 것) 그대로다. 지문 대조가 없으면
+     * B 도 200 으로 통과해 A 가 이미 지운 정류장이 되살아난다.
+     */
+    @Test
+    void 다른_승인_건이_먼저_결정되면_지문이_어긋나_409_이다() throws Exception {
+        결정_시나리오 s = 정상_시나리오(); // A = s.approvalId(학생2, midStop 취소)
+        ChangeRequest 두번째요청 = ChangeRequest.forRequest(s.academyId, s.runId, s.lastStudentId,
+                ChangeRequestSource.CHANGE_REQUEST, ChangeRequestType.CANCEL, (short) 2, s.parentAccountId,
+                OffsetDateTime.now());
+        long approvalIdB = changeRequestRepository.save(두번째요청).getId(); // B(학생3, lastStop 취소)
+
+        String tokenA = 미리보기_토큰_조회(s);
+        String tokenB = 미리보기_토큰_조회(approvalIdB, s.academyId); // A 승인 이전에 발급된 토큰
+        clearInvocations(pipeline);
+
+        결정_요청(관계자_토큰(s.academyId), s.approvalId, 승인_바디(tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("approved"));
+
+        결정_요청(관계자_토큰(s.academyId), approvalIdB, 승인_바디(tokenB))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("PREVIEW_STALE"));
+
+        Long currentVersionId = jdbcTemplate.queryForObject(
+                "SELECT current_version_id FROM confirmed_route WHERE run_id = ?", Long.class, s.runId);
+        List<Long> stopIds = jdbcTemplate.queryForList(
+                "SELECT stop_id FROM run_stop WHERE route_version_id = ? ORDER BY seq", Long.class,
+                currentVersionId);
+        assertThat(stopIds).as("A 승인 결과만 반영돼야 한다 — B 가 지우려던 lastStop 이 되살아나면 안 된다")
+                .containsExactly(s.firstStopId, s.lastStopId);
+    }
+
     // ── 창 · 재처리 · 격리 · 부재 ────────────────────────────────────────
 
     /**
@@ -399,7 +434,7 @@ class StaffApprovalDecideControllerTest {
         long approvalId = changeRequestRepository.save(changeRequest).getId();
 
         return new 결정_시나리오(academyId, runId, approvalId, firstStop, midStop, lastStop, parentAccountId,
-                driverAccountId);
+                driverAccountId, 학생3);
     }
 
     private 결정_시나리오 정상_시나리오() throws Exception {
@@ -416,8 +451,12 @@ class StaffApprovalDecideControllerTest {
     }
 
     private String 미리보기_토큰_조회(결정_시나리오 s) throws Exception {
+        return 미리보기_토큰_조회(s.approvalId, s.academyId);
+    }
+
+    private String 미리보기_토큰_조회(long approvalId, long academyId) throws Exception {
         String body = mockMvc
-                .perform(get("/api/v1/staff/approvals/" + s.approvalId).header("Authorization", 관계자_토큰(s.academyId)))
+                .perform(get("/api/v1/staff/approvals/" + approvalId).header("Authorization", 관계자_토큰(academyId)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         return JsonPath.read(body, "$.data.preview_token");
@@ -453,9 +492,10 @@ class StaffApprovalDecideControllerTest {
         final long lastStopId;
         final long parentAccountId;
         final long driverAccountId;
+        final long lastStudentId; // lastStop 에 탄 학생3 — 지문 재검증 시험이 두 번째 승인 대기 건을 만들 때 쓴다.
 
         결정_시나리오(long academyId, long runId, long approvalId, long firstStopId, long midStopId, long lastStopId,
-                long parentAccountId, long driverAccountId) {
+                long parentAccountId, long driverAccountId, long lastStudentId) {
             this.academyId = academyId;
             this.runId = runId;
             this.approvalId = approvalId;
@@ -464,6 +504,7 @@ class StaffApprovalDecideControllerTest {
             this.lastStopId = lastStopId;
             this.parentAccountId = parentAccountId;
             this.driverAccountId = driverAccountId;
+            this.lastStudentId = lastStudentId;
         }
     }
 }
