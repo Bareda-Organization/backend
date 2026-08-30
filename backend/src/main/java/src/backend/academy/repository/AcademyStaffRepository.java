@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import src.backend.academy.dto.AcademyStaffAccountView;
 import src.backend.academy.entity.AcademyStaff;
 import src.backend.academy.entity.StaffStatus;
 import src.backend.global.persistence.AcademyCount;
@@ -59,4 +60,18 @@ public interface AcademyStaffRepository extends JpaRepository<AcademyStaff, Long
             + "대상 계정 집합은 앞선 조회(AccountRepository#findStaffAccountsForConsole)가 확정한 id 목록이라 "
             + "여기서 학원으로 좁히면 그 목록의 일부가 이유 없이 사라져 행과 계정의 짝이 어긋난다")
     List<AcademyStaff> findAllByAccountIdIn(Collection<Long> accountIds);
+
+    /**
+     * 탑승 의사 변경 알림({@code intent_changed}·{@code approval_requested}, API_SPEC §9.7)의 수신자
+     * 조회 — 대상이 "관계자"(재직 스태프 전원)라 {@link #findByAccountId} 처럼 계정 하나가 아니라
+     * 학원 하나에 딸린 계정 전부를 훑는다({@code AssignmentRepository#findAssignedManagerAccounts} 와
+     * 같은 조인 형태). {@code status = ACTIVE} 만 남긴다 — 퇴사자는 알림을 받을 수신자가 아니다.
+     *
+     * <p>{@code s.academyId = :academyId} 가 WHERE 에 그대로 있어 학원으로 이미 좁혀진 조회이므로
+     * {@code AcademyScopeExempt} 가 필요 없다.
+     */
+    @Query("SELECT new src.backend.academy.dto.AcademyStaffAccountView(a.id, a.name) "
+            + "FROM AcademyStaff s, Account a "
+            + "WHERE a.id = s.accountId AND s.academyId = :academyId AND s.status = src.backend.academy.entity.StaffStatus.ACTIVE")
+    List<AcademyStaffAccountView> findActiveAccountsByAcademyId(@Param("academyId") Long academyId);
 }
