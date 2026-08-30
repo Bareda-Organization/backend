@@ -152,13 +152,20 @@ public class ChangeRequestDecisionService {
         confirmedRouteRepository.assignCurrentVersion(run.getId(), newVersion.getId());
         runStopRepository.saveAll(runStopsOf(newVersion.getId(), computation));
 
+        // assignCurrentVersion 이 clearAutomatically=true 라 위 호출 시점에 영속 컨텍스트 전체가
+        // 비워진다 — target·cr 은 그 이전에 로드해 둔 인스턴스라 이 시점부턴 준영속(detached) 상태다.
+        // 세터만 부르고 끝내면 변경이 메모리에만 남고 커밋 때 반영되지 않으므로, 각 저장소의 save()
+        // 로 명시적으로 다시 붙인다(merge, ConfirmedRoute.assignCurrentVersion 의 javadoc이 이미 경고한
+        // 것과 같은 함정).
         if (cr.getType() == ChangeRequestType.CANCEL) {
             target.markAbsent(decidedAt);
         } else {
             target.relocateTo(cr.getNewStopId(), decidedAt);
         }
+        runRiderRepository.save(target);
 
         cr.approve(requester.accountId(), decidedAt, stopRemoved, newVersion.getId());
+        changeRequestRepository.save(cr);
         previewCache.evict(cr.getId());
 
         // route_changed — Phase 7 이 이미 만든 경로를 재사용한다(새 발행 경로를 만들지 않는다).
