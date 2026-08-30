@@ -211,6 +211,14 @@ class ChangeRequestControllerTest {
         Long riderStopId = jdbcTemplate.queryForObject(
                 "SELECT stop_id FROM run_rider WHERE run_id = ? AND student_id = ?", Long.class, runId, studentId);
         assertThat(riderStopId).as("승인된 일일 변경이 요일별 주소를 이겨야 한다").isEqualTo(newStopId);
+
+        // run_rider(배정 기록)만 보면 노선 계산 자체는 옛 승하차지로 돌았는데 명단만 새 값으로 보이는
+        // 상태를 놓친다 — 실제로 버스가 도는 경로(run_stop)에도 바뀐 승하차지가 실려야 한다.
+        Integer routedStopCount = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM run_stop rs JOIN confirmed_route cr "
+                        + "ON cr.current_version_id = rs.route_version_id "
+                        + "WHERE cr.run_id = ? AND rs.stop_id = ?", Integer.class, runId, newStopId);
+        assertThat(routedStopCount).as("노선 계산 산출물(run_stop)에도 바뀐 승하차지가 실려야 한다").isEqualTo(1);
     }
 
     // ── 목표 2 — ②구간 승인 대기 + 관계자 approval_requested 적재 ──────────────────────
