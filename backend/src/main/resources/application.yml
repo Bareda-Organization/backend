@@ -157,6 +157,10 @@ app:
         # NCP 자격증명은 상품별이 아니라 애플리케이션 단위라 지오코딩과 같은 키를 쓴다.
         key-id: ${NAVER_MAPS_KEY_ID:${NAVER_DIRECTIONS_KEY_ID:}}
         key: ${NAVER_MAPS_KEY:${NAVER_DIRECTIONS_KEY:}}
+  # 외부 내비게이션 앱 연동(§4.16 · RUN-08, Ruling 201). provider 가 구현체를 고르고, 요청 파라미터로는
+  # 받지 않는다 — 공급자별 승하차지 상한(카카오 4)은 구현체 상수라 여기 두지 않는다(Ruling 204).
+  navigation:
+    provider: kakao
   # 학생 사진 저장(§5.11 · Ruling 159). storage 값이 PhotoStorage 구현체를 고른다 —
   # 운영 저장 위치(S3 등)는 아직 미정이라(오픈 이슈 W) 지금은 로컬 디스크 하나뿐이다.
   # 위치·주소 접두사만 여기 둔다. 5MB 상한과 이미지 3종은 사양이 정한 정책값이라 코드 상수다.

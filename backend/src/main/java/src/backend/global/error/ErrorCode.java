@@ -219,6 +219,14 @@ public enum ErrorCode {
     // 이 코드다(ROUTE_NOT_FOUND·BUS_NOT_FOUND 와 같은 형태, 존재 여부를 응답에서 드러내지 않는다).
     WAYPOINT_NOT_FOUND(HttpStatus.NOT_FOUND, "경유 지점을 찾을 수 없습니다"),
 
+    // ── 외부 내비 연동(Phase 9, RUN-08) ────────────────────────────────────────
+    // 확정 전(idle) 회차에서 내비 조회 시도(API_SPEC §4.16) — 노선이 아직 확정되지 않아 순서·좌표가
+    // 없다. confirmed 부터는 허용(X-01, Ruling 202) — 막는 것은 idle 뿐이다.
+    RUN_NOT_CONFIRMED(HttpStatus.CONFLICT, "회차가 아직 확정되지 않았습니다"),
+    // 그 회차의 남은 승하차지가 없을 때(skipped·도착 완료 제외 후 0건) — 200 에 빈 배열을 주지 않는다.
+    // 빈 배열을 주면 앱이 목적지 없이 내비를 띄운다(API_SPEC §4.16).
+    NAV_NO_REMAINING_STOP(HttpStatus.CONFLICT, "안내할 남은 승하차지가 없습니다"),
+
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다");
 
     private final HttpStatus status;
