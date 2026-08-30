@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -46,4 +47,13 @@ public interface WaypointRepository extends JpaRepository<Waypoint, Long> {
             ORDER BY w.createdAt ASC
             """)
     List<Waypoint> findAllAppliedByRunIdAndAcademyId(@Param("runId") Long runId, @Param("academyId") Long academyId);
+
+    /**
+     * 배포되지 않은(applied=false) 경유 지점 행을 회차 단위로 전부 지운다 — 관계자가 같은 회차에
+     * 미리보기를 다시 호출할 때 이전 미리보기 행이 고아로 쌓이지 않도록, 새 행을 만들기 직전에 부른다
+     * ({@code WaypointCommandService.add}). 이미 배포된(applied=true) 행은 대상이 아니다.
+     */
+    @Modifying
+    @Query("DELETE FROM Waypoint w WHERE w.runId = :runId AND w.applied = false")
+    void deleteAllUnappliedByRunId(@Param("runId") Long runId);
 }

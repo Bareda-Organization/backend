@@ -140,7 +140,9 @@ class StaffWaypointControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.waypoint_id").isNumber())
                 .andExpect(jsonPath("$.data.applied").value(false))
-                .andExpect(jsonPath("$.data.route_preview.stops_after", org.hamcrest.Matchers.hasSize(4)));
+                .andExpect(jsonPath("$.data.route_preview.stops_after", org.hamcrest.Matchers.hasSize(4)))
+                .andExpect(jsonPath("$.data.route_preview.stops_after[3].stop_name")
+                        .value("임시 정류장"));
 
         assertThat(현재_버전_id(s.runId)).as("미리보기는 현재 버전 포인터를 옮기면 안 된다").isEqualTo(beforeVersionId);
         assertThat(버전_개수(s.runId)).as("미리보기는 새 버전 행을 만들면 안 된다").isEqualTo(beforeVersionCount);
@@ -167,6 +169,25 @@ class StaffWaypointControllerTest {
                 .as("버전 번호만 오르고 그 지점이 실제 노선(run_stop)에 안 들어가면 안 된다")
                 .isTrue();
         verify(routeChangedListener, times(1)).appendRouteChanged(any());
+    }
+
+    /**
+     * 배포하지 않은(미리보기 단계) 경유 지점 행은 호출마다 새로 쌓이면 안 된다 — 관계자가 라벨·주소를
+     * 바꿔 가며 미리보기를 여러 번 눌러 보는 것이 정상 사용 흐름이라, 매번 새 행을 남기면 배포되지
+     * 않는 고아 행이 무한히 누적된다.
+     */
+    @Test
+    void 같은_회차에_미리보기를_두_번_호출해도_미배포_행이_누적되지_않는다() throws Exception {
+        시나리오 s = 확정된_회차를_만든다();
+
+        경유_추가한다(s.runId, 경유_본문("새경유로 60", "첫 미리보기", false))
+                .andExpect(status().isOk());
+        경유_추가한다(s.runId, 경유_본문("새경유로 61", "둘째 미리보기", false))
+                .andExpect(status().isOk());
+
+        assertThat(미배포_행_개수(s.runId))
+                .as("이전 미리보기 행은 다음 미리보기 호출이 대체해야 한다 — 그대로 두면 고아 행이 계속 쌓인다")
+                .isEqualTo(1);
     }
 
     // ── 목표 9 — 운행 시작 후는 403 ───────────────────────────────────────
@@ -383,6 +404,11 @@ class StaffWaypointControllerTest {
                 "SELECT count(*) FROM run_stop WHERE route_version_id = ? AND waypoint_id = ?", Integer.class,
                 versionId, waypointId);
         return count > 0;
+    }
+
+    private int 미배포_행_개수(long runId) {
+        return jdbcTemplate.queryForObject("SELECT count(*) FROM waypoint WHERE run_id = ? AND applied = false",
+                Integer.class, runId);
     }
 
     private String 토큰(long academyId) {

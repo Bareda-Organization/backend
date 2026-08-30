@@ -100,11 +100,16 @@ public class WaypointCommandService {
     /**
      * 새 경유 지점을 지정한다 — 항상 행을 먼저 저장해 {@code waypoint_id} 를 응답에 담는다.
      * {@code apply=false} 는 미리보기만 계산하고 여기서 멈춘다(확정 노선은 그대로다, 목표 11).
+     *
+     * <p>새 행을 만들기 전에 이 회차의 <b>미배포 행을 전부 지운다</b> — 관계자가 라벨·주소를 바꿔 가며
+     * 미리보기를 여러 번 눌러 보는 것이 정상 흐름이라, 그대로 두면 배포되지 않는 고아 행이 호출마다
+     * 쌓인다. 이미 배포된(applied=true) 행은 대상이 아니라 이 정리로 지워지지 않는다.
      */
     public WaypointResponse add(AuthUser requester, Long runId, WaypointRequest request) {
         Run run = loadRunInWindow(requester, runId);
         GeoPoint point = resolvePoint(request);
 
+        waypointRepository.deleteAllUnappliedByRunId(run.getId());
         Waypoint waypoint = waypointRepository.save(Waypoint.forRun(run.getId(), request.label(), request.address(),
                 point.lat(), point.lng(), request.note(), requester.accountId(), OffsetDateTime.now(clock)));
 
@@ -243,7 +248,7 @@ public class WaypointCommandService {
         // 외부 지도 API 를 부르는 계산은 트랜잭션 밖에서 돈다(클래스 javadoc).
         RouteComputation computation = pipeline.compute(input);
 
-        RoutePreviewResponse routePreview = routePreviewResponseOf(ctx, computation, run.getAcademyId());
+        RoutePreviewResponse routePreview = routePreviewResponseOf(ctx, computation, run.getAcademyId(), waypoint);
 
         if (apply) {
             OffsetDateTime now = OffsetDateTime.now(clock);
@@ -262,20 +267,36 @@ public class WaypointCommandService {
                 apply);
     }
 
-    /** {@code RoutePreviewAssembler} 를 §5.5 상세와 같은 순서로 불러 전/후 대조를 조립한다. */
+    /**
+     * {@code RoutePreviewAssembler} 를 §5.5 상세와 같은 순서로 불러 전/후 대조를 조립한다.
+     * 경유 지점 항목의 {@code stop_name} 은 {@code stopsById} 로 못 찾으므로(승하차지 명단이 아니다)
+     * {@code waypointLabelsById} 를 별도로 넘겨 채운다 — 지금 이 요청의 대상 {@code waypoint} 는
+     * 신규 추가라면 아직 {@code ctx.appliedWaypoints()} 에 없어 그 목록만으로는 부족하다.
+     */
     private RoutePreviewResponse routePreviewResponseOf(RouteContext ctx, RouteComputation computation,
-            Long academyId) {
+            Long academyId, Waypoint waypoint) {
         Set<Long> stopIds = routePreviewAssembler.unionOfStopIds(ctx.beforeRunStops(), computation);
         Map<Long, Stop> stopsById = routePreviewAssembler.stopsByIdOf(stopIds, academyId);
+        Map<Long, String> waypointLabelsById = waypointLabelsOf(ctx, waypoint);
         List<PreviewStopResponse> stopsBefore = routePreviewAssembler.toPreviewStopsFromRunStops(
-                ctx.beforeRunStops(), stopsById);
+                ctx.beforeRunStops(), stopsById, waypointLabelsById);
         List<PreviewStopResponse> stopsAfter = routePreviewAssembler.toPreviewStopsFromComputation(computation,
-                stopsById);
+                stopsById, waypointLabelsById);
         Map<Long, Integer> beforeSeq = routePreviewAssembler.seqMapOfRunStops(ctx.beforeRunStops());
         Map<Long, Integer> afterSeq = routePreviewAssembler.seqMapOfComputation(computation);
         return RoutePreviewResponse.of(stopsBefore, stopsAfter,
                 routePreviewAssembler.reorderedOf(beforeSeq, afterSeq, stopsById),
                 routePreviewAssembler.removedOf(beforeSeq, afterSeq, stopsById));
+    }
+
+    /** 이미 배포된 경유 지점 전부 + 지금 이 요청의 대상 경유 지점, 합쳐서 id → label 맵을 만든다. */
+    private static Map<Long, String> waypointLabelsOf(RouteContext ctx, Waypoint waypoint) {
+        Map<Long, String> labels = new LinkedHashMap<>();
+        for (Waypoint w : ctx.appliedWaypoints()) {
+            labels.put(w.getId(), w.getLabel());
+        }
+        labels.put(waypoint.getId(), waypoint.getLabel());
+        return labels;
     }
 
     /** {@code RunConfirmationService.weekdayOf} 와 같은 계산. {@code LocalDate} 자체가 요일을 들고 있으므로 시계를 보지 않는다. */
