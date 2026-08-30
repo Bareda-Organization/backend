@@ -82,4 +82,14 @@ public class Waypoint {
             String note, Long createdBy, OffsetDateTime createdAt) {
         return new Waypoint(runId, label, address, lat, lng, note, createdBy, createdAt);
     }
+
+    /** {@code apply=true} 로 배포될 때 호출한다(RTE-10, API_SPEC §5.15) — 미리보기 단계를 벗어난다. */
+    public void apply() {
+        this.applied = true;
+    }
+
+    /** 배포된 경유지를 제거할 때 호출한다(RTE-10, DELETE 엔드포인트) — 이후 조회에서 제외된다. */
+    public void markRemoved(OffsetDateTime removedAt) {
+        this.removedAt = removedAt;
+    }
 }

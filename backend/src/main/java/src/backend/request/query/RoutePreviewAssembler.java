@@ -66,32 +66,60 @@ public class RoutePreviewAssembler {
                 .collect(Collectors.toMap(Stop::getId, stop -> stop));
     }
 
-    /** 확정 배치 산출물({@code RunStop})을 화면용 정차 목록으로 바꾼다(§5.5 상세 {@code stops_before}). */
+    /**
+     * 확정 배치 산출물({@code RunStop})을 화면용 정차 목록으로 바꾼다(§5.5 상세 {@code stops_before}).
+     * 경유 지점(§5.15) 이름은 해석하지 않는다 — 이 오버로드를 쓰는 승인 조회 경로는 그 정보가 없다.
+     */
     public List<PreviewStopResponse> toPreviewStopsFromRunStops(List<RunStop> runStops, Map<Long, Stop> stopsById) {
+        return toPreviewStopsFromRunStops(runStops, stopsById, Map.of());
+    }
+
+    /**
+     * 위와 같되 경유 지점 항목의 이름도 {@code waypointLabelsById} 로 채운다 — 강제 경유 지점
+     * 지정·제거(§5.15)의 대조 화면이 쓰는 경로다.
+     */
+    public List<PreviewStopResponse> toPreviewStopsFromRunStops(List<RunStop> runStops, Map<Long, Stop> stopsById,
+            Map<Long, String> waypointLabelsById) {
         return runStops.stream()
-                .map(rs -> new PreviewStopResponse(rs.getSeq(), nameOf(rs.getStopId(), stopsById), rs.getEta()))
+                .map(rs -> new PreviewStopResponse(rs.getSeq(),
+                        nameOf(rs.getStopId(), rs.getWaypointId(), stopsById, waypointLabelsById), rs.getEta()))
                 .toList();
     }
 
-    /** 방금 계산한 재최적화 결과를 화면용 정차 목록으로 바꾼다(§5.5 상세 {@code stops_after}). */
+    /**
+     * 방금 계산한 재최적화 결과를 화면용 정차 목록으로 바꾼다(§5.5 상세 {@code stops_after}).
+     * 경유 지점 이름은 해석하지 않는다 — {@link #toPreviewStopsFromRunStops(List, Map)} 와 같은 이유.
+     */
     public List<PreviewStopResponse> toPreviewStopsFromComputation(RouteComputation computation,
             Map<Long, Stop> stopsById) {
+        return toPreviewStopsFromComputation(computation, stopsById, Map.of());
+    }
+
+    /** 위와 같되 경유 지점 항목의 이름도 {@code waypointLabelsById} 로 채운다. */
+    public List<PreviewStopResponse> toPreviewStopsFromComputation(RouteComputation computation,
+            Map<Long, Stop> stopsById, Map<Long, String> waypointLabelsById) {
         List<OrderedStop> ordered = computation.stops();
         List<OffsetDateTime> etas = computation.etas();
         List<PreviewStopResponse> stops = new ArrayList<>(ordered.size());
         for (int i = 0; i < ordered.size(); i++) {
             OrderedStop stop = ordered.get(i);
-            stops.add(new PreviewStopResponse(stop.seq(), nameOf(stop.stopId(), stopsById), etas.get(i)));
+            stops.add(new PreviewStopResponse(stop.seq(),
+                    nameOf(stop.stopId(), stop.waypointId(), stopsById, waypointLabelsById), etas.get(i)));
         }
         return stops;
     }
 
-    private static String nameOf(Long stopId, Map<Long, Stop> stopsById) {
-        if (stopId == null) {
-            return null;
+    /** {@code stopId} 는 승하차지 명단에서, {@code waypointId} 는 경유 지점 label 맵에서 이름을 찾는다. */
+    private static String nameOf(Long stopId, Long waypointId, Map<Long, Stop> stopsById,
+            Map<Long, String> waypointLabelsById) {
+        if (stopId != null) {
+            Stop stop = stopsById.get(stopId);
+            return stop != null ? stop.getName() : null;
         }
-        Stop stop = stopsById.get(stopId);
-        return stop != null ? stop.getName() : null;
+        if (waypointId != null) {
+            return waypointLabelsById.get(waypointId);
+        }
+        return null;
     }
 
     /** 승하차지 id → 확정 배치의 순번. {@link #reorderedOf}·{@link #removedOf} 대조의 "전" 쪽이다. */

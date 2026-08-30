@@ -1292,21 +1292,41 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 **에러** — `409 APPROVAL_ALREADY_DECIDED` · **`403 CHANGE_WINDOW_CLOSED`**(운행 시작 후 도달 — ⚠ **2026-08-30 정정, Ruling 200.** 원래 `409` 로 적혀 있었으나 이 코드의 정의 자리인 **§8.3 사전이 403** 이고, 이 문서의 다른 **8곳이 전부 403**(§1.6 ③ · §3.6 · §3.8 · §5.7 · §5.8 · §5.15 · §8.3)이라 **이 한 줄만 어긋나 있었다.** `ErrorCode` 는 코드 하나에 상태 하나를 싣는 구조라 두 값을 함께 둘 수 없고, 새 코드를 만드는 것은 "새 상태값을 만들지 않는다"(`CLAUDE.md`)에 걸린다. 사전이 정의고 각 절은 사용처이므로 **사전이 이긴다**) · `409 PREVIEW_STALE`(미리보기 이후 입력 변경 — 재조회 후 재시도) · `404 APPROVAL_NOT_FOUND` · `422 VALIDATION_FAILED`(`approve=false` 인데 `reject_reason` 부재)
 
-### 5.7 POST /staff/runs/{runId}/forced-add — **[조정 중]**
+### 5.7 POST /staff/runs/{runId}/forced-add
 
 노선 강제 추가 (RTE-06, A-06).
+
+⚠ **`[조정 중]` 을 2026-08-30 부분 해제했다**(Ruling 197, §5.9 와 같은 논리). 보류 사유였던 "배차 정책 확정 후" 가 실제로 가리키던 것은 **최적화 트리거·가중치**(오픈 이슈 G)이고, 이 엔드포인트는 노선 재최적화를 부르지 않는다(Ruling 198 — ①구간의 회차는 아직 `idle` 이라 확정 노선이 부재하다) — 가중치와 무관하다. **아직 해제되지 않은 것은 §5.8(수동 조정)뿐이다**, 그쪽은 도착 버스의 재최적화·배포를 실제로 수반해 가중치 미확정의 영향을 받는다.
 
 | 항목 | 값 |
 |---|---|
 | 권한 | 학원 관계자 |
 | 목적 | ① 구간에서만 당일 운행에 탑승자 추가. 고정 노선 불변 |
 | 구간 | **① 구간 전용** — 30분 안쪽은 관계자도 추가 불가, `403 CHANGE_WINDOW_CLOSED` |
-| 정원 | 초과 시 `409 CAPACITY_EXCEEDED` |
+| 정원 | 초과 시 `409 CAPACITY_EXCEEDED`. 기준은 `student_capacity`(BUS-04 — `capacity − 기사 − 동승자`) |
 | 주소 | 검증 → 승하차지 매칭/신규 생성 (STU-05) |
+| 반영 시점 | 저장만 하고 끝난다 — 그날 명단에 실제로 합쳐지는 것은 이후 도래하는 확정 배치(RTE-08)다(Ruling 198) |
 
-요청·응답 세부는 배차 정책 확정 후 기술.
+**요청**
 
-**에러** — `403 CHANGE_WINDOW_CLOSED`(② 구간 이후 추가 — 관계자도 예외 부재) · `409 CAPACITY_EXCEEDED`(정원 초과) · `422 ADDRESS_VERIFICATION_FAILED`(주소 검증 실패 — 저장 보류)
+| 필드 | 필수 | 설명 |
+|---|:---:|---|
+| `student_id` | 조건부 | 기존 학생 — 검색·계정 연동으로 찾은 학생의 id. `new_student` 와 **배타적**(둘 다 없거나 둘 다 있으면 `422 VALIDATION_FAILED`) |
+| `new_student.name` | 조건부 | 신규 학생 직접 입력 — 이름만 받는다. 사진 등록 등 전체 등록 절차(STU-01)는 이 경로를 거치지 않는다 |
+| `address` | ● | 오늘 이 회차에서 탑승할 주소. 기존 학생이라도 평소 등록된 요일별 주소와 별개로 **이 회차 전용**으로 검증한다 |
+| `note` | ○ | 비고 |
+
+**응답 (201)**
+
+| 필드 | 설명 |
+|---|---|
+| `forced_addition_id` | 강제 추가 대기 행 id |
+| `run_id` | 대상 회차 |
+| `student_id` | 확정된(또는 새로 만든) 학생 id |
+| `stop_id` | 매칭·생성된 승하차지 id |
+| `status` | 항상 `staged` — 확정 배치가 명단에 합칠 때까지의 대기 상태 |
+
+**에러** — `403 CHANGE_WINDOW_CLOSED`(② 구간 이후 추가 — 관계자도 예외 부재) · `409 CAPACITY_EXCEEDED`(정원 초과) · `422 ADDRESS_VERIFICATION_FAILED`(주소 검증 실패 — 저장 보류) · `422 VALIDATION_FAILED`(`student_id`·`new_student` 가 동시에 없거나 있음) · `404 RUN_NOT_FOUND`
 
 ### 5.8 POST /staff/students/{id}/transfer — **[조정 중]**
 
@@ -2140,7 +2160,6 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 
 | 경로 | 기능 ID | 목적 |
 |---|---|---|
-| `POST /staff/runs/{runId}/forced-add` | RTE-06 · A-06 | 노선 강제 추가 — ① 구간 전용 |
 | `POST /staff/students/{id}/transfer` | RTE-07 · A-07 | 수동 조정 · 버스 간 이동 — 양쪽 노선 재최적화 |
 
 **해제된 항목** — 이 표에서 지운 것이고 되돌아오지 않는다. 각 절의 해제 note 가 근거다.
@@ -2150,6 +2169,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `GET /staff/routes` | 2026-08-29 **부분 해제** (Ruling 180) | **§5.9**. 최적화 **자동 트리거·가중치**만 미확정으로 남았다 |
 | `GET /staff/schedules` | 2026-08-26 해제 (Ruling 153) | §5.10 |
 | `PATCH /staff/runs/{runId}/assignment` | 2026-08-26 **부분 해제** (Ruling 153) | **§5.14**. **동승자 자동 배정**만 미확정으로 남았다 — 엔드포인트가 아니라 노선 계산 파이프라인 ⑤단계다(`ARCHITECTURE §8.2`) |
+| `POST /staff/runs/{runId}/forced-add` | 2026-08-30 **부분 해제** (Ruling 197) | **§5.7**. 이 엔드포인트는 재최적화를 부르지 않아(Ruling 198) 최적화 **가중치**와 무관하다 |
 
 ⚠ **이 절은 파생본이라 정본이 닫혀도 자동으로 따라오지 않는다.** 실제로 위 3행이 해제 후에도 표에 남아 있었다(Ruling 185). **한 행을 고칠 일이 생기면 표 전체를 각 절과 대조한다** — 하나가 낡아 있으면 나머지도 낡아 있다.
 

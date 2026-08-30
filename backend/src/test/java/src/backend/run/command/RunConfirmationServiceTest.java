@@ -29,7 +29,9 @@ import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
+import src.backend.run.entity.RunForcedAddition;
 import src.backend.run.entity.RunStatus;
+import src.backend.run.repository.RunForcedAdditionRepository;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
@@ -78,6 +80,9 @@ class RunConfirmationServiceTest {
 
     @Autowired
     private RunRepository runRepository;
+
+    @Autowired
+    private RunForcedAdditionRepository runForcedAdditionRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -157,6 +162,62 @@ class RunConfirmationServiceTest {
                 studentAtFirst);
         assertThat(riderStopForFirst).as("탑승자의 정차지는 그 학생의 요일별 주소가 가리키는 정차지와 같아야 한다")
                 .isEqualTo(firstStop);
+    }
+
+    /**
+     * 게이트 리뷰 지적 #5(T7) — 강제 추가(RTE-06, §5.7)는 대기 행만 쌓고, 그 행이 확정 배치를
+     * 거쳐 {@code run_rider}·{@code run_stop} 에 실제로 반영되는지는 어떤 시험도 보지 않았다.
+     * 대상 학생은 요일별 주소를 아예 안 준다 — 정상 경로로는 이 회차 명단에 오를 수 없어야
+     * "강제 추가 병합이 했다" 는 것이 이 시험 하나로 갈린다. 정차지도 편성 노선(firstStop·
+     * lastStop) 밖의 것을 써서, 노선 재계산이 그 정차지를 실제로 새로 만들었는지까지 본다.
+     */
+    @Test
+    @DisplayName("게이트 리뷰 #5 — 강제 추가 대기 행이 확정 배치를 거쳐 명단·정차 목록에 실제로 반영된다")
+    void 강제_추가_대기_행이_확정_배치에서_명단에_반영된다() {
+        long academyId = fixtures().academyWithCoordinates();
+        long busId = fixtures().bus(academyId);
+        long firstStop = fixtures().stop(academyId, "37.560000", "126.970000");
+        long lastStop = fixtures().stop(academyId, "37.561000", "126.971000");
+        fixtures().route(academyId, busId, WEEKDAY, Direction.TO_ACADEMY, firstStop, lastStop);
+
+        long studentAtFirst = fixtures().student(academyId, "학생1");
+        fixtures().verifiedAddress(studentAtFirst, firstStop, WEEKDAY, Direction.TO_ACADEMY, "37.560000",
+                "126.970000");
+
+        // 강제 추가 대상 — 요일별 주소를 주지 않는다. 정상 경로(weeklyAddress)로는 이 회차 명단에
+        // 절대 오르지 않아야, 강제 추가 병합이 실제로 일어났는지가 이 학생 하나로 갈린다.
+        long forcedStudent = fixtures().student(academyId, "강제추가학생");
+        // 편성 노선(firstStop·lastStop) 밖의 정차지 — route_stop 이 아니라 강제 추가가 직접
+        // 끌어와야만 정차 목록에 나타난다.
+        long forcedStop = fixtures().stop(academyId, "37.562000", "126.972000");
+
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusHours(3);
+        long runId = fixtures().idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+
+        runForcedAdditionRepository.save(
+                RunForcedAddition.forRun(runId, forcedStudent, forcedStop, 1L, OffsetDateTime.now(clock)));
+
+        confirmationService.confirmOne(runId);
+
+        List<Long> riderStudentIds = jdbcTemplate.queryForList(
+                "SELECT student_id FROM run_rider WHERE run_id = ? ORDER BY student_id", Long.class, runId);
+        assertThat(riderStudentIds).as("강제 추가 대기 행이 확정 배치의 명단에 실제로 합쳐져야 한다 — "
+                + "저장만 되고 반영되지 않으면 화면엔 추가됐다고 뜨는데 버스 명단엔 없는 상태가 남는다")
+                .contains(forcedStudent);
+
+        Long forcedRiderStop = jdbcTemplate.queryForObject(
+                "SELECT stop_id FROM run_rider WHERE run_id = ? AND student_id = ?", Long.class, runId,
+                forcedStudent);
+        assertThat(forcedRiderStop).as("강제 추가 시 지정한 정차지가 학생의 탑승 기록에 그대로 반영돼야 한다")
+                .isEqualTo(forcedStop);
+
+        Long versionId = jdbcTemplate.queryForObject(
+                "SELECT current_version_id FROM confirmed_route WHERE run_id = ?", Long.class, runId);
+        List<Long> runStopIds = jdbcTemplate.queryForList("SELECT stop_id FROM run_stop WHERE route_version_id = ?",
+                Long.class, versionId);
+        assertThat(runStopIds).as("강제 추가된 정차지가 편성 노선 밖이어도 실제 배포 노선에 나타나야 한다")
+                .contains(forcedStop);
     }
 
     @Test
