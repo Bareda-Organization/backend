@@ -101,13 +101,13 @@ public class ApprovalQueryService {
 
     /** 승인 대기 목록(§5.5 목록) — 재최적화를 실행하지 않는다. 저장된 값과 단순 집계만 반환한다. */
     public ApprovalListResponse list(AuthUser requester, ChangeRequestStatus status) {
-        Long academyId = requester.academyId();
         List<ChangeRequest> requests = changeRequestRepository
-                .findAllByAcademyIdAndStatusOrderByRequestedAtAsc(academyId, status);
+                .findAllByAcademyIdAndStatusOrderByRequestedAtAsc(requester.academyId(), status);
         List<ApprovalSummaryResponse> items = requests.stream()
-                .map(cr -> toSummary(cr, academyId))
+                .map(cr -> toSummary(cr, requester.academyId()))
                 .toList();
-        long pendingCount = changeRequestRepository.countByAcademyIdAndStatus(academyId, ChangeRequestStatus.PENDING);
+        long pendingCount = changeRequestRepository.countByAcademyIdAndStatus(requester.academyId(),
+                ChangeRequestStatus.PENDING);
         return ApprovalListResponse.of(items, pendingCount);
     }
 
