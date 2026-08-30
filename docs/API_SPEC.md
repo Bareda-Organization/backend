@@ -720,7 +720,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | `run_status` | enum | ● | `idle` · `confirmed` · `moving` · `finished` |
 | `confirmed` | boolean | ● | `false` 면 명단 진입 불가 |
 | `confirm_at` | datetime | ○ | 확정 예정 시각 = 출발 **30분 전**. 미확정 회차는 이 값만 반환 |
-| `start_window` | object | ● | `from` · `to` — 출발 시각 **±3분** |
+| `start_window` | object | ● | `from` · `to` — 출발 시각 **±10분** |
 | `added_count` · `removed_count` | integer | ● | 변경 배지 |
 | `ack_required` | boolean | ● | 노선 변경 확인 응답 미완료 여부 (RUN-07) |
 | `role_in_run` | enum | ● | `driver` · `escort` — 화면 구성 결정 |
@@ -834,12 +834,12 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 | 처리 | 내용 |
 |---|---|
-| 창 | 출발 시각 **±3분** 이내에만 허용. 밖이면 `403 START_WINDOW_CLOSED` |
+| 창 | 출발 시각 **±10분** 이내에만 허용. 밖이면 `403 START_WINDOW_CLOSED` |
 | 상태 | `Run.status` → `moving` |
 | 부수 효과 | 위치 송신 시작 · **노선 전면 잠금**(③ 구간 진입) · 운행 시작 알림(NTF-05) |
 | 하원 | 탑승자 **전원 자동 `boarded`** (C-07 · BRD-03) |
 
-**에러** — `403 DRIVER_ONLY` · `403 START_WINDOW_CLOSED`(출발 시각 **±3분** 창 밖) · `409 RUN_ALREADY_STARTED`(이미 `moving` · `finished`) · `409 RUN_NOT_CONFIRMED` · `404 RUN_NOT_FOUND` · `403 FORBIDDEN`(배치되지 않은 회차)
+**에러** — `403 DRIVER_ONLY` · `403 START_WINDOW_CLOSED`(출발 시각 **±10분** 창 밖) · `409 RUN_ALREADY_STARTED`(이미 `moving` · `finished`) · `409 RUN_NOT_CONFIRMED` · `404 RUN_NOT_FOUND` · `403 FORBIDDEN`(배치되지 않은 회차)
 
 ### 4.5 POST /runs/{runId}/stops/{stopId}/arrive
 
@@ -1068,7 +1068,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 외부 내비게이션 앱 연동 (**RUN-08**, M-09). **2026-08-26 신설 — 사용자 요청.**
 
-확정 노선을 티맵·카카오내비로 넘기기 위한 **좌표열**을 반환한다. **서버는 딥링크 URL 을 만들지 않는다** — 아래 "서버가 하는 일 / 앱이 하는 일" 참조.
+확정 노선을 외부 내비 앱으로 넘기기 위한 **좌표열**을 반환한다. **MVP 는 카카오내비 단독**(2026-08-31 확정, Ruling 204). **서버는 딥링크 URL 을 만들지 않는다** — 아래 "서버가 하는 일 / 앱이 하는 일" 참조.
 
 **권한** 해당 회차에 배치된 기사·동승자 (§4.3 과 같은 범위)
 
@@ -1076,14 +1076,15 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 | 파라미터 | 타입 | 필수 | 설명 |
 |---|---|:-:|---|
-| `provider` | enum | ● | `tmap` · `kakao` — **경유지 상한이 앱마다 달라** 서버가 이 값으로 자를 개수를 정한다 |
 | `scope` | enum | ○ | `next`(기본 — 다음 목적지 1개) · `remaining`(남은 전 구간) |
+
+⚠ **어느 내비 앱을 쓸지는 요청이 고르지 않는다 (Ruling 201, 2026-08-31).** 활성 공급자는 서버 설정 `app.navigation.provider` 하나가 정하고 응답이 알려준다. 요청 파라미터로 받으면 **공급자를 바꿀 때 앱을 새로 배포**해야 하는데, 정작 바뀌는 값(경유지 상한)은 서버만 아는 것이라 앱이 고를 근거가 없다.
 
 **응답**
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|:-:|---|
-| `provider` | enum | ● | 요청값 반향 |
+| `provider` | enum | ● | **서버가 정한 활성 공급자.** 앱은 이 값으로 띄울 내비를 고른다 |
 | `origin` | object | ○ | `lat` · `lng` · `name` — 출발지. `moving` 이면 **미반환**(앱이 현재 위치를 쓴다) |
 | `waypoints[]` | array | ● | 경유지. `lat` · `lng` · `name` · `stop_id` · `seq`. **순서가 곧 주행 순서** |
 | `destination` | object | ● | `lat` · `lng` · `name` · `stop_id` — 최종 목적지 |
@@ -1103,7 +1104,18 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 **`arrived_at` 이 찍힌 승하차지는 제외**한다 — 이미 지난 지점이다.
 
-⚠ **경유지 상한 값은 미확정** (오픈 이슈 **V**). 앱별 실측 전까지 `scope=next` 만 신뢰할 수 있다.
+**`confirmed` 회차(출발 30분 전 ~ 운행 시작 전)에서도 호출할 수 있다** — 막는 것은 `idle` 뿐이다. 노선이 확정된 시점부터 기사가 경로를 미리 볼 수단이 이 엔드포인트이기 때문이며(X-01 확정 사항, Ruling 202), 이때는 아직 출발 전이라 `origin` 에 **출발지 좌표를 담아 반환**한다. `moving` 이면 `origin` 을 비워 앱이 현재 위치를 쓰게 한다.
+
+**공급자별 승하차지 상한** (오픈 이슈 **V** 해소 — 2026-08-31 실측, Ruling 204)
+
+| 공급자 | 넘길 수 있는 승하차지 | 근거 | MVP |
+|---|:-:|---|:-:|
+| `kakao` | **4** = 경유지 3 + 목적지 1 | 카카오 SDK 레퍼런스 `navigateIntent(destination, option, viaList)` 의 `viaList` 가 **"경유지 목록(최대: 3개)"** 로 명시 | ● 단독 |
+| `tmap` | 1 (목적지만) | 앱 실행 스킴의 경유지 파라미터에 **공식 근거 부재** — SK 가 스킴 규격을 미공개 | ➖ 미구현 |
+
+⚠ **앱에서 사용자가 손으로 넣을 수 있는 경유지 수(카카오 5 · 티맵 5)와 다른 앱이 넘겨 줄 수 있는 수는 별개 값이다.** 손 입력 수를 상한으로 잡으면 실제보다 넓게 잡아 조용히 잘린다.
+
+**MVP 는 `kakao` 단독** (2026-08-31 사용자 확정). `tmap` 은 **enum 값으로만 남기고 구현하지 않는다** — 상한 1 이라 `scope=remaining` 이 사실상 `next` 와 같아져 기능이 성립하지 않는다. 티맵 전환은 어댑터 1개 추가 + 설정 변경으로 닫는다.
 
 **에러** — `409 RUN_NOT_CONFIRMED`(확정 전 `idle` 회차) · `409 NAV_NO_REMAINING_STOP`(남은 승하차지 부재 — 전 구간 도착 완료) · `404 RUN_NOT_FOUND` · `403 FORBIDDEN`(배치되지 않은 회차)
 
@@ -1696,7 +1708,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 `FEATURE_SPEC §2.1` 이 정책 상수 중 **유일하게 "학원별 설정"으로 규정한 값**. 조회·수정 경로가 없으면 그 규정 자체가 성립 불가.
 
-⚠ **다른 정책 상수(30분 · ±3분 · 14일 · 5회 등)는 전역 값이라 이 엔드포인트의 대상 밖** — 학원이 바꿀 수 있게 하면 사양이 흔들림.
+⚠ **다른 정책 상수(30분 · ±10분 · 14일 · 5회 등)는 전역 값이라 이 엔드포인트의 대상 밖** — 학원이 바꿀 수 있게 하면 사양이 흔들림.
 
 **에러** — `422 VALIDATION_FAILED`(허용 범위 밖 값)
 
@@ -2007,7 +2019,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 |---|:-:|---|
 | `CHANGE_WINDOW_CLOSED` | 403 | 3구간 위반 — ③ 구간(운행 시작 후)의 노선 변경·위치 변경·되돌리기·경유 지점 지정 시도, 또는 ② 구간에서 강제 추가 시도. ③ 구간의 미등원(`riding=false`)은 예외로 허용 (C-04) |
 | `CHANGE_LIMIT_REACHED` | 403 | 해당 회차의 ② 구간 변경 **1회** 소진. 한도 단위는 회차(`Run`)이며 다른 회차는 미영향. 문구 "금일은 변경할 수 없습니다" (C-04) |
-| `START_WINDOW_CLOSED` | 403 | 운행 시작 요청이 출발 시각 **±3분** 창 밖 (M-07) |
+| `START_WINDOW_CLOSED` | 403 | 운행 시작 요청이 출발 시각 **±10분** 창 밖 (M-07) |
 | `APPROVAL_ALREADY_DECIDED` | 409 | 이미 처리된 승인 건 재처리 |
 | `EMERGENCY_CANCEL_WINDOW_CLOSED` | 409 | 비상 알림 취소 창(발신 +**1분**) 경과 (EXC-04) |
 | `ALREADY_ACKED` | 409 | 이미 확인된 비상 알림 재확인 |
@@ -2079,7 +2091,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 |---|---|---|
 | `idle` | 운행 전 | 초기 |
 | `confirmed` | 노선 확정 | 출발 **30분 전** 배치 실행 |
-| `moving` | 운행 중 | 기사가 운행모드 시작 (출발 **±3분**) |
+| `moving` | 운행 중 | 기사가 운행모드 시작 (출발 **±10분**) |
 | `finished` | 운행 종료 | 최종 도착 처리로 서버가 전이 (C-15). 하원 미하차 잔류 중에는 미전이 |
 
 ### 9.4 탑승 상태 (`RunRider.status`)
@@ -2148,7 +2160,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `emergency.type` | `accident` · `vehicle_fault` · `student_emergency` · `etc` | EXC-04. **`report_type` 과 별개** — 예외 보고는 관계자 통지, 비상은 관계자+메인 관리자 동시 + 팝업 |
 | `contact_attempt` | `call` · `message` / `answered` · `no_answer` | EXC-01 연락 시도 |
 | `gender` | `male` · `female` | 학생 기본 정보 |
-| `nav_provider` | `tmap` · `kakao` | 외부 내비게이션 앱 (RUN-08 · §4.16). **경유지 상한이 앱마다 달라** 서버가 자를 개수를 이 값으로 정한다 |
+| `nav_provider` | `kakao` · ~~`tmap`~~ | 외부 내비게이션 앱 (RUN-08 · §4.16). **응답 전용** — 서버 설정이 정한 활성 공급자를 앱에 알린다(Ruling 201). **MVP 는 `kakao` 만 구현**하고 `tmap` 은 자리만 둔다 |
 | `nav_scope` | `next` · `remaining` | 내비에 넘길 범위 — 다음 목적지 1개 · 남은 전 구간 (RUN-08) |
 | `academy_status` | `active` · `inactive` | 비활성화해도 기존 로그인 유지 (ACAD-04) |
 
