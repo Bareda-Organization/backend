@@ -40,6 +40,7 @@ public interface ChangeRequestRepository extends JpaRepository<ChangeRequest, Lo
      */
     List<ChangeRequest> findAllByAcademyIdAndStudentIdOrderByRequestedAtDesc(Long academyId, Long studentId);
 
+    /**
      * 승인 대기 배지 수(§5.5 목록의 {@code pending_count}) — {@code status} 조회 파라미터가
      * {@code pending} 이 아닌 값으로 필터링된 화면에서도, 관리자가 지금 처리해야 할 건수는 그대로
      * 알아야 한다. 그래서 목록에 실린 {@code items} 개수({@code status} 필터를 그대로 따름)와
