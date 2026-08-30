@@ -27,7 +27,7 @@ import org.junit.jupiter.api.Test;
  */
 class SchemaContractTest extends MigratedPostgresTestBase {
 
-    /** ERD §3 이 정의한 39개 테이블 전수. Flyway 자신의 이력 테이블은 대조 대상 밖이다. */
+    /** ERD §3 이 정의한 40개 테이블 전수(Phase 8 신설 run_forced_addition 포함). Flyway 자신의 이력 테이블은 대조 대상 밖이다. */
     private static final List<String> ERD_TABLES = List.of(
             // ① 학원 · 계정 · 권한 (7)
             "academy", "academy_setting", "account", "signup_request",
@@ -35,9 +35,10 @@ class SchemaContractTest extends MigratedPostgresTestBase {
             // ② 학생 · 보호자 · 주소 (7)
             "student", "guardian", "guardian_student", "link_request",
             "verification_code", "link_code", "weekly_address",
-            // ③ 차량 · 인력 · 운행 · 노선 (13)
+            // ③ 차량 · 인력 · 운행 · 노선 (14)
             "bus", "manager", "stop", "schedule", "route", "route_stop", "run",
             "waypoint", "confirmed_route", "route_version", "run_stop", "run_rider", "assignment",
+            "run_forced_addition",
             // ④ 요청 · 예외 · 알림 · 이력 (12)
             "boarding_intent", "change_request", "rider_status_history", "no_show_case",
             "no_show_contact", "emergency_alert", "exception_report", "run_position",
@@ -52,7 +53,7 @@ class SchemaContractTest extends MigratedPostgresTestBase {
     }
 
     @Test
-    void V1_을_적용하면_public_스키마의_테이블_집합이_ERD_39개와_정확히_일치한다() throws SQLException {
+    void V1_을_적용하면_public_스키마의_테이블_집합이_ERD_40개와_정확히_일치한다() throws SQLException {
         List<String> actual = queryColumn("""
                 SELECT table_name FROM information_schema.tables
                 WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
@@ -60,7 +61,7 @@ class SchemaContractTest extends MigratedPostgresTestBase {
                 """);
 
         assertThat(actual)
-                .as("개수가 아니라 이름 집합으로 대조한다 — 오타난 이름이 39개를 채우면 개수만으로는 통과한다")
+                .as("개수가 아니라 이름 집합으로 대조한다 — 오타난 이름이 40개를 채우면 개수만으로는 통과한다")
                 .containsExactlyInAnyOrderElementsOf(ERD_TABLES);
     }
 
