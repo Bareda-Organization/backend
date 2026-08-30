@@ -147,6 +147,15 @@ public class ChangeRequest {
         this.deadlineAt = deadlineAt;
     }
 
+    /**
+     * 학부모가 적은 변경 사유를 채운다(API_SPEC §3.8 {@code reason}, 선택). 다른 NN 아닌 필드들과 같은
+     * 이유로 {@link #forRequest} 생성자에 넣지 않았다 — 접수 시점에 없어도 되는 값이라 필수 8개 파라미터
+     * 사이에 섞으면 어떤 값이 진짜 필수인지 시그니처만 봐서는 갈리지 않는다.
+     */
+    public void assignReason(String reason) {
+        this.reason = reason;
+    }
+
     /** 아직 대기 중이 아니면 {@code 409 APPROVAL_ALREADY_DECIDED} — 세 전이 메서드가 공유하는 가드. */
     public void assertPending() {
         if (status != ChangeRequestStatus.PENDING) {
