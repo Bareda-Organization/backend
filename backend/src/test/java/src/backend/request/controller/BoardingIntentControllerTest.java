@@ -2,6 +2,7 @@ package src.backend.request.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -10,8 +11,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Map;
 
 import jakarta.persistence.EntityManager;
@@ -29,6 +32,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import src.backend.academy.repository.AcademyRepository;
@@ -37,18 +41,25 @@ import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
+import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
+import src.backend.global.common.enums.Weekday;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.request.command.BoardingIntentFixtures;
 import src.backend.routing.pipeline.RouteComputationPipeline;
 import src.backend.routing.repository.ConfirmedRouteRepository;
+import src.backend.routing.repository.RouteRepository;
+import src.backend.routing.repository.RouteStopRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
+import src.backend.run.command.RunConfirmationFixtures;
+import src.backend.run.command.RunConfirmationService;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
+import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
  * 탑승 의사 토글(ATT-01·02, P-03, API_SPEC §3.6) — Phase 8 목표 1·2·5·8·9(부분).
@@ -122,10 +133,29 @@ class BoardingIntentControllerTest {
     @Autowired
     private RunStopRepository runStopRepository;
 
-    @Autowired
+    /**
+     * 목표2(롤백) 시험이 이 저장소를 스파이로 감싸 {@code requestApproval} 의 응답 조립 직전 호출을
+     * 겨냥해 강제로 예외를 던진다 — 나머지 시험은 실제 구현 그대로 위임되니 영향이 없다.
+     */
+    @MockitoSpyBean
     private RunRiderRepository runRiderRepository;
 
+    @Autowired
+    private RouteRepository routeRepository;
+
+    @Autowired
+    private RouteStopRepository routeStopRepository;
+
+    @Autowired
+    private WeeklyAddressRepository weeklyAddressRepository;
+
+    /** 목표1 후반부 시험이 "확정 배치 1틱" 을 직접 실행하는 데 쓴다({@code RunConfirmationServiceTest} 와 같은 이유). */
+    @Autowired
+    private RunConfirmationService confirmationService;
+
     private BoardingIntentFixtures fixtures;
+
+    private RunConfirmationFixtures confirmationFixtures;
 
     @TestConfiguration
     static class FixedClockConfig {
@@ -147,6 +177,15 @@ class BoardingIntentControllerTest {
                     runStopRepository, runRiderRepository);
         }
         return fixtures;
+    }
+
+    /** 확정 배치가 정상 경로로 읽어 낼 학원 좌표·노선·요일별 주소를 쌓는다 — {@code RunConfirmationServiceTest} 와 같은 헬퍼. */
+    private RunConfirmationFixtures confirmationFixtures() {
+        if (confirmationFixtures == null) {
+            confirmationFixtures = new RunConfirmationFixtures(academyRepository, busRepository, routeRepository,
+                    routeStopRepository, stopRepository, studentRepository, weeklyAddressRepository, runRepository);
+        }
+        return confirmationFixtures;
     }
 
     // ── 목표 1 — ①구간 즉시 반영, 재최적화 미호출 ──────────────────────────
@@ -182,6 +221,65 @@ class BoardingIntentControllerTest {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT riding FROM boarding_intent WHERE run_id = ? AND student_id = ?", Boolean.class, runId,
                 studentId)).isFalse();
+    }
+
+    /**
+     * 목표1 후반부 — 위 시험은 토글 응답과 {@code boarding_intent.riding} 까지만 보고 끝나, 확정 배치를
+     * 실제로 돌리는 코드가 하나도 없었다(게이트 리뷰 Important 1). 이 시험은 {@link
+     * RunConfirmationService#confirmOne} 을 직접 1틱 실행해, ①구간에서 제외된 학생이 그 산출물에서
+     * 실제로 빠지는지를 본다.
+     *
+     * <p>T3 게이트 리뷰가 저장 산출물({@code run_rider}·이 태스크에 대응하는 자리)만 보다가 노선 계산
+     * 산출물({@code run_stop})의 사각지대를 놓친 전례를 따라, 이 시험도 <b>양쪽을 모두</b> 본다 —
+     * {@code RunConfirmationService} 의 제외 필터가 {@code studentIds}(노선 계산 입력)와
+     * {@code studentStops}(저장) 양쪽에 걸려 있으므로, 검사도 양쪽을 봐야 "명단에는 빠졌는데 버스는
+     * 그 집에 들르는" 형태의 사각지대를 잡을 수 있다.
+     */
+    @Test
+    @DisplayName("목표1(후반부) — ①구간 제외 학생은 확정 배치의 run_rider·run_stop 양쪽에서 빠진다")
+    void 즉시반영구간_제외_학생은_확정배치_산출물_양쪽에서_빠진다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = confirmationFixtures().academyWithCoordinates();
+        long busId = confirmationFixtures().bus(academyId);
+        long excludedStop = confirmationFixtures().stop(academyId, "37.560000", "126.970000");
+        long remainingStop = confirmationFixtures().stop(academyId, "37.561000", "126.971000");
+        confirmationFixtures().route(academyId, busId, Weekday.MON, Direction.TO_ACADEMY, excludedStop,
+                remainingStop);
+
+        long excludedStudentId = confirmationFixtures().student(academyId, "제외학생");
+        long remainingStudentId = confirmationFixtures().student(academyId, "잔류학생");
+        confirmationFixtures().verifiedAddress(excludedStudentId, excludedStop, Weekday.MON, Direction.TO_ACADEMY,
+                "37.560000", "126.970000");
+        confirmationFixtures().verifiedAddress(remainingStudentId, remainingStop, Weekday.MON, Direction.TO_ACADEMY,
+                "37.561000", "126.971000");
+
+        BoardingIntentFixtures.GuardianAccount guardian = fixtures().guardian(academyId, "보호자10");
+        fixtures().linkChild(guardian.guardianId(), excludedStudentId, now.minusDays(1));
+        long runId = fixtures().run(academyId, busId, now.plusHours(3), now.plusMinutes(150));
+
+        mockMvc.perform(patch(INTENT.formatted(excludedStudentId, runId))
+                        .header("Authorization", 토큰(guardian.accountId(), academyId, Role.PARENT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"riding\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.result").value("applied"));
+
+        entityManager.flush();
+        confirmationService.confirmOne(runId);
+        entityManager.flush();
+
+        assertThat(jdbcTemplate.queryForList("SELECT student_id FROM run_rider WHERE run_id = ?", Long.class, runId))
+                .as("확정 배치가 만드는 run_rider 명단에 제외 학생이 남아 있으면 안 된다")
+                .containsExactly(remainingStudentId);
+
+        Long versionId = jdbcTemplate.queryForObject(
+                "SELECT current_version_id FROM confirmed_route WHERE run_id = ?", Long.class, runId);
+        List<Long> runStopIds = jdbcTemplate.queryForList("SELECT stop_id FROM run_stop WHERE route_version_id = ?",
+                Long.class, versionId);
+        assertThat(runStopIds)
+                .as("노선 계산 입력(run_stop)에서도 제외돼야 한다 — 저장(run_rider)만 보면 " + "\"명단에는 없는데 버스는 그 집에 들르는\" 사각지대를 놓친다")
+                .doesNotContain(excludedStop)
+                .contains(remainingStop);
     }
 
     // ── 목표 2 — ②구간 승인 대기, 기존값 응답 ───────────────────────────────
@@ -227,6 +325,60 @@ class BoardingIntentControllerTest {
         assertThat(changeRequest.get("type")).isEqualTo("cancel");
         assertThat(changeRequest.get("status")).isEqualTo("pending");
         assertThat(((Number) changeRequest.get("window_segment")).shortValue()).isEqualTo((short) 2);
+    }
+
+    /**
+     * 목표2 — 롤백 시 알림 미적재(게이트 리뷰 Important 2). {@code requestApproval} 은 {@code
+     * ApprovalRequestedEvent} 를 발행한 뒤에도 응답을 조립하려고 {@link RunRiderRepository
+     * #findByRunIdAndStudentId} 를 한 번 더 부른다(§3.6 순서상 마지막) — 그 호출을 스파이로 강제
+     * 실패시켜 "리스너가 이미 알림을 적재했는데 그 뒤가 실패한" 상황을 재현한다.
+     *
+     * <p>기존 {@code NotificationOutboxTransactionTest} 는 {@code NotificationOutbox#append} 를
+     * 직접 호출해 그 함수 자체의 원자성만 본다 — 이 시험처럼 "토글 → 이벤트 발행 →
+     * {@code IntentNotificationListener} → 적재" 라는 이 엔드포인트 고유의 경로를 지나지 않는다.
+     *
+     * <p>이 클래스 전체가 {@code @Transactional} 이라 mockMvc 호출이 여는 서비스 트랜잭션은 기본값
+     * (REQUIRED)이면 시험 트랜잭션에 합류한다 — 그러면 여기서 강제한 예외가 나도 실제 롤백은 시험
+     * 종료 시점에야 일어나, 같은 트랜잭션 안의 SELECT 는 "아직 롤백되지 않은 자기 자신의 쓰기"를
+     * 그대로 본다.
+     *
+     * <p>이 메서드만 {@link Propagation#NOT_SUPPORTED} 로 시험용 트랜잭션 자체를 끈다 — 그래야
+     * 준비 데이터(학원·학생·회차 등)가 각자 자기 트랜잭션으로 실제 커밋되고, 뒤이은 mockMvc 호출도
+     * 자기 트랜잭션에서 실제로 롤백된다. (REQUIRES_NEW 로 새 트랜잭션을 여는 방식은 시도했으나,
+     * 그 새 트랜잭션은 별도 커넥션이라 아직 커밋되지 않은 준비 데이터를 보지 못해 요청 자체가
+     * 실패했다 — 그래서 트랜잭션을 미루는 대신 아예 끈다.) 이 시험이 만든 행은 커밋된 채로
+     * 남지만, 매번 새로 생성하는 식별자를 쓰므로 이후 실행과 충돌하지 않는다.
+     */
+    @Test
+    @DisplayName("목표2 — 트랜잭션이 롤백되면 approval_requested 알림도 남지 않는다")
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void 승인대기_처리가_롤백되면_알림도_남지_않는다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long studentId = fixtures().student(academyId, "학생10");
+        long staffAccountId = fixtures().staffAccount(academyId);
+        BoardingIntentFixtures.GuardianAccount guardian = fixtures().guardian(academyId, "보호자11");
+        fixtures().linkChild(guardian.guardianId(), studentId, now.minusDays(1));
+        long runId = fixtures().run(academyId, busId, now.plusMinutes(20), now.minusMinutes(10));
+
+        doThrow(new RuntimeException("응답 조립 직전 실패를 대신한다 — 롤백을 강제한다"))
+                .when(runRiderRepository).findByRunIdAndStudentId(runId, studentId);
+
+        mockMvc.perform(patch(INTENT.formatted(studentId, runId))
+                        .header("Authorization", 토큰(guardian.accountId(), academyId, Role.PARENT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"riding\":false}"))
+                .andExpect(status().is5xxServerError());
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM change_request WHERE run_id = ? AND student_id = ?", Integer.class, runId,
+                studentId)).as("트랜잭션이 롤백됐으니 change_request 도 남지 않아야 한다").isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM notification_log WHERE recipient_account_id = ? AND type = 'approval_requested' AND dedup_key LIKE ?",
+                Integer.class, staffAccountId, "approval_requested:" + runId + ":%"))
+                .as("리스너가 이벤트 발행 시점에 이미 적재를 시도했더라도, 트랜잭션이 롤백되면 그 행도 함께 사라져야 한다")
+                .isZero();
     }
 
     // ── 목표 5 — 한도 소진 후 재요청은 403 ──────────────────────────────────
@@ -314,6 +466,11 @@ class BoardingIntentControllerTest {
         assertThat(runStop.get("seq")).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject("SELECT status FROM run_rider WHERE run_id = ? AND student_id = ?",
                 String.class, runId, studentId)).isEqualTo("absent");
+
+        Long versionIdAfterToggle = jdbcTemplate.queryForObject(
+                "SELECT current_version_id FROM confirmed_route WHERE run_id = ?", Long.class, runId);
+        assertThat(jdbcTemplate.queryForObject("SELECT version_no FROM route_version WHERE id = ?", Integer.class,
+                versionIdAfterToggle)).as("③구간은 재최적화가 없으니 route_version 도 불변이어야 한다(목표 8)").isEqualTo(1);
 
         mockMvc.perform(patch(INTENT.formatted(studentId, runId))
                         .header("Authorization", 토큰)
