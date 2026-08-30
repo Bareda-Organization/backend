@@ -3,13 +3,11 @@ package src.backend.global.security.access;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 
 /**
  * {@link AcademyScopeRepositoryConventionTest} 가 쓰는 <b>판정 전담</b> 술어 — 무엇이 학원 범위
@@ -74,32 +72,82 @@ final class AcademyScopeRule {
     }
 
     /**
-     * 학원 조건이 걸려 있으면 좁혀진 것으로 센다 — 메서드 이름 · {@code @Query} 본문 · {@code @Param}
-     * 셋 중 어디든 하나면 참이다. {@code @Query} 본문을 보는 축이 <b>부모 경유 조인</b>을 잡는다.
+     * 학원 조건이 걸려 있으면 좁혀진 것으로 센다. {@code @Query} 메서드와 파생 조회 메서드가
+     * <b>서로 다른 축</b>을 쓴다 — 하나로 묶었던 것이 Phase 7 이전의 형태였고, 그 형태가 아래 회피를
+     * 놓쳤다(Phase 6 T5 리뷰 실측, Phase 7 T6 이 고쳤다).
      *
-     * <p><b>이름 기반 판정은 넓다</b> — {@code getName().contains("AcademyId")} 만 보므로
-     * {@code findAllByAcademyIdIsNull} · {@code countByAcademyIdNot} 처럼 학원을 좁히는 것이 아니라
-     * <b>뒤집는</b> 이름도 통과한다. 좁힘의 의미까지 이름으로 판정하려면 Spring Data 파서를 흉내내야
-     * 하는데, 그 흉내가 틀리면 규칙을 지킨 조회가 실패한다. 현재 그런 메서드는 부재하고, 생기면
-     * {@code AcademyScopeIsolationTest} 의 HTTP 왕복 대조가 결과 행으로 잡는다.
+     * <p><b>{@code @Query} 가 있으면 이름 · {@code @Param} 을 근거로 쓰지 않는다.</b> 둘 다 쿼리 본문과
+     * 무관하게 메서드 시그니처에만 존재해, {@code @Query} 의 {@code WHERE} 절에서 학원 조건만 지워도
+     * 시그니처는 그대로 남는다 — {@code findAllOrderedByRouteIdAndAcademyId} 라는 이름과
+     * {@code @Param("academyId")} 가 조건이 빠진 뒤에도 계속 참을 낸 것이 이 결함의 본체였다. 그래서
+     * {@code @Query} 메서드는 {@link #conditionClauseContainsAcademyId} <b>하나만</b> 본다.
      *
-     * <p><b>{@code @Query} 축은 본문을 파싱하지 않고 부분 문자열 유무만 본다</b> — 이름이
-     * <b>조건절에</b> 있는지는 판정 대상 밖이라, {@code SELECT ... AS academyId} 같은 별칭이나
-     * 네이티브 쿼리의 주석에 적기만 해도 참이 된다. 현재 {@code @Query} 가 3건뿐이고 전부 조건절에
-     * 쓰므로 정밀도 손실이 관측되지 않을 뿐이다. <b>Phase 5·9 가 부모 조인을 늘리면</b> 조인 조건을
-     * 실제로 걸지 않고 이름만 적어 통과시키는 회피가 성립하므로, 그 시점에 조건절 파싱으로 좁히거나
-     * 부모 조인 저장소를 {@link AcademyScopeExempt} 처럼 명시 표시로 옮기는 판단이 필요하다.
+     * <p><b>{@code @Query} 가 없으면 이름이 유일한 근거다</b>({@code findAllByAcademyIdAnd...}) — 파생
+     * 조회는 본문이라 부를 것이 없어 이름 축을 죽이면 검사 대상 전부가 사라진다.
+     * {@code getName().contains("AcademyId")} 는 <b>넓은</b> 판정이라 {@code findAllByAcademyIdIsNull}
+     * 처럼 학원을 좁히는 것이 아니라 <b>뒤집는</b> 이름도 통과하지만, 좁힘의 의미까지 이름으로
+     * 판정하려면 Spring Data 파서를 흉내내야 하고 그 흉내가 틀리면 규칙을 지킨 조회가 실패한다. 현재
+     * 그런 메서드는 부재하고, 생기면 {@code AcademyScopeIsolationTest} 의 HTTP 왕복 대조가 결과 행으로
+     * 잡는다.
      */
     static boolean isNarrowedByAcademy(Method method) {
-        if (method.getName().contains("AcademyId")) {
-            return true;
-        }
         Query query = method.getAnnotation(Query.class);
-        if (query != null && (query.value().contains("academyId") || query.value().contains("academy_id"))) {
-            return true;
+        if (query != null) {
+            return conditionClauseContainsAcademyId(query.value());
         }
-        return Arrays.stream(method.getParameterAnnotations())
-                .flatMap(Arrays::stream)
-                .anyMatch(annotation -> annotation instanceof Param param && param.value().equals("academyId"));
+        return method.getName().contains("AcademyId");
+    }
+
+    /** {@code WHERE} 절 시작을 찾는다 — {@code @Modifying} UPDATE 문도 소문자 {@code where} 를 쓴다. */
+    private static final Pattern WHERE_KEYWORD = Pattern.compile("\\bWHERE\\b", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * {@code WHERE} 절의 끝을 찾는다 — 이 뒤는 결과의 모양(정렬·집계)이지 대상을 좁히는 조건이 아니다.
+     * {@code GROUP BY} 를 여기 넣은 이유가 곧 회피 형태 하나다: {@code SELECT s.academyId AS academyId
+     * ... GROUP BY s.academyId} 처럼 <b>WHERE 밖에서도 컬럼 이름이 등장</b>하는 집계 쿼리가 실제로 있어
+     * ({@code AcademyStaffRepository#countByAcademyIdInGroupedByAcademyId}), 끝 경계 없이 본문 전체를
+     * 뒤지면 {@code WHERE} 의 학원 조건을 지워도 {@code GROUP BY} 쪽 문자열이 남아 계속 참이 된다.
+     */
+    private static final Pattern CONDITION_END = Pattern.compile("\\b(GROUP\\s+BY|ORDER\\s+BY|HAVING)\\b",
+            Pattern.CASE_INSENSITIVE);
+
+    /** 줄 주석 — 표준 JPQL 문법은 아니지만 텍스트 판정을 우회할 목적으로 끼워 넣는 것을 막는다. */
+    private static final Pattern LINE_COMMENT = Pattern.compile("--[^\\n]*");
+
+    /** 블록 주석. */
+    private static final Pattern BLOCK_COMMENT = Pattern.compile("/\\*.*?\\*/", Pattern.DOTALL);
+
+    /**
+     * {@code @Query} 본문의 <b>{@code WHERE} 절 안</b>에 학원 식별자가 있는지 본다 — SQL 문법을
+     * 파싱하지 않고 절 경계(위 {@link #CONDITION_END})와 주석만 걷어내는 <b>텍스트 판정</b>이다.
+     *
+     * <p><b>어디까지 판정하는지</b> — {@code WHERE} 부터 {@code GROUP BY}·{@code ORDER BY}·
+     * {@code HAVING} 직전(또는 문자열 끝)까지의 구간에서 {@code academyId}·{@code academy_id} 부분
+     * 문자열을 찾는다. 주석은 먼저 걷어내 {@code -- AND r.academyId = :academyId} 처럼 조건인 척하는
+     * 주석이 참을 만들지 않게 한다. {@code SELECT} 절의 별칭({@code AS academyId})은 애초에
+     * {@code WHERE} 앞이라 이 구간에 들지 않는다.
+     *
+     * <p><b>어디부터 포기하는지</b> — 절 <b>경계</b>만 볼 뿐 조건의 <b>구조</b>는 안 본다. 예를 들어
+     * {@code WHERE r.academyIdOverride = :x} 처럼 학원과 무관한 컬럼이 우연히 그 이름을 포함해도
+     * 참으로 센다(현재 그런 컬럼은 부재). 이 한계를 넘으려면 JPQL 파서가 필요하고, 그 무게가
+     * 이 검사가 감당할 범위를 넘는다 — 놓친 회피는 {@code AcademyScopeIsolationTest} 의 HTTP 왕복
+     * 대조가 결과 행으로 잡는다. {@code WHERE} 자체가 없으면(현재 학원 범위 비예외 조회 중 그런
+     * 메서드는 부재) 좁혀지지 않은 것으로 본다 — 조건이 있는지 모를 때는 없는 쪽으로 판정해야
+     * 이 검사의 실패 방향이 "과잉 통과" 가 아니라 "과잉 거부" 가 된다.
+     */
+    static boolean conditionClauseContainsAcademyId(String jpql) {
+        String withoutComments = BLOCK_COMMENT.matcher(jpql).replaceAll(" ");
+        withoutComments = LINE_COMMENT.matcher(withoutComments).replaceAll(" ");
+
+        Matcher where = WHERE_KEYWORD.matcher(withoutComments);
+        if (!where.find()) {
+            return false;
+        }
+
+        Matcher end = CONDITION_END.matcher(withoutComments);
+        int conditionEnd = end.find(where.end()) ? end.start() : withoutComments.length();
+
+        String condition = withoutComments.substring(where.end(), conditionEnd);
+        return condition.contains("academyId") || condition.contains("academy_id");
     }
 }
