@@ -166,6 +166,16 @@ tasks.named('test') {
     // 6 인 이유는 동시성 테스트가 스레드 2개 × (바깥 트랜잭션 + REQUIRES_NEW) 만큼을 동시에 쥐기 때문이다.
     systemProperty 'spring.datasource.hikari.maximum-pool-size', '6'
 
+    // ⚠ 상한만으로는 부족하다. Hikari 의 minimumIdle 기본값은 maximumPoolSize 와 같아서, 컨텍스트가
+    // 일을 마치고 캐시에 남아 있는 동안에도 커넥션 6 개를 그대로 붙든다 — 상한을 낮추는 것은
+    // "한 컨텍스트가 얼마나 쥘 수 있나" 만 정하고 "안 쓰는 컨텍스트가 놓아주는가" 는 정하지 않는다.
+    // Phase 7 이 컨텍스트 종류를 늘리자(고정 시계 · RANDOM_PORT 실서버 · 동시성) 전체 실행에서
+    // 100 을 넘겨 "sorry, too many clients already" 로 3 개 클래스 25 건이 죽었다(실측 2026-08-30).
+    // 상한을 더 낮추지 않는 이유는 위 주석대로 6 이 동시성 테스트의 하한이기 때문이다 — 대신
+    // 쉬는 컨텍스트를 1 개로 줄여, 동시에 살아 있는 커넥션 총량이 컨텍스트 수에 비례하지 않게 한다.
+    systemProperty 'spring.datasource.hikari.minimum-idle', '1'
+    systemProperty 'spring.datasource.hikari.idle-timeout', '10000'
+
     // 학생 사진을 빌드 디렉터리 안에 쓴다 — 기본값(./var/photos)을 그대로 쓰면 테스트가 만든
     // 파일이 저장소 작업 트리에 남아 `git status` 를 더럽히고, 워크트리를 갈아탈 때 따라다닌다.
     systemProperty 'app.photo.local.root',
