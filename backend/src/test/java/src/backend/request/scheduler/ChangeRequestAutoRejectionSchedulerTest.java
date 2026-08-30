@@ -175,6 +175,26 @@ class ChangeRequestAutoRejectionSchedulerTest {
     }
 
     @Test
+    @DisplayName("목표1 경계 — 마감이 지금 이 순간이면(같음) 폴링이 즉시 거절한다")
+    void 마감이_지금과_같아도_폴링이_거절한다() {
+        long[] s = baseScenario();
+        long academyId = s[0];
+        long runId = s[1];
+        long studentId = s[2];
+        long parentId = s[3];
+
+        // deadline_at 을 폴링 기준 시각 now 와 정확히 같게 둔다 — <= 여야 이 경계를 포함한다.
+        long changeRequestId = fixtures.pendingChangeRequest(academyId, runId, studentId, parentId,
+                now.minusMinutes(10), now);
+
+        scheduler.rejectDueChangeRequests();
+
+        var request = changeRequestRepository.findById(changeRequestId).orElseThrow();
+        assertThat(request.getStatus()).as("deadline_at == now 는 이미 도래한 것으로 포함해야 한다")
+                .isEqualTo(ChangeRequestStatus.AUTO_REJECTED);
+    }
+
+    @Test
     @DisplayName("목표6 — 이미 처리된 요청은 폴링 질의에 다시 걸리지 않는다")
     void 이미_처리된_요청은_다시_걸리지_않는다() {
         long[] s = baseScenario();
