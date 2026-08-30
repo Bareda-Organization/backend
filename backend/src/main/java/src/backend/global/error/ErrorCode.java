@@ -190,6 +190,18 @@ public enum ErrorCode {
     // (ADDRESS_VERIFICATION_UNAVAILABLE 와 같은 형태).
     MAP_ROUTE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "경로 조회 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요"),
 
+    // ── 회차 확정 배치(Phase 7, RTE-08) ──────────────────────────────────────
+    // 두 코드 모두 HTTP 로 노출되지 않는다 — 확정 배치(RunConfirmationService)만 던지고, 배치
+    // 오케스트레이터가 잡아 해당 회차만 idle 로 되돌린 뒤 consecutive_failures 를 올린다
+    // (DUPLICATE_RUN 이 RunGenerationService 안에서만 잡히는 것과 같은 이중 용도 형태).
+    //
+    // 확정 대상 회차의 학원에 좌표(academy.lat/lng)가 없을 때(Ruling 190) — 그 회차만 실패하고
+    // 다음 틱에 재시도된다. 노선의 첫/마지막 정차지로 근사하지 않는다(Ruling 190 이 명시적으로 거부).
+    ACADEMY_COORDINATES_MISSING(HttpStatus.UNPROCESSABLE_CONTENT, "학원 좌표가 등록되지 않았습니다"),
+    // 회차의 (bus, weekday, direction) 조합에 대응하는 고정 노선이 없거나, 노선에 정차지가 하나도
+    // 편성되지 않았을 때 — origin/destination 을 정할 기준점 자체가 없다.
+    ROUTE_NOT_CONFIGURED_FOR_RUN(HttpStatus.UNPROCESSABLE_CONTENT, "회차에 대응하는 고정 노선이 없습니다"),
+
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다");
 
     private final HttpStatus status;

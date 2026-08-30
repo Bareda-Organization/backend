@@ -64,20 +64,26 @@ public class RunStop {
     @Column(name = "eta")
     private OffsetDateTime eta;
 
-    private RunStop(Long routeVersionId, Long stopId, Long waypointId, int seq) {
+    private RunStop(Long routeVersionId, Long stopId, Long waypointId, int seq, OffsetDateTime eta) {
         this.routeVersionId = routeVersionId;
         this.stopId = stopId;
         this.waypointId = waypointId;
         this.seq = seq;
+        this.eta = eta;
     }
 
-    /** 배포 버전에 학생 승하차지를 정차 항목으로 배정할 때 생성한다(RTE-05). */
-    public static RunStop forStop(Long routeVersionId, Long stopId, int seq) {
-        return new RunStop(routeVersionId, stopId, null, seq);
+    /**
+     * 배포 버전에 학생 승하차지를 정차 항목으로 배정할 때 생성한다(RTE-05).
+     *
+     * <p>{@code eta} 는 확정 배치(Phase 7)가 노선 계산 ④단계 산출물을 그대로 넘긴다 — 관제(O-05)
+     * 가 읽는 값이라 처음부터 채워 넣지 않으면 첫 확정 노선의 정차지마다 시각이 비게 된다.
+     */
+    public static RunStop forStop(Long routeVersionId, Long stopId, int seq, OffsetDateTime eta) {
+        return new RunStop(routeVersionId, stopId, null, seq, eta);
     }
 
-    /** 배포 버전에 강제 경유지를 정차 항목으로 배정할 때 생성한다(RTE-10). */
-    public static RunStop forWaypoint(Long routeVersionId, Long waypointId, int seq) {
-        return new RunStop(routeVersionId, null, waypointId, seq);
+    /** 배포 버전에 강제 경유지를 정차 항목으로 배정할 때 생성한다(RTE-10) — {@code eta} 는 {@link #forStop} 과 같다. */
+    public static RunStop forWaypoint(Long routeVersionId, Long waypointId, int seq, OffsetDateTime eta) {
+        return new RunStop(routeVersionId, null, waypointId, seq, eta);
     }
 }
