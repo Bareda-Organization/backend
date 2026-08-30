@@ -69,12 +69,19 @@ public class RunConfirmationPersistence {
      * 스레드 중 나중 것이 진 경우다. 이미 진 경쟁에서 계산 결과를 그대로 버리는 것이 맞다 — 먼저
      * 확정한 스레드의 결과와 이 결과가 같은 입력에서 나왔다는 보장이 없어(그 사이 명단이 바뀌었을 수
      * 있다), 대신 넣으면 먼저 커밋된 버전을 뒤엎는 꼴이 된다.
+     *
+     * @return 이 호출이 실제로 확정을 저장했으면 {@code true}, 진 경쟁이라 조용히 반환했으면
+     *         {@code false} — 호출부({@code RunConfirmationService#confirmOne})가 이 값으로 배치
+     *         지연 지표(목표 8)를 승자 1건에만 기록한다. 반환값이 없던 시절엔 진 스레드도 이 지점까지
+     *         정상 도달해 지표 표본이 확정 사건 수보다 부풀었다 — 이 지표의 존재 목적(증설 판단 신호,
+     *         {@code ARCHITECTURE §9.4})이 인스턴스를 늘려 경합이 잦아지는 바로 그 시점에 가장
+     *         부정확해지는 결함이었다.
      */
-    public void persist(Run run, RouteComputation computation, GeoPoint origin, GeoPoint destination,
+    public boolean persist(Run run, RouteComputation computation, GeoPoint origin, GeoPoint destination,
             Weekday weekday, Map<Long, Long> studentStops, OffsetDateTime confirmedAt) {
         int updated = runRepository.confirmIfIdle(run.getId(), confirmedAt);
         if (updated == 0) {
-            return;
+            return false;
         }
 
         ConfirmedRoute confirmedRoute = ConfirmedRoute.forRun(run.getId(), confirmedAt);
@@ -94,6 +101,8 @@ public class RunConfirmationPersistence {
 
         eventPublisher.publishEvent(
                 new RunRouteConfirmedEvent(run.getId(), run.getAcademyId(), run.getBusId(), confirmedAt));
+
+        return true;
     }
 
     /** {@code computation.stops()} 와 {@code etas()} 는 자리로 대응한다({@link RouteComputation} 계약). */

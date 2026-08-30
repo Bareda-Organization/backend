@@ -19,6 +19,7 @@ import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.observability.metrics.RunConfirmationMetrics;
 import src.backend.routing.domain.GeoPoint;
 import src.backend.routing.entity.Route;
 import src.backend.routing.entity.RouteStop;
@@ -83,6 +84,8 @@ public class RunConfirmationService {
     private final RouteComputationPipeline pipeline;
 
     private final RunConfirmationPersistence persistence;
+
+    private final RunConfirmationMetrics metrics;
 
     private final Clock clock;
 
@@ -158,11 +161,20 @@ public class RunConfirmationService {
         // 외부 지도 API 를 부르는 계산은 트랜잭션 밖에서 돈다(클래스 javadoc) — 여기까지는 읽기뿐이다.
         RouteComputation computation = pipeline.compute(input);
 
-        // T4(배치 지연 계측)가 계측할 지점 — run.getConfirmAt()(판정 시각)과 이 confirmedAt(완료
-        // 시각)이 동시에 확보되는 유일한 자리다. 계측 자체는 여기서 하지 않는다(T4 소유).
+        // run.getConfirmAt()(판정 시각)과 이 confirmedAt(완료 시각)이 동시에 확보되는 유일한
+        // 자리라 배치 지연 지표(목표 8)를 여기서 계측한다.
         OffsetDateTime confirmedAt = OffsetDateTime.now(clock);
 
-        persistence.persist(run, computation, origin, destination, weekday, studentStops, confirmedAt);
+        boolean persisted = persistence.persist(run, computation, origin, destination, weekday, studentStops,
+                confirmedAt);
+        // persisted == false 는 동시 확정 경합에서 진 시도다(persist() javadoc) — 이 시도는 기록하지
+        // 않는다. 승패 신호 없이 무조건 기록하면 표본 수가 확정 사건 수보다 부풀어, 이 지표가 가장
+        // 필요한 순간(인스턴스 증설로 경합이 잦아질 때) 가장 부정확해진다. 실패해 위에서 예외로 빠진
+        // 시도는 이 줄에 닿지 않아 기록되지 않고, 다음 틱 재시도가 성공할 때 run.getConfirmAt() 은
+        // 그대로라 실패 구간까지 포함한 누적 지연으로 잡힌다.
+        if (persisted) {
+            metrics.recordLag(Duration.between(run.getConfirmAt(), confirmedAt));
+        }
     }
 
     /**
