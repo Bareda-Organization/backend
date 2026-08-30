@@ -68,6 +68,16 @@ public class AddressVerification {
     }
 
     /**
+     * 칸 하나만 검증한다(P-06 일일 변경 요청, API_SPEC §3.8) — {@link #verifyAll} 과 실패 응답 모양은
+     * 같되(§{@code failed_entries} 에 그 주소 하나), 요일·방향 슬롯이 없어 별도 경로로 둔다.
+     */
+    public GeocodedPoint verifySingle(String address) {
+        return geocode(address)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ADDRESS_VERIFICATION_FAILED,
+                        Map.of("failed_entries", List.of(address))));
+    }
+
+    /**
      * 공급자에 닿지 못한 것을 {@code 503} 으로 옮긴다 — {@code 422}(주소가 틀림)와 <b>다른 코드</b>다.
      *
      * <p>번역을 이 한 곳에서 하는 이유는 어댑터가 HTTP 상태를 정하지 않게 하기 위함이다

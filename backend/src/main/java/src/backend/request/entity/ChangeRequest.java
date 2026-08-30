@@ -126,6 +126,18 @@ public class ChangeRequest {
                 requestedBy, requestedAt);
     }
 
+    /**
+     * 경유지 이동(RELOCATE) 목표를 채운다(P-06, Phase 8) — 접수 시점에 이미 검증·매칭을 마친 값만
+     * 들어온다. CANCEL 요청은 이 메서드를 부르지 않아 네 필드가 전부 {@code null} 로 남는다(§20.2
+     * 조건부 CHECK 와 대응).
+     */
+    public void assignRelocationTarget(String newAddress, BigDecimal newLat, BigDecimal newLng, Long newStopId) {
+        this.newAddress = newAddress;
+        this.newLat = newLat;
+        this.newLng = newLng;
+        this.newStopId = newStopId;
+    }
+
     /** 아직 대기 중이 아니면 {@code 409 APPROVAL_ALREADY_DECIDED} — 세 전이 메서드가 공유하는 가드. */
     public void assertPending() {
         if (status != ChangeRequestStatus.PENDING) {
