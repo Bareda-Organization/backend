@@ -1,8 +1,11 @@
 package src.backend.request.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.request.entity.BoardingIntent;
@@ -29,4 +32,20 @@ public interface BoardingIntentRepository extends JpaRepository<BoardingIntent, 
             + "학원을 확인한다(DeviceTokenRepository.findByAccountIdAndDeviceId 와 같은 근거). boarding_intent 는 "
             + "academy_id 컬럼이 부재해 부모(run) 조인 없이는 이 조회 하나를 위해 재확인할 수도 없다")
     Optional<BoardingIntent> findByRunIdAndStudentId(Long runId, Long studentId);
+
+    /**
+     * ①구간 토글이 남긴 {@code riding=false} 학생 목록 — 확정 배치(목표 1)가 명단을 만들기 전에 이
+     * 목록을 걸러내야 {@code run_rider} 에 그 학생이 아예 생기지 않는다({@code RunConfirmationService}
+     * 가 {@code DailyRoster} 를 만들기 직전에 호출).
+     *
+     * <p>{@code runId} 는 확정 배치 스케줄러 자신이 {@code RunRepository.findByStatusAndConfirmAtLessThanEqual
+     * AndCanceledAtIsNullOrderByConfirmAtAsc} 로 이미 학원 범위를 거치지 않고 얻은 내부 식별자다 — 외부
+     * 요청이 아니라 배치 프로세스 스스로가 만든 값이라 호출부에 별도 학원 확인 지점이 없고, 이 조회
+     * 자체도 그 값을 그대로 받아 쓸 뿐이다.
+     */
+    @AcademyScopeExempt(reason = "runId 는 확정 배치 스케줄러가 내부적으로 순회하는 식별자다 — 외부 요청이 닿는 "
+            + "경로가 아니라 사용자 학원 범위를 확인할 지점 자체가 없다(RunRepository 의 배치 전용 조회와 같은 근거). "
+            + "boarding_intent 는 academy_id 컬럼이 부재해 조인 없이는 재확인할 수도 없다")
+    @Query("SELECT b.studentId FROM BoardingIntent b WHERE b.runId = :runId AND b.riding = false")
+    List<Long> findStudentIdsByRunIdAndRidingFalse(@Param("runId") Long runId);
 }
