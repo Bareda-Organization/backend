@@ -215,6 +215,9 @@ public enum ErrorCode {
     APPROVAL_NOT_FOUND(HttpStatus.NOT_FOUND, "승인 요청을 찾을 수 없습니다"),
     // 학생 탑승 가능 인원(= 정원 − 기사 − 동승자) 초과(API_SPEC §8.5 BUS-04) — details 에 현재 인원·정원.
     CAPACITY_EXCEEDED(HttpStatus.CONFLICT, "탑승 가능 인원을 초과했습니다"),
+    // 미존재(또는 이미 제거된) 강제 경유 지점 지정(RTE-10, API_SPEC §5.15) — 다른 회차 소속인 경우도
+    // 이 코드다(ROUTE_NOT_FOUND·BUS_NOT_FOUND 와 같은 형태, 존재 여부를 응답에서 드러내지 않는다).
+    WAYPOINT_NOT_FOUND(HttpStatus.NOT_FOUND, "경유 지점을 찾을 수 없습니다"),
 
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다");
 
