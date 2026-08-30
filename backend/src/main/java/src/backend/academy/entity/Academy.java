@@ -1,5 +1,7 @@
 package src.backend.academy.entity;
 
+import java.math.BigDecimal;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
@@ -51,6 +53,14 @@ public class Academy extends BaseTimeEntity {
     @Column(name = "status", length = 10, nullable = false)
     private AcademyStatus status;
 
+    /** 확정 배치(RTE-08)가 읽는 노선 기준점 — 주소 미등록 학원이 있어 {@link #hasCoordinates()} 없이 단독으로 참조하지 않는다. */
+    @Column(name = "lat", precision = 9, scale = 6)
+    private BigDecimal lat;
+
+    /** {@link #lat} 과 항상 짝을 이루며 DB 의 {@code ck_academy_coords_paired} 가 한쪽만 채워지는 것을 막는다. */
+    @Column(name = "lng", precision = 9, scale = 6)
+    private BigDecimal lng;
+
     private Academy(String code, String name, String region, String address, String contact) {
         this.code = code;
         this.name = name;
@@ -85,5 +95,22 @@ public class Academy extends BaseTimeEntity {
      */
     public void changeStatus(AcademyStatus status) {
         this.status = status;
+    }
+
+    /**
+     * 확정 배치(RTE-08)의 노선 기준점을 정한다 — 지오코딩 자동 채움은 이 Phase 의 범위 밖이라
+     * 좌표는 이 메서드를 통해서만 채워진다. 한쪽만 넘기면 DB CHECK 이전에 여기서 걸러진다.
+     */
+    public void assignCoordinates(BigDecimal lat, BigDecimal lng) {
+        if (lat == null || lng == null) {
+            throw new IllegalArgumentException("학원 좌표는 위도·경도가 모두 있어야 한다");
+        }
+        this.lat = lat;
+        this.lng = lng;
+    }
+
+    /** 확정 배치가 이 학원을 기준점으로 쓸 수 있는지 — 둘 다 있을 때만 참이다(목표 5). */
+    public boolean hasCoordinates() {
+        return lat != null && lng != null;
     }
 }

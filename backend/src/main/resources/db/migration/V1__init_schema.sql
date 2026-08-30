@@ -19,6 +19,8 @@
 -- =====================================================================================
 
 -- 학원. 멀티테넌시의 최상위 단위이자 가입 시 사용자가 선택하는 대상.
+-- lat·lng 는 확정 배치(RTE-08)가 읽는 노선 기준점이다(Ruling 190). 기존 행·주소 미등록 학원이
+-- 있어 nullable 이며, 좌표가 없는 학원의 회차는 확정에 실패하고 idle 로 복귀한다(목표 5).
 CREATE TABLE academy (
     id         bigint       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     code       varchar(32)  NOT NULL,
@@ -28,10 +30,16 @@ CREATE TABLE academy (
     contact    varchar(30),
     memo       text,
     status     varchar(10)  NOT NULL,
+    lat        numeric(9,6),
+    lng        numeric(9,6),
     created_at timestamptz  NOT NULL DEFAULT now(),
     updated_at timestamptz  NOT NULL DEFAULT now(),
     CONSTRAINT uk_academy_code UNIQUE (code),
-    CONSTRAINT ck_academy_status CHECK (status IN ('active', 'inactive'))
+    CONSTRAINT ck_academy_status CHECK (status IN ('active', 'inactive')),
+    CONSTRAINT ck_academy_lat CHECK (lat BETWEEN -90 AND 90),
+    CONSTRAINT ck_academy_lng CHECK (lng BETWEEN -180 AND 180),
+    -- 한쪽만 채워지면 기준점이 성립하지 않는다 — 둘 다 NULL 이거나 둘 다 NOT NULL 만 허용.
+    CONSTRAINT ck_academy_coords_paired CHECK ((lat IS NULL) = (lng IS NULL))
 );
 
 -- 학원별 임계값. 정책 상수 중 유일하게 학원별 설정으로 규정된 미승차 대기 시간을 담는다.

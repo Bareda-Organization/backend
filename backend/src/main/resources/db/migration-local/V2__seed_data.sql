@@ -20,12 +20,15 @@
 -- ── 그룹① 학원 · 계정 · 권한 ─────────────────────────────────────────────────
 -- 학원 A(운영중, 메인 데모) · B(운영중, 격리 검증용 독립 계통) ·
 -- C(운영정지, O-01 "비활성화해도 기존 사용자 로그인 유지" 시연용 — staffC 계정 1개 보유)
-INSERT INTO academy (id, code, name, region, contact, status, created_at, updated_at)
+-- 1·2 는 확정 배치(RTE-08)가 읽는 기준점을 갖는다. 좌표는 각 region 의 실재 지점(1: 강남역,
+-- 2: 수원시청)이다. 3 은 inactive 라 좌표를 NULL 로 남겨 목표 5(좌표 부재 회차의 확정 실패)의
+-- 시연 대상으로 쓴다 — 조용히 대체 기준점을 채우지 않는다(Ruling 190).
+INSERT INTO academy (id, code, name, region, contact, status, lat, lng, created_at, updated_at)
 OVERRIDING SYSTEM VALUE
 VALUES
-    (1, 'BARAEDA-A', '바래다학원 A', '서울', '02-1234-5678', 'active', now(), now()),
-    (2, 'BARAEDA-B', '바래다학원 B', '경기', '031-2345-6789', 'active', now(), now()),
-    (3, 'BARAEDA-C', '바래다학원 C', '인천', '032-3456-7890', 'inactive', now(), now());
+    (1, 'BARAEDA-A', '바래다학원 A', '서울', '02-1234-5678', 'active', 37.497942, 127.027621, now(), now()),
+    (2, 'BARAEDA-B', '바래다학원 B', '경기', '031-2345-6789', 'active', 37.263573, 127.028601, now(), now()),
+    (3, 'BARAEDA-C', '바래다학원 C', '인천', '032-3456-7890', 'inactive', NULL, NULL, now(), now());
 
 INSERT INTO academy_setting (academy_id, no_show_wait_minutes, updated_at)
 VALUES
