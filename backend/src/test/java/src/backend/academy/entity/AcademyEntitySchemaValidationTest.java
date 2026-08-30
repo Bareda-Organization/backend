@@ -1,7 +1,9 @@
 package src.backend.academy.entity;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -133,5 +135,52 @@ class AcademyEntitySchemaValidationTest extends MigratedPostgresTestBase {
         assertThat(found.getStatus()).isEqualTo(StaffStatus.ACTIVE);
         assertThat(found.getAcademyId()).isEqualTo(academy.getId());
         assertThat(found.getAccountId()).isEqualTo(accountId.longValue());
+    }
+
+    @Test
+    void academy_좌표가_저장되고_그대로_조회된다() {
+        Academy withCoordinates = Academy.register("A003", "좌표학원", "서울", null, null);
+        withCoordinates.assignCoordinates(new BigDecimal("37.497942"), new BigDecimal("127.027621"));
+        Academy withoutCoordinates = Academy.register("A004", "무좌표학원", "인천", null, null);
+        entityManager.persist(withCoordinates);
+        entityManager.persist(withoutCoordinates);
+        entityManager.flush();
+        entityManager.clear();
+
+        Academy foundWithCoordinates = entityManager.find(Academy.class, withCoordinates.getId());
+        Academy foundWithoutCoordinates = entityManager.find(Academy.class, withoutCoordinates.getId());
+
+        assertThat(foundWithCoordinates.hasCoordinates()).isTrue();
+        assertThat(foundWithCoordinates.getLat()).isEqualByComparingTo("37.497942");
+        assertThat(foundWithCoordinates.getLng()).isEqualByComparingTo("127.027621");
+        assertThat(foundWithoutCoordinates.hasCoordinates()).isFalse();
+        assertThat(foundWithoutCoordinates.getLat()).isNull();
+        assertThat(foundWithoutCoordinates.getLng()).isNull();
+    }
+
+    @Test
+    void academy_좌표가_범위를_벗어나면_ck_academy_lat_이_거부한다() {
+        Academy academy = Academy.register("A005", "범위밖학원", "서울", null, null);
+        // 범위 검사는 GeoPoint 처럼 자바에서 미리 막지 않는다 — Stop 과 동일하게 DB CHECK 가 최종 방어선.
+        academy.assignCoordinates(new BigDecimal("100.000000"), new BigDecimal("127.027621"));
+
+        // id 가 GenerationType.IDENTITY 라 INSERT 가 flush() 가 아니라 persist() 시점에 즉시 실행된다.
+        assertThatThrownBy(() -> entityManager.persist(academy))
+                .as("위도 100 은 ck_academy_lat(BETWEEN -90 AND 90) 범위 밖이다")
+                .hasStackTraceContaining("ck_academy_lat");
+    }
+
+    /**
+     * {@link Academy#assignCoordinates} 가 한쪽만 넘기는 것을 이미 거부하므로, DB CHECK 단독의
+     * 방어력을 보려면 엔티티를 우회해 네이티브 SQL 로 직접 한쪽만 채운 행을 시도해야 한다.
+     */
+    @Test
+    void academy_좌표가_한쪽만_저장되면_ck_academy_coords_paired_가_거부한다() {
+        assertThatThrownBy(() -> entityManager.createNativeQuery(
+                        "INSERT INTO academy (code, name, region, status, lat, lng) "
+                                + "VALUES ('A006', '편측좌표학원', '서울', 'active', 37.497942, NULL)")
+                        .executeUpdate())
+                .as("lat 만 있고 lng 이 NULL 이면 ck_academy_coords_paired 가 거부해야 한다")
+                .hasStackTraceContaining("ck_academy_coords_paired");
     }
 }
