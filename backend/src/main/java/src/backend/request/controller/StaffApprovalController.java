@@ -5,26 +5,33 @@ import java.util.Locale;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
 
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanApproveChange;
+import src.backend.request.command.ChangeRequestDecisionService;
 import src.backend.request.dto.ApprovalDetailResponse;
 import src.backend.request.dto.ApprovalListResponse;
+import src.backend.request.dto.DecideChangeRequestRequest;
+import src.backend.request.dto.DecideChangeRequestResponse;
 import src.backend.request.entity.ChangeRequestStatus;
 import src.backend.request.query.ApprovalQueryService;
 
 /**
- * ②구간 승인 대기 목록·상세 API(API_SPEC §5.5 {@code /staff/approvals}).
+ * ②구간 승인 대기 목록·상세·결정 API(API_SPEC §5.5·§5.6 {@code /staff/approvals}).
  *
- * <p><b>결정({@code POST /staff/approvals/{id}/decide})은 여기 없다</b> — 이 컨트롤러는 조회 전용이고,
- * 미리보기 토큰을 검증·소비하는 결정 경로는 별도 태스크(T5) 소관이다. 목록은 재최적화를 실행하지
- * 않고, 상세만 그 시점에 1회 실행한다(§5.5 문서, {@link ApprovalQueryService} javadoc).
+ * <p>결정({@code decide})은 목록·상세와 달리 미리보기 토큰을 검증·소비한다({@link
+ * ChangeRequestDecisionService} 참고) — 목록은 재최적화를 실행하지 않고, 상세는 그 시점에 1회
+ * 실행해 캐시에 담고, 결정은 그 캐시를 재사용할 뿐 새로 계산하지 않는다.
  */
 @RestController
 @RequestMapping("/staff/approvals")
@@ -32,6 +39,8 @@ import src.backend.request.query.ApprovalQueryService;
 public class StaffApprovalController {
 
     private final ApprovalQueryService approvalQueryService;
+
+    private final ChangeRequestDecisionService changeRequestDecisionService;
 
     /**
      * 승인 대기 목록(§5.5 목록) — {@code status} 를 주지 않으면 대기중(pending)만 보여준다.
@@ -62,5 +71,24 @@ public class StaffApprovalController {
     public ApiResponse<ApprovalDetailResponse> detail(@AuthenticationPrincipal AuthUser requester,
             @PathVariable Long id) {
         return ApiResponse.ok(approvalQueryService.detail(requester, id));
+    }
+
+    /**
+     * 승인·거절 결정(§5.6) — {@code approve=true} 면 {@code preview_token} 이 필수이고, {@code false}
+     * 면 {@code reject_reason} 이 필수다(둘 다 서비스 계층에서 검사한다, {@code
+     * ChangeRequestCreateRequest} 와 같은 조건부 필수 패턴).
+     *
+     * @throws src.backend.global.error.BusinessException {@code 404 APPROVAL_NOT_FOUND} ·
+     *                                                     {@code 403 ACADEMY_SCOPE_VIOLATION} ·
+     *                                                     {@code 409 APPROVAL_ALREADY_DECIDED} ·
+     *                                                     {@code 403 CHANGE_WINDOW_CLOSED} ·
+     *                                                     {@code 409 PREVIEW_STALE} ·
+     *                                                     {@code 422 VALIDATION_FAILED}
+     */
+    @CanApproveChange
+    @PostMapping("/{id}/decide")
+    public ApiResponse<DecideChangeRequestResponse> decide(@AuthenticationPrincipal AuthUser requester,
+            @PathVariable Long id, @Valid @RequestBody DecideChangeRequestRequest request) {
+        return ApiResponse.ok(changeRequestDecisionService.decide(requester, id, request));
     }
 }

@@ -76,4 +76,21 @@ public class RunRider extends BaseTimeEntity {
     public static RunRider uponConfirmation(Long runId, Long studentId, Long stopId) {
         return new RunRider(runId, studentId, stopId);
     }
+
+    /**
+     * 관리자의 ②구간 취소형 승인(API_SPEC §5.6 "명단 제외(absent)")으로 이 학생을 오늘 명단에서
+     * 뺀다 — 행을 지우지 않고 상태만 바꾼다. {@link src.backend.request.preview.ApprovalPreviewResolver
+     * #candidateRosterOf} 가 {@code ABSENT} 를 이미 명단 조립에서 제외하므로, 이후 같은 회차의 다른
+     * 승인·재계산이 이 학생을 다시 태우지 않는다.
+     */
+    public void markAbsent(OffsetDateTime changedAt) {
+        this.status = RiderStatus.ABSENT;
+        this.changedAt = changedAt;
+    }
+
+    /** 관리자의 ②구간 경유지 이동형 승인(API_SPEC §5.6, P-06)으로 오늘의 승하차지를 바꾼다. */
+    public void relocateTo(Long newStopId, OffsetDateTime changedAt) {
+        this.stopId = newStopId;
+        this.changedAt = changedAt;
+    }
 }
