@@ -26,6 +26,8 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.jayway.jsonpath.JsonPath;
 
+import src.backend.account.entity.Account;
+import src.backend.account.repository.AccountRepository;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
@@ -116,6 +118,9 @@ class StaffApprovalDecideAtomicityTest {
 
     @Autowired
     private BoardingIntentRepository boardingIntentRepository;
+
+    @Autowired
+    private AccountRepository accountRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -252,8 +257,17 @@ class StaffApprovalDecideAtomicityTest {
                 departTime.minusMinutes(30));
         confirmationService.confirmOne(runId);
 
+        // requestedBy 는 계정 id 다 — 학생 id 를 그대로 넣으면 알림 리스너의 accountRepository 조회가
+        // 항상 비어 조용히 no-op 이 되어(§ appendChangeDecided) "미적재" 단언이 무엇을 심어도 통과하는
+        // 무력한 검사가 된다(StaffApprovalDecideControllerTest 의 parentAccountId 패턴을 따른다).
+        long parentAccountId = accountRepository
+                .save(Account.forSignup(academyId, "parent-" + runId, "hash", "학부모", "010-0000-0000", null,
+                        Role.PARENT))
+                .getId();
+
         ChangeRequest changeRequest = ChangeRequest.forRequest(academyId, runId, 학생2,
-                ChangeRequestSource.CHANGE_REQUEST, ChangeRequestType.CANCEL, (short) 2, 학생2, OffsetDateTime.now());
+                ChangeRequestSource.CHANGE_REQUEST, ChangeRequestType.CANCEL, (short) 2, parentAccountId,
+                OffsetDateTime.now());
         long approvalId = changeRequestRepository.save(changeRequest).getId();
 
         return new 결정_시나리오(academyId, runId, approvalId, 학생2);
