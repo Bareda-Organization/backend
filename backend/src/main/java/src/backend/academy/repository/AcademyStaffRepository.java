@@ -29,12 +29,6 @@ public interface AcademyStaffRepository extends JpaRepository<AcademyStaff, Long
     List<AcademyStaff> findAllByAcademyIdOrderByIdAsc(Long academyId);
 
     /**
-     * 학원의 재직 관계자 1건을 찾는다({@code approval_requested} 알림 수신자, §9.7) —
-     * {@code uk_academy_staff_academy_active} 가 학원당 재직 1건을 강제하므로 결과는 최대 1건이다.
-     */
-    Optional<AcademyStaff> findByAcademyIdAndStatus(Long academyId, StaffStatus status);
-
-    /**
      * 목록 조회(API_SPEC §6.1 {@code staff_count})가 쓰는 학원별 재직 관계자 수.
      *
      * <p>한 페이지의 학원 전부를 한 번에 센다 — 학원마다 {@link #countByAcademyIdAndStatus} 를 부르면

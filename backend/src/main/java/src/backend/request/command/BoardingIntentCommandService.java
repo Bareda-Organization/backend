@@ -139,8 +139,8 @@ public class BoardingIntentCommandService {
         changeRequest.assignDeadline(run.getDepartTime());
         changeRequest = changeRequestRepository.save(changeRequest);
 
-        eventPublisher.publishEvent(new ApprovalRequestedEvent(changeRequest.getId(), run.getId(),
-                run.getAcademyId(), student.getId(), now));
+        eventPublisher.publishEvent(new ApprovalRequestedEvent(changeRequest.getId(), run.getAcademyId(),
+                run.getId(), student.getId(), now));
 
         boolean existingRiding = intent.isRiding();
         String riderStatus = riderStatusOf(run.getId(), student.getId(), existingRiding);
