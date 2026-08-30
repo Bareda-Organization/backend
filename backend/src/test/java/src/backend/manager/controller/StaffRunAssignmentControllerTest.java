@@ -42,10 +42,11 @@ import src.backend.global.security.JwtTokenProvider;
  * ({@link #근무_시간_미기재_매니저도_중복_배치_경고를_함께_받는다()}) — 하나로 묶은 구현에서는
  * {@code MANAGER_DOUBLE_BOOKED} 가 근무 시간 미기재 매니저에서 조용히 사라진다(Ruling 165 ③).
  *
- * <p><b>점 판정의 한계를 여기 적어 둔다</b>(Ruling 165 ②) — 회차를 출발 시각이라는 <b>점</b>으로만
- * 보므로, 07:00 출발·2시간 운행인 회차를 07:00~08:00 근무자에게 배치해도 경고가 나오지 않는다.
- * {@code run.est_duration_min} 을 노선 계산(Phase 6)이 실제로 채우는 시점에 구간 판정으로 올릴지
- * 재판정한다.
+ * <p><b>점 판정을 구간으로 올렸다</b>(Ruling 165 ② 재판정 · Phase 7 목표 12) — {@code
+ * est_duration_min} 이 채워진 회차는 출발~종료 구간 전체를 근무 구간과 대조한다
+ * ({@link #운행_시간이_근무_구간을_넘기면_구간_판정으로_경고가_난다()}). 값이 비어 있으면(확정 전
+ * 수동 배치의 정상 상태) 기존처럼 출발 시각 하나로 접혀 점 판정과 같다 — {@code
+ * AssignmentConflictDetector#windowEnd} 참조.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -346,6 +347,49 @@ class StaffRunAssignmentControllerTest {
     }
 
     /**
+     * {@code est_duration_min} 이 채워진 회차는 <b>구간</b>으로 판정한다(Ruling 165 ② 재판정,
+     * Phase 7 목표 12) — 출발 시각만 근무 구간 안이어도 운행이 그 밖까지 이어지면 경고가 난다.
+     *
+     * <p>강기사_종일 의 근무 구간은 {@link #WORK_START}~{@link #WORK_END}(07:00~10:00) 다. 07:00
+     * 출발·4시간 운행이면 종료가 11:00 이라 구간을 벗어난다 — <b>점 판정이었다면 출발 시각(07:00)만
+     * 보고 경고를 내지 않았을 자리</b>라, 이 테스트가 실패하면 구간 판정이 실제로 걸리지 않는 것이다.
+     */
+    @Test
+    void 운행_시간이_근무_구간을_넘기면_구간_판정으로_경고가_난다() throws Exception {
+        long runId = 회차를_만든다(BUS_A1_ID, WORK_START, 240);
+
+        배치한다(관계자A_토큰(), runId, 강기사_종일, null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.warnings[0].code").value("WORK_HOURS_MISMATCH"));
+    }
+
+    /**
+     * 운행 구간이 근무 구간 <b>안에 온전히 들면</b> 구간 판정에서도 경고가 없다 — 구간으로 올린 것이
+     * 항상 경고를 더 내는 쪽으로 치우치지 않았는지를 반대편에서 본다.
+     */
+    @Test
+    void 운행_시간이_근무_구간_안에_온전히_들면_경고가_없다() throws Exception {
+        long runId = 회차를_만든다(BUS_A1_ID, MORNING, 60);
+
+        배치한다(관계자A_토큰(), runId, 강기사_종일, null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.warnings.length()").value(0));
+    }
+
+    /**
+     * 운행 종료가 근무 구간의 <b>끝 경계에 정확히 닿아도</b> 경고가 없다 — 구간 판정도 점 판정과 같은
+     * 양끝 포함 규칙({@link #근무_구간의_양끝_시각은_근무_시간_안이다()})을 따른다.
+     */
+    @Test
+    void 운행_종료가_근무_구간_끝에_닿아도_경고가_없다() throws Exception {
+        long runId = 회차를_만든다(BUS_A1_ID, MORNING, 120);
+
+        배치한다(관계자A_토큰(), runId, 강기사_종일, null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.warnings.length()").value(0));
+    }
+
+    /**
      * 같은 매니저를 <b>같은 자리에 다시</b> 지정해도 중복 배치가 아니다 — 자기 자신을 겹침으로 세지
      * 않는다.
      *
@@ -461,6 +505,24 @@ class StaffRunAssignmentControllerTest {
                         {"bus_id":%d,"service_date":"%s","direction":"to_academy","depart_time":"%s",
                          "origin_name":"배치 검증 집결지","destination_name":"바래다학원"}"""
                         .formatted(busId, SERVICE_DATE, departTime)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return ((Number) JsonPath.read(본문(result), "$.data.id")).longValue();
+    }
+
+    /**
+     * {@code est_duration_min} 을 채워 회차를 만든다 — 구간 판정(Phase 7 목표 12)을 재는 테스트 전용.
+     * 값을 생략하는 위 오버로드와 달리 노선 계산이 채운 뒤의 상태를 흉내낸다.
+     */
+    private long 회차를_만든다(long busId, String departTime, int estDurationMin) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/staff/runs")
+                .header("Authorization", 관계자A_토큰())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"bus_id":%d,"service_date":"%s","direction":"to_academy","depart_time":"%s",
+                         "origin_name":"배치 검증 집결지","destination_name":"바래다학원",
+                         "est_duration_min":%d}"""
+                        .formatted(busId, SERVICE_DATE, departTime, estDurationMin)))
                 .andExpect(status().isCreated())
                 .andReturn();
         return ((Number) JsonPath.read(본문(result), "$.data.id")).longValue();

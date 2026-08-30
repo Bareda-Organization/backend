@@ -16,7 +16,11 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum AssignmentWarningCode {
 
-    /** 회차 출발 시각이 그 매니저의 근무 구간 밖 — 그 요일 키가 없거나 어느 구간에도 들지 않는다. */
+    /**
+     * 회차 시간대가 그 매니저의 근무 구간 밖 — 그 요일 키가 없거나 어느 구간에도 들지 않는다.
+     * {@code est_duration_min} 이 있으면 구간으로, 없으면 출발 시각 점으로 판정한다
+     * (Ruling 165 ② 재판정 · Phase 7 목표 12).
+     */
     WORK_HOURS_MISMATCH("근무 시간 밖입니다"),
 
     /** 그 매니저가 같은 날 <b>출발 시각이 같은</b> 다른 회차에도 배치돼 있다 — 근무 시간을 보지 않는다. */

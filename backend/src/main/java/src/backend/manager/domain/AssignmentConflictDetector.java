@@ -2,6 +2,7 @@ package src.backend.manager.domain;
 
 import java.time.Clock;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -32,6 +33,12 @@ import src.backend.run.entity.Run;
  *
  * <p>시간대는 <b>주입된 {@code Clock} 의 zone</b> 이다(Ruling 165 ①) — {@code ZoneId} 를 코드에 다시
  * 적으면 테스트가 시계를 갈아끼워도 요일 판정만 시스템 시간대를 따라 남는다.
+ *
+ * <p><b>두 경고가 점·구간 판정을 서로 다르게 쓴다</b>(Phase 7 목표 12, Ruling 165 ② 재판정) —
+ * {@code WORK_HOURS_MISMATCH} 는 {@code est_duration_min} 이 있으면 <b>구간</b>({@link
+ * #windowEnd(Run)})으로 올렸고, {@code MANAGER_DOUBLE_BOOKED} 는 여전히 <b>점</b>(출발 시각
+ * 일치, {@code AssignmentRepository#existsOverlappingAssignment})이다. 이유는 클래스 하단의
+ * {@code windowEnd} 자바독을 본다.
  */
 @Component
 @RequiredArgsConstructor
@@ -70,9 +77,49 @@ public class AssignmentConflictDetector {
         if (workHours == null) {
             return Optional.of(AssignmentWarningCode.WORK_HOURS_NOT_SET);
         }
-        return workHours.covers(weekdayOf(run), departureTimeOf(run))
+        return withinWorkHours(workHours, run)
                 ? Optional.empty()
                 : Optional.of(AssignmentWarningCode.WORK_HOURS_MISMATCH);
+    }
+
+    /**
+     * 회차 시간대(구간)가 근무 구간에 드는가 — {@link #windowEnd(Run)} 가 만든 종료 시각까지 함께 본다.
+     *
+     * <p>자정을 넘어 시작·종료 요일이 갈리면 즉시 근무 시간 밖이다({@code SequentialAttendantAssigner}
+     * 와 같은 관례) — {@link WorkHours} 는 자정을 넘는 구간을 담지 않으므로 어떤 근무 구간도 그런
+     * 창을 커버할 수 없다. {@code est_duration_min} 이 없어 구간이 점으로 접히면(시작=종료) 이 조건은
+     * 항상 같은 요일이라 통과하고, {@link WorkHours#coversWindow} 는 {@link WorkHours#covers} 와
+     * 값이 같아져 <b>기존 점 판정과 동일하게 동작</b>한다 — Ruling 165 ② 가 우려한 "판정 불가가
+     * 조용히 경고 없음이 되는" 퇴행이 없다.
+     */
+    private boolean withinWorkHours(WorkHours workHours, Run run) {
+        OffsetDateTime runStart = run.getDepartTime();
+        OffsetDateTime runEnd = windowEnd(run);
+        Weekday startWeekday = weekdayOf(runStart);
+        if (startWeekday != weekdayOf(runEnd)) {
+            return false;
+        }
+        return workHours.coversWindow(startWeekday, timeOf(runStart), timeOf(runEnd));
+    }
+
+    /**
+     * 회차의 종료 시각 — {@code est_duration_min} 이 채워졌으면 <b>구간</b>으로 올리고
+     * (Ruling 165 ② 재판정, Phase 7 T2 확정 배치가 이 값을 채운다), 없으면 시작 시각과 같은
+     * <b>점</b>으로 접는다.
+     *
+     * <p>확정 전 회차에 수동 배치하는 것은 정상 흐름이고 그때는 여전히 값이 없다 — 이 메서드가 그
+     * 경우를 "판정 불가" 로 두지 않고 기존 점 판정으로 접어, 값이 없다고 경고가 조용히 사라지지
+     * 않는다.
+     *
+     * <p><b>{@code MANAGER_DOUBLE_BOOKED} 는 이 종료 시각을 쓰지 않는다</b> — 두 회차 모두
+     * {@code est_duration_min} 이 없을 수 있는 자리에서 배타적 구간 겹침(뒤 회차가 앞 회차 종료
+     * 직후 시작하는 것을 겹침으로 보지 않는 경계)과 "출발 시각이 같으면 겹친다" 는 기존 점 판정을
+     * 동시에 만족하려면 교집합 규칙이 하나 더 필요하고, 그 자리가 이번 판정의 범위 밖이다 — Ruling
+     * 초안은 {@code p7-task-7-report.md} 를 본다.
+     */
+    private OffsetDateTime windowEnd(Run run) {
+        Integer estDurationMin = run.getEstDurationMin();
+        return estDurationMin == null ? run.getDepartTime() : run.getDepartTime().plusMinutes(estDurationMin);
     }
 
     /**
@@ -86,20 +133,14 @@ public class AssignmentConflictDetector {
                 run.getDepartTime(), run.getId());
     }
 
-    /** 회차 출발 시각의 요일 — 주입된 {@code Clock} 의 시간대로 옮겨 본다. */
-    private Weekday weekdayOf(Run run) {
-        return Weekday.valueOf(run.getDepartTime().atZoneSameInstant(clock.getZone()).getDayOfWeek()
+    /** 주어진 시각의 요일 — 주입된 {@code Clock} 의 시간대로 옮겨 본다. */
+    private Weekday weekdayOf(OffsetDateTime time) {
+        return Weekday.valueOf(time.atZoneSameInstant(clock.getZone()).getDayOfWeek()
                 .name().substring(0, 3).toUpperCase(Locale.ROOT));
     }
 
-    /**
-     * 회차 출발 시각의 <b>시:분</b> — 근무 구간과 같은 축으로 옮긴다.
-     *
-     * <p>회차를 점으로 판정하는 것이 확정 사항이다(Ruling 165 ②) — {@code est_duration_min} 이
-     * nullable 이고 이 시점의 회차는 노선 계산 이전이라 대개 비어 있어, 구간으로 두면 "판정 불가" 가
-     * 조용히 "경고 없음" 이 된다.
-     */
-    private LocalTime departureTimeOf(Run run) {
-        return run.getDepartTime().atZoneSameInstant(clock.getZone()).toLocalTime();
+    /** 주어진 시각의 <b>시:분</b> — 근무 구간과 같은 축으로 옮긴다({@code Clock} 의 시간대). */
+    private LocalTime timeOf(OffsetDateTime time) {
+        return time.atZoneSameInstant(clock.getZone()).toLocalTime();
     }
 }

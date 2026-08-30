@@ -1528,12 +1528,12 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 **충돌은 경고이고 차단이 부재하다** (MGR-06 · UF-M-06 · `PRD §6` · `USER_FLOWS`). **저장은 되고**(200, `assignment` 행이 실제로 생긴다) 판정 결과가 `warnings[]` 에 실린다. 근무 시간은 학원이 매니저에게 물어 적어 둔 참고값이고 당일 대체·연장이 실재하므로, 차단으로 두면 **오늘 실제로 태울 수 있는 기사를 시스템이 배치 불가로 만든다**.
 
-**경고 3종** (2026-08-26 확정, Ruling 165)
+**경고 3종** (2026-08-26 확정, Ruling 165 · 2026-08-30 `WORK_HOURS_MISMATCH` 판정 축 재판정)
 
 | `code` | 무엇을 대조하나 | 언제 |
 |---|---|---|
-| `WORK_HOURS_MISMATCH` | 회차 출발 시각 ↔ 그 매니저의 `work_hours` | 그 요일 키가 없거나, 어느 구간에도 들지 않을 때 |
-| `MANAGER_DOUBLE_BOOKED` | 그 매니저의 **같은 날 다른 배치**(`assignment` → `run` 조인) | 취소되지 않은 다른 회차와 **출발 시각이 같을** 때. `work_hours` 를 보지 않는다 |
+| `WORK_HOURS_MISMATCH` | 회차 시간대(`depart_time` ~ `depart_time + est_duration_min`) ↔ 그 매니저의 `work_hours` | 그 요일 키가 없거나, 어느 구간에도 들지 않을 때. **`est_duration_min` 이 비어 있으면 시간대가 출발 시각 하나로 접혀 기존과 같은 값을 낸다**(Ruling 165 ② 재판정 · Phase 7 목표 12) |
+| `MANAGER_DOUBLE_BOOKED` | 그 매니저의 **같은 날 다른 배치**(`assignment` → `run` 조인) | 취소되지 않은 다른 회차와 **출발 시각이 같을** 때. `work_hours` 를 보지 않는다. **점 판정을 유지한다**(Phase 7 목표 12 판정 — 이유는 `progress.md` Phase 7 절) |
 | `WORK_HOURS_NOT_SET` | — | `work_hours` 가 비어 있어 **판정할 근거가 부재**할 때 |
 
 - **세 판정은 서로 독립이다.** 묶으면 `MANAGER_DOUBLE_BOOKED` 가 근무 시간 미기재 매니저에서 조용히 사라지는데, 근무 시간이 없다고 해서 같은 시각에 두 대를 몰 수 있는 것은 아니다
