@@ -15,12 +15,17 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
+
 /**
  * 변경 요청·승인 대기 — ②구간 승인 큐의 실체이자 책임 소재 기록이며, {@code source} 로 토글(즉시 반영)과
  * 일일 변경(승인 대기)을 가른다(ERD §3.4 · C-04).
  *
- * <p>{@code reject_reason}·{@code new_address} 조건부 CHECK 는 DB 가 강제하며, 승인/반려 판정 메서드는
- * 이 태스크 범위 밖이다(Phase 8 담당) — 팩토리는 접수 시점 상태({@code PENDING})까지만 채운다.
+ * <p>{@code reject_reason}·{@code new_address} 조건부 CHECK 는 DB 가 강제한다. 상태 전이 메서드
+ * ({@link #approve}·{@link #reject}·{@link #autoReject})는 전부 {@link #assertPending()} 을 거쳐
+ * 이미 처리된 건의 재처리를 엔티티 단에서 막는다 — 서비스에서만 막으면 다른 호출 경로가 생길 때
+ * 조용히 뚫린다.
  * 생성 시각·마감 시각 등 업무 타임스탬프가 호출자 입력이라 별도 감사 컬럼({@code created_at} 등)이 없다.
  */
 @Entity
@@ -119,5 +124,43 @@ public class ChangeRequest {
             Long requestedBy, OffsetDateTime requestedAt) {
         return new ChangeRequest(academyId, runId, studentId, source, type, windowSegment,
                 requestedBy, requestedAt);
+    }
+
+    /** 아직 대기 중이 아니면 {@code 409 APPROVAL_ALREADY_DECIDED} — 세 전이 메서드가 공유하는 가드. */
+    public void assertPending() {
+        if (status != ChangeRequestStatus.PENDING) {
+            throw new BusinessException(ErrorCode.APPROVAL_ALREADY_DECIDED);
+        }
+    }
+
+    /** 관리자 승인(§9.6) — 재최적화·재배포 결과(경유지 제거 여부·적용된 노선 버전)를 함께 기록한다. */
+    public void approve(Long decidedBy, OffsetDateTime decidedAt, Boolean stopRemoved, Long appliedRouteVersionId) {
+        assertPending();
+        this.status = ChangeRequestStatus.APPROVED;
+        this.decidedBy = decidedBy;
+        this.decidedAt = decidedAt;
+        this.stopRemoved = stopRemoved;
+        this.appliedRouteVersionId = appliedRouteVersionId;
+    }
+
+    /** 관리자 거절(§9.6) — 기존 노선을 유지하며 사유를 남긴다. */
+    public void reject(Long decidedBy, OffsetDateTime decidedAt, String rejectReason) {
+        assertPending();
+        this.status = ChangeRequestStatus.REJECTED;
+        this.decidedBy = decidedBy;
+        this.decidedAt = decidedAt;
+        this.rejectReason = rejectReason;
+    }
+
+    /**
+     * 도래분 자동 거절(API_SPEC §1.6) — 출발 시각 도달 또는 {@code moving} 전이 중 먼저 오는 시점까지
+     * 미처리로 남은 요청을 서버가 스스로 거절한다. {@code decided_by} 가 없다 — 관리자가 아니라 서버가
+     * 한 일이기 때문이다. 재최적화 없이 기존 노선을 유지하고, 소진한 한도는 이 메서드가 아니라
+     * {@code BoardingIntent.restoreChangeQuota()} 가 되돌린다(횟수 미소진, C-10).
+     */
+    public void autoReject(OffsetDateTime decidedAt) {
+        assertPending();
+        this.status = ChangeRequestStatus.AUTO_REJECTED;
+        this.decidedAt = decidedAt;
     }
 }
