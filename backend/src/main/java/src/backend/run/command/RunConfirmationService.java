@@ -4,9 +4,11 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -20,6 +22,7 @@ import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.observability.metrics.RunConfirmationMetrics;
+import src.backend.request.repository.BoardingIntentRepository;
 import src.backend.routing.domain.GeoPoint;
 import src.backend.routing.entity.Route;
 import src.backend.routing.entity.RouteStop;
@@ -80,6 +83,8 @@ public class RunConfirmationService {
     private final StopRepository stopRepository;
 
     private final WeeklyAddressRepository weeklyAddressRepository;
+
+    private final BoardingIntentRepository boardingIntentRepository;
 
     private final RouteComputationPipeline pipeline;
 
@@ -147,8 +152,15 @@ public class RunConfirmationService {
 
         List<StudentDailyStop> dailyStops = weeklyAddressRepository.findDailyStopsByStopIds(run.getAcademyId(),
                 stopIds, weekday, run.getDirection());
-        List<Long> studentIds = dailyStops.stream().map(StudentDailyStop::getStudentId).distinct().toList();
+        // ①구간 탑승 의사 토글(riding=false)이 남긴 학생은 여기서 걸러낸다 — DailyRoster 를 만들기
+        // 전이라 노선 계산도 run_rider 도 이 학생을 아예 보지 않는다(목표 1, P-03).
+        Set<Long> excludedStudentIds = new HashSet<>(
+                boardingIntentRepository.findStudentIdsByRunIdAndRidingFalse(run.getId()));
+        List<Long> studentIds = dailyStops.stream().map(StudentDailyStop::getStudentId).distinct()
+                .filter(studentId -> !excludedStudentIds.contains(studentId))
+                .toList();
         Map<Long, Long> studentStops = dailyStops.stream()
+                .filter(stop -> !excludedStudentIds.contains(stop.getStudentId()))
                 .collect(Collectors.toMap(StudentDailyStop::getStudentId, StudentDailyStop::getStopId,
                         (first, duplicate) -> first));
 
