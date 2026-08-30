@@ -1,7 +1,9 @@
 package src.backend.routing.pipeline;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -41,5 +43,15 @@ class DailyRosterTest {
 
         assertThat(roster.studentIds()).containsExactly(10L);
         assertThat(roster.stopOverrides()).containsEntry(10L, 99L);
+    }
+
+    @Test
+    @DisplayName("안전망은 중복만 배제한다 — null 원소까지 거르도록 범위를 넓히지 않아 생성 시점에 그대로 터진다 (Phase 8 목표 15)")
+    void doesNotWidenDedupToSwallowNullStudentId() {
+        List<Long> withNull = new ArrayList<>(List.of(10L, 10L, 20L));
+        withNull.add(1, null);
+
+        assertThatThrownBy(() -> DailyRoster.of(1L, Weekday.MON, Direction.TO_ACADEMY, withNull))
+                .isInstanceOf(NullPointerException.class);
     }
 }
