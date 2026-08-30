@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.security.access.AcademyScopeExempt;
+import src.backend.manager.dto.AssignedManagerAccountView;
 import src.backend.manager.dto.AssignedManagerView;
 import src.backend.manager.entity.Assignment;
 
@@ -88,4 +89,19 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
             + "AND r.departTime = :departTime AND r.canceledAt IS NULL AND r.id <> :excludedRunId")
     boolean existsOverlappingAssignment(@Param("academyId") Long academyId, @Param("managerId") Long managerId,
             @Param("departTime") OffsetDateTime departTime, @Param("excludedRunId") Long excludedRunId);
+
+    /**
+     * 그 회차에 배치된 기사·동승자를 계정 식별자와 함께 읽는다 — {@code route_changed} 알림(Phase 7 T3)의
+     * 수신자 조회 전용이다.
+     *
+     * <p>학원 조건이 {@link #findAssignedManagers} 와 같은 자리(조인된 {@code manager})에 걸려 있다.
+     * 삭제된 매니저({@code deleted_at})는 담지 않는다 — 그만둔 매니저에게 새 회차 확정을 알릴 이유가
+     * 없고, {@code accountId} 가 이미 다른 매니저로 재배정됐을 수 있어 알림이 엉뚱한 사람에게 간다.
+     */
+    @Query("SELECT new src.backend.manager.dto.AssignedManagerAccountView(a.managerId, m.accountId, m.name, a.role) "
+            + "FROM Assignment a, Manager m "
+            + "WHERE m.id = a.managerId AND m.academyId = :academyId AND m.deletedAt IS NULL AND a.runId = :runId "
+            + "ORDER BY a.role")
+    List<AssignedManagerAccountView> findAssignedManagerAccounts(@Param("academyId") Long academyId,
+            @Param("runId") Long runId);
 }
