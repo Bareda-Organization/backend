@@ -106,4 +106,23 @@ class ChangeWindowPolicyTest {
 
         assertThat(ChangeWindowPolicy.segmentOf(run, serverNow25MinBefore)).isEqualTo(ChangeWindow.APPROVAL_REQUIRED);
     }
+
+    /**
+     * {@code confirmAt} 이 정책 상수(출발 30분 전)와 다른 값(45분 전)이어도 판정은 <b>컬럼값을 그대로
+     * 따른다</b> — {@code RunConfirmationPolicy.confirmAtOf} 로 재계산하지 않는다는 것을 검증한다.
+     *
+     * <p>이 시험은 DB 를 타지 않는 순수 단위 시험이라 {@code ck_run_confirm_at} CHECK 의 보호를 받지
+     * 않는다 — 즉 여기서는 배치가 늦게 돌아 {@code confirmAt} 이 정책값과 어긋난 회차를 얼마든지
+     * 만들 수 있다. 컬럼값(45분 전)을 읽으면 {@code now}(40분 전)는 이미 confirmAt 을 지났으므로
+     * ②(APPROVAL_REQUIRED)다 — 반대로 정책값(30분 전)으로 재계산하면 {@code now} 가 아직 그 앞이라
+     * ①(IMMEDIATE)로 잘못 판정된다.
+     */
+    @Test
+    void confirmAt_이_정책값과_달라도_컬럼값을_그대로_쓰고_재계산하지_않는다() {
+        OffsetDateTime confirmAtColumn = DEPART.minusMinutes(45);
+        Run run = runOf(RunStatus.IDLE, DEPART, confirmAtColumn);
+        OffsetDateTime now = DEPART.minusMinutes(40);
+
+        assertThat(ChangeWindowPolicy.segmentOf(run, now)).isEqualTo(ChangeWindow.APPROVAL_REQUIRED);
+    }
 }
