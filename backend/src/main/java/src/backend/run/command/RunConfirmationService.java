@@ -4,6 +4,8 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -37,6 +39,8 @@ import src.backend.routing.pipeline.RouteComputationPipeline;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunForcedAddition;
+import src.backend.run.repository.RunForcedAdditionRepository;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.entity.Stop;
 import src.backend.student.repository.StopRepository;
@@ -86,6 +90,8 @@ public class RunConfirmationService {
     private final WeeklyAddressRepository weeklyAddressRepository;
 
     private final ChangeRequestRepository changeRequestRepository;
+
+    private final RunForcedAdditionRepository runForcedAdditionRepository;
 
     private final RouteComputationPipeline pipeline;
 
@@ -153,7 +159,8 @@ public class RunConfirmationService {
 
         List<StudentDailyStop> dailyStops = weeklyAddressRepository.findDailyStopsByStopIds(run.getAcademyId(),
                 stopIds, weekday, run.getDirection());
-        List<Long> studentIds = dailyStops.stream().map(StudentDailyStop::getStudentId).distinct().toList();
+        List<Long> studentIds = new ArrayList<>(
+                dailyStops.stream().map(StudentDailyStop::getStudentId).distinct().toList());
         Map<Long, Long> studentStops = dailyStops.stream()
                 .collect(Collectors.toMap(StudentDailyStop::getStudentId, StudentDailyStop::getStopId,
                         (first, duplicate) -> first));
@@ -162,12 +169,22 @@ public class RunConfirmationService {
         // 같은 우선순위(그 클래스 자바독). 여기서 studentStops 에도 같은 값을 덮어써야 fingerprint·
         // run_rider 가 실제로 계산에 쓰인 경유지와 일치한다 — roster 쪽에만 넣으면 노선은 바뀐 자리로
         // 서는데 학생의 배정 기록만 옛 경유지로 남는다.
-        Map<Long, Long> stopOverrides = changeRequestRepository
+        Map<Long, Long> stopOverrides = new HashMap<>(changeRequestRepository
                 .findAllByAcademyIdAndRunIdAndTypeAndStatusOrderByRequestedAtAsc(run.getAcademyId(), run.getId(),
                         ChangeRequestType.RELOCATE, ChangeRequestStatus.APPROVED)
                 .stream()
                 .collect(Collectors.toMap(ChangeRequest::getStudentId, ChangeRequest::getNewStopId,
-                        (first, last) -> last));
+                        (first, last) -> last)));
+
+        // ①구간 강제 추가(RTE-06, Ruling 197·198)도 같은 방식으로 합친다 — 요일별 주소에 없던
+        // 학생이라 studentIds 에도 새로 더해야 하고, stopOverrides 에 넣어야 좌표 해석 단계
+        // (DailyStopResolver.studentToStop)가 그 정차지를 실제로 찾는다.
+        for (RunForcedAddition forcedAddition : runForcedAdditionRepository.findAllByRunId(run.getId())) {
+            if (!studentIds.contains(forcedAddition.getStudentId())) {
+                studentIds.add(forcedAddition.getStudentId());
+            }
+            stopOverrides.put(forcedAddition.getStudentId(), forcedAddition.getStopId());
+        }
         studentStops.putAll(stopOverrides);
 
         DailyRoster roster = new DailyRoster(run.getAcademyId(), weekday, run.getDirection(), studentIds,
