@@ -126,6 +126,36 @@ public class ChangeRequest {
                 requestedBy, requestedAt);
     }
 
+    /**
+     * 경유지 이동(RELOCATE) 목표를 채운다(P-06, Phase 8) — 접수 시점에 이미 검증·매칭을 마친 값만
+     * 들어온다. CANCEL 요청은 이 메서드를 부르지 않아 네 필드가 전부 {@code null} 로 남는다(§20.2
+     * 조건부 CHECK 와 대응).
+     */
+    public void assignRelocationTarget(String newAddress, BigDecimal newLat, BigDecimal newLng, Long newStopId) {
+        this.newAddress = newAddress;
+        this.newLat = newLat;
+        this.newLng = newLng;
+        this.newStopId = newStopId;
+    }
+
+    /**
+     * ②구간 접수 시 승인 마감 시각을 정한다(REQ-04) — 회차 출발 시각과 같다(API_SPEC §5.6). ①구간
+     * 자동 승인 건은 이 메서드를 부르지 않아 {@code deadline_at} 이 {@code null} 로 남는다 — 이미
+     * 승인이 끝난 건에 마감을 실을 이유가 없다.
+     */
+    public void assignDeadline(OffsetDateTime deadlineAt) {
+        this.deadlineAt = deadlineAt;
+    }
+
+    /**
+     * 학부모가 적은 변경 사유를 채운다(API_SPEC §3.8 {@code reason}, 선택). 다른 NN 아닌 필드들과 같은
+     * 이유로 {@link #forRequest} 생성자에 넣지 않았다 — 접수 시점에 없어도 되는 값이라 필수 8개 파라미터
+     * 사이에 섞으면 어떤 값이 진짜 필수인지 시그니처만 봐서는 갈리지 않는다.
+     */
+    public void assignReason(String reason) {
+        this.reason = reason;
+    }
+
     /** 아직 대기 중이 아니면 {@code 409 APPROVAL_ALREADY_DECIDED} — 세 전이 메서드가 공유하는 가드. */
     public void assertPending() {
         if (status != ChangeRequestStatus.PENDING) {

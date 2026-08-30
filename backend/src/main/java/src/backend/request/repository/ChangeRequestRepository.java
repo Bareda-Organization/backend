@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.request.entity.ChangeRequest;
 import src.backend.request.entity.ChangeRequestStatus;
+import src.backend.request.entity.ChangeRequestType;
 
 /**
  * {@link ChangeRequest} 영속성 접근 — {@code change_request} 는 {@code academy_id} 컬럼을 직접
@@ -26,6 +27,19 @@ public interface ChangeRequestRepository extends JpaRepository<ChangeRequest, Lo
     List<ChangeRequest> findAllByAcademyIdAndStatusOrderByRequestedAtAsc(Long academyId, ChangeRequestStatus status);
 
     /**
+     * 한 회차에 승인된 경유지 이동 요청들(P-06, Phase 8) — 확정 배치가 그날의 승하차지를 조립할 때
+     * "일일 변경이 요일별 주소를 이긴다" 우선순위를 적용하는 원천이다({@code RunConfirmationService}).
+     * 접수 순으로 정렬해, 같은 학생이 같은 회차에 두 번 신청했을 때(② 승인이 겹치는 드문 경우) 호출부가
+     * <b>나중 신청이 이긴다</b> 규칙을 "마지막 값으로 덮어쓰기"로 그대로 구현할 수 있게 한다.
+     */
+    List<ChangeRequest> findAllByAcademyIdAndRunIdAndTypeAndStatusOrderByRequestedAtAsc(Long academyId, Long runId,
+            ChangeRequestType type, ChangeRequestStatus status);
+
+    /**
+     * 한 학생의 변경 요청 이력(§3.9 상태 조회) — 최근 신청이 먼저 보이도록 접수 역순으로 정렬한다.
+     */
+    List<ChangeRequest> findAllByAcademyIdAndStudentIdOrderByRequestedAtDesc(Long academyId, Long studentId);
+
      * 자동 거절 폴링 대상(API_SPEC §1.6) — 마감({@code deadline_at})이 이미 지난 대기 건.
      *
      * <p>시각이 촉발하는 <b>전 학원 대상</b> 조회라 좁힐 학원이 없다 — 학원 하나로 좁히면 나머지
