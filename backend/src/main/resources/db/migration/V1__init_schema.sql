@@ -403,6 +403,23 @@ CREATE TABLE waypoint (
     CONSTRAINT ck_waypoint_lng CHECK (lng BETWEEN -180 AND 180)
 );
 
+-- ①구간 강제 추가(RTE-06, API_SPEC §5.7) 대기소. 아직 idle 인 회차엔 run_rider 행이 없어 그
+-- 확정 배치(RunConfirmationService.confirmOne)가 이 표를 읽어 그날 명단에 합친다 — change_request 를
+-- 재사용하지 않는 이유는 그 표가 "이미 명단에 있는 학생의 정차지 이동"만 다뤄 "명단에 없는 학생을
+-- 새로 올리는" 이 동작과 의미가 다르기 때문이다(Ruling 197).
+CREATE TABLE run_forced_addition (
+    id         bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    run_id     bigint      NOT NULL,
+    student_id bigint      NOT NULL,
+    stop_id    bigint      NOT NULL,
+    added_by   bigint      NOT NULL,
+    added_at   timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT uk_run_forced_addition_run_student UNIQUE (run_id, student_id),
+    CONSTRAINT fk_run_forced_addition_run FOREIGN KEY (run_id) REFERENCES run (id) ON DELETE CASCADE,
+    CONSTRAINT fk_run_forced_addition_student FOREIGN KEY (student_id) REFERENCES student (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_run_forced_addition_stop FOREIGN KEY (stop_id) REFERENCES stop (id) ON DELETE RESTRICT
+);
+
 -- 회차별 확정 노선. 회차와 버전 목록을 잇는 자리이자 "지금 유효한 버전"의 단일 지시자.
 -- current_version_id 의 FK 는 route_version 과 순환이라 두 테이블을 만든 뒤 ALTER 로 붙인다.
 CREATE TABLE confirmed_route (
