@@ -122,7 +122,7 @@ public class ForcedAdditionCommandService {
      */
     private void assertCapacityAvailable(Run run, Bus bus) {
         long projected = projectedRiderCount(run);
-        long staged = runForcedAdditionRepository.countByRunId(run.getId());
+        long staged = runForcedAdditionRepository.countByRunIdAndAcademyId(run.getId(), run.getAcademyId());
         if (projected + staged + 1 > bus.getStudentCapacity()) {
             throw new BusinessException(ErrorCode.CAPACITY_EXCEEDED);
         }

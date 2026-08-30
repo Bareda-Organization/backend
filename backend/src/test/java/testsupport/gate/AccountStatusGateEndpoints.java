@@ -40,6 +40,13 @@ public final class AccountStatusGateEndpoints {
      *
      * <p>Phase 6 이 {@code /staff/routes} 6개(고정 노선 CRUD 5 + 순서 최적화 1)를 더했다 — 편성은
      * 학원 관계자의 관리 화면이라 근거가 같다.
+     *
+     * <p>Phase 8 이 9개를 더했다 — 학원 관계자 6개({@code /staff/approvals} 목록·상세·결정 3
+     * (API_SPEC §5.5·§5.6, 권한 "학원 관계자") + {@code /staff/runs/{runId}/forced-add} 1(§5.7) +
+     * {@code /staff/runs/{runId}/waypoints} 배포·해제 2(§5.15, 둘 다 권한 "학원 관계자"))와 학부모
+     * 3개({@code /students/{id}/runs/{runId}/intent}(§3.6) · {@code /students/{id}/change-requests}
+     * 등록·조회 2(§3.8·§3.9), 셋 다 권한 "학부모") — 둘 다 승인된 계정의 기능이라 허용 목록 밖이다
+     * (Ruling 145 와 같은 근거).
      */
     public static final List<String> DENIED_WHEN_REJECTED = List.of(
             "POST /auth/password",
@@ -89,7 +96,18 @@ public final class AccountStatusGateEndpoints {
             "POST /me/students/link",
             // 요일별 등하원 주소(§3.7) — 승인된 학부모의 기능이라 허용 목록 밖이다(Ruling 145).
             "GET /students/{id}/weekly-address",
-            "PATCH /students/{id}/weekly-address");
+            "PATCH /students/{id}/weekly-address",
+            // Phase 8 — ②구간 승인(§5.5·§5.6)·강제 추가(§5.7)·경유 지점(§5.15) 관계자 관리 화면 6개.
+            "GET /staff/approvals",
+            "GET /staff/approvals/{id}",
+            "POST /staff/approvals/{id}/decide",
+            "POST /staff/runs/{runId}/forced-add",
+            "POST /staff/runs/{runId}/waypoints",
+            "DELETE /staff/runs/{runId}/waypoints/{waypointId}",
+            // Phase 8 — 탑승 토글(§3.6)·변경 신청 등록·조회(§3.8·§3.9) 학부모 기능 3개(Ruling 145).
+            "PATCH /students/{id}/runs/{runId}/intent",
+            "POST /students/{id}/change-requests",
+            "GET /students/{id}/change-requests");
 
     /** {@code pending} 의 거부측 — {@code rejected} 거부측에 재신청 1개를 더한다({@code @AllowedWhenRejected} 는 pending 을 열지 않는다). */
     public static final List<String> DENIED_WHEN_PENDING = concat(DENIED_WHEN_REJECTED, "POST /auth/signup/reapply");

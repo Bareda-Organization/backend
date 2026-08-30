@@ -193,7 +193,8 @@ public class RunConfirmationService {
         // ①구간 강제 추가(RTE-06, Ruling 197·198)도 같은 방식으로 합친다 — 요일별 주소에 없던
         // 학생이라 studentIds 에도 새로 더해야 하고, stopOverrides 에 넣어야 좌표 해석 단계
         // (DailyStopResolver.studentToStop)가 그 정차지를 실제로 찾는다.
-        for (RunForcedAddition forcedAddition : runForcedAdditionRepository.findAllByRunId(run.getId())) {
+        for (RunForcedAddition forcedAddition : runForcedAdditionRepository
+                .findAllByRunIdAndAcademyId(run.getId(), run.getAcademyId())) {
             if (!studentIds.contains(forcedAddition.getStudentId())) {
                 studentIds.add(forcedAddition.getStudentId());
             }

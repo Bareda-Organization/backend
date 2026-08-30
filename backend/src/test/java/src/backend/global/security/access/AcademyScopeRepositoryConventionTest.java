@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
  * 그대로 샌다. 특히 목록 조회는 조건이 빠져도 동작해서 기능 테스트를 통과한다(ARCHITECTURE §6.1).
  * 그래서 "격리를 넣었는가" 가 아니라 <b>"넣지 않은 곳이 있는가"</b> 를 기계가 세게 한다.
  *
- * <p><b>검사 대상은 ERD §6.1 에 등재된 37개 테이블 전부</b>다 — 직접 보유 17 + 부모 경유 20.
+ * <p><b>검사 대상은 ERD §6.1 에 등재된 38개 테이블 전부</b>다 — 직접 보유 17 + 부모 경유 21.
  * 부모 경유 테이블은 {@code academy_id} 컬럼이 부재해 조건을 붙일 자리가 부모 조인뿐이고, 그 사실이
  * 곧 빠뜨리기 쉬운 이유다. 그래서 두 분류의 저장소 조회를 같은 규칙으로 묶는다 — 아래 셋 중 하나.
  * <ol>
@@ -85,7 +85,7 @@ class AcademyScopeRepositoryConventionTest {
             "weekly_address", "guardian_student", "link_request", "link_code",
             "route_stop",
             "confirmed_route", "route_version", "run_stop", "run_rider",
-            "assignment", "waypoint", "boarding_intent", "run_position",
+            "assignment", "waypoint", "boarding_intent", "run_position", "run_forced_addition",
             "no_show_case", "no_show_contact", "rider_status_history",
             "notification_setting", "refresh_token");
 
@@ -181,7 +181,7 @@ class AcademyScopeRepositoryConventionTest {
         assertThat(byTable.keySet())
                 .as("ERD §6.1 부모 경유 표에 있는데 엔티티가 부재한 테이블 — 표와 코드 중 어느 쪽이 틀렸는지 판정한다")
                 .containsAll(ERD_PARENT_ACADEMY_TABLES);
-        assertThat(ERD_PARENT_ACADEMY_TABLES).hasSize(20);
+        assertThat(ERD_PARENT_ACADEMY_TABLES).hasSize(21);
 
         List<String> nowDirect = ERD_PARENT_ACADEMY_TABLES.stream()
                 .filter(table -> AcademyScopeScan.hasAcademyIdField(byTable.get(table)))
@@ -315,7 +315,7 @@ class AcademyScopeRepositoryConventionTest {
     // ── 검사 대상 수집 ─────────────────────────────────────────────────────
 
 
-    /** ERD §6.1 에 등재된 테이블(직접 보유 17 + 부모 경유 20)의 저장소 — 두 분류가 같은 규칙을 받는다. */
+    /** ERD §6.1 에 등재된 테이블(직접 보유 17 + 부모 경유 21)의 저장소 — 두 분류가 같은 규칙을 받는다. */
     private static List<Class<?>> scopeGovernedRepositories() {
         return AcademyScopeScan.repositoryInterfaces().stream()
                 .filter(repository -> {

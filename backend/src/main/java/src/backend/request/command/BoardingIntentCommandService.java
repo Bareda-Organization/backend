@@ -44,8 +44,10 @@ import src.backend.student.entity.Student;
  * <p>{@code @Transactional} 을 붙인다 — {@code WeeklyAddressCommandService} 와 달리 이 메서드는
  * 외부 API 호출이 없고(①·③은 {@code RouteComputationPipeline} 을 부르지 않는다, 목표 1), "서버
  * 처리 실패 시 기존 상태 복구 + 횟수 미소진"(C-10)을 지키려면 여러 엔티티 변경이 한 트랜잭션으로
- * 묶여야 한다. {@link src.backend.notification.command.NotificationOutbox#append} 가
- * {@code Propagation.MANDATORY} 인 것도 이 메서드가 열린 트랜잭션 안에서 호출된다는 전제다.
+ * 묶여야 한다. {@code NotificationOutbox#append} 가 {@code Propagation.MANDATORY} 인 것도 이
+ * 메서드가 열린 트랜잭션 안에서 호출된다는 전제다 — 그 알림 적재는 {@link IntentChangedEvent}
+ * 발행을 구독한 알림 모듈 리스너가 대신하며, 이 클래스는 도메인 이벤트만 던지고 알림 모듈을 직접
+ * 부르지 않는다(§7 규칙 17).
  */
 @Service
 @RequiredArgsConstructor
@@ -139,8 +141,8 @@ public class BoardingIntentCommandService {
         changeRequest.assignDeadline(run.getDepartTime());
         changeRequest = changeRequestRepository.save(changeRequest);
 
-        eventPublisher.publishEvent(new ApprovalRequestedEvent(changeRequest.getId(), run.getId(),
-                run.getAcademyId(), student.getId(), now));
+        eventPublisher.publishEvent(new ApprovalRequestedEvent(changeRequest.getId(), run.getAcademyId(),
+                run.getId(), student.getId(), now));
 
         boolean existingRiding = intent.isRiding();
         String riderStatus = riderStatusOf(run.getId(), student.getId(), existingRiding);

@@ -49,13 +49,13 @@
 
 ## 1. 전체 구조 — 도메인 그룹
 
-39개 테이블을 4개 그룹으로 분할. 아래 소계는 §3 의 테이블 정의를 직접 센 값이며 2026-08-24 신설 3개(`verification_code` 그룹 ② · `device_token`·`emergency_alert` 그룹 ④)가 포함된 기준.
+40개 테이블을 4개 그룹으로 분할. 아래 소계는 §3 의 테이블 정의를 직접 센 값이며 2026-08-24 신설 3개(`verification_code` 그룹 ② · `device_token`·`emergency_alert` 그룹 ④)와 Phase 8 신설 1개(`run_forced_addition` 그룹 ③)가 포함된 기준.
 
 | 그룹 | 테이블 수 | 범위 |
 |---|:-:|---|
 | ① 학원 · 계정 · 권한 | 7 | 테넌트, 로그인 계정, 가입 승인, 토큰 |
 | ② 학생 · 보호자 · 주소 | 7 | 학생 레코드, 보호자 연결, 요일별 승하차 주소, 인증 코드 |
-| ③ 차량 · 인력 · 운행 · 노선 | 13 | 차량, 매니저, 스케줄, 회차, 고정·확정 노선, 승하차지, 탑승자 |
+| ③ 차량 · 인력 · 운행 · 노선 | 14 | 차량, 매니저, 스케줄, 회차, 고정·확정 노선, 승하차지, 탑승자, 강제 추가 대기 |
 | ④ 요청 · 예외 · 알림 · 이력 | 12 | 탑승 의사, 변경 요청, 미승차, 예외 보고, 위치, 알림, 단말, 감사 |
 
 ⚠ **이 표의 소계는 §3 의 `####` 항목 수와 일치해야 함.** 2026-08-25 이전 판이 7·6·13·10(=36)으로 어긋나 있었고, 신설 테이블의 소속 그룹 서술도 실제 정의 위치와 달랐음. 테이블을 더하거나 옮기면 이 표를 함께 고침.
@@ -1036,7 +1036,7 @@ erDiagram
 기준은 **"그 테이블을 학원 범위로 직접 조회하는가"**. 부모를 조인해야만 학원이 결정되는 테이블은 컬럼을 두지 않음.
 
 테넌트 루트인 **`academy` 자신과 `system_admin` 은 두 분류 어디에도 속하지 않는다** — 아래 표는 나머지를 대상으로 함.
-`system_admin` 은 학원 소속이 부재한 전 학원 범위 계정이라 좁힐 학원 자체가 없다. **부모 경유로 세면 §6.2 의 소계 20 과 어긋난다**(21이 됨).
+`system_admin` 은 학원 소속이 부재한 전 학원 범위 계정이라 좁힐 학원 자체가 없다. **부모 경유로 세면 §6.2 의 소계 21 과 어긋난다**(22가 됨).
 
 | 구분 | 테이블 | 근거 |
 |---|---|---|
@@ -1050,7 +1050,7 @@ erDiagram
 | 부모 경유 | `verification_code` · `device_token` | `account` 를 통해 학원이 결정. 전화번호·단말 자체는 학원 범위 조회 대상 밖 |
 | **부모 경유** | `weekly_address` · `guardian_student` · `link_request` · `link_code` | `student` · `guardian` 경유 |
 | | `route_stop` | `route` 경유 |
-| | `confirmed_route` · `route_version` · `run_stop` · `run_rider` · `assignment` · `waypoint` · `boarding_intent` · `run_position` | `run` 경유 |
+| | `confirmed_route` · `route_version` · `run_stop` · `run_rider` · `assignment` · `waypoint` · `boarding_intent` · `run_position` · `run_forced_addition` | `run` 경유 |
 | | `no_show_case` · `no_show_contact` · `rider_status_history` | `run_rider` 경유 |
 | | `notification_setting` · `refresh_token` | `account` 경유 |
 
@@ -1059,7 +1059,7 @@ erDiagram
 격리를 **어디서 어떻게 강제하는가**는 [ARCHITECTURE §6](./ARCHITECTURE.md) 담당. 이 문서는 그 판단이 스키마에 남기는 것만 적는다.
 
 - **직접 보유 17개** — `academy_id` 선행 복합 인덱스를 둠 (§5.3). 격리 조건이 모든 쿼리에 무조건 붙는 술어이기 때문.
-- **부모 경유 20개** — 컬럼이 부재하므로 조회에 부모 조인이 필수. 자식 단독 조회 경로를 만들면 격리 조건을 붙일 자리가 없어짐.
+- **부모 경유 21개** — 컬럼이 부재하므로 조회에 부모 조인이 필수. 자식 단독 조회 경로를 만들면 격리 조건을 붙일 자리가 없어짐.
 - 이력·로그 테이블은 FK 없이 `academy_id` 만 보유 (§4.2) — 조인 없이 학원 범위 조회가 가능해야 하는데 대량 적재라 FK 를 미설정.
 
 ---
