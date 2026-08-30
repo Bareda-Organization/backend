@@ -357,6 +357,24 @@ class StaffRunAssignmentControllerTest {
     }
 
     /**
+     * 앞 회차 종료 시각에 <b>정확히 이어</b> 다음 회차가 시작해도 중복 배치다 — 겹침 판정은 양끝을
+     * 포함한다({@link src.backend.manager.entity.WorkHours#coversWindow} 와 같은 규칙).
+     *
+     * <p>경계를 배타로 두면 기사가 한 회차를 마치자마자 쉴 틈 없이 다음 회차를 모는 형태가 경고 없이
+     * 통과한다 — 실제로는 두 운행이 동시에 요구하는 배치라 정상 조작이 아니다.
+     */
+    @Test
+    void 운행_구간이_경계에서_정확히_이어붙어도_중복_배치_경고가_난다() throws Exception {
+        long 첫_회차 = 회차를_만든다(BUS_A1_ID, WORK_START, 60);
+        long 둘째_회차 = 회차를_만든다(BUS_A2_ID, "08:00");
+        배치한다(관계자A_토큰(), 첫_회차, 강기사_종일, null).andExpect(status().isOk());
+
+        배치한다(관계자A_토큰(), 둘째_회차, 강기사_종일, null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.warnings[?(@.code == 'MANAGER_DOUBLE_BOOKED')]").exists());
+    }
+
+    /**
      * 근무 구간의 <b>양끝은 근무 시간 안</b>이다 — 07:00~10:00 근무자에게 07:00 회차도 10:00 회차도
      * 경고를 내지 않는다.
      *
