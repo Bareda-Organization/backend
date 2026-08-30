@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.math.BigDecimal;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 /**
  * {@link Academy#assignCoordinates}·{@link Academy#hasCoordinates} 의 순수 Java 규칙을 확인한다 —
@@ -50,5 +51,19 @@ class AcademyCoordinatesTest {
         assertThatThrownBy(() -> academy.assignCoordinates(null, new BigDecimal("127.027621")))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThat(academy.hasCoordinates()).as("거부되면 기존 상태(둘 다 없음)가 유지돼야 한다").isFalse();
+    }
+
+    /**
+     * {@code assignCoordinates} 가 한쪽만 있는 상태를 이미 막으므로, 그 상태에서도
+     * {@code hasCoordinates()} 가 실제로 "둘 다" 를 검사하는지는 리플렉션으로 필드를 직접
+     * 건드려야 확인할 수 있다 — {@code &&} 를 {@code ||} 로 바꿔도 공개 API 만으로는 이 차이가
+     * 드러나지 않는다.
+     */
+    @Test
+    void 필드가_직접_한쪽만_채워진_상태에서도_hasCoordinates_는_거짓이다() {
+        Academy academy = 학원();
+        ReflectionTestUtils.setField(academy, "lat", new BigDecimal("37.497942"));
+
+        assertThat(academy.hasCoordinates()).isFalse();
     }
 }
