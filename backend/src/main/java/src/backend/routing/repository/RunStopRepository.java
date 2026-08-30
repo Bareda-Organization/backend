@@ -23,7 +23,7 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
      * 와 같다 — 호출부가 이미 학원 소속을 확인한 회차의 확정 노선 버전이라는 전제다.
      */
     @AcademyScopeExempt(reason = "routeVersionId 는 호출부가 이미 학원 소속을 확인한 회차의 확정 노선 버전이라는 전제다 — "
-            + "AcademyScope.assertAccessible 로 회차를 먼저 확인한 뒤 confirmed_route.current_version_id 로 얻은 값만 "
-            + "넘긴다는 전제(RunRiderRepository.findByRunIdAndStudentId 와 같은 근거)")
+            + "RunRepository.findByIdAndAcademyId 로 회차를 먼저 학원 범위에 좁힌 뒤 confirmed_route.current_version_id 로 "
+            + "얻은 값만 넘긴다는 전제(RunRiderRepository.findByRunIdAndStudentId 와 같은 근거)")
     Optional<RunStop> findByRouteVersionIdAndStopId(Long routeVersionId, Long stopId);
 }

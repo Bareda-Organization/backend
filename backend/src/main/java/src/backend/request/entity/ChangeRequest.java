@@ -126,6 +126,16 @@ public class ChangeRequest {
                 requestedBy, requestedAt);
     }
 
+    /**
+     * ②구간 승인 대기의 마감을 못박는다 — 그 회차의 출발 시각이 곧 마감이다(API_SPEC §5.6,
+     * {@code ChangeWindowPolicy} javadoc). 생성 직후 한 번만 불리며, 이 값을 기준으로 도래분 자동
+     * 거절({@link #autoReject})의 대상 여부가 갈린다({@code ChangeRequestRepository
+     * .findByStatusAndDeadlineAtLessThanEqual}).
+     */
+    public void assignDeadline(OffsetDateTime deadlineAt) {
+        this.deadlineAt = deadlineAt;
+    }
+
     /** 아직 대기 중이 아니면 {@code 409 APPROVAL_ALREADY_DECIDED} — 세 전이 메서드가 공유하는 가드. */
     public void assertPending() {
         if (status != ChangeRequestStatus.PENDING) {

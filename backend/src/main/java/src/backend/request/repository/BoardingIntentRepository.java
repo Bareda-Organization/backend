@@ -20,17 +20,19 @@ public interface BoardingIntentRepository extends JpaRepository<BoardingIntent, 
      * (회차, 학생) 단건 조회 — 한도 판정·소비·복구·{@code riding} 적용이 전부 이 행 하나를 기준으로
      * 이뤄진다({@code uk_boarding_intent_run_student} UNIQUE, 목표 5의 "한도 단위는 회차" 근거).
      *
-     * <p>{@code runId} 는 호출부가 이미 학원 소속을 확인한 회차의 식별자라는 전제 위에 있다 — 변경
-     * 요청 처리든 탑승 의사 토글이든, 이 조회에 닿기 전에 {@code AcademyScope.assertAccessible} 이
-     * 학원을 먼저 확인한다({@code DeviceTokenRepository} 와 같은 근거). {@code boarding_intent} 는
+     * <p>{@code runId} 는 호출부가 이미 학원 소속을 확인한 회차의 식별자라는 전제 위에 있다 — 탑승
+     * 의사 토글({@code BoardingIntentCommandService.toggle})은 이 조회에 닿기 전에
+     * {@code RunRepository.findByIdAndAcademyId} 로 회차를 학원 범위에 좁혀 얻는다(SCHEDULE_NOT_FOUND·
+     * ROUTE_NOT_FOUND 와 같은 {@code {id}} 지목 관례 — 다른 학원의 회차를 지목해도 미존재와 같은
+     * {@code 404 RUN_NOT_FOUND} 로 답한다, Ruling 153·180). {@code boarding_intent} 는
      * {@code academy_id} 컬럼이 부재해 부모({@code run}) 조인 없이는 여기서 재확인할 수도 없다 —
      * 조인해 재확인하려면 이 조회 하나를 위해 {@code run} 을 매번 함께 읽어야 해, 호출부가 이미 한
      * 검증을 한 번 더 반복하는 셈이다.
      */
-    @AcademyScopeExempt(reason = "runId 는 호출부가 이미 학원 소속을 확인한 회차의 식별자라는 전제다 — "
-            + "변경 요청 처리·탑승 의사 토글 어느 진입 경로든 이 조회 전에 AcademyScope.assertAccessible 이 "
-            + "학원을 확인한다(DeviceTokenRepository.findByAccountIdAndDeviceId 와 같은 근거). boarding_intent 는 "
-            + "academy_id 컬럼이 부재해 부모(run) 조인 없이는 이 조회 하나를 위해 재확인할 수도 없다")
+    @AcademyScopeExempt(reason = "runId 는 호출부가 RunRepository.findByIdAndAcademyId 로 이미 학원 범위에 좁혀 얻은 "
+            + "회차의 식별자라는 전제다 — 다른 학원의 회차는 그 조회 단계에서 이미 404 RUN_NOT_FOUND 로 걸러져 "
+            + "이 자리에 닿지 못한다(SCHEDULE_NOT_FOUND·ROUTE_NOT_FOUND 와 같은 {id} 지목 관례, Ruling 153·180). "
+            + "boarding_intent 는 academy_id 컬럼이 부재해 부모(run) 조인 없이는 이 조회 하나를 위해 재확인할 수도 없다")
     Optional<BoardingIntent> findByRunIdAndStudentId(Long runId, Long studentId);
 
     /**

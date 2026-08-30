@@ -18,13 +18,13 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
      * ③구간 미등원 토글(API_SPEC §3.6)이 상태를 옮길 그 학생의 명단 행 1건 —
      * {@code uk_run_rider_run_student} UNIQUE(암시)가 결과를 한 건으로 좁힌다.
      *
-     * <p>{@code runId} 는 호출부가 이미 학원 소속을 확인한 회차의 식별자라는 전제다 —
-     * {@code request.repository.BoardingIntentRepository#findByRunIdAndStudentId} 와 같은 근거
-     * ({@code AcademyScope.assertAccessible} 가 이 조회 전에 학원을 먼저 확인한다).
+     * <p>{@code runId} 는 호출부가 {@code RunRepository.findByIdAndAcademyId} 로 이미 학원 범위에
+     * 좁혀 얻은 회차의 식별자라는 전제다 — {@code request.repository.BoardingIntentRepository
+     * #findByRunIdAndStudentId} 와 같은 근거(Ruling 153·180 {id} 지목 관례).
      */
-    @AcademyScopeExempt(reason = "runId 는 호출부가 이미 학원 소속을 확인한 회차의 식별자라는 전제다 — 탑승 의사 토글은 "
-            + "이 조회 전에 AcademyScope.assertAccessible 이 학원을 확인한다(BoardingIntentRepository.findByRunIdAndStudentId "
-            + "와 같은 근거). run_rider 는 academy_id 컬럼이 부재해 부모(run) 조인 없이는 재확인할 수도 없다")
+    @AcademyScopeExempt(reason = "runId 는 호출부가 RunRepository.findByIdAndAcademyId 로 이미 학원 범위에 좁혀 얻은 "
+            + "회차의 식별자라는 전제다(BoardingIntentRepository.findByRunIdAndStudentId 와 같은 근거). run_rider 는 "
+            + "academy_id 컬럼이 부재해 부모(run) 조인 없이는 재확인할 수도 없다")
     Optional<RunRider> findByRunIdAndStudentId(Long runId, Long studentId);
 
     /**
