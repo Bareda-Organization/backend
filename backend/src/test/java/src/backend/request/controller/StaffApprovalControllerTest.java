@@ -165,6 +165,59 @@ class StaffApprovalControllerTest {
     }
 
     /**
+     * 상세 응답의 재최적화 결과 본문 — 취소 대상 학생(학생2, {@code midStop})이 전/후 대조에서 실제로
+     * 빠지는지를 값으로 확인한다. 지금까지의 시험은 {@code preview_token}·호출 횟수만 봤을 뿐
+     * {@code route_preview}·{@code affected_students} 의 <b>내용</b>은 아무도 검사하지 않았다 — 계산이
+     * 비어 있거나(영향 학생 0명) 취소 대상이 빠지지 않은 채 그대로 남아도 기존 단언은 전부 통과한다
+     * (T4 게이트 리뷰 잔여 지적, 2026-08-30).
+     *
+     * <p>이 시나리오는 정차지 하나에 학생 한 명뿐이라(학생1={@code firstStop}·학생2={@code midStop}·
+     * 학생3={@code lastStop}) 학생2 를 취소하면 {@code midStop} 잔여 인원이 0이 되어 <b>노선에서
+     * 통째로 빠진다</b> — {@code stops_after} 에 없고 {@code removed[]} 에 실린다(자리 이동으로 남는
+     * {@code reordered[]} 는 정차지가 2개 이하로 줄면 순서가 바뀔 여지가 없어 이 시나리오로는 못
+     * 채운다 — 순서가 실제로 바뀌는 시나리오는 {@link #상세_응답의_seq_는_1부터_정차_순서대로_매겨진다}
+     * 가 별도로 다룬다). {@code lastStop} 은 정차지 자체는 그대로 남지만 순번이 3→2 로 밀리므로,
+     * "정차 위치·순서가 실제로 바뀐 학생만 추린다"는 {@code affectedStudentsOf} 계약대로 학생3 도
+     * 함께 영향 학생에 실린다 — 취소 대상만 실린다고 가정하지 않는다.
+     */
+    @Test
+    void 상세_응답은_취소_대상_학생이_노선에서_빠진_결과를_보여준다() throws Exception {
+        시나리오 s = 확정된_회차와_승인_대기_건을_만든다();
+        String 취소된_정류장 = "정차지37.562000";
+
+        상세_조회(관계자_토큰(s.academyId), s.approvalId).andExpect(status().isOk())
+                // 영향 학생 — 취소 대상 본인(학생2)과, 순번이 밀린 학생3 이 실려 있어야 한다.
+                // 빈 목록이면(변형 1: affectedStudentsOf 가 항상 빈 목록) 실패해야 한다.
+                .andExpect(jsonPath("$.data.affected_students", org.hamcrest.Matchers.hasSize(2)))
+                .andExpect(jsonPath("$.data.affected_students[*].name",
+                        org.hamcrest.Matchers.containsInAnyOrder("학생2", "학생3")))
+                // 전 — 취소 전에는 그 학생의 정류장이 아직 노선에 있었다.
+                .andExpect(jsonPath("$.data.route_preview.stops_before[*].stop_name",
+                        org.hamcrest.Matchers.hasItem(취소된_정류장)))
+                // 후 — 취소를 반영하면 그 정류장은 잔여 0명이라 노선에서 빠진다. 그대로 남아 있으면 실패다.
+                .andExpect(jsonPath("$.data.route_preview.stops_after[*].stop_name",
+                        org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasItem(취소된_정류장))))
+                .andExpect(jsonPath("$.data.route_preview.removed", org.hamcrest.Matchers.hasSize(1)))
+                .andExpect(jsonPath("$.data.route_preview.removed[0].stop_name").value(취소된_정류장));
+    }
+
+    /**
+     * {@code stops_before}·{@code stops_after} 의 {@code seq} 는 1부터 정차 순서대로 매겨진다 — 취소로
+     * 정차지가 하나 빠져도 남은 정차지의 순번이 빈 자리 없이 다시 매겨지는지 확인한다.
+     */
+    @Test
+    void 상세_응답의_seq_는_1부터_정차_순서대로_매겨진다() throws Exception {
+        시나리오 s = 확정된_회차와_승인_대기_건을_만든다();
+
+        상세_조회(관계자_토큰(s.academyId), s.approvalId).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.route_preview.stops_before[*].seq",
+                        org.hamcrest.Matchers.contains(1, 2, 3)))
+                // 취소 후 정차지 2개(firstStop·lastStop)만 남고, 순번은 1·2 로 다시 매겨진다.
+                .andExpect(jsonPath("$.data.route_preview.stops_after[*].seq",
+                        org.hamcrest.Matchers.contains(1, 2)));
+    }
+
+    /**
      * 입력이 그대로인 채 상세를 반복 조회하면 같은 {@code preview_token} 을 돌려주고, 그동안
      * {@link RouteComputationPipeline#compute} 는 <b>더 불리지 않는다</b>(캐시 안정성).
      *
