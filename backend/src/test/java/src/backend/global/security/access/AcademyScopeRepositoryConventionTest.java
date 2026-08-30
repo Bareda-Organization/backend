@@ -24,10 +24,13 @@ import org.junit.jupiter.api.Test;
  * 부모 경유 테이블은 {@code academy_id} 컬럼이 부재해 조건을 붙일 자리가 부모 조인뿐이고, 그 사실이
  * 곧 빠뜨리기 쉬운 이유다. 그래서 두 분류의 저장소 조회를 같은 규칙으로 묶는다 — 아래 셋 중 하나.
  * <ol>
- *   <li><b>학원으로 좁혀짐</b> — 메서드 이름 · {@code @Query} 본문 · {@code @Param} 중 어디든 학원 조건</li>
- *   <li><b>부모 경유로 좁혀짐</b> — {@code @Query} 가 부모의 {@code academyId} 를 조인 조건에 씀.
- *       1과 같은 술어({@link AcademyScopeRule#isNarrowedByAcademy})로 판정된다 — 쿼리 본문에 학원 식별자가 있으면 참이라,
- *       자식 테이블에 컬럼이 없어도 조인 조건이 있으면 잡힌다</li>
+ *   <li><b>학원으로 좁혀짐</b> — 판정 축이 조회 형태에 따라 갈린다({@link AcademyScopeRule#isNarrowedByAcademy}).
+ *       {@code @Query} 메서드는 <b>WHERE 절 조건문</b> 안에 학원 식별자가 있어야 하고, 파생 조회
+ *       메서드는 <b>이름</b>에 {@code AcademyId} 가 있어야 한다. {@code @Param} 은 어느 쪽에서도 근거로
+ *       쓰지 않는다 — 쿼리 본문·메서드 이름과 무관하게 시그니처에만 존재해, {@code WHERE} 절의 조건을
+ *       지워도 그대로 남기 때문이다(Phase 7 T6 실측 결함의 본체)</li>
+ *   <li><b>부모 경유로 좁혀짐</b> — {@code @Query} 가 부모의 {@code academyId} 를 WHERE 절의 조인 조건에
+ *       씀. 1과 같은 술어로 판정된다 — 자식 테이블에 컬럼이 없어도 WHERE 절에 조인 조건이 있으면 잡힌다</li>
  *   <li><b>{@link AcademyScopeExempt}</b> 로 좁히지 않는 근거를 밝힘</li>
  * </ol>
  * <b>넷째 선택지는 두지 않는다.</b> 표시 없는 새 조회는 이 테스트가 실패시키므로, 다음 Phase 가
