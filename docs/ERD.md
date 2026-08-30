@@ -582,6 +582,21 @@ erDiagram
 
 **존재 이유** — 학생 주소로 표현되지 않는 경유 요구(학원 사정 · 도로 통제 · 임시 집결지)를 담는 단위. 강제 추가(학생 단위)와 달리 **탑승자 없이 경유만** 필요한 경우가 대상. **근거** RTE-10 · A-15 · API_SPEC §5.15
 
+#### `run_forced_addition` 🆕 — 강제 추가 대기
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| `id` | bigint | PK | |
+| `run_id` | bigint | FK NN | 대상 회차 |
+| `student_id` | bigint | FK NN | 대상 학생. 기존 학생은 검색·연동, 신규 학생은 이 행을 만들기 전에 학생·주소를 먼저 생성 |
+| `stop_id` | bigint | FK NN | 주소 검증 결과 매칭·생성된 승하차지 |
+| `added_by` | bigint | NN | 지정한 관계자 계정 |
+| `added_at` | timestamptz | NN default now() | |
+
+`UNIQUE (run_id, student_id)` — 같은 회차에 같은 학생을 두 번 강제 추가할 수 없다.
+
+**존재 이유** — ①구간(출발 30분 전, A-06)에서만 허용되는 강제 추가를 즉시 명단·노선에 반영하지 않고 대기시키는 단위. 이 엔드포인트는 재최적화를 부르지 않고(Ruling 198) `RunConfirmationService` 의 확정 배치가 그날 명단에 합칠 때 실제로 반영된다 — 재최적화를 매 강제 추가마다 부르면 확정 30분 전이라는 창 안에서 지도 API 호출이 인원수만큼 늘어난다. **근거** RTE-06 · A-06 · BUS-04 · API_SPEC §5.7
+
 #### `run_rider` — 회차별 탑승자
 
 | 컬럼 | 타입 | 제약 | 설명 |
@@ -884,6 +899,9 @@ erDiagram
 | `stop` → `run_stop` | 1 : N | `stop_id` | RESTRICT | |
 | `waypoint` → `run_stop` | 1 : N | `waypoint_id` | RESTRICT | |
 | `run` → `waypoint` | 1 : N | `run_id` | CASCADE | |
+| `run` → `run_forced_addition` | 1 : N | `run_id` | CASCADE | |
+| `student` → `run_forced_addition` | 1 : N | `student_id` | RESTRICT | |
+| `stop` → `run_forced_addition` | 1 : N | `stop_id` | RESTRICT | |
 | `run` → `run_rider` | 1 : N | `run_id` | CASCADE | |
 | `student` → `run_rider` | 1 : N | `student_id` | RESTRICT | 퇴원은 soft delete |
 | `stop` → `run_rider` | 1 : N | `stop_id` | RESTRICT | |

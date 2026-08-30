@@ -17,6 +17,4 @@ public interface RunForcedAdditionRepository extends JpaRepository<RunForcedAddi
      * 더해진다({@code ForcedAdditionCommandService} 자바독).
      */
     long countByRunId(Long runId);
-
-    boolean existsByRunIdAndStudentId(Long runId, Long studentId);
 }
