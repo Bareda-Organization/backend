@@ -122,14 +122,18 @@ class StaffApprovalControllerTest {
 
     // ── 목표 12 — 목록은 재최적화를 실행하지 않는다 ──────────────────────────
 
-    /** 목록 조회는 대기 건이 있어도 {@link RouteComputationPipeline#compute} 를 <b>한 번도</b> 부르지 않는다. */
+    /**
+     * 목록 조회는 대기 건이 있어도 {@link RouteComputationPipeline#compute} 를 <b>한 번도</b> 부르지
+     * 않는다 — <b>대기 3건</b>으로 확인한다. 1건(N=1)이면 "두 번째 항목부터만 계산" 같은, 대기 건수에
+     * 비례해 N배 호출하는 결함을 이 단언이 잡아내지 못한다.
+     */
     @Test
     void 목록_조회는_재최적화를_실행하지_않는다() throws Exception {
-        시나리오 s = 확정된_회차와_승인_대기_건을_만든다();
+        long academyId = 확정된_회차와_승인_대기_3건을_만든다();
 
-        목록_조회(관계자_토큰(s.academyId), null).andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items", org.hamcrest.Matchers.hasSize(1)))
-                .andExpect(jsonPath("$.data.pending_count").value(1));
+        목록_조회(관계자_토큰(academyId), null).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items", org.hamcrest.Matchers.hasSize(3)))
+                .andExpect(jsonPath("$.data.pending_count").value(3));
 
         verify(pipeline, times(0)).compute(any());
     }
@@ -275,6 +279,43 @@ class StaffApprovalControllerTest {
         long approvalId = changeRequestRepository.save(changeRequest).getId();
 
         return new 시나리오(academyId, runId, approvalId, midStop, null);
+    }
+
+    /**
+     * 확정 노선 위에 승인 대기 <b>3건</b>을 올린 시나리오 — 목록 호출 수 검사(목표 12) 전용. 위
+     * {@link #확정된_회차와_승인_대기_건을_만든다} 와 별개의 학원·회차를 새로 만든다(그 픽스처는 다른
+     * 6개 시험이 이미 쓰고 있어 대기 건수를 그대로 두었다). 회차에 탄 학생 3명 전원에 각각 취소
+     * 요청을 하나씩 걸어 대기 3건을 만든다.
+     */
+    private long 확정된_회차와_승인_대기_3건을_만든다() throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+        long busId = fixtures().bus(academyId);
+        long firstStop = fixtures().stop(academyId, "37.560000", "126.970000");
+        long midStop = fixtures().stop(academyId, "37.562000", "126.972000");
+        long lastStop = fixtures().stop(academyId, "37.564000", "126.974000");
+        fixtures().route(academyId, busId, WEEKDAY, Direction.TO_ACADEMY, firstStop, midStop, lastStop);
+
+        long 학생1 = fixtures().student(academyId, "학생1");
+        long 학생2 = fixtures().student(academyId, "학생2");
+        long 학생3 = fixtures().student(academyId, "학생3");
+        fixtures().verifiedAddress(학생1, firstStop, WEEKDAY, Direction.TO_ACADEMY, "37.560000", "126.970000");
+        fixtures().verifiedAddress(학생2, midStop, WEEKDAY, Direction.TO_ACADEMY, "37.562000", "126.972000");
+        fixtures().verifiedAddress(학생3, lastStop, WEEKDAY, Direction.TO_ACADEMY, "37.564000", "126.974000");
+
+        OffsetDateTime departTime = SERVICE_DATE.atTime(8, 0).atOffset(java.time.ZoneOffset.of("+09:00"));
+        long runId = fixtures().idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        confirmationService.confirmOne(runId);
+        org.mockito.Mockito.clearInvocations(pipeline);
+
+        for (long studentId : new long[] { 학생1, 학생2, 학생3 }) {
+            ChangeRequest changeRequest = ChangeRequest.forRequest(academyId, runId, studentId,
+                    ChangeRequestSource.CHANGE_REQUEST, ChangeRequestType.CANCEL, (short) 2, studentId,
+                    OffsetDateTime.now());
+            changeRequestRepository.save(changeRequest);
+        }
+
+        return academyId;
     }
 
     private String 상세_본문에서_토큰(시나리오 s) throws Exception {

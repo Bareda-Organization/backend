@@ -21,8 +21,12 @@ public interface ApprovalPreviewCache {
     void put(Long approvalId, ApprovalPreview preview);
 
     /**
-     * 이 승인 건의 미리보기를 지운다 — 결정(승인·거절, T5)이 끝나 더는 유효하지 않은 미리보기를
-     * 남겨 두지 않을 때 쓴다. 이 태스크(T4)는 이 메서드를 호출하지 않는다.
+     * 이 승인 건의 미리보기를 지운다 — 더는 유효하지 않은 미리보기를 남겨 두지 않을 때 쓴다.
+     *
+     * <p>⚠ <b>이 건이 종결 상태로 넘어가는 경로는 3가지고, 셋 다 이 메서드를 불러야 한다</b> —
+     * 승인 · 거절(관계자의 결정, {@code POST /staff/approvals/{id}/decide}) · 자동 거절(마감 도래 폴링).
+     * 승인·거절은 그 결정 처리 코드가, 자동 거절은 그 처리 코드가 각자 부른다 — 하나라도 빠지면
+     * 결정된 뒤에도 그 건의 낡은 미리보기가 캐시에 남는다. 이 태스크(T4)는 이 메서드를 호출하지 않는다.
      */
     void evict(Long approvalId);
 }
