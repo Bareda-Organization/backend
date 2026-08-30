@@ -262,6 +262,17 @@ class BoardingIntentControllerTest {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM change_request WHERE run_id = ? AND student_id = ?", Integer.class, runId,
                 studentId)).as("소진 뒤 재요청은 두 번째 change_request 를 남기지 않는다").isEqualTo(1);
+
+        // 한도는 boarding_intent 의 PK(run_id, student_id) 단위다 — 같은 학생이라도 다른 회차(하원
+        // 회차 등)는 이 회차의 소진과 무관하게 여전히 200 이어야 한다. 이 단언이 없으면 한도를
+        // "학생 단위"로 잘못 좁힌 구현(예: student_id 만으로 조회)도 그대로 통과한다.
+        long anotherRunId = fixtures().run(academyId, busId, now.plusMinutes(25), now.minusMinutes(5));
+        mockMvc.perform(patch(INTENT.formatted(studentId, anotherRunId))
+                        .header("Authorization", 토큰)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"riding\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.result").value("pending_approval"));
     }
 
     // ── 목표 8 — ③구간 재최적화 없는 즉시 수용 ──────────────────────────────
@@ -375,6 +386,29 @@ class BoardingIntentControllerTest {
 
         mockMvc.perform(patch(INTENT.formatted(studentId, runId))
                         .header("Authorization", 토큰(90007L, academyId, Role.STUDENT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"riding\":false}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+    }
+
+    /**
+     * 연결 부재 자녀 — 이 보호자와 연결(link)되지 않은 학생을 지목하면 {@code 403 FORBIDDEN}(§3.7).
+     * 이 판정은 {@link src.backend.student.access.GuardianChildAccess#assertLinkedChild} 를 새로
+     * 만들지 않고 {@link src.backend.student.access.LinkedChildLookup} 경유로 재사용한다.
+     */
+    @Test
+    @DisplayName("권한 — 연결 부재 자녀를 지목하면 403 FORBIDDEN 이다")
+    void 연결_부재_자녀를_지목하면_403이다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long studentId = fixtures().student(academyId, "학생9"); // 의도적으로 linkChild() 를 부르지 않는다
+        BoardingIntentFixtures.GuardianAccount guardian9 = fixtures().guardian(academyId, "보호자9");
+        long runId = fixtures().run(academyId, busId, now.plusHours(2), now.plusMinutes(90));
+
+        mockMvc.perform(patch(INTENT.formatted(studentId, runId))
+                        .header("Authorization", 토큰(guardian9.accountId(), academyId, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"riding\":false}"))
                 .andExpect(status().isForbidden())
