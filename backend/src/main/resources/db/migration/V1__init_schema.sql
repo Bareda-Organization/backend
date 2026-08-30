@@ -371,6 +371,9 @@ CREATE TABLE run (
     finished_at      timestamptz,
     finish_pending   boolean      NOT NULL DEFAULT false,
     canceled_at      timestamptz,
+    -- 확정 배치가 이 회차에서 연속으로 실패한 횟수(Phase 7 목표 4) — 배치 재시작으로 사라지면 안 되는
+    -- 값이라 인메모리가 아니라 이 컬럼에 둔다. 확정에 성공하면 0으로 되돌아간다.
+    consecutive_failures integer   NOT NULL DEFAULT 0,
     created_at       timestamptz  NOT NULL DEFAULT now(),
     updated_at       timestamptz  NOT NULL DEFAULT now(),
     CONSTRAINT uk_run_bus_date_direction_depart UNIQUE (bus_id, service_date, direction, depart_time),

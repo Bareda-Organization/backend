@@ -141,6 +141,12 @@ tasks.named('test') {
     // 어느 테스트에도 걸리지 않아 애너테이션을 지워도 초록이 된다.
     systemProperty 'app.run.generation.cron', '-'
 
+    // 확정 배치(RunConfirmationScheduler)의 자동 폴링을 테스트 실행 동안 미룬다(하루) — 위 아웃박스
+    // 워커와 같은 이유다. 배경에서 돌면 테스트가 만든 회차를 먼저 집어 확정 건수·멱등성 단언이 실행
+    // 순서에 따라 갈린다. cron 이 아니라 fixedDelay 라 '-'(비활성 표현식)를 쓸 수 없어, 대신
+    // initial-delay 를 미루는 쪽을 택한다(NotificationOutboxWorker 와 같은 형태).
+    systemProperty 'app.run.confirmation.initial-delay-ms', '86400000'
+
     // 지오코딩을 결정론적 스텁으로 고정한다. 기본값(naver)은 실 API 라, 두면 테스트 전체 묶음이
     // 네트워크·요금·NCP 계정 상태에 매달려 그 초록이 코드에 대해 아무것도 말하지 않게 된다
     // (Ruling 157 — 판정 수단은 재현 가능해야 한다). 실 어댑터는 환경변수가 있을 때만 도는

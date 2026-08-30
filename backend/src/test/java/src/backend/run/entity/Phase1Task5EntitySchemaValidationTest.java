@@ -291,8 +291,8 @@ class Phase1Task5EntitySchemaValidationTest extends MigratedPostgresTestBase {
         entityManager.persist(waypoint);
         entityManager.flush();
 
-        RunStop viaStop = RunStop.forStop(routeVersion.getId(), stopId, 1);
-        RunStop viaWaypoint = RunStop.forWaypoint(routeVersion.getId(), waypoint.getId(), 2);
+        RunStop viaStop = RunStop.forStop(routeVersion.getId(), stopId, 1, null);
+        RunStop viaWaypoint = RunStop.forWaypoint(routeVersion.getId(), waypoint.getId(), 2, null);
         entityManager.persist(viaStop);
         entityManager.persist(viaWaypoint);
         entityManager.flush();

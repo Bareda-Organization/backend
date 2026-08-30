@@ -42,4 +42,12 @@ public interface RouteRepository extends JpaRepository<Route, Long> {
      */
     boolean existsByAcademyIdAndBusIdAndWeekdayAndDirection(Long academyId, Long busId, Weekday weekday,
             Direction direction);
+
+    /**
+     * 확정 배치(RTE-08)가 회차의 {@code bus_id}·요일·방향으로 편성을 찾는다(Phase 7) — 편성이 없으면
+     * {@code Optional.empty()} 이고 호출부가 그 회차만 {@code ROUTE_NOT_CONFIGURED_FOR_RUN} 으로
+     * 실패시킨다(목표 4, 다른 회차는 영향받지 않는다).
+     */
+    Optional<Route> findByAcademyIdAndBusIdAndWeekdayAndDirection(Long academyId, Long busId, Weekday weekday,
+            Direction direction);
 }

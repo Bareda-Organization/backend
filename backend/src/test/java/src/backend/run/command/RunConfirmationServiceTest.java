@@ -1,0 +1,188 @@
+package src.backend.run.command;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.util.List;
+import java.util.Map;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
+
+import src.backend.academy.repository.AcademyRepository;
+import src.backend.bus.repository.BusRepository;
+import src.backend.global.common.enums.Direction;
+import src.backend.global.common.enums.Weekday;
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
+import src.backend.routing.repository.RouteRepository;
+import src.backend.routing.repository.RouteStopRepository;
+import src.backend.run.entity.RunStatus;
+import src.backend.run.repository.RunRepository;
+import src.backend.student.repository.StopRepository;
+import src.backend.student.repository.StudentRepository;
+import src.backend.student.repository.WeeklyAddressRepository;
+
+/**
+ * 확정 배치 오케스트레이터({@link RunConfirmationService#confirmOne})의 <b>내용물</b> 검증
+ * (Phase 7 목표 1 · 5) — 스케줄러의 판정 시각 대상 선정은 {@code RunConfirmationSchedulerTest}(목표
+ * 3 · 4 · 6)가 맡고, 이 클래스는 회차 1건을 직접 확정했을 때 4종 산출물이 정확한 값으로 남는지만 본다.
+ *
+ * <p>{@code @Transactional} 을 쓴다({@code RouteComputationPipelineTest} 와 같은 근거) —
+ * {@link #confirmOne} 을 메인 스레드에서 직접 부르므로(스케줄러의 비동기 실행 스레드를 거치지 않는다)
+ * 테스트 트랜잭션이 이 호출이 여는 모든 자원을 그대로 감싸고, 종료 시 롤백이 뒷정리를 대신한다.
+ */
+@SpringBootTest
+@Transactional
+class RunConfirmationServiceTest {
+
+    private static final LocalDate SERVICE_DATE = LocalDate.of(2030, 4, 1); // 월요일
+
+    private static final Weekday WEEKDAY = Weekday.MON;
+
+    @Autowired
+    private RunConfirmationService confirmationService;
+
+    @Autowired
+    private AcademyRepository academyRepository;
+
+    @Autowired
+    private BusRepository busRepository;
+
+    @Autowired
+    private RouteRepository routeRepository;
+
+    @Autowired
+    private RouteStopRepository routeStopRepository;
+
+    @Autowired
+    private StopRepository stopRepository;
+
+    @Autowired
+    private StudentRepository studentRepository;
+
+    @Autowired
+    private WeeklyAddressRepository weeklyAddressRepository;
+
+    @Autowired
+    private RunRepository runRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private Clock clock;
+
+    private RunConfirmationFixtures fixtures;
+
+    @TestConfiguration
+    static class FixedClockConfig {
+
+        private static final Instant FIXED = Instant.parse("2030-04-01T03:00:00Z"); // 2030-04-01 12:00 KST
+
+        @Bean
+        @Primary
+        Clock fixedClock() {
+            return Clock.fixed(FIXED, ZoneId.of("Asia/Seoul"));
+        }
+    }
+
+    private RunConfirmationFixtures fixtures() {
+        if (fixtures == null) {
+            fixtures = new RunConfirmationFixtures(academyRepository, busRepository, routeRepository,
+                    routeStopRepository, stopRepository, studentRepository, weeklyAddressRepository, runRepository);
+        }
+        return fixtures;
+    }
+
+    @Test
+    @DisplayName("목표1 — idle 회차를 확정하면 4종 산출물이 정확한 값으로 남는다")
+    void 회차를_확정하면_4종_산출물이_전부_생긴다() {
+        long academyId = fixtures().academyWithCoordinates();
+        long busId = fixtures().bus(academyId);
+        long firstStop = fixtures().stop(academyId, "37.560000", "126.970000");
+        long lastStop = fixtures().stop(academyId, "37.561000", "126.971000");
+        fixtures().route(academyId, busId, WEEKDAY, Direction.TO_ACADEMY, firstStop, lastStop);
+
+        long studentAtFirst = fixtures().student(academyId, "학생1");
+        long studentAtLast = fixtures().student(academyId, "학생2");
+        fixtures().verifiedAddress(studentAtFirst, firstStop, WEEKDAY, Direction.TO_ACADEMY, "37.560000",
+                "126.970000");
+        fixtures().verifiedAddress(studentAtLast, lastStop, WEEKDAY, Direction.TO_ACADEMY, "37.561000",
+                "126.971000");
+
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusHours(3);
+        long runId = fixtures().idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+
+        confirmationService.confirmOne(runId);
+
+        assertThat(runRepository.findById(runId).orElseThrow().getStatus()).isEqualTo(RunStatus.CONFIRMED);
+        assertThat(runRepository.findById(runId).orElseThrow().getConfirmedAt())
+                .isEqualTo(OffsetDateTime.now(clock));
+
+        Long versionId = jdbcTemplate.queryForObject(
+                "SELECT current_version_id FROM confirmed_route WHERE run_id = ?", Long.class, runId);
+        assertThat(versionId).as("current_version_id 가 배정돼야 확정 노선이 유효하다").isNotNull();
+
+        Map<String, Object> version = jdbcTemplate.queryForMap(
+                "SELECT version_no, source, confirmed_route_id FROM route_version WHERE id = ?", versionId);
+        assertThat(version.get("version_no")).isEqualTo(1);
+        assertThat(version.get("source")).isEqualTo("confirm_batch");
+        assertThat(version.get("confirmed_route_id")).isEqualTo(runId);
+
+        List<Long> runStopIds = jdbcTemplate.queryForList(
+                "SELECT stop_id FROM run_stop WHERE route_version_id = ? ORDER BY seq", Long.class, versionId);
+        assertThat(runStopIds).as("v1 정차 목록은 편성된 두 정차지 순서 그대로여야 한다")
+                .containsExactly(firstStop, lastStop);
+
+        List<Long> riderStudentIds = jdbcTemplate.queryForList(
+                "SELECT student_id FROM run_rider WHERE run_id = ? ORDER BY student_id", Long.class, runId);
+        assertThat(riderStudentIds).containsExactlyInAnyOrder(studentAtFirst, studentAtLast);
+
+        Long riderStopForFirst = jdbcTemplate.queryForObject(
+                "SELECT stop_id FROM run_rider WHERE run_id = ? AND student_id = ?", Long.class, runId,
+                studentAtFirst);
+        assertThat(riderStopForFirst).as("탑승자의 정차지는 그 학생의 요일별 주소가 가리키는 정차지와 같아야 한다")
+                .isEqualTo(firstStop);
+    }
+
+    @Test
+    @DisplayName("목표5 — 학원 좌표가 없으면 대체 기준점 없이 그 회차만 실패한다")
+    void 학원_좌표가_없으면_확정이_실패하고_산출물이_남지_않는다() {
+        long academyId = fixtures().academyWithoutCoordinates();
+        long busId = fixtures().bus(academyId);
+        long firstStop = fixtures().stop(academyId, "37.560000", "126.970000");
+        long lastStop = fixtures().stop(academyId, "37.561000", "126.971000");
+        fixtures().route(academyId, busId, WEEKDAY, Direction.TO_ACADEMY, firstStop, lastStop);
+
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusHours(3);
+        long runId = fixtures().idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+
+        assertThatThrownBy(() -> confirmationService.confirmOne(runId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.ACADEMY_COORDINATES_MISSING);
+
+        assertThat(runRepository.findById(runId).orElseThrow().getStatus())
+                .as("확정 표시조차 되지 않아야 한다 — confirmIfIdle 이 불리기 전에 실패한다").isEqualTo(RunStatus.IDLE);
+        Integer confirmedRouteCount = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM confirmed_route WHERE run_id = ?", Integer.class, runId);
+        assertThat(confirmedRouteCount)
+                .as("대체 기준점으로 계산을 강행했다면 여기 행이 남는다 — Ruling 190 은 그것을 금지한다")
+                .isZero();
+    }
+}

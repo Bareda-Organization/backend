@@ -5,10 +5,18 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import src.backend.global.common.enums.Direction;
+import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunStatus;
 
 /** {@link Run} 영속성 접근 — 조회는 전부 학원으로 좁혀져 호출부가 조건을 빼먹을 자리가 부재하다. */
 public interface RunRepository extends JpaRepository<Run, Long> {
@@ -42,4 +50,66 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      */
     boolean existsByAcademyIdAndBusIdAndServiceDateAndDirectionAndDepartTime(Long academyId, Long busId,
             LocalDate serviceDate, Direction direction, OffsetDateTime departTime);
+
+    /**
+     * 확정 배치(RTE-08)의 조회 대상 — <b>실행 시각</b>({@code now}) 이 <b>판정 시각</b>
+     * ({@code confirm_at}, 회차 생성 시점에 이미 계산해 저장한 값)을 지난 idle 회차만 고른다
+     * (ARCHITECTURE §9.2 두 시계). 여기서 {@code depart_time - 30분} 을 다시 계산하지 않는다 — 실행
+     * 시각으로 재계산하면 배치가 늦게 돈 회차의 판정 기준이 실행 시각 쪽으로 밀린다.
+     *
+     * <p>{@code pageable} 은 한 틱이 한 번에 집는 상한이다(목표 6) — 상한 없이 전건을 집으면 회차가
+     * 몰린 틱 하나가 커넥션·워커 풀을 오래 붙든다. {@code ix_run_status_confirm_at} 이 이 조회를 받친다.
+     */
+    @AcademyScopeExempt(reason = "확정 배치(RTE-08)는 시각이 촉발하는 전 학원 대상 조회라 좁힐 학원이 부재하다 — "
+            + "학원 하나로 좁히면 나머지 학원의 회차가 확정되지 않는다. 호출부는 배치(RunConfirmationScheduler)뿐이라는 "
+            + "전제 — 요청 경로에서 부르면 이 예외가 우회로가 된다(ScheduleRepository.findAllByWeekdayAndActiveIsTrue 와 같은 근거)")
+    List<Run> findByStatusAndConfirmAtLessThanEqualAndCanceledAtIsNullOrderByConfirmAtAsc(RunStatus status,
+            OffsetDateTime now, Pageable pageable);
+
+    /**
+     * 회차를 idle → confirmed 로 전이한다 — 영향받은 행 수로 성공 여부를 판정한다(목표 2).
+     *
+     * <p><b>{@code WHERE status = 'idle'} 조건이 멱등성의 전부다.</b> 같은 회차를 동시에 두 스레드가
+     * 부르면 먼저 행 잠금을 얻은 쪽만 {@code status='idle'} 을 보고 갱신하며, 나중 스레드는 커밋된
+     * 값을 다시 읽어 조건이 거짓이 되어 0행을 갱신한다 — {@code SELECT} 로 먼저 상태를 본 뒤 갱신하면
+     * 그 사이에 경쟁자가 끼어들 수 있어 이 보장이 성립하지 않는다.
+     *
+     * <p><b>{@code REQUIRES_NEW} 를 쓰지 않는다</b> — {@code NotificationLogRepository} 의 조건부
+     * UPDATE 들과 다르게, 이 갱신은 호출자({@code RunConfirmationService.confirmOne})의 트랜잭션에
+     * <b>그대로 참여</b>해야 한다. 확정을 먼저 표시해 두고 그 뒤 노선 계산이 실패하면, 참여한
+     * 트랜잭션이 롤백되며 이 UPDATE 도 함께 취소되어 회차가 자동으로 idle 로 되돌아간다(목표 5) —
+     * 별도 트랜잭션이었다면 그 롤백에 묻어가지 못하고 확정 표시만 남는다.
+     *
+     * <p>{@code canceled_at IS NULL} 을 조건에 더한 이유는 조회와 이 갱신 사이의 경합이다 — 관계자가
+     * 대상 목록을 집은 <b>뒤</b>, 이 갱신이 돌기 <b>전</b>에 그 회차를 취소하면 {@code status} 는
+     * 여전히 {@code idle} 이라 {@link #findByStatusAndConfirmAtLessThanEqualAndCanceledAtIsNullOrderByConfirmAtAsc}
+     * 의 배제만으로는 그 창을 못 닫는다.
+     */
+    @Transactional
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @AcademyScopeExempt(reason = "findByStatusAndConfirmAtLessThanEqualAndCanceledAtIsNullOrderByConfirmAtAsc 가 "
+            + "이미 전 학원 대상으로 골라낸 run.id 하나를 조건부로 갱신하는 단건 호출이다 — 그 조회가 이미 좁힌 대상이라 "
+            + "이 시점에 학원을 다시 물을 근거가 없다")
+    @Query("UPDATE Run r SET r.status = src.backend.run.entity.RunStatus.CONFIRMED, r.confirmedAt = :confirmedAt, "
+            + "r.consecutiveFailures = 0 WHERE r.id = :id AND r.status = src.backend.run.entity.RunStatus.IDLE "
+            + "AND r.canceledAt IS NULL")
+    int confirmIfIdle(@Param("id") Long id, @Param("confirmedAt") OffsetDateTime confirmedAt);
+
+    /**
+     * 확정 실패 1회를 기록한다(목표 4) — {@code consecutive_failures} 만 올린다.
+     *
+     * <p>상태를 여기서 다시 {@code idle} 로 되돌리지 않는다 — {@link #confirmIfIdle} 이 참여한
+     * 트랜잭션이 이미 롤백되어 DB 의 상태는 갱신 전 {@code idle} 그대로다. 이 메서드가 하는 일은
+     * "실패했다는 사실" 만 별도로 남기는 것이다.
+     *
+     * <p><b>{@code REQUIRES_NEW} 가 필요하다</b> — 이 메서드는 확정이 실패해 앞 트랜잭션이 이미
+     * 롤백·종료된 <b>뒤</b>, 오케스트레이터(트랜잭션 밖)가 호출한다. 실패 기록 자체가 그 롤백에
+     * 휩쓸리면 안 되므로 독립 트랜잭션을 새로 연다({@code NotificationLogRepository} 와 같은 근거).
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @AcademyScopeExempt(reason = "확정 배치가 이미 학원과 무관하게 골라낸 run.id 하나의 실패 카운터만 올리는 단건 "
+            + "갱신이다 — confirmIfIdle 과 같은 근거")
+    @Query("UPDATE Run r SET r.consecutiveFailures = r.consecutiveFailures + 1 WHERE r.id = :id")
+    int recordFailure(@Param("id") Long id);
 }
