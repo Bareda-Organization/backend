@@ -202,6 +202,20 @@ public enum ErrorCode {
     // 편성되지 않았을 때 — origin/destination 을 정할 기준점 자체가 없다.
     ROUTE_NOT_CONFIGURED_FOR_RUN(HttpStatus.UNPROCESSABLE_CONTENT, "회차에 대응하는 고정 노선이 없습니다"),
 
+    // ── 3구간 판정 · 변경 요청(Phase 8) ─────────────────────────────────────────
+    // ③ 구간(운행 시작 후)의 노선 변경·위치 변경·되돌리기·경유 지점 지정 시도, 또는 ② 구간에서
+    // 강제 추가 시도(API_SPEC §8.3). ③ 구간의 미등원(riding=false)은 예외로 허용.
+    CHANGE_WINDOW_CLOSED(HttpStatus.FORBIDDEN, "지금은 변경할 수 없는 시간입니다"),
+    // 해당 회차의 ② 구간 변경 1회 소진(API_SPEC §8.3) — 한도 단위는 회차(Run)이며 다른 회차는 미영향.
+    CHANGE_LIMIT_REACHED(HttpStatus.FORBIDDEN, "금일은 변경할 수 없습니다"),
+    // 재최적화 미리보기 산출 후 입력(명단·승하차지·경유 지점)이 변경 — 관리자가 화면에서 본 결과와
+    // 배포될 결과가 불일치(API_SPEC §8.3). 재조회 후 재시도.
+    PREVIEW_STALE(HttpStatus.CONFLICT, "미리보기 이후 내용이 변경되었습니다. 다시 조회해주세요"),
+    // 미존재 승인 요청(변경 요청) 지정 — REQ-04(API_SPEC §8.5).
+    APPROVAL_NOT_FOUND(HttpStatus.NOT_FOUND, "승인 요청을 찾을 수 없습니다"),
+    // 학생 탑승 가능 인원(= 정원 − 기사 − 동승자) 초과(API_SPEC §8.5 BUS-04) — details 에 현재 인원·정원.
+    CAPACITY_EXCEEDED(HttpStatus.CONFLICT, "탑승 가능 인원을 초과했습니다"),
+
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다");
 
     private final HttpStatus status;
