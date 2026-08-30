@@ -110,9 +110,22 @@ public class BoardingIntentFixtures {
         return studentRepository.save(Student.register(academyId, profile)).getId();
     }
 
-    /** 보호자 1명 — {@code LinkedChildLookup} 이 계정을 JWT 클레임만으로 찾으므로 {@code account} 행은 필요 없다. */
-    public long guardian(long academyId, long accountId, String name) {
-        return guardianRepository.save(Guardian.forSignup(academyId, accountId, name, "010-0000-0000")).getId();
+    /**
+     * 보호자 1명 — {@code guardian.account_id} 가 FK NOT NULL 이라({@code fk_guardian_account}) 실제
+     * {@code account} 행을 먼저 만들어야 한다({@code LinkedChildLookup} 자체는 토큰의 {@code accountId}
+     * 클레임만으로 조회하지만, 그 클레임이 가리키는 행이 없으면 이 저장 자체가 제약 위반이다).
+     */
+    public GuardianAccount guardian(long academyId, String name) {
+        String loginId = "guardian" + SEQUENCE.incrementAndGet() + "-" + System.nanoTime();
+        Account account = accountRepository.save(Account.forSignup(academyId, loginId, "{noop}password", name,
+                "010-0000-0000", null, Role.PARENT));
+        long guardianId = guardianRepository
+                .save(Guardian.forSignup(academyId, account.getId(), name, "010-0000-0000")).getId();
+        return new GuardianAccount(account.getId(), guardianId);
+    }
+
+    /** {@link #guardian} 이 함께 만든 계정·보호자 식별자 쌍 — 토큰은 {@code accountId}, 연결은 {@code guardianId} 를 쓴다. */
+    public record GuardianAccount(long accountId, long guardianId) {
     }
 
     public void linkChild(long guardianId, long studentId, OffsetDateTime linkedAt) {
