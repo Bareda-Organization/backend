@@ -262,6 +262,27 @@ cd backend
 - ⚠ **정리는 좌석이 전부 멈춘 뒤에 한다** — 도는 중의 `DROP DATABASE ... WITH (FORCE)` 가 postgres 를 반복 크래시시킨 전례가 있다(전역 규칙 §0)
 - ⚠ **포트를 확인하고 나서 명령을 적어라.** 위 예시의 `5432` 는 기본값일 뿐이다 — `groom-shopping` 스택이 5432·6379 를 점유하면 School-Bus 를 옮겨야 하고, 2026-08-31 에 실제로 postgres `15432` · redis `16379` 로 옮겼다. `docker port school-bus-postgres-1` 로 실측한 값을 발주문에 박는다
 
+### 시드의 "오늘" 행은 **DB 를 만든 날**에 굳는다 — 하루 지나면 시험이 썩는다
+
+`db/migration-local/V2__seed_data.sql` 의 `run.service_date` 가 SQL 안에서 날짜를 계산한다. 마이그레이션은 **DB 생성 시 한 번만** 돌므로 그 값은 그때의 날짜로 고정되는데, 조회 코드는 `LocalDate.now(clock)` 으로 **실행 시점의 오늘**을 묻는다. 하루만 지나도 두 값이 갈린다.
+
+**증상** — 어제까지 통과하던 통합 시험이 아무도 코드를 안 건드렸는데 `404 RUN_NOT_FOUND` 로 실패한다. 2026-09-01 에 Phase 10 T4 의 두 클래스 7건이 이렇게 실패했다.
+
+⚠ **`DROP DATABASE` 후 재생성하면 통과하지만 그것은 해결이 아니다.** 내일 같은 증상이 돌아오고, 그 사이에 든 다른 수정이 원인을 가린다 — 실제로 좌석이 시간대 수정과 DB 재생성을 한 회차에 함께 넣어 **어느 쪽이 효과를 냈는지 갈리지 않았다.**
+
+- **판별** — `psql -d <DB> -c "SELECT DISTINCT service_date FROM run;"` 를 오늘 날짜와 대조한다. 다르면 코드 결함이 아니다
+- **재현** — `UPDATE run SET service_date = service_date - INTERVAL '1 day';` 가 내일의 상태를 그대로 만든다. 되돌릴 때는 `+ INTERVAL` 로 같은 값을 더한다
+- **이 함정을 피하는 기존 관례가 이미 있다** — 시드와 안 겹치는 미래 날짜를 직접 지정(`StaffRunControllerTest` 등)하거나, `@TestConfiguration static class FixedClockConfig` 로 시계를 고정(`BoardingControllerTest`·`ChangeRequestControllerTest`)한다. **시드의 "오늘" 행에 기대는 시험을 새로 만들지 마라**
+
+### ⚠ `CURRENT_DATE` 는 **컨테이너 시간대가 아니라 접속한 JVM 의 시간대**를 따른다
+
+같은 시드가 심는 값이 실행 호스트에 따라 달라진다. pgjdbc 가 접속 시 세션 `TimeZone` 을 **JVM 기본 시간대에 맞추기** 때문이다.
+
+- `docker exec psql` 로 본 `CURRENT_DATE`(컨테이너 세션은 UTC)와 **앱이 실제로 심은 값이 다르다.** 2026-09-01 실측 — 같은 DB 에서 세션 `CURRENT_DATE` 는 `2026-08-31`, 시드가 심은 `service_date` 는 `2026-09-01`
+- 개발 호스트가 `Asia/Seoul` 이면 증상이 안 나타나고, UTC 인 CI 에서만 한국 시간 자정~오전 9시에 하루 어긋난다 — **로컬에서 재현되지 않는 실패**가 된다
+- 시드 SQL 에서 날짜를 계산할 때는 `(now() AT TIME ZONE 'Asia/Seoul')::date` 처럼 **시간대를 문자로 박는다**
+- ⚠ `route.weekday` 의 `extract(dow from now())` 도 같은 위험을 안고 있다(미수정)
+
 ### 테스트에 **Redis 설정이 한 건도 없다** — Phase 10 이 처음이다
 
 `grep -rn 'redis' backend/src/test/java` **계수 0**(2026-08-31 실측). 즉 **가리킬 본보기가 부재**하다.
