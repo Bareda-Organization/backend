@@ -78,7 +78,8 @@ public class RunStartCommandService {
             autoBoardedCount = autoBoardWaitingRiders(run, now);
         }
 
-        eventPublisher.publishEvent(new RunStartedEvent(runId, requester.academyId(), now));
+        eventPublisher.publishEvent(
+                new RunStartedEvent(runId, requester.academyId(), now, autoBoardedCount == null ? 0 : autoBoardedCount));
 
         return RunStartResponse.of(run, autoBoardedCount);
     }

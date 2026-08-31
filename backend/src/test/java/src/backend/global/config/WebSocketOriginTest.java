@@ -22,9 +22,10 @@ class WebSocketOriginTest {
     @DisplayName("허용 출처를 설정값 그대로 엔드포인트에 넘긴다")
     void passesConfiguredOriginsToEndpoint() {
         StompAuthChannelInterceptor interceptor = mock(StompAuthChannelInterceptor.class);
+        ForbiddenSubscriptionCloseFactory closeFactory = mock(ForbiddenSubscriptionCloseFactory.class);
         String[] origins = {"https://app.example.com", "https://preview.example.com"};
 
-        WebSocketConfig config = new WebSocketConfig(interceptor, origins);
+        WebSocketConfig config = new WebSocketConfig(interceptor, closeFactory, origins);
 
         StompEndpointRegistry registry = mock(StompEndpointRegistry.class);
         StompWebSocketEndpointRegistration registration = mock(StompWebSocketEndpointRegistration.class);

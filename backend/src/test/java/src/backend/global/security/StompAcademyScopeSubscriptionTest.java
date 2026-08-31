@@ -24,14 +24,16 @@ import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 
 /**
- * 관제 브로드캐스트 토픽 구독의 학원 격리를 <b>클라이언트가 실제로 받는 STOMP 프레임</b>으로 고정한다.
+ * 관제 브로드캐스트 토픽({@code /topic/academy/{id}/live}) 구독의 학원 격리를 <b>클라이언트가 실제로
+ * 받는 STOMP 프레임</b>으로 고정한다.
  *
  * <p>Spring 의 STOMP 클라이언트가 아니라 원시 WebSocket 으로 프레임을 직접 주고받는다 — 검증 대상이
  * "거부되는가" 가 아니라 <b>"거부가 무엇을 실어 오는가"</b> 이기 때문이다. 클라이언트 라이브러리를 끼우면
  * 그 라이브러리가 프레임을 해석한 결과만 보게 되어, 프레임에 식별자가 없어도 테스트가 통과한다.
  *
- * <p>{@code /topic/tenant/...} 는 옛 어휘지만 클라이언트 계약이라 이번 범위 밖이다(Phase 10 등재).
- * 여기서 고정하는 것은 경로가 아니라 그 경로에 적용되는 <b>학원 대조</b>다.
+ * <p>옛 경로 {@code /topic/tenant/{id}/positions} 는 이 클래스가 원래 검사하던 대상이었으나
+ * {@code /topic/academy/{id}/live} 로 완전히 대체돼 소멸했다(Ruling 121 해소, T2 Phase 10) — 이
+ * 클래스가 여기로 재배치된다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class StompAcademyScopeSubscriptionTest {
@@ -71,6 +73,30 @@ class StompAcademyScopeSubscriptionTest {
         assertThat(frame)
                 .as("프레임에 격리 위반을 식별할 값이 없으면 클라이언트가 다른 거부와 구별하지 못한다")
                 .contains("ACADEMY_SCOPE_VIOLATION");
+    }
+
+    /**
+     * 목표 7 — SUBSCRIBE 인가 실패는 종료 코드 4403 이어야 한다. Spring 기본값(1002)이 아니라는 것이
+     * 이 테스트의 핵심이다({@code ForbiddenSubscriptionCloseFactory}).
+     */
+    @Test
+    void 구독_거부는_종료_코드_4403_으로_연결이_닫힌다() throws Exception {
+        CloseStatus closeStatus = subscribeAndAwaitClose(staffOf(ACADEMY_A), topicOf(ACADEMY_B));
+
+        assertThat(closeStatus.getCode()).as("기본값 1002 가 아니라 4403 이어야 클라이언트가 인가 실패를 구별한다")
+                .isEqualTo(4403);
+    }
+
+    /**
+     * 목표 5·C-08(§1.12) — "해당 학원 관계자"는 {@link Role#STAFF} 뿐이다.
+     * {@code AcademyScope} 만으로는 같은 학원 소속 PARENT 도 통과해 관제 채널의 개인정보(타 학생 승하차
+     * 현황)가 새는 통로가 된다 — 그 결함을 막는 역할 게이트를 이 테스트가 고정한다.
+     */
+    @Test
+    void 같은_학원이어도_학부모는_관제_토픽을_구독하지_못한다() throws Exception {
+        String frame = subscribeAndReadFrame(parentOf(ACADEMY_A), topicOf(ACADEMY_A));
+
+        assertThat(frame).as("역할 게이트가 없으면 이 요청이 통과해 버린다").startsWith("ERROR");
     }
 
     /** 이 단언이 고치는 결함 본체다 — 메인 관리자는 전 학원 관제 범위다(ARCHITECTURE §6.2). */
@@ -141,20 +167,60 @@ class StompAcademyScopeSubscriptionTest {
         return command + "\n" + String.join("\n", headers) + "\n\n" + NULL_TERMINATOR;
     }
 
+    /**
+     * ERROR 프레임까지 받은 뒤, 서버가 연결을 닫을 때까지 기다려 그 {@link CloseStatus} 를 반환한다.
+     * 목표 7 — 종료 코드가 Spring 기본값(1002)이 아니라 4403 이어야 한다는 것을 검증하는 용도다.
+     */
+    private CloseStatus subscribeAndAwaitClose(String token, String destination) throws Exception {
+        BlockingQueue<String> received = new LinkedBlockingQueue<>();
+        BlockingQueue<CloseStatus> closed = new LinkedBlockingQueue<>();
+        WebSocketSession session = new StandardWebSocketClient()
+                .execute(new FrameCollector(received, closed), null,
+                        URI.create("ws://localhost:" + port + "/ws/location"))
+                .get(FRAME_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+
+        session.sendMessage(new TextMessage(frame("CONNECT",
+                "accept-version:1.2", "host:localhost", "Authorization:Bearer " + token)));
+        String connected = take(received);
+        assertThat(connected).as("CONNECT 가 먼저 성립해야 구독 인가를 관측할 수 있다").startsWith("CONNECTED");
+
+        session.sendMessage(new TextMessage(frame("SUBSCRIBE",
+                "id:sub-0", "destination:" + destination)));
+        String outcome = awaitSubscribeOutcome(received, destination);
+        assertThat(outcome).as("종료 코드를 보기 전에 인가 실패 자체가 성립해야 한다").startsWith("ERROR");
+
+        CloseStatus status = closed.poll(FRAME_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        assertThat(status).as("서버가 %d초 안에 연결을 닫지 않았다", FRAME_TIMEOUT_SECONDS).isNotNull();
+        return status;
+    }
+
     private static String topicOf(Long academyId) {
-        return "/topic/tenant/" + academyId + "/positions";
+        return "/topic/academy/" + academyId + "/live";
     }
 
     private String staffOf(Long academyId) {
         return tokenProvider.createAccessToken(1L, academyId, Role.STAFF, AccountStatus.ACTIVE);
     }
 
+    private String parentOf(Long academyId) {
+        return tokenProvider.createAccessToken(3L, academyId, Role.PARENT, AccountStatus.ACTIVE);
+    }
+
     private String systemAdmin() {
         return tokenProvider.createAccessToken(2L, null, Role.SYSTEM_ADMIN, AccountStatus.ACTIVE);
     }
 
-    /** 수신 텍스트 프레임을 해석하지 않고 원문 그대로 큐에 넣는다 — 프레임 내용이 검증 대상이라서다. */
-    private record FrameCollector(BlockingQueue<String> received) implements WebSocketHandler {
+    /**
+     * 수신 텍스트 프레임을 해석하지 않고 원문 그대로 큐에 넣는다 — 프레임 내용이 검증 대상이라서다.
+     * {@code closed} 는 {@link #subscribeAndAwaitClose} 처럼 종료 코드가 필요한 호출에서만 채워지고,
+     * 그 외에는 빈 큐로 남는다.
+     */
+    private record FrameCollector(BlockingQueue<String> received, BlockingQueue<CloseStatus> closed)
+            implements WebSocketHandler {
+
+        private FrameCollector(BlockingQueue<String> received) {
+            this(received, new LinkedBlockingQueue<>());
+        }
 
         @Override
         public void afterConnectionEstablished(WebSocketSession session) {
@@ -173,6 +239,7 @@ class StompAcademyScopeSubscriptionTest {
 
         @Override
         public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+            closed.add(status);
         }
 
         @Override
