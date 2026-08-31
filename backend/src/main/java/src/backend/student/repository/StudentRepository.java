@@ -1,5 +1,6 @@
 package src.backend.student.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -92,4 +93,13 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
               AND LOWER(s.name) LIKE LOWER(CONCAT('%', :q, '%'))
             """)
     Page<Student> searchByAcademyId(@Param("academyId") Long academyId, @Param("q") String q, Pageable pageable);
+
+    /**
+     * 회차 명단(§4.2·§5.4)이 참조하는 학생들을 한 번에 읽는다 — 정차지마다 학생을 다시 조회하면 명단
+     * 하나가 질의 N+1 개가 된다({@code RouteDetailAssembler} 의 승하차지 배치 조회와 같은 근거).
+     *
+     * <p>{@code deletedAt} 을 조건에 넣지 않는다 — 오늘 명단은 퇴원생도 실어야 한다(§5.11 · STU-04
+     * "오늘 명단은 유지" — 이미 편성된 회차의 명단이 학생 행을 참조하는 이상 퇴원 여부와 무관하다).
+     */
+    List<Student> findAllByAcademyIdAndIdIn(Long academyId, Collection<Long> ids);
 }
