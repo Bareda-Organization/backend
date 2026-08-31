@@ -490,6 +490,55 @@ class DriverRunControllerTest {
         assertThat(배치_확인버전(runId, ManagerRole.DRIVER)).as("거절됐으면 확인 처리가 남으면 안 된다").isNull();
     }
 
+    @Test
+    @DisplayName("ackChanges FORBIDDEN — 같은 학원의 기사이지만 이 회차에 배치되지 않으면 403 FORBIDDEN 이고 확인 처리가 남지 않는다")
+    void 배치되지_않은_같은_학원_기사의_ackChanges는_FORBIDDEN_이다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        OffsetDateTime departTime = now();
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "배치된기사", now());
+        fixtures.confirmedRouteWithVersion(runId, now());
+
+        // 같은 학원 소속 기사 계정이지만(역할은 맞다) 이 회차에는 배치되지 않았다 — 다른 회차 계정과
+        // 갈리지 않도록 반드시 같은 학원 계정을 쓴다(학원 불일치가 먼저 걸리면 인가 판정 자체를 못 본다).
+        long unassignedDriverAccountId = fixtures.unassignedManager(academyId, ManagerRole.DRIVER, "미배치기사");
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/ack-changes")
+                .header("Authorization", 토큰(unassignedDriverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isForbidden())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error.code").value("FORBIDDEN"));
+
+        entityManager.flush();
+        assertThat(배치_확인버전(runId, ManagerRole.DRIVER)).as("배치되지 않은 기사 호출은 확인 처리를 남기면 안 된다").isNull();
+    }
+
+    @Test
+    @DisplayName("ackChanges FORBIDDEN — 이 회차에 배치된 기사라도 토큰의 역할이 기사·동승자가 아니면 403 FORBIDDEN 이다")
+    void 배치된_기사라도_토큰_역할이_기사_동승자가_아니면_ackChanges는_FORBIDDEN_이다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        OffsetDateTime departTime = now();
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        fixtures.confirmedRouteWithVersion(runId, now());
+
+        // 계정 자체는 이 회차에 배치된 기사이지만, 토큰이 주장하는 역할이 STAFF 다 — 역할 판정
+        // (assertAssignedDriverOrEscort 의 switch) 이 배치 조회보다 먼저 걸러야 한다. 배치 조회만으로는
+        // 이 사람이 실제로 그 회차의 기사라 통과해 버리므로, 역할 분기 자체가 살아 있는지는 이 테스트만이 잡는다.
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/ack-changes")
+                .header("Authorization", 토큰(driverAccountId, academyId, Role.STAFF)))
+                .andExpect(status().isForbidden())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error.code").value("FORBIDDEN"));
+
+        entityManager.flush();
+        assertThat(배치_확인버전(runId, ManagerRole.DRIVER)).as("역할 판정에서 거절됐으면 확인 처리가 남으면 안 된다").isNull();
+    }
+
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────
 
     private String 토큰(long accountId, long academyId, Role role) {
