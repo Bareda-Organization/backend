@@ -126,7 +126,12 @@ public final class AccountStatusGateEndpoints {
             "GET /manager/runs",
             "GET /runs/{runId}/roster",
             "GET /runs/{runId}/route",
-            "GET /staff/runs/{runId}/roster");
+            "GET /staff/runs/{runId}/roster",
+            // Phase 9 T3 — 승하차 처리·되돌리기(§4.6·§4.7) 동승자 단말 기능 2개.
+            "PATCH /runs/{runId}/riders/{riderId}",
+            "POST /runs/{runId}/riders/{riderId}/revert",
+            // Phase 9 T4 — 외부 내비 좌표열 조회(§4.16 RUN-08) 1개.
+            "GET /runs/{runId}/navigation");
 
     /** {@code pending} 의 거부측 — {@code rejected} 거부측에 재신청 1개를 더한다({@code @AllowedWhenRejected} 는 pending 을 열지 않는다). */
     public static final List<String> DENIED_WHEN_PENDING = concat(DENIED_WHEN_REJECTED, "POST /auth/signup/reapply");
