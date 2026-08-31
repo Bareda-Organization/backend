@@ -119,4 +119,27 @@ public interface GuardianStudentRepository extends JpaRepository<GuardianStudent
             """)
     List<GuardianPhone> findGuardianPhonesByAcademyId(@Param("academyId") Long academyId,
             @Param("studentIds") List<Long> studentIds);
+
+    /**
+     * 승하차 알림(API_SPEC §4.6 {@code boarded}·{@code alighted}·{@code no_show})의 학부모 수신자 —
+     * 학생 1명에 보호자가 여럿일 수 있어 목록으로 돌려주며, 전부에게 발송한다.
+     *
+     * <p>{@code guardian.name} 을 읽는다 — {@link #findGuardianPhonesByAcademyId} 가 전화번호는
+     * {@code account} 에서 읽는 것과 달리, 이름은 {@code guardian} 쪽이 원본이라 별도 조인이 필요 없다.
+     *
+     * <p>{@code unlinked_at} 이 채워진 연결은 뺀다 — 퇴원·연결 해제된 보호자에게는 보내지 않는다.
+     * 학원 조건은 {@code student} 부모를 조인해 건다(ERD §6.1 부모 경유).
+     */
+    @Query("""
+            SELECT g.accountId AS accountId, g.name AS name
+            FROM GuardianStudent gs
+            JOIN Guardian g ON g.id = gs.guardianId
+            JOIN Student s ON s.id = gs.studentId
+            WHERE gs.studentId = :studentId
+              AND gs.unlinkedAt IS NULL
+              AND s.academyId = :academyId
+            ORDER BY gs.linkedAt ASC, gs.id ASC
+            """)
+    List<GuardianAccountView> findActiveGuardianAccountsByStudentId(@Param("studentId") Long studentId,
+            @Param("academyId") Long academyId);
 }
