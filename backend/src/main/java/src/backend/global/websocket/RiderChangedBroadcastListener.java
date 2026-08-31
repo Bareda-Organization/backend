@@ -9,6 +9,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.boarding.entity.RiderStatus;
+import src.backend.boarding.event.RiderNoShowEvent;
 import src.backend.boarding.event.RiderStatusChangedEvent;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.student.repository.StudentRepository;
@@ -18,11 +19,12 @@ import src.backend.student.repository.StudentRepository;
  * 학생 채널은 이 이벤트를 받지 않는다). {@code @TransactionalEventListener(AFTER_COMMIT)} 근거는
  * {@link RunStartedBroadcastListener} 와 같다.
  *
- * <p>{@code stop_skipped} 는 이 리스너가 항상 {@code false} 로 채운다 — 정차지 skip 은 미승차로 잔여가
- * 0명이 될 때만 일어나는데({@code BoardingCommandService.handleNoShow}), 그 경로는
- * {@link RiderStatusChangedEvent} 를 발행하지 않고 {@code RiderNoShowEvent} 만 발행한다(현재 이
- * 리스너의 미도달 갈래). 그 경로의 {@code rider_changed} 방송은 다루지 않았다 — 확신 없는 지점으로
- * 보고에 남긴다(②항).
+ * <p>{@link RiderStatusChangedEvent} 갈래는 {@code stop_skipped} 를 항상 {@code false} 로 채운다 —
+ * 정차지 skip 은 미승차로 잔여가 0명이 될 때만 일어나는데({@code BoardingCommandService.handleNoShow}),
+ * 그 경로는 이 이벤트를 발행하지 않고 {@link RiderNoShowEvent} 만 발행한다. 그 경로의 방송은
+ * {@link #broadcast(RiderNoShowEvent)} 가 별도로 맡는다(Phase 11, Phase 10 이월 ⑤ 해소 — API_SPEC
+ * §7.1 line 1995 의 트리거가 {@code PATCH /runs/{runId}/riders/{riderId}} <b>엔드포인트</b>로 적혀
+ * {@code status} 값과 무관하게 걸린다는 근거는 {@link RiderNoShowEvent} 의 javadoc 참고).
  */
 @Component
 @RequiredArgsConstructor
@@ -48,6 +50,28 @@ public class RiderChangedBroadcastListener {
 
         Payload payload = new Payload(event.runRiderId(), event.studentId(), studentName, event.status(), stopId,
                 event.changedAt(), counts, false);
+        gateway.send(WebSocketDestinations.managerRun(event.runId()), EVENT, event.runId(), event.changedAt(),
+                payload);
+        gateway.send(WebSocketDestinations.academyLive(event.academyId()), EVENT, event.runId(), event.changedAt(),
+                payload);
+        gateway.send(WebSocketDestinations.ADMIN_LIVE, EVENT, event.runId(), event.changedAt(), payload);
+    }
+
+    /**
+     * 미승차 경로의 {@code rider_changed} 방송(Phase 11, Phase 10 이월 ⑤ 해소) — {@link RiderNoShowEvent}
+     * 가 이미 {@code stopId} · {@code stopSkipped} 를 들고 있어 {@link RunRiderRepository} 를 다시
+     * 조회할 필요가 없다({@code broadcast(RiderStatusChangedEvent)} 와의 유일한 구조적 차이).
+     * {@code status} 는 {@code "no_show"} 리터럴이다 — 이 이벤트 자체가 그 상태 전이 하나만 나른다.
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void broadcast(RiderNoShowEvent event) {
+        String studentName = studentRepository.findById(event.studentId())
+                .map(student -> student.getName())
+                .orElse(null);
+        Counts counts = countsOf(event.runId());
+
+        Payload payload = new Payload(event.runRiderId(), event.studentId(), studentName, "no_show", event.stopId(),
+                event.changedAt(), counts, event.stopSkipped());
         gateway.send(WebSocketDestinations.managerRun(event.runId()), EVENT, event.runId(), event.changedAt(),
                 payload);
         gateway.send(WebSocketDestinations.academyLive(event.academyId()), EVENT, event.runId(), event.changedAt(),

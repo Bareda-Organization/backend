@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.academy.entity.AcademySetting;
+import src.backend.academy.repository.AcademySettingRepository;
 import src.backend.boarding.dto.RiderRevertRequest;
 import src.backend.boarding.dto.RiderRevertResponse;
 import src.backend.boarding.dto.RiderStatusUpdateRequest;
@@ -54,9 +56,6 @@ import src.backend.run.repository.RunRepository;
 @RequiredArgsConstructor
 public class BoardingCommandService {
 
-    /** 미승차 케이스 대기 만료 — 3분(API_SPEC §4.6 {@code no_show_case.expires_at}). */
-    private static final Duration NO_SHOW_EXPIRY = Duration.ofMinutes(3);
-
     /** 운행 중 미승차로 잔여 0명이 된 정차지에 남기는 사유(C-05, {@code run_stop.skip_notice}). */
     private static final String SKIP_NOTICE = "운행 중 미승차로 전원 미탑승";
 
@@ -70,6 +69,15 @@ public class BoardingCommandService {
     private final RiderStatusHistoryRepository riderStatusHistoryRepository;
 
     private final NoShowCaseRepository noShowCaseRepository;
+
+    /**
+     * 미승차 대기 시간(분)을 학원별로 읽는다(Phase 11 목표 2, API_SPEC §5.21) — 학원마다 값이 다르고,
+     * {@code academy_setting} 행이 아직 없는 학원(구 데이터 · 등록 경로가 아직 안 만들던 시절의 학원)은
+     * {@link AcademySetting#DEFAULT_NO_SHOW_WAIT_MINUTES} 로 자가 치유한다({@code AcademySettingQueryService}
+     * 의 GET-or-create 와 같은 근거) — 3분 고정 상수를 없애는 것이 이 목표의 본체라, 값이 없다고 예외를
+     * 던지면 그 학원의 미승차 처리 자체가 막힌다.
+     */
+    private final AcademySettingRepository academySettingRepository;
 
     /**
      * {@code stop_skipped} 계산·반영(API_SPEC §4.6 · C-05)의 협력자 — {@link src.backend.request.command
@@ -208,19 +216,26 @@ public class BoardingCommandService {
     }
 
     /**
-     * 미승차 케이스 생성(목표 7) — 3분 뒤 만료로 저장하고, 학부모·관계자 두 갈래 알림의 재료가 될
-     * {@link RiderNoShowEvent} 를 발행한다.
+     * 미승차 케이스 생성(목표 7) — 학원별 대기 시간(목표 2) 뒤 만료로 저장하고, 학부모·관계자 두 갈래
+     * 알림 + WebSocket {@code rider_changed} 방송(Phase 10 이월 ⑤, 이 클래스 상단 참고) 두 갈래 재료가
+     * 될 {@link RiderNoShowEvent} 를 발행한다.
      *
      * <p>{@code stop_skipped}(API_SPEC §4.6, C-05)는 {@link #skipStopIfNoRidersRemain} 이 실제로
-     * 계산한다 — C-05 가 명시하는 두 발생 경로(③구간 미등원·운행 중 미승차) 중 여기가 후자다.
+     * 계산한다 — C-05 가 명시하는 두 발생 경로(③구간 미등원·운행 중 미승차) 중 여기가 후자다. 이벤트
+     * 발행을 그 계산 <b>뒤로</b> 옮겼다(Phase 11) — {@code rider_changed} 방송이 그 값을 실어야 하는데,
+     * 계산 전에 발행하면 항상 {@code false} 를 실어 보내게 된다.
      */
     private RiderStatusUpdateResponse handleNoShow(Run run, RunRider rider, OffsetDateTime now) {
-        OffsetDateTime expiresAt = now.plus(NO_SHOW_EXPIRY);
+        int waitMinutes = academySettingRepository.findById(run.getAcademyId())
+                .map(AcademySetting::getNoShowWaitMinutes)
+                .orElse(AcademySetting.DEFAULT_NO_SHOW_WAIT_MINUTES);
+        OffsetDateTime expiresAt = now.plus(Duration.ofMinutes(waitMinutes));
         NoShowCase noShowCase = noShowCaseRepository.save(NoShowCase.forRunRider(rider.getId(), now, expiresAt, now));
-        eventPublisher.publishEvent(new RiderNoShowEvent(run.getId(), run.getAcademyId(), rider.getStudentId(),
-                rider.getId(), noShowCase.getId(), now));
 
         boolean stopSkipped = skipStopIfNoRidersRemain(run.getId(), rider.getStopId());
+        eventPublisher.publishEvent(new RiderNoShowEvent(run.getId(), run.getAcademyId(), rider.getStudentId(),
+                rider.getId(), noShowCase.getId(), rider.getStopId(), stopSkipped, now));
+
         RiderStatusUpdateResponse.NoShowCaseSummary summary = new RiderStatusUpdateResponse.NoShowCaseSummary(
                 noShowCase.getId(), noShowCase.getStartedAt(), noShowCase.getExpiresAt());
         return RiderStatusUpdateResponse.withNoShowCase(rider.getId(), now, summary, stopSkipped);
