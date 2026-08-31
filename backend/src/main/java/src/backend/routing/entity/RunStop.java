@@ -96,4 +96,9 @@ public class RunStop {
         this.change = ChangeType.SKIPPED;
         this.skipNotice = skipNotice;
     }
+
+    /** 기사의 도착 처리로 도착 시각을 기록한다(API_SPEC §4.5, RUN-04). 재처리는 호출부가 막는다. */
+    public void markArrived(OffsetDateTime arrivedAt) {
+        this.arrivedAt = arrivedAt;
+    }
 }

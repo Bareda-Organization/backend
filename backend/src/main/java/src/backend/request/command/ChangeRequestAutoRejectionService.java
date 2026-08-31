@@ -16,10 +16,9 @@ import src.backend.request.repository.ChangeRequestRepository;
  * 회차가 {@code moving} 으로 전이하는 순간 그 회차의 미처리 변경 요청을 전부 종결하는 서비스
  * (API_SPEC §1.6 "출발 시각 도달 또는 {@code moving} 전이 중 먼저 오는 시점").
  *
- * <p><b>이 클래스는 존재하지만 아직 어디서도 호출되지 않는다.</b> {@code POST /runs/{runId}/start}
- * (Phase 9 소유, Ruling 196)가 회차를 {@code moving} 으로 바꾸는 <b>같은 트랜잭션 안에서</b>
- * {@link #terminateForRun} 을 동기 호출해야 이 클래스의 존재 이유가 완성된다 — 그 배선은 이 태스크의
- * 범위 밖이다.
+ * <p>{@code POST /runs/{runId}/start}({@code RunStartCommandService}, Phase 9 소유, Ruling 196)가
+ * 회차를 {@code moving} 으로 바꾸는 <b>같은 트랜잭션 안에서</b> {@link #terminateForRun} 을 동기
+ * 호출한다 — 아래 "왜 폴링만으로는 부족한가"가 요구하는 배선이 그것이다.
  *
  * <p><b>왜 폴링만으로는 부족한가</b> — {@code ChangeRequestAutoRejectionScheduler} 는 최대 30초
  * (poll-interval) 주기로만 도래분을 훑는다. 회차가 {@code moving} 으로 바뀐 그 순간과 다음 폴링

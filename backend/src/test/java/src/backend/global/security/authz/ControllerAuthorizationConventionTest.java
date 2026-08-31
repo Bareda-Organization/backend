@@ -43,8 +43,24 @@ class ControllerAuthorizationConventionTest {
      * <p><b>이 목록에 항목을 추가할 때는 서비스 계층에서 범위 검증이 실제로 이뤄지는지 확인하고,
      * 그 근거를 여기에 적는다.</b> 이름만 적고 근거가 없으면, 같은 파일에 인가 없는 매핑이 하나 더
      * 늘어도 이 목록이 통째로 가려 버려 회귀를 못 잡는다.
+     *
+     * <p><b>Phase 9 T2 — {@code DriverRunController} 의 {@code start}·{@code arrive}·
+     * {@code ackChanges} 3개.</b> 근거: {@link src.backend.run.access.RunAssignmentAccess} 가
+     * 세 커맨드 서비스({@code RunStartCommandService}·{@code RunArrivalCommandService}·
+     * {@code RunAckChangesCommandService}) 각각의 첫 줄에서 {@code assertAssignedDriver}·
+     * {@code assertAssignedDriverOrEscort} 를 호출해 역할 오류({@code DRIVER_ONLY})와 배치
+     * 오류(일반 {@code FORBIDDEN})를 가른다. 세 엔드포인트가 완전히 같은 인가 규칙을 공유하므로
+     * 컨트롤러 애너테이션으로 중복 표현하지 않고 서비스 계층에 모았다 —
+     * {@code DriverRunController} 자체의 클래스 자바독에도 같은 설계가 적혀 있다.
+     * {@code ackChanges}(§4.11)는 추가로, FEATURE_SPEC §6.2 권한 카탈로그에 "기사 또는 동승자"
+     * 조합에 대응하는 전용 권한 항목이 없다({@link CanReadChangeRequest} 가 같은 이유로
+     * {@code isAuthenticated()} 를 쓰는 것과 같은 카탈로그 공백) — 사양 밖에서 새 권한을 만들지
+     * 않고 서비스 계층의 {@code assertAssignedDriverOrEscort} 에 맡긴다.
      */
-    private static final List<String> METHOD_LEVEL_EXEMPT = List.of();
+    private static final List<String> METHOD_LEVEL_EXEMPT = List.of(
+            "DriverRunController.java#start",
+            "DriverRunController.java#arrive",
+            "DriverRunController.java#ackChanges");
 
     /** 인가 자체가 아직 없는 permitAll 경로(로그인·회원가입·토큰 재발급 등)를 담는 파일명 목록. */
     private static final List<String> EXEMPT_FILES = List.of();

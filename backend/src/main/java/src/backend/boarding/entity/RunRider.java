@@ -98,4 +98,24 @@ public class RunRider extends BaseTimeEntity {
         this.stopId = newStopId;
         this.changedAt = changedAt;
     }
+
+    /**
+     * 탑승 처리한다 — 동승자의 개별 처리(BRD-01) 뿐 아니라 하원 운행 시작 시 전원 자동 탑승
+     * (API_SPEC §4.4, C-07)에도 쓰인다.
+     */
+    public void board(OffsetDateTime boardedAt) {
+        this.status = RiderStatus.BOARDED;
+        this.boardedAt = boardedAt;
+        this.changedAt = boardedAt;
+    }
+
+    /**
+     * 하차 처리한다 — 동승자의 개별 처리(BRD-01) 뿐 아니라 등원 최종 지점 도착 시 전원 자동 하차
+     * (API_SPEC §4.5, C-07·C-15)에도 쓰인다.
+     */
+    public void alight(OffsetDateTime alightedAt) {
+        this.status = RiderStatus.ALIGHTED;
+        this.alightedAt = alightedAt;
+        this.changedAt = alightedAt;
+    }
 }

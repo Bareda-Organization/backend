@@ -92,4 +92,15 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
               AND LOWER(s.name) LIKE LOWER(CONCAT('%', :q, '%'))
             """)
     Page<Student> searchByAcademyId(@Param("academyId") Long academyId, @Param("q") String q, Pageable pageable);
+
+    /**
+     * 그 학생들 중 <b>계정이 연결된</b> 학생만(Phase 9 RUN-05, API_SPEC §9.7 {@code run_started}
+     * 의 "학생" 수신자) — {@code account_id} 가 없는 학생은 로그인이 없어 알림을 받을 계정 자체가
+     * 없다.
+     *
+     * <p>학원 조건이 <b>쿼리에 고정</b>돼 있다 — 호출부는 회차 명단({@code run_rider})에서 뽑은
+     * 학생 id 목록을 넘길 뿐이라, 여기서 학원을 다시 확인하지 않으면 (있을 수 없는 경로지만) 남의
+     * 학원 학생 id 가 섞여 들어와도 걸러지지 않는다.
+     */
+    List<Student> findAllByIdInAndAcademyIdAndAccountIdIsNotNull(List<Long> ids, Long academyId);
 }

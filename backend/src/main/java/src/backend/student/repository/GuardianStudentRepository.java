@@ -119,4 +119,31 @@ public interface GuardianStudentRepository extends JpaRepository<GuardianStudent
             """)
     List<GuardianPhone> findGuardianPhonesByAcademyId(@Param("academyId") Long academyId,
             @Param("studentIds") List<Long> studentIds);
+
+    /**
+     * 학생들의 보호자 계정(알림 수신자)을 한 번에 모은다(Phase 9 RUN-05·06, API_SPEC §9.7
+     * {@code run_started}·{@code alighting}).
+     *
+     * <p>{@link #findGuardianPhonesByAcademyId} 와 조인 구조는 같지만 {@code phone} 대신
+     * {@code account.id}·{@code name} 을 읽는다 — 알림 적재({@code notification_log})가 필요로
+     * 하는 것이 연락처 문자열이 아니라 수신자 계정이기 때문이다.
+     *
+     * <p>학생 1명에 보호자가 여럿일 수 있어 <b>한 학생당 한 행만</b> 알림에 쓰기로 한 자리
+     * (goal 9 "알림 행 수 = 자동 하차 인원 수")에서는 <b>호출부가 이 목록을 순회하며 학생당 첫
+     * 행만 취한다</b> — 그 "첫 행" 을 결정론적으로 만드는 것이 아래 정렬이다. 정렬 기준은
+     * {@link #findGuardianPhonesByAcademyId} 와 동일하다(같은 근거 — 없으면 대표 보호자가
+     * 새로고침마다 바뀐다).
+     */
+    @Query("""
+            SELECT gs.studentId AS studentId, a.id AS accountId, a.name AS name
+            FROM GuardianStudent gs
+            JOIN Guardian g ON g.id = gs.guardianId
+            JOIN Account a ON a.id = g.accountId
+            WHERE g.academyId = :academyId
+              AND gs.studentId IN :studentIds
+              AND gs.unlinkedAt IS NULL
+            ORDER BY gs.studentId ASC, gs.linkedAt ASC, gs.id ASC
+            """)
+    List<GuardianAccountRecipient> findGuardianAccountsByAcademyId(@Param("academyId") Long academyId,
+            @Param("studentIds") List<Long> studentIds);
 }
