@@ -25,17 +25,24 @@ public interface ExceptionReportRepository extends JpaRepository<ExceptionReport
      * 목록 조회(API_SPEC §5.20 목록) — {@code type}·{@code run_id}·{@code reported_at} 구간(= {@code date}
      * 하루치, 관계자 웹에서 이미 학원 자정 기준으로 환산해 넘긴다) 이 전부 선택적이다.
      *
-     * <p>{@code :type IS NULL OR ...} 형태로 필터를 가르지 않고 <b>한 쿼리 안에서 널 검사</b>로 처리한다
-     * ({@code ManagerRepository#searchByAcademyId} 와 같은 근거) — 필터별로 메서드를 나누면 한쪽에만
-     * 조건이 빠지는 사고가 실제로 난다.
+     * <p>{@code type}·{@code runId} 는 {@code :type IS NULL OR ...} 형태로 처리한다({@code
+     * ManagerRepository#searchByAcademyId} 와 같은 근거) — 필터별로 메서드를 나누면 한쪽에만 조건이
+     * 빠지는 사고가 실제로 난다.
+     *
+     * <p>{@code from}·{@code to} 는 같은 널 검사 형태를 쓰지 않는다 — {@code OffsetDateTime} 파라미터가
+     * {@code :from IS NULL} 처럼 <b>비교 없이 단독으로만</b> 등장하면 Postgres 가 그 자리의 타입을
+     * 추론하지 못해 {@code could not determine data type of parameter} 로 500 이 난다(실측 — {@code
+     * String}·{@code Long} 인 {@code type}·{@code runId} 는 같은 구조에서도 재현되지 않는다). 그래서
+     * 항상 구체값을 요구하고, "필터 없음"은 {@link ExceptionReportQueryService} 가 극단 경계값(연도
+     * 1·9999)으로 채워 넘긴다 — null 을 걸러내는 책임을 SQL 에서 서비스 계층으로 옮긴 것이다.
      */
     @Query("""
             SELECT er FROM ExceptionReport er
             WHERE er.academyId = :academyId
               AND (:type IS NULL OR er.type = :type)
               AND (:runId IS NULL OR er.runId = :runId)
-              AND (:from IS NULL OR er.reportedAt >= :from)
-              AND (:to IS NULL OR er.reportedAt < :to)
+              AND er.reportedAt >= :from
+              AND er.reportedAt < :to
             ORDER BY er.reportedAt DESC
             """)
     List<ExceptionReport> search(@Param("academyId") Long academyId, @Param("type") ExceptionReportType type,

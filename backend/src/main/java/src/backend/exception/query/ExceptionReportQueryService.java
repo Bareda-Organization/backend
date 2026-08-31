@@ -61,13 +61,22 @@ public class ExceptionReportQueryService {
 
     private final Clock clock;
 
+    /**
+     * {@code date} 필터가 없을 때 {@link ExceptionReportRepository#search} 에 넘길 극단 경계값 —
+     * {@code reportedAt} 이 이 범위를 벗어날 수 없으므로 사실상 무제한이다. null 을 넘기지 않는 이유는
+     * 그 메서드의 javadoc 참고(Postgres 파라미터 타입 추론 실패).
+     */
+    private static final OffsetDateTime UNBOUNDED_FROM = OffsetDateTime.parse("0001-01-01T00:00:00Z");
+
+    private static final OffsetDateTime UNBOUNDED_TO = OffsetDateTime.parse("9999-12-31T23:59:59Z");
+
     /** 목록(§5.20 목록) — {@code type}·{@code date}·{@code run_id} 전부 선택적, 페이지네이션 없음. */
     public StaffReportListResponse list(AuthUser requester, String type, String date, Long runId) {
         ExceptionReportType parsedType = ApiValues.reportType(type);
         LocalDate parsedDate = ApiValues.date(date);
 
-        OffsetDateTime from = null;
-        OffsetDateTime to = null;
+        OffsetDateTime from = UNBOUNDED_FROM;
+        OffsetDateTime to = UNBOUNDED_TO;
         if (parsedDate != null) {
             ZoneId zone = clock.getZone();
             from = parsedDate.atStartOfDay(zone).toOffsetDateTime();
