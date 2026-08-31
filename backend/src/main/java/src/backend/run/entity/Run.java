@@ -152,4 +152,38 @@ public class Run extends BaseTimeEntity {
     public boolean isCanceled() {
         return canceledAt != null;
     }
+
+    /**
+     * 기사의 운행 시작 처리로 {@code moving} 에 진입한다(API_SPEC §4.4, RUN-02·M-10).
+     *
+     * <p>±10분 창 판정·중복 시작 차단은 이 메서드가 아니라 호출부(커맨드 서비스)의 책임이다 —
+     * 엔티티는 "그 시각에 시작했다"는 사실만 기록하고, 그 시각이 유효한지는 판단하지 않는다.
+     */
+    public void start(OffsetDateTime startedAt) {
+        this.status = RunStatus.MOVING;
+        this.startedAt = startedAt;
+    }
+
+    /**
+     * 하원 최종 지점 도착 처리에서 미하차 잔류가 있어 종료를 보류한다(API_SPEC §4.5, C-15).
+     *
+     * <p>{@code status} 는 여전히 {@link RunStatus#MOVING} 이다 — 종료는 잔류 인원이 0이 되는
+     * 순간 {@link #finish} 로만 이뤄진다({@link src.backend.run.command.RunCompletionService}).
+     */
+    public void deferFinish() {
+        this.finishPending = true;
+    }
+
+    /**
+     * 운행을 종료한다(C-15) — 등원 최종 도착 처리의 즉시 종료, 하원의 잔류 0명 도달(도착 즉시 또는
+     * 마지막 탑승자 하차 시점) 양쪽 모두 이 메서드로 수렴한다.
+     *
+     * <p>{@code finishPending} 을 함께 거둔다 — 보류 중이던 종료가 지금 이뤄지는 것이므로 보류
+     * 표시가 남아 있으면 안 된다.
+     */
+    public void finish(OffsetDateTime finishedAt) {
+        this.status = RunStatus.FINISHED;
+        this.finishedAt = finishedAt;
+        this.finishPending = false;
+    }
 }

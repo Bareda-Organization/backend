@@ -92,4 +92,15 @@ public class Assignment {
         this.ackedRouteVersionId = null;
         this.ackedAt = null;
     }
+
+    /**
+     * 기사·동승자가 노선 변경 확인 응답을 남긴다(API_SPEC §4.11, RUN-07·M-04) — 대상은 배포
+     * 버전 단위다. {@code change_ids[]} 처럼 변경 건 하나하나를 골라 확인하는 저장 구조는 스키마에
+     * 부재하다({@code acked_route_version_id} 가 배포 버전 1개만 가리킨다) — 요청에 그 필드가
+     * 와도 이 메서드는 버전 전체 확인으로 처리한다.
+     */
+    public void ack(Long routeVersionId, OffsetDateTime ackedAt) {
+        this.ackedRouteVersionId = routeVersionId;
+        this.ackedAt = ackedAt;
+    }
 }

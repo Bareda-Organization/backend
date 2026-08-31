@@ -219,6 +219,29 @@ public enum ErrorCode {
     // 이 코드다(ROUTE_NOT_FOUND·BUS_NOT_FOUND 와 같은 형태, 존재 여부를 응답에서 드러내지 않는다).
     WAYPOINT_NOT_FOUND(HttpStatus.NOT_FOUND, "경유 지점을 찾을 수 없습니다"),
 
+    // ── 운행 시작 · 도착 처리 · 변경 확인(Phase 9, RUN-02·04·05·06·07) ──────────────
+    // 기사가 아닌 역할(동승자 등)의 운행 시작·도착 처리 시도(API_SPEC §4.4·§4.5) — 역할 자체가
+    // 틀린 경우라 전용 코드를 쓴다. 역할은 맞는데 이 회차에 배치되지 않은 경우는 일반
+    // FORBIDDEN 이다(배치 여부를 응답에서 드러내지 않는다).
+    DRIVER_ONLY(HttpStatus.FORBIDDEN, "기사만 처리할 수 있습니다"),
+    // 출발 시각 ±10분 창 밖의 운행 시작 시도(API_SPEC §4.4). ⚠ 2026-08-31 Ruling 202 — 이 값은
+    // 문서상 ±3분으로 남아 있던 옛 판정이 정정된 것이다. 코드 상수이며 application.yml·DB 로
+    // 바꾸지 않는다(창을 여닫는 기준이 정책이 아니라 안전 여유이기 때문).
+    START_WINDOW_CLOSED(HttpStatus.FORBIDDEN, "지금은 운행을 시작할 수 없는 시간입니다"),
+    // 이미 moving·finished 인 회차의 재시작 시도(API_SPEC §4.4). 403 이 아니라 409 인 것은 막는
+    // 것이 권한이 아니라 대상 자원의 상태이기 때문이다 — APPROVAL_ALREADY_DECIDED 와 같은 형태.
+    RUN_ALREADY_STARTED(HttpStatus.CONFLICT, "이미 시작된 운행입니다"),
+    // 확정 전(idle) 회차의 운행 시작·변경 확인 시도(API_SPEC §4.4·§4.11). 409 인 이유는 위와 같다.
+    RUN_NOT_CONFIRMED(HttpStatus.CONFLICT, "확정되지 않은 회차입니다"),
+    // 이미 도착 처리된 승하차지 재처리(API_SPEC §4.5) — 도착 타임스탬프는 최초 1회만 기록된다.
+    DUPLICATE_ARRIVE(HttpStatus.FORBIDDEN, "이미 도착 처리된 승하차지입니다"),
+    // moving 이 아닌 회차의 도착 처리 시도(API_SPEC §4.5) — 시작 전(idle·confirmed)·이미 종료(finished)
+    // 양쪽 모두 이 코드다. 409 인 이유는 위 RUN_ALREADY_STARTED 와 같다.
+    RUN_NOT_MOVING(HttpStatus.CONFLICT, "운행 중인 회차가 아닙니다"),
+    // 그 배포 버전에 속하지 않는 승하차지 지정(API_SPEC §4.5) — ROUTE_NOT_FOUND 와 같은 형태로,
+    // 다른 회차 소속인 경우도 이 코드다.
+    STOP_NOT_FOUND(HttpStatus.NOT_FOUND, "승하차지를 찾을 수 없습니다"),
+
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다");
 
     private final HttpStatus status;

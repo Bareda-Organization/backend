@@ -59,4 +59,16 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
     @AcademyScopeExempt(reason = "runId 는 호출부가 이미 학원 소속을 확인한 회차의 식별자라는 전제다 — "
             + "findByRunIdAndStudentId 와 같은 근거(AcademyScope.assertAccessible 선확인)")
     long countByRunIdAndStopIdAndStatusNot(Long runId, Long stopId, RiderStatus status);
+
+    /**
+     * 그 회차에서 아직 그 상태인 라이더 수(Phase 9, RUN-06·C-15) — 하원 마지막 하차·②구간 종결 뒤의
+     * 종료 판정({@code RunCompletionService})이 "아직 탑승 중({@code BOARDED})이 0명인가"를 이 메서드로
+     * 묻는다.
+     *
+     * <p>{@code runId} 근거는 {@link #findByRunIdAndStudentId} 와 같다 — 호출부가 이미 학원 범위로
+     * 좁혀 얻은 회차의 식별자만 넘긴다는 전제다.
+     */
+    @AcademyScopeExempt(reason = "runId 는 호출부가 이미 학원 소속을 확인한 회차의 식별자라는 전제다 — "
+            + "findByRunIdAndStudentId 와 같은 근거(AcademyScope.assertAccessible 선확인)")
+    long countByRunIdAndStatus(Long runId, RiderStatus status);
 }
