@@ -247,6 +247,40 @@ cd backend
 
 ## 알려진 함정
 
+### `AcademyScopeRepositoryConventionTest` 는 **텍스트 판정**이라 조건 *무력화* 를 못 잡는다
+
+**실측**(2026-08-31 Phase 9 음성 대조) — `NavRunStopRepository` 의 학원 조건을
+`r.academyId = :academyId` → `r.academyId <> :academyId` 로 **뒤집었더니**
+`NavigationControllerTest` 5건 · `Phase9CrossSeatWiringTest` 1건이 실패했는데
+**규약 시험은 통과**했다(`failures=0`).
+
+**기제** — 판정 술어(`AcademyScopeRule#isNarrowedByAcademy`)는 `@Query` 의 WHERE 절에
+`academyId` **문자열이 있는가**만 본다. 비교 연산자·조인 대상이 옳은지는 보지 않는다.
+주석 제거·`GROUP BY` 경계 처리까지 갖춰 **우회는 잘 막지만**, 조건이 *존재하되 틀린* 형태는
+설계상 범위 밖이다.
+
+**그래서 어떻게 쓰나**
+
+- 규약 시험은 **"조건을 붙였는가"** 를 고정한다 — 새 조회가 조용히 격리를 빠뜨리는 것을 막는다
+- **"그 조건이 실제로 거르는가"** 는 행동 시험(컨트롤러·통합) 몫이다. 학원 조건을 새로 붙일 때
+  **두 종류를 함께 돌려야** 검증이 닫힌다
+- ⚠ 규약 시험만 초록인 것을 "격리 확인" 으로 읽지 마라
+
+### 학원 조건은 **상류가 막고 있어도 개별 조회마다 다시 건다**
+
+`NavRunStopRepository#findAllByRouteVersionIdOrderBySeqAsc` 가 상류 2겹
+(`findByIdAndAcademyId` → `assertAssigned`)에 기대어 조건이 부재했고 규약 시험이 잡았다.
+**사용자 확정(2026-08-31) — 예외 표시가 아니라 질의 보강**(`968bc9f`).
+
+- `@AcademyScopeExempt` 는 **좁힐 수단 자체가 부재한** 조회(로그인·재발급)용이다.
+  부모 조인이 가능하면 예외 대상이 아니다
+- `academy_id` 컬럼이 부재한 자식 테이블의 표준 사슬 —
+  `RouteVersion` → `Run`(PK 를 공유하는 `ConfirmedRoute` 경유). 선례는
+  `RunStopRepository#findAllByRouteVersionIdAndAcademyIdOrderBySeq`
+- 근거 — 횡단 규칙 7 이 개별 조회마다 조건을 요구하고, Phase 8 의 `ApprovalQueryService` 가
+  상류 검증을 근거로 하류를 안 좁혔다가 격리 우회가 가능했다
+
+
 
 - **2026-08-25** — **리뷰어·검증자에게 "응답 자체가 보고서다, 별도 파일을 만들지 마라" 라고 지시하면 전송 유실 시 산출물이 통째로 사라진다.** 구현자는 커밋이 남아 복구되지만 리뷰어는 **아무 흔적도 남지 않는다** — 한 세션에서 리뷰 판정 회수를 위해 재요청한 사례가 3회, 두 번 연속 실패해 리뷰어를 교체한 사례가 1회. **대응 — 리뷰어에게도 `.superpowers/sdd/<plan>/` 아래 판정 파일을 먼저 쓰게 하고(git-ignored 라 인덱스 미오염) 그 다음 응답으로도 보내게 한다.** 조율자 컨텍스트 보호(응답에 본문 복사 금지)와 충돌하지 않는다 — 조율자는 필요할 때만 파일을 읽는다
 - **2026-08-25** — **에이전트가 작업을 마치고도 최종 보고 메시지만 유실되는 경우가 잦다.** 증상 — `idle_notification` 은 오는데 결과 보고가 부재. **커밋·워크트리는 정상**인 경우가 대부분이라 작업 유실이 아니라 **전송 유실**이다. 이 세션에서 5회 발생(`p1-t8-review` · `p1-t9-impl2` · `p1-t6t8-rereview1` 등). **대응 — 죽었다고 판단하지 말고 `SendMessage` 로 "판정을 다시 보내라" 고 요청한다.** 요청 시 판정 대상·최우선 확인 항목을 **다시 실어 보내야** 한다(그쪽 컨텍스트가 남아 있어도 재확인 비용이 싸다). 재착수시키면 같은 작업을 두 번 하게 된다
