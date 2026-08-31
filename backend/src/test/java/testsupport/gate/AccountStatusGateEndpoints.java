@@ -64,6 +64,11 @@ public final class AccountStatusGateEndpoints {
      * <p>⚠ Phase 10 의 산출물 가운데 여기 오르는 것은 이 3개뿐이다 — STOMP 구독 채널은 HTTP 핸들러가
      * 아니라 {@code RequestMappingHandlerMapping} 에 잡히지 않고, 근접 알림은 스케줄러라 요청 진입점이
      * 부재하다. 개수가 기대만큼 안 늘었다고 누락으로 읽지 마라.
+     *
+     * <p>Phase 11 이 3개를 더했다 — {@code POST /runs/{runId}/reports}(§4.13, 권한 "기사 또는 동승자")는
+     * Phase 9 의 운행 중 단말 엔드포인트와 같은 형태로 {@code @PreAuthorize} 없이 서비스 계층이
+     * 인가한다. {@code GET /staff/reports} · {@code GET /staff/reports/{id}}(§5.20, 권한 "학원
+     * 관계자")는 관계자 관리 화면이라 근거가 앞 Phase 들과 같다.
      */
     public static final List<String> DENIED_WHEN_REJECTED = List.of(
             "POST /auth/password",
@@ -143,7 +148,11 @@ public final class AccountStatusGateEndpoints {
             // (§3.11 LOC-02 · §3.10 LOC-03) 2개.
             "POST /runs/{runId}/position",
             "GET /students/{id}/bus-position",
-            "GET /students/{id}/route");
+            "GET /students/{id}/route",
+            // Phase 11 — 현장 예외 보고 등록(§4.13) 기사·동승자 단말 기능 1개 + 관계자 웹 조회(§5.20) 2개.
+            "POST /runs/{runId}/reports",
+            "GET /staff/reports",
+            "GET /staff/reports/{id}");
 
     /** {@code pending} 의 거부측 — {@code rejected} 거부측에 재신청 1개를 더한다({@code @AllowedWhenRejected} 는 pending 을 열지 않는다). */
     public static final List<String> DENIED_WHEN_PENDING = concat(DENIED_WHEN_REJECTED, "POST /auth/signup/reapply");

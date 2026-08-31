@@ -70,4 +70,14 @@ public class ExceptionReport {
             String memo, Long reportedBy, OffsetDateTime reportedAt) {
         return new ExceptionReport(academyId, runId, type, memo, reportedBy, reportedAt);
     }
+
+    /**
+     * {@code type=guardian_absent} 보고에서만 호출한다(Phase 11, API_SPEC §4.13) — 위 팩토리
+     * javadoc 이 예고한 "팩토리 밖" 이 이 메서드다. {@code ck_exception_report_run_rider} 가
+     * "guardian_absent 면 run_rider_id 필수"를 DB 에서 강제하므로, 호출부가 이 메서드를 걸러
+     * 부르지 않아도 저장 시점에 위반이 500 이 아니라 제약으로 드러난다(선검사는 커맨드 서비스가 한다).
+     */
+    public void assignRunRider(Long runRiderId) {
+        this.runRiderId = runRiderId;
+    }
 }
