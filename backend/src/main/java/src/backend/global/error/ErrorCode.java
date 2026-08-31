@@ -256,6 +256,12 @@ public enum ErrorCode {
     // run_stop·run_rider 확정 시점에야 채워지므로, idle 상태에서 열면 빈 배열이 "아직 없다" 인지
     // "확정됐는데 비었다" 인지 구별되지 않는다. §5.4 관계자 웹 명단은 이 코드를 던지지 않는다(idle 도
     // 조회 가능 — entry-blocking 은 매니저 앱 전용).
+    // ── 외부 내비 연동(Phase 9, RUN-08) ────────────────────────────────────────
+    // 확정 전(idle) 회차에서 내비 조회 시도(API_SPEC §4.16) — 노선이 아직 확정되지 않아 순서·좌표가
+    // 없다. confirmed 부터는 허용(X-01, Ruling 202) — 막는 것은 idle 뿐이다.
+    // 그 회차의 남은 승하차지가 없을 때(skipped·도착 완료 제외 후 0건) — 200 에 빈 배열을 주지 않는다.
+    // 빈 배열을 주면 앱이 목적지 없이 내비를 띄운다(API_SPEC §4.16).
+    NAV_NO_REMAINING_STOP(HttpStatus.CONFLICT, "안내할 남은 승하차지가 없습니다"),
 
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다");
 
