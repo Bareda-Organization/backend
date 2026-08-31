@@ -21,6 +21,13 @@ import org.testcontainers.utility.DockerImageName;
  * 띄운다. {@code RedisConnectionFactory} 는 {@code spring.data.redis.host}·{@code port} 만 보고
  * 자동 구성되므로({@code RedisConfig} 자바독 참고) 그 두 값만 갈아 끼우면 충분하다.
  *
+ * <p>공유 컨테이너를 못 쓰는 이유가 하나 더 있다 — Postgres 는 {@code @Transactional} 롤백으로
+ * 시험 간 격리되지만, Redis 는 트랜잭션이 없어 한 시험이 쓴 키가 다음 시험에 그대로 남는다. 전용
+ * 컨테이너를 매번 새로 올리는 것이 그 격리를 대신한다.
+ *
+ * <p>이미지 태그는 {@code redis:7}(alpine 아님) — {@code docker-compose.yml} 의 운영 컨테이너와
+ * 같은 태그다. 시험과 운영이 다른 이미지를 쓰면 버전 차이로 나는 결함을 시험이 못 본다.
+ *
  * <p>쓰는 법 — 이 클래스를 상속하면 {@code @Testcontainers}·{@code @DynamicPropertySource} 가 함께
  * 상속돼, 그 테스트의 {@code @SpringBootTest} 컨텍스트가 이 컨테이너에 연결된다.
  */
@@ -29,7 +36,7 @@ public abstract class RedisTestContainerBase {
 
     @Container
     protected static final GenericContainer<?> REDIS = new GenericContainer<>(
-            DockerImageName.parse("redis:7-alpine"))
+            DockerImageName.parse("redis:7"))
             .withExposedPorts(6379);
 
     @DynamicPropertySource
