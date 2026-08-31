@@ -1,5 +1,6 @@
 package src.backend.boarding.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -76,6 +77,33 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
      * 하원 최종 지점 도착 처리에서 종료가 보류될 때(Phase 9 goal 10) 기사 화면에 실을 미하차 잔류
      * 명단 — 이름·현재 승하차지를 이 조회에서 함께 채운다({@code RunArriveResponse.remaining[]}
      * 이 별도 조회 없이 바로 응답에 실릴 수 있게).
+
+     * 승하차 처리(API_SPEC §4.6·§4.7)가 다룰 탑승자 1건 — {@code status} 가 {@link RiderStatus#ABSENT}
+     * 인 행은 제외한다. §4.6 이 "{@code absent} 로 명단에서 제외된 탑승자"를 {@code 404 RIDER_NOT_FOUND}
+     * 로 명시하기 때문에, 존재하지 않는 {@code riderId} 와 이미 제외된 탑승자를 이 메서드 하나로
+     * 같은 404 에 합류시킨다 — 호출부가 두 사유를 따로 가를 필요가 없다.
+     *
+     * <p>{@code runId} 근거는 {@link #findByRunIdAndStudentId} 와 같다 — 호출부가 이미 학원 범위로
+     * 좁혀 얻은 회차의 식별자라는 전제다.
+     */
+    @AcademyScopeExempt(reason = "runId 는 호출부가 RunRepository.findByIdAndAcademyId 로 이미 학원 범위에 좁혀 얻은 "
+            + "회차의 식별자라는 전제다(findByRunIdAndStudentId 와 같은 근거)")
+    Optional<RunRider> findByIdAndRunIdAndStatusNot(Long id, Long runId, RiderStatus excludedStatus);
+
+    /**
+     * 회차 1건의 명단 전체(목표 11, 하원 시작 시 일괄 승차) — {@link #findAllByRunIdAndAcademyId} 와
+     * 달리 학원 조인이 없다. 호출부(T2 의 회차 시작 커맨드)가 이미 {@code RunRepository
+     * .findByIdAndAcademyId} 로 학원 범위를 확인한 뒤 그 {@code runId} 만 넘긴다는 전제다.
+     */
+    @AcademyScopeExempt(reason = "runId 는 호출부가 RunRepository.findByIdAndAcademyId 로 이미 학원 범위에 좁혀 얻은 "
+            + "회차의 식별자라는 전제다(findByRunIdAndStudentId 와 같은 근거)")
+    List<RunRider> findAllByRunId(Long runId);
+
+    /**
+     * 그 승하차지에 아직 남은(부재·미승차 둘 다 빠진) 탑승자 수 — {@code no_show} 도 잔여 0명 판정에서
+     * 빠져야 한다(목표 7). {@link #countByRunIdAndStopIdAndStatusNot} 은 단일 상태 제외만 지원해
+     * 미승차까지 함께 빼는 이 자리에는 쓸 수 없다 — Spring Data 파생 쿼리가 다중값 NOT 제외를
+     * 메서드명만으로 표현하지 못해 {@code @Query} 로 직접 쓴다.
      *
      * <p>{@code runId} 근거는 {@link #findByRunIdAndStudentId} 와 같다.
      */
@@ -92,4 +120,12 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
             """)
     List<RemainingRiderView> findRemainingByRunIdAndStatus(@Param("runId") Long runId,
             @Param("status") RiderStatus status);
+
+            SELECT COUNT(rr) FROM RunRider rr
+            WHERE rr.runId = :runId
+              AND rr.stopId = :stopId
+              AND rr.status NOT IN :excludedStatuses
+            """)
+    long countByRunIdAndStopIdAndStatusNotIn(@Param("runId") Long runId, @Param("stopId") Long stopId,
+            @Param("excludedStatuses") Collection<RiderStatus> excludedStatuses);
 }

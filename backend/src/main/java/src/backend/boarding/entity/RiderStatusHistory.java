@@ -83,6 +83,20 @@ public class RiderStatusHistory {
         this.isRevert = false;
     }
 
+    private RiderStatusHistory(Context context) {
+        this.runRiderId = context.runRiderId();
+        this.fromStatus = context.fromStatus();
+        this.toStatus = context.toStatus();
+        this.isRevert = context.isRevert();
+        this.reason = context.reason();
+        this.verifyMethod = context.verifyMethod();
+        this.clientKey = context.clientKey();
+        this.occurredAt = context.occurredAt();
+        this.actorType = context.actorType();
+        this.changedAt = context.changedAt();
+        this.changedBy = context.changedBy();
+    }
+
     /**
      * 탑승자 상태가 전이될 때 이력 행을 만든다 — 되돌리기 여부·검증 수단·멱등키 등은 이 팩토리가 다루지 않는다
      * (Phase 1 은 필드 매핑까지, 상태 전이 정책은 도메인 Phase 담당). 파라미터 5개는 §20.2 기준(4개)을
@@ -91,5 +105,23 @@ public class RiderStatusHistory {
     public static RiderStatusHistory forTransition(Long runRiderId, RiderStatus fromStatus,
             RiderStatus toStatus, ActorType actorType, OffsetDateTime changedAt) {
         return new RiderStatusHistory(runRiderId, fromStatus, toStatus, actorType, changedAt);
+    }
+
+    /**
+     * 필드 11개짜리 이력 행을 만든다 — {@link #forTransition} 은 검증 수단·멱등키·되돌림 사유를 다루지
+     * 않아 승하차 처리(API_SPEC §4.6)와 되돌리기(§4.7) 양쪽에 부족하다. §20.2 기준(파라미터 4개)을
+     * 넘어 {@link Context} 로 묶었다 — 팩토리를 목적별로 나누지 않고 하나로 유지한 것은 두 호출부가
+     * 공유하는 필드(runRiderId·fromStatus·toStatus·actorType·changedAt·changedBy)가 더 많고, 호출부가
+     * 쓰지 않는 필드는 그 자리에서 {@code null} 을 명시해 무엇을 의도적으로 비웠는지 드러나게 하기
+     * 위함이다.
+     */
+    public static RiderStatusHistory of(Context context) {
+        return new RiderStatusHistory(context);
+    }
+
+    /** {@link #of} 의 파라미터 객체 — 승하차 처리는 {@code reason} 을, 되돌리기는 {@code verifyMethod}·{@code clientKey}·{@code occurredAt} 을 null 로 넘긴다. */
+    public record Context(Long runRiderId, RiderStatus fromStatus, RiderStatus toStatus, boolean isRevert,
+            String reason, VerifyMethod verifyMethod, UUID clientKey, OffsetDateTime occurredAt,
+            ActorType actorType, OffsetDateTime changedAt, Long changedBy) {
     }
 }
