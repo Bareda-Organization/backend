@@ -4,13 +4,22 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
 import src.backend.global.common.enums.AccountStatus;
@@ -28,6 +37,13 @@ import testsupport.redis.RedisTestContainerBase;
  *
  * <p>Redis 키는 회차 단위({@code run:{runId}:position})라 학생과 무관하다 — 그래서 신선도(fresh ·
  * stale)를 검사하는 두 시험은 매번 자기 값으로 덮어써야 하고, 순서에 의존하면 안 된다.
+ *
+ * <p>{@link SeedDateClockConfig} — 시드 회차의 {@code service_date} 를 실제로 읽어 그 날짜로
+ * {@link Clock} 을 이동시킨다(Phase 10 T4 재수정). 얼린 Clock 을 쓰지 않고 흐르는 시계에 날짜
+ * 차이만큼 오프셋만 주는 이유 — 이 시험은 위치 신호의 신선도(2분 임계값, Ruling 208)도 같은
+ * Clock 으로 재는데, 얼리면 "방금 기록"과 "3분 전 기록"의 실제 경과 시간이 사라져 신선도 시험
+ * 자체가 무너진다. 그래서 이 시험도 {@code OffsetDateTime.now()} 대신 주입받은 {@link #clock} 으로
+ * 시각을 만든다 — 그래야 어떤 Clock 이 꽂히든(실제 시계든 이 오프셋 시계든) 항상 서로 맞는다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -69,10 +85,28 @@ class StudentBusPositionControllerTest extends RedisTestContainerBase {
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
 
+    @Autowired
+    private Clock clock;
+
+    /** 시드 회차의 {@code service_date} 를 읽어 그 날짜로 Clock 을 이동시킨다 — 클래스 자바독 참고. */
+    @TestConfiguration
+    static class SeedDateClockConfig {
+
+        @Bean
+        @Primary
+        Clock seedDateClock(JdbcTemplate jdbcTemplate) {
+            ZoneId seoul = ZoneId.of("Asia/Seoul");
+            Clock base = Clock.system(seoul);
+            LocalDate seedDate = jdbcTemplate.queryForObject("SELECT MIN(service_date) FROM run", LocalDate.class);
+            long offsetDays = ChronoUnit.DAYS.between(LocalDate.now(base), seedDate);
+            return Clock.offset(base, Duration.ofDays(offsetDays));
+        }
+    }
+
     /** 신호가 살아 있으면(§3.11) 좌표가 담기고 last_seen_at 은 비어야 한다. */
     @Test
     void 운행중_회차의_신선한_위치는_좌표를_반환한다() throws Exception {
-        OffsetDateTime received = OffsetDateTime.now();
+        OffsetDateTime received = OffsetDateTime.now(clock);
         위치를_기록한다(received);
 
         mockMvc.perform(get(POSITION.formatted(SIBLING_2_ID)).header("Authorization", 토큰(SIBLINGS_GUARDIAN_ACCOUNT)))
@@ -92,7 +126,7 @@ class StudentBusPositionControllerTest extends RedisTestContainerBase {
      */
     @Test
     void 마지막_수신_후_2분이_지나면_좌표_대신_last_seen_at_을_반환한다() throws Exception {
-        OffsetDateTime staleReceived = OffsetDateTime.now().minusMinutes(3);
+        OffsetDateTime staleReceived = OffsetDateTime.now(clock).minusMinutes(3);
         위치를_기록한다(staleReceived);
 
         mockMvc.perform(get(POSITION.formatted(SIBLING_2_ID)).header("Authorization", 토큰(SIBLINGS_GUARDIAN_ACCOUNT)))
@@ -110,7 +144,7 @@ class StudentBusPositionControllerTest extends RedisTestContainerBase {
      */
     @Test
     void 당일_결석이면_운행중이어도_좌표가_부재하다() throws Exception {
-        위치를_기록한다(OffsetDateTime.now());
+        위치를_기록한다(OffsetDateTime.now(clock));
 
         mockMvc.perform(get(POSITION.formatted(SIBLING_1_ID)).header("Authorization", 토큰(SIBLINGS_GUARDIAN_ACCOUNT)))
                 .andExpect(status().isOk())
@@ -130,7 +164,7 @@ class StudentBusPositionControllerTest extends RedisTestContainerBase {
         String key = "run:%d:position".formatted(RUN_CONFIRMED_ID);
         String json = """
                 {"lat":37.400000,"lng":127.400000,"recordedAt":"%1$s","receivedAt":"%1$s","currentStopName":"중앙 집결지"}"""
-                .formatted(OffsetDateTime.now());
+                .formatted(OffsetDateTime.now(clock));
         stringRedisTemplate.opsForValue().set(key, json);
 
         mockMvc.perform(get(POSITION.formatted(STUDENT_4_ID)).header("Authorization", 토큰(STUDENT_4_GUARDIAN_ACCOUNT)))

@@ -4,10 +4,20 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
 import src.backend.global.common.enums.AccountStatus;
@@ -28,6 +38,11 @@ import src.backend.global.security.JwtTokenProvider;
  *       동작하는지를 가르는 유일한 경우다. 이 경우가 없으면 "그냥 전체를 반환" 해도 다른
  *       두 시험은 통과한다</li>
  * </ul>
+ *
+ * <p>{@link SeedDateClockConfig} — 시드 회차의 {@code service_date} 를 실제로 읽어 그 날짜로
+ * {@link Clock} 을 이동시킨다(Phase 10 T4 재수정, {@code StudentBusPositionControllerTest} 와 같은
+ * 설계). 이 시험은 상대 시각을 직접 다루지 않아 얼린 Clock 도 무방하지만, 두 클래스가 같은
+ * 원인(시드의 오늘 회차 조회)을 공유하므로 같은 해법을 쓴다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -54,6 +69,21 @@ class StudentRouteControllerTest {
 
     @Autowired
     private JwtTokenProvider tokenProvider;
+
+    /** 시드 회차의 {@code service_date} 를 읽어 그 날짜로 Clock 을 이동시킨다 — 클래스 자바독 참고. */
+    @TestConfiguration
+    static class SeedDateClockConfig {
+
+        @Bean
+        @Primary
+        Clock seedDateClock(JdbcTemplate jdbcTemplate) {
+            ZoneId seoul = ZoneId.of("Asia/Seoul");
+            Clock base = Clock.system(seoul);
+            LocalDate seedDate = jdbcTemplate.queryForObject("SELECT MIN(service_date) FROM run", LocalDate.class);
+            long offsetDays = ChronoUnit.DAYS.between(LocalDate.now(base), seedDate);
+            return Clock.offset(base, Duration.ofDays(offsetDays));
+        }
+    }
 
     /** 자기 정차지가 노선의 맨 앞이면 앞에 보여줄 것이 없어 자기 자신만 남는다. */
     @Test
