@@ -52,6 +52,11 @@ public final class AccountStatusGateEndpoints {
      * {@code /runs/{runId}/stops/{stopId}/arrive}(§4.5, 권한 "기사") ·
      * {@code /runs/{runId}/ack-changes}(§4.11, 권한 "기사 또는 동승자") — 운행 중인 단말(기사·
      * 동승자)의 기능이라 승인 대기·거절 계정에는 근거가 부재하다.
+     * <p>Phase 9 T1 이 4개를 더했다 — 매니저 앱의 회차 목록·명단·노선 조회 3개({@code GET
+     * /manager/runs}(§4.1) · {@code GET /runs/{runId}/roster}(§4.2) · {@code GET /runs/{runId}/route}
+     * (§4.3), 셋 다 권한 "매니저")와 관계자 웹의 명단 조회 1개({@code GET /staff/runs/{runId}/roster}
+     * (§5.4), 권한 "학원 관계자") — 승인된 계정만 회차 운행에 관여하므로 허용 목록 밖이다(Ruling 145 와
+     * 같은 근거).
      */
     public static final List<String> DENIED_WHEN_REJECTED = List.of(
             "POST /auth/password",
@@ -116,7 +121,12 @@ public final class AccountStatusGateEndpoints {
             // Phase 9 — 운행 시작·도착·변경 확인(§4.4·§4.5·§4.11) 기사·동승자 단말 기능 3개.
             "POST /runs/{runId}/start",
             "POST /runs/{runId}/stops/{stopId}/arrive",
-            "POST /runs/{runId}/ack-changes");
+            "POST /runs/{runId}/ack-changes",
+            // Phase 9 T1 — 매니저 앱 회차 목록·명단·노선 조회(§4.1~§4.3) 3개 + 관계자 웹 명단 조회(§5.4) 1개.
+            "GET /manager/runs",
+            "GET /runs/{runId}/roster",
+            "GET /runs/{runId}/route",
+            "GET /staff/runs/{runId}/roster");
 
     /** {@code pending} 의 거부측 — {@code rejected} 거부측에 재신청 1개를 더한다({@code @AllowedWhenRejected} 는 pending 을 열지 않는다). */
     public static final List<String> DENIED_WHEN_PENDING = concat(DENIED_WHEN_REJECTED, "POST /auth/signup/reapply");

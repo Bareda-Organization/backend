@@ -176,7 +176,7 @@ class AuthFlowIntegrationTest {
                         + " + Phase 6 의 6(고정 노선 CRUD 5 + 순서 최적화 1)"
                         + " + Phase 8 의 9(승인 목록·상세·결정 3 + 강제 추가 1 + 경유 지점 배포·해제 2"
                         + " + 탑승 토글 1 + 변경 신청 등록·조회 2)"
-                        + " + Phase 9 의 3(운행 시작·도착·변경 확인)")
+                        + " + Phase 9 의 운행 시작·도착·변경 확인 3 + 매니저 앱 조회 3 + 관계자 웹 명단 1")
                 .hasSize(68);
 
         assertThat(AccountStatusGateEndpoints.productionEndpoints(
