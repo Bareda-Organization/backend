@@ -10,6 +10,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
+import org.springframework.web.socket.config.annotation.WebSocketTransportRegistration;
 
 import lombok.RequiredArgsConstructor;
 
@@ -31,6 +32,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private static final long HEARTBEAT_MS = 10_000;
 
     private final StompAuthChannelInterceptor authChannelInterceptor;
+    private final ForbiddenSubscriptionCloseFactory forbiddenSubscriptionCloseFactory;
     @Value("${app.ws.allowed-origin-patterns}")
     private final String[] allowedOriginPatterns;
 
@@ -58,6 +60,15 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
         registration.interceptors(authChannelInterceptor);
+    }
+
+    /**
+     * SUBSCRIBE 거부 시 종료 코드를 4403 으로 바꾸는 세션 데코레이터를 등록한다(목표 7) —
+     * {@link ForbiddenSubscriptionCloseFactory} 참고.
+     */
+    @Override
+    public void configureWebSocketTransport(WebSocketTransportRegistration registration) {
+        registration.addDecoratorFactory(forbiddenSubscriptionCloseFactory);
     }
 
     @Bean

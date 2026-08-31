@@ -169,6 +169,10 @@ public class BoardingCommandService {
                 fromStatus, targetStatus, true, request.reason(), null, null, null, ActorType.ESCORT, now,
                 requester.accountId())));
 
+        // WebSocket rider_changed 방송(API_SPEC §7.1)의 트리거 표가 revert 도 명시한다 — T2 소유 목표 4·5·6.
+        eventPublisher.publishEvent(new RiderStatusChangedEvent(run.getId(), run.getAcademyId(),
+                rider.getStudentId(), rider.getId(), statusName(targetStatus), now));
+
         return new RiderRevertResponse(statusName(targetStatus), now);
     }
 
@@ -198,7 +202,8 @@ public class BoardingCommandService {
     private void notifyIfRunJustEnded(Run run, OffsetDateTime now) {
         boolean justEnded = runCompletionService.completeIfAllAlighted(run, now);
         if (justEnded) {
-            eventPublisher.publishEvent(new RunEndedEvent(run.getId(), run.getAcademyId(), now));
+            long autoAlightedCount = runRiderRepository.countByRunIdAndStatus(run.getId(), RiderStatus.ALIGHTED);
+            eventPublisher.publishEvent(new RunEndedEvent(run.getId(), run.getAcademyId(), now, autoAlightedCount));
         }
     }
 

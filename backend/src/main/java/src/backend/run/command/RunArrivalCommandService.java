@@ -31,6 +31,7 @@ import src.backend.run.dto.RunArriveResponse.RemainingRiderResponse;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.event.RunAutoAlightedEvent;
+import src.backend.run.event.StopArrivedEvent;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.entity.Stop;
 import src.backend.student.repository.StopRepository;
@@ -88,6 +89,9 @@ public class RunArrivalCommandService {
                 requester.academyId());
         boolean isFinal = isLastStop(ordered, target);
         NextStopResponse nextStop = isFinal ? null : nextStopAfter(ordered, target);
+
+        eventPublisher.publishEvent(new StopArrivedEvent(runId, run.getAcademyId(), target.getStopId(),
+                target.getSeq(), nameOf(target), now, nextStop == null ? null : nextStop.stopId()));
 
         Integer autoAlightedCount = null;
         List<RemainingRiderResponse> remaining = List.of();
