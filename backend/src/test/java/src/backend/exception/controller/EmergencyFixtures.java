@@ -112,17 +112,23 @@ public class EmergencyFixtures {
         return accountRepository.save(account).getId();
     }
 
-    /** 학부모 1명(목표 7 — 비상 알림을 받으면 안 되는 계정) — 반환값은 계정 id. */
+    /**
+     * 학부모 1명(목표 7 — 비상 알림을 받으면 안 되는 계정) — 반환값은 계정 id. 팬아웃 회귀가 흔히
+     * {@code findAllByRoleAndStatus(role, ACTIVE)} 형태로 status 를 조건에 넣으므로, PENDING 인 채로
+     * 두면 그런 회귀조차 우연히 걸러져 시험이 아무것도 검증하지 못한다 — active 로 승인까지 한다.
+     */
     public long parentAccount(long academyId, String name) {
-        Account account = accountRepository.save(Account.forSignup(academyId, "부모" + SEQUENCE.incrementAndGet(), "x",
-                name, "010-0000-0000", null, Role.PARENT));
-        return account.getId();
+        Account account = Account.forSignup(academyId, "부모" + SEQUENCE.incrementAndGet(), "x", name,
+                "010-0000-0000", null, Role.PARENT);
+        account.approveSignup();
+        return accountRepository.save(account).getId();
     }
 
-    /** 학생 1명(목표 7 — 비상 알림을 받으면 안 되는 계정) — 반환값은 계정 id. */
+    /** 학생 1명(목표 7 — 비상 알림을 받으면 안 되는 계정) — 반환값은 계정 id. 근거는 {@link #parentAccount} 와 같다. */
     public long studentAccount(long academyId, String name) {
-        Account account = accountRepository.save(Account.forSignup(academyId, "학생" + SEQUENCE.incrementAndGet(), "x",
-                name, "010-0000-0000", null, Role.STUDENT));
-        return account.getId();
+        Account account = Account.forSignup(academyId, "학생" + SEQUENCE.incrementAndGet(), "x", name,
+                "010-0000-0000", null, Role.STUDENT);
+        account.approveSignup();
+        return accountRepository.save(account).getId();
     }
 }
