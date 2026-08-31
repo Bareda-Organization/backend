@@ -47,6 +47,11 @@ public final class AccountStatusGateEndpoints {
      * 3개({@code /students/{id}/runs/{runId}/intent}(§3.6) · {@code /students/{id}/change-requests}
      * 등록·조회 2(§3.8·§3.9), 셋 다 권한 "학부모") — 둘 다 승인된 계정의 기능이라 허용 목록 밖이다
      * (Ruling 145 와 같은 근거).
+     *
+     * <p>Phase 9 가 3개를 더했다 — {@code /runs/{runId}/start}(§4.4, 권한 "기사") ·
+     * {@code /runs/{runId}/stops/{stopId}/arrive}(§4.5, 권한 "기사") ·
+     * {@code /runs/{runId}/ack-changes}(§4.11, 권한 "기사 또는 동승자") — 운행 중인 단말(기사·
+     * 동승자)의 기능이라 승인 대기·거절 계정에는 근거가 부재하다.
      */
     public static final List<String> DENIED_WHEN_REJECTED = List.of(
             "POST /auth/password",
@@ -107,7 +112,11 @@ public final class AccountStatusGateEndpoints {
             // Phase 8 — 탑승 토글(§3.6)·변경 신청 등록·조회(§3.8·§3.9) 학부모 기능 3개(Ruling 145).
             "PATCH /students/{id}/runs/{runId}/intent",
             "POST /students/{id}/change-requests",
-            "GET /students/{id}/change-requests");
+            "GET /students/{id}/change-requests",
+            // Phase 9 — 운행 시작·도착·변경 확인(§4.4·§4.5·§4.11) 기사·동승자 단말 기능 3개.
+            "POST /runs/{runId}/start",
+            "POST /runs/{runId}/stops/{stopId}/arrive",
+            "POST /runs/{runId}/ack-changes");
 
     /** {@code pending} 의 거부측 — {@code rejected} 거부측에 재신청 1개를 더한다({@code @AllowedWhenRejected} 는 pending 을 열지 않는다). */
     public static final List<String> DENIED_WHEN_PENDING = concat(DENIED_WHEN_REJECTED, "POST /auth/signup/reapply");
