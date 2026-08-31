@@ -1043,6 +1043,24 @@ void 확정_시각이_도래하면_idle_회차가_confirmed_로_전이한다() {
 - 관계자 미확인 상태가 메인 관리자 콘솔에 경과 시간과 함께 노출
 - **인스턴스 2개가 같은 스케줄러 주기를 돌 때 판정이 1회만 수행됨** — 락 미획득 쪽은 수행 없이 건너뜀 (Ruling 212 · `TECH_DECISIONS §3.2`)
 - **락 보유 인스턴스가 죽어도 다음 주기에 다른 인스턴스가 이어받음** — 락이 영구 점유되지 않음
+- **`POST /runs/{runId}/reports` 로 보호자 부재·현장 상황 보고 접수** → `201` + 관계자 즉시 통지. `type=guardian_absent` 면 `rider_id` 필수 (`§4.13` · Ruling 213)
+- **`GET /staff/reports`·`/{id}` 조회의 `type`·`date`·`run_id` 필터 동작** (`§5.20` · Ruling 213)
+
+⚠ **착수 전 판정 (2026-09-01, Ruling 213)** — **완료 조건이 범위보다 좁았다.** 범위에 `EXC-02`·`EXC-03`·`M-14`(예외 상황 보고)가 있는데 기존 10항 어디에도 **`§4.13` 쓰기·`§5.20` 읽기를 검사하는 문면이 부재**했다. 위 2항을 신설한다. ⚠ **Phase 10 의 Ruling 211 과 같은 형태다** — 총량이 아니라 **범위 열과 완료 조건을 항목 단위로 마주 놓아야** 빈칸이 보인다.
+
+⚠ **재계수 결과 (2026-09-01, 조율자 직접 계수) — 이 Phase 의 산출물 상당수가 이미 있다.**
+
+| 층 | 실재 | 위치 |
+|---|---|---|
+| 테이블 **5종** | `academy_setting` · `no_show_case` · `no_show_contact` · `emergency_alert` · `exception_report` | `V1__init_schema.sql`(Phase 1 산출물) |
+| 엔티티 **10개** | `exception/entity/` 9개 + `academy/entity/AcademySetting` | — |
+| 저장소 **1개** | 🔴 **`NoShowCaseRepository` 가 이미 있다** | `exception/repository/` |
+
+**부재한 것은 서비스·컨트롤러·DTO 와 나머지 저장소 3개**(`EmergencyAlert`·`NoShowContact`·`ExceptionReport`)**, `AcademySetting` 의 저장소·서비스·컨트롤러.** 신설 마이그레이션은 **`shedlock` 하나뿐이며 번호는 `V4`**(`V1`·`V3` + `migration-local/V2` 가 이미 있어 겹치면 `local` 프로파일 기동이 거부된다). ⚠ **낡은 "없음" 을 믿고 이미 있는 것을 새로 만들 뻔한 전례가 있다**(Ruling 206).
+
+**신설 핸들러 11개 예상 (78 → 89)** — `§4.8` 1 · `§4.13` 1 · `§4.14` 2 · `§5.16` 2 · `§5.20` 2 · `§5.21` 2 · `§6.11` 1. ⚠ **계정 상태 게이트 거부측 목록에도 11줄이 늘어야 한다** — Phase 9·10 에서 연속으로 누락된 자리이고 **개수 단언이 유일한 탐지 수단**이다.
+
+목표 표는 `.superpowers/sdd/IMPLEMENTATION_PLAN/p11-goal-table.md`(완료 조건 **16항**).
 
 #### Phase 10 이월 8건 (2026-09-01 등재)
 
