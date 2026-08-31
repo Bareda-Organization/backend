@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanReadRoute;
@@ -38,7 +40,20 @@ public class NavigationController {
     public ApiResponse<NavigationResponse> navigate(@AuthenticationPrincipal AuthUser requester,
             @PathVariable Long runId, @RequestParam(name = "scope", required = false, defaultValue = "next")
             String scope) {
-        NavigationScope parsed = NavigationScope.valueOf(scope.toUpperCase(Locale.ROOT));
-        return ApiResponse.ok(navigationQueryService.navigate(requester, runId, parsed));
+        return ApiResponse.ok(navigationQueryService.navigate(requester, runId, parseScope(scope)));
+    }
+
+    /**
+     * {@code scope} 는 {@code enum} 이 아니라 {@code String} 으로 받는다 — {@code enum} 으로 받으면
+     * Spring 이 바인딩 단계에서 거부해 {@code CanReadRoute} 인가 검사보다 먼저 실패하고, 배치되지 않은
+     * 회차에 잘못된 값을 보내도 403 대신 400 이 먼저 난다. 그래서 여기서 직접 파싱해 검증한다
+     * ({@code SortParam} 과 같은 이유 — 목록에 없는 값을 그대로 넘기면 500 이 된다).
+     */
+    private NavigationScope parseScope(String scope) {
+        try {
+            return NavigationScope.valueOf(scope.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED);
+        }
     }
 }

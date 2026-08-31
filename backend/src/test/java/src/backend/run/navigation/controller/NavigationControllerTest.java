@@ -27,7 +27,7 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
- * {@code GET /runs/{runId}/navigation}(API_SPEC §4.16, RUN-08 · M-09) — 목표 18~21.
+ * {@code GET /runs/{runId}/navigation}(API_SPEC §4.16, RUN-08 · M-09) — 목표 16·18~21.
  *
  * <p>상한 격리(목표 22)는 소스 수준 검사라 별도 {@code NavigationCapConventionTest} 가 맡는다.
  *
@@ -220,6 +220,24 @@ class NavigationControllerTest {
         조회한다(배치되지_않은_기사_토큰(), runId, "next")
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+    }
+
+    // ── 목표 16(Phase 9 이월 ②) — 잘못된 scope 값 ──────────────────────
+
+    /**
+     * {@code scope} 는 {@code next}·{@code remaining} 만 유효하다. 목록에 없는 값을 그대로 넘기면
+     * {@code NavigationScope.valueOf} 가 {@code IllegalArgumentException} 을 던지는데, 컨트롤러가 이를
+     * 잡지 않으면 전역 처리기의 catch-all 로 떨어져 클라이언트 입력 오류가 500 으로 보인다.
+     */
+    @Test
+    void 잘못된_scope_값은_422_VALIDATION_FAILED다() throws Exception {
+        long runId = 회차_생성("confirmed");
+        long versionId = 노선버전_생성(runId);
+        정차_추가(versionId, 1, 정차지_생성(1));
+
+        조회한다(기사_토큰(), runId, "bogus")
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
     // ── 픽스처 ────────────────────────────────────────────────────────
