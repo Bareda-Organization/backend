@@ -28,7 +28,7 @@ import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
-import testsupport.redis.RedisTestBase;
+import testsupport.redis.RedisTestContainerBase;
 
 /**
  * {@link ProximityNotificationService#judgeOne} 의 알림 축(NTF-04, 목표 13) — 근접 알림이
@@ -40,7 +40,7 @@ import testsupport.redis.RedisTestBase;
  * 조건부 UPDATE 라는 <b>동시성 방어</b>를 검사해 검증 대상이 겹치지 않는다.
  */
 @SpringBootTest
-class ProximityNotificationServiceTest extends RedisTestBase {
+class ProximityNotificationServiceTest extends RedisTestContainerBase {
 
     /** 정차지 좌표(37.500000, 127.000000) 기준 약 200m — 300m 문턱 안쪽. */
     private static final String NEAR_LAT = "37.501799";
