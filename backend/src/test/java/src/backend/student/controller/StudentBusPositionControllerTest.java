@@ -55,6 +55,9 @@ class StudentBusPositionControllerTest extends IsolatedRedisTestBase {
     /** R3 — 학원 A, moving. student2(boarded)·student1(absent) 이 함께 속한 회차다. */
     private static final long RUN_MOVING_ID = 3L;
 
+    /** R2 — 학원 A, confirmed(운행 전). student4 가 속한 회차다. */
+    private static final long RUN_CONFIRMED_ID = 2L;
+
     private static final String POSITION_KEY = "run:%d:position".formatted(RUN_MOVING_ID);
 
     @Autowired
@@ -116,9 +119,20 @@ class StudentBusPositionControllerTest extends IsolatedRedisTestBase {
                 .andExpect(jsonPath("$.data.lng").doesNotExist());
     }
 
-    /** 회차가 moving 이 아니면(§3.11) 위치 신호와 무관하게 좌표가 부재하다 — student4 는 오늘 R2(confirmed) 뿐이다. */
+    /**
+     * 회차가 moving 이 아니면(§3.11) 위치 신호와 무관하게 좌표가 부재하다 — student4 는 오늘
+     * R2(confirmed) 뿐이다. Redis 에 신선한 값을 일부러 심어 둔다 — 안 심으면 "캐시가 비어서
+     * 부재" 와 "moving 이 아니라서 부재" 가 같은 결과로 겹쳐, moving 검사를 지워도 이 시험이
+     * 못 잡는다.
+     */
     @Test
     void 운행중이_아닌_회차는_좌표_없이_상태만_반환한다() throws Exception {
+        String key = "run:%d:position".formatted(RUN_CONFIRMED_ID);
+        String json = """
+                {"lat":37.400000,"lng":127.400000,"recordedAt":"%1$s","receivedAt":"%1$s","currentStopName":"중앙 집결지"}"""
+                .formatted(OffsetDateTime.now());
+        stringRedisTemplate.opsForValue().set(key, json);
+
         mockMvc.perform(get(POSITION.formatted(STUDENT_4_ID)).header("Authorization", 토큰(STUDENT_4_GUARDIAN_ACCOUNT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.run_status").value("confirmed"))
