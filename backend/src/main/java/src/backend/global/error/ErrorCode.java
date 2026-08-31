@@ -219,6 +219,13 @@ public enum ErrorCode {
     // 이 코드다(ROUTE_NOT_FOUND·BUS_NOT_FOUND 와 같은 형태, 존재 여부를 응답에서 드러내지 않는다).
     WAYPOINT_NOT_FOUND(HttpStatus.NOT_FOUND, "경유 지점을 찾을 수 없습니다"),
 
+    // ── 조회 · 명단(Phase 9) ─────────────────────────────────────────────────────
+    // 매니저 앱의 명단·경로 조회(§4.2·§4.3)는 확정 전(idle) 회차를 대상 밖으로 둔다 — 명단·경로가
+    // run_stop·run_rider 확정 시점에야 채워지므로, idle 상태에서 열면 빈 배열이 "아직 없다" 인지
+    // "확정됐는데 비었다" 인지 구별되지 않는다. §5.4 관계자 웹 명단은 이 코드를 던지지 않는다(idle 도
+    // 조회 가능 — entry-blocking 은 매니저 앱 전용).
+    RUN_NOT_CONFIRMED(HttpStatus.CONFLICT, "아직 확정되지 않은 회차입니다"),
+
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다");
 
     private final HttpStatus status;

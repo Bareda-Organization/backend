@@ -2,6 +2,7 @@ package src.backend.run.repository;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -37,6 +38,17 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      * 호출부가 그것을 {@code 404 RUN_NOT_FOUND} 로 답한다(Ruling 163: {@code {id}} 지목은 404).
      */
     Optional<Run> findByIdAndAcademyId(Long id, Long academyId);
+
+    /**
+     * 회차 id 목록을 학원으로 다시 좁혀 읽는다(§4.1 {@code GET /manager/runs}) — 순서는 보장하지
+     * 않는다.
+     *
+     * <p>호출부(매니저 배치 목록 조회)가 넘기는 id 목록은 이미 {@code AssignmentRepository
+     * #findByManagerIdAndAcademyIdAndServiceDate} 가 학원으로 좁힌 것이지만, 이 조회에서도 조건을
+     * 다시 건다 — {@link #findAllByAcademyIdAndServiceDateOrderByDepartTimeAsc} 를 비롯해 이 저장소가
+     * 조회마다 학원 조건을 직접 갖는 관례를 여기서도 지킨다.
+     */
+    List<Run> findAllByIdInAndAcademyId(Collection<Long> ids, Long academyId);
 
     /**
      * 같은 유일성 조합의 회차가 이미 있는지 본다 — {@code uk_run_bus_date_direction_depart} 위반을

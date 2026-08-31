@@ -1,5 +1,6 @@
 package src.backend.manager.repository;
 
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -116,4 +117,38 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
             + "ORDER BY a.role")
     List<AssignedManagerAccountView> findAssignedManagerAccounts(@Param("academyId") Long academyId,
             @Param("runId") Long runId);
+
+    /**
+     * 이 매니저가 그 회차에 배치돼 있는지(§4.2·§4.3 매니저 앱 회차 접근 판정, RUN-03·M-08·M-09,
+     * Ruling 205) — 있으면 {@code role} 이 응답의 {@code role_in_run} 이고, 없으면 호출부가
+     * {@code 403 FORBIDDEN} 이다(§1.5 매니저 배치 범위).
+     *
+     * <p>{@code runId} 는 호출부가 {@link src.backend.run.repository.RunRepository#findByIdAndAcademyId}
+     * 로 이미 학원 범위를 확인한 값이라는 전제다 — 그 확인 없이 이 메서드만 부르면 타 학원 회차의
+     * 배치 여부가 그대로 새어 이 예외가 우회로가 된다.
+     */
+    @AcademyScopeExempt(reason = "호출부가 RunRepository#findByIdAndAcademyId 로 이미 학원 범위를 확인한 runId 와, "
+            + "ManagerRepository#findByAccountId 로 이미 계정에서 뽑은 managerId 만 넘긴다는 전제 — "
+            + "두 id 모두 이 시점에 이미 학원으로 좁혀져 있어 다시 조건을 걸 자리가 없다")
+    Optional<Assignment> findByRunIdAndManagerId(Long runId, Long managerId);
+
+    /**
+     * 이 매니저가 배치된 회차 목록(§4.1 {@code GET /manager/runs}, RUN-01·M-02·M-07) — 그 날짜로
+     * 좁힌다.
+     *
+     * <p>학원 조건을 {@code run} 쪽 조인에 건다({@link #findAssignedManagers} 와 같은 방어 이중화) —
+     * managerId 자체가 이미 한 학원에 속하지만, 조건을 명시해 두면 이 조회 하나만 떼어 다른 곳에서
+     * 재사용할 때도 학원 격리가 코드에 남는다.
+     *
+     * <p>취소된 회차를 빼는 이유는 {@link src.backend.run.repository.RunRepository
+     * #findAllByAcademyIdAndServiceDateOrderByDepartTimeAsc}(관계자 웹 §5.10)와 다르다 — 매니저 앱은
+     * "오늘 내가 나갈 회차" 카드 목록이라, 취소된 회차까지 카드로 띄우면 매니저가 취소분으로 출근하는
+     * 사고로 이어진다.
+     */
+    @Query("SELECT a FROM Assignment a JOIN Run r ON r.id = a.runId "
+            + "WHERE a.managerId = :managerId AND r.academyId = :academyId AND r.serviceDate = :serviceDate "
+            + "AND r.canceledAt IS NULL "
+            + "ORDER BY r.departTime ASC")
+    List<Assignment> findByManagerIdAndAcademyIdAndServiceDate(@Param("managerId") Long managerId,
+            @Param("academyId") Long academyId, @Param("serviceDate") LocalDate serviceDate);
 }
