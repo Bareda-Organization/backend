@@ -320,6 +320,31 @@ class DriverRunControllerTest {
         assertThat(도착시각(versionId, stopId)).as("기사 호출은 도착 시각을 남겨야 한다").isNotNull();
     }
 
+    @Test
+    @DisplayName("목표5 FORBIDDEN — 같은 학원의 기사이지만 이 회차에 배치되지 않으면 403 FORBIDDEN 이다(DRIVER_ONLY 아님)")
+    void 배치되지_않은_같은_학원_기사는_FORBIDDEN_이다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
+        OffsetDateTime departTime = now();
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
+        fixtures.startRun(runId, now());
+        fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "배치된기사", now());
+        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
+        fixtures.runStopForStop(versionId, stopId, 1, now());
+
+        // 같은 학원 소속 기사 계정이지만(역할은 맞다) 이 회차에는 배치되지 않았다 — 다른 회차 계정과
+        // 갈리지 않도록 반드시 같은 학원 계정을 쓴다(학원 불일치가 먼저 걸리면 인가 판정 자체를 못 본다).
+        long unassignedDriverAccountId = fixtures.unassignedManager(academyId, ManagerRole.DRIVER, "미배치기사");
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + stopId + "/arrive")
+                .header("Authorization", 토큰(unassignedDriverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isForbidden())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error.code").value("FORBIDDEN"));
+        assertThat(도착시각(versionId, stopId)).as("배치되지 않은 기사 호출은 도착 시각을 건드리면 안 된다").isNull();
+    }
+
     // ── goal 9 — 등원 최종 지점 전원 자동 하차 ────────────────────────────
 
     @Test

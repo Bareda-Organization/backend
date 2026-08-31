@@ -204,6 +204,22 @@ public class DriverRunFixtures {
         return account.getId();
     }
 
+    /**
+     * 같은 학원 소속으로 역할은 맞지만 <b>어떤 회차에도 배치되지 않은</b> 기사·동승자(goal 5 의
+     * {@code FORBIDDEN} 분기 — {@link #assignedManager} 와 달리 {@code Assignment} 행을 만들지
+     * 않는다). 반환값은 로그인 토큰에 실을 계정 id.
+     */
+    public long unassignedManager(long academyId, ManagerRole role, String name) {
+        Manager manager = managerRepository
+                .save(Manager.register(academyId, new ManagerProfile(name, "010-0000-0000", role, null)));
+        Role accountRole = role == ManagerRole.DRIVER ? Role.DRIVER : Role.ESCORT;
+        Account account = accountRepository.save(Account.forSignup(academyId, name + SEQUENCE.incrementAndGet(), "x",
+                name, "010-0000-0000", null, accountRole));
+        manager.linkAccount(account.getId());
+        managerRepository.save(manager);
+        return account.getId();
+    }
+
     /** 확정 노선 1버전 — {@code ChangeRequestAutoRejectFixtures#confirmedRouteWithVersion} 과 같은 형태. 반환값은 {@code route_version.id}. */
     public long confirmedRouteWithVersion(long runId, OffsetDateTime publishedAt) {
         confirmedRouteRepository.save(ConfirmedRoute.forRun(runId, publishedAt));
