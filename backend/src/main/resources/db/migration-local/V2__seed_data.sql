@@ -240,24 +240,27 @@ VALUES
 -- 회차 5건 — 3구간 전수: R1 idle(출발 3시간 전) · R2 confirmed(20분 전, 이미 확정 지남) ·
 -- R3 moving(10분 전 출발) · R4 finished(3시간 전 출발, 종료) · R5 confirmed(B 학원, 격리 검증용).
 -- confirm_at 은 반드시 depart_time - 30분이어야 하므로(ck_run_confirm_at) 같은 now() 식에서 유도한다.
+-- service_date 는 CURRENT_DATE(세션 시간대 = 컨테이너 UTC) 대신 애플리케이션 Clock 과 같은
+-- Asia/Seoul 기준 날짜로 계산한다 — 두 시간대가 갈리면 한국 자정~오전 9시 사이 마이그레이션이 돈
+-- 회차는 LocalDate.now(clock) 이 찾는 "오늘" 과 하루 어긋나 RUN_NOT_FOUND 가 난다(Phase 10 T4).
 INSERT INTO run (id, academy_id, bus_id, schedule_id, service_date, direction, depart_time, confirm_at,
                   status, origin_name, destination_name, confirmed_at, started_at, finished_at, created_at, updated_at)
 OVERRIDING SYSTEM VALUE
 VALUES
-    (1, 1, 1, 1, CURRENT_DATE, 'to_academy',
+    (1, 1, 1, 1, (now() AT TIME ZONE 'Asia/Seoul')::date, 'to_academy',
         now() + interval '3 hours', (now() + interval '3 hours') - interval '30 minutes',
         'idle', '중앙 집결지', '바래다학원 A', NULL, NULL, NULL, now(), now()),
-    (2, 1, 1, 2, CURRENT_DATE, 'from_academy',
+    (2, 1, 1, 2, (now() AT TIME ZONE 'Asia/Seoul')::date, 'from_academy',
         now() + interval '20 minutes', (now() + interval '20 minutes') - interval '30 minutes',
         'confirmed', '바래다학원 A', '중앙 집결지', (now() + interval '20 minutes') - interval '30 minutes', NULL, NULL, now(), now()),
-    (3, 1, 2, 3, CURRENT_DATE, 'to_academy',
+    (3, 1, 2, 3, (now() AT TIME ZONE 'Asia/Seoul')::date, 'to_academy',
         now() - interval '10 minutes', (now() - interval '10 minutes') - interval '30 minutes',
         'moving', '중앙 집결지', '바래다학원 A', (now() - interval '10 minutes') - interval '30 minutes', now() - interval '8 minutes', NULL, now(), now()),
-    (4, 1, 2, 4, CURRENT_DATE, 'from_academy',
+    (4, 1, 2, 4, (now() AT TIME ZONE 'Asia/Seoul')::date, 'from_academy',
         now() - interval '3 hours', (now() - interval '3 hours') - interval '30 minutes',
         'finished', '바래다학원 A', '중앙 집결지', (now() - interval '3 hours') - interval '30 minutes',
         (now() - interval '3 hours') + interval '1 minute', (now() - interval '3 hours') + interval '40 minutes', now(), now()),
-    (5, 2, 3, 5, CURRENT_DATE, 'to_academy',
+    (5, 2, 3, 5, (now() AT TIME ZONE 'Asia/Seoul')::date, 'to_academy',
         now() + interval '25 minutes', (now() + interval '25 minutes') - interval '30 minutes',
         'confirmed', 'B 집결지', '바래다학원 B', (now() + interval '25 minutes') - interval '30 minutes', NULL, NULL, now(), now());
 
