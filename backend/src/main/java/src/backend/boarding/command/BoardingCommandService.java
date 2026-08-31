@@ -23,6 +23,7 @@ import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.entity.VerifyMethod;
 import src.backend.boarding.event.RiderNoShowEvent;
 import src.backend.boarding.event.RiderStatusChangedEvent;
+import src.backend.boarding.event.RunEndedEvent;
 import src.backend.boarding.repository.RiderStatusHistoryRepository;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.exception.entity.NoShowCase;
@@ -31,6 +32,7 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
+import src.backend.run.command.RunCompletionService;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
@@ -58,6 +60,13 @@ public class BoardingCommandService {
     private final RiderStatusHistoryRepository riderStatusHistoryRepository;
 
     private final NoShowCaseRepository noShowCaseRepository;
+
+    /**
+     * 하원 자동 종료 판정(목표 10, T2 소유) 협력자 — 이 클래스는 마지막 하차 뒤 호출만 하고 전이
+     * 로직 자체는 구현하지 않는다. {@code alighted} 처리마다 무조건 호출해도 안전하다(내부에서
+     * 하원·종료 대상이 아니면 no-op).
+     */
+    private final RunCompletionService runCompletionService;
 
     private final ApplicationEventPublisher eventPublisher;
 
@@ -99,6 +108,9 @@ public class BoardingCommandService {
 
         if (targetStatus == RiderStatus.NO_SHOW) {
             return handleNoShow(run, rider, now);
+        }
+        if (targetStatus == RiderStatus.ALIGHTED) {
+            notifyIfRunJustEnded(run, now);
         }
         eventPublisher.publishEvent(new RiderStatusChangedEvent(run.getId(), run.getAcademyId(),
                 rider.getStudentId(), rider.getId(), statusName(targetStatus), now));
@@ -154,6 +166,20 @@ public class BoardingCommandService {
             case ALIGHTED -> rider.alight(now);
             case NO_SHOW -> rider.markNoShow(now);
             default -> throw new BusinessException(ErrorCode.VALIDATION_FAILED);
+        }
+    }
+
+    /**
+     * 하원 자동 종료 경계(목표 10, T2 소유) — 방금 처리한 하차가 그 회차의 마지막 잔여 탑승자였는지를
+     * {@link RunCompletionService} 에 위임해 묻고, 그 호출로 실제 종료됐을 때만
+     * {@link RunEndedEvent} 를 발행한다. 반환값을 무시하고 매번(또는 전혀) 발행하면 알림이 잔류자가
+     * 있는 회차에도 나가거나 정작 종료된 회차에서 나가지 않는 결함이 된다 — 이 분기 자체가 T3 이
+     * 검사해야 할 갈래다(전이 로직은 여기서 구현하지 않는다).
+     */
+    private void notifyIfRunJustEnded(Run run, OffsetDateTime now) {
+        boolean justEnded = runCompletionService.completeIfAllAlighted(run, now);
+        if (justEnded) {
+            eventPublisher.publishEvent(new RunEndedEvent(run.getId(), run.getAcademyId(), now));
         }
     }
 
