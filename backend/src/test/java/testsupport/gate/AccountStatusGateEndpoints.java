@@ -57,6 +57,13 @@ public final class AccountStatusGateEndpoints {
      * (§4.3), 셋 다 권한 "매니저")와 관계자 웹의 명단 조회 1개({@code GET /staff/runs/{runId}/roster}
      * (§5.4), 권한 "학원 관계자") — 승인된 계정만 회차 운행에 관여하므로 허용 목록 밖이다(Ruling 145 와
      * 같은 근거).
+     * <p>Phase 10 이 3개를 더했다 — {@code POST /runs/{runId}/position}(§4.12, 권한 "기사") ·
+     * {@code GET /students/{id}/bus-position}(§3.11, 권한 "학부모") · {@code GET /students/{id}/route}
+     * (§3.10, 권한 "학부모") — 운행 중인 단말과 승인된 학부모의 기능이라 근거가 앞 Phase 들과 같다.
+     *
+     * <p>⚠ Phase 10 의 산출물 가운데 여기 오르는 것은 이 3개뿐이다 — STOMP 구독 채널은 HTTP 핸들러가
+     * 아니라 {@code RequestMappingHandlerMapping} 에 잡히지 않고, 근접 알림은 스케줄러라 요청 진입점이
+     * 부재하다. 개수가 기대만큼 안 늘었다고 누락으로 읽지 마라.
      */
     public static final List<String> DENIED_WHEN_REJECTED = List.of(
             "POST /auth/password",
@@ -131,7 +138,12 @@ public final class AccountStatusGateEndpoints {
             "PATCH /runs/{runId}/riders/{riderId}",
             "POST /runs/{runId}/riders/{riderId}/revert",
             // Phase 9 T4 — 외부 내비 좌표열 조회(§4.16 RUN-08) 1개.
-            "GET /runs/{runId}/navigation");
+            "GET /runs/{runId}/navigation",
+            // Phase 10 — 기사 단말 위치 송신(§4.12 LOC-01) 1개 + 학부모 앱 실시간 위치·상세 노선 조회
+            // (§3.11 LOC-02 · §3.10 LOC-03) 2개.
+            "POST /runs/{runId}/position",
+            "GET /students/{id}/bus-position",
+            "GET /students/{id}/route");
 
     /** {@code pending} 의 거부측 — {@code rejected} 거부측에 재신청 1개를 더한다({@code @AllowedWhenRejected} 는 pending 을 열지 않는다). */
     public static final List<String> DENIED_WHEN_PENDING = concat(DENIED_WHEN_REJECTED, "POST /auth/signup/reapply");

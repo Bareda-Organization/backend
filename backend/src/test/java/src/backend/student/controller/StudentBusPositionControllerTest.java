@@ -16,7 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
-import testsupport.redis.IsolatedRedisTestBase;
+import testsupport.redis.RedisTestContainerBase;
 
 /**
  * 학부모 앱의 실시간 버스 위치 API(LOC-02, API_SPEC §3.11, Ruling 208) — 목표 9·11.
@@ -31,7 +31,7 @@ import testsupport.redis.IsolatedRedisTestBase;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-class StudentBusPositionControllerTest extends IsolatedRedisTestBase {
+class StudentBusPositionControllerTest extends RedisTestContainerBase {
 
     private static final String POSITION = "/api/v1/students/%d/bus-position";
 
