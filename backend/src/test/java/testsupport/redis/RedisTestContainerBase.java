@@ -19,7 +19,10 @@ import org.testcontainers.utility.DockerImageName;
  * <p>Testcontainers 2.0.5 BOM 에는 Redis 전용 모듈이 없다(build.gradle 의 testImplementation 목록
  * 옆 주석 참고) — 그래서 전용 컨테이너 클래스 대신 {@link GenericContainer} 로 redis 이미지를 직접
  * 띄운다. {@code RedisConnectionFactory} 는 {@code spring.data.redis.host}·{@code port} 만 보고
- * 자동 구성되므로({@code RedisConfig} 자바독 참고) 그 두 값만 갈아 끼우면 충분하다.
+ * 자동 구성되므로 그 두 값만 갈아 끼우면 충분하다. ⚠ 이 저장소에는 Redis 설정 클래스가 없다 —
+ * 예전에 있던 {@code RedisConfig} 는 다형 직렬화 빈을 두었다가, 그 형식이 소비자 두 곳의 평문
+ * 파서와 어긋나 위치 조회가 500 을 내는 결함을 만들어 삭제됐다. 되살리지 마라 — 값 형식은
+ * {@code RunPositionRedisValue} 자바독이 계약으로 명시한다.
  *
  * <p>공유 컨테이너를 못 쓰는 이유가 하나 더 있다 — Postgres 는 {@code @Transactional} 롤백으로
  * 시험 간 격리되지만, Redis 는 트랜잭션이 없어 한 시험이 쓴 키가 다음 시험에 그대로 남는다. 전용
