@@ -166,7 +166,7 @@ class RolePermissionsTest {
                 Permissions.ROUTE_READ, Permissions.ROUTE_MANAGE, Permissions.CHANGE_APPROVE,
                 Permissions.SIGNUP_APPROVE, Permissions.MANAGER_MANAGE, Permissions.BUS_MANAGE,
                 Permissions.SCHEDULE_MANAGE, Permissions.MONITOR_ACADEMY, Permissions.NOTIFICATION_LOG_READ,
-                Permissions.DEVICE_REGISTER));
+                Permissions.EXCEPTION_REPORT_READ, Permissions.DEVICE_REGISTER));
         catalog.put(Role.SYSTEM_ADMIN, Set.of(
                 Permissions.STUDENT_READ_BASIC, Permissions.STUDENT_READ_SENSITIVE, Permissions.STUDENT_READ_PHOTO,
                 Permissions.ROSTER_READ, Permissions.EMERGENCY_ACK, Permissions.ROUTE_READ,
