@@ -22,10 +22,12 @@ import tools.jackson.databind.json.JsonMapper;
  * 규약이지 T1 계약 문서가 적은 리터럴 camelCase 필드 이름과는 무관하다. 전역 빈을 그대로 쓰면
  * {@code recordedAt} 같은 키를 {@code recorded_at} 으로 오인해 조용히 역직렬화가 비게 된다.
  *
- * <p>⚠ {@code RedisConfig} 자바독은 "새 좌표 DTO 는 그 빈의 허용 목록에 추가한다" 를 제안한다 — 이
- * 클래스의 선택과 반대 방향이다. T1 이 실제 기록기를 아직 만들지 않아 어느 쪽이 맞을지 이 태스크
- * 시점에서는 확정할 수 없다 — 계약 문서에 적힌 필드 이름을 문자 그대로 신뢰하는 쪽을 택했고, 이
- * 모순은 보고서에 남긴다.
+ * <p>⚠ Phase 10 게이트 리뷰 R1 이 이 모순을 Critical 로 확정했다 — T1
+ * ({@code src.backend.location.command.RunPositionRedisListener})이 실제로 다형 태그가 붙는
+ * {@code RedisTemplate<String,Object>}(옛 {@code RedisConfig})로 썼던 시절에는 이 클래스가 기대한
+ * 평문과 어긋나 {@code GET /students/{id}/bus-position} 이 {@code 500} 이 났다. T1 을 이 클래스의
+ * 평문 가정 쪽으로 통일했다(계약 문서에 적힌 필드 이름을 문자 그대로 신뢰하는 선택이 맞았다) —
+ * 자세한 사고 이력은 {@code RunPositionRedisValue} 자바독을 본다.
  */
 @Component
 public class RunPositionCache {
