@@ -104,6 +104,12 @@ dependencies {
     // org.testcontainers:junit-jupiter 는 2.0.5 BOM 에 존재하지 않음) — webmvc 와 같은 개명 사례.
     testImplementation 'org.testcontainers:testcontainers-postgresql'
     testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+    // 목표 3(Phase 10 T1, DB 적재와 Redis 갱신이 한 송신에서 함께 일어나는지 검증) — 공유 컨테이너
+    // school-bus-redis-1 은 병렬 좌석(T1·T3·T4)이 동시에 건드리므로 전용 컨테이너로 격리한다.
+    // Testcontainers 2.0.5 BOM 에는 Redis 전용 모듈이 없다(testcontainers-bom-2.0.5.pom 의
+    // artifactId 목록을 직접 확인 — redis 계열이 존재하지 않는다) — 그래서 GenericContainer
+    // (핵심 org.testcontainers:testcontainers, testcontainers-postgresql 이 이미 전이 의존성으로
+    // 들여온다)로 redis 이미지를 직접 띄운다.
     // Spring Boot 의 ServiceConnection 자동설정으로 컨테이너와 spring.datasource.* 를 자동 연결한다.
     testImplementation 'org.springframework.boot:spring-boot-testcontainers'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

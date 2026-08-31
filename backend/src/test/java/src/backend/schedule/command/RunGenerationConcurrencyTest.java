@@ -65,8 +65,14 @@ class RunGenerationConcurrencyTest {
     /**
      * 스레드 하나가 상대를 기다리는 상한 — <b>정상 흐름에서는 소진되지 않는다.</b> 여기 걸리면 상대가
      * 죽었거나 DB 잠금이 안 풀린 것이라, 테스트가 매달리는 대신 실패로 드러나야 한다.
+     *
+     * <p>20 → 45 로 올림(Phase 10 T1). 순서 강제 자체(잠금 대기 폴링)는 이미 결정적이라 손대지
+     * 않았다 — 전체 테스트 묶음 아래에서 난 {@code TimeoutException} 은 순서가 흔들려서가 아니라,
+     * 캐시된 {@code @SpringBootTest} 컨텍스트 다수가 만드는 자원 경합 아래 같은 왕복이 20초 예산을
+     * 넘겨서다(Phase 9 이월 ①의 "순서를 정할 수단이 부재" 진단은 이 폴링이 이미 붙은 뒤에 쓰여
+     * 낡았다). 예산만 넉넉히 늘린다.
      */
-    private static final long TIMEOUT_SECONDS = 20;
+    private static final long TIMEOUT_SECONDS = 45;
 
     /** 상대가 잠금을 기다리는지 물어보는 간격 — 고정 대기가 아니라 상태를 물어 기다리기 위한 값이다. */
     private static final long POLL_INTERVAL_MILLIS = 50;

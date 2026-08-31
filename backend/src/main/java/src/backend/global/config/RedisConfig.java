@@ -22,8 +22,16 @@ import tools.jackson.databind.jsontype.PolymorphicTypeValidator;
  * {@link PolymorphicTypeValidator} 로 역직렬화 가능한 타입을 화이트리스트로만 허용한다 — 저장 값에
  * 심긴 {@code @class} 문자열이 임의 타입을 만들 수 있는 다형 역직렬화 취약점을 차단한다.
  *
- * <p>옛 좌표 DTO 2종(위치 도메인)이 삭제되며 허용 목록이 지금은 비어 있다 —
- * 새 좌표·이벤트 DTO 가 이 저장소에 값으로 들어갈 때 {@code allowIfSubType} 으로 추가한다.
+ * <p>{@code src.backend.location.dto} 패키지 전체를 허용한다(목표 3, Phase 10 T1) — 최신 좌표 값
+ * ({@code RunPositionRedisValue})이 이 패키지에 산다. 패키지 단위로 허용해, 뒤이어 이 도메인이
+ * Redis 에 값을 더 얹어도(예: LOC-02·LOC-03) 매번 이 파일을 다시 고치지 않게 한다.
+ *
+ * <p>{@code java.math.} 도 함께 허용한다 — {@code BigDecimal} 필드({@code lat}·{@code lng})는
+ * {@code final} 이라도 기본 타입 지정(default typing) 제외 대상이 아니다. 평범한 JSON 숫자로만 적으면
+ * 역직렬화 시 {@code Double} 로 복원돼 정밀도가 달라질 수 있어, Jackson 이 이 타입만은
+ * {@code ["java.math.BigDecimal", 37.5]} 형태로 타입 정보를 함께 적기 때문이다(실측 확인 —
+ * {@code src.backend.location.dto} 만 허용했을 때 Redis 조회가
+ * {@code InvalidTypeIdException: Could not resolve type id 'java.math.BigDecimal'} 로 실패했다).
  */
 @Configuration
 public class RedisConfig {
@@ -31,6 +39,8 @@ public class RedisConfig {
     @Bean
     public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {
         PolymorphicTypeValidator typeValidator = BasicPolymorphicTypeValidator.builder()
+                .allowIfSubType("src.backend.location.dto.")
+                .allowIfSubType("java.math.")
                 .build();
 
         GenericJacksonJsonRedisSerializer serializer = GenericJacksonJsonRedisSerializer.builder()
