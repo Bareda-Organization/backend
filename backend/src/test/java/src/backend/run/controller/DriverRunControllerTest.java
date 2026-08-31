@@ -239,6 +239,23 @@ class DriverRunControllerTest {
         assertThat(회차_시작시각(runId)).isNotNull();
     }
 
+    @Test
+    @DisplayName("목표1 경계값 — 정확히 출발 10분 전(창의 시작)은 양끝 포함이라 시작이 성공한다")
+    void 출발_정확히_10분_전_경계는_시작이_성공한다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        OffsetDateTime departTime = now().plusMinutes(10);
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/start").header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.run_status").value("moving"));
+
+        assertThat(회차_시작시각(runId)).isNotNull();
+    }
+
     // ── goal 2 — 운행 시작 알림 3종 ──────────────────────────────────────
 
     @Test
