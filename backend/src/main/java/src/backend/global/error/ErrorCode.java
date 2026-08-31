@@ -219,6 +219,18 @@ public enum ErrorCode {
     // 이 코드다(ROUTE_NOT_FOUND·BUS_NOT_FOUND 와 같은 형태, 존재 여부를 응답에서 드러내지 않는다).
     WAYPOINT_NOT_FOUND(HttpStatus.NOT_FOUND, "경유 지점을 찾을 수 없습니다"),
 
+    // ── 승하차 처리 · 되돌리기(Phase 9, BRD-01~06) ────────────────────────────
+    // 승하차 상태 변경·되돌리기는 동승자 전용(C-06, API_SPEC §4.6·§4.7) — 기사 등 다른 역할 호출 시.
+    // 일반 FORBIDDEN 이 아니라 도메인 코드를 따로 두는 이유는 AuthenticatedOnly.java 의 판단과 같다:
+    // 권한 카탈로그의 hasAuthority(...) 를 실제 게이트로 쓰면 Spring Security 의 AccessDeniedException
+    // 경로가 전부 일반 FORBIDDEN 으로만 응답해 이 도메인 코드에 닿지 못한다.
+    ESCORT_ONLY(HttpStatus.FORBIDDEN, "동승자만 처리할 수 있습니다"),
+    // 회차가 운행 중(MOVING)이 아닐 때의 승하차 처리·되돌리기 시도(API_SPEC §4.6·§4.7).
+    RUN_NOT_MOVING(HttpStatus.CONFLICT, "지금은 처리할 수 없는 회차 상태입니다"),
+    // 미존재 탑승자, 또는 absent 로 명단에서 이미 제외된 탑승자 지정(API_SPEC §4.6·§4.7) — 둘을
+    // 응답에서 구별하지 않는다(WAYPOINT_NOT_FOUND 와 같은 형태).
+    RIDER_NOT_FOUND(HttpStatus.NOT_FOUND, "탑승자를 찾을 수 없습니다"),
+
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다");
 
     private final HttpStatus status;

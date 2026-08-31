@@ -98,4 +98,50 @@ public class RunRider extends BaseTimeEntity {
         this.stopId = newStopId;
         this.changedAt = changedAt;
     }
+
+    /** 동승자가 승차를 확인한다(BRD-01, API_SPEC §4.6 {@code status=boarded}). */
+    public void board(OffsetDateTime changedAt) {
+        this.status = RiderStatus.BOARDED;
+        this.boardedAt = changedAt;
+        this.changedAt = changedAt;
+    }
+
+    /** 동승자가 하차를 확인한다(BRD-02, API_SPEC §4.6 {@code status=alighted}). */
+    public void alight(OffsetDateTime changedAt) {
+        this.status = RiderStatus.ALIGHTED;
+        this.alightedAt = changedAt;
+        this.changedAt = changedAt;
+    }
+
+    /** 동승자가 미승차를 확정한다(BRD-04, API_SPEC §4.6 {@code status=no_show}). */
+    public void markNoShow(OffsetDateTime changedAt) {
+        this.status = RiderStatus.NO_SHOW;
+        this.changedAt = changedAt;
+    }
+
+    /**
+     * 하원 회차 시작 시 배치가 명단 전원을 일괄 승차 처리한다(C-07 · BRD-03, 목표 11).
+     *
+     * <p>{@link #board} 와 저장 값 자체는 같지만(상태·{@code boarded_at}·{@code changed_at}) 메서드를
+     * 따로 둔다 — 동승자가 개별 확인한 것과 시스템이 일괄 반영한 것은 이력에 어떤 {@code actor_type}
+     * 을 남길지 호출부가 판단해야 하는 서로 다른 사건이고, 메서드 이름이 그 판단 지점을 코드에서
+     * 바로 드러내야 하기 때문이다.
+     */
+    public void autoBoard(OffsetDateTime changedAt) {
+        this.status = RiderStatus.BOARDED;
+        this.boardedAt = changedAt;
+        this.changedAt = changedAt;
+    }
+
+    /**
+     * 되돌리기(BRD-05, API_SPEC §4.7)로 직전 상태로 되돌린다.
+     *
+     * <p>{@code boarded_at}·{@code alighted_at} 은 건드리지 않는다 — "언제 승차했었는가" 라는 사실은
+     * 되돌려도 사라지지 않고, 지우면 되돌리기 전 이력을 재구성할 근거가 {@code rider_status_history}
+     * 밖에 남지 않는다.
+     */
+    public void revertTo(RiderStatus previousStatus, OffsetDateTime changedAt) {
+        this.status = previousStatus;
+        this.changedAt = changedAt;
+    }
 }
