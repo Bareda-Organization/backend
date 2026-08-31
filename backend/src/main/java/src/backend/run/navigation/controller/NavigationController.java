@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
+import src.backend.global.security.authz.CanReadRoute;
 import src.backend.run.navigation.dto.NavigationResponse;
 import src.backend.run.navigation.service.NavigationQueryService;
 import src.backend.run.navigation.service.NavigationScope;
@@ -32,6 +33,7 @@ public class NavigationController {
 
     private final NavigationQueryService navigationQueryService;
 
+    @CanReadRoute
     @GetMapping("/{runId}/navigation")
     public ApiResponse<NavigationResponse> navigate(@AuthenticationPrincipal AuthUser requester,
             @PathVariable Long runId, @RequestParam(name = "scope", required = false, defaultValue = "next")
