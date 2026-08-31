@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import jakarta.persistence.EntityManager;
@@ -148,8 +149,11 @@ class RunCompletionBoundaryTest {
                 new RiderStatusUpdateRequest("alighted", "manual", UUID.randomUUID(), now));
 
         verify(runCompletionService).completeIfAllAlighted(eq(run), any());
-        assertThat(applicationEvents.stream(RunEndedEvent.class)).as("①true 반환 시 RunEndedEvent 발행")
-                .hasSize(1);
+        List<RunEndedEvent> runEndedEvents = applicationEvents.stream(RunEndedEvent.class).toList();
+        assertThat(runEndedEvents).as("①true 반환 시 RunEndedEvent 발행").hasSize(1);
+        // no_show 탑승자는 ALIGHTED 가 아니라 집계에서 빠져야 한다 — 방금 하차한 1명만 세는지가
+        // 이 단언의 본체다(리뷰 R2 판정문 §②변형9 — 값을 안 보면 집계 대상이 뒤바뀌어도 못 잡는다).
+        assertThat(runEndedEvents.get(0).autoAlightedCount()).as("②ALIGHTED 1명만 센다").isEqualTo(1L);
     }
 
     @Test

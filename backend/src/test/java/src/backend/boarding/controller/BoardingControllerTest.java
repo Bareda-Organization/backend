@@ -26,6 +26,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +35,7 @@ import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.command.BoardingCommandFixtures;
+import src.backend.boarding.event.RiderStatusChangedEvent;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
@@ -55,6 +58,7 @@ import src.backend.student.repository.StudentRepository;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
+@RecordApplicationEvents
 @Transactional
 class BoardingControllerTest {
 
@@ -64,6 +68,9 @@ class BoardingControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private ApplicationEvents applicationEvents;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -384,6 +391,15 @@ class BoardingControllerTest {
         assertThat(history.get(1).get("from_status")).isEqualTo("boarded");
         assertThat(history.get(1).get("to_status")).isEqualTo("waiting");
         assertThat(history.get(1).get("is_revert")).isEqualTo(true);
+
+        // ④ rider_changed 방송의 재료 — revert 도 §7.1 트리거 표에 명시돼 있는데(리뷰 R2 판정문
+        // §②변형8), 지금까지는 DB 결과만 보고 이 발행을 검사하지 않았다.
+        assertThat(applicationEvents.stream(RiderStatusChangedEvent.class))
+                .as("④되돌리기도 RiderStatusChangedEvent 를 발행한다")
+                .anySatisfy(event -> {
+                    assertThat(event.runRiderId()).isEqualTo(riderId);
+                    assertThat(event.status()).isEqualTo("waiting");
+                });
     }
 
     // ── 목표 14 — 되돌리기 횟수·시간 제한 부재 ──────────────────────────────
