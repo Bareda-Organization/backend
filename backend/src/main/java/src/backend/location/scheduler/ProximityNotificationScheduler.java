@@ -2,6 +2,7 @@ package src.backend.location.scheduler;
 
 import java.util.List;
 
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -49,9 +50,18 @@ public class ProximityNotificationScheduler {
      * <p>폴링 주기를 설정으로 받는 이유는 확정 배치와 같다 — 테스트에서 배경 실행을 미뤄야
      * 판정 건수·멱등성 단언이 실행 순서에 흔들리지 않는다({@code build.gradle} 이
      * {@code initial-delay-ms} 를 하루로 늦춘다).
+     *
+     * <p>{@code @SchedulerLock}(TECH_DECISIONS §3.2) — 인스턴스 2개가 같은 틱을 동시에 돌면
+     * 락을 놓친 쪽은 {@code judgeOne} 을 한 번도 부르지 않고 돌아간다. {@code lockAtMostFor} 를
+     * 폴링 주기(10초)의 3배로 잡은 이유는, 그 시간을 넘겨도 락이 안 풀리면 죽은 인스턴스가 락을
+     * 들고 있다고 보고 다음 인스턴스가 이어받게 하려는 것이다(목표 13) — 정상 틱은 로컬 Redis
+     * 단건 읽기만 반복하므로 이 상한에 걸릴 일이 없다. {@code lockAtLeastFor} 는 두지 않는다 —
+     * 최솟값을 두면 같은 시험 클래스 안의 서로 다른 시험 메서드가 짧은 간격으로 이 메서드를
+     * 각각 부를 때 뒤쪽 호출이 조용히 건너뛰어질 수 있다.
      */
     @Scheduled(fixedDelayString = "${app.location.proximity.poll-interval-ms:10000}",
             initialDelayString = "${app.location.proximity.initial-delay-ms:0}")
+    @SchedulerLock(name = "proximity-notification", lockAtMostFor = "PT30S")
     public void judgeMovingRuns() {
         List<Run> movingRuns = runRepository.findByStatusAndCanceledAtIsNullOrderByIdAsc(RunStatus.MOVING,
                 PageRequest.of(0, BATCH_SIZE));

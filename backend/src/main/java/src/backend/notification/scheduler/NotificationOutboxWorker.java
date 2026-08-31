@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -53,9 +54,15 @@ public class NotificationOutboxWorker {
      *
      * <p>회차별 지수 백오프를 SQL 이 아니라 여기서 거르는 이유는 간격이 시도 횟수에 따라 달라
      * 파라미터 하나로 표현할 수단이 부재하기 때문이다 — 질의는 최소 간격까지만 좁힌다.
+     *
+     * <p>{@code @SchedulerLock}(TECH_DECISIONS §3.2) — {@link NotificationDispatcher#dispatch} 의
+     * 조건부 UPDATE 선점이 이미 이중 발송을 막고 있지만, 락이 없으면 인스턴스 수만큼 같은 배치를
+     * 반복 조회·시도해 DB 부하만 늘어난다(TECH_DECISIONS 가 든 예시가 이 워커다). {@code lockAtMostFor}
+     * 를 폴링 주기(30초)의 4배로 잡았다 — 죽은 인스턴스가 있어도 2분 안에는 다음 인스턴스가 이어받는다.
      */
     @Scheduled(fixedDelayString = "${app.notification.outbox.poll-interval-ms:30000}",
             initialDelayString = "${app.notification.outbox.initial-delay-ms:0}")
+    @SchedulerLock(name = "notification-outbox-worker", lockAtMostFor = "PT2M")
     public void sweep() {
         OffsetDateTime now = OffsetDateTime.now(clock);
         List<NotificationLog> candidates = notificationLogRepository.findRetryCandidates(

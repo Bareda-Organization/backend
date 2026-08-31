@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -55,9 +56,14 @@ public class ChangeRequestAutoRejectionScheduler {
      *
      * <p>한 틱 안에서 모든 건을 순차 처리한 뒤 반환한다 — 그래야 이 메서드를 직접 호출하는 테스트가
      * 완료를 동기적으로 관측할 수 있다.
+     *
+     * <p>{@code @SchedulerLock}(TECH_DECISIONS §3.2) — {@code autoRejectOne} 의 조건부 UPDATE 가
+     * 이중 거절은 막지만, 락이 없으면 인스턴스마다 같은 마감 대상을 반복 조회한다. {@code lockAtMostFor}
+     * 는 {@code NotificationOutboxWorker} 와 같은 근거(폴링 주기 30초의 4배)로 2분을 준다.
      */
     @Scheduled(fixedDelayString = "${app.request.autoreject.poll-interval-ms:30000}",
             initialDelayString = "${app.request.autoreject.initial-delay-ms:0}")
+    @SchedulerLock(name = "change-request-auto-rejection", lockAtMostFor = "PT2M")
     public void rejectDueChangeRequests() {
         OffsetDateTime now = OffsetDateTime.now(clock);
         List<ChangeRequest> due = changeRequestRepository.findByStatusAndDeadlineAtLessThanEqual(
