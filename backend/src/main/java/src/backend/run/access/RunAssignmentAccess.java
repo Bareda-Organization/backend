@@ -35,25 +35,35 @@ public class RunAssignmentAccess {
 
     private final AssignmentRepository assignmentRepository;
 
-    /** 그 회차에 배치된 기사인지 — 아니면 역할에 따라 {@code DRIVER_ONLY} 또는 {@code FORBIDDEN}. */
-    public void assertAssignedDriver(AuthUser requester, Long runId) {
+    /**
+     * 그 회차에 배치된 기사인지 — 아니면 역할에 따라 {@code DRIVER_ONLY} 또는 {@code FORBIDDEN}.
+     *
+     * @return 그 배치 행 — {@link #assertAssignedDriverOrEscort} 와 반환 형태를 맞춰 둔다(호출부가
+     *         재조회 없이 이어 쓸 수 있게)
+     */
+    public Assignment assertAssignedDriver(AuthUser requester, Long runId) {
         if (requester.role() != Role.DRIVER) {
             throw new BusinessException(ErrorCode.DRIVER_ONLY);
         }
-        assertAssigned(requester, runId, ManagerRole.DRIVER);
+        return assertAssigned(requester, runId, ManagerRole.DRIVER);
     }
 
-    /** 그 회차에 배치된 기사 또는 동승자인지(§4.11 변경 확인 — 둘 다 응답할 수 있다). */
-    public void assertAssignedDriverOrEscort(AuthUser requester, Long runId) {
+    /**
+     * 그 회차에 배치된 기사 또는 동승자인지(§4.11 변경 확인 — 둘 다 응답할 수 있다).
+     *
+     * @return 그 배치 행 — 변경 확인 처리(§4.11)가 이 행에 그대로 {@code ack} 를 남긴다. 재조회로
+     *         같은 조건(학원·회차·역할·담당자 일치)을 다시 캐지 않기 위해 여기서 확보한 행을 그대로 돌려준다
+     */
+    public Assignment assertAssignedDriverOrEscort(AuthUser requester, Long runId) {
         ManagerRole managerRole = switch (requester.role()) {
             case DRIVER -> ManagerRole.DRIVER;
             case ESCORT -> ManagerRole.ESCORT;
             default -> throw new BusinessException(ErrorCode.FORBIDDEN);
         };
-        assertAssigned(requester, runId, managerRole);
+        return assertAssigned(requester, runId, managerRole);
     }
 
-    private void assertAssigned(AuthUser requester, Long runId, ManagerRole managerRole) {
+    private Assignment assertAssigned(AuthUser requester, Long runId, ManagerRole managerRole) {
         Manager manager = managerRepository.findByAccountId(requester.accountId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN));
         Assignment assignment = assignmentRepository.findByRunIdAndRole(runId, managerRole)
@@ -61,5 +71,6 @@ public class RunAssignmentAccess {
         if (!assignment.getManagerId().equals(manager.getId())) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
+        return assignment;
     }
 }

@@ -71,4 +71,25 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
     @AcademyScopeExempt(reason = "runId 는 호출부가 이미 학원 소속을 확인한 회차의 식별자라는 전제다 — "
             + "findByRunIdAndStudentId 와 같은 근거(AcademyScope.assertAccessible 선확인)")
     long countByRunIdAndStatus(Long runId, RiderStatus status);
+
+    /**
+     * 하원 최종 지점 도착 처리에서 종료가 보류될 때(Phase 9 goal 10) 기사 화면에 실을 미하차 잔류
+     * 명단 — 이름·현재 승하차지를 이 조회에서 함께 채운다({@code RunArriveResponse.remaining[]}
+     * 이 별도 조회 없이 바로 응답에 실릴 수 있게).
+     *
+     * <p>{@code runId} 근거는 {@link #findByRunIdAndStudentId} 와 같다.
+     */
+    @AcademyScopeExempt(reason = "runId 는 호출부가 이미 학원 소속을 확인한 회차의 식별자라는 전제다 — "
+            + "findByRunIdAndStudentId 와 같은 근거(AcademyScope.assertAccessible 선확인)")
+    @Query("""
+            SELECT rr.id AS riderId, s.name AS name, st.name AS stopName
+            FROM RunRider rr
+            JOIN Student s ON s.id = rr.studentId
+            JOIN Stop st ON st.id = rr.stopId
+            WHERE rr.runId = :runId
+              AND rr.status = :status
+            ORDER BY rr.id ASC
+            """)
+    List<RemainingRiderView> findRemainingByRunIdAndStatus(@Param("runId") Long runId,
+            @Param("status") RiderStatus status);
 }
