@@ -64,6 +64,15 @@ public class RunStop {
     @Column(name = "eta")
     private OffsetDateTime eta;
 
+    /**
+     * 근접 알림(NTF-04) 최초 1회 발송을 표시하는 시각 — {@code null} 이면 아직 발송하지 않은 것이다.
+     * 엔티티에 세터를 두지 않는다. {@link src.backend.routing.repository.RunStopRepository
+     * #claimProximityNotice} 조건부 UPDATE 만이 이 값을 채운다({@link #markArrived} 와 달리 "먼저 읽고
+     * 나중에 쓰면" 두 스케줄러 인스턴스가 같은 정차 항목을 동시에 미도착으로 보고 둘 다 발송한다).
+     */
+    @Column(name = "proximity_notified_at")
+    private OffsetDateTime proximityNotifiedAt;
+
     private RunStop(Long routeVersionId, Long stopId, Long waypointId, int seq, OffsetDateTime eta) {
         this.routeVersionId = routeVersionId;
         this.stopId = stopId;

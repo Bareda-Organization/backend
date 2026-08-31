@@ -158,6 +158,11 @@ tasks.named('test') {
     // 실행 순서에 따라 갈린다.
     systemProperty 'app.request.autoreject.initial-delay-ms', '86400000'
 
+    // 근접 알림 배치(ProximityNotificationScheduler)도 같은 이유로 미룬다 — 위 확정 배치와 같은
+    // 형태다. 배경에서 돌면 테스트가 만든 회차·위치를 먼저 집어 근접 판정·멱등성 단언이 실행 순서에
+    // 따라 갈린다.
+    systemProperty 'app.location.proximity.initial-delay-ms', '86400000'
+
     // 지오코딩을 결정론적 스텁으로 고정한다. 기본값(naver)은 실 API 라, 두면 테스트 전체 묶음이
     // 네트워크·요금·NCP 계정 상태에 매달려 그 초록이 코드에 대해 아무것도 말하지 않게 된다
     // (Ruling 157 — 판정 수단은 재현 가능해야 한다). 실 어댑터는 환경변수가 있을 때만 도는

@@ -79,6 +79,23 @@ public interface RunRepository extends JpaRepository<Run, Long> {
             OffsetDateTime now, Pageable pageable);
 
     /**
+     * 근접 알림 스케줄러(NTF-04, 목표 13·15)의 조회 대상 — 시각 문턱이 없다는 점이
+     * {@link #findByStatusAndConfirmAtLessThanEqualAndCanceledAtIsNullOrderByConfirmAtAsc} 와 다르다.
+     * 근접 판정은 "판정 시각이 지났는가" 가 아니라 "지금 운행 중인가" 만 묻는다({@code RunStatus.MOVING}) —
+     * 실제 좌표가 300m 안에 들어왔는지는 이 조회가 아니라 정차 항목별 판정이 담당한다.
+     *
+     * <p>{@code canceled_at IS NULL} 을 더한 이유는 {@link #confirmIfIdle} 과 같다 — 조회와 판정
+     * 사이에 회차가 취소돼도 {@code status} 는 그대로일 수 있어, 취소 배제를 별도로 걸어야 한다.
+     *
+     * <p>{@code pageable} 은 한 틱이 한 번에 집는 상한이다(확정 배치와 같은 근거) — 상한 없이 전건을
+     * 집으면 동시 운행 중인 회차가 몰린 틱 하나가 오래 걸린다.
+     */
+    @AcademyScopeExempt(reason = "근접 알림 스케줄러는 시각이 촉발하는 전 학원 대상 조회라 좁힐 학원이 부재하다 — "
+            + "findByStatusAndConfirmAtLessThanEqualAndCanceledAtIsNullOrderByConfirmAtAsc 와 같은 근거. 호출부는 "
+            + "배치(ProximityNotificationScheduler)뿐이라는 전제 — 요청 경로에서 부르면 이 예외가 우회로가 된다")
+    List<Run> findByStatusAndCanceledAtIsNullOrderByIdAsc(RunStatus status, Pageable pageable);
+
+    /**
      * 회차를 idle → confirmed 로 전이한다 — 영향받은 행 수로 성공 여부를 판정한다(목표 2).
      *
      * <p><b>{@code WHERE status = 'idle'} 조건이 멱등성의 전부다.</b> 같은 회차를 동시에 두 스레드가
