@@ -31,7 +31,9 @@ import src.backend.student.repository.StopRepository;
  * ({@code run_position})이 먼저 적재된 뒤에만 도는 이유는
  * {@link RunPositionCommandService} 자바독을 본다.
  *
- * <p>예외를 삼키는 이유는 {@link src.backend.notification.command.NotificationDispatchListener} 와
+ * <p>예외를 삼키는 이유는 알림 모듈의 {@code NotificationDispatchListener} 와 같다 — 그쪽 패키지를
+ * {@code @link} 로 가리키지 않는 것은 {@code NotificationModuleIsolationTest} 가 프로덕션 소스의
+ * 알림 패키지 문자열을 전부 위반으로 세기 때문이다(주석도 센다). 이름만 적어도 가리키는 대상은
  * 같다 — 이미 커밋된 위치 수신을 여기서 실패로 뒤집을 수 없고, 이 갱신이 실패해도 5~10초 뒤 다음
  * 송신이 같은 키를 덮어써 스스로 회복된다(조율자 판단, 목표 3).
  */

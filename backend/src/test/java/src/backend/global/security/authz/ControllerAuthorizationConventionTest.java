@@ -56,11 +56,20 @@ class ControllerAuthorizationConventionTest {
      * 조합에 대응하는 전용 권한 항목이 없다({@link CanReadChangeRequest} 가 같은 이유로
      * {@code isAuthenticated()} 를 쓰는 것과 같은 카탈로그 공백) — 사양 밖에서 새 권한을 만들지
      * 않고 서비스 계층의 {@code assertAssignedDriverOrEscort} 에 맡긴다.
+     *
+     * <p><b>Phase 10 T1 — {@code DriverPositionController} 의 {@code receive} 1개.</b> 근거:
+     * {@code RunPositionCommandService#receive} 의 <b>첫 줄</b>이
+     * {@code runAssignmentAccess.assertAssignedDriver(requester, runId)} 를 호출한다 — 위
+     * {@code DriverRunController} 3개와 <b>완전히 같은 인가 규칙</b>(그 회차에 배치된 기사만)이라
+     * 같은 자리에 모은다. 컨트롤러 애너테이션으로 중복 표현하면 두 벌이 되어 한쪽만 고쳐지는 사고가
+     * 난다. ⚠ 이 항목은 병합 후 전체 실행에서야 드러났다 — 좌석 단독 실행에서는 이 규약 시험이
+     * 함께 돌지 않아 조용히 빠졌다.
      */
     private static final List<String> METHOD_LEVEL_EXEMPT = List.of(
             "DriverRunController.java#start",
             "DriverRunController.java#arrive",
-            "DriverRunController.java#ackChanges");
+            "DriverRunController.java#ackChanges",
+            "DriverPositionController.java#receive");
 
     /** 인가 자체가 아직 없는 permitAll 경로(로그인·회원가입·토큰 재발급 등)를 담는 파일명 목록. */
     private static final List<String> EXEMPT_FILES = List.of();
