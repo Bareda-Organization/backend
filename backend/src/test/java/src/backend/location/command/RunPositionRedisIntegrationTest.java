@@ -21,10 +21,12 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+
+import tools.jackson.databind.json.JsonMapper;
 
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
@@ -79,7 +81,10 @@ class RunPositionRedisIntegrationTest extends RedisTestContainerBase {
     private Clock clock;
 
     @Autowired
-    private RedisTemplate<String, Object> redisTemplate;
+    private StringRedisTemplate stringRedisTemplate;
+
+    /** T1 이 실제로 쓰는 것과 같은 기본(camelCase) 네이밍 — {@code RunPositionRedisListener} 참고. */
+    private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
 
     @Autowired
     private AcademyRepository academyRepository;
@@ -207,9 +212,12 @@ class RunPositionRedisIntegrationTest extends RedisTestContainerBase {
 
         // Redis 갱신 — AFTER_COMMIT 이 비동기가 아니라 같은 스레드에서 커밋 직후 동기로 돌므로
         // MockMvc 호출이 끝난 시점에는 이미 반영돼 있어야 한다(폴링 불필요).
-        Object raw = redisTemplate.opsForValue().get("run:" + runId + ":position");
-        assertThat(raw).as("같은 송신에서 Redis 최신 좌표도 갱신돼야 한다").isInstanceOf(RunPositionRedisValue.class);
-        RunPositionRedisValue value = (RunPositionRedisValue) raw;
+        // 다형 타입 태그가 없는 평문 camelCase JSON 이어야 한다(T3·T4 계약 — RunPositionRedisValue 자바독,
+        // Phase 10 게이트 리뷰 R1 Critical 정정).
+        String raw = stringRedisTemplate.opsForValue().get("run:" + runId + ":position");
+        assertThat(raw).as("같은 송신에서 Redis 최신 좌표도 갱신돼야 한다").isNotNull();
+        assertThat(raw).as("다형 타입 태그(@class)가 없어야 한다 — T3·T4 는 평문만 파싱한다").doesNotContain("@class");
+        RunPositionRedisValue value = JSON_MAPPER.readValue(raw, RunPositionRedisValue.class);
         assertThat(value.lat()).isEqualByComparingTo(lat);
         assertThat(value.lng()).isEqualByComparingTo(lng);
         assertThat(value.recordedAt()).isEqualTo(recordedAt);

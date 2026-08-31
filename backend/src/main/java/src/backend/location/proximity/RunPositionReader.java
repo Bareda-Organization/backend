@@ -14,11 +14,11 @@ import tools.jackson.databind.ObjectMapper;
  * 회차의 최신 위치를 Redis 에서 읽는다(T1 소유 계약, 키 {@code run:{runId}:position}) — 이 클래스는
  * 그 키를 <b>읽기만</b> 하고 쓰지 않는다.
  *
- * <p>{@link src.backend.global.config.RedisConfig} 의 {@code RedisTemplate<String,Object>} 를 쓰지
- * 않고 별도로 자동 구성된 {@link StringRedisTemplate} 을 쓴다 — 그 빈은 값 직렬화에
- * {@code @class} 다형 타입 정보를 함께 저장하는데, 허용 목록이 비어 있어(RedisConfig 주석) T1 이
- * 넣을 값 타입이 아직 그 목록에 없으면 역직렬화가 거부된다. 원시 JSON 문자열을 받아 이 모듈이
- * 필요한 필드만 직접 파싱하면 그 화이트리스트에 얽매이지 않는다.
+ * <p>⚠ <b>와이어 포맷 — 다형 타입 태그 없는 평문 camelCase JSON.</b> T1
+ * ({@code src.backend.location.command.RunPositionRedisListener})이 이 형식으로 쓴다(계약·사고
+ * 이력은 {@code RunPositionRedisValue} 자바독을 본다). 그래서 이 클래스는 {@code @class} 다형 타입
+ * 정보를 함께 심는 공유 {@code RedisTemplate<String,Object>} 대신 {@link StringRedisTemplate} 으로
+ * 원시 JSON 문자열을 받아 이 모듈이 필요한 필드만 직접 파싱한다.
  */
 @Slf4j
 @Component
