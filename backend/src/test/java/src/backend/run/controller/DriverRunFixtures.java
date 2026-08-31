@@ -219,11 +219,16 @@ public class DriverRunFixtures {
         return runStopRepository.save(RunStop.forStop(routeVersionId, stopId, seq, eta)).getId();
     }
 
-    /** 그 회차의 라이더 1건 — {@code status} 가 {@code BOARDED} 면 {@code timestamp} 로 탑승 처리까지 마친다. */
+    /**
+     * 그 회차의 라이더 1건 — {@code status} 가 {@code BOARDED} 면 {@code timestamp} 로 탑승 처리까지,
+     * {@code ABSENT} 면 결석 처리까지 마친다(목표 10 회귀 시험이 종료 판정에서 무시돼야 함을 검사할 때 씀).
+     */
     public long rider(long runId, long studentId, long stopId, RiderStatus status, OffsetDateTime timestamp) {
         RunRider rider = RunRider.uponConfirmation(runId, studentId, stopId);
         if (status == RiderStatus.BOARDED) {
             rider.board(timestamp);
+        } else if (status == RiderStatus.ABSENT) {
+            rider.markAbsent(timestamp);
         }
         return runRiderRepository.save(rider).getId();
     }
