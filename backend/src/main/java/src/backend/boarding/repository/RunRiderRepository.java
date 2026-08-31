@@ -137,4 +137,23 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
             """)
     long countByRunIdAndStopIdAndStatusNotIn(@Param("runId") Long runId, @Param("stopId") Long stopId,
             @Param("excludedStatuses") Collection<RiderStatus> excludedStatuses);
+
+    /**
+     * 그 승하차지에서 근접 알림(NTF-04)을 받을 학생 id 목록 — {@link RiderStatus#ABSENT} 인 학생은
+     * 뺀다(C-02: {@code absent} 학생은 {@code arrive}·{@code delay} 발송 대상 밖). {@code no_show} 는
+     * 이 알림이 아직 도착 전 상태에서만 발송되므로 굳이 배제하지 않는다 — 미승차 확정은 승차 시점
+     * 이후에 나는 상태다.
+     *
+     * <p>{@code runId} 근거는 {@link #findByRunIdAndStudentId} 와 같다 — 호출부(근접 알림 스케줄러)가
+     * {@code RunRepository} 로 이미 학원과 무관하게 골라낸 회차의 식별자만 넘긴다는 전제다.
+     */
+    @AcademyScopeExempt(reason = "runId 는 근접 알림 스케줄러가 RunRepository 로 이미 학원과 무관하게 골라낸 회차의 "
+            + "식별자라는 전제다 — findByRunIdAndStudentId 와 같은 근거")
+    @Query("""
+            SELECT rr.studentId FROM RunRider rr
+            WHERE rr.runId = :runId
+              AND rr.stopId = :stopId
+              AND rr.status <> src.backend.boarding.entity.RiderStatus.ABSENT
+            """)
+    List<Long> findStudentIdsByRunIdAndStopIdExcludingAbsent(@Param("runId") Long runId, @Param("stopId") Long stopId);
 }
