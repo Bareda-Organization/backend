@@ -109,7 +109,7 @@ class ExceptionEntitySchemaValidationTest extends MigratedPostgresTestBase {
         entityManager.flush();
 
         NoShowContact contact = NoShowContact.forAttempt(noShowCase.getId(),
-                ContactAttemptType.CALL, ContactResult.NO_ANSWER, 1L, now.plusMinutes(1));
+                ContactAttemptType.CALL, ContactResult.NO_ANSWER, null, 1L, now.plusMinutes(1));
         entityManager.persist(contact);
         entityManager.flush();
         entityManager.clear();
