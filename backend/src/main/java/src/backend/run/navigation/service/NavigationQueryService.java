@@ -107,7 +107,8 @@ public class NavigationQueryService {
         if (versionId == null) {
             return List.of();
         }
-        return navRunStopRepository.findAllByRouteVersionIdOrderBySeqAsc(versionId).stream()
+        return navRunStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeqAsc(versionId, run.getAcademyId())
+                .stream()
                 .filter(row -> row.change() != ChangeType.SKIPPED)
                 .filter(row -> !row.arrived())
                 .toList();

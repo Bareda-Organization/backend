@@ -23,11 +23,21 @@ public interface NavRunStopRepository extends JpaRepository<NavRunStop, Long> {
      * 돌려주고, 무엇을 뺄지는 호출부({@code NavigationQueryService})가 API_SPEC §4.16 의 두 규칙을
      * 판단해서 정한다. 필터를 여기 심으면 "왜 뺐는지" 를 검사하는 시험이 SQL 조건과 서비스 로직
      * 둘로 흩어진다.
+     *
+     * <p>{@code nav_run_stop} 은 {@code academy_id} 컬럼이 부재해 학원 조건을 붙일 자리가
+     * {@code RouteVersion} → {@code Run}(PK 를 공유하는 {@code ConfirmedRoute} 경유)을 타는
+     * <b>이중 부모 조인뿐</b>이다(ERD §6.1 부모 경유). 호출부 {@code NavigationQueryService} 가 이미
+     * {@code findByIdAndAcademyId} 와 배치 검증을 거쳤어도 이 조회 자체가 학원 조건을 다시 건다 —
+     * 횡단 규칙 7(저장소 조회 규약)이 <b>개별 조회마다</b> 조건을 요구하고, 상류 검증에 기대는 방식은
+     * 호출부가 하나 늘 때 조용히 무너진다. 같은 사슬의 선례는
+     * {@code routing.repository.RunStopRepository#findAllByRouteVersionIdAndAcademyIdOrderBySeq}.
      */
     @Query("SELECT new src.backend.run.navigation.dto.NavStopRow(rs.id, rs.seq, rs.change, "
             + "CASE WHEN rs.arrivedAt IS NOT NULL THEN true ELSE false END, rs.stopId, "
             + "COALESCE(s.name, w.label), COALESCE(s.lat, w.lat), COALESCE(s.lng, w.lng)) "
             + "FROM NavRunStop rs LEFT JOIN Stop s ON s.id = rs.stopId LEFT JOIN Waypoint w ON w.id = rs.waypointId "
-            + "WHERE rs.routeVersionId = :routeVersionId ORDER BY rs.seq ASC")
-    List<NavStopRow> findAllByRouteVersionIdOrderBySeqAsc(@Param("routeVersionId") Long routeVersionId);
+            + "JOIN RouteVersion rv ON rv.id = rs.routeVersionId JOIN Run r ON r.id = rv.confirmedRouteId "
+            + "WHERE rs.routeVersionId = :routeVersionId AND r.academyId = :academyId ORDER BY rs.seq ASC")
+    List<NavStopRow> findAllByRouteVersionIdAndAcademyIdOrderBySeqAsc(@Param("routeVersionId") Long routeVersionId,
+            @Param("academyId") Long academyId);
 }
