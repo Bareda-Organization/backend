@@ -3,6 +3,7 @@ package src.backend.boarding.command;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import jakarta.persistence.EntityManager;
@@ -22,6 +23,13 @@ import src.backend.bus.entity.BusSeating;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
+import src.backend.routing.entity.ConfirmedRoute;
+import src.backend.routing.entity.RouteVersion;
+import src.backend.routing.entity.RouteVersionSource;
+import src.backend.routing.entity.RunStop;
+import src.backend.routing.repository.ConfirmedRouteRepository;
+import src.backend.routing.repository.RouteVersionRepository;
+import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.entity.Guardian;
@@ -66,6 +74,12 @@ public class BoardingCommandFixtures {
 
     private final RunRiderRepository runRiderRepository;
 
+    private final ConfirmedRouteRepository confirmedRouteRepository;
+
+    private final RouteVersionRepository routeVersionRepository;
+
+    private final RunStopRepository runStopRepository;
+
     private final JdbcTemplate jdbcTemplate;
 
     private final EntityManager entityManager;
@@ -74,8 +88,9 @@ public class BoardingCommandFixtures {
             StudentRepository studentRepository, GuardianRepository guardianRepository,
             GuardianStudentRepository guardianStudentRepository, AccountRepository accountRepository,
             AcademyStaffRepository academyStaffRepository, RunRepository runRepository,
-            StopRepository stopRepository, RunRiderRepository runRiderRepository, JdbcTemplate jdbcTemplate,
-            EntityManager entityManager) {
+            StopRepository stopRepository, RunRiderRepository runRiderRepository,
+            ConfirmedRouteRepository confirmedRouteRepository, RouteVersionRepository routeVersionRepository,
+            RunStopRepository runStopRepository, JdbcTemplate jdbcTemplate, EntityManager entityManager) {
         this.academyRepository = academyRepository;
         this.busRepository = busRepository;
         this.studentRepository = studentRepository;
@@ -86,6 +101,9 @@ public class BoardingCommandFixtures {
         this.runRepository = runRepository;
         this.stopRepository = stopRepository;
         this.runRiderRepository = runRiderRepository;
+        this.confirmedRouteRepository = confirmedRouteRepository;
+        this.routeVersionRepository = routeVersionRepository;
+        this.runStopRepository = runStopRepository;
         this.jdbcTemplate = jdbcTemplate;
         this.entityManager = entityManager;
     }
@@ -191,5 +209,32 @@ public class BoardingCommandFixtures {
     /** {@code waiting} 상태의 탑승자 1명 — {@link RunRider#uponConfirmation} 이 초기값을 보장한다. */
     public long runRider(long runId, long studentId, long stopId) {
         return runRiderRepository.save(RunRider.uponConfirmation(runId, studentId, stopId)).getId();
+    }
+
+    /**
+     * {@code stop_skipped}(목표 7 후자 경로, C-05·§4.6) 검증용 확정 노선 1건 — 배포 버전 1건·정차 항목
+     * 1건을 실제 행으로 쌓고 {@code run_stop.id} 를 돌려준다. 탑승자 행은 만들지 않는다 — 호출자가
+     * {@link #runRider} 로 원하는 수만큼(잔여 판정 시나리오에 맞게) 별도로 붙인다는 전제다
+     * ({@code BoardingIntentFixtures#confirmedSingleRiderStop} 과 달리 탑승자를 여러 명 두는 시나리오가
+     * 있어 탑승자 생성을 분리했다).
+     */
+    public long confirmedRunStop(long runId, long stopId, OffsetDateTime confirmedAt) {
+        confirmedRouteRepository.save(ConfirmedRoute.forRun(runId, confirmedAt));
+        RouteVersion version = routeVersionRepository.save(RouteVersion.forConfirmedRoute(runId, 1,
+                RouteVersionSource.CONFIRM_BATCH, 30, new BigDecimal("5.00"), confirmedAt, "fp", "engine", Map.of(),
+                false, null, confirmedAt));
+        confirmedRouteRepository.assignCurrentVersion(runId, version.getId());
+
+        RunStop runStop = runStopRepository.save(RunStop.forStop(version.getId(), stopId, 1, confirmedAt));
+        return runStop.getId();
+    }
+
+    /** 잔여 판정의 함정(목표 7)을 걸기 위해 이미 부재 처리된 탑승자를 직접 만든다 — {@code markAbsent} 는 회차 진행 중 경로가 없다. */
+    public void markAbsent(long riderId) {
+        int updated = jdbcTemplate.update("UPDATE run_rider SET status = 'absent' WHERE id = ?", riderId);
+        if (updated != 1) {
+            throw new IllegalStateException("탑승자를 absent 로 전이하지 못했다: riderId=" + riderId);
+        }
+        entityManager.clear();
     }
 }

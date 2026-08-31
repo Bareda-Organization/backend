@@ -19,6 +19,9 @@ import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
+import src.backend.routing.repository.ConfirmedRouteRepository;
+import src.backend.routing.repository.RouteVersionRepository;
+import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
@@ -73,13 +76,23 @@ class AutoBoardingServiceTest {
     @Autowired
     private RunRiderRepository runRiderRepository;
 
+    @Autowired
+    private ConfirmedRouteRepository confirmedRouteRepository;
+
+    @Autowired
+    private RouteVersionRepository routeVersionRepository;
+
+    @Autowired
+    private RunStopRepository runStopRepository;
+
     private BoardingCommandFixtures fixtures;
 
     private BoardingCommandFixtures fixtures() {
         if (fixtures == null) {
             fixtures = new BoardingCommandFixtures(academyRepository, busRepository, studentRepository,
                     guardianRepository, guardianStudentRepository, accountRepository, academyStaffRepository,
-                    runRepository, stopRepository, runRiderRepository, jdbcTemplate, entityManager);
+                    runRepository, stopRepository, runRiderRepository, confirmedRouteRepository,
+                    routeVersionRepository, runStopRepository, jdbcTemplate, entityManager);
         }
         return fixtures;
     }

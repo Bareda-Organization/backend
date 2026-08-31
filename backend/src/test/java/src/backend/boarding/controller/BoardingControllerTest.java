@@ -38,6 +38,9 @@ import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
+import src.backend.routing.repository.ConfirmedRouteRepository;
+import src.backend.routing.repository.RouteVersionRepository;
+import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
@@ -104,6 +107,15 @@ class BoardingControllerTest {
     @Autowired
     private RunRiderRepository runRiderRepository;
 
+    @Autowired
+    private ConfirmedRouteRepository confirmedRouteRepository;
+
+    @Autowired
+    private RouteVersionRepository routeVersionRepository;
+
+    @Autowired
+    private RunStopRepository runStopRepository;
+
     private BoardingCommandFixtures fixtures;
 
     @TestConfiguration
@@ -122,7 +134,8 @@ class BoardingControllerTest {
         if (fixtures == null) {
             fixtures = new BoardingCommandFixtures(academyRepository, busRepository, studentRepository,
                     guardianRepository, guardianStudentRepository, accountRepository, academyStaffRepository,
-                    runRepository, stopRepository, runRiderRepository, jdbcTemplate, entityManager);
+                    runRepository, stopRepository, runRiderRepository, confirmedRouteRepository,
+                    routeVersionRepository, runStopRepository, jdbcTemplate, entityManager);
         }
         return fixtures;
     }
@@ -217,6 +230,78 @@ class BoardingControllerTest {
                         + "ORDER BY recipient_role",
                 String.class, guardian.accountId(), staffAccountId);
         assertThat(recipientRoles).as("③알림 2행(학부모·관계자)").containsExactlyInAnyOrder("parent", "staff");
+    }
+
+    // ── 목표 7 — 운행 중 미승차로 잔여 0명이 된 정차지는 stop_skipped (C-05 후자 경로) ──────
+
+    /**
+     * 그 정차지에 이미 부재 처리된 탑승자(함정 — {@code absent} 를 잔여로 잘못 세면 이 시험이 통과해도
+     * 아무것도 검증하지 않는다) + 지금 미승차 처리하는 탑승자 1명뿐이면, 미승차 처리 직후 잔여가
+     * 0명이 되어 {@code stop_skipped=true} 이고 {@code run_stop.change='skipped'} 로 실제 전환된다.
+     */
+    @Test
+    @DisplayName("목표7 — 정차지 잔여가 0명이 되는 미승차는 stop_skipped=true 이고 run_stop 이 실제로 skipped 전환된다")
+    void 미승차로_정차지_잔여가_0명이면_stop_skipped_true_이고_run_stop_이_skipped_로_전환된다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long stopId = fixtures().stop(academyId, "37.510000", "127.010000");
+        long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
+        long runStopId = fixtures().confirmedRunStop(runId, stopId, now.minusHours(1));
+
+        long alreadyAbsentStudentId = fixtures().student(academyId, "학생7-이미부재");
+        long alreadyAbsentRiderId = fixtures().runRider(runId, alreadyAbsentStudentId, stopId);
+        fixtures().markAbsent(alreadyAbsentRiderId);
+
+        long studentId = fixtures().student(academyId, "학생7-미승차");
+        long riderId = fixtures().runRider(runId, studentId, stopId);
+        long escortAccountId = fixtures().escortAccount(academyId);
+
+        mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId))
+                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(statusUpdateBody("no_show", "manual", UUID.randomUUID(), now)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("no_show"))
+                .andExpect(jsonPath("$.data.stop_skipped").value(true));
+
+        entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject("SELECT change FROM run_stop WHERE id = ?", String.class, runStopId))
+                .as("잔여 0명이니 run_stop 이 실제로 skipped 로 전환돼야 한다").isEqualTo("skipped");
+    }
+
+    /**
+     * 같은 정차지에 아직 남은(waiting) 탑승자가 있으면 미승차 처리해도 {@code stop_skipped=false} 이고
+     * {@code run_stop} 은 전환되지 않는다.
+     */
+    @Test
+    @DisplayName("목표7 — 정차지에 잔여 탑승자가 남으면 stop_skipped=false 이고 run_stop 은 전환되지 않는다")
+    void 정차지에_잔여_탑승자가_남으면_stop_skipped_false_이다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long stopId = fixtures().stop(academyId, "37.520000", "127.020000");
+        long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
+        long runStopId = fixtures().confirmedRunStop(runId, stopId, now.minusHours(1));
+
+        long remainingStudentId = fixtures().student(academyId, "학생8-잔여");
+        fixtures().runRider(runId, remainingStudentId, stopId);
+
+        long studentId = fixtures().student(academyId, "학생8-미승차");
+        long riderId = fixtures().runRider(runId, studentId, stopId);
+        long escortAccountId = fixtures().escortAccount(academyId);
+
+        mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId))
+                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(statusUpdateBody("no_show", "manual", UUID.randomUUID(), now)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("no_show"))
+                .andExpect(jsonPath("$.data.stop_skipped").value(false));
+
+        entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject("SELECT change FROM run_stop WHERE id = ?", String.class, runStopId))
+                .as("잔여가 남아 있으니 run_stop 은 전환되면 안 된다").isNull();
     }
 
     // ── 목표 12 — client_key 재전송 멱등 ──────────────────────────────────
