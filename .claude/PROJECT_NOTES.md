@@ -247,6 +247,29 @@ cd backend
 
 ## 알려진 함정
 
+### 병렬 좌석에 **`-PtestDbUrl` 을 반드시 준다** — 안 주면 전원이 같은 DB 를 밟는다
+
+`backend/build.gradle:189` 에 격리 옵션이 **이미 있고 주석이 용도까지 적어 두었다** — *"병렬 작업용 DB 격리 … 에이전트를 2개 이상 동시에 돌릴 때 서로의 행을 밟아 코드 결함처럼 보이는 환경 실패가 나는 것을 막는다."* 주지 않으면 기본값 `schoolbus` 다.
+
+```bash
+./gradlew test --tests <클래스> -PtestDbUrl=jdbc:postgresql://localhost:5432/<좌석별DB>
+```
+
+**2026-08-31 Phase 10 에서 조율자가 이 옵션 없이 좌석 4개를 발주했다.** 발주 후에 알아채 정정을 보냈다. 전역 규칙 `parallel-agents-git.md §4.2` 에 등재.
+
+- **DB 는 조율자가 미리 만든다** — `docker exec school-bus-postgres-1 psql -U schoolbus -d schoolbus -c "CREATE DATABASE <이름> OWNER schoolbus"`. ⚠ **역할은 `postgres` 가 아니라 `schoolbus` 다**(`docker-compose.yml:22`)
+- **좌석마다 이름을 발주문에 박는다.** "전용 DB 를 지정하라" 만 적으면 좌석들이 같은 이름을 고른다
+- ⚠ **정리는 좌석이 전부 멈춘 뒤에 한다** — 도는 중의 `DROP DATABASE ... WITH (FORCE)` 가 postgres 를 반복 크래시시킨 전례가 있다(전역 규칙 §0)
+- ⚠ **포트를 확인하고 나서 명령을 적어라.** 위 예시의 `5432` 는 기본값일 뿐이다 — `groom-shopping` 스택이 5432·6379 를 점유하면 School-Bus 를 옮겨야 하고, 2026-08-31 에 실제로 postgres `15432` · redis `16379` 로 옮겼다. `docker port school-bus-postgres-1` 로 실측한 값을 발주문에 박는다
+
+### 테스트에 **Redis 설정이 한 건도 없다** — Phase 10 이 처음이다
+
+`grep -rn 'redis' backend/src/test/java` **계수 0**(2026-08-31 실측). 즉 **가리킬 본보기가 부재**하다.
+
+⚠ **`testsupport/db/MigratedPostgresTestBase` 를 본보기로 주지 마라** — 이름이 `TestBase` 라 통합 시험의 베이스로 오해하기 쉬우나, 클래스 주석이 밝히듯 **Spring 컨텍스트를 띄우지 않고 Flyway 를 직접 호출하는 마이그레이션 검사 전용**이다. 2026-08-31 에 조율자가 실제로 이렇게 잘못 가리켰다.
+
+⚠ **Redis 는 이름공간이 부재해 좌석끼리 갈라 둘 수단이 없다.** 공유 컨테이너 `school-bus-redis-1` 에 여러 좌석이 붙으면 서로의 키를 밟는다.
+
 ### `AcademyScopeRepositoryConventionTest` 는 **텍스트 판정**이라 조건 *무력화* 를 못 잡는다
 
 **실측**(2026-08-31 Phase 9 음성 대조) — `NavRunStopRepository` 의 학원 조건을
