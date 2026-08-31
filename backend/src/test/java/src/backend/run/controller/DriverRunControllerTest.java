@@ -430,6 +430,49 @@ class DriverRunControllerTest {
         assertThat(회차_종료시각(runId)).isNull();
     }
 
+    // ── ackChanges — §4.11 노선 변경 확인 응답 ─────────────────────────────
+
+    @Test
+    @DisplayName("ackChanges — 배치된 기사의 확인 응답은 200 이고 Assignment.ack 가 현재 배포 버전으로 갱신된다")
+    void ackChanges_는_배치된_기사의_확인을_기록하고_200을_반환한다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        OffsetDateTime departTime = now();
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/ack-changes")
+                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.acked_at").exists());
+
+        entityManager.flush();
+        assertThat(배치_확인버전(runId, ManagerRole.DRIVER)).isEqualTo(versionId);
+        assertThat(배치_확인시각(runId, ManagerRole.DRIVER)).isNotNull();
+    }
+
+    @Test
+    @DisplayName("ackChanges — 확정되지 않은(idle) 회차는 RUN_NOT_CONFIRMED 로 거절되고 Assignment.ack 는 그대로 null 이다")
+    void 확정되지_않은_회차의_ackChanges는_RUN_NOT_CONFIRMED_이다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        OffsetDateTime departTime = now().plusMinutes(9);
+        long runId = fixtures.idleRun(academyId, busId, Direction.TO_ACADEMY, departTime);
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/ack-changes")
+                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isConflict())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error.code").value("RUN_NOT_CONFIRMED"));
+
+        entityManager.flush();
+        assertThat(배치_확인버전(runId, ManagerRole.DRIVER)).as("거절됐으면 확인 처리가 남으면 안 된다").isNull();
+    }
+
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────
 
     private String 토큰(long accountId, long academyId, Role role) {
@@ -463,6 +506,18 @@ class DriverRunControllerTest {
     private String 라이더_상태(long runId, long studentId) {
         return jdbcTemplate.queryForObject("SELECT status FROM run_rider WHERE run_id = ? AND student_id = ?",
                 String.class, runId, studentId);
+    }
+
+    private Long 배치_확인버전(long runId, ManagerRole role) {
+        return jdbcTemplate.queryForObject(
+                "SELECT acked_route_version_id FROM assignment WHERE run_id = ? AND role = ?", Long.class, runId,
+                role.name().toLowerCase());
+    }
+
+    private OffsetDateTime 배치_확인시각(long runId, ManagerRole role) {
+        return jdbcTemplate.queryForObject(
+                "SELECT acked_at FROM assignment WHERE run_id = ? AND role = ?", OffsetDateTime.class, runId,
+                role.name().toLowerCase());
     }
 
     private long 알림_행수(long runId, String type, String recipientRole) {

@@ -184,6 +184,13 @@ public class DriverRunFixtures {
         return runId;
     }
 
+    /** {@code idle} 상태 회차 — 확정을 거치지 않은 그대로(ackChanges 의 {@code RUN_NOT_CONFIRMED} 분기 시험용). */
+    public long idleRun(long academyId, long busId, Direction direction, OffsetDateTime departTime) {
+        Run run = Run.forSchedule(academyId, busId, null, LocalDate.of(2030, 4, 1), direction, departTime,
+                departTime.minusMinutes(30), "출발지", "도착지", null);
+        return runRepository.save(run).getId();
+    }
+
     /** {@code moving} 상태 회차 — 도착 처리(§4.5)만 단독으로 시험할 때 시작 처리를 거치지 않고 직접 전이한다. */
     public void startRun(long runId, OffsetDateTime startedAt) {
         Run run = runRepository.findById(runId).orElseThrow();
