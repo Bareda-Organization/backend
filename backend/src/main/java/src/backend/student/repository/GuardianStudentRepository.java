@@ -147,6 +147,7 @@ public interface GuardianStudentRepository extends JpaRepository<GuardianStudent
     List<GuardianAccountRecipient> findGuardianAccountsByAcademyId(@Param("academyId") Long academyId,
             @Param("studentIds") List<Long> studentIds);
 
+    /**
      * 승하차 알림(API_SPEC §4.6 {@code boarded}·{@code alighted}·{@code no_show})의 학부모 수신자 —
      * 학생 1명에 보호자가 여럿일 수 있어 목록으로 돌려주며, 전부에게 발송한다.
      *

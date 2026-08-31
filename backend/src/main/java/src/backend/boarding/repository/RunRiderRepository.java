@@ -121,6 +121,15 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
     List<RemainingRiderView> findRemainingByRunIdAndStatus(@Param("runId") Long runId,
             @Param("status") RiderStatus status);
 
+    /**
+     * 그 승하차지에 아직 남은(부재·미승차 둘 다 빠진) 탑승자 수 — {@code no_show} 도 잔여 0명 판정에서
+     * 빠져야 한다(목표 7). 다중값 NOT 제외를 메서드명만으로 표현할 수 없어 {@code @Query} 로 직접 쓴다.
+     *
+     * <p>{@code runId} 근거는 {@link #findByRunIdAndStudentId} 와 같다.
+     */
+    @AcademyScopeExempt(reason = "runId 는 호출부가 이미 학원 소속을 확인한 회차의 식별자라는 전제다 — "
+            + "findByRunIdAndStudentId 와 같은 근거(AcademyScope.assertAccessible 선확인)")
+    @Query("""
             SELECT COUNT(rr) FROM RunRider rr
             WHERE rr.runId = :runId
               AND rr.stopId = :stopId

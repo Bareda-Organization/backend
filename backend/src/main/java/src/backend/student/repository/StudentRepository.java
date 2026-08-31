@@ -105,6 +105,7 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
      */
     List<Student> findAllByIdInAndAcademyIdAndAccountIdIsNotNull(List<Long> ids, Long academyId);
 
+    /**
      * 회차 명단(§4.2·§5.4)이 참조하는 학생들을 한 번에 읽는다 — 정차지마다 학생을 다시 조회하면 명단
      * 하나가 질의 N+1 개가 된다({@code RouteDetailAssembler} 의 승하차지 배치 조회와 같은 근거).
      *
