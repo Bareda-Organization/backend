@@ -56,6 +56,9 @@ class NavigationControllerTest {
 
     private static final long DRIVER_ACCOUNT_ID = 13L;
 
+    /** 시드 매니저 2 — 계정 14, 같은 학원 A 소속이지만 {@code 회차_생성} 이 배치하는 대상이 아니다. */
+    private static final long UNASSIGNED_DRIVER_ACCOUNT_ID = 14L;
+
     /** 시드 회차가 전부 {@code CURRENT_DATE} 라 겹치지 않는 먼 미래 날짜를 쓴다. */
     private static final LocalDate SERVICE_DATE = LocalDate.of(2031, 6, 2);
 
@@ -202,6 +205,23 @@ class NavigationControllerTest {
                 .andExpect(jsonPath("$.data").doesNotExist());
     }
 
+    /**
+     * (IMPLEMENTATION_PLAN Phase 9 완료 조건 · 목표 21 복원분) 배치되지 않은 회차는 403 이다 —
+     * 없으면 배치 안 된 기사·동승자에게 남의 회차 승하차지 좌표(학생 집 근처)가 그대로 나간다.
+     * 같은 학원 소속(계정 14)이라 학원 경계는 통과하되, 이 회차의 {@code assignment} 에는 없는
+     * 계정으로 호출해 {@code assertAssigned} 경로만 단독으로 걸었다.
+     */
+    @Test
+    void 배치되지_않은_기사는_403_FORBIDDEN이다() throws Exception {
+        long runId = 회차_생성("confirmed");
+        long versionId = 노선버전_생성(runId);
+        정차_추가(versionId, 1, 정차지_생성(1));
+
+        조회한다(배치되지_않은_기사_토큰(), runId, "next")
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+    }
+
     // ── 픽스처 ────────────────────────────────────────────────────────
 
     /**
@@ -262,6 +282,11 @@ class NavigationControllerTest {
 
     private String 기사_토큰() {
         return "Bearer " + tokenProvider.createAccessToken(DRIVER_ACCOUNT_ID, ACADEMY_A_ID, Role.DRIVER,
+                AccountStatus.ACTIVE);
+    }
+
+    private String 배치되지_않은_기사_토큰() {
+        return "Bearer " + tokenProvider.createAccessToken(UNASSIGNED_DRIVER_ACCOUNT_ID, ACADEMY_A_ID, Role.DRIVER,
                 AccountStatus.ACTIVE);
     }
 
