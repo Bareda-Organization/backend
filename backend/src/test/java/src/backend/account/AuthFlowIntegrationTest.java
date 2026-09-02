@@ -181,8 +181,9 @@ class AuthFlowIntegrationTest {
                         + " + Phase 11 T1 의 3(미승차 연락 이력 등록 1 + 학원 설정 조회·수정 2)"
                         + " + Phase 11 T2 의 5(비상 신고 발신·취소 2 + 학원 관계자 목록·확인 2 + 메인관리자 콘솔 목록 1)"
                         + " + Phase 11 T3 의 3(현장 예외 보고 등록 1 + 관계자 웹 예외 보고 목록·상세 조회 2)"
-                        + " + Phase 12 T1 의 2(알림 설정 조회·수정)")
-                .hasSize(91);
+                        + " + Phase 12 T1 의 2(알림 설정 조회·수정)"
+                        + " + Phase 12 T2 의 2(알림 목록 조회 1 + 읽음 처리 1)")
+                .hasSize(93);
 
         assertThat(AccountStatusGateEndpoints.productionEndpoints(
                 handlerMapping, AccountStatusGateEndpoints::deniedWhenPending))

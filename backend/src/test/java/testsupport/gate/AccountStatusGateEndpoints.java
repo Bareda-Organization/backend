@@ -85,6 +85,10 @@ public final class AccountStatusGateEndpoints {
      * 권한 "학부모·학생")는 승인된 계정 전용 설정 화면이라 근거가 앞 Phase 들과 같다(Ruling 145 와
      * 같은 근거) — {@code /staff/academy-settings} 와 마찬가지로 대기·거절 계정이 먼저 건드릴 이유가
      * 사양에 없다.
+     *
+     * <p>Phase 12 T2 가 2개를 더했다 — 알림 목록 조회 {@code GET /notifications}(§3.12) · 읽음 처리
+     * {@code PATCH /notifications/{id}/read}(§3.13), 둘 다 권한 "전 역할" 이나 §1.4 의 대기·거절 허용
+     * 5개 목록에는 없다 — 승인된 계정의 기능이라 근거가 앞 Phase 들과 같다(Ruling 145 와 같은 근거).
      */
     public static final List<String> DENIED_WHEN_REJECTED = List.of(
             "POST /auth/password",
@@ -183,7 +187,10 @@ public final class AccountStatusGateEndpoints {
             "GET /staff/reports/{id}",
             // Phase 12 T1 — 알림 수신 설정 조회·수정(§3.14) 학부모·학생 화면 2개.
             "GET /me/notification-settings",
-            "PATCH /me/notification-settings");
+            "PATCH /me/notification-settings",
+            // Phase 12 T2 — 알림 목록 조회(§3.12)·읽음 처리(§3.13) 2개.
+            "GET /notifications",
+            "PATCH /notifications/{id}/read");
 
     /** {@code pending} 의 거부측 — {@code rejected} 거부측에 재신청 1개를 더한다({@code @AllowedWhenRejected} 는 pending 을 열지 않는다). */
     public static final List<String> DENIED_WHEN_PENDING = concat(DENIED_WHEN_REJECTED, "POST /auth/signup/reapply");

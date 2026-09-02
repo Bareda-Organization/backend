@@ -134,4 +134,27 @@ public class NotificationLog {
         return new NotificationLog(academyId, recipientAccountId, recipientName, recipientRole,
                 type, title, body, dedupKey, createdAt);
     }
+
+    /**
+     * 읽음 시각을 남긴다(NTF-08, API_SPEC §3.13) — <b>최초 1회만</b> 기록한다. 이미 읽은 알림을 다시
+     * 열어도 {@code read_at} 이 뒤로 밀리지 않아야 "언제 처음 봤는가"가 보존된다.
+     */
+    public void markRead(OffsetDateTime now) {
+        if (this.readAt == null) {
+            this.readAt = now;
+        }
+    }
+
+    /**
+     * 수신 확인(NTF-10)을 남긴다 — <b>중요 통지에 한해</b> 호출자(읽음 처리 서비스)가 부른다. 어떤
+     * 종류가 "중요"인지는 이 엔티티가 판단하지 않는다(USER_FLOWS §10.2 규칙4·5 — 지연·미승차·노선
+     * 변경 3종). {@link #markRead} 와 마찬가지로 최초 1회만 기록해 {@code acked_at} 이 재확인으로
+     * 밀리지 않는다. 관계자 알림 로그(§5.17 미확인 배지, T3 담당)가 이 필드를 그대로 읽는다.
+     */
+    public void ack(OffsetDateTime now) {
+        if (!this.acked) {
+            this.acked = true;
+            this.ackedAt = now;
+        }
+    }
 }
