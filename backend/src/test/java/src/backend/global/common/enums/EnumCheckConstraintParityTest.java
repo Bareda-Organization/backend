@@ -57,7 +57,7 @@ import src.backend.student.entity.Gender;
 import src.backend.student.entity.LinkRequestStatus;
 
 /**
- * enum 32종의 DB 값 집합이 마이그레이션 전체({@code V1__init_schema.sql} 기준 값 목록형 CHECK
+ * enum 31종의 DB 값 집합이 마이그레이션 전체({@code V1__init_schema.sql} 기준 값 목록형 CHECK
  * 39건 + 이후 파일이 같은 이름으로 재정의한 것)와 정확히 일치하는지 회귀 감시한다 —
  * {@code ddl-auto: validate} 는 CHECK 를 전혀 보지 않으므로(`IMPLEMENTATION_PLAN` 603행), 이
  * 대조가 없으면 오늘 맞는 값이 내일 상수 하나만 고쳐도 어디서도 실패하지 않는다.

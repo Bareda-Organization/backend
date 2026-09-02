@@ -3,6 +3,7 @@ package src.backend.exception.command;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,6 +16,7 @@ import src.backend.exception.dto.ExceptionReportCreateRequest;
 import src.backend.exception.dto.ExceptionReportCreateResponse;
 import src.backend.exception.entity.ExceptionReport;
 import src.backend.exception.entity.ExceptionReportType;
+import src.backend.exception.event.ExceptionReportedEvent;
 import src.backend.exception.repository.ExceptionReportRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
@@ -34,9 +36,11 @@ import src.backend.run.repository.RunRepository;
  * (승하차 처리·§4.6 이 이미 쓰는 것과 같은 근거 — 존재하지 않는 riderId 와 이미 제외된 탑승자를
  * 응답에서 가르지 않는다).
  *
- * <p>관계자 통지(§4.13 "즉시 통지")는 이 태스크에서 다루지 않는다 — {@code NotificationType} 기존
- * 18종에 이 사건에 대응하는 값이 없어, 새 값 추가와 CHECK 제약 마이그레이션(T4 소유 파일)이 선행돼야
- * 한다. 팀 리드에게 이 공백을 보고했고, 알림 조립은 그 답을 받은 뒤 별도로 이어 붙인다.
+ * <p>관계자 통지(§4.13 "즉시 통지")는 저장과 같은 트랜잭션 안에서 {@link ExceptionReportedEvent}
+ * 를 발행하는 형태로 처리한다(Ruling 215 — {@code NotificationType} 에 {@code exception_reported}
+ * 값과 {@code V5} CHECK 제약이 추가됐다). 실제 적재는 {@code ExceptionReportNotificationListener}
+ * 가 이 이벤트를 구독해 맡는다 — 승인 요청 접수(§9.7 {@code approval_requested})가 같은 형태로
+ * {@code ApprovalRequestedEvent} 를 쓰는 것과 같은 이유다.
  */
 @Service
 @RequiredArgsConstructor
@@ -50,6 +54,8 @@ public class ExceptionReportCommandService {
     private final RunRiderRepository runRiderRepository;
 
     private final RunAssignmentAccess runAssignmentAccess;
+
+    private final ApplicationEventPublisher eventPublisher;
 
     private final Clock clock;
 
@@ -71,6 +77,8 @@ public class ExceptionReportCommandService {
             report.assignRunRider(runRiderId);
         }
         exceptionReportRepository.save(report);
+        eventPublisher.publishEvent(
+                new ExceptionReportedEvent(report.getId(), requester.academyId(), run.getId(), now));
 
         return new ExceptionReportCreateResponse(report.getId(), report.getReportedAt());
     }
