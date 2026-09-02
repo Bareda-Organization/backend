@@ -247,6 +247,39 @@ cd backend
 
 ## 알려진 함정
 
+### Spring Data 파생 쿼리를 개명하면 깨진다 — **`@Query` 로 바꿀 때 `@Param` 이 필수다**
+
+이 저장소 `build.gradle` 에 **`-parameters` 컴파일 플래그가 부재**하다. 그래서 `@Query` 의 이름 붙은
+파라미터(`:academyId`)를 메서드 인자에 매핑하려면 **`@Param("academyId")` 를 반드시 적어야 한다** —
+안 적으면 기동 시점에 파라미터를 못 찾아 컨텍스트 로드가 실패한다.
+
+- **언제 걸리나** — `countByAcademyIdAndAckedFalse` 처럼 **메서드 이름 자체가 쿼리**인 파생 쿼리를
+  다른 이름(`countUnackedForStaffLog`)으로 바꾸는 순간 그 문법이 깨져 `@Query` 로 옮기게 되고,
+  거기서 `@Param` 을 빠뜨린다
+- **2026-09-02 Phase 12 T3 에서 실제로 밟았고, 그 이전 세션에도 같은 함정 기록이 있다**(반복 2회 이상)
+- 파생 쿼리 이름을 바꿀 일이 있으면 **개명과 `@Query` 전환을 한 번에** 하고 `@Param` 을 함께 붙인다
+
+### 알림 종류가 늘면 **설정 토글 분류가 컴파일로 막힌다** — 그게 정상 동작이다
+
+`NotificationSetting.isEnabledFor` 는 **`default` 없는 `switch` 식**이다(2026-09-02 Phase 12 T1, Ruling 223).
+`NotificationType` 에 값을 더하면 **이 파일이 컴파일 오류로 멈춘다** — 고장이 아니라 분류를 강제하는 장치다.
+
+- 예전에는 `if-else` 사슬의 마지막이 `return true` 라, 새 종류를 등록에서 빠뜨려도 **조용히 "항상 발송"으로
+  샜다.** 컴파일도 테스트도 안 걸렸다
+- 새 종류를 더했으면 **어느 토글 소관인지 판정해 `case` 에 넣는다.** 설정 대상이 아니면 "항상 발송" 쪽
+  `case` 에 명시적으로 넣는다 — **`default` 를 되살리지 마라**
+
+### 알림 `acked` 는 **쓰는 쪽과 세는 쪽이 같은 집합을 봐야 한다**
+
+`NotificationType.IMPORTANT_FOR_ACK` **한 곳**에만 정의하고 양쪽이 참조한다(Ruling 227).
+
+- 읽음 처리(`NotificationReadCommandService`)가 이 집합에만 `acked` 를 남기고,
+  미확인 배지(`NotificationLogRepository#countUnackedForStaffLog`)도 같은 집합만 센다
+- ⚠ **어긋나면 배지가 0 이 되지 않고 발송할 때마다 단조 증가한다.** 2026-09-02 병합 시점에 실제로 그 상태였고
+  **좌석 양쪽 시험이 각자 전건 통과**라 아무 데서도 안 잡혔다 — `Phase12AckBoundaryTest` 가 유일한 탐지 수단이다
+- ⚠ 정본이 "중요 통지" 를 열거값으로 못박은 문장은 **부재**하다(`USER_FLOWS:623` 의 `중요 알림(지연 ·
+  미승차 · 노선 변경)` 을 규칙5 와 붙여 읽은 추론). 정본이 명시하면 **그 상수만** 고친다
+
 ### 병렬 좌석에 **`-PtestDbUrl` 을 반드시 준다** — 안 주면 전원이 같은 DB 를 밟는다
 
 `backend/build.gradle:189` 에 격리 옵션이 **이미 있고 주석이 용도까지 적어 두었다** — *"병렬 작업용 DB 격리 … 에이전트를 2개 이상 동시에 돌릴 때 서로의 행을 밟아 코드 결함처럼 보이는 환경 실패가 나는 것을 막는다."* 주지 않으면 기본값 `schoolbus` 다.

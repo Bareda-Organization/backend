@@ -186,18 +186,20 @@ class StaffNotificationControllerTest {
         StaffNotificationFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long staffAccountId = fixtures.staffAccount(academyId, "관계자");
-        // boarding 미확인 1건 + alighting 미확인 1건 + boarding 확인 1건 → 미확인 총 2건.
-        fixtures.sentNotification(academyId, NotificationType.BOARDING, "학생1", Role.PARENT, "승차", "01호차", now(),
+        // ⚠ 종류는 반드시 {@code NotificationType#IMPORTANT_FOR_ACK} 안에서 고른다 — 미확인 배지는
+        // 확인 추적 대상만 센다(Ruling 227). 승하차·도착으로 심으면 이 시험은 "배지가 0 이 되지 않는"
+        // 결함 쪽 동작을 기대값으로 굳히게 된다(실제로 그렇게 쓰여 있었다).
+        // delay 미확인 1건 + no_show 미확인 1건 + delay 확인 1건 → 미확인 총 2건.
+        fixtures.sentNotification(academyId, NotificationType.DELAY, "학생1", Role.PARENT, "지연", "01호차", now(),
                 now());
-        fixtures.sentNotification(academyId, NotificationType.ALIGHTING, "학생2", Role.PARENT, "하차", "01호차", now(),
+        fixtures.sentNotification(academyId, NotificationType.NO_SHOW, "학생2", Role.PARENT, "미승차", "01호차", now(),
                 now());
-        fixtures.ackedNotification(academyId, NotificationType.BOARDING, "학생3", Role.PARENT, "승차", "01호차", now(),
+        fixtures.ackedNotification(academyId, NotificationType.DELAY, "학생3", Role.PARENT, "지연", "01호차", now(),
                 now(), now());
 
-        // type=boarding 으로 좁히면 boarding 행 2건(미확인 1 + 확인 1)이 나오지만, unacked_count 는
-        // 그 페이지의 미확인 개수(1)가 아니라 학원 전체 미확인 개수(boarding 미확인 1 + alighting
-        // 미확인 1 = 2)여야 한다.
-        mockMvc.perform(get("/api/v1/staff/notifications").param("type", "boarding")
+        // type=delay 로 좁히면 delay 행 2건(미확인 1 + 확인 1)이 나오지만, unacked_count 는 그 페이지의
+        // 미확인 개수(1)가 아니라 학원 전체 미확인 개수(delay 미확인 1 + no_show 미확인 1 = 2)여야 한다.
+        mockMvc.perform(get("/api/v1/staff/notifications").param("type", "delay")
                 .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(2))
@@ -251,9 +253,11 @@ class StaffNotificationControllerTest {
         long academyId = fixtures.academy();
         long otherAcademyId = fixtures.academy();
         long staffAccountId = fixtures.staffAccount(academyId, "관계자");
-        long matching = fixtures.sentNotification(academyId, NotificationType.ARRIVE, "학생1", Role.PARENT, "도착",
+        // 배지 단언이 뜻을 가지려면 확인 추적 대상 종류여야 한다(Ruling 227) — 남의 학원 미확인 건이
+        // 이 학원 배지에 새지 않는 것까지 함께 검사한다.
+        long matching = fixtures.sentNotification(academyId, NotificationType.DELAY, "학생1", Role.PARENT, "지연",
                 "01호차", now(), now());
-        fixtures.sentNotification(otherAcademyId, NotificationType.ARRIVE, "학생2", Role.PARENT, "도착", "02호차", now(),
+        fixtures.sentNotification(otherAcademyId, NotificationType.DELAY, "학생2", Role.PARENT, "지연", "02호차", now(),
                 now());
 
         mockMvc.perform(get("/api/v1/staff/notifications")
