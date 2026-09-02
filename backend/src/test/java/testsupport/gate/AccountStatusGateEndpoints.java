@@ -64,6 +64,12 @@ public final class AccountStatusGateEndpoints {
      * <p>⚠ Phase 10 의 산출물 가운데 여기 오르는 것은 이 3개뿐이다 — STOMP 구독 채널은 HTTP 핸들러가
      * 아니라 {@code RequestMappingHandlerMapping} 에 잡히지 않고, 근접 알림은 스케줄러라 요청 진입점이
      * 부재하다. 개수가 기대만큼 안 늘었다고 누락으로 읽지 마라.
+     *
+     * <p>Phase 11 T1 이 3개를 더했다 — {@code POST /runs/{runId}/riders/{riderId}/no-show-contacts}
+     * (§4.8, 권한 "동승자")와 {@code GET}·{@code PATCH /staff/academy-settings}(§5.21, 권한 "학원
+     * 관계자") — 셋 다 승인된 계정의 기능이라 근거가 앞 Phase 들과 같다({@code Permissions} 카탈로그
+     * 미매핑이라 서비스 계층이 직접 판정하는 것과는 별개 축 — 이 게이트는 그 판정보다 먼저 도는
+     * 계정 상태 확인이라 권한 판정 방식과 무관하다).
      */
     public static final List<String> DENIED_WHEN_REJECTED = List.of(
             "POST /auth/password",
@@ -143,7 +149,12 @@ public final class AccountStatusGateEndpoints {
             // (§3.11 LOC-02 · §3.10 LOC-03) 2개.
             "POST /runs/{runId}/position",
             "GET /students/{id}/bus-position",
-            "GET /students/{id}/route");
+            "GET /students/{id}/route",
+            // Phase 11 T1 — 미승차 연락 이력 등록(§4.8) 동승자 기능 1개 + 학원 설정 조회·수정(§5.21)
+            // 관계자 관리 화면 2개.
+            "POST /runs/{runId}/riders/{riderId}/no-show-contacts",
+            "GET /staff/academy-settings",
+            "PATCH /staff/academy-settings");
 
     /** {@code pending} 의 거부측 — {@code rejected} 거부측에 재신청 1개를 더한다({@code @AllowedWhenRejected} 는 pending 을 열지 않는다). */
     public static final List<String> DENIED_WHEN_PENDING = concat(DENIED_WHEN_REJECTED, "POST /auth/signup/reapply");

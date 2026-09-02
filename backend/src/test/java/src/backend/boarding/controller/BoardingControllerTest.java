@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -31,7 +32,9 @@ import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+import src.backend.academy.entity.AcademySetting;
 import src.backend.academy.repository.AcademyRepository;
+import src.backend.academy.repository.AcademySettingRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.command.BoardingCommandFixtures;
@@ -86,6 +89,9 @@ class BoardingControllerTest {
 
     @Autowired
     private AcademyRepository academyRepository;
+
+    @Autowired
+    private AcademySettingRepository academySettingRepository;
 
     @Autowired
     private BusRepository busRepository;
@@ -237,6 +243,94 @@ class BoardingControllerTest {
                         + "ORDER BY recipient_role",
                 String.class, guardian.accountId(), staffAccountId);
         assertThat(recipientRoles).as("③알림 2행(학부모·관계자)").containsExactlyInAnyOrder("parent", "staff");
+    }
+
+    // ── Phase 11 목표 2 — 학원별 미승차 대기 시간(EXC-01, API_SPEC §5.21)이 실제로 적용된다 ──
+
+    /**
+     * 두 학원에 서로 다른 {@code no_show_wait_minutes} 를 설정하고 각각 no_show 처리하면, 케이스의
+     * 만료 시각이 자기 학원 값만 반영해야 한다 — 한 값(예: 기본 3분)만 검사하면 상수를 그대로 쓰는
+     * 결함도 우연히 통과하므로, 서로 다른 두 값을 함께 확인해 "학원별로 실제로 갈린다"를 검증한다.
+     */
+    @Test
+    @DisplayName("Phase11 목표2 — 학원마다 다른 대기 시간을 설정하면 no_show 만료 시각에 각자 값이 그대로 반영된다")
+    void 학원별_미승차_대기_시간이_다르면_만료_시각도_각자_다르게_반영된다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+
+        long academyA = fixtures().academy();
+        AcademySetting settingA = academySettingRepository.save(AcademySetting.forAcademy(academyA));
+        settingA.changeNoShowWaitMinutes(7);
+        // fixtures().movingRun() 이 내부에서 entityManager.clear() 를 호출한다(BoardingCommandFixtures
+        // 자바독 참고) — 그 전에 flush 해 두지 않으면 위 mutation 이 영속성 컨텍스트에서 통째로
+        // 사라져 academy_setting 행 자체가 커밋되지 않는다(실측: 없이 돌리면 3분(기본값)으로 나온다).
+        entityManager.flush();
+        long busA = fixtures().bus(academyA);
+        long stopA = fixtures().stop(academyA, "37.530000", "127.030000");
+        long studentA = fixtures().student(academyA, "학생9-A");
+        long runA = fixtures().movingRun(academyA, busA, now.minusMinutes(10), now.minusMinutes(40));
+        long riderA = fixtures().runRider(runA, studentA, stopA);
+        long escortA = fixtures().escortAccount(academyA);
+
+        long academyB = fixtures().academy();
+        AcademySetting settingB = academySettingRepository.save(AcademySetting.forAcademy(academyB));
+        settingB.changeNoShowWaitMinutes(12);
+        entityManager.flush();
+        long busB = fixtures().bus(academyB);
+        long stopB = fixtures().stop(academyB, "37.540000", "127.040000");
+        long studentB = fixtures().student(academyB, "학생9-B");
+        long runB = fixtures().movingRun(academyB, busB, now.minusMinutes(10), now.minusMinutes(40));
+        long riderB = fixtures().runRider(runB, studentB, stopB);
+        long escortB = fixtures().escortAccount(academyB);
+
+        entityManager.flush();
+
+        mockMvc.perform(patch(UPDATE_STATUS.formatted(runA, riderA))
+                        .header("Authorization", 토큰(escortA, academyA, Role.ESCORT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(statusUpdateBody("no_show", "manual", UUID.randomUUID(), now)))
+                .andExpect(status().isOk());
+        mockMvc.perform(patch(UPDATE_STATUS.formatted(runB, riderB))
+                        .header("Authorization", 토큰(escortB, academyB, Role.ESCORT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(statusUpdateBody("no_show", "manual", UUID.randomUUID(), now)))
+                .andExpect(status().isOk());
+
+        entityManager.flush();
+        assertThat(대기_분(riderA)).as("①A학원 7분 설정이 그대로 반영").isEqualTo(7);
+        assertThat(대기_분(riderB)).as("②B학원 12분 설정이 그대로 반영 — A 값과 섞이지 않는다").isEqualTo(12);
+    }
+
+    /** 학원 설정 행이 아예 없으면 {@link AcademySetting#DEFAULT_NO_SHOW_WAIT_MINUTES}(3분)로 떨어진다. */
+    @Test
+    @DisplayName("Phase11 목표2 — 학원 설정 행이 없으면 기본 대기 시간(3분)이 적용된다")
+    void 학원_설정이_없으면_기본_3분이_적용된다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        assertThat(academySettingRepository.findById(academyId)).as("설정 행을 만들지 않았다").isEmpty();
+        long busId = fixtures().bus(academyId);
+        long stopId = fixtures().stop(academyId, "37.550000", "127.050000");
+        long studentId = fixtures().student(academyId, "학생9-기본값");
+        long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
+        long riderId = fixtures().runRider(runId, studentId, stopId);
+        long escortAccountId = fixtures().escortAccount(academyId);
+
+        mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId))
+                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(statusUpdateBody("no_show", "manual", UUID.randomUUID(), now)))
+                .andExpect(status().isOk());
+
+        entityManager.flush();
+        assertThat(대기_분(riderId)).isEqualTo(AcademySetting.DEFAULT_NO_SHOW_WAIT_MINUTES);
+    }
+
+    /** {@code no_show_case.started_at} ~ {@code expires_at} 간격(분) — 목표2 검증에 공용으로 쓴다. */
+    private long 대기_분(long runRiderId) {
+        OffsetDateTime startedAt = jdbcTemplate.queryForObject(
+                "SELECT started_at FROM no_show_case WHERE run_rider_id = ?", OffsetDateTime.class, runRiderId);
+        OffsetDateTime expiresAt = jdbcTemplate.queryForObject(
+                "SELECT expires_at FROM no_show_case WHERE run_rider_id = ?", OffsetDateTime.class, runRiderId);
+        return Duration.between(startedAt, expiresAt).toMinutes();
     }
 
     // ── 목표 7 — 운행 중 미승차로 잔여 0명이 된 정차지는 stop_skipped (C-05 후자 경로) ──────

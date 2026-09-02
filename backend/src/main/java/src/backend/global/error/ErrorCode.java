@@ -262,6 +262,10 @@ public enum ErrorCode {
     // 그 회차의 남은 승하차지가 없을 때(skipped·도착 완료 제외 후 0건) — 200 에 빈 배열을 주지 않는다.
     // 빈 배열을 주면 앱이 목적지 없이 내비를 띄운다(API_SPEC §4.16).
     NAV_NO_REMAINING_STOP(HttpStatus.CONFLICT, "안내할 남은 승하차지가 없습니다"),
+    // ── 미승차 에스컬레이션 · 학원 설정(Phase 11, EXC-01) ─────────────────────
+    // no_show 로 처리되지 않은 탑승자에 연락 기록을 시도할 때(API_SPEC §4.8) — 그 탑승자에 대해
+    // NoShowCase 가 없다는 뜻. RIDER_NOT_FOUND(탑승자 자체 부재)와는 다른 자리다.
+    NO_SHOW_CASE_NOT_FOUND(HttpStatus.NOT_FOUND, "미승차 처리된 탑승자가 아닙니다"),
 
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다");
 

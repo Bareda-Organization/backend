@@ -10,6 +10,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import src.backend.global.common.BaseTimeEntity;
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
 
 /**
  * 학원별 임계값 — 정책 상수 중 유일하게 "학원별 설정"으로 규정된 미승차 대기 시간을 담는다.
@@ -47,5 +49,18 @@ public class AcademySetting extends BaseTimeEntity {
     /** 학원 등록과 같은 트랜잭션에서 기본 대기 시간({@value #DEFAULT_NO_SHOW_WAIT_MINUTES}분)으로 생성한다. */
     public static AcademySetting forAcademy(Long academyId) {
         return new AcademySetting(academyId, DEFAULT_NO_SHOW_WAIT_MINUTES);
+    }
+
+    /**
+     * 미승차 대기 시간(분)을 학원 담당자가 바꾼다(Phase 11 목표 4, API_SPEC §5.21
+     * {@code PATCH /staff/academy-settings}). 상한은 스펙·DB CHECK 어디에도 없고
+     * {@code CHECK (no_show_wait_minutes > 0)} 만 실재해(V1__init_schema.sql) 하한만 여기서 재확인한다
+     * — DB 제약이 최후 방어선이고 이 메서드는 그보다 먼저 422 로 끊어 사용자에게 원인을 알리는 자리다.
+     */
+    public void changeNoShowWaitMinutes(int noShowWaitMinutes) {
+        if (noShowWaitMinutes <= 0) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "no_show_wait_minutes 는 1 이상이어야 합니다");
+        }
+        this.noShowWaitMinutes = noShowWaitMinutes;
     }
 }

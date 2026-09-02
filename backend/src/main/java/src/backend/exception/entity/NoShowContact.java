@@ -51,17 +51,24 @@ public class NoShowContact {
     private Long attemptedBy;
 
     private NoShowContact(Long noShowCaseId, ContactAttemptType attemptType, ContactResult result,
-            Long attemptedBy, OffsetDateTime attemptedAt) {
+            NoShowDecision decision, Long attemptedBy, OffsetDateTime attemptedAt) {
         this.noShowCaseId = noShowCaseId;
         this.attemptType = attemptType;
         this.result = result;
+        this.decision = decision;
         this.attemptedBy = attemptedBy;
         this.attemptedAt = attemptedAt;
     }
 
-    /** 연락 시도 1회가 끝났을 때 결과 행을 만든다 — 카운트다운 중단 판정({@code decision})은 도메인 Phase 담당. */
+    /**
+     * 연락 시도 1회가 끝났을 때 결과 행을 만든다(Phase 11 목표 3, API_SPEC §4.8) — {@code decision} 은
+     * 요청 본문의 선택 필드를 그대로 받아 이 행 하나에 함께 남긴다({@code no_show_contact.decision}).
+     * 그 값이 {@link NoShowCase} 의 카운트다운을 실제로 멈추는지는 이 팩토리가 아니라 호출부
+     * ({@code NoShowContactCommandService})가 {@link NoShowCase#resolveByAnswer}·{@link NoShowCase#decide}
+     * 로 판단한다 — 이 엔티티는 시도 이력을 남기는 것만 책임진다.
+     */
     public static NoShowContact forAttempt(Long noShowCaseId, ContactAttemptType attemptType,
-            ContactResult result, Long attemptedBy, OffsetDateTime attemptedAt) {
-        return new NoShowContact(noShowCaseId, attemptType, result, attemptedBy, attemptedAt);
+            ContactResult result, NoShowDecision decision, Long attemptedBy, OffsetDateTime attemptedAt) {
+        return new NoShowContact(noShowCaseId, attemptType, result, decision, attemptedBy, attemptedAt);
     }
 }
