@@ -1,4 +1,4 @@
-package src.backend.exception.command;
+package src.backend.notification.command;
 
 import java.util.List;
 
@@ -15,8 +15,6 @@ import src.backend.exception.event.EmergencyCanceledEvent;
 import src.backend.exception.event.EmergencyRaisedEvent;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
-import src.backend.notification.command.NotificationDraft;
-import src.backend.notification.command.NotificationOutbox;
 import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.notification.entity.NotificationType;
@@ -26,17 +24,13 @@ import src.backend.notification.entity.NotificationType;
  * (EXC-04, Phase 11 T2 목표 6·9 — 수신자는 학원 관계자 전원 + 메인관리자 전원, 알림 설정과 무관하게
  * 항상 발송).
  *
- * <p>이 클래스는 관례상 {@code notification.command} 패키지에 두는 다른 리스너들
- * ({@link src.backend.notification.command.RunStartedNotificationListener} 등)과 다르게
- * {@code exception.command} 에 둔다 — 이 태스크의 소유 경로가 {@code notification/domain/impl}
- * (컴포저)까지이고 {@code notification/command} 는 포함하지 않아, 다른 좌석이 동시에 건드릴 수
- * 있는 공용 패키지에 새 파일을 얹지 않기 위한 판단이다. {@link NotificationOutbox}·
- * {@link NotificationDraft}·{@link NotificationComposer} 는 전부 공개 API 라 이 패키지에서도
- * 그대로 재사용할 수 있다.
+ * <p>다른 리스너들({@link RunStartedNotificationListener} 등)과 같은 위치({@code
+ * notification.command})에 둔다 — 발행측 모듈(exception)이 구독측(notification) 패키지를 직접
+ * 참조하면 모듈 경계가 역방향으로 뚫린다({@code NotificationModuleIsolationTest}).
  *
- * <p>{@code @EventListener} 인 이유는 {@link src.backend.notification.command.RunStartedNotificationListener}
- * 와 같다 — 이 이벤트는 신고 접수·취소 커맨드 서비스가 이미 연 트랜잭션 안에서 발행되고, 그
- * 트랜잭션이 롤백되면 이 리스너가 적재한 행도 함께 롤백된다.
+ * <p>{@code @EventListener} 인 이유는 {@link RunStartedNotificationListener} 와 같다 — 이 이벤트는
+ * 신고 접수·취소 커맨드 서비스가 이미 연 트랜잭션 안에서 발행되고, 그 트랜잭션이 롤백되면 이
+ * 리스너가 적재한 행도 함께 롤백된다.
  */
 @Component
 @RequiredArgsConstructor

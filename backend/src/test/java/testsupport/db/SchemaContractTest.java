@@ -27,7 +27,12 @@ import org.junit.jupiter.api.Test;
  */
 class SchemaContractTest extends MigratedPostgresTestBase {
 
-    /** ERD §3 이 정의한 40개 테이블 전수(Phase 8 신설 run_forced_addition 포함). Flyway 자신의 이력 테이블은 대조 대상 밖이다. */
+    /**
+     * ERD §3 이 정의한 40개 테이블 전수(Phase 8 신설 run_forced_addition 포함) + {@code shedlock} 1개
+     * (Phase 11, V4) = 41개. {@code shedlock} 은 도메인 테이블이 아니라 ShedLock 라이브러리가 요구하는
+     * 스키마 그대로라 {@code docs/ERD.md} 에는 싣지 않는다 — 그래도 이 대조에서 빠지면 오타난 인프라
+     * 테이블 이름도 40개만 채우면 통과하게 되므로 함께 센다. Flyway 자신의 이력 테이블은 대조 대상 밖이다.
+     */
     private static final List<String> ERD_TABLES = List.of(
             // ① 학원 · 계정 · 권한 (7)
             "academy", "academy_setting", "account", "signup_request",
@@ -42,7 +47,9 @@ class SchemaContractTest extends MigratedPostgresTestBase {
             // ④ 요청 · 예외 · 알림 · 이력 (12)
             "boarding_intent", "change_request", "rider_status_history", "no_show_case",
             "no_show_contact", "emergency_alert", "exception_report", "run_position",
-            "notification_log", "device_token", "notification_setting", "audit_log");
+            "notification_log", "device_token", "notification_setting", "audit_log",
+            // ⑤ 라이브러리 인프라 (1, ERD 문서 밖)
+            "shedlock");
 
     /** 계정 연결이 승인 시점에 일어나 그 전에는 NULL 인 레코드 3종 (AUTH-11). */
     private static final List<String> ACCOUNT_LINKED_TABLES = List.of("student", "guardian", "manager");
@@ -154,16 +161,27 @@ class SchemaContractTest extends MigratedPostgresTestBase {
                 execute(connection, 정차_항목_INSERT(connection, "stop_id, waypoint_id", "NULL, NULL")));
     }
 
+    /**
+     * {@code shedlock} 은 예외다 — ShedLock 의 {@code JdbcTemplateLockProvider}(.usingDbTime())가
+     * {@code timezone('utc', CURRENT_TIMESTAMP)} 로 "지금"을 SQL 서버 쪽에서만 계산한다
+     * (shedlock-provider-jdbc-template 6.9.2, {@code PostgresSqlServerTimeStatementsSource}).
+     * 그 식은 무시간대 {@code timestamp} 값을 낸다 — 컬럼이 {@code timestamptz} 였다면 그 값을 다시
+     * {@code timestamptz} 로 암묵 변환하면서 <b>세션 타임존</b>으로 재해석해, PROJECT_NOTES 가 이미
+     * 기록한 KST 편차 버그를 프로덕션에 새로 만든다. 그래서 이 테이블만은 라이브러리 기본 스키마
+     * (무시간대 {@code TIMESTAMP(3)})를 그대로 둔다.
+     */
     @Test
     void V1_이_만든_시각_컬럼에는_오프셋_없는_타입이_하나도_없다() throws SQLException {
         List<String> offsetless = queryColumn("""
                 SELECT table_name || '.' || column_name FROM information_schema.columns
                 WHERE table_schema = 'public' AND data_type = 'timestamp without time zone'
                   AND table_name <> 'flyway_schema_history'
+                  AND table_name <> 'shedlock'
                 """);
 
         assertThat(offsetless)
-                .as("오프셋을 버리면 시각 비교 결과만 틀리고 예외는 발생하지 않는다 — 전 컬럼이 timestamptz 여야 한다")
+                .as("오프셋을 버리면 시각 비교 결과만 틀리고 예외는 발생하지 않는다 — 전 컬럼이 timestamptz 여야 한다 "
+                        + "(shedlock 은 라이브러리 시간 계산과의 충돌 때문에 예외, 클래스 자바독 참고)")
                 .isEmpty();
     }
 
