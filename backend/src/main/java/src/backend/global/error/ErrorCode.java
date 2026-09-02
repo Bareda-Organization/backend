@@ -277,6 +277,11 @@ public enum ErrorCode {
     // 이미 확인(acked) 처리된 신고에 재확인 시도 — APPROVAL_ALREADY_DECIDED 와 같은 형태.
     ALREADY_ACKED(HttpStatus.CONFLICT, "이미 확인 처리된 신고입니다"),
 
+    // ── 현장 예외 보고(Phase 11, EXC-02·03) ────────────────────────────────────
+    // 예외 보고 상세 지정(API_SPEC §5.20) — 미존재·다른 학원 소속 둘 다 이 코드다(WAYPOINT_NOT_FOUND 와
+    // 같은 형태, 존재 여부를 응답에서 드러내지 않는다).
+    REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "보고를 찾을 수 없습니다"),
+
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다");
 
     private final HttpStatus status;

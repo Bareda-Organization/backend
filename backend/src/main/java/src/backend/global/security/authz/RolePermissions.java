@@ -32,7 +32,10 @@ public final class RolePermissions {
     private RolePermissions() {
     }
 
-    /** 역할별 부여 줄 57개(FEATURE_SPEC §6.2 권한 31종을 보유 역할 수만큼 반복한 합계). */
+    /**
+     * 역할별 부여 줄 58개(FEATURE_SPEC §6.2 권한 32종을 보유 역할 수만큼 반복한 합계, 2026-09-01
+     * 기준). {@code EXCEPTION_REPORT_READ}(Phase 11 신설, 관계자 전용)가 더해져 57 → 58 로 늘었다.
+     */
     public static final String HIERARCHY =
             // 학부모 — 자녀 기본 정보를 보고, 탑승 의사·변경을 신청하고, 알림·단말을 설정한다
             grant(Role.PARENT,
@@ -92,6 +95,7 @@ public final class RolePermissions {
                     Permissions.SCHEDULE_MANAGE,
                     Permissions.MONITOR_ACADEMY,
                     Permissions.NOTIFICATION_LOG_READ,
+                    Permissions.EXCEPTION_REPORT_READ,
                     Permissions.DEVICE_REGISTER)
 
             // 메인 관리자 — 전 학원 관제·감사와 플랫폼 운영(학원 CRUD·관계자 승인·차단 해제). 학원 관계자의 11개를

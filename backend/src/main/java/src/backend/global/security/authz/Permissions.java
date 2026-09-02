@@ -3,10 +3,12 @@ package src.backend.global.security.authz;
 /**
  * 인가 권한(permission) 문자열 상수 — FEATURE_SPEC §6.2 권한 카탈로그를 그대로 옮긴다.
  *
- * <p>브리프는 27종이라 적었으나 §6.2 표를 직접 세면 31종이다 — {@code RUN_START}·{@code RUN_ARRIVE},
- * {@code MANAGER_MANAGE}·{@code BUS_MANAGE}·{@code SCHEDULE_MANAGE} 처럼 한 표 행에 권한 이름이
- * 여럿인 행이 있어서다. §6.2 자체가 "표를 직접 세어 확인하라"고 명시하므로 이 클래스(와 표)가
- * 정본이고, 브리프의 27은 옮겨 적다 생긴 오차다(2026-08-25 확인, p2-task-1-report.md 참조).
+ * <p>브리프는 27종이라 적었으나 §6.2 표를 직접 세면 32종이다(2026-09-01 기준) — {@code RUN_START}·
+ * {@code RUN_ARRIVE}, {@code MANAGER_MANAGE}·{@code BUS_MANAGE}·{@code SCHEDULE_MANAGE} 처럼 한
+ * 표 행에 권한 이름이 여럿인 행이 있어서다. §6.2 자체가 "표를 직접 세어 확인하라"고 명시하므로 이
+ * 클래스(와 표)가 정본이고, 브리프의 27은 옮겨 적다 생긴 오차다(2026-08-25 확인, p2-task-1-report.md
+ * 참조). {@code EXCEPTION_REPORT_READ} 는 Phase 11 이 §6.2 표에 신설했다 — §6.1 매트릭스는 관계자의
+ * 예외 보고 조회를 이미 "조회"로 표기했으나 §6.2 권한 카탈로그에 대응 상수가 누락돼 있었다.
  *
  * <p>이름은 §6.2 표기를 그대로 쓴다 — 표와 코드 사이에 별도 변환 규칙(콜론 표기 등)을 두면
  * 대조가 사람이 손으로 하는 일이 된다. {@link RolePermissions} 의 부여표와 컨트롤러 메타
@@ -65,6 +67,9 @@ public final class Permissions {
 
     /** 보호자 부재 · 현장 상황 보고(EXC-02·03). 기사 · 동승자. */
     public static final String EXCEPTION_REPORT = "EXCEPTION_REPORT";
+
+    /** 예외 보고 조회(§5.20, Phase 11 신설). 관계자. */
+    public static final String EXCEPTION_REPORT_READ = "EXCEPTION_REPORT_READ";
 
     // ── 노선 ──
 

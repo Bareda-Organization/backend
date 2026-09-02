@@ -6,6 +6,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Locale;
 
+import src.backend.exception.entity.ExceptionReportType;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
@@ -40,6 +41,15 @@ public final class ApiValues {
     /** {@code to_academy}·{@code from_academy}(§9.7) 를 {@link Direction} 으로 옮긴다. */
     public static Direction direction(String raw) {
         return toEnum(Direction.class, raw, "등하원 방향이 아닙니다: ");
+    }
+
+    /**
+     * {@code guardian_absent}·{@code road_block}·{@code vehicle_issue}·{@code etc}(§9.8 {@code
+     * report_type}) 를 {@link ExceptionReportType} 으로 옮긴다(Phase 11 신설, §4.13 요청 · §5.20
+     * 쿼리 필터 둘 다 이 메서드를 쓴다).
+     */
+    public static ExceptionReportType reportType(String raw) {
+        return toEnum(ExceptionReportType.class, raw, "예외 보고 종류가 아닙니다: ");
     }
 
     /** {@code HH:mm} 을 {@link LocalTime} 으로 옮긴다 — 날짜가 없는 시각이다. */

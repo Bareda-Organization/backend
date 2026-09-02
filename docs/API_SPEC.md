@@ -2166,6 +2166,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `route_changed` | 확정 후 노선 변경 (RUN-07) | 기사 · 동승자 | — |
 | `assignment_changed` | 당일 배치 변경 (MGR-05) | 해당 매니저 | — |
 | `no_show_escalated` | 미승차 3분 경과·무응답 (EXC-01) | 관계자 | — |
+| `exception_reported` | `POST /runs/{runId}/reports` 접수 (EXC-02·03, §4.13) | 관계자 | — |
 | `emergency` | 매니저 앱 비상 발신 (EXC-04) | **관계자 + 메인 관리자** | **부재 — 항상 발송** (C-17) |
 | `emergency_canceled` | 비상 발신 1분 이내 취소 | 위와 동일 | 부재 |
 

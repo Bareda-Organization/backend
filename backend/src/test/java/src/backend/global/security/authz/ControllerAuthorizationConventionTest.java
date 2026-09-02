@@ -64,12 +64,20 @@ class ControllerAuthorizationConventionTest {
      * 같은 자리에 모은다. 컨트롤러 애너테이션으로 중복 표현하면 두 벌이 되어 한쪽만 고쳐지는 사고가
      * 난다. ⚠ 이 항목은 병합 후 전체 실행에서야 드러났다 — 좌석 단독 실행에서는 이 규약 시험이
      * 함께 돌지 않아 조용히 빠졌다.
+     *
+     * <p><b>Phase 11 T3 — {@code RunReportController} 의 {@code report} 1개.</b> 근거:
+     * {@code ExceptionReportCommandService#report} 의 <b>첫 줄</b>이 {@code
+     * runAssignmentAccess.assertAssignedDriverOrEscort(requester, runId)} 를 호출한다 — 위
+     * {@code DriverRunController} 3개와 <b>완전히 같은 인가 규칙</b>(그 회차에 배치된 기사·동승자만)
+     * 이라 같은 자리에 모은다. {@code RunReportController} 자체의 클래스 자바독에도 같은 설계가
+     * 적혀 있다.
      */
     private static final List<String> METHOD_LEVEL_EXEMPT = List.of(
             "DriverRunController.java#start",
             "DriverRunController.java#arrive",
             "DriverRunController.java#ackChanges",
-            "DriverPositionController.java#receive");
+            "DriverPositionController.java#receive",
+            "RunReportController.java#report");
 
     /** 인가 자체가 아직 없는 permitAll 경로(로그인·회원가입·토큰 재발급 등)를 담는 파일명 목록. */
     private static final List<String> EXEMPT_FILES = List.of();

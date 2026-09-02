@@ -3,10 +3,16 @@ package src.backend.global.common.enums;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
-import java.io.InputStream;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -51,44 +57,68 @@ import src.backend.student.entity.Gender;
 import src.backend.student.entity.LinkRequestStatus;
 
 /**
- * enum 31종의 DB 값 집합이 {@code V1__init_schema.sql} 의 값 목록형 CHECK 39건과 정확히
- * 일치하는지 회귀 감시한다 — {@code ddl-auto: validate} 는 CHECK 를 전혀 보지 않으므로
- * (`IMPLEMENTATION_PLAN` 603행), 이 대조가 없으면 오늘 맞는 값이 내일 상수 하나만 고쳐도
- * 어디서도 실패하지 않는다.
+ * enum 31종의 DB 값 집합이 마이그레이션 전체({@code V1__init_schema.sql} 기준 값 목록형 CHECK
+ * 39건 + 이후 파일이 같은 이름으로 재정의한 것)와 정확히 일치하는지 회귀 감시한다 —
+ * {@code ddl-auto: validate} 는 CHECK 를 전혀 보지 않으므로(`IMPLEMENTATION_PLAN` 603행), 이
+ * 대조가 없으면 오늘 맞는 값이 내일 상수 하나만 고쳐도 어디서도 실패하지 않는다.
  *
  * <p>{@code ChangeType} 처럼 CHECK 2개가 서로 다른 부분집합을 쓰는 경우는 두 CHECK 값의
  * 합집합과 비교한다 — Java 는 하나의 enum 만 두므로 "합쳐서 정확히 일치"가 우리가 확인할 수
  * 있는 전부이고, 부분집합 강제 자체는 여전히 DB CHECK 가 전담한다.
+ *
+ * <p>Postgres 는 CHECK 에 값을 덧붙일 수 없어 나중 값 목록은 {@code DROP CONSTRAINT} 뒤 같은
+ * 이름으로 다시 {@code ADD CONSTRAINT} 하는 형태로 온다({@code V5__add_exception_reported_
+ * notification_type.sql} 이 {@code ck_notification_log_type} 을 이렇게 재정의). V1 만 보면
+ * 그 재정의는 반영되지 않으므로, 버전 오름차순으로 전 파일을 읽어 같은 제약 이름은 <b>나중
+ * 파일의 정의로 덮어쓴다</b> — "지금 실제로 유효한 CHECK" 를 반영하기 위함이다.
  */
 class EnumCheckConstraintParityTest {
 
     private static final Pattern CHECK_PATTERN =
             Pattern.compile("CONSTRAINT\\s+(\\w+)\\s+CHECK\\s*\\(\\s*\\w+\\s+IN\\s*\\(([^)]*)\\)\\)");
+    private static final Pattern MIGRATION_FILE_PATTERN = Pattern.compile("V(\\d+)__.*\\.sql");
 
     private static Map<String, Set<String>> checkValuesByConstraintName;
 
     @BeforeAll
-    static void V1_스키마에서_값_목록형_CHECK_를_전부_파싱한다() throws IOException {
+    static void 마이그레이션_전체에서_값_목록형_CHECK_를_전부_파싱한다() throws IOException, URISyntaxException {
         checkValuesByConstraintName = parseValueListChecks();
     }
 
-    private static Map<String, Set<String>> parseValueListChecks() throws IOException {
-        String sql;
-        try (InputStream in = EnumCheckConstraintParityTest.class
-                .getResourceAsStream("/db/migration/V1__init_schema.sql")) {
-            sql = new String(Objects.requireNonNull(in).readAllBytes(), StandardCharsets.UTF_8);
-        }
+    private static Map<String, Set<String>> parseValueListChecks() throws IOException, URISyntaxException {
         Map<String, Set<String>> result = new HashMap<>();
-        Matcher matcher = CHECK_PATTERN.matcher(sql);
-        while (matcher.find()) {
-            String constraintName = matcher.group(1);
-            Set<String> values = Arrays.stream(matcher.group(2).split(","))
-                    .map(token -> token.replaceAll("[\\s']", ""))
-                    .filter(token -> !token.isBlank())
-                    .collect(Collectors.toSet());
-            result.put(constraintName, values);
+        for (Path migrationFile : migrationFilesInVersionOrder()) {
+            String sql = Files.readString(migrationFile, StandardCharsets.UTF_8);
+            Matcher matcher = CHECK_PATTERN.matcher(sql);
+            while (matcher.find()) {
+                String constraintName = matcher.group(1);
+                Set<String> values = Arrays.stream(matcher.group(2).split(","))
+                        .map(token -> token.replaceAll("[\\s']", ""))
+                        .filter(token -> !token.isBlank())
+                        .collect(Collectors.toSet());
+                result.put(constraintName, values);
+            }
         }
         return result;
+    }
+
+    /** {@code /db/migration} 아래 {@code V<번호>__*.sql} 을 번호 오름차순으로 반환한다. */
+    private static List<Path> migrationFilesInVersionOrder() throws URISyntaxException, IOException {
+        URL dirUrl = EnumCheckConstraintParityTest.class.getResource("/db/migration");
+        Path dir = Paths.get(Objects.requireNonNull(dirUrl).toURI());
+        try (Stream<Path> files = Files.list(dir)) {
+            return files.filter(path -> MIGRATION_FILE_PATTERN.matcher(path.getFileName().toString()).matches())
+                    .sorted(Comparator.comparingInt(EnumCheckConstraintParityTest::migrationVersion))
+                    .toList();
+        }
+    }
+
+    private static int migrationVersion(Path path) {
+        Matcher matcher = MIGRATION_FILE_PATTERN.matcher(path.getFileName().toString());
+        if (!matcher.matches()) {
+            throw new IllegalStateException("마이그레이션 파일명 형식이 아니다: " + path);
+        }
+        return Integer.parseInt(matcher.group(1));
     }
 
     private static <E extends Enum<E>> Set<String> dbValuesOf(Class<E> enumType, AttributeConverter<E, String> db) {
