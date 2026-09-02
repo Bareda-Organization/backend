@@ -221,4 +221,47 @@ class NoShowEscalationSchedulerTest {
         assertThat(badCase.getEscalatedAt()).as("알림 적재 실패로 이 건의 트랜잭션(조건부 UPDATE 포함)은 롤백돼야 한다")
                 .isNull();
     }
+
+    /**
+     * Phase 11 T1 fix1 §2 — {@code findDueForEscalation} 의 {@code escalatedAt IS NULL} 필터가
+     * 없어도 뒤쪽 조건부 UPDATE 가 정합성은 지키지만, 그 필터 자체의 목적(배치 상한 보호)은 이
+     * 시험 이전엔 검증되지 않았다(리뷰 3회차 변형이 살아남음). 이미 처리된 케이스를 배치 상한만큼
+     * 쌓아 두고, 그보다 늦게 만료된 새 케이스가 같은 틱에서 밀리지 않는지로 그 필터의 존재 이유를
+     * 직접 확인한다.
+     */
+    @Test
+    @DisplayName("목표1 — 이미 처리된 케이스가 배치 상한만큼 쌓여 있어도 새로 만료된 케이스는 이번 틱에서 밀리지 않는다")
+    void 이미_처리된_케이스가_배치를_채워도_새_케이스는_밀리지_않는다() {
+        long academyId = fixtures.academy();
+        fixtures.staffAccount(academyId);
+        long busId = fixtures.bus(academyId);
+        long stopId = fixtures.stop(academyId);
+
+        // 배치 상한(NoShowEscalationScheduler.BATCH_SIZE)만큼 "이미 처리된" 케이스를 만든다 —
+        // expires_at 을 아주 오래전으로 둬서 ORDER BY expires_at ASC 정렬에서 항상 앞선다.
+        for (int i = 0; i < NoShowEscalationScheduler.BATCH_SIZE; i++) {
+            long studentId = fixtures.student(academyId, "이미처리" + i);
+            // uk_run_bus_date_direction_depart(bus_id, service_date, direction, depart_time) 유니크라
+            // 회차마다 depart_time 을 달리한다.
+            long runId = fixtures.run(academyId, busId, now.plusHours(2).plusMinutes(i));
+            long riderId = fixtures.runRider(runId, studentId, stopId);
+            long caseId = fixtures.noShowCase(riderId, now.minusDays(1), now.minusDays(1));
+            jdbcTemplate.update("UPDATE no_show_case SET escalated_at = ? WHERE id = ?", now.minusHours(12), caseId);
+        }
+
+        // 방금 만료됐고 아직 처리되지 않은 케이스 — expires_at 이 위 오래된 것들보다 나중이라
+        // 필터 없이 정렬 + LIMIT 만 걸면 앞선 행들에 밀려 이번 틱에서 빠질 수 있다.
+        long dueStudentId = fixtures.student(academyId, "새로만료");
+        long dueRunId = fixtures.run(academyId, busId, now.plusHours(3));
+        long dueRiderId = fixtures.runRider(dueRunId, dueStudentId, stopId);
+        long dueCaseId = fixtures.noShowCase(dueRiderId, now.minusMinutes(10), now.minusMinutes(1));
+
+        scheduler.escalateDueNoShowCases();
+
+        NoShowCase due = noShowCaseRepository.findById(dueCaseId).orElseThrow();
+        assertThat(due.getEscalatedAt())
+                .as("이미 처리된 케이스가 배치 상한(" + NoShowEscalationScheduler.BATCH_SIZE + "건)을 채워도, "
+                        + "폴링 필터가 그것들을 조회에서 제외해야 새 케이스가 이번 틱에서 밀리지 않는다")
+                .isNotNull();
+    }
 }
