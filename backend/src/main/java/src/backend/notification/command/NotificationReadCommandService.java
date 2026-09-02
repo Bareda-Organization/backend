@@ -43,8 +43,12 @@ import src.backend.notification.repository.NotificationLogRepository;
 public class NotificationReadCommandService {
 
     /** NTF-10 이 추적하는 중요 통지 3종(USER_FLOWS §10.2 규칙4·5) — 이 3종만 {@link NotificationLog#ack} 를 함께 부른다. */
-    private static final Set<NotificationType> IMPORTANT_TYPES =
-            Set.of(NotificationType.DELAY, NotificationType.NO_SHOW, NotificationType.ROUTE_CHANGED);
+    /**
+     * 🔴 <b>세는 쪽과 공유한다</b> — {@link NotificationType#IMPORTANT_FOR_ACK} 하나만 본다.
+     * 여기에 따로 목록을 두면 미확인 배지({@code GET /staff/notifications})와 어긋나고,
+     * 어긋나도 양쪽 시험이 각자 통과해 아무 데서도 안 잡힌다(Ruling 227).
+     */
+    private static final Set<NotificationType> IMPORTANT_TYPES = NotificationType.IMPORTANT_FOR_ACK;
 
     private final NotificationLogRepository notificationLogRepository;
 

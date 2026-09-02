@@ -75,7 +75,8 @@ public class StaffNotificationQueryService {
                 PageRequest.of(pageParams.page(), pageParams.size()));
 
         List<StaffNotificationItemResponse> items = page.getContent().stream().map(this::toItem).toList();
-        long unackedCount = notificationLogRepository.countUnackedForStaffLog(academyId);
+        long unackedCount = notificationLogRepository.countUnackedForStaffLog(
+                academyId, NotificationType.IMPORTANT_FOR_ACK);
         return StaffNotificationListResponse.of(page, items, unackedCount);
     }
 

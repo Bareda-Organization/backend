@@ -1,6 +1,7 @@
 package src.backend.notification.repository;
 
 import java.time.OffsetDateTime;
+import java.util.Set;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
@@ -237,6 +238,12 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
      * 표 부재, 오픈 이슈 X 목록에도 없음). 그래서 이 카운트는 <b>전 종류를 동일하게</b> 센다 — 근거
      * 없이 일부 종류를 빼면 그 자체가 임의 판단이 된다. 정본이 분류를 명시하면 이 조건을 좁힌다.
      */
-    @Query("SELECT COUNT(n) FROM NotificationLog n WHERE n.academyId = :academyId AND n.acked = false")
-    long countUnackedForStaffLog(@Param("academyId") Long academyId);
+    @Query("""
+            SELECT COUNT(n) FROM NotificationLog n
+             WHERE n.academyId = :academyId
+               AND n.acked = false
+               AND n.type IN :importantTypes
+            """)
+    long countUnackedForStaffLog(@Param("academyId") Long academyId,
+            @Param("importantTypes") Set<NotificationType> importantTypes);
 }
