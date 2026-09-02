@@ -70,6 +70,11 @@ public final class AccountStatusGateEndpoints {
      * 관계자") — 셋 다 승인된 계정의 기능이라 근거가 앞 Phase 들과 같다({@code Permissions} 카탈로그
      * 미매핑이라 서비스 계층이 직접 판정하는 것과는 별개 축 — 이 게이트는 그 판정보다 먼저 도는
      * 계정 상태 확인이라 권한 판정 방식과 무관하다).
+     *
+     * <p>Phase 11 T2 가 5개를 더했다 — 비상 신고 발신·취소(§EXC-04, 권한 "기사 또는 동승자") 2개,
+     * 학원 관계자 화면의 목록·확인(권한 "학원 관계자 또는 메인관리자") 2개, 메인관리자 콘솔 목록
+     * (권한 "메인관리자") 1개 — 운행 중인 단말과 승인된 관계자·관리자의 기능이라 근거가 앞 Phase 들과
+     * 같다(Ruling 145 와 같은 근거).
      */
     public static final List<String> DENIED_WHEN_REJECTED = List.of(
             "POST /auth/password",
@@ -154,7 +159,14 @@ public final class AccountStatusGateEndpoints {
             // 관계자 관리 화면 2개.
             "POST /runs/{runId}/riders/{riderId}/no-show-contacts",
             "GET /staff/academy-settings",
-            "PATCH /staff/academy-settings");
+            "PATCH /staff/academy-settings",
+            // Phase 11 T2 — 비상 신고 발신·취소(§EXC-04) 2개 + 학원 관계자 목록·확인 2개 +
+            // 메인관리자 콘솔 목록 1개.
+            "POST /runs/{runId}/emergency",
+            "DELETE /runs/{runId}/emergency/{id}",
+            "GET /staff/emergencies",
+            "POST /staff/emergencies/{id}/ack",
+            "GET /admin/emergencies");
 
     /** {@code pending} 의 거부측 — {@code rejected} 거부측에 재신청 1개를 더한다({@code @AllowedWhenRejected} 는 pending 을 열지 않는다). */
     public static final List<String> DENIED_WHEN_PENDING = concat(DENIED_WHEN_REJECTED, "POST /auth/signup/reapply");

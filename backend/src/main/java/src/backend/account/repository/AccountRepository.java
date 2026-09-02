@@ -107,4 +107,15 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
             countQuery = "SELECT COUNT(a) FROM Account a WHERE EXISTS "
                     + "(SELECT 1 FROM AcademyStaff s WHERE s.accountId = a.id)")
     Page<Account> findStaffAccountsForConsole(Pageable pageable);
+
+    /**
+     * 특정 역할·상태의 계정 전부(Phase 11 T2, EXC-04) — 비상 알림이 메인 관리자 전원에게 설정과
+     * 무관하게 동시 도달해야 하는데(목표 6), 메인관리자는 {@code academy_staff} 소속이 없어
+     * {@link src.backend.academy.repository.AcademyStaffRepository#findActiveAccountsByAcademyId} 로
+     * 찾을 수 없다 — 이 조회가 그 갈래를 담당한다.
+     */
+    @AcademyScopeExempt(reason = "메인관리자(SYSTEM_ADMIN)는 academy_id 가 null 이라(ck_account_academy_scope) "
+            + "학원으로 좁힐 수 없다 — 이 역할 자체가 전 학원 범위라는 것이 §1.5 의 정의(Role#hasPlatformScope)다. "
+            + "role=SYSTEM_ADMIN 조건이 이미 좁힌 대상이라 학원 조건을 더할 근거가 없다")
+    List<Account> findAllByRoleAndStatus(Role role, AccountStatus status);
 }

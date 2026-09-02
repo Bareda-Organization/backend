@@ -267,6 +267,16 @@ public enum ErrorCode {
     // NoShowCase 가 없다는 뜻. RIDER_NOT_FOUND(탑승자 자체 부재)와는 다른 자리다.
     NO_SHOW_CASE_NOT_FOUND(HttpStatus.NOT_FOUND, "미승차 처리된 탑승자가 아닙니다"),
 
+    // ── 비상 알림(Phase 11 T2, EXC-04) ──────────────────────────────────────────
+    // {id} 로 지목한 비상 신고가 없거나 다른 회차·학원 소속일 때(취소·확인 공통) — STOP_NOT_FOUND 와
+    // 같은 형태로, 존재 여부를 응답에서 드러내지 않는다.
+    EMERGENCY_NOT_FOUND(HttpStatus.NOT_FOUND, "비상 신고를 찾을 수 없습니다"),
+    // 신고 후 1분이 지난 취소 시도 — 409 인 이유는 RUN_ALREADY_STARTED 와 같다(권한이 아니라 대상
+    // 자원의 시간 상태가 막는다).
+    EMERGENCY_CANCEL_WINDOW_CLOSED(HttpStatus.CONFLICT, "신고 후 1분이 지나 취소할 수 없습니다"),
+    // 이미 확인(acked) 처리된 신고에 재확인 시도 — APPROVAL_ALREADY_DECIDED 와 같은 형태.
+    ALREADY_ACKED(HttpStatus.CONFLICT, "이미 확인 처리된 신고입니다"),
+
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다");
 
     private final HttpStatus status;
