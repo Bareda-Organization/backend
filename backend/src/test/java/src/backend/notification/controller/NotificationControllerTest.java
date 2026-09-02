@@ -1,5 +1,6 @@
 package src.backend.notification.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -7,6 +8,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
+
+import jakarta.persistence.EntityManager;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -58,6 +61,9 @@ class NotificationControllerTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private EntityManager entityManager;
 
     private NotificationLogFixtures fixtures() {
         return new NotificationLogFixtures(academyRepository, accountRepository, jdbcTemplate);
@@ -208,6 +214,51 @@ class NotificationControllerTest {
                 .header("Authorization", 토큰(accountId, academyId, Role.PARENT)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("NOTIFICATION_NOT_FOUND"));
+    }
+
+    // ── goal 3 — 중요 통지의 acked (NTF-10, USER_FLOWS §10.2 규칙4·5) ────────
+    // acked 는 응답 DTO 에 없다(§3.12 표에 없음, T3 의 관계자 알림 로그가 그대로 읽는 내부 필드다) —
+    // 그래서 DB 를 직접 조회해 검사한다.
+
+    @Test
+    @DisplayName("goal3 — 지연 알림을 읽음 처리하면 acked·acked_at 도 함께 남는다")
+    void 중요_통지_읽음_처리는_acked를_남긴다() throws Exception {
+        NotificationLogFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long accountId = fixtures.account(academyId, "보호자1", Role.PARENT);
+        long targetId = fixtures.notification(academyId, accountId, "보호자1", Role.PARENT, null, null,
+                NotificationType.DELAY, "지연 안내", "출발이 지연됩니다", false, now(), now(), null);
+
+        mockMvc.perform(patch("/api/v1/notifications/" + targetId + "/read")
+                .header("Authorization", 토큰(accountId, academyId, Role.PARENT)))
+                .andExpect(status().isNoContent());
+
+        // PATCH 가 커밋한 변경은 같은 트랜잭션의 영속성 컨텍스트에만 있어, flush 없이 raw JDBC 로
+        // 읽으면 반영 전 값을 본다(같은 트랜잭션·같은 커넥션이라도 Hibernate 버퍼는 자동 동기화되지
+        // 않는다) — 실제로 flush 를 빼먹고 돌렸더니 이 단언이 거짓으로 실패했다.
+        entityManager.flush();
+        Boolean acked = jdbcTemplate.queryForObject("SELECT acked FROM notification_log WHERE id = ?", Boolean.class,
+                targetId);
+        assertThat(acked).isTrue();
+    }
+
+    @Test
+    @DisplayName("goal3 — 중요하지 않은 통지를 읽음 처리해도 acked 는 그대로 false 다")
+    void 중요하지_않은_통지_읽음_처리는_acked를_남기지_않는다() throws Exception {
+        NotificationLogFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long accountId = fixtures.account(academyId, "보호자1", Role.PARENT);
+        long targetId = fixtures.notification(academyId, accountId, "보호자1", Role.PARENT, null, null,
+                NotificationType.BOARDING, "승차 안내", "승차했습니다", false, now(), now(), null);
+
+        mockMvc.perform(patch("/api/v1/notifications/" + targetId + "/read")
+                .header("Authorization", 토큰(accountId, academyId, Role.PARENT)))
+                .andExpect(status().isNoContent());
+
+        entityManager.flush();
+        Boolean acked = jdbcTemplate.queryForObject("SELECT acked FROM notification_log WHERE id = ?", Boolean.class,
+                targetId);
+        assertThat(acked).isFalse();
     }
 
     // ── goal 4 — 보관 14일 ────────────────────────────────────────────────
