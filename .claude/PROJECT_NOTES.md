@@ -247,6 +247,24 @@ cd backend
 
 ## 알려진 함정
 
+### 🔴 로컬 Redis 는 **16379** 인데 앱 기본값은 **6379** 다 — 전체 실행에 `SPRING_DATA_REDIS_PORT` 를 준다
+
+`application.yml:46` 이 `localhost:6379` 인데 이 머신의 compose 오버레이는 **16379** 로 매핑한다
+(다른 프로젝트 스택이 6379·5432 를 쓰기 때문). **6379 에 아무것도 없으면 `Connection refused`** 가 나고,
+Redis 를 타는 경로가 **`500`**, `/actuator/health` 가 **`503`** 으로 떨어진다.
+
+```bash
+SPRING_DATA_REDIS_PORT=16379 ./gradlew test -PtestDbUrl=jdbc:postgresql://localhost:15432/schoolbus --rerun
+```
+
+- ⚠ **`-PtestDbUrl` 은 DB 만 바꾼다. Redis 는 안 바꾼다** — DB 만 맞추면 절반만 맞춘 것이다
+- **2026-09-03 Phase 12 최종 실행에서 실제로 밟았다.** 9건이 실패했고(`StaffEmergencyControllerTest` 5 ·
+  `AdminEmergencyControllerTest` 3 · `ActuatorHealthTest` 1) **조율자가 처음에 "병합이 만든 회귀" 로 오판**했다.
+  단독 재실행에서도 같이 실패해 더 그럴듯해 보였다 — **단독 재실행은 부하 의존만 갈라 주고 설정 문제는 못 가른다**
+- **판별법** — 실패한 시험의 `system-out` 에서 서버측 예외를 읽는다. `Unable to connect to Redis` 가 있으면
+  이 건이다. 상태 코드(`500`·`503`)만 보면 코드 결함과 구별되지 않는다
+- Phase 10·11 이 통과했던 것은 **그때 6379 에 다른 프로젝트 Redis 가 떠 있었기 때문**이고 코드가 바뀐 것이 아니다
+
 ### Spring Data 파생 쿼리를 개명하면 깨진다 — **`@Query` 로 바꿀 때 `@Param` 이 필수다**
 
 이 저장소 `build.gradle` 에 **`-parameters` 컴파일 플래그가 부재**하다. 그래서 `@Query` 의 이름 붙은

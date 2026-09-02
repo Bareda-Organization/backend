@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.security.access.AcademyScope;
 import src.backend.global.security.AuthUser;
 import src.backend.notification.entity.NotificationLog;
 import src.backend.notification.entity.NotificationType;
@@ -63,8 +64,10 @@ public class NotificationReadCommandService {
     public void markRead(AuthUser requester, Long notificationId) {
         NotificationLog notification = notificationLogRepository.findById(notificationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOTIFICATION_NOT_FOUND));
-        if (!notification.getRecipientAccountId().equals(requester.accountId())
-                || !notification.getAcademyId().equals(requester.academyId())) {
+        // 학원 대조는 직접 견주지 않고 판정 지점 하나(AcademyScope)에 맡긴다 — 직접 비교하면
+        // 메인 관리자 예외 같은 규칙이 이 자리에서만 갈린다(AcademyScopeSingleJudgmentPointTest).
+        AcademyScope.assertAccessible(requester, notification.getAcademyId());
+        if (!notification.getRecipientAccountId().equals(requester.accountId())) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
