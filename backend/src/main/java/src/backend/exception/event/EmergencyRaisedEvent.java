@@ -10,11 +10,12 @@ import src.backend.exception.entity.EmergencyType;
  * 목표 11) 둘 다 이 이벤트 하나를 구독한다({@link src.backend.run.event.RunStartedEvent} 와 같은
  * "한 이벤트, 리스너 둘" 형태).
  *
- * <p>{@code memo}·{@code lat}·{@code lng}·{@code riderCount} 를 담지 않는다 —
- * {@link src.backend.notification.domain.impl.RouteChangedComposer} 가 명시한 이유와 같다: 알림
- * 문구는 기기 알림함·잠금화면에 그대로 노출되므로 상세를 싣지 않고, 상세는 REST 조회
- * ({@code GET /staff/emergencies}·{@code GET /admin/emergencies})로만 연다. {@code busNo}·
- * {@code type} 은 "어느 차량의 어떤 상황인가"라는 문구의 최소 골자라 예외로 싣는다.
+ * <p>{@code memo}·{@code lat}·{@code lng}·{@code riderCount} 를 담지 않는다 — 알림 문구 컴포저가
+ * 경로 변경 알림에 명시한 이유와 같다: 알림 문구는 기기 알림함·잠금화면에 그대로 노출되므로
+ * 상세를 싣지 않고, 상세는 REST 조회({@code GET /staff/emergencies}·{@code GET /admin/emergencies})
+ * 로만 연다. {@code busNo}·{@code type} 은 "어느 차량의 어떤 상황인가"라는 문구의 최소 골자라
+ * 예외로 싣는다. 발행측 이벤트는 구독측(알림 모듈)의 타입을 참조하지 않는다(§7 규칙 17) — 이
+ * 문서도 그 경계를 지켜 알림 모듈의 정규화된 이름을 적지 않는다.
  */
 public record EmergencyRaisedEvent(Long emergencyId, Long academyId, Long runId, String busNo,
         EmergencyType type, OffsetDateTime raisedAt) {

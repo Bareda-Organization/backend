@@ -41,12 +41,12 @@ public class EmergencyStaffQueryService {
                 .findAllByAcademyIdOrderByReceivedAtDesc(requester.academyId());
 
         Map<Long, Manager> managersById = managerRepository
-                .findAllById(alerts.stream().map(EmergencyAlert::getRaisedBy).toList())
+                .findAllByIdIn(alerts.stream().map(EmergencyAlert::getRaisedBy).toList())
                 .stream()
                 .collect(Collectors.toMap(Manager::getId, m -> m));
 
         Map<Long, Account> ackersById = accountRepository
-                .findAllById(alerts.stream().map(EmergencyAlert::getAckedBy).filter(Objects::nonNull).toList())
+                .findAllByIdIn(alerts.stream().map(EmergencyAlert::getAckedBy).filter(Objects::nonNull).toList())
                 .stream()
                 .collect(Collectors.toMap(Account::getId, a -> a));
 

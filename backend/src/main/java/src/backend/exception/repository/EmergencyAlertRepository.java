@@ -16,6 +16,10 @@ public interface EmergencyAlertRepository extends JpaRepository<EmergencyAlert, 
      * {@code client_key} 로 재전송을 가려낸다({@code uk_emergency_alert_client_key}) —
      * {@link src.backend.boarding.command.BoardingCommandService} 와 같은 멱등성 재생 형태다.
      */
+    @AcademyScopeExempt(reason = "client_key 는 클라이언트가 생성한 UUID 라 그 자체로 전 학원에서 유일하고 "
+            + "추측 불가능하다(RiderStatusHistoryRepository#findByClientKey 와 같은 근거). "
+            + "EmergencyCommandService#raise 가 이 조회를 배치(assignment) 검증보다 먼저 두는 것이 "
+            + "의도된 순서다 — 재확인하면 그 사이 회차가 끝난 정상 재전송까지 막는다")
     Optional<EmergencyAlert> findByClientKey(UUID clientKey);
 
     /**

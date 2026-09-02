@@ -1,5 +1,7 @@
 package src.backend.manager.repository;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
@@ -52,4 +54,14 @@ public interface ManagerRepository extends JpaRepository<Manager, Long> {
      * 막는다 — 덮어쓰면 언제 그만뒀는지가 지워진다.
      */
     Optional<Manager> findByIdAndAcademyIdAndDeletedAtIsNull(Long id, Long academyId);
+
+    /**
+     * 여러 매니저의 이름·연락처를 한 번에 가져온다(Phase 11 T2, EXC-04) — 비상 알림 목록
+     * ({@code EmergencyStaffQueryService})이 신고 행마다 담긴 {@code raised_by}(manager.id)를
+     * 이름·전화로 바꿀 때 쓴다.
+     */
+    @AcademyScopeExempt(reason = "호출부가 emergency_alert.raised_by 만 넘긴다는 전제 — 그 값은 신고 접수 시점에 "
+            + "RunAssignmentAccess#assertAssignedDriverOrEscort 가 이미 학원 범위로 확인한 배치의 manager_id 라 "
+            + "academy_id 로 다시 좁혀도 결과가 달라지지 않는다. 요청 파라미터의 식별자를 직접 넘기면 이 예외가 우회로가 된다")
+    List<Manager> findAllByIdIn(Collection<Long> ids);
 }
