@@ -34,3 +34,7 @@ frontend/npm-debug.log*
 
 # Root
 node_modules/
+
+# 문서(docs/) 전부 추적하지 않음 — 루트 · backend · frontend (2026-09-02 사용자 확정)
+# 로컬 파일은 그대로 두고 git 에만 올리지 않는다. ⚠ git worktree 에는 복사되지 않으므로 워크트리 에이전트에는 메인 저장소 절대 경로를 준다
+**/docs/
