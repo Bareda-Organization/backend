@@ -3,15 +3,19 @@ package src.backend.location.scheduler;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -270,6 +274,51 @@ class ProximityNotificationSchedulerTest extends RedisTestContainerBase {
         scheduler.judgeMovingRuns();
 
         verify(proximityNotificationService, times(1)).judgeOne(eq(runId), eq(academyId));
+    }
+
+    /**
+     * 목표13 을 "락 회수"(위 시험)와 "회수한 락의 {@code lockAtMostFor} 상한이 실제로 지켜지는가"로
+     * 나눈 두 번째 축 — 리뷰(R4)가 지적한 공백을 메운다. {@code insertLock(과거시각)} 으로 만료된
+     * 락을 놓고 재획득시키는 것까지는 위 시험과 같지만, 여기서는 <b>락을 쥐고 있는 동안</b>
+     * {@code shedlock.lock_until} 을 읽어 {@code lockAtMostFor} 가 만든 다음 만료 시각을 관측한다.
+     *
+     * <p><b>사후 조회가 아니라 보유 중 조회인 이유</b> — {@code lockAtLeastFor} 를 두지 않았으므로
+     * {@code judgeMovingRuns()} 가 끝나는 순간 {@code JdbcTemplateLockProvider} 가 {@code lock_until}
+     * 을 현재 시각으로 되돌린다. 그 뒤에 행을 읽으면 {@code lockAtMostFor} 가 {@code PT30S} 였는지
+     * {@code PT24H} 였는지 구별되지 않는다(둘 다 "이미 풀렸다"로 보인다). 그래서
+     * {@link ProximityNotificationService} 스파이의 {@code judgeOne} 호출 시점(락이 아직
+     * 살아 있는 메서드 본문 실행 중)에 {@code doAnswer} 로 가로채 그 순간의 값을 캡처한다.
+     *
+     * <p><b>정확한 초가 아니라 범위로 비교하는 이유</b> — 실행 지연이 섞이므로 "정확히 30초 뒤"는
+     * 회차마다 편차가 난다. 대신 {@code PT30S}(정상)와 {@code PT24H}(결함)를 가르는 데 필요한
+     * 만큼만 넓게 잡는다 — 15~50초 범위는 정상값(약 30초, 지연 포함)을 담으면서도 24시간(86400초)과는
+     * 비교가 안 될 만큼 멀어 구별력을 잃지 않는다.
+     */
+    @Test
+    void 목표13_lockAtMostFor_상한이_지켜진다() {
+        insertLock(OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(5));
+        ProximityFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        fullyWiredMovingRun(fx, academyId, busId, "근접학생상한", "근접학부모상한");
+
+        AtomicReference<OffsetDateTime> heldLockUntil = new AtomicReference<>();
+        doAnswer(invocation -> {
+            Timestamp raw = jdbcTemplate.queryForObject(
+                    "SELECT lock_until FROM shedlock WHERE name = ?", Timestamp.class, "proximity-notification");
+            heldLockUntil.set(raw.toLocalDateTime().atOffset(ZoneOffset.UTC));
+            return invocation.callRealMethod();
+        }).when(proximityNotificationService).judgeOne(anyLong(), anyLong());
+
+        scheduler.judgeMovingRuns();
+
+        assertThat(heldLockUntil.get()).as("judgeOne 호출 시점에 lock_until 을 관측하지 못했다").isNotNull();
+        long secondsUntilExpiry = Duration.between(OffsetDateTime.now(ZoneOffset.UTC), heldLockUntil.get())
+                .getSeconds();
+        assertThat(secondsUntilExpiry)
+                .as("lockAtMostFor(PT30S) 라면 락을 쥔 동안 lock_until 이 관측 시각으로부터 대략 30초"
+                        + " 뒤여야 한다 — 관측값 %d초", secondsUntilExpiry)
+                .isBetween(15L, 50L);
     }
 
     /**
