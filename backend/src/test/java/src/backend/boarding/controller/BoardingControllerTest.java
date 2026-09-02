@@ -530,6 +530,95 @@ class BoardingControllerTest {
                 .isEqualTo(4);
     }
 
+    // ── 목표 13·14(Ruling 219) — 되돌리기 정정 알림은 원본을 건드리지 않고 새로 적재된다 ─────────
+
+    @Test
+    @DisplayName("목표13(Ruling 219) — 승차 되돌리기는 원본 승차 알림을 그대로 두고 승차 취소 알림을 새로 적재한다")
+    void 되돌리면_원본_알림은_그대로_두고_취소_알림이_새로_적재된다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long stopId = fixtures().stop(academyId, "37.500000", "127.000000");
+        long studentId = fixtures().student(academyId, "학생7");
+        BoardingCommandFixtures.GuardianAccount guardian = fixtures().guardian(academyId, "보호자7");
+        fixtures().linkChild(guardian.guardianId(), studentId, now.minusDays(1));
+        long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
+        long riderId = fixtures().runRider(runId, studentId, stopId);
+        long escortAccountId = fixtures().escortAccount(academyId);
+        String escortToken = 토큰(escortAccountId, academyId, Role.ESCORT);
+
+        mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId)).header("Authorization", escortToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(statusUpdateBody("boarded", "manual", UUID.randomUUID(), now)))
+                .andExpect(status().isOk());
+        entityManager.flush();
+
+        mockMvc.perform(post(REVERT.formatted(runId, riderId)).header("Authorization", escortToken)
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("waiting"));
+        entityManager.flush();
+
+        List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT type, body FROM notification_log WHERE recipient_account_id = ? ORDER BY id",
+                guardian.accountId());
+        assertThat(rows).as("①원본 승차 알림 1건 + 취소 정정 알림 1건, 총 2건").hasSize(2);
+        assertThat(rows.get(0).get("type")).as("②원본 알림 종류는 그대로다 — 고치지 않는다").isEqualTo("boarding");
+        assertThat(rows.get(0).get("body")).as("③원본 알림 본문도 그대로다 — 고치지 않는다")
+                .isEqualTo("자녀가 버스에 탑승했습니다.");
+        assertThat(rows.get(1).get("type")).as("④새로 적재된 정정 알림의 종류").isEqualTo("boarding_canceled");
+        assertThat(rows.get(1).get("body")).as("⑤정정 알림 본문 — 승차 취소 전용 문구")
+                .isEqualTo("자녀의 승차 처리가 취소되었습니다.");
+    }
+
+    @Test
+    @DisplayName("목표14(Ruling 219) — 하차 되돌리기는 승차 취소와 다른 문구의 하차 취소 알림을 적재한다")
+    void 하차_되돌리면_승차_취소와_다른_문구의_알림이_적재된다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long stopId = fixtures().stop(academyId, "37.500000", "127.000000");
+        long studentId = fixtures().student(academyId, "학생8");
+        BoardingCommandFixtures.GuardianAccount guardian = fixtures().guardian(academyId, "보호자8");
+        long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
+        long riderId = fixtures().runRider(runId, studentId, stopId);
+        long escortAccountId = fixtures().escortAccount(academyId);
+        String escortToken = 토큰(escortAccountId, academyId, Role.ESCORT);
+
+        // 승차는 보호자 연결 전에 처리한다 — 이 테스트의 시계는 고정값이라(FixedClockConfig), 승차·하차
+        // 알림의 dedup_key(리더ID·수신자ID·changedAt) 가 같은 시각으로 겹쳐 두 번째 PATCH 가
+        // DUPLICATE_NOTIFICATION(409) 로 막힌다. 연결을 뒤로 미뤄 승차 알림 적재 자체를 건너뛰게 하면
+        // (수신 보호자 0명) 이 시험이 검증할 대상(하차 취소 문구)과 무관한 충돌을 피할 수 있다.
+        mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId)).header("Authorization", escortToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(statusUpdateBody("boarded", "manual", UUID.randomUUID(), now)))
+                .andExpect(status().isOk());
+        entityManager.flush();
+
+        fixtures().linkChild(guardian.guardianId(), studentId, now.minusDays(1));
+
+        mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId)).header("Authorization", escortToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(statusUpdateBody("alighted", "manual", UUID.randomUUID(), now)))
+                .andExpect(status().isOk());
+        entityManager.flush();
+
+        mockMvc.perform(post(REVERT.formatted(runId, riderId)).header("Authorization", escortToken)
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("boarded"));
+        entityManager.flush();
+
+        List<java.util.Map<String, Object>> canceled = jdbcTemplate.queryForList(
+                "SELECT type, body FROM notification_log WHERE recipient_account_id = ? AND type = ?",
+                guardian.accountId(), "alighting_canceled");
+        assertThat(canceled).as("①하차 취소 정정 알림이 정확히 1건").hasSize(1);
+        String alightingCanceledBody = (String) canceled.get(0).get("body");
+        assertThat(alightingCanceledBody).as("②하차 취소 전용 문구").isEqualTo("자녀의 하차 처리가 취소되었습니다.");
+        assertThat(alightingCanceledBody).as("③승차 취소 문구와는 다른 문구다(목표14 핵심)")
+                .isNotEqualTo("자녀의 승차 처리가 취소되었습니다.");
+    }
+
     private String statusUpdateBody(String status, String verifyMethod, UUID clientKey, OffsetDateTime occurredAt) {
         return "{\"status\":\"%s\",\"verify_method\":\"%s\",\"client_key\":\"%s\",\"occurred_at\":\"%s\"}"
                 .formatted(status, verifyMethod, clientKey, occurredAt);
