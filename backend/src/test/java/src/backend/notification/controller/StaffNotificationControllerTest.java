@@ -27,7 +27,7 @@ import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.notification.entity.NotificationType;
-import src.backend.notification.repository.NotificationLogQueryRepository;
+import src.backend.notification.repository.NotificationLogRepository;
 
 /**
  * 관계자 웹의 알림 로그 전수 조회 API(§5.17, Phase 12 T3 goal 10·11) — {@code type}·{@code date}·
@@ -63,7 +63,7 @@ class StaffNotificationControllerTest {
     private AcademyStaffRepository academyStaffRepository;
 
     @Autowired
-    private NotificationLogQueryRepository notificationLogQueryRepository;
+    private NotificationLogRepository notificationLogRepository;
 
     @TestConfiguration
     static class FixedClockConfig {
@@ -79,7 +79,7 @@ class StaffNotificationControllerTest {
 
     private StaffNotificationFixtures fixtures() {
         return new StaffNotificationFixtures(academyRepository, accountRepository, academyStaffRepository,
-                notificationLogQueryRepository);
+                notificationLogRepository);
     }
 
     private OffsetDateTime now() {

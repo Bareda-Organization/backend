@@ -15,13 +15,13 @@ import src.backend.global.common.enums.Role;
 import src.backend.notification.entity.NotificationLog;
 import src.backend.notification.entity.NotificationType;
 import src.backend.notification.entity.PushState;
-import src.backend.notification.repository.NotificationLogQueryRepository;
+import src.backend.notification.repository.NotificationLogRepository;
 
 /**
  * 알림 로그 전수 조회(T3, Phase 12 goal 10·11) 시험이 쓰는 실제 행 — {@code ExceptionReportFixtures}
- * 와 같은 이유로 정상 경로의 팩토리로 쌓는다. {@code NotificationLogRepository}(T2 소유, 아웃박스
- * 적재·회수)가 아니라 {@link NotificationLogQueryRepository}(이 태스크 소유)로 저장하는 이유도 같다 —
- * 두 파일이 갈린 근거가 곧 여기서 어느 저장소를 써야 하는지의 근거다.
+ * 와 같은 이유로 정상 경로의 팩토리로 쌓는다. 저장은 {@link NotificationLogRepository}(T2·T3 공용,
+ * Ruling 222) 로 한다 — 조회 전용 리포지토리를 별도로 만들지 않기로 한 조율자 판정에 따라 이 클래스도
+ * 그 저장소 하나만 쓴다.
  *
  * <p>{@link NotificationLog#acked}·{@link NotificationLog#ackedAt}·{@link NotificationLog#readAt} 을
  * 채우는 실제 "확인 처리" 쓰기 경로는 T2 담당이고, 이 워크트리에는 아직 존재하지 않는다(격리
@@ -29,7 +29,8 @@ import src.backend.notification.repository.NotificationLogQueryRepository;
  * 점이 {@link src.backend.request.command.ChangeRequestAutoRejectFixtures#pendingChangeRequest} 가
  * {@code deadlineAt} 을 채우는 근거와 같아, 같은 패턴({@code ReflectionTestUtils})으로 저장 전 필드를
  * 직접 채운다. 이렇게 만든 "이미 확인된" 행은 <b>구조적 시험 데이터</b>일 뿐, T2 의 실제 쓰기 경로를
- * 검증하는 것이 아니다 — 그 경계 시험은 T2 병합 이후로 미룬다.
+ * 검증하는 것이 아니다 — 그 경계 시험은 조율자가 병합 후 통합 검사에서 만든다(Ruling 222, T3 완료
+ * 기준 4항).
  */
 public class StaffNotificationFixtures {
 
@@ -43,15 +44,15 @@ public class StaffNotificationFixtures {
 
     private final AcademyStaffRepository academyStaffRepository;
 
-    private final NotificationLogQueryRepository notificationLogQueryRepository;
+    private final NotificationLogRepository notificationLogRepository;
 
     public StaffNotificationFixtures(AcademyRepository academyRepository, AccountRepository accountRepository,
             AcademyStaffRepository academyStaffRepository,
-            NotificationLogQueryRepository notificationLogQueryRepository) {
+            NotificationLogRepository notificationLogRepository) {
         this.academyRepository = academyRepository;
         this.accountRepository = accountRepository;
         this.academyStaffRepository = academyStaffRepository;
-        this.notificationLogQueryRepository = notificationLogQueryRepository;
+        this.notificationLogRepository = notificationLogRepository;
     }
 
     public long academy() {
@@ -119,6 +120,6 @@ public class StaffNotificationFixtures {
             ReflectionTestUtils.setField(log, "ackedAt", ackedAt);
             ReflectionTestUtils.setField(log, "readAt", ackedAt);
         }
-        return notificationLogQueryRepository.save(log).getId();
+        return notificationLogRepository.save(log).getId();
     }
 }

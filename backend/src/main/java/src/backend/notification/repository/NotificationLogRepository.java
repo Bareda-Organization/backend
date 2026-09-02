@@ -3,6 +3,7 @@ package src.backend.notification.repository;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -13,10 +14,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.notification.entity.NotificationLog;
+import src.backend.notification.entity.NotificationType;
 import src.backend.notification.entity.PushState;
 
 /**
- * 아웃박스 행의 적재·회수·발송 상태 전이(TECH_DECISIONS §7.2).
+ * 아웃박스 행의 적재·회수·발송 상태 전이(TECH_DECISIONS §7.2) + 관계자 웹의 알림 로그 조회
+ * (API_SPEC §5.17, NTF-10·11, A-13).
  *
  * <p>상태 전이를 전부 {@code @Modifying} 조건부 UPDATE 로 두는 이유는 §7 규칙 3 이다 — 변경 감지는
  * "읽고 판단하고 쓰는" 사이에 창이 생겨, 즉시 발송과 워커가 같은 행을 함께 집는다.
@@ -25,6 +28,14 @@ import src.backend.notification.entity.PushState;
  * {@code AFTER_COMMIT} 리스너에서 부르는데, 그 시점의 스레드에는 <b>이미 커밋된</b> 트랜잭션의
  * {@code EntityManager} 가 아직 묶여 있다. {@code REQUIRED} 로 두면 그 끝난 트랜잭션에 합류해
  * UPDATE 가 아무 데도 반영되지 않고, 그런데도 예외가 부재해 초록으로 지나간다.
+ *
+ * <p><b>조회 메서드({@code searchForStaffLog}·{@code countUnackedForStaffLog})는 §5.17 전용이다.</b>
+ * 이름에 {@code ForStaffLog} 를 붙인 이유는 이 파일이 전이 메서드와 조회 메서드를 함께 갖게 되면서,
+ * 양쪽 담당이 서로 다른 뜻으로 같은 이름을 지어 충돌하는 것이 실제 위험이기 때문이다(Ruling 222) —
+ * 아웃박스 전이 메서드는 전부 단건({@code id} 로 특정)이라 이름이 겹칠 일이 없지만, 조회는 그렇지
+ * 않다. 이 인터페이스에 리포지토리를 <b>더 만들지 않고</b> 여기 얹은 이유는 이 저장소의 47개 리포지토리
+ * 전부가 엔티티 1:1 이라 2개로 가르는 선례가 없기 때문이다(Ruling 222) — 격리 워크트리에서 별도 파일로
+ * 만들었다가 병합 전 조율자 판정으로 되돌렸다.
  */
 public interface NotificationLogRepository extends JpaRepository<NotificationLog, Long> {
 
@@ -119,4 +130,42 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
             """)
     int claim(@Param("id") Long id, @Param("pending") PushState pending,
             @Param("attemptedBefore") OffsetDateTime attemptedBefore, @Param("now") OffsetDateTime now);
+
+    /**
+     * 알림 로그 목록(§5.17) — {@code type}·{@code acked} 는 선택적 필터이고 날짜 구간은 항상 구체값이다
+     * ({@link src.backend.exception.repository.ExceptionReportRepository#search} 와 같은 근거 —
+     * {@code OffsetDateTime} 단독 {@code IS NULL} 비교는 Postgres 파라미터 타입 추론이 실패한다).
+     *
+     * <p>{@code push_state} 조건을 두지 않는다 — 이 목록은 "전송 알림 전수 조회" 라 푸시 off 로
+     * 막혀 {@code SKIPPED} 로 남은 행도 그대로 나와야 한다(§5.17 "푸시 off 로 차단된 건도 레코드로
+     * 존치"). {@code sent_at} 이 비어 있을 수 있는 행({@code SKIPPED}·아직 안 보낸 {@code PENDING})은
+     * {@code COALESCE(sent_at, created_at)} 으로 정렬·기간필터 모두를 대신한다 — 그렇지 않으면 그런
+     * 행이 날짜 필터를 걸 때마다 조용히 빠진다.
+     */
+    @Query("""
+            SELECT n FROM NotificationLog n
+             WHERE n.academyId = :academyId
+               AND (:type IS NULL OR n.type = :type)
+               AND (:acked IS NULL OR n.acked = :acked)
+               AND COALESCE(n.sentAt, n.createdAt) >= :from
+               AND COALESCE(n.sentAt, n.createdAt) < :to
+             ORDER BY COALESCE(n.sentAt, n.createdAt) DESC, n.id DESC
+            """)
+    Page<NotificationLog> searchForStaffLog(@Param("academyId") Long academyId, @Param("type") NotificationType type,
+            @Param("acked") Boolean acked, @Param("from") OffsetDateTime from, @Param("to") OffsetDateTime to,
+            Pageable pageable);
+
+    /**
+     * 미확인 배지(§5.17 {@code unacked_count}, ERD §5 부분 인덱스 {@code notification_log(academy_id,
+     * acked) WHERE acked = false}) — 목록의 페이지·필터와 무관하게 <b>학원 전체</b>에서 센다. 페이지
+     * 안에서만 세면 필터를 걸 때마다 배지 값이 달라져 "확인 안 한 것이 몇 건인가" 라는 원래 의미를
+     * 잃는다.
+     *
+     * <p>정본이 "중요 통지" 만 추적한다고 적지만(FEATURE_SPEC §4.15 NTF-10), 그 분류를 어느
+     * {@link NotificationType} 값에 매길지는 정본 어디에도 없다(§9.7·§4.15 재확인 — 판정 근거·열거값
+     * 표 부재, 오픈 이슈 X 목록에도 없음). 그래서 이 카운트는 <b>전 종류를 동일하게</b> 센다 — 근거
+     * 없이 일부 종류를 빼면 그 자체가 임의 판단이 된다. 정본이 분류를 명시하면 이 조건을 좁힌다.
+     */
+    @Query("SELECT COUNT(n) FROM NotificationLog n WHERE n.academyId = :academyId AND n.acked = false")
+    long countUnackedForStaffLog(@Param("academyId") Long academyId);
 }
