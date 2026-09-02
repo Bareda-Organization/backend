@@ -21,7 +21,16 @@ public class RiderStatusChangedComposer implements NotificationComposer<RiderSta
 
     @Override
     public NotificationMessage compose(RiderStatusChangedEvent subject) {
-        String body = "boarded".equals(subject.status()) ? BODY_BOARDED : BODY_ALIGHTED;
+        // 두 값으로만 값을 좁혀 분기한다 — 예전엔 3항 연산자로 "boarded 가 아니면 무조건 하차" 로
+        // 처리해, 되돌리기가 이 컴포저까지 도달하면 무슨 상태든 하차 문구가 나가는 결함이 있었다
+        // (지금은 BoardingNotificationListener 가 되돌리기 이벤트를 걸러내 여기까진 안 오지만, 그
+        // 방어를 이 컴포저 자체에도 둬 같은 형태의 결함이 다시 생기면 조용히 틀린 문구를 내는 대신
+        // 예외로 드러나게 한다).
+        String body = switch (subject.status()) {
+            case "boarded" -> BODY_BOARDED;
+            case "alighted" -> BODY_ALIGHTED;
+            default -> throw new IllegalStateException("알 수 없는 승하차 상태: " + subject.status());
+        };
         return new NotificationMessage(TITLE, body);
     }
 }

@@ -46,7 +46,7 @@ class RiderChangedBroadcastListenerTest {
         Long academyId = 1L;
         Long studentId = 100L;
         RiderStatusChangedEvent event = new RiderStatusChangedEvent(runId, academyId, studentId, 200L, "boarded",
-                OffsetDateTime.now());
+                OffsetDateTime.now(), false);
 
         Student student = mock(Student.class);
         when(student.getName()).thenReturn("홍길동");
@@ -74,7 +74,7 @@ class RiderChangedBroadcastListenerTest {
         Long runId = 10L;
         Long studentId = 100L;
         RiderStatusChangedEvent event = new RiderStatusChangedEvent(runId, 1L, studentId, 200L, "alighted",
-                OffsetDateTime.now());
+                OffsetDateTime.now(), false);
 
         Student student = mock(Student.class);
         when(student.getName()).thenReturn("김민성");
