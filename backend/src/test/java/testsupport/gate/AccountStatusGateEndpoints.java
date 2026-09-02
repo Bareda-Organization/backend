@@ -175,7 +175,9 @@ public final class AccountStatusGateEndpoints {
             // Phase 11 T3 — 현장 예외 보고 등록(§4.13) 기사·동승자 단말 기능 1개 + 관계자 웹 조회(§5.20) 2개.
             "POST /runs/{runId}/reports",
             "GET /staff/reports",
-            "GET /staff/reports/{id}");
+            "GET /staff/reports/{id}",
+            // Phase 12 T3 — 알림 로그 전수 조회(§5.17, NTF-10·11, A-13) 관계자 웹 기능 1개.
+            "GET /staff/notifications");
 
     /** {@code pending} 의 거부측 — {@code rejected} 거부측에 재신청 1개를 더한다({@code @AllowedWhenRejected} 는 pending 을 열지 않는다). */
     public static final List<String> DENIED_WHEN_PENDING = concat(DENIED_WHEN_REJECTED, "POST /auth/signup/reapply");
