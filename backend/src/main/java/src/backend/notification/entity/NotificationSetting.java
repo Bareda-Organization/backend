@@ -93,7 +93,10 @@ public class NotificationSetting {
     public boolean isEnabledFor(NotificationType type) {
         return switch (type) {
             case ARRIVE -> arrive;
-            case BOARDING, ALIGHTING, RUN_STARTED -> boarding;
+            // Phase 12 T4 가 더한 되돌리기 정정 2종도 같은 토글이다 — §3.14 가 `boarding` 을
+            // "등하원(승차·하차·운행 시작) 알림" 으로 이미 승차·하차를 한 항목에 묶었고,
+            // `alighting` 토글은 실재하지 않는다(Ruling 223).
+            case BOARDING, ALIGHTING, RUN_STARTED, BOARDING_CANCELED, ALIGHTING_CANCELED -> boarding;
             case NO_SHOW -> noShow;
             case ABSENT, DELAY, RUN_ENDED, SIGNUP_DECIDED, CHANGE_DECIDED, APPROVAL_REQUESTED,
                     INTENT_CHANGED, LINK_REQUESTED, ROUTE_CHANGED, ASSIGNMENT_CHANGED,

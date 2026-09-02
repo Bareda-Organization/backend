@@ -53,9 +53,32 @@ public final class ApiValues {
         return toEnum(ExceptionReportType.class, raw, "예외 보고 종류가 아닙니다: ");
     }
 
-    /** {@code type}(§3.12 · §9.7, Phase 12 T2) 을 {@link NotificationType} 으로 옮긴다. */
+    /**
+     * {@code type} 쿼리 필터를 {@link NotificationType} 으로 옮긴다 — 알림 목록(§3.12 · §9.7, Phase 12 T2)과
+     * 관계자 알림 로그(§5.17, Phase 12 T3)가 함께 쓴다. {@code reportType} 과 같은 근거로 Jackson 이 아니라
+     * 여기서 걸러야 {@code 422} 가 유지된다.
+     */
     public static NotificationType notificationType(String raw) {
         return toEnum(NotificationType.class, raw, "알림 종류가 아닙니다: ");
+    }
+
+    /**
+     * §5.17 {@code acked} 쿼리 필터를 {@link Boolean} 으로 옮긴다 — {@code Boolean.valueOf} 를 직접
+     * 쓰지 않는 이유는 그 메서드가 {@code "abc"} 같은 값도 조용히 {@code false} 로 받아들여, 오타가
+     * {@code 422} 없이 "미확인만" 필터로 둔갑하기 때문이다.
+     */
+    public static Boolean ackedFilter(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String trimmed = raw.trim();
+        if ("true".equalsIgnoreCase(trimmed)) {
+            return Boolean.TRUE;
+        }
+        if ("false".equalsIgnoreCase(trimmed)) {
+            return Boolean.FALSE;
+        }
+        throw new BusinessException(ErrorCode.VALIDATION_FAILED, "acked 값이 true/false 가 아닙니다: " + raw);
     }
 
     /** {@code HH:mm} 을 {@link LocalTime} 으로 옮긴다 — 날짜가 없는 시각이다. */
