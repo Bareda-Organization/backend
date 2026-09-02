@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -20,8 +21,14 @@ import src.backend.exception.repository.NoShowCaseRepository;
  * {@link NoShowEscalationPersistence#escalateOne} 을 건별로 부른다. {@code ChangeRequestAutoRejectionScheduler}
  * 와 같은 골격(배치 상한 · 건별 격리 · 초기 지연 설정 · 전용 스레드 풀 없음)이다.
  *
- * <p><b>ShedLock 배선은 Phase 11 T4 소유</b> — 병합 후 수정 라운드에서 부착한다. 지금은 락 없이
- * 빌드한다(이 세션에서 {@code build.gradle} · {@code db/migration/} 을 건드리면 T4 와 충돌한다).
+ * <p>{@code @SchedulerLock}(TECH_DECISIONS §3.2, Phase 11 T4 배선 명세) — {@link
+ * NoShowEscalationPersistence#escalateOne} 의 조건부 UPDATE({@code escalateIfDue})가 이중
+ * 에스컬레이션은 이미 막지만, 락이 없으면 인스턴스마다 같은 대상을 반복 조회한다 —
+ * {@code ChangeRequestAutoRejectionScheduler} 와 완전히 같은 근거다. {@code RunConfirmationScheduler}
+ * 만 예외인 이유는 {@code ShedLockConfig} 자바독에 별도로 있다. {@code lockAtMostFor} 는 같은 30초
+ * 폴링을 쓰는 {@code NotificationOutboxWorker}·{@code ChangeRequestAutoRejectionScheduler} 의
+ * 선례(폴링 주기의 4배)를 그대로 따라 {@code PT2M} 으로 잡았다 — 죽은 인스턴스가 있어도 2분 안에는
+ * 다음 인스턴스가 이어받는다.
  *
  * <p><b>한 건의 실패가 다른 건을 막지 않는다</b> — 건마다 개별 {@code try-catch} 로 감싼다. 실패한
  * 건은 {@code escalated_at} 이 그대로 {@code NULL} 이라(그 건의 트랜잭션만 롤백) 다음 틱에 다시
@@ -55,6 +62,7 @@ public class NoShowEscalationScheduler {
      */
     @Scheduled(fixedDelayString = "${app.exception.noshow-escalation.poll-interval-ms:30000}",
             initialDelayString = "${app.exception.noshow-escalation.initial-delay-ms:0}")
+    @SchedulerLock(name = "noshow-escalation", lockAtMostFor = "PT2M")
     public void escalateDueNoShowCases() {
         OffsetDateTime now = OffsetDateTime.now(clock);
         List<NoShowCase> due = noShowCaseRepository.findDueForEscalation(now, PageRequest.of(0, BATCH_SIZE));
