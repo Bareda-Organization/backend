@@ -13,6 +13,7 @@ import src.backend.notification.entity.PushState;
 import src.backend.notification.push.spec.PushMessage;
 import src.backend.notification.push.spec.PushSender;
 import src.backend.notification.repository.NotificationLogRepository;
+import src.backend.notification.repository.NotificationSettingRepository;
 
 /**
  * 적재된 아웃박스 행 하나를 실제로 발송하고 결과를 행에 옮긴다 — 즉시 발송(커밋 직후)과 워커 재시도가
@@ -23,12 +24,19 @@ import src.backend.notification.repository.NotificationLogRepository;
  *
  * <p>이 클래스에 트랜잭션 애너테이션이 부재한 것은 의도다 — 발송은 트랜잭션 밖이어야 하고
  * (§7.5), 상태 전이만 저장소 메서드가 각자 {@code REQUIRES_NEW} 로 연다.
+ *
+ * <p>알림 설정 on/off 판정(Phase 12 목표 8, API_SPEC §3.14)도 이 클래스 한 곳에서만 한다 — 16개
+ * 리스너 각자가 발송 여부를 판단하게 하지 않는다. 아웃박스 행 생성({@code NotificationOutbox})은
+ * 이 판정과 무관하게 항상 일어나므로 "설정이 꺼져도 기록은 남는다" 는 그쪽을 전혀 건드리지 않고도
+ * 이미 성립한다 — 이 클래스가 손대는 것은 <b>푸시 채널</b> 뿐이다.
  */
 @Component
 @RequiredArgsConstructor
 public class NotificationDispatcher {
 
     private final NotificationLogRepository notificationLogRepository;
+
+    private final NotificationSettingRepository notificationSettingRepository;
 
     private final NotificationRetryPolicy retryPolicy;
 
@@ -45,10 +53,17 @@ public class NotificationDispatcher {
      *
      * <p><b>선점에 실패하면 아무것도 하지 않는다.</b> 즉시 발송과 워커가 같은 행을 겨냥하는 것은
      * 정상이며(하나는 빠르라고, 하나는 잃지 말라고 있다), 둘 다 보내는 것이 사고다.
+     *
+     * <p>설정이 꺼져 있으면 {@link #claim} 을 거치지 않고 바로 {@code skipped} 로 옮긴다 — 발송
+     * 시도 자체가 없으니 {@code push_attempts} 를 올릴 이유가 없다({@code markSkipped} 자바독).
      */
     public void dispatch(Long notificationId) {
         NotificationLog target = notificationLogRepository.findById(notificationId).orElse(null);
         if (target == null) {
+            return;
+        }
+        if (!isPushEnabled(target)) {
+            notificationLogRepository.markSkipped(notificationId, PushState.PENDING, PushState.SKIPPED);
             return;
         }
         OffsetDateTime now = OffsetDateTime.now(clock);
@@ -57,6 +72,20 @@ public class NotificationDispatcher {
             return;
         }
         send(target, target.getPushAttempts() + 1, now);
+    }
+
+    /**
+     * 이 알림을 받을 계정의 설정이 이 종류를 허용하는지 본다.
+     *
+     * <p>설정 행이 없으면(스태프 등 애초에 설정 대상이 아닌 역할, 또는 아직 자가 치유가 일어나지
+     * 않은 학부모·학생 계정) 켜진 것으로 본다 — {@code notification_setting} DDL 의
+     * {@code DEFAULT true} 와 같은 기본값이고, 행 부재를 off 로 읽으면 지금 이 테이블에 행이 하나도
+     * 없는 상태에서 <b>기존 알림이 전부 죽는다</b>.
+     */
+    private boolean isPushEnabled(NotificationLog target) {
+        return notificationSettingRepository.findById(target.getRecipientAccountId())
+                .map(setting -> setting.isEnabledFor(target.getType()))
+                .orElse(true);
     }
 
     /**

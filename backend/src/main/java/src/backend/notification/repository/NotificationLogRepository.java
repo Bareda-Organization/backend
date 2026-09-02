@@ -48,6 +48,30 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
             @Param("now") OffsetDateTime now);
 
     /**
+     * 알림 설정이 꺼져 있어 푸시를 보내지 않고 건너뛴 행을 {@code skipped} 로 옮긴다(Phase 12 목표 8,
+     * API_SPEC §3.14). {@code markSent} 와 같은 이유로 {@code pending} 인 행만 대상이다 — 즉시 발송과
+     * 워커가 같은 행을 함께 집어도 한쪽만 반영된다.
+     *
+     * <p>{@code claim} 을 거치지 않는다 — 이 전이는 <b>발송 시도가 아니라 발송을 아예 하지 않기로 한
+     * 판정</b>이라, 재시도 횟수({@code push_attempts})를 올리면 "몇 번 시도했다가 실패했나" 라는 그
+     * 카운터의 의미가 흐려진다. 대신 이 메서드 자체가 {@code pending} 단건 조건부 UPDATE라 선점과
+     * 동등한 경합 안전성을 갖는다.
+     *
+     * @return 1 = 전이함, 0 = 다른 실행이 이미 옮김(중복 호출 안전)
+     */
+    @AcademyScopeExempt(reason = "아웃박스 발송 상태 전이 — markSent 와 같은 축이다. 대상이 id 로 특정된 "
+            + "단건이고 학원 범위가 판정에 개입 부재")
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update NotificationLog n
+               set n.pushState = :skipped
+             where n.id = :id and n.pushState = :pending
+            """)
+    int markSkipped(@Param("id") Long id, @Param("pending") PushState pending,
+            @Param("skipped") PushState skipped);
+
+    /**
      * 발송에 실패한 행에 사유를 남긴다. 다음 상태는 호출부가 정한다 — 재시도 상한 미만이면
      * {@code pending} 으로 남겨 워커가 다시 집고, 상한에 닿았으면 {@code failed} 다.
      *
