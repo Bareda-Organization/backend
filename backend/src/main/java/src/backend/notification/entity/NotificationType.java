@@ -5,7 +5,7 @@ import jakarta.persistence.Converter;
 import src.backend.global.common.converter.LowerCaseEnumConverter;
 
 /**
- * 알림 종류 19종 — {@code notification_log.type}(CHECK 로 강제, API_SPEC §9.7 과 값 일치 확인)의
+ * 알림 종류 21종 — {@code notification_log.type}(CHECK 로 강제, API_SPEC §9.7 과 값 일치 확인)의
  * 값 도메인이다.
  */
 public enum NotificationType {
@@ -47,7 +47,11 @@ public enum NotificationType {
     /** 비상 상황 해제. */
     EMERGENCY_CANCELED,
     /** 예외 보고 접수됨(EXC-02·EXC-03, API_SPEC §4.13) — §9.7 표 누락분을 V5 마이그레이션으로 보강. */
-    EXCEPTION_REPORTED;
+    EXCEPTION_REPORTED,
+    /** 승차 취소됨(BRD-05, 목표 13, Ruling 219) — 되돌리기로 승차 처리가 취소돼 원래 승차 알림이 거짓이 됐음을 정정. */
+    BOARDING_CANCELED,
+    /** 하차 취소됨(BRD-05, 목표 14, Ruling 219) — 되돌리기로 하차 처리가 취소돼 원래 하차 알림이 거짓이 됐음을 정정. */
+    ALIGHTING_CANCELED;
 
     /** {@link NotificationType} 을 소문자 snake_case 컬럼 값으로 잇는 JPA 컨버터. */
     @Converter

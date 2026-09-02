@@ -26,6 +26,7 @@ import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.entity.VerifyMethod;
 import src.backend.boarding.event.RiderNoShowEvent;
 import src.backend.boarding.event.RiderStatusChangedEvent;
+import src.backend.boarding.event.RiderStatusRevertedEvent;
 import src.backend.boarding.event.RunEndedEvent;
 import src.backend.boarding.repository.RiderStatusHistoryRepository;
 import src.backend.boarding.repository.RunRiderRepository;
@@ -140,19 +141,28 @@ public class BoardingCommandService {
             notifyIfRunJustEnded(run, now);
         }
         eventPublisher.publishEvent(new RiderStatusChangedEvent(run.getId(), run.getAcademyId(),
-                rider.getStudentId(), rider.getId(), statusName(targetStatus), now));
+                rider.getStudentId(), rider.getId(), statusName(targetStatus), now, false));
         return RiderStatusUpdateResponse.of(rider.getId(), statusName(targetStatus), now, false);
     }
 
     /**
-     * 상태 정정(BRD-05, 목표 13·14) — 가장 최근 이력 행의 {@code from_status} 로 되돌린다. 횟수·시간
-     * 제한을 두지 않는다(목표 14) — 되돌린 결과도 새 이력 행으로 남으므로, 그 새 행의
-     * {@code from_status} 를 기준으로 다시 되돌리면 두 상태를 오가는 반복이 그대로 허용된다.
+     * 상태 정정(BRD-05, API_SPEC §4.7) — 가장 최근 이력 행의 {@code from_status} 로 되돌린다. 횟수·시간
+     * 제한을 두지 않는다(오픈 이슈 J 잔여 ①이 여전히 미결이라, 정본에 없는 제한을 코드 상수로
+     * 추측해 박지 않는다) — 되돌린 결과도 새 이력 행으로 남으므로, 그 새 행의 {@code from_status} 를
+     * 기준으로 다시 되돌리면 두 상태를 오가는 반복이 그대로 허용된다.
      *
      * <p>이력이 아직 없는 탑승자(승하차 처리를 한 번도 받지 않은 경우)는 {@link RunRider#uponConfirmation}
      * 의 초기값인 {@link RiderStatus#WAITING} 을 직전 상태로 간주한다 — API_SPEC §4.7 에러 목록에
      * 이 경우를 위한 별도 코드가 없어, 새 에러 코드를 만들지 않고 엔티티가 이미 보장하는 초기값으로
      * 처리했다(판단 근거로 보고에 남긴다).
+     *
+     * <p><b>정정 알림(목표 13·14, Ruling 219)</b> — 되돌리기 전 상태({@code fromStatus})가 곧 "무엇이
+     * 취소됐는지"이므로 {@link RiderStatusRevertedEvent#canceledStatus()} 로 나른다. {@code
+     * RiderStatusChangedEvent} 는 <b>고치지 않고 그대로</b> 함께 발행한다 — {@code rider_changed}
+     * WebSocket 방송(§7.1)이 그 이벤트를 구독해 "지금 상태"를 방송하는 재료로 쓰는데, 이 되돌리기도
+     * 그 트리거 표에 이미 명시돼 있다(아래 주석). 두 이벤트를 나눈 이유는
+     * {@link RiderStatusRevertedEvent} 의 클래스 주석 참고 — 요지는 WebSocket 계약을 이 신설 때문에
+     * 건드리지 않기 위함이다.
      */
     @Transactional
     public RiderRevertResponse revert(AuthUser requester, Long runId, Long riderId, RiderRevertRequest request) {
@@ -178,8 +188,17 @@ public class BoardingCommandService {
                 requester.accountId())));
 
         // WebSocket rider_changed 방송(API_SPEC §7.1)의 트리거 표가 revert 도 명시한다 — T2 소유 목표 4·5·6.
+        // reverted=true 라서 알림 로그 적재 리스너(BoardingNotificationListener)는 이 이벤트를 건너뛴다 —
+        // 정정 알림은 아래 RiderStatusRevertedEvent 가 별도로 나른다(목표 13·14, Ruling 219).
         eventPublisher.publishEvent(new RiderStatusChangedEvent(run.getId(), run.getAcademyId(),
-                rider.getStudentId(), rider.getId(), statusName(targetStatus), now));
+                rider.getStudentId(), rider.getId(), statusName(targetStatus), now, true));
+
+        // 정정 알림(목표 13·14, Ruling 219) — 취소된 상태(fromStatus)와 되돌아간 상태(targetStatus)를
+        // 함께 나른다. 되돌리기 전 상태가 boarded·alighted 가 아니면(WAITING·NO_SHOW 로부터의 되돌리기)
+        // 알림 리스너 쪽에서 조용히 건너뛴다 — 목표 13·14 는 승차·하차 취소만 범위로 한다(판단 근거로
+        // 보고에 남긴다).
+        eventPublisher.publishEvent(new RiderStatusRevertedEvent(run.getId(), run.getAcademyId(),
+                rider.getStudentId(), rider.getId(), statusName(fromStatus), statusName(targetStatus), now));
 
         return new RiderRevertResponse(statusName(targetStatus), now);
     }
