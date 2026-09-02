@@ -80,6 +80,10 @@ public final class AccountStatusGateEndpoints {
      * Phase 9 의 운행 중 단말 엔드포인트와 같은 형태로 {@code @PreAuthorize} 없이 서비스 계층이
      * 인가한다. {@code GET /staff/reports} · {@code GET /staff/reports/{id}}(§5.20, 권한 "학원
      * 관계자")는 관계자 관리 화면이라 근거가 앞 Phase 들과 같다.
+     *
+     * <p>Phase 12 T2 가 2개를 더했다 — 알림 목록 조회 {@code GET /notifications}(§3.12) · 읽음 처리
+     * {@code PATCH /notifications/{id}/read}(§3.13), 둘 다 권한 "전 역할" 이나 §1.4 의 대기·거절 허용
+     * 5개 목록에는 없다 — 승인된 계정의 기능이라 근거가 앞 Phase 들과 같다(Ruling 145 와 같은 근거).
      */
     public static final List<String> DENIED_WHEN_REJECTED = List.of(
             "POST /auth/password",
@@ -175,7 +179,10 @@ public final class AccountStatusGateEndpoints {
             // Phase 11 T3 — 현장 예외 보고 등록(§4.13) 기사·동승자 단말 기능 1개 + 관계자 웹 조회(§5.20) 2개.
             "POST /runs/{runId}/reports",
             "GET /staff/reports",
-            "GET /staff/reports/{id}");
+            "GET /staff/reports/{id}",
+            // Phase 12 T2 — 알림 목록 조회(§3.12)·읽음 처리(§3.13) 2개.
+            "GET /notifications",
+            "PATCH /notifications/{id}/read");
 
     /** {@code pending} 의 거부측 — {@code rejected} 거부측에 재신청 1개를 더한다({@code @AllowedWhenRejected} 는 pending 을 열지 않는다). */
     public static final List<String> DENIED_WHEN_PENDING = concat(DENIED_WHEN_REJECTED, "POST /auth/signup/reapply");

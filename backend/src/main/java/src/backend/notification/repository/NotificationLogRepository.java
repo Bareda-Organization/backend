@@ -3,6 +3,7 @@ package src.backend.notification.repository;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -13,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.notification.entity.NotificationLog;
+import src.backend.notification.entity.NotificationType;
 import src.backend.notification.entity.PushState;
 
 /**
@@ -119,4 +121,51 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
             """)
     int claim(@Param("id") Long id, @Param("pending") PushState pending,
             @Param("attemptedBefore") OffsetDateTime attemptedBefore, @Param("now") OffsetDateTime now);
+
+    /**
+     * 알림 목록 조회(API_SPEC §3.12, Phase 12 T2) — {@code type}·{@code unreadOnly} 가 선택이고
+     * 보관 14일이 항상 걸린다.
+     *
+     * <p>{@code type} 은 {@code :type IS NULL OR ...} 형태를 쓴다({@code ExceptionReportRepository#search}
+     * 와 같은 근거) — enum 파라미터는 null 이어도 Postgres 가 타입을 추론한다(같은 파일 재확인).
+     * {@code unreadOnly} 는 boolean 이라 {@code :unreadOnly = false OR ...} 로 충분하다 — boolean
+     * 파라미터는 항상 값이 있어 {@code OffsetDateTime} 과 같은 추론 실패가 재현되지 않는다.
+     *
+     * <p>{@code retentionFrom} 은 "필터 없음"을 널로 표현하지 않는다 — 14일은 이 목록의
+     * <b>항상-켜진</b> 조건이라 선택 필터와 성격이 다르고, 호출부({@code NotificationQueryService})가
+     * 이미 구체 시각을 계산해 넘긴다.
+     *
+     * <p>정렬은 {@code created_at desc}(+ {@code id desc} 동점 결정)다 — {@code sent_at} 은 아직
+     * 발송 전이거나(즉시 발송 창) 설정 off 로 건너뛴 행에서 널이라 정렬 축으로 쓰면 그 행들이
+     * 순서 없이 흩어진다. {@code ERD notification_log(recipient_account_id, created_at desc)}
+     * 인덱스가 가리키는 축과도 같다.
+     */
+    @Query("""
+            select n from NotificationLog n
+             where n.academyId = :academyId
+               and n.recipientAccountId = :accountId
+               and (:type is null or n.type = :type)
+               and (:unreadOnly = false or n.readAt is null)
+               and n.createdAt >= :retentionFrom
+             order by n.createdAt desc, n.id desc
+            """)
+    Page<NotificationLog> search(@Param("academyId") Long academyId, @Param("accountId") Long accountId,
+            @Param("type") NotificationType type, @Param("unreadOnly") boolean unreadOnly,
+            @Param("retentionFrom") OffsetDateTime retentionFrom, Pageable pageable);
+
+    /**
+     * 미읽음 배지(API_SPEC §3.12 {@code unread_count}) — {@code items[]} 에 걸리는 {@code type}·
+     * {@code unreadOnly} 필터와 <b>무관하게</b> 항상 전체 미읽음 수다. 보관 14일만 함께 건다
+     * (ERD {@code notification_log(recipient_account_id, created_at desc)} 인덱스 주석이 목록·배지를
+     * 같은 축으로 묶어 뒀다) — 14일보다 오래된 미읽음까지 세면 배지가 목록에 없는 항목을 가리키게 된다.
+     */
+    @Query("""
+            select count(n) from NotificationLog n
+             where n.academyId = :academyId
+               and n.recipientAccountId = :accountId
+               and n.readAt is null
+               and n.createdAt >= :retentionFrom
+            """)
+    long countUnread(@Param("academyId") Long academyId, @Param("accountId") Long accountId,
+            @Param("retentionFrom") OffsetDateTime retentionFrom);
 }

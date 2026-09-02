@@ -11,6 +11,7 @@ import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.notification.entity.NotificationType;
 
 /**
  * 요청이 문자열로 실어 보낸 값을 값 도메인으로 옮기는 유일한 지점 — 어긋난 입력은 전부
@@ -50,6 +51,11 @@ public final class ApiValues {
      */
     public static ExceptionReportType reportType(String raw) {
         return toEnum(ExceptionReportType.class, raw, "예외 보고 종류가 아닙니다: ");
+    }
+
+    /** {@code type}(§3.12 · §9.7, Phase 12 T2) 을 {@link NotificationType} 으로 옮긴다. */
+    public static NotificationType notificationType(String raw) {
+        return toEnum(NotificationType.class, raw, "알림 종류가 아닙니다: ");
     }
 
     /** {@code HH:mm} 을 {@link LocalTime} 으로 옮긴다 — 날짜가 없는 시각이다. */

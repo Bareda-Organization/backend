@@ -282,6 +282,13 @@ public enum ErrorCode {
     // 같은 형태, 존재 여부를 응답에서 드러내지 않는다).
     REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "보고를 찾을 수 없습니다"),
 
+    // ── 알림 목록 · 읽음 처리(Phase 12 T2, NTF-08) ─────────────────────────────
+    // {id} 로 지목한 알림이 아예 없을 때(API_SPEC §3.13). 위 REPORT_NOT_FOUND 와 달리 이 엔드포인트는
+    // "없다"와 "있지만 남의 것이다"를 스펙이 명시적으로 갈라 쓴다 — 남의 알림은 이 코드가 아니라
+    // FORBIDDEN 이다. 존재를 숨기지 않는 것은, 알림 목록 자체가 이미 그 계정 소유만 보여줘 id 를
+    // 추측해도 다른 정보가 새지 않기 때문이다.
+    NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "알림을 찾을 수 없습니다"),
+
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다");
 
     private final HttpStatus status;
