@@ -11,6 +11,7 @@ import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.notification.entity.NotificationType;
 
 /**
  * 요청이 문자열로 실어 보낸 값을 값 도메인으로 옮기는 유일한 지점 — 어긋난 입력은 전부
@@ -50,6 +51,33 @@ public final class ApiValues {
      */
     public static ExceptionReportType reportType(String raw) {
         return toEnum(ExceptionReportType.class, raw, "예외 보고 종류가 아닙니다: ");
+    }
+
+    /**
+     * §5.17 {@code /staff/notifications} 의 {@code type} 쿼리 필터를 {@link NotificationType} 으로
+     * 옮긴다 — {@code reportType} 과 같은 근거(Jackson 이 아니라 여기서 걸러야 422 가 유지된다).
+     */
+    public static NotificationType notificationType(String raw) {
+        return toEnum(NotificationType.class, raw, "알림 종류가 아닙니다: ");
+    }
+
+    /**
+     * §5.17 {@code acked} 쿼리 필터를 {@link Boolean} 으로 옮긴다 — {@code Boolean.valueOf} 를 직접
+     * 쓰지 않는 이유는 그 메서드가 {@code "abc"} 같은 값도 조용히 {@code false} 로 받아들여, 오타가
+     * {@code 422} 없이 "미확인만" 필터로 둔갑하기 때문이다.
+     */
+    public static Boolean ackedFilter(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String trimmed = raw.trim();
+        if ("true".equalsIgnoreCase(trimmed)) {
+            return Boolean.TRUE;
+        }
+        if ("false".equalsIgnoreCase(trimmed)) {
+            return Boolean.FALSE;
+        }
+        throw new BusinessException(ErrorCode.VALIDATION_FAILED, "acked 값이 true/false 가 아닙니다: " + raw);
     }
 
     /** {@code HH:mm} 을 {@link LocalTime} 으로 옮긴다 — 날짜가 없는 시각이다. */
