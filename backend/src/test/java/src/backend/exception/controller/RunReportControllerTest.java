@@ -169,6 +169,40 @@ class RunReportControllerTest {
         assertThat(보고_라이더(runId)).isEqualTo(runRiderId);
     }
 
+    // ── goal 15 — 관계자 즉시 통지 ─────────────────────────────────────────
+
+    /**
+     * §4.13 "관계자에게 즉시 통지" — 접수 성공 직후 그 학원 관계자(재직 스태프)에게
+     * {@code exception_reported} 알림이 적재되는지 확인한다({@code BoardingIntentControllerTest} 의
+     * {@code intent_changed}/{@code approval_requested} 적재 검사와 같은 형태). {@code notification_log.run_id}
+     * 는 이 파이프라인이 채우지 않으므로 dedup_key 접두 매칭으로 찾는다.
+     */
+    @Test
+    @DisplayName("goal15 — 보고 접수에 성공하면 그 학원 관계자에게 exception_reported 알림이 적재된다")
+    void 보고_접수에_성공하면_관계자에게_알림이_적재된다() throws Exception {
+        ExceptionReportFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long staffAccountId = fixtures.staffAccount(academyId, "관계자1");
+        OffsetDateTime departTime = now();
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/reports")
+                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"type\":\"road_block\",\"memo\":\"도로 공사로 우회 중\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.report_id").exists());
+
+        long reportId = jdbcTemplate.queryForObject(
+                "SELECT id FROM exception_report WHERE run_id = ? ORDER BY id DESC LIMIT 1", Long.class, runId);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM notification_log WHERE recipient_account_id = ? AND type = 'exception_reported' AND dedup_key LIKE ?",
+                Integer.class, staffAccountId, "exception_reported:" + reportId + ":%")).isEqualTo(1);
+    }
+
     // ── goal 15 — 422 vs 404 구분 ──────────────────────────────────────────
 
     @Test
