@@ -93,6 +93,11 @@ public final class AccountStatusGateEndpoints {
      * 전 차량 실시간 위치 스냅샷 {@code GET /staff/runs/live}(§5.18), 둘 다 권한 "학원 관계자"
      * ({@code @CanMonitorAcademy}) — 관계자 관리 화면이라 근거가 앞 Phase 들과 같다(Ruling 145 와
      * 같은 근거).
+     *
+     * <p>Phase 13 T2 가 2개를 더했다 — 메인관리자 콘솔의 학원 1곳 실시간 관제 {@code GET
+     * /admin/academies/{id}/runs/live}(§6.8, 권한 "메인관리자")와 회차별 승하차지·명단 조회
+     * {@code GET /admin/runs/{runId}/roster}(§6.9, 권한 "메인관리자") — 관리자 전용 관제 화면이라
+     * 대기·거절 계정에는 근거가 부재하다(Ruling 145 와 같은 근거).
      */
     public static final List<String> DENIED_WHEN_REJECTED = List.of(
             "POST /auth/password",
@@ -199,7 +204,11 @@ public final class AccountStatusGateEndpoints {
             "GET /staff/notifications",
             // Phase 13 T1 — 관계자 웹 운행 대시보드(§5.3)·실시간 위치 스냅샷(§5.18) 2개.
             "GET /staff/dashboard",
-            "GET /staff/runs/live");
+            "GET /staff/runs/live",
+            // Phase 13 T2 — 메인관리자 콘솔 학원 1곳 실시간 관제(§6.8) 1개 + 회차별 승하차지·명단 조회
+            // (§6.9) 1개.
+            "GET /admin/academies/{id}/runs/live",
+            "GET /admin/runs/{runId}/roster");
 
     /** {@code pending} 의 거부측 — {@code rejected} 거부측에 재신청 1개를 더한다({@code @AllowedWhenRejected} 는 pending 을 열지 않는다). */
     public static final List<String> DENIED_WHEN_PENDING = concat(DENIED_WHEN_REJECTED, "POST /auth/signup/reapply");

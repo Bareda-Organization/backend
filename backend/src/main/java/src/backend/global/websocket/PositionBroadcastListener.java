@@ -38,11 +38,10 @@ import src.backend.student.repository.StopRepository;
  * 학부모·학생 쪽 JSON 에서 키가 사라진다({@link ParentStudentPayload}). 관제 쪽만 그 컴포넌트를 가진
  * {@link ControlPayload} 를 쓴다.
  *
- * <p>⚠ <b>{@code eta} 계산 자체는 이 Phase 의 범위 밖이다</b> — {@code src.backend.run.query
- * .RunQueryService} 자바독이 명시하듯 관제용 실시간 스냅샷(§5.18 {@code GET /staff/runs/live},
- * MON-07)은 Phase 13 이고, §6.8 관제 live 조회에도 이 값을 만드는 서비스가 아직 없다(조율자·구현자
- * 공통 실측). 계산 수단이 생기기 전까지 관제 채널의 {@code eta} 는 항상 {@code null} 이다 — 키는
- * 사양대로 존재하되 값을 아직 못 채우는 상태이고, Phase 13 이 이 필드를 채우면 된다.
+ * <p>관제 채널의 {@code eta} 는 {@code run_stop.eta} 저장값을 그대로 읽은 계획값이다 — 좌표·거리로
+ * 다시 계산하지 않는다(Ruling 232 확정 — 계획값, 재계산 부재). 다음 미도착 정차 항목(도착 시각이
+ * 비고 seq 최솟값)의 {@code eta} 를 싣는다({@link #nextEtaOf}) — 도착 처리된 정차 항목은 이미 지난
+ * 예정이라 "다음" 후보에서 빠진다.
  *
  * <p>{@code current_stop_name} 은 이벤트에 실려 오지 않는다({@link RunPositionReceivedEvent} 는
  * 좌표·시각만 담는 공유 계약이라 임의로 필드를 늘리지 않는다) — {@link src.backend.location.command
@@ -81,7 +80,9 @@ public class PositionBroadcastListener {
             return;
         }
 
-        String currentStopName = currentStopNameOf(run);
+        List<RunStop> ordered = orderedStopsOf(run);
+        String currentStopName = currentStopNameOf(ordered);
+        OffsetDateTime eta = nextEtaOf(ordered);
         List<Long> studentIds = runRiderRepository.findAllByRunId(event.runId()).stream()
                 .map(RunRider::getStudentId)
                 .distinct()
@@ -95,10 +96,23 @@ public class PositionBroadcastListener {
         }
 
         ControlPayload controlPayload = new ControlPayload(event.lat(), event.lng(), event.receivedAt(),
-                currentStopName, null);
+                currentStopName, eta);
         gateway.send(WebSocketDestinations.academyLive(run.getAcademyId()), EVENT, event.runId(), event.receivedAt(),
                 controlPayload);
         gateway.send(WebSocketDestinations.ADMIN_LIVE, EVENT, event.runId(), event.receivedAt(), controlPayload);
+    }
+
+    /**
+     * 확정 노선의 정차 순서 전체 — {@link #currentStopNameOf}·{@link #nextEtaOf} 가 공유하는 조회다
+     * (Phase 13 T2 목표 12, 한 방송마다 같은 순서를 두 번 다시 읽지 않도록 여기서 한 번만 부른다).
+     */
+    private List<RunStop> orderedStopsOf(Run run) {
+        ConfirmedRoute confirmedRoute = confirmedRouteRepository.findById(run.getId()).orElse(null);
+        if (confirmedRoute == null || confirmedRoute.getCurrentVersionId() == null) {
+            return List.of();
+        }
+        return runStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeq(confirmedRoute.getCurrentVersionId(),
+                run.getAcademyId());
     }
 
     /**
@@ -107,18 +121,25 @@ public class PositionBroadcastListener {
      * 소유 범위({@code global/websocket}) 안에서 다시 계산한다. 그 클래스를 직접 재사용하지 않는 이유도
      * 같다 — 위 자바독의 실행 순서 문제 때문에 각자 독립적으로 계산해야 한다.
      */
-    private String currentStopNameOf(Run run) {
-        ConfirmedRoute confirmedRoute = confirmedRouteRepository.findById(run.getId()).orElse(null);
-        if (confirmedRoute == null || confirmedRoute.getCurrentVersionId() == null) {
-            return null;
-        }
-        List<RunStop> ordered = runStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeq(
-                confirmedRoute.getCurrentVersionId(), run.getAcademyId());
+    private String currentStopNameOf(List<RunStop> ordered) {
         RunStop currentRunStop = ordered.stream()
                 .filter(stop -> stop.getArrivedAt() != null)
                 .max(Comparator.comparingInt(RunStop::getSeq))
                 .orElse(null);
         return currentRunStop == null ? null : nameOf(currentRunStop);
+    }
+
+    /**
+     * 다음 미도착 정차 항목의 {@code eta}(Phase 13 T2 목표 12) — 도착 시각이 비어 있는 정차 중
+     * {@code seq} 최솟값 1건을 고르고, 그 항목의 {@code run_stop.eta} 저장값을 그대로 읽는다
+     * (Ruling 232 확정 — 계획값, 재계산 부재). 미도착 정차가 없으면(전 구간 도착 완료) {@code null}.
+     */
+    private OffsetDateTime nextEtaOf(List<RunStop> ordered) {
+        return ordered.stream()
+                .filter(stop -> stop.getArrivedAt() == null)
+                .min(Comparator.comparingInt(RunStop::getSeq))
+                .map(RunStop::getEta)
+                .orElse(null);
     }
 
     private String nameOf(RunStop stop) {
@@ -133,7 +154,10 @@ public class PositionBroadcastListener {
             String currentStopName) {
     }
 
-    /** 위 4개에 {@code eta} 를 더한다 — 관제 채널(academy·admin) 전용. 계산 수단이 없어 지금은 항상 {@code null}. */
+    /**
+     * 위 4개에 {@code eta} 를 더한다 — 관제 채널(academy·admin) 전용. {@link #nextEtaOf} 가 채운
+     * 계획값이다(Ruling 232 확정) — 미도착 정차가 없으면(전 구간 도착 완료) {@code null}.
+     */
     private record ControlPayload(BigDecimal lat, BigDecimal lng, OffsetDateTime receivedAt, String currentStopName,
             OffsetDateTime eta) {
     }

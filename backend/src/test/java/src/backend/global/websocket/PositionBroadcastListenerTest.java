@@ -78,8 +78,15 @@ class PositionBroadcastListenerTest {
         when(arrivedStop.getArrivedAt()).thenReturn(recordedAt.minusMinutes(1));
         when(arrivedStop.getSeq()).thenReturn(2);
         when(arrivedStop.getStopId()).thenReturn(7L);
+
+        OffsetDateTime nextEta = recordedAt.plusMinutes(15);
+        RunStop nextStop = mock(RunStop.class);
+        when(nextStop.getArrivedAt()).thenReturn(null);
+        when(nextStop.getSeq()).thenReturn(3);
+        when(nextStop.getEta()).thenReturn(nextEta);
+
         when(runStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeq(50L, academyId))
-                .thenReturn(List.of(arrivedStop));
+                .thenReturn(List.of(arrivedStop, nextStop));
 
         Stop stop = mock(Stop.class);
         when(stop.getName()).thenReturn("정문 앞");
@@ -101,17 +108,19 @@ class PositionBroadcastListenerTest {
                     return true;
                 }));
 
-        // 관제 채널(academy·admin) — 같은 좌표·정차지에 eta 키가 더 실린다.
+        // 관제 채널(academy·admin) — 같은 좌표·정차지에 다음 미도착 정차 항목의 eta 값이 그대로 실린다
+        // (Ruling 232 확정(2026-09-03 사용자)). "eta=" 존재만 보면 "eta=null" 도 통과해 버려 값 자체는 검증하지 못한다 —
+        // 그래서 정확한 값(nextEta)을 요구한다.
         verify(gateway).send(eq(WebSocketDestinations.academyLive(academyId)), eq("position"), eq(runId),
                 eq(receivedAt), org.mockito.ArgumentMatchers.argThat(payload -> {
                     String text = String.valueOf(payload);
-                    assertThat(text).contains("currentStopName=정문 앞").contains("eta=");
+                    assertThat(text).contains("currentStopName=정문 앞").contains("eta=" + nextEta);
                     return true;
                 }));
         verify(gateway).send(eq(WebSocketDestinations.ADMIN_LIVE), eq("position"), eq(runId), eq(receivedAt),
                 org.mockito.ArgumentMatchers.argThat(payload -> {
                     String text = String.valueOf(payload);
-                    assertThat(text).contains("eta=");
+                    assertThat(text).contains("eta=" + nextEta);
                     return true;
                 }));
     }
