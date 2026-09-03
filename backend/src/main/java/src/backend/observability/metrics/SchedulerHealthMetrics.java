@@ -62,6 +62,19 @@ public class SchedulerHealthMetrics {
         registry.counter(FAILURE_METRIC, "scheduler", scheduler).increment();
     }
 
+    /**
+     * 아직 한 번도 돌지 않은 스케줄러의 게이지·카운터를 0으로 미리 등록한다.
+     *
+     * <p>호출자는 {@code ScheduledTaskMetricsAspect} 뿐이며, 그쪽이 기동 시점에 등록된
+     * {@code @Scheduled} 메서드 전부를 순회하며 이름을 넘긴다 — 이름 목록을 여기서 상수로
+     * 들고 있지 않으려는 것이 목적이라(클래스 상단 주석), 이 메서드 자체는 이름을 모른 채
+     * 등록만 한다.
+     */
+    public void preRegister(String scheduler) {
+        anchor(scheduler);
+        registry.counter(FAILURE_METRIC, "scheduler", scheduler);
+    }
+
     private AtomicLong anchor(String scheduler) {
         return lastSuccessMillis.computeIfAbsent(scheduler, name -> {
             AtomicLong value = new AtomicLong(clockMillis.getAsLong());

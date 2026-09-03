@@ -7,8 +7,6 @@ import org.springframework.stereotype.Component;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 
-import lombok.RequiredArgsConstructor;
-
 /**
  * 확정 배치의 도래→완료 지연을 계측한다(RTE-08, Phase 7 목표 8, {@code ARCHITECTURE §9.4} 끝 문장).
  *
@@ -23,12 +21,19 @@ import lombok.RequiredArgsConstructor;
  * 수만큼 갈라지는 것과 개인 식별 정보가 지표에 섞이는 것을 막는다.
  */
 @Component
-@RequiredArgsConstructor
 public class RunConfirmationMetrics {
 
     private static final String LAG_METRIC = "schoolbus.run.confirmation.lag";
 
-    private final MeterRegistry registry;
+    private final Timer lagTimer;
+
+    // 생성자에서 즉시 등록한다 — recordLag 를 한 번도 안 부른 상태(회차가 도래하지 않은 기동 직후)에도
+    // /actuator/prometheus 에 이름이 나와야 한다(관측 시험이 이벤트 없이 이름 존재를 확인한다).
+    public RunConfirmationMetrics(MeterRegistry registry) {
+        this.lagTimer = Timer.builder(LAG_METRIC)
+                .description("배치 도래(confirm_at)부터 확정 완료까지의 지연. 늘면 워커 수·인스턴스 증설 신호")
+                .register(registry);
+    }
 
     /**
      * 회차 1건이 확정될 때(또는 동시 확정 경합에서 진 시도가 조용히 반환될 때) 도래→완료 지연을
@@ -38,9 +43,6 @@ public class RunConfirmationMetrics {
      * 않기 때문).
      */
     public void recordLag(Duration lag) {
-        Timer.builder(LAG_METRIC)
-                .description("배치 도래(confirm_at)부터 확정 완료까지의 지연. 늘면 워커 수·인스턴스 증설 신호")
-                .register(registry)
-                .record(lag);
+        lagTimer.record(lag);
     }
 }

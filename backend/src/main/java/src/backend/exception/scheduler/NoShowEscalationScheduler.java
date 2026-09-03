@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import src.backend.exception.command.NoShowEscalationPersistence;
 import src.backend.exception.entity.NoShowCase;
 import src.backend.exception.repository.NoShowCaseRepository;
+import src.backend.observability.metrics.NoShowEscalationMetrics;
 
 /**
  * 미승차 에스컬레이션 폴링의 진입점(목표 1, API_SPEC §4.8) — 대기 만료 + 무응답 케이스를 모아
@@ -51,6 +52,8 @@ public class NoShowEscalationScheduler {
 
     private final Clock clock;
 
+    private final NoShowEscalationMetrics metrics;
+
     /**
      * 대기 만료 + 무응답 케이스를 에스컬레이션한다.
      *
@@ -81,7 +84,9 @@ public class NoShowEscalationScheduler {
      */
     private void escalateSafely(Long caseId, OffsetDateTime now) {
         try {
-            persistence.escalateOne(caseId, now);
+            if (persistence.escalateOne(caseId, now)) {
+                metrics.recordEscalated();
+            }
         } catch (Exception e) {
             log.warn("미승차 케이스 {} 에스컬레이션 실패 — 다음 틱에 재시도한다", caseId, e);
         }

@@ -16,6 +16,7 @@ import src.backend.notification.domain.NotificationRetryPolicy;
 import src.backend.notification.entity.NotificationLog;
 import src.backend.notification.entity.PushState;
 import src.backend.notification.repository.NotificationLogRepository;
+import src.backend.observability.metrics.NotificationPushMetrics;
 
 /**
  * 아웃박스 안전망(TECH_DECISIONS §7.2 ②) — 커밋 직후 즉시 발송이 실패했거나 그 사이 앱이 죽어
@@ -45,6 +46,8 @@ public class NotificationOutboxWorker {
 
     private final Clock clock;
 
+    private final NotificationPushMetrics pushMetrics;
+
     /**
      * 미발송분을 회수해 재발송한다.
      *
@@ -71,6 +74,18 @@ public class NotificationOutboxWorker {
 
         candidates.stream()
                 .filter(candidate -> retryPolicy.retryDue(candidate, now))
-                .forEach(candidate -> notificationDispatcher.dispatch(candidate.getId()));
+                .forEach(this::dispatchAndObserve);
+    }
+
+    /**
+     * {@code dispatch} 는 반환값이 없어 소진 여부를 알 수 없다({@code NotificationDispatcher} 는
+     * 범위 밖) — {@code markAttemptFailed} 가 이미 {@code REQUIRES_NEW} 로 커밋한 뒤라 재조회하면
+     * 확정된 결과를 본다.
+     */
+    private void dispatchAndObserve(NotificationLog candidate) {
+        notificationDispatcher.dispatch(candidate.getId());
+        notificationLogRepository.findById(candidate.getId())
+                .filter(log -> log.getPushState() == PushState.FAILED)
+                .ifPresent(log -> pushMetrics.recordFailure());
     }
 }

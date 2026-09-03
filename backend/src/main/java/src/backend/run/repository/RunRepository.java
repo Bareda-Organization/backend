@@ -159,4 +159,18 @@ public interface RunRepository extends JpaRepository<Run, Long> {
             + "넘기는 runId 는 emergency_alert.run_id 에서 온 값이라 학원별로 미리 좁힐 수 없다. emergency_alert "
             + "조회 자체가 이미 §6.11 의 명시적 전 학원 예외다(AccountRepository#findAllByIdIn 과 같은 근거)")
     List<Run> findAllByIdIn(Collection<Long> ids);
+
+    /**
+     * {@code schoolbus.run.unconfirmed} 게이지(TECH_DECISIONS §13.1·§13.4)의 조회 대상 — 판정 시각을
+     * 5분 넘긴(경고 여유) idle 회차 수. {@code threshold} 에 {@code now - 5분} 을 넘겨받는다 — 알럿
+     * 조건과 확정 배치 조회의 문턱이 다르므로({@code +5분} 여유) 이 메서드를 따로 둔다.
+     *
+     * <p>{@code canceled_at IS NULL} 을 더한 이유는 {@link
+     * #findByStatusAndConfirmAtLessThanEqualAndCanceledAtIsNullOrderByConfirmAtAsc} 와 같다 —
+     * 취소된 회차는 애초에 확정 대상이 아니라 "노선을 못 받은" 위험이 없다.
+     */
+    @AcademyScopeExempt(reason = "미확정 회차 게이지(관측 목표 8)는 시각이 촉발하는 전 학원 대상 집계라 좁힐 학원이 "
+            + "부재하다 — findByStatusAndConfirmAtLessThanEqualAndCanceledAtIsNullOrderByConfirmAtAsc 와 같은 근거. "
+            + "호출부는 관측 스케줄러(RunUnconfirmedGaugeScheduler)뿐이라는 전제")
+    long countByStatusAndConfirmAtLessThanEqualAndCanceledAtIsNull(RunStatus status, OffsetDateTime threshold);
 }
