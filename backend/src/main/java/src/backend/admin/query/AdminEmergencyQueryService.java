@@ -87,7 +87,7 @@ public class AdminEmergencyQueryService {
                 .collect(Collectors.toMap(Account::getId, a -> a));
 
         Map<Long, Run> runsById = runRepository
-                .findAllById(alerts.stream().map(EmergencyAlert::getRunId).distinct().toList())
+                .findAllByIdIn(alerts.stream().map(EmergencyAlert::getRunId).distinct().toList())
                 .stream()
                 .collect(Collectors.toMap(Run::getId, r -> r));
 
