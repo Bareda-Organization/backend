@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.student.entity.LinkRequest;
 import src.backend.student.entity.LinkRequestStatus;
 
@@ -39,4 +40,18 @@ public interface LinkRequestRepository extends JpaRepository<LinkRequest, Long> 
     List<LinkRequest> findPendingForStudent(@Param("studentId") Long studentId,
             @Param("academyId") Long academyId, @Param("status") LinkRequestStatus status,
             @Param("now") OffsetDateTime now, Limit limit);
+
+    /**
+     * 보존 정리 배치 후보 id(목표 6, Phase 14 T2) — 만료된 요청 전건이 대상이다(ERD §7.1
+     * "link_request — hard delete — 만료분 정리 배치 대상"). {@code status} 로 나누지 않는다 — 정본이
+     * 삭제 기준으로 든 것은 "만료분" 하나뿐이라, {@code COMPLETED} 로 끝난 요청도 만료됐으면 함께
+     * 지운다({@link LinkRequest#complete} 자바독 — "만료로 가는 전이는 여기 두지 않는다 · 판정 주체가
+     * 정리 배치"와 같은 전제).
+     *
+     * <p>전 학원의 만료 요청이 대상이라 학원 조건을 걸지 않는다.
+     */
+    @AcademyScopeExempt(reason = "보존 정리 배치(Phase 14 목표 6) — 전 학원의 만료 요청 전건이 대상이고, "
+            + "부르는 주체가 사용자 요청이 아니라 스케줄러라 요청 주체의 소속 자체가 부재")
+    @Query("select r.id from LinkRequest r where r.expiresAt < :now order by r.id")
+    List<Long> findIdsForRetentionCleanup(@Param("now") OffsetDateTime now, Limit limit);
 }

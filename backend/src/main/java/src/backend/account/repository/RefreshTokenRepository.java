@@ -4,6 +4,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -78,4 +79,20 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
     @Query("UPDATE RefreshToken t SET t.revokedAt = :revokedAt "
             + "WHERE t.tokenHash = :tokenHash AND t.revokedAt IS NULL")
     int revokeByTokenHash(@Param("tokenHash") String tokenHash, @Param("revokedAt") OffsetDateTime revokedAt);
+
+    /**
+     * 보존 정리 배치 후보 id(목표 6, Phase 14 T2) — 만료되거나 폐기된 뒤 유예 기간이 지난 토큰이
+     * 대상이다({@link src.backend.global.retention.RetentionPolicy#refreshTokenCutoff} 잠정값).
+     *
+     * <p>이미 폐기된 토큰({@code revoked_at IS NOT NULL})은 <b>폐기 시각</b> 기준으로, 아직 폐기되지
+     * 않은 토큰은 <b>만료 시각</b> 기준으로 가른다 — 둘 다 만료됐다고 해서 즉시 지우면 안 되는 이유는
+     * 폐기 직후 재사용 시도를 감사할 여지를 남기기 위함이다({@link src.backend.global.retention.RetentionPolicy} 자바독 참고).
+     */
+    @AcademyScopeExempt(reason = "보존 정리 배치(Phase 14 목표 6) — 전 학원의 만료·폐기 토큰 전건이 대상이고, "
+            + "부르는 주체가 사용자 요청이 아니라 스케줄러라 요청 주체의 소속 자체가 부재")
+    @Query("select t.id from RefreshToken t "
+            + "where (t.revokedAt is not null and t.revokedAt < :cutoff) "
+            + "or (t.revokedAt is null and t.expiresAt < :cutoff) "
+            + "order by t.id")
+    List<Long> findIdsForRetentionCleanup(@Param("cutoff") OffsetDateTime cutoff, Limit limit);
 }

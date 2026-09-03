@@ -4,6 +4,7 @@ import java.time.OffsetDateTime;
 import java.util.Set;
 import java.util.List;
 
+import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -246,4 +247,22 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
             """)
     long countUnackedForStaffLog(@Param("academyId") Long academyId,
             @Param("importantTypes") Set<NotificationType> importantTypes);
+
+    /**
+     * 보존 정리 배치 후보 id(목표 6, Phase 14 T2) — {@code created_at} 기준으로 자른다.
+     *
+     * <p>{@code sent_at} 이 아니라 {@code created_at} 을 쓴 이유 — {@code sent_at} 은
+     * {@code push_state='sent'} 일 때만 채워진다(ERD notification_log 컬럼표). {@code failed} ·
+     * {@code skipped} · 아직 워커가 못 집은 {@code pending} 행은 {@code sent_at} 이 영원히 NULL이라,
+     * 그 컬럼으로 컷오프를 걸면 발송에 실패한 행일수록 보존 대상에서 영영 빠진다. 보관 14일은
+     * "레코드"의 보관 기간이지 "발송 성공"의 보관 기간이 아니다(ERD §7.2 "notification_log — 14일 —
+     * 알림 보관 기간").
+     *
+     * <p>전 학원의 만료 로그가 대상이라 학원 조건을 걸지 않는다 — 걸면 그 학원 밖 로그가 영영
+     * 정리되지 않는다({@link #findRetryCandidates} 와 같은 축).
+     */
+    @AcademyScopeExempt(reason = "보존 정리 배치(Phase 14 목표 6) — 전 학원의 만료 로그 전건이 대상이고, "
+            + "부르는 주체가 사용자 요청이 아니라 스케줄러라 요청 주체의 소속 자체가 부재")
+    @Query("select n.id from NotificationLog n where n.createdAt < :cutoff order by n.id")
+    List<Long> findIdsForRetentionCleanup(@Param("cutoff") OffsetDateTime cutoff, Limit limit);
 }
