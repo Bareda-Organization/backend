@@ -93,6 +93,12 @@ if [[ "$RENDERED_HASH" != '$2'* || ${#RENDERED_HASH} -lt 50 ]]; then
     exit 1
 fi
 
+echo "== 1-2. 배포 게이트 — 운행 중(moving) 회차 확인 =="
+# 이미지를 받기 전에 막는다 — pull 뒤에 걸면 새 이미지만 낭비되고 판단은 똑같이 늦다.
+# set -e 라 게이트가 exit 1 이면 여기서 스크립트가 즉시 죽는다(§14.3, moving 회차 강제 종료 금지).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+"$SCRIPT_DIR/deploy-gate.sh" "$APP_DIR/docker-compose.prod.yml" "$ENV_FILE"
+
 echo "== 2. ECR 로그인 후 새 이미지 수신 =="
 ECR_REGISTRY="$(get_param ECR_REGISTRY)"
 aws ecr get-login-password --region "$AWS_REGION" \

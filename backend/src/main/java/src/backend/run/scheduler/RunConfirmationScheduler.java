@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import src.backend.observability.metrics.RunConfirmationMetrics;
 import src.backend.run.command.RunConfirmationService;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
@@ -51,6 +52,8 @@ public class RunConfirmationScheduler {
 
     private final Clock clock;
 
+    private final RunConfirmationMetrics metrics;
+
     /**
      * 판정 시각이 지난 idle 회차를 확정한다.
      *
@@ -84,6 +87,11 @@ public class RunConfirmationScheduler {
      * 좁히면 예상 못 한 버그(널 참조 등)가 이 스레드를 죽여 {@link CompletableFuture} 가 예외로
      * 완료되고, 그 예외가 {@link #confirmDueRuns} 의 {@code join()} 까지 올라가 <b>이 틱의 나머지
      * 회차 확정 여부와 무관하게 배치 자체가 실패로 끝난다.</b>
+     *
+     * <p>이 격리 때문에 {@code confirmDueRuns} 자체는 예외를 던지지 않고 정상 반환하므로,
+     * {@code @Scheduled} 메서드 전체를 감싸는 {@code schoolbus.scheduler.failures}
+     * ({@code ScheduledTaskMetricsAspect})는 이 실패를 절대 못 본다(TECH_DECISIONS §13.1 3행) —
+     * 그래서 {@link RunConfirmationMetrics#recordRetryFailure()} 를 여기서 직접 부른다.
      */
     private void confirmSafely(Long runId) {
         try {
@@ -91,6 +99,7 @@ public class RunConfirmationScheduler {
         } catch (Exception e) {
             log.warn("회차 {} 확정 실패 — 다음 틱에 재시도한다", runId, e);
             runRepository.recordFailure(runId);
+            metrics.recordRetryFailure();
         }
     }
 }

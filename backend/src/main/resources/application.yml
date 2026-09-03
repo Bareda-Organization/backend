@@ -126,6 +126,17 @@ resilience4j:
         # 그 순간부터 온디맨드가 503 을 받는다. 자기 보호 장치가 서로를 넘어뜨리는 형태다.
         ignore-exceptions:
           - io.github.resilience4j.bulkhead.BulkheadFullException
+    metrics:
+      # 관측 목표 8행(TECH_DECISIONS §13.1) — 이 값이 없으면(기본값 false) resilience4j-spring-boot3
+      # 가 만드는 지표 게시자는 CircuitBreakerRegistry 에 실제로 연결되지 않는다. 역참조로 확인한
+      # 것: TaggedCircuitBreakerMetricsPublisher(기본 경로)는 MetricsPublisher 인터페이스를 구현하는데,
+      # CircuitBreakerRegistry.of(...) 는 RegistryEventConsumer 만 받는 오버로드뿐이라 그 둘을 잇는
+      # 어댑터가 이 classpath 어디에도 없다 — 등록은 되지만 아무 서킷과도 연결되지 않는 고아 빈이 된다.
+      # legacy 경로(registerCircuitBreakerMetrics)는 반대로 CircuitBreakerRegistry 를 직접 받아
+      # TaggedCircuitBreakerMetrics.ofCircuitBreakerRegistry(registry) 로 그 레지스트리의 이벤트
+      # 발행기에 스스로 구독한다(MeterBinder) — 이름은 legacy 지만 이 조합에서 유일하게 동작하는 경로다.
+      legacy:
+        enabled: true
   # 동시 호출 수 제한(TECH_DECISIONS §8 · ARCHITECTURE §9.4) — 동시 도래가 몰려도 공급자
   # 레이트리밋을 넘지 않게 한다. 서킷·재시도가 "공급자가 이미 아플 때" 를 다룬다면 격벽은
   # "우리가 공급자를 아프게 만드는 것" 을 막는다.
