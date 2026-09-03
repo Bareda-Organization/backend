@@ -1,11 +1,14 @@
 package src.backend.student.repository;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.student.entity.LinkCode;
 
 /** {@link LinkCode} 영속성 접근. */
@@ -39,4 +42,16 @@ public interface LinkCodeRepository extends JpaRepository<LinkCode, Long> {
             """)
     List<LinkCode> findByCodeForGuardian(@Param("code") String code, @Param("guardianId") Long guardianId,
             @Param("academyId") Long academyId);
+
+    /**
+     * 보존 정리 배치 후보 id(목표 6, Phase 14 T2) — 만료된 코드 전건이 대상이다(ERD §7.1
+     * "link_code — hard delete — 만료분 정리 배치 대상"). 사용 여부({@code used_at})로 나누지 않는다 —
+     * 정본이 삭제 기준으로 든 것은 "만료분" 하나뿐이라, 이미 쓰인 코드도 만료됐으면 함께 지운다.
+     *
+     * <p>전 학원의 만료 코드가 대상이라 학원 조건을 걸지 않는다.
+     */
+    @AcademyScopeExempt(reason = "보존 정리 배치(Phase 14 목표 6) — 전 학원의 만료 코드 전건이 대상이고, "
+            + "부르는 주체가 사용자 요청이 아니라 스케줄러라 요청 주체의 소속 자체가 부재")
+    @Query("select c.id from LinkCode c where c.expiresAt < :now order by c.id")
+    List<Long> findIdsForRetentionCleanup(@Param("now") OffsetDateTime now, Limit limit);
 }

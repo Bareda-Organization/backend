@@ -147,6 +147,11 @@ tasks.named('test') {
     // 어느 테스트에도 걸리지 않아 애너테이션을 지워도 초록이 된다.
     systemProperty 'app.run.generation.cron', '-'
 
+    // 보존 정리 배치(RetentionCleanupScheduler)도 같은 이유로 끈다 — 위 일일 회차 생성과 같은 cron
+    // 기반이라 같은 비활성 표현식을 쓴다. 배경에서 돌면 테스트가 심어 둔 기한 밖 행을 먼저 지워
+    // "지운 건수 · 기한 안 행 생존" 단언이 실행 시각에 따라 갈린다.
+    systemProperty 'app.retention.cleanup.cron', '-'
+
     // 확정 배치(RunConfirmationScheduler)의 자동 폴링을 테스트 실행 동안 미룬다(하루) — 위 아웃박스
     // 워커와 같은 이유다. 배경에서 돌면 테스트가 만든 회차를 먼저 집어 확정 건수·멱등성 단언이 실행
     // 순서에 따라 갈린다. cron 이 아니라 fixedDelay 라 '-'(비활성 표현식)를 쓸 수 없어, 대신
