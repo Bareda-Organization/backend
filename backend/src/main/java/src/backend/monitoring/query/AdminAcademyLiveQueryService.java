@@ -34,7 +34,7 @@ import src.backend.student.repository.StopRepository;
  * 메인 관리자 콘솔의 학원 1곳 실시간 관제 조회(API_SPEC §6.8, O-05, 목표 8·9).
  *
  * <p>{@code eta} 계열 값은 전부 {@code run_stop.eta} 저장값을 읽기만 한다 — 좌표·거리로 다시
- * 계산하지 않는다(Ruling 232 잠정 — 계획값, 재계산 부재). 좌표는 T1 이 만든 공용
+ * 계산하지 않는다(Ruling 232 확정 — 계획값, 재계산 부재). 좌표는 T1 이 만든 공용
  * {@link RunLiveStateResolver}(§5.18·§6.8 공유, Phase 13 §2)를 그대로 쓴다 — {@code position} 은
  * API_SPEC §6.8 에 선택 필드(`○`)라 Redis 값이 없으면 객체 자체를 {@code null} 로 비운다(필드는
  * 있고 값만 비는 형태로 두지 않는다).
@@ -106,7 +106,7 @@ public class AdminAcademyLiveQueryService {
     }
 
     /**
-     * 목적지 도착 예정(Ruling 232 잠정 — 계획값, 재계산 부재) = {@code depart_time + est_duration_min}.
+     * 목적지 도착 예정(Ruling 232 확정 — 계획값, 재계산 부재) = {@code depart_time + est_duration_min}.
      * {@code est_duration_min} 이 아직 없으면(노선 계산 전) {@code null} 이다 — moving 상태는 노선
      * 확정 이후에만 도달하므로 실제로는 거의 항상 채워져 있다(edge case, 보고서 §2 참고).
      */
@@ -126,7 +126,7 @@ public class AdminAcademyLiveQueryService {
     }
 
     /**
-     * {@code eta} 는 {@code run_stop.eta} 저장값 그대로다(Ruling 232 잠정). 도착 처리
+     * {@code eta} 는 {@code run_stop.eta} 저장값 그대로다(Ruling 232 확정). 도착 처리
      * ({@code arrived_at != null})면 이미 지난 예정이라 응답에서 비운다 — 저장값 자체를 지우는 것이
      * 아니라 이 조회가 읽을 때만 비운다.
      */

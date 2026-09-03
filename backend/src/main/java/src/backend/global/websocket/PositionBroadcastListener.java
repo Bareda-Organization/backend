@@ -39,7 +39,7 @@ import src.backend.student.repository.StopRepository;
  * {@link ControlPayload} 를 쓴다.
  *
  * <p>관제 채널의 {@code eta} 는 {@code run_stop.eta} 저장값을 그대로 읽은 계획값이다 — 좌표·거리로
- * 다시 계산하지 않는다(Ruling 232 잠정 — 계획값, 재계산 부재). 다음 미도착 정차 항목(도착 시각이
+ * 다시 계산하지 않는다(Ruling 232 확정 — 계획값, 재계산 부재). 다음 미도착 정차 항목(도착 시각이
  * 비고 seq 최솟값)의 {@code eta} 를 싣는다({@link #nextEtaOf}) — 도착 처리된 정차 항목은 이미 지난
  * 예정이라 "다음" 후보에서 빠진다.
  *
@@ -132,7 +132,7 @@ public class PositionBroadcastListener {
     /**
      * 다음 미도착 정차 항목의 {@code eta}(Phase 13 T2 목표 12) — 도착 시각이 비어 있는 정차 중
      * {@code seq} 최솟값 1건을 고르고, 그 항목의 {@code run_stop.eta} 저장값을 그대로 읽는다
-     * (Ruling 232 잠정 — 계획값, 재계산 부재). 미도착 정차가 없으면(전 구간 도착 완료) {@code null}.
+     * (Ruling 232 확정 — 계획값, 재계산 부재). 미도착 정차가 없으면(전 구간 도착 완료) {@code null}.
      */
     private OffsetDateTime nextEtaOf(List<RunStop> ordered) {
         return ordered.stream()
@@ -156,7 +156,7 @@ public class PositionBroadcastListener {
 
     /**
      * 위 4개에 {@code eta} 를 더한다 — 관제 채널(academy·admin) 전용. {@link #nextEtaOf} 가 채운
-     * 계획값이다(Ruling 232 잠정) — 미도착 정차가 없으면(전 구간 도착 완료) {@code null}.
+     * 계획값이다(Ruling 232 확정) — 미도착 정차가 없으면(전 구간 도착 완료) {@code null}.
      */
     private record ControlPayload(BigDecimal lat, BigDecimal lng, OffsetDateTime receivedAt, String currentStopName,
             OffsetDateTime eta) {

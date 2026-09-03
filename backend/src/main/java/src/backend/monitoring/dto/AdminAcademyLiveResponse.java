@@ -9,7 +9,7 @@ import java.util.List;
  * 상태인 회차만 싣는다.
  *
  * <p>{@code stops[].eta} · {@code destination_eta} 는 {@code run_stop.eta} 저장값을 그대로 읽은
- * 계획값이다 — 실시간으로 다시 계산하지 않는다(Ruling 232 잠정 — 계획값, 재계산 부재).
+ * 계획값이다 — 실시간으로 다시 계산하지 않는다(Ruling 232 확정 — 계획값, 재계산 부재).
  */
 public record AdminAcademyLiveResponse(List<Run> runs) {
 
@@ -23,7 +23,7 @@ public record AdminAcademyLiveResponse(List<Run> runs) {
     }
 
     /**
-     * {@code eta} 는 {@code run_stop.eta} 저장값 그대로다(Ruling 232 잠정 — 계획값, 재계산 부재).
+     * {@code eta} 는 {@code run_stop.eta} 저장값 그대로다(Ruling 232 확정 — 계획값, 재계산 부재).
      * 도착 처리(arrived_at != null)면 이미 지난 예정이라 {@code null} 로 비운다.
      */
     public record Stop(Long stopId, int seq, String name, BigDecimal lat, BigDecimal lng, String change,
