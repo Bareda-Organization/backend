@@ -220,6 +220,9 @@ class StaffEmergencyControllerTest {
         String body = 목록을_조회한다(staffAccountId, academyId);
 
         Map<String, Object> item = 항목(body, emergencyId);
+        assertThat(item).as("§5.16 이 요구하는 7키 전부가 있어야 한다(Phase 13 목표 13 완료 기준 2)")
+                .containsKeys("emergency_id", "raised_by", "position", "direction", "contacts", "raised_at",
+                        "acked_by");
         assertThat(item).as("정본 키는 id 가 아니라 emergency_id 다(Phase 13 목표 13 판정 ①)")
                 .doesNotContainKey("id")
                 .containsKey("emergency_id");
