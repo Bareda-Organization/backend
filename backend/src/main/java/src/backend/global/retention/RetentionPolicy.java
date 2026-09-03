@@ -23,15 +23,16 @@ public class RetentionPolicy {
     public static final Duration NOTIFICATION_LOG_RETENTION = Duration.ofDays(14);
 
     /**
-     * 위치 이력 보관 기간 — <b>잠정 · X-09</b>(ERD §8 "run_position 보유 기간 미설정 — 위치정보법
-     * 검토 대기", Ruling 243 잠정 판정). 법정 요건이 확정되면 이 상수만 바꾸면 된다.
+     * 위치 이력 보관 기간 — <b>2026-09-04 사용자 확정(X-09 해소)</b> — 실사용 전환 시 법정 검토에서
+     * 재조정 여지만 존치(ERD §8 "run_position 보유 기간 미설정 — 위치정보법 검토 대기", Ruling 243).
+     * 재조정이 필요해지면 이 상수만 바꾸면 된다.
      */
     public static final Duration RUN_POSITION_RETENTION = Duration.ofDays(90);
 
     /**
-     * 재발급 토큰이 만료되거나 폐기된 뒤 더 보관하는 기간 — <b>잠정 · X-09</b>(Ruling 243 잠정 판정).
-     * 만료·폐기 즉시 지우지 않는 이유는 폐기 직후 그 토큰으로 재사용을 시도하는 정황을 30일 동안
-     * 감사할 수 있게 남겨 두기 위함이다.
+     * 재발급 토큰이 만료되거나 폐기된 뒤 더 보관하는 기간 — <b>2026-09-04 사용자 확정(X-09 해소)</b> —
+     * 실사용 전환 시 법정 검토에서 재조정 여지만 존치(Ruling 243). 만료·폐기 즉시 지우지 않는 이유는
+     * 폐기 직후 그 토큰으로 재사용을 시도하는 정황을 30일 동안 감사할 수 있게 남겨 두기 위함이다.
      */
     public static final Duration REFRESH_TOKEN_RETENTION_AFTER_EXPIRY_OR_REVOCATION = Duration.ofDays(30);
 
