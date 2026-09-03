@@ -67,6 +67,8 @@ class AdminEmergencyControllerTest {
 
     private static final String LIST = "/api/v1/admin/emergencies";
 
+    private static final String ACK = "/api/v1/staff/emergencies/%d/ack";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -199,6 +201,10 @@ class AdminEmergencyControllerTest {
         long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
         위치를_기록한다(emergencyId, new BigDecimal("37.500000"), new BigDecimal("127.000000"), now().minusSeconds(30));
 
+        mockMvc.perform(post(ACK.formatted(emergencyId))
+                        .header("Authorization", 메인관리자_토큰(adminAccountId)))
+                .andExpect(status().isOk());
+
         String body = 목록을_조회한다(adminAccountId);
 
         Map<String, Object> item = 항목(body, emergencyId);
@@ -225,8 +231,13 @@ class AdminEmergencyControllerTest {
         assertThat(new BigDecimal(position.get("lat").toString())).isEqualByComparingTo("37.500000");
         assertThat(position.get("recorded_at")).isNotNull();
 
-        assertThat(item.get("direction")).isNotNull();
+        assertThat(item.get("direction")).as("direction 은 회차의 실제 방향값이어야 한다(수정 라운드 1, R3 Plant #1 연장)")
+                .isEqualTo("to_academy");
         assertThat(item.get("raised_at")).as("raised_at = received_at").isNotNull();
+
+        Map<String, Object> ackedBy = (Map<String, Object>) item.get("acked_by");
+        assertThat(ackedBy).as("acked_by 는 확인한 관계자의 이름을 담아야 한다(수정 라운드 1, R3 Plant #5)")
+                .containsEntry("name", "메인관리자");
     }
 
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────

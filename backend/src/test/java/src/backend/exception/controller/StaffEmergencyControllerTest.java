@@ -217,6 +217,10 @@ class StaffEmergencyControllerTest {
         OffsetDateTime recordedAt = OffsetDateTime.now().minusSeconds(30);
         위치를_기록한다(emergencyId, new BigDecimal("37.500000"), new BigDecimal("127.000000"), recordedAt);
 
+        mockMvc.perform(post(ACK.formatted(emergencyId))
+                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .andExpect(status().isOk());
+
         String body = 목록을_조회한다(staffAccountId, academyId);
 
         Map<String, Object> item = 항목(body, emergencyId);
@@ -241,6 +245,13 @@ class StaffEmergencyControllerTest {
         Map<String, Object> position = (Map<String, Object>) item.get("position");
         assertThat(new BigDecimal(position.get("lat").toString())).isEqualByComparingTo("37.500000");
         assertThat(position.get("recorded_at")).as("Ruling 236 — 위치 발신 장비가 찍은 시각").isNotNull();
+
+        assertThat(item.get("direction")).as("direction 은 회차의 실제 방향값이어야 한다(수정 라운드 1, R3 Plant #1)")
+                .isEqualTo("to_academy");
+
+        Map<String, Object> ackedBy = (Map<String, Object>) item.get("acked_by");
+        assertThat(ackedBy).as("acked_by 는 확인한 관계자의 이름을 담아야 한다(수정 라운드 1, R3 Plant #5)")
+                .containsEntry("name", "직원");
     }
 
     @Test
