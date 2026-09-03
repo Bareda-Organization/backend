@@ -109,7 +109,7 @@ class PositionBroadcastListenerTest {
                 }));
 
         // 관제 채널(academy·admin) — 같은 좌표·정차지에 다음 미도착 정차 항목의 eta 값이 그대로 실린다
-        // (Ruling 232 잠정). "eta=" 존재만 보면 "eta=null" 도 통과해 버려 값 자체는 검증하지 못한다 —
+        // (Ruling 232 확정(2026-09-03 사용자)). "eta=" 존재만 보면 "eta=null" 도 통과해 버려 값 자체는 검증하지 못한다 —
         // 그래서 정확한 값(nextEta)을 요구한다.
         verify(gateway).send(eq(WebSocketDestinations.academyLive(academyId)), eq("position"), eq(runId),
                 eq(receivedAt), org.mockito.ArgumentMatchers.argThat(payload -> {
