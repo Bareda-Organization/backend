@@ -23,9 +23,15 @@ import tools.jackson.databind.json.JsonMapper;
  * student.query.RunPositionCache} 와 같은 판단) — 전역 HTTP 메시지 컨버터 빈은 API 응답 규약인
  * {@code SNAKE_CASE} 네이밍 전략이 걸려 있어, 그대로 쓰면 {@code recordedAt} 같은 리터럴 camelCase
  * 키를 {@code recorded_at} 으로 오인해 조용히 역직렬화가 빈다(Phase 10 게이트 리뷰 R1 Critical).
+ *
+ * <p>⚠ <b>빈 이름을 명시한다.</b> 클래스 단순명이 {@code location.proximity.RunPositionReader}
+ * 와 같아 Spring 기본 빈 이름({@code runPositionReader})이 그 클래스와 겹친다 — 스캔 시점에
+ * {@code ConflictingBeanDefinitionException} 으로 앱 컨텍스트 전체가 뜨지 않는다(전 좌석의 모든
+ * {@code @SpringBootTest} 를 막는 결함, T2 목표 8 시험 작성 중 실측). 타입은 그대로라 주입 지점은
+ * 영향이 없다.
  */
 @Slf4j
-@Component
+@Component("monitoringRunPositionReader")
 @RequiredArgsConstructor
 class RunPositionReader {
 
