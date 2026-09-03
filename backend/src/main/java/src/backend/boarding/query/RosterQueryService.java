@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.audit.service.AuditRecorder;
 import src.backend.boarding.dto.ManagerRosterResponse;
 import src.backend.boarding.dto.ManagerRosterResponse.Counts;
 import src.backend.boarding.dto.ManagerRosterResponse.RosterStudent;
@@ -74,6 +75,8 @@ public class RosterQueryService {
 
     private final GuardianStudentRepository guardianStudentRepository;
 
+    private final AuditRecorder auditRecorder;
+
     /**
      * 매니저 앱의 승하차지별 명단(§4.2) — 확정 전(idle) 회차는 {@code 409 RUN_NOT_CONFIRMED}(명단이
      * 아직 채워지지 않아 빈 배열과 "확정됐는데 비었다" 가 구별되지 않기 때문, {@code ErrorCode} 참고).
@@ -101,8 +104,35 @@ public class RosterQueryService {
                 .map(runStop -> toStopGroup(runStop, stopsById.get(runStop.getStopId()),
                         ridersByStopId.getOrDefault(runStop.getStopId(), List.of()), studentsById, maskedPhonesById))
                 .toList();
+        recordManagerRosterAudit(requester, run, stops);
         return new ManagerRosterResponse(run.getId(), busNo, lower(run.getDirection().name()), countsOf(riders),
                 stops);
+    }
+
+    /**
+     * 매니저 앱 명단 조회 감사(SYS-01 · FEATURE_SPEC §6.3 · Phase 14 T1 목표 1) — {@code photo_url}·
+     * {@code note}·{@code address}(정차지, 학생 승하차지 원문 위치)가 L3 다. {@code guardian_phone} 은
+     * 이 응답에서 <b>마스킹된 값</b>이라 감사 대상에서 뺀다(§6.3 L2 마스킹 — "원본" 공개가 아니면
+     * L3 의 감사 요건이 붙지 않는다).
+     *
+     * <p>{@code absent} 학생은 이미 응답({@code stops}) 조립 단계에서 행이 빠졌으므로, 그 학생의
+     * L3 필드는 애초에 응답에 실리지 않는다 — {@code student_ids} 를 원본 {@code riders} 가 아니라
+     * 조립된 {@code stops} 에서 다시 뽑는 이유다. 응답에 학생이 하나도 없으면(전원 결석·미배정)
+     * L3 값이 실제로 실리지 않았으므로 행을 남기지 않는다({@code StudentQueryService.detail} 과
+     * 같은 근거).
+     */
+    private void recordManagerRosterAudit(AuthUser requester, Run run, List<StopGroup> stops) {
+        List<String> studentIds = stops.stream()
+                .flatMap(stopGroup -> stopGroup.students().stream())
+                .map(RosterStudent::studentId)
+                .distinct()
+                .map(String::valueOf)
+                .toList();
+        if (studentIds.isEmpty()) {
+            return;
+        }
+        auditRecorder.recordDataAccessRead(requester.academyId(), requester.accountId(), "run_roster", run.getId(),
+                Map.of("student_ids", studentIds, "fields", List.of("photo_url", "note", "address")));
     }
 
     /**
@@ -125,10 +155,35 @@ public class RosterQueryService {
         List<Long> stopIds = riders.stream().map(RunRider::getStopId).distinct().toList();
         Map<Long, Stop> stopsById = stopRepository.findAllByAcademyIdAndIdIn(requester.academyId(), stopIds).stream()
                 .collect(Collectors.toMap(Stop::getId, stop -> stop));
-        return riders.stream()
+        List<StaffRosterItemResponse> items = riders.stream()
                 .map(rider -> toStaffItem(rider, studentsById.get(rider.getStudentId()), stopsById.get(rider.getStopId()),
                         rawPhonesById.get(rider.getStudentId())))
                 .toList();
+        recordStaffRosterAudit(requester, run, items);
+        return items;
+    }
+
+    /**
+     * 관계자 웹 명단 조회 감사(SYS-01 · FEATURE_SPEC §6.3 · Phase 14 T1 목표 1) — {@code guardian_phone}
+     * 이 이 응답에서는 <b>원본</b>이다(§5.4 마스킹 대상 밖, {@link StaffRosterItemResponse} 자바독) —
+     * §6.3 L3 행이 명명한 "보호자 연락처 원본" 이 바로 이 값이라 감사 대상이다. {@code note} 도 L3.
+     * {@code photo_url} 은 이 응답에 부재(§5.4 필드 목록에 없음)라 감사 대상에 넣지 않는다.
+     *
+     * <p>매니저 앱과 달리 {@code absent} 학생도 행으로 남으므로(자바독의 "행 제외 대상 아님") 원본
+     * {@code riders} 를 다시 훑지 않고 <b>조립된 응답</b>에서 바로 뽑아도 결과가 같다 — 그래도
+     * "응답에 실제로 실린 값" 원칙을 지키려 응답 리스트를 그대로 쓴다.
+     */
+    private void recordStaffRosterAudit(AuthUser requester, Run run, List<StaffRosterItemResponse> items) {
+        List<String> studentIds = items.stream()
+                .map(StaffRosterItemResponse::studentId)
+                .distinct()
+                .map(String::valueOf)
+                .toList();
+        if (studentIds.isEmpty()) {
+            return;
+        }
+        auditRecorder.recordDataAccessRead(requester.academyId(), requester.accountId(), "run_roster", run.getId(),
+                Map.of("student_ids", studentIds, "fields", List.of("guardian_phone", "note")));
     }
 
     private StopGroup toStopGroup(RunStop runStop, Stop stopInfo, List<RunRider> ridersAtStop,
