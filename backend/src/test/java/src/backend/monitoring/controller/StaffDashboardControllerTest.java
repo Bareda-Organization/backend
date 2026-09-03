@@ -176,6 +176,7 @@ class StaffDashboardControllerTest {
         fx.rider(runId, studentId, stopId, src.backend.boarding.entity.RiderStatus.WAITING, now());
         long driverAccountId = fx.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사1", now());
         fx.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자1", now());
+        fx.unassignedManager(academyId, ManagerRole.DRIVER, "미배치기사1");
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/ack-changes").header("Authorization",
@@ -189,7 +190,7 @@ class StaffDashboardControllerTest {
                 .andExpect(jsonPath("$.data.metrics.boarded").exists())
                 .andExpect(jsonPath("$.data.metrics.no_show").exists())
                 .andExpect(jsonPath("$.data.metrics.absent").exists())
-                .andExpect(jsonPath("$.data.metrics.unassigned_managers").exists())
+                .andExpect(jsonPath("$.data.metrics.unassigned_managers").value(1))
                 .andExpect(jsonPath("$.data.runs[0].run_id").exists())
                 .andExpect(jsonPath("$.data.runs[0].bus_no").exists())
                 .andExpect(jsonPath("$.data.runs[0].direction").exists())
