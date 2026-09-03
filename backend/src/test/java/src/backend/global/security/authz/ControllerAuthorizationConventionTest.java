@@ -165,6 +165,32 @@ class ControllerAuthorizationConventionTest {
     }
 
     /**
+     * Phase 11 이월 ③ 해소(2026-09-03, 조율자) — 면제 목록 <b>자체</b>를 검사한다.
+     * {@link #인가_애너테이션이_없는_매핑_메서드가_없다} 는 면제 항목을 건너뛰므로, 면제가 근거 없이
+     * 늘거나 개명·삭제된 핸들러를 가리킨 채 남아도 아무 시험도 실패하지 않았다(Phase 11 좌석이
+     * 변형으로 실증). 개수를 고정해 항목 추가가 이 단언을 깨뜨리게 하고(계정 상태 게이트
+     * {@code hasSize} 와 같은 방식), 각 항목이 실재하는 매핑 메서드를 가리키는지 확인해 낡은 면제를
+     * 잡는다. {@code EXEMPT_FILES} 는 0개로 고정한다 — 공개 경로는 {@code @PublicEndpoint} 허용
+     * 목록(Ruling 77)이 맡고 파일 단위 면제는 쓰지 않는다.
+     */
+    @Test
+    void 면제_목록은_개수가_고정되고_실재하는_매핑_메서드만_가리킨다() {
+        assertThat(METHOD_LEVEL_EXEMPT)
+                .as("메서드 면제가 5개에서 바뀌었다 — 항목을 더했으면 METHOD_LEVEL_EXEMPT 자바독에 근거를 함께 적고 이 수를 고친다")
+                .hasSize(5);
+        assertThat(EXEMPT_FILES)
+                .as("파일 단위 면제는 0개다 — 공개 경로는 @PublicEndpoint 허용 목록이 맡는다")
+                .isEmpty();
+
+        List<String> mappingKeys = allMappingMethods(authzAnnotationNames()).stream()
+                .map(m -> m.fileName() + "#" + m.methodName())
+                .toList();
+        assertThat(mappingKeys)
+                .as("면제 항목이 실재하지 않는 매핑 메서드를 가리킨다 — 대상이 개명·삭제됐는데 면제만 남았다")
+                .containsAll(METHOD_LEVEL_EXEMPT);
+    }
+
+    /**
      * 조율자 Ruling 73 — 검사 대상 핸들러 수의 하한을 건다.
      *
      * <p>Phase 0 에서는 컨트롤러가 0개라 {@link #인가_애너테이션이_없는_매핑_메서드가_없다} 가
