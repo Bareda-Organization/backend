@@ -50,8 +50,11 @@ class MetricsExposureTest {
                 .as("2행 미확정 회차 수")
                 .contains("schoolbus_run_unconfirmed");
         assertThat(body)
-                .as("3행 배치 실패·재시도")
+                .as("3행 배치 실패·재시도 — @Scheduled 메서드 자체의 예외")
                 .contains("schoolbus_scheduler_failures_total");
+        assertThat(body)
+                .as("3행 배치 실패·재시도 — 회차 단위로 격리돼 로그에만 남던 확정 실패")
+                .contains("schoolbus_run_confirmation_retry_failures_total");
         assertThat(body)
                 .as("4행 지도 API 응답시간·실패율·서킷 — resilience4j.circuitbreaker.metrics.legacy.enabled 로 연결")
                 .contains("resilience4j_circuitbreaker_calls_seconds_count")

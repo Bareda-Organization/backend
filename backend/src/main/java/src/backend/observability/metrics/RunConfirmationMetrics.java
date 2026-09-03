@@ -4,11 +4,13 @@ import java.time.Duration;
 
 import org.springframework.stereotype.Component;
 
+import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 
 /**
- * 확정 배치의 도래→완료 지연을 계측한다(RTE-08, Phase 7 목표 8, {@code ARCHITECTURE §9.4} 끝 문장).
+ * 확정 배치의 도래→완료 지연과 회차 단위 실패를 계측한다(RTE-08, Phase 7 목표 8, {@code ARCHITECTURE
+ * §9.4} 끝 문장 · TECH_DECISIONS §13.1 3행).
  *
  * <p>재는 값은 <b>회차의 판정 시각({@code run.confirm_at})부터 실제 확정 완료 시각까지의 차</b>다 — 배치
  * 1회 실행에 걸린 시간(처리 자체의 소요)이 아니다. 처리 한 건이 매번 수십 ms 로 끝나도 도래분이
@@ -19,19 +21,34 @@ import io.micrometer.core.instrument.Timer;
  *
  * <p>태그에 학원 id·회차 id 를 붙이지 않는다({@link PipelineMetrics} 와 같은 근거) — 시계열이 대상
  * 수만큼 갈라지는 것과 개인 식별 정보가 지표에 섞이는 것을 막는다.
+ *
+ * <p>{@code schoolbus.run.confirmation.retry_failures} 는 {@code schoolbus.scheduler.failures}
+ * ({@link src.backend.observability.aspect.ScheduledTaskMetricsAspect})와 다른 신호다. 저 카운터는
+ * {@code @Scheduled} 메서드 자체가 예외를 던질 때만 오르는데, {@code RunConfirmationScheduler} 는
+ * 회차 단위로 {@code try-catch} 를 격리해(목표 4) 개별 실패를 삼키고 {@code consecutive_failures} 에만
+ * 남긴다 — TECH_DECISIONS §13.1 3행이 정확히 "회차 단위로 격리되므로 실패가 로그에만 남고 응답에
+ * 미노출"이라 지적하는 지점이다. 즉 이 카운터가 없으면 회차별 확정 실패는 Prometheus 에 영원히
+ * 보이지 않는다.
  */
 @Component
 public class RunConfirmationMetrics {
 
     private static final String LAG_METRIC = "schoolbus.run.confirmation.lag";
 
+    private static final String RETRY_FAILURE_METRIC = "schoolbus.run.confirmation.retry_failures";
+
     private final Timer lagTimer;
+
+    private final Counter retryFailureCounter;
 
     // 생성자에서 즉시 등록한다 — recordLag 를 한 번도 안 부른 상태(회차가 도래하지 않은 기동 직후)에도
     // /actuator/prometheus 에 이름이 나와야 한다(관측 시험이 이벤트 없이 이름 존재를 확인한다).
     public RunConfirmationMetrics(MeterRegistry registry) {
         this.lagTimer = Timer.builder(LAG_METRIC)
                 .description("배치 도래(confirm_at)부터 확정 완료까지의 지연. 늘면 워커 수·인스턴스 증설 신호")
+                .register(registry);
+        this.retryFailureCounter = Counter.builder(RETRY_FAILURE_METRIC)
+                .description("회차 단위로 격리돼 로그에만 남던 확정 실패를 센다 — consecutive_failures 증가와 짝")
                 .register(registry);
     }
 
@@ -44,5 +61,13 @@ public class RunConfirmationMetrics {
      */
     public void recordLag(Duration lag) {
         lagTimer.record(lag);
+    }
+
+    /**
+     * 회차 1건의 확정 시도가 실패해 {@code idle} 로 되돌아갈 때마다({@code RunConfirmationScheduler
+     * #confirmSafely}) 부른다 — {@code runRepository.recordFailure(runId)} 와 항상 짝으로 호출된다.
+     */
+    public void recordRetryFailure() {
+        retryFailureCounter.increment();
     }
 }
