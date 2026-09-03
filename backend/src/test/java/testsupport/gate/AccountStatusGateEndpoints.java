@@ -89,6 +89,11 @@ public final class AccountStatusGateEndpoints {
      * <p>Phase 12 T2 가 2개를 더했다 — 알림 목록 조회 {@code GET /notifications}(§3.12) · 읽음 처리
      * {@code PATCH /notifications/{id}/read}(§3.13), 둘 다 권한 "전 역할" 이나 §1.4 의 대기·거절 허용
      * 5개 목록에는 없다 — 승인된 계정의 기능이라 근거가 앞 Phase 들과 같다(Ruling 145 와 같은 근거).
+     *
+     * <p>Phase 13 T2 가 2개를 더했다 — 메인관리자 콘솔의 학원 1곳 실시간 관제 {@code GET
+     * /admin/academies/{id}/runs/live}(§6.8, 권한 "메인관리자")와 회차별 승하차지·명단 조회
+     * {@code GET /admin/runs/{runId}/roster}(§6.9, 권한 "메인관리자") — 관리자 전용 관제 화면이라
+     * 대기·거절 계정에는 근거가 부재하다(Ruling 145 와 같은 근거).
      */
     public static final List<String> DENIED_WHEN_REJECTED = List.of(
             "POST /auth/password",
@@ -192,7 +197,11 @@ public final class AccountStatusGateEndpoints {
             "GET /notifications",
             "PATCH /notifications/{id}/read",
             // Phase 12 T3 — 알림 로그 전수 조회(§5.17, NTF-10·11, A-13) 관계자 웹 기능 1개.
-            "GET /staff/notifications");
+            "GET /staff/notifications",
+            // Phase 13 T2 — 메인관리자 콘솔 학원 1곳 실시간 관제(§6.8) 1개 + 회차별 승하차지·명단 조회
+            // (§6.9) 1개.
+            "GET /admin/academies/{id}/runs/live",
+            "GET /admin/runs/{runId}/roster");
 
     /** {@code pending} 의 거부측 — {@code rejected} 거부측에 재신청 1개를 더한다({@code @AllowedWhenRejected} 는 pending 을 열지 않는다). */
     public static final List<String> DENIED_WHEN_PENDING = concat(DENIED_WHEN_REJECTED, "POST /auth/signup/reapply");
