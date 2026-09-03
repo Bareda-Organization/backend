@@ -1,5 +1,6 @@
 package src.backend.monitoring.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -18,7 +19,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.jayway.jsonpath.JsonPath;
 
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
@@ -151,8 +155,10 @@ class AdminMonitoringControllerTest extends RedisTestContainerBase {
         long stopId = f.stop(academyId, "37.500000", "127.030000");
 
         OffsetDateTime departTime = now().minusMinutes(20);
+        OffsetDateTime startedAt = now().minusMinutes(15);
+        int estDurationMin = 40;
         long runId = f.movingRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30),
-                now().minusMinutes(15), 40);
+                startedAt, estDurationMin);
         long versionId = f.confirmedRouteWithVersion(runId, now().minusMinutes(25));
         OffsetDateTime eta = now().plusMinutes(5);
         f.runStopForStop(versionId, stopId, 1, eta);
@@ -167,7 +173,8 @@ class AdminMonitoringControllerTest extends RedisTestContainerBase {
 
         long adminAccountId = f.systemAdminAccount("메인관리자");
 
-        mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 메인관리자_토큰(adminAccountId)))
+        MvcResult result = mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization",
+                        메인관리자_토큰(adminAccountId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs[0].run_id").value(runId))
                 .andExpect(jsonPath("$.data.runs[0].run_status").value("moving"))
@@ -182,7 +189,24 @@ class AdminMonitoringControllerTest extends RedisTestContainerBase {
                 .andExpect(jsonPath("$.data.runs[0].driver.name").value("박정우"))
                 .andExpect(jsonPath("$.data.runs[0].driver.phone").value(driver.phone()))
                 .andExpect(jsonPath("$.data.runs[0].escort.name").value("최유나"))
-                .andExpect(jsonPath("$.data.runs[0].escort.phone").value(escort.phone()));
+                .andExpect(jsonPath("$.data.runs[0].escort.phone").value(escort.phone()))
+                .andReturn();
+
+        String body = result.getResponse().getContentAsString();
+        String departTimeStr = JsonPath.read(body, "$.data.runs[0].depart_time");
+        String estDepartTimeStr = JsonPath.read(body, "$.data.runs[0].est_depart_time");
+        String stopEtaStr = JsonPath.read(body, "$.data.runs[0].stops[0].eta");
+        String destinationEtaStr = JsonPath.read(body, "$.data.runs[0].destination_eta");
+
+        assertThat(OffsetDateTime.parse(departTimeStr)).as("depart_time 은 회차 출발 예정 그대로")
+                .isEqualTo(departTime);
+        assertThat(OffsetDateTime.parse(estDepartTimeStr)).as("est_depart_time 은 run.started_at(Ruling 232)")
+                .isEqualTo(startedAt);
+        assertThat(OffsetDateTime.parse(stopEtaStr)).as("stops[].eta 는 run_stop.eta 저장값 그대로(재계산 부재)")
+                .isEqualTo(eta);
+        assertThat(OffsetDateTime.parse(destinationEtaStr))
+                .as("destination_eta 는 depart_time + est_duration_min(Ruling 232) — 소요를 더하지 않으면 이 단언이 문다")
+                .isEqualTo(departTime.plusMinutes(estDurationMin));
     }
 
     /** 도착 처리된 정차는 {@code eta} 가 {@code null} 이다(목표 8 뒷항). */
