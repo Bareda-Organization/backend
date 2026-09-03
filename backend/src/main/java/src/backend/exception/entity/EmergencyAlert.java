@@ -67,6 +67,9 @@ public class EmergencyAlert {
     @Column(name = "lng", precision = 9, scale = 6)
     private BigDecimal lng;
 
+    @Column(name = "position_recorded_at")
+    private OffsetDateTime positionRecordedAt;
+
     @Column(name = "rider_count", nullable = false)
     private Integer riderCount;
 
@@ -124,10 +127,16 @@ public class EmergencyAlert {
      * 신고 접수 시점의 위치를 붙인다 — 위치 캐시(Redis)에 값이 있을 때만 호출된다. 캐시가 비어 있어도
      * 신고 자체는 반드시 성공해야 하므로(안전 요구), 이 메서드를 호출하지 않고 {@code lat}·{@code lng}
      * 를 {@code null} 로 남겨 두는 것이 정상 경로다(호출부 판단, Phase 11 T2 목표 8).
+     *
+     * <p>{@code recordedAt} 은 위치 발신 장비가 찍은 시각(Redis 스냅샷의 {@code recordedAt})이다 —
+     * {@code occurred_at}·{@code received_at} 은 신고 자체의 시각이라 의미가 다르므로 대신 쓰지
+     * 않는다(API_SPEC §5.16 {@code position.recorded_at}, Ruling 236). 이 메서드가 호출되지
+     * 않으면 {@code lat}·{@code lng} 와 함께 {@code null} 로 남는다.
      */
-    public void attachLocation(BigDecimal lat, BigDecimal lng) {
+    public void attachLocation(BigDecimal lat, BigDecimal lng, OffsetDateTime recordedAt) {
         this.lat = lat;
         this.lng = lng;
+        this.positionRecordedAt = recordedAt;
     }
 
     /** 관계자·메인관리자의 확인 처리(EXC-04) — 최초 확인자만 기록한다({@link #isAcked} 로 중복을 막는다). */

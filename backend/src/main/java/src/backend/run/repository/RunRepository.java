@@ -141,4 +141,15 @@ public interface RunRepository extends JpaRepository<Run, Long> {
             + "갱신이다 — confirmIfIdle 과 같은 근거")
     @Query("UPDATE Run r SET r.consecutiveFailures = r.consecutiveFailures + 1 WHERE r.id = :id")
     int recordFailure(@Param("id") Long id);
+
+    /**
+     * 회차 id 목록을 학원 조건 없이 읽는다(AdminEmergencyQueryService, §6.11) — 호출부가 넘기는
+     * id 는 이미 emergency_alert.run_id 에서 온 값이고, 그 조회(EmergencyAlertRepository
+     * #findAllByOrderByReceivedAtDesc) 자체가 메인 관리자 콘솔의 명시적 전 학원 예외라 여기서 다시
+     * 학원으로 좁힐 근거가 부재하다(AccountRepository#findAllByIdIn 과 같은 근거).
+     */
+    @AcademyScopeExempt(reason = "메인 관리자 콘솔의 전 학원 비상 알림 조회(AdminEmergencyQueryService) — 호출부가 "
+            + "넘기는 runId 는 emergency_alert.run_id 에서 온 값이라 학원별로 미리 좁힐 수 없다. emergency_alert "
+            + "조회 자체가 이미 §6.11 의 명시적 전 학원 예외다(AccountRepository#findAllByIdIn 과 같은 근거)")
+    List<Run> findAllByIdIn(Collection<Long> ids);
 }

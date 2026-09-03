@@ -172,7 +172,7 @@ public class EmergencyCommandService {
      */
     private void attachLocationIfCached(EmergencyAlert alert, Long runId) {
         Optional<RunPositionSnapshot> snapshot = runPositionCache.find(runId);
-        snapshot.ifPresent(position -> alert.attachLocation(position.lat(), position.lng()));
+        snapshot.ifPresent(position -> alert.attachLocation(position.lat(), position.lng(), position.recordedAt()));
     }
 
     /**
