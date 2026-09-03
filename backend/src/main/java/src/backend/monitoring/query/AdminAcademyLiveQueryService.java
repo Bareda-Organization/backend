@@ -34,9 +34,10 @@ import src.backend.student.repository.StopRepository;
  * 메인 관리자 콘솔의 학원 1곳 실시간 관제 조회(API_SPEC §6.8, O-05, 목표 8·9).
  *
  * <p>{@code eta} 계열 값은 전부 {@code run_stop.eta} 저장값을 읽기만 한다 — 좌표·거리로 다시
- * 계산하지 않는다(Ruling 232 잠정 — 계획값, 재계산 부재). {@code AdminRunPositionCache} 는 T1
- * 공용 클래스가 전파될 때까지의 임시본이다({@code monitoring.query.AdminRunPositionCache} 자바독
- * 참고).
+ * 계산하지 않는다(Ruling 232 잠정 — 계획값, 재계산 부재). 좌표는 T1 이 만든 공용
+ * {@link RunLiveStateResolver}(§5.18·§6.8 공유, Phase 13 §2)를 그대로 쓴다 — {@code position} 은
+ * API_SPEC §6.8 에 선택 필드(`○`)라 Redis 값이 없으면 객체 자체를 {@code null} 로 비운다(필드는
+ * 있고 값만 비는 형태로 두지 않는다).
  */
 @Service
 @RequiredArgsConstructor
@@ -57,7 +58,7 @@ public class AdminAcademyLiveQueryService {
 
     private final AssignmentRepository assignmentRepository;
 
-    private final AdminRunPositionCache adminRunPositionCache;
+    private final RunLiveStateResolver runLiveStateResolver;
 
     public AdminAcademyLiveResponse live(Long academyId) {
         if (!academyRepository.existsById(academyId)) {
@@ -94,10 +95,9 @@ public class AdminAcademyLiveQueryService {
                 .map(this::toStop)
                 .toList();
 
-        AdminAcademyLiveResponse.Position position = adminRunPositionCache.find(run.getId())
-                .map(snapshot -> new AdminAcademyLiveResponse.Position(snapshot.lat(), snapshot.lng(),
-                        snapshot.receivedAt()))
-                .orElse(null);
+        RunLiveState liveState = runLiveStateResolver.resolve(run);
+        AdminAcademyLiveResponse.Position position = liveState.receivedAt() == null ? null
+                : new AdminAcademyLiveResponse.Position(liveState.lat(), liveState.lng(), liveState.receivedAt());
 
         return new AdminAcademyLiveResponse.Run(run.getId(), busNo, lower(run.getDirection().name()),
                 lower(run.getStatus().name()), position, run.getDepartTime(), run.getStartedAt(), stops,
