@@ -15,6 +15,7 @@ import src.backend.manager.dto.AssignedManagerAccountView;
 import src.backend.manager.dto.AssignedManagerView;
 import src.backend.manager.dto.ManagerRunWindow;
 import src.backend.manager.entity.Assignment;
+import src.backend.monitoring.dto.StaffAssignmentAckView;
 
 /**
  * {@link Assignment} 영속성 접근 — <b>배치 여부 판정</b>(MGR-04)과 배치 자체를 만들고 되읽는 경로
@@ -151,4 +152,28 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
             + "ORDER BY r.departTime ASC")
     List<Assignment> findByManagerIdAndAcademyIdAndServiceDate(@Param("managerId") Long managerId,
             @Param("academyId") Long academyId, @Param("serviceDate") LocalDate serviceDate);
+
+    /**
+     * 회차 목록에 배치된 매니저의 이름과 확인 응답 판정 재료를 한 번에 읽는다(§5.3
+     * {@code driver_name}·{@code escort_name}·{@code ack_driver}·{@code ack_escort}, RUN-07,
+     * Phase 13 T1). 관계자 웹 대시보드 전용이라는 뜻으로 메서드 이름에 용도를 남긴다(Ruling 238).
+     *
+     * <p>{@code ConfirmedRoute} 를 {@code LEFT JOIN} 하는 이유는 노선이 아직 확정되지 않은 회차도
+     * 배치는 있을 수 있기 때문이다 — 그때 {@code currentVersionId} 는 {@code null} 이고,
+     * {@link StaffAssignmentAckView#acked()} 는 그 상태를 "미확인" 으로 판정한다(둘 다 null 이어도
+     * 확인함으로 세지 않는다).
+     *
+     * <p><b>§5.19({@code GET /staff/runs/{runId}/route}, {@code ack{driver, escort}})를 재사용하지
+     * 않는다</b> — 그 엔드포인트는 정본(API_SPEC)에는 있으나 이 코드베이스에 컨트롤러가 아직
+     * 구현되어 있지 않다({@code run.controller.RunRouteController} 는 §4.3, 매니저 앱용이다). 대신
+     * 판정식은 이 값을 실제로 쓰는 유일한 코드인 {@code RunAckChangesCommandService}(쓰기 경로)에서
+     * 그대로 반대로 읽었다 — {@link StaffAssignmentAckView#acked()} 참고.
+     */
+    @Query("SELECT new src.backend.monitoring.dto.StaffAssignmentAckView(a.runId, a.role, m.name, "
+            + "a.ackedRouteVersionId, cr.currentVersionId) "
+            + "FROM Assignment a JOIN Manager m ON m.id = a.managerId "
+            + "LEFT JOIN ConfirmedRoute cr ON cr.runId = a.runId "
+            + "WHERE m.academyId = :academyId AND a.runId IN :runIds")
+    List<StaffAssignmentAckView> findAckViewsForStaffDashboard(@Param("academyId") Long academyId,
+            @Param("runIds") Collection<Long> runIds);
 }

@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
 import src.backend.global.security.access.AcademyScopeExempt;
+import src.backend.monitoring.dto.StaffRunRiderAggregateView;
 
 /**
  * {@link RunRider} 영속성 접근 — {@code run_rider} 는 {@code academy_id} 컬럼이 부재한 <b>부모 경유</b>
@@ -156,4 +157,22 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
               AND rr.status <> src.backend.boarding.entity.RiderStatus.ABSENT
             """)
     List<Long> findStudentIdsByRunIdAndStopIdExcludingAbsent(@Param("runId") Long runId, @Param("stopId") Long stopId);
+
+    /**
+     * 회차 목록의 탑승자를 {@code (runId, status, change)} 조합으로 묶어 센다(§5.3 {@code metrics.
+     * boarded}·{@code no_show}·{@code absent} 및 {@code runs[].boarded_count}·{@code total_count}·
+     * {@code added_count}·{@code removed_count}, Phase 13 T1) — 관계자 웹 대시보드 전용이라는 뜻으로
+     * 메서드 이름에 용도를 남긴다(Ruling 238).
+     *
+     * <p>한 쿼리로 두 축(상태·변경 구분)을 함께 묶는 이유는 {@link StaffRunRiderAggregateView}
+     * 자바독을 본다 — 소비 측(서비스 계층)이 필요한 축으로 접어 합산한다. {@code run_rider} 는
+     * {@code academy_id} 컬럼이 부재한 부모 경유 자원이라(ERD §6.1, {@code Run} 경유) 학원 조건을
+     * {@code run} 쪽 조인에 건다.
+     */
+    @Query("SELECT new src.backend.monitoring.dto.StaffRunRiderAggregateView(rr.runId, rr.status, rr.change, "
+            + "COUNT(rr)) FROM RunRider rr JOIN Run r ON r.id = rr.runId "
+            + "WHERE r.academyId = :academyId AND rr.runId IN :runIds "
+            + "GROUP BY rr.runId, rr.status, rr.change")
+    List<StaffRunRiderAggregateView> aggregateForStaffDashboard(@Param("academyId") Long academyId,
+            @Param("runIds") Collection<Long> runIds);
 }
