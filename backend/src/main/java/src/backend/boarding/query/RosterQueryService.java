@@ -25,6 +25,7 @@ import src.backend.bus.repository.BusRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
+import src.backend.global.security.access.AcademyScope;
 import src.backend.manager.access.ManagerRunAccess;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RunStop;
@@ -108,10 +109,16 @@ public class RosterQueryService {
      * 관계자 웹의 호차별 일일 명단(§5.4) — 매니저 앱과 달리 확정 전(idle) 회차도 조회할 수 있고
      * (사양 원문 "진입 차단은 매니저 앱 전용"), 배치되지 않았다는 이유로 막지 않는다 — 학원 관계자는
      * 그 학원의 회차 전체를 볼 권한을 이미 {@code STUDENT_READ_SENSITIVE} 로 가졌다.
+     *
+     * <p>존재 판정과 학원 범위 판정을 분리한다(API_SPEC §1.5, Ruling 239, 2026-09-03 사용자 판정 ②) —
+     * 회차 자체가 없으면 {@code 404 RUN_NOT_FOUND}, 있는데 타 학원 소속이면
+     * {@link AcademyScope#assertAccessible} 이 {@code 403 ACADEMY_SCOPE_VIOLATION} 을 던진다. 조회
+     * 조건에 학원 id 를 섞으면(옛 {@code findByIdAndAcademyId}) 두 사유가 같은 404 로 뭉개진다.
      */
     public List<StaffRosterItemResponse> staffRoster(AuthUser requester, Long runId) {
-        Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
+        Run run = runRepository.findById(runId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        AcademyScope.assertAccessible(requester, run.getAcademyId());
         List<RunRider> riders = runRiderRepository.findAllByRunIdAndAcademyId(run.getId(), requester.academyId());
         Map<Long, Student> studentsById = studentsOf(requester, riders);
         Map<Long, String> rawPhonesById = rawPhonesOf(requester, studentsById.keySet());

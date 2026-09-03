@@ -385,13 +385,13 @@ class StaffDashboardControllerTest {
     /**
      * 목표 5 — 관계자 토큰 응답에 타 학원 회차가 부재하고, 타 학원 회차의 명단 조회는 실패한다.
      *
-     * <p>브리프는 명단 조회 실패를 {@code 403 ACADEMY_SCOPE_VIOLATION} 으로 적었으나, 실제
-     * {@code RosterQueryService.staffRoster}(범위 밖, 수정 금지)는 {@code RunRepository
-     * .findByIdAndAcademyId} 로 학원 범위를 좁혀 대상이 없으면 {@code 404 RUN_NOT_FOUND} 를 던진다
-     * — {@code 403} 이 아니다. 실제 동작대로 검사하고 이 어긋남은 보고서 §2 에 남긴다.
+     * <p>{@code RosterQueryService.staffRoster} 가 존재 판정({@code findById})과 학원 범위 판정
+     * ({@link src.backend.global.security.access.AcademyScope#assertAccessible})을 분리하도록
+     * 고쳐(API_SPEC §1.5, Ruling 239, 2026-09-03 사용자 판정 ②) 타 학원 회차는 {@code 403
+     * ACADEMY_SCOPE_VIOLATION} 을 던진다 — 존재하지 않는 회차 id 만 {@code 404 RUN_NOT_FOUND} 다.
      */
     @Test
-    @DisplayName("목표5 — 타 학원 회차는 대시보드에 없고 그 회차 명단 조회는 실패한다(실제 코드는 404)")
+    @DisplayName("목표5 — 타 학원 회차는 대시보드에 없고 그 회차 명단 조회는 403 이다")
     void 타_학원_회차는_보이지_않고_명단_조회는_실패한다() throws Exception {
         DriverRunFixtures fx = fixtures();
         long myAcademyId = fx.academy();
@@ -418,8 +418,8 @@ class StaffDashboardControllerTest {
 
         mockMvc.perform(get("/api/v1/staff/runs/" + otherRunId + "/roster").header("Authorization",
                 토큰(staffAccountId, myAcademyId, Role.STAFF)))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error.code").value("RUN_NOT_FOUND"));
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("ACADEMY_SCOPE_VIOLATION"));
     }
 
     private String 토큰(long accountId, long academyId, Role role) {

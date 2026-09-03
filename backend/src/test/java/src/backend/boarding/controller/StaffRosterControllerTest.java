@@ -2,6 +2,7 @@ package src.backend.boarding.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.nio.charset.StandardCharsets;
@@ -183,6 +184,43 @@ class StaffRosterControllerTest {
         mockMvc.perform(get("/api/v1/staff/runs/" + runId + "/roster").header("Authorization",
                 토큰(staffAccountId, academyId)))
                 .andExpect(status().isOk());
+    }
+
+    /**
+     * API_SPEC §1.5, Ruling 239, 2026-09-03 사용자 판정 ② — 존재하는 회차라도 요청자 소속 학원과
+     * 다르면 {@code 403 ACADEMY_SCOPE_VIOLATION}(옛 동작은 조회 조건에 학원 id 를 섞어 404 로 뭉갰다).
+     */
+    @Test
+    void 타_학원_회차_명단_조회는_403_이다() throws Exception {
+        Phase9RosterFixtures fx = fixtures();
+        long myAcademyId = fx.academyWithCoordinates();
+        long staffAccountId = 관계자_계정을_만든다(myAcademyId);
+
+        long otherAcademyId = fx.academyWithCoordinates();
+        long otherBusId = fx.bus(otherAcademyId);
+        long otherStopId = fx.stop(otherAcademyId, "37.500000", "127.000000");
+        fx.route(otherAcademyId, otherBusId, Weekday.THU, Direction.TO_ACADEMY, otherStopId);
+        OffsetDateTime departTime = OffsetDateTime.parse("2031-07-03T08:00:00+09:00");
+        long otherRunId = fx.confirmedRun(otherAcademyId, otherBusId, LocalDate.parse(SERVICE_DATE),
+                Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
+
+        mockMvc.perform(get("/api/v1/staff/runs/" + otherRunId + "/roster").header("Authorization",
+                토큰(staffAccountId, myAcademyId)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("ACADEMY_SCOPE_VIOLATION"));
+    }
+
+    /** 존재하지 않는 회차 id 는 학원 범위와 무관하게 {@code 404 RUN_NOT_FOUND} 그대로다. */
+    @Test
+    void 존재하지_않는_회차는_404_다() throws Exception {
+        Phase9RosterFixtures fx = fixtures();
+        long academyId = fx.academyWithCoordinates();
+        long staffAccountId = 관계자_계정을_만든다(academyId);
+
+        mockMvc.perform(get("/api/v1/staff/runs/999999999/roster").header("Authorization",
+                토큰(staffAccountId, academyId)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("RUN_NOT_FOUND"));
     }
 
     private long 관계자_계정을_만든다(long academyId) {
