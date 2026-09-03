@@ -8,11 +8,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -176,6 +178,54 @@ class AdminEmergencyControllerTest {
                 .andExpect(status().isForbidden());
     }
 
+    // ── Phase 13 목표 13 — §6.11 은 §5.16 상속 필드를 독립으로 다시 검증한다 ─────
+    //
+    // 학원 관계자 화면(§5.16)이 통과해도 메인관리자 콘솔(§6.11)이 같은 필드를 담는다는 보장은
+    // 되지 않는다 — 두 응답 DTO(EmergencyStaffItemResponse·AdminEmergencyItemResponse)가 서로
+    // 다른 record 라 한쪽만 고치고 한쪽을 빠뜨릴 수 있다(Phase 13 목표 13 goal-table §7 요구,
+    // T2 P13 리뷰의 "§6.11 응답에서 §5.16 상속 필드 하나를 빼면 이 시험만 실패해야 한다" 음성
+    // 대조 대상).
+
+    @Test
+    void 목록_응답은_5_16_상속_필드를_academy_own_필드와_함께_담는다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long runId = fixtures.confirmedRun(academyId, busId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
+        long adminAccountId = fixtures.systemAdminAccount("메인관리자");
+
+        long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
+        위치를_기록한다(emergencyId, new BigDecimal("37.500000"), new BigDecimal("127.000000"), now().minusSeconds(30));
+
+        String body = 목록을_조회한다(adminAccountId);
+
+        Map<String, Object> item = 항목(body, emergencyId);
+        assertThat(item).as("§6.11 도 §5.16 과 같은 키를 쓴다 — id 가 아니라 emergency_id")
+                .doesNotContainKey("id")
+                .containsKey("emergency_id");
+        assertThat(item).doesNotContainKey("occurred_at");
+
+        Map<String, Object> academyInfo = (Map<String, Object>) item.get("academy");
+        assertThat(academyInfo).as("academy 는 §6.11 고유 필드다").isNotNull();
+        assertThat(((Number) academyInfo.get("id")).longValue()).isEqualTo(academyId);
+
+        Map<String, Object> raisedBy = (Map<String, Object>) item.get("raised_by");
+        assertThat(raisedBy).containsEntry("name", "기사").containsEntry("role", "driver");
+        assertThat(raisedBy.get("phone")).isNotNull();
+
+        List<Map<String, Object>> contacts = (List<Map<String, Object>>) item.get("contacts");
+        assertThat(contacts).extracting(c -> c.get("role")).containsExactlyInAnyOrder("driver", "escort");
+
+        Map<String, Object> position = (Map<String, Object>) item.get("position");
+        assertThat(new BigDecimal(position.get("lat").toString())).isEqualByComparingTo("37.500000");
+        assertThat(position.get("recorded_at")).isNotNull();
+
+        assertThat(item.get("direction")).isNotNull();
+        assertThat(item.get("raised_at")).as("raised_at = received_at").isNotNull();
+    }
+
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────
 
     private long 신고를_발신한다_기본() throws Exception {
@@ -205,17 +255,36 @@ class AdminEmergencyControllerTest {
                 .andReturn().getResponse().getContentAsString();
     }
 
-    /** id 로 걸러 elapsed_since_raised 값을 읽는다 — 시드 행이 섞여 있어도 흔들리지 않는다. */
+    /** emergency_id 로 걸러 항목 1건을 읽는다 — 시드 행이 섞여 있어도 흔들리지 않는다. */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> 항목(String body, long emergencyId) {
+        List<Map<String, Object>> items = JsonPath.read(body,
+                "$.data.emergencies[?(@.emergency_id == %d)]".formatted(emergencyId));
+        assertThat(items).as("emergency_id=%d 행이 응답에 없다".formatted(emergencyId)).hasSize(1);
+        return items.get(0);
+    }
+
+    /** 위치 캐시가 있었다면 붙었을 값을 시험용으로 직접 심는다({@code RunPositionCache} 우회, Ruling 236). */
+    private void 위치를_기록한다(long emergencyId, BigDecimal lat, BigDecimal lng, OffsetDateTime recordedAt) {
+        jdbcTemplate.update("UPDATE emergency_alert SET lat = ?, lng = ?, position_recorded_at = ? WHERE id = ?",
+                lat, lng, recordedAt, emergencyId);
+        entityManager.clear();
+    }
+
+    /**
+     * emergency_id 로 걸러 elapsed_since_raised 값을 읽는다 — 시드 행이 섞여 있어도 흔들리지
+     * 않는다. 키는 {@code id} 가 아니라 {@code emergency_id} 다(Phase 13 목표 13 판정 ①, §5.16 상속).
+     */
     private Long 경과시간(String body, long emergencyId) {
         List<Number> values = JsonPath.read(body,
-                "$.data.emergencies[?(@.id == %d)].elapsed_since_raised".formatted(emergencyId));
-        assertThat(values).as("id=%d 행이 응답에 없다".formatted(emergencyId)).hasSize(1);
+                "$.data.emergencies[?(@.emergency_id == %d)].elapsed_since_raised".formatted(emergencyId));
+        assertThat(values).as("emergency_id=%d 행이 응답에 없다".formatted(emergencyId)).hasSize(1);
         return values.get(0).longValue();
     }
 
     private boolean 확인여부(String body, long emergencyId) {
         List<Boolean> values = JsonPath.read(body,
-                "$.data.emergencies[?(@.id == %d)].staff_acked".formatted(emergencyId));
+                "$.data.emergencies[?(@.emergency_id == %d)].staff_acked".formatted(emergencyId));
         assertThat(values).hasSize(1);
         return values.get(0);
     }

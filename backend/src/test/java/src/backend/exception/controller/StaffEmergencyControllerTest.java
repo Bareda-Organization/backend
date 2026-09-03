@@ -1,6 +1,7 @@
 package src.backend.exception.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -8,7 +9,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -19,6 +23,8 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.jayway.jsonpath.JsonPath;
 
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
@@ -49,6 +55,8 @@ class StaffEmergencyControllerTest {
     private static final String RAISE = "/api/v1/runs/%d/emergency";
 
     private static final String ACK = "/api/v1/staff/emergencies/%d/ack";
+
+    private static final String LIST = "/api/v1/staff/emergencies";
 
     @Autowired
     private MockMvc mockMvc;
@@ -192,6 +200,90 @@ class StaffEmergencyControllerTest {
         assertThat(확인자(emergencyId)).as("먼저 확인한 사람의 기록이 덮어써지면 안 된다").isEqualTo(staffAccountId);
     }
 
+    // ── Phase 13 목표 13 — §5.16 응답 필드 형태(정본 정합) ────────────────────
+
+    @Test
+    void 목록_응답은_정본이_요구하는_중첩_형태를_따른다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사",
+                OffsetDateTime.now());
+        fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now());
+        long staffAccountId = fixtures.staffAccount(academyId, "직원");
+
+        long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
+        OffsetDateTime recordedAt = OffsetDateTime.now().minusSeconds(30);
+        위치를_기록한다(emergencyId, new BigDecimal("37.500000"), new BigDecimal("127.000000"), recordedAt);
+
+        String body = 목록을_조회한다(staffAccountId, academyId);
+
+        Map<String, Object> item = 항목(body, emergencyId);
+        assertThat(item).as("정본 키는 id 가 아니라 emergency_id 다(Phase 13 목표 13 판정 ①)")
+                .doesNotContainKey("id")
+                .containsKey("emergency_id");
+        assertThat(item).as("occurred_at 은 §5.16 응답에 없다(Phase 13 목표 13 판정 ①)")
+                .doesNotContainKey("occurred_at");
+
+        Map<String, Object> raisedBy = (Map<String, Object>) item.get("raised_by");
+        assertThat(raisedBy).containsEntry("name", "기사").containsEntry("role", "driver");
+        assertThat(raisedBy.get("phone")).isNotNull();
+
+        List<Map<String, Object>> contacts = (List<Map<String, Object>>) item.get("contacts");
+        assertThat(contacts).as("그 회차에 배치된 기사·동승자 전원이 담겨야 한다(Phase 13 목표 13 판정 ②)")
+                .extracting(c -> c.get("role"))
+                .containsExactlyInAnyOrder("driver", "escort");
+
+        Map<String, Object> position = (Map<String, Object>) item.get("position");
+        assertThat(new BigDecimal(position.get("lat").toString())).isEqualByComparingTo("37.500000");
+        assertThat(position.get("recorded_at")).as("Ruling 236 — 위치 발신 장비가 찍은 시각").isNotNull();
+    }
+
+    @Test
+    void 위치_캐시가_없으면_position_필드가_모두_null이다() throws Exception {
+        // 이 시험 클래스는 RedisTestContainerBase 를 상속하지 않는다(클래스 자바독 참고) — 위치 캐시가
+        // 항상 비어 있으므로 attachLocation 이 호출되지 않는 정상 경로를 그대로 검증한다.
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사",
+                OffsetDateTime.now());
+        long staffAccountId = fixtures.staffAccount(academyId, "직원");
+        long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
+
+        String body = 목록을_조회한다(staffAccountId, academyId);
+
+        Map<String, Object> item = 항목(body, emergencyId);
+        Map<String, Object> position = (Map<String, Object>) item.get("position");
+        assertThat(position.get("lat")).isNull();
+        assertThat(position.get("lng")).isNull();
+        assertThat(position.get("recorded_at")).isNull();
+    }
+
+    @Test
+    void raised_at은_occurred_at이_아니라_received_at을_쓴다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사",
+                OffsetDateTime.now());
+        long staffAccountId = fixtures.staffAccount(academyId, "직원");
+        long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
+
+        OffsetDateTime receivedAt = 접수시각(emergencyId);
+        발신시각을_옮긴다(emergencyId, receivedAt.plusMinutes(10));
+
+        String body = 목록을_조회한다(staffAccountId, academyId);
+
+        Map<String, Object> item = 항목(body, emergencyId);
+        OffsetDateTime raisedAt = OffsetDateTime.parse((String) item.get("raised_at"));
+        assertThat(raisedAt).as("raised_at = received_at(occurred_at 은 조작 가능, Phase 13 목표 13 판정 ①)")
+                .isEqualToIgnoringNanos(receivedAt);
+    }
+
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────
 
     private String 토큰(long accountId, long academyId, Role role) {
@@ -212,6 +304,38 @@ class StaffEmergencyControllerTest {
                 .andReturn().getResponse().getContentAsString();
         Number emergencyId = com.jayway.jsonpath.JsonPath.read(body, "$.data.emergency_id");
         return emergencyId.longValue();
+    }
+
+    private String 목록을_조회한다(long staffAccountId, long academyId) throws Exception {
+        return mockMvc.perform(get(LIST).header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+    }
+
+    /** emergency_id 로 걸러 항목 1건을 읽는다 — 시드 행이 섞여 있어도 흔들리지 않는다. */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> 항목(String body, long emergencyId) {
+        List<Map<String, Object>> items = JsonPath.read(body,
+                "$.data.emergencies[?(@.emergency_id == %d)]".formatted(emergencyId));
+        assertThat(items).as("emergency_id=%d 행이 응답에 없다".formatted(emergencyId)).hasSize(1);
+        return items.get(0);
+    }
+
+    /** 위치 캐시가 있었다면 붙었을 값을 시험용으로 직접 심는다({@link RunPositionCache} 우회, Ruling 236). */
+    private void 위치를_기록한다(long emergencyId, BigDecimal lat, BigDecimal lng, OffsetDateTime recordedAt) {
+        jdbcTemplate.update("UPDATE emergency_alert SET lat = ?, lng = ?, position_recorded_at = ? WHERE id = ?",
+                lat, lng, recordedAt, emergencyId);
+        entityManager.clear();
+    }
+
+    private void 발신시각을_옮긴다(long emergencyId, OffsetDateTime occurredAt) {
+        jdbcTemplate.update("UPDATE emergency_alert SET occurred_at = ? WHERE id = ?", occurredAt, emergencyId);
+        entityManager.clear();
+    }
+
+    private OffsetDateTime 접수시각(long emergencyId) {
+        return jdbcTemplate.queryForObject("SELECT received_at FROM emergency_alert WHERE id = ?",
+                OffsetDateTime.class, emergencyId);
     }
 
     private int 알림_행수(long emergencyId, long recipientAccountId, String recipientRole) {
