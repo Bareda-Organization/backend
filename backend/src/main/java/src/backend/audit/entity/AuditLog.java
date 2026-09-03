@@ -99,7 +99,7 @@ public class AuditLog {
      * 메인 관리자가 로그인 차단을 해제한 사실을 남긴다(AUTH-06 · API_SPEC §6.12).
      *
      * <p>{@code category} 가 {@link AuditCategory#LOGIN} 인 이유는 ERD §3.6 이 {@code block}·
-     * {@code unblock} 을 로그인·차단 이력 쪽 값으로 정의하고, §6.13 의 접속 이력 조회가 이 두 값을
+     * {@code unblock} 을 로그인·차단 이력 쪽 값으로 정의하고, API_SPEC §6.13 의 접속 이력 조회가 이 두 값을
      * {@code block_event} 로 투영하기 때문이다 — {@code data_access} 로 넣으면 그 화면에서 사라진다.
      *
      * <p>{@code blockEvent} 는 false 로 둔다. 그 컬럼은 "이 <b>시도</b>가 차단을 유발했는지" 를 뜻하며
