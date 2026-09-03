@@ -13,20 +13,20 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.boarding.entity.RiderStatus;
+import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.BusRepository;
+import src.backend.exception.repository.NoShowCaseRepository;
 import src.backend.global.common.enums.ChangeType;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.request.ApiValues;
 import src.backend.global.security.AuthUser;
+import src.backend.manager.repository.AssignmentRepository;
+import src.backend.manager.repository.ManagerRepository;
 import src.backend.monitoring.dto.StaffAssignmentAckView;
 import src.backend.monitoring.dto.StaffDashboardResponse;
 import src.backend.monitoring.dto.StaffNoShowCaseView;
 import src.backend.monitoring.dto.StaffRunRiderAggregateView;
-import src.backend.monitoring.repository.StaffAssignmentAckRepository;
-import src.backend.monitoring.repository.StaffManagerAvailabilityRepository;
-import src.backend.monitoring.repository.StaffNoShowCaseRepository;
-import src.backend.monitoring.repository.StaffRunRiderStatsRepository;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
@@ -50,13 +50,13 @@ public class StaffDashboardQueryService {
 
     private final BusRepository busRepository;
 
-    private final StaffRunRiderStatsRepository staffRunRiderStatsRepository;
+    private final RunRiderRepository runRiderRepository;
 
-    private final StaffAssignmentAckRepository staffAssignmentAckRepository;
+    private final AssignmentRepository assignmentRepository;
 
-    private final StaffManagerAvailabilityRepository staffManagerAvailabilityRepository;
+    private final ManagerRepository managerRepository;
 
-    private final StaffNoShowCaseRepository staffNoShowCaseRepository;
+    private final NoShowCaseRepository noShowCaseRepository;
 
     private final Clock clock;
 
@@ -71,8 +71,8 @@ public class StaffDashboardQueryService {
         List<Run> runs = runRepository.findAllByAcademyIdAndServiceDateOrderByDepartTimeAsc(
                 requester.academyId(), serviceDate);
         if (runs.isEmpty()) {
-            int unassignedManagers = (int) staffManagerAvailabilityRepository
-                    .countByAcademyIdAndDeletedAtIsNull(requester.academyId());
+            int unassignedManagers = (int) managerRepository
+                    .countActiveForStaffDashboard(requester.academyId());
             return new StaffDashboardResponse(
                     new StaffDashboardResponse.Metrics(0, 0, 0, 0, unassignedManagers), List.of());
         }
@@ -98,24 +98,24 @@ public class StaffDashboardQueryService {
     }
 
     private Map<Long, List<StaffRunRiderAggregateView>> riderAggregatesOf(AuthUser requester, List<Long> runIds) {
-        return staffRunRiderStatsRepository.aggregateByAcademyIdAndRunIdIn(requester.academyId(), runIds).stream()
+        return runRiderRepository.aggregateForStaffDashboard(requester.academyId(), runIds).stream()
                 .collect(Collectors.groupingBy(StaffRunRiderAggregateView::runId));
     }
 
     private Map<Long, List<StaffAssignmentAckView>> ackViewsOf(AuthUser requester, List<Long> runIds) {
-        return staffAssignmentAckRepository.findAckViewsByAcademyIdAndRunIdIn(requester.academyId(), runIds).stream()
+        return assignmentRepository.findAckViewsForStaffDashboard(requester.academyId(), runIds).stream()
                 .collect(Collectors.groupingBy(StaffAssignmentAckView::runId));
     }
 
     private Map<Long, List<StaffNoShowCaseView>> noShowViewsOf(AuthUser requester, List<Long> runIds) {
-        return staffNoShowCaseRepository.findActiveByAcademyIdAndRunIdIn(requester.academyId(), runIds).stream()
+        return noShowCaseRepository.findActiveForStaffDashboard(requester.academyId(), runIds).stream()
                 .collect(Collectors.groupingBy(StaffNoShowCaseView::runId));
     }
 
     /**
      * {@code metrics.moving_buses}·{@code boarded}·{@code no_show}·{@code absent}·
      * {@code unassigned_managers} — 앞 넷은 {@code runs[]} 자체와 탑승자 집계를 학원 전체로
-     * 합산하고, 마지막은 별도 조회다({@link StaffManagerAvailabilityRepository} 자바독).
+     * 합산하고, 마지막은 별도 조회다({@link ManagerRepository#countUnassignedForStaffDashboard} 자바독).
      */
     private StaffDashboardResponse.Metrics metricsOf(AuthUser requester, List<Run> runs, List<Long> runIds,
             Map<Long, List<StaffRunRiderAggregateView>> riderAggByRun) {
@@ -124,8 +124,8 @@ public class StaffDashboardQueryService {
         int boarded = sumByStatus(allAgg, RiderStatus.BOARDED);
         int noShow = sumByStatus(allAgg, RiderStatus.NO_SHOW);
         int absent = sumByStatus(allAgg, RiderStatus.ABSENT);
-        int unassignedManagers = (int) staffManagerAvailabilityRepository
-                .countUnassignedByAcademyIdAndRunIdIn(requester.academyId(), runIds);
+        int unassignedManagers = (int) managerRepository
+                .countUnassignedForStaffDashboard(requester.academyId(), runIds);
         return new StaffDashboardResponse.Metrics(movingBuses, boarded, noShow, absent, unassignedManagers);
     }
 

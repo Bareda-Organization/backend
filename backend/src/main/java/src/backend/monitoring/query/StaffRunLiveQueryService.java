@@ -18,6 +18,7 @@ import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.ChangeType;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.security.AuthUser;
+import src.backend.manager.repository.AssignmentRepository;
 import src.backend.monitoring.dto.StaffAssignmentAckView;
 import src.backend.monitoring.dto.StaffRunLiveResponse;
 import src.backend.routing.entity.ConfirmedRoute;
@@ -25,7 +26,6 @@ import src.backend.routing.entity.RunStop;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.routing.repository.WaypointRepository;
-import src.backend.monitoring.repository.StaffAssignmentAckRepository;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
@@ -49,7 +49,7 @@ public class StaffRunLiveQueryService {
 
     private final BusRepository busRepository;
 
-    private final StaffAssignmentAckRepository staffAssignmentAckRepository;
+    private final AssignmentRepository assignmentRepository;
 
     private final RunLiveStateResolver runLiveStateResolver;
 
@@ -76,8 +76,8 @@ public class StaffRunLiveQueryService {
 
         List<Long> runIds = movingRuns.stream().map(Run::getId).toList();
         Map<Long, String> busNos = busNosOf(requester, movingRuns);
-        Map<Long, List<StaffAssignmentAckView>> ackViewsByRun = staffAssignmentAckRepository
-                .findAckViewsByAcademyIdAndRunIdIn(requester.academyId(), runIds).stream()
+        Map<Long, List<StaffAssignmentAckView>> ackViewsByRun = assignmentRepository
+                .findAckViewsForStaffDashboard(requester.academyId(), runIds).stream()
                 .collect(Collectors.groupingBy(StaffAssignmentAckView::runId));
 
         List<StaffRunLiveResponse.Run> runResponses = movingRuns.stream()
@@ -133,10 +133,10 @@ public class StaffRunLiveQueryService {
     }
 
     /**
-     * Ruling 232 §3.1 — 가장 최근 도착한 정차(정차 순서 {@code seq} 최댓값 중 도착 처리된 것,
-     * {@link RunLiveStateResolver} 의 {@code currentStopId} 판정과 같은 기준)의 지연. 도착한 정차가
-     * 없으면 실제 출발 지연으로 대신한다. 두 갈래 다 음수를 0 으로 내린다 — 정시·조기 도착을 "마이너스
-     * 지연" 으로 보여주는 것은 관계자에게 혼동만 준다는 판단(확신 없는 지점, 보고서 §2).
+     * Ruling 232 확정(2026-09-03 사용자) §3.1 — 가장 최근 도착한 정차(정차 순서 {@code seq} 최댓값 중
+     * 도착 처리된 것, {@link RunLiveStateResolver} 의 {@code currentStopId} 판정과 같은 기준)의 지연.
+     * 도착한 정차가 없으면 실제 출발 지연으로 대신한다. 두 갈래 다 음수를 0 으로 내린다 — 정시·조기
+     * 도착을 "마이너스 지연" 으로 보여주는 것은 관계자에게 혼동만 준다는 판단(확신 없는 지점, 보고서 §2).
      */
     private int delayMinutesOf(Run run, List<RunStop> stops) {
         RunStop lastArrived = stops.stream()

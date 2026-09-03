@@ -1,6 +1,7 @@
 package src.backend.exception.repository;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -13,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import src.backend.exception.entity.NoShowCase;
 import src.backend.global.security.access.AcademyScopeExempt;
+import src.backend.monitoring.dto.StaffNoShowCaseView;
 
 /**
  * {@link NoShowCase} 영속성 접근 — {@code no_show_case} 는 {@code run_rider} 를 부모로 두는 부모 경유
@@ -76,4 +78,24 @@ public interface NoShowCaseRepository extends JpaRepository<NoShowCase, Long> {
     @Query("UPDATE NoShowCase c SET c.escalatedAt = :now WHERE c.id = :id "
             + "AND c.escalatedAt IS NULL AND c.resolvedAt IS NULL")
     int escalateIfDue(@Param("id") Long id, @Param("now") OffsetDateTime now);
+
+    /**
+     * 회차 목록의 <b>진행 중</b>({@code resolvedAt IS NULL}) 미승차 에스컬레이션 케이스를 학생·
+     * 승하차지 이름과 함께 읽는다(§5.3 {@code runs[].no_show_cases[]}, BRD-05, Phase 13 T1) —
+     * 관계자 웹 대시보드 전용이라는 뜻으로 메서드 이름에 용도를 남긴다(Ruling 238).
+     *
+     * <p>{@code stop_id} 는 {@code run_stop} 이 아니라 승하차지 마스터를 가리킨다({@code RunRider}
+     * 자바독) — 그래서 {@code student.entity.Stop} 을 조인한다. {@code no_show_case} 는
+     * {@code academy_id} 컬럼이 부재한 이중 부모 경유 자원이라({@code no_show_case} → {@code run_rider}
+     * → {@code run}) 학원 조건을 {@code run} 쪽 조인에 건다.
+     */
+    @Query("SELECT new src.backend.monitoring.dto.StaffNoShowCaseView(rr.runId, s.name, st.name, n.expiresAt) "
+            + "FROM NoShowCase n "
+            + "JOIN RunRider rr ON rr.id = n.runRiderId "
+            + "JOIN Student s ON s.id = rr.studentId "
+            + "JOIN Stop st ON st.id = rr.stopId "
+            + "JOIN Run r ON r.id = rr.runId "
+            + "WHERE r.academyId = :academyId AND rr.runId IN :runIds AND n.resolvedAt IS NULL")
+    List<StaffNoShowCaseView> findActiveForStaffDashboard(@Param("academyId") Long academyId,
+            @Param("runIds") Collection<Long> runIds);
 }

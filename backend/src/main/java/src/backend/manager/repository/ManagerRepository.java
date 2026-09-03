@@ -64,4 +64,26 @@ public interface ManagerRepository extends JpaRepository<Manager, Long> {
             + "RunAssignmentAccess#assertAssignedDriverOrEscort 가 이미 학원 범위로 확인한 배치의 manager_id 라 "
             + "academy_id 로 다시 좁혀도 결과가 달라지지 않는다. 요청 파라미터의 식별자를 직접 넘기면 이 예외가 우회로가 된다")
     List<Manager> findAllByIdIn(Collection<Long> ids);
+
+    /**
+     * 회차 목록 중 어디에도 배치되지 않은 재직({@code deletedAt IS NULL}) 매니저 수(§5.3
+     * {@code metrics.unassigned_managers}, Phase 13 T1) — 관계자 웹 대시보드 전용이라는 뜻으로
+     * 메서드 이름에 용도를 남긴다(Ruling 238).
+     *
+     * <p>{@code runIds} 가 빈 컬렉션이면 이 메서드를 부르지 않는다 — JPQL {@code IN ()} 은 빈
+     * 컬렉션에서 구문 오류다. 호출부(서비스 계층)가 그 경우 {@link #countActiveForStaffDashboard} 로
+     * 대신한다(오늘 회차가 하나도 없으면 재직 매니저 전원이 미배치다).
+     */
+    @Query("SELECT COUNT(m) FROM Manager m WHERE m.academyId = :academyId AND m.deletedAt IS NULL "
+            + "AND m.id NOT IN (SELECT DISTINCT a.managerId FROM Assignment a WHERE a.runId IN :runIds)")
+    long countUnassignedForStaffDashboard(@Param("academyId") Long academyId,
+            @Param("runIds") Collection<Long> runIds);
+
+    /**
+     * 오늘 회차가 하나도 없을 때의 대체 경로(§5.3, Phase 13 T1) — 재직 매니저 전원이 미배치다.
+     * 파생 쿼리 이름({@code countByAcademyIdAndDeletedAtIsNull})에 기대지 않고 {@code @Query} 로
+     * 직접 써서, 용도를 드러내는 이름(Ruling 238)과 필드명 유도를 분리한다.
+     */
+    @Query("SELECT COUNT(m) FROM Manager m WHERE m.academyId = :academyId AND m.deletedAt IS NULL")
+    long countActiveForStaffDashboard(@Param("academyId") Long academyId);
 }
