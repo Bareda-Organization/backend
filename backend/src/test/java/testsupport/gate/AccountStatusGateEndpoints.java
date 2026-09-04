@@ -102,6 +102,11 @@ public final class AccountStatusGateEndpoints {
      * <p>Phase 14 T1 이 2개를 더했다 — 메인관리자 콘솔의 감사·접속 이력 조회 {@code GET
      * /admin/audit-logs}·{@code GET /admin/login-history}(§6.13, 권한 "메인관리자") — 관리자 전용
      * 콘솔 화면이라 대기·거절 계정에는 근거가 부재하다(Ruling 145 와 같은 근거).
+     *
+     * <p>F1 S3 가 1개를 더했다 — 관계자 웹 확정 노선 조회 {@code GET
+     * /staff/runs/{runId}/route}(§5.19, RTE-02, 권한 "학원 관계자", {@code @CanMonitorAcademy}) —
+     * {@code GET /staff/dashboard}(Phase 13 T1)와 같은 계열의 관계자 관리 화면이라 근거가 같다
+     * (Ruling 145 와 같은 근거).
      */
     public static final List<String> DENIED_WHEN_REJECTED = List.of(
             "POST /auth/password",
@@ -215,7 +220,9 @@ public final class AccountStatusGateEndpoints {
             "GET /admin/runs/{runId}/roster",
             // Phase 14 T1 — 메인관리자 콘솔 감사·접속 이력 조회(§6.13) 2개.
             "GET /admin/audit-logs",
-            "GET /admin/login-history");
+            "GET /admin/login-history",
+            // F1 S3 — 관계자 웹 확정 노선 조회(§5.19) 1개.
+            "GET /staff/runs/{runId}/route");
 
     /** {@code pending} 의 거부측 — {@code rejected} 거부측에 재신청 1개를 더한다({@code @AllowedWhenRejected} 는 pending 을 열지 않는다). */
     public static final List<String> DENIED_WHEN_PENDING = concat(DENIED_WHEN_REJECTED, "POST /auth/signup/reapply");
