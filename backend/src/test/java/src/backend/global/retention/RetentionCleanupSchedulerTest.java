@@ -1,6 +1,10 @@
 package src.backend.global.retention;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.verify;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -15,6 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.Limit;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import src.backend.account.repository.RefreshTokenRepository;
 import src.backend.location.repository.RunPositionRepository;
@@ -38,6 +43,11 @@ import src.backend.student.repository.LinkRequestRepository;
  * 독립 트랜잭션으로 커밋하므로, 테스트 스레드의 롤백은 그 커밋을 되돌리지 못한다
  * ({@code RetentionCleanupScheduler} 자바독 "테이블마다 개별 트랜잭션" 참고). 뒷정리는 삽입 시
  * 기록해 둔 id 로 직접 지운다.
+ *
+ * <p>⚠ 행 수 단언(위 "목표7" 시험)만으로는 상한 배선이 빠지는 결함을 못 가른다 — 실제로 상한을
+ * 제거해도({@code Limit.unlimited()}) 행 수 시험은 전부 초록이었다(Ruling 251, 2026-09-04). 상한이
+ * 실제로 스케줄러→리포지토리 호출에 전달되는지는 {@code 보존_정리는_한_번의_호출_안에서_상한_조회를_반복한다}
+ * 와 {@link RetentionCleanupSchedulerBatchCapTest} 가 spy·mock 인자 검증으로 본다.
  */
 @SpringBootTest
 class RetentionCleanupSchedulerTest {
@@ -48,7 +58,7 @@ class RetentionCleanupSchedulerTest {
     @Autowired
     private RetentionPolicy retentionPolicy;
 
-    @Autowired
+    @MockitoSpyBean
     private NotificationLogRepository notificationLogRepository;
 
     @Autowired
@@ -192,6 +202,36 @@ class RetentionCleanupSchedulerTest {
                 "SELECT count(*) FROM notification_log WHERE id = ANY(?)",
                 Integer.class, notificationLogIds.stream().mapToLong(Long::longValue).toArray());
         assertThat(remaining).as("상한보다 많이 심었어도 여러 회차에 걸쳐 전부 지워져야 한다").isZero();
+    }
+
+    /**
+     * Ruling 251 — 위 목표7 시험은 행 수만 보므로 상한 배선이 빠져도(전량을 한 번에 조회) 못 잡는다.
+     * 여기서는 리포지토리를 spy 로 감싸, 스케줄러가 매 회차 실제로
+     * {@code Limit.of(RetentionPolicy.BATCH_SIZE)} 인자를 넘겨 호출하는지 직접 본다.
+     */
+    @Test
+    @DisplayName("Ruling 251 — cleanUp 1회 안에서 상한 조회가 여러 회차로 반복되는지 spy 로 본다(F1 S1 목표1)")
+    void 보존_정리는_한_번의_호출_안에서_상한_조회를_반복한다() {
+        int total = RetentionPolicy.BATCH_SIZE + 1;
+        List<Object[]> rows = new ArrayList<>(total);
+        OffsetDateTime createdAt = now.minusDays(20);
+        for (int i = 0; i < total; i++) {
+            rows.add(new Object[] { createdAt });
+        }
+        jdbcTemplate.batchUpdate(insertNotificationLogSql(), rows.stream()
+                .map(r -> bindNotificationLog((OffsetDateTime) r[0]))
+                .toList());
+        collectMarkedNotificationLogIds(createdAt);
+
+        scheduler.cleanUp();
+
+        Integer remaining = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM notification_log WHERE id = ANY(?)",
+                Integer.class, notificationLogIds.stream().mapToLong(Long::longValue).toArray());
+        assertThat(remaining).as("호출 1회만으로도 상한을 넘는 행 전부가 지워져야 한다").isZero();
+
+        verify(notificationLogRepository, atLeast(2))
+                .findIdsForRetentionCleanup(any(OffsetDateTime.class), eq(Limit.of(RetentionPolicy.BATCH_SIZE)));
     }
 
     // ---- notification_log ----
