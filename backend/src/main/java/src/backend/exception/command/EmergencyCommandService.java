@@ -3,6 +3,7 @@ package src.backend.exception.command;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -29,6 +30,8 @@ import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 import src.backend.manager.entity.Assignment;
+import src.backend.manager.entity.Manager;
+import src.backend.manager.repository.ManagerRepository;
 import src.backend.run.access.RunAssignmentAccess;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
@@ -62,6 +65,8 @@ public class EmergencyCommandService {
     private final RunRiderRepository runRiderRepository;
 
     private final RunAssignmentAccess runAssignmentAccess;
+
+    private final ManagerRepository managerRepository;
 
     private final RunPositionCache runPositionCache;
 
@@ -106,8 +111,16 @@ public class EmergencyCommandService {
 
         emergencyAlertRepository.save(alert);
 
-        eventPublisher.publishEvent(
-                new EmergencyRaisedEvent(alert.getId(), requester.academyId(), runId, bus.getBusNo(), type, now));
+        Manager raiser = managerRepository.findAllByIdIn(List.of(assignment.getManagerId())).stream()
+                .findFirst()
+                .orElse(null);
+        EmergencyRaisedEvent.RaisedBy raisedBy = new EmergencyRaisedEvent.RaisedBy(
+                raiser == null ? null : raiser.getName(), assignment.getRole().name().toLowerCase(Locale.ROOT),
+                raiser == null ? null : raiser.getPhone());
+        EmergencyRaisedEvent.Position position = new EmergencyRaisedEvent.Position(alert.getLat(), alert.getLng());
+
+        eventPublisher.publishEvent(new EmergencyRaisedEvent(alert.getId(), requester.academyId(), runId,
+                bus.getBusNo(), type, raisedBy, position, alert.getRiderCount(), now));
 
         return new EmergencyRaiseResponse(alert.getId(), now);
     }
