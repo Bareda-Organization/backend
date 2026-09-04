@@ -3,9 +3,7 @@ package src.backend.global.retention;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -15,9 +13,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.data.domain.Limit;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -29,8 +24,15 @@ import src.backend.student.repository.LinkRequestRepository;
 
 /**
  * 보존 정리 배치({@link RetentionCleanupScheduler#cleanUp}) 수준의 검증(Phase 14 T2 목표 6·7) —
- * {@code NoShowEscalationSchedulerTest} 와 같은 구조(고정 {@link Clock} · {@code JdbcTemplate} 직접
- * 삽입 · id 목록 기반 뒷정리)다.
+ * {@code NoShowEscalationSchedulerTest} 와 같은 구조({@code JdbcTemplate} 직접 삽입 · id 목록 기반
+ * 뒷정리)이나 <b>시계는 앱의 {@link Clock}(실제 시각)을 그대로 쓴다.</b>
+ *
+ * <p>⚠ 고정 시계를 쓰지 않는 이유(Ruling 248, 2026-09-04) — 이 시험은 실제로 행을 지우는 배치를
+ * 돌린다. 시계를 미래(2032년)로 고정하면 컷오프가 그만큼 미래로 밀려 <b>공유 DB 의 시드 행
+ * 전부</b>({@code notification_log} 10건 · {@code run_position} 3건 · {@code link_code}·{@code link_request})가
+ * 삭제되고, 같은 DB 에서 뒤에 도는 {@code NotificationOutboxWorkerTest} 가 시드를 못 찾아 실패했다
+ * (Phase 14 최종 실측에서 3건). 심는 행은 전부 {@code now} 기준 상대 시각이라 실제 시각으로도
+ * 판정이 결정적이다.
  *
  * <p>{@code @Transactional} 을 쓰지 않는다 — {@code deleteAllByIdInBatch} 가 리포지토리 메서드별
  * 독립 트랜잭션으로 커밋하므로, 테스트 스레드의 롤백은 그 커밋을 되돌리지 못한다
@@ -70,18 +72,6 @@ class RetentionCleanupSchedulerTest {
     private final List<Long> accountIds = new ArrayList<>();
     private final List<Long> academyIds = new ArrayList<>();
     private final List<Long> auditLogIds = new ArrayList<>();
-
-    @TestConfiguration
-    static class FixedClockConfig {
-
-        private static final Instant FIXED = Instant.parse("2032-06-15T00:00:00Z");
-
-        @Bean
-        @Primary
-        Clock fixedClock() {
-            return Clock.fixed(FIXED, ZoneId.of("Asia/Seoul"));
-        }
-    }
 
     @BeforeEach
     void setUp() {
