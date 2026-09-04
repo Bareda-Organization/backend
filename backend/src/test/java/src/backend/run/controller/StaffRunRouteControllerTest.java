@@ -152,6 +152,33 @@ class StaffRunRouteControllerTest {
     }
 
     @Test
+    @DisplayName("목표11 — ack 비대칭의 반대 방향: 동승자만 확인하면 driver=false·escort=true 다")
+    void ack은_기사와_동승자를_각자_실제로_읽는다() throws Exception {
+        // 위 200 시험은 기사만 확인해 ack.driver=true·ack.escort=false 만 실측한다 — 이 시험이 반대
+        // 방향(동승자만 확인)을 채워야 "ack.driver 를 항상 true 로 고정" 같은 결함이 실제로 걸린다.
+        DriverRunFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        OffsetDateTime departTime = OffsetDateTime.now().plusHours(1);
+        long runId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
+        fx.confirmedRouteWithVersion(runId, departTime.minusMinutes(40));
+        fx.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사1", OffsetDateTime.now());
+        long escortAccountId = fx.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자1",
+                OffsetDateTime.now());
+        long staffAccountId = fx.staffAccount(academyId, "관계자1");
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/ack-changes")
+                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/staff/runs/" + runId + "/route")
+                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.ack.driver").value(false))
+                .andExpect(jsonPath("$.data.ack.escort").value(true));
+    }
+
+    @Test
     @DisplayName("목표11 — 409: 확정 노선(route_version) 미배포는 RUN_NOT_CONFIRMED 다")
     void 확정_노선이_없으면_409_RUN_NOT_CONFIRMED_다() throws Exception {
         DriverRunFixtures fx = fixtures();
