@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -17,6 +18,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -48,12 +50,14 @@ import src.backend.student.entity.Student;
 import src.backend.student.entity.StudentProfile;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
+import testsupport.redis.RedisTestContainerBase;
 
 /**
  * {@code POST /runs/{runId}/emergency} 발신 경로를 실제로 태워 {@code emergency_raised} 방송이
- * 7필드(API_SPEC §7.1, Phase 14 F1 이월 ②·목표 10)를 싣는지 검증한다. {@link EmergencyBroadcastListenerTest}
- * 는 리스너 메서드를 직접 호출해 페이로드 조립만 보므로, "그 호출이 실제로 발신 흐름에서 일어나는가"
- * 는 별개로 확인해야 한다 — 이 클래스가 그 자리다.
+ * 7필드(API_SPEC §7.1, Phase 14 F1 이월 ②·목표 10)를 싣는지, 그 중 {@code position} 이 위치
+ * 캐시(LOC-02, Ruling 208)에 심은 실좌표를 그대로 옮기는지(F1 결과 ①, R3 ⑩c) 검증한다.
+ * {@link EmergencyBroadcastListenerTest} 는 리스너 메서드를 직접 호출해 페이로드 조립만 보므로,
+ * "그 호출이 실제로 발신 흐름에서 일어나는가" 는 별개로 확인해야 한다 — 이 클래스가 그 자리다.
  *
  * <p>{@link SimpMessagingTemplate} 을 {@code @MockitoBean} 으로 대체해 {@link WebSocketBroadcastGateway}
  * 가 실제로 감싸 보내는 {@link WebSocketEnvelope} 를 가로챈다. 클래스 전체가 {@code @Transactional}
@@ -63,11 +67,16 @@ import src.backend.student.repository.StudentRepository;
  * 이 시험 메서드만 {@link Propagation#NOT_SUPPORTED} 로 시험용 트랜잭션 자체를 끈다. 이 시험이
  * 만든 행은 커밋된 채로 남지만 {@link EmergencyFixtures} 가 매번 새 식별자를 쓰므로 이후 실행과
  * 충돌하지 않는다.
+ *
+ * <p>{@link RedisTestContainerBase} 를 상속해 위치 캐시를 쓴다 — {@link EmergencyPositionRecordedAtIntegrationTest}
+ * 와 같은 방식(원문 camelCase JSON, {@code run:{runId}:position} 키)이다. 심는 좌표는 그 클래스의
+ * 예시값(37.512345/127.098765)과 **다르게** 둔다 — 같은 값을 쓰면 다른 시험이 남긴 캐시 잔존과
+ * 구별이 안 된다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
-class EmergencyRaisedBroadcastIntegrationTest {
+class EmergencyRaisedBroadcastIntegrationTest extends RedisTestContainerBase {
 
     private static final String RAISE = "/api/v1/runs/%d/emergency";
 
@@ -76,6 +85,9 @@ class EmergencyRaisedBroadcastIntegrationTest {
 
     @Autowired
     private JwtTokenProvider tokenProvider;
+
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
 
     // ObjectMapper 는 이 앱 컨텍스트에 빈으로 등록돼 있지 않다(전 프로젝트 확인 결과 자동배선하는
     // 시험이 없다) — EmergencyBroadcastListenerTest 와 같은 방식으로 SNAKE_CASE(Ruling 104)를 직접
@@ -150,6 +162,14 @@ class EmergencyRaisedBroadcastIntegrationTest {
             runRiderRepository.save(RunRider.uponConfirmation(runId, studentId, stopId));
         }
 
+        // EmergencyPositionRecordedAtIntegrationTest 의 예시값(37.512345/127.098765)과 다른 값 —
+        // 잔존 캐시와 구별하기 위함이다(클래스 자바독 참고).
+        OffsetDateTime recordedAt = OffsetDateTime.now().minusMinutes(1).truncatedTo(ChronoUnit.SECONDS);
+        String positionJson = """
+                {"lat":36.654321,"lng":126.123456,"recordedAt":"%s","receivedAt":"%s","currentStopName":"임시 정류장"}"""
+                .formatted(recordedAt, OffsetDateTime.now().truncatedTo(ChronoUnit.SECONDS));
+        stringRedisTemplate.opsForValue().set("run:%d:position".formatted(runId), positionJson);
+
         mockMvc.perform(post(RAISE.formatted(runId))
                         .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -174,6 +194,12 @@ class EmergencyRaisedBroadcastIntegrationTest {
         assertThat(payload.get("raised_by").get("role").asText()).isEqualTo("driver");
         assertThat(payload.get("raised_by").get("phone").asText()).isEqualTo("010-0000-0000");
         assertThat(payload.has("position")).as("position 키가 없다").isTrue();
+        assertThat(payload.get("position").get("lat").decimalValue())
+                .as("position.lat 은 위치 캐시에 심은 값이어야 한다")
+                .isEqualByComparingTo("36.654321");
+        assertThat(payload.get("position").get("lng").decimalValue())
+                .as("position.lng 은 위치 캐시에 심은 값이어야 한다")
+                .isEqualByComparingTo("126.123456");
         assertThat(payload.get("rider_count").asInt()).isEqualTo(2);
         assertThat(payload.has("raised_at")).as("raised_at 키가 없다").isTrue();
     }

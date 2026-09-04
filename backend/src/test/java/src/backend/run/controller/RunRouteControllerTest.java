@@ -153,6 +153,34 @@ class RunRouteControllerTest {
     }
 
     @Test
+    void 정상_조회는_stops_배열에_정차지_순서를_싣는다() throws Exception {
+        // F1 결과 ②(R3 ⑪e) — 기존 결번 시험은 next_stop·skipped_notice 만 보고 stops[] 자체의
+        // 값은 확인하지 않았다. 결번 없이 정차지 2곳을 그대로 태워 stops[0] 이 첫 정차지를 가리키고
+        // 개수가 심은 만큼인지 본다.
+        Phase9RosterFixtures fx = fixtures();
+        long academyId = fx.academyWithCoordinates();
+        long busId = fx.bus(academyId);
+        long stop1 = fx.stop(academyId, "37.500000", "127.000000");
+        long stop2 = fx.stop(academyId, "37.510000", "127.010000");
+        fx.route(academyId, busId, Weekday.FRI, Direction.TO_ACADEMY, stop1, stop2);
+        long student1 = fx.student(academyId, "학생1");
+        long student2 = fx.student(academyId, "학생2");
+        fx.verifiedAddress(student1, stop1, Weekday.FRI, Direction.TO_ACADEMY, "37.500000", "127.000000");
+        fx.verifiedAddress(student2, stop2, Weekday.FRI, Direction.TO_ACADEMY, "37.510000", "127.010000");
+        OffsetDateTime departTime = OffsetDateTime.parse("2031-07-04T08:00:00+09:00");
+        long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY,
+                departTime, departTime.minusMinutes(30));
+        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
+        fx.assign(runId, manager.managerId(), ManagerRole.DRIVER);
+
+        mockMvc.perform(get("/api/v1/runs/" + runId + "/route").header("Authorization",
+                        토큰(manager.accountId(), academyId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.stops[0].stop_id").value((int) stop1))
+                .andExpect(jsonPath("$.data.stops.length()").value(2));
+    }
+
+    @Test
     void 확정_전_회차는_409_RUN_NOT_CONFIRMED_다() throws Exception {
         Phase9RosterFixtures fx = fixtures();
         long academyId = fx.academyWithCoordinates();
