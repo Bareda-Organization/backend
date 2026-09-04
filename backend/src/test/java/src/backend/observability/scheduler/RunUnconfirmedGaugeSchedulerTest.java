@@ -37,13 +37,17 @@ import src.backend.student.repository.WeeklyAddressRepository;
  * {@link src.backend.observability.MetricsExposureTest} 는 이름의 존재만 보고 값은 보지 않는다.
  *
  * <p>문턱은 {@code confirm_at + 5분} 이 지난 {@code idle} 회차다({@link RunUnconfirmedGaugeScheduler}
- * javadoc). 아래 4건을 같은 배치에 섞어 넣어, 문턱을 살짝 넘긴 것과 살짝 못 미친 것 · idle 이 아닌 것 ·
+ * javadoc). 아래 5건을 같은 배치에 섞어 넣어, 문턱을 살짝 넘긴 것과 살짝 못 미친 것 · idle 이 아닌 것 ·
  * 취소된 것을 한 카운트로 구별한다.
+ *
+ * <p>대상을 <b>2건</b>으로 둔다 — 1건씩만 두면 idle-대상 개수와 confirmed-제외분 개수가 우연히 1:1 로
+ * 같아져, 술어를 {@code IDLE}→{@code CONFIRMED} 로 바꿔도 증분 값이 그대로 1 이라 이 시험이 그 결함을
+ * 못 잡는다(실측 확인 — F1 S1 목표 2). 대상을 2건으로 늘려 그 우연한 일치를 깬다.
  *
  * <p>절대값이 아니라 <b>증분</b>으로 단언한다 — 이 게이지는 전 학원 대상 집계라(범위를 좁힐 수 없는
  * 이유는 {@code RunRepository} 의 {@code @AcademyScopeExempt} 근거 참고) 로컬 시드
  * ({@code V2__seed_data.sql})가 심어 둔 idle 회차 1건이 이미 실측 문턱을 넘겨 있다. 문턱 전후로 이
- * 시험이 심은 4건만큼만 값이 얼마나 늘었는지를 보면 그 시드 오염과 무관하게 판정할 수 있다.
+ * 시험이 심은 5건만큼만 값이 얼마나 늘었는지를 보면 그 시드 오염과 무관하게 판정할 수 있다.
  */
 @SpringBootTest
 class RunUnconfirmedGaugeSchedulerTest {
@@ -140,6 +144,12 @@ class RunUnconfirmedGaugeSchedulerTest {
         long overdueRunId = fixtures.idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY,
                 now.minusMinutes(6).plusMinutes(30), now.minusMinutes(6));
 
+        // 대상 2 — confirm_at 이 9분 지난 idle 회차. idle-대상과 confirmed-제외분의 개수가 우연히
+        // 같아지면(1:1) 술어를 IDLE→CONFIRMED 로 바꿔도 카운트가 안 변해 이 시험이 못 잡는다
+        // (실측 확인 — F1 S1 목표 2, 그 우연한 1:1 을 여기서 2:1 로 깨 둔다).
+        long secondOverdueRunId = fixtures.idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY,
+                now.minusMinutes(9).plusMinutes(30), now.minusMinutes(9));
+
         // 제외 1 — confirm_at 이 2분만 지나 아직 5분 여유 안이다(확정 배치 대상일 수는 있어도 경보 대상은 아니다).
         fixtures.idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY,
                 now.minusMinutes(2).plusMinutes(30), now.minusMinutes(2));
@@ -156,6 +166,8 @@ class RunUnconfirmedGaugeSchedulerTest {
 
         scheduler.refresh();
 
-        assertThat(gaugeValue() - before).as("대상 1건(" + overdueRunId + ")만큼만 늘어야 한다").isEqualTo(1.0);
+        assertThat(gaugeValue() - before)
+                .as("대상 2건(" + overdueRunId + ", " + secondOverdueRunId + ")만큼만 늘어야 한다")
+                .isEqualTo(2.0);
     }
 }
