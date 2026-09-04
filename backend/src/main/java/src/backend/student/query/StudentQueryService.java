@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.audit.service.AuditRecorder;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.request.PageParams;
@@ -62,6 +63,8 @@ public class StudentQueryService {
 
     private final GuardianStudentRepository guardianStudentRepository;
 
+    private final AuditRecorder auditRecorder;
+
     /** 학생 목록·검색(STU-01) — 소속 학원의 재학생만 나온다. */
     public PageResponse<StudentSummaryResponse> list(AuthUser requester, StudentListRequest request) {
         Long academyId = academyOf(requester);
@@ -74,14 +77,24 @@ public class StudentQueryService {
                 .toList());
     }
 
-    /** 학생 상세(STU-01) — 남의 학원 학생과 퇴원생은 모두 {@code 404 STUDENT_NOT_FOUND} 다. */
+    /**
+     * 학생 상세(STU-01) — 남의 학원 학생과 퇴원생은 모두 {@code 404 STUDENT_NOT_FOUND} 다.
+     *
+     * <p>{@code photo_url}·{@code note}·{@code guardian_phone} 이 L3 다(FEATURE_SPEC §6.3) — 조회가
+     * 성공한 뒤에만 감사를 남긴다(예외로 끝난 요청은 L3 를 아무것도 응답에 싣지 않았으므로 목표 1의
+     * "L3 필드가 실린 응답을 실제로 읽었을 때" 조건에 들지 않는다).
+     */
     public StudentDetailResponse detail(AuthUser requester, Long studentId) {
         Long academyId = academyOf(requester);
         Student student = studentRepository.findByIdAndAcademyIdAndDeletedAtIsNull(studentId, academyId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.STUDENT_NOT_FOUND));
 
-        return StudentDetailResponse.of(student,
+        StudentDetailResponse response = StudentDetailResponse.of(student,
                 guardianPhonesOf(academyId, List.of(student)).get(studentId));
+        auditRecorder.recordDataAccessRead(academyId, requester.accountId(), "student", studentId,
+                Map.of("student_ids", List.of(String.valueOf(studentId)), "fields",
+                        List.of("photo_url", "note", "guardian_phone")));
+        return response;
     }
 
     /**

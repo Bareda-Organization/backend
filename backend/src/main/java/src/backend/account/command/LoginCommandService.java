@@ -7,6 +7,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 import lombok.RequiredArgsConstructor;
 
@@ -19,6 +23,8 @@ import src.backend.account.entity.Account;
 import src.backend.account.entity.RefreshToken;
 import src.backend.account.repository.AccountRepository;
 import src.backend.account.repository.RefreshTokenRepository;
+import src.backend.audit.entity.AuditLog;
+import src.backend.audit.repository.AuditLogRepository;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
@@ -41,6 +47,7 @@ public class LoginCommandService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final Clock clock;
+    private final AuditLogRepository auditLogRepository;
     @Value("${jwt.refresh-token-validity-seconds}")
     private final long refreshValiditySeconds;
 
@@ -64,25 +71,56 @@ public class LoginCommandService {
      * 전이시키면, 그 즉시 계정의 유효 refresh 토큰을 전량 무효화한다 — API_SPEC §1.2 는 "차단 시
      * 무효화"만 적고 트리거를 명시하지 않는데, 이 로그인 경로에서의 차단도 그 트리거에 포함시킨
      * 판단이다(Task 4 판단, 보고서 ⑥).
+     *
+     * <p><b>감사(SYS-01, Phase 14 T1 목표 2)</b> — {@code login_success}·{@code login_fail}·
+     * {@code block} 세 이벤트만 남긴다. {@link Account#assertNotBlocked} 가 던지는 차단 계정의 대조
+     * 전 403 은 남기지 않는다 — 그 요청은 자격 증명을 아직 대조하지 않았고, 실패 카운터도 올리지
+     * 않으므로 새 로그인 시도가 아니라 이미 알려진 차단 상태의 반복 확인일 뿐이다. {@code now} 계산을
+     * 메서드 첫 줄로 옮긴 것은 미등록 {@code login_id} 분기에서도 감사 시각이 필요해서다(원래는 대조
+     * 직전에 있었다).
+     *
+     * <p>감사 기록을 {@code AuditRecorder}(별도 트랜잭션, {@link
+     * src.backend.audit.service.AuditRecorder}) 가 아니라 이 메서드와 <b>같은 트랜잭션</b>에서
+     * {@code auditLogRepository} 로 직접 쓴다 — 실패 카운터 증가도 뒤따르는 {@code BusinessException}
+     * 과 같은 트랜잭션에 있고(이 클래스의 기존 설계), {@link
+     * src.backend.account.controller.AuthControllerTest#로그인_실패가_상한에_도달하면_계정이_blocked_로_전이한다}
+     * 가 그 카운터 증가가 {@code noRollbackFor} 없이도 실제로 영속됨을 이미 실측으로 증명한다 — 로그인
+     * 실패 5회를 순차로 보내 상한에서 차단 전이까지 확인하는 테스트이고, 매 회 이 메서드가 예외를
+     * 던지는데도 누적치가 유지된다. 같은 트랜잭션 안에서 예외 직전에 쓴 값이 살아남는 것이 이미 검증된
+     * 자리이므로, 감사 저장에도 같은 결론이 적용된다(경계를 새로 여는 대신 기존 경계를 그대로 씀).
+     *
+     * <p>{@code ip} 는 {@link RequestContextHolder} 로 얻는다 — 이 저장소에 요청 IP 를 읽는 기존
+     * 관례가 없어(전체 검색 결과 {@code X-Forwarded-For}·{@code getRemoteAddr} 0건) 이 태스크가 새로
+     * 만든다. 프록시 헤더를 우선하고 없으면 원격 주소로 내려간다.
      */
     @Transactional
     public LoginResult login(String loginId, String rawPassword) {
-        Account account = accountRepository.findByLoginId(loginId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_CREDENTIALS,
-                        new LoginFailureDetail(Account.REMAINING_AFTER_FIRST_FAILURE)));
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        String ip = resolveClientIp();
+        Account account = accountRepository.findByLoginId(loginId).orElse(null);
+        if (account == null) {
+            auditLogRepository.save(AuditLog.forLoginFail(null, null, loginId, ip, now));
+            throw new BusinessException(ErrorCode.INVALID_CREDENTIALS,
+                    new LoginFailureDetail(Account.REMAINING_AFTER_FIRST_FAILURE));
+        }
         account.assertNotBlocked();
 
-        OffsetDateTime now = OffsetDateTime.now(clock);
         if (!passwordEncoder.matches(rawPassword, account.getPasswordHash())) {
             int remaining = account.recordLoginFailure(now);
+            auditLogRepository.save(
+                    AuditLog.forLoginFail(account.getAcademyId(), account.getId(), loginId, ip, now));
             if (account.getStatus() == AccountStatus.BLOCKED) {
                 refreshTokenRepository.revokeAllValidByAccountId(account.getId(), now);
+                auditLogRepository.save(
+                        AuditLog.forLoginBlock(account.getAcademyId(), account.getId(), loginId, ip, now));
                 throw new BusinessException(ErrorCode.AUTH_ACCOUNT_BLOCKED);
             }
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS, new LoginFailureDetail(remaining));
         }
         assertStaffStillEmployed(account);
         account.recordLoginSuccess(now);
+        auditLogRepository.save(
+                AuditLog.forLoginSuccess(account.getAcademyId(), account.getId(), loginId, ip, now));
 
         String accessToken = jwtTokenProvider.createAccessToken(account.getId(), account.getAcademyId(),
                 account.getRole(), account.getStatus());
@@ -137,5 +175,27 @@ public class LoginCommandService {
             return null;
         }
         return academyRepository.findById(account.getAcademyId()).map(Academy::getName).orElse(null);
+    }
+
+    /**
+     * 요청 발신 IP(감사 {@code ip}, Phase 14 T1 목표 2) — 이 저장소에 기존 관례가 없어(전체 검색 결과
+     * {@code X-Forwarded-For}·{@code getRemoteAddr} 0건) 여기서 처음 정한다.
+     *
+     * <p>프록시를 거치면 {@code getRemoteAddr()} 이 프록시 자신의 주소를 돌려주므로
+     * {@code X-Forwarded-For} 를 우선한다 — 그 헤더가 콤마로 여러 홉을 나열할 때 <b>첫 값</b>이 원 클라
+     * 이언트다(관례적 해석). 요청 컨텍스트가 없는 자리(배치·테스트 등)에서는 {@code null} 을 돌려
+     * {@code ip} 컬럼이 비게 둔다 — 억지로 값을 채우면 실제로 없었던 발신지를 지어내는 셈이다.
+     */
+    private String resolveClientIp() {
+        var attributes = RequestContextHolder.getRequestAttributes();
+        if (!(attributes instanceof ServletRequestAttributes servletAttributes)) {
+            return null;
+        }
+        HttpServletRequest request = servletAttributes.getRequest();
+        String forwardedFor = request.getHeader("X-Forwarded-For");
+        if (forwardedFor != null && !forwardedFor.isBlank()) {
+            return forwardedFor.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 }
