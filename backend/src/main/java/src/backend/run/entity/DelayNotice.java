@@ -72,9 +72,24 @@ public class DelayNotice {
      * 이번 신고가 이 행과 완전히 같은 내용인지(Ruling 253) — {@code minutes}·{@code reason}·
      * {@code message} 전부가 같아야 한다. {@code message} 는 {@code null} 끼리도 같은 것으로 본다
      * (둘 다 자동 생성 문구를 썼다는 뜻이라 실질적으로 같은 신고다).
+     *
+     * <p>비교 전에 양쪽을 트림 후 빈 문자열이면 {@code null} 로 정규화한다(F3 S1 라운드 1 — 권고 ⑤
+     * 반영) — {@link src.backend.run.dto.DelayRequest} 는 {@code message} 에 {@code @NotBlank} 를
+     * 두지 않아, 정규화하지 않으면 이전 신고가 {@code null} 이고 이번 신고가 {@code ""} 인 경우
+     * 서로 다른 내용으로 갈려 중복 판정(409)을 우회한다.
      */
     public boolean isSameContent(int minutes, DelayReason reason, String message) {
+        String normalizedThisMessage = normalizeMessage(this.message);
+        String normalizedMessage = normalizeMessage(message);
         return this.minutes == minutes && this.reason == reason
-                && (this.message == null ? message == null : this.message.equals(message));
+                && (normalizedThisMessage == null ? normalizedMessage == null
+                        : normalizedThisMessage.equals(normalizedMessage));
+    }
+
+    private static String normalizeMessage(String message) {
+        if (message == null || message.isBlank()) {
+            return null;
+        }
+        return message;
     }
 }

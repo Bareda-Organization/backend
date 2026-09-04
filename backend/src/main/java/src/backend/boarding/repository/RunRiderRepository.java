@@ -185,10 +185,12 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
      * 한쪽 배제만 지워도 나머지가 가려 결함이 드러나지 않는다.
      *
      * <p>{@code runId} 근거는 {@link #findByRunIdAndStudentId} 와 같다 — 호출부(지연 알림 커맨드
-     * 서비스)가 {@code RunAssignmentAccess#assertAssignedEscort} 로 이미 학원 범위에 좁혀 확인한
-     * 회차의 식별자만 넘긴다는 전제다.
+     * 서비스)가 이 메서드에 앞서 {@code runRepository.findByIdAndAcademyId} 로 이미 학원 범위에 좁혀
+     * 확인한 회차의 식별자만 넘긴다는 전제다(F3 S1 라운드 1 정정 — {@code RunAssignmentAccess
+     * #assertAssignedEscort} 는 그 자신의 자바독대로 학원 범위를 확인하지 않는다. 확인은 뒤이은 그
+     * 조회가 성공했을 때 비로소 성립한다).
      */
-    @AcademyScopeExempt(reason = "runId 는 호출부가 RunAssignmentAccess#assertAssignedEscort 로 이미 학원 범위에 "
+    @AcademyScopeExempt(reason = "runId 는 호출부가 runRepository.findByIdAndAcademyId 로 이미 학원 범위에 "
             + "좁혀 확인한 회차의 식별자라는 전제다 — findByRunIdAndStudentId 와 같은 근거")
     @Query("""
             SELECT DISTINCT rr.studentId FROM RunRider rr
