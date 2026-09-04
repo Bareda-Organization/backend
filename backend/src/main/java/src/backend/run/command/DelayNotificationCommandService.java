@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,16 +16,9 @@ import lombok.RequiredArgsConstructor;
 import src.backend.academy.dto.AcademyStaffAccountView;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
-import src.backend.notification.command.NotificationDraft;
-import src.backend.notification.command.NotificationOutbox;
-import src.backend.notification.domain.impl.DelaySubject;
-import src.backend.notification.domain.spec.NotificationComposer;
-import src.backend.notification.domain.spec.NotificationMessage;
-import src.backend.notification.entity.NotificationType;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RunStop;
 import src.backend.routing.repository.ConfirmedRouteRepository;
@@ -36,6 +30,8 @@ import src.backend.run.entity.DelayNotice;
 import src.backend.run.entity.DelayReason;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
+import src.backend.run.event.DelayNoticeRecipient;
+import src.backend.run.event.DelayRequestedEvent;
 import src.backend.run.repository.DelayNoticeRepository;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.entity.Student;
@@ -46,10 +42,15 @@ import src.backend.student.repository.StudentRepository;
 /**
  * 지연 알림 신고(NTF-06, M-05, API_SPEC §4.9) — F3 S1 목표 1~4.
  *
- * <p>이벤트·리스너 간접을 쓰지 않는다({@link src.backend.notification.command.RunStartedNotificationListener}
- * 와 다른 결정) — 응답의 세 불리언({@code notifiedGuardians} 등)이 <b>그 요청 처리 안에서 실제로 몇
- * 명에게 적재했는지</b>를 그대로 반영해야 하는데, 이벤트 발행은 이 서비스가 그 결과를 동기적으로
- * 알 방법을 주지 않는다. 그래서 조회·조립·발신을 이 서비스가 직접 순서대로 한다.
+ * <p>수신자 조회·발신은 {@link src.backend.notification.command.DelayNotificationListener} 로
+ * 넘긴다(F3 S1 라운드 1 — 반려 🔴-A 해소, ARCHITECTURE §3.3 규칙 17 · BRD-04). 이 서비스가 notification
+ * 모듈을 직접 부르면 승인 트랜잭션 안에서 알림 적재가 돌아, 그 적재가 실패했을 때 지연 신고 자체가
+ * 롤백된다 — 그래서 {@link ApplicationEventPublisher} 로 {@link DelayRequestedEvent} 만 발행한다.
+ *
+ * <p>응답의 세 불리언({@code notifiedGuardians} 등)은 <b>리스너 실행 결과에 기대지 않는다</b> — 이
+ * 서비스가 이벤트에 실어 보내는 수신자 3집합을 그대로 계산해 그 집합의 비어 있음 여부로 채운다(이벤트
+ * 발행은 리스너가 실제로 몇 건을 적재했는지 동기적으로 돌려주지 않는다). 그래서 관계자·학부모·학생
+ * 조회 로직은 여전히 이 서비스가 갖고, 리스너는 그 결과를 그대로 받아 적재만 한다.
  *
  * <p>{@code minutes}·{@code reason} 을 여기서 검증하는 이유는 {@link DelayRequest} 자바독과 같다 —
  * 값 도메인 위반(5의 배수가 아님·정의되지 않은 사유 문자열)은 400 이 아니라 422 여야 한다.
@@ -77,9 +78,7 @@ public class DelayNotificationCommandService {
 
     private final RunAssignmentAccess runAssignmentAccess;
 
-    private final NotificationOutbox notificationOutbox;
-
-    private final NotificationComposer<DelaySubject> delayComposer;
+    private final ApplicationEventPublisher eventPublisher;
 
     private final Clock clock;
 
@@ -101,21 +100,22 @@ public class DelayNotificationCommandService {
                     throw new BusinessException(ErrorCode.DELAY_DUPLICATE);
                 });
 
-        NotificationMessage notificationMessage = delayComposer.compose(new DelaySubject(reason, minutes, message));
-
         OffsetDateTime now = OffsetDateTime.now(clock);
-        boolean notifiedStaff = appendToStaff(run, notificationMessage, now);
+        List<DelayNoticeRecipient> staffRecipients = staffRecipientsOf(run);
         List<Long> studentIds = pendingStudentIdsOf(run);
-        boolean notifiedGuardians = false;
-        boolean notifiedStudents = false;
+        List<DelayNoticeRecipient> guardianRecipients = List.of();
+        List<DelayNoticeRecipient> studentRecipients = List.of();
         if (!studentIds.isEmpty()) {
-            notifiedGuardians = appendToGuardians(run, notificationMessage, studentIds, now);
-            notifiedStudents = appendToStudents(run, notificationMessage, studentIds, now);
+            guardianRecipients = guardianRecipientsOf(run, studentIds);
+            studentRecipients = studentRecipientsOf(run, studentIds);
         }
+
+        eventPublisher.publishEvent(new DelayRequestedEvent(runId, run.getAcademyId(), minutes, reason, message, now,
+                staffRecipients, guardianRecipients, studentRecipients));
 
         delayNoticeRepository.save(DelayNotice.onSend(runId, requester.accountId(), minutes, reason, message, now));
 
-        return new DelayResponse(notifiedGuardians, notifiedStudents, notifiedStaff);
+        return new DelayResponse(!guardianRecipients.isEmpty(), !studentRecipients.isEmpty(), !staffRecipients.isEmpty());
     }
 
     private int validateMinutes(Integer minutes) {
@@ -138,15 +138,12 @@ public class DelayNotificationCommandService {
         };
     }
 
-    /** 관계자 — 그 학원 재직 전원({@link src.backend.notification.command.RunStartedNotificationListener}과 같은 대상 규칙). */
-    private boolean appendToStaff(Run run, NotificationMessage message, OffsetDateTime now) {
+    /** 관계자 — 그 학원 재직 전원(리스너와 같은 대상 규칙). */
+    private List<DelayNoticeRecipient> staffRecipientsOf(Run run) {
         List<AcademyStaffAccountView> staff = academyStaffRepository.findActiveAccountsByAcademyId(run.getAcademyId());
-        for (AcademyStaffAccountView recipient : staff) {
-            notificationOutbox.append(new NotificationDraft(run.getAcademyId(), recipient.accountId(),
-                    recipient.name(), Role.STAFF, NotificationType.DELAY, message.title(), message.body(),
-                    dedupKey(run.getId(), recipient.accountId(), now)));
-        }
-        return !staff.isEmpty();
+        return staff.stream()
+                .map(recipient -> new DelayNoticeRecipient(recipient.accountId(), recipient.name(), recipient.accountId()))
+                .toList();
     }
 
     /**
@@ -169,36 +166,26 @@ public class DelayNotificationCommandService {
         return runRiderRepository.findStudentIdsForDelayNotification(run.getId(), pendingStopIds);
     }
 
-    /** 학부모 — 학생 1명당 첫 보호자 1명({@link src.backend.notification.command.RunStartedNotificationListener}과 같은 규칙). */
-    private boolean appendToGuardians(Run run, NotificationMessage message, List<Long> studentIds, OffsetDateTime now) {
+    /** 학부모 — 학생 1명당 첫 보호자 1명(리스너와 같은 규칙). */
+    private List<DelayNoticeRecipient> guardianRecipientsOf(Run run, List<Long> studentIds) {
         List<GuardianAccountRecipient> guardians = guardianStudentRepository
                 .findGuardianAccountsByAcademyId(run.getAcademyId(), studentIds);
         Map<Long, GuardianAccountRecipient> firstGuardianPerStudent = new LinkedHashMap<>();
         for (GuardianAccountRecipient guardian : guardians) {
             firstGuardianPerStudent.putIfAbsent(guardian.getStudentId(), guardian);
         }
-        for (Map.Entry<Long, GuardianAccountRecipient> entry : firstGuardianPerStudent.entrySet()) {
-            GuardianAccountRecipient guardian = entry.getValue();
-            notificationOutbox.append(new NotificationDraft(run.getAcademyId(), guardian.getAccountId(),
-                    guardian.getName(), Role.PARENT, NotificationType.DELAY, message.title(), message.body(),
-                    dedupKey(run.getId(), entry.getKey(), now)));
-        }
-        return !firstGuardianPerStudent.isEmpty();
+        return firstGuardianPerStudent.entrySet().stream()
+                .map(entry -> new DelayNoticeRecipient(entry.getValue().getAccountId(), entry.getValue().getName(),
+                        entry.getKey()))
+                .toList();
     }
 
     /** 학생 — 계정이 연결된 학생만. */
-    private boolean appendToStudents(Run run, NotificationMessage message, List<Long> studentIds, OffsetDateTime now) {
+    private List<DelayNoticeRecipient> studentRecipientsOf(Run run, List<Long> studentIds) {
         List<Student> students = studentRepository
                 .findAllByIdInAndAcademyIdAndAccountIdIsNotNull(studentIds, run.getAcademyId());
-        for (Student student : students) {
-            notificationOutbox.append(new NotificationDraft(run.getAcademyId(), student.getAccountId(),
-                    student.getName(), Role.STUDENT, NotificationType.DELAY, message.title(), message.body(),
-                    dedupKey(run.getId(), student.getAccountId(), now)));
-        }
-        return !students.isEmpty();
-    }
-
-    private String dedupKey(Long runId, Long targetId, OffsetDateTime now) {
-        return "delay:%d:%d:%s".formatted(runId, targetId, now);
+        return students.stream()
+                .map(student -> new DelayNoticeRecipient(student.getAccountId(), student.getName(), student.getAccountId()))
+                .toList();
     }
 }
