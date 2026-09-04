@@ -63,6 +63,21 @@ public class RunAssignmentAccess {
         return assertAssigned(requester, runId, managerRole);
     }
 
+    /**
+     * 그 회차에 배치된 동승자인지(F3 S1, API_SPEC §4.9 지연 알림 — 기사 호출은 대상 밖). 역할이 아니면
+     * {@link #assertAssignedDriver} 와 대칭으로 전용 코드({@code ESCORT_ONLY})를, 역할은 맞지만 이
+     * 회차에 배치되지 않았으면 일반 {@code FORBIDDEN} 을 던진다 — 배치 여부를 응답에서 드러내지
+     * 않는다는 이 클래스의 규칙(위 클래스 자바독)을 그대로 잇는다.
+     *
+     * @return 그 배치 행
+     */
+    public Assignment assertAssignedEscort(AuthUser requester, Long runId) {
+        if (requester.role() != Role.ESCORT) {
+            throw new BusinessException(ErrorCode.ESCORT_ONLY);
+        }
+        return assertAssigned(requester, runId, ManagerRole.ESCORT);
+    }
+
     private Assignment assertAssigned(AuthUser requester, Long runId, ManagerRole managerRole) {
         Manager manager = managerRepository.findByAccountId(requester.accountId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN));
