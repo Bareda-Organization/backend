@@ -126,12 +126,18 @@ public class EmergencyCommandService {
     }
 
     /**
-     * 발신 1분 이내 취소(목표 9) — 대상이 다른 회차·학원이거나 없으면 {@code 404}, 창을 넘겼으면
-     * {@code 409}, 이미 취소됐으면 그 결과를 그대로 재반환한다(재전송과 같은 이유로 재취소도 멱등하게
-     * 둔다 — 취소 응답을 놓친 클라이언트가 다시 눌러도 두 번째 {@code canceled_at} 덮어쓰기로 이력이
-     * 바뀌지 않는다).
+     * 발신 1분 이내 취소(목표 9) — 배치되지 않은 회차를 지목하면 {@code 403 FORBIDDEN}(§4.14(L1059)
+     * "배치되지 않은 회차" 시나리오, Ruling 259(b)), 배치는 맞는데 그 신고가 없거나 다른 회차 것이면
+     * {@code 404}, 창을 넘겼으면 {@code 409}, 이미 취소됐으면 그 결과를 그대로 재반환한다(재전송과
+     * 같은 이유로 재취소도 멱등하게 둔다 — 취소 응답을 놓친 클라이언트가 다시 눌러도 두 번째
+     * {@code canceled_at} 덮어쓰기로 이력이 바뀌지 않는다).
+     *
+     * <p>배치 확인을 신고 조회보다 먼저 한다({@link #raise} 와 같은 순서) — 이전에는 배치를 전혀
+     * 확인하지 않고 {@code findByIdAndRunIdAndAcademyId} 복합키만으로 404 를 던져, §4.14 가 명시한
+     * "배치되지 않은 회차" 시나리오(driverA1 이 미배치 회차의 신고를 지목)를 결코 만나지 못했다.
      */
     public EmergencyCancelResponse cancel(AuthUser requester, Long runId, Long emergencyId) {
+        runAssignmentAccess.assertAssignedDriverOrEscort(requester, runId);
         EmergencyAlert alert = emergencyAlertRepository.findByIdAndRunIdAndAcademyId(emergencyId, runId,
                         requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.EMERGENCY_NOT_FOUND));
