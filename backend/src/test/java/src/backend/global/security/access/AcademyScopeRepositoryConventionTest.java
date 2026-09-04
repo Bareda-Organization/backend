@@ -73,7 +73,8 @@ class AcademyScopeRepositoryConventionTest {
             "audit_log", "exception_report", "emergency_alert");
 
     /**
-     * ERD §6.1 의 <b>부모 경유</b> 표를 그대로 옮긴 테이블 목록(20개) — 학원 범위 자원이지만
+     * ERD §6.1 의 <b>부모 경유</b> 표를 그대로 옮긴 테이블 목록(21개, ERD §6.2 소계와 일치) — 학원
+     * 범위 자원이지만
      * {@code academy_id} 컬럼이 부재해 부모를 조인해야만 학원이 결정된다.
      *
      * <p>이 목록이 위 17개와 <b>같은 규칙을 받는다</b> — 컬럼이 없다는 것은 격리가 면제된다는 뜻이
@@ -95,7 +96,7 @@ class AcademyScopeRepositoryConventionTest {
      *
      * <p>{@code academy} 는 테넌트 루트 자신이라 자기 자신으로 좁힌다는 말이 성립하지 않고,
      * {@code system_admin} 은 학원 소속이 부재한 전 학원 범위 계정이라 좁힐 학원 자체가 없다.
-     * {@code system_admin} 을 부모 경유로 세면 부모 경유가 21개가 되어 <b>ERD §6.2 의 소계 20 과
+     * {@code system_admin} 을 부모 경유로 세면 부모 경유가 22개가 되어 <b>ERD §6.2 의 소계 21 과
      * 어긋난다</b> — 문서도 그 근거를 서두에 함께 적고 있다.
      *
      * <p>이 집합을 명시해 두는 이유는 <b>ERD 표에 없는 새 테이블의 저장소가 조용히 검사 대상 밖으로
@@ -168,14 +169,14 @@ class AcademyScopeRepositoryConventionTest {
     }
 
     /**
-     * 부모 경유 분류의 정의처를 고정한다 — 20개 테이블이 전부 엔티티로 실재하고, 그 엔티티가
+     * 부모 경유 분류의 정의처를 고정한다 — 21개 테이블이 전부 엔티티로 실재하고, 그 엔티티가
      * {@code academyId} 를 <b>갖지 않는</b> 것까지 본다.
      *
      * <p>컬럼이 생기면 그 테이블은 직접 보유로 분류가 바뀐 것이라 ERD §6.1 과 §5.3 선행 인덱스가 함께
      * 달라져야 한다. 코드만 바뀌고 문서가 남으면 다음 사람이 조인 조건을 계속 붙인다.
      */
     @Test
-    void 부모_경유_20개_테이블이_전부_엔티티로_존재하고_academy_id_를_보유하지_않는다() {
+    void 부모_경유_21개_테이블이_전부_엔티티로_존재하고_academy_id_를_보유하지_않는다() {
         Map<String, Class<?>> byTable = AcademyScopeScan.entitiesByTable();
 
         assertThat(byTable.keySet())
