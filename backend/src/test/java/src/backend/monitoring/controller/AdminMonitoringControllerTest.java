@@ -209,6 +209,28 @@ class AdminMonitoringControllerTest extends RedisTestContainerBase {
                 .isEqualTo(departTime.plusMinutes(estDurationMin));
     }
 
+    /**
+     * {@code est_duration_min} 이 없으면 {@code destination_eta} 가 응답에서 비어야 한다(목표 6) —
+     * {@code AdminAcademyLiveQueryService#destinationEtaOf} 자바독이 Ruling 232 근거로 이미 이 분기를
+     * 서술하고 있으나(edge case) 그 분기를 직접 태우는 시험이 없었다.
+     */
+    @Test
+    void est_duration_min_이_없으면_destination_eta_가_비어있다() throws Exception {
+        AdminMonitoringFixtures f = fixtures();
+        long academyId = f.academy();
+        long busId = f.bus(academyId);
+        OffsetDateTime departTime = now().minusMinutes(20);
+        long runId = f.movingRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30),
+                now().minusMinutes(15), null);
+
+        long adminAccountId = f.systemAdminAccount("메인관리자");
+
+        mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 메인관리자_토큰(adminAccountId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.runs[0].run_id").value(runId))
+                .andExpect(jsonPath("$.data.runs[0].destination_eta").doesNotExist());
+    }
+
     /** 도착 처리된 정차는 {@code eta} 가 {@code null} 이다(목표 8 뒷항). */
     @Test
     void 도착_처리된_정차는_eta가_null이다() throws Exception {
