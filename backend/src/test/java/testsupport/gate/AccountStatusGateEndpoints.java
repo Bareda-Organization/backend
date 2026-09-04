@@ -107,6 +107,10 @@ public final class AccountStatusGateEndpoints {
      * /staff/runs/{runId}/route}(§5.19, RTE-02, 권한 "학원 관계자", {@code @CanMonitorAcademy}) —
      * {@code GET /staff/dashboard}(Phase 13 T1)와 같은 계열의 관계자 관리 화면이라 근거가 같다
      * (Ruling 145 와 같은 근거).
+     *
+     * <p>F3 S1 이 1개를 더했다 — 지연 알림 신고 {@code POST /runs/{runId}/delay}(§4.9, NTF-06,
+     * 권한 "동승자") — Phase 9 의 {@code POST /runs/{runId}/start} 와 같은 계열인 운행 중 단말
+     * 기능이라 근거가 같다.
      */
     public static final List<String> DENIED_WHEN_REJECTED = List.of(
             "POST /auth/password",
@@ -222,7 +226,9 @@ public final class AccountStatusGateEndpoints {
             "GET /admin/audit-logs",
             "GET /admin/login-history",
             // F1 S3 — 관계자 웹 확정 노선 조회(§5.19) 1개.
-            "GET /staff/runs/{runId}/route");
+            "GET /staff/runs/{runId}/route",
+            // F3 S1 — 지연 알림 신고(§4.9, NTF-06) 동승자 단말 기능 1개.
+            "POST /runs/{runId}/delay");
 
     /** {@code pending} 의 거부측 — {@code rejected} 거부측에 재신청 1개를 더한다({@code @AllowedWhenRejected} 는 pending 을 열지 않는다). */
     public static final List<String> DENIED_WHEN_PENDING = concat(DENIED_WHEN_REJECTED, "POST /auth/signup/reapply");

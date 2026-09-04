@@ -37,6 +37,16 @@ import org.testcontainers.utility.DockerImageName;
 @Testcontainers
 public abstract class RedisTestContainerBase {
 
+    /**
+     * 상속한 테스트 클래스마다 새로 생기지 않는다 — {@code static} 이라 같은 JVM 포크 안에서는
+     * <b>이 컨테이너 하나를 모든 하위 테스트 클래스가 나눠 쓴다</b>(Testcontainers 의 재사용 규약).
+     * 그래도 안전한 이유는 이 클래스가 격리하는 대상이 "컨테이너 인스턴스" 가 아니라 "키 이름"
+     * 이기 때문이다 — 각 테스트가 쓰는 키는 {@code runId} 등 단조 증가 식별자를 접두사로 붙여
+     * 만들어지므로(예: {@code RunPositionRedisValue} 사용부), 컨테이너를 공유해도 서로 다른 테스트가
+     * 같은 키를 밟지 않는다. 위 클래스 자바독의 "전용 컨테이너를 매번 새로 올린다" 는 <b>테스트
+     * 실행마다</b>가 아니라 <b>공유 {@code school-bus-redis-1} 대비 이 클래스 트리 전용</b>이라는
+     * 뜻이다.
+     */
     @Container
     protected static final GenericContainer<?> REDIS = new GenericContainer<>(
             DockerImageName.parse("redis:7"))
