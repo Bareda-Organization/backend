@@ -41,8 +41,8 @@ public class EmergencyBroadcastListener {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcastRaised(EmergencyRaisedEvent event) {
-        RaisedPayload payload = new RaisedPayload(event.emergencyId(), event.busNo(),
-                event.type().name().toLowerCase(Locale.ROOT), event.raisedAt());
+        RaisedPayload payload = new RaisedPayload(event.emergencyId(), event.type().name().toLowerCase(Locale.ROOT),
+                event.busNo(), event.raisedBy(), event.position(), event.riderCount(), event.raisedAt());
         sendToStaffAndAdmin(event.academyId(), event.runId(), RAISED_EVENT, event.raisedAt(), payload);
     }
 
@@ -66,7 +66,13 @@ public class EmergencyBroadcastListener {
         gateway.send(WebSocketDestinations.ADMIN_LIVE, eventName, runId, occurredAt, payload);
     }
 
-    private record RaisedPayload(Long emergencyId, String busNo, String type, OffsetDateTime raisedAt) {
+    /**
+     * {@code emergency_raised} 7필드(API_SPEC §7.1) — {@code raisedBy}·{@code position} 은
+     * {@link EmergencyRaisedEvent} 의 중첩 레코드를 그대로 옮겨 싣는다(같은 모양을 이 리스너에
+     * 다시 선언하지 않는다).
+     */
+    private record RaisedPayload(Long emergencyId, String type, String busNo, EmergencyRaisedEvent.RaisedBy raisedBy,
+            EmergencyRaisedEvent.Position position, Integer riderCount, OffsetDateTime raisedAt) {
     }
 
     private record AckedPayload(Long emergencyId, Long ackedBy, OffsetDateTime ackedAt) {

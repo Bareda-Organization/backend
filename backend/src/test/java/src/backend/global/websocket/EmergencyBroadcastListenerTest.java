@@ -1,5 +1,6 @@
 package src.backend.global.websocket;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -9,10 +10,17 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import src.backend.exception.entity.EmergencyType;
 import src.backend.exception.event.EmergencyAckedEvent;
@@ -43,7 +51,9 @@ class EmergencyBroadcastListenerTest {
         Long academyId = 10L;
         Long runId = 100L;
         EmergencyRaisedEvent event = new EmergencyRaisedEvent(emergencyId, academyId, runId, "1호차",
-                EmergencyType.ACCIDENT, OffsetDateTime.now());
+                EmergencyType.ACCIDENT, new EmergencyRaisedEvent.RaisedBy("김기사", "driver", "010-1234-5678"),
+                new EmergencyRaisedEvent.Position(new BigDecimal("37.5"), new BigDecimal("127.1")), 5,
+                OffsetDateTime.now());
 
         listener.broadcastRaised(event);
 
@@ -53,6 +63,61 @@ class EmergencyBroadcastListenerTest {
                 any(), any());
         verify(gateway, never()).send(eq(WebSocketDestinations.managerRun(runId)), any(), any(), any(), any());
         학생_채널로는_절대_보내지_않는다();
+    }
+
+    // ── goal 10 — emergency_raised 페이로드 7필드(API_SPEC §7.1, Phase 14 F1 이월 ②) ──────
+
+    @Test
+    @DisplayName("접수 방송 페이로드는 snake_case JSON 키 7개(emergency_id·type·bus_no·raised_by·position·rider_count·raised_at)를 싣는다")
+    void 접수_방송_페이로드는_JSON_키_7개를_싣는다() throws Exception {
+        Long emergencyId = 4L;
+        Long academyId = 10L;
+        Long runId = 100L;
+        EmergencyRaisedEvent.RaisedBy raisedBy = new EmergencyRaisedEvent.RaisedBy("이기사", "driver", "010-2222-3333");
+        EmergencyRaisedEvent.Position position = new EmergencyRaisedEvent.Position(new BigDecimal("37.512345"),
+                new BigDecimal("127.098765"));
+        EmergencyRaisedEvent event = new EmergencyRaisedEvent(emergencyId, academyId, runId, "2호차",
+                EmergencyType.VEHICLE_FAULT, raisedBy, position, 12, OffsetDateTime.now());
+
+        listener.broadcastRaised(event);
+
+        ArgumentCaptor<Object> payloadCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(gateway, times(2)).send(any(), eq("emergency_raised"), eq(runId), any(), payloadCaptor.capture());
+
+        ObjectMapper snakeCaseMapper = new ObjectMapper().registerModule(new JavaTimeModule())
+                .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
+        JsonNode json = snakeCaseMapper.valueToTree(payloadCaptor.getValue());
+
+        assertThat(json.get("emergency_id").asLong()).isEqualTo(emergencyId);
+        assertThat(json.get("type").asText()).isEqualTo("vehicle_fault");
+        assertThat(json.get("bus_no").asText()).isEqualTo("2호차");
+        assertThat(json.get("raised_by").get("name").asText()).isEqualTo("이기사");
+        assertThat(json.get("raised_by").get("role").asText()).isEqualTo("driver");
+        assertThat(json.get("raised_by").get("phone").asText()).isEqualTo("010-2222-3333");
+        assertThat(json.get("position").get("lat").decimalValue()).isEqualByComparingTo("37.512345");
+        assertThat(json.get("position").get("lng").decimalValue()).isEqualByComparingTo("127.098765");
+        assertThat(json.get("rider_count").asInt()).isEqualTo(12);
+        assertThat(json.has("raised_at")).isTrue();
+    }
+
+    @Test
+    @DisplayName("위치 캐시가 없었던 신고는 position 의 lat·lng 가 null 로 그대로 실린다")
+    void 위치_캐시가_없으면_position_이_null_로_실린다() {
+        EmergencyRaisedEvent event = new EmergencyRaisedEvent(5L, 10L, 100L, "3호차", EmergencyType.ACCIDENT,
+                new EmergencyRaisedEvent.RaisedBy("박동승", "escort", "010-4444-5555"),
+                new EmergencyRaisedEvent.Position(null, null), 0, OffsetDateTime.now());
+
+        listener.broadcastRaised(event);
+
+        ArgumentCaptor<Object> payloadCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(gateway, times(2)).send(any(), eq("emergency_raised"), eq(100L), any(), payloadCaptor.capture());
+
+        ObjectMapper snakeCaseMapper = new ObjectMapper().registerModule(new JavaTimeModule())
+                .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
+        JsonNode json = snakeCaseMapper.valueToTree(payloadCaptor.getValue());
+
+        assertThat(json.get("position").get("lat").isNull()).isTrue();
+        assertThat(json.get("position").get("lng").isNull()).isTrue();
     }
 
     // ── goal 10 — 확인(ack) 방송은 발신자 앱(managerRun)에도 반영된다 ────────────────
