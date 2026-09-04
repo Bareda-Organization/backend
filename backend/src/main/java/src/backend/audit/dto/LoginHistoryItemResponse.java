@@ -6,7 +6,7 @@ import java.time.OffsetDateTime;
  * 로그인·차단 이력 목록의 항목 1개(SYS-02, API_SPEC §6.13 {@code GET /admin/login-history}).
  *
  * <p>{@code result}·{@code blockEvent} 는 저장된 {@code AuditLog.action} 값에서 조회 시점에
- * 다시 계산한 값이다(ERD §3.6 — 엔티티 자신은 이 투영을 하지 않는다, 조율자 Ruling 13) —
+ * 다시 계산한 값이다(ERD §3.4 — 엔티티 자신은 이 투영을 하지 않는다, 조율자 Ruling 13) —
  * {@code login_success}→{@code result=success}, {@code login_fail}→{@code result=fail},
  * {@code block}·{@code unblock}→{@code blockEvent=true}. 저장된 {@code block_event} 컬럼값을
  * 그대로 옮기지 않는다 — 그 컬럼은 "이 시도가 차단을 유발했는지"(로그인 실패·차단 행만 해당)를

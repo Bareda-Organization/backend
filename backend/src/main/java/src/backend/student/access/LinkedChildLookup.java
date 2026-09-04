@@ -21,7 +21,7 @@ import src.backend.student.repository.StudentRepository;
  * 지목한 사고 지점이다.
  *
  * <p>조회를 서비스마다 되풀이하지 않는 이유는 <b>거부 코드의 순서</b> 때문이다 — 연결이 없으면
- * {@code 403}, 연결은 있는데 퇴원했으면 {@code 404} 다(§3.7). 순서를 각자 정하면 같은 상황에 경로마다
+ * {@code 403}, 연결은 있는데 퇴원했으면 {@code 404} 다(API_SPEC §3.7). 순서를 각자 정하면 같은 상황에 경로마다
  * 다른 코드가 나간다.
  */
 @Component

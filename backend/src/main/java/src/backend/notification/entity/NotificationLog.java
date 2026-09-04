@@ -18,7 +18,7 @@ import src.backend.global.common.enums.Role;
 
 /**
  * 알림 로그 — 발송 사실의 근거이자 트랜잭셔널 아웃박스이며, 상태 변경과 같은 트랜잭션에서 {@code pending}
- * 행을 남긴다(ERD §3.6 · ARCHITECTURE §7).
+ * 행을 남긴다(ERD §3.4 · ARCHITECTURE §7).
  *
  * <p>{@code academy_id}·{@code recipient_account_id}·{@code student_id}·{@code run_id} 는 논리적
  * 부모이나 DB FK 가 미설정이다(ERD §4.2 — 보존 14일, 이름·버스번호를 스냅샷으로 담아 자립한다).
@@ -149,7 +149,7 @@ public class NotificationLog {
      * 수신 확인(NTF-10)을 남긴다 — <b>중요 통지에 한해</b> 호출자(읽음 처리 서비스)가 부른다. 어떤
      * 종류가 "중요"인지는 이 엔티티가 판단하지 않는다(USER_FLOWS §10.2 규칙4·5 — 지연·미승차·노선
      * 변경 3종). {@link #markRead} 와 마찬가지로 최초 1회만 기록해 {@code acked_at} 이 재확인으로
-     * 밀리지 않는다. 관계자 알림 로그(§5.17 미확인 배지, T3 담당)가 이 필드를 그대로 읽는다.
+     * 밀리지 않는다. 관계자 알림 로그(API_SPEC §5.17 미확인 배지, T3 담당)가 이 필드를 그대로 읽는다.
      */
     public void ack(OffsetDateTime now) {
         if (!this.acked) {

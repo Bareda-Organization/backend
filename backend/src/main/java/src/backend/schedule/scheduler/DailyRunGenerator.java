@@ -48,7 +48,7 @@ public class DailyRunGenerator {
      * {@code DUPLICATE_RUN} 예외가 전 학원 건수만큼 반복돼 로그가 무의미하게 시끄러워진다.
      * {@code lockAtMostFor} 를 30분으로 넉넉히 잡은 이유는 실행 자체가 하루 1번뿐이라 락 비용이
      * 아니라 <b>죽은 인스턴스가 락을 오래 들고 있어도 다음 실행은 내일이라 당장 급하지 않다</b>는
-     * 점을 반영한 것이다 — 그래도 무기한으로 두지 않는 이유는 수동 재실행 운영 조작(§5.10)이
+     * 점을 반영한 것이다 — 그래도 무기한으로 두지 않는 이유는 수동 재실행 운영 조작(API_SPEC §5.10)이
      * 그 안에서는 락에 막히지 않게 하려는 것이다.
      */
     @Scheduled(cron = "${app.run.generation.cron:0 5 0 * * *}", zone = "Asia/Seoul")

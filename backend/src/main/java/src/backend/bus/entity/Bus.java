@@ -17,7 +17,7 @@ import src.backend.global.common.BaseTimeEntity;
  * 차량 — 정원 초과 차단의 기준값을 보유한다(ERD §3.3 · BUS-01~04 · A-11).
  *
  * <p>{@code studentCapacity} 를 파라미터로 받지 않고 {@link BusSeating} 이 계산한 값만 담는다 —
- * 요청이 실어 보낸 정원을 그대로 저장하는 경로를 <b>타입에서 없앤 것</b>이 §5.12 의 "응답 전용,
+ * 요청이 실어 보낸 정원을 그대로 저장하는 경로를 <b>타입에서 없앤 것</b>이 API_SPEC §5.12 의 "응답 전용,
  * 관계자가 입력하지 않음" 을 지키는 방식이다.
  */
 @Entity

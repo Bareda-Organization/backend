@@ -20,7 +20,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * 감사·접속 이력 — 개인정보 조회·수정 이력과 로그인·차단 이력을 {@code category} 로 한 테이블에 담는다
- * (ERD §3.6 · FEATURE_SPEC §6).
+ * (ERD §3.4 · FEATURE_SPEC §6).
  *
  * <p>{@code academy_id}·{@code actor_account_id} 는 논리적 부모이나 DB FK 가 미설정이다(ERD §4.2 —
  * 감사 대상이 삭제돼도 기록은 남아야 하므로 원본 삭제에 연동되면 감사 목적이 소멸한다). {@code action} 은
@@ -98,12 +98,12 @@ public class AuditLog {
     /**
      * 메인 관리자가 로그인 차단을 해제한 사실을 남긴다(AUTH-06 · API_SPEC §6.12).
      *
-     * <p>{@code category} 가 {@link AuditCategory#LOGIN} 인 이유는 ERD §3.6 이 {@code block}·
+     * <p>{@code category} 가 {@link AuditCategory#LOGIN} 인 이유는 ERD §3.4 이 {@code block}·
      * {@code unblock} 을 로그인·차단 이력 쪽 값으로 정의하고, API_SPEC §6.13 의 접속 이력 조회가 이 두 값을
      * {@code block_event} 로 투영하기 때문이다 — {@code data_access} 로 넣으면 그 화면에서 사라진다.
      *
      * <p>{@code blockEvent} 는 false 로 둔다. 그 컬럼은 "이 <b>시도</b>가 차단을 유발했는지" 를 뜻하며
-     * (ERD §3.6), 해제는 차단을 유발하지 않는다 — {@code action} 이 그리는 축과 다른 축이다.
+     * (ERD §3.4), 해제는 차단을 유발하지 않는다 — {@code action} 이 그리는 축과 다른 축이다.
      *
      * @param academyId      대상 계정의 소속 학원. 메인 관리자 계정이면 {@code null}
      * @param actorAccountId 해제를 실행한 메인 관리자
@@ -149,7 +149,7 @@ public class AuditLog {
      * 로그인 성공(SYS-02 · API_SPEC §2.5).
      *
      * @param academyId 로그인한 계정의 소속 학원. 메인 관리자 계정이면 {@code null}
-     * @param ip        요청 발신 IP — {@code category=login} 에서만 채운다(ERD §3.6)
+     * @param ip        요청 발신 IP — {@code category=login} 에서만 채운다(ERD §3.4)
      */
     public static AuditLog forLoginSuccess(Long academyId, Long actorAccountId, String actorLoginId, String ip,
             OffsetDateTime occurredAt) {
@@ -165,7 +165,7 @@ public class AuditLog {
 
     /**
      * 로그인 실패(SYS-02 · API_SPEC §2.5) — 비밀번호 불일치와 <b>존재하지 않는 로그인 아이디</b> 둘 다
-     * 이 팩토리를 쓴다. ERD §3.6 이 {@code actor_account_id} 설명에 "로그인 실패는 계정 미확정
+     * 이 팩토리를 쓴다. ERD §3.4 이 {@code actor_account_id} 설명에 "로그인 실패는 계정 미확정
      * 가능성 존재" 라고 명시해, 계정을 특정하지 못한 실패도 기록 대상임을 전제한다 — 그 경우
      * {@code actorAccountId} 는 {@code null}, {@code targetId} 도 {@code null} 이고
      * {@code actorLoginId} 에는 시도된 문자열이 그대로 남는다(계정이 없어도 "누가 무엇으로
@@ -191,7 +191,7 @@ public class AuditLog {
      *
      * <p>{@link #forLoginFail} 과 <b>별행</b>인 이유 — 목표 2 판정표 문면이 "5회 도달 →
      * {@code login_fail} + {@code block}(block_event=true) 행" 으로 둘을 나열하고, {@code action}
-     * 값 도메인이 {@code login_fail}·{@code block} 을 별개 원소로 이미 갖고 있어(ERD §3.6) 한 행에
+     * 값 도메인이 {@code login_fail}·{@code block} 을 별개 원소로 이미 갖고 있어(ERD §3.4) 한 행에
      * 두 action 을 동시에 담을 수 없다. {@code blockEvent=true} 는 이 행에만 서고
      * {@link #forLoginFail}·{@link #forLoginSuccess} 는 항상 false 다 — "이 시도가 차단을
      * 유발했는지" 축을 {@code action=block} 하나로 좁혀 둔 것이 이 태스크의 판단이다.

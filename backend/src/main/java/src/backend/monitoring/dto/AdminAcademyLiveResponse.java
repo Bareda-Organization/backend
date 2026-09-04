@@ -12,7 +12,7 @@ import java.util.List;
  * 계획값이다 — 실시간으로 다시 계산하지 않는다(Ruling 232 확정 — 계획값, 재계산 부재).
  *
  * <p>{@code position} 은 마지막 위치 수신 후 2분 초과(유실)면 비우고 {@code last_seen_at} 만 채운다
- * (Ruling 250 · {@code FEATURE_SPEC §4.16} A-14 live 스냅샷 규칙, {@code §5.18} 과 같은 기준값).
+ * (Ruling 250 · {@code FEATURE_SPEC §4.16} A-14 live 스냅샷 규칙, {@code API_SPEC §5.18} 과 같은 기준값).
  */
 public record AdminAcademyLiveResponse(List<Run> runs) {
 

@@ -16,7 +16,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * 현장 예외 보고 — 보호자 부재·도로 통제 등 현장 상황을 관계자에게 통지하고 사후 확인 가능한 형태로
- * 남긴다(ERD §3.5 · BRD-07).
+ * 남긴다(ERD §3.4 · BRD-07).
  *
  * <p>{@code academy_id}·{@code run_id}·{@code run_rider_id} 는 논리적 부모이나 DB FK 가 미설정이다
  * (ERD §4.2). {@code type='guardian_absent'} 일 때 {@code run_rider_id} 필수 CHECK 는 DB 가 강제하고,

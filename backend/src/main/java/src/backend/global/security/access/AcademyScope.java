@@ -14,7 +14,7 @@ import src.backend.global.security.AuthUser;
  * 고쳐져 "단건은 막는데 목록은 새는" 상태가 된다(ARCHITECTURE §6.1 이 지목한 사고 지점).
  *
  * <p>범위는 <b>토큰에서만</b> 온다. 요청 본문·쿼리로 받은 학원 식별자는 범위를 정하는 데 쓰지 않고
- * 토큰과의 대조에만 쓴다 — 그 값을 신뢰하면 격리를 우회하는 가장 쉬운 경로가 열린다(§1.5).
+ * 토큰과의 대조에만 쓴다 — 그 값을 신뢰하면 격리를 우회하는 가장 쉬운 경로가 열린다(API_SPEC §1.5).
  */
 public final class AcademyScope {
 

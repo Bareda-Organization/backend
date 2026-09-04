@@ -29,7 +29,7 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      * 동작하고(ARCHITECTURE §6.1), 그 상태에서는 오늘 화면에 지난달 회차가 함께 뜬다.
      *
      * <p>취소된 회차({@code canceled_at} 이 채워진 것)도 싣는다 — 임시 취소는 <b>표시</b>이지 삭제가
-     * 아니고(§5.10), 거르면 관계자가 무엇을 취소했는지 되읽을 경로가 사라진다.
+     * 아니고(API_SPEC §5.10), 거르면 관계자가 무엇을 취소했는지 되읽을 경로가 사라진다.
      */
     List<Run> findAllByAcademyIdAndServiceDateOrderByDepartTimeAsc(Long academyId, LocalDate serviceDate);
 
