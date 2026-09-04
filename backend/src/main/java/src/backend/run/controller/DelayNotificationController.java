@@ -13,6 +13,7 @@ import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.run.command.DelayNotificationCommandService;
 import src.backend.run.dto.DelayRequest;
@@ -32,8 +33,8 @@ public class DelayNotificationController {
 
     @PostMapping("/{runId}/delay")
     @ResponseStatus(HttpStatus.CREATED)
-    public DelayResponse notifyDelay(@AuthenticationPrincipal AuthUser requester, @PathVariable Long runId,
-            @Valid @RequestBody DelayRequest request) {
-        return delayNotificationCommandService.notifyDelay(requester, runId, request);
+    public ApiResponse<DelayResponse> notifyDelay(@AuthenticationPrincipal AuthUser requester,
+            @PathVariable Long runId, @Valid @RequestBody DelayRequest request) {
+        return ApiResponse.ok(delayNotificationCommandService.notifyDelay(requester, runId, request));
     }
 }
