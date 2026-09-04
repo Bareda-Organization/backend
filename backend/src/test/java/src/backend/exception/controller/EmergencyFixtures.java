@@ -76,7 +76,15 @@ public class EmergencyFixtures {
 
     /** confirmed 상태 회차 1건 — 비상 신고는 확정 여부와 무관하게 성립해야 하므로 확정만 해 둔다. */
     public long confirmedRun(long academyId, long busId, OffsetDateTime departTime) {
-        Run run = Run.forSchedule(academyId, busId, null, LocalDate.of(2030, 4, 1), Direction.TO_ACADEMY, departTime,
+        return confirmedRun(academyId, busId, departTime, Direction.TO_ACADEMY);
+    }
+
+    /**
+     * 방향을 지정하는 confirmed 상태 회차 1건(목표 5 — direction 필드가 실제 값을 반영하는지 보려면
+     * to_academy 아닌 값이 필요하다).
+     */
+    public long confirmedRun(long academyId, long busId, OffsetDateTime departTime, Direction direction) {
+        Run run = Run.forSchedule(academyId, busId, null, LocalDate.of(2030, 4, 1), direction, departTime,
                 departTime.minusMinutes(30), "출발지", "도착지", null);
         long runId = runRepository.save(run).getId();
         runRepository.confirmIfIdle(runId, departTime.minusMinutes(30));

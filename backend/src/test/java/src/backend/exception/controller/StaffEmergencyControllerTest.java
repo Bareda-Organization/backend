@@ -31,6 +31,7 @@ import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
+import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
@@ -252,6 +253,31 @@ class StaffEmergencyControllerTest {
         Map<String, Object> ackedBy = (Map<String, Object>) item.get("acked_by");
         assertThat(ackedBy).as("acked_by 는 확인한 관계자의 이름을 담아야 한다(수정 라운드 1, R3 Plant #5)")
                 .containsEntry("name", "직원");
+    }
+
+    /**
+     * direction 이 상수 고정이 아니라 회차의 실제 값을 반영하는지 본다(목표 5) — 위 시험은
+     * {@code to_academy} 회차만 써서 필드가 항상 같은 문자열을 돌려줘도 통과한다. 정본
+     * ({@code API_SPEC.md}) 과 코드({@code Direction.java}) 어디에도 {@code to_home} 값은 없고
+     * {@code to_academy}·{@code from_academy} 둘뿐이라, 반대값은 {@code from_academy} 로 잡는다.
+     */
+    @Test
+    void direction_은_from_academy_회차에서도_실제_값을_반영한다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(), Direction.FROM_ACADEMY);
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사",
+                OffsetDateTime.now());
+        long staffAccountId = fixtures.staffAccount(academyId, "직원");
+
+        long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
+
+        String body = 목록을_조회한다(staffAccountId, academyId);
+        Map<String, Object> item = 항목(body, emergencyId);
+
+        assertThat(item.get("direction")).as("direction 은 from_academy 회차에서 from_academy 를 돌려줘야 한다")
+                .isEqualTo("from_academy");
     }
 
     @Test
