@@ -1,5 +1,6 @@
 package src.backend.audit.controller;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -104,6 +105,27 @@ class AuditQueryControllerTest {
                         .param("account_id", String.valueOf(loginOnlyAccountId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items").isEmpty());
+    }
+
+    /**
+     * F1 결과 ④(R1 ⚠) — 이 클래스 {@code audit_logs_응답은_snake_case_키_6개를_그대로_노출한다} 의
+     * 자바독이 "학원 {@code null} 로 두면 NPE 가 난다" 며 일부러 피하던 경로다. F1 이
+     * {@code AuditLogQueryService.academyNamesOf} 에 방어({@code HashMap} 반환)를 넣었으니, 그 경로를
+     * 실제로 타는 시험이 하나는 있어야 이후 그 방어가 조용히 사라지는 것을 잡는다.
+     */
+    @Test
+    void audit_logs_는_academy_id가_null인_행도_200으로_academy_name_null을_반환한다() throws Exception {
+        Long accountId = createAccount("P14T1AUD09", "p14t1nullacd1");
+        auditLogRepository.save(AuditLog.forDataAccessRead(null, accountId, "p14t1nullacd1",
+                "emergency", 777L, Map.of("student_ids", List.of("1"), "fields", List.of("note")),
+                OffsetDateTime.now()));
+
+        mockMvc.perform(get("/api/v1/admin/audit-logs")
+                        .header("Authorization", 메인관리자_토큰())
+                        .param("account_id", String.valueOf(accountId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].target_type").value("emergency"))
+                .andExpect(jsonPath("$.data.items[0].academy_name").value(nullValue()));
     }
 
     @Test
