@@ -42,6 +42,7 @@ import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
+import src.backend.manager.entity.Manager;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
 import src.backend.request.repository.ChangeRequestRepository;
@@ -212,6 +213,38 @@ class StaffDashboardControllerTest {
         // §2 확신 없는 지점) 항상 0 — 구조 존재만 검사하고 값 변화는 검사하지 않는다.
         assertThat((Integer) JsonPath.read(본문(result), "$.data.runs[0].added_count")).isZero();
         assertThat((Integer) JsonPath.read(본문(result), "$.data.runs[0].removed_count")).isZero();
+    }
+
+    // ── 목표 8 — unassigned_managers 는 소프트 삭제된 매니저를 세지 않는다 ─────
+
+    /**
+     * 목표 8 — {@code ManagerRepository.countUnassignedForStaffDashboard} 는 이미
+     * {@code deleted_at IS NULL} 조건을 갖고 있다(프로덕션 변경 없음, 회귀 방지 시험만 추가). 소프트
+     * 삭제된 미배치 매니저 1명을 심어 두고, 살아있는 미배치 매니저 1명만 집계되는지 본다.
+     *
+     * <p>오늘 회차를 1건 만들어야 한다 — {@code StaffDashboardQueryService.dashboard} 는 오늘 회차가
+     * 없으면 {@code countActiveForStaffDashboard}(별도 메서드, 이 시험의 검사 대상이 아니다)로 빠진다
+     * (수정 라운드 1 — 팀리드 재지시, 원래 판은 회차를 안 만들어 검사 대상 쿼리를 한 번도 안 태웠다).
+     */
+    @Test
+    @DisplayName("목표8 — 소프트 삭제된 미배치 매니저는 unassigned_managers 에 잡히지 않는다")
+    void 소프트_삭제된_매니저는_unassigned_managers_에_잡히지_않는다() throws Exception {
+        DriverRunFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        OffsetDateTime departTime = now().plusHours(1);
+        fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
+        fx.unassignedManager(academyId, ManagerRole.DRIVER, "미배치기사1");
+        long deletedAccountId = fx.unassignedManager(academyId, ManagerRole.DRIVER, "삭제될기사");
+        Manager deletedManager = managerRepository.findByAccountId(deletedAccountId).orElseThrow();
+        deletedManager.delete(now());
+        managerRepository.save(deletedManager);
+        long staffAccountId = fx.staffAccount(academyId, "관계자1");
+
+        mockMvc.perform(get("/api/v1/staff/dashboard").header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.metrics.unassigned_managers")
+                        .value(1));
     }
 
     // ── 목표 2 — §5.4 기존 명단 검증(고치지 않는다) ───────────────────────

@@ -36,6 +36,7 @@ import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.exception.controller.EmergencyFixtures;
+import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
@@ -238,6 +239,28 @@ class AdminEmergencyControllerTest {
         Map<String, Object> ackedBy = (Map<String, Object>) item.get("acked_by");
         assertThat(ackedBy).as("acked_by 는 확인한 관계자의 이름을 담아야 한다(수정 라운드 1, R3 Plant #5)")
                 .containsEntry("name", "메인관리자");
+    }
+
+    /**
+     * direction 이 상수 고정이 아니라 회차의 실제 값을 반영하는지 본다(목표 5, §6.11 쪽) —
+     * {@code StaffEmergencyControllerTest} 의 같은 이름 시험과 근거가 같다.
+     */
+    @Test
+    void direction_은_from_academy_회차에서도_실제_값을_반영한다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long runId = fixtures.confirmedRun(academyId, busId, now(), Direction.FROM_ACADEMY);
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long adminAccountId = fixtures.systemAdminAccount("메인관리자");
+
+        long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
+
+        String body = 목록을_조회한다(adminAccountId);
+        Map<String, Object> item = 항목(body, emergencyId);
+
+        assertThat(item.get("direction")).as("direction 은 from_academy 회차에서 from_academy 를 돌려줘야 한다")
+                .isEqualTo("from_academy");
     }
 
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────

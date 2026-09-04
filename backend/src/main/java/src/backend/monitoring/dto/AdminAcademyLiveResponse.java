@@ -10,15 +10,18 @@ import java.util.List;
  *
  * <p>{@code stops[].eta} · {@code destination_eta} 는 {@code run_stop.eta} 저장값을 그대로 읽은
  * 계획값이다 — 실시간으로 다시 계산하지 않는다(Ruling 232 확정 — 계획값, 재계산 부재).
+ *
+ * <p>{@code position} 은 마지막 위치 수신 후 2분 초과(유실)면 비우고 {@code last_seen_at} 만 채운다
+ * (Ruling 250 · {@code FEATURE_SPEC §4.16} A-14 live 스냅샷 규칙, {@code §5.18} 과 같은 기준값).
  */
 public record AdminAcademyLiveResponse(List<Run> runs) {
 
     public record Run(Long runId, String busNo, String direction, String runStatus, Position position,
-            OffsetDateTime departTime, OffsetDateTime estDepartTime, List<Stop> stops,
+            OffsetDateTime lastSeenAt, OffsetDateTime departTime, OffsetDateTime estDepartTime, List<Stop> stops,
             OffsetDateTime destinationEta, Contact driver, Contact escort) {
     }
 
-    /** 위치 신호가 아직 한 번도 없으면(Redis 키 부재) {@code null}. */
+    /** 위치 신호가 아직 한 번도 없거나(Redis 키 부재) 유실(2분 초과)이면 {@code null} — {@link Run#lastSeenAt}. */
     public record Position(BigDecimal lat, BigDecimal lng, OffsetDateTime receivedAt) {
     }
 

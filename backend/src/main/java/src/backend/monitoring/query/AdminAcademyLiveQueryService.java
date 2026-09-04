@@ -36,8 +36,9 @@ import src.backend.student.repository.StopRepository;
  * <p>{@code eta} 계열 값은 전부 {@code run_stop.eta} 저장값을 읽기만 한다 — 좌표·거리로 다시
  * 계산하지 않는다(Ruling 232 확정 — 계획값, 재계산 부재). 좌표는 T1 이 만든 공용
  * {@link RunLiveStateResolver}(§5.18·§6.8 공유, Phase 13 §2)를 그대로 쓴다 — {@code position} 은
- * API_SPEC §6.8 에 선택 필드(`○`)라 Redis 값이 없으면 객체 자체를 {@code null} 로 비운다(필드는
- * 있고 값만 비는 형태로 두지 않는다).
+ * API_SPEC §6.8 에 선택 필드(`○`)라 Redis 값이 없거나 유실(2분 초과)이면 객체 자체를 {@code null} 로
+ * 비운다(필드는 있고 값만 비는 형태로 두지 않는다). 유실이면 {@code last_seen_at} 만 채운다(Ruling
+ * 250 · FEATURE_SPEC §4.16 A-14).
  */
 @Service
 @RequiredArgsConstructor
@@ -96,11 +97,16 @@ public class AdminAcademyLiveQueryService {
                 .toList();
 
         RunLiveState liveState = runLiveStateResolver.resolve(run);
-        AdminAcademyLiveResponse.Position position = liveState.receivedAt() == null ? null
-                : new AdminAcademyLiveResponse.Position(liveState.lat(), liveState.lng(), liveState.receivedAt());
+        // 유실(2분 초과, Ruling 250 · FEATURE_SPEC §4.16 A-14) 이면 position 을 비우고 last_seen_at 만
+        // 채운다 — receivedAt() == null 만 보면(옛 판) 2분 넘게 갱신이 없는데도 마지막 좌표를 계속
+        // 내보내는 결함이 된다. §5.18(StaffRunLiveQueryService) 과 같은 판단 기준.
+        AdminAcademyLiveResponse.Position position = liveState.receivedAt() != null && !liveState.stale()
+                ? new AdminAcademyLiveResponse.Position(liveState.lat(), liveState.lng(), liveState.receivedAt())
+                : null;
+        OffsetDateTime lastSeenAt = position == null ? liveState.receivedAt() : null;
 
         return new AdminAcademyLiveResponse.Run(run.getId(), busNo, lower(run.getDirection().name()),
-                lower(run.getStatus().name()), position, run.getDepartTime(), run.getStartedAt(), stops,
+                lower(run.getStatus().name()), position, lastSeenAt, run.getDepartTime(), run.getStartedAt(), stops,
                 destinationEtaOf(run), contactOf(contacts, ManagerRole.DRIVER), contactOf(contacts,
                         ManagerRole.ESCORT));
     }
