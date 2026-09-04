@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -31,6 +32,8 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
+import src.backend.boarding.entity.RunRider;
+import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.exception.controller.EmergencyFixtures;
 import src.backend.global.common.enums.AccountStatus;
@@ -40,6 +43,11 @@ import src.backend.global.security.JwtTokenProvider;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
 import src.backend.run.repository.RunRepository;
+import src.backend.student.entity.Stop;
+import src.backend.student.entity.Student;
+import src.backend.student.entity.StudentProfile;
+import src.backend.student.repository.StopRepository;
+import src.backend.student.repository.StudentRepository;
 
 /**
  * {@code POST /runs/{runId}/emergency} 발신 경로를 실제로 태워 {@code emergency_raised} 방송이
@@ -99,6 +107,15 @@ class EmergencyRaisedBroadcastIntegrationTest {
     @Autowired
     private AcademyStaffRepository academyStaffRepository;
 
+    @Autowired
+    private StudentRepository studentRepository;
+
+    @Autowired
+    private StopRepository stopRepository;
+
+    @Autowired
+    private RunRiderRepository runRiderRepository;
+
     private EmergencyFixtures fixtures() {
         return new EmergencyFixtures(academyRepository, busRepository, accountRepository, managerRepository,
                 assignmentRepository, runRepository, academyStaffRepository);
@@ -111,8 +128,27 @@ class EmergencyRaisedBroadcastIntegrationTest {
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사7",
+        // 이 시험은 Propagation.NOT_SUPPORTED 라 실제로 커밋된다(클래스 자바독 참고) — 이름이
+        // 고정이면 두 번째 실행부터 login_id 가 uk_account_login_id 에 충돌한다. 매번 새로운 이름을 쓴다.
+        String driverName = "기사" + System.nanoTime();
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, driverName,
                 OffsetDateTime.now());
+
+        // rider_count 는 발신 시점 run_rider 전체 행 수를 스냅샷한다(EmergencyAlert.onRaise) — 0 은
+        // "riderCount 를 안 세는 결함"과 "정말 아무도 안 탄 회차"를 구별하지 못하므로, 2명을 태워
+        // 실제로 세는지 확인한다.
+        long stopId = stopRepository
+                .save(Stop.forVerifiedAddress(academyId, "정류장", "서울시 임시주소", new BigDecimal("37.5"),
+                        new BigDecimal("127.1")))
+                .getId();
+        for (int i = 0; i < 2; i++) {
+            long studentId = studentRepository
+                    .save(Student.register(academyId,
+                            new StudentProfile("학생" + System.nanoTime(), "010-0000-0000", null, null, null, null,
+                                    null, null, null, null)))
+                    .getId();
+            runRiderRepository.save(RunRider.uponConfirmation(runId, studentId, stopId));
+        }
 
         mockMvc.perform(post(RAISE.formatted(runId))
                         .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
@@ -134,11 +170,11 @@ class EmergencyRaisedBroadcastIntegrationTest {
         assertThat(payload.has("emergency_id")).as("emergency_id 키가 없다").isTrue();
         assertThat(payload.get("type").asText()).isEqualTo("accident");
         assertThat(payload.get("bus_no")).isNotNull();
-        assertThat(payload.get("raised_by").get("name").asText()).isEqualTo("기사7");
+        assertThat(payload.get("raised_by").get("name").asText()).isEqualTo(driverName);
         assertThat(payload.get("raised_by").get("role").asText()).isEqualTo("driver");
         assertThat(payload.get("raised_by").get("phone").asText()).isEqualTo("010-0000-0000");
         assertThat(payload.has("position")).as("position 키가 없다").isTrue();
-        assertThat(payload.get("rider_count").asInt()).isEqualTo(0);
+        assertThat(payload.get("rider_count").asInt()).isEqualTo(2);
         assertThat(payload.has("raised_at")).as("raised_at 키가 없다").isTrue();
     }
 
