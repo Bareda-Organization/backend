@@ -231,6 +231,38 @@ class AdminMonitoringControllerTest extends RedisTestContainerBase {
                 .andExpect(jsonPath("$.data.runs[0].destination_eta").doesNotExist());
     }
 
+    /**
+     * 마지막 위치 수신 후 2분 초과(유실)면 {@code position} 을 비우고 {@code last_seen_at} 만 채운다
+     * (목표 9 — Ruling 250 · {@code FEATURE_SPEC §4.16} A-14, {@code §5.18} 과 같은 기준값). 위
+     * 정본 대조 시험은 30초 전 수신값이라 이 분기를 태우지 못한다.
+     */
+    @Test
+    void 마지막_수신이_2분_넘으면_position_은_비고_last_seen_at_만_채운다() throws Exception {
+        AdminMonitoringFixtures f = fixtures();
+        long academyId = f.academy();
+        long busId = f.bus(academyId);
+        OffsetDateTime departTime = now().minusMinutes(20);
+        long runId = f.movingRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30),
+                now().minusMinutes(15), 30);
+        OffsetDateTime received = now().minusMinutes(3);
+        위치를_기록한다(runId, received);
+
+        long adminAccountId = f.systemAdminAccount("메인관리자");
+
+        MvcResult result = mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization",
+                        메인관리자_토큰(adminAccountId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.runs[0].run_id").value(runId))
+                .andExpect(jsonPath("$.data.runs[0].position").doesNotExist())
+                .andExpect(jsonPath("$.data.runs[0].last_seen_at").exists())
+                .andReturn();
+
+        String body = result.getResponse().getContentAsString();
+        String lastSeenAtStr = JsonPath.read(body, "$.data.runs[0].last_seen_at");
+        assertThat(OffsetDateTime.parse(lastSeenAtStr)).as("last_seen_at 은 마지막 수신 시각 그대로")
+                .isEqualTo(received);
+    }
+
     /** 도착 처리된 정차는 {@code eta} 가 {@code null} 이다(목표 8 뒷항). */
     @Test
     void 도착_처리된_정차는_eta가_null이다() throws Exception {
