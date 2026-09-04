@@ -289,6 +289,11 @@ public enum ErrorCode {
     // 추측해도 다른 정보가 새지 않기 때문이다.
     NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "알림을 찾을 수 없습니다"),
 
+    // ── 지연 알림(F3 S1, NTF-06·M-05, API_SPEC §4.9) ───────────────────────────
+    // 같은 회차의 직전 발신과 minutes·reason·message 가 전부 같을 때(Ruling 253) — 지연 알림은
+    // 갱신 의미라 시간 상수(재요청 금지 시간)를 두지 않고, 내용이 그대로면 거부한다.
+    DELAY_DUPLICATE(HttpStatus.CONFLICT, "이미 같은 내용으로 발송된 지연 알림입니다"),
+
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다");
 
     private final HttpStatus status;

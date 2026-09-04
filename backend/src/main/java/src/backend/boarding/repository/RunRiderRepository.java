@@ -175,4 +175,30 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
             + "GROUP BY rr.runId, rr.status, rr.change")
     List<StaffRunRiderAggregateView> aggregateForStaffDashboard(@Param("academyId") Long academyId,
             @Param("runIds") Collection<Long> runIds);
+
+    /**
+     * 지연 알림(NTF-06, API_SPEC §4.9)의 수신 대상 학생 id — 현재 승하차지 <b>이후</b>({@code stopIds},
+     * 호출부가 seq 로 미리 걸러 넘긴다) 승하차지의 탑승자 중, 이미 탑승한 학생과 결석 처리된 학생을
+     * 뺀다(수신 범위 표 "이미 탑승한 학생은 제외" · C-02 "absent 는 대상 밖").
+     *
+     * <p>두 배제를 <b>별개의 AND 절</b>로 쓴다 — {@code status NOT IN (BOARDED, ABSENT)} 로 합치면
+     * 한쪽 배제만 지워도 나머지가 가려 결함이 드러나지 않는다.
+     *
+     * <p>{@code runId} 근거는 {@link #findByRunIdAndStudentId} 와 같다 — 호출부(지연 알림 커맨드
+     * 서비스)가 이 메서드에 앞서 {@code runRepository.findByIdAndAcademyId} 로 이미 학원 범위에 좁혀
+     * 확인한 회차의 식별자만 넘긴다는 전제다(F3 S1 라운드 1 정정 — {@code RunAssignmentAccess
+     * #assertAssignedEscort} 는 그 자신의 자바독대로 학원 범위를 확인하지 않는다. 확인은 뒤이은 그
+     * 조회가 성공했을 때 비로소 성립한다).
+     */
+    @AcademyScopeExempt(reason = "runId 는 호출부가 runRepository.findByIdAndAcademyId 로 이미 학원 범위에 "
+            + "좁혀 확인한 회차의 식별자라는 전제다 — findByRunIdAndStudentId 와 같은 근거")
+    @Query("""
+            SELECT DISTINCT rr.studentId FROM RunRider rr
+            WHERE rr.runId = :runId
+              AND rr.stopId IN :stopIds
+              AND rr.status <> src.backend.boarding.entity.RiderStatus.BOARDED
+              AND rr.status <> src.backend.boarding.entity.RiderStatus.ABSENT
+            """)
+    List<Long> findStudentIdsForDelayNotification(@Param("runId") Long runId,
+            @Param("stopIds") Collection<Long> stopIds);
 }
