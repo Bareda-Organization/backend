@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * 알림 on/off 설정 — 대상이 도착·승차·미승차 3종으로 고정이고 학부모·학생 계정에만 행이 생겨
- * {@code account} 와 별도 테이블이다(ERD §3.6).
+ * {@code account} 와 별도 테이블이다(ERD §3.4).
  *
  * <p>{@code account.id} 를 그대로 PK 로 쓰는 1:1 확장 테이블이라 {@code @GeneratedValue} 를 두지
  * 않는다 — 값은 계정 생성 시점에 호출자가 직접 넣는다(엔티티 작성 규약 §4, {@link src.backend.academy.entity.AcademySetting} 과 동일 패턴).

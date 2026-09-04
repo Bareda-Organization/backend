@@ -5,7 +5,6 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -24,6 +23,7 @@ import src.backend.admin.dto.AdminEmergencyItemResponse;
 import src.backend.admin.dto.AdminEmergencyListResponse;
 import src.backend.exception.entity.EmergencyAlert;
 import src.backend.exception.repository.EmergencyAlertRepository;
+import src.backend.global.common.LowerCaseFormatter;
 import src.backend.manager.dto.AssignedManagerAccountView;
 import src.backend.manager.entity.Manager;
 import src.backend.manager.repository.AssignmentRepository;
@@ -122,7 +122,8 @@ public class AdminEmergencyQueryService {
                         academy.getContact());
 
         AdminEmergencyItemResponse.RaisedBy raisedBy = new AdminEmergencyItemResponse.RaisedBy(
-                raiser == null ? null : raiser.getName(), lower(alert.getRaisedByRole().name()),
+                raiser == null ? null : raiser.getName(),
+                LowerCaseFormatter.lower(alert.getRaisedByRole().name()),
                 raiser == null ? null : raiser.getPhone());
 
         AdminEmergencyItemResponse.Position position = new AdminEmergencyItemResponse.Position(alert.getLat(),
@@ -130,15 +131,16 @@ public class AdminEmergencyQueryService {
 
         List<AdminEmergencyItemResponse.Contact> contacts = assigned == null ? List.of()
                 : assigned.stream()
-                        .map(v -> new AdminEmergencyItemResponse.Contact(v.name(), lower(v.role().name()),
-                                managerAt(managersById, v.managerId())))
+                        .map(v -> new AdminEmergencyItemResponse.Contact(v.name(),
+                                LowerCaseFormatter.lower(v.role().name()), managerAt(managersById, v.managerId())))
                         .toList();
 
         AdminEmergencyItemResponse.AckedBy ackedBy = acker == null ? null
                 : new AdminEmergencyItemResponse.AckedBy(acker.getName());
 
         return new AdminEmergencyItemResponse(alert.getId(), academyInfo, alert.getType().name(), alert.getMemo(),
-                raisedBy, alert.getRunId(), alert.getBusNo(), run == null ? null : lower(run.getDirection().name()),
+                raisedBy, alert.getRunId(), alert.getBusNo(),
+                run == null ? null : LowerCaseFormatter.lower(run.getDirection().name()),
                 position, alert.getRiderCount(), contacts, alert.getReceivedAt(), alert.isAcked(), alert.getAckedAt(),
                 alert.getCanceledAt(), ackedBy, elapsedSeconds);
     }
@@ -146,9 +148,5 @@ public class AdminEmergencyQueryService {
     private String managerAt(Map<Long, Manager> managersById, Long managerId) {
         Manager manager = managersById.get(managerId);
         return manager == null ? null : manager.getPhone();
-    }
-
-    private static String lower(String value) {
-        return value == null ? null : value.toLowerCase(Locale.ROOT);
     }
 }

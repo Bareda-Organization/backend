@@ -20,7 +20,7 @@ import src.backend.global.common.enums.ManagerRole;
 
 /**
  * 비상 알림 — 위치·탑승자 수·발신 시각을 스냅샷으로 고정해 원본(run·account·academy)이 사라져도
- * 신고 당시 상황을 그대로 재현한다(ERD §3.5 · BRD-07).
+ * 신고 당시 상황을 그대로 재현한다(ERD §3.4 · BRD-07).
  *
  * <p>{@code academy_id}·{@code run_id}·{@code raised_by} 는 논리적 부모이나 DB FK 가 미설정이다
  * (ERD §4.2 — 스냅샷 성격상 원본 정리와 보존 주기가 다르다). {@code raised_by_role} 은 CHECK 가 부재해

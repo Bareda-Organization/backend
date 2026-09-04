@@ -49,11 +49,11 @@ import src.backend.student.query.StudentQueryService;
  *
  * <p>매핑에 {@code consumes} 를 걸지 않는다 — 걸면 형식이 맞지 않는 요청이 <b>핸들러 매핑 단계</b>에서
  * {@code 415} 로 끊겨 계정 상태 게이트({@code preHandle})보다 앞서고, 승인 대기 계정이 받아야 할
- * {@code 403 AUTH_PENDING} 이 {@code 415} 로 뒤바뀐다(§1.4).
+ * {@code 403 AUTH_PENDING} 이 {@code 415} 로 뒤바뀐다(API_SPEC §1.4).
  *
  * <p>계정 상태 게이트 애너테이션({@code @AllowedWhenPending} 등)은 붙지 않는다 — 승인 대기·거절
  * 계정이 학생 명단에 닿을 이유가 부재하므로, 허용 목록 밖으로 남아 {@code 403} 이 되는 것이 사양이다
- * (§1.4).
+ * (API_SPEC §1.4).
  */
 @RestController
 @RequestMapping("/staff/students")

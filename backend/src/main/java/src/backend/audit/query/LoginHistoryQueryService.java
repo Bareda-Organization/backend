@@ -24,14 +24,14 @@ import src.backend.global.response.PageResponse;
  * {@code GET /admin/login-history}, Phase 14 T1 목표 4).
  *
  * <p>{@code result}·{@code block_event} 를 저장된 {@code action} 에서 조회 시점에 다시 계산한다
- * (ERD §3.6 · 조율자 Ruling 13) — {@code AuditLog.blockEvent} 컬럼값을 그대로 옮기지 않는 이유는
+ * (ERD §3.4 · 조율자 Ruling 13) — {@code AuditLog.blockEvent} 컬럼값을 그대로 옮기지 않는 이유는
  * {@link LoginHistoryItemResponse} 자바독에 적었다.
  *
  * <p><b>미확인 사항(보고서에 남김)</b> — {@code account_id}·{@code login_id} 를 이 서비스는
  * 모든 행에서 {@code actor}(시도를 한 계정)로 통일해 매핑한다. {@code unblock} 행은
  * {@code AccountUnblockCommandService}(다른 Phase, 이 태스크 소유 밖)가 "해제를 실행한 관리자" 를
  * {@code actorAccountId} 에 채운다 — 즉 그 행의 {@code account_id} 는 <b>해제된 계정이 아니라
- * 해제한 관리자</b>를 가리킨다. §6.13 문면과 ERD §3.6 어느 쪽도 이 경우의 의미를 명시하지 않아,
+ * 해제한 관리자</b>를 가리킨다. API_SPEC §6.13 문면과 ERD §3.4 어느 쪽도 이 경우의 의미를 명시하지 않아,
  * 컬럼 자체의 정의("행위자 계정")를 그대로 따르는 쪽을 택했다 — 반대로 "해제된 계정" 을 기대했다면
  * {@code account_id} 필터로 그 계정의 unblock 이력이 조회되지 않는다.
  */

@@ -2,7 +2,6 @@ package src.backend.exception.query;
 
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -19,6 +18,7 @@ import src.backend.exception.dto.EmergencyStaffItemResponse;
 import src.backend.exception.dto.EmergencyStaffListResponse;
 import src.backend.exception.entity.EmergencyAlert;
 import src.backend.exception.repository.EmergencyAlertRepository;
+import src.backend.global.common.LowerCaseFormatter;
 import src.backend.global.security.AuthUser;
 import src.backend.manager.dto.AssignedManagerAccountView;
 import src.backend.manager.entity.Manager;
@@ -93,7 +93,8 @@ public class EmergencyStaffQueryService {
     private EmergencyStaffItemResponse toItem(EmergencyAlert alert, Manager raiser, Account acker, Run run,
             List<AssignedManagerAccountView> assigned, Map<Long, Manager> managersById) {
         EmergencyStaffItemResponse.RaisedBy raisedBy = new EmergencyStaffItemResponse.RaisedBy(
-                raiser == null ? null : raiser.getName(), lower(alert.getRaisedByRole().name()),
+                raiser == null ? null : raiser.getName(),
+                LowerCaseFormatter.lower(alert.getRaisedByRole().name()),
                 raiser == null ? null : raiser.getPhone());
 
         EmergencyStaffItemResponse.Position position = new EmergencyStaffItemResponse.Position(alert.getLat(),
@@ -101,15 +102,16 @@ public class EmergencyStaffQueryService {
 
         List<EmergencyStaffItemResponse.Contact> contacts = assigned == null ? List.of()
                 : assigned.stream()
-                        .map(v -> new EmergencyStaffItemResponse.Contact(v.name(), lower(v.role().name()),
-                                managerAt(managersById, v.managerId())))
+                        .map(v -> new EmergencyStaffItemResponse.Contact(v.name(),
+                                LowerCaseFormatter.lower(v.role().name()), managerAt(managersById, v.managerId())))
                         .toList();
 
         EmergencyStaffItemResponse.AckedBy ackedBy = acker == null ? null
                 : new EmergencyStaffItemResponse.AckedBy(acker.getName());
 
         return new EmergencyStaffItemResponse(alert.getId(), alert.getType().name(), alert.getMemo(), raisedBy,
-                alert.getRunId(), alert.getBusNo(), run == null ? null : lower(run.getDirection().name()), position,
+                alert.getRunId(), alert.getBusNo(),
+                run == null ? null : LowerCaseFormatter.lower(run.getDirection().name()), position,
                 alert.getRiderCount(), contacts, alert.getReceivedAt(), alert.getAckedAt(), alert.getCanceledAt(),
                 alert.isAcked(), ackedBy);
     }
@@ -117,9 +119,5 @@ public class EmergencyStaffQueryService {
     private String managerAt(Map<Long, Manager> managersById, Long managerId) {
         Manager manager = managersById.get(managerId);
         return manager == null ? null : manager.getPhone();
-    }
-
-    private static String lower(String value) {
-        return value == null ? null : value.toLowerCase(Locale.ROOT);
     }
 }

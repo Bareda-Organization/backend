@@ -235,7 +235,7 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
      * 잃는다.
      *
      * <p>정본이 "중요 통지" 만 추적한다고 적지만(FEATURE_SPEC §4.15 NTF-10), 그 분류를 어느
-     * {@link NotificationType} 값에 매길지는 정본 어디에도 없다(§9.7·§4.15 재확인 — 판정 근거·열거값
+     * {@link NotificationType} 값에 매길지는 정본 어디에도 없다(API_SPEC §9.7·§4.15 재확인 — 판정 근거·열거값
      * 표 부재, 오픈 이슈 X 목록에도 없음). 그래서 이 카운트는 <b>전 종류를 동일하게</b> 센다 — 근거
      * 없이 일부 종류를 빼면 그 자체가 임의 판단이 된다. 정본이 분류를 명시하면 이 조건을 좁힌다.
      */

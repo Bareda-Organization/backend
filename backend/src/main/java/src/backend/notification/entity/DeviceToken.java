@@ -18,7 +18,7 @@ import src.backend.global.common.BaseTimeEntity;
 
 /**
  * 푸시 수신 단말 — 서버가 발송 대상 단말을 특정하는 자리이며, 토큰 갱신은 값 수정이 아니라 행 대체로
- * 처리한다(ERD §3.6). {@code account_id}·{@code device_id} UNIQUE 라 계정당 단말별로 행이 최대 1개다.
+ * 처리한다(ERD §3.4). {@code account_id}·{@code device_id} UNIQUE 라 계정당 단말별로 행이 최대 1개다.
  */
 @Entity
 @Table(name = "device_token")

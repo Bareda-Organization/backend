@@ -21,7 +21,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
  * 특이사항 · 연락처 원문이 함께 열린다 — 등급이 아니라 <b>자원 소속</b>으로 좁히는 것이 맞는 자리다.
  *
  * <p>좁히는 것은 {@code student.access.LinkedChildLookup} 이다 — 토큰의 계정으로 보호자를 찾고,
- * 연결된 자녀가 아니면 {@code 403 FORBIDDEN} 이다(§3.7). 인가 애너테이션은 "무엇을 할 수 있는가" 만
+ * 연결된 자녀가 아니면 {@code 403 FORBIDDEN} 이다(API_SPEC §3.7). 인가 애너테이션은 "무엇을 할 수 있는가" 만
  * 답하고 "어느 자원인가" 는 답하지 않는다.
  */
 @Target(ElementType.METHOD)
