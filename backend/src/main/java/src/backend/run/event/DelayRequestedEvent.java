@@ -7,7 +7,7 @@ import src.backend.run.entity.DelayReason;
 
 /**
  * 지연 알림 신고가 실제로 발신될 때 발행하는 도메인 이벤트(NTF-06, API_SPEC §4.9, F3 S1) —
- * {@link src.backend.notification.command.DelayNotificationListener} 가 이 이벤트를 구독해
+ * 알림 모듈의 {@code DelayNotificationListener} 가 이 이벤트를 구독해
  * 아웃박스에 적재한다(ARCHITECTURE §3.3 규칙 17 · BRD-04 — 발행측이 알림 모듈을 직접 부르면 안 된다).
  *
  * <p>{@link RunStartedEvent} 와 같은 형태다 — 지연 신고 커맨드 서비스가 이미 연 트랜잭션 안에서

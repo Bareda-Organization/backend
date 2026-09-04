@@ -42,10 +42,10 @@ import src.backend.student.repository.StudentRepository;
 /**
  * 지연 알림 신고(NTF-06, M-05, API_SPEC §4.9) — F3 S1 목표 1~4.
  *
- * <p>수신자 조회·발신은 {@link src.backend.notification.command.DelayNotificationListener} 로
- * 넘긴다(F3 S1 라운드 1 — 반려 🔴-A 해소, ARCHITECTURE §3.3 규칙 17 · BRD-04). 이 서비스가 notification
- * 모듈을 직접 부르면 승인 트랜잭션 안에서 알림 적재가 돌아, 그 적재가 실패했을 때 지연 신고 자체가
- * 롤백된다 — 그래서 {@link ApplicationEventPublisher} 로 {@link DelayRequestedEvent} 만 발행한다.
+ * <p>수신자 조회·발신은 알림 모듈의 {@code DelayNotificationListener} 로 넘긴다(F3 S1 라운드 1 —
+ * 반려 🔴-A 해소, ARCHITECTURE §3.3 규칙 17 · BRD-04). 이 서비스가 그 모듈을 직접 부르면 승인
+ * 트랜잭션 안에서 알림 적재가 돌아, 그 적재가 실패했을 때 지연 신고 자체가 롤백된다 — 그래서
+ * {@link ApplicationEventPublisher} 로 {@link DelayRequestedEvent} 만 발행한다.
  *
  * <p>응답의 세 불리언({@code notifiedGuardians} 등)은 <b>리스너 실행 결과에 기대지 않는다</b> — 이
  * 서비스가 이벤트에 실어 보내는 수신자 3집합을 그대로 계산해 그 집합의 비어 있음 여부로 채운다(이벤트
