@@ -1,5 +1,6 @@
 package src.backend.run.controller;
 
+import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -223,6 +224,99 @@ class StaffStudentTransferControllerTest {
         이동_신청한다(studentId, academyId, 이동_본문(runId, runId, null, "테스트로 100"))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+    }
+
+    // ── 배타 검증(stop_id · address) ─────────────────────────────────────
+
+    /** {@code stop_id} 와 {@code address} 를 둘 다 보내거나 둘 다 안 보내면 422 다(§5.8 배타 조건). */
+    @Test
+    void 정류장과_주소를_둘_다_또는_둘_다_안_보내면_422_이다() throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+        long fromBusId = fixtures().bus(academyId);
+        long toBusId = fixtures().bus(academyId);
+        long fromRunId = 회차를_만든다(academyId, fromBusId, 31);
+        long toRunId = 회차를_만든다(academyId, toBusId, 31);
+        long stopId = fixtures().stop(academyId, "37.560000", "126.970000");
+        long studentId = fixtures().student(academyId, "이동학생");
+        학생을_회차_명단에_넣는다(fromRunId, studentId);
+
+        String 둘다있음 = "{\"from_run_id\":" + fromRunId + ",\"to_run_id\":" + toRunId + ",\"stop_id\":" + stopId
+                + ",\"address\":\"테스트로 100\"}";
+        이동_신청한다(studentId, academyId, 둘다있음)
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+
+        String 둘다없음 = "{\"from_run_id\":" + fromRunId + ",\"to_run_id\":" + toRunId + "}";
+        이동_신청한다(studentId, academyId, 둘다없음)
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+    }
+
+    // ── 중복 대기(§5.8 미적용 이동 존재) ────────────────────────────────────
+
+    /** 같은 학생의 대기 중인(미적용) 이동 건이 이미 있으면 409 TRANSFER_ALREADY_STAGED 다. */
+    @Test
+    void 이미_대기_중인_이동이_있으면_409_이다() throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+        long fromBusId = fixtures().bus(academyId);
+        long toBusId = fixtures().bus(academyId);
+        long anotherToBusId = fixtures().bus(academyId);
+        long fromRunId = 회차를_만든다(academyId, fromBusId, 31);
+        long toRunId = 회차를_만든다(academyId, toBusId, 31);
+        long anotherToRunId = 회차를_만든다(academyId, anotherToBusId, 31);
+        long stopId = fixtures().stop(academyId, "37.560000", "126.970000");
+        long studentId = fixtures().student(academyId, "이동학생");
+        학생을_회차_명단에_넣는다(fromRunId, studentId);
+
+        이동_신청한다(studentId, academyId, 이동_본문(fromRunId, toRunId, stopId, null)).andExpect(status().isCreated());
+
+        이동_신청한다(studentId, academyId, 이동_본문(fromRunId, anotherToRunId, stopId, null))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("TRANSFER_ALREADY_STAGED"));
+    }
+
+    // ── 주소 경로(STU-05) ────────────────────────────────────────────────
+
+    /** {@code address} 경로가 성공하면 201 이고, 매칭/신규 승하차지 id 가 {@code stop_id} 에 실린다. */
+    @Test
+    void 주소_경로로_이동하면_stop_id_가_채워진다() throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+        long fromBusId = fixtures().bus(academyId);
+        long toBusId = fixtures().bus(academyId);
+        long fromRunId = 회차를_만든다(academyId, fromBusId, 31);
+        long toRunId = 회차를_만든다(academyId, toBusId, 31);
+        long studentId = fixtures().student(academyId, "이동학생");
+        학생을_회차_명단에_넣는다(fromRunId, studentId);
+
+        이동_신청한다(studentId, academyId, 이동_본문(fromRunId, toRunId, null, "테스트로 100"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.stop_id").value(notNullValue()));
+    }
+
+    // ── 타 학원 stop_id ──────────────────────────────────────────────────
+
+    /**
+     * 도착 회차와 같은 학원이라도 {@code stop_id} 가 타 학원 소속이면 그 승하차지를 찾지 못해 404
+     * STOP_NOT_FOUND 다 — {@code stopRepository.findAllByAcademyIdAndIdIn} 이 요청자 학원으로 이미
+     * 좁혀 조회하기 때문에(존재 비노출, Ruling 163 과 같은 형태). §5.8 에러 표는 이 필드를 위한
+     * 전용 코드를 별도로 두지 않는다 — 표에 없는 코드이지 문서와 어긋난 동작은 아니다.
+     */
+    @Test
+    void 타_학원_stop_id_는_404_STOP_NOT_FOUND_이다() throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+        long fromBusId = fixtures().bus(academyId);
+        long toBusId = fixtures().bus(academyId);
+        long fromRunId = 회차를_만든다(academyId, fromBusId, 31);
+        long toRunId = 회차를_만든다(academyId, toBusId, 31);
+        long studentId = fixtures().student(academyId, "이동학생");
+        학생을_회차_명단에_넣는다(fromRunId, studentId);
+
+        long otherAcademyId = fixtures().academyWithCoordinates();
+        long otherStopId = fixtures().stop(otherAcademyId, "37.560000", "126.970000");
+
+        이동_신청한다(studentId, academyId, 이동_본문(fromRunId, toRunId, otherStopId, null))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("STOP_NOT_FOUND"));
     }
 
     // ── 학원 격리 ─────────────────────────────────────────────────────────
