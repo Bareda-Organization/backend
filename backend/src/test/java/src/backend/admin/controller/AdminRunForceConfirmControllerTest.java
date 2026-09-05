@@ -139,10 +139,12 @@ class AdminRunForceConfirmControllerTest {
         long lastStop = fixtures().stop(academyId, "37.561000", "126.971000");
         fixtures().route(academyId, busId, WEEKDAY, Direction.TO_ACADEMY, firstStop, lastStop);
 
+        // ck_run_confirm_at 제약 — confirm_at 은 반드시 depart_time - 30분이어야 한다(V1__init_schema.sql).
+        // depart_time 을 now + 29분으로 두면 confirm_at 은 now - 1분 — 방금 지난 시점이 된다.
         OffsetDateTime now = OffsetDateTime.now(clock);
-        OffsetDateTime departTime = now.plusHours(3);
+        OffsetDateTime departTime = now.plusMinutes(29);
         return fixtures().idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
-                now.minusMinutes(1));
+                departTime.minusMinutes(30));
     }
 
     /**
@@ -197,11 +199,12 @@ class AdminRunForceConfirmControllerTest {
         long lastStop = fixtures().stop(academyId, "37.561000", "126.971000");
         fixtures().route(academyId, busId, WEEKDAY, Direction.TO_ACADEMY, firstStop, lastStop);
 
+        // ck_run_confirm_at 제약 — confirm_at 은 반드시 depart_time - 30분이어야 한다. depart_time 을
+        // now + 3시간으로 두면 confirm_at 은 now + 2시간30분 — 아직 도래하지 않은 미래 시점이 된다.
         OffsetDateTime now = OffsetDateTime.now(clock);
         OffsetDateTime departTime = now.plusHours(3);
-        // confirm_at 이 지금보다 미래 — 아직 도래하지 않았다.
         long runId = fixtures().idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
-                now.plusMinutes(30));
+                departTime.minusMinutes(30));
 
         mockMvc.perform(post(FORCE_CONFIRM.formatted(runId))
                         .header("Authorization", 메인관리자_토큰())
