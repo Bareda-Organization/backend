@@ -47,11 +47,14 @@ class ChangeRequestAutoRejectionConcurrencyTest {
     /**
      * 스레드 하나가 상대를 기다리는 상한 — 정상 흐름에서는 소진되지 않는다.
      *
-     * <p>20 → 45 로 올림(Phase 10 T1). 순서 강제 자체(잠금 대기 폴링)는 이미 결정적이라 손대지
-     * 않았다 — 전체 테스트 묶음 아래에서 난 {@code TimeoutException} 은 순서가 흔들려서가 아니라,
-     * 캐시된 {@code @SpringBootTest} 컨텍스트 다수가 만드는 자원 경합 아래 같은 왕복이 20초 예산을
-     * 넘겨서다(Phase 9 이월 ①의 "순서를 정할 수단이 부재" 진단은 이 폴링이 이미 붙은 뒤에 쓰여
-     * 낡았다). 예산만 넉넉히 늘린다.
+     * <p>20 → 45 로 올림(Phase 10 T1). ⚠ <b>그 인상의 근거였던 진단은 F5 S3 실측으로 반증됐다.</b>
+     * "캐시된 {@code @SpringBootTest} 컨텍스트 다수가 만드는 자원 경합이 20초 예산을 넘긴다" 였는데,
+     * 45초로 올린 뒤에도 전체 실행에서 이 시험이 예산을 다 쓰고 그대로 실패했다. 그 순간 상대는
+     * 44초 내내 {@code Lock/transactionid} 로 대기 중이었다 — 즉 느려서가 아니라 <b>폴링이 상대를
+     * 보지 못했다.</b> 원인은 폴링이 읽는 {@code pg_stat_activity} 가 트랜잭션 단위로 캐시되는 것이고
+     * (PostgreSQL {@code stats_fetch_consistency} 기본값 {@code cache}), 회차마다
+     * {@code pg_stat_clear_snapshot()} 으로 스냅숏을 버리는 것으로 고쳤다. 이 값은 이제 상대가
+     * 죽었을 때의 상한으로만 남는다.
      */
     private static final long TIMEOUT_SECONDS = 45;
 
