@@ -171,7 +171,8 @@ class RolePermissionsTest {
                 Permissions.STUDENT_READ_BASIC, Permissions.STUDENT_READ_SENSITIVE, Permissions.STUDENT_READ_PHOTO,
                 Permissions.ROSTER_READ, Permissions.EMERGENCY_ACK, Permissions.ROUTE_READ,
                 Permissions.MONITOR_ALL, Permissions.DEVICE_REGISTER, Permissions.ACADEMY_MANAGE,
-                Permissions.STAFF_APPROVE, Permissions.ACCOUNT_UNBLOCK, Permissions.AUDIT_READ));
+                Permissions.STAFF_APPROVE, Permissions.ACCOUNT_UNBLOCK, Permissions.AUDIT_READ,
+                Permissions.RUN_FORCE_CONFIRM));
         return catalog.get(role);
     }
 }
