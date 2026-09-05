@@ -194,6 +194,10 @@ class AdminRunForceConfirmControllerTest {
      * <p>{@code action=update AND target_type=run} 을 SQL 조건으로 직접 걸어 Ruling 260 이 요구한
      * 열 값 자체를 검사하고, {@code detail->>'action'} 으로 스펙 문자열이 그대로 보존됐는지 본다.
      * 감사 적재 호출이 조용히 no-op 이 되는 결함은 이 시험이 잡는다(행 자체의 존재를 본다).
+     *
+     * <p>R2 🔴 지적(조율자) — {@code detail.route_version_id} 는 프로덕션엔 있었으나 시험 단언이
+     * 없었다. {@code confirmed_route.current_version_id} 를 실제로 생긴 회차의 버전 id 로 재조회해
+     * {@code detail_route_version_id} 와 값이 같은지 직접 비교한다.
      */
     @Test
     @DisplayName("목표11 — 강제 확정은 audit_log 에 action=update·target_type=run·detail 을 담은 행을 남긴다")
@@ -209,16 +213,20 @@ class AdminRunForceConfirmControllerTest {
         동기화한다();
         var row = jdbcTemplate.queryForMap(
                 "SELECT detail->>'action' AS detail_action, detail->>'reason' AS detail_reason, "
-                        + "(detail->>'fallback_used')::boolean AS detail_fallback_used "
+                        + "(detail->>'fallback_used')::boolean AS detail_fallback_used, "
+                        + "(detail->>'route_version_id')::bigint AS detail_route_version_id "
                         + "FROM audit_log WHERE action = 'update' AND category = 'data_access' "
                         + "AND target_type = 'run' AND target_id = ? ORDER BY id DESC LIMIT 1",
                 runId);
+        Long actualVersionId = jdbcTemplate.queryForObject(
+                "SELECT current_version_id FROM confirmed_route WHERE run_id = ?", Long.class, runId);
         assertThat(row)
                 .as("action=update·category=data_access·target_type=run 조건에 걸리는 행이 없으면 "
                         + "감사 적재가 조용히 빠졌거나 Ruling 260 매핑이 깨진 것이다 — 이 조회 자체가 비면 안 된다")
                 .containsEntry("detail_action", "run.force_confirm")
                 .containsEntry("detail_reason", "기사 무응답으로 콘솔 강제 확정")
-                .containsEntry("detail_fallback_used", true);
+                .containsEntry("detail_fallback_used", true)
+                .containsEntry("detail_route_version_id", actualVersionId);
     }
 
     /**
