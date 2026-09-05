@@ -148,6 +148,22 @@ class AdminRunForceConfirmControllerTest {
     }
 
     /**
+     * {@code confirm_at} 경과 회차이되 학원 좌표를 등록하지 않는다 — 상태 가드가 idle 이 아닌 회차를
+     * 걸러내지 못하면(목표11 결함) {@link RunConfirmationService#confirmOne} 이 실제로 불려
+     * {@code ACADEMY_COORDINATES_MISSING}(422) 으로 표면화된다. 좌표를 등록해 두면 그 결함이 나중의
+     * {@code confirmIfIdle} 조건부 UPDATE(idle 만 갱신)에 조용히 흡수돼 결과가 정상 코드와 똑같이
+     * {@code 409 RUN_NOT_IDLE} 로 나온다 — 그래서는 이 결함을 이 시험이 구분하지 못한다.
+     */
+    private long dueIdleRunWithoutCoordinates() {
+        long academyId = fixtures().academyWithoutCoordinates();
+        long busId = fixtures().bus(academyId);
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        OffsetDateTime departTime = now.plusMinutes(29);
+        return fixtures().idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+    }
+
+    /**
      * 목표 11 — idle 상태이고 {@code confirm_at} 이 지난 회차의 강제 확정은 {@code 201} 이고,
      * {@code route_version.fallback_used} 가 실제로 {@code true} 로 저장된다.
      *
@@ -276,6 +292,40 @@ class AdminRunForceConfirmControllerTest {
                         .header("Authorization", 메인관리자_토큰())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"이미 확정된 회차를 다시 강제 확정 시도\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("RUN_NOT_IDLE"));
+    }
+
+    /** moving 회차의 강제 확정은 {@code 409 RUN_NOT_IDLE} 다(§6.14 — idle 이 아닌 상태는 confirmed 하나가 아니다). */
+    @Test
+    @DisplayName("목표11 — moving 회차의 강제 확정은 409 RUN_NOT_IDLE 다")
+    void moving_회차는_409_RUN_NOT_IDLE_다() throws Exception {
+        long runId = dueIdleRunWithoutCoordinates();
+        int updated = jdbcTemplate.update("UPDATE run SET status = 'moving' WHERE id = ?", runId);
+        assertThat(updated).isEqualTo(1);
+        동기화한다();
+
+        mockMvc.perform(post(FORCE_CONFIRM.formatted(runId))
+                        .header("Authorization", 메인관리자_토큰())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"운행 중인 회차를 강제 확정 시도\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("RUN_NOT_IDLE"));
+    }
+
+    /** finished 회차의 강제 확정은 {@code 409 RUN_NOT_IDLE} 다(§6.14 — idle 이 아닌 상태는 confirmed 하나가 아니다). */
+    @Test
+    @DisplayName("목표11 — finished 회차의 강제 확정은 409 RUN_NOT_IDLE 다")
+    void finished_회차는_409_RUN_NOT_IDLE_다() throws Exception {
+        long runId = dueIdleRunWithoutCoordinates();
+        int updated = jdbcTemplate.update("UPDATE run SET status = 'finished' WHERE id = ?", runId);
+        assertThat(updated).isEqualTo(1);
+        동기화한다();
+
+        mockMvc.perform(post(FORCE_CONFIRM.formatted(runId))
+                        .header("Authorization", 메인관리자_토큰())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"종료된 회차를 강제 확정 시도\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("RUN_NOT_IDLE"));
     }
