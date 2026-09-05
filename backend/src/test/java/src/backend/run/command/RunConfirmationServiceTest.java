@@ -165,6 +165,38 @@ class RunConfirmationServiceTest {
     }
 
     /**
+     * F3 R2 재판정 ⚠b — 기존 시험들은 {@code confirmOne(Long)} 을 불러도 그 결과 {@code route_version}
+     * 의 {@code fallback_used} 를 확인한 적이 없다. 배치 확정의 기본 호출부(스케줄러)가 이 한 인자
+     * 오버로드를 쓰므로, 이것이 조용히 {@code forceFallback=true} 쪽으로 위임하도록 바뀌어도 지도 API
+     * 호출 자체는 여전히 1회 일어난다({@code StubMapRouteClient.route} 가 매번 불리고 내부에서만
+     * 분기한다) — 그래서 "호출됐는지"가 아니라 저장된 {@code fallback_used} 값으로 판정한다.
+     */
+    @Test
+    @DisplayName("목표4 — 기본 confirmOne(Long) 은 fallback_used=false 로 확정한다")
+    void 기본_확정_경로는_fallback_used_가_false_다() {
+        long academyId = fixtures().academyWithCoordinates();
+        long busId = fixtures().bus(academyId);
+        long firstStop = fixtures().stop(academyId, "37.560000", "126.970000");
+        long lastStop = fixtures().stop(academyId, "37.561000", "126.971000");
+        fixtures().route(academyId, busId, WEEKDAY, Direction.TO_ACADEMY, firstStop, lastStop);
+
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusHours(3);
+        long runId = fixtures().idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+
+        confirmationService.confirmOne(runId);
+
+        Long versionId = jdbcTemplate.queryForObject(
+                "SELECT current_version_id FROM confirmed_route WHERE run_id = ?", Long.class, runId);
+        Boolean fallbackUsed = jdbcTemplate.queryForObject(
+                "SELECT fallback_used FROM route_version WHERE id = ?", Boolean.class, versionId);
+        assertThat(fallbackUsed)
+                .as("이 정차지 좌표는 스텁의 장애 마커가 아니다 — forceFallback 이 조용히 true 로 뒤집히면 "
+                        + "정상 배치인데도 이 값이 true 로 저장된다")
+                .isFalse();
+    }
+
+    /**
      * 게이트 리뷰 지적 #5(T7) — 강제 추가(RTE-06, §5.7)는 대기 행만 쌓고, 그 행이 확정 배치를
      * 거쳐 {@code run_rider}·{@code run_stop} 에 실제로 반영되는지는 어떤 시험도 보지 않았다.
      * 대상 학생은 요일별 주소를 아예 안 준다 — 정상 경로로는 이 회차 명단에 오를 수 없어야

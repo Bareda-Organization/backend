@@ -186,6 +186,38 @@ class DelayNotificationControllerTest {
     }
 
     @Test
+    @DisplayName("목표1 — 관계자·학생 갈래도 notification_log 에 실제로 적재된다(응답 불린만이 아니라 행 자체)")
+    void 관계자와_학생도_notification_log_에_실제로_적재된다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
+        fixtures.startRun(runId, now());
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
+        long staffAccountId = fixtures.staffAccount(academyId, "관계자1");
+        long studentId = fixtures.studentWithAccount(academyId, "학생1");
+        fixtures.guardianOf(academyId, studentId, "학부모1", now());
+        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
+        fixtures.runStopForStop(versionId, stopId, 1, now());
+        fixtures.rider(runId, studentId, stopId, RiderStatus.WAITING, now());
+
+        mockMvc.perform(post(DELAY.formatted(runId))
+                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(요청본문(10, "traffic", null)))
+                .andExpect(status().isCreated());
+
+        entityManager.flush();
+        assertThat(관계자_알림수(runId, staffAccountId))
+                .as("응답의 notified_staff 는 true 인데, 리스너가 append 를 건너뛰면 이 행은 안 생긴다")
+                .isEqualTo(1);
+        assertThat(학생_알림수(runId, studentId))
+                .as("응답의 notified_students 는 true 인데, 리스너가 append 를 건너뛰면 이 행은 안 생긴다")
+                .isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("목표1 ESCORT_ONLY — 기사가 신고하면 403 ESCORT_ONLY 이고 이력이 남지 않는다")
     void 기사는_신고할_수_없다() throws Exception {
         DriverRunFixtures fixtures = fixtures();
@@ -607,6 +639,43 @@ class DelayNotificationControllerTest {
         assertThat(지연알림_건수(runId)).isEqualTo(2);
     }
 
+    @Test
+    @DisplayName("목표3-g — message 가 빈 문자열·공백뿐·null 이면 전부 같은 신고로 취급돼 두 번째부터 409 다")
+    void message_가_빈_문자열_공백_null_이면_전부_동치다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
+        fixtures.startRun(runId, now());
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
+        fixtures.confirmedRouteWithVersion(runId, now());
+
+        mockMvc.perform(post(DELAY.formatted(runId))
+                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(요청본문(10, "traffic", "")))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post(DELAY.formatted(runId))
+                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(요청본문(10, "traffic", "  ")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("DELAY_DUPLICATE"));
+
+        mockMvc.perform(post(DELAY.formatted(runId))
+                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(요청본문(10, "traffic", null)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("DELAY_DUPLICATE"));
+
+        entityManager.flush();
+        assertThat(지연알림_건수(runId))
+                .as("\"\" · \"  \" · null 이 서로 다른 신고로 취급되면 여기서 3이 된다 — isBlank 판정이 빠지면 이렇게 샌다")
+                .isEqualTo(1);
+    }
+
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────
 
     private String 토큰(long accountId, long academyId, Role role) {
@@ -650,6 +719,26 @@ class DelayNotificationControllerTest {
                 "SELECT count(*) FROM notification_log WHERE type = 'delay' AND recipient_role = 'parent' "
                         + "AND dedup_key LIKE ?",
                 Integer.class, "delay:" + runId + ":" + studentId + ":%");
+        return count == null ? 0 : count;
+    }
+
+    /** {@code dedup_key} 의 대상 자리가 자기 accountId 인 관계자(STAFF) 알림 건수(학부모와 달리 studentId 가 아니다). */
+    private long 관계자_알림수(long runId, long staffAccountId) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM notification_log WHERE type = 'delay' AND recipient_role = 'staff' "
+                        + "AND dedup_key LIKE ?",
+                Integer.class, "delay:" + runId + ":" + staffAccountId + ":%");
+        return count == null ? 0 : count;
+    }
+
+    /** {@code dedup_key} 의 대상 자리가 그 학생의 accountId 인 학생(STUDENT) 알림 건수(studentId 자체가 아니다). */
+    private long 학생_알림수(long runId, long studentId) {
+        Long accountId = jdbcTemplate.queryForObject("SELECT account_id FROM student WHERE id = ?", Long.class,
+                studentId);
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM notification_log WHERE type = 'delay' AND recipient_role = 'student' "
+                        + "AND dedup_key LIKE ?",
+                Integer.class, "delay:" + runId + ":" + accountId + ":%");
         return count == null ? 0 : count;
     }
 }
