@@ -86,6 +86,9 @@ class AcademyScopeHttpExhaustiveTest {
     private static final String DECIDE_SIGNUP_BODY = "{\"accept\":false}";
     private static final String OPTIMIZE_BODY =
             "{\"origin\":{\"lat\":37.5,\"lng\":127.0},\"destination\":{\"lat\":37.6,\"lng\":127.1}}";
+    // {id}(학생) 확인이 fromRunId·toRunId 조회보다 먼저라(TransferCommandService) 값 자체는
+    // 실재하지 않아도 된다 — @NotNull 검증만 통과하면 된다(판단 근거①).
+    private static final String TRANSFER_BODY = "{\"from_run_id\":1,\"to_run_id\":2}";
 
     @Autowired
     private MockMvc mockMvc;
@@ -228,9 +231,10 @@ class AcademyScopeHttpExhaustiveTest {
     }
 
     /**
-     * 46개 경로 변수 핸들러 전부(47건 — 탑승 의사 토글이 studentId·runId 두 축을 따로 검사해 하나
+     * 47개 경로 변수 핸들러 전부(48건 — 탑승 의사 토글이 studentId·runId 두 축을 따로 검사해 하나
      * 늘어난다) — {@code POST /runs/{runId}/delay} 는 F3 S5 가 §1.11 매니저 앱 회차 자원 그룹에
-     * 추가(합류 정정, Ruling 259(b)). 패턴별 근거는 클래스 javadoc, 개별 근거는 각 케이스 옆
+     * 추가(합류 정정, Ruling 259(b)). {@code POST /staff/students/{id}/transfer} 는 F4 S1 이
+     * 버스 간 이동(§5.8)으로 추가. 패턴별 근거는 클래스 javadoc, 개별 근거는 각 케이스 옆
      * 주석(보고서 항목①).
      */
     private List<ScopeCase> buildCases() {
@@ -248,6 +252,11 @@ class AcademyScopeHttpExhaustiveTest {
                 new Object[] {academyBStudentId}, staffA(), EMPTY_BODY, 404, "STUDENT_NOT_FOUND"));
         cases.add(c("DELETE /staff/students/{id} → B학원 학생 404", HttpMethod.DELETE, "/staff/students/{id}",
                 new Object[] {academyBStudentId}, staffA(), null, 404, "STUDENT_NOT_FOUND"));
+        // F4 S1 — 버스 간 이동(§5.8) — findByIdAndAcademyIdAndDeletedAtIsNull 이 fromRunId·toRunId
+        // 조회보다 먼저다(TransferCommandService, 판단 근거①).
+        cases.add(c("POST /staff/students/{id}/transfer → B학원 학생 404", HttpMethod.POST,
+                "/staff/students/{id}/transfer", new Object[] {academyBStudentId}, staffA(), TRANSFER_BODY, 404,
+                "STUDENT_NOT_FOUND"));
         cases.add(c("PATCH /staff/buses/{id} → B학원 차량 404", HttpMethod.PATCH, "/staff/buses/{id}",
                 new Object[] {academyBBusId}, staffA(), EMPTY_BODY, 404, "BUS_NOT_FOUND"));
         cases.add(c("PATCH /staff/managers/{id} → B학원 매니저 404", HttpMethod.PATCH, "/staff/managers/{id}",
