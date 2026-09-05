@@ -334,6 +334,70 @@ class RunConfirmationServiceTest {
                 + "이미 applied 였어도 그대로 applied 로 남는다").isEqualTo("applied");
     }
 
+    /**
+     * F5 S1 목표1(F4 R1 ⚠) — 강제 추가 병합({@code confirmOne} 218행)과 버스 간 이동 제외
+     * ({@link #applyOutgoingTransfers}, 229행)의 순서가 결과에 드러나는 케이스. 위 F4 S1 목표 7
+     * 시험은 이동 대상이 요일별 주소로 이미 명단에 올라 있어 두 단계의 순서를 가르지 못한다(어느
+     * 순서든 제거된다) — 이 시험은 대상 학생을 강제 추가로만 명단에 올려, 제외가 강제 추가 병합보다
+     * 먼저 돌면 "아직 없는 학생을 지우는" 셈이 되어 no-op 이 되고, 뒤이은 강제 추가 병합이 그 학생을
+     * 되살리는 것까지 확인한다.
+     */
+    @Test
+    @DisplayName("F5 S1 목표1 — 강제 추가로 들어온 학생의 이동은 강제 추가 병합 다음에 제외돼야 출발 명단에서 실제로 빠진다")
+    void 강제_추가_학생의_이동은_강제_추가_병합_다음에_제외돼야_출발_명단에서_빠진다() {
+        long academyId = fixtures().academyWithCoordinates();
+
+        long fromBusId = fixtures().bus(academyId);
+        long fromFirstStop = fixtures().stop(academyId, "37.560000", "126.970000");
+        long fromLastStop = fixtures().stop(academyId, "37.561000", "126.971000");
+        fixtures().route(academyId, fromBusId, WEEKDAY, Direction.TO_ACADEMY, fromFirstStop, fromLastStop);
+
+        long toBusId = fixtures().bus(academyId);
+        long toFirstStop = fixtures().stop(academyId, "37.570000", "126.980000");
+        long toLastStop = fixtures().stop(academyId, "37.571000", "126.981000");
+        fixtures().route(academyId, toBusId, WEEKDAY, Direction.TO_ACADEMY, toFirstStop, toLastStop);
+
+        // 이동 대상 학생 — 요일별 주소를 아예 주지 않는다. 정상 경로로는 출발 회차 명단에 절대 오를
+        // 수 없어야, 여기 나타나는 원인이 오직 강제 추가 병합임이 갈린다.
+        long student = fixtures().student(academyId, "강제추가이동학생");
+
+        // 출발 회차의 편성 노선(fromFirstStop·fromLastStop) 밖의 정차지 — 강제 추가가 실제로
+        // 끌어왔는지도 함께 본다.
+        long forcedStop = fixtures().stop(academyId, "37.562000", "126.972000");
+        long destinationStop = fixtures().stop(academyId, "37.572000", "126.982000");
+
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusHours(3);
+        long fromRunId = fixtures().idleRun(academyId, fromBusId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        long toRunId = fixtures().idleRun(academyId, toBusId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+
+        runForcedAdditionRepository.save(
+                RunForcedAddition.forRun(fromRunId, student, forcedStop, 1L, OffsetDateTime.now(clock)));
+        runTransferRepository.save(RunTransfer.stage(student, fromRunId, toRunId, destinationStop, null, 1L,
+                OffsetDateTime.now(clock)));
+
+        confirmationService.confirmOne(fromRunId);
+
+        List<Long> fromRiderIds = jdbcTemplate.queryForList(
+                "SELECT student_id FROM run_rider WHERE run_id = ?", Long.class, fromRunId);
+        assertThat(fromRiderIds).as("강제 추가 병합 다음에 이동 제외가 돌아야 한다 — 순서가 뒤바뀌면 "
+                + "제외가 먼저 돌아 아직 없는 학생을 지우는 셈이라 no-op 이 되고, 뒤이은 강제 추가 병합이 "
+                + "이 학생을 다시 채워 넣어 출발 명단에 남는다").doesNotContain(student);
+
+        confirmationService.confirmOne(toRunId);
+
+        List<Long> toRiderIds = jdbcTemplate.queryForList(
+                "SELECT student_id FROM run_rider WHERE run_id = ?", Long.class, toRunId);
+        assertThat(toRiderIds).as("도착 회차 확정 배치는 강제 추가로만 명단에 있던 이동 대상도 그대로 더해야 한다")
+                .contains(student);
+
+        Long toRiderStop = jdbcTemplate.queryForObject(
+                "SELECT stop_id FROM run_rider WHERE run_id = ? AND student_id = ?", Long.class, toRunId, student);
+        assertThat(toRiderStop).as("이동 신청 시 지정한 정차지가 도착 회차의 탑승 기록에 그대로 반영돼야 한다")
+                .isEqualTo(destinationStop);
+    }
+
     @Test
     @DisplayName("목표5 — 학원 좌표가 없으면 대체 기준점 없이 그 회차만 실패한다")
     void 학원_좌표가_없으면_확정이_실패하고_산출물이_남지_않는다() {
