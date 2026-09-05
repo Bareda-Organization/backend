@@ -38,8 +38,11 @@ import src.backend.exception.entity.NoShowCase;
 import src.backend.exception.repository.NoShowCaseRepository;
 import src.backend.exception.repository.NoShowContactRepository;
 import src.backend.global.common.enums.AccountStatus;
+import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
+import src.backend.manager.repository.AssignmentRepository;
+import src.backend.manager.repository.ManagerRepository;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
@@ -124,6 +127,12 @@ class NoShowContactControllerTest {
     @Autowired
     private NoShowContactRepository noShowContactRepository;
 
+    @Autowired
+    private ManagerRepository managerRepository;
+
+    @Autowired
+    private AssignmentRepository assignmentRepository;
+
     private BoardingCommandFixtures fixtures;
 
     @TestConfiguration
@@ -173,7 +182,8 @@ class NoShowContactControllerTest {
         long runId = s[1];
         long riderId = s[2];
         long caseId = s[3];
-        long escortAccountId = fixtures().escortAccount(academyId);
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
 
         mockMvc.perform(post(RECORD_ATTEMPT.formatted(runId, riderId))
                         .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
@@ -200,7 +210,8 @@ class NoShowContactControllerTest {
         long runId = s[1];
         long riderId = s[2];
         long caseId = s[3];
-        long escortAccountId = fixtures().escortAccount(academyId);
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
 
         mockMvc.perform(post(RECORD_ATTEMPT.formatted(runId, riderId))
                         .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
@@ -228,7 +239,8 @@ class NoShowContactControllerTest {
         long runId = s[1];
         long riderId = s[2];
         long caseId = s[3];
-        long escortAccountId = fixtures().escortAccount(academyId);
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
 
         mockMvc.perform(post(RECORD_ATTEMPT.formatted(runId, riderId))
                         .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
@@ -274,8 +286,10 @@ class NoShowContactControllerTest {
     // ── 목표3 — 학원 범위: 남의 학원 회차에는 접근할 수 없다 ────────────────────
 
     @Test
-    @DisplayName("목표3 — 다른 학원 동승자가 접근하면 404 RUN_NOT_FOUND 이고 아무 행도 생기지 않는다")
-    void 다른_학원_동승자는_404_RUN_NOT_FOUND_이다() throws Exception {
+    @DisplayName("목표3 — 다른 학원 동승자가 접근하면 403 FORBIDDEN 이고 아무 행도 생기지 않는다(§1.11, Ruling 259(b))")
+    void 다른_학원_동승자는_403_FORBIDDEN_이다() throws Exception {
+        // 배치는 매니저·회차가 같은 학원일 때만 생성되므로(NoShowContactCommandService 판정 순서),
+        // 다른 학원 동승자는 회차 존재 여부와 무관하게 배치 확인에서 걸려 403 이다 — 404 가 아니다.
         OffsetDateTime now = OffsetDateTime.now(clock);
         long[] s = caseScenario(now);
         long runId = s[1];
@@ -288,8 +302,8 @@ class NoShowContactControllerTest {
                         .header("Authorization", 토큰(otherEscortAccountId, otherAcademyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"attempt_type\":\"call\",\"result\":\"no_answer\"}"))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error.code").value("RUN_NOT_FOUND"));
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
 
         entityManager.flush();
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM no_show_contact WHERE no_show_case_id = ?",

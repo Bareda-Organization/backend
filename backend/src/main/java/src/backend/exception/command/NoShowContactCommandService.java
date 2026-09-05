@@ -25,14 +25,21 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
+import src.backend.run.access.RunAssignmentAccess;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 
 /**
  * 미승차 연락 시도 기록 커맨드(API_SPEC §4.8, Phase 11 목표 3) — 동승자 전용. 에러 체크 순서는
- * {@code BoardingCommandService.updateStatus} 와 같은 근거로 맞춘다(동승자 판정 → 회차 조회 → 회차
- * 상태 → 탑승자 조회 → 케이스 조회, 다른 학원 자원 존재 여부를 앞 단계에서부터 흘리지 않기 위해).
+ * {@code BoardingCommandService.updateStatus} 와 같은 근거로 맞춘다(동승자 판정 → 배치 판정 → 회차
+ * 조회 → 회차 상태 → 탑승자 조회 → 케이스 조회, 다른 학원 자원 존재 여부를 앞 단계에서부터 흘리지
+ * 않기 위해).
+ *
+ * <p><b>배치 판정 순서(§1.11, Ruling 259(b))</b> — {@link BoardingCommandService} 와 같은 근거로
+ * {@link RunAssignmentAccess#assertAssignedDriverOrEscort} 를 회차 조회보다 먼저 부른다. 회차 없음·
+ * 타 학원·미배치 세 경우가 구별 없이 {@code 403 FORBIDDEN} 이 되고, 그 뒤의
+ * {@code findByIdAndAcademyId} 는 방어 조회로 남는다.
  */
 @Service
 @RequiredArgsConstructor
@@ -46,6 +53,8 @@ public class NoShowContactCommandService {
 
     private final NoShowContactRepository noShowContactRepository;
 
+    private final RunAssignmentAccess runAssignmentAccess;
+
     private final Clock clock;
 
     /**
@@ -58,6 +67,7 @@ public class NoShowContactCommandService {
     public NoShowContactResponse recordAttempt(AuthUser requester, Long runId, Long riderId,
             NoShowContactRequest request) {
         requireEscort(requester);
+        runAssignmentAccess.assertAssignedDriverOrEscort(requester, runId);
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
         if (run.getStatus() != RunStatus.MOVING) {

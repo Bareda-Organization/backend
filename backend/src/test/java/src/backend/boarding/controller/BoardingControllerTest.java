@@ -42,8 +42,11 @@ import src.backend.boarding.event.RiderStatusChangedEvent;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
+import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
+import src.backend.manager.repository.AssignmentRepository;
+import src.backend.manager.repository.ManagerRepository;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
@@ -129,6 +132,12 @@ class BoardingControllerTest {
     @Autowired
     private RunStopRepository runStopRepository;
 
+    @Autowired
+    private ManagerRepository managerRepository;
+
+    @Autowired
+    private AssignmentRepository assignmentRepository;
+
     private BoardingCommandFixtures fixtures;
 
     @TestConfiguration
@@ -165,7 +174,8 @@ class BoardingControllerTest {
         long studentId = fixtures().student(academyId, "학생1");
         long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
         long riderId = fixtures().runRider(runId, studentId, stopId);
-        long escortAccountId = fixtures().escortAccount(academyId);
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId))
                         .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
@@ -220,7 +230,8 @@ class BoardingControllerTest {
         long staffAccountId = fixtures().staffAccount(academyId);
         long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
         long riderId = fixtures().runRider(runId, studentId, stopId);
-        long escortAccountId = fixtures().escortAccount(academyId);
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId))
                         .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
@@ -269,7 +280,8 @@ class BoardingControllerTest {
         long studentA = fixtures().student(academyA, "학생9-A");
         long runA = fixtures().movingRun(academyA, busA, now.minusMinutes(10), now.minusMinutes(40));
         long riderA = fixtures().runRider(runA, studentA, stopA);
-        long escortA = fixtures().escortAccount(academyA);
+        long escortA = fixtures().assignedManager(managerRepository, assignmentRepository, academyA, runA,
+                ManagerRole.ESCORT, now);
 
         long academyB = fixtures().academy();
         AcademySetting settingB = academySettingRepository.save(AcademySetting.forAcademy(academyB));
@@ -280,7 +292,8 @@ class BoardingControllerTest {
         long studentB = fixtures().student(academyB, "학생9-B");
         long runB = fixtures().movingRun(academyB, busB, now.minusMinutes(10), now.minusMinutes(40));
         long riderB = fixtures().runRider(runB, studentB, stopB);
-        long escortB = fixtures().escortAccount(academyB);
+        long escortB = fixtures().assignedManager(managerRepository, assignmentRepository, academyB, runB,
+                ManagerRole.ESCORT, now);
 
         entityManager.flush();
 
@@ -312,7 +325,8 @@ class BoardingControllerTest {
         long studentId = fixtures().student(academyId, "학생9-기본값");
         long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
         long riderId = fixtures().runRider(runId, studentId, stopId);
-        long escortAccountId = fixtures().escortAccount(academyId);
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId))
                         .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
@@ -356,7 +370,8 @@ class BoardingControllerTest {
 
         long studentId = fixtures().student(academyId, "학생7-미승차");
         long riderId = fixtures().runRider(runId, studentId, stopId);
-        long escortAccountId = fixtures().escortAccount(academyId);
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId))
                         .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
@@ -390,7 +405,8 @@ class BoardingControllerTest {
 
         long studentId = fixtures().student(academyId, "학생8-미승차");
         long riderId = fixtures().runRider(runId, studentId, stopId);
-        long escortAccountId = fixtures().escortAccount(academyId);
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId))
                         .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
@@ -419,7 +435,8 @@ class BoardingControllerTest {
         fixtures().linkChild(guardian.guardianId(), studentId, now.minusDays(1));
         long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
         long riderId = fixtures().runRider(runId, studentId, stopId);
-        long escortAccountId = fixtures().escortAccount(academyId);
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
         UUID clientKey = UUID.randomUUID();
         String body = statusUpdateBody("boarded", "manual", clientKey, now);
 
@@ -459,7 +476,8 @@ class BoardingControllerTest {
         long studentId = fixtures().student(academyId, "학생5");
         long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
         long riderId = fixtures().runRider(runId, studentId, stopId);
-        long escortAccountId = fixtures().escortAccount(academyId);
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId))
                         .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
@@ -508,7 +526,8 @@ class BoardingControllerTest {
         long studentId = fixtures().student(academyId, "학생6");
         long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
         long riderId = fixtures().runRider(runId, studentId, stopId);
-        long escortAccountId = fixtures().escortAccount(academyId);
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
         String escortToken = 토큰(escortAccountId, academyId, Role.ESCORT);
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId)).header("Authorization", escortToken)
@@ -544,7 +563,8 @@ class BoardingControllerTest {
         fixtures().linkChild(guardian.guardianId(), studentId, now.minusDays(1));
         long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
         long riderId = fixtures().runRider(runId, studentId, stopId);
-        long escortAccountId = fixtures().escortAccount(academyId);
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
         String escortToken = 토큰(escortAccountId, academyId, Role.ESCORT);
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId)).header("Authorization", escortToken)
@@ -582,7 +602,8 @@ class BoardingControllerTest {
         BoardingCommandFixtures.GuardianAccount guardian = fixtures().guardian(academyId, "보호자8");
         long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
         long riderId = fixtures().runRider(runId, studentId, stopId);
-        long escortAccountId = fixtures().escortAccount(academyId);
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
         String escortToken = 토큰(escortAccountId, academyId, Role.ESCORT);
 
         // 승차는 보호자 연결 전에 처리한다 — 이 테스트의 시계는 고정값이라(FixedClockConfig), 승차·하차

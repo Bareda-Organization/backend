@@ -81,8 +81,9 @@ public class RosterQueryService {
      * 매니저 앱의 승하차지별 명단(§4.2) — 확정 전(idle) 회차는 {@code 409 RUN_NOT_CONFIRMED}(명단이
      * 아직 채워지지 않아 빈 배열과 "확정됐는데 비었다" 가 구별되지 않기 때문, {@code ErrorCode} 참고).
      *
-     * <p>회차 접근 판정은 {@link ManagerRunAccess#requireAssignedRun} 이 먼저 한다(404 → 403) —
-     * 이 상태 검사는 그 다음이다. 접근이 아니라 자원 상태를 묻는 질문이라 별도 계층에 둔다.
+     * <p>회차 접근 판정은 {@link ManagerRunAccess#requireAssignedRun} 이 먼저 한다(회차 없음·타 학원·
+     * 미배치 세 경우 모두 {@code 403 FORBIDDEN} — §1.11, Ruling 259(b)) — 이 상태 검사는 그 다음이다.
+     * 접근이 아니라 자원 상태를 묻는 질문이라 별도 계층에 둔다.
      */
     public ManagerRosterResponse managerRoster(AuthUser requester, Long runId) {
         ManagerRunAccess.RunAssignment assigned = managerRunAccess.requireAssignedRun(requester, runId);
