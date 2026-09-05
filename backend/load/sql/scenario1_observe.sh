@@ -2,6 +2,10 @@
 # 시나리오 1 관측 — scenario1_prep.sql 로 N건을 심고, RunConfirmationScheduler 가 전부 idle 을
 # 벗어날 때까지 폴링한다. 재는 것은 §5.3 판정 두 가지 — 도래→확정 완료 지연, 미확정 회차 수.
 #
+# ⚠ 이 호스트에는 로컬 psql 바이너리가 없다(확인: which psql, Homebrew·Postgres.app 경로 전부 부재) —
+# 그래서 모든 psql 호출을 docker exec 로 컨테이너 안 psql 을 쓴다. DB_URL 은 여전히 호스트 접속
+# 문자열(포트 15432) 형태로 받되, 여기서는 DB 이름만 뽑아 쓰고 실제 접속은 컨테이너 안(5432)에서 한다.
+#
 # 실행:
 #   ./scenario1_observe.sh <N> <psql접속문자열> <prometheus URL> [폴링간격초] [타임아웃초]
 # 예:
@@ -15,6 +19,13 @@ PROM_URL="${3:?prometheus URL 필요}"
 POLL_INTERVAL="${4:-2}"
 TIMEOUT_SEC="${5:-1800}"
 
+PG_CONTAINER="${PG_CONTAINER:-school-bus-postgres-1}"
+DB_NAME="${DB_URL##*/}"
+
+psql_db() {
+    docker exec -i "$PG_CONTAINER" psql -U schoolbus -d "$DB_NAME" "$@"
+}
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RESULTS_DIR="$SCRIPT_DIR/../results"
 mkdir -p "$RESULTS_DIR"
@@ -27,7 +38,7 @@ fetch_metric() {
 before_lag_count=$(fetch_metric 'schoolbus_run_confirmation_lag_seconds_count')
 before_lag_sum=$(fetch_metric 'schoolbus_run_confirmation_lag_seconds_sum')
 
-prep_out=$(psql "$DB_URL" -v n="$N" -f "$SCRIPT_DIR/scenario1_prep.sql" -t -A -F',' | grep -v '^$' | tail -1)
+prep_out=$(psql_db -v n="$N" -t -A -F',' < "$SCRIPT_DIR/scenario1_prep.sql" | grep -v '^$' | tail -1)
 tag=$(echo "$prep_out" | cut -d',' -f1)
 runs_created=$(echo "$prep_out" | cut -d',' -f5)
 t_inserted=$(date +%s.%N)
@@ -42,7 +53,7 @@ start=$(date +%s)
 while true; do
     now=$(date +%s)
     elapsed=$((now - start))
-    remaining=$(psql "$DB_URL" -t -A -c \
+    remaining=$(psql_db -t -A -c \
         "SELECT count(*) FROM run r JOIN bus b ON r.bus_id = b.id WHERE b.bus_no LIKE 'LOAD-${tag}-%' AND r.status = 'idle'")
     echo "t+${elapsed}s remaining=${remaining}"
     if [ "$remaining" = "0" ]; then
