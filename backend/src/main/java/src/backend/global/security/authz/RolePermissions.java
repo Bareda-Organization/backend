@@ -33,8 +33,10 @@ public final class RolePermissions {
     }
 
     /**
-     * 역할별 부여 줄 58개(FEATURE_SPEC §6.2 권한 32종을 보유 역할 수만큼 반복한 합계, 2026-09-01
-     * 기준). {@code EXCEPTION_REPORT_READ}(Phase 11 신설, 관계자 전용)가 더해져 57 → 58 로 늘었다.
+     * 역할별 부여 줄 59개(FEATURE_SPEC §6.2 권한 32종을 보유 역할 수만큼 반복한 합계, 2026-09-01
+     * 기준). {@code EXCEPTION_REPORT_READ}(Phase 11 신설, 관계자 전용)가 더해져 57 → 58 로 늘었고,
+     * {@code RUN_FORCE_CONFIRM}(F3 S2 신설, 메인관리자 전용)이 더해져 58 → 59 로 늘었다 — 둘 다
+     * §6.2 표에는 아직 반영 전이라 위 "32종"은 코드 상수 개수이지 표의 행 수와는 갈린다.
      */
     public static final String HIERARCHY =
             // 학부모 — 자녀 기본 정보를 보고, 탑승 의사·변경을 신청하고, 알림·단말을 설정한다
@@ -113,7 +115,8 @@ public final class RolePermissions {
                     Permissions.ACADEMY_MANAGE,
                     Permissions.STAFF_APPROVE,
                     Permissions.ACCOUNT_UNBLOCK,
-                    Permissions.AUDIT_READ);
+                    Permissions.AUDIT_READ,
+                    Permissions.RUN_FORCE_CONFIRM);
 
     /**
      * 역할 하나에 권한 여러 개를 부여하는 줄들을 만든다. 좌변을 {@link Role} 로만 받기 때문에

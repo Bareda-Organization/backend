@@ -294,6 +294,14 @@ public enum ErrorCode {
     // 갱신 의미라 시간 상수(재요청 금지 시간)를 두지 않고, 내용이 그대로면 거부한다.
     DELAY_DUPLICATE(HttpStatus.CONFLICT, "이미 같은 내용으로 발송된 지연 알림입니다"),
 
+    // ── 강제 확정 콘솔 개입(F3 S2, API_SPEC §6.14) ─────────────────────────────
+    // 회차가 idle 이 아닐 때의 강제 확정 시도 — 409 인 이유는 RUN_ALREADY_STARTED 와 같다(권한이
+    // 아니라 대상 자원의 상태가 막는다).
+    RUN_NOT_IDLE(HttpStatus.CONFLICT, "idle 상태의 회차가 아닙니다"),
+    // confirm_at 이 아직 지나지 않은 회차의 강제 확정 시도 — "제 시각에 도달하지 않았다"는 상태
+    // 조건이라 위와 같이 409 다.
+    RUN_NOT_DUE(HttpStatus.CONFLICT, "아직 확정 시각이 되지 않았습니다"),
+
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다");
 
     private final HttpStatus status;

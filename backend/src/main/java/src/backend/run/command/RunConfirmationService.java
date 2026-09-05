@@ -115,9 +115,27 @@ public class RunConfirmationService {
      *                            대응 고정 노선 미편성({@code ROUTE_NOT_CONFIGURED_FOR_RUN}) 일 때
      */
     public void confirmOne(Long runId) {
+        confirmOne(runId, false);
+    }
+
+    /**
+     * {@link #confirmOne(Long)} 과 같은 흐름에 <b>강제 폴백</b> 축 하나를 더한 오버로드
+     * (API_SPEC §6.14, 관리자 강제 확정 콘솔 개입, F3 S2) — {@code forceFallback=true} 면
+     * {@link ComputationPolicy} 를 통해 지도 API 를 건너뛰고 직선거리 근사를 강제한다. 그 밖의 흐름
+     * (읽기 → 계산 → {@link RunConfirmationPersistence#persist} → 지표)은 배치 경로와 완전히 같다 —
+     * {@link #confirmOne(Long)} 은 {@code forceFallback=false} 로 이 메서드를 그대로 통과한다.
+     *
+     * @return {@link RunConfirmationPersistence#persist} 가 실제로 확정을 저장했으면 {@code true},
+     *         진 경쟁이거나 회차가 이미 취소·삭제됐으면 {@code false} — 관리자 강제 확정 컨트롤러는
+     *         이 값이 {@code false} 면 {@code RUN_NOT_IDLE} 로 답한다(호출 전에 idle 을 이미 확인했는데도
+     *         이 값이 false 라면 그 사이 다른 확정이 경쟁에서 이겼다는 뜻이다)
+     * @throws BusinessException 학원 좌표 미등록({@code ACADEMY_COORDINATES_MISSING}, 목표 5) ·
+     *                            대응 고정 노선 미편성({@code ROUTE_NOT_CONFIGURED_FOR_RUN}) 일 때
+     */
+    public boolean confirmOne(Long runId, boolean forceFallback) {
         Run run = runRepository.findById(runId).orElse(null);
         if (run == null || run.isCanceled()) {
-            return;
+            return false;
         }
 
         Academy academy = academyRepository.findById(run.getAcademyId())
@@ -205,7 +223,7 @@ public class RunConfirmationService {
         DailyRoster roster = new DailyRoster(run.getAcademyId(), weekday, run.getDirection(), studentIds,
                 stopOverrides);
         ComputationPolicy policy = new ComputationPolicy(MAP_TIMEOUT, CallerPolicy.BATCH,
-                RouteVersionSource.CONFIRM_BATCH);
+                RouteVersionSource.CONFIRM_BATCH, forceFallback);
         RouteComputationInput input = new RouteComputationInput(roster, origin, destination, List.of(),
                 run.getDepartTime(), policy);
 
@@ -226,6 +244,7 @@ public class RunConfirmationService {
         if (persisted) {
             metrics.recordLag(Duration.between(run.getConfirmAt(), confirmedAt));
         }
+        return persisted;
     }
 
     /**

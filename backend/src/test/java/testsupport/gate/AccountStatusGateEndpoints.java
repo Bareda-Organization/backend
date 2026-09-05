@@ -111,6 +111,10 @@ public final class AccountStatusGateEndpoints {
      * <p>F3 S1 이 1개를 더했다 — 지연 알림 신고 {@code POST /runs/{runId}/delay}(§4.9, NTF-06,
      * 권한 "동승자") — Phase 9 의 {@code POST /runs/{runId}/start} 와 같은 계열인 운행 중 단말
      * 기능이라 근거가 같다.
+     *
+     * <p>F3 S2 가 1개를 더했다 — 강제 확정 콘솔 개입 {@code POST /admin/runs/{runId}/force-confirm}
+     * (§6.14, 권한 "메인관리자") — {@code GET /admin/runs/{runId}/roster}(Phase 13 T2)와 같은 계열의
+     * 관리자 전용 콘솔 개입이라 대기·거절 계정에는 근거가 부재하다(Ruling 145 와 같은 근거).
      */
     public static final List<String> DENIED_WHEN_REJECTED = List.of(
             "POST /auth/password",
@@ -228,7 +232,9 @@ public final class AccountStatusGateEndpoints {
             // F1 S3 — 관계자 웹 확정 노선 조회(§5.19) 1개.
             "GET /staff/runs/{runId}/route",
             // F3 S1 — 지연 알림 신고(§4.9, NTF-06) 동승자 단말 기능 1개.
-            "POST /runs/{runId}/delay");
+            "POST /runs/{runId}/delay",
+            // F3 S2 — 강제 확정 콘솔 개입(§6.14) 메인관리자 전용 기능 1개.
+            "POST /admin/runs/{runId}/force-confirm");
 
     /** {@code pending} 의 거부측 — {@code rejected} 거부측에 재신청 1개를 더한다({@code @AllowedWhenRejected} 는 pending 을 열지 않는다). */
     public static final List<String> DENIED_WHEN_PENDING = concat(DENIED_WHEN_REJECTED, "POST /auth/signup/reapply");

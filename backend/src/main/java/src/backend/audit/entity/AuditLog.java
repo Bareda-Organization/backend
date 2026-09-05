@@ -1,6 +1,7 @@
 package src.backend.audit.entity;
 
 import java.time.OffsetDateTime;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.hibernate.annotations.JdbcTypeCode;
@@ -35,6 +36,9 @@ public class AuditLog {
 
     /** {@code target_type} 이 계정을 가리킬 때의 값 — 조회 Phase 가 이 문자열로 대상 종류를 가른다. */
     private static final String TARGET_TYPE_ACCOUNT = "account";
+
+    /** {@code target_type} 이 회차를 가리킬 때의 값({@link #forRunForceConfirm}). */
+    private static final String TARGET_TYPE_RUN = "run";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -206,6 +210,43 @@ public class AuditLog {
         log.targetId = actorAccountId;
         log.ip = ip;
         log.blockEvent = true;
+        return log;
+    }
+
+    /**
+     * 강제 확정 콘솔 개입(API_SPEC §6.14, F3 S2 목표 11)을 남긴다.
+     *
+     * <p><b>{@code category}·{@code action} 이 스펙 문면과 다르다 — Ruling 260 확정.</b> §6.14 는
+     * 문면상 action 을 {@code run.force_confirm} 으로 적지만, {@code ck_audit_log_action} CHECK
+     * 제약의 값 도메인은 {@link AuditAction} 7종으로 닫혀 있어 그 문자열을 열 자체에는 담을 수 없다.
+     * 조율자 판정(Ruling 260)은 {@code category=DATA_ACCESS}·{@code action=UPDATE}·
+     * {@code target_type="run"} 재사용을 확정했다 — 도메인을 늘리면 V10/V11(F4 선점)·ERD CHECK·
+     * {@code GET /admin/audit-logs}(§6.12) 의 action 투영까지 번지고, {@code update}+{@code run} 이면
+     * 같은 감사 조회 화면에 자연히 나타나기 때문이다. 스펙이 요구하는 정확한 동작 이름·부가 정보는
+     * {@code detail} JSON 에 그대로 싣는다 — {@code action}(문자열 {@code "run.force_confirm"}),
+     * {@code reason}, {@code fallback_used}, {@code route_version_id}. API_SPEC §6.14 감사 문장은
+     * 조율자가 이 판정과 같은 내용으로 정본을 정정한다.
+     *
+     * @param actorAccountId 강제 확정을 실행한 메인 관리자
+     * @param actorLoginId   그 관리자의 로그인 아이디 스냅샷
+     * @param runId          강제 확정된 회차 — {@code target_id}
+     * @param reason         강제 확정 사유(§6.14 요청 필드)
+     * @param fallbackUsed   실제로 저장된 {@code route_version.fallback_used} 값
+     * @param routeVersionId 신규 생성된 {@code route_version} 의 id
+     */
+    public static AuditLog forRunForceConfirm(Long actorAccountId, String actorLoginId, Long runId, String reason,
+            boolean fallbackUsed, Long routeVersionId, OffsetDateTime occurredAt) {
+        AuditLog log = new AuditLog(AuditCategory.DATA_ACCESS, AuditAction.UPDATE, occurredAt);
+        log.actorAccountId = actorAccountId;
+        log.actorLoginId = actorLoginId;
+        log.targetType = TARGET_TYPE_RUN;
+        log.targetId = runId;
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("action", "run.force_confirm");
+        detail.put("reason", reason);
+        detail.put("fallback_used", fallbackUsed);
+        detail.put("route_version_id", routeVersionId);
+        log.detail = detail;
         return log;
     }
 }
