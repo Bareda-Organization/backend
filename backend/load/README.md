@@ -44,7 +44,7 @@ k6 run -e SCENARIO2_CSV=./scenario2_runs.csv -e SCENARIO2_DURATION_SEC=60 \
 
 N 을 10→50→200 으로 올려 반복한다(회차마다 계정·버스·회차를 새로 심으므로 `scenario2_prep.sql` 을 N 값만 바꿔 재실행하면 된다 — LOADPOS- 접두사 + 실행마다 다른 `tag` 라 이전 N 실행분과 안 겹친다).
 
-**측정** — `position_post_duration_ms`(수신 처리 지연) · `ws_fanout_latency_ms`(팬아웃 지연, 근사 — VU 자기 송신의 메아리로 계산) · `position_post_failures`(§5.3 임계: 0).
+**측정** — `position_post_duration_ms`(수신 처리 지연) · `ws_fanout_latency_ms`(팬아웃 지연, 근사 — VU 자기 송신의 메아리로 계산) · `position_post_failures`(§5.3 임계: 0) · `position_echo_received_total`/`positions_sent_total`(F5 S2 목표 2 — 수신≥송신×0.8 게이트, `k6/lib/config.js` 의 `STAFF_OBSERVER_LOGIN_ID`(`staffA`)로 WS 구독을 분리한다. §5.1 참고).
 
 ## 3. 시나리오 3 — 관제 팬아웃 (L2)
 
@@ -102,3 +102,36 @@ LOAD_STUB_MIN_DELAY_MS=1000 LOAD_STUB_MAX_DELAY_MS=6000 LOAD_STUB_FAILURE_RATE=0
 ```
 
 같은 `bootRun` 프로세스 안에서 시나리오 1·2 를 먼저 돌리고, 필요하면 재기동 없이 그대로 시나리오 4 도 돌릴 수 있다 — 단 그러면 시나리오 1 용 지연값이 시나리오 4 에도 적용된다. **재현성이 우선이면 시나리오별로 재기동**하고, 시간이 아까우면 시나리오 1 값(짧은 지연)으로 통합 실행하되 "시나리오 4 도 배치용 지연값으로 쟀다"고 report 에 명시한다(둘 다 유효한 선택 — 이 판단은 실행 시점에 report §2 에 적는다).
+
+### 5.1 온디맨드 값으로 실측(2026-09-05, F5 S2 목표 3)
+
+위 표의 온디맨드 대역(`min=1000ms max=6000ms failure-rate=0.1 max-concurrent=4`) 하나로 `bootRun` 을
+한 번만 띄우고 **시나리오 1(N=10)과 시나리오 4(N=20)를 동시에** 돌렸다 — 5.4 절이 이미 문서화한
+트레이드오프의 반대쪽 선택이다(시나리오 1 용 짧은 지연값 대신 온디맨드 대역을 그대로 시나리오 1
+배치 확정에도 적용). 그래서 아래 `throttled{caller=batch}` 는 "정상 대역에서의 배치 부하"가 아니라
+**"온디맨드 대역을 배치가 같이 맞았을 때"** 값이다 — 시나리오 1 을 정상 대역으로 단독 측정한 값과
+직접 비교하면 안 된다.
+
+```bash
+LOAD_STUB_MIN_DELAY_MS=1000 LOAD_STUB_MAX_DELAY_MS=6000 LOAD_STUB_FAILURE_RATE=0.1 \
+    LOAD_STUB_MAX_CONCURRENT=4 SPRING_PROFILES_ACTIVE=load ./gradlew bootRun &
+
+# 별도 터미널 — 동시 실행
+bash sql/scenario1_observe.sh 10 "postgresql://schoolbus:schoolbus@localhost:15432/schoolbus_load" \
+    http://localhost:18080/actuator/prometheus 2 300 &
+docker exec -i school-bus-postgres-1 psql -U schoolbus -d schoolbus_load -q \
+    -v n=20 -t -A -F',' < sql/scenario4_prep.sql | grep -v '^$' > k6/scenario4_approvals.csv
+cd k6 && k6 run -e SCENARIO4_CSV=./scenario4_approvals.csv \
+    --summary-export=../results/scenario4_ondemand.json scenario4_approval_ondemand.js
+```
+
+| 측정 | 값 |
+|---|---|
+| 온디맨드 승인 미리보기 `approval_detail_duration_ms` p95 | 4.56s (avg 790.7ms, 20/20 200 OK) |
+| `throttled{caller=on_demand}` 델타 | 16 |
+| `throttled{caller=batch}` 델타 | 6 (온디맨드 대역을 같이 맞은 값 — 위 주의사항 참고) |
+| `timeout_total` 델타 | 1 (주입 지연이 타임아웃을 넘겨 직선근사 폴백으로 흡수) |
+| `failure_injected_total` 델타 | 1 — `[map-route]` WARN 로그는 0건이라 BATCH 쪽으로 판정(코드상 `MapRouteUnavailableException` 은 `ON_DEMAND` 호출자에서만 던져지고, 던져졌다면 시나리오 4 가 503 을 받았어야 하는데 20/20 성공이라 정합) |
+
+결과 파일: `results/goal3_ondemand_concurrent_summary.json`(위 표의 근거),
+`results/scenario1_N10_130541593.json`, `results/scenario4_N20_ondemand_concurrent.json`.
