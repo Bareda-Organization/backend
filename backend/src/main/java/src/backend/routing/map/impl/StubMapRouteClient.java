@@ -158,7 +158,7 @@ public class StubMapRouteClient implements MapRouteClient {
         int current = inFlight.incrementAndGet();
         try {
             if (current > maxConcurrent) {
-                loadMetrics.recordThrottled();
+                loadMetrics.recordThrottled(request.caller());
                 return StraightLineLegs.approximate(request.points());
             }
             if (maxDelayMs > 0) {
