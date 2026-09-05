@@ -216,24 +216,26 @@ public class AuditLog {
     /**
      * 강제 확정 콘솔 개입(API_SPEC §6.14, F3 S2 목표 11)을 남긴다.
      *
-     * <p><b>{@code category}·{@code action} 이 스펙 문면과 다르다.</b> §6.14 는 문면상 action 을
-     * {@code run.force_confirm} 으로 적지만, {@code ck_audit_log_action} CHECK 제약(ERD §3.4)의 값
-     * 도메인은 {@link AuditAction} 7종으로 닫혀 있어 그 문자열을 열 자체에는 담을 수 없다 — team-lead
-     * 판정 대기 중 자체 판단으로 마감한 지점이다(SendMessage 395e631c-00fd-4bb6-8efb-c5dd951f048a,
-     * 무응답). {@code category=DATA_ACCESS}·{@code action=UPDATE} 로 매핑한 이유는 이 개입이 로그인·
-     * 차단 계열이 아니라 회차·경로 데이터를 실제로 바꾸는 쓰기이기 때문이다(다른 5개 값은 로그인 계열
-     * 이거나 순수 조회라 더 멀다). 스펙이 요구하는 정확한 동작 이름은 {@code detail.action} 에
-     * {@code "run.force_confirm"} 문자열 그대로 싣고, {@code reason}·{@code fallback_used} 도 같은
-     * JSON 에 담아 열 자체가 좁아도 조회 시 원문을 잃지 않게 한다.
+     * <p><b>{@code category}·{@code action} 이 스펙 문면과 다르다 — Ruling 260 확정.</b> §6.14 는
+     * 문면상 action 을 {@code run.force_confirm} 으로 적지만, {@code ck_audit_log_action} CHECK
+     * 제약의 값 도메인은 {@link AuditAction} 7종으로 닫혀 있어 그 문자열을 열 자체에는 담을 수 없다.
+     * 조율자 판정(Ruling 260)은 {@code category=DATA_ACCESS}·{@code action=UPDATE}·
+     * {@code target_type="run"} 재사용을 확정했다 — 도메인을 늘리면 V10/V11(F4 선점)·ERD CHECK·
+     * {@code GET /admin/audit-logs}(§6.12) 의 action 투영까지 번지고, {@code update}+{@code run} 이면
+     * 같은 감사 조회 화면에 자연히 나타나기 때문이다. 스펙이 요구하는 정확한 동작 이름·부가 정보는
+     * {@code detail} JSON 에 그대로 싣는다 — {@code action}(문자열 {@code "run.force_confirm"}),
+     * {@code reason}, {@code fallback_used}, {@code route_version_id}. API_SPEC §6.14 감사 문장은
+     * 조율자가 이 판정과 같은 내용으로 정본을 정정한다.
      *
      * @param actorAccountId 강제 확정을 실행한 메인 관리자
      * @param actorLoginId   그 관리자의 로그인 아이디 스냅샷
      * @param runId          강제 확정된 회차 — {@code target_id}
      * @param reason         강제 확정 사유(§6.14 요청 필드)
      * @param fallbackUsed   실제로 저장된 {@code route_version.fallback_used} 값
+     * @param routeVersionId 신규 생성된 {@code route_version} 의 id
      */
     public static AuditLog forRunForceConfirm(Long actorAccountId, String actorLoginId, Long runId, String reason,
-            boolean fallbackUsed, OffsetDateTime occurredAt) {
+            boolean fallbackUsed, Long routeVersionId, OffsetDateTime occurredAt) {
         AuditLog log = new AuditLog(AuditCategory.DATA_ACCESS, AuditAction.UPDATE, occurredAt);
         log.actorAccountId = actorAccountId;
         log.actorLoginId = actorLoginId;
@@ -243,6 +245,7 @@ public class AuditLog {
         detail.put("action", "run.force_confirm");
         detail.put("reason", reason);
         detail.put("fallback_used", fallbackUsed);
+        detail.put("route_version_id", routeVersionId);
         log.detail = detail;
         return log;
     }

@@ -186,15 +186,17 @@ class AdminRunForceConfirmControllerTest {
     }
 
     /**
-     * §6.14 감사 — {@code audit_log} 에 {@code reason}·{@code fallback_used} 가 실린 행이 남는다.
+     * §6.14 감사(Ruling 260 확정) — {@code audit_log} 는 {@code category=data_access}·
+     * {@code action=update}·{@code target_type=run} 을 재사용하고, 스펙 문면의 정확한 동작 이름
+     * {@code run.force_confirm} 과 {@code reason}·{@code fallback_used} 는 {@code detail} JSON 에
+     * 싣는다({@code AuditLog#forRunForceConfirm} 참고 — 도메인 확장 대신 재사용을 택한 근거).
      *
-     * <p>{@code action}·{@code category} 열은 CHECK 제약(닫힌 7종·2종) 때문에 스펙 문면의
-     * {@code run.force_confirm} 을 그대로 담지 못한다({@code AuditLog#forRunForceConfirm} 참고) —
-     * 그래서 이 시험은 그 문자열을 {@code action}·{@code category} 열이 아니라 {@code detail} 열에서
-     * 찾는다. 감사 적재 호출이 조용히 no-op 이 되는 결함은 이 시험이 잡는다(존재 자체를 본다).
+     * <p>{@code action=update AND target_type=run} 을 SQL 조건으로 직접 걸어 Ruling 260 이 요구한
+     * 열 값 자체를 검사하고, {@code detail->>'action'} 으로 스펙 문자열이 그대로 보존됐는지 본다.
+     * 감사 적재 호출이 조용히 no-op 이 되는 결함은 이 시험이 잡는다(행 자체의 존재를 본다).
      */
     @Test
-    @DisplayName("목표11 — 강제 확정은 audit_log 에 reason·fallback_used 를 담은 행을 남긴다")
+    @DisplayName("목표11 — 강제 확정은 audit_log 에 action=update·target_type=run·detail 을 담은 행을 남긴다")
     void 강제_확정하면_audit_log_에_행이_남는다() throws Exception {
         long runId = dueIdleRun();
 
@@ -205,15 +207,18 @@ class AdminRunForceConfirmControllerTest {
                 .andExpect(status().isCreated());
 
         동기화한다();
-        String detail = jdbcTemplate.queryForObject(
-                "SELECT detail::text FROM audit_log WHERE target_type = 'run' AND target_id = ? "
-                        + "ORDER BY id DESC LIMIT 1",
-                String.class, runId);
-        assertThat(detail)
-                .as("audit_log 적재가 조용히 빠지면 이 조회 자체가 EmptyResultDataAccessException 이다")
-                .contains("run.force_confirm")
-                .contains("기사 무응답으로 콘솔 강제 확정")
-                .contains("\"fallback_used\": true");
+        var row = jdbcTemplate.queryForMap(
+                "SELECT detail->>'action' AS detail_action, detail->>'reason' AS detail_reason, "
+                        + "(detail->>'fallback_used')::boolean AS detail_fallback_used "
+                        + "FROM audit_log WHERE action = 'update' AND category = 'data_access' "
+                        + "AND target_type = 'run' AND target_id = ? ORDER BY id DESC LIMIT 1",
+                runId);
+        assertThat(row)
+                .as("action=update·category=data_access·target_type=run 조건에 걸리는 행이 없으면 "
+                        + "감사 적재가 조용히 빠졌거나 Ruling 260 매핑이 깨진 것이다 — 이 조회 자체가 비면 안 된다")
+                .containsEntry("detail_action", "run.force_confirm")
+                .containsEntry("detail_reason", "기사 무응답으로 콘솔 강제 확정")
+                .containsEntry("detail_fallback_used", true);
     }
 
     /**

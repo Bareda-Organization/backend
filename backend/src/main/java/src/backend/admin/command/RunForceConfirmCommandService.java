@@ -97,12 +97,12 @@ public class RunForceConfirmCommandService {
                         "confirmed_route.current_version_id 가 가리키는 route_version 이 없다: "
                                 + confirmedRoute.getCurrentVersionId()));
 
-        // audit_log 적재 — CHECK 제약 매핑 근거는 AuditLog.forRunForceConfirm 참고(team-lead 무응답으로
-        // 자체 판단, SendMessage 395e631c-00fd-4bb6-8efb-c5dd951f048a). 상태 전이와 같은 트랜잭션이라
-        // 감사 적재 실패가 곧 이 메서드 전체 롤백이다 — AccountUnblockCommandService 와 같은 근거.
+        // audit_log 적재 — CHECK 제약 매핑 근거는 AuditLog.forRunForceConfirm 참고(Ruling 260 확정,
+        // category=DATA_ACCESS·action=UPDATE 재사용). 상태 전이와 같은 트랜잭션이라 감사 적재 실패가
+        // 곧 이 메서드 전체 롤백이다 — AccountUnblockCommandService 와 같은 근거.
         String actorLoginId = accountRepository.findById(actorAccountId).map(Account::getLoginId).orElse(null);
         auditLogRepository.save(AuditLog.forRunForceConfirm(actorAccountId, actorLoginId, runId, reason,
-                routeVersion.isFallbackUsed(), confirmedRoute.getConfirmedAt()));
+                routeVersion.isFallbackUsed(), confirmedRoute.getCurrentVersionId(), confirmedRoute.getConfirmedAt()));
 
         return new ForceConfirmResponse(runId, confirmedRoute.getCurrentVersionId(), routeVersion.isFallbackUsed(),
                 confirmedRoute.getConfirmedAt());
