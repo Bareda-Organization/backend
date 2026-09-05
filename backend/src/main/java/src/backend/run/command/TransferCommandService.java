@@ -19,6 +19,7 @@ import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
+import src.backend.global.security.access.AcademyScope;
 import src.backend.request.domain.ChangeWindow;
 import src.backend.request.domain.ChangeWindowPolicy;
 import src.backend.request.repository.BoardingIntentRepository;
@@ -88,26 +89,22 @@ public class TransferCommandService {
     private final Clock clock;
 
     public TransferResponse transfer(AuthUser requester, Long studentId, TransferRequest request) {
-        Long academyId = requester.academyId();
-
         // {id} 는 학생이다(§5.8 경로) — 존재 비노출(Ruling 163)이라 타 학원 학생도 404.
-        Student student = studentRepository.findByIdAndAcademyIdAndDeletedAtIsNull(studentId, academyId)
+        Student student = studentRepository.findByIdAndAcademyIdAndDeletedAtIsNull(studentId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.STUDENT_NOT_FOUND));
 
         if (request.fromRunId().equals(request.toRunId())) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED);
         }
 
-        Run fromRun = runRepository.findByIdAndAcademyId(request.fromRunId(), academyId)
+        Run fromRun = runRepository.findByIdAndAcademyId(request.fromRunId(), requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
         // 도착 회차는 타 학원이면 부재를 숨기지 않고 403 으로 답한다(사양 본문 — from 과 다른 판정).
         // 관계자가 자기 화면에서 고른 회차 id 라 "존재하지만 접근 불가" 를 그대로 알려주는 쪽이
         // "왜 안 되는지" 를 알 수 있게 한다는 판단으로 보인다(§7 규칙 16 계열의 절별 예외).
         Run toRun = runRepository.findById(request.toRunId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
-        if (!toRun.getAcademyId().equals(academyId)) {
-            throw new BusinessException(ErrorCode.ACADEMY_SCOPE_VIOLATION);
-        }
+        AcademyScope.assertAccessible(requester, toRun.getAcademyId());
 
         assertWindowOpen(fromRun);
         assertWindowOpen(toRun);
@@ -117,16 +114,16 @@ public class TransferCommandService {
             throw new BusinessException(ErrorCode.STUDENT_NOT_IN_RUN);
         }
 
-        if (runTransferRepository.existsStagedByStudentIdAndAcademyId(student.getId(), academyId)) {
+        if (runTransferRepository.existsStagedByStudentIdAndAcademyId(student.getId(), requester.academyId())) {
             throw new BusinessException(ErrorCode.TRANSFER_ALREADY_STAGED);
         }
 
         assertStopOrAddressExclusive(request);
 
-        Bus toBus = busRepository.findByIdAndAcademyId(toRun.getBusId(), academyId)
+        Bus toBus = busRepository.findByIdAndAcademyId(toRun.getBusId(), requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.BUS_NOT_FOUND));
         long toCurrentCount = projectedRosterStudentIds(toRun).size()
-                + runTransferRepository.countStagedByToRunIdAndAcademyId(toRun.getId(), academyId);
+                + runTransferRepository.countStagedByToRunIdAndAcademyId(toRun.getId(), requester.academyId());
         if (toCurrentCount + 1 > toBus.getStudentCapacity()) {
             throw new BusinessException(ErrorCode.CAPACITY_EXCEEDED,
                     new TransferCapacityDetail(toCurrentCount, toBus.getStudentCapacity()));
@@ -138,7 +135,8 @@ public class TransferCommandService {
             // 회차 노선의 기존 승하차지" 라고 적었지만, 강제 추가(§5.7)도 노선 소속이 아니라 학원
             // 승하차지 전체를 대상으로 매칭한다(STU-05) — 노선 소속으로 좁히면 그 정류장이 아직
             // 이 노선에 배정되지 않은 경우까지 막혀, 강제 추가와 다른 기준이 된다.
-            stopRepository.findAllByAcademyIdAndIdIn(academyId, List.of(request.stopId())).stream().findFirst()
+            stopRepository.findAllByAcademyIdAndIdIn(requester.academyId(), List.of(request.stopId())).stream()
+                    .findFirst()
                     .orElseThrow(() -> new BusinessException(ErrorCode.STOP_NOT_FOUND));
         } else {
             point = addressVerification.verifySingle(request.address());

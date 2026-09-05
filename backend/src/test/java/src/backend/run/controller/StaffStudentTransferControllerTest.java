@@ -251,9 +251,10 @@ class StaffStudentTransferControllerTest {
     @Test
     void 학생이_없으면_404_이다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
-        long busId = fixtures().bus(academyId);
-        long fromRunId = 회차를_만든다(academyId, busId, 31);
-        long toRunId = 회차를_만든다(academyId, busId, 31);
+        long fromBusId = fixtures().bus(academyId);
+        long toBusId = fixtures().bus(academyId);
+        long fromRunId = 회차를_만든다(academyId, fromBusId, 31);
+        long toRunId = 회차를_만든다(academyId, toBusId, 31);
 
         long otherAcademyId = fixtures().academyWithCoordinates();
         long otherAcademyStudentId = fixtures().student(otherAcademyId, "타학원학생");
