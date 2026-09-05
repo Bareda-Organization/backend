@@ -1,0 +1,19 @@
+{
+  "scenario": 1,
+  "n_requested": 10,
+  "runs_created": 10,
+  "tag": "050107489",
+  "timed_out": false,
+  "remaining_at_end": 0,
+  "drain_seconds": 17.111212000,
+  "confirmation_lag_delta_count": 10,
+  "confirmation_lag_delta_sum_seconds": 156.822231,
+  "confirmation_lag_avg_seconds": 15.682,
+  "unconfirmed_gauge_after": 0.0,
+  "stub_throttled_after": 266.0,
+  "stub_timeout_after": 0.0,
+  "stub_failure_injected_after": 0.0,
+  "stub_throttled_delta": 6.0,
+  "stub_timeout_delta": 0,
+  "stub_failure_injected_delta": 0
+}
