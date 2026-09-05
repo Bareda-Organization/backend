@@ -175,4 +175,31 @@ FROM new_change_request
 CROSS JOIN run_tag
 ORDER BY new_change_request.approval_id;
 
+-- ⚠ update_confirmed_route(위 WITH 안의 CTE)는 실제로는 아무 행도 못 고친다 — 같은 문장 안의 형제
+-- CTE(new_confirmed_route)가 방금 넣은 행은, 일반 테이블 스캔(WHERE confirmed_route.run_id = ...)
+-- 기준으로는 그 문장이 시작될 때의 스냅샷에는 없다(PostgreSQL 문서 "Data-Modifying Statements in
+-- WITH" — 형제 CTE 의 부수효과는 RETURNING 을 통한 값 전달로만 보이고, 같은 테이블을 일반 참조로
+-- 다시 스캔하면 안 보인다). 그래서 current_version_id 가 계속 NULL로 남고, GET /staff/approvals/{id}
+-- 가 100% 500(IllegalStateException: 노선 버전이 없다)으로 떨어졌다(2026-09-05 시나리오 4 첫 실행
+-- 에서 재현·확인 — k6 20/20 요청 전부 실패, docker exec psql 로 직접 조회해 current_version_id
+-- IS NULL 20건 확인, 단일 UPDATE 문은 격리 실행 시 정상 동작하는 것도 별도 확인).
+-- 그래서 여기서 별도의 최상위 문장(BEGIN 안에서 같은 트랜잭션의 다음 statement)으로 다시 채운다 —
+-- 같은 트랜잭션의 앞선 statement 가 남긴 변경은 이후 statement 가 정상적으로(READ COMMITTED 로) 본다.
+-- LOADAPV 접두사 전체를 대상으로 하는 것은 이번 배치(:n건)만이 아니라 과거에 이 버그로 깨진 채
+-- 남은 행까지 함께 고쳐도 안전하기 때문이다(confirmed_route_id = run_id 1:1 매칭이라 잘못 짝지어질
+-- 위험이 없다).
+-- ⚠ UPDATE ... FROM 의 target 테이블(cr)은 FROM 절 안의 JOIN ON 조건에서 참조할 수 없다
+-- ("invalid reference to FROM-clause entry for table cr" — 격리 실행에서 직접 재현·확인).
+-- 그래서 r/b 를 rv 경유로만 조인하고, cr 과의 매칭은 WHERE 절로 옮긴다(WHERE 는 target 테이블
+-- 참조가 허용된다).
+UPDATE confirmed_route cr
+SET current_version_id = rv.id
+FROM route_version rv
+JOIN run r ON r.id = rv.confirmed_route_id
+JOIN bus b ON b.id = r.bus_id
+WHERE rv.confirmed_route_id = cr.run_id
+  AND rv.version_no = 1
+  AND b.bus_no LIKE 'LOADAPV-%'
+  AND cr.current_version_id IS NULL;
+
 COMMIT;
