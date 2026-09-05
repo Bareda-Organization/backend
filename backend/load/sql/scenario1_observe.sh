@@ -36,8 +36,13 @@ mkdir -p "$RESULTS_DIR"
 # 실제 줄은 "이름{application=...} 값" 형태다 — 이름 뒤에 스페이스만 오는 무태그 형태를 가정한
 # 첫 버전은 이 라벨 때문에 항상 매치 실패해 델타가 전부 0으로 나왔다(2026-09-05 N=10 재현 확인).
 # 이름 뒤에 스페이스 또는 '{' 가 오는 두 형태를 모두 매치한다. 값은 항상 마지막 필드다.
+#
+# ⚠ F5 S2 목표 4 이후 schoolbus_routing_stub_load_throttled_total 은 caller 태그(batch/on_demand)로
+# 갈려 같은 이름이 두 줄로 나온다 — 매치된 줄을 전부 더해 caller 무관 총합을 낸다(이 스크립트는
+# scenario 1 단독 관측용이라 caller 별 분리가 필요 없다. 분리 값은 README §4 방식의 grep/diff 로
+# 별도로 뜬다 — F5 목표 3 결과 표).
 fetch_metric() {
-    curl -sf "$PROM_URL" | awk -v name="$1" '$0 ~ "^"name"[ {]" {print $NF; found=1} END {if (!found) print "0"}'
+    curl -sf "$PROM_URL" | awk -v name="$1" '$0 ~ "^"name"[ {]" {sum+=$NF; found=1} END {if (!found) print "0"; else print sum}'
 }
 
 before_lag_count=$(fetch_metric 'schoolbus_run_confirmation_lag_seconds_count')
