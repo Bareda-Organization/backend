@@ -139,6 +139,29 @@ class StaffAcademySettingControllerTest {
                 .as("거부된 값이 아니라 자가 치유 기본값(3분)이어야 한다").isEqualTo(3);
     }
 
+    // ── 목표9(X-06, Ruling 257) — 상한 30분: 경계값은 통과, 31분은 422 ──────────────
+
+    @Test
+    @DisplayName("목표9 — 30분은 통과하고 31분은 422 VALIDATION_FAILED 이다(X-06 상한)")
+    void 상한_30분_경계_밖은_422_VALIDATION_FAILED_이다() throws Exception {
+        long academyId = academy();
+        long staffAccountId = staffAccount(academyId);
+        String token = 토큰(staffAccountId, academyId, Role.STAFF);
+
+        mockMvc.perform(patch(ACADEMY_SETTINGS).header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"no_show_wait_minutes\":30}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.no_show_wait_minutes").value(30));
+
+        mockMvc.perform(patch(ACADEMY_SETTINGS).header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"no_show_wait_minutes\":31}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+
+        assertThat(academySettingRepository.findById(academyId).orElseThrow().getNoShowWaitMinutes())
+                .as("거부된 31 이 아니라 직전에 통과한 30 이 유지돼야 한다").isEqualTo(30);
+    }
+
     // ── 목표4 — 권한: 학원 관계자(STAFF) 전용, 다른 역할은 거부된다 ────────────────
 
     @Test
