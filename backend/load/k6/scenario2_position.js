@@ -1,12 +1,23 @@
 // 시나리오 2 — "위치 수신 처리량" (IMPLEMENTATION_PLAN §5.2 #2).
 // 재는 것: 위치 수신 처리 지연(POST /runs/{runId}/position 응답 시간) · WS 팬아웃 지연
-// (송신 시각 → /topic/manager/runs/{runId} 로 그 위치가 방송되기까지). §5.3 은 이 시나리오에
+// (송신 시각 → /topic/academy/{academyId}/live 로 그 위치가 방송되기까지). §5.3 은 이 시나리오에
 // 수치 임계를 정하지 않았다(NFR-02·03 은 반영시간·송신주기 "규정"이지 이 시험의 pass/fail 기준이
 // 아니다) — 그래서 threshold 는 실패율 0 하나만 걸고, 지연 분포는 summary 로 관측만 한다.
 //
+// ⚠ F5 S2 목표 2 정정(2026-09-05) — 이 스크립트는 원래 자기 회차의 매니저 채널
+// (/topic/manager/runs/{runId})을 구독했으나, API_SPEC §7 채널 표·PositionBroadcastListener 자바독이
+// 명시하듯 매니저 채널은 position 을 받지 않는다(rider_changed·stop_arrived·run_started·run_ended·
+// emergency_acked 뿐). 그래서 팬아웃이 전혀 관측되지 않았다(정정 전 N=20 실측 —
+// ws_msgs_received=20=VU 수, 즉 CONNECTED 핸드셰이크 1건뿐이고 MESSAGE 는 0건. lastSentAt 게이트는
+// 원인이 아니었다). position 이 실제로 가는 채널(§7) 중 이 시나리오(학원 소속 기사 1명 = VU 1개)에
+// 맞는 academy live 로 구독을 옮긴다.
+//
 // VU 하나 = 시드된 회차(run) 하나 = 그 회차에 배치된 기사 하나. 그 VU 가 직접 위치를 올리고
-// 동시에 자기 회차의 매니저 채널을 구독해 자기 송신의 방송을 되받는다 — 송신자와 수신자가 같은
-// VU 라 "방금 보낸 것의 메아리"라는 가정이 이 시드(회차당 기사 1명)에서는 안전하다.
+// 동시에 자기 학원의 academy live 채널을 구독한다 — 이 채널은 학원 소속 모든 회차의 position 을
+// 함께 받으므로(시드가 academy_id 를 고정값 하나로 몰아 VU 전원이 같은 채널을 공유), 봉투의
+// run_id(WebSocketEnvelope, 전역 SNAKE_CASE 전략이라 JSON 키는 run_id)로 자기 회차분만 걸러야
+// 한다 — "도착한 첫 MESSAGE = 내 방송" 가정은 더 이상 안전하지 않다(다른 VU 의 position 도 같은
+// 소켓에 섞여 들어온다).
 //
 // 실행 (준비 먼저):
 //   psql -v n=$N -f sql/scenario2_prep.sql -t -A -F',' | grep -v '^$' > k6/scenario2_runs.csv
@@ -29,8 +40,8 @@ const runs = new SharedArray('scenario2_runs', function () {
         .split('\n')
         .filter((line) => line.length > 0)
         .map((line) => {
-            const [tag, loginId, runId] = line.split(',');
-            return { tag, loginId, runId: Number(runId) };
+            const [tag, loginId, runId, academyId] = line.split(',');
+            return { tag, loginId, runId: Number(runId), academyId: Number(academyId) };
         });
 });
 
@@ -76,7 +87,7 @@ export default function () {
             const frames = parseFrames(raw);
             for (const frame of frames) {
                 if (frame.command === 'CONNECTED') {
-                    socket.send(subscribeFrame('sub-position', `/topic/manager/runs/${target.runId}`));
+                    socket.send(subscribeFrame('sub-position', `/topic/academy/${target.academyId}/live`));
                     socket.setInterval(function () {
                         const now = Date.now();
                         const payload = JSON.stringify({
@@ -96,10 +107,20 @@ export default function () {
                 } else if (frame.command === 'ERROR') {
                     wsConnectFailures.add(1);
                 } else if (frame.command === 'MESSAGE' && lastSentAt !== null) {
-                    // 이 VU 는 자기 회차만 구독하고 그 회차에 위치를 올리는 것도 이 VU 뿐이다(시드가
-                    // 회차당 기사 1명) — 그래서 도착한 첫 MESSAGE 를 직전 송신의 방송으로 본다.
-                    wsFanoutLatencyMs.add(Date.now() - lastSentAt);
-                    lastSentAt = null;
+                    // academy live 는 학원 소속 모든 회차의 position 을 함께 실어 보낸다 — 다른 VU 의
+                    // 방송을 내 송신의 메아리로 잘못 세지 않도록 envelope 의 event·run_id 를 직접
+                    // 확인한다(§7 정정, 위 헤더 주석). 못 읽는 형태거나 남의 회차면 무시하고 다음
+                    // 프레임을 본다(래치는 계속 유지 — 내 회차 echo 가 나중에 와도 잡아야 한다).
+                    let body;
+                    try {
+                        body = JSON.parse(frame.body);
+                    } catch (e) {
+                        body = null;
+                    }
+                    if (body && body.event === 'position' && body.run_id === target.runId) {
+                        wsFanoutLatencyMs.add(Date.now() - lastSentAt);
+                        lastSentAt = null;
+                    }
                 }
             }
         });
