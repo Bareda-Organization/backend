@@ -1,0 +1,57 @@
+# 부하 시험 전용 프로파일 (F3 좌석 L, IMPLEMENTATION_PLAN §5.5 · §5.6).
+#
+# `local` 스프링 프로파일을 함께 켜지 않는다 — LocalFlywayCleanStrategy 가 `@Profile("local")`이라
+# `local` 을 켜면 기동마다 DB 를 clean() 한다. 시나리오 1은 N을 10→50→200으로 올리며 같은 DB에
+# 누적 관측해야 하므로 재기동으로 데이터가 사라지면 시험이 성립하지 않는다. 대신 시드데이터
+# (db/migration-local)만 flyway.locations 로 가져오고, 그 시드가 요구하는 placeholder만 이 프로파일에
+# 직접 복제한다(common 블록의 clean-disabled: true 는 그대로 유지되어 이중 안전장치가 된다).
+spring:
+  config:
+    activate:
+      on-profile: load
+  datasource:
+    url: jdbc:postgresql://localhost:15432/schoolbus_load
+    username: schoolbus
+    password: schoolbus
+  flyway:
+    locations: classpath:db/migration,classpath:db/migration-local
+    placeholders:
+      # db/migration-local/V2__seed_data.sql 의 계정 시드가 요구하는 placeholder — local 프로파일과
+      # 동일한 값(BCryptPasswordEncoder strength 10, 평문 "password")을 그대로 복제한다. k6 스크립트가
+      # 이 시드 계정(staffA 등)으로 로그인해 access_token 을 얻는다.
+      seedPasswordHash: "$2a$10$Noeszx0nzJUfNo4ubCD03eNfMVfMD9feMo04y/8DHiFLUBF.JZ/Fq"
+  data:
+    redis:
+      host: localhost
+      port: 16379
+  kafka:
+    bootstrap-servers: localhost:29092
+
+server:
+  port: 18080
+
+app:
+  # 노선 계산 ③단계 — 부하 시험은 stub 을 쓰고, 아래 4개 값으로 지연·격벽·실패를 주입한다
+  # (StubMapRouteClient javadoc, IMPLEMENTATION_PLAN §5.5). 기본값은 전부 비활성 — 시나리오마다
+  # bootRun 실행 시점에 -D 시스템 프로퍼티나 환경변수로 덮어써서 켠다(값을 바꿀 때마다 이 파일을
+  # 고치지 않기 위함). 각 시나리오가 실제로 준 값은 backend/load/README.md 에 기록한다.
+  routing:
+    map:
+      provider: stub
+      stub:
+        load:
+          min-delay-ms: ${LOAD_STUB_MIN_DELAY_MS:0}
+          max-delay-ms: ${LOAD_STUB_MAX_DELAY_MS:0}
+          failure-rate: ${LOAD_STUB_FAILURE_RATE:0}
+          # 실 시스템의 resilience4j.bulkhead.instances.mapRoute.max-concurrent-calls(application.yml)와
+          # 같은 잠정값 4를 기본값으로 둔다 — 스텁의 격벽 모사가 실 상한과 같은 기준에서 출발하게 함.
+          max-concurrent: ${LOAD_STUB_MAX_CONCURRENT:4}
+  ws:
+    allowed-origin-patterns: "*"
+  cors:
+    allowed-origins: http://localhost:3000
+
+# prod 와 달리 부하 시험 전용 워크트리에서만 쓰는 고정값 — 실 비밀과 무관하고 이 저장소에도
+# 공개되지 않는 별도 파일이므로 local 블록과 같은 방식(기본값 제공)을 따른다.
+jwt:
+  secret: ${JWT_SECRET:load-test-only-secret-change-me-please-32bytes-minimum}
