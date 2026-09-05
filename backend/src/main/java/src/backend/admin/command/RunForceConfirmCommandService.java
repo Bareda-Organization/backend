@@ -12,7 +12,9 @@ import src.backend.admin.dto.ForceConfirmResponse;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.routing.entity.ConfirmedRoute;
+import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.repository.ConfirmedRouteRepository;
+import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.run.command.RunConfirmationService;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
@@ -39,6 +41,8 @@ public class RunForceConfirmCommandService {
 
     private final ConfirmedRouteRepository confirmedRouteRepository;
 
+    private final RouteVersionRepository routeVersionRepository;
+
     private final RunConfirmationService runConfirmationService;
 
     private final Clock clock;
@@ -53,8 +57,9 @@ public class RunForceConfirmCommandService {
      * confirmed 로 옮긴 경우).
      *
      * <p>확정 직후 {@link ConfirmedRoute} 를 재조회해 {@code route_version_id}·{@code confirmed_at}
-     * 을 얻는다 — {@code persisted == true} 는 이 호출 자신의 강제 폴백 계산이 저장에 성공했다는
-     * 뜻이므로, {@code fallback_used} 는 다시 조회하지 않고 항상 {@code true} 로 응답한다.
+     * 을 얻고, 그 버전의 {@link RouteVersion#isFallbackUsed()} 를 응답에 그대로 싣는다 — 스펙 문면은
+     * "항상 {@code true}" 지만, 실제로 저장된 값을 다시 읽는 쪽이 강제 폴백 호출이 조용히 빠지는
+     * 결함을 응답 자체가 드러내게 한다(값을 미리 단정해 응답에 박으면 그 결함이 가려진다).
      *
      * @param actorAccountId 강제 확정을 실행하는 메인 관리자 계정 — 감사 행위자
      * @param reason 강제 확정 사유 — 공백뿐인 값은 컨트롤러 진입 전 {@code @NotBlank} 가 이미 거른다
@@ -79,12 +84,16 @@ public class RunForceConfirmCommandService {
         ConfirmedRoute confirmedRoute = confirmedRouteRepository.findById(runId)
                 .orElseThrow(() -> new IllegalStateException(
                         "confirmOne 이 persisted=true 를 반환했는데 confirmed_route 가 없다: " + runId));
+        RouteVersion routeVersion = routeVersionRepository.findById(confirmedRoute.getCurrentVersionId())
+                .orElseThrow(() -> new IllegalStateException(
+                        "confirmed_route.current_version_id 가 가리키는 route_version 이 없다: "
+                                + confirmedRoute.getCurrentVersionId()));
 
         // TODO(F3 S2 후속): audit_log 적재 — action/category CHECK 제약이 API_SPEC §6.14 의
         // run.force_confirm 문면을 그대로 받을 수 없어 team-lead 판정 대기 중(SendMessage
         // 395e631c-00fd-4bb6-8efb-c5dd951f048a). 판정 도착 즉시 이 자리에 붙인다.
 
-        return new ForceConfirmResponse(runId, confirmedRoute.getCurrentVersionId(), true,
+        return new ForceConfirmResponse(runId, confirmedRoute.getCurrentVersionId(), routeVersion.isFallbackUsed(),
                 confirmedRoute.getConfirmedAt());
     }
 }
