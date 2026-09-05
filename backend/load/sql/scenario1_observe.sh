@@ -23,20 +23,28 @@ PG_CONTAINER="${PG_CONTAINER:-school-bus-postgres-1}"
 DB_NAME="${DB_URL##*/}"
 
 psql_db() {
-    docker exec -i "$PG_CONTAINER" psql -U schoolbus -d "$DB_NAME" "$@"
+    # -q 필수 — 없으면 BEGIN;/COMMIT; 명령 완료 태그가 stdout 에 섞여 tail -1 이 데이터 행 대신
+    # "COMMIT" 문자열을 집어간다(2026-09-05 N=10 첫 실행에서 실제로 재현·확인).
+    docker exec -i "$PG_CONTAINER" psql -U schoolbus -d "$DB_NAME" -q "$@"
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RESULTS_DIR="$SCRIPT_DIR/../results"
 mkdir -p "$RESULTS_DIR"
 
-# $1 = prometheus 메트릭 이름(태그 없는 형태만 다룬다 — 이 저장소의 새 지표 3종은 전부 무태그).
+# $1 = prometheus 메트릭 이름. micrometer 가 common tag(application="school-bus")를 자동으로 붙여
+# 실제 줄은 "이름{application=...} 값" 형태다 — 이름 뒤에 스페이스만 오는 무태그 형태를 가정한
+# 첫 버전은 이 라벨 때문에 항상 매치 실패해 델타가 전부 0으로 나왔다(2026-09-05 N=10 재현 확인).
+# 이름 뒤에 스페이스 또는 '{' 가 오는 두 형태를 모두 매치한다. 값은 항상 마지막 필드다.
 fetch_metric() {
-    curl -sf "$PROM_URL" | awk -v name="$1" '$0 ~ "^"name" " {print $NF; found=1} END {if (!found) print "0"}'
+    curl -sf "$PROM_URL" | awk -v name="$1" '$0 ~ "^"name"[ {]" {print $NF; found=1} END {if (!found) print "0"}'
 }
 
 before_lag_count=$(fetch_metric 'schoolbus_run_confirmation_lag_seconds_count')
 before_lag_sum=$(fetch_metric 'schoolbus_run_confirmation_lag_seconds_sum')
+before_throttled=$(fetch_metric 'schoolbus_routing_stub_load_throttled_total')
+before_timeout=$(fetch_metric 'schoolbus_routing_stub_load_timeout_total')
+before_failure_injected=$(fetch_metric 'schoolbus_routing_stub_load_failure_injected_total')
 
 prep_out=$(psql_db -v n="$N" -t -A -F',' < "$SCRIPT_DIR/scenario1_prep.sql" | grep -v '^$' | tail -1)
 tag=$(echo "$prep_out" | cut -d',' -f1)
@@ -76,6 +84,9 @@ failure_injected=$(fetch_metric 'schoolbus_routing_stub_load_failure_injected_to
 
 delta_count=$(echo "${after_lag_count} - ${before_lag_count}" | bc)
 delta_sum=$(echo "${after_lag_sum} - ${before_lag_sum}" | bc)
+delta_throttled=$(echo "${throttled} - ${before_throttled}" | bc)
+delta_timeout=$(echo "${timeout_ct} - ${before_timeout}" | bc)
+delta_failure_injected=$(echo "${failure_injected} - ${before_failure_injected}" | bc)
 avg_lag_sec="null"
 if [ "$(echo "${delta_count} > 0" | bc)" = "1" ]; then
     avg_lag_sec=$(echo "scale=3; ${delta_sum} / ${delta_count}" | bc)
@@ -101,7 +112,10 @@ cat > "$out_file" <<JSON
   "unconfirmed_gauge_after": ${unconfirmed_gauge},
   "stub_throttled_after": ${throttled},
   "stub_timeout_after": ${timeout_ct},
-  "stub_failure_injected_after": ${failure_injected}
+  "stub_failure_injected_after": ${failure_injected},
+  "stub_throttled_delta": ${delta_throttled},
+  "stub_timeout_delta": ${delta_timeout},
+  "stub_failure_injected_delta": ${delta_failure_injected}
 }
 JSON
 
