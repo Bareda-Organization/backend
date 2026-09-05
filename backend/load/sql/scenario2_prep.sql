@@ -9,8 +9,9 @@
 -- application-load.yml 의 seedPasswordHash 와 동일한 값으로 여기 직접 박는다 — 같은 평문이어야
 -- k6 스크립트가 실제로 로그인할 수 있다.
 --
--- 출력 — 마지막 SELECT 가 (tag, login_id, run_id) 3열을 회차 수만큼 낸다. k6 스크립트가
--- SharedArray 로 읽을 CSV 로 저장하려면:
+-- 출력 — 마지막 SELECT 가 (tag, login_id, run_id, academy_id) 4열을 회차 수만큼 낸다(academy_id 는
+-- k6 가 §7 채널 표의 academy live 를 구독하는 데 쓴다 — F5 S2 목표 2 정정, position 은 매니저
+-- 채널에 안 간다). k6 스크립트가 SharedArray 로 읽을 CSV 로 저장하려면:
 --   psql "$DB_URL" -v n=20 -f scenario2_prep.sql -t -A -F',' | grep -v '^$' > scenario2_runs.csv
 --
 -- 필수 변수: n (심을 회차=기사 수).
@@ -106,7 +107,7 @@ new_assignment AS (
     JOIN new_manager ON new_manager.account_id = new_account.account_id
     RETURNING run_id, manager_id
 )
-SELECT run_tag.tag, new_account.login_id, new_run.run_id
+SELECT run_tag.tag, new_account.login_id, new_run.run_id, :academy_id AS academy_id
 FROM new_account
 JOIN new_bus ON new_bus.i = new_account.i
 JOIN new_run ON new_run.bus_id = new_bus.bus_id
