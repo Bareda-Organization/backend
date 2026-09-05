@@ -186,6 +186,37 @@ class AdminRunForceConfirmControllerTest {
     }
 
     /**
+     * §6.14 감사 — {@code audit_log} 에 {@code reason}·{@code fallback_used} 가 실린 행이 남는다.
+     *
+     * <p>{@code action}·{@code category} 열은 CHECK 제약(닫힌 7종·2종) 때문에 스펙 문면의
+     * {@code run.force_confirm} 을 그대로 담지 못한다({@code AuditLog#forRunForceConfirm} 참고) —
+     * 그래서 이 시험은 그 문자열을 {@code action}·{@code category} 열이 아니라 {@code detail} 열에서
+     * 찾는다. 감사 적재 호출이 조용히 no-op 이 되는 결함은 이 시험이 잡는다(존재 자체를 본다).
+     */
+    @Test
+    @DisplayName("목표11 — 강제 확정은 audit_log 에 reason·fallback_used 를 담은 행을 남긴다")
+    void 강제_확정하면_audit_log_에_행이_남는다() throws Exception {
+        long runId = dueIdleRun();
+
+        mockMvc.perform(post(FORCE_CONFIRM.formatted(runId))
+                        .header("Authorization", 메인관리자_토큰())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"기사 무응답으로 콘솔 강제 확정\"}"))
+                .andExpect(status().isCreated());
+
+        동기화한다();
+        String detail = jdbcTemplate.queryForObject(
+                "SELECT detail::text FROM audit_log WHERE target_type = 'run' AND target_id = ? "
+                        + "ORDER BY id DESC LIMIT 1",
+                String.class, runId);
+        assertThat(detail)
+                .as("audit_log 적재가 조용히 빠지면 이 조회 자체가 EmptyResultDataAccessException 이다")
+                .contains("run.force_confirm")
+                .contains("기사 무응답으로 콘솔 강제 확정")
+                .contains("\"fallback_used\": true");
+    }
+
+    /**
      * §6.14 전제 — {@code confirm_at} 이 아직 지나지 않은 idle 회차의 강제 확정은
      * {@code 409 RUN_NOT_DUE} 다. 이 단언이 없으면 관리자가 아직 시간이 안 된 회차를 조기에
      * 강제로 확정시킬 수 있다.

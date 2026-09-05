@@ -8,7 +8,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.account.entity.Account;
+import src.backend.account.repository.AccountRepository;
 import src.backend.admin.dto.ForceConfirmResponse;
+import src.backend.audit.entity.AuditLog;
+import src.backend.audit.repository.AuditLogRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.routing.entity.ConfirmedRoute;
@@ -44,6 +48,10 @@ public class RunForceConfirmCommandService {
     private final RouteVersionRepository routeVersionRepository;
 
     private final RunConfirmationService runConfirmationService;
+
+    private final AccountRepository accountRepository;
+
+    private final AuditLogRepository auditLogRepository;
 
     private final Clock clock;
 
@@ -89,9 +97,12 @@ public class RunForceConfirmCommandService {
                         "confirmed_route.current_version_id 가 가리키는 route_version 이 없다: "
                                 + confirmedRoute.getCurrentVersionId()));
 
-        // TODO(F3 S2 후속): audit_log 적재 — action/category CHECK 제약이 API_SPEC §6.14 의
-        // run.force_confirm 문면을 그대로 받을 수 없어 team-lead 판정 대기 중(SendMessage
-        // 395e631c-00fd-4bb6-8efb-c5dd951f048a). 판정 도착 즉시 이 자리에 붙인다.
+        // audit_log 적재 — CHECK 제약 매핑 근거는 AuditLog.forRunForceConfirm 참고(team-lead 무응답으로
+        // 자체 판단, SendMessage 395e631c-00fd-4bb6-8efb-c5dd951f048a). 상태 전이와 같은 트랜잭션이라
+        // 감사 적재 실패가 곧 이 메서드 전체 롤백이다 — AccountUnblockCommandService 와 같은 근거.
+        String actorLoginId = accountRepository.findById(actorAccountId).map(Account::getLoginId).orElse(null);
+        auditLogRepository.save(AuditLog.forRunForceConfirm(actorAccountId, actorLoginId, runId, reason,
+                routeVersion.isFallbackUsed(), confirmedRoute.getConfirmedAt()));
 
         return new ForceConfirmResponse(runId, confirmedRoute.getCurrentVersionId(), routeVersion.isFallbackUsed(),
                 confirmedRoute.getConfirmedAt());
