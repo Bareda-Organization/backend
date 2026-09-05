@@ -9,6 +9,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
@@ -113,6 +115,79 @@ class SchedulerLockConventionTest {
         assertThat(scheduledKeys)
                 .as("면제 항목이 실재하지 않는 @Scheduled 메서드를 가리킨다 — 대상이 개명·삭제됐는데 면제만 남았다")
                 .containsAll(EXEMPT);
+    }
+
+    /**
+     * F6(2026-09-06) — 모든 {@code @Scheduled} 메서드가 <b>테스트 JVM 에서 배경 실행이 미뤄져 있는지</b>
+     * 고정한다. {@code build.gradle} 의 {@code test} 블록은 스케줄러마다 {@code systemProperty} 로
+     * 첫 실행을 하루 미루거나(fixedDelay 형) cron 을 비활성 표현식 {@code '-'} 으로 바꾸는데(cron 형),
+     * 새 스케줄러를 추가한 좌석이 그 등재를 빠뜨려도 컴파일·테스트가 전부 초록이라 아무도 모른다 —
+     * 실제로 {@code RunUnconfirmedGaugeScheduler}·{@code NoShowEscalationScheduler} 가 그렇게 두 Phase
+     * 동안 30초 주기로 돌았고, F5 S3 가 동시성 원인을 추적하다 부수로 발견했다.
+     *
+     * <p>검사 방식 — 애너테이션의 {@code cron}·{@code initialDelayString} 자리표시자에서 속성 이름을
+     * 꺼내 {@link System#getProperty(String)} 로 읽는다. Gradle 의 {@code systemProperty} 는 이 JVM 에
+     * 그대로 전달되므로, 등재가 빠지면 값이 {@code null} 이라 그 스케줄러가 목록에 남는다.
+     * 자리표시자가 아닌 리터럴을 쓴 스케줄러도 미룰 수단이 없으므로 위반으로 센다.
+     */
+    @Test
+    void Scheduled_메서드는_모두_테스트_실행_동안_미뤄져_있다() {
+        List<String> notDeferred = new ArrayList<>();
+        for (Method method : scheduledMethods()) {
+            String key = method.getDeclaringClass().getSimpleName() + "#" + method.getName();
+            String violation = deferralViolation(method.getAnnotation(Scheduled.class));
+            if (violation != null) {
+                notDeferred.add(key + " — " + violation);
+            }
+        }
+
+        assertThat(notDeferred)
+                .as("@Scheduled 메서드가 테스트 실행 동안 미뤄져 있지 않다 — build.gradle 의 test 블록에 "
+                        + "initial-delay-ms 를 86400000 으로(fixedDelay 형) 또는 cron 을 '-' 로(cron 형) "
+                        + "systemProperty 등재한다. 배경에서 돌면 테스트가 만든 행을 먼저 집어 단언이 실행 "
+                        + "순서에 따라 갈린다")
+                .isEmpty();
+    }
+
+    private static final long ONE_DAY_MS = 86_400_000L;
+
+    /** {@code ${이름}} · {@code ${이름:기본값}} 형태에서 이름만 꺼낸다. */
+    private static final Pattern PLACEHOLDER = Pattern.compile("^\\$\\{([^:}]+)(?::[^}]*)?}$");
+
+    /**
+     * 미뤄져 있으면 {@code null}, 아니면 위반 사유. cron 형은 비활성 표현식 {@code '-'} 이어야 하고,
+     * fixedDelay 형은 {@code initialDelayString} 속성이 하루 이상이어야 한다.
+     */
+    private String deferralViolation(Scheduled scheduled) {
+        if (!scheduled.cron().isEmpty()) {
+            String property = placeholderName(scheduled.cron());
+            if (property == null) {
+                return "cron 이 설정 자리표시자가 아니라 테스트에서 끌 수단이 없다";
+            }
+            String value = System.getProperty(property);
+            return "-".equals(value) ? null : property + " 가 '-' 가 아니다(실제 " + value + ")";
+        }
+        String property = placeholderName(scheduled.initialDelayString());
+        if (property == null) {
+            return "initialDelayString 이 설정 자리표시자가 아니라 테스트에서 미룰 수단이 없다";
+        }
+        String value = System.getProperty(property);
+        if (value == null) {
+            return property + " 가 테스트 JVM 에 등재되지 않았다";
+        }
+        try {
+            if (Long.parseLong(value) >= ONE_DAY_MS) {
+                return null;
+            }
+        } catch (NumberFormatException ignored) {
+            // 숫자가 아니면 아래에서 위반으로 보고한다
+        }
+        return property + " 가 하루(86400000ms) 미만이다(실제 " + value + ")";
+    }
+
+    private String placeholderName(String expression) {
+        Matcher matcher = PLACEHOLDER.matcher(expression);
+        return matcher.matches() ? matcher.group(1) : null;
     }
 
     /**
