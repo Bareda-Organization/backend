@@ -34,6 +34,9 @@ public class AcademySetting extends BaseTimeEntity {
     /** DB 컬럼 기본값과 같은 미승차 대기 기본 시간(분) — EXC-01. */
     public static final int DEFAULT_NO_SHOW_WAIT_MINUTES = 3;
 
+    /** 미승차 대기 시간(분) 상한 — X-06, Ruling 257. 회차 확정 창(①/② 구간 경계, 출발 30분 전)과 같다. */
+    public static final int MAX_NO_SHOW_WAIT_MINUTES = 30;
+
     @Id
     @Column(name = "academy_id")
     private Long academyId;
@@ -53,13 +56,17 @@ public class AcademySetting extends BaseTimeEntity {
 
     /**
      * 미승차 대기 시간(분)을 학원 담당자가 바꾼다(Phase 11 목표 4, API_SPEC §5.21
-     * {@code PATCH /staff/academy-settings}). 상한은 스펙·DB CHECK 어디에도 없고
-     * {@code CHECK (no_show_wait_minutes > 0)} 만 실재해(V1__init_schema.sql) 하한만 여기서 재확인한다
-     * — DB 제약이 최후 방어선이고 이 메서드는 그보다 먼저 422 로 끊어 사용자에게 원인을 알리는 자리다.
+     * {@code PATCH /staff/academy-settings}). 하한·상한 둘 다 여기서 먼저 재확인한다 —
+     * {@code CHECK (no_show_wait_minutes > 0 AND no_show_wait_minutes <= 30)}(V11, X-06,
+     * Ruling 257)이 최후 방어선이고, 이 메서드는 그보다 먼저 422 로 끊어 사용자에게 원인을 알리는 자리다.
      */
     public void changeNoShowWaitMinutes(int noShowWaitMinutes) {
         if (noShowWaitMinutes <= 0) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "no_show_wait_minutes 는 1 이상이어야 합니다");
+        }
+        if (noShowWaitMinutes > MAX_NO_SHOW_WAIT_MINUTES) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED,
+                    "no_show_wait_minutes 는 " + MAX_NO_SHOW_WAIT_MINUTES + " 이하여야 합니다");
         }
         this.noShowWaitMinutes = noShowWaitMinutes;
     }
