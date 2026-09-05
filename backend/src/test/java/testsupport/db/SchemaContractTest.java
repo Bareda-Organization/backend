@@ -28,11 +28,11 @@ import org.junit.jupiter.api.Test;
 class SchemaContractTest extends MigratedPostgresTestBase {
 
     /**
-     * ERD §3 이 정의한 41개 테이블 전수(Phase 8 신설 run_forced_addition · F3 S1 신설 delay_notice
-     * 포함) + {@code shedlock} 1개(Phase 11, V4) = 42개. {@code shedlock} 은 도메인 테이블이 아니라
-     * ShedLock 라이브러리가 요구하는 스키마 그대로라 {@code docs/ERD.md} 에는 싣지 않는다 — 그래도 이
-     * 대조에서 빠지면 오타난 인프라 테이블 이름도 41개만 채우면 통과하게 되므로 함께 센다. Flyway
-     * 자신의 이력 테이블은 대조 대상 밖이다.
+     * ERD §3 이 정의한 43개 테이블 전수와 정확히 일치해야 한다(Phase 8 신설 run_forced_addition ·
+     * F3 S1 신설 delay_notice · F4 S1 신설 run_transfer 포함). {@code shedlock} 은 도메인 테이블이
+     * 아니라 ShedLock 라이브러리가 요구하는 스키마 그대로이지만, {@code docs/ERD.md} 가 이를 별도
+     * 그룹 ⑤ 로 직접 문서화하므로(2026-09-03, V4) 43개 안에 포함된다 — 이 대조에서 빠지면 오타난
+     * 인프라 테이블 이름도 통과하게 되므로 함께 센다. Flyway 자신의 이력 테이블은 대조 대상 밖이다.
      */
     private static final List<String> ERD_TABLES = List.of(
             // ① 학원 · 계정 · 권한 (7)
@@ -45,11 +45,12 @@ class SchemaContractTest extends MigratedPostgresTestBase {
             "bus", "manager", "stop", "schedule", "route", "route_stop", "run",
             "waypoint", "confirmed_route", "route_version", "run_stop", "run_rider", "assignment",
             "run_forced_addition",
-            // ④ 요청 · 예외 · 알림 · 이력 (13, F3 S1 신설 delay_notice 포함)
+            // ④ 요청 · 예외 · 알림 · 이력 (14, F3 S1 신설 delay_notice · F4 S1 신설 run_transfer 포함)
             "boarding_intent", "change_request", "rider_status_history", "no_show_case",
             "no_show_contact", "emergency_alert", "exception_report", "run_position",
             "notification_log", "device_token", "notification_setting", "audit_log", "delay_notice",
-            // ⑤ 라이브러리 인프라 (1, ERD 문서 밖)
+            "run_transfer",
+            // ⑤ 라이브러리 인프라 (1)
             "shedlock");
 
     /** 계정 연결이 승인 시점에 일어나 그 전에는 NULL 인 레코드 3종 (AUTH-11). */
@@ -61,7 +62,7 @@ class SchemaContractTest extends MigratedPostgresTestBase {
     }
 
     @Test
-    void V1_을_적용하면_public_스키마의_테이블_집합이_ERD_41개와_정확히_일치한다() throws SQLException {
+    void V1_을_적용하면_public_스키마의_테이블_집합이_ERD_43개와_정확히_일치한다() throws SQLException {
         List<String> actual = queryColumn("""
                 SELECT table_name FROM information_schema.tables
                 WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
@@ -69,7 +70,7 @@ class SchemaContractTest extends MigratedPostgresTestBase {
                 """);
 
         assertThat(actual)
-                .as("개수가 아니라 이름 집합으로 대조한다 — 오타난 이름이 41개를 채우면 개수만으로는 통과한다")
+                .as("개수가 아니라 이름 집합으로 대조한다 — 오타난 이름이 43개를 채우면 개수만으로는 통과한다")
                 .containsExactlyInAnyOrderElementsOf(ERD_TABLES);
     }
 
