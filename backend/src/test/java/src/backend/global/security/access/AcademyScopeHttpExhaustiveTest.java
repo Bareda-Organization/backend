@@ -79,6 +79,7 @@ class AcademyScopeHttpExhaustiveTest {
     private static final String POSITION_BODY =
             "{\"lat\":37.5,\"lng\":127.0,\"recorded_at\":\"2026-09-04T10:00:00+09:00\"}";
     private static final String REPORT_CREATE_BODY = "{\"type\":\"vehicle_issue\",\"memo\":\"테스트\"}";
+    private static final String DELAY_BODY = "{\"minutes\":10,\"reason\":\"traffic\"}";
     private static final String NO_SHOW_BODY = "{\"attempt_type\":\"call\",\"result\":\"no_answer\"}";
     private static final String RIDER_REVERT_BODY = "{}";
     private static final String DECIDE_APPROVE_BODY = "{\"approve\":false}";
@@ -227,8 +228,10 @@ class AcademyScopeHttpExhaustiveTest {
     }
 
     /**
-     * 45개 경로 변수 핸들러 전부(46건 — 탑승 의사 토글이 studentId·runId 두 축을 따로 검사해 하나
-     * 늘어난다) — 패턴별 근거는 클래스 javadoc, 개별 근거는 각 케이스 옆 주석(보고서 항목①).
+     * 46개 경로 변수 핸들러 전부(47건 — 탑승 의사 토글이 studentId·runId 두 축을 따로 검사해 하나
+     * 늘어난다) — {@code POST /runs/{runId}/delay} 는 F3 S5 가 §1.11 매니저 앱 회차 자원 그룹에
+     * 추가(합류 정정, Ruling 259(b)). 패턴별 근거는 클래스 javadoc, 개별 근거는 각 케이스 옆
+     * 주석(보고서 항목①).
      */
     private List<ScopeCase> buildCases() {
         String emergencyRaiseBody = "{\"type\":\"accident\",\"client_key\":\"" + UUID.randomUUID() + "\"}";
@@ -367,6 +370,10 @@ class AcademyScopeHttpExhaustiveTest {
         cases.add(c("POST /runs/{runId}/riders/{riderId}/no-show-contacts → B학원 회차 403 FORBIDDEN(§1.11)",
                 HttpMethod.POST, "/runs/{runId}/riders/{riderId}/no-show-contacts",
                 new Object[] {ACADEMY_B_RUN_ID, PLACEHOLDER_ID}, escortA1(), NO_SHOW_BODY, 403, "FORBIDDEN"));
+        // DelayNotificationCommandService 도 같은 RunAssignmentAccess 규약(F3 S5, Ruling 259(b) 정정
+        // — §4.9 에러 문면을 §1.11 매니저 앱 회차 자원과 같은 값으로 정정).
+        cases.add(c("POST /runs/{runId}/delay → B학원 회차 403 FORBIDDEN(§1.11)", HttpMethod.POST,
+                "/runs/{runId}/delay", new Object[] {ACADEMY_B_RUN_ID}, escortA1(), DELAY_BODY, 403, "FORBIDDEN"));
 
         // EmergencyCommandService.cancel — §4.14(L1059) "403 FORBIDDEN(배치되지 않은 회차)" 를 첫
         // 항목으로 명시하는 시나리오(driverA1 이 미배치·타 학원 회차의 신고를 지목, Ruling 259(b),
