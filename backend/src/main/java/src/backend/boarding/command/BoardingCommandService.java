@@ -39,6 +39,7 @@ import src.backend.global.security.AuthUser;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RunStopRepository;
+import src.backend.run.access.RunAssignmentAccess;
 import src.backend.run.command.RunCompletionService;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
@@ -52,6 +53,12 @@ import src.backend.run.repository.RunRepository;
  * 이 되어 {@code GlobalExceptionHandler} 가 일반 {@code 403 FORBIDDEN} 으로 답하는데, §4.6·§4.7 이
  * 요구하는 값은 도메인 특정 코드인 {@code 403 ESCORT_ONLY} 다. 컨트롤러는 {@code @AuthenticatedOnly}
  * (인증 여부만)만 걸고 이 클래스가 진짜 권한 판정을 한다.
+ *
+ * <p><b>배치 판정 순서(§1.11, Ruling 259(b))</b> — 역할 확인({@link #requireEscort}) 다음으로
+ * {@link RunAssignmentAccess#assertAssignedDriverOrEscort} 를 회차 조회보다 먼저 부른다. 배치는
+ * 매니저·회차가 같은 학원일 때만 생성되므로({@code AssignmentCommandService#place}), 배치가 없다는
+ * 사실 하나로 회차 없음·타 학원·미배치 세 경우가 구별 없이 {@code 403 FORBIDDEN} 이 된다 — 그 뒤의
+ * {@code findByIdAndAcademyId} 는 도달할 일이 거의 없는 방어 조회로 남는다.
  */
 @Service
 @RequiredArgsConstructor
@@ -96,6 +103,8 @@ public class BoardingCommandService {
      */
     private final RunCompletionService runCompletionService;
 
+    private final RunAssignmentAccess runAssignmentAccess;
+
     private final ApplicationEventPublisher eventPublisher;
 
     private final Clock clock;
@@ -110,6 +119,7 @@ public class BoardingCommandService {
     public RiderStatusUpdateResponse updateStatus(AuthUser requester, Long runId, Long riderId,
             RiderStatusUpdateRequest request) {
         requireEscort(requester);
+        runAssignmentAccess.assertAssignedDriverOrEscort(requester, runId);
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
 
@@ -167,6 +177,7 @@ public class BoardingCommandService {
     @Transactional
     public RiderRevertResponse revert(AuthUser requester, Long runId, Long riderId, RiderRevertRequest request) {
         requireEscort(requester);
+        runAssignmentAccess.assertAssignedDriverOrEscort(requester, runId);
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
         if (run.getStatus() != RunStatus.MOVING) {

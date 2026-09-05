@@ -60,14 +60,20 @@ public class NavigationQueryService {
      * {@code scope=next} 면 다음 목적지 1개, {@code scope=remaining} 이면 공급자 상한까지 채운
      * 남은 전 구간을 돌려준다.
      *
-     * @throws BusinessException {@code RUN_NOT_FOUND}(회차 없음·타 학원) · {@code FORBIDDEN}(배치
-     *     안 된 기사·동승자) · {@code RUN_NOT_CONFIRMED}(idle) · {@code NAV_NO_REMAINING_STOP}
+     * <p><b>배치 판정 순서(§1.11, Ruling 259(b))</b> — {@link #assertAssigned} 를 회차 조회보다 먼저
+     * 부른다. 배치는 매니저·회차가 같은 학원일 때만 생성되므로({@code AssignmentCommandService#place}),
+     * 배치가 없다는 사실 하나로 회차 없음·타 학원·미배치 세 경우가 구별 없이 {@code 403 FORBIDDEN} 이
+     * 된다 — 그 뒤의 {@code findByIdAndAcademyId} 는 도달할 일이 거의 없는 방어 조회로 남는다.
+     *
+     * @throws BusinessException {@code FORBIDDEN}(회차 없음·타 학원·배치 안 된 기사·동승자 공통) ·
+     *     {@code RUN_NOT_FOUND}(방어 조회, 정상 흐름에서는 도달하지 않는다) ·
+     *     {@code RUN_NOT_CONFIRMED}(idle) · {@code NAV_NO_REMAINING_STOP}
      *     (스킵·도착 완료 제외 후 남은 승하차지 0건)
      */
     public NavigationResponse navigate(AuthUser requester, Long runId, NavigationScope scope) {
+        assertAssigned(requester, runId);
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
-        assertAssigned(requester, run);
 
         if (run.getStatus() == RunStatus.IDLE) {
             throw new BusinessException(ErrorCode.RUN_NOT_CONFIRMED);
@@ -86,9 +92,15 @@ public class NavigationQueryService {
                 truncated, truncated ? "경유지가 많아 일부만 표시합니다" : null, totalRemainingStops);
     }
 
-    /** 배치되지 않은 기사·동승자는 이 회차에 접근할 수 없다(§4.16 권한, §4.3 과 같은 범위). */
-    private void assertAssigned(AuthUser requester, Run run) {
-        boolean assigned = assignmentRepository.findAssignedManagerAccounts(run.getAcademyId(), run.getId())
+    /**
+     * 배치되지 않은 기사·동승자는 이 회차에 접근할 수 없다(§4.16 권한, §4.3 과 같은 범위).
+     *
+     * <p>{@code run} 이 아니라 {@code requester.academyId()} 로 조회한다 — 회차 조회보다 먼저 불러야
+     * 하므로 아직 회차 학원을 모른다. 배치는 매니저·회차가 같은 학원일 때만 생성되므로, 요청자 학원
+     * 기준으로 걸러도 정보가 새지 않는다(round-1 {@code ManagerRunAccess} 와 같은 근거).
+     */
+    private void assertAssigned(AuthUser requester, Long runId) {
+        boolean assigned = assignmentRepository.findAssignedManagerAccounts(requester.academyId(), runId)
                 .stream()
                 .map(AssignedManagerAccountView::accountId)
                 .anyMatch(requester.accountId()::equals);

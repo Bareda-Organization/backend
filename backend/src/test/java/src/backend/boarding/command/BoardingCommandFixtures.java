@@ -22,7 +22,13 @@ import src.backend.bus.entity.Bus;
 import src.backend.bus.entity.BusSeating;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
+import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
+import src.backend.manager.entity.Assignment;
+import src.backend.manager.entity.Manager;
+import src.backend.manager.entity.ManagerProfile;
+import src.backend.manager.repository.AssignmentRepository;
+import src.backend.manager.repository.ManagerRepository;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.entity.RouteVersionSource;
@@ -152,8 +158,11 @@ public class BoardingCommandFixtures {
     }
 
     /**
-     * 동승자 계정 — Ruling 203("동승자가 없는 회차는 없다고 가정한다")에 따라 회차별 배정 행 없이
-     * 역할({@code Role.ESCORT}) 하나만으로 권한을 확인하므로, 여기서는 {@code account} 행만 만든다.
+     * 동승자 계정(배치 없음) — 원래는 Ruling 203("동승자가 없는 회차는 없다고 가정한다")에 따라
+     * 역할만으로 권한을 확인했으나, §1.11·Ruling 259(b)(2026-09-05) 가 이 자원군에 배치 확인을
+     * 우선하는 {@code 403 FORBIDDEN} 을 명시하며 이 계정만으로는 승하차·미승차 엔드포인트를 더 통과할
+     * 수 없다. 역할 거부(§4.6 {@code ESCORT_ONLY})·타 학원 거부처럼 **배치 이전에 걸려야 하는 시험**
+     * 에서만 쓴다 — 성공 경로 시험은 {@link #assignedManager} 를 쓴다.
      */
     public long escortAccount(long academyId) {
         String loginId = "escort" + SEQUENCE.incrementAndGet() + "-" + System.nanoTime();
@@ -161,11 +170,33 @@ public class BoardingCommandFixtures {
                 "010-2222-2222", null, Role.ESCORT)).getId();
     }
 
-    /** 목표4(권한 거부) 시험용 — 동승자가 아닌 역할의 대표로 기사 계정을 쓴다. */
+    /** 목표4(권한 거부) 시험용 — 동승자가 아닌 역할의 대표로 기사 계정을 쓴다(역할 판정이 배치 판정보다 먼저라 배치 불필요). */
     public long driverAccount(long academyId) {
         String loginId = "driver" + SEQUENCE.incrementAndGet() + "-" + System.nanoTime();
         return accountRepository.save(Account.forSignup(academyId, loginId, "{noop}password", "기사",
                 "010-3333-3333", null, Role.DRIVER)).getId();
+    }
+
+    /**
+     * 기사·동승자를 등록하고 그 회차에 실제로 배치한다(§1.11, Ruling 259(b) 이후 성공 경로 시험의
+     * 필수 조건) — 반환값은 로그인 토큰에 실을 계정 id. {@link ManagerRepository}·
+     * {@link AssignmentRepository} 는 이 클래스 생성자에 없어 호출부가 넘긴다 — 배치가 필요 없는
+     * 다른 시험(교차 학원 거부·역할 거부)의 생성자 호출까지 건드리지 않기 위해서다.
+     */
+    public long assignedManager(ManagerRepository managerRepository, AssignmentRepository assignmentRepository,
+            long academyId, long runId, ManagerRole role, OffsetDateTime assignedAt) {
+        String name = role == ManagerRole.DRIVER ? "기사" : "동승자";
+        Manager manager = managerRepository
+                .save(Manager.register(academyId, new ManagerProfile(name, "010-0000-0000", role, null)));
+        Role accountRole = role == ManagerRole.DRIVER ? Role.DRIVER : Role.ESCORT;
+        String loginId = name + SEQUENCE.incrementAndGet() + "-" + System.nanoTime();
+        Account account = accountRepository
+                .save(Account.forSignup(academyId, loginId, "{noop}password", name, "010-0000-0000", null,
+                        accountRole));
+        manager.linkAccount(account.getId());
+        managerRepository.save(manager);
+        assignmentRepository.save(Assignment.uponAssignment(runId, manager.getId(), role, assignedAt, null));
+        return account.getId();
     }
 
     /** 임의의 회차 — 초기 상태는 {@code idle} 이다({@link Run#forSchedule}). */

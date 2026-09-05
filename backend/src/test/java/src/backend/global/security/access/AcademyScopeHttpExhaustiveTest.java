@@ -346,30 +346,27 @@ class AcademyScopeHttpExhaustiveTest {
         cases.add(c("POST /runs/{runId}/reports → B학원 회차 403 FORBIDDEN", HttpMethod.POST, "/runs/{runId}/reports",
                 new Object[] {ACADEMY_B_RUN_ID}, driverA1(), REPORT_CREATE_BODY, 403, "FORBIDDEN"));
 
-        // 매니저 앱 — ManagerRunAccess.requireAssignedRun, §1.11 "매니저 앱 회차 자원의 403 FORBIDDEN
-        // (배치되지 않은 회차)" 명시(Ruling 259(b), review-f3-r4 #38·#39). 회차 없음·타 학원·미배치
-        // 세 경우 모두 배치 조회(findByRunIdAndManagerId)가 회차 조회보다 먼저라 구별 없이 403 이다.
+        // 매니저 앱 — §1.11 "매니저 앱 회차 자원의 403 FORBIDDEN(배치되지 않은 회차)" 명시(Ruling
+        // 259(b), review-f3-r4 #38~43). 회차 없음·타 학원·미배치 세 경우 모두 배치 확인이 회차 조회
+        // 보다 먼저라 구별 없이 403 이다 — roster·route 는 ManagerRunAccess, navigation 은
+        // NavigationQueryService.assertAssigned, 동승자 승하차·되돌리기·미승차 연락은
+        // BoardingCommandService/NoShowContactCommandService 가 RunAssignmentAccess 를 각각 호출한다
+        // (라운드 2, 소유 파일 확장).
         cases.add(c("GET /runs/{runId}/roster → B학원 회차 403 FORBIDDEN(§1.11)", HttpMethod.GET,
                 "/runs/{runId}/roster", new Object[] {ACADEMY_B_RUN_ID}, driverA1(), null, 403, "FORBIDDEN"));
         cases.add(c("GET /runs/{runId}/route → B학원 회차 403 FORBIDDEN(§1.11)", HttpMethod.GET,
                 "/runs/{runId}/route", new Object[] {ACADEMY_B_RUN_ID}, driverA1(), null, 403, "FORBIDDEN"));
-        // GET /runs/{runId}/navigation 은 §1.11 이 같은 자원군으로 명시하지만 NavigationQueryService 가
-        // ManagerRunAccess 를 거치지 않는 별도 구현이라(review-f3-r4 #40, 조율자 보고 대상) 이번 라운드
-        // 소유 파일(ManagerRunAccess·EmergencyCommandService) 밖이다 — 현재 동작(404)을 그대로 둔다.
-        cases.add(c("GET /runs/{runId}/navigation → B학원 회차 404 RUN_NOT_FOUND", HttpMethod.GET,
-                "/runs/{runId}/navigation", new Object[] {ACADEMY_B_RUN_ID}, driverA1(), null, 404, "RUN_NOT_FOUND"));
-
-        // 동승자 승하차 처리 — BoardingCommandService/NoShowContactCommandService, 회차를 academy 로 먼저 찾는다.
-        // riderId 는 회차 확인보다 먼저 읽히지 않아 실재하지 않아도 안전(판단 근거①).
-        cases.add(c("PATCH /runs/{runId}/riders/{riderId} → B학원 회차 404 RUN_NOT_FOUND", HttpMethod.PATCH,
+        cases.add(c("GET /runs/{runId}/navigation → B학원 회차 403 FORBIDDEN(§1.11)", HttpMethod.GET,
+                "/runs/{runId}/navigation", new Object[] {ACADEMY_B_RUN_ID}, driverA1(), null, 403, "FORBIDDEN"));
+        cases.add(c("PATCH /runs/{runId}/riders/{riderId} → B학원 회차 403 FORBIDDEN(§1.11)", HttpMethod.PATCH,
                 "/runs/{runId}/riders/{riderId}", new Object[] {ACADEMY_B_RUN_ID, PLACEHOLDER_ID}, escortA1(),
-                riderStatusBody, 404, "RUN_NOT_FOUND"));
-        cases.add(c("POST /runs/{runId}/riders/{riderId}/revert → B학원 회차 404 RUN_NOT_FOUND", HttpMethod.POST,
+                riderStatusBody, 403, "FORBIDDEN"));
+        cases.add(c("POST /runs/{runId}/riders/{riderId}/revert → B학원 회차 403 FORBIDDEN(§1.11)", HttpMethod.POST,
                 "/runs/{runId}/riders/{riderId}/revert", new Object[] {ACADEMY_B_RUN_ID, PLACEHOLDER_ID}, escortA1(),
-                RIDER_REVERT_BODY, 404, "RUN_NOT_FOUND"));
-        cases.add(c("POST /runs/{runId}/riders/{riderId}/no-show-contacts → B학원 회차 404 RUN_NOT_FOUND",
+                RIDER_REVERT_BODY, 403, "FORBIDDEN"));
+        cases.add(c("POST /runs/{runId}/riders/{riderId}/no-show-contacts → B학원 회차 403 FORBIDDEN(§1.11)",
                 HttpMethod.POST, "/runs/{runId}/riders/{riderId}/no-show-contacts",
-                new Object[] {ACADEMY_B_RUN_ID, PLACEHOLDER_ID}, escortA1(), NO_SHOW_BODY, 404, "RUN_NOT_FOUND"));
+                new Object[] {ACADEMY_B_RUN_ID, PLACEHOLDER_ID}, escortA1(), NO_SHOW_BODY, 403, "FORBIDDEN"));
 
         // EmergencyCommandService.cancel — §4.14(L1059) "403 FORBIDDEN(배치되지 않은 회차)" 를 첫
         // 항목으로 명시하는 시나리오(driverA1 이 미배치·타 학원 회차의 신고를 지목, Ruling 259(b),

@@ -31,8 +31,11 @@ import src.backend.boarding.event.RunEndedEvent;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
+import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.AuthUser;
+import src.backend.manager.repository.AssignmentRepository;
+import src.backend.manager.repository.ManagerRepository;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
@@ -110,6 +113,12 @@ class RunCompletionBoundaryTest {
     @Autowired
     private RunStopRepository runStopRepository;
 
+    @Autowired
+    private ManagerRepository managerRepository;
+
+    @Autowired
+    private AssignmentRepository assignmentRepository;
+
     private BoardingCommandFixtures fixtures;
 
     private BoardingCommandFixtures fixtures() {
@@ -139,7 +148,8 @@ class RunCompletionBoundaryTest {
         long noShowRiderId = fixtures().runRider(runId, noShowStudent, stopId);
         jdbcTemplate.update("UPDATE run_rider SET status = 'no_show' WHERE id = ?", noShowRiderId);
         entityManager.clear();
-        long escortAccountId = fixtures().escortAccount(academyId);
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
         AuthUser escort = new AuthUser(escortAccountId, academyId, Role.ESCORT, AccountStatus.ACTIVE);
         Run run = runRepository.findById(runId).orElseThrow();
 
@@ -166,7 +176,8 @@ class RunCompletionBoundaryTest {
         long alightingStudent = fixtures().student(academyId, "학생9");
         long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
         long alightingRiderId = fixtures().runRider(runId, alightingStudent, stopId);
-        long escortAccountId = fixtures().escortAccount(academyId);
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
         AuthUser escort = new AuthUser(escortAccountId, academyId, Role.ESCORT, AccountStatus.ACTIVE);
         Run run = runRepository.findById(runId).orElseThrow();
 
