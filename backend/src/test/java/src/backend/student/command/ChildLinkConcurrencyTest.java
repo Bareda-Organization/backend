@@ -194,6 +194,12 @@ class ChildLinkConcurrencyTest {
     private void 상대가_INSERT_에서_대기할_때까지_커밋을_미룬다() {
         long 마감 = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS);
         while (System.nanoTime() < 마감) {
+            // pg_stat_activity 는 트랜잭션 단위로 캐시된다(PostgreSQL 16 · stats_fetch_consistency
+            // 기본값 cache) — 이 트랜잭션이 처음 읽은 스냅숏이 끝까지 재사용되므로, 상대가 대기에
+            // 들어가기 전에 첫 조회가 나가면 그 뒤로는 몇 번을 물어도 0 이 돌아온다. 그러면 이 루프가
+            // 상한을 다 쓰고 바깥 Future.get 이 그보다 먼저 만료해 TimeoutException 만 남는다
+            // (F5 S3 실측 — 상대는 44초 내내 Lock/transactionid 로 대기 중이었는데 0 이 보였다)
+            jdbcTemplate.execute("SELECT pg_stat_clear_snapshot()");
             Integer 대기중 = jdbcTemplate.queryForObject(
                     "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() "
                             + "AND wait_event_type = 'Lock' AND wait_event = 'transactionid'",
