@@ -78,7 +78,8 @@ public class RouteComputationPipeline {
             points.add(stop.point());
         }
         points.add(input.destination());
-        return new RoadRouteRequest(points, input.policy().mapTimeout(), input.policy().caller());
+        return new RoadRouteRequest(points, input.policy().mapTimeout(), input.policy().caller(),
+                input.policy().forceFallback());
     }
 
     /**

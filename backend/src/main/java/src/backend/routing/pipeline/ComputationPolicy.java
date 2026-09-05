@@ -13,11 +13,14 @@ import src.backend.routing.map.spec.CallerPolicy;
  * 타임아웃을 허용하고, 온디맨드(승인 미리보기·경유 지점 지정)는 관리자가 화면 앞에 있어 짧게
  * 끊어야 한다. 배치용 정책을 온디맨드에 그대로 쓰면 승인 화면에서 수십 초를 대기한다.
  *
- * @param mapTimeout 지도 API <b>1회 요청</b>의 상한
- * @param caller     서킷 개방 시 폴백인지 즉시 오류인지를 가르는 축
- * @param trigger    이 계산을 누가 촉발했는지 — 그대로 {@code route_version.source} 가 된다
+ * @param mapTimeout    지도 API <b>1회 요청</b>의 상한
+ * @param caller        서킷 개방 시 폴백인지 즉시 오류인지를 가르는 축
+ * @param trigger       이 계산을 누가 촉발했는지 — 그대로 {@code route_version.source} 가 된다
+ * @param forceFallback 공급자 호출 자체를 건너뛰고 직선거리 근사를 강제한다(API_SPEC §6.14, 관리자
+ *                      강제 확정 콘솔 개입) — 기본값은 {@code false}
  */
-public record ComputationPolicy(Duration mapTimeout, CallerPolicy caller, RouteVersionSource trigger) {
+public record ComputationPolicy(Duration mapTimeout, CallerPolicy caller, RouteVersionSource trigger,
+        boolean forceFallback) {
 
     public ComputationPolicy {
         if (mapTimeout == null || mapTimeout.isNegative() || mapTimeout.isZero()) {
@@ -25,5 +28,10 @@ public record ComputationPolicy(Duration mapTimeout, CallerPolicy caller, RouteV
         }
         Objects.requireNonNull(caller, "호출자 정책이 있어야 서킷 개방 처리를 가를 수 있다");
         Objects.requireNonNull(trigger, "촉발 원인이 있어야 산출 조건을 설명할 수 있다");
+    }
+
+    /** 강제 폴백이 필요 없는 기존 호출을 위한 편의 생성자 — {@code forceFallback=false}(F3 S2). */
+    public ComputationPolicy(Duration mapTimeout, CallerPolicy caller, RouteVersionSource trigger) {
+        this(mapTimeout, caller, trigger, false);
     }
 }

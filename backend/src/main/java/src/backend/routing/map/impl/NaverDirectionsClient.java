@@ -41,9 +41,15 @@ public class NaverDirectionsClient implements MapRouteClient {
      * <p>한 구간이라도 실패하면 <b>경로 전체</b>를 직선거리 근사로 되돌린다. 성공한 구간만 실측값으로
      * 남기면 절반은 도로 값 · 절반은 근사값인 경로가 되고, {@code fallbackUsed} 한 칸으로는 그 상태를
      * 서술할 수단이 부재하다.
+     *
+     * <p>{@code request.forceFallback()} 이 참이면 공급자를 아예 부르지 않고 곧장 근사로 답한다
+     * (API_SPEC §6.14, 관리자 강제 확정 콘솔 개입).
      */
     @Override
     public RoadRoute route(RoadRouteRequest request) {
+        if (request.forceFallback()) {
+            return StraightLineLegs.approximate(request.points());
+        }
         try {
             return new RoadRoute(callSegments(request), false);
         } catch (MapRouteUnavailableException e) {

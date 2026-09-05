@@ -31,6 +31,9 @@ import src.backend.routing.map.spec.RoadRouteRequest;
  *       폴백과 <b>수치가 달라야</b> 한다. 같으면 {@code fallbackUsed} 만 다르고 거리·시간이 같아,
  *       폴백 경로를 실제 경로로 오인해 저장하는 구현이 드러나지 않는다</li>
  * </ul>
+ *
+ * <p>{@code request.forceFallback()} 이 참이면 마커 좌표 유무와 무관하게 폴백으로 답한다
+ * (API_SPEC §6.14, 관리자 강제 확정 콘솔 개입).
  */
 @Component
 @ConditionalOnProperty(name = "app.routing.map.provider", havingValue = "stub")
@@ -56,7 +59,7 @@ public class StubMapRouteClient implements MapRouteClient {
 
     @Override
     public RoadRoute route(RoadRouteRequest request) {
-        if (hasUnavailableMarker(request.points())) {
+        if (request.forceFallback() || hasUnavailableMarker(request.points())) {
             return StraightLineLegs.approximate(request.points());
         }
         List<GeoPoint> points = request.points();
