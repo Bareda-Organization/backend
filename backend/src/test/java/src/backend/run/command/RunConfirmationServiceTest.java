@@ -31,8 +31,10 @@ import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
 import src.backend.run.entity.RunForcedAddition;
 import src.backend.run.entity.RunStatus;
+import src.backend.run.entity.RunTransfer;
 import src.backend.run.repository.RunForcedAdditionRepository;
 import src.backend.run.repository.RunRepository;
+import src.backend.run.repository.RunTransferRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 import src.backend.student.repository.WeeklyAddressRepository;
@@ -83,6 +85,9 @@ class RunConfirmationServiceTest {
 
     @Autowired
     private RunForcedAdditionRepository runForcedAdditionRepository;
+
+    @Autowired
+    private RunTransferRepository runTransferRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -250,6 +255,83 @@ class RunConfirmationServiceTest {
                 Long.class, versionId);
         assertThat(runStopIds).as("강제 추가된 정차지가 편성 노선 밖이어도 실제 배포 노선에 나타나야 한다")
                 .contains(forcedStop);
+    }
+
+    /**
+     * F4 S1 목표 7 — 버스 간 이동(RTE-07, §5.8, Ruling 256) 대기 행이 강제 추가와 같은 합류 지점
+     * ({@code applyOutgoingTransfers}·{@code applyIncomingTransfers})에서 <b>양쪽 회차</b>에
+     * 각각 반영되는지 본다. 대상 학생은 요일별 주소로 출발 회차에 정상 배정돼 있다 — 이동이 실제로
+     * 뺐는지가 "원래도 명단에 없었다"와 구별되려면 정상 경로로 이미 태워져 있어야 한다. 도착 정차지는
+     * 도착 회차의 편성 노선 밖의 것을 써서(강제 추가 시험과 같은 근거) override 가 실제로 적용됐는지
+     * 함께 본다.
+     */
+    @Test
+    @DisplayName("목표7 — 버스 간 이동 대기 행이 출발·도착 두 확정 배치에 각각 반영되고 상태가 applied 로 바뀐다")
+    void 버스_간_이동_대기_행이_출발_도착_양쪽_확정_배치에_반영된다() {
+        long academyId = fixtures().academyWithCoordinates();
+
+        long fromBusId = fixtures().bus(academyId);
+        long fromFirstStop = fixtures().stop(academyId, "37.560000", "126.970000");
+        long fromLastStop = fixtures().stop(academyId, "37.561000", "126.971000");
+        fixtures().route(academyId, fromBusId, WEEKDAY, Direction.TO_ACADEMY, fromFirstStop, fromLastStop);
+
+        long toBusId = fixtures().bus(academyId);
+        long toFirstStop = fixtures().stop(academyId, "37.570000", "126.980000");
+        long toLastStop = fixtures().stop(academyId, "37.571000", "126.981000");
+        fixtures().route(academyId, toBusId, WEEKDAY, Direction.TO_ACADEMY, toFirstStop, toLastStop);
+
+        // 이동 대상 학생 — 요일별 주소로 출발 회차에 정상 배정돼 있다(정상 경로로 이미 탑승 중).
+        long transferringStudent = fixtures().student(academyId, "이동학생");
+        fixtures().verifiedAddress(transferringStudent, fromFirstStop, WEEKDAY, Direction.TO_ACADEMY, "37.560000",
+                "126.970000");
+
+        // 도착 회차의 편성 노선(toFirstStop·toLastStop) 밖의 정차지 — override 가 실제로 적용됐는지 본다.
+        long destinationStop = fixtures().stop(academyId, "37.572000", "126.982000");
+
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusHours(3);
+        long fromRunId = fixtures().idleRun(academyId, fromBusId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        long toRunId = fixtures().idleRun(academyId, toBusId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+
+        RunTransfer transfer = runTransferRepository.save(RunTransfer.stage(transferringStudent, fromRunId, toRunId,
+                destinationStop, null, 1L, OffsetDateTime.now(clock)));
+
+        confirmationService.confirmOne(fromRunId);
+
+        List<Long> fromRiderIds = jdbcTemplate.queryForList(
+                "SELECT student_id FROM run_rider WHERE run_id = ?", Long.class, fromRunId);
+        assertThat(fromRiderIds).as("출발 회차 확정 배치가 이동 대상을 명단에서 빼야 한다 — 요일별 주소만 봤다면 "
+                + "여전히 남아 있을 것이다").doesNotContain(transferringStudent);
+
+        String statusAfterOutgoing = jdbcTemplate.queryForObject(
+                "SELECT status FROM run_transfer WHERE id = ?", String.class, transfer.getId());
+        assertThat(statusAfterOutgoing).as("출발 쪽 확정 배치만 돌아도 상태는 이미 applied 로 바뀐다("
+                + "두 회차 중 먼저 도는 쪽이 반영하는 시점 기준)").isEqualTo("applied");
+
+        confirmationService.confirmOne(toRunId);
+
+        List<Long> toRiderIds = jdbcTemplate.queryForList(
+                "SELECT student_id FROM run_rider WHERE run_id = ?", Long.class, toRunId);
+        assertThat(toRiderIds).as("도착 회차 확정 배치가 이동 대상을 명단에 더해야 한다").contains(transferringStudent);
+
+        Long toRiderStop = jdbcTemplate.queryForObject(
+                "SELECT stop_id FROM run_rider WHERE run_id = ? AND student_id = ?", Long.class, toRunId,
+                transferringStudent);
+        assertThat(toRiderStop).as("이동 신청 시 지정한 정차지가 도착 회차의 탑승 기록에 그대로 반영돼야 한다")
+                .isEqualTo(destinationStop);
+
+        Long toVersionId = jdbcTemplate.queryForObject(
+                "SELECT current_version_id FROM confirmed_route WHERE run_id = ?", Long.class, toRunId);
+        List<Long> toRunStopIds = jdbcTemplate.queryForList(
+                "SELECT stop_id FROM run_stop WHERE route_version_id = ?", Long.class, toVersionId);
+        assertThat(toRunStopIds).as("이동으로 지정한 정차지가 도착 회차의 편성 노선 밖이어도 실제 배포 노선에 나타나야 한다")
+                .contains(destinationStop);
+
+        String statusAfterIncoming = jdbcTemplate.queryForObject(
+                "SELECT status FROM run_transfer WHERE id = ?", String.class, transfer.getId());
+        assertThat(statusAfterIncoming).as("도착 쪽 확정 배치도 상태로 거르지 않고 다시 처리한다(자기 치유) — "
+                + "이미 applied 였어도 그대로 applied 로 남는다").isEqualTo("applied");
     }
 
     @Test

@@ -302,6 +302,14 @@ public enum ErrorCode {
     // 조건이라 위와 같이 409 다.
     RUN_NOT_DUE(HttpStatus.CONFLICT, "아직 확정 시각이 되지 않았습니다"),
 
+    // ── 버스 간 이동(F4 S1, API_SPEC §5.8, RTE-07, Ruling 256) ──────────────────
+    // 학생이 출발 회차의 당일 명단(확정 전 예정 명단 — 요일별 주소·탑승 의사·강제 추가 기준)에
+    // 없을 때. 권한이 아니라 대상 자원의 현재 상태가 막는 것이라 409 다.
+    STUDENT_NOT_IN_RUN(HttpStatus.CONFLICT, "학생이 해당 회차 명단에 없습니다"),
+    // 같은 학생을 다시 이동 신청할 때 — 이미 처리 대기 중인 이동 건이 있으면 어느 회차가 최종
+    // 목적지인지 판정할 수 없어 새 신청을 막는다.
+    TRANSFER_ALREADY_STAGED(HttpStatus.CONFLICT, "이미 처리 대기 중인 이동 요청이 있습니다"),
+
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다");
 
     private final HttpStatus status;

@@ -43,8 +43,10 @@ import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunForcedAddition;
+import src.backend.run.entity.RunTransfer;
 import src.backend.run.repository.RunForcedAdditionRepository;
 import src.backend.run.repository.RunRepository;
+import src.backend.run.repository.RunTransferRepository;
 import src.backend.student.entity.Stop;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentDailyStop;
@@ -98,6 +100,8 @@ public class RunConfirmationService {
     private final BoardingIntentRepository boardingIntentRepository;
 
     private final RunForcedAdditionRepository runForcedAdditionRepository;
+
+    private final RunTransferRepository runTransferRepository;
 
     private final RouteComputationPipeline pipeline;
 
@@ -218,6 +222,13 @@ public class RunConfirmationService {
             }
             stopOverrides.put(forcedAddition.getStudentId(), forcedAddition.getStopId());
         }
+
+        // 버스 간 이동(RTE-07, API_SPEC §5.8, Ruling 256)도 강제 추가와 같은 합류 지점에서 반영한다 —
+        // 이 회차가 출발·도착 어느 쪽이든 대기 건이 있을 수 있어 두 단계로 나눈다(각각 독립적으로
+        // 검증 가능해야 한다는 요구가 있어 메서드를 분리했다).
+        applyOutgoingTransfers(run, studentIds, studentStops, stopOverrides);
+        applyIncomingTransfers(run, studentIds, stopOverrides);
+
         studentStops.putAll(stopOverrides);
 
         DailyRoster roster = new DailyRoster(run.getAcademyId(), weekday, run.getDirection(), studentIds,
@@ -245,6 +256,44 @@ public class RunConfirmationService {
             metrics.recordLag(Duration.between(run.getConfirmAt(), confirmedAt));
         }
         return persisted;
+    }
+
+    /**
+     * 버스 간 이동(RTE-07, Ruling 256) 중 이 회차가 <b>출발</b>인 대기 건을 명단에서 뺀다.
+     *
+     * <p>{@code studentStops}(요일별 주소 기준 기본 배정)와 {@code stopOverrides}(P-06·강제 추가가
+     * 이미 얹어 둔 override) 양쪽에서 지운다 — 하나만 지우면 바로 다음의
+     * {@code studentStops.putAll(stopOverrides)} 가 지운 것을 되살릴 수 있다. 상태로 거르지 않고
+     * 항상 재계산하므로(자기 치유, {@link RunTransfer} 자바독) 이미 반영된 건을 다시 걸러도
+     * 두 자료구조 어디에도 없어 안전하게 아무 일도 하지 않는다.
+     */
+    private void applyOutgoingTransfers(Run run, List<Long> studentIds, Map<Long, Long> studentStops,
+            Map<Long, Long> stopOverrides) {
+        for (RunTransfer transfer : runTransferRepository.findAllByFromRunIdAndAcademyId(run.getId(),
+                run.getAcademyId())) {
+            studentIds.remove(transfer.getStudentId());
+            studentStops.remove(transfer.getStudentId());
+            stopOverrides.remove(transfer.getStudentId());
+            transfer.markApplied(OffsetDateTime.now(clock));
+            runTransferRepository.save(transfer);
+        }
+    }
+
+    /**
+     * 같은 이동 중 이 회차가 <b>도착</b>인 대기 건을 명단에 더한다 — 강제 추가(RTE-06)와 같은 방식으로
+     * {@code studentIds} 에 더하고 {@code stopOverrides} 에 정차지를 얹는다. 요일별 주소에 없던
+     * 학생이라 {@code stopOverrides} 에 넣어야 좌표 해석 단계가 그 정차지를 실제로 찾는다.
+     */
+    private void applyIncomingTransfers(Run run, List<Long> studentIds, Map<Long, Long> stopOverrides) {
+        for (RunTransfer transfer : runTransferRepository.findAllByToRunIdAndAcademyId(run.getId(),
+                run.getAcademyId())) {
+            if (!studentIds.contains(transfer.getStudentId())) {
+                studentIds.add(transfer.getStudentId());
+            }
+            stopOverrides.put(transfer.getStudentId(), transfer.getStopId());
+            transfer.markApplied(OffsetDateTime.now(clock));
+            runTransferRepository.save(transfer);
+        }
     }
 
     /**
