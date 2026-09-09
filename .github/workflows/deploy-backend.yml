@@ -4,14 +4,11 @@
 # Kafka·Spring·Postgres 와 경합하면 OOM 이 난다. 빌드는 러너에서 끝낸다.
 name: deploy-backend
 
+# 수동 실행 전용이다(2026-09-09 사용자 확정). `main` push 자동 실행을 뺀 이유 —
+# AWS 자원과 시크릿 3종(AWS_DEPLOY_ROLE_ARN · DEPLOY_BUCKET · EC2_INSTANCE_ID)이 아직 없어
+# 코드를 올릴 때마다 OIDC 단계에서 멈춘 실패 기록만 쌓인다. 배포를 실제로 시작할 때
+# `docs/DEPLOYMENT.md §2.13` 으로 시크릿을 넣고, 자동 실행이 필요하면 이 블록을 되살린다.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'backend/**'
-      - 'docker-compose.prod.yml'
-      - 'infra/**'
-      - '.github/workflows/deploy-backend.yml'
   workflow_dispatch:
 
 # 배포가 겹치면 옛 이미지가 새 이미지를 덮어쓸 수 있다. 취소하지 않고 줄을 세운다.
@@ -40,7 +37,7 @@ jobs:
           cache: gradle
 
       # @SpringBootTest 가 실제 DB·Redis·Kafka 를 요구한다. 루트 compose 가 노출하는
-      # 포트(5432·6379·29092)가 application.yml local 기본값과 그대로 맞는다.
+      # 포트(15432·16379·29092)가 application.yml local 기본값과 그대로 맞는다.
       - name: 테스트용 인프라 기동
         run: docker compose up -d postgres redis kafka
 

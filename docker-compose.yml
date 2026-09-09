@@ -17,7 +17,9 @@ services:
       POSTGRES_USER: schoolbus
       POSTGRES_PASSWORD: schoolbus
     ports:
-      - "5432:5432"
+      # 호스트 15432 로 낸다 — 개발 노트북에 다른 프로젝트의 postgres 가 5432 를 쓰고 있어
+      # 기본 포트로 두면 테스트가 남의 DB 에 붙어 인증 실패 수백 건으로 나타난다(2026-09-06 실측).
+      - "15432:5432"
     # 의도적으로 영속 볼륨을 두지 않는다 — Swagger로 반복 테스트하는 동안 쌓이는 변경사항을
     # "docker compose down" 이후엔 항상 시드(V1+V2) 상태로 되돌리기 위함. stop/start(컨테이너
     # 유지)는 데이터가 남고, down 후 up(컨테이너 재생성)에서만 초기화된다.
@@ -30,7 +32,8 @@ services:
   redis:
     image: redis:7
     ports:
-      - "6379:6379"
+      # postgres 와 같은 이유로 16379 (다른 프로젝트가 6379 점유).
+      - "16379:6379"
 
   # KRaft 모드(Kafka 자체가 컨트롤러 역할 겸임) — Zookeeper 컨테이너 불필요.
   # PLAINTEXT(9092) = 컨테이너 간 통신, PLAINTEXT_HOST(29092) = 호스트에서 bootRun 으로 직접 붙을 때

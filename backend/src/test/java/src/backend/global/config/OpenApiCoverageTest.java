@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +22,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
+
+import src.backend.global.error.ErrorCode;
+import src.backend.global.security.PublicEndpoints;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -193,5 +197,77 @@ class OpenApiCoverageTest {
         assertThat(foreignTags)
                 .as("사양에 없는 태그 %d종 — springdoc 이 클래스명으로 만든 것".formatted(foreignTags.size()))
                 .isEmpty();
+    }
+
+    /**
+     * 목표 4 — 공통 실패 응답(§1.11)이 전 오퍼레이션에 실린다.
+     * 비인증 허용 경로는 토큰이 없어 401·403 이 나올 수 없으므로 422 만 요구한다.
+     */
+    @Test
+    void everyOperationDocumentsCommonErrors() throws Exception {
+        List<String> gaps = new ArrayList<>();
+        forEachProductionOperation(apiDocs(), (endpoint, operation) -> {
+            String path = endpoint.substring(endpoint.indexOf(' ') + 1);
+            JsonNode responses = operation.path("responses");
+            List<String> required = isPublic(path) ? List.of("422") : List.of("401", "403", "422");
+            for (String status : required) {
+                if (responses.path(status).isMissingNode()) {
+                    gaps.add(endpoint + " → " + status);
+                }
+            }
+        });
+        gaps.sort(Comparator.naturalOrder());
+
+        assertThat(gaps).as("공통 실패 응답이 빠진 자리").isEmpty();
+    }
+
+    /**
+     * 목표 5 — 문서가 적은 에러 코드가 전부 {@link ErrorCode} 에 실재한다.
+     * 문서의 코드 이름은 클라이언트가 분기에 쓰는 값이라(§1.10), 오타나 폐기된 이름이 남으면
+     * 클라이언트가 영원히 걸리지 않는 조건을 코딩하게 된다 — 그 어긋남은 실행해도 드러나지 않는다.
+     */
+    @Test
+    void everyDocumentedErrorCodeExistsInEnum() throws Exception {
+        Set<String> known = new TreeSet<>();
+        for (ErrorCode code : ErrorCode.values()) {
+            known.add(code.name());
+        }
+        Set<String> unknown = new TreeSet<>();
+        forEachProductionOperation(apiDocs(), (endpoint, operation) -> {
+            JsonNode responses = operation.path("responses");
+            responses.fieldNames().forEachRemaining(status -> {
+                String description = responses.path(status).path("description").asText("");
+                for (String token : description.split("[^A-Z_]+")) {
+                    if (token.length() > 3 && token.equals(token.toUpperCase()) && !known.contains(token)) {
+                        unknown.add(token + " (" + endpoint + ")");
+                    }
+                }
+            });
+        });
+
+        assertThat(unknown).as("ErrorCode 에 없는 코드 이름").isEmpty();
+    }
+
+    /**
+     * 목표 6 — 에러 표({@link EndpointErrorResponses})의 키가 전부 실재하는 엔드포인트다.
+     * 표는 사양에서 옮긴 파생본이라 경로가 바뀌면 조용히 낡는다. 실제로 이 검사를 만들면서
+     * 사양에만 있고 핸들러가 없는 경로 2개가 드러났다(§3.5 · §4.15).
+     */
+    @Test
+    void errorTableKeysMatchRegisteredEndpoints() {
+        Set<String> registered = new TreeSet<>();
+        for (String endpoint : registeredEndpoints()) {
+            registered.add(endpoint.replaceFirst(ApiPathPrefixConfig.API_PREFIX, ""));
+        }
+        Set<String> orphans = new TreeSet<>(EndpointErrorResponses.BY_ENDPOINT.keySet());
+        orphans.removeAll(registered);
+
+        assertThat(orphans).as("표에는 있는데 등록된 핸들러가 없는 경로").isEmpty();
+    }
+
+    /** 비인증 허용 경로인지 — {@link PublicEndpoints} 가 정본이고 여기 다시 적지 않는다. */
+    private boolean isPublic(String path) {
+        return Stream.concat(PublicEndpoints.GET_ENDPOINTS.stream(), PublicEndpoints.POST_ENDPOINTS.stream())
+                .anyMatch(open -> path.equals(ApiPathPrefixConfig.API_PREFIX + open));
     }
 }

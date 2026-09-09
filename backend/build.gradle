@@ -211,7 +211,7 @@ tasks.named('test') {
     systemProperty 'app.photo.local.root',
             layout.buildDirectory.dir('test-photos').get().asFile.absolutePath
 
-    // 병렬 작업용 DB 격리 — `-PtestDbUrl=jdbc:postgresql://localhost:5432/<이름>` 을 주면
+    // 병렬 작업용 DB 격리 — `-PtestDbUrl=jdbc:postgresql://localhost:15432/<이름>` 을 주면
     // 그 데이터베이스로 테스트한다. 에이전트를 2개 이상 동시에 돌릴 때 서로의 행을 밟아
     // "코드 결함처럼 보이는 환경 실패" 가 나는 것을 막는다. 주지 않으면 기본값(schoolbus)이라
     // 평소 실행에는 아무 영향이 없다.
