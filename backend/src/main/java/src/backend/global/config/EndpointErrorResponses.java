@@ -29,7 +29,7 @@ public final class EndpointErrorResponses {
             entry("GET /academies/search", Map.of("422", "VALIDATION_FAILED")),
             entry("GET /admin/academies/{id}/runs/live", Map.of("404", "ACADEMY_NOT_FOUND")),
             entry("GET /admin/runs/{runId}/roster", Map.of("404", "RUN_NOT_FOUND")),
-            entry("GET /runs/{runId}/emergencies", Map.of("403", "FORBIDDEN", "404", "RUN_NOT_FOUND")),
+            entry("GET /runs/{runId}/emergencies", Map.of("403", "FORBIDDEN")),
             entry("GET /runs/{runId}/navigation", Map.of("403", "FORBIDDEN", "404", "RUN_NOT_FOUND", "409", "RUN_NOT_CONFIRMED · NAV_NO_REMAINING_STOP")),
             entry("GET /runs/{runId}/roster", Map.of("403", "FORBIDDEN", "404", "RUN_NOT_FOUND", "409", "RUN_NOT_CONFIRMED")),
             entry("GET /runs/{runId}/route", Map.of("403", "FORBIDDEN", "404", "RUN_NOT_FOUND", "409", "RUN_NOT_CONFIRMED")),

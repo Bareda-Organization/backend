@@ -12,6 +12,7 @@ import jakarta.persistence.PersistenceContext;
 
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -29,6 +30,8 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
@@ -285,6 +288,32 @@ class EmergencyControllerTest extends RedisTestContainerBase {
                 .andExpect(jsonPath("$.data.items[0].canceled_at").doesNotExist());
     }
 
+    /**
+     * {@code cancelable_until} 이 <b>발신 시각 + 60초</b> 인지 값으로 고정한다(§4.15 · 취소 창 1분).
+     * 위 "전 필드" 시험은 이 필드의 <b>존재</b>만 봐서, 발신 시각을 그대로 돌려주도록 바꿔도 통과했다
+     * (조율자 실측 2026-09-09). 존재 검사는 필드가 사라지는 사고만 잡고 값이 틀리는 사고는 놓친다.
+     */
+    @Test
+    void 취소_가능_시각은_발신_시각의_60초_뒤다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long runId = fixtures.confirmedRun(academyId, busId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
+        OffsetDateTime raisedAt = now().minusSeconds(30);
+        접수시각을_옮긴다(emergencyId, raisedAt);
+
+        String body = mockMvc.perform(get(LIST.formatted(runId))
+                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        OffsetDateTime raised = 필드시각(body, "raised_at");
+        OffsetDateTime cancelableUntil = 필드시각(body, "cancelable_until");
+        assertThat(Duration.between(raised, cancelableUntil)).isEqualTo(Duration.ofSeconds(60));
+    }
+
     @Test
     void 배치되지_않은_기사가_목록을_조회하면_403이다() throws Exception {
         EmergencyFixtures fixtures = fixtures();
@@ -403,6 +432,12 @@ class EmergencyControllerTest extends RedisTestContainerBase {
     private void 접수시각을_옮긴다(long emergencyId, OffsetDateTime receivedAt) {
         jdbcTemplate.update("UPDATE emergency_alert SET received_at = ? WHERE id = ?", receivedAt, emergencyId);
         entityManager.clear();
+    }
+
+    /** 첫 항목의 시각 필드 하나를 꺼낸다 — 직렬화 문자열을 그대로 비교하면 오프셋 표기 차이에 걸린다. */
+    private OffsetDateTime 필드시각(String responseBody, String field) throws Exception {
+        return OffsetDateTime.parse(new ObjectMapper().readTree(responseBody)
+                .path("data").path("items").get(0).path(field).asText());
     }
 
     private int 신고건수(long runId) {
