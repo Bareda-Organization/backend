@@ -5,8 +5,7 @@
   "tags": [
     "school-bus",
     "pipeline",
-    "scheduler",
-    "kafka"
+    "scheduler"
   ],
   "timezone": "browser",
   "refresh": "15s",
@@ -422,111 +421,6 @@
           "refId": "A",
           "expr": "rate(schoolbus_scheduler_failures_total{job=\"backend\"}[5m])",
           "legendFormat": "{{scheduler}}"
-        }
-      ]
-    },
-    {
-      "id": 4,
-      "type": "row",
-      "title": "Kafka 컨슈머",
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 22
-      },
-      "panels": []
-    },
-    {
-      "id": 5,
-      "type": "timeseries",
-      "title": "Kafka 소비 실패 (컨슈머별)",
-      "description": "5분 창에서 컨슈머별 소비 실패 증가량. 실측 태그 4종은 domain-event-notification·location-push·bus-location-push·routing-replan-event 다. 0보다 크면 해당 컨슈머가 메시지를 처리하지 못하고 있다는 뜻이며, 지속되면 대시보드 3(데이터 계층)의 컨슈머 소비 지연이 함께 늘면서 알림 발송 등 후속 로직이 지연되거나 누락된다.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 23
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "max",
-            "last"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "increase(schoolbus_kafka_consume_failures_total{job=\"backend\"}[5m])",
-          "legendFormat": "{{consumer}}"
         }
       ]
     },

@@ -37,7 +37,7 @@ mkdir -p "$APP_DIR/infra/scripts" "$APP_DIR/infra/proxy" "$APP_DIR/infra/certbot
 
 echo "== 4. 스왑 2GB =="
 # t3.medium(4GB)이라도 배포 순간엔 옛 컨테이너와 새 컨테이너가 잠깐 함께 살아 있다.
-# 스왑이 없으면 그 순간 OOM Killer 가 Kafka 나 Spring 을 죽인다.
+# 스왑이 없으면 그 순간 OOM Killer 가 Postgres 나 Spring 을 죽인다.
 if [ ! -f /swapfile ]; then
     dd if=/dev/zero of=/swapfile bs=1M count=2048 status=none
     chmod 600 /swapfile

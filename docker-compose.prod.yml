@@ -4,11 +4,11 @@
 #   docker compose -f docker-compose.prod.yml --env-file /opt/school-bus/.env up -d
 #
 # 로컬용 docker-compose.yml 과 의도적으로 분리했다. 로컬 파일은 "매번 시드 상태로 리셋"이
-# 목적이라 볼륨이 없고 DB·Redis·Kafka 포트를 호스트에 열어두는데, 둘 다 운영에서는 정반대다.
+# 목적이라 볼륨이 없고 DB·Redis 포트를 호스트에 열어두는데, 둘 다 운영에서는 정반대다.
 #
 # ── 로컬 파일과 달라지는 지점 ──
-#   1. postgres·kafka 에 named volume 을 붙인다 (재시작해도 데이터 유지)
-#   2. DB·Redis·Kafka 포트를 호스트에 열지 않는다 (컨테이너 네트워크 안에서만 접근)
+#   1. postgres 에 named volume 을 붙인다 (재시작해도 데이터 유지)
+#   2. DB·Redis 포트를 호스트에 열지 않는다 (컨테이너 네트워크 안에서만 접근)
 #   3. backend 를 빌드하지 않고 ECR 이미지를 pull 한다 (EC2 에서 Gradle 빌드는 메모리 부족)
 #   4. 화면 서비스가 없다 — 이 저장소는 백엔드 API 전용이다
 #   5. proxy 가 443(TLS)을 종단하고, certbot 이 인증서를 자동 갱신한다
@@ -52,7 +52,7 @@ services:
     image: redis:7
     restart: unless-stopped
     # 위치 캐시(TTL 9초) 전용이라 영속화가 불필요하다 — 유실돼도 다음 tick 에 복구된다.
-    # 대신 메모리 상한을 걸어 Kafka·Spring 의 몫을 침범하지 않게 한다.
+    # 대신 메모리 상한을 걸어 Spring 의 몫을 침범하지 않게 한다.
     command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
     expose:
       - "6379"
@@ -61,46 +61,6 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
-    logging: *cloudwatch
-
-  # KRaft 모드 단일 브로커. MSK 를 쓰지 않는 이유는 설계 문서 §2.3 참조(월 $110~547 vs $0).
-  #
-  # ⚠️ 로컬 파일에 있던 PLAINTEXT_HOST(29092) 리스너를 뺐다. 그건 "호스트에서 bootRun 으로
-  #    직접 붙기" 위한 개발용 통로인데, 운영에서는 백엔드도 컨테이너라 필요가 없고 열어두면
-  #    공격 표면만 늘어난다.
-  kafka:
-    image: apache/kafka:3.9.0
-    restart: unless-stopped
-    environment:
-      KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      # 기본 로그 디렉터리가 /tmp 라 볼륨을 붙여도 소용이 없다 — 명시적으로 옮긴다.
-      KAFKA_LOG_DIRS: /var/lib/kafka/data
-      # t3.medium(4GB)에 Spring·Postgres 와 함께 올라가므로 기본 힙(1GB)을 절반으로 낮춘다.
-      # 이 줄이 없으면 OOM Killer 가 Kafka 나 Spring 중 하나를 죽인다(설계 문서 §2.8).
-      KAFKA_HEAP_OPTS: "-Xmx512m -Xms512m"
-      # 데모 트래픽에 7일치 로그는 과하다. 디스크(30GB)를 아낀다.
-      KAFKA_LOG_RETENTION_HOURS: 48
-    volumes:
-      - kafka-data:/var/lib/kafka/data
-    expose:
-      - "9092"
-    healthcheck:
-      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 40s
     logging: *cloudwatch
 
   backend:
@@ -131,7 +91,6 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       # 이 저장소에는 화면이 없으므로 브라우저 클라이언트는 항상 다른 출처에서 온다.
       # 여기 없는 출처에서 온 요청은 브라우저가 차단한다. 목록에 스킴(https://)까지 정확히 적을 것.
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?CORS_ALLOWED_ORIGINS 미설정}
@@ -162,8 +121,6 @@ services:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      kafka:
         condition: service_healthy
     logging: *cloudwatch
 
@@ -206,6 +163,5 @@ services:
 
 volumes:
   postgres-data:
-  kafka-data:
   certbot-conf:
   certbot-www:

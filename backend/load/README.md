@@ -6,7 +6,7 @@
 ## 0. 사전 조건
 
 - 백엔드가 `SPRING_PROFILES_ACTIVE=load` 로 포트 `18080` 에 떠 있을 것(`application-load.yml`)
-- postgres `schoolbus_load`(15432) · redis(16379) · kafka(29092) 컨테이너가 떠 있을 것
+- postgres `schoolbus_load`(15432) · redis(16379) 컨테이너가 떠 있을 것
 - `psql` 로컬 바이너리는 이 호스트에 없다 — 전부 `docker exec school-bus-postgres-1 psql -U schoolbus -d schoolbus_load ...` 로 대신한다
 - k6 `/opt/homebrew/bin/k6`(v2.1.0, `k6/ws` 확인 완료 — `k6/experimental/websockets` 아님)
 

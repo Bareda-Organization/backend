@@ -1,4 +1,4 @@
-# 기본 실행 대상: postgres + redis + kafka + backend(Spring) + proxy(nginx).
+# 기본 실행 대상: postgres + redis + backend(Spring) + proxy(nginx).
 # 실행:  docker compose up -d --build
 #
 # ★ 모든 HTTP 접근은 proxy(:80) 한 곳을 지난다. backend는 호스트에 포트를 열지 않는다.
@@ -7,7 +7,7 @@
 #   - Swagger:   http://localhost/swagger-ui/index.html
 #   이 저장소는 백엔드 전용이라 `/` 로 서빙할 화면이 없다 — 프록시는 404 로 답한다.
 #
-# DB/Redis/Kafka 포트만 호스트에 남겨둔다 — DB 툴 접속과, 인프라만 컨테이너로 띄우고
+# DB/Redis 포트만 호스트에 남겨둔다 — DB 툴 접속과, 인프라만 컨테이너로 띄우고
 # 백엔드는 IDE에서 `./gradlew bootRun` 으로 돌리는 개발 방식을 위해서다.
 services:
   postgres:
@@ -35,23 +35,6 @@ services:
       # postgres 와 같은 이유로 16379 (다른 프로젝트가 6379 점유).
       - "16379:6379"
 
-  # KRaft 모드(Kafka 자체가 컨트롤러 역할 겸임) — Zookeeper 컨테이너 불필요.
-  # PLAINTEXT(9092) = 컨테이너 간 통신, PLAINTEXT_HOST(29092) = 호스트에서 bootRun 으로 직접 붙을 때
-  kafka:
-    image: apache/kafka:3.9.0
-    environment:
-      KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,PLAINTEXT_HOST://:29092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-    ports:
-      - "29092:29092"
 
   backend:
     build: ./backend
@@ -63,12 +46,11 @@ services:
       - path: ./backend/.env
         required: false
     environment:
-      # 컨테이너 내부에서는 서비스 이름(postgres/redis/kafka)으로 접속 (localhost 아님)
+      # 컨테이너 내부에서는 서비스 이름(postgres/redis)으로 접속 (localhost 아님)
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/schoolbus
       SPRING_DATASOURCE_USERNAME: schoolbus
       SPRING_DATASOURCE_PASSWORD: schoolbus
       SPRING_DATA_REDIS_HOST: redis
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     # 호스트에 포트를 열지 않는다 — 모든 접근은 proxy(:80)를 거친다.
     # 컨테이너 네트워크 안에서는 `backend:8080` 으로 그대로 닿는다.
     expose:
@@ -77,8 +59,6 @@ services:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
-      kafka:
         condition: service_started
 
   # 엣지 리버스 프록시 — 브라우저가 닿는 유일한 진입점.

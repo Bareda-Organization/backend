@@ -1,7 +1,7 @@
 # 백엔드 배포: 테스트 → 이미지 빌드 → ECR → SSM 으로 EC2 배포.
 #
 # EC2 에서 빌드하지 않는 이유: Gradle(Java 25) 빌드가 2GB 안팎을 먹어, 실행 중인
-# Kafka·Spring·Postgres 와 경합하면 OOM 이 난다. 빌드는 러너에서 끝낸다.
+# Spring·Postgres 와 경합하면 OOM 이 난다. 빌드는 러너에서 끝낸다.
 name: deploy-backend
 
 # 수동 실행 전용이다(2026-09-09 사용자 확정). `main` push 자동 실행을 뺀 이유 —
@@ -36,10 +36,10 @@ jobs:
           java-version: '25'
           cache: gradle
 
-      # @SpringBootTest 가 실제 DB·Redis·Kafka 를 요구한다. 루트 compose 가 노출하는
-      # 포트(15432·16379·29092)가 application.yml local 기본값과 그대로 맞는다.
+      # @SpringBootTest 가 실제 DB·Redis 를 요구한다. 루트 compose 가 노출하는
+      # 포트(15432·16379)가 application.yml local 기본값과 그대로 맞는다.
       - name: 테스트용 인프라 기동
-        run: docker compose up -d postgres redis kafka
+        run: docker compose up -d postgres redis
 
       - name: 테스트
         working-directory: backend
@@ -107,8 +107,8 @@ jobs:
           # pull + 최대 3분 헬스체크로 100초를 넘기는 게 정상 경로이므로, waiter 를 쓰면 배포가
           # 진행 중인데도 거짓 실패로 보고된다. get-command-invocation 을 직접 폴링해
           # 종료 상태(Success/Cancelled/TimedOut/Failed/Cancelling)로만 판정한다.
-          # 20분. 최초 배포는 백엔드 이미지(~400MB) + postgres·redis·kafka·nginx·certbot
-          # 최초 pull(~700MB) + kafka start_period 40s + backend start_period 90s +
+          # 20분. 최초 배포는 백엔드 이미지(~400MB) + postgres·redis·nginx·certbot
+          # 최초 pull(~700MB) + backend start_period 90s +
           # Flyway 마이그레이션 + 스모크 최대 180s 로 10분을 쉽게 넘긴다. 상한이 짧으면
           # 배포는 성공했는데 워크플로만 실패를 찍고, 운영자가 재실행해 중복 배포가 큐에 쌓인다.
           MAX_WAIT_SECONDS=1200

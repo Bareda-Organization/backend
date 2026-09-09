@@ -19,8 +19,8 @@ import io.micrometer.core.instrument.Timer;
  *
  * <p>이 값이 계속 늘면 배치 크기가 아니라 <b>워커 수·인스턴스</b>를 늘려야 한다는 신호다(`§9.4`).
  *
- * <p>태그에 학원 id·회차 id 를 붙이지 않는다({@link PipelineMetrics} 와 같은 근거) — 시계열이 대상
- * 수만큼 갈라지는 것과 개인 식별 정보가 지표에 섞이는 것을 막는다.
+ * <p>태그에 학원 id·회차 id 를 붙이지 않는다 — 시계열이 대상 수만큼 갈라지는 것과 개인 식별 정보가
+ * 지표에 섞이는 것을 막는다. 이 저장소의 모든 지표가 같은 규칙을 따른다.
  *
  * <p>{@code schoolbus.run.confirmation.retry_failures} 는 {@code schoolbus.scheduler.failures}
  * ({@link src.backend.observability.aspect.ScheduledTaskMetricsAspect})와 다른 신호다. 저 카운터는

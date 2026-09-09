@@ -45,19 +45,6 @@ spring:
       host: localhost
       port: 16379
 
-  kafka:
-    bootstrap-servers: localhost:29092   # docker-compose kafka 서비스의 호스트용 PLAINTEXT_HOST 리스너
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-    consumer:
-      group-id: school-bus-backend
-      auto-offset-reset: earliest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      properties:
-        spring.json.trusted.packages: "src.backend.*"
-
 # 주소 → 좌표 변환 (C-18 네이버 확정, Ruling 157). stub 으로 바꾸면 결정론적 스텁이 뜬다 —
 # 테스트 전체 묶음은 build.gradle 이 이 값을 stub 으로 넘겨 돈다(네트워크·요금·NCP 계정 상태가
 # 판정을 바꾸면 그 초록은 코드에 대해 아무것도 말하지 않는다).
@@ -279,8 +266,6 @@ spring:
     redis:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT:6379}
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
   flyway:
     clean-disabled: true   # 공통 섹션과 같은 값이나, 배포 설정은 상속보다 한눈에 보이는 편을 우선한다(demo 섹션과 동일 방침)
 
@@ -300,7 +285,7 @@ app:
 # API 로 만들 수 없다(AuthCommandService 가 403, MemberController 도 거부).
 # 즉 시드 없이 배포하면 **아무도 로그인할 수 없다.**
 #
-# prod 의 datasource·redis·kafka 블록을 상속하지 않고 다시 적는다. spring.profiles.group 으로
+# prod 의 datasource·redis 블록을 상속하지 않고 다시 적는다. spring.profiles.group 으로
 # 묶으면 줄은 줄지만 "지금 어떤 값이 쓰이는지"를 이 파일만 봐서 알 수 없게 된다 —
 # 배포 설정은 영리함보다 한눈에 보이는 편이 낫다.
 spring:
@@ -315,8 +300,6 @@ spring:
     redis:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT:6379}
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
   flyway:
     locations: classpath:db/migration,classpath:db/migration-local
     clean-disabled: true   # demo 는 시드를 적재하되 clean() 은 여전히 금지 — 운영과 같은 볼륨 영속 DB 다

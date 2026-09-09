@@ -19,9 +19,8 @@ import src.backend.run.event.RunStartedEvent;
  * {@code run_started} 방송(API_SPEC §7.1) — 채널 4종 전부(학생 개인 채널은 회차 명단 전원에게
  * 팬아웃, §7 채널 표).
  *
- * <p>{@code @TransactionalEventListener(AFTER_COMMIT)} 인 이유는 {@link src.backend.global.event
- * .TransactionalDomainEventRelay} 의 Kafka 릴레이와 같다 — WS 발신은 outbox 행 적재(알림 모듈의
- * 평범한 {@code @EventListener})와 달리 <b>같은 트랜잭션 롤백으로 되돌릴 수 없는 외부 부수효과</b>다.
+ * <p>{@code @TransactionalEventListener(AFTER_COMMIT)} 인 이유는 WS 발신이 outbox 행 적재(알림 모듈의
+ * 평범한 {@code @EventListener})와 달리 <b>같은 트랜잭션 롤백으로 되돌릴 수 없는 외부 부수효과</b>이기 때문이다.
  * 커밋 전에 보내면, 그 뒤 트랜잭션이 롤백됐을 때 "일어나지 않은 회차 시작"이 관제 화면에 남는다.
  */
 @Component

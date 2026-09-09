@@ -41,11 +41,6 @@ dependencies {
     // CacheManager 자동설정이 붙는다(TECH_DECISIONS §11). 이 Phase 에서는 의존성만 추가하고
     // @EnableCaching 은 켜지 않는다 — 활성화는 해당 기능이 실제로 생기는 Phase 소관.
     implementation 'org.springframework.boot:spring-boot-starter-cache'
-    // 모듈 간 이벤트 통신(Kafka) — 신형 아티팩트명(Boot 4 모듈화, KafkaAutoConfiguration 포함)
-    implementation 'org.springframework.boot:spring-boot-starter-kafka'
-    // spring-kafka의 JsonSerializer/Deserializer는 아직 클래식 Jackson 2(com.fasterxml)를 쓴다(Boot 4 기본 Jackson 3와 별개) —
-    // java.time.* 지원을 위해 JSR-310 모듈을 명시 추가(classpath에 있으면 findAndRegisterModules()가 자동 등록)
-    runtimeOnly 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
     // 외부 경로 API 호출용 WebClient — Boot 4는 webflux(리액티브 서버)와 webclient(HTTP 클라이언트)가
     // 별도 스타터로 분리됐다. 이 앱은 서블릿(webmvc) 앱이라 클라이언트 전용인 이 스타터만 필요하다.
     implementation 'org.springframework.boot:spring-boot-starter-webclient'
@@ -54,13 +49,13 @@ dependencies {
     // API 문서·테스트용 Swagger UI — 3.x 대가 Spring Boot 4(Jackson 3) 지원 최초 라인
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
     // 배포 검증·컨테이너 healthcheck 용 헬스 엔드포인트.
-    // ⚠️ Spring Boot 기본 health 에 Kafka 인디케이터는 없다 — DataSource·Redis·디스크·ping 만 포함된다.
-    //    Kafka 장애는 이걸로 감지되지 않으므로 CloudWatch 로그로 확인한다.
+    // ⚠️ 기본 health 가 보는 것은 DataSource·Redis·디스크·ping 이다. 그 밖의 외부 의존(지도 API 등)
+    //    장애는 이걸로 감지되지 않으므로 CloudWatch 로그로 확인한다.
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     // 지표 수집 — actuator 지표를 Prometheus 스크레이프 형식으로 노출한다.
-    // 이 의존성 하나로 HTTP 요청·JVM·HikariCP·Tomcat·Kafka 컨슈머 지표가 자동 등록된다.
+    // 이 의존성 하나로 HTTP 요청·JVM·HikariCP·Tomcat 지표가 자동 등록된다.
     implementation 'io.micrometer:micrometer-registry-prometheus'
-    // @Scheduled·@KafkaListener 를 감싸 계측하기 위한 AOP.
+    // @Scheduled 를 감싸 계측하기 위한 AOP.
     // 계측 호출을 도메인 메서드 안에 넣지 않으려고 쓴다 — observability 가 도메인을 참조할 뿐,
     // 도메인은 observability 를 모른다(설계 문서 §5.3).
     // Boot 4.0.0-M3부터 spring-boot-starter-aop는 spring-boot-starter-aspectj로 개명됐다(구 좌표는
