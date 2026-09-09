@@ -370,6 +370,10 @@ class AcademyScopeHttpExhaustiveTest {
                 "/runs/{runId}/route", new Object[] {ACADEMY_B_RUN_ID}, driverA1(), null, 403, "FORBIDDEN"));
         cases.add(c("GET /runs/{runId}/navigation → B학원 회차 403 FORBIDDEN(§1.11)", HttpMethod.GET,
                 "/runs/{runId}/navigation", new Object[] {ACADEMY_B_RUN_ID}, driverA1(), null, 403, "FORBIDDEN"));
+        // EmergencyRunQueryService — §4.15 조회도 raise()·cancel() 과 같은 RunAssignmentAccess 규약을
+        // 그대로 쓴다(회차 없음·타 학원·미배치 구별 없이 403, 판단 근거는 EmergencyRunQueryService 자바독).
+        cases.add(c("GET /runs/{runId}/emergencies → B학원 회차 403 FORBIDDEN(§1.11)", HttpMethod.GET,
+                "/runs/{runId}/emergencies", new Object[] {ACADEMY_B_RUN_ID}, driverA1(), null, 403, "FORBIDDEN"));
         cases.add(c("PATCH /runs/{runId}/riders/{riderId} → B학원 회차 403 FORBIDDEN(§1.11)", HttpMethod.PATCH,
                 "/runs/{runId}/riders/{riderId}", new Object[] {ACADEMY_B_RUN_ID, PLACEHOLDER_ID}, escortA1(),
                 riderStatusBody, 403, "FORBIDDEN"));

@@ -1,6 +1,7 @@
 package src.backend.exception.entity;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -32,6 +33,13 @@ import src.backend.global.common.enums.ManagerRole;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class EmergencyAlert {
+
+    /**
+     * 발신 후 취소 가능 창(EXC-04, §4.14) — "1분 이내"는 경계값을 포함한다. {@link
+     * src.backend.exception.command.EmergencyCommandService#cancel} 의 취소 판정과 {@link
+     * #cancelableUntil()} 이 이 값 하나를 공유한다 — 두 곳이 다른 규칙으로 계산되게 두지 않는다.
+     */
+    public static final Duration CANCEL_WINDOW = Duration.ofMinutes(1);
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -161,5 +169,10 @@ public class EmergencyAlert {
     /** 이미 취소됐는가 — 취소 중복 처리를 막는 데 쓰인다. */
     public boolean isCanceled() {
         return canceledAt != null;
+    }
+
+    /** 이 신고를 취소할 수 있는 마감 시각(발신 +1분) — §4.15 응답 {@code cancelable_until} 이 쓰는 값이다. */
+    public OffsetDateTime cancelableUntil() {
+        return receivedAt.plus(CANCEL_WINDOW);
     }
 }

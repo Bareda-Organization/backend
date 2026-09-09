@@ -53,9 +53,6 @@ import src.backend.student.query.RunPositionSnapshot;
 @Transactional
 public class EmergencyCommandService {
 
-    /** 발신 후 취소 가능 창(목표 9) — "1분 이내" 는 경계값을 포함한다({@link #assertWithinCancelWindow} 참고). */
-    private static final Duration CANCEL_WINDOW = Duration.ofMinutes(1);
-
     private final EmergencyAlertRepository emergencyAlertRepository;
 
     private final RunRepository runRepository;
@@ -201,10 +198,11 @@ public class EmergencyCommandService {
      *
      * <p>경계는 <b>포함</b>이다 — 정확히 60.000초에 취소 요청이 오면 성공으로 본다("1분 이내"를 닫힌
      * 구간으로 읽는 판단, 보고서 항목). {@code compareTo(...) > 0} 만 창 닫힘으로 판정해, 정확히
-     * 같은 값은 아직 열린 것으로 남긴다.
+     * 같은 값은 아직 열린 것으로 남긴다. 기준 창은 {@link EmergencyAlert#CANCEL_WINDOW} 하나를
+     * §4.15 {@code cancelable_until} 계산과 공유한다 — 두 곳이 다른 규칙으로 계산되게 두지 않는다.
      */
     private void assertWithinCancelWindow(OffsetDateTime receivedAt, OffsetDateTime now) {
-        if (Duration.between(receivedAt, now).compareTo(CANCEL_WINDOW) > 0) {
+        if (Duration.between(receivedAt, now).compareTo(EmergencyAlert.CANCEL_WINDOW) > 0) {
             throw new BusinessException(ErrorCode.EMERGENCY_CANCEL_WINDOW_CLOSED);
         }
     }
