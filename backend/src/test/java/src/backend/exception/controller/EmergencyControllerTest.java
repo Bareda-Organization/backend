@@ -2,6 +2,7 @@ package src.backend.exception.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -63,6 +64,10 @@ class EmergencyControllerTest extends RedisTestContainerBase {
     private static final String RAISE = "/api/v1/runs/%d/emergency";
 
     private static final String CANCEL = "/api/v1/runs/%d/emergency/%d";
+
+    private static final String LIST = "/api/v1/runs/%d/emergencies";
+
+    private static final String ACK = "/api/v1/staff/emergencies/%d/ack";
 
     @Autowired
     private MockMvc mockMvc;
@@ -253,6 +258,111 @@ class EmergencyControllerTest extends RedisTestContainerBase {
                 .andExpect(jsonPath("$.error.code").value("EMERGENCY_CANCEL_WINDOW_CLOSED"));
 
         assertThat(취소시각(emergencyId)).as("창 밖이면 canceled_at 이 기록되면 안 된다").isNull();
+    }
+
+    // ── §4.15 — 발신한 비상 알림의 처리 상태 조회 ──────────────────────────
+
+    @Test
+    void 배치된_기사가_목록을_조회하면_응답_계약의_전_필드가_채워진다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long runId = fixtures.confirmedRun(academyId, busId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
+
+        mockMvc.perform(get(LIST.formatted(runId))
+                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].emergency_id").value(emergencyId))
+                .andExpect(jsonPath("$.data.items[0].type").value("accident"))
+                .andExpect(jsonPath("$.data.items[0].raised_at").exists())
+                .andExpect(jsonPath("$.data.items[0].cancelable_until").exists())
+                .andExpect(jsonPath("$.data.items[0].acked").value(false))
+                .andExpect(jsonPath("$.data.items[0].acked_at").doesNotExist())
+                .andExpect(jsonPath("$.data.items[0].acked_by_name").doesNotExist())
+                .andExpect(jsonPath("$.data.items[0].canceled_at").doesNotExist());
+    }
+
+    @Test
+    void 배치되지_않은_기사가_목록을_조회하면_403이다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long runId = fixtures.confirmedRun(academyId, busId, now());
+        long otherRunId = fixtures.confirmedRun(academyId, busId, now().plusHours(1));
+        long outsiderAccountId = fixtures.assignedManager(academyId, otherRunId,
+                ManagerRole.DRIVER, "다른회차기사", now());
+
+        mockMvc.perform(get(LIST.formatted(runId))
+                        .header("Authorization", 토큰(outsiderAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+    }
+
+    /**
+     * 존재하지 않는 회차·다른 학원 회차는 배치 확인 단계에서 걸러져 둘 다 403 이다(판단 근거 —
+     * 보고서 항목: {@code RunAssignmentAccess#assertAssignedDriverOrEscort} 가 배치 확인을 회차
+     * 존재 확인보다 먼저 하는 것이 이 모듈의 확립된 관례다, {@code ManagerRunAccess#requireAssignedRun}
+     * 의 review-f3-r4 #38~44·Ruling 259(b) 와 {@code EmergencyCommandService#raise}·{@code #cancel}
+     * 이 이미 같은 판단을 내려 두었다 — 404 를 응답에서 관측 가능하게 만들면 "배치되지 않은 회차"
+     * 시나리오가 다시 가려지는 회귀를 재현하게 된다).
+     */
+    @Test
+    void 존재하지_않는_회차를_지목하면_배치_확인에서_걸려_403이다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long realRunId = fixtures.confirmedRun(academyId, busId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, realRunId, ManagerRole.DRIVER, "기사", now());
+        long nonExistentRunId = realRunId + 999_999L;
+
+        mockMvc.perform(get(LIST.formatted(nonExistentRunId))
+                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    void 확인_처리된_신고는_목록에_acked와_확인자_이름이_반영된다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long runId = fixtures.confirmedRun(academyId, busId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long staffAccountId = fixtures.staffAccount(academyId, "확인자");
+        long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
+
+        mockMvc.perform(post(ACK.formatted(emergencyId))
+                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get(LIST.formatted(runId))
+                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].acked").value(true))
+                .andExpect(jsonPath("$.data.items[0].acked_at").exists())
+                .andExpect(jsonPath("$.data.items[0].acked_by_name").value("확인자"));
+    }
+
+    @Test
+    void 취소된_신고는_목록에_취소시각이_반영된다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long runId = fixtures.confirmedRun(academyId, busId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
+
+        mockMvc.perform(delete(CANCEL.formatted(runId, emergencyId))
+                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get(LIST.formatted(runId))
+                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].canceled_at").exists());
     }
 
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────

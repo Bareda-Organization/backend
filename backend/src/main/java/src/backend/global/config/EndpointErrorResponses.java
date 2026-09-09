@@ -15,9 +15,9 @@ import java.util.Map;
  * ①표의 모든 키가 실재하는 엔드포인트인지 ②적힌 코드가 {@code ErrorCode} 에 있는지를 함께 검사한다 —
  * 경로를 바꾸거나 코드 이름을 고치면 그 시험이 먼저 깨진다.
  *
- * <p>⚠ 사양 §3.5 {@code GET /students/{id}/runs}(P-04 · S-01)와 §4.15
- * {@code GET /runs/{runId}/emergencies} 는 <b>핸들러가 부재</b>해 이 표에 없다(2026-09-09 실측 —
- * 등록된 매핑 104개 어디에도 없고, 계획서·시험도 그 경로를 언급하지 않는다).
+ * <p>⚠ 사양 §3.5 {@code GET /students/{id}/runs}(P-04 · S-01)는 <b>핸들러가 부재</b>해 이 표에 없다
+ * (2026-09-09 실측 — 등록된 매핑 어디에도 없고, 계획서·시험도 그 경로를 언급하지 않는다). §4.15
+ * {@code GET /runs/{runId}/emergencies} 는 그 뒤 구현돼 아래 표에 등재됐다.
  *
  * <p>공통 항목(401·403·422)은 여기 없다 — 정의상 전 경로에 해당하므로
  * {@link CommonErrorResponsesCustomizer} 가 한 번에 붙인다(§1.11).
@@ -29,6 +29,7 @@ public final class EndpointErrorResponses {
             entry("GET /academies/search", Map.of("422", "VALIDATION_FAILED")),
             entry("GET /admin/academies/{id}/runs/live", Map.of("404", "ACADEMY_NOT_FOUND")),
             entry("GET /admin/runs/{runId}/roster", Map.of("404", "RUN_NOT_FOUND")),
+            entry("GET /runs/{runId}/emergencies", Map.of("403", "FORBIDDEN", "404", "RUN_NOT_FOUND")),
             entry("GET /runs/{runId}/navigation", Map.of("403", "FORBIDDEN", "404", "RUN_NOT_FOUND", "409", "RUN_NOT_CONFIRMED · NAV_NO_REMAINING_STOP")),
             entry("GET /runs/{runId}/roster", Map.of("403", "FORBIDDEN", "404", "RUN_NOT_FOUND", "409", "RUN_NOT_CONFIRMED")),
             entry("GET /runs/{runId}/route", Map.of("403", "FORBIDDEN", "404", "RUN_NOT_FOUND", "409", "RUN_NOT_CONFIRMED")),

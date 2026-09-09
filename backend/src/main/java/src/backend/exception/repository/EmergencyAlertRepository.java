@@ -35,6 +35,9 @@ public interface EmergencyAlertRepository extends JpaRepository<EmergencyAlert, 
     /** 학원 관계자 화면의 비상 알림 목록(목표 10) — 최근 신고가 먼저 보이게 접수 역순이다. */
     List<EmergencyAlert> findAllByAcademyIdOrderByReceivedAtDesc(Long academyId);
 
+    /** 발신자가 자기 회차의 신고 상태를 조회하는 목록(§4.15) — 최근 신고가 먼저 보이게 접수 역순이다. */
+    List<EmergencyAlert> findAllByRunIdAndAcademyIdOrderByReceivedAtDesc(Long runId, Long academyId);
+
     /**
      * 메인 관리자 콘솔의 전 학원 비상 알림 목록(목표 11, {@code GET /admin/emergencies}) —
      * {@code /admin} 은 학원 격리의 명시적 예외다(§1.5, {@code AccountRepository
