@@ -214,7 +214,12 @@ class RunConfirmationSchedulerTest {
         long academyId = academyAndBus[0];
         long busId = academyAndBus[1];
 
-        OffsetDateTime baseConfirmAt = OffsetDateTime.now(clock).minusHours(1);
+        // 5년 전으로 잡는 이유는 이 시험 밖의 확정 대상과 자리를 다투지 않기 위해서다 — 배치는
+        // confirm_at 오름차순으로 BATCH_SIZE 건을 집으므로(RunRepository 파인더 이름), 공유 DB 에
+        // 남은 다른 idle 회차(예: 시드의 오늘 회차)가 이 시험보다 이른 시각이면 한 자리를 가져가
+        // 자기 회차가 49건만 확정된다 — 실제로 그렇게 실패했다(2026-09-09). 시험이 만든 회차가
+        // 항상 가장 오래된 후보가 되게 해 실행 순서·잔여 데이터와 무관하게 만든다.
+        OffsetDateTime baseConfirmAt = OffsetDateTime.now(clock).minusYears(5);
         int total = RunConfirmationScheduler.BATCH_SIZE + 1;
         for (int i = 0; i < total; i++) {
             OffsetDateTime confirmAt = baseConfirmAt.plusMinutes(i);

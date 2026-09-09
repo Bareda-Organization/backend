@@ -23,6 +23,12 @@ public final class ApiTags {
     /** §6 — 메인 관리자 콘솔: 전 학원 범위, 학원 생성·현황. */
     public static final String ADMIN = "4. 메인 관리자 콘솔";
 
+    /**
+     * 개발 도구 — {@code local} 프로파일에서만 뜬다. 사양(§2~§6)에 대응하는 절이 없고 배포물에도 없어
+     * 태그를 따로 둔다.
+     */
+    public static final String DEV = "9. 개발 도구 (local 전용)";
+
     private ApiTags() {
     }
 }

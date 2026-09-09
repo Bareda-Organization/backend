@@ -130,7 +130,10 @@ public class OpenApiConfig {
                         new Tag().name(TAG_STAFF)
                                 .description("관계자 웹 — 학원 단위 가입 승인·구성원 관리, 노선·배차 (§5)."),
                         new Tag().name(TAG_ADMIN)
-                                .description("메인 관리자 콘솔 — 전 학원 범위, 학원 생성·현황 (§6).")))
+                                .description("메인 관리자 콘솔 — 전 학원 범위, 학원 생성·현황 (§6)."),
+                        // local 기동에서만 오퍼레이션이 채워진다 — 배포물에는 이 태그 아래 아무것도 없다.
+                        new Tag().name(ApiTags.DEV)
+                                .description("개발 도구 — DB 를 시드 상태로 되돌린다. local 프로파일 전용.")))
                 .addSecurityItem(new SecurityRequirement().addList(BEARER_SCHEME))
                 .components(new Components().addSecuritySchemes(BEARER_SCHEME,
                         new SecurityScheme()

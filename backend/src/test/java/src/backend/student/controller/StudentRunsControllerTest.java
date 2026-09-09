@@ -20,6 +20,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
@@ -49,6 +50,7 @@ import src.backend.global.security.JwtTokenProvider;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
+@Transactional // 아래 시드 복원이 이 클래스 밖으로 새지 않게 한다 — 복원 훅 주석 참고.
 class StudentRunsControllerTest {
 
     private static final String RUNS = "/api/v1/students/%d/runs";
@@ -64,6 +66,11 @@ class StudentRunsControllerTest {
      * 실행에서만 {@code items[2].run_status} 가 {@code confirmed} 로 나와 실패했다(2026-09-09 실측).
      * 전제를 매 시험 앞에서 복원해 실행 순서에 기대지 않게 한다 — {@code confirmed} 응답 필드도
      * {@code status != idle} 에서 파생되므로 이 한 줄이 두 단언을 함께 되돌린다.
+     *
+     * <p>⚠ 클래스에 {@code @Transactional} 을 단 이유가 이 복원이다. 커밋해 버리면 <b>확정 배치
+     * 시험이 깨진다</b> — 그 시험은 한 틱이 정확히 {@code BATCH_SIZE} 건을 집는지 보는데, 되살아난
+     * idle 회차가 후보 한 자리를 차지해 자기 회차가 49건만 확정된다(2026-09-09 실측). 롤백으로
+     * 이 클래스 밖에 흔적을 남기지 않는다.
      */
     @BeforeEach
     void 시드_idle_회차를_되돌린다() {
