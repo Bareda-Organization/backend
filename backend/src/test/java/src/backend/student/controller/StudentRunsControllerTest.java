@@ -10,6 +10,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -22,6 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
+import src.backend.global.common.SeedFixtures;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
@@ -50,6 +52,24 @@ import src.backend.global.security.JwtTokenProvider;
 class StudentRunsControllerTest {
 
     private static final String RUNS = "/api/v1/students/%d/runs";
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    /**
+     * 시드의 {@code idle} 회차를 그 상태로 되돌린다.
+     *
+     * <p>이 클래스의 전제는 "시드가 idle·confirmed·moving 세 상태를 갖췄다" 인데, 확정 배치·강제 확정을
+     * 검사하는 다른 클래스가 <b>같은 행을 confirmed 로 바꾼다</b>. 그래서 단독 실행은 통과하고 전체
+     * 실행에서만 {@code items[2].run_status} 가 {@code confirmed} 로 나와 실패했다(2026-09-09 실측).
+     * 전제를 매 시험 앞에서 복원해 실행 순서에 기대지 않게 한다 — {@code confirmed} 응답 필드도
+     * {@code status != idle} 에서 파생되므로 이 한 줄이 두 단언을 함께 되돌린다.
+     */
+    @BeforeEach
+    void 시드_idle_회차를_되돌린다() {
+        jdbcTemplate.update("UPDATE run SET status = 'idle', confirmed_at = NULL WHERE id = ?",
+                Long.parseLong(SeedFixtures.RUN_IDLE_ID));
+    }
 
     private static final long ACADEMY_A = 1L;
 

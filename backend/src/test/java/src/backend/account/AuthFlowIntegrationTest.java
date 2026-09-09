@@ -170,7 +170,7 @@ class AuthFlowIntegrationTest {
     void 거부측_목록이_허용_목록_밖_실제_핸들러_전부와_일치한다() {
         List<String> all = AccountStatusGateEndpoints.productionEndpoints(handlerMapping, handlerMethod -> true);
         assertThat(all)
-                .as("프로덕션 핸들러 104개 — 늘었는데 이 단언만 고치면 거부측 목록이 낡는다. "
+                .as("프로덕션 핸들러 106개 — 늘었는데 이 단언만 고치면 거부측 목록이 낡는다. "
                         + "Phase 2 의 12 + Phase 3 의 12 + Phase 5 의 26"
                         + "(학생 5 + 차량·매니저 7 + 자녀 연결 4 + 스케줄 4 + 회차·배치 4 + 요일별 주소 2)"
                         + " + Phase 6 의 6(고정 노선 CRUD 5 + 순서 최적화 1)"
@@ -190,8 +190,10 @@ class AuthFlowIntegrationTest {
                         + " + F1 S3 의 1(관계자 확정 노선 조회)"
                         + " + F3 S1 의 1(지연 알림 신고)"
                         + " + F3 S2 의 1(강제 확정 콘솔 개입)"
-                        + " + F4 S1 의 1(버스 간 이동)")
-                .hasSize(104);
+                        + " + F4 S1 의 1(버스 간 이동)"
+                        + " + S1 의 1(자녀·본인 당일 회차 목록 §3.5)"
+                        + " + S2 의 1(회차 비상 알림 처리 상태 조회 §4.15)")
+                .hasSize(106);
 
         assertThat(AccountStatusGateEndpoints.productionEndpoints(
                 handlerMapping, AccountStatusGateEndpoints::deniedWhenPending))

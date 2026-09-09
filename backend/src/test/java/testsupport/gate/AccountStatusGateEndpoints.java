@@ -124,6 +124,13 @@ public final class AccountStatusGateEndpoints {
      * P-04 · S-01, 권한 "학부모(연결 자녀) · 학생(본인)") — {@code GET /students/{id}/route}
      * (Phase 10)와 같은 계열의 승인된 학부모·학생 기능이라 대기·거절 계정에는 근거가 부재하다
      * (Ruling 145 와 같은 근거).
+
+     * <p>S2 가 1개를 더했다 — 회차 비상 알림 처리 상태 조회 {@code GET /runs/{runId}/emergencies}
+     * (§4.15, EXC-04 · M-15, 권한 "그 회차에 배치된 기사·동승자") — 배치된 매니저만 닿는 자리라
+     * 대기·거절 계정에는 근거가 부재하다({@code POST /runs/{runId}/emergency} 와 같은 근거).
+     *
+     * <p>⚠ 두 좌석이 각자 자기 것만 더해 <b>병합 뒤에야</b> 개수가 어긋났다 — 이 목록은 전체를 세는
+     * 시험이라 좌석 하나의 워크트리에서는 늘 통과한다(2026-09-09 실측, 전역 규칙 §18 과 같은 형태).
      */
     public static final List<String> DENIED_WHEN_REJECTED = List.of(
             "POST /auth/password",
@@ -247,7 +254,9 @@ public final class AccountStatusGateEndpoints {
             // F4 S1 — 버스 간 이동(§5.8, RTE-07, Ruling 256) 관계자 관리 화면 기능 1개.
             "POST /staff/students/{id}/transfer",
             // S1 — 자녀·본인 당일 회차 목록(§3.5, P-04 · S-01) 학부모·학생 기능 1개.
-            "GET /students/{id}/runs");
+            "GET /students/{id}/runs",
+            // S2 — 회차 비상 알림 처리 상태 조회(§4.15, EXC-04 · M-15) 매니저 앱 기능 1개.
+            "GET /runs/{runId}/emergencies");
 
     /** {@code pending} 의 거부측 — {@code rejected} 거부측에 재신청 1개를 더한다({@code @AllowedWhenRejected} 는 pending 을 열지 않는다). */
     public static final List<String> DENIED_WHEN_PENDING = concat(DENIED_WHEN_REJECTED, "POST /auth/signup/reapply");
