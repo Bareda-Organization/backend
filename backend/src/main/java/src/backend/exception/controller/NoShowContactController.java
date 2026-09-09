@@ -9,6 +9,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
@@ -16,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.exception.command.NoShowContactCommandService;
 import src.backend.exception.dto.NoShowContactRequest;
 import src.backend.exception.dto.NoShowContactResponse;
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.AuthenticatedOnly;
@@ -26,6 +30,7 @@ import src.backend.global.security.authz.AuthenticatedOnly;
  * ({@code BoardingController} 와 같은 근거 — {@code 403 ESCORT_ONLY} 를 일반 {@code FORBIDDEN} 과
  * 구별하기 위함). 이 컨트롤러는 {@link AuthenticatedOnly} 로 인증 여부만 확인한다.
  */
+@Tag(name = ApiTags.MANAGER)
 @RestController
 @RequestMapping("/runs/{runId}/riders/{riderId}/no-show-contacts")
 @RequiredArgsConstructor
@@ -34,6 +39,7 @@ public class NoShowContactController {
     private final NoShowContactCommandService noShowContactCommandService;
 
     @AuthenticatedOnly
+    @Operation(summary = "미승차 연락 시도 기록 (EXC-01)")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<NoShowContactResponse> recordAttempt(@AuthenticationPrincipal AuthUser authUser,

@@ -7,8 +7,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanReadStudentRoute;
@@ -26,6 +30,7 @@ import src.backend.student.query.StudentRouteQueryService;
  * <p>§3.10 이 문서화한 권한은 "학부모 · 학생" 이지만, 이 코드베이스에는 학생 본인 접근 경로
  * ({@code Role.STUDENT} 자기 조회) 가 존재하지 않는다(전수 확인) — 표 누락으로 보고한다.
  */
+@Tag(name = ApiTags.PARENT_STUDENT)
 @RestController
 @RequestMapping("/students/{id}/route")
 @RequiredArgsConstructor
@@ -34,6 +39,7 @@ public class StudentRouteController {
     private final StudentRouteQueryService studentRouteQueryService;
 
     @CanReadStudentRoute
+    @Operation(summary = "상세 노선 (LOC-03, P-08 · S-04)")
     @GetMapping
     public ApiResponse<StudentRouteResponse> route(@AuthenticationPrincipal AuthUser authUser,
             @PathVariable("id") Long studentId, @RequestParam(required = false) String date,

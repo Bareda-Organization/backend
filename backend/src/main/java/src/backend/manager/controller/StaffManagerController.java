@@ -13,10 +13,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.response.PageResponse;
 import src.backend.global.security.AuthUser;
@@ -37,6 +41,7 @@ import src.backend.manager.query.ManagerQueryService;
  * <p>회차 배치(MGR-05·06, §5.14)는 여기 없다 — 대상이 매니저가 아니라 <b>회차</b>이고 경로도
  * {@code /staff/runs/{runId}/assignment} 다.
  */
+@Tag(name = ApiTags.STAFF)
 @RestController
 @RequestMapping("/staff/managers")
 @RequiredArgsConstructor
@@ -48,6 +53,7 @@ public class StaffManagerController {
 
     /** 매니저 목록·검색(MGR-01, §5.13) — 삭제된 매니저는 실리지 않는다. */
     @CanManageManager
+    @Operation(summary = "매니저 관리 — 목록·검색")
     @GetMapping
     public ApiResponse<PageResponse<ManagerResponse>> list(@AuthenticationPrincipal AuthUser requester,
             @ModelAttribute ManagerListRequest request) {
@@ -56,6 +62,7 @@ public class StaffManagerController {
 
     /** 매니저 등록(MGR-02, §5.13). */
     @CanManageManager
+    @Operation(summary = "매니저 관리 — 등록")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<ManagerResponse> register(@AuthenticationPrincipal AuthUser requester,
@@ -65,6 +72,7 @@ public class StaffManagerController {
 
     /** 매니저 수정(MGR-03, §5.13) — §1.9 대로 변경 후 자원 상태를 그대로 반환한다. */
     @CanManageManager
+    @Operation(summary = "매니저 관리 — 수정")
     @PatchMapping("/{id}")
     public ApiResponse<ManagerResponse> update(@AuthenticationPrincipal AuthUser requester, @PathVariable Long id,
             @Valid @RequestBody ManagerUpdateRequest request) {
@@ -73,6 +81,7 @@ public class StaffManagerController {
 
     /** 매니저 삭제(MGR-04, §5.13) — 회차에 배치돼 있으면 {@code 409 MANAGER_ASSIGNED}. */
     @CanManageManager
+    @Operation(summary = "매니저 관리 — 삭제")
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@AuthenticationPrincipal AuthUser requester, @PathVariable Long id) {
         managerCommandService.delete(requester, id);

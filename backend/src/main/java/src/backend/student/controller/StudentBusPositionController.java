@@ -6,8 +6,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanReadStudentBusPosition;
@@ -24,6 +28,7 @@ import src.backend.student.query.StudentBusPositionQueryService;
  * ({@code Permissions} 전수 확인). 연결되지 않은 자녀는 권한이 아니라
  * {@code student.access.LinkedChildLookup} 이 {@code 403} 으로 걸러낸다.
  */
+@Tag(name = ApiTags.PARENT_STUDENT)
 @RestController
 @RequestMapping("/students/{id}/bus-position")
 @RequiredArgsConstructor
@@ -32,6 +37,7 @@ public class StudentBusPositionController {
     private final StudentBusPositionQueryService studentBusPositionQueryService;
 
     @CanReadStudentBusPosition
+    @Operation(summary = "실시간 버스 위치 (LOC-02, P-07 · S-02)")
     @GetMapping
     public ApiResponse<StudentBusPositionResponse> position(@AuthenticationPrincipal AuthUser authUser,
             @PathVariable("id") Long studentId) {

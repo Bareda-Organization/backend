@@ -8,10 +8,14 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.config.ApiTags;
 import src.backend.global.security.AuthUser;
 import src.backend.location.command.RunPositionCommandService;
 import src.backend.location.dto.RunPositionRequest;
@@ -22,6 +26,7 @@ import src.backend.location.dto.RunPositionRequest;
  * 지키기 위해 {@code DriverRunController} 를 확장하지 않고 별도 컨트롤러로 둔다 — 두 파일이 각자
  * 소유자만 고치면 되므로 병렬 좌석 간 충돌이 나지 않는다.
  */
+@Tag(name = ApiTags.MANAGER)
 @RestController
 @RequestMapping("/runs")
 @RequiredArgsConstructor
@@ -30,6 +35,7 @@ public class DriverPositionController {
     private final RunPositionCommandService runPositionCommandService;
 
     /** 위치 수신(§4.12) — {@code moving} 상태에서만 성공하며 저장소만 늘리고 응답 본문은 없다. */
+    @Operation(summary = "위치 업로드 (LOC-01)")
     @PostMapping("/{runId}/position")
     public ResponseEntity<Void> receive(@AuthenticationPrincipal AuthUser requester,
             @PathVariable Long runId, @Valid @RequestBody RunPositionRequest request) {

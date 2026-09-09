@@ -9,6 +9,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
@@ -19,6 +22,7 @@ import src.backend.account.dto.SignupRequestListRequest;
 import src.backend.account.dto.StaffDecisionPayload;
 import src.backend.account.dto.StaffSignupRequestSummaryResponse;
 import src.backend.account.query.SignupRequestQueryService;
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.response.PageResponse;
 import src.backend.global.security.AuthUser;
@@ -33,6 +37,7 @@ import src.backend.global.security.authz.CanApproveStaff;
  * <p>{@code AuthUser} 를 받는 것은 학원을 정하기 위해서가 아니라 <b>처리자를 기록</b>하기 위해서다
  * ({@code signup_request.decided_by}) — 그 값이 없으면 "누가 승인했나" 를 판정할 수단이 부재하다.
  */
+@Tag(name = ApiTags.ADMIN)
 @RestController
 @RequestMapping("/admin/staff-signup-requests")
 @RequiredArgsConstructor
@@ -44,6 +49,7 @@ public class AdminStaffApprovalController {
 
     /** 관계자 가입 요청 목록(ACAD-05, §6.4). */
     @CanApproveStaff
+    @Operation(summary = "관계자 가입 요청 목록 (ACAD-05, O-02)")
     @GetMapping
     public ApiResponse<PageResponse<StaffSignupRequestSummaryResponse>> list(
             @ModelAttribute SignupRequestListRequest request) {
@@ -52,6 +58,7 @@ public class AdminStaffApprovalController {
 
     /** 관계자 가입 수락 · 거절(ACAD-05, §6.5) — 수락은 학원당 1명 정원을 지난다. */
     @CanApproveStaff
+    @Operation(summary = "관계자 가입 수락 / 거절 (ACAD-05, O-02)")
     @PostMapping("/{id}/decide")
     public ApiResponse<SignupDecisionResponse> decide(@AuthenticationPrincipal AuthUser authUser,
             @PathVariable Long id, @Valid @RequestBody StaffDecisionPayload payload) {

@@ -6,8 +6,12 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanLinkChild;
@@ -24,6 +28,7 @@ import src.backend.student.dto.LinkCodeIssueResponse;
  * 그대로다(Ruling 80) — {@code @PublicEndpoint} 허용목록·계정 상태 게이트 대조가 "HTTP메서드+경로" 를
  * 키로 삼으므로 임의로 다듬지 않는다.
  */
+@Tag(name = ApiTags.PARENT_STUDENT)
 @RestController
 @RequiredArgsConstructor
 public class StudentLinkCodeController {
@@ -32,6 +37,7 @@ public class StudentLinkCodeController {
 
     /** ② 인증 코드 생성(S-05, §3.3) — 대기 중인 연결 요청이 선행 조건이다. */
     @CanLinkChild
+    @Operation(summary = "인증 코드 생성 (S-05) — 학생")
     @PostMapping("/me/link-code")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<LinkCodeIssueResponse> issue(@AuthenticationPrincipal AuthUser authUser) {

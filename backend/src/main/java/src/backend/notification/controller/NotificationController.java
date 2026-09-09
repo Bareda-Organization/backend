@@ -8,8 +8,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.AuthenticatedOnly;
@@ -25,6 +29,7 @@ import src.backend.notification.query.NotificationQueryService;
  * Jackson 의 SNAKE_CASE 전략이 쿼리 문자열에는 적용되지 않기 때문이다 — {@code unread_only} 가
  * {@code unreadOnly} 로 자동 바인딩되지 않는다({@code StaffReportController} 의 같은 이유 참고).
  */
+@Tag(name = ApiTags.PARENT_STUDENT)
 @RestController
 @RequiredArgsConstructor
 public class NotificationController {
@@ -35,6 +40,7 @@ public class NotificationController {
 
     /** 목록(§3.12) — {@code type}·{@code unread_only} 둘 다 선택, 페이징은 §1.8 공통 규약. */
     @AuthenticatedOnly
+    @Operation(summary = "알림 목록 (NTF-08, P-09 · S-03)")
     @GetMapping("/notifications")
     public ApiResponse<NotificationListResponse> list(@AuthenticationPrincipal AuthUser authUser,
             @RequestParam(name = "type", required = false) String type,
@@ -46,6 +52,7 @@ public class NotificationController {
 
     /** 읽음 처리(§3.13). */
     @AuthenticatedOnly
+    @Operation(summary = "알림 읽음 처리 (NTF-08)")
     @PatchMapping("/notifications/{id}/read")
     public ResponseEntity<Void> read(@AuthenticationPrincipal AuthUser authUser, @PathVariable Long id) {
         notificationReadCommandService.markRead(authUser, id);

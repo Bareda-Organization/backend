@@ -9,6 +9,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
@@ -16,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.admin.command.RunForceConfirmCommandService;
 import src.backend.admin.dto.ForceConfirmRequest;
 import src.backend.admin.dto.ForceConfirmResponse;
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanForceConfirmRun;
@@ -27,6 +31,7 @@ import src.backend.global.security.authz.CanForceConfirmRun;
  * 와 같은 근거) — 대상은 회차이고, 이 콘솔은 어느 학원 소속인지를 판정에 쓰지 않는다.
  * {@link AuthUser} 를 받는 것은 처리자를 감사 기록에 남기기 위해서다.
  */
+@Tag(name = ApiTags.ADMIN)
 @RestController
 @RequestMapping("/admin/runs")
 @RequiredArgsConstructor
@@ -36,6 +41,7 @@ public class AdminRunForceConfirmController {
 
     /** 강제 확정(§6.14) — {@code 201}, {@code route_version} 신규 생성을 반영한다. */
     @CanForceConfirmRun
+    @Operation(summary = "강제 확정 콘솔 개입 (Ruling 254, 2026-09-04)")
     @PostMapping("/{runId}/force-confirm")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<ForceConfirmResponse> forceConfirm(@PathVariable Long runId,

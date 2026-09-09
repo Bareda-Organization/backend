@@ -11,6 +11,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
@@ -23,6 +26,7 @@ import src.backend.academy.dto.AcademyRegisterResponse;
 import src.backend.academy.dto.AcademySummaryResponse;
 import src.backend.academy.dto.AcademyUpdateRequest;
 import src.backend.academy.query.AdminAcademyQueryService;
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.response.PageResponse;
 import src.backend.global.security.authz.CanManageAcademy;
@@ -34,6 +38,7 @@ import src.backend.global.security.authz.CanManageAcademy;
  * 그래서 이 컨트롤러에는 {@code AuthUser} 를 받는 자리가 부재하다. 예외를 여는 판정은
  * {@link CanManageAcademy} 한 곳이고, 그 권한은 메인 관리자만 보유한다.
  */
+@Tag(name = ApiTags.ADMIN)
 @RestController
 @RequestMapping("/admin/academies")
 @RequiredArgsConstructor
@@ -45,6 +50,7 @@ public class AdminAcademyController {
 
     /** 학원 목록·검색(ACAD-01, §6.1). */
     @CanManageAcademy
+    @Operation(summary = "학원 목록·검색 (ACAD-01, O-01)")
     @GetMapping
     public ApiResponse<PageResponse<AcademySummaryResponse>> list(@ModelAttribute AcademyListRequest request) {
         return ApiResponse.ok(adminAcademyQueryService.list(request));
@@ -52,6 +58,7 @@ public class AdminAcademyController {
 
     /** 학원 등록(ACAD-02, §6.2) — 학원 코드는 서버가 만들어 응답에 싣는다. */
     @CanManageAcademy
+    @Operation(summary = "학원 등록 (ACAD-02, O-01)")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<AcademyRegisterResponse> register(@Valid @RequestBody AcademyRegisterRequest request) {
@@ -60,6 +67,7 @@ public class AdminAcademyController {
 
     /** 학원 상세(ACAD-03, §6.3). */
     @CanManageAcademy
+    @Operation(summary = "학원 상세 · 정보 수정 · 비활성화 (ACAD-03·04, O-01)")
     @GetMapping("/{id}")
     public ApiResponse<AcademyDetailResponse> detail(@PathVariable Long id) {
         return ApiResponse.ok(adminAcademyQueryService.detail(id));
@@ -73,6 +81,7 @@ public class AdminAcademyController {
      * 쓰기 쪽이 그것까지 조립하면 같은 집계가 두 곳에 생긴다.
      */
     @CanManageAcademy
+    @Operation(summary = "학원 상세 · 정보 수정 · 비활성화 (ACAD-03·04, O-01)")
     @PatchMapping("/{id}")
     public ApiResponse<AcademyDetailResponse> update(@PathVariable Long id,
             @Valid @RequestBody AcademyUpdateRequest request) {

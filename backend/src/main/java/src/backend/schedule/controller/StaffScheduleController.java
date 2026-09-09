@@ -13,10 +13,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.response.PageResponse;
 import src.backend.global.security.AuthUser;
@@ -37,6 +41,7 @@ import src.backend.schedule.query.ScheduleQueryService;
  * <p>회차(SCH-02·03)는 여기 없다 — 대상이 계획이 아니라 <b>그날의 운행</b>이고 경로도
  * {@code /staff/runs} 다.
  */
+@Tag(name = ApiTags.STAFF)
 @RestController
 @RequestMapping("/staff/schedules")
 @RequiredArgsConstructor
@@ -48,6 +53,7 @@ public class StaffScheduleController {
 
     /** 스케줄 목록(SCH-01, §5.10) — 비활성 스케줄도 실린다. */
     @CanManageSchedule
+    @Operation(summary = "운행 스케줄 · 일일 회차 — 목록 (§1.8 페이징)")
     @GetMapping
     public ApiResponse<PageResponse<ScheduleResponse>> list(@AuthenticationPrincipal AuthUser requester,
             @ModelAttribute ScheduleListRequest request) {
@@ -56,6 +62,7 @@ public class StaffScheduleController {
 
     /** 스케줄 등록(SCH-01, §5.10) — 같은 유일성 조합이 이미 있으면 {@code 409 DUPLICATE_SCHEDULE}. */
     @CanManageSchedule
+    @Operation(summary = "운행 스케줄 · 일일 회차 — 등록")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<ScheduleResponse> register(@AuthenticationPrincipal AuthUser requester,
@@ -65,6 +72,7 @@ public class StaffScheduleController {
 
     /** 스케줄 수정(SCH-01, §5.10) — §1.9 대로 변경 후 자원 상태를 그대로 반환한다. */
     @CanManageSchedule
+    @Operation(summary = "운행 스케줄 · 일일 회차 — 수정")
     @PatchMapping("/{id}")
     public ApiResponse<ScheduleResponse> update(@AuthenticationPrincipal AuthUser requester,
             @PathVariable Long id, @Valid @RequestBody ScheduleUpdateRequest request) {
@@ -73,6 +81,7 @@ public class StaffScheduleController {
 
     /** 스케줄 삭제(SCH-01, §5.10) — 행을 지우고, 이미 만들어진 회차는 남는다. */
     @CanManageSchedule
+    @Operation(summary = "운행 스케줄 · 일일 회차 — 삭제")
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@AuthenticationPrincipal AuthUser requester, @PathVariable Long id) {
         scheduleCommandService.delete(requester, id);

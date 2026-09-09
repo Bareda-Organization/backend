@@ -8,6 +8,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
@@ -18,6 +21,7 @@ import src.backend.academy.dto.StaffAccountSummaryResponse;
 import src.backend.academy.dto.StaffAccountUpdateRequest;
 import src.backend.academy.query.AdminStaffAccountQueryService;
 import src.backend.account.dto.AdminAccountListRequest;
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.response.PageResponse;
 import src.backend.global.security.authz.CanManageStaffAccount;
@@ -29,6 +33,7 @@ import src.backend.global.security.authz.CanManageStaffAccount;
  * 그래서 이 컨트롤러에는 {@code AuthUser} 를 받는 자리가 부재하다. 예외를 여는 판정은
  * {@link CanManageStaffAccount} 한 곳이고, 그 권한은 메인 관리자만 보유한다.
  */
+@Tag(name = ApiTags.ADMIN)
 @RestController
 @RequestMapping("/admin/staff-accounts")
 @RequiredArgsConstructor
@@ -40,6 +45,7 @@ public class AdminStaffAccountController {
 
     /** 관계자 계정 목록(ACAD-06, §6.6). */
     @CanManageStaffAccount
+    @Operation(summary = "관계자 계정 목록 (ACAD-06, O-02)")
     @GetMapping
     public ApiResponse<PageResponse<StaffAccountSummaryResponse>> list(
             @ModelAttribute AdminAccountListRequest request) {
@@ -53,6 +59,7 @@ public class AdminStaffAccountController {
      * 쓰기가 만들지 않는 집계가 들어가지 않아, 조회를 한 번 더 부를 이유가 부재하다.
      */
     @CanManageStaffAccount
+    @Operation(summary = "관계자 계정 관리 (ACAD-06, O-02)")
     @PatchMapping("/{id}")
     public ApiResponse<StaffAccountDetailResponse> update(@PathVariable Long id,
             @Valid @RequestBody StaffAccountUpdateRequest request) {

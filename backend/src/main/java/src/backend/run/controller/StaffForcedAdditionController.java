@@ -9,10 +9,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanManageSchedule;
@@ -26,6 +30,7 @@ import src.backend.run.dto.ForcedAdditionResponse;
  * <p>학원 범위는 <b>토큰이 정한다</b>(§1.5) — 다른 학원의 회차를 {@code {runId}} 로 지목하면
  * {@code 404 RUN_NOT_FOUND} 다.
  */
+@Tag(name = ApiTags.STAFF)
 @RestController
 @RequestMapping("/staff/runs")
 @RequiredArgsConstructor
@@ -38,6 +43,7 @@ public class StaffForcedAdditionController {
      * {@code 409 CAPACITY_EXCEEDED}, 주소 검증 실패는 {@code 422 ADDRESS_VERIFICATION_FAILED}.
      */
     @CanManageSchedule
+    @Operation(summary = "노선 강제 추가 (RTE-06, A-06)")
     @PostMapping("/{runId}/forced-add")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<ForcedAdditionResponse> add(@AuthenticationPrincipal AuthUser requester,

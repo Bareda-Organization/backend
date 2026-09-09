@@ -9,10 +9,14 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanRegisterDevice;
@@ -26,6 +30,7 @@ import src.backend.notification.dto.DeviceRegisterResponse;
  * 해 {@code @AllowedWhenPending} 을 인가 축({@code @CanRegisterDevice})과 함께 붙인다 — 두 축은
  * 겸하지 않되 한 핸들러가 각 축에서 하나씩 갖는 것은 허용된다(SignupController 선례, Task 4).
  */
+@Tag(name = ApiTags.AUTH)
 @RestController
 @RequiredArgsConstructor
 public class DeviceController {
@@ -34,6 +39,7 @@ public class DeviceController {
 
     @CanRegisterDevice
     @AllowedWhenPending
+    @Operation(summary = "푸시 수신 단말 등록·해지 (NTF-12)")
     @PostMapping("/me/devices")
     public ResponseEntity<ApiResponse<DeviceRegisterResponse>> register(
             @AuthenticationPrincipal AuthUser authUser, @Valid @RequestBody DeviceRegisterRequest request) {
@@ -43,6 +49,7 @@ public class DeviceController {
 
     @CanRegisterDevice
     @AllowedWhenPending
+    @Operation(summary = "푸시 수신 단말 해지 (NTF-12)")
     @DeleteMapping("/me/devices/{token}")
     public ResponseEntity<Void> revoke(@AuthenticationPrincipal AuthUser authUser, @PathVariable String token) {
         deviceCommandService.revoke(authUser.accountId(), token);

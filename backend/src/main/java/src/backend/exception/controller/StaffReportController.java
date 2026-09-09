@@ -7,11 +7,15 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import lombok.RequiredArgsConstructor;
 
 import src.backend.exception.dto.StaffReportItemResponse;
 import src.backend.exception.dto.StaffReportListResponse;
 import src.backend.exception.query.ExceptionReportQueryService;
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanReadReport;
@@ -24,6 +28,7 @@ import src.backend.global.security.authz.CanReadReport;
  * src.backend.run.controller.StaffRunController} 가 이미 겪은 것과 같은 근거, DTO 로 묶어
  * {@code @ModelAttribute} 로 받으면 {@code run_id} 가 조용히 안 붙는다).
  */
+@Tag(name = ApiTags.STAFF)
 @RestController
 @RequestMapping("/staff/reports")
 @RequiredArgsConstructor
@@ -33,6 +38,7 @@ public class StaffReportController {
 
     /** 예외 보고 목록(§5.20 목록) — 전부 선택적 필터, 페이지네이션 없음. */
     @CanReadReport
+    @Operation(summary = "예외 보고 조회 (EXC-02 · EXC-03, M-14)")
     @GetMapping
     public ApiResponse<StaffReportListResponse> list(@AuthenticationPrincipal AuthUser requester,
             @RequestParam(name = "type", required = false) String type,
@@ -43,6 +49,7 @@ public class StaffReportController {
 
     /** 예외 보고 상세(§5.20 상세). */
     @CanReadReport
+    @Operation(summary = "예외 보고 상세 (EXC-02 · EXC-03, M-14)")
     @GetMapping("/{id}")
     public ApiResponse<StaffReportItemResponse> detail(@AuthenticationPrincipal AuthUser requester,
             @PathVariable Long id) {

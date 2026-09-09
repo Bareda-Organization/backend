@@ -9,6 +9,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
@@ -19,6 +22,7 @@ import src.backend.account.dto.SignupDecisionResponse;
 import src.backend.account.dto.SignupRequestListRequest;
 import src.backend.account.dto.SignupRequestListResponse;
 import src.backend.account.query.SignupRequestQueryService;
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanApproveSignup;
@@ -32,6 +36,7 @@ import src.backend.global.security.authz.CanApproveSignup;
  *
  * <p>소속 학원은 토큰이 정한다(§1.5) — 요청은 어느 학원인지 지정할 자리가 부재하다.
  */
+@Tag(name = ApiTags.STAFF)
 @RestController
 @RequestMapping("/staff/signup-requests")
 @RequiredArgsConstructor
@@ -43,6 +48,7 @@ public class SignupApprovalController {
 
     /** 가입 요청 목록(AUTH-10, §5.1) — 기본은 미처리 건이다. */
     @CanApproveSignup
+    @Operation(summary = "가입 요청 목록 (AUTH-10, A-02)")
     @GetMapping
     public ApiResponse<SignupRequestListResponse> list(@AuthenticationPrincipal AuthUser authUser,
             @ModelAttribute SignupRequestListRequest request) {
@@ -51,6 +57,7 @@ public class SignupApprovalController {
 
     /** 수락 · 거절(AUTH-10·11, §5.2) — 수락에는 계정 ↔ 레코드 연결이 함께 필요하다. */
     @CanApproveSignup
+    @Operation(summary = "수락 / 거절 (AUTH-10·11, A-02)")
     @PostMapping("/{id}/decide")
     public ApiResponse<SignupDecisionResponse> decide(@AuthenticationPrincipal AuthUser authUser,
             @PathVariable Long id, @Valid @RequestBody SignupDecisionPayload payload) {

@@ -6,8 +6,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanMonitorAcademy;
@@ -22,6 +26,7 @@ import src.backend.run.query.StaffRunRouteQueryService;
  * (매니저는 자기 배치 회차만, 관계자는 {@link CanMonitorAcademy} 로 학원 전체를 본다). 경로 접두는
  * {@code StaffRosterController}(§5.4 {@code /staff/runs/{runId}/roster})와 같은 계열이라 재사용한다.
  */
+@Tag(name = ApiTags.STAFF)
 @RestController
 @RequestMapping("/staff/runs")
 @RequiredArgsConstructor
@@ -30,6 +35,7 @@ public class StaffRunRouteController {
     private final StaffRunRouteQueryService staffRunRouteQueryService;
 
     @CanMonitorAcademy
+    @Operation(summary = "확정 노선 조회 — 관계자용 (RTE-02, A-03·A-08·A-15)")
     @GetMapping("/{runId}/route")
     public ApiResponse<StaffRunRouteResponse> route(@AuthenticationPrincipal AuthUser requester,
             @PathVariable Long runId) {

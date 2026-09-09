@@ -7,10 +7,14 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanManageManager;
@@ -28,6 +32,7 @@ import src.backend.manager.dto.RunAssignmentResponse;
  * <p><b>충돌은 경고이고 차단이 부재하다</b>(Ruling 152) — 저장은 되고 판정 결과가
  * {@code warnings[]} 에 실린다.
  */
+@Tag(name = ApiTags.STAFF)
 @RestController
 @RequestMapping("/staff/runs")
 @RequiredArgsConstructor
@@ -37,6 +42,7 @@ public class StaffRunAssignmentController {
 
     /** 회차에 기사·동승자를 배치한다(MGR-05·06, §5.14) — 지정하지 않은 자리는 그대로 둔다. */
     @CanManageManager
+    @Operation(summary = "매니저 배치 (MGR-05·06, A-12)")
     @PatchMapping("/{runId}/assignment")
     public ApiResponse<RunAssignmentResponse> assign(@AuthenticationPrincipal AuthUser requester,
             @PathVariable Long runId, @Valid @RequestBody AssignmentRequest request) {

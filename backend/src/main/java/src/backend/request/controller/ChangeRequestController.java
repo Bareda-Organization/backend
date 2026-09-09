@@ -10,10 +10,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanReadChangeRequest;
@@ -30,6 +34,7 @@ import src.backend.request.query.ChangeRequestQueryService;
  * <p>보호자는 토큰이 정한다(§1.5) — {@code {id}} 가 연결된 자녀인지는 {@code student.access} 의 단일
  * 판정 지점({@code LinkedChildLookup})이 본다({@code WeeklyAddressController} 와 같은 형태).
  */
+@Tag(name = ApiTags.PARENT_STUDENT)
 @RestController
 @RequestMapping("/students/{id}/change-requests")
 @RequiredArgsConstructor
@@ -45,6 +50,7 @@ public class ChangeRequestController {
      * 생성은 매한가지다).
      */
     @CanRequestChange
+    @Operation(summary = "변경 신청 (REQ-01·02, P-06)")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<ChangeRequestCreateResponse> submit(@AuthenticationPrincipal AuthUser authUser,
@@ -54,6 +60,7 @@ public class ChangeRequestController {
 
     /** 신청 상태 조회(§3.9) — 접수 역순 이력 + 대기 중 건수. */
     @CanReadChangeRequest
+    @Operation(summary = "신청 상태 조회 (REQ-03)")
     @GetMapping
     public ApiResponse<ChangeRequestListResponse> list(@AuthenticationPrincipal AuthUser authUser,
             @PathVariable("id") Long studentId) {

@@ -12,6 +12,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
@@ -22,6 +25,7 @@ import src.backend.bus.dto.BusRegisterRequest;
 import src.backend.bus.dto.BusResponse;
 import src.backend.bus.dto.BusUpdateRequest;
 import src.backend.bus.query.BusQueryService;
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.response.PageResponse;
 import src.backend.global.security.AuthUser;
@@ -33,6 +37,7 @@ import src.backend.global.security.authz.CanManageBus;
  * <p>학원 범위는 <b>토큰이 정한다</b>(§1.5) — 경로·본문에 학원을 지정할 자리가 부재하고, 다른 학원의
  * 차량을 {@code {id}} 로 지목하면 {@code 404 BUS_NOT_FOUND} 다.
  */
+@Tag(name = ApiTags.STAFF)
 @RestController
 @RequestMapping("/staff/buses")
 @RequiredArgsConstructor
@@ -44,6 +49,7 @@ public class StaffBusController {
 
     /** 차량 목록(BUS-01, §5.12). */
     @CanManageBus
+    @Operation(summary = "차량 목록 (BUS-01, A-10)")
     @GetMapping
     public ApiResponse<PageResponse<BusResponse>> list(@AuthenticationPrincipal AuthUser requester,
             @ModelAttribute BusListRequest request) {
@@ -52,6 +58,7 @@ public class StaffBusController {
 
     /** 차량 등록(BUS-02, §5.12) — 응답의 {@code student_capacity} 는 서버 계산값이다. */
     @CanManageBus
+    @Operation(summary = "차량 등록 (BUS-01, A-10)")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<BusResponse> register(@AuthenticationPrincipal AuthUser requester,
@@ -61,6 +68,7 @@ public class StaffBusController {
 
     /** 차량 수정(BUS-03, §5.12) — §1.9 대로 변경 후 자원 상태를 그대로 반환한다. */
     @CanManageBus
+    @Operation(summary = "차량 수정 (BUS-01, A-10)")
     @PatchMapping("/{id}")
     public ApiResponse<BusResponse> update(@AuthenticationPrincipal AuthUser requester, @PathVariable Long id,
             @Valid @RequestBody BusUpdateRequest request) {

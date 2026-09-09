@@ -9,8 +9,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.config.ApiTags;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.response.ApiResponse;
@@ -28,6 +32,7 @@ import src.backend.run.navigation.service.NavigationScope;
  * — 이름이 한 단어라 우연히 어긋나지 않을 뿐, 새 파라미터를 더할 때는 이 이름을 직접 준다
  * ({@code StaffRunController} 의 같은 경고 참고).
  */
+@Tag(name = ApiTags.MANAGER)
 @RestController
 @RequestMapping("/runs")
 @RequiredArgsConstructor
@@ -36,6 +41,7 @@ public class NavigationController {
     private final NavigationQueryService navigationQueryService;
 
     @CanReadRoute
+    @Operation(summary = "외부 내비게이션 앱 연동 (RUN-08, M-09)")
     @GetMapping("/{runId}/navigation")
     public ApiResponse<NavigationResponse> navigate(@AuthenticationPrincipal AuthUser requester,
             @PathVariable Long runId, @RequestParam(name = "scope", required = false, defaultValue = "next")

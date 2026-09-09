@@ -14,6 +14,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -35,6 +38,7 @@ import src.backend.account.dto.RecoverRequestPayload;
 import src.backend.account.dto.RecoverResponse;
 import src.backend.account.dto.RefreshRequestPayload;
 import src.backend.account.dto.RefreshResponse;
+import src.backend.global.config.ApiTags;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.response.ApiResponse;
@@ -52,6 +56,7 @@ import src.backend.global.security.gate.AllowedWhenPending;
  * 갈지 본문으로 갈지 전혀 모른다. 판정 방식은 두 갈래로 갈라져 있고 서로 겸하지 않는다(§3.2):
  * 로그인은 {@code X-Client-Type} 헤더(§2.5), 그 외 refresh 계열은 쿠키 우선·본문 차선(§2.6·§2.7)이다.
  */
+@Tag(name = ApiTags.AUTH)
 @RestController
 @RequiredArgsConstructor
 public class AuthController {
@@ -73,6 +78,7 @@ public class AuthController {
     @Parameter(name = "X-Client-Type", in = ParameterIn.HEADER,
             schema = @Schema(allowableValues = {"app", "web"}, defaultValue = "app"))
     @PublicEndpoint
+    @Operation(summary = "로그인 (AUTH-04·05)")
     @PostMapping("/auth/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(
             @RequestHeader(value = "X-Client-Type", required = false, defaultValue = "app") String clientType,
@@ -103,6 +109,7 @@ public class AuthController {
      * 호출하지 않고 즉시 {@code 401 TOKEN_EXPIRED}(§3.2 판정은 이 계층에서만).
      */
     @PublicEndpoint
+    @Operation(summary = "토큰 재발급 (C-14)")
     @PostMapping("/auth/refresh")
     public ResponseEntity<ApiResponse<RefreshResponse>> refresh(
             @CookieValue(name = REFRESH_COOKIE_NAME, required = false) String cookieToken,
@@ -131,6 +138,7 @@ public class AuthController {
      */
     @AuthenticatedOnly
     @AllowedWhenPending
+    @Operation(summary = "로그아웃 (AUTH-09)")
     @PostMapping("/auth/logout")
     public ResponseEntity<Void> logout(@AuthenticationPrincipal AuthUser authUser,
             @CookieValue(name = REFRESH_COOKIE_NAME, required = false) String cookieToken,
@@ -156,6 +164,7 @@ public class AuthController {
      * 세션이면 브라우저가 refresh 쿠키를 자동으로 함께 보낸다 — Task 4 판단, 보고서 ⑥).
      */
     @AuthenticatedOnly
+    @Operation(summary = "비밀번호 변경 (AUTH-07)")
     @PostMapping("/auth/password")
     public ResponseEntity<Void> changePassword(@AuthenticationPrincipal AuthUser authUser,
             @CookieValue(name = REFRESH_COOKIE_NAME, required = false) String cookieToken,
@@ -172,6 +181,7 @@ public class AuthController {
 
     /** 아이디·비밀번호 복구(API_SPEC §2.9) — 응답 스키마는 Task 4 가 설계했다(보고서 ⑥). */
     @PublicEndpoint
+    @Operation(summary = "아이디·비밀번호 복구 (AUTH-08)")
     @PostMapping("/auth/recover")
     public ApiResponse<RecoverResponse> recover(@Valid @RequestBody RecoverRequestPayload payload) {
         return ApiResponse.ok(

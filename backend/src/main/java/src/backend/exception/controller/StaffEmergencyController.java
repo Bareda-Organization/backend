@@ -7,12 +7,16 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import lombok.RequiredArgsConstructor;
 
 import src.backend.exception.command.EmergencyCommandService;
 import src.backend.exception.dto.EmergencyAckResponse;
 import src.backend.exception.dto.EmergencyStaffListResponse;
 import src.backend.exception.query.EmergencyStaffQueryService;
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanAckEmergency;
@@ -23,6 +27,7 @@ import src.backend.global.security.authz.CanAckEmergency;
  * 의 역할별 분기 참고). 목록 조회는 학원 범위만 지원한다 — 메인관리자의 전 학원 목록은
  * {@code GET /admin/emergencies} 다.
  */
+@Tag(name = ApiTags.STAFF)
 @RestController
 @RequestMapping("/staff/emergencies")
 @RequiredArgsConstructor
@@ -34,6 +39,7 @@ public class StaffEmergencyController {
 
     /** 학원 관계자 비상 알림 목록(목표 10). */
     @CanAckEmergency
+    @Operation(summary = "비상 알림 수신·확인 (EXC-04, A-16)")
     @GetMapping
     public ApiResponse<EmergencyStaffListResponse> list(@AuthenticationPrincipal AuthUser requester) {
         return ApiResponse.ok(emergencyStaffQueryService.list(requester));
@@ -41,6 +47,7 @@ public class StaffEmergencyController {
 
     /** 비상 신고 확인(ack) 처리(목표 10). */
     @CanAckEmergency
+    @Operation(summary = "비상 알림 확인 응답 (EXC-04, A-16)")
     @PostMapping("/{id}/ack")
     public ApiResponse<EmergencyAckResponse> ack(@AuthenticationPrincipal AuthUser requester,
             @PathVariable Long id) {

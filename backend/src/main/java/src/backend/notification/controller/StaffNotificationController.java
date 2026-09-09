@@ -6,8 +6,12 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanReadNotificationLog;
@@ -23,6 +27,7 @@ import src.backend.notification.query.StaffNotificationQueryService;
  * 같은 근거 — {@code run_id} 처럼 여러 단어인 파라미터가 있는 {@code StaffReportController} 만
  * {@code @RequestParam} 을 손으로 쓴다).
  */
+@Tag(name = ApiTags.STAFF)
 @RestController
 @RequestMapping("/staff/notifications")
 @RequiredArgsConstructor
@@ -32,6 +37,7 @@ public class StaffNotificationController {
 
     /** 알림 로그 목록(§5.17) — 학원 관계자만, 소속 학원 범위. */
     @CanReadNotificationLog
+    @Operation(summary = "알림 로그 (NTF-10·11, A-13)")
     @GetMapping
     public ApiResponse<StaffNotificationListResponse> list(@AuthenticationPrincipal AuthUser authUser,
             @ModelAttribute StaffNotificationListRequest request) {

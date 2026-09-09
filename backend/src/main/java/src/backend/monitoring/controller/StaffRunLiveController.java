@@ -5,8 +5,12 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanMonitorAcademy;
@@ -20,6 +24,7 @@ import src.backend.monitoring.query.StaffRunLiveQueryService;
  * — 이쪽은 좌표·진행도가 5~10초마다 갱신되는 관제 스냅샷이고, 그쪽은 배치 정보 목록이라 갱신 주기와
  * 캐시 전략이 다르다(같은 컨트롤러에 묶으면 그 차이가 메서드 단위로만 표현된다).
  */
+@Tag(name = ApiTags.STAFF)
 @RestController
 @RequestMapping("/staff/runs/live")
 @RequiredArgsConstructor
@@ -29,6 +34,7 @@ public class StaffRunLiveController {
 
     /** 오늘 운행 중({@code status=moving}) 회차의 위치·진행도·지연 스냅샷. */
     @CanMonitorAcademy
+    @Operation(summary = "전 차량 실시간 위치 (MON-07, A-14)")
     @GetMapping
     public ApiResponse<StaffRunLiveResponse> live(@AuthenticationPrincipal AuthUser requester) {
         return ApiResponse.ok(staffRunLiveQueryService.live(requester));

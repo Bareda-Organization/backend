@@ -33,11 +33,11 @@ public class OpenApiConfig {
     // ── 태그 — docs/API_SPEC.md §2~§6 도메인 절과 1:1 대응. 숫자 접두사는 정렬 고정용
     //    (application.yml 공통 섹션의 springdoc.swagger-ui.tags-sorter: alpha 때문에 필요) ──
 
-    private static final String TAG_AUTH = "0. 인증 · 가입";
-    private static final String TAG_PARENT_STUDENT = "1. 학부모 · 학생 앱";
-    private static final String TAG_MANAGER = "2. 매니저 앱 (버스기사 · 동승자)";
-    private static final String TAG_STAFF = "3. 관계자 웹";
-    private static final String TAG_ADMIN = "4. 메인 관리자 콘솔";
+    private static final String TAG_AUTH = ApiTags.AUTH;
+    private static final String TAG_PARENT_STUDENT = ApiTags.PARENT_STUDENT;
+    private static final String TAG_MANAGER = ApiTags.MANAGER;
+    private static final String TAG_STAFF = ApiTags.STAFF;
+    private static final String TAG_ADMIN = ApiTags.ADMIN;
 
     /**
      * Swagger UI 최상단에 그대로 렌더링되는 안내문(Markdown). {@code %s} 자리는 전부

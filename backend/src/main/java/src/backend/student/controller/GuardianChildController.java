@@ -9,10 +9,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanLinkChild;
@@ -38,6 +42,7 @@ import src.backend.student.query.ChildQueryService;
  * 학부모의 기능이라 승인 대기·거절 계정이 닿을 이유가 부재하고, 허용 목록 밖으로 남아 {@code 403} 이
  * 되는 것이 사양이다(§1.4 · Ruling 145).
  */
+@Tag(name = ApiTags.PARENT_STUDENT)
 @RestController
 @RequestMapping("/me/students")
 @RequiredArgsConstructor
@@ -49,6 +54,7 @@ public class GuardianChildController {
 
     /** 연결된 자녀 목록(ATT-03, §3.1) — 자녀 선택 UI 와 알림 문구의 재료다. */
     @CanReadLinkedChild
+    @Operation(summary = "연결된 자녀 목록 (P-02 · ATT-03)")
     @GetMapping
     public ApiResponse<ChildListResponse> list(@AuthenticationPrincipal AuthUser authUser) {
         return ApiResponse.ok(childQueryService.list(authUser));
@@ -56,6 +62,7 @@ public class GuardianChildController {
 
     /** ① 자녀 연결 요청(P-02, §3.2) — 대상 학생을 로그인 아이디로 지목한다. */
     @CanLinkChild
+    @Operation(summary = "자녀 연결 요청 (P-02) — 학부모")
     @PostMapping("/link-requests")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<LinkRequestCreatedResponse> requestLink(@AuthenticationPrincipal AuthUser authUser,
@@ -70,6 +77,7 @@ public class GuardianChildController {
      * 이 단계의 전제다(§3.4).
      */
     @CanLinkChild
+    @Operation(summary = "코드 입력 → 서버 인증으로 연결 완료 (P-02) — 학부모")
     @PostMapping("/link")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<ChildLinkedResponse> link(@AuthenticationPrincipal AuthUser authUser,

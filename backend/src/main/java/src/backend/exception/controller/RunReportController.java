@@ -9,6 +9,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
@@ -16,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.exception.command.ExceptionReportCommandService;
 import src.backend.exception.dto.ExceptionReportCreateRequest;
 import src.backend.exception.dto.ExceptionReportCreateResponse;
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 
@@ -26,6 +30,7 @@ import src.backend.global.security.AuthUser;
  * ({@code DRIVER_ONLY}/{@code ESCORT_ONLY} 대 일반 {@code FORBIDDEN})는 컨트롤러가 아니라
  * {@link src.backend.run.access.RunAssignmentAccess} 가 커맨드 서비스 안에서 판정한다.
  */
+@Tag(name = ApiTags.MANAGER)
 @RestController
 @RequestMapping("/runs")
 @RequiredArgsConstructor
@@ -34,6 +39,7 @@ public class RunReportController {
     private final ExceptionReportCommandService exceptionReportCommandService;
 
     /** 현장 예외 상황 보고(§4.13, EXC-02·03) — {@code type=guardian_absent} 는 {@code rider_id} 필수. */
+    @Operation(summary = "현장 상황 보고 (EXC-03) · 보호자 부재 등록 (EXC-02)")
     @PostMapping("/{runId}/reports")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<ExceptionReportCreateResponse> report(@AuthenticationPrincipal AuthUser requester,

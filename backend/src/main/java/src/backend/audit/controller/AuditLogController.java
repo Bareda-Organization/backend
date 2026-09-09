@@ -5,10 +5,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import lombok.RequiredArgsConstructor;
 
 import src.backend.audit.dto.AuditLogItemResponse;
 import src.backend.audit.query.AuditLogQueryService;
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.response.PageResponse;
 import src.backend.global.security.authz.CanReadAudit;
@@ -21,6 +25,7 @@ import src.backend.global.security.authz.CanReadAudit;
  * {@code @ModelAttribute} 로 묶으면 {@code academy_id} 가 조용히 안 붙는다
  * ({@code StaffReportController} 와 같은 근거).
  */
+@Tag(name = ApiTags.ADMIN)
 @RestController
 @RequestMapping("/admin/audit-logs")
 @RequiredArgsConstructor
@@ -29,6 +34,7 @@ public class AuditLogController {
     private final AuditLogQueryService auditLogQueryService;
 
     @CanReadAudit
+    @Operation(summary = "감사 로그 조회 (SYS-01)")
     @GetMapping
     public ApiResponse<PageResponse<AuditLogItemResponse>> list(
             @RequestParam(name = "academy_id", required = false) Long academyId,

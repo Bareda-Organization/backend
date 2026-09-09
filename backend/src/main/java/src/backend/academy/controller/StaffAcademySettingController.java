@@ -7,6 +7,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
@@ -15,6 +18,7 @@ import src.backend.academy.command.AcademySettingCommandService;
 import src.backend.academy.dto.AcademySettingResponse;
 import src.backend.academy.dto.AcademySettingUpdateRequest;
 import src.backend.academy.query.AcademySettingQueryService;
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.AuthenticatedOnly;
@@ -26,6 +30,7 @@ import src.backend.global.security.authz.AuthenticatedOnly;
  * 권한 상수로 매핑하지 않았기 때문이다(각 서비스 자바독 참고). 이 컨트롤러는 {@code @AuthenticatedOnly}
  * 로 인증 여부만 확인한다.
  */
+@Tag(name = ApiTags.STAFF)
 @RestController
 @RequestMapping("/staff/academy-settings")
 @RequiredArgsConstructor
@@ -36,6 +41,7 @@ public class StaffAcademySettingController {
     private final AcademySettingCommandService academySettingCommandService;
 
     @AuthenticatedOnly
+    @Operation(summary = "학원별 설정 (EXC-01 · M-13 · A-17)")
     @GetMapping
     public ApiResponse<AcademySettingResponse> get(@AuthenticationPrincipal AuthUser requester) {
         return ApiResponse.ok(academySettingQueryService.get(requester));
@@ -43,6 +49,7 @@ public class StaffAcademySettingController {
 
     /** §1.9 대로 변경 후 자원 상태를 그대로 반환한다. */
     @AuthenticatedOnly
+    @Operation(summary = "학원별 설정 (EXC-01 · M-13 · A-17)")
     @PatchMapping
     public ApiResponse<AcademySettingResponse> update(@AuthenticationPrincipal AuthUser requester,
             @Valid @RequestBody AcademySettingUpdateRequest request) {

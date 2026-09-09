@@ -8,10 +8,14 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanManageWeeklyAddress;
@@ -34,6 +38,7 @@ import src.backend.student.query.WeeklyAddressQueryService;
  * 기능이라 승인 대기·거절 계정이 닿을 이유가 부재하고, 허용 목록 밖으로 남아 {@code 403} 이 되는 것이
  * 사양이다(§1.4 · Ruling 145).
  */
+@Tag(name = ApiTags.PARENT_STUDENT)
 @RestController
 @RequestMapping("/students/{id}/weekly-address")
 @RequiredArgsConstructor
@@ -45,6 +50,7 @@ public class WeeklyAddressController {
 
     /** 설정 화면의 초기 조회(§3.7 {@code GET}) — 응답 구조는 {@code PATCH} 와 같다. */
     @CanManageWeeklyAddress
+    @Operation(summary = "요일별 등하원 주소 (P-05 · STU-05·06)")
     @GetMapping
     public ApiResponse<WeeklyAddressResponse> list(@AuthenticationPrincipal AuthUser authUser,
             @PathVariable("id") Long studentId) {
@@ -59,6 +65,7 @@ public class WeeklyAddressController {
      * {@code 201} 이면 두 번째 호출부터 거짓이 된다.
      */
     @CanManageWeeklyAddress
+    @Operation(summary = "요일별 등하원 주소 (P-05 · STU-05·06)")
     @PatchMapping
     public ApiResponse<WeeklyAddressResponse> replace(@AuthenticationPrincipal AuthUser authUser,
             @PathVariable("id") Long studentId, @Valid @RequestBody WeeklyAddressUpdateRequest request) {

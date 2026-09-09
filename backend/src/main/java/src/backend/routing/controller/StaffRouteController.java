@@ -13,10 +13,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.response.PageResponse;
 import src.backend.global.security.AuthUser;
@@ -41,6 +45,7 @@ import src.backend.routing.query.RouteQueryService;
  * ({@code confirmed_route}·{@code route_version}) 만드는 계기도 사용자 조작이 아니라 시각 도래다
  * (ARCHITECTURE §9). 이 경로가 다루는 것은 학기 단위로 유지되는 <b>원본 편성</b>뿐이다.
  */
+@Tag(name = ApiTags.STAFF)
 @RestController
 @RequestMapping("/staff/routes")
 @RequiredArgsConstructor
@@ -54,6 +59,7 @@ public class StaffRouteController {
 
     /** 고정 노선 목록(RTE-01 · A-08, §5.9) — 비활성 편성도 실린다. */
     @CanManageRoute
+    @Operation(summary = "고정 노선 편성 · 정차 순서 최적화 — 목록 (§1.8 페이징)")
     @GetMapping
     public ApiResponse<PageResponse<RouteResponse>> list(@AuthenticationPrincipal AuthUser requester,
             @ModelAttribute RouteListRequest request) {
@@ -62,6 +68,7 @@ public class StaffRouteController {
 
     /** 고정 노선 편성(RTE-01, §5.9) — 같은 차량·요일·방향이 이미 있으면 {@code 409 DUPLICATE_ROUTE}. */
     @CanManageRoute
+    @Operation(summary = "고정 노선 편성 · 정차 순서 최적화 — 편성")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<RouteDetailResponse> register(@AuthenticationPrincipal AuthUser requester,
@@ -71,6 +78,7 @@ public class StaffRouteController {
 
     /** 고정 노선 상세(RTE-01, §5.9) — 정차 순서를 {@code seq} 차례로 함께 싣는다. */
     @CanManageRoute
+    @Operation(summary = "고정 노선 편성 · 정차 순서 최적화 — 상세")
     @GetMapping("/{id}")
     public ApiResponse<RouteDetailResponse> detail(@AuthenticationPrincipal AuthUser requester,
             @PathVariable Long id) {
@@ -79,6 +87,7 @@ public class StaffRouteController {
 
     /** 고정 노선 수정(RTE-01, §5.9) — §1.9 대로 변경 후 자원 상태를 그대로 반환한다. */
     @CanManageRoute
+    @Operation(summary = "고정 노선 편성 · 정차 순서 최적화 — 수정")
     @PatchMapping("/{id}")
     public ApiResponse<RouteDetailResponse> update(@AuthenticationPrincipal AuthUser requester,
             @PathVariable Long id, @Valid @RequestBody RouteUpdateRequest request) {
@@ -87,6 +96,7 @@ public class StaffRouteController {
 
     /** 고정 노선 삭제(RTE-01, §5.9) — 행을 지우고 정차 순서도 FK CASCADE 로 함께 사라진다. */
     @CanManageRoute
+    @Operation(summary = "고정 노선 편성 · 정차 순서 최적화 — 삭제")
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@AuthenticationPrincipal AuthUser requester, @PathVariable Long id) {
         routeCommandService.delete(requester, id);
@@ -101,6 +111,7 @@ public class StaffRouteController {
      * 관리자가 정한 차례가 이유 없이 뒤집힌다.
      */
     @CanManageRoute
+    @Operation(summary = "고정 노선 편성 · 정차 순서 최적화 — 정차 순서 최적화")
     @PostMapping("/{id}/optimize")
     public ApiResponse<RouteDetailResponse> optimize(@AuthenticationPrincipal AuthUser requester,
             @PathVariable Long id, @Valid @RequestBody RouteOptimizeRequest request) {

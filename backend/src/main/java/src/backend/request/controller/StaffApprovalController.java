@@ -11,10 +11,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanApproveChange;
@@ -33,6 +37,7 @@ import src.backend.request.query.ApprovalQueryService;
  * ChangeRequestDecisionService} 참고) — 목록은 재최적화를 실행하지 않고, 상세는 그 시점에 1회
  * 실행해 캐시에 담고, 결정은 그 캐시를 재사용할 뿐 새로 계산하지 않는다.
  */
+@Tag(name = ApiTags.STAFF)
 @RestController
 @RequestMapping("/staff/approvals")
 @RequiredArgsConstructor
@@ -51,6 +56,7 @@ public class StaffApprovalController {
      * 변환한다.
      */
     @CanApproveChange
+    @Operation(summary = "30분 안쪽 변경 승인 대기 목록·상세 (REQ-04·05, A-05)")
     @GetMapping
     public ApiResponse<ApprovalListResponse> list(@AuthenticationPrincipal AuthUser requester,
             @RequestParam(required = false) String status) {
@@ -67,6 +73,7 @@ public class StaffApprovalController {
      *                                                     {@code 403 ACADEMY_SCOPE_VIOLATION}(다른 학원 소속)
      */
     @CanApproveChange
+    @Operation(summary = "30분 안쪽 변경 승인 상세 (REQ-04·05, A-05)")
     @GetMapping("/{id}")
     public ApiResponse<ApprovalDetailResponse> detail(@AuthenticationPrincipal AuthUser requester,
             @PathVariable Long id) {
@@ -86,6 +93,7 @@ public class StaffApprovalController {
      *                                                     {@code 422 VALIDATION_FAILED}
      */
     @CanApproveChange
+    @Operation(summary = "승인 / 거절 (REQ-04, A-05)")
     @PostMapping("/{id}/decide")
     public ApiResponse<DecideChangeRequestResponse> decide(@AuthenticationPrincipal AuthUser requester,
             @PathVariable Long id, @Valid @RequestBody DecideChangeRequestRequest request) {

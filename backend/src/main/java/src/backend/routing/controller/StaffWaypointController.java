@@ -11,10 +11,14 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanManageSchedule;
@@ -34,6 +38,7 @@ import src.backend.routing.dto.WaypointResponse;
  * <p>학원 범위는 <b>토큰이 정한다</b>(§1.5) — 다른 학원의 회차·경유 지점을 지목하면 각각
  * {@code 404 RUN_NOT_FOUND}·{@code 404 WAYPOINT_NOT_FOUND} 다.
  */
+@Tag(name = ApiTags.STAFF)
 @RestController
 @RequestMapping("/staff/runs")
 @RequiredArgsConstructor
@@ -46,6 +51,7 @@ public class StaffWaypointController {
      * 없으면 {@code 422 VALIDATION_FAILED}.
      */
     @CanManageSchedule
+    @Operation(summary = "경유 지점 지정 (RTE-10, A-15)")
     @PostMapping("/{runId}/waypoints")
     @ResponseStatus(HttpStatus.OK)
     public ApiResponse<WaypointResponse> add(@AuthenticationPrincipal AuthUser requester, @PathVariable Long runId,
@@ -58,6 +64,7 @@ public class StaffWaypointController {
      * {@code false}(미리보기) — 실수로 즉시 배포되는 것을 막는다.
      */
     @CanManageSchedule
+    @Operation(summary = "경유 지점 배포 제거 (RTE-10, A-15)")
     @DeleteMapping("/{runId}/waypoints/{waypointId}")
     @ResponseStatus(HttpStatus.OK)
     public ApiResponse<WaypointResponse> remove(@AuthenticationPrincipal AuthUser requester,

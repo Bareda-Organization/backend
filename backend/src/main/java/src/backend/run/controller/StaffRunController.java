@@ -14,10 +14,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanManageSchedule;
@@ -38,6 +42,7 @@ import src.backend.run.query.RunQueryService;
  * <p>배치(MGR-05·06)는 {@code StaffRunAssignmentController} 다 — 경로는 이 아래지만 권한이
  * {@code MANAGER_MANAGE} 로 다르고, 바뀌는 계기도 운행 계획이 아니라 인력 운영이다.
  */
+@Tag(name = ApiTags.STAFF)
 @RestController
 @RequestMapping("/staff/runs")
 @RequiredArgsConstructor
@@ -56,6 +61,7 @@ public class StaffRunController {
      * 된다. 실제로 그 형태로 깨졌다. 파라미터가 늘어 DTO 로 묶게 되면 이름 규약을 함께 정해야 한다.
      */
     @CanManageSchedule
+    @Operation(summary = "운행 스케줄 · 일일 회차 — 그 날짜의 회차 목록")
     @GetMapping
     public ApiResponse<List<RunResponse>> list(@AuthenticationPrincipal AuthUser requester,
             @RequestParam(name = "service_date", required = false) String serviceDate) {
@@ -64,6 +70,7 @@ public class StaffRunController {
 
     /** 특정일 회차 임시 추가(SCH-03, §5.10) — 만들어진 회차는 {@code schedule_id} 가 비어 있다. */
     @CanManageSchedule
+    @Operation(summary = "운행 스케줄 · 일일 회차 — 특정일 회차 임시 추가")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<RunResponse> add(@AuthenticationPrincipal AuthUser requester,
@@ -73,6 +80,7 @@ public class StaffRunController {
 
     /** 특정일 회차 임시 취소(SCH-03, §5.10) — 행을 지우지 않고 {@code canceled_at} 을 채운다. */
     @CanManageSchedule
+    @Operation(summary = "운행 스케줄 · 일일 회차 — 특정일 회차 임시 취소")
     @DeleteMapping("/{id}")
     public ApiResponse<Void> cancel(@AuthenticationPrincipal AuthUser requester, @PathVariable Long id) {
         runCommandService.cancel(requester, id);

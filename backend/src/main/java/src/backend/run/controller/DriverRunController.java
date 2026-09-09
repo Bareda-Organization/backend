@@ -6,8 +6,12 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.run.command.RunAckChangesCommandService;
@@ -29,6 +33,7 @@ import src.backend.run.dto.RunStartResponse;
  * {@link src.backend.run.access.RunAssignmentAccess} 가 각 커맨드 서비스 안에서 판정한다 — 세
  * 엔드포인트가 같은 인가 규칙을 공유하므로 컨트롤러에 애너테이션으로 얹는 대신 서비스 계층에 모았다.
  */
+@Tag(name = ApiTags.MANAGER)
 @RestController
 @RequestMapping("/runs")
 @RequiredArgsConstructor
@@ -41,6 +46,7 @@ public class DriverRunController {
     private final RunAckChangesCommandService runAckChangesCommandService;
 
     /** 운행 시작 처리(§4.4, RUN-02·M-10). */
+    @Operation(summary = "운행모드 시작 (RUN-02, M-10)")
     @PostMapping("/{runId}/start")
     public ApiResponse<RunStartResponse> start(@AuthenticationPrincipal AuthUser requester,
             @PathVariable Long runId) {
@@ -48,6 +54,7 @@ public class DriverRunController {
     }
 
     /** 승하차지 도착 처리(§4.5, RUN-04·M-11). */
+    @Operation(summary = "승하차지 도착 처리 (RUN-04, M-11)")
     @PostMapping("/{runId}/stops/{stopId}/arrive")
     public ApiResponse<RunArriveResponse> arrive(@AuthenticationPrincipal AuthUser requester,
             @PathVariable Long runId, @PathVariable Long stopId) {
@@ -55,6 +62,7 @@ public class DriverRunController {
     }
 
     /** 노선 변경 확인 응답(§4.11, RUN-07·M-04) — {@code change_ids[]} 는 요청에 와도 쓰지 않는다(전건 확인). */
+    @Operation(summary = "노선 변경 확인 응답 (RUN-07, M-04)")
     @PostMapping("/{runId}/ack-changes")
     public ApiResponse<RunAckChangesResponse> ackChanges(@AuthenticationPrincipal AuthUser requester,
             @PathVariable Long runId) {

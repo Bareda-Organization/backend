@@ -9,10 +9,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.AuthenticatedOnly;
@@ -30,6 +34,7 @@ import src.backend.run.dto.DelayResponse;
  * 걸면 Spring Security 게이트가 일반 {@code 403 FORBIDDEN} 으로 가로챈다 — {@code BoardingController}
  * 와 같은 근거({@code BoardingCommandService} 자바독 참조).
  */
+@Tag(name = ApiTags.MANAGER)
 @RestController
 @RequestMapping("/runs")
 @RequiredArgsConstructor
@@ -37,6 +42,7 @@ public class DelayNotificationController {
 
     private final DelayNotificationCommandService delayNotificationCommandService;
 
+    @Operation(summary = "지연 알림 (NTF-06, M-05)")
     @PostMapping("/{runId}/delay")
     @ResponseStatus(HttpStatus.CREATED)
     @AuthenticatedOnly
