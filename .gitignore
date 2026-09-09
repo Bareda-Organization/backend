@@ -28,9 +28,20 @@ backend/.env
 # (절차: docs/DEPLOYMENT.md §2.12). 실수로 만들어졌을 때를 대비해 여기서도 막아 둔다.
 infra/proxy/.htpasswd
 
-# 프론트엔드 — 2026-09-09 저장소에서 제거. 이 저장소는 백엔드 전용이다
-# (범위 밖 확정은 2026-08-25, Ruling 255). 되살리려면 git show <이전 main>:frontend
-frontend/
+# 프론트엔드 — 2026-09-09 재개. 2026-09-09 사용자 결정으로 다시 추적한다
+# (범위 밖 확정이던 Ruling 255 를 뒤집음). 관계자 웹은 Next.js, 학부모·매니저 앱은 Flutter.
+# 소스와 디자인 시스템은 추적하고 빌드 산출물만 제외한다.
+frontend/**/node_modules/
+frontend/**/.next/
+frontend/**/out/
+frontend/**/.turbo/
+frontend/**/build/
+frontend/**/.dart_tool/
+frontend/**/.flutter-plugins
+frontend/**/.flutter-plugins-dependencies
+frontend/**/*.iml
+frontend/**/.env
+frontend/**/.env.local
 
 # Root — 앱 동작과 무관한 도구 의존성
 node_modules/
