@@ -125,6 +125,10 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(origins);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
+        // API_SPEC §1.2.1 — refresh 토큰이 웹에서 쿠키로만 오간다. 이 값이 없으면 브라우저가
+        // `credentials: include` 요청을 통째로 거부해 웹 로그인 자체가 성립하지 않는다.
+        // 허용 출처가 `*` 가 아니라 명시 목록이라 이 조합이 성립한다.
+        configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/**", configuration);
