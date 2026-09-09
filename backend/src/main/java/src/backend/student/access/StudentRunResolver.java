@@ -73,6 +73,19 @@ public class StudentRunResolver {
     }
 
     /**
+     * 그날 이 학생이 속한 회차 전부(§3.5, P-04 · S-01) — {@link #resolveByDate} 와 달리 1건으로
+     * 좁히지 않는다. 등원·하원처럼 하루에 여러 회차를 가질 수 있어 목록 화면은 전부를 보여줘야 한다.
+     * 취소된 회차를 빼고 출발 시각 순으로 정렬하는 것은 {@link #mostRelevant} 의 후보 산출과 같다 —
+     * {@link #belongsTo} 를 그대로 재사용해 idle·확정 이후 판정 로직을 중복시키지 않는다.
+     */
+    public List<Run> resolveAllByDate(Long academyId, Long studentId, LocalDate date) {
+        return runRepository.findAllByAcademyIdAndServiceDateOrderByDepartTimeAsc(academyId, date).stream()
+                .filter(run -> !run.isCanceled())
+                .filter(run -> belongsTo(run, studentId))
+                .toList();
+    }
+
+    /**
      * 관련도 순서 — ①운행 중(MOVING)인 것 ②아직 출발 전 중 가장 이른 것 ③이미 지난 것 중 가장 최근
      * 것. 한 학생이 하루에 등원·하원 두 회차를 갖는 경우를 겨냥한 순서다(판단 근거 — 보고서에 근거를
      * 남긴다).

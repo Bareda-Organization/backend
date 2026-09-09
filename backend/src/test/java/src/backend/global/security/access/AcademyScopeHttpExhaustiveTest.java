@@ -339,6 +339,8 @@ class AcademyScopeHttpExhaustiveTest {
                 "FORBIDDEN"));
         cases.add(c("GET /students/{id}/route → B학원 학생 403 FORBIDDEN", HttpMethod.GET, "/students/{id}/route",
                 new Object[] {academyBStudentId}, parentA1(), null, 403, "FORBIDDEN"));
+        cases.add(c("GET /students/{id}/runs → B학원 학생 403 FORBIDDEN", HttpMethod.GET, "/students/{id}/runs",
+                new Object[] {academyBStudentId}, parentA1(), null, 403, "FORBIDDEN"));
 
         // 기사·동승자 단말 — RunAssignmentAccess, 배치 조회가 academy 조건보다 먼저다.
         cases.add(c("POST /runs/{runId}/start → B학원 회차 403 FORBIDDEN", HttpMethod.POST, "/runs/{runId}/start",

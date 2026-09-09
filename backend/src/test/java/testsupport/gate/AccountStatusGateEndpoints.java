@@ -119,6 +119,11 @@ public final class AccountStatusGateEndpoints {
      * <p>F4 S1 이 1개를 더했다 — 버스 간 이동 {@code POST /staff/students/{id}/transfer}(§5.8, RTE-07,
      * Ruling 256, 권한 "학원 관계자") — {@code POST /staff/runs/{runId}/forced-add}(Phase 8)와 같은
      * 계열의 관계자 관리 화면 기능이라 대기·거절 계정에는 근거가 부재하다(Ruling 145 와 같은 근거).
+     *
+     * <p>S1 이 1개를 더했다 — 자녀·본인 당일 회차 목록 {@code GET /students/{id}/runs}(§3.5,
+     * P-04 · S-01, 권한 "학부모(연결 자녀) · 학생(본인)") — {@code GET /students/{id}/route}
+     * (Phase 10)와 같은 계열의 승인된 학부모·학생 기능이라 대기·거절 계정에는 근거가 부재하다
+     * (Ruling 145 와 같은 근거).
      */
     public static final List<String> DENIED_WHEN_REJECTED = List.of(
             "POST /auth/password",
@@ -240,7 +245,9 @@ public final class AccountStatusGateEndpoints {
             // F3 S2 — 강제 확정 콘솔 개입(§6.14) 메인관리자 전용 기능 1개.
             "POST /admin/runs/{runId}/force-confirm",
             // F4 S1 — 버스 간 이동(§5.8, RTE-07, Ruling 256) 관계자 관리 화면 기능 1개.
-            "POST /staff/students/{id}/transfer");
+            "POST /staff/students/{id}/transfer",
+            // S1 — 자녀·본인 당일 회차 목록(§3.5, P-04 · S-01) 학부모·학생 기능 1개.
+            "GET /students/{id}/runs");
 
     /** {@code pending} 의 거부측 — {@code rejected} 거부측에 재신청 1개를 더한다({@code @AllowedWhenRejected} 는 pending 을 열지 않는다). */
     public static final List<String> DENIED_WHEN_PENDING = concat(DENIED_WHEN_REJECTED, "POST /auth/signup/reapply");
