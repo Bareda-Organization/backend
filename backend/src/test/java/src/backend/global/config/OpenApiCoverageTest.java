@@ -251,7 +251,7 @@ class OpenApiCoverageTest {
     /**
      * 목표 6 — 에러 표({@link EndpointErrorResponses})의 키가 전부 실재하는 엔드포인트다.
      * 표는 사양에서 옮긴 파생본이라 경로가 바뀌면 조용히 낡는다. 실제로 이 검사를 만들면서
-     * 사양에만 있고 핸들러가 없는 경로 2개가 드러났다(§3.5 · §4.15).
+     * 사양에만 있고 핸들러가 없는 경로가 드러났다(§4.15).
      */
     @Test
     void errorTableKeysMatchRegisteredEndpoints() {

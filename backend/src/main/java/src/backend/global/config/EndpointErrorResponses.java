@@ -15,9 +15,8 @@ import java.util.Map;
  * ①표의 모든 키가 실재하는 엔드포인트인지 ②적힌 코드가 {@code ErrorCode} 에 있는지를 함께 검사한다 —
  * 경로를 바꾸거나 코드 이름을 고치면 그 시험이 먼저 깨진다.
  *
- * <p>⚠ 사양 §3.5 {@code GET /students/{id}/runs}(P-04 · S-01)와 §4.15
- * {@code GET /runs/{runId}/emergencies} 는 <b>핸들러가 부재</b>해 이 표에 없다(2026-09-09 실측 —
- * 등록된 매핑 104개 어디에도 없고, 계획서·시험도 그 경로를 언급하지 않는다).
+ * <p>⚠ 사양 §4.15 {@code GET /runs/{runId}/emergencies} 는 <b>핸들러가 부재</b>해 이 표에 없다
+ * (2026-09-09 실측 — 등록된 매핑 어디에도 없고, 계획서·시험도 그 경로를 언급하지 않는다).
  *
  * <p>공통 항목(401·403·422)은 여기 없다 — 정의상 전 경로에 해당하므로
  * {@link CommonErrorResponsesCustomizer} 가 한 번에 붙인다(§1.11).
@@ -37,6 +36,7 @@ public final class EndpointErrorResponses {
             entry("GET /students/{id}/bus-position", Map.of("403", "FORBIDDEN", "404", "STUDENT_NOT_FOUND")),
             entry("GET /students/{id}/change-requests", Map.of("403", "FORBIDDEN", "404", "STUDENT_NOT_FOUND")),
             entry("GET /students/{id}/route", Map.of("403", "FORBIDDEN", "404", "STUDENT_NOT_FOUND · RUN_NOT_FOUND")),
+            entry("GET /students/{id}/runs", Map.of("403", "FORBIDDEN", "404", "STUDENT_NOT_FOUND")),
             entry("PATCH /admin/staff-accounts/{id}", Map.of("404", "ACCOUNT_NOT_FOUND", "409", "STAFF_QUOTA_EXCEEDED")),
             entry("PATCH /notifications/{id}/read", Map.of("403", "FORBIDDEN", "404", "NOTIFICATION_NOT_FOUND")),
             entry("PATCH /runs/{runId}/riders/{riderId}", Map.of("403", "ESCORT_ONLY", "404", "RIDER_NOT_FOUND · RUN_NOT_FOUND", "409", "RUN_NOT_MOVING", "422", "VALIDATION_FAILED")),
