@@ -54,7 +54,7 @@ public class MeQueryService {
                 : null;
         Integer linkedStudentCount = role == Role.PARENT ? resolveLinkedStudentCount(accountId) : null;
 
-        return new MeResponse(account.getId(), account.getLoginId(), account.getName(), account.getPhone(),
+        return new MeResponse(String.valueOf(account.getId()), account.getLoginId(), account.getName(), account.getPhone(),
                 role.name().toLowerCase(Locale.ROOT), account.getStatus().name().toLowerCase(Locale.ROOT), academy,
                 studentId, manager == null ? null : String.valueOf(manager.getId()),
                 manager == null ? null : manager.getRole().name().toLowerCase(Locale.ROOT), linkedStudentCount);

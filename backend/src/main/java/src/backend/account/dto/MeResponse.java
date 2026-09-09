@@ -6,7 +6,7 @@ package src.backend.account.dto;
  * 자바 필드명에서 자동 변환한다 — 개별 {@code @JsonProperty} 는 붙이지 않는다.
  */
 public record MeResponse(
-        Long accountId,
+        String accountId,
         String loginId,
         String name,
         String phone,

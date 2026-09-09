@@ -86,6 +86,10 @@ class MeControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.login_id").value("p2t3activeme"))
                 .andExpect(jsonPath("$.data.role").value("parent"))
+                // §1.1 "식별자는 서버 발급 문자열" — 같은 응답의 academy.id·manager_id 와도 맞춘다.
+                // 숫자로 내보내면 클라이언트가 login 응답(문자열)과 다른 타입을 받아 비교가 어긋난다.
+                .andExpect(jsonPath("$.data.account_id").isString())
+                .andExpect(jsonPath("$.data.account_id").value(String.valueOf(accountId)))
                 .andExpect(jsonPath("$.data.linked_student_count").value(0));
     }
 }
