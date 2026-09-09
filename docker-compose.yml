@@ -1,19 +1,14 @@
-# 기본 실행 대상: postgres + redis + kafka + backend(Spring) + frontend(Flutter Web) + proxy(nginx).
+# 기본 실행 대상: postgres + redis + kafka + backend(Spring) + proxy(nginx).
 # 실행:  docker compose up -d --build
 #
-# ★ 모든 HTTP 접근은 proxy(:80) 한 곳을 지난다. backend·frontend는 호스트에 포트를 열지 않는다.
-#   - 화면:      http://localhost/
+# ★ 모든 HTTP 접근은 proxy(:80) 한 곳을 지난다. backend는 호스트에 포트를 열지 않는다.
 #   - API:       http://localhost/api/...
 #   - WebSocket: ws://localhost/ws/location
 #   - Swagger:   http://localhost/swagger-ui/index.html
-#   프론트와 API가 같은 출처가 되므로 브라우저 CORS 자체가 발생하지 않는다.
+#   이 저장소는 백엔드 전용이라 `/` 로 서빙할 화면이 없다 — 프록시는 404 로 답한다.
 #
 # DB/Redis/Kafka 포트만 호스트에 남겨둔다 — DB 툴 접속과, 인프라만 컨테이너로 띄우고
 # 백엔드는 IDE에서 `./gradlew bootRun` 으로 돌리는 개발 방식을 위해서다.
-#
-# 프론트 UI를 반복 수정할 땐 컨테이너 재빌드가 느리니 로컬 실행이 낫다:
-#   cd frontend && flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:8080
-#   (이땐 프록시를 안 거치므로 백엔드를 8080으로 따로 띄우고 CORS 허용 목록을 쓴다)
 services:
   postgres:
     image: postgres:16
@@ -83,27 +78,8 @@ services:
       kafka:
         condition: service_started
 
-  # Flutter Web 빌드 → nginx 정적 서빙. 컨테이너 안에서 실행되는 건 Web 타깃뿐이다
-  # (모바일 앱은 컨테이너에서 "실행"할 수 없다 — frontend/docs/FLUTTER_FRONTEND_PLAN.md §1.2).
-  frontend:
-    build:
-      context: ./frontend
-      args:
-        # 프록시를 거치면 프론트와 API 가 같은 출처(:80)라 호스트/포트를 붙일 필요가 없다.
-        # 빈 값이면 dio 가 상대 경로(/api/...)로 요청하고, 브라우저가 현재 출처를 붙인다.
-        # → 주소가 localhost 든 배포 도메인이든 같은 번들이 그대로 동작하고, CORS 도 사라진다.
-        API_BASE_URL: ""
-        # 로컬 기능 테스트용 — 로그인 화면에 시드 계정 원터치 버튼을 띄운다.
-        # 인증을 우회하는 게 아니라 정상 로그인을 대신 눌러줄 뿐이지만 계정 목록이
-        # 노출되므로 **운영 이미지를 빌드할 땐 이 줄을 빼야 한다**(Dockerfile 기본값 false).
-        ENABLE_QUICK_LOGIN: "true"
-    expose:
-      - "80"
-    depends_on:
-      - backend
-
   # 엣지 리버스 프록시 — 브라우저가 닿는 유일한 진입점.
-  # / → frontend, /api·/ws·/swagger-ui → backend. 설정: infra/proxy/nginx.conf
+  # /api·/ws·/swagger-ui → backend. 설정: infra/proxy/nginx.conf
   proxy:
     image: nginx:alpine
     ports:
@@ -113,7 +89,6 @@ services:
       - ./infra/proxy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - backend
-      - frontend
 
   # ── 관측 스택 ──────────────────────────────────────────────────────────────
   # 설계 근거: docs/superpowers/specs/2026-08-21-관제-대시보드-design.md

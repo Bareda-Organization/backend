@@ -5,8 +5,11 @@
 .idea/
 *.iml
 
-# Claude Code local (machine-specific overrides, not shared)
-.claude/settings.local.json
+# Claude Code 작업 자료 — 저장소에 올리지 않는다 (2026-09-09 사용자 확정)
+# 지시서 · 에이전트 정의 · 작업 기록은 앱 동작과 무관하다. 로컬 파일은 그대로 둔다.
+.claude/
+CLAUDE.md
+.superpowers/
 
 # tokensave local cache db
 .tokensave/
@@ -25,19 +28,23 @@ backend/.env
 # (절차: docs/DEPLOYMENT.md §2.12). 실수로 만들어졌을 때를 대비해 여기서도 막아 둔다.
 infra/proxy/.htpasswd
 
-# Frontend (Next.js)
-frontend/node_modules/
-frontend/.next/
-frontend/out/
-frontend/.env.local
-frontend/npm-debug.log*
+# 프론트엔드 — 2026-09-09 저장소에서 제거. 이 저장소는 백엔드 전용이다
+# (범위 밖 확정은 2026-08-25, Ruling 255). 되살리려면 git show <이전 main>:frontend
+frontend/
 
-# Root
+# Root — 앱 동작과 무관한 도구 의존성
 node_modules/
+/package.json
+/package-lock.json
 
 # 문서(docs/) 전부 추적하지 않음 — 루트 · backend · frontend (2026-09-02 사용자 확정)
 # 로컬 파일은 그대로 두고 git 에만 올리지 않는다. ⚠ git worktree 에는 복사되지 않으므로 워크트리 에이전트에는 메인 저장소 절대 경로를 준다
 **/docs/
+
+# 보고서 · 부하 측정 산출물 — 기록물이라 앱 동작과 무관하다
+/report/
+backend/report/
+backend/load/results/
 
 # 문서 그래프 색인 — 파생본, 정본은 docs/ (규칙 ~/.claude/rules/docgraph.md)
 .docgraph/

@@ -10,7 +10,7 @@
 #   1. postgres·kafka 에 named volume 을 붙인다 (재시작해도 데이터 유지)
 #   2. DB·Redis·Kafka 포트를 호스트에 열지 않는다 (컨테이너 네트워크 안에서만 접근)
 #   3. backend 를 빌드하지 않고 ECR 이미지를 pull 한다 (EC2 에서 Gradle 빌드는 메모리 부족)
-#   4. frontend 서비스가 없다 — 웹은 Vercel 이 서빙한다
+#   4. 화면 서비스가 없다 — 이 저장소는 백엔드 API 전용이다
 #   5. proxy 가 443(TLS)을 종단하고, certbot 이 인증서를 자동 갱신한다
 #
 # ⚠️ 필요한 환경변수는 infra/scripts/deploy.sh 가 SSM Parameter Store 에서 읽어
@@ -132,7 +132,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      # 웹이 Vercel(app.<도메인>)로 분리돼 API 와 출처가 달라졌다 — 로컬의 same-origin 이점이 사라진다.
+      # 이 저장소에는 화면이 없으므로 브라우저 클라이언트는 항상 다른 출처에서 온다.
       # 여기 없는 출처에서 온 요청은 브라우저가 차단한다. 목록에 스킴(https://)까지 정확히 적을 것.
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?CORS_ALLOWED_ORIGINS 미설정}
       # WebSocket 핸드셰이크는 CORS 필터를 타지 않고 자체 origin 검사를 한다 — 별도로 줘야 한다.
@@ -168,7 +168,7 @@ services:
     logging: *cloudwatch
 
   # 엣지 프록시 — 인터넷에서 닿는 유일한 지점. TLS 를 여기서 종단한다.
-  # 로컬과 달리 `/`(프론트) 라우팅이 없다. 웹은 Vercel 이 서빙하므로 이 서버는 API 전용이다.
+  # `/`(화면) 라우팅이 없다 — 이 서버는 백엔드 API 전용이다.
   proxy:
     image: nginx:alpine
     restart: unless-stopped
