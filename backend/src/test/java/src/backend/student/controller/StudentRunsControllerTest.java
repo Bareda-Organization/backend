@@ -168,6 +168,25 @@ class StudentRunsControllerTest {
                 .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
     }
 
+    /**
+     * 연결은 살아 있는데 <b>퇴원 처리된</b> 자녀는 404 다({@code LinkedChildLookup} 의 판정 순서).
+     *
+     * <p>403(연결 부재)과 갈라야 하는 이유는 클라이언트의 다음 행동이 다르기 때문이다 — 403 은
+     * 연결을 신청할 자리이고, 404 는 그 학생이 이 학원에 더는 없다는 뜻이다. 퇴원생을 계속 볼 수
+     * 있으면 명단에서 빠진 학생이 노선 계산의 입력으로 되살아난다.
+     *
+     * <p>시드에는 "연결은 있는데 퇴원한" 행이 없어 여기서 직접 만든다. 이 클래스는
+     * {@code @Transactional} 이라 이 수정이 다른 시험으로 새지 않는다.
+     */
+    @Test
+    void 퇴원_처리된_자녀의_회차_조회는_404_STUDENT_NOT_FOUND_이다() throws Exception {
+        jdbcTemplate.update("UPDATE student SET deleted_at = now() WHERE id = ?", STUDENT_1_ID);
+
+        mockMvc.perform(get(RUNS.formatted(STUDENT_1_ID)).header("Authorization", 토큰(SIBLINGS_GUARDIAN_ACCOUNT)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("STUDENT_NOT_FOUND"));
+    }
+
     /** 학생 본인은 자기 회차를 볼 수 있다 — 이 코드베이스 최초의 학생 본인 접근 경로. */
     @Test
     void 학생_본인은_자기_회차_목록을_받는다() throws Exception {
