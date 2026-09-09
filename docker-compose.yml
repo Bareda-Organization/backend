@@ -1,8 +1,14 @@
-# 기본 실행 대상: postgres + redis + kafka + backend(Spring) — frontend는 profile로 분리해 기본에서 제외.
+# 기본 실행 대상: postgres + redis + kafka + backend(Spring) + proxy(nginx).
 # 실행:  docker compose up -d --build
-#   - 백엔드:  http://localhost:8080
-# 기존 프론트(Next.js)까지 같이 띄우려면:  docker compose --profile frontend up -d --build
-#   - 프론트:  http://localhost:3000
+#
+# ★ 모든 HTTP 접근은 proxy(:80) 한 곳을 지난다. backend는 호스트에 포트를 열지 않는다.
+#   - API:       http://localhost/api/...
+#   - WebSocket: ws://localhost/ws/location
+#   - Swagger:   http://localhost/swagger-ui/index.html
+#   이 저장소는 백엔드 전용이라 `/` 로 서빙할 화면이 없다 — 프록시는 404 로 답한다.
+#
+# DB/Redis/Kafka 포트만 호스트에 남겨둔다 — DB 툴 접속과, 인프라만 컨테이너로 띄우고
+# 백엔드는 IDE에서 `./gradlew bootRun` 으로 돌리는 개발 방식을 위해서다.
 services:
   postgres:
     image: postgres:16
@@ -46,6 +52,13 @@ services:
 
   backend:
     build: ./backend
+    # 외부 API 키(NCP 네이버 Directions 등). git 에 없는 파일이라 required:false 로 둔다 —
+    # 키 없이도 기동은 되고, 배차(auto-assign)만 401 로 실패한다.
+    # ⚠️ 이게 없으면 routing.provider=naver 인 배차 API 가 "서버 오류"로만 보인다.
+    #    키가 없는 환경에서는 ROUTING_PROVIDER=osrm 로 우회할 수 있다.
+    env_file:
+      - path: ./backend/.env
+        required: false
     environment:
       # 컨테이너 내부에서는 서비스 이름(postgres/redis/kafka)으로 접속 (localhost 아님)
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/schoolbus
@@ -53,8 +66,10 @@ services:
       SPRING_DATASOURCE_PASSWORD: schoolbus
       SPRING_DATA_REDIS_HOST: redis
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-    ports:
-      - "8080:8080"
+    # 호스트에 포트를 열지 않는다 — 모든 접근은 proxy(:80)를 거친다.
+    # 컨테이너 네트워크 안에서는 `backend:8080` 으로 그대로 닿는다.
+    expose:
+      - "8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -63,10 +78,94 @@ services:
       kafka:
         condition: service_started
 
-  frontend:
-    profiles: ["frontend"]   # 기본 `docker compose up`에서는 제외 — 새 프론트엔드로 작업 중일 때 불필요한 빌드/기동 방지
-    build: ./frontend
+  # 엣지 리버스 프록시 — 브라우저가 닿는 유일한 진입점.
+  # /api·/ws·/swagger-ui → backend. 설정: infra/proxy/nginx.conf
+  proxy:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      # 읽기 전용 마운트 — 설정만 바꿀 땐 이미지 재빌드 없이 `docker compose restart proxy` 면 된다.
+      - ./infra/proxy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+
+  # ── 관측 스택 ──────────────────────────────────────────────────────────────
+  # 설계 근거: docs/superpowers/specs/2026-08-21-관제-대시보드-design.md
+  # exporter 들은 호스트에 포트를 열지 않는다 — Prometheus 가 컨테이너 네트워크에서만 긁는다.
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      # 로컬은 보존 7일이면 충분하다(운영은 15일). 디스크와 메모리를 아낀다.
+      - --storage.tsdb.retention.time=7d
+    volumes:
+      - ./infra/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      # 대시보드는 Grafana 로 보지만, 지표 이름·라벨을 직접 확인할 때 필요하다.
+      - "9090:9090"
+    depends_on:
+      - backend
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.16.0
+    environment:
+      # 평문 비밀번호 — 이 파일은 로컬 전용이라 구조적 위험은 낮다(운영은 docker-compose.prod.yml 이
+      # ${DB_PASSWORD:?...} 로 환경변수 주입해 분리돼 있음). 관측 스택을 운영으로 옮길 때는
+      # 이 줄을 그대로 복사하지 말고 docker-compose.prod.yml 의 환경변수 주입 방식을 따를 것.
+      DATA_SOURCE_NAME: "postgresql://schoolbus:schoolbus@postgres:5432/schoolbus?sslmode=disable"
+    expose:
+      - "9187"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.67.0
+    environment:
+      REDIS_ADDR: "redis://redis:6379"
+    expose:
+      - "9121"
+    depends_on:
+      - redis
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    # 호스트의 CPU·메모리·디스크를 읽기 위해 루트 파일시스템을 읽기 전용으로 마운트한다.
+    # rslave 전파는 Docker Desktop(macOS)의 VM 루트가 shared/slave 마운트가 아니라서
+    # "path / is mounted on / but it is not a shared or slave mount" 로 기동이 실패한다 —
+    # 로컬은 실제 리눅스 호스트가 아니라 VM 안이므로 전파 옵션 없이 ro 마운트만으로 충분하다.
+    #
+    # ⚠ macOS 로컬에서 node-exporter 가 보는 "호스트"는 맥 자체가 아니라
+    #   Docker Desktop 이 띄우는 리눅스 VM 이다 — 여기서 나오는 디스크·load average 수치는
+    #   맥의 실제 값이 아니라 그 VM의 값이다(컨테이너들이 실제로 도는 곳이라 관측할 가치는 있다).
+    #   운영(리눅스 EC2, docker-compose.prod.yml)에서는 이 rootfs 마운트가 정상 동작해
+    #   실제 호스트를 그대로 본다 — 이번 범위가 아니라 여기서는 건드리지 않는다.
+    command:
+      - --path.rootfs=/host
+    volumes:
+      - /:/host:ro
+    expose:
+      - "9100"
+
+  # 대시보드는 이 서비스에서 본다. datasource·대시보드 폴더는 파일로 프로비저닝한다 —
+  # UI에서 손으로 등록하면 컨테이너를 다시 만들 때(down 후 up) 사라지고 재현이 안 된다.
+  grafana:
+    image: grafana/grafana:11.5.0
+    environment:
+      # ⚠️ 로컬 전용 값이다. 운영 노출(2단계) 시 반드시 바꾼다 — 기본 계정을 유지한 채
+      #    서브도메인을 열면 그 시점에 관리 콘솔이 그대로 공개된다.
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      # 익명 열람 비활성. 로컬이라도 습관을 운영과 다르게 들이지 않는다.
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      # 외부 플러그인·뉴스 패널 등 바깥으로 나가는 호출을 끈다.
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+    volumes:
+      - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports:
       - "3000:3000"
     depends_on:
-      - backend
+      - prometheus

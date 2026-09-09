@@ -4,6 +4,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import lombok.RequiredArgsConstructor;
+
 /**
  * DB↔Kafka 이중쓰기 정합성 패턴. 도메인 서비스는 트랜잭션 안에서
  * {@code ApplicationEventPublisher.publishEvent(domainEvent)} 만 호출하면 되고(Kafka를 모른다),
@@ -13,13 +15,10 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * 완전한 exactly-once가 필요해지면 Outbox 패턴으로 승격한다.
  */
 @Component
+@RequiredArgsConstructor
 public class TransactionalDomainEventRelay {
 
     private final DomainEventPublisher domainEventPublisher;
-
-    public TransactionalDomainEventRelay(DomainEventPublisher domainEventPublisher) {
-        this.domainEventPublisher = domainEventPublisher;
-    }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void relay(DomainEvent event) {

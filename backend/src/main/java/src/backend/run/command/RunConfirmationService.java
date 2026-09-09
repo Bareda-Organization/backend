@@ -1,0 +1,308 @@
+package src.backend.run.command;
+
+import java.time.Clock;
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import org.springframework.stereotype.Service;
+
+import lombok.RequiredArgsConstructor;
+
+import src.backend.academy.entity.Academy;
+import src.backend.academy.repository.AcademyRepository;
+import src.backend.global.common.enums.Direction;
+import src.backend.global.common.enums.Weekday;
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
+import src.backend.observability.metrics.RunConfirmationMetrics;
+import src.backend.request.entity.ChangeRequest;
+import src.backend.request.entity.ChangeRequestStatus;
+import src.backend.request.entity.ChangeRequestType;
+import src.backend.request.repository.ChangeRequestRepository;
+import src.backend.request.repository.BoardingIntentRepository;
+import src.backend.routing.domain.GeoPoint;
+import src.backend.routing.entity.Route;
+import src.backend.routing.entity.RouteStop;
+import src.backend.routing.entity.RouteVersionSource;
+import src.backend.routing.map.spec.CallerPolicy;
+import src.backend.routing.pipeline.ComputationPolicy;
+import src.backend.routing.pipeline.DailyRoster;
+import src.backend.routing.pipeline.RouteComputation;
+import src.backend.routing.pipeline.RouteComputationInput;
+import src.backend.routing.pipeline.RouteComputationPipeline;
+import src.backend.routing.repository.RouteRepository;
+import src.backend.routing.repository.RouteStopRepository;
+import src.backend.run.entity.Run;
+import src.backend.run.entity.RunForcedAddition;
+import src.backend.run.entity.RunTransfer;
+import src.backend.run.repository.RunForcedAdditionRepository;
+import src.backend.run.repository.RunRepository;
+import src.backend.run.repository.RunTransferRepository;
+import src.backend.student.entity.Stop;
+import src.backend.student.repository.StopRepository;
+import src.backend.student.repository.StudentDailyStop;
+import src.backend.student.repository.WeeklyAddressRepository;
+
+/**
+ * 확정 배치의 오케스트레이터(RTE-08, Phase 7) — 회차 1건을 idle → confirmed 로 전이시키는 전체
+ * 흐름(읽기 → 노선 계산 → 저장 → 이벤트 발행)을 잇는다({@code RunConfirmationScheduler} 가 회차마다
+ * {@link #confirmOne} 을 부른다).
+ *
+ * <p><b>이 클래스는 {@code @Transactional} 이 아니다.</b> {@link RouteComputationPipeline#compute}
+
+/**
+ * 는 외부 지도 API 를 호출하는데, 그 호출을 트랜잭션 안에 넣으면 공급자가 느린 만큼 DB 커넥션을 붙든
+ * 채 대기한다(그 클래스 자신의 javadoc 이 명시한 설계). 그래서 "읽기 → 계산" 은 여기서 트랜잭션 밖에
+ * 두고, "확정 표시(idle → confirmed) + 4종 산출물 저장 + 이벤트 발행" 만 별도 빈
+ * {@link RunConfirmationPersistence} 의 짧은 트랜잭션에 맡긴다 — 같은 클래스 안의 메서드 호출로
+ * 두면 self-invocation 이 프록시를 우회해 {@code @Transactional} 이 적용되지 않는다(Spring AOP 의
+ * 알려진 함정).
+ *
+ * <p>도중에 어디서 실패하든(학원 좌표 미등록·노선 미편성·계산 실패·저장 실패) 이 회차만 실패로
+ * 끝난다 — 스케줄러가 회차별로 이 메서드를 개별 호출하고 예외를 그 자리에서 잡으므로(목표 4), 다른
+ * 회차의 확정에는 영향을 주지 않는다.
+ */
+@Service
+@RequiredArgsConstructor
+public class RunConfirmationService {
+
+    /**
+     * 지도 API 1회 요청의 상한 — 확정 배치는 사용자가 대기하지 않으므로 온디맨드보다 길게 둔다
+     * (ARCHITECTURE §8.3 · {@link CallerPolicy#BATCH} javadoc). 15초는 이 Phase 가 처음 도입하는
+     * 값이라 참조할 기존 상수가 없다 — 재시도·서킷은 {@code resilience4j.*.instances.mapRoute} 설정이
+     * 맡고, 이 값은 그 설정과 별개로 <b>1회 호출</b>이 무한정 배치 워커 슬롯을 붙들지 않게 막는
+     * 상한이다.
+     */
+    private static final Duration MAP_TIMEOUT = Duration.ofSeconds(15);
+
+    private final RunRepository runRepository;
+
+    private final AcademyRepository academyRepository;
+
+    private final RouteRepository routeRepository;
+
+    private final RouteStopRepository routeStopRepository;
+
+    private final StopRepository stopRepository;
+
+    private final WeeklyAddressRepository weeklyAddressRepository;
+
+    private final ChangeRequestRepository changeRequestRepository;
+    private final BoardingIntentRepository boardingIntentRepository;
+
+    private final RunForcedAdditionRepository runForcedAdditionRepository;
+
+    private final RunTransferRepository runTransferRepository;
+
+    private final RouteComputationPipeline pipeline;
+
+    private final RunConfirmationPersistence persistence;
+
+    private final RunConfirmationMetrics metrics;
+
+    private final Clock clock;
+
+    /**
+     * 회차 1건을 확정한다 — 이미 취소됐거나 존재하지 않으면 조용히 건너뛴다(취소·삭제와 경합해도
+     * 예외로 배치를 막지 않는다).
+     *
+     * @throws BusinessException 학원 좌표 미등록({@code ACADEMY_COORDINATES_MISSING}, 목표 5) ·
+     *                            대응 고정 노선 미편성({@code ROUTE_NOT_CONFIGURED_FOR_RUN}) 일 때
+     */
+    public void confirmOne(Long runId) {
+        confirmOne(runId, false);
+    }
+
+    /**
+     * {@link #confirmOne(Long)} 과 같은 흐름에 <b>강제 폴백</b> 축 하나를 더한 오버로드
+     * (API_SPEC §6.14, 관리자 강제 확정 콘솔 개입, F3 S2) — {@code forceFallback=true} 면
+     * {@link ComputationPolicy} 를 통해 지도 API 를 건너뛰고 직선거리 근사를 강제한다. 그 밖의 흐름
+     * (읽기 → 계산 → {@link RunConfirmationPersistence#persist} → 지표)은 배치 경로와 완전히 같다 —
+     * {@link #confirmOne(Long)} 은 {@code forceFallback=false} 로 이 메서드를 그대로 통과한다.
+     *
+     * @return {@link RunConfirmationPersistence#persist} 가 실제로 확정을 저장했으면 {@code true},
+     *         진 경쟁이거나 회차가 이미 취소·삭제됐으면 {@code false} — 관리자 강제 확정 컨트롤러는
+     *         이 값이 {@code false} 면 {@code RUN_NOT_IDLE} 로 답한다(호출 전에 idle 을 이미 확인했는데도
+     *         이 값이 false 라면 그 사이 다른 확정이 경쟁에서 이겼다는 뜻이다)
+     * @throws BusinessException 학원 좌표 미등록({@code ACADEMY_COORDINATES_MISSING}, 목표 5) ·
+     *                            대응 고정 노선 미편성({@code ROUTE_NOT_CONFIGURED_FOR_RUN}) 일 때
+     */
+    public boolean confirmOne(Long runId, boolean forceFallback) {
+        Run run = runRepository.findById(runId).orElse(null);
+        if (run == null || run.isCanceled()) {
+            return false;
+        }
+
+        Academy academy = academyRepository.findById(run.getAcademyId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.ACADEMY_NOT_FOUND));
+        if (!academy.hasCoordinates()) {
+            // Ruling 190: 좌표 미등록 학원을 다른 기준점으로 대체하지 않는다 — 이 회차만 실패시킨다.
+            throw new BusinessException(ErrorCode.ACADEMY_COORDINATES_MISSING);
+        }
+
+        Weekday weekday = weekdayOf(run.getServiceDate());
+        Route route = routeRepository
+                .findByAcademyIdAndBusIdAndWeekdayAndDirection(run.getAcademyId(), run.getBusId(), weekday,
+                        run.getDirection())
+                .orElseThrow(() -> new BusinessException(ErrorCode.ROUTE_NOT_CONFIGURED_FOR_RUN));
+
+        List<RouteStop> routeStops = routeStopRepository.findAllOrderedByRouteIdAndAcademyId(route.getId(),
+                run.getAcademyId());
+        if (routeStops.isEmpty()) {
+            throw new BusinessException(ErrorCode.ROUTE_NOT_CONFIGURED_FOR_RUN);
+        }
+
+        List<Long> stopIds = routeStops.stream().map(RouteStop::getStopId).toList();
+        Map<Long, Stop> stopsById = stopRepository.findAllByIdInAndAcademyId(stopIds, run.getAcademyId()).stream()
+                .collect(Collectors.toMap(Stop::getId, stop -> stop));
+
+        Stop firstStop = stopsById.get(routeStops.get(0).getStopId());
+        Stop lastStop = stopsById.get(routeStops.get(routeStops.size() - 1).getStopId());
+        if (firstStop == null || lastStop == null) {
+            // 정차 순서가 가리키는 승하차지가 학원 밖(또는 삭제됨) — findAllByIdInAndAcademyId 가
+            // 빠뜨린 것과 같은 신호라 노선 미편성과 같은 오류로 답한다.
+            throw new BusinessException(ErrorCode.ROUTE_NOT_CONFIGURED_FOR_RUN);
+        }
+
+        GeoPoint academyPoint = new GeoPoint(academy.getLat(), academy.getLng());
+        GeoPoint origin;
+        GeoPoint destination;
+        // Ruling 190 — 반대쪽 끝은 노선의 첫/마지막 정차지다: 등원은 첫 승차지→학원, 하원은 학원→마지막 하차지.
+        if (run.getDirection() == Direction.TO_ACADEMY) {
+            origin = new GeoPoint(firstStop.getLat(), firstStop.getLng());
+            destination = academyPoint;
+        } else {
+            origin = academyPoint;
+            destination = new GeoPoint(lastStop.getLat(), lastStop.getLng());
+        }
+
+        List<StudentDailyStop> dailyStops = weeklyAddressRepository.findDailyStopsByStopIds(run.getAcademyId(),
+                stopIds, weekday, run.getDirection());
+        // ①구간 탑승 의사 토글(riding=false)이 남긴 학생은 여기서 걸러낸다 — DailyRoster 를 만들기
+        // 전이라 노선 계산도 run_rider 도 이 학생을 아예 보지 않는다(목표 1, P-03).
+        Set<Long> excludedStudentIds = new HashSet<>(
+                boardingIntentRepository.findStudentIdsByRunIdAndRidingFalse(run.getId()));
+        // 강제 추가 병합이 뒤에서 덧붙이므로 가변 목록으로 둔다(RTE-06).
+        List<Long> studentIds = new ArrayList<>(
+                dailyStops.stream().map(StudentDailyStop::getStudentId).distinct()
+                        .filter(studentId -> !excludedStudentIds.contains(studentId))
+                        .toList());
+        Map<Long, Long> studentStops = dailyStops.stream()
+                .filter(stop -> !excludedStudentIds.contains(stop.getStudentId()))
+                .collect(Collectors.toMap(StudentDailyStop::getStudentId, StudentDailyStop::getStopId,
+                        (first, duplicate) -> first));
+
+        // P-06 일일 변경(승인된 경유지 이동)이 요일별 주소를 이긴다 — DailyStopResolver.studentToStop 과
+        // 같은 우선순위(그 클래스 자바독). 여기서 studentStops 에도 같은 값을 덮어써야 fingerprint·
+        // run_rider 가 실제로 계산에 쓰인 경유지와 일치한다 — roster 쪽에만 넣으면 노선은 바뀐 자리로
+        // 서는데 학생의 배정 기록만 옛 경유지로 남는다.
+        Map<Long, Long> stopOverrides = new HashMap<>(changeRequestRepository
+                .findAllByAcademyIdAndRunIdAndTypeAndStatusOrderByRequestedAtAsc(run.getAcademyId(), run.getId(),
+                        ChangeRequestType.RELOCATE, ChangeRequestStatus.APPROVED)
+                .stream()
+                .collect(Collectors.toMap(ChangeRequest::getStudentId, ChangeRequest::getNewStopId,
+                        (first, last) -> last)));
+
+        // ①구간 강제 추가(RTE-06, Ruling 197·198)도 같은 방식으로 합친다 — 요일별 주소에 없던
+        // 학생이라 studentIds 에도 새로 더해야 하고, stopOverrides 에 넣어야 좌표 해석 단계
+        // (DailyStopResolver.studentToStop)가 그 정차지를 실제로 찾는다.
+        for (RunForcedAddition forcedAddition : runForcedAdditionRepository
+                .findAllByRunIdAndAcademyId(run.getId(), run.getAcademyId())) {
+            if (!studentIds.contains(forcedAddition.getStudentId())) {
+                studentIds.add(forcedAddition.getStudentId());
+            }
+            stopOverrides.put(forcedAddition.getStudentId(), forcedAddition.getStopId());
+        }
+
+        // 버스 간 이동(RTE-07, API_SPEC §5.8, Ruling 256)도 강제 추가와 같은 합류 지점에서 반영한다 —
+        // 이 회차가 출발·도착 어느 쪽이든 대기 건이 있을 수 있어 두 단계로 나눈다(각각 독립적으로
+        // 검증 가능해야 한다는 요구가 있어 메서드를 분리했다).
+        applyOutgoingTransfers(run, studentIds, studentStops, stopOverrides);
+        applyIncomingTransfers(run, studentIds, stopOverrides);
+
+        studentStops.putAll(stopOverrides);
+
+        DailyRoster roster = new DailyRoster(run.getAcademyId(), weekday, run.getDirection(), studentIds,
+                stopOverrides);
+        ComputationPolicy policy = new ComputationPolicy(MAP_TIMEOUT, CallerPolicy.BATCH,
+                RouteVersionSource.CONFIRM_BATCH, forceFallback);
+        RouteComputationInput input = new RouteComputationInput(roster, origin, destination, List.of(),
+                run.getDepartTime(), policy);
+
+        // 외부 지도 API 를 부르는 계산은 트랜잭션 밖에서 돈다(클래스 javadoc) — 여기까지는 읽기뿐이다.
+        RouteComputation computation = pipeline.compute(input);
+
+        // run.getConfirmAt()(판정 시각)과 이 confirmedAt(완료 시각)이 동시에 확보되는 유일한
+        // 자리라 배치 지연 지표(목표 8)를 여기서 계측한다.
+        OffsetDateTime confirmedAt = OffsetDateTime.now(clock);
+
+        boolean persisted = persistence.persist(run, computation, origin, destination, weekday, studentStops,
+                confirmedAt);
+        // persisted == false 는 동시 확정 경합에서 진 시도다(persist() javadoc) — 이 시도는 기록하지
+        // 않는다. 승패 신호 없이 무조건 기록하면 표본 수가 확정 사건 수보다 부풀어, 이 지표가 가장
+        // 필요한 순간(인스턴스 증설로 경합이 잦아질 때) 가장 부정확해진다. 실패해 위에서 예외로 빠진
+        // 시도는 이 줄에 닿지 않아 기록되지 않고, 다음 틱 재시도가 성공할 때 run.getConfirmAt() 은
+        // 그대로라 실패 구간까지 포함한 누적 지연으로 잡힌다.
+        if (persisted) {
+            metrics.recordLag(Duration.between(run.getConfirmAt(), confirmedAt));
+        }
+        return persisted;
+    }
+
+    /**
+     * 버스 간 이동(RTE-07, Ruling 256) 중 이 회차가 <b>출발</b>인 대기 건을 명단에서 뺀다.
+     *
+     * <p>{@code studentStops}(요일별 주소 기준 기본 배정)와 {@code stopOverrides}(P-06·강제 추가가
+     * 이미 얹어 둔 override) 양쪽에서 지운다 — 하나만 지우면 바로 다음의
+     * {@code studentStops.putAll(stopOverrides)} 가 지운 것을 되살릴 수 있다. 상태로 거르지 않고
+     * 항상 재계산하므로(자기 치유, {@link RunTransfer} 자바독) 이미 반영된 건을 다시 걸러도
+     * 두 자료구조 어디에도 없어 안전하게 아무 일도 하지 않는다.
+     */
+    private void applyOutgoingTransfers(Run run, List<Long> studentIds, Map<Long, Long> studentStops,
+            Map<Long, Long> stopOverrides) {
+        for (RunTransfer transfer : runTransferRepository.findAllByFromRunIdAndAcademyId(run.getId(),
+                run.getAcademyId())) {
+            studentIds.remove(transfer.getStudentId());
+            studentStops.remove(transfer.getStudentId());
+            stopOverrides.remove(transfer.getStudentId());
+            transfer.markApplied(OffsetDateTime.now(clock));
+            runTransferRepository.save(transfer);
+        }
+    }
+
+    /**
+     * 같은 이동 중 이 회차가 <b>도착</b>인 대기 건을 명단에 더한다 — 강제 추가(RTE-06)와 같은 방식으로
+     * {@code studentIds} 에 더하고 {@code stopOverrides} 에 정차지를 얹는다. 요일별 주소에 없던
+     * 학생이라 {@code stopOverrides} 에 넣어야 좌표 해석 단계가 그 정차지를 실제로 찾는다.
+     */
+    private void applyIncomingTransfers(Run run, List<Long> studentIds, Map<Long, Long> stopOverrides) {
+        for (RunTransfer transfer : runTransferRepository.findAllByToRunIdAndAcademyId(run.getId(),
+                run.getAcademyId())) {
+            if (!studentIds.contains(transfer.getStudentId())) {
+                studentIds.add(transfer.getStudentId());
+            }
+            stopOverrides.put(transfer.getStudentId(), transfer.getStopId());
+            transfer.markApplied(OffsetDateTime.now(clock));
+            runTransferRepository.save(transfer);
+        }
+    }
+
+    /**
+     * 그 날짜의 요일 — {@code route.weekday} 의 값 공간으로 옮긴다({@code RunGenerationService.weekdayOf}
+
+    /**
+     * 와 같은 계산). {@code LocalDate} 자체가 요일을 들고 있으므로 시계를 보지 않는다.
+     */
+    private Weekday weekdayOf(LocalDate serviceDate) {
+        return Weekday.valueOf(serviceDate.getDayOfWeek().name().substring(0, 3).toUpperCase(Locale.ROOT));
+    }
+}

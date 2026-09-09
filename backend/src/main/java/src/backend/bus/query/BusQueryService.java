@@ -1,59 +1,49 @@
 package src.backend.bus.query;
 
 import java.util.List;
+import java.util.Map;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import src.backend.bus.dto.BusDetailResponse;
+import lombok.RequiredArgsConstructor;
+
+import src.backend.bus.dto.BusListRequest;
 import src.backend.bus.dto.BusResponse;
 import src.backend.bus.entity.Bus;
-import src.backend.bus.repository.spec.BusRepository;
-import src.backend.global.error.BusinessException;
-import src.backend.global.error.ErrorCode;
+import src.backend.bus.repository.BusRepository;
+import src.backend.global.request.PageParams;
+import src.backend.global.request.SortParam;
+import src.backend.global.response.PageResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.tenant.TenantGuard;
-import src.backend.student.entity.Student;
-import src.backend.student.repository.spec.StudentRepository;
 
-/** 버스 목록/상세 조회 — 단순 CRUD라 인터페이스 없이 concrete 클래스로 둔다. */
+/** 관계자 웹의 차량 목록 조회(BUS-01, API_SPEC §5.12). */
 @Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class BusQueryService {
 
+    /**
+     * {@code sort} 가 받는 필드(§1.8) — 왼쪽이 API 이름, 오른쪽이 엔티티 속성이다.
+     *
+     * <p>목록을 손으로 적는 이유는 요청 문자열을 그대로 정렬 속성으로 넘기면 없는 이름 하나가
+     * {@code 500} 이 되고, 그 예외 문구가 엔티티 필드 목록을 밖으로 실어 나르기 때문이다.
+     */
+    private static final Map<String, String> SORTABLE_FIELDS =
+            Map.of("bus_no", "busNo", "plate_no", "plateNo", "capacity", "capacity");
+
+    private static final Sort DEFAULT_SORT = Sort.by(Sort.Direction.ASC, "busNo");
+
     private final BusRepository busRepository;
-    private final StudentRepository studentRepository;
 
-    public BusQueryService(BusRepository busRepository, StudentRepository studentRepository) {
-        this.busRepository = busRepository;
-        this.studentRepository = studentRepository;
-    }
-
-    @Transactional(readOnly = true)
-    public List<BusResponse> listBuses(AuthUser admin, Long tenantId) {
-        Long effectiveTenant = TenantGuard.resolveTenantId(admin, tenantId);
-        return busRepository.findByTenantId(effectiveTenant).stream()
-                .map(bus -> BusResponse.of(bus, onboardCount(bus.getId())))
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
-    public BusDetailResponse getBus(AuthUser admin, Long busId) {
-        Bus bus = loadAccessibleBus(admin, busId);
-        List<Student> roster = studentRepository.findByAssignedBusId(bus.getId());
-        List<BusDetailResponse.RosterEntry> entries = roster.stream()
-                .map(s -> new BusDetailResponse.RosterEntry(s.getId(), s.getName()))
-                .toList();
-        return new BusDetailResponse(BusResponse.of(bus, roster.size()), entries);
-    }
-
-    private int onboardCount(Long busId) {
-        return studentRepository.findByAssignedBusId(busId).size();
-    }
-
-    private Bus loadAccessibleBus(AuthUser admin, Long busId) {
-        Bus bus = busRepository.findById(busId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "버스를 찾을 수 없습니다"));
-        TenantGuard.resolveTenantId(admin, bus.getTenant().getId()); // 접근 권한 검증
-        return bus;
+    /** 소속 학원의 차량 목록(§5.12) — 범위는 토큰이 정하고 요청은 페이지 위치만 정한다. */
+    public PageResponse<BusResponse> list(AuthUser requester, BusListRequest request) {
+        Page<Bus> page = busRepository.findAllByAcademyId(requester.academyId(),
+                PageParams.of(request.page(), request.size())
+                        .toPageable(SortParam.parse(request.sort(), SORTABLE_FIELDS, DEFAULT_SORT)));
+        List<BusResponse> items = page.getContent().stream().map(BusResponse::from).toList();
+        return PageResponse.of(page, items);
     }
 }

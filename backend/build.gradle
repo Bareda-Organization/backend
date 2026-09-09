@@ -37,6 +37,10 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     // 캐시·실시간(Pub/Sub)
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    // 캐시 추상화(@Cacheable 등) — 실제 저장소는 위 Redis 를 그대로 쓴다. 이 스타터가 있어야
+    // CacheManager 자동설정이 붙는다(TECH_DECISIONS §11). 이 Phase 에서는 의존성만 추가하고
+    // @EnableCaching 은 켜지 않는다 — 활성화는 해당 기능이 실제로 생기는 Phase 소관.
+    implementation 'org.springframework.boot:spring-boot-starter-cache'
     // 모듈 간 이벤트 통신(Kafka) — 신형 아티팩트명(Boot 4 모듈화, KafkaAutoConfiguration 포함)
     implementation 'org.springframework.boot:spring-boot-starter-kafka'
     // spring-kafka의 JsonSerializer/Deserializer는 아직 클래식 Jackson 2(com.fasterxml)를 쓴다(Boot 4 기본 Jackson 3와 별개) —
@@ -49,6 +53,31 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
     // API 문서·테스트용 Swagger UI — 3.x 대가 Spring Boot 4(Jackson 3) 지원 최초 라인
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
+    // 배포 검증·컨테이너 healthcheck 용 헬스 엔드포인트.
+    // ⚠️ Spring Boot 기본 health 에 Kafka 인디케이터는 없다 — DataSource·Redis·디스크·ping 만 포함된다.
+    //    Kafka 장애는 이걸로 감지되지 않으므로 CloudWatch 로그로 확인한다.
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    // 지표 수집 — actuator 지표를 Prometheus 스크레이프 형식으로 노출한다.
+    // 이 의존성 하나로 HTTP 요청·JVM·HikariCP·Tomcat·Kafka 컨슈머 지표가 자동 등록된다.
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+    // @Scheduled·@KafkaListener 를 감싸 계측하기 위한 AOP.
+    // 계측 호출을 도메인 메서드 안에 넣지 않으려고 쓴다 — observability 가 도메인을 참조할 뿐,
+    // 도메인은 observability 를 모른다(설계 문서 §5.3).
+    // Boot 4.0.0-M3부터 spring-boot-starter-aop는 spring-boot-starter-aspectj로 개명됐다(구 좌표는
+    // 4.x BOM에 없어 org.springframework.boot:spring-boot-starter-aop: 처럼 버전 없이 실패한다) —
+    // 신형 아티팩트명을 쓴다(webmvc와 같은 패턴).
+    implementation 'org.springframework.boot:spring-boot-starter-aspectj'
+    // 스케줄 분산 락(TECH_DECISIONS §3.2) — 인스턴스를 2대로 늘렸을 때 같은 @Scheduled 배치가
+    // 중복 실행되지 않도록 막는다. Spring Boot BOM 이 관리하지 않는 좌표라 버전을 명시한다.
+    // 활성화(@EnableSchedulerLock)와 락 테이블(V4 마이그레이션)은 Phase 11 이 배선한다 —
+    // 어떤 스케줄러가 락을 쓰는지·왜인지는 global/config/ShedLockConfig 자바독을 본다.
+    implementation 'net.javacrumbs.shedlock:shedlock-spring:6.9.2'
+    implementation 'net.javacrumbs.shedlock:shedlock-provider-jdbc-template:6.9.2'
+    // 외부 API(지도 경로 API 등) 보호용 서킷 브레이커. 아티팩트명이 spring-boot3 이지만
+    // 이 프로젝트는 Boot 4.1.0 이다 — 자동설정 충돌 가능성을 build/test 로 확인해야 한다(TECH_DECISIONS §11).
+    // Spring Boot BOM 이 관리하지 않는 좌표라 버전을 명시한다. 이 Phase 에서는 의존성만 추가하고
+    // @CircuitBreaker 는 붙이지 않는다 — 활성화는 외부 API 클라이언트가 실제로 생기는 Phase 소관.
+    implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.3.0'
     // 보일러플레이트 축소
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
@@ -56,10 +85,204 @@ dependencies {
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    // @DataJpaTest 슬라이스 — Boot 4 모듈화로 webmvc-test 와 마찬가지로 전용 아티팩트가 분리됐다.
+    testImplementation 'org.springframework.boot:spring-boot-data-jpa-test'
     testImplementation 'org.springframework.security:spring-security-test'
+    // 실서버(RANDOM_PORT) 기동 테스트용 TestRestTemplate — Boot 4에서 별도 아티팩트로 분리됐다.
+    // MockMvc 는 ServerHttpObservationFilter 를 거치지 않을 수 있어 http_server_requests 지표
+    // 검증에는 쓸 수 없다(PrometheusEndpointTest 참고).
+    // resttestclient 가 restclient(RestTemplateBuilder)를 전이 의존하지 않아 별도로 추가한다.
+    testImplementation 'org.springframework.boot:spring-boot-resttestclient'
+    testImplementation 'org.springframework.boot:spring-boot-restclient'
+    // AOP 프록시가 실제 @Scheduled 빈에 걸리는지는 컨텍스트를 띄워 몇 초 기다려야 확인된다 —
+    // 폴링 대기를 재시도 없이 표현하기 위해 추가.
+    testImplementation 'org.awaitility:awaitility'
+    // 실제 PostgreSQL 컨테이너로 통합 테스트를 띄우기 위함(H2 미사용, IMPLEMENTATION_PLAN §7 규칙 15) —
+    // Flyway 마이그레이션·JPA 매핑이 로컬/배포와 같은 DB 엔진으로 검증돼야 한다.
+    // Spring Boot 4.1.0 이 관리하는 testcontainers-bom 이 2.0.5 다. 이 버전부터 개별 모듈
+    // 아티팩트명이 testcontainers-<모듈명> 형태로 개명됐다(구 좌표 org.testcontainers:postgresql ·
+    // org.testcontainers:junit-jupiter 는 2.0.5 BOM 에 존재하지 않음) — webmvc 와 같은 개명 사례.
+    testImplementation 'org.testcontainers:testcontainers-postgresql'
+    testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+    // 목표 3(Phase 10 T1, DB 적재와 Redis 갱신이 한 송신에서 함께 일어나는지 검증) — 공유 컨테이너
+    // school-bus-redis-1 은 병렬 좌석(T1·T3·T4)이 동시에 건드리므로 전용 컨테이너로 격리한다.
+    // Testcontainers 2.0.5 BOM 에는 Redis 전용 모듈이 없다(testcontainers-bom-2.0.5.pom 의
+    // artifactId 목록을 직접 확인 — redis 계열이 존재하지 않는다) — 그래서 GenericContainer
+    // (핵심 org.testcontainers:testcontainers, testcontainers-postgresql 이 이미 전이 의존성으로
+    // 들여온다)로 redis 이미지를 직접 띄운다.
+    // Spring Boot 의 ServiceConnection 자동설정으로 컨테이너와 spring.datasource.* 를 자동 연결한다.
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+/*
+ * lombok.config 를 compileJava 의 입력으로 등록한다.
+ *
+ * Gradle 은 애노테이션 프로세서의 설정 파일을 자동으로 추적하지 않는다 — 등록하지 않으면
+ * lombok.config 만 고쳤을 때 compileJava 가 UP-TO-DATE 로 건너뛰어 재컴파일이 부재한다.
+ * 그러면 다음 사람이 설정을 고치고 초록을 보고서 "설정이 먹었다"로 오인하는데, 실제로는
+ * 옛 생성 코드가 build/classes 에 그대로 남아 있는 상태다(p3-lombok-report.md §2).
+ */
+tasks.named('compileJava') {
+    inputs.file('lombok.config').withPropertyName('lombokConfig')
 }
 
 tasks.named('test') {
     useJUnitPlatform()
+    // LocalFlywayCleanStrategy 가 clean() 을 건너뛰게 한다(Phase 2 Task 3, Ruling 89) — 여러
+    // @SpringBootTest 컨텍스트가 한 JVM 안에서 같은 로컬 Postgres 를 공유할 때, 한쪽의 clean() 이
+    // 다른 쪽이 검증 중인 스키마를 지워 SchemaManagementException(missing table)을 내는 것을 막는다.
+    // bootRun 에는 이 프로퍼티를 심지 않아 개발 편의(매 기동마다 초기화)는 그대로 유지된다.
+    systemProperty 'app.flyway-clean.suppressed', 'true'
+
+    // 아웃박스 워커의 자동 폴링을 테스트 실행 동안 미룬다(하루). @Scheduled 가 배경에서 돌면
+    // 테스트가 만든 pending 행을 워커가 테스트보다 먼저 집어, 회수·선점 검증이 실행 순서에 따라
+    // 갈린다. 빈을 없애지 않고 시각만 미루는 이유는, 없애면 @Scheduled 배선 자체가 어느 테스트에도
+    // 걸리지 않아 애너테이션을 지워도 초록이 되기 때문이다.
+    systemProperty 'app.notification.outbox.initial-delay-ms', '86400000'
+
+    // 일일 회차 생성 배치를 테스트 실행 동안 끈다(Spring 의 비활성 cron 표현식 '-'). 배경 배치가
+    // 테스트가 만든 스케줄을 먼저 집으면 "이 실행이 몇 건 만들었나" 단언이 실행 시각에 따라 갈린다.
+    // 빈을 없애지 않고 표현식만 바꾸는 이유는 위 아웃박스 워커와 같다 — 없애면 @Scheduled 배선이
+    // 어느 테스트에도 걸리지 않아 애너테이션을 지워도 초록이 된다.
+    systemProperty 'app.run.generation.cron', '-'
+
+    // 보존 정리 배치(RetentionCleanupScheduler)도 같은 이유로 끈다 — 위 일일 회차 생성과 같은 cron
+    // 기반이라 같은 비활성 표현식을 쓴다. 배경에서 돌면 테스트가 심어 둔 기한 밖 행을 먼저 지워
+    // "지운 건수 · 기한 안 행 생존" 단언이 실행 시각에 따라 갈린다.
+    systemProperty 'app.retention.cleanup.cron', '-'
+
+    // 확정 배치(RunConfirmationScheduler)의 자동 폴링을 테스트 실행 동안 미룬다(하루) — 위 아웃박스
+    // 워커와 같은 이유다. 배경에서 돌면 테스트가 만든 회차를 먼저 집어 확정 건수·멱등성 단언이 실행
+    // 순서에 따라 갈린다. cron 이 아니라 fixedDelay 라 '-'(비활성 표현식)를 쓸 수 없어, 대신
+    // initial-delay 를 미루는 쪽을 택한다(NotificationOutboxWorker 와 같은 형태).
+    systemProperty 'app.run.confirmation.initial-delay-ms', '86400000'
+
+    // 자동 거절 폴링(ChangeRequestAutoRejectionScheduler)도 같은 이유로 미룬다 — 위 확정 배치와
+    // 같은 형태다. 배경에서 돌면 테스트가 만든 변경 요청을 먼저 집어 자동 거절 건수·멱등성 단언이
+    // 실행 순서에 따라 갈린다.
+    systemProperty 'app.request.autoreject.initial-delay-ms', '86400000'
+
+    // 근접 알림 배치(ProximityNotificationScheduler)도 같은 이유로 미룬다 — 위 확정 배치와 같은
+    // 형태다. 배경에서 돌면 테스트가 만든 회차·위치를 먼저 집어 근접 판정·멱등성 단언이 실행 순서에
+    // 따라 갈린다.
+    systemProperty 'app.location.proximity.initial-delay-ms', '86400000'
+
+    // 미확정 회차 게이지(RunUnconfirmedGaugeScheduler)와 무응답 에스컬레이션(NoShowEscalationScheduler)
+    // 도 같은 이유로 미룬다 — F6(2026-09-06). F5 S3 가 동시성 원인을 추적하다 이 둘만 미뤄지지 않아
+    // 캐시된 모든 테스트 컨텍스트에서 30초 주기로 도는 것을 발견했다(실제 실패 0, 잠재 위험).
+    // 배경에서 돌면 shedlock 행 경합이 남의 잠금 대기로 오인되거나, 테스트가 심은 무응답 케이스를
+    // 먼저 에스컬레이션해 건수 단언이 실행 순서에 따라 갈린다. 누락 재발은
+    // SchedulerLockConventionTest 가 "모든 @Scheduled 는 테스트 JVM 에서 미뤄져 있다" 로 잡는다.
+    systemProperty 'app.observability.run-unconfirmed.initial-delay-ms', '86400000'
+    systemProperty 'app.exception.noshow-escalation.initial-delay-ms', '86400000'
+
+    // 지오코딩을 결정론적 스텁으로 고정한다. 기본값(naver)은 실 API 라, 두면 테스트 전체 묶음이
+    // 네트워크·요금·NCP 계정 상태에 매달려 그 초록이 코드에 대해 아무것도 말하지 않게 된다
+    // (Ruling 157 — 판정 수단은 재현 가능해야 한다). 실 어댑터는 환경변수가 있을 때만 도는
+    // 조건부 통합 테스트(NaverGeocodingClientLiveTest)가 따로 검증한다.
+    systemProperty 'geocoding.provider', 'stub'
+
+    // 도로 경로도 같은 이유로 결정론적 스텁에 고정한다. 실 어댑터는 로컬 HTTP 서버를 공급자 자리에
+    // 세운 보호 시험(NaverDirectionsResilienceTest)과 자격증명이 있을 때만 도는 실 네트워크 시험
+    // (NaverDirectionsClientLiveTest)이 따로 검증한다.
+    systemProperty 'app.routing.map.provider', 'stub'
+
+    // 커넥션 풀 상한을 낮춘다. @SpringBootTest 컨텍스트는 한 번 뜨면 JVM 이 끝날 때까지 캐시에 남고
+    // 각자 Hikari 풀(기본 상한 10)을 붙든 채로 있다 — 컨텍스트가 예닐곱이면 그 한 번의 실행만으로
+    // 70 개를 쥔다. 로컬 Postgres 는 max_connections=100 이고 에이전트가 동시에 두셋 돌므로,
+    // 그 상태에서 다음 컨텍스트가 뜰 때 Flyway 가 "sorry, too many clients already" 로 죽고
+    // 그 실패는 코드 결함과 구별되지 않는 형태로 나타난다(실측: 컨텍스트 로드 실패 2건).
+    // 6 인 이유는 동시성 테스트가 스레드 2개 × (바깥 트랜잭션 + REQUIRES_NEW) 만큼을 동시에 쥐기 때문이다.
+    systemProperty 'spring.datasource.hikari.maximum-pool-size', '6'
+
+    // ⚠ 상한만으로는 부족하다. Hikari 의 minimumIdle 기본값은 maximumPoolSize 와 같아서, 컨텍스트가
+    // 일을 마치고 캐시에 남아 있는 동안에도 커넥션 6 개를 그대로 붙든다 — 상한을 낮추는 것은
+    // "한 컨텍스트가 얼마나 쥘 수 있나" 만 정하고 "안 쓰는 컨텍스트가 놓아주는가" 는 정하지 않는다.
+    // Phase 7 이 컨텍스트 종류를 늘리자(고정 시계 · RANDOM_PORT 실서버 · 동시성) 전체 실행에서
+    // 100 을 넘겨 "sorry, too many clients already" 로 3 개 클래스 25 건이 죽었다(실측 2026-08-30).
+    // 상한을 더 낮추지 않는 이유는 위 주석대로 6 이 동시성 테스트의 하한이기 때문이다 — 대신
+    // 쉬는 컨텍스트를 1 개로 줄여, 동시에 살아 있는 커넥션 총량이 컨텍스트 수에 비례하지 않게 한다.
+    systemProperty 'spring.datasource.hikari.minimum-idle', '1'
+    systemProperty 'spring.datasource.hikari.idle-timeout', '10000'
+
+    // 학생 사진을 빌드 디렉터리 안에 쓴다 — 기본값(./var/photos)을 그대로 쓰면 테스트가 만든
+    // 파일이 저장소 작업 트리에 남아 `git status` 를 더럽히고, 워크트리를 갈아탈 때 따라다닌다.
+    systemProperty 'app.photo.local.root',
+            layout.buildDirectory.dir('test-photos').get().asFile.absolutePath
+
+    // 병렬 작업용 DB 격리 — `-PtestDbUrl=jdbc:postgresql://localhost:5432/<이름>` 을 주면
+    // 그 데이터베이스로 테스트한다. 에이전트를 2개 이상 동시에 돌릴 때 서로의 행을 밟아
+    // "코드 결함처럼 보이는 환경 실패" 가 나는 것을 막는다. 주지 않으면 기본값(schoolbus)이라
+    // 평소 실행에는 아무 영향이 없다.
+    if (project.hasProperty('testDbUrl')) {
+        systemProperty 'spring.datasource.url', project.property('testDbUrl')
+    }
+
+    // 워커 힙 상한을 명시한다(Ruling 188). 이전에는 이 값이 없어 워커가 Gradle Test 태스크의
+    // 기본 힙(실측 -Xmx512m — `--info` 로 워커 커맨드라인을 grep 하면 보인다. 어고닉 산정 25%가
+    // 아니라 Gradle 자체 기본값이다)으로 떴다. Phase 5 는 같은 512m 으로 634 tests 전건 통과했지만
+    // 763 tests 로 늘며 student.photo 4~5건이 OutOfMemoryError: Java heap space 로 실패하기
+    // 시작했다 — 컨텍스트 캐시 누적으로 묶음이 커진 만큼 512m 이 부족해진 것이고, 512m 을 그대로
+    // 명시해 돌려도 기본값과 동일하게 재현된다(p6-t7-report.md 음성 대조).
+    //
+    // 1024m 로 고정한 근거 — 763 테스트 전체 묶음을 반복 실행해 얻은 실측이다(p6-t7-report.md).
+    //   512m  → FAIL (student.photo 7건 실패, OutOfMemoryError 재현 — 이 값 아래로 낮추면 증상이
+    //           돌아온다는 음성 대조)
+    //   768m  → PASS (763 tests, 실패 0)
+    //   1024m → PASS (763 tests, 실패 0, 여기서 채택 — 실측 통과선(768m) 위로 여유를 둔 하한+안전폭)
+    //   2048m → PASS 이지만 G1 실사용량이 최대 610MB 안팎에 그쳐 더 올릴 근거가 없다(과다 확보는
+    //           스와핑만 늘린다)
+    // 캐시된 @SpringBootTest 컨텍스트 수는 실측으로 "예닐곱"(155행 주석)이 아니라 최대 26 개였다
+    // (한 실행에서 HikariPool-26 까지 생성 — 컨텍스트 캐시 상한 32 를 넘지 않아 전부 살아있다).
+    // 이 주석은 정정하지 않는다 — 커넥션 풀 상한(6)의 근거는 컨텍스트 수가 아니라 동시성 테스트의
+    // 스레드 점유량이라 값 자체는 여전히 맞고, 여기서 "예닐곱"을 근거로 재인용하지 않기 위해서다.
+    //
+    // forkEvery(워커를 주기적으로 재기동해 누적을 끊는 처방)와 비교했다 — 힙 상한 없이
+    // forkEvery=15 만으로도 OOM 은 사라졌지만(763 tests, 실패 0) 9분 50초가 걸렸다. 같은 결과를
+    // 1024m 힙 상한은 4분 28초에 낸다(2배 이상 빠름) — forkEvery 는 포크마다 @SpringBootTest 컨텍스트
+    // 캐시를 버려 매번 다시 띄우기 때문이다. 그래서 forkEvery 가 아니라 maxHeapSize 를 택한다.
+    // maxParallelForks 는 손대지 않는다 — 이 호스트는 메모리가 병목이라 동시 워커를 늘리면 지금
+    // 문제를 그대로 키운다.
+    //
+    // ⚠ 2026-09-03 Phase 12 에서 같은 형태가 재발했다. 위 실측은 전부 **763 tests 시절**의 것이고,
+    // 1,100건대로 늘자 1024m 에서 워커가 `OutOfMemoryError` 로 죽으면서 **빌드가 실패가 아니라
+    // 정지**했다 — 로그가 4시간 갱신되지 않았고 데몬은 CPU 0.2% 로 남아 있었다. "느리다" 로 오해하기
+    // 쉬우니 판별 근거를 적어 둔다:
+    //   ① 워커 JVM 은 살아 있는데 로그 mtime 이 멈춰 있다
+    //   ② 로그 끝에 `OutOfMemoryError` 와 `java.lang.instrument ASSERTION FAILED ... JPLISAgent.c`
+    // "2048m 은 실사용 610MB 라 더 올릴 근거가 없다"(220행)도 그 시절 값이라 지금은 성립하지 않는다.
+    // **테스트가 늘 때마다 이 값을 함께 본다** — 컨텍스트 캐시가 함께 늘기 때문이다.
+    maxHeapSize = '2048m'
+}
+
+/**
+ * backend/.env 를 bootRun 의 환경변수로 주입한다.
+ *
+ * 컨테이너로 띄울 때는 docker-compose 의 `env_file: ./backend/.env` 가 이 일을 하지만,
+ * 로컬에서 `./gradlew bootRun` 으로 띄우면 아무도 .env 를 읽지 않는다 — Spring Boot 는 .env 를
+ * 지원하지 않는다. 그래서 NAVER_DIRECTIONS_KEY_ID/KEY 가 빈 값으로 남고, NCP 가 401 을 주어
+ * 배차 시뮬레이션(/api/route-plans/simulate·/simulate/apply·generate·auto-assign)과
+ * 학부모 위치변경의 REPLANNED 경로가 전부 500 으로 죽는다.
+ *
+ * .env 는 .gitignore 대상이라 없는 환경(CI 등)도 정상이다 — 그때는 조용히 건너뛰고
+ * application.yml 의 기본값(빈 문자열)이 그대로 쓰인다.
+ */
+tasks.named('bootRun') {
+    def envFile = file('.env')
+    if (envFile.exists()) {
+        envFile.readLines('UTF-8').each { line ->
+            def trimmed = line.trim()
+            if (trimmed.isEmpty() || trimmed.startsWith('#') || !trimmed.contains('=')) {
+                return
+            }
+            def idx = trimmed.indexOf('=')
+            def key = trimmed.substring(0, idx).trim()
+            // 값에 = 가 들어갈 수 있으므로 첫 = 만 기준으로 자른다. 따옴표는 벗긴다.
+            def value = trimmed.substring(idx + 1).trim().replaceAll(/^["']|["']$/, '')
+            if (!key.isEmpty()) {
+                environment key, value
+            }
+        }
+    }
 }

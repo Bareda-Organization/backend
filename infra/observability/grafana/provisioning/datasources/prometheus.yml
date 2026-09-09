@@ -1,0 +1,12 @@
+# 파일로 주입한다 — UI 에서 손으로 등록하면 컨테이너를 다시 만들 때 사라지고 재현이 안 된다.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    # uid 를 고정한다. 대시보드 JSON 이 이 값을 참조하므로 자동 생성 uid 를 쓰면 패널이 전부 깨진다.
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false

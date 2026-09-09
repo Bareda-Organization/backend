@@ -5,6 +5,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
+import lombok.RequiredArgsConstructor;
+
 import src.backend.global.event.DomainEvent;
 import src.backend.global.event.DomainEventPublisher;
 
@@ -14,15 +16,12 @@ import src.backend.global.event.DomainEventPublisher;
  * 이벤트는 항상 같은 파티션에 쌓여 컨슈머 입장에서 발생 순서가 보장된다.
  */
 @Component
+@RequiredArgsConstructor
 public class KafkaEventPublisher implements DomainEventPublisher {
 
     private static final Logger log = LoggerFactory.getLogger(KafkaEventPublisher.class);
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
-
-    public KafkaEventPublisher(KafkaTemplate<String, Object> kafkaTemplate) {
-        this.kafkaTemplate = kafkaTemplate;
-    }
 
     @Override
     public void publish(DomainEvent event) {

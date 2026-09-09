@@ -1,0 +1,55 @@
+package src.backend.global.common.converter;
+
+import java.util.Locale;
+
+import jakarta.persistence.AttributeConverter;
+
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+
+/**
+ * enum 상수를 소문자 snake_case DB 값으로 잇는 공용 변환기 — 이 스키마의 CHECK 제약은 전부 소문자
+ * 값을 요구하는데 {@code @Enumerated(EnumType.STRING)} 은 {@code Enum.name()}(대문자)을 그대로
+ * 내보내 그 제약을 전건 위반한다(Ruling 32).
+ *
+ * <p>JPA {@code AttributeConverter} 는 제네릭 인스턴스화가 불가해 enum 마다 구상 클래스가 있어야
+ * 한다 — 별도 파일을 늘리지 않도록, 이 클래스는 각 enum 파일 안에 {@code Db} 라는 이름의 중첩
+ * {@code @Converter} 정적 클래스로 상속해서 쓴다(예: {@code Role.Db}).
+ *
+ * <p>생성자 접근 수준을 {@code protected} 로 지정한다 — 하위 클래스가 {@code super(X.class)} 를
+ * 명시 호출하므로, Lombok 기본값인 {@code public} 이 아니라 원래 선언과 같은 수준이어야 의미가 같다.
+ *
+ * @param <E> 변환 대상 enum 타입
+ */
+@RequiredArgsConstructor(access = AccessLevel.PROTECTED)
+public abstract class LowerCaseEnumConverter<E extends Enum<E>> implements AttributeConverter<E, String> {
+
+    private final Class<E> enumType;
+
+    /**
+     * 상수를 소문자 snake_case 문자열로 바꾼다. {@code null} 은 그대로 통과시킨다.
+     *
+     * <p>{@link Locale#ROOT} 를 명시한다 — JVM 기본 로케일이 터키어·아제르바이잔어({@code tr}·
+     * {@code az})면 {@code toLowerCase()} 가 {@code I} 를 점 없는 {@code ı}(U+0131)로 바꿔
+     * {@code IDLE} 같은 상수가 CHECK 제약이 모르는 값으로 저장된다.
+     */
+    @Override
+    public String convertToDatabaseColumn(E attribute) {
+        return attribute == null ? null : attribute.name().toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * DB 값을 대문자로 올려 상수로 복원한다. {@code null} 은 그대로 통과시킨다.
+     *
+     * <p>enum 에 없는 값은 {@link IllegalArgumentException} 으로 실패시킨다 — 조용히 {@code null} 을
+     * 돌려주면 CHECK 제약 밖의 값이 DB 에 들어갔을 때 애플리케이션이 정상으로 보인다.
+     *
+     * <p>{@link Locale#ROOT} 를 명시한다 — 터키어 로케일에서 {@code toUpperCase()} 는 소문자
+     * {@code i} 를 점 있는 {@code İ}(U+0130)로 올려, {@code "active"} 처럼 {@code i} 를 포함한
+     * 값 대부분이 {@link Enum#valueOf} 에서 실패한다(쓰기 쪽 오염과 별개로 읽기 쪽에서 발생).
+     */
+    @Override
+    public E convertToEntityAttribute(String dbData) {
+        return dbData == null ? null : Enum.valueOf(enumType, dbData.toUpperCase(Locale.ROOT));
+    }
+}
