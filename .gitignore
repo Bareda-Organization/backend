@@ -59,3 +59,9 @@ backend/load/results/
 
 # 문서 그래프 색인 — 파생본, 정본은 docs/ (규칙 ~/.claude/rules/docgraph.md)
 .docgraph/
+
+# Flutter — 패키지 잠금·생성물
+frontend/**/.packages
+frontend/**/pubspec.lock
+frontend/**/*.g.dart
+frontend/**/*.freezed.dart
