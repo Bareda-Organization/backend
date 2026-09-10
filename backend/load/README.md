@@ -135,3 +135,57 @@ cd k6 && k6 run -e SCENARIO4_CSV=./scenario4_approvals.csv \
 
 결과 파일: `results/goal3_ondemand_concurrent_summary.json`(위 표의 근거),
 `results/scenario1_N10_130541593.json`, `results/scenario4_N20_ondemand_concurrent.json`.
+
+---
+
+## 6. 부하 한계 측정(2026-09-09) — "깨질 때까지 올려 한계를 찾는" 회차
+
+위 1~5절은 **정해진 부하에서 약속을 지키는가**를 본다. 이 절은 반대로 **포화 지점**을 찾는다.
+계획은 `.superpowers/sdd/IMPLEMENTATION_PLAN/load-capacity-plan.md`, 결과는
+`backend/report/2026-09-09-부하-한계-측정.md`.
+
+### 6.1 기동 — `SPRING_PROFILES_ACTIVE=load` 는 듣지 않는다
+
+```bash
+./gradlew bootRun --args='--spring.profiles.active=load --spring.devtools.restart.enabled=false \
+    --app.routing.map.stub.load.min-delay-ms=300 --app.routing.map.stub.load.max-delay-ms=1200 \
+    --app.routing.map.stub.load.max-concurrent=4'
+```
+
+⚠ 환경변수로 주면 **`local` 프로파일로 뜬다**(2026-09-09 실측 — Gradle 데몬이 클라이언트 환경을
+포크한 JVM 에 그대로 넘기지 않는다). 그러면 DB 도 포트도 `schoolbus`·8080 이 되어, 부하 시험이
+개발용 DB 를 때린다. **커맨드라인 인자로 주는 형태만 검증됐다.**
+
+`schoolbus_load` 가 없으면 먼저 만든다 — Flyway 가 기동 시 스키마·시드를 넣는다.
+
+```bash
+docker exec school-bus-postgres-1 psql -U schoolbus -d postgres -c "CREATE DATABASE schoolbus_load OWNER schoolbus"
+```
+
+### 6.2 스크립트
+
+| 파일 | 하는 일 |
+|---|---|
+| `sql/r0_capacity_seed.sql` | 목표 규모 시드 — 학원 10 · 버스 100 · 학생 2,000 · 회차 200. **회차당 명단 20명이 실제로 붙는다**(시나리오 1의 빈 roster 와 다른 점) |
+| `sql/r0_reset_runs.sql` | 그 회차를 다시 `idle` 로 되돌린다. 확정 산출물(확정 노선·버전·정차 순서·배정 학생)까지 지운다 — 안 지우면 다음 회차가 "동시 도래" 가 아니라 "재확정" 을 잰다 |
+| `r2_round.sh <N> [초]` | 위치 수신 한 회차. 심기 → 표본 → k6 → 요약 |
+| `r1_round.sh <VU> [ramp] [hold]` | 실시간 세션 한 회차 |
+| `r3_mixed.sh <세션> [배율]` | 혼합 피크 — 세션·위치·확정 배치를 겹쳐 돌린다 |
+| `sampler.sh <라벨> <초>` | 1초 간격 자원 표본 → `results/sample_<라벨>.csv` |
+| `snapshot.sh <라벨>` | 자원 점 스냅샷 → `results/snapshot_<라벨>.json` |
+| `summarize_sample.py <csv>` | 표본에서 최대·중앙값 |
+| `start_sized.sh <코어> <힙> <아웃바운드>` | **인스턴스 크기를 흉내 내어 앱을 띄운다** — `bootJar` 산출물을 `-XX:ActiveProcessorCount`·`-Xmx` 로 직접 실행. 사양 산출용 |
+
+### 6.3 시나리오 2 에 붙은 환경변수 2개
+
+| 변수 | 기본 | 왜 |
+|---|---|---|
+| `SCENARIO2_OBSERVERS` | VU 전원(이전과 동일) | VU 전원이 academy live 를 구독하면 방송이 VU 수만큼 복제돼 **팬아웃 비용이 N² 로 는다.** 그러면 포화가 위치 수신 때문인지 팬아웃 때문인지 못 가른다. 세션 한계는 시나리오 3 이 따로 재므로 R2 는 2로 낮춰 돌렸다 |
+| `SCENARIO2_JITTER` | `false` | 켜면 VU 마다 0~주기 사이 난수만큼 늦게 시작한다. 끈 쪽은 **전 차량이 같은 초에 송신하는 최악**, 켠 쪽은 평시. 같은 N 에서 p95 가 6,286ms ↔ 3,830ms 로 갈렸다 |
+
+### 6.4 실행하며 밟은 함정
+
+- **`bus_no` 는 `varchar(20)`** — `scenario2_prep.sql` 의 접두사·태그가 길어 N ≥ 100 에서만 터졌다. 접두사를 `LP-`, 태그를 `MISSMS`(7자)로 줄여 고쳤다
+- **부하가 가장 높은 회차에서 `docker exec` 가 Docker Desktop 의 VM 을 멈춰 세웠다**(2회). 확정 배치 드레인 판정을 2초마다 SQL 로 세던 것이 원인 — 지금은 actuator 지표(`schoolbus_run_confirmation_lag_seconds_count` 증가분)로 센다. **호스트가 포화하는 회차에서 Docker 명령 실패는 환경 문제로 분류한다**
+- **`lsof` 로 연결 수를 세면 연결 수백 개부터 표본기 자체가 1초를 넘겨** 버스트를 놓친다. `tomcat_connections_current_connections` 로 대체
+- **1초 표본의 최대값은 회차마다 갈린다**(같은 N=1,200 에서 0.19 ~ 0.38). 판정에는 `process_cpu_time_ns_total` **누적 차**를 쓴다 — 표본 시점과 무관하다

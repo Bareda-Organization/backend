@@ -30,7 +30,9 @@ WITH series AS (
     SELECT generate_series(1, :n) AS i
 ),
 run_tag AS (
-    SELECT to_char(clock_timestamp(), 'HH24MISSMS') AS tag
+    -- 'MISSMS'(7자) — 'HH24MISSMS'(9자)를 쓰면 bus_no 가 varchar(20)을 넘는다. i 가 3자리가 되는
+    -- N>=100 회차에서만 터져 N<100 실행에서는 안 드러났다(2026-09-09 R2 N=100 에서 재현).
+    SELECT to_char(clock_timestamp(), 'MISSMS') AS tag
 ),
 target_stop AS (
     SELECT id AS stop_id FROM stop WHERE academy_id = :academy_id ORDER BY id LIMIT 1
@@ -39,7 +41,7 @@ weekday_today AS (
     SELECT (ARRAY['mon','tue','wed','thu','fri','sat','sun'])[extract(isodow FROM current_date)::int] AS wd
 ),
 new_account AS (
-    -- 접두사 LOADPOS- 로 시나리오 1의 LOAD- 와 겹치지 않는다.
+    -- 접두사 loadpos- 로 시나리오 1의 LOAD- 와 겹치지 않는다(버스는 길이 제한 때문에 'LP-').
     INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status)
     SELECT :academy_id,
            'loadpos-' || run_tag.tag || '-' || series.i,
@@ -60,8 +62,8 @@ new_manager AS (
 new_bus AS (
     INSERT INTO bus (academy_id, bus_no, plate_no, capacity, driver_count, escort_count, student_capacity, operable)
     SELECT :academy_id,
-           'LOADPOS-' || run_tag.tag || '-' || series.i,
-           'LOADPOS-' || run_tag.tag || '-' || series.i,
+           'LP-' || run_tag.tag || '-' || series.i,
+           'LP-' || run_tag.tag || '-' || series.i,
            20, 1, 1, 18, true
     FROM series, run_tag
     RETURNING id AS bus_id, bus_no,
@@ -70,7 +72,7 @@ new_bus AS (
 new_route AS (
     INSERT INTO route (academy_id, bus_id, weekday, direction, name, active)
     SELECT :academy_id, new_bus.bus_id, weekday_today.wd, 'to_academy',
-           'LOADPOS-ROUTE-' || new_bus.bus_no, true
+           'LP-ROUTE-' || new_bus.bus_no, true
     FROM new_bus, weekday_today
     RETURNING id AS route_id, bus_id
 ),
@@ -90,7 +92,7 @@ new_run AS (
     SELECT :academy_id, new_bus.bus_id, NULL, current_date, 'to_academy',
            now() + interval '30 minutes' - interval '40 minutes',
            now() - interval '40 minutes',
-           'moving', 'LOADPOS-ORIGIN', 'LOADPOS-DEST',
+           'moving', 'LP-ORIGIN', 'LP-DEST',
            now() - interval '35 minutes', now() - interval '10 minutes', 0
     FROM new_bus
     RETURNING id AS run_id, bus_id

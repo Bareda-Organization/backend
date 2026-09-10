@@ -28,7 +28,7 @@
 //       -e SCENARIO2_INTERVAL_SEC=7 --vus $N --iterations $N scenario2_position.js
 import http from 'k6/http';
 import ws from 'k6/ws';
-import { check } from 'k6';
+import { check, sleep } from 'k6';
 import { Trend, Counter } from 'k6/metrics';
 import { SharedArray } from 'k6/data';
 import { login } from './lib/auth.js';
@@ -58,6 +58,20 @@ export const wsConnectFailures = new Counter('ws_connect_failures');
 export const positionsSentTotal = new Counter('positions_sent_total');
 export const positionEchoReceivedTotal = new Counter('position_echo_received_total');
 
+// SCENARIO2_OBSERVERS (2026-09-09, 부하 한계 측정 R2) — WS 관측자를 여는 VU 수 상한. 기본값은
+// VU 전원이라 이전 라운드(2026-09-05)와 같게 돈다. 낮추는 이유는 이 시나리오가 두 가지를 한꺼번에
+// 재기 때문이다 — VU 전원이 academy live 를 구독하면 방송 1건이 VU 수만큼 복제돼, VU 를 N 배로
+// 올릴 때 팬아웃 비용이 N² 로 는다. 그러면 포화가 위치 수신 때문인지 팬아웃 때문인지 가릴 수 없다.
+// 세션 수 한계는 시나리오 3 이 따로 재므로, R2 는 관측자를 실제 관제 인원 수준으로 낮춰 수신 쪽만 본다.
+const OBSERVERS = Number(__ENV.SCENARIO2_OBSERVERS || 0) || runs.length;
+
+// SCENARIO2_JITTER (2026-09-09, 부하 한계 측정 R2) — VU 마다 0~interval 사이 난수만큼 늦게 시작한다.
+// 끄면(기본) VU 전원이 같은 순간에 쏜다 — 도착이 한 점에 몰리므로 N 을 올릴수록 대기열이 그만큼
+// 길어지고, 그 대기 시간이 응답 시간으로 잡힌다. 켜면 도착이 주기 안에 고르게 퍼져 실제 버스
+// 100대가 각자 5초마다 보내는 형태에 가까워진다. 어느 쪽도 틀리지 않다 — 끈 쪽은 최악(전 차량이
+// 같은 초에 송신), 켠 쪽은 평시다. 둘을 같은 N 에서 재야 그 차이가 대기열 때문임을 보일 수 있다.
+const JITTER = (__ENV.SCENARIO2_JITTER || 'false') === 'true';
+
 export const options = {
     scenarios: {
         position_stream: {
@@ -84,16 +98,35 @@ export default function () {
     // 올리는 사람(기사) — REST POST 에만 쓴다. WS 는 열지 않는다(위 헤더 주석 — academy live 는
     // STAFF 만 구독 가능).
     const driverToken = login(target.loginId, SEED_PASSWORD);
+
+    const isObserver = __VU <= OBSERVERS;
     // 받는 사람(STAFF 관측자) — academy live 구독 전용. 시드된 회차와 무관하게 academy 1 고정이라
     // target.academyId 를 그대로 써도 같은 값이다(현재 시드가 academy_id=1 단일 고정).
-    const staffToken = login(STAFF_OBSERVER_LOGIN_ID, SEED_PASSWORD);
+    // 관측자 VU 만 로그인한다 — 안 쓰는 토큰까지 발급받으면 BCrypt 검증이 VU 수만큼 더 돌아
+    // 회차 시작 구간의 CPU 를 이 시나리오가 재려는 것과 무관하게 밀어 올린다.
+    const staffToken = isObserver ? login(STAFF_OBSERVER_LOGIN_ID, SEED_PASSWORD) : null;
 
     const durationSec = Number(__ENV.SCENARIO2_DURATION_SEC || 60);
     // NFR-03(위치 송신 주기)을 그대로 쓰지 않는다 — 이 값은 그 규정을 재현하는 것이 아니라 부하
     // 시험의 반복 주기 파라미터다. 실제 송신 주기와 다르게 잡을 수 있으므로 README 에 근거를 적는다.
     const intervalSec = Number(__ENV.SCENARIO2_INTERVAL_SEC || 7);
 
+    if (JITTER) {
+        sleep(Math.random() * intervalSec);
+    }
+
     let lastSentAt = null;
+
+    // 관측자가 아닌 VU 는 WS 를 열지 않고 위치만 올린다 — 팬아웃 부하를 섞지 않기 위해서다.
+    // 송신 주기·건수는 관측자 VU 와 똑같이 유지해야 "N VU × 1/interval" 이라는 목표 처리량이 성립한다.
+    if (!isObserver) {
+        const until = Date.now() + durationSec * 1000;
+        while (Date.now() < until) {
+            postPosition(target, driverToken);
+            sleep(intervalSec);
+        }
+        return;
+    }
 
     const res = ws.connect(WS_URL, {}, function (socket) {
         socket.on('open', function () {
@@ -106,22 +139,8 @@ export default function () {
                 if (frame.command === 'CONNECTED') {
                     socket.send(subscribeFrame('sub-position', `/topic/academy/${target.academyId}/live`));
                     socket.setInterval(function () {
-                        const now = Date.now();
-                        const payload = JSON.stringify({
-                            lat: 37.5 + Math.random() * 0.01,
-                            lng: 127.0 + Math.random() * 0.01,
-                            recorded_at: new Date(now).toISOString(),
-                        });
-                        lastSentAt = now;
-                        const postRes = http.post(`${BASE_URL}/runs/${target.runId}/position`, payload, {
-                            headers: { Authorization: `Bearer ${driverToken}`, 'Content-Type': 'application/json' },
-                        });
-                        positionPostDurationMs.add(postRes.timings.duration);
-                        if (postRes.status !== 204) {
-                            positionPostFailures.add(1);
-                        } else {
-                            positionsSentTotal.add(1);
-                        }
+                        lastSentAt = Date.now();
+                        postPosition(target, driverToken);
                     }, intervalSec * 1000);
                 } else if (frame.command === 'ERROR') {
                     wsConnectFailures.add(1);
@@ -157,5 +176,23 @@ export default function () {
     check(res, { 'ws 연결 성공(101)': (r) => r && r.status === 101 });
     if (!res || res.status !== 101) {
         wsConnectFailures.add(1);
+    }
+}
+
+/** 위치 1건 송신 — 관측자 VU 와 송신 전용 VU 가 같은 코드를 타야 두 갈래의 처리량이 같다. */
+function postPosition(target, driverToken) {
+    const payload = JSON.stringify({
+        lat: 37.5 + Math.random() * 0.01,
+        lng: 127.0 + Math.random() * 0.01,
+        recorded_at: new Date().toISOString(),
+    });
+    const postRes = http.post(`${BASE_URL}/runs/${target.runId}/position`, payload, {
+        headers: { Authorization: `Bearer ${driverToken}`, 'Content-Type': 'application/json' },
+    });
+    positionPostDurationMs.add(postRes.timings.duration);
+    if (postRes.status !== 204) {
+        positionPostFailures.add(1);
+    } else {
+        positionsSentTotal.add(1);
     }
 }
