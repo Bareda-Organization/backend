@@ -35,6 +35,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private final ForbiddenSubscriptionCloseFactory forbiddenSubscriptionCloseFactory;
     @Value("${app.ws.allowed-origin-patterns}")
     private final String[] allowedOriginPatterns;
+    @Value("${app.ws.outbound.core-pool-size:0}")
+    private final int outboundCorePoolSize;
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
@@ -60,6 +62,30 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
         registration.interceptors(authChannelInterceptor);
+    }
+
+    /**
+     * 구독자에게 프레임을 실제로 써 내보내는 실행기의 스레드 수 — 팬아웃 처리량의 상한이다.
+     *
+     * <p>구독자 N명 토픽에 1건을 보내면 이 실행기에 <b>N건의 쓰기 태스크</b>가 쌓인다. 그래서 이
+     * 값이 초당 방송 건수의 천장을 정한다. 큐는 무한이라 넘치면 거부가 아니라 <b>지연과 힙 증가</b>로
+     * 나타나고, 힙이 차면 GC 압력이 DB 커넥션 보유 시간을 늘려 <b>위치 수신 HTTP 까지 함께 무너진다</b>
+     * (2026-09-09 부하 한계 측정 — 큐 520만 건 · 힙 3.8GB · 커넥션 획득 30초 타임아웃).
+     *
+     * <p>⚠ 값을 주지 않으면 Spring 기본값인 <b>코어 수 × 2</b> 가 쓰인다 — 기계가 바뀌면 팬아웃
+     * 용량도 함께 바뀐다는 뜻이다. 10코어 노트북은 20, <b>2 vCPU 운영 인스턴스는 4</b> 다.
+     * 기본값을 여기서 바꾸지 않고 속성으로 두는 이유는, 운영 인스턴스 크기에 맞는 값이 측정으로
+     * 정해져야 하고 그 값이 정해지기 전까지는 현 동작을 그대로 두는 편이 안전하기 때문이다.
+     */
+    @Override
+    public void configureClientOutboundChannel(ChannelRegistration registration) {
+        if (outboundCorePoolSize <= 0) {
+            // taskExecutor() 를 부르는 것 자체가 기본 실행기를 교체하므로, 값이 없으면 손대지 않는다.
+            return;
+        }
+        registration.taskExecutor()
+                .corePoolSize(outboundCorePoolSize)
+                .maxPoolSize(outboundCorePoolSize);
     }
 
     /**

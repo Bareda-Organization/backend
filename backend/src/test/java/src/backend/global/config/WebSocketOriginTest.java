@@ -25,7 +25,9 @@ class WebSocketOriginTest {
         ForbiddenSubscriptionCloseFactory closeFactory = mock(ForbiddenSubscriptionCloseFactory.class);
         String[] origins = {"https://app.example.com", "https://preview.example.com"};
 
-        WebSocketConfig config = new WebSocketConfig(interceptor, closeFactory, origins);
+        // 마지막 인자는 팬아웃 실행기 스레드 수 — 0 은 "Spring 기본값을 손대지 않는다" 는 뜻이고,
+        // 이 시험은 허용 출처만 보므로 그 값을 준다(WebSocketOutboundPoolSizeTest 가 그쪽을 맡는다).
+        WebSocketConfig config = new WebSocketConfig(interceptor, closeFactory, origins, 0);
 
         StompEndpointRegistry registry = mock(StompEndpointRegistry.class);
         StompWebSocketEndpointRegistration registration = mock(StompWebSocketEndpointRegistration.class);
