@@ -216,6 +216,9 @@ class AdminEmergencyControllerTest {
                 .doesNotContainKey("id")
                 .containsKey("emergency_id");
         assertThat(item).doesNotContainKey("occurred_at");
+        // BE-R1 목표 3 — §5.16·§6.11 표는 type 값을 소문자 스네이크로 적었으나(accident 등), 정정
+        // 전에는 EmergencyType enum 의 name() 을 그대로 실어 대문자(ACCIDENT)로 나갔다.
+        assertThat(item.get("type")).as("type 은 정본대로 소문자여야 한다").isEqualTo("accident");
 
         Map<String, Object> academyInfo = (Map<String, Object>) item.get("academy");
         assertThat(academyInfo).as("academy 는 §6.11 고유 필드다").isNotNull();

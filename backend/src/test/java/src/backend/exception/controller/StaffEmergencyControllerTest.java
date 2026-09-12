@@ -228,6 +228,9 @@ class StaffEmergencyControllerTest {
         assertThat(item).as("§5.16 이 요구하는 7키 전부가 있어야 한다(Phase 13 목표 13 완료 기준 2)")
                 .containsKeys("emergency_id", "raised_by", "position", "direction", "contacts", "raised_at",
                         "acked_by");
+        // BE-R1 목표 3 — §5.16 표는 type 값을 소문자 스네이크로 적었으나(accident 등), 정정 전에는
+        // EmergencyType enum 의 name() 을 그대로 실어 대문자(ACCIDENT)로 나갔다.
+        assertThat(item.get("type")).as("type 은 §5.16 대로 소문자여야 한다").isEqualTo("accident");
         assertThat(item).as("정본 키는 id 가 아니라 emergency_id 다(Phase 13 목표 13 판정 ①)")
                 .doesNotContainKey("id")
                 .containsKey("emergency_id");

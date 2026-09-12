@@ -138,8 +138,9 @@ public class AdminEmergencyQueryService {
         AdminEmergencyItemResponse.AckedBy ackedBy = acker == null ? null
                 : new AdminEmergencyItemResponse.AckedBy(acker.getName());
 
-        return new AdminEmergencyItemResponse(alert.getId(), academyInfo, alert.getType().name(), alert.getMemo(),
-                raisedBy, alert.getRunId(), alert.getBusNo(),
+        return new AdminEmergencyItemResponse(alert.getId(), academyInfo,
+                LowerCaseFormatter.lower(alert.getType().name()), alert.getMemo(), raisedBy, alert.getRunId(),
+                alert.getBusNo(),
                 run == null ? null : LowerCaseFormatter.lower(run.getDirection().name()),
                 position, alert.getRiderCount(), contacts, alert.getReceivedAt(), alert.isAcked(), alert.getAckedAt(),
                 alert.getCanceledAt(), ackedBy, elapsedSeconds);
