@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 
@@ -52,7 +53,9 @@ import src.backend.run.repository.RunRepository;
 import src.backend.student.entity.Stop;
 import src.backend.student.entity.Student;
 import src.backend.student.repository.StopRepository;
+import src.backend.student.repository.StudentDailyStop;
 import src.backend.student.repository.StudentRepository;
+import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
  * 승인 대기 목록·상세 조회(API_SPEC §5.5) — 목록은 저장된 값만 집계하고 재최적화를 실행하지 않는다.
@@ -82,6 +85,8 @@ public class ApprovalQueryService {
     private final StopRepository stopRepository;
 
     private final RunRiderRepository runRiderRepository;
+
+    private final WeeklyAddressRepository weeklyAddressRepository;
 
     private final AcademyRepository academyRepository;
 
@@ -205,11 +210,25 @@ public class ApprovalQueryService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.BUS_NOT_FOUND));
         Student student = studentRepository.findById(cr.getStudentId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.STUDENT_NOT_FOUND));
-        RunRider mine = riders.stream()
+        Optional<RunRider> mine = riders.stream()
                 .filter(r -> r.getStudentId().equals(cr.getStudentId()))
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException(
-                        "승인 대기 학생이 회차 명단에 없다 — runId=" + run.getId() + ", studentId=" + cr.getStudentId()));
+                .findFirst();
+        SubjectStop subject = mine.isPresent()
+                ? liveSubjectStopOf(mine.get(), cr, riders, academyId)
+                : decidedSubjectStopOf(cr, run, riders, academyId);
+        return ApprovalSummaryResponse.of(cr, student.getName(), bus.getBusNo(), run.getDirection(),
+                cr.getDeadlineAt(), subject.stopName(), subject.remainingRiders(), subject.willRemoveStop());
+    }
+
+    /**
+     * 이 학생이 지금 그 회차 명단에 있는 경우(§5.5 목록 본래 계약) — {@code pending} 은 항상,
+     * {@code approved} 는 구조적으로 항상 이 경로를 탄다.
+     * {@link src.backend.request.command.ChangeRequestDecisionService#approve} 는 대상이 명단에
+     * 있어야만 승인이 성립하고 승인 뒤에도 행을 지우지 않는다({@code markAbsent}·
+     * {@code relocateTo} 모두 UPDATE) — 그래서 "지금 타고 있는 승하차지를 비우면" 이라는 질문이 그대로
+     * 성립한다.
+     */
+    private SubjectStop liveSubjectStopOf(RunRider mine, ChangeRequest cr, List<RunRider> riders, Long academyId) {
         Stop stop = stopRepository.findAllByAcademyIdAndIdIn(academyId, List.of(mine.getStopId())).stream()
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("승하차지가 없다 — stopId=" + mine.getStopId()));
@@ -218,8 +237,58 @@ public class ApprovalQueryService {
                 .filter(r -> mine.getStopId().equals(r.getStopId()))
                 .filter(r -> r.getStatus() != RiderStatus.ABSENT)
                 .count();
-        return ApprovalSummaryResponse.of(cr, student.getName(), bus.getBusNo(), run.getDirection(),
-                cr.getDeadlineAt(), stop.getName(), (int) remaining, remaining == 0);
+        return new SubjectStop(stop.getName(), (int) remaining, remaining == 0);
+    }
+
+    /**
+     * 이 학생이 지금 그 회차 명단에 없는 경우 — {@code rejected}·{@code auto_rejected} 는 이것이
+     * 정상이다({@code reject}·{@code autoReject} 는 {@code RunRider} 를 건드리지 않는다). API_SPEC
+     * §5.5 는 이 상황을 서술하지 않는다(정본 공백, 보고서 1항) — "이 학생이 지금 타고 있는 승하차지를
+     * 비우면 어떻게 되는가" 라는 질문 자체가 성립하지 않으므로, 저장된 값만으로 "이 요청이 가리키던
+     * 승하차지" 를 최선으로 되짚는다(§5.5 가 명시한 "재최적화 없이 저장된 값·단순 집계만" 취지를 따름).
+     *
+     * <p>우선순위 — ① RELOCATE 의 확정된 목적지({@code new_stop_id}) ② 그 요일·방향의 등록 주소
+     * ({@code weekly_address}, CANCEL 포함 전 유형을 커버) ③ RELOCATE 의 미확정 주소 원문
+     * ({@code new_address}, {@code Stop} 조회는 안 되므로 표시용 문자열 그대로) ④ 그마저 없으면
+     * 플레이스홀더.
+     *
+     * <p>결정이 이미 끝난 건이라 "승인 시 제거되는가" 자체가 성립하지 않는다 — {@code will_remove_stop}
+     * 은 이 경로에서 항상 {@code false}. 상태값으로 분기하지 않고 "명단에 있는가" 로만 가른 이유는
+     * {@code approved} 도 구조적으로만 명단에 있는 것이 보장될 뿐이라, 가정이 깨지는 경우(예: 향후
+     * 다른 승인 경로가 추가돼 명단을 지우는 경우)에도 이 경로가 방어선이 되게 하기 위함이다.
+     */
+    private SubjectStop decidedSubjectStopOf(ChangeRequest cr, Run run, List<RunRider> riders, Long academyId) {
+        Long resolvedStopId = cr.getNewStopId();
+        if (resolvedStopId == null) {
+            Weekday weekday = weekdayOf(run.getServiceDate());
+            resolvedStopId = weeklyAddressRepository
+                    .findDailyStops(academyId, List.of(cr.getStudentId()), weekday, run.getDirection())
+                    .stream()
+                    .map(StudentDailyStop::getStopId)
+                    .findFirst()
+                    .orElse(null);
+        }
+        if (resolvedStopId != null) {
+            Optional<Stop> stop = stopRepository.findAllByAcademyIdAndIdIn(academyId, List.of(resolvedStopId))
+                    .stream()
+                    .findFirst();
+            if (stop.isPresent()) {
+                Long stopId = resolvedStopId;
+                long remaining = riders.stream()
+                        .filter(r -> stopId.equals(r.getStopId()))
+                        .filter(r -> r.getStatus() != RiderStatus.ABSENT)
+                        .count();
+                return new SubjectStop(stop.get().getName(), (int) remaining, false);
+            }
+        }
+        if (cr.getNewAddress() != null) {
+            return new SubjectStop(cr.getNewAddress(), 0, false);
+        }
+        return new SubjectStop("배정 정보 없음", 0, false);
+    }
+
+    /** {@link #liveSubjectStopOf}·{@link #decidedSubjectStopOf} 가 채우는 3필드 묶음(§5.5 목록 필수). */
+    private record SubjectStop(String stopName, int remainingRiders, boolean willRemoveStop) {
     }
 
     /**

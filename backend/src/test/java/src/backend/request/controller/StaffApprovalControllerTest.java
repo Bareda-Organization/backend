@@ -150,6 +150,107 @@ class StaffApprovalControllerTest {
         verify(pipeline, times(0)).compute(any());
     }
 
+    // ── 거절·자동거절 건이 있어도 목록 조회는 500 이 아니다 (BK1) ──────────
+
+    /**
+     * 거절·자동거절된 요청은 그 회차 명단({@code run_rider})에 학생이 없는 것이 정상 상태다 —
+     * {@code reject()}·{@code autoReject()} 는 {@code RunRider} 를 건드리지 않는다
+     * ({@link src.backend.request.command.ChangeRequestDecisionService}). 원래 결함은 이 상태에서
+     * {@code toSummary} 가 {@code IllegalStateException} 을 던져 목록 조회 전체가 500 이 되는 것이었다
+     * (실제 재현 — runId=2, studentId=3, "승인 대기 학생이 회차 명단에 없다").
+     *
+     * <p>학생2·학생3 은 이 회차의 노선({@code firstStop}·{@code midStop})에 속하지 않는
+     * {@code elsewhereStop} 에 등록 주소를 두어, 확정 배치({@code confirmOne})가 이들을 이 회차의
+     * 명단에 올리지 않게 한다 — 시드에서 실제로 관측된 형태(요청은 이 회차를 가리키지만 학생은 이
+     * 회차 명단에 없음)를 그대로 재현한다. 고친 코드는 이 경우 {@code weekly_address} 의 등록 주소로
+     * {@code stop_name}·{@code remaining_riders} 를 되짚고 {@code will_remove_stop} 은 항상
+     * {@code false} 를 돌려준다.
+     */
+    @Test
+    void 거절과_자동거절_건이_있어도_목록_조회는_200_이다() throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+        long busId = fixtures().bus(academyId);
+        long firstStop = fixtures().stop(academyId, "37.560000", "126.970000");
+        long midStop = fixtures().stop(academyId, "37.562000", "126.972000");
+        long elsewhereStop = fixtures().stop(academyId, "37.900000", "127.900000");
+        fixtures().route(academyId, busId, WEEKDAY, Direction.TO_ACADEMY, firstStop, midStop);
+
+        long 학생1 = fixtures().student(academyId, "학생1");
+        long 학생2 = fixtures().student(academyId, "학생2");
+        long 학생3 = fixtures().student(academyId, "학생3");
+        fixtures().verifiedAddress(학생1, firstStop, WEEKDAY, Direction.TO_ACADEMY, "37.560000", "126.970000");
+        // 학생2·학생3 은 이 노선 밖의 승하차지에 등록해 이 회차 명단에는 오르지 않게 한다.
+        fixtures().verifiedAddress(학생2, elsewhereStop, WEEKDAY, Direction.TO_ACADEMY, "37.900000", "127.900000");
+        fixtures().verifiedAddress(학생3, elsewhereStop, WEEKDAY, Direction.TO_ACADEMY, "37.900000", "127.900000");
+
+        OffsetDateTime departTime = SERVICE_DATE.atTime(8, 0).atOffset(java.time.ZoneOffset.of("+09:00"));
+        long runId = fixtures().idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        confirmationService.confirmOne(runId);
+        org.mockito.Mockito.clearInvocations(pipeline);
+
+        ChangeRequest 거절건 = ChangeRequest.forRequest(academyId, runId, 학생2,
+                ChangeRequestSource.CHANGE_REQUEST, ChangeRequestType.CANCEL, (short) 2, 학생2,
+                OffsetDateTime.now());
+        거절건.reject(1L, OffsetDateTime.now(), "마감 시간 경과");
+        changeRequestRepository.save(거절건);
+
+        ChangeRequest 자동거절건 = ChangeRequest.forRequest(academyId, runId, 학생3,
+                ChangeRequestSource.CHANGE_REQUEST, ChangeRequestType.CANCEL, (short) 2, 학생3,
+                OffsetDateTime.now());
+        자동거절건.autoReject(OffsetDateTime.now());
+        changeRequestRepository.save(자동거절건);
+
+        목록_조회(관계자_토큰(academyId), "rejected").andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items", org.hamcrest.Matchers.hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].stop_name").value("정차지37.900000"))
+                .andExpect(jsonPath("$.data.items[0].remaining_riders").value(0))
+                .andExpect(jsonPath("$.data.items[0].will_remove_stop").value(false));
+
+        목록_조회(관계자_토큰(academyId), "auto_rejected").andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items", org.hamcrest.Matchers.hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].stop_name").value("정차지37.900000"))
+                .andExpect(jsonPath("$.data.items[0].remaining_riders").value(0))
+                .andExpect(jsonPath("$.data.items[0].will_remove_stop").value(false));
+
+        verify(pipeline, times(0)).compute(any());
+    }
+
+    /**
+     * {@code approved} 는 구조적으로 명단에 학생이 남아 있는 것이 보장되지만(승인은 명단 존재를
+     * 전제로 하고, 승인 후에도 행을 지우지 않는다), 이 방어 경로가 "상태값이 아니라 명단 존재 여부로
+     * 가른다"는 설계라 그 가정이 깨져도 500 대신 안전하게 응답하는지 직접 확인한다.
+     */
+    @Test
+    void 명단에_없는_학생의_승인_완료_건도_목록_조회는_200_이다() throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+        long busId = fixtures().bus(academyId);
+        long firstStop = fixtures().stop(academyId, "37.560000", "126.970000");
+        fixtures().route(academyId, busId, WEEKDAY, Direction.TO_ACADEMY, firstStop);
+
+        long 학생1 = fixtures().student(academyId, "학생1");
+        fixtures().verifiedAddress(학생1, firstStop, WEEKDAY, Direction.TO_ACADEMY, "37.560000", "126.970000");
+
+        OffsetDateTime departTime = SERVICE_DATE.atTime(8, 0).atOffset(java.time.ZoneOffset.of("+09:00"));
+        long runId = fixtures().idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        confirmationService.confirmOne(runId);
+        org.mockito.Mockito.clearInvocations(pipeline);
+
+        // 학생1 만 명단에 있고, 존재하지 않는 학생 id 를 참조하는 승인 완료 건을 만들 수는 없으므로
+        // 학생1 자신의 요청을 승인 처리한 뒤 명단에서 지워 "가정이 깨진" 상태를 인위로 만든다.
+        ChangeRequest 승인건 = ChangeRequest.forRequest(academyId, runId, 학생1,
+                ChangeRequestSource.CHANGE_REQUEST, ChangeRequestType.CANCEL, (short) 2, 학생1,
+                OffsetDateTime.now());
+        승인건.approve(1L, OffsetDateTime.now(), null, null);
+        changeRequestRepository.save(승인건);
+        runRiderRepository.deleteAll(runRiderRepository.findAllByRunIdAndAcademyId(runId, academyId));
+
+        목록_조회(관계자_토큰(academyId), "approved").andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items", org.hamcrest.Matchers.hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].will_remove_stop").value(false));
+    }
+
     // ── 목표 12 — 상세는 정확히 1회 실행한다 ──────────────────────────────
 
     /** 상세 조회는 {@link RouteComputationPipeline#compute} 를 <b>정확히 1회</b> 부른다. */
