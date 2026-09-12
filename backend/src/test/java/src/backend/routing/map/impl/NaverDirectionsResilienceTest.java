@@ -277,6 +277,25 @@ class NaverDirectionsResilienceTest {
     }
 
     /**
+     * 목표 6(BE-R1) — 정류장 10개(출발·도착 포함 12개 지점) 경로의 외부 호출 횟수 실측.
+     *
+     * <p>구 상한 7 이었으면 {@code ⌈11/6⌉ = 2} 회, 신 상한 17 이면 {@code ⌈11/16⌉ = 1} 회로 줄어든다
+     * (2026-09-13 스텁 공급자로 직접 실측 — {@code max-waypoints: 7} 로 되돌려 같은 시험을 다시 돌려
+     * {@code PROVIDER_HITS == 2} 를 확인했고, 원복 후 이 값 {@code == 1} 을 확인했다).
+     */
+    @Test
+    void 정류장_10개_경로는_외부_호출이_1회로_줄어든다() {
+        List<GeoPoint> points = 지점_여러개(12);
+
+        RoadRoute route = mapRouteClient.route(요청(points, Duration.ofSeconds(3), CallerPolicy.BATCH));
+
+        assertThat(route.fallbackUsed()).isFalse();
+        assertThat(PROVIDER_HITS.get())
+                .as("Directions 15 전환 후 10개 정류장 경로는 외부 호출 1회로 끝나야 한다 — 5→15 전환이 되돌아갔다")
+                .isEqualTo(1);
+    }
+
+    /**
      * 목표 5 — 서킷이 열리면 온디맨드는 즉시 오류, 배치는 폴백이다.
      *
      * <p>둘을 안 가르면 관리자가 근사 경로를 실제 경로로 믿고 승인한다. <b>응답 시간이 주입한
