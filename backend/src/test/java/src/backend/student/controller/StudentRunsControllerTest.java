@@ -30,9 +30,12 @@ import src.backend.global.security.JwtTokenProvider;
 /**
  * 자녀·본인 당일 회차 목록 API(P-04 · S-01, API_SPEC §3.5, 목표 5).
  *
- * <p>student1(academy1)이 소속된 회차 3건(idle·confirmed·moving)을 한 번에 검증한다 — 시드가
+ * <p>student1(academy1)이 소속된 회차 4건(idle 2건·confirmed·moving)을 한 번에 검증한다 — 시드가
  * 이미 세 상태를 전부 갖추고 있어(run1 idle · run2 confirmed · run3 moving · run4 finished 는
- * student1 소속 아님) 새 픽스처를 만들지 않는다.
+ * student1 소속 아님) 새 픽스처를 만들지 않는다. run6(idle) 은 §5.7 검증용으로 추가된 회차인데,
+ * run1 과 같은 학원·버스·방향이라 같은 고정 노선(route id=1)에 걸려 {@code matchesFixedRoute} 가
+ * student1 을 그대로 소속시킨다 — 시드에 노선이 그 하나뿐이라 우연이 아니라 필연이다. 그래서 이
+ * 목록에도 네 번째 항목으로 나와야 정확하다(2026-09-12 실측 — run6 추가 후 3→4 로 개정).
  *
  * <ul>
  *   <li>run3(moving) — {@code run_rider} 행이 {@code status='absent'} 라 {@code riding} 기본값
@@ -41,8 +44,8 @@ import src.backend.global.security.JwtTokenProvider;
  *       가르는 유일한 경우다</li>
  *   <li>run2(confirmed) — {@code boarding_intent} 행이 있어(riding=true, change_used_count=0)
  *       기본값이 아니라 그 행의 값을 그대로 반영해야 한다</li>
- *   <li>run1(idle) — {@code boarding_intent} 행이 없어 기본값(riding=true, change_quota_left=1)
- *       이어야 한다</li>
+ *   <li>run1·run6(idle) — {@code boarding_intent} 행이 없어 기본값(riding=true,
+ *       change_quota_left=1)이어야 한다. 둘 다 route id=1 을 공유해 정차지도 stop1 로 같다</li>
  * </ul>
  *
  * <p>{@link SeedDateClockConfig} — 시드 회차의 {@code service_date} 를 실제로 읽어 그 날짜로
@@ -59,13 +62,18 @@ class StudentRunsControllerTest {
     private JdbcTemplate jdbcTemplate;
 
     /**
-     * 시드의 {@code idle} 회차를 그 상태로 되돌린다.
+     * 시드의 {@code idle} 회차 2건(run1·run6)을 그 상태로 되돌린다.
      *
-     * <p>이 클래스의 전제는 "시드가 idle·confirmed·moving 세 상태를 갖췄다" 인데, 확정 배치·강제 확정을
+     * <p>이 클래스의 전제는 "시드가 idle·confirmed·moving 상태를 갖췄다" 인데, 확정 배치·강제 확정을
      * 검사하는 다른 클래스가 <b>같은 행을 confirmed 로 바꾼다</b>. 그래서 단독 실행은 통과하고 전체
      * 실행에서만 {@code items[2].run_status} 가 {@code confirmed} 로 나와 실패했다(2026-09-09 실측).
      * 전제를 매 시험 앞에서 복원해 실행 순서에 기대지 않게 한다 — {@code confirmed} 응답 필드도
      * {@code status != idle} 에서 파생되므로 이 한 줄이 두 단언을 함께 되돌린다.
+     *
+     * <p>run6 은 §5.7(강제 추가) 검증용으로 추가된 idle 회차인데(Run6 시드 주석 참고), 같은 이유로
+     * §5.7 강제 추가·확정 관련 시험이 이 행을 {@code confirmed} 로 남겨 둔 채 끝날 수 있다(2026-09-12
+     * 전체 실행 실측 — DB 재구성 없이 오래 떠 있던 세션에서 run6 이 {@code confirmed} 로 관측됨).
+     * run1 과 같은 이유로 여기서 함께 되돌린다.
      *
      * <p>⚠ 클래스에 {@code @Transactional} 을 단 이유가 이 복원이다. 커밋해 버리면 <b>확정 배치
      * 시험이 깨진다</b> — 그 시험은 한 틱이 정확히 {@code BATCH_SIZE} 건을 집는지 보는데, 되살아난
@@ -74,8 +82,8 @@ class StudentRunsControllerTest {
      */
     @BeforeEach
     void 시드_idle_회차를_되돌린다() {
-        jdbcTemplate.update("UPDATE run SET status = 'idle', confirmed_at = NULL WHERE id = ?",
-                Long.parseLong(SeedFixtures.RUN_IDLE_ID));
+        jdbcTemplate.update("UPDATE run SET status = 'idle', confirmed_at = NULL WHERE id IN (?, ?)",
+                Long.parseLong(SeedFixtures.RUN_IDLE_ID), 6L);
     }
 
     private static final long ACADEMY_A = 1L;
@@ -116,12 +124,12 @@ class StudentRunsControllerTest {
         }
     }
 
-    /** student1 이 속한 회차 3건을 출발 시각 순(moving → confirmed → idle)으로 반환한다. */
+    /** student1 이 속한 회차 4건을 출발 시각 순(moving → confirmed → idle run1 → idle run6)으로 반환한다. */
     @Test
     void 부모가_연결된_자녀의_당일_회차_목록을_출발시각_순으로_받는다() throws Exception {
         mockMvc.perform(get(RUNS.formatted(STUDENT_1_ID)).header("Authorization", 토큰(SIBLINGS_GUARDIAN_ACCOUNT)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items.length()").value(3))
+                .andExpect(jsonPath("$.data.items.length()").value(4))
                 .andExpect(jsonPath("$.data.items[0].run_id").value(3))
                 .andExpect(jsonPath("$.data.items[0].direction").value("to_academy"))
                 .andExpect(jsonPath("$.data.items[0].bus_no").value("2호차"))
@@ -149,15 +157,24 @@ class StudentRunsControllerTest {
                 .andExpect(jsonPath("$.data.items[2].riding").value(true))
                 .andExpect(jsonPath("$.data.items[2].rider_status").value("waiting"))
                 .andExpect(jsonPath("$.data.items[2].stop.stop_id").value(1))
-                .andExpect(jsonPath("$.data.items[2].change_quota_left").value(1));
+                .andExpect(jsonPath("$.data.items[2].change_quota_left").value(1))
+                .andExpect(jsonPath("$.data.items[3].run_id").value(6))
+                .andExpect(jsonPath("$.data.items[3].direction").value("to_academy"))
+                .andExpect(jsonPath("$.data.items[3].bus_no").value("1호차"))
+                .andExpect(jsonPath("$.data.items[3].run_status").value("idle"))
+                .andExpect(jsonPath("$.data.items[3].confirmed").value(false))
+                .andExpect(jsonPath("$.data.items[3].riding").value(true))
+                .andExpect(jsonPath("$.data.items[3].rider_status").value("waiting"))
+                .andExpect(jsonPath("$.data.items[3].stop.stop_id").value(1))
+                .andExpect(jsonPath("$.data.items[3].change_quota_left").value(1));
     }
 
-    /** {@code date} 를 생략하면 당일이다 — 시드가 전부 {@code CURRENT_DATE} 라 쿼리 파라미터 없이도 같은 3건이 나와야 한다. */
+    /** {@code date} 를 생략하면 당일이다 — 시드가 전부 {@code CURRENT_DATE} 라 쿼리 파라미터 없이도 같은 4건이 나와야 한다. */
     @Test
     void date_파라미터를_생략하면_당일_기준이다() throws Exception {
         mockMvc.perform(get(RUNS.formatted(STUDENT_1_ID)).header("Authorization", 토큰(SIBLINGS_GUARDIAN_ACCOUNT)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items.length()").value(3));
+                .andExpect(jsonPath("$.data.items.length()").value(4));
     }
 
     /** 연결이 없는(대기 중인 요청뿐인) 자녀는 403 이다 — S1 의 보호자가 아니라 계정5는 student5 에 활성 연결이 없다. */
