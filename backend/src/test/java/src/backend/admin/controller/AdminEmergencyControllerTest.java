@@ -296,7 +296,7 @@ class AdminEmergencyControllerTest {
     @SuppressWarnings("unchecked")
     private Map<String, Object> 항목(String body, long emergencyId) {
         List<Map<String, Object>> items = JsonPath.read(body,
-                "$.data.emergencies[?(@.emergency_id == %d)]".formatted(emergencyId));
+                "$.data.items[?(@.emergency_id == %d)]".formatted(emergencyId));
         assertThat(items).as("emergency_id=%d 행이 응답에 없다".formatted(emergencyId)).hasSize(1);
         return items.get(0);
     }
@@ -314,14 +314,14 @@ class AdminEmergencyControllerTest {
      */
     private Long 경과시간(String body, long emergencyId) {
         List<Number> values = JsonPath.read(body,
-                "$.data.emergencies[?(@.emergency_id == %d)].elapsed_since_raised".formatted(emergencyId));
+                "$.data.items[?(@.emergency_id == %d)].elapsed_since_raised".formatted(emergencyId));
         assertThat(values).as("emergency_id=%d 행이 응답에 없다".formatted(emergencyId)).hasSize(1);
         return values.get(0).longValue();
     }
 
     private boolean 확인여부(String body, long emergencyId) {
         List<Boolean> values = JsonPath.read(body,
-                "$.data.emergencies[?(@.emergency_id == %d)].staff_acked".formatted(emergencyId));
+                "$.data.items[?(@.emergency_id == %d)].staff_acked".formatted(emergencyId));
         assertThat(values).hasSize(1);
         return values.get(0);
     }
