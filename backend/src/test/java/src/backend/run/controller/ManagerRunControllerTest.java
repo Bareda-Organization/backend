@@ -125,7 +125,7 @@ class ManagerRunControllerTest {
                 .andExpect(status().isOk())
                 .andReturn();
 
-        java.util.List<?> items = JsonPath.read(본문(result), "$.data");
+        java.util.List<?> items = JsonPath.read(본문(result), "$.data.items");
         assertThat(items).isEmpty();
     }
 
@@ -153,10 +153,10 @@ class ManagerRunControllerTest {
                 .andReturn();
 
         String body = 본문(result);
-        java.util.List<?> items = JsonPath.read(body, "$.data");
+        java.util.List<?> items = JsonPath.read(body, "$.data.items");
         assertThat(items).hasSize(1);
-        assertThat((Integer) JsonPath.read(body, "$.data[0].run_id")).isEqualTo((int) runId);
-        assertThat((String) JsonPath.read(body, "$.data[0].role_in_run")).isEqualTo("escort");
+        assertThat((String) JsonPath.read(body, "$.data.items[0].run_id")).isEqualTo(String.valueOf(runId));
+        assertThat((String) JsonPath.read(body, "$.data.items[0].role_in_run")).isEqualTo("escort");
     }
 
     @Test
@@ -207,7 +207,7 @@ class ManagerRunControllerTest {
                 .andExpect(status().isOk())
                 .andReturn();
 
-        java.util.List<?> items = JsonPath.read(본문(result), "$.data");
+        java.util.List<?> items = JsonPath.read(본문(result), "$.data.items");
         assertThat(items).isEmpty();
     }
 

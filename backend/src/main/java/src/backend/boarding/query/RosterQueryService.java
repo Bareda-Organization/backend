@@ -106,8 +106,8 @@ public class RosterQueryService {
                         ridersByStopId.getOrDefault(runStop.getStopId(), List.of()), studentsById, maskedPhonesById))
                 .toList();
         recordManagerRosterAudit(requester, run, stops);
-        return new ManagerRosterResponse(run.getId(), busNo, lower(run.getDirection().name()), countsOf(riders),
-                stops);
+        return new ManagerRosterResponse(String.valueOf(run.getId()), busNo, lower(run.getDirection().name()),
+                countsOf(riders), stops);
     }
 
     /**
@@ -196,15 +196,16 @@ public class RosterQueryService {
                 .toList();
         String name = stopInfo == null ? null : stopInfo.getName();
         String address = stopInfo == null ? null : stopInfo.getAddress();
-        return new StopGroup(runStop.getStopId(), runStop.getSeq(), name, address,
+        return new StopGroup(String.valueOf(runStop.getStopId()), runStop.getSeq(), name, address,
                 runStop.getChange() == null ? null : lower(runStop.getChange().name()), runStop.getSkipNotice(),
                 runStop.getArrivedAt(), students);
     }
 
     private RosterStudent toRosterStudent(RunRider rider, Student student, String maskedPhone) {
-        return new RosterStudent(rider.getId(), rider.getStudentId(), student.getName(), student.getPhotoUrl(),
-                student.getClassName(), maskedPhone, student.getNote(), student.isCanGoAlone(),
-                lower(rider.getStatus().name()), rider.getChange() == null ? null : lower(rider.getChange().name()));
+        return new RosterStudent(String.valueOf(rider.getId()), String.valueOf(rider.getStudentId()),
+                student.getName(), student.getPhotoUrl(), student.getClassName(), maskedPhone, student.getNote(),
+                student.isCanGoAlone(), lower(rider.getStatus().name()),
+                rider.getChange() == null ? null : lower(rider.getChange().name()));
     }
 
     private StaffRosterItemResponse toStaffItem(RunRider rider, Student student, Stop stop, String rawPhone) {

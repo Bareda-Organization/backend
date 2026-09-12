@@ -148,6 +148,13 @@ class RunRosterControllerTest {
         String body = 본문(result);
         assertThat((String) JsonPath.read(body, "$.data.stops[0].students[0].guardian_phone"))
                 .isEqualTo("010-2XXX-8814");
+        // §1.1 "식별자는 서버 발급 문자열" — run_id·stop_id·rider_id·student_id 는 전부 String 이어야 한다.
+        assertThat((String) JsonPath.read(body, "$.data.run_id")).isEqualTo(String.valueOf(runId));
+        assertThat((String) JsonPath.read(body, "$.data.stops[0].stop_id")).isEqualTo(String.valueOf(stopId));
+        assertThat((String) JsonPath.read(body, "$.data.stops[0].students[0].student_id"))
+                .isEqualTo(String.valueOf(studentId));
+        Object riderId = JsonPath.read(body, "$.data.stops[0].students[0].rider_id");
+        assertThat(riderId).isInstanceOf(String.class);
     }
 
     @Test

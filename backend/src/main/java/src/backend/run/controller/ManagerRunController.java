@@ -1,7 +1,5 @@
 package src.backend.run.controller;
 
-import java.util.List;
-
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -17,7 +15,7 @@ import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanReadRoster;
-import src.backend.run.dto.ManagerRunResponse;
+import src.backend.run.dto.ManagerRunListResponse;
 import src.backend.run.query.ManagerRunQueryService;
 
 /**
@@ -44,8 +42,8 @@ public class ManagerRunController {
     @CanReadRoster
     @Operation(summary = "담당 회차 (RUN-01, M-02 · M-07 운행 카드)")
     @GetMapping
-    public ApiResponse<List<ManagerRunResponse>> list(@AuthenticationPrincipal AuthUser requester,
+    public ApiResponse<ManagerRunListResponse> list(@AuthenticationPrincipal AuthUser requester,
             @RequestParam(name = "date", required = false) String date) {
-        return ApiResponse.ok(managerRunQueryService.list(requester, date));
+        return ApiResponse.ok(ManagerRunListResponse.from(managerRunQueryService.list(requester, date)));
     }
 }

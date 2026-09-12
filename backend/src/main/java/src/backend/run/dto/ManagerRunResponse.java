@@ -22,7 +22,7 @@ import src.backend.run.entity.RunStatus;
  *         가 {@code confirmed_route.current_version_id} 와 다르면 {@code true}
  * @param roleInRun {@code driver} · {@code escort} — 화면 구성을 가른다
  */
-public record ManagerRunResponse(Long runId, String busNo, String direction, OffsetDateTime departTime,
+public record ManagerRunResponse(String runId, String busNo, String direction, OffsetDateTime departTime,
         String origin, String destination, Integer estDurationMin, String runStatus, boolean confirmed,
         OffsetDateTime confirmAt, StartWindow startWindow, long addedCount, long removedCount,
         boolean ackRequired, String roleInRun) {
@@ -31,8 +31,8 @@ public record ManagerRunResponse(Long runId, String busNo, String direction, Off
             long removedCount, boolean ackRequired) {
         OffsetDateTime departTime = run.getDepartTime();
         StartWindow startWindow = new StartWindow(departTime.minusMinutes(10), departTime.plusMinutes(10));
-        return new ManagerRunResponse(run.getId(), busNo, lower(run.getDirection().name()), departTime,
-                run.getOriginName(), run.getDestinationName(), run.getEstDurationMin(),
+        return new ManagerRunResponse(String.valueOf(run.getId()), busNo, lower(run.getDirection().name()),
+                departTime, run.getOriginName(), run.getDestinationName(), run.getEstDurationMin(),
                 lower(run.getStatus().name()), run.getStatus() != RunStatus.IDLE, run.getConfirmAt(),
                 startWindow, addedCount, removedCount, ackRequired, lower(assignment.getRole().name()));
     }
