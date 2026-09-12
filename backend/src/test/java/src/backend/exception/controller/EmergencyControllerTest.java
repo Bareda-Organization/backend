@@ -340,13 +340,18 @@ class EmergencyControllerTest extends RedisTestContainerBase {
 
     /**
      * 목록 응답의 {@code emergency_id} 가 <b>문자열</b>인지 타입으로 고정한다(BE-R1 수정 라운드 §1.4⑤
-     * — 게이트가 직접 재현). 위 "전 필드" 시험은 {@code .value(String.valueOf(...))} 로 값까지 맞으면
-     * 통과하는데, Jackson 이 원시 숫자로 내보내도 {@code jsonPath(...).value("123")} 는 문자열 "123"과
-     * 숫자 123 을 비교해 <b>실패</b>하므로 타입 사고는 그쪽에서도 걸린다 — 이 시험은 그것과 별개로
-     * {@code isString()} 으로 명시해, 다음에 필드 타입이 다시 {@code Long} 으로 돌아가도 값 비교의
-     * 우연한 일치에 기대지 않고 곧바로 잡는다. 매니저 앱({@code emergency_item.dart}) 이
-     * {@code json['emergency_id'] as String} 로 파싱하므로, 숫자로 나가면 목록이 비어 있지 않은 순간
-     * 비상 화면이 예외로 죽는다.
+     * — 게이트가 직접 재현).
+     *
+     * <p><b>이 시험이 유일한 방어선이다.</b> 위 "전 필드" 시험의 {@code .value(String.valueOf(...))} 는
+     * <b>타입을 가리지 않는다</b> — 필드를 {@code Long} 으로 되돌려도 그 단언은 그대로 통과한다.
+     * 실제로 되돌려 확인한 값이며(FIX-EM 좌석 실측, 되돌렸을 때 실패한 것은 이 메서드 하나뿐이고
+     * 나머지 14개는 통과했다), {@code isString()} 을 쓴 이 시험만 잡는다.
+     * ⚠ 그러므로 <b>이 시험을 지우면 타입 회귀를 아무도 못 잡는다.</b>
+     *
+     * <p>왜 문자열이어야 하나 — {@code API_SPEC} 의 절별 응답 필드 표가 식별자를 {@code string} 으로
+     * 적은 곳이 20곳이고 {@code number} 로 적은 곳은 0곳이다({@code §1.1} "식별자 | 서버 발급 문자열").
+     * 매니저 앱({@code emergency_item.dart}) 이 {@code json['emergency_id'] as String} 로 파싱하므로,
+     * 숫자로 나가면 목록이 비어 있지 않은 순간 비상 화면이 예외로 죽는다.
      */
     @Test
     void 목록_응답의_emergency_id는_문자열이다() throws Exception {

@@ -79,9 +79,22 @@ class NotificationModuleIsolationTest {
         }
     }
 
+    /**
+     * 소스에서 <b>주석을 걷어낸 코드 본문</b>만 돌려준다.
+     *
+     * <p>이 저장소는 자바독에 다른 클래스를 {@code {@link ...}} 로 가리키는 관례가 있어, 주석을 그대로
+     * 두고 문자열을 세면 <b>결함이 없어도 걸린다</b>. 2026-09-13 실제로 걸렸다 —
+     * {@code EmergencyCommandService} 가 "이 이벤트를 누가 받아 팬아웃하는가" 를 자바독으로 적으면서
+     * {@code EmergencyNotificationListener} 를 가리켰는데, 호출도 import 도 아닌 <b>설명</b>이었다.
+     *
+     * <p>⚠ 이 검사가 막으려는 것은 <b>호출</b>이다(단언 문구 참조 — 직접 호출이면 푸시 실패가 승인을
+     * 롤백시킨다). 문서가 가리키는 것은 트랜잭션을 엮지 않으므로 대상이 아니다. 실제 import·호출은
+     * 주석 밖에 있으므로 이 걸러내기가 검증력을 줄이지 않는다.
+     */
     private String 본문(Path source) {
         try {
-            return Files.readString(source);
+            String raw = Files.readString(source);
+            return raw.replaceAll("(?s)/\\*.*?\\*/", " ").replaceAll("(?m)//.*$", " ");
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
