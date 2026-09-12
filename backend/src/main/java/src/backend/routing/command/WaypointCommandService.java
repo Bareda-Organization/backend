@@ -103,15 +103,19 @@ public class WaypointCommandService {
      *
      * <p>새 행을 만들기 전에 이 회차의 <b>미배포 행을 전부 지운다</b> — 관계자가 라벨·주소를 바꿔 가며
      * 미리보기를 여러 번 눌러 보는 것이 정상 흐름이라, 그대로 두면 배포되지 않는 고아 행이 호출마다
-     * 쌓인다. 이미 배포된(applied=true) 행은 대상이 아니라 이 정리로 지워지지 않는다.
+     * 쌓인다. 이미 배포된(applied=true) 행은 대상이 아니라 이 정리로 지워지지 않는다. 이 "지우고 저장"
+     * 두 쓰기는 {@link WaypointStore#saveCandidate} 의 짧은 트랜잭션으로 묶여 있다 — 지우는 쪽이
+     * {@code @Modifying} 커스텀 쿼리라 감싸는 트랜잭션 없이 여기서 직접 불렀다면
+     * {@code TransactionRequiredException} 이 났을 자리다(이 클래스 자체는 위 javadoc 대로
+     * {@code @Transactional} 이 없어야 한다).
      */
     public WaypointResponse add(AuthUser requester, Long runId, WaypointRequest request) {
         Run run = loadRunInWindow(requester, runId);
         GeoPoint point = resolvePoint(request);
 
-        waypointRepository.deleteAllUnappliedByRunIdAndAcademyId(run.getId(), run.getAcademyId());
-        Waypoint waypoint = waypointRepository.save(Waypoint.forRun(run.getId(), request.label(), request.address(),
-                point.lat(), point.lng(), request.note(), requester.accountId(), OffsetDateTime.now(clock)));
+        Waypoint waypoint = waypointStore.saveCandidate(run, Waypoint.forRun(run.getId(), request.label(),
+                request.address(), point.lat(), point.lng(), request.note(), requester.accountId(),
+                OffsetDateTime.now(clock)));
 
         RouteContext ctx = routeContextOf(run);
         List<FixedStop> fixedStops = new ArrayList<>(existingFixedStopsOf(ctx));
