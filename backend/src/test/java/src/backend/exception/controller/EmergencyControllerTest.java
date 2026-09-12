@@ -148,9 +148,56 @@ class EmergencyControllerTest extends RedisTestContainerBase {
                         .content(요청본문("accident", null, UUID.randomUUID())))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.emergency_id").exists())
-                .andExpect(jsonPath("$.data.received_at").exists());
+                .andExpect(jsonPath("$.data.raised_at").exists());
 
         assertThat(신고건수(runId)).isEqualTo(1);
+    }
+
+    /**
+     * 발신 응답의 {@code emergency_id}·{@code cancelable_until}·{@code notified}
+     * (API_SPEC §4.14, BE-R1 목표 1) — 문자열 식별자·취소 창(+1분)·수신자 수(재직 관계자 + 메인관리자)를
+     * 값으로 고정한다. 위 시험의 존재 확인({@code exists()})만으로는 타입(문자열 vs 숫자)과 실제 값이
+     * 틀려도 통과하므로 별도로 둔다.
+     *
+     * <p>{@code notified} 의 메인관리자 몫은 {@link AccountRepository#countByRoleAndStatus} 가
+     * 학원으로 좁히지 않고 전 플랫폼을 센다(§1.5, {@code Role#hasPlatformScope}) — 이 저장소는 local
+     * 프로파일로 돌아 {@code db/migration-local/V2__seed_data.sql} 의 시드 메인관리자
+     * ({@code sysadmin}, active)가 테스트 DB에 항상 이미 들어 있다. 그래서 기대값을 2 로 박지 않고
+     * 이 시험이 만들기 전의 개수를 먼저 재서 기준으로 삼는다 — 그래야 시드 데이터 유무와 무관하게
+     * "내가 만든 만큼 늘었는가" 만 검증한다.
+     */
+    @Test
+    void 발신_응답은_문자열_식별자와_취소창과_수신자_수를_담는다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long runId = fixtures.confirmedRun(academyId, busId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long baselineActiveSystemAdmins = accountRepository.countByRoleAndStatus(Role.SYSTEM_ADMIN,
+                AccountStatus.ACTIVE);
+        fixtures.staffAccount(academyId, "직원1");
+        fixtures.systemAdminAccount("관리자1");
+        // jsonPath().value() 는 파싱된 JSON 값과 타입까지 맞아야 같다고 본다(net.minidev.json 은
+        // int 범위 숫자를 Integer 로 판다) — long 을 그대로 넘기면 Long.equals(Integer) 가 항상
+        // false 라 값이 같아도 실패한다. int 로 좁혀 비교한다.
+        int expectedNotified = (int) (1 + baselineActiveSystemAdmins + 1);
+
+        String body = mockMvc.perform(post(RAISE.formatted(runId))
+                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(요청본문("accident", null, UUID.randomUUID())))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.emergency_id").isString())
+                .andExpect(jsonPath("$.data.notified").value(expectedNotified))
+                .andReturn().getResponse().getContentAsString();
+
+        // 직렬화 문자열을 그대로 비교하면 오프셋 표기 차이(초 생략 여부)에 걸린다 — OffsetDateTime 으로
+        // 파싱해 값으로 비교한다(§4.14 — cancelable_until 은 raised_at + 1분).
+        var data = new ObjectMapper().readTree(body).path("data");
+        OffsetDateTime raisedAt = OffsetDateTime.parse(data.path("raised_at").asText());
+        OffsetDateTime cancelableUntil = OffsetDateTime.parse(data.path("cancelable_until").asText());
+        assertThat(raisedAt).isEqualTo(now());
+        assertThat(cancelableUntil).isEqualTo(now().plusMinutes(1));
     }
 
     @Test
@@ -420,8 +467,8 @@ class EmergencyControllerTest extends RedisTestContainerBase {
                         .content(요청본문("accident", null, UUID.randomUUID())))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
-        Number emergencyId = com.jayway.jsonpath.JsonPath.read(body, "$.data.emergency_id");
-        return emergencyId.longValue();
+        String emergencyId = com.jayway.jsonpath.JsonPath.read(body, "$.data.emergency_id");
+        return Long.parseLong(emergencyId);
     }
 
     /**

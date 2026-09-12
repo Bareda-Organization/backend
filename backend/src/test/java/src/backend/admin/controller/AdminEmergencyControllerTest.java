@@ -282,8 +282,8 @@ class AdminEmergencyControllerTest {
                                 .formatted(UUID.randomUUID())))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
-        Number emergencyId = JsonPath.read(body, "$.data.emergency_id");
-        return emergencyId.longValue();
+        String emergencyId = JsonPath.read(body, "$.data.emergency_id");
+        return Long.parseLong(emergencyId);
     }
 
     private String 목록을_조회한다(long adminAccountId) throws Exception {

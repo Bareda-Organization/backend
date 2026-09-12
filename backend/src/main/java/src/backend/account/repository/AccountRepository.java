@@ -120,4 +120,14 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
             + "학원으로 좁힐 수 없다 — 이 역할 자체가 전 학원 범위라는 것이 §1.5 의 정의(Role#hasPlatformScope)다. "
             + "role=SYSTEM_ADMIN 조건이 이미 좁힌 대상이라 학원 조건을 더할 근거가 없다")
     List<Account> findAllByRoleAndStatus(Role role, AccountStatus status);
+
+    /**
+     * {@link #findAllByRoleAndStatus} 와 같은 대상을 개수만 센다(API_SPEC §4.14 {@code notified},
+     * BE-R1 목표 1) — 비상 신고 응답이 실제 발송 대상 이름까지는 필요 없고 도달 수신자 수만 필요해,
+     * 계정 전체를 불러 크기를 재는 대신 count 전용 질의로 좁힌다.
+     */
+    @AcademyScopeExempt(reason = "메인관리자(SYSTEM_ADMIN)는 academy_id 가 null 이라(ck_account_academy_scope) "
+            + "학원으로 좁힐 수 없다 — §1.5 정의(Role#hasPlatformScope)와 {@link #findAllByRoleAndStatus} 가 "
+            + "이미 같은 판단을 내렸다")
+    long countByRoleAndStatus(Role role, AccountStatus status);
 }

@@ -342,8 +342,8 @@ class StaffEmergencyControllerTest {
                                 .formatted(UUID.randomUUID())))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
-        Number emergencyId = com.jayway.jsonpath.JsonPath.read(body, "$.data.emergency_id");
-        return emergencyId.longValue();
+        String emergencyId = com.jayway.jsonpath.JsonPath.read(body, "$.data.emergency_id");
+        return Long.parseLong(emergencyId);
     }
 
     private String 목록을_조회한다(long staffAccountId, long academyId) throws Exception {

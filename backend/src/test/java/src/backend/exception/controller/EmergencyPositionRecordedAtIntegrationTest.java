@@ -145,7 +145,7 @@ class EmergencyPositionRecordedAtIntegrationTest extends RedisTestContainerBase 
                                 .formatted(UUID.randomUUID())))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
-        Number emergencyId = JsonPath.read(body, "$.data.emergency_id");
-        return emergencyId.longValue();
+        String emergencyId = JsonPath.read(body, "$.data.emergency_id");
+        return Long.parseLong(emergencyId);
     }
 }
