@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -267,10 +268,12 @@ class EmergencyControllerTest extends RedisTestContainerBase {
         long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
         long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
 
+        // BE-R1 목표 5 — API_SPEC §4.14 는 204 본문 없음을 요구한다. 이전에는 200 + 본문
+        // canceled_at 이었다(정본과 어긋남).
         mockMvc.perform(delete(CANCEL.formatted(runId, emergencyId))
                         .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.canceled_at").exists());
+                .andExpect(status().isNoContent())
+                .andExpect(content().bytes(new byte[0]));
 
         assertThat(취소시각(emergencyId)).isNotNull();
     }
@@ -287,7 +290,7 @@ class EmergencyControllerTest extends RedisTestContainerBase {
 
         mockMvc.perform(delete(CANCEL.formatted(runId, emergencyId))
                         .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         assertThat(취소시각(emergencyId)).as("경계값(정확히 60초)은 포함이라 성공해야 한다").isNotNull();
     }
@@ -433,7 +436,7 @@ class EmergencyControllerTest extends RedisTestContainerBase {
 
         mockMvc.perform(delete(CANCEL.formatted(runId, emergencyId))
                         .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         mockMvc.perform(get(LIST.formatted(runId))
                         .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
