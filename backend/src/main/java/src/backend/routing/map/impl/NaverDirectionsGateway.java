@@ -34,6 +34,10 @@ import src.backend.routing.map.spec.RoadLeg;
  * ({@code /map-direction-15/v1/driving})로 전환했다(BE-R1 목표 6) — 경로만 바뀌고 응답 스키마는 같다
  * ({@code route.trafast[].summary.distance/duration},
  * <a href="https://api.ncloud-docs.com/docs/ai-naver-mapsdirections15-driving">NCP 공식 문서</a> 확인).
+ *
+ * <p>⚠ 대가 — 일일 할당량 60,000 → 3,000(Directions 5 → 15). 옛 경로가 상한 밖 경유지도 받아 결과에
+ * 반영하지만(2026-09-13 실 API 확인) 문서 미보장 동작이라 채택하지 않음 — 근거는 {@code
+ * application.yml} 의 {@code max-waypoints} 주석.
  */
 @Component
 @ConditionalOnProperty(name = "app.routing.map.provider", havingValue = "naver", matchIfMissing = true)
