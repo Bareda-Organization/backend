@@ -266,19 +266,33 @@ VALUES
     -- 같은 고정 노선(route id=1)이 매칭되고 정원 판정도 동일하게 통과한다.
     (6, 1, 1, 1, CURRENT_DATE, 'to_academy',
         now() + interval '4 hours', (now() + interval '4 hours') - interval '30 minutes',
-        'idle', '중앙 집결지', '바래다학원 A', NULL, NULL, NULL, now(), now());
+        'idle', '중앙 집결지', '바래다학원 A', NULL, NULL, NULL, now(), now()),
+    -- R7 confirmed(내일 날짜) — "자정 직후에도 confirmed 회차가 있다"(BE-R1 SEED 목표 10) 전용.
+    -- R1~R6 는 service_date 가 CURRENT_DATE(시드 적용일)로 고정돼, local 프로파일이 재기동 없이
+    -- 자정을 넘기면 "오늘" 조회(`ManagerRunQueryService.list` 의 LocalDate.now(clock) 비교)에서
+    -- 전부 빠진다 — R2 가 confirmed 인 것과 무관하게 날짜 자체가 안 맞아 사라진다. R7 은 그 다음날
+    -- 짝을 미리 심어 둬, 시드 적용일 당일과 그 다음날(자정 직후 포함) 어느 쪽에 조회해도 confirmed
+    -- 인 회차가 최소 하나는 남게 한다 — 그 이상 재기동 없이 지나간 날짜는 이 시드가 보증하지 않는다.
+    (7, 1, 1, NULL, CURRENT_DATE + 1, 'from_academy',
+        now() + interval '1 day' + interval '20 minutes',
+        (now() + interval '1 day' + interval '20 minutes') - interval '30 minutes',
+        'confirmed', '바래다학원 A', '중앙 집결지',
+        (now() + interval '1 day' + interval '20 minutes') - interval '30 minutes', NULL, NULL, now(), now());
 
 -- 강제 경유지 1건(R3, moving 중 반영) — MGR-04 시연.
 INSERT INTO waypoint (id, run_id, label, lat, lng, applied, created_by, created_at)
 OVERRIDING SYSTEM VALUE
 VALUES (1, 3, '임시 집결지', 37.570000, 126.980000, true, 2, now() - interval '4 minutes');
 
--- 확정 노선 3건(R2·R3·R5) — R2 는 배포 버전이 2개(v1→v2, 변경요청 승인으로 재배포)까지 간다.
+-- 확정 노선 4건(R2·R3·R5·R7) — R2 는 배포 버전이 2개(v1→v2, 변경요청 승인으로 재배포)까지 간다.
+-- R7 은 목표 10 전용(위 회차 삽입부 주석 참고) — 매니저 앱 명단(§4.2)이 confirmed_route 없이는
+-- RosterQueryService.boardingStopsOf 에서 빈 목록을 내려받아, R7 이 명단 화면까지 완결되도록 둔다.
 INSERT INTO confirmed_route (run_id, current_version_id, confirmed_at)
 VALUES
     (2, NULL, (SELECT confirm_at FROM run WHERE id = 2)),
     (3, NULL, (SELECT confirm_at FROM run WHERE id = 3)),
-    (5, NULL, (SELECT confirm_at FROM run WHERE id = 5));
+    (5, NULL, (SELECT confirm_at FROM run WHERE id = 5)),
+    (7, NULL, (SELECT confirm_at FROM run WHERE id = 7));
 
 INSERT INTO route_version (id, confirmed_route_id, version_no, source, published_at, input_fingerprint,
                             engine_name, policy_snapshot, fallback_used, created_by)
@@ -287,12 +301,14 @@ VALUES
     (1, 2, 1, 'confirm_batch', (SELECT confirm_at FROM run WHERE id = 2), 'fp-run2-v1', 'nearest-neighbor', '{}'::jsonb, false, NULL),
     (2, 2, 2, 'approval', now() - interval '5 minutes', 'fp-run2-v2', 'nearest-neighbor', '{}'::jsonb, false, 2),
     (3, 3, 1, 'confirm_batch', (SELECT confirm_at FROM run WHERE id = 3), 'fp-run3-v1', 'nearest-neighbor', '{}'::jsonb, true, NULL),
-    (4, 5, 1, 'confirm_batch', (SELECT confirm_at FROM run WHERE id = 5), 'fp-run5-v1', 'nearest-neighbor', '{}'::jsonb, false, NULL);
+    (4, 5, 1, 'confirm_batch', (SELECT confirm_at FROM run WHERE id = 5), 'fp-run5-v1', 'nearest-neighbor', '{}'::jsonb, false, NULL),
+    (5, 7, 1, 'confirm_batch', (SELECT confirm_at FROM run WHERE id = 7), 'fp-run7-v1', 'nearest-neighbor', '{}'::jsonb, false, NULL);
 
 -- 각 확정 노선의 현재 버전을 최신 배포로 맞춘다(순환 FK 라 confirmed_route 삽입 뒤에 UPDATE).
 UPDATE confirmed_route SET current_version_id = 2 WHERE run_id = 2;
 UPDATE confirmed_route SET current_version_id = 3 WHERE run_id = 3;
 UPDATE confirmed_route SET current_version_id = 4 WHERE run_id = 5;
+UPDATE confirmed_route SET current_version_id = 5 WHERE run_id = 7;
 
 -- 정차 항목: v1(R2)=2, v2(R2)=2(S4 재배치로 stop3 추가), v1(R3)=4+경유지1, v1(R5)=1.
 INSERT INTO run_stop (id, route_version_id, stop_id, waypoint_id, seq, change)
@@ -307,7 +323,8 @@ VALUES
     (7, 3, 1, NULL, 3, NULL),
     (8, 3, 4, NULL, 4, NULL),
     (9, 3, NULL, 1, 5, 'added'),
-    (10, 4, 5, NULL, 1, NULL);
+    (10, 4, 5, NULL, 1, NULL),
+    (11, 5, 1, NULL, 1, NULL);
 
 -- 탑승 상태 5종 전수(waiting/boarded/alighted/absent/no_show) — R2 에 waiting 2, R3 에 나머지 4.
 INSERT INTO run_rider (id, run_id, student_id, stop_id, status, boarded_at, alighted_at)
@@ -319,7 +336,8 @@ VALUES
     (4, 3, 3, 3, 'alighted', now() - interval '9 minutes', now() - interval '2 minutes'),
     (5, 3, 1, 1, 'absent', NULL, NULL),
     (6, 3, 5, 4, 'no_show', NULL, NULL),
-    (7, 5, 6, 5, 'waiting', NULL, NULL);
+    (7, 5, 6, 5, 'waiting', NULL, NULL),
+    (8, 7, 1, 1, 'waiting', NULL, NULL);
 
 -- 배차: 회차 5건 × (기사·동승자) 각 1 — R2 는 v2 미확인(acked=v1) 상태로 배지 시연.
 INSERT INTO assignment (id, run_id, manager_id, role, assigned_at, assigned_by, acked_route_version_id, acked_at)
@@ -334,7 +352,9 @@ VALUES
     (7, 4, 2, 'driver', now() - interval '1 day', 2, NULL, NULL),
     (8, 4, 4, 'escort', now() - interval '1 day', 2, NULL, NULL),
     (9, 5, 5, 'driver', now() - interval '1 day', 3, 4, now() - interval '10 minutes'),
-    (10, 5, 6, 'escort', now() - interval '1 day', 3, 4, now() - interval '10 minutes');
+    (10, 5, 6, 'escort', now() - interval '1 day', 3, 4, now() - interval '10 minutes'),
+    (11, 7, 1, 'driver', now() - interval '1 day', 2, NULL, NULL),
+    (12, 7, 3, 'escort', now() - interval '1 day', 2, NULL, NULL);
 
 -- ── 그룹④ 요청 · 예외 · 알림 · 이력 ──────────────────────────────────────────
 -- 탑승 의사 토글 2건(R2) — 한도 미소진(0) 1 · 소진(1) 1.
