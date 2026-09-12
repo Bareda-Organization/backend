@@ -120,7 +120,7 @@ class EmergencyPositionRecordedAtIntegrationTest extends RedisTestContainerBase 
                 .andReturn().getResponse().getContentAsString();
 
         List<Map<String, Object>> items = JsonPath.read(body,
-                "$.data.emergencies[?(@.emergency_id == %d)]".formatted(emergencyId));
+                "$.data.items[?(@.emergency_id == %d)]".formatted(emergencyId));
         assertThat(items).as("emergency_id=%d 행이 응답에 없다".formatted(emergencyId)).hasSize(1);
         @SuppressWarnings("unchecked")
         Map<String, Object> position = (Map<String, Object>) items.get(0).get("position");
@@ -145,7 +145,7 @@ class EmergencyPositionRecordedAtIntegrationTest extends RedisTestContainerBase 
                                 .formatted(UUID.randomUUID())))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
-        Number emergencyId = JsonPath.read(body, "$.data.emergency_id");
-        return emergencyId.longValue();
+        String emergencyId = JsonPath.read(body, "$.data.emergency_id");
+        return Long.parseLong(emergencyId);
     }
 }

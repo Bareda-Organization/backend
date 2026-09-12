@@ -13,6 +13,9 @@ import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
 
+import src.backend.academy.entity.StaffStatus;
+import src.backend.academy.repository.AcademyStaffRepository;
+import src.backend.account.repository.AccountRepository;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.BusRepository;
 import src.backend.boarding.repository.RunRiderRepository;
@@ -26,6 +29,8 @@ import src.backend.exception.event.EmergencyAckedEvent;
 import src.backend.exception.event.EmergencyCanceledEvent;
 import src.backend.exception.event.EmergencyRaisedEvent;
 import src.backend.exception.repository.EmergencyAlertRepository;
+import src.backend.global.common.enums.AccountStatus;
+import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
@@ -65,6 +70,10 @@ public class EmergencyCommandService {
 
     private final ManagerRepository managerRepository;
 
+    private final AcademyStaffRepository academyStaffRepository;
+
+    private final AccountRepository accountRepository;
+
     private final RunPositionCache runPositionCache;
 
     private final ApplicationEventPublisher eventPublisher;
@@ -72,7 +81,7 @@ public class EmergencyCommandService {
     private final Clock clock;
 
     /**
-     * 비상 신고 접수(목표 5·8) — 재전송({@code client_key} 재사용)은 새 행을 만들지 않고 최초 접수
+     * 비상 신고 접수(목표 1·5·8) — 재전송({@code client_key} 재사용)은 새 행을 만들지 않고 최초 접수
      * 결과를 그대로 돌려준다({@code BoardingCommandService#updateStatus} 와 같은 재생 형태, 가장
      * 먼저 갈리는 분기인 이유도 같다).
      */
@@ -80,7 +89,8 @@ public class EmergencyCommandService {
         Optional<EmergencyAlert> replay = emergencyAlertRepository.findByClientKey(request.clientKey());
         if (replay.isPresent()) {
             EmergencyAlert existing = replay.get();
-            return new EmergencyRaiseResponse(existing.getId(), existing.getReceivedAt());
+            return new EmergencyRaiseResponse(String.valueOf(existing.getId()), existing.getReceivedAt(),
+                    existing.cancelableUntil(), notifiedCount(existing.getAcademyId()));
         }
 
         Assignment assignment = runAssignmentAccess.assertAssignedDriverOrEscort(requester, runId);
@@ -119,7 +129,8 @@ public class EmergencyCommandService {
         eventPublisher.publishEvent(new EmergencyRaisedEvent(alert.getId(), requester.academyId(), runId,
                 bus.getBusNo(), type, raisedBy, position, alert.getRiderCount(), now));
 
-        return new EmergencyRaiseResponse(alert.getId(), now);
+        return new EmergencyRaiseResponse(String.valueOf(alert.getId()), now, alert.cancelableUntil(),
+                notifiedCount(requester.academyId()));
     }
 
     /**
@@ -180,6 +191,19 @@ public class EmergencyCommandService {
                         now));
 
         return new EmergencyAckResponse(alert.getId(), now);
+    }
+
+    /**
+     * 발신 응답 {@code notified}(목표 1, API_SPEC §4.14) — 이 신고가 실제로 도달할 수신자 수다.
+     * {@link src.backend.notification.command.EmergencyNotificationListener} 가 팬아웃하는 대상과
+     * 같은 기준(재직 관계자 + 활성 메인관리자 전원)으로 센다 — 그 리스너는 이벤트 발행 후 별도로
+     * 실행돼 개수를 되돌려주지 않으므로, 응답을 만드는 이 자리에서 같은 조건으로 다시 센다(판단
+     * 근거, 보고서 항목 — 목록을 불러 크기만 쓰지 않고 count 전용 조회를 골랐다. 팬아웃 자체는
+     * 이름까지 필요하지만 이 응답은 개수만 필요하다).
+     */
+    private long notifiedCount(Long academyId) {
+        return academyStaffRepository.countByAcademyIdAndStatus(academyId, StaffStatus.ACTIVE)
+                + accountRepository.countByRoleAndStatus(Role.SYSTEM_ADMIN, AccountStatus.ACTIVE);
     }
 
     /**

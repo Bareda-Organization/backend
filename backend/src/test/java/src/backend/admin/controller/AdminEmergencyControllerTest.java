@@ -216,6 +216,9 @@ class AdminEmergencyControllerTest {
                 .doesNotContainKey("id")
                 .containsKey("emergency_id");
         assertThat(item).doesNotContainKey("occurred_at");
+        // BE-R1 목표 3 — §5.16·§6.11 표는 type 값을 소문자 스네이크로 적었으나(accident 등), 정정
+        // 전에는 EmergencyType enum 의 name() 을 그대로 실어 대문자(ACCIDENT)로 나갔다.
+        assertThat(item.get("type")).as("type 은 정본대로 소문자여야 한다").isEqualTo("accident");
 
         Map<String, Object> academyInfo = (Map<String, Object>) item.get("academy");
         assertThat(academyInfo).as("academy 는 §6.11 고유 필드다").isNotNull();
@@ -282,8 +285,8 @@ class AdminEmergencyControllerTest {
                                 .formatted(UUID.randomUUID())))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
-        Number emergencyId = JsonPath.read(body, "$.data.emergency_id");
-        return emergencyId.longValue();
+        String emergencyId = JsonPath.read(body, "$.data.emergency_id");
+        return Long.parseLong(emergencyId);
     }
 
     private String 목록을_조회한다(long adminAccountId) throws Exception {
@@ -296,7 +299,7 @@ class AdminEmergencyControllerTest {
     @SuppressWarnings("unchecked")
     private Map<String, Object> 항목(String body, long emergencyId) {
         List<Map<String, Object>> items = JsonPath.read(body,
-                "$.data.emergencies[?(@.emergency_id == %d)]".formatted(emergencyId));
+                "$.data.items[?(@.emergency_id == %d)]".formatted(emergencyId));
         assertThat(items).as("emergency_id=%d 행이 응답에 없다".formatted(emergencyId)).hasSize(1);
         return items.get(0);
     }
@@ -314,14 +317,14 @@ class AdminEmergencyControllerTest {
      */
     private Long 경과시간(String body, long emergencyId) {
         List<Number> values = JsonPath.read(body,
-                "$.data.emergencies[?(@.emergency_id == %d)].elapsed_since_raised".formatted(emergencyId));
+                "$.data.items[?(@.emergency_id == %d)].elapsed_since_raised".formatted(emergencyId));
         assertThat(values).as("emergency_id=%d 행이 응답에 없다".formatted(emergencyId)).hasSize(1);
         return values.get(0).longValue();
     }
 
     private boolean 확인여부(String body, long emergencyId) {
         List<Boolean> values = JsonPath.read(body,
-                "$.data.emergencies[?(@.emergency_id == %d)].staff_acked".formatted(emergencyId));
+                "$.data.items[?(@.emergency_id == %d)].staff_acked".formatted(emergencyId));
         assertThat(values).hasSize(1);
         return values.get(0);
     }

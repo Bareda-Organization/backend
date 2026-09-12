@@ -19,7 +19,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.exception.command.EmergencyCommandService;
-import src.backend.exception.dto.EmergencyCancelResponse;
 import src.backend.exception.dto.EmergencyRaiseRequest;
 import src.backend.exception.dto.EmergencyRaiseResponse;
 import src.backend.exception.dto.RunEmergencyListResponse;
@@ -55,13 +54,14 @@ public class EmergencyController {
         return ApiResponse.ok(emergencyCommandService.raise(requester, runId, request));
     }
 
-    /** 발신 1분 이내 취소(목표 9). */
+    /** 발신 1분 이내 취소(목표 9) — §4.14 가 요구하는 대로 본문 없이 204 만 돌려준다. */
     @CanRaiseEmergency
     @Operation(summary = "비상 알림 취소 (EXC-04, M-15)")
     @DeleteMapping("/{runId}/emergency/{id}")
-    public ApiResponse<EmergencyCancelResponse> cancel(@AuthenticationPrincipal AuthUser requester,
-            @PathVariable Long runId, @PathVariable Long id) {
-        return ApiResponse.ok(emergencyCommandService.cancel(requester, runId, id));
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void cancel(@AuthenticationPrincipal AuthUser requester, @PathVariable Long runId,
+            @PathVariable Long id) {
+        emergencyCommandService.cancel(requester, runId, id);
     }
 
     /** 발신한 비상 알림의 처리 상태 조회(§4.15) — 확인·취소 여부를 발신자 자신이 다시 확인한다. */

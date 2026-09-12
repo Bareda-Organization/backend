@@ -109,8 +109,8 @@ public class EmergencyStaffQueryService {
         EmergencyStaffItemResponse.AckedBy ackedBy = acker == null ? null
                 : new EmergencyStaffItemResponse.AckedBy(acker.getName());
 
-        return new EmergencyStaffItemResponse(alert.getId(), alert.getType().name(), alert.getMemo(), raisedBy,
-                alert.getRunId(), alert.getBusNo(),
+        return new EmergencyStaffItemResponse(alert.getId(), LowerCaseFormatter.lower(alert.getType().name()),
+                alert.getMemo(), raisedBy, alert.getRunId(), alert.getBusNo(),
                 run == null ? null : LowerCaseFormatter.lower(run.getDirection().name()), position,
                 alert.getRiderCount(), contacts, alert.getReceivedAt(), alert.getAckedAt(), alert.getCanceledAt(),
                 alert.isAcked(), ackedBy);

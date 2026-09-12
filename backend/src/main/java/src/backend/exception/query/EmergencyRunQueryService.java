@@ -63,8 +63,9 @@ public class EmergencyRunQueryService {
     }
 
     private RunEmergencyItemResponse toItem(EmergencyAlert alert, Account acker) {
-        return new RunEmergencyItemResponse(alert.getId(), LowerCaseFormatter.lower(alert.getType().name()),
-                alert.getReceivedAt(), alert.cancelableUntil(), alert.isAcked(), alert.getAckedAt(),
-                acker == null ? null : acker.getName(), alert.getCanceledAt());
+        return new RunEmergencyItemResponse(String.valueOf(alert.getId()),
+                LowerCaseFormatter.lower(alert.getType().name()), alert.getReceivedAt(), alert.cancelableUntil(),
+                alert.isAcked(), alert.getAckedAt(), acker == null ? null : acker.getName(),
+                alert.getCanceledAt());
     }
 }
