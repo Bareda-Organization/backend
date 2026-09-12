@@ -24,11 +24,20 @@ import src.backend.routing.map.spec.MapRouteUnavailableException;
 import src.backend.routing.map.spec.RoadLeg;
 
 /**
- * NCP Direction 5 를 <b>구간 하나</b>만큼 부르고 보호를 거는 자리 — 재시도·서킷이 걸리는 유일한 지점이다.
+ * NCP Direction 15 를 <b>구간 하나</b>만큼 부르고 보호를 거는 자리 — 재시도·서킷이 걸리는 유일한 지점이다.
  *
  * <p>{@link NaverDirectionsClient} 와 빈을 가르는 이유는 Spring AOP 때문이다. 같은 클래스 안에서
  * 부르면 프록시를 거치지 않아 {@code @Retry}·{@code @CircuitBreaker} 가 <b>한 번도 걸리지 않고</b>,
  * 설정에는 값이 적혀 있으니 아무도 눈치채지 못한다.
+ *
+ * <p>2026-09-13 Directions 5({@code /map-direction/v1/driving})에서 15
+ * ({@code /map-direction-15/v1/driving})로 전환했다(BE-R1 목표 6) — 경로만 바뀌고 응답 스키마는 같다
+ * ({@code route.trafast[].summary.distance/duration},
+ * <a href="https://api.ncloud-docs.com/docs/ai-naver-mapsdirections15-driving">NCP 공식 문서</a> 확인).
+ *
+ * <p>⚠ 대가 — 일일 할당량 60,000 → 3,000(Directions 5 → 15). 옛 경로가 상한 밖 경유지도 받아 결과에
+ * 반영하지만(2026-09-13 실 API 확인) 문서 미보장 동작이라 채택하지 않음 — 근거는 {@code
+ * application.yml} 의 {@code max-waypoints} 주석.
  */
 @Component
 @ConditionalOnProperty(name = "app.routing.map.provider", havingValue = "naver", matchIfMissing = true)
@@ -37,7 +46,7 @@ public class NaverDirectionsGateway {
     /** {@code resilience4j.*.instances} 의 키 — 재시도·서킷이 같은 이름을 공유한다. */
     public static final String RESILIENCE_INSTANCE = "mapRoute";
 
-    private static final String DRIVING_PATH = "/map-direction/v1/driving";
+    private static final String DRIVING_PATH = "/map-direction-15/v1/driving";
 
     private static final String KEY_ID_HEADER = "x-ncp-apigw-api-key-id";
 
