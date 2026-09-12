@@ -259,7 +259,14 @@ VALUES
         (now() - interval '3 hours') + interval '1 minute', (now() - interval '3 hours') + interval '40 minutes', now(), now()),
     (5, 2, 3, 5, CURRENT_DATE, 'to_academy',
         now() + interval '25 minutes', (now() + interval '25 minutes') - interval '30 minutes',
-        'confirmed', 'B 집결지', '바래다학원 B', (now() + interval '25 minutes') - interval '30 minutes', NULL, NULL, now(), now());
+        'confirmed', 'B 집결지', '바래다학원 B', (now() + interval '25 minutes') - interval '30 minutes', NULL, NULL, now(), now()),
+    -- R6 idle(출발 4시간 전) — ①구간(30분 전보다 훨씬 앞) 전용 시나리오(§5.7 강제 추가) 검증용.
+    -- 기존 R1도 출발 3시간 전이라 ①구간이지만, §5.7 호출이 R1의 상태(다른 목표의 대조 대상)에
+    -- 곁다리 부수효과를 남기지 않도록 전용 회차를 따로 둔다. R1과 같은 학원·버스·방향이라
+    -- 같은 고정 노선(route id=1)이 매칭되고 정원 판정도 동일하게 통과한다.
+    (6, 1, 1, 1, CURRENT_DATE, 'to_academy',
+        now() + interval '4 hours', (now() + interval '4 hours') - interval '30 minutes',
+        'idle', '중앙 집결지', '바래다학원 A', NULL, NULL, NULL, now(), now());
 
 -- 강제 경유지 1건(R3, moving 중 반영) — MGR-04 시연.
 INSERT INTO waypoint (id, run_id, label, lat, lng, applied, created_by, created_at)
