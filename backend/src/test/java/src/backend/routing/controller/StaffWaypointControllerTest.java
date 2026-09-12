@@ -203,6 +203,57 @@ class StaffWaypointControllerTest {
                 .andExpect(jsonPath("$.error.code").value("CHANGE_WINDOW_CLOSED"));
     }
 
+    // ── 목표 4 — 확정 노선이 아직 산출되지 않은 회차는 409 ────────────────
+
+    /**
+     * idle 회차(확정 배치가 아직 안 돈 상태)로 경유 지점을 지정하면 날것 {@code 500} 이 아니라
+     * {@code 409 RUN_NOT_CONFIRMED} 다({@code WaypointCommandService.routeContextOf}). 고정 노선
+     * 자체는 있으므로(픽스처가 만듦) {@code 422 ROUTE_NOT_CONFIGURED_FOR_RUN} 과는 다른 원인이다 —
+     * 그 코드와 합치지 않았다는 것을 이 단언이 고정한다.
+     */
+    @Test
+    void 확정_노선이_없는_회차는_경유_지점_지정이_409_다() throws Exception {
+        시나리오 s = 미확정_회차를_만든다();
+
+        경유_추가한다(s.runId, 경유_본문("새경유로 70", "미확정 회차 경유", false))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("RUN_NOT_CONFIRMED"));
+    }
+
+    /**
+     * 이미 배포된 경유 지점이라도, 확정 노선이 사라진 뒤라면(운영상 있을 수 없지만 방어적 판정 대상)
+     * 삭제(재최적화)도 같은 409 다 — {@code add}·{@code remove} 가 {@code routeContextOf} 를 공유한다.
+     */
+    @Test
+    void 확정_노선이_사라진_회차는_경유_지점_삭제도_409_다() throws Exception {
+        시나리오 s = 확정된_회차를_만든다();
+        MvcResult added = 경유_추가한다(s.runId, 경유_본문("새경유로 71", "배포된 경유", true))
+                .andExpect(status().isOk())
+                .andReturn();
+        long waypointId = waypointId아이디_읽는다(added);
+        jdbcTemplate.update("DELETE FROM confirmed_route WHERE run_id = ?", s.runId);
+
+        경유_삭제한다(s.runId, waypointId, false)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("RUN_NOT_CONFIRMED"));
+    }
+
+    /** {@code 확정된_회차를_만든다} 와 같으나 {@code confirmOne} 을 부르지 않는다 — {@code confirmed_route} 자체가 없다. */
+    private 시나리오 미확정_회차를_만든다() {
+        long academyId = fixtures().academyWithCoordinates();
+        long busId = fixtures().bus(academyId);
+        long firstStop = fixtures().stop(academyId, "37.560000", "126.970000");
+        long midStop = fixtures().stop(academyId, "37.562000", "126.972000");
+        long lastStop = fixtures().stop(academyId, "37.564000", "126.974000");
+        fixtures().route(academyId, busId, WEEKDAY, Direction.TO_ACADEMY, firstStop, midStop, lastStop);
+
+        OffsetDateTime departTime = SERVICE_DATE.atTime(8, 0).atOffset(ZoneOffset.of("+09:00"));
+        long runId = fixtures().idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+
+        return new 시나리오(academyId, runId);
+    }
+
     // ── DELETE 도 같은 미리보기→배포 절차 ────────────────────────────────
 
     /** DELETE 도 POST 와 같은 절차다 — {@code apply=false} 는 배포하지 않고, {@code apply=true} 라야 반영된다. */

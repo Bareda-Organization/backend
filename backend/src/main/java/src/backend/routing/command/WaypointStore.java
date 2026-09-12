@@ -48,6 +48,19 @@ public class WaypointStore {
 
     private final ApplicationEventPublisher eventPublisher;
 
+    /**
+     * 새 미리보기 경유 지점 후보를 저장한다 — 기존 미배포 후보를 지우고 새 후보로 교체하는 두 쓰기를
+     * 한 트랜잭션으로 묶는다({@code deleteAllUnappliedByRunIdAndAcademyId} 가 {@code @Modifying} 커스텀
+     * 쿼리라 감싸는 트랜잭션이 없으면 {@code TransactionRequiredException} 이 난다 — 테스트가
+     * {@code @Transactional} 이라 가려져 있었다). {@link WaypointCommandService#add} 가 이 회차의
+     * 재최적화 계산(트랜잭션 밖이어야 하는 외부 지도 API 호출, 클래스 javadoc)을 시작하기 전에 부른다.
+     */
+    @Transactional
+    public Waypoint saveCandidate(Run run, Waypoint waypoint) {
+        waypointRepository.deleteAllUnappliedByRunIdAndAcademyId(run.getId(), run.getAcademyId());
+        return waypointRepository.save(waypoint);
+    }
+
     /** 새 경유 지점 추가를 배포한다 — {@code waypoint.apply()} 로 미리보기 단계를 벗어난다. */
     @Transactional
     public void deployAdd(Run run, Waypoint waypoint, RouteComputation computation, String fingerprint,
