@@ -146,9 +146,10 @@ app:
   routing:
     map:
       provider: naver
-      # 공급자 제약이라 정책 상수가 아니다(§7 규칙 10 의 환경 인프라값) — NCP Direction 은 1회 호출당
-      # 경유지 5개 + start/goal = 총 7개다. 넘으면 어댑터가 구간을 나눠 부르고 결과를 이어 붙인다.
-      max-waypoints: 7
+      # 공급자 제약이라 정책 상수가 아니다(§7 규칙 10 의 환경 인프라값) — Directions 15 는 1회 호출당
+      # 경유지 15개 + start/goal = 총 17개다(BE-R1 목표 6, 2026-09-13 Directions 5 에서 전환).
+      # 넘으면 어댑터가 구간을 나눠 부르고 결과를 이어 붙인다.
+      max-waypoints: 17
       naver:
         # ⚠️ maps.apigw.ntruss.com 이다 — 구 호스트는 이 자격증명으로 401 을 낸다(지오코딩 주석 참조).
         base-url: https://maps.apigw.ntruss.com

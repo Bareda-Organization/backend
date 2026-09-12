@@ -92,6 +92,9 @@ class NaverDirectionsResilienceTest {
     /** 요청마다 실린 지점 수(start + waypoints + goal) — 상한 준수와 누락을 함께 가린다. */
     private static final List<Integer> POINTS_PER_REQUEST = Collections.synchronizedList(new ArrayList<>());
 
+    /** 요청마다 실제로 나간 경로 — 엔드포인트 버전(5 ↔ 15)이 조용히 되돌아가는 것을 잡는다. */
+    private static final List<String> REQUEST_PATHS = Collections.synchronizedList(new ArrayList<>());
+
     /** 다음 응답을 몇 밀리초 늦출지 — 타임아웃을 <b>주입값대로</b> 유발하기 위한 손잡이다. */
     private static final AtomicLong RESPONSE_DELAY_MILLIS = new AtomicLong();
 
@@ -149,6 +152,7 @@ class NaverDirectionsResilienceTest {
         circuitBreakerRegistry.circuitBreaker(NaverDirectionsGateway.RESILIENCE_INSTANCE).reset();
         PROVIDER_HITS.set(0);
         POINTS_PER_REQUEST.clear();
+        REQUEST_PATHS.clear();
         RESPONSE_DELAY_MILLIS.set(0);
         FAIL_MODE.set(0);
         IN_FLIGHT.set(0);
@@ -371,6 +375,24 @@ class NaverDirectionsResilienceTest {
     }
 
     /**
+     * 목표 6(BE-R1) — 어댑터가 실제로 두드리는 경로가 Directions 15 다.
+     *
+     * <p>사양에서 손으로 옮긴 리터럴을 쓴다 — {@code DRIVING_PATH} 상수에서 유도하면 그 상수가
+     * 옛 값({@code /map-direction/v1/driving})으로 되돌아가도 대조 대상이 같은 값을 베껴 항상
+     * 일치한다({@code MAP_ROUTE_UNAVAILABLE_은_503_이다} 와 같은 이유). 경로는 런타임에만 드러나는
+     * 값이라 응답 형태만 봐서는 5 를 쓰는지 15 를 쓰는지 구별할 수단이 없다 — 로컬 대역이 실제로
+     * 받은 {@code exchange.getRequestURI()} 를 봐야 한다.
+     */
+    @Test
+    void 어댑터가_두드리는_경로는_Directions_15다() {
+        mapRouteClient.route(요청(지점_두개(), Duration.ofSeconds(2), CallerPolicy.BATCH));
+
+        assertThat(REQUEST_PATHS)
+                .as("어댑터가 Directions 5 경로를 부르고 있다 — DRIVING_PATH 가 되돌아갔다")
+                .containsExactly("/map-direction-15/v1/driving");
+    }
+
+    /**
      * {@code MAP_ROUTE_UNAVAILABLE} 이 <b>503</b> 이라는 판정이 여기서만 고정된다(API_SPEC §8.5).
      *
      * <p>사양에서 손으로 옮긴 리터럴을 쓴다 — 상수에서 유도하면 상수가 잘못 채워져도 대조 대상이
@@ -466,6 +488,7 @@ class NaverDirectionsResilienceTest {
     private static void 응답한다(HttpExchange exchange) throws IOException {
         PROVIDER_HITS.incrementAndGet();
         POINTS_PER_REQUEST.add(지점_수(exchange.getRequestURI()));
+        REQUEST_PATHS.add(exchange.getRequestURI().getPath());
         PEAK_IN_FLIGHT.accumulateAndGet(IN_FLIGHT.incrementAndGet(), Math::max);
         try {
             지연한다();
