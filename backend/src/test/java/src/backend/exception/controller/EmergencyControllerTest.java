@@ -328,7 +328,7 @@ class EmergencyControllerTest extends RedisTestContainerBase {
                         .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(1))
-                .andExpect(jsonPath("$.data.items[0].emergency_id").value(emergencyId))
+                .andExpect(jsonPath("$.data.items[0].emergency_id").value(String.valueOf(emergencyId)))
                 .andExpect(jsonPath("$.data.items[0].type").value("accident"))
                 .andExpect(jsonPath("$.data.items[0].raised_at").exists())
                 .andExpect(jsonPath("$.data.items[0].cancelable_until").exists())
@@ -336,6 +336,31 @@ class EmergencyControllerTest extends RedisTestContainerBase {
                 .andExpect(jsonPath("$.data.items[0].acked_at").doesNotExist())
                 .andExpect(jsonPath("$.data.items[0].acked_by_name").doesNotExist())
                 .andExpect(jsonPath("$.data.items[0].canceled_at").doesNotExist());
+    }
+
+    /**
+     * 목록 응답의 {@code emergency_id} 가 <b>문자열</b>인지 타입으로 고정한다(BE-R1 수정 라운드 §1.4⑤
+     * — 게이트가 직접 재현). 위 "전 필드" 시험은 {@code .value(String.valueOf(...))} 로 값까지 맞으면
+     * 통과하는데, Jackson 이 원시 숫자로 내보내도 {@code jsonPath(...).value("123")} 는 문자열 "123"과
+     * 숫자 123 을 비교해 <b>실패</b>하므로 타입 사고는 그쪽에서도 걸린다 — 이 시험은 그것과 별개로
+     * {@code isString()} 으로 명시해, 다음에 필드 타입이 다시 {@code Long} 으로 돌아가도 값 비교의
+     * 우연한 일치에 기대지 않고 곧바로 잡는다. 매니저 앱({@code emergency_item.dart}) 이
+     * {@code json['emergency_id'] as String} 로 파싱하므로, 숫자로 나가면 목록이 비어 있지 않은 순간
+     * 비상 화면이 예외로 죽는다.
+     */
+    @Test
+    void 목록_응답의_emergency_id는_문자열이다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long runId = fixtures.confirmedRun(academyId, busId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        신고를_발신한다(runId, driverAccountId, academyId);
+
+        mockMvc.perform(get(LIST.formatted(runId))
+                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].emergency_id").isString());
     }
 
     /**
