@@ -369,6 +369,95 @@ class StaffApprovalControllerTest {
         verify(pipeline, times(2)).compute(any());
     }
 
+    // ── 결정된 건의 상세 조회는 재최적화를 하지 않는다 (BK1 후속) ───────────
+
+    /**
+     * 결정이 끝난 건(거절·자동거절·승인)의 상세 조회 — {@link src.backend.request.query.ApprovalQueryService#detail}
+     * 이 상태를 한 번도 보지 않고 무조건 재최적화를 실행하던 결함의 재현·고정 시험이다. 실제 사고는
+     * 웹 팀이 결정된 건을 상세 조회할 때 {@code 422 ROUTE_NOT_CONFIGURED_FOR_RUN} 을 받은 것이었다 —
+     * 그 코드는 API_SPEC §8 어디에도 없다(정본 공백, 보고서 후속 절 참고).
+     *
+     * <p>이 시험은 그 증상(422)을 그대로 재현하는 대신 <b>더 일반적인 원인</b>을 고정한다 — 재현하려면
+     * "그 회차의 고정 노선이 마침 없다" 는 특정 조건이 필요하지만, 결함의 본질은 "결정된 건에 재최적화
+     * 자체가 걸린다" 는 것이다. {@link RouteComputationPipeline#compute} 호출 여부와
+     * {@code preview_token}·{@code route_preview} 의 내용으로 잡는 쪽이 더 넓게 결함을 잡는다 — 고친
+     * 코드는 이 조건이 실제로 성립해도(고정 노선 없음) 결정된 건에서는 애초에 {@code Route} 를 조회하지
+     * 않으므로 그 422 자체가 나지 않는다.
+     *
+     * <p>수정 전 관측(RED) — 수정 전 코드로 이 단언 전부를 실행해 실패를 직접 봤다:
+     * {@code preview_token}·{@code route_preview} 가 {@code null} 이 아니었고(재최적화가 매번 새로
+     * 실행돼 값을 채웠다), {@link RouteComputationPipeline#compute} 가 3건 모두에서 호출돼
+     * {@code verify(pipeline, times(0))} 가 위반됐다(실제 호출 3회).
+     */
+    @Test
+    void 결정된_건의_상세_조회는_재최적화를_실행하지_않는다() throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+        long busId = fixtures().bus(academyId);
+        long firstStop = fixtures().stop(academyId, "37.560000", "126.970000");
+        long midStop = fixtures().stop(academyId, "37.562000", "126.972000");
+        long lastStop = fixtures().stop(academyId, "37.564000", "126.974000");
+        fixtures().route(academyId, busId, WEEKDAY, Direction.TO_ACADEMY, firstStop, midStop, lastStop);
+
+        long 학생1 = fixtures().student(academyId, "학생1");
+        long 학생2 = fixtures().student(academyId, "학생2");
+        long 학생3 = fixtures().student(academyId, "학생3");
+        fixtures().verifiedAddress(학생1, firstStop, WEEKDAY, Direction.TO_ACADEMY, "37.560000", "126.970000");
+        fixtures().verifiedAddress(학생2, midStop, WEEKDAY, Direction.TO_ACADEMY, "37.562000", "126.972000");
+        fixtures().verifiedAddress(학생3, lastStop, WEEKDAY, Direction.TO_ACADEMY, "37.564000", "126.974000");
+
+        OffsetDateTime departTime = SERVICE_DATE.atTime(8, 0).atOffset(java.time.ZoneOffset.of("+09:00"));
+        long runId = fixtures().idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        confirmationService.confirmOne(runId);
+        org.mockito.Mockito.clearInvocations(pipeline);
+
+        ChangeRequest 거절건 = ChangeRequest.forRequest(academyId, runId, 학생1,
+                ChangeRequestSource.CHANGE_REQUEST, ChangeRequestType.CANCEL, (short) 2, 학생1,
+                OffsetDateTime.now());
+        거절건.reject(1L, OffsetDateTime.now(), "마감 시간 경과");
+        long 거절건ID = changeRequestRepository.save(거절건).getId();
+
+        ChangeRequest 자동거절건 = ChangeRequest.forRequest(academyId, runId, 학생2,
+                ChangeRequestSource.CHANGE_REQUEST, ChangeRequestType.CANCEL, (short) 2, 학생2,
+                OffsetDateTime.now());
+        자동거절건.autoReject(OffsetDateTime.now());
+        long 자동거절건ID = changeRequestRepository.save(자동거절건).getId();
+
+        ChangeRequest 승인건 = ChangeRequest.forRequest(academyId, runId, 학생3,
+                ChangeRequestSource.CHANGE_REQUEST, ChangeRequestType.CANCEL, (short) 2, 학생3,
+                OffsetDateTime.now());
+        승인건.approve(1L, OffsetDateTime.now(), null, null);
+        long 승인건ID = changeRequestRepository.save(승인건).getId();
+
+        String 토큰 = 관계자_토큰(academyId);
+
+        // 셋 다 재최적화가 손대지 않은 필드(요약 필드·capacity)는 정상 응답하고, 재최적화 전용
+        // 필드는 null(배열은 빈 배열)이다 — 이 요청 3건 모두 엔티티 메서드만 직접 불렀을 뿐
+        // ChangeRequestDecisionService 를 거치지 않아 run_rider 는 그대로 3명 전원이 남아 있다.
+        상세_조회(토큰, 거절건ID).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.preview_token").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.preview_stale").value(false))
+                .andExpect(jsonPath("$.data.route_preview").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.est_time_before").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.est_time_after").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.est_distance_before").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.est_distance_after").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.affected_students", org.hamcrest.Matchers.hasSize(0)))
+                .andExpect(jsonPath("$.data.capacity.assigned").value(3));
+
+        상세_조회(토큰, 자동거절건ID).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.preview_token").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.route_preview").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.capacity.assigned").value(3));
+
+        상세_조회(토큰, 승인건ID).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.preview_token").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.route_preview").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.capacity.assigned").value(3));
+
+        verify(pipeline, times(0)).compute(any());
+    }
+
     // ── 격리·404 ──────────────────────────────────────────────────────────
 
     /** 다른 학원 관계자가 남의 승인 건을 상세 조회하면 {@code 403 ACADEMY_SCOPE_VIOLATION}. */

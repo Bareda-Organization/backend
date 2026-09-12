@@ -117,11 +117,17 @@ public class ApprovalQueryService {
     }
 
     /**
-     * 승인 대기 상세(§5.5 상세) — 이 시점에 재최적화를 1회 실행한다. 입력(명단·승하차지)이 그대로인 채
-     * 다시 부르면 캐시가 같은 {@code preview_token} 을 돌려주고 계산은 다시 돌지 않는다.
+     * 승인 대기 상세(§5.5 상세) — {@code PENDING} 건만 이 시점에 재최적화를 1회 실행한다. 입력(명단·
+     * 승하차지)이 그대로인 채 다시 부르면 캐시가 같은 {@code preview_token} 을 돌려주고 계산은 다시
+     * 돌지 않는다. 이미 결정된 건({@code approved}·{@code rejected}·{@code auto_rejected})은
+     * {@link #decidedDetailOf} 로 넘겨 재최적화를 건너뛴다 — "승인되면 무엇이 바뀌는가" 라는 질문
+     * 자체가 성립하지 않고(그 메서드 javadoc 참고), 이 재최적화 경로에 있던 {@code Route} 조회가
+     * 결정된 건에서 실제로 {@code 422 ROUTE_NOT_CONFIGURED_FOR_RUN} 을 냈던 결함이기도 하다.
      *
      * @throws BusinessException {@code 404 APPROVAL_NOT_FOUND}(대상 없음) ·
-     *                            {@code 403 ACADEMY_SCOPE_VIOLATION}(다른 학원 소속)
+     *                            {@code 403 ACADEMY_SCOPE_VIOLATION}(다른 학원 소속) ·
+     *                            {@code 422 ROUTE_NOT_CONFIGURED_FOR_RUN}({@code PENDING} 건인데
+     *                            그 회차의 고정 노선이 없을 때만 — 결정된 건은 이 경로를 타지 않는다)
      */
     public ApprovalDetailResponse detail(AuthUser requester, Long approvalId) {
         ChangeRequest cr = changeRequestRepository.findById(approvalId)
@@ -134,6 +140,12 @@ public class ApprovalQueryService {
         Weekday weekday = weekdayOf(run.getServiceDate());
         List<RunRider> riders = runRiderRepository.findAllByRunIdAndAcademyId(run.getId(), academyId);
         ApprovalSummaryResponse summary = toSummary(cr, run, riders, academyId);
+
+        Bus bus = busRepository.findByIdAndAcademyId(run.getBusId(), academyId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BUS_NOT_FOUND));
+        if (cr.getStatus() != ChangeRequestStatus.PENDING) {
+            return decidedDetailOf(summary, riders, bus);
+        }
 
         Academy academy = academyRepository.findById(academyId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACADEMY_NOT_FOUND));
@@ -177,8 +189,6 @@ public class ApprovalQueryService {
                 routePreviewAssembler.reorderedOf(beforeSeq, afterSeq, stopsById),
                 routePreviewAssembler.removedOf(beforeSeq, afterSeq, stopsById));
 
-        Bus bus = busRepository.findByIdAndAcademyId(run.getBusId(), academyId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.BUS_NOT_FOUND));
         ApprovalCapacityResponse capacity = new ApprovalCapacityResponse(bus.getStudentCapacity(),
                 roster.studentIds().size());
 
@@ -189,6 +199,30 @@ public class ApprovalQueryService {
                 routePreviewAssembler.lastEtaOf(stopsAfter), currentVersion.getEstDistanceKm(),
                 computation.estDistanceKm(), affectedStudents, capacity, previewResult.preview().token(),
                 previewResult.stale());
+    }
+
+    /**
+     * 결정이 끝난 건의 상세(§5.5 상세, 정본 공백 — 재최적화·경유지 조회를 전혀 하지 않는다).
+     * {@code route_preview}·{@code est_time_*}·{@code est_distance_*}·{@code preview_token}·
+     * {@code preview_stale} 은 전부 "이 건이 승인되면 무엇이 바뀌는가" 를 답하는 필드인데, 결정이
+     * 이미 끝난 건에는 그 질문 자체가 성립하지 않는다 — {@code null}(배열은 빈 배열)로 채운다.
+     * {@code capacity} 만 예외다: "지금 이 버스에 몇 명이 타는가" 는 결정 여부와 무관하게 항상 답할
+     * 수 있는 질문이라, 이 변경을 가정한 후보 명단이 아니라 지금 실제 탑승 인원({@code ABSENT} 제외)
+     * 으로 채운다.
+     *
+     * <p>{@code preview_token} 을 비우는 것은 재결정을 막기 위해서가 <b>아니다</b> —
+     * {@code ChangeRequestDecisionService.decide} 는 캐시·토큰을 보기도 전에
+     * {@link ChangeRequest#assertPending()} 을 먼저 거치므로(그 서비스의 클래스·메서드 javadoc
+     * 확인 완료), 결정된 건은 어떤 토큰을 들고 와도 그 자리에서 {@code 409 APPROVAL_ALREADY_DECIDED}
+     * 로 막힌다. 여기서 토큰을 비우는 이유는 ①토큰을 만들려면 이 메서드가 건너뛴 재최적화를 다시
+     * 돌려야 하고 ②그 재최적화가 이 결함의 원인이던 {@code Route} 조회를 다시 태우며(§ 위
+     * {@link #detail} javadoc) ③결정된 건에 유효해 보이는 토큰을 주면 화면에 "다시 결정할 수 있다"
+     * 는 인상을 줄 수 있어서다(보고서 후속 절 참고).
+     */
+    private ApprovalDetailResponse decidedDetailOf(ApprovalSummaryResponse summary, List<RunRider> riders, Bus bus) {
+        long assigned = riders.stream().filter(r -> r.getStatus() != RiderStatus.ABSENT).count();
+        ApprovalCapacityResponse capacity = new ApprovalCapacityResponse(bus.getStudentCapacity(), (int) assigned);
+        return ApprovalDetailResponse.of(summary, null, null, null, null, null, List.of(), capacity, null, false);
     }
 
     /** 요약 1건 — 목록(§5.5 목록)이 회차·명단을 매번 새로 읽어야 할 때 쓰는 얕은 진입점. */
