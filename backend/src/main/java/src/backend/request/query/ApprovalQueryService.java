@@ -49,6 +49,7 @@ import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.domain.RunConfirmationFingerprint;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.entity.Stop;
 import src.backend.student.entity.Student;
@@ -126,6 +127,10 @@ public class ApprovalQueryService {
      *
      * @throws BusinessException {@code 404 APPROVAL_NOT_FOUND}(대상 없음) ·
      *                            {@code 403 ACADEMY_SCOPE_VIOLATION}(다른 학원 소속) ·
+     *                            {@code 409 RUN_NOT_CONFIRMED}({@code PENDING} 건인데 그 회차가 아직
+     *                            {@code idle} 일 때만 — ②구간 판정({@code ChangeWindowPolicy})은
+     *                            {@code confirmAt} 도래 즉시 서는데, 실제 확정은 30초 폴링 배치가
+     *                            돌아야 반영되어 그 사이에 신청이 들어오면 이 경로를 탄다) ·
      *                            {@code 422 ROUTE_NOT_CONFIGURED_FOR_RUN}({@code PENDING} 건인데
      *                            그 회차의 고정 노선이 없을 때만 — 결정된 건은 이 경로를 타지 않는다)
      */
@@ -145,6 +150,14 @@ public class ApprovalQueryService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.BUS_NOT_FOUND));
         if (cr.getStatus() != ChangeRequestStatus.PENDING) {
             return decidedDetailOf(summary, riders, bus);
+        }
+        // ②구간 승인 대기 신청은 confirmAt 도래 즉시(ChangeWindowPolicy) 성립하지만, 회차의 실제
+        // idle → confirmed 전이와 그때 함께 만들어지는 confirmed_route 는 30초 폴링 확정 배치가
+        // 돌아야 반영된다(RunConfirmationScheduler). 그 사이 창에서 이 조회가 들어오면 아래
+        // ConfirmedRoute 조회가 항상 비어 있어 원래는 원시 IllegalStateException(비구조 500)이
+        // 났다 — RosterQueryService.managerRoster 와 같은 경계에서 같은 코드로 막는다.
+        if (run.getStatus() == RunStatus.IDLE) {
+            throw new BusinessException(ErrorCode.RUN_NOT_CONFIRMED);
         }
 
         Academy academy = academyRepository.findById(academyId)
