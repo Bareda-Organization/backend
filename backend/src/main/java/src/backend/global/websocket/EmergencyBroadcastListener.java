@@ -48,10 +48,9 @@ public class EmergencyBroadcastListener {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcastAcked(EmergencyAckedEvent event) {
-        AckedPayload payload = new AckedPayload(event.emergencyId(), event.ackedBy(), event.ackedAt());
+        AckedPayload payload = new AckedPayload(event.emergencyId(), event.ackedByName(), event.ackedAt());
         gateway.send(WebSocketDestinations.managerRun(event.runId()), ACKED_EVENT, event.runId(), event.ackedAt(),
                 payload);
-        sendToStaffAndAdmin(event.academyId(), event.runId(), ACKED_EVENT, event.ackedAt(), payload);
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -75,7 +74,13 @@ public class EmergencyBroadcastListener {
             EmergencyRaisedEvent.Position position, Integer riderCount, OffsetDateTime raisedAt) {
     }
 
-    private record AckedPayload(Long emergencyId, Long ackedBy, OffsetDateTime ackedAt) {
+    /**
+     * {@code emergency_acked} 3필드(API_SPEC §7.1, {@code Ruling 277}) — 매니저 채널
+     * 전용이라 학원·관리자 채널로는 이 페이로드가 나가지 않는다. {@code ackedByName} 은
+     * {@link EmergencyAckedEvent} 가 발행 지점에서 이미 조회해 실어 온 값을 그대로 옮긴다(계정
+     * id 가 아니라 문자열 이름 — 옛 {@code acked_by} 는 여기서 더는 싣지 않는다).
+     */
+    private record AckedPayload(Long emergencyId, String ackedByName, OffsetDateTime ackedAt) {
     }
 
     private record CanceledPayload(Long emergencyId, String busNo, OffsetDateTime canceledAt) {

@@ -120,26 +120,51 @@ class EmergencyBroadcastListenerTest {
         assertThat(json.get("position").get("lng").isNull()).isTrue();
     }
 
-    // ── goal 10 — 확인(ack) 방송은 발신자 앱(managerRun)에도 반영된다 ────────────────
+    // ── goal 10, Ruling 277 — 확인(ack) 방송은 매니저 채널 전용(API_SPEC §7.1) ──────────
 
     @Test
-    @DisplayName("확인 방송은 발신자 채널(managerRun)까지 3채널로 가고, 학생 채널은 여전히 안 된다")
-    void 확인_방송은_발신자_채널에도_반영된다() {
+    @DisplayName("확인 방송은 발신자 채널(managerRun) 하나로만 가고, 학원·관리자·학생 채널은 타지 않는다")
+    void 확인_방송은_매니저_채널로만_간다() {
         Long emergencyId = 2L;
         Long academyId = 10L;
         Long runId = 100L;
-        EmergencyAckedEvent event = new EmergencyAckedEvent(emergencyId, academyId, runId, 999L,
+        EmergencyAckedEvent event = new EmergencyAckedEvent(emergencyId, academyId, runId, 999L, "확인자",
                 OffsetDateTime.now());
 
         listener.broadcastAcked(event);
 
         verify(gateway, times(1)).send(eq(WebSocketDestinations.managerRun(runId)), eq("emergency_acked"), eq(runId),
                 any(), any());
-        verify(gateway, times(1)).send(eq(WebSocketDestinations.academyLive(academyId)), eq("emergency_acked"),
+        verify(gateway, never()).send(eq(WebSocketDestinations.academyLive(academyId)), eq("emergency_acked"),
                 eq(runId), any(), any());
-        verify(gateway, times(1)).send(eq(WebSocketDestinations.ADMIN_LIVE), eq("emergency_acked"), eq(runId), any(),
+        verify(gateway, never()).send(eq(WebSocketDestinations.ADMIN_LIVE), eq("emergency_acked"), eq(runId), any(),
                 any());
         학생_채널로는_절대_보내지_않는다();
+    }
+
+    @Test
+    @DisplayName("확인 방송 페이로드는 acked_by_name 을 문자열로 싣고, acked_by(id)는 더는 싣지 않는다(API_SPEC §7.1)")
+    void 확인_방송_페이로드는_acked_by_name_을_싣는다() throws Exception {
+        Long emergencyId = 6L;
+        Long academyId = 10L;
+        Long runId = 100L;
+        EmergencyAckedEvent event = new EmergencyAckedEvent(emergencyId, academyId, runId, 999L, "김학원",
+                OffsetDateTime.now());
+
+        listener.broadcastAcked(event);
+
+        ArgumentCaptor<Object> payloadCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(gateway, times(1)).send(eq(WebSocketDestinations.managerRun(runId)), eq("emergency_acked"), eq(runId),
+                any(), payloadCaptor.capture());
+
+        ObjectMapper snakeCaseMapper = new ObjectMapper().registerModule(new JavaTimeModule())
+                .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
+        JsonNode json = snakeCaseMapper.valueToTree(payloadCaptor.getValue());
+
+        assertThat(json.get("emergency_id").asLong()).isEqualTo(emergencyId);
+        assertThat(json.get("acked_by_name").asText()).isEqualTo("김학원");
+        assertThat(json.has("acked_by")).isFalse();
+        assertThat(json.has("acked_at")).isTrue();
     }
 
     // ── 취소 방송도 접수와 같은 채널 범위(발신자 자신은 REST 응답으로 이미 안다) ─────────
