@@ -128,7 +128,7 @@ class EmergencyBroadcastListenerTest {
         Long emergencyId = 2L;
         Long academyId = 10L;
         Long runId = 100L;
-        EmergencyAckedEvent event = new EmergencyAckedEvent(emergencyId, academyId, runId, 999L, "확인자",
+        EmergencyAckedEvent event = new EmergencyAckedEvent(emergencyId, academyId, runId, "확인자",
                 OffsetDateTime.now());
 
         listener.broadcastAcked(event);
@@ -148,7 +148,7 @@ class EmergencyBroadcastListenerTest {
         Long emergencyId = 6L;
         Long academyId = 10L;
         Long runId = 100L;
-        EmergencyAckedEvent event = new EmergencyAckedEvent(emergencyId, academyId, runId, 999L, "김학원",
+        EmergencyAckedEvent event = new EmergencyAckedEvent(emergencyId, academyId, runId, "김학원",
                 OffsetDateTime.now());
 
         listener.broadcastAcked(event);
