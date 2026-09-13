@@ -32,7 +32,7 @@ import src.backend.routing.map.spec.RoadLeg;
  *
  * <p>2026-09-13 Directions 5({@code /map-direction/v1/driving})에서 15
  * ({@code /map-direction-15/v1/driving})로 전환했다(BE-R1 목표 6) — 경로만 바뀌고 응답 스키마는 같다
- * ({@code route.trafast[].summary.distance/duration},
+ * ({@code route.traoptimal[].summary.distance/duration},
  * <a href="https://api.ncloud-docs.com/docs/ai-naver-mapsdirections15-driving">NCP 공식 문서</a> 확인).
  *
  * <p>⚠ 대가 — 일일 할당량 60,000 → 3,000(Directions 5 → 15). 옛 경로가 상한 밖 경유지도 받아 결과에
@@ -183,24 +183,30 @@ public class NaverDirectionsGateway {
     /**
      * 경로를 찾지 못한 응답도 실패로 올린다 — 여기서 예외를 내면 위 {@code fallbackMethod} 를 거쳐
      * 직선거리 근사로 이어지고, 회차 하나가 경로 부재로 통째로 멈추지 않는다.
+     *
+     * <p>⚠ NCP 는 {@code option} 을 지정하지 않으면 {@code trafast}(최속)가 아니라
+     * {@code traoptimal}(기본·실시간 반영)로 응답한다({@code Ruling 276} — 실 호출로 확인).
+     * 예전에는 {@code trafast} 를 읽어 파싱이 항상 {@code null} 로 떨어졌고, 그 실패가 예외가 아니라
+     * 바로 위 폴백(직선거리 근사)으로 조용히 흡수돼 <b>어댑터가 생긴 날부터 실 도로 경로가 한 번도
+     * 쓰인 적이 없었다</b>.
      */
     private static Summary summaryOf(DrivingResponse response) {
-        if (response == null || response.route() == null || response.route().trafast() == null
-                || response.route().trafast().isEmpty()) {
+        if (response == null || response.route() == null || response.route().traoptimal() == null
+                || response.route().traoptimal().isEmpty()) {
             throw new IllegalStateException("네이버 응답에 경로가 없다");
         }
-        return response.route().trafast().getFirst().summary();
+        return response.route().traoptimal().getFirst().summary();
     }
 
     /** NCP 응답 최상위. */
     record DrivingResponse(RouteWrapper route) {
     }
 
-    /** {@code option} 을 지정하지 않았을 때의 기본 탐색 결과 묶음이 {@code trafast} 다. */
-    record RouteWrapper(List<Trafast> trafast) {
+    /** {@code option} 을 지정하지 않았을 때의 기본 탐색 결과 묶음이 {@code traoptimal} 이다. */
+    record RouteWrapper(List<Traoptimal> traoptimal) {
     }
 
-    record Trafast(Summary summary) {
+    record Traoptimal(Summary summary) {
     }
 
     /** 구간 총합만 온다 — 경유지별 값은 NCP 가 주지 않아 {@link StraightLineLegs} 가 비율로 가른다. */

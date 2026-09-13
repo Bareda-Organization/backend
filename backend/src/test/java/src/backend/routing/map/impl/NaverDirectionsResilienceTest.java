@@ -562,8 +562,15 @@ class NaverDirectionsResilienceTest {
         }
     }
 
-    /** NCP Direction 응답의 최소 형태 — 거리·시간 총합만 읽으므로 그 둘만 담는다. */
+    /**
+     * NCP Direction 응답의 최소 형태 — 거리·시간 총합만 읽으므로 그 둘만 담는다.
+     *
+     * <p>⚠ {@code traoptimal} 이어야 한다({@code Ruling 276}) — {@code option} 미지정 시 NCP 의 실제
+     * 응답 키가 이것이다. 이 시험이 {@code trafast} 로 남아 있던 동안은 우리 파서의 결함(존재하지
+     * 않는 {@code trafast} 를 읽음)과 가짜 응답의 모양이 우연히 같아, 파싱 실패가 폴백으로 조용히
+     * 흡수되는 결함을 이 시험이 계속 가리고 있었다.
+     */
     private static String 정상_응답() {
-        return "{\"route\":{\"trafast\":[{\"summary\":{\"distance\":12000,\"duration\":900000}}]}}";
+        return "{\"route\":{\"traoptimal\":[{\"summary\":{\"distance\":12000,\"duration\":900000}}]}}";
     }
 }
