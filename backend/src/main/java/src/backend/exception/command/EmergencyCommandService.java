@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import src.backend.academy.entity.StaffStatus;
 import src.backend.academy.repository.AcademyStaffRepository;
+import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.BusRepository;
@@ -171,6 +172,13 @@ public class EmergencyCommandService {
      * 부여돼 있다, {@code RolePermissions}). 조회 범위만 역할에 따라 가른다 — 메인관리자는
      * {@code academyId} 가 없어({@code hasPlatformScope()}) 학원으로 좁힌 조회로는 어떤 신고도 찾지
      * 못해 항상 404 가 나므로, 그 역할만 전 학원 범위로 대상을 찾는다(판단 근거, 보고서 항목).
+     *
+     * <p>{@code EmergencyAckedEvent.ackedByName} 은 여기서(트랜잭션 안에서) {@link AccountRepository}
+     * 로 이름을 조회해 채운다({@code Ruling 277} — 판단 근거, 보고서 항목) — {@link #raise} 가
+     * {@code raisedBy.name} 을 발행 지점에서 조회해 싣는 것과 같은 자리다. 리스너
+     * ({@code EmergencyBroadcastListener}) 는 {@code AFTER_COMMIT} 에서 돌아 그 시점엔 트랜잭션이
+     * 없으므로 조회를 리스너로 미루지 않는다({@code EmergencyRunQueryService} 가 같은 계정 id 로
+     * 이름을 다시 찾는 것과 같은 이유 — {@code emergency_alert} 에 이름 컬럼이 없다).
      */
     public EmergencyAckResponse ack(AuthUser requester, Long emergencyId) {
         EmergencyAlert alert = requester.hasPlatformScope()
@@ -186,9 +194,10 @@ public class EmergencyCommandService {
         OffsetDateTime now = OffsetDateTime.now(clock);
         alert.ack(requester.accountId(), now);
 
+        String ackedByName = accountRepository.findById(requester.accountId()).map(Account::getName).orElse(null);
         eventPublisher.publishEvent(
                 new EmergencyAckedEvent(alert.getId(), alert.getAcademyId(), alert.getRunId(), requester.accountId(),
-                        now));
+                        ackedByName, now));
 
         return new EmergencyAckResponse(alert.getId(), now);
     }
