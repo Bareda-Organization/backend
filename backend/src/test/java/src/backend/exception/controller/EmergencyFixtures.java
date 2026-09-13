@@ -36,6 +36,18 @@ public class EmergencyFixtures {
 
     private static final AtomicInteger SEQUENCE = new AtomicInteger();
 
+    /**
+     * 계정 로그인 id — {@code SEQUENCE} 만으로는 <b>같은 격리 DB 에 두 번 저장하면 충돌한다</b>.
+     * 이 클래스의 통합 시험은 {@code @Transactional(propagation = NOT_SUPPORTED)} 로 실제 커밋을
+     * 하므로 앞 회차의 행이 남아 있고, {@code SEQUENCE} 는 JVM 마다 0 에서 다시 시작한다.
+     * 실제로 전체 실행에서 {@code EmergencyAckedBroadcastIntegrationTest} 가 {@code 500} 으로
+     * 깨졌다 — 이름(name)에는 섞여 있던 시각값이 login_id 에만 빠져 있던 비대칭이 원인이었다.
+     * {@code login_id} 는 {@code varchar(50)} 이고 이 조합은 30자를 넘지 않는다.
+     */
+    private static String loginId(String prefix) {
+        return prefix + SEQUENCE.incrementAndGet() + "-" + System.nanoTime();
+    }
+
     private final AcademyRepository academyRepository;
 
     private final BusRepository busRepository;
@@ -96,7 +108,7 @@ public class EmergencyFixtures {
         Manager manager = managerRepository
                 .save(Manager.register(academyId, new ManagerProfile(name, "010-0000-0000", role, null)));
         Role accountRole = role == ManagerRole.DRIVER ? Role.DRIVER : Role.ESCORT;
-        Account account = accountRepository.save(Account.forSignup(academyId, name + SEQUENCE.incrementAndGet(), "x",
+        Account account = accountRepository.save(Account.forSignup(academyId, loginId(name), "x",
                 name, "010-0000-0000", null, accountRole));
         manager.linkAccount(account.getId());
         managerRepository.save(manager);
@@ -106,7 +118,7 @@ public class EmergencyFixtures {
 
     /** 재직 관계자 1명(목표 6의 STAFF 알림 수신자) — 반환값은 계정 id. */
     public long staffAccount(long academyId, String name) {
-        Account account = accountRepository.save(Account.forSignup(academyId, "직원" + SEQUENCE.incrementAndGet(), "x",
+        Account account = accountRepository.save(Account.forSignup(academyId, loginId("직원"), "x",
                 name, "010-0000-0000", null, Role.STAFF));
         academyStaffRepository.save(AcademyStaff.uponApproval(academyId, account.getId()));
         return account.getId();
@@ -114,7 +126,7 @@ public class EmergencyFixtures {
 
     /** 메인관리자 1명(목표 6의 SYSTEM_ADMIN 알림 수신자) — active 여야 팬아웃 조회에 잡힌다. */
     public long systemAdminAccount(String name) {
-        Account account = Account.forSignup(null, "관리자" + SEQUENCE.incrementAndGet(), "x", name, "010-0000-0000",
+        Account account = Account.forSignup(null, loginId("관리자"), "x", name, "010-0000-0000",
                 null, Role.SYSTEM_ADMIN);
         account.approveSignup();
         return accountRepository.save(account).getId();
@@ -126,7 +138,7 @@ public class EmergencyFixtures {
      * 두면 그런 회귀조차 우연히 걸러져 시험이 아무것도 검증하지 못한다 — active 로 승인까지 한다.
      */
     public long parentAccount(long academyId, String name) {
-        Account account = Account.forSignup(academyId, "부모" + SEQUENCE.incrementAndGet(), "x", name,
+        Account account = Account.forSignup(academyId, loginId("부모"), "x", name,
                 "010-0000-0000", null, Role.PARENT);
         account.approveSignup();
         return accountRepository.save(account).getId();
@@ -134,7 +146,7 @@ public class EmergencyFixtures {
 
     /** 학생 1명(목표 7 — 비상 알림을 받으면 안 되는 계정) — 반환값은 계정 id. 근거는 {@link #parentAccount} 와 같다. */
     public long studentAccount(long academyId, String name) {
-        Account account = Account.forSignup(academyId, "학생" + SEQUENCE.incrementAndGet(), "x", name,
+        Account account = Account.forSignup(academyId, loginId("학생"), "x", name,
                 "010-0000-0000", null, Role.STUDENT);
         account.approveSignup();
         return accountRepository.save(account).getId();
