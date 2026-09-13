@@ -15,6 +15,6 @@ import java.time.OffsetDateTime;
  * 싣는 것과 같은 자리다. 리스너는 {@code AFTER_COMMIT} 이후에 돌아 그 시점엔 트랜잭션이 없으므로
  * 이름 조회를 리스너로 미루지 않는다.
  */
-public record EmergencyAckedEvent(Long emergencyId, Long academyId, Long runId, Long ackedBy, String ackedByName,
+public record EmergencyAckedEvent(Long emergencyId, Long academyId, Long runId, String ackedByName,
         OffsetDateTime ackedAt) {
 }

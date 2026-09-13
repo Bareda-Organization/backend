@@ -196,8 +196,7 @@ public class EmergencyCommandService {
 
         String ackedByName = accountRepository.findById(requester.accountId()).map(Account::getName).orElse(null);
         eventPublisher.publishEvent(
-                new EmergencyAckedEvent(alert.getId(), alert.getAcademyId(), alert.getRunId(), requester.accountId(),
-                        ackedByName, now));
+                new EmergencyAckedEvent(alert.getId(), alert.getAcademyId(), alert.getRunId(), ackedByName, now));
 
         return new EmergencyAckResponse(alert.getId(), now);
     }
