@@ -122,6 +122,32 @@ tasks.named('compileJava') {
     inputs.file('lombok.config').withPropertyName('lombokConfig')
 }
 
+/**
+ * backend/.env 를 {@code key -> value} 목록으로 읽는다 — bootRun·test 양쪽이 같은 파싱을 공유한다.
+ *
+ * .env 는 .gitignore 대상이라 없는 환경(CI 등)에서는 빈 목록을 돌려준다. 값에 {@code =} 가 들어갈 수
+ * 있으므로 첫 {@code =} 만 기준으로 자르고, 감싼 따옴표는 벗긴다.
+ */
+def readDotEnv = {
+    def envFile = file('.env')
+    def entries = [:]
+    if (envFile.exists()) {
+        envFile.readLines('UTF-8').each { line ->
+            def trimmed = line.trim()
+            if (trimmed.isEmpty() || trimmed.startsWith('#') || !trimmed.contains('=')) {
+                return
+            }
+            def idx = trimmed.indexOf('=')
+            def key = trimmed.substring(0, idx).trim()
+            def value = trimmed.substring(idx + 1).trim().replaceAll(/^["']|["']$/, '')
+            if (!key.isEmpty()) {
+                entries[key] = value
+            }
+        }
+    }
+    return entries
+}
+
 tasks.named('test') {
     useJUnitPlatform()
     // LocalFlywayCleanStrategy 가 clean() 을 건너뛰게 한다(Phase 2 Task 3, Ruling 89) — 여러
@@ -187,6 +213,14 @@ tasks.named('test') {
     // 세운 보호 시험(NaverDirectionsResilienceTest)과 자격증명이 있을 때만 도는 실 네트워크 시험
     // (NaverDirectionsClientLiveTest)이 따로 검증한다.
     systemProperty 'app.routing.map.provider', 'stub'
+
+    // NaverDirectionsClientLiveTest·NaverGeocodingClientLiveTest 는 위 stub 설정을 인라인
+    // @TestPropertySource 로 덮어쓰고 System.getenv() 로 자격증명을 찾는다. backend/.env 는
+    // docker-compose·bootRun 전용이라 Gradle 테스트 JVM 에는 저절로 전달되지 않아, 자격증명이
+    // 실재해도 두 시험이 항상 건너뛰었다(Ruling 276) — 실 응답의 형태가 우리 파싱과 맞는지 확인할
+    // 수단이 꺼져 있던 것과 같은 말이다. .env 가 없는 환경(CI 등)에서는 빈 목록이라 동작이 그대로다
+    // (여전히 건너뜀 — 실 API 를 호출하지 않는다).
+    readDotEnv().each { key, value -> environment key, value }
 
     // 커넥션 풀 상한을 낮춘다. @SpringBootTest 컨텍스트는 한 번 뜨면 JVM 이 끝날 때까지 캐시에 남고
     // 각자 Hikari 풀(기본 상한 10)을 붙든 채로 있다 — 컨텍스트가 예닐곱이면 그 한 번의 실행만으로
@@ -269,20 +303,5 @@ tasks.named('test') {
  * application.yml 의 기본값(빈 문자열)이 그대로 쓰인다.
  */
 tasks.named('bootRun') {
-    def envFile = file('.env')
-    if (envFile.exists()) {
-        envFile.readLines('UTF-8').each { line ->
-            def trimmed = line.trim()
-            if (trimmed.isEmpty() || trimmed.startsWith('#') || !trimmed.contains('=')) {
-                return
-            }
-            def idx = trimmed.indexOf('=')
-            def key = trimmed.substring(0, idx).trim()
-            // 값에 = 가 들어갈 수 있으므로 첫 = 만 기준으로 자른다. 따옴표는 벗긴다.
-            def value = trimmed.substring(idx + 1).trim().replaceAll(/^["']|["']$/, '')
-            if (!key.isEmpty()) {
-                environment key, value
-            }
-        }
-    }
+    readDotEnv().each { key, value -> environment key, value }
 }
