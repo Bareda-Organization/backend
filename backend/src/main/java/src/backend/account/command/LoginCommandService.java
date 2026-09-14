@@ -82,18 +82,22 @@ public class LoginCommandService {
      * <p>감사 기록을 {@code AuditRecorder}(별도 트랜잭션, {@link
      * src.backend.audit.service.AuditRecorder}) 가 아니라 이 메서드와 <b>같은 트랜잭션</b>에서
      * {@code auditLogRepository} 로 직접 쓴다 — 실패 카운터 증가도 뒤따르는 {@code BusinessException}
-     * 과 같은 트랜잭션에 있고(이 클래스의 기존 설계), {@link
-     * src.backend.account.controller.AuthControllerTest#로그인_실패가_상한에_도달하면_계정이_blocked_로_전이한다}
-     * 가 그 카운터 증가가 {@code noRollbackFor} 없이도 실제로 영속됨을 이미 실측으로 증명한다 — 로그인
-     * 실패 5회를 순차로 보내 상한에서 차단 전이까지 확인하는 테스트이고, 매 회 이 메서드가 예외를
-     * 던지는데도 누적치가 유지된다. 같은 트랜잭션 안에서 예외 직전에 쓴 값이 살아남는 것이 이미 검증된
-     * 자리이므로, 감사 저장에도 같은 결론이 적용된다(경계를 새로 여는 대신 기존 경계를 그대로 씀).
+     * 과 같은 트랜잭션에 있어야 자격 대조 결과와 감사 기록이 하나의 단위로 묶인다(이 클래스의 기존
+     * 설계). 문제는 그 뒤따르는 {@code BusinessException} 이 Spring 의 기본 롤백 규칙(모든
+     * {@code RuntimeException} 에서 롤백)을 그대로 타면 <b>이 메서드가 방금 쓴 것 전부가 함께
+     * 사라진다</b>는 점이다 — 실패 카운터 증가도, 이 메서드가 던진 {@code login_fail}·{@code block}
+     * 감사 행도 예외이지 규칙이 아니다({@code Ruling 282}). {@code AuthControllerTest} 의 클래스 전체
+     * {@code @Transactional} 이 매 요청을 하나의 트랜잭션으로 묶어 실제 커밋 여부를 가려 왔기 때문에
+     * 이 결함이 오래 남아 있었다(같은 테스트를 {@code Propagation.NOT_SUPPORTED} 로 트랜잭션 밖에
+     * 두면 실제로 커밋이 안 되는 것이 드러난다). 그래서 아래 {@code noRollbackFor} 로 이 메서드가
+     * 던지는 {@code BusinessException} 은 롤백 대상에서 제외한다 — 실패 응답을 던지는 것과 그 실패를
+     * 기록하는 것은 같은 트랜잭션 안에서 둘 다 커밋돼야 하는, 서로 다른 두 가지 일이다.
      *
      * <p>{@code ip} 는 {@link RequestContextHolder} 로 얻는다 — 이 저장소에 요청 IP 를 읽는 기존
      * 관례가 없어(전체 검색 결과 {@code X-Forwarded-For}·{@code getRemoteAddr} 0건) 이 태스크가 새로
      * 만든다. 프록시 헤더를 우선하고 없으면 원격 주소로 내려간다.
      */
-    @Transactional
+    @Transactional(noRollbackFor = BusinessException.class)
     public LoginResult login(String loginId, String rawPassword) {
         OffsetDateTime now = OffsetDateTime.now(clock);
         String ip = resolveClientIp();

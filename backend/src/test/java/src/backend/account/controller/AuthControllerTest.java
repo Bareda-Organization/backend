@@ -123,6 +123,22 @@ class AuthControllerTest {
         forceStatus(accountId, "active", 0);
     }
 
+    /**
+     * 트랜잭션 밖({@code NOT_SUPPORTED})에서 도는 로그인 실패 누적 테스트의 픽스처를 지운다 — 남기면
+     * 학원 코드 {@code UNIQUE} 제약에서 다음 실행이 실패한다. {@code account} → {@code academy} 는
+     * {@code fk_account_academy} 가 RESTRICT 라 순서를 지켜야 하고, {@code refresh_token} 은 CASCADE 라
+     * 계정과 함께 지워진다({@link #deleteRecoverFixture} 와 같은 근거). {@code audit_log} 는
+     * {@code actor_account_id}·{@code academy_id} 에 DB FK 가 없어(감사 목적상 원본 삭제에 연동되면
+     * 안 되므로, {@code AuditLog} 클래스 주석 참고) 안 지워도 삭제 자체는 막히지 않지만, 안 지우면
+     * 이 계정의 {@code login_fail}·{@code block} 행이 다음 실행에도 남아 다른 테스트의 감사 조회를
+     * 오염시킨다.
+     */
+    private void deleteLoginFixture(String academyCode, String loginId) {
+        jdbcTemplate.update("DELETE FROM audit_log WHERE actor_login_id = ?", loginId);
+        jdbcTemplate.update("DELETE FROM account WHERE login_id = ?", loginId);
+        jdbcTemplate.update("DELETE FROM academy WHERE code = ?", academyCode);
+    }
+
     private String loginBody(String loginId, String password) {
         return "{\"login_id\": \"%s\", \"password\": \"%s\"}".formatted(loginId, password);
     }
@@ -178,50 +194,97 @@ class AuthControllerTest {
      * 없고, {@code ErrorResponse.details} 의 타입이 {@code Object} 라 전역 snake_case 전략이 그
      * 하위까지 내려가는지도 이 단언이 유일한 확인 수단이다({@code remainingAttempts} 로 나가면 여기서
      * 걸린다).
+     *
+     * <p><b>이 메서드만 클래스 {@code @Transactional} 밖에서 돈다</b>({@code NOT_SUPPORTED}, 아래
+     * {@code 인증_코드를_5회_틀리면_옳은_코드도_거부된다} 와 같은 이유·같은 형태). {@code Ruling 282} —
+     * 클래스 전체 트랜잭션 안에서는 5번의 {@code mockMvc} 호출이 전부 <b>같은 물리 트랜잭션에 참여</b>해
+     * {@code LoginCommandService.login()} 이 매번 던지는 {@code BusinessException} 이 실제 롤백을
+     * 일으키지 않는다({@code REQUIRED} 참여는 즉시 롤백하지 않고 트랜잭션을 rollback-only 로 표시만
+     * 하며, 물리 롤백은 테스트 종료 시 한 번뿐이라 그때는 이미 단언을 다 끝낸 뒤다) — 그 결과
+     * 실패 카운터·감사 행을 롤백으로 통째로 잃는 결함과, 매 요청을 커밋하는 정상 구현이 <b>같은
+     * 응답</b>을 낸다. 이 메서드를 트랜잭션 밖에 두면 5번의 호출이 각자 진짜 커밋·롤백을 가지는
+     * 별도 요청이 되어(운영 환경의 실제 모습과 같다) 그 차이가 비로소 드러난다. 커밋된 행이 남으므로
+     * 앞뒤로 직접 지운다.
      */
     @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void 로그인_실패가_상한에_도달하면_계정이_blocked_로_전이한다() throws Exception {
-        Long accountId = createAccount("P2T4AUT02", "p2t4failcapqqq", "010-7000-0002");
+        String academyCode = "P2T4AUT02";
+        String loginId = "p2t4failcapqqq";
+        deleteLoginFixture(academyCode, loginId);
+        try {
+            Long accountId = createAccount(academyCode, loginId, "010-7000-0002");
 
-        // 회차 수와 기대값을 C-11 상한에서 끌어 쓴다 — 4·5 를 박아 두면 상한을 바꿨을 때 옛 값을 요구한다.
-        for (int i = 0; i < Account.MAX_FAILED_ATTEMPTS - 1; i++) {
+            // 회차 수와 기대값을 C-11 상한에서 끌어 쓴다 — 4·5 를 박아 두면 상한을 바꿨을 때 옛 값을 요구한다.
+            for (int i = 0; i < Account.MAX_FAILED_ATTEMPTS - 1; i++) {
+                mockMvc.perform(post("/api/v1/auth/login")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(loginBody(loginId, "wrong-password")))
+                        .andExpect(status().isUnauthorized())
+                        .andExpect(jsonPath("$.error.code").value("INVALID_CREDENTIALS"))
+                        .andExpect(jsonPath("$.error.details.remaining_attempts")
+                                .value(Account.MAX_FAILED_ATTEMPTS - 1 - i));
+            }
+            // 5번째 실패 — 이 시점부터 401 이 아니라 403 AUTH_ACCOUNT_BLOCKED 로 바뀐다.
             mockMvc.perform(post("/api/v1/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(loginBody("p2t4failcapqqq", "wrong-password")))
-                    .andExpect(status().isUnauthorized())
-                    .andExpect(jsonPath("$.error.code").value("INVALID_CREDENTIALS"))
-                    .andExpect(jsonPath("$.error.details.remaining_attempts")
-                            .value(Account.MAX_FAILED_ATTEMPTS - 1 - i));
-        }
-        // 5번째 실패 — 이 시점부터 401 이 아니라 403 AUTH_ACCOUNT_BLOCKED 로 바뀐다.
-        mockMvc.perform(post("/api/v1/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(loginBody("p2t4failcapqqq", "wrong-password")))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error.code").value("AUTH_ACCOUNT_BLOCKED"));
+                            .content(loginBody(loginId, "wrong-password")))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.error.code").value("AUTH_ACCOUNT_BLOCKED"));
 
-        assertThat(accountRepository.findById(accountId).orElseThrow().getStatus()).isEqualTo(AccountStatus.BLOCKED);
+            assertThat(accountRepository.findById(accountId).orElseThrow().getStatus())
+                    .isEqualTo(AccountStatus.BLOCKED);
+            assertThat(accountRepository.findById(accountId).orElseThrow().getFailedAttempts())
+                    .isEqualTo(Account.MAX_FAILED_ATTEMPTS);
+
+            // 감사(goal 3) — 실패 5행(login_fail) + 상한을 채운 마지막 시도의 별도 차단 행(block) = 6행.
+            Integer loginFailRows = jdbcTemplate.queryForObject(
+                    "SELECT count(*) FROM audit_log WHERE actor_login_id = ? AND action = 'login_fail'",
+                    Integer.class, loginId);
+            Integer blockRows = jdbcTemplate.queryForObject(
+                    "SELECT count(*) FROM audit_log WHERE actor_login_id = ? AND action = 'block' AND block_event = true",
+                    Integer.class, loginId);
+            assertThat(loginFailRows).as("실패 5회 전부가 각자 login_fail 행을 남겨야 한다").isEqualTo(5);
+            assertThat(blockRows).as("상한을 채운 시도는 login_fail 과 별개로 block 행을 하나 더 남긴다")
+                    .isEqualTo(1);
+        } finally {
+            deleteLoginFixture(academyCode, loginId);
+        }
     }
 
-    /** 목표 문장 — 실패 몇 회 후 성공하면 failed_attempts 가 0 이 된다(없으면 "누적만" 구현이 통과). */
+    /**
+     * 목표 문장 — 실패 몇 회 후 성공하면 failed_attempts 가 0 이 된다(없으면 "누적만" 구현이 통과).
+     *
+     * <p>이 메서드도 위 테스트와 같은 이유로 클래스 {@code @Transactional} 밖에서 돈다 — 실패 두 번이
+     * 실제로 커밋되지 않으면 세 번째 성공 이후의 리셋 단언이 "애초에 누적된 적이 없어서 0" 인 것과
+     * "누적됐다가 리셋돼서 0" 인 것을 가르지 못한다.
+     */
     @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void 실패_몇_회_후_성공하면_failed_attempts_가_0_이_된다() throws Exception {
-        Long accountId = createAccount("P2T4AUT03", "p2t4resetqqqqq", "010-7000-0003");
+        String academyCode = "P2T4AUT03";
+        String loginId = "p2t4resetqqqqq";
+        deleteLoginFixture(academyCode, loginId);
+        try {
+            Long accountId = createAccount(academyCode, loginId, "010-7000-0003");
 
-        mockMvc.perform(post("/api/v1/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(loginBody("p2t4resetqqqqq", "wrong-password")))
-                .andExpect(status().isUnauthorized());
-        mockMvc.perform(post("/api/v1/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(loginBody("p2t4resetqqqqq", "wrong-password")))
-                .andExpect(status().isUnauthorized());
-        mockMvc.perform(post("/api/v1/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(loginBody("p2t4resetqqqqq", RAW_PASSWORD)))
-                .andExpect(status().isOk());
+            mockMvc.perform(post("/api/v1/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(loginBody(loginId, "wrong-password")))
+                    .andExpect(status().isUnauthorized());
+            mockMvc.perform(post("/api/v1/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(loginBody(loginId, "wrong-password")))
+                    .andExpect(status().isUnauthorized());
+            mockMvc.perform(post("/api/v1/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(loginBody(loginId, RAW_PASSWORD)))
+                    .andExpect(status().isOk());
 
-        assertThat(accountRepository.findById(accountId).orElseThrow().getFailedAttempts()).isZero();
+            assertThat(accountRepository.findById(accountId).orElseThrow().getFailedAttempts()).isZero();
+        } finally {
+            deleteLoginFixture(academyCode, loginId);
+        }
     }
 
     /**
@@ -264,6 +327,39 @@ class AuthControllerTest {
         assertThat(readObject(known, "$.error.details").get("remaining_attempts"))
                 .as("존재 계정의 첫 실패는 상한에서 1 을 뺀 값이고, 미등록도 같은 상수를 싣는다")
                 .isEqualTo(Account.REMAINING_AFTER_FIRST_FAILURE);
+    }
+
+    /**
+     * 목표 문장(Ruling 282, goal 4) — 미등록 login_id 로 로그인을 실패해도 감사 행이 남는다.
+     *
+     * <p>{@code LoginCommandService.login()} 은 계정을 못 찾으면
+     * {@code auditLogRepository.save(AuditLog.forLoginFail(null, null, loginId, ip, now))} 를 쓴 뒤
+     * 바로 {@code BusinessException} 을 던진다 — 등록된 계정의 실패와 <b>같은 메서드, 같은
+     * 트랜잭션 경계</b>를 타므로 롤백 결함도 똑같이 적용된다. 클래스 {@code @Transactional} 안에서는
+     * 이 행이 실제로 커밋됐는지 구별할 수 없어(참여 트랜잭션이라 즉시 롤백하지 않는다) 이 메서드도
+     * {@code NOT_SUPPORTED} 로 둔다.
+     */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void 미등록_login_id_의_실패도_감사_행이_남는다() throws Exception {
+        String loginId = "p2t4enumaudit";
+        jdbcTemplate.update("DELETE FROM audit_log WHERE actor_login_id = ?", loginId);
+        try {
+            mockMvc.perform(post("/api/v1/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(loginBody(loginId, "wrong-password")))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.error.code").value("INVALID_CREDENTIALS"));
+
+            Integer rows = jdbcTemplate.queryForObject(
+                    "SELECT count(*) FROM audit_log WHERE actor_login_id = ? AND action = 'login_fail' "
+                            + "AND actor_account_id IS NULL AND academy_id IS NULL",
+                    Integer.class, loginId);
+            assertThat(rows).as("미등록 아이디도 계정을 특정하지 못한 채 login_fail 행을 남겨야 한다")
+                    .isEqualTo(1);
+        } finally {
+            jdbcTemplate.update("DELETE FROM audit_log WHERE actor_login_id = ?", loginId);
+        }
     }
 
     // ── §2.5 로그인 — 클라이언트별 refresh 전달(브리프 §3) ──────────────────
