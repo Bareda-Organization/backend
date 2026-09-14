@@ -100,6 +100,7 @@ public class RunRouteQueryService {
                 .orElse(null);
         RunStop nextRunStop = runStops.stream()
                 .filter(stop -> stop.getArrivedAt() == null && stop.getChange() != ChangeType.SKIPPED)
+                .filter(stop -> hasResolvedTarget(stop, stopsById, waypointsById))
                 .min(Comparator.comparingInt(RunStop::getSeq))
                 .orElse(null);
         int afterSeq = currentRunStop == null ? -1 : currentRunStop.getSeq();
@@ -117,6 +118,20 @@ public class RunRouteQueryService {
                         waypointsById.get(nextRunStop.getWaypointId()), studentCountsByStopId);
 
         return new RunRouteResponse(stops, currentStop, nextStop, skippedNotice);
+    }
+
+    /**
+     * {@code next_stop} 후보가 실제 좌표를 낼 수 있는가(API_SPEC §1.13, §4.3 목표) —
+     * {@link Stop}·{@link Waypoint} 어느 쪽으로도 안 풀리면(배포 후 제거된 경유 지점이 대표 사례,
+     * {@link WaypointRepository#findAllAppliedByRunIdAndAcademyId} 가 제거분을 map 에서 뺀다) 그 행은
+     * {@link #toRouteStop} 에서 좌표가 전부 {@code null} 인 항목이 된다. {@code next_stop} 은 "외부
+     * 내비게이션 앱 콜백용"이라 좌표 없는 항목을 내보내면 그 용도 자체가 깨지므로, 이미 지나친
+     * ({@code SKIPPED}) 항목과 같은 방식으로 건너뛰어 진짜 다음 정차지(좌표 있는 항목)를 고른다.
+     * {@code stops[]} 배열 자체(전체 목록)는 그대로 좌표 없는 항목을 보존한다 — 그쪽은 상위 항목에만
+     * {@code ●} 가 있고 내부 필드는 별도 등급(API_SPEC §1.13)이라 이 필터를 적용할 근거가 없다.
+     */
+    private boolean hasResolvedTarget(RunStop runStop, Map<Long, Stop> stopsById, Map<Long, Waypoint> waypointsById) {
+        return stopsById.get(runStop.getStopId()) != null || waypointsById.get(runStop.getWaypointId()) != null;
     }
 
     /** 승하차지별 예상 탑승 인원 — {@code absent} 는 오늘 자체가 등원 대상이 아니라 뺀다(로스터와 같은 근거). */
