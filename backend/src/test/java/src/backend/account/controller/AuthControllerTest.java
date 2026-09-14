@@ -276,6 +276,13 @@ class AuthControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(loginBody(loginId, "wrong-password")))
                     .andExpect(status().isUnauthorized());
+
+            // 실패 2회가 성공으로 리셋되기 전에 실제로 쌓였는지 먼저 못박는다 — 이게 없으면 아래
+            // isZero() 는 "애초에 쌓인 적이 없어서 0" 과 "쌓였다가 리셋돼서 0" 을 가르지 못한다.
+            assertThat(accountRepository.findById(accountId).orElseThrow().getFailedAttempts())
+                    .as("성공으로 리셋되기 전, 실패 2회가 커밋됐어야 한다")
+                    .isEqualTo(2);
+
             mockMvc.perform(post("/api/v1/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(loginBody(loginId, RAW_PASSWORD)))
