@@ -44,6 +44,12 @@ public class AccountUnblockCommandService {
      * 스냅샷을 요구하는데(ERD §3.4) 토큰에는 그 값이 없어서다 — 아이디를 토큰에 실어 옮기면 계정이
      * 아이디를 바꾼 뒤에도 옛 값이 계속 기록된다.
      *
+     * <p><b>{@code Ruling 282}(로그인 실패 카운터·감사가 뒤따르는 예외 롤백에 함께 사라진 결함) 가
+     * 여기에는 없다.</b> 이 메서드가 던지는 두 {@code BusinessException} 은 전부 {@code save} 호출
+     * <b>이전</b>의 조회 가드에서만 난다 — {@code target.unblock(...)} 과 감사 적재는 그 뒤로 더 던질
+     * 것이 없는 마지막 문장들이라, 정상 반환 직전까지 갔다면 이미 롤백될 예외 자체가 없다. 그래서
+     * {@code noRollbackFor} 가 필요 없다.
+     *
      * @param actorAccountId 해제를 실행하는 메인 관리자 계정 — {@code unblocked_by} 이자 감사 행위자다
      */
     @Transactional

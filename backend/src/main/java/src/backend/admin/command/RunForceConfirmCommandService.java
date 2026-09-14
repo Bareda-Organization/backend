@@ -71,6 +71,16 @@ public class RunForceConfirmCommandService {
      *
      * @param actorAccountId 강제 확정을 실행하는 메인 관리자 계정 — 감사 행위자
      * @param reason 강제 확정 사유 — 공백뿐인 값은 컨트롤러 진입 전 {@code @NotBlank} 가 이미 거른다
+     *
+     * <p><b>{@code Ruling 282} 형태의 "쓰고 나서 던지는" 자리가 이 메서드에도 있지만 고치지
+     * 않는다.</b> {@code confirmOne} 이 {@code true} 를 반환한 뒤(= 이미 상태 전이·경로 확정을
+     * 커밋 대상으로 썼다는 뜻) {@code confirmedRoute}·{@code routeVersion} 재조회가 실패하면
+     * {@link IllegalStateException} 을 던지는데, 이 두 자리는 <b>불변식 위반</b>이지 정상 업무
+     * 실패가 아니다 — {@code Ruling 282} 의 로그인 실패는 "자격 불일치" 라는 정상적인 결과라 그
+     * 기록이 살아남아야 하지만, 여기서 재조회가 비면 "방금 쓴 것이 안 보인다" 는 데이터 정합성
+     * 파손이라 <b>롤백이 맞는 동작</b>이다 — {@code run} 을 confirmed 로 남긴 채 그 근거인
+     * {@code confirmed_route} 가 없는 상태가 롤백 없이 커밋되는 쪽이 더 나쁘다. 그래서
+     * {@code noRollbackFor} 를 붙이지 않는다.
      */
     @Transactional
     public ForceConfirmResponse forceConfirm(Long runId, Long actorAccountId, String reason) {
