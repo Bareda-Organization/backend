@@ -19,6 +19,12 @@ import src.backend.notification.entity.NotificationType;
  * <p>{@code type} 은 enum 을 직접 노출하지 않고 소문자 문자열로 옮긴다({@code
  * ExceptionReportQueryService#lower} 와 같은 관례) — Jackson 이 enum 을 기본 대문자 이름으로 직렬화해,
  * 그대로 두면 DB 값(소문자)·다른 응답의 enum 표기와 어긋난다.
+ *
+ * <p>{@code sentAt} 은 실제 발송 시각이 없는 행(미발송·발송 실패, {@code push_state != sent})에서
+ * {@code createdAt} 으로 대신한다 — §5.17 {@code StaffNotificationItemResponse} 가 이미 같은 대체를
+ * 쓰고 있고({@code NotificationLogRepository#searchForStaffLog} 의 {@code COALESCE} 와 짝), 이 절만
+ * 대체가 빠져 있었다(API_SPEC §1.13). §3.12 는 {@code sent_at} 을 `●`(항상 값 있음)로 적어 두었으므로
+ * 그 약속을 지키려면 여기도 같은 대체가 필요하다.
  */
 public record NotificationItemResponse(
         Long notificationId,
@@ -39,7 +45,7 @@ public record NotificationItemResponse(
                 log.getBody(),
                 log.getStudentId(),
                 log.getStudentName(),
-                log.getSentAt(),
+                log.getSentAt() != null ? log.getSentAt() : log.getCreatedAt(),
                 log.getReadAt(),
                 log.isPopup());
     }
