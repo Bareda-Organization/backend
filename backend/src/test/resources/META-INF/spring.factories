@@ -1,0 +1,4 @@
+# 목표 10 — 상속 여부와 무관하게 컨텍스트를 띄우는 모든 시험에 전용 Redis 컨테이너를 강제한다.
+# testsupport.redis.RedisTestContainerContextCustomizerFactory 자바독 참고.
+org.springframework.test.context.ContextCustomizerFactory=\
+testsupport.redis.RedisTestContainerContextCustomizerFactory

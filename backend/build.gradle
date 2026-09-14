@@ -245,13 +245,23 @@ tasks.named('test') {
     systemProperty 'app.photo.local.root',
             layout.buildDirectory.dir('test-photos').get().asFile.absolutePath
 
-    // 병렬 작업용 DB 격리 — `-PtestDbUrl=jdbc:postgresql://localhost:15432/<이름>` 을 주면
-    // 그 데이터베이스로 테스트한다. 에이전트를 2개 이상 동시에 돌릴 때 서로의 행을 밟아
-    // "코드 결함처럼 보이는 환경 실패" 가 나는 것을 막는다. 주지 않으면 기본값(schoolbus)이라
-    // 평소 실행에는 아무 영향이 없다.
-    if (project.hasProperty('testDbUrl')) {
-        systemProperty 'spring.datasource.url', project.property('testDbUrl')
+    // 병렬 작업용 DB 격리 — `-PtestDbUrl=jdbc:postgresql://localhost:15432/<이름>` 을 준다.
+    // ⚠ 2026-09-14 정책 변경: 인자를 빠뜨리면 기본값(schoolbus)으로 조용히 넘어가던 것을
+    // **실패**로 바꿨다. 이 저장소는 "인자 빠뜨림이 오염이 아니라 실패로 드러나야 한다" 를
+    // 이미 여러 번 채택했다(프론트 F4-A `API_BASE_URL` 3회 반복 사고 —
+    // `~/.claude/rules/parallel-agents-git.md §13.2`). 전용 DB 하나를 기본값으로 고정하는
+    // 대안은 채택하지 않았다 — 전용이 하나뿐이면 좌석 둘이 다시 그 하나를 같이 밟아 같은
+    // 형태의 사고가 재현된다. CI(`.github/workflows/deploy-backend.yml`) 는 매번 새로 뜨는
+    // 단일 소비자 러너라 공용 이름(schoolbus)을 그대로 써도 안전하지만, 그 워크플로도 이
+    // 인자를 명시로 준다 — "기본값이 안전하다" 와 "인자 없이 실행해도 안전하다" 는 다르다.
+    if (!project.hasProperty('testDbUrl')) {
+        throw new GradleException(
+            '테스트는 전용 DB 없이 돌 수 없다. ' +
+            '-PtestDbUrl=jdbc:postgresql://localhost:15432/<전용 DB 이름> 을 주고 다시 실행하라. ' +
+            '빠뜨리면 공용 schoolbus DB 를 밟아 다른 작업(사람·다른 에이전트)의 행을 오염시킨다.'
+        )
     }
+    systemProperty 'spring.datasource.url', project.property('testDbUrl')
 
     // 워커 힙 상한을 명시한다(Ruling 188). 이전에는 이 값이 없어 워커가 Gradle Test 태스크의
     // 기본 힙(실측 -Xmx512m — `--info` 로 워커 커맨드라인을 grep 하면 보인다. 어고닉 산정 25%가
