@@ -41,9 +41,13 @@ jobs:
       - name: 테스트용 인프라 기동
         run: docker compose up -d postgres redis
 
+      # 2026-09-14 부터 `-PtestDbUrl` 없는 `./gradlew test` 는 즉시 실패한다(build.gradle
+      # 인자 부재 시 실패 정책). 이 러너는 매번 새로 뜨는 단일 소비자라 공용 이름(schoolbus)을
+      # 그대로 써도 안전하지만, 그 값을 여기서도 명시로 준다 — "기본값이 안전" 과 "인자 없이도
+      # 안전" 은 다르다.
       - name: 테스트
         working-directory: backend
-        run: ./gradlew test
+        run: ./gradlew test -PtestDbUrl=jdbc:postgresql://localhost:15432/schoolbus
 
       - name: AWS 자격 획득 (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
