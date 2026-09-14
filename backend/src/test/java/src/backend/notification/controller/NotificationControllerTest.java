@@ -1,6 +1,7 @@
 package src.backend.notification.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -8,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 
 import jakarta.persistence.EntityManager;
 
@@ -18,7 +20,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.jayway.jsonpath.JsonPath;
 
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.account.repository.AccountRepository;
@@ -351,6 +356,36 @@ class NotificationControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(1))
                 .andExpect(jsonPath("$.data.items[0].notification_id").value(matching));
+    }
+
+    // ── §3.12 sent_at — 발송 시각 없는 행은 created_at 으로 대신한다 (C-null 대상 1) ──
+
+    /**
+     * API_SPEC §3.12 는 {@code sent_at} 을 ●(항상 값 있음)로 적었는데, 발송 기록이 없는 행({@code
+     * push_state != sent})은 실제로는 {@code sent_at} 컬럼이 비어 있다. §5.17 {@code
+     * StaffNotificationItemResponse}(SQL {@code COALESCE(sent_at, created_at)})와 같은 대체를
+     * {@link src.backend.notification.dto.NotificationItemResponse#of} 에도 적용했는지 이 시험이
+     * 고정한다 — 이 대체가 없으면 {@code sent_at} 이 그대로 {@code null} 로 나가 ● 약속이 깨진다.
+     */
+    @Test
+    @DisplayName("C-null — sent_at 이 비어 있으면 created_at 을 대신 실어 ● 약속을 지킨다")
+    void 발송_시각_없는_알림은_sent_at_에_생성_시각을_대신_싣는다() throws Exception {
+        NotificationLogFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long accountId = fixtures.account(academyId, "보호자1", Role.PARENT);
+        OffsetDateTime createdAt = now().minusMinutes(5);
+        fixtures.notification(academyId, accountId, "보호자1", Role.PARENT, null, null, NotificationType.BOARDING,
+                "승차 안내", "승차했습니다", false, createdAt, null, null);
+
+        MvcResult result = mockMvc
+                .perform(get("/api/v1/notifications").header("Authorization", 토큰(accountId, academyId, Role.PARENT)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String sentAt = JsonPath.read(result.getResponse().getContentAsString(), "$.data.items[0].sent_at");
+        assertThat(sentAt).as("§3.12 sent_at 은 ● 라 null 이 나가면 안 된다").isNotNull();
+        assertThat(OffsetDateTime.parse(sentAt)).as("발송 기록이 없으면 created_at 을 대신 싣는다")
+                .isCloseTo(createdAt, within(1, ChronoUnit.SECONDS));
     }
 
     // ── 호출 도우미 ──────────────────────────────────────────────────────
