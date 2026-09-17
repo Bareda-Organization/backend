@@ -50,9 +50,6 @@ public class DeviceToken extends BaseTimeEntity {
     @Column(name = "revoked_at")
     private OffsetDateTime revokedAt;
 
-    @Column(name = "last_used_at")
-    private OffsetDateTime lastUsedAt;
-
     private DeviceToken(Long accountId, String deviceId, String token, DevicePlatform platform, String appVersion) {
         this.accountId = accountId;
         this.deviceId = deviceId;

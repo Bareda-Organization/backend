@@ -20,7 +20,7 @@ import src.backend.global.common.enums.Role;
  * 알림 로그 — 발송 사실의 근거이자 트랜잭셔널 아웃박스이며, 상태 변경과 같은 트랜잭션에서 {@code pending}
  * 행을 남긴다(ERD §3.4 · ARCHITECTURE §7).
  *
- * <p>{@code academy_id}·{@code recipient_account_id}·{@code student_id}·{@code run_id} 는 논리적
+ * <p>{@code academy_id}·{@code recipient_account_id}·{@code student_id} 는 논리적
  * 부모이나 DB FK 가 미설정이다(ERD §4.2 — 보존 14일, 이름·버스번호를 스냅샷으로 담아 자립한다).
  * {@code recipient_role} 은 CHECK 가 부재해 스키마가 값을 보장하지 않는다(Ruling 55) — 잘못된 값은
  * 이 행을 다시 읽는 순간 {@link Role.Db#convertToEntityAttribute} 의 {@link Enum#valueOf} 에서 터진다.
@@ -54,9 +54,6 @@ public class NotificationLog {
 
     @Column(name = "student_name", length = 50)
     private String studentName;
-
-    @Column(name = "run_id")
-    private Long runId;
 
     @Column(name = "bus_no", length = 20)
     private String busNo;

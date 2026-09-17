@@ -414,20 +414,20 @@ VALUES
 
 -- 알림 로그 10건 — pending(재시도 대상) 1 · failed 1 · read/unread 각 1 이상, type 다양화.
 INSERT INTO notification_log (id, academy_id, recipient_account_id, recipient_name, recipient_role,
-                               student_id, student_name, run_id, type, title, body,
+                               student_id, student_name, type, title, body,
                                push_state, popup, sent_at, read_at, push_attempts, fail_reason, dedup_key, created_at)
 OVERRIDING SYSTEM VALUE
 VALUES
-    (1, 1, 5, '최부모', 'parent', 1, '김철수', 2, 'boarding', '탑승 안내', '김철수 학생이 곧 탑승합니다.', 'sent', false, now() - interval '10 minutes', NULL, 1, NULL, 'boarding:2:1:seed', now()),
-    (2, 1, 5, '최부모', 'parent', 1, '김철수', 3, 'alighting', '하차 안내', '김철수 학생이 하차했습니다.', 'sent', false, now() - interval '2 minutes', now() - interval '1 minute', 1, NULL, 'alighting:3:1:seed', now()),
-    (3, 1, 6, '정부모', 'parent', 4, '이하늘', 2, 'route_changed', '노선 변경 안내', '이하늘 학생 승차지가 변경되었습니다.', 'sent', true, now() - interval '5 minutes', NULL, 1, NULL, 'route_changed:2:4:seed', now()),
-    (4, 1, 6, '정부모', 'parent', 3, '박민수', 3, 'no_show', '노쇼 안내', '박민수 학생이 승차 예정 시간에 나타나지 않았습니다.', 'pending', true, NULL, NULL, 0, NULL, 'no_show:3:3:seed', now()),
-    (5, 2, 9, '윤부모', 'parent', 6, '정다은', 5, 'arrive', '도착 안내', '버스가 정류장에 도착했습니다.', 'sent', false, now() - interval '1 minute', NULL, 1, NULL, 'arrive:5:6:seed', now()),
-    (6, 1, 8, '조대기', 'parent', NULL, NULL, NULL, 'signup_decided', '가입 심사 안내', '가입 심사가 진행 중입니다.', 'sent', false, now() - interval '1 day', now() - interval '20 hours', 1, NULL, 'signup_decided:na:8:seed', now()),
-    (7, 1, 2, '김운영', 'staff', 1, '김철수', 2, 'approval_requested', '변경 승인 요청', '김철수 학생 취소 요청이 접수되었습니다.', 'sent', false, now() - interval '18 minutes', NULL, 1, NULL, 'approval_requested:2:1:seed', now()),
-    (8, 1, 2, '김운영', 'staff', NULL, NULL, 3, 'emergency', '비상 알림', '2호차에서 비상 상황이 발생했습니다.', 'sent', true, now() - interval '3 minutes', NULL, 1, NULL, 'emergency:3:na:seed', now()),
-    (9, 1, 6, '정부모', 'parent', 4, '이하늘', 3, 'delay', '지연 안내', '버스 출발이 지연되고 있습니다.', 'failed', false, NULL, NULL, 3, 'FCM 토큰 만료', 'delay:3:4:seed', now()),
-    (10, 2, 9, '윤부모', 'parent', 6, '정다은', 5, 'run_started', '운행 시작 안내', '버스가 출발했습니다.', 'sent', false, now() - interval '25 minutes', now() - interval '24 minutes', 1, NULL, 'run_started:5:6:seed', now());
+    (1, 1, 5, '최부모', 'parent', 1, '김철수', 'boarding', '탑승 안내', '김철수 학생이 곧 탑승합니다.', 'sent', false, now() - interval '10 minutes', NULL, 1, NULL, 'boarding:2:1:seed', now()),
+    (2, 1, 5, '최부모', 'parent', 1, '김철수', 'alighting', '하차 안내', '김철수 학생이 하차했습니다.', 'sent', false, now() - interval '2 minutes', now() - interval '1 minute', 1, NULL, 'alighting:3:1:seed', now()),
+    (3, 1, 6, '정부모', 'parent', 4, '이하늘', 'route_changed', '노선 변경 안내', '이하늘 학생 승차지가 변경되었습니다.', 'sent', true, now() - interval '5 minutes', NULL, 1, NULL, 'route_changed:2:4:seed', now()),
+    (4, 1, 6, '정부모', 'parent', 3, '박민수', 'no_show', '노쇼 안내', '박민수 학생이 승차 예정 시간에 나타나지 않았습니다.', 'pending', true, NULL, NULL, 0, NULL, 'no_show:3:3:seed', now()),
+    (5, 2, 9, '윤부모', 'parent', 6, '정다은', 'arrive', '도착 안내', '버스가 정류장에 도착했습니다.', 'sent', false, now() - interval '1 minute', NULL, 1, NULL, 'arrive:5:6:seed', now()),
+    (6, 1, 8, '조대기', 'parent', NULL, NULL, 'signup_decided', '가입 심사 안내', '가입 심사가 진행 중입니다.', 'sent', false, now() - interval '1 day', now() - interval '20 hours', 1, NULL, 'signup_decided:na:8:seed', now()),
+    (7, 1, 2, '김운영', 'staff', 1, '김철수', 'approval_requested', '변경 승인 요청', '김철수 학생 취소 요청이 접수되었습니다.', 'sent', false, now() - interval '18 minutes', NULL, 1, NULL, 'approval_requested:2:1:seed', now()),
+    (8, 1, 2, '김운영', 'staff', NULL, NULL, 'emergency', '비상 알림', '2호차에서 비상 상황이 발생했습니다.', 'sent', true, now() - interval '3 minutes', NULL, 1, NULL, 'emergency:3:na:seed', now()),
+    (9, 1, 6, '정부모', 'parent', 4, '이하늘', 'delay', '지연 안내', '버스 출발이 지연되고 있습니다.', 'failed', false, NULL, NULL, 3, 'FCM 토큰 만료', 'delay:3:4:seed', now()),
+    (10, 2, 9, '윤부모', 'parent', 6, '정다은', 'run_started', '운행 시작 안내', '버스가 출발했습니다.', 'sent', false, now() - interval '25 minutes', now() - interval '24 minutes', 1, NULL, 'run_started:5:6:seed', now());
 
 -- 기기 토큰 3건.
 INSERT INTO device_token (id, account_id, device_id, token, platform, revoked_at, created_at, updated_at)
