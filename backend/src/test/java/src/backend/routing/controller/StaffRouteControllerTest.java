@@ -344,9 +344,10 @@ class StaffRouteControllerTest {
     void 목록이_페이징_봉투_네_필드를_실제_값으로_돌려준다() throws Exception {
         int 시드_편성수 = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM route WHERE academy_id = ?", Integer.class, ACADEMY_A_ID);
-        assertThat(시드_편성수).as("시드 편성이 0건이면 아래 총계가 내가 만든 것만 세는 값이 된다").isEqualTo(1);
+        assertThat(시드_편성수)
+                .as("PREVIEW_STALE 재현용 from_academy 노선(V12)이 더해져 시드가 1건에서 2건으로 늘었다")
+                .isEqualTo(2);
         편성한다(관계자A_토큰(), BUS_A_ID, "mon", "to_academy", STOPS_OF_A).andExpect(status().isCreated());
-        편성한다(관계자A_토큰(), BUS_A_ID, "mon", "from_academy", List.of()).andExpect(status().isCreated());
         편성한다(관계자A_토큰(), BUS_A_ID, "tue", "to_academy", List.of()).andExpect(status().isCreated());
 
         String 첫쪽 = 목록_본문(관계자A_토큰(), "page=0&size=2");
@@ -354,7 +355,7 @@ class StaffRouteControllerTest {
         assertThat((int) JsonPath.read(첫쪽, "$.data.page")).isZero();
         assertThat((int) JsonPath.read(첫쪽, "$.data.size")).isEqualTo(2);
         assertThat((int) JsonPath.read(첫쪽, "$.data.total_count"))
-                .as("총계는 쪽 크기가 아니라 학원 전체 편성 수다 — 시드 1 + 새로 만든 3")
+                .as("총계는 쪽 크기가 아니라 학원 전체 편성 수다 — 시드 2 + 새로 만든 2")
                 .isEqualTo(4);
         assertThat((boolean) JsonPath.read(첫쪽, "$.data.has_next")).isTrue();
 
