@@ -19,9 +19,7 @@ import src.backend.global.security.AuthUser;
 import src.backend.manager.dto.AssignedManagerAccountView;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.routing.entity.ConfirmedRoute;
-import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.navigation.dto.NavDestination;
@@ -47,8 +45,6 @@ public class NavigationQueryService {
     private final AssignmentRepository assignmentRepository;
 
     private final ConfirmedRouteRepository confirmedRouteRepository;
-
-    private final RouteVersionRepository routeVersionRepository;
 
     private final NavRunStopRepository navRunStopRepository;
 
