@@ -3,6 +3,7 @@ package src.backend.admin.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import jakarta.persistence.EntityManager;
@@ -149,7 +150,8 @@ class AdminEmergencyControllerTest {
         확인시각을_옮긴다(emergencyId, now().minusSeconds(100));
         long adminAccountId = fixtures().systemAdminAccount("메인관리자");
 
-        String body = 목록을_조회한다(adminAccountId);
+        // R6 목표 3 — 기본값은 open 이라 acked 신고를 보려면 명시해야 한다(필드 계산 검증이 목적).
+        String body = 목록을_조회한다(adminAccountId, "acked");
 
         assertThat(확인여부(body, emergencyId)).isTrue();
         assertThat(경과시간(body, emergencyId))
@@ -164,7 +166,8 @@ class AdminEmergencyControllerTest {
         취소시각을_옮긴다(emergencyId, now().minusSeconds(200));
         long adminAccountId = fixtures().systemAdminAccount("메인관리자");
 
-        String body = 목록을_조회한다(adminAccountId);
+        // R6 목표 3 — 기본값은 open 이라 canceled 신고를 보려면 명시해야 한다(필드 계산 검증이 목적).
+        String body = 목록을_조회한다(adminAccountId, "canceled");
 
         assertThat(경과시간(body, emergencyId))
                 .as("now 까지 계속 흘렀다면 500 이 나온다 — canceledAt(경과 300초 시점)에서 멈춰야 한다")
@@ -206,7 +209,8 @@ class AdminEmergencyControllerTest {
                         .header("Authorization", 메인관리자_토큰(adminAccountId)))
                 .andExpect(status().isOk());
 
-        String body = 목록을_조회한다(adminAccountId);
+        // R6 목표 3 — ack 로 상태가 acked 가 됐으니 기본값(open)으로는 빠진다.
+        String body = 목록을_조회한다(adminAccountId, "acked");
 
         Map<String, Object> item = 항목(body, emergencyId);
         assertThat(item).as("§6.11 은 §5.16 상속 7키를 다시 담아야 한다(Phase 13 목표 13 완료 기준 3)")
@@ -266,6 +270,90 @@ class AdminEmergencyControllerTest {
                 .isEqualTo("from_academy");
     }
 
+    // ── R6 목표 3·4 — status·academy_id 쿼리 필터 ────────────────────────
+
+    @Test
+    void status_필터를_생략하면_기본값_open만_담고_acked_canceled는_뺀다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long adminAccountId = fixtures.systemAdminAccount("메인관리자");
+
+        long openId = 신고를_발신한다(academyId, fixtures);
+        long ackedId = 신고를_발신한다(academyId, fixtures);
+        확인시각을_옮긴다(ackedId, now());
+        long canceledId = 신고를_발신한다(academyId, fixtures);
+        취소시각을_옮긴다(canceledId, now());
+
+        String body = 목록을_조회한다(adminAccountId);
+
+        assertThat(id목록(body)).as("기본값은 open 이라 acked·canceled 는 빠져야 한다")
+                .contains(openId)
+                .doesNotContain(ackedId, canceledId);
+    }
+
+    @Test
+    void status_acked_를_주면_확인된_신고만_담는다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long adminAccountId = fixtures.systemAdminAccount("메인관리자");
+
+        long openId = 신고를_발신한다(academyId, fixtures);
+        long ackedId = 신고를_발신한다(academyId, fixtures);
+        확인시각을_옮긴다(ackedId, now());
+
+        String body = mockMvc.perform(get(LIST).param("status", "acked")
+                        .header("Authorization", 메인관리자_토큰(adminAccountId)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(id목록(body)).contains(ackedId).doesNotContain(openId);
+    }
+
+    @Test
+    void 잘못된_status_값은_422_VALIDATION_FAILED_이다() throws Exception {
+        long adminAccountId = fixtures().systemAdminAccount("메인관리자");
+
+        mockMvc.perform(get(LIST).param("status", "bogus")
+                        .header("Authorization", 메인관리자_토큰(adminAccountId)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+    }
+
+    @Test
+    void academy_id_를_주면_그_학원_신고만_담는다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyA = fixtures.academy();
+        long academyB = fixtures.academy();
+        long adminAccountId = fixtures.systemAdminAccount("메인관리자");
+
+        long alertInA = 신고를_발신한다(academyA, fixtures);
+        long alertInB = 신고를_발신한다(academyB, fixtures);
+
+        String body = mockMvc.perform(get(LIST).param("academy_id", String.valueOf(academyA))
+                        .header("Authorization", 메인관리자_토큰(adminAccountId)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(id목록(body)).contains(alertInA).doesNotContain(alertInB);
+    }
+
+    /**
+     * 학원 하나에 비상 신고 여러 건을 만들 때 쓴다 — 버스를 매번 새로 만든다. 같은 버스·같은
+     * departTime 으로 회차를 두 번 만들면 스케줄 UNIQUE 제약(같은 버스가 같은 시각에 중복 배차되지
+     * 않게 하는 제약)에 걸린다.
+     */
+    private long 신고를_발신한다(long academyId, EmergencyFixtures fixtures) throws Exception {
+        long busId = fixtures.bus(academyId);
+        long runId = fixtures.confirmedRun(academyId, busId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        return 신고를_발신한다(runId, driverAccountId, academyId);
+    }
+
+    private List<Long> id목록(String body) {
+        List<Number> ids = JsonPath.read(body, "$.data.items[*].emergency_id");
+        return ids.stream().map(Number::longValue).toList();
+    }
+
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────
 
     private long 신고를_발신한다_기본() throws Exception {
@@ -291,6 +379,19 @@ class AdminEmergencyControllerTest {
 
     private String 목록을_조회한다(long adminAccountId) throws Exception {
         return mockMvc.perform(get(LIST).header("Authorization", 메인관리자_토큰(adminAccountId)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+    }
+
+    /**
+     * R6 목표 3 필터 도입 이후 — 기존 시험들이 acked·canceled 신고를 만들고 나서 status 를 주지
+     * 않고 조회했다. 필터가 없던 시절에는 문제가 없었지만, 이제 기본값이 open 이라 그 신고들이
+     * 응답에서 빠진다. 그 시험들은 필터링 자체가 아니라 필드 계산을 검증하는 것이므로, 만든
+     * 신고의 실제 상태에 맞는 status 를 명시해 원래 검증 대상을 유지한다.
+     */
+    private String 목록을_조회한다(long adminAccountId, String status) throws Exception {
+        return mockMvc.perform(get(LIST).param("status", status)
+                        .header("Authorization", 메인관리자_토큰(adminAccountId)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
     }
