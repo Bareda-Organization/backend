@@ -5,7 +5,6 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -23,10 +22,9 @@ import src.backend.account.repository.AccountRepository;
 import src.backend.admin.dto.AdminEmergencyItemResponse;
 import src.backend.admin.dto.AdminEmergencyListResponse;
 import src.backend.exception.entity.EmergencyAlert;
+import src.backend.exception.query.EmergencyStatusFilter;
 import src.backend.exception.repository.EmergencyAlertRepository;
 import src.backend.global.common.LowerCaseFormatter;
-import src.backend.global.error.BusinessException;
-import src.backend.global.error.ErrorCode;
 import src.backend.manager.dto.AssignedManagerAccountView;
 import src.backend.manager.entity.Manager;
 import src.backend.manager.repository.AssignmentRepository;
@@ -51,16 +49,6 @@ import src.backend.run.repository.RunRepository;
 @Transactional(readOnly = true)
 public class AdminEmergencyQueryService {
 
-    /**
-     * {@code status} 쿼리가 받을 수 있는 값과 기본값(§6.11 R6 목표 4) — 문서에 §6.11 전용 표기가
-     * 없어, 같은 응답을 공유하는 §5.16({@code status(open · acked · canceled, 기본 open)})을
-     * 그대로 물려받기로 판단했다(근거는 보고서 1항). {@code EmergencyAlert} 에 저장 컬럼이 없어
-     * {@code ackedAt}·{@code canceledAt} 유무로 파생한다({@link #matchesStatus}).
-     */
-    private static final Set<String> ALLOWED_STATUSES = Set.of("open", "acked", "canceled");
-
-    private static final String DEFAULT_STATUS = "open";
-
     private final EmergencyAlertRepository emergencyAlertRepository;
 
     private final AcademyRepository academyRepository;
@@ -78,15 +66,16 @@ public class AdminEmergencyQueryService {
     /**
      * {@code status}·{@code academy_id} 쿼리 필터(§6.11, R6 목표 3) — 프런트(academy-web
      * {@code emergencies.ts})가 이미 보내고 있던 값을 서버가 그동안 무시하고 있었다(Ruling 294).
-     * {@code academy_id} 는 존재 검증을 하지 않는다 — §6.11 에러표가 "§1.11 공통 항목 외 고유
-     * 에러 부재"라 {@code AuditLogQueryService} 의 404 패턴을 옮기지 않았다(존재하지 않는 학원
-     * ID 를 주면 단순히 빈 목록이 된다).
+     * {@code status} 값·기본값·우선순위는 {@link EmergencyStatusFilter} 가 정의한다(§5.16 과
+     * 공유, Ruling 297). {@code academy_id} 는 존재 검증을 하지 않는다 — §6.11 에러표가 "§1.11
+     * 공통 항목 외 고유 에러 부재"라 {@code AuditLogQueryService} 의 404 패턴을 옮기지 않았다
+     * (존재하지 않는 학원 ID 를 주면 단순히 빈 목록이 된다).
      */
     public AdminEmergencyListResponse list(String status, Long academyId) {
-        String normalizedStatus = normalizeStatus(status);
+        EmergencyStatusFilter statusFilter = EmergencyStatusFilter.from(status);
 
         List<EmergencyAlert> alerts = emergencyAlertRepository.findAllByOrderByReceivedAtDesc().stream()
-                .filter(alert -> matchesStatus(alert, normalizedStatus))
+                .filter(statusFilter::matches)
                 .filter(alert -> academyId == null || academyId.equals(alert.getAcademyId()))
                 .toList();
 
@@ -128,28 +117,6 @@ public class AdminEmergencyQueryService {
         long unackedCount = items.stream().filter(item -> !item.staffAcked() && item.canceledAt() == null).count();
 
         return new AdminEmergencyListResponse(items, unackedCount);
-    }
-
-    /** {@code null} 은 기본값 {@code open}, 그 외에는 {@link #ALLOWED_STATUSES} 안에서만 통과한다. */
-    private String normalizeStatus(String raw) {
-        if (raw == null) {
-            return DEFAULT_STATUS;
-        }
-        String trimmed = raw.trim().toLowerCase(Locale.ROOT);
-        if (!ALLOWED_STATUSES.contains(trimmed)) {
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED,
-                    "status 값이 open/acked/canceled 가 아닙니다: " + raw);
-        }
-        return trimmed;
-    }
-
-    /** {@code canceled} > {@code acked} > {@code open} 우선순위 — {@code unackedCount} 계산과 같다. */
-    private boolean matchesStatus(EmergencyAlert alert, String status) {
-        return switch (status) {
-            case "canceled" -> alert.isCanceled();
-            case "acked" -> alert.isAcked() && !alert.isCanceled();
-            default -> !alert.isAcked() && !alert.isCanceled();
-        };
     }
 
     /**
