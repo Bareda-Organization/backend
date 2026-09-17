@@ -222,7 +222,8 @@ class StaffEmergencyControllerTest {
                         .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk());
 
-        String body = 목록을_조회한다(staffAccountId, academyId);
+        // R7 목표 1 — 기본값은 open 이라 방금 확인(ack)한 신고를 보려면 status 를 명시해야 한다.
+        String body = 목록을_조회한다(staffAccountId, academyId, "status", "acked");
 
         Map<String, Object> item = 항목(body, emergencyId);
         assertThat(item).as("§5.16 이 요구하는 7키 전부가 있어야 한다(Phase 13 목표 13 완료 기준 2)")
@@ -327,6 +328,104 @@ class StaffEmergencyControllerTest {
                 .isEqualToIgnoringNanos(receivedAt);
     }
 
+    // ── R7 목표 1 — status·date 쿼리 필터(§5.16, Ruling 297) ────────────────
+
+    @Test
+    void status_필터를_생략하면_기본값_open만_담고_acked_canceled는_뺀다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long staffAccountId = fixtures.staffAccount(academyId, "직원");
+
+        long openId = 신고를_발신한다(academyId, fixtures);
+        long ackedId = 신고를_발신한다(academyId, fixtures);
+        확인시각을_옮긴다(ackedId, OffsetDateTime.now());
+        long canceledId = 신고를_발신한다(academyId, fixtures);
+        취소시각을_옮긴다(canceledId, OffsetDateTime.now());
+
+        String body = 목록을_조회한다(staffAccountId, academyId);
+
+        assertThat(id목록(body)).as("기본값은 open 이라 acked·canceled 는 빠져야 한다")
+                .contains(openId)
+                .doesNotContain(ackedId, canceledId);
+    }
+
+    @Test
+    void status_acked_를_주면_확인된_신고만_담는다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long staffAccountId = fixtures.staffAccount(academyId, "직원");
+
+        long openId = 신고를_발신한다(academyId, fixtures);
+        long ackedId = 신고를_발신한다(academyId, fixtures);
+        확인시각을_옮긴다(ackedId, OffsetDateTime.now());
+
+        String body = 목록을_조회한다(staffAccountId, academyId, "status", "acked");
+
+        assertThat(id목록(body)).contains(ackedId).doesNotContain(openId);
+    }
+
+    @Test
+    void status_canceled_를_주면_취소된_신고만_담는다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long staffAccountId = fixtures.staffAccount(academyId, "직원");
+
+        long openId = 신고를_발신한다(academyId, fixtures);
+        long canceledId = 신고를_발신한다(academyId, fixtures);
+        취소시각을_옮긴다(canceledId, OffsetDateTime.now());
+
+        String body = 목록을_조회한다(staffAccountId, academyId, "status", "canceled");
+
+        assertThat(id목록(body)).contains(canceledId).doesNotContain(openId);
+    }
+
+    @Test
+    void 잘못된_status_값은_422_VALIDATION_FAILED_이다() throws Exception {
+        long academyId = fixtures().academy();
+        long staffAccountId = fixtures().staffAccount(academyId, "직원");
+
+        mockMvc.perform(get(LIST).param("status", "bogus")
+                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+    }
+
+    @Test
+    void date_는_received_at_기준으로_그_날짜의_신고만_담는다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long staffAccountId = fixtures.staffAccount(academyId, "직원");
+
+        long onDateId = 신고를_발신한다(academyId, fixtures);
+        접수시각을_옮긴다(onDateId, OffsetDateTime.parse("2030-04-01T10:00:00+09:00"));
+        long otherDateId = 신고를_발신한다(academyId, fixtures);
+        접수시각을_옮긴다(otherDateId, OffsetDateTime.parse("2030-04-02T10:00:00+09:00"));
+
+        String body = 목록을_조회한다(staffAccountId, academyId, "date", "2030-04-01");
+
+        assertThat(id목록(body)).as("date 는 received_at 의 날짜 성분이다(occurred_at 아님)")
+                .contains(onDateId)
+                .doesNotContain(otherDateId);
+    }
+
+    /**
+     * 학원 하나에 비상 신고 여러 건을 만들 때 쓴다 — 버스를 매번 새로 만든다. 같은 버스·같은
+     * departTime 으로 회차를 두 번 만들면 스케줄 UNIQUE 제약(같은 버스가 같은 시각에 중복 배차되지
+     * 않게 하는 제약)에 걸린다.
+     */
+    private long 신고를_발신한다(long academyId, EmergencyFixtures fixtures) throws Exception {
+        long busId = fixtures.bus(academyId);
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사",
+                OffsetDateTime.now());
+        return 신고를_발신한다(runId, driverAccountId, academyId);
+    }
+
+    private List<Long> id목록(String body) {
+        List<Number> ids = JsonPath.read(body, "$.data.items[*].emergency_id");
+        return ids.stream().map(Number::longValue).toList();
+    }
+
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────
 
     private String 토큰(long accountId, long academyId, Role role) {
@@ -355,6 +454,15 @@ class StaffEmergencyControllerTest {
                 .andReturn().getResponse().getContentAsString();
     }
 
+    /** R7 목표 1 — status·date 쿼리 파라미터 1개를 실어 조회한다. */
+    private String 목록을_조회한다(long staffAccountId, long academyId, String paramName, String paramValue)
+            throws Exception {
+        return mockMvc.perform(get(LIST).param(paramName, paramValue)
+                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+    }
+
     /** emergency_id 로 걸러 항목 1건을 읽는다 — 시드 행이 섞여 있어도 흔들리지 않는다. */
     @SuppressWarnings("unchecked")
     private Map<String, Object> 항목(String body, long emergencyId) {
@@ -379,6 +487,24 @@ class StaffEmergencyControllerTest {
     private OffsetDateTime 접수시각(long emergencyId) {
         return jdbcTemplate.queryForObject("SELECT received_at FROM emergency_alert WHERE id = ?",
                 OffsetDateTime.class, emergencyId);
+    }
+
+    /** R7 목표 1 — date 필터(received_at 기준) 검증용. {@code AdminEmergencyControllerTest} 와 같은 패턴. */
+    private void 접수시각을_옮긴다(long emergencyId, OffsetDateTime receivedAt) {
+        jdbcTemplate.update("UPDATE emergency_alert SET received_at = ? WHERE id = ?", receivedAt, emergencyId);
+        entityManager.clear();
+    }
+
+    /** R7 목표 1 — status=acked 필터 검증용. {@code AdminEmergencyControllerTest} 와 같은 패턴. */
+    private void 확인시각을_옮긴다(long emergencyId, OffsetDateTime ackedAt) {
+        jdbcTemplate.update("UPDATE emergency_alert SET acked_at = ? WHERE id = ?", ackedAt, emergencyId);
+        entityManager.clear();
+    }
+
+    /** R7 목표 1 — status=canceled 필터 검증용. {@code AdminEmergencyControllerTest} 와 같은 패턴. */
+    private void 취소시각을_옮긴다(long emergencyId, OffsetDateTime canceledAt) {
+        jdbcTemplate.update("UPDATE emergency_alert SET canceled_at = ? WHERE id = ?", canceledAt, emergencyId);
+        entityManager.clear();
     }
 
     private int 알림_행수(long emergencyId, long recipientAccountId, String recipientRole) {

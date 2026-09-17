@@ -5,6 +5,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -37,12 +38,18 @@ public class StaffEmergencyController {
 
     private final EmergencyCommandService emergencyCommandService;
 
-    /** 학원 관계자 비상 알림 목록(목표 10). */
+    /**
+     * 학원 관계자 비상 알림 목록(목표 10, §5.16 필터는 R7 목표 1) — {@code status}·{@code date}
+     * 는 쿼리 파라미터라 {@code @ModelAttribute} 대신 손으로 적는다({@link
+     * src.backend.exception.controller.StaffReportController} 와 같은 근거).
+     */
     @CanAckEmergency
     @Operation(summary = "비상 알림 수신·확인 (EXC-04, A-16)")
     @GetMapping
-    public ApiResponse<EmergencyStaffListResponse> list(@AuthenticationPrincipal AuthUser requester) {
-        return ApiResponse.ok(emergencyStaffQueryService.list(requester));
+    public ApiResponse<EmergencyStaffListResponse> list(@AuthenticationPrincipal AuthUser requester,
+            @RequestParam(name = "status", required = false) String status,
+            @RequestParam(name = "date", required = false) String date) {
+        return ApiResponse.ok(emergencyStaffQueryService.list(requester, status, date));
     }
 
     /** 비상 신고 확인(ack) 처리(목표 10). */
