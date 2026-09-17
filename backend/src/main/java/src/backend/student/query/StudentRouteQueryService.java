@@ -3,6 +3,7 @@ package src.backend.student.query;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -13,10 +14,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.academy.entity.Academy;
+import src.backend.academy.repository.AcademyRepository;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.BusRepository;
+import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
@@ -51,10 +55,12 @@ import src.backend.student.repository.WeeklyAddressRepository;
  *
  * <p><b>판단 근거</b> — "승차지 이전 2개 · 승차지 · 하차지만"(§3.10) 을, 이 학생의 정차지 하나를
  * 중심으로 그 앞 최대 2개까지만 보여주는 단일 규칙으로 구현했다. 이 시스템의 편도 회차는 학생마다
- * 정차지가 <b>하나뿐</b>이다(등원은 승차지, 하원은 하차지 — 반대쪽 끝은 항상 학원이고 학원은
- * {@code stops[]} 항목이 아니다) — 그래서 "승차지" 규칙과 "하차지" 규칙이 이 구현에서는 같은
- * 코드로 수렴한다. 방향별로 분기해 별도 규칙을 둘 수도 있었으나 그 경우 명세가 실제로 요구하는
- * 차이가 무엇인지 근거가 없어 이 판단을 보고서에 남긴다.
+ * 정차지가 <b>하나뿐</b>이다(등원은 승차지, 하원은 하차지) — 반대쪽 끝은 항상 학원이고, 학원은
+ * {@code run_stop}/{@code route_stop} 행이 아니라서(ERD.md) {@code windowed} 파이프라인만으로는
+ * 나오지 않는다. <b>Ruling 288</b> — 등원(TO_ACADEMY)의 하차지·하원(FROM_ACADEMY)의 승차지가 곧
+ * 학원이므로, {@link Academy} 엔티티에서 합성한 항목 하나를 방향에 따라 뒤(등원)/앞(하원)에 덧붙인다
+ * (좌표·이름은 {@code Academy}, {@code stop_id} 는 API_SPEC §1.13 의 "경유 지점은 항상 null" 선례를
+ * 따라 {@code null}).
  */
 @Service
 @RequiredArgsConstructor
@@ -85,6 +91,8 @@ public class StudentRouteQueryService {
 
     private final ManagerRepository managerRepository;
 
+    private final AcademyRepository academyRepository;
+
     private final Clock clock;
 
     public StudentRouteResponse route(AuthUser requester, Long studentId, String rawDate, String rawRunId) {
@@ -97,9 +105,10 @@ public class StudentRouteQueryService {
         Map<Long, Stop> stopsById = stopRepository
                 .findAllByAcademyIdAndIdIn(academyId, windowed.stream().map(WindowEntry::stopId).toList()).stream()
                 .collect(Collectors.toMap(Stop::getId, stop -> stop));
-        List<StudentRouteResponse.Stop> stops = windowed.stream()
+        List<StudentRouteResponse.Stop> stops = new ArrayList<>(windowed.stream()
                 .map(entry -> toStop(entry, stopsById.get(entry.stopId())))
-                .toList();
+                .toList());
+        addAcademyStop(stops, academyId, run.getDirection());
 
         String busNo = busRepository.findByIdAndAcademyId(run.getBusId(), academyId).map(Bus::getBusNo)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
@@ -184,6 +193,28 @@ public class StudentRouteQueryService {
         }
         return new StudentRouteResponse.Stop(stop.getId(), entry.seq(), stop.getName(), stop.getAddress(),
                 stop.getLat(), stop.getLng(), entry.change());
+    }
+
+    /**
+     * 학원은 {@code run_stop}/{@code route_stop} 행이 없어 위 {@code windowed} 파이프라인에 없다
+     * (Ruling 288). 등원(TO_ACADEMY)은 학원이 하차지라 뒤에, 하원(FROM_ACADEMY)은 학원이 승차지라
+     * 앞에 붙인다. {@code stop_id} 는 API_SPEC §1.13 의 "경유 지점은 항상 null" 선례를 그대로 쓴다.
+     */
+    private void addAcademyStop(List<StudentRouteResponse.Stop> stops, Long academyId, Direction direction) {
+        Academy academy = academyRepository.findById(academyId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        if (direction == Direction.TO_ACADEMY) {
+            int seq = stops.isEmpty() ? 1 : stops.get(stops.size() - 1).seq() + 1;
+            stops.add(academyStop(academy, seq));
+        } else {
+            int seq = stops.isEmpty() ? 1 : stops.get(0).seq() - 1;
+            stops.add(0, academyStop(academy, seq));
+        }
+    }
+
+    private StudentRouteResponse.Stop academyStop(Academy academy, int seq) {
+        return new StudentRouteResponse.Stop(null, seq, academy.getName(), academy.getAddress(), academy.getLat(),
+                academy.getLng(), null);
     }
 
     /** 배치가 아직 없으면 이름·전화 전부 {@code null} — §3.10 에 이 경우의 에러 코드가 없어 그대로 비운다. */
