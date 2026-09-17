@@ -43,4 +43,9 @@ public class InMemoryApprovalPreviewCache implements ApprovalPreviewCache {
     public void evict(Long approvalId) {
         store.remove(approvalId);
     }
+
+    @Override
+    public void clear() {
+        store.clear();
+    }
 }

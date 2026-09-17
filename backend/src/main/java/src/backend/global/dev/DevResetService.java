@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.request.preview.spec.ApprovalPreviewCache;
+
 /**
  * 개발용 초기화 — DB 를 시드 적재 직후 상태로 되돌린다.
  *
@@ -22,6 +24,9 @@ import lombok.RequiredArgsConstructor;
  *
  * <p>Redis 의 최신 좌표까지 지우는 이유는 DB 만 되돌리면 <b>지워진 회차의 좌표가 캐시에 남아</b>
  * 실시간 위치 조회가 존재하지 않는 회차를 가리키기 때문이다(TTL 이 지나기 전까지).
+ *
+ * <p>같은 이유로 승인 미리보기 캐시({@link ApprovalPreviewCache})도 비운다 — 안 비우면 리셋 직후
+ * 첫 조회가 "이전 캐시를 교체했다" 는 이유만으로 {@code stale=true} 로 잘못 분류된다.
  *
  * <p>조건 두 겹은 {@link DevResetController} 와 <b>같은 것을 달아야 한다.</b> 위임 대상인
  * {@code LocalFlywayCleanStrategy} 자체가 {@code @Profile("local")} 이라, 이 빈만 조건 없이 두면
@@ -43,13 +48,16 @@ public class DevResetService {
 
     private final StringRedisTemplate stringRedisTemplate;
 
+    private final ApprovalPreviewCache previewCache;
+
     /**
-     * DB 를 비우고 스키마·시드를 다시 적재한 뒤 위치 캐시를 지운다.
+     * DB 를 비우고 스키마·시드를 다시 적재한 뒤 위치 캐시와 승인 미리보기 캐시를 지운다.
      *
      * @return 지운 위치 캐시 키 개수 — 되돌린 사실을 호출자가 눈으로 확인할 수 있게 한다
      */
     public int reset() {
         migrationStrategy.migrate(flyway);
+        previewCache.clear();
         Set<String> positionKeys = stringRedisTemplate.keys(POSITION_KEY_PATTERN);
         if (positionKeys == null || positionKeys.isEmpty()) {
             return 0;

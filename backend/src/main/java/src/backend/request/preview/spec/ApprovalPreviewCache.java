@@ -29,4 +29,14 @@ public interface ApprovalPreviewCache {
      * 결정된 뒤에도 그 건의 낡은 미리보기가 캐시에 남는다. 이 태스크(T4)는 이 메서드를 호출하지 않는다.
      */
     void evict(Long approvalId);
+
+    /**
+     * 저장된 미리보기 전부를 지운다 — 개발용 초기화({@code POST /dev/reset})가 DB 를 시드 상태로
+     * 되돌릴 때 함께 부른다. {@link #evict}(건별 삭제)와 달리 승인 건과 무관하게 전량을 비운다.
+     *
+     * <p>이걸 부르지 않으면 리셋 직후 첫 조회가 "이전 캐시를 교체했다" 는 이유만으로 {@code stale=true}
+     * 로 잘못 분류된다({@link src.backend.request.preview.ApprovalPreviewResolver#resolvePreview}) —
+     * DB 관점에서는 리셋 후 첫 조회인데도 그렇다.
+     */
+    void clear();
 }
