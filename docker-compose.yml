@@ -12,6 +12,16 @@
 services:
   postgres:
     image: postgres:16
+    # 접속 상한을 기본 100 에서 300 으로 올린다 (2026-09-17, R7).
+    # @SpringBootTest 컨텍스트는 한 번 뜨면 JVM 이 끝날 때까지 캐시에 남고 각자 Hikari 풀을
+    # 붙든 채로 있다 — 한 JVM 이 수십 개를 쥔다. 병렬 작업으로 테스트 JVM 이 둘셋 + bootRun
+    # 서버가 뜨면 100 을 넘겨 "sorry, too many clients already"(SQLSTATE 53300)가 나는데,
+    # 그 실패가 `Failed to load ApplicationContext` 형태라 코드 결함과 구별되지 않는다.
+    # backend/build.gradle 이 테스트 풀 상한을 6 으로 낮춘 것과 같은 결함을 반대쪽에서 막는다
+    # (저쪽은 한 JVM 이 쥐는 양을 줄이고, 이쪽은 전체 상한을 늘린다).
+    # 300 인 근거 — postgres 는 접속당 약 2MB 를 쓰므로 300 이면 최대 600MB 이고,
+    # 개발 노트북에서 감당 가능하다. 그 이상은 연결 풀러(pgbouncer)를 두는 편이 맞다.
+    command: ["postgres", "-c", "max_connections=300"]
     environment:
       POSTGRES_DB: schoolbus
       POSTGRES_USER: schoolbus
