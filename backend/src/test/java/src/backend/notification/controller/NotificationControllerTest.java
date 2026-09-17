@@ -1,7 +1,6 @@
 package src.backend.notification.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.within;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -373,7 +372,11 @@ class NotificationControllerTest {
         NotificationLogFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long accountId = fixtures.account(academyId, "보호자1", Role.PARENT);
-        OffsetDateTime createdAt = now().minusMinutes(5);
+        // timestamptz 컬럼은 마이크로초까지만 담는다 — 입력을 마이크로초로 미리 잘라 두면 DB 왕복에서
+        // 정보 손실이 전혀 없어 아래 비교를 오차 없이 정확히 맞출 수 있다(§Goal3 판정, 원래의
+        // `within(1, SECONDS)` 는 이 손실이 없는데도 1초라는 헐거운 창을 둬 검증력을 스스로 버리고
+        // 있었다).
+        OffsetDateTime createdAt = now().minusMinutes(5).truncatedTo(ChronoUnit.MICROS);
         fixtures.notification(academyId, accountId, "보호자1", Role.PARENT, null, null, NotificationType.BOARDING,
                 "승차 안내", "승차했습니다", false, createdAt, null, null);
 
@@ -384,8 +387,10 @@ class NotificationControllerTest {
 
         String sentAt = JsonPath.read(result.getResponse().getContentAsString(), "$.data.items[0].sent_at");
         assertThat(sentAt).as("§3.12 sent_at 은 ● 라 null 이 나가면 안 된다").isNotNull();
-        assertThat(OffsetDateTime.parse(sentAt)).as("발송 기록이 없으면 created_at 을 대신 싣는다")
-                .isCloseTo(createdAt, within(1, ChronoUnit.SECONDS));
+        // 서버 응답은 UTC(Z) 오프셋, createdAt 은 Asia/Seoul(+09:00) 오프셋이라 OffsetDateTime#equals
+        // 는 오프셋이 달라 항상 실패한다 — Instant 로 바꿔 같은 순간인지를 비교한다.
+        assertThat(OffsetDateTime.parse(sentAt).toInstant()).as("발송 기록이 없으면 created_at 을 대신 싣는다")
+                .isEqualTo(createdAt.toInstant());
     }
 
     // ── 호출 도우미 ──────────────────────────────────────────────────────
