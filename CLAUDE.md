@@ -40,6 +40,9 @@ orca worktree create --name <이름> --setup run      # 프론트 의존성이 �
 
   배정 기준의 본문은 **Skill `parallel-agents` §4.1** 이다. 여기 다시 적지 않는다 — 두 벌이 되면 한쪽이 낡는다.
 - **`effortLevel` 기본값도 `xhigh` 다**(주 세션이 opus 라서). `--effort` 를 빠뜨린 작업 창은 모델만 내려가고 **노력 수준은 `xhigh` 로 남는다** — 모델 누락과 같은 형태의 누출이라 위 표대로 둘을 같이 적는다.
+- ⚠⚠ **Orca 가 띄우는 창에서는 `.claude/settings.json` 의 `model`·`effortLevel` 이 기준이 아니다.** Orca 는 자체 선택기 값을 **명령줄 인자로** 넘기고, 인자는 설정 파일보다 세다. 2026-09-18 실측 — 설정이 `opus[1m]`·`xhigh` 인데 실제 명령은 `claude --model 'opus[1m]' --effort 'medium'` 이었다(Orca 선택기가 Medium).
+  - **Orca 를 거쳐 띄울 때는 Orca 의 `Effort`·`Model` 선택기를 맞춘다.** `settings.json` 은 **Orca 가 아무 값도 안 줄 때의 바닥값**이다
+  - ⚠ **Orca 의 `Agent Permissions` 를 `yolo` 로 두지 않는다.** `claude` 에 `--dangerously-skip-permissions` 가 붙어 권한 분류기가 통째로 꺼진다(ECC `common/hooks.md` 가 금지). 2026-09-18 에 이 플래그 때문에 확인 대화상자가 뜨고, 터미널 포커스 신호가 그 대화상자에 입력으로 들어가 **기동이 취소**되기도 했다. `manual` 로 둔다
 - ⚠ **Haiku 4.5 에는 effort 를 주지 않는다.** 2026-09-18 실측 — `effortLevel: xhigh` 를 물려받은 상태로 `--model claude-haiku-4-5` 를 띄웠더니 **오류 없이 기동했고 배너에 effort 표기가 아예 없었다**(Sonnet 은 `Sonnet 5 with high effort`). Claude Code 가 지원하지 않는 모델에는 빼고 넘긴다. 명령줄에 직접 `--effort` 를 주는 것은 여전히 피한다.
 - ⚠ Haiku 4.5 는 컨텍스트가 200K 고정이다(Sonnet·Opus 는 1M). 탐색이 넓은 작업에는 쓰지 않는다.
 - ⚠ **모델을 섞으면 프롬프트 캐시가 갈린다** — 캐시는 모델별 이름공간이라 창마다 모델이 다르면 재사용이 끊긴다. 그래서 **비용을 줄일 때는 모델 교체보다 `--effort` 를 먼저 내린다**(공식 지침).
