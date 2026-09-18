@@ -5,10 +5,14 @@
 .idea/
 *.iml
 
-# Claude Code 작업 자료 — 저장소에 올리지 않는다 (2026-09-09 사용자 확정)
-# 지시서 · 에이전트 정의 · 작업 기록은 앱 동작과 무관하다. 로컬 파일은 그대로 둔다.
-.claude/
-CLAUDE.md
+# Claude Code 작업 자료 (2026-09-09 전면 제외 → 2026-09-18 3개만 뒤집음)
+# Orca 가 만드는 자식 워크트리는 git 이 추적하는 파일만 체크아웃한다. 지시서·사실 노트·
+# 프로젝트 설정이 미추적이면 워크트리에서 뜬 에이전트가 빌드 명령(-PtestDbUrl 필수)도,
+# Docker 포트도, Flyway 재구성 정책도 모르는 채 시작한다. 이 3개만 추적하고
+# 라운드별 작업 기록·에이전트 정의는 그대로 제외한다.
+.claude/*
+!.claude/PROJECT_NOTES.md
+!.claude/settings.json
 .superpowers/
 
 # tokensave local cache db
@@ -48,9 +52,14 @@ node_modules/
 /package.json
 /package-lock.json
 
-# 문서(docs/) 전부 추적하지 않음 — 루트 · backend · frontend (2026-09-02 사용자 확정)
-# 로컬 파일은 그대로 두고 git 에만 올리지 않는다. ⚠ git worktree 에는 복사되지 않으므로 워크트리 에이전트에는 메인 저장소 절대 경로를 준다
-**/docs/
+# 문서 — Markdown 정본만 추적한다 (2026-09-02 전면 제외 → 2026-09-18 뒤집음)
+# 뒤집은 이유: 워크트리 에이전트가 사양 없이 시작하는 것을 막는다. 절대 경로를 주는
+# 옛 방식은 워크트리마다 지시를 반복해야 하고 한 번 빠뜨리면 조용히 어긋난다.
+# 사람용 렌더(HTML·PDF·PNG)와 기획 원본 .docx 는 파생본·바이너리라 계속 제외한다
+# — md 26개(1.5MB)만 들어가고 비-md 64개(9.6MB)는 로컬에 그대로 남는다.
+**/docs/**
+!**/docs/**/
+!**/docs/**/*.md
 
 # 보고서 · 부하 측정 산출물 — 기록물이라 앱 동작과 무관하다
 /report/
@@ -65,3 +74,8 @@ frontend/**/.packages
 frontend/**/pubspec.lock
 frontend/**/*.g.dart
 frontend/**/*.freezed.dart
+
+# graft — 코드 구조 그래프 (재생성 가능한 로컬 캐시, tokensave 와 같은 성질)
+graft/
+.mcp.json
+.ignore
