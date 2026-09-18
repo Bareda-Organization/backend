@@ -65,8 +65,27 @@ services:
       redis:
         condition: service_started
 
+  # 관계자 웹 (Next.js standalone).
+  # ⚠ 빌드 컨텍스트가 `./frontend` 다 — apps/academy-web/ 이 아니다. globals.css 가 상대 경로로
+  #   frontend/design-system/styles.css 를 가리켜, 그 디렉터리가 컨텍스트에 함께 들어와야 한다
+  #   (근거는 그 Dockerfile 머리말).
+  web:
+    build:
+      context: ./frontend
+      dockerfile: apps/academy-web/Dockerfile
+      args:
+        # 브라우저가 보는 주소다 — 컨테이너 이름(`backend`)이 아니라 프록시 진입점.
+        # 브라우저는 호스트에서 돌기 때문이다. 빌드 시점에 번들에 박힌다(그 Dockerfile 참고).
+        NEXT_PUBLIC_API_BASE_URL: http://localhost
+    # 호스트에 포트를 열지 않는다 — proxy(:80) 의 `/` 가 여기로 보낸다.
+    # ⚠ Grafana 가 호스트 3000 을 이미 쓰고 있어, 열었다면 충돌했을 자리다.
+    expose:
+      - "3000"
+    depends_on:
+      - backend
+
   # 엣지 리버스 프록시 — 브라우저가 닿는 유일한 진입점.
-  # /api·/ws·/swagger-ui → backend. 설정: infra/proxy/nginx.conf
+  # /api·/ws·/swagger-ui → backend, 나머지 `/` → web. 설정: infra/proxy/nginx.conf
   proxy:
     image: nginx:alpine
     ports:
@@ -76,6 +95,7 @@ services:
       - ./infra/proxy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - backend
+      - web
 
   # ── 관측 스택 ──────────────────────────────────────────────────────────────
   # 설계 근거: docs/superpowers/specs/2026-08-21-관제-대시보드-design.md
