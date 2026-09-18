@@ -26,8 +26,16 @@ orca worktree create --name <이름> --setup run      # 프론트 의존성이 �
 
 - ⚠ **`--setup skip` 을 기본으로 쓴다.** 저장소에 `setup: pnpm install` 이 `run-by-default` 로 등록돼 있어, 생략하면 워크트리마다 프론트 의존성을 내려받는다. 백엔드만 만지는 작업에는 낭비다. **이 정책은 Orca CLI 로 못 바꾼다**(`orca repo` 에 설정 명령이 부재) — 앱 화면에서 바꾸거나 매번 플래그를 준다.
 - `--setup run` 이 필요한 때 — `frontend/apps/academy-web` 또는 `frontend/packages/` 를 빌드·실행·시험하는 작업.
-- ⚠ **`worker-start` 에는 `--model` 을 반드시 붙인다.** 생략하면 그 창이 `.claude/settings.json` 의 기본값(`sonnet`)으로 뜨고, 결과 집계·개수 세기처럼 판단이 없는 작업까지 그 등급으로 돈다. 배정 기준은 **Skill `parallel-agents` §4.1** 을 따른다(여기 다시 적지 않는다 — 두 벌이 되면 한쪽이 낡는다). 실행 예: `--model claude-haiku-4-5`(결과 집계·로그 추출) · `--model claude-sonnet-5`(구현·리뷰) · `--model claude-opus-5`(사양 충돌 판정·원인 미상 디버깅).
-- ⚠ **Haiku 에는 `--effort` 를 주지 않는다** — `claude-haiku-4-5` 는 그 인자를 받지 않아 오류가 난다. 컨텍스트도 200K 고정이라(Sonnet·Opus 는 1M) 탐색이 넓은 작업에는 쓰지 않는다.
+- ⚠⚠ **작업 창을 띄울 때 `--model` 을 빠뜨리면 그 창이 `opus[1m]` 로 뜬다.** `.claude/settings.json` 의 기본값이 **주 세션 기준으로 `opus[1m]`** 이기 때문이다(판정·병합 결정을 그 창에서 하므로 의도한 값이다). 작업 창은 성격이 달라서 **매번 명시해야 한다** — 2026-08-29 에 이 누락으로 구현 좌석 5개가 전부 opus 로 돌았고 한 개가 35만 토큰을 썼다(Skill `parallel-agents` §4.1).
+
+  | 작업 | 붙일 것 |
+  |---|---|
+  | 결과 집계 · 로그 추출 · 개수 세기 | `--model claude-haiku-4-5` (⚠ `--effort` 는 주지 않는다 · 컨텍스트 200K 고정) |
+  | 구현 · 리뷰 | `--model claude-sonnet-5` |
+  | 사양 충돌 판정 · 원인 미상 디버깅 | `--model claude-opus-5` |
+
+  배정 기준의 본문은 **Skill `parallel-agents` §4.1** 이다. 여기 다시 적지 않는다 — 두 벌이 되면 한쪽이 낡는다.
+- ⚠ Haiku 4.5 는 컨텍스트가 200K 고정이다(Sonnet·Opus 는 1M). 탐색이 넓은 작업에는 쓰지 않는다.
 - ⚠⚠ **`worktreeBaseRef` 는 `refs/heads/main`(로컬)이어야 한다.** 기본값이 `origin/main` 이었고, push 하지 않는 저장소라 원격은 **360 커밋 뒤처져** 있었다 — 그대로 두면 워크트리가 몇 달 전 코드에서 갈라진다. 2026-09-18 에 `orca repo set-base-ref --repo id:88941bb9-3200-415e-a8a9-0e2d5bb4ab7a --ref refs/heads/main` 으로 고쳤다. 저장소를 다시 등록하면 이 값을 확인한다.
 
 **프론트엔드는 2026-09-10 사용자 결정으로 범위 안이다** — 2026-09-04 Ruling 255(영구 범위 밖)를 뒤집었다. `docs/IMPLEMENTATION_PLAN` 의 Phase F1~F4 `➖` 표기는 옛 Flutter 계획에 대한 것이라 그대로 두고, **프론트 작업의 창구는 `frontend/IMPLEMENTATION_PLAN.md` 로 분리**했다.

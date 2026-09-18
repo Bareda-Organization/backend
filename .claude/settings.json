@@ -1,15 +1,12 @@
 {
-  "model": "sonnet",
-
+  "model": "opus[1m]",
   "env": {
     "ECC_DISABLED_HOOKS": "pre:bash:gateguard-fact-force,pre:edit-write:gateguard-fact-force",
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "0"
   },
-
   "footerLinksRegexes": [
     "graft/[\\w./-]+\\.md"
   ],
-
   "permissions": {
     "allow": [
       "Bash(graft:*)",
@@ -18,6 +15,5 @@
       "Bash(node dist/cli.js:*)"
     ]
   },
-
   "includeCoAuthoredBy": false
 }
