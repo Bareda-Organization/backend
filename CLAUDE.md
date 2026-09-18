@@ -30,12 +30,17 @@ orca worktree create --name <이름> --setup run      # 프론트 의존성이 �
 
   | 작업 | 붙일 것 |
   |---|---|
-  | 결과 집계 · 로그 추출 · 개수 세기 | `--model claude-haiku-4-5` (⚠ `--effort` 는 주지 않는다 · 컨텍스트 200K 고정) |
-  | 구현 · 리뷰 | `--model claude-sonnet-5` |
-  | 사양 충돌 판정 · 원인 미상 디버깅 | `--model claude-opus-5` |
+  | 결과 집계 · 로그 추출 · 개수 세기 | `--model claude-haiku-4-5` — **effort 는 주지 않는다** |
+  | 구현 · 리뷰 | `--model claude-sonnet-5 --effort high` |
+  | 사양 충돌 판정 · 원인 미상 디버깅 | `--model claude-opus-5 --effort xhigh` |
+
+  **Haiku 로 먼저 가고, 막히면 그때 Sonnet 으로 올린다** (2026-09-18 사용자 결정). 미리 올려 두지 않는다.
 
   배정 기준의 본문은 **Skill `parallel-agents` §4.1** 이다. 여기 다시 적지 않는다 — 두 벌이 되면 한쪽이 낡는다.
+- **`effortLevel` 기본값도 `xhigh` 다**(주 세션이 opus 라서). `--effort` 를 빠뜨린 작업 창은 모델만 내려가고 **노력 수준은 `xhigh` 로 남는다** — 모델 누락과 같은 형태의 누출이라 위 표대로 둘을 같이 적는다.
+- ⚠ **Haiku 4.5 에는 effort 를 주지 않는다.** 2026-09-18 실측 — `effortLevel: xhigh` 를 물려받은 상태로 `--model claude-haiku-4-5` 를 띄웠더니 **오류 없이 기동했고 배너에 effort 표기가 아예 없었다**(Sonnet 은 `Sonnet 5 with high effort`). Claude Code 가 지원하지 않는 모델에는 빼고 넘긴다. 명령줄에 직접 `--effort` 를 주는 것은 여전히 피한다.
 - ⚠ Haiku 4.5 는 컨텍스트가 200K 고정이다(Sonnet·Opus 는 1M). 탐색이 넓은 작업에는 쓰지 않는다.
+- ⚠ **모델을 섞으면 프롬프트 캐시가 갈린다** — 캐시는 모델별 이름공간이라 창마다 모델이 다르면 재사용이 끊긴다. 그래서 **비용을 줄일 때는 모델 교체보다 `--effort` 를 먼저 내린다**(공식 지침).
 - ⚠⚠ **`worktreeBaseRef` 는 `refs/heads/main`(로컬)이어야 한다.** 기본값이 `origin/main` 이었고, push 하지 않는 저장소라 원격은 **360 커밋 뒤처져** 있었다 — 그대로 두면 워크트리가 몇 달 전 코드에서 갈라진다. 2026-09-18 에 `orca repo set-base-ref --repo id:88941bb9-3200-415e-a8a9-0e2d5bb4ab7a --ref refs/heads/main` 으로 고쳤다. 저장소를 다시 등록하면 이 값을 확인한다.
 
 **프론트엔드는 2026-09-10 사용자 결정으로 범위 안이다** — 2026-09-04 Ruling 255(영구 범위 밖)를 뒤집었다. `docs/IMPLEMENTATION_PLAN` 의 Phase F1~F4 `➖` 표기는 옛 Flutter 계획에 대한 것이라 그대로 두고, **프론트 작업의 창구는 `frontend/IMPLEMENTATION_PLAN.md` 로 분리**했다.
