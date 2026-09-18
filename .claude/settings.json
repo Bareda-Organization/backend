@@ -1,0 +1,23 @@
+{
+  "model": "sonnet",
+
+  "env": {
+    "ECC_DISABLED_HOOKS": "pre:bash:gateguard-fact-force,pre:edit-write:gateguard-fact-force",
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "0"
+  },
+
+  "footerLinksRegexes": [
+    "graft/[\\w./-]+\\.md"
+  ],
+
+  "permissions": {
+    "allow": [
+      "Bash(graft:*)",
+      "Bash(npx graft:*)",
+      "Bash(graft-dev:*)",
+      "Bash(node dist/cli.js:*)"
+    ]
+  },
+
+  "includeCoAuthoredBy": false
+}
