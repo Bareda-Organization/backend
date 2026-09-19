@@ -340,6 +340,24 @@ class StaffApprovalControllerTest {
     }
 
     /**
+     * `R21-A` 추가 지시 ②(사용자 지적 — "구간별 승인의 지도에도 승하차지 표기해주고, 특히 변한
+     * 승하차지는 다르게 표시") — {@code stops_before}·{@code stops_after}·{@code removed} 가 지도에
+     * 마커로 찍을 좌표(lat·lng)를 실제로 낸다. {@code midStop}(37.562000, 126.972000)의 값 자체로
+     * 대조한다 — 존재 여부(exists)만 보면 엉뚱한 좌표가 들어가도 잡지 못한다.
+     */
+    @Test
+    void 상세_응답의_stops_와_removed_가_지도용_좌표를_낸다() throws Exception {
+        시나리오 s = 확정된_회차와_승인_대기_건을_만든다();
+
+        상세_조회(관계자_토큰(s.academyId), s.approvalId).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.route_preview.stops_before[1].stop_name").value("정차지37.562000"))
+                .andExpect(jsonPath("$.data.route_preview.stops_before[1].lat").value(37.562))
+                .andExpect(jsonPath("$.data.route_preview.stops_before[1].lng").value(126.972))
+                .andExpect(jsonPath("$.data.route_preview.removed[0].lat").value(37.562))
+                .andExpect(jsonPath("$.data.route_preview.removed[0].lng").value(126.972));
+    }
+
+    /**
      * {@code stops_before}·{@code stops_after} 의 {@code seq} 는 1부터 정차 순서대로 매겨진다 — 취소로
      * 정차지가 하나 빠져도 남은 정차지의 순번이 빈 자리 없이 다시 매겨지는지 확인한다.
      */
