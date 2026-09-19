@@ -4261,3 +4261,56 @@ be greater than 0`). **단독 실행은 16/16 통과.**
 | `CONVENTIONS.md:122` 가 실태와 12건 어긋남 | 기능간 `import` 금지 조항. **문서가 낡은 것**(Ruling 314) |
 | 구간별 거리·시간 근사값 | `StraightLineLegs.distribute` — R14 에서 이월, R15 범위 밖 |
 | `§4.3`(매니저 앱)에 `road_path` 부재 | Ruling 310 이 관계자 웹만 대상이라 의도적 제외 |
+
+## 8.25 ⚖ `R16` 목표 표 — `§6.8` 을 넓혀 관제 화면에 4종 상태를 띄운다 (2026-09-19 착수)
+
+**근거** — `Ruling 313` 이 `MonitoringPage` 의 4종 상태를 **이월**로 남겼다. 사용자 지시로 그 이월을 닫는다.
+
+### ⚠⚠ `Ruling 313` 의 근거 한 줄을 **정정한다** — 조율자 오판
+
+`Ruling 313` 은 *"`§6.8` 응답이 `stops[].eta`·`destination_eta`·`est_depart_time` 을 **필수(●)** 로 요구하는데
+`idle` 회차에는 그 값이 존재하지 않으므로, 필터만 넓히면 응답 계약이 깨진다. **한 줄짜리 변경이 아니다**"*
+라고 적었다. **틀렸다.**
+
+**조율자가 사양 표의 `●` 표기만 보고 구현을 안 읽었다.** 실제 구현은 **이미 비-운행 회차를 견딘다**:
+
+| 우려한 필드 | 실제 구현 |
+|---|---|
+| `stops[]` | `orderedStopsOf()` 가 확정 노선 부재 시 **`List.of()` 반환** — 예외 부재 |
+| `destination_eta` | `destinationEtaOf()` 가 `estDurationMin == null` 이면 **`null` 반환** |
+| `est_depart_time` | `run.getStartedAt()` — 미시작이면 **`null`** |
+| `position` | 신호 부재·유실이면 **`null`**(기존 규칙) |
+| `run_status` | **이미 응답 필드로 존재** |
+
+⇒ **`●` 는 "JSON 키가 반드시 존재한다" 는 뜻이지 "값이 반드시 있다" 가 아니다.** 이 저장소는 `null` 도
+직렬화한다(§6.8 예시 자체가 `"eta": null` 을 담고 있다).
+
+⚠ **재발 방지 — 사양 표의 표기로 구현 가능성을 판정하지 마라. 구현을 열어서 확인한다**
+(`phase-goal-loop §6` 의 "파생본을 판정 기준으로 쓰지 않는다" 와 같은 계열 — **사양도 코드에 대해서는 파생본이다**).
+
+### 📌 함께 발견한 결함 — `§6.8` 에 **날짜 조건이 부재**하다
+
+`AdminAcademyLiveQueryService.live()` 는 `findAllByAcademyIdAndStatusOrderByDepartTimeAsc(academyId, MOVING)`
+를 부른다 — **날짜로 좁히지 않는다.** `moving` 회차가 오늘 것뿐이라 지금은 드러나지 않지만,
+상태 조건을 빼는 순간 **과거 회차 전부**가 딸려 온다.
+
+⭐ 대응 수단이 **이미 있다** — `RunRepository.findAllByAcademyIdAndServiceDateOrderByDepartTimeAsc`.
+`§5.18`(`StaffRunLiveQueryService`)이 그것을 쓰고 있다(`LocalDate.now(clock)` → 조회 → `moving` 필터).
+**새 조회 메서드를 만들지 않는다.**
+
+### 목표 표
+
+| # | 완료 조건 | 검사 조건 |
+|:-:|---|---|
+| 1 | `§6.8` 이 **오늘 회차 4종 상태 전부**를 돌려준다 | `idle`·`confirmed`·`moving`·`finished` 각 1건을 심고 **4건 전부** 나오는지. `run_status` 값도 대조 |
+| 2 | ⭐ **어제·내일 회차는 나오지 않는다** | 날짜 조건 부재 결함을 못박는다. **이 검사가 없으면 과거 전부가 딸려 온다** |
+| 3 | **기존 검사를 뒤집는다** — `운행중이_아닌_회차는_목록에_나오지_않는다` | 그 검사는 **지금 동작을 고정**하고 있다. 이름·단언을 새 계약으로 바꾼다(`phase-goal-loop §3` — 단언이 결함을 굳히는 자리) |
+| 4 | 비-운행 회차의 필드가 **규칙대로 빈다** | `idle` → `stops` **빈 배열** · `position` `null` · `est_depart_time` `null`. `finished` → `stops` 채워짐 · `arrived_at` 있음 |
+| 5 | 정렬은 `depart_time` 오름차순 유지 | 기존 계약 |
+| 6 | **정본 `§6.8` 문면을 고친다** | *"`moving` 회차가 관제 대상"* 문장을 바꾸고, 비-운행 회차에서 비는 필드를 표로 적는다 |
+| 7 | `MonitoringPage` 가 **4종 상태를 보인다** — `finished` 포함 | `finished` 가 목록에 남는지 **단독 검사**로 못박는다(Ruling 310 사용자 확정) |
+| 8 | 백엔드 전체 실패 0 · 오류 0 · **건너뜀 0** | 기준 **1,342**(§8.24) — 인용이다. 직접 세라 |
+| 9 | 관계자 웹 전체 실패 0 · 건너뜀 0 | 기준 **275**(§8.24). ⚠ **백엔드를 띄운 상태로** 돌린다 |
+
+- **범위 밖** — `§5.18`(관계자용)은 그대로 둔다. `DashboardPage`·`TodayRunPage` 는 이미 `§5.3` 으로 4종을 받는다
+- **`Ruling 313` 의 표(배치 3종 / 4종 상태 2종)는 이 작업으로 무효가 된다** — 완료 시 3종 전부 4종 상태
