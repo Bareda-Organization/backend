@@ -31,7 +31,7 @@ orca worktree create --name <이름> --setup run      # 프론트 의존성이 �
   | 작업 | 붙일 것 |
   |---|---|
   | 결과 집계 · 로그 추출 · 개수 세기 | `--model claude-haiku-4-5` — **effort 는 주지 않는다** |
-  | 구현 · 리뷰 | `--model claude-sonnet-5 --effort high` |
+  | 구현 · 리뷰 | **`--model 'claude-sonnet-5[1m]' --effort high`** — ⭐ **sonnet 은 언제나 `[1m]`**(2026-09-19 사용자 상시 지시) |
   | 코드를 건드려 재현하는 디버깅 | 워크트리 + `--model claude-opus-5 --effort xhigh` |
 
   ⚠ **사양 충돌 판정 · 원인 미상 디버깅은 기본적으로 창을 띄우지 않는다 — 주 세션이 이미 `opus[1m]` · `xhigh` 다.** 별도 창이 값을 하는 경우는 둘뿐이다: ①**코드를 건드려 재현**해야 해서 워크트리 격리가 필요할 때 ②로그·파일을 대량으로 읽어 **주 세션의 조율 맥락을 밀어낼 때**. 둘 다 아니면 여기서 한다.
@@ -52,6 +52,10 @@ orca worktree create --name <이름> --setup run      # 프론트 의존성이 �
   - ⚠ **Orca 의 `Agent Permissions` 를 `yolo` 로 두지 않는다.** `claude` 에 `--dangerously-skip-permissions` 가 붙어 권한 분류기가 통째로 꺼진다(ECC `common/hooks.md` 가 금지). 2026-09-18 에 이 플래그 때문에 확인 대화상자가 뜨고, 터미널 포커스 신호가 그 대화상자에 입력으로 들어가 **기동이 취소**되기도 했다. `manual` 로 둔다
 - ⚠ **Haiku 4.5 에는 effort 를 주지 않는다.** 2026-09-18 실측 — `effortLevel: xhigh` 를 물려받은 상태로 `--model claude-haiku-4-5` 를 띄웠더니 **오류 없이 기동했고 배너에 effort 표기가 아예 없었다**(Sonnet 은 `Sonnet 5 with high effort`). Claude Code 가 지원하지 않는 모델에는 빼고 넘긴다. 명령줄에 직접 `--effort` 를 주는 것은 여전히 피한다.
 - ⚠ Haiku 4.5 는 컨텍스트가 200K 고정이다(Sonnet·Opus 는 1M). 탐색이 넓은 작업에는 쓰지 않는다.
+- ⭐⭐ **sonnet 작업 창은 예외 없이 `[1m]` 을 붙인다 — 2026-09-19 사용자 상시 지시.** *"앞으로 sonnet 은 오케스트레이터든 다른 방식이든 전부 1m 으로 띄워줘."* **접미사는 적어야만 붙고 부모에게서 상속되지 않는다** — 2026-09-19 실측: 조율 세션이 `claude-opus-5[1m]` 인데 `--model claude-sonnet-5` 로 띄운 워커 2개의 기동 기록이 `requested`·`effective` 둘 다 접미사 부재였다.
+  - 확인 — `orca orchestration worker-show --dispatch <id> --json` 의 `result.worker.startOptions.launch.effective.model` 에 `[1m]` 이 실재하는지 본다. **배너로 판정하지 않는다**
+  - ⚠ **쉘에서 대괄호가 글로브로 해석되므로 따옴표로 감싼다** — `--model 'claude-sonnet-5[1m]'`
+  - ⚠ **`--effort` 는 별개다** — 모델만 바꾸고 빠뜨리면 노력 수준이 부모(`xhigh`)로 남는다
 - ⚠ **모델을 섞으면 프롬프트 캐시가 갈린다** — 캐시는 모델별 이름공간이라 창마다 모델이 다르면 재사용이 끊긴다. 그래서 **비용을 줄일 때는 모델 교체보다 `--effort` 를 먼저 내린다**(공식 지침).
 - ⚠⚠ **`worktreeBaseRef` 는 `refs/heads/main`(로컬)이어야 한다.** 기본값이 `origin/main` 이었고, push 하지 않는 저장소라 원격은 **360 커밋 뒤처져** 있었다 — 그대로 두면 워크트리가 몇 달 전 코드에서 갈라진다. 2026-09-18 에 `orca repo set-base-ref --repo id:88941bb9-3200-415e-a8a9-0e2d5bb4ab7a --ref refs/heads/main` 으로 고쳤다. 저장소를 다시 등록하면 이 값을 확인한다.
 
