@@ -30,12 +30,15 @@ import src.backend.global.security.JwtTokenProvider;
 /**
  * 자녀·본인 당일 회차 목록 API(P-04 · S-01, API_SPEC §3.5, 목표 5).
  *
- * <p>student1(academy1)이 소속된 회차 4건(idle 2건·confirmed·moving)을 한 번에 검증한다 — 시드가
+ * <p>student1(academy1)이 소속된 회차 5건(idle 2건·confirmed 2건·moving)을 한 번에 검증한다 — 시드가
  * 이미 세 상태를 전부 갖추고 있어(run1 idle · run2 confirmed · run3 moving · run4 finished 는
  * student1 소속 아님) 새 픽스처를 만들지 않는다. run6(idle) 은 §5.7 검증용으로 추가된 회차인데,
  * run1 과 같은 학원·버스·방향이라 같은 고정 노선(route id=1)에 걸려 {@code matchesFixedRoute} 가
  * student1 을 그대로 소속시킨다 — 시드에 노선이 그 하나뿐이라 우연이 아니라 필연이다. 그래서 이
- * 목록에도 네 번째 항목으로 나와야 정확하다(2026-09-12 실측 — run6 추가 후 3→4 로 개정).
+ * 목록에도 네 번째 항목으로 나와야 정확하다(2026-09-12 실측 — run6 추가 후 3→4 로 개정). run8
+ * (confirmed) 은 R14-T3 가 경유지 계약 검사 재료로 추가한 전용 회차(§8.19)인데, academy·bus·
+ * direction 이 run1·run6 과 같아 같은 고정 노선에 걸리고 명단에도 student1 이 들어 있어 이 목록에
+ * 다섯 번째로 실린다(2026-09-19 실측 — run8 추가 후 4→5 로 개정, R14-T3 후속).
  *
  * <ul>
  *   <li>run3(moving) — {@code run_rider} 행이 {@code status='absent'} 라 {@code riding} 기본값
@@ -46,6 +49,8 @@ import src.backend.global.security.JwtTokenProvider;
  *       기본값이 아니라 그 행의 값을 그대로 반영해야 한다</li>
  *   <li>run1·run6(idle) — {@code boarding_intent} 행이 없어 기본값(riding=true,
  *       change_quota_left=1)이어야 한다. 둘 다 route id=1 을 공유해 정차지도 stop1 로 같다</li>
+ *   <li>run8(confirmed) — run1·run6 과 마찬가지로 {@code boarding_intent} 행이 없어 기본값이다.
+ *       run2 와 상태(confirmed)는 같지만 {@code boarding_intent} 유무로 갈리는 예다</li>
  * </ul>
  *
  * <p>{@link SeedDateClockConfig} — 시드 회차의 {@code service_date} 를 실제로 읽어 그 날짜로
@@ -124,12 +129,12 @@ class StudentRunsControllerTest {
         }
     }
 
-    /** student1 이 속한 회차 4건을 출발 시각 순(moving → confirmed → idle run1 → idle run6)으로 반환한다. */
+    /** student1 이 속한 회차 5건을 출발 시각 순(moving → confirmed run2 → confirmed run8 → idle run1 → idle run6)으로 반환한다. */
     @Test
     void 부모가_연결된_자녀의_당일_회차_목록을_출발시각_순으로_받는다() throws Exception {
         mockMvc.perform(get(RUNS.formatted(STUDENT_1_ID)).header("Authorization", 토큰(SIBLINGS_GUARDIAN_ACCOUNT)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items.length()").value(4))
+                .andExpect(jsonPath("$.data.items.length()").value(5))
                 .andExpect(jsonPath("$.data.items[0].run_id").value(3))
                 .andExpect(jsonPath("$.data.items[0].direction").value("to_academy"))
                 .andExpect(jsonPath("$.data.items[0].bus_no").value("2호차"))
@@ -149,16 +154,16 @@ class StudentRunsControllerTest {
                 .andExpect(jsonPath("$.data.items[1].rider_status").value("waiting"))
                 .andExpect(jsonPath("$.data.items[1].stop.stop_id").value(1))
                 .andExpect(jsonPath("$.data.items[1].change_quota_left").value(1))
-                .andExpect(jsonPath("$.data.items[2].run_id").value(1))
+                .andExpect(jsonPath("$.data.items[2].run_id").value(8))
                 .andExpect(jsonPath("$.data.items[2].direction").value("to_academy"))
                 .andExpect(jsonPath("$.data.items[2].bus_no").value("1호차"))
-                .andExpect(jsonPath("$.data.items[2].run_status").value("idle"))
-                .andExpect(jsonPath("$.data.items[2].confirmed").value(false))
+                .andExpect(jsonPath("$.data.items[2].run_status").value("confirmed"))
+                .andExpect(jsonPath("$.data.items[2].confirmed").value(true))
                 .andExpect(jsonPath("$.data.items[2].riding").value(true))
                 .andExpect(jsonPath("$.data.items[2].rider_status").value("waiting"))
                 .andExpect(jsonPath("$.data.items[2].stop.stop_id").value(1))
                 .andExpect(jsonPath("$.data.items[2].change_quota_left").value(1))
-                .andExpect(jsonPath("$.data.items[3].run_id").value(6))
+                .andExpect(jsonPath("$.data.items[3].run_id").value(1))
                 .andExpect(jsonPath("$.data.items[3].direction").value("to_academy"))
                 .andExpect(jsonPath("$.data.items[3].bus_no").value("1호차"))
                 .andExpect(jsonPath("$.data.items[3].run_status").value("idle"))
@@ -166,15 +171,24 @@ class StudentRunsControllerTest {
                 .andExpect(jsonPath("$.data.items[3].riding").value(true))
                 .andExpect(jsonPath("$.data.items[3].rider_status").value("waiting"))
                 .andExpect(jsonPath("$.data.items[3].stop.stop_id").value(1))
-                .andExpect(jsonPath("$.data.items[3].change_quota_left").value(1));
+                .andExpect(jsonPath("$.data.items[3].change_quota_left").value(1))
+                .andExpect(jsonPath("$.data.items[4].run_id").value(6))
+                .andExpect(jsonPath("$.data.items[4].direction").value("to_academy"))
+                .andExpect(jsonPath("$.data.items[4].bus_no").value("1호차"))
+                .andExpect(jsonPath("$.data.items[4].run_status").value("idle"))
+                .andExpect(jsonPath("$.data.items[4].confirmed").value(false))
+                .andExpect(jsonPath("$.data.items[4].riding").value(true))
+                .andExpect(jsonPath("$.data.items[4].rider_status").value("waiting"))
+                .andExpect(jsonPath("$.data.items[4].stop.stop_id").value(1))
+                .andExpect(jsonPath("$.data.items[4].change_quota_left").value(1));
     }
 
-    /** {@code date} 를 생략하면 당일이다 — 시드가 전부 {@code CURRENT_DATE} 라 쿼리 파라미터 없이도 같은 4건이 나와야 한다. */
+    /** {@code date} 를 생략하면 당일이다 — 시드가 전부 {@code CURRENT_DATE} 라 쿼리 파라미터 없이도 같은 5건이 나와야 한다. */
     @Test
     void date_파라미터를_생략하면_당일_기준이다() throws Exception {
         mockMvc.perform(get(RUNS.formatted(STUDENT_1_ID)).header("Authorization", 토큰(SIBLINGS_GUARDIAN_ACCOUNT)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items.length()").value(4));
+                .andExpect(jsonPath("$.data.items.length()").value(5));
     }
 
     /** 연결이 없는(대기 중인 요청뿐인) 자녀는 403 이다 — S1 의 보호자가 아니라 계정5는 student5 에 활성 연결이 없다. */
