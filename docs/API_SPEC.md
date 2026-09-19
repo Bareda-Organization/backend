@@ -1050,7 +1050,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 **이력 보존** — 누가·언제·무엇을 바꿨는지 저장. 기발송 알림은 후속 처리 대상
 
-**에러** — `403 ESCORT_ONLY` · `409 RUN_NOT_MOVING` · `404 RIDER_NOT_FOUND` · `404 RUN_NOT_FOUND`
+**에러** — `403 ESCORT_ONLY` · `409 RUN_NOT_MOVING` · `404 RIDER_NOT_FOUND` · `404 RUN_NOT_FOUND` · `409 STOP_ALREADY_DEPARTED`(승하차지를 이미 떠난 뒤 — `run_stop.departed_at IS NOT NULL`, Ruling 305·307)
 
 ### 4.8 POST /runs/{runId}/riders/{riderId}/no-show-contacts
 
@@ -2291,6 +2291,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | 코드 | HTTP | 발생 조건 |
 |---|:-:|---|
 | `DUPLICATE_ARRIVE` | 403 | 동일 승하차지 도착 처리 중복 (RUN-04) |
+| `STOP_ALREADY_DEPARTED` | 409 | 승하차지를 이미 떠난 뒤의 되돌리기 시도(§4.7) — `run_stop.departed_at IS NOT NULL`. 도착 처리된 정차지에서 버스가 100m 밖으로 벗어난 최초 시점에 기록(claimDeparture 조건부 UPDATE). 횟수 제한은 부재하나 이 경계만 막음 (BRD-05, 2026-09-19 사용자 확정 Ruling 305, 판정 방식은 Ruling 307 로 교체) |
 | `RUN_NOT_CONFIRMED` | 409 | 확정 전(`idle`) 회차의 명단·운행 진입·경유 지점 지정(§5.15) |
 | `RUN_NOT_MOVING` | 409 | `moving` 아닌 회차에 위치 업로드·승하차 처리 |
 | `RUN_NOT_FOUND` | 404 | 존재하지 않는 회차 · 타 학원 — 존재 비노출, Ruling 163 |

@@ -74,13 +74,19 @@ public class ProximityNotificationScheduler {
     /**
      * 회차 1건을 판정하고, 무엇이 됐든 실패를 삼켜 다음 회차로 넘어간다(확정 배치의
      * {@code confirmSafely} 와 같은 근거 — {@link Exception} 전체를 잡지 않으면 예상 못 한 실패가
-     * 이 틱의 나머지 회차 판정까지 막는다).
+     * 이 틱의 나머지 회차 판정까지 막는다). 근접·출발(Ruling 307, R14-T2 목표 6a) 두 판정을 각자
+     * 독립된 try-catch 로 감싼다 — 한쪽이 실패해도 다른 쪽은 이번 틱에 그대로 시도돼야 한다.
      */
     private void judgeSafely(Long runId, Long academyId) {
         try {
             proximityNotificationService.judgeOne(runId, academyId);
         } catch (Exception e) {
             log.warn("회차 {} 근접 판정 실패 — 다음 틱에 재시도한다", runId, e);
+        }
+        try {
+            proximityNotificationService.judgeDeparture(runId);
+        } catch (Exception e) {
+            log.warn("회차 {} 출발 판정 실패 — 다음 틱에 재시도한다", runId, e);
         }
     }
 }

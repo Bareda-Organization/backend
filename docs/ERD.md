@@ -565,6 +565,7 @@ erDiagram
 | `change` | varchar(10) | | `added` · `skipped`. NULL = 변경 부재. CHECK |
 | `skip_notice` | varchar(200) | | 미경유 안내 문구 |
 | `arrived_at` | timestamptz | | 기사 도착 처리 타임스탬프. 중복 처리 차단의 판정값 |
+| `departed_at` 🆕 | timestamptz | | 도착 처리된 정차지에서 버스가 **100m** 밖으로 벗어난 최초 시점. NULL = 미출발. **2026-09-19 신설(Ruling 307, `V1`)** — 되돌리기 제한(BRD-05, Ruling 305)의 유일한 판정 기준. `proximity_notified_at` 과 같은 조건부 UPDATE 형태(`claimDeparture`)로만 채운다 |
 | `eta` | timestamptz | | 승하차지별 도착 예정 시각. **관제 전용** — 학부모·학생 응답에 미포함 |
 | `proximity_notified_at` 🆕 | timestamptz | | 근접 알림(직선 300m, NTF-04) 최초 1회 발송 시각. NULL = 미발송. **2026-09-02 신설(Ruling 207, `V3`)** — `notification_log.dedup_key` UNIQUE 는 같은 알림의 중복 적재만 막고, 스케줄러가 매 틱 같은 정차 항목을 다시 판정하지 않게 막는 것은 이 컬럼의 조건부 UPDATE 몫(Ruling 210) |
 

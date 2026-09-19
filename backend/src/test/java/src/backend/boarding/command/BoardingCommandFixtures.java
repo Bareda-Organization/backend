@@ -260,6 +260,30 @@ public class BoardingCommandFixtures {
         return runStop.getId();
     }
 
+    /**
+     * {@link #confirmedRunStop} 이 만든 버전에 정차 항목을 추가한다(목표 6c 재료, Ruling 307) — "마지막
+     * 승하차지에도 되돌리기 제한이 걸리는가"를 보려면 그 뒤에 정차 항목이 없는 상태를 그대로 두고
+     * 이 메서드로 <b>앞</b> 순번만 채운다. 도착·출발은 별도로({@link #departStop}) 표시한다.
+     */
+    public void addRunStop(long runId, long stopId, int seq, OffsetDateTime eta) {
+        Long versionId = confirmedRouteRepository.findById(runId).map(ConfirmedRoute::getCurrentVersionId)
+                .orElseThrow();
+        runStopRepository.save(RunStop.forStop(versionId, stopId, seq, eta));
+    }
+
+    /**
+     * 정차 항목을 출발 처리한다(목표 6b·6c, Ruling 307) — 스케줄러의 100m 이탈 판정을 거치지 않고
+     * {@link RunStopRepository#claimDeparture} 조건부 UPDATE 를 직접 불러 재현한다(운영 경로와 같은
+     * 진입점, 가짜 값을 별도로 만들지 않는다). {@link #confirmedRunStop} 로 버전을 만든 뒤에만
+     * 호출한다는 전제다.
+     */
+    public void departStop(long runId, long stopId, OffsetDateTime departedAt) {
+        Long versionId = confirmedRouteRepository.findById(runId).map(ConfirmedRoute::getCurrentVersionId)
+                .orElseThrow();
+        Long runStopId = runStopRepository.findByRouteVersionIdAndStopId(versionId, stopId).orElseThrow().getId();
+        runStopRepository.claimDeparture(runStopId, departedAt);
+    }
+
     /** 잔여 판정의 함정(목표 7)을 걸기 위해 이미 부재 처리된 탑승자를 직접 만든다 — {@code markAbsent} 는 회차 진행 중 경로가 없다. */
     public void markAbsent(long riderId) {
         int updated = jdbcTemplate.update("UPDATE run_rider SET status = 'absent' WHERE id = ?", riderId);

@@ -37,6 +37,7 @@ import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 import src.backend.routing.entity.ConfirmedRoute;
+import src.backend.routing.entity.RunStop;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.access.RunAssignmentAccess;
@@ -156,10 +157,11 @@ public class BoardingCommandService {
     }
 
     /**
-     * 상태 정정(BRD-05, API_SPEC §4.7) — 가장 최근 이력 행의 {@code from_status} 로 되돌린다. 횟수·시간
-     * 제한을 두지 않는다(오픈 이슈 J 잔여 ①이 여전히 미결이라, 정본에 없는 제한을 코드 상수로
-     * 추측해 박지 않는다) — 되돌린 결과도 새 이력 행으로 남으므로, 그 새 행의 {@code from_status} 를
-     * 기준으로 다시 되돌리면 두 상태를 오가는 반복이 그대로 허용된다.
+     * 상태 정정(BRD-05, API_SPEC §4.7) — 가장 최근 이력 행의 {@code from_status} 로 되돌린다. 횟수
+     * 제한은 두지 않는다(2026-09-19 사용자 확정, Ruling 305 — 오픈 이슈 J 해소) — 되돌린 결과도 새
+     * 이력 행으로 남으므로, 그 새 행의 {@code from_status} 를 기준으로 다시 되돌리면 두 상태를
+     * 오가는 반복이 그대로 허용된다. 단, 같은 Ruling 305 가 **승하차지를 떠난 뒤에는 되돌리기를
+     * 막는다** — {@link #assertNotDeparted} 참고.
      *
      * <p>이력이 아직 없는 탑승자(승하차 처리를 한 번도 받지 않은 경우)는 {@link RunRider#uponConfirmation}
      * 의 초기값인 {@link RiderStatus#WAITING} 을 직전 상태로 간주한다 — API_SPEC §4.7 에러 목록에
@@ -185,6 +187,7 @@ public class BoardingCommandService {
         }
         RunRider rider = runRiderRepository.findByIdAndRunIdAndStatusNot(riderId, runId, RiderStatus.ABSENT)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RIDER_NOT_FOUND));
+        assertNotDeparted(run.getId(), rider.getStopId());
 
         RiderStatus fromStatus = rider.getStatus();
         RiderStatus targetStatus = riderStatusHistoryRepository
@@ -218,6 +221,30 @@ public class BoardingCommandService {
     private void requireEscort(AuthUser requester) {
         if (requester.role() != Role.ESCORT) {
             throw new BusinessException(ErrorCode.ESCORT_ONLY);
+        }
+    }
+
+    /**
+     * 승하차지를 떠난 뒤의 되돌리기를 막는다(목표 6b, Ruling 307) — {@code run_stop.departed_at IS
+     * NOT NULL} 이 유일한 판정 기준이다({@link src.backend.location.proximity.ProximityNotificationService
+     * #judgeDeparture} 가 도착 후 100m 이탈 최초 1회를 이 컬럼에 기록한다). 뒤 순번 정차지 참조에 기대던 파생 규칙은
+     * 폐기했다 — 마지막 승하차지는 뒤 순번이 없어 영원히 되돌릴 수 있는 구멍이 있었다(목표 6c).
+     *
+     * <p>확정 노선(버전)이 아직 없거나 그 학생의 정차 항목 자체를 찾지 못하면 판정 재료가 없으므로
+     * 통과시킨다(막을 근거가 없는 채로 막으면 정상 되돌리기까지 거부하게 된다).
+     */
+    private void assertNotDeparted(Long runId, Long stopId) {
+        Optional<ConfirmedRoute> confirmedRoute = confirmedRouteRepository.findById(runId);
+        if (confirmedRoute.isEmpty() || confirmedRoute.get().getCurrentVersionId() == null) {
+            return;
+        }
+        Long routeVersionId = confirmedRoute.get().getCurrentVersionId();
+        Optional<RunStop> myStop = runStopRepository.findByRouteVersionIdAndStopId(routeVersionId, stopId);
+        if (myStop.isEmpty()) {
+            return;
+        }
+        if (myStop.get().getDepartedAt() != null) {
+            throw new BusinessException(ErrorCode.STOP_ALREADY_DEPARTED);
         }
     }
 

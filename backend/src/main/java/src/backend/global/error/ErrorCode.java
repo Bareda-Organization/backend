@@ -251,6 +251,12 @@ public enum ErrorCode {
     // 미존재 탑승자, 또는 absent 로 명단에서 이미 제외된 탑승자 지정(API_SPEC §4.6·§4.7) — 둘을
     // 응답에서 구별하지 않는다(WAYPOINT_NOT_FOUND 와 같은 형태).
     RIDER_NOT_FOUND(HttpStatus.NOT_FOUND, "탑승자를 찾을 수 없습니다"),
+    // 승하차지를 이미 떠난 뒤의 되돌리기 시도(API_SPEC §4.7, Ruling 305) — 뒤 순번 승하차지가
+    // 하나라도 도착 처리(arrived_at IS NOT NULL)됐으면 앞 승하차지는 반드시 떠난 뒤다. 409 인
+    // 이유는 RUN_ALREADY_STARTED 와 같다(권한이 아니라 대상 자원의 상태가 막는다) — 횟수·시간
+    // 제한(REVERT_WINDOW_CLOSED 류 이름)이 아니라 "이미 지나간 상태" 하나로 결정되므로 상태를
+    // 가리키는 이름을 쓴다.
+    STOP_ALREADY_DEPARTED(HttpStatus.CONFLICT, "이미 승하차지를 떠나 되돌릴 수 없습니다"),
     // ── 조회 · 명단(Phase 9) ─────────────────────────────────────────────────────
     // 매니저 앱의 명단·경로 조회(§4.2·§4.3)는 확정 전(idle) 회차를 대상 밖으로 둔다 — 명단·경로가
     // run_stop·run_rider 확정 시점에야 채워지므로, idle 상태에서 열면 빈 배열이 "아직 없다" 인지

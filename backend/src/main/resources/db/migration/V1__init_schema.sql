@@ -467,6 +467,7 @@ CREATE TABLE run_stop (
     change           varchar(10),
     skip_notice      varchar(200),
     arrived_at       timestamptz,
+    departed_at      timestamptz,
     eta              timestamptz,
     CONSTRAINT uk_run_stop_version_seq UNIQUE (route_version_id, seq),
     CONSTRAINT fk_run_stop_route_version FOREIGN KEY (route_version_id) REFERENCES route_version (id) ON DELETE CASCADE,
