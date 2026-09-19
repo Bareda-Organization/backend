@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 
@@ -286,20 +287,85 @@ class AdminMonitoringControllerTest extends RedisTestContainerBase {
                 .andExpect(jsonPath("$.data.runs[0].stops[0].eta").doesNotExist());
     }
 
-    /** {@code moving} 이 아닌 회차는 관제 목록에 나오지 않는다(목표 8 — moving 필터). */
+    /**
+     * 오늘 회차는 <b>상태와 무관하게 전부</b> 나온다(R16 목표 1, Ruling 315) — 관제 화면이 버스별
+     * 상태 목록을 그리려면 {@code moving} 만으로는 성립하지 않는다. 이 시험이 R15 까지의
+     * {@code moving} 전용 계약을 대체한다.
+     */
     @Test
-    void 운행중이_아닌_회차는_목록에_나오지_않는다() throws Exception {
+    void 오늘_회차는_상태와_무관하게_전부_나온다() throws Exception {
         AdminMonitoringFixtures f = fixtures();
         long academyId = f.academy();
         long busId = f.bus(academyId);
         OffsetDateTime departTime = now().plusMinutes(20);
+
+        f.idleRun(academyId, busId, Direction.TO_ACADEMY, departTime.plusMinutes(10));
         f.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
+        f.movingRun(academyId, busId, Direction.TO_ACADEMY, departTime.minusMinutes(20),
+                departTime.minusMinutes(50), departTime.minusMinutes(20), 30);
+        f.finishedRun(academyId, busId, Direction.FROM_ACADEMY, departTime.minusMinutes(90),
+                departTime.minusMinutes(120), departTime.minusMinutes(90), departTime.minusMinutes(40));
 
         long adminAccountId = f.systemAdminAccount("메인관리자");
 
         mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 메인관리자_토큰(adminAccountId)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.runs").isEmpty());
+                .andExpect(jsonPath("$.data.runs.length()").value(4))
+                // depart_time 오름차순(목표 5) — finished(-90) · moving(-20) · confirmed(0) · idle(+10)
+                .andExpect(jsonPath("$.data.runs[0].run_status").value("finished"))
+                .andExpect(jsonPath("$.data.runs[1].run_status").value("moving"))
+                .andExpect(jsonPath("$.data.runs[2].run_status").value("confirmed"))
+                .andExpect(jsonPath("$.data.runs[3].run_status").value("idle"));
+    }
+
+    /**
+     * 다른 날짜 회차는 나오지 않는다(R16 목표 2) — R15 까지 이 엔드포인트는 <b>날짜로 좁히지
+     * 않았고</b>({@code findAllByAcademyIdAndStatus...}), {@code moving} 이 사실상 오늘 것뿐이라
+     * 드러나지 않았다. 상태 조건을 빼는 순간 과거 회차 전부가 딸려 오므로 단독으로 못박는다.
+     */
+    @Test
+    void 다른_날짜_회차는_목록에_나오지_않는다() throws Exception {
+        AdminMonitoringFixtures f = fixtures();
+        long academyId = f.academy();
+        long busId = f.bus(academyId);
+        OffsetDateTime departTime = now().plusMinutes(20);
+
+        f.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
+        f.confirmedRunOn(academyId, busId, Direction.TO_ACADEMY, departTime.minusDays(1),
+                departTime.minusDays(1).minusMinutes(30), LocalDate.of(2030, 3, 31));
+        f.confirmedRunOn(academyId, busId, Direction.TO_ACADEMY, departTime.plusDays(1),
+                departTime.plusDays(1).minusMinutes(30), LocalDate.of(2030, 4, 2));
+
+        long adminAccountId = f.systemAdminAccount("메인관리자");
+
+        mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 메인관리자_토큰(adminAccountId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.runs.length()").value(1))
+                .andExpect(jsonPath("$.data.runs[0].run_status").value("confirmed"));
+    }
+
+    /**
+     * 운행 전 회차는 관제용 필드가 규칙대로 빈다(R16 목표 4) — 노선 확정 전이라 정차지가 없고,
+     * 시작 전이라 실제 출발 시각·위치가 없다. <b>키는 존재하되 값이 비는 것</b>이 계약이다.
+     */
+    @Test
+    void 대기중_회차는_정차지가_비고_위치와_실제출발시각도_없다() throws Exception {
+        AdminMonitoringFixtures f = fixtures();
+        long academyId = f.academy();
+        long busId = f.bus(academyId);
+        OffsetDateTime departTime = now().plusMinutes(20);
+        f.idleRun(academyId, busId, Direction.TO_ACADEMY, departTime);
+
+        long adminAccountId = f.systemAdminAccount("메인관리자");
+
+        mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 메인관리자_토큰(adminAccountId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.runs.length()").value(1))
+                .andExpect(jsonPath("$.data.runs[0].run_status").value("idle"))
+                .andExpect(jsonPath("$.data.runs[0].stops").isEmpty())
+                .andExpect(jsonPath("$.data.runs[0].position").doesNotExist())
+                .andExpect(jsonPath("$.data.runs[0].est_depart_time").doesNotExist())
+                .andExpect(jsonPath("$.data.runs[0].depart_time").exists());
     }
 
     /** 메인 관리자는 어느 학원이든 조회할 수 있다 + 지정 학원의 회차만 나온다(목표 9). */

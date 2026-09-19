@@ -58,6 +58,13 @@ public class AdminMonitoringFixtures {
 
     private static final AtomicInteger SEQUENCE = new AtomicInteger();
 
+    /**
+     * 이 보조 클래스가 만드는 회차의 서비스 날짜 — 시험의 고정 시계
+     * ({@code AdminMonitoringControllerTest.FixedClockConfig}, 2030-04-01 12:00 KST)와 같은 날이어야
+     * 한다. {@code §6.8} 이 <b>오늘</b>로 좁혀 조회하므로(R16 목표 2), 어긋나면 모든 회차가 사라진다.
+     */
+    private static final LocalDate SERVICE_DATE = LocalDate.of(2030, 4, 1);
+
     private final AcademyRepository academyRepository;
 
     private final AcademyStaffRepository academyStaffRepository;
@@ -139,7 +146,7 @@ public class AdminMonitoringFixtures {
     /** {@code moving} 상태 회차 1건 — {@code confirmIfIdle} 로 확정한 뒤 {@code run.start} 로 전이한다. */
     public long movingRun(long academyId, long busId, Direction direction, OffsetDateTime departTime,
             OffsetDateTime confirmedAt, OffsetDateTime startedAt, Integer estDurationMin) {
-        Run run = Run.forSchedule(academyId, busId, null, LocalDate.of(2030, 4, 1), direction, departTime,
+        Run run = Run.forSchedule(academyId, busId, null, SERVICE_DATE, direction, departTime,
                 departTime.minusMinutes(30), "출발지", "도착지", estDurationMin);
         long runId = runRepository.save(run).getId();
         runRepository.confirmIfIdle(runId, confirmedAt);
@@ -149,13 +156,40 @@ public class AdminMonitoringFixtures {
         return runId;
     }
 
-    /** {@code confirmed}(운행 전) 상태로 남겨 두는 회차 — {@code moving} 필터 시험의 대조군. */
+    /** {@code confirmed}(운행 전) 상태로 남겨 두는 회차 — 상태 목록 시험의 대조군. */
     public long confirmedRun(long academyId, long busId, Direction direction, OffsetDateTime departTime,
             OffsetDateTime confirmedAt) {
-        Run run = Run.forSchedule(academyId, busId, null, LocalDate.of(2030, 4, 1), direction, departTime,
+        return confirmedRunOn(academyId, busId, direction, departTime, confirmedAt, SERVICE_DATE);
+    }
+
+    /**
+     * 서비스 날짜를 지정하는 {@link #confirmedRun} — <b>날짜 범위 시험 전용</b>이다(R16 목표 2).
+     * 다른 보조 메서드가 {@link #SERVICE_DATE} 하나로 고정돼 있어, 날짜로 좁히는 조회를 검사하려면
+     * 다른 날짜의 회차를 만들 수단이 필요하다.
+     */
+    public long confirmedRunOn(long academyId, long busId, Direction direction, OffsetDateTime departTime,
+            OffsetDateTime confirmedAt, LocalDate serviceDate) {
+        Run run = Run.forSchedule(academyId, busId, null, serviceDate, direction, departTime,
                 departTime.minusMinutes(30), "출발지", "도착지", null);
         long runId = runRepository.save(run).getId();
         runRepository.confirmIfIdle(runId, confirmedAt);
+        return runId;
+    }
+
+    /** {@code idle}(확정 전) 상태로 남겨 두는 회차 — 노선도 위치도 없는 가장 이른 단계(R16 목표 4). */
+    public long idleRun(long academyId, long busId, Direction direction, OffsetDateTime departTime) {
+        Run run = Run.forSchedule(academyId, busId, null, SERVICE_DATE, direction, departTime,
+                departTime.minusMinutes(30), "출발지", "도착지", null);
+        return runRepository.save(run).getId();
+    }
+
+    /** {@code finished}(운행 종료) 회차 — 관제 목록에 계속 남아야 한다(Ruling 310 사용자 확정). */
+    public long finishedRun(long academyId, long busId, Direction direction, OffsetDateTime departTime,
+            OffsetDateTime confirmedAt, OffsetDateTime startedAt, OffsetDateTime finishedAt) {
+        long runId = movingRun(academyId, busId, direction, departTime, confirmedAt, startedAt, 30);
+        Run moving = runRepository.findById(runId).orElseThrow();
+        moving.finish(finishedAt);
+        runRepository.save(moving);
         return runId;
     }
 

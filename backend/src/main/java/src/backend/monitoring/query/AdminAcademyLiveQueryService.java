@@ -1,5 +1,7 @@
 package src.backend.monitoring.query;
 
+import java.time.Clock;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Locale;
@@ -25,7 +27,6 @@ import src.backend.routing.entity.RunStop;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.entity.Run;
-import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.entity.Stop;
 import src.backend.student.repository.StopRepository;
@@ -61,28 +62,47 @@ public class AdminAcademyLiveQueryService {
 
     private final RunLiveStateResolver runLiveStateResolver;
 
+    private final Clock clock;
+
+    /**
+     * 그 학원의 <b>오늘 회차 전부</b>를 상태와 무관하게 돌려준다(R16 목표 1·2, Ruling 315) —
+     * {@code idle}·{@code confirmed}·{@code moving}·{@code finished} 4종이 모두 담긴다. 관제 화면이
+     * 버스별 상태 목록을 그리려면 {@code moving} 만으로는 성립하지 않고, <b>운행이 끝난 차량도 목록에
+     * 남아야 한다</b>(Ruling 310 사용자 확정).
+     *
+     * <p>⚠ <b>날짜로 좁히는 것이 이 조회의 필수 조건이다.</b> R15 까지는
+     * {@code findAllByAcademyIdAndStatus...} 로 <b>상태만</b> 걸러 날짜 조건이 아예 없었다 —
+     * {@code moving} 이 사실상 오늘 것뿐이라 드러나지 않았을 뿐이고, 상태 조건을 빼는 순간 과거
+     * 회차 전부가 딸려 온다. {@code §5.18}({@code StaffRunLiveQueryService})이 쓰는 것과 같은 조회
+     * 메서드를 그대로 재사용한다.
+     *
+     * <p>운행 전 회차는 관제용 필드가 비어서 나간다 — 노선 확정 전이라 {@code stops} 가 빈 배열
+     * ({@link #orderedStopsOf} 가 확정 노선 부재 시 {@code List.of()}), 시작 전이라
+     * {@code est_depart_time}({@code run.startedAt})과 {@code position} 이 {@code null} 이다.
+     * <b>키는 존재하고 값만 빈다.</b>
+     */
     public AdminAcademyLiveResponse live(Long academyId) {
         if (!academyRepository.existsById(academyId)) {
             throw new BusinessException(ErrorCode.ACADEMY_NOT_FOUND);
         }
 
-        List<Run> movingRuns = runRepository.findAllByAcademyIdAndStatusOrderByDepartTimeAsc(academyId,
-                RunStatus.MOVING);
-        if (movingRuns.isEmpty()) {
+        List<Run> todayRuns = runRepository.findAllByAcademyIdAndServiceDateOrderByDepartTimeAsc(academyId,
+                LocalDate.now(clock));
+        if (todayRuns.isEmpty()) {
             return new AdminAcademyLiveResponse(List.of());
         }
 
         Map<Long, String> busNoByBusId = busRepository
-                .findAllByAcademyIdAndIdIn(academyId, movingRuns.stream().map(Run::getBusId).distinct().toList())
+                .findAllByAcademyIdAndIdIn(academyId, todayRuns.stream().map(Run::getBusId).distinct().toList())
                 .stream()
                 .collect(Collectors.toMap(Bus::getId, Bus::getBusNo));
 
-        List<Long> runIds = movingRuns.stream().map(Run::getId).toList();
+        List<Long> runIds = todayRuns.stream().map(Run::getId).toList();
         Map<Long, List<AssignedManagerContactView>> contactsByRunId = assignmentRepository
                 .findAssignedManagerContacts(academyId, runIds).stream()
                 .collect(Collectors.groupingBy(AssignedManagerContactView::runId));
 
-        List<AdminAcademyLiveResponse.Run> runs = movingRuns.stream()
+        List<AdminAcademyLiveResponse.Run> runs = todayRuns.stream()
                 .map(run -> toRun(run, busNoByBusId.get(run.getBusId()), contactsByRunId.getOrDefault(run.getId(),
                         List.of())))
                 .toList();

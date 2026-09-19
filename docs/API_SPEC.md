@@ -2045,12 +2045,20 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 **권한** 메인 관리자
 
+⭐ **그 학원의 *오늘* 회차를 상태와 무관하게 전부 돌려준다** (2026-09-19 개정, `Ruling 315`).
+`idle` · `confirmed` · `moving` · `finished` 4종이 모두 담기며 **운행이 끝난 차량도 목록에 남는다**
+(`Ruling 310` 사용자 확정 — 관제 화면의 버스 상태 목록이 이 응답 하나로 그려진다).
+
+- ⚠ **날짜는 *오늘* 로 고정이다** — 질의 파라미터가 부재하다. 과거 조회가 필요하면 `§5.10` 을 쓴다
+- **옛 판(~R15)은 `moving` 만 돌려줬다.** 그때는 날짜 조건조차 없었고, `moving` 이 사실상 오늘
+  것뿐이라 드러나지 않았다(`§8.25` 에 기록)
+
 **응답** — `runs[]`
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|:-:|---|
 | `run_id` · `bus_no` · `direction` | — | ● | |
-| `run_status` | enum | ● | `moving` 회차가 관제 대상 |
+| `run_status` | enum | ● | `idle` · `confirmed` · `moving` · `finished` (§9.3). **4종 전부 나온다** |
 | `position` | object | ○ | `lat` · `lng` · `received_at` |
 | `last_seen_at` | datetime | ○ | 마지막 위치 수신 시각. **마지막 수신 후 2분 초과(유실)면 `position` 을 비우고 이 값만 채운다** — `FEATURE_SPEC §4.16` A-14 live 스냅샷 규칙, `API_SPEC §5.18` 과 같은 기준값(Ruling 250, 2026-09-04 정정 — 이전 판은 이 행이 없어 관리자 응답만 유실 규칙이 빠져 있었다) |
 | `depart_time` | datetime | ● | 출발 시각 |
@@ -2081,6 +2089,15 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
   ]
 }
 ```
+
+**운행 전·종료 회차에서 비는 필드** — **키는 존재하고 값만 빈다**(`null` 도 직렬화한다).
+
+| 상태 | `stops[]` | `position` | `est_depart_time` | `destination_eta` |
+|---|---|---|---|---|
+| `idle` | **빈 배열** (노선 확정 전) | `null` | `null` (미시작) | `null` (소요시간 미산출) |
+| `confirmed` | 채워짐 · `arrived_at` 전부 `null` | `null` | `null` (미시작) | 값 있음 |
+| `moving` | 채워짐 | 신선하면 값, 유실이면 `null` | 값 있음 | 값 있음 |
+| `finished` | 채워짐 · `arrived_at` 있음 | 대개 `null`(신호 종료) | 값 있음 | 값 있음 |
 
 **ETA 는 관제 전용** — 학부모·학생 앱 비노출(C-08)과 별개 축.
 
