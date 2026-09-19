@@ -215,16 +215,20 @@ VALUES
     (7, 1, 15, 'driver', '차단기사', '010-5000-0099', NULL, now(), now());
 
 -- 정기 배차: 오늘 요일 기준으로 버스별 등원·하원 각 1건씩(SCH-01) — dow(0=일)를 mon~sun 배열로 변환.
+-- ⚠ `est_duration_min`(계획 소요시간)은 R21-B2 가 "예정 도착"(= 예정 출발 + 소요)을 계산하는
+-- 근거다. 비워 두면 화면의 예정 도착이 전부 `-` 로 나온다(2026-09-19 조율자 눈 확인).
+-- `route_version.est_duration_min`(확정 노선의 실측 소요)과는 다른 값이다 — 이쪽은 **계획값**이라
+-- 확정 전 회차에도 있어야 한다.
 INSERT INTO schedule (id, academy_id, bus_id, weekday, direction, depart_time, origin_name,
-                       destination_name, active, created_at, updated_at)
+                       destination_name, est_duration_min, active, created_at, updated_at)
 OVERRIDING SYSTEM VALUE
 VALUES
-    (1, 1, 1, (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from now())::int + 1], 'to_academy', TIME '08:00', '중앙 집결지', '바래다학원 A', true, now(), now()),
-    (2, 1, 1, (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from now())::int + 1], 'from_academy', TIME '16:00', '바래다학원 A', '중앙 집결지', true, now(), now()),
-    (3, 1, 2, (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from now())::int + 1], 'to_academy', TIME '08:10', '중앙 집결지', '바래다학원 A', true, now(), now()),
-    (4, 1, 2, (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from now())::int + 1], 'from_academy', TIME '16:10', '바래다학원 A', '중앙 집결지', true, now(), now()),
-    (5, 2, 3, (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from now())::int + 1], 'to_academy', TIME '08:20', 'B 집결지', '바래다학원 B', true, now(), now()),
-    (6, 2, 3, (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from now())::int + 1], 'from_academy', TIME '16:20', '바래다학원 B', 'B 집결지', true, now(), now());
+    (1, 1, 1, (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from now())::int + 1], 'to_academy', TIME '08:00', '중앙 집결지', '바래다학원 A', 30, true, now(), now()),
+    (2, 1, 1, (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from now())::int + 1], 'from_academy', TIME '16:00', '바래다학원 A', '중앙 집결지', 30, true, now(), now()),
+    (3, 1, 2, (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from now())::int + 1], 'to_academy', TIME '08:10', '중앙 집결지', '바래다학원 A', 45, true, now(), now()),
+    (4, 1, 2, (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from now())::int + 1], 'from_academy', TIME '16:10', '바래다학원 A', '중앙 집결지', 45, true, now(), now()),
+    (5, 2, 3, (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from now())::int + 1], 'to_academy', TIME '08:20', 'B 집결지', '바래다학원 B', 35, true, now(), now()),
+    (6, 2, 3, (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from now())::int + 1], 'from_academy', TIME '16:20', '바래다학원 B', 'B 집결지', 35, true, now(), now());
 
 -- 고정 노선 1개(1호차 등원) — Phase1 이 최소 확정하는 고정 노선(ROUTE-01).
 INSERT INTO route (id, academy_id, bus_id, weekday, direction, name, active, created_at, updated_at)
@@ -240,33 +244,38 @@ VALUES
 -- 회차 5건 — 3구간 전수: R1 idle(출발 3시간 전) · R2 confirmed(20분 전, 이미 확정 지남) ·
 -- R3 moving(10분 전 출발) · R4 finished(3시간 전 출발, 종료) · R5 confirmed(B 학원, 격리 검증용).
 -- confirm_at 은 반드시 depart_time - 30분이어야 하므로(ck_run_confirm_at) 같은 now() 식에서 유도한다.
+-- ⚠ `est_duration_min`(계획 소요시간) — 실제 흐름에서는 `RunGenerationService` 가 `schedule` 값을
+-- 그대로 옮긴다. 시드는 행을 직접 넣으므로 그 복사를 손으로 한다. 비워 두면 화면의 "예정 도착"이
+-- 전부 `-` 가 된다(2026-09-19 조율자 눈 확인). `route_version.est_duration_min`(확정 노선의 실측
+-- 소요)과는 다른 값이다 — 이쪽은 계획값이라 확정 전 회차에도 있어야 한다.
 INSERT INTO run (id, academy_id, bus_id, schedule_id, service_date, direction, depart_time, confirm_at,
-                  status, origin_name, destination_name, confirmed_at, started_at, finished_at, created_at, updated_at)
+                  status, origin_name, destination_name, est_duration_min, confirmed_at, started_at, finished_at,
+                  created_at, updated_at)
 OVERRIDING SYSTEM VALUE
 VALUES
     (1, 1, 1, 1, CURRENT_DATE, 'to_academy',
         now() + interval '3 hours', (now() + interval '3 hours') - interval '30 minutes',
-        'idle', '중앙 집결지', '바래다학원 A', NULL, NULL, NULL, now(), now()),
+        'idle', '중앙 집결지', '바래다학원 A', 30, NULL, NULL, NULL, now(), now()),
     (2, 1, 1, 2, CURRENT_DATE, 'from_academy',
         now() + interval '20 minutes', (now() + interval '20 minutes') - interval '30 minutes',
-        'confirmed', '바래다학원 A', '중앙 집결지', (now() + interval '20 minutes') - interval '30 minutes', NULL, NULL, now(), now()),
+        'confirmed', '바래다학원 A', '중앙 집결지', 30, (now() + interval '20 minutes') - interval '30 minutes', NULL, NULL, now(), now()),
     (3, 1, 2, 3, CURRENT_DATE, 'to_academy',
         now() - interval '10 minutes', (now() - interval '10 minutes') - interval '30 minutes',
-        'moving', '중앙 집결지', '바래다학원 A', (now() - interval '10 minutes') - interval '30 minutes', now() - interval '8 minutes', NULL, now(), now()),
+        'moving', '중앙 집결지', '바래다학원 A', 45, (now() - interval '10 minutes') - interval '30 minutes', now() - interval '8 minutes', NULL, now(), now()),
     (4, 1, 2, 4, CURRENT_DATE, 'from_academy',
         now() - interval '3 hours', (now() - interval '3 hours') - interval '30 minutes',
-        'finished', '바래다학원 A', '중앙 집결지', (now() - interval '3 hours') - interval '30 minutes',
+        'finished', '바래다학원 A', '중앙 집결지', 45, (now() - interval '3 hours') - interval '30 minutes',
         (now() - interval '3 hours') + interval '1 minute', (now() - interval '3 hours') + interval '40 minutes', now(), now()),
     (5, 2, 3, 5, CURRENT_DATE, 'to_academy',
         now() + interval '25 minutes', (now() + interval '25 minutes') - interval '30 minutes',
-        'confirmed', 'B 집결지', '바래다학원 B', (now() + interval '25 minutes') - interval '30 minutes', NULL, NULL, now(), now()),
+        'confirmed', 'B 집결지', '바래다학원 B', 35, (now() + interval '25 minutes') - interval '30 minutes', NULL, NULL, now(), now()),
     -- R6 idle(출발 4시간 전) — ①구간(30분 전보다 훨씬 앞) 전용 시나리오(§5.7 강제 추가) 검증용.
     -- 기존 R1도 출발 3시간 전이라 ①구간이지만, §5.7 호출이 R1의 상태(다른 목표의 대조 대상)에
     -- 곁다리 부수효과를 남기지 않도록 전용 회차를 따로 둔다. R1과 같은 학원·버스·방향이라
     -- 같은 고정 노선(route id=1)이 매칭되고 정원 판정도 동일하게 통과한다.
     (6, 1, 1, 1, CURRENT_DATE, 'to_academy',
         now() + interval '4 hours', (now() + interval '4 hours') - interval '30 minutes',
-        'idle', '중앙 집결지', '바래다학원 A', NULL, NULL, NULL, now(), now()),
+        'idle', '중앙 집결지', '바래다학원 A', 30, NULL, NULL, NULL, now(), now()),
     -- R7 confirmed(내일 날짜) — "자정 직후에도 confirmed 회차가 있다"(BE-R1 SEED 목표 10) 전용.
     -- R1~R6 는 service_date 가 CURRENT_DATE(시드 적용일)로 고정돼, local 프로파일이 재기동 없이
     -- 자정을 넘기면 "오늘" 조회(`ManagerRunQueryService.list` 의 LocalDate.now(clock) 비교)에서
@@ -276,7 +285,7 @@ VALUES
     (7, 1, 1, NULL, CURRENT_DATE + 1, 'from_academy',
         now() + interval '1 day' + interval '20 minutes',
         (now() + interval '1 day' + interval '20 minutes') - interval '30 minutes',
-        'confirmed', '바래다학원 A', '중앙 집결지',
+        'confirmed', '바래다학원 A', '중앙 집결지', 30,
         (now() + interval '1 day' + interval '20 minutes') - interval '30 minutes', NULL, NULL, now(), now()),
     -- R8 confirmed(2시간 후 출발) — R14-T3 배정: 경유지 계약 검사 2건(addRunWaypoint·removeRunWaypoint,
     -- RTE-10, §5.15) 전용 재료. 기존 confirmed 회차(R2·R3·R5·R7)는 이미 다른 계약 검사의 지문
@@ -286,7 +295,7 @@ VALUES
     -- 켜 둬도 CHANGE_WINDOW_CLOSED(운행 시작 후) 로 넘어가지 않게 한다(R7 과 같은 판단).
     (8, 1, 1, 1, CURRENT_DATE, 'to_academy',
         now() + interval '2 hours', (now() + interval '2 hours') - interval '30 minutes',
-        'confirmed', '중앙 집결지', '바래다학원 A', (now() + interval '2 hours') - interval '30 minutes', NULL, NULL, now(), now());
+        'confirmed', '중앙 집결지', '바래다학원 A', 30, (now() + interval '2 hours') - interval '30 minutes', NULL, NULL, now(), now());
 
 -- 강제 경유지 1건(R3, moving 중 반영) — MGR-04 시연.
 INSERT INTO waypoint (id, run_id, label, lat, lng, applied, created_by, created_at)
