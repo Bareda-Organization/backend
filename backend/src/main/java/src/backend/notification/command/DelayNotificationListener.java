@@ -15,6 +15,8 @@ import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.notification.entity.NotificationType;
 import src.backend.run.event.DelayNoticeRecipient;
 import src.backend.run.event.DelayRequestedEvent;
+import src.backend.student.entity.Student;
+import src.backend.student.repository.StudentRepository;
 
 /**
  * {@link DelayRequestedEvent} 를 구독해 관계자·학부모·학생 3집합을 아웃박스에 적재한다(NTF-06,
@@ -37,6 +39,8 @@ public class DelayNotificationListener {
 
     private final NotificationComposer<DelaySubject> delayComposer;
 
+    private final StudentRepository studentRepository;
+
     @EventListener
     public void appendDelayNotice(DelayRequestedEvent event) {
         NotificationMessage message = delayComposer
@@ -49,10 +53,26 @@ public class DelayNotificationListener {
     private void append(DelayRequestedEvent event, List<DelayNoticeRecipient> recipients, Role role,
             NotificationMessage message) {
         for (DelayNoticeRecipient recipient : recipients) {
+            Student student = studentOf(role, recipient);
             notificationOutbox.append(new NotificationDraft(event.academyId(), recipient.accountId(),
                     recipient.name(), role, NotificationType.DELAY, message.title(), message.body(),
-                    dedupKey(event.runId(), recipient.dedupTargetId(), event.sentAt())));
+                    dedupKey(event.runId(), recipient.dedupTargetId(), event.sentAt()),
+                    student != null ? student.getId() : null, student != null ? student.getName() : null, null));
         }
+    }
+
+    /**
+     * 대상 자녀를 역할별로 가른다 — 관계자는 회차 전체(다수 학생)를 알리므로 특정 자녀가 없다
+     * ({@code delay} 관계자 수신은 "회차 전체" 이지 개별 학생이 아니다, API_SPEC §9.7).
+     * 학부모는 {@link DelayNoticeRecipient#dedupTargetId} 가 이미 studentId 다(자바독). 학생은 본인이
+     * 대상이라 {@code accountId} 로 자신의 학생 행을 역조회한다.
+     */
+    private Student studentOf(Role role, DelayNoticeRecipient recipient) {
+        return switch (role) {
+            case PARENT -> studentRepository.findById(recipient.dedupTargetId()).orElse(null);
+            case STUDENT -> studentRepository.findByAccountId(recipient.accountId()).orElse(null);
+            default -> null;
+        };
     }
 
     private String dedupKey(Long runId, Long targetId, OffsetDateTime sentAt) {

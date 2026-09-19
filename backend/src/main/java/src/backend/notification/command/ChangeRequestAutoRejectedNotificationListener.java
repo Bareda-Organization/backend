@@ -11,6 +11,8 @@ import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.notification.entity.NotificationType;
 import src.backend.request.event.ChangeRequestAutoRejectedEvent;
+import src.backend.student.entity.Student;
+import src.backend.student.repository.StudentRepository;
 
 /**
  * 변경 요청 자동 거절을 {@code change_decided} 알림으로 옮기는 구독자(API_SPEC §1.6·§9.7 — 수신자는
@@ -42,6 +44,8 @@ public class ChangeRequestAutoRejectedNotificationListener {
 
     private final NotificationComposer<ChangeRequestAutoRejectedEvent> changeAutoRejectedComposer;
 
+    private final StudentRepository studentRepository;
+
     /**
      * 신청 학부모 앞으로 발송 대기 행을 적재한다.
      *
@@ -57,8 +61,10 @@ public class ChangeRequestAutoRejectedNotificationListener {
         }
 
         NotificationMessage message = changeAutoRejectedComposer.compose(event);
+        String studentName = studentRepository.findById(event.studentId()).map(Student::getName).orElse(null);
         notificationOutbox.append(new NotificationDraft(event.academyId(), requester.getId(), requester.getName(),
                 requester.getRole(), NotificationType.CHANGE_DECIDED, message.title(), message.body(),
-                DEDUP_KEY_FORMAT.formatted(event.runId(), event.studentId(), event.decidedAt())));
+                DEDUP_KEY_FORMAT.formatted(event.runId(), event.studentId(), event.decidedAt()),
+                event.studentId(), studentName, null));
     }
 }

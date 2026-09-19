@@ -14,6 +14,8 @@ import src.backend.global.common.enums.Role;
 import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.notification.entity.NotificationType;
+import src.backend.student.entity.Student;
+import src.backend.student.repository.StudentRepository;
 
 /**
  * 미승차 에스컬레이션 알림(목표 1, API_SPEC §4.8) 적재 — {@link BoardingNotificationListener} 와
@@ -39,6 +41,7 @@ public class NoShowEscalationNotificationListener {
     private static final String DEDUP_KEY_FORMAT = "no_show_escalated:%d:%d:%s";
 
     private final AcademyStaffRepository academyStaffRepository;
+    private final StudentRepository studentRepository;
     private final NotificationOutbox notificationOutbox;
     private final NotificationComposer<NoShowEscalatedEvent> noShowEscalatedStaffComposer;
 
@@ -50,10 +53,12 @@ public class NoShowEscalationNotificationListener {
             return;
         }
         NotificationMessage message = noShowEscalatedStaffComposer.compose(event);
+        String studentName = studentRepository.findById(event.studentId()).map(Student::getName).orElse(null);
         for (AcademyStaffAccountView recipient : staff) {
             notificationOutbox.append(new NotificationDraft(event.academyId(), recipient.accountId(),
                     recipient.name(), Role.STAFF, NotificationType.NO_SHOW_ESCALATED, message.title(), message.body(),
-                    DEDUP_KEY_FORMAT.formatted(event.caseId(), recipient.accountId(), event.escalatedAt())));
+                    DEDUP_KEY_FORMAT.formatted(event.caseId(), recipient.accountId(), event.escalatedAt()),
+                    event.studentId(), studentName, null));
         }
     }
 }

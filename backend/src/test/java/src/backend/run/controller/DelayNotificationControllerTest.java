@@ -215,6 +215,30 @@ class DelayNotificationControllerTest {
         assertThat(학생_알림수(runId, studentId))
                 .as("응답의 notified_students 는 true 인데, 리스너가 append 를 건너뛰면 이 행은 안 생긴다")
                 .isEqualTo(1);
+        assertThat(학부모_알림수(runId, studentId)).as("학부모도 받아야 한다").isEqualTo(1);
+
+        // R13 — 학부모·학생 갈래는 studentId·studentName 을 채우고, 관계자 갈래는 회차 전체(다수 학생)를
+        // 가리키므로 null 로 남는다(§8.16 목표 3·5).
+        Long guardianLegStudentId = jdbcTemplate.queryForObject(
+                "SELECT student_id FROM notification_log WHERE type = 'delay' AND recipient_role = 'parent' "
+                        + "AND dedup_key LIKE ?",
+                Long.class, "delay:" + runId + ":" + studentId + ":%");
+        assertThat(guardianLegStudentId).as("학부모 갈래의 student_id 가 채워진다").isEqualTo(studentId);
+
+        Long studentAccountId = jdbcTemplate.queryForObject("SELECT account_id FROM student WHERE id = ?",
+                Long.class, studentId);
+        Long studentLegStudentId = jdbcTemplate.queryForObject(
+                "SELECT student_id FROM notification_log WHERE type = 'delay' AND recipient_role = 'student' "
+                        + "AND dedup_key LIKE ?",
+                Long.class, "delay:" + runId + ":" + studentAccountId + ":%");
+        assertThat(studentLegStudentId).as("학생 갈래의 student_id 가 본인 studentId 와 일치한다")
+                .isEqualTo(studentId);
+
+        Long staffLegStudentId = jdbcTemplate.queryForObject(
+                "SELECT student_id FROM notification_log WHERE type = 'delay' AND recipient_role = 'staff' "
+                        + "AND dedup_key LIKE ?",
+                Long.class, "delay:" + runId + ":" + staffAccountId + ":%");
+        assertThat(staffLegStudentId).as("관계자 갈래는 회차 전체를 알리므로 student_id 가 null 로 남는다").isNull();
     }
 
     @Test

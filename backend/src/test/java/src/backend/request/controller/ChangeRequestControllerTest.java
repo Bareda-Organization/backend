@@ -248,15 +248,24 @@ class ChangeRequestControllerTest {
                 .andExpect(jsonPath("$.data.deadline_at").isNotEmpty());
         entityManager.flush();
 
-        // notification_log 는 run_id·student_id 컬럼을 두지만 현재 어떤 리스너도 채우지 않는다
-        // (NotificationDraft·NotificationLog.forOutbox 어디에도 그 두 인자가 없다 — 이 기능 하나의
-        // 결함이 아니라 알림 모듈 전체의 기존 상태라 이 태스크 범위에서 고치지 않는다). 그래서
         // dedup_key 에 박힌 run_id 로 이 신청이 만든 행인지 가린다(리스너의 DEDUP_KEY_FORMAT).
         Integer notified = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM notification_log WHERE academy_id = ? AND type = 'approval_requested' "
                         + "AND dedup_key LIKE ?",
                 Integer.class, academyId, "approval_requested:" + runId + ":%");
         assertThat(notified).as("관계자에게 승인 요청 알림이 적재돼야 한다").isEqualTo(1);
+
+        // R13 — ApprovalRequestedEvent 는 studentId 를 들고 있는 단일 학생 이벤트다(§8.16 목표 3).
+        Long notifiedStudentId = jdbcTemplate.queryForObject(
+                "SELECT student_id FROM notification_log WHERE academy_id = ? AND type = 'approval_requested' "
+                        + "AND dedup_key LIKE ?",
+                Long.class, academyId, "approval_requested:" + runId + ":%");
+        assertThat(notifiedStudentId).as("student_id 가 채워진다").isEqualTo(studentId);
+        String notifiedStudentName = jdbcTemplate.queryForObject(
+                "SELECT student_name FROM notification_log WHERE academy_id = ? AND type = 'approval_requested' "
+                        + "AND dedup_key LIKE ?",
+                String.class, academyId, "approval_requested:" + runId + ":%");
+        assertThat(notifiedStudentName).as("student_name 이 채워진다").isEqualTo("학생1");
     }
 
     // ── 목표 9 — ③구간은 타입을 가리지 않는다 ──────────────────────────────────────────

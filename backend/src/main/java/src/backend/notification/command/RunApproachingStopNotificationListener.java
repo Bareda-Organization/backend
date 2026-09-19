@@ -59,6 +59,7 @@ public class RunApproachingStopNotificationListener {
         NotificationMessage message = runApproachingStopComposer.compose(event);
         notificationOutbox.append(new NotificationDraft(event.academyId(), firstGuardian.getAccountId(),
                 firstGuardian.getName(), Role.PARENT, NotificationType.ARRIVE, message.title(), message.body(),
-                DEDUP_KEY_FORMAT.formatted(event.runId(), event.stopId(), event.studentId())));
+                DEDUP_KEY_FORMAT.formatted(event.runId(), event.stopId(), event.studentId()),
+                event.studentId(), firstGuardian.getStudentName(), null));
     }
 }

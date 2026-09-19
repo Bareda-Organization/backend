@@ -141,10 +141,14 @@ class ProximityNotificationServiceTest extends RedisTestContainerBase {
 
         String dedupKey = "approaching:%d:%d:%d".formatted(runId, stopId, studentId);
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "SELECT type FROM notification_log WHERE dedup_key = ?", dedupKey);
+                "SELECT type, student_id, student_name FROM notification_log WHERE dedup_key = ?", dedupKey);
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).get("type")).isEqualTo("arrive");
         assertThat(proximityNotifiedAt(runStopId)).isNotNull();
+
+        // R13 — arrive 는 studentId 를 들고 있는 단일 학생 이벤트다(§8.16 목표 3).
+        assertThat(rows.get(0).get("student_id")).as("student_id 가 채워진다").isEqualTo(studentId);
+        assertThat(rows.get(0).get("student_name")).as("student_name 이 채워진다").isEqualTo("근접학생1");
     }
 
     @Test

@@ -7,6 +7,8 @@ import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.bus.entity.Bus;
+import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.manager.dto.AssignedManagerAccountView;
@@ -45,6 +47,8 @@ public class RunRouteConfirmedNotificationListener {
 
     private final AssignmentRepository assignmentRepository;
 
+    private final BusRepository busRepository;
+
     private final NotificationOutbox notificationOutbox;
 
     private final NotificationComposer<RunRouteConfirmedEvent> routeChangedComposer;
@@ -55,6 +59,9 @@ public class RunRouteConfirmedNotificationListener {
      * <p>배정이 없으면(기사가 아직 안 붙은 회차) 아무 것도 하지 않는다 — 오류가 아니다. 계정이
      * 연결되지 않은 매니저({@code accountId == null})도 건너뛴다 — {@code notification_log.
      * recipient_account_id} 가 {@code NOT NULL} 이라 그 행을 만들 수단이 없다.
+     *
+     * <p>{@code bus_no} 는 수신자 전원이 같은 차량을 가리키므로(그 회차에 배치된 기사·동승자) 순회
+     * 전에 한 번만 조회한다 — {@link RunRouteConfirmedEvent} 는 {@code busId} 만 나른다(R13).
      */
     @EventListener
     public void appendRouteChanged(RunRouteConfirmedEvent event) {
@@ -65,6 +72,9 @@ public class RunRouteConfirmedNotificationListener {
         }
 
         NotificationMessage message = routeChangedComposer.compose(event);
+        String busNo = busRepository.findByIdAndAcademyId(event.busId(), event.academyId())
+                .map(Bus::getBusNo)
+                .orElse(null);
         for (AssignedManagerAccountView assignee : assignees) {
             if (assignee.accountId() == null) {
                 continue;
@@ -72,7 +82,8 @@ public class RunRouteConfirmedNotificationListener {
             notificationOutbox.append(new NotificationDraft(event.academyId(), assignee.accountId(),
                     assignee.name(), roleOf(assignee.role()), NotificationType.ROUTE_CHANGED,
                     message.title(), message.body(),
-                    DEDUP_KEY_FORMAT.formatted(event.runId(), assignee.managerId(), event.confirmedAt())));
+                    DEDUP_KEY_FORMAT.formatted(event.runId(), assignee.managerId(), event.confirmedAt()),
+                    null, null, busNo));
         }
     }
 
