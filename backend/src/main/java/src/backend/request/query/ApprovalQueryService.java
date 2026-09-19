@@ -200,7 +200,8 @@ public class ApprovalQueryService {
 
         RoutePreviewResponse routePreview = RoutePreviewResponse.of(stopsBefore, stopsAfter,
                 routePreviewAssembler.reorderedOf(beforeSeq, afterSeq, stopsById),
-                routePreviewAssembler.removedOf(beforeSeq, afterSeq, stopsById));
+                routePreviewAssembler.removedOf(beforeSeq, afterSeq, stopsById),
+                routePreviewAssembler.roadPathOrEmpty(currentVersion.getRoadPath()), computation.roadPath());
 
         ApprovalCapacityResponse capacity = new ApprovalCapacityResponse(bus.getStudentCapacity(),
                 roster.studentIds().size());
@@ -210,8 +211,8 @@ public class ApprovalQueryService {
 
         return ApprovalDetailResponse.of(summary, routePreview, routePreviewAssembler.lastEtaOf(stopsBefore),
                 routePreviewAssembler.lastEtaOf(stopsAfter), currentVersion.getEstDistanceKm(),
-                computation.estDistanceKm(), affectedStudents, capacity, previewResult.preview().token(),
-                previewResult.stale());
+                computation.estDistanceKm(), currentVersion.getEstDurationMin(), computation.estDurationMin(),
+                affectedStudents, capacity, previewResult.preview().token(), previewResult.stale());
     }
 
     /**
@@ -236,7 +237,8 @@ public class ApprovalQueryService {
     private ApprovalDetailResponse decidedDetailOf(ApprovalSummaryResponse summary, List<RunRider> riders, Bus bus) {
         long assigned = riders.stream().filter(r -> r.getStatus() != RiderStatus.ABSENT).count();
         ApprovalCapacityResponse capacity = new ApprovalCapacityResponse(bus.getStudentCapacity(), (int) assigned);
-        return ApprovalDetailResponse.of(summary, null, null, null, null, null, List.of(), capacity, null, false);
+        return ApprovalDetailResponse.of(summary, null, null, null, null, null, null, null, List.of(), capacity,
+                null, false);
     }
 
     /** 요약 1건 — 목록(§5.5 목록)이 회차·명단을 매번 새로 읽어야 할 때 쓰는 얕은 진입점. */

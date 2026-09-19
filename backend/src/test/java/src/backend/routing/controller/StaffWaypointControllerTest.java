@@ -149,6 +149,47 @@ class StaffWaypointControllerTest {
         verify(routeChangedListener, times(0)).appendRouteChanged(any());
     }
 
+    /**
+     * `R18-C2` 목표 1·3 — §5.5 상세와 같은 이유로 §5.15 도 전/후 도로 좌표(지도용)와 노선 전체
+     * 소요(분)를 실제 값으로 낸다. 경유 지점을 추가하면 정차지가 3→4 로 늘어(위
+     * {@link #미리보기만_요청하면_확정_노선이_그대로다} 와 같은 시나리오) 도로 좌표열도 길어진다 —
+     * before·after 를 바꿔치기해도 "둘 다 비어 있지 않다"는 통과하므로, 길이 대조가 그 함정을 잡는다
+     * (`StaffApprovalControllerTest` 에서 §5.5 를 고치며 이미 한 번 밟은 함정).
+     */
+    @Test
+    void 미리보기_응답에도_전후_도로_좌표와_소요시간이_실제로_담긴다() throws Exception {
+        시나리오 s = 확정된_회차를_만든다();
+
+        MvcResult result = 경유_추가한다(s.runId, 경유_본문("새경유로 11", "임시 정류장2", false))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.route_preview.road_path_before",
+                        org.hamcrest.Matchers.not(org.hamcrest.Matchers.empty())))
+                .andExpect(jsonPath("$.data.route_preview.road_path_after",
+                        org.hamcrest.Matchers.not(org.hamcrest.Matchers.empty())))
+                .andExpect(jsonPath("$.data.est_duration_before", org.hamcrest.Matchers.greaterThan(0)))
+                .andExpect(jsonPath("$.data.est_duration_after", org.hamcrest.Matchers.greaterThan(0)))
+                .andReturn();
+
+        String body = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        int beforeSize = JsonPath.read(body, "$.data.route_preview.road_path_before.length()");
+        int afterSize = JsonPath.read(body, "$.data.route_preview.road_path_after.length()");
+        assertThat(afterSize).as("정차지가 늘었으니 후 구간 도로 좌표가 더 많아야 한다").isGreaterThan(beforeSize);
+
+        // 스텁 지도는 같은 입력에 언제나 같은 값을 낸다(StubMapRouteClientTest 확인) — 이 시나리오의
+        // 좌표·주소가 고정돼 있어 아래 두 값도 고정이다. 개수·부호만 보면 값이 서로 바뀌어도(swap)
+        // "둘 다 0보다 크다"는 통과하므로, 구체값으로 어느 쪽이 어느 값인지까지 고정해야 바뀌치기를 잡는다.
+        // 스텁 지도는 같은 입력에 언제나 같은 값을 낸다(StubMapRouteClientTest 확인) — 이 시나리오의
+        // 좌표·주소가 고정돼 있어 아래 두 값도 고정이다. "둘 다 0보다 크다"만 보면 두 값이 서로
+        // 바뀌어도(swap) 통과하므로, 구체값으로 어느 쪽이 어느 값인지까지 고정해야 바뀌치기를 잡는다.
+        // ⚠ 후(994분)가 전(21분)보다 훨씬 큰 것은 좌표 직접 지정이 아니라 주소 지오코딩(경유_본문의
+        // "새경유로 11")을 거쳐서다 — 스텁 지오코더가 실제 좌표와 멀리 떨어진 근사값을 준 것으로
+        // 보이며, 이 시나리오의 실제 지리적 타당성은 이 시험의 범위 밖이다(보고서 §2 참고).
+        int beforeDuration = JsonPath.read(body, "$.data.est_duration_before");
+        int afterDuration = JsonPath.read(body, "$.data.est_duration_after");
+        assertThat(beforeDuration).as("확정 배치가 저장한 값(전) — route_version.est_duration_min").isEqualTo(21);
+        assertThat(afterDuration).as("이 요청이 방금 계산한 값(후)").isEqualTo(994);
+    }
+
     /** {@code apply=true} 는 새 노선 버전을 배포하고(+1), {@code route_changed} 를 한 번 발행한다. */
     @Test
     void 배포하면_노선_버전이_올라가고_route_changed_가_발행된다() throws Exception {

@@ -266,6 +266,38 @@ class StaffApprovalControllerTest {
     }
 
     /**
+     * `R18-C` 목표 2·3 — 상세 응답은 노선 전체 소요시간(분, {@code Ruling 318})과 좌우 지도용 도로
+     * 좌표({@code Ruling 319})를 전/후로 낸다. {@code est_duration_after} 는 방금 계산한
+     * {@code RouteComputation.estDurationMin()}, {@code est_duration_before} 는 확정 배치가 이미
+     * 저장해 둔 {@code route_version.est_duration_min} 이다 — 새로 계산하지 않고 그대로 싣는다.
+     */
+    @Test
+    void 상세_응답이_노선_전체_소요시간과_전후_도로좌표를_낸다() throws Exception {
+        시나리오 s = 확정된_회차와_승인_대기_건을_만든다();
+
+        MvcResult result = 상세_조회(관계자_토큰(s.academyId), s.approvalId).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.est_duration_before", org.hamcrest.Matchers.greaterThan(0)))
+                .andExpect(jsonPath("$.data.est_duration_after", org.hamcrest.Matchers.greaterThan(0)))
+                .andExpect(jsonPath("$.data.route_preview.road_path_before",
+                        org.hamcrest.Matchers.not(org.hamcrest.Matchers.empty())))
+                .andExpect(jsonPath("$.data.route_preview.road_path_after",
+                        org.hamcrest.Matchers.not(org.hamcrest.Matchers.empty())))
+                .andExpect(jsonPath("$.data.route_preview.road_path_before[0].lat").exists())
+                .andExpect(jsonPath("$.data.route_preview.road_path_before[0].lng").exists())
+                .andExpect(jsonPath("$.data.route_preview.road_path_after[0].lat").exists())
+                .andExpect(jsonPath("$.data.route_preview.road_path_after[0].lng").exists())
+                .andReturn();
+
+        // 취소 대상(학생2, midStop) 제거로 전/후 정차지 수가 3→2 로 줄어(§5.5 상세 계약) 도로
+        // 좌표열의 길이도 갈린다 — before·after 를 뒤바꿔도 둘 다 "비어 있지 않은 배열"이라는
+        // 점은 같아 위 단언을 통과하므로, 이 크기 대조가 뒤바뀐 값을 잡는 유일한 단언이다.
+        String body = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        int beforeSize = JsonPath.read(body, "$.data.route_preview.road_path_before.length()");
+        int afterSize = JsonPath.read(body, "$.data.route_preview.road_path_after.length()");
+        assertThat(beforeSize).as("정차지가 줄었으니 전 구간 도로 좌표가 더 많아야 한다").isGreaterThan(afterSize);
+    }
+
+    /**
      * 상세 응답의 재최적화 결과 본문 — 취소 대상 학생(학생2, {@code midStop})이 전/후 대조에서 실제로
      * 빠지는지를 값으로 확인한다. 지금까지의 시험은 {@code preview_token}·호출 횟수만 봤을 뿐
      * {@code route_preview}·{@code affected_students} 의 <b>내용</b>은 아무도 검사하지 않았다 — 계산이
@@ -442,6 +474,8 @@ class StaffApprovalControllerTest {
                 .andExpect(jsonPath("$.data.est_time_after").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.data.est_distance_before").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.data.est_distance_after").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.est_duration_before").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.est_duration_after").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.data.affected_students", org.hamcrest.Matchers.hasSize(0)))
                 .andExpect(jsonPath("$.data.capacity.assigned").value(3));
 

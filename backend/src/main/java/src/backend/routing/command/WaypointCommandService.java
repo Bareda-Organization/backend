@@ -276,7 +276,7 @@ public class WaypointCommandService {
         return new WaypointResponse(waypoint.getId(), routePreview,
                 routePreviewAssembler.lastEtaOf(routePreview.stopsBefore()),
                 routePreviewAssembler.lastEtaOf(routePreview.stopsAfter()), estDistanceBefore, estDistanceAfter,
-                apply);
+                ctx.currentVersion().getEstDurationMin(), computation.estDurationMin(), apply);
     }
 
     /**
@@ -298,7 +298,8 @@ public class WaypointCommandService {
         Map<Long, Integer> afterSeq = routePreviewAssembler.seqMapOfComputation(computation);
         return RoutePreviewResponse.of(stopsBefore, stopsAfter,
                 routePreviewAssembler.reorderedOf(beforeSeq, afterSeq, stopsById),
-                routePreviewAssembler.removedOf(beforeSeq, afterSeq, stopsById));
+                routePreviewAssembler.removedOf(beforeSeq, afterSeq, stopsById),
+                routePreviewAssembler.roadPathOrEmpty(ctx.currentVersion().getRoadPath()), computation.roadPath());
     }
 
     /** 이미 배포된 경유 지점 전부 + 지금 이 요청의 대상 경유 지점, 합쳐서 id → label 맵을 만든다. */
