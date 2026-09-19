@@ -4520,3 +4520,60 @@ be greater than 0`). **단독 실행은 16/16 통과.**
 | 사양 표의 `●` 를 "값이 반드시 있다" 로 오독 | **`●` 는 키의 존재다.** 구현을 열어서 확인하라 — 같은 형태를 R16 에 두 번 밟았다 |
 | 끝난 워커에 `terminal send` 로 후속 지시 | **새 Dispatch 로 준다.** 안착한 워커는 지시를 새 작업으로 받지 않는다 |
 | 보고서 2항의 자진 신고를 흘려보냄 | **R13·R14·R15 세 회차 연속으로 유일한 탐지 수단이었다.** 반드시 판정하라 |
+
+---
+
+## 8.28 ⚖ `R17` 결과 — 출발 판정 검사 + 구간 ETA + 정리 (2026-09-19 **완료**)
+
+**메인 `c9a92ca9`** · 백엔드 **1,357** / 관계자 웹 **277** · 실패 0 · 오류 0 · **건너뜀 0** ·
+충돌 0건 · 갈래 3개 + 후속 1개 · 전부 `claude-sonnet-5[1m]` · `high`(요청값=실제값 실측 확인).
+
+### 목표 판정
+
+| 갈래 | 목표 | 판정 | 근거 |
+|---|---|:-:|---|
+| `T1` | 1 `claimDeparture` 동시성 | ✅ | `RunStopDepartureClaimConcurrencyTest` — 조건부 UPDATE 의 `departedAt IS NULL` 제거로 RED 확인 |
+| | 2 선정 순서(`seq` 최솟값) | ✅ | `RunStopDepartureSelectionTest` — `ORDER BY` 반전으로 RED. **개수가 아니라 id 비교** |
+| | 3 `forceAllRemaining` 전량 해소 | ✅ | `StopDepartureForceAllRemainingTest` — 반복문에 `break` 삽입으로 RED |
+| `T1b` | 1 이벤트 발행 검사 | ✅ | `StopDepartureForceAllRemainingEventsTest` — `StopDepartedEvent` 3건을 **`stopId` 집합**으로 검사 + 이미 선점된 건의 재발행 금지 |
+| | 2 `judgeDeparture` 종단 간 선정 | ✅ | `ProximityNotificationServiceDepartureSelectionTest` — 정차지 3개를 1km 이상 떨어뜨려 선정·거리판정 결합을 검사 |
+| `T2` | 1 실 API 응답 실측 | ✅ | ⭐ **코드 주석의 미확인 주장이 뒤집혔다**(아래) |
+| | 2 도로 기준 구간값 | ✅ | `NaverDirectionsGatewayLegsTest` + Live 회귀 — 실측 8,116m vs 직선비율 8,503m, **387m(4.6%) 차이** |
+| | 3 합 = 총합 | ✅ | 누적 반올림 방식 유지. 중간 구간 누적 오차를 새 단언으로 고정 |
+| | 4 폴백 유지 | ✅ | `StraightLineLegs.approximate` 미변경. `distribute` 는 대체 경로로 역할만 재정의 |
+| `T3` | 1 `change_decided` 자녀 이름 | ✅ | `ChangeDecidedComposerTest`·`ChangeAutoRejectedComposerTest`. `ATT-03` 이행 형태 |
+| | 2 `CONVENTIONS.md:122` 정정 | ✅ | **실측 15건**(인용 12건이 오류 — 아래) · 계층형 예외 조항 추가 |
+| | 3 프론트 계획서 낡은 표기 | ✅ | 5건 정정(`BE-R2`·`FE-R3`·`LiveMapScreen`·`RouteDetailScreen`·학생 전용 분기 `§3.10`) |
+
+### Ruling
+
+- **`Ruling 316` — NCP Directions 15 는 경유지별 구간 값을 준다.** 코드 주석의 *"NCP 가 구간 값을
+  안 준다"* 는 **미확인 주장이었고 실측으로 뒤집혔다.** 경유지가 있으면
+  `summary.waypoints[i].distance/duration` + `summary.goal.distance/duration` 이 **경로 순으로 구간별
+  실측 거리(m)·시간(ms)** 을 그대로 담는다(`sum(waypoints[].distance) + goal.distance == summary.distance`
+  를 실 호출 3회로 확인). 경유지가 없으면 `waypoints` 필드 자체가 부재. ⇒ 계획서가 후보 1로 제시한
+  **`path` 인덱스 슬라이싱은 채택하지 않는다** — 추정을 다시 만드는 일이고 실측값이 이미 있다.
+- **`Ruling 317` — `frontend/CONVENTIONS.md` 의 기능 간 import 금지는 계층 예외를 명시한다.**
+  실측 **15건**(`schedule→bus` 4 · `run→route` 2 · `run→map` 2 · `route→schedule` 2 · `route→bus` 2 ·
+  `run→auth` 1 · `admin→route` 1 · `admin→map` 1). 최하위 `bus`·`map`·`auth`, 그 위 `schedule`·`route`,
+  최상위 `admin`·`run`. 순환 부재. **코드가 아니라 문서를 고친다**(`Ruling 314` 와 같은 갈래).
+
+### 관측 — 다음 회차가 쓸 것
+
+| 관측 | 내용 |
+|---|---|
+| ⭐ **`.env` 선복사가 값을 했다** | `NaverDirectionsClientLiveTest` 3건이 **건너뛰지 않고 실제로 돌았다**(실 호출 1.387s). R15 최대 사고의 재발 부재 |
+| ⭐⭐ **웹 `realBackend` 검사는 백엔드 부재 시 *실패가 아니라 건너뛴다*** | 음성 대조 실측 — 죽은 포트(8199)를 가리키면 `4 skipped`, **테스트 파일은 `passed` 로 집계**된다. ⇒ **"건너뜀 0" 이 유일한 탐지 장치**다. `.env` 건과 같은 형태(조용한 건너뜀) |
+| **인용 수치가 또 틀렸다** | 교차 import 12건 → 실측 15건. 갈래가 다시 세라는 지시를 지켜 잡았다. **인용에 "직접 세라" 를 붙이는 규칙이 2회차 연속 값을 했다** |
+| **자진 신고가 후속 작업 1개를 만들었다** | T1 의 2항(확신 60%·70%) 2건이 **둘 다 실제 공백**이었고, 조율자가 코드를 읽어 확인한 뒤 **같은 창에 후속 Dispatch** 를 붙였다. **4회차 연속으로 2항이 유일한 탐지 수단** |
+| **실행 결과 오독 후보 1건을 갈래가 스스로 갈랐다** | 전체 실행 로그의 `EOFException`/`HikariPool-73 Shutdown` 스택 트레이스는 **JVM 셧다운 훅 잡음**이고 테스트 실패가 아니다(XML `failures=0 errors=0`). **환경 잡음으로 분류** |
+
+### 이월
+
+| # | 항목 | 근거 |
+|:-:|---|---|
+| 1 | **`StopDepartedEvent` 를 받은 리스너가 N건을 전부 적재하는지** 미검사 | T1b 2항(확신 65%). *"이벤트는 3건 났는데 리스너가 하나만 처리한다"* 형태. 소유가 `notification` 이라 T1 범위 밖. **위험도는 낮다** — Spring 이벤트는 건별 디스패치라 상태를 가진 리스너가 아니면 성립하지 않는다 |
+| 2 | `RoadLeg.path`(도로 좌표) 자체는 여전히 **첫 leg 에만** 실린다 | T2 2항. 목표 표 5개가 전부 거리·시간(ETA)이라 좌표 분배는 범위 밖으로 판단. `pointIndex` 가 있어 기술적으로 가능 |
+| 3 | Live 회귀 검사가 **여의도 경유 1개 경로**에 의존 | T2 2항. 단언이 `isNotEqualTo`(다르기만 하면 통과)라 도로 사정이 바뀌어도 견딜 것으로 판단 |
+| 4 | 동시성 검사 타임아웃 20초를 기존 클래스에서 복사 | T1 2항. 새로 만든 위험이 아니라 `RunStopProximityClaimConcurrencyTest` 의 기존 flake 위험을 답습 |
+| 5 | **배포(D)** | 코드·절차서 완료. 막는 것은 AWS 실물 자원 + GitHub Secret 3개 |
