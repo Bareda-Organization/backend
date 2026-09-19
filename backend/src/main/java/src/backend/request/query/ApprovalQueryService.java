@@ -35,7 +35,6 @@ import src.backend.request.preview.ApprovalPreviewResolver;
 import src.backend.request.preview.ApprovalPreviewResolver.OriginDestination;
 import src.backend.request.preview.ApprovalPreviewResolver.PreviewResult;
 import src.backend.request.repository.ChangeRequestRepository;
-import src.backend.routing.domain.GeoPoint;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.Route;
 import src.backend.routing.entity.RouteStop;
@@ -202,7 +201,7 @@ public class ApprovalQueryService {
         RoutePreviewResponse routePreview = RoutePreviewResponse.of(stopsBefore, stopsAfter,
                 routePreviewAssembler.reorderedOf(beforeSeq, afterSeq, stopsById),
                 routePreviewAssembler.removedOf(beforeSeq, afterSeq, stopsById),
-                roadPathOrEmpty(currentVersion.getRoadPath()), computation.roadPath());
+                routePreviewAssembler.roadPathOrEmpty(currentVersion.getRoadPath()), computation.roadPath());
 
         ApprovalCapacityResponse capacity = new ApprovalCapacityResponse(bus.getStudentCapacity(),
                 roster.studentIds().size());
@@ -240,14 +239,6 @@ public class ApprovalQueryService {
         ApprovalCapacityResponse capacity = new ApprovalCapacityResponse(bus.getStudentCapacity(), (int) assigned);
         return ApprovalDetailResponse.of(summary, null, null, null, null, null, null, null, List.of(), capacity,
                 null, false);
-    }
-
-    /**
-     * 도로 좌표 컬럼이 아직 비어 있는 옛 확정 노선 버전과의 하위 호환({@link RouteVersion#getRoadPath}
-     * javadoc 참고) — {@code null} 을 그대로 응답에 실으면 전/후 짝 중 한쪽만 배열이 아니게 된다.
-     */
-    private static List<GeoPoint> roadPathOrEmpty(List<GeoPoint> roadPath) {
-        return roadPath != null ? roadPath : List.of();
     }
 
     /** 요약 1건 — 목록(§5.5 목록)이 회차·명단을 매번 새로 읽어야 할 때 쓰는 얕은 진입점. */

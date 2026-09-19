@@ -1805,7 +1805,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `note` | string | ○ | 경유 사유·특이사항 |
 | `apply` | boolean | ● | `false` = 미리보기만, `true` = 재최적화 결과 배포 |
 
-**응답** — `waypoint_id` · `route_preview`(§5.5 와 동일 구조 — `stops_before[]` · `stops_after[]` · `reordered[]`) · `est_time_before`·`est_time_after` · `est_distance_before`·`est_distance_after` · `applied`(boolean)
+**응답** — `waypoint_id` · `route_preview`(§5.5 상세와 동일 구조 — `stops_before[]` · `stops_after[]` · `reordered[]` · `road_path_before[]`·`road_path_after[]` 포함, 근거는 §5.5 참조) · `est_time_before`·`est_time_after` · `est_distance_before`·`est_distance_after` · `est_duration_before`·`est_duration_after`(노선 전체 소요·분, §5.5 와 같은 이유·같은 값 출처 — `Ruling 318`, 2026-09-19) · `applied`(boolean)
 
 | 처리 | 내용 |
 |---|---|
@@ -1822,7 +1822,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 **요청 (쿼리)** `apply`(boolean, 기본 `false`) — `true` 면 재최적화 결과를 즉시 배포.
 
-**응답** `200` — POST 와 동일 구조(`waypoint_id` · `route_preview` · `est_time_before`·`est_time_after` · `est_distance_before`·`est_distance_after` · `applied`).
+**응답** `200` — POST 와 동일 구조(`waypoint_id` · `route_preview`(`road_path_before`·`road_path_after` 포함) · `est_time_before`·`est_time_after` · `est_distance_before`·`est_distance_after` · `est_duration_before`·`est_duration_after` · `applied`).
 
 대상은 **이미 배포된**(`apply=true` 로 만들어진) 경유 지점만 — 미리보기 단계 행은 대상 밖이며, 지목해도 `404 WAYPOINT_NOT_FOUND`(존재 여부를 응답에서 드러내지 않는 관례).
 

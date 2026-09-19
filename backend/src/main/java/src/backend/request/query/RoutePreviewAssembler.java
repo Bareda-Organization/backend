@@ -18,7 +18,9 @@ import src.backend.boarding.entity.RunRider;
 import src.backend.request.dto.AffectedStudentResponse;
 import src.backend.request.dto.PreviewStopResponse;
 import src.backend.request.dto.StopRefResponse;
+import src.backend.routing.domain.GeoPoint;
 import src.backend.routing.engine.spec.OrderedStop;
+import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.entity.RunStop;
 import src.backend.routing.pipeline.RouteComputation;
 import src.backend.student.entity.Stop;
@@ -207,5 +209,15 @@ public class RoutePreviewAssembler {
     /** 정차 목록의 마지막 항목 도착 예정 시각 — 비어 있으면 도착지가 없다는 뜻이라 {@code null}. */
     public OffsetDateTime lastEtaOf(List<PreviewStopResponse> stops) {
         return stops.isEmpty() ? null : stops.get(stops.size() - 1).eta();
+    }
+
+    /**
+     * 도로 좌표 컬럼이 아직 비어 있는 옛 확정 노선 버전과의 하위 호환({@link RouteVersion#getRoadPath}
+     * javadoc 참고) — {@code null} 을 그대로 응답에 실으면 전/후 짝 중 한쪽만 배열이 아니게 된다.
+     * §5.5 상세({@code ApprovalQueryService})·§5.15 경유 지점 미리보기({@code WaypointCommandService})
+     * 가 둘 다 "전" 쪽 도로 좌표를 {@code route_version.road_path} 에서 그대로 가져오므로 공유한다.
+     */
+    public List<GeoPoint> roadPathOrEmpty(List<GeoPoint> roadPath) {
+        return roadPath != null ? roadPath : List.of();
     }
 }
