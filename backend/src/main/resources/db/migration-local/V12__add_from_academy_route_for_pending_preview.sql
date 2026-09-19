@@ -23,7 +23,7 @@ WITH new_route AS (
     VALUES (
         1,
         1,
-        (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from now())::int + 1],
+        (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from (now() AT TIME ZONE 'Asia/Seoul'))::int + 1],
         'from_academy',
         '본선(하원)',
         true,

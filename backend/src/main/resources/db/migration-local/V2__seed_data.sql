@@ -219,6 +219,12 @@ VALUES
     (7, 1, 15, 'driver', '차단기사', '010-5000-0099', NULL, now(), now());
 
 -- 정기 배차: 오늘 요일 기준으로 버스별 등원·하원 각 1건씩(SCH-01) — dow(0=일)를 mon~sun 배열로 변환.
+-- ⚠⚠ 요일도 `AT TIME ZONE 'Asia/Seoul'` 을 거친다(R22). 컨테이너 시계가 UTC 라 맨 `now()` 의
+-- 요일은 한국 기준 09:00 이전이면 <b>하루 앞선다</b>. `run.service_date` 는 이미 한국시간으로
+-- 고치면서(2026-09-19) 요일 계산만 남아, 한국시간 일요일 새벽에 회차는 일요일인데 노선·배차는
+-- 토요일로 깔렸다. 그러면 `StaffRunRouteQueryService.plannedRouteOf` 가 (학원·버스·요일·방향)
+-- 4중 일치로 고정 노선을 못 찾아 대기 회차 경로 미리보기가 전부 `409 RUN_NOT_CONFIRMED` 가 된다
+-- (2026-09-20 실측 — 회차 1·6). 날짜와 요일은 반드시 같은 시계에서 뽑는다.
 -- ⚠ `est_duration_min`(계획 소요시간)은 R21-B2 가 "예정 도착"(= 예정 출발 + 소요)을 계산하는
 -- 근거다. 비워 두면 화면의 예정 도착이 전부 `-` 로 나온다(2026-09-19 조율자 눈 확인).
 -- `route_version.est_duration_min`(확정 노선의 실측 소요)과는 다른 값이다 — 이쪽은 **계획값**이라
@@ -227,17 +233,17 @@ INSERT INTO schedule (id, academy_id, bus_id, weekday, direction, depart_time, o
                        destination_name, est_duration_min, active, created_at, updated_at)
 OVERRIDING SYSTEM VALUE
 VALUES
-    (1, 1, 1, (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from now())::int + 1], 'to_academy', TIME '08:00', '중앙 집결지', '바래다학원 A', 30, true, now(), now()),
-    (2, 1, 1, (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from now())::int + 1], 'from_academy', TIME '16:00', '바래다학원 A', '중앙 집결지', 30, true, now(), now()),
-    (3, 1, 2, (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from now())::int + 1], 'to_academy', TIME '08:10', '중앙 집결지', '바래다학원 A', 45, true, now(), now()),
-    (4, 1, 2, (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from now())::int + 1], 'from_academy', TIME '16:10', '바래다학원 A', '중앙 집결지', 45, true, now(), now()),
-    (5, 2, 3, (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from now())::int + 1], 'to_academy', TIME '08:20', 'B 집결지', '바래다학원 B', 35, true, now(), now()),
-    (6, 2, 3, (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from now())::int + 1], 'from_academy', TIME '16:20', '바래다학원 B', 'B 집결지', 35, true, now(), now());
+    (1, 1, 1, (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from (now() AT TIME ZONE 'Asia/Seoul'))::int + 1], 'to_academy', TIME '08:00', '중앙 집결지', '바래다학원 A', 30, true, now(), now()),
+    (2, 1, 1, (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from (now() AT TIME ZONE 'Asia/Seoul'))::int + 1], 'from_academy', TIME '16:00', '바래다학원 A', '중앙 집결지', 30, true, now(), now()),
+    (3, 1, 2, (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from (now() AT TIME ZONE 'Asia/Seoul'))::int + 1], 'to_academy', TIME '08:10', '중앙 집결지', '바래다학원 A', 45, true, now(), now()),
+    (4, 1, 2, (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from (now() AT TIME ZONE 'Asia/Seoul'))::int + 1], 'from_academy', TIME '16:10', '바래다학원 A', '중앙 집결지', 45, true, now(), now()),
+    (5, 2, 3, (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from (now() AT TIME ZONE 'Asia/Seoul'))::int + 1], 'to_academy', TIME '08:20', 'B 집결지', '바래다학원 B', 35, true, now(), now()),
+    (6, 2, 3, (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from (now() AT TIME ZONE 'Asia/Seoul'))::int + 1], 'from_academy', TIME '16:20', '바래다학원 B', 'B 집결지', 35, true, now(), now());
 
 -- 고정 노선 1개(1호차 등원) — Phase1 이 최소 확정하는 고정 노선(ROUTE-01).
 INSERT INTO route (id, academy_id, bus_id, weekday, direction, name, active, created_at, updated_at)
 OVERRIDING SYSTEM VALUE
-VALUES (1, 1, 1, (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from now())::int + 1], 'to_academy', '본선(등원)', true, now(), now());
+VALUES (1, 1, 1, (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from (now() AT TIME ZONE 'Asia/Seoul'))::int + 1], 'to_academy', '본선(등원)', true, now(), now());
 
 INSERT INTO route_stop (id, route_id, stop_id, seq)
 OVERRIDING SYSTEM VALUE
