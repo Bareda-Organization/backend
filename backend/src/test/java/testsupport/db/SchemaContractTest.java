@@ -7,10 +7,23 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
+import org.hibernate.boot.MetadataSources;
+import org.hibernate.boot.registry.StandardServiceRegistry;
+import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
+import org.hibernate.mapping.Table;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
+import org.springframework.core.type.filter.AnnotationTypeFilter;
+
+import jakarta.persistence.Entity;
 
 /**
  * {@code V1__init_schema.sql} 이 만든 실제 스키마를 {@code docs/ERD.md} 와 대조한다.
@@ -56,6 +69,12 @@ class SchemaContractTest extends MigratedPostgresTestBase {
     /** 계정 연결이 승인 시점에 일어나 그 전에는 NULL 인 레코드 3종 (AUTH-11). */
     private static final List<String> ACCOUNT_LINKED_TABLES = List.of("student", "guardian", "manager");
 
+    /** 엔티티 클래스를 훑는 기준 패키지 — {@code BackendApplication} 의 컴포넌트 스캔 루트와 같다. */
+    private static final String ENTITY_BASE_PACKAGE = "src.backend";
+
+    /** 어떤 엔티티도 매핑하지 않는 테이블 — {@code shedlock} 은 라이브러리가 자기 스키마 그대로 관리한다. */
+    private static final List<String> ENTITY_UNMAPPED_TABLES = List.of("shedlock");
+
     @BeforeAll
     static void 스키마_마이그레이션만_적용한다() {
         migrate(SCHEMA_LOCATION);
@@ -72,6 +91,85 @@ class SchemaContractTest extends MigratedPostgresTestBase {
         assertThat(actual)
                 .as("개수가 아니라 이름 집합으로 대조한다 — 오타난 이름이 43개를 채우면 개수만으로는 통과한다")
                 .containsExactlyInAnyOrderElementsOf(ERD_TABLES);
+    }
+
+    /**
+     * {@code ddl-auto: validate} 는 <b>엔티티가 요구하는 컬럼이 스키마에 없는</b> 방향만 본다 —
+     * 반대로 스키마에만 남아 엔티티 어디에도 매핑되지 않은 컬럼(고아 컬럼)은 그 방향으로도,
+     * 테이블 집합만 보는 위 테스트로도 걸리지 않는다(R12 §8.15, R13-T2).
+     *
+     * <p>기대 컬럼 목록은 손으로 옮겨 적지 않고 Hibernate 부트 메타데이터({@link MetadataSources})를
+     * 직접 빌드해서 얻는다 — {@code ddl-auto: validate} 가 내부에서 쓰는 것과 같은 모델이라, 엔티티가
+     * 늘어도 이 목록이 따로 낡지 않는다. 이 저장소는 모든 {@code @Column}·{@code @JoinColumn}·
+     * {@code @Table} 에 이름을 명시하므로(암묵적 네이밍 전략 미사용), Spring Boot 의 네이밍 전략을
+     * 재현할 필요가 없다 — Hibernate 가 기본 설정으로 빌드해도 명시한 이름을 그대로 쓴다.
+     */
+    @Test
+    void 엔티티가_매핑하지_않은_컬럼이_스키마에_남아있으면_실패한다() throws SQLException {
+        Map<String, Set<String>> expectedColumnsByTable = 엔티티가_매핑한_테이블별_컬럼_목록을_수집한다();
+
+        List<String> actualTables = queryColumn("""
+                SELECT table_name FROM information_schema.tables
+                WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+                  AND table_name <> 'flyway_schema_history'
+                """);
+        actualTables.removeAll(ENTITY_UNMAPPED_TABLES);
+
+        for (String table : actualTables) {
+            Set<String> expectedColumns = expectedColumnsByTable.get(table);
+            assertThat(expectedColumns)
+                    .as("%s 테이블을 매핑하는 엔티티가 하나도 없다 — ERD_TABLES 와 엔티티 스캔 결과가 어긋난다", table)
+                    .isNotNull();
+
+            Set<String> actualColumns = new HashSet<>(queryColumn("""
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_schema = 'public' AND table_name = '%s'
+                    """.formatted(table)));
+            Set<String> orphanColumns = new HashSet<>(actualColumns);
+            orphanColumns.removeAll(expectedColumns);
+
+            assertThat(orphanColumns)
+                    .as("%s 테이블에 어떤 엔티티도 매핑하지 않은 컬럼이 스키마에 남아 있다: %s", table, orphanColumns)
+                    .isEmpty();
+        }
+    }
+
+    /**
+     * {@link #ENTITY_BASE_PACKAGE} 아래 {@code @Entity} 전부를 훑어 Hibernate 부트 메타데이터를
+     * 한 번에 빌드하고, 테이블 이름별 컬럼 이름 집합으로 접는다. 두 엔티티가 같은 테이블을 매핑해도
+     * (예: {@code RunStop}·{@code NavRunStop} 모두 {@code run_stop}) Hibernate 가 같은 이름의
+     * {@link Table} 객체 하나로 합쳐 주므로 여기서 따로 병합할 필요가 없다.
+     *
+     * <p>다이얼렉트 인식용으로 이미 떠 있는 {@link #POSTGRES} 컨테이너에 실제로 접속한다 — 스키마
+     * 상태는 건드리지 않고 커넥션 메타데이터만 읽는다(스키마 존재 여부와 무관하게 동작한다).
+     */
+    private static Map<String, Set<String>> 엔티티가_매핑한_테이블별_컬럼_목록을_수집한다() {
+        ClassPathScanningCandidateComponentProvider scanner =
+                new ClassPathScanningCandidateComponentProvider(false);
+        scanner.addIncludeFilter(new AnnotationTypeFilter(Entity.class));
+
+        StandardServiceRegistry registry = new StandardServiceRegistryBuilder()
+                .applySetting("hibernate.connection.url", POSTGRES.getJdbcUrl())
+                .applySetting("hibernate.connection.username", POSTGRES.getUsername())
+                .applySetting("hibernate.connection.password", POSTGRES.getPassword())
+                .applySetting("hibernate.connection.driver_class", "org.postgresql.Driver")
+                .build();
+        try {
+            MetadataSources sources = new MetadataSources(registry);
+            for (BeanDefinition candidate : scanner.findCandidateComponents(ENTITY_BASE_PACKAGE)) {
+                sources.addAnnotatedClassName(candidate.getBeanClassName());
+            }
+
+            Map<String, Set<String>> columnsByTable = new HashMap<>();
+            for (Table table : sources.buildMetadata().collectTableMappings()) {
+                Set<String> columnNames = new HashSet<>();
+                table.getColumns().forEach(column -> columnNames.add(column.getName()));
+                columnsByTable.put(table.getName(), columnNames);
+            }
+            return columnsByTable;
+        } finally {
+            StandardServiceRegistryBuilder.destroy(registry);
+        }
     }
 
     @Test
