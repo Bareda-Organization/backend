@@ -73,4 +73,38 @@ class NaverDirectionsClientLiveTest {
         assertThat(route.legs().getFirst().distanceMeters()).isBetween(5_000, 30_000);
         assertThat(route.legs().getFirst().durationSeconds()).isBetween(300, 5_400);
     }
+
+    /**
+     * R15 T1 후속 — 실 NCP 응답의 {@code path} 를 실측으로 확인한다(2026-09-19 curl 실측: 시청→강남역
+     * 322점, code=0). 고정 응답(단위·회복 시험)만으로는 <b>실제 API 가 주는 모양 자체가 우리 가정과
+     * 맞는지</b>를 검증할 수 없다 — 고정 응답과 파싱이 서로 맞아떨어져도 실물과 다르면 어떤 검사로도
+     * 안 드러난다.
+     *
+     * <p>위경도 범위(33~39 · 124~132, 한반도)로 뒤집힘을 잡는다 — [경도, 위도] 를 [위도, 경도] 로
+     * 잘못 읽으면 좌표가 이 범위를 벗어난다({@link GeoPoint} 생성자가 애초에 위도 ±90 밖은 막지만,
+     * 그 상한보다 훨씬 좁은 한반도 범위로 더 촘촘히 본다).
+     */
+    @Test
+    void 실_응답의_path가_한반도_범위_안의_좌표로_파싱된다() {
+        RoadRoute route = naverDirectionsClient.route(
+                new RoadRouteRequest(List.of(시청, 강남역), Duration.ofSeconds(10), CallerPolicy.BATCH));
+
+        assertThat(route.roadPath())
+                .as("실 API 가 path 를 안 줬거나 파싱이 비었다")
+                .hasSizeGreaterThanOrEqualTo(3);
+        assertThat(route.roadPath()).allSatisfy(point -> {
+            assertThat(point.lat().doubleValue())
+                    .as("위도가 33~39 밖이다 — [경도, 위도] 를 뒤집어 읽었을 가능성")
+                    .isBetween(33.0, 39.0);
+            assertThat(point.lng().doubleValue())
+                    .as("경도가 124~132 밖이다 — [경도, 위도] 를 뒤집어 읽었을 가능성")
+                    .isBetween(124.0, 132.0);
+        });
+        // 첫·끝 좌표가 요청한 출발·도착지 근처인지(스냅 오차 0.01도 이내, 약 1km) — 순서는 맞아도
+        // 엉뚱한 배열 원소를 읽으면(예: path 마지막 점을 첫 값으로 오인) 이 대조가 드러낸다.
+        assertThat(route.roadPath().getFirst().lat().doubleValue()).isCloseTo(37.5665, org.assertj.core.data.Offset.offset(0.01));
+        assertThat(route.roadPath().getFirst().lng().doubleValue()).isCloseTo(126.978, org.assertj.core.data.Offset.offset(0.01));
+        assertThat(route.roadPath().getLast().lat().doubleValue()).isCloseTo(37.4979, org.assertj.core.data.Offset.offset(0.01));
+        assertThat(route.roadPath().getLast().lng().doubleValue()).isCloseTo(127.0276, org.assertj.core.data.Offset.offset(0.01));
+    }
 }
