@@ -1418,6 +1418,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|:-:|---|
 | `route_preview` | object | ◐ | **재최적화 결과 미리보기** — `stops_before[]` · `stops_after[]`(각 `seq` · `stop_name` · `eta`), `reordered[]`(순서가 바뀌는 승하차지), `removed[]`, `road_path_before[]` · `road_path_after[]`(각 `lat`·`lng` — 아래 참고) |
+| `depart_time` | datetime | ● | **회차의 출발 예정 시각**(`run.depart_time`, `Ruling 321`, 2026-09-19). 변경 신청이 출발 시각 자체를 옮기지 않으므로 **전/후로 나누지 않는다.** 결정 여부와 무관하게 항상 채워진다(`capacity` 와 같은 근거) |
 | `est_time_before` · `est_time_after` | datetime | ◐ | 재최적화 전/후 예상 도착 시각 |
 | `est_distance_before` · `est_distance_after` | number | ◐ | 재최적화 전/후 총 운행 거리(km) |
 | `est_duration_before` · `est_duration_after` | integer | ◐ | **노선 전체 소요(분)** — 출발지→마지막 정차지(`Ruling 318`, 2026-09-19). **특정 학생의 승하차지까지가 아니다.** 새로 계산하지 않고 `route_version.est_duration_min`(전) · 재최적화 계산 결과의 총 소요(후)를 그대로 싣는다 |
@@ -1435,6 +1436,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | 항상 채워지는 것 | 왜 |
 |---|---|
 | `capacity` | *"지금 이 버스에 몇 명이 타는가"* 는 결정 여부와 무관하게 답할 수 있다. 이 변경을 가정한 후보 명단이 아니라 **현재 실제 탑승 인원**(`absent` 제외)으로 채운다 |
+| `depart_time` | 회차의 출발 예정 시각은 승인 여부와 무관하게 항상 정해져 있다(`Ruling 321`) |
 | `affected_students[]` | 영향 학생을 셀 대조가 없으므로 **빈 배열**. `null` 로 비우지 않는 이유는 목록을 순회하는 쪽이 분기를 더 두지 않게 하기 위함 |
 
 ⚠ **`preview_token` 을 비우는 것은 재결정을 막기 위해서가 아니다** — `POST .../decide` 는 토큰을 보기 전에 `pending` 여부를 먼저 확인해 `409 APPROVAL_ALREADY_DECIDED` 로 막는다(§5.6). 비우는 이유는 ①토큰을 만들려면 이 경로가 건너뛴 재최적화를 다시 돌려야 하고 ②그 재최적화가 결정된 건에서 실제로 `422 ROUTE_NOT_CONFIGURED_FOR_RUN` 을 냈던 결함의 원인이며 ③결정된 건에 유효해 보이는 토큰을 주면 화면이 *"다시 결정할 수 있다"* 는 인상을 준다.
@@ -1900,11 +1902,13 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 **권한** 학원 관계자
 
-**응답** — §4.3 과 같은 구조 + `route_version` · `published_at` · `ack{driver, escort}`
+**응답** — §4.3 과 같은 구조 + `route_version` · `published_at` · `ack{driver, escort}` · `road_path[]` · `fallback_used` · `confirmed`
 
 매니저용 §4.3 은 **배치된 회차**로 범위가 한정(§1.5)돼 관계자가 호출하면 `403`. 관계자가 승인 화면·경유 지점 미리보기 **밖에서** 확정 노선을 보는 경로가 필요.
 
-**에러** — `409 RUN_NOT_CONFIRMED`(확정 전) · `404 RUN_NOT_FOUND`
+**`confirmed`(`Ruling 321`, 2026-09-19, R20-A)** — `boolean`. `false` 면 회차가 아직 확정 전(`idle`)이라 나머지 필드는 **고정 노선(`route`·`route_stop`) + 오늘 자 요일별 주소로 계산한 예정 경로**다. **화면은 "예정" 과 "확정" 을 반드시 구별해 표시한다** — 예정 경로는 확정 시점의 그날 명단으로 다시 계산되므로 확정본과 달라질 수 있다. `confirmed=false` 일 때 `route_version`은 `0`, `published_at`은 `null`, `ack`는 `{false, false}`다. 계산은 조회 시점에 그때그때 하며 **캐시하지 않는다**(관리자만 쓰고 조회가 잦지 않다는 사용자 확정).
+
+**에러** — `409 RUN_NOT_CONFIRMED`(확정 전이고, **그 학원·버스·요일·방향에 대응하는 고정 노선도 없을 때만** — 있으면 위 `confirmed=false` 경로로 `200`) · `404 RUN_NOT_FOUND`
 
 ### 5.20 GET /staff/reports · GET /staff/reports/{id}
 
