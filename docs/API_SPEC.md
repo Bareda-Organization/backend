@@ -1417,17 +1417,20 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|:-:|---|
-| `route_preview` | object | ◐ | **재최적화 결과 미리보기** — `stops_before[]` · `stops_after[]`(각 `seq` · `stop_name` · `eta`), `reordered[]`(순서가 바뀌는 승하차지), `removed[]` |
+| `route_preview` | object | ◐ | **재최적화 결과 미리보기** — `stops_before[]` · `stops_after[]`(각 `seq` · `stop_name` · `eta`), `reordered[]`(순서가 바뀌는 승하차지), `removed[]`, `road_path_before[]` · `road_path_after[]`(각 `lat`·`lng` — 아래 참고) |
 | `est_time_before` · `est_time_after` | datetime | ◐ | 재최적화 전/후 예상 도착 시각 |
 | `est_distance_before` · `est_distance_after` | number | ◐ | 재최적화 전/후 총 운행 거리(km) |
+| `est_duration_before` · `est_duration_after` | integer | ◐ | **노선 전체 소요(분)** — 출발지→마지막 정차지(`Ruling 318`, 2026-09-19). **특정 학생의 승하차지까지가 아니다.** 새로 계산하지 않고 `route_version.est_duration_min`(전) · 재최적화 계산 결과의 총 소요(후)를 그대로 싣는다 |
 | `affected_students[]` | array | ● | 영향 학생 — `student_id` · `name`. **결정된 건은 빈 배열**(`null` 이 아니다) |
 | `capacity` | object | ● | `student_capacity` · `assigned` — 정원. **결정 여부와 무관하게 항상 채워진다** |
 | `preview_token` | string | ◐ | 이 미리보기의 식별자. `POST .../decide` 에 그대로 전달해 **화면에서 본 결과와 배포되는 결과의 동일성**을 보장 |
 | `preview_stale` | boolean | ● | 미리보기 산출 후 입력(명단·승하차지·경유 지점)이 바뀌었는지. `true` 면 재조회 안내. **결정된 건은 항상 `false`** |
 
+**`road_path_before` · `road_path_after`(`Ruling 319`, 2026-09-19)** — 전/후 경로를 **좌우 두 지도로 나란히** 그릴 도로 좌표열(순서 있음). 한 지도에 겹쳐 그리지 않는다. `route_version.road_path`(§5.19 가 쓰는 것과 같은 컬럼)를 그대로 실으며, 도로 좌표 컬럼이 비어 있는 옛 확정 노선 버전이거나 결정된 건이면 **빈 배열**이다(`route_preview` 자체가 `null` 이면 당연히 이 필드도 없다). `road_path_before` 는 `stops_before` 와, `road_path_after` 는 `stops_after` 와 같은 전/후 짝이다.
+
 #### 왜 결정된 건은 비는가 (2026-09-14 정본 개정, `BE-R2` 목표 15 · `Ruling 265` 계열)
 
-**`◐` 6개는 전부 "이 건이 승인되면 무엇이 바뀌는가" 를 답하는 값이다. 결정이 이미 끝난 건에는 그 물음 자체가 성립하지 않는다.** 위 목록 절의 `stop_name`·`remaining_riders`·`will_remove_stop` 이 명단 존재 여부로 갈리는 것과 **같은 근거**다.
+**`◐` 8개(2026-09-19 `est_duration_before`·`est_duration_after` 2개 추가, `Ruling 318`)는 전부 "이 건이 승인되면 무엇이 바뀌는가" 를 답하는 값이다. 결정이 이미 끝난 건에는 그 물음 자체가 성립하지 않는다.** 위 목록 절의 `stop_name`·`remaining_riders`·`will_remove_stop` 이 명단 존재 여부로 갈리는 것과 **같은 근거**다.
 
 | 항상 채워지는 것 | 왜 |
 |---|---|
