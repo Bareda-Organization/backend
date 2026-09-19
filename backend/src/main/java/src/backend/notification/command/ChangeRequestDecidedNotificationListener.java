@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
+import src.backend.notification.domain.impl.ChangeDecidedSubject;
 import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.notification.entity.NotificationType;
@@ -41,7 +42,7 @@ public class ChangeRequestDecidedNotificationListener {
 
     private final NotificationOutbox notificationOutbox;
 
-    private final NotificationComposer<ChangeRequestDecidedEvent> changeDecidedComposer;
+    private final NotificationComposer<ChangeDecidedSubject> changeDecidedComposer;
 
     /**
      * 신청 학부모 앞으로 발송 대기 행을 적재한다.
@@ -56,8 +57,9 @@ public class ChangeRequestDecidedNotificationListener {
             return;
         }
 
-        NotificationMessage message = changeDecidedComposer.compose(event);
         String studentName = studentRepository.findById(event.studentId()).map(Student::getName).orElse(null);
+        NotificationMessage message = changeDecidedComposer
+                .compose(new ChangeDecidedSubject(event.approved(), event.rejectReason(), studentName));
         notificationOutbox.append(new NotificationDraft(event.academyId(), requester.getId(), requester.getName(),
                 requester.getRole(), NotificationType.CHANGE_DECIDED, message.title(), message.body(),
                 DEDUP_KEY_FORMAT.formatted(event.runId(), event.studentId(), event.decidedAt()),
