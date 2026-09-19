@@ -125,10 +125,69 @@ public class NaverDirectionsGateway {
                 .timeout(timeout)
                 .block();
         Traoptimal traoptimal = traoptimalOf(response);
-        Summary summary = traoptimal.summary();
-        List<RoadLeg> legs = StraightLineLegs.distribute(segment, (int) Math.round(summary.distance()),
-                (int) Math.round(summary.duration() / MILLIS_PER_SECOND));
+        List<RoadLeg> legs = legsOf(segment, traoptimal.summary());
         return withPath(legs, pathOf(traoptimal));
+    }
+
+    /**
+     * 구간별 실측값이 있으면 그대로 쓰고, 없으면 직선거리 비율로 대체한다.
+     *
+     * <p>NCP 는 경유지가 있는 요청에 <b>구간별 실측값을 그대로 준다</b>({@code summary.waypoints[]}
+     * 가 시작점→첫 경유지, 경유지→다음 경유지 순으로, {@code summary.goal} 이 마지막 경유지→도착지
+     * 구간을 담는다 — 2026-09-19 실 API 확인, {@code NaverDirectionsClientLiveTest}). 예전 주석의
+     * "경유지별 값을 안 준다" 는 <b>직선거리 비율 배분판을 그대로 두려고 아무도 실 응답을 확인하지
+     * 않은 채 남은 추정</b>이었다 — {@link StraightLineLegs#distribute} 는 그 추정 위에 지어진
+     * 근사값이었고, 지도 API 가 정상 응답한 경우에도 구간별 거리·시간이 근사값이 되는 원인이었다.
+     *
+     * <p>경유지가 없어 구간이 하나뿐이면(총합 자체가 그 구간의 실측값이라 배분이 필요 없다) 또는
+     * 응답이 예상과 다른 개수를 주면(방어적으로) 기존 직선거리 비율로 되돌아간다.
+     */
+    static List<RoadLeg> legsOf(List<GeoPoint> segment, Summary summary) {
+        int expectedLegs = segment.size() - 1;
+        List<RoadLeg> measured = measuredLegsOf(summary, expectedLegs);
+        if (measured != null) {
+            return measured;
+        }
+        return StraightLineLegs.distribute(segment, (int) Math.round(summary.distance()),
+                (int) Math.round(summary.duration() / MILLIS_PER_SECOND));
+    }
+
+    /**
+     * {@code summary.waypoints[]} + {@code summary.goal} 을 구간 목록으로 옮긴다 — 개수가 안 맞거나
+     * 값이 없으면 {@code null} 을 돌려줘 호출부가 직선거리 비율로 대체하게 한다.
+     *
+     * <p>거리(m)는 이미 정수라 반올림 오차가 없지만, 시간은 밀리초라 구간마다 따로 반올림하면 합이
+     * 총합에서 벗어난다({@code 1500ms + 1500ms → 2s + 2s = 4s} 인데 총합은 {@code 3000ms → 3s}).
+     * 누적값을 반올림하고 직전에 배정한 값을 빼는 방식({@link StraightLineLegs#distribute} 와 같은
+     * 기법)으로 마지막 구간에서 합이 총합과 정확히 맞아떨어지게 한다.
+     */
+    private static List<RoadLeg> measuredLegsOf(Summary summary, int expectedLegs) {
+        List<WaypointLeg> waypoints = summary.waypoints();
+        GoalLeg goal = summary.goal();
+        if (waypoints == null || waypoints.size() != expectedLegs - 1
+                || goal == null || goal.distance() == null || goal.duration() == null) {
+            return null;
+        }
+        List<RoadLeg> legs = new ArrayList<>(expectedLegs);
+        double cumulativeMeters = 0;
+        double cumulativeMillis = 0;
+        long assignedMeters = 0;
+        long assignedSeconds = 0;
+        for (WaypointLeg waypoint : waypoints) {
+            cumulativeMeters += waypoint.distance();
+            cumulativeMillis += waypoint.duration();
+            long meters = Math.round(cumulativeMeters);
+            long seconds = Math.round(cumulativeMillis / MILLIS_PER_SECOND);
+            legs.add(new RoadLeg((int) (meters - assignedMeters), (int) (seconds - assignedSeconds), List.of()));
+            assignedMeters = meters;
+            assignedSeconds = seconds;
+        }
+        cumulativeMeters += goal.distance();
+        cumulativeMillis += goal.duration();
+        long meters = Math.round(cumulativeMeters);
+        long seconds = Math.round(cumulativeMillis / MILLIS_PER_SECOND);
+        legs.add(new RoadLeg((int) (meters - assignedMeters), (int) (seconds - assignedSeconds), List.of()));
+        return legs;
     }
 
     /**
@@ -253,7 +312,22 @@ public class NaverDirectionsGateway {
     record Traoptimal(Summary summary, List<List<BigDecimal>> path) {
     }
 
-    /** 구간 총합만 온다 — 경유지별 값은 NCP 가 주지 않아 {@link StraightLineLegs} 가 비율로 가른다. */
-    record Summary(double distance, double duration) {
+    /**
+     * 총합과 함께 구간별 실측값도 온다(경유지가 있을 때만 — 2026-09-19 실 API 확인).
+     *
+     * @param waypoints 시작점→첫 경유지, 경유지→다음 경유지 순 구간값. 경유지가 없으면 {@code null}
+     * @param goal      마지막 경유지(또는 경유지가 없으면 시작점)→도착지 구간값. 경유지가 없으면
+     *                  {@code location}·{@code dir} 만 오고 {@code distance}·{@code duration} 은
+     *                  {@code null} 이다
+     */
+    record Summary(double distance, double duration, List<WaypointLeg> waypoints, GoalLeg goal) {
+    }
+
+    /** 경유지 하나 직전 구간의 실측 거리(m)·시간(ms). */
+    record WaypointLeg(double distance, double duration) {
+    }
+
+    /** 도착지 직전 구간의 실측 거리(m)·시간(ms) — 경유지가 없으면 둘 다 {@code null} 이다. */
+    record GoalLeg(Double distance, Double duration) {
     }
 }
