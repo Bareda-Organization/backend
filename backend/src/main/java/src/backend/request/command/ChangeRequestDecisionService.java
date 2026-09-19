@@ -179,7 +179,7 @@ public class ChangeRequestDecisionService {
         RouteVersion newVersion = RouteVersion.forConfirmedRoute(run.getId(), newVersionNo,
                 RouteVersionSource.APPROVAL, computation.estDurationMin(), computation.estDistanceKm(), decidedAt,
                 preview.fingerprint(), computation.snapshot().engineName(), computation.snapshot().policySnapshot(),
-                computation.snapshot().fallbackUsed(), requester.accountId(), decidedAt);
+                computation.snapshot().fallbackUsed(), computation.roadPath(), requester.accountId(), decidedAt);
         routeVersionRepository.save(newVersion);
         confirmedRouteRepository.assignCurrentVersion(run.getId(), newVersion.getId());
         runStopRepository.saveAll(runStopsOf(newVersion.getId(), computation));

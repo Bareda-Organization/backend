@@ -404,7 +404,7 @@ class StaffDashboardControllerTest {
         // currentVersionId 를 갈아치운다(위 javadoc 의 판단 근거 참고).
         RouteVersion redeployedVersion = routeVersionRepository.save(RouteVersion.forConfirmedRoute(runId, 2,
                 RouteVersionSource.CONFIRM_BATCH, 30, new BigDecimal("10.00"), now(), "fp-" + runId + "-v2",
-                "engine-v1", Map.of(), false, null, now()));
+                "engine-v1", Map.of(), false, List.of(), null, now()));
         confirmedRouteRepository.assignCurrentVersion(runId, redeployedVersion.getId());
 
         mockMvc.perform(get("/api/v1/staff/dashboard").header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))

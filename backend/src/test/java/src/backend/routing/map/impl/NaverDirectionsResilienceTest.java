@@ -563,14 +563,37 @@ class NaverDirectionsResilienceTest {
     }
 
     /**
-     * NCP Direction 응답의 최소 형태 — 거리·시간 총합만 읽으므로 그 둘만 담는다.
+     * NCP Direction 응답의 최소 형태 — 거리·시간 총합과 도로 좌표(R15 T1)를 담는다.
      *
      * <p>⚠ {@code traoptimal} 이어야 한다({@code Ruling 276}) — {@code option} 미지정 시 NCP 의 실제
      * 응답 키가 이것이다. 이 시험이 {@code trafast} 로 남아 있던 동안은 우리 파서의 결함(존재하지
      * 않는 {@code trafast} 를 읽음)과 가짜 응답의 모양이 우연히 같아, 파싱 실패가 폴백으로 조용히
      * 흡수되는 결함을 이 시험이 계속 가리고 있었다.
+     *
+     * <p>⚠ {@code path} 는 <b>{@code [경도, 위도]}</b> 순서다(NCP 공식 문서 응답 예시) — 시청
+     * (위도 37.5665 · 경도 126.978) → 중간점 → 강남역(위도 37.4979 · 경도 127.0276) 3점을 그 순서로
+     * 싣는다.
      */
     private static String 정상_응답() {
-        return "{\"route\":{\"traoptimal\":[{\"summary\":{\"distance\":12000,\"duration\":900000}}]}}";
+        return "{\"route\":{\"traoptimal\":[{\"summary\":{\"distance\":12000,\"duration\":900000},"
+                + "\"path\":[[126.978000,37.566500],[127.000000,37.530000],[127.027600,37.497900]]}]}}";
+    }
+
+    /**
+     * R15 T1 목표 1 — {@code route.traoptimal[].path} 를 파싱해 좌표 개수·순서를 그대로 싣는다.
+     *
+     * <p>첫·끝 값을 각각 대조하는 것은 [경도, 위도] 를 뒤집어 읽으면(위경도 반전) 좌표가 지구 반대편
+     * (바다)으로 가기 때문이다 — {@code lat}·{@code lng} 가 서로 바뀐 값도 "좌표 3개" 라는 형태는
+     * 그대로라 개수만 보면 걸리지 않는다.
+     */
+    @Test
+    void 응답의_path를_파싱해_좌표를_싣는다() {
+        RoadRoute route = mapRouteClient.route(요청(지점_두개(), Duration.ofSeconds(2), CallerPolicy.BATCH));
+
+        assertThat(route.roadPath()).hasSize(3);
+        assertThat(route.roadPath().getFirst().lat()).isEqualByComparingTo(new BigDecimal("37.566500"));
+        assertThat(route.roadPath().getFirst().lng()).isEqualByComparingTo(new BigDecimal("126.978000"));
+        assertThat(route.roadPath().getLast().lat()).isEqualByComparingTo(new BigDecimal("37.497900"));
+        assertThat(route.roadPath().getLast().lng()).isEqualByComparingTo(new BigDecimal("127.027600"));
     }
 }

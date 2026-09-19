@@ -2,6 +2,7 @@ package src.backend.routing.entity;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
 
 import org.hibernate.annotations.JdbcTypeCode;
@@ -18,6 +19,8 @@ import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
+import src.backend.routing.domain.GeoPoint;
 
 /**
  * 확정 노선 배포 버전 — ②구간 승인·경유 지점 지정이 확정 노선을 재최적화 후 재배포하므로, 배포 단위를
@@ -74,6 +77,15 @@ public class RouteVersion {
     @Column(name = "fallback_used", nullable = false)
     private boolean fallbackUsed;
 
+    /**
+     * 배포 시점의 전체 도로 좌표(Ruling 309 · R15 T1) — §5.19 응답 {@code road_path} 가 이 값을
+     * 그대로 낸다. {@code NULL} 을 허용하는 것은 이 컬럼이 생기기 전에 배포된 옛 버전들과의
+     * 하위 호환 때문이고, 새로 만드는 버전은 항상 채운다.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "road_path")
+    private List<GeoPoint> roadPath;
+
     @Column(name = "created_by")
     private Long createdBy;
 
@@ -82,7 +94,8 @@ public class RouteVersion {
 
     private RouteVersion(Long confirmedRouteId, int versionNo, RouteVersionSource source, Integer estDurationMin,
             BigDecimal estDistanceKm, OffsetDateTime publishedAt, String inputFingerprint, String engineName,
-            Map<String, Object> policySnapshot, boolean fallbackUsed, Long createdBy, OffsetDateTime createdAt) {
+            Map<String, Object> policySnapshot, boolean fallbackUsed, List<GeoPoint> roadPath, Long createdBy,
+            OffsetDateTime createdAt) {
         this.confirmedRouteId = confirmedRouteId;
         this.versionNo = versionNo;
         this.source = source;
@@ -93,6 +106,7 @@ public class RouteVersion {
         this.engineName = engineName;
         this.policySnapshot = policySnapshot;
         this.fallbackUsed = fallbackUsed;
+        this.roadPath = roadPath;
         this.createdBy = createdBy;
         this.createdAt = createdAt;
     }
@@ -100,9 +114,9 @@ public class RouteVersion {
     /** 재최적화 엔진이 새 노선 버전을 산출할 때 생성한다(RTE-10) — 미리보기·배포 여부는 {@code publishedAt} 으로 구분된다. */
     public static RouteVersion forConfirmedRoute(Long confirmedRouteId, int versionNo, RouteVersionSource source,
             Integer estDurationMin, BigDecimal estDistanceKm, OffsetDateTime publishedAt, String inputFingerprint,
-            String engineName, Map<String, Object> policySnapshot, boolean fallbackUsed, Long createdBy,
-            OffsetDateTime createdAt) {
+            String engineName, Map<String, Object> policySnapshot, boolean fallbackUsed, List<GeoPoint> roadPath,
+            Long createdBy, OffsetDateTime createdAt) {
         return new RouteVersion(confirmedRouteId, versionNo, source, estDurationMin, estDistanceKm, publishedAt,
-                inputFingerprint, engineName, policySnapshot, fallbackUsed, createdBy, createdAt);
+                inputFingerprint, engineName, policySnapshot, fallbackUsed, roadPath, createdBy, createdAt);
     }
 }

@@ -43,6 +43,20 @@ class StubMapRouteClientTest {
     }
 
     /**
+     * R15 T1 목표 7 — local·demo 화면이 빈 경로를 받지 않도록 스텁도 좌표를 준다.
+     */
+    @Test
+    void 정상_응답도_road_path_를_준다() {
+        List<GeoPoint> points = 지점_여러개(4);
+
+        RoadRoute route = stub.route(요청(points));
+
+        assertThat(route.roadPath()).isNotEmpty();
+        assertThat(route.roadPath().getFirst()).isEqualTo(points.getFirst());
+        assertThat(route.roadPath().getLast()).isEqualTo(points.getLast());
+    }
+
+    /**
      * 마커 위도가 든 지점열은 폴백 경로를 낸다 — 상위 단계가
      * {@code ComputationSnapshot.fallbackUsed} 를 검사할 수 있는 유일한 입력이다.
      */
@@ -56,6 +70,12 @@ class StubMapRouteClientTest {
 
         assertThat(route.fallbackUsed()).isTrue();
         assertThat(route.legs()).hasSize(1);
+        // R15 T1 목표 6 — 근사 경로(StraightLineLegs.approximate)도 좌표를 낸다. StubMapRouteClient
+        // 를 거치지 않는 §5.19 응답 시험(StaffRunRouteControllerTest)은 fixture 가 좌표를 직접
+        // 주입해 이 경로를 타지 않으므로, approximate() 자체의 좌표 산출은 여기서만 검증된다.
+        assertThat(route.roadPath())
+                .as("근사 경로에 좌표가 없으면 화면이 fallback_used=true 여도 그릴 선이 부재하다")
+                .isNotEmpty();
     }
 
     /** 정상 값과 폴백 값이 같으면 둘을 가르는 단언이 아무것도 검사하지 않는다. */

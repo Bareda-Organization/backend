@@ -5,6 +5,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Objects;
 
+import src.backend.routing.domain.GeoPoint;
 import src.backend.routing.engine.spec.OrderedStop;
 
 /**
@@ -20,6 +21,8 @@ import src.backend.routing.engine.spec.OrderedStop;
  * @param estDistanceKm       총 주행거리 — {@code route_version.est_distance_km numeric(6,2)}
  * @param etas                정차지별 도착 예정 시각. {@code stops} 와 같은 길이·같은 순서다
  * @param unresolvedStudentIds 좌표를 얻지 못해 명단에서 분리된 학생 (목표 2)
+ * @param roadPath            전체 구간의 도로 좌표(순서 있음, Ruling 309 · R15 T1) —
+ *                            {@code route_version.road_path} 가 이 값을 그대로 저장한다
  * @param snapshot            산출 조건 4항 (TECH_DECISIONS §8.5.1)
  */
 public record RouteComputation(
@@ -28,6 +31,7 @@ public record RouteComputation(
         BigDecimal estDistanceKm,
         List<OffsetDateTime> etas,
         List<Long> unresolvedStudentIds,
+        List<GeoPoint> roadPath,
         ComputationSnapshot snapshot) {
 
     /**
@@ -43,6 +47,7 @@ public record RouteComputation(
         etas = List.copyOf(Objects.requireNonNull(etas, "도착 예정 시각 목록이 없다"));
         unresolvedStudentIds = List.copyOf(
                 Objects.requireNonNull(unresolvedStudentIds, "좌표 미확보 학생 목록이 없다"));
+        roadPath = List.copyOf(Objects.requireNonNull(roadPath, "도로 좌표 목록이 없다"));
         Objects.requireNonNull(estDistanceKm, "총 주행거리가 없다");
         Objects.requireNonNull(snapshot, "산출 조건 스냅샷이 없다");
         if (etas.size() != stops.size()) {

@@ -6,8 +6,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
+import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,6 +35,7 @@ import src.backend.global.security.JwtTokenProvider;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
 import src.backend.request.repository.ChangeRequestRepository;
+import src.backend.routing.domain.GeoPoint;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
@@ -149,6 +152,51 @@ class StaffRunRouteControllerTest {
                 .andReturn();
 
         assertThat((Integer) JsonPath.read(본문(result), "$.data.route_version")).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("R15 T1 목표 5 — 응답이 road_path·fallback_used 를 계약대로 낸다")
+    void 응답이_road_path와_fallback_used를_계약대로_낸다() throws Exception {
+        DriverRunFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        OffsetDateTime departTime = OffsetDateTime.now().plusHours(1);
+        long runId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
+        List<GeoPoint> roadPath = List.of(
+                new GeoPoint(new BigDecimal("37.566500"), new BigDecimal("126.978000")),
+                new GeoPoint(new BigDecimal("37.497900"), new BigDecimal("127.027600")));
+        fx.confirmedRouteWithVersion(runId, departTime.minusMinutes(40), roadPath, false);
+        long staffAccountId = fx.staffAccount(academyId, "관계자1");
+
+        mockMvc.perform(get("/api/v1/staff/runs/" + runId + "/route")
+                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.road_path").isArray())
+                .andExpect(jsonPath("$.data.road_path[0].lat").value(37.5665))
+                .andExpect(jsonPath("$.data.road_path[0].lng").value(126.978))
+                .andExpect(jsonPath("$.data.road_path[1].lat").value(37.4979))
+                .andExpect(jsonPath("$.data.fallback_used").value(false));
+    }
+
+    @Test
+    @DisplayName("R15 T1 목표 6 — 근사 경로도 좌표를 주고 fallback_used=true 다")
+    void 근사_경로도_좌표를_주고_fallback_used가_true다() throws Exception {
+        DriverRunFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        OffsetDateTime departTime = OffsetDateTime.now().plusHours(1);
+        long runId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
+        List<GeoPoint> roadPath = List.of(
+                new GeoPoint(new BigDecimal("37.500000"), new BigDecimal("127.000000")),
+                new GeoPoint(new BigDecimal("37.510000"), new BigDecimal("127.010000")));
+        fx.confirmedRouteWithVersion(runId, departTime.minusMinutes(40), roadPath, true);
+        long staffAccountId = fx.staffAccount(academyId, "관계자1");
+
+        mockMvc.perform(get("/api/v1/staff/runs/" + runId + "/route")
+                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.road_path").isNotEmpty())
+                .andExpect(jsonPath("$.data.fallback_used").value(true));
     }
 
     @Test

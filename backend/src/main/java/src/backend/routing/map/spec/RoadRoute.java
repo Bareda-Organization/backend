@@ -1,6 +1,9 @@
 package src.backend.routing.map.spec;
 
+import java.util.ArrayList;
 import java.util.List;
+
+import src.backend.routing.domain.GeoPoint;
 
 /**
  * 지점열 전체의 도로 경로 — {@code legs.size() == points.size() - 1} 이 <b>폴백에서도</b> 성립한다.
@@ -18,5 +21,25 @@ public record RoadRoute(List<RoadLeg> legs, boolean fallbackUsed) {
     /** 방어적 복사를 컴팩트 생성자에 두어, 호출자가 넘긴 목록을 나중에 고쳐도 결과가 안 바뀐다. */
     public RoadRoute {
         legs = List.copyOf(legs);
+    }
+
+    /**
+     * 전체 지점열의 도로 좌표를 하나로 잇는다(Ruling 309 · R15 T1) — {@code route_version.road_path}
+     * 와 §5.19 응답 {@code road_path} 가 이 값을 그대로 쓴다.
+     *
+     * <p><b>구간 경계에서 좌표가 겹치는 것을 여기서 걷어낸다.</b> {@link RoadLeg#path()} 는 세그먼트
+     * 단위로만 채워지므로(경유지별 값을 공급자가 안 준다), 이웃한 두 세그먼트의 첫·끝 좌표가 같은
+     * 지점을 가리킨다 — 그대로 이으면 지도에 그 지점이 두 번 찍혀 경로가 겹쳐 보인다.
+     */
+    public List<GeoPoint> roadPath() {
+        List<GeoPoint> path = new ArrayList<>();
+        for (RoadLeg leg : legs) {
+            for (GeoPoint point : leg.path()) {
+                if (path.isEmpty() || !path.get(path.size() - 1).equals(point)) {
+                    path.add(point);
+                }
+            }
+        }
+        return List.copyOf(path);
     }
 }

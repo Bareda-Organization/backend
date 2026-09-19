@@ -14,6 +14,7 @@ import src.backend.global.security.AuthUser;
 import src.backend.global.security.access.AcademyScope;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.monitoring.dto.StaffAssignmentAckView;
+import src.backend.routing.domain.GeoPoint;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.repository.ConfirmedRouteRepository;
@@ -71,9 +72,10 @@ public class StaffRunRouteQueryService {
 
         RunRouteResponse base = runRouteQueryService.buildFromVersion(requester, run, currentVersionId);
         Ack ack = ackOf(requester, runId);
+        List<GeoPoint> roadPath = version.getRoadPath() == null ? List.of() : version.getRoadPath();
 
         return new StaffRunRouteResponse(base.stops(), base.currentStop(), base.nextStop(), base.skippedNotice(),
-                version.getVersionNo(), version.getPublishedAt(), ack);
+                version.getVersionNo(), version.getPublishedAt(), ack, roadPath, version.isFallbackUsed());
     }
 
     /** {@code Assignment.ackedRouteVersionId == 현재 확정 버전} — 대시보드가 쓰는 것과 같은 비교(§5.3, {@code StaffDashboardQueryService#ackedOf} 참고). */
