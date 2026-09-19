@@ -4013,3 +4013,112 @@ R12 가 남긴 이월은 *"시드 변경이 선행돼야 한다"* 였다. **재�
 | `mapRoute` 외부 API 간헐 503 | 코드 결함 부재 — 시험 전용 지연 재시도로 대응 |
 
 **다음 — R15**: 도로 경로 저장·표시(Ruling 309) · 지도 화면 개편 3종(Ruling 310) · 알림 발송 시점 이동(Ruling 308).
+
+## 8.23 ⚖ `R15` 목표 표 — 도로 경로 + 지도 개편 + 알림 발송 시점 (2026-09-19 착수)
+
+**근거** — `Ruling 309`(§8.21) · `Ruling 310`(§8.21) · `Ruling 308`(§8.20). 셋을 한 라운드로 묶은
+이유는 §8.21 "R15 범위" 에 적혀 있다.
+
+### 조율자 선행 실측 (발주 전 확인분 — 갈래는 인용으로 보고 직접 다시 센다)
+
+| 확인한 것 | 실측 |
+|---|---|
+| `path` 를 버리는 지점 | `NaverDirectionsGateway.java:L125-127` — `summaryOf(response)` 의 `distance`·`duration` 만 꺼내 `StraightLineLegs.distribute` 로 넘긴다 |
+| `RoadLeg` 의 모양 | `record RoadLeg(int distanceMeters, int durationSeconds)` — **좌표 자리 부재** |
+| 저장처 후보 | `route_version` 테이블에 `fallback_used boolean` 이 **이미 있다**(`V1__init_schema.sql:446`) |
+| §5.19 실재 | `run/controller/StaffRunRouteController.java:L39` · `run/dto/StaffRunRouteResponse.java` — **실재한다** |
+| 버스 목록 재료 | ⭐ **`GET /staff/runs/live` 는 `status='moving'` 만 준다**(§5.18). 4종 전부를 주는 것은 **`GET /staff/runs?service_date=`**(§5.10) 이고 프런트에 `getRuns()` 가 **이미 있다**(`features/schedule/api/index.ts:141`) |
+| 출발 선점 | `RunStopRepository.claimDeparture`(조건부 UPDATE) · `ProximityNotificationService.judgeDeparture:L155` |
+| 즉시 발송 지점 | `BoardingNotificationListener.appendRiderStatusChanged` · `appendRiderStatusReverted` · `appendRiderNoShow` |
+
+### ⚖ Ruling 311 — 출발 시점 발송은 **학부모 알림에만** 적용한다
+
+`Ruling 308` 이 `BRD-04`(미승차)를 범위에 넣었으나, §4.6 표의 미승차 알림은 **학부모 갈래와 관계자
+갈래 둘**이다. **관계자 갈래는 즉시 발송을 유지한다.**
+
+- **근거** — 관계자 알림은 되돌리기로 뒤집히는 *결과 통보* 가 아니라 **현황 신호**다. 늦추면 그 신호의
+  쓸모가 사라진다(관계자는 실시간 관제 화면을 따로 본다)
+- `Ruling 308` 이 막으려던 것은 **같은 학부모가 번복된 알림을 여러 번 받는 것**이고, 관계자 카운트는
+  그 대상이 아니다
+
+### ⚖ Ruling 312 — 마지막 승하차지는 **운행 종료가 출발로 갈음**한다
+
+`Ruling 308` 의 폴백(*"다음 승하차지 도착 시 강제 발송"*)은 **마지막 승하차지에 다음이 없어** 그대로
+두면 알림이 **영원히 안 나간다**. `Ruling 307` 초안이 냈던 구멍과 **같은 형태**다.
+
+⇒ **운행 종료(`run.finish`) 시 도착·미출발로 남은 승하차지 전부에 `claimDeparture` 를 강제 적용**한다.
+
+---
+
+### T1 — 도로 경로 파싱·저장·제공 (Ruling 309) · 백엔드
+
+**고정 계약 — T2 가 이 이름 그대로 소비한다. 바꾸려면 조율자에게 질문하라.**
+
+```
+GET /staff/runs/{runId}/route  (§5.19) 응답에 두 필드 추가
+  "road_path":     [{"lat": 37.1234, "lng": 127.1234}, ...]   // 순서 있는 좌표 배열
+  "fallback_used": false                                       // route_version.fallback_used 를 그대로
+```
+
+| # | 완료 조건 | 검사 조건 |
+|:-:|---|---|
+| 1 | `NaverDirectionsGateway` 가 `route.traoptimal[].path` 를 파싱해 좌표를 싣는다 | 고정 응답 본문(`path` 3점 이상)을 물려 **좌표 개수와 첫·끝 값**을 대조. ⚠ **네이버는 `[경도, 위도]` 순서** — 뒤집어 넣으면 바다 위로 간다. 뒤집힌 값을 넣는 변형을 심어 실패를 확인 |
+| 2 | `RoadLeg` 이 좌표를 나른다 | `record RoadLeg(int distanceMeters, int durationSeconds, List<GeoPoint> path)` 형태. **호출부 전수**를 `graft callers RoadLeg --depth all` 로 먼저 세고 보고 3항에 개수를 적는다 |
+| 3 | **구간 분할을 이어 붙여도 좌표가 중복되지 않는다** | `maxWaypoints` 를 넘겨 2구간 이상으로 쪼개지는 입력. **이음매 좌표가 1번만** 나타난다. ⚠ 이 검사가 없으면 화면에 경로가 겹쳐 그려진다 |
+| 4 | `route_version.road_path` 에 배포 시점의 전체 좌표가 저장된다 | `V1__init_schema.sql` 에 `road_path jsonb NULL` 추가(**새 테이블 부재** — 컬럼 하나). 저장 후 다시 읽어 개수·순서 대조 |
+| 5 | §5.19 응답이 `road_path`·`fallback_used` 를 위 계약대로 낸다 | 컨트롤러 검사에서 **JSON 키 문자열을 직접** 대조(`$.road_path[0].lat`) |
+| 6 | **근사 경로도 좌표를 준다** — `fallback_used=true` + 승하차지 좌표 그대로 | `forceFallback=true` 로 요청해 `road_path` 가 **비어 있지 않고** `fallback_used=true` |
+| 7 | `StubMapRouteClient` 도 좌표를 만든다 | local·demo 에서 화면이 빈 경로를 받지 않는다 |
+| 8 | 전체 실행 실패 0 · 오류 0 · **건너뜀 0** · `UP-TO-DATE`/`FROM-CACHE` 0 | `build/test-results/test/TEST-*.xml` 에서 직접 계수 |
+
+- ⚠ **`V1` 을 고치면 체크섬이 바뀐다** — 보존 DB(`schoolbus`)를 포함해 재구성이 필요하다. 워크트리
+  전용 DB 만 쓰고, `schoolbus` 는 **건드리지 마라**
+- **범위 밖** — §4.3(매니저 앱)에는 넣지 않는다. Ruling 310 은 관계자 웹만 대상이다
+- **구간별 거리·시간 근사값**(`StraightLineLegs.distribute`)은 **이번 범위 밖**이다. 좌표만 다룬다
+
+### T2 — 지도 화면 개편 3종 (Ruling 310) · 관계자 웹
+
+| # | 완료 조건 | 검사 조건 |
+|:-:|---|---|
+| 1 | `MapSurface` 가 `polylines` 를 받는다 | `features/map/types.ts` 에 `MapPolyline { id, points: {lat,lng}[], kind }`. **화면은 `naver.maps.*` 를 모른다**(기존 경계 유지 — `mapAdapterBoundary.test.ts` 가 그것을 검사한다) |
+| 2 | 3개 화면 전부 **지도가 상단 가득 + 우측 버스 목록** | `DashboardPage` · `TodayRunPage` · `MonitoringPage`. 각 화면의 `.styled` 에서 배치를 바꾼다 |
+| 3 | 목록이 **4종 상태를 전부** 보인다 — `idle`(대기) · `confirmed`(확정) · `moving`(운행 중) · `finished`(운행 종료) | ⭐ **`getRunsLive()` 만 쓰면 `moving` 뿐이라 이 조건이 성립하지 않는다.** `getRuns(오늘)`(§5.10)로 목록을 만들고 `getRunsLive()` 의 위치를 `run_id` 로 합친다. **`finished` 가 목록에 남는지**를 단독 검사로 못박는다 |
+| 4 | 버스를 고르면 **그 노선이 지도에 그려진다** | §5.19 를 불러 `road_path` 를 `polylines` 로 넘긴다. 선택 해제도 검사 |
+| 5 | **`fallback_used=true` 면 "근사 경로" 를 화면에 표시** | 표시하지 않으면 사용자가 직선을 실제 경로로 믿는다(Ruling 309) |
+| 6 | 전체 실행 실패 0 · 건너뜀 0 | 기준 **265건**(§8.22) — 인용이다. 직접 세라 |
+
+- ⚠ **T1 의 계약은 위 코드 블록이 전부다.** T1 이 아직 안 끝났어도 그 이름으로 붙여 두고 진행하라.
+  실제 응답과 어긋나면 **고치지 말고 조율자에게 질문**한다
+- **§5.19 를 부르는 프런트 클라이언트는 부재하다** — 새로 만든다(`features/route/api`)
+- ⚠ **지도 SDK 인증은 `localhost:3000` 에서만 된다**(`CLAUDE.md`). 다른 포트로 띄우면 401
+
+### T3 — 알림 발송 시점 이동 (Ruling 308 · 311 · 312) · 백엔드
+
+| # | 완료 조건 | 검사 조건 |
+|:-:|---|---|
+| 1 | `boarded`·`alighted` 가 **그 자리에서 알림을 만들지 않는다** | `appendRiderStatusChanged` 직후 `notification_log` 가 **0건**. ⚠ WebSocket 방송(`RiderChangedBroadcastListener`)은 **그대로 둔다** — 저쪽은 현황 갱신이지 알림이 아니다 |
+| 2 | **`claimDeparture` 가 1행을 갱신한 직후**에만 알림이 적재된다 | `ProximityNotificationService.judgeDeparture` 가 `StopDepartedEvent` 를 발행. **선점이 0행이면 발행 부재** |
+| 3 | 그 승하차지의 **확정 결과**가 학생별로 1건씩 나간다 | 승차→되돌리기→승차 를 반복해도 출발 후 알림은 **학생당 1건**. 내용은 **마지막 상태** |
+| 4 | **되돌리기 정정 알림이 사라진다** | `appendRiderStatusReverted` 제거. `BOARDING_CANCELED`·`ALIGHTING_CANCELED` 적재가 **0건**(Ruling 308 이 Ruling 219 를 대체) |
+| 5 | **미승차(BRD-04) 학부모 갈래도 출발 시점으로 옮긴다** | `appendToGuardians` 가 출발 시점 경로로 이동 |
+| 6 | ⭐ **관계자 미승차 알림은 즉시 유지**(Ruling 311) | `appendToStaff` 는 **그대로**. 이동시키면 실패하는 검사를 남긴다 |
+| 7 | **폴백 — 다음 승하차지 도착 시 강제 발송** | 출발 판정이 안 된 채 다음 승하차지에 도착하면 이전 승하차지에 `claimDeparture` 를 강제. `RunArrivalCommandService.arrive` |
+| 8 | ⭐ **마지막 승하차지도 발송된다**(Ruling 312) | 운행 종료 시 도착·미출발 전부에 강제 적용. **단독 검사로 못박는다** — R14 에서 같은 형태의 구멍을 사용자가 잡았다 |
+| 9 | **출발 시점에 결과가 없는 학생은 발송 대상 부재** | `waiting` 인 채 출발한 학생에게 알림이 나가지 않는다 |
+| 10 | 전체 실행 실패 0 · 오류 0 · **건너뜀 0** | 기준 **1,334건**(§8.22) — 인용이다. 직접 세라 |
+
+- **새 컬럼 부재** — 멱등의 유일한 근거는 `claimDeparture` 의 조건부 UPDATE 다. `notified_at` 류를
+  새로 만들지 마라
+- ⚠ **`NTF-01`·`NTF-02`·`BRD-04`·`BRD-05` 의 정본 문면(`FEATURE_SPEC §4.15`)은 이미 Ruling 308 로
+  개정돼 있다** — 문서를 다시 고치지 않는다. 코드를 그 문면에 맞춘다
+
+### 갈래 배정 · 충돌
+
+| 갈래 | 모델 | 건드리는 곳 | 충돌 |
+|---|---|---|---|
+| `r15-t1` | `claude-sonnet-5[1m]` · high | `routing/map/**` · `routing/pipeline` · `V1` · `run/dto`·`run/query`(§5.19) | — |
+| `r15-t2` | `claude-sonnet-5[1m]` · high | `frontend/apps/academy-web/**` | — |
+| `r15-t3` | `claude-sonnet-5[1m]` · high | `location/proximity` · `notification/command` · `boarding/**` · `run/command` | — |
+
+**세 갈래가 파일을 공유하지 않는다.** T2 만 T1 의 **응답 계약**에 의존하며, 그 계약은 위 코드 블록에
+고정돼 있다 — 파일 의존이 아니라 이름 의존이라 병렬로 간다.
