@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
+import src.backend.notification.domain.impl.ChangeAutoRejectedSubject;
 import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.notification.entity.NotificationType;
@@ -42,7 +43,7 @@ public class ChangeRequestAutoRejectedNotificationListener {
 
     private final NotificationOutbox notificationOutbox;
 
-    private final NotificationComposer<ChangeRequestAutoRejectedEvent> changeAutoRejectedComposer;
+    private final NotificationComposer<ChangeAutoRejectedSubject> changeAutoRejectedComposer;
 
     private final StudentRepository studentRepository;
 
@@ -60,8 +61,8 @@ public class ChangeRequestAutoRejectedNotificationListener {
             return;
         }
 
-        NotificationMessage message = changeAutoRejectedComposer.compose(event);
         String studentName = studentRepository.findById(event.studentId()).map(Student::getName).orElse(null);
+        NotificationMessage message = changeAutoRejectedComposer.compose(new ChangeAutoRejectedSubject(studentName));
         notificationOutbox.append(new NotificationDraft(event.academyId(), requester.getId(), requester.getName(),
                 requester.getRole(), NotificationType.CHANGE_DECIDED, message.title(), message.body(),
                 DEDUP_KEY_FORMAT.formatted(event.runId(), event.studentId(), event.decidedAt()),
