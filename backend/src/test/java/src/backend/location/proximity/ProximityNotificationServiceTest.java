@@ -48,6 +48,9 @@ class ProximityNotificationServiceTest extends RedisTestContainerBase {
     /** 같은 정차지 기준 약 400m — 300m 문턱 바깥. */
     private static final String FAR_LAT = "37.503597";
 
+    /** 정차지 좌표 기준 약 50m — 출발 판정 100m 문턱 안쪽(Ruling 307). */
+    private static final String WITHIN_DEPARTURE_LAT = "37.500449";
+
     private static final String STOP_LNG = "127.000000";
 
     @Autowired
@@ -220,6 +223,69 @@ class ProximityNotificationServiceTest extends RedisTestContainerBase {
         assertThat(notificationCount(runId, stopId, waitingStudentId)).isEqualTo(1);
     }
 
+    // ── 목표 6a(R14-T2, Ruling 307) — 출발 판정: 도착 정차지에서 100m 밖으로 이탈 ──────────
+
+    @Test
+    void 도착_정차지에서_100m_밖으로_벗어나면_departed_at이_최초_1회_기록된다() {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        ProximityFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.500000", STOP_LNG);
+        long runId = fx.movingRun(academyId, busId, Direction.FROM_ACADEMY, now.plusHours(1), now, now);
+        long versionId = fx.confirmedRouteWithVersion(runId, now);
+        long runStopId = fx.runStopForStop(versionId, stopId, 1, now.plusMinutes(10));
+        fx.arriveStop(runStopId, now);
+
+        writePosition(runId, FAR_LAT, STOP_LNG);
+
+        proximityNotificationService.judgeDeparture(runId);
+
+        assertThat(departedAt(runStopId)).as("①100m 밖이므로 최초 1회 기록돼야 한다").isNotNull();
+    }
+
+    @Test
+    void 도착_정차지에서_100m_안쪽이면_departed_at이_기록되지_않는다() {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        ProximityFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.500000", STOP_LNG);
+        long runId = fx.movingRun(academyId, busId, Direction.FROM_ACADEMY, now.plusHours(1), now, now);
+        long versionId = fx.confirmedRouteWithVersion(runId, now);
+        long runStopId = fx.runStopForStop(versionId, stopId, 1, now.plusMinutes(10));
+        fx.arriveStop(runStopId, now);
+
+        writePosition(runId, WITHIN_DEPARTURE_LAT, STOP_LNG);
+
+        proximityNotificationService.judgeDeparture(runId);
+
+        assertThat(departedAt(runStopId)).as("②100m 안쪽이면 아직 출발이 아니다").isNull();
+    }
+
+    @Test
+    void 출발_판정을_반복해도_두_번째_틱에서는_값이_바뀌지_않는다() {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        ProximityFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.500000", STOP_LNG);
+        long runId = fx.movingRun(academyId, busId, Direction.FROM_ACADEMY, now.plusHours(1), now, now);
+        long versionId = fx.confirmedRouteWithVersion(runId, now);
+        long runStopId = fx.runStopForStop(versionId, stopId, 1, now.plusMinutes(10));
+        fx.arriveStop(runStopId, now);
+
+        writePosition(runId, FAR_LAT, STOP_LNG);
+        proximityNotificationService.judgeDeparture(runId);
+        OffsetDateTime firstDepartedAt = departedAt(runStopId);
+
+        // 버스가 계속 100m 밖에 머무는 다음 틱을 흉내낸다 — claimDeparture 의 조건부 UPDATE 가
+        // 이미 채워진 값을 갱신하지 않아야 한다(③최초 1회, claimProximityNotice 와 같은 근거).
+        proximityNotificationService.judgeDeparture(runId);
+
+        assertThat(departedAt(runStopId)).as("③재판정해도 최초 기록값 그대로여야 한다").isEqualTo(firstDepartedAt);
+    }
+
     /** T1 이 아직 만들지 않은 위치 계약(runId·lat·lng·recordedAt·receivedAt·currentStopName)을 직접 흉내낸다. */
     private void writePosition(long runId, String lat, String lng) {
         String json = """
@@ -238,5 +304,10 @@ class ProximityNotificationServiceTest extends RedisTestContainerBase {
     private OffsetDateTime proximityNotifiedAt(long runStopId) {
         return jdbcTemplate.queryForObject(
                 "SELECT proximity_notified_at FROM run_stop WHERE id = ?", OffsetDateTime.class, runStopId);
+    }
+
+    private OffsetDateTime departedAt(long runStopId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT departed_at FROM run_stop WHERE id = ?", OffsetDateTime.class, runStopId);
     }
 }

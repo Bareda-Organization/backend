@@ -225,10 +225,13 @@ public class BoardingCommandService {
     }
 
     /**
-     * 승하차지를 떠난 뒤의 되돌리기를 막는다(목표 6, Ruling 305) — 뒤 순번(seq 초과) 정차 항목이
-     * 하나라도 도착 처리됐으면 이 승하차지는 이미 떠난 뒤다. 확정 노선(버전)이 아직 없거나 그
-     * 학생의 정차 항목 자체를 찾지 못하면 판정 재료가 없으므로 통과시킨다(막을 근거가 없는 채로
-     * 막으면 정상 되돌리기까지 거부하게 된다).
+     * 승하차지를 떠난 뒤의 되돌리기를 막는다(목표 6b, Ruling 307) — {@code run_stop.departed_at IS
+     * NOT NULL} 이 유일한 판정 기준이다({@link src.backend.location.proximity.ProximityNotificationService
+     * #judgeDeparture} 가 도착 후 100m 이탈 최초 1회를 이 컬럼에 기록한다). 뒤 순번 정차지 참조에 기대던 파생 규칙은
+     * 폐기했다 — 마지막 승하차지는 뒤 순번이 없어 영원히 되돌릴 수 있는 구멍이 있었다(목표 6c).
+     *
+     * <p>확정 노선(버전)이 아직 없거나 그 학생의 정차 항목 자체를 찾지 못하면 판정 재료가 없으므로
+     * 통과시킨다(막을 근거가 없는 채로 막으면 정상 되돌리기까지 거부하게 된다).
      */
     private void assertNotDeparted(Long runId, Long stopId) {
         Optional<ConfirmedRoute> confirmedRoute = confirmedRouteRepository.findById(runId);
@@ -240,9 +243,7 @@ public class BoardingCommandService {
         if (myStop.isEmpty()) {
             return;
         }
-        boolean departed = runStopRepository.existsByRouteVersionIdAndSeqGreaterThanAndArrivedAtIsNotNull(
-                routeVersionId, myStop.get().getSeq());
-        if (departed) {
+        if (myStop.get().getDepartedAt() != null) {
             throw new BusinessException(ErrorCode.STOP_ALREADY_DEPARTED);
         }
     }

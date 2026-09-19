@@ -23,8 +23,11 @@ import src.backend.student.entity.Stop;
 import src.backend.student.repository.StopRepository;
 
 /**
- * 회차 1건의 근접 알림(NTF-04) 판정 — 위치 읽기 → 다음 미도착 정차지 조회 → 거리 판정 → 선점 →
- * 이벤트 발행까지를 <b>한 트랜잭션</b>으로 묶는다(목표 13·15).
+ * 회차 1건의 근접·출발 두 판정 — {@link #judgeOne}(NTF-04, Ruling 207)은 위치 읽기 → 다음 미도착
+ * 정차지 조회 → 거리 판정 → 선점 → 이벤트 발행까지를 <b>한 트랜잭션</b>으로 묶는다(목표 13·15).
+ * {@link #judgeDeparture}(Ruling 307, R14-T2 목표 6a)는 같은 재료(위치 읽기·거리 판정·선점 형태)를
+ * 재사용해 도착된 정차지의 출발 시점만 독립적으로 기록한다 — 두 판정이 서로 다른 정차 항목을
+ * 보므로 트랜잭션도 나눈다({@link #judgeDeparture} 자체 주석 참고).
  *
  * <p>{@code RunConfirmationService} 처럼 트랜잭션을 둘로 쪼개지 않는다 — 이쪽은 느린 외부 I/O가
  * 없다({@code RunPositionReader} 는 로컬 Redis 단건 읽기뿐이고, 노선 계산처럼 외부 지도 API 를
@@ -107,5 +110,48 @@ public class ProximityNotificationService {
             eventPublisher.publishEvent(
                     new RunApproachingStopEvent(runId, academyId, studentId, nextStop.getStopId(), judgedAt));
         }
+    }
+
+    /**
+     * 회차 1건의 출발 판정(Ruling 307, R14-T2 목표 6a) — 도착했지만 아직 출발 처리되지 않은 정차지가
+     * 있고 버스가 그 정차지에서 100m 밖으로 벗어났으면 {@code departed_at} 을 선점 기록한다.
+     * 되돌리기 제한({@code BoardingCommandService#assertNotDeparted}, Ruling 305) 의 유일한 재료다.
+     *
+     * <p>{@link #judgeOne} 과 트랜잭션을 공유하지 않는다 — 서로 다른 정차 항목을 판정하는 독립된
+     * 사건이라, 한쪽이 실패해도 다른 쪽 선점을 되돌릴 이유가 없다(스케줄러가 각각 별도로 부른다).
+     * 위치를 다시 읽는 이유도 같다 — 로컬 Redis 단건 읽기라 {@link #judgeOne} 과 값을 공유해도 얻는
+     * 이득이 크지 않고, 두 판정의 독립성을 지키는 값이 더 크다.
+     */
+    @Transactional
+    public void judgeDeparture(Long runId) {
+        Optional<RunPositionSnapshot> position = runPositionReader.read(runId);
+        if (position.isEmpty()) {
+            return;
+        }
+
+        Optional<ConfirmedRoute> confirmedRoute = confirmedRouteRepository.findById(runId);
+        if (confirmedRoute.isEmpty() || confirmedRoute.get().getCurrentVersionId() == null) {
+            return;
+        }
+
+        List<RunStop> arrivedNotDeparted = runStopRepository.findFirstArrivedNotDeparted(
+                confirmedRoute.get().getCurrentVersionId(), PageRequest.of(0, NEXT_STOP_LIMIT));
+        if (arrivedNotDeparted.isEmpty()) {
+            return;
+        }
+        RunStop targetStop = arrivedNotDeparted.get(0);
+
+        Optional<Stop> stop = stopRepository.findById(targetStop.getStopId());
+        if (stop.isEmpty()) {
+            return;
+        }
+
+        GeoPoint busPosition = new GeoPoint(position.get().lat(), position.get().lng());
+        GeoPoint stopPosition = new GeoPoint(stop.get().getLat(), stop.get().getLng());
+        if (!proximityJudge.hasDeparted(busPosition, stopPosition)) {
+            return;
+        }
+
+        runStopRepository.claimDeparture(targetStop.getId(), OffsetDateTime.now(clock));
     }
 }

@@ -157,6 +157,13 @@ public class ProximityFixtures {
         return runStopRepository.save(RunStop.forStop(routeVersionId, stopId, seq, eta)).getId();
     }
 
+    /** 정차 항목을 도착 처리한다(출발 판정 재료, Ruling 307) — 기사의 도착 버튼(RUN-04)을 직접 흉내낸다. */
+    public void arriveStop(long runStopId, OffsetDateTime arrivedAt) {
+        RunStop runStop = runStopRepository.findById(runStopId).orElseThrow();
+        runStop.markArrived(arrivedAt);
+        runStopRepository.save(runStop);
+    }
+
     /** 그 회차의 라이더 1건 — {@code ABSENT} 면 결석 처리까지 마친다(C-02 배제 시험용). */
     public long rider(long runId, long studentId, long stopId, RiderStatus status, OffsetDateTime timestamp) {
         RunRider rider = RunRider.uponConfirmation(runId, studentId, stopId);

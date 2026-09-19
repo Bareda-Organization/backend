@@ -60,6 +60,18 @@ public class RunStop {
     @Column(name = "arrived_at")
     private OffsetDateTime arrivedAt;
 
+    /**
+     * 도착 처리된 정차지에서 버스가 100m 밖으로 벗어난 최초 시점(Ruling 307) — {@code null} 이면 아직
+     * 출발하지 않은 것이다. 되돌리기 제한(BRD-05, Ruling 305)의 유일한 판정 기준이며, 뒤 순번 정차지
+     * 참조에 기대던 파생 규칙(마지막 정차지에 걸리지 않는 결함)을 대체한다.
+     *
+     * <p>엔티티에 세터를 두지 않는다. {@link src.backend.routing.repository.RunStopRepository
+     * #claimDeparture} 조건부 UPDATE 만이 이 값을 채운다({@link #proximityNotifiedAt} 과 같은 근거 —
+     * "먼저 읽고 나중에 쓰면" 두 스케줄러 인스턴스가 같은 정차지를 동시에 미출발로 보고 둘 다 표시한다).
+     */
+    @Column(name = "departed_at")
+    private OffsetDateTime departedAt;
+
     /** 승하차지별 도착 예정 시각. 관제 전용이며 학부모·학생 응답에는 포함되지 않는다. */
     @Column(name = "eta")
     private OffsetDateTime eta;

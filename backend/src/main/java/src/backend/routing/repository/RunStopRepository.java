@@ -111,15 +111,39 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
     int claimProximityNotice(@Param("id") Long id, @Param("now") OffsetDateTime now);
 
     /**
-     * 승하차지를 이미 떠났는지 판정한다(BRD-05 되돌리기 제한, API_SPEC §4.7, Ruling 305) — 뒤 순번
-     * (seq 초과)의 정차 항목이 하나라도 도착 처리(arrivedAt IS NOT NULL)됐으면 앞 승하차지는 반드시
-     * 떠난 뒤다.
+     * 도착했지만 아직 출발 처리되지 않은 정차지 1건(Ruling 307, 출발 판정) — {@code Pageable} 의
+     * limit 1 과 {@code seq} 오름차순이 "먼저 도착한 정차지를 먼저 판정" 순서를 정한다.
      *
-     * <p>{@code routeVersionId} 근거는 {@link #findByRouteVersionIdAndStopId} 와 같다 — 호출부
-     * ({@code BoardingCommandService#revert})가 이미 학원 소속을 확인한 회차의 확정 노선 버전만 넘긴다.
+     * <p>{@code stopId IS NOT NULL} 로 강제 경유지를 뺀다 — 경유지는 학생이 배정되지 않아 출발
+     * 판정의 대상일 필요가 없다({@link #findNextUnarrived} 와 같은 근거).
+     *
+     * <p>{@code routeVersionId} 근거는 {@link #findByRouteVersionIdAndStopId} 와 같다 — 출발 판정
+     * 스케줄러가 {@code RunRepository} 로 이미 학원과 무관하게 골라낸 {@code run.id} 에서 파생된 값만
+     * 넘긴다는 전제다({@link #findNextUnarrived} 와 같은 근거).
      */
-    @AcademyScopeExempt(reason = "routeVersionId 는 호출부가 이미 학원 소속을 확인한 회차의 확정 노선 버전이라는 전제다 — "
-            + "RunRepository.findByIdAndAcademyId 로 회차를 먼저 학원 범위에 좁힌 뒤 confirmed_route.current_version_id 로 "
-            + "얻은 값만 넘긴다는 전제(findByRouteVersionIdAndStopId 와 같은 근거)")
-    boolean existsByRouteVersionIdAndSeqGreaterThanAndArrivedAtIsNotNull(Long routeVersionId, int seq);
+    @AcademyScopeExempt(reason = "routeVersionId 는 근접 알림과 같은 출발 판정 스케줄러가 RunRepository 로 이미 학원과 무관하게 "
+            + "골라낸 run.id 에서 confirmed_route.current_version_id 로 얻은 값만 넘긴다는 전제다(findNextUnarrived 와 같은 근거)")
+    @Query("""
+            SELECT rs FROM RunStop rs
+            WHERE rs.routeVersionId = :routeVersionId
+              AND rs.stopId IS NOT NULL
+              AND rs.arrivedAt IS NOT NULL
+              AND rs.departedAt IS NULL
+            ORDER BY rs.seq ASC
+            """)
+    List<RunStop> findFirstArrivedNotDeparted(@Param("routeVersionId") Long routeVersionId, Pageable pageable);
+
+    /**
+     * 정차 항목 1건의 출발을 <b>최초 1회</b>로 선점한다(Ruling 307) — {@link #claimProximityNotice} 와
+     * 같은 조건부 UPDATE 형태다. 근거도 같다 — {@code WHERE departed_at IS NULL} 조건이 멱등성의
+     * 전부이고, 호출자({@code ProximityNotificationService})의 트랜잭션에 그대로 참여해 실패 시 함께
+     * 롤백된다.
+     */
+    @Transactional
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @AcademyScopeExempt(reason = "findFirstArrivedNotDeparted 가 이미 학원과 무관하게 골라낸 정차 항목 id 하나를 조건부로 "
+            + "갱신하는 단건 호출이다 — 그 조회가 이미 좁힌 대상이라 이 시점에 학원을 다시 물을 근거가 없다"
+            + "(claimProximityNotice 와 같은 근거)")
+    @Query("UPDATE RunStop rs SET rs.departedAt = :now WHERE rs.id = :id AND rs.departedAt IS NULL")
+    int claimDeparture(@Param("id") Long id, @Param("now") OffsetDateTime now);
 }
