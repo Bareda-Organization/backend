@@ -1419,7 +1419,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|:-:|---|
-| `route_preview` | object | ◐ | **재최적화 결과 미리보기** — `stops_before[]` · `stops_after[]`(각 `seq` · `stop_name` · `eta`), `reordered[]`(순서가 바뀌는 승하차지), `removed[]`, `road_path_before[]` · `road_path_after[]`(각 `lat`·`lng` — 아래 참고) |
+| `route_preview` | object | ◐ | **재최적화 결과 미리보기** — `stops_before[]` · `stops_after[]`(각 `seq` · `stop_name` · `eta` · `lat` · `lng`), `reordered[]`(순서가 바뀌는 승하차지, 각 `stop_id` · `stop_name` · `lat` · `lng`), `removed[]`(같은 모양), `road_path_before[]` · `road_path_after[]`(각 `lat`·`lng` — 아래 참고) |
 | `depart_time` | datetime | ● | **회차의 출발 예정 시각**(`run.depart_time`, `Ruling 321`, 2026-09-19). 변경 신청이 출발 시각 자체를 옮기지 않으므로 **전/후로 나누지 않는다.** 결정 여부와 무관하게 항상 채워진다(`capacity` 와 같은 근거) |
 | `est_time_before` · `est_time_after` | datetime | ◐ | 재최적화 전/후 예상 도착 시각 |
 | `est_distance_before` · `est_distance_after` | number | ◐ | 재최적화 전/후 총 운행 거리(km) |
@@ -1430,6 +1430,8 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `preview_stale` | boolean | ● | 미리보기 산출 후 입력(명단·승하차지·경유 지점)이 바뀌었는지. `true` 면 재조회 안내. **결정된 건은 항상 `false`** |
 
 **`road_path_before` · `road_path_after`(`Ruling 319`, 2026-09-19)** — 전/후 경로를 **좌우 두 지도로 나란히** 그릴 도로 좌표열(순서 있음). 한 지도에 겹쳐 그리지 않는다. `route_version.road_path`(§5.19 가 쓰는 것과 같은 컬럼)를 그대로 실으며, 도로 좌표 컬럼이 비어 있는 옛 확정 노선 버전이거나 결정된 건이면 **빈 배열**이다(`route_preview` 자체가 `null` 이면 당연히 이 필드도 없다). `road_path_before` 는 `stops_before` 와, `road_path_after` 는 `stops_after` 와 같은 전/후 짝이다.
+
+**`stops_before[].lat`·`.lng` · `stops_after[].lat`·`.lng` · `reordered[].lat`·`.lng` · `removed[].lat`·`.lng`(R21-A 추가 지시, 2026-09-19)** — 관계자 웹 지도에 마커로 찍는 좌표다. 승하차지(`Stop`)로 해석되면 그 좌표를 싣고, 강제 경유 지점(waypoint)만 가리키는 항목은 좌표를 안 싣는 **자리(`null`)** 다 — 화면은 그 마커만 건너뛰고 나머지를 그린다. §5.15(경유 지점 지정·제거)의 `route_preview` 도 이 문단과 **같은 구조**를 그대로 쓴다(아래 §5.15 참고, `Ruling 265` 계열이 맞춰 둔 대칭).
 
 #### 왜 결정된 건은 비는가 (2026-09-14 정본 개정, `BE-R2` 목표 15 · `Ruling 265` 계열)
 

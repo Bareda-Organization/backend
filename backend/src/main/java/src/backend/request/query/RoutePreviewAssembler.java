@@ -83,8 +83,12 @@ public class RoutePreviewAssembler {
     public List<PreviewStopResponse> toPreviewStopsFromRunStops(List<RunStop> runStops, Map<Long, Stop> stopsById,
             Map<Long, String> waypointLabelsById) {
         return runStops.stream()
-                .map(rs -> new PreviewStopResponse(rs.getSeq(),
-                        nameOf(rs.getStopId(), rs.getWaypointId(), stopsById, waypointLabelsById), rs.getEta()))
+                .map(rs -> {
+                    Stop stop = stopsById.get(rs.getStopId());
+                    return new PreviewStopResponse(rs.getSeq(),
+                            nameOf(rs.getStopId(), rs.getWaypointId(), stopsById, waypointLabelsById), rs.getEta(),
+                            stop != null ? stop.getLat() : null, stop != null ? stop.getLng() : null);
+                })
                 .toList();
     }
 
@@ -104,9 +108,11 @@ public class RoutePreviewAssembler {
         List<OffsetDateTime> etas = computation.etas();
         List<PreviewStopResponse> stops = new ArrayList<>(ordered.size());
         for (int i = 0; i < ordered.size(); i++) {
-            OrderedStop stop = ordered.get(i);
-            stops.add(new PreviewStopResponse(stop.seq(),
-                    nameOf(stop.stopId(), stop.waypointId(), stopsById, waypointLabelsById), etas.get(i)));
+            OrderedStop orderedStop = ordered.get(i);
+            Stop stop = stopsById.get(orderedStop.stopId());
+            stops.add(new PreviewStopResponse(orderedStop.seq(),
+                    nameOf(orderedStop.stopId(), orderedStop.waypointId(), stopsById, waypointLabelsById), etas.get(i),
+                    stop != null ? stop.getLat() : null, stop != null ? stop.getLng() : null));
         }
         return stops;
     }
@@ -167,7 +173,8 @@ public class RoutePreviewAssembler {
 
     private static StopRefResponse stopRefOf(Long stopId, Map<Long, Stop> stopsById) {
         Stop stop = stopsById.get(stopId);
-        return new StopRefResponse(stopId, stop != null ? stop.getName() : null);
+        return new StopRefResponse(stopId, stop != null ? stop.getName() : null,
+                stop != null ? stop.getLat() : null, stop != null ? stop.getLng() : null);
     }
 
     /**
