@@ -2,6 +2,7 @@ package src.backend.monitoring.query;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -154,7 +155,17 @@ public class StaffDashboardQueryService {
         return new StaffDashboardResponse.Run(run.getId(), busNos.get(run.getBusId()),
                 lower(run.getDirection().name()), run.getDepartTime(), driverName, escortName, boardedCount,
                 totalCount, lower(run.getStatus().name()), addedCount, removedCount, ackDriver, ackEscort,
-                noShowCases);
+                noShowCases, run.getStartedAt(), run.getFinishedAt(), estArrivalTimeOf(run));
+    }
+
+    /**
+     * 예정 도착 = 예정 출발 + 소요 시간 추정치(R21-B2). {@code est_duration_min} 은 스케줄 생성 시점에
+     * 정해지고 그 뒤 안 바뀐다({@code Run} 자바독 — setter 부재) — 이 회차엔 도착 예정을 계산할 근거가
+     * 없다는 뜻이라 {@code null} 로 둔다({@code AssignmentConflictDetector.windowEnd} 와 같은 null
+     * 가드 방식).
+     */
+    private OffsetDateTime estArrivalTimeOf(Run run) {
+        return run.getEstDurationMin() == null ? null : run.getDepartTime().plusMinutes(run.getEstDurationMin());
     }
 
     private int sumByStatus(List<StaffRunRiderAggregateView> agg, RiderStatus status) {

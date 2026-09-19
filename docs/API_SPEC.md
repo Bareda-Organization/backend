@@ -1336,7 +1336,9 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
-| `run_id` · `bus_no` · `direction` · `depart_time` | — | 회차 요약 |
+| `run_id` · `bus_no` · `direction` · `depart_time` | — | 회차 요약. `depart_time` 은 **예정** 출발 |
+| `started_at` · `finished_at` | datetime, null 가능 | **실제** 출발·종료(도착) 시각(R21-B, §8.34 목표 B). 그 상태를 지나기 전이면 `null` — 키는 존재하고 값만 빈다(§6.8 과 같은 관례) |
+| `est_arrival_time` | datetime, null 가능 | **예정** 도착 = `depart_time + est_duration_min`(분)(R21-B2). 회차에 `est_duration_min`(스케줄 소요 시간 추정치) 이 없으면 계산 근거가 없어 `null` |
 | `driver_name` · `escort_name` | string | 배치 인력 |
 | `boarded_count` / `total_count` | integer | 탑승 현재/전체 |
 | `run_status` | enum | `idle` · `confirmed` · `moving` · `finished` |
