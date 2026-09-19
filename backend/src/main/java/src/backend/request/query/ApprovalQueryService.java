@@ -149,7 +149,7 @@ public class ApprovalQueryService {
         Bus bus = busRepository.findByIdAndAcademyId(run.getBusId(), academyId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.BUS_NOT_FOUND));
         if (cr.getStatus() != ChangeRequestStatus.PENDING) {
-            return decidedDetailOf(summary, riders, bus);
+            return decidedDetailOf(summary, run, riders, bus);
         }
         // ②구간 승인 대기 신청은 confirmAt 도래 즉시(ChangeWindowPolicy) 성립하지만, 회차의 실제
         // idle → confirmed 전이와 그때 함께 만들어지는 confirmed_route 는 30초 폴링 확정 배치가
@@ -209,10 +209,11 @@ public class ApprovalQueryService {
         List<AffectedStudentResponse> affectedStudents = routePreviewAssembler.affectedStudentsOf(cr.getStudentId(),
                 summary.studentName(), riders, beforeSeq, afterSeq);
 
-        return ApprovalDetailResponse.of(summary, routePreview, routePreviewAssembler.lastEtaOf(stopsBefore),
-                routePreviewAssembler.lastEtaOf(stopsAfter), currentVersion.getEstDistanceKm(),
-                computation.estDistanceKm(), currentVersion.getEstDurationMin(), computation.estDurationMin(),
-                affectedStudents, capacity, previewResult.preview().token(), previewResult.stale());
+        return ApprovalDetailResponse.of(summary, routePreview, run.getDepartTime(),
+                routePreviewAssembler.lastEtaOf(stopsBefore), routePreviewAssembler.lastEtaOf(stopsAfter),
+                currentVersion.getEstDistanceKm(), computation.estDistanceKm(), currentVersion.getEstDurationMin(),
+                computation.estDurationMin(), affectedStudents, capacity, previewResult.preview().token(),
+                previewResult.stale());
     }
 
     /**
@@ -234,11 +235,12 @@ public class ApprovalQueryService {
      * {@link #detail} javadoc) ③결정된 건에 유효해 보이는 토큰을 주면 화면에 "다시 결정할 수 있다"
      * 는 인상을 줄 수 있어서다(보고서 후속 절 참고).
      */
-    private ApprovalDetailResponse decidedDetailOf(ApprovalSummaryResponse summary, List<RunRider> riders, Bus bus) {
+    private ApprovalDetailResponse decidedDetailOf(ApprovalSummaryResponse summary, Run run, List<RunRider> riders,
+            Bus bus) {
         long assigned = riders.stream().filter(r -> r.getStatus() != RiderStatus.ABSENT).count();
         ApprovalCapacityResponse capacity = new ApprovalCapacityResponse(bus.getStudentCapacity(), (int) assigned);
-        return ApprovalDetailResponse.of(summary, null, null, null, null, null, null, null, List.of(), capacity,
-                null, false);
+        return ApprovalDetailResponse.of(summary, null, run.getDepartTime(), null, null, null, null, null, null,
+                List.of(), capacity, null, false);
     }
 
     /** 요약 1건 — 목록(§5.5 목록)이 회차·명단을 매번 새로 읽어야 할 때 쓰는 얕은 진입점. */

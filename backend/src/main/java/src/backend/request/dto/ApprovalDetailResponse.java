@@ -15,6 +15,10 @@ import java.util.List;
  * 출발지→마지막 정차지까지의 <b>노선 전체 소요(분)</b>다 — 특정 학생의 승하차지까지가 아니다. 새로
  * 계산하지 않고 {@code route_version.est_duration_min}(전)·{@code RouteComputation.estDurationMin()}
  * (후)를 그대로 싣는다. {@code est_time_*}(도착 시각)과 같은 전/후 짝이며, 결정된 건은 {@code null}이다.
+ *
+ * <p>{@code departTime}(`R20-A`, 추가 계약)은 그 회차의 출발 예정 시각({@code run.depart_time})이다 —
+ * 변경 신청이 출발 시각 자체를 옮기지 않으므로 <b>전/후로 나누지 않는다</b>. 결정된 건에서도 값이
+ * 있다 — 회차의 출발 시각은 승인 여부와 무관하게 항상 정해져 있다.
  */
 public record ApprovalDetailResponse(
         Long approvalId,
@@ -29,6 +33,7 @@ public record ApprovalDetailResponse(
         boolean willRemoveStop,
         OffsetDateTime requestedAt,
         RoutePreviewResponse routePreview,
+        OffsetDateTime departTime,
         OffsetDateTime estTimeBefore,
         OffsetDateTime estTimeAfter,
         BigDecimal estDistanceBefore,
@@ -41,13 +46,13 @@ public record ApprovalDetailResponse(
         boolean previewStale) {
 
     public static ApprovalDetailResponse of(ApprovalSummaryResponse summary, RoutePreviewResponse routePreview,
-            OffsetDateTime estTimeBefore, OffsetDateTime estTimeAfter, BigDecimal estDistanceBefore,
-            BigDecimal estDistanceAfter, Integer estDurationBefore, Integer estDurationAfter,
-            List<AffectedStudentResponse> affectedStudents, ApprovalCapacityResponse capacity, String previewToken,
-            boolean previewStale) {
+            OffsetDateTime departTime, OffsetDateTime estTimeBefore, OffsetDateTime estTimeAfter,
+            BigDecimal estDistanceBefore, BigDecimal estDistanceAfter, Integer estDurationBefore,
+            Integer estDurationAfter, List<AffectedStudentResponse> affectedStudents,
+            ApprovalCapacityResponse capacity, String previewToken, boolean previewStale) {
         return new ApprovalDetailResponse(summary.approvalId(), summary.source(), summary.studentName(),
                 summary.runId(), summary.busNo(), summary.direction(), summary.deadlineAt(), summary.stopName(),
-                summary.remainingRiders(), summary.willRemoveStop(), summary.requestedAt(), routePreview,
+                summary.remainingRiders(), summary.willRemoveStop(), summary.requestedAt(), routePreview, departTime,
                 estTimeBefore, estTimeAfter, estDistanceBefore, estDistanceAfter, estDurationBefore, estDurationAfter,
                 List.copyOf(affectedStudents), capacity, previewToken, previewStale);
     }

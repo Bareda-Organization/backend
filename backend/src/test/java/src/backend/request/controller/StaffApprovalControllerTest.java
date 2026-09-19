@@ -276,6 +276,11 @@ class StaffApprovalControllerTest {
         시나리오 s = 확정된_회차와_승인_대기_건을_만든다();
 
         MvcResult result = 상세_조회(관계자_토큰(s.academyId), s.approvalId).andExpect(status().isOk())
+                // R20-A(Ruling 321) — depart_time 은 전/후로 나뉘지 않는 단일 값이다. 정확값(SERVICE_DATE
+                // 08:00, 확정된_회차와_승인_대기_건을_만든다 가 심은 값)으로 대조한다 — notNull 만으로는
+                // 응답이 다른 회차의 시각을 잘못 실어도 못 잡는다.
+                .andExpect(jsonPath("$.data.depart_time")
+                        .value(org.hamcrest.Matchers.startsWith("2030-05-05T23:00:00Z")))
                 .andExpect(jsonPath("$.data.est_duration_before", org.hamcrest.Matchers.greaterThan(0)))
                 .andExpect(jsonPath("$.data.est_duration_after", org.hamcrest.Matchers.greaterThan(0)))
                 .andExpect(jsonPath("$.data.route_preview.road_path_before",
@@ -470,6 +475,9 @@ class StaffApprovalControllerTest {
                 .andExpect(jsonPath("$.data.preview_token").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.data.preview_stale").value(false))
                 .andExpect(jsonPath("$.data.route_preview").value(org.hamcrest.Matchers.nullValue()))
+                // R20-A(Ruling 321) — depart_time 은 capacity 와 같이 결정 여부와 무관하게 항상 채워진다.
+                .andExpect(jsonPath("$.data.depart_time")
+                        .value(org.hamcrest.Matchers.startsWith("2030-05-05T23:00:00Z")))
                 .andExpect(jsonPath("$.data.est_time_before").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.data.est_time_after").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.data.est_distance_before").value(org.hamcrest.Matchers.nullValue()))

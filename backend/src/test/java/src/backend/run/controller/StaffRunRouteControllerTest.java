@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.jayway.jsonpath.JsonPath;
 
+import src.backend.academy.entity.Academy;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
@@ -31,19 +32,28 @@ import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
+import src.backend.global.common.enums.Weekday;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
 import src.backend.request.repository.ChangeRequestRepository;
 import src.backend.routing.domain.GeoPoint;
+import src.backend.routing.entity.Route;
+import src.backend.routing.entity.RoutePlan;
 import src.backend.routing.repository.ConfirmedRouteRepository;
+import src.backend.routing.repository.RouteRepository;
+import src.backend.routing.repository.RouteStopRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.repository.RunRepository;
+import src.backend.student.domain.VerifiedAddressEntry;
+import src.backend.student.entity.WeeklyAddress;
+import src.backend.student.geocoding.spec.GeocodedPoint;
 import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
+import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
  * §5.19 {@code GET /staff/runs/{runId}/route} — RTE-02, F1 S3 목표 11.
@@ -111,6 +121,15 @@ class StaffRunRouteControllerTest {
 
     @Autowired
     private ChangeRequestRepository changeRequestRepository;
+
+    @Autowired
+    private RouteRepository routeRepository;
+
+    @Autowired
+    private RouteStopRepository routeStopRepository;
+
+    @Autowired
+    private WeeklyAddressRepository weeklyAddressRepository;
 
     private DriverRunFixtures fixtures() {
         return new DriverRunFixtures(academyRepository, busRepository, stopRepository, studentRepository,
@@ -197,6 +216,66 @@ class StaffRunRouteControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.road_path").isNotEmpty())
                 .andExpect(jsonPath("$.data.fallback_used").value(true));
+    }
+
+    /**
+     * R20-A 목표(Ruling 321) — 확정 전(idle) 회차도 고정 노선(route·route_stop)만 있으면 200 이고
+     * {@code confirmed=false} 인 예정 경로를 낸다. {@code DriverRunFixtures.idleRun} 은 항상
+     * {@code serviceDate=2030-04-01}(월요일) 을 쓴다({@code idleRun} javadoc 참고) — 고정 노선도 같은
+     * 요일(MON)로 등록해야 매칭된다.
+     */
+    @Test
+    @DisplayName("R20-A — idle 회차도 고정 노선이 있으면 200 이고 confirmed=false 인 예정 경로를 낸다")
+    void idle_회차도_고정_노선이_있으면_200이고_confirmed가_false인_예정_경로를_낸다() throws Exception {
+        DriverRunFixtures fx = fixtures();
+        long academyId = fx.academy();
+        Academy academy = academyRepository.findById(academyId).orElseThrow();
+        academy.assignCoordinates(new BigDecimal("37.500000"), new BigDecimal("127.000000"));
+        academyRepository.save(academy);
+        long busId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.510000", "127.010000");
+
+        Route route = routeRepository
+                .save(Route.register(academyId, new RoutePlan(busId, Weekday.MON, Direction.TO_ACADEMY, "본선", true)));
+        routeStopRepository.save(src.backend.routing.entity.RouteStop.forRoute(route.getId(), stopId, 1));
+
+        long studentId = fx.student(academyId, "학생1");
+        VerifiedAddressEntry entry = new VerifiedAddressEntry(
+                new VerifiedAddressEntry.AddressSlot(Weekday.MON, Direction.TO_ACADEMY),
+                new VerifiedAddressEntry.AddressText("서울시 어딘가 37.51", null),
+                new GeocodedPoint(new BigDecimal("37.510000"), new BigDecimal("127.010000"), "서울시 어딘가"));
+        weeklyAddressRepository.save(WeeklyAddress.verified(studentId, entry, stopId, OffsetDateTime.now()));
+
+        OffsetDateTime departTime = OffsetDateTime.now().plusHours(3);
+        long runId = fx.idleRun(academyId, busId, Direction.TO_ACADEMY, departTime);
+        long staffAccountId = fx.staffAccount(academyId, "관계자1");
+
+        mockMvc.perform(get("/api/v1/staff/runs/" + runId + "/route")
+                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.confirmed").value(false))
+                .andExpect(jsonPath("$.data.stops[0].stop_id").value((int) stopId))
+                .andExpect(jsonPath("$.data.route_version").value(0))
+                .andExpect(jsonPath("$.data.published_at").doesNotExist())
+                .andExpect(jsonPath("$.data.ack.driver").value(false))
+                .andExpect(jsonPath("$.data.ack.escort").value(false));
+    }
+
+    /** R20-A — 고정 노선도 없으면 idle 회차는 여전히 409 다(조용한 빈 값이 아니라 명시적 오류). */
+    @Test
+    @DisplayName("R20-A — idle 회차에 고정 노선도 없으면 409 RUN_NOT_CONFIRMED 다")
+    void idle_회차에_고정_노선도_없으면_409다() throws Exception {
+        DriverRunFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        OffsetDateTime departTime = OffsetDateTime.now().plusHours(3);
+        long runId = fx.idleRun(academyId, busId, Direction.TO_ACADEMY, departTime);
+        long staffAccountId = fx.staffAccount(academyId, "관계자1");
+
+        mockMvc.perform(get("/api/v1/staff/runs/" + runId + "/route")
+                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("RUN_NOT_CONFIRMED"));
     }
 
     @Test
