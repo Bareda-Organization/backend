@@ -17,6 +17,10 @@
 -- 5) 학원 B 는 계정만이 아니라 학생·보호자·버스·회차·확정 노선까지 독립된 데이터 계통을 갖는다
 --    — 그래야 "A 계정으로 B 데이터 조회 시 공집합" 격리 검증이 실제로 무언가를 격리한 것이 된다.
 
+-- ⚠⚠ 날짜는 **한국시간 기준**이어야 한다. `(now() AT TIME ZONE 'Asia/Seoul')::date` 는 DB 세션 시간대(컨테이너는 UTC)를
+-- 따르는데 앱의 "오늘"은 `Asia/Seoul` 이다 — 한국시간 자정~오전 9시 사이에 시드를 깔면
+-- 회차 대부분이 "어제" 로 들어가 대시보드가 텅 빈다(2026-09-20 00:25 KST 조율자 실측).
+-- `KST_TODAY` 로 통일한다.
 -- ── 그룹① 학원 · 계정 · 권한 ─────────────────────────────────────────────────
 -- 학원 A(운영중, 메인 데모) · B(운영중, 격리 검증용 독립 계통) ·
 -- C(운영정지, O-01 "비활성화해도 기존 사용자 로그인 유지" 시연용 — staffC 계정 1개 보유)
@@ -253,36 +257,36 @@ INSERT INTO run (id, academy_id, bus_id, schedule_id, service_date, direction, d
                   created_at, updated_at)
 OVERRIDING SYSTEM VALUE
 VALUES
-    (1, 1, 1, 1, CURRENT_DATE, 'to_academy',
+    (1, 1, 1, 1, (now() AT TIME ZONE 'Asia/Seoul')::date, 'to_academy',
         now() + interval '3 hours', (now() + interval '3 hours') - interval '30 minutes',
         'idle', '중앙 집결지', '바래다학원 A', 30, NULL, NULL, NULL, now(), now()),
-    (2, 1, 1, 2, CURRENT_DATE, 'from_academy',
+    (2, 1, 1, 2, (now() AT TIME ZONE 'Asia/Seoul')::date, 'from_academy',
         now() + interval '20 minutes', (now() + interval '20 minutes') - interval '30 minutes',
         'confirmed', '바래다학원 A', '중앙 집결지', 30, (now() + interval '20 minutes') - interval '30 minutes', NULL, NULL, now(), now()),
-    (3, 1, 2, 3, CURRENT_DATE, 'to_academy',
+    (3, 1, 2, 3, (now() AT TIME ZONE 'Asia/Seoul')::date, 'to_academy',
         now() - interval '10 minutes', (now() - interval '10 minutes') - interval '30 minutes',
         'moving', '중앙 집결지', '바래다학원 A', 45, (now() - interval '10 minutes') - interval '30 minutes', now() - interval '8 minutes', NULL, now(), now()),
-    (4, 1, 2, 4, CURRENT_DATE, 'from_academy',
+    (4, 1, 2, 4, (now() AT TIME ZONE 'Asia/Seoul')::date, 'from_academy',
         now() - interval '3 hours', (now() - interval '3 hours') - interval '30 minutes',
         'finished', '바래다학원 A', '중앙 집결지', 45, (now() - interval '3 hours') - interval '30 minutes',
         (now() - interval '3 hours') + interval '1 minute', (now() - interval '3 hours') + interval '40 minutes', now(), now()),
-    (5, 2, 3, 5, CURRENT_DATE, 'to_academy',
+    (5, 2, 3, 5, (now() AT TIME ZONE 'Asia/Seoul')::date, 'to_academy',
         now() + interval '25 minutes', (now() + interval '25 minutes') - interval '30 minutes',
         'confirmed', 'B 집결지', '바래다학원 B', 35, (now() + interval '25 minutes') - interval '30 minutes', NULL, NULL, now(), now()),
     -- R6 idle(출발 4시간 전) — ①구간(30분 전보다 훨씬 앞) 전용 시나리오(§5.7 강제 추가) 검증용.
     -- 기존 R1도 출발 3시간 전이라 ①구간이지만, §5.7 호출이 R1의 상태(다른 목표의 대조 대상)에
     -- 곁다리 부수효과를 남기지 않도록 전용 회차를 따로 둔다. R1과 같은 학원·버스·방향이라
     -- 같은 고정 노선(route id=1)이 매칭되고 정원 판정도 동일하게 통과한다.
-    (6, 1, 1, 1, CURRENT_DATE, 'to_academy',
+    (6, 1, 1, 1, (now() AT TIME ZONE 'Asia/Seoul')::date, 'to_academy',
         now() + interval '4 hours', (now() + interval '4 hours') - interval '30 minutes',
         'idle', '중앙 집결지', '바래다학원 A', 30, NULL, NULL, NULL, now(), now()),
     -- R7 confirmed(내일 날짜) — "자정 직후에도 confirmed 회차가 있다"(BE-R1 SEED 목표 10) 전용.
-    -- R1~R6 는 service_date 가 CURRENT_DATE(시드 적용일)로 고정돼, local 프로파일이 재기동 없이
+    -- R1~R6 는 service_date 가 (now() AT TIME ZONE 'Asia/Seoul')::date(시드 적용일)로 고정돼, local 프로파일이 재기동 없이
     -- 자정을 넘기면 "오늘" 조회(`ManagerRunQueryService.list` 의 LocalDate.now(clock) 비교)에서
     -- 전부 빠진다 — R2 가 confirmed 인 것과 무관하게 날짜 자체가 안 맞아 사라진다. R7 은 그 다음날
     -- 짝을 미리 심어 둬, 시드 적용일 당일과 그 다음날(자정 직후 포함) 어느 쪽에 조회해도 confirmed
     -- 인 회차가 최소 하나는 남게 한다 — 그 이상 재기동 없이 지나간 날짜는 이 시드가 보증하지 않는다.
-    (7, 1, 1, NULL, CURRENT_DATE + 1, 'from_academy',
+    (7, 1, 1, NULL, (now() AT TIME ZONE 'Asia/Seoul')::date + 1, 'from_academy',
         now() + interval '1 day' + interval '20 minutes',
         (now() + interval '1 day' + interval '20 minutes') - interval '30 minutes',
         'confirmed', '바래다학원 A', '중앙 집결지', 30,
@@ -293,7 +297,7 @@ VALUES
     -- 고정 노선(route id=1, 1호차·to_academy)과 academy·bus·weekday·direction 이 일치하고
     -- confirmed_route 를 갖는 전용 회차를 새로 둔다. 출발까지 2시간을 둬 재구성 없이 오래
     -- 켜 둬도 CHANGE_WINDOW_CLOSED(운행 시작 후) 로 넘어가지 않게 한다(R7 과 같은 판단).
-    (8, 1, 1, 1, CURRENT_DATE, 'to_academy',
+    (8, 1, 1, 1, (now() AT TIME ZONE 'Asia/Seoul')::date, 'to_academy',
         now() + interval '2 hours', (now() + interval '2 hours') - interval '30 minutes',
         'confirmed', '중앙 집결지', '바래다학원 A', 30, (now() + interval '2 hours') - interval '30 minutes', NULL, NULL, now(), now());
 
