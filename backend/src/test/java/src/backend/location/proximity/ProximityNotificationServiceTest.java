@@ -139,7 +139,9 @@ class ProximityNotificationServiceTest extends RedisTestContainerBase {
 
         proximityNotificationService.judgeOne(runId, academyId);
 
-        String dedupKey = "approaching:%d:%d:%d".formatted(runId, stopId, studentId);
+        // 학생 계정을 연결하지 않아 학부모 몫만 적재된다 — dedup_key 대상 자리는 목표 4 로 "parent"·
+        // "student" 로 갈린다(R14).
+        String dedupKey = "approaching:%d:%d:%d:parent".formatted(runId, stopId, studentId);
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
                 "SELECT type, student_id, student_name FROM notification_log WHERE dedup_key = ?", dedupKey);
         assertThat(rows).hasSize(1);
@@ -149,6 +151,42 @@ class ProximityNotificationServiceTest extends RedisTestContainerBase {
         // R13 — arrive 는 studentId 를 들고 있는 단일 학생 이벤트다(§8.16 목표 3).
         assertThat(rows.get(0).get("student_id")).as("student_id 가 채워진다").isEqualTo(studentId);
         assertThat(rows.get(0).get("student_name")).as("student_name 이 채워진다").isEqualTo("근접학생1");
+    }
+
+    /**
+     * R14 목표 1·3·4 — {@code arrive} 문구에 자녀 이름이 실리고(ATT-03), 그 이름이 {@code student_name}
+     * 컬럼과 같으며, 학생 본인 계정에도 별도 행이 적재된다(API_SPEC §9.7 수신자 "학부모·학생").
+     */
+    @Test
+    void 근접_알림은_문구에_자녀_이름을_싣고_학부모와_학생_본인_모두에게_적재된다() {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        ProximityFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.500000", STOP_LNG);
+        long studentId = fx.studentWithAccount(academyId, "근접학생4");
+        fx.guardianOf(academyId, studentId, "근접학부모4", now);
+        long runId = fx.movingRun(academyId, busId, Direction.FROM_ACADEMY, now.plusHours(1), now, now);
+        long versionId = fx.confirmedRouteWithVersion(runId, now);
+        fx.runStopForStop(versionId, stopId, 1, now.plusMinutes(10));
+        fx.rider(runId, studentId, stopId, RiderStatus.WAITING, null);
+
+        writePosition(runId, NEAR_LAT, STOP_LNG);
+
+        proximityNotificationService.judgeOne(runId, academyId);
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT recipient_role, body, student_name FROM notification_log "
+                        + "WHERE dedup_key IN (?, ?) ORDER BY recipient_role",
+                "approaching:%d:%d:%d:parent".formatted(runId, stopId, studentId),
+                "approaching:%d:%d:%d:student".formatted(runId, stopId, studentId));
+        assertThat(rows).as("학부모·학생 두 행이 각각 적재된다").hasSize(2);
+        assertThat(rows).extracting(row -> row.get("recipient_role"))
+                .containsExactlyInAnyOrder("parent", "student");
+        assertThat(rows).as("문구에 자녀 이름이 실린다(ATT-03)")
+                .allSatisfy(row -> assertThat((String) row.get("body")).contains("근접학생4"));
+        assertThat(rows).as("문구 속 이름과 student_name 컬럼이 같다(목표 3)")
+                .allSatisfy(row -> assertThat((String) row.get("body")).contains((String) row.get("student_name")));
     }
 
     @Test
@@ -229,7 +267,7 @@ class ProximityNotificationServiceTest extends RedisTestContainerBase {
     }
 
     private int notificationCount(long runId, long stopId, long studentId) {
-        String dedupKey = "approaching:%d:%d:%d".formatted(runId, stopId, studentId);
+        String dedupKey = "approaching:%d:%d:%d:parent".formatted(runId, stopId, studentId);
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM notification_log WHERE dedup_key = ?", Integer.class, dedupKey);
         return count == null ? 0 : count;

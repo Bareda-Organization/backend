@@ -13,11 +13,15 @@ import src.backend.academy.dto.AcademyStaffAccountView;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.bus.entity.Bus;
+import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Role;
 import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.notification.entity.NotificationType;
+import src.backend.run.entity.Run;
 import src.backend.run.event.RunStartedEvent;
+import src.backend.run.repository.RunRepository;
 import src.backend.student.entity.Student;
 import src.backend.student.repository.GuardianAccountRecipient;
 import src.backend.student.repository.GuardianStudentRepository;
@@ -48,6 +52,10 @@ public class RunStartedNotificationListener {
 
     private final StudentRepository studentRepository;
 
+    private final RunRepository runRepository;
+
+    private final BusRepository busRepository;
+
     private final NotificationOutbox notificationOutbox;
 
     private final NotificationComposer<RunStartedEvent> runStartedComposer;
@@ -66,15 +74,30 @@ public class RunStartedNotificationListener {
         appendToStudents(event, message, studentIds);
     }
 
-    /** 관계자 — 그 학원 재직 전원(회차의 특정 배치와 무관하다, {@link IntentNotificationListener} 와 같은 대상 규칙). */
+    /**
+     * 관계자 — 그 학원 재직 전원(회차의 특정 배치와 무관하다, {@link IntentNotificationListener} 와
+     * 같은 대상 규칙). 호차를 채운다(목표 5) — {@link RunStartedEvent} 는 runId 만 나르므로
+     * Run → Bus 를 한 번 더 거친다(수신자 전원이 같은 차량을 가리켜 순회 전에 한 번만 조회).
+     */
     private void appendToStaff(RunStartedEvent event, NotificationMessage message) {
         List<AcademyStaffAccountView> staff = academyStaffRepository
                 .findActiveAccountsByAcademyId(event.academyId());
+        String busNo = busNoOf(event.runId(), event.academyId());
         for (AcademyStaffAccountView recipient : staff) {
             notificationOutbox.append(new NotificationDraft(event.academyId(), recipient.accountId(),
                     recipient.name(), Role.STAFF, NotificationType.RUN_STARTED, message.title(), message.body(),
-                    DEDUP_KEY_FORMAT.formatted(event.runId(), recipient.accountId(), event.startedAt())));
+                    DEDUP_KEY_FORMAT.formatted(event.runId(), recipient.accountId(), event.startedAt()),
+                    null, null, busNo));
         }
+    }
+
+    /** 목표 5 — 학부모·학생 알림은 이미 자녀 이름이 있어 호차까지는 요구되지 않는다(정본 범위: 관계자 알림). */
+    private String busNoOf(Long runId, Long academyId) {
+        return runRepository.findByIdAndAcademyId(runId, academyId)
+                .map(Run::getBusId)
+                .flatMap(busId -> busRepository.findByIdAndAcademyId(busId, academyId))
+                .map(Bus::getBusNo)
+                .orElse(null);
     }
 
     /** 지금 그 회차 명단에 오른 학생들 — 확정 배치가 쌓은 뒤 승인된 변경까지 반영된 현재 상태다. */

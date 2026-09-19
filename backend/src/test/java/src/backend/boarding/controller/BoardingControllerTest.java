@@ -596,10 +596,10 @@ class BoardingControllerTest {
         assertThat(rows).as("①원본 승차 알림 1건 + 취소 정정 알림 1건, 총 2건").hasSize(2);
         assertThat(rows.get(0).get("type")).as("②원본 알림 종류는 그대로다 — 고치지 않는다").isEqualTo("boarding");
         assertThat(rows.get(0).get("body")).as("③원본 알림 본문도 그대로다 — 고치지 않는다")
-                .isEqualTo("자녀가 버스에 탑승했습니다.");
+                .isEqualTo("학생7 학생이 버스에 탑승했습니다.");
         assertThat(rows.get(1).get("type")).as("④새로 적재된 정정 알림의 종류").isEqualTo("boarding_canceled");
         assertThat(rows.get(1).get("body")).as("⑤정정 알림 본문 — 승차 취소 전용 문구")
-                .isEqualTo("자녀의 승차 처리가 취소되었습니다.");
+                .isEqualTo("학생7 학생의 승차 처리가 취소되었습니다.");
         // R13 — boarding·boarding_canceled 둘 다 studentId 를 들고 있는 단일 학생 이벤트다(§8.16 목표 3).
         assertThat(rows).as("⑥두 행 모두 student_id·student_name 이 채워진다")
                 .allSatisfy(row -> {
@@ -653,9 +653,9 @@ class BoardingControllerTest {
                 guardian.accountId(), "alighting_canceled");
         assertThat(canceled).as("①하차 취소 정정 알림이 정확히 1건").hasSize(1);
         String alightingCanceledBody = (String) canceled.get(0).get("body");
-        assertThat(alightingCanceledBody).as("②하차 취소 전용 문구").isEqualTo("자녀의 하차 처리가 취소되었습니다.");
+        assertThat(alightingCanceledBody).as("②하차 취소 전용 문구").isEqualTo("학생8 학생의 하차 처리가 취소되었습니다.");
         assertThat(alightingCanceledBody).as("③승차 취소 문구와는 다른 문구다(목표14 핵심)")
-                .isNotEqualTo("자녀의 승차 처리가 취소되었습니다.");
+                .isNotEqualTo("학생8 학생의 승차 처리가 취소되었습니다.");
         // R13 — alighting_canceled 도 studentId 를 들고 있는 단일 학생 이벤트다(§8.16 목표 3).
         assertThat(canceled.get(0).get("student_id")).as("④student_id 가 채워진다").isEqualTo(studentId);
         assertThat(canceled.get(0).get("student_name")).as("⑤student_name 이 채워진다").isEqualTo("학생8");

@@ -239,6 +239,14 @@ class DelayNotificationControllerTest {
                         + "AND dedup_key LIKE ?",
                 Long.class, "delay:" + runId + ":" + staffAccountId + ":%");
         assertThat(staffLegStudentId).as("관계자 갈래는 회차 전체를 알리므로 student_id 가 null 로 남는다").isNull();
+
+        // R14 목표 5 — 관계자 알림에도 호차가 채워진다(Run → Bus 조회).
+        String busNo = jdbcTemplate.queryForObject("SELECT bus_no FROM bus WHERE id = ?", String.class, busId);
+        String staffLegBusNo = jdbcTemplate.queryForObject(
+                "SELECT bus_no FROM notification_log WHERE type = 'delay' AND recipient_role = 'staff' "
+                        + "AND dedup_key LIKE ?",
+                String.class, "delay:" + runId + ":" + staffAccountId + ":%");
+        assertThat(staffLegBusNo).as("관계자 delay 알림에 호차가 채워진다").isEqualTo(busNo);
     }
 
     @Test

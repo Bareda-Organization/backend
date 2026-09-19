@@ -295,6 +295,14 @@ class DriverRunControllerTest {
                         + "AND dedup_key LIKE ?",
                 Long.class, "run_started:" + runId + ":%");
         assertThat(staffLegStudentId).as("관계자 행은 회차 전체를 알리므로 student_id 가 null 로 남는다").isNull();
+
+        // R14 목표 5 — 관계자 알림에도 호차가 채워진다(Run → Bus 조회).
+        String busNo = jdbcTemplate.queryForObject("SELECT bus_no FROM bus WHERE id = ?", String.class, busId);
+        String staffLegBusNo = jdbcTemplate.queryForObject(
+                "SELECT bus_no FROM notification_log WHERE type = 'run_started' AND recipient_role = 'staff' "
+                        + "AND dedup_key LIKE ?",
+                String.class, "run_started:" + runId + ":%");
+        assertThat(staffLegBusNo).as("관계자 run_started 알림에 호차가 채워진다").isEqualTo(busNo);
     }
 
     // ── goal 3 — 미결 변경 요청 즉시 종결 ─────────────────────────────────

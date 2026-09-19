@@ -8,13 +8,17 @@ import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.bus.entity.Bus;
+import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Role;
 import src.backend.notification.domain.impl.DelaySubject;
 import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.notification.entity.NotificationType;
+import src.backend.run.entity.Run;
 import src.backend.run.event.DelayNoticeRecipient;
 import src.backend.run.event.DelayRequestedEvent;
+import src.backend.run.repository.RunRepository;
 import src.backend.student.entity.Student;
 import src.backend.student.repository.StudentRepository;
 
@@ -41,24 +45,39 @@ public class DelayNotificationListener {
 
     private final StudentRepository studentRepository;
 
+    private final RunRepository runRepository;
+
+    private final BusRepository busRepository;
+
     @EventListener
     public void appendDelayNotice(DelayRequestedEvent event) {
         NotificationMessage message = delayComposer
                 .compose(new DelaySubject(event.reason(), event.minutes(), event.message()));
-        append(event, event.staffRecipients(), Role.STAFF, message);
-        append(event, event.guardianRecipients(), Role.PARENT, message);
-        append(event, event.studentRecipients(), Role.STUDENT, message);
+        // 관계자 알림에만 호차를 채운다(목표 5, 정본 범위) — 학부모·학생 알림은 이미 자녀 이름이 있다.
+        String busNo = busNoOf(event.runId(), event.academyId());
+        append(event, event.staffRecipients(), Role.STAFF, message, busNo);
+        append(event, event.guardianRecipients(), Role.PARENT, message, null);
+        append(event, event.studentRecipients(), Role.STUDENT, message, null);
     }
 
     private void append(DelayRequestedEvent event, List<DelayNoticeRecipient> recipients, Role role,
-            NotificationMessage message) {
+            NotificationMessage message, String busNo) {
         for (DelayNoticeRecipient recipient : recipients) {
             Student student = studentOf(role, recipient);
             notificationOutbox.append(new NotificationDraft(event.academyId(), recipient.accountId(),
                     recipient.name(), role, NotificationType.DELAY, message.title(), message.body(),
                     dedupKey(event.runId(), recipient.dedupTargetId(), event.sentAt()),
-                    student != null ? student.getId() : null, student != null ? student.getName() : null, null));
+                    student != null ? student.getId() : null, student != null ? student.getName() : null, busNo));
         }
+    }
+
+    /** {@link DelayRequestedEvent} 는 runId 만 나르므로 Run → Bus 를 한 번 더 거친다(목표 5). */
+    private String busNoOf(Long runId, Long academyId) {
+        return runRepository.findByIdAndAcademyId(runId, academyId)
+                .map(Run::getBusId)
+                .flatMap(busId -> busRepository.findByIdAndAcademyId(busId, academyId))
+                .map(Bus::getBusNo)
+                .orElse(null);
     }
 
     /**
