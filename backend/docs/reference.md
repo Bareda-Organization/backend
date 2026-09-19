@@ -118,6 +118,30 @@ Repository는 JPA 접근만 수행한다. 비즈니스 로직 금지.
 - 금지: `repository.updateAndNotify();`
 - 권장: `repository.save();`
 
+### 9.1 `@Query` 안의 enum 은 **상수 목록으로 선언해 파라미터로 넘긴다** (2026-09-19 사용자 확정)
+
+`@Query("...")` 의 내용은 **문자열**이라 Java `import` 가 닿지 않는다 — Hibernate 가 실행 시점에
+따로 해석하므로 그 파일의 `import` 를 모른다. 그래서 enum 을 글자로 박으면 **완전한 경로**를 써야 하고
+줄이 길어진다. Lombok 류의 코드 생성기도 문자열 안은 건드리지 못한다.
+
+```java
+// ❌ 앞으로 쓰지 않는다 — 문자열 안이라 import 가 안 닿아 경로가 통째로 들어간다
+@Query("... WHERE rr.status IN (src.backend.boarding.entity.RiderStatus.BOARDED, ...)")
+
+// ✅ 상수 목록을 선언하고 파라미터로 넘긴다
+List<RiderStatus> FINALIZED = List.of(RiderStatus.BOARDED, RiderStatus.ALIGHTED, RiderStatus.NO_SHOW);
+
+@Query("... WHERE rr.status IN :statuses")
+List<RunRider> findFinalizedByRunIdAndStopId(@Param("runId") Long runId,
+        @Param("stopId") Long stopId, @Param("statuses") Collection<RiderStatus> statuses);
+```
+
+**왜 상수 목록인가** — 그냥 파라미터로만 열어 두면 *"확정된 상태 3종"* 이라는 **뜻이 호출부로 새어 나간다.**
+이름 붙인 상수가 그 뜻을 붙잡아 두면서 문자열도 짧아진다.
+
+⚠ **이미 글자로 박혀 있는 것은 고치지 않는다** (2026-09-19 사용자 지시 — *"지금까지 한 건 놔두고 앞으로만"*).
+`RunRiderRepository` 의 4건이 그 대상이다. **새로 쓰는 쿼리부터** 이 규칙을 따른다.
+
 ## 10. DTO 규칙
 
 `Controller` → Request DTO → `Service` → Response DTO. Entity를 직접 반환하지 않는다.
