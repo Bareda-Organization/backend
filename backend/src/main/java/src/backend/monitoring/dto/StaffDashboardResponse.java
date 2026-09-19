@@ -37,10 +37,15 @@ public record StaffDashboardResponse(Metrics metrics, List<Run> runs) {
      * @param ackDriver·{@code ackEscort} 기사·동승자 노선 확인 응답 여부(RUN-07) — 노선 미확정이면
      *        항상 거짓
      * @param noShowCases 진행 중 에스컬레이션만(해소된 것은 제외)
+     * @param startedAt 실제 출발 시각(R21-B) — {@code run.started_at} 그대로. 출발 전(idle·
+     *                  confirmed)이면 {@code null}. {@code departTime}(예정)과 구별해서 쓴다
+     * @param finishedAt 실제 종료(도착) 시각(R21-B) — {@code run.finished_at} 그대로. 종료 전이면
+     *                   {@code null}
      */
     public record Run(Long runId, String busNo, String direction, OffsetDateTime departTime, String driverName,
             String escortName, int boardedCount, int totalCount, String runStatus, int addedCount, int removedCount,
-            boolean ackDriver, boolean ackEscort, List<NoShowCase> noShowCases) {
+            boolean ackDriver, boolean ackEscort, List<NoShowCase> noShowCases, OffsetDateTime startedAt,
+            OffsetDateTime finishedAt) {
     }
 
     public record NoShowCase(String studentName, String stopName, OffsetDateTime expiresAt) {

@@ -154,7 +154,7 @@ public class StaffDashboardQueryService {
         return new StaffDashboardResponse.Run(run.getId(), busNos.get(run.getBusId()),
                 lower(run.getDirection().name()), run.getDepartTime(), driverName, escortName, boardedCount,
                 totalCount, lower(run.getStatus().name()), addedCount, removedCount, ackDriver, ackEscort,
-                noShowCases);
+                noShowCases, run.getStartedAt(), run.getFinishedAt());
     }
 
     private int sumByStatus(List<StaffRunRiderAggregateView> agg, RiderStatus status) {

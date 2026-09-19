@@ -215,6 +215,49 @@ class StaffDashboardControllerTest {
         assertThat((Integer) JsonPath.read(본문(result), "$.data.runs[0].removed_count")).isZero();
     }
 
+    // ── R21-B 목표 1·2·4 — 실제 출발·도착 시각(started_at·finished_at) ─────────
+
+    /**
+     * R21-B 목표 1·2·4 — {@code started_at}·{@code finished_at} 은 회차가 실제로 그 상태를
+     * 지나야만 값이 찬다("예정"인 {@code depart_time} 과 구별). 확정 직후엔 둘 다 없고, 출발
+     * 처리 후엔 {@code started_at} 만, 종료 처리 후엔 둘 다 채워진다 — 세 상태를 한 시험에서
+     * 순서대로 확인해 "출발 전에는 실제 값이 없다"는 완료 조건 4의 전제를 직접 본다.
+     */
+    @Test
+    @DisplayName("R21-B 목표1·2·4 — started_at·finished_at 이 회차 진행 상태에 맞춰 채워진다")
+    void 실제_출발_도착_시각이_회차_진행에_맞춰_채워진다() throws Exception {
+        DriverRunFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        OffsetDateTime departTime = now().plusHours(1);
+        long runId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
+        long staffAccountId = fx.staffAccount(academyId, "관계자1");
+
+        mockMvc.perform(
+                get("/api/v1/staff/dashboard").header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.runs[0].started_at").doesNotExist())
+                .andExpect(jsonPath("$.data.runs[0].finished_at").doesNotExist());
+
+        OffsetDateTime startedAt = departTime.plusMinutes(1);
+        fx.startRun(runId, startedAt);
+
+        mockMvc.perform(
+                get("/api/v1/staff/dashboard").header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.runs[0].started_at").exists())
+                .andExpect(jsonPath("$.data.runs[0].finished_at").doesNotExist());
+
+        OffsetDateTime finishedAt = startedAt.plusMinutes(30);
+        fx.finishRun(runId, finishedAt);
+
+        mockMvc.perform(
+                get("/api/v1/staff/dashboard").header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.runs[0].started_at").exists())
+                .andExpect(jsonPath("$.data.runs[0].finished_at").exists());
+    }
+
     // ── 목표 8 — unassigned_managers 는 소프트 삭제된 매니저를 세지 않는다 ─────
 
     /**

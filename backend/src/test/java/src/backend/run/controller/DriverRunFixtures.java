@@ -200,6 +200,13 @@ public class DriverRunFixtures {
         runRepository.save(run);
     }
 
+    /** {@code finished} 상태 회차 — {@link #startRun} 과 같은 이유로 종료 처리만 직접 전이한다(R21-B). */
+    public void finishRun(long runId, OffsetDateTime finishedAt) {
+        Run run = runRepository.findById(runId).orElseThrow();
+        run.finish(finishedAt);
+        runRepository.save(run);
+    }
+
     /** 기사·동승자를 등록하고 계정을 연결한 뒤 그 회차에 배치한다 — 반환값은 로그인 토큰에 실을 계정 id. */
     public long assignedManager(long academyId, long runId, ManagerRole role, String name, OffsetDateTime assignedAt) {
         Manager manager = managerRepository
