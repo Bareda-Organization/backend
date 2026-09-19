@@ -107,7 +107,8 @@ public class RunStartedNotificationListener {
             GuardianAccountRecipient guardian = entry.getValue();
             notificationOutbox.append(new NotificationDraft(event.academyId(), guardian.getAccountId(),
                     guardian.getName(), Role.PARENT, NotificationType.RUN_STARTED, message.title(), message.body(),
-                    DEDUP_KEY_FORMAT.formatted(event.runId(), entry.getKey(), event.startedAt())));
+                    DEDUP_KEY_FORMAT.formatted(event.runId(), entry.getKey(), event.startedAt()),
+                    entry.getKey(), guardian.getStudentName(), null));
         }
     }
 
@@ -118,7 +119,8 @@ public class RunStartedNotificationListener {
         for (Student student : students) {
             notificationOutbox.append(new NotificationDraft(event.academyId(), student.getAccountId(),
                     student.getName(), Role.STUDENT, NotificationType.RUN_STARTED, message.title(), message.body(),
-                    DEDUP_KEY_FORMAT.formatted(event.runId(), student.getAccountId(), event.startedAt())));
+                    DEDUP_KEY_FORMAT.formatted(event.runId(), student.getAccountId(), event.startedAt()),
+                    student.getId(), student.getName(), null));
         }
     }
 }

@@ -128,6 +128,12 @@ class ChangeRequestAutoRejectionServiceTest {
                 "SELECT count(*) FROM notification_log WHERE recipient_account_id = ? AND type = 'change_decided'",
                 Integer.class, parentId);
         assertThat(notificationCount).isEqualTo(1);
+
+        // R13 — 자동 거절 경로의 change_decided 도 studentId 를 채운다(§8.16 목표 3).
+        Long notifiedStudentId = jdbcTemplate.queryForObject(
+                "SELECT student_id FROM notification_log WHERE recipient_account_id = ? AND type = 'change_decided'",
+                Long.class, parentId);
+        assertThat(notifiedStudentId).as("student_id 가 채워진다").isEqualTo(studentId);
     }
 
     @Test

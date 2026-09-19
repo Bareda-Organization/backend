@@ -15,6 +15,8 @@ import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.notification.entity.NotificationType;
 import src.backend.request.event.ApprovalRequestedEvent;
 import src.backend.request.event.IntentChangedEvent;
+import src.backend.student.entity.Student;
+import src.backend.student.repository.StudentRepository;
 
 /**
  * 탑승 의사 변경(즉시 반영·승인 대기)을 {@code intent_changed}·{@code approval_requested} 알림으로
@@ -46,7 +48,12 @@ public class IntentNotificationListener {
 
     private final NotificationComposer<ApprovalRequestedEvent> approvalRequestedComposer;
 
-    /** ①·③구간 즉시 반영 결과를 그 학원 재직 관계자 전원에게 적재한다. */
+    private final StudentRepository studentRepository;
+
+    /**
+     * ①·③구간 즉시 반영 결과를 그 학원 재직 관계자 전원에게 적재한다 — 대상 자녀는 이벤트가 직접
+     * 들고 있어(수신자 전원이 같은 학생을 가리키므로) 순회 전에 한 번만 조회한다.
+     */
     @EventListener
     public void appendIntentChanged(IntentChangedEvent event) {
         List<AcademyStaffAccountView> staff = academyStaffRepository
@@ -56,16 +63,18 @@ public class IntentNotificationListener {
         }
 
         NotificationMessage message = intentChangedComposer.compose(event);
+        String studentName = studentRepository.findById(event.studentId()).map(Student::getName).orElse(null);
         for (AcademyStaffAccountView recipient : staff) {
             notificationOutbox.append(new NotificationDraft(event.academyId(), recipient.accountId(),
                     recipient.name(), Role.STAFF, NotificationType.INTENT_CHANGED, message.title(),
                     message.body(),
                     INTENT_CHANGED_DEDUP_KEY_FORMAT.formatted(event.runId(), recipient.accountId(),
-                            event.changedAt())));
+                            event.changedAt()),
+                    event.studentId(), studentName, null));
         }
     }
 
-    /** ②구간 승인 대기 접수를 그 학원 재직 관계자 전원에게 적재한다. */
+    /** ②구간 승인 대기 접수를 그 학원 재직 관계자 전원에게 적재한다 — 대상 자녀 조회는 위와 같은 근거. */
     @EventListener
     public void appendApprovalRequested(ApprovalRequestedEvent event) {
         List<AcademyStaffAccountView> staff = academyStaffRepository
@@ -75,12 +84,14 @@ public class IntentNotificationListener {
         }
 
         NotificationMessage message = approvalRequestedComposer.compose(event);
+        String studentName = studentRepository.findById(event.studentId()).map(Student::getName).orElse(null);
         for (AcademyStaffAccountView recipient : staff) {
             notificationOutbox.append(new NotificationDraft(event.academyId(), recipient.accountId(),
                     recipient.name(), Role.STAFF, NotificationType.APPROVAL_REQUESTED, message.title(),
                     message.body(),
                     APPROVAL_REQUESTED_DEDUP_KEY_FORMAT.formatted(event.runId(), recipient.accountId(),
-                            event.requestedAt())));
+                            event.requestedAt()),
+                    event.studentId(), studentName, null));
         }
     }
 }

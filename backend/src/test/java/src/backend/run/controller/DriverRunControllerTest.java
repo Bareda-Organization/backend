@@ -9,6 +9,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -280,6 +281,20 @@ class DriverRunControllerTest {
         assertThat(알림_행수(runId, "run_started", "staff")).as("재직 관계자 1명").isEqualTo(1);
         assertThat(알림_행수(runId, "run_started", "parent")).as("보호자 1명").isEqualTo(1);
         assertThat(알림_행수(runId, "run_started", "student")).as("계정 연결된 학생 1명").isEqualTo(1);
+
+        // R13 — 학부모·학생 갈래는 studentId·studentName 을 채우고, 관계자 갈래는 회차 전체(다수 학생)를
+        // 가리키므로 null 로 남는다(§8.16 목표 3·5).
+        Long parentLegStudentId = jdbcTemplate.queryForObject(
+                "SELECT student_id FROM notification_log WHERE type = 'run_started' AND recipient_role = 'parent' "
+                        + "AND dedup_key LIKE ?",
+                Long.class, "run_started:" + runId + ":%");
+        assertThat(parentLegStudentId).as("보호자 행의 student_id 가 채워진다").isEqualTo(studentId);
+
+        Long staffLegStudentId = jdbcTemplate.queryForObject(
+                "SELECT student_id FROM notification_log WHERE type = 'run_started' AND recipient_role = 'staff' "
+                        + "AND dedup_key LIKE ?",
+                Long.class, "run_started:" + runId + ":%");
+        assertThat(staffLegStudentId).as("관계자 행은 회차 전체를 알리므로 student_id 가 null 로 남는다").isNull();
     }
 
     // ── goal 3 — 미결 변경 요청 즉시 종결 ─────────────────────────────────
@@ -405,6 +420,14 @@ class DriverRunControllerTest {
         assertThat(라이더_상태(runId, student1)).isEqualTo("alighted");
         assertThat(라이더_상태(runId, student2)).isEqualTo("alighted");
         assertThat(알림_행수(runId, "alighting", "parent")).as("자동 하차 인원 수와 정확히 같아야 한다").isEqualTo(2);
+
+        // R13 — 자동 하차 alighting 도 studentId·studentName 을 채운다(§8.16 목표 3).
+        List<Long> alightedStudentIds = jdbcTemplate.queryForList(
+                "SELECT student_id FROM notification_log WHERE type = 'alighting' AND recipient_role = 'parent' "
+                        + "AND dedup_key LIKE ?",
+                Long.class, "alighting:" + runId + ":%");
+        assertThat(alightedStudentIds).as("두 학생의 student_id 가 모두 채워진다")
+                .containsExactlyInAnyOrder(student1, student2);
     }
 
     // ── goal 10 — 하원 최종 지점 미하차 잔류 시 종료 보류 ──────────────────

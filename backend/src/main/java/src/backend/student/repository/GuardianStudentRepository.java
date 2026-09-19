@@ -135,10 +135,11 @@ public interface GuardianStudentRepository extends JpaRepository<GuardianStudent
      * 새로고침마다 바뀐다).
      */
     @Query("""
-            SELECT gs.studentId AS studentId, a.id AS accountId, a.name AS name
+            SELECT gs.studentId AS studentId, a.id AS accountId, a.name AS name, s.name AS studentName
             FROM GuardianStudent gs
             JOIN Guardian g ON g.id = gs.guardianId
             JOIN Account a ON a.id = g.accountId
+            JOIN Student s ON s.id = gs.studentId
             WHERE g.academyId = :academyId
               AND gs.studentId IN :studentIds
               AND gs.unlinkedAt IS NULL
@@ -158,7 +159,7 @@ public interface GuardianStudentRepository extends JpaRepository<GuardianStudent
      * 학원 조건은 {@code student} 부모를 조인해 건다(ERD §6.1 부모 경유).
      */
     @Query("""
-            SELECT g.accountId AS accountId, g.name AS name
+            SELECT g.accountId AS accountId, g.name AS name, s.name AS studentName
             FROM GuardianStudent gs
             JOIN Guardian g ON g.id = gs.guardianId
             JOIN Student s ON s.id = gs.studentId

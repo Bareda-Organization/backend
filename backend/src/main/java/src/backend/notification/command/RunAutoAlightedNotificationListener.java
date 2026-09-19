@@ -54,6 +54,7 @@ public class RunAutoAlightedNotificationListener {
         NotificationMessage message = runAutoAlightedComposer.compose(event);
         notificationOutbox.append(new NotificationDraft(event.academyId(), firstGuardian.getAccountId(),
                 firstGuardian.getName(), Role.PARENT, NotificationType.ALIGHTING, message.title(), message.body(),
-                DEDUP_KEY_FORMAT.formatted(event.runId(), event.studentId(), event.alightedAt())));
+                DEDUP_KEY_FORMAT.formatted(event.runId(), event.studentId(), event.alightedAt()),
+                event.studentId(), firstGuardian.getStudentName(), null));
     }
 }

@@ -195,10 +195,29 @@ class StaffApprovalDecideControllerTest {
                 Integer.class, s.driverAccountId);
         assertThat(routeChangedCount).as("배치된 기사에게 route_changed 가 남아야 한다").isEqualTo(1);
 
+        // R13 — route_changed 는 studentId 대신 busNo 를 채운다(§8.16 목표 4, 회차 전체를 가리키는
+        // 알림이라 특정 학생이 없다). 실제 배정 차량의 bus_no 와 일치해야 한다.
+        String expectedBusNo = jdbcTemplate.queryForObject(
+                "SELECT b.bus_no FROM bus b JOIN run r ON r.bus_id = b.id WHERE r.id = ?", String.class, s.runId);
+        String routeChangedBusNo = jdbcTemplate.queryForObject(
+                "SELECT bus_no FROM notification_log WHERE recipient_account_id = ? AND type = 'route_changed'",
+                String.class, s.driverAccountId);
+        assertThat(routeChangedBusNo).as("route_changed 는 실제 배정 차량의 bus_no 를 담는다")
+                .isEqualTo(expectedBusNo);
+
         String decidedBody = jdbcTemplate.queryForObject(
                 "SELECT body FROM notification_log WHERE recipient_account_id = ? AND type = 'change_decided'",
                 String.class, s.parentAccountId);
         assertThat(decidedBody).as("학부모에게 승인 안내가 남아야 한다").contains("승인되어 반영");
+
+        // R13 — change_decided 는 신청 학생을 studentId 로 채운다(§8.16 목표 3).
+        Long requestedStudentId = jdbcTemplate.queryForObject(
+                "SELECT student_id FROM change_request WHERE id = ?", Long.class, s.approvalId);
+        Long decidedStudentId = jdbcTemplate.queryForObject(
+                "SELECT student_id FROM notification_log WHERE recipient_account_id = ? AND type = 'change_decided'",
+                Long.class, s.parentAccountId);
+        assertThat(decidedStudentId).as("change_decided 의 student_id 가 신청 학생과 일치한다")
+                .isEqualTo(requestedStudentId);
 
         assertThat(previewCache.find(s.approvalId)).as("결정 후 미리보기 캐시는 비어 있어야 한다").isEmpty();
     }

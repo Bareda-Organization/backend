@@ -54,28 +54,29 @@ public class EmergencyNotificationListener {
     public void appendRaised(EmergencyRaisedEvent event) {
         NotificationMessage message = emergencyRaisedComposer.compose(event);
         appendToStaff(event.academyId(), event.emergencyId(), RAISED_DEDUP_KEY_FORMAT, NotificationType.EMERGENCY,
-                message);
+                message, event.busNo());
         appendToMainAdmins(event.academyId(), event.emergencyId(), RAISED_DEDUP_KEY_FORMAT,
-                NotificationType.EMERGENCY, message);
+                NotificationType.EMERGENCY, message, event.busNo());
     }
 
     @EventListener
     public void appendCanceled(EmergencyCanceledEvent event) {
         NotificationMessage message = emergencyCanceledComposer.compose(event);
         appendToStaff(event.academyId(), event.emergencyId(), CANCELED_DEDUP_KEY_FORMAT,
-                NotificationType.EMERGENCY_CANCELED, message);
+                NotificationType.EMERGENCY_CANCELED, message, event.busNo());
         appendToMainAdmins(event.academyId(), event.emergencyId(), CANCELED_DEDUP_KEY_FORMAT,
-                NotificationType.EMERGENCY_CANCELED, message);
+                NotificationType.EMERGENCY_CANCELED, message, event.busNo());
     }
 
     /** 학원 관계자 — 그 학원 재직 전원(회차의 특정 배치와 무관하다, {@code RunStartedNotificationListener} 와 같은 대상 규칙). */
     private void appendToStaff(Long academyId, Long emergencyId, String dedupKeyFormat, NotificationType type,
-            NotificationMessage message) {
+            NotificationMessage message, String busNo) {
         List<AcademyStaffAccountView> staff = academyStaffRepository.findActiveAccountsByAcademyId(academyId);
         for (AcademyStaffAccountView recipient : staff) {
             notificationOutbox.append(new NotificationDraft(academyId, recipient.accountId(), recipient.name(),
                     Role.STAFF, type, message.title(), message.body(),
-                    dedupKeyFormat.formatted(emergencyId, recipient.accountId())));
+                    dedupKeyFormat.formatted(emergencyId, recipient.accountId()),
+                    null, null, busNo));
         }
     }
 
@@ -90,12 +91,13 @@ public class EmergencyNotificationListener {
      * 화면은 여러 학원의 알림을 한 목록에서 academy_id 로 구분해 보여준다).
      */
     private void appendToMainAdmins(Long academyId, Long emergencyId, String dedupKeyFormat, NotificationType type,
-            NotificationMessage message) {
+            NotificationMessage message, String busNo) {
         List<Account> admins = accountRepository.findAllByRoleAndStatus(Role.SYSTEM_ADMIN, AccountStatus.ACTIVE);
         for (Account admin : admins) {
             notificationOutbox.append(new NotificationDraft(academyId, admin.getId(), admin.getName(),
                     Role.SYSTEM_ADMIN, type, message.title(), message.body(),
-                    dedupKeyFormat.formatted(emergencyId, admin.getId())));
+                    dedupKeyFormat.formatted(emergencyId, admin.getId()),
+                    null, null, busNo));
         }
     }
 }

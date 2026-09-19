@@ -247,13 +247,23 @@ class BoardingControllerTest {
                 .isEqualTo("no_show");
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM no_show_case WHERE run_rider_id = ?",
                 Integer.class, riderId)).as("②케이스 행").isEqualTo(1);
-        // notification_log.student_id 는 이 outbox 경로가 채우지 않는 컬럼이다(NotificationDraft 에
-        // 그 필드 자체가 없다) — 그래서 실제로 채워지는 recipient_account_id 로 수신자를 식별한다.
         List<String> recipientRoles = jdbcTemplate.queryForList(
                 "SELECT recipient_role FROM notification_log WHERE recipient_account_id IN (?, ?) "
                         + "ORDER BY recipient_role",
                 String.class, guardian.accountId(), staffAccountId);
         assertThat(recipientRoles).as("③알림 2행(학부모·관계자)").containsExactlyInAnyOrder("parent", "staff");
+
+        // R13 — no_show 는 학부모·관계자 두 다리 모두 studentId 를 들고 있는 단일 학생 이벤트라 두
+        // 다리 전부 student_id·student_name 이 채워져야 한다(§8.16 목표 3).
+        List<Long> notifiedStudentIds = jdbcTemplate.queryForList(
+                "SELECT student_id FROM notification_log WHERE recipient_account_id IN (?, ?)", Long.class,
+                guardian.accountId(), staffAccountId);
+        assertThat(notifiedStudentIds).as("④두 행 모두 student_id 가 채워진다").containsExactly(studentId, studentId);
+        List<String> notifiedStudentNames = jdbcTemplate.queryForList(
+                "SELECT student_name FROM notification_log WHERE recipient_account_id IN (?, ?)", String.class,
+                guardian.accountId(), staffAccountId);
+        assertThat(notifiedStudentNames).as("⑤두 행 모두 student_name 이 채워진다")
+                .containsExactly("학생3", "학생3");
     }
 
     // ── Phase 11 목표 2 — 학원별 미승차 대기 시간(EXC-01, API_SPEC §5.21)이 실제로 적용된다 ──
@@ -580,7 +590,8 @@ class BoardingControllerTest {
         entityManager.flush();
 
         List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "SELECT type, body FROM notification_log WHERE recipient_account_id = ? ORDER BY id",
+                "SELECT type, body, student_id, student_name FROM notification_log WHERE recipient_account_id = ? "
+                        + "ORDER BY id",
                 guardian.accountId());
         assertThat(rows).as("①원본 승차 알림 1건 + 취소 정정 알림 1건, 총 2건").hasSize(2);
         assertThat(rows.get(0).get("type")).as("②원본 알림 종류는 그대로다 — 고치지 않는다").isEqualTo("boarding");
@@ -589,6 +600,12 @@ class BoardingControllerTest {
         assertThat(rows.get(1).get("type")).as("④새로 적재된 정정 알림의 종류").isEqualTo("boarding_canceled");
         assertThat(rows.get(1).get("body")).as("⑤정정 알림 본문 — 승차 취소 전용 문구")
                 .isEqualTo("자녀의 승차 처리가 취소되었습니다.");
+        // R13 — boarding·boarding_canceled 둘 다 studentId 를 들고 있는 단일 학생 이벤트다(§8.16 목표 3).
+        assertThat(rows).as("⑥두 행 모두 student_id·student_name 이 채워진다")
+                .allSatisfy(row -> {
+                    assertThat(row.get("student_id")).isEqualTo(studentId);
+                    assertThat(row.get("student_name")).isEqualTo("학생7");
+                });
     }
 
     @Test
@@ -631,13 +648,17 @@ class BoardingControllerTest {
         entityManager.flush();
 
         List<java.util.Map<String, Object>> canceled = jdbcTemplate.queryForList(
-                "SELECT type, body FROM notification_log WHERE recipient_account_id = ? AND type = ?",
+                "SELECT type, body, student_id, student_name FROM notification_log "
+                        + "WHERE recipient_account_id = ? AND type = ?",
                 guardian.accountId(), "alighting_canceled");
         assertThat(canceled).as("①하차 취소 정정 알림이 정확히 1건").hasSize(1);
         String alightingCanceledBody = (String) canceled.get(0).get("body");
         assertThat(alightingCanceledBody).as("②하차 취소 전용 문구").isEqualTo("자녀의 하차 처리가 취소되었습니다.");
         assertThat(alightingCanceledBody).as("③승차 취소 문구와는 다른 문구다(목표14 핵심)")
                 .isNotEqualTo("자녀의 승차 처리가 취소되었습니다.");
+        // R13 — alighting_canceled 도 studentId 를 들고 있는 단일 학생 이벤트다(§8.16 목표 3).
+        assertThat(canceled.get(0).get("student_id")).as("④student_id 가 채워진다").isEqualTo(studentId);
+        assertThat(canceled.get(0).get("student_name")).as("⑤student_name 이 채워진다").isEqualTo("학생8");
     }
 
     private String statusUpdateBody(String status, String verifyMethod, UUID clientKey, OffsetDateTime occurredAt) {

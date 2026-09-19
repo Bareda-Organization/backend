@@ -153,6 +153,15 @@ class NoShowEscalationSchedulerTest {
                 "SELECT count(*) FROM notification_log WHERE recipient_account_id = ? AND type = 'no_show_escalated'",
                 Integer.class, staffAccountId);
         assertThat(notificationCount).as("②관계자에게 no_show_escalated 알림이 남아야 한다").isEqualTo(1);
+
+        // R13 — no_show_escalated 는 studentId 를 들고 있는 단일 학생 이벤트다(§8.16 목표 3).
+        Long expectedStudentId = jdbcTemplate.queryForObject("SELECT student_id FROM run_rider WHERE id = ?",
+                Long.class, riderId);
+        Long notifiedStudentId = jdbcTemplate.queryForObject(
+                "SELECT student_id FROM notification_log WHERE recipient_account_id = ? AND type = "
+                        + "'no_show_escalated'",
+                Long.class, staffAccountId);
+        assertThat(notifiedStudentId).as("③student_id 가 채워진다").isEqualTo(expectedStudentId);
     }
 
     @Test

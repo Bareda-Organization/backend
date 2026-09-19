@@ -120,6 +120,16 @@ public class NotificationLog {
         this.acked = false;
     }
 
+    /** 대상 자녀·호차 스냅샷(R13)까지 함께 받는 생성자 — 나머지 필드는 위 9-인자 생성자와 같다. */
+    private NotificationLog(Long academyId, Long recipientAccountId, String recipientName,
+            Role recipientRole, NotificationType type, String title, String body,
+            String dedupKey, OffsetDateTime createdAt, Long studentId, String studentName, String busNo) {
+        this(academyId, recipientAccountId, recipientName, recipientRole, type, title, body, dedupKey, createdAt);
+        this.studentId = studentId;
+        this.studentName = studentName;
+        this.busNo = busNo;
+    }
+
     /**
      * 알림을 유발한 이벤트와 같은 트랜잭션에서 발송 대기 행을 만든다(아웃박스 패턴) — 발송 시도·상태 갱신은
      * 도메인 Phase 담당. 파라미터 9개는 §20.2 기준(4개)을 크게 넘지만, NN 필드 전부가 아웃박스 삽입
@@ -130,6 +140,20 @@ public class NotificationLog {
             String body, String dedupKey, OffsetDateTime createdAt) {
         return new NotificationLog(academyId, recipientAccountId, recipientName, recipientRole,
                 type, title, body, dedupKey, createdAt);
+    }
+
+    /**
+     * 대상 자녀·호차 값까지 함께 적재한다(R13, `IMPLEMENTATION_PLAN §8.16`) — 종류마다 채울 수 있는
+     * 값만 넘기고 나머지는 {@code null}. 기존 9-인자 {@link #forOutbox}는 시험 픽스처가 계속 쓰므로
+     * 그대로 남긴다(팩토리 분화가 아니라 과부하 — 규약 §3 은 여러 팩토리로 갈라 성격이 다른 생성
+     * 경로를 만드는 것을 금하지, 같은 팩토리의 선택적 인자 확장까지 막지 않는다).
+     */
+    public static NotificationLog forOutbox(Long academyId, Long recipientAccountId,
+            String recipientName, Role recipientRole, NotificationType type, String title,
+            String body, String dedupKey, OffsetDateTime createdAt, Long studentId, String studentName,
+            String busNo) {
+        return new NotificationLog(academyId, recipientAccountId, recipientName, recipientRole,
+                type, title, body, dedupKey, createdAt, studentId, studentName, busNo);
     }
 
     /**

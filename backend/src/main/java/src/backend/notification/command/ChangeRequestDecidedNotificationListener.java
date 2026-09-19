@@ -11,6 +11,8 @@ import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.notification.entity.NotificationType;
 import src.backend.request.event.ChangeRequestDecidedEvent;
+import src.backend.student.entity.Student;
+import src.backend.student.repository.StudentRepository;
 
 /**
  * 관리자의 ②구간 승인·거절을 {@code change_decided} 알림으로 옮기는 구독자(API_SPEC §5.6·§9.7 —
@@ -35,6 +37,8 @@ public class ChangeRequestDecidedNotificationListener {
 
     private final AccountRepository accountRepository;
 
+    private final StudentRepository studentRepository;
+
     private final NotificationOutbox notificationOutbox;
 
     private final NotificationComposer<ChangeRequestDecidedEvent> changeDecidedComposer;
@@ -53,8 +57,10 @@ public class ChangeRequestDecidedNotificationListener {
         }
 
         NotificationMessage message = changeDecidedComposer.compose(event);
+        String studentName = studentRepository.findById(event.studentId()).map(Student::getName).orElse(null);
         notificationOutbox.append(new NotificationDraft(event.academyId(), requester.getId(), requester.getName(),
                 requester.getRole(), NotificationType.CHANGE_DECIDED, message.title(), message.body(),
-                DEDUP_KEY_FORMAT.formatted(event.runId(), event.studentId(), event.decidedAt())));
+                DEDUP_KEY_FORMAT.formatted(event.runId(), event.studentId(), event.decidedAt()),
+                event.studentId(), studentName, null));
     }
 }

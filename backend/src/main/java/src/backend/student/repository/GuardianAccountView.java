@@ -9,4 +9,7 @@ public interface GuardianAccountView {
     Long getAccountId();
 
     String getName();
+
+    /** 대상 자녀 이름(R13, {@code notification_log.student_name} 스냅샷 재료). */
+    String getStudentName();
 }

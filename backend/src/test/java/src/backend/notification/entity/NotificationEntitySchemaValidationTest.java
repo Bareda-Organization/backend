@@ -98,6 +98,44 @@ class NotificationEntitySchemaValidationTest extends MigratedPostgresTestBase {
         assertThat(found.getPushAttempts()).isZero();
     }
 
+    /** R13 — forOutbox 의 대상 자녀·호차 12-인자 과부하가 세 값 모두 왕복시키는지 확인한다(§8.16 목표 2). */
+    @Test
+    void forOutbox_는_대상_자녀와_호차_스냅샷도_함께_왕복시킨다() {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.of("+09:00"));
+
+        NotificationLog log = NotificationLog.forOutbox(1L, 1L, "학부모", Role.PARENT,
+                NotificationType.BOARDING, "승차 알림", "학생이 승차했습니다.", "dedup-key-r13-1", now,
+                42L, "학생스냅샷", "3호차");
+        entityManager.persist(log);
+        entityManager.flush();
+        entityManager.clear();
+
+        NotificationLog found = entityManager.find(NotificationLog.class, log.getId());
+
+        assertThat(found.getStudentId()).isEqualTo(42L);
+        assertThat(found.getStudentName()).isEqualTo("학생스냅샷");
+        assertThat(found.getBusNo()).isEqualTo("3호차");
+    }
+
+    /** 세 값을 안 넣는 종류는 여전히 null 로 저장돼야 한다 — 9-인자 forOutbox 와 응답 계약이 같다. */
+    @Test
+    void forOutbox_는_대상_자녀와_호차가_없으면_null_그대로_저장한다() {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.of("+09:00"));
+
+        NotificationLog log = NotificationLog.forOutbox(1L, 1L, "관계자", Role.STAFF,
+                NotificationType.RUN_ENDED, "운행 종료", "운행이 종료되었습니다.", "dedup-key-r13-2", now,
+                null, null, null);
+        entityManager.persist(log);
+        entityManager.flush();
+        entityManager.clear();
+
+        NotificationLog found = entityManager.find(NotificationLog.class, log.getId());
+
+        assertThat(found.getStudentId()).isNull();
+        assertThat(found.getStudentName()).isNull();
+        assertThat(found.getBusNo()).isNull();
+    }
+
     @Test
     void deviceToken_이_account_FK_를_만족하며_저장되고_platform_enum_이_왕복한다() {
         long accountId = 학부모_계정을_만든다();

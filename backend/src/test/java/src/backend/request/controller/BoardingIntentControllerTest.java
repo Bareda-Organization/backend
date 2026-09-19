@@ -527,6 +527,19 @@ class BoardingIntentControllerTest {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM notification_log WHERE recipient_account_id = ? AND type = 'approval_requested' AND dedup_key LIKE ?",
                 Integer.class, staffAccountId, "approval_requested:" + approvalRunId + ":%")).isEqualTo(1);
+
+        // R13 — intent_changed·approval_requested 둘 다 studentId 를 들고 있는 단일 학생
+        // 이벤트라 관계자 수신이어도 student_id 가 채워진다(§8.16 목표 3).
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT student_id FROM notification_log WHERE recipient_account_id = ? AND type = 'intent_changed' "
+                        + "AND dedup_key LIKE ?",
+                Long.class, staffAccountId, "intent_changed:" + immediateRunId + ":%"))
+                .as("intent_changed 의 student_id").isEqualTo(immediateStudentId);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT student_id FROM notification_log WHERE recipient_account_id = ? AND type = "
+                        + "'approval_requested' AND dedup_key LIKE ?",
+                Long.class, staffAccountId, "approval_requested:" + approvalRunId + ":%"))
+                .as("approval_requested 의 student_id").isEqualTo(approvalStudentId);
     }
 
     // ── 권한 · 학원 범위 ─────────────────────────────────────────────────

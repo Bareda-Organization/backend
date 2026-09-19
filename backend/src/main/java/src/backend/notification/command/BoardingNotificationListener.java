@@ -16,8 +16,10 @@ import src.backend.global.common.enums.Role;
 import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.notification.entity.NotificationType;
+import src.backend.student.entity.Student;
 import src.backend.student.repository.GuardianAccountView;
 import src.backend.student.repository.GuardianStudentRepository;
+import src.backend.student.repository.StudentRepository;
 
 /**
  * 승하차·미승차 알림(BRD-01·02·04, API_SPEC §4.6) 적재 — {@link IntentNotificationListener} 와 같은
@@ -40,6 +42,7 @@ public class BoardingNotificationListener {
 
     private final GuardianStudentRepository guardianStudentRepository;
     private final AcademyStaffRepository academyStaffRepository;
+    private final StudentRepository studentRepository;
     private final NotificationOutbox notificationOutbox;
     private final NotificationComposer<RiderStatusChangedEvent> riderStatusChangedComposer;
     private final NotificationComposer<RiderStatusRevertedEvent> riderStatusRevertedComposer;
@@ -70,7 +73,8 @@ public class BoardingNotificationListener {
             notificationOutbox.append(new NotificationDraft(event.academyId(), guardian.getAccountId(),
                     guardian.getName(), Role.PARENT, type, message.title(), message.body(),
                     STATUS_CHANGED_DEDUP_KEY_FORMAT.formatted(event.runRiderId(), guardian.getAccountId(),
-                            event.changedAt())));
+                            event.changedAt()),
+                    event.studentId(), guardian.getStudentName(), null));
         }
     }
 
@@ -98,7 +102,8 @@ public class BoardingNotificationListener {
             notificationOutbox.append(new NotificationDraft(event.academyId(), guardian.getAccountId(),
                     guardian.getName(), Role.PARENT, type, message.title(), message.body(),
                     STATUS_REVERTED_DEDUP_KEY_FORMAT.formatted(event.runRiderId(), guardian.getAccountId(),
-                            event.revertedAt())));
+                            event.revertedAt()),
+                    event.studentId(), guardian.getStudentName(), null));
         }
     }
 
@@ -120,21 +125,25 @@ public class BoardingNotificationListener {
             notificationOutbox.append(new NotificationDraft(event.academyId(), guardian.getAccountId(),
                     guardian.getName(), Role.PARENT, NotificationType.NO_SHOW, message.title(), message.body(),
                     NO_SHOW_PARENT_DEDUP_KEY_FORMAT.formatted(event.runRiderId(), guardian.getAccountId(),
-                            event.changedAt())));
+                            event.changedAt()),
+                    event.studentId(), guardian.getStudentName(), null));
         }
     }
 
+    /** 관계자 수신자 전원이 같은 학생을 가리키므로 학생 이름은 대상자 순회 전에 한 번만 조회한다. */
     private void appendToStaff(RiderNoShowEvent event) {
         List<AcademyStaffAccountView> staff = academyStaffRepository.findActiveAccountsByAcademyId(event.academyId());
         if (staff.isEmpty()) {
             return;
         }
         NotificationMessage message = noShowStaffComposer.compose(event);
+        String studentName = studentRepository.findById(event.studentId()).map(Student::getName).orElse(null);
         for (AcademyStaffAccountView recipient : staff) {
             notificationOutbox.append(new NotificationDraft(event.academyId(), recipient.accountId(),
                     recipient.name(), Role.STAFF, NotificationType.NO_SHOW, message.title(), message.body(),
                     NO_SHOW_STAFF_DEDUP_KEY_FORMAT.formatted(event.runRiderId(), recipient.accountId(),
-                            event.changedAt())));
+                            event.changedAt()),
+                    event.studentId(), studentName, null));
         }
     }
 }
