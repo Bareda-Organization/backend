@@ -4376,3 +4376,147 @@ be greater than 0`). **단독 실행은 16/16 통과.**
 | `CONVENTIONS.md:122` 가 실태와 12건 어긋남 | 잔여(Ruling 314) |
 | 구간별 거리·시간 근사값 | 잔여 |
 | `§4.3`(매니저 앱)에 `road_path` 부재 | 잔여(의도적 제외) |
+
+## 8.27 ⚖ `R17` 계획 — 출발 판정 검사 보강 + 구간 ETA 정확도 + 정리 (2026-09-19 작성 · **착수 전**)
+
+> 🔴 **이 절은 맥락이 없는 새 세션이 그대로 실행할 수 있게 쓴다.** 조율자는 아래 §0 부터 순서대로 따른다.
+
+### 0. 조율 세션이 착수 전에 하는 것 (순서 고정)
+
+1. **Skill `orchestration` 을 먼저 호출**하고, 거기 지시대로 `orca skills get orchestration` 으로
+   바이너리가 주는 가이드를 받는다. **CLI 를 기억으로 다루지 않는다** — 2026-09-19 에 그러다 영구 대기에 빠졌다
+2. **이 목표 표가 커밋돼 있는지 확인**한다 — `git log --oneline -1`. 워크트리는 **추적 파일만** 가져가므로
+   커밋 전에 만들면 갈래가 완료 조건을 못 읽는다(R13 실제 사고)
+3. 전용 DB 3개를 만든다
+   ```bash
+   for db in sb_r17_t1 sb_r17_t2 sb_r17_t3; do
+     docker exec school-bus-postgres-1 psql -U schoolbus -d postgres -c "CREATE DATABASE $db"
+   done
+   ```
+4. **Run 을 만들고 갈래 3개를 한 번에 띄운다** — 모델은 아래 배정표대로
+   ```bash
+   orca orchestration run-create --objective "R17 — 출발 판정 검사 + 구간 ETA + 정리"
+   orca orchestration worker-start --spec "<지시>" --worktree new-top-level --name r17-t1 \
+     --setup skip --agent claude --model 'claude-sonnet-5[1m]' --effort high --task-title "r17-t1-...-sonnet1m"
+   ```
+5. ⚠⚠ **워크트리를 만든 직후 무시 대상 파일을 복사한다** — R15 최대 사고의 재발 방지
+   ```bash
+   for w in r17-t1 r17-t2 r17-t3; do
+     cp backend/.env /Users/mskim/orca/workspaces/School-Bus/$w/backend/.env
+     cp frontend/apps/academy-web/.env.local /Users/mskim/orca/workspaces/School-Bus/$w/frontend/apps/academy-web/.env.local
+   done
+   ```
+   **없으면 NCP 자격증명이 필요한 검사가 종료 코드 `0` 으로 조용히 건너뛴다.** R15 에서 이번 변경에 가장
+   직접적인 검사가 그렇게 안 돌았다
+6. 발주 직후 **막아서 기다리는 호출**을 건다 —
+   `orchestration check --wait --types "worker_done,escalation,question" --timeout-ms 2400000`.
+   ⚠ **생존 신호(heartbeat)가 큐 앞을 막으므로** 주기적으로 걷어낸다(그것만 든 배치는 `--ack` 한다)
+
+### 배정표
+
+| 갈래 | 모델 | 건드리는 곳 | 겹침 |
+|---|---|---|---|
+| `r17-t1` | `claude-sonnet-5[1m]` · high | `location/proximity` · `routing/repository` **시험** | — |
+| `r17-t2` | `claude-sonnet-5[1m]` · high | `routing/map/impl`(`StraightLineLegs`·`NaverDirectionsGateway`) | — |
+| `r17-t3` | `claude-sonnet-5[1m]` · high | `notification/domain` · `frontend/CONVENTIONS.md` · `frontend/IMPLEMENTATION_PLAN.md` | — |
+
+**셋이 파일을 공유하지 않는다.** ⚠ **T3 은 `docs/IMPLEMENTATION_PLAN.md` 를 건드리지 않는다** — 조율자가 쓴다.
+
+---
+
+### T1 — 출발 판정의 검사 공백 2건 (운영 결함 위험이 가장 큼)
+
+**왜 먼저인가** — 나머지 항목은 품질·문서인데 이것만 **잘못되면 학부모 알림이 안 나가거나 두 번 나간다.**
+
+| # | 완료 조건 | 검사 조건 |
+|:-:|---|---|
+| 1 | **`claimDeparture` 동시성 검사**를 만든다 | 본보기가 이미 있다 — `RunStopProximityClaimConcurrencyTest`(근접 선점). **같은 형태로 출발 선점을 검사**한다: 두 스레드가 같은 정차 항목을 동시에 선점해도 **1회만 성공**. 새 장치를 만들지 말고 그 클래스의 구조를 따른다 |
+| 2 | **출발 판정 대상 선정을 검증**한다 | `findFirstArrivedNotDeparted` 는 *"도착·미출발 중 `seq` 최솟값 1건"* 이다. **신호 유실로 과거 정차지가 여러 개 쌓인 상황**을 만들어, ①`seq` 가 가장 작은 것이 대상이 되는지 ②나머지가 다음 틱에 순서대로 처리되는지 검사 |
+| 3 | ⭐ **쌓인 것이 운행 종료에 전부 해소되는지** | `forceAllRemaining`(Ruling 312)이 **여러 건**을 한 번에 처리하는 경로. 1건짜리 검사만 있으면 누락이 안 보인다 |
+| 4 | 전체 실행 실패 0 · 오류 0 · **건너뜀 0** | 기준 **1,344**(§8.26) — 인용이다. 직접 세라 |
+
+- **이 갈래는 코드를 거의 안 고친다.** 검사만 더한다. 고칠 것이 나오면 그것이 이 갈래의 수확이다
+- 검사 명령 — `./gradlew test -PtestDbUrl=jdbc:postgresql://localhost:15432/sb_r17_t1 --rerun`
+
+### T2 — 구간별 거리·시간을 **실제 도로 좌표**에서 낸다 (ETA 정확도)
+
+**문제** — `StraightLineLegs.distribute` 가 네이버의 **총합**을 **직선거리 비율**로 구간에 배분한다.
+정상 응답일 때조차 그렇다. 그 값이 **학부모 화면의 도착 예정 시각**이 된다.
+
+⚠⚠ **착수 전에 반드시 확인할 것 — 이것이 이 갈래의 성립 조건이다.**
+지금 파싱하는 것은 `Traoptimal(Summary summary, List<List<BigDecimal>> path)` **둘뿐**이다.
+코드 주석은 *"NCP 가 경유지별 구간 값을 주지 않는다"* 고 적었으나 **그 주장을 직접 확인하지 않았다.**
+
+**⇒ 실 API 를 직접 불러 응답 전문을 보고, 아래 중 무엇이 오는지 실측하라.**
+`backend/.env` 에 자격증명이 있고, R15 가 만든 `NaverDirectionsClientLiveTest` 가 본보기다.
+
+| 후보 | 있으면 |
+|---|---|
+| `summary.waypoints[]` (경유지별 위치·인덱스) | `path` 를 그 인덱스로 잘라 **구간별 실제 도로 거리**를 낸다 |
+| `guide[]` 의 `pointIndex`·`distance`·`duration` | 같은 방식 + **구간별 시간도 실측값** |
+| `section[]` | 도로 구간이지 경유지 구간이 아닐 수 있다 — **확인하고 판단하라** |
+| 아무것도 없다 | ⭐ **그 사실을 실측으로 고정하고(회귀 검사) 차선으로 간다** — 직선거리 비율 대신 **`path` 에서 잰 실제 도로 거리 비율**로 배분. 좌표는 이미 있으므로 이것만으로도 개선된다 |
+
+| # | 완료 조건 | 검사 조건 |
+|:-:|---|---|
+| 1 | **실 API 응답에 무엇이 오는지 실측하고 보고서 1항에 적는다** | 추측 금지. `curl` 원문 또는 Live 검사로 확인 |
+| 2 | 구간별 거리가 **직선 비율이 아니라 도로 기준**이 된다 | 굽은 경로를 물려 **직선거리 비율 배분과 값이 달라지는지** 대조. 같으면 아무것도 안 바뀐 것이다 |
+| 3 | **갈린 값의 합은 총합과 정확히 같다**(기존 계약 유지) | 잔차를 마지막 구간에 몰지 않는 기존 규칙을 깨지 마라 |
+| 4 | **폴백 경로는 그대로** | 지도 API 장애 시 직선 근사는 유지한다(`TECH_DECISIONS §8`) |
+| 5 | 전체 실행 실패 0 · 오류 0 · **건너뜀 0** | `.env` 가 있으므로 Live 검사가 **실제로 돌아야** 한다 |
+
+- ⚠ **응답 레코드를 넓히면 기존 고정 응답 검사가 깨질 수 있다** — `graft callers` 로 먼저 세라
+- ⚠ 실 API 가 간헐 503 을 낸다(R14 이월). **코드 결함이 아니다** — 재시도하고 검사를 약화시키지 마라
+- 검사 명령 — `./gradlew test -PtestDbUrl=jdbc:postgresql://localhost:15432/sb_r17_t2 --rerun`
+
+### T3 — 정리 묶음 (알림 문구 1건 + 낡은 문서 2건)
+
+| # | 완료 조건 | 검사 조건 |
+|:-:|---|---|
+| 1 | **`change_decided` 알림 문구에 자녀 이름을 넣는다** | `ChangeRequestAutoRejectedNotificationListener` 계열. R14 가 정본의 "토글" 문구를 좁게 읽어 제외했고 **확신 70% 로 자진 신고**한 항목이다. **다자녀 가정이 같은 시각에 두 자녀 결과를 받으면 구분할 수단이 부재**하다. `ATT-03` 이행 형태를 따른다(R14-T1 이 토글 6종에 한 것) |
+| 2 | **`frontend/CONVENTIONS.md:122` 를 실태에 맞게 고친다** | *"기능끼리 서로 import 하지 않는다"* 가 **실제로 12건 어긋난다**(`schedule→bus` 4 · `run→map` 2 · `route→schedule` 2 · `route→bus` 2 · `run→auth` 1 · `admin→map` 1). **직접 다시 세고** 어긋나면 보고하라. ⚠ **코드를 고치지 마라 — 문서가 낡은 것이다**(Ruling 314). 예외 조건을 명시하는 방향으로 고친다 |
+| 3 | ⭐ **`frontend/IMPLEMENTATION_PLAN.md` 의 진행 표를 실태에 맞게 고친다** | **5건이 "🔜 착수 전"·"미구현" 으로 남아 있는데 이미 완료**다(2026-09-19 조율자 실측). 인용이다 — **직접 확인하고 어긋나면 보고하라** |
+| 4 | 관계자 웹 전체 실패 0 · 건너뜀 0 | 기준 **277**(§8.26). ⚠ **백엔드를 띄운 상태로** 돌린다 |
+| 5 | 백엔드 전체 실패 0 · 오류 0 · 건너뜀 0 | 문구 변경의 파급 확인 |
+
+**목표 3 의 대상 — 조율자 실측(인용이다. 직접 확인하라)**
+
+| 표기 | 실측 |
+|---|---|
+| `BE-R2` "🔜 계획 완료·착수 전" | **완료** — `§8.3` 에 *"✅ `BE-A` 종결 — `Ruling 282` 수정"*(2026-09-14) |
+| `FE-R3` "🔜 계획 완료·착수 전" | 대상 2건이 **구현됨**(아래) |
+| `RouteDetailScreen` "자리표시 14줄" | **291줄** + 검사 222줄 |
+| `LiveMapScreen` "`§3.11` REST 미구현" | **403줄** + `bus_position_api`·저장소 구현 |
+| `arrive` 학생 본인 수신 · `bus_no` 확장 | 둘 다 **구현됨**(R14) |
+
+---
+
+### 1. 완료 후 조율자가 하는 것 (순서 고정)
+
+1. **각 갈래의 보고를 독립 실측으로 검증**한다 — `build/test-results/test/TEST-*.xml` 에서 직접 계수.
+   **보고서 수치를 그대로 옮기지 않는다**
+2. **병합** — T1 → T2 → T3 순(겹침이 없어 순서는 무관하나 기록을 위해 고정)
+3. `./gradlew compileJava compileTestJava` — 충돌 해소 병합 뒤 필수
+4. **백엔드 전체 단독 실행** — 새 DB(`sb_r17_final`)로
+5. ⚠ **관계자 웹은 백엔드를 띄우고 돌린다** — 안 띄우면 `realBackend` 14파일이 실패한다
+   ```bash
+   ./gradlew bootRun --args='--server.port=8130 --spring.datasource.url=jdbc:postgresql://localhost:15432/sb_r17_boot --spring.profiles.active=local'
+   cd frontend/apps/academy-web && NEXT_PUBLIC_API_BASE_URL=http://localhost:8130 npx vitest run
+   ```
+   ⚠ **`pnpm` 은 PATH 에 부재**하고 의존성은 `frontend/apps/academy-web/node_modules` 에 있다 — `npx vitest`
+6. **연달아 2회** 돌려 둘 다 같은 수치인지 본다(마르는 자원 형태를 R15 에서 실제로 밟았다)
+7. **정산** — 각 갈래에 재사용·`worker-retain`·`worker-release` 중 정확히 하나.
+   `worker-list --terminal-state reclaimable` 이 0건이 되기 전에 턴을 끝내지 않는다
+8. **자원 정리** — 프로세스 먼저 멈추고, 워크트리·브랜치·DB 순. ⚠ **`WITH (FORCE)` 금지** ·
+   **`schoolbus` 보존**. `docker inspect` 로 `RestartCount` 가 안 늘었는지 확인
+9. 결과를 **`§8.28`** 로 기록하고 기억 파일(`school-bus-r17-done`)을 쓴다
+
+### 2. 이 회차에서 특히 조심할 것 (앞선 회차의 실제 사고)
+
+| 사고 | 재발 방지 |
+|---|---|
+| 워크트리에 `.env` 부재 → **핵심 검사가 조용히 건너뜀** | §0-5 를 **반드시** 한다. 완료 조건의 "건너뜀 0" 이 그 탐지 장치다 |
+| **개수만 세는 단언은 범위 조건을 못 잡는다** | R16 실측 — 날짜를 하루 밀어도 "1건" 단언은 통과했다. **"어느 건인가"(id)를 검사하라** |
+| 사양 표의 `●` 를 "값이 반드시 있다" 로 오독 | **`●` 는 키의 존재다.** 구현을 열어서 확인하라 — 같은 형태를 R16 에 두 번 밟았다 |
+| 끝난 워커에 `terminal send` 로 후속 지시 | **새 Dispatch 로 준다.** 안착한 워커는 지시를 새 작업으로 받지 않는다 |
+| 보고서 2항의 자진 신고를 흘려보냄 | **R13·R14·R15 세 회차 연속으로 유일한 탐지 수단이었다.** 반드시 판정하라 |
