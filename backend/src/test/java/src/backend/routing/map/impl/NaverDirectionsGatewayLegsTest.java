@@ -129,4 +129,41 @@ class NaverDirectionsGatewayLegsTest {
                 .map(GeoPoint.class::cast)
                 .toList();
     }
+
+    /**
+     * R18 A 목표 1·3 -- 인접한 두 지점이 같으면(등원 origin == 그 자리에 타는 학생의 정차지) 걷어내고,
+     * 걷어낸 자리를 거리·시간 0 인 leg 로 되돌린다. NCP 는 이런 요청을 {@code 출발지와 도착지가
+     * 동일합니다}(400)로 거절하므로(2026-09-19 실 API 확인), 걷어내지 않으면 이 구간 하나 때문에
+     * 노선 전체가 폴백으로 떨어진다.
+     */
+    @Test
+    void 인접한_두_지점이_같으면_걷어내고_사라진_구간을_0으로_되돌린다() {
+        GeoPoint origin = new GeoPoint(new BigDecimal("37.560000"), new BigDecimal("126.970000"));
+        GeoPoint duplicateOfOrigin = new GeoPoint(new BigDecimal("37.560000"), new BigDecimal("126.970000"));
+        GeoPoint destination = new GeoPoint(new BigDecimal("37.561000"), new BigDecimal("126.971000"));
+        List<GeoPoint> segment = List.of(origin, duplicateOfOrigin, destination);
+
+        List<GeoPoint> distinct = NaverDirectionsGateway.withoutConsecutiveDuplicates(segment);
+        assertThat(distinct).as("연속 중복은 하나로 걷어내야 한다").containsExactly(origin, destination);
+
+        List<RoadLeg> measured = List.of(new RoadLeg(120, 30, List.of()));
+        List<RoadLeg> legs = NaverDirectionsGateway.expand(segment, measured);
+        assertThat(legs).hasSize(2);
+        assertThat(legs.get(0))
+                .as("중복이 걷힌 첫 구간은 거리·시간 0 이어야 한다 -- API 에 안 보냈으니 값을 지어내지 않는다")
+                .isEqualTo(new RoadLeg(0, 0, List.of()));
+        assertThat(legs.get(1)).as("실측 leg 는 그대로 살아 있어야 한다").isEqualTo(measured.getFirst());
+    }
+
+    /**
+     * 방어적 경계 -- 지점 전부가 한 자리면(구간 전체가 이동이 없다) API 를 부를 근거가 없다. 전부
+     * 0 인 leg 로 바로 답해야 한다({@code legsOf} 가 이 경우 웹 호출을 건너뛴다).
+     */
+    @Test
+    void 지점_전부가_한_자리면_0인_leg_들로만_답한다() {
+        List<RoadLeg> legs = NaverDirectionsGateway.zeroLegs(3);
+
+        assertThat(legs).hasSize(3);
+        assertThat(legs).allSatisfy(leg -> assertThat(leg).isEqualTo(new RoadLeg(0, 0, List.of())));
+    }
 }
