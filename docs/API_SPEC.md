@@ -2099,6 +2099,10 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `moving` | 채워짐 | 신선하면 값, 유실이면 `null` | 값 있음 | 값 있음 |
 | `finished` | 채워짐 · `arrived_at` 있음 | 대개 `null`(신호 종료) | 값 있음 | 값 있음 |
 
+⚠ **`driver` · `escort` 도 `null` 일 수 있다** — 배치(§5.14) 전인 `idle`·`confirmed` 회차에는 매니저가
+아직 없다. 표의 `●` 는 **키의 존재**를 뜻하지 값의 존재가 아니다. 2026-09-19 R16 에서 관계자 웹이
+이 가정을 어겨 `TypeError` 로 죽었고 실서버 계약 검사가 잡았다(`§8.25` 에 기록).
+
 **ETA 는 관제 전용** — 학부모·학생 앱 비노출(C-08)과 별개 축.
 
 실시간 갱신은 WebSocket `/ws/admin/live` (§7).
