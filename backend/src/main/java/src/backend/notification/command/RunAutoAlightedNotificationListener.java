@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.global.common.enums.Role;
+import src.backend.notification.domain.impl.RunAutoAlightedSubject;
 import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.notification.entity.NotificationType;
@@ -35,7 +36,7 @@ public class RunAutoAlightedNotificationListener {
 
     private final NotificationOutbox notificationOutbox;
 
-    private final NotificationComposer<RunAutoAlightedEvent> runAutoAlightedComposer;
+    private final NotificationComposer<RunAutoAlightedSubject> runAutoAlightedComposer;
 
     /**
      * 그 학생의 <b>첫 보호자</b> 1명에게만 적재한다 — 보호자가 여럿이어도 자동 하차 알림은 대표
@@ -51,7 +52,8 @@ public class RunAutoAlightedNotificationListener {
         }
         GuardianAccountRecipient firstGuardian = guardians.get(0);
 
-        NotificationMessage message = runAutoAlightedComposer.compose(event);
+        NotificationMessage message = runAutoAlightedComposer
+                .compose(new RunAutoAlightedSubject(firstGuardian.getStudentName()));
         notificationOutbox.append(new NotificationDraft(event.academyId(), firstGuardian.getAccountId(),
                 firstGuardian.getName(), Role.PARENT, NotificationType.ALIGHTING, message.title(), message.body(),
                 DEDUP_KEY_FORMAT.formatted(event.runId(), event.studentId(), event.alightedAt()),

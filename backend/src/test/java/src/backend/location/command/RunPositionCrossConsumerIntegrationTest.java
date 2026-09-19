@@ -226,7 +226,9 @@ class RunPositionCrossConsumerIntegrationTest extends RedisTestContainerBase {
         //    반환해 이 단언이 실패한다 — 그것이 이 시험이 검사하는 결함이다.
         proximityNotificationService.judgeOne(runId, academyId);
 
-        String dedupKey = "approaching:%d:%d:%d".formatted(runId, stopId, studentId);
+        // 학생 계정을 연결하지 않아 학부모 몫만 적재된다 — dedup_key 대상 자리는 목표 4 로 "parent"·
+        // "student" 로 갈린다(R14).
+        String dedupKey = "approaching:%d:%d:%d:parent".formatted(runId, stopId, studentId);
         Integer notificationCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM notification_log WHERE dedup_key = ?", Integer.class, dedupKey);
         assertThat(notificationCount).as("T3(RunPositionReader)가 T1 이 실제로 쓴 값을 파싱해 근접 알림을 적재해야 한다")

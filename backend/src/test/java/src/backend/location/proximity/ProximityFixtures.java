@@ -115,6 +115,17 @@ public class ProximityFixtures {
         return studentRepository.save(Student.register(academyId, profile)).getId();
     }
 
+    /** 계정이 연결된 학생(R14 목표 4 — arrive 학생 본인 수신 대상 조회) — {@code DriverRunFixtures} 와 같은 형태. */
+    public long studentWithAccount(long academyId, String name) {
+        long studentId = student(academyId, name);
+        Account account = accountRepository.save(Account.forSignup(academyId, "학생" + SEQUENCE.incrementAndGet(), "x",
+                name, "010-0000-0000", null, Role.STUDENT));
+        Student student = studentRepository.findById(studentId).orElseThrow();
+        student.linkAccount(account.getId());
+        studentRepository.save(student);
+        return studentId;
+    }
+
     /** 그 학생의 보호자 1명(근접 알림 수신자 조회 대상) — 반환값은 계정 id. */
     public long guardianOf(long academyId, long studentId, String name, OffsetDateTime linkedAt) {
         Account account = accountRepository.save(Account.forSignup(academyId, "부모" + SEQUENCE.incrementAndGet(), "x",

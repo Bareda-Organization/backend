@@ -13,6 +13,9 @@ import src.backend.boarding.event.RiderNoShowEvent;
 import src.backend.boarding.event.RiderStatusChangedEvent;
 import src.backend.boarding.event.RiderStatusRevertedEvent;
 import src.backend.global.common.enums.Role;
+import src.backend.notification.domain.impl.NoShowParentSubject;
+import src.backend.notification.domain.impl.RiderStatusChangedSubject;
+import src.backend.notification.domain.impl.RiderStatusRevertedSubject;
 import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.notification.entity.NotificationType;
@@ -44,9 +47,9 @@ public class BoardingNotificationListener {
     private final AcademyStaffRepository academyStaffRepository;
     private final StudentRepository studentRepository;
     private final NotificationOutbox notificationOutbox;
-    private final NotificationComposer<RiderStatusChangedEvent> riderStatusChangedComposer;
-    private final NotificationComposer<RiderStatusRevertedEvent> riderStatusRevertedComposer;
-    private final NotificationComposer<RiderNoShowEvent> noShowParentComposer;
+    private final NotificationComposer<RiderStatusChangedSubject> riderStatusChangedComposer;
+    private final NotificationComposer<RiderStatusRevertedSubject> riderStatusRevertedComposer;
+    private final NotificationComposer<NoShowParentSubject> noShowParentComposer;
     private final NotificationComposer<RiderNoShowEvent> noShowStaffComposer;
 
     /** 승차·하차(BRD-01·02) — 학부모에게만 적재한다(§4.6 표, 관계자는 실시간 현황 갱신뿐이라 로그 대상이 아니다). */
@@ -63,7 +66,8 @@ public class BoardingNotificationListener {
         if (guardians.isEmpty()) {
             return;
         }
-        NotificationMessage message = riderStatusChangedComposer.compose(event);
+        NotificationMessage message = riderStatusChangedComposer
+                .compose(new RiderStatusChangedSubject(event.status(), guardians.get(0).getStudentName()));
         NotificationType type = switch (event.status()) {
             case "boarded" -> NotificationType.BOARDING;
             case "alighted" -> NotificationType.ALIGHTING;
@@ -94,7 +98,8 @@ public class BoardingNotificationListener {
         if (guardians.isEmpty()) {
             return;
         }
-        NotificationMessage message = riderStatusRevertedComposer.compose(event);
+        NotificationMessage message = riderStatusRevertedComposer.compose(
+                new RiderStatusRevertedSubject(event.canceledStatus(), guardians.get(0).getStudentName()));
         NotificationType type = "boarded".equals(event.canceledStatus())
                 ? NotificationType.BOARDING_CANCELED
                 : NotificationType.ALIGHTING_CANCELED;
@@ -120,7 +125,8 @@ public class BoardingNotificationListener {
         if (guardians.isEmpty()) {
             return;
         }
-        NotificationMessage message = noShowParentComposer.compose(event);
+        NotificationMessage message = noShowParentComposer
+                .compose(new NoShowParentSubject(guardians.get(0).getStudentName()));
         for (GuardianAccountView guardian : guardians) {
             notificationOutbox.append(new NotificationDraft(event.academyId(), guardian.getAccountId(),
                     guardian.getName(), Role.PARENT, NotificationType.NO_SHOW, message.title(), message.body(),
