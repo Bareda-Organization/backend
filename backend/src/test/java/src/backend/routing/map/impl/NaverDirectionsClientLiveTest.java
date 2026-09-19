@@ -38,6 +38,9 @@ class NaverDirectionsClientLiveTest {
     /** 강남역 — 시청에서 약 10km 남동쪽이다. */
     private static final GeoPoint 강남역 = new GeoPoint(new BigDecimal("37.497900"), new BigDecimal("127.027600"));
 
+    /** 여의도 — 시청·강남역을 잇는 직선에서 크게 서쪽으로 벗어난 경유지(R17 T2 실측용). */
+    private static final GeoPoint 여의도 = new GeoPoint(new BigDecimal("37.521900"), new BigDecimal("126.924500"));
+
     @Autowired
     private NaverDirectionsClient naverDirectionsClient;
 
@@ -106,5 +109,36 @@ class NaverDirectionsClientLiveTest {
         assertThat(route.roadPath().getFirst().lng().doubleValue()).isCloseTo(126.978, org.assertj.core.data.Offset.offset(0.01));
         assertThat(route.roadPath().getLast().lat().doubleValue()).isCloseTo(37.4979, org.assertj.core.data.Offset.offset(0.01));
         assertThat(route.roadPath().getLast().lng().doubleValue()).isCloseTo(127.0276, org.assertj.core.data.Offset.offset(0.01));
+    }
+
+    /**
+     * R17 T2 목표 1·2 — 실 응답에 구간별 실측값({@code summary.waypoints[]}·{@code goal})이 실제로
+     * 오는지, 그 값이 직선거리 비율 배분과 <b>다른지</b>를 함께 고정한다(2026-09-19 curl 실측 —
+     * 시청→여의도→강남역 총 20,278m 중 첫 구간 실측 8,116m, 직선거리 비율 배분은 약 8,503m로
+     * 387m 벌어진다. 여의도가 직선 경로에서 크게 서쪽으로 벗어난 경유지라 두 값이 우연히 같아질
+     * 여지가 없다).
+     *
+     * <p>{@code StraightLineLegs.distribute} 를 같은 총합으로 다시 돌려 대조군을 만든다 — 이 값과
+     * 실제 응답이 갈리지 않으면, 총합만 실측이고 구간별 배분은 여전히 직선거리 근사라는 뜻이다.
+     */
+    @Test
+    void 실_응답의_구간_배분이_직선거리_비율과_다르다() {
+        List<GeoPoint> points = List.of(시청, 여의도, 강남역);
+
+        RoadRoute route = naverDirectionsClient.route(
+                new RoadRouteRequest(points, Duration.ofSeconds(10), CallerPolicy.BATCH));
+
+        assertThat(route.fallbackUsed()).isFalse();
+        assertThat(route.legs()).hasSize(2);
+        int totalMeters = route.legs().stream().mapToInt(src.backend.routing.map.spec.RoadLeg::distanceMeters).sum();
+        int totalSeconds = route.legs().stream().mapToInt(src.backend.routing.map.spec.RoadLeg::durationSeconds).sum();
+
+        List<src.backend.routing.map.spec.RoadLeg> 직선비율_배분 =
+                StraightLineLegs.distribute(points, totalMeters, totalSeconds);
+
+        assertThat(route.legs().getFirst().distanceMeters())
+                .as("첫 구간 실측 거리가 직선거리 비율 배분과 같다 — 총합만 실측이고 구간별 값은 "
+                        + "여전히 근사값이다(StraightLineLegs.distribute 가 그대로 쓰이고 있다는 뜻)")
+                .isNotEqualTo(직선비율_배분.getFirst().distanceMeters());
     }
 }
