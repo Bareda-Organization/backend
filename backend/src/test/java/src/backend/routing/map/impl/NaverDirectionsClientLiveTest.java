@@ -141,4 +141,34 @@ class NaverDirectionsClientLiveTest {
                         + "여전히 근사값이다(StraightLineLegs.distribute 가 그대로 쓰이고 있다는 뜻)")
                 .isNotEqualTo(직선비율_배분.getFirst().distanceMeters());
     }
+
+    /**
+     * R18 A 목표 1·3 -- 실제 배차에서 흔히 나는 형태를 그대로 재현한다: 등원 origin(노선 첫
+     * 정차지 좌표)과 그 정차지 자체가 같은 좌표로 나란히 들어온다({@code RunConfirmationService} 가
+     * 등원 origin 을 첫 정차지 좌표로 잡고, 그 정차지에 학생이 있으면 정차지 목록에도 같은 좌표가
+     * 들어간다). 걷어내기 전에는 이 요청이 NCP 를 그대로 태우면 400
+     * ({@code 출발지와 도착지가 동일합니다})으로 거절돼 노선 전체가 폴백으로 떨어졌다
+     * (2026-09-19 curl 실측). 걷어낸 뒤에는 폴백 없이, 정차지 수(3)보다 많은 좌표로 도로를 그린다.
+     */
+    @Test
+    void 등원_origin과_첫_정차지가_같은_좌표라도_폴백_없이_처리된다() {
+        List<GeoPoint> points = List.of(시청, 시청, 여의도, 강남역);
+
+        RoadRoute route = naverDirectionsClient.route(
+                new RoadRouteRequest(points, Duration.ofSeconds(10), CallerPolicy.BATCH));
+
+        assertThat(route.fallbackUsed())
+                .as("중복 좌표를 걷어내지 않으면 NCP 가 400 으로 거절해 폴백으로 떨어진다")
+                .isFalse();
+        assertThat(route.legs()).hasSize(3);
+        assertThat(route.legs().getFirst().distanceMeters())
+                .as("걷어낸 자리는 거리 0 이어야 한다 -- API 에 안 보냈으니 값을 지어내지 않는다")
+                .isZero();
+        assertThat(route.legs().getFirst().durationSeconds())
+                .as("걷어낸 자리는 시간도 0 이어야 한다")
+                .isZero();
+        assertThat(route.roadPath().size())
+                .as("정차지 수(origin·시청중복·여의도·강남역 중 실제 지점 3개)보다 좌표가 많아야 도로를 따라 굽은 값이다")
+                .isGreaterThan(3);
+    }
 }

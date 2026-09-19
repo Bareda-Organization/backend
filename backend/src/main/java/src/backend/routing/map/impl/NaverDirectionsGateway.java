@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -19,6 +20,7 @@ import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import io.netty.channel.ChannelOption;
+import lombok.extern.slf4j.Slf4j;
 import reactor.netty.http.client.HttpClient;
 
 import src.backend.routing.domain.GeoPoint;
@@ -41,6 +43,7 @@ import src.backend.routing.map.spec.RoadLeg;
  * 반영하지만(2026-09-13 실 API 확인) 문서 미보장 동작이라 채택하지 않음 — 근거는 {@code
  * application.yml} 의 {@code max-waypoints} 주석.
  */
+@Slf4j
 @Component
 @ConditionalOnProperty(name = "app.routing.map.provider", havingValue = "naver", matchIfMissing = true)
 public class NaverDirectionsGateway {
@@ -110,14 +113,26 @@ public class NaverDirectionsGateway {
      * 고정하는 것은 {@code NaverDirectionsResilienceTest} 의 <b>재시도 없이 실패한 호출 수</b>
      * 단언이고, 호출 수 단언이 잡는 것은 재시도가 아예 안 걸린 상태다.
      *
+     * <p>⚠ <b>인접한 두 지점이 같으면 부르기 전에 걷어낸다</b>(R18 A 목표 1·3, 2026-09-19 실 API
+     * 확인). NCP 는 그런 요청을 {@code 출발지와 도착지가 동일합니다}(400)로 통째로 거절하는데,
+     * 등원 노선의 첫 정차지처럼 <b>출발 기준점과 그 자리에서 타는 학생의 승차지가 같은 자리인
+     * 것은 정상적인 배차</b>라 흔히 일어난다 — {@code RunConfirmationService} 가 등원 origin 을
+     * 노선의 첫 정차지 좌표로 잡고, 그 정차지에 학생이 있으면 같은 좌표가 정차지 목록에도 들어가
+     * {@code [origin, 그 정차지, ...]} 로 중복된다. 걷어낸 자리는 거리·시간 0 인 leg 로 되돌려
+     * ({@link #expand}) {@code segment.size() - 1} 개를 그대로 지킨다.
+     *
      * @throws MapRouteUnavailableException 공급자에 닿지 못한 전부 — 타임아웃 · 5xx · 서킷 개방
      */
     @Bulkhead(name = RESILIENCE_INSTANCE)
     @CircuitBreaker(name = RESILIENCE_INSTANCE)
     @Retry(name = RESILIENCE_INSTANCE, fallbackMethod = "unavailable")
     public List<RoadLeg> legsOf(List<GeoPoint> segment, Duration timeout) {
+        List<GeoPoint> distinct = withoutConsecutiveDuplicates(segment);
+        if (distinct.size() < 2) {
+            return zeroLegs(segment.size() - 1);
+        }
         DrivingResponse response = webClient.get()
-                .uri(drivingUri(segment))
+                .uri(drivingUri(distinct))
                 .header(KEY_ID_HEADER, keyId)
                 .header(KEY_HEADER, key)
                 .retrieve()
@@ -125,8 +140,51 @@ public class NaverDirectionsGateway {
                 .timeout(timeout)
                 .block();
         Traoptimal traoptimal = traoptimalOf(response);
-        List<RoadLeg> legs = legsOf(segment, traoptimal.summary());
-        return withPath(legs, pathOf(traoptimal));
+        List<RoadLeg> legs = legsOf(distinct, traoptimal.summary());
+        return withPath(expand(segment, legs), pathOf(traoptimal));
+    }
+
+    /** 연속 중복 지점을 걷어낸다 — {@link #expand} 가 반대 방향으로 되돌린다. */
+    static List<GeoPoint> withoutConsecutiveDuplicates(List<GeoPoint> segment) {
+        List<GeoPoint> distinct = new ArrayList<>();
+        distinct.add(segment.getFirst());
+        for (int i = 1; i < segment.size(); i++) {
+            if (!samePoint(segment.get(i), segment.get(i - 1))) {
+                distinct.add(segment.get(i));
+            }
+        }
+        return distinct;
+    }
+
+    /**
+     * 값이 같은 위경도인지 — {@code BigDecimal.equals} 는 스케일이 다르면 값이 같아도 다르다고
+     * 답해 이 판정에 쓰면 안 된다({@code numeric(9,6)} 컬럼끼리는 대개 스케일이 같지만, 그 전제에
+     * 기대지 않는다).
+     */
+    private static boolean samePoint(GeoPoint a, GeoPoint b) {
+        return a.lat().compareTo(b.lat()) == 0 && a.lng().compareTo(b.lng()) == 0;
+    }
+
+    /** 지점 전부가 한 자리면 부를 이유가 없다 — 거리·시간 0 인 leg 로 바로 답한다. */
+    static List<RoadLeg> zeroLegs(int count) {
+        return Collections.nCopies(count, new RoadLeg(0, 0, List.of()));
+    }
+
+    /**
+     * {@link #withoutConsecutiveDuplicates} 로 걷어낸 자리에 거리·시간 0 인 leg 를 끼워 넣어
+     * {@code segment.size() - 1} 개로 되돌린다.
+     */
+    static List<RoadLeg> expand(List<GeoPoint> segment, List<RoadLeg> distinctLegs) {
+        List<RoadLeg> legs = new ArrayList<>(segment.size() - 1);
+        int distinctIndex = 0;
+        for (int i = 1; i < segment.size(); i++) {
+            if (samePoint(segment.get(i), segment.get(i - 1))) {
+                legs.add(new RoadLeg(0, 0, List.of()));
+            } else {
+                legs.add(distinctLegs.get(distinctIndex++));
+            }
+        }
+        return legs;
     }
 
     /**
@@ -245,8 +303,16 @@ public class NaverDirectionsGateway {
      * 순간적으로 여러 건을 한꺼번에 거절할 때(동시 도래가 상한을 넘을 때)만 이 경합이 열리므로,
      * 순차 호출뿐인 서킷 개방 시험에서는 한 번도 걸리지 않았다 — {@code public} 이면 이 토글 자체가
      * 없어 경합도 없다.
+     *
+     * <p>⚠ <b>여기서 WARN 로그를 남긴다</b>(R18 A 목표 2). 이 메서드로 들어왔다는 것 자체가 이미
+     * "공급자에 닿지 못했다" 는 뜻이라, 이후 호출부가 직선거리 근사로 넘어가든({@code
+     * NaverDirectionsClient.route}) 서킷 개방을 그대로 되던지든({@code CallerPolicy.ON_DEMAND})
+     * 운영에서는 똑같이 "지도 API 가 응답하지 않았다" 는 사실을 알아야 한다 — 지금까지는
+     * {@code fallback_used} 가 DB 한 칸에만 남고 로그가 하나도 없어, 근사 경로가 쌓여도 아무도
+     * 몰랐다.
      */
     public List<RoadLeg> unavailable(List<GeoPoint> segment, Duration timeout, Throwable cause) {
+        log.warn("도로 경로 조회가 폴백으로 떨어졌다 — 지점 {}개, 원인: {}", segment.size(), cause.toString());
         throw new MapRouteUnavailableException("도로 경로 조회 실패: 지점 " + segment.size() + "개", cause,
                 cause instanceof CallNotPermittedException);
     }
