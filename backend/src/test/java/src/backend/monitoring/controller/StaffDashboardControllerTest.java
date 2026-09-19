@@ -258,6 +258,60 @@ class StaffDashboardControllerTest {
                 .andExpect(jsonPath("$.data.runs[0].finished_at").exists());
     }
 
+    // ── R21-B2 목표 1·2 — 예정 도착(est_arrival_time = depart_time + est_duration_min) ──
+
+    /**
+     * R21-B2 목표 1 — {@code est_duration_min} 이 있으면 {@code depart_time} 에 그 분(分)을 더한
+     * 값이 {@code est_arrival_time} 으로 나온다. R20-A 가 시드의 {@code est_duration_min} 을 실
+     * NCP 응답으로 채워(§8.33) 이 값이 이제 실측치라는 전제를 그대로 시험한다.
+     */
+    @Test
+    @DisplayName("R21-B2 목표1 — est_arrival_time 은 depart_time + est_duration_min 이다")
+    void 예정_도착_시각이_출발_시각과_소요시간의_합이다() throws Exception {
+        DriverRunFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        OffsetDateTime departTime = now().plusHours(1);
+        int estDurationMin = 27;
+        fx.confirmedRunWithDuration(academyId, busId, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30), estDurationMin);
+        long staffAccountId = fx.staffAccount(academyId, "관계자1");
+
+        MvcResult result = mockMvc
+                .perform(get("/api/v1/staff/dashboard").header("Authorization",
+                        토큰(staffAccountId, academyId, Role.STAFF)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.runs[0].est_arrival_time").exists())
+                .andReturn();
+
+        // Jackson 직렬화 형식(UTC "Z" 표기)과 테스트가 만든 값(+09:00 표기)은 문자열이 달라도
+        // 같은 순간이면 된다 — 원문이 아니라 Instant 로 비교한다.
+        OffsetDateTime actual = OffsetDateTime.parse((String) JsonPath.read(본문(result),
+                "$.data.runs[0].est_arrival_time"));
+        assertThat(actual.toInstant()).isEqualTo(departTime.plusMinutes(estDurationMin).toInstant());
+    }
+
+    /**
+     * R21-B2 목표 2 — {@code est_duration_min} 이 없는 회차(확정 전 등, 정본이 {@code null} 허용)는
+     * {@code est_arrival_time} 도 {@code null} 로 견딘다 — 예외를 던지지 않는다.
+     */
+    @Test
+    @DisplayName("R21-B2 목표2 — est_duration_min 이 없으면 est_arrival_time 도 null 로 견딘다")
+    void 소요시간이_없으면_예정_도착_시각도_null_이다() throws Exception {
+        DriverRunFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        OffsetDateTime departTime = now().plusHours(1);
+        // 기존 confirmedRun 은 est_duration_min 을 항상 null 로 둔다(DriverRunFixtures 자바독).
+        fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
+        long staffAccountId = fx.staffAccount(academyId, "관계자1");
+
+        mockMvc.perform(
+                get("/api/v1/staff/dashboard").header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.runs[0].est_arrival_time").doesNotExist());
+    }
+
     // ── 목표 8 — unassigned_managers 는 소프트 삭제된 매니저를 세지 않는다 ─────
 
     /**

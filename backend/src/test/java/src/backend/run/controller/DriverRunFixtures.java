@@ -186,6 +186,21 @@ public class DriverRunFixtures {
         return runId;
     }
 
+    /**
+     * {@code confirmedRun} 과 같지만 소요 시간 추정치({@code est_duration_min})까지 지정한다
+     * (R21-B2 — "예정 도착" = {@code depart_time + est_duration_min} 계산 시험용). 기존
+     * {@code confirmedRun} 은 이 값을 항상 {@code null} 로 둬서(134곳이 그 전제로 이미 시험 중이라
+     * 건드리지 않았다) 별도 오버로드로 둔다.
+     */
+    public long confirmedRunWithDuration(long academyId, long busId, Direction direction, OffsetDateTime departTime,
+            OffsetDateTime confirmedAt, int estDurationMin) {
+        Run run = Run.forSchedule(academyId, busId, null, LocalDate.of(2030, 4, 1), direction, departTime,
+                departTime.minusMinutes(30), "출발지", "도착지", estDurationMin);
+        long runId = runRepository.save(run).getId();
+        runRepository.confirmIfIdle(runId, confirmedAt);
+        return runId;
+    }
+
     /** {@code idle} 상태 회차 — 확정을 거치지 않은 그대로(ackChanges 의 {@code RUN_NOT_CONFIRMED} 분기 시험용). */
     public long idleRun(long academyId, long busId, Direction direction, OffsetDateTime departTime) {
         Run run = Run.forSchedule(academyId, busId, null, LocalDate.of(2030, 4, 1), direction, departTime,
