@@ -201,4 +201,26 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
             """)
     List<Long> findStudentIdsForDelayNotification(@Param("runId") Long runId,
             @Param("stopIds") Collection<Long> stopIds);
+
+    /**
+     * 그 승하차지를 출발할 때(Ruling 308, §8.23 T3 목표 3·9) 확정 결과를 통지할 학생 명단 — 승차·
+     * 하차·미승차 3종만 대상이다. {@code waiting} 인 채 출발한 학생은 발송 대상이 아니다(목표 9)
+     * 이라 이 조회가 이미 걸러 낸다. {@code absent} 도 뺀다 — 결석은 운행 중 승하차 처리 결과가
+     * 아니라 사전에 확정된 상태라 이 통지의 대상이 아니다(근접 알림의 {@code excludingAbsent} 와
+     * 같은 근거).
+     *
+     * <p>{@code runId} 근거는 {@link #findByRunIdAndStudentId} 와 같다 — 호출부(출발 판정, Ruling
+     * 307)가 근접 알림과 같은 스케줄러로 이미 학원과 무관하게 골라낸 회차의 식별자라는 전제다.
+     */
+    @AcademyScopeExempt(reason = "runId 는 출발 판정 스케줄러가 근접 알림과 같은 근거로 RunRepository 로 이미 학원과 "
+            + "무관하게 골라낸 회차의 식별자라는 전제다 — findStudentIdsByRunIdAndStopIdExcludingAbsent 와 같은 근거")
+    @Query("""
+            SELECT rr FROM RunRider rr
+            WHERE rr.runId = :runId
+              AND rr.stopId = :stopId
+              AND rr.status IN (src.backend.boarding.entity.RiderStatus.BOARDED,
+                                 src.backend.boarding.entity.RiderStatus.ALIGHTED,
+                                 src.backend.boarding.entity.RiderStatus.NO_SHOW)
+            """)
+    List<RunRider> findFinalizedByRunIdAndStopId(@Param("runId") Long runId, @Param("stopId") Long stopId);
 }

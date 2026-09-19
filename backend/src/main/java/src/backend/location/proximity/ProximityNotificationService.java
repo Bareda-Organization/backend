@@ -50,6 +50,8 @@ public class ProximityNotificationService {
 
     private final RunRiderRepository runRiderRepository;
 
+    private final StopDepartureService stopDepartureService;
+
     private final StopRepository stopRepository;
 
     private final ApplicationEventPublisher eventPublisher;
@@ -121,9 +123,13 @@ public class ProximityNotificationService {
      * 사건이라, 한쪽이 실패해도 다른 쪽 선점을 되돌릴 이유가 없다(스케줄러가 각각 별도로 부른다).
      * 위치를 다시 읽는 이유도 같다 — 로컬 Redis 단건 읽기라 {@link #judgeOne} 과 값을 공유해도 얻는
      * 이득이 크지 않고, 두 판정의 독립성을 지키는 값이 더 크다.
+     *
+     * <p>선점에 성공하면(1행 갱신) {@link StopDepartureService#claimAndPublish} 가
+     * {@code StopDepartedEvent} 를 발행한다 — 그 승하차지의 확정 결과를 학생별로 통지하는 재료다
+     * (Ruling 308, §8.23 T3 목표 2). {@code academyId} 는 그 이벤트에 실어 보낸다.
      */
     @Transactional
-    public void judgeDeparture(Long runId) {
+    public void judgeDeparture(Long runId, Long academyId) {
         Optional<RunPositionSnapshot> position = runPositionReader.read(runId);
         if (position.isEmpty()) {
             return;
@@ -152,6 +158,6 @@ public class ProximityNotificationService {
             return;
         }
 
-        runStopRepository.claimDeparture(targetStop.getId(), OffsetDateTime.now(clock));
+        stopDepartureService.claimAndPublish(targetStop, runId, academyId, OffsetDateTime.now(clock));
     }
 }

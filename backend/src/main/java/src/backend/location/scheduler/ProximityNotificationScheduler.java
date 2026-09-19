@@ -84,7 +84,7 @@ public class ProximityNotificationScheduler {
             log.warn("회차 {} 근접 판정 실패 — 다음 틱에 재시도한다", runId, e);
         }
         try {
-            proximityNotificationService.judgeDeparture(runId);
+            proximityNotificationService.judgeDeparture(runId, academyId);
         } catch (Exception e) {
             log.warn("회차 {} 출발 판정 실패 — 다음 틱에 재시도한다", runId, e);
         }

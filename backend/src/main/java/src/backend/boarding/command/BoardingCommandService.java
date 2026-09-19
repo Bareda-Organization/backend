@@ -26,13 +26,13 @@ import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.entity.VerifyMethod;
 import src.backend.boarding.event.RiderNoShowEvent;
 import src.backend.boarding.event.RiderStatusChangedEvent;
-import src.backend.boarding.event.RiderStatusRevertedEvent;
 import src.backend.boarding.event.RunEndedEvent;
 import src.backend.boarding.repository.RiderStatusHistoryRepository;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.exception.entity.NoShowCase;
 import src.backend.exception.repository.NoShowCaseRepository;
 import src.backend.global.common.enums.Role;
+import src.backend.location.proximity.StopDepartureService;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
@@ -104,6 +104,13 @@ public class BoardingCommandService {
      */
     private final RunCompletionService runCompletionService;
 
+    /**
+     * 운행 종료 시 도착·미출발로 남은 승하차지 전부를 강제로 출발 처리하는 협력자(Ruling 312, 목표
+     * 8) — 마지막 승하차지는 다음 정차지가 없어 {@code RunArrivalCommandService} 의 폴백(목표 7)을
+     * 못 받으므로, 이 시점에 한 번 더 쓸어낸다.
+     */
+    private final StopDepartureService stopDepartureService;
+
     private final RunAssignmentAccess runAssignmentAccess;
 
     private final ApplicationEventPublisher eventPublisher;
@@ -168,13 +175,10 @@ public class BoardingCommandService {
      * 이 경우를 위한 별도 코드가 없어, 새 에러 코드를 만들지 않고 엔티티가 이미 보장하는 초기값으로
      * 처리했다(판단 근거로 보고에 남긴다).
      *
-     * <p><b>정정 알림(목표 13·14, Ruling 219)</b> — 되돌리기 전 상태({@code fromStatus})가 곧 "무엇이
-     * 취소됐는지"이므로 {@link RiderStatusRevertedEvent#canceledStatus()} 로 나른다. {@code
-     * RiderStatusChangedEvent} 는 <b>고치지 않고 그대로</b> 함께 발행한다 — {@code rider_changed}
-     * WebSocket 방송(§7.1)이 그 이벤트를 구독해 "지금 상태"를 방송하는 재료로 쓰는데, 이 되돌리기도
-     * 그 트리거 표에 이미 명시돼 있다(아래 주석). 두 이벤트를 나눈 이유는
-     * {@link RiderStatusRevertedEvent} 의 클래스 주석 참고 — 요지는 WebSocket 계약을 이 신설 때문에
-     * 건드리지 않기 위함이다.
+     * <p><b>정정 알림은 부재다(Ruling 308 이 Ruling 219 를 대체)</b> — 출발 전 되돌리기는 발송 전
+     * 수정이라 정정할 대상이 없다. {@code RiderStatusChangedEvent} 는 그대로 발행한다 —
+     * {@code rider_changed} WebSocket 방송(§7.1)이 그 이벤트를 구독해 "지금 상태"를 방송하는
+     * 재료로 쓰는데, 이 되돌리기도 그 트리거 표에 이미 명시돼 있다(아래 주석).
      */
     @Transactional
     public RiderRevertResponse revert(AuthUser requester, Long runId, Long riderId, RiderRevertRequest request) {
@@ -202,17 +206,10 @@ public class BoardingCommandService {
                 requester.accountId())));
 
         // WebSocket rider_changed 방송(API_SPEC §7.1)의 트리거 표가 revert 도 명시한다 — T2 소유 목표 4·5·6.
-        // reverted=true 라서 알림 로그 적재 리스너(BoardingNotificationListener)는 이 이벤트를 건너뛴다 —
-        // 정정 알림은 아래 RiderStatusRevertedEvent 가 별도로 나른다(목표 13·14, Ruling 219).
+        // 알림 로그 적재 리스너(BoardingNotificationListener)는 이제 이 이벤트를 구독하지 않는다 —
+        // 출발 전 되돌리기는 발송 전 수정이라 정정할 대상이 없다(Ruling 308 이 Ruling 219 를 대체).
         eventPublisher.publishEvent(new RiderStatusChangedEvent(run.getId(), run.getAcademyId(),
                 rider.getStudentId(), rider.getId(), statusName(targetStatus), now, true));
-
-        // 정정 알림(목표 13·14, Ruling 219) — 취소된 상태(fromStatus)와 되돌아간 상태(targetStatus)를
-        // 함께 나른다. 되돌리기 전 상태가 boarded·alighted 가 아니면(WAITING·NO_SHOW 로부터의 되돌리기)
-        // 알림 리스너 쪽에서 조용히 건너뛴다 — 목표 13·14 는 승차·하차 취소만 범위로 한다(판단 근거로
-        // 보고에 남긴다).
-        eventPublisher.publishEvent(new RiderStatusRevertedEvent(run.getId(), run.getAcademyId(),
-                rider.getStudentId(), rider.getId(), statusName(fromStatus), statusName(targetStatus), now));
 
         return new RiderRevertResponse(statusName(targetStatus), now);
     }
@@ -267,6 +264,9 @@ public class BoardingCommandService {
     private void notifyIfRunJustEnded(Run run, OffsetDateTime now) {
         boolean justEnded = runCompletionService.completeIfAllAlighted(run, now);
         if (justEnded) {
+            // 마지막 승하차지 강제 출발(Ruling 312, 목표 8) — 이 시점의 최종 지점은 다음 정차지가
+            // 없어 RunArrivalCommandService 의 폴백(목표 7)을 받지 못한다.
+            stopDepartureService.forceAllRemaining(run.getId(), run.getAcademyId(), now);
             long autoAlightedCount = runRiderRepository.countByRunIdAndStatus(run.getId(), RiderStatus.ALIGHTED);
             eventPublisher.publishEvent(new RunEndedEvent(run.getId(), run.getAcademyId(), now, autoAlightedCount));
         }

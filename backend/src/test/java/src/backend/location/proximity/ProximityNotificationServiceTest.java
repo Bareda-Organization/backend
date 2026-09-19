@@ -109,6 +109,8 @@ class ProximityNotificationServiceTest extends RedisTestContainerBase {
     void 뒷정리한다() {
         String academyIds = "(SELECT id FROM academy WHERE name = '근접알림시험학원')";
         jdbcTemplate.update("DELETE FROM notification_log WHERE dedup_key LIKE 'approaching:%'");
+        // R15-T3(Ruling 308) — BoardingNotificationListener#appendStopDeparted 가 쓰는 dedup_key.
+        jdbcTemplate.update("DELETE FROM notification_log WHERE dedup_key LIKE 'stop_departed:%'");
         jdbcTemplate.update("DELETE FROM run WHERE academy_id IN " + academyIds);
         jdbcTemplate.update("DELETE FROM guardian WHERE academy_id IN " + academyIds);
         jdbcTemplate.update("DELETE FROM student WHERE academy_id IN " + academyIds);
@@ -277,7 +279,7 @@ class ProximityNotificationServiceTest extends RedisTestContainerBase {
 
         writePosition(runId, FAR_LAT, STOP_LNG);
 
-        proximityNotificationService.judgeDeparture(runId);
+        proximityNotificationService.judgeDeparture(runId, academyId);
 
         assertThat(departedAt(runStopId)).as("①100m 밖이므로 최초 1회 기록돼야 한다").isNotNull();
     }
@@ -296,7 +298,7 @@ class ProximityNotificationServiceTest extends RedisTestContainerBase {
 
         writePosition(runId, WITHIN_DEPARTURE_LAT, STOP_LNG);
 
-        proximityNotificationService.judgeDeparture(runId);
+        proximityNotificationService.judgeDeparture(runId, academyId);
 
         assertThat(departedAt(runStopId)).as("②100m 안쪽이면 아직 출발이 아니다").isNull();
     }
@@ -314,14 +316,53 @@ class ProximityNotificationServiceTest extends RedisTestContainerBase {
         fx.arriveStop(runStopId, now);
 
         writePosition(runId, FAR_LAT, STOP_LNG);
-        proximityNotificationService.judgeDeparture(runId);
+        proximityNotificationService.judgeDeparture(runId, academyId);
         OffsetDateTime firstDepartedAt = departedAt(runStopId);
 
         // 버스가 계속 100m 밖에 머무는 다음 틱을 흉내낸다 — claimDeparture 의 조건부 UPDATE 가
         // 이미 채워진 값을 갱신하지 않아야 한다(③최초 1회, claimProximityNotice 와 같은 근거).
-        proximityNotificationService.judgeDeparture(runId);
+        proximityNotificationService.judgeDeparture(runId, academyId);
 
         assertThat(departedAt(runStopId)).as("③재판정해도 최초 기록값 그대로여야 한다").isEqualTo(firstDepartedAt);
+    }
+
+    // ── §8.23 T3 목표 2(Ruling 308) — claimDeparture 가 1행을 갱신한 직후에만 알림이 적재된다 ──
+
+    @Test
+    void 출발_판정이_claimDeparture_에_성공하면_그_승하차지의_확정_결과가_통지된다() {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        ProximityFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.500000", STOP_LNG);
+        long studentId = fx.student(academyId, "출발학생1");
+        fx.guardianOf(academyId, studentId, "출발보호자1", now);
+        long runId = fx.movingRun(academyId, busId, Direction.FROM_ACADEMY, now.plusHours(1), now, now);
+        long versionId = fx.confirmedRouteWithVersion(runId, now);
+        long runStopId = fx.runStopForStop(versionId, stopId, 1, now.plusMinutes(10));
+        fx.arriveStop(runStopId, now);
+        fx.rider(runId, studentId, stopId, RiderStatus.BOARDED, now);
+
+        // ①100m 안쪽 — claimDeparture 가 아직 0행이므로 알림도 아직 없다. student_name 으로 좁힌다 —
+        // notification_log 에는 데모 시드가 만든 다른 'boarding' 행이 이미 있을 수 있다.
+        writePosition(runId, WITHIN_DEPARTURE_LAT, STOP_LNG);
+        proximityNotificationService.judgeDeparture(runId, academyId);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM notification_log WHERE type = 'boarding' AND student_id = ?", Integer.class,
+                studentId)).as("①100m 안쪽이면 claimDeparture 가 0행이라 알림도 없다").isZero();
+
+        // ②100m 밖 — claimDeparture 가 1행을 갱신하고 나서야 알림이 적재된다.
+        writePosition(runId, FAR_LAT, STOP_LNG);
+        proximityNotificationService.judgeDeparture(runId, academyId);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM notification_log WHERE type = 'boarding' AND student_id = ?", Integer.class,
+                studentId)).as("②claimDeparture 성공 직후 1건 적재").isEqualTo(1);
+
+        // ③재판정 — claimDeparture 가 이미 채워진 값을 다시 갱신하지 않으므로(0행) 알림도 늘지 않는다.
+        proximityNotificationService.judgeDeparture(runId, academyId);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM notification_log WHERE type = 'boarding' AND student_id = ?", Integer.class,
+                studentId)).as("③재판정해도 여전히 1건").isEqualTo(1);
     }
 
     /** T1 이 아직 만들지 않은 위치 계약(runId·lat·lng·recordedAt·receivedAt·currentStopName)을 직접 흉내낸다. */
