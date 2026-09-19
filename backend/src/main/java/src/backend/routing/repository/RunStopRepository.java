@@ -109,4 +109,17 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
             + "같은 근거)")
     @Query("UPDATE RunStop rs SET rs.proximityNotifiedAt = :now WHERE rs.id = :id AND rs.proximityNotifiedAt IS NULL")
     int claimProximityNotice(@Param("id") Long id, @Param("now") OffsetDateTime now);
+
+    /**
+     * 승하차지를 이미 떠났는지 판정한다(BRD-05 되돌리기 제한, API_SPEC §4.7, Ruling 305) — 뒤 순번
+     * (seq 초과)의 정차 항목이 하나라도 도착 처리(arrivedAt IS NOT NULL)됐으면 앞 승하차지는 반드시
+     * 떠난 뒤다.
+     *
+     * <p>{@code routeVersionId} 근거는 {@link #findByRouteVersionIdAndStopId} 와 같다 — 호출부
+     * ({@code BoardingCommandService#revert})가 이미 학원 소속을 확인한 회차의 확정 노선 버전만 넘긴다.
+     */
+    @AcademyScopeExempt(reason = "routeVersionId 는 호출부가 이미 학원 소속을 확인한 회차의 확정 노선 버전이라는 전제다 — "
+            + "RunRepository.findByIdAndAcademyId 로 회차를 먼저 학원 범위에 좁힌 뒤 confirmed_route.current_version_id 로 "
+            + "얻은 값만 넘긴다는 전제(findByRouteVersionIdAndStopId 와 같은 근거)")
+    boolean existsByRouteVersionIdAndSeqGreaterThanAndArrivedAtIsNotNull(Long routeVersionId, int seq);
 }

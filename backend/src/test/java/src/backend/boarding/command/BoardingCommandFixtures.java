@@ -260,6 +260,19 @@ public class BoardingCommandFixtures {
         return runStop.getId();
     }
 
+    /**
+     * {@link #confirmedRunStop} 이 만든 버전에 뒤 순번 정차 항목을 추가하고 즉시 도착 처리한다(목표 6,
+     * Ruling 305) — "그 학생의 승하차지보다 뒤 순번이 도착 처리되면 떠난 것으로 본다"의 재료. 먼저
+     * {@link #confirmedRunStop} 로 버전을 만든 뒤에만 호출한다는 전제다.
+     */
+    public void arriveLaterStop(long runId, long laterStopId, int seq, OffsetDateTime arrivedAt) {
+        Long versionId = confirmedRouteRepository.findById(runId).map(ConfirmedRoute::getCurrentVersionId)
+                .orElseThrow();
+        RunStop runStop = runStopRepository.save(RunStop.forStop(versionId, laterStopId, seq, arrivedAt));
+        runStop.markArrived(arrivedAt);
+        runStopRepository.save(runStop);
+    }
+
     /** 잔여 판정의 함정(목표 7)을 걸기 위해 이미 부재 처리된 탑승자를 직접 만든다 — {@code markAbsent} 는 회차 진행 중 경로가 없다. */
     public void markAbsent(long riderId) {
         int updated = jdbcTemplate.update("UPDATE run_rider SET status = 'absent' WHERE id = ?", riderId);

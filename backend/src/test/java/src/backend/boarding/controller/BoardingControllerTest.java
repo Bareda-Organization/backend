@@ -559,6 +559,64 @@ class BoardingControllerTest {
                 .isEqualTo(4);
     }
 
+    // ── 목표 6(R14-T2, Ruling 305) — 승하차지를 떠난 뒤에는 되돌리기 거부 ────────────
+
+    @Test
+    @DisplayName("목표6(Ruling 305) — 뒤 순번 승하차지가 도착 처리됐으면 되돌리기는 409 STOP_ALREADY_DEPARTED 이고 저장값은 그대로다")
+    void 뒤_승하차지가_도착_처리됐으면_되돌리기는_409이고_저장값은_불변이다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long myStopId = fixtures().stop(academyId, "37.500000", "127.000000");
+        long laterStopId = fixtures().stop(academyId, "37.600000", "127.100000");
+        long studentId = fixtures().student(academyId, "학생7");
+        long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
+        long riderId = fixtures().runRider(runId, studentId, myStopId);
+        fixtures().confirmedRunStop(runId, myStopId, now.minusMinutes(30));
+        fixtures().arriveLaterStop(runId, laterStopId, 2, now.minusMinutes(5));
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
+
+        mockMvc.perform(post(REVERT.formatted(runId, riderId))
+                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("STOP_ALREADY_DEPARTED"));
+
+        entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM run_rider WHERE id = ?", String.class, riderId))
+                .as("①거부됐으니 최초 상태(waiting) 그대로여야 한다").isEqualTo("waiting");
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM rider_status_history WHERE run_rider_id = ?",
+                Integer.class, riderId)).as("②이력 행도 남지 않아야 한다").isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("목표6(Ruling 305) — 확정 노선이 있어도 뒤 순번이 아직 미도착이면 되돌리기는 그대로 성공한다")
+    void 뒤_승하차지가_미도착이면_확정_노선이_있어도_되돌리기가_성공한다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long myStopId = fixtures().stop(academyId, "37.500000", "127.000000");
+        long studentId = fixtures().student(academyId, "학생8");
+        long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
+        long riderId = fixtures().runRider(runId, studentId, myStopId);
+        fixtures().confirmedRunStop(runId, myStopId, now.minusMinutes(30));
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
+        String escortToken = 토큰(escortAccountId, academyId, Role.ESCORT);
+
+        mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId)).header("Authorization", escortToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(statusUpdateBody("boarded", "manual", UUID.randomUUID(), now)))
+                .andExpect(status().isOk());
+        entityManager.flush();
+
+        mockMvc.perform(post(REVERT.formatted(runId, riderId)).header("Authorization", escortToken)
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("waiting"));
+    }
+
     // ── 목표 13·14(Ruling 219) — 되돌리기 정정 알림은 원본을 건드리지 않고 새로 적재된다 ─────────
 
     @Test
