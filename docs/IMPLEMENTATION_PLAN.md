@@ -3716,3 +3716,53 @@ ordered.stream().filter(s -> s.getArrivedAt() != null)
 | **알림 배선 누락** | `NotificationLog` 의 `studentId`·`studentName`·`busNo` 를 **값으로 채우는 코드가 부재**. 생성 경로가 `NotificationOutbox:69 → forOutbox(...)` 하나뿐인데 그 인자에 없다. **사용자가 별도 라운드로 배정(2026-09-18)** |
 | 경유지 계약 검사 2건 | 재료(`confirmed` 회차)를 만들 권한이 웹 검사 계정에 **원천적으로 부재** — 강제 확정이 메인관리자 전용. **시드 변경이 선행돼야 한다** |
 | `deploy-backend.yml` CI 미검증 | ⚠ 에이전트로 진행 불가 — AWS 자원 + 사용자 계정 권한. **2026-09-18 사용자가 범위 밖으로 확정** |
+
+## 8.16 ⚖ `R13` 목표 표 — 알림 배선 (2026-09-19 계획 · **착수 전** · 메인 `1568ee9f`)
+
+**문제** — `notification_log` 의 `student_id`·`student_name`·`bus_no` 를 **값으로 채우는 코드가
+프로덕션에 부재**. 생성 경로는 `NotificationOutbox.append` → `NotificationLog.forOutbox(...)`
+하나뿐이고(`graft grep forOutbox` — 프로덕션 1곳 · 시험 5곳), 그 인자 9개에 세 값이 없다.
+컬럼(`V1`) · 응답 DTO(`NotificationItemResponse` · `StaffNotificationItemResponse`) ·
+사양(`API_SPEC §3.12`·`§5.17`) · 시드는 전부 준비돼 있고 **값 넣는 쪽만** 결락.
+⇒ 시드 알림은 자녀 이름이 보이고 **앱이 만든 알림은 전부 빈 값**.
+
+### 판정 기준은 정본에서 나온다 — 21종을 임의로 분류하지 않는다
+
+`ERD.md` `notification_log` 절이 정의처다.
+
+| 컬럼 | 정본 정의 |
+|---|---|
+| `student_id` | 대상 자녀 |
+| `student_name` | 자녀 이름 스냅샷. **알림 문구에 필수 포함되는 값** |
+| `bus_no` | 호차 |
+
+⇒ **문구(`title`·`body`)를 만드는 Composer 가 자녀 이름을 넣으면 그 종류는 `student_*` 를 채운다.
+호차를 넣으면 `bus_no` 를 채운다.** 이것이 유일한 판정 기준이며(ATT-03 이 근거 —
+"모든 문구에 자녀 이름 포함"), `API_SPEC §9.7` 수신자 열은 결과를 **검증**하는 데 쓴다.
+
+### 조율자 실측 (2026-09-19) — ⚠ 인용이다. 직접 세고 어긋나면 보고하라
+
+| 항목 | 값 | 센 방법 |
+|---|---:|---|
+| 알림 종류 | 21 | `NotificationType` enum 상수 |
+| 적재 호출 지점 | 20 | `grep -rn "notificationOutbox.append(" backend/src/main/java` |
+| 리스너 파일 | 13 | 같은 grep 의 `-l` |
+| 리스너가 받는 이벤트 | 17 | `@EventListener` 메서드 인자 |
+| 그중 `studentId` 보유 | 10 | 이벤트 record 선언 파싱 |
+| 그중 `busNo` 보유 | 2 | `EmergencyRaisedEvent` · `EmergencyCanceledEvent` |
+
+### 목표 — 전항 통과가 완료 조건
+
+| # | 완료 조건 | 실행 명령 · 검사 조건 |
+|:-:|---|---|
+| 1 | `NotificationDraft` 가 `studentId`·`studentName`·`busNo` 를 갖는다 | 컴파일 + `grep -c 'studentId\|studentName\|busNo' NotificationDraft.java` = 3 이상 |
+| 2 | `forOutbox` 가 그 셋을 받아 엔티티에 저장한다 | 엔티티 왕복 검사 — 저장 후 재조회로 세 값 일치 |
+| 3 | **문구에 자녀 이름이 들어가는 모든 종류**에서 적재 행의 `student_name` 이 그 이름과 일치 | 종류별 통합 검사. **대상 종류를 Composer 전수로 세어 보고서에 적는다** |
+| 4 | **문구에 호차가 들어가는 모든 종류**에서 `bus_no` 가 채워진다 | 같음(최소 `emergency`·`emergency_canceled`) |
+| 5 | 채우지 **않는** 종류는 정본 근거와 함께 보고서에 나열 | 21종 전부가 3·4·5 중 하나에 배정됐는지 계수 |
+| 6 | `GET /notifications` 응답에 `student_id`·`student_name` 이 실제로 내려간다 | 컨트롤러 검사 — 적재→조회 왕복, `null` 아님 |
+| 7 | 음성 대조 — 배선을 되돌리면 **그 검사만** 실패 | 값 전달을 `null` 로 바꿔 심고 실패 확인 → 원복 → `git status --porcelain` 빈 결과 |
+| 8 | 백엔드 전체 **단독** 실행 | 실패 **0** · 건너뜀 **0** · 검사 수 **≥ 1,316** (결과 XML 로 계수) |
+
+**범위 밖** — 스키마 변경 부재(컬럼이 이미 있다) ⇒ 마이그레이션·보존 DB 재구성 불필요.
+프론트엔드 표시 변경은 이 라운드 범위 밖.
