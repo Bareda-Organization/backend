@@ -111,7 +111,7 @@ public class StaffRunRouteQueryService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_CONFIRMED));
 
         RunRouteResponse base = runRouteQueryService.buildFromVersion(requester, run, currentVersionId);
-        Ack ack = ackOf(requester, runId);
+        Ack ack = ackOf(run.getAcademyId(), runId);
         List<GeoPoint> roadPath = version.getRoadPath() == null ? List.of() : version.getRoadPath();
 
         return new StaffRunRouteResponse(base.stops(), base.currentStop(), base.nextStop(), base.skippedNotice(),
@@ -211,10 +211,20 @@ public class StaffRunRouteQueryService {
                 stopEntity.getLat(), stopEntity.getLng(), null, studentCount);
     }
 
-    /** {@code Assignment.ackedRouteVersionId == 현재 확정 버전} — 대시보드가 쓰는 것과 같은 비교(§5.3, {@code StaffDashboardQueryService#ackedOf} 참고). */
-    private Ack ackOf(AuthUser requester, Long runId) {
+    /**
+     * {@code Assignment.ackedRouteVersionId == 현재 확정 버전} — 대시보드가 쓰는 것과 같은 비교(§5.3,
+     * {@code StaffDashboardQueryService#ackedOf} 참고).
+     *
+     * <p>R22 — 요청자의 {@code academyId} 가 아니라 <b>회차가 속한 학원</b>으로 찾는다. 메인 관리자는
+     * {@code academyId} 가 {@code null} 이라(그 역할만 null 이 허용된다, {@link AuthUser}) 요청자 기준으로
+     * 찾으면 일치하는 행이 없어 확인 현황이 늘 "둘 다 미확인" 으로 나온다 — 권한이 없어서가 아니라
+     * 조회 조건이 안 맞아서인데, 빈 결과라 구별할 수단이 부재하다. 이 지점에 닿기 전에
+     * {@code AcademyScope#assertAccessible} 이 이미 접근을 판정했으므로 회차의 학원을 그대로 쓰는 것이
+     * 두 역할 모두에게 옳다.
+     */
+    private Ack ackOf(Long academyId, Long runId) {
         List<StaffAssignmentAckView> views = assignmentRepository
-                .findAckViewsForStaffDashboard(requester.academyId(), List.of(runId));
+                .findAckViewsForStaffDashboard(academyId, List.of(runId));
         return new Ack(ackedOf(views, ManagerRole.DRIVER), ackedOf(views, ManagerRole.ESCORT));
     }
 

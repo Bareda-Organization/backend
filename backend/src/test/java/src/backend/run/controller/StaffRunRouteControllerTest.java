@@ -373,6 +373,27 @@ class StaffRunRouteControllerTest {
                 .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
     }
 
+    @Test
+    @DisplayName("R22 — 200: 메인 관리자도 회차 노선을 본다(전체 관제 화면이 이 조회를 쓴다)")
+    void 메인_관리자는_200_이다() throws Exception {
+        DriverRunFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        OffsetDateTime departTime = OffsetDateTime.now().plusHours(1);
+        long runId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
+        fx.confirmedRouteWithVersion(runId, departTime.minusMinutes(40));
+
+        mockMvc.perform(get("/api/v1/staff/runs/" + runId + "/route")
+                        .header("Authorization", 메인관리자_토큰()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.confirmed").value(true));
+    }
+
+    /** 메인 관리자는 {@code academyId} 가 null 인 유일한 역할이다 — 토큰도 그 형태여야 실제와 같다. */
+    private String 메인관리자_토큰() {
+        return "Bearer " + tokenProvider.createAccessToken(1L, null, Role.SYSTEM_ADMIN, AccountStatus.ACTIVE);
+    }
+
     private String 토큰(long accountId, long academyId, Role role) {
         return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
     }
