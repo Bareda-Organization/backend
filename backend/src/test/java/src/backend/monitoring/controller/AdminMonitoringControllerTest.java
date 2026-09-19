@@ -330,7 +330,8 @@ class AdminMonitoringControllerTest extends RedisTestContainerBase {
         long busId = f.bus(academyId);
         OffsetDateTime departTime = now().plusMinutes(20);
 
-        f.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
+        long todayRunId = f.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
         f.confirmedRunOn(academyId, busId, Direction.TO_ACADEMY, departTime.minusDays(1),
                 departTime.minusDays(1).minusMinutes(30), LocalDate.of(2030, 3, 31));
         f.confirmedRunOn(academyId, busId, Direction.TO_ACADEMY, departTime.plusDays(1),
@@ -341,7 +342,10 @@ class AdminMonitoringControllerTest extends RedisTestContainerBase {
         mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 메인관리자_토큰(adminAccountId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs.length()").value(1))
-                .andExpect(jsonPath("$.data.runs[0].run_status").value("confirmed"));
+                // ⚠ run_id 로 못박는다 — 세 회차가 전부 confirmed 라 개수·상태만 보면 조회 날짜가
+                // 어제·내일로 밀려도 이 단언이 그대로 통과한다(2026-09-19 음성 대조에서 실제로
+                // 빠져나갔다). "몇 건인가" 가 아니라 "어느 건인가" 를 검사해야 날짜가 고정된다.
+                .andExpect(jsonPath("$.data.runs[0].run_id").value(todayRunId));
     }
 
     /**
