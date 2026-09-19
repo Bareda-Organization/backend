@@ -43,6 +43,20 @@ class StubMapRouteClientTest {
     }
 
     /**
+     * R15 T1 목표 7 — local·demo 화면이 빈 경로를 받지 않도록 스텁도 좌표를 준다.
+     */
+    @Test
+    void 정상_응답도_road_path_를_준다() {
+        List<GeoPoint> points = 지점_여러개(4);
+
+        RoadRoute route = stub.route(요청(points));
+
+        assertThat(route.roadPath()).isNotEmpty();
+        assertThat(route.roadPath().getFirst()).isEqualTo(points.getFirst());
+        assertThat(route.roadPath().getLast()).isEqualTo(points.getLast());
+    }
+
+    /**
      * 마커 위도가 든 지점열은 폴백 경로를 낸다 — 상위 단계가
      * {@code ComputationSnapshot.fallbackUsed} 를 검사할 수 있는 유일한 입력이다.
      */

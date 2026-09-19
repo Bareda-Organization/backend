@@ -3,6 +3,7 @@ package src.backend.run.controller;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -32,6 +33,7 @@ import src.backend.request.entity.ChangeRequest;
 import src.backend.request.entity.ChangeRequestSource;
 import src.backend.request.entity.ChangeRequestType;
 import src.backend.request.repository.ChangeRequestRepository;
+import src.backend.routing.domain.GeoPoint;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.entity.RouteVersionSource;
@@ -229,10 +231,16 @@ public class DriverRunFixtures {
 
     /** 확정 노선 1버전 — {@code ChangeRequestAutoRejectFixtures#confirmedRouteWithVersion} 과 같은 형태. 반환값은 {@code route_version.id}. */
     public long confirmedRouteWithVersion(long runId, OffsetDateTime publishedAt) {
+        return confirmedRouteWithVersion(runId, publishedAt, List.of(), false);
+    }
+
+    /** R15 T1 목표 5 — {@code road_path}·{@code fallback_used} 를 실제로 채운 확정 노선. 반환값은 {@code route_version.id}. */
+    public long confirmedRouteWithVersion(long runId, OffsetDateTime publishedAt, List<GeoPoint> roadPath,
+            boolean fallbackUsed) {
         confirmedRouteRepository.save(ConfirmedRoute.forRun(runId, publishedAt));
         RouteVersion version = routeVersionRepository.save(RouteVersion.forConfirmedRoute(runId, 1,
                 RouteVersionSource.CONFIRM_BATCH, 30, new BigDecimal("10.00"), publishedAt, "fp-" + runId,
-                "engine-v1", Map.of(), false, null, publishedAt));
+                "engine-v1", Map.of(), fallbackUsed, roadPath, null, publishedAt));
         confirmedRouteRepository.assignCurrentVersion(runId, version.getId());
         return version.getId();
     }

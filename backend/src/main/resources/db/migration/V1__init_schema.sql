@@ -444,6 +444,7 @@ CREATE TABLE route_version (
     engine_name        varchar(30)  NOT NULL,
     policy_snapshot    jsonb        NOT NULL,
     fallback_used      boolean      NOT NULL DEFAULT false,
+    road_path          jsonb,
     created_by         bigint,
     created_at         timestamptz  NOT NULL DEFAULT now(),
     CONSTRAINT uk_route_version_confirmed_route_version_no UNIQUE (confirmed_route_id, version_no),

@@ -37,6 +37,7 @@ import src.backend.manager.entity.Assignment;
 import src.backend.manager.entity.Manager;
 import src.backend.manager.entity.ManagerProfile;
 import src.backend.manager.entity.WorkHours;
+import src.backend.routing.domain.GeoPoint;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.Route;
 import src.backend.routing.entity.RoutePlan;
@@ -258,9 +259,14 @@ class Phase1Task5EntitySchemaValidationTest extends MigratedPostgresTestBase {
         entityManager.persist(confirmedRoute);
         entityManager.flush();
 
+        List<GeoPoint> roadPath = List.of(
+                new GeoPoint(new BigDecimal("37.566500"), new BigDecimal("126.978000")),
+                new GeoPoint(new BigDecimal("37.560000"), new BigDecimal("126.990000")),
+                new GeoPoint(new BigDecimal("37.497900"), new BigDecimal("127.027600")));
         RouteVersion routeVersion = RouteVersion.forConfirmedRoute(confirmedRoute.getRunId(), 1,
                 RouteVersionSource.CONFIRM_BATCH, 35, new BigDecimal("12.34"), OffsetDateTime.now(),
-                "fingerprint-abc", "engine-v1", Map.of("noShowWaitMinutes", 3), false, null, OffsetDateTime.now());
+                "fingerprint-abc", "engine-v1", Map.of("noShowWaitMinutes", 3), false, roadPath, null,
+                OffsetDateTime.now());
         entityManager.persist(routeVersion);
         entityManager.flush();
         entityManager.clear();
@@ -272,6 +278,9 @@ class Phase1Task5EntitySchemaValidationTest extends MigratedPostgresTestBase {
         assertThat(found.getEstDistanceKm()).isEqualByComparingTo(new BigDecimal("12.34"));
         assertThat(found.getPolicySnapshot()).containsEntry("noShowWaitMinutes", 3);
         assertThat(found.isFallbackUsed()).isFalse();
+        // R15 T1 목표 4 — 저장 후 재조회한 road_path 가 개수·순서 그대로다.
+        assertThat(found.getRoadPath()).hasSize(3);
+        assertThat(found.getRoadPath()).containsExactlyElementsOf(roadPath);
     }
 
     @Test
@@ -284,7 +293,7 @@ class Phase1Task5EntitySchemaValidationTest extends MigratedPostgresTestBase {
         entityManager.persist(confirmedRoute);
         RouteVersion routeVersion = RouteVersion.forConfirmedRoute(confirmedRoute.getRunId(), 1,
                 RouteVersionSource.CONFIRM_BATCH, null, null, null, "fingerprint-def", "engine-v1",
-                Map.of(), false, null, OffsetDateTime.now());
+                Map.of(), false, List.of(), null, OffsetDateTime.now());
         entityManager.persist(routeVersion);
         Waypoint waypoint = Waypoint.forRun(run.getId(), "임시집결지", null, new BigDecimal("37.500000"),
                 new BigDecimal("127.000000"), null, 1L, OffsetDateTime.now());

@@ -1,7 +1,9 @@
 package src.backend.routing.map.impl;
 
+import java.math.BigDecimal;
 import java.net.URI;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -122,9 +124,50 @@ public class NaverDirectionsGateway {
                 .bodyToMono(DrivingResponse.class)
                 .timeout(timeout)
                 .block();
-        Summary summary = summaryOf(response);
-        return StraightLineLegs.distribute(segment, (int) Math.round(summary.distance()),
+        Traoptimal traoptimal = traoptimalOf(response);
+        Summary summary = traoptimal.summary();
+        List<RoadLeg> legs = StraightLineLegs.distribute(segment, (int) Math.round(summary.distance()),
                 (int) Math.round(summary.duration() / MILLIS_PER_SECOND));
+        return withPath(legs, pathOf(traoptimal));
+    }
+
+    /**
+     * 세그먼트 전체 도로 좌표를 <b>첫 leg 에만</b> 싣고 나머지는 비운다(R15 T1 목표 2·3).
+     *
+     * <p>공급자가 경유지별 좌표를 안 주므로(거리·시간처럼 배분할 근거가 없다) leg 마다 나눠 담을
+     * 수 없다 — 대신 세그먼트당 좌표 뭉치 하나로 두고, {@link RoadRoute#roadPath()} 가 이어 붙이면서
+     * 세그먼트 경계의 겹친 좌표를 걷어낸다. leg 가 비어 있으면(구간 분할이 0개 지점을 만들 수 없어
+     * 실제로는 나지 않지만 방어적으로) 그대로 돌려준다.
+     */
+    private static List<RoadLeg> withPath(List<RoadLeg> legs, List<GeoPoint> path) {
+        if (legs.isEmpty()) {
+            return legs;
+        }
+        List<RoadLeg> result = new ArrayList<>(legs.size());
+        RoadLeg first = legs.getFirst();
+        result.add(new RoadLeg(first.distanceMeters(), first.durationSeconds(), path));
+        for (int i = 1; i < legs.size(); i++) {
+            RoadLeg leg = legs.get(i);
+            result.add(new RoadLeg(leg.distanceMeters(), leg.durationSeconds(), List.of()));
+        }
+        return result;
+    }
+
+    /**
+     * {@code route.traoptimal[].path} 를 {@link GeoPoint} 로 옮긴다 — <b>NCP 는 좌표를
+     * {@code [경도, 위도]} 순으로 준다</b>(NCP 공식 문서 응답 예시 실측). 뒤집어 넣으면 좌표가
+     * 지구 반대편(바다)으로 간다.
+     */
+    private static List<GeoPoint> pathOf(Traoptimal traoptimal) {
+        List<List<BigDecimal>> path = traoptimal.path();
+        if (path == null || path.isEmpty()) {
+            return List.of();
+        }
+        List<GeoPoint> points = new ArrayList<>(path.size());
+        for (List<BigDecimal> point : path) {
+            points.add(new GeoPoint(point.get(1), point.get(0)));
+        }
+        return points;
     }
 
     /**
@@ -190,12 +233,12 @@ public class NaverDirectionsGateway {
      * 바로 위 폴백(직선거리 근사)으로 조용히 흡수돼 <b>어댑터가 생긴 날부터 실 도로 경로가 한 번도
      * 쓰인 적이 없었다</b>.
      */
-    private static Summary summaryOf(DrivingResponse response) {
+    private static Traoptimal traoptimalOf(DrivingResponse response) {
         if (response == null || response.route() == null || response.route().traoptimal() == null
                 || response.route().traoptimal().isEmpty()) {
             throw new IllegalStateException("네이버 응답에 경로가 없다");
         }
-        return response.route().traoptimal().getFirst().summary();
+        return response.route().traoptimal().getFirst();
     }
 
     /** NCP 응답 최상위. */
@@ -206,7 +249,8 @@ public class NaverDirectionsGateway {
     record RouteWrapper(List<Traoptimal> traoptimal) {
     }
 
-    record Traoptimal(Summary summary) {
+    /** @param path {@code [[경도, 위도], ...]} — 경로를 구성하는 좌표(NCP 공식 문서 응답 예시). */
+    record Traoptimal(Summary summary, List<List<BigDecimal>> path) {
     }
 
     /** 구간 총합만 온다 — 경유지별 값은 NCP 가 주지 않아 {@link StraightLineLegs} 가 비율로 가른다. */

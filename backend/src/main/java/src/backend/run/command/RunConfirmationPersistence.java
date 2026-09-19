@@ -92,7 +92,7 @@ public class RunConfirmationPersistence {
         RouteVersion version = RouteVersion.forConfirmedRoute(run.getId(), INITIAL_VERSION_NO,
                 RouteVersionSource.CONFIRM_BATCH, computation.estDurationMin(), computation.estDistanceKm(),
                 confirmedAt, fingerprint, computation.snapshot().engineName(), computation.snapshot().policySnapshot(),
-                computation.snapshot().fallbackUsed(), null, confirmedAt);
+                computation.snapshot().fallbackUsed(), computation.roadPath(), null, confirmedAt);
         routeVersionRepository.save(version);
         confirmedRouteRepository.assignCurrentVersion(run.getId(), version.getId());
 

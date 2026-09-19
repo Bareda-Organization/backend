@@ -59,7 +59,8 @@ public class RouteComputationPipeline {
         RoadRoute road = mapRouteClient.route(roadRequestOf(input, order));
         RouteEtaSchedule schedule = RouteEtaSchedule.accumulate(road, input.departAt(), order.stopCount());
         return new RouteComputation(order.sequence(), schedule.estDurationMin(), schedule.estDistanceKm(),
-                schedule.etas(), resolution.unresolvedStudentIds(), snapshotOf(input, road.fallbackUsed()));
+                schedule.etas(), resolution.unresolvedStudentIds(), road.roadPath(),
+                snapshotOf(input, road.fallbackUsed()));
     }
 
     private static RouteOrderInput orderInputOf(RouteComputationInput input, DailyStopResolution resolution) {

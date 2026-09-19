@@ -30,7 +30,7 @@ class RouteEtaScheduleTest {
     @DisplayName("정차지 도착 예정 시각은 구간 소요를 누적한 값이다")
     void accumulatesLegDurations() {
         RoadRoute road = new RoadRoute(
-                List.of(new RoadLeg(1000, 60), new RoadLeg(2000, 120), new RoadLeg(3000, 180)), false);
+                List.of(new RoadLeg(1000, 60, List.of()), new RoadLeg(2000, 120, List.of()), new RoadLeg(3000, 180, List.of())), false);
 
         RouteEtaSchedule schedule = RouteEtaSchedule.accumulate(road, DEPART_AT, 2);
 
@@ -41,7 +41,7 @@ class RouteEtaScheduleTest {
     @Test
     @DisplayName("총 소요는 도착지 구간까지 더하고 분 단위로 올린다")
     void roundsTotalDurationUp() {
-        RoadRoute road = new RoadRoute(List.of(new RoadLeg(500, 31), new RoadLeg(500, 30)), false);
+        RoadRoute road = new RoadRoute(List.of(new RoadLeg(500, 31, List.of()), new RoadLeg(500, 30, List.of())), false);
 
         RouteEtaSchedule schedule = RouteEtaSchedule.accumulate(road, DEPART_AT, 1);
 
@@ -51,7 +51,7 @@ class RouteEtaScheduleTest {
     @Test
     @DisplayName("총 주행거리는 소수 2자리 km 다")
     void reportsDistanceWithTwoDecimals() {
-        RoadRoute road = new RoadRoute(List.of(new RoadLeg(1234, 60), new RoadLeg(1111, 60)), false);
+        RoadRoute road = new RoadRoute(List.of(new RoadLeg(1234, 60, List.of()), new RoadLeg(1111, 60, List.of())), false);
 
         RouteEtaSchedule schedule = RouteEtaSchedule.accumulate(road, DEPART_AT, 1);
 
@@ -62,7 +62,7 @@ class RouteEtaScheduleTest {
     @Test
     @DisplayName("구간 수가 정차지 수 + 1 이 아니면 조립을 멈춘다")
     void rejectsLegCountMismatch() {
-        RoadRoute road = new RoadRoute(List.of(new RoadLeg(1000, 60)), false);
+        RoadRoute road = new RoadRoute(List.of(new RoadLeg(1000, 60, List.of())), false);
 
         assertThatThrownBy(() -> RouteEtaSchedule.accumulate(road, DEPART_AT, 2))
                 .isInstanceOf(IllegalStateException.class)

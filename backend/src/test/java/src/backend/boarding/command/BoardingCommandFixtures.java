@@ -3,6 +3,7 @@ package src.backend.boarding.command;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -253,7 +254,7 @@ public class BoardingCommandFixtures {
         confirmedRouteRepository.save(ConfirmedRoute.forRun(runId, confirmedAt));
         RouteVersion version = routeVersionRepository.save(RouteVersion.forConfirmedRoute(runId, 1,
                 RouteVersionSource.CONFIRM_BATCH, 30, new BigDecimal("5.00"), confirmedAt, "fp", "engine", Map.of(),
-                false, null, confirmedAt));
+                false, List.of(), null, confirmedAt));
         confirmedRouteRepository.assignCurrentVersion(runId, version.getId());
 
         RunStop runStop = runStopRepository.save(RunStop.forStop(version.getId(), stopId, 1, confirmedAt));

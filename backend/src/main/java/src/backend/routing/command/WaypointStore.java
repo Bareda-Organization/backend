@@ -97,7 +97,7 @@ public class WaypointStore {
         RouteVersion newVersion = RouteVersion.forConfirmedRoute(run.getId(), currentVersion.getVersionNo() + 1,
                 RouteVersionSource.WAYPOINT, computation.estDurationMin(), computation.estDistanceKm(), now,
                 fingerprint, computation.snapshot().engineName(), computation.snapshot().policySnapshot(),
-                computation.snapshot().fallbackUsed(), createdBy, now);
+                computation.snapshot().fallbackUsed(), computation.roadPath(), createdBy, now);
         routeVersionRepository.save(newVersion);
         confirmedRouteRepository.assignCurrentVersion(run.getId(), newVersion.getId());
         runStopRepository.saveAll(runStopsOf(newVersion.getId(), computation));

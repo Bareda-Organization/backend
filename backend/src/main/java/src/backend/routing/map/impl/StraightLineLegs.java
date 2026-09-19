@@ -34,12 +34,20 @@ final class StraightLineLegs {
     private StraightLineLegs() {
     }
 
-    /** 지도 API 를 못 부른 경우의 근사 경로 — {@code fallbackUsed} 가 참인 유일한 생산 지점이다. */
+    /**
+     * 지도 API 를 못 부른 경우의 근사 경로 — {@code fallbackUsed} 가 참인 유일한 생산 지점이다.
+     *
+     * <p>각 구간의 {@code path} 는 승하차지 좌표 그대로인 두 점(직선)이다(R15 T1 목표 6) — 근사값도
+     * 화면에 경로를 그릴 수 있어야 하고, 이웃 구간의 끝점·시작점이 같은 객체이므로
+     * {@link RoadRoute#roadPath()} 의 이음매 중복 제거가 그대로 걸린다.
+     */
     static RoadRoute approximate(List<GeoPoint> points) {
         List<RoadLeg> legs = new ArrayList<>();
         for (int i = 0; i < points.size() - 1; i++) {
-            int meters = (int) Math.round(points.get(i).distanceMetersTo(points.get(i + 1)));
-            legs.add(new RoadLeg(meters, secondsFor(meters)));
+            GeoPoint from = points.get(i);
+            GeoPoint to = points.get(i + 1);
+            int meters = (int) Math.round(from.distanceMetersTo(to));
+            legs.add(new RoadLeg(meters, secondsFor(meters), List.of(from, to)));
         }
         return new RoadRoute(legs, true);
     }
@@ -51,6 +59,10 @@ final class StraightLineLegs {
      * <p>비율 배분을 쓰는 이유는 NCP Direction 이 경유지별 구간 값을 주지 않기 때문이다(총 거리·총
      * 시간만 온다). 누적값으로 반올림해 마지막 구간에 잔차를 몰지 않으면, 구간 수가 늘수록 합이
      * 총합에서 벌어져 노선 전체의 거리·소요 시간이 조용히 달라진다.
+     *
+     * <p>좌표(path)는 여기서 배분하지 않는다 — 이 메서드가 만드는 leg 는 전부 빈 목록이고,
+     * {@code NaverDirectionsGateway} 가 이 결과의 첫 leg 에 세그먼트 전체 좌표를 되채운다(거리·시간과
+     * 달리 공급자가 경유지 단위 좌표를 주지 않기 때문).
      */
     static List<RoadLeg> distribute(List<GeoPoint> points, int totalMeters, int totalSeconds) {
         double[] straightLine = straightLineDistances(points);
@@ -70,7 +82,7 @@ final class StraightLineLegs {
             cumulative += each;
             long meters = Math.round(totalMeters * cumulative / sum);
             long seconds = Math.round(totalSeconds * cumulative / sum);
-            legs.add(new RoadLeg((int) (meters - assignedMeters), (int) (seconds - assignedSeconds)));
+            legs.add(new RoadLeg((int) (meters - assignedMeters), (int) (seconds - assignedSeconds), List.of()));
             assignedMeters = meters;
             assignedSeconds = seconds;
         }

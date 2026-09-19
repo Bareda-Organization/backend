@@ -43,7 +43,7 @@ class RouteComputationContractTest {
                 OrderedStop.ofStop(1L, 1, POINT), OrderedStop.ofStop(2L, 2, POINT));
 
         assertThatThrownBy(() -> new RouteComputation(stops, 10, new BigDecimal("1.00"),
-                List.of(NOW), List.of(), snapshot("heuristic")))
+                List.of(NOW), List.of(), List.of(), snapshot("heuristic")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("같은 길이");
     }
@@ -63,7 +63,7 @@ class RouteComputationContractTest {
     void rejectsPolicySnapshotKeyCollision() {
         RouteComputationPipeline pipeline = new RouteComputationPipeline(
                 new DailyStopResolver(null, null), new CollidingEngine(),
-                request -> new RoadRoute(List.of(new RoadLeg(1000, 60)), false));
+                request -> new RoadRoute(List.of(new RoadLeg(1000, 60, List.of())), false));
 
         assertThatThrownBy(() -> pipeline.compute(emptyRosterInput()))
                 .isInstanceOf(IllegalStateException.class)

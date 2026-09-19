@@ -3,6 +3,7 @@ package src.backend.run.dto;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import src.backend.routing.domain.GeoPoint;
 import src.backend.run.dto.RunRouteResponse.RouteStop;
 
 /**
@@ -14,9 +15,14 @@ import src.backend.run.dto.RunRouteResponse.RouteStop;
  * @param routeVersion 배포 버전 번호({@link src.backend.routing.entity.RouteVersion#getVersionNo()})
  * @param publishedAt 그 버전이 배포된 시각
  * @param ack 매니저 확인 여부 — {@code Assignment.ackedRouteVersionId == 현재 확정 버전}
+ * @param roadPath 도로 경로 좌표(순서 있음, Ruling 309 · R15 T1) — {@code route_version.road_path} 를
+ *                 그대로 낸다. T2(관계자 웹)가 이 이름 그대로 소비하는 고정 계약이다
+ * @param fallbackUsed {@code true} 면 {@code roadPath} 가 직선거리 근사다 — 화면이 "근사 경로" 를
+ *                     표시해야 사용자가 직선을 실제 경로로 오인하지 않는다(Ruling 309)
  */
 public record StaffRunRouteResponse(List<RouteStop> stops, RouteStop currentStop, RouteStop nextStop,
-        String skippedNotice, int routeVersion, OffsetDateTime publishedAt, Ack ack) {
+        String skippedNotice, int routeVersion, OffsetDateTime publishedAt, Ack ack, List<GeoPoint> roadPath,
+        boolean fallbackUsed) {
 
     public record Ack(boolean driver, boolean escort) {
     }

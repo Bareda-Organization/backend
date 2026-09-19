@@ -153,6 +153,12 @@ class RunConfirmationServiceTest {
         assertThat(version.get("source")).isEqualTo("confirm_batch");
         assertThat(version.get("confirmed_route_id")).isEqualTo(runId);
 
+        // R15 T1 목표 4 — 확정 배치가 실제로 저장한 road_path 는 비어 있지 않다(스텁도 좌표를 만든다,
+        // 목표 7). jsonb 컬럼이라 count() 로 배열 길이를 직접 센다.
+        Integer roadPathLength = jdbcTemplate.queryForObject(
+                "SELECT jsonb_array_length(road_path) FROM route_version WHERE id = ?", Integer.class, versionId);
+        assertThat(roadPathLength).as("배포된 노선인데 road_path 가 비어 있다").isGreaterThan(0);
+
         List<Long> runStopIds = jdbcTemplate.queryForList(
                 "SELECT stop_id FROM run_stop WHERE route_version_id = ? ORDER BY seq", Long.class, versionId);
         assertThat(runStopIds).as("v1 정차 목록은 편성된 두 정차지 순서 그대로여야 한다")

@@ -3,6 +3,7 @@ package src.backend.request.command;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -131,7 +132,7 @@ public class ChangeRequestAutoRejectFixtures {
         confirmedRouteRepository.save(ConfirmedRoute.forRun(runId, publishedAt));
         RouteVersion version = routeVersionRepository.save(RouteVersion.forConfirmedRoute(runId, 1,
                 RouteVersionSource.CONFIRM_BATCH, 30, new BigDecimal("10.00"), publishedAt, "fp-" + runId,
-                "engine-v1", Map.of(), false, null, publishedAt));
+                "engine-v1", Map.of(), false, List.of(), null, publishedAt));
         confirmedRouteRepository.assignCurrentVersion(runId, version.getId());
         return version.getId();
     }
