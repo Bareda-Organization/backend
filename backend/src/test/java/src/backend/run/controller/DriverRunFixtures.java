@@ -256,10 +256,12 @@ public class DriverRunFixtures {
      */
     public long rider(long runId, long studentId, long stopId, RiderStatus status, OffsetDateTime timestamp) {
         RunRider rider = RunRider.uponConfirmation(runId, studentId, stopId);
-        if (status == RiderStatus.BOARDED) {
-            rider.board(timestamp);
-        } else if (status == RiderStatus.ABSENT) {
-            rider.markAbsent(timestamp);
+        switch (status) {
+            case BOARDED -> rider.board(timestamp);
+            case ABSENT -> rider.markAbsent(timestamp);
+            case ALIGHTED -> rider.alight(timestamp);
+            case NO_SHOW -> rider.markNoShow(timestamp);
+            default -> { /* WAITING — 생성 직후 기본값 그대로 둔다 */ }
         }
         return runRiderRepository.save(rider).getId();
     }

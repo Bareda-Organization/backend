@@ -15,6 +15,7 @@ import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RemainingRiderView;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.global.common.enums.Direction;
+import src.backend.location.proximity.StopDepartureService;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
@@ -61,6 +62,13 @@ public class RunArrivalCommandService {
 
     private final WaypointRepository waypointRepository;
 
+    /**
+     * 다음 승하차지 도착 시 이전 정차지에 거는 출발 강제 폴백(Ruling 308, 목표 7) — 위치 신호 유실·
+     * 기사의 도착 미처리로 출발 판정(100m 이탈)이 안 됐어도, 다음 정차지 도착 처리가 그 이전 정차지를
+     * 대신 출발 처리한다.
+     */
+    private final StopDepartureService stopDepartureService;
+
     private final RunAssignmentAccess runAssignmentAccess;
 
     private final ApplicationEventPublisher eventPublisher;
@@ -69,6 +77,14 @@ public class RunArrivalCommandService {
 
     public RunArriveResponse arrive(AuthUser requester, Long runId, Long stopId) {
         runAssignmentAccess.assertAssignedDriver(requester, runId);
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        // 폴백(Ruling 308, 목표 7) — 이 새 도착 처리보다 먼저 도착했지만 아직 출발 판정이 안 된
+        // 정차지가 있으면 강제로 출발 처리한다. run·target 을 로드하기 <b>전에</b> 부른다 —
+        // claimDeparture 의 clearAutomatically 가 영속성 컨텍스트를 비우는데, 그 뒤에 로드한
+        // 엔티티만 이 트랜잭션 끝까지 안전하게 관리된다(먼저 로드해 두면 이 호출이 그 엔티티를
+        // detach 시켜, 그 뒤의 markArrived·finish 같은 변경이 커밋되지 않고 조용히 사라진다).
+        stopDepartureService.forceAllRemaining(runId, requester.academyId(), now);
+
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
         if (run.getStatus() != RunStatus.MOVING) {
@@ -81,8 +97,6 @@ public class RunArrivalCommandService {
         if (target.getArrivedAt() != null) {
             throw new BusinessException(ErrorCode.DUPLICATE_ARRIVE);
         }
-
-        OffsetDateTime now = OffsetDateTime.now(clock);
         target.markArrived(now);
 
         List<RunStop> ordered = runStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeq(routeVersionId,
@@ -98,11 +112,24 @@ public class RunArrivalCommandService {
 
         if (isFinal) {
             if (run.getDirection() == Direction.TO_ACADEMY) {
+                // 마지막 승하차지 강제 출발(Ruling 312, 목표 8) — 방금 도착 처리한 이 최종 지점은
+                // 다음 정차지가 없어 위쪽 폴백을 받지 못한다. **alightAllBoarded 보다 먼저** 불러야
+                // 한다 — 순서가 거꾸로면 이 최종 지점에서 승차한 학생의 상태가 이미 ALIGHTED 로
+                // 바뀐 뒤라 그 정차지의 확정 결과가 "승차"가 아니라 "하차"로 잘못 나가고,
+                // RunAutoAlightedEvent 의 ALIGHTING 과 중복까지 된다(조율자 R15-T3 후속 지적).
+                stopDepartureService.forceAllRemaining(runId, run.getAcademyId(), now);
+                // 위 호출의 claimDeparture(clearAutomatically) 가 영속성 컨텍스트를 비워 run 을
+                // detach 시킨다 — 다시 로드해야 alightAllBoarded 안의 run.finish(now) 가 유실되지
+                // 않는다(RunArrivalCommandService 클래스 상단 주석과 같은 근거).
+                run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
+                        .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
                 autoAlightedCount = alightAllBoarded(run, now);
             } else {
                 long stillBoarded = runRiderRepository.countByRunIdAndStatus(runId, RiderStatus.BOARDED);
                 if (stillBoarded == 0) {
                     run.finish(now);
+                    // 같은 근거(Ruling 312, 목표 8) — 하원 최종 지점도 즉시 종료되면 다음 정차지가 없다.
+                    stopDepartureService.forceAllRemaining(runId, run.getAcademyId(), now);
                 } else {
                     run.deferFinish();
                     remaining = remainingRidersOf(runId);

@@ -45,6 +45,7 @@ import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
+import src.backend.location.proximity.StopDepartureService;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
 import src.backend.routing.repository.ConfirmedRouteRepository;
@@ -138,6 +139,9 @@ class BoardingControllerTest {
     @Autowired
     private AssignmentRepository assignmentRepository;
 
+    @Autowired
+    private StopDepartureService stopDepartureService;
+
     private BoardingCommandFixtures fixtures;
 
     @TestConfiguration
@@ -217,9 +221,14 @@ class BoardingControllerTest {
 
     // ── 목표 7 — no_show 처리 시 케이스 생성 + 학부모·관계자 알림 ────────────
 
+    /**
+     * R15-T3(Ruling 308·311) — 미승차는 관계자 갈래만 즉시고, 학부모 갈래는 그 승하차지를 출발할
+     * 때로 옮겨 갔다. {@code no_show_처리하면_케이스와_알림_두_행이_생긴다}(Phase 9 원본)를 이
+     * 시점 분리에 맞게 다시 썼다.
+     */
     @Test
-    @DisplayName("목표7 — no_show 처리하면 케이스가 생기고 학부모·관계자 양쪽에 알림이 적재된다")
-    void no_show_처리하면_케이스와_알림_두_행이_생긴다() throws Exception {
+    @DisplayName("목표7(Ruling 311) — no_show 처리 즉시는 관계자 알림만 적재되고, 학부모 알림은 출발 시점에 적재된다")
+    void no_show_처리하면_관계자_알림은_즉시_학부모_알림은_출발_시점에_적재된다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long academyId = fixtures().academy();
         long busId = fixtures().bus(academyId);
@@ -229,6 +238,7 @@ class BoardingControllerTest {
         fixtures().linkChild(guardian.guardianId(), studentId, now.minusDays(1));
         long staffAccountId = fixtures().staffAccount(academyId);
         long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
+        fixtures().confirmedRunStop(runId, stopId, now.minusMinutes(30));
         long riderId = fixtures().runRider(runId, studentId, stopId);
         long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
                 ManagerRole.ESCORT, now);
@@ -247,23 +257,24 @@ class BoardingControllerTest {
                 .isEqualTo("no_show");
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM no_show_case WHERE run_rider_id = ?",
                 Integer.class, riderId)).as("②케이스 행").isEqualTo(1);
-        List<String> recipientRoles = jdbcTemplate.queryForList(
-                "SELECT recipient_role FROM notification_log WHERE recipient_account_id IN (?, ?) "
-                        + "ORDER BY recipient_role",
-                String.class, guardian.accountId(), staffAccountId);
-        assertThat(recipientRoles).as("③알림 2행(학부모·관계자)").containsExactlyInAnyOrder("parent", "staff");
 
-        // R13 — no_show 는 학부모·관계자 두 다리 모두 studentId 를 들고 있는 단일 학생 이벤트라 두
-        // 다리 전부 student_id·student_name 이 채워져야 한다(§8.16 목표 3).
-        List<Long> notifiedStudentIds = jdbcTemplate.queryForList(
-                "SELECT student_id FROM notification_log WHERE recipient_account_id IN (?, ?)", Long.class,
+        List<String> immediateRoles = jdbcTemplate.queryForList(
+                "SELECT recipient_role FROM notification_log WHERE recipient_account_id IN (?, ?)", String.class,
                 guardian.accountId(), staffAccountId);
-        assertThat(notifiedStudentIds).as("④두 행 모두 student_id 가 채워진다").containsExactly(studentId, studentId);
-        List<String> notifiedStudentNames = jdbcTemplate.queryForList(
-                "SELECT student_name FROM notification_log WHERE recipient_account_id IN (?, ?)", String.class,
-                guardian.accountId(), staffAccountId);
-        assertThat(notifiedStudentNames).as("⑤두 행 모두 student_name 이 채워진다")
-                .containsExactly("학생3", "학생3");
+        assertThat(immediateRoles).as("③즉시는 관계자(staff) 1행뿐 — 학부모(parent)는 아직 없다")
+                .containsExactly("staff");
+
+        출발_처리(runId, academyId, stopId, now.plusMinutes(1));
+        entityManager.flush();
+
+        List<java.util.Map<String, Object>> parentRows = jdbcTemplate.queryForList(
+                "SELECT type, student_id, student_name FROM notification_log "
+                        + "WHERE recipient_account_id = ? AND recipient_role = 'parent'",
+                guardian.accountId());
+        assertThat(parentRows).as("④출발 후 학부모 알림 1행").hasSize(1);
+        assertThat(parentRows.get(0).get("type")).isEqualTo("no_show");
+        assertThat(parentRows.get(0).get("student_id")).as("⑤student_id 가 채워진다").isEqualTo(studentId);
+        assertThat(parentRows.get(0).get("student_name")).as("⑥student_name 이 채워진다").isEqualTo("학생3");
     }
 
     // ── Phase 11 목표 2 — 학원별 미승차 대기 시간(EXC-01, API_SPEC §5.21)이 실제로 적용된다 ──
@@ -468,10 +479,11 @@ class BoardingControllerTest {
         entityManager.flush();
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM rider_status_history WHERE run_rider_id = ?",
                 Integer.class, riderId)).as("③이력 행 수").isEqualTo(1);
-        // student_id 컬럼은 채워지지 않는다(위 목표7 주석과 동일 사유) — recipient_account_id 로 대체.
+        // R15-T3(Ruling 308) — 승차는 그 승하차지를 출발할 때 통지된다. 이 시험은 출발까지 가지
+        // 않으므로 재전송을 두 번 반복해도 알림은 여전히 0건이어야 한다.
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM notification_log WHERE recipient_account_id = ?", Integer.class,
-                guardian.accountId())).as("④알림 건수").isEqualTo(1);
+                guardian.accountId())).as("④알림 건수 — 출발 전이라 0건").isEqualTo(0);
     }
 
     // ── 목표 13 — 되돌리기가 직전 상태로 실제로 되돌린다 ─────────────────────
@@ -641,11 +653,17 @@ class BoardingControllerTest {
                 .andExpect(jsonPath("$.error.code").value("STOP_ALREADY_DEPARTED"));
     }
 
-    // ── 목표 13·14(Ruling 219) — 되돌리기 정정 알림은 원본을 건드리지 않고 새로 적재된다 ─────────
+    // ── R15-T3(Ruling 308) — 출발 전 되돌리기는 알림 없음, 출발 후 확정 결과 1건 ─────────
 
+    /**
+     * §8.23 T3 목표 1·3·4 — 출발 전에는 boarded→revert→boarded 를 반복해도 알림이 전혀 나가지
+     * 않고(정정 알림도 없음, Ruling 219 대체), 출발 시점에야 <b>마지막 상태</b>로 학생당 1건만
+     * 적재된다. Phase 9 원본 {@code 되돌리면_원본_알림은_그대로_두고_취소_알림이_새로_적재된다}를
+     * Ruling 308 에 맞게 다시 썼다.
+     */
     @Test
-    @DisplayName("목표13(Ruling 219) — 승차 되돌리기는 원본 승차 알림을 그대로 두고 승차 취소 알림을 새로 적재한다")
-    void 되돌리면_원본_알림은_그대로_두고_취소_알림이_새로_적재된다() throws Exception {
+    @DisplayName("목표1·3·4(Ruling 308) — 출발 전 되돌리기를 반복해도 알림이 없고, 출발 시점에 마지막 상태로 1건만 적재된다")
+    void 출발_전_되돌리기를_반복해도_알림이_없고_출발_시점에_마지막_상태로_1건만_적재된다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long academyId = fixtures().academy();
         long busId = fixtures().bus(academyId);
@@ -654,7 +672,13 @@ class BoardingControllerTest {
         BoardingCommandFixtures.GuardianAccount guardian = fixtures().guardian(academyId, "보호자7");
         fixtures().linkChild(guardian.guardianId(), studentId, now.minusDays(1));
         long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
+        fixtures().confirmedRunStop(runId, stopId, now.minusMinutes(30));
         long riderId = fixtures().runRider(runId, studentId, stopId);
+        // 목표 9 — waiting 인 채 출발하는 학생(같은 정차지, 알림 대상이 아니어야 한다).
+        long waitingStudentId = fixtures().student(academyId, "학생7-대기");
+        BoardingCommandFixtures.GuardianAccount waitingGuardian = fixtures().guardian(academyId, "보호자7-대기");
+        fixtures().linkChild(waitingGuardian.guardianId(), waitingStudentId, now.minusDays(1));
+        fixtures().runRider(runId, waitingStudentId, stopId);
         long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
                 ManagerRole.ESCORT, now);
         String escortToken = 토큰(escortAccountId, academyId, Role.ESCORT);
@@ -664,83 +688,55 @@ class BoardingControllerTest {
                         .content(statusUpdateBody("boarded", "manual", UUID.randomUUID(), now)))
                 .andExpect(status().isOk());
         entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM notification_log WHERE recipient_account_id = ?", Integer.class,
+                guardian.accountId())).as("①승차 직후에도 알림 미발행(목표1)").isEqualTo(0);
 
         mockMvc.perform(post(REVERT.formatted(runId, riderId)).header("Authorization", escortToken)
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("waiting"));
         entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM notification_log WHERE recipient_account_id = ?", Integer.class,
+                guardian.accountId())).as("②되돌린 뒤에도 정정 알림 미발행(목표4)").isEqualTo(0);
 
-        List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "SELECT type, body, student_id, student_name FROM notification_log WHERE recipient_account_id = ? "
-                        + "ORDER BY id",
-                guardian.accountId());
-        assertThat(rows).as("①원본 승차 알림 1건 + 취소 정정 알림 1건, 총 2건").hasSize(2);
-        assertThat(rows.get(0).get("type")).as("②원본 알림 종류는 그대로다 — 고치지 않는다").isEqualTo("boarding");
-        assertThat(rows.get(0).get("body")).as("③원본 알림 본문도 그대로다 — 고치지 않는다")
-                .isEqualTo("학생7 학생이 버스에 탑승했습니다.");
-        assertThat(rows.get(1).get("type")).as("④새로 적재된 정정 알림의 종류").isEqualTo("boarding_canceled");
-        assertThat(rows.get(1).get("body")).as("⑤정정 알림 본문 — 승차 취소 전용 문구")
-                .isEqualTo("학생7 학생의 승차 처리가 취소되었습니다.");
-        // R13 — boarding·boarding_canceled 둘 다 studentId 를 들고 있는 단일 학생 이벤트다(§8.16 목표 3).
-        assertThat(rows).as("⑥두 행 모두 student_id·student_name 이 채워진다")
-                .allSatisfy(row -> {
-                    assertThat(row.get("student_id")).isEqualTo(studentId);
-                    assertThat(row.get("student_name")).isEqualTo("학생7");
-                });
-    }
-
-    @Test
-    @DisplayName("목표14(Ruling 219) — 하차 되돌리기는 승차 취소와 다른 문구의 하차 취소 알림을 적재한다")
-    void 하차_되돌리면_승차_취소와_다른_문구의_알림이_적재된다() throws Exception {
-        OffsetDateTime now = OffsetDateTime.now(clock);
-        long academyId = fixtures().academy();
-        long busId = fixtures().bus(academyId);
-        long stopId = fixtures().stop(academyId, "37.500000", "127.000000");
-        long studentId = fixtures().student(academyId, "학생8");
-        BoardingCommandFixtures.GuardianAccount guardian = fixtures().guardian(academyId, "보호자8");
-        long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
-        long riderId = fixtures().runRider(runId, studentId, stopId);
-        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
-                ManagerRole.ESCORT, now);
-        String escortToken = 토큰(escortAccountId, academyId, Role.ESCORT);
-
-        // 승차는 보호자 연결 전에 처리한다 — 이 테스트의 시계는 고정값이라(FixedClockConfig), 승차·하차
-        // 알림의 dedup_key(리더ID·수신자ID·changedAt) 가 같은 시각으로 겹쳐 두 번째 PATCH 가
-        // DUPLICATE_NOTIFICATION(409) 로 막힌다. 연결을 뒤로 미뤄 승차 알림 적재 자체를 건너뛰게 하면
-        // (수신 보호자 0명) 이 시험이 검증할 대상(하차 취소 문구)과 무관한 충돌을 피할 수 있다.
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId)).header("Authorization", escortToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(statusUpdateBody("boarded", "manual", UUID.randomUUID(), now)))
                 .andExpect(status().isOk());
         entityManager.flush();
 
-        fixtures().linkChild(guardian.guardianId(), studentId, now.minusDays(1));
-
-        mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId)).header("Authorization", escortToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(statusUpdateBody("alighted", "manual", UUID.randomUUID(), now)))
-                .andExpect(status().isOk());
+        출발_처리(runId, academyId, stopId, now.plusMinutes(1));
         entityManager.flush();
 
-        mockMvc.perform(post(REVERT.formatted(runId, riderId)).header("Authorization", escortToken)
-                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("boarded"));
-        entityManager.flush();
+        List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT type, body, student_id, student_name FROM notification_log WHERE recipient_account_id = ? "
+                        + "ORDER BY id",
+                guardian.accountId());
+        assertThat(rows).as("③출발 시점에 마지막 상태로 정확히 1건").hasSize(1);
+        assertThat(rows.get(0).get("type")).as("④마지막 상태는 boarded 다").isEqualTo("boarding");
+        assertThat(rows.get(0).get("body")).isEqualTo("학생7 학생이 버스에 탑승했습니다.");
+        assertThat(rows.get(0).get("student_id")).isEqualTo(studentId);
+        assertThat(rows.get(0).get("student_name")).isEqualTo("학생7");
 
-        List<java.util.Map<String, Object>> canceled = jdbcTemplate.queryForList(
-                "SELECT type, body, student_id, student_name FROM notification_log "
-                        + "WHERE recipient_account_id = ? AND type = ?",
-                guardian.accountId(), "alighting_canceled");
-        assertThat(canceled).as("①하차 취소 정정 알림이 정확히 1건").hasSize(1);
-        String alightingCanceledBody = (String) canceled.get(0).get("body");
-        assertThat(alightingCanceledBody).as("②하차 취소 전용 문구").isEqualTo("학생8 학생의 하차 처리가 취소되었습니다.");
-        assertThat(alightingCanceledBody).as("③승차 취소 문구와는 다른 문구다(목표14 핵심)")
-                .isNotEqualTo("학생8 학생의 승차 처리가 취소되었습니다.");
-        // R13 — alighting_canceled 도 studentId 를 들고 있는 단일 학생 이벤트다(§8.16 목표 3).
-        assertThat(canceled.get(0).get("student_id")).as("④student_id 가 채워진다").isEqualTo(studentId);
-        assertThat(canceled.get(0).get("student_name")).as("⑤student_name 이 채워진다").isEqualTo("학생8");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM notification_log WHERE type IN ('boarding_canceled', 'alighting_canceled')",
+                Integer.class)).as("⑤취소 정정 알림 종류는 이제 적재되지 않는다(목표4)").isEqualTo(0);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM notification_log WHERE recipient_account_id = ?", Integer.class,
+                waitingGuardian.accountId())).as("⑥waiting 인 채 출발한 학생은 발송 대상이 아니다(목표9)").isEqualTo(0);
+    }
+
+    /**
+     * 그 승하차지를 실제로 출발 처리한다(Ruling 308, R15-T3 시험 전용) — 근접 알림 스케줄러가 타는
+     * 것과 같은 진입점({@link StopDepartureService#claimAndPublish})을 그대로 불러 {@code
+     * StopDepartedEvent} 를 발행시킨다. {@code confirmedRunStop} 으로 만든 확정 노선이 있어야 한다.
+     */
+    private void 출발_처리(long runId, long academyId, long stopId, OffsetDateTime departedAt) {
+        long versionId = confirmedRouteRepository.findById(runId).orElseThrow().getCurrentVersionId();
+        var runStop = runStopRepository.findByRouteVersionIdAndStopId(versionId, stopId).orElseThrow();
+        stopDepartureService.claimAndPublish(runStop, runId, academyId, departedAt);
     }
 
     private String statusUpdateBody(String status, String verifyMethod, UUID clientKey, OffsetDateTime occurredAt) {

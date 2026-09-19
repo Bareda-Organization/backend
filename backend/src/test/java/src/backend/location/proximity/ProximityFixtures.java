@@ -179,8 +179,12 @@ public class ProximityFixtures {
     /** 그 회차의 라이더 1건 — {@code ABSENT} 면 결석 처리까지 마친다(C-02 배제 시험용). */
     public long rider(long runId, long studentId, long stopId, RiderStatus status, OffsetDateTime timestamp) {
         RunRider rider = RunRider.uponConfirmation(runId, studentId, stopId);
-        if (status == RiderStatus.ABSENT) {
-            rider.markAbsent(timestamp);
+        switch (status) {
+            case ABSENT -> rider.markAbsent(timestamp);
+            case BOARDED -> rider.board(timestamp);
+            case ALIGHTED -> rider.alight(timestamp);
+            case NO_SHOW -> rider.markNoShow(timestamp);
+            default -> { /* WAITING — 생성 직후 기본값 그대로 둔다 */ }
         }
         return runRiderRepository.save(rider).getId();
     }

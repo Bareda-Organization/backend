@@ -190,4 +190,47 @@ class RunCompletionBoundaryTest {
         assertThat(applicationEvents.stream(RunEndedEvent.class)).as("②false 반환 시 RunEndedEvent 미발행")
                 .isEmpty();
     }
+
+    /**
+     * §8.23 T3 목표 8(Ruling 312) — {@link RunArrivalCommandService} 의 즉시 종료 branch 뿐 아니라,
+     * 여기(보류됐던 종료가 나중에 완성되는 경로)에서도 도착·미출발 정차지가 강제로 출발 처리돼야
+     * 한다. {@code notifyIfRunJustEnded} 가 이 강제 적용을 부르지 않으면 이 학생의 정차지는 영원히
+     * {@code departed_at} 이 비고 확정 알림도 나가지 않는다.
+     */
+    @Test
+    @DisplayName("§8.23 T3 목표8 — 보류됐던 종료가 완성되면 도착·미출발 정차지도 강제로 출발 처리된다")
+    void 보류됐던_종료가_완성되면_정차지도_강제로_출발_처리된다() {
+        OffsetDateTime now = OffsetDateTime.parse("2030-04-01T12:00:00+09:00");
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long stopId = fixtures().stop(academyId, "37.500000", "127.000000");
+        long alightingStudent = fixtures().student(academyId, "학생10");
+        long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
+        long runStopId = fixtures().confirmedRunStop(runId, stopId, now.minusHours(1));
+        long alightingRiderId = fixtures().runRider(runId, alightingStudent, stopId);
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
+        AuthUser escort = new AuthUser(escortAccountId, academyId, Role.ESCORT, AccountStatus.ACTIVE);
+        Run run = runRepository.findById(runId).orElseThrow();
+
+        // 그 정차지가 이미 도착 처리는 됐지만 출발 판정은 아직 안 된 상태를 흉내낸다 —
+        // RunArrivalCommandService.arrive 를 거치지 않는(T2 회차 시작·도착 부재 워크트리) 이 시험은
+        // run_stop.arrived_at 을 직접 채운다. flush 를 먼저 해야 그 앞의 assignedManager 저장분이
+        // 지워지지 않는다(BoardingCommandFixtures#startRun 자바독과 같은 근거).
+        entityManager.flush();
+        jdbcTemplate.update("UPDATE run_stop SET arrived_at = ? WHERE id = ?", now.minusMinutes(5), runStopId);
+        // entityManager.clear() 뒤에는 updateStatus() 내부가 run 을 다시 조회해 새 인스턴스를 얻으므로
+        // eq(run) 참조 동일성 매칭이 깨진다 — any(Run.class) 로 완화한다.
+        entityManager.clear();
+
+        when(runCompletionService.completeIfAllAlighted(any(Run.class), any())).thenReturn(true);
+
+        boardingCommandService.updateStatus(escort, runId, alightingRiderId,
+                new RiderStatusUpdateRequest("alighted", "manual", UUID.randomUUID(), now));
+
+        entityManager.flush();
+        OffsetDateTime departedAt = jdbcTemplate.queryForObject(
+                "SELECT departed_at FROM run_stop WHERE id = ?", OffsetDateTime.class, runStopId);
+        assertThat(departedAt).as("①보류 종료 완성 시점에 강제로 출발 처리된다").isNotNull();
+    }
 }

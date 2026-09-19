@@ -438,6 +438,59 @@ class DriverRunControllerTest {
                 .containsExactlyInAnyOrder(student1, student2);
     }
 
+    /**
+     * R15-T3 후속(조율자 지적) — 등원 최종 지점(stop2, 마지막 승차지)에서 <b>그 지점에 배정된
+     * 학생이</b> 도착 처리 시점에 이미 승차해 있으면, 그 정차지의 강제 출발 적용이
+     * {@code alightAllBoarded} 보다 <b>먼저</b> 일어나야 한다 — 최종 지점은 다음 {@code arrive}
+     * 호출이 없어 goal7 의 일반 폴백(다음 도착 시 이전 정차지 강제)을 받지 못하는 <b>유일한
+     * 정차지</b>이기 때문이다. 순서가 거꾸로면 이 학생의 확정 결과가 이미 ALIGHTED 로 바뀐 뒤라
+     * "하차"로 잘못 나가고, {@code RunAutoAlightedEvent} 의 ALIGHTING 과 중복까지 된다.
+     */
+    @Test
+    @DisplayName("R15-T3 후속 — 등원 최종 지점 도착 시 그 지점 강제 출발 적용이 자동 하차보다 먼저 일어나 중복·오분류가 없다")
+    void 등원_최종지점_도착시_그_지점_강제_출발_적용이_자동하차보다_먼저_일어난다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
+        long stop2 = fixtures.stop(academyId, "37.561000", "126.971000");
+        OffsetDateTime departTime = now();
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        fixtures.startRun(runId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
+        fixtures.runStopForStop(versionId, stop1, 1, now());
+        fixtures.runStopForStop(versionId, stop2, 2, now());
+
+        // 최종 정차지(stop2) 에 배정된 학생이 이미 승차해 있다 — 최종 지점은 그 다음 arrive 호출이
+        // 없어 goal7 의 "다음 도착 시 이전 정차지 강제" 폴백을 받지 못하는 유일한 정차지다.
+        long student2 = fixtures.studentWithAccount(academyId, "학생2");
+        fixtures.guardianOf(academyId, student2, "학부모2", now());
+        fixtures.rider(runId, student2, stop2, RiderStatus.BOARDED, now());
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + stop1 + "/arrive")
+                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + stop2 + "/arrive")
+                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.is_final").value(true))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.run_status").value("finished"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.auto_alighted_count").value(1));
+
+        entityManager.flush();
+        List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT nl.type FROM notification_log nl JOIN run_rider rr ON rr.student_id = nl.student_id "
+                        + "WHERE rr.run_id = ? AND nl.recipient_role = 'parent'",
+                runId);
+        assertThat(rows).as("①BOARDING 1건 + ALIGHTING 1건, 합 2건 — 같은 종류가 중복되면 안 된다")
+                .hasSize(2);
+        assertThat(rows).extracting(row -> row.get("type")).as("②승차·하차 각각 정확히 1건씩")
+                .containsExactlyInAnyOrder("boarding", "alighting");
+    }
+
     // ── goal 10 — 하원 최종 지점 미하차 잔류 시 종료 보류 ──────────────────
 
     @Test
@@ -476,6 +529,85 @@ class DriverRunControllerTest {
         assertThat(회차_상태(runId)).isEqualTo("moving");
         assertThat(회차_종료보류(runId)).isTrue();
         assertThat(회차_종료시각(runId)).isNull();
+    }
+
+    // ── §8.23 T3 목표 7(Ruling 308) — 다음 승하차지 도착이 이전 정차지의 출발을 강제한다 ──────
+
+    @Test
+    @DisplayName("목표7(Ruling 308) — 위치 신호로 출발 판정이 안 된 이전 정차지도 다음 도착 처리가 강제로 출발시킨다")
+    void 다음_정차지_도착이_이전_정차지의_출발을_강제한다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
+        long stop2 = fixtures.stop(academyId, "37.561000", "126.971000");
+        OffsetDateTime departTime = now();
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        fixtures.startRun(runId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
+        fixtures.runStopForStop(versionId, stop1, 1, now());
+        fixtures.runStopForStop(versionId, stop2, 2, now());
+
+        long student1 = fixtures.studentWithAccount(academyId, "학생1");
+        fixtures.guardianOf(academyId, student1, "학부모1", now());
+        fixtures.rider(runId, student1, stop1, RiderStatus.BOARDED, now());
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + stop1 + "/arrive")
+                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isOk());
+        entityManager.flush();
+        assertThat(출발시각(versionId, stop1)).as("①위치 판정 없이는 아직 출발 처리 전이다").isNull();
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + stop2 + "/arrive")
+                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isOk());
+
+        entityManager.flush();
+        assertThat(출발시각(versionId, stop1)).as("②다음 정차지 도착이 이전 정차지를 강제로 출발시킨다").isNotNull();
+        assertThat(출발_통지_행수(runId, "boarding", "parent")).as("③출발 확정으로 승차 알림 1건").isEqualTo(1);
+    }
+
+    // ── §8.23 T3 목표 8(Ruling 312) — 마지막 승하차지는 운행 종료가 출발로 갈음한다 ───────────
+
+    @Test
+    @DisplayName("목표8(Ruling 312) — 다음 정차지가 없는 마지막 승하차지도 운행 종료 시 강제로 출발 처리된다")
+    void 마지막_승하차지는_운행_종료가_출발로_갈음한다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
+        long stop2 = fixtures.stop(academyId, "37.561000", "126.971000");
+        OffsetDateTime departTime = now();
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        fixtures.startRun(runId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
+        fixtures.runStopForStop(versionId, stop1, 1, now());
+        fixtures.runStopForStop(versionId, stop2, 2, now());
+
+        // stop2 가 마지막이고, 그 탑승자는 이미 하차 처리됐다고 가정한다 — 도착 즉시 종료(stillBoarded=0)되어
+        // 다음 정차지가 없으니 목표7 폴백을 받지 못한다. Ruling 312 가 이 구멍을 막는다.
+        long student2 = fixtures.studentWithAccount(academyId, "학생2");
+        fixtures.guardianOf(academyId, student2, "학부모2", now());
+        fixtures.rider(runId, student2, stop2, RiderStatus.ALIGHTED, now());
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + stop1 + "/arrive")
+                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + stop2 + "/arrive")
+                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.is_final").value(true))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.run_status").value("finished"));
+
+        entityManager.flush();
+        assertThat(출발시각(versionId, stop2)).as("①다음 정차지가 없는 마지막 정차지도 종료 시 강제 출발 처리된다")
+                .isNotNull();
+        assertThat(출발_통지_행수(runId, "alighting", "parent")).as("②마지막 정차지 확정 결과가 통지된다").isEqualTo(1);
     }
 
     // ── ackChanges — §4.11 노선 변경 확인 응답 ─────────────────────────────
@@ -600,6 +732,13 @@ class DriverRunControllerTest {
                 routeVersionId, stopId);
     }
 
+    /** R15-T3(Ruling 308) — 출발 처리 시각. {@code null} 이면 아직 출발 처리되지 않은 것이다. */
+    private OffsetDateTime 출발시각(long routeVersionId, long stopId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT departed_at FROM run_stop WHERE route_version_id = ? AND stop_id = ?", OffsetDateTime.class,
+                routeVersionId, stopId);
+    }
+
     private String 라이더_상태(long runId, long studentId) {
         return jdbcTemplate.queryForObject("SELECT status FROM run_rider WHERE run_id = ? AND student_id = ?",
                 String.class, runId, studentId);
@@ -621,6 +760,20 @@ class DriverRunControllerTest {
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM notification_log WHERE type = ? AND recipient_role = ? AND dedup_key LIKE ?",
                 Integer.class, type, recipientRole, type + ":" + runId + ":%");
+        return count == null ? 0 : count;
+    }
+
+    /**
+     * R15-T3(Ruling 308) — 출발 시점 통지({@code BoardingNotificationListener#appendStopDeparted})가
+     * 쓰는 {@code dedup_key} 는 {@code stop_departed:...} 형태라 {@link #알림_행수} 의 패턴과 다르다.
+     * {@code runId} 는 이 회차에 배정된 계정만 걸러 좁힌다(다른 시험이 만든 행과 섞이지 않도록).
+     */
+    private long 출발_통지_행수(long runId, String type, String recipientRole) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM notification_log nl JOIN run_rider rr ON rr.student_id = nl.student_id "
+                        + "WHERE rr.run_id = ? AND nl.type = ? AND nl.recipient_role = ? "
+                        + "AND nl.dedup_key LIKE 'stop_departed:%'",
+                Integer.class, runId, type, recipientRole);
         return count == null ? 0 : count;
     }
 
