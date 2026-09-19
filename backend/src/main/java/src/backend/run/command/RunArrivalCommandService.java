@@ -112,10 +112,18 @@ public class RunArrivalCommandService {
 
         if (isFinal) {
             if (run.getDirection() == Direction.TO_ACADEMY) {
-                autoAlightedCount = alightAllBoarded(run, now);
                 // 마지막 승하차지 강제 출발(Ruling 312, 목표 8) — 방금 도착 처리한 이 최종 지점은
-                // 다음 정차지가 없어 위쪽 폴백을 받지 못한다.
+                // 다음 정차지가 없어 위쪽 폴백을 받지 못한다. **alightAllBoarded 보다 먼저** 불러야
+                // 한다 — 순서가 거꾸로면 이 최종 지점에서 승차한 학생의 상태가 이미 ALIGHTED 로
+                // 바뀐 뒤라 그 정차지의 확정 결과가 "승차"가 아니라 "하차"로 잘못 나가고,
+                // RunAutoAlightedEvent 의 ALIGHTING 과 중복까지 된다(조율자 R15-T3 후속 지적).
                 stopDepartureService.forceAllRemaining(runId, run.getAcademyId(), now);
+                // 위 호출의 claimDeparture(clearAutomatically) 가 영속성 컨텍스트를 비워 run 을
+                // detach 시킨다 — 다시 로드해야 alightAllBoarded 안의 run.finish(now) 가 유실되지
+                // 않는다(RunArrivalCommandService 클래스 상단 주석과 같은 근거).
+                run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
+                        .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+                autoAlightedCount = alightAllBoarded(run, now);
             } else {
                 long stillBoarded = runRiderRepository.countByRunIdAndStatus(runId, RiderStatus.BOARDED);
                 if (stillBoarded == 0) {
