@@ -497,5 +497,9 @@ FUNCTIONAL_SPEC §12 흡수분. **신규 정책과 충돌한 4건은 정정** �
 | 기능정의서 | [FEATURE_SPEC.md](./FEATURE_SPEC.md) | 공통 규칙 · 엔티티 · 상태머신 · 기능 정의 · 권한 (기반 문서) |
 | 유저플로우 | [USER_FLOWS.md](./USER_FLOWS.md) | 역할별 조작 순서 · 분기 · 알림 매트릭스 |
 | API 명세서 | [API_SPEC.md](./API_SPEC.md) | 엔드포인트 계약 · WebSocket · 에러 코드 |
-| 신규 기획 원본 (v2.1) | `docs/brainstorming/바래다 PRD.md` 외 3종 | 이 문서의 정본 |
-| 구 기획 원본 | `docs/brainstorming/FUNCTIONAL_SPEC.md` · `FEATURE_LIST.md` · `USER_FLOWS.md` | 구 기획 흡수분의 출처 — 정책값은 낡음 |
+| 신규 기획 원본 (v2.1) | ⚠ **저장소에 부재** — `238eb2f5`(2026-08-24 방향 전환)에서 삭제 | 이 문서가 그 내용을 흡수했다. 원문이 필요하면 `git show '238eb2f5~1:docs/brainstorming/'` |
+| 구 기획 원본 | ⚠ **저장소에 부재** — `FUNCTIONAL_SPEC.md` · `FEATURE_LIST.md` · `USER_FLOWS.md` 셋 다 같은 커밋에서 삭제 | 구 기획 흡수분의 출처 — 정책값은 낡음. `git show '238eb2f5~1:docs/brainstorming/FUNCTIONAL_SPEC.md'` |
+
+⚠ **2026-09-20 정정 — 이 두 행이 `docs/brainstorming/` 에 파일이 있는 것처럼 적고 있었다.** 넷 다
+디스크에도 `HEAD` 에도 부재하고 git 이력에만 남아 있다. 아래 본문의 `FUNCTIONAL_SPEC §12`~`§15`
+인용도 **그 삭제된 문서의 절 번호**이며, 내용은 이 PRD 안으로 이미 옮겨져 있다.
