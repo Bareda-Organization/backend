@@ -1318,7 +1318,7 @@ void 확정_시각이_도래하면_idle_회차가_confirmed_로_전이한다() {
 | **254** | **오픈 이슈 Y 해소 — 강제 확정 콘솔 개입 API 정본 문면 (2026-09-04, 같은 위임).** `API_SPEC §6.14 POST /admin/runs/{runId}/force-confirm` 신설(끝에 붙여 기존 번호 불변). 메인 관리자 전용 · `reason` 필수 · 전제 회차 `idle` + `confirm_at` 경과 · 폴백(직선거리) 강제 확정 → `confirmed`, 기존 확정 후속 동일 · 응답 `201` `run_id`·`route_version_id`·`fallback_used`·`confirmed_at` · 에러 `404`·`409 RUN_NOT_IDLE`·`409 RUN_NOT_DUE`·`422` · 감사 `audit_log` `run.force_confirm`(reason·fallback_used). 버린 길 — `confirm_at` 미도래 허용(배치를 앞질러 확정하면 ①구간 토글이 막혀 C-04 와 충돌) · "강제 종료" 확장(`TECH_DECISIONS §14.3` ⚠ 금지). **구현은 F3 S2(파도 2)** | `TECH_DECISIONS §14.3` 표 1행 · 근거 `f3-goal-table.md §3-b` |
 | **255** | **프론트엔드(F1~F4)·법정 요건(L-01~09) 영구 범위 밖 (2026-09-04 사용자 결정 "앞으로 계속 고려하지 않는다").** 오픈 이슈 P·Q·H(프론트 의존)와 §7.1 운영 전환 행을 닫는다. 이후 "MVP 완료" 의 정의 = **백엔드 정본(`docs/` 7종)의 기능이 전부 구현·검증된 상태**. F3 목표 16(법정) 삭제 | 근거 사용자 대화 · `f3-goal-table.md §3-d·e` 정정 |
 | **259** | 🔴 **X-08 후속 전수 검사에서 정본 위반 20건 발견 (2026-09-05, F3 R4 판정 → 조율자 판정, 사용자 위임).** 두 갈래로 가른다. **(a) 관계자 웹 CRUD·학부모 intent runId 축·비상 확인·예외 보고 13건** — 코드는 학원 조건을 쿼리에 고정해 타 학원 자원을 `404` 로 답한다(Ruling 163 의 의도된 설계 — 존재 비노출). 정본 여러 절(`§5.12`·`§5.15` WAYPOINT 등)이 이미 `404(타 학원)` 을 명시하므로 **침묵한 절의 문면을 "(대상 부재 · 타 학원)" 으로 정정**하고 `§1.5` 통칙에 예외 문장("학원 조건을 쿼리에 고정하는 관계자 웹 자원은 `404` 로 존재를 드러내지 않는다 — Ruling 163")을 추가. `§8.4` 중앙 표에 `REPORT_NOT_FOUND` 행 추가. 코드·시험 불변. **(b) 매니저 앱 회차 7건**(`GET/PATCH/POST /runs/{runId}/…` 6 + `DELETE /runs/{runId}/emergency/{id}`) — `§1.11`·`§4.14` 가 "배치되지 않은 회차 → `403 FORBIDDEN`" 을 **명시**하는데 `ManagerRunAccess.requireAssignedRun` 이 존재 판정을 먼저 해 `404` 를 낸다. F3 S1 의 지연 알림이 따르는 `RunAssignmentAccess`(배치 판정 선행)와 순서가 반대. **코드를 정본에 맞춘다** — 배치 판정 선행으로 통일, 타 학원·미존재 회차 모두 `403 FORBIDDEN`. 시험 기대값 7건 정정 | R4 판정문 `review-f3-r4.md` ①표 · 근거 Ruling 163·240 · 버린 길 — (b) 를 정본 정정으로 닫기(명시 문면을 코드에 맞추는 것은 `phase-goal-loop §3` "테스트를 고쳐 통과" 형태) · (a) 를 코드 정정으로 닫기(13개 서비스 변경, Ruling 163 설계를 뒤집음) |
-| **260** | **강제 확정 감사 기록의 `action` 도메인 (2026-09-05, F3 S2 신고 → 조율자 판정, 사용자 위임).** `§6.14` 문면 `action=run.force_confirm` 이 `ERD audit_log.action` CHECK 7종·`AuditAction` enum·`LowerCaseEnumConverter`(점 문자열 생성 불가)와 충돌. **`category=data_access`·`action=update`·`target_type=run`·`target_id=runId` 재사용 + `detail{action:"run.force_confirm", reason, fallback_used, route_version_id}`.** `§6.14` 문면 정정 | 버린 길 — 도메인 확장: V10/V11(F4 선점) 재배정 · ERD CHECK · `§6.12` 감사 조회 action 투영까지 번짐. `update`+`target_type=run` 이면 같은 감사 화면에 나타나고 §14.3 의 "누가·언제·왜·폴백" 은 detail 로 전부 남음 |
+| **260** | **강제 확정 감사 기록의 `action` 도메인 (2026-09-05, F3 S2 신고 → 조율자 판정, 사용자 위임).** `§6.14` 문면 `action=run.force_confirm` 이 `ERD audit_log.action` CHECK 7종·`AuditAction` enum·`LowerCaseEnumConverter`(점 문자열 생성 불가)와 충돌. **`category=data_access`·`action=update`·`target_type=run`·`target_id=runId` 재사용 + `detail{action:"run.force_confirm", reason, fallback_used, route_version_id}`.** `§6.14` 문면 정정 | 버린 길 — 도메인 확장: V10/V11(F4 선점) 재배정 · ERD CHECK · `§6.12` 감사 조회 action 투영까지 번짐. `update`+`target_type=run` 이면 같은 감사 화면에 나타나고 `TECH_DECISIONS §14.3` 의 "누가·언제·왜·폴백" 은 detail 로 전부 남음 |
 | **256** | **RTE-07 `POST /staff/students/{id}/transfer` 정본 문면 확정 · `[조정 중]` 해제 (2026-09-05, F4, 조율자 판정, 사용자 위임).** ①구간 전용 · `from_run_id`·`to_run_id`(같은 학원·날짜·방향) · `stop_id`/`address` 배타 필수 · `run_transfer`(V10) 행 `staged` 저장만, 재최적화 미호출 — 각 회차 확정 배치가 출발 제외·도착 추가를 반영 · `409 STUDENT_NOT_IN_RUN`·`CAPACITY_EXCEEDED`·`TRANSFER_ALREADY_STAGED` | `f4-goal-table.md §3-a`. `§5.7`(Ruling 198)·UF-M-04 가 이미 "대기 저장 → 확정 배치 반영" 을 정함. 버린 길 — 즉시 재최적화(①구간 회차는 `idle` 이라 대상 부재) · 명단 직접 수정(`run_rider` 는 확정 산출물) |
 | **257** | **X-06 `no_show_wait_minutes` 상한 = 30분 (2026-09-05, F4, 조율자 판정, 사용자 위임).** 요청 검증 `422` + DB CHECK `> 0 AND <= 30`(V11) 둘 다 | 사양의 유일한 분 단위 상수 "출발 30분 전" — 대기가 확정 창을 넘기면 운행과 겹쳐 의미 상실. 버린 길 — `est_duration_min` 기준 동적 상한(설정 시점에 회차 부재) · 상한 부재 유지 |
 | **258** | **X-07 승차·하차 알림은 학부모 전용 유지 (2026-09-05, F4, 조율자 판정, 사용자 위임).** `API_SPEC §9.7` 이 이긴다 — S-03 문면 정정, 코드 변경 0 | `§9.7` 은 수신자를 행마다 명시한 표라 정밀, S-03 은 "P-09 와 동일" 로 복사된 문장. 버린 길 — 학생에게도 발송(정보 가치 없음·알림 과다·`boarding` 토글 의미 확장) |
@@ -1348,7 +1348,7 @@ void 확정_시각이_도래하면_idle_회차가_confirmed_로_전이한다() {
 | **④** | **목표 4 감사 조회 null 방어 시험이 서비스 계층 한정**(R1 ⚠) | **해소 — F2 S1 `3e7bf94`.** `AuditQueryControllerTest` 에 `academy_id` null 행 → `200` + `academy_name` JSON null(`NON_NULL` 변형으로 부재/null 구별 확인, R1) |
 | **⑤** | **`TECH_DECISIONS §13.1` 에 카운터 리터럴 문자열 부재**(R1 ⚠) — 이름 일치를 정본으로 검증 불가 | **해소 — F2 S3 (2026-09-04).** `TECH_DECISIONS §13.1` 에 "지표 이름" 열 신설, 7행에 `schoolbus.*` 병기. 지도 API 행은 코드에 지표 부재라 `—` |
 | **⑥** | **`rider_count` 정의 정본 침묵**(R3 ③) — "탑승자 수" 만 있고 상태 필터 없음. 구현은 전체 라이더 수(Phase 11 관례) | **해소 — Ruling 252-b (2026-09-04, F2 S3).** `API_SPEC`(2곳)·`ERD` 를 "발신 시점 회차에 배정된 라이더 전원 수(승하차 상태 무관)" 로 명시. 구현 변경 0 |
-| **⑦** | **`AuthFlowIntegrationTest` `.as(...)` 설명 앞머리 리터럴 "96개" 가 낡음**(S3 신고 → R3 재확인: 항목별 합은 101 로 정확, 앞머리 숫자만 F1 이전부터 드리프트) + Phase 14 이월 ③(`ScheduledTaskMetricsAspect` 자바독) + `p14f-task-s1.md` 의 `§12.1` 인용 오류 | **해소 — F2 S2 `42a335e`(101개, 합계 재계수) · `67bc570`(자바독 절 번호 19건) · Phase 14 이월 ③ 은 Ruling 252-a(코드 변경 없음) · `p14f-task-s1.md` 의 배치 상한 절 인용 삭제(S3)**. 잔여 코드 인용 11건은 F2 결과 ① |
+| **⑦** | **`AuthFlowIntegrationTest` `.as(...)` 설명 앞머리 리터럴 "96개" 가 낡음**(S3 신고 → R3 재확인: 항목별 합은 101 로 정확, 앞머리 숫자만 F1 이전부터 드리프트) + Phase 14 이월 ③(`ScheduledTaskMetricsAspect` 자바독) + `p14f-task-s1.md` 의 절 번호 오기(문서명 없이 적어 엉뚱한 절을 가리켰다) | **해소 — F2 S2 `42a335e`(101개, 합계 재계수) · `67bc570`(자바독 절 번호 19건) · Phase 14 이월 ③ 은 Ruling 252-a(코드 변경 없음) · `p14f-task-s1.md` 의 배치 상한 절 인용 삭제(S3)**. 잔여 코드 인용 11건은 F2 결과 ① |
 
 ⚠ **조율자 실수 2건 기록** — ① 목표 1 문면을 옮겨 적으며 구현(`do-while`)을 안 봤다(Ruling 251) ② 발주문에 `rider_count` 를 "탑승 중" 으로 못 박았으나 정본은 침묵 — **발주문의 "판정 고정" 은 정본 문면을 인용할 때만 쓴다.** 좌석의 결함 심기는 하네스 분류기가 "호출을 리터럴로 바꾸는" 편집을 막았고 "주석 처리 + 대체 줄" 은 통과 — 발주문 §3 에 형식을 명시한다.
 
@@ -1459,7 +1459,7 @@ void 확정_시각이_도래하면_idle_회차가_confirmed_로_전이한다() {
 | **`local` 전용 초기화 API** `POST /dev/reset` | 기동 시 초기화에 위임 + `@Profile("local")` + `app.dev-tools.reset.enabled`(테스트에서 `false`) |
 | **`§1.11` 에 `403`/`404` 판정 규칙 표** 신설 | 지시서가 §4.15 에 404 를 요구했으나 §4.9 가 Ruling 259(b) 로 이미 403 으로 정정한 뒤였다 — 좌석 신고로 드러났다 |
 
-**병합·전체 실행이 드러낸 결함 4건** — ①게이트 핸들러 개수 104→106 · 거부 목록 등재 누락(좌석 각자는 통과, 전역 규칙 §18 형태이며 **발주문 실행 범위에 `AuthFlowIntegrationTest` 를 넣지 않은 것이 원인**) ②`StudentRunsControllerTest` 가 시드 회차 상태에 의존 ③그 복원이 커밋되자 `RunConfirmationSchedulerTest` 가 49/50 으로 실패(배치는 `confirm_at` 오름차순 50건) ④`§4.15` 에 발생 불가능한 404 기재.
+**병합·전체 실행이 드러낸 결함 4건** — ①게이트 핸들러 개수 104→106 · 거부 목록 등재 누락(좌석 각자는 통과, 전역 규칙 `parallel-agents §18` 형태이며 **발주문 실행 범위에 `AuthFlowIntegrationTest` 를 넣지 않은 것이 원인**) ②`StudentRunsControllerTest` 가 시드 회차 상태에 의존 ③그 복원이 커밋되자 `RunConfirmationSchedulerTest` 가 49/50 으로 실패(배치는 `confirm_at` 오름차순 50건) ④`§4.15` 에 발생 불가능한 404 기재.
 
 **남은 것** — S1 이 `404 STUDENT_NOT_FOUND` 를 실제 요청으로 시험하지 못했다(연결은 있는데 학생이 삭제된 데이터가 시드에 부재). 필요하면 그 픽스처를 추가한다.
 
@@ -2118,7 +2118,7 @@ CI 에 자격증명을 넣을지, 계약을 고정한 녹화 응답으로 대신
 
 ⚠ **계수가 갈렸다 — 고치는 라운드가 직접 세라.** 게이트는 **17파일**, 조율자 재계수는 검색어에
 따라 **8~29** 가 나왔다(`staffAccount(` 문자열 · `EmergencyFixtures` 참조 · 정의처가 서로 다른 값을 준다).
-**무엇을 세는지부터 정하고 세라**(`§6.0` — `grep | wc -l` 은 줄 수이지 항목 수가 아니다).
+**무엇을 세는지부터 정하고 세라**(`phase-goal-loop §6` — `grep | wc -l` 은 줄 수이지 항목 수가 아니다).
 
 **왜 지금 안 고쳤나** — `Ruling 278` 범위 밖이고, 고치면 그 픽스처를 쓰는 시험 전체를 다시
 돌려야 한다. **F4 가 끝난 뒤 단독으로 처리한다.**
@@ -2284,7 +2284,7 @@ Hikari 획득 30초 타임아웃 → **위치 수신 HTTP 자체가 실패.**
 
 **처방(좌석 권고)** — 시험 JVM 의 `spring.data.redis.port` 기본값을 **죽은 포트**로 두어,
 베이스를 상속하지 않은 채 Redis 에 닿으면 **실패로 드러나게** 한다.
-⚠ **위 4개를 함께 처리해야 하므로 별도 라운드가 필요하다.** 금지 문구로는 안 막힌다(§13.2 가 3회 증명).
+⚠ **위 4개를 함께 처리해야 하므로 별도 라운드가 필요하다.** 금지 문구로는 안 막힌다(`parallel-agents §13` 이 3회 증명).
 
 **소유** — 미정. **`F4-B` 완료를 막지는 않는다**(지금 초록이다).
 
@@ -2825,7 +2825,7 @@ DB 를 갈라도 커넥션 수는 서버 전체 공유이고, 컨텍스트 캐�
 
 | 항목 | 내용 | 처리 |
 |---|---|---|
-| **문서 그래프 색인의 깨진 참조 121건** (2026-09-20 재색인 기준 — 수치는 `check` 를 돌릴 때마다 다시 센다, `python3 ~/.claude/tools/docgraph/build.py <repo>`) | 도구 `~/.claude/tools/docgraph/`(규칙 `~/.claude/rules/docgraph.md`). 범주 — `missing_section` 38 · `ruling_not_in_docs` 60(**전부 코드 주석** — 코드가 인용한 판정이 정본에 미기록) · `undefined_endpoint` 22 · `undefined_id` 1. **2026-09-20 에 208 → 121 로 정리했다** — 절반이 도구 오탐이었다: ①상위 ID 에서 잘린 조각(`UF-P-01` → `P-01`) 238건 ②경로로 이름이 갈린 문서(`docs/IMPLEMENTATION_PLAN`)를 맨 이름 참조가 못 찾음 ③소문자 문서명(`CODE_CONVENTIONS.md`) 미인식 ④색인 밖 규칙 파일(`phase-goal-loop.md`)을 없는 절로 계수 ⑤ID 가 아닌 문자열(`SHA-256`·`HTTP-01`·`SA-01~06`) | **작업 지시 범위에 걸린 것만 그때 고친다**(전체 0건은 발주 조건이 아니다). 2026-09-20 처리분 — 코드 주석 18건에 문서명 명시(`§20.2` → `CODE_CONVENTIONS.md §20.2` 등) · `BRD-07`(부재 ID — `.docgraph/config.json` 의 `ignore_ids` 에 등재했다) → `EXC-04`·`EXC-02·03`. 남은 것의 큰 묶음은 `ruling_not_in_docs` **60**. ⚠ **이 칸에 판정 번호를 예시로 적지 마라** — 도구가 이 줄을 그 판정의 기록처로 대신 잡아 (`build._ruling_fallback_records`) 정본에 기록 없는 판정 20건이 통째로 가려진다. 2026-09-20 에 옛 예시를 걷어내고서야 40 → 60 으로 드러났다 |
+| **문서 그래프 색인의 깨진 참조 121건** (2026-09-20 재색인 기준 — 수치는 `check` 를 돌릴 때마다 다시 센다, `python3 ~/.claude/tools/docgraph/build.py <repo>`) | 도구 `~/.claude/tools/docgraph/`(규칙 `~/.claude/rules/docgraph.md`). 범주 — `missing_section` 38 · `ruling_not_in_docs` 60(**전부 코드 주석** — 코드가 인용한 판정이 정본에 미기록) · `undefined_endpoint` 22 · `undefined_id` 1. **2026-09-20 에 208 → 121 로 정리했다** — 절반이 도구 오탐이었다: ①상위 ID 에서 잘린 조각(`UF-P-01` → `P-01`) 238건 ②경로로 이름이 갈린 문서(`docs/IMPLEMENTATION_PLAN`)를 맨 이름 참조가 못 찾음 ③소문자 문서명(`CODE_CONVENTIONS.md`) 미인식 ④색인 밖 규칙 파일(`phase-goal-loop.md`)을 없는 절로 계수 ⑤ID 가 아닌 문자열(`SHA-256`·`HTTP-01`·`SA-01~06`) | **작업 지시 범위에 걸린 것만 그때 고친다**(전체 0건은 발주 조건이 아니다). 2026-09-20 처리분 — 코드 주석 18건에 문서명 명시(문서명 없이 절 번호만 적혀 자기 문서의 절로 읽히던 것을 `CODE_CONVENTIONS.md` 소속으로) · `BRD-07`(부재 ID — `.docgraph/config.json` 의 `ignore_ids` 에 등재했다) → `EXC-04`·`EXC-02·03`. 남은 것의 큰 묶음은 `ruling_not_in_docs` **60**. ⚠ **이 칸에 판정 번호를 예시로 적지 마라** — 도구가 이 줄을 그 판정의 기록처로 대신 잡아 (`build._ruling_fallback_records`) 정본에 기록 없는 판정 20건이 통째로 가려진다. 2026-09-20 에 옛 예시를 걷어내고서야 40 → 60 으로 드러났다 |
 | **테이블 수 선언 불일치** ✅ 해소 | 2026-08-25 실측 정정 — `ERD §3` 의 `####` 항목이 **39**(그룹별 7·7·13·12). `ERD §1` 소계표(7·6·13·10)와 이 문서 Phase 1 완료 조건의 38 표기를 39 로 맞춤. `FEATURE_SPEC §3.2` 는 이미 39 로 일치 | 구현 기준 **39**. 세 문서 전부 일치 |
 | **`PRD §7.1` 미배치 6건** | 도메인 STU·MGR·BUS 와 기능 RTE-01·RTE-07·ATT-03 이 P0~P2 어디에도 미기재 | 실행 순서상 Phase 5·6·8 에 포함. 우선순위 배치 확정은 별건 |
 | ~~**🔸 표기 항목의 존치 여부**~~ | 구 기획에서 흡수한 항목의 존치가 미확정 (`FEATURE_SPEC §0`) | **해소 — 2026-09-05 F4 조율자 계수.** `grep -c '🔸' docs/FEATURE_SPEC.md docs/PRD.md docs/USER_FLOWS.md docs/API_SPEC.md` 전부 **0** — 미확정 표기가 남아 있지 않다 |
@@ -3059,7 +3059,7 @@ Dart 생성 코드 재생성은 불요(`route_detail.dart` 는 수동 파싱 · 
 | 에이전트 `name` 미기입 | `PROJECT_NOTES.md:187` 형식 `p{Phase}-t{Task}-{역할}-{에이전트}-{모델}` | **복구 불가** — 실행 중 개명 불가 |
 | 병렬 발주 전 절전 억제 미실시 | `:410` — 이 머신은 유휴 **1분**에 잠들고 그때 갈래가 죽는다(전례 4회) | 라운드 중간에 `caffeinate -i -m -s` 로 복구 |
 
-⚠ **`.env` 미투입도 같은 뿌리다**(`§12` — 워크트리에는 git 이 무시하는 파일이 안 따라온다).
+⚠ **`.env` 미투입도 같은 뿌리다**(`parallel-agents §12` — 워크트리에는 git 이 무시하는 파일이 안 따라온다).
 자격증명 부재로 실 API 검사 3건이 **건너뜀**이 되어 완료 조건 "건너뜀 0" 이 **달성 불가**였다.
 사용자 지적으로 드러났고, **기억에 "에이전트 띄울 세션은 `PROJECT_NOTES.md` 부터" 가 이미 있었는데
 두 세션 연속 같은 이유로 어겼다.**
@@ -3264,7 +3264,7 @@ baraeda_core 실행              →  visible=48 failed=0 skipped=0
 
 ⚠ **조율자 오류의 형태 — 존재를 확인하고 도달 가능을 확인하지 않았다.** 대기 건이 **있는지**만
 세고, 그 건이 **미리보기까지 갈 수 있는지**는 세지 않았다. 오늘 반복한 것과 같은 계열이다
-(`§6.0` — 한 층을 세고 다음 층을 안 센다).
+(`phase-goal-loop §6` — 한 층을 세고 다음 층을 안 센다).
 
 **⇒ 이월** — 해법은 `V2__seed_data.sql` 에 `from_academy` route 행 추가이고,
 **갈래 소유 범위 밖이라 손대지 않은 것이 옳다.**
@@ -4064,7 +4064,7 @@ R12 가 남긴 이월은 *"시드 변경이 선행돼야 한다"* 였다. **재�
 
 `r14-t3` 의 시드 `R8` 이 `student_id=1` 을 태워 **`StudentRunsControllerTest` 2건이 실패**했다
 (회차 4건 → 5건). 갈래는 *"`V2` 는 local·demo 전용이라 백엔드 시험에 영향 부재"* 로 판단해 전체 실행을
-생략했는데, **그 시험은 `SeedFixtures` 로 시드를 직접 읽는다.** `§18`(전체를 세는 시험)의 시드 판이다.
+생략했는데, **그 시험은 `SeedFixtures` 로 시드를 직접 읽는다.** `parallel-agents §18`(전체를 세는 시험)의 시드 판이다.
 ⇒ 같은 갈래에 후속 Dispatch 로 돌려 정정(출발 시각 순서 `3·2·8·1·6` 을 조율자가 DB 에서 실측해 전달).
 
 ### 이월

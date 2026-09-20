@@ -1337,7 +1337,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | 필드 | 타입 | 설명 |
 |---|---|---|
 | `run_id` · `bus_no` · `direction` · `depart_time` | — | 회차 요약. `depart_time` 은 **예정** 출발 |
-| `started_at` · `finished_at` | datetime, null 가능 | **실제** 출발·종료(도착) 시각(R21-B, §8.34 목표 B). 그 상태를 지나기 전이면 `null` — 키는 존재하고 값만 빈다(§6.8 과 같은 관례) |
+| `started_at` · `finished_at` | datetime, null 가능 | **실제** 출발·종료(도착) 시각(R21-B, `IMPLEMENTATION_PLAN §8.34` 목표 B). 그 상태를 지나기 전이면 `null` — 키는 존재하고 값만 빈다(`API_SPEC §6.8` 과 같은 관례) |
 | `est_arrival_time` | datetime, null 가능 | **예정** 도착 = `depart_time + est_duration_min`(분)(R21-B2). 회차에 `est_duration_min`(스케줄 소요 시간 추정치) 이 없으면 계산 근거가 없어 `null` |
 | `driver_name` · `escort_name` | string | 배치 인력 |
 | `boarded_count` / `total_count` | integer | 탑승 현재/전체 |
@@ -2062,7 +2062,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 - ⚠ **날짜는 *오늘* 로 고정이다** — 질의 파라미터가 부재하다. 과거 조회가 필요하면 `§5.10` 을 쓴다
 - **옛 판(~R15)은 `moving` 만 돌려줬다.** 그때는 날짜 조건조차 없었고, `moving` 이 사실상 오늘
-  것뿐이라 드러나지 않았다(`§8.25` 에 기록)
+  것뿐이라 드러나지 않았다(`IMPLEMENTATION_PLAN §8.25` 에 기록)
 
 **응답** — `runs[]`
 
@@ -2112,7 +2112,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 ⚠ **`driver` · `escort` 도 `null` 일 수 있다** — 배치(§5.14) 전인 `idle`·`confirmed` 회차에는 매니저가
 아직 없다. 표의 `●` 는 **키의 존재**를 뜻하지 값의 존재가 아니다. 2026-09-19 R16 에서 관계자 웹이
-이 가정을 어겨 `TypeError` 로 죽었고 실서버 계약 검사가 잡았다(`§8.25` 에 기록).
+이 가정을 어겨 `TypeError` 로 죽었고 실서버 계약 검사가 잡았다(`IMPLEMENTATION_PLAN §8.25` 에 기록).
 
 **ETA 는 관제 전용** — 학부모·학생 앱 비노출(C-08)과 별개 축.
 
@@ -2213,7 +2213,7 @@ O-04 · SYS-01·02. 정본 API명세서에 경로 미기재 — 감사 로그 �
 
 **응답** `201` — `run_id` · `route_version_id` · `fallback_used`(항상 `true`) · `confirmed_at`
 
-**감사** — `audit_log` 에 `category=data_access` · `action=update` · `target_type=run` · `target_id=runId` 로 1행, `detail` 에 `{action: "run.force_confirm", reason, fallback_used, route_version_id}` 기록(누가·언제·왜·폴백 여부, `TECH_DECISIONS §14.3`). ⚠ `action` CHECK 도메인(`ERD audit_log` 7종)과 `GET /admin/audit-logs` 의 action 투영(§6.12)을 넓히지 않는다 — 구별 문자열은 `detail.action` 에 둔다(Ruling 260, 2026-09-05).
+**감사** — `audit_log` 에 `category=data_access` · `action=update` · `target_type=run` · `target_id=runId` 로 1행, `detail` 에 `{action: "run.force_confirm", reason, fallback_used, route_version_id}` 기록(누가·언제·왜·폴백 여부, `TECH_DECISIONS §14.3`). ⚠ `action` CHECK 도메인(`ERD audit_log` 7종)과 `GET /admin/audit-logs` 의 action 투영(`API_SPEC §6.12`)을 넓히지 않는다 — 구별 문자열은 `detail.action` 에 둔다(Ruling 260, 2026-09-05).
 
 **에러** — `404 RUN_NOT_FOUND` · `409 RUN_NOT_IDLE`(회차가 `idle` 아님) · `409 RUN_NOT_DUE`(`confirm_at` 미도래) · `422 VALIDATION_FAILED`(`reason` 공백)
 
