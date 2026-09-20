@@ -2831,6 +2831,42 @@ DB 를 갈라도 커넥션 수는 서버 전체 공유이고, 컨텍스트 캐�
 | ~~**🔸 표기 항목의 존치 여부**~~ | 구 기획에서 흡수한 항목의 존치가 미확정 (`FEATURE_SPEC §0`) | **해소 — 2026-09-05 F4 조율자 계수.** `grep -c '🔸' docs/FEATURE_SPEC.md docs/PRD.md docs/USER_FLOWS.md docs/API_SPEC.md` 전부 **0** — 미확정 표기가 남아 있지 않다 |
 | ~~**`API_SPEC §10` [조정 중] 항목**~~ | 배차·노선 최적화 정책 확정 전까지 경로·권한·목적만 예약 | **해소 — 2026-09-05 F4 S3(Ruling 256).** `§5.8 transfer` 를 `§5.7` 형식으로 확정해 `§10` 표에서 제거, 표는 "현재 `[조정 중]` 항목 부재" 한 줄. 구현 F4 S1(메인 `5292777`). 이전 경위: 2026-08-30 Ruling 197 로 `§5.7 forced-add` 는 Phase 8 이 확정, `§5.8` 은 별도 단위로 남겼던 것 |
 
+### 7.5 코드 주석에만 있던 판정 23건 — 정본 등재 (2026-09-20)
+
+**왜 여기 있나.** 판정 원장이 계획서에 자리 잡은 것은 `Ruling 117` 무렵부터이고, 그 이전 회차의 판정은
+**근거가 코드 주석에만 남았다.** 도구가 이것을 `ruling_not_in_docs` **60건**(서로 다른 판정 23개)으로
+세고 있었다(§7.4). 내용을 그 주석에서 복원해 아래에 옮긴다 — **주석이 정본이 되는 상태를 끝내는 것이
+이 표의 목적**이며, 각 행의 "근거 위치" 가 전문(全文)이 있는 자리다.
+
+⚠ **이 표는 사후 복원분이다.** 판정 당시의 논의 기록은 부재하고 **채택된 결론과 그 근거만** 남았다.
+뒤집으려면 새 Ruling 을 발행한다 — 이 행을 고쳐 쓰지 않는다.
+
+| 판정 | 내용 | 근거 위치 |
+|---|---|---|
+| **Ruling 13** | 감사 로그의 `result`(성공·실패) · `block_event`(차단 이벤트 여부)를 **엔티티가 저장하지 않고 조회 시점에 `action` 값에서 다시 계산.** 저장된 `block_event` 컬럼은 "이 시도가 차단을 유발했는가" 라 응답이 요구하는 "이 행이 차단 이벤트인가"(해제 포함)와 대상이 다름 | `AuditLog` · `LoginHistoryItemResponse` · `LoginHistoryQueryService` (ERD §3.4) |
+| **Ruling 26** | 복구 인증 코드의 `purpose` 값은 `login_id` · `password`. 기획 재료 문서의 `recover_id`·`recover_password` 는 **낡은 값으로 폐기** | `VerificationCode` (ERD §3.2 · API_SPEC §2.9) |
+| **Ruling 36** | Swagger 태그의 목록·순서·설명을 `OpenApiConfig` **한 곳에서만** 관리하고 컨트롤러는 `@Tag(name=…)` 로 소속만 선언 | `OpenApiConfig` |
+| **Ruling 38** | `Assignment`(회차별 매니저 배치)의 소유 모듈은 `run` 이 아니라 **`manager`** | `manager/entity/Assignment` (ERD §3.3) |
+| **Ruling 39** | enum 을 `global/common/enums` 로 올리는 기준은 **모듈 2개 이상이 공유.** 한 모듈 안의 두 테이블이 공유하는 값 도메인은 그 모듈에 둔다 | `exception/entity/NoShowDecision` |
+| **Ruling 71** | 태스크는 **자기 소유가 아닌 자리표시자를 고치지 않는다.** Phase 2 Task 1 이 부여표(`RolePermissions.HIERARCHY`)를 재작성하면서 `SecurityConfig` 의 배선 한 줄은 소유 밖이라 그대로 둠 | `SecurityConfig#roleHierarchy` |
+| **Ruling 76** | 그 배선을 **부여표를 처음 소비하는 태스크**(Phase 2 Task 3)가 한다. 배선 이전에는 `hasAuthority(…)` 기반 애너테이션이 전부 거부로 떨어짐 — **부여표가 빈 것과 배선이 빠진 것은 증상이 같다** | `SecurityConfig#roleHierarchy` · `authz/RolePermissions` (FEATURE_SPEC §6.2) |
+| **Ruling 80** | 경로 문자열은 **사양 원문 그대로.** `@PublicEndpoint` 허용 목록과 계정 상태 게이트 대조가 "HTTP 메서드 + 경로" 를 키로 삼으므로 임의로 다듬지 않는다(예 — `/me/link-code` 를 `/me/students/…` 계열로 고치지 않음) | `StudentLinkCodeController` (API_SPEC §3.3) |
+| **Ruling 89** | Gradle `test` 태스크만 심는 프로퍼티 `app.flyway-clean.suppressed` 가 참이면 **`clean()` 을 건너뛰고 `migrate()` 만.** 여러 `@SpringBootTest` 컨텍스트가 한 JVM 에서 같은 로컬 Postgres 를 공유할 때 한쪽의 `clean()` 이 다른 쪽이 검증 중인 스키마를 삭제 | `LocalFlywayCleanStrategy` · `FlywayCleanStrategyGuardTest` |
+| **Ruling 99** | 로그아웃의 무효화 범위는 **그 단말의 refresh 토큰 하나**(계정 전량이 아님). 재발급은 옛 토큰을 그 자리에서 무효화. 이미 처리된 행은 다시 처리하지 않음 — 두 번째 호출이 최초 시각을 덮어쓰면 이력이 소멸 | `AuthControllerTest` · `DeviceToken#revokeByTokenHash` (API_SPEC §2.6·§2.11) |
+| **Ruling 102** | API 버전 접두사를 **`server.servlet.context-path` 가 아니라 `addPathPrefix`** 로 배선. 컨테이너 전역 설정은 `/actuator`·`/ws`·`/swagger-ui` 까지 물게 됨. 컨트롤러 소스의 `@RequestMapping` 리터럴은 접두사 없는 그대로 유지 | `global/config/ApiPathPrefixConfig` · `ApiPathPrefixConfigTest` |
+| **Ruling 103** | 공개 엔드포인트 목록을 **서로 독립인 3원 대조**로 고정 — ①소스의 `@PublicEndpoint` 애너테이션 ②`PublicEndpoints` 상수 ③사양에서 손으로 옮긴 하드코딩 목록. **대조 대상이 같은 곳을 참조하면 둘 다 틀려도 검사가 통과** | `global/security/PublicEndpoints` · `ControllerAuthorizationConventionTest` · `ErrorCodeCatalogTest` · `PageParamsTest` |
+| **Ruling 104** | JSON 필드명은 **전역 `spring.jackson.property-naming-strategy: SNAKE_CASE`** 가 변환. 개별 `@JsonProperty` 를 붙이지 않는다. ⚠ **쿼리 파라미터는 Jackson 을 거치지 않아 적용 대상 밖** — `@RequestParam` 에 이름을 손으로 적는다. `@ModelAttribute` DTO 로 묶어 `service_date` 가 안 붙고 목록이 늘 오늘로 고정된 사고가 실재 | `application.yml` · `StaffRunController` · `NavigationController` · `WebSocketEnvelope` · `account/dto/*` |
+| **Ruling 142** | `user_count` 가 세는 범위는 **소속이 확정됐고 아직 종료되지 않은 계정.** 포함 — `active`·`blocked`(차단은 소속의 일시 정지이지 종료가 아님). 제외 — `pending`(소속 미확정) · `rejected`(소속된 적 부재) · 관계자(`staff_count` 가 따로 셈) | `AdminAcademyQueryService` · `AccountRepository` (API_SPEC §6.1) |
+| **Ruling 145** | 계정 상태 게이트의 기본값은 **차단**이다 — `@AllowedWhenPending`·`@AllowedWhenRejected` 허용 목록과 `@PublicEndpoint` 밖의 모든 핸들러는 `pending`·`rejected` 계정에 `403`. **승인된 계정 전용 기능에는 게이트 애너테이션을 붙이지 않는 것이 사양** | `testsupport/gate/AccountStatusGateEndpoints` · `GuardianChildController` · `WeeklyAddressController` · `NotificationSettingController` (API_SPEC §1.4) |
+| **Ruling 160** | 요청의 `photo`(멀티파트 **파일 파트**)와 응답·컬럼의 `photo_url`(서버가 저장 후 만든 **주소**)은 **다른 값이라 이름을 가른다.** 등록·수정 요청 DTO 에 사진 필드를 두지 않는 것이 사양 — 두면 클라이언트가 외부 URL 을 그대로 보내 `PhotoStorage` 를 우회 | `StudentRegisterRequest` · `StudentUpdateRequest` · `photo/spec/PhotoStorage` (API_SPEC §5.11) |
+| **Ruling 161** | `guardian` 레코드를 **접근 판정 지점이 만들지 않는다.** 보호자·계정 연결을 만드는 것은 가입 승인(AUTH-11) 하나 — 없는 계정에 보호자를 지어 주면 승인을 거치지 않은 사람이 자녀 연결 화면에 진입 | `student/access/GuardianChildAccess` (API_SPEC §1.5) |
+| **Ruling 162** | 근무시간 `jsonb` 의 **형태가 어긋난 행은 예외로 드러낸다.** "근무 시간 없음"(`WORK_HOURS_NOT_SET`)으로 삼키지 않는 이유는 등록 시 비워 둔 정상 상태와 고쳐야 할 데이터 결함이 같은 응답이 되기 때문 — 시드에서 실제로 겪은 형태 | `manager/entity/WorkHours` (ERD `manager.work_hours`) |
+| **Ruling 171** | 응답의 `*_id` 는 **JSON 문자열.** 근거는 표기 통일이 아니라 **정밀도** — JavaScript `number` 는 2^53 을 넘으면 값을 잃고, 그때는 요청이 실패하는 것이 아니라 **다른 학생을 가리킨다.** ⚠ 검사 함정 — MockMvc `jsonPath(…).value(String.valueOf(…))` 와 JsonPath `?(@.x == '4')` 는 타입을 강제 변환해 숫자 `4` 를 통과시킨다. **값이 아니라 타입을 본다** | `StudentDetailResponse` · `StudentSummaryResponse` · `StudentWithdrawalResponse` (API_SPEC §3.1·§2.10·§5.11) |
+| **Ruling 172** | 퇴원(STU-04)이 **보호자 연결까지 같은 트랜잭션에서 해제**(`guardian_student.unlinked_at`). 학생 쪽만 지우면 접근 판정(`unlinked_at IS NULL`)을 지나 **퇴원한 자녀가 옛 보호자 목록에 잔존.** 연결을 **만드는** 경로는 자녀 연결(P-02) 소유이고 여기서 열지 않는다 | `StudentCommandService#퇴원` · `StudentWithdrawalUnlinkTest` (ERD §7.1 · UF-P-01) |
+| **Ruling 173** | 자녀 연결의 중복은 **선검사에서든 DB 제약 거부에서든 같은 `409 ALREADY_LINKED`.** 선검사만으로는 부족 — 두 트랜잭션이 서로의 미커밋 INSERT 를 못 보고 둘 다 통과한 뒤 `uk_guardian_student` 가 하나를 거부하며, 옮기지 않으면 `500` 이 나가 "서버 고장" 과 "이미 연결됨" 이 구별되지 않는다(`Ruling 164` 의 요구를 이 자리에 적용) | `ChildLinkCommandService` · `ChildLinkConcurrencyTest` |
+| **Ruling 179** | 승하차지 근접 병합(STU-05)의 잠금 범위는 **학원 하나**(`pg_advisory_xact_lock`). 좌표·격자 키는 **기각** — 임계 반경 안인데 다른 칸에 놓인 두 점이 서로 다른 잠금을 잡아 중복이 생긴다. 대가는 매칭 성공 경로까지 학원 단위로 직렬화되는 것이고, 받아들이는 근거는 승하차지 생성이 **저빈도 연산**이라는 것. 잠금 없는 후보 조회를 밖에 두지 않기 위해 잠금·조회를 `StopMergeLookup` 한 메서드로 묶는다 | `StopMergeLookup` · `StopMergeLookupImpl` · `StopRepository` · `StopMergeLockScopeTest` |
+| **Ruling 205** | 매니저 앱 실시간 노선(`GET /runs/{runId}/route`)은 **확정 노선에 미승차(③구간) 반영 결과만 얹은 표시용 뷰.** 미경유(skipped)는 **표시만** 하고 재최적화·ETA 재계산 부재(C-05 "주행 판단은 기사"). `next_stop` 은 결번을 건너뛴 다음 실제 정차지이고 `skipped_notice` 가 그 사유를 동반 | `RunRouteController` · `RunRouteQueryService` · `RunRouteResponse` · `AssignmentRepository` (API_SPEC §4.3) |
+
 ---
 
 ## 10. 갱신 규칙
