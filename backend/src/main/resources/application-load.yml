@@ -32,7 +32,7 @@ app:
   # 노선 계산 ③단계 — 부하 시험은 stub 을 쓰고, 아래 4개 값으로 지연·격벽·실패를 주입한다
   # (StubMapRouteClient javadoc, IMPLEMENTATION_PLAN §5.5). 기본값은 전부 비활성 — 시나리오마다
   # bootRun 실행 시점에 -D 시스템 프로퍼티나 환경변수로 덮어써서 켠다(값을 바꿀 때마다 이 파일을
-  # 고치지 않기 위함). 각 시나리오가 실제로 준 값은 backend/load/README.md 에 기록한다.
+  # 고치지 않기 위함). 각 시나리오가 실제로 준 값은 docs/backend/LOAD_TESTING.md 에 기록한다.
   routing:
     map:
       provider: stub

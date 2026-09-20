@@ -68,7 +68,7 @@ import src.backend.student.repository.WeeklyAddressRepository;
  *
  * <p>온디맨드 미리보기 계산(캐시 조회·재최적화 1회 실행)은 {@link ApprovalPreviewResolver} 에,
  * 전/후 노선 대조 조립(정차 목록·순번 비교·영향 학생 산출)은 {@link RoutePreviewAssembler} 에 위임한다
- * — 이 클래스는 "무엇을 언제 부르는가" 라는 조회 오케스트레이션만 갖는다(reference.md §20.2 클래스
+ * — 이 클래스는 "무엇을 언제 부르는가" 라는 조회 오케스트레이션만 갖는다(CODE_CONVENTIONS.md §20.2 클래스
  * 크기 관례에 따른 분리이며, 값 조립·계산 로직 자체는 바뀌지 않았다).
  */
 @Service

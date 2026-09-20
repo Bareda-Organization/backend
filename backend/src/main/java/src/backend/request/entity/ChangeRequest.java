@@ -117,7 +117,7 @@ public class ChangeRequest {
 
     /**
      * 학부모(또는 시스템)가 변경을 접수한 시점의 최소 상태로 생성한다 — 상태는 항상 대기중에서 시작한다.
-     * 파라미터 8개는 reference.md §20.2 기준(4개)을 넘지만 NN 필드 전부가 접수 시점에 필요해 규약 §3(팩토리 분화 금지)을 우선했다.
+     * 파라미터 8개는 CODE_CONVENTIONS.md §20.2 기준(4개)을 넘지만 NN 필드 전부가 접수 시점에 필요해 규약 §3(팩토리 분화 금지)을 우선했다.
      */
     public static ChangeRequest forRequest(Long academyId, Long runId, Long studentId,
             ChangeRequestSource source, ChangeRequestType type, Short windowSegment,
@@ -128,7 +128,7 @@ public class ChangeRequest {
 
     /**
      * 경유지 이동(RELOCATE) 목표를 채운다(P-06, Phase 8) — 접수 시점에 이미 검증·매칭을 마친 값만
-     * 들어온다. CANCEL 요청은 이 메서드를 부르지 않아 네 필드가 전부 {@code null} 로 남는다(reference.md §20.2
+     * 들어온다. CANCEL 요청은 이 메서드를 부르지 않아 네 필드가 전부 {@code null} 로 남는다(CODE_CONVENTIONS.md §20.2
      * 조건부 CHECK 와 대응).
      */
     public void assignRelocationTarget(String newAddress, BigDecimal newLat, BigDecimal newLng, Long newStopId) {

@@ -310,7 +310,7 @@ SSM Parameter Store (SecureString)
 | `backend/Dockerfile` | 수정 — 런타임 이미지에 curl(컨테이너 healthcheck 용) |
 | `backend/src/main/java/src/backend/global/config/WebSocketConfig.java` | 수정 — origin 허용 목록 외부화 |
 | `frontend/vercel.output.config.json` | 신규 — Vercel prebuilt 라우팅·캐시 헤더 |
-| `docs/DEPLOYMENT.md` | 신규 — 운영 절차서(배포·롤백·복구) |
+| `docs/infra/DEPLOYMENT.md` | 신규 — 운영 절차서(배포·롤백·복구) |
 
 ---
 

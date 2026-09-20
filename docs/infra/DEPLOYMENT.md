@@ -6,7 +6,7 @@
 
 **전제 조건**: AWS 계정(리소스 생성 권한), 도메인 1개(신규 구입도 가능), GitHub 저장소 쓰기 권한, ~~Vercel 계정~~(웹 경로 부재), 로컬에 AWS CLI v2 설치·`aws configure` 완료, 로컬에 Docker(BCrypt 해시·htpasswd 생성용).
 
-설계 근거는 `docs/superpowers/specs/2026-08-10-mvp-배포-design.md` 참조. 이 문서는 그 설계를 실행 절차로 옮긴 것이다.
+설계 근거는 `docs/archive/specs/2026-08-10-mvp-배포-design.md` 참조. 이 문서는 그 설계를 실행 절차로 옮긴 것이다.
 
 ---
 

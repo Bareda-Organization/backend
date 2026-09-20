@@ -18,7 +18,7 @@ import src.backend.global.common.enums.Role;
  * 줄은 문법상 가능해도 절대 넣지 않는다 — 넣으면 "이 사람은 관계자인가"에 애너테이션 계층은 예,
  * {@code AuthUser} 를 보는 서비스 계층은 아니오라고 답해 두 계층이 갈리고, 그 문법을 한 줄이라도
  * 허용하면 다음 사람이 역할 간 상속을 추가하는 순간 하위 역할 전용 권한이 상위 역할에게 조용히
- * 열린다(FEATURE_SPEC §6.2, reference.md §3). {@code RolePermissionsTest} 가 이를 고정한다.
+ * 열린다(FEATURE_SPEC §6.2, CODE_CONVENTIONS.md §3). {@code RolePermissionsTest} 가 이를 고정한다.
  *
  * <h2>배선 — {@code SecurityConfig.roleHierarchy()}</h2>
  *

@@ -19,7 +19,7 @@ import org.springframework.data.jpa.repository.Query;
  * (라운드 1 의 {@code ::} · 라운드 2 의 개행), 수집은 패키지 구조가 바뀔 때.
  *
  * <p>술어를 표와 한 파일에 두면 회피 형태를 하나 막을 때마다 ERD 표를 함께 읽어야 하고, 실제로
- * 그 누적이 클래스를 {@code reference.md §20.2} 기준의 두 배로 키웠다(리뷰 라운드 2 m-3).
+ * 그 누적이 클래스를 {@code CODE_CONVENTIONS.md §20.2} 기준의 두 배로 키웠다(리뷰 라운드 2 m-3).
  */
 final class AcademyScopeRule {
 

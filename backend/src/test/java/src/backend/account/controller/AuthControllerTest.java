@@ -44,7 +44,7 @@ import src.backend.global.common.enums.Role;
  * <p>클라이언트 종류 판정은 두 갈래(브리프 §3.2)라 각각 별도로 검증한다 — 로그인은
  * {@code X-Client-Type} 헤더, refresh·로그아웃·비밀번호 변경은 쿠키 우선·본문 차선.
  *
- * <p><b>{@code reference.md §20.2} 의 200줄을 넘긴 채 두는 이유</b>(§19 요구) — 다섯 절이 픽스처 헬퍼
+ * <p><b>{@code CODE_CONVENTIONS.md §20.2} 의 200줄을 넘긴 채 두는 이유</b>(§19 요구) — 다섯 절이 픽스처 헬퍼
  * 14개를 공유하고, 그중 {@code createAccount} · {@code login} · {@code readField} · {@code readObject} ·
  * {@code loginBody} 5개는 절을 가리지 않고 쓰인다. 절 단위로 나누면 이 5개를 상위 클래스로 올리거나
  * 복제해야 하는데, 상위 클래스는 {@code @SpringBootTest} 픽스처를 상속으로 잇는 형태라 어느 하위가

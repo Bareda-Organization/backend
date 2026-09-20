@@ -48,7 +48,7 @@ class RolePermissionsTest {
 
     /**
      * 가장 중요한 규칙 — 부여표 우변에 {@code ROLE_} 이 오면 안 된다(역할→역할 간선 금지).
-     * reference.md §3 이 명시한, 이 태스크에서 가장 무거운 제약을 직접 고정한다.
+     * CODE_CONVENTIONS.md §3 이 명시한, 이 태스크에서 가장 무거운 제약을 직접 고정한다.
      */
     @Test
     void 부여표_우변에_ROLE_접두어가_없다() {

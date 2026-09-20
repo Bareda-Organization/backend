@@ -51,7 +51,7 @@ import org.junit.jupiter.api.Test;
  *       속하지 않는다({@link #ERD_OUT_OF_SCOPE_TABLES})</li>
  * </ul>
  *
- * <p>클래스가 {@code reference.md §20.2} 의 200줄을 넘는다 — 바뀌는 계기가 다른 두 축을 이미 갈랐다.
+ * <p>클래스가 {@code CODE_CONVENTIONS.md §20.2} 의 200줄을 넘는다 — 바뀌는 계기가 다른 두 축을 이미 갈랐다.
  * <b>수집</b>(패키지 워킹·리플렉션·소스 텍스트)은 {@link AcademyScopeScan}, <b>판정 술어</b>
  * ("좁혀졌다"·"전건 조회다" 의 정의)는 {@link AcademyScopeRule}. 여기 남은 것은 <b>ERD §6.1 표 3개와
  * 그 표에 거는 단언들</b>이라 더 나누면 표와 그 표를 쓰는 단언이 다른 파일에 놓여 정의처가 흩어진다.

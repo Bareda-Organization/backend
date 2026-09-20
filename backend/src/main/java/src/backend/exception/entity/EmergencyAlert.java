@@ -116,7 +116,7 @@ public class EmergencyAlert {
 
     /**
      * 기사·동승자가 비상 버튼을 눌러 신고가 서버에 도달했을 때 생성한다 — 위치·메모는 선택값이라 팩토리에서
-     * 다루지 않는다. 파라미터 10개는 reference.md §20.2 기준(4개)을 크게 넘지만, NN 필드 전부가 신고 접수 시점에
+     * 다루지 않는다. 파라미터 10개는 CODE_CONVENTIONS.md §20.2 기준(4개)을 크게 넘지만, NN 필드 전부가 신고 접수 시점에
      * 필요하고 스냅샷 성격상 나중에 채울 수 없어 규약 §3(팩토리 분화 금지)을 우선했다.
      */
     public static EmergencyAlert onRaise(Long academyId, Long runId, String busNo, Long raisedBy,

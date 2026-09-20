@@ -106,7 +106,7 @@ services:
       - web
 
   # ── 관측 스택 ──────────────────────────────────────────────────────────────
-  # 설계 근거: docs/superpowers/specs/2026-08-21-관제-대시보드-design.md
+  # 설계 근거: docs/archive/specs/2026-08-21-관제-대시보드-design.md
   # exporter 들은 호스트에 포트를 열지 않는다 — Prometheus 가 컨테이너 네트워크에서만 긁는다.
   # ⚠ prometheus 는 `backend:8080` 을 긁는다 — 즉 관측은 **앱을 컨테이너로 띄웠을 때만** 맞는다.
   #   IDE 에서 bootRun 하는 개발 방식에서는 `infra/observability/prometheus/prometheus.yml` 의

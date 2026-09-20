@@ -51,7 +51,7 @@ import testsupport.gate.AccountStatusGateEndpoints;
  * 대상 목록과 그 목록이 낡지 않았는지 대조하는 수단은 {@code testsupport.gate.AccountStatusGateEndpoints}
  * 에 둔다.
  *
- * <p>클래스가 200줄({@code reference.md} §20.2)을 넘지만 나누지 않는다 — 위 이유로 세 조건이 흐름
+ * <p>클래스가 200줄({@code CODE_CONVENTIONS.md} §20.2)을 넘지만 나누지 않는다 — 위 이유로 세 조건이 흐름
  * 하나를 공유하고, 나누면 조건 2·3 이 다시 픽스처로 심은 토큰을 쓰게 된다.
  */
 @SpringBootTest

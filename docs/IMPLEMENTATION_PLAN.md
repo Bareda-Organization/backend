@@ -121,7 +121,7 @@
 | `global/tenant/TenantGuard` | **패턴 살림 · 재작성** | "역할만으로 부족하다"는 판단은 `ARCHITECTURE §5.1` ③층과 동일. 다만 N:M 멤버십 전제라 코드는 재작성. **✅ 2026-08-25 Phase 2 Task 5 에서 이행** — `global/security/access/AcademyScope` 로 대체하고 원본은 삭제. 호출처 0건이었고 분기 4개 중 3개는 보존, 1개(academyId null 판정)는 `AuthUser` 컴팩트 생성자로 이동 |
 | `observability/` (aspect · metrics · listener) | **살림 · 구독 대상 교체** | `@Scheduled` 를 AOP 로 감싸 계측하는 방식은 `ARCHITECTURE §13.3` 의 "확정 배치 도래→완료 지연" 지표가 그대로 요구. 리스너의 구독 이벤트만 교체 |
 | `docker-compose.yml` · `docker-compose.prod.yml` · `infra/` | **살림** | postgres 영속 볼륨 부재 구성 · nginx TLS·프록시 · Prometheus/Grafana 스택이 `ARCHITECTURE §13` 과 일치 |
-| `docs/DEPLOYMENT.md` | **살림 · 갱신 대기** | 배포 절차는 유효. 시드 계정표는 §3 확정 후 갱신 |
+| `docs/infra/DEPLOYMENT.md` | **살림 · 갱신 대기** | 배포 절차는 유효. 시드 계정표는 §3 확정 후 갱신 |
 
 ### 1.3 걷어냄 — 옛 제품 도메인
 
@@ -379,7 +379,7 @@
 | ① | **목표** | 기능 ID 가 무엇을 보장해야 하는지를 **검증 가능한 문장**으로 옮김. 사양 절·규칙 ID·경계값을 여기서 확정 | 테스트 이름 목록 | 문장마다 "무엇이 깨지면 이 문장이 거짓이 되는가" 에 답할 수 있음 |
 | ② | **RED** | ①의 문장 하나를 테스트 코드로 작성하고 **실행해 실패를 확인** | 실패하는 테스트 1개 | **실패 메시지를 눈으로 확인.** 실패 원인이 오타·컴파일 오류가 아니라 **기능 부재** |
 | ③ | **GREEN** | 그 테스트를 통과시키는 **최소** 구현 | 통과하는 테스트 + 구현 | 대상 테스트 통과 + **기존 테스트 전부 통과** |
-| ④ | **REFACTOR** | `reference.md §19`·`§20` 기준으로 정리 — 설명 주석 · SRP · 크기 기준 · 매직 넘버 · 중복 | 정리된 구현 | 테스트가 계속 통과. **동작을 추가하지 않음** |
+| ④ | **REFACTOR** | `CODE_CONVENTIONS.md §19`·`§20` 기준으로 정리 — 설명 주석 · SRP · 크기 기준 · 매직 넘버 · 중복 | 정리된 구현 | 테스트가 계속 통과. **동작을 추가하지 않음** |
 | ⑤ | **검증** | 기능 ID 의 완료 조건을 사양과 대조하고 Phase 절의 "남길 테스트" 에 등재 | 갱신된 Phase 절 · §8 표 | 사양의 해당 절과 어긋난 항목 0건 |
 
 ②~④ 를 문장 하나마다 반복하고, ①의 문장을 전부 소진하면 ⑤ 로 간다.
@@ -400,7 +400,7 @@
 
 #### 4.6.3 목표 문장 쓰는 법
 
-**테스트 이름이 곧 ①의 산출물**이다 (`reference.md §20.3` 8번). 형식은 "언제 · 무엇이 · 어떻게 된다".
+**테스트 이름이 곧 ①의 산출물**이다 (`CODE_CONVENTIONS.md §20.3` 8번). 형식은 "언제 · 무엇이 · 어떻게 된다".
 
 ```
 확정_30분_전이_도래하면_idle_회차가_confirmed_로_전이한다
@@ -619,7 +619,7 @@ void 확정_시각이_도래하면_idle_회차가_confirmed_로_전이한다() {
 
 #### L1·L2 결과 (2026-09-05, F3 L — `report-f3-l.md`, 원본 `backend/load/results/`)
 
-전제 — 지도 API 는 `StubMapRouteClient` 에 **가정값** 주입(300~1200ms · `max_concurrent` 4, 출처 `backend/load/README.md §5` — 실 API 분포는 키 미보유로 측정 불가). 단일 인스턴스 · DB `schoolbus_load` · 포트 18080.
+전제 — 지도 API 는 `StubMapRouteClient` 에 **가정값** 주입(300~1200ms · `max_concurrent` 4, 출처 `docs/backend/LOAD_TESTING.md §5` — 실 API 분포는 키 미보유로 측정 불가). 단일 인스턴스 · DB `schoolbus_load` · 포트 18080.
 
 | 시나리오 | N | 측정값 | §5.3 판정 |
 |---|:-:|---|---|
@@ -630,7 +630,7 @@ void 확정_시각이_도래하면_idle_회차가_confirmed_로_전이한다() {
 
 **증설 신호 판독** — N=200 에서도 미확정 0 이고 lag 가 창(30분) 대비 3.8% 라 워커·인스턴스 증설 신호 **없음**. 다음 라운드 비교 기준은 이 표. 남은 관측 공백 3건은 **F5 S2(2026-09-05) 로 해소** — 아래 추가 표.
 
-**F5 S2 추가 실측 (2026-09-05, `report-f5-s2.md`, `backend/load/README.md §5.1`)** — 시나리오 2 의 "수신 20/기대 180" 은 k6 스크립트 결함 2건(`position` 을 싣지 않는 매니저 채널 구독 + 기사 계정이 academy 채널 인가 거부)이었고, 올리는 쪽(기사 REST)과 받는 쪽(STAFF WS)을 분리하니 **echo 160/160 = 1.0**. 온디맨드 대역(1~6s · 실패율 0.1 · max_concurrent 4)으로 시나리오 1(N=10)+4(N=20) 동시 실행: 승인 미리보기 p95 **4.56s** · `throttled{caller=on_demand}` Δ16 · `throttled{caller=batch}` Δ6(온디맨드 대역을 같이 맞은 값 — 정상 대역 기준선 아님) · 타임아웃→폴백 1 · `MapRouteUnavailableException` 0. `throttled_total` 에 `caller` 태그 신설(`CallerPolicy` 1:1).
+**F5 S2 추가 실측 (2026-09-05, `report-f5-s2.md`, `docs/backend/LOAD_TESTING.md §5.1`)** — 시나리오 2 의 "수신 20/기대 180" 은 k6 스크립트 결함 2건(`position` 을 싣지 않는 매니저 채널 구독 + 기사 계정이 academy 채널 인가 거부)이었고, 올리는 쪽(기사 REST)과 받는 쪽(STAFF WS)을 분리하니 **echo 160/160 = 1.0**. 온디맨드 대역(1~6s · 실패율 0.1 · max_concurrent 4)으로 시나리오 1(N=10)+4(N=20) 동시 실행: 승인 미리보기 p95 **4.56s** · `throttled{caller=on_demand}` Δ16 · `throttled{caller=batch}` Δ6(온디맨드 대역을 같이 맞은 값 — 정상 대역 기준선 아님) · 타임아웃→폴백 1 · `MapRouteUnavailableException` 0. `throttled_total` 에 `caller` 태그 신설(`CallerPolicy` 1:1).
 
 ---
 
@@ -1307,7 +1307,7 @@ void 확정_시각이_도래하면_idle_회차가_confirmed_로_전이한다() {
 | **243** | ✅ **보존 정리는 행 단위 DELETE 배치, 파티셔닝은 이번에 안 한다 (2026-09-04 사용자 확정 — 잠정 그대로).** 컷오프 — `notification_log` 14일(정본) · `run_position` **90일**(잠정, **X-09 신설**) · `refresh_token` 만료·폐기 후 30일(잠정) · `link_code`·`link_request` 만료 즉시 · `audit_log` 삭제 부재. 상한으로 나눠 지운다. `V8` 은 인덱스만 | `ERD §7.2` 가 `run_position`·`audit_log` 를 미확정으로 둠. `§7.3` 파티셔닝은 `V1` 테이블 재생성이 필요하고 실사용 전환(R7 법정 검토)과 묶는 것이 맞다. 현재 적재량(dev DB 3행)에서 파티션 이득 부재 | 확정. X-09 = **90일 확정**(법정 검토 시 재조정 여지만 존치). `RetentionPolicy` 자바독에 "2026-09-04 사용자 확정" |
 | **244** | 🔴 **강제 확정 콘솔 개입(`TECH_DECISIONS §14.3`)의 API 가 `API_SPEC` 에 부재 → 오픈 이슈 `Y` 신설.** 이 Phase 는 엔드포인트를 만들지 않고 런북에 "수단 없음 — Y 판정 대기" 로 적는다 | `PRD §0` — 설계 문서 3종은 사양이 아니다. 사양 4종에 없는 엔드포인트를 설계 문서만 보고 만들면 정본 밖 API 가 생긴다 | §9 열린 항목에 `Y` 등재 |
 | **245** | **배포 게이트 위치 = EC2 의 `infra/scripts/deploy.sh`(이미지 pull 앞), 별도 `deploy-gate.sh` 로 분리해 로컬 실증** | 워크플로는 SSM 으로 `deploy.sh` 를 부른다 — GitHub 러너에서 DB 에 닿을 수 없다. 스크립트 분리는 시험 가능성 때문 | 목표 9 |
-| **246** | **좌석 3개 병렬 — 파일 축.** T1 감사(핸들러 2·게이트) · T2 보존 정리(`V8`·리포지토리 삭제 메서드) · T3 지표·게이트·런북(`docs/DEPLOYMENT.md` 는 메인 저장소 직접). 같은 파일을 두 좌석이 고치는 자리 0 | `p14-goal-table.md §4` 겹침 점검 | 발주 |
+| **246** | **좌석 3개 병렬 — 파일 축.** T1 감사(핸들러 2·게이트) · T2 보존 정리(`V8`·리포지토리 삭제 메서드) · T3 지표·게이트·런북(`docs/infra/DEPLOYMENT.md` 는 메인 저장소 직접). 같은 파일을 두 좌석이 고치는 자리 0 | `p14-goal-table.md §4` 겹침 점검 | 발주 |
 | **247** | 🔴 **Ruling 242 정정 — L3 감사 대상은 5종이 아니라 4종 (2026-09-04, R1 반려 신고).** `ChildListResponse`(학부모 자녀 목록)는 필드가 `student_id`·`name`·`class_name`·`linked_at` 전부 **L1** 이고 자바독이 *"`photo_url` 이 부재한 것이 사양이다(§1.12 · ERD student)"* 라 명시 — L3 를 싣지 않으므로 `SYS-01` 감사 대상 밖. 조율자가 목표 표를 쓸 때 `grep` 이 자바독 본문의 낱말(`note`)을 필드로 오인했다 | R1 판정문 §2 + 조율자 코드 확인(`ChildListResponse.java:11·31`) | **🔴 → 해소(판정 정정).** 대상 4종 = `StudentDetailResponse`·`StaffRosterItemResponse`·`AdminRunRosterResponse`·`ManagerRosterResponse`. 목표 표 §1 1번 정정. R1 의 ⚠ 3건(`StudentQueryService.detail()`·`AdminRunRosterQueryService.roster()` 감사 호출 전담 시험 부재 · `§6.13` 응답 JSON 키 문자열 무단언)은 **T1 수정 라운드 1 → R1 재판정** |
 | **248** | 🔴 **T2 `RetentionCleanupSchedulerTest` 의 2032년 고정 시계가 공유 DB 시드를 지운다 (2026-09-04, 최종 실측 신고).** 실제로 행을 지우는 배치를 미래 고정 시계로 돌려 컷오프가 밀리고 시드 전부(`notification_log` 10 · `run_position` 3 · `link_code`·`link_request` 1)가 삭제 → 같은 DB 에서 뒤에 도는 `NotificationOutboxWorkerTest` 3건이 시드 부재로 실패(새 DB 단독 7/7 통과로 DB 상태 문제임을 가름). R2 는 좌석 범위 시험만 돌려 못 봤다 | 조율자 실측 — `schoolbus_p14final` 행 수 대조 · 새 DB `sb_p14_chk` 에서 정리 → 아웃박스 순 실행 재현 | **조율자 편집 `4933372`** — 고정 시계 제거, 앱 `Clock`(실제 시각) 사용. 심는 행이 전부 `now` 상대라 판정은 여전히 결정적. **⚠ 규칙화 — 실제 삭제를 하는 시험은 고정 시계를 쓰지 않는다**(`p14f-common.md §4`). 이 편집은 리뷰를 건너뛰었으므로 F1 S1 리뷰 대상에 명시 |
 | **249** | **이월 소단위 묶음 F1 신설 — Phase 14 이월 ①~⑤ · Phase 13 이월 ①②⑤⑦⑧⑨ · 오픈 이슈 X(`§5.19`)를 좌석 3개(S1 관측·보존 시험 강화 / S2 관제·비상 응답 시험 강화 / S3 구현 2건)로 병렬 배정 (2026-09-04, 사용자 지시 "병렬 가능하면 에이전트 팀").** X 는 정본 `API_SPEC §5.19` 가 응답·권한·에러를 전부 정하고 있고 `RunRouteQueryService`·`Assignment.ackedRouteVersionId` 가 실재해 소단위로 닫을 수 있다(조율자가 경로 확인). W 는 `I` 판정 선행이라 제외 · Y 는 정본 미기재라 제외 | `p14f-goal-table.md`(12항 · §0 재계수 표 · §3 파일 분할 겹침 0) | 분기점 `4933372`. 게이트 90 → **91**(S3 의 `GET /staff/runs/{runId}/route` 1개) · `hasSize(101)`. 리뷰 3좌석 + 조율자 편집 `4933372` 를 S1 리뷰 대상에 명시 |
@@ -1358,7 +1358,7 @@ void 확정_시각이_도래하면_idle_회차가_confirmed_로_전이한다() {
 
 | # | 항목 | 다음 단위에서 확인할 것 |
 |:-:|---|---|
-| **①** | **docgraph 미색인 문서 인용 11건** — 코드 자바독이 `backend/docs/reference.md` 의 SRP·크기 기준 절(8건, 코드 컨벤션 — gitignore 라 워크트리에 없어 S2 가 "부재" 로 오신고) · `p1-entity-conventions.md §4.4`(3건)을 인용. 인용 자체는 유효 | docgraph 가 두 문서를 색인하게 `config.json` `docs_globs` 확장(도구 세션) — 코드는 손대지 않음 |
+| **①** | **docgraph 미색인 문서 인용 11건** — 코드 자바독이 `docs/backend/CODE_CONVENTIONS.md` 의 SRP·크기 기준 절(8건, 코드 컨벤션 — gitignore 라 워크트리에 없어 S2 가 "부재" 로 오신고) · `p1-entity-conventions.md §4.4`(3건)을 인용. 인용 자체는 유효 | docgraph 가 두 문서를 색인하게 `config.json` `docs_globs` 확장(도구 세션) — 코드는 손대지 않음 |
 | **②** | **`LowerCaseFormatter.lower(null)` 회귀 방지력 부재**(R2 ⚠) — null 무방어 변형이 0 실패로 생존 | 단위 시험 1건(`null → null`) |
 | **③** | **`LinkedChildLookup` 의 "연결 없음 → 403, 퇴원 → 404" 순서 규칙 1차 출처가 정본에 없음**(S2 신고 → R2 ⚠). 자바독은 `API_SPEC §3.7` 로 정정 | `API_SPEC §3.7` 에 순서 규칙 한 줄(문서 소단위) |
 | **④** | **관계자 경유 지점 해제(웨이포인트 DELETE) 엔드포인트 정본 공백**(S3 신고) — 코드에 실재, `API_SPEC §5.15` 에 정식 헤더·표 행 부재 | `§5.15` 에 행 추가(헤더 신설 여부는 사용자 결정) |
@@ -1495,7 +1495,7 @@ void 확정_시각이_도래하면_idle_회차가_confirmed_로_전이한다() {
 
 ## 7. 횡단 규칙 (전 Phase 공통)
 
-매 Phase 착수 전·완료 전에 훑는 체크리스트. 근거는 `TECH_DECISIONS` (규칙 19·20 은 `backend/docs/reference.md`, 규칙 21·22 는 §4.6·§4.7, 규칙 23·24 는 전역 `~/.claude/rules/phase-goal-loop.md`, 규칙 25 는 아래 §7.25). **25개 전부 백엔드 규칙**이고 프론트 전용 항목은 부재 — 프론트 전용 규칙은 Phase F1~F4 절의 "전 제품 공통 3가지"에 있으며 그 절은 현재 ➖ 범위 밖.
+매 Phase 착수 전·완료 전에 훑는 체크리스트. 근거는 `TECH_DECISIONS` (규칙 19·20 은 `docs/backend/CODE_CONVENTIONS.md`, 규칙 21·22 는 §4.6·§4.7, 규칙 23·24 는 전역 `~/.claude/rules/phase-goal-loop.md`, 규칙 25 는 아래 §7.25). **25개 전부 백엔드 규칙**이고 프론트 전용 항목은 부재 — 프론트 전용 규칙은 Phase F1~F4 절의 "전 제품 공통 3가지"에 있으며 그 절은 현재 ➖ 범위 밖.
 
 | # | 규칙 | 근거 | 어기면 |
 |---|---|---|---|
@@ -1517,8 +1517,8 @@ void 확정_시각이_도래하면_idle_회차가_confirmed_로_전이한다() {
 | 16 | **모듈 역방향 참조 금지** — 하위 모듈이 `routing` 을 미참조 | `ARCHITECTURE §3.3` | 주소 수정 트랜잭션 안에 외부 지도 API 호출이 포함 |
 | 17 | **`notification` 을 직접 호출하지 않음** — 이벤트 구독으로만 | `ARCHITECTURE §3.3` | 승하차 트랜잭션이 푸시 실패로 롤백 |
 | 18 | **정책 값을 문서에 복제하지 않음** — 규칙 ID 참조 | §0.1 | 사양 변경 시 두 곳이 갈림 |
-| 19 | **클래스 · public 메서드 · enum · 이벤트 · 포트에 설명 주석** — 기본 한 문장, 둘째 문장은 다른 질문에 답할 때만. 시그니처를 되풀이하는 주석은 부재 | `reference.md §19` | 6개월 뒤 그 코드가 왜 있는지 판단할 근거가 부재 |
-| 20 | **SRP · 클린 코드** — 클래스가 바뀌는 이유 1개 · 메서드 20줄 · 중첩 2단 · 파라미터 4개 · 매직 넘버 부재 · 조기 반환 | `reference.md §20` | 정책이 하나 바뀔 때 고칠 파일이 여러 개로 증가 |
+| 19 | **클래스 · public 메서드 · enum · 이벤트 · 포트에 설명 주석** — 기본 한 문장, 둘째 문장은 다른 질문에 답할 때만. 시그니처를 되풀이하는 주석은 부재 | `CODE_CONVENTIONS.md §19` | 6개월 뒤 그 코드가 왜 있는지 판단할 근거가 부재 |
+| 20 | **SRP · 클린 코드** — 클래스가 바뀌는 이유 1개 · 메서드 20줄 · 중첩 2단 · 파라미터 4개 · 매직 넘버 부재 · 조기 반환 | `CODE_CONVENTIONS.md §20` | 정책이 하나 바뀔 때 고칠 파일이 여러 개로 증가 |
 | 21 | **기능 ID 1개 = TDD 사이클 1회** — 목표 → RED(실패 확인) → GREEN → REFACTOR → 검증. 실패를 보지 않은 테스트는 산출물로 미인정 | §4.6 | 통과하는 빈 테스트와 실제 검사를 구분할 수단이 부재 |
 | 22 | **Phase 1개 = 목표 → 통과까지 반복** — 완료 조건을 실행 가능한 형태로 먼저 고정하고, 전항 통과 전까지 ✅ 미부여. 부분 통과는 🟡 | §4.7 | 성립하지 않은 선행 위에 다음 Phase 가 얹힘 |
 | 23 | **음성 대조로 단언을 실측** — 새 단언마다 그것이 잡으려는 결함을 프로덕션에 심어 **그 단언만** 실패하는지 확인. 원복 후 `git status --porcelain` 이 빈 것까지 | `phase-goal-loop §5` | 초록이 "결함 부재" 가 아니라 **"테스트 전체 묶음이 결함을 못 봄"** 과 구분되지 않음 |
@@ -1628,7 +1628,7 @@ void 확정_시각이_도래하면_idle_회차가_confirmed_로_전이한다() {
 | 2 | **`BE-R1` 백엔드 정합 라운드** ← 이 절 | F3 종결 후 착수 |
 | 3 | **프론트 F4** (실시간 · 지도) | `BE-R1` 종결 후 |
 
-- ⚠ **`BE-R1` 은 F3 의 이월이 아니라 독립 태스크다.** 프론트 이월(`frontend/IMPLEMENTATION_PLAN §5.3`)과 섞지 않는다 —
+- ⚠ **`BE-R1` 은 F3 의 이월이 아니라 독립 태스크다.** 프론트 이월(`docs/frontend/IMPLEMENTATION_PLAN §5.3`)과 섞지 않는다 —
   저쪽은 프론트가 고치고 이쪽은 백엔드가 고친다
 - ⚠ **F4 를 `BE-R1` 앞에 두지 않는 이유** — 6번(비상 발신 응답)이 고쳐지지 않으면 **매니저 앱의 비상 발신이
   실제로 동작하지 않는다.** 그 위에 실시간(F4)을 얹으면 안 되는 기능 위에 얹는 것이 된다
@@ -1679,7 +1679,7 @@ void 확정_시각이_도래하면_idle_회차가_confirmed_로_전이한다() {
 `real_backend_p1_test.dart:77`·`real_backend_p2_test.dart:80` 이 **`localhost:8082` 를 박아 두고 있어**
 `--dart-define` 을 옳게 줘도 안 읽는다. 그 포트는 F3 좌석 것이라 지금 존재하지 않는다.
 ⇒ **이 6건은 어떤 회차에서도 돈 적이 없다. 커버리지처럼 보이지만 0이다.**
-`FE-R2` 이월 11번으로 돌렸다(`frontend/IMPLEMENTATION_PLAN.md §5.3` — **조율자가 한 번 닫았다가 다시 연 항목**).
+`FE-R2` 이월 11번으로 돌렸다(`docs/frontend/IMPLEMENTATION_PLAN.md §5.3` — **조율자가 한 번 닫았다가 다시 연 항목**).
 
 ✅ **2026-09-13 정정 (사용자 확정)** — 9번의 대상이 ~~`2·3·5`~~ → **`1·2·3·5`** 다. 같은 목록이 세 곳에 적혀
 있었고 셋이 서로 달랐다(도입부 `2·3·6·7`(고칠 항목 번호) · 목표 9 `2·3·5` · 고칠 항목 표 꼬리 `2·3`).
@@ -2178,7 +2178,7 @@ ApiConstants.baseUrl 기본값 http://localhost:8080/api/v1 = 조율자 시드 �
 
 > *"배포는 일단 제외하고 F5 에서는 연결 검증까지만 진행"*
 
-**바뀐 것** — `frontend/IMPLEMENTATION_PLAN.md §5` 의 F5 행
+**바뀐 것** — `docs/frontend/IMPLEMENTATION_PLAN.md §5` 의 F5 행
 (*"실제 API 연결 검증 · Docker 배포"* → **연결 검증까지만**).
 
 **F5 에 남는 것 — 화면 단위 완료 조건 4개**(같은 문서 `§6`)
@@ -2188,7 +2188,7 @@ ApiConstants.baseUrl 기본값 http://localhost:8080/api/v1 = 조율자 시드 �
 | 1 | **정본 대조** — 화면이 덮는 기능 ID·유저플로우 항목을 1:1 로 확인 |
 | 2 | **실제 API 호출** — 백엔드를 띄우고 그 화면이 쓰는 엔드포인트를 **전부 실제로** 호출. Mock 으로 대체한 항목은 목록으로 보고 |
 | 3 | **예외 경로** — `USER_FLOWS §12`(서버 실패·통신 두절·권한 차단)와 `API_SPEC §8` 에러 코드 중 그 화면에 걸리는 것을 실제로 재현 |
-| 4 | **컨벤션** — `frontend/CONVENTIONS.md` 위반 0 (React 한정) |
+| 4 | **컨벤션** — `docs/frontend/CONVENTIONS_REACT.md` 위반 0 (React 한정) |
 
 **F5 에서 빠지는 것** — Docker 배포 구성·`deploy-web.yml` 재작성·실 배포.
 
@@ -2396,7 +2396,7 @@ Caused by: io.lettuce.core.RedisException: java.net.SocketException: Connection 
 ## 8.3 🔧 `BE-R2` — `Ruling 282`(로그인 실패 차단 무효) + 시험 격리 (2026-09-14 계획 · **착수 전**)
 
 **F5 가 실서버 호출로 드러낸 보안 결함 1건과, 사용자가 지시한 시험 격리 요건을 한 라운드로 묶는다.**
-프론트 갈래(`FE-R3`)는 `frontend/IMPLEMENTATION_PLAN.md §5.6` 에 따로 있다 — **서로 파일이 겹치지 않는다.**
+프론트 갈래(`FE-R3`)는 `docs/frontend/IMPLEMENTATION_PLAN.md §5.6` 에 따로 있다 — **서로 파일이 겹치지 않는다.**
 
 ### 왜 지금인가 — 실측 근거
 
@@ -2825,7 +2825,7 @@ DB 를 갈라도 커넥션 수는 서버 전체 공유이고, 컨텍스트 캐�
 
 | 항목 | 내용 | 처리 |
 |---|---|---|
-| **문서 그래프 색인의 깨진 참조 121건** (2026-09-20 재색인 기준 — 수치는 `check` 를 돌릴 때마다 다시 센다, `python3 ~/.claude/tools/docgraph/build.py <repo>`) | 도구 `~/.claude/tools/docgraph/`(규칙 `~/.claude/rules/docgraph.md`). 범주 — `missing_section` 38 · `ruling_not_in_docs` 60(**전부 코드 주석** — 코드가 인용한 판정이 정본에 미기록) · `undefined_endpoint` 22 · `undefined_id` 1. **2026-09-20 에 208 → 121 로 정리했다** — 절반이 도구 오탐이었다: ①상위 ID 에서 잘린 조각(`UF-P-01` → `P-01`) 238건 ②경로로 이름이 갈린 문서(`docs/IMPLEMENTATION_PLAN`)를 맨 이름 참조가 못 찾음 ③소문자 문서명(`reference.md`) 미인식 ④색인 밖 규칙 파일(`phase-goal-loop.md`)을 없는 절로 계수 ⑤ID 가 아닌 문자열(`SHA-256`·`HTTP-01`·`SA-01~06`) | **작업 지시 범위에 걸린 것만 그때 고친다**(전체 0건은 발주 조건이 아니다). 2026-09-20 처리분 — 코드 주석 18건에 문서명 명시(`§20.2` → `reference.md §20.2` 등) · `BRD-07`(부재 ID) → `EXC-04`·`EXC-02·03`. 남은 것의 큰 묶음은 `ruling_not_in_docs` **60**. ⚠ **이 칸에 판정 번호를 예시로 적지 마라** — 도구가 이 줄을 그 판정의 기록처로 대신 잡아 (`build._ruling_fallback_records`) 정본에 기록 없는 판정 20건이 통째로 가려진다. 2026-09-20 에 옛 예시를 걷어내고서야 40 → 60 으로 드러났다 |
+| **문서 그래프 색인의 깨진 참조 121건** (2026-09-20 재색인 기준 — 수치는 `check` 를 돌릴 때마다 다시 센다, `python3 ~/.claude/tools/docgraph/build.py <repo>`) | 도구 `~/.claude/tools/docgraph/`(규칙 `~/.claude/rules/docgraph.md`). 범주 — `missing_section` 38 · `ruling_not_in_docs` 60(**전부 코드 주석** — 코드가 인용한 판정이 정본에 미기록) · `undefined_endpoint` 22 · `undefined_id` 1. **2026-09-20 에 208 → 121 로 정리했다** — 절반이 도구 오탐이었다: ①상위 ID 에서 잘린 조각(`UF-P-01` → `P-01`) 238건 ②경로로 이름이 갈린 문서(`docs/IMPLEMENTATION_PLAN`)를 맨 이름 참조가 못 찾음 ③소문자 문서명(`CODE_CONVENTIONS.md`) 미인식 ④색인 밖 규칙 파일(`phase-goal-loop.md`)을 없는 절로 계수 ⑤ID 가 아닌 문자열(`SHA-256`·`HTTP-01`·`SA-01~06`) | **작업 지시 범위에 걸린 것만 그때 고친다**(전체 0건은 발주 조건이 아니다). 2026-09-20 처리분 — 코드 주석 18건에 문서명 명시(`§20.2` → `CODE_CONVENTIONS.md §20.2` 등) · `BRD-07`(부재 ID) → `EXC-04`·`EXC-02·03`. 남은 것의 큰 묶음은 `ruling_not_in_docs` **60**. ⚠ **이 칸에 판정 번호를 예시로 적지 마라** — 도구가 이 줄을 그 판정의 기록처로 대신 잡아 (`build._ruling_fallback_records`) 정본에 기록 없는 판정 20건이 통째로 가려진다. 2026-09-20 에 옛 예시를 걷어내고서야 40 → 60 으로 드러났다 |
 | **테이블 수 선언 불일치** ✅ 해소 | 2026-08-25 실측 정정 — `ERD §3` 의 `####` 항목이 **39**(그룹별 7·7·13·12). `ERD §1` 소계표(7·6·13·10)와 이 문서 Phase 1 완료 조건의 38 표기를 39 로 맞춤. `FEATURE_SPEC §3.2` 는 이미 39 로 일치 | 구현 기준 **39**. 세 문서 전부 일치 |
 | **`PRD §7.1` 미배치 6건** | 도메인 STU·MGR·BUS 와 기능 RTE-01·RTE-07·ATT-03 이 P0~P2 어디에도 미기재 | 실행 순서상 Phase 5·6·8 에 포함. 우선순위 배치 확정은 별건 |
 | ~~**🔸 표기 항목의 존치 여부**~~ | 구 기획에서 흡수한 항목의 존치가 미확정 (`FEATURE_SPEC §0`) | **해소 — 2026-09-05 F4 조율자 계수.** `grep -c '🔸' docs/FEATURE_SPEC.md docs/PRD.md docs/USER_FLOWS.md docs/API_SPEC.md` 전부 **0** — 미확정 표기가 남아 있지 않다 |
@@ -2972,7 +2972,7 @@ grep -c 'member-accounts' docs/API_SPEC.md   # → 0
 ```
 
 ⚠ **`member-accounts` 는 정본 어디에도 실재한 적이 없는 이름.** 조율자가 `F5` 이월 표 문면
-(`frontend/IMPLEMENTATION_PLAN.md §5.5` 4번)을 확인 없이 옮겨 적음. 실제 경로는
+(`docs/frontend/IMPLEMENTATION_PLAN.md §5.5` 4번)을 확인 없이 옮겨 적음. 실제 경로는
 `/admin/staff-accounts`(`API_SPEC:2014`·`:2022`)이고 그 흐름은 `UF-O-06`(`USER_FLOWS:652`)이
 2026-09-14 에 이미 메움.
 
@@ -3125,7 +3125,7 @@ Dart 생성 코드 재생성은 불요(`route_detail.dart` 는 수동 파싱 · 
 | 3 | `max_connections` 상향 (`§8.6` 목표 6) | postgres 재기동 필요 |
 
 ⚠ **①②는 "환경 차단" 으로 세 세션 이월됐으나 근거가 낡아 있었다.** 전말은
-`frontend/IMPLEMENTATION_PLAN.md §5.5` 이월 8번 아래. **차단 사유도 파생본이라 낡는다** —
+`docs/frontend/IMPLEMENTATION_PLAN.md §5.5` 이월 8번 아래. **차단 사유도 파생본이라 낡는다** —
 `phase-goal-loop §3`(근거 없는 환경 분류가 코드 결함을 덮는다)의 실례.
 
 ### ✅ `R6` 병합 + 단독 전체 실행 — 6종 전부 실패 0 · 건너뜀 0 (2026-09-17)
@@ -3498,7 +3498,7 @@ baraeda_core 실행              →  visible=48 failed=0 skipped=0
 막는 것은 코드가 아니라 **AWS 실물 자원 + GitHub Secret 3종**(`AWS_DEPLOY_ROLE_ARN` ·
 `DEPLOY_BUCKET` · `EC2_INSTANCE_ID`)이고 사용자 계정 권한이 필요하다.
 워크플로는 `workflow_dispatch`(수동 실행 전용)로 돼 있으며 그 근거가 파일 머리에 적혀 있다.
-절차는 `docs/DEPLOYMENT.md §2.13`.
+절차는 `docs/infra/DEPLOYMENT.md §2.13`.
 
 ---
 
@@ -4218,7 +4218,7 @@ T2 표 3항은 목록 재료로 **`getRuns()`(§5.10)** 를 쓰라고 적었으�
 ### ⚖ Ruling 314 — 기능간 `import` 금지는 **이 저장소에서 이미 지켜지지 않는 규칙**이다. T2 의 선택을 수용한다 (2026-09-19)
 
 `r15-t2` 가 *"`features/run`·`features/admin` 이 `features/route` 의 `getRunRoute` 를 가져다 쓴 것은
-`frontend/CONVENTIONS.md:122` 의 **'기능끼리 서로 import 하지 않는다'** 를 어긴다"* 고 **자진 신고**했다.
+`docs/frontend/CONVENTIONS_REACT.md:122` 의 **'기능끼리 서로 import 하지 않는다'** 를 어긴다"* 고 **자진 신고**했다.
 
 **조율자 실측 — 메인 트리(T2 변경 이전)에 이미 12건이 있다.**
 
@@ -4235,7 +4235,7 @@ T2 표 3항은 목록 재료로 **`getRuns()`(§5.10)** 를 쓰라고 적었으�
 고 정한다. `getRunRoute` 는 API 클라이언트이므로 `shared/` 로 옮기면 **그 규칙과 정면으로 충돌**한다.
 두 규칙이 충돌하는 자리에서는 **대상을 특정한 쪽(API 절)이 이긴다.**
 
-- **이월** — `CONVENTIONS.md:122` 가 실제 코드와 12건 어긋난다. 문서를 실태에 맞게 고치거나
+- **이월** — `CONVENTIONS_REACT.md:122` 가 실제 코드와 12건 어긋난다. 문서를 실태에 맞게 고치거나
   예외 조건을 명시해야 한다. **문서가 낡은 것이지 코드가 틀린 것이 아니다**
 - ⚠ **자진 신고가 이 판정의 유일한 입력이었다** — T2 가 적지 않았으면 규칙 위반으로 남았을 것이고,
   다음 사람이 그것을 근거로 `shared/` 로 옮겨 API 규칙을 깨뜨렸을 것이다
@@ -4323,7 +4323,7 @@ be greater than 0`). **단독 실행은 16/16 통과.**
 | 항목 | 사유 |
 |---|---|
 | ⭐ **`MonitoringPage` 4종 상태 미적용** | `§6.8` 이 `moving` 전용이고 응답이 `stops[].eta`·`destination_eta` 를 **필수**로 요구해 `idle` 회차를 담을 수 없다. **`§6.8` 응답 설계 변경이 선행**(Ruling 313) |
-| `CONVENTIONS.md:122` 가 실태와 12건 어긋남 | 기능간 `import` 금지 조항. **문서가 낡은 것**(Ruling 314) |
+| `CONVENTIONS_REACT.md:122` 가 실태와 12건 어긋남 | 기능간 `import` 금지 조항. **문서가 낡은 것**(Ruling 314) |
 | 구간별 거리·시간 근사값 | `StraightLineLegs.distribute` — R14 에서 이월, R15 범위 밖 |
 | `§4.3`(매니저 앱)에 `road_path` 부재 | Ruling 310 이 관계자 웹만 대상이라 의도적 제외 |
 
@@ -4438,7 +4438,7 @@ be greater than 0`). **단독 실행은 16/16 통과.**
 | 항목 | 상태 |
 |---|---|
 | ~~`MonitoringPage` 4종 상태 미적용~~ | ✅ **해소**(Ruling 315) |
-| `CONVENTIONS.md:122` 가 실태와 12건 어긋남 | 잔여(Ruling 314) |
+| `CONVENTIONS_REACT.md:122` 가 실태와 12건 어긋남 | 잔여(Ruling 314) |
 | 구간별 거리·시간 근사값 | 잔여 |
 | `§4.3`(매니저 앱)에 `road_path` 부재 | 잔여(의도적 제외) |
 
@@ -4483,7 +4483,7 @@ be greater than 0`). **단독 실행은 16/16 통과.**
 |---|---|---|---|
 | `r17-t1` | `claude-sonnet-5[1m]` · high | `location/proximity` · `routing/repository` **시험** | — |
 | `r17-t2` | `claude-sonnet-5[1m]` · high | `routing/map/impl`(`StraightLineLegs`·`NaverDirectionsGateway`) | — |
-| `r17-t3` | `claude-sonnet-5[1m]` · high | `notification/domain` · `frontend/CONVENTIONS.md` · `frontend/IMPLEMENTATION_PLAN.md` | — |
+| `r17-t3` | `claude-sonnet-5[1m]` · high | `notification/domain` · `docs/frontend/CONVENTIONS_REACT.md` · `docs/frontend/IMPLEMENTATION_PLAN.md` | — |
 
 **셋이 파일을 공유하지 않는다.** ⚠ **T3 은 `docs/IMPLEMENTATION_PLAN.md` 를 건드리지 않는다** — 조율자가 쓴다.
 
@@ -4539,8 +4539,8 @@ be greater than 0`). **단독 실행은 16/16 통과.**
 | # | 완료 조건 | 검사 조건 |
 |:-:|---|---|
 | 1 | **`change_decided` 알림 문구에 자녀 이름을 넣는다** | `ChangeRequestAutoRejectedNotificationListener` 계열. R14 가 정본의 "토글" 문구를 좁게 읽어 제외했고 **확신 70% 로 자진 신고**한 항목이다. **다자녀 가정이 같은 시각에 두 자녀 결과를 받으면 구분할 수단이 부재**하다. `ATT-03` 이행 형태를 따른다(R14-T1 이 토글 6종에 한 것) |
-| 2 | **`frontend/CONVENTIONS.md:122` 를 실태에 맞게 고친다** | *"기능끼리 서로 import 하지 않는다"* 가 **실제로 12건 어긋난다**(`schedule→bus` 4 · `run→map` 2 · `route→schedule` 2 · `route→bus` 2 · `run→auth` 1 · `admin→map` 1). **직접 다시 세고** 어긋나면 보고하라. ⚠ **코드를 고치지 마라 — 문서가 낡은 것이다**(Ruling 314). 예외 조건을 명시하는 방향으로 고친다 |
-| 3 | ⭐ **`frontend/IMPLEMENTATION_PLAN.md` 의 진행 표를 실태에 맞게 고친다** | **5건이 "🔜 착수 전"·"미구현" 으로 남아 있는데 이미 완료**다(2026-09-19 조율자 실측). 인용이다 — **직접 확인하고 어긋나면 보고하라** |
+| 2 | **`docs/frontend/CONVENTIONS_REACT.md:122` 를 실태에 맞게 고친다** | *"기능끼리 서로 import 하지 않는다"* 가 **실제로 12건 어긋난다**(`schedule→bus` 4 · `run→map` 2 · `route→schedule` 2 · `route→bus` 2 · `run→auth` 1 · `admin→map` 1). **직접 다시 세고** 어긋나면 보고하라. ⚠ **코드를 고치지 마라 — 문서가 낡은 것이다**(Ruling 314). 예외 조건을 명시하는 방향으로 고친다 |
+| 3 | ⭐ **`docs/frontend/IMPLEMENTATION_PLAN.md` 의 진행 표를 실태에 맞게 고친다** | **5건이 "🔜 착수 전"·"미구현" 으로 남아 있는데 이미 완료**다(2026-09-19 조율자 실측). 인용이다 — **직접 확인하고 어긋나면 보고하라** |
 | 4 | 관계자 웹 전체 실패 0 · 건너뜀 0 | 기준 **277**(§8.26). ⚠ **백엔드를 띄운 상태로** 돌린다 |
 | 5 | 백엔드 전체 실패 0 · 오류 0 · 건너뜀 0 | 문구 변경의 파급 확인 |
 
@@ -4607,7 +4607,7 @@ be greater than 0`). **단독 실행은 16/16 통과.**
 | | 3 합 = 총합 | ✅ | 누적 반올림 방식 유지. 중간 구간 누적 오차를 새 단언으로 고정 |
 | | 4 폴백 유지 | ✅ | `StraightLineLegs.approximate` 미변경. `distribute` 는 대체 경로로 역할만 재정의 |
 | `T3` | 1 `change_decided` 자녀 이름 | ✅ | `ChangeDecidedComposerTest`·`ChangeAutoRejectedComposerTest`. `ATT-03` 이행 형태 |
-| | 2 `CONVENTIONS.md:122` 정정 | ✅ | **실측 15건**(인용 12건이 오류 — 아래) · 계층형 예외 조항 추가 |
+| | 2 `CONVENTIONS_REACT.md:122` 정정 | ✅ | **실측 15건**(인용 12건이 오류 — 아래) · 계층형 예외 조항 추가 |
 | | 3 프론트 계획서 낡은 표기 | ✅ | 5건 정정(`BE-R2`·`FE-R3`·`LiveMapScreen`·`RouteDetailScreen`·학생 전용 분기 `§3.10`) |
 
 ### Ruling
@@ -4618,7 +4618,7 @@ be greater than 0`). **단독 실행은 16/16 통과.**
   실측 거리(m)·시간(ms)** 을 그대로 담는다(`sum(waypoints[].distance) + goal.distance == summary.distance`
   를 실 호출 3회로 확인). 경유지가 없으면 `waypoints` 필드 자체가 부재. ⇒ 계획서가 후보 1로 제시한
   **`path` 인덱스 슬라이싱은 채택하지 않는다** — 추정을 다시 만드는 일이고 실측값이 이미 있다.
-- **`Ruling 317` — `frontend/CONVENTIONS.md` 의 기능 간 import 금지는 계층 예외를 명시한다.**
+- **`Ruling 317` — `docs/frontend/CONVENTIONS_REACT.md` 의 기능 간 import 금지는 계층 예외를 명시한다.**
   실측 **15건**(`schedule→bus` 4 · `run→route` 2 · `run→map` 2 · `route→schedule` 2 · `route→bus` 2 ·
   `run→auth` 1 · `admin→route` 1 · `admin→map` 1). 최하위 `bus`·`map`·`auth`, 그 위 `schedule`·`route`,
   최상위 `admin`·`run`. 순환 부재. **코드가 아니라 문서를 고친다**(`Ruling 314` 와 같은 갈래).
@@ -4918,7 +4918,7 @@ C 는 A 가 고칠 파일을 **읽기만** 하고 고치지 않는다. **`docs/I
 | # | 완료 조건 | 검사 조건 |
 |:-:|---|---|
 | 1 | ⭐ **어느 버스를 골랐는지 목록에서 보인다** (사용자 지시) | 지금은 지도만 움직이고 **우측 카드가 그대로**라 무엇을 눌렀는지 알 수 없다. 색·테두리·돌출 무엇이든 좋다 — **선택된 카드가 구별되면 된다** |
-| 2 | ⭐ **상태 태그 색을 상태마다 다르게** (사용자 지시) | 지금 **확정·대기가 같은 색**이다. 4종(운행 중·운행 종료·확정·대기)을 구별한다. ⚠ **색은 그린·앰버·레드·스톤 4색 고정**(`C-09`, `frontend/IMPLEMENTATION_PLAN.md` 전 제품 공통 3가지) — 새 색을 만들지 마라 |
+| 2 | ⭐ **상태 태그 색을 상태마다 다르게** (사용자 지시) | 지금 **확정·대기가 같은 색**이다. 4종(운행 중·운행 종료·확정·대기)을 구별한다. ⚠ **색은 그린·앰버·레드·스톤 4색 고정**(`C-09`, `docs/frontend/IMPLEMENTATION_PLAN.md` 전 제품 공통 3가지) — 새 색을 만들지 마라 |
 | 3 | ⭐ **경로 색도 상태별로 다르게** (사용자 지시) | 같은 4종 구분을 지도 위 선에도 적용한다. `MapPolyline` 에 **종류를 넓히는 방식**을 쓰되(`kind` 가 지금 `"route"` 하나다) ⚠ **`types.ts` 는 Flutter 앱 2종도 쓴다** — `graft callers` 로 먼저 세고 보고서 2항에 적어라 |
 | 4 | **노선이 없는 회차를 구별한다** | `대기(idle)` 회차는 **아직 확정 전이라 노선이 없는 것이 정상**이다(조율자 실측 — run 1·6). 지금은 *"경로 정보가 아직 없습니다"* 하나로 뭉뚱그린다. **"아직 확정 전"** 과 **"확정됐는데 경로가 없음"** 을 갈라 보여라 |
 | 5 | **근사 경로임을 지도 위에서 알 수 있다** | 지금 안내가 **지도 밖 아래**에 작게 있어 못 보고 *"길이 아닌 곳을 지난다"* 로 읽힌다(사용자 지적). 선 자체나 지도 안에서 드러나게 하라 |

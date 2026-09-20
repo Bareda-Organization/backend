@@ -35,7 +35,7 @@ backend/.env
 
 # 배포 (운영 시크릿 — 커밋 금지)
 # Swagger UI basic auth 계정 파일. 작업 트리에 만들지 않고 EC2 에서 직접 생성한다
-# (절차: docs/DEPLOYMENT.md §2.12). 실수로 만들어졌을 때를 대비해 여기서도 막아 둔다.
+# (절차: docs/infra/DEPLOYMENT.md §2.12). 실수로 만들어졌을 때를 대비해 여기서도 막아 둔다.
 infra/proxy/.htpasswd
 
 # 프론트엔드 — 2026-09-09 재개. 2026-09-09 사용자 결정으로 다시 추적한다
