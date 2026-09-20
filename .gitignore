@@ -13,6 +13,12 @@
 .claude/*
 !.claude/PROJECT_NOTES.md
 !.claude/settings.json
+# 손으로 쓴 프로젝트 스킬만 추적한다 — 워크트리에서 뜬 에이전트가 읽어야 한다
+# (CLAUDE.md "git 추적 범위" 와 같은 근거). 도구가 설치한 스킬(playwright-cli 등)은
+# 재생성되므로 제외 — 아래 예외 한 줄이 그 경계다.
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/baraeda-screen-check/
 .superpowers/
 
 # tokensave local cache db
@@ -79,3 +85,5 @@ frontend/**/*.freezed.dart
 graft/
 .mcp.json
 .ignore
+# Playwright CLI output (may contain credentials)
+.playwright-cli/
