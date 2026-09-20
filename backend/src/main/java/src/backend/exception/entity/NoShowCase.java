@@ -19,7 +19,7 @@ import lombok.NoArgsConstructor;
  * 발생 당시 판정 기준을 재현한다(ERD §3.4 · BRD-05).
  *
  * <p>{@code run_rider_id} 는 UNIQUE 라 탑승자당 케이스가 최대 1개다. 시각 컬럼은 전부 도메인 값이라
- * (대기 시작·만료·해소·에스컬레이션·생성) auditing 대상이 아니며(엔티티 작성 규약 §4.4, Ruling 62),
+ * (대기 시작·만료·해소·에스컬레이션·생성) auditing 대상이 아니며(엔티티 작성 규약 p1-entity-conventions.md §4.4, Ruling 62),
  * 전부 평범한 필드로 두고 팩토리 파라미터로 받는다 — 호출부가 {@code Clock} 에서 얻어 넘긴다.
  */
 @Entity

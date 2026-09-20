@@ -18,7 +18,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
  * CHANGE_REQUEST_WRITE} 를 재사용하지 않은 것과 동일).
  *
  * <p>좁히는 것은 {@code run.access.RunAssignmentAccess#assertAssignedDriverOrEscort} 다 — 배치되지
- * 않은 회차(존재하지 않는 회차·다른 학원 회차 포함)는 {@code 403 FORBIDDEN}(§1.11)이다.
+ * 않은 회차(존재하지 않는 회차·다른 학원 회차 포함)는 {@code 403 FORBIDDEN}(API_SPEC §1.11)이다.
  */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)

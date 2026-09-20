@@ -126,7 +126,7 @@ public class ProximityNotificationService {
      *
      * <p>선점에 성공하면(1행 갱신) {@link StopDepartureService#claimAndPublish} 가
      * {@code StopDepartedEvent} 를 발행한다 — 그 승하차지의 확정 결과를 학생별로 통지하는 재료다
-     * (Ruling 308, §8.23 T3 목표 2). {@code academyId} 는 그 이벤트에 실어 보낸다.
+     * (Ruling 308, IMPLEMENTATION_PLAN §8.23 T3 목표 2). {@code academyId} 는 그 이벤트에 실어 보낸다.
      */
     @Transactional
     public void judgeDeparture(Long runId, Long academyId) {

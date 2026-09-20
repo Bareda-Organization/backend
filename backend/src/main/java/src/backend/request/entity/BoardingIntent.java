@@ -26,7 +26,7 @@ import src.backend.request.domain.ChangeWindow;
  * 으로 나와 {@code 403 CHANGE_LIMIT_REACHED} 응답이 되지 못한다.
  *
  * <p>{@code created_at} 만 있고 {@code updated_at} 이 없어 {@code BaseTimeEntity} 를 상속하지 않는다
- * (엔티티 작성 규약 §4.4, Ruling 62) — auditing 은 두 컬럼을 모두 가진 테이블에만 쓰고, 이 컬럼은 평범한
+ * (엔티티 작성 규약 p1-entity-conventions.md §4.4, Ruling 62) — auditing 은 두 컬럼을 모두 가진 테이블에만 쓰고, 이 컬럼은 평범한
  * 필드로 두어 값을 팩토리 파라미터로 받는다(호출부가 {@code Clock} 에서 얻어 넘긴다).
  */
 @Entity

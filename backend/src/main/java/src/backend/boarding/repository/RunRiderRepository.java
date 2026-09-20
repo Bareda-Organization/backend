@@ -203,7 +203,7 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
             @Param("stopIds") Collection<Long> stopIds);
 
     /**
-     * 그 승하차지를 출발할 때(Ruling 308, §8.23 T3 목표 3·9) 확정 결과를 통지할 학생 명단 — 승차·
+     * 그 승하차지를 출발할 때(Ruling 308, IMPLEMENTATION_PLAN §8.23 T3 목표 3·9) 확정 결과를 통지할 학생 명단 — 승차·
      * 하차·미승차 3종만 대상이다. {@code waiting} 인 채 출발한 학생은 발송 대상이 아니다(목표 9)
      * 이라 이 조회가 이미 걸러 낸다. {@code absent} 도 뺀다 — 결석은 운행 중 승하차 처리 결과가
      * 아니라 사전에 확정된 상태라 이 통지의 대상이 아니다(근접 알림의 {@code excludingAbsent} 와

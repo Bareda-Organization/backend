@@ -3,7 +3,7 @@ package src.backend.location.event;
 import java.time.OffsetDateTime;
 
 /**
- * 승하차지 1건의 출발이 선점됐음을 알리는 도메인 이벤트(Ruling 308, §8.23 T3 목표 2) — 그 승하차지의
+ * 승하차지 1건의 출발이 선점됐음을 알리는 도메인 이벤트(Ruling 308, IMPLEMENTATION_PLAN §8.23 T3 목표 2) — 그 승하차지의
  * 확정 결과(승차·하차·미승차)를 학생별로 1건씩 학부모에게 통지하는 재료다.
  *
  * <p>{@link src.backend.routing.repository.RunStopRepository#claimDeparture} 조건부 UPDATE 가

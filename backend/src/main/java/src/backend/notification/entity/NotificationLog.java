@@ -132,7 +132,7 @@ public class NotificationLog {
 
     /**
      * 알림을 유발한 이벤트와 같은 트랜잭션에서 발송 대기 행을 만든다(아웃박스 패턴) — 발송 시도·상태 갱신은
-     * 도메인 Phase 담당. 파라미터 9개는 §20.2 기준(4개)을 크게 넘지만, NN 필드 전부가 아웃박스 삽입
+     * 도메인 Phase 담당. 파라미터 9개는 reference.md §20.2 기준(4개)을 크게 넘지만, NN 필드 전부가 아웃박스 삽입
      * 시점에 필요해 규약 §3(팩토리 분화 금지)을 우선했다.
      */
     public static NotificationLog forOutbox(Long academyId, Long recipientAccountId,

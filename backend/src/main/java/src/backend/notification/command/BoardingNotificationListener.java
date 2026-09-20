@@ -31,7 +31,7 @@ import src.backend.student.repository.StudentRepository;
  * 와 같은 형태로 도메인 이벤트를 구독해 {@link NotificationOutbox} 에만 적는다. 승하차 처리 커맨드가
  * 이 클래스를 직접 부르지 않는다(§7 규칙 17).
  *
- * <p><b>발송 시점이 상태 변경 즉시가 아니라 그 승하차지를 출발할 때다(Ruling 308, §8.23 T3)</b> —
+ * <p><b>발송 시점이 상태 변경 즉시가 아니라 그 승하차지를 출발할 때다(Ruling 308, IMPLEMENTATION_PLAN §8.23 T3)</b> —
  * {@link #appendStopDeparted} 가 {@link StopDepartedEvent} 를 구독해 그 시점의 확정 결과를 학생별로
  * 1건씩 적재한다. 출발 전 되돌리기(승차↔하차↔대기)를 몇 번 반복해도 알림은 나가지 않으므로, 되돌리기
  * 전용 정정 알림({@code Ruling 219})은 더 이상 필요 없어 폐기됐다 — 정정할 대상 자체가 없다(출발

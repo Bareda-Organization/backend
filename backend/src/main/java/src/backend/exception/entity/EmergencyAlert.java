@@ -21,7 +21,7 @@ import src.backend.global.common.enums.ManagerRole;
 
 /**
  * 비상 알림 — 위치·탑승자 수·발신 시각을 스냅샷으로 고정해 원본(run·account·academy)이 사라져도
- * 신고 당시 상황을 그대로 재현한다(ERD §3.4 · BRD-07).
+ * 신고 당시 상황을 그대로 재현한다(ERD §3.4 · EXC-04).
  *
  * <p>{@code academy_id}·{@code run_id}·{@code raised_by} 는 논리적 부모이나 DB FK 가 미설정이다
  * (ERD §4.2 — 스냅샷 성격상 원본 정리와 보존 주기가 다르다). {@code raised_by_role} 은 CHECK 가 부재해
@@ -116,7 +116,7 @@ public class EmergencyAlert {
 
     /**
      * 기사·동승자가 비상 버튼을 눌러 신고가 서버에 도달했을 때 생성한다 — 위치·메모는 선택값이라 팩토리에서
-     * 다루지 않는다. 파라미터 10개는 §20.2 기준(4개)을 크게 넘지만, NN 필드 전부가 신고 접수 시점에
+     * 다루지 않는다. 파라미터 10개는 reference.md §20.2 기준(4개)을 크게 넘지만, NN 필드 전부가 신고 접수 시점에
      * 필요하고 스냅샷 성격상 나중에 채울 수 없어 규약 §3(팩토리 분화 금지)을 우선했다.
      */
     public static EmergencyAlert onRaise(Long academyId, Long runId, String busNo, Long raisedBy,
