@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **git 추적 범위 — 앱 동작에 필요한 것 + 에이전트가 읽어야 하는 것 (2026-09-18 확장).** `backend/`(테스트·k6 부하 스크립트 포함) · `infra/` · `docker-compose*.yml` · `.github/workflows/deploy-backend.yml` 에 더해, **문서 Markdown(`docs/**/*.md`) · 이 파일(`CLAUDE.md`) · `.claude/PROJECT_NOTES.md` · `.claude/settings.json`** 을 추적한다.
 
 - **뒤집은 이유** — `git worktree` 는 추적 파일만 체크아웃한다. Orca 가 만든 자식 워크트리에서 뜬 에이전트가 빌드 명령(`-PtestDbUrl` 필수)·Docker 포트·Flyway 재구성 정책·사양 4종을 모르는 채 시작했다. 2026-09-02(docs 전면 제외)·2026-09-09(`.claude`·`CLAUDE.md` 제외) 결정을 이 범위에서 뒤집는다.
-- **여전히 제외** — 사람용 렌더(`docs/**` 의 HTML·PDF·PNG)와 기획 원본 `.docx`(파생본·바이너리) · 보고서(`report/`) · 라운드별 작업 기록(`.claude/` 나머지 · `.superpowers/`) · 재생성 가능한 색인(`graft/` · `.docgraph/`).
+- **여전히 제외** — 사람용 렌더(`docs/**` 의 HTML·PDF·PNG)와 기획 원본 `.docx`(파생본·바이너리) · 보고서(`report/`) · 라운드별 작업 기록(`.claude/` 나머지 — ⚠ **`.superpowers/` 는 2026-09-20 삭제**, 정본이 쓰던 근거 24개는 `docs/archive/sdd/`) · 재생성 가능한 색인(`graft/` · `.docgraph/`).
 - ⚠ **원격은 공개 저장소(`mskim98/School-Bus`)다.** 문서는 **로컬 커밋만** 유지하고 push 하지 않는다(2026-09-18 사용자 결정). 워크트리 체크아웃에는 로컬 커밋이면 충분하다.
 - 새 워크트리에서는 색인을 한 번 만든다 — `graft build .` (부모의 캐시를 복사하므로 **1.7초**)
 
