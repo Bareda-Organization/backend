@@ -141,7 +141,7 @@ cd k6 && k6 run -e SCENARIO4_CSV=./scenario4_approvals.csv \
 ## 6. 부하 한계 측정(2026-09-09) — "깨질 때까지 올려 한계를 찾는" 회차
 
 위 1~5절은 **정해진 부하에서 약속을 지키는가**를 본다. 이 절은 반대로 **포화 지점**을 찾는다.
-계획은 `.superpowers/sdd/IMPLEMENTATION_PLAN/load-capacity-plan.md`, 결과는
+계획은 `docs/archive/sdd/IMPLEMENTATION_PLAN/load-capacity-plan.md`, 결과는
 `backend/report/2026-09-09-부하-한계-측정.md`.
 
 ### 6.1 기동 — `SPRING_PROFILES_ACTIVE=load` 는 듣지 않는다
