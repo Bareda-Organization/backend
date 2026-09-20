@@ -2704,7 +2704,7 @@ DB 를 갈라도 커넥션 수는 서버 전체 공유이고, 컨텍스트 캐�
 |---|---|:-:|
 | 시드 학생 6명 전원 `photo_url` 부재 | `select count(*), count(photo_url) from student` → `6\|0` | ✅ |
 | 시드 회차 7건 전부 `est_duration_min` 부재 | `7\|0` | ✅ |
-| `§5.5` 의 *"고유 에러 부재"* 가 거짓 | `GET /staff/approvals/9999` → **`404 APPROVAL_NOT_FOUND`** | ✅ |
+| `§5.5` 의 *"고유 에러 부재"* 가 거짓 | `GET /staff/approvals/{id}` 에 없는 id(9999) → **`404 APPROVAL_NOT_FOUND`** | ✅ |
 | `StudentRow` 에 사진 자리 부재 | 생성자 파라미터 8개에 `photoUrl` 부재(`student_row.dart:34~55`) | ✅ |
 | `●` 행 213개 = 필드 이름 255개 | — | 미검증(계수 방식은 타당) |
 
@@ -2825,7 +2825,7 @@ DB 를 갈라도 커넥션 수는 서버 전체 공유이고, 컨텍스트 캐�
 
 | 항목 | 내용 | 처리 |
 |---|---|---|
-| **문서 그래프 색인의 깨진 참조 121건** (2026-09-20 재색인 기준 — 수치는 `check` 를 돌릴 때마다 다시 센다, `python3 ~/.claude/tools/docgraph/build.py <repo>`) | 도구 `~/.claude/tools/docgraph/`(규칙 `~/.claude/rules/docgraph.md`). 범주 — `missing_section` 38 · `ruling_not_in_docs` 60(**전부 코드 주석** — 코드가 인용한 판정이 정본에 미기록) · `undefined_endpoint` 22 · `undefined_id` 1. **2026-09-20 에 208 → 121 로 정리했다** — 절반이 도구 오탐이었다: ①상위 ID 에서 잘린 조각(`UF-P-01` → `P-01`) 238건 ②경로로 이름이 갈린 문서(`docs/IMPLEMENTATION_PLAN`)를 맨 이름 참조가 못 찾음 ③소문자 문서명(`CODE_CONVENTIONS.md`) 미인식 ④색인 밖 규칙 파일(`phase-goal-loop.md`)을 없는 절로 계수 ⑤ID 가 아닌 문자열(`SHA-256`·`HTTP-01`·`SA-01~06`) | **작업 지시 범위에 걸린 것만 그때 고친다**(전체 0건은 발주 조건이 아니다). 2026-09-20 처리분 — 코드 주석 18건에 문서명 명시(`§20.2` → `CODE_CONVENTIONS.md §20.2` 등) · `BRD-07`(부재 ID) → `EXC-04`·`EXC-02·03`. 남은 것의 큰 묶음은 `ruling_not_in_docs` **60**. ⚠ **이 칸에 판정 번호를 예시로 적지 마라** — 도구가 이 줄을 그 판정의 기록처로 대신 잡아 (`build._ruling_fallback_records`) 정본에 기록 없는 판정 20건이 통째로 가려진다. 2026-09-20 에 옛 예시를 걷어내고서야 40 → 60 으로 드러났다 |
+| **문서 그래프 색인의 깨진 참조 121건** (2026-09-20 재색인 기준 — 수치는 `check` 를 돌릴 때마다 다시 센다, `python3 ~/.claude/tools/docgraph/build.py <repo>`) | 도구 `~/.claude/tools/docgraph/`(규칙 `~/.claude/rules/docgraph.md`). 범주 — `missing_section` 38 · `ruling_not_in_docs` 60(**전부 코드 주석** — 코드가 인용한 판정이 정본에 미기록) · `undefined_endpoint` 22 · `undefined_id` 1. **2026-09-20 에 208 → 121 로 정리했다** — 절반이 도구 오탐이었다: ①상위 ID 에서 잘린 조각(`UF-P-01` → `P-01`) 238건 ②경로로 이름이 갈린 문서(`docs/IMPLEMENTATION_PLAN`)를 맨 이름 참조가 못 찾음 ③소문자 문서명(`CODE_CONVENTIONS.md`) 미인식 ④색인 밖 규칙 파일(`phase-goal-loop.md`)을 없는 절로 계수 ⑤ID 가 아닌 문자열(`SHA-256`·`HTTP-01`·`SA-01~06`) | **작업 지시 범위에 걸린 것만 그때 고친다**(전체 0건은 발주 조건이 아니다). 2026-09-20 처리분 — 코드 주석 18건에 문서명 명시(`§20.2` → `CODE_CONVENTIONS.md §20.2` 등) · `BRD-07`(부재 ID — `.docgraph/config.json` 의 `ignore_ids` 에 등재했다) → `EXC-04`·`EXC-02·03`. 남은 것의 큰 묶음은 `ruling_not_in_docs` **60**. ⚠ **이 칸에 판정 번호를 예시로 적지 마라** — 도구가 이 줄을 그 판정의 기록처로 대신 잡아 (`build._ruling_fallback_records`) 정본에 기록 없는 판정 20건이 통째로 가려진다. 2026-09-20 에 옛 예시를 걷어내고서야 40 → 60 으로 드러났다 |
 | **테이블 수 선언 불일치** ✅ 해소 | 2026-08-25 실측 정정 — `ERD §3` 의 `####` 항목이 **39**(그룹별 7·7·13·12). `ERD §1` 소계표(7·6·13·10)와 이 문서 Phase 1 완료 조건의 38 표기를 39 로 맞춤. `FEATURE_SPEC §3.2` 는 이미 39 로 일치 | 구현 기준 **39**. 세 문서 전부 일치 |
 | **`PRD §7.1` 미배치 6건** | 도메인 STU·MGR·BUS 와 기능 RTE-01·RTE-07·ATT-03 이 P0~P2 어디에도 미기재 | 실행 순서상 Phase 5·6·8 에 포함. 우선순위 배치 확정은 별건 |
 | ~~**🔸 표기 항목의 존치 여부**~~ | 구 기획에서 흡수한 항목의 존치가 미확정 (`FEATURE_SPEC §0`) | **해소 — 2026-09-05 F4 조율자 계수.** `grep -c '🔸' docs/FEATURE_SPEC.md docs/PRD.md docs/USER_FLOWS.md docs/API_SPEC.md` 전부 **0** — 미확정 표기가 남아 있지 않다 |

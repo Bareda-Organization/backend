@@ -253,7 +253,7 @@ frontend/
 
 | 상태 | 로그인 | 허용 |
 |---|---|---|
-| `pending` | 성공(토큰 발급) | `GET /auth/signup-status` · `POST /auth/logout` · **`GET /me`** · **`POST`·`DELETE /me/devices`** |
+| `pending` | 성공(토큰 발급) | `GET /auth/signup-status` · `POST /auth/logout` · **`GET /me`** · **`POST /me/devices`·`DELETE /me/devices/{token}`** |
 | `rejected` | 성공 | 위 + `POST /auth/signup/reapply` |
 | `active` | 성공 | 역할별 권한 범위 |
 | `blocked` | **실패** `403 AUTH_ACCOUNT_BLOCKED` | 부재 — 해제는 메인 관리자만 |
@@ -748,7 +748,7 @@ R1 목표 표(아래 "R1 목표 표" 절)가 그대로 완료 조건이다. 더�
 
 **엔드포인트 개수 — 조율자 추출값과 계획서 값이 어긋난다.** 문면에서 `METHOD /path` 를 뽑아 센 값은
 `§5` **47** · `§6` **15** 이고, 이 문서 §1 표는 45 · 13 이다. ⚠ **추출값도 확정이 아니다** —
-산문 속 표기가 섞였을 수 있다(`PATCH /staff/routes` 처럼 `{id}` 없는 형태 2건이 의심 후보).
+산문 속 표기가 섞였을 수 있다 — `{id}` 를 떨군 축약 2건이 의심 후보였다. ✅ **2026-09-20 확인 결과 그것이 맞았다**: `API_SPEC §5.9` 의 공용 요청 본문 제목과 `§10` 해제 이력 표가 경로 변수를 떨구고 있었고 둘 다 정정했다.
 **R2 좌석은 자기 담당 절에서 직접 세고, 어긋나면 보고한다.**
 
 #### R1 이후로 미룬 것

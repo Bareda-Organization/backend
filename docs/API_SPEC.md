@@ -113,7 +113,7 @@
 
 | 상태 | 로그인 | API 접근 |
 |---|---|---|
-| `pending` | 성공 — 토큰 발급 | `GET /auth/signup-status` · `POST /auth/logout` · **`GET /me`**(§2.10) · **`POST`·`DELETE /me/devices`**(§2.11). 그 외 전 API `403 AUTH_PENDING` |
+| `pending` | 성공 — 토큰 발급 | `GET /auth/signup-status` · `POST /auth/logout` · **`GET /me`**(§2.10) · **`POST /me/devices`·`DELETE /me/devices/{token}`**(§2.11). 그 외 전 API `403 AUTH_PENDING` |
 | `active` | 성공 | 역할별 권한 범위 |
 | `rejected` | 성공 | `pending` 의 것 + `POST /auth/signup/reapply` **1개 추가**. 대기 화면에 거절 사유 노출 — 재신청은 거절 이후에만 가능. 거부 시 `403 AUTH_REJECTED`(§8.1) |
 
@@ -1579,7 +1579,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `DELETE /staff/routes/{id}` | RTE-01 | 삭제. **행을 지운다**(soft delete 부재) — 정차 순서도 `route_stop` FK CASCADE 로 함께 사라진다 |
 | `POST /staff/routes/{id}/optimize` | RTE-09 | 정차 순서 최적화. 결과는 상세와 같은 형태 |
 
-**`POST` · `PATCH /staff/routes` 요청**
+**`POST /staff/routes` · `PATCH /staff/routes/{id}` 요청** (두 엔드포인트가 같은 본문을 쓴다)
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|:-:|---|
@@ -1629,7 +1629,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 ⚠ **`GET /staff/runs` 는 `§5.18 GET /staff/runs/live` 와 다른 것이다** — 이쪽은 날짜로 보는 **회차 목록**(SCH-02 결과 확인), 저쪽은 관제용 **실시간 스냅샷**(MON-07)이다. 경로가 비슷해도 합치지 않는다.
 
-**`POST` · `PATCH /staff/schedules` 요청**
+**`POST /staff/schedules` · `PATCH /staff/schedules/{id}` 요청** (두 엔드포인트가 같은 본문을 쓴다)
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|:-:|---|
@@ -2283,7 +2283,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `UNAUTHORIZED` | 401 | 자격 증명이 **아예 없는** 접근 — 토큰 미동봉 STOMP `CONNECT` 등. `TOKEN_EXPIRED` 와 합치지 않는 이유는 클라이언트의 다음 동작이 갈리기 때문 — 만료는 재발급을 시도할 자리이고, 부재는 로그인부터 해야 할 자리다 (2026-08-25 등재) |
 | `INVALID_CREDENTIALS` | 401 | 아이디·비밀번호 불일치. `details.remaining_attempts` 로 잔여 시도 안내 |
 | `TOKEN_EXPIRED` | 401 | access·refresh 만료, 로그아웃·차단으로 무효화 → 재로그인 요구 |
-| `AUTH_PENDING` | 403 | `pending` 계정이 **허용 목록**(`GET /auth/signup-status` · `POST /auth/logout` · `GET /me` · `POST`·`DELETE /me/devices`, §1.4) 밖 호출. `rejected` 는 `POST /auth/signup/reapply` **1개 추가** (C-01 · §1.4). ⚠ **`pending` 에게 재신청은 허용되지 않는다** — `AUTH-03` 이 "재신청은 거절 이후에만" 을 규정 |
+| `AUTH_PENDING` | 403 | `pending` 계정이 **허용 목록**(`GET /auth/signup-status` · `POST /auth/logout` · `GET /me` · `POST /me/devices`·`DELETE /me/devices/{token}`, §1.4) 밖 호출. `rejected` 는 `POST /auth/signup/reapply` **1개 추가** (C-01 · §1.4). ⚠ **`pending` 에게 재신청은 허용되지 않는다** — `AUTH-03` 이 "재신청은 거절 이후에만" 을 규정 |
 | `AUTH_ACCOUNT_BLOCKED` | 403 | 로그인 실패 **5회** 누적으로 계정 단위 차단. 해제는 메인 관리자 (C-11) |
 | `SIGNUP_TARGET_BLOCKED` | 409 | 가입 승인(`§5.2`·`§6.5`) 대상 계정이 `blocked` — **요청 주체는 정상 권한 보유**. `pending` 계정도 로그인은 되므로(`§1.4`) 승인 대기 중 실패 5회로 차단될 수 있고, 그때 통과시키면 승인이 차단을 조용히 풀어 해제 권한(AUTH-06)을 우회한다. ⚠ **위 `AUTH_ACCOUNT_BLOCKED` 를 재사용하지 않는다** — 그쪽은 **차단된 계정 자신의 호출**(`§1.11`)이라 승인 화면에 "차단된 계정입니다. 관리자에게 문의하세요" 가 뜨면 승인자가 자신이 차단된 것으로 오해한다. ⚠ **403 이 아니라 409 인 이유** — 요청 주체는 인가돼 있고 막는 것은 **대상 자원의 상태**다. `§8.3` `APPROVAL_ALREADY_DECIDED` 와 같은 형태이며, 같은 승인 경로의 같은 성격의 거부가 403·409 로 갈리면 클라이언트가 분기를 두 벌 만든다 (2026-08-26 신설, Ruling 147) |
 | `AUTH_REJECTED` | 403 | `rejected` 계정이 **허용 6개**(`pending` 의 5개 + `POST /auth/signup/reapply`) 밖 호출. `AUTH_PENDING` 과 코드를 나눈 이유 — `§1.4` 가 대기 화면에 **거절 사유**를 노출하라고 규정하는데, 두 상태가 같은 코드를 쓰면 클라이언트가 "승인 대기 중" 과 "거절됨" 을 구별할 수단이 부재 (2026-08-25 신설) |
@@ -2476,7 +2476,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | 경로 | 해제 시점 · 근거 | 옮겨 간 곳 |
 |---|---|---|
 | `GET /staff/routes` | 2026-08-29 **부분 해제** (Ruling 180) | **§5.9**. 최적화 **자동 트리거·가중치**만 미확정으로 남았다 |
-| `GET /staff/schedules` | 2026-08-26 해제 (Ruling 153) | §5.10 |
+| `GET /staff/schedules` · `PATCH /staff/schedules/{id}` | 2026-08-26 해제 (Ruling 153) | §5.10 |
 | `PATCH /staff/runs/{runId}/assignment` | 2026-08-26 **부분 해제** (Ruling 153) | **§5.14**. 동승자 자동 배정은 Phase 6 T6 `AttendantAssigner`(2026-08-29)로 구현 완료 — 엔드포인트가 아니라 노선 계산 파이프라인 ⑤단계다(`ARCHITECTURE §8.2`) |
 | `POST /staff/runs/{runId}/forced-add` | 2026-08-30 **부분 해제** (Ruling 197) | **§5.7**. 이 엔드포인트는 재최적화를 부르지 않아(Ruling 198) 최적화 **가중치**와 무관하다 |
 | `POST /staff/students/{id}/transfer` | 2026-09-05 해제 (Ruling 256) | **§5.8**. 이 엔드포인트도 재최적화를 부르지 않아(Ruling 198) 최적화 **가중치**와 무관하다 |
@@ -2484,3 +2484,29 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 ⚠ **이 절은 파생본이라 정본이 닫혀도 자동으로 따라오지 않는다.** 실제로 위 3행이 해제 후에도 표에 남아 있었다(Ruling 185). **한 행을 고칠 일이 생기면 표 전체를 각 절과 대조한다** — 하나가 낡아 있으면 나머지도 낡아 있다.
 
 관련 오픈 이슈(노선 최적화 알고리즘 기준, 승하차지 상세 관리, 지도 SDK 선정, 지오코딩 API)는 [PRD.md](./PRD.md) 참조.
+
+---
+
+## 11. 개발 전용 (`local` 프로파일에만 존재)
+
+역할별 소비자가 없는 도구용 엔드포인트다. **배포 환경에는 빈 자체가 만들어지지 않는다.**
+
+### 11.1 POST /dev/reset
+
+DB 를 Flyway 시드 상태로 되돌리고 위치 캐시(Redis)를 비운다. Swagger 로 어지럽힌 상태를
+앱 재시작 없이 초기화하는 용도이고, 웹·앱의 **실서버 계약 시험이 착수 전에 부른다.**
+
+| 항목 | 값 |
+|---|---|
+| 권한 | **인증만 요구**(`@AuthenticatedOnly`) — 역할 무관. 초기화 후에도 액세스 토큰은 유효하다(JWT 는 서버에 상태를 두지 않고 시드가 같은 계정을 다시 만든다) |
+| 요청 | 본문 부재 |
+| 응답 | `200` · `{ "cleared_position_keys": <정수> }` — 지운 위치 캐시 키 개수 |
+
+⚠ **되돌릴 수 없는 삭제라 존재 자체를 두 겹으로 막는다.**
+
+| 겹 | 수단 | 막는 것 |
+|---|---|---|
+| ① | `@Profile("local")` | `demo`·`prod` 에서 빈 미생성. 안쪽(위험 프로파일 혼재 · 비 localhost 데이터소스 거부)은 `LocalFlywayCleanStrategy` 가 맡는다 |
+| ② | `app.dev-tools.reset.enabled` | `build.gradle` 의 test 태스크가 `false` 로 심어 **테스트 컨텍스트에 미등록**. 이 저장소의 시험은 `local` 프로파일로 돌아 ①만으로는 안 막히고, 열어 두면 전체 실행 도중 공유 DB 가 통째로 지워진다 |
+
+구현 — `global/dev/DevResetController` · `DevResetService`. 미리보기 캐시도 함께 비운다(`ApprovalPreviewCache`).
