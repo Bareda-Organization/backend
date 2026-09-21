@@ -7,7 +7,10 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
@@ -117,6 +120,32 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleMapRouteUnavailable(MapRouteUnavailableException e) {
         ErrorCode code = ErrorCode.MAP_ROUTE_UNAVAILABLE;
         log.warn("[map-route] 도로 경로 조회 불가 {}", e.getMessage());
+        return ResponseEntity.status(code.getStatus()).body(ErrorResponse.of(code.name(), code.getMessage()));
+    }
+
+    /**
+     * 없는 주소 · 지원하지 않는 메서드 — 라우팅이 실패한 요청.
+     *
+     * <p>아래 catch-all 이 {@code 500} 으로 삼키던 자리다. <b>클라이언트의 실수를 서버 고장으로
+     * 보이게 만들면</b> 부르는 쪽이 재시도할지 주소를 고칠지 판단할 수 없고, 운영 알림도 오탐으로
+     * 는다. 로그도 {@code error} 가 아니라 {@code warn} 이다 — 서버가 할 일은 없다.
+     *
+     * <p>{@code NoResourceFoundException} 은 정적 자원 탐색 실패,
+     * {@code NoHandlerFoundException} 은 핸들러 매핑 실패다. 설정에 따라 어느 쪽이 던져질지
+     * 갈리므로 둘 다 받는다.
+     */
+    @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
+    public ResponseEntity<ErrorResponse> handleNotFound(Exception e) {
+        ErrorCode code = ErrorCode.ENDPOINT_NOT_FOUND;
+        log.warn("[routing] 없는 주소 {}", e.getMessage());
+        return ResponseEntity.status(code.getStatus()).body(ErrorResponse.of(code.name(), code.getMessage()));
+    }
+
+    /** 경로는 실재하나 메서드가 다른 요청 — 404 와 갈라야 어느 쪽을 고칠지 알 수 있다. */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleMethodNotAllowed(HttpRequestMethodNotSupportedException e) {
+        ErrorCode code = ErrorCode.METHOD_NOT_ALLOWED;
+        log.warn("[routing] 지원하지 않는 메서드 {}", e.getMessage());
         return ResponseEntity.status(code.getStatus()).body(ErrorResponse.of(code.name(), code.getMessage()));
     }
 

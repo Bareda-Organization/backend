@@ -316,6 +316,14 @@ public enum ErrorCode {
     // 목적지인지 판정할 수 없어 새 신청을 막는다.
     TRANSFER_ALREADY_STAGED(HttpStatus.CONFLICT, "이미 처리 대기 중인 이동 요청이 있습니다"),
 
+    // ── 라우팅 실패 ─────────────────────────────────────────────────────────────
+    // 둘 다 **클라이언트의 실수**이지 서버 고장이 아니다. 없으면 catch-all 로 떨어져 500 이 나가고,
+    // 그 응답은 "주소를 잘못 불렀다" 와 "서버가 죽었다" 를 구별하지 못하게 만든다 — 앱·웹이
+    // 재시도할지 고칠지 판단할 근거가 사라지고 운영 알림도 오탐으로 는다(2026-09-20 실측).
+    ENDPOINT_NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 주소를 찾을 수 없습니다"),
+    // 경로는 맞고 메서드만 틀린 경우 — 404 와 가르지 않으면 어느 쪽을 고칠지 알 수 없다.
+    METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "지원하지 않는 요청 방식입니다"),
+
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다");
 
     private final HttpStatus status;
