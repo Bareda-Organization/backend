@@ -435,6 +435,63 @@ class StaffRouteControllerTest {
         assertThat((int) JsonPath.read(body, "$.data.stops.length()")).isZero();
     }
 
+    // ── RTE-01 도로 경로(§5.9 신설) ───────────────────────────────────────
+
+    /**
+     * 정차지 2곳 이상인 편성은 {@code road_path} 가 비어 있지 않다 — 시드 학원 A 는 좌표를
+     * 가지고 있어({@code V2__seed_data.sql}) 정차지끼리 + 학원 기준점까지 이어져 스텁
+     * ({@code StubMapRouteClient})이 최소 1개 이상의 구간 좌표를 돌려준다.
+     */
+    @Test
+    void 정차지가_2곳_이상인_노선의_도로_경로는_비어_있지_않다() throws Exception {
+        long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "mon", "to_academy", List.of(1L, 2L));
+
+        String body = 본문(경로를_읽는다(관계자A_토큰(), routeId).andExpect(status().isOk()).andReturn());
+
+        assertThat((int) JsonPath.read(body, "$.data.road_path.length()"))
+                .as("정차지가 2곳이면 학원 기준점까지 더해 최소 2점(구간 1개)이 나와야 한다")
+                .isPositive();
+        assertThat(JsonPath.<List<Integer>>read(body, "$.data.stops[*].stop_id")).containsExactly(1, 2);
+        assertThat((boolean) JsonPath.read(body, "$.data.fallback_used")).isFalse();
+    }
+
+    /** 다른 학원의 편성을 {@code {id}/path} 로 지목하면 {@code 404 ROUTE_NOT_FOUND} 다. */
+    @Test
+    void 다른_학원의_노선은_도로_경로도_읽을_수_없다() throws Exception {
+        long routeId = 편성된_노선_id(관계자B_토큰(), BUS_B_ID, "wed", "to_academy", List.of(STOP_OF_B));
+
+        경로를_읽는다(관계자A_토큰(), routeId)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("ROUTE_NOT_FOUND"));
+    }
+
+    /**
+     * 정차지 하나가 다른 학원 소속으로 남아(데이터 정합 어긋남) {@code stop} 조인에서 빠져도
+     * {@code 500} 이 아니라 나머지 정차지로 응답한다 — {@code route_stop} 에 학원 컬럼이 없어
+     * (ERD §6.1) 이런 어긋남을 DB 가 막지 못한다({@code RoutePathQueryService.stopResponsesOf}).
+     *
+     * <p>실제로 어긋난 행을 만들 수 없어(편성 API 가 학원 밖 정차지를 거부, §5.9) JDBC 로
+     * {@code route_stop} 을 직접 꽂아 그 상태를 재현한다.
+     */
+    @Test
+    void 좌표를_못_찾는_정차지가_섞여도_500이_아니라_나머지로_응답한다() throws Exception {
+        long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "thu", "to_academy", List.of(1L));
+        jdbcTemplate.update("INSERT INTO route_stop (route_id, stop_id, seq) VALUES (?, ?, 2)", routeId,
+                STOP_OF_B);
+        entityManager.flush();
+        entityManager.clear();
+
+        String body = 본문(경로를_읽는다(관계자A_토큰(), routeId).andExpect(status().isOk()).andReturn());
+
+        assertThat(JsonPath.<List<Integer>>read(body, "$.data.stops[*].stop_id"))
+                .as("존재하지 않는(=타 학원) 정차지는 목록에서 빠지고 500 대신 나머지만 남는다")
+                .containsExactly(1);
+    }
+
+    private ResultActions 경로를_읽는다(String token, long routeId) throws Exception {
+        return mockMvc.perform(get("/api/v1/staff/routes/" + routeId + "/path").header("Authorization", token));
+    }
+
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────
 
     private List<Long> 정차_순서(long routeId) {

@@ -30,9 +30,11 @@ import src.backend.routing.command.RouteOptimizeService;
 import src.backend.routing.dto.RouteDetailResponse;
 import src.backend.routing.dto.RouteListRequest;
 import src.backend.routing.dto.RouteOptimizeRequest;
+import src.backend.routing.dto.RoutePathResponse;
 import src.backend.routing.dto.RouteRegisterRequest;
 import src.backend.routing.dto.RouteResponse;
 import src.backend.routing.dto.RouteUpdateRequest;
+import src.backend.routing.query.RoutePathQueryService;
 import src.backend.routing.query.RouteQueryService;
 
 /**
@@ -56,6 +58,8 @@ public class StaffRouteController {
     private final RouteCommandService routeCommandService;
 
     private final RouteOptimizeService routeOptimizeService;
+
+    private final RoutePathQueryService routePathQueryService;
 
     /** 고정 노선 목록(RTE-01 · A-08, §5.9) — 비활성 편성도 실린다. */
     @CanManageRoute
@@ -92,6 +96,15 @@ public class StaffRouteController {
     public ApiResponse<RouteDetailResponse> update(@AuthenticationPrincipal AuthUser requester,
             @PathVariable Long id, @Valid @RequestBody RouteUpdateRequest request) {
         return ApiResponse.ok(routeCommandService.update(requester, id, request));
+    }
+
+    /** 고정 노선의 도로 경로(RTE-01, §5.9 신설) — 정차 순서(seq)대로 이은 실제 도로 좌표열. */
+    @CanManageRoute
+    @Operation(summary = "고정 노선 편성 · 정차 순서 최적화 — 도로 경로")
+    @GetMapping("/{id}/path")
+    public ApiResponse<RoutePathResponse> path(@AuthenticationPrincipal AuthUser requester,
+            @PathVariable Long id) {
+        return ApiResponse.ok(routePathQueryService.path(requester, id));
     }
 
     /** 고정 노선 삭제(RTE-01, §5.9) — 행을 지우고 정차 순서도 FK CASCADE 로 함께 사라진다. */
