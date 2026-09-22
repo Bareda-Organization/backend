@@ -70,10 +70,11 @@ public class StudentQueryService {
         Long academyId = academyOf(requester);
         Page<Student> page = studentRepository.searchByAcademyId(academyId, keyword(request.q()),
                 pageable(request));
-        Map<Long, String> phones = guardianPhonesOf(academyId, page.getContent());
+        GuardianLinks links = guardianLinksOf(academyId, page.getContent());
 
         return PageResponse.of(page, page.getContent().stream()
-                .map(student -> StudentSummaryResponse.of(student, phones.get(student.getId())))
+                .map(student -> StudentSummaryResponse.of(student, links.phones().get(student.getId()),
+                        links.counts().getOrDefault(student.getId(), 0)))
                 .toList());
     }
 
@@ -90,7 +91,7 @@ public class StudentQueryService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.STUDENT_NOT_FOUND));
 
         StudentDetailResponse response = StudentDetailResponse.of(student,
-                guardianPhonesOf(academyId, List.of(student)).get(studentId));
+                guardianLinksOf(academyId, List.of(student)).phones().get(studentId));
         auditRecorder.recordDataAccessRead(academyId, requester.accountId(), "student", studentId,
                 Map.of("student_ids", List.of(String.valueOf(studentId)), "fields",
                         List.of("photo_url", "note", "guardian_phone")));
@@ -98,23 +99,31 @@ public class StudentQueryService {
     }
 
     /**
-     * 한 페이지분 보호자 연락처를 한 번에 모은다 — 학생마다 질의를 붙이면 100건짜리 페이지가 질의
-     * 100건이 된다(횡단 규칙 4).
+     * 한 페이지분 보호자 연락처·연결 수를 한 번에 모은다 — 학생마다 질의를 붙이면 100건짜리 페이지가
+     * 질의 100건이 된다(횡단 규칙 4). {@code guardian_count}(§5.11) 도 <b>같은 조회 결과에서</b> 센다 —
+     * 별도 COUNT 질의를 하나 더 붙이면 이 메서드가 막으려던 질의 수 문제가 그대로 재발한다.
      *
-     * <p>학생 1명에 보호자가 여럿이면 <b>먼저 연결된 쪽</b>이 대표로 남는다 — 쿼리의 정렬과
+     * <p>학생 1명에 보호자가 여럿이면 대표 연락처는 <b>먼저 연결된 쪽</b>이 남는다 — 쿼리의 정렬과
      * {@code putIfAbsent} 가 함께 그 순서를 정한다. 사양의 {@code items[].guardian_phone} 이 단수라
      * 어느 하나를 골라야 하고, 고르는 규칙이 없으면 같은 화면이 새로고침마다 다른 번호를 보인다.
      */
-    private Map<Long, String> guardianPhonesOf(Long academyId, List<Student> students) {
+    private GuardianLinks guardianLinksOf(Long academyId, List<Student> students) {
         if (students.isEmpty()) {
-            return Map.of();
+            return new GuardianLinks(Map.of(), Map.of());
         }
         Map<Long, String> phones = new LinkedHashMap<>();
+        Map<Long, Integer> counts = new LinkedHashMap<>();
         guardianStudentRepository
                 .findGuardianPhonesByAcademyId(academyId, students.stream().map(Student::getId).toList())
-                .forEach(row -> phones.putIfAbsent(row.getStudentId(), row.getPhone()));
-        return phones;
+                .forEach(row -> {
+                    phones.putIfAbsent(row.getStudentId(), row.getPhone());
+                    counts.merge(row.getStudentId(), 1, Integer::sum);
+                });
+        return new GuardianLinks(phones, counts);
     }
+
+    /** {@link #guardianLinksOf} 결과 — 대표 연락처(단수)와 연결 수(§5.11 {@code guardian_count})를 함께 담는다. */
+    private record GuardianLinks(Map<Long, String> phones, Map<Long, Integer> counts) {}
 
     private Pageable pageable(StudentListRequest request) {
         return PageParams.of(request.page(), request.size())

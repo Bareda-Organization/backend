@@ -198,6 +198,37 @@ class StaffStudentControllerTest {
     }
 
     /**
+     * 보호자가 연결되지 않은 학생은 {@code guardian_count} 가 0 이다(§5.11 신설 필드).
+     *
+     * <p>연락처가 {@code null} 이라는 사실로 연결 수를 추론하지 않는다는 것이 이 검사의 요점이다 —
+     * 위 {@code 계정이_연결되지_않은_학생의_보호자_연락처는_null_이다} 와 별개로 숫자 자체를 본다.
+     */
+    @Test
+    void 보호자가_연결되지_않은_학생의_guardian_count_는_0이다() throws Exception {
+        long studentId = 등록한다(등록_본문("P5T1보호자수0", null));
+
+        mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A)).param("q", "P5T1보호자수0"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].student_id").value(String.valueOf(studentId)))
+                .andExpect(jsonPath("$.data.items[0].guardian_count").value(0));
+    }
+
+    /**
+     * 보호자가 둘 연결된 학생은 {@code guardian_count} 가 2 다 — 대표 연락처(단수)와 달리 이 값은
+     * <b>전부</b> 세야 한다(§5.11 신설 필드).
+     */
+    @Test
+    void 보호자가_2명_연결된_학생의_guardian_count_는_2다() throws Exception {
+        연결한다(SEED_SIBLING_1, 보호자_식별자(SeedFixtures.PARENT_A2_LOGIN_ID), "now() - interval '1 hour'");
+
+        mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A))
+                        .param("q", 시드_학생_이름(SEED_SIBLING_1)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].student_id").value(String.valueOf(SEED_SIBLING_1)))
+                .andExpect(jsonPath("$.data.items[0].guardian_count").value(2));
+    }
+
+    /**
      * 남의 학원 학생은 <b>없는 것</b>이다 — {@code 403} 이 아니라 {@code 404} 여야 존재 여부가 새지 않는다.
      *
      * <p>같은 식별자를 소유 학원 관계자가 부르면 200 인 것을 함께 본다. 그것이 없으면 "학생 자체가

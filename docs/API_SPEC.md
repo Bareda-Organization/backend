@@ -1670,7 +1670,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `PATCH /staff/students/{id}` | STU-03 | 수정 — 주소·보호자 연락처는 대상 밖 |
 | `DELETE /staff/students/{id}` | STU-04 | 퇴원 soft delete — **오늘 명단은 유지**, 내일부터 제외 |
 
-**`GET /staff/students` 응답 `items[]`** — `student_id` · `name` · `class_name` · `bus_no` · `stop_name` · `guardian_phone`
+**`GET /staff/students` 응답 `items[]`** — `student_id` · `name` · `class_name` · `bus_no` · `stop_name` · `guardian_phone` · `guardian_count`(integer — 연결된 보호자 계정 수, 해지된 연결은 제외. `guardian_phone` 은 그중 대표 1명뿐이라 연결 수는 이 값으로 따로 센다)
 
 **`POST` · `PATCH` 요청**
 
