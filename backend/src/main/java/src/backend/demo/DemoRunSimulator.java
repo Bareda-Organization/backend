@@ -97,7 +97,10 @@ public class DemoRunSimulator {
     @Value("${app.demo.bus-ids:10,11,12}")
     private List<Long> demoBusIds;
 
-    @Scheduled(fixedDelay = TICK_MS, initialDelay = 15000)
+    // 첫 실행을 늦추는 값은 설정 자리표시자로 둔다 — 테스트 JVM 에서 이 시뮬레이터가 배경으로 돌면
+    // 검사가 만든 회차를 먼저 집어 출발 판정이 실행 순서에 따라 갈린다(build.gradle 의 test 블록이
+    // 하루로 미룬다). 로컬 실행 기본값은 그대로 15초다.
+    @Scheduled(fixedDelay = TICK_MS, initialDelayString = "${app.demo.initial-delay-ms:15000}")
     public void tick() {
         if (!enabled) {
             return;

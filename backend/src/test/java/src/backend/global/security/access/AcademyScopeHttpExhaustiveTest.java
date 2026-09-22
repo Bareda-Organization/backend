@@ -275,6 +275,9 @@ class AcademyScopeHttpExhaustiveTest {
                 new Object[] {academyBRouteId}, staffA(), null, 404, "ROUTE_NOT_FOUND"));
         cases.add(c("GET /staff/routes/{id} → B학원 노선 404", HttpMethod.GET, "/staff/routes/{id}",
                 new Object[] {academyBRouteId}, staffA(), null, 404, "ROUTE_NOT_FOUND"));
+        // R27-B — 고정 노선 도로 경로 조회(§5.9). 남의 학원 노선은 존재를 드러내지 않고 404 다.
+        cases.add(c("GET /staff/routes/{id}/path → B학원 노선 404", HttpMethod.GET, "/staff/routes/{id}/path",
+                new Object[] {academyBRouteId}, staffA(), null, 404, "ROUTE_NOT_FOUND"));
         cases.add(c("POST /staff/routes/{id}/optimize → B학원 노선 404", HttpMethod.POST,
                 "/staff/routes/{id}/optimize", new Object[] {academyBRouteId}, staffA(), OPTIMIZE_BODY, 404,
                 "ROUTE_NOT_FOUND"));

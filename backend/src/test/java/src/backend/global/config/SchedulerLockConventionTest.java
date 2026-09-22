@@ -50,7 +50,10 @@ class SchedulerLockConventionTest {
      * 발생할 자리가 없다고 판단했다(Phase 11 T4 판정, 게이트 리뷰 승인).
      */
     private static final List<String> EXEMPT = List.of(
-            "RunConfirmationScheduler#confirmDueRuns");
+            "RunConfirmationScheduler#confirmDueRuns",
+            // DemoRunSimulator 는 @Profile("local") 전용 데모 코드라 운영에 실리지 않는다 — 분산 락이
+            // 막으려는 "인스턴스 2대가 같은 배치를 동시에" 상황 자체가 성립하지 않는다(R23 신설).
+            "DemoRunSimulator#tick");
 
     /**
      * 컨트롤러 소스 루트가 실제로 존재하는지 먼저 확인한다. 경로가 어긋나면 아래 시험이 검사한 게
@@ -106,8 +109,8 @@ class SchedulerLockConventionTest {
     @Test
     void 면제_목록은_개수가_고정되고_실재하는_스케줄_메서드만_가리킨다() {
         assertThat(EXEMPT)
-                .as("면제 목록이 1개에서 바뀌었다 — 항목을 더했으면 EXEMPT 자바독에 근거를 함께 적고 이 수를 고친다")
-                .hasSize(1);
+                .as("면제 목록이 2개에서 바뀌었다 — 항목을 더했으면 EXEMPT 자바독에 근거를 함께 적고 이 수를 고친다")
+                .hasSize(2);
 
         List<String> scheduledKeys = scheduledMethods().stream()
                 .map(method -> method.getDeclaringClass().getSimpleName() + "#" + method.getName())

@@ -158,7 +158,7 @@ class StaffBusControllerTest {
     /** 수정도 같은 정원 하한을 받는다 — 등록만 막고 수정을 열어 두면 정원을 낮추는 경로로 그대로 우회된다. */
     @Test
     void 정원을_기사와_동승자_수_이하로_낮추는_수정은_차단된다() throws Exception {
-        long busId = 등록된_차량_id(관계자A_토큰(), "5호차", "55가5555", 16);
+        long busId = 등록된_차량_id(관계자A_토큰(), "55호차", "55가5555", 16);
 
         수정한다(관계자A_토큰(), busId, "{\"capacity\":2}")
                 .andExpect(status().isUnprocessableContent())
@@ -168,7 +168,7 @@ class StaffBusControllerTest {
     /** 운행 가능 여부만 고치는 수정은 정원을 건드리지 않는다 — 보내지 않은 필드는 그대로 남는다(§5.12 PATCH). */
     @Test
     void 운행_가능_여부만_고치면_정원은_그대로_남는다() throws Exception {
-        long busId = 등록된_차량_id(관계자A_토큰(), "4호차", "44가4444", 16);
+        long busId = 등록된_차량_id(관계자A_토큰(), "44호차", "44가4444", 16);
 
         수정한다(관계자A_토큰(), busId, "{\"operable\":false}")
                 .andExpect(status().isOk())
@@ -251,7 +251,7 @@ class StaffBusControllerTest {
      */
     @Test
     void 다른_학원의_차량을_수정하면_404_BUS_NOT_FOUND_이다() throws Exception {
-        long busOfAcademyA = 등록된_차량_id(관계자A_토큰(), "3호차", "33가3333", 16);
+        long busOfAcademyA = 등록된_차량_id(관계자A_토큰(), "33호차", "33가3333", 16);
 
         수정한다(관계자B_토큰(), busOfAcademyA, "{\"capacity\":30}")
                 .andExpect(status().isNotFound())
@@ -353,6 +353,8 @@ class StaffBusControllerTest {
                 .content(body));
     }
 
+    // ⚠ 호차 이름은 **시드에 없는 값**을 쓴다 — R23 의 데모 선단(V13)이 3·4·5호차를 시드에 더해
+    // 그 번호로 등록하면 `409 DUPLICATE_BUS` 다(실제로 이 파일의 시험 3건이 그렇게 깨져 있었다).
     private long 등록된_차량_id(String token, String busNo, String plateNo, int capacity) throws Exception {
         MvcResult result = 등록한다(token,
                 "{\"bus_no\":\"%s\",\"plate_no\":\"%s\",\"capacity\":%d}".formatted(busNo, plateNo, capacity))

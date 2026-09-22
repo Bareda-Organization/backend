@@ -194,6 +194,10 @@ tasks.named('test') {
     // 따라 갈린다.
     systemProperty 'app.location.proximity.initial-delay-ms', '86400000'
 
+    // 로컬 데모 운행 시뮬레이터(DemoRunSimulator, @Profile("local"))도 같은 이유로 미룬다 —
+    // 검사가 만든 회차를 출발시켜 상태 단언이 실행 순서에 따라 갈린다.
+    systemProperty 'app.demo.initial-delay-ms', '86400000'
+
     // 미확정 회차 게이지(RunUnconfirmedGaugeScheduler)와 무응답 에스컬레이션(NoShowEscalationScheduler)
     // 도 같은 이유로 미룬다 — F6(2026-09-06). F5 S3 가 동시성 원인을 추적하다 이 둘만 미뤄지지 않아
     // 캐시된 모든 테스트 컨텍스트에서 30초 주기로 도는 것을 발견했다(실제 실패 0, 잠재 위험).

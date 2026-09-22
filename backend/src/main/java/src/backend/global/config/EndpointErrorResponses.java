@@ -15,7 +15,6 @@ import java.util.Map;
  * ①표의 모든 키가 실재하는 엔드포인트인지 ②적힌 코드가 {@code ErrorCode} 에 있는지를 함께 검사한다 —
  * 경로를 바꾸거나 코드 이름을 고치면 그 시험이 먼저 깨진다.
  *
-<<<<<<< HEAD
  * <p>§3.5 {@code GET /students/{id}/runs} 와 §4.15 {@code GET /runs/{runId}/emergencies} 는 사양에만
  * 있고 핸들러가 부재하던 자리였다 — 이 표의 키 대조 시험이 그것을 드러냈고, 2026-09-09 둘 다
  * 구현해 아래 표에 등재했다.
