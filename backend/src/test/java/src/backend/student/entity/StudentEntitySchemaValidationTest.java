@@ -31,9 +31,9 @@ import src.backend.global.config.JpaAuditingConfig;
 import testsupport.db.MigratedPostgresTestBase;
 
 /**
- * student 모듈 엔티티 7개({@link Student} · {@link Guardian} · {@link GuardianStudent} ·
- * {@link LinkRequest} · {@link LinkCode} · {@link WeeklyAddress} · {@link Stop})가 실제 V1
- * 스키마와 정확히 맞는지 확인한다.
+ * student 모듈 엔티티 6개({@link Student} · {@link Guardian} · {@link GuardianStudent} ·
+ * {@link LinkCode} · {@link WeeklyAddress} · {@link Stop})가 실제 V1
+ * 스키마와 정확히 맞는지 확인한다(Ruling 324 로 LinkRequest 삭제 — 7개→6개).
  *
  * <p>{@code @EntityScan} 으로 {@code student.entity} 패키지만 매핑 대상에 넣는다 — 다른
  * 에이전트가 각자 워크트리에서 만드는 나머지 32개 테이블용 엔티티는 이 워크트리에 없다.
@@ -149,53 +149,22 @@ class StudentEntitySchemaValidationTest extends MigratedPostgresTestBase {
     }
 
     @Test
-    void linkRequest_가_보호자의_자녀_연결_요청으로_저장되고_조회된다() {
-        Long academyId = insertAcademy("STU004");
-        Long accountId = insertAccount(academyId, "guardian_login3", "parent");
-        Guardian guardian = Guardian.forSignup(academyId, accountId, "박보호", "010-7777-8888");
-        entityManager.persist(guardian);
-        Student student = Student.register(academyId, new StudentProfile("박학생", null, null, null,
-                null, null, null, null, null, false));
-        entityManager.persist(student);
-        entityManager.flush();
-
-        OffsetDateTime requestedAt = OffsetDateTime.now(ZoneOffset.UTC);
-        LinkRequest request = LinkRequest.uponRequest(guardian.getId(), student.getId(), requestedAt,
-                requestedAt.plusMinutes(10));
-        entityManager.persist(request);
-        entityManager.flush();
-        entityManager.clear();
-
-        LinkRequest found = entityManager.find(LinkRequest.class, request.getId());
-
-        assertThat(found.getStatus()).isEqualTo(LinkRequestStatus.PENDING);
-        assertThat(found.getGuardianId()).isEqualTo(guardian.getId());
-    }
-
-    @Test
-    void linkCode_가_연결_요청의_인증_코드로_저장되고_조회된다() {
+    void linkCode_가_학생의_인증_코드로_저장되고_조회된다() {
         Long academyId = insertAcademy("STU005");
-        Long accountId = insertAccount(academyId, "guardian_login4", "parent");
-        Guardian guardian = Guardian.forSignup(academyId, accountId, "최보호", "010-9999-0000");
-        entityManager.persist(guardian);
         Student student = Student.register(academyId, new StudentProfile("최학생", null, null, null,
                 null, null, null, null, null, false));
         entityManager.persist(student);
-        OffsetDateTime requestedAt = OffsetDateTime.now(ZoneOffset.UTC);
-        LinkRequest request = LinkRequest.uponRequest(guardian.getId(), student.getId(), requestedAt,
-                requestedAt.plusMinutes(10));
-        entityManager.persist(request);
         entityManager.flush();
 
         OffsetDateTime createdAt = OffsetDateTime.now(ZoneOffset.UTC);
-        LinkCode code = LinkCode.forRequest(request.getId(), "654321", createdAt.plusMinutes(5), createdAt);
+        LinkCode code = LinkCode.forStudent(student.getId(), "654321", createdAt.plusMinutes(5), createdAt);
         entityManager.persist(code);
         entityManager.flush();
         entityManager.clear();
 
         LinkCode found = entityManager.find(LinkCode.class, code.getId());
 
-        assertThat(found.getLinkRequestId()).isEqualTo(request.getId());
+        assertThat(found.getStudentId()).isEqualTo(student.getId());
         assertThat(found.getUsedAt()).isNull();
     }
 

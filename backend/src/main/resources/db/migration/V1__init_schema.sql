@@ -204,19 +204,6 @@ CREATE TABLE guardian_student (
     CONSTRAINT fk_guardian_student_student FOREIGN KEY (student_id) REFERENCES student (id) ON DELETE RESTRICT
 );
 
--- 자녀 연결 요청. 요청 → 코드 생성 → 코드 입력 3단계 중 첫 단계가 자체 식별자와 만료 시각을 반환한다.
-CREATE TABLE link_request (
-    id           bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    guardian_id  bigint      NOT NULL,
-    student_id   bigint      NOT NULL,
-    requested_at timestamptz NOT NULL,
-    expires_at   timestamptz NOT NULL,
-    status       varchar(10) NOT NULL,
-    CONSTRAINT fk_link_request_guardian FOREIGN KEY (guardian_id) REFERENCES guardian (id) ON DELETE CASCADE,
-    CONSTRAINT fk_link_request_student FOREIGN KEY (student_id) REFERENCES student (id) ON DELETE CASCADE,
-    CONSTRAINT ck_link_request_status CHECK (status IN ('pending', 'completed', 'expired'))
-);
-
 -- 아이디·비밀번호 복구 인증 코드. 만료·불일치를 서버가 판정하려면 발급분을 보관해야 한다.
 CREATE TABLE verification_code (
     id            bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -231,14 +218,15 @@ CREATE TABLE verification_code (
 );
 
 -- 자녀 연결 인증 코드. 코드 대조를 서버가 수행하는 전제라 발급분을 서버가 보관한다.
+-- 학생이 선행 조건 없이 발급한다(Ruling 324) — 보호자는 입력 시점(§3.4)에야 정해지므로 student_id 만 가진다.
 CREATE TABLE link_code (
-    id              bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    link_request_id bigint      NOT NULL,
-    code            varchar(10) NOT NULL,
-    expires_at      timestamptz NOT NULL,
-    used_at         timestamptz,
-    created_at      timestamptz NOT NULL DEFAULT now(),
-    CONSTRAINT fk_link_code_link_request FOREIGN KEY (link_request_id) REFERENCES link_request (id) ON DELETE CASCADE
+    id          bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    student_id  bigint      NOT NULL,
+    code        varchar(10) NOT NULL,
+    expires_at  timestamptz NOT NULL,
+    used_at     timestamptz,
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT fk_link_code_student FOREIGN KEY (student_id) REFERENCES student (id) ON DELETE CASCADE
 );
 
 -- 요일별 등하원 주소. 기본 주소 개념이 부재하고 요일 × 방향이 노선 산출의 유일한 기준이다.
@@ -710,7 +698,7 @@ CREATE TABLE notification_log (
     CONSTRAINT ck_notification_log_type CHECK (type IN (
         'boarding', 'alighting', 'no_show', 'absent', 'arrive', 'delay',
         'run_started', 'run_ended', 'signup_decided', 'change_decided',
-        'approval_requested', 'intent_changed', 'link_requested', 'route_changed',
+        'approval_requested', 'intent_changed', 'route_changed',
         'assignment_changed', 'no_show_escalated', 'emergency', 'emergency_canceled')),
     CONSTRAINT ck_notification_log_push_state CHECK (push_state IN ('pending', 'sent', 'failed', 'skipped'))
 );

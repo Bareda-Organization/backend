@@ -287,28 +287,36 @@ class SignupApprovalControllerTest {
     // ── AUTH-11 계정 ↔ 레코드 연결 ─────────────────────────────────────────
 
     /**
-     * 수락에는 레코드 연결이 필수다(AUTH-11 · §5.2) — 누락은 {@code 422 LINK_REQUIRED}.
+     * 학부모 수락은 {@code link} 없이도 통과한다(Ruling 324) — 자녀 연결은 계정↔학생 레코드 연결
+     * (AUTH-11)과 분리된 별도 2단계(코드 생성 → 코드 입력, §3.3·§3.4)로 학부모 앱에서 진행하므로,
+     * 승인 시점에 자녀를 지정하지 않아도 정상이다.
      *
-     * <p>연결 없이 {@code active} 로 만들면 "로그인은 되는데 아무 데이터도 못 보는 계정" 이 생긴다.
-     * 계정 상태를 함께 확인하는 이유는, 422 를 돌려주면서 활성화까지 해 버린 구현이 응답 단언만으로는
-     * 잡히지 않기 때문이다.
+     * <p>계정만 {@code active} 로 바뀌고 {@code guardian} 행은 자녀 0명으로 생긴다 — 학생·기사·동승자는
+     * (AUTH-11) 이 여전히 필수라 이 완화는 {@code role=parent} 에만 해당한다.
      */
     @Test
-    void 학부모_수락_시_link_가_없으면_422_LINK_REQUIRED_다() throws Exception {
+    void 학부모_수락은_link_가_없어도_active_로_바뀐다() throws Exception {
         처리한다(PARENT_REQUEST, ACADEMY_A, "{\"accept\": true}")
-                .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.error.code").value("LINK_REQUIRED"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.account_status").value("active"));
 
-        assertThat(계정_상태(PARENT_PENDING_ACCOUNT)).isEqualTo("pending");
-        assertThat(요청_상태(PARENT_REQUEST)).isEqualTo("pending");
+        assertThat(계정_상태(PARENT_PENDING_ACCOUNT)).isEqualTo("active");
+        assertThat(연결된_자녀_수(PARENT_PENDING_ACCOUNT)).isZero();
+        반영한다();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM guardian WHERE account_id = ?", Integer.class, PARENT_PENDING_ACCOUNT))
+                .as("연결 없이도 보호자 행 자체는 만들어져야 이후 코드 입력(§3.4)이 붙을 자리가 있다")
+                .isEqualTo(1);
     }
 
-    /** 빈 배열은 "연결 대상을 지정하지 않은 것" 과 같다 — 목록만 있으면 통과하는 구멍을 막는다. */
+    /** 빈 배열도 "연결 대상을 지정하지 않은 것" 과 같아 통과한다(Ruling 324) — 학부모 전용 완화다. */
     @Test
-    void 학부모_수락_시_student_ids_가_빈_배열이면_422_LINK_REQUIRED_다() throws Exception {
+    void 학부모_수락은_student_ids_가_빈_배열이어도_active_로_바뀐다() throws Exception {
         처리한다(PARENT_REQUEST, ACADEMY_A, "{\"accept\": true, \"link\": {\"student_ids\": []}}")
-                .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.error.code").value("LINK_REQUIRED"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.account_status").value("active"));
+
+        assertThat(연결된_자녀_수(PARENT_PENDING_ACCOUNT)).isZero();
     }
 
     /** 수락은 계정을 활성화하고 {@code guardian} · {@code guardian_student} 를 적재한다(AUTH-11). */
@@ -468,6 +476,26 @@ class SignupApprovalControllerTest {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT account_id FROM student WHERE id = ?", Long.class, STUDENT_A1))
                 .isEqualTo(계정_식별자("p3t2student"));
+    }
+
+    /**
+     * 학생 수락은 {@code link} 가 없으면 여전히 {@code 422 LINK_REQUIRED} 다 — Ruling 324 의 완화는
+     * {@code role=parent} 에만 해당하고, 학생·기사·동승자는 계정↔레코드 연결(AUTH-11)이 그대로 필수다.
+     */
+    @Test
+    @Sql(statements = {
+            "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) VALUES "
+                    + "(1, 'p3t2student2', 'x', 'P3T2대기학생2', '010-0000-2004', 'student', 'pending')",
+            "INSERT INTO signup_request (account_id, academy_id, requested_role, approver_type, status, requested_at) "
+                    + "VALUES ((SELECT id FROM account WHERE login_id = 'p3t2student2'), 1, 'student', 'staff', "
+                    + "'pending', now())"
+    })
+    void 학생_수락_시_link_가_없으면_422_LINK_REQUIRED_다() throws Exception {
+        처리한다(요청_식별자("p3t2student2"), ACADEMY_A, "{\"accept\": true}")
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("LINK_REQUIRED"));
+
+        assertThat(계정_상태(계정_식별자("p3t2student2"))).isEqualTo("pending");
     }
 
     /** 인가는 권한으로 판정한다 — {@code SIGNUP_APPROVE} 가 없는 학부모 계정은 {@code 403} 이다. */

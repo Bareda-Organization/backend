@@ -25,14 +25,12 @@ import src.backend.student.command.ChildLinkCommandService;
 import src.backend.student.dto.ChildLinkSubmitRequest;
 import src.backend.student.dto.ChildLinkedResponse;
 import src.backend.student.dto.ChildListResponse;
-import src.backend.student.dto.LinkRequestCreateRequest;
-import src.backend.student.dto.LinkRequestCreatedResponse;
 import src.backend.student.query.ChildQueryService;
 
 /**
- * 학부모 앱의 자녀 목록·연결 API(ATT-03 · P-02, API_SPEC §3.1·§3.2·§3.4).
+ * 학부모 앱의 자녀 목록·연결 API(ATT-03 · P-02, API_SPEC §3.1·§3.4).
  *
- * <p>연결 3단계 중 <b>학부모가 하는 두 단계</b>만 여기 있다 — 가운데의 코드 생성은 학생이 부르므로
+ * <p>연결 2단계 중 <b>학부모가 하는 단계</b>만 여기 있다(Ruling 324) — 코드 생성은 학생이 부르므로
  * {@link StudentLinkCodeController} 다. 주체가 다르면 인가·자원 해석이 함께 갈리므로 한 클래스에
  * 담지 않는다.
  *
@@ -60,18 +58,8 @@ public class GuardianChildController {
         return ApiResponse.ok(childQueryService.list(authUser));
     }
 
-    /** ① 자녀 연결 요청(P-02, §3.2) — 대상 학생을 로그인 아이디로 지목한다. */
-    @CanLinkChild
-    @Operation(summary = "자녀 연결 요청 (P-02) — 학부모")
-    @PostMapping("/link-requests")
-    @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<LinkRequestCreatedResponse> requestLink(@AuthenticationPrincipal AuthUser authUser,
-            @Valid @RequestBody LinkRequestCreateRequest request) {
-        return ApiResponse.ok(childLinkCommandService.requestLink(authUser, request.studentLoginId()));
-    }
-
     /**
-     * ③ 코드 입력 → 연결 완료(P-02, §3.4).
+     * ② 코드 입력 → 연결 완료(P-02, §3.4).
      *
      * <p>응답에 코드를 되돌려주지 않는다 — 대조는 서버가 하고 클라이언트는 비교하지 않는다는 것이
      * 이 단계의 전제다(§3.4).

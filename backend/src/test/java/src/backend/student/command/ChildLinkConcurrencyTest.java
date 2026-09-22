@@ -84,11 +84,7 @@ class ChildLinkConcurrencyTest {
     /** 이 클래스는 실제 커밋을 남기므로 지우는 것도 직접 한다 — 이 보호자·학생 조합의 행만 지운다. */
     @AfterEach
     void 뒷정리한다() {
-        jdbcTemplate.update("DELETE FROM link_code WHERE link_request_id IN"
-                + " (SELECT id FROM link_request WHERE guardian_id = ? AND student_id = ?)",
-                보호자_식별자(), STUDENT_A4_ID);
-        jdbcTemplate.update("DELETE FROM link_request WHERE guardian_id = ? AND student_id = ?",
-                보호자_식별자(), STUDENT_A4_ID);
+        jdbcTemplate.update("DELETE FROM link_code WHERE student_id = ?", STUDENT_A4_ID);
         jdbcTemplate.update("DELETE FROM guardian_student WHERE guardian_id = ? AND student_id = ?",
                 보호자_식별자(), STUDENT_A4_ID);
     }
@@ -141,17 +137,14 @@ class ChildLinkConcurrencyTest {
     // ── 도우미 ────────────────────────────────────────────────────────────
 
     /**
-     * ①②를 각각 커밋해 학부모가 넣을 코드를 얻는다 — 두 번 부르면 살아 있는 코드가 둘이 된다.
+     * 발급을 커밋해 학부모가 넣을 코드를 얻는다 — 두 번 부르면 살아 있는 코드가 둘이 된다.
      *
      * <p>SQL 로 직접 심지 않고 서비스를 부르는 이유는, 심어 넣은 행이 실제 발급 경로가 만드는 것과
      * 다른 상태일 수 있기 때문이다. 이 시험이 검사하려는 것은 <b>그 경로가 만든 코드 2개</b>가 겹칠 때다.
      */
     private String 요청하고_코드를_받는다() {
         TransactionTemplate transaction = new TransactionTemplate(transactionManager);
-        return transaction.execute(status -> {
-            childLinkCommandService.requestLink(보호자(), SeedFixtures.STUDENT_A4_LOGIN_ID);
-            return childLinkCommandService.issueCode(학생()).code();
-        });
+        return transaction.execute(status -> childLinkCommandService.issueCode(학생()).code());
     }
 
     /**

@@ -36,7 +36,7 @@ import jakarta.persistence.PersistenceContext;
 
 /**
  * Phase 5 목표 1 — 관계자 로그인 → 학생 등록 → 차량 등록 → 매니저 등록 → 스케줄 등록 →
- * <b>학부모</b> 로그인 → 자녀 연결(요청 → 코드 → 입력) → 요일별 주소 설정 → 회차 생성 배치 →
+ * <b>학부모</b> 로그인 → 자녀 연결(코드 발급 → 입력) → 요일별 주소 설정 → 회차 생성 배치 →
  * 오늘 회차 조회 → 매니저 배치를 <b>한 흐름</b>으로 밟는다(순서는 Ruling 154).
  *
  * <p><b>앞 단계 응답값만이 뒤 단계 입력이다.</b> 단계마다 시드 값을 새로 집어 오면 흐름이 아니라
@@ -44,11 +44,10 @@ import jakarta.persistence.PersistenceContext;
  * 아무도 검사하지 않는다. 시드에서 가져오는 것은 <b>출발 자격 둘</b>({@code staffA}·{@code parentA1})
  * 뿐이며, 그 밖의 식별자는 전부 앞 단계 응답에서 받는다.
  *
- * <p><b>자녀 연결은 역할이 셋이다</b> — 학부모가 요청하고, <b>학생</b>이 코드를 발급하고, 학부모가
- * 그 코드를 넣는다. 토큰을 바꿔 가며 밟지 않으면 "서버가 코드를 대조한다"(§3.4)는 전제가 검사되지
- * 않는다. 그래서 등록한 학생에게 계정을 붙이는 가입 승인(AUTH-11, §5.2)까지 흐름 안에 들어온다 —
- * {@code POST /me/students/link-requests} 가 {@code student_login_id} 를 받으므로(§3.2) 계정 없는
- * 학생 레코드로는 이 구간이 성립하지 않는다.
+ * <p><b>자녀 연결은 역할이 둘이다</b>(Ruling 324) — <b>학생</b>이 코드를 발급하고, 학부모가 그 코드를
+ * 넣는다. 토큰을 바꿔 가며 밟지 않으면 "서버가 코드를 대조한다"(§3.4)는 전제가 검사되지 않는다.
+ * 그래서 등록한 학생에게 계정을 붙이는 가입 승인(AUTH-11, §5.2)까지 흐름 안에 들어온다 — 코드 발급
+ * (§3.3)이 학생 계정을 전제하므로 계정 없는 학생 레코드로는 이 구간이 성립하지 않는다.
  *
  * <p><b>날짜를 고정하지 않는다</b>(Ruling 176). 시드 스케줄의 요일과 시드 회차의 날짜가
  * {@code extract(dow from now())}·{@code CURRENT_DATE} 라 <b>DB 를 만든 날</b>에 정해지는데, 여기에
@@ -69,7 +68,7 @@ class OperationSetupFlowTest {
     /** 시드 학원 A — {@code staffA}·{@code parentA1} 이 함께 속한 학원이다. */
     private static final long ACADEMY_A_ID = Long.parseLong(SeedFixtures.ACADEMY_A_ID);
 
-    /** 이 흐름이 만드는 학생의 로그인 아이디 — 연결 요청이 이 값으로 학생을 지목한다(§3.2). */
+    /** 이 흐름이 만드는 학생의 로그인 아이디 — 가입 승인 뒤 이 계정으로 로그인해 코드를 발급한다. */
     private static final String STUDENT_LOGIN_ID = "p5t7flowstudent";
 
     /**
@@ -136,13 +135,7 @@ class OperationSetupFlowTest {
         // ⑥ 학부모 로그인 — 시드에서 가져오는 두 번째 자격이다.
         String parentToken = 로그인한다(SeedFixtures.PARENT_A1_LOGIN_ID, SEED_PASSWORD, "active");
 
-        // ⑦ 자녀 연결 3단계 (P-02 · S-05) — 학부모 요청 → 학생 코드 발급 → 학부모 코드 입력.
-        mockMvc.perform(post("/api/v1/me/students/link-requests")
-                        .header("Authorization", parentToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"student_login_id\": \"%s\"}".formatted(STUDENT_LOGIN_ID)))
-                .andExpect(status().isCreated());
-
+        // ⑦ 자녀 연결 2단계 (P-02 · S-05, Ruling 324) — 학생 코드 발급 → 학부모 코드 입력.
         String studentToken = 로그인한다(STUDENT_LOGIN_ID, NEW_PASSWORD, "active");
         MvcResult 코드_발급 = mockMvc.perform(post("/api/v1/me/link-code")
                         .header("Authorization", studentToken))

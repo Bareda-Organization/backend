@@ -522,28 +522,24 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 **에러** — §1.11 공통 항목 외 고유 에러 부재. 연결 자녀 0명은 빈 `items[]` 로 반환.
 
-### 3.2 POST /me/students/link-requests
+### 3.2 (폐지 — Ruling 324)
 
-자녀 연결 요청 (P-02) — 학부모.
+**이 절이 정의하던 `POST /me/students/link-requests`(연결 요청)는 2026-09-22 폐지됐다.** 가입 승인(§5.2)이
+계정 활성화만 하도록 간소화되면서, 자녀 연결은 학부모의 사전 "요청" 없이 **학생이 코드를 만들고(§3.3)
+학부모가 그 코드를 입력하는(§3.4) 2단계**로 줄었다 — 학생은 로그인만 돼 있으면 언제든 코드를 만들 수
+있다. §3.2 번호는 뒤의 §3.3~§3.7 등 기존 참조를 그대로 두기 위해 비워 둔다.
 
-| 항목 | 값 |
-|---|---|
-| 권한 | 학부모 |
-| 요청 | `student_login_id` (string, 필수) |
-| 응답 | `201` — `link_request_id`, `expires_at` |
-| 처리 | 대상 학생 앱에 연결 요청 푸시. 다자녀도 같은 프로세스 반복 |
-
-**에러** — `404 STUDENT_NOT_FOUND` · `409 ALREADY_LINKED`
+**버린 대안** — §3.3 이후 번호를 전부 한 칸씩 당기는 재번호도 검토했으나, `ERD.md`·`IMPLEMENTATION_PLAN.md`
+등 이 문서 밖에서 `§3.3`·`§3.4` 를 가리키는 참조가 많아 재번호가 그쪽까지 전부 갱신을 요구했다. 번호를
+비우는 쪽이 훨씬 작은 diff 로 같은 결과(죽은 절 제거)를 낸다.
 
 ### 3.3 POST /me/link-code
 
-인증 코드 생성 (S-05) — 학생. 연결 요청 수신 후 학생 앱이 호출.
+인증 코드 생성 (S-05) — 학생. **선행 조건이 없다**(Ruling 324) — 로그인만 돼 있으면 언제든 호출할 수 있다.
 
 **권한** 학생 · **요청** 본문 부재 · **응답** `201` — `code`(string) · `expires_at`(datetime)
 
-**대기 중인 연결 요청이 선행 조건**이다 — `link_code` 는 `link_request` 에 매달리므로(ERD) 요청 없이 코드를 만들 수단이 부재. 대기 중이고 만료되지 않은 요청이 여럿이면 **가장 최근 1건**에 붙는다.
-
-**에러** — `404 LINK_REQUEST_NOT_FOUND`(대기 중인 연결 요청 부재)
+**에러** — §1.11 공통 항목 외 고유 에러 부재.
 
 ### 3.4 POST /me/students/link
 
@@ -1304,16 +1300,16 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 |---|---|:-:|---|
 | `accept` | boolean | ● | `true` = 수락 |
 | `reject_reason` | string | 조건부 | `accept=false` 필수 |
-| `link.student_ids[]` | array | 조건부 | `role=parent` · `student` 수락 시 필수 |
+| `link.student_ids[]` | array | 조건부 | `role=student` 수락 시 필수. `role=parent` 는 **선택**(Ruling 324) |
 | `link.manager_id` | string | 조건부 | `role=driver` · `escort` 수락 시 필수 |
 
-**수락 시 계정 ↔ 실제 레코드 연결이 필수** (AUTH-11) — 누락 시 `422 LINK_REQUIRED`. 연결 부재 계정은 데이터 접근 불가.
+**수락 시 계정 ↔ 실제 레코드 연결이 필수** (AUTH-11) — 누락 시 `422 LINK_REQUIRED`. 연결 부재 계정은 데이터 접근 불가. **단 `role=parent` 는 예외다**(Ruling 324) — 가입 승인은 계정 활성화만 하고, 자녀 연결은 §3.3·§3.4 로 분리된 별도 2단계에서 학부모·학생이 각자 진행한다. 학부모 계정이 자녀 0명으로 `active` 가 되는 상태가 정상이다.
 
 **응답** — `account_status`(`active` · `rejected`) · `decided_at`. 결과는 신청자에게 알림 통지.
 
 다자녀는 **연결 추가만** 수행 — 학부모 재가입 부재.
 
-**에러** — `422 LINK_REQUIRED`(수락 시 학생·매니저 레코드 연결 누락) · `409 APPROVAL_ALREADY_DECIDED`(이미 처리된 요청) · `409 SIGNUP_TARGET_BLOCKED`(승인 대상 계정이 `blocked` — §8.1) · `404 SIGNUP_REQUEST_NOT_FOUND` · `404 STUDENT_NOT_FOUND`(`link.student_ids[]` 대상 부재) · `404 MANAGER_NOT_FOUND`(`link.manager_id` 대상 부재) · `403 FORBIDDEN`(`role=staff` 요청 — 메인 관리자 경로 §6.5) · `422 VALIDATION_FAILED`(`accept=false` 인데 `reject_reason` 부재)
+**에러** — `422 LINK_REQUIRED`(수락 시 학생·매니저 레코드 연결 누락. `role=parent` 는 대상 아님) · `409 APPROVAL_ALREADY_DECIDED`(이미 처리된 요청) · `409 SIGNUP_TARGET_BLOCKED`(승인 대상 계정이 `blocked` — §8.1) · `404 SIGNUP_REQUEST_NOT_FOUND` · `404 STUDENT_NOT_FOUND`(`link.student_ids[]` 대상 부재) · `404 MANAGER_NOT_FOUND`(`link.manager_id` 대상 부재) · `403 FORBIDDEN`(`role=staff` 요청 — 메인 관리자 경로 §6.5) · `422 VALIDATION_FAILED`(`accept=false` 인데 `reject_reason` 부재)
 
 ### 5.3 GET /staff/dashboard
 
@@ -2345,7 +2341,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `ACADEMY_NOT_FOUND` | 404 | 미등록·비활성 학원 지정 |
 | `STUDENT_NOT_FOUND` | 404 | 미존재 학생 |
 | `ALREADY_LINKED` | 409 | 이미 연결된 자녀 재연결 |
-| `LINK_REQUEST_NOT_FOUND` | 404 | 학생이 인증 코드 생성(`§3.3`)을 호출했는데 **대기 중이고 만료되지 않은 연결 요청이 부재**. `link_code.link_request_id` 가 FK NN 이라 요청 없이 코드를 만들 수단 자체가 부재하다 — `§3.3` 은 이 경우를 규정하지 않았으나 빈칸은 금지가 아니라 미완이다(Ruling 143). `403 LINK_CODE_INVALID`(만료·불일치·재사용)와 코드를 나눈 이유는 **주체와 다음 동작이 다르기** 때문이다 — 저쪽은 학부모가 코드를 다시 받아야 할 자리이고, 이쪽은 **학생**에게 "부모에게 연결 요청을 다시 보내 달라"고 안내할 자리다. 404 인 것은 지목된 자원(대기 중인 요청)이 없는 형태가 `SIGNUP_REQUEST_NOT_FOUND`·`APPROVAL_NOT_FOUND` 와 같기 때문 (2026-08-26 신설, Ruling 170) |
+| ~~`LINK_REQUEST_NOT_FOUND`~~ | ~~404~~ | **폐지(Ruling 324)** — `§3.3` 코드 생성에 선행 조건이 없어져 이 판정 자체가 성립하지 않는다. Ruling 170(2026-08-26 신설)이 채운 사양의 빈칸이 이번 개정으로 통째로 사라졌다 |
 | `VALIDATION_FAILED` | 422 | 필수 누락·형식 위반. 지연 시간이 **5분 단위**가 아닌 경우 포함 |
 | `ROUTE_NOT_CONFIGURED_FOR_RUN` | 422 | 회차 확정 시점에 그 회차의 학원·버스·요일·방향에 대응하는 **고정 노선이 부재** — 노선 자체가 미등록이거나, 노선은 있으나 정차지가 0건이거나, 정차지가 가리키는 승하차지가 학원 밖(삭제·이관)인 경우를 모두 포함. `RunConfirmationService`·`ApprovalPreviewResolver` 공통 (Ruling 190). ⚠ **`§8.4` 가 아니라 여기인 이유** — `§8.4`(운행·명단)는 11항 전부가 409·404 계열(상태 전이 충돌·대상 부재)이고 422 가 하나도 없다. 이 코드는 "요청이 틀렸다" 가 아니라 **"확정에 필요한 자원이 준비되지 않았다"** 는 뜻이라 HTTP 상태와 성격 둘 다 이 절의 선례와 맞는다 (2026-09-12 신설, Ruling 269) |
 | `SIGNUP_REQUEST_NOT_FOUND` | 404 | 미존재 가입 요청 지정 (AUTH-10 · ACAD-05) |
@@ -2448,7 +2444,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `change_decided` | 변경 승인·거절·자동 거절 | 학부모 | — |
 | `approval_requested` | ② 구간 요청 접수 (REQ-05) | 관계자 | — |
 | `intent_changed` | 학부모 토글 | 관계자 | — |
-| `link_requested` | 자녀 연결 요청 (P-02) | 대상 학생 | — |
+| ~~`link_requested`~~ | **폐지(Ruling 324)** — 자녀 연결 요청(§3.2) 단계 자체가 없어졌다. 실제로 발송 경로가 배선된 적이 없었다(코드에 정의만 있고 호출부 부재) | — | — |
 | `route_changed` | 확정 후 노선 변경 (RUN-07) | 기사 · 동승자 | — |
 | `assignment_changed` | 당일 배치 변경 (MGR-05) | 해당 매니저 | — |
 | `no_show_escalated` | 미승차 3분 경과·무응답 (EXC-01) | 관계자 | — |

@@ -135,15 +135,10 @@ VALUES
     (5, 3, 5, now(), NULL),
     (6, 4, 6, now(), NULL);
 
--- 보호자-학생 연결 요청 1건(대기) — 이미 등록된 G1 이 S5 를 추가로 연결하려는 시도.
-INSERT INTO link_request (id, guardian_id, student_id, status, requested_at, expires_at)
+-- 학생(S5)이 발급한 연결 코드 1건(유효, 미사용) — G1 이 이 코드를 입력하면 추가 연결이 성립한다(Ruling 324).
+INSERT INTO link_code (id, student_id, code, expires_at, used_at)
 OVERRIDING SYSTEM VALUE
-VALUES (1, 1, 5, 'pending', now() - interval '10 minutes', now() + interval '20 minutes');
-
--- 학생이 발급한 연결 코드 1건(유효, 미사용) — 위 요청과 짝을 이룬다.
-INSERT INTO link_code (id, link_request_id, code, expires_at, used_at)
-OVERRIDING SYSTEM VALUE
-VALUES (1, 1, '482913', now() + interval '10 minutes', NULL);
+VALUES (1, 5, '482913', now() + interval '10 minutes', NULL);
 
 -- 인증 코드 1건 — §3.4 미기재(정의 부재)지만 비밀번호 찾기 흐름을 Swagger 로 시연하려 최소 추가.
 INSERT INTO verification_code (id, phone, code, purpose, expires_at, consumed_at, attempt_count)
@@ -527,7 +522,6 @@ SELECT setval(pg_get_serial_sequence('stop', 'id'), (SELECT COALESCE(MAX(id), 1)
 SELECT setval(pg_get_serial_sequence('student', 'id'), (SELECT COALESCE(MAX(id), 1) FROM student));
 SELECT setval(pg_get_serial_sequence('guardian', 'id'), (SELECT COALESCE(MAX(id), 1) FROM guardian));
 SELECT setval(pg_get_serial_sequence('guardian_student', 'id'), (SELECT COALESCE(MAX(id), 1) FROM guardian_student));
-SELECT setval(pg_get_serial_sequence('link_request', 'id'), (SELECT COALESCE(MAX(id), 1) FROM link_request));
 SELECT setval(pg_get_serial_sequence('verification_code', 'id'), (SELECT COALESCE(MAX(id), 1) FROM verification_code));
 SELECT setval(pg_get_serial_sequence('link_code', 'id'), (SELECT COALESCE(MAX(id), 1) FROM link_code));
 SELECT setval(pg_get_serial_sequence('weekly_address', 'id'), (SELECT COALESCE(MAX(id), 1) FROM weekly_address));

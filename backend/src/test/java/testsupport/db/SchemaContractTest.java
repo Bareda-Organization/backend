@@ -41,18 +41,19 @@ import jakarta.persistence.Entity;
 class SchemaContractTest extends MigratedPostgresTestBase {
 
     /**
-     * ERD §3 이 정의한 43개 테이블 전수와 정확히 일치해야 한다(Phase 8 신설 run_forced_addition ·
-     * F3 S1 신설 delay_notice · F4 S1 신설 run_transfer 포함). {@code shedlock} 은 도메인 테이블이
-     * 아니라 ShedLock 라이브러리가 요구하는 스키마 그대로이지만, {@code docs/ERD.md} 가 이를 별도
-     * 그룹 ⑤ 로 직접 문서화하므로(2026-09-03, V4) 43개 안에 포함된다 — 이 대조에서 빠지면 오타난
-     * 인프라 테이블 이름도 통과하게 되므로 함께 센다. Flyway 자신의 이력 테이블은 대조 대상 밖이다.
+     * ERD §3 이 정의한 42개 테이블 전수와 정확히 일치해야 한다(Phase 8 신설 run_forced_addition ·
+     * F3 S1 신설 delay_notice · F4 S1 신설 run_transfer 포함, Ruling 324 로 link_request 삭제 —
+     * 43개→42개). {@code shedlock} 은 도메인 테이블이 아니라 ShedLock 라이브러리가 요구하는 스키마
+     * 그대로이지만, {@code docs/ERD.md} 가 이를 별도 그룹 ⑤ 로 직접 문서화하므로(2026-09-03, V4)
+     * 42개 안에 포함된다 — 이 대조에서 빠지면 오타난 인프라 테이블 이름도 통과하게 되므로 함께 센다.
+     * Flyway 자신의 이력 테이블은 대조 대상 밖이다.
      */
     private static final List<String> ERD_TABLES = List.of(
             // ① 학원 · 계정 · 권한 (7)
             "academy", "academy_setting", "account", "signup_request",
             "academy_staff", "system_admin", "refresh_token",
-            // ② 학생 · 보호자 · 주소 (7)
-            "student", "guardian", "guardian_student", "link_request",
+            // ② 학생 · 보호자 · 주소 (6, Ruling 324 로 link_request 삭제 — 7→6)
+            "student", "guardian", "guardian_student",
             "verification_code", "link_code", "weekly_address",
             // ③ 차량 · 인력 · 운행 · 노선 (14)
             "bus", "manager", "stop", "schedule", "route", "route_stop", "run",
@@ -81,7 +82,7 @@ class SchemaContractTest extends MigratedPostgresTestBase {
     }
 
     @Test
-    void V1_을_적용하면_public_스키마의_테이블_집합이_ERD_43개와_정확히_일치한다() throws SQLException {
+    void V1_을_적용하면_public_스키마의_테이블_집합이_ERD_42개와_정확히_일치한다() throws SQLException {
         List<String> actual = queryColumn("""
                 SELECT table_name FROM information_schema.tables
                 WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
@@ -89,7 +90,7 @@ class SchemaContractTest extends MigratedPostgresTestBase {
                 """);
 
         assertThat(actual)
-                .as("개수가 아니라 이름 집합으로 대조한다 — 오타난 이름이 43개를 채우면 개수만으로는 통과한다")
+                .as("개수가 아니라 이름 집합으로 대조한다 — 오타난 이름이 42개를 채우면 개수만으로는 통과한다")
                 .containsExactlyInAnyOrderElementsOf(ERD_TABLES);
     }
 
