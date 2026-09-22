@@ -1845,6 +1845,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `address` | string | 조건부 | 주소 입력 방식. 좌표 미전달 시 필수 — 검증 후 좌표 변환 (STU-05) |
 | `lat` · `lng` | number | 조건부 | 지도 선택 방식 |
 | `label` | string | ● | 기사 화면 표시명 |
+| `seq` | integer | ○ | **설 자리(1부터)**. 생략하면 맨 뒤 — 2026-09-22 이전의 유일한 동작. 상한은 **정차지 수 + 1**이고 넘으면 `422`. `FixedStop.seq` 가 원래부터 최종 순번이라 최적화가 이 자리를 뒤집지 않는다 |
 | `note` | string | ○ | 경유 사유·특이사항 |
 | `apply` | boolean | ● | `false` = 미리보기만, `true` = 재최적화 결과 배포 |
 

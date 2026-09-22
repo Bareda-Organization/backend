@@ -437,6 +437,40 @@ class StaffWaypointControllerTest {
         return new 시나리오(academyId, runId);
     }
 
+    /**
+     * 순번을 지정하면 그 자리에 선다(2026-09-22 사용자 지시 — "경유지 추가·삭제에 순서도 정할 수
+     * 있게"). {@code FixedStop.seq} 는 원래부터 <b>최종 순번</b>이었고(엔진이 그 자리를 비워 둔다),
+     * 지금까지는 호출부가 늘 "맨 뒤" 를 박아 넣어 그 자리가 닫혀 있었다.
+     */
+    @Test
+    void 경유_지점_순번을_지정하면_그_자리에_선다() throws Exception {
+        시나리오 s = 확정된_회차를_만든다();
+
+        MvcResult result = 경유_추가한다(s.runId, 순번_본문("서울시 새길로 7", "1번 뒤", 2, false))
+                .andExpect(status().isOk()).andReturn();
+
+        String body = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        java.util.List<String> 변경후 = JsonPath.read(body, "$.data.route_preview.stops_after[*].stop_name");
+        assertThat(변경후)
+                .as("2번 자리를 요구했으면 두 번째에 서야 한다 — 맨 뒤로 밀면 지정의 뜻이 사라진다")
+                .element(1).isEqualTo("1번 뒤");
+    }
+
+    /** 범위 밖 순번은 422 다 — 조용히 맨 뒤로 보내면 관계자가 지정한 자리와 다른 결과를 못 알아챈다. */
+    @Test
+    void 정차지_수보다_큰_순번은_거부된다() throws Exception {
+        시나리오 s = 확정된_회차를_만든다();
+
+        경유_추가한다(s.runId, 순번_본문("서울시 새길로 7", "너무 뒤", 99, false))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+    }
+
+    private String 순번_본문(String address, String label, int seq, boolean apply) {
+        return "{\"address\":\"%s\",\"label\":\"%s\",\"seq\":%d,\"apply\":%s}"
+                .formatted(address, label, seq, apply);
+    }
+
     private ResultActions 경유_추가한다(long runId, String body) throws Exception {
         long academyId = jdbcTemplate.queryForObject("SELECT academy_id FROM run WHERE id = ?", Long.class, runId);
         return mockMvc.perform(post("/api/v1/staff/runs/" + runId + "/waypoints")

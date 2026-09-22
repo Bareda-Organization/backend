@@ -119,7 +119,7 @@ public class WaypointCommandService {
 
         RouteContext ctx = routeContextOf(run);
         List<FixedStop> fixedStops = new ArrayList<>(existingFixedStopsOf(ctx));
-        fixedStops.add(new FixedStop(waypoint.getId(), point, ctx.beforeRunStops().size() + 1));
+        fixedStops.add(new FixedStop(waypoint.getId(), point, seqOf(request, ctx)));
 
         return orchestrate(run, waypoint, ctx, fixedStops, request.apply(), requester.accountId(), false);
     }
@@ -152,6 +152,24 @@ public class WaypointCommandService {
             throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);
         }
         return run;
+    }
+
+    /**
+     * 설 자리 — 생략하면 맨 뒤(2026-09-22 이전의 유일한 동작).
+     *
+     * <p>상한이 <b>정차지 수 + 1</b> 인 이유는 "맨 뒤에 붙이기" 가 그 값이기 때문이다. 넘으면
+     * {@code 422} 다 — 조용히 맨 뒤로 보내면 관계자가 지정한 자리와 다른 결과가 나온 것을 알 수 없다.
+     */
+    private int seqOf(WaypointRequest request, RouteContext ctx) {
+        int last = ctx.beforeRunStops().size() + 1;
+        if (request.seq() == null) {
+            return last;
+        }
+        if (request.seq() > last) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED,
+                    "설 자리는 1부터 %d 사이여야 합니다".formatted(last));
+        }
+        return request.seq();
     }
 
     /** 좌표를 우선하고(재검증 호출을 늘리지 않는다), 없으면 주소를 검증한다. 둘 다 없으면 422. */
