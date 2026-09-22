@@ -1578,6 +1578,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `PATCH /staff/routes/{id}` | RTE-01 | 수정 — §1.9 대로 변경 후 자원 상태를 그대로 반환 |
 | `DELETE /staff/routes/{id}` | RTE-01 | 삭제. **행을 지운다**(soft delete 부재) — 정차 순서도 `route_stop` FK CASCADE 로 함께 사라진다 |
 | `POST /staff/routes/{id}/optimize` | RTE-09 | 정차 순서 최적화. 결과는 상세와 같은 형태 |
+| `GET /staff/routes/{id}/path` | RTE-01 | **도로 경로**(R27-B 신설) — 정차 순서(`seq`)대로 이은 실제 도로 좌표열. 관계자 웹이 편성 화면 지도에 그린다 |
 
 **`POST /staff/routes` · `PATCH /staff/routes/{id}` 요청** (두 엔드포인트가 같은 본문을 쓴다)
 
@@ -1610,6 +1611,13 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 **에러** — `409 DUPLICATE_ROUTE`(같은 차량·요일·방향이 이미 편성됨) · `404 ROUTE_NOT_FOUND` · `404 BUS_NOT_FOUND` · `422 VALIDATION_FAILED`(`stop_ids` 중복·학원 밖) · `503 MAP_ROUTE_UNAVAILABLE`(외부 도로 경로 API 서킷 개방 — §8)
 
 ⚠ **`stop_ids` 의 두 거부 사유는 현재 구현의 응답에서 구별되지 않는다** — 중복이든 학원 밖이든 `422 VALIDATION_FAILED` 이고, 사유를 가르던 문구가 응답에 도달하지 않는다(`GlobalExceptionHandler` 가 `ErrorCode` 의 고정 문구만 싣는 저장소 전역 성질). **이 절이 사유를 둘로 적은 것은 사양이 그렇게 요구하기 때문**이고, 구현이 그것을 전달하지 못하는 것은 **별도 단위로 등재된 사안**이다 — 화면이 사유를 갈라 안내해야 하면 `ErrorCode` 를 나누는 것이 현재 유일한 수단이다.
+
+**`GET /staff/routes/{id}/path` 응답**(R27-B 신설) — `road_path`(`{lat,lng}[]`, 순서 있음) · `fallback_used`(`true` 면 직선거리 근사) · `stops[]`(`stop_id` · `seq` · `name` · `lat` · `lng`, 상세 응답과 같은 모양)
+
+- 방향별 기준점은 §5.19 `plannedRouteOf` 와 같은 규칙이다(Ruling 190) — 등원은 첫 승차지 → 학원, 하원은 학원 → 마지막 하차지. **학원에 좌표가 없으면 학원 쪽 끝점만 빼고 정차지끼리 잇는다** — 이 엔드포인트는 §5.19 확정 노선이 아니라 학기 단위 원본 편성을 다루므로, 학원 기준점이 없어도 "정차지끼리 어떤 차례로 도는가"는 여전히 유효한 정보라고 판단했다
+- 정차지가 0~1개면(학원 기준점까지 더해도 지점이 2개 미만) `road_path` 는 빈 배열이다 — 오류가 아니다
+- `route_stop` 이 가리키는 승하차지 행이 없으면(데이터 정합 어긋남) 그 정차지만 `stops[]` 에서 빠지고 나머지로 응답한다 — `500` 으로 막지 않는다
+- **에러** — `404 ROUTE_NOT_FOUND`(다른 학원 편성 지목 포함) · `503 MAP_ROUTE_UNAVAILABLE`(외부 도로 경로 API 서킷 개방 — §8)
 
 ### 5.10 운행 스케줄 · 일일 회차 (SCH-01~03, A-09)
 
