@@ -32,6 +32,7 @@ import src.backend.routing.dto.RouteListRequest;
 import src.backend.routing.dto.RouteOptimizeRequest;
 import src.backend.routing.dto.RoutePathResponse;
 import src.backend.routing.dto.RouteRegisterRequest;
+import src.backend.routing.dto.RouteStopAddRequest;
 import src.backend.routing.dto.RouteResponse;
 import src.backend.routing.dto.RouteUpdateRequest;
 import src.backend.routing.query.RoutePathQueryService;
@@ -108,6 +109,15 @@ public class StaffRouteController {
     }
 
     /** 고정 노선 삭제(RTE-01, §5.9) — 행을 지우고 정차 순서도 FK CASCADE 로 함께 사라진다. */
+    /** 좌표로 정차지 더하기 — 주소 검색({@code GET /staff/stops/search}) 결과를 지도에서 확정한 뒤. */
+    @CanManageRoute
+    @Operation(summary = "고정 노선 편성 · 정차 순서 최적화 — 좌표로 정차지 추가")
+    @PostMapping("/{id}/stops")
+    public ApiResponse<RouteDetailResponse> addStop(@AuthenticationPrincipal AuthUser requester,
+            @PathVariable Long id, @Valid @RequestBody RouteStopAddRequest request) {
+        return ApiResponse.ok(routeCommandService.addStop(requester, id, request));
+    }
+
     @CanManageRoute
     @Operation(summary = "고정 노선 편성 · 정차 순서 최적화 — 삭제")
     @DeleteMapping("/{id}")

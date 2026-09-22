@@ -171,6 +171,8 @@ public final class AccountStatusGateEndpoints {
             "POST /staff/routes",
             "GET /staff/routes/{id}",
             "GET /staff/routes/{id}/path",
+            "POST /staff/routes/{id}/stops",
+            "GET /staff/stops/search",
             "PATCH /staff/routes/{id}",
             "DELETE /staff/routes/{id}",
             "POST /staff/routes/{id}/optimize",

@@ -43,9 +43,20 @@ public class StopMatcher {
      * {@link IllegalStateException} 이 난다.
      */
     public Stop matchOrCreate(Long academyId, GeocodedPoint point) {
+        return matchOrCreate(academyId, point, displayNameOf(point));
+    }
+
+    /**
+     * 표시명을 따로 받는 형태 — 관계자가 지도에서 지점을 찍어 만들 때 쓴다(2026-09-22 고정 노선 편성).
+     *
+     * <p>주소에서 잘라 만든 이름 대신 <b>관계자가 적은 이름</b>을 쓴다. 같은 도로명에 여러 승하차지가
+     * 서는 자리(아파트 정문·후문 등)를 주소만으로는 가를 수 없고, 기사·동승자 화면에 그 이름이 그대로
+     * 나가기 때문이다. <b>병합 판정은 그대로다</b> — 이름이 달라도 50m 안이면 같은 승하차지다.
+     */
+    public Stop matchOrCreate(Long academyId, GeocodedPoint point, String name) {
         return nearest(academyId, point)
                 .orElseGet(() -> stopRepository.save(Stop.forVerifiedAddress(academyId,
-                        displayNameOf(point), point.displayName(), point.lat(), point.lng())));
+                        truncated(name), point.displayName(), point.lat(), point.lng())));
     }
 
     private Optional<Stop> nearest(Long academyId, GeocodedPoint point) {
@@ -62,7 +73,10 @@ public class StopMatcher {
     }
 
     private static String displayNameOf(GeocodedPoint point) {
-        String name = point.displayName();
+        return truncated(point.displayName());
+    }
+
+    private static String truncated(String name) {
         return name.length() <= NAME_MAX_LENGTH ? name : name.substring(0, NAME_MAX_LENGTH);
     }
 }

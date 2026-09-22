@@ -1,9 +1,12 @@
 package src.backend.student.repository;
 
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import src.backend.student.entity.Stop;
 
@@ -12,6 +15,12 @@ import src.backend.student.entity.Stop;
  *
  * <p>근접 병합 후보 조회는 {@link StopMergeLookup} 이 갖는다 — 잠금 없는 후보 조회를 여기 두면
  * 호출부가 잠금을 빠뜨려도 컴파일되고, 그때 같은 자리에 승하차지가 둘 생긴다(Ruling 179).
+ *
+ * <p><b>{@link #findNearby} 는 그 규칙의 한 자리 예외이며, 쓰기 경로에서 부르면 안 된다</b>
+ * (2026-09-22 주소 검색). 검색은 <b>아무것도 만들지 않으므로</b> Ruling 179 가 막으려는 "조회 →
+ * 판정 → 생성" 임계 구역 자체가 없고, 그 경로에 학원 잠금을 걸면 화면 조회가 그 학원의 주소
+ * 등록·강제 추가를 기다리게 한다. 병합은 여전히 {@link StopMergeLookup} 하나뿐이고,
+ * {@code StopMatcherUsesLockingLookupTest} 가 쓰기 경로의 호출 대상을 고정한다.
  */
 public interface StopRepository extends JpaRepository<Stop, Long>, StopMergeLookup {
 
@@ -40,4 +49,21 @@ public interface StopRepository extends JpaRepository<Stop, Long>, StopMergeLook
      * 버스의 정차지가 되지는 않는다(횡단 규칙 7).
      */
     List<Stop> findAllByIdInAndAcademyId(Collection<Long> ids, Long academyId);
+
+    /**
+     * 좌표 부근의 승하차지를 <b>잠그지 않고</b> 읽는다 — 화면에 "이 자리에 이미 있다" 를 알리는
+     * 조회 전용 경로다(2026-09-22 주소 검색).
+     *
+     * <p>{@link StopMergeLookup#lockAcademyAndFindNearby} 와 가르는 이유는 <b>잠금이 쓰기의 것</b>이기
+     * 때문이다. 검색은 아무것도 만들지 않으므로 임계 구역이 필요 없고, 학원 잠금을 걸면 그동안 그
+     * 학원의 주소 등록·강제 추가가 이 조회를 기다린다.
+     */
+    @Query("""
+            SELECT s FROM Stop s
+             WHERE s.academyId = :academyId
+               AND s.lat BETWEEN :lat - :box AND :lat + :box
+               AND s.lng BETWEEN :lng - :box AND :lng + :box
+            """)
+    List<Stop> findNearby(@Param("academyId") Long academyId, @Param("lat") BigDecimal lat,
+            @Param("lng") BigDecimal lng, @Param("box") BigDecimal box);
 }

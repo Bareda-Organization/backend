@@ -1,5 +1,6 @@
 package src.backend.routing.command;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -17,11 +18,16 @@ import src.backend.global.request.ApiValues;
 import src.backend.global.security.AuthUser;
 import src.backend.routing.dto.RouteDetailResponse;
 import src.backend.routing.dto.RouteRegisterRequest;
+import src.backend.routing.dto.RouteStopAddRequest;
 import src.backend.routing.dto.RouteUpdateRequest;
 import src.backend.routing.entity.Route;
 import src.backend.routing.entity.RoutePlan;
 import src.backend.routing.query.RouteDetailAssembler;
 import src.backend.routing.repository.RouteRepository;
+import src.backend.routing.repository.RouteStopRepository;
+import src.backend.student.command.StopMatcher;
+import src.backend.student.entity.Stop;
+import src.backend.student.geocoding.spec.GeocodedPoint;
 
 /**
  * 고정 노선 편성·수정·삭제(RTE-01, API_SPEC §5.9 · Ruling 180).
@@ -51,6 +57,11 @@ public class RouteCommandService {
     private final RouteStopArranger routeStopArranger;
 
     private final RouteDetailAssembler routeDetailAssembler;
+
+    private final RouteStopRepository routeStopRepository;
+
+    /** 좌표 → 승하차지 확보(근접 병합 포함). 만드는 규칙이 이 한 곳에만 있도록 재사용한다(STU-05). */
+    private final StopMatcher stopMatcher;
 
     /**
      * 고정 노선을 편성한다(§5.9) — 소속 학원은 토큰에서만 온다(§1.5).
@@ -92,6 +103,37 @@ public class RouteCommandService {
         return route.movesSlot(plan)
                 ? enforcingUniqueSlot(requester.academyId(), merged(route, plan), apply)
                 : apply.get();
+    }
+
+    /**
+     * 좌표로 정차지를 더한다(§5.9, 2026-09-22 사용자 지시) — 노선 <b>맨 끝</b>에 붙인다.
+     *
+     * <p>흐름은 <b>검색 → 확인 → 반영</b> 셋으로 갈려 있고 이 메서드가 마지막이다. 검색
+     * ({@code GET /staff/stops/search})은 아무것도 만들지 않으므로, 관계자가 지도에서 지점을 고치는
+     * 동안 잘못 찍힌 승하차지가 남지 않는다.
+     *
+     * <p>승하차지는 {@link StopMatcher} 가 정한다 — 50m 안에 이미 있으면 그것을 쓴다(STU-05). 지도에서
+     * 몇 미터 어긋나게 찍는 것은 흔한 일이고, 그때마다 새로 만들면 같은 자리를 둘로 세게 된다.
+     *
+     * <p>이미 그 노선에 있는 승하차지면 {@code 422} 다 — 판정은 {@link RouteStopArranger#resolve} 가
+     * 이미 갖고 있어 여기서 다시 검사하지 않는다(버스가 같은 자리에 두 번 서는 것을 막는 규칙).
+     */
+    public RouteDetailResponse addStop(AuthUser requester, Long routeId, RouteStopAddRequest request) {
+        Route route = findOwnRoute(requester, routeId);
+        Stop stop = stopMatcher.matchOrCreate(requester.academyId(),
+                new GeocodedPoint(request.lat(), request.lng(),
+                        request.address() == null || request.address().isBlank()
+                                ? request.name() : request.address()),
+                request.name());
+
+        List<Long> stopIds = new ArrayList<>(routeStopRepository
+                .findAllOrderedByRouteIdAndAcademyId(routeId, requester.academyId()).stream()
+                .map(src.backend.routing.entity.RouteStop::getStopId)
+                .toList());
+        stopIds.add(stop.getId());
+        routeStopArranger.resolve(requester.academyId(), stopIds);
+        routeStopArranger.replace(routeId, requester.academyId(), stopIds);
+        return routeDetailAssembler.assemble(route);
     }
 
     /**

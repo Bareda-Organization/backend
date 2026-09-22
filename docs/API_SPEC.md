@@ -1574,6 +1574,9 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `PATCH /staff/routes/{id}` | RTE-01 | 수정 — §1.9 대로 변경 후 자원 상태를 그대로 반환 |
 | `DELETE /staff/routes/{id}` | RTE-01 | 삭제. **행을 지운다**(soft delete 부재) — 정차 순서도 `route_stop` FK CASCADE 로 함께 사라진다 |
 | `POST /staff/routes/{id}/optimize` | RTE-09 | 정차 순서 최적화. 결과는 상세와 같은 형태 |
+| `GET /staff/routes/{id}/path` | RTE-01 | 정차 순서대로 이은 **도로 경로**. 응답 `road_path[{lat,lng}]` · `fallback_used` · `stops[]` |
+| `GET /staff/stops/search?address=` | RTE-01 | **주소 검색** — 도로명 주소를 좌표로 옮긴다. **아무것도 만들지 않는다** |
+| `POST /staff/routes/{id}/stops` | RTE-01 | **좌표로 정차지 추가** — 노선 **맨 끝**에 붙인다 |
 | `GET /staff/routes/{id}/path` | RTE-01 | **도로 경로**(R27-B 신설) — 정차 순서(`seq`)대로 이은 실제 도로 좌표열. 관계자 웹이 편성 화면 지도에 그린다 |
 
 **`POST /staff/routes` · `PATCH /staff/routes/{id}` 요청** (두 엔드포인트가 같은 본문을 쓴다)
@@ -1599,6 +1602,36 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 **`POST /staff/routes/{id}/optimize` 요청** — `origin`(`lat`·`lng`) · `destination`(`lat`·`lng`) **둘 다 필수**
 
 ⚠ **좌표를 호출자가 넘기는 것은 현재 스키마에서 유일한 선택지다**(Ruling 184). `academy`·`route` 어느 쪽에도 **좌표 컬럼이 부재**하다. 서버가 정차지 중 하나를 골라 기준점으로 쓰는 안은 **그 고름이 요청·응답 어디에도 남지 않아 산출 조건이 관측 불가**가 되어 기각했다 — `TECH_DECISIONS §8.5.1`("왜 이 순서로 돌았나를 재현 가능하게")과 정면으로 어긋난다. **Phase 7 이 `academy` 좌표 컬럼을 추가하면 이 계약이 바뀐다.**
+
+#### 주소로 정차지를 더하는 흐름 — 검색 → 확인 → 수정 → 반영 (2026-09-22 사용자 지시)
+
+정차지를 `stop_id` 로만 고르던 자리를 **도로명 주소 검색**으로 바꾼다. 세 단계로 가른 이유는
+**지오코딩이 돌려주는 점이 버스가 실제로 서는 자리와 다르기 때문**이다 — 건물 중심점이 나오는데
+버스는 그 블록 모퉁이나 도로가에 선다. 관계자가 지도에서 그 차이를 메운 뒤에 반영한다.
+
+| 단계 | 호출 | 성질 |
+|---|---|---|
+| ① 검색 | `GET /staff/stops/search?address=<도로명 주소>` | **조회 전용** — 승하차지를 만들지 않는다 |
+| ② 확인·수정 | (호출 없음) | 화면이 좌표를 임시 핀으로 찍고, 관계자가 지도를 눌러 옮긴다 |
+| ③ 반영 | `POST /staff/routes/{id}/stops` | 이때 비로소 승하차지가 생기고 노선 끝에 붙는다 |
+
+**`GET /staff/stops/search` 응답** — `lat` · `lng` · `display_name`(정규화 주소) ·
+`nearby[]`(`stop_id` · `name` · `address` · `lat` · `lng` · `distance_m`). `nearby` 는 **50m 안**의
+기존 승하차지다(근접 병합 임계와 같은 값, STU-05) — 화면이 "이 자리에 이미 있다" 를 알려 관계자가
+같은 자리에 둘째를 만들지 않게 한다.
+
+**에러** — `422 ADDRESS_VERIFICATION_FAILED`(그런 주소가 없다 — 사용자가 고칠 자리) ·
+`503 ADDRESS_VERIFICATION_UNAVAILABLE`(공급자에 못 닿았다 — 이따가 다시 보낼 자리). 둘을 가르는
+근거는 §3.7·§3.8 과 같다.
+
+**`POST /staff/routes/{id}/stops` 요청** — `lat` · `lng` · `name`(표시명, 필수 · 최대 100자) ·
+`address`(생략 시 `name` 을 주소 자리에 씀). **좌표를 서버가 다시 지오코딩하지 않는다** — 그러면
+②에서 관계자가 옮긴 지점이 사라진다.
+
+- **50m 안에 기존 승하차지가 있으면 그것을 쓴다**(새로 만들지 않는다) — 지도에서 몇 미터 어긋나게
+  찍는 것은 흔하고, 그때마다 새로 만들면 명단·노선이 같은 자리를 둘로 센다
+- **이미 그 노선에 있는 승하차지면 `422 VALIDATION_FAILED`** — 버스가 같은 자리에 두 번 선다
+- 응답은 **상세와 같은 형태**(`stops[]` 포함)
 
 **최적화는 명시적 호출뿐이다** — 편성·수정이 순서를 자동으로 재배열하지 않는다. 가중치가 미확정인 상태(오픈 이슈 G)에서 자동 재배열을 두면 **기준 없는 재배열이 조용히 돌아 관계자가 정한 차례가 이유 없이 뒤집힌다.**
 

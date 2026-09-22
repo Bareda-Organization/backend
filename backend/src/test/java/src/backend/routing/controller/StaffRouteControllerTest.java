@@ -515,6 +515,69 @@ class StaffRouteControllerTest {
                         .formatted(busId, weekday, direction, stopIds)));
     }
 
+    // ── 좌표로 정차지 추가(2026-09-22 사용자 지시 — 주소 검색 → 위치 확인 → 반영) ──────────
+
+    /**
+     * 반영은 <b>한 번의 호출</b>이다 — 검색(§{@code /staff/stops/search})은 아무것도 만들지 않고,
+     * 관계자가 지도에서 지점을 확정한 뒤에야 승하차지가 생기고 노선에 붙는다.
+     */
+    @Test
+    void 좌표로_정차지를_더하면_승하차지가_생기고_노선_끝에_붙는다() throws Exception {
+        long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "wed", "to_academy", STOPS_OF_A);
+
+        String body = 본문(정차지를_더한다(관계자A_토큰(), routeId, "37.512345", "126.512345", "골목 안쪽 모퉁이")
+                .andExpect(status().isOk()).andReturn());
+
+        List<String> names = JsonPath.read(body, "$.data.stops[*].name");
+        assertThat(names)
+                .as("보낸 이름 그대로, 그리고 마지막 차례에 붙어야 한다 — 중간에 끼우면 관계자가 정한 순서가 바뀐다")
+                .last().isEqualTo("골목 안쪽 모퉁이");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM stop WHERE academy_id = ? AND name = ?", Integer.class,
+                ACADEMY_A_ID, "골목 안쪽 모퉁이"))
+                .isEqualTo(1);
+    }
+
+    /**
+     * 같은 자리를 두 번 더하면 승하차지가 둘 생기지 않는다 — 근접 병합(STU-05, 50m)을 그대로 쓴다.
+     * 관계자가 지도에서 몇 미터 어긋나게 찍는 것은 흔한 일이고, 그때마다 새 승하차지가 생기면
+     * 명단·노선이 같은 자리를 둘로 센다.
+     */
+    @Test
+    void 이미_50m_안에_승하차지가_있으면_새로_만들지_않는다() throws Exception {
+        long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "thu", "to_academy", List.of());
+        정차지를_더한다(관계자A_토큰(), routeId, "37.520000", "126.520000", "첫 지점").andExpect(status().isOk());
+        int 승하차지_수 = jdbcTemplate.queryForObject("SELECT count(*) FROM stop WHERE academy_id = ?",
+                Integer.class, ACADEMY_A_ID);
+
+        // 약 11m 북쪽 — 같은 승하차지로 묶여야 한다.
+        정차지를_더한다(관계자A_토큰(), routeId, "37.520100", "126.520000", "몇 미터 옆")
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM stop WHERE academy_id = ?", Integer.class,
+                ACADEMY_A_ID))
+                .as("같은 자리를 다시 찍었을 뿐인데 승하차지가 늘면 근접 병합이 안 걸린 것이다")
+                .isEqualTo(승하차지_수);
+    }
+
+    @Test
+    void 남의_학원_노선에_정차지를_더하면_404_이다() throws Exception {
+        long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "fri", "to_academy", STOPS_OF_A);
+
+        정차지를_더한다(관계자B_토큰(), routeId, "37.530000", "126.530000", "남의 학원")
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("ROUTE_NOT_FOUND"));
+    }
+
+    private ResultActions 정차지를_더한다(String token, long routeId, String lat, String lng, String name)
+            throws Exception {
+        return mockMvc.perform(post("/api/v1/staff/routes/{id}/stops", routeId)
+                .header("Authorization", token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"lat\":%s,\"lng\":%s,\"name\":\"%s\"}".formatted(lat, lng, name)));
+    }
+
     private long 편성된_노선_id(String token, long busId, String weekday, String direction, List<Long> stopIds)
             throws Exception {
         MvcResult result = 편성한다(token, busId, weekday, direction, stopIds)
