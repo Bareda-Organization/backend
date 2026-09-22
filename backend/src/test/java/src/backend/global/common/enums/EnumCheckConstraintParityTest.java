@@ -56,11 +56,11 @@ import src.backend.run.entity.DelayReason;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.entity.RunTransferStatus;
 import src.backend.student.entity.Gender;
-import src.backend.student.entity.LinkRequestStatus;
 
 /**
- * enum 31종의 DB 값 집합이 마이그레이션 전체({@code V1__init_schema.sql} 기준 값 목록형 CHECK
- * 39건 + 이후 파일이 같은 이름으로 재정의한 것)와 정확히 일치하는지 회귀 감시한다 —
+ * enum 30종의 DB 값 집합이 마이그레이션 전체({@code V1__init_schema.sql} 기준 값 목록형 CHECK
+ * 38건(Ruling 324 로 ck_link_request_status 삭제 — 39건→38건) + 이후 파일이 같은 이름으로
+ * 재정의한 것)와 정확히 일치하는지 회귀 감시한다 —
  * {@code ddl-auto: validate} 는 CHECK 를 전혀 보지 않으므로(`IMPLEMENTATION_PLAN` 603행), 이
  * 대조가 없으면 오늘 맞는 값이 내일 상수 하나만 고쳐도 어디서도 실패하지 않는다.
  *
@@ -155,8 +155,6 @@ class EnumCheckConstraintParityTest {
                 Arguments.of("VerificationPurpose", dbValuesOf(VerificationPurpose.class, new VerificationPurpose.Db()),
                         Set.of("ck_verification_code_purpose")),
                 Arguments.of("Gender", dbValuesOf(Gender.class, new Gender.Db()), Set.of("ck_student_gender")),
-                Arguments.of("LinkRequestStatus", dbValuesOf(LinkRequestStatus.class, new LinkRequestStatus.Db()),
-                        Set.of("ck_link_request_status")),
                 Arguments.of("RunStatus", dbValuesOf(RunStatus.class, new RunStatus.Db()), Set.of("ck_run_status")),
                 Arguments.of("DelayReason", dbValuesOf(DelayReason.class, new DelayReason.Db()),
                         Set.of("ck_delay_notice_reason")),

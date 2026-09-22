@@ -12,4 +12,3 @@ CREATE INDEX ix_refresh_token_retention_revoked ON refresh_token (revoked_at) WH
 CREATE INDEX ix_refresh_token_retention_expires ON refresh_token (expires_at) WHERE revoked_at IS NULL;
 
 CREATE INDEX ix_link_code_retention_expires ON link_code (expires_at);
-CREATE INDEX ix_link_request_retention_expires ON link_request (expires_at);

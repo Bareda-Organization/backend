@@ -54,10 +54,15 @@ public class SignupAccountLinker {
      *
      * <p>본문이 정하게 두면 학부모 요청에 {@code manager_id} 를 실어 매니저 레코드를 가로챌 수 있다.
      * {@code staff}·{@code system_admin} 이 여기 닿는 것은 축 분리가 깨진 것이므로 {@code 403} 이다.
+     *
+     * <p><b>학부모는 {@code student_ids} 가 조건부가 아니라 선택이다</b>(Ruling 324) — 자녀 연결은
+     * 가입 승인과 분리된 별도 2단계(학생이 코드 생성 → 학부모가 코드 입력, §3.3·§3.4)로 진행하므로,
+     * 승인 시점에는 자녀 0명인 채 {@code active} 가 되는 것이 정상이다. 학생·기사·동승자는 계정과
+     * 실제 레코드(명부)의 연결 자체가 학원만 할 수 있는 동작이라(AUTH-11) 그대로 필수로 남는다.
      */
     public void link(Account account, SignupLinkPayload link) {
         switch (account.getRole()) {
-            case PARENT -> linkGuardian(account, resolveStudents(account, link));
+            case PARENT -> linkGuardian(account, resolveOptionalStudents(account, link));
             case STUDENT -> linkStudent(account, resolveStudents(account, link));
             case DRIVER, ESCORT -> linkManager(account, link);
             default -> throw new BusinessException(ErrorCode.FORBIDDEN);
@@ -65,7 +70,8 @@ public class SignupAccountLinker {
     }
 
     /**
-     * 연결할 학생을 전부 찾아 돌려준다 — 하나라도 어긋나면 아무것도 쓰기 전에 실패한다.
+     * 연결할 학생을 전부 찾아 돌려준다 — 하나라도 어긋나면 아무것도 쓰기 전에 실패한다. 비어 있으면
+     * {@code 422 LINK_REQUIRED} 다(학생·기사·동승자 전용).
      *
      * <p>같은 식별자가 두 번 실린 요청은 {@code 409 ALREADY_LINKED} 다. DB
      * {@code uk_guardian_student} 에 맡기면 같은 결과가 {@code 500} 으로 나가고, 그 시점엔 이미
@@ -76,6 +82,22 @@ public class SignupAccountLinker {
         if (studentIds == null || studentIds.isEmpty()) {
             throw new BusinessException(ErrorCode.LINK_REQUIRED);
         }
+        return resolveStudentIds(account, studentIds);
+    }
+
+    /**
+     * 학부모 전용 — 비어 있어도 실패하지 않는다(Ruling 324). 자녀 연결은 이 승인과 분리된 별도
+     * 경로(§3.3·§3.4)라, 승인 시점에 지정한 자녀가 없어도 정상이다.
+     */
+    private List<Student> resolveOptionalStudents(Account account, SignupLinkPayload link) {
+        List<Long> studentIds = link == null ? null : link.studentIds();
+        if (studentIds == null || studentIds.isEmpty()) {
+            return List.of();
+        }
+        return resolveStudentIds(account, studentIds);
+    }
+
+    private List<Student> resolveStudentIds(Account account, List<Long> studentIds) {
         if (studentIds.size() != Set.copyOf(studentIds).size()) {
             throw new BusinessException(ErrorCode.ALREADY_LINKED);
         }
@@ -88,7 +110,7 @@ public class SignupAccountLinker {
 
     /**
      * 학부모는 {@code guardian} 한 행에 자녀 N 행을 잇는다(P-02) — 다자녀는 <b>연결 추가만</b> 하며
-     * 재가입 경로가 부재하다(§5.2).
+     * 재가입 경로가 부재하다(§5.2). 자녀 목록이 비어 있으면 보호자 행만 만들고 끝난다(Ruling 324).
      *
      * <p>이미 있는 보호자 행을 재사용하는 이유는 자녀마다 보호자를 만들면 학부모 한 명이 시스템 안에서
      * 여러 사람이 되어, 연락처를 고쳐도 일부 자녀의 명단에만 반영되기 때문이다.

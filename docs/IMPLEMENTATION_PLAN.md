@@ -94,7 +94,7 @@
 | 162 | `manager/entity/WorkHours` | 형태가 깨진 근무시간 행은 예외로 드러내고 "근무 시간 없음" 으로 삼키지 않는다 — 시드에서 실제로 겪은 형태 |
 | 163 | `routing/repository/RouteRepository` · `student/repository/StudentRepository` · `schedule/repository/ScheduleRepository` · `run/repository/RunRepository` · `student/access/GuardianChildAccess`(62행) | `{id}` 로 자원을 지목하는 조회는 학원 조건을 쿼리에 고정해 남의 학원 자원이면 `403` 이 아니라 `404` 로 답한다 |
 | 164 | `API_SPEC §5.12` | 같은 학원에 같은 호차 중복 등록·수정은 `409 DUPLICATE_BUS_NO`(2026-08-26 신설) |
-| 170 | `API_SPEC §8.5` | 만료되지 않은 연결 요청이 없으면 `404 LINK_REQUEST_NOT_FOUND` — 인증 코드 자체의 오류(`403 LINK_CODE_INVALID`)와는 주체·다음 동작이 달라 분리 |
+| ~~170~~ | `API_SPEC §8.5` | ~~만료되지 않은 연결 요청이 없으면 `404 LINK_REQUEST_NOT_FOUND`~~ — **Ruling 324(2026-09-22)로 대체.** 연결 요청 단계(§3.2) 자체가 없어져 이 에러 코드도 함께 폐지 |
 | 171 | `student/dto/StudentSummaryResponse` · `student/dto/StudentWithdrawalResponse` · `student/dto/StudentDetailResponse` | 응답 DTO 의 `studentId` 등 `*_id` 필드는 문자열 타입 |
 | 172 | `student/command/StudentCommandService`(37행·85행) | `guardian_student` 연결을 만드는 경로는 자녀 연결(`P-02`)만 소유 — 퇴원 처리는 연결을 해제만 함께 한다 |
 | 173 | `student/command/ChildLinkCommandService` | 중복 연결은 선검사든 DB 거부든 같은 `409 ALREADY_LINKED` 로 통일(Ruling 164 의 요구를 이 자리로 확장) |

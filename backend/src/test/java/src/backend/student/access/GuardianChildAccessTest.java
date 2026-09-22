@@ -142,10 +142,10 @@ class GuardianChildAccessTest {
      * 상태가 {@code ARCHITECTURE §6.1} 이 지목한 사고 지점이라 축을 따로 세운다.
      *
      * <p>학원을 넘는 연결 행을 <b>일부러 심어</b> 본다. 오늘 쓰기 경로
-     * ({@code ChildLinkCommandService.requestLink} 의 {@code findByLoginIdAndAcademyId})가 같은 학원
-     * 쌍만 허용해 이런 행은 실제로 태어나지 않는다 — 그래서 이 조건은 지금 아무것도 막지 않는 것처럼
-     * 보이고, 그것이 리뷰에서 이 조건을 지워도 아무 시험이 물지 않은 이유다. 쓰기 경로가 훗날
-     * 바뀌면(관리자 데이터 보정·별도 등록 경로) 이 조건이 유일한 저지선이 되고, 그때 무너져도
+     * ({@code ChildLinkCommandService.completeLink} 의 {@code findByIdAndAcademyIdAndDeletedAtIsNull})가
+     * 같은 학원 쌍만 허용해 이런 행은 실제로 태어나지 않는다 — 그래서 이 조건은 지금 아무것도 막지
+     * 않는 것처럼 보이고, 그것이 리뷰에서 이 조건을 지워도 아무 시험이 물지 않은 이유다. 쓰기 경로가
+     * 훗날 바뀌면(관리자 데이터 보정·별도 등록 경로) 이 조건이 유일한 저지선이 되고, 그때 무너져도
      * 화면에는 남의 학원 아이가 자녀 목록에 한 줄 늘어난 것으로만 보인다.
      *
      * <p>같은 학원 자녀가 <b>여전히 나오는 것</b>을 함께 본다. 없으면 목록을 통째로 비우는 구현이

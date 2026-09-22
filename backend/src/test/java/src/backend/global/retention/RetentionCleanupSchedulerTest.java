@@ -25,7 +25,6 @@ import src.backend.account.repository.RefreshTokenRepository;
 import src.backend.location.repository.RunPositionRepository;
 import src.backend.notification.repository.NotificationLogRepository;
 import src.backend.student.repository.LinkCodeRepository;
-import src.backend.student.repository.LinkRequestRepository;
 
 /**
  * 보존 정리 배치({@link RetentionCleanupScheduler#cleanUp}) 수준의 검증(Phase 14 T2 목표 6·7) —
@@ -34,7 +33,7 @@ import src.backend.student.repository.LinkRequestRepository;
  *
  * <p>⚠ 고정 시계를 쓰지 않는 이유(Ruling 248, 2026-09-04) — 이 시험은 실제로 행을 지우는 배치를
  * 돌린다. 시계를 미래(2032년)로 고정하면 컷오프가 그만큼 미래로 밀려 <b>공유 DB 의 시드 행
- * 전부</b>({@code notification_log} 10건 · {@code run_position} 3건 · {@code link_code}·{@code link_request})가
+ * 전부</b>({@code notification_log} 10건 · {@code run_position} 3건 · {@code link_code})가
  * 삭제되고, 같은 DB 에서 뒤에 도는 {@code NotificationOutboxWorkerTest} 가 시드를 못 찾아 실패했다
  * (Phase 14 최종 실측에서 3건). 심는 행은 전부 {@code now} 기준 상대 시각이라 실제 시각으로도
  * 판정이 결정적이다.
@@ -76,8 +75,6 @@ class RetentionCleanupSchedulerTest {
     private final List<Long> runPositionIds = new ArrayList<>();
     private final List<Long> refreshTokenIds = new ArrayList<>();
     private final List<Long> linkCodeIds = new ArrayList<>();
-    private final List<Long> linkRequestIds = new ArrayList<>();
-    private final List<Long> guardianIds = new ArrayList<>();
     private final List<Long> studentIds = new ArrayList<>();
     private final List<Long> accountIds = new ArrayList<>();
     private final List<Long> academyIds = new ArrayList<>();
@@ -91,8 +88,6 @@ class RetentionCleanupSchedulerTest {
     @AfterEach
     void tearDown() {
         deleteByIds("link_code", linkCodeIds);
-        deleteByIds("link_request", linkRequestIds);
-        deleteByIds("guardian", guardianIds);
         deleteByIds("student", studentIds);
         deleteByIds("refresh_token", refreshTokenIds);
         deleteByIds("account", accountIds);
@@ -147,22 +142,16 @@ class RetentionCleanupSchedulerTest {
     }
 
     @Test
-    @DisplayName("목표6 — link_code·link_request 는 만료되면 다음 틱에 즉시 지워진다")
-    void 연결_코드와_연결_요청은_만료되면_즉시_지워진다() {
+    @DisplayName("목표6 — link_code 는 만료되면 다음 틱에 즉시 지워진다")
+    void 연결_코드는_만료되면_즉시_지워진다() {
         long academyId = insertAcademy();
-        long guardianAccountId = insertParentAccount(academyId);
-        long guardianId = insertGuardian(academyId, guardianAccountId);
         long studentId = insertStudent(academyId);
 
-        long expiredRequest = insertLinkRequest(guardianId, studentId, now.minusMinutes(1));
-        long validRequest = insertLinkRequest(guardianId, studentId, now.plusMinutes(30));
-        long expiredCode = insertLinkCode(expiredRequest, now.minusMinutes(1));
-        long validCode = insertLinkCode(validRequest, now.plusMinutes(30));
+        long expiredCode = insertLinkCode(studentId, now.minusMinutes(1));
+        long validCode = insertLinkCode(studentId, now.plusMinutes(30));
 
         scheduler.cleanUp();
 
-        assertThat(existsLinkRequest(expiredRequest)).as("만료된 연결 요청은 지워진다").isFalse();
-        assertThat(existsLinkRequest(validRequest)).as("유효한 연결 요청은 남는다").isTrue();
         assertThat(existsLinkCode(expiredCode)).as("만료된 연결 코드는 지워진다").isFalse();
         assertThat(existsLinkCode(validCode)).as("유효한 연결 코드는 남는다").isTrue();
     }
@@ -316,7 +305,7 @@ class RetentionCleanupSchedulerTest {
         return count != null && count > 0;
     }
 
-    // ---- link_code / link_request ----
+    // ---- link_code ----
 
     private long insertAcademy() {
         long id = jdbcTemplate.queryForObject("""
@@ -325,26 +314,6 @@ class RetentionCleanupSchedulerTest {
                 RETURNING id
                 """, Long.class, shortUniqueCode("aca"));
         academyIds.add(id);
-        return id;
-    }
-
-    private long insertParentAccount(long academyId) {
-        long id = jdbcTemplate.queryForObject("""
-                INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status)
-                VALUES (?, ?, 'x', 'P14T2보호자', '010-0000-0001', 'parent', 'active')
-                RETURNING id
-                """, Long.class, academyId, java.util.UUID.randomUUID().toString());
-        accountIds.add(id);
-        return id;
-    }
-
-    private long insertGuardian(long academyId, long accountId) {
-        long id = jdbcTemplate.queryForObject("""
-                INSERT INTO guardian (academy_id, account_id, name, phone)
-                VALUES (?, ?, 'P14T2보호자', '010-0000-0001')
-                RETURNING id
-                """, Long.class, academyId, accountId);
-        guardianIds.add(id);
         return id;
     }
 
@@ -358,30 +327,14 @@ class RetentionCleanupSchedulerTest {
         return id;
     }
 
-    private long insertLinkRequest(long guardianId, long studentId, OffsetDateTime expiresAt) {
+    private long insertLinkCode(long studentId, OffsetDateTime expiresAt) {
         long id = jdbcTemplate.queryForObject("""
-                INSERT INTO link_request (guardian_id, student_id, requested_at, expires_at, status)
-                VALUES (?, ?, now(), ?, 'pending')
-                RETURNING id
-                """, Long.class, guardianId, studentId, expiresAt);
-        linkRequestIds.add(id);
-        return id;
-    }
-
-    private long insertLinkCode(long linkRequestId, OffsetDateTime expiresAt) {
-        long id = jdbcTemplate.queryForObject("""
-                INSERT INTO link_code (link_request_id, code, expires_at)
+                INSERT INTO link_code (student_id, code, expires_at)
                 VALUES (?, '123456', ?)
                 RETURNING id
-                """, Long.class, linkRequestId, expiresAt);
+                """, Long.class, studentId, expiresAt);
         linkCodeIds.add(id);
         return id;
-    }
-
-    private boolean existsLinkRequest(long id) {
-        Integer count = jdbcTemplate.queryForObject("SELECT count(*) FROM link_request WHERE id = ?", Integer.class,
-                id);
-        return count != null && count > 0;
     }
 
     private boolean existsLinkCode(long id) {

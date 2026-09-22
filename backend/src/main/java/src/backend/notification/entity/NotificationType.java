@@ -7,7 +7,7 @@ import jakarta.persistence.Converter;
 import src.backend.global.common.converter.LowerCaseEnumConverter;
 
 /**
- * 알림 종류 21종 — {@code notification_log.type}(CHECK 로 강제, API_SPEC §9.7 과 값 일치 확인)의
+ * 알림 종류 20종 — {@code notification_log.type}(CHECK 로 강제, API_SPEC §9.7 과 값 일치 확인)의
  * 값 도메인이다.
  */
 public enum NotificationType {
@@ -36,8 +36,6 @@ public enum NotificationType {
     APPROVAL_REQUESTED,
     /** 탑승 의사 변경됨. */
     INTENT_CHANGED,
-    /** 연결 요청 발생. */
-    LINK_REQUESTED,
     /** 노선 변경됨. */
     ROUTE_CHANGED,
     /** 배치 변경됨. */

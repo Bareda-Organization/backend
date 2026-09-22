@@ -51,7 +51,6 @@ class StudentPhotoPrivacyTest {
     private static final Long ACADEMY_A = Long.valueOf(SeedFixtures.ACADEMY_A_ID);
 
     private static final String CHILDREN = "/api/v1/me/students";
-    private static final String LINK_REQUESTS = "/api/v1/me/students/link-requests";
     private static final String LINK_CODE = "/api/v1/me/link-code";
     private static final String LINK = "/api/v1/me/students/link";
     private static final String ME = "/api/v1/me";
@@ -132,14 +131,8 @@ class StudentPhotoPrivacyTest {
 
     // ── 도우미 ────────────────────────────────────────────────────────────
 
-    /** 연결 3단계 중 앞 둘을 밟아 코드를 얻는다 — 이 클래스가 검사하는 것은 셋째 단계의 응답뿐이다. */
+    /** 연결 2단계 중 앞 하나를 밟아 코드를 얻는다 — 이 클래스가 검사하는 것은 둘째 단계의 응답뿐이다. */
     private String 연결_코드를_받는다() throws Exception {
-        mockMvc.perform(post(LINK_REQUESTS)
-                        .header("Authorization", 토큰(GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A, Role.PARENT))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"student_login_id\":\"%s\"}".formatted(SeedFixtures.STUDENT_A4_LOGIN_ID)))
-                .andExpect(status().isCreated());
-
         MvcResult issued = mockMvc.perform(post(LINK_CODE)
                         .header("Authorization", 토큰(STUDENT_A4_ACCOUNT, ACADEMY_A, Role.STUDENT)))
                 .andExpect(status().isCreated())

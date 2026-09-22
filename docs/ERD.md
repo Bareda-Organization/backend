@@ -50,12 +50,15 @@
 
 ## 1. 전체 구조 — 도메인 그룹
 
-43개 테이블을 5개 그룹으로 분할(2026-09-05 `delay_notice`·`run_transfer` 그룹 ④ 신설로 41→43). 아래 소계는 §3 의 테이블 정의를 직접 센 값이며 2026-08-24 신설 3개(`verification_code` 그룹 ② · `device_token`·`emergency_alert` 그룹 ④)와 Phase 8 신설 1개(`run_forced_addition` 그룹 ③), 2026-09-03 신설 1개(`shedlock` 그룹 ⑤, `V4`)가 포함된 기준.
+42개 테이블을 5개 그룹으로 분할(2026-09-05 `delay_notice`·`run_transfer` 그룹 ④ 신설로 41→43, 2026-09-22
+Ruling 324 로 `link_request` 삭제로 43→42). 아래 소계는 §3 의 테이블 정의를 직접 센 값이며 2026-08-24 신설
+3개(`verification_code` 그룹 ② · `device_token`·`emergency_alert` 그룹 ④)와 Phase 8 신설 1개
+(`run_forced_addition` 그룹 ③), 2026-09-03 신설 1개(`shedlock` 그룹 ⑤, `V4`)가 포함된 기준.
 
 | 그룹 | 테이블 수 | 범위 |
 |---|:-:|---|
 | ① 학원 · 계정 · 권한 | 7 | 테넌트, 로그인 계정, 가입 승인, 토큰 |
-| ② 학생 · 보호자 · 주소 | 7 | 학생 레코드, 보호자 연결, 요일별 승하차 주소, 인증 코드 |
+| ② 학생 · 보호자 · 주소 | 6 | 학생 레코드, 보호자 연결, 요일별 승하차 주소, 인증 코드 |
 | ③ 차량 · 인력 · 운행 · 노선 | 14 | 차량, 매니저, 스케줄, 회차, 고정·확정 노선, 승하차지, 탑승자, 강제 추가 대기 |
 | ④ 요청 · 예외 · 알림 · 이력 | 14 | 탑승 의사, 변경 요청, 미승차, 예외 보고, 위치, 알림, 단말, 감사, 지연 알림 이력, 버스 간 이동 대기 |
 | ⑤ 시스템 | 1 | 분산 락(스케줄러 중복 실행 차단) |
@@ -125,13 +128,11 @@ erDiagram
     ACCOUNT ||--o| GUARDIAN : "보호자 계정"
     GUARDIAN ||--o{ GUARDIAN_STUDENT : "연결"
     STUDENT ||--o{ GUARDIAN_STUDENT : "연결"
-    GUARDIAN ||--o{ LINK_REQUEST : "연결 요청"
-    STUDENT ||--o{ LINK_REQUEST : "요청 대상"
-    LINK_REQUEST ||--o| LINK_CODE : "인증 코드"
+    STUDENT ||--o{ LINK_CODE : "인증 코드 발급"
     STUDENT ||--o{ WEEKLY_ADDRESS : "요일 x 방향"
 ```
 
-컬럼은 §3.2 이 정의처.
+컬럼은 §3.2 이 정의처(`link_request` 삭제 — Ruling 324, 2026-09-22).
 
 ### 2.3 ③ 차량 · 인력 · 운행 · 노선
 
@@ -346,19 +347,6 @@ erDiagram
 
 **존재 이유** — 다자녀를 재가입 없이 연결 추가로 처리하는 유일 경로. 학부모 API 의 접근 범위 판정(연결된 자녀만) 근거. **근거** P-02 · ATT-03 · API_SPEC §1.5
 
-#### `link_request` 🆕 — 자녀 연결 요청
-
-| 컬럼 | 타입 | 제약 | 설명 |
-|---|---|---|---|
-| `id` | bigint | PK | API 의 `link_request_id` |
-| `guardian_id` 🆕 | bigint | FK NN | 요청한 보호자 |
-| `student_id` 🆕 | bigint | FK NN | 요청 대상 학생. `student_login_id` 로 조회한 결과 |
-| `requested_at` 🆕 | timestamptz | NN | |
-| `expires_at` 🆕 | timestamptz | NN | 요청 만료 시각 |
-| `status` 🆕 | varchar(10) | NN | `pending` · `completed` · `expired`. CHECK |
-
-**존재 이유** — 연결은 **요청(보호자) → 코드 생성(학생) → 코드 입력(보호자)** 3단계이며, 첫 단계가 자체 식별자와 만료 시각을 반환하므로 코드와 별개 레코드가 필요. **근거** P-02 · S-05 · API_SPEC §3.2
-
 #### `verification_code` 🆕 — 아이디·비밀번호 복구 인증 코드
 
 | 컬럼 | 타입 | 제약 | 설명 |
@@ -379,13 +367,13 @@ erDiagram
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | `id` | bigint | PK | |
-| `link_request_id` | bigint | FK NN | 대응 요청 |
+| `student_id` | bigint | FK NN | 발급 주체 학생(Ruling 324 — 이전에는 `link_request_id` 에 매달렸다) |
 | `code` | varchar(10) | NN | 학생 앱이 생성한 인증 코드 |
 | `expires_at` | timestamptz | NN | 만료 시각 |
 | `used_at` | timestamptz | | 사용 시각. 재사용 차단 근거 |
 | `created_at` | timestamptz | NN | |
 
-**존재 이유** — 코드 대조를 **서버가** 수행하는 전제라 발급분을 서버가 보관. 만료·불일치는 동일하게 `403 LINK_CODE_INVALID`. **근거** P-02 · S-05 · API_SPEC §3.3
+**존재 이유** — 코드 대조를 **서버가** 수행하는 전제라 발급분을 서버가 보관. 만료·불일치는 동일하게 `403 LINK_CODE_INVALID`. 학생이 선행 조건 없이 발급하므로(Ruling 324) 보호자는 입력 시점(§3.4)에야 정해진다. **근거** P-02 · S-05 · API_SPEC §3.3
 
 #### `weekly_address` — 요일별 등하원 주소
 
@@ -932,8 +920,7 @@ erDiagram
 | `account` → `device_token` | 1 : N | `account_id` | CASCADE | 한 계정이 여러 기기 보유 |
 | `guardian` → `guardian_student` | 1 : N | `guardian_id` | CASCADE | |
 | `student` → `guardian_student` | 1 : N | `student_id` | RESTRICT | 학생은 soft delete |
-| `guardian` · `student` → `link_request` | 1 : N | `guardian_id` · `student_id` | CASCADE | 만료분 정리 대상 |
-| `link_request` → `link_code` | 1 : 0..1 | `link_request_id` | CASCADE | |
+| `student` → `link_code` | 1 : N | `student_id` | CASCADE | 발급 주체(Ruling 324). 만료분 정리 대상 |
 | `student` → `weekly_address` | 1 : N | `student_id` | CASCADE | 학생 하위 종속 데이터 |
 | `stop` → `weekly_address` | 1 : N | `stop_id` | SET NULL | 승하차지 정리 시 주소는 존치 |
 | `bus` → `schedule` · `route` · `run` | 1 : N | `bus_id` | RESTRICT | |
@@ -1089,7 +1076,7 @@ erDiagram
 기준은 **"그 테이블을 학원 범위로 직접 조회하는가"**. 부모를 조인해야만 학원이 결정되는 테이블은 컬럼을 두지 않음.
 
 테넌트 루트인 **`academy` 자신과 `system_admin` 은 두 분류 어디에도 속하지 않는다** — 아래 표는 나머지를 대상으로 함.
-`system_admin` 은 학원 소속이 부재한 전 학원 범위 계정이라 좁힐 학원 자체가 없다. **부모 경유로 세면 §6.2 의 소계 23 과 어긋난다**(24가 됨).
+`system_admin` 은 학원 소속이 부재한 전 학원 범위 계정이라 좁힐 학원 자체가 없다. **부모 경유로 세면 §6.2 의 소계 22 와 어긋난다**(23이 됨).
 
 | 구분 | 테이블 | 근거 |
 |---|---|---|
@@ -1101,7 +1088,7 @@ erDiagram
 | | `notification_log` | 알림 로그 전수 조회가 학원 범위 (`GET /staff/notifications`) |
 | | `audit_log` · `exception_report` · `emergency_alert` | 메인 관리자 필터·관계자 통지가 학원 범위. 비상 알림은 **전 학원 관제에서도 조회**되므로 조인 없이 학원을 특정해야 함 (O-07) |
 | 부모 경유 | `verification_code` · `device_token` | `account` 를 통해 학원이 결정. 전화번호·단말 자체는 학원 범위 조회 대상 밖 |
-| **부모 경유** | `weekly_address` · `guardian_student` · `link_request` · `link_code` | `student` · `guardian` 경유 |
+| **부모 경유** | `weekly_address` · `guardian_student` · `link_code` | `student` · `guardian` 경유(`link_code` 는 `student` 만, Ruling 324) |
 | | `route_stop` | `route` 경유 |
 | | `confirmed_route` · `route_version` · `run_stop` · `run_rider` · `assignment` · `waypoint` · `boarding_intent` · `run_position` · `run_forced_addition` · `delay_notice` · `run_transfer` | `run` 경유 (`delay_notice`·`run_transfer` 는 2026-09-05 F3 S1·F4 S1 신설 — 회차 단위 이력·대기 행이라 `run` 경유) |
 | | `no_show_case` · `no_show_contact` · `rider_status_history` | `run_rider` 경유 |
@@ -1112,7 +1099,7 @@ erDiagram
 격리를 **어디서 어떻게 강제하는가**는 [ARCHITECTURE §6](./ARCHITECTURE.md) 담당. 이 문서는 그 판단이 스키마에 남기는 것만 적는다.
 
 - **직접 보유 17개** — `academy_id` 선행 복합 인덱스를 둠 (§5.3). 격리 조건이 모든 쿼리에 무조건 붙는 술어이기 때문.
-- **부모 경유 23개**(2026-09-05 `delay_notice`·`run_transfer` 추가로 21→23) — 컬럼이 부재하므로 조회에 부모 조인이 필수. 자식 단독 조회 경로를 만들면 격리 조건을 붙일 자리가 없어짐.
+- **부모 경유 22개**(2026-09-05 `delay_notice`·`run_transfer` 추가로 21→23, 2026-09-22 Ruling 324 로 `link_request` 삭제로 23→22) — 컬럼이 부재하므로 조회에 부모 조인이 필수. 자식 단독 조회 경로를 만들면 격리 조건을 붙일 자리가 없어짐.
 - 이력·로그 테이블은 FK 없이 `academy_id` 만 보유 (§4.2) — 조인 없이 학원 범위 조회가 가능해야 하는데 대량 적재라 FK 를 미설정.
 
 ---
@@ -1130,7 +1117,7 @@ erDiagram
 | `account` | **상태 전이** | `blocked` · `rejected` 는 행 유지. 물리 삭제 경로 부재 |
 | `guardian_student` | **연결 해제** (`unlinked_at`) | 퇴원 시 해제, 과거 이력 보존 (UF-P-01) |
 | `waypoint` | 배포 전 **hard delete** / 배포 후 `removed_at` | 배포 전 취소는 흔적 불필요, 배포 후 제거는 미리보기 → 배포 절차를 거쳐 이력 존치 (A-15) |
-| `link_request` · `link_code` · `refresh_token` | **hard delete** | 만료분 정리 배치 대상. 감사 가치 부재 |
+| `link_code` · `refresh_token` | **hard delete** | 만료분 정리 배치 대상. 감사 가치 부재 |
 | `route_version` · `run_stop` | **보존** | 이전 버전을 지우면 승인 화면의 전/후 대조와 배포 이력이 소멸 |
 
 ### 7.2 보존 기간
