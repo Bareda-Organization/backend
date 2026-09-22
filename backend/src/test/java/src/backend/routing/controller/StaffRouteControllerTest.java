@@ -342,32 +342,38 @@ class StaffRouteControllerTest {
      */
     @Test
     void 목록이_페이징_봉투_네_필드를_실제_값으로_돌려준다() throws Exception {
+        // ⚠ 시드 편성 수를 상수로 박지 않는다 — 시드가 늘 때마다(V12 PREVIEW_STALE 재현용 1건,
+        // V13 데모 선단 3건) 이 시험이 깨졌다. 여기서 보는 것은 편성 개수가 아니라 **페이징 봉투
+        // 네 필드가 실제 값을 싣는가** 이므로, 총계·마지막 쪽을 실측 시드 수에서 유도한다.
         int 시드_편성수 = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM route WHERE academy_id = ?", Integer.class, ACADEMY_A_ID);
-        assertThat(시드_편성수)
-                .as("PREVIEW_STALE 재현용 from_academy 노선(V12)이 더해져 시드가 1건에서 2건으로 늘었다")
-                .isEqualTo(2);
         편성한다(관계자A_토큰(), BUS_A_ID, "mon", "to_academy", STOPS_OF_A).andExpect(status().isCreated());
         편성한다(관계자A_토큰(), BUS_A_ID, "tue", "to_academy", List.of()).andExpect(status().isCreated());
+        int 총계 = 시드_편성수 + 2;
+        int 쪽크기 = 2;
+        int 마지막쪽 = (총계 - 1) / 쪽크기;
+        assertThat(마지막쪽)
+                .as("여러 쪽에 걸쳐야 has_next 가 단언의 대상이 된다(Ruling 168)")
+                .isPositive();
 
-        String 첫쪽 = 목록_본문(관계자A_토큰(), "page=0&size=2");
-        assertThat((int) JsonPath.read(첫쪽, "$.data.items.length()")).isEqualTo(2);
+        String 첫쪽 = 목록_본문(관계자A_토큰(), "page=0&size=" + 쪽크기);
+        assertThat((int) JsonPath.read(첫쪽, "$.data.items.length()")).isEqualTo(쪽크기);
         assertThat((int) JsonPath.read(첫쪽, "$.data.page")).isZero();
-        assertThat((int) JsonPath.read(첫쪽, "$.data.size")).isEqualTo(2);
+        assertThat((int) JsonPath.read(첫쪽, "$.data.size")).isEqualTo(쪽크기);
         assertThat((int) JsonPath.read(첫쪽, "$.data.total_count"))
-                .as("총계는 쪽 크기가 아니라 학원 전체 편성 수다 — 시드 2 + 새로 만든 2")
-                .isEqualTo(4);
+                .as("총계는 쪽 크기가 아니라 학원 전체 편성 수다 — 시드 + 새로 만든 2")
+                .isEqualTo(총계);
         assertThat((boolean) JsonPath.read(첫쪽, "$.data.has_next")).isTrue();
 
-        String 둘째쪽 = 목록_본문(관계자A_토큰(), "page=1&size=2");
-        assertThat((int) JsonPath.read(둘째쪽, "$.data.page")).isEqualTo(1);
-        assertThat((int) JsonPath.read(둘째쪽, "$.data.total_count")).isEqualTo(4);
-        assertThat((boolean) JsonPath.read(둘째쪽, "$.data.has_next"))
+        String 끝쪽 = 목록_본문(관계자A_토큰(), "page=" + 마지막쪽 + "&size=" + 쪽크기);
+        assertThat((int) JsonPath.read(끝쪽, "$.data.page")).isEqualTo(마지막쪽);
+        assertThat((int) JsonPath.read(끝쪽, "$.data.total_count")).isEqualTo(총계);
+        assertThat((boolean) JsonPath.read(끝쪽, "$.data.has_next"))
                 .as("마지막 쪽인데 다음이 있다고 답하면 클라이언트가 빈 쪽을 한 번 더 요청한다")
                 .isFalse();
         assertThat(JsonPath.<List<Integer>>read(첫쪽, "$.data.items[*].id"))
                 .as("두 쪽이 같은 항목을 담으면 페이지 위치가 반영되지 않은 것이다")
-                .doesNotContainAnyElementsOf(JsonPath.read(둘째쪽, "$.data.items[*].id"));
+                .doesNotContainAnyElementsOf(JsonPath.read(끝쪽, "$.data.items[*].id"));
     }
 
     /**
