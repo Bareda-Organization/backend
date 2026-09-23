@@ -8,9 +8,12 @@ import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriComponentsBuilder;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import src.backend.student.geocoding.spec.GeocodedPoint;
 import src.backend.student.geocoding.spec.GeocodingUnavailableException;
@@ -22,7 +25,8 @@ import src.backend.student.geocoding.spec.PlaceSearchClient;
  *
  * <p>⚠ 헤더는 NCP 방식({@code x-ncp-apigw-api-key-id}·{@code x-ncp-apigw-api-key})이다 — 옛
  * {@code X-Naver-Client-Id} 로 보내면 {@code 401 Authentication Failed}(실측). 좌표는 {@code mapx}·
- * {@code mapy} 에 <b>경위도 × 10⁷ 정수</b>로 온다. 한 번에 최대 5건이다.
+ * {@code mapy} 에 <b>경위도 × 10⁷ 정수</b>로 온다. 한 번에 최대 5건이다. 본문은 JSON 인데 머리는
+ * {@code text/plain} 이다.
  *
  * <p>재시도·서킷을 두지 않는다 — 자동완성의 보조 후보라 실패하면 주소 후보만 보이면 되고, 입력마다
  * 부르는 호출에 재시도를 얹으면 느린 순간이 길어질 뿐이다. 대신 상한 시간을 짧게 둔다.
@@ -69,8 +73,11 @@ public class NaverPlaceSearchClient implements PlaceSearchClient {
                     .uri(localUri(query))
                     .header("x-ncp-apigw-api-key-id", keyId)
                     .header("x-ncp-apigw-api-key", key)
-                    .retrieve()
-                    .bodyToMono(LocalResponse.class)
+                    // 공급자가 JSON 을 text/plain 으로 보낸다(실측) — 그대로 두면 JSON 해석기가 받지 않는다.
+                    .exchangeToMono(answer -> answer.statusCode().is2xxSuccessful()
+                            ? answer.mutate().headers(headers -> headers.setContentType(MediaType.APPLICATION_JSON))
+                                    .build().bodyToMono(LocalResponse.class)
+                            : answer.createError())
                     .block(TIMEOUT);
         } catch (RuntimeException e) {
             throw new GeocodingUnavailableException("장소 검색 호출 실패: " + query, e);
@@ -107,7 +114,9 @@ public class NaverPlaceSearchClient implements PlaceSearchClient {
     record LocalResponse(List<LocalItem> items) {
     }
 
-    record LocalItem(String title, String address, String roadAddress, String mapx, String mapy) {
+    /** 이름을 못박는다 — 앱의 JSON 설정이 snake_case 라 그대로 두면 {@code roadAddress} 가 {@code road_address} 로 읽혀 빈다. */
+    record LocalItem(String title, String address, @JsonProperty("roadAddress") String roadAddress, String mapx,
+            String mapy) {
 
         /** 도로명이 비는 장소가 있어 지번으로 물러난다. */
         String addressOrJibun() {

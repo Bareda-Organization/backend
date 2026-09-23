@@ -91,7 +91,7 @@ public class StopSearchQueryService {
         try {
             return placeSearchClient.search(query);
         } catch (GeocodingUnavailableException e) {
-            log.warn("장소 검색 실패 — 주소 후보만 돌려준다: {}", e.getMessage());
+            log.warn("장소 검색 실패 — 주소 후보만 돌려준다: {}", e.getMessage(), e.getCause());
             return List.of();
         }
     }

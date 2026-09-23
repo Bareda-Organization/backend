@@ -12,6 +12,8 @@ import java.util.List;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import com.sun.net.httpserver.HttpServer;
@@ -25,8 +27,20 @@ import src.backend.student.geocoding.spec.PlaceSearchClient.FoundPlace;
  * <p>좌표가 <b>경위도 × 10⁷ 정수 문자열</b>로 온다 — 자릿수를 한 칸만 틀려도 후보가 수십 km 밖(또는 바다)에
  * 찍히는데, 화면에는 그럴듯한 주소가 함께 떠서 눈으로 알아채기 어렵다. 로컬 HTTP 서버를 공급자 자리에 세워
  * 실제 응답 그대로 넘긴다.
+ *
+ * <p>⚠ <b>앱이 실제로 쓰는 {@link WebClient} 빈</b>으로 부른다. 처음엔 {@code WebClient.create()} 로 시험해
+ * 초록이었는데 운영에서 전부 실패했다(2026-09-23) — ①공급자가 JSON 을 {@code text/plain} 으로 보내고
+ * ②앱의 JSON 설정이 필드 이름을 snake_case 로 바꿔 {@code roadAddress} 가 비었다. 둘 다 기본 클라이언트로는
+ * 안 보인다.
  */
+@SpringBootTest
 class NaverPlaceSearchClientTest {
+
+    /** 실측 응답 머리 — JSON 인데 {@code text/plain} 이다. */
+    private static final String PROVIDER_CONTENT_TYPE = "text/plain;charset=UTF-8";
+
+    @Autowired
+    private WebClient webClient;
 
     private HttpServer provider;
 
@@ -63,14 +77,14 @@ class NaverPlaceSearchClientTest {
         provider = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
         provider.createContext("/search/v1/local", exchange -> {
             byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.getResponseHeaders().add("Content-Type", PROVIDER_CONTENT_TYPE);
             exchange.sendResponseHeaders(status, bytes.length);
             try (OutputStream out = exchange.getResponseBody()) {
                 out.write(bytes);
             }
         });
         provider.start();
-        return new NaverPlaceSearchClient(WebClient.create(),
+        return new NaverPlaceSearchClient(webClient,
                 "http://localhost:" + provider.getAddress().getPort(), "id", "key");
     }
 }
