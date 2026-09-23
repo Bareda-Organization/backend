@@ -91,10 +91,10 @@ public class StudentQueryService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.STUDENT_NOT_FOUND));
 
         StudentDetailResponse response = StudentDetailResponse.of(student,
-                guardianLinksOf(academyId, List.of(student)).phones().get(studentId));
+                guardianStudentRepository.findLinkedGuardians(academyId, studentId));
         auditRecorder.recordDataAccessRead(academyId, requester.accountId(), "student", studentId,
                 Map.of("student_ids", List.of(String.valueOf(studentId)), "fields",
-                        List.of("photo_url", "note", "guardian_phone")));
+                        List.of("photo_url", "note", "guardians")));
         return response;
     }
 

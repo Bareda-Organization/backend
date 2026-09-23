@@ -19,6 +19,6 @@ import java.time.LocalDate;
  *                   {@code boolean} 으로 받으면 언급하지 않은 요청이 매번 {@code false} 로 덮어쓴다
  */
 public record StudentProfile(String name, String studentPhone, String photoUrl, Gender gender,
-        LocalDate birthDate, String grade, String className, Integer seatNo, String note,
+        LocalDate birthDate, String grade, String className, String note,
         Boolean canGoAlone) {
 }

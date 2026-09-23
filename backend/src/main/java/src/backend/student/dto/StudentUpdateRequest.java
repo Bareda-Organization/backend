@@ -1,7 +1,11 @@
 package src.backend.student.dto;
 
 import java.time.LocalDate;
+import java.util.List;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -28,7 +32,17 @@ public record StudentUpdateRequest(
         LocalDate birthDate,
         @Size(max = 20) String grade,
         @Size(max = 50) String className,
-        Integer seatNo,
         String note,
-        Boolean canGoAlone) {
+        Boolean canGoAlone,
+        @Valid List<GuardianPhoneChange> guardians) {
+
+    /**
+     * 보호자 연락처 수정 한 건(Ruling 326) — 이 학생과 연결된 보호자만 고칠 수 있다.
+     *
+     * <p>숫자·하이픈만 받는다 — 기사·동승자가 명단에서 그대로 눌러 전화를 거는 값이다.
+     */
+    public record GuardianPhoneChange(
+            @NotBlank String guardianId,
+            @NotBlank @Size(max = 30) @Pattern(regexp = "^[0-9][0-9-]{6,28}[0-9]$") String phone) {
+    }
 }

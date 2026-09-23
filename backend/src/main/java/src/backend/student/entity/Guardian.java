@@ -50,6 +50,11 @@ public class Guardian extends BaseTimeEntity {
         this.phone = phone;
     }
 
+    /** 관계자가 보호자 연락처를 고친다(Ruling 326) — 이 보호자의 모든 자녀 화면에 함께 반영된다. */
+    public void changePhone(String phone) {
+        this.phone = phone;
+    }
+
     /** 학부모가 가입 form 을 제출해 승인되는 시점에 생성한다(P-02). */
     public static Guardian forSignup(Long academyId, Long accountId, String name, String phone) {
         return new Guardian(academyId, accountId, name, phone);

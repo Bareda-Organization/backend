@@ -93,7 +93,7 @@ class StudentEntitySchemaValidationTest extends MigratedPostgresTestBase {
         Long academyId = insertAcademy("STU001");
 
         Student student = Student.register(academyId, new StudentProfile("홍길동", "010-1111-2222", null,
-                Gender.MALE, LocalDate.of(2015, 3, 2), "초등 3학년", "3반", 5, "특이사항 없음", true));
+                Gender.MALE, LocalDate.of(2015, 3, 2), "초등 3학년", "3반", "특이사항 없음", true));
         entityManager.persist(student);
         entityManager.flush();
         entityManager.clear();
@@ -131,7 +131,7 @@ class StudentEntitySchemaValidationTest extends MigratedPostgresTestBase {
         Guardian guardian = Guardian.forSignup(academyId, accountId, "이보호", "010-5555-6666");
         entityManager.persist(guardian);
         Student student = Student.register(academyId, new StudentProfile("이학생", null, null,
-                Gender.FEMALE, null, null, null, null, null, false));
+                Gender.FEMALE, null, null, null, null, false));
         entityManager.persist(student);
         entityManager.flush();
 
@@ -152,7 +152,7 @@ class StudentEntitySchemaValidationTest extends MigratedPostgresTestBase {
     void linkCode_가_학생의_인증_코드로_저장되고_조회된다() {
         Long academyId = insertAcademy("STU005");
         Student student = Student.register(academyId, new StudentProfile("최학생", null, null, null,
-                null, null, null, null, null, false));
+                null, null, null, null, false));
         entityManager.persist(student);
         entityManager.flush();
 
@@ -172,7 +172,7 @@ class StudentEntitySchemaValidationTest extends MigratedPostgresTestBase {
     void weeklyAddress_가_학생의_요일별_등하원_주소로_저장되고_조회된다() {
         Long academyId = insertAcademy("STU006");
         Student student = Student.register(academyId, new StudentProfile("정학생", null, null, null,
-                null, null, null, null, null, false));
+                null, null, null, null, false));
         entityManager.persist(student);
         entityManager.flush();
 

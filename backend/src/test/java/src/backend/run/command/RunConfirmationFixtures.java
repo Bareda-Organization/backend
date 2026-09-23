@@ -120,7 +120,7 @@ public class RunConfirmationFixtures {
     }
 
     public long student(long academyId, String name) {
-        StudentProfile profile = new StudentProfile(name, null, null, null, null, null, null, null, null, null);
+        StudentProfile profile = new StudentProfile(name, null, null, null, null, null, null, null, null);
         return studentRepository.save(Student.register(academyId, profile)).getId();
     }
 

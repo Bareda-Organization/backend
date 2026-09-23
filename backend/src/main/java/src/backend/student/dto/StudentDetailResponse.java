@@ -1,8 +1,10 @@
 package src.backend.student.dto;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Locale;
 
+import src.backend.student.entity.Guardian;
 import src.backend.student.entity.Student;
 
 /**
@@ -20,8 +22,8 @@ import src.backend.student.entity.Student;
  *
  * @param gender        {@code male} · {@code female} 소문자 문자열(§9.8) — {@code Gender} 를 그대로
  *                      직렬화하면 상수 이름(대문자)이 나가 계약과 어긋난다
- * @param guardianPhone 연결된 보호자 계정의 연락처. 학생 레코드에 복제하지 않는 조회값이라
- *                      <b>밖에서 받아</b> 조립하며, 연결이 없으면 {@code null} 이다(A-10)
+ * @param guardians     연결된 보호자 전부(먼저 연결된 차례) — 관계자가 연락처를 고칠 수 있다(Ruling 326).
+ *                      연결이 없으면 빈 목록이다
  *
  * <p><b>{@code studentId} 는 문자열이다</b>(Ruling 171). {@code API_SPEC} 의 {@code *_id} 타입 표기가
  * {@code string} 20건 · {@code integer}/{@code number} 0건이고, {@code §3.1}·{@code §2.10} 이 같은
@@ -32,15 +34,23 @@ import src.backend.student.entity.Student;
  * 요청이 실패하는 것이 아니라 <b>다른 학생을 가리킨다.</b> 지금 안 아픈 이유는 시드 id 가 한 자리여서일 뿐이다.
  */
 public record StudentDetailResponse(String studentId, String name, String studentPhone, String photoUrl,
-        String gender, LocalDate birthDate, String grade, String className, Integer seatNo, String note,
-        boolean canGoAlone, String guardianPhone) {
+        String gender, LocalDate birthDate, String grade, String className, String note,
+        boolean canGoAlone, List<GuardianContact> guardians) {
 
-    public static StudentDetailResponse of(Student student, String guardianPhone) {
+    /** 보호자 한 명 — {@code guardianId} 는 문자열이다(Ruling 171, {@code studentId} 와 같은 이유). */
+    public record GuardianContact(String guardianId, String name, String phone) {
+
+        public static GuardianContact of(Guardian guardian) {
+            return new GuardianContact(String.valueOf(guardian.getId()), guardian.getName(), guardian.getPhone());
+        }
+    }
+
+    public static StudentDetailResponse of(Student student, List<Guardian> guardians) {
         return new StudentDetailResponse(String.valueOf(student.getId()), student.getName(),
                 student.getStudentPhone(),
                 student.getPhotoUrl(), lowerCase(student), student.getBirthDate(), student.getGrade(),
-                student.getClassName(), student.getSeatNo(), student.getNote(), student.isCanGoAlone(),
-                guardianPhone);
+                student.getClassName(), student.getNote(), student.isCanGoAlone(),
+                guardians.stream().map(GuardianContact::of).toList());
     }
 
     /** 미입력 성별은 {@code null} 로 남긴다 — 빈 문자열로 바꾸면 "모름" 과 "값이 있음" 이 섞인다. */

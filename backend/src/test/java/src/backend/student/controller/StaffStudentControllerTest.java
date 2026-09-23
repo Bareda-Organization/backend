@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -140,7 +141,7 @@ class StaffStudentControllerTest {
         mockMvc.perform(get(BASE + "/" + studentId).header("Authorization", 관계자_토큰(ACADEMY_A)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.address").doesNotExist())
-                .andExpect(jsonPath("$.data.guardian_phone").value((Object) null));
+                .andExpect(jsonPath("$.data.guardians.length()").value(0));
     }
 
     /** 보호자 연락처는 {@code student} 가 아니라 연결된 보호자 계정에서 온다(A-10). */
@@ -156,45 +157,45 @@ class StaffStudentControllerTest {
     }
 
     /**
-     * 번호를 바꾸는 것은 <b>계정</b>이다 — {@code guardian.phone} 은 건드리지 않는다.
+     * 목록의 보호자 연락처는 <b>관계자가 고치는 보호자 연락처</b>({@code guardian.phone})다 — 계정 연락처
+     * ({@code account.phone}, 로그인·계정 복구 번호)는 관계자 경로로 바뀌지 않는다(Ruling 326).
      *
-     * <p>시드는 두 값이 같아서, 이 테스트만이 "어느 쪽을 읽는가" 를 가른다. {@code guardian.phone} 을
-     * 읽는 구현이면 옛 값이 그대로 나오고, {@code student} 에 복제한 구현이면 아예 null 이 나온다.
+     * <p>2026-09-23 전에는 거꾸로 계정 연락처를 읽었다. 관계자가 그 번호를 고칠 수 있게 하면 복구 번호를 자기
+     * 번호로 바꿔 학부모 계정을 가로챌 수 있어, 고칠 수 있는 값과 계정 번호를 갈랐다.
      */
     @Test
-    void 보호자가_번호를_바꾸면_학생_목록의_보호자_연락처가_함께_바뀐다() throws Exception {
-        String changed = "010-1000-7777";
-        jdbcTemplate.update("UPDATE account SET phone = ? WHERE login_id = ?",
-                changed, GUARDIAN_ACCOUNT_LOGIN_ID);
-
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT phone FROM guardian WHERE account_id = (SELECT id FROM account WHERE login_id = ?)",
-                String.class, GUARDIAN_ACCOUNT_LOGIN_ID))
-                .as("guardian.phone 은 그대로여야 이 테스트가 account.phone 을 읽는지 가른다")
-                .isNotEqualTo(changed);
+    void 관계자가_고친_보호자_연락처가_목록에_나오고_계정_연락처는_그대로다() throws Exception {
+        String 계정_번호 = 보호자_계정_연락처();
+        mockMvc.perform(수정_요청(SEED_SIBLING_1, """
+                        {"guardians":[{"guardian_id":"1","phone":"010-1000-7777"}]}""")
+                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
+                .andExpect(status().isOk());
+        entityManager.flush();
 
         mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A))
                         .param("q", 시드_학생_이름(SEED_SIBLING_1)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].guardian_phone").value(changed));
+                .andExpect(jsonPath("$.data.items[0].guardian_phone").value("010-1000-7777"));
+        assertThat(보호자_계정_연락처()).as("관계자 수정이 계정 복구 번호를 바꾸면 안 된다").isEqualTo(계정_번호);
     }
 
     /**
      * 계정 미연결 학생은 연락처가 비어 있는 것이 정상이고, 응답이 그 상태를 그대로 드러낸다(A-10).
      *
-     * <p>{@code bus_no}·{@code stop_name} 도 함께 본다 — 노선이 없는 이 Phase 에서 {@code null} 인
-     * 것이 계약이라, 필드를 지우면 Phase 6 이 계약을 다시 바꾼다.
+     * <p>2026-09-23 — {@code bus_no}·{@code stop_name} 은 뺐다(사용자 지시). 한 번도 채워진 적이 없고, 학생의
+     * 승하차지는 요일·등하원마다 달라 "학생 하나에 호차 하나" 라는 칸 자체가 성립하지 않는다(Ruling 326).
      */
     @Test
     void 계정이_연결되지_않은_학생의_보호자_연락처는_null_이다() throws Exception {
         long studentId = 등록한다(등록_본문("P5T1미연결학생", null));
 
-        mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A)).param("q", "P5T1미연결학생"))
+        String body = mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A)).param("q", "P5T1미연결학생"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].student_id").value(String.valueOf(studentId)))
                 .andExpect(jsonPath("$.data.items[0].guardian_phone").value((Object) null))
-                .andExpect(jsonPath("$.data.items[0].bus_no").value((Object) null))
-                .andExpect(jsonPath("$.data.items[0].stop_name").value((Object) null));
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        // doesNotExist() 는 값이 null 인 필드도 통과시킨다 — 키가 응답에 아예 없는지 본문 문자열로 본다.
+        assertThat(body).doesNotContain("\"bus_no\"").doesNotContain("\"stop_name\"");
     }
 
     /**
@@ -584,6 +585,61 @@ class StaffStudentControllerTest {
      * 등록·수정은 {@code multipart/form-data} 다(§1.1 · Ruling 159) — 사진 없이 부를 때도 형식은
      * 같고, 다른 항목은 JSON 파트 {@code data} 에 담긴다.
      */
+    // ── 보호자 연락처 수정(2026-09-23 사용자 지시, Ruling 326) ─────────────────────────────────
+
+    /** 상세는 연결된 보호자를 전부(이름·연락처) 싣는다 — 형제(시드 학생 1·2)는 같은 보호자 1명을 공유한다. */
+    @Test
+    void 상세는_연결된_보호자의_이름과_연락처를_싣는다() throws Exception {
+        mockMvc.perform(get(BASE + "/" + SEED_SIBLING_1).header("Authorization", 관계자_토큰(ACADEMY_A)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.guardians.length()").value(1))
+                .andExpect(jsonPath("$.data.guardians[0].guardian_id").value("1"))
+                .andExpect(jsonPath("$.data.guardians[0].phone").value(보호자_계정_연락처()))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("\"seat_no\""))));
+    }
+
+    /**
+     * 보호자 연락처는 보호자 한 명의 값이라, 고치면 그 보호자의 다른 자녀(형제) 화면에도 같이 바뀐다 — 학생마다
+     * 사본을 두면 형제 사이에서 번호가 갈린다.
+     */
+    @Test
+    void 보호자_연락처를_고치면_그_보호자의_모든_자녀에_반영된다() throws Exception {
+        mockMvc.perform(수정_요청(SEED_SIBLING_1, """
+                        {"guardians":[{"guardian_id":"1","phone":"010-5555-0101"}]}""")
+                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.guardians[0].phone").value("010-5555-0101"));
+        entityManager.flush();
+
+        mockMvc.perform(get(BASE + "/2").header("Authorization", 관계자_토큰(ACADEMY_A)))
+                .andExpect(jsonPath("$.data.guardians[0].phone").value("010-5555-0101"));
+    }
+
+    /** 이 학생과 연결되지 않은 보호자는 고칠 수 없다 — 아니면 학생 id 하나로 학원의 아무 보호자 번호나 바꾼다. */
+    @Test
+    void 이_학생과_연결되지_않은_보호자의_연락처는_고칠_수_없다() throws Exception {
+        String 원래 = jdbcTemplate.queryForObject("SELECT phone FROM guardian WHERE id = 2", String.class);
+
+        mockMvc.perform(수정_요청(SEED_SIBLING_1, """
+                        {"guardians":[{"guardian_id":"2","phone":"010-5555-0202"}]}""")
+                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+        entityManager.flush();
+
+        assertThat(jdbcTemplate.queryForObject("SELECT phone FROM guardian WHERE id = 2", String.class))
+                .isEqualTo(원래);
+    }
+
+    /** 숫자·하이픈 말고는 받지 않는다 — 연락처는 기사·동승자가 그대로 눌러 전화를 거는 값이다. */
+    @Test
+    void 보호자_연락처_형식이_틀리면_422_다() throws Exception {
+        mockMvc.perform(수정_요청(SEED_SIBLING_1, """
+                        {"guardians":[{"guardian_id":"1","phone":"전화 없음"}]}""")
+                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
+                .andExpect(status().isUnprocessableEntity());
+    }
+
     private MockMultipartFile 데이터_파트(String json) {
         return new MockMultipartFile("data", "", "application/json", json.getBytes(StandardCharsets.UTF_8));
     }

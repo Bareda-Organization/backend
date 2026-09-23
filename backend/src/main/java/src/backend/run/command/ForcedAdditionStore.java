@@ -56,8 +56,7 @@ public class ForcedAdditionStore {
      * 이 경로의 범위 밖이라 나머지 {@link StudentProfile} 필드는 비워 둔다.
      */
     private static Student newStudent(Long academyId, ForcedAdditionRequest request) {
-        StudentProfile profile = new StudentProfile(request.newStudent().name(), null, null, null, null, null, null,
-                null, null, null);
+        StudentProfile profile = new StudentProfile(request.newStudent().name(), null, null, null, null, null, null, null, null);
         return Student.register(academyId, profile);
     }
 }

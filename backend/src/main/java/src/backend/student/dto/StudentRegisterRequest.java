@@ -31,7 +31,6 @@ public record StudentRegisterRequest(
         LocalDate birthDate,
         @Size(max = 20) String grade,
         @Size(max = 50) String className,
-        Integer seatNo,
         String note,
         @NotNull Boolean canGoAlone) {
 }

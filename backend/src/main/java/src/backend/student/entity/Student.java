@@ -68,9 +68,6 @@ public class Student extends BaseTimeEntity {
     @Column(name = "class_name", length = 50)
     private String className;
 
-    @Column(name = "seat_no")
-    private Integer seatNo;
-
     @Column(name = "note", columnDefinition = "text")
     private String note;
 
@@ -89,7 +86,6 @@ public class Student extends BaseTimeEntity {
         this.birthDate = profile.birthDate();
         this.grade = profile.grade();
         this.className = profile.className();
-        this.seatNo = profile.seatNo();
         this.note = profile.note();
         this.canGoAlone = Boolean.TRUE.equals(profile.canGoAlone());
     }
@@ -120,7 +116,6 @@ public class Student extends BaseTimeEntity {
         this.birthDate = profile.birthDate() == null ? this.birthDate : profile.birthDate();
         this.grade = profile.grade() == null ? this.grade : profile.grade();
         this.className = profile.className() == null ? this.className : profile.className();
-        this.seatNo = profile.seatNo() == null ? this.seatNo : profile.seatNo();
         this.note = profile.note() == null ? this.note : profile.note();
         this.canGoAlone = profile.canGoAlone() == null ? this.canGoAlone : profile.canGoAlone();
     }

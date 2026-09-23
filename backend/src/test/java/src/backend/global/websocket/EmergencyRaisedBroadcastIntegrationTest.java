@@ -157,7 +157,7 @@ class EmergencyRaisedBroadcastIntegrationTest extends RedisTestContainerBase {
             long studentId = studentRepository
                     .save(Student.register(academyId,
                             new StudentProfile("학생" + System.nanoTime(), "010-0000-0000", null, null, null, null,
-                                    null, null, null, null)))
+                                    null, null, null)))
                     .getId();
             runRiderRepository.save(RunRider.uponConfirmation(runId, studentId, stopId));
         }

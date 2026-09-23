@@ -167,7 +167,6 @@ CREATE TABLE student (
     birth_date    date,
     grade         varchar(20),
     class_name    varchar(50),
-    seat_no       integer,
     note          text,
     can_go_alone  boolean      NOT NULL DEFAULT false,
     deleted_at    timestamptz,

@@ -2,7 +2,10 @@ package src.backend.student.command;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +20,7 @@ import src.backend.student.dto.StudentRegisterRequest;
 import src.backend.student.dto.StudentUpdateRequest;
 import src.backend.student.dto.StudentWithdrawalResponse;
 import src.backend.student.entity.Gender;
+import src.backend.student.entity.Guardian;
 import src.backend.student.entity.Student;
 import src.backend.student.entity.StudentProfile;
 import src.backend.student.photo.StudentPhotoWriter;
@@ -60,7 +64,7 @@ public class StudentCommandService {
         StudentProfile profile = new StudentProfile(request.name(), request.studentPhone(),
                 studentPhotoWriter.store(photo), parseGender(request.gender()), request.birthDate(),
                 request.grade(),
-                request.className(), request.seatNo(), request.note(), request.canGoAlone());
+                request.className(), request.note(), request.canGoAlone());
         return studentRepository.save(Student.register(academyOf(requester), profile)).getId();
     }
 
@@ -76,8 +80,25 @@ public class StudentCommandService {
         student.update(new StudentProfile(requirePresent(request.name()), request.studentPhone(),
                 studentPhotoWriter.replace(student.getPhotoUrl(), photo), parseGender(request.gender()),
                 request.birthDate(), request.grade(),
-                request.className(), request.seatNo(), request.note(), request.canGoAlone()));
+                request.className(), request.note(), request.canGoAlone()));
+        if (request.guardians() != null) {
+            changeGuardianPhones(student, request.guardians());
+        }
         return student.getId();
+    }
+
+    /**
+     * 보호자 연락처를 고친다(Ruling 326) — <b>고치기 전에 전부 확인한다.</b> 이 학생과 연결되지 않은 보호자가 하나라도
+     * 섞이면 아무것도 바꾸지 않은 채 {@code 422} 다. 확인하지 않으면 학생 id 하나로 학원의 아무 보호자 번호나 바꾼다.
+     */
+    private void changeGuardianPhones(Student student, List<StudentUpdateRequest.GuardianPhoneChange> changes) {
+        Map<String, Guardian> linked = guardianStudentRepository
+                .findLinkedGuardians(student.getAcademyId(), student.getId()).stream()
+                .collect(Collectors.toMap(guardian -> String.valueOf(guardian.getId()), guardian -> guardian));
+        if (!changes.stream().allMatch(change -> linked.containsKey(change.guardianId()))) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "이 학생과 연결되지 않은 보호자다");
+        }
+        changes.forEach(change -> linked.get(change.guardianId()).changePhone(change.phone()));
     }
 
     /**

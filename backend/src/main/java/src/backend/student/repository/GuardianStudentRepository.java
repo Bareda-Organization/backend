@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import src.backend.global.security.access.AcademyScopeExempt;
+import src.backend.student.entity.Guardian;
 import src.backend.student.entity.GuardianStudent;
 
 /** {@link GuardianStudent} 영속성 접근. */
@@ -97,9 +98,9 @@ public interface GuardianStudentRepository extends JpaRepository<GuardianStudent
     /**
      * 학생들의 보호자 연락처를 한 번에 모은다(A-10, API_SPEC §5.11 {@code items[].guardian_phone}).
      *
-     * <p><b>{@code guardian.phone} 이 아니라 {@code account.phone} 을 읽는다.</b> 두 값은 가입 시점에
-     * 같게 출발하지만 보호자가 번호를 바꾸는 곳은 계정이라, {@code guardian} 쪽을 읽으면 명단이 옛
-     * 값을 계속 보여 준다 — 연락처를 학생에 복제하지 않기로 한 판단(A-10)이 막으려던 사고와 형태가 같다.
+     * <p><b>{@code guardian.phone}(학원이 관리하는 보호자 연락처)을 읽는다</b>(2026-09-23, Ruling 326). 관계자가 고칠
+     * 수 있는 값이 이것이다. 예전에는 {@code account.phone}(로그인·계정 복구 번호)을 읽었는데, 관계자에게 그 번호를
+     * 고치게 하면 복구 번호를 자기 번호로 바꿔 학부모 계정을 가로챌 수 있다. 두 값은 가입 시점에 같게 출발한다.
      *
      * <p>{@code unlinked_at} 이 채워진 연결은 뺀다 — 퇴원·연결 해제 뒤에도 남으면 더 이상 보호자가
      * 아닌 사람의 번호가 명단에 남는다.
@@ -108,10 +109,9 @@ public interface GuardianStudentRepository extends JpaRepository<GuardianStudent
      * DB 가 정하고, 그 순서는 계약이 아니라 같은 화면이 새로고침마다 다른 번호를 보일 수 있다.
      */
     @Query("""
-            SELECT gs.studentId AS studentId, a.phone AS phone
+            SELECT gs.studentId AS studentId, g.phone AS phone
             FROM GuardianStudent gs
             JOIN Guardian g ON g.id = gs.guardianId
-            JOIN Account a ON a.id = g.accountId
             WHERE g.academyId = :academyId
               AND gs.studentId IN :studentIds
               AND gs.unlinkedAt IS NULL
@@ -119,6 +119,17 @@ public interface GuardianStudentRepository extends JpaRepository<GuardianStudent
             """)
     List<GuardianPhone> findGuardianPhonesByAcademyId(@Param("academyId") Long academyId,
             @Param("studentIds") List<Long> studentIds);
+
+    /** 학생 한 명에 연결된 보호자 전부(먼저 연결된 차례) — 관계자 학생 상세·보호자 연락처 수정(Ruling 326). */
+    @Query("""
+            SELECT g FROM GuardianStudent gs
+            JOIN Guardian g ON g.id = gs.guardianId
+            WHERE g.academyId = :academyId
+              AND gs.studentId = :studentId
+              AND gs.unlinkedAt IS NULL
+            ORDER BY gs.linkedAt ASC, gs.id ASC
+            """)
+    List<Guardian> findLinkedGuardians(@Param("academyId") Long academyId, @Param("studentId") Long studentId);
 
     /**
      * 학생들의 보호자 계정(알림 수신자)을 한 번에 모은다(Phase 9 RUN-05·06, API_SPEC §9.7

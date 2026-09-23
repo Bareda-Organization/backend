@@ -138,7 +138,7 @@ public class AdminMonitoringFixtures {
 
     /** 사진·연락처 원문까지 채운 학생(목표 10 원문 단언용) — {@code ProximityFixtures#student} 와 달리 값을 넣는다. */
     public long student(long academyId, String name, String studentPhone, String photoUrl) {
-        StudentProfile profile = new StudentProfile(name, studentPhone, photoUrl, null, null, null, null, null, null,
+        StudentProfile profile = new StudentProfile(name, studentPhone, photoUrl, null, null, null, null, null,
                 null);
         return studentRepository.save(Student.register(academyId, profile)).getId();
     }
