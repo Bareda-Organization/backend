@@ -1,36 +1,45 @@
 package src.backend.student.query;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 import src.backend.student.command.AddressVerification;
 import src.backend.student.domain.StopProximity;
 import src.backend.student.dto.StopSearchResponse;
-import src.backend.student.geocoding.spec.GeocodingUnavailableException;
-import src.backend.student.geocoding.spec.GeocodingClient;
 import src.backend.student.dto.StopSuggestResponse;
-import src.backend.global.error.ErrorCode;
-import src.backend.global.error.BusinessException;
 import src.backend.student.entity.Stop;
 import src.backend.student.geocoding.spec.GeocodedPoint;
+import src.backend.student.geocoding.spec.GeocodingClient;
+import src.backend.student.geocoding.spec.GeocodingUnavailableException;
+import src.backend.student.geocoding.spec.PlaceSearchClient;
 import src.backend.student.repository.StopRepository;
 
 /** 주소 → 좌표 검색(고정 노선 편성 화면) — 조회 전용이라 승하차지를 만들지 않는다. */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class StopSearchQueryService {
+
+    /** 자동완성 후보 수 상한 — 장소 5건 + 주소 후보. 목록 한 번에 보이는 만큼. */
+    private static final int SUGGEST_LIMIT = 10;
 
     private final AddressVerification addressVerification;
 
     private final StopRepository stopRepository;
 
     private final GeocodingClient geocodingClient;
+
+    private final PlaceSearchClient placeSearchClient;
 
     /**
      * 도로명 주소 한 건을 좌표로 옮기고, 그 부근의 기존 승하차지를 함께 돌려준다.
@@ -64,10 +73,32 @@ public class StopSearchQueryService {
         } catch (GeocodingUnavailableException e) {
             throw new BusinessException(ErrorCode.ADDRESS_VERIFICATION_UNAVAILABLE);
         }
-        return new StopSuggestResponse(candidates.stream()
-                .map(point -> new StopSearchResponse(point.lat(), point.lng(), point.displayName(),
-                        nearbyOf(requester.academyId(), point)))
-                .toList());
+        List<StopSuggestResponse.Item> items = new ArrayList<>();
+        for (PlaceSearchClient.FoundPlace place : placesOf(query.trim())) {
+            items.add(itemOf(requester, place.name(), place.point()));
+        }
+        for (GeocodedPoint point : candidates) {
+            items.add(itemOf(requester, null, point));
+        }
+        return new StopSuggestResponse(items.stream().limit(SUGGEST_LIMIT).toList());
+    }
+
+    /**
+     * 장소 검색(보조 후보)은 실패해도 자동완성을 막지 않는다 — 주소 후보만으로도 쓸 수 있고, 장소 검색은
+     * 지도 API 와 다른 키·다른 공급 계약이라 한쪽 장애가 다른 쪽을 끌고 가면 안 된다. 삼키지 않고 남긴다.
+     */
+    private List<PlaceSearchClient.FoundPlace> placesOf(String query) {
+        try {
+            return placeSearchClient.search(query);
+        } catch (GeocodingUnavailableException e) {
+            log.warn("장소 검색 실패 — 주소 후보만 돌려준다: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    private StopSuggestResponse.Item itemOf(AuthUser requester, String placeName, GeocodedPoint point) {
+        return new StopSuggestResponse.Item(placeName, point.lat(), point.lng(), point.displayName(),
+                nearbyOf(requester.academyId(), point));
     }
 
     private List<StopSearchResponse.NearbyStop> nearbyOf(Long academyId, GeocodedPoint point) {

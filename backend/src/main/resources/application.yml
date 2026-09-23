@@ -140,6 +140,14 @@ resilience4j:
         max-wait-duration: 0
 
 app:
+  # 장소 이름 검색(주소 자동완성의 보조 후보, 2026-09-23) — NAVER API HUB 지역 검색. 지도 API 와 다른 애플리케이션
+  # 키라 따로 받는다(NCP 콘솔 → NAVER API HUB → Application). 키가 비면 호출이 401 로 실패하고 주소 후보만 나간다.
+  place-search:
+    provider: naver
+    naver:
+      base-url: https://naverapihub.apigw.ntruss.com
+      key-id: ${NAVER_SEARCH_CLIENT_ID:}
+      key: ${NAVER_SEARCH_CLIENT_SECRET:}
   # 노선 계산 ③단계의 외부 도로 경로 API(ARCHITECTURE §8.2). provider 가 구현체를 고른다 —
   # 기본값은 실 API(naver)이고, 테스트 전체 묶음은 build.gradle 이 stub 으로 넘겨 돈다(지오코딩과 같은
   # 이유 — 네트워크·요금·NCP 계정 상태가 판정을 바꾸면 그 초록은 코드에 대해 아무것도 말하지 않는다).

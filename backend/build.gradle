@@ -212,6 +212,8 @@ tasks.named('test') {
     // (Ruling 157 — 판정 수단은 재현 가능해야 한다). 실 어댑터는 환경변수가 있을 때만 도는
     // 조건부 통합 테스트(NaverGeocodingClientLiveTest)가 따로 검증한다.
     systemProperty 'geocoding.provider', 'stub'
+    // 장소 검색(NAVER API HUB)도 같은 이유로 스텁이다 — 실 API 는 키·요금·공급자 상태에 매달린다.
+    systemProperty 'app.place-search.provider', 'stub'
 
     // 도로 경로도 같은 이유로 결정론적 스텁에 고정한다. 실 어댑터는 로컬 HTTP 서버를 공급자 자리에
     // 세운 보호 시험(NaverDirectionsResilienceTest)과 자격증명이 있을 때만 도는 실 네트워크 시험

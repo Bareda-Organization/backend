@@ -16,6 +16,7 @@ import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.student.geocoding.impl.StubGeocodingClient;
+import src.backend.student.geocoding.impl.StubPlaceSearchClient;
 
 /**
  * §5.9 {@code GET /staff/stops/search} — 고정 노선 편성 화면의 <b>주소 검색</b>(2026-09-22 사용자 지시).
@@ -153,6 +154,32 @@ class StaffStopSearchControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[1].nearby[0].name").value("11번지 앞"))
                 .andExpect(jsonPath("$.data.items[2].nearby.length()").value(0));
+    }
+
+    // ── 장소 검색(2026-09-23 — NAVER API HUB 지역 검색) ─────────────────────────────────────
+
+    /**
+     * 장소 이름(예: "목동 현대백화점")은 지오코딩이 못 찾는다 — 장소 검색 후보를 <b>앞에</b> 싣고 장소 이름을
+     * 함께 준다(표시명 기본값). 스텁은 {@value StubPlaceSearchClient#PLACE_MARKER} 가 든 입력에만 장소를 낸다.
+     */
+    @Test
+    void 장소_검색_후보를_주소_후보보다_앞에_장소_이름과_함께_싣는다() throws Exception {
+        mockMvc.perform(get("/api/v1/staff/stops/suggest").param("query", StubPlaceSearchClient.PLACE_MARKER + "길")
+                        .header("Authorization", 관계자A_토큰()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(4))
+                .andExpect(jsonPath("$.data.items[0].place_name").value(StubPlaceSearchClient.PLACE_MARKER + "길 본점"))
+                .andExpect(jsonPath("$.data.items[1].place_name").doesNotExist());
+    }
+
+    /** 장소 검색은 보조 후보다 — 그쪽이 죽어도 주소 후보는 그대로 나온다(자동완성 전체를 503 으로 막지 않는다). */
+    @Test
+    void 장소_검색이_죽어도_주소_후보는_나온다() throws Exception {
+        mockMvc.perform(get("/api/v1/staff/stops/suggest")
+                        .param("query", StubPlaceSearchClient.UNAVAILABLE_MARKER + "길")
+                        .header("Authorization", 관계자A_토큰()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(3));
     }
 
     private int 승하차지_수() {
