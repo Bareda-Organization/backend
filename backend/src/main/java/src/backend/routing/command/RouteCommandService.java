@@ -151,8 +151,7 @@ public class RouteCommandService {
      */
     public RouteDetailResponse saveStops(AuthUser requester, Long routeId, RouteStopsSaveRequest request) {
         Route route = findOwnRoute(requester, routeId);
-        Long academyId = requester.academyId();
-        Map<Long, Stop> existing = routeStopArranger.resolve(academyId, request.existingStopIds());
+        Map<Long, Stop> existing = routeStopArranger.resolve(requester.academyId(), request.existingStopIds());
 
         List<Long> order = new ArrayList<>(request.stops().size());
         for (RouteStopsSaveRequest.Item item : request.stops()) {
@@ -162,11 +161,11 @@ public class RouteCommandService {
                 continue;
             }
             String address = item.address() == null || item.address().isBlank() ? item.name() : item.address();
-            order.add(stopMatcher.matchOrCreate(academyId, new GeocodedPoint(item.lat(), item.lng(), address),
+            order.add(stopMatcher.matchOrCreate(requester.academyId(), new GeocodedPoint(item.lat(), item.lng(), address),
                     item.name()).getId());
         }
-        routeStopArranger.resolve(academyId, order);
-        routeStopArranger.replace(routeId, academyId, order);
+        routeStopArranger.resolve(requester.academyId(), order);
+        routeStopArranger.replace(routeId, requester.academyId(), order);
         return routeDetailAssembler.assemble(route);
     }
 

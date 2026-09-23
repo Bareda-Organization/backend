@@ -279,6 +279,9 @@ class AcademyScopeHttpExhaustiveTest {
         cases.add(c("POST /staff/routes/{id}/stops → B학원 노선 404", HttpMethod.POST, "/staff/routes/{id}/stops",
                 new Object[] {academyBRouteId}, staffA(),
                 "{\"lat\":37.5,\"lng\":126.9,\"name\":\"남의 학원\"}", 404, "ROUTE_NOT_FOUND"));
+        // R30 — 승하차지 한 번에 저장(§5.9, Ruling 325). 남의 학원 노선은 존재를 드러내지 않고 404 다.
+        cases.add(c("PUT /staff/routes/{id}/stops → B학원 노선 404", HttpMethod.PUT, "/staff/routes/{id}/stops",
+                new Object[] {academyBRouteId}, staffA(), "{\"stops\":[]}", 404, "ROUTE_NOT_FOUND"));
         // R27-B — 고정 노선 도로 경로 조회(§5.9). 남의 학원 노선은 존재를 드러내지 않고 404 다.
         cases.add(c("GET /staff/routes/{id}/path → B학원 노선 404", HttpMethod.GET, "/staff/routes/{id}/path",
                 new Object[] {academyBRouteId}, staffA(), null, 404, "ROUTE_NOT_FOUND"));
