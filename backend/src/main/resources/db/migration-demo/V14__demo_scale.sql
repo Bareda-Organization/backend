@@ -298,6 +298,52 @@ INSERT INTO boarding_intent (run_id, student_id, riding, change_used_count)
 SELECT run_id, student_id, true, 1 FROM change_request
 WHERE status = 'pending' AND academy_id BETWEEN 11 AND 20;
 
+-- ── 운행 리포트(현장 예외 보고) 10건 — 2026-09-23 사용자 요청 ─────────────────────────────────
+-- 목동 학원(11)만. "보호자 부재" 는 그 회차의 탑승자(run_rider)를 가리켜야 하는데, 오늘 회차의 탑승자는 기동 뒤
+-- 확정 배치가 만든다(시드가 id 를 미리 알 수 없다). 그래서 **어제 끝난 하원 회차 3건**을 탑승자까지 넣어 두고
+-- 보고는 그 회차에 단다. 보호자 부재는 하원에서 생기는 일이다(하차지에 보호자가 없음).
+INSERT INTO run (id, academy_id, bus_id, schedule_id, service_date, direction, depart_time, confirm_at, status,
+                  origin_name, destination_name, est_duration_min, confirmed_at, started_at, finished_at,
+                  created_at, updated_at)
+OVERRIDING SYSTEM VALUE
+SELECT 1100 + b.b, b.academy_id, b.bus_id, NULL, (now() AT TIME ZONE 'Asia/Seoul')::date - 1, 'from_academy',
+       x.depart, x.depart - interval '30 minutes', 'finished', b.short || ' 데모학원', b.bus_no || ' 마지막 하차지',
+       40, x.depart - interval '30 minutes', x.depart, x.depart + interval '45 minutes', now(), now()
+FROM demo_bus b
+CROSS JOIN LATERAL (SELECT (((now() AT TIME ZONE 'Asia/Seoul')::date - 1) + TIME '17:30') AT TIME ZONE 'Asia/Seoul' AS depart) x
+WHERE b.a = 1;
+
+INSERT INTO assignment (run_id, manager_id, role, assigned_at, assigned_by)
+SELECT 1100 + b, 1100 + k, 'driver', now(), 1001 FROM demo_bus WHERE a = 1
+UNION ALL
+SELECT 1100 + b, 1200 + k, 'escort', now(), 1001 FROM demo_bus WHERE a = 1;
+
+-- 탑승자 — 대부분 하차 완료, 번호 7·14 는 결석(탑승 의사 취소), 번호 19 는 미승차.
+INSERT INTO run_rider (run_id, student_id, stop_id, status, boarded_at, alighted_at)
+SELECT 1100 + s.b, s.id, s.stop_id,
+       CASE WHEN s.n IN (7, 14) THEN 'absent' WHEN s.n = 19 THEN 'no_show' ELSE 'alighted' END,
+       CASE WHEN s.n IN (7, 14, 19) THEN NULL ELSE r.started_at + interval '2 minutes' END,
+       CASE WHEN s.n IN (7, 14, 19) THEN NULL ELSE r.started_at + (s.n * 2) * interval '1 minute' END
+FROM demo_student s JOIN run r ON r.id = 1100 + s.b
+WHERE s.a = 1;
+
+INSERT INTO exception_report (academy_id, run_id, run_rider_id, type, memo, reported_by, reported_at)
+SELECT 11, x.run_id,
+       (SELECT rr.id FROM run_rider rr WHERE rr.run_id = x.run_id AND rr.student_id = x.student_id),
+       x.type, x.memo, x.reporter, x.at
+FROM (VALUES
+    (1100, 20002, 'guardian_absent', '하차지에 보호자 없음 — 5분 대기 후 학원으로 복귀, 보호자 통화 후 인계', 1200, now() - interval '1 day' + interval '3 minutes'),
+    (1100, 20010, 'guardian_absent', '보호자 대신 조부모 마중 — 사전 연락 없어 신분 확인 후 인계', 1200, now() - interval '1 day' + interval '9 minutes'),
+    (1101, 20025, 'guardian_absent', '보호자 부재, 전화 연결 안 됨 — 학원 관계자에게 인계', 1201, now() - interval '1 day' + interval '12 minutes'),
+    (1102, 20047, 'guardian_absent', '보호자 10분 늦게 도착 — 차량 안에서 대기 후 인계', 1202, now() - interval '1 day' + interval '15 minutes'),
+    (1100, NULL,  'road_block',      '목동서로 공사로 1차로 통제 — 우회로 약 6분 지연', 1100, now() - interval '1 day' + interval '5 minutes'),
+    (1101, NULL,  'road_block',      '신정네거리 사고 처리 중 — 우회, 도착 예정 8분 지연', 1101, now() - interval '1 day' + interval '18 minutes'),
+    (1102, NULL,  'vehicle_issue',   '뒷좌석 안전벨트 버클 고장 — 해당 좌석 비우고 운행, 정비 요청', 1102, now() - interval '1 day' + interval '1 minute'),
+    (1000, NULL,  'vehicle_issue',   '타이어 공기압 경고등 점등 — 운행 후 점검 예정', 1100, now() - interval '20 minutes'),
+    (1002, NULL,  'etc',             '승차 중 학생 가방 끈이 문에 걸림 — 즉시 조치, 부상 없음', 1201, now() - interval '12 minutes'),
+    (1004, NULL,  'etc',             '승하차지 앞 불법 주차로 정차 위치 20m 이동', 1102, now() - interval '5 minutes')
+) AS x(run_id, student_id, type, memo, reporter, at);
+
 SELECT setval(pg_get_serial_sequence('academy', 'id'), (SELECT COALESCE(MAX(id), 1) FROM academy));
 SELECT setval(pg_get_serial_sequence('account', 'id'), (SELECT COALESCE(MAX(id), 1) FROM account));
 SELECT setval(pg_get_serial_sequence('bus', 'id'), (SELECT COALESCE(MAX(id), 1) FROM bus));
@@ -308,3 +354,4 @@ SELECT setval(pg_get_serial_sequence('guardian', 'id'), (SELECT COALESCE(MAX(id)
 SELECT setval(pg_get_serial_sequence('route', 'id'), (SELECT COALESCE(MAX(id), 1) FROM route));
 SELECT setval(pg_get_serial_sequence('schedule', 'id'), (SELECT COALESCE(MAX(id), 1) FROM schedule));
 SELECT setval(pg_get_serial_sequence('run', 'id'), (SELECT COALESCE(MAX(id), 1) FROM run));
+SELECT setval(pg_get_serial_sequence('run_rider', 'id'), (SELECT COALESCE(MAX(id), 1) FROM run_rider));
