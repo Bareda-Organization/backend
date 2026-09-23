@@ -218,6 +218,12 @@ tasks.named('test') {
     // (NaverDirectionsClientLiveTest)이 따로 검증한다.
     systemProperty 'app.routing.map.provider', 'stub'
 
+    // 데모 규모 시드(db/migration-demo — 학원 10곳 · 학생 600명)를 테스트 DB 에서 뺀다. 전 학원을 세는
+    // 시험(메인 관리자 가입 목록 수 · 자동 거절 건수)이 데모 행까지 세고, 확정 배치 한 틱(50건)을 데모
+    // 회차가 채워 시험이 심은 회차가 밀려난다(2026-09-23 실측 4건). local 프로파일의 목록에서
+    // migration-demo 만 뺀 값이다 — application.yml 의 local 목록을 바꾸면 여기도 같이 바꾼다.
+    systemProperty 'spring.flyway.locations', 'classpath:db/migration,classpath:db/migration-local'
+
     // NaverDirectionsClientLiveTest·NaverGeocodingClientLiveTest 는 위 stub 설정을 인라인
     // @TestPropertySource 로 덮어쓰고 System.getenv() 로 자격증명을 찾는다. backend/.env 는
     // docker-compose·bootRun 전용이라 Gradle 테스트 JVM 에는 저절로 전달되지 않아, 자격증명이
