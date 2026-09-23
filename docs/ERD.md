@@ -314,7 +314,6 @@ erDiagram
 | `birth_date` | date | | 생년월일 |
 | `grade` | varchar(20) | | 나이(학년) |
 | `class_name` | varchar(50) | | 반 |
-| `seat_no` | integer | | 좌석 배정 |
 | `note` | text | | 특이사항 (STU-07) |
 | `can_go_alone` | boolean | NN default false | 혼자 귀가 가능 여부. 하원 하차 판단 근거 (STU-08) |
 | `deleted_at` | timestamptz | | 퇴원 soft delete — **오늘 명단은 유지**, 내일 회차부터 제외 (STU-04) |

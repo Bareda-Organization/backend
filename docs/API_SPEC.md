@@ -1739,10 +1739,10 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `GET /staff/students?q=` | STU-01 | 목록·검색. 강제 추가 자동완성과 공용 |
 | `GET /staff/students/{id}` | STU-01 | 상세 |
 | `POST /staff/students` | STU-02 | 등록 |
-| `PATCH /staff/students/{id}` | STU-03 | 수정 — 주소·보호자 연락처는 대상 밖 |
+| `PATCH /staff/students/{id}` | STU-03 | 수정 — 주소는 대상 밖, **보호자 연락처는 고칠 수 있다**(Ruling 326) |
 | `DELETE /staff/students/{id}` | STU-04 | 퇴원 soft delete — **오늘 명단은 유지**, 내일부터 제외 |
 
-**`GET /staff/students` 응답 `items[]`** — `student_id` · `name` · `class_name` · `bus_no` · `stop_name` · `guardian_phone` · `guardian_count`(integer — 연결된 보호자 계정 수, 해지된 연결은 제외. `guardian_phone` 은 그중 대표 1명뿐이라 연결 수는 이 값으로 따로 센다)
+**`GET /staff/students` 응답 `items[]`** — `student_id` · `name` · `class_name` · `guardian_phone` · `guardian_count`(integer — 연결된 보호자 계정 수, 해지된 연결은 제외. `guardian_phone` 은 그중 대표 1명뿐이라 연결 수는 이 값으로 따로 센다)
 
 **`POST` · `PATCH` 요청**
 
@@ -1754,18 +1754,20 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `gender` | enum | ○ | `male` · `female` |
 | `birth_date` · `grade` | — | ○ | 생년월일 · 나이(학년) |
 | `class_name` | string | ○ | 반 |
-| `seat_no` | integer | ○ | 좌석 배정 |
 | `note` | string | ○ | 특이사항 (STU-07) |
 | `can_go_alone` | boolean | ● | 혼자 귀가 가능 여부 (STU-08) |
+| `guardians` | array | ○ | **`PATCH` 전용**(Ruling 326) — `[{guardian_id, phone}]`. 이 학생과 연결된 보호자만(아니면 **아무것도 안 바꾼 채** `422 VALIDATION_FAILED`). `phone` 은 숫자·하이픈 |
 
-⚠ **관계자가 입력하지 않는 것 둘** (2026-08-24 확정, A-10).
+⚠ **관계자가 입력하지 않는 것** (2026-08-24 확정, A-10 · **2026-09-23 Ruling 326 으로 보호자 연락처는 고칠 수 있게 바뀜**).
 
 | 항목 | 어디서 오는가 |
 |---|---|
-| **보호자 연락처** | 연결된 보호자 계정(`guardian` → `account.phone`)에서 조회. 학생 레코드에 복제하지 않음 — 복제하면 보호자가 번호를 바꿔도 명단이 옛 값을 표시 |
+| **보호자 연락처** | **`guardian.phone`**(학원이 관리하는 보호자 연락처). 학생 레코드에 복제하지 않음 — 보호자 한 명의 값이라 형제 모두에 같이 반영. 관계자가 `PATCH` 의 `guardians` 로 고친다. ⚠ **계정 연락처(`account.phone`, 로그인·계정 복구 번호)는 관계자가 고칠 수 없다** — 복구 번호를 바꾸면 학부모 계정을 가로챌 수 있다 |
 | **승하차 주소** | 학부모가 요일별 주소(§3.7)·일일 변경(§3.8)으로 등록하고 **그 시점에 검증·매칭**. 관계자는 조회만 |
 
 계정 미연결 학생은 연락처·주소가 비어 있는 것이 정상이며, 관계자 화면이 그 상태를 드러낸다.
+
+**상세 응답**은 `guardians[]`(`guardian_id` · `name` · `phone`, 먼저 연결된 차례)를 싣는다(Ruling 326 — 전에는 대표 1명의 `guardian_phone`). 목록의 호차·승하차지 칸(`bus_no` · `stop_name`)과 좌석(`seat_no`)은 **Ruling 326 으로 뺐다**.
 
 **에러** — `404 STUDENT_NOT_FOUND`(`GET` 상세 · `PATCH` · `DELETE` 대상 부재 · 타 학원 — 존재 비노출, Ruling 163)
 
