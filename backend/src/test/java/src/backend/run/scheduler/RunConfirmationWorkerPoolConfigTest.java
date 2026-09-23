@@ -4,14 +4,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+
+import io.github.resilience4j.bulkhead.BulkheadRegistry;
 
 /**
  * 확정 배치 워커 풀({@link RunConfirmationWorkerPoolConfig#runConfirmationExecutor})의 <b>동시 실행
@@ -28,12 +30,26 @@ class RunConfirmationWorkerPoolConfigTest {
     @Autowired
     private ExecutorService runConfirmationExecutor;
 
-    @Value("${app.run.confirmation.pool-size:8}")
-    private int configuredPoolSize;
+    @Autowired
+    private BulkheadRegistry bulkheadRegistry;
+
+    /**
+     * 풀이 격벽보다 크면 한 틱에 도래한 회차 중 격벽을 넘는 몫은 <b>공급자에 닿지도 못하고</b> 직선 근사로
+     * 확정된다(격벽 대기 0). 2026-09-23 실측 — 풀 8 · 격벽 4 에서 데모 회차 60건 중 53건이 직선 근사였다.
+     * ARCHITECTURE §9.4 는 "계산 워커 풀 크기를 외부 지도 API 레이트리밋에 맞춤" 이다.
+     */
+    @Test
+    void 풀_크기는_지도_API_격벽_상한을_넘지_않는다() {
+        int bulkheadLimit = bulkheadRegistry.bulkhead("mapRoute").getBulkheadConfig().getMaxConcurrentCalls();
+
+        assertThat(((ThreadPoolExecutor) runConfirmationExecutor).getMaximumPoolSize())
+                .isLessThanOrEqualTo(bulkheadLimit);
+    }
 
     @Test
     @DisplayName("목표6-b — 동시 실행 수는 설정된 풀 크기를 실제로 넘지 않는다")
     void 동시_실행_수는_설정된_풀_크기를_넘지_않는다() throws InterruptedException {
+        int configuredPoolSize = ((ThreadPoolExecutor) runConfirmationExecutor).getMaximumPoolSize();
         int taskCount = configuredPoolSize + 5; // 풀 크기보다 많이 던져야 "상한이 실제로 막는지" 를 잰다.
         AtomicInteger active = new AtomicInteger();
         AtomicInteger maxObserved = new AtomicInteger();
