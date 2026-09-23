@@ -5517,3 +5517,10 @@ C 는 A 가 고칠 파일을 **읽기만** 하고 고치지 않는다. **`docs/I
 | **셸 인자가 한 덩어리로 넘어가 401 로 보였다** | zsh 는 변수 안의 공백으로 인자를 나누지 않는다 — `--dart-define` 두 개가 URL 에 붙어 `/api/v1%20--dart-define=...` 로 요청됐다. 프록시 접근 로그의 경로로 찾았다 |
 | **장소 검색이 운영에서 전부 실패했는데 시험은 초록이었다** | NAVER API HUB 가 JSON 을 **`text/plain`** 으로 보내고, 앱의 JSON 설정(snake_case)이 `roadAddress` 를 비웠다. 시험이 `WebClient.create()`·`application/json` 으로 돌아 둘 다 가려졌다 — 앱의 `WebClient` 빈과 실측 머리로 바꿔 재현한 뒤 고쳤다. 실패 로그에 원인 예외를 남기지 않아 원인을 찾는 데 한 바퀴를 더 돌았다 |
 | ⚠ 검색 API 는 **NAVER API HUB 로 이관**됐다 | 개발자센터(`openapi.naver.com` · `X-Naver-Client-Id`)는 2026-07-31 신규 발급 중단. HUB 는 `naverapihub.apigw.ntruss.com` · NCP 헤더(`x-ncp-apigw-api-key-id`) — 옛 헤더는 `401`(실측). 키는 `.env` 의 `NAVER_SEARCH_CLIENT_ID/SECRET` |
+
+### 후속 2건 (같은 날)
+
+| 지시 | 처리 |
+|---|---|
+| 지도 세로를 화면 절반 이상, 모든 지도 | 높이 상수를 CSS 길이 `max(480px, 60vh)` 로 — 관제·운행 관리·금일 운행·구간 변경 승인·편성 지도와 옆 목록이 함께 따른다 |
+| 최적화에서 특정 순서·시점·종점 고정 | `POST .../optimize` 에 `fixed_stop_ids` — 줄마다 자물쇠. 고정은 저장 대상이 아니라 최적화 조건이라 변경 건수에 안 센다(화면을 떠나면 풀린다). 첫 줄(등원)·마지막 줄(하원)에 시점·종점 표시 — 학원 쪽 끝은 늘 고정 |
