@@ -664,6 +664,38 @@ class StaffRouteControllerTest {
         assertThat(정차_순서(routeId)).isEqualTo(규칙으로_정한_순서);
     }
 
+    // ── 자리 고정(2026-09-23 사용자 지시 — 특정 순서나 시점·종점을 고정) ──────────────────────
+
+    /**
+     * 고정한 승하차지는 <b>지금 자리</b>를 지키고 나머지만 다시 매긴다. [4,3,2,1] 을 그냥 최적화하면
+     * [1,2,3,4] 가 되므로(위 시험), 4(시점)·1(종점)을 고정하면 그 둘이 제자리에 남는지로 고정이 실제로 먹었는지 가린다.
+     */
+    @Test
+    void 고정한_승하차지는_지금_자리를_지키고_나머지만_다시_매긴다() throws Exception {
+        long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "fri", "from_academy", List.of(4L, 3L, 2L, 1L));
+
+        최적화_본문으로(관계자A_토큰(), routeId, """
+                {"origin":{"lat":37.565000,"lng":126.977000},
+                 "destination":{"lat":37.570500,"lng":126.982000},
+                 "fixed_stop_ids":[4,1]}""")
+                .andExpect(status().isOk());
+
+        List<Long> 순서 = 정차_순서(routeId);
+        assertThat(순서.getFirst()).isEqualTo(4L);
+        assertThat(순서.getLast()).isEqualTo(1L);
+        assertThat(순서).containsExactlyInAnyOrder(1L, 2L, 3L, 4L);
+    }
+
+    /** 노선에 없는 승하차지를 고정하라는 요청은 받지 않는다 — 조용히 무시하면 관계자는 고정됐다고 믿는다. */
+    @Test
+    void 노선에_없는_승하차지를_고정하면_422_다() throws Exception {
+        long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "sat", "from_academy", List.of(4L, 3L));
+
+        최적화_본문으로(관계자A_토큰(), routeId, "{\"fixed_stop_ids\":[1]}")
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+    }
+
     /** 학원 좌표가 없으면 다른 점으로 대신하지 않는다(Ruling 190) — {@code 500} 이 아니라 이유가 담긴 {@code 422} 다. */
     @Test
     void 기준점을_주지_않았는데_학원_좌표가_없으면_422_다() throws Exception {

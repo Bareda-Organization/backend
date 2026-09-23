@@ -2,6 +2,7 @@ package src.backend.routing.command;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +18,7 @@ import src.backend.global.security.AuthUser;
 import src.backend.routing.domain.GeoPoint;
 import src.backend.routing.dto.RouteDetailResponse;
 import src.backend.routing.dto.RouteOptimizeRequest;
+import src.backend.routing.engine.spec.FixedStop;
 import src.backend.routing.engine.spec.OrderableStop;
 import src.backend.routing.engine.spec.OrderedStop;
 import src.backend.routing.engine.spec.RouteEngine;
@@ -70,8 +72,8 @@ public class RouteOptimizeService {
      * 지금 편성돼 있는 정차지를 엔진이 낸 차례로 다시 매긴다 — 대상이 다른 학원이면
      * {@code 404 ROUTE_NOT_FOUND} 다.
      *
-     * <p>{@code fixedStops} 는 비운다 — 경유 지점(RTE-10)은 회차에 매달리는 것이라
-     * ({@code waypoint.run_id}) 학기 단위 편성에는 그 자리가 부재하다. 경유 지점 지정은 Phase 8 이다.
+     * <p>{@code fixedStops} 에는 관계자가 고정한 승하차지가 <b>지금 순번</b>으로 들어간다(2026-09-23 사용자 지시 —
+     * 시점·종점·특정 순서 고정). 회차 경유 지점(RTE-10)은 회차에 매달리는 것이라 학기 단위 편성에는 그 자리가 부재하다.
      *
      * <p>정차지가 없으면 엔진이 빈 순서를 내고 갈아 끼울 것도 없다 — 오류가 아니다. 칸만 잡아 둔
      * 편성에 최적화를 부르는 것은 조작 실수이지 사고가 아니라, 거부하면 화면이 이유를 설명할 것이
@@ -86,6 +88,10 @@ public class RouteOptimizeService {
                 .toList();
         Map<Long, Stop> stops = routeStopArranger.resolve(requester.academyId(), currentOrder);
         boolean requestGivesAnchors = request.givesAnchors();
+        List<Long> fixedIds = request.fixedStopIdsOrEmpty();
+        if (!currentOrder.containsAll(fixedIds) || Set.copyOf(fixedIds).size() != fixedIds.size()) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "고정할 승하차지가 이 노선에 없거나 중복됐다");
+        }
         if (currentOrder.isEmpty()) {
             return routeDetailAssembler.assemble(route);
         }
@@ -103,10 +109,11 @@ public class RouteOptimizeService {
                     : pointOf(stops.get(currentOrder.getLast()));
         }
 
-        RouteOrderInput input = new RouteOrderInput(origin, destination, orderableStopsOf(currentOrder, stops),
-                List.of(), route.getDirection());
+        List<Long> movable = currentOrder.stream().filter(stopId -> !fixedIds.contains(stopId)).toList();
+        RouteOrderInput input = new RouteOrderInput(origin, destination, orderableStopsOf(movable, stops),
+                fixedStopsOf(fixedIds, currentOrder, stops), route.getDirection());
         routeStopArranger.replace(routeId, requester.academyId(),
-                routeEngine.order(input).sequence().stream().map(OrderedStop::stopId).toList());
+                routeEngine.order(input).sequence().stream().map(RouteOptimizeService::stopIdOf).toList());
         return routeDetailAssembler.assemble(route);
     }
 
@@ -120,6 +127,23 @@ public class RouteOptimizeService {
 
     private static GeoPoint pointOf(Stop stop) {
         return new GeoPoint(stop.getLat(), stop.getLng());
+    }
+
+    /**
+     * 고정할 승하차지를 엔진의 고정 자리(지금 순번)로 옮긴다.
+     *
+     * <p>엔진의 고정 자리는 원래 회차 경유 지점(RTE-10)용이라 식별자 칸 이름이 {@code waypointId} 다. 여기서는
+     * 그 칸에 <b>승하차지 id</b> 를 담고 결과에서 {@link #stopIdOf} 로 되읽는다 — 이 호출 안에서만 오가는
+     * 값이라 경유 지점 id 와 섞여 저장될 자리가 부재하다.
+     */
+    private static List<FixedStop> fixedStopsOf(List<Long> fixedIds, List<Long> currentOrder, Map<Long, Stop> stops) {
+        return fixedIds.stream()
+                .map(stopId -> new FixedStop(stopId, pointOf(stops.get(stopId)), currentOrder.indexOf(stopId) + 1))
+                .toList();
+    }
+
+    private static Long stopIdOf(OrderedStop ordered) {
+        return ordered.stopId() != null ? ordered.stopId() : ordered.waypointId();
     }
 
     private List<OrderableStop> orderableStopsOf(List<Long> stopIds, Map<Long, Stop> stops) {
