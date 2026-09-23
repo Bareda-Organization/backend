@@ -1,5 +1,6 @@
 package src.backend.student.geocoding.spec;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -26,4 +27,15 @@ public interface GeocodingClient {
      * @throws GeocodingUnavailableException 네트워크 오류 · 공급자 5xx · 서킷 개방
      */
     Optional<GeocodedPoint> geocode(String address);
+
+    /**
+     * 주소 일부로 후보 여럿을 찾는다(자동완성, 2026-09-23 사용자 지시) — 결과가 없으면 빈 목록이다.
+     *
+     * <p>기본 구현은 {@link #geocode} 한 건이다. 공급자가 여러 건을 주면 구현체가 덮어쓴다.
+     *
+     * @throws GeocodingUnavailableException 공급자에 닿지 못했을 때 — 빈 목록(후보 없음)과 다른 실패다
+     */
+    default List<GeocodedPoint> candidates(String query) {
+        return geocode(query).stream().toList();
+    }
 }

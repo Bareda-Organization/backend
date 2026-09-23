@@ -8,6 +8,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.academy.entity.Academy;
+import src.backend.academy.repository.AcademyRepository;
+import src.backend.global.common.enums.Direction;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
@@ -61,6 +64,8 @@ public class RouteOptimizeService {
 
     private final RouteEngine routeEngine;
 
+    private final AcademyRepository academyRepository;
+
     /**
      * 지금 편성돼 있는 정차지를 엔진이 낸 차례로 다시 매긴다 — 대상이 다른 학원이면
      * {@code 404 ROUTE_NOT_FOUND} 다.
@@ -80,13 +85,41 @@ public class RouteOptimizeService {
                 .map(RouteStop::getStopId)
                 .toList();
         Map<Long, Stop> stops = routeStopArranger.resolve(requester.academyId(), currentOrder);
+        boolean requestGivesAnchors = request.givesAnchors();
+        if (currentOrder.isEmpty()) {
+            return routeDetailAssembler.assemble(route);
+        }
+        GeoPoint origin;
+        GeoPoint destination;
+        if (requestGivesAnchors) {
+            origin = request.origin().toGeoPoint();
+            destination = request.destination().toGeoPoint();
+        } else {
+            // Ruling 190 — 확정 배치와 같은 규칙: 등원은 첫 승차지 → 학원, 하원은 학원 → 마지막 하차지.
+            GeoPoint academy = academyPointOf(route);
+            origin = route.getDirection() == Direction.TO_ACADEMY ? pointOf(stops.get(currentOrder.getFirst()))
+                    : academy;
+            destination = route.getDirection() == Direction.TO_ACADEMY ? academy
+                    : pointOf(stops.get(currentOrder.getLast()));
+        }
 
-        RouteOrderInput input = new RouteOrderInput(request.origin().toGeoPoint(),
-                request.destination().toGeoPoint(), orderableStopsOf(currentOrder, stops), List.of(),
-                route.getDirection());
+        RouteOrderInput input = new RouteOrderInput(origin, destination, orderableStopsOf(currentOrder, stops),
+                List.of(), route.getDirection());
         routeStopArranger.replace(routeId, requester.academyId(),
                 routeEngine.order(input).sequence().stream().map(OrderedStop::stopId).toList());
         return routeDetailAssembler.assemble(route);
+    }
+
+    /** 학원 좌표가 없으면 다른 점으로 대신하지 않는다(Ruling 190) — 관계자가 학원 설정을 채울 자리다. */
+    private GeoPoint academyPointOf(Route route) {
+        Academy academy = academyRepository.findById(route.getAcademyId())
+                .filter(Academy::hasCoordinates)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ACADEMY_COORDINATES_MISSING));
+        return new GeoPoint(academy.getLat(), academy.getLng());
+    }
+
+    private static GeoPoint pointOf(Stop stop) {
+        return new GeoPoint(stop.getLat(), stop.getLng());
     }
 
     private List<OrderableStop> orderableStopsOf(List<Long> stopIds, Map<Long, Stop> stops) {

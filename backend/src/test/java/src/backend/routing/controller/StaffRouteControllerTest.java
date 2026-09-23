@@ -5,11 +5,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -501,6 +504,7 @@ class StaffRouteControllerTest {
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────
 
     private List<Long> 정차_순서(long routeId) {
+        entityManager.flush();
         return jdbcTemplate.queryForList("SELECT stop_id FROM route_stop WHERE route_id = ? ORDER BY seq",
                 Long.class, routeId);
     }
@@ -568,6 +572,131 @@ class StaffRouteControllerTest {
         정차지를_더한다(관계자B_토큰(), routeId, "37.530000", "126.530000", "남의 학원")
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("ROUTE_NOT_FOUND"));
+    }
+
+    // ── 승하차지 한 번에 저장(2026-09-23 사용자 지시 — 고친 뒤 저장 버튼 한 번에 반영) ─────────
+
+    /**
+     * 추가·수정·삭제·순서가 <b>한 요청</b>으로 들어가 모두 반영된다. 빠진 승하차지는 노선에서만 빠지고
+     * 승하차지 자체는 남는다 — 다른 노선과 학생 주소가 그 승하차지를 가리키고 있다.
+     */
+    @Test
+    void 저장_한_번에_추가_수정_삭제_순서가_모두_반영된다() throws Exception {
+        long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "sat", "to_academy", STOPS_OF_A);
+        Map<String, Object> 일번 = jdbcTemplate.queryForMap("SELECT name, lat, lng FROM stop WHERE id = 1");
+
+        String body = 본문(승하차지를_저장한다(관계자A_토큰(), routeId, """
+                {"stops":[
+                  {"stop_id":3,"name":"옮긴 3번","lat":37.555555,"lng":126.955555},
+                  {"stop_id":1,"name":"%s","lat":%s,"lng":%s},
+                  {"name":"새 모퉁이","address":"서울시 새길 7","lat":37.512345,"lng":126.512345}
+                ]}""".formatted(일번.get("name"), 일번.get("lat"), 일번.get("lng")))
+                .andExpect(status().isOk()).andReturn());
+        entityManager.flush();
+
+        long 새_승하차지 = jdbcTemplate.queryForObject(
+                "SELECT id FROM stop WHERE academy_id = ? AND name = '새 모퉁이'", Long.class, ACADEMY_A_ID);
+        assertThat(정차_순서(routeId)).containsExactly(3L, 1L, 새_승하차지);
+        assertThat(jdbcTemplate.queryForMap("SELECT name, lat FROM stop WHERE id = 3"))
+                .containsEntry("name", "옮긴 3번")
+                .containsEntry("lat", new BigDecimal("37.555555"));
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM stop WHERE id IN (2, 4)", Integer.class))
+                .as("노선에서 뺀 승하차지는 지워지지 않는다 — 학생 주소가 그 행을 가리킨다")
+                .isEqualTo(2);
+        assertThat(JsonPath.<List<String>>read(body, "$.data.stops[*].name"))
+                .containsExactly("옮긴 3번", (String) 일번.get("name"), "새 모퉁이");
+    }
+
+    /**
+     * 한 항목이라도 거부되면 <b>앞 항목의 수정도 남지 않는다.</b> 앞에서부터 하나씩 반영하다 뒤에서
+     * 실패하면 "3번 이름은 바뀌었는데 순서는 그대로" 인 반쯤 저장된 노선이 남는다.
+     */
+    @Test
+    void 잘못된_항목이_하나라도_있으면_아무것도_바뀌지_않는다() throws Exception {
+        long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "sun", "to_academy", STOPS_OF_A);
+        String 원래_이름 = jdbcTemplate.queryForObject("SELECT name FROM stop WHERE id = 3", String.class);
+
+        승하차지를_저장한다(관계자A_토큰(), routeId, """
+                {"stops":[
+                  {"stop_id":3,"name":"바뀌면 안 됨","lat":37.555555,"lng":126.955555},
+                  {"stop_id":%d,"name":"남의 학원","lat":37.5,"lng":127.0}
+                ]}""".formatted(STOP_OF_B))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+        entityManager.flush();
+
+        assertThat(jdbcTemplate.queryForObject("SELECT name FROM stop WHERE id = 3", String.class))
+                .isEqualTo(원래_이름);
+        assertThat(정차_순서(routeId)).containsExactlyElementsOf(STOPS_OF_A);
+    }
+
+    @Test
+    void 남의_학원_노선의_승하차지는_저장할_수_없다() throws Exception {
+        long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "mon", "from_academy", STOPS_OF_A);
+
+        승하차지를_저장한다(관계자B_토큰(), routeId, "{\"stops\":[]}")
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("ROUTE_NOT_FOUND"));
+    }
+
+    // ── 최적화 기준점(2026-09-23 사용자 지시 — 위경도 입력칸 제거) ─────────────────────────────
+
+    /**
+     * 기준점을 주지 않으면 <b>방향 규칙</b>(Ruling 190 — 등원은 첫 승차지 → 학원)으로 정한다. 그 규칙대로
+     * 기준점을 손으로 넣은 호출과 같은 순서가 나와야 한다.
+     */
+    @Test
+    void 기준점을_주지_않으면_등원은_첫_승차지에서_학원으로_정해_최적화한다() throws Exception {
+        List<Long> 처음_순서 = List.of(4L, 3L, 1L, 2L);
+        long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "tue", "to_academy", 처음_순서);
+        최적화_본문으로(관계자A_토큰(), routeId, "{}").andExpect(status().isOk());
+        List<Long> 규칙으로_정한_순서 = 정차_순서(routeId);
+
+        수정한다(관계자A_토큰(), routeId, "{\"stop_ids\":[4,3,1,2]}").andExpect(status().isOk());
+        Map<String, Object> 첫_승차지 = jdbcTemplate.queryForMap("SELECT lat, lng FROM stop WHERE id = 4");
+        Map<String, Object> 학원 = jdbcTemplate.queryForMap("SELECT lat, lng FROM academy WHERE id = ?",
+                ACADEMY_A_ID);
+        최적화_본문으로(관계자A_토큰(), routeId, """
+                {"origin":{"lat":%s,"lng":%s},"destination":{"lat":%s,"lng":%s}}"""
+                .formatted(첫_승차지.get("lat"), 첫_승차지.get("lng"), 학원.get("lat"), 학원.get("lng")))
+                .andExpect(status().isOk());
+
+        assertThat(정차_순서(routeId)).isEqualTo(규칙으로_정한_순서);
+    }
+
+    /** 학원 좌표가 없으면 다른 점으로 대신하지 않는다(Ruling 190) — {@code 500} 이 아니라 이유가 담긴 {@code 422} 다. */
+    @Test
+    void 기준점을_주지_않았는데_학원_좌표가_없으면_422_다() throws Exception {
+        long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "wed", "from_academy", STOPS_OF_A);
+        jdbcTemplate.update("UPDATE academy SET lat = NULL, lng = NULL WHERE id = ?", ACADEMY_A_ID);
+
+        최적화_본문으로(관계자A_토큰(), routeId, "{}")
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("ACADEMY_COORDINATES_MISSING"));
+    }
+
+    /** 기준점을 하나만 주면 규칙과 요청이 섞인다 — 어느 쪽인지 모르는 산출이 되므로 받지 않는다. */
+    @Test
+    void 기준점을_하나만_주면_422_다() throws Exception {
+        long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "thu", "from_academy", STOPS_OF_A);
+
+        최적화_본문으로(관계자A_토큰(), routeId, "{\"origin\":{\"lat\":37.5,\"lng\":127.0}}")
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+    }
+
+    private ResultActions 승하차지를_저장한다(String token, long routeId, String body) throws Exception {
+        return mockMvc.perform(put("/api/v1/staff/routes/{id}/stops", routeId)
+                .header("Authorization", token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body));
+    }
+
+    private ResultActions 최적화_본문으로(String token, long routeId, String body) throws Exception {
+        return mockMvc.perform(post("/api/v1/staff/routes/" + routeId + "/optimize")
+                .header("Authorization", token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body));
     }
 
     private ResultActions 정차지를_더한다(String token, long routeId, String lat, String lng, String name)

@@ -12,6 +12,11 @@ import src.backend.global.security.AuthUser;
 import src.backend.student.command.AddressVerification;
 import src.backend.student.domain.StopProximity;
 import src.backend.student.dto.StopSearchResponse;
+import src.backend.student.geocoding.spec.GeocodingUnavailableException;
+import src.backend.student.geocoding.spec.GeocodingClient;
+import src.backend.student.dto.StopSuggestResponse;
+import src.backend.global.error.ErrorCode;
+import src.backend.global.error.BusinessException;
 import src.backend.student.entity.Stop;
 import src.backend.student.geocoding.spec.GeocodedPoint;
 import src.backend.student.repository.StopRepository;
@@ -24,6 +29,8 @@ public class StopSearchQueryService {
     private final AddressVerification addressVerification;
 
     private final StopRepository stopRepository;
+
+    private final GeocodingClient geocodingClient;
 
     /**
      * 도로명 주소 한 건을 좌표로 옮기고, 그 부근의 기존 승하차지를 함께 돌려준다.
@@ -41,6 +48,26 @@ public class StopSearchQueryService {
         GeocodedPoint point = addressVerification.verifySingle(address);
         return new StopSearchResponse(point.lat(), point.lng(), point.displayName(),
                 nearbyOf(requester.academyId(), point));
+    }
+
+    /**
+     * 주소 일부로 후보 여럿을 찾는다(자동완성) — 후보가 없으면 빈 목록이다.
+     *
+     * <p>검색({@link #search})과 달리 0건이 {@code 422} 가 아니다. 입력 중에는 후보가 없는 순간이 흔하고,
+     * 그때마다 오류를 띄우면 관계자가 타이핑하는 동안 화면이 경고로 깜빡인다. 공급자 장애는 여전히
+     * {@code 503} 이다 — "후보가 없다" 와 "지금 물어볼 수 없다" 는 화면 안내가 다르다.
+     */
+    public StopSuggestResponse suggest(AuthUser requester, String query) {
+        List<GeocodedPoint> candidates;
+        try {
+            candidates = geocodingClient.candidates(query.trim());
+        } catch (GeocodingUnavailableException e) {
+            throw new BusinessException(ErrorCode.ADDRESS_VERIFICATION_UNAVAILABLE);
+        }
+        return new StopSuggestResponse(candidates.stream()
+                .map(point -> new StopSearchResponse(point.lat(), point.lng(), point.displayName(),
+                        nearbyOf(requester.academyId(), point)))
+                .toList());
     }
 
     private List<StopSearchResponse.NearbyStop> nearbyOf(Long academyId, GeocodedPoint point) {

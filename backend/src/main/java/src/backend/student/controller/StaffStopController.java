@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.global.config.ApiTags;
@@ -16,6 +17,7 @@ import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanManageRoute;
 import src.backend.student.dto.StopSearchResponse;
+import src.backend.student.dto.StopSuggestResponse;
 import src.backend.student.query.StopSearchQueryService;
 
 /**
@@ -40,5 +42,14 @@ public class StaffStopController {
     public ApiResponse<StopSearchResponse> search(@AuthenticationPrincipal AuthUser requester,
             @RequestParam @NotBlank String address) {
         return ApiResponse.ok(stopSearchQueryService.search(requester, address));
+    }
+
+    /** 주소 자동완성 — 일부만 친 주소로 후보 여럿. 후보가 없으면 빈 목록이다(오류가 아니다). */
+    @CanManageRoute
+    @Operation(summary = "승하차지 주소 자동완성 — 후보 여럿과 각 후보 근처 기존 승하차지")
+    @GetMapping("/suggest")
+    public ApiResponse<StopSuggestResponse> suggest(@AuthenticationPrincipal AuthUser requester,
+            @RequestParam @NotBlank @Size(max = 100) String query) {
+        return ApiResponse.ok(stopSearchQueryService.suggest(requester, query));
     }
 }

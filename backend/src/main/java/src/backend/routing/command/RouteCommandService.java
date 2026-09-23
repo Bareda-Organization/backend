@@ -2,6 +2,7 @@ package src.backend.routing.command;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import org.hibernate.exception.ConstraintViolationException;
@@ -19,6 +20,7 @@ import src.backend.global.security.AuthUser;
 import src.backend.routing.dto.RouteDetailResponse;
 import src.backend.routing.dto.RouteRegisterRequest;
 import src.backend.routing.dto.RouteStopAddRequest;
+import src.backend.routing.dto.RouteStopsSaveRequest;
 import src.backend.routing.dto.RouteUpdateRequest;
 import src.backend.routing.entity.Route;
 import src.backend.routing.entity.RoutePlan;
@@ -133,6 +135,38 @@ public class RouteCommandService {
         stopIds.add(stop.getId());
         routeStopArranger.resolve(requester.academyId(), stopIds);
         routeStopArranger.replace(routeId, requester.academyId(), stopIds);
+        return routeDetailAssembler.assemble(route);
+    }
+
+    /**
+     * 노선의 승하차지를 한 번에 저장한다(§5.9, 2026-09-23 사용자 지시) — 추가·수정·삭제·순서를 한
+     * 트랜잭션으로 반영한다.
+     *
+     * <p><b>고치기 전에 전부 검증한다.</b> 이미 있는 승하차지가 학원 밖이거나 중복이면 어떤 행도 고치지
+     * 않은 채 {@code 422} 다 — 앞에서부터 고쳐 나가다 뒤에서 거부하면 트랜잭션 롤백에만 기대게 되고,
+     * 같은 트랜잭션을 공유하는 호출자(시험 포함)에게는 반쯤 고친 상태가 보인다.
+     *
+     * <p>새 항목은 {@link StopMatcher} 가 정한다 — 50m 안에 이미 있으면 그것을 쓰고, 그 결과 같은
+     * 승하차지가 두 번 담기면 마지막 검증이 {@code 422} 로 막는다(버스가 같은 자리에 두 번 서는 것).
+     */
+    public RouteDetailResponse saveStops(AuthUser requester, Long routeId, RouteStopsSaveRequest request) {
+        Route route = findOwnRoute(requester, routeId);
+        Long academyId = requester.academyId();
+        Map<Long, Stop> existing = routeStopArranger.resolve(academyId, request.existingStopIds());
+
+        List<Long> order = new ArrayList<>(request.stops().size());
+        for (RouteStopsSaveRequest.Item item : request.stops()) {
+            if (item.stopId() != null) {
+                existing.get(item.stopId()).relocate(item.name(), item.address(), item.lat(), item.lng());
+                order.add(item.stopId());
+                continue;
+            }
+            String address = item.address() == null || item.address().isBlank() ? item.name() : item.address();
+            order.add(stopMatcher.matchOrCreate(academyId, new GeocodedPoint(item.lat(), item.lng(), address),
+                    item.name()).getId());
+        }
+        routeStopArranger.resolve(academyId, order);
+        routeStopArranger.replace(routeId, academyId, order);
         return routeDetailAssembler.assemble(route);
     }
 

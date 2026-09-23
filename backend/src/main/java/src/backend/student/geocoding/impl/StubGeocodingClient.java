@@ -2,6 +2,7 @@ package src.backend.student.geocoding.impl;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.List;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -72,6 +73,9 @@ public class StubGeocodingClient implements GeocodingClient {
     /** 도로명 1 차이가 만드는 경도 간격 — {@code 0.01} 도는 위도 37.5 에서 약 880m 다. */
     private static final BigDecimal LNG_PER_ROAD = new BigDecimal("0.010000");
 
+    /** 도로명만 친 입력을 넓힐 번지 — 번지 10 차이가 110m 라 서로 근접 병합되지 않는다. */
+    private static final List<Integer> SUGGESTED_HOUSE_NUMBERS = List.of(1, 11, 21);
+
     /** 좌표를 유효 범위 안에 가두는 나머지 연산의 법 — 번지·도로명이 아무리 커도 기준점 부근에 남는다. */
     private static final int COORDINATE_WRAP = 1000;
 
@@ -93,6 +97,25 @@ public class StubGeocodingClient implements GeocodingClient {
                 shifted(BASE_LAT, LAT_PER_HOUSE_NUMBER, houseNumber),
                 shifted(BASE_LNG, LNG_PER_ROAD, Math.floorMod(roadName.hashCode(), COORDINATE_WRAP)),
                 address.trim()));
+    }
+
+    /**
+     * 자동완성 재현 — 번지까지 친 주소는 그 한 건, <b>도로명만 친 입력은 그 도로의 1·11·21번지</b>로 넓힌다
+     * (서로 110m 떨어져 근접 병합 반경 밖). 글자가 하나도 없는 입력은 후보가 없다.
+     */
+    @Override
+    public List<GeocodedPoint> candidates(String query) {
+        Optional<GeocodedPoint> exact = geocode(query);
+        if (exact.isPresent()) {
+            return List.of(exact.get());
+        }
+        if (query.chars().noneMatch(Character::isLetter)) {
+            return List.of();
+        }
+        return SUGGESTED_HOUSE_NUMBERS.stream()
+                .map(number -> geocode(query.trim() + " " + number))
+                .flatMap(Optional::stream)
+                .toList();
     }
 
     private static BigDecimal shifted(BigDecimal base, BigDecimal step, int multiplier) {

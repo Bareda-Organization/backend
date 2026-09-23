@@ -45,6 +45,9 @@ public class NaverGeocodingClient implements GeocodingClient {
 
     private static final String KEY_HEADER = "x-ncp-apigw-api-key";
 
+    /** 자동완성 후보 수 — 화면 목록 한 번에 보이는 만큼. */
+    private static final int CANDIDATE_LIMIT = 10;
+
     private final WebClient webClient;
 
     private final String baseUrl;
@@ -98,6 +101,37 @@ public class NaverGeocodingClient implements GeocodingClient {
      * <p>{@code private} 이 아닌 것은 Resilience4j 가 리플렉션으로 찾기 때문이고, 시그니처가 원
      * 메서드 + {@link Throwable} 인 것도 그 규약이다.
      */
+    /** 자동완성 — 공급자가 준 후보를 최대 {@value #CANDIDATE_LIMIT}건까지 그대로 돌려준다. */
+    @Override
+    @CircuitBreaker(name = RESILIENCE_INSTANCE)
+    @Retry(name = RESILIENCE_INSTANCE, fallbackMethod = "candidatesUnavailable")
+    public List<GeocodedPoint> candidates(String query) {
+        GeocodeResponse response = webClient.get()
+                .uri(UriComponentsBuilder.fromUriString(baseUrl)
+                        .path(GEOCODE_PATH)
+                        .queryParam("query", query)
+                        .queryParam("count", CANDIDATE_LIMIT)
+                        .build()
+                        .encode()
+                        .toUri())
+                .header(KEY_ID_HEADER, keyId)
+                .header(KEY_HEADER, key)
+                .retrieve()
+                .bodyToMono(GeocodeResponse.class)
+                .block();
+        if (response == null || response.addresses() == null) {
+            return List.of();
+        }
+        return response.addresses().stream()
+                .map(found -> new GeocodedPoint(new BigDecimal(found.y()), new BigDecimal(found.x()),
+                        found.displayName()))
+                .toList();
+    }
+
+    List<GeocodedPoint> candidatesUnavailable(String query, Throwable cause) {
+        throw new GeocodingUnavailableException("지오코딩 호출 실패: " + query, cause);
+    }
+
     Optional<GeocodedPoint> unavailable(String address, Throwable cause) {
         throw new GeocodingUnavailableException("지오코딩 호출 실패: " + address, cause);
     }
