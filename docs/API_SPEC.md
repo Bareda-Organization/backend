@@ -1577,6 +1577,8 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `GET /staff/routes/{id}/path` | RTE-01 | 정차 순서대로 이은 **도로 경로**. 응답 `road_path[{lat,lng}]` · `fallback_used` · `stops[]` |
 | `GET /staff/stops/search?address=` | RTE-01 | **주소 검색** — 도로명 주소를 좌표로 옮긴다. **아무것도 만들지 않는다** |
 | `POST /staff/routes/{id}/stops` | RTE-01 | **좌표로 정차지 추가** — 노선 **맨 끝**에 붙인다 |
+| `PUT /staff/routes/{id}/stops` | RTE-01 | **승하차지 한 번에 저장**(Ruling 325) — 추가·수정·삭제·순서를 한 트랜잭션으로 |
+| `GET /staff/stops/suggest?query=` | RTE-01 | **주소 자동완성**(Ruling 325) — 후보 여럿. **아무것도 만들지 않는다** |
 | `GET /staff/routes/{id}/path` | RTE-01 | **도로 경로**(R27-B 신설) — 정차 순서(`seq`)대로 이은 실제 도로 좌표열. 관계자 웹이 편성 화면 지도에 그린다 |
 
 **`POST /staff/routes` · `PATCH /staff/routes/{id}` 요청** (두 엔드포인트가 같은 본문을 쓴다)
@@ -1599,9 +1601,13 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 **응답** — `id` · `bus_id` · `bus_no` · `weekday` · `direction` · `name` · `active`. 상세·편성·수정·최적화는 여기에 **`stops[]`**(`stop_id` · `seq` · `name` · `lat` · `lng`)를 더한다.
 
-**`POST /staff/routes/{id}/optimize` 요청** — `origin`(`lat`·`lng`) · `destination`(`lat`·`lng`) **둘 다 필수**
+**`POST /staff/routes/{id}/optimize` 요청** — `origin`(`lat`·`lng`) · `destination`(`lat`·`lng`) **둘 다 주거나 둘 다 비운다**(Ruling 325)
 
-⚠ **좌표를 호출자가 넘기는 것은 현재 스키마에서 유일한 선택지다**(Ruling 184). `academy`·`route` 어느 쪽에도 **좌표 컬럼이 부재**하다. 서버가 정차지 중 하나를 골라 기준점으로 쓰는 안은 **그 고름이 요청·응답 어디에도 남지 않아 산출 조건이 관측 불가**가 되어 기각했다 — `TECH_DECISIONS §8.5.1`("왜 이 순서로 돌았나를 재현 가능하게")과 정면으로 어긋난다. **Phase 7 이 `academy` 좌표 컬럼을 추가하면 이 계약이 바뀐다.**
+- **둘 다 비우면** 확정 배치와 같은 규칙(Ruling 190)으로 정한다 — 등원은 지금 첫 승차지 → 학원, 하원은 학원 → 지금 마지막 하차지
+- **하나만 주면 `422 VALIDATION_FAILED`** — 한쪽은 호출자, 한쪽은 규칙이 정한 산출은 요청만 보고 재현할 수 없다
+- 비웠는데 학원 좌표가 없으면 `422 ACADEMY_COORDINATES_MISSING` — 다른 점으로 대신하지 않는다(Ruling 190)
+
+⚠ ~~**좌표를 호출자가 넘기는 것은 현재 스키마에서 유일한 선택지다**(Ruling 184).~~ **Ruling 325 로 대체** — 학원 좌표가 생겨 서버가 공개된 규칙으로 정할 수 있게 됐다. 아래는 당시 근거로 남긴다. `academy`·`route` 어느 쪽에도 **좌표 컬럼이 부재**하다. 서버가 정차지 중 하나를 골라 기준점으로 쓰는 안은 **그 고름이 요청·응답 어디에도 남지 않아 산출 조건이 관측 불가**가 되어 기각했다 — `TECH_DECISIONS §8.5.1`("왜 이 순서로 돌았나를 재현 가능하게")과 정면으로 어긋난다. **Phase 7 이 `academy` 좌표 컬럼을 추가하면 이 계약이 바뀐다.**
 
 #### 주소로 정차지를 더하는 흐름 — 검색 → 확인 → 수정 → 반영 (2026-09-22 사용자 지시)
 
@@ -1632,6 +1638,29 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
   찍는 것은 흔하고, 그때마다 새로 만들면 명단·노선이 같은 자리를 둘로 센다
 - **이미 그 노선에 있는 승하차지면 `422 VALIDATION_FAILED`** — 버스가 같은 자리에 두 번 선다
 - 응답은 **상세와 같은 형태**(`stops[]` 포함)
+
+#### 승하차지 한 번에 저장 · 주소 자동완성 (2026-09-23 사용자 지시, Ruling 325)
+
+편성 화면은 추가·수정·삭제·순서를 **화면에서만** 바꾸고 저장 버튼 한 번으로 보낸다.
+
+**`PUT /staff/routes/{id}/stops` 요청** — `stops[]`, 배열 순서가 그대로 정차 순서다. 항목마다 `stop_id`(있으면 기존
+승하차지, 비우면 새로) · `name`(필수 · 최대 100자) · `address`(선택 — 기존이면 생략 시 그대로, 새 항목이면 생략 시
+`name`) · `lat` · `lng`(필수).
+
+- **기존 승하차지의 이름·좌표를 이 값으로 고친다** — 승하차지는 학원의 한 장소라, 그것을 쓰는 **다른 노선·학생 주소에도
+  함께 반영**된다. 노선별 사본을 만들지 않는 이유는 학생 주소(`weekly_address.stop_id`)가 옛 행을 가리킨 채 남기 때문이다
+- **배열에서 빠진 승하차지는 노선에서만 빠진다** — 승하차지 행은 지우지 않는다
+- 새 항목은 `POST .../stops` 와 같은 규칙 — 50m 안에 있으면 그 승하차지를 쓴다
+- **고치기 전에 전부 검증한다** — 학원 밖 승하차지·같은 승하차지 두 번이면 **아무것도 바꾸지 않은 채** `422 VALIDATION_FAILED`
+- 응답은 상세와 같은 형태 · 에러 `404 ROUTE_NOT_FOUND`(다른 학원 편성 포함)
+
+**`GET /staff/stops/suggest?query=` 응답** — `items[]`, 항목마다 `GET /staff/stops/search` 응답과 같은 모양
+(`lat` · `lng` · `display_name` · `nearby[]`). 최대 10건.
+
+- **후보가 없으면 빈 목록이다** — 입력하는 동안에는 흔한 상태라 오류가 아니다(`search` 의 `422` 와 다르다)
+- 공급자에 못 닿으면 `503 ADDRESS_VERIFICATION_UNAVAILABLE`
+- ⚠ 공급자는 지금 **네이버 지오코딩**이다. 지오코딩은 "완성된 주소 → 좌표" 라 **일부만 친 도로명·장소 이름은 0건**이다
+  (2026-09-23 실측 — `목동서로` 0건 · `신정동 1` 3건). 장소·일부 주소 검색은 네이버 검색 API(지역) 키가 들어오면 붙인다
 
 **최적화는 명시적 호출뿐이다** — 편성·수정이 순서를 자동으로 재배열하지 않는다. 가중치가 미확정인 상태(오픈 이슈 G)에서 자동 재배열을 두면 **기준 없는 재배열이 조용히 돌아 관계자가 정한 차례가 이유 없이 뒤집힌다.**
 
