@@ -19,6 +19,7 @@
 !.claude/skills/
 .claude/skills/*
 !.claude/skills/baraeda-screen-check/
+!.claude/skills/orca-launch/
 # .superpowers/ 는 2026-09-20 에 삭제했다 — 그 작업 방식이 ECC·Orca·Skill 로 흡수됐고
 # 정본이 근거로 쓰던 24개는 docs/archive/sdd/ 로 옮겨 추적 대상이 됐다
 
