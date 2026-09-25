@@ -63,7 +63,8 @@ public class RunConfirmationPersistence {
 
     /**
      * 회차를 확정하고 4종 산출물({@code confirmed_route}·{@code route_version}·{@code run_stop}·
-     * {@code run_rider})을 저장한다.
+     * {@code run_rider})을 저장한다. {@code absentStops} 는 노선 계산에서 뺀 ①구간 OFF 학생으로,
+     * {@code absent} 행으로만 남는다(FEATURE_SPEC §3.3).
      *
      * <p><b>{@code confirmIfIdle} 이 0행을 갱신하면 그 자리에서 조용히 반환한다</b>(목표 2) — 동시
      * 스레드 중 나중 것이 진 경우다. 이미 진 경쟁에서 계산 결과를 그대로 버리는 것이 맞다 — 먼저
@@ -78,7 +79,7 @@ public class RunConfirmationPersistence {
      *         부정확해지는 결함이었다.
      */
     public boolean persist(Run run, RouteComputation computation, GeoPoint origin, GeoPoint destination,
-            Weekday weekday, Map<Long, Long> studentStops, OffsetDateTime confirmedAt) {
+            Weekday weekday, Map<Long, Long> studentStops, Map<Long, Long> absentStops, OffsetDateTime confirmedAt) {
         int updated = runRepository.confirmIfIdle(run.getId(), confirmedAt);
         if (updated == 0) {
             return false;
@@ -97,7 +98,8 @@ public class RunConfirmationPersistence {
         confirmedRouteRepository.assignCurrentVersion(run.getId(), version.getId());
 
         runStopRepository.saveAll(runStopsOf(version.getId(), computation));
-        runRiderRepository.saveAll(runRidersOf(run.getId(), studentStops, computation.unresolvedStudentIds()));
+        runRiderRepository.saveAll(runRidersOf(run.getId(), studentStops, absentStops,
+                computation.unresolvedStudentIds(), confirmedAt));
 
         eventPublisher.publishEvent(
                 new RunRouteConfirmedEvent(run.getId(), run.getAcademyId(), run.getBusId(), confirmedAt));
@@ -123,15 +125,20 @@ public class RunConfirmationPersistence {
     }
 
     /** 좌표를 얻지 못해 계산에서 분리된 학생({@code unresolvedStudentIds})은 명단에서도 뺀다(목표 2와 같은 근거). */
-    private static List<RunRider> runRidersOf(Long runId, Map<Long, Long> studentStops,
-            List<Long> unresolvedStudentIds) {
-        List<RunRider> riders = new ArrayList<>(studentStops.size());
+    private static List<RunRider> runRidersOf(Long runId, Map<Long, Long> studentStops, Map<Long, Long> absentStops,
+            List<Long> unresolvedStudentIds, OffsetDateTime confirmedAt) {
+        List<RunRider> riders = new ArrayList<>(studentStops.size() + absentStops.size());
         for (Map.Entry<Long, Long> entry : studentStops.entrySet()) {
             Long studentId = entry.getKey();
             if (unresolvedStudentIds.contains(studentId)) {
                 continue;
             }
             riders.add(RunRider.uponConfirmation(runId, studentId, entry.getValue()));
+        }
+        for (Map.Entry<Long, Long> entry : absentStops.entrySet()) {
+            RunRider rider = RunRider.uponConfirmation(runId, entry.getKey(), entry.getValue());
+            rider.markAbsent(confirmedAt);
+            riders.add(rider);
         }
         return riders;
     }

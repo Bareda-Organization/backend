@@ -188,9 +188,15 @@ public class RunConfirmationService {
         List<StudentDailyStop> dailyStops = weeklyAddressRepository.findDailyStopsByStopIds(run.getAcademyId(),
                 stopIds, weekday, run.getDirection());
         // ①구간 탑승 의사 토글(riding=false)이 남긴 학생은 여기서 걸러낸다 — DailyRoster 를 만들기
-        // 전이라 노선 계산도 run_rider 도 이 학생을 아예 보지 않는다(목표 1, P-03).
+        // 전이라 노선 계산은 이 학생을 보지 않는다(목표 1, P-03). run_rider 에는 absent 행으로 남긴다 —
+        // absent 는 "확정 노선 산출 시점 부여" 이고 집계 "미등원 N명"·관계자 명단(RST-03)이 그 행을 센다
+        // (FEATURE_SPEC §3.3, BR-013).
         Set<Long> excludedStudentIds = new HashSet<>(
                 boardingIntentRepository.findStudentIdsByRunIdAndRidingFalse(run.getId()));
+        Map<Long, Long> absentStops = dailyStops.stream()
+                .filter(stop -> excludedStudentIds.contains(stop.getStudentId()))
+                .collect(Collectors.toMap(StudentDailyStop::getStudentId, StudentDailyStop::getStopId,
+                        (first, duplicate) -> first));
         // 강제 추가 병합이 뒤에서 덧붙이므로 가변 목록으로 둔다(RTE-06).
         List<Long> studentIds = new ArrayList<>(
                 dailyStops.stream().map(StudentDailyStop::getStudentId).distinct()
@@ -211,6 +217,8 @@ public class RunConfirmationService {
                 .stream()
                 .collect(Collectors.toMap(ChangeRequest::getStudentId, ChangeRequest::getNewStopId,
                         (first, last) -> last)));
+        // 승인된 경유지 이동이 OFF 학생을 명단에 되살리지 않게 한다(BR-012).
+        stopOverrides.keySet().removeAll(excludedStudentIds);
 
         // ①구간 강제 추가(RTE-06, Ruling 197·198)도 같은 방식으로 합친다 — 요일별 주소에 없던
         // 학생이라 studentIds 에도 새로 더해야 하고, stopOverrides 에 넣어야 좌표 해석 단계
@@ -230,6 +238,8 @@ public class RunConfirmationService {
         applyIncomingTransfers(run, studentIds, stopOverrides);
 
         studentStops.putAll(stopOverrides);
+        // 강제 추가·도착 이동으로 다시 태운 학생은 absent 가 아니다 — 한 학생에 행 하나(uk_run_rider_run_student).
+        absentStops.keySet().removeAll(studentStops.keySet());
 
         DailyRoster roster = new DailyRoster(run.getAcademyId(), weekday, run.getDirection(), studentIds,
                 stopOverrides);
@@ -246,7 +256,7 @@ public class RunConfirmationService {
         OffsetDateTime confirmedAt = OffsetDateTime.now(clock);
 
         boolean persisted = persistence.persist(run, computation, origin, destination, weekday, studentStops,
-                confirmedAt);
+                absentStops, confirmedAt);
         // persisted == false 는 동시 확정 경합에서 진 시도다(persist() javadoc) — 이 시도는 기록하지
         // 않는다. 승패 신호 없이 무조건 기록하면 표본 수가 확정 사건 수보다 부풀어, 이 지표가 가장
         // 필요한 순간(인스턴스 증설로 경합이 잦아질 때) 가장 부정확해진다. 실패해 위에서 예외로 빠진

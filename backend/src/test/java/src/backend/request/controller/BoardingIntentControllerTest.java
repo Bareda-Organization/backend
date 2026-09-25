@@ -268,9 +268,10 @@ class BoardingIntentControllerTest {
         confirmationService.confirmOne(runId);
         entityManager.flush();
 
-        assertThat(jdbcTemplate.queryForList("SELECT student_id FROM run_rider WHERE run_id = ?", Long.class, runId))
-                .as("확정 배치가 만드는 run_rider 명단에 제외 학생이 남아 있으면 안 된다")
-                .containsExactly(remainingStudentId);
+        assertThat(jdbcTemplate.queryForList("SELECT student_id || ':' || status FROM run_rider WHERE run_id = ?",
+                String.class, runId))
+                .as("BR-013 — 제외 학생은 absent 행으로 남아야 '미등원 N명'·관계자 명단(RST-03)에 드러난다(FEATURE_SPEC §3.3)")
+                .containsExactlyInAnyOrder(remainingStudentId + ":waiting", excludedStudentId + ":absent");
 
         Long versionId = jdbcTemplate.queryForObject(
                 "SELECT current_version_id FROM confirmed_route WHERE run_id = ?", Long.class, runId);
@@ -280,6 +281,50 @@ class BoardingIntentControllerTest {
                 .as("노선 계산 입력(run_stop)에서도 제외돼야 한다 — 저장(run_rider)만 보면 " + "\"명단에는 없는데 버스는 그 집에 들르는\" 사각지대를 놓친다")
                 .doesNotContain(excludedStop)
                 .contains(remainingStop);
+    }
+
+    @Test
+    @DisplayName("BR-012 — ①구간에 승하차지를 바꾼 뒤 탑승 OFF 한 학생은 확정 명단에 waiting 으로 되살아나지 않는다")
+    void 승하차지_변경_뒤_OFF_학생은_waiting_으로_남지_않는다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = confirmationFixtures().academyWithCoordinates();
+        long busId = confirmationFixtures().bus(academyId);
+        long excludedStop = confirmationFixtures().stop(academyId, "37.560000", "126.970000");
+        long remainingStop = confirmationFixtures().stop(academyId, "37.561000", "126.971000");
+        long relocatedStop = confirmationFixtures().stop(academyId, "37.562000", "126.972000");
+        confirmationFixtures().route(academyId, busId, Weekday.MON, Direction.TO_ACADEMY, excludedStop,
+                remainingStop);
+
+        long excludedStudentId = confirmationFixtures().student(academyId, "제외학생");
+        long remainingStudentId = confirmationFixtures().student(academyId, "잔류학생");
+        confirmationFixtures().verifiedAddress(excludedStudentId, excludedStop, Weekday.MON, Direction.TO_ACADEMY,
+                "37.560000", "126.970000");
+        confirmationFixtures().verifiedAddress(remainingStudentId, remainingStop, Weekday.MON, Direction.TO_ACADEMY,
+                "37.561000", "126.971000");
+
+        BoardingIntentFixtures.GuardianAccount guardian = fixtures().guardian(academyId, "보호자12");
+        fixtures().linkChild(guardian.guardianId(), excludedStudentId, now.minusDays(1));
+        long runId = fixtures().run(academyId, busId, now.plusHours(3), now.plusMinutes(150));
+        // ①구간 RELOCATE 는 즉시 approved 로 저장된다(Ruling 198)
+        jdbcTemplate.update("INSERT INTO change_request (academy_id, run_id, student_id, source, type, status, "
+                + "window_segment, new_address, new_stop_id, requested_by, requested_at) "
+                + "VALUES (?, ?, ?, 'change_request', 'relocate', 'approved', 1, '바뀐 주소', ?, ?, ?)",
+                academyId, runId, excludedStudentId, relocatedStop, guardian.accountId(), now);
+
+        mockMvc.perform(patch(INTENT.formatted(excludedStudentId, runId))
+                        .header("Authorization", 토큰(guardian.accountId(), academyId, Role.PARENT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"riding\":false}"))
+                .andExpect(status().isOk());
+
+        entityManager.flush();
+        confirmationService.confirmOne(runId);
+        entityManager.flush();
+
+        assertThat(jdbcTemplate.queryForList("SELECT status FROM run_rider WHERE run_id = ? AND student_id = ?",
+                String.class, runId, excludedStudentId))
+                .as("OFF 학생이 waiting 이면 동승자가 no_show 를 눌러 쉰 아이가 미승차로 보고된다")
+                .containsExactly("absent");
     }
 
     // ── 목표 2 — ②구간 승인 대기, 기존값 응답 ───────────────────────────────
