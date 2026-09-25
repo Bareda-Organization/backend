@@ -838,6 +838,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | `stops[].change` | enum | ○ | `added`(초록) · `skipped`(빨강 취소선, 순번 유지) |
 | `stops[].skip_notice` | string | ○ | `skipped` 안내 문구 |
 | `stops[].arrived_at` | datetime | ○ | 도착 처리 타임스탬프 |
+| `stops[].is_destination` | boolean | ● | **등원 회차의 마지막 항목(학원)만 `true`** — `students[]` 는 빈 배열. 매니저 앱 운행 화면의 "다음 도착 처리" 버튼이 이 목록에서 나오므로 **여기에 없으면 등원 운행을 끝낼 수단이 사라진다** (2026-09-25 `Ruling 327`) |
 | `stops[].students[]` | array | ● | 승하차지 단위 묶음 |
 
 **`stops[].students[]`**
