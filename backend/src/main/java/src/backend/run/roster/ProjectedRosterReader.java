@@ -105,6 +105,7 @@ public class ProjectedRosterReader {
         // 승인된 경유지 이동이 OFF 학생을 명단에 되살리지 않게 한다(BR-012).
         stopOverrides.keySet().removeAll(excludedStudentIds);
 
+        Set<Long> weeklyStudentIds = Set.copyOf(studentIds);
         // ①구간 강제 추가(RTE-06, Ruling 197·198) — 요일별 주소에 없던 학생이라 studentIds 에도 더하고,
         // stopOverrides 에 넣어야 좌표 해석 단계(DailyStopResolver.studentToStop)가 그 정차지를 찾는다.
         List<RunForcedAddition> forcedAdditions = runForcedAdditionRepository.findAllByRunIdAndAcademyId(run.getId(),
@@ -120,7 +121,12 @@ public class ProjectedRosterReader {
         // studentStops·stopOverrides 양쪽에서 지운다 — 하나만 지우면 아래 putAll 이 되살린다.
         List<RunTransfer> outgoingTransfers = runTransferRepository.findAllByFromRunIdAndAcademyId(run.getId(),
                 run.getAcademyId());
+        Map<Long, Long> removedStops = new HashMap<>();
         for (RunTransfer transfer : outgoingTransfers) {
+            Long stopId = stopOverrides.getOrDefault(transfer.getStudentId(), studentStops.get(transfer.getStudentId()));
+            if (stopId != null) {
+                removedStops.put(transfer.getStudentId(), stopId);
+            }
             studentIds.remove(transfer.getStudentId());
             studentStops.remove(transfer.getStudentId());
             stopOverrides.remove(transfer.getStudentId());
@@ -137,8 +143,11 @@ public class ProjectedRosterReader {
         studentStops.putAll(stopOverrides);
         // 강제 추가·도착 이동으로 다시 태운 학생은 absent 가 아니다 — 한 학생에 행 하나(uk_run_rider_run_student).
         absentStops.keySet().removeAll(studentStops.keySet());
-        return new ProjectedRoster(studentIds, stopOverrides, studentStops, absentStops, incomingTransfers,
-                forcedAdditions.size() + outgoingTransfers.size() + incomingTransfers.size());
+        absentStops.keySet().removeAll(removedStops.keySet());
+        Set<Long> addedStudentIds = new HashSet<>(studentIds);
+        addedStudentIds.removeAll(weeklyStudentIds);
+        return new ProjectedRoster(studentIds, stopOverrides, studentStops, absentStops, addedStudentIds, removedStops,
+                incomingTransfers, forcedAdditions.size() + outgoingTransfers.size() + incomingTransfers.size());
     }
 
     /**

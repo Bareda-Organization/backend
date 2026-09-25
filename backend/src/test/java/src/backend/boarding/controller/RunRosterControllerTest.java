@@ -10,10 +10,14 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
@@ -67,6 +71,12 @@ class RunRosterControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     @Autowired
     private JwtTokenProvider tokenProvider;
@@ -186,6 +196,41 @@ class RunRosterControllerTest {
         assertThat(students).hasSize(1);
         assertThat((String) JsonPath.read(body, "$.data.stops[0].students[0].name")).isEqualTo("학생1");
         assertThat((Integer) JsonPath.read(body, "$.data.counts.absent_n")).isEqualTo(1);
+    }
+
+    @Test
+    void 버스_간_이동으로_빠진_학생은_removed_로_보이고_미등원에_세지_않는다() throws Exception {
+        Phase9RosterFixtures fx = fixtures();
+        long academyId = fx.academyWithCoordinates();
+        long busId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.500000", "127.000000");
+        fx.route(academyId, busId, Weekday.WED, Direction.TO_ACADEMY, stopId);
+        long student1 = fx.student(academyId, "학생1");
+        long student2 = fx.student(academyId, "이동학생");
+        fx.verifiedAddress(student1, stopId, Weekday.WED, Direction.TO_ACADEMY, "37.500000", "127.000000");
+        fx.verifiedAddress(student2, stopId, Weekday.WED, Direction.TO_ACADEMY, "37.500000", "127.000000");
+        OffsetDateTime departTime = OffsetDateTime.parse("2031-07-02T08:00:00+09:00");
+        long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY,
+                departTime, departTime.minusMinutes(30));
+        // 확정 배치가 출발 이동 학생에게 남기는 행 — status=absent · change=removed(BR-016)
+        jdbcTemplate.update("UPDATE run_rider SET status = 'absent', change = 'removed' WHERE run_id = ? "
+                + "AND student_id = ?", runId, student2);
+        entityManager.clear();
+        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.ESCORT, "동승자");
+        fx.assign(runId, manager.managerId(), ManagerRole.ESCORT);
+
+        MvcResult result = mockMvc
+                .perform(get("/api/v1/runs/" + runId + "/roster").header("Authorization",
+                        토큰(manager.accountId(), academyId, Role.ESCORT)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String body = 본문(result);
+        List<String> changes = JsonPath.read(body, "$.data.stops[0].students[?(@.name == '이동학생')].change");
+        assertThat(changes).as("당일 삭제된 탑승자는 명단에서 지우지 않고 빨강으로 보인다(RTE-04 · §3.5)")
+                .containsExactly("removed");
+        assertThat((Integer) JsonPath.read(body, "$.data.counts.absent_n"))
+                .as("다른 버스로 옮긴 학생은 미등원이 아니다").isZero();
     }
 
     @Test

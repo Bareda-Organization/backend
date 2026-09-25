@@ -208,9 +208,8 @@ class StaffDashboardControllerTest {
                 .andExpect(jsonPath("$.data.runs[0].no_show_cases").isArray())
                 .andReturn();
 
-        // added_count·removed_count 는 이 코드베이스에 run_rider.change 를 ADDED·REMOVED 로 쓰는
-        // 프로덕션 경로가 부재해(RunRider·RunRiderRepository·DriverRunFixtures 전부 미보유, 보고서
-        // §2 확신 없는 지점) 항상 0 — 구조 존재만 검사하고 값 변화는 검사하지 않는다.
+        // 이 픽스처는 강제 추가·이동 없이 확정해 변경분이 0 이다. run_rider.change 를 쓰는 경로(확정 배치)의
+        // 값 검사는 RunConfirmationServiceTest 가 맡는다(BR-016).
         assertThat((Integer) JsonPath.read(본문(result), "$.data.runs[0].added_count")).isZero();
         assertThat((Integer) JsonPath.read(본문(result), "$.data.runs[0].removed_count")).isZero();
     }

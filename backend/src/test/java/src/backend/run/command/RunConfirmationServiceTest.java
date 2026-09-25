@@ -254,6 +254,9 @@ class RunConfirmationServiceTest {
                 forcedStudent);
         assertThat(forcedRiderStop).as("강제 추가 시 지정한 정차지가 학생의 탑승 기록에 그대로 반영돼야 한다")
                 .isEqualTo(forcedStop);
+        assertThat(jdbcTemplate.queryForObject("SELECT change FROM run_rider WHERE run_id = ? AND student_id = ?",
+                String.class, runId, forcedStudent))
+                .as("BR-016 — 당일 추가된 탑승자는 added(초록, FEATURE_SPEC §3.5) — 없으면 변경 배지가 늘 0").isEqualTo("added");
 
         Long versionId = jdbcTemplate.queryForObject(
                 "SELECT current_version_id FROM confirmed_route WHERE run_id = ?", Long.class, runId);
@@ -305,10 +308,12 @@ class RunConfirmationServiceTest {
 
         confirmationService.confirmOne(fromRunId);
 
-        List<Long> fromRiderIds = jdbcTemplate.queryForList(
-                "SELECT student_id FROM run_rider WHERE run_id = ?", Long.class, fromRunId);
-        assertThat(fromRiderIds).as("출발 회차 확정 배치가 이동 대상을 명단에서 빼야 한다 — 요일별 주소만 봤다면 "
-                + "여전히 남아 있을 것이다").doesNotContain(transferringStudent);
+        assertThat(jdbcTemplate.queryForList(
+                "SELECT status || ':' || change FROM run_rider WHERE run_id = ? AND student_id = ?", String.class,
+                fromRunId, transferringStudent))
+                .as("BR-016 — 출발 회차는 이동 대상을 태우지 않되 명단에서 지우지 않고 removed 로 남긴다(RTE-04) — "
+                        + "요일별 주소만 봤다면 waiting 으로 남을 것이다")
+                .containsExactly("absent:removed");
 
         String statusAfterOutgoing = jdbcTemplate.queryForObject(
                 "SELECT status FROM run_transfer WHERE id = ?", String.class, transfer.getId());
@@ -320,6 +325,8 @@ class RunConfirmationServiceTest {
         List<Long> toRiderIds = jdbcTemplate.queryForList(
                 "SELECT student_id FROM run_rider WHERE run_id = ?", Long.class, toRunId);
         assertThat(toRiderIds).as("도착 회차 확정 배치가 이동 대상을 명단에 더해야 한다").contains(transferringStudent);
+        assertThat(jdbcTemplate.queryForObject("SELECT change FROM run_rider WHERE run_id = ? AND student_id = ?",
+                String.class, toRunId, transferringStudent)).as("BR-016 — 도착 회차에는 added").isEqualTo("added");
 
         Long toRiderStop = jdbcTemplate.queryForObject(
                 "SELECT stop_id FROM run_rider WHERE run_id = ? AND student_id = ?", Long.class, toRunId,
@@ -384,11 +391,13 @@ class RunConfirmationServiceTest {
 
         confirmationService.confirmOne(fromRunId);
 
-        List<Long> fromRiderIds = jdbcTemplate.queryForList(
-                "SELECT student_id FROM run_rider WHERE run_id = ?", Long.class, fromRunId);
-        assertThat(fromRiderIds).as("강제 추가 병합 다음에 이동 제외가 돌아야 한다 — 순서가 뒤바뀌면 "
-                + "제외가 먼저 돌아 아직 없는 학생을 지우는 셈이라 no-op 이 되고, 뒤이은 강제 추가 병합이 "
-                + "이 학생을 다시 채워 넣어 출발 명단에 남는다").doesNotContain(student);
+        assertThat(jdbcTemplate.queryForList(
+                "SELECT status || ':' || change FROM run_rider WHERE run_id = ? AND student_id = ?", String.class,
+                fromRunId, student))
+                .as("강제 추가 병합 다음에 이동 제외가 돌아야 한다 — 순서가 뒤바뀌면 제외가 먼저 돌아 아직 없는 학생을 "
+                        + "지우는 셈이라 no-op 이 되고, 뒤이은 강제 추가 병합이 이 학생을 waiting 으로 다시 채워 넣는다. "
+                        + "빠진 학생은 removed 로 남는다(BR-016, RTE-04)")
+                .containsExactly("absent:removed");
 
         confirmationService.confirmOne(toRunId);
 

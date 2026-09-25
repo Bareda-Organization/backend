@@ -852,7 +852,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | `guardian_phone` | string | ● | **마스킹** (`010-2XXX-8814`) |
 | `note` | string | ○ | 특이사항·비고 (STU-07) |
 | `can_go_alone` | boolean | ● | 혼자 귀가 가능 여부 (STU-08). 하원 하차 판단 근거 |
-| `status` | enum | ● | `waiting` · `boarded` · `alighted` · `no_show` |
+| `status` | enum | ● | `waiting` · `boarded` · `alighted` · `no_show`. **`absent` 는 `change=removed` 행에서만** — 버스 간 이동으로 빠진 학생은 명단에서 지우지 않고 빨강으로 남긴다(RTE-04). 처리 대상이 아니며 `absent_n` 에 세지 않는다 |
 | `change` | enum | ○ | `added` · `removed` |
 | `no_show_case` | object | ○ | `started_at` · `expires_at` — **3분** 카운트다운 (EXC-01) |
 
@@ -2524,6 +2524,8 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `no_show` | 미승차 | 레드 | 동승자 |
 
 **`absent` 와 `no_show` 는 반드시 구분** — `absent` 는 학부모 알림 부재·명단 행 제외, `no_show` 는 즉시 알림 + **3분** 에스컬레이션 (C-02).
+
+버스 간 이동으로 출발 회차에서 빠진 학생은 `absent` + `change=removed` 로 남는다 — 흐름(승하차·알림·종료 판정)은 `absent` 와 같고, 명단(§4.2·§5.4)에서는 빨강으로 보이며 "미등원 N명"(`absent_n`)에는 세지 않는다(RTE-04 · BR-016).
 
 ### 9.5 변경 구분 (`change`)
 

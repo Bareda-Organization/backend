@@ -74,6 +74,21 @@ public class RunRider extends BaseTimeEntity {
         return new RunRider(runId, studentId, stopId);
     }
 
+    /** 확정 배치가 당일 추가(강제 추가·도착 이동)로 올린 행을 표시한다(FEATURE_SPEC §3.5 {@code added}, RTE-08). */
+    public void markAdded() {
+        this.change = ChangeType.ADDED;
+    }
+
+    /**
+     * 버스 간 이동으로 이 회차에서 빠진 학생을 명단에서 지우지 않고 남긴다(RTE-04 · §3.5 {@code removed}).
+     * 상태는 {@code absent} — 승하차·일괄 승차·잔류 판정·알림에서 빠지고, 명단 표시만 {@code change} 로 예외를 둔다.
+     */
+    public void markRemoved(OffsetDateTime changedAt) {
+        this.status = RiderStatus.ABSENT;
+        this.change = ChangeType.REMOVED;
+        this.changedAt = changedAt;
+    }
+
     /**
      * ③구간(운행 시작 후) 미등원 토글이 반영될 때 부재로 표시한다(ATT-01·02, API_SPEC §3.6).
      *

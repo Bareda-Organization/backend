@@ -114,8 +114,7 @@ public class RunConfirmationPersistence {
         confirmedRouteRepository.assignCurrentVersion(run.getId(), version.getId());
 
         runStopRepository.saveAll(runStopsOf(version.getId(), computation));
-        runRiderRepository.saveAll(runRidersOf(run.getId(), roster.studentStops(), roster.absentStops(),
-                computation.unresolvedStudentIds(), confirmedAt));
+        runRiderRepository.saveAll(runRidersOf(run.getId(), roster, computation.unresolvedStudentIds(), confirmedAt));
         if (!roster.incomingTransfers().isEmpty()) {
             runTransferRepository.markApplied(roster.incomingTransfers().stream().map(RunTransfer::getId).toList(),
                     confirmedAt);
@@ -144,20 +143,32 @@ public class RunConfirmationPersistence {
         return runStops;
     }
 
-    /** 좌표를 얻지 못해 계산에서 분리된 학생({@code unresolvedStudentIds})은 명단에서도 뺀다(목표 2와 같은 근거). */
-    private static List<RunRider> runRidersOf(Long runId, Map<Long, Long> studentStops, Map<Long, Long> absentStops,
-            List<Long> unresolvedStudentIds, OffsetDateTime confirmedAt) {
-        List<RunRider> riders = new ArrayList<>(studentStops.size() + absentStops.size());
-        for (Map.Entry<Long, Long> entry : studentStops.entrySet()) {
+    /**
+     * 좌표를 얻지 못해 계산에서 분리된 학생({@code unresolvedStudentIds})은 명단에서도 뺀다(목표 2와 같은 근거).
+     * OFF 학생은 {@code absent}, 출발 이동 학생은 {@code absent · removed}, 당일 추가 학생은 {@code added} 로 남긴다.
+     */
+    private static List<RunRider> runRidersOf(Long runId, ProjectedRoster roster, List<Long> unresolvedStudentIds,
+            OffsetDateTime confirmedAt) {
+        List<RunRider> riders = new ArrayList<>();
+        for (Map.Entry<Long, Long> entry : roster.studentStops().entrySet()) {
             Long studentId = entry.getKey();
             if (unresolvedStudentIds.contains(studentId)) {
                 continue;
             }
-            riders.add(RunRider.uponConfirmation(runId, studentId, entry.getValue()));
+            RunRider rider = RunRider.uponConfirmation(runId, studentId, entry.getValue());
+            if (roster.addedStudentIds().contains(studentId)) {
+                rider.markAdded();
+            }
+            riders.add(rider);
         }
-        for (Map.Entry<Long, Long> entry : absentStops.entrySet()) {
+        for (Map.Entry<Long, Long> entry : roster.absentStops().entrySet()) {
             RunRider rider = RunRider.uponConfirmation(runId, entry.getKey(), entry.getValue());
             rider.markAbsent(confirmedAt);
+            riders.add(rider);
+        }
+        for (Map.Entry<Long, Long> entry : roster.removedStops().entrySet()) {
+            RunRider rider = RunRider.uponConfirmation(runId, entry.getKey(), entry.getValue());
+            rider.markRemoved(confirmedAt);
             riders.add(rider);
         }
         return riders;
