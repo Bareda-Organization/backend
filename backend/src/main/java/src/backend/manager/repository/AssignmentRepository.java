@@ -187,11 +187,12 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
      * {@link StaffAssignmentAckView#acked()} 는 그 상태를 "미확인" 으로 판정한다(둘 다 null 이어도
      * 확인함으로 세지 않는다).
      *
-     * <p><b>§5.19({@code GET /staff/runs/{runId}/route}, {@code ack{driver, escort}})를 재사용하지
-     * 않는다</b> — 그 엔드포인트는 정본(API_SPEC)에는 있으나 이 코드베이스에 컨트롤러가 아직
-     * 구현되어 있지 않다({@code run.controller.RunRouteController} 는 §4.3, 매니저 앱용이다). 대신
-     * 판정식은 이 값을 실제로 쓰는 유일한 코드인 {@code RunAckChangesCommandService}(쓰기 경로)에서
-     * 그대로 반대로 읽었다 — {@link StaffAssignmentAckView#acked()} 참고.
+     * <p><b>BR-117 정정</b> — §5.19({@code GET /staff/runs/{runId}/route})는
+     * {@code run.controller.StaffRunRouteController}(§5.19 전용, {@code run.controller.RunRouteController}
+     * 는 §4.3 매니저 앱용이라 별개)가 이미 구현하며, 그 쪽 조회({@code run/query/StaffRunRouteQueryService})가
+     * 이 메서드를 {@code runId} 1건짜리 목록으로 그대로 재사용한다 — 대시보드(다건)와 §5.19(단건)가
+     * 같은 조회 하나를 공유한다. 판정식({@link StaffAssignmentAckView#acked()})은 이 값을 실제로 쓰는
+     * 쓰기 경로 {@code RunAckChangesCommandService} 의 조건을 그대로 반대로 읽은 것이다.
      */
     @Query("SELECT new src.backend.monitoring.dto.StaffAssignmentAckView(a.runId, a.role, m.name, "
             + "a.ackedRouteVersionId, cr.currentVersionId) "
