@@ -131,6 +131,11 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         }
     }
 
+    /**
+     * 목적지 4종을 순서대로 매칭해 채널별 인가로 넘긴다 — 어느 패턴에도 안 걸리면 기본 차단(목표 7).
+     * §20.2 크기 신호(23줄) — 표·루프로 데이터화하면 패턴 4개 각각의 인가 메서드 시그니처가 달라(구독자
+     * 만·구독자+id) 오히려 캐스팅이 늘어난다. 순서대로 읽는 조기 반환이 더 단순하다.
+     */
     private void dispatchSubscribe(StompHeaderAccessor accessor, String destination) {
         if (!(accessor.getUser() instanceof AuthUser subscriber)) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED);

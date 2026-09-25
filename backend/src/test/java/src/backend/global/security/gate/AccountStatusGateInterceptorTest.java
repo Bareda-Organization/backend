@@ -35,7 +35,7 @@ import src.backend.global.security.SecurityConfig;
  * (ControllerAdvice)는 슬라이스가 알려진 웹 계층 타입으로 인식해 스캔만으로 들어온다.
  */
 @WebMvcTest(controllers = GateTestController.class)
-@Import({SecurityConfig.class, JwtTokenProvider.class})
+@Import({SecurityConfig.class, JwtTokenProvider.class, src.backend.global.config.ClockConfig.class})
 class AccountStatusGateInterceptorTest {
 
     @Autowired

@@ -90,7 +90,24 @@ public class OpenApiConfig {
      */
     @Bean
     public OpenAPI openApi() {
-        String description = DESCRIPTION_TEMPLATE.formatted(
+        return new OpenAPI()
+                .info(new Info()
+                        .title("바래다 API")
+                        .description(seedDescription())
+                        .version("v0.0.1"))
+                .tags(apiTags())
+                .addSecurityItem(new SecurityRequirement().addList(BEARER_SCHEME))
+                .components(new Components().addSecuritySchemes(BEARER_SCHEME,
+                        new SecurityScheme()
+                                .name(BEARER_SCHEME)
+                                .type(SecurityScheme.Type.HTTP)
+                                .scheme("bearer")
+                                .bearerFormat("JWT")));
+    }
+
+    /** {@link #DESCRIPTION_TEMPLATE} 의 {@code %s} 자리를 {@link SeedFixtures} 상수로 채운다. */
+    private String seedDescription() {
+        return DESCRIPTION_TEMPLATE.formatted(
                 TAG_AUTH,
                 SeedFixtures.SYSTEM_ADMIN_LOGIN_ID, TAG_ADMIN,
                 SeedFixtures.STAFF_A_LOGIN_ID, SeedFixtures.ACADEMY_A_CODE, TAG_STAFF,
@@ -113,32 +130,23 @@ public class OpenApiConfig {
                 SeedFixtures.ESCORT_A2_LOGIN_ID, SeedFixtures.ACADEMY_A_CODE,
                 SeedFixtures.ESCORT_B1_LOGIN_ID, SeedFixtures.ACADEMY_B_CODE,
                 TAG_AUTH, TAG_PARENT_STUDENT, TAG_MANAGER, TAG_STAFF, TAG_ADMIN);
+    }
 
-        return new OpenAPI()
-                .info(new Info()
-                        .title("바래다 API")
-                        .description(description)
-                        .version("v0.0.1"))
-                .tags(List.of(
-                        new Tag().name(TAG_AUTH)
-                                .description("로그인·가입 신청·학원 검색 (docs/API_SPEC.md §2). 일부는 비인증 허용."),
-                        new Tag().name(TAG_PARENT_STUDENT)
-                                .description("학부모·학생 앱 — 자녀 조회, 실시간 위치, 승하차지 변경 요청 (§3)."),
-                        new Tag().name(TAG_MANAGER)
-                                .description("매니저 앱(버스기사·동승자) — 담당 회차, 승하차 처리, 운행 시작·종료 (§4)."),
-                        new Tag().name(TAG_STAFF)
-                                .description("관계자 웹 — 학원 단위 가입 승인·구성원 관리, 노선·배차 (§5)."),
-                        new Tag().name(TAG_ADMIN)
-                                .description("메인 관리자 콘솔 — 전 학원 범위, 학원 생성·현황 (§6)."),
-                        // local 기동에서만 오퍼레이션이 채워진다 — 배포물에는 이 태그 아래 아무것도 없다.
-                        new Tag().name(ApiTags.DEV)
-                                .description("개발 도구 — DB 를 시드 상태로 되돌린다. local 프로파일 전용.")))
-                .addSecurityItem(new SecurityRequirement().addList(BEARER_SCHEME))
-                .components(new Components().addSecuritySchemes(BEARER_SCHEME,
-                        new SecurityScheme()
-                                .name(BEARER_SCHEME)
-                                .type(SecurityScheme.Type.HTTP)
-                                .scheme("bearer")
-                                .bearerFormat("JWT")));
+    /** Swagger 태그 6개(도메인 5 + local 전용 dev) — 설명은 API_SPEC 도메인 절 대응. */
+    private List<Tag> apiTags() {
+        return List.of(
+                new Tag().name(TAG_AUTH)
+                        .description("로그인·가입 신청·학원 검색 (docs/API_SPEC.md §2). 일부는 비인증 허용."),
+                new Tag().name(TAG_PARENT_STUDENT)
+                        .description("학부모·학생 앱 — 자녀 조회, 실시간 위치, 승하차지 변경 요청 (§3)."),
+                new Tag().name(TAG_MANAGER)
+                        .description("매니저 앱(버스기사·동승자) — 담당 회차, 승하차 처리, 운행 시작·종료 (§4)."),
+                new Tag().name(TAG_STAFF)
+                        .description("관계자 웹 — 학원 단위 가입 승인·구성원 관리, 노선·배차 (§5)."),
+                new Tag().name(TAG_ADMIN)
+                        .description("메인 관리자 콘솔 — 전 학원 범위, 학원 생성·현황 (§6)."),
+                // local 기동에서만 오퍼레이션이 채워진다 — 배포물에는 이 태그 아래 아무것도 없다.
+                new Tag().name(ApiTags.DEV)
+                        .description("개발 도구 — DB 를 시드 상태로 되돌린다. local 프로파일 전용."));
     }
 }

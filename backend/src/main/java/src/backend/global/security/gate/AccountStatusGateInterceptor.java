@@ -42,23 +42,29 @@ public class AccountStatusGateInterceptor implements HandlerInterceptor {
             return true; // 미인증 요청은 인증 계층이 처리하고, active 는 이 게이트를 통과한다.
         }
 
-        boolean allowedWhenPending = handlerMethod.hasMethodAnnotation(AllowedWhenPending.class);
-        switch (authUser.status()) {
-            case PENDING -> {
-                if (!allowedWhenPending) {
-                    throw new BusinessException(ErrorCode.AUTH_PENDING);
-                }
-                return true;
-            }
-            case REJECTED -> {
-                boolean allowedWhenRejected = handlerMethod.hasMethodAnnotation(AllowedWhenRejected.class);
-                if (!allowedWhenPending && !allowedWhenRejected) {
-                    throw new BusinessException(ErrorCode.AUTH_REJECTED);
-                }
-                return true;
-            }
+        return switch (authUser.status()) {
+            case PENDING -> assertAllowedWhenPending(handlerMethod);
+            case REJECTED -> assertAllowedWhenRejected(handlerMethod);
             default -> throw new BusinessException(ErrorCode.AUTH_ACCOUNT_BLOCKED);
+        };
+    }
+
+    /** {@code pending} 계정은 {@link AllowedWhenPending} 표시 핸들러만 통과한다. */
+    private boolean assertAllowedWhenPending(HandlerMethod handlerMethod) {
+        if (!handlerMethod.hasMethodAnnotation(AllowedWhenPending.class)) {
+            throw new BusinessException(ErrorCode.AUTH_PENDING);
         }
+        return true;
+    }
+
+    /** {@code rejected} 계정은 pending·rejected 허용 핸들러 중 하나라도 표시되면 통과한다. */
+    private boolean assertAllowedWhenRejected(HandlerMethod handlerMethod) {
+        boolean allowed = handlerMethod.hasMethodAnnotation(AllowedWhenPending.class)
+                || handlerMethod.hasMethodAnnotation(AllowedWhenRejected.class);
+        if (!allowed) {
+            throw new BusinessException(ErrorCode.AUTH_REJECTED);
+        }
+        return true;
     }
 
     private AuthUser resolveAuthUser() {
