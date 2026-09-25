@@ -228,6 +228,8 @@ public enum ErrorCode {
     // 것이 권한이 아니라 대상 자원의 상태이기 때문이다 — APPROVAL_ALREADY_DECIDED 와 같은 형태.
     RUN_ALREADY_STARTED(HttpStatus.CONFLICT, "이미 시작된 운행입니다"),
     // 확정 전(idle) 회차의 운행 시작·변경 확인 시도(API_SPEC §4.4·§4.11). 409 인 이유는 위와 같다.
+    // 매니저 앱 명단·경로 조회(§4.2·§4.3)와 내비 조회(§4.16)의 idle 차단도 같은 코드를 재사용한다
+    // (§5.4 관계자 웹 명단은 idle 도 조회 가능이라 이 코드를 던지지 않는다).
     RUN_NOT_CONFIRMED(HttpStatus.CONFLICT, "확정되지 않은 회차입니다"),
     // 임시 취소된 회차(§5.10 canceled_at)의 운행 시작·강제 추가·이동(BR-042). 404 가 아닌 것은 행이
     // 실재하고 관계자 화면에 취소로 보이기 때문이다 — "없다" 고 답하면 기사·관계자가 원인을 못 찾는다.
@@ -262,13 +264,9 @@ public enum ErrorCode {
     // 같다 — 요청 형식이 아니라 탑승자의 현재 상태가 막는다.
     RIDER_TRANSITION_NOT_ALLOWED(HttpStatus.CONFLICT, "허용되지 않는 상태 전이입니다"),
     // ── 조회 · 명단(Phase 9) ─────────────────────────────────────────────────────
-    // 매니저 앱의 명단·경로 조회(§4.2·§4.3)는 확정 전(idle) 회차를 대상 밖으로 둔다 — 명단·경로가
-    // run_stop·run_rider 확정 시점에야 채워지므로, idle 상태에서 열면 빈 배열이 "아직 없다" 인지
-    // "확정됐는데 비었다" 인지 구별되지 않는다. §5.4 관계자 웹 명단은 이 코드를 던지지 않는다(idle 도
-    // 조회 가능 — entry-blocking 은 매니저 앱 전용).
+    // 명단·경로·내비의 idle 차단은 위 RUN_NOT_CONFIRMED 를 재사용한다 — 이 구획엔 전용 코드가 없다.
     // ── 외부 내비 연동(Phase 9, RUN-08) ────────────────────────────────────────
-    // 확정 전(idle) 회차에서 내비 조회 시도(API_SPEC §4.16) — 노선이 아직 확정되지 않아 순서·좌표가
-    // 없다. confirmed 부터는 허용(X-01, Ruling 202) — 막는 것은 idle 뿐이다.
+    // confirmed 부터는 내비 조회 허용(X-01, Ruling 202) — 막는 것은 idle 뿐(RUN_NOT_CONFIRMED 재사용).
     // 그 회차의 남은 승하차지가 없을 때(skipped·도착 완료 제외 후 0건) — 200 에 빈 배열을 주지 않는다.
     // 빈 배열을 주면 앱이 목적지 없이 내비를 띄운다(API_SPEC §4.16).
     NAV_NO_REMAINING_STOP(HttpStatus.CONFLICT, "안내할 남은 승하차지가 없습니다"),

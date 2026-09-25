@@ -19,11 +19,11 @@ import src.backend.global.common.SeedFixtures;
  * JWT Bearer 인증 스킴을 등록해 Swagger UI의 "Authorize" 버튼으로 액세스 토큰을 넣으면
  * 이후 모든 요청에 {@code Authorization: Bearer <token>} 헤더가 자동으로 붙는다.
  *
- * <p><b>Phase 1 시점 상태</b> — 도메인 컨트롤러가 0개라 아래 {@link #openApi()} 가 등록하는
- * 태그 5개는 전부 오퍼레이션이 하나도 안 달린 골격이다. 태그 목록·순서·설명을 이 클래스
- * 한 곳에서만 관리하고, 컨트롤러는 이후 {@code @Tag(name = "...")} 로 소속만 선언한다
- * (조율자 확정 Ruling 36). {@code X-Client-Type} 헤더 자동 부착({@code OperationCustomizer})은
- * 이 클래스의 책임이 아니다 — Phase 2 가 로그인 컨트롤러 메서드에 {@code @Parameter} 로 직접 붙인다.
+ * <p>{@link #openApi()} 가 등록하는 태그 5개는 `docs/API_SPEC.md` §2~§6 도메인 절과 1:1 대응한다.
+ * 태그 목록·순서·설명을 이 클래스 한 곳에서만 관리하고, 컨트롤러는 {@code @Tag(name = "...")} 로
+ * 소속만 선언한다(조율자 확정 Ruling 36). {@code X-Client-Type} 헤더 자동 부착
+ * ({@code OperationCustomizer})은 이 클래스의 책임이 아니다 — 로그인 컨트롤러 메서드가
+ * {@code @Parameter} 로 직접 붙인다.
  */
 @Configuration
 public class OpenApiConfig {
@@ -48,7 +48,7 @@ public class OpenApiConfig {
             바래다 — 학원 통원버스 운행·등하원 관리 멀티 테넌트 플랫폼 백엔드 API.
 
             **테스트 순서** — `%s` 태그의 로그인 API 로 토큰을 받고, 우측 상단 **Authorize** 에
-            `accessToken` 을 넣는다. 이후 모든 요청에 `Authorization: Bearer <token>` 이 자동으로 붙는다.
+            `access_token` 을 넣는다. 이후 모든 요청에 `Authorization: Bearer <token>` 이 자동으로 붙는다.
 
             ⚠ **비밀번호** — `local` 프로파일에서는 아래 계정 전부 평문 `password` 로 고정돼 있다.
             **`demo`(배포) 환경은 다르다** — SSM 에서 주입한 값이라 `password` 로 로그인되지 않는다.
@@ -60,7 +60,7 @@ public class OpenApiConfig {
             | system_admin | `%s` | active | 없음(전 학원 범위) | 학원 미소속 — `%s` 콘솔, 학원 생성·목록 |
             | staff | `%s` | active | `%s` | 학원 A 관계자 정상 시나리오, `%s` |
             | staff | `%s` | active | `%s` | 학원 B 관계자 — 격리 검증(학원 A 데이터 비노출 확인) |
-            | staff | `%s` | pending | `%s` | 가입 승인 대기 — 로그인 자체가 막히는지 확인 |
+            | staff | `%s` | pending | `%s` | 가입 승인 대기 — 로그인은 성공하고 접근 범위만 축소(§1.4) |
             | staff | `%s` | active | `%s` | 학원이 `inactive` 여도 계정은 로그인 유지(O-01 시연) |
             | parent | `%s` | active | `%s` | 형제 학생 2명의 보호자 — `%s` |
             | parent | `%s` | active | `%s` | 계정 미연결 학생의 보호자 |
@@ -68,7 +68,7 @@ public class OpenApiConfig {
             | parent | `%s` | pending | `%s` | 가입 승인 대기 |
             | parent | `%s` | active | `%s` | 학원 B — 격리 검증 |
             | student | `%s` | active | `%s` | 본인 계정이 학생 레코드에 연결됨 |
-            | student | `%s` | rejected | `%s` | 가입 거절 — 로그인 차단 확인 |
+            | student | `%s` | rejected | `%s` | 가입 거절 — 로그인은 성공하고 접근 범위만 축소(§1.4) |
             | student | `%s` | active | `%s` | 학원 B — 격리 검증 |
             | driver | `%s` | active | `%s` | 정상 기사 — `%s` |
             | driver | `%s` | active | `%s` | 보조 기사 |
@@ -81,8 +81,7 @@ public class OpenApiConfig {
             ### 태그 구성
 
             API 는 `docs/API_SPEC.md` §2~§6 도메인 절에 대응해 `%s` · `%s` · `%s` · `%s` · `%s`
-            5개 태그로 묶인다. Phase 1 시점에는 도메인 컨트롤러가 아직 없어 태그마다
-            오퍼레이션이 비어 있는 것이 정상이다 — Phase 2 부터 컨트롤러가 채워진다.
+            5개 태그로 묶인다.
             """;
 
     /**
