@@ -97,6 +97,7 @@ public class StaffRunRouteQueryService {
 
     private final Clock clock;
 
+    /** 확정 노선이 있으면 그대로, 없으면 예정 경로({@link #plannedRouteOf})로 폴백해 조회한다(§5.19). */
     public StaffRunRouteResponse route(AuthUser requester, Long runId) {
         Run run = runRepository.findById(runId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
@@ -132,6 +133,10 @@ public class StaffRunRouteQueryService {
      * 지시서 판단 근거 — 예정 노선은 확정본과 다를 수 있음을 이미 계약으로 명시했다).
      *
      * <p>캐시하지 않는다 — 관리자만 쓰고 조회가 잦지 않다(사용자 확정, Ruling 321 정정).
+     *
+     * <p>§20.2 — 본문이 기준(20줄)을 넘긴 채 둔다. {@code confirmOne(RunConfirmationService)} 과
+     * 같은 "학원 → 노선 → 정차지 → 좌표" 조회 순서를 읽기 전용으로 따라가는 한 흐름이고, 실패마다
+     * 즉시 {@code Optional.empty()} 로 빠지는 이른 반환이 이미 중첩을 얕게 유지한다.
      *
      * @return 고정 노선을 못 찾거나 학원에 좌표가 없으면 {@code Optional.empty()} — 호출부가 이 경우도
      *         {@code RUN_NOT_CONFIRMED} 로 묶어 "조용한 빈 값" 대신 명시적 오류로 알린다

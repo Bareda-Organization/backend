@@ -108,6 +108,11 @@ public class RunConfirmationService {
      * (읽기 → 계산 → {@link RunConfirmationPersistence#persist} → 지표)은 배치 경로와 완전히 같다 —
      * {@link #confirmOne(Long)} 은 {@code forceFallback=false} 로 이 메서드를 그대로 통과한다.
      *
+     * <p>§20.2 — 본문이 기준(20줄)을 넘긴 채 둔다. "읽기 → 좌표 결정 → 계산 → 저장 → 계측" 은 한
+     * 회차를 확정하는 단일 순서고, 각 단계가 다음 단계 입력을 바로 쓴다 — private 메서드로 쪼개면
+     * 그 순서를 파일 안 여러 자리로 흩어 놓을 뿐 책임은 늘지 않는다(중복이었던 요일·좌표 규칙은
+     * RunWeekday·RunRouteEndpoints 로 이미 뺐다, BR-101).
+     *
      * @return {@link RunConfirmationPersistence#persist} 가 실제로 확정을 저장했으면 {@code true},
      *         진 경쟁이거나 회차가 이미 취소·삭제됐으면 {@code false} — 관리자 강제 확정 컨트롤러는
      *         이 값이 {@code false} 면 {@code RUN_NOT_IDLE} 로 답한다(호출 전에 idle 을 이미 확인했는데도
@@ -175,8 +180,7 @@ public class RunConfirmationService {
         // 자리라 배치 지연 지표(목표 8)를 여기서 계측한다.
         OffsetDateTime confirmedAt = OffsetDateTime.now(clock);
 
-        boolean persisted = persistence.persist(run, computation, origin, destination, weekday, projected,
-                confirmedAt);
+        boolean persisted = persistence.persist(run, computation, endpoints, weekday, projected, confirmedAt);
         // persisted == false 는 동시 확정 경합에서 진 시도다(persist() javadoc) — 이 시도는 기록하지
         // 않는다. 승패 신호 없이 무조건 기록하면 표본 수가 확정 사건 수보다 부풀어, 이 지표가 가장
         // 필요한 순간(인스턴스 증설로 경합이 잦아질 때) 가장 부정확해진다. 실패해 위에서 예외로 빠진

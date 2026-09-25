@@ -26,6 +26,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class RunConfirmationWorkerPoolConfig {
 
+    /** 고정 크기(기본값 = 지도 API 격벽 상한) 스레드 풀 빈 — 확정 배치가 회차 처리에 쓴다. */
     @Bean
     public ExecutorService runConfirmationExecutor(
             @Value("${app.run.confirmation.pool-size:${resilience4j.bulkhead.instances.mapRoute.max-concurrent-calls}}")

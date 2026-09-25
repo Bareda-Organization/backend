@@ -33,6 +33,7 @@ public class RunRouteController {
 
     private final RunRouteQueryService runRouteQueryService;
 
+    /** {@code GET /runs/{runId}/route}(§4.3) — 매니저 앱의 실시간 노선 조회. */
     @CanReadRoute
     @Operation(summary = "운행 정보 (M-09 · LOC-03)")
     @GetMapping("/{runId}/route")

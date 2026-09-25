@@ -59,6 +59,7 @@ public class RunRouteQueryService {
 
     private final AcademyRepository academyRepository;
 
+    /** 매니저가 배치된 회차인지 확인한 뒤 확정 노선을 조립한다(§4.3) — 미확정이면 409. */
     public RunRouteResponse route(AuthUser requester, Long runId) {
         ManagerRunAccess.RunAssignment assigned = managerRunAccess.requireAssignedRun(requester, runId);
         Run run = assigned.run();
@@ -84,6 +85,10 @@ public class RunRouteQueryService {
      * <p>학원 조건은 요청자가 아니라 <b>회차의 학원</b>으로 건다(BR-014) — 메인 관리자는 {@code academyId}
      * 가 {@code null} 이라 요청자 기준이면 네 조회가 전부 0행이 된다. 두 호출자 모두 여기 오기 전에 접근
      * 판정(배치 확인 · {@code AcademyScope#assertAccessible})을 끝냈다.
+     *
+     * <p>§20.2 — 본문이 기준(20줄)을 넘긴 채 둔다. 두 호출자가 공유하는 "버전 조회 → 정차지 조립 →
+     * 응답 조립" 이 한 조립 단위라, 쪼개면 이 메서드가 존재하는 이유(중복 조립 회피)가 도로 두 곳으로
+     * 흩어진다.
      */
     RunRouteResponse buildFromVersion(Run run, Long currentVersionId) {
         Long academyId = run.getAcademyId();

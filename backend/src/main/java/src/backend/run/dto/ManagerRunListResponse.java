@@ -9,6 +9,7 @@ import java.util.List;
  */
 public record ManagerRunListResponse(List<ManagerRunResponse> items) {
 
+    /** 회차 카드 목록을 {@code items[]} 봉투로 감싼다. */
     public static ManagerRunListResponse from(List<ManagerRunResponse> items) {
         return new ManagerRunListResponse(items);
     }

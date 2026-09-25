@@ -42,6 +42,7 @@ public class DelayNotificationController {
 
     private final DelayNotificationCommandService delayNotificationCommandService;
 
+    /** {@code POST /runs/{runId}/delay}(NTF-06) — 매니저가 지연을 알린다. */
     @Operation(summary = "지연 알림 (NTF-06, M-05)")
     @PostMapping("/{runId}/delay")
     @ResponseStatus(HttpStatus.CREATED)

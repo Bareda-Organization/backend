@@ -60,6 +60,14 @@ public class RunStartCommandService {
 
     private final Clock clock;
 
+    /**
+     * 시작 창(±10분) 안인지 확인하고 confirmed → moving 전이 + 미결 변경 요청 종결 + 하원 자동
+     * 탑승을 한 트랜잭션에 묶는다(§4.4).
+     *
+     * <p>§20.2 — 본문이 기준(20줄)을 간발의 차로 넘긴다. 네 목표(창 확인·전이·요청 종결·자동 탑승)가
+     * 전부 이 한 트랜잭션 커밋에 같이 들어가야 하는 게 요점이라(클래스 javadoc), 쪼개면 그 "같이"를
+     * 코드에서 더 이상 한눈에 볼 수 없다.
+     */
     public RunStartResponse start(AuthUser requester, Long runId) {
         runAssignmentAccess.assertAssignedDriver(requester, runId);
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())

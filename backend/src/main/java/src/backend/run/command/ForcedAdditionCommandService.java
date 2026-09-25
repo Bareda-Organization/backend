@@ -54,6 +54,7 @@ public class ForcedAdditionCommandService {
 
     private final Clock clock;
 
+    /** ①구간 전용 강제 추가(§5.7) — 정원·주소를 확인한 뒤 대기 상태로만 등록한다. */
     public ForcedAdditionResponse add(AuthUser requester, Long runId, ForcedAdditionRequest request) {
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));

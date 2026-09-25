@@ -14,7 +14,6 @@ import lombok.RequiredArgsConstructor;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.global.common.enums.Weekday;
-import src.backend.routing.domain.GeoPoint;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.entity.RouteVersionSource;
@@ -24,6 +23,7 @@ import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.domain.RunConfirmationFingerprint;
+import src.backend.run.domain.RunRouteEndpoints;
 import src.backend.run.entity.Run;
 import src.backend.run.event.RunRouteConfirmedEvent;
 import src.backend.run.entity.RunTransfer;
@@ -89,7 +89,7 @@ public class RunConfirmationPersistence {
      *         {@code ARCHITECTURE §9.4})이 인스턴스를 늘려 경합이 잦아지는 바로 그 시점에 가장
      *         부정확해지는 결함이었다.
      */
-    public boolean persist(Run run, RouteComputation computation, GeoPoint origin, GeoPoint destination,
+    public boolean persist(Run run, RouteComputation computation, RunRouteEndpoints.Endpoints endpoints,
             Weekday weekday, ProjectedRoster roster, OffsetDateTime confirmedAt) {
         int updated = runRepository.confirmIfIdle(run.getId(), confirmedAt);
         if (updated == 0) {
@@ -106,7 +106,7 @@ public class RunConfirmationPersistence {
         confirmedRouteRepository.save(confirmedRoute);
 
         String fingerprint = RunConfirmationFingerprint.of(run.getAcademyId(), weekday, run.getDirection(),
-                run.getDepartTime(), origin, destination, roster.studentStops(), List.of());
+                run.getDepartTime(), endpoints.origin(), endpoints.destination(), roster.studentStops(), List.of());
         RouteVersion version = RouteVersion.forConfirmedRoute(run.getId(), INITIAL_VERSION_NO,
                 RouteVersionSource.CONFIRM_BATCH, computation.estDurationMin(), computation.estDistanceKm(),
                 confirmedAt, fingerprint, computation.snapshot().engineName(), computation.snapshot().policySnapshot(),

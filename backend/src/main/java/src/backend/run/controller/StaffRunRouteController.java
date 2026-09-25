@@ -34,6 +34,7 @@ public class StaffRunRouteController {
 
     private final StaffRunRouteQueryService staffRunRouteQueryService;
 
+    /** {@code GET /staff/runs/{runId}/route}(§5.19) — 관계자용 확정·예정 노선 조회. */
     @CanMonitorRunRoute
     @Operation(summary = "확정 노선 조회 — 관계자용 (RTE-02, A-03·A-08·A-15)")
     @GetMapping("/{runId}/route")
