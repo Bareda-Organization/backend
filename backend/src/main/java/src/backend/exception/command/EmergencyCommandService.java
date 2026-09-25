@@ -201,7 +201,9 @@ public class EmergencyCommandService {
         }
 
         OffsetDateTime now = OffsetDateTime.now(clock);
-        alert.ack(requester.accountId(), now);
+        if (emergencyAlertRepository.ackIfUnacked(alert.getId(), requester.accountId(), now) == 0) {
+            throw new BusinessException(ErrorCode.ALREADY_ACKED); // 동시에 먼저 확인한 쪽이 있다(BR-079)
+        }
 
         String ackedByName = accountRepository.findById(requester.accountId()).map(Account::getName).orElse(null);
         eventPublisher.publishEvent(
