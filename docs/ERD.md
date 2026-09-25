@@ -1062,7 +1062,7 @@ erDiagram
 | `weekly_address(student_id, weekday, direction)` | 확정 배치의 일일 승하차지 수집. UK 가 겸함 (C-16) |
 | `boarding_intent(run_id)` | 확정 배치의 탑승 의사 수집 (ATT-02) |
 | `signup_request(academy_id, status, requested_at)` | 가입 요청 대기 목록·미처리 배지 (AUTH-10) |
-| `audit_log(academy_id, occurred_at desc)` · `audit_log(actor_account_id, occurred_at desc)` | 감사·접속 이력 필터 (SYS-01·02) |
+| `audit_log(academy_id, occurred_at desc)` · `audit_log(actor_account_id, occurred_at desc)` · `audit_log(category, occurred_at desc)` | 감사·접속 이력 필터 (SYS-01·02). 마지막은 필터 없는 첫 화면 — 무기한 보존 테이블의 전 표 정렬 방지 (2026-09-25 BR-089) |
 | `rider_status_history(run_rider_id, changed_at desc)` | 되돌리기 대상의 직전 상태 조회 (BRD-05) |
 | `refresh_token(account_id)` partial `WHERE revoked_at IS NULL` | 로그아웃·차단 시 유효 토큰 전량 무효화 (C-14) |
 | `academy_staff(academy_id)` partial `WHERE status = 'active'` | 정원 판정(재직자 수)과 학원의 현 관계자 조회. UK 가 겸함 (ACAD-05·06) |

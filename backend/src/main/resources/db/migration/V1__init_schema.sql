@@ -822,6 +822,8 @@ CREATE INDEX ix_signup_request_academy_status_requested ON signup_request (acade
 
 CREATE INDEX ix_audit_log_academy_occurred ON audit_log (academy_id, occurred_at DESC);
 CREATE INDEX ix_audit_log_actor_occurred ON audit_log (actor_account_id, occurred_at DESC);
+-- 필터 없는 감사·접속 이력 첫 화면(§6.13) — 무기한 보존 테이블의 전 표 정렬을 막는다(BR-089).
+CREATE INDEX ix_audit_log_category_occurred ON audit_log (category, occurred_at DESC);
 
 CREATE INDEX ix_rider_status_history_rider_changed ON rider_status_history (run_rider_id, changed_at DESC);
 
