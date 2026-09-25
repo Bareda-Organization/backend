@@ -2,6 +2,7 @@ package src.backend.request.query;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -24,7 +25,6 @@ import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.entity.RunStop;
 import src.backend.routing.pipeline.RouteComputation;
 import src.backend.student.entity.Stop;
-import src.backend.student.entity.Student;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 
@@ -186,17 +186,19 @@ public class RoutePreviewAssembler {
     public List<AffectedStudentResponse> affectedStudentsOf(Long targetStudentId, String targetStudentName,
             List<RunRider> riders, Map<Long, Integer> beforeSeq, Map<Long, Integer> afterSeq) {
         Set<Long> changedStopIds = changedStopIdsOf(beforeSeq, afterSeq);
+        List<Long> affectedIds = riders.stream()
+                .filter(rider -> rider.getStatus() != RiderStatus.ABSENT)
+                .filter(rider -> changedStopIds.contains(rider.getStopId()))
+                .map(RunRider::getStudentId)
+                .filter(studentId -> !studentId.equals(targetStudentId))
+                .distinct()
+                .toList();
+        // 이름은 한 번에 읽는다 — 영향 학생마다 조회하면 미리보기 한 번에 조회가 명단 크기만큼 는다(BR-134).
+        Map<Long, String> names = new HashMap<>();
+        studentRepository.findAllById(affectedIds).forEach(student -> names.put(student.getId(), student.getName()));
         Map<Long, String> byId = new LinkedHashMap<>();
         byId.put(targetStudentId, targetStudentName);
-        for (RunRider rider : riders) {
-            if (rider.getStatus() == RiderStatus.ABSENT || byId.containsKey(rider.getStudentId())) {
-                continue;
-            }
-            if (changedStopIds.contains(rider.getStopId())) {
-                String name = studentRepository.findById(rider.getStudentId()).map(Student::getName).orElse(null);
-                byId.put(rider.getStudentId(), name);
-            }
-        }
+        affectedIds.forEach(studentId -> byId.put(studentId, names.get(studentId)));
         return byId.entrySet().stream()
                 .map(entry -> new AffectedStudentResponse(entry.getKey(), entry.getValue()))
                 .toList();
