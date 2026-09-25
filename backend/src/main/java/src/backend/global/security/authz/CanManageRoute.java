@@ -8,7 +8,7 @@ import java.lang.annotation.Target;
 import org.springframework.security.access.prepost.PreAuthorize;
 
 /**
- * 고정 노선 편성·최적화(API_SPEC §5.9 {@code /staff/routes})에 붙는 메타 애너테이션.
+ * 고정 노선 편성·최적화(API_SPEC §5.9 {@code /staff/routes})와 경유 지점(§5.15, FEATURE_SPEC §6.2)에 붙는 메타 애너테이션.
  *
  * <p>{@link Permissions#ROUTE_MANAGE} 는 학원 관계자만 보유한다({@link RolePermissions}).
  *

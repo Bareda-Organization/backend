@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -21,6 +22,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -40,6 +42,7 @@ import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.security.JwtTokenProvider;
+import src.backend.global.security.authz.Permissions;
 import src.backend.notification.command.RunRouteConfirmedNotificationListener;
 import src.backend.routing.pipeline.RouteComputationPipeline;
 import src.backend.routing.repository.RouteRepository;
@@ -464,6 +467,20 @@ class StaffWaypointControllerTest {
         경유_추가한다(s.runId, 순번_본문("서울시 새길로 7", "너무 뒤", 99, false))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+    }
+
+    // ── BR-120 — 경유 지점은 노선 편성 권한 ────────────────────────────────
+
+    /** 경유 지점은 {@code ROUTE_MANAGE}(FEATURE_SPEC §6.2) — 스케줄 권한만 가진 주체에게는 닫혀 있어야 한다. */
+    @Test
+    void 스케줄_권한만으로는_경유_지점을_다룰_수_없다() throws Exception {
+        var scheduleOnly = user("schedule-only").authorities(new SimpleGrantedAuthority(Permissions.SCHEDULE_MANAGE));
+
+        mockMvc.perform(post("/api/v1/staff/runs/1/waypoints").with(scheduleOnly)
+                        .contentType(MediaType.APPLICATION_JSON).content(경유_본문("권한경유로 1", "권한", false)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(delete("/api/v1/staff/runs/1/waypoints/1").with(scheduleOnly))
+                .andExpect(status().isForbidden());
     }
 
     private String 순번_본문(String address, String label, int seq, boolean apply) {
