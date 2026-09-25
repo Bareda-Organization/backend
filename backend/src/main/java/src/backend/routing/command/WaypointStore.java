@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.routing.command.WaypointPreviewCache.WaypointPreview;
 import src.backend.routing.engine.spec.OrderedStop;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RouteVersion;
@@ -63,9 +64,8 @@ public class WaypointStore {
 
     /** 새 경유 지점 추가를 배포한다 — {@code waypoint.apply()} 로 미리보기 단계를 벗어난다. */
     @Transactional
-    public void deployAdd(Run run, Waypoint waypoint, RouteComputation computation, String fingerprint,
-            Long createdBy, OffsetDateTime now) {
-        deployNewVersion(run, computation, fingerprint, createdBy, now);
+    public void deployAdd(Run run, Waypoint waypoint, WaypointPreview preview, Long createdBy, OffsetDateTime now) {
+        deployNewVersion(run, preview, createdBy, now);
         waypoint.apply();
         waypointRepository.save(waypoint);
         eventPublisher.publishEvent(new RunRouteConfirmedEvent(run.getId(), run.getAcademyId(), run.getBusId(), now));
@@ -73,9 +73,9 @@ public class WaypointStore {
 
     /** 기존 경유 지점 제거를 배포한다 — {@code waypoint.markRemoved(now)} 로 이후 조회에서 뺀다. */
     @Transactional
-    public void deployRemoval(Run run, Waypoint waypoint, RouteComputation computation, String fingerprint,
-            Long createdBy, OffsetDateTime now) {
-        deployNewVersion(run, computation, fingerprint, createdBy, now);
+    public void deployRemoval(Run run, Waypoint waypoint, WaypointPreview preview, Long createdBy,
+            OffsetDateTime now) {
+        deployNewVersion(run, preview, createdBy, now);
         waypoint.markRemoved(now);
         waypointRepository.save(waypoint);
         eventPublisher.publishEvent(new RunRouteConfirmedEvent(run.getId(), run.getAcademyId(), run.getBusId(), now));
@@ -86,8 +86,9 @@ public class WaypointStore {
      * 절차다. 버전 번호는 이 트랜잭션 안에서 다시 읽은 현재 버전 기준으로 매긴다({@code +1}) — 밖에서
      * 미리 읽어 넘긴 값을 쓰면 그 사이 다른 배포가 끼어든 경합을 못 잡는다.
      */
-    private RouteVersion deployNewVersion(Run run, RouteComputation computation, String fingerprint, Long createdBy,
-            OffsetDateTime now) {
+    private RouteVersion deployNewVersion(Run run, WaypointPreview preview, Long createdBy, OffsetDateTime now) {
+        RouteComputation computation = preview.computation();
+        String fingerprint = preview.fingerprint();
         ConfirmedRoute confirmedRoute = confirmedRouteRepository.findById(run.getId())
                 .orElseThrow(() -> new IllegalStateException("확정 노선이 없다 — runId=" + run.getId()));
         Long currentVersionId = confirmedRoute.getCurrentVersionId();

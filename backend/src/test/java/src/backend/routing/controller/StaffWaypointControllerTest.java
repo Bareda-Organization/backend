@@ -1,6 +1,7 @@
 package src.backend.routing.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.times;
@@ -44,11 +45,19 @@ import src.backend.global.common.enums.Weekday;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.global.security.authz.Permissions;
 import src.backend.notification.command.RunRouteConfirmedNotificationListener;
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
+import src.backend.routing.command.WaypointPreviewCache;
+import src.backend.routing.command.WaypointPreviewCache.WaypointPreview;
+import src.backend.routing.command.WaypointStore;
+import src.backend.routing.entity.Waypoint;
 import src.backend.routing.pipeline.RouteComputationPipeline;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
+import src.backend.routing.repository.WaypointRepository;
 import src.backend.run.command.RunConfirmationFixtures;
 import src.backend.run.command.RunConfirmationService;
+import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
@@ -113,6 +122,15 @@ class StaffWaypointControllerTest {
 
     @Autowired
     private RunRepository runRepository;
+
+    @Autowired
+    private WaypointPreviewCache previewCache;
+
+    @Autowired
+    private WaypointStore waypointStore;
+
+    @Autowired
+    private WaypointRepository waypointRepository;
 
     @MockitoSpyBean
     private RouteComputationPipeline pipeline;
@@ -514,6 +532,50 @@ class StaffWaypointControllerTest {
         assertThat(배포된_순번(s.runId, middle)).as("[s1, s2, 사이, s3] — 승하차지 둘 뒤").isEqualTo(3);
     }
 
+    // ── BR-051 — 화면에서 본 미리보기가 그대로 배포된다(§5.15 preview_token) ─────────────
+
+    /** 미리보기 토큰 없이 곧장 배포하면 {@code 409 PREVIEW_STALE} 이다 — 관리자가 대조표를 보지 않은 배포다. */
+    @Test
+    void 미리보기_토큰_없이는_배포되지_않는다() throws Exception {
+        시나리오 s = 확정된_회차를_만든다();
+
+        경유_요청한다(s.runId, 경유_본문("토큰없음로 1", "토큰 없음", true))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("PREVIEW_STALE"));
+    }
+
+    /** 배포는 미리보기가 계산한 결과를 그대로 쓴다 — 다시 계산하면 화면에서 본 것과 다른 노선이 나갈 수 있다(§8.4). */
+    @Test
+    void 미리보기한_계산을_그대로_배포한다() throws Exception {
+        시나리오 s = 확정된_회차를_만든다();
+        String token = 미리보기_토큰(경유_요청한다(s.runId, 경유_본문("캐시경유로 1", "캐시", false))
+                .andExpect(status().isOk()).andReturn());
+
+        경유_요청한다(s.runId, 토큰_본문("캐시경유로 1", "캐시", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.applied").value(true));
+
+        verify(pipeline, times(1)).compute(any());
+    }
+
+    /** 미리보기 뒤 명단이 바뀌면 그 대조표는 낡았다 — 배포는 {@code 409 PREVIEW_STALE} 이고 노선은 그대로다. */
+    @Test
+    void 미리보기_뒤_명단이_바뀌면_배포는_409_PREVIEW_STALE_이다() throws Exception {
+        시나리오 s = 확정된_회차를_만든다();
+        String token = 미리보기_토큰(경유_요청한다(s.runId, 경유_본문("낡음경유로 1", "낡음", false))
+                .andExpect(status().isOk()).andReturn());
+        int versionNo = 현재_버전_번호(s.runId);
+        assertThat(jdbcTemplate.update("UPDATE run_rider SET status = 'absent' WHERE id = "
+                + "(SELECT min(id) FROM run_rider WHERE run_id = ?)", s.runId)).as("명단이 실제로 바뀌어야 한다").isEqualTo(1);
+        entityManager.flush();
+        entityManager.clear();
+
+        경유_요청한다(s.runId, 토큰_본문("낡음경유로 1", "낡음", token))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("PREVIEW_STALE"));
+        assertThat(현재_버전_번호(s.runId)).isEqualTo(versionNo);
+    }
+
     // ── BR-120 — 경유 지점은 노선 편성 권한 ────────────────────────────────
 
     /** 경유 지점은 {@code ROUTE_MANAGE}(FEATURE_SPEC §6.2) — 스케줄 권한만 가진 주체에게는 닫혀 있어야 한다. */
@@ -528,12 +590,8 @@ class StaffWaypointControllerTest {
                 .andExpect(status().isForbidden());
     }
 
-    private String 순번_본문(String address, String label, int seq, boolean apply) {
-        return "{\"address\":\"%s\",\"label\":\"%s\",\"seq\":%d,\"apply\":%s}"
-                .formatted(address, label, seq, apply);
-    }
-
-    private ResultActions 경유_추가한다(long runId, String body) throws Exception {
+    /** 도우미 없이 한 번만 보낸다 — 배포 도우미가 넣는 미리보기 단계를 빼고 서버의 판정을 직접 본다. */
+    private ResultActions 경유_요청한다(long runId, String body) throws Exception {
         long academyId = jdbcTemplate.queryForObject("SELECT academy_id FROM run WHERE id = ?", Long.class, runId);
         return mockMvc.perform(post("/api/v1/staff/runs/" + runId + "/waypoints")
                 .header("Authorization", 토큰(academyId))
@@ -541,9 +599,46 @@ class StaffWaypointControllerTest {
                 .content(body));
     }
 
+    private String 미리보기_토큰(MvcResult preview) throws Exception {
+        String body = preview.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertThat(JsonPath.<String>read(body, "$.data.preview_token")).as("미리보기 응답에 preview_token 이 있어야 한다")
+                .isNotBlank();
+        return JsonPath.read(body, "$.data.preview_token");
+    }
+
+    private String 토큰_본문(String address, String label, String token) {
+        return "{\"address\":\"%s\",\"label\":\"%s\",\"apply\":true,\"preview_token\":\"%s\"}"
+                .formatted(address, label, token);
+    }
+
+    private String 순번_본문(String address, String label, int seq, boolean apply) {
+        return "{\"address\":\"%s\",\"label\":\"%s\",\"seq\":%d,\"apply\":%s}"
+                .formatted(address, label, seq, apply);
+    }
+
+    /**
+     * 경유 지점을 지정한다 — 본문이 {@code apply=true} 면 §5.15 대로 <b>미리보기 → 그 토큰으로 배포</b> 두 요청을
+     * 보낸다(BR-051). 서버 판정을 한 요청으로 보려면 {@link #경유_요청한다} 를 쓴다.
+     */
+    private ResultActions 경유_추가한다(long runId, String body) throws Exception {
+        if (!body.contains("\"apply\":true")) {
+            return 경유_요청한다(runId, body);
+        }
+        String token = 미리보기_토큰(경유_요청한다(runId, body.replace("\"apply\":true", "\"apply\":false"))
+                .andExpect(status().isOk()).andReturn());
+        return 경유_요청한다(runId, body.replace("\"apply\":true", "\"apply\":true,\"preview_token\":\"" + token + "\""));
+    }
+
+    /** 배포된 경유 지점을 지운다 — {@code apply=true} 면 추가와 같이 미리보기 → 그 토큰으로 배포 두 요청이다. */
     private ResultActions 경유_삭제한다(long runId, long waypointId, boolean apply) throws Exception {
         long academyId = jdbcTemplate.queryForObject("SELECT academy_id FROM run WHERE id = ?", Long.class, runId);
-        return mockMvc.perform(delete("/api/v1/staff/runs/" + runId + "/waypoints/" + waypointId + "?apply=" + apply)
+        String path = "/api/v1/staff/runs/" + runId + "/waypoints/" + waypointId;
+        ResultActions preview = mockMvc.perform(delete(path + "?apply=false").header("Authorization", 토큰(academyId)));
+        if (!apply) {
+            return preview;
+        }
+        String token = 미리보기_토큰(preview.andExpect(status().isOk()).andReturn());
+        return mockMvc.perform(delete(path + "?apply=true&preview_token=" + token)
                 .header("Authorization", 토큰(academyId)));
     }
 

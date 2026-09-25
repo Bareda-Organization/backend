@@ -15,7 +15,9 @@ import jakarta.validation.constraints.NotNull;
  *            {@code FixedStop.seq} 가 원래부터 <b>최종 순번</b>이고 엔진이 그 자리를 비워 두므로,
  *            이 값은 최적화에 뒤집히지 않는다. 범위 밖이면 {@code 422} 다 — 조용히 맨 뒤로 보내면
  *            관계자가 지정한 자리와 다른 결과를 알아챌 수단이 부재하다
+ * @param previewToken {@code apply=true} 에 필수 — 미리보기 응답의 값. 없거나 낡았으면 {@code 409 PREVIEW_STALE}
+ *                     이고, 배포는 그 미리보기의 지점·순번·계산을 그대로 쓴다(BR-051)
  */
 public record WaypointRequest(String address, BigDecimal lat, BigDecimal lng, @NotBlank String label, String note,
-        @Min(1) Integer seq, @NotNull Boolean apply) {
+        @Min(1) Integer seq, @NotNull Boolean apply, String previewToken) {
 }

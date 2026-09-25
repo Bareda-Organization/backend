@@ -14,8 +14,9 @@ import src.backend.request.dto.RoutePreviewResponse;
  * @param estDurationBefore 노선 전체 소요(분, `Ruling 318` 과 같은 근거) — §5.5 상세와 같이
  *                          {@code route_version.est_duration_min} 을 새로 계산하지 않고 그대로 싣는다
  * @param estDurationAfter 이 경유 지점을 반영한 재최적화 결과의 노선 전체 소요(분)
+ * @param previewToken 미리보기일 때만 — 배포 요청에 그대로 돌려보낸다(BR-051). 배포 응답에서는 {@code null}
  */
 public record WaypointResponse(Long waypointId, RoutePreviewResponse routePreview, OffsetDateTime estTimeBefore,
         OffsetDateTime estTimeAfter, BigDecimal estDistanceBefore, BigDecimal estDistanceAfter,
-        Integer estDurationBefore, Integer estDurationAfter, boolean applied) {
+        Integer estDurationBefore, Integer estDurationAfter, boolean applied, String previewToken) {
 }

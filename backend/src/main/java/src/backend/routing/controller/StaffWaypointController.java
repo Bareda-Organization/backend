@@ -69,7 +69,8 @@ public class StaffWaypointController {
     @ResponseStatus(HttpStatus.OK)
     public ApiResponse<WaypointResponse> remove(@AuthenticationPrincipal AuthUser requester,
             @PathVariable Long runId, @PathVariable Long waypointId,
-            @RequestParam(defaultValue = "false") boolean apply) {
-        return ApiResponse.ok(waypointCommandService.remove(requester, runId, waypointId, apply));
+            @RequestParam(defaultValue = "false") boolean apply,
+            @RequestParam(name = "preview_token", required = false) String previewToken) {
+        return ApiResponse.ok(waypointCommandService.remove(requester, runId, waypointId, apply, previewToken));
     }
 }
