@@ -47,6 +47,7 @@ public class AuditLogQueryService {
 
     private final AccountRepository accountRepository;
 
+    /** 개인정보 조회·수정 이력을 최신순(동률은 id 오름차순)으로 페이징해 돌려준다(§6.13). */
     public PageResponse<AuditLogItemResponse> list(Long academyId, Long accountId, String from, String to,
             Integer page, Integer size) {
         validateFilters(academyId, accountId);

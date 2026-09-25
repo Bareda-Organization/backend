@@ -15,6 +15,7 @@ import src.backend.global.common.enums.AccountStatus;
  */
 public record SignupDecisionResponse(String accountStatus, OffsetDateTime decidedAt) {
 
+    /** 방금 처리한 승인·거절 결과를 §5.2·§6.5 공용 응답 모양으로 옮긴다. */
     public static SignupDecisionResponse of(AccountStatus accountStatus, OffsetDateTime decidedAt) {
         return new SignupDecisionResponse(accountStatus.name().toLowerCase(Locale.ROOT), decidedAt);
     }

@@ -29,6 +29,7 @@ public class MeController {
 
     private final MeQueryService meQueryService;
 
+    /** 로그인 계정 본인의 프로필을 돌려준다 — {@code pending}·{@code rejected} 도 호출 가능(위 클래스 자바독). */
     @AuthenticatedOnly
     @AllowedWhenPending
     @Operation(summary = "본인 프로필 (C-14 자동 로그인 · 계정 상태 게이트 §1.4)")

@@ -33,6 +33,7 @@ public class AuditLogController {
 
     private final AuditLogQueryService auditLogQueryService;
 
+    /** 개인정보 조회·수정 이력을 필터·페이징으로 조회한다(§6.13). */
     @CanReadAudit
     @Operation(summary = "감사 로그 조회 (SYS-01)")
     @GetMapping

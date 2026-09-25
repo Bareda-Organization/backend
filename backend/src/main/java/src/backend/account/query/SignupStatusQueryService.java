@@ -24,6 +24,7 @@ public class SignupStatusQueryService {
     private final SignupRequestRepository signupRequestRepository;
     private final AcademyRepository academyRepository;
 
+    /** 그 계정의 최신 가입 심사 상태·거절 사유를 돌려준다 — 미존재 계정은 {@code 404 ACCOUNT_NOT_FOUND}. */
     @Transactional(readOnly = true)
     public SignupStatusResponse getStatus(Long accountId) {
         Account account = accountRepository.findById(accountId)

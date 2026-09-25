@@ -30,6 +30,7 @@ public class LoginHistoryController {
 
     private final LoginHistoryQueryService loginHistoryQueryService;
 
+    /** 로그인 성공·실패·차단 이력을 필터·페이징으로 조회한다(§6.13). */
     @CanReadAudit
     @Operation(summary = "접속 이력 조회 (SYS-02)")
     @GetMapping
