@@ -2552,7 +2552,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `boarding_canceled` | 되돌리기로 `boarded` → `waiting` (BRD-05, Ruling 219) — 기발송 승차 알림은 정정하지 않음 | 학부모 | ● (`boarding` 토글 귀속, Ruling 223) |
 | `alighting_canceled` | 되돌리기로 `alighted` → `boarded` (BRD-05, Ruling 219) — 기발송 하차 알림은 정정하지 않음 | 학부모 | ● (`boarding` 토글 귀속 — `alighting` 토글 부재, Ruling 223) |
 | `no_show` | `no_show` | 학부모 + 관계자 | ● |
-| `absent` | 학부모 사전 OFF · **②구간 승인** (C-04) | **관계자만** | — |
+| `absent` | ① 변경 신청 `cancel`(§3.8) · **②구간 취소 승인**(§5.6) (C-04). ① 탑승 토글 OFF 는 `intent_changed` 가 이미 관계자에게 알리므로 겹쳐 보내지 않는다(PRD "오늘 안 타요" — 관계자 통지 하나, 조율자 판정 2026-09-25 · BR-110) | **관계자만** | — |
 | `arrive` | 서버의 위치 기반 자동 이벤트 (NTF-04) | 학부모 · 학생 | ● |
 | `delay` | `POST /runs/{runId}/delay` | **관계자** + 현재 승하차지 **이후** 학생·학부모 (M-05) | **부재 — 항상 발송** |
 | `run_started` | `Run` → `moving` | 관계자 · 학부모 · 학생 (M-10 · RUN-05) | **항상 발송** — 단말 푸시 수신만 개인 설정으로 조절 |

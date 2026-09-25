@@ -13,14 +13,15 @@ import src.backend.global.common.enums.Role;
 import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.notification.entity.NotificationType;
+import src.backend.request.event.AbsentRecordedEvent;
 import src.backend.request.event.ApprovalRequestedEvent;
 import src.backend.request.event.IntentChangedEvent;
 import src.backend.student.entity.Student;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * 탑승 의사 변경(즉시 반영·승인 대기)을 {@code intent_changed}·{@code approval_requested} 알림으로
- * 옮기는 구독자(API_SPEC §9.7 — 두 알림 모두 수신자는 관계자).
+ * 탑승 의사 변경(즉시 반영·승인 대기·미탑승 확정)을 {@code intent_changed}·{@code approval_requested}·
+ * {@code absent} 알림으로 옮기는 구독자(API_SPEC §9.7 — 세 알림 모두 수신자는 관계자).
  *
  * <p>두 이벤트를 한 클래스에 둔다 — {@code RunRouteConfirmedNotificationListener} 가 지키는
  * "이벤트 1개당 리스너 1개" 관례에서 벗어나는 판단이다. 갈라 두지 않는 이유는 수신자 조회
@@ -40,6 +41,8 @@ public class IntentNotificationListener {
 
     private static final String APPROVAL_REQUESTED_DEDUP_KEY_FORMAT = "approval_requested:%d:%d:%s";
 
+    private static final String ABSENT_DEDUP_KEY_FORMAT = "absent:%d:staff:%d:student:%d:%s";
+
     private final AcademyStaffRepository academyStaffRepository;
 
     private final NotificationOutbox notificationOutbox;
@@ -47,6 +50,8 @@ public class IntentNotificationListener {
     private final NotificationComposer<IntentChangedEvent> intentChangedComposer;
 
     private final NotificationComposer<ApprovalRequestedEvent> approvalRequestedComposer;
+
+    private final NotificationComposer<AbsentRecordedEvent> absentComposer;
 
     private final StudentRepository studentRepository;
 
@@ -91,6 +96,29 @@ public class IntentNotificationListener {
                     message.body(),
                     APPROVAL_REQUESTED_DEDUP_KEY_FORMAT.formatted(event.runId(), recipient.accountId(),
                             event.requestedAt()),
+                    event.studentId(), studentName, null));
+        }
+    }
+
+    /**
+     * 미탑승 확정(① 변경 신청 취소 · ②구간 취소 승인)을 그 학원 재직 관계자 전원에게 {@code absent} 로 적재한다
+     * (§9.7 — 관계자만, BR-110). 수신자 규칙은 위 두 알림과 같다.
+     */
+    @EventListener
+    public void appendAbsent(AbsentRecordedEvent event) {
+        List<AcademyStaffAccountView> staff = academyStaffRepository
+                .findActiveAccountsByAcademyId(event.academyId());
+        if (staff.isEmpty()) {
+            return;
+        }
+
+        NotificationMessage message = absentComposer.compose(event);
+        String studentName = studentRepository.findById(event.studentId()).map(Student::getName).orElse(null);
+        for (AcademyStaffAccountView recipient : staff) {
+            notificationOutbox.append(new NotificationDraft(event.academyId(), recipient.accountId(),
+                    recipient.name(), Role.STAFF, NotificationType.ABSENT, message.title(), message.body(),
+                    ABSENT_DEDUP_KEY_FORMAT.formatted(event.runId(), recipient.accountId(), event.studentId(),
+                            event.recordedAt()),
                     event.studentId(), studentName, null));
         }
     }

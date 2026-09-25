@@ -27,6 +27,7 @@ import src.backend.request.dto.DecideChangeRequestRequest;
 import src.backend.request.dto.DecideChangeRequestResponse;
 import src.backend.request.entity.ChangeRequest;
 import src.backend.request.entity.ChangeRequestType;
+import src.backend.request.event.AbsentRecordedEvent;
 import src.backend.request.event.ChangeRequestDecidedEvent;
 import src.backend.request.preview.ApprovalPreviewResolver;
 import src.backend.request.preview.ApprovalPreviewResolver.OriginDestination;
@@ -203,6 +204,10 @@ public class ChangeRequestDecisionService {
                 new RunRouteConfirmedEvent(run.getId(), academyId, run.getBusId(), decidedAt));
         eventPublisher.publishEvent(new ChangeRequestDecidedEvent(academyId, cr.getId(), run.getId(),
                 cr.getStudentId(), cr.getRequestedBy(), true, null, decidedAt));
+        if (cr.getType() == ChangeRequestType.CANCEL) {
+            // ②구간 취소 승인 → 관계자 absent 통지(§9.7, BR-110)
+            eventPublisher.publishEvent(new AbsentRecordedEvent(run.getId(), academyId, cr.getStudentId(), decidedAt));
+        }
 
         return new DecideChangeRequestResponse("approved", stopRemoved, newVersionNo, requester.accountId(),
                 decidedAt);

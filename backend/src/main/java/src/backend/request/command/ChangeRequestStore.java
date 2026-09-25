@@ -17,6 +17,7 @@ import src.backend.request.entity.BoardingIntent;
 import src.backend.request.entity.ChangeRequest;
 import src.backend.request.entity.ChangeRequestSource;
 import src.backend.request.entity.ChangeRequestType;
+import src.backend.request.event.AbsentRecordedEvent;
 import src.backend.request.event.ApprovalRequestedEvent;
 import src.backend.request.repository.BoardingIntentRepository;
 import src.backend.request.repository.ChangeRequestRepository;
@@ -129,6 +130,9 @@ public class ChangeRequestStore {
             BoardingIntent boardingIntent = findOrCreateIntent(run.getId(), student.getId(), now);
             boardingIntent.applyRiding(false, ChangeWindow.IMMEDIATE, now, requestedBy);
             boardingIntentRepository.save(boardingIntent);
+            // 관계자 통지(§9.7 absent) — 이 경로엔 intent_changed 가 없다(BR-110)
+            eventPublisher.publishEvent(new AbsentRecordedEvent(run.getId(), run.getAcademyId(), student.getId(),
+                    now));
         }
     }
 
