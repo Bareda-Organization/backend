@@ -26,9 +26,12 @@ import src.backend.request.entity.ChangeRequestType;
 public interface ChangeRequestRepository extends JpaRepository<ChangeRequest, Long> {
 
     /**
-     * 승인 대기 목록(§5.6 관리자 승인 화면) — 접수 순으로 정렬해 먼저 온 요청이 먼저 보이게 한다.
+     * 승인 목록(§5.5 — 30분 안쪽 변경 승인) — 접수 순으로 정렬해 먼저 온 요청이 먼저 보이게 한다.
+     * {@code windowSegment} 로 ②구간 건만 고른다 — ①구간 신청은 승인 없이 {@code approved} 로 저장되고
+     * 마감도 없어 이 목록 대상이 아니다(BR-076).
      */
-    List<ChangeRequest> findAllByAcademyIdAndStatusOrderByRequestedAtAsc(Long academyId, ChangeRequestStatus status);
+    List<ChangeRequest> findAllByAcademyIdAndStatusAndWindowSegmentOrderByRequestedAtAsc(Long academyId,
+            ChangeRequestStatus status, Short windowSegment);
 
     /**
      * 한 회차에 승인된 경유지 이동 요청들(P-06, Phase 8) — 확정 배치가 그날의 승하차지를 조립할 때

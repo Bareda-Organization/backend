@@ -21,6 +21,7 @@ import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
+import src.backend.request.domain.ChangeWindow;
 import src.backend.request.dto.AffectedStudentResponse;
 import src.backend.request.dto.ApprovalCapacityResponse;
 import src.backend.request.dto.ApprovalDetailResponse;
@@ -107,7 +108,8 @@ public class ApprovalQueryService {
     /** 승인 대기 목록(§5.5 목록) — 재최적화를 실행하지 않는다. 저장된 값과 단순 집계만 반환한다. */
     public ApprovalListResponse list(AuthUser requester, ChangeRequestStatus status) {
         List<ChangeRequest> requests = changeRequestRepository
-                .findAllByAcademyIdAndStatusOrderByRequestedAtAsc(requester.academyId(), status);
+                .findAllByAcademyIdAndStatusAndWindowSegmentOrderByRequestedAtAsc(requester.academyId(), status,
+                        ChangeWindow.APPROVAL_REQUIRED.code());
         List<ApprovalSummaryResponse> items = requests.stream()
                 .map(cr -> toSummary(cr, requester.academyId()))
                 .toList();
