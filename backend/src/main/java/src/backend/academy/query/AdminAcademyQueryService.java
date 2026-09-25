@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.academy.dto.AcademyDetailResponse;
 import src.backend.academy.dto.AcademyListRequest;
 import src.backend.academy.dto.AcademyStaffAccountResponse;
+import src.backend.academy.dto.AcademyStatsResponse;
 import src.backend.academy.dto.AcademySummaryResponse;
 import src.backend.academy.entity.Academy;
 import src.backend.academy.entity.AcademyStaff;
@@ -35,6 +36,9 @@ import src.backend.global.persistence.LikeEscape;
 import src.backend.global.request.PageParams;
 import src.backend.global.request.SortParam;
 import src.backend.global.response.PageResponse;
+import src.backend.run.entity.Run;
+import src.backend.run.entity.RunStatus;
+import src.backend.run.repository.RunRepository;
 
 /**
  * 메인 관리자 콘솔의 학원 목록·상세 조회(ACAD-01·03, API_SPEC §6.1·§6.3).
@@ -98,6 +102,8 @@ public class AdminAcademyQueryService {
 
     private final AccountRepository accountRepository;
 
+    private final RunRepository runRepository;
+
     /** 학원 목록·검색(API_SPEC §6.1) — 검색어는 학원명·코드 부분일치, 상태는 선택 필터다. */
     public PageResponse<AcademySummaryResponse> list(AcademyListRequest request) {
         PageParams pageParams = PageParams.of(request.page(), request.size());
@@ -132,7 +138,10 @@ public class AdminAcademyQueryService {
                 .countByAcademyIdInGroupedByAcademyId(List.of(academyId), MEMBER_ROLES, MEMBER_STATUSES).stream()
                 .mapToLong(AcademyCount::getTotal)
                 .sum();
-        return AcademyDetailResponse.from(academy, staffCount, userCount, staffAccounts(academyId));
+        long movingBusCount = runRepository.findAllByAcademyIdAndStatusOrderByDepartTimeAsc(academyId,
+                RunStatus.MOVING).stream().map(Run::getBusId).distinct().count();
+        return AcademyDetailResponse.from(academy, staffCount, userCount, staffAccounts(academyId),
+                new AcademyStatsResponse(movingBusCount));
     }
 
     /**
