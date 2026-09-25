@@ -1,5 +1,6 @@
 package src.backend.request.command;
 
+import java.time.Clock;
 import java.time.OffsetDateTime;
 
 import org.springframework.context.ApplicationEventPublisher;
@@ -11,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.request.domain.ChangeWindow;
+import src.backend.request.domain.ChangeWindowPolicy;
 import src.backend.request.entity.BoardingIntent;
 import src.backend.request.entity.ChangeRequest;
 import src.backend.request.entity.ChangeRequestSource;
@@ -19,6 +21,7 @@ import src.backend.request.event.ApprovalRequestedEvent;
 import src.backend.request.repository.BoardingIntentRepository;
 import src.backend.request.repository.ChangeRequestRepository;
 import src.backend.run.entity.Run;
+import src.backend.run.repository.RunRepository;
 import src.backend.student.command.StopMatcher;
 import src.backend.student.entity.Student;
 import src.backend.student.geocoding.spec.GeocodedPoint;
@@ -46,10 +49,16 @@ public class ChangeRequestStore {
 
     private final ApplicationEventPublisher eventPublisher;
 
+    private final RunRepository runRepository;
+
+    private final Clock clock;
+
     /** 경유지 이동 신청(§3.8 {@code type=relocate}) — 좌표를 승하차지에 매칭한 뒤 구간별로 반영한다. */
     @Transactional
-    public ChangeRequest submitRelocate(Student student, Run run, ChangeWindow window, Long requestedBy,
-            String newAddress, GeocodedPoint point, String reason, OffsetDateTime now) {
+    public ChangeRequest submitRelocate(Student student, Run run, Long requestedBy, String newAddress,
+            GeocodedPoint point, String reason) {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        ChangeWindow window = windowAt(run, now);
         Long stopId = stopMatcher.matchOrCreate(student.getAcademyId(), point).getId();
         ChangeRequest changeRequest = create(student, run, window, ChangeRequestType.RELOCATE, requestedBy, reason,
                 now);
@@ -59,11 +68,27 @@ public class ChangeRequestStore {
 
     /** 탑승 취소 신청(§3.8 {@code type=cancel}) — ③구간은 이 메서드에 닿기 전에 컨트롤러 쪽에서 거절된다. */
     @Transactional
-    public ChangeRequest submitCancel(Student student, Run run, ChangeWindow window, Long requestedBy, String reason,
-            OffsetDateTime now) {
+    public ChangeRequest submitCancel(Student student, Run run, Long requestedBy, String reason) {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        ChangeWindow window = windowAt(run, now);
         ChangeRequest changeRequest = create(student, run, window, ChangeRequestType.CANCEL, requestedBy, reason,
                 now);
         return finish(changeRequest, student, run, window, requestedBy, now);
+    }
+
+    /**
+     * 구간을 <b>저장 시점</b>에 다시 판정한다(BR-074) — 주소 검증을 트랜잭션 밖에서 기다리는 동안 확정 시각이
+     * 지나거나 운행이 시작될 수 있어, 앞서 판정한 구간으로 저장하면 ①로 "즉시 반영" 이라 답하면서 확정
+     * 노선에는 빠진다. 회차 상태도 다시 읽는다.
+     */
+    private ChangeWindow windowAt(Run run, OffsetDateTime now) {
+        Run fresh = runRepository.findByIdAndAcademyId(run.getId(), run.getAcademyId()).orElseThrow(
+                () -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        ChangeWindow window = ChangeWindowPolicy.segmentOf(fresh, now);
+        if (window == ChangeWindow.CLOSED) {
+            throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);
+        }
+        return window;
     }
 
     private ChangeRequest create(Student student, Run run, ChangeWindow window, ChangeRequestType type,
