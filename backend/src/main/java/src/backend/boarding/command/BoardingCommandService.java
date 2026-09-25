@@ -3,7 +3,6 @@ package src.backend.boarding.command;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -65,12 +64,6 @@ import src.backend.run.repository.RunRepository;
 @RequiredArgsConstructor
 public class BoardingCommandService {
 
-    /** 운행 중 미승차로 잔여 0명이 된 정차지에 남기는 사유(C-05, {@code run_stop.skip_notice}). */
-    private static final String SKIP_NOTICE = "운행 중 미승차로 전원 미탑승";
-
-    /** 미승차로 잔여 0명 판정 시 제외할 상태 — 이미 결석·미승차로 처리된 탑승자는 잔여가 아니다(목표 7). */
-    private static final List<RiderStatus> NOT_REMAINING = List.of(RiderStatus.ABSENT, RiderStatus.NO_SHOW);
-
     private final RunRepository runRepository;
 
     private final RunRiderRepository runRiderRepository;
@@ -78,6 +71,9 @@ public class BoardingCommandService {
     private final RiderStatusHistoryRepository riderStatusHistoryRepository;
 
     private final NoShowCaseAccess noShowCaseAccess;
+
+    /** {@code stop_skipped} 판정·해제 협력자(§20.2, BR-101 — 미승차·되돌리기 두 경로가 공유한다). */
+    private final StopSkipJudge stopSkipJudge;
 
     /**
      * 미승차 대기 시간(분)을 학원별로 읽는다(Phase 11 목표 2, API_SPEC §5.21) — 학원마다 값이 다르고,
@@ -303,7 +299,7 @@ public class BoardingCommandService {
     private RiderStatusUpdateResponse handleNoShow(Run run, RunRider rider, OffsetDateTime now) {
         NoShowCaseView noShowCase = openNoShowCase(run, rider, now);
 
-        boolean stopSkipped = skipStopIfNoRidersRemain(run.getId(), rider.getStopId());
+        boolean stopSkipped = stopSkipJudge.skipIfNoRidersRemain(run.getId(), rider.getStopId());
         eventPublisher.publishEvent(new RiderNoShowEvent(run.getId(), run.getAcademyId(), rider.getStudentId(),
                 rider.getId(), noShowCase.caseId(), rider.getStopId(), stopSkipped, now));
 
@@ -335,42 +331,11 @@ public class BoardingCommandService {
             OffsetDateTime now) {
         if (fromStatus == RiderStatus.NO_SHOW && toStatus != RiderStatus.NO_SHOW) {
             noShowCaseAccess.resolveByRevert(rider.getId(), now);
-            currentRunStop(run.getId(), rider.getStopId()).ifPresent(RunStop::clearSkipped);
+            stopSkipJudge.clearSkipped(run.getId(), rider.getStopId());
         } else if (toStatus == RiderStatus.NO_SHOW && fromStatus != RiderStatus.NO_SHOW) {
             openNoShowCase(run, rider, now);
-            skipStopIfNoRidersRemain(run.getId(), rider.getStopId());
+            stopSkipJudge.skipIfNoRidersRemain(run.getId(), rider.getStopId());
         }
-    }
-
-    /** 확정 노선 현재 버전에서 그 승하차지의 정차 항목 — 확정 노선이 아직 없으면 비어 있다. */
-    private Optional<RunStop> currentRunStop(Long runId, Long stopId) {
-        return confirmedRouteRepository.findById(runId)
-                .map(ConfirmedRoute::getCurrentVersionId)
-                .flatMap(versionId -> runStopRepository.findByRouteVersionIdAndStopId(versionId, stopId));
-    }
-
-    /**
-     * 그 승하차지에 아직 남은(부재·미승차 둘 다 빠진) 탑승자가 0명이면 확정 노선의 정차 항목을
-     * {@code skipped} 로 표시하고 {@code true} 를 돌려준다(C-05 후자 경로, §4.6 {@code stop_skipped}).
-     *
-     * <p>{@code no_show} 도 잔여 판정에서 빼야 한다(목표 7) — 방금 이 호출 직전에 {@code applyTransition}
-     * 이 이 탑승자 자신을 {@code NO_SHOW} 로 이미 바꿔 놓은 상태라, {@code ABSENT} 만 빼면 그 탑승자
-     * 자신이 스스로를 "남은 사람"으로 세어 잔여가 영원히 0이 되지 않는다.
-     * {@link src.backend.request.command.BoardingIntentCommandService#skipStopIfNoRidersRemain} 이
-     * 확정 노선을 찾는 것과 같은 경로를 그대로 재사용하되, 제외 상태 집합만 이 경로에 맞게 넓힌
-     * {@link RunRiderRepository#countByRunIdAndStopIdAndStatusNotIn} 을 쓴다.
-     */
-    private boolean skipStopIfNoRidersRemain(Long runId, Long stopId) {
-        long remaining = runRiderRepository.countByRunIdAndStopIdAndStatusNotIn(runId, stopId, NOT_REMAINING);
-        if (remaining > 0) {
-            return false;
-        }
-        return currentRunStop(runId, stopId)
-                .map(runStop -> {
-                    runStop.markSkipped(SKIP_NOTICE);
-                    return true;
-                })
-                .orElse(false);
     }
 
     /**
