@@ -170,6 +170,10 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
      * <b>항상-켜진</b> 조건이라 선택 필터와 성격이 다르고, 호출부({@code NotificationQueryService})가
      * 이미 구체 시각을 계산해 넘긴다.
      *
+     * <p>{@code academyId} 가 {@code null} 이면 학원 조건을 뺀다 — 소속 학원이 없는 메인 관리자뿐이며
+     * ({@code AcademyScope.resolveListScope}), 그 계정 앞 알림(비상)은 사고 학원 앞으로 적재된다(BR-072).
+     * 수신자 조건은 항상 걸린다.
+     *
      * <p>정렬은 {@code created_at desc}(+ {@code id desc} 동점 결정)다 — {@code sent_at} 은 아직
      * 발송 전이거나(즉시 발송 창) 설정 off 로 건너뛴 행에서 널이라 정렬 축으로 쓰면 그 행들이
      * 순서 없이 흩어진다. {@code ERD notification_log(recipient_account_id, created_at desc)}
@@ -177,7 +181,7 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
      */
     @Query("""
             select n from NotificationLog n
-             where n.academyId = :academyId
+             where (:academyId is null or n.academyId = :academyId)
                and n.recipientAccountId = :accountId
                and (:type is null or n.type = :type)
                and (:unreadOnly = false or n.readAt is null)
@@ -196,7 +200,7 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
      */
     @Query("""
             select count(n) from NotificationLog n
-             where n.academyId = :academyId
+             where (:academyId is null or n.academyId = :academyId)
                and n.recipientAccountId = :accountId
                and n.readAt is null
                and n.createdAt >= :retentionFrom
@@ -214,19 +218,23 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
      * 존치"). {@code sent_at} 이 비어 있을 수 있는 행({@code SKIPPED}·아직 안 보낸 {@code PENDING})은
      * {@code COALESCE(sent_at, created_at)} 으로 정렬·기간필터 모두를 대신한다 — 그렇지 않으면 그런
      * 행이 날짜 필터를 걸 때마다 조용히 빠진다.
+     *
+     * <p>{@code acked} 를 주면 수신 확인 대상 종류({@code importantTypes})로도 좁힌다 — 대상 밖 종류는 영원히
+     * {@code acked=false} 라, 섞이면 "확인 안 한 중요 통지" 목록이 배지({@link #countUnackedForStaffLog})와
+     * 다른 집합이 된다(NTF-10, BR-071).
      */
     @Query("""
             SELECT n FROM NotificationLog n
              WHERE n.academyId = :academyId
                AND (:type IS NULL OR n.type = :type)
-               AND (:acked IS NULL OR n.acked = :acked)
+               AND (:acked IS NULL OR (n.acked = :acked AND n.type IN :importantTypes))
                AND COALESCE(n.sentAt, n.createdAt) >= :from
                AND COALESCE(n.sentAt, n.createdAt) < :to
              ORDER BY COALESCE(n.sentAt, n.createdAt) DESC, n.id DESC
             """)
     Page<NotificationLog> searchForStaffLog(@Param("academyId") Long academyId, @Param("type") NotificationType type,
-            @Param("acked") Boolean acked, @Param("from") OffsetDateTime from, @Param("to") OffsetDateTime to,
-            Pageable pageable);
+            @Param("acked") Boolean acked, @Param("importantTypes") Set<NotificationType> importantTypes,
+            @Param("from") OffsetDateTime from, @Param("to") OffsetDateTime to, Pageable pageable);
 
     /**
      * 미확인 배지(§5.17 {@code unacked_count}, ERD §5 부분 인덱스 {@code notification_log(academy_id,
@@ -234,10 +242,8 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
      * 안에서만 세면 필터를 걸 때마다 배지 값이 달라져 "확인 안 한 것이 몇 건인가" 라는 원래 의미를
      * 잃는다.
      *
-     * <p>정본이 "중요 통지" 만 추적한다고 적지만(FEATURE_SPEC §4.15 NTF-10), 그 분류를 어느
-     * {@link NotificationType} 값에 매길지는 정본 어디에도 없다(API_SPEC §9.7·§4.15 재확인 — 판정 근거·열거값
-     * 표 부재, 오픈 이슈 X 목록에도 없음). 그래서 이 카운트는 <b>전 종류를 동일하게</b> 센다 — 근거
-     * 없이 일부 종류를 빼면 그 자체가 임의 판단이 된다. 정본이 분류를 명시하면 이 조건을 좁힌다.
+     * <p>수신 확인 대상 3종({@link NotificationType#IMPORTANT_FOR_ACK}, FEATURE_SPEC NTF-10)만 센다 — 목록의
+     * {@code acked} 필터도 같은 3종으로 좁힌다(BR-071).
      */
     @Query("""
             SELECT COUNT(n) FROM NotificationLog n

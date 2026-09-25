@@ -71,7 +71,8 @@ public class StaffNotificationQueryService {
         }
 
         PageParams pageParams = PageParams.of(request.page(), request.size());
-        Page<NotificationLog> page = notificationLogRepository.searchForStaffLog(academyId, type, acked, from, to,
+        Page<NotificationLog> page = notificationLogRepository.searchForStaffLog(academyId, type, acked,
+                NotificationType.IMPORTANT_FOR_ACK, from, to,
                 PageRequest.of(pageParams.page(), pageParams.size()));
 
         List<StaffNotificationItemResponse> items = page.getContent().stream().map(this::toItem).toList();

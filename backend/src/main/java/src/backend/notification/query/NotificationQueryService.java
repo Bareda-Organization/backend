@@ -15,6 +15,7 @@ import src.backend.global.request.ApiValues;
 import src.backend.global.request.PageParams;
 import src.backend.global.response.PageResponse;
 import src.backend.global.security.AuthUser;
+import src.backend.global.security.access.AcademyScope;
 import src.backend.notification.dto.NotificationItemResponse;
 import src.backend.notification.dto.NotificationListResponse;
 import src.backend.notification.entity.NotificationLog;
@@ -51,10 +52,11 @@ public class NotificationQueryService {
         OffsetDateTime retentionFrom = OffsetDateTime.now(clock).minusDays(RETENTION_DAYS);
         Pageable pageable = PageParams.of(pageParam, sizeParam).toPageable(SORT);
 
-        Page<NotificationLog> page = notificationLogRepository.search(requester.academyId(), requester.accountId(),
+        // 메인 관리자는 소속 학원이 없어 학원 조건을 빼고 수신자로만 좁힌다(BR-072).
+        Long academyId = AcademyScope.resolveListScope(requester, null).orElse(null);
+        Page<NotificationLog> page = notificationLogRepository.search(academyId, requester.accountId(),
                 parsedType, unreadOnlyFlag, retentionFrom, pageable);
-        long unreadCount = notificationLogRepository.countUnread(requester.academyId(), requester.accountId(),
-                retentionFrom);
+        long unreadCount = notificationLogRepository.countUnread(academyId, requester.accountId(), retentionFrom);
 
         PageResponse<NotificationItemResponse> items = PageResponse.of(page,
                 page.getContent().stream().map(NotificationItemResponse::of).toList());
