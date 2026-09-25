@@ -389,6 +389,33 @@ class StaffApprovalDecideControllerTest {
                 .andExpect(jsonPath("$.error.code").value("STUDENT_NOT_IN_RUN"));
     }
 
+    /**
+     * BR-019 — 배포된 경유 지점(RTE-10)은 ②구간 승인 재배포에서도 위치가 고정돼 남아야 한다(ARCHITECTURE §8.2).
+     * 승인 계산이 고정 지점을 빈 목록으로 넘기면 새 판본에서 경유 지점이 제거 절차 없이 사라진다.
+     */
+    @Test
+    void 승인_재배포는_배포된_경유_지점을_유지한다() throws Exception {
+        결정_시나리오 s = 정상_시나리오();
+        Long versionId = jdbcTemplate.queryForObject(
+                "SELECT current_version_id FROM confirmed_route WHERE run_id = ?", Long.class, s.runId);
+        Long waypointId = jdbcTemplate.queryForObject("INSERT INTO waypoint (run_id, label, lat, lng, applied, "
+                + "created_by) VALUES (?, '경유', 37.563000, 126.973000, true, 1) RETURNING id", Long.class, s.runId);
+        Integer lastSeq = jdbcTemplate.queryForObject("SELECT max(seq) FROM run_stop WHERE route_version_id = ?",
+                Integer.class, versionId);
+        jdbcTemplate.update("INSERT INTO run_stop (route_version_id, waypoint_id, seq) VALUES (?, ?, ?)", versionId,
+                waypointId, lastSeq + 1);
+        String token = 미리보기_토큰_조회(s);
+
+        결정_요청(관계자_토큰(s.academyId), s.approvalId, 승인_바디(token)).andExpect(status().isOk());
+
+        Long newVersionId = jdbcTemplate.queryForObject(
+                "SELECT current_version_id FROM confirmed_route WHERE run_id = ?", Long.class, s.runId);
+        assertThat(newVersionId).isNotEqualTo(versionId);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM run_stop WHERE route_version_id = ? AND waypoint_id = ?", Integer.class,
+                newVersionId, waypointId)).isEqualTo(1);
+    }
+
     /** 존재하지 않는 승인 건은 {@code 404 APPROVAL_NOT_FOUND}. */
     @Test
     void 존재하지_않는_승인_건은_404_이다() throws Exception {

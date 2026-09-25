@@ -41,6 +41,7 @@ import src.backend.request.preview.ApprovalPreviewResolver;
 import src.backend.request.preview.ApprovalPreviewResolver.OriginDestination;
 import src.backend.request.preview.ApprovalPreviewResolver.PreviewResult;
 import src.backend.request.repository.ChangeRequestRepository;
+import src.backend.routing.engine.spec.FixedStop;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.Route;
 import src.backend.routing.entity.RouteStop;
@@ -215,12 +216,13 @@ public class ApprovalQueryService {
                 run.getDirection(), academyId);
 
         DailyRoster roster = previewResolver.candidateRosterOf(cr, run, weekday, riders);
+        List<FixedStop> fixedStops = previewResolver.fixedStopsOf(run, roster);
         String fingerprint = RunConfirmationFingerprint.of(academyId, weekday, run.getDirection(),
                 run.getDepartTime(), originDestination.origin(), originDestination.destination(),
-                roster.stopOverrides(), List.of());
+                roster.stopOverrides(), fixedStops);
 
         PreviewResult previewResult = previewResolver.resolvePreview(approvalId, fingerprint, roster,
-                originDestination, run);
+                originDestination, fixedStops, run);
         RouteComputation computation = previewResult.preview().computation();
 
         ConfirmedRoute confirmedRoute = confirmedRouteRepository.findById(run.getId())

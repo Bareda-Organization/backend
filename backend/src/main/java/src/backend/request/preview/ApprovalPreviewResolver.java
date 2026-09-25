@@ -2,10 +2,12 @@ package src.backend.request.preview;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -25,14 +27,21 @@ import src.backend.request.entity.ChangeRequestType;
 import src.backend.request.preview.spec.ApprovalPreview;
 import src.backend.request.preview.spec.ApprovalPreviewCache;
 import src.backend.routing.domain.GeoPoint;
+import src.backend.routing.engine.spec.FixedStop;
+import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RouteStop;
 import src.backend.routing.entity.RouteVersionSource;
+import src.backend.routing.entity.RunStop;
+import src.backend.routing.entity.Waypoint;
 import src.backend.routing.map.spec.CallerPolicy;
 import src.backend.routing.pipeline.ComputationPolicy;
 import src.backend.routing.pipeline.DailyRoster;
 import src.backend.routing.pipeline.RouteComputation;
 import src.backend.routing.pipeline.RouteComputationInput;
 import src.backend.routing.pipeline.RouteComputationPipeline;
+import src.backend.routing.repository.ConfirmedRouteRepository;
+import src.backend.routing.repository.RunStopRepository;
+import src.backend.routing.repository.WaypointRepository;
 import src.backend.run.entity.Run;
 import src.backend.student.entity.Stop;
 import src.backend.student.repository.StopRepository;
@@ -54,6 +63,48 @@ public class ApprovalPreviewResolver {
     private final StopRepository stopRepository;
     private final RouteComputationPipeline pipeline;
     private final ApprovalPreviewCache previewCache;
+    private final ConfirmedRouteRepository confirmedRouteRepository;
+    private final RunStopRepository runStopRepository;
+    private final WaypointRepository waypointRepository;
+
+    /**
+     * 배포된 경유 지점(RTE-10)을 고정 지점으로 만든다 — ②구간 승인 재배포도 경유 지점의 위치를 고정해야
+     * 한다(ARCHITECTURE §8.2). 미리보기 계산·지문·결정 재검증이 모두 이 목록을 써야 새 판본에서 경유 지점이
+     * 제거 절차 없이 사라지지 않는다(BR-019).
+     *
+     * <p>순번은 지금 판본의 순번에서 <b>그 앞에서 빠지는 승하차지 수</b>만큼 당긴다 — 이 승인으로 승하차지가
+     * 빠지면(잔여 0명) 자리 수가 줄어 옛 순번이 범위를 벗어난다. 빠지는 승하차지는 가정 명단
+     * ({@code roster})에 더는 없는 것이다. 그 밖의 규칙은 {@code WaypointCommandService.existingFixedStopsOf} 와 같다.
+     */
+    public List<FixedStop> fixedStopsOf(Run run, DailyRoster roster) {
+        Long versionId = confirmedRouteRepository.findById(run.getId())
+                .map(ConfirmedRoute::getCurrentVersionId)
+                .orElse(null);
+        if (versionId == null) {
+            return List.of();
+        }
+        Set<Long> keptStopIds = new HashSet<>(roster.stopOverrides().values());
+        Map<Long, Integer> seqByWaypointId = new LinkedHashMap<>();
+        int removedBefore = 0;
+        for (RunStop runStop : runStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeq(versionId,
+                run.getAcademyId())) {
+            if (runStop.getWaypointId() != null) {
+                seqByWaypointId.put(runStop.getWaypointId(), runStop.getSeq() - removedBefore);
+            } else if (!keptStopIds.contains(runStop.getStopId())) {
+                removedBefore++;
+            }
+        }
+        List<FixedStop> fixedStops = new ArrayList<>();
+        for (Waypoint waypoint : waypointRepository.findAllAppliedByRunIdAndAcademyId(run.getId(),
+                run.getAcademyId())) {
+            Integer seq = seqByWaypointId.get(waypoint.getId());
+            if (seq != null) {
+                fixedStops.add(new FixedStop(waypoint.getId(), new GeoPoint(waypoint.getLat(), waypoint.getLng()),
+                        seq));
+            }
+        }
+        return fixedStops;
+    }
 
     /**
      * 이 승인 건을 반영했다고 가정한 명단 — 재최적화 "후" 를 계산하는 입력이다.
@@ -115,7 +166,7 @@ public class ApprovalPreviewResolver {
      * 낡은 값 자체가 없으므로 낡았다고 말할 수 없다.
      */
     public PreviewResult resolvePreview(Long approvalId, String fingerprint, DailyRoster roster,
-            OriginDestination originDestination, Run run) {
+            OriginDestination originDestination, List<FixedStop> fixedStops, Run run) {
         Optional<ApprovalPreview> cached = previewCache.find(approvalId);
         if (cached.isPresent() && cached.get().fingerprint().equals(fingerprint)) {
             return new PreviewResult(cached.get(), false);
@@ -123,7 +174,7 @@ public class ApprovalPreviewResolver {
         ComputationPolicy policy = new ComputationPolicy(ON_DEMAND_MAP_TIMEOUT, CallerPolicy.ON_DEMAND,
                 RouteVersionSource.APPROVAL);
         RouteComputationInput input = new RouteComputationInput(roster, originDestination.origin(),
-                originDestination.destination(), List.of(), run.getDepartTime(), policy);
+                originDestination.destination(), fixedStops, run.getDepartTime(), policy);
         RouteComputation computation = pipeline.compute(input);
         ApprovalPreview fresh = new ApprovalPreview(UUID.randomUUID().toString(), fingerprint, computation);
         previewCache.put(approvalId, fresh);

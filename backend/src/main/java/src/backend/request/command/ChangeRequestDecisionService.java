@@ -255,7 +255,7 @@ public class ChangeRequestDecisionService {
         DailyRoster roster = previewResolver.candidateRosterOf(cr, run, weekday, riders);
         String freshFingerprint = RunConfirmationFingerprint.of(academyId, weekday, run.getDirection(),
                 run.getDepartTime(), originDestination.origin(), originDestination.destination(),
-                roster.stopOverrides(), List.of());
+                roster.stopOverrides(), previewResolver.fixedStopsOf(run, roster));
         if (!freshFingerprint.equals(cachedFingerprint)) {
             throw new BusinessException(ErrorCode.PREVIEW_STALE);
         }
