@@ -6,6 +6,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -102,21 +103,30 @@ public class AdminAcademyLiveQueryService {
                 .findAssignedManagerContacts(academyId, runIds).stream()
                 .collect(Collectors.groupingBy(AssignedManagerContactView::runId));
 
+        Map<Long, List<RunStop>> orderedStopsByRunId = todayRuns.stream()
+                .collect(Collectors.toMap(Run::getId, this::orderedStopsOf));
+        // 정차지 이름·좌표는 오늘 회차 전부의 것을 한 번에 읽는다(BR-065) — 정차마다 읽으면 호출 한 번이 수백 쿼리다.
+        Map<Long, Stop> stopsById = stopRepository.findAllByAcademyIdAndIdIn(academyId,
+                        orderedStopsByRunId.values().stream().flatMap(List::stream).map(RunStop::getStopId)
+                                .filter(Objects::nonNull).distinct().toList())
+                .stream()
+                .collect(Collectors.toMap(Stop::getId, stop -> stop));
+
         List<AdminAcademyLiveResponse.Run> runs = todayRuns.stream()
-                .map(run -> toRun(run, busNoByBusId.get(run.getBusId()), contactsByRunId.getOrDefault(run.getId(),
-                        List.of())))
+                .map(run -> toRun(run, orderedStopsByRunId.get(run.getId()), stopsById,
+                        busNoByBusId.get(run.getBusId()), contactsByRunId.getOrDefault(run.getId(), List.of())))
                 .toList();
         return new AdminAcademyLiveResponse(runs);
     }
 
-    private AdminAcademyLiveResponse.Run toRun(Run run, String busNo, List<AssignedManagerContactView> contacts) {
-        List<RunStop> ordered = orderedStopsOf(run);
+    private AdminAcademyLiveResponse.Run toRun(Run run, List<RunStop> ordered, Map<Long, Stop> stopsById, String busNo,
+            List<AssignedManagerContactView> contacts) {
         List<AdminAcademyLiveResponse.Stop> stops = ordered.stream()
                 .filter(stop -> stop.getStopId() != null)
-                .map(this::toStop)
+                .map(runStop -> toStop(runStop, stopsById.get(runStop.getStopId())))
                 .toList();
 
-        RunLiveState liveState = runLiveStateResolver.resolve(run);
+        RunLiveState liveState = runLiveStateResolver.resolve(run, ordered);
         // 유실(2분 초과, Ruling 250 · FEATURE_SPEC §4.16 A-14) 이면 position 을 비우고 last_seen_at 만
         // 채운다 — receivedAt() == null 만 보면(옛 판) 2분 넘게 갱신이 없는데도 마지막 좌표를 계속
         // 내보내는 결함이 된다. §5.18(StaffRunLiveQueryService) 과 같은 판단 기준.
@@ -156,8 +166,7 @@ public class AdminAcademyLiveQueryService {
      * ({@code arrived_at != null})면 이미 지난 예정이라 응답에서 비운다 — 저장값 자체를 지우는 것이
      * 아니라 이 조회가 읽을 때만 비운다.
      */
-    private AdminAcademyLiveResponse.Stop toStop(RunStop runStop) {
-        Stop stop = stopRepository.findById(runStop.getStopId()).orElse(null);
+    private AdminAcademyLiveResponse.Stop toStop(RunStop runStop, Stop stop) {
         OffsetDateTime eta = runStop.getArrivedAt() != null ? null : runStop.getEta();
         return new AdminAcademyLiveResponse.Stop(runStop.getStopId(), runStop.getSeq(),
                 stop == null ? null : stop.getName(), stop == null ? null : stop.getLat(),

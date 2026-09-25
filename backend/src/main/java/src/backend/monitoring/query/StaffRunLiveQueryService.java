@@ -94,8 +94,8 @@ public class StaffRunLiveQueryService {
 
     private StaffRunLiveResponse.Run toRunResponse(Run run, Map<Long, String> busNos,
             Map<Long, List<StaffAssignmentAckView>> ackViewsByRun) {
-        RunLiveState state = runLiveStateResolver.resolve(run);
         List<RunStop> stops = orderedStopsOf(run);
+        RunLiveState state = runLiveStateResolver.resolve(run, stops);
 
         // state.lat() 은 유실(stale) 이어도 마지막 값을 그대로 담아 온다(RunLiveState 자바독) —
         // null 로 지울지는 이 소비 측이 정해야 해서, 유실 판정은 stale() 로 본다. lat() != null 로
