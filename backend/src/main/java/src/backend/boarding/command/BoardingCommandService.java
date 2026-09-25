@@ -147,7 +147,7 @@ public class BoardingCommandService {
         RiderStatus fromStatus = rider.getStatus();
         OffsetDateTime now = OffsetDateTime.now(clock);
 
-        applyTransition(rider, targetStatus, now);
+        applyTransition(rider, fromStatus, targetStatus, now);
         riderStatusHistoryRepository.save(RiderStatusHistory.of(new RiderStatusHistory.Context(rider.getId(),
                 fromStatus, targetStatus, false, null, verifyMethod, request.clientKey(), request.occurredAt(),
                 ActorType.ESCORT, now, requester.accountId())));
@@ -249,7 +249,21 @@ public class BoardingCommandService {
         }
     }
 
-    private void applyTransition(RunRider rider, RiderStatus targetStatus, OffsetDateTime now) {
+    /**
+     * FEATURE_SPEC §3.3 전이 표를 강제한다(Ruling 345, BR-031 1번 갈래) — 허용은
+     * {@code waiting→boarded} · {@code waiting→no_show} · {@code boarded→alighted} 셋뿐이다.
+     * 같은 상태 재요청을 포함해 그 밖은 전부 {@code 409 RIDER_TRANSITION_NOT_ALLOWED} — 표 밖으로
+     * 가려면 되돌리기(§4.7)가 먼저다. 이 검사는 <b>PATCH 경로에만</b> 걸린다 — 되돌리기(revertTo)·
+     * 하원 자동 승차(autoBoard)·미등원(markAbsent)·이동(markRemoved)은 이 메서드를 거치지 않는다.
+     */
+    private void applyTransition(RunRider rider, RiderStatus fromStatus, RiderStatus targetStatus,
+            OffsetDateTime now) {
+        boolean allowed = (fromStatus == RiderStatus.WAITING && targetStatus == RiderStatus.BOARDED)
+                || (fromStatus == RiderStatus.WAITING && targetStatus == RiderStatus.NO_SHOW)
+                || (fromStatus == RiderStatus.BOARDED && targetStatus == RiderStatus.ALIGHTED);
+        if (!allowed) {
+            throw new BusinessException(ErrorCode.RIDER_TRANSITION_NOT_ALLOWED);
+        }
         switch (targetStatus) {
             case BOARDED -> rider.board(now);
             case ALIGHTED -> rider.alight(now);

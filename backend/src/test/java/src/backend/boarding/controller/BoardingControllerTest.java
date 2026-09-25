@@ -19,6 +19,8 @@ import jakarta.persistence.PersistenceContext;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -872,6 +874,45 @@ class BoardingControllerTest {
         assertThat(jdbcTemplate.queryForObject("SELECT status FROM run WHERE id = ?", String.class, runId))
                 .as("boarded 0명이 됐으니 보류된 종료가 완성된다").isEqualTo("finished");
         assertThat(applicationEvents.stream(RunEndedEvent.class)).as("run_ended 재료 이벤트 1건").hasSize(1);
+    }
+
+    // ── Ruling 345(BR-031 1번 갈래) — §3.3 전이 표 밖은 409 RIDER_TRANSITION_NOT_ALLOWED ──
+
+    /**
+     * 표 밖 전이 4종 — 같은 상태 재요청(boarded→boarded) · 표에 없는 방향(alighted→boarded ·
+     * no_show→alighted · boarded→no_show). FEATURE_SPEC §3.3 이 허용하는 것은
+     * waiting→boarded · waiting→no_show · boarded→alighted 셋뿐이라, 그 밖은 되돌리기(§4.7)를
+     * 먼저 거쳐야 한다 — 상태·이력 모두 그대로여야 한다.
+     */
+    @ParameterizedTest(name = "{0} → {1} 는 409 RIDER_TRANSITION_NOT_ALLOWED")
+    @CsvSource({ "boarded, boarded", "alighted, boarded", "no_show, alighted", "boarded, no_show" })
+    @DisplayName("Ruling345 — §3.3 전이 표 밖 요청은 409 RIDER_TRANSITION_NOT_ALLOWED 이고 상태·이력이 그대로다")
+    void 전이_표_밖_요청은_409이고_상태가_그대로다(String fromStatus, String targetStatus) throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long stopId = fixtures().stop(academyId, "37.500000", "127.000000");
+        long studentId = fixtures().student(academyId, "학생-전이표밖");
+        long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
+        long riderId = fixtures().runRider(runId, studentId, stopId);
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
+        entityManager.flush(); // clear() 전 flush 필수 — assignedManager 의 계정 연결 UPDATE 가 아직 미반영 상태라 지우면 사라진다.
+        jdbcTemplate.update("UPDATE run_rider SET status = ? WHERE id = ?", fromStatus, riderId);
+        entityManager.clear();
+
+        mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId))
+                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(statusUpdateBody(targetStatus, "manual", UUID.randomUUID(), now)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("RIDER_TRANSITION_NOT_ALLOWED"));
+
+        entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM run_rider WHERE id = ?", String.class, riderId))
+                .as("①거부됐으니 상태가 그대로여야 한다").isEqualTo(fromStatus);
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM rider_status_history WHERE run_rider_id = ?",
+                Integer.class, riderId)).as("②이력 행이 새로 생기지 않는다").isEqualTo(0);
     }
 
     /**

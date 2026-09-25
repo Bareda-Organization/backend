@@ -256,6 +256,11 @@ public enum ErrorCode {
     // 제한(REVERT_WINDOW_CLOSED 류 이름)이 아니라 "이미 지나간 상태" 하나로 결정되므로 상태를
     // 가리키는 이름을 쓴다.
     STOP_ALREADY_DEPARTED(HttpStatus.CONFLICT, "이미 승하차지를 떠나 되돌릴 수 없습니다"),
+    // 승하차 처리(§4.6)가 FEATURE_SPEC §3.3 전이 표(waiting→boarded · waiting→no_show ·
+    // boarded→alighted) 밖의 상태를 요청받았을 때(Ruling 345) — 같은 상태 재요청도 포함한다. 표
+    // 밖으로 가려면 되돌리기(§4.7)가 먼저다. 422 가 아니라 409 인 이유는 STOP_ALREADY_DEPARTED 와
+    // 같다 — 요청 형식이 아니라 탑승자의 현재 상태가 막는다.
+    RIDER_TRANSITION_NOT_ALLOWED(HttpStatus.CONFLICT, "허용되지 않는 상태 전이입니다"),
     // ── 조회 · 명단(Phase 9) ─────────────────────────────────────────────────────
     // 매니저 앱의 명단·경로 조회(§4.2·§4.3)는 확정 전(idle) 회차를 대상 밖으로 둔다 — 명단·경로가
     // run_stop·run_rider 확정 시점에야 채워지므로, idle 상태에서 열면 빈 배열이 "아직 없다" 인지

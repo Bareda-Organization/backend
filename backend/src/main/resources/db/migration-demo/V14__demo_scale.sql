@@ -208,6 +208,9 @@ SELECT l.leg_id, l.academy_id, l.bus_id, l.weekday, l.direction,
        40, true, now(), now()
 FROM demo_leg l;
 
+-- ⚠ 한계(BR-139, Ruling 346) — V2 와 같은 식이다: `service_date` 는 적용 시각의 한국 날짜,
+-- `depart_time` 은 적용 시각 기준 상대값. 이 시드는 오프셋이 최대 29분이라 자정 근접(23:31~
+-- 23:59 KST) 적용일 때만 두 값의 한국 날짜가 갈린다 — V2 만큼 넓은 창은 아니지만 근거는 같다.
 INSERT INTO run (id, academy_id, bus_id, schedule_id, service_date, direction, depart_time, confirm_at,
                   status, origin_name, destination_name, est_duration_min, created_at, updated_at)
 OVERRIDING SYSTEM VALUE

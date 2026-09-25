@@ -61,7 +61,7 @@ public class DriverRunController {
         return ApiResponse.ok(runArrivalCommandService.arrive(requester, runId, stopId));
     }
 
-    /** 노선 변경 확인 응답(§4.11, RUN-07·M-04) — {@code change_ids[]} 는 요청에 와도 쓰지 않는다(전건 확인). */
+    /** 노선 변경 확인 응답(§4.11, RUN-07·M-04) — 요청 본문 없음, 현재 노선 버전 단위 전건 확인(Ruling 344). */
     @Operation(summary = "노선 변경 확인 응답 (RUN-07, M-04)")
     @PostMapping("/{runId}/ack-changes")
     public ApiResponse<RunAckChangesResponse> ackChanges(@AuthenticationPrincipal AuthUser requester,
