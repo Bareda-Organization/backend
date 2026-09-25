@@ -35,7 +35,7 @@ import src.backend.run.roster.ProjectedRosterReader;
 
 /**
  * 확정 배치의 짧은 쓰기 트랜잭션 — {@link RunConfirmationService#confirmOne} 이 트랜잭션 밖에서
- * 계산까지 마친 결과를 받아 "확정 표시 + 4종 산출물 저장 + 이벤트 발행" 만 한 트랜잭션으로 묶는다.
+ * 계산까지 마친 결과를 받아 "확정 표시 + 4종 산출물 저장 + 동승자 자동 배정 + 이벤트 발행" 만 한 트랜잭션으로 묶는다.
  *
  * <p>별도 빈으로 분리한 이유는 self-invocation 때문이다 — {@code RunConfirmationService} 안의
  * 메서드로 두면 그 클래스 자신을 통한 호출이라 {@code @Transactional} 프록시를 거치지 않는다.
@@ -66,6 +66,8 @@ public class RunConfirmationPersistence {
     private final RunTransferRepository runTransferRepository;
 
     private final ProjectedRosterReader rosterReader;
+
+    private final AttendantAutoAssignment attendantAutoAssignment;
 
     private final ApplicationEventPublisher eventPublisher;
 
@@ -119,6 +121,9 @@ public class RunConfirmationPersistence {
             runTransferRepository.markApplied(roster.incomingTransfers().stream().map(RunTransfer::getId).toList(),
                     confirmedAt);
         }
+
+        // 노선 확정 알림보다 먼저 — 자동 배정된 동승자도 확정 노선 알림(route_changed)의 수신자가 된다.
+        attendantAutoAssignment.assignIfVacant(run, computation.estDurationMin(), confirmedAt);
 
         eventPublisher.publishEvent(
                 new RunRouteConfirmedEvent(run.getId(), run.getAcademyId(), run.getBusId(), confirmedAt));

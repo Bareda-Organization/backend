@@ -31,6 +31,9 @@ public interface ManagerRepository extends JpaRepository<Manager, Long> {
      */
     Optional<Manager> findByIdAndAcademyIdAndRoleAndDeletedAtIsNull(Long id, Long academyId, ManagerRole role);
 
+    /** 동승자 자동 배정(Ruling 330)의 후보 — 그 학원의 삭제되지 않은 그 역할 매니저, 등록 순. */
+    List<Manager> findAllByAcademyIdAndRoleAndDeletedAtIsNullOrderByIdAsc(Long academyId, ManagerRole role);
+
     /**
      * 한 학원의 매니저 목록·검색(MGR-01, §5.13 {@code ?q=}) — 학원 조건이 <b>쿼리에 고정</b>돼 있다.
      *
