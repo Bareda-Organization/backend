@@ -183,8 +183,9 @@ public class RoutePreviewAssembler {
      * 그 정도로 "영향" 을 넓히면 승인 화면이 전원을 영향 학생으로 표시해 이 필드가 무의미해진다 —
      * 정차 위치·순서가 실제로 바뀐 학생만 추린다.
      */
-    public List<AffectedStudentResponse> affectedStudentsOf(Long targetStudentId, String targetStudentName,
-            List<RunRider> riders, Map<Long, Integer> beforeSeq, Map<Long, Integer> afterSeq) {
+    public List<AffectedStudentResponse> affectedStudentsOf(Long academyId, Long targetStudentId,
+            String targetStudentName, List<RunRider> riders, Map<Long, Integer> beforeSeq,
+            Map<Long, Integer> afterSeq) {
         Set<Long> changedStopIds = changedStopIdsOf(beforeSeq, afterSeq);
         List<Long> affectedIds = riders.stream()
                 .filter(rider -> rider.getStatus() != RiderStatus.ABSENT)
@@ -195,7 +196,8 @@ public class RoutePreviewAssembler {
                 .toList();
         // 이름은 한 번에 읽는다 — 영향 학생마다 조회하면 미리보기 한 번에 조회가 명단 크기만큼 는다(BR-134).
         Map<Long, String> names = new HashMap<>();
-        studentRepository.findAllById(affectedIds).forEach(student -> names.put(student.getId(), student.getName()));
+        studentRepository.findAllByAcademyIdAndIdIn(academyId, affectedIds)
+                .forEach(student -> names.put(student.getId(), student.getName()));
         Map<Long, String> byId = new LinkedHashMap<>();
         byId.put(targetStudentId, targetStudentName);
         affectedIds.forEach(studentId -> byId.put(studentId, names.get(studentId)));

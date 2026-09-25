@@ -34,13 +34,13 @@ class RoutePreviewAssemblerTest {
     void 영향_학생_이름은_한_번에_읽는다() {
         Student a = student(2L, "학생A");
         Student b = student(3L, "학생B");
-        given(studentRepository.findAllById(any())).willReturn(List.of(a, b));
+        given(studentRepository.findAllByAcademyIdAndIdIn(any(), any())).willReturn(List.of(a, b));
         given(studentRepository.findById(2L)).willReturn(Optional.of(a));
         given(studentRepository.findById(3L)).willReturn(Optional.of(b));
         List<RunRider> riders = List.of(RunRider.uponConfirmation(10L, 2L, 100L), RunRider.uponConfirmation(10L, 3L,
                 101L));
 
-        List<AffectedStudentResponse> affected = assembler.affectedStudentsOf(1L, "대상", riders,
+        List<AffectedStudentResponse> affected = assembler.affectedStudentsOf(1L, 1L, "대상", riders,
                 Map.of(100L, 1, 101L, 2), Map.of(100L, 2, 101L, 1));
 
         assertThat(affected).extracting(AffectedStudentResponse::name).containsExactly("대상", "학생A", "학생B");

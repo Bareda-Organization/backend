@@ -250,7 +250,8 @@ public class ApprovalQueryService {
         ApprovalCapacityResponse capacity = new ApprovalCapacityResponse(bus.getStudentCapacity(),
                 roster.studentIds().size());
 
-        List<AffectedStudentResponse> affectedStudents = routePreviewAssembler.affectedStudentsOf(cr.getStudentId(),
+        List<AffectedStudentResponse> affectedStudents = routePreviewAssembler.affectedStudentsOf(academyId,
+                cr.getStudentId(),
                 summary.studentName(), riders, beforeSeq, afterSeq);
 
         return ApprovalDetailResponse.of(summary, routePreview, run.getDepartTime(),
