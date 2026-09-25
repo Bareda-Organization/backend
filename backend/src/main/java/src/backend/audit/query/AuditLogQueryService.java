@@ -81,8 +81,8 @@ public class AuditLogQueryService {
      * 방어 목적. {@code academy_id} 가 {@code null} 인 행이 페이지에 섞이면 호출부가 그 키로
      * {@code get(null)} 을 하는데, {@code Map.of()} 는 {@code null} 키 조회 자체를 거부해 NPE 를
      * 던진다({@link java.util.HashMap} 은 {@code null} 키를 그대로 받아 {@code null} 을 돌려준다).
-     * 지금의 {@code recordDataAccessRead} 호출부 4곳은 전부 {@code academyId} 를 구조적으로 채우므로
-     * 실제로 닿지는 않지만, 그 전제가 깨지는 순간을 대비해 남겨 둔다.
+     * 지금의 {@code data_access} 적재 지점(L3 조회 · 강제 확정 · 비밀번호 초기화)은 전부 {@code academyId} 를
+     * 채우므로 실제로 닿지는 않지만(강제 확정은 BR-129 전까지 비워 실제로 닿았다), 그 전제가 깨지는 순간을 대비해 남겨 둔다.
      */
     private Map<Long, String> academyNamesOf(List<AuditLog> logs) {
         List<Long> academyIds = logs.stream().map(AuditLog::getAcademyId).filter(id -> id != null).distinct().toList();

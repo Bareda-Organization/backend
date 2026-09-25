@@ -243,6 +243,11 @@ class AdminRunForceConfirmControllerTest {
                 .containsEntry("detail_reason", "기사 무응답으로 콘솔 강제 확정")
                 .containsEntry("detail_fallback_used", true)
                 .containsEntry("detail_route_version_id", actualVersionId);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT academy_id FROM audit_log WHERE target_type = 'run' AND target_id = ? ORDER BY id DESC LIMIT 1",
+                Long.class, runId))
+                .as("학원 필터 조회(§6.13 academy_id)에 나오려면 회차의 학원이 실려야 한다(BR-129)")
+                .isEqualTo(jdbcTemplate.queryForObject("SELECT academy_id FROM run WHERE id = ?", Long.class, runId));
     }
 
     /**

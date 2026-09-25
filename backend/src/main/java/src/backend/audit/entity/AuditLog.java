@@ -243,6 +243,7 @@ public class AuditLog {
      * {@code reason}, {@code fallback_used}, {@code route_version_id}. API_SPEC §6.14 감사 문장은
      * 조율자가 이 판정과 같은 내용으로 정본을 정정한다.
      *
+     * @param academyId      회차의 학원 — 없으면 §6.13 {@code academy_id} 필터 조회에서 빠진다(BR-129)
      * @param actorAccountId 강제 확정을 실행한 메인 관리자
      * @param actorLoginId   그 관리자의 로그인 아이디 스냅샷
      * @param runId          강제 확정된 회차 — {@code target_id}
@@ -250,9 +251,10 @@ public class AuditLog {
      * @param fallbackUsed   실제로 저장된 {@code route_version.fallback_used} 값
      * @param routeVersionId 신규 생성된 {@code route_version} 의 id
      */
-    public static AuditLog forRunForceConfirm(Long actorAccountId, String actorLoginId, Long runId, String reason,
-            boolean fallbackUsed, Long routeVersionId, OffsetDateTime occurredAt) {
+    public static AuditLog forRunForceConfirm(Long academyId, Long actorAccountId, String actorLoginId, Long runId,
+            String reason, boolean fallbackUsed, Long routeVersionId, OffsetDateTime occurredAt) {
         AuditLog log = new AuditLog(AuditCategory.DATA_ACCESS, AuditAction.UPDATE, occurredAt);
+        log.academyId = academyId;
         log.actorAccountId = actorAccountId;
         log.actorLoginId = actorLoginId;
         log.targetType = TARGET_TYPE_RUN;
