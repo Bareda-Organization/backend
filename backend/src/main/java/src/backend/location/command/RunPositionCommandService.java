@@ -64,6 +64,11 @@ public class RunPositionCommandService {
 
     private final Clock clock;
 
+    /**
+     * 기사 단말의 위치 1건을 적재하고 {@link RunPositionReceivedEvent} 를 발행한다 — 배치 기사인지 ·
+     * 회차 존재 · {@code moving} 상태 순으로 거절 조건을 확인한 뒤(API_SPEC §4.12), Redis 갱신은
+     * 이벤트 구독자가 커밋 후에 한다.
+     */
     public void receive(AuthUser requester, Long runId, RunPositionRequest request) {
         runAssignmentAccess.assertAssignedDriver(requester, runId);
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())

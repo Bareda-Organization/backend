@@ -43,6 +43,7 @@ public class PositionBroadcastListener {
 
     private final WebSocketBroadcastGateway gateway;
 
+    /** 위치 1건을 채널별로 다른 페이로드 타입으로 갈라 방송한다(관제 쪽만 {@code eta} 포함). */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcast(RunPositionReceivedEvent event) {
         List<Long> studentIds = runRiderRepository.findAllByRunId(event.runId()).stream()

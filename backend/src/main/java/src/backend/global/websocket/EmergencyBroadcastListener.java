@@ -39,6 +39,7 @@ public class EmergencyBroadcastListener {
 
     private final WebSocketBroadcastGateway gateway;
 
+    /** 비상 신고 접수를 관계자·관리자 채널에만 방송한다(학생 채널 제외). */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcastRaised(EmergencyRaisedEvent event) {
         RaisedPayload payload = new RaisedPayload(event.emergencyId(), event.type().name().toLowerCase(Locale.ROOT),
@@ -46,6 +47,7 @@ public class EmergencyBroadcastListener {
         sendToStaffAndAdmin(event.academyId(), event.runId(), RAISED_EVENT, event.raisedAt(), payload);
     }
 
+    /** 비상 신고 확인을 발신자가 보는 매니저 채널에만 방송한다. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcastAcked(EmergencyAckedEvent event) {
         AckedPayload payload = new AckedPayload(event.emergencyId(), event.ackedByName(), event.ackedAt());
@@ -53,6 +55,7 @@ public class EmergencyBroadcastListener {
                 payload);
     }
 
+    /** 비상 신고 취소를 관계자·관리자 채널에만 방송한다(학생 채널 제외). */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcastCanceled(EmergencyCanceledEvent event) {
         CanceledPayload payload = new CanceledPayload(event.emergencyId(), event.busNo(), event.canceledAt());

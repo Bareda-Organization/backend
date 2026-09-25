@@ -33,6 +33,7 @@ public class WebSocketPublishMetrics {
                 .register(registry);
     }
 
+    /** 성공한 발행 1건의 이벤트 발생→발행 완료 지연을 기록한다. */
     public void recordLatency(Duration latency) {
         latencyTimer.record(latency);
     }

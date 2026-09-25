@@ -57,14 +57,17 @@ public class StubMapRouteLoadMetrics {
                 .register(registry);
     }
 
+    /** 격벽 상한 초과로 거절된 호출 1건을 호출자별로 센다. */
     public void recordThrottled(CallerPolicy caller) {
         throttledCounter(caller).increment();
     }
 
+    /** 주입 지연이 호출자 타임아웃을 넘겨 모사된 시간 초과 1건을 센다. */
     public void recordTimeout() {
         timeoutCounter.increment();
     }
 
+    /** failure-rate 로 뽑힌 모사 실패 1건을 센다. */
     public void recordFailureInjected() {
         failureInjectedCounter.increment();
     }

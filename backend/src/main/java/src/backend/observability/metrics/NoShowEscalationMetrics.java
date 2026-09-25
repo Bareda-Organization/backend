@@ -20,6 +20,7 @@ public class NoShowEscalationMetrics {
                 .register(registry);
     }
 
+    /** 에스컬레이션 1건을 카운터에 반영한다. */
     public void recordEscalated() {
         counter.increment();
     }

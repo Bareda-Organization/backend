@@ -27,6 +27,7 @@ public class NotificationPushMetrics {
                 .register(registry);
     }
 
+    /** {@code failed} 로 굳은 발송 1건을 카운터에 반영한다. */
     public void recordFailure() {
         failureCounter.increment();
     }

@@ -37,6 +37,7 @@ public class StompSessionMetrics {
                 .register(registry);
     }
 
+    /** STOMP CONNECT 성공 세션 ID 를 활성 집합에 더한다. */
     @EventListener
     public void onConnected(SessionConnectedEvent event) {
         String sessionId = SimpMessageHeaderAccessor.getSessionId(event.getMessage().getHeaders());

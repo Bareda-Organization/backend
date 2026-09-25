@@ -54,6 +54,7 @@ public class RunPositionRedisListener {
 
     private final StringRedisTemplate stringRedisTemplate;
 
+    /** 커밋된 위치 수신 이벤트로 Redis 최신 좌표 키를 덮어쓴다 — 실패는 삼키고 다음 송신에 맡긴다. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void updateRedisAfterCommit(RunPositionReceivedEvent event) {
         try {

@@ -40,6 +40,7 @@ public class ApprovalRequestedBroadcastListener {
 
     private final WebSocketBroadcastGateway gateway;
 
+    /** 커밋 후 학생·정차지·마감을 채워 {@code approval_requested} 를 학원 관제 채널에 방송한다. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcast(ApprovalRequestedEvent event) {
         String studentName = studentRepository.findById(event.studentId())
