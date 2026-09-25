@@ -22,8 +22,6 @@ import src.backend.run.access.RunAssignmentAccess;
 import src.backend.student.access.GuardianChildAccess;
 import src.backend.student.repository.StudentRepository;
 
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.JwtException;
 
 /**
  * STOMP CONNECT 인증과 SUBSCRIBE 인가를 한 곳에서 처리한다(ARCHITECTURE §5.1 3층 — 계정 상태 게이트 ·
@@ -60,7 +58,8 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         // 원본 message 에 반영되지 않는다. 인바운드 STOMP 채널의 메시지는 mutable 접근자와 함께
         // 만들어지므로, getAccessor 로 "그 접근자"를 그대로 받아와야 setUser 가 세션에 실제로 남는다.
         StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
-        if (StompCommand.CONNECT.equals(accessor.getCommand())) {
+        // STOMP 는 CONNECT 의 별칭 명령이다 — 둘 중 하나만 보면 다른 쪽으로 인증 없이 세션이 선다(BR-112)
+        if (StompCommand.CONNECT.equals(accessor.getCommand()) || StompCommand.STOMP.equals(accessor.getCommand())) {
             authenticateConnect(accessor);
         } else if (StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
             authorizeSubscribe(accessor);
@@ -86,18 +85,9 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         String header = accessor.getFirstNativeHeader(HEADER);
         String token = (header != null && header.startsWith(PREFIX)) ? header.substring(PREFIX.length()) : null;
         if (token == null) {
-            throw new IllegalArgumentException("WebSocket 연결에는 Authorization 헤더가 필요합니다");
+            throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
-        Claims claims;
-        try {
-            claims = tokenProvider.parse(token);
-            if (!tokenProvider.isAccessToken(claims)) {
-                throw new IllegalArgumentException("access 토큰이 아닙니다");
-            }
-        } catch (JwtException e) {
-            throw new IllegalArgumentException("유효하지 않은 토큰입니다", e);
-        }
-        AuthUser user = tokenProvider.resolveAuthUser(claims);
+        AuthUser user = tokenProvider.authenticateAccess(token);
         assertActiveAccount(user);
         accessor.setUser(user);
     }

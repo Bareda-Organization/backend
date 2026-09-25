@@ -9,6 +9,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -43,6 +44,9 @@ class StompChannelAuthorizationTest {
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
 
+    @Value("${jwt.secret}")
+    private String jwtSecret;
+
     /**
      * 목표 8(Ruling 87 이월) — REST 의 pending 허용 목록에 WebSocket 대응 항목이 없어 CONNECT 자체를
      * 전면 거부한다(근거는 {@link StompAuthChannelInterceptor#assertActiveAccount} 의 판단 근거 참고).
@@ -66,6 +70,59 @@ class StompChannelAuthorizationTest {
             assertThat(outcome).as("CONNECT 자체가 거부돼야 한다 — CONNECTED 가 오면 안 된다")
                     .startsWith("ERROR");
             assertThat(outcome).contains("AUTH_PENDING");
+        } finally {
+            session.close();
+        }
+    }
+
+    /**
+     * BR-112 — CONNECT 거부도 REST 와 같은 어휘로 알린다(API_SPEC §8.1). 만료는 "재발급 후 재연결",
+     * 부재·위조는 "로그인부터" 로 클라이언트의 다음 동작이 갈린다.
+     */
+    @Test
+    void 토큰_없는_CONNECT_는_UNAUTHORIZED_로_거부된다() throws Exception {
+        assertThat(connectOutcome("CONNECT", null)).startsWith("ERROR").contains("message:UNAUTHORIZED");
+    }
+
+    /** CONNECT 의 별칭인 STOMP 명령으로 연결해도 같은 인증을 거친다 — 명령 이름만 보고 분기하면 인증이 빠진다. */
+    @Test
+    void STOMP_명령으로_연결해도_토큰이_없으면_UNAUTHORIZED_로_거부된다() throws Exception {
+        assertThat(connectOutcome("STOMP", null)).startsWith("ERROR").contains("message:UNAUTHORIZED");
+    }
+
+    @Test
+    void 만료된_access_토큰의_CONNECT_는_TOKEN_EXPIRED_로_거부된다() throws Exception {
+        String expired = new JwtTokenProvider(jwtSecret, -60, 60)
+                .createAccessToken(1L, 1L, Role.STAFF, AccountStatus.ACTIVE);
+
+        assertThat(connectOutcome("CONNECT", expired)).startsWith("ERROR").contains("message:TOKEN_EXPIRED");
+    }
+
+    @Test
+    void 다른_키로_서명한_토큰의_CONNECT_는_UNAUTHORIZED_로_거부된다() throws Exception {
+        String forged = new JwtTokenProvider("forged-secret-forged-secret-forged-secret-0123", 900, 60)
+                .createAccessToken(1L, 1L, Role.STAFF, AccountStatus.ACTIVE);
+
+        assertThat(connectOutcome("CONNECT", forged)).startsWith("ERROR").contains("message:UNAUTHORIZED");
+    }
+
+    @Test
+    void refresh_토큰의_CONNECT_는_UNAUTHORIZED_로_거부된다() throws Exception {
+        String refresh = tokenProvider.createRefreshToken(1L, 1L, Role.STAFF, AccountStatus.ACTIVE);
+
+        assertThat(connectOutcome("CONNECT", refresh)).startsWith("ERROR").contains("message:UNAUTHORIZED");
+    }
+
+    /** 연결 프레임 하나를 보내고 서버의 첫 응답 프레임을 돌려준다. {@code token} 이 null 이면 헤더를 뺀다. */
+    private String connectOutcome(String command, String token) throws Exception {
+        BlockingQueue<String> received = new LinkedBlockingQueue<>();
+        WebSocketSession session = open(received);
+        try {
+            String frame = token == null
+                    ? frame(command, "accept-version:1.2", "host:localhost")
+                    : frame(command, "accept-version:1.2", "host:localhost", "Authorization:Bearer " + token);
+            session.sendMessage(new TextMessage(frame));
+            return take(received);
         } finally {
             session.close();
         }

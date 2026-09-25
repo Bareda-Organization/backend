@@ -10,12 +10,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
 
 /**
  * JWT 발급·검증 담당(jjwt 0.12.6).
@@ -87,6 +90,25 @@ public class JwtTokenProvider {
     public Claims parse(String token) {
         Jws<Claims> jws = Jwts.parser().verifyWith(key).build().parseSignedClaims(token);
         return jws.getPayload();
+    }
+
+    /**
+     * Bearer 로 받은 access 토큰을 인증 주체로 바꾼다 — REST 필터와 STOMP CONNECT 가 같은 거부 어휘를
+     * 쓰게 한다(API_SPEC §8.1). 만료는 {@link ErrorCode#TOKEN_EXPIRED}(재발급 시도 자리), 위조·refresh
+     * 토큰·클레임 누락은 {@link ErrorCode#UNAUTHORIZED}(로그인부터 할 자리).
+     */
+    public AuthUser authenticateAccess(String token) {
+        try {
+            Claims claims = parse(token);
+            if (!isAccessToken(claims)) {
+                throw new BusinessException(ErrorCode.UNAUTHORIZED);
+            }
+            return resolveAuthUser(claims);
+        } catch (ExpiredJwtException e) {
+            throw new BusinessException(ErrorCode.TOKEN_EXPIRED);
+        } catch (JwtException | IllegalArgumentException e) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED);
+        }
     }
 
     public boolean isAccessToken(Claims claims) {
