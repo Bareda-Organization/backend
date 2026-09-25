@@ -1,4 +1,4 @@
-package src.backend.notification.domain.impl;
+package src.backend.notification.domain.spec;
 
 /**
  * 승차·하차 알림 문구의 재료(BRD-01·02, API_SPEC §4.6) — {@link RiderStatusChangedComposer} 입력.

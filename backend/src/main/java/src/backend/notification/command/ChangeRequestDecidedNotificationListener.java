@@ -7,7 +7,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
-import src.backend.notification.domain.impl.ChangeDecidedSubject;
+import src.backend.notification.domain.spec.ChangeDecidedSubject;
 import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.notification.entity.NotificationType;

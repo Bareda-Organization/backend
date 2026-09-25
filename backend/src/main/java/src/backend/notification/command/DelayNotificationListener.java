@@ -12,7 +12,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Role;
-import src.backend.notification.domain.impl.DelaySubject;
+import src.backend.notification.domain.spec.DelaySubject;
 import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.notification.entity.NotificationType;
@@ -50,6 +50,7 @@ public class DelayNotificationListener {
 
     private final BusRepository busRepository;
 
+    /** 지연 신고(NTF-06, §4.9) — 이벤트가 이미 나른 관계자·학부모·학생 3집합에 각각 적재한다. */
     @EventListener
     public void appendDelayNotice(DelayRequestedEvent event) {
         DelaySubject subject = new DelaySubject(event.reason(), event.minutes(), event.message());

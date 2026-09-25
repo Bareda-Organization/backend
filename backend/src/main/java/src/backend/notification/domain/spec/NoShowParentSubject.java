@@ -1,4 +1,4 @@
-package src.backend.notification.domain.impl;
+package src.backend.notification.domain.spec;
 
 /**
  * 미승차 학부모 알림 문구의 재료(BRD-04, API_SPEC §4.6) — {@link NoShowParentComposer} 입력.

@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 import src.backend.notification.domain.impl.RiderStatusChangedComposer;
-import src.backend.notification.domain.impl.RiderStatusChangedSubject;
+import src.backend.notification.domain.spec.RiderStatusChangedSubject;
 import src.backend.notification.domain.spec.NotificationMessage;
 
 /**

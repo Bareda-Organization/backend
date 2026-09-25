@@ -4,6 +4,7 @@ import org.springframework.stereotype.Component;
 
 import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
+import src.backend.notification.domain.spec.RiderStatusChangedSubject;
 
 /**
  * 승차·하차 학부모 알림(BRD-01·02, API_SPEC §4.6) 문구 — 문구에 자녀 이름을 싣는다(ATT-03, P-02).
