@@ -3,8 +3,10 @@ package src.backend.account.command;
 import java.net.InetAddress;
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +42,13 @@ import src.backend.global.security.JwtTokenProvider;
 @Service
 @RequiredArgsConstructor
 public class LoginCommandService {
+
+    /**
+     * 미등록 아이디의 대조 상대 — 존재 계정과 같은 BCrypt 계산을 거치게 해 응답 시간으로 계정 존재가 드러나지 않게
+     * 한다(BR-130). 어떤 원문과도 맞지 않도록 버리는 난수로 만든다. 운영 인코더와 같은 BCrypt 기본 강도(10)다.
+     */
+    private static final String UNKNOWN_ACCOUNT_HASH =
+            new BCryptPasswordEncoder().encode(UUID.randomUUID().toString());
 
     private final AccountRepository accountRepository;
     private final AcademyRepository academyRepository;
@@ -102,6 +111,7 @@ public class LoginCommandService {
         String ip = resolveClientIp();
         Account account = accountRepository.findByLoginIdForUpdate(loginId).orElse(null);
         if (account == null) {
+            passwordEncoder.matches(rawPassword, UNKNOWN_ACCOUNT_HASH);
             auditLogRepository.save(AuditLog.forLoginFail(null, null, loginId, ip, now));
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS,
                     new LoginFailureDetail(Account.REMAINING_AFTER_FIRST_FAILURE));
