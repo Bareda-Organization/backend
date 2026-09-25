@@ -1774,7 +1774,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 계정 미연결 학생은 연락처·주소가 비어 있는 것이 정상이며, 관계자 화면이 그 상태를 드러낸다.
 
-**상세 응답**은 `guardians[]`(`guardian_id` · `name` · `phone`, 먼저 연결된 차례)를 싣는다(Ruling 326 — 전에는 대표 1명의 `guardian_phone`). 목록의 호차·승하차지 칸(`bus_no` · `stop_name`)과 좌석(`seat_no`)은 **Ruling 326 으로 뺐다**.
+**상세 응답**은 `guardians[]`(`guardian_id` · `name` · `phone` · `account_id`, 먼저 연결된 차례)를 싣는다(Ruling 326 — 전에는 대표 1명의 `guardian_phone`). 학생 본인 계정은 `account_id`(string, 가입 연결 전이면 `null`) — 두 `account_id` 는 관리자 경유 비밀번호 초기화(§5.22 · `Ruling 329`)의 대상이다. 목록의 호차·승하차지 칸(`bus_no` · `stop_name`)과 좌석(`seat_no`)은 **Ruling 326 으로 뺐다**.
 
 **에러** — `404 STUDENT_NOT_FOUND`(`GET` 상세 · `PATCH` · `DELETE` 대상 부재 · 타 학원 — 존재 비노출, Ruling 163)
 
@@ -1815,6 +1815,8 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `work_hours` | object | ○ | 근무 시간. 배치 충돌 검증의 근거 (MGR-06) |
 
 역할 변경 시 매니저 앱 화면 구성이 함께 변경. 계정 연결은 가입 승인(§5.2)의 `link.manager_id`.
+
+**응답** — 위 필드 + `id` · `account_id`(string, 연결된 계정 — 가입 연결 전이면 `null`. 관리자 경유 비밀번호 초기화 §5.22 의 대상, `Ruling 329`).
 
 **에러** — `409 MANAGER_ASSIGNED`(회차에 배치된 매니저 삭제) · `404 MANAGER_NOT_FOUND`(`PATCH` · `DELETE` 대상 부재 · 타 학원 — 존재 비노출, Ruling 163)
 

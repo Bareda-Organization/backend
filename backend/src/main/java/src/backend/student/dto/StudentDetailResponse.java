@@ -35,22 +35,28 @@ import src.backend.student.entity.Student;
  */
 public record StudentDetailResponse(String studentId, String name, String studentPhone, String photoUrl,
         String gender, LocalDate birthDate, String grade, String className, String note,
-        boolean canGoAlone, List<GuardianContact> guardians) {
+        boolean canGoAlone, List<GuardianContact> guardians, String accountId) {
 
-    /** 보호자 한 명 — {@code guardianId} 는 문자열이다(Ruling 171, {@code studentId} 와 같은 이유). */
-    public record GuardianContact(String guardianId, String name, String phone) {
+    /**
+     * 보호자 한 명 — {@code guardianId} 는 문자열이다(Ruling 171, {@code studentId} 와 같은 이유).
+     * {@code accountId} 는 관리자 경유 비밀번호 초기화(§5.22 · Ruling 329)의 대상이다.
+     */
+    public record GuardianContact(String guardianId, String name, String phone, String accountId) {
 
         public static GuardianContact of(Guardian guardian) {
-            return new GuardianContact(String.valueOf(guardian.getId()), guardian.getName(), guardian.getPhone());
+            return new GuardianContact(String.valueOf(guardian.getId()), guardian.getName(), guardian.getPhone(),
+                    String.valueOf(guardian.getAccountId()));
         }
     }
 
+    /** {@code accountId} 는 학생 본인 계정 — 가입 연결 전(AUTH-11)이면 {@code null}. §5.22 초기화의 대상이다. */
     public static StudentDetailResponse of(Student student, List<Guardian> guardians) {
         return new StudentDetailResponse(String.valueOf(student.getId()), student.getName(),
                 student.getStudentPhone(),
                 student.getPhotoUrl(), lowerCase(student), student.getBirthDate(), student.getGrade(),
                 student.getClassName(), student.getNote(), student.isCanGoAlone(),
-                guardians.stream().map(GuardianContact::of).toList());
+                guardians.stream().map(GuardianContact::of).toList(),
+                student.getAccountId() == null ? null : String.valueOf(student.getAccountId()));
     }
 
     /** 미입력 성별은 {@code null} 로 남긴다 — 빈 문자열로 바꾸면 "모름" 과 "값이 있음" 이 섞인다. */

@@ -595,6 +595,8 @@ class StaffStudentControllerTest {
                 .andExpect(jsonPath("$.data.guardians.length()").value(1))
                 .andExpect(jsonPath("$.data.guardians[0].guardian_id").value("1"))
                 .andExpect(jsonPath("$.data.guardians[0].phone").value(보호자_계정_연락처()))
+                // 관리자 경유 비밀번호 초기화(§5.22 · Ruling 329)의 대상 식별자 — 시드 보호자 1 의 계정은 5
+                .andExpect(jsonPath("$.data.guardians[0].account_id").value("5"))
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("\"seat_no\""))));
     }
 
