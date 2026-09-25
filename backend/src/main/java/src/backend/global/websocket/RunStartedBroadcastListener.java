@@ -39,13 +39,20 @@ public class RunStartedBroadcastListener {
                 .map(RunRider::getStudentId)
                 .distinct()
                 .toList();
-        Payload payload = new Payload(RunStatus.MOVING.name().toLowerCase(Locale.ROOT), event.startedAt(),
-                event.autoBoardedCount());
+        String runStatus = RunStatus.MOVING.name().toLowerCase(Locale.ROOT);
         gateway.broadcastToRunChannels(event.runId(), event.academyId(), studentIds, EVENT, event.startedAt(),
-                payload);
+                new StudentPayload(runStatus, event.startedAt()),
+                new Payload(runStatus, event.startedAt(), event.autoBoardedCount()));
     }
 
-    /** {@code run_status}(고정값 {@code moving}) · {@code started_at} · {@code auto_boarded_count}. */
+    /**
+     * {@code run_status}(고정값 {@code moving}) · {@code started_at} · {@code auto_boarded_count}
+     * — 매니저·관제·관리자 채널.
+     */
     private record Payload(String runStatus, OffsetDateTime startedAt, int autoBoardedCount) {
+    }
+
+    /** 학생 채널용 — 인원수를 싣지 않는다(C-08 "탑승 인원 미표시", Ruling 335). */
+    private record StudentPayload(String runStatus, OffsetDateTime startedAt) {
     }
 }
