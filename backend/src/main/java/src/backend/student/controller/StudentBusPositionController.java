@@ -36,6 +36,7 @@ public class StudentBusPositionController {
 
     private final StudentBusPositionQueryService studentBusPositionQueryService;
 
+    /** 학생 1명의 오늘 회차 버스 위치를 돌려준다(§3.11). */
     @CanReadStudentBusPosition
     @Operation(summary = "실시간 버스 위치 (LOC-02, P-07 · S-02)")
     @GetMapping

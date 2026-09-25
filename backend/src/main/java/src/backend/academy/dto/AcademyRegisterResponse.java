@@ -13,6 +13,7 @@ import src.backend.academy.entity.Academy;
 public record AcademyRegisterResponse(Long academyId, String code, String name, String region,
         List<AcademyWarning> warnings) {
 
+    /** 방금 등록한 학원과 저장을 막지 않은 경고를 §6.2 응답 모양으로 조립한다. */
     public static AcademyRegisterResponse from(Academy academy, List<AcademyWarning> warnings) {
         return new AcademyRegisterResponse(academy.getId(), academy.getCode(), academy.getName(),
                 academy.getRegion(), warnings);

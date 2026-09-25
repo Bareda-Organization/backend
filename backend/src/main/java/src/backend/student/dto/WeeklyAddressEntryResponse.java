@@ -25,6 +25,7 @@ public record WeeklyAddressEntryResponse(
         boolean verified,
         Long stopId) {
 
+    /** 저장된 한 칸을 §3.7 응답 항목으로 옮긴다 — 요일·방향은 소문자로 되돌린다. */
     public static WeeklyAddressEntryResponse from(WeeklyAddress address) {
         return new WeeklyAddressEntryResponse(
                 address.getWeekday().name().toLowerCase(Locale.ROOT),

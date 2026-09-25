@@ -17,6 +17,7 @@ import src.backend.academy.entity.Academy;
 public record AcademySummaryResponse(Long id, String code, String name, String region,
         long staffCount, long userCount, String status) {
 
+    /** 학원 엔티티와 집계값을 §6.1 목록 항목 하나로 조립한다. */
     public static AcademySummaryResponse from(Academy academy, long staffCount, long userCount) {
         return new AcademySummaryResponse(academy.getId(), academy.getCode(), academy.getName(),
                 academy.getRegion(), staffCount, userCount,

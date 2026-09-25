@@ -24,6 +24,7 @@ import src.backend.student.entity.Student;
  */
 public record StudentWithdrawalResponse(String studentId, OffsetDateTime deletedAt) {
 
+    /** 퇴원 처리된 학생의 식별자·퇴원 시각을 §5.11 DELETE 응답 모양으로 옮긴다. */
     public static StudentWithdrawalResponse from(Student student) {
         return new StudentWithdrawalResponse(String.valueOf(student.getId()), student.getDeletedAt());
     }

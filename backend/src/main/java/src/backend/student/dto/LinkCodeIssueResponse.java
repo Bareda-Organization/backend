@@ -13,6 +13,7 @@ import src.backend.student.entity.LinkCode;
  */
 public record LinkCodeIssueResponse(String code, OffsetDateTime expiresAt) {
 
+    /** 발급된 코드·만료 시각을 §3.3 응답 모양으로 옮긴다. */
     public static LinkCodeIssueResponse from(LinkCode linkCode) {
         return new LinkCodeIssueResponse(linkCode.getCode(), linkCode.getExpiresAt());
     }

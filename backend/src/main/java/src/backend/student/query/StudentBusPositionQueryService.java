@@ -61,6 +61,7 @@ public class StudentBusPositionQueryService {
 
     private final Clock clock;
 
+    /** 학생 1명의 오늘 회차 버스 위치(§3.11) — 오늘 회차가 없으면 {@code 404 RUN_NOT_FOUND}(W03-16). */
     public StudentBusPositionResponse position(AuthUser requester, Long studentId) {
         Student student = studentRunsAccess.resolve(requester, studentId);
         Run run = studentRunResolver.resolveForToday(student.getAcademyId(), student.getId())

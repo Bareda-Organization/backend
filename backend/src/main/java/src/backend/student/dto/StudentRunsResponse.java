@@ -16,10 +16,12 @@ import java.util.List;
  */
 public record StudentRunsResponse(List<Item> items) {
 
+    /** 회차 1건 — {@code riding}·{@code changeQuotaLeft} 는 명단 미생성 시 기본값으로 채운다(위 클래스 자바독). */
     public record Item(Long runId, String direction, String busNo, OffsetDateTime departTime, String runStatus,
             boolean confirmed, boolean riding, String riderStatus, Stop stop, int changeQuotaLeft) {
     }
 
+    /** 그 회차의 이 학생 승하차지. */
     public record Stop(Long stopId, String name, String address) {
     }
 }

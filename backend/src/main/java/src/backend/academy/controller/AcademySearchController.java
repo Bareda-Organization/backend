@@ -23,6 +23,7 @@ public class AcademySearchController {
 
     private final AcademySearchQueryService academySearchQueryService;
 
+    /** 학원명·학원 코드 양쪽 매칭으로 활성 학원을 찾는다 — 최대 20건(§2.1). */
     @PublicEndpoint
     @Operation(summary = "가입용 학원 검색 (AUTH-02)")
     @GetMapping("/academies/search")

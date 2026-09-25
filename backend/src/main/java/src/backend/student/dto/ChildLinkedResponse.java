@@ -14,6 +14,7 @@ import src.backend.student.entity.Student;
  */
 public record ChildLinkedResponse(String studentId, String name) {
 
+    /** 방금 연결된 학생의 식별자·이름을 §3.4 응답 모양으로 옮긴다. */
     public static ChildLinkedResponse from(Student student) {
         return new ChildLinkedResponse(String.valueOf(student.getId()), student.getName());
     }

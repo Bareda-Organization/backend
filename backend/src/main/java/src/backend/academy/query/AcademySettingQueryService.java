@@ -28,6 +28,7 @@ public class AcademySettingQueryService {
 
     private final AcademySettingRepository academySettingRepository;
 
+    /** 요청자 학원의 설정을 돌려준다 — 행이 없으면 기본값(3분)으로 자가 치유해 만든다. */
     @Transactional
     public AcademySettingResponse get(AuthUser requester) {
         requireStaff(requester);

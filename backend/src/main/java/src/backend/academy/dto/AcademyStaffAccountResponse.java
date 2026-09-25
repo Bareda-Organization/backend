@@ -16,6 +16,7 @@ import src.backend.account.entity.Account;
 public record AcademyStaffAccountResponse(Long accountId, String name, String loginId, String phone,
         String status) {
 
+    /** 관계자 행과 계정을 합쳐 §6.3 {@code staff_accounts[]} 항목 하나로 조립한다. */
     public static AcademyStaffAccountResponse from(AcademyStaff staff, Account account) {
         return new AcademyStaffAccountResponse(account.getId(), account.getName(), account.getLoginId(),
                 account.getPhone(), staff.getStatus().name().toLowerCase(Locale.ROOT));
