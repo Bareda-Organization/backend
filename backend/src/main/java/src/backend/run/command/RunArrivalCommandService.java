@@ -4,16 +4,24 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.PersistenceContext;
+
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.academy.entity.Academy;
+import src.backend.academy.repository.AcademyRepository;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
+import src.backend.boarding.event.RunEndedEvent;
 import src.backend.boarding.repository.RemainingRiderView;
 import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.global.common.enums.ChangeType;
 import src.backend.global.common.enums.Direction;
 import src.backend.location.proximity.StopDepartureService;
 import src.backend.global.error.BusinessException;
@@ -52,6 +60,9 @@ public class RunArrivalCommandService {
 
     private final RunRepository runRepository;
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     private final RunStopRepository runStopRepository;
 
     private final ConfirmedRouteRepository confirmedRouteRepository;
@@ -61,6 +72,8 @@ public class RunArrivalCommandService {
     private final StopRepository stopRepository;
 
     private final WaypointRepository waypointRepository;
+
+    private final AcademyRepository academyRepository;
 
     /**
      * 다음 승하차지 도착 시 이전 정차지에 거는 출발 강제 폴백(Ruling 308, 목표 7) — 위치 신호 유실·
@@ -75,7 +88,11 @@ public class RunArrivalCommandService {
 
     private final Clock clock;
 
-    public RunArriveResponse arrive(AuthUser requester, Long runId, Long stopId) {
+    /**
+     * @param runStopId 정차 항목 id({@code run_stop.id}) — 학생 승하차지 · 경유 지점 · 학원 항목을 한 값으로
+     *                  가리킨다(Ruling 327). 매니저 앱은 §4.2 명단의 {@code stop_id} 를 그대로 넘긴다
+     */
+    public RunArriveResponse arrive(AuthUser requester, Long runId, Long runStopId) {
         runAssignmentAccess.assertAssignedDriver(requester, runId);
         OffsetDateTime now = OffsetDateTime.now(clock);
         // 폴백(Ruling 308, 목표 7) — 이 새 도착 처리보다 먼저 도착했지만 아직 출발 판정이 안 된
@@ -83,53 +100,53 @@ public class RunArrivalCommandService {
         // claimDeparture 의 clearAutomatically 가 영속성 컨텍스트를 비우는데, 그 뒤에 로드한
         // 엔티티만 이 트랜잭션 끝까지 안전하게 관리된다(먼저 로드해 두면 이 호출이 그 엔티티를
         // detach 시켜, 그 뒤의 markArrived·finish 같은 변경이 커밋되지 않고 조용히 사라진다).
+        // 등원 학원 항목 도착이면 이 호출이 마지막 승차지까지 전부 출발시킨다 — 그래서 아래 자동
+        // 하차보다 먼저 일어나 그 승차지의 확정 결과가 "승차" 로 나간다(R15-T3 후속과 같은 순서).
         stopDepartureService.forceAllRemaining(runId, requester.academyId(), now);
 
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        // 회차 행을 잠그고 다시 읽은 뒤 판정한다(BR-041) — 같은 정차 항목 도착 두 건, 하원 최종 도착과 마지막
+        // 하차({@link RunCompletionService} 도 같은 행을 잠근다)가 겹쳐도 한쪽이 끝난 뒤에 세고 판정한다.
+        entityManager.refresh(run, LockModeType.PESSIMISTIC_WRITE);
         if (run.getStatus() != RunStatus.MOVING) {
             throw new BusinessException(ErrorCode.RUN_NOT_MOVING);
         }
 
-        Long routeVersionId = currentVersionIdOf(runId);
-        RunStop target = runStopRepository.findByRouteVersionIdAndStopId(routeVersionId, stopId)
+        List<RunStop> ordered = runStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeq(
+                currentVersionIdOf(runId), requester.academyId());
+        RunStop target = ordered.stream()
+                .filter(stop -> stop.getId().equals(runStopId))
+                .findFirst()
                 .orElseThrow(() -> new BusinessException(ErrorCode.STOP_NOT_FOUND));
         if (target.getArrivedAt() != null) {
             throw new BusinessException(ErrorCode.DUPLICATE_ARRIVE);
         }
         target.markArrived(now);
 
-        List<RunStop> ordered = runStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeq(routeVersionId,
-                requester.academyId());
-        boolean isFinal = isLastStop(ordered, target);
-        NextStopResponse nextStop = isFinal ? null : nextStopAfter(ordered, target);
+        boolean isFinal = isFinalStop(ordered, target);
+        RunStop next = isFinal ? null : nextStopAfter(ordered, target);
+        NextStopResponse nextStop = next == null ? null : new NextStopResponse(next.getId(), nameOf(run, next));
 
-        eventPublisher.publishEvent(new StopArrivedEvent(runId, run.getAcademyId(), target.getStopId(),
-                target.getSeq(), nameOf(target), now, nextStop == null ? null : nextStop.stopId()));
+        eventPublisher.publishEvent(new StopArrivedEvent(runId, run.getAcademyId(), target.getId(),
+                target.getSeq(), nameOf(run, target), now, next == null ? null : next.getId()));
 
         Integer autoAlightedCount = null;
         List<RemainingRiderResponse> remaining = List.of();
 
         if (isFinal) {
             if (run.getDirection() == Direction.TO_ACADEMY) {
-                // 마지막 승하차지 강제 출발(Ruling 312, 목표 8) — 방금 도착 처리한 이 최종 지점은
-                // 다음 정차지가 없어 위쪽 폴백을 받지 못한다. **alightAllBoarded 보다 먼저** 불러야
-                // 한다 — 순서가 거꾸로면 이 최종 지점에서 승차한 학생의 상태가 이미 ALIGHTED 로
-                // 바뀐 뒤라 그 정차지의 확정 결과가 "승차"가 아니라 "하차"로 잘못 나가고,
-                // RunAutoAlightedEvent 의 ALIGHTING 과 중복까지 된다(조율자 R15-T3 후속 지적).
-                stopDepartureService.forceAllRemaining(runId, run.getAcademyId(), now);
-                // 위 호출의 claimDeparture(clearAutomatically) 가 영속성 컨텍스트를 비워 run 을
-                // detach 시킨다 — 다시 로드해야 alightAllBoarded 안의 run.finish(now) 가 유실되지
-                // 않는다(RunArrivalCommandService 클래스 상단 주석과 같은 근거).
-                run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
-                        .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
                 autoAlightedCount = alightAllBoarded(run, now);
+                // 종료 3경로 모두 run_ended 의 재료를 낸다(BR-037, §4.10) — 전에는 하원 보류 해제 경로만 냈다.
+                eventPublisher.publishEvent(new RunEndedEvent(runId, run.getAcademyId(), now, autoAlightedCount));
             } else {
                 long stillBoarded = runRiderRepository.countByRunIdAndStatus(runId, RiderStatus.BOARDED);
                 if (stillBoarded == 0) {
                     run.finish(now);
-                    // 같은 근거(Ruling 312, 목표 8) — 하원 최종 지점도 즉시 종료되면 다음 정차지가 없다.
+                    // 마지막 승하차지 강제 출발(Ruling 312, 목표 8) — 하원 최종 지점은 방금 도착한 하차지
+                    // 자신이라 위쪽 폴백을 받지 못한다.
                     stopDepartureService.forceAllRemaining(runId, run.getAcademyId(), now);
+                    eventPublisher.publishEvent(new RunEndedEvent(runId, run.getAcademyId(), now, 0));
                 } else {
                     run.deferFinish();
                     remaining = remainingRidersOf(runId);
@@ -146,22 +163,32 @@ public class RunArrivalCommandService {
         return confirmedRoute.getCurrentVersionId();
     }
 
-    private boolean isLastStop(List<RunStop> ordered, RunStop target) {
-        return !ordered.isEmpty() && ordered.get(ordered.size() - 1).getId().equals(target.getId());
+    /**
+     * 최종 지점 — 뒤에 도착 처리할 항목이 없다(C-15). 경유 지점은 지나가는 점이라 도착 처리 대상이 아니고,
+     * 미경유({@code skipped})는 서지 않으므로 둘 다 "남은 항목" 으로 세지 않는다(BR-015 — 맨 뒤 경유
+     * 지점 때문에 마지막 하차지 도착이 최종이 안 되던 결함). 등원은 학원 항목이 늘 맨 뒤라 그 도착만 최종이다.
+     */
+    private boolean isFinalStop(List<RunStop> ordered, RunStop target) {
+        return ordered.stream().noneMatch(stop -> stop.getSeq() > target.getSeq() && stop.getWaypointId() == null
+                && stop.getChange() != ChangeType.SKIPPED);
     }
 
-    private NextStopResponse nextStopAfter(List<RunStop> ordered, RunStop target) {
-        int index = ordered.indexOf(target);
-        RunStop next = ordered.get(index + 1);
-        return new NextStopResponse(next.getStopId() != null ? next.getStopId() : next.getWaypointId(),
-                nameOf(next));
+    /** 전진된 포인터 — 방금 도착한 항목 뒤의 첫 항목. 미경유는 건너뛴다(§4.3 {@code next_stop} 과 같은 규칙). */
+    private RunStop nextStopAfter(List<RunStop> ordered, RunStop target) {
+        return ordered.stream()
+                .filter(stop -> stop.getSeq() > target.getSeq() && stop.getChange() != ChangeType.SKIPPED)
+                .findFirst()
+                .orElse(null);
     }
 
-    private String nameOf(RunStop stop) {
+    private String nameOf(Run run, RunStop stop) {
         if (stop.getStopId() != null) {
             return stopRepository.findById(stop.getStopId()).map(Stop::getName).orElse(null);
         }
-        return waypointRepository.findById(stop.getWaypointId()).map(Waypoint::getLabel).orElse(null);
+        if (stop.getWaypointId() != null) {
+            return waypointRepository.findById(stop.getWaypointId()).map(Waypoint::getLabel).orElse(null);
+        }
+        return academyRepository.findById(run.getAcademyId()).map(Academy::getName).orElse(null);
     }
 
     /** 등원 최종 지점 도착 — 아직 탑승 중인 전원을 하차 처리하고 학생별 자동 하차 이벤트를 발행한다(C-07·goal 9). */

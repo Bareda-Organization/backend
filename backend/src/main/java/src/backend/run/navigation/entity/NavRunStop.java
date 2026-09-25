@@ -54,4 +54,8 @@ public class NavRunStop {
     /** 이미 지난 지점이면 채워진다 — 채워진 행은 내비 목적지 후보에서 뺀다. */
     @Column(name = "arrived_at")
     private OffsetDateTime arrivedAt;
+
+    /** 등원 회차의 학원 항목이면 {@code true} — 두 id 가 다 비어 있어 이름·좌표는 학원에서 읽는다(Ruling 327). */
+    @Column(name = "destination", nullable = false)
+    private boolean destination;
 }

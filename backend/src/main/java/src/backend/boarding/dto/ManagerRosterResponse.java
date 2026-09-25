@@ -18,8 +18,13 @@ public record ManagerRosterResponse(String runId, String busNo, String direction
     public record Counts(long boarded, long waiting, long noShow, long absentN) {
     }
 
+    /**
+     * {@code stopId} 는 정차 항목 id({@code run_stop.id})다 — 매니저 앱이 이 값을 도착 처리(§4.5)에 그대로
+     * 넘긴다. 등원 회차의 마지막 항목은 학원({@code isDestination=true}, {@code students} 빈 배열)이고,
+     * 이 항목이 없으면 앱에 등원 운행을 끝낼 도착 버튼이 생기지 않는다(Ruling 327).
+     */
     public record StopGroup(String stopId, int seq, String name, String address, String change, String skipNotice,
-            OffsetDateTime arrivedAt, List<RosterStudent> students) {
+            OffsetDateTime arrivedAt, boolean isDestination, List<RosterStudent> students) {
     }
 
     /** {@code guardianPhone} 은 이미 마스킹된 값이다({@code GuardianPhoneMasker}) — 여기서 다시 가리지 않는다. */

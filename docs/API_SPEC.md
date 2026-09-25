@@ -836,7 +836,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | `run_id` · `bus_no` · `direction` | — | ● | 회차 요약 |
 | `counts.boarded` · `counts.waiting` · `counts.no_show` · `counts.absent_n` | integer | ● | 집계. **`absent` 는 개인 행 제외, 집계에만 존치** |
 | `stops[]` | array | ● | 운행 순서(`seq`) 정렬 |
-| `stops[].stop_id` · `seq` · `name` · `address` | — | ● | |
+| `stops[].stop_id` · `seq` · `name` · `address` | — | ● | `stop_id` 는 **정차 항목 id(`run_stop.id`)** — §4.5 도착 처리가 이 값을 그대로 받는다 (2026-09-25 `Ruling 327`) |
 | `stops[].change` | enum | ○ | `added`(초록) · `skipped`(빨강 취소선, 순번 유지) |
 | `stops[].skip_notice` | string | ○ | `skipped` 안내 문구 |
 | `stops[].arrived_at` | datetime | ○ | 도착 처리 타임스탬프 |
@@ -960,7 +960,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 승하차지 도착 처리 (RUN-04, M-11).
 
-**권한** 버스기사 전용 · **요청** 본문 부재
+**권한** 버스기사 전용 · **요청** 본문 부재 · **경로 `{stopId}`** 정차 항목 id(`run_stop.id`) — §4.2·§4.3 `stops[].stop_id` 와 같은 값. 승하차지 · 경유 지점 · 학원 항목을 한 값으로 가리킨다 (2026-09-25 `Ruling 327`)
 
 **응답**
 
@@ -1135,7 +1135,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 |---|---|:-:|---|
 | `lat` · `lng` | number | ● | 좌표 |
 | `recorded_at` | datetime | ● | 단말 측정 시각 |
-| `speed` · `heading` | number | ○ | 속도 · 진행 방향 |
+| `speed` · `heading` | number | ○ | 속도(km/h, 0~999.99) · 진행 방향(도, 0~360). 범위 밖이면 `422 VALIDATION_FAILED`. 이력(`run_position`)에 그대로 저장 (2026-09-25 BR-115) |
 
 응답 `204`. 서버는 이 좌표를 근거로 "곧 도착합니다" 예고 알림(NTF-04)을 자동 발송하고 WebSocket `position` 이벤트를 방송.
 
@@ -1241,7 +1241,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|:-:|---|
 | `provider` | enum | ● | **서버가 정한 활성 공급자.** 앱은 이 값으로 띄울 내비를 고른다 |
-| `origin` | object | ○ | `lat` · `lng` · `name` — 출발지. `moving` 이면 **미반환**(앱이 현재 위치를 쓴다) |
+| `origin` | object | ○ | `lat` · `lng` · `name` — 출발지. **등원 = 확정 노선의 첫 승차지 · 하원 = 학원**(좌표·이름 모두 그 지점 것, Ruling 190 · 2026-09-25 BR-049). `moving` 이면 **미반환**(앱이 현재 위치를 쓴다) |
 | `waypoints[]` | array | ● | 경유지. `lat` · `lng` · `name` · `stop_id` · `seq`. **순서가 곧 주행 순서** |
 | `destination` | object | ● | `lat` · `lng` · `name` · `stop_id` — 최종 목적지 |
 | `truncated` | boolean | ● | 상한 때문에 **잘렸는지 여부** |
@@ -1258,7 +1258,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 **`skipped` 승하차지는 넘기지 않는다** — `C-05` 는 "미경유는 **표시만**, 재최적화·경로 안내 부재" 인데, 내비에 넘기는 것은 표시가 아니라 **주행 안내**라 실제로 가지 않을 지점을 넣으면 기사를 그리로 보낸다.
 
-**`arrived_at` 이 찍힌 승하차지는 제외**한다 — 이미 지난 지점이다.
+**`arrived_at` 이 찍힌 승하차지는 제외**한다 — 이미 지난 지점이다. **마지막으로 도착한 항목보다 앞 순번도 제외**한다 — 경유 지점은 도착 처리 대상이 아니라 `arrived_at` 이 비어 있어도, 그 뒤 승하차지에 도착했으면 지난 것이다(2026-09-25 BR-015). 등원 학원 항목은 학원 좌표·이름으로 싣는다(`Ruling 327`).
 
 **`confirmed` 회차(출발 30분 전 ~ 운행 시작 전)에서도 호출할 수 있다** — 막는 것은 `idle` 뿐이다. 노선이 확정된 시점부터 기사가 경로를 미리 볼 수단이 이 엔드포인트이기 때문이며(X-01 확정 사항, Ruling 202), 이때는 아직 출발 전이라 `origin` 에 **출발지 좌표를 담아 반환**한다. `moving` 이면 `origin` 을 비워 앱이 현재 위치를 쓰게 한다.
 
@@ -2382,7 +2382,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | 이벤트 | 트리거 | payload |
 |---|---|---|
 | `position` | `POST /runs/{runId}/position` (**2초** 주기 · 옛값 5~10초) | `lat` · `lng` · `received_at` · `current_stop_name`(§4.3 `current_stop` 과 같은 판정 — **마지막으로 도착한** 승하차지 이름, 도착 기록이 없으면 부재, 2026-09-17 문면 정정 `Ruling 304`). **학부모·학생 채널은 ETA 부재** (C-08), 관제 채널만 `eta` 포함 |
-| `stop_arrived` | `POST /runs/{runId}/stops/{stopId}/arrive` | `stop_id` · `seq` · `name` · `arrived_at` · `next_stop_id`. 기사 포인터 전진의 방송 — 동승자 처리 명단은 불변 |
+| `stop_arrived` | `POST /runs/{runId}/stops/{stopId}/arrive` | `stop_id` · `seq` · `name` · `arrived_at` · `next_stop_id`(둘 다 `run_stop.id`, `Ruling 327`). 기사 포인터 전진의 방송 — 동승자 처리 명단은 불변 |
 | `rider_changed` | `PATCH /runs/{runId}/riders/{riderId}` · `revert` · **§3.6 ③구간 `riding=false`**(`status=absent` · `stop_skipped`, `Ruling 334`) | `rider_id` · `student_id` · `student_name` · `status` · `stop_id` · `changed_at` · `counts` · `stop_skipped`. **5초** 이내 반영 |
 | `run_started` | `POST /runs/{runId}/start` | `run_status`(`moving`) · `started_at` · `auto_boarded_count`. **학생 채널은 `auto_boarded_count` 부재** (C-08 · §1.12, `Ruling 335`) |
 | `run_ended` | 서버의 `finished` 전이 (§4.10) | `run_status`(`finished`) · `finished_at` · `auto_alighted_count`. **학생 채널은 `auto_alighted_count` 부재** (C-08 · §1.12, `Ruling 335`) |

@@ -35,8 +35,8 @@ import src.backend.run.repository.RunRepository;
 public class ProximityNotificationScheduler {
 
     /**
-     * 한 틱이 한 번에 집는 상한(확정 배치와 같은 근거) — 상한 없이 전건을 집으면 동시 운행 중인
-     * 회차가 몰린 틱 하나가 오래 걸린다.
+     * 한 번 조회로 읽는 크기 — 동시 운행 상한이 아니다. 한 틱은 이 크기씩 끝까지 이어 읽어 운행 중
+     * 회차 <b>전부</b>를 판정한다(BR-011 — 0쪽만 집으면 51번째 이후 회차는 운행 내내 판정되지 않았다).
      */
     static final int BATCH_SIZE = 50;
 
@@ -63,12 +63,16 @@ public class ProximityNotificationScheduler {
             initialDelayString = "${app.location.proximity.initial-delay-ms:0}")
     @SchedulerLock(name = "proximity-notification", lockAtMostFor = "PT30S")
     public void judgeMovingRuns() {
-        List<Run> movingRuns = runRepository.findByStatusAndCanceledAtIsNullOrderByIdAsc(RunStatus.MOVING,
-                PageRequest.of(0, BATCH_SIZE));
-
-        for (Run run : movingRuns) {
-            judgeSafely(run.getId(), run.getAcademyId());
-        }
+        long afterId = 0;
+        List<Run> page;
+        do {
+            page = runRepository.findByStatusAndCanceledAtIsNullAndIdGreaterThanOrderByIdAsc(RunStatus.MOVING,
+                    afterId, PageRequest.of(0, BATCH_SIZE));
+            for (Run run : page) {
+                judgeSafely(run.getId(), run.getAcademyId());
+                afterId = run.getId();
+            }
+        } while (page.size() == BATCH_SIZE);
     }
 
     /**

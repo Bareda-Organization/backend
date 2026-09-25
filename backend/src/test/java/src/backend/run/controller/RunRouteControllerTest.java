@@ -154,7 +154,8 @@ class RunRouteControllerTest {
                 .andReturn();
 
         String body = 본문(result);
-        assertThat((Integer) JsonPath.read(body, "$.data.next_stop.stop_id")).isEqualTo((int) stop2);
+        assertThat((Integer) JsonPath.read(body, "$.data.next_stop.stop_id"))
+                .isEqualTo((int) 정차_항목_id(academyId, runId, stop2));
         assertThat((String) JsonPath.read(body, "$.data.skipped_notice")).isEqualTo("1번 정차지 결번 — 학생 하차 예정 없음");
     }
 
@@ -179,11 +180,58 @@ class RunRouteControllerTest {
         Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
         fx.assign(runId, manager.managerId(), ManagerRole.DRIVER);
 
+        // BR-002(Ruling 327) — 등원은 정차 목록 맨 뒤에 학원 항목이 있고, stop_id 는 run_stop.id 다.
         mockMvc.perform(get("/api/v1/runs/" + runId + "/route").header("Authorization",
                         토큰(manager.accountId(), academyId)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.stops[0].stop_id").value((int) stop1))
-                .andExpect(jsonPath("$.data.stops.length()").value(2));
+                .andExpect(jsonPath("$.data.stops[0].stop_id").value((int) 정차_항목_id(academyId, runId, stop1)))
+                .andExpect(jsonPath("$.data.stops[0].is_destination").value(false))
+                .andExpect(jsonPath("$.data.stops.length()").value(3))
+                .andExpect(jsonPath("$.data.stops[2].is_destination").value(true))
+                .andExpect(jsonPath("$.data.stops[2].name").value(RunConfirmationFixtures.ACADEMY_NAME))
+                .andExpect(jsonPath("$.data.stops[2].lat").isNumber())
+                .andExpect(jsonPath("$.data.stops[2].student_count").value(0));
+    }
+
+    @Test
+    void BR_015_지나간_경유_지점은_next_stop_에_남지_않는다() throws Exception {
+        // 경유 지점은 도착 처리 대상이 아니다 — 그 뒤 승하차지에 도착했으면 경유 지점도 지난 것이다.
+        Phase9RosterFixtures fx = fixtures();
+        long academyId = fx.academyWithCoordinates();
+        long busId = fx.bus(academyId);
+        long stop1 = fx.stop(academyId, "37.500000", "127.000000");
+        fx.route(academyId, busId, Weekday.FRI, Direction.FROM_ACADEMY, stop1);
+        long student1 = fx.student(academyId, "학생1");
+        fx.verifiedAddress(student1, stop1, Weekday.FRI, Direction.FROM_ACADEMY, "37.500000", "127.000000");
+        OffsetDateTime departTime = OffsetDateTime.parse("2031-07-04T16:00:00+09:00");
+        long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.FROM_ACADEMY,
+                departTime, departTime.minusMinutes(30));
+        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
+        fx.assign(runId, manager.managerId(), ManagerRole.DRIVER);
+        long stop2 = fx.stop(academyId, "37.510000", "127.010000");
+        long stop3 = fx.stop(academyId, "37.520000", "127.020000");
+        Long versionId = confirmedRouteRepository.findById(runId).map(ConfirmedRoute::getCurrentVersionId)
+                .orElseThrow();
+        Waypoint waypoint = waypointRepository.save(Waypoint.forRun(runId, "주유소", null,
+                new BigDecimal("37.505000"), new BigDecimal("127.005000"), null, manager.managerId(),
+                OffsetDateTime.now()));
+        waypoint.apply();
+        waypointRepository.save(waypoint);
+        runStopRepository.save(RunStop.forWaypoint(versionId, waypoint.getId(), 2, null));
+        runStopRepository.save(RunStop.forStop(versionId, stop2, 3, null));
+        runStopRepository.save(RunStop.forStop(versionId, stop3, 4, null));
+        도착_처리한다(academyId, runId, stop1);
+        도착_처리한다(academyId, runId, stop2);
+
+        MvcResult result = mockMvc
+                .perform(get("/api/v1/runs/" + runId + "/route").header("Authorization",
+                        토큰(manager.accountId(), academyId)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        assertThat((Integer) JsonPath.read(본문(result), "$.data.next_stop.stop_id"))
+                .as("stop2 에 도착했으면 그 앞 경유 지점은 지난 것이다 — 다음은 stop3")
+                .isEqualTo((int) 정차_항목_id(academyId, runId, stop3));
     }
 
     @Test
@@ -195,11 +243,11 @@ class RunRouteControllerTest {
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stop1 = fx.stop(academyId, "37.500000", "127.000000");
-        fx.route(academyId, busId, Weekday.FRI, Direction.TO_ACADEMY, stop1);
+        fx.route(academyId, busId, Weekday.FRI, Direction.FROM_ACADEMY, stop1);
         long student1 = fx.student(academyId, "학생1");
-        fx.verifiedAddress(student1, stop1, Weekday.FRI, Direction.TO_ACADEMY, "37.500000", "127.000000");
+        fx.verifiedAddress(student1, stop1, Weekday.FRI, Direction.FROM_ACADEMY, "37.500000", "127.000000");
         OffsetDateTime departTime = OffsetDateTime.parse("2031-07-04T08:00:00+09:00");
-        long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY,
+        long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.FROM_ACADEMY,
                 departTime, departTime.minusMinutes(30));
         Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
         fx.assign(runId, manager.managerId(), ManagerRole.DRIVER);
@@ -226,13 +274,13 @@ class RunRouteControllerTest {
                 .andReturn();
 
         String body = 본문(result);
-        assertThat((Integer) JsonPath.read(body, "$.data.next_stop.stop_id")).isEqualTo((int) stop2);
+        assertThat((Integer) JsonPath.read(body, "$.data.next_stop.stop_id"))
+                .isEqualTo((int) 정차_항목_id(academyId, runId, stop2));
         assertThat((Double) JsonPath.read(body, "$.data.next_stop.lat")).isNotNull();
         assertThat((Double) JsonPath.read(body, "$.data.next_stop.lng")).isNotNull();
         // stops[] 전체 목록은 API_SPEC §1.13 의 "등급이 다른 것" carve-out 대상이라 제거된 경유지
         // 항목의 좌표 null 을 그대로 보존한다 — next_stop 만 걸러야 하는 것을 확인한다.
         assertThat((Integer) JsonPath.read(body, "$.data.stops.length()")).isEqualTo(3);
-        assertThat((Object) JsonPath.read(body, "$.data.stops[1].stop_id")).isNull();
         assertThat((Object) JsonPath.read(body, "$.data.stops[1].lat")).isNull();
     }
 
@@ -264,6 +312,15 @@ class RunRouteControllerTest {
                 .findFirst().orElseThrow();
         target.markSkipped(notice);
         runStopRepository.save(target);
+    }
+
+    /** 학생 승하차지 {@code stopId} 가 실린 정차 항목의 {@code run_stop.id} — §4.2·§4.3·§4.5 의 {@code stop_id} 값(Ruling 327). */
+    private long 정차_항목_id(long academyId, long runId, long stopId) {
+        Long versionId = confirmedRouteRepository.findById(runId).map(ConfirmedRoute::getCurrentVersionId)
+                .orElseThrow();
+        return runStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeq(versionId, academyId).stream()
+                .filter(stop -> Long.valueOf(stopId).equals(stop.getStopId()))
+                .findFirst().orElseThrow().getId();
     }
 
     private void 도착_처리한다(long academyId, long runId, long stopId) {

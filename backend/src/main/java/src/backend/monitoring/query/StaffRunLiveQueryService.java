@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.academy.entity.Academy;
+import src.backend.academy.repository.AcademyRepository;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.ChangeType;
@@ -61,6 +63,8 @@ public class StaffRunLiveQueryService {
 
     private final WaypointRepository waypointRepository;
 
+    private final AcademyRepository academyRepository;
+
     private final Clock clock;
 
     /** 오늘 운행 중({@code status=moving}) 회차만 담는다 — {@link StaffRunLiveResponse} 자바독. */
@@ -107,7 +111,7 @@ public class StaffRunLiveQueryService {
         List<StaffAssignmentAckView> acks = ackViewsByRun.getOrDefault(run.getId(), List.of());
         return new StaffRunLiveResponse.Run(run.getId(), busNos.get(run.getBusId()),
                 lower(run.getDirection().name()), lower(run.getStatus().name()), position,
-                nameOf(stops, state.currentStopId()), nameOf(stops, state.nextStopId()), progressOf(stops),
+                nameOf(stops, state.currentStopId(), run), nameOf(stops, state.nextStopId(), run), progressOf(stops),
                 delayMinutesOf(run, stops), nameOf(acks, ManagerRole.DRIVER), nameOf(acks, ManagerRole.ESCORT),
                 position == null ? state.receivedAt() : null);
     }
@@ -154,21 +158,24 @@ public class StaffRunLiveQueryService {
         return 0;
     }
 
-    private String nameOf(List<RunStop> stops, Long runStopId) {
+    private String nameOf(List<RunStop> stops, Long runStopId, Run run) {
         if (runStopId == null) {
             return null;
         }
         return stops.stream().filter(stop -> stop.getId().equals(runStopId)).findFirst()
-                .map(this::resolveStopName)
+                .map(stop -> resolveStopName(stop, run))
                 .orElse(null);
     }
 
-    /** {@code PositionBroadcastListener.currentStopNameOf} 와 같은 두 갈래(승하차지 마스터 · 강제 경유지). */
-    private String resolveStopName(RunStop stop) {
+    /** 승하차지 마스터 · 강제 경유지 · 학원 항목(Ruling 327) 세 갈래 — 학원 항목은 두 id 가 다 비어 있다. */
+    private String resolveStopName(RunStop stop, Run run) {
         if (stop.getStopId() != null) {
             return stopRepository.findById(stop.getStopId()).map(s -> s.getName()).orElse(null);
         }
-        return waypointRepository.findById(stop.getWaypointId()).map(w -> w.getLabel()).orElse(null);
+        if (stop.getWaypointId() != null) {
+            return waypointRepository.findById(stop.getWaypointId()).map(w -> w.getLabel()).orElse(null);
+        }
+        return academyRepository.findById(run.getAcademyId()).map(Academy::getName).orElse(null);
     }
 
     private String nameOf(List<StaffAssignmentAckView> acks, ManagerRole role) {

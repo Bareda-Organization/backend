@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.academy.entity.Academy;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.global.common.enums.ChangeType;
+import src.backend.global.common.enums.Direction;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
@@ -75,7 +76,8 @@ public class NavigationQueryService {
             throw new BusinessException(ErrorCode.RUN_NOT_CONFIRMED);
         }
 
-        List<NavStopRow> remaining = remainingStops(run);
+        List<NavStopRow> rows = rowsOf(run);
+        List<NavStopRow> remaining = remainingStops(rows);
         if (remaining.isEmpty()) {
             throw new BusinessException(ErrorCode.NAV_NO_REMAINING_STOP);
         }
@@ -84,7 +86,7 @@ public class NavigationQueryService {
         List<NavStopRow> selected = select(remaining, scope);
         boolean truncated = selected.size() < totalRemainingStops && scope == NavigationScope.REMAINING;
 
-        return new NavigationResponse(providerName(), originOf(run), waypointsOf(selected), destinationOf(selected),
+        return new NavigationResponse(providerName(), originOf(run, rows), waypointsOf(selected), destinationOf(selected),
                 truncated, truncated ? "경유지가 많아 일부만 표시합니다" : null, totalRemainingStops);
     }
 
@@ -110,15 +112,21 @@ public class NavigationQueryService {
      * 확정 노선 배포 자체가 없으면(비정상 상태) 빈 목록으로 다뤄 {@code NAV_NO_REMAINING_STOP} 로
      * 수렴시킨다.
      */
-    private List<NavStopRow> remainingStops(Run run) {
+    private List<NavStopRow> rowsOf(Run run) {
         Long versionId = currentRouteVersionId(run.getId());
         if (versionId == null) {
             return List.of();
         }
-        return navRunStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeqAsc(versionId, run.getAcademyId())
-                .stream()
+        return navRunStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeqAsc(versionId, run.getAcademyId());
+    }
+
+    private List<NavStopRow> remainingStops(List<NavStopRow> rows) {
+        // 도착 완료분은 "마지막 도착 뒤" 로 뺀다(BR-015) — 경유 지점은 도착 처리 대상이 아니라 미도착으로
+        // 남는다. 도착 여부만 보면 지난 경유 지점을 매번 첫 목적지로 되돌려 안내한다.
+        int afterSeq = rows.stream().filter(NavStopRow::arrived).mapToInt(NavStopRow::seq).max().orElse(-1);
+        return rows.stream()
                 .filter(row -> row.change() != ChangeType.SKIPPED)
-                .filter(row -> !row.arrived())
+                .filter(row -> row.seq() > afterSeq)
                 .toList();
     }
 
@@ -150,14 +158,25 @@ public class NavigationQueryService {
     /**
      * {@code confirmed} 에서만 채운다(X-01, Ruling 202) — {@code moving}·{@code finished} 는 앱이
      * 실측 GPS 를 쓰므로 부재해야 한다(목표 20의 역방향 갈래).
+     *
+     * <p>출발점은 방향마다 다르다(Ruling 190, 확정 배치와 같은 규칙 · BR-049) — 등원은 확정 노선의 첫
+     * 승차지, 하원은 학원. 이름도 그 지점 것이다. 전에는 방향과 무관하게 학원 좌표에 스케줄의 출발지 이름을
+     * 붙여, 등원이면 좌표와 이름이 서로 다른 곳을 가리켰다.
      */
-    private NavOrigin originOf(Run run) {
+    private NavOrigin originOf(Run run, List<NavStopRow> rows) {
         if (run.getStatus() != RunStatus.CONFIRMED) {
             return null;
         }
+        if (run.getDirection() == Direction.TO_ACADEMY) {
+            return rows.stream()
+                    .filter(row -> row.stopId() != null)
+                    .findFirst()
+                    .map(row -> new NavOrigin(row.lat(), row.lng(), row.name()))
+                    .orElse(null);
+        }
         return academyRepository.findById(run.getAcademyId())
                 .filter(Academy::hasCoordinates)
-                .map(academy -> new NavOrigin(academy.getLat(), academy.getLng(), run.getOriginName()))
+                .map(academy -> new NavOrigin(academy.getLat(), academy.getLng(), academy.getName()))
                 .orElse(null);
     }
 

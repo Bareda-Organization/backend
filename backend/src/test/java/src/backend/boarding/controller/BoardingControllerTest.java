@@ -856,7 +856,8 @@ class BoardingControllerTest {
                         .content(statusUpdateBody("boarded", "manual", UUID.randomUUID(), now)))
                 .andExpect(status().isOk());
         entityManager.flush();
-        jdbcTemplate.update("UPDATE run SET finish_pending = true WHERE id = ?", runId);
+        // 종료 보류는 하원에만 있다(API_SPEC §4.10) — 등원 회차에 보류를 켜면 성립할 수 없는 상태를 검사하게 된다.
+        jdbcTemplate.update("UPDATE run SET finish_pending = true, direction = 'from_academy' WHERE id = ?", runId);
         entityManager.clear();
 
         mockMvc.perform(post(REVERT.formatted(runId, riderId)).header("Authorization", escortToken)

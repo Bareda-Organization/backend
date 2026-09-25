@@ -457,11 +457,13 @@ CREATE TABLE run_stop (
     arrived_at       timestamptz,
     departed_at      timestamptz,
     eta              timestamptz,
+    -- 등원 회차의 도착지(학원) 항목 — 마지막 순번 1행만 true 이고 그 행은 stop_id·waypoint_id 가 둘 다 NULL(Ruling 327).
+    destination      boolean      NOT NULL DEFAULT false,
     CONSTRAINT uk_run_stop_version_seq UNIQUE (route_version_id, seq),
     CONSTRAINT fk_run_stop_route_version FOREIGN KEY (route_version_id) REFERENCES route_version (id) ON DELETE CASCADE,
     CONSTRAINT fk_run_stop_stop FOREIGN KEY (stop_id) REFERENCES stop (id) ON DELETE RESTRICT,
     CONSTRAINT fk_run_stop_waypoint FOREIGN KEY (waypoint_id) REFERENCES waypoint (id) ON DELETE RESTRICT,
-    CONSTRAINT ck_run_stop_target_exclusive CHECK ((stop_id IS NOT NULL) <> (waypoint_id IS NOT NULL)),
+    CONSTRAINT ck_run_stop_target_exclusive CHECK (num_nonnulls(stop_id, waypoint_id, NULLIF(destination, false)) = 1),
     CONSTRAINT ck_run_stop_change CHECK (change IN ('added', 'skipped'))
 );
 

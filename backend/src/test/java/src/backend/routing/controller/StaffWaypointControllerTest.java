@@ -230,6 +230,10 @@ class StaffWaypointControllerTest {
         assertThat(현재_버전에_경유_지점이_포함됐나(s.runId, waypointId))
                 .as("버전 번호만 오르고 그 지점이 실제 노선(run_stop)에 안 들어가면 안 된다")
                 .isTrue();
+        // BR-002(Ruling 327) — 경유 지점 배포로 쌓은 새 버전도 등원이면 맨 뒤가 학원 항목이다.
+        assertThat(jdbcTemplate.queryForObject("SELECT rs.destination FROM run_stop rs JOIN confirmed_route cr "
+                + "ON cr.current_version_id = rs.route_version_id WHERE cr.run_id = ? ORDER BY rs.seq DESC LIMIT 1",
+                Boolean.class, s.runId)).as("새 버전의 마지막 항목은 학원이어야 한다").isTrue();
         verify(routeChangedListener, times(1)).appendRouteChanged(any());
     }
 
@@ -628,8 +632,9 @@ class StaffWaypointControllerTest {
                 SELECT confirmed_route_id, version_no + 1, 'approval', est_duration_min, est_distance_km, now(),
                     input_fingerprint, engine_name, policy_snapshot, fallback_used, road_path, created_by
                 FROM route_version WHERE id = ? RETURNING id""", Long.class, current);
-        jdbcTemplate.update("INSERT INTO run_stop (route_version_id, stop_id, waypoint_id, seq, eta) "
-                + "SELECT ?, stop_id, waypoint_id, seq, eta FROM run_stop WHERE route_version_id = ?", next, current);
+        jdbcTemplate.update("INSERT INTO run_stop (route_version_id, stop_id, waypoint_id, destination, seq, eta) "
+                + "SELECT ?, stop_id, waypoint_id, destination, seq, eta FROM run_stop WHERE route_version_id = ?",
+                next, current);
         jdbcTemplate.update("UPDATE confirmed_route SET current_version_id = ? WHERE run_id = ?", next, runId);
         entityManager.flush();
         entityManager.clear();

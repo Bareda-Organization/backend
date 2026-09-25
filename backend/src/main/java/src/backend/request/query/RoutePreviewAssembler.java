@@ -82,7 +82,9 @@ public class RoutePreviewAssembler {
      */
     public List<PreviewStopResponse> toPreviewStopsFromRunStops(List<RunStop> runStops, Map<Long, Stop> stopsById,
             Map<Long, String> waypointLabelsById) {
+        // 학원 항목(Ruling 327)은 뺀다 — "후" 쪽(계산 결과)에는 없는 항목이라, 두면 전/후 대조가 어긋난다.
         return runStops.stream()
+                .filter(rs -> !rs.isDestination())
                 .map(rs -> {
                     Stop stop = stopsById.get(rs.getStopId());
                     return new PreviewStopResponse(rs.getSeq(),

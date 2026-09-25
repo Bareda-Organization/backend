@@ -56,17 +56,19 @@ public class RunPosition {
     private BigDecimal heading;
 
     private RunPosition(Long runId, BigDecimal lat, BigDecimal lng, OffsetDateTime recordedAt,
-            OffsetDateTime receivedAt) {
+            OffsetDateTime receivedAt, BigDecimal speed, BigDecimal heading) {
         this.runId = runId;
         this.lat = lat;
         this.lng = lng;
         this.recordedAt = recordedAt;
         this.receivedAt = receivedAt;
+        this.speed = speed;
+        this.heading = heading;
     }
 
-    /** 기사 단말이 위치를 송신해 서버가 수신했을 때 생성한다 — 속도·방위는 선택값이라 팩토리가 다루지 않는다. */
-    public static RunPosition onReceive(Long runId, BigDecimal lat, BigDecimal lng,
-            OffsetDateTime recordedAt, OffsetDateTime receivedAt) {
-        return new RunPosition(runId, lat, lng, recordedAt, receivedAt);
+    /** 기사 단말이 위치를 송신해 서버가 수신했을 때 생성한다 — 속도·방위는 선택값이라 {@code null} 일 수 있다(BR-115). */
+    public static RunPosition onReceive(Long runId, BigDecimal lat, BigDecimal lng, OffsetDateTime recordedAt,
+            OffsetDateTime receivedAt, BigDecimal speed, BigDecimal heading) {
+        return new RunPosition(runId, lat, lng, recordedAt, receivedAt, speed, heading);
     }
 }

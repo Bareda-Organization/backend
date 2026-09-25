@@ -202,8 +202,12 @@ class ProximityNotificationSchedulerTest extends RedisTestContainerBase {
         verify(proximityNotificationService, never()).judgeOne(eq(confirmedRunId), anyLong());
     }
 
+    /**
+     * BR-011 — 판정 뒤에도 회차는 {@code moving} 그대로라, 0쪽만 집으면 다음 틱도 같은 50건이다. 51번째
+     * 이후 회차는 운행 내내 근접 알림·출발 판정을 받지 못한다. 한 틱이 쪽을 넘겨 전부 돌아야 한다.
+     */
     @Test
-    void 한_틱은_배치_크기_상한을_넘지_않는다() {
+    void 한_틱은_배치_크기를_넘는_운행_중_회차도_전부_판정한다() {
         ProximityFixtures fx = fixtures();
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
@@ -217,12 +221,9 @@ class ProximityNotificationSchedulerTest extends RedisTestContainerBase {
 
         scheduler.judgeMovingRuns();
 
-        // 대상 선정 질의(findByStatusAndCanceledAtIsNullOrderByIdAsc)는 학원으로 좁히지 않는
-        // 전역 조회다(목표 6 이 지키는 것도 "이 학원의 상한"이 아니라 "한 틱 전체의 상한") — 그래서
-        // 이 학원 것만 세면(eq(academyId)) 다른 학원의 기존 MOVING 회차가 상한 한 자리를 먼저
-        // 차지했을 때 49건으로 어긋난다. anyLong() 으로 전체를 세야 그 환경 요인과 무관하게 성립한다.
-        verify(proximityNotificationService, times(ProximityNotificationScheduler.BATCH_SIZE))
-                .judgeOne(anyLong(), anyLong());
+        // 이 학원 것만 센다 — 다른 학원의 기존 moving 회차(시드 R3 등)가 앞자리를 차지해도 이 학원 51건은
+        // 전부 판정돼야 한다.
+        verify(proximityNotificationService, times(total)).judgeOne(anyLong(), eq(academyId));
     }
 
     @Test

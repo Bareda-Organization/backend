@@ -27,8 +27,12 @@ public record RunRouteResponse(List<RouteStop> stops, RouteStop currentStop, Rou
      * 경유 지점을 가리키는 행은 좌표가 전부 {@code null} 이다(API_SPEC §1.13 "등급이 다른 것"). 그
      * null 을 신뢰해도 되는 자리는 {@code stops[]} 전체 목록뿐이고, {@code next_stop} 은
      * {@code RunRouteQueryService} 가 그런 행을 걸러내 이 레코드를 재사용하면서도 좌표를 보장한다.
+     *
+     * <p>{@code stopId} 는 정차 항목 id({@code run_stop.id}) — 도착 처리(§4.5)가 받는 값과 같다(Ruling 327).
+     * 확정 전 예정 경로(§5.19 {@code confirmed=false})는 정차 항목이 아직 없어 승하차지 id 를 싣는다.
+     * {@code isDestination} 은 등원 회차의 마지막 학원 항목에서만 {@code true} 다.
      */
     public record RouteStop(Long stopId, int seq, String name, String address, BigDecimal lat, BigDecimal lng,
-            String change, long studentCount) {
+            String change, long studentCount, boolean isDestination) {
     }
 }

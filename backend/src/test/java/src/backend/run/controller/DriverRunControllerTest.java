@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
@@ -20,6 +21,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +36,7 @@ import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.entity.RiderStatus;
+import src.backend.boarding.event.RunEndedEvent;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
@@ -46,6 +50,8 @@ import src.backend.request.repository.ChangeRequestRepository;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
+import src.backend.routing.entity.Waypoint;
+import src.backend.routing.repository.WaypointRepository;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
@@ -65,6 +71,7 @@ import src.backend.student.repository.StudentRepository;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
+@RecordApplicationEvents
 class DriverRunControllerTest {
 
     @Autowired
@@ -129,6 +136,12 @@ class DriverRunControllerTest {
 
     @Autowired
     private ChangeRequestRepository changeRequestRepository;
+
+    @Autowired
+    private WaypointRepository waypointRepository;
+
+    @Autowired
+    private ApplicationEvents applicationEvents;
 
     @TestConfiguration
     static class FixedClockConfig {
@@ -344,19 +357,20 @@ class DriverRunControllerTest {
         fixtures.startRun(runId, now());
         long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
         long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        fixtures.runStopForStop(versionId, stopId, 1, now());
+        long runStopId = fixtures.runStopForStop(versionId, stopId, 1, now());
 
         // 동승자(배치와 무관하게 역할 자체가 틀린 경우) — DRIVER_ONLY, run_stop 은 건드려지지 않는다
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + stopId + "/arrive")
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStopId + "/arrive")
                 .header("Authorization", 토큰(999_999L, academyId, Role.ESCORT)))
                 .andExpect(status().isForbidden())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error.code").value("DRIVER_ONLY"));
         assertThat(도착시각(versionId, stopId)).as("동승자 호출은 도착 시각을 건드리면 안 된다").isNull();
 
-        // 배치된 기사 — 성공
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + stopId + "/arrive")
+        // 배치된 기사 — 성공. 경로의 {stopId} 는 run_stop.id 다(Ruling 327)
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStopId + "/arrive")
                 .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
+        entityManager.flush();
         assertThat(도착시각(versionId, stopId)).as("기사 호출은 도착 시각을 남겨야 한다").isNotNull();
     }
 
@@ -372,13 +386,13 @@ class DriverRunControllerTest {
         fixtures.startRun(runId, now());
         fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "배치된기사", now());
         long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        fixtures.runStopForStop(versionId, stopId, 1, now());
+        long runStopId = fixtures.runStopForStop(versionId, stopId, 1, now());
 
         // 같은 학원 소속 기사 계정이지만(역할은 맞다) 이 회차에는 배치되지 않았다 — 다른 회차 계정과
         // 갈리지 않도록 반드시 같은 학원 계정을 쓴다(학원 불일치가 먼저 걸리면 인가 판정 자체를 못 본다).
         long unassignedDriverAccountId = fixtures.unassignedManager(academyId, ManagerRole.DRIVER, "미배치기사");
 
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + stopId + "/arrive")
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStopId + "/arrive")
                 .header("Authorization", 토큰(unassignedDriverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isForbidden())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error.code").value("FORBIDDEN"));
@@ -388,7 +402,7 @@ class DriverRunControllerTest {
     // ── goal 9 — 등원 최종 지점 전원 자동 하차 ────────────────────────────
 
     @Test
-    @DisplayName("목표9 — 등원 최종 지점에 도착하면 탑승 중이던 전원이 자동 하차하고 회차가 종료된다")
+    @DisplayName("목표9 · BR-002 — 등원은 마지막 승차지가 아니라 학원 항목 도착에서 전원 자동 하차·종료된다(Ruling 327)")
     void 등원_최종지점_도착시_전원_자동하차하고_종료된다() throws Exception {
         DriverRunFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
@@ -400,8 +414,9 @@ class DriverRunControllerTest {
         fixtures.startRun(runId, now());
         long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
         long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        fixtures.runStopForStop(versionId, stop1, 1, now());
-        fixtures.runStopForStop(versionId, stop2, 2, now());
+        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, now());
+        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, now());
+        long academyStop = fixtures.runStopForDestination(versionId, 3);
 
         long student1 = fixtures.studentWithAccount(academyId, "학생1");
         fixtures.guardianOf(academyId, student1, "학부모1", now());
@@ -411,18 +426,32 @@ class DriverRunControllerTest {
         fixtures.rider(runId, student2, stop2, RiderStatus.BOARDED, now());
 
         // 첫 정차지 — 최종이 아니라 하차가 없다
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + stop1 + "/arrive")
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop1 + "/arrive")
                 .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.is_final").value(false));
 
-        // 최종 정차지 — 전원 자동 하차 + 종료
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + stop2 + "/arrive")
+        // 마지막 승차지 — 일반 도착이다. 학원까지 남은 구간이 있고, 이 승차지 학생의 승차 처리가 계속 가능해야 한다
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop2 + "/arrive")
+                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.is_final").value(false))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.run_status").value("moving"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.next_stop.stop_id").value((int) academyStop))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.next_stop.stop_name").value(DriverRunFixtures.ACADEMY_NAME));
+        entityManager.flush();
+        assertThat(라이더_상태(runId, student1)).as("학원 도착 전에는 자동 하차가 없다").isEqualTo("boarded");
+
+        // 학원 항목 — 전원 자동 하차 + 종료
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + academyStop + "/arrive")
                 .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.is_final").value(true))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.run_status").value("finished"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.auto_alighted_count").value(2));
+        // BR-037 — 등원 종료도 run_ended 의 재료(RunEndedEvent)를 낸다. 학원 도착에서 자동 하차한 인원을 싣는다.
+        assertThat(applicationEvents.stream(RunEndedEvent.class))
+                .singleElement().extracting(RunEndedEvent::autoAlightedCount).isEqualTo(2L);
 
         entityManager.flush();
         assertThat(라이더_상태(runId, student1)).isEqualTo("alighted");
@@ -460,8 +489,9 @@ class DriverRunControllerTest {
         fixtures.startRun(runId, now());
         long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
         long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        fixtures.runStopForStop(versionId, stop1, 1, now());
-        fixtures.runStopForStop(versionId, stop2, 2, now());
+        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, now());
+        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, now());
+        long academyStop = fixtures.runStopForDestination(versionId, 3);
 
         // 최종 정차지(stop2) 에 배정된 학생이 이미 승차해 있다 — 최종 지점은 그 다음 arrive 호출이
         // 없어 goal7 의 "다음 도착 시 이전 정차지 강제" 폴백을 받지 못하는 유일한 정차지다.
@@ -469,11 +499,14 @@ class DriverRunControllerTest {
         fixtures.guardianOf(academyId, student2, "학부모2", now());
         fixtures.rider(runId, student2, stop2, RiderStatus.BOARDED, now());
 
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + stop1 + "/arrive")
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop1 + "/arrive")
                         .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + stop2 + "/arrive")
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop2 + "/arrive")
+                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + academyStop + "/arrive")
                         .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.is_final").value(true))
@@ -507,17 +540,17 @@ class DriverRunControllerTest {
         fixtures.startRun(runId, now());
         long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
         long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        fixtures.runStopForStop(versionId, stop1, 1, now());
-        fixtures.runStopForStop(versionId, stop2, 2, now());
+        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, now());
+        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, now());
 
         long student1 = fixtures.studentWithAccount(academyId, "학생1");
         fixtures.rider(runId, student1, stop2, RiderStatus.BOARDED, now());
 
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + stop1 + "/arrive")
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop1 + "/arrive")
                 .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + stop2 + "/arrive")
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop2 + "/arrive")
                 .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.is_final").value(true))
@@ -529,6 +562,40 @@ class DriverRunControllerTest {
         assertThat(회차_상태(runId)).isEqualTo("moving");
         assertThat(회차_종료보류(runId)).isTrue();
         assertThat(회차_종료시각(runId)).isNull();
+        assertThat(applicationEvents.stream(RunEndedEvent.class)).as("보류는 종료가 아니다").isEmpty();
+    }
+
+    @Test
+    @DisplayName("BR-015 — 하원 노선 맨 뒤에 경유 지점이 있어도 마지막 하차지 도착이 최종이고 운행이 끝난다")
+    void 맨_뒤_경유_지점이_있어도_마지막_하차지_도착이_최종이다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
+        long stop2 = fixtures.stop(academyId, "37.561000", "126.971000");
+        OffsetDateTime departTime = now();
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        fixtures.startRun(runId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
+        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, now());
+        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, now());
+        Waypoint waypoint = waypointRepository.save(Waypoint.forRun(runId, "주유소", null, new BigDecimal("37.562000"),
+                new BigDecimal("126.972000"), null, driverAccountId, now()));
+        fixtures.runStopForWaypoint(versionId, waypoint.getId(), 3);
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop1 + "/arrive")
+                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop2 + "/arrive")
+                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.is_final").value(true))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.run_status").value("finished"));
+        // BR-037 — 하원 잔류 0명 즉시 종료도 RunEndedEvent 를 낸다(자동 하차 인원 0).
+        assertThat(applicationEvents.stream(RunEndedEvent.class))
+                .singleElement().extracting(RunEndedEvent::autoAlightedCount).isEqualTo(0L);
     }
 
     // ── §8.23 T3 목표 7(Ruling 308) — 다음 승하차지 도착이 이전 정차지의 출발을 강제한다 ──────
@@ -547,20 +614,20 @@ class DriverRunControllerTest {
         fixtures.startRun(runId, now());
         long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
         long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        fixtures.runStopForStop(versionId, stop1, 1, now());
-        fixtures.runStopForStop(versionId, stop2, 2, now());
+        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, now());
+        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, now());
 
         long student1 = fixtures.studentWithAccount(academyId, "학생1");
         fixtures.guardianOf(academyId, student1, "학부모1", now());
         fixtures.rider(runId, student1, stop1, RiderStatus.BOARDED, now());
 
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + stop1 + "/arrive")
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop1 + "/arrive")
                         .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
         entityManager.flush();
         assertThat(출발시각(versionId, stop1)).as("①위치 판정 없이는 아직 출발 처리 전이다").isNull();
 
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + stop2 + "/arrive")
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop2 + "/arrive")
                         .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
 
@@ -585,8 +652,8 @@ class DriverRunControllerTest {
         fixtures.startRun(runId, now());
         long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
         long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        fixtures.runStopForStop(versionId, stop1, 1, now());
-        fixtures.runStopForStop(versionId, stop2, 2, now());
+        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, now());
+        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, now());
 
         // stop2 가 마지막이고, 그 탑승자는 이미 하차 처리됐다고 가정한다 — 도착 즉시 종료(stillBoarded=0)되어
         // 다음 정차지가 없으니 목표7 폴백을 받지 못한다. Ruling 312 가 이 구멍을 막는다.
@@ -594,11 +661,11 @@ class DriverRunControllerTest {
         fixtures.guardianOf(academyId, student2, "학부모2", now());
         fixtures.rider(runId, student2, stop2, RiderStatus.ALIGHTED, now());
 
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + stop1 + "/arrive")
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop1 + "/arrive")
                         .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + stop2 + "/arrive")
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop2 + "/arrive")
                         .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.is_final").value(true))

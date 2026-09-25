@@ -272,6 +272,16 @@ public class DriverRunFixtures {
         return runStopRepository.save(RunStop.forStop(routeVersionId, stopId, seq, eta)).getId();
     }
 
+    /** 그 배포 버전의 도착지(학원) 항목 — 등원 회차의 마지막 순번(Ruling 327). */
+    public long runStopForDestination(long routeVersionId, int seq) {
+        return runStopRepository.save(RunStop.forDestination(routeVersionId, seq)).getId();
+    }
+
+    /** 그 배포 버전의 경유 지점 항목 — 경유 지점 행을 만들고 넘긴 {@code seq} 에 싣는다. */
+    public long runStopForWaypoint(long routeVersionId, long waypointId, int seq) {
+        return runStopRepository.save(RunStop.forWaypoint(routeVersionId, waypointId, seq, null)).getId();
+    }
+
     /**
      * 그 회차의 라이더 1건 — {@code status} 가 {@code BOARDED} 면 {@code timestamp} 로 탑승 처리까지,
      * {@code ABSENT} 면 결석 처리까지 마친다(목표 10 회귀 시험이 종료 판정에서 무시돼야 함을 검사할 때 씀).

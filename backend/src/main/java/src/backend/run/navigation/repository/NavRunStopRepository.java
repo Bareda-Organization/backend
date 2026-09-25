@@ -17,7 +17,8 @@ import src.backend.run.navigation.entity.NavRunStop;
 public interface NavRunStopRepository extends JpaRepository<NavRunStop, Long> {
 
     /**
-     * 그 배포 버전의 정차 목록을 순번(RTE-01 순서) 그대로, 이름·좌표를 채워서 읽는다.
+     * 그 배포 버전의 정차 목록을 순번(RTE-01 순서) 그대로, 이름·좌표를 채워서 읽는다. 등원 학원 항목은
+     * 이름·좌표를 학원에서 채운다(Ruling 327).
      *
      * <p>제외(스킵·도착 완료)는 여기서 걸러내지 않는다 — 이 조회는 "그 버전에 실린 전부"를 그대로
      * 돌려주고, 무엇을 뺄지는 호출부({@code NavigationQueryService})가 API_SPEC §4.16 의 두 규칙을
@@ -34,9 +35,12 @@ public interface NavRunStopRepository extends JpaRepository<NavRunStop, Long> {
      */
     @Query("SELECT new src.backend.run.navigation.dto.NavStopRow(rs.id, rs.seq, rs.change, "
             + "CASE WHEN rs.arrivedAt IS NOT NULL THEN true ELSE false END, rs.stopId, "
-            + "COALESCE(s.name, w.label), COALESCE(s.lat, w.lat), COALESCE(s.lng, w.lng)) "
+            + "CASE WHEN rs.destination = true THEN a.name ELSE COALESCE(s.name, w.label) END, "
+            + "CASE WHEN rs.destination = true THEN a.lat ELSE COALESCE(s.lat, w.lat) END, "
+            + "CASE WHEN rs.destination = true THEN a.lng ELSE COALESCE(s.lng, w.lng) END) "
             + "FROM NavRunStop rs LEFT JOIN Stop s ON s.id = rs.stopId LEFT JOIN Waypoint w ON w.id = rs.waypointId "
             + "JOIN RouteVersion rv ON rv.id = rs.routeVersionId JOIN Run r ON r.id = rv.confirmedRouteId "
+            + "JOIN Academy a ON a.id = r.academyId "
             + "WHERE rs.routeVersionId = :routeVersionId AND r.academyId = :academyId ORDER BY rs.seq ASC")
     List<NavStopRow> findAllByRouteVersionIdAndAcademyIdOrderBySeqAsc(@Param("routeVersionId") Long routeVersionId,
             @Param("academyId") Long academyId);

@@ -26,6 +26,7 @@ import src.backend.academy.entity.Academy;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
+import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
@@ -148,7 +149,7 @@ class StaffRunRouteControllerTest {
         OffsetDateTime departTime = OffsetDateTime.now().plusHours(1);
         long runId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
         long versionId = fx.confirmedRouteWithVersion(runId, departTime.minusMinutes(40));
-        fx.runStopForStop(versionId, stopId, 1, departTime);
+        long runStopId = fx.runStopForStop(versionId, stopId, 1, departTime);
         long driverAccountId = fx.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사1", OffsetDateTime.now());
         fx.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자1", OffsetDateTime.now());
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
@@ -163,7 +164,7 @@ class StaffRunRouteControllerTest {
                 .perform(get("/api/v1/staff/runs/" + runId + "/route")
                         .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.stops[0].stop_id").value((int) stopId))
+                .andExpect(jsonPath("$.data.stops[0].stop_id").value((int) runStopId))
                 .andExpect(jsonPath("$.data.route_version").value(1))
                 .andExpect(jsonPath("$.data.published_at").exists())
                 .andExpect(jsonPath("$.data.ack.driver").value(true))
@@ -387,6 +388,28 @@ class StaffRunRouteControllerTest {
                         .header("Authorization", 메인관리자_토큰()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.confirmed").value(true));
+    }
+
+    @Test
+    @DisplayName("BR-014 — 메인 관리자에게도 정차지·인원이 채워진다(학원 조건을 요청자가 아니라 회차에서 잡는다)")
+    void 메인_관리자에게도_정차지와_인원이_나온다() throws Exception {
+        DriverRunFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.500000", "127.000000");
+        long studentId = fx.student(academyId, "학생1");
+        OffsetDateTime departTime = OffsetDateTime.now().plusHours(1);
+        long runId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
+        long versionId = fx.confirmedRouteWithVersion(runId, departTime.minusMinutes(40));
+        fx.runStopForStop(versionId, stopId, 1, departTime);
+        fx.rider(runId, studentId, stopId, RiderStatus.WAITING, departTime.minusMinutes(30));
+
+        mockMvc.perform(get("/api/v1/staff/runs/" + runId + "/route")
+                        .header("Authorization", 메인관리자_토큰()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.stops.length()").value(1))
+                .andExpect(jsonPath("$.data.stops[0].student_count").value(1))
+                .andExpect(jsonPath("$.data.next_stop.name").exists());
     }
 
     /** 메인 관리자는 {@code academyId} 가 null 인 유일한 역할이다 — 토큰도 그 형태여야 실제와 같다. */

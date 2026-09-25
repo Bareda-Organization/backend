@@ -80,16 +80,19 @@ public class RunLiveStateResolver {
         }
         List<RunStop> stops = runStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeq(
                 currentVersionId, run.getAcademyId());
-        Long currentStopId = stops.stream()
+        RunStop current = stops.stream()
                 .filter(stop -> stop.getArrivedAt() != null)
                 .max(Comparator.comparingInt(RunStop::getSeq))
-                .map(RunStop::getId)
                 .orElse(null);
+        int afterSeq = current == null ? -1 : current.getSeq();
+        // 마지막 도착 뒤에서만 고른다(BR-015) — 도착 처리 대상이 아닌 경유 지점이 미도착으로 남아 있어도
+        // 그 뒤 승하차지에 도착했으면 지난 것이다(§4.3 RunRouteQueryService 와 같은 규칙).
         Long nextStopId = stops.stream()
-                .filter(stop -> stop.getArrivedAt() == null && stop.getChange() != ChangeType.SKIPPED)
+                .filter(stop -> stop.getSeq() > afterSeq && stop.getChange() != ChangeType.SKIPPED)
                 .min(Comparator.comparingInt(RunStop::getSeq))
                 .map(RunStop::getId)
                 .orElse(null);
+        Long currentStopId = current == null ? null : current.getId();
         return new StopPair(currentStopId, nextStopId);
     }
 

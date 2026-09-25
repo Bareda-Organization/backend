@@ -104,6 +104,42 @@ class NavigationControllerTest {
                 + " 지난 곳이나 안 가는 곳으로 안내한다").isEqualTo(s4);
     }
 
+    /**
+     * BR-015 — 경유 지점은 도착 처리 대상이 아니다. 그 뒤 승하차지(s2)에 도착했으면 경유 지점도 지난
+     * 것이라, "미도착" 만 보고 남기면 지난 경유 지점으로 계속 되돌려 안내한다.
+     */
+    @Test
+    void 지난_경유_지점은_마지막_도착_뒤가_아니라서_안내하지_않는다() throws Exception {
+        long runId = 회차_생성("confirmed");
+        long versionId = 노선버전_생성(runId);
+        long s3 = 정차지_생성(3);
+        도착_처리(정차_추가(versionId, 1, 정차지_생성(1)));
+        경유_지점_추가(versionId, 2, runId);
+        도착_처리(정차_추가(versionId, 3, 정차지_생성(2)));
+        정차_추가(versionId, 4, s3);
+
+        조회한다(기사_토큰(), runId, "remaining")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.waypoints", hasSize(0)))
+                .andExpect(jsonPath("$.data.destination.stop_id").value(s3))
+                .andExpect(jsonPath("$.data.total_remaining_stops").value(1));
+    }
+
+    /** BR-002(Ruling 327) — 등원의 학원 항목은 학원 좌표·이름으로 안내된다. 비면 앱이 목적지 없는 내비를 띄운다. */
+    @Test
+    void 등원_학원_항목은_학원_좌표와_이름으로_안내된다() throws Exception {
+        long runId = 회차_생성("confirmed");
+        long versionId = 노선버전_생성(runId);
+        도착_처리(정차_추가(versionId, 1, 정차지_생성(1)));
+        jdbcTemplate.update("INSERT INTO run_stop (route_version_id, seq, destination) VALUES (?, 2, true)", versionId);
+
+        조회한다(기사_토큰(), runId, "next")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.destination.lat").value(37.497942))
+                .andExpect(jsonPath("$.data.destination.lng").value(127.027621))
+                .andExpect(jsonPath("$.data.destination.name").value("바래다학원 A"));
+    }
+
     // ── 목표 19 — total_remaining_stops 는 자르기 전 값 ───────────────────
 
     /** 남은 지점 6곳 → 4개(경유 3 + 목적지 1)로 잘리고 {@code truncated=true}, 총량은 자르기 전 값 6. */
@@ -146,7 +182,11 @@ class NavigationControllerTest {
 
     // ── 목표 20 — confirmed 는 origin 이 담기고 moving 은 비어야 한다 ─────────────
 
-    /** 출발 30분 전 확정 시점부터 기사가 노선을 미리 볼 수 있어야 한다(X-01) — 그 수단이 origin. */
+    /**
+     * 출발 30분 전 확정 시점부터 기사가 노선을 미리 볼 수 있어야 한다(X-01) — 그 수단이 origin. 등원의
+     * 출발점은 학원이 아니라 첫 승차지다(Ruling 190, 확정 배치와 같은 규칙) — BR-049: 전에는 학원 좌표에
+     * 스케줄의 출발지 이름("출발지")을 붙여 좌표와 이름이 서로 다른 곳을 가리켰다.
+     */
     @Test
     void confirmed_회차는_200이고_origin에_출발지_좌표가_담긴다() throws Exception {
         long runId = 회차_생성("confirmed");
@@ -156,8 +196,23 @@ class NavigationControllerTest {
         조회한다(기사_토큰(), runId, "next")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.origin").exists())
+                .andExpect(jsonPath("$.data.origin.lat").value(37.401))
+                .andExpect(jsonPath("$.data.origin.lng").value(127.001))
+                .andExpect(jsonPath("$.data.origin.name").value("정차지1"));
+    }
+
+    /** BR-049 — 하원의 출발점은 학원이고, 이름도 학원 것이다. */
+    @Test
+    void 하원_confirmed_회차의_origin은_학원_좌표와_이름이다() throws Exception {
+        long runId = 회차_생성("confirmed", "from_academy");
+        long versionId = 노선버전_생성(runId);
+        정차_추가(versionId, 1, 정차지_생성(1));
+
+        조회한다(기사_토큰(), runId, "next")
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.origin.lat").value(37.497942))
-                .andExpect(jsonPath("$.data.origin.lng").value(127.027621));
+                .andExpect(jsonPath("$.data.origin.lng").value(127.027621))
+                .andExpect(jsonPath("$.data.origin.name").value("바래다학원 A"));
     }
 
     /**
@@ -247,14 +302,18 @@ class NavigationControllerTest {
      * 로의 암묵 캐스팅은 리터럴 텍스트에서만 안정적이다, 기존 {@code *SchemaValidationTest} 관례와 동일).
      */
     private long 회차_생성(String status) {
+        return 회차_생성(status, "to_academy");
+    }
+
+    private long 회차_생성(String status, String direction) {
         String depart = SERVICE_DATE + "T09:00:00+09";
         String confirmAt = SERVICE_DATE + "T08:30:00+09";
         Long runId = jdbcTemplate.queryForObject(
                 "INSERT INTO run (academy_id, bus_id, service_date, direction, depart_time, confirm_at, "
                         + "status, origin_name, destination_name) VALUES (?, ?, '" + SERVICE_DATE
-                        + "', 'to_academy', '" + depart + "', '" + confirmAt + "', ?, '출발지', '도착지') "
+                        + "', ?, '" + depart + "', '" + confirmAt + "', ?, '출발지', '도착지') "
                         + "RETURNING id",
-                Long.class, ACADEMY_A_ID, BUS_A_ID, status);
+                Long.class, ACADEMY_A_ID, BUS_A_ID, direction, status);
         jdbcTemplate.update(
                 "INSERT INTO assignment (run_id, manager_id, role, assigned_at) VALUES (?, ?, 'driver', now())",
                 runId, DRIVER_MANAGER_ID);
@@ -283,6 +342,15 @@ class NavigationControllerTest {
         return jdbcTemplate.queryForObject(
                 "INSERT INTO run_stop (route_version_id, stop_id, seq) VALUES (?, ?, ?) RETURNING id", Long.class,
                 routeVersionId, stopId, seq);
+    }
+
+    private void 경유_지점_추가(long routeVersionId, int seq, long runId) {
+        Long waypointId = jdbcTemplate.queryForObject(
+                "INSERT INTO waypoint (run_id, label, lat, lng, applied, created_by) "
+                        + "VALUES (?, '주유소', 37.401500, 127.001500, true, ?) RETURNING id",
+                Long.class, runId, DRIVER_ACCOUNT_ID);
+        jdbcTemplate.update("INSERT INTO run_stop (route_version_id, waypoint_id, seq) VALUES (?, ?, ?)",
+                routeVersionId, waypointId, seq);
     }
 
     private void 도착_처리(long runStopId) {
