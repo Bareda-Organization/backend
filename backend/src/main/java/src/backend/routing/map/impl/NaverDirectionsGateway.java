@@ -51,6 +51,9 @@ public class NaverDirectionsGateway {
     /** {@code resilience4j.*.instances} 의 키 — 재시도·서킷이 같은 이름을 공유한다. */
     public static final String RESILIENCE_INSTANCE = "mapRoute";
 
+    /** 온디맨드 호출의 재시도 설정 이름 — 격벽·서킷은 {@link #RESILIENCE_INSTANCE} 를 공유한다. */
+    public static final String ON_DEMAND_RETRY_INSTANCE = "mapRouteOnDemand";
+
     private static final String DRIVING_PATH = "/map-direction-15/v1/driving";
 
     private static final String KEY_ID_HEADER = "x-ncp-apigw-api-key-id";
@@ -127,6 +130,21 @@ public class NaverDirectionsGateway {
     @CircuitBreaker(name = RESILIENCE_INSTANCE)
     @Retry(name = RESILIENCE_INSTANCE, fallbackMethod = "unavailable")
     public List<RoadLeg> legsOf(List<GeoPoint> segment, Duration timeout) {
+        return fetchLegs(segment, timeout);
+    }
+
+    /**
+     * {@link #legsOf} 와 같되 재시도만 온디맨드 설정({@value #ON_DEMAND_RETRY_INSTANCE})을 쓴다 — 격벽·서킷은
+     * 공급자가 같으므로 배치와 공유한다(BR-050, ARCHITECTURE §8.3 "재시도를 호출자가 주입").
+     */
+    @Bulkhead(name = RESILIENCE_INSTANCE)
+    @CircuitBreaker(name = RESILIENCE_INSTANCE)
+    @Retry(name = ON_DEMAND_RETRY_INSTANCE, fallbackMethod = "unavailable")
+    public List<RoadLeg> legsOfOnDemand(List<GeoPoint> segment, Duration timeout) {
+        return fetchLegs(segment, timeout);
+    }
+
+    private List<RoadLeg> fetchLegs(List<GeoPoint> segment, Duration timeout) {
         List<GeoPoint> distinct = withoutConsecutiveDuplicates(segment);
         if (distinct.size() < 2) {
             return zeroLegs(segment.size() - 1);

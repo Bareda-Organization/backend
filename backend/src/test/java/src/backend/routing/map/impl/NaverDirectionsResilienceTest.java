@@ -98,7 +98,10 @@ class NaverDirectionsResilienceTest {
     /** 다음 응답을 몇 밀리초 늦출지 — 타임아웃을 <b>주입값대로</b> 유발하기 위한 손잡이다. */
     private static final AtomicLong RESPONSE_DELAY_MILLIS = new AtomicLong();
 
-    /** 참이면 500 만 돌려준다 — 재시도·서킷 개방을 만드는 입력이다. */
+    /**
+     * 공급자 응답 형태 — 0 정상 · 1 은 500(재시도·서킷 개방을 만드는 입력) · 2 는 400(잘못된 요청) ·
+     * 3 은 200 인데 경로 부재. 2·3 은 같은 요청을 다시 보내도 답이 같은 실패다(BR-050).
+     */
     private static final AtomicInteger FAIL_MODE = new AtomicInteger();
 
     /** 지금 공급자 안에 들어와 있는 요청 수 — 격벽이 실제로 무는지를 이 값으로만 잴 수 있다. */
@@ -182,6 +185,39 @@ class NaverDirectionsResilienceTest {
         assertThat(PROVIDER_HITS.get())
                 .as("공급자에 도달한 호출 수 — 1이면 재시도가 걸리지 않은 것이다(fallbackMethod 가 @Retry 안쪽에 있는 형태)")
                 .isEqualTo(maxAttempts());
+    }
+
+    /**
+     * 다시 불러도 답이 같은 실패(400 · 경로 없음)는 재시도하지 않는다(BR-050) — 재시도하면 일일 할당량만
+     * 시도 횟수 배로 쓰고 결과는 같다. 폴백(직선거리 근사)으로 넘어가는 것은 그대로다.
+     */
+    @Test
+    void 다시_불러도_같은_실패는_재시도하지_않는다() {
+        for (int mode : new int[] {2, 3}) {
+            PROVIDER_HITS.set(0);
+            FAIL_MODE.set(mode);
+
+            RoadRoute route = mapRouteClient.route(요청(지점_두개(), Duration.ofSeconds(2), CallerPolicy.BATCH));
+
+            assertThat(route.fallbackUsed()).isTrue();
+            assertThat(PROVIDER_HITS.get()).as("응답 형태 %d 는 한 번만 불러야 한다", mode).isEqualTo(1);
+        }
+    }
+
+    /**
+     * 재시도 횟수는 호출자가 고른다(ARCHITECTURE §8.3) — 사용자가 화면 앞에서 기다리는 온디맨드는 배치보다
+     * 적게 다시 부른다. 같은 횟수면 온디맨드 최악 대기가 배치와 같은 배수로 늘어난다.
+     */
+    @Test
+    void 온디맨드는_배치보다_적게_다시_부른다() {
+        int onDemandAttempts = retryRegistry.retry(NaverDirectionsGateway.ON_DEMAND_RETRY_INSTANCE)
+                .getRetryConfig().getMaxAttempts();
+        assertThat(onDemandAttempts).isLessThan(maxAttempts());
+        FAIL_MODE.set(1);
+
+        mapRouteClient.route(요청(지점_두개(), Duration.ofSeconds(2), CallerPolicy.ON_DEMAND));
+
+        assertThat(PROVIDER_HITS.get()).isEqualTo(onDemandAttempts);
     }
 
     /**
@@ -307,8 +343,11 @@ class NaverDirectionsResilienceTest {
         Duration 상한 = Duration.ofSeconds(2);
         서킷을_연속_실패로_연다(상한);
         PROVIDER_HITS.set(0);
+        // 온디맨드는 재시도 설정이 따로다(BR-050) — 두 호출이 각자의 설정에서 재시도 없이 실패해야 한다.
         Retry retry = retryRegistry.retry(NaverDirectionsGateway.RESILIENCE_INSTANCE);
+        Retry onDemandRetry = retryRegistry.retry(NaverDirectionsGateway.ON_DEMAND_RETRY_INSTANCE);
         long 재시도_없이_실패한_호출 = retry.getMetrics().getNumberOfFailedCallsWithoutRetryAttempt();
+        long 온디맨드_재시도_없이_실패한_호출 = onDemandRetry.getMetrics().getNumberOfFailedCallsWithoutRetryAttempt();
 
         long 온디맨드_시작 = System.nanoTime();
         assertThatThrownBy(() -> mapRouteClient.route(요청(지점_두개(), 상한, CallerPolicy.ON_DEMAND)))
@@ -330,10 +369,11 @@ class NaverDirectionsResilienceTest {
         assertThat(PROVIDER_HITS.get())
                 .as("서킷이 열렸는데 공급자에 요청이 나갔다 — 서킷이 아무것도 막지 않는 상태다")
                 .isZero();
-        assertThat(retry.getMetrics().getNumberOfFailedCallsWithoutRetryAttempt())
+        assertThat(retry.getMetrics().getNumberOfFailedCallsWithoutRetryAttempt()
+                + onDemandRetry.getMetrics().getNumberOfFailedCallsWithoutRetryAttempt())
                 .as("서킷 개방이 재시도 대상이 됐다 — fallbackMethod 가 @CircuitBreaker 쪽에 붙어 "
                         + "CallNotPermittedException 이 포트 예외로 바뀌는 바람에 ignore-exceptions 가 안 먹는 형태다")
-                .isEqualTo(재시도_없이_실패한_호출 + 2);
+                .isEqualTo(재시도_없이_실패한_호출 + 온디맨드_재시도_없이_실패한_호출 + 2);
     }
 
     /**
@@ -532,8 +572,10 @@ class NaverDirectionsResilienceTest {
         // Content-Type 을 붙이지 않으면 WebClient 가 본문을 읽지 못해 정상 응답까지 폴백으로 떨어진다 —
         // 그러면 이 클래스의 "정상 경로" 단언이 전부 폴백을 보고 실패한다(실제로 그렇게 나왔다).
         exchange.getResponseHeaders().add("Content-Type", "application/json");
-        byte[] body = (FAIL_MODE.get() == 1 ? "{\"error\":\"boom\"}" : 정상_응답()).getBytes(StandardCharsets.UTF_8);
-        exchange.sendResponseHeaders(FAIL_MODE.get() == 1 ? 500 : 200, body.length);
+        int mode = FAIL_MODE.get();
+        byte[] body = (mode == 1 || mode == 2 ? "{\"error\":\"boom\"}" : mode == 3 ? "{\"route\":{}}" : 정상_응답())
+                .getBytes(StandardCharsets.UTF_8);
+        exchange.sendResponseHeaders(mode == 1 ? 500 : mode == 2 ? 400 : 200, body.length);
         exchange.getResponseBody().write(body);
         exchange.close();
     }
