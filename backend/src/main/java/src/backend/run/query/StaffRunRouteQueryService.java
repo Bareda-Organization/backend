@@ -110,7 +110,7 @@ public class StaffRunRouteQueryService {
         RouteVersion version = routeVersionRepository.findById(currentVersionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_CONFIRMED));
 
-        RunRouteResponse base = runRouteQueryService.buildFromVersion(requester, run, currentVersionId);
+        RunRouteResponse base = runRouteQueryService.buildFromVersion(run, currentVersionId);
         Ack ack = ackOf(run.getAcademyId(), runId);
         List<GeoPoint> roadPath = version.getRoadPath() == null ? List.of() : version.getRoadPath();
 
