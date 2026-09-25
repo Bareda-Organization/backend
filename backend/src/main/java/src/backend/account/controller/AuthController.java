@@ -139,14 +139,14 @@ public class AuthController {
     @PostMapping("/auth/logout")
     public ResponseEntity<Void> logout(@AuthenticationPrincipal AuthUser authUser,
             @CookieValue(name = REFRESH_COOKIE_NAME, required = false) String cookieToken,
-            @RequestBody(required = false) LogoutRequestPayload payload) {
+            @Valid @RequestBody(required = false) LogoutRequestPayload payload) {
         boolean isWeb = StringUtils.hasText(cookieToken);
         String rawToken = isWeb ? cookieToken : (payload == null ? null : payload.refreshToken());
         if (!StringUtils.hasText(rawToken)) {
             throw new BusinessException(ErrorCode.TOKEN_EXPIRED);
         }
 
-        logoutCommandService.logout(authUser.accountId(), rawToken);
+        logoutCommandService.logout(authUser.accountId(), rawToken, payload == null ? null : payload.deviceId());
 
         ResponseEntity.HeadersBuilder<?> responseBuilder = ResponseEntity.noContent();
         if (isWeb) {

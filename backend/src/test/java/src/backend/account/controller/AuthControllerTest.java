@@ -545,6 +545,34 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.error.code").value("TOKEN_EXPIRED"));
     }
 
+    /**
+     * 로그아웃에 {@code device_id} 가 있으면 그 기기의 푸시 단말 토큰을 함께 해지한다(§2.7 · §2.11 · Ruling 331 ·
+     * BR-040) — 남기면 공용 단말에서 로그아웃한 계정의 알림(학생 이름이 담긴)이 그 기기로 계속 간다.
+     * 같은 계정의 다른 기기 토큰은 유지한다.
+     */
+    @Test
+    void 로그아웃에_device_id_가_있으면_그_기기의_푸시_토큰만_해지한다() throws Exception {
+        Long accountId = createAccount("P2T4AUT24", "p2t4logoutdev", "010-7000-0024");
+        MvcResult loginResult = login("p2t4logoutdev", RAW_PASSWORD, "app");
+        jdbcTemplate.update("""
+                INSERT INTO device_token (account_id, device_id, token, platform) VALUES
+                (?, 'bus-tablet', 'fcm-a', 'android'), (?, 'home-phone', 'fcm-b', 'ios')
+                """, accountId, accountId);
+
+        mockMvc.perform(post("/api/v1/auth/logout")
+                        .header("Authorization", "Bearer " + readField(loginResult, "$.data.access_token"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refresh_token\": \"%s\", \"device_id\": \"bus-tablet\"}"
+                                .formatted(readField(loginResult, "$.data.refresh_token"))))
+                .andExpect(status().isNoContent());
+        entityManager.flush();
+
+        assertThat(jdbcTemplate.queryForList(
+                "SELECT device_id FROM device_token WHERE account_id = ? AND revoked_at IS NOT NULL",
+                String.class, accountId))
+                .containsExactly("bus-tablet");
+    }
+
     /** 목표 문장 — pending 계정도 로그아웃할 수 있다(§1.4 허용 5개 중 하나). */
     @Test
     void pending_계정도_로그아웃할_수_있다() throws Exception {

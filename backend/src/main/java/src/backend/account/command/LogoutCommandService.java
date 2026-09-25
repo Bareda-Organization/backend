@@ -12,6 +12,7 @@ import src.backend.account.entity.RefreshToken;
 import src.backend.account.repository.RefreshTokenRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.notification.repository.DeviceTokenRepository;
 
 /**
  * 로그아웃(AUTH-09, API_SPEC §2.7) — {@code pending} 을 포함한 전 역할이 호출할 수 있어
@@ -23,6 +24,7 @@ import src.backend.global.error.ErrorCode;
 public class LogoutCommandService {
 
     private final RefreshTokenRepository refreshTokenRepository;
+    private final DeviceTokenRepository deviceTokenRepository;
     private final Clock clock;
 
     /**
@@ -31,9 +33,14 @@ public class LogoutCommandService {
      * 토큰 문자열을 보내 남의 세션을 로그아웃시키는 경로를 막는다. 이미 무효화됐거나, 존재하지
      * 않거나, 소유자가 다르면 전부 {@code 401 TOKEN_EXPIRED} 하나로 응답한다(API_SPEC §2.7) —
      * "존재하지 않음"과 "소유자가 다름"을 구분해 알려주면 토큰 추측에 단서를 준다.
+     *
+     * <p>{@code deviceId} 가 있으면 그 기기의 푸시 단말 토큰도 해지한다(§2.11 "로그아웃 시 해당 기기 토큰 자동
+     * 해지" · Ruling 331) — 공용 단말에서 로그아웃한 계정의 알림이 그 기기로 계속 가지 않게 한다. 조회가 토큰의
+     * 계정으로 좁혀져 남의 기기는 해지할 수 없다. refresh 무효화 <b>뒤</b>에 두는 이유는 그 쿼리가 영속성
+     * 컨텍스트를 비워 앞서 바꾼 엔티티가 반영되지 않기 때문이다.
      */
     @Transactional
-    public void logout(Long authenticatedAccountId, String rawRefreshToken) {
+    public void logout(Long authenticatedAccountId, String rawRefreshToken, String deviceId) {
         String tokenHash = RefreshTokenHasher.sha256Hex(rawRefreshToken);
         RefreshToken stored = refreshTokenRepository.findByTokenHash(tokenHash)
                 .filter(t -> t.getRevokedAt() == null)
@@ -42,5 +49,9 @@ public class LogoutCommandService {
 
         OffsetDateTime now = OffsetDateTime.now(clock);
         refreshTokenRepository.revokeByTokenHash(stored.getTokenHash(), now);
+        if (deviceId != null) {
+            deviceTokenRepository.findByAccountIdAndDeviceId(authenticatedAccountId, deviceId)
+                    .ifPresent(deviceToken -> deviceToken.revoke(now));
+        }
     }
 }
