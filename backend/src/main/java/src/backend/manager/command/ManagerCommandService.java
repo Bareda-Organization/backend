@@ -1,9 +1,11 @@
 package src.backend.manager.command;
 
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.Locale;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +21,7 @@ import src.backend.manager.dto.ManagerUpdateRequest;
 import src.backend.manager.entity.Manager;
 import src.backend.manager.entity.ManagerProfile;
 import src.backend.manager.entity.WorkHours;
+import src.backend.manager.event.ManagerRoleChangedEvent;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
 
@@ -32,6 +35,8 @@ public class ManagerCommandService {
 
     private final AssignmentRepository assignmentRepository;
 
+    private final ApplicationEventPublisher eventPublisher;
+
     private final Clock clock;
 
     /** 매니저를 등록한다(§5.13) — 소속 학원은 토큰에서만 온다(§1.5). */
@@ -41,16 +46,28 @@ public class ManagerCommandService {
         return ManagerResponse.from(managerRepository.save(manager));
     }
 
-    /** 매니저 정보를 고친다(§5.13) — 대상이 다른 학원이거나 이미 삭제됐으면 {@code 404 MANAGER_NOT_FOUND} 다. */
+    /**
+     * 매니저 정보를 고친다(§5.13) — 대상이 다른 학원이거나 이미 삭제됐으면 {@code 404 MANAGER_NOT_FOUND} 다.
+     *
+     * <p>역할이 바뀌면 끝나지 않은 배치가 있을 때 {@code 409 MANAGER_ASSIGNED} 이고(배치 자리가 곧 역할이라
+     * 통과시키면 그 자리에 권한 없는 사람이 남는다), 연결된 계정의 역할도 함께 바뀐다(BR-022).
+     */
     public ManagerResponse update(AuthUser requester, Long managerId, ManagerUpdateRequest request) {
         Manager manager = findManageable(requester, managerId);
-        manager.update(new ManagerProfile(request.name(), request.phone(), toRole(request.role()),
-                WorkHours.of(request.workHours())));
+        ManagerRole role = toRole(request.role());
+        boolean roleChanged = role != null && role != manager.getRole();
+        if (roleChanged) {
+            assertNoUnfinishedAssignment(manager);
+        }
+        manager.update(new ManagerProfile(request.name(), request.phone(), role, WorkHours.of(request.workHours())));
+        if (roleChanged && manager.getAccountId() != null) {
+            eventPublisher.publishEvent(new ManagerRoleChangedEvent(manager.getAccountId(), role));
+        }
         return ManagerResponse.from(manager);
     }
 
     /**
-     * 매니저를 삭제한다(MGR-04, §5.13) — 회차에 배치돼 있으면 {@code 409 MANAGER_ASSIGNED} 이고
+     * 매니저를 삭제한다(MGR-04, §5.13) — 끝나지 않은 회차에 배치돼 있으면 {@code 409 MANAGER_ASSIGNED} 이고
      * {@code deleted_at} 은 <b>NULL 로 남는다</b>.
      *
      * <p>배치 확인이 삭제보다 <b>먼저</b> 와야 한다 — soft delete 는 UPDATE 라 FK RESTRICT 가
@@ -58,10 +75,15 @@ public class ManagerCommandService {
      */
     public void delete(AuthUser requester, Long managerId) {
         Manager manager = findManageable(requester, managerId);
-        if (assignmentRepository.existsByManagerId(manager.getId())) {
+        assertNoUnfinishedAssignment(manager);
+        manager.delete(OffsetDateTime.now(clock));
+    }
+
+    /** 삭제·역할 변경이 같은 기준("배치 해제 후", MGR-04)을 보도록 판정을 한 곳에 둔다. */
+    private void assertNoUnfinishedAssignment(Manager manager) {
+        if (assignmentRepository.existsUnfinishedByManagerId(manager.getId(), LocalDate.now(clock))) {
             throw new BusinessException(ErrorCode.MANAGER_ASSIGNED);
         }
-        manager.delete(OffsetDateTime.now(clock));
     }
 
     private Manager findManageable(AuthUser requester, Long managerId) {

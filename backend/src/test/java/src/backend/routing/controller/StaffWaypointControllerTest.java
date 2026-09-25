@@ -1,10 +1,12 @@
 package src.backend.routing.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -21,6 +23,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -40,12 +43,21 @@ import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.security.JwtTokenProvider;
+import src.backend.global.security.authz.Permissions;
 import src.backend.notification.command.RunRouteConfirmedNotificationListener;
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
+import src.backend.routing.command.WaypointPreviewCache;
+import src.backend.routing.command.WaypointPreviewCache.WaypointPreview;
+import src.backend.routing.command.WaypointStore;
+import src.backend.routing.entity.Waypoint;
 import src.backend.routing.pipeline.RouteComputationPipeline;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
+import src.backend.routing.repository.WaypointRepository;
 import src.backend.run.command.RunConfirmationFixtures;
 import src.backend.run.command.RunConfirmationService;
+import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
@@ -110,6 +122,15 @@ class StaffWaypointControllerTest {
 
     @Autowired
     private RunRepository runRepository;
+
+    @Autowired
+    private WaypointPreviewCache previewCache;
+
+    @Autowired
+    private WaypointStore waypointStore;
+
+    @Autowired
+    private WaypointRepository waypointRepository;
 
     @MockitoSpyBean
     private RouteComputationPipeline pipeline;
@@ -466,12 +487,170 @@ class StaffWaypointControllerTest {
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
-    private String 순번_본문(String address, String label, int seq, boolean apply) {
-        return "{\"address\":\"%s\",\"label\":\"%s\",\"seq\":%d,\"apply\":%s}"
-                .formatted(address, label, seq, apply);
+    // ── BR-020 — 추가·제거 뒤에도 다른 경유 지점이 "어느 승하차지 사이" 를 지킨다 ─────────
+
+    /** 앞 경유 지점을 지워도 맨 뒤 경유 지점의 순번이 자리 수 안으로 당겨진다 — 옛 순번 그대로면 500 이었다. */
+    @Test
+    void 앞_경유_지점을_지워도_맨_뒤_경유_지점은_자리를_지킨다() throws Exception {
+        시나리오 s = 확정된_회차를_만든다();
+        long front = waypointId아이디_읽는다(경유_추가한다(s.runId, 순번_본문("앞경유로 1", "앞", 2, true))
+                .andExpect(status().isOk()).andReturn());
+        long back = waypointId아이디_읽는다(경유_추가한다(s.runId, 경유_본문("뒤경유로 2", "뒤", true))
+                .andExpect(status().isOk()).andReturn());
+        assertThat(배포된_순번(s.runId, back)).as("승하차지 3 + 경유 2 의 맨 뒤").isEqualTo(5);
+
+        경유_삭제한다(s.runId, front, true).andExpect(status().isOk());
+
+        assertThat(배포된_순번(s.runId, back)).isEqualTo(4);
     }
 
-    private ResultActions 경유_추가한다(long runId, String body) throws Exception {
+    /** 이미 경유 지점이 선 자리에 새로 지정하면 새 지점이 그 자리에 서고 기존 지점은 한 칸 뒤로 밀린다. */
+    @Test
+    void 경유_지점이_선_자리에_지정하면_기존_지점이_한_칸_밀린다() throws Exception {
+        시나리오 s = 확정된_회차를_만든다();
+        경유_추가한다(s.runId, 순번_본문("기존경유로 1", "기존", 2, true)).andExpect(status().isOk());
+
+        MvcResult result = 경유_추가한다(s.runId, 순번_본문("새경유로 2", "새", 2, false))
+                .andExpect(status().isOk()).andReturn();
+
+        java.util.List<String> 변경후 = JsonPath.read(result.getResponse().getContentAsString(StandardCharsets.UTF_8),
+                "$.data.route_preview.stops_after[*].stop_name");
+        assertThat(변경후.subList(1, 3)).containsExactly("새", "기존");
+    }
+
+    /** 두 승하차지 사이에 둔 경유 지점은 앞 경유 지점을 지워도 그 사이에 남는다 — 옛 순번 그대로면 뒤로 밀렸다. */
+    @Test
+    void 앞_경유_지점을_지워도_승하차지_사이_자리가_유지된다() throws Exception {
+        시나리오 s = 확정된_회차를_만든다();
+        long front = waypointId아이디_읽는다(경유_추가한다(s.runId, 순번_본문("앞경유로 1", "앞", 2, true))
+                .andExpect(status().isOk()).andReturn());
+        long middle = waypointId아이디_읽는다(경유_추가한다(s.runId, 순번_본문("사이경유로 2", "사이", 4, true))
+                .andExpect(status().isOk()).andReturn());
+
+        경유_삭제한다(s.runId, front, true).andExpect(status().isOk());
+
+        assertThat(배포된_순번(s.runId, middle)).as("[s1, s2, 사이, s3] — 승하차지 둘 뒤").isEqualTo(3);
+    }
+
+    // ── BR-051 — 화면에서 본 미리보기가 그대로 배포된다(§5.15 preview_token) ─────────────
+
+    /** 미리보기 토큰 없이 곧장 배포하면 {@code 409 PREVIEW_STALE} 이다 — 관리자가 대조표를 보지 않은 배포다. */
+    @Test
+    void 미리보기_토큰_없이는_배포되지_않는다() throws Exception {
+        시나리오 s = 확정된_회차를_만든다();
+
+        경유_요청한다(s.runId, 경유_본문("토큰없음로 1", "토큰 없음", true))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("PREVIEW_STALE"));
+    }
+
+    /** 배포는 미리보기가 계산한 결과를 그대로 쓴다 — 다시 계산하면 화면에서 본 것과 다른 노선이 나갈 수 있다(§8.4). */
+    @Test
+    void 미리보기한_계산을_그대로_배포한다() throws Exception {
+        시나리오 s = 확정된_회차를_만든다();
+        String token = 미리보기_토큰(경유_요청한다(s.runId, 경유_본문("캐시경유로 1", "캐시", false))
+                .andExpect(status().isOk()).andReturn());
+
+        경유_요청한다(s.runId, 토큰_본문("캐시경유로 1", "캐시", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.applied").value(true));
+
+        verify(pipeline, times(1)).compute(any());
+    }
+
+    /** 미리보기 뒤 명단이 바뀌면 그 대조표는 낡았다 — 배포는 {@code 409 PREVIEW_STALE} 이고 노선은 그대로다. */
+    @Test
+    void 미리보기_뒤_명단이_바뀌면_배포는_409_PREVIEW_STALE_이다() throws Exception {
+        시나리오 s = 확정된_회차를_만든다();
+        String token = 미리보기_토큰(경유_요청한다(s.runId, 경유_본문("낡음경유로 1", "낡음", false))
+                .andExpect(status().isOk()).andReturn());
+        int versionNo = 현재_버전_번호(s.runId);
+        assertThat(jdbcTemplate.update("UPDATE run_rider SET status = 'absent' WHERE id = "
+                + "(SELECT min(id) FROM run_rider WHERE run_id = ?)", s.runId)).as("명단이 실제로 바뀌어야 한다").isEqualTo(1);
+        entityManager.flush();
+        entityManager.clear();
+
+        경유_요청한다(s.runId, 토큰_본문("낡음경유로 1", "낡음", token))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("PREVIEW_STALE"));
+        assertThat(현재_버전_번호(s.runId)).isEqualTo(versionNo);
+    }
+
+    // ── BR-021 — 배포는 계산의 바탕이 된 판본·운행 구간을 다시 확인한다 ─────────────────
+
+    /**
+     * 미리보기 뒤 다른 배포가 끼어 판본이 바뀌었으면 {@code 409 PREVIEW_STALE} 이다 — 그대로 배포하면 끼어든 배포의
+     * 내용(예: 승인된 승하차지 변경)을 모르는 계산이 그 위를 덮는다. 지문 재료가 같아도 판본이 다르면 막는다.
+     */
+    @Test
+    void 미리보기_뒤_다른_배포가_끼면_409_PREVIEW_STALE_이다() throws Exception {
+        시나리오 s = 확정된_회차를_만든다();
+        String token = 미리보기_토큰(경유_요청한다(s.runId, 경유_본문("판본경유로 1", "판본", false))
+                .andExpect(status().isOk()).andReturn());
+        다른_배포를_끼운다(s.runId);
+        int versionNo = 현재_버전_번호(s.runId);
+
+        경유_요청한다(s.runId, 토큰_본문("판본경유로 1", "판본", token))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("PREVIEW_STALE"));
+        assertThat(현재_버전_번호(s.runId)).isEqualTo(versionNo);
+    }
+
+    /**
+     * 배포 트랜잭션은 회차를 잠그고 운행 구간을 다시 본다 — 요청 첫머리에서 본 뒤 운행이 시작됐으면
+     * {@code 403 CHANGE_WINDOW_CLOSED} 다(ARCHITECTURE §8.5 운행 시작과 동시에 노선 잠금). 서비스를 거치면
+     * 첫머리 판정이 먼저 막으므로 저장소를 직접 불러 그 사이를 재현한다.
+     */
+    @Test
+    void 배포_직전에_운행이_시작됐으면_저장소가_배포하지_않는다() throws Exception {
+        시나리오 s = 확정된_회차를_만든다();
+        경유_요청한다(s.runId, 경유_본문("시작경유로 1", "시작", false)).andExpect(status().isOk());
+        WaypointPreview preview = previewCache.find(s.runId).orElseThrow();
+        Run 첫머리에_읽은_회차 = runRepository.findById(s.runId).orElseThrow();
+        int versionNo = 현재_버전_번호(s.runId);
+        jdbcTemplate.update("UPDATE run SET status = 'moving', started_at = now() WHERE id = ?", s.runId);
+        entityManager.flush();
+        entityManager.clear();
+        Waypoint waypoint = waypointRepository.findById(preview.waypointId()).orElseThrow();
+
+        assertThatThrownBy(() -> waypointStore.deployAdd(첫머리에_읽은_회차, waypoint, preview, 1L, OffsetDateTime.now()))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.CHANGE_WINDOW_CLOSED);
+        assertThat(현재_버전_번호(s.runId)).isEqualTo(versionNo);
+    }
+
+    /** 다른 관계자의 배포를 흉내 낸다 — 현재 판본을 복사해 다음 번호로 올리고 확정 노선이 그 판본을 가리키게 한다. */
+    private void 다른_배포를_끼운다(long runId) {
+        long current = 현재_버전_id(runId);
+        Long next = jdbcTemplate.queryForObject("""
+                INSERT INTO route_version (confirmed_route_id, version_no, source, est_duration_min, est_distance_km,
+                    published_at, input_fingerprint, engine_name, policy_snapshot, fallback_used, road_path, created_by)
+                SELECT confirmed_route_id, version_no + 1, 'approval', est_duration_min, est_distance_km, now(),
+                    input_fingerprint, engine_name, policy_snapshot, fallback_used, road_path, created_by
+                FROM route_version WHERE id = ? RETURNING id""", Long.class, current);
+        jdbcTemplate.update("INSERT INTO run_stop (route_version_id, stop_id, waypoint_id, seq, eta) "
+                + "SELECT ?, stop_id, waypoint_id, seq, eta FROM run_stop WHERE route_version_id = ?", next, current);
+        jdbcTemplate.update("UPDATE confirmed_route SET current_version_id = ? WHERE run_id = ?", next, runId);
+        entityManager.flush();
+        entityManager.clear();
+    }
+
+    // ── BR-120 — 경유 지점은 노선 편성 권한 ────────────────────────────────
+
+    /** 경유 지점은 {@code ROUTE_MANAGE}(FEATURE_SPEC §6.2) — 스케줄 권한만 가진 주체에게는 닫혀 있어야 한다. */
+    @Test
+    void 스케줄_권한만으로는_경유_지점을_다룰_수_없다() throws Exception {
+        var scheduleOnly = user("schedule-only").authorities(new SimpleGrantedAuthority(Permissions.SCHEDULE_MANAGE));
+
+        mockMvc.perform(post("/api/v1/staff/runs/1/waypoints").with(scheduleOnly)
+                        .contentType(MediaType.APPLICATION_JSON).content(경유_본문("권한경유로 1", "권한", false)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(delete("/api/v1/staff/runs/1/waypoints/1").with(scheduleOnly))
+                .andExpect(status().isForbidden());
+    }
+
+    /** 도우미 없이 한 번만 보낸다 — 배포 도우미가 넣는 미리보기 단계를 빼고 서버의 판정을 직접 본다. */
+    private ResultActions 경유_요청한다(long runId, String body) throws Exception {
         long academyId = jdbcTemplate.queryForObject("SELECT academy_id FROM run WHERE id = ?", Long.class, runId);
         return mockMvc.perform(post("/api/v1/staff/runs/" + runId + "/waypoints")
                 .header("Authorization", 토큰(academyId))
@@ -479,9 +658,46 @@ class StaffWaypointControllerTest {
                 .content(body));
     }
 
+    private String 미리보기_토큰(MvcResult preview) throws Exception {
+        String body = preview.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertThat(JsonPath.<String>read(body, "$.data.preview_token")).as("미리보기 응답에 preview_token 이 있어야 한다")
+                .isNotBlank();
+        return JsonPath.read(body, "$.data.preview_token");
+    }
+
+    private String 토큰_본문(String address, String label, String token) {
+        return "{\"address\":\"%s\",\"label\":\"%s\",\"apply\":true,\"preview_token\":\"%s\"}"
+                .formatted(address, label, token);
+    }
+
+    private String 순번_본문(String address, String label, int seq, boolean apply) {
+        return "{\"address\":\"%s\",\"label\":\"%s\",\"seq\":%d,\"apply\":%s}"
+                .formatted(address, label, seq, apply);
+    }
+
+    /**
+     * 경유 지점을 지정한다 — 본문이 {@code apply=true} 면 §5.15 대로 <b>미리보기 → 그 토큰으로 배포</b> 두 요청을
+     * 보낸다(BR-051). 서버 판정을 한 요청으로 보려면 {@link #경유_요청한다} 를 쓴다.
+     */
+    private ResultActions 경유_추가한다(long runId, String body) throws Exception {
+        if (!body.contains("\"apply\":true")) {
+            return 경유_요청한다(runId, body);
+        }
+        String token = 미리보기_토큰(경유_요청한다(runId, body.replace("\"apply\":true", "\"apply\":false"))
+                .andExpect(status().isOk()).andReturn());
+        return 경유_요청한다(runId, body.replace("\"apply\":true", "\"apply\":true,\"preview_token\":\"" + token + "\""));
+    }
+
+    /** 배포된 경유 지점을 지운다 — {@code apply=true} 면 추가와 같이 미리보기 → 그 토큰으로 배포 두 요청이다. */
     private ResultActions 경유_삭제한다(long runId, long waypointId, boolean apply) throws Exception {
         long academyId = jdbcTemplate.queryForObject("SELECT academy_id FROM run WHERE id = ?", Long.class, runId);
-        return mockMvc.perform(delete("/api/v1/staff/runs/" + runId + "/waypoints/" + waypointId + "?apply=" + apply)
+        String path = "/api/v1/staff/runs/" + runId + "/waypoints/" + waypointId;
+        ResultActions preview = mockMvc.perform(delete(path + "?apply=false").header("Authorization", 토큰(academyId)));
+        if (!apply) {
+            return preview;
+        }
+        String token = 미리보기_토큰(preview.andExpect(status().isOk()).andReturn());
+        return mockMvc.perform(delete(path + "?apply=true&preview_token=" + token)
                 .header("Authorization", 토큰(academyId)));
     }
 

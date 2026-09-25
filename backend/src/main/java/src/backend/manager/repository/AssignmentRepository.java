@@ -29,23 +29,29 @@ import src.backend.monitoring.dto.StaffAssignmentAckView;
 public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
 
     /**
-     * 이 매니저가 어느 회차에든 배치돼 있는지 본다 — 있으면 삭제가 {@code 409 MANAGER_ASSIGNED} 다
-     * (MGR-04 · API_SPEC §5.13).
+     * 이 매니저가 <b>끝나지 않은</b> 회차에 배치돼 있는지 본다 — 있으면 삭제와 역할 변경이
+     * {@code 409 MANAGER_ASSIGNED} 다(MGR-04 "배치 해제 후 삭제" · API_SPEC §5.13). 두 조작이 이 조회
+     * 하나를 쓰는 이유는 기준이 갈리면 삭제는 되는데 역할 변경은 막히는 식으로 어긋나기 때문이다.
+     *
+     * <p>끝나지 않은 회차 = 취소되지 않았고 종료되지 않았으며, 운행 중이거나 운행일이 오늘 이후. 지난
+     * 날짜에 시작하지 않은 채 남은 회차를 세지 않는 것은 그 회차가 앞으로 운행될 일이 없어서다 — 세면
+     * 한 번이라도 배치된 매니저는 영구히 삭제되지 않는다(과거 배치를 푸는 API 가 부재, BR-023). 지난
+     * 배치는 soft delete 라 행째 남으므로 과거 운행의 담당자 기록은 사라지지 않는다.
      *
      * <p><b>이 선검사가 유일한 방어다.</b> ERD 는 {@code manager → assignment} 를 FK RESTRICT 로 두어
      * "DB 도 방어" 라 적지만, §5.13 의 삭제는 행을 지우지 않는 soft delete({@code deleted_at} UPDATE)라
-     * FK 가 발동할 자리가 부재하다. 이 조회를 건너뛰면 배치된 매니저가 조용히 삭제되고, 그 회차의
-     * 담당자는 목록에서 사라진 채 남는다.
-     *
-     * <p>회차의 취소·종료 여부를 조건에 넣지 않는다 — 지난 회차의 배치도 그 매니저가 실제로 운행한
-     * 기록이라, 지우면 과거 운행의 담당자를 답할 수단이 사라진다.
+     * FK 가 발동할 자리가 부재하다.
      */
     @AcademyScopeExempt(reason = "assignment 는 run 부모 경유라 학원 조건을 걸 자리가 조인뿐인데(ERD §6.1), "
             + "여기서 학원으로 좁히면 삭제 차단이 오히려 약해진다 — 어떤 이유로든 타 학원 회차에 붙은 배치가 "
             + "있으면 그것도 막아야 삭제 뒤에 담당자가 사라지는 회차가 생기지 않는다. "
             + "호출부가 학원 조건으로 좁혀 조회한 Manager 의 id 만 넘긴다는 전제 — 요청 파라미터의 "
             + "managerId 를 넘기면 타 학원 매니저의 배치 여부가 새어 이 예외가 우회로가 된다")
-    boolean existsByManagerId(Long managerId);
+    @Query("SELECT CASE WHEN COUNT(a) > 0 THEN TRUE ELSE FALSE END FROM Assignment a, Run r "
+            + "WHERE r.id = a.runId AND a.managerId = :managerId AND r.canceledAt IS NULL "
+            + "AND r.status <> src.backend.run.entity.RunStatus.FINISHED "
+            + "AND (r.status = src.backend.run.entity.RunStatus.MOVING OR r.serviceDate >= :today)")
+    boolean existsUnfinishedByManagerId(@Param("managerId") Long managerId, @Param("today") LocalDate today);
 
     /**
      * 그 회차의 그 자리에 이미 붙어 있는 배치(MGR-05, §5.14) — 있으면 <b>교체</b>이고 없으면 신규다.
@@ -104,13 +110,19 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
      * <p>이 판정은 {@code work_hours} 를 <b>보지 않는다</b>(Ruling 165 ③) — 근무 시간이 없다고 해서
      * 같은 시각에 두 대를 몰 수 있는 것은 아니라, 근무 시간 판정과 묶으면 이쪽이 근무 시간 미기재
      * 매니저에서 조용히 사라진다.
+     *
+     * <p>운행일을 {@code fromDate}~{@code toDate} 로 좁힌다(BR-088) — 조건이 없으면 매니저가 지금까지
+     * 배치된 회차 전부를 배치 요청마다 읽어 운영 기간에 비례해 행이 늘어난다. 호출부는 배치하려는 회차의
+     * 운행일 전후 하루를 넘긴다(자정을 걸친 운행 대비 — 소요가 하루를 넘는 통원 회차는 없다는 전제).
      */
     @Query("SELECT new src.backend.manager.dto.ManagerRunWindow(r.departTime, r.estDurationMin) "
             + "FROM Assignment a, Run r "
             + "WHERE r.id = a.runId AND a.managerId = :managerId AND r.academyId = :academyId "
+            + "AND r.serviceDate BETWEEN :fromDate AND :toDate "
             + "AND r.canceledAt IS NULL AND r.id <> :excludedRunId")
     List<ManagerRunWindow> findManagerRunWindows(@Param("academyId") Long academyId,
-            @Param("managerId") Long managerId, @Param("excludedRunId") Long excludedRunId);
+            @Param("managerId") Long managerId, @Param("excludedRunId") Long excludedRunId,
+            @Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate);
 
     /**
      * 그 회차에 배치된 기사·동승자를 계정 식별자와 함께 읽는다 — {@code route_changed} 알림(Phase 7 T3)의
@@ -118,15 +130,11 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
      *
      * <p>학원 조건이 {@link #findAssignedManagers} 와 같은 자리(조인된 {@code manager})에 걸려 있다.
      * 삭제된 매니저({@code deleted_at})는 담지 않는다 — 그만둔 매니저에게 새 회차 확정을 알릴 이유가
-     * 없다. 다만 이 조건이 정상 흐름에서 실제로 걸러내는 행은 없다: MGR-04(
-     * {@code AssignmentRepository#existsByManagerId})가 배치가 남아 있는 매니저의 삭제 자체를
-     * 막아, "배치는 있는데 매니저는 삭제됨" 이라는 상태가 애초에 만들어지지 않는다(Phase 8 목표 17
-     * — 이전에는 "{@code accountId} 가 다른 매니저로 재배정될 위험" 을 근거로 적었으나, 계정 재연결
-     * 자체가 {@code Manager#linkAccount} 의 {@code ALREADY_LINKED} 가드로 막혀 있어 그 서술은
-     * 부정확했다). 그래서 이 조건은 지금 당장 걸러내는 것이 있어서가 아니라, MGR-04 의 보장이
-     * 훗날 완화될 때를 대비한 <b>방어적 불변 조건</b>으로 남겨 둔다 — 도달 가능성은
-     * {@code RunRouteConfirmedNotificationTest#삭제된_매니저는_알림을_받지_않는다} 가 서비스 계층
-     * 가드를 우회해 상태를 직접 만들어 SQL 수준에서 고정한다.
+     * 없다. MGR-04({@link #existsUnfinishedByManagerId})는 <b>끝나지 않은</b> 회차의 배치만 삭제를
+     * 막으므로(BR-023), 지난 회차에 배치된 채 삭제된 매니저는 정상 흐름에서 생긴다 — 그 회차가 다시
+     * 확정되는 경로는 없지만, 이 조건이 그 매니저를 수신자에서 확실히 뺀다. 도달 가능성은
+     * {@code RunRouteConfirmedNotificationTest#삭제된_매니저는_알림을_받지_않는다} 가 상태를 직접 만들어
+     * SQL 수준에서 고정한다.
      */
     @Query("SELECT new src.backend.manager.dto.AssignedManagerAccountView(a.managerId, m.accountId, m.name, a.role) "
             + "FROM Assignment a, Manager m "

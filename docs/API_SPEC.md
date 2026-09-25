@@ -1579,7 +1579,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `POST /staff/routes` | RTE-01 | 편성. 응답 `201` |
 | `GET /staff/routes/{id}` | RTE-01 | 상세 — 정차 순서를 `seq` 차례로 함께 싣는다 |
 | `PATCH /staff/routes/{id}` | RTE-01 | 수정 — §1.9 대로 변경 후 자원 상태를 그대로 반환 |
-| `DELETE /staff/routes/{id}` | RTE-01 | 삭제. **행을 지운다**(soft delete 부재) — 정차 순서도 `route_stop` FK CASCADE 로 함께 사라진다 |
+| `DELETE /staff/routes/{id}` | RTE-01 | 삭제. **행을 지운다**(soft delete 부재) — 정차 순서도 `route_stop` FK CASCADE 로 함께 사라진다. 성공 `204`(본문 부재, §1.1) |
 | `POST /staff/routes/{id}/optimize` | RTE-09 | 정차 순서 최적화. 결과는 상세와 같은 형태 |
 | `GET /staff/routes/{id}/path` | RTE-01 | 정차 순서대로 이은 **도로 경로**. 응답 `road_path[{lat,lng}]` · `fallback_used` · `stops[]` |
 | `GET /staff/stops/search?address=` | RTE-01 | **주소 검색** — 도로명 주소를 좌표로 옮긴다. **아무것도 만들지 않는다** |
@@ -1662,7 +1662,11 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 - **배열에서 빠진 승하차지는 노선에서만 빠진다** — 승하차지 행은 지우지 않는다
 - 새 항목은 `POST .../stops` 와 같은 규칙 — 50m 안에 있으면 그 승하차지를 쓴다
 - **고치기 전에 전부 검증한다** — 학원 밖 승하차지·같은 승하차지 두 번이면 **아무것도 바꾸지 않은 채** `422 VALIDATION_FAILED`
-- 응답은 상세와 같은 형태 · 에러 `404 ROUTE_NOT_FOUND`(다른 학원 편성 포함)
+- **운행 중(`moving`) 회차의 현재 노선에 서는 승하차지는 좌표를 고칠 수 없다** — 아무것도 바꾸지 않은 채
+  `403 CHANGE_WINDOW_CLOSED`. 운행 시작과 동시에 노선이 잠기는데(`ARCHITECTURE §8.5`) 근접 알림·출발 판정이
+  승하차지 좌표를 매번 다시 읽어, 고치면 달리는 버스의 판정 좌표가 바뀐다. 이름만 고치는 것은 허용
+  (2026-09-25 `BR-052`, 조율자 판정)
+- 응답은 상세와 같은 형태 · 에러 `404 ROUTE_NOT_FOUND`(다른 학원 편성 포함) · `403 CHANGE_WINDOW_CLOSED`(위)
 
 **`GET /staff/stops/suggest?query=` 응답** — `items[]`, 항목마다 `GET /staff/stops/search` 응답과 같은 모양
 (`lat` · `lng` · `display_name` · `nearby[]`). 최대 10건.
@@ -1701,10 +1705,10 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `GET /staff/schedules` | SCH-01 | 목록 (§1.8 페이징) |
 | `POST /staff/schedules` | SCH-01 | 등록 |
 | `PATCH /staff/schedules/{id}` | SCH-01 | 수정 — `active=false` 로 두면 다음 회차 생성부터 제외 |
-| `DELETE /staff/schedules/{id}` | SCH-01 | 삭제. **행을 지운다**(soft delete 부재) — 이미 만들어진 회차는 `run.schedule_id` 가 NULL 이 되어 그대로 남는다 (`ERD` FK `SET NULL`) |
+| `DELETE /staff/schedules/{id}` | SCH-01 | 삭제. **행을 지운다**(soft delete 부재) — 이미 만들어진 회차는 `run.schedule_id` 가 NULL 이 되어 그대로 남는다 (`ERD` FK `SET NULL`). 성공 `204`(본문 부재, §1.1) |
 | `GET /staff/runs?service_date=` | SCH-02 | 그 날짜의 회차 목록. 생략하면 **오늘** |
 | `POST /staff/runs` | SCH-03 | 특정일 회차 **임시 추가** — 스케줄에 없는 1회성 운행 |
-| `DELETE /staff/runs/{id}` | SCH-03 | 특정일 회차 **임시 취소** — 행을 지우지 않고 `canceled_at` 을 채운다 |
+| `DELETE /staff/runs/{id}` | SCH-03 | 특정일 회차 **임시 취소** — 행을 지우지 않고 `canceled_at` 을 채운다. 성공 `204`(본문 부재, §1.1) |
 
 ⚠ **`GET /staff/runs` 는 `§5.18 GET /staff/runs/live` 와 다른 것이다** — 이쪽은 날짜로 보는 **회차 목록**(SCH-02 결과 확인), 저쪽은 관제용 **실시간 스냅샷**(MON-07)이다. 경로가 비슷해도 합치지 않는다.
 
@@ -1805,7 +1809,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `GET /staff/managers?q=` | MGR-01 | 목록·검색 |
 | `POST /staff/managers` | MGR-02 | 등록 |
 | `PATCH /staff/managers/{id}` | MGR-03 | 수정 |
-| `DELETE /staff/managers/{id}` | MGR-04 | 삭제 — 배치 중이면 `409 MANAGER_ASSIGNED` |
+| `DELETE /staff/managers/{id}` | MGR-04 | 삭제 — 배치 중이면 `409 MANAGER_ASSIGNED`. 성공 `204`(본문 부재, §1.1) |
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|:-:|---|
@@ -1814,9 +1818,11 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `role` | enum | ● | `driver` · `escort` — **이 값이 앱 권한을 결정** |
 | `work_hours` | object | ○ | 근무 시간. 배치 충돌 검증의 근거 (MGR-06) |
 
-역할 변경 시 매니저 앱 화면 구성이 함께 변경. 계정 연결은 가입 승인(§5.2)의 `link.manager_id`.
+역할 변경 시 매니저 앱 화면 구성이 함께 변경 — **연결된 계정의 역할도 함께 바뀌어** 다음 토큰 재발급(§2.6)부터 앱 권한에 반영된다. 계정 연결은 가입 승인(§5.2)의 `link.manager_id`.
 
-**에러** — `409 MANAGER_ASSIGNED`(회차에 배치된 매니저 삭제) · `404 MANAGER_NOT_FOUND`(`PATCH` · `DELETE` 대상 부재 · 타 학원 — 존재 비노출, Ruling 163)
+**배치 중** = 취소·종료되지 않았고, 운행 중이거나 운행일이 오늘 이후인 회차의 배치. 삭제와 역할 변경이 같은 기준으로 막힌다(MGR-04 "배치 해제 후" — 배치 자리가 곧 역할이라 배치된 채 역할을 바꾸면 그 자리에 권한 없는 사람이 남는다). 지난 회차의 배치는 막지 않는다 — 과거 배치를 푸는 경로가 없어, 세면 한 번이라도 운행한 매니저는 영구히 삭제되지 않는다(2026-09-25 전체 검사 `BR-022`·`BR-023`).
+
+**에러** — `409 MANAGER_ASSIGNED`(배치 중인 매니저의 삭제 · 역할 변경) · `404 MANAGER_NOT_FOUND`(`PATCH` · `DELETE` 대상 부재 · 타 학원 — 존재 비노출, Ruling 163)
 
 ### 5.14 PATCH /staff/runs/{runId}/assignment
 
@@ -1889,32 +1895,33 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `address` | string | 조건부 | 주소 입력 방식. 좌표 미전달 시 필수 — 검증 후 좌표 변환 (STU-05) |
 | `lat` · `lng` | number | 조건부 | 지도 선택 방식 |
 | `label` | string | ● | 기사 화면 표시명 |
-| `seq` | integer | ○ | **설 자리(1부터)**. 생략하면 맨 뒤 — 2026-09-22 이전의 유일한 동작. 상한은 **정차지 수 + 1**이고 넘으면 `422`. `FixedStop.seq` 가 원래부터 최종 순번이라 최적화가 이 자리를 뒤집지 않는다 |
+| `seq` | integer | ○ | **설 자리(1부터)**. 생략하면 맨 뒤 — 2026-09-22 이전의 유일한 동작. 상한은 **정차지 수 + 1**이고 넘으면 `422`. `FixedStop.seq` 가 원래부터 최종 순번이라 최적화가 이 자리를 뒤집지 않는다. 이미 경유 지점이 선 자리를 지정하면 새 지점이 그 자리에 서고 **그 자리부터 뒤 경유 지점이 한 칸씩 밀린다**. 배포된 경유 지점을 제거하면 뒤 경유 지점이 한 칸씩 당겨진다 — 어느 쪽이든 다른 경유 지점은 관계자가 정한 **승하차지 사이 자리를 유지**한다(2026-09-25 `BR-020`) |
 | `note` | string | ○ | 경유 사유·특이사항 |
 | `apply` | boolean | ● | `false` = 미리보기만, `true` = 재최적화 결과 배포 |
+| `preview_token` | string | 조건부 | `apply=true` 필수 — 미리보기 응답에서 받은 값. **배포는 그 미리보기의 지점·순번·계산을 그대로 쓴다**(본문의 지점 값은 쓰지 않음). 없거나 낡았으면 `409 PREVIEW_STALE` — 승인(§5.6)과 같은 형태(2026-09-25 `BR-051`, `ARCHITECTURE §8.4`) |
 
-**응답** — `waypoint_id` · `route_preview`(§5.5 상세와 동일 구조 — `stops_before[]` · `stops_after[]` · `reordered[]` · `road_path_before[]`·`road_path_after[]` 포함, 근거는 §5.5 참조) · `est_time_before`·`est_time_after` · `est_distance_before`·`est_distance_after` · `est_duration_before`·`est_duration_after`(노선 전체 소요·분, §5.5 와 같은 이유·같은 값 출처 — `Ruling 318`, 2026-09-19) · `applied`(boolean)
+**응답** — `waypoint_id` · `preview_token`(미리보기일 때만 — 배포 요청에 그대로 돌려보낸다. 회차당 가장 최근 미리보기 하나만 유효) · `route_preview`(§5.5 상세와 동일 구조 — `stops_before[]` · `stops_after[]` · `reordered[]` · `road_path_before[]`·`road_path_after[]` 포함, 근거는 §5.5 참조) · `est_time_before`·`est_time_after` · `est_distance_before`·`est_distance_after` · `est_duration_before`·`est_duration_after`(노선 전체 소요·분, §5.5 와 같은 이유·같은 값 출처 — `Ruling 318`, 2026-09-19) · `applied`(boolean)
 
 | 처리 | 내용 |
 |---|---|
-| 미리보기 (`apply=false`) | 재최적화만 수행하고 **확정 노선은 불변** — 관리자가 대조를 확인하는 단계 |
-| 배포 (`apply=true`) | 확정 노선 갱신 + 기사·동승자 푸시 + 확인 응답 대상 (RUN-07) |
+| 미리보기 (`apply=false`) | 재최적화만 수행하고 **확정 노선은 불변** — 관리자가 대조를 확인하는 단계. 결과를 `preview_token` 으로 보관 |
+| 배포 (`apply=true` + `preview_token`) | **미리보기의 계산을 그대로** 확정 노선에 배포(지도 API 재호출 부재) + 기사·동승자 푸시 + 확인 응답 대상 (RUN-07). 미리보기 뒤 입력(명단·승하차지·경유 지점)이 바뀌었으면 `409 PREVIEW_STALE` |
 | 구간 | **출발 전까지만** — 운행 시작 후 `403 CHANGE_WINDOW_CLOSED` (C-04 ③) |
 | 해제 | 배포 전에는 취소 가능. 배포 후 제거는 `DELETE /staff/runs/{runId}/waypoints/{waypointId}` 로 동일 절차(미리보기 → 배포)를 거침 |
 
-**에러** — `403 CHANGE_WINDOW_CLOSED`(운행 시작 후) · `422 ADDRESS_VERIFICATION_FAILED`(주소 검증 실패 — 저장 보류) · `404 RUN_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163) · `422 VALIDATION_FAILED`(주소·좌표 모두 부재) · `409 RUN_NOT_CONFIRMED`(확정 전 `idle` 회차 — 확정 노선이 아직 산출되지 않음) · **`422 ROUTE_NOT_CONFIGURED_FOR_RUN`**(회차는 `confirmed` 인데 그 학원·버스·요일·방향에 대응하는 **고정 노선이 부재** — 2026-09-13 `WP` 게이트가 라이브 `curl` 로 실측해 등재. `§8.4` 사전 참조)
+**에러** — `403 CHANGE_WINDOW_CLOSED`(운행 시작 후) · `409 PREVIEW_STALE`(`apply=true` 인데 `preview_token` 이 없거나 낡음 — 다시 미리보기) · `422 ADDRESS_VERIFICATION_FAILED`(주소 검증 실패 — 저장 보류) · `404 RUN_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163) · `422 VALIDATION_FAILED`(주소·좌표 모두 부재) · `409 RUN_NOT_CONFIRMED`(확정 전 `idle` 회차 — 확정 노선이 아직 산출되지 않음) · **`422 ROUTE_NOT_CONFIGURED_FOR_RUN`**(회차는 `confirmed` 인데 그 학원·버스·요일·방향에 대응하는 **고정 노선이 부재** — 2026-09-13 `WP` 게이트가 라이브 `curl` 로 실측해 등재. `§8.4` 사전 참조)
 
 #### 배포 제거 — `DELETE /staff/runs/{runId}/waypoints/{waypointId}`
 
 **권한** 학원 관계자. POST 와 같은 미리보기 → 배포 절차 — `apply` 는 쿼리 파라미터로 받고 기본값 `false`(미리보기, 실수로 즉시 배포되는 것을 막음).
 
-**요청 (쿼리)** `apply`(boolean, 기본 `false`) — `true` 면 재최적화 결과를 즉시 배포.
+**요청 (쿼리)** `apply`(boolean, 기본 `false`) — `true` 면 미리보기의 재최적화 결과를 배포 · `preview_token`(`apply=true` 필수 — 삭제 미리보기 응답의 값, 없거나 낡으면 `409 PREVIEW_STALE`).
 
-**응답** `200` — POST 와 동일 구조(`waypoint_id` · `route_preview`(`road_path_before`·`road_path_after` 포함) · `est_time_before`·`est_time_after` · `est_distance_before`·`est_distance_after` · `est_duration_before`·`est_duration_after` · `applied`).
+**응답** `200` — POST 와 동일 구조(`waypoint_id` · `preview_token`(미리보기일 때) · `route_preview`(`road_path_before`·`road_path_after` 포함) · `est_time_before`·`est_time_after` · `est_distance_before`·`est_distance_after` · `est_duration_before`·`est_duration_after` · `applied`).
 
 대상은 **이미 배포된**(`apply=true` 로 만들어진) 경유 지점만 — 미리보기 단계 행은 대상 밖이며, 지목해도 `404 WAYPOINT_NOT_FOUND`(존재 여부를 응답에서 드러내지 않는 관례).
 
-**에러** — `403 CHANGE_WINDOW_CLOSED`(운행 시작 후) · `404 RUN_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163) · `404 WAYPOINT_NOT_FOUND`(미배포 경유 지점 또는 타 학원 대상) · `409 RUN_NOT_CONFIRMED`(확정 전 `idle` 회차 — 확정 노선이 아직 산출되지 않음)
+**에러** — `403 CHANGE_WINDOW_CLOSED`(운행 시작 후) · `409 PREVIEW_STALE`(`apply=true` 인데 `preview_token` 이 없거나 낡음) · `404 RUN_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163) · `404 WAYPOINT_NOT_FOUND`(미배포 경유 지점 또는 타 학원 대상) · `409 RUN_NOT_CONFIRMED`(확정 전 `idle` 회차 — 확정 노선이 아직 산출되지 않음)
 
 ### 5.16 GET /staff/emergencies · POST /staff/emergencies/{id}/ack
 
@@ -2427,7 +2434,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `APPROVAL_ALREADY_DECIDED` | 409 | 이미 처리된 승인 건 재처리 |
 | `EMERGENCY_CANCEL_WINDOW_CLOSED` | 409 | 비상 알림 취소 창(발신 +**1분**) 경과 (EXC-04) |
 | `ALREADY_ACKED` | 409 | 이미 확인된 비상 알림 재확인 |
-| `PREVIEW_STALE` | 409 | 재최적화 미리보기 산출 후 입력(명단·승하차지·경유 지점)이 변경 — 관리자가 화면에서 본 결과와 배포될 결과가 불일치. 재조회 후 재시도 (§5.5) |
+| `PREVIEW_STALE` | 409 | 재최적화 미리보기 산출 후 입력(명단·승하차지·경유 지점)이 변경 — 관리자가 화면에서 본 결과와 배포될 결과가 불일치. 재조회 후 재시도 (§5.5 · §5.15) |
 
 ### 8.4 운행 · 명단
 

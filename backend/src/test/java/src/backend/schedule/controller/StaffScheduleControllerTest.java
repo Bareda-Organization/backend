@@ -199,7 +199,7 @@ class StaffScheduleControllerTest {
         Integer runsBefore = 회차_수(scheduleId);
         assertThat(runsBefore).as("시드 스케줄에 회차가 없으면 이 단언은 아무것도 검사하지 않는다").isPositive();
 
-        삭제한다(관계자A_토큰(), scheduleId).andExpect(status().isOk());
+        삭제한다(관계자A_토큰(), scheduleId).andExpect(status().isNoContent());
 
         entityManager.flush();
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM schedule WHERE id = ?", Integer.class,

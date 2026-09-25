@@ -8,11 +8,14 @@ import java.util.Optional;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+
+import jakarta.persistence.LockModeType;
 
 import src.backend.global.common.enums.Direction;
 import src.backend.global.security.access.AcademyScopeExempt;
@@ -45,6 +48,14 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      * 호출부가 그것을 {@code 404 RUN_NOT_FOUND} 로 답한다(Ruling 163: {@code {id}} 지목은 404).
      */
     Optional<Run> findByIdAndAcademyId(Long id, Long academyId);
+
+    /**
+     * 회차 1건을 <b>행 잠금</b>으로 읽는다 — 경유 지점 배포(§5.15)가 배포 트랜잭션 안에서 운행 구간을 다시 볼 때
+     * 쓴다(BR-021). 운행 시작({@code run.start})도 이 행을 갱신하므로 둘이 순서대로 서, "구간을 본 뒤 운행이
+     * 시작돼 잠긴 노선에 새 판본이 나가는" 경우가 생기지 않는다. 같은 회차의 배포끼리도 줄을 선다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<Run> findLockedByIdAndAcademyId(Long id, Long academyId);
 
     /**
      * 회차 id 목록을 학원으로 다시 좁혀 읽는다(§4.1 {@code GET /manager/runs}) — 순서는 보장하지

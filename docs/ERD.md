@@ -1113,7 +1113,7 @@ erDiagram
 | 대상 | 방식 | 규칙 |
 |---|---|---|
 | `student` | **soft delete** (`deleted_at`) | 퇴원 처리해도 **오늘 명단은 유지**, 내일 회차부터 제외. 과거 탑승 이력 보존 (STU-04 · NFR-07) |
-| `manager` | **soft delete** (`deleted_at`) | 배치된 회차가 있으면 삭제 차단(`409 MANAGER_ASSIGNED`). 해제 후 삭제 (MGR-04) |
+| `manager` | **soft delete** (`deleted_at`) | 배치 중인 회차(취소·종료되지 않았고 운행 중이거나 운행일이 오늘 이후)가 있으면 삭제 차단(`409 MANAGER_ASSIGNED`). 해제 후 삭제 (MGR-04 · API_SPEC §5.13) |
 | `academy` | **soft delete** (`status='inactive'`) | 물리 삭제 부재. 검색 제외 + 신규 가입 차단, **기존 사용자 로그인은 유지** (ACAD-04 · O-01). 완전 삭제 조건은 미확정 (PRD §10.1 S) |
 | `academy_staff` | **비활성화** (`status='inactive'`) | 퇴사 시 즉시 권한 회수 (ACAD-06) |
 | `account` | **상태 전이** | `blocked` · `rejected` 는 행 유지. 물리 삭제 경로 부재 |

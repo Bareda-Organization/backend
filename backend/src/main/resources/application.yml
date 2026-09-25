@@ -82,8 +82,19 @@ resilience4j:
       mapRoute:
         max-attempts: 3
         wait-duration: 100ms
+        # 다시 불러도 답이 같은 실패(4xx·경로 없음)는 재시도하지 않는다 — 타임아웃·연결 실패·5xx 만(BR-050).
+        retry-exception-predicate: src.backend.routing.map.impl.TransientMapRouteFailure
         # 서킷 개방과 격벽 거부는 둘 다 "공급자에 닿지도 못한 것" 이라 재시도 대상이 아니다.
         # 재시도해 봐야 닫힌 문을 세 번 두드리고 wait-duration 만큼 응답만 늦어진다.
+        ignore-exceptions:
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+          - io.github.resilience4j.bulkhead.BulkheadFullException
+      # 온디맨드(관리자가 화면 앞에서 대기 — 승인 미리보기·경유 지점·편성 도로 경로)는 한 번만 다시 부른다.
+      # 재시도 횟수를 호출자가 고른다(ARCHITECTURE §8.3) — 배치와 같은 3회면 대기가 타임아웃의 3배가 된다.
+      mapRouteOnDemand:
+        max-attempts: 2
+        wait-duration: 100ms
+        retry-exception-predicate: src.backend.routing.map.impl.TransientMapRouteFailure
         ignore-exceptions:
           - io.github.resilience4j.circuitbreaker.CallNotPermittedException
           - io.github.resilience4j.bulkhead.BulkheadFullException

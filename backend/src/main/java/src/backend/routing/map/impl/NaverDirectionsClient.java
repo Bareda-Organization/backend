@@ -63,7 +63,9 @@ public class NaverDirectionsClient implements MapRouteClient {
     private List<RoadLeg> callSegments(RoadRouteRequest request) {
         List<RoadLeg> legs = new ArrayList<>();
         for (List<GeoPoint> segment : RoutePointSegments.split(request.points(), maxWaypoints)) {
-            legs.addAll(gateway.legsOf(segment, request.timeout()));
+            legs.addAll(request.caller() == CallerPolicy.ON_DEMAND
+                    ? gateway.legsOfOnDemand(segment, request.timeout())
+                    : gateway.legsOf(segment, request.timeout()));
         }
         return legs;
     }

@@ -132,9 +132,9 @@ public class StaffRouteController {
     @CanManageRoute
     @Operation(summary = "고정 노선 편성 · 정차 순서 최적화 — 삭제")
     @DeleteMapping("/{id}")
-    public ApiResponse<Void> delete(@AuthenticationPrincipal AuthUser requester, @PathVariable Long id) {
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@AuthenticationPrincipal AuthUser requester, @PathVariable Long id) {
         routeCommandService.delete(requester, id);
-        return ApiResponse.ok(null);
     }
 
     /**

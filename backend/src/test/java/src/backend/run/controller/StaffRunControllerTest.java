@@ -171,7 +171,7 @@ class StaffRunControllerTest {
     void 임시_취소한_회차는_canceled_at_이_채워진다() throws Exception {
         long runId = 임시_추가된_회차_id(관계자A_토큰(), BUS_A_ID, SERVICE_DATE, "to_academy", "08:05");
 
-        취소한다(관계자A_토큰(), runId).andExpect(status().isOk());
+        취소한다(관계자A_토큰(), runId).andExpect(status().isNoContent());
 
         entityManager.flush();
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM run WHERE id = ?", Integer.class, runId))

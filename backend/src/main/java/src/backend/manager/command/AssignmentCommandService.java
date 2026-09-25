@@ -4,9 +4,11 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +27,7 @@ import src.backend.manager.dto.AssignmentWarning;
 import src.backend.manager.dto.RunAssignmentResponse;
 import src.backend.manager.entity.Assignment;
 import src.backend.manager.entity.Manager;
+import src.backend.manager.event.AssignmentChangedEvent;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
 import src.backend.run.entity.Run;
@@ -61,6 +64,8 @@ public class AssignmentCommandService {
 
     private final AssignmentConflictDetector conflictDetector;
 
+    private final ApplicationEventPublisher eventPublisher;
+
     private final Clock clock;
 
     /**
@@ -91,6 +96,10 @@ public class AssignmentCommandService {
      * <p>충돌 판정을 저장 <b>전</b>에 한다. 저장 뒤에 하면 방금 넣은 배치가 "같은 시각의 다른 회차"
      * 후보에 섞여 자기 자신을 중복으로 세는 경우가 생긴다.
      *
+     * <p>자리에 <b>새로 들어간</b> 매니저에게만 {@link AssignmentChangedEvent} 를 낸다({@code assignment_changed}
+     * 알림, §9.7) — 같은 매니저를 다시 지정한 것은 배치가 바뀐 것이 아니다. 구독자는 커밋 후에 처리하므로
+     * 자리 경합으로 롤백된 요청({@code 409 DUPLICATE_ASSIGNMENT})의 이벤트는 알림이 되지 않는다.
+     *
      * @param managerId {@code null} 이면 이 자리를 건드리지 않는다는 뜻이라 경고도 나오지 않는다
      */
     private List<AssignmentWarning> place(AuthUser requester, Run run, ManagerRole role, Long managerId) {
@@ -102,11 +111,17 @@ public class AssignmentCommandService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.MANAGER_NOT_FOUND));
         List<AssignmentWarning> warnings = conflictDetector.detect(run, manager, role);
         OffsetDateTime now = OffsetDateTime.now(clock);
-        assignmentRepository.findByRunIdAndRole(run.getId(), role)
-                .ifPresentOrElse(
-                        assignment -> assignment.reassign(manager.getId(), now, requester.accountId()),
-                        () -> assignmentRepository.save(Assignment.uponAssignment(run.getId(), manager.getId(),
-                                role, now, requester.accountId())));
+        Optional<Assignment> current = assignmentRepository.findByRunIdAndRole(run.getId(), role);
+        boolean newlyPlaced = current.map(assignment -> !assignment.getManagerId().equals(manager.getId()))
+                .orElse(true);
+        current.ifPresentOrElse(
+                assignment -> assignment.reassign(manager.getId(), now, requester.accountId()),
+                () -> assignmentRepository.save(Assignment.uponAssignment(run.getId(), manager.getId(),
+                        role, now, requester.accountId())));
+        if (newlyPlaced) {
+            eventPublisher.publishEvent(new AssignmentChangedEvent(run.getId(), run.getAcademyId(), manager.getId(),
+                    role, now));
+        }
         return warnings;
     }
 

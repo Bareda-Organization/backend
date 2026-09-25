@@ -27,6 +27,7 @@ import src.backend.routing.entity.RoutePlan;
 import src.backend.routing.query.RouteDetailAssembler;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
+import src.backend.routing.repository.RunStopRepository;
 import src.backend.student.command.StopMatcher;
 import src.backend.student.entity.Stop;
 import src.backend.student.geocoding.spec.GeocodedPoint;
@@ -57,6 +58,8 @@ public class RouteCommandService {
     private final BusRepository busRepository;
 
     private final RouteStopArranger routeStopArranger;
+
+    private final RunStopRepository runStopRepository;
 
     private final RouteDetailAssembler routeDetailAssembler;
 
@@ -152,6 +155,7 @@ public class RouteCommandService {
     public RouteDetailResponse saveStops(AuthUser requester, Long routeId, RouteStopsSaveRequest request) {
         Route route = findOwnRoute(requester, routeId);
         Map<Long, Stop> existing = routeStopArranger.resolve(requester.academyId(), request.existingStopIds());
+        assertNotRelocatingStopsOfMovingRun(requester, existing, request);
 
         List<Long> order = new ArrayList<>(request.stops().size());
         for (RouteStopsSaveRequest.Item item : request.stops()) {
@@ -167,6 +171,23 @@ public class RouteCommandService {
         routeStopArranger.resolve(requester.academyId(), order);
         routeStopArranger.replace(routeId, requester.academyId(), order);
         return routeDetailAssembler.assemble(route);
+    }
+
+    /**
+     * 좌표가 바뀌는 승하차지가 운행 중 회차의 노선에 서면 {@code 403 CHANGE_WINDOW_CLOSED} 다(ARCHITECTURE §8.5
+     * 운행 시작과 동시에 노선 잠금, BR-052) — 이름만 고치는 것은 판정에 쓰이지 않아 막지 않는다.
+     */
+    private void assertNotRelocatingStopsOfMovingRun(AuthUser requester, Map<Long, Stop> existing,
+            RouteStopsSaveRequest request) {
+        List<Long> relocated = request.stops().stream()
+                .filter(item -> item.stopId() != null)
+                .filter(item -> existing.get(item.stopId()).getLat().compareTo(item.lat()) != 0
+                        || existing.get(item.stopId()).getLng().compareTo(item.lng()) != 0)
+                .map(RouteStopsSaveRequest.Item::stopId)
+                .toList();
+        if (!relocated.isEmpty() && runStopRepository.existsOnMovingRun(relocated, requester.academyId())) {
+            throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);
+        }
     }
 
     /**

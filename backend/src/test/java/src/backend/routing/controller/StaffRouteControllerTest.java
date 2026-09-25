@@ -273,7 +273,7 @@ class StaffRouteControllerTest {
         long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "thu", "from_academy", STOPS_OF_A);
         assertThat(정차_순서(routeId)).as("정차지가 없으면 아래 부재 단언은 아무것도 검사하지 않는다").isNotEmpty();
 
-        삭제한다(관계자A_토큰(), routeId).andExpect(status().isOk());
+        삭제한다(관계자A_토큰(), routeId).andExpect(status().isNoContent());
 
         entityManager.flush();
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM route WHERE id = ?", Integer.class,
@@ -422,7 +422,7 @@ class StaffRouteControllerTest {
     void 삭제한_조합은_같은_조합으로_다시_편성할_수_있다() throws Exception {
         long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "sat", "from_academy", STOPS_OF_A);
 
-        삭제한다(관계자A_토큰(), routeId).andExpect(status().isOk());
+        삭제한다(관계자A_토큰(), routeId).andExpect(status().isNoContent());
         entityManager.flush();
 
         편성한다(관계자A_토큰(), BUS_A_ID, "sat", "from_academy", STOPS_OF_A)
@@ -582,6 +582,7 @@ class StaffRouteControllerTest {
      */
     @Test
     void 저장_한_번에_추가_수정_삭제_순서가_모두_반영된다() throws Exception {
+        운행_중_회차를_끝낸다();
         long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "sat", "to_academy", STOPS_OF_A);
         Map<String, Object> 일번 = jdbcTemplate.queryForMap("SELECT name, lat, lng FROM stop WHERE id = 1");
 
@@ -628,6 +629,30 @@ class StaffRouteControllerTest {
         assertThat(jdbcTemplate.queryForObject("SELECT name FROM stop WHERE id = 3", String.class))
                 .isEqualTo(원래_이름);
         assertThat(정차_순서(routeId)).containsExactlyElementsOf(STOPS_OF_A);
+    }
+
+    /**
+     * 운행 중 회차가 서는 승하차지의 <b>좌표</b>는 바꿀 수 없다 — 운행 시작과 동시에 노선이 잠긴다
+     * (ARCHITECTURE §8.5, BR-052). 통과시키면 그 회차의 근접 알림·출발 판정이 운행 도중 새 좌표로 바뀐다.
+     * 이름만 고치는 것은 판정에 쓰이지 않아 허용된다.
+     */
+    @Test
+    void 운행_중_회차가_서는_승하차지의_좌표는_바꿀_수_없다() throws Exception {
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM run WHERE id = 3", String.class))
+                .as("시드 R3 는 운행 중이고 현재 판본이 승하차지 1~4 에 선다")
+                .isEqualTo("moving");
+        long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "sun", "to_academy", List.of(1L));
+        Map<String, Object> 일번 = jdbcTemplate.queryForMap("SELECT name, lat, lng FROM stop WHERE id = 1");
+
+        승하차지를_저장한다(관계자A_토큰(), routeId, """
+                {"stops":[{"stop_id":1,"name":"%s","lat":37.599999,"lng":%s}]}"""
+                .formatted(일번.get("name"), 일번.get("lng")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("CHANGE_WINDOW_CLOSED"));
+        승하차지를_저장한다(관계자A_토큰(), routeId, """
+                {"stops":[{"stop_id":1,"name":"이름만 바꿈","lat":%s,"lng":%s}]}"""
+                .formatted(일번.get("lat"), 일번.get("lng")))
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -715,6 +740,11 @@ class StaffRouteControllerTest {
         최적화_본문으로(관계자A_토큰(), routeId, "{\"origin\":{\"lat\":37.5,\"lng\":127.0}}")
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+    }
+
+    /** 시드의 운행 중 회차(R3)를 끝낸다 — 승하차지 좌표 수정이 운행 중 잠금(BR-052)에 걸리지 않는 상태를 만든다. */
+    private void 운행_중_회차를_끝낸다() {
+        jdbcTemplate.update("UPDATE run SET status = 'finished', finished_at = now() WHERE status = 'moving'");
     }
 
     private ResultActions 승하차지를_저장한다(String token, long routeId, String body) throws Exception {

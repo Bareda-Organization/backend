@@ -144,7 +144,8 @@ public class AssignmentConflictDetector {
     private boolean doubleBooked(Run run, Manager manager) {
         OffsetDateTime start = run.getDepartTime();
         OffsetDateTime end = windowEnd(run);
-        return assignmentRepository.findManagerRunWindows(run.getAcademyId(), manager.getId(), run.getId())
+        return assignmentRepository.findManagerRunWindows(run.getAcademyId(), manager.getId(), run.getId(),
+                        run.getServiceDate().minusDays(1), run.getServiceDate().plusDays(1))
                 .stream()
                 .anyMatch(window -> overlaps(start, end, window.departTime(),
                         windowEnd(window.departTime(), window.estDurationMin())));

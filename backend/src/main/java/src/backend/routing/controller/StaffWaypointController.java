@@ -21,7 +21,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanManageSchedule;
+import src.backend.global.security.authz.CanManageRoute;
 import src.backend.routing.command.WaypointCommandService;
 import src.backend.routing.dto.WaypointRequest;
 import src.backend.routing.dto.WaypointResponse;
@@ -50,7 +50,7 @@ public class StaffWaypointController {
      * 새 경유 지점 지정(§5.15) — 운행 시작 후는 {@code 403 CHANGE_WINDOW_CLOSED}, 주소·좌표 둘 다
      * 없으면 {@code 422 VALIDATION_FAILED}.
      */
-    @CanManageSchedule
+    @CanManageRoute
     @Operation(summary = "경유 지점 지정 (RTE-10, A-15)")
     @PostMapping("/{runId}/waypoints")
     @ResponseStatus(HttpStatus.OK)
@@ -63,13 +63,14 @@ public class StaffWaypointController {
      * 배포된 경유 지점 제거(§5.15) — POST 와 같은 미리보기→배포 절차다. {@code apply} 기본값은
      * {@code false}(미리보기) — 실수로 즉시 배포되는 것을 막는다.
      */
-    @CanManageSchedule
+    @CanManageRoute
     @Operation(summary = "경유 지점 배포 제거 (RTE-10, A-15)")
     @DeleteMapping("/{runId}/waypoints/{waypointId}")
     @ResponseStatus(HttpStatus.OK)
     public ApiResponse<WaypointResponse> remove(@AuthenticationPrincipal AuthUser requester,
             @PathVariable Long runId, @PathVariable Long waypointId,
-            @RequestParam(defaultValue = "false") boolean apply) {
-        return ApiResponse.ok(waypointCommandService.remove(requester, runId, waypointId, apply));
+            @RequestParam(defaultValue = "false") boolean apply,
+            @RequestParam(name = "preview_token", required = false) String previewToken) {
+        return ApiResponse.ok(waypointCommandService.remove(requester, runId, waypointId, apply, previewToken));
     }
 }
