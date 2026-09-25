@@ -39,6 +39,7 @@ import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.command.BoardingCommandFixtures;
 import src.backend.boarding.event.RiderStatusChangedEvent;
+import src.backend.boarding.event.RunEndedEvent;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
@@ -789,6 +790,49 @@ class BoardingControllerTest {
         assertThat(reopened.get("escalated_at")).as("④이전 에스컬레이션 흔적이 지워진다").isNull();
         assertThat(reopened.get("restarted")).as("⑤대기 카운트다운이 두 번째 미승차 시점부터 다시 시작된다")
                 .isEqualTo(true);
+    }
+
+    // ── BR-031 — 하원 종료 보류 회차는 마지막 탑승자가 미승차로 빠져도 끝난다 ─────────────
+
+    /**
+     * 최종 지점 도착 때 잔류가 있어 종료가 보류된 하원 회차({@code finish_pending}). 자동 승차로 잘못
+     * {@code boarded} 가 된 마지막 학생을 동승자가 [되돌리기]→[미승차] 로 처리하면 {@code boarded} 가 0명이
+     * 되는데, 종료 판정이 하차 경로에만 걸려 있으면 회차가 {@code moving} 에 멈춘다(C-15).
+     */
+    @Test
+    @DisplayName("BR-031 — 하원 종료 보류 회차의 마지막 탑승자를 되돌린 뒤 미승차 처리하면 회차가 종료된다")
+    void 하원_종료_보류_회차의_마지막_탑승자를_미승차_처리하면_회차가_종료된다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long stopId = fixtures().stop(academyId, "37.500000", "127.000000");
+        long studentId = fixtures().student(academyId, "학생-BR031");
+        long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
+        long riderId = fixtures().runRider(runId, studentId, stopId);
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
+        String escortToken = 토큰(escortAccountId, academyId, Role.ESCORT);
+
+        mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId)).header("Authorization", escortToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(statusUpdateBody("boarded", "manual", UUID.randomUUID(), now)))
+                .andExpect(status().isOk());
+        entityManager.flush();
+        jdbcTemplate.update("UPDATE run SET finish_pending = true WHERE id = ?", runId);
+        entityManager.clear();
+
+        mockMvc.perform(post(REVERT.formatted(runId, riderId)).header("Authorization", escortToken)
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId)).header("Authorization", escortToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(statusUpdateBody("no_show", "manual", UUID.randomUUID(), now)))
+                .andExpect(status().isOk());
+        entityManager.flush();
+
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM run WHERE id = ?", String.class, runId))
+                .as("boarded 0명이 됐으니 보류된 종료가 완성된다").isEqualTo("finished");
+        assertThat(applicationEvents.stream(RunEndedEvent.class)).as("run_ended 재료 이벤트 1건").hasSize(1);
     }
 
     /**

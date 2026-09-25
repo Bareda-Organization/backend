@@ -153,7 +153,10 @@ public class BoardingCommandService {
                 ActorType.ESCORT, now, requester.accountId())));
 
         if (targetStatus == RiderStatus.NO_SHOW) {
-            return handleNoShow(run, rider, now);
+            RiderStatusUpdateResponse response = handleNoShow(run, rider, now);
+            // 하원 보류 회차 — 마지막 탑승자가 미승차로 빠져도 boarded 0명이다(BR-031, C-15).
+            notifyIfRunJustEnded(run, now);
+            return response;
         }
         if (targetStatus == RiderStatus.ALIGHTED) {
             notifyIfRunJustEnded(run, now);
@@ -256,7 +259,7 @@ public class BoardingCommandService {
     }
 
     /**
-     * 하원 자동 종료 경계(목표 10, T2 소유) — 방금 처리한 하차가 그 회차의 마지막 잔여 탑승자였는지를
+     * 하원 자동 종료 경계(목표 10, T2 소유) — 방금 처리한 하차·미승차(BR-031)가 그 회차의 마지막 잔여 탑승자였는지를
      * {@link RunCompletionService} 에 위임해 묻고, 그 호출로 실제 종료됐을 때만
      * {@link RunEndedEvent} 를 발행한다. 반환값을 무시하고 매번(또는 전혀) 발행하면 알림이 잔류자가
      * 있는 회차에도 나가거나 정작 종료된 회차에서 나가지 않는 결함이 된다 — 이 분기 자체가 T3 이
