@@ -49,7 +49,7 @@ public class StaffBusController {
 
     /** 차량 목록(BUS-01, §5.12). */
     @CanManageBus
-    @Operation(summary = "차량 목록 (BUS-01, A-10)")
+    @Operation(summary = "차량 목록 (BUS-01, A-11)")
     @GetMapping
     public ApiResponse<PageResponse<BusResponse>> list(@AuthenticationPrincipal AuthUser requester,
             @ModelAttribute BusListRequest request) {
@@ -58,7 +58,7 @@ public class StaffBusController {
 
     /** 차량 등록(BUS-02, §5.12) — 응답의 {@code student_capacity} 는 서버 계산값이다. */
     @CanManageBus
-    @Operation(summary = "차량 등록 (BUS-01, A-10)")
+    @Operation(summary = "차량 등록 (BUS-02, A-11)")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<BusResponse> register(@AuthenticationPrincipal AuthUser requester,
@@ -68,7 +68,7 @@ public class StaffBusController {
 
     /** 차량 수정(BUS-03, §5.12) — §1.9 대로 변경 후 자원 상태를 그대로 반환한다. */
     @CanManageBus
-    @Operation(summary = "차량 수정 (BUS-01, A-10)")
+    @Operation(summary = "차량 수정 (BUS-03, A-11)")
     @PatchMapping("/{id}")
     public ApiResponse<BusResponse> update(@AuthenticationPrincipal AuthUser requester, @PathVariable Long id,
             @Valid @RequestBody BusUpdateRequest request) {
