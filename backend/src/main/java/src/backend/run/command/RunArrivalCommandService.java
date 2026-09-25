@@ -18,6 +18,7 @@ import src.backend.academy.entity.Academy;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
+import src.backend.boarding.event.RunEndedEvent;
 import src.backend.boarding.repository.RemainingRiderView;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.global.common.enums.ChangeType;
@@ -136,6 +137,8 @@ public class RunArrivalCommandService {
         if (isFinal) {
             if (run.getDirection() == Direction.TO_ACADEMY) {
                 autoAlightedCount = alightAllBoarded(run, now);
+                // 종료 3경로 모두 run_ended 의 재료를 낸다(BR-037, §4.10) — 전에는 하원 보류 해제 경로만 냈다.
+                eventPublisher.publishEvent(new RunEndedEvent(runId, run.getAcademyId(), now, autoAlightedCount));
             } else {
                 long stillBoarded = runRiderRepository.countByRunIdAndStatus(runId, RiderStatus.BOARDED);
                 if (stillBoarded == 0) {
@@ -143,6 +146,7 @@ public class RunArrivalCommandService {
                     // 마지막 승하차지 강제 출발(Ruling 312, 목표 8) — 하원 최종 지점은 방금 도착한 하차지
                     // 자신이라 위쪽 폴백을 받지 못한다.
                     stopDepartureService.forceAllRemaining(runId, run.getAcademyId(), now);
+                    eventPublisher.publishEvent(new RunEndedEvent(runId, run.getAcademyId(), now, 0));
                 } else {
                     run.deferFinish();
                     remaining = remainingRidersOf(runId);

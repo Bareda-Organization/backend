@@ -21,6 +21,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +36,7 @@ import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.entity.RiderStatus;
+import src.backend.boarding.event.RunEndedEvent;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
@@ -68,6 +71,7 @@ import src.backend.student.repository.StudentRepository;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
+@RecordApplicationEvents
 class DriverRunControllerTest {
 
     @Autowired
@@ -135,6 +139,9 @@ class DriverRunControllerTest {
 
     @Autowired
     private WaypointRepository waypointRepository;
+
+    @Autowired
+    private ApplicationEvents applicationEvents;
 
     @TestConfiguration
     static class FixedClockConfig {
@@ -442,6 +449,9 @@ class DriverRunControllerTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.is_final").value(true))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.run_status").value("finished"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.auto_alighted_count").value(2));
+        // BR-037 — 등원 종료도 run_ended 의 재료(RunEndedEvent)를 낸다. 학원 도착에서 자동 하차한 인원을 싣는다.
+        assertThat(applicationEvents.stream(RunEndedEvent.class))
+                .singleElement().extracting(RunEndedEvent::autoAlightedCount).isEqualTo(2L);
 
         entityManager.flush();
         assertThat(라이더_상태(runId, student1)).isEqualTo("alighted");
@@ -552,6 +562,7 @@ class DriverRunControllerTest {
         assertThat(회차_상태(runId)).isEqualTo("moving");
         assertThat(회차_종료보류(runId)).isTrue();
         assertThat(회차_종료시각(runId)).isNull();
+        assertThat(applicationEvents.stream(RunEndedEvent.class)).as("보류는 종료가 아니다").isEmpty();
     }
 
     @Test
@@ -582,6 +593,9 @@ class DriverRunControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.is_final").value(true))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.run_status").value("finished"));
+        // BR-037 — 하원 잔류 0명 즉시 종료도 RunEndedEvent 를 낸다(자동 하차 인원 0).
+        assertThat(applicationEvents.stream(RunEndedEvent.class))
+                .singleElement().extracting(RunEndedEvent::autoAlightedCount).isEqualTo(0L);
     }
 
     // ── §8.23 T3 목표 7(Ruling 308) — 다음 승하차지 도착이 이전 정차지의 출발을 강제한다 ──────
