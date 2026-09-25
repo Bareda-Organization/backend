@@ -39,7 +39,7 @@ class LoginCommandServiceTest {
     void 미등록_아이디도_비밀번호_대조를_한_번_한다() {
         given(accountRepository.findByLoginIdForUpdate("nobody")).willReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.login("nobody", "guess")).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.login("nobody", "guess", null)).isInstanceOf(BusinessException.class);
 
         verify(passwordEncoder, times(1)).matches(anyString(), anyString());
     }
