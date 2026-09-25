@@ -3,10 +3,15 @@ package src.backend.notification;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
+import java.time.OffsetDateTime;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import src.backend.global.common.enums.Role;
 import src.backend.notification.domain.NotificationRetryPolicy;
+import src.backend.notification.entity.NotificationLog;
+import src.backend.notification.entity.NotificationType;
 
 /**
  * 재시도 정책의 <b>성질</b>을 고정한다 — 동작을 보는 단언들과 축이 다르다.
@@ -30,5 +35,39 @@ class NotificationRetryPolicyTest {
         assertThat(NotificationRetryPolicy.MIN_RETRY_INTERVAL)
                 .as("간격이 0 이면 선점 조건의 경계가 '지금'이 되어 방금 찍은 시각도 통과한다")
                 .isGreaterThan(Duration.ZERO);
+    }
+
+    /**
+     * BR-070 — 비상 알림은 재시도 간격이 다른 알림보다 짧다(ARCHITECTURE §11 · TECH_DECISIONS §7.3, C-17).
+     * 첫 시도 20초 뒤 — 비상은 다시 시도할 때이고 일반 알림은 아직 아니다.
+     */
+    @Test
+    void 비상_알림은_다른_알림보다_짧은_간격으로_다시_시도된다() {
+        OffsetDateTime now = OffsetDateTime.parse("2030-04-01T08:00:00+09:00");
+        NotificationRetryPolicy policy = new NotificationRetryPolicy();
+
+        assertThat(policy.retryDue(attempted(NotificationType.EMERGENCY, now.minusSeconds(20)), now)).isTrue();
+        assertThat(policy.retryDue(attempted(NotificationType.BOARDING, now.minusSeconds(20)), now)).isFalse();
+    }
+
+    /** BR-070 — 비상 알림(발신·취소)은 팝업 병행이 확정이다(NTF-09) — 적재 시점에 {@code popup=true}. */
+    @Test
+    void 비상_알림은_팝업으로_적재된다() {
+        OffsetDateTime now = OffsetDateTime.parse("2030-04-01T08:00:00+09:00");
+
+        assertThat(outbox(NotificationType.EMERGENCY, now).isPopup()).isTrue();
+        assertThat(outbox(NotificationType.EMERGENCY_CANCELED, now).isPopup()).isTrue();
+        assertThat(outbox(NotificationType.BOARDING, now).isPopup()).isFalse();
+    }
+
+    private static NotificationLog attempted(NotificationType type, OffsetDateTime lastAttemptAt) {
+        NotificationLog log = outbox(type, lastAttemptAt);
+        ReflectionTestUtils.setField(log, "pushAttempts", 1);
+        ReflectionTestUtils.setField(log, "lastAttemptAt", lastAttemptAt);
+        return log;
+    }
+
+    private static NotificationLog outbox(NotificationType type, OffsetDateTime createdAt) {
+        return NotificationLog.forOutbox(1L, 2L, "수신자", Role.STAFF, type, "제목", "본문", "key", createdAt);
     }
 }

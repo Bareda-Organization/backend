@@ -6,6 +6,7 @@ import java.time.OffsetDateTime;
 import org.springframework.stereotype.Component;
 
 import src.backend.notification.entity.NotificationLog;
+import src.backend.notification.entity.NotificationType;
 
 /**
  * 발송 재시도를 언제 몇 번까지 하는지 정하는 <b>유일한 지점</b>(TECH_DECISIONS §7.2 "재시도 상한").
@@ -30,9 +31,24 @@ public class NotificationRetryPolicy {
      */
     public static final Duration MIN_RETRY_INTERVAL = Duration.ofMinutes(1);
 
-    /** 이 시각보다 이전에 시도된 행만 다시 집을 수 있다 — 선점 조건이자 후보 조회 조건이다. */
+    /**
+     * 비상 알림의 재시도 밑값 — 다른 알림보다 짧게 둔다(TECH_DECISIONS §7.3 · C-17, BR-070). 실제 간격은 워커
+     * 폴링 주기(30초)에 묶이므로 그보다 작게 잡아 폴링 틱마다 다시 시도되게 한다.
+     */
+    public static final Duration EMERGENCY_RETRY_INTERVAL = Duration.ofSeconds(10);
+
+    /** 워커 후보 조회 조건 — 가장 짧은 간격(비상) 기준으로 넓게 집고, 종류별 간격은 {@link #retryDue} 가 거른다. */
     public OffsetDateTime attemptedBefore(OffsetDateTime now) {
-        return now.minus(MIN_RETRY_INTERVAL);
+        return now.minus(EMERGENCY_RETRY_INTERVAL);
+    }
+
+    /** 선점 조건 — 그 종류의 간격보다 이전에 시도된 행만 다시 집을 수 있다. */
+    public OffsetDateTime attemptedBefore(NotificationType type, OffsetDateTime now) {
+        return now.minus(intervalOf(type));
+    }
+
+    private static Duration intervalOf(NotificationType type) {
+        return NotificationType.EMERGENCY_TYPES.contains(type) ? EMERGENCY_RETRY_INTERVAL : MIN_RETRY_INTERVAL;
     }
 
     /** 시도 횟수가 상한에 닿았는가 — 닿았으면 다음 상태는 {@code pending} 이 아니라 {@code failed} 다. */
@@ -41,7 +57,7 @@ public class NotificationRetryPolicy {
     }
 
     /**
-     * 회차별 지수 백오프가 지났는가 — {@code MIN_RETRY_INTERVAL × 2^(시도횟수-1)} 이 기준이다.
+     * 회차별 지수 백오프가 지났는가 — {@code 종류별 밑값 × 2^(시도횟수-1)} 이 기준이다(비상은 밑값이 짧다).
      *
      * <p>아직 한 번도 시도하지 않은 행({@code last_attempt_at} 이 NULL)은 기다릴 것이 부재해 참이다.
      */
@@ -49,7 +65,7 @@ public class NotificationRetryPolicy {
         if (log.getLastAttemptAt() == null) {
             return true;
         }
-        Duration backoff = MIN_RETRY_INTERVAL.multipliedBy(1L << Math.max(0, log.getPushAttempts() - 1));
+        Duration backoff = intervalOf(log.getType()).multipliedBy(1L << Math.max(0, log.getPushAttempts() - 1));
         return !now.isBefore(log.getLastAttemptAt().plus(backoff));
     }
 }

@@ -758,7 +758,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | `student_id` · `student_name` | string | ○ | 대상 자녀 |
 | `sent_at` | datetime | ● | 발송 시각 |
 | `read_at` | datetime | ○ | 읽음 시각 |
-| `popup` | boolean | ● | 팝업 노출 대상 여부 (NTF-09) |
+| `popup` | boolean | ● | 팝업 노출 대상 여부 (NTF-09) — 비상 2종(`emergency`·`emergency_canceled`)만 `true` |
 | `unread_count` | integer | ● | 봉투 레벨 — 미읽음 배지 |
 
 보관 기간 **14일**. 설정 off 알림도 목록에 존치 — off 는 푸시만 차단.
