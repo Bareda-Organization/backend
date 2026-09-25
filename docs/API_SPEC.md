@@ -2446,6 +2446,11 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `RIDER_NOT_FOUND` | 404 | 미존재 탑승자, 또는 `absent` 로 명단에서 제외된 탑승자 지정 |
 | `STOP_NOT_FOUND` | 404 | 해당 회차에 존재하지 않는 승하차지 지정 · 관계자 웹 `stop_id` 지정 시 타 학원 승하차지(존재 비노출, `§5.8`) |
 | `NO_SHOW_CASE_NOT_FOUND` | 404 | `no_show` 미처리 탑승자에 연락 시도 기록 (EXC-01) |
+| `DELAY_DUPLICATE` | 409 | 같은 회차의 직전 지연 알림과 `minutes`·`reason`·`message` 가 전부 같은 재발신 — 지연 알림은 갱신 의미라 재요청 금지 시간을 두지 않고 내용이 그대로면 거부 (§4.9 · Ruling 253) |
+| `RUN_NOT_IDLE` | 409 | `idle` 이 아닌 회차의 강제 확정 시도 (§6.14) |
+| `RUN_NOT_DUE` | 409 | 판정 시각(`confirm_at`)이 아직 지나지 않은 회차의 강제 확정 시도 (§6.14) |
+| `STUDENT_NOT_IN_RUN` | 409 | 버스 간 이동 대상 학생이 출발 회차의 당일 명단(요일별 주소·탑승 의사·강제 추가 기준)에 부재 (§5.8 · RTE-07) |
+| `TRANSFER_ALREADY_STAGED` | 409 | 같은 학생의 처리 대기 중인 이동 건이 이미 존재 — 최종 목적지 회차를 판정할 수 없어 새 신청을 막음 (§5.8) |
 
 ### 8.5 자원 · 검증
 
@@ -2474,6 +2479,11 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `DUPLICATE_SCHEDULE` | 409 | 같은 `bus_id`·`weekday`·`direction`·`depart_time` 조합의 스케줄 중복 등록·수정 — 유일성 근거는 `schedule(bus_id, weekday, direction, depart_time)` UNIQUE (SCH-01 · §5.10). 422 가 아니라 409 인 것은 요청 형식이 아니라 자원이 충돌한 것이기 때문이며 `DUPLICATE_BUS_NO` 와 같은 형태다 (2026-08-26 신설, Ruling 153) |
 | `ROUTE_NOT_FOUND` | 404 | 미존재 고정 노선 지정 (RTE-01 · §5.9 `GET`·`PATCH`·`DELETE`·`optimize`). **다른 학원의 편성을 `{id}` 로 지목한 경우도 이 코드다** — `SCHEDULE_NOT_FOUND` 와 같은 처리이며, 학원 조건을 쿼리에 넣어 "없음" 과 "남의 학원" 을 같은 빈 결과로 만든다 (2026-08-29 신설, Ruling 180) |
 | `DUPLICATE_ROUTE` | 409 | 같은 `bus_id`·`weekday`·`direction` 조합의 고정 노선 중복 편성·수정 — 유일성 근거는 `route(bus_id, weekday, direction)` UNIQUE(`uk_route_bus_weekday_direction`)이고 애플리케이션 선검사가 아니다 (RTE-01 · §5.9). **동시 2요청은 서로의 미커밋 INSERT 를 보지 못한 채 둘 다 선검사를 지나므로**, 제약 위반을 이 코드로 번역하지 않으면 그 경합이 500 으로 샌다. 422 가 아니라 409 인 것은 `DUPLICATE_SCHEDULE`·`DUPLICATE_BUS_NO` 와 같은 형태다 (2026-08-29 신설, Ruling 180) |
+| `ADDRESS_VERIFICATION_UNAVAILABLE` | 503 | 주소 좌표 변환 서비스(네이버 지오코딩)에 연결 불가 — 주소 검증을 거치는 경로(§3.7 · §3.8 · §5.7 · §5.8 · §5.9 승하차지 검색 · §5.15). ⚠ **`ADDRESS_VERIFICATION_FAILED`(422)와 합치지 않는다** — 그쪽은 주소를 고쳐 다시 보낼 자리, 이쪽은 같은 주소를 잠시 뒤 다시 보낼 자리 |
+| `DUPLICATE_WEEKLY_ADDRESS` | 409 | 한 요청 안에 같은 요일·방향의 주소가 둘 이상 — 유일성 근거는 DB UNIQUE (§3.7). 같은 칸을 나중에 다시 고치는 것은 덮어쓰기라 이 코드가 아님 |
+| `DUPLICATE_NOTIFICATION` | 409 | 같은 멱등키(`notification_log.dedup_key`)의 알림 적재가 겹침 — 이미 통지한 알림. 사용자 요청이 아니라 알림 적재 쪽 충돌이 그 요청의 응답으로 올라오는 형태 |
+| `ACADEMY_COORDINATES_MISSING` | 422 | 학원 좌표(`academy.lat`·`lng`) 미등록 상태의 노선 계산 — ② 구간 승인 미리보기·처리(§5.5) · 고정 노선 최적화(§5.9) · 경유 지점 지정(§5.15). 확정 배치에서는 그 회차만 실패하고 다음 틱에 재시도 (Ruling 190) |
+| `WAYPOINT_NOT_FOUND` | 404 | 미존재·이미 제거된 강제 경유 지점 지정 · 다른 회차 소속 — 존재 비노출 (§5.15 · RTE-10) |
 
 ---
 
@@ -2487,6 +2497,12 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 |---|:-:|---|
 | `ENDPOINT_NOT_FOUND` | 404 | 어느 핸들러에도 매핑되지 않는 경로. ⚠ **자원이 없는 것**(`STUDENT_NOT_FOUND` 등)과 다르다 — 이쪽은 **주소 자체가 존재하지 않는다** |
 | `METHOD_NOT_ALLOWED` | 405 | 경로는 실재하나 그 메서드를 받지 않음(예 — `POST /runs/{runId}/reports` 는 그 메서드 전용이라 GET 으로 부르면 여기에 걸린다). 404 와 가르는 이유는 **경로를 고칠지 메서드를 고칠지**가 갈리기 때문 |
+
+### 8.7 서버
+
+| 코드 | HTTP | 발생 조건 |
+|---|:-:|---|
+| `INTERNAL_ERROR` | 500 | 위 어느 코드로도 분류되지 않은 서버 내부 실패. 상세는 응답에 싣지 않고 서버 로그에만 남긴다 — 클라이언트는 "처리되지 않았습니다"(§1.9)로 표시 |
 
 ## 9. enum 사전
 
