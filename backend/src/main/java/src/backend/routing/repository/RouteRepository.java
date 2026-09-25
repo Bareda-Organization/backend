@@ -1,10 +1,13 @@
 package src.backend.routing.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Weekday;
@@ -50,4 +53,19 @@ public interface RouteRepository extends JpaRepository<Route, Long> {
      */
     Optional<Route> findByAcademyIdAndBusIdAndWeekdayAndDirection(Long academyId, Long busId, Weekday weekday,
             Direction direction);
+
+    /**
+     * 그 요일·방향에 이 승하차지를 고정 노선에 둔 차량들 — 학생 회차 판정(§3.5·§3.10·§3.11)이 확정 전 회차마다
+     * 편성을 따로 묻지 않게 한 번에 모은다(BR-058).
+     */
+    @Query("""
+            SELECT r.busId FROM Route r, RouteStop rs
+            WHERE rs.routeId = r.id
+              AND r.academyId = :academyId
+              AND r.weekday = :weekday
+              AND r.direction = :direction
+              AND rs.stopId = :stopId
+            """)
+    List<Long> findBusIdsServingStop(@Param("academyId") Long academyId, @Param("weekday") Weekday weekday,
+            @Param("direction") Direction direction, @Param("stopId") Long stopId);
 }
