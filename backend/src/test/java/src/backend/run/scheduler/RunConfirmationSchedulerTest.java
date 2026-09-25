@@ -208,6 +208,56 @@ class RunConfirmationSchedulerTest {
     }
 
     @Test
+    @DisplayName("BR-001 — 지난 날짜의 영구 실패 회차가 BATCH_SIZE 만큼 쌓여도 오늘 도래한 회차는 확정된다")
+    void 지난_날짜_실패_회차가_배치를_차지하지_않는다() {
+        long[] academyAndBus = fullyConfiguredAcademyAndBus();
+        long academyId = academyAndBus[0];
+        long goodBusId = academyAndBus[1];
+        long badBusId = fixtures.bus(academyId); // 노선 미편성 — 영구 실패
+
+        OffsetDateTime yesterday = OffsetDateTime.now(clock).minusDays(1);
+        for (int i = 0; i < RunConfirmationScheduler.BATCH_SIZE; i++) {
+            OffsetDateTime confirmAt = yesterday.plusMinutes(i);
+            fixtures.idleRun(academyId, badBusId, SERVICE_DATE.minusDays(1), Direction.TO_ACADEMY,
+                    confirmAt.plusMinutes(30), confirmAt);
+        }
+        OffsetDateTime confirmAt = OffsetDateTime.now(clock).minusMinutes(1);
+        long goodRunId = fixtures.idleRun(academyId, goodBusId, SERVICE_DATE, Direction.TO_ACADEMY,
+                confirmAt.plusMinutes(30), confirmAt);
+
+        scheduler.confirmDueRuns();
+
+        assertThat(runRepository.findById(goodRunId).orElseThrow().getStatus().name())
+                .as("지난 날짜의 idle 회차는 확정해도 운행할 수 없다 — 오늘 회차의 자리를 뺏으면 안 된다")
+                .isEqualTo("CONFIRMED");
+    }
+
+    @Test
+    @DisplayName("BR-001 — 오늘 이미 실패한 회차가 BATCH_SIZE 만큼 있어도 처음 도래한 회차가 먼저 집힌다")
+    void 실패한_회차보다_처음_도래한_회차가_먼저다() {
+        long[] academyAndBus = fullyConfiguredAcademyAndBus();
+        long academyId = academyAndBus[0];
+        long goodBusId = academyAndBus[1];
+        long badBusId = fixtures.bus(academyId);
+
+        OffsetDateTime earlier = OffsetDateTime.now(clock).minusHours(3);
+        for (int i = 0; i < RunConfirmationScheduler.BATCH_SIZE; i++) {
+            OffsetDateTime confirmAt = earlier.plusMinutes(i);
+            long badRunId = fixtures.idleRun(academyId, badBusId, SERVICE_DATE, Direction.TO_ACADEMY,
+                    confirmAt.plusMinutes(30), confirmAt);
+            jdbcTemplate.update("UPDATE run SET consecutive_failures = 1 WHERE id = ?", badRunId);
+        }
+        OffsetDateTime confirmAt = OffsetDateTime.now(clock).minusMinutes(1);
+        long goodRunId = fixtures.idleRun(academyId, goodBusId, SERVICE_DATE, Direction.TO_ACADEMY,
+                confirmAt.plusMinutes(30), confirmAt);
+
+        scheduler.confirmDueRuns();
+
+        assertThat(runRepository.findById(goodRunId).orElseThrow().getStatus().name())
+                .as("실패 이력이 있는 회차는 빈 자리가 있을 때만 재시도된다").isEqualTo("CONFIRMED");
+    }
+
+    @Test
     @DisplayName("목표6-a — 한 틱이 집는 회차 수는 BATCH_SIZE 를 넘지 않는다")
     void 한_틱은_배치_크기_상한을_넘지_않는다() {
         long[] academyAndBus = fullyConfiguredAcademyAndBus();

@@ -78,16 +78,24 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      *
      * <p>{@code pageable} 은 한 틱이 한 번에 집는 상한이다(목표 6) — 상한 없이 전건을 집으면 회차가
      * 몰린 틱 하나가 커넥션·워커 풀을 오래 붙든다. {@code ix_run_status_confirm_at} 이 이 조회를 받친다.
+     *
+     * <p><b>영구 실패 회차가 상한을 차지하지 못하게</b> 두 조건을 건다(BR-001, ARCHITECTURE §9.4 회차 단위
+     * 격리). ① {@code service_date >= today} — 지난 날짜 회차는 확정해도 운행할 수 없고, 빼지 않으면 노선
+     * 미편성 회차가 날마다 쌓여 상한을 전부 차지한다. ② {@code consecutive_failures} 오름차순 — 오늘 이미
+     * 실패한 회차는 처음 도래한 회차 뒤로 밀려 빈 자리에서만 재시도된다. 실패 횟수로 <b>제외</b>하지 않는
+     * 이유는 관계자가 노선을 편성한 뒤에도 그 회차가 확정돼야 하기 때문이다.
      */
     @AcademyScopeExempt(reason = "확정 배치(RTE-08)는 시각이 촉발하는 전 학원 대상 조회라 좁힐 학원이 부재하다 — "
             + "학원 하나로 좁히면 나머지 학원의 회차가 확정되지 않는다. 호출부는 배치(RunConfirmationScheduler)뿐이라는 "
             + "전제 — 요청 경로에서 부르면 이 예외가 우회로가 된다(ScheduleRepository.findAllByWeekdayAndActiveIsTrue 와 같은 근거)")
-    List<Run> findByStatusAndConfirmAtLessThanEqualAndCanceledAtIsNullOrderByConfirmAtAsc(RunStatus status,
-            OffsetDateTime now, Pageable pageable);
+    @Query("SELECT r FROM Run r WHERE r.status = src.backend.run.entity.RunStatus.IDLE AND r.confirmAt <= :now "
+            + "AND r.serviceDate >= :today AND r.canceledAt IS NULL ORDER BY r.consecutiveFailures ASC, r.confirmAt ASC")
+    List<Run> findDueForConfirmation(@Param("now") OffsetDateTime now, @Param("today") LocalDate today,
+            Pageable pageable);
 
     /**
      * 근접 알림 스케줄러(NTF-04, 목표 13·15)의 조회 대상 — 시각 문턱이 없다는 점이
-     * {@link #findByStatusAndConfirmAtLessThanEqualAndCanceledAtIsNullOrderByConfirmAtAsc} 와 다르다.
+     * {@link #findDueForConfirmation} 와 다르다.
      * 근접 판정은 "판정 시각이 지났는가" 가 아니라 "지금 운행 중인가" 만 묻는다({@code RunStatus.MOVING}) —
      * 실제 좌표가 300m 안에 들어왔는지는 이 조회가 아니라 정차 항목별 판정이 담당한다.
      *
@@ -98,7 +106,7 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      * 집으면 동시 운행 중인 회차가 몰린 틱 하나가 오래 걸린다.
      */
     @AcademyScopeExempt(reason = "근접 알림 스케줄러는 시각이 촉발하는 전 학원 대상 조회라 좁힐 학원이 부재하다 — "
-            + "findByStatusAndConfirmAtLessThanEqualAndCanceledAtIsNullOrderByConfirmAtAsc 와 같은 근거. 호출부는 "
+            + "findDueForConfirmation 와 같은 근거. 호출부는 "
             + "배치(ProximityNotificationScheduler)뿐이라는 전제 — 요청 경로에서 부르면 이 예외가 우회로가 된다")
     List<Run> findByStatusAndCanceledAtIsNullOrderByIdAsc(RunStatus status, Pageable pageable);
 
@@ -118,12 +126,12 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      *
      * <p>{@code canceled_at IS NULL} 을 조건에 더한 이유는 조회와 이 갱신 사이의 경합이다 — 관계자가
      * 대상 목록을 집은 <b>뒤</b>, 이 갱신이 돌기 <b>전</b>에 그 회차를 취소하면 {@code status} 는
-     * 여전히 {@code idle} 이라 {@link #findByStatusAndConfirmAtLessThanEqualAndCanceledAtIsNullOrderByConfirmAtAsc}
+     * 여전히 {@code idle} 이라 {@link #findDueForConfirmation}
      * 의 배제만으로는 그 창을 못 닫는다.
      */
     @Transactional
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @AcademyScopeExempt(reason = "findByStatusAndConfirmAtLessThanEqualAndCanceledAtIsNullOrderByConfirmAtAsc 가 "
+    @AcademyScopeExempt(reason = "findDueForConfirmation 가 "
             + "이미 전 학원 대상으로 골라낸 run.id 하나를 조건부로 갱신하는 단건 호출이다 — 그 조회가 이미 좁힌 대상이라 "
             + "이 시점에 학원을 다시 물을 근거가 없다")
     @Query("UPDATE Run r SET r.status = src.backend.run.entity.RunStatus.CONFIRMED, r.confirmedAt = :confirmedAt, "
@@ -166,11 +174,11 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      * 조건과 확정 배치 조회의 문턱이 다르므로({@code +5분} 여유) 이 메서드를 따로 둔다.
      *
      * <p>{@code canceled_at IS NULL} 을 더한 이유는 {@link
-     * #findByStatusAndConfirmAtLessThanEqualAndCanceledAtIsNullOrderByConfirmAtAsc} 와 같다 —
+     * #findDueForConfirmation} 와 같다 —
      * 취소된 회차는 애초에 확정 대상이 아니라 "노선을 못 받은" 위험이 없다.
      */
     @AcademyScopeExempt(reason = "미확정 회차 게이지(관측 목표 8)는 시각이 촉발하는 전 학원 대상 집계라 좁힐 학원이 "
-            + "부재하다 — findByStatusAndConfirmAtLessThanEqualAndCanceledAtIsNullOrderByConfirmAtAsc 와 같은 근거. "
+            + "부재하다 — findDueForConfirmation 와 같은 근거. "
             + "호출부는 관측 스케줄러(RunUnconfirmedGaugeScheduler)뿐이라는 전제")
     long countByStatusAndConfirmAtLessThanEqualAndCanceledAtIsNull(RunStatus status, OffsetDateTime threshold);
 }

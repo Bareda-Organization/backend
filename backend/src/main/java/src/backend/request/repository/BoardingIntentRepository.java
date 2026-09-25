@@ -40,8 +40,8 @@ public interface BoardingIntentRepository extends JpaRepository<BoardingIntent, 
      * 목록을 걸러내야 {@code run_rider} 에 그 학생이 아예 생기지 않는다({@code RunConfirmationService}
      * 가 {@code DailyRoster} 를 만들기 직전에 호출).
      *
-     * <p>{@code runId} 는 확정 배치 스케줄러 자신이 {@code RunRepository.findByStatusAndConfirmAtLessThanEqual
-     * AndCanceledAtIsNullOrderByConfirmAtAsc} 로 이미 학원 범위를 거치지 않고 얻은 내부 식별자다 — 외부
+     * <p>{@code runId} 는 확정 배치 스케줄러 자신이 {@code RunRepository.findDueForConfirmation}
+     * 로 이미 학원 범위를 거치지 않고 얻은 내부 식별자다 — 외부
      * 요청이 아니라 배치 프로세스 스스로가 만든 값이라 호출부에 별도 학원 확인 지점이 없고, 이 조회
      * 자체도 그 값을 그대로 받아 쓸 뿐이다.
      */

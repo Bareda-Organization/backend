@@ -53,7 +53,7 @@ public interface ChangeRequestRepository extends JpaRepository<ChangeRequest, Lo
      * 자동 거절 폴링 대상(API_SPEC §1.6) — 마감({@code deadline_at})이 이미 지난 대기 건.
      *
      * <p>시각이 촉발하는 <b>전 학원 대상</b> 조회라 좁힐 학원이 없다 — 학원 하나로 좁히면 나머지
-     * 학원의 도래분이 거절되지 않는다({@code RunRepository.findByStatusAndConfirmAtLessThanEqualAndCanceledAtIsNullOrderByConfirmAtAsc}
+     * 학원의 도래분이 거절되지 않는다({@code RunRepository.findDueForConfirmation}
      * 와 같은 근거). 호출부가 자동 거절 스케줄러({@code ChangeRequestAutoRejectionScheduler})뿐이라는
      * 전제 — 요청 경로에서 부르면 이 예외가 우회로가 된다.
      *
