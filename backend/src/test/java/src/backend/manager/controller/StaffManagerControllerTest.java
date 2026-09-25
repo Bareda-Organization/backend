@@ -228,6 +228,24 @@ class StaffManagerControllerTest {
         assertThat(삭제_시각(managerId)).isNotNull();
     }
 
+    /**
+     * 중복 배치 판정(MGR-06)의 후보는 배치하려는 회차 <b>전후 하루</b>로 좁혀진다(BR-088) — 한 달 전
+     * 배치까지 읽으면 운영 기간에 비례해 배치 요청마다 읽는 행이 늘어난다.
+     */
+    @Test
+    void 중복_배치_후보는_지난달_배치를_읽지_않는다() throws Exception {
+        long managerId = 등록된_매니저_id(관계자A_토큰(), "오래된기사", "010-9100-0008");
+        long busId = 등록된_차량_id(관계자A_토큰(), "후보호차", "11나1114", 16);
+        배치한다(managerId, 회차를_만든다(busId, OffsetDateTime.now(clock).minusDays(30)));
+        배치한다(managerId, 회차를_만든다(busId, OffsetDateTime.now(clock).plusHours(5)));
+        Run target = entityManager.find(Run.class, 회차를_만든다(busId, OffsetDateTime.now(clock).plusHours(3)));
+
+        assertThat(assignmentRepository.findManagerRunWindows(ACADEMY_A_ID, managerId, target.getId(),
+                target.getServiceDate().minusDays(1), target.getServiceDate().plusDays(1)))
+                .as("같은 날 배치 1건만 후보여야 한다")
+                .hasSize(1);
+    }
+
     // ── MGR-03 역할 변경 — 계정 역할 · 배치 (BR-022) ───────────────────────
 
     /** 매니저 역할이 곧 앱 권한이다(§5.13) — 연결된 계정의 역할(토큰 {@code role} 클레임의 출처)도 함께 바뀐다. */

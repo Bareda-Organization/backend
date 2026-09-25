@@ -110,13 +110,19 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
      * <p>이 판정은 {@code work_hours} 를 <b>보지 않는다</b>(Ruling 165 ③) — 근무 시간이 없다고 해서
      * 같은 시각에 두 대를 몰 수 있는 것은 아니라, 근무 시간 판정과 묶으면 이쪽이 근무 시간 미기재
      * 매니저에서 조용히 사라진다.
+     *
+     * <p>운행일을 {@code fromDate}~{@code toDate} 로 좁힌다(BR-088) — 조건이 없으면 매니저가 지금까지
+     * 배치된 회차 전부를 배치 요청마다 읽어 운영 기간에 비례해 행이 늘어난다. 호출부는 배치하려는 회차의
+     * 운행일 전후 하루를 넘긴다(자정을 걸친 운행 대비 — 소요가 하루를 넘는 통원 회차는 없다는 전제).
      */
     @Query("SELECT new src.backend.manager.dto.ManagerRunWindow(r.departTime, r.estDurationMin) "
             + "FROM Assignment a, Run r "
             + "WHERE r.id = a.runId AND a.managerId = :managerId AND r.academyId = :academyId "
+            + "AND r.serviceDate BETWEEN :fromDate AND :toDate "
             + "AND r.canceledAt IS NULL AND r.id <> :excludedRunId")
     List<ManagerRunWindow> findManagerRunWindows(@Param("academyId") Long academyId,
-            @Param("managerId") Long managerId, @Param("excludedRunId") Long excludedRunId);
+            @Param("managerId") Long managerId, @Param("excludedRunId") Long excludedRunId,
+            @Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate);
 
     /**
      * 그 회차에 배치된 기사·동승자를 계정 식별자와 함께 읽는다 — {@code route_changed} 알림(Phase 7 T3)의
