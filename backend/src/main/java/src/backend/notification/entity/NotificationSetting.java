@@ -50,7 +50,11 @@ public class NotificationSetting {
         this.updatedAt = updatedAt;
     }
 
-    /** 학부모·학생 계정이 만들어질 때(연결 승인 등) 기본값(전부 ON)으로 생성한다. */
+    /**
+     * 기본값(전부 ON)으로 만든다 — 실제 호출자는 계정 생성 시점이 아니라 PATCH 의 get-or-create
+     * ({@code NotificationSettingCommandService})와 GET 의 미저장 기본값 조립
+     * ({@code NotificationSettingQueryService}, BR-096) 둘뿐이다.
+     */
     public static NotificationSetting forAccount(Long accountId, OffsetDateTime updatedAt) {
         return new NotificationSetting(accountId, updatedAt);
     }
