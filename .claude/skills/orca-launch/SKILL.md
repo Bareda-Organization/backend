@@ -50,3 +50,7 @@ orca worktree create --name <이름> --setup run      # 프론트 의존성이 �
   - ⚠ **`--effort` 는 별개다** — 모델만 바꾸고 빠뜨리면 노력 수준이 부모(`xhigh`)로 남는다
 - ⚠ **모델을 섞으면 프롬프트 캐시가 갈린다** — 캐시는 모델별 이름공간이라 창마다 모델이 다르면 재사용이 끊긴다. 그래서 **비용을 줄일 때는 모델 교체보다 `--effort` 를 먼저 내린다**(공식 지침).
 - ⚠⚠ **`worktreeBaseRef` 는 `refs/heads/main`(로컬)이어야 한다.** 기본값이 `origin/main` 이었고, push 하지 않는 저장소라 원격은 **360 커밋 뒤처져** 있었다 — 그대로 두면 워크트리가 몇 달 전 코드에서 갈라진다. 2026-09-18 에 `orca repo set-base-ref --repo id:88941bb9-3200-415e-a8a9-0e2d5bb4ab7a --ref refs/heads/main` 으로 고쳤다. 저장소를 다시 등록하면 이 값을 확인한다.
+- ⚠⚠ **`worker-start` 여러 개를 한꺼번에(백그라운드 병렬·2초 간격) 치지 마라 — 하나씩 순서대로 친다.** 2026-09-25 백엔드 전체 검사에서 10개를 2초 간격 병렬로 쳤더니 **9개가 `turn_start_unobserved`**(종료 코드 1)였다. 화면을 읽어 보니 지시문이 **입력창(`draft`)에 들어가 있기만 하고 제출되지 않은 채** 빈 프롬프트에서 대기 — 창은 `live` 라 살아 있는 것처럼 보인다.
+  - **증상** — 영수증 `stage: turn_start_unobserved` · `orca terminal read --screen` 의 `draft:` 에 지시 전문 · 프롬프트 `❯` 가 비어 있음
+  - **복구** — `worker-stop` 으로 멈추고(8개 `stopped`, 1개는 `user_owned` 라 `stop_unknown` → 화면을 확인한 뒤 `worker-abandon` + `terminal close`), `worker-start --task <원 task> --retry-of <원 dispatch>` 로 **하나씩** 다시 띄우면 전부 `input_accepted`. 한 번에 1개씩 치면 9개가 약 1분 안에 모두 뜬다 — 병렬로 줄이는 시간이 거의 없다
+  - 원인은 미확인(앱이 동시에 여러 창의 첫 제출을 처리하다 일부를 놓치는 것으로 보임). **병렬 기동으로 아낄 시간이 없으니 순차가 기본**
