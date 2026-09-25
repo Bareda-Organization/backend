@@ -73,14 +73,13 @@ public class StopSearchQueryService {
         } catch (GeocodingUnavailableException e) {
             throw new BusinessException(ErrorCode.ADDRESS_VERIFICATION_UNAVAILABLE);
         }
-        List<StopSuggestResponse.Item> items = new ArrayList<>();
-        for (PlaceSearchClient.FoundPlace place : placesOf(query.trim())) {
-            items.add(itemOf(requester, place.name(), place.point()));
-        }
-        for (GeocodedPoint point : candidates) {
-            items.add(itemOf(requester, null, point));
-        }
-        return new StopSuggestResponse(items.stream().limit(SUGGEST_LIMIT).toList());
+        // 상한을 먼저 자르고 근처 승하차지를 조회한다 — 잘라 낼 후보까지 조회하면 입력마다 질의가 버려진다(BR-127).
+        List<PlaceSearchClient.FoundPlace> found = new ArrayList<>(placesOf(query.trim()));
+        candidates.forEach(point -> found.add(new PlaceSearchClient.FoundPlace(null, point)));
+        return new StopSuggestResponse(found.stream()
+                .limit(SUGGEST_LIMIT)
+                .map(place -> itemOf(requester, place.name(), place.point()))
+                .toList());
     }
 
     /**
