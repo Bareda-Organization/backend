@@ -5690,3 +5690,15 @@ C 는 A 가 고칠 파일을 **읽기만** 하고 고치지 않는다. **`docs/I
 | 343 | BR-116 | 정원 축소 시 `PATCH /staff/buses/{id}` 응답 `warnings[]` `CAPACITY_BELOW_ASSIGNED` — 경고이고 차단 아님 | §5.14 경고 형태와 같게 |
 
 **남은 것** — 2차(모듈을 가로지르는 정리 26건 · 문서 5건 · 새 발견 BR-171) · 보류 BR-139·BR-154(사양 판정 필요) · **W12 BR-166~170 은 사용자 지시로 계획만**(`backend/report/2026-09-25-스레드-풀-Redis-수정-계획.md`, 착수 대기) · 프론트 후속(`RUN_CANCELED` 문구 · 정원 경고 표시 · 연속 실패 표시 · 경유 지점 `preview_token` · WebSocket `TOKEN_EXPIRED` 재연결 확인).
+
+## 8.47 ⚖ 백엔드 전체 검사 — 보류 3건 판정 `Ruling 344`~`346` (2026-09-25)
+
+1차 수정에서 사양 결정이 필요해 멈춘 3건(`backend/report/review-2026-09-25/FIX-E.md §1` · `FIX-H.md §1`). 사용자 위임(*"PRD·API 명세서 기준으로 적절하게"*)으로 판정.
+
+| Ruling | 원장 | 판정 | 근거 |
+|---|---|---|---|
+| 344 | BR-154 | `§4.11` 요청의 `change_ids[]` 를 **삭제**. 변경 확인은 **현재 노선 버전 단위 전건** — 본문 없이 호출하면 그 회차의 현재 버전을 확인한 것으로 기록 | 변경 항목 id 를 내주는 응답·저장하는 칸이 사양 어디에도 부재(`grep change_id docs/` → §4.11 1건). 확인 기록은 `assignment.acked_route_version_id`(ERD) 버전 단위이고 표시값도 전부 참/거짓(§4.1 `ack_required` · §5.3 `ack_driver`·`ack_escort`). M-04 "변경 목록 확인 **버튼** 응답" 도 버튼 하나. 매니저 앱도 이 필드를 보내지 않음(`roster_screen.dart` `ackChanges(runId:)`) |
+| 345 | BR-031 1번 갈래 | 승하차 처리(`§4.6`)는 FEATURE_SPEC §3.3 전이 3개만 받는다 — `waiting→boarded` · `waiting→no_show` · `boarded→alighted`. 그 밖(같은 상태 재요청 포함)은 **새 코드 `409 RIDER_TRANSITION_NOT_ALLOWED`**. 표 밖으로 가려면 되돌리기(§4.7)가 먼저 — 하원 자동 승차(C-07) 뒤 미승차는 [되돌리기](`boarded→waiting`) → [미승차](`waiting→no_show`) 로 표 안이다. `client_key` 재전송은 전이 검사보다 먼저 판정돼 `200` 재생 유지 | §3.3 이 `no_show` 를 "종결" 로 적음. 매니저 앱은 `waiting` 행에 [탑승]·[미승차], `boarded` 행에 [하차]·[되돌리기]만 낸다(`roster_screen.dart` 상태별 버튼) — 정상 조작은 표 안. 오프라인 큐는 쌓인 요청을 새 요청보다 먼저 순서대로 흘려(`offline_queue_repository_impl.dart`) 순서 역전으로 표 밖 전이가 생기지 않음. `422` 가 아니라 `409` 인 것은 요청 형식이 아니라 탑승자의 현재 상태가 막기 때문(`ErrorCode` 관례 · Ruling 340 선례) |
+| 346 | BR-139 | 시드(`V2` · `V14`)의 날짜식 **유지** — `service_date` 는 적용 시각의 한국 날짜, `depart_time` 은 적용 시각 기준 상대값. 한국시간 20시 이후·03시 이전에 적용하면 일부 회차의 운행일과 출발 시각의 한국 날짜가 갈린다는 한계를 시드 머리 주석에 적는다 | 원문 수정안(운행일을 출발 시각에서 유도)은 R1·R6·R8 이 공유하는 노선 1행의 요일과 어긋나 확정 배치의 노선 조회(`RunConfirmationService`)가 실패 — 저녁에 만든 시험 DB 를 깨는 쪽이 지금 결함(자정 뒤 오래 켜 둔 로컬 서버의 매니저 목록)보다 해가 큼. 요일별 노선 행 추가는 시드 행 수 계약 변경 대비 이득이 작음(로컬은 `down`+`up` 으로 매번 다시 깖) |
+
+**프론트 후속에 추가** — 매니저 앱 `RIDER_TRANSITION_NOT_ALLOWED` 문구(같은 학생을 두 번 누르거나 화면이 낡았을 때 보임).
