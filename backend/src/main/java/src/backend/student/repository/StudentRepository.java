@@ -21,28 +21,6 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     Optional<Student> findByAccountId(Long accountId);
 
     /**
-     * 한 학원의 재학생 목록(STU-01) — 학원 조건이 <b>쿼리에 고정</b>돼 호출부가 빼먹을 자리가 부재하다
-     * (ARCHITECTURE §6.1 이 지목한 목록 조회 사고 지점).
-     *
-     * <p>조건·정렬이 {@code ix_student_academy_name}(부분 인덱스, {@code WHERE deleted_at IS NULL})
-     * 과 같은 형태라 그 인덱스를 그대로 탄다(ERD §5.3).
-     */
-    List<Student> findAllByAcademyIdAndDeletedAtIsNullOrderByNameAsc(Long academyId);
-
-    /**
-     * 전 학원 재학생 목록 — 메인 관리자가 학원을 지정하지 않은 경우 하나뿐인 경로다
-     * (ARCHITECTURE §6.2 격리 예외).
-     *
-     * <p>학원 조건은 없어도 {@code deletedAt IS NULL} 은 <b>있어야 한다</b>. 위 학원별 조회가 퇴원생을
-     * 거르는데 이쪽만 거르지 않으면, 같은 화면이 학원을 고르느냐에 따라 퇴원생이 나왔다 사라진다
-     * (ERD §7.1 soft delete — 오늘 명단은 유지하되 목록에서는 제외).
-     */
-    @AcademyScopeExempt(reason = "ARCHITECTURE §6.2 격리 예외 — 메인 관리자의 전 학원 조회라 좁힐 학원이 부재. "
-            + "호출부가 AcademyScope.resolveListScope 의 빈 Optional(= 플랫폼 범위 + 학원 미지정) 에서만 "
-            + "부른다는 전제 — 학원이 지정된 경로에서 부르면 격리가 통째로 빠진다")
-    List<Student> findAllByDeletedAtIsNullOrderByNameAsc();
-
-    /**
      * 가입 승인이 연결할 학생 1건(AUTH-11 · API_SPEC §5.2) — 학원 조건이 <b>쿼리에 고정</b>돼 있다.
      *
      * <p>{@code findById} 로 꺼내 뒤에서 대조하지 않는 이유는, 이 경로에서 학원이 어긋난 결과가
@@ -53,27 +31,6 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
      * 연결이 아니라 되살리기다.
      */
     Optional<Student> findByIdAndAcademyIdAndDeletedAtIsNull(Long id, Long academyId);
-
-    /**
-     * 학부모가 연결 요청에 적어 낸 {@code student_login_id} 로 자녀를 찾는다(P-02, §3.2).
-     *
-     * <p>학생의 로그인 아이디는 {@code student} 가 아니라 <b>연결된 계정</b>에 있다(AUTH-11) — 그래서
-     * {@code Account} 를 조인한다. 계정이 아직 붙지 않은 학생은 이 조회에 잡히지 않으며 그것이
-     * 사양이다(C-13 — 자녀 연결 인증 코드가 학생 계정을 전제).
-     *
-     * <p>학원 조건과 퇴원 여부를 <b>쿼리에 고정</b>한다. 남의 학원 학생이 {@code 403} 이 아니라
-     * {@code 404 STUDENT_NOT_FOUND} 여야 하기 때문이다(§3.2 · Ruling 163) — 조건을 쿼리에 넣으면
-     * "없음" 과 "남의 학원" 이 같은 빈 결과가 되어, 학원 밖 사람이 아이디 존재 여부를 훑을 수 없다.
-     */
-    @Query("""
-            SELECT s FROM Student s
-            JOIN Account a ON a.id = s.accountId
-            WHERE a.loginId = :loginId
-              AND s.academyId = :academyId
-              AND s.deletedAt IS NULL
-            """)
-    Optional<Student> findByLoginIdAndAcademyId(@Param("loginId") String loginId,
-            @Param("academyId") Long academyId);
 
     /**
      * 관계자 웹의 학생 목록·검색(STU-01, API_SPEC §5.11) — 학원과 퇴원 여부가 <b>쿼리에 고정</b>돼

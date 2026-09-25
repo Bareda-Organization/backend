@@ -18,11 +18,11 @@ public record AcademyDetailResponse(Long id, String code, String name, String re
         List<AcademyStaffAccountResponse> staffAccounts, AcademyStatsResponse stats) {
 
     public static AcademyDetailResponse from(Academy academy, long staffCount, long userCount,
-            List<AcademyStaffAccountResponse> staffAccounts) {
+            List<AcademyStaffAccountResponse> staffAccounts, AcademyStatsResponse stats) {
         return new AcademyDetailResponse(academy.getId(), academy.getCode(), academy.getName(),
                 academy.getRegion(), staffCount, userCount,
                 academy.getStatus().name().toLowerCase(Locale.ROOT),
                 academy.getAddress(), academy.getContact(), academy.getMemo(),
-                staffAccounts, AcademyStatsResponse.empty());
+                staffAccounts, stats);
     }
 }

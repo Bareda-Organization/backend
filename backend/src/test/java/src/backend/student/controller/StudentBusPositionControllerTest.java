@@ -134,7 +134,24 @@ class StudentBusPositionControllerTest extends RedisTestContainerBase {
                 .andExpect(jsonPath("$.data.lat").doesNotExist())
                 .andExpect(jsonPath("$.data.lng").doesNotExist())
                 .andExpect(jsonPath("$.data.received_at").doesNotExist())
-                .andExpect(jsonPath("$.data.last_seen_at").exists());
+                .andExpect(jsonPath("$.data.last_seen_at").exists())
+                // §3.11 — current_stop_name 은 "도착 기록이 없으면" 만 부재다(BR-056). 유실은 도착 기록을 지우지 않는다
+                .andExpect(jsonPath("$.data.current_stop_name").value("한빛아파트 정문"));
+    }
+
+    /**
+     * 학생 본인도 자기 버스 위치를 본다(§3.11 · S-02, BR-025) — 학생 계정엔 보호자 행이 없어 보호자 전용
+     * 판정만 쓰면 {@code 403} 이 된다. 남의 위치는 여전히 {@code 403}.
+     */
+    @Test
+    void 학생_본인은_자기_버스_위치를_조회하고_남의_위치는_403_이다() throws Exception {
+        String student4Token = "Bearer " + tokenProvider.createAccessToken(10L, ACADEMY_A, Role.STUDENT,
+                AccountStatus.ACTIVE);
+        mockMvc.perform(get(POSITION.formatted(STUDENT_4_ID)).header("Authorization", student4Token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.run_status").value("confirmed"));
+        mockMvc.perform(get(POSITION.formatted(SIBLING_1_ID)).header("Authorization", student4Token))
+                .andExpect(status().isForbidden());
     }
 
     /**

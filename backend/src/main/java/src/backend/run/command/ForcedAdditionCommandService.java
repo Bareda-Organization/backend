@@ -145,7 +145,8 @@ public class ForcedAdditionCommandService {
         }
         List<Long> stopIds = routeStops.stream().map(RouteStop::getStopId).toList();
         return weeklyAddressRepository
-                .findDailyStopsByStopIds(run.getAcademyId(), stopIds, weekday, run.getDirection())
+                .findDailyStopsByStopIds(run.getAcademyId(), stopIds, weekday, run.getDirection(),
+                        run.getServiceDate().atStartOfDay(clock.getZone()).toOffsetDateTime())
                 .stream()
                 .map(StudentDailyStop::getStudentId)
                 .distinct()

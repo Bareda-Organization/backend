@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.Pageable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -33,7 +34,7 @@ class StudentRepositoryAcademyScopeTest {
 
     @Test
     void 학원_범위_목록은_그_학원_학생만_반환한다() {
-        List<Student> academyA = studentRepository.findAllByAcademyIdAndDeletedAtIsNullOrderByNameAsc(ACADEMY_A);
+        List<Student> academyA = 목록(ACADEMY_A);
 
         assertThat(academyA).as("대상이 0건이면 아래 단언이 공허하게 통과한다").isNotEmpty();
         assertThat(academyA).extracting(Student::getAcademyId).containsOnly(ACADEMY_A);
@@ -53,8 +54,13 @@ class StudentRepositoryAcademyScopeTest {
         assertThat(viaAcademyA).doesNotContainAnyElementsOf(academyBIdsInDatabase);
     }
 
+    /** 관계자 학생 목록(§5.11)이 쓰는 조회 — 검색어 빈 문자열이 전건이다. */
+    private List<Student> 목록(Long academyId) {
+        return studentRepository.searchByAcademyId(academyId, "", Pageable.unpaged()).getContent();
+    }
+
     private List<Long> idsOf(Long academyId) {
-        return studentRepository.findAllByAcademyIdAndDeletedAtIsNullOrderByNameAsc(academyId).stream()
+        return 목록(academyId).stream()
                 .map(Student::getId)
                 .toList();
     }

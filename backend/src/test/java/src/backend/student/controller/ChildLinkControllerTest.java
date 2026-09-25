@@ -292,6 +292,56 @@ class ChildLinkControllerTest {
     }
 
     /**
+     * 같은 학원에 같은 값의 살아 있는 코드가 둘이면 어느 쪽으로도 연결하지 않는다(BR-085).
+     *
+     * <p>6자리 난수는 겹칠 수 있다. 최신 것을 골라 연결하면 코드를 받은 자녀가 아니라 <b>다른 집
+     * 자녀</b>가 연결된다 — 거부하고 학생이 다시 발급하게 하는 쪽이 안전하다.
+     */
+    @Test
+    void 같은_값의_살아_있는_코드가_둘이면_403_LINK_CODE_INVALID_이다() throws Exception {
+        String code = 코드를_받는다();
+        jdbcTemplate.update("INSERT INTO link_code (student_id, code, expires_at, created_at) VALUES (?, ?, ?, ?)",
+                UNLINKED_STUDENT_ID, code, Timestamp.from(OffsetDateTime.now(clock).plusMinutes(10).toInstant()),
+                Timestamp.from(OffsetDateTime.now(clock).plusSeconds(1).toInstant()));
+
+        코드_입력(GUARDIAN_SIBLINGS_ACCOUNT, code)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("LINK_CODE_INVALID"));
+
+        entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM guardian_student WHERE guardian_id = ? AND student_id IN (?, ?)",
+                Integer.class, 보호자_식별자(GUARDIAN_SIBLINGS_ACCOUNT), STUDENT_A4_ID, UNLINKED_STUDENT_ID))
+                .as("겹친 코드로 어느 자녀든 연결되면 남의 자녀를 가져갈 수 있다")
+                .isEqualTo(0);
+    }
+
+    /** 퇴원한 학생은 코드를 만들 수 없다(BR-122) — 연결될 수 없는 코드를 내보내지 않는다. */
+    @Test
+    void 퇴원한_학생의_코드_생성은_403_FORBIDDEN_이다() throws Exception {
+        jdbcTemplate.update("UPDATE student SET deleted_at = now() WHERE id = ?", STUDENT_A4_ID);
+
+        코드_생성(STUDENT_A4_ACCOUNT, ACADEMY_A)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+    }
+
+    /**
+     * 발급 뒤 퇴원한 학생의 코드는 불일치와 같은 {@code 403 LINK_CODE_INVALID} 다(§3.4 · BR-122).
+     *
+     * <p>{@code 404} 로 갈라 답하면 "이 코드는 실재한다" 가 응답에서 드러나고, §3.4 에 없는 코드가 나간다.
+     */
+    @Test
+    void 발급_뒤_퇴원한_학생의_코드를_입력하면_403_LINK_CODE_INVALID_이다() throws Exception {
+        String code = 코드를_받는다();
+        jdbcTemplate.update("UPDATE student SET deleted_at = now() WHERE id = ?", STUDENT_A4_ID);
+
+        코드_입력(GUARDIAN_SIBLINGS_ACCOUNT, code)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("LINK_CODE_INVALID"));
+    }
+
+    /**
      * 연결 응답의 {@code student_id} 도 <b>JSON 문자열</b>이다(§3.4 · Ruling 171).
      *
      * <p>위 "{@code guardian_student} 행이 생긴다" 가 쓰는

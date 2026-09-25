@@ -28,7 +28,7 @@ import src.backend.global.security.JwtTokenProvider;
  * 단건 조회는 여전히 403 이라, 단건만 검사하면 새는 목록이 초록으로 통과한다(ARCHITECTURE §6.1).
  *
  * <p>대조군인 학원 B 행은 {@code JdbcTemplate} 으로 직접 읽는다 — 검사 대상인
- * {@code findAllByAcademyIdAndDeletedAtIsNullOrderByNameAsc} 로 대조군을 만들면 그 메서드가 잘못돼도
+ * {@code StudentRepository#searchByAcademyId} 로 대조군을 만들면 그 메서드가 잘못돼도
  * 대조군이 함께 틀려 아무것도 못 잡는다.
  */
 @SpringBootTest

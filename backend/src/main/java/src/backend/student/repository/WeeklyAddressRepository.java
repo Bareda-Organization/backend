@@ -1,5 +1,6 @@
 package src.backend.student.repository;
 
+import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
 
@@ -69,12 +70,16 @@ public interface WeeklyAddressRepository extends JpaRepository<WeeklyAddress, Lo
      * {@code run_stop}(정차지 순서)뿐이고, 그 정차지에 실제로 서는 학생이 누구인지는 이 조회로
      * 거꾸로 구한다. 조건 구성은 {@link #findDailyStops} 와 동일하되 {@code IN} 절만 학생이 아니라
      * 정차지로 바꾼 것이라 검증(verified)·NULL 배제 근거도 그대로다.
+     *
+     * <p>퇴원은 "오늘 명단은 유지, 내일부터 제외"(API_SPEC §5.11 · ERD §7.1)라 {@code serviceDayStart}
+     * (운행일 0시) 전에 퇴원한 학생만 뺀다. 이 조건이 없으면 퇴원생이 매일 확정 명단에 다시 들어간다.
      */
     @Query("""
             SELECT wa.studentId AS studentId, wa.stopId AS stopId
             FROM WeeklyAddress wa
             JOIN Student s ON s.id = wa.studentId
             WHERE s.academyId = :academyId
+              AND (s.deletedAt IS NULL OR s.deletedAt >= :serviceDayStart)
               AND wa.stopId IN :stopIds
               AND wa.weekday = :weekday
               AND wa.direction = :direction
@@ -83,5 +88,5 @@ public interface WeeklyAddressRepository extends JpaRepository<WeeklyAddress, Lo
             """)
     List<StudentDailyStop> findDailyStopsByStopIds(@Param("academyId") Long academyId,
             @Param("stopIds") Collection<Long> stopIds, @Param("weekday") Weekday weekday,
-            @Param("direction") Direction direction);
+            @Param("direction") Direction direction, @Param("serviceDayStart") OffsetDateTime serviceDayStart);
 }

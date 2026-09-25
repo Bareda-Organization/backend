@@ -25,6 +25,7 @@ import io.github.resilience4j.retry.RetryRegistry;
 
 import src.backend.student.geocoding.spec.GeocodingClient;
 import src.backend.student.geocoding.spec.GeocodingUnavailableException;
+import src.backend.student.geocoding.spec.PlaceSearchClient;
 
 /**
  * 지오코딩 어댑터의 보호 설정이 <b>실제로 걸리는지</b>를 도달한 호출 수로 고정한다(§7 규칙 11).
@@ -47,6 +48,7 @@ import src.backend.student.geocoding.spec.GeocodingUnavailableException;
         // 스텁은 재시도를 검사할 수 없다 — 이 검사의 대상이 어댑터의 애너테이션 자체다.
         // 테스트 전체 묶음은 build.gradle 이 stub 으로 고정하므로 여기서만 되돌린다.
         "geocoding.provider=naver",
+        "app.place-search.provider=naver",
         "geocoding.naver.key-id=test-key-id",
         "geocoding.naver.key=test-key",
         // 이 컨텍스트는 DB 를 쓰지 않는다. 컨텍스트마다 Hikari 가 기본 상한만큼 커넥션을 붙든 채
@@ -76,6 +78,9 @@ class NaverGeocodingResilienceTest {
     private GeocodingClient geocodingClient;
 
     @Autowired
+    private PlaceSearchClient placeSearchClient;
+
+    @Autowired
     private RetryRegistry retryRegistry;
 
     @Autowired
@@ -84,6 +89,7 @@ class NaverGeocodingResilienceTest {
     @DynamicPropertySource
     static void 공급자_자리에_로컬_서버를_세운다(DynamicPropertyRegistry registry) {
         registry.add("geocoding.naver.base-url", () -> "http://localhost:" + PROVIDER.getAddress().getPort());
+        registry.add("app.place-search.naver.base-url", () -> "http://localhost:" + PROVIDER.getAddress().getPort());
     }
 
     @AfterAll
@@ -98,6 +104,7 @@ class NaverGeocodingResilienceTest {
     @BeforeEach
     void 서킷과_계수기를_되돌린다() {
         circuitBreakerRegistry.circuitBreaker(NaverGeocodingClient.RESILIENCE_INSTANCE).reset();
+        circuitBreakerRegistry.circuitBreaker(NaverPlaceSearchClient.RESILIENCE_INSTANCE).reset();
         PROVIDER_HITS.set(0);
     }
 
@@ -147,6 +154,21 @@ class NaverGeocodingResilienceTest {
         assertThat(retry.getMetrics().getNumberOfFailedCallsWithoutRetryAttempt())
                 .as("서킷 개방이 재시도 대상이 됐다 — ignore-exceptions 에 CallNotPermittedException 이 없다")
                 .isEqualTo(재시도_없이_실패한_호출 + 1);
+    }
+
+    /**
+     * 장소 검색(주소 자동완성 보조 후보)도 서킷이 열린 동안은 공급자를 부르지 않는다(§7 규칙 11 · BR-163) —
+     * 없으면 공급자 장애 동안 자동완성 호출마다 요청 스레드가 타임아웃(3초)만큼 묶인다.
+     */
+    @Test
+    void 장소_검색도_서킷이_열려_있으면_공급자를_부르지_않는다() {
+        circuitBreakerRegistry.circuitBreaker(NaverPlaceSearchClient.RESILIENCE_INSTANCE).transitionToOpenState();
+
+        assertThatThrownBy(() -> placeSearchClient.search("신정역"))
+                .isInstanceOf(GeocodingUnavailableException.class);
+        assertThat(PROVIDER_HITS.get())
+                .as("서킷이 열렸는데 장소 검색 공급자에 요청이 나갔다")
+                .isZero();
     }
 
     /** {@code application.yml} 의 값을 그대로 판정 기준으로 쓴다 — 테스트에 3을 옮겨 적으면 두 값이 갈린다. */

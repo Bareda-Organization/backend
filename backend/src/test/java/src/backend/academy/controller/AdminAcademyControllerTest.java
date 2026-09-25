@@ -261,6 +261,20 @@ class AdminAcademyControllerTest {
     }
 
     /**
+     * {@code stats.moving_bus_count} 는 지금 운행 중({@code moving}) 회차가 있는 차량 수다(§6.3, BR-057).
+     *
+     * <p>시드 학원 A 는 2호차의 회차 3이 {@code moving} 이다. 같은 차량의 {@code moving} 회차가 하나 더
+     * 있어도 차량 수는 1이어야 해 회차 수와 가른다.
+     */
+    @Test
+    @Sql(statements = "UPDATE run SET status = 'moving' WHERE id = 4 AND bus_id = 2")
+    void 학원_상세의_운행_중_차량_수는_moving_회차가_있는_차량_수다() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/academies/1").header("Authorization", 메인관리자_토큰()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.stats.moving_bus_count").value(1));
+    }
+
+    /**
      * {@code user_count} 는 <b>소속이 확정됐고 아직 종료되지 않은</b> 계정만 센다(Ruling 142).
      *
      * <p>같은 학원에 소속 역할 계정 4개를 심는다 — {@code active} · {@code blocked} · {@code pending} ·

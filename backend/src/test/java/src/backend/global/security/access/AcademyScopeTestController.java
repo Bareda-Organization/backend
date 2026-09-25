@@ -2,6 +2,8 @@ package src.backend.global.security.access;
 
 import java.util.List;
 
+import org.springframework.data.domain.Pageable;
+
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,8 +29,9 @@ import src.backend.student.repository.StudentRepository;
  *
  * <p><b>이 형태를 Phase 3 {@code /admin/**} 이 복사할 때</b> — 학원 경로와 메인 관리자 경로는 학원
  * 조건만 다르고 {@code deleted_at IS NULL} 은 <b>양쪽 다 필요</b>하다. 한쪽만 걸면 같은 화면이 학원을
- * 고르느냐에 따라 퇴원생이 나왔다 사라진다. 여기서도 두 경로가 각각 그 조건을 가진 저장소 메서드를
- * 부른다 — {@code findAll()} 로 대신하면 조건이 빠진다.
+ * 고르느냐에 따라 퇴원생이 나왔다 사라진다. 학원 경로는 관계자 학생 목록(§5.11)이 쓰는 조회를 그대로
+ * 부르고, 전 학원 경로는 본체에 해당 조회가 없어(BR-145 — 호출부 없는 전 학원 무제한 조회를 본체에서
+ * 뺐다) 여기서 퇴원생을 거른다.
  */
 @RestController
 class AcademyScopeTestController {
@@ -44,8 +47,11 @@ class AcademyScopeTestController {
     public List<Long> students(@AuthenticationPrincipal AuthUser authUser,
             @RequestParam(name = "academy_id", required = false) Long requestedAcademyId) {
         return AcademyScope.resolveListScope(authUser, requestedAcademyId)
-                .map(studentRepository::findAllByAcademyIdAndDeletedAtIsNullOrderByNameAsc)
-                .orElseGet(studentRepository::findAllByDeletedAtIsNullOrderByNameAsc)
+                .map(academyId -> studentRepository.searchByAcademyId(academyId, "", Pageable.unpaged())
+                        .getContent())
+                .orElseGet(() -> studentRepository.findAll().stream()
+                        .filter(student -> student.getDeletedAt() == null)
+                        .toList())
                 .stream()
                 .map(Student::getId)
                 .toList();

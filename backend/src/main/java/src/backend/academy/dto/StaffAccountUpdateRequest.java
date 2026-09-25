@@ -18,10 +18,13 @@ import jakarta.validation.constraints.Size;
  * <p>{@code resetPassword} 가 {@code Boolean} 인 것은 "주지 않음" 과 "false 를 줌" 을 갈라야 하기
  * 때문이 아니라, {@code boolean} 으로 받으면 준 적 없는 요청이 {@code false} 와 구별되지 않아
  * <b>부분 수정 규약이 필드마다 갈리기</b> 때문이다 — 나머지 넷과 같은 형태로 맞춘다.
+ *
+ * <p>{@code name}·{@code phone} 은 주면 비어 있을 수 없다 — {@code @Pattern} 은 {@code null}(안 줌)을 통과시켜
+ * 부분 수정과 맞는다. 연락처 형식은 보호자 연락처 수정({@code StudentUpdateRequest.GuardianPhoneChange})과 같다(BR-124).
  */
 public record StaffAccountUpdateRequest(
-        @Size(max = 50) String name,
-        @Size(max = 30) String phone,
+        @Size(max = 50) @Pattern(regexp = "(?s).*\\S.*") String name,
+        @Size(max = 30) @Pattern(regexp = "^[0-9][0-9-]{6,28}[0-9]$") String phone,
         @Email @Size(max = 120) String email,
         Boolean resetPassword,
         @Pattern(regexp = "active|inactive") String status) {

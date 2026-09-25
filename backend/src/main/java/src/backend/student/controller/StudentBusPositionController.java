@@ -25,8 +25,8 @@ import src.backend.student.query.StudentBusPositionQueryService;
  *
  * <p>{@code @CanReadStudentBusPosition} 은 {@code isAuthenticated()} 만 검사한다 — §3.11 에는
  * {@code CanReadStudentRoute} 가 쓰는 {@code ROUTE_READ} 같은 전용 권한 카탈로그 항목이 부재하다
- * ({@code Permissions} 전수 확인). 연결되지 않은 자녀는 권한이 아니라
- * {@code student.access.LinkedChildLookup} 이 {@code 403} 으로 걸러낸다.
+ * ({@code Permissions} 전수 확인). 연결되지 않은 자녀·본인 아닌 학생은 권한이 아니라
+ * {@code student.access.StudentRunsAccess} 가 {@code 403} 으로 걸러낸다(BR-025).
  */
 @Tag(name = ApiTags.PARENT_STUDENT)
 @RestController

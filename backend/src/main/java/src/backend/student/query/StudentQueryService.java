@@ -65,17 +65,28 @@ public class StudentQueryService {
 
     private final AuditRecorder auditRecorder;
 
-    /** 학생 목록·검색(STU-01) — 소속 학원의 재학생만 나온다. */
+    /**
+     * 학생 목록·검색(STU-01) — 소속 학원의 재학생만 나온다.
+     *
+     * <p>{@code guardian_phone}(보호자 연락처 원본)이 L3 라, 그 값이 실린 학생마다 감사 {@code read} 1행을 남긴다
+     * (Ruling 333 · BR-060) — 목록 한 번이 상세 100건과 같은 양을 내보내는데 상세만 감사하면 노출량이 큰 쪽이
+     * 추적되지 않는다.
+     */
     public PageResponse<StudentSummaryResponse> list(AuthUser requester, StudentListRequest request) {
         Long academyId = academyOf(requester);
         Page<Student> page = studentRepository.searchByAcademyId(academyId, keyword(request.q()),
                 pageable(request));
         GuardianLinks links = guardianLinksOf(academyId, page.getContent());
 
-        return PageResponse.of(page, page.getContent().stream()
+        List<StudentSummaryResponse> items = page.getContent().stream()
                 .map(student -> StudentSummaryResponse.of(student, links.phones().get(student.getId()),
                         links.counts().getOrDefault(student.getId(), 0)))
-                .toList());
+                .toList();
+        items.stream().filter(item -> item.guardianPhone() != null)
+                .forEach(item -> auditRecorder.recordDataAccessRead(academyId, requester.accountId(), "student",
+                        Long.valueOf(item.studentId()), Map.of("student_ids", List.of(item.studentId()), "fields",
+                                List.of("guardian_phone"))));
+        return PageResponse.of(page, items);
     }
 
     /**

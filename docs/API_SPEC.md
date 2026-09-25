@@ -545,7 +545,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 **권한** 학생 · **요청** 본문 부재 · **응답** `201` — `code`(string) · `expires_at`(datetime)
 
-**에러** — §1.11 공통 항목 외 고유 에러 부재.
+**에러** — §1.11 공통 항목 외 고유 에러 부재. 퇴원한 학생은 학생 레코드가 없는 계정과 같은 `403 FORBIDDEN`(BR-122).
 
 ### 3.4 POST /me/students/link
 
@@ -559,6 +559,12 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | 처리 | `GuardianStudent` 생성. **서버 인증** — 클라이언트 대조 부재 |
 
 **에러** — `403 LINK_CODE_INVALID`(만료·불일치 공통) · `409 ALREADY_LINKED`(이미 연결된 자녀)
+
+`403 LINK_CODE_INVALID` 에 합류하는 경우(2026-09-25 백엔드 검사 BR-024 · BR-085 · BR-122) — 응답을 갈라 "코드가 실재한다" 를 드러내지 않는다.
+- **시도 상한** — 보호자 1명당 **10분 창에 5회**(맞는 코드 포함). 넘으면 맞는 코드도 거부. 6자리 코드 대입 차단
+- **같은 값의 살아 있는 코드가 학원 안에 둘 이상** — 어느 쪽도 연결하지 않음(다른 집 자녀 연결 방지). 학생이 다시 발급하면 해소
+- **동시 입력** — 같은 코드를 두 보호자가 겹쳐 넣으면 먼저 사용 처리한 1명만 연결(`used_at` 조건부 갱신)
+- **발급 뒤 퇴원한 학생의 코드**
 
 ### 3.5 GET /students/{id}/runs
 
@@ -654,7 +660,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 **일일 변경(REQ) 우선** — 특정 날짜에 일일 변경이 있으면 그날만 우선 적용, 이후 요일별 주소로 복귀.
 
-**에러** — `422 ADDRESS_VERIFICATION_FAILED`(주소 검증 실패 — 저장 보류) · `404 STUDENT_NOT_FOUND` · `403 FORBIDDEN`(연결 부재 자녀)
+**에러** — `422 ADDRESS_VERIFICATION_FAILED`(주소 검증 실패 — 저장 보류) · `422 VALIDATION_FAILED`(`entries` 가 14건 초과 — 요일 7 × 방향 2, 지오코딩 전에 거부, BR-059) · `404 STUDENT_NOT_FOUND` · `403 FORBIDDEN`(연결 부재 자녀)
 
 **403·404 판정 순서** — 연결되지 않은 자녀는 `403 FORBIDDEN`, 연결은 있으나 퇴원(soft delete) 처리된 자녀는 `404 STUDENT_NOT_FOUND`. 판정은 이 순서로만 한다(연결 확인 먼저).
 
@@ -713,15 +719,15 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 |---|---|:-:|---|
 | `run_id` · `bus_no` · `depart_time` | — | ● | 회차 요약 |
 | `confirmed` | boolean | ● | `false` = 고정 노선 + "확정 전" 배지 |
-| `driver.name` · `escort.name` | string | ● | 기사 · 동승자 이름 |
-| `escort.phone` | string | ● | **동승자 연락 버튼**용. 기사 연락처 부재 — 학부모 → 기사 직접 연락은 스코프 제외 |
+| `driver.name` · `escort.name` | string | ◐ | 기사 · 동승자 이름 — **그 역할의 배치가 있을 때만**. 배치 전 회차·동승자 미배치(Ruling 330 "후보가 없으면 빈 채로 확정")는 `null` — 화면은 "미배치" (BR-055) |
+| `escort.phone` | string | ◐ | **동승자 연락 버튼**용 — 동승자 배치가 있을 때만, 없으면 `null` 이고 버튼 부재 (BR-055). 기사 연락처 부재 — 학부모 → 기사 직접 연락은 스코프 제외 |
 | `my_stop_id` | string | ● | 본인 승하차지 |
 | `stops[]` | array | ● | `stop_id` · `seq` · `name` · `address` · `lat` · `lng` · `change` |
 | `stops[].change` | enum | ○ | `added` · `skipped` — **승하차지에 `removed` 부재**. 탑승자 삭제는 승하차지가 아니라 명단에 반영 (FEATURE_SPEC §3.5) |
 
 **표시 범위 — 승차지 이전 2개 · 승차지 · 하차지만** (P-08). 승하차지별 탑승 인원 · ETA 부재 (C-08).
 
-**에러** — `404 STUDENT_NOT_FOUND` · `404 RUN_NOT_FOUND`(`run_id` 지정 시) · `403 FORBIDDEN`(연결 부재 자녀). 확정 전은 에러 부재 — 고정 노선 + "확정 전" 배지로 반환
+**에러** — `404 STUDENT_NOT_FOUND` · `404 RUN_NOT_FOUND`(`run_id` 지정 시) · `403 FORBIDDEN`(연결 부재 자녀 · 본인 아닌 학생 — BR-025). 확정 전은 에러 부재 — 고정 노선 + "확정 전" 배지로 반환
 
 ### 3.11 GET /students/{id}/bus-position
 
@@ -733,16 +739,18 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 |---|---|:-:|---|
 | `run_id` · `bus_no` | string | ● | |
 | `run_status` | enum | ● | `moving` 이 아니면 위치 부재 |
-| `lat` · `lng` | number | ○ | 현재 좌표 |
+| `lat` · `lng` | number | ○ | 현재 좌표 — 신호 유실(`last_seen_at` 이 채워질 때) 시 부재. 화면은 좌표 부재로 유실을 판정해 문구만 표시 (BR-056) |
 | `received_at` | datetime | ○ | 좌표 수신 시각. 송신 주기 **2초**(2026-09-14 · 옛값 5~10초) |
 | `last_seen_at` | datetime | ○ | 신호 유실 시 마지막 확인 시각 — 화면은 "마지막 확인 위치 · N분 전". **유실 판정은 마지막 수신 후 2분**(2026-08-31 사용자 확정, Ruling 208). `TECH_DECISIONS §관제 경고`의 *"2분 이상 미수신"* 과 **같은 값으로 통일**한다 — 갈라 두면 관제에는 경고가 떴는데 학부모 화면은 정상으로 보이는 구간이 생긴다. ⚠ **판정 주기 10초**(`ARCHITECTURE §9`)와 다른 값이며 층이 다르다 — 주기는 얼마나 자주 보는가이고 이 값은 얼마나 오래 끊겨야 유실인가다 |
-| `current_stop_name` | string | ○ | **마지막으로 도착한** 승하차지 이름 — 도착 기록이 없으면 부재 (§4.3 `current_stop` 과 같은 판정, 2026-09-17 문면 정정, `Ruling 304`) |
+| `current_stop_name` | string | ○ | **마지막으로 도착한** 승하차지 이름 — 도착 기록이 없으면 부재 (§4.3 `current_stop` 과 같은 판정, 2026-09-17 문면 정정, `Ruling 304`). 신호 유실 때도 유지 (BR-056) |
 
 당일 미등원(`absent`)이면 위치 부재 + 화면 안내 "오늘은 버스를 이용하지 않습니다".
 
 실시간 갱신은 WebSocket `/ws/students/{id}/run` (§7).
 
-**에러** — `404 STUDENT_NOT_FOUND` · `403 FORBIDDEN`(연결 부재 자녀). `run_status` 가 `moving` 이 아니거나 당일 `absent` 인 경우는 에러 부재 — 좌표 필드 부재로 반환
+**권한** 학부모(연결 자녀) · 학생(본인) — §3.5 와 같은 판정 (BR-025)
+
+**에러** — `404 STUDENT_NOT_FOUND` · `403 FORBIDDEN`(연결 부재 자녀 · 본인 아닌 학생) · `404 RUN_NOT_FOUND`(오늘 그 학생의 회차 부재 — 필수 `run_id`·`bus_no` 를 채울 회차가 없음, §3.10 과 같은 코드, BR-121). `run_status` 가 `moving` 이 아니거나 당일 `absent` 인 경우는 에러 부재 — 좌표 필드 부재로 반환
 
 ### 3.12 GET /notifications
 
@@ -2165,7 +2173,7 @@ SMS 연동(`PRD` F-05) 전까지 §2.9 가 `503` 이라 **학원 사용자의 �
 
 `account.status` 는 이 전환에서 **바뀌지 않는다** — 계정 상태 4종(`pending`·`active`·`rejected`·`blocked`)에 `inactive` 가 부재하고, 퇴사는 계정의 생명주기가 아니라 **그 학원에서의 재직 여부**라 `academy_staff.status` 가 표현한다.
 
-**에러** — `404 ACCOUNT_NOT_FOUND` · `409 STAFF_QUOTA_EXCEEDED`(`status=active` 전환 대상 학원에 이미 `active` 관계자 존재)
+**에러** — `404 ACCOUNT_NOT_FOUND` · `409 STAFF_QUOTA_EXCEEDED`(`status=active` 전환 대상 학원에 이미 `active` 관계자 존재) · `422 VALIDATION_FAILED`(`name` 이 공백뿐 · `phone` 이 숫자·하이픈 형식 밖 — 주면 비울 수 없다, BR-124)
 
 ### 6.8 GET /admin/academies/{id}/runs/live
 

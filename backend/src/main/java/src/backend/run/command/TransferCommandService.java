@@ -194,7 +194,7 @@ public class TransferCommandService {
                 Set<Long> excluded = new HashSet<>(
                         boardingIntentRepository.findStudentIdsByRunIdAndRidingFalse(run.getId()));
                 weeklyAddressRepository.findDailyStopsByStopIds(run.getAcademyId(), stopIds, weekday,
-                        run.getDirection())
+                        run.getDirection(), run.getServiceDate().atStartOfDay(clock.getZone()).toOffsetDateTime())
                         .stream()
                         .map(StudentDailyStop::getStudentId)
                         .filter(id -> !excluded.contains(id))

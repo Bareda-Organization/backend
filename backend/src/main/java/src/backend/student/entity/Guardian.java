@@ -1,5 +1,7 @@
 package src.backend.student.entity;
 
+import java.time.OffsetDateTime;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -42,6 +44,17 @@ public class Guardian extends BaseTimeEntity {
 
     @Column(name = "phone", length = 30, nullable = false)
     private String phone;
+
+    /**
+     * 자녀 연결 코드 입력 시도 창(BR-024) — 쓰기는 {@code GuardianRepository#consumeLinkAttempt} 의 조건부
+     * UPDATE 만 한다. 엔티티가 쓰면 연락처 수정 같은 다른 변경이 읽어 둔 옛 횟수로 덮으므로 쓰기를 막는다.
+     */
+    @Column(name = "link_attempt_count", nullable = false, insertable = false, updatable = false)
+    private int linkAttemptCount;
+
+    /** 시도 창 시작 시각 — {@link #linkAttemptCount} 와 같은 이유로 읽기 전용. */
+    @Column(name = "link_attempt_window_start", insertable = false, updatable = false)
+    private OffsetDateTime linkAttemptWindowStart;
 
     private Guardian(Long academyId, Long accountId, String name, String phone) {
         this.academyId = academyId;

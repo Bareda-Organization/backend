@@ -249,4 +249,21 @@ public class AuditLog {
         log.detail = detail;
         return log;
     }
+
+    /**
+     * 관계자·메인 관리자가 L3 필드를 고치거나({@code update}) 학생을 퇴원시킨({@code delete}) 사실(Ruling 333 ·
+     * SYS-01). {@code detail} 에는 바뀐 필드명만 담고 값은 담지 않는다 — {@link #forDataAccessRead} 와 같은 이유.
+     */
+    public static AuditLog forDataAccessChange(AuditAction action, Long academyId, Long actorAccountId,
+            String actorLoginId, String targetType, Long targetId, Map<String, Object> detail,
+            OffsetDateTime occurredAt) {
+        AuditLog log = new AuditLog(AuditCategory.DATA_ACCESS, action, occurredAt);
+        log.academyId = academyId;
+        log.actorAccountId = actorAccountId;
+        log.actorLoginId = actorLoginId;
+        log.targetType = targetType;
+        log.targetId = targetId;
+        log.detail = detail;
+        return log;
+    }
 }

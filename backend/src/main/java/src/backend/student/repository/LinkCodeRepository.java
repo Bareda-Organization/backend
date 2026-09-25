@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -39,6 +40,22 @@ public interface LinkCodeRepository extends JpaRepository<LinkCode, Long> {
             ORDER BY lc.createdAt DESC, lc.id DESC
             """)
     List<LinkCode> findByCodeForAcademy(@Param("code") String code, @Param("academyId") Long academyId);
+
+    /**
+     * 아직 안 쓴 코드만 사용 처리한다 — 갱신 행 0 이면 다른 요청이 먼저 썼다(ERD {@code used_at} · BR-085).
+     *
+     * <p>{@code used_at} 을 읽어 판정한 뒤 덮어쓰면 같은 코드를 동시에 넣은 두 보호자가 모두 "안 쓰임" 을
+     * 보고 연결된다. 재사용 차단의 근거는 이 조건부 갱신 하나다.
+     */
+    @Modifying
+    @Query("""
+            UPDATE LinkCode lc SET lc.usedAt = :now
+            WHERE lc.id = :id
+              AND lc.usedAt IS NULL
+              AND lc.studentId IN (SELECT s.id FROM Student s WHERE s.academyId = :academyId)
+            """)
+    int markUsedIfUnused(@Param("id") Long id, @Param("academyId") Long academyId,
+            @Param("now") OffsetDateTime now);
 
     /**
      * 보존 정리 배치 후보 id(목표 6, Phase 14 T2) — 만료된 코드 전건이 대상이다(ERD §7.1

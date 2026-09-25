@@ -331,6 +331,8 @@ erDiagram
 | `account_id` | bigint | FK UK NN | 보호자 계정 1:1 |
 | `name` | varchar(50) | NN | |
 | `phone` | varchar(30) | NN | 연락처 |
+| `link_attempt_count` | integer | NN DEFAULT 0 | 자녀 연결 코드 입력 시도 수 — 창 안에서만 셈. 상한 5 (`API_SPEC §3.4`) |
+| `link_attempt_window_start` | timestamptz | | 시도 창 시작 — 10분이 지나면 다음 시도가 새 창을 연다. 판정·증가는 조건부 UPDATE 1회 |
 | `created_at` · `updated_at` | timestamptz | NN | |
 
 **존재 이유** — 자녀 N명 연결의 기준점. `student_id` 를 직접 부착하지 않고 연결 테이블로만 표현. **근거** FEATURE_SPEC §3.2 · P-02 · ATT-03

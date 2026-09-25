@@ -167,6 +167,25 @@ class WeeklyAddressControllerTest {
                 .andExpect(jsonPath("$.error.code").value("DUPLICATE_WEEKLY_ADDRESS"));
     }
 
+    /**
+     * {@code entries} 는 요일 7 × 방향 2 = 14칸이 전부다 — 15건 이상은 지오코딩 전에 {@code 422} 다(BR-059).
+     *
+     * <p>상한이 없으면 같은 칸을 1,000번 담은 요청 하나가 외부 지오코딩을 1,000번 부른 뒤에야 {@code 409} 로
+     * 버려진다.
+     */
+    @Test
+    void entries_가_14건을_넘으면_지오코딩_전에_422_VALIDATION_FAILED_다() throws Exception {
+        String[] entries = new String[15];
+        java.util.Arrays.fill(entries, 항목("wed", "to_academy", ADDRESS));
+
+        mockMvc.perform(patch(WEEKLY_ADDRESS.formatted(ACADEMY_B_STUDENT_ID))
+                        .header("Authorization", 토큰(ACADEMY_B_GUARDIAN_ACCOUNT, ACADEMY_B))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(본문(entries)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+    }
+
     // ── 검증 실패 (목표 6 ③) ─────────────────────────────────────────────
 
     /** 검증에 실패한 주소는 {@code 422} 이고 행이 <b>남지 않는다</b>(§3.7 저장 보류). */

@@ -223,4 +223,18 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
                                  src.backend.boarding.entity.RiderStatus.NO_SHOW)
             """)
     List<RunRider> findFinalizedByRunIdAndStopId(@Param("runId") Long runId, @Param("stopId") Long stopId);
+
+    /**
+     * 그 회차들 중 이 학생이 명단에 있는 회차 — 학생 회차 판정이 회차마다 명단을 따로 묻지 않게 한 번에
+     * 모은다(BR-058). 학원 조건은 {@code run} 부모 조인으로 건다({@link #findAllByRunIdAndAcademyId} 와 같은 형태).
+     */
+    @Query("""
+            SELECT rr.runId FROM RunRider rr
+            JOIN Run r ON r.id = rr.runId
+            WHERE rr.studentId = :studentId
+              AND rr.runId IN :runIds
+              AND r.academyId = :academyId
+            """)
+    List<Long> findRunIdsByAcademyIdAndStudentIdAndRunIdIn(@Param("academyId") Long academyId,
+            @Param("studentId") Long studentId, @Param("runIds") Collection<Long> runIds);
 }

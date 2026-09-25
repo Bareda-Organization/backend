@@ -124,6 +124,16 @@ resilience4j:
         # 그 순간부터 온디맨드가 503 을 받는다. 자기 보호 장치가 서로를 넘어뜨리는 형태다.
         ignore-exceptions:
           - io.github.resilience4j.bulkhead.BulkheadFullException
+      # 장소 검색(자동완성 보조 후보, BR-163) — 재시도는 두지 않고 서킷만 둔다. 지오코딩과 다른 상품이라
+      # 인스턴스를 가른다(지역 검색이 죽었다고 주소 검증까지 막지 않는다).
+      placeSearch:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
     metrics:
       # 관측 목표 8행(TECH_DECISIONS §13.1) — 이 값이 없으면(기본값 false) resilience4j-spring-boot3
       # 가 만드는 지표 게시자는 CircuitBreakerRegistry 에 실제로 연결되지 않는다. 역참조로 확인한

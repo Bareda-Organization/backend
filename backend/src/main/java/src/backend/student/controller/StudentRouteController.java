@@ -27,8 +27,7 @@ import src.backend.student.query.StudentRouteQueryService;
  * {@code StudentRouteQueryService} 에서 파싱한다(형변환 실패를 {@code 422} 로 응답하는 지점을
  * 서비스 계층에 모아 두기 위함 — {@code NavigationController} 의 {@code scope} 처리와 같은 방식).
  *
- * <p>§3.10 이 문서화한 권한은 "학부모 · 학생" 이지만, 이 코드베이스에는 학생 본인 접근 경로
- * ({@code Role.STUDENT} 자기 조회) 가 존재하지 않는다(전수 확인) — 표 누락으로 보고한다.
+ * <p>§3.10 권한은 "학부모 · 학생" — 학부모는 연결 자녀, 학생은 본인만({@code StudentRunsAccess}, BR-025).
  */
 @Tag(name = ApiTags.PARENT_STUDENT)
 @RestController

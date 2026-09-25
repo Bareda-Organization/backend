@@ -2,6 +2,10 @@ package src.backend.student.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.sql.Timestamp;
+import java.time.OffsetDateTime;
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -9,6 +13,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import src.backend.global.common.SeedFixtures;
+import src.backend.global.common.enums.Direction;
+import src.backend.global.common.enums.Weekday;
 
 /**
  * {@link WeeklyAddressRepository} 의 <b>학원 조건이 실제로 무는지</b>를 본다(ARCHITECTURE §6.1).
@@ -80,5 +86,28 @@ class WeeklyAddressRepositoryTest {
         assertThat(weeklyAddressRepository.findAllByStudentIdAndAcademyId(ACADEMY_B_STUDENT_ID, ACADEMY_A))
                 .as("학원 B 학생의 주소가 학원 A 로 물었는데 나왔다 — 격리가 호출부에만 매달려 있다")
                 .isEmpty();
+    }
+
+    /**
+     * 퇴원은 "오늘 명단은 유지, 내일부터 제외"(API_SPEC §5.11 · ERD §7.1) — 확정 배치가 명단을 만드는
+     * 정차지 기준 조회가 운행일 전에 퇴원한 학생을 빼고, 운행일 당일에 퇴원한 학생은 남긴다(BR-003).
+     */
+    @Test
+    void 운행일_전에_퇴원한_학생은_정차지_기준_조회에서_빠진다() {
+        // 운행일 2026-09-25(금) 0시(KST). 학생 2 는 승하차지 2, 학생 1 은 승하차지 1 을 쓴다(시드).
+        OffsetDateTime serviceDayStart = OffsetDateTime.parse("2026-09-25T00:00:00+09:00");
+        jdbcTemplate.update("UPDATE student SET deleted_at = ? WHERE id = 2",
+                Timestamp.from(serviceDayStart.minusMinutes(1).toInstant()));
+        jdbcTemplate.update("UPDATE student SET deleted_at = ? WHERE id = 1",
+                Timestamp.from(serviceDayStart.plusHours(10).toInstant()));
+
+        assertThat(weeklyAddressRepository.findDailyStopsByStopIds(ACADEMY_A, List.of(2L), Weekday.FRI,
+                Direction.TO_ACADEMY, serviceDayStart))
+                .as("전날 퇴원한 학생이 운행일 명단 후보로 나왔다 — 버스가 퇴원생 승하차지에 선다")
+                .isEmpty();
+        assertThat(weeklyAddressRepository.findDailyStopsByStopIds(ACADEMY_A, List.of(1L), Weekday.FRI,
+                Direction.TO_ACADEMY, serviceDayStart))
+                .as("운행일 당일 퇴원한 학생이 빠졌다 — 오늘 명단은 유지해야 한다(§5.11)")
+                .hasSize(1);
     }
 }

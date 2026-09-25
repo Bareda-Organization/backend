@@ -4,14 +4,18 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
@@ -79,10 +83,7 @@ public class StudentRunResolver {
      * {@link #belongsTo} 를 그대로 재사용해 idle·확정 이후 판정 로직을 중복시키지 않는다.
      */
     public List<Run> resolveAllByDate(Long academyId, Long studentId, LocalDate date) {
-        return runRepository.findAllByAcademyIdAndServiceDateOrderByDepartTimeAsc(academyId, date).stream()
-                .filter(run -> !run.isCanceled())
-                .filter(run -> belongsTo(run, studentId))
-                .toList();
+        return runsOf(academyId, studentId, date);
     }
 
     /**
@@ -92,11 +93,7 @@ public class StudentRunResolver {
      */
     private Optional<Run> mostRelevant(Long academyId, Long studentId, LocalDate date) {
         OffsetDateTime now = OffsetDateTime.now(clock);
-        List<Run> candidates = runRepository.findAllByAcademyIdAndServiceDateOrderByDepartTimeAsc(academyId, date)
-                .stream()
-                .filter(run -> !run.isCanceled())
-                .filter(run -> belongsTo(run, studentId))
-                .toList();
+        List<Run> candidates = runsOf(academyId, studentId, date);
         if (candidates.isEmpty()) {
             return Optional.empty();
         }
@@ -104,6 +101,41 @@ public class StudentRunResolver {
                 .or(() -> candidates.stream().filter(run -> run.getDepartTime().isAfter(now))
                         .min(Comparator.comparing(Run::getDepartTime)))
                 .or(() -> candidates.stream().max(Comparator.comparing(Run::getDepartTime)));
+    }
+
+    /**
+     * 그날 이 학생이 속한 취소되지 않은 회차 — {@link #belongsTo} 와 같은 판정을 회차마다 묻지 않고 한 번에
+     * 모은다(BR-058). 확정 이후는 명단 1질의, 확정 전은 방향마다 요일별 주소 1질의 + 그 승하차지를 편성에 둔
+     * 차량 1질의라 학원의 그날 회차 수와 무관하다.
+     */
+    private List<Run> runsOf(Long academyId, Long studentId, LocalDate date) {
+        List<Run> runs = runRepository.findAllByAcademyIdAndServiceDateOrderByDepartTimeAsc(academyId, date)
+                .stream()
+                .filter(run -> !run.isCanceled())
+                .toList();
+        List<Long> confirmedRunIds = runs.stream().filter(run -> run.getStatus() != RunStatus.IDLE)
+                .map(Run::getId).toList();
+        Set<Long> riderRunIds = confirmedRunIds.isEmpty() ? Set.of()
+                : Set.copyOf(runRiderRepository.findRunIdsByAcademyIdAndStudentIdAndRunIdIn(academyId, studentId,
+                        confirmedRunIds));
+        Map<Direction, Set<Long>> idleBusIds = new EnumMap<>(Direction.class);
+        runs.stream().filter(run -> run.getStatus() == RunStatus.IDLE).map(Run::getDirection).distinct()
+                .forEach(direction -> idleBusIds.put(direction,
+                        busesServing(academyId, studentId, weekdayOf(date), direction)));
+        return runs.stream()
+                .filter(run -> run.getStatus() == RunStatus.IDLE
+                        ? idleBusIds.get(run.getDirection()).contains(run.getBusId())
+                        : riderRunIds.contains(run.getId()))
+                .toList();
+    }
+
+    /** 그 요일·방향에 이 학생의 승하차지를 고정 노선에 둔 차량들 — {@link #matchesFixedRoute} 를 차량 묶음으로 푼 것. */
+    private Set<Long> busesServing(Long academyId, Long studentId, Weekday weekday, Direction direction) {
+        return weeklyAddressRepository.findDailyStops(academyId, List.of(studentId), weekday, direction).stream()
+                .findFirst()
+                .map(stop -> Set.copyOf(routeRepository.findBusIdsServingStop(academyId, weekday, direction,
+                        stop.getStopId())))
+                .orElse(Set.of());
     }
 
     private boolean belongsTo(Run run, Long studentId) {

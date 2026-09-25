@@ -1,5 +1,6 @@
 package src.backend.run.query;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
@@ -94,6 +95,8 @@ public class StaffRunRouteQueryService {
 
     private final RouteComputationPipeline routeComputationPipeline;
 
+    private final Clock clock;
+
     public StaffRunRouteResponse route(AuthUser requester, Long runId) {
         Run run = runRepository.findById(runId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
@@ -176,7 +179,7 @@ public class StaffRunRouteQueryService {
         }
 
         List<StudentDailyStop> dailyStops = weeklyAddressRepository.findDailyStopsByStopIds(run.getAcademyId(),
-                stopIds, weekday, run.getDirection());
+                stopIds, weekday, run.getDirection(), run.getServiceDate().atStartOfDay(clock.getZone()).toOffsetDateTime());
         List<Long> studentIds = dailyStops.stream().map(StudentDailyStop::getStudentId).distinct().toList();
         Map<Long, Long> studentStops = dailyStops.stream()
                 .collect(Collectors.toMap(StudentDailyStop::getStudentId, StudentDailyStop::getStopId,

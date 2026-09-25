@@ -1,6 +1,7 @@
 package src.backend.student.geocoding.impl;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.URI;
 import java.util.List;
 import java.util.Optional;
@@ -47,6 +48,9 @@ public class NaverGeocodingClient implements GeocodingClient {
 
     /** 자동완성 후보 수 — 화면 목록 한 번에 보이는 만큼. */
     private static final int CANDIDATE_LIMIT = 10;
+
+    /** 좌표 소수 자릿수(§1.1). */
+    private static final int COORDINATE_SCALE = 6;
 
     private final WebClient webClient;
 
@@ -123,8 +127,7 @@ public class NaverGeocodingClient implements GeocodingClient {
             return List.of();
         }
         return response.addresses().stream()
-                .map(found -> new GeocodedPoint(new BigDecimal(found.y()), new BigDecimal(found.x()),
-                        found.displayName()))
+                .map(NaverGeocodingClient::pointOf)
                 .toList();
     }
 
@@ -150,9 +153,16 @@ public class NaverGeocodingClient implements GeocodingClient {
         if (response == null || response.addresses() == null || response.addresses().isEmpty()) {
             return Optional.empty();
         }
-        NaverAddress found = response.addresses().getFirst();
-        return Optional.of(new GeocodedPoint(new BigDecimal(found.y()), new BigDecimal(found.x()),
-                found.displayName()));
+        return Optional.of(pointOf(response.addresses().getFirst()));
+    }
+
+    /**
+     * 좌표를 API 규격 자릿수(§1.1 소수 6자리 · {@code numeric(9,6)})로 맞춘다 — 네이버가 7자리를 주면 저장 직후
+     * 응답과 다시 읽은 응답의 좌표가 달라진다(BR-123). {@code NaverPlaceSearchClient} 와 같은 반올림이다.
+     */
+    private static GeocodedPoint pointOf(NaverAddress found) {
+        return new GeocodedPoint(new BigDecimal(found.y()).setScale(COORDINATE_SCALE, RoundingMode.HALF_UP),
+                new BigDecimal(found.x()).setScale(COORDINATE_SCALE, RoundingMode.HALF_UP), found.displayName());
     }
 
     /** 네이버 응답의 최상위 — {@code meta.totalCount} 는 {@code addresses} 길이와 같아 별도로 읽지 않는다. */
