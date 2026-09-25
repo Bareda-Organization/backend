@@ -525,6 +525,7 @@ erDiagram
 | `engine_name` 🆕 | varchar(30) | NN | 순서 최적화 전략 식별자. 알고리즘 교체 시 어느 산출물인지 판별 |
 | `policy_snapshot` 🆕 | jsonb | NN | 산출 시점 정책값. 정책이 바뀌어도 과거 노선을 재현·설명 가능 |
 | `fallback_used` 🆕 | boolean | NN default false | 지도 API 폴백(직선거리 근사)으로 계산됐는지. 품질 저하분 식별 |
+| `road_path` 🆕 | jsonb | | 재최적화 결과 도로 경로(폴리라인). 미리보기·상세 화면 지도 표시용 (BR-141) |
 | `created_by` 🆕 | bigint | | 배포 유발 계정 |
 | `created_at` | timestamptz | NN | |
 
@@ -821,7 +822,7 @@ erDiagram
 | `revoked_at` | timestamptz | | 해지 시각. 로그아웃·무효 토큰 정리로 설정 |
 | `created_at` · `updated_at` | timestamptz | NN | |
 
-**존재 이유** — 알림이 제품의 중심 기능인데(알림 종류 21종 — `V6` 기준, C-17 팝업 병행) **서버가 발송 대상 단말을 특정할 자리**가 필요. 이 테이블이 없으면 알림 레코드는 생성되나 푸시가 전부 미발송. 한 계정이 여러 기기를 보유하므로 `(account_id, device_id)` 단위로 관리하고 토큰 갱신은 행 대체. **근거** NTF-12 · API_SPEC §2.11 · ARCHITECTURE §11
+**존재 이유** — 알림이 제품의 중심 기능인데(알림 종류 20종 — `V6` 기준, C-17 팝업 병행) **서버가 발송 대상 단말을 특정할 자리**가 필요. 이 테이블이 없으면 알림 레코드는 생성되나 푸시가 전부 미발송. 한 계정이 여러 기기를 보유하므로 `(account_id, device_id)` 단위로 관리하고 토큰 갱신은 행 대체. **근거** NTF-12 · API_SPEC §2.11 · ARCHITECTURE §11
 
 #### `notification_setting` 🆕 — 알림 설정
 
@@ -957,6 +958,12 @@ erDiagram
 | `route_version` → `change_request.applied_route_version_id` | 1 : N | `applied_route_version_id` | SET NULL | |
 | `run_rider` → `no_show_case` | 1 : 0..1 | `run_rider_id` | CASCADE | |
 | `no_show_case` → `no_show_contact` | 1 : N | `no_show_case_id` | CASCADE | |
+| `run` → `delay_notice` | 1 : N | `run_id` | CASCADE | |
+| `account` → `delay_notice.sent_by_account_id` | 1 : N | `sent_by_account_id` | RESTRICT | |
+| `student` → `run_transfer` | 1 : N | `student_id` | RESTRICT | |
+| `run` → `run_transfer.from_run_id` | 1 : N | `from_run_id` | CASCADE | |
+| `run` → `run_transfer.to_run_id` | 1 : N | `to_run_id` | CASCADE | |
+| `stop` → `run_transfer` | 1 : N | `stop_id` | RESTRICT | |
 
 ### 4.2 FK 를 설정하지 않는 관계
 
@@ -1030,6 +1037,7 @@ erDiagram
 | `academy_setting` | `no_show_wait_minutes > 0 AND no_show_wait_minutes <= 30` | 미승차 대기 기본 **3분**, 상한 **30분**(Ruling 257) |
 | `exception_report` | `type <> 'guardian_absent' OR run_rider_id IS NOT NULL` | 보호자 부재는 대상 탑승자 필수 (EXC-02) |
 | `weekly_address` · `schedule` · `route` | `weekday IN ('mon','tue','wed','thu','fri','sat','sun')` | 요일 enum |
+| `delay_notice` | `minutes > 0 AND minutes % 5 = 0` | 지연 예상 분은 **5분 단위** (BR-141) |
 | `academy` · `stop` · `waypoint` · `run_position` | `lat BETWEEN -90 AND 90` · `lng BETWEEN -180 AND 180` | 좌표 범위 |
 | `academy` | `(lat IS NULL) = (lng IS NULL)` | 노선 기준점은 한쪽만 채워지면 성립하지 않음 — 둘 다 NULL 이거나 둘 다 NOT NULL (Ruling 190) |
 
@@ -1067,6 +1075,9 @@ erDiagram
 | `signup_request(academy_id, status, requested_at)` | 가입 요청 대기 목록·미처리 배지 (AUTH-10) |
 | `audit_log(academy_id, occurred_at desc)` · `audit_log(actor_account_id, occurred_at desc)` · `audit_log(category, occurred_at desc)` | 감사·접속 이력 필터 (SYS-01·02). 마지막은 필터 없는 첫 화면 — 무기한 보존 테이블의 전 표 정렬 방지 (2026-09-25 BR-089) |
 | `rider_status_history(run_rider_id, changed_at desc)` | 되돌리기 대상의 직전 상태 조회 (BRD-05) |
+| `delay_notice(run_id, sent_at desc)` | 같은 회차의 직전 발신 1건 조회 — 중복·갱신 판정 (Ruling 253, BR-141) |
+| `run_transfer(from_run_id)` · `run_transfer(to_run_id)` | 확정 배치가 출발 회차에서 빠질 학생 · 도착 회차로 들어올 학생을 각각 조회 (BR-141) |
+| `run_transfer(student_id, status)` | 같은 학생의 처리 대기 중인 이동 건 존재 여부(`TRANSFER_ALREADY_STAGED`) 판정 (BR-141) |
 | `refresh_token(account_id)` partial `WHERE revoked_at IS NULL` | 로그아웃·차단 시 유효 토큰 전량 무효화 (C-14) |
 | `academy_staff(academy_id)` partial `WHERE status = 'active'` | 정원 판정(재직자 수)과 학원의 현 관계자 조회. UK 가 겸함 (ACAD-05·06) |
 | `exception_report(academy_id, reported_at desc)` | 관계자 예외 보고 목록 — 유형·회차·기간 필터 + 최근순 (A-16). **무기한 보존**(§7.2)이라 누적 전 행 스캔을 막는다 (BR-091) |
@@ -1138,17 +1149,22 @@ erDiagram
 | `no_show_case` · `no_show_contact` · `exception_report` · `emergency_alert` | 무기한 (아카이빙 대상) | 사건 대응 이력. 비상 알림은 **사고 시각 판정 근거**(`occurred_at`)라 정리 대상 밖 (EXC-04) |
 | `audit_log` | **무기한 — 정리 배치 대상 밖 (2026-09-04 Ruling 243)** | 접속·변경 이력 저장이 요건이나 기간 규정 부재 (NFR-08). Phase 14 보존 정리 배치는 이 테이블에 닿지 않음(시험으로 고정) |
 | `run_position` | **90일 (2026-09-04 사용자 확정 · Ruling 243 · X-09 해소)** — 코드 상수 `RetentionPolicy.RUN_POSITION_RETENTION` | 실사용 전환 시 법정 검토(L-06~08)에서 재조정 여지만 존치. 위치정보 보유기간이 개발 전 확인 대상. 위치정보법 시행령의 최대 1년이 상한 후보 (PRD §10.1 L-06·L-07 · §11.1 L-08 · API_SPEC §1.12) |
+| `refresh_token` | **만료·폐기 후 30일 (잠정 · Ruling 243)** — 코드 상수 `RetentionPolicy.REFRESH_TOKEN_RETENTION_AFTER_EXPIRY_OR_REVOCATION` | 폐기 직후 그 토큰으로 재사용을 시도하는 정황을 감사할 여지를 둠 (BR-141) |
+| `link_code` | 만료 즉시 (Ruling 243) | 재사용 불가한 1회성 코드라 감사 가치가 없어 컷오프를 두지 않음(BR-141) |
 
 ### 7.3 대량 적재 테이블의 정리
 
+**Ruling 243(2026-09-04 사용자 확정) — 파티셔닝은 이번에 안 한다. 정리는 행 단위 DELETE 배치.** 현재 적재량(개발 DB 기준)에서 파티션 도입 이득이 없고, 파티셔닝은 `V1` 테이블 재생성이 필요해 실사용 전환(§7.2 법정 검토)과 함께 재검토하는 편이 맞다는 판단. 구현은 `RetentionCleanupScheduler` — 컷오프(§7.2)를 지난 행을 `Limit.of(BATCH_SIZE)` 로 잘라, 상한만큼 지웠으면(아직 남았을 수 있으면) 같은 틱에서 다음 회차로 이어가고 상한보다 적게 지웠으면 멈춘다. 한 번에 전건을 지우면 오래 쌓인 테이블에서 행 잠금을 길게 붙들어 운영 중 조회를 막기 때문.
+
 | 테이블 | 적재량 | 처리 |
 |---|---|---|
-| `run_position` | 회차당 **1,350행 안팎** (송신 **2초** × 운행 45분. 옛 5초 기준 540행의 2.5배) | `recorded_at` 기준 **일 단위 RANGE 파티션**. 보유 기간 확정 후 파티션 DROP 으로 정리 — 행 단위 DELETE 는 회수 비용이 큼 |
-| `notification_log` | 승하차 처리 1건당 학부모·관계자 다중 행 | `sent_at` 기준 **월 단위 파티션**. 보관 **14일**이라 조회는 최신 1~2 파티션에 집중 |
-| `audit_log` | 개인정보 조회마다 1행 | `occurred_at` 기준 **월 단위 파티션** |
-| `rider_status_history` | 탑승자 수 × 상태 전이 수 | 파티셔닝 미적용. 회차 단위 조회가 지배적이라 인덱스로 충분 |
+| `run_position` | 회차당 **1,350행 안팎** (송신 **2초** × 운행 45분. 옛 5초 기준 540행의 2.5배) | 행 단위 DELETE 배치. 보유 **90일**(§7.2) |
+| `notification_log` | 승하차 처리 1건당 학부모·관계자 다중 행 | 행 단위 DELETE 배치. 보관 **14일**(§7.2) |
+| `refresh_token` · `link_code` | 계정·인증 흐름당 소량 | 행 단위 DELETE 배치. 만료·폐기 기준(§7.2) |
+| `audit_log` | 개인정보 조회마다 1행 | **정리 배치 대상 밖 — 무기한 보존**(§7.2 · Ruling 243) |
+| `rider_status_history` | 탑승자 수 × 상태 전이 수 | 정리 배치 대상 밖 — 무기한 보존. 회차 단위 조회가 지배적이라 인덱스로 충분 |
 
-**정리 배치의 전제** — 위 3개 파티션 테이블은 §4.2 에 따라 FK 미설정. 부모 행이 남아 있어도 파티션 단위로 잘라낼 수 있는 구조이며, FK 를 걸면 이 정리가 성립하지 않음.
+**정리 배치의 전제** — 정리 대상 중 `run_position`·`notification_log` 는 §4.2 에 따라 FK 미설정(대량 적재·독립 보존 주기). `refresh_token`·`link_code` 는 §4.1 대로 FK 를 갖지만 컷오프 판정이 부모 상태가 아니라 자기 컬럼(만료·폐기 시각)만 보므로 행 단위 DELETE 로 지워도 무방.
 
 ---
 
