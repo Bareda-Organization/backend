@@ -186,7 +186,7 @@ public class RunConfirmationService {
         }
 
         List<StudentDailyStop> dailyStops = weeklyAddressRepository.findDailyStopsByStopIds(run.getAcademyId(),
-                stopIds, weekday, run.getDirection());
+                stopIds, weekday, run.getDirection(), run.getServiceDate().atStartOfDay(clock.getZone()).toOffsetDateTime());
         // ①구간 탑승 의사 토글(riding=false)이 남긴 학생은 여기서 걸러낸다 — DailyRoster 를 만들기
         // 전이라 노선 계산도 run_rider 도 이 학생을 아예 보지 않는다(목표 1, P-03).
         Set<Long> excludedStudentIds = new HashSet<>(
