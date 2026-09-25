@@ -49,6 +49,11 @@ public class ChangeRequestCommandService {
 
     private final Clock clock;
 
+    /**
+     * 일일 변경 신청 접수(API_SPEC §3.8 {@code POST /parent/students/{id}/change-requests}) —
+     * 접근 판정 → 회차 조회 → ③구간 선차단 → (이동형만) 주소 검증까지 마친 뒤 실제 저장·구간
+     * 최종 판정은 {@link ChangeRequestStore} 에 맡긴다(클래스 javadoc 참고).
+     */
     public ChangeRequestCreateResponse submit(AuthUser requester, Long studentId, ChangeRequestCreateRequest request) {
         Student student = linkedChildLookup.linkedChild(requester, studentId);
         ChangeRequestType type = parseType(request.type());

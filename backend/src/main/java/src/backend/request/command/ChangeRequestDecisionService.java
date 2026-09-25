@@ -142,6 +142,13 @@ public class ChangeRequestDecisionService {
     private DecideChangeRequestResponse approve(AuthUser requester, ChangeRequest cr, Run run,
             OffsetDateTime decidedAt, String previewToken) {
         Long academyId = cr.getAcademyId();
+        // BR-171 — 경유 지점 배포(routing/command/WaypointStore#assertStillDeployable)와 같은 잠금을
+        // 재사용해 이 회차를 잠근다. 두 배포가 같은 순간이면 늦게 온 쪽이 이 자리에서 기다렸다가 방금
+        // 배포된 노선 버전을 보고 다음 판본 번호를 매겨야 하는데, 잠금이 없으면 둘 다 같은 옛 버전을
+        // 기준으로 같은 판본 번호를 써 uk_route_version_confirmed_route_version_no UNIQUE 위반(500)이
+        // 난다. 새 잠금 수단을 만들지 않고 그쪽이 쓰는 저장소 메서드를 호출만 한다.
+        runRepository.findLockedByIdAndAcademyId(run.getId(), academyId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
         ApprovalPreview preview = previewCache.find(cr.getId())
                 .filter(cached -> cached.token().equals(previewToken))
                 .orElseThrow(() -> new BusinessException(ErrorCode.PREVIEW_STALE));
@@ -157,35 +164,15 @@ public class ChangeRequestDecisionService {
                 .filter(rider -> rider.getStudentId().equals(cr.getStudentId()))
                 .findFirst()
                 .orElseThrow(() -> new BusinessException(ErrorCode.STUDENT_NOT_IN_RUN));
-        Long originalStopId = target.getStopId();
 
-        ConfirmedRoute confirmedRoute = confirmedRouteRepository.findById(run.getId())
-                .orElseThrow(() -> new IllegalStateException("확정 노선이 없다 — runId=" + run.getId()));
-        RouteVersion currentVersion = routeVersionRepository.findById(confirmedRoute.getCurrentVersionId())
-                .orElseThrow(() -> new IllegalStateException(
-                        "노선 버전이 없다 — versionId=" + confirmedRoute.getCurrentVersionId()));
-        List<RunStop> beforeRunStops = runStopRepository
-                .findAllByRouteVersionIdAndAcademyIdOrderBySeq(currentVersion.getId(), academyId);
+        Deployment deployment = deployNewVersion(run, academyId, computation, decidedAt, requester.accountId(),
+                preview.fingerprint(), target.getStopId());
 
-        // "잔여 0명이면 승하차지 제거" — 대상 학생이 떠나는 원래 승하차지가 재최적화 결과에도 남아
-        // 있는지로 판정한다(전/후 대조는 실제 배포될 computation 을 기준으로 한다, 사각지대 회피).
-        boolean stopRemoved = beforeRunStops.stream().anyMatch(rs -> originalStopId.equals(rs.getStopId()))
-                && computation.stops().stream().noneMatch(os -> originalStopId.equals(os.stopId()));
-
-        int newVersionNo = currentVersion.getVersionNo() + 1;
-        RouteVersion newVersion = RouteVersion.forConfirmedRoute(run.getId(), newVersionNo,
-                RouteVersionSource.APPROVAL, computation.estDurationMin(), computation.estDistanceKm(), decidedAt,
-                preview.fingerprint(), computation.snapshot().engineName(), computation.snapshot().policySnapshot(),
-                computation.snapshot().fallbackUsed(), computation.roadPath(), requester.accountId(), decidedAt);
-        routeVersionRepository.save(newVersion);
-        confirmedRouteRepository.assignCurrentVersion(run.getId(), newVersion.getId());
-        runStopRepository.saveAll(RunStop.listOf(newVersion.getId(), computation, run.getDirection()));
-
-        // assignCurrentVersion 이 clearAutomatically=true 라 위 호출 시점에 영속 컨텍스트 전체가
-        // 비워진다 — target·cr 은 그 이전에 로드해 둔 인스턴스라 이 시점부턴 준영속(detached) 상태다.
-        // 세터만 부르고 끝내면 변경이 메모리에만 남고 커밋 때 반영되지 않으므로, 각 저장소의 save()
-        // 로 명시적으로 다시 붙인다(merge, ConfirmedRoute.assignCurrentVersion 의 javadoc이 이미 경고한
-        // 것과 같은 함정).
+        // assignCurrentVersion 이 clearAutomatically=true 라 deployNewVersion 안에서 영속 컨텍스트
+        // 전체가 비워진다 — target·cr 은 그 이전에 로드해 둔 인스턴스라 이 시점부턴 준영속(detached)
+        // 상태다. 세터만 부르고 끝내면 변경이 메모리에만 남고 커밋 때 반영되지 않으므로, 각 저장소의
+        // save() 로 명시적으로 다시 붙인다(merge, ConfirmedRoute.assignCurrentVersion 의 javadoc이
+        // 이미 경고한 것과 같은 함정).
         if (cr.getType() == ChangeRequestType.CANCEL) {
             target.markAbsent(decidedAt);
         } else {
@@ -193,7 +180,7 @@ public class ChangeRequestDecisionService {
         }
         runRiderRepository.save(target);
 
-        cr.approve(requester.accountId(), decidedAt, stopRemoved, newVersion.getId());
+        cr.approve(requester.accountId(), decidedAt, deployment.stopRemoved(), deployment.newVersion().getId());
         changeRequestRepository.save(cr);
         previewCache.evict(cr.getId());
 
@@ -207,8 +194,41 @@ public class ChangeRequestDecisionService {
             eventPublisher.publishEvent(new AbsentRecordedEvent(run.getId(), academyId, cr.getStudentId(), decidedAt));
         }
 
-        return new DecideChangeRequestResponse("approved", stopRemoved, newVersionNo, requester.accountId(),
-                decidedAt);
+        return new DecideChangeRequestResponse("approved", deployment.stopRemoved(),
+                deployment.newVersion().getVersionNo(), requester.accountId(), decidedAt);
+    }
+
+    /**
+     * 캐시된 재최적화 결과를 새 노선 버전으로 배포한다(BR-101 — {@code approve} 의 §20.2 크기 신호를
+     * 줄이기 위해 분리, 계산·판단 로직 자체는 바뀌지 않았다). "잔여 0명이면 승하차지 제거" 는 대상
+     * 학생이 떠나는 원래 승하차지가 재최적화 결과에도 남아 있는지로 판정한다(전/후 대조는 실제
+     * 배포될 {@code computation} 을 기준으로 한다, 사각지대 회피).
+     */
+    private Deployment deployNewVersion(Run run, Long academyId, RouteComputation computation,
+            OffsetDateTime decidedAt, Long createdBy, String fingerprint, Long originalStopId) {
+        ConfirmedRoute confirmedRoute = confirmedRouteRepository.findById(run.getId())
+                .orElseThrow(() -> new IllegalStateException("확정 노선이 없다 — runId=" + run.getId()));
+        RouteVersion currentVersion = routeVersionRepository.findById(confirmedRoute.getCurrentVersionId())
+                .orElseThrow(() -> new IllegalStateException(
+                        "노선 버전이 없다 — versionId=" + confirmedRoute.getCurrentVersionId()));
+        List<RunStop> beforeRunStops = runStopRepository
+                .findAllByRouteVersionIdAndAcademyIdOrderBySeq(currentVersion.getId(), academyId);
+
+        boolean stopRemoved = beforeRunStops.stream().anyMatch(rs -> originalStopId.equals(rs.getStopId()))
+                && computation.stops().stream().noneMatch(os -> originalStopId.equals(os.stopId()));
+
+        RouteVersion newVersion = RouteVersion.forConfirmedRoute(run.getId(), currentVersion.getVersionNo() + 1,
+                RouteVersionSource.APPROVAL, computation.estDurationMin(), computation.estDistanceKm(), decidedAt,
+                fingerprint, computation.snapshot().engineName(), computation.snapshot().policySnapshot(),
+                computation.snapshot().fallbackUsed(), computation.roadPath(), createdBy, decidedAt);
+        routeVersionRepository.save(newVersion);
+        confirmedRouteRepository.assignCurrentVersion(run.getId(), newVersion.getId());
+        runStopRepository.saveAll(RunStop.listOf(newVersion.getId(), computation, run.getDirection()));
+        return new Deployment(newVersion, stopRemoved);
+    }
+
+    /** {@link #deployNewVersion} 의 결과 — 새로 배포된 버전과 대상 승하차지 제거 여부. */
+    private record Deployment(RouteVersion newVersion, boolean stopRemoved) {
     }
 
     /** 거절 — 재최적화를 전혀 부르지 않고 기존 노선을 유지한 채 사유와 함께 학부모에게 통보한다. */

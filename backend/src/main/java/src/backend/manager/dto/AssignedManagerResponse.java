@@ -15,6 +15,7 @@ import src.backend.global.common.enums.ManagerRole;
  */
 public record AssignedManagerResponse(Long managerId, String name, String role) {
 
+    /** {@link ManagerRole} 을 API 값 공간(소문자)으로 바꿔 담는다. */
     public static AssignedManagerResponse of(Long managerId, String name, ManagerRole role) {
         return new AssignedManagerResponse(managerId, name, role.name().toLowerCase(Locale.ROOT));
     }
