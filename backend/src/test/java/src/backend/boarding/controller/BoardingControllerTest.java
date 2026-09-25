@@ -792,6 +792,44 @@ class BoardingControllerTest {
                 .isEqualTo(true);
     }
 
+    // ── BR-078 — 멱등 재생은 같은 탑승자·같은 상태일 때만 ───────────────────────────
+
+    @Test
+    @DisplayName("BR-078 — 다른 탑승자 처리에 이미 쓰인 client_key 를 재사용하면 422 이고 새 처리는 저장되지 않는다")
+    void 다른_탑승자에_쓰인_client_key_를_재사용하면_422다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long stopId = fixtures().stop(academyId, "37.500000", "127.000000");
+        long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
+        long riderA = fixtures().runRider(runId, fixtures().student(academyId, "학생-BR078-A"), stopId);
+        long riderB = fixtures().runRider(runId, fixtures().student(academyId, "학생-BR078-B"), stopId);
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
+        String escortToken = 토큰(escortAccountId, academyId, Role.ESCORT);
+        UUID sharedKey = UUID.randomUUID();
+
+        mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderA)).header("Authorization", escortToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(statusUpdateBody("boarded", "manual", sharedKey, now)))
+                .andExpect(status().isOk());
+        entityManager.flush();
+
+        mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderB)).header("Authorization", escortToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(statusUpdateBody("boarded", "manual", sharedKey, now)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+        mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderA)).header("Authorization", escortToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(statusUpdateBody("no_show", "manual", sharedKey, now)))
+                .andExpect(status().isUnprocessableEntity());
+        entityManager.flush();
+
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM run_rider WHERE id = ?", String.class, riderB))
+                .as("B 의 처리는 A 의 결과로 대체된 적 없이 그대로다").isEqualTo("waiting");
+    }
+
     // ── BR-031 — 하원 종료 보류 회차는 마지막 탑승자가 미승차로 빠져도 끝난다 ─────────────
 
     /**

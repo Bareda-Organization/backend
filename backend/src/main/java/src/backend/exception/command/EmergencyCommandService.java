@@ -85,20 +85,25 @@ public class EmergencyCommandService {
 
     /**
      * 비상 신고 접수(목표 1·5·8) — 재전송({@code client_key} 재사용)은 새 행을 만들지 않고 최초 접수
-     * 결과를 그대로 돌려준다({@code BoardingCommandService#updateStatus} 와 같은 재생 형태, 가장
-     * 먼저 갈리는 분기인 이유도 같다).
+     * 결과를 그대로 돌려준다({@code BoardingCommandService#updateStatus} 와 같은 재생 형태). 재생은 배치·
+     * 회차 확인 <b>뒤</b>에, 같은 회차·같은 종류일 때만 한다(BR-078) — 키가 다른 신고에 재사용됐으면 남의
+     * 신고(다른 학원 포함)를 돌려주고 이번 신고를 버리는 대신 422 로 거절한다.
      */
     public EmergencyRaiseResponse raise(AuthUser requester, Long runId, EmergencyRaiseRequest request) {
+        Assignment assignment = runAssignmentAccess.assertAssignedDriverOrEscort(requester, runId);
+        Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+
         Optional<EmergencyAlert> replay = emergencyAlertRepository.findByClientKey(request.clientKey());
         if (replay.isPresent()) {
             EmergencyAlert existing = replay.get();
+            if (!existing.getRunId().equals(runId) || existing.getType() != parseType(request.type())) {
+                throw new BusinessException(ErrorCode.VALIDATION_FAILED);
+            }
             return new EmergencyRaiseResponse(String.valueOf(existing.getId()), existing.getReceivedAt(),
                     existing.cancelableUntil(), notifiedCount(existing.getAcademyId()));
         }
 
-        Assignment assignment = runAssignmentAccess.assertAssignedDriverOrEscort(requester, runId);
-        Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
         Bus bus = busRepository.findByIdAndAcademyId(run.getBusId(), requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.BUS_NOT_FOUND));
 

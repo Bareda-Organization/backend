@@ -257,6 +257,27 @@ class EmergencyControllerTest extends RedisTestContainerBase {
         assertThat(신고_좌표_존재(runId)).as("캐시 미스는 좌표를 비운 채 성공해야지 발신 자체를 막으면 안 된다").isFalse();
     }
 
+    /** BR-078 — 다른 학원 신고에 쓰인 {@code client_key} 가 겹치면 그 신고를 돌려주지 않고 거절한다. */
+    @Test
+    void 다른_학원_신고에_쓰인_client_key_를_재사용하면_422이고_남의_신고를_돌려주지_않는다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyA = fixtures.academy();
+        long runA = fixtures.confirmedRun(academyA, fixtures.bus(academyA), now());
+        long driverA = fixtures.assignedManager(academyA, runA, ManagerRole.DRIVER, "기사A", now());
+        long academyB = fixtures.academy();
+        long runB = fixtures.confirmedRun(academyB, fixtures.bus(academyB), now());
+        long driverB = fixtures.assignedManager(academyB, runB, ManagerRole.DRIVER, "기사B", now());
+        UUID sharedKey = UUID.randomUUID();
+
+        mockMvc.perform(post(RAISE.formatted(runA)).header("Authorization", 토큰(driverA, academyA, Role.DRIVER))
+                        .contentType(MediaType.APPLICATION_JSON).content(요청본문("accident", null, sharedKey)))
+                .andExpect(status().isCreated());
+        mockMvc.perform(post(RAISE.formatted(runB)).header("Authorization", 토큰(driverB, academyB, Role.DRIVER))
+                        .contentType(MediaType.APPLICATION_JSON).content(요청본문("accident", null, sharedKey)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.data").doesNotExist());
+    }
+
     /** BR-039 — 캐시 <b>읽기 실패</b>(여기선 값 형식 불일치로 재현)도 미스와 같이 좌표 없이 접수돼야 한다. */
     @Test
     void 위치_캐시_읽기가_실패해도_신고_발신은_성공한다() throws Exception {

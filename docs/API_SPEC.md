@@ -151,6 +151,7 @@
 | 대상 | ① 승하차 처리 `PATCH /runs/{runId}/riders/{riderId}` (BRD-06 오프라인 큐) ② **비상 발신** `POST /runs/{runId}/emergency` (EXC-04 — 통신 두절 상태 발신이 복구 후 중복 도착 가능) |
 | 키 | 요청 본문 `client_key` — 단말이 생성하는 UUID |
 | 재전송 | 동일 `client_key` 재수신 시 **중복 무시**하고 최초 처리 결과를 `200` 으로 반환 |
+| 키 충돌 | 같은 `client_key` 가 **다른 대상**으로 오면(승하차 — 다른 회차·탑승자·`status` / 비상 — 다른 회차·`type`) 재생하지 않고 `422 VALIDATION_FAILED`. 대조는 배치·학원 범위 확인 뒤 |
 | 보존 | 회차 종료 후 24시간 |
 
 ### 1.8 페이징

@@ -18,8 +18,8 @@ public interface EmergencyAlertRepository extends JpaRepository<EmergencyAlert, 
      */
     @AcademyScopeExempt(reason = "client_key 는 클라이언트가 생성한 UUID 라 그 자체로 전 학원에서 유일하고 "
             + "추측 불가능하다(RiderStatusHistoryRepository#findByClientKey 와 같은 근거). "
-            + "EmergencyCommandService#raise 가 이 조회를 배치(assignment) 검증보다 먼저 두는 것이 "
-            + "의도된 순서다 — 재확인하면 그 사이 회차가 끝난 정상 재전송까지 막는다")
+            + "EmergencyCommandService#raise 가 배치·학원 범위 회차 확인 뒤에 이 조회를 하고, 찾은 행의 "
+            + "run_id·type 을 요청과 대조한다(BR-078) — 배치 확인은 회차 상태를 보지 않아 종료 뒤 재전송도 통과한다")
     Optional<EmergencyAlert> findByClientKey(UUID clientKey);
 
     /**

@@ -133,7 +133,7 @@ public class BoardingCommandService {
 
         Optional<RiderStatusHistory> replay = riderStatusHistoryRepository.findByClientKey(request.clientKey());
         if (replay.isPresent()) {
-            return replayResponse(replay.get());
+            return replayResponse(assertSameRequest(replay.get(), runId, riderId, request.status()));
         }
 
         if (run.getStatus() != RunStatus.MOVING) {
@@ -362,6 +362,22 @@ public class BoardingCommandService {
                     return true;
                 })
                 .orElse(false);
+    }
+
+    /**
+     * 재생 대상이 이 요청과 같은 처리인지 대조한다(BR-078) — {@code findByClientKey} 는 학원 범위 밖 조회라
+     * 대조 책임이 서비스에 있다({@code RiderStatusHistoryRepository} 예외 사유). 같은 회차의 같은 탑승자·같은
+     * 상태가 아니면 키가 다른 처리에 재사용된 것이라, 남의 결과를 돌려주고 새 처리를 버리는 대신 422 로 거절한다.
+     */
+    private RiderStatusHistory assertSameRequest(RiderStatusHistory history, Long runId, Long riderId,
+            String status) {
+        boolean sameRequest = history.getRunRiderId().equals(riderId)
+                && history.getToStatus() == parseTargetStatus(status)
+                && runRiderRepository.findByIdAndRunIdAndStatusNot(riderId, runId, RiderStatus.ABSENT).isPresent();
+        if (!sameRequest) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED);
+        }
+        return history;
     }
 
     /**
