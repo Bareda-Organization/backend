@@ -47,6 +47,17 @@ class AcademySearchControllerTest {
                 .andExpect(jsonPath("$.data.items[0].code").value("P2T3ACTQQQQ"));
     }
 
+    /**
+     * 학원 코드는 대소문자를 가리지 않고 찾는다(§2.1 "양쪽 매칭", BR-053) — 코드는 대문자로만 발급되고
+     * 사람이 휴대폰 자판으로 옮겨 적는 값이라, 소문자로 넣은 가입자가 "학원을 못 찾음" 에 막힌다.
+     */
+    @Test
+    void 학원_코드를_소문자로_넣어도_찾는다() throws Exception {
+        mockMvc.perform(get("/api/v1/academies/search").param("q", "baraeda-a"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[?(@.code == 'BARAEDA-A')]").exists());
+    }
+
     @Test
     void q_파라미터가_없으면_422_VALIDATION_FAILED_이다() throws Exception {
         mockMvc.perform(get("/api/v1/academies/search"))
