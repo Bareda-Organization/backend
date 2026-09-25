@@ -26,8 +26,9 @@ import src.backend.run.dto.RunStartResponse;
  *
  * <p>이 저장소에서 <b>{@code /staff} 접두어가 없는 첫 컨트롤러</b>다 — 지금까지의 {@code run} 모듈
  * 엔드포인트는 전부 관계자 웹({@code /staff/runs})이었고, 여기는 운행 중인 단말(기사·동승자)이
- * 호출하는 별도 표면이다. 학원 범위는 다른 컨트롤러와 같이 <b>토큰이 정한다</b>(§1.5) — 회차가 다른
- * 학원 소속이면 각 커맨드 서비스가 {@code 404 RUN_NOT_FOUND} 로 답한다.
+ * 호출하는 별도 표면이다. 학원 범위를 직접 확인하지 않는다 — 배치 판정({@link
+ * src.backend.run.access.RunAssignmentAccess})이 회차 조회보다 먼저라(F3 Ruling 259(b)), 회차가
+ * 다른 학원 소속이면 그 배치 자체가 없어 {@code 403 FORBIDDEN}(또는 {@code DRIVER_ONLY})으로 끝난다.
  *
  * <p>배치 여부 인가({@code DRIVER_ONLY} 대 일반 {@code FORBIDDEN})는 이 컨트롤러가 아니라
  * {@link src.backend.run.access.RunAssignmentAccess} 가 각 커맨드 서비스 안에서 판정한다 — 세

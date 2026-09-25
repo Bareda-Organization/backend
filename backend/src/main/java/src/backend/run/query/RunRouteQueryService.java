@@ -37,8 +37,8 @@ import src.backend.student.repository.StopRepository;
  * 매니저 앱의 실시간 노선 조회(API_SPEC §4.3, RUN-03·M-08·M-09, Ruling 205, Phase 9 목표 8).
  *
  * <p>{@code current_stop}·{@code next_stop} 은 저장된 포인터가 아니라 {@link RunStop#getArrivedAt()}
- * 에서 <b>매번 계산</b>한다 — 도착 기록 서비스가 이 태스크 범위 밖이라 지금은 항상 비어 있지만, 그
- * 서비스가 생기면 이 계산이 그대로 맞아떨어지도록 미리 그 값을 근거로 짠다.
+ * 에서 <b>매번 계산</b>한다 — {@code RunArrivalCommandService#arrive}(§4.5) 가 도착마다 그 값을
+ * 채우므로, 별도 포인터 컬럼 없이 이 값만으로 현재·다음 정차지를 매번 다시 구한다.
  */
 @Service
 @RequiredArgsConstructor

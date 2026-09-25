@@ -44,8 +44,6 @@ import src.backend.student.repository.StopRepository;
  * {@link #confirmOne} 을 부른다).
  *
  * <p><b>이 클래스는 {@code @Transactional} 이 아니다.</b> {@link RouteComputationPipeline#compute}
-
-/**
  * 는 외부 지도 API 를 호출하는데, 그 호출을 트랜잭션 안에 넣으면 공급자가 느린 만큼 DB 커넥션을 붙든
  * 채 대기한다(그 클래스 자신의 javadoc 이 명시한 설계). 그래서 "읽기 → 계산" 은 여기서 트랜잭션 밖에
  * 두고, "확정 표시(idle → confirmed) + 4종 산출물 저장 + 이벤트 발행" 만 별도 빈

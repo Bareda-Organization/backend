@@ -148,7 +148,7 @@ public class Run extends BaseTimeEntity {
         this.canceledAt = canceledAt;
     }
 
-    /** 이미 취소된 회차인가 — 배치 충돌 판정(MGR-06)이 이 회차를 세지 않는다. */
+    /** 이미 취소된 회차인가 — 확정 배치·운행 시작·비상 신고·학생 접근 판정이 이 값으로 제외한다. */
     public boolean isCanceled() {
         return canceledAt != null;
     }
