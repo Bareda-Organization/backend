@@ -1182,7 +1182,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | `occurred_at` | datetime | ○ | 단말 기록 시각. 오프라인 발신분의 실제 시각 |
 | `client_key` | string | ● | 오프라인 큐 멱등키 (UUID) |
 
-**응답** `201` — `emergency_id` · `raised_at` · `cancelable_until`(발신 +**1분**) · `notified`(수신자 수)
+**응답** `201`(같은 `client_key` 재전송은 최초 접수 결과를 `200` — §1.7) — `emergency_id` · `raised_at` · `cancelable_until`(발신 +**1분**) · `notified`(수신자 수)
 
 | 처리 | 내용 |
 |---|---|

@@ -1,6 +1,7 @@
 package src.backend.exception.controller;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -44,14 +45,15 @@ public class EmergencyController {
 
     private final EmergencyRunQueryService emergencyRunQueryService;
 
-    /** 비상 신고 접수(목표 5·8) — 위치는 자동 첨부, 재전송은 최초 접수 결과를 그대로 돌려준다. */
+    /** 비상 신고 접수(목표 5·8) — 최초 접수는 201, 재전송은 최초 접수 결과를 200 으로 돌려준다(§1.7, BR-137). */
     @CanRaiseEmergency
     @Operation(summary = "비상 알림 발신·취소 (EXC-04, M-15)")
     @PostMapping("/{runId}/emergency")
-    @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<EmergencyRaiseResponse> raise(@AuthenticationPrincipal AuthUser requester,
+    public ResponseEntity<ApiResponse<EmergencyRaiseResponse>> raise(@AuthenticationPrincipal AuthUser requester,
             @PathVariable Long runId, @Valid @RequestBody EmergencyRaiseRequest request) {
-        return ApiResponse.ok(emergencyCommandService.raise(requester, runId, request));
+        EmergencyRaiseResponse response = emergencyCommandService.raise(requester, runId, request);
+        return ResponseEntity.status(response.replayed() ? HttpStatus.OK : HttpStatus.CREATED)
+                .body(ApiResponse.ok(response));
     }
 
     /** 발신 1분 이내 취소(목표 9) — §4.14 가 요구하는 대로 본문 없이 204 만 돌려준다. */

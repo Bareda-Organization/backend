@@ -101,7 +101,7 @@ public class EmergencyCommandService {
                 throw new BusinessException(ErrorCode.VALIDATION_FAILED);
             }
             return new EmergencyRaiseResponse(String.valueOf(existing.getId()), existing.getReceivedAt(),
-                    existing.cancelableUntil(), notifiedCount(existing.getAcademyId()));
+                    existing.cancelableUntil(), notifiedCount(existing.getAcademyId()), true);
         }
 
         Bus bus = busRepository.findByIdAndAcademyId(run.getBusId(), requester.academyId())
@@ -138,7 +138,7 @@ public class EmergencyCommandService {
                 bus.getBusNo(), type, raisedBy, position, alert.getRiderCount(), now));
 
         return new EmergencyRaiseResponse(String.valueOf(alert.getId()), now, alert.cancelableUntil(),
-                notifiedCount(requester.academyId()));
+                notifiedCount(requester.academyId()), false);
     }
 
     /**

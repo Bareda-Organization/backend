@@ -257,6 +257,31 @@ class EmergencyControllerTest extends RedisTestContainerBase {
         assertThat(신고_좌표_존재(runId)).as("캐시 미스는 좌표를 비운 채 성공해야지 발신 자체를 막으면 안 된다").isFalse();
     }
 
+    /** BR-137 — 같은 {@code client_key} 재전송은 새 접수가 아니라 흡수라 §1.7 대로 200 이다(최초 접수만 201). */
+    @Test
+    void 같은_client_key_재전송은_200이고_최초_신고를_돌려준다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long runId = fixtures.confirmedRun(academyId, fixtures.bus(academyId), now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        String token = 토큰(driverAccountId, academyId, Role.DRIVER);
+        String body = 요청본문("accident", null, UUID.randomUUID());
+
+        String first = mockMvc.perform(post(RAISE.formatted(runId)).header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String firstId = com.jayway.jsonpath.JsonPath.read(first, "$.data.emergency_id");
+
+        mockMvc.perform(post(RAISE.formatted(runId)).header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.emergency_id").value(firstId))
+                .andExpect(jsonPath("$.data.replayed").doesNotExist());
+
+        assertThat(신고건수(runId)).isEqualTo(1);
+    }
+
     /** BR-078 — 다른 학원 신고에 쓰인 {@code client_key} 가 겹치면 그 신고를 돌려주지 않고 거절한다. */
     @Test
     void 다른_학원_신고에_쓰인_client_key_를_재사용하면_422이고_남의_신고를_돌려주지_않는다() throws Exception {
