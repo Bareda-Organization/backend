@@ -29,8 +29,8 @@ import src.backend.boarding.event.RiderStatusChangedEvent;
 import src.backend.boarding.event.RunEndedEvent;
 import src.backend.boarding.repository.RiderStatusHistoryRepository;
 import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.exception.entity.NoShowCase;
-import src.backend.exception.repository.NoShowCaseRepository;
+import src.backend.exception.command.NoShowCaseAccess;
+import src.backend.exception.dto.NoShowCaseView;
 import src.backend.global.common.enums.Role;
 import src.backend.location.proximity.StopDepartureService;
 import src.backend.global.error.BusinessException;
@@ -77,7 +77,7 @@ public class BoardingCommandService {
 
     private final RiderStatusHistoryRepository riderStatusHistoryRepository;
 
-    private final NoShowCaseRepository noShowCaseRepository;
+    private final NoShowCaseAccess noShowCaseAccess;
 
     /**
      * 미승차 대기 시간(분)을 학원별로 읽는다(Phase 11 목표 2, API_SPEC §5.21) — 학원마다 값이 다르고,
@@ -301,14 +301,14 @@ public class BoardingCommandService {
      * 계산 전에 발행하면 항상 {@code false} 를 실어 보내게 된다.
      */
     private RiderStatusUpdateResponse handleNoShow(Run run, RunRider rider, OffsetDateTime now) {
-        NoShowCase noShowCase = openNoShowCase(run, rider, now);
+        NoShowCaseView noShowCase = openNoShowCase(run, rider, now);
 
         boolean stopSkipped = skipStopIfNoRidersRemain(run.getId(), rider.getStopId());
         eventPublisher.publishEvent(new RiderNoShowEvent(run.getId(), run.getAcademyId(), rider.getStudentId(),
-                rider.getId(), noShowCase.getId(), rider.getStopId(), stopSkipped, now));
+                rider.getId(), noShowCase.caseId(), rider.getStopId(), stopSkipped, now));
 
         RiderStatusUpdateResponse.NoShowCaseSummary summary = new RiderStatusUpdateResponse.NoShowCaseSummary(
-                noShowCase.getId(), noShowCase.getStartedAt(), noShowCase.getExpiresAt());
+                noShowCase.caseId(), noShowCase.startedAt(), noShowCase.expiresAt());
         return RiderStatusUpdateResponse.withNoShowCase(rider.getId(), now, summary, stopSkipped);
     }
 
@@ -316,17 +316,12 @@ public class BoardingCommandService {
      * 미승차 대기 카운트다운을 시작한다 — 학원별 대기 시간(목표 2) 뒤 만료. 탑승자당 케이스는 1개
      * ({@code uk_no_show_case_run_rider})라, 되돌린 뒤 다시 미승차면 기존 케이스를 재개한다(BR-009).
      */
-    private NoShowCase openNoShowCase(Run run, RunRider rider, OffsetDateTime now) {
+    private NoShowCaseView openNoShowCase(Run run, RunRider rider, OffsetDateTime now) {
         int waitMinutes = academySettingRepository.findById(run.getAcademyId())
                 .map(AcademySetting::getNoShowWaitMinutes)
                 .orElse(AcademySetting.DEFAULT_NO_SHOW_WAIT_MINUTES);
         OffsetDateTime expiresAt = now.plus(Duration.ofMinutes(waitMinutes));
-        return noShowCaseRepository.findByRunRiderId(rider.getId())
-                .map(existing -> {
-                    existing.reopen(now, expiresAt);
-                    return existing;
-                })
-                .orElseGet(() -> noShowCaseRepository.save(NoShowCase.forRunRider(rider.getId(), now, expiresAt, now)));
+        return noShowCaseAccess.openOrReopen(rider.getId(), now, expiresAt);
     }
 
     /**
@@ -339,7 +334,7 @@ public class BoardingCommandService {
     private void syncNoShowAfterRevert(Run run, RunRider rider, RiderStatus fromStatus, RiderStatus toStatus,
             OffsetDateTime now) {
         if (fromStatus == RiderStatus.NO_SHOW && toStatus != RiderStatus.NO_SHOW) {
-            noShowCaseRepository.findByRunRiderId(rider.getId()).ifPresent(noShowCase -> noShowCase.resolveByRevert(now));
+            noShowCaseAccess.resolveByRevert(rider.getId(), now);
             currentRunStop(run.getId(), rider.getStopId()).ifPresent(RunStop::clearSkipped);
         } else if (toStatus == RiderStatus.NO_SHOW && fromStatus != RiderStatus.NO_SHOW) {
             openNoShowCase(run, rider, now);
@@ -404,11 +399,11 @@ public class BoardingCommandService {
             return RiderStatusUpdateResponse.of(history.getRunRiderId(), statusName(toStatus),
                     history.getChangedAt(), false);
         }
-        return noShowCaseRepository.findByRunRiderId(history.getRunRiderId())
+        return noShowCaseAccess.find(history.getRunRiderId())
                 .map(noShowCase -> RiderStatusUpdateResponse.withNoShowCase(history.getRunRiderId(),
                         history.getChangedAt(),
-                        new RiderStatusUpdateResponse.NoShowCaseSummary(noShowCase.getId(),
-                                noShowCase.getStartedAt(), noShowCase.getExpiresAt()),
+                        new RiderStatusUpdateResponse.NoShowCaseSummary(noShowCase.caseId(),
+                                noShowCase.startedAt(), noShowCase.expiresAt()),
                         false))
                 .orElseGet(() -> RiderStatusUpdateResponse.of(history.getRunRiderId(), statusName(toStatus),
                         history.getChangedAt(), false));
