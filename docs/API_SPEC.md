@@ -658,7 +658,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 **일일 변경(REQ) 우선** — 특정 날짜에 일일 변경이 있으면 그날만 우선 적용, 이후 요일별 주소로 복귀.
 
-**에러** — `422 ADDRESS_VERIFICATION_FAILED`(주소 검증 실패 — 저장 보류) · `404 STUDENT_NOT_FOUND` · `403 FORBIDDEN`(연결 부재 자녀)
+**에러** — `422 ADDRESS_VERIFICATION_FAILED`(주소 검증 실패 — 저장 보류) · `422 VALIDATION_FAILED`(`entries` 가 14건 초과 — 요일 7 × 방향 2, 지오코딩 전에 거부, BR-059) · `404 STUDENT_NOT_FOUND` · `403 FORBIDDEN`(연결 부재 자녀)
 
 **403·404 판정 순서** — 연결되지 않은 자녀는 `403 FORBIDDEN`, 연결은 있으나 퇴원(soft delete) 처리된 자녀는 `404 STUDENT_NOT_FOUND`. 판정은 이 순서로만 한다(연결 확인 먼저).
 
