@@ -37,8 +37,8 @@ import src.backend.routing.repository.RouteStopRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
-import src.backend.student.access.LinkedChildLookup;
 import src.backend.student.access.StudentRunResolver;
+import src.backend.student.access.StudentRunsAccess;
 import src.backend.student.dto.StudentRouteResponse;
 import src.backend.student.entity.Stop;
 import src.backend.student.entity.Student;
@@ -67,7 +67,7 @@ import src.backend.student.repository.WeeklyAddressRepository;
 @Transactional(readOnly = true)
 public class StudentRouteQueryService {
 
-    private final LinkedChildLookup linkedChildLookup;
+    private final StudentRunsAccess studentRunsAccess;
 
     private final StudentRunResolver studentRunResolver;
 
@@ -96,7 +96,7 @@ public class StudentRouteQueryService {
     private final Clock clock;
 
     public StudentRouteResponse route(AuthUser requester, Long studentId, String rawDate, String rawRunId) {
-        Student student = linkedChildLookup.linkedChild(requester, studentId);
+        Student student = studentRunsAccess.resolve(requester, studentId);
         Run run = resolveRun(student, rawDate, rawRunId);
         Long academyId = student.getAcademyId();
 
@@ -217,7 +217,7 @@ public class StudentRouteQueryService {
                 academy.getLng(), null);
     }
 
-    /** 배치가 아직 없으면 이름·전화 전부 {@code null} — §3.10 에 이 경우의 에러 코드가 없어 그대로 비운다. */
+    /** 배치가 아직 없으면 이름·전화 전부 {@code null} — §3.10 {@code ◐}(배치가 있을 때만, BR-055). */
     private StudentRouteResponse.Contact contactOf(Run run, ManagerRole role) {
         return assignmentRepository.findByRunIdAndRole(run.getId(), role)
                 .flatMap(assignment -> managerRepository.findById(assignment.getManagerId()))

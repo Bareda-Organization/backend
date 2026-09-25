@@ -717,15 +717,15 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 |---|---|:-:|---|
 | `run_id` · `bus_no` · `depart_time` | — | ● | 회차 요약 |
 | `confirmed` | boolean | ● | `false` = 고정 노선 + "확정 전" 배지 |
-| `driver.name` · `escort.name` | string | ● | 기사 · 동승자 이름 |
-| `escort.phone` | string | ● | **동승자 연락 버튼**용. 기사 연락처 부재 — 학부모 → 기사 직접 연락은 스코프 제외 |
+| `driver.name` · `escort.name` | string | ◐ | 기사 · 동승자 이름 — **그 역할의 배치가 있을 때만**. 배치 전 회차·동승자 미배치(Ruling 330 "후보가 없으면 빈 채로 확정")는 `null` — 화면은 "미배치" (BR-055) |
+| `escort.phone` | string | ◐ | **동승자 연락 버튼**용 — 동승자 배치가 있을 때만, 없으면 `null` 이고 버튼 부재 (BR-055). 기사 연락처 부재 — 학부모 → 기사 직접 연락은 스코프 제외 |
 | `my_stop_id` | string | ● | 본인 승하차지 |
 | `stops[]` | array | ● | `stop_id` · `seq` · `name` · `address` · `lat` · `lng` · `change` |
 | `stops[].change` | enum | ○ | `added` · `skipped` — **승하차지에 `removed` 부재**. 탑승자 삭제는 승하차지가 아니라 명단에 반영 (FEATURE_SPEC §3.5) |
 
 **표시 범위 — 승차지 이전 2개 · 승차지 · 하차지만** (P-08). 승하차지별 탑승 인원 · ETA 부재 (C-08).
 
-**에러** — `404 STUDENT_NOT_FOUND` · `404 RUN_NOT_FOUND`(`run_id` 지정 시) · `403 FORBIDDEN`(연결 부재 자녀). 확정 전은 에러 부재 — 고정 노선 + "확정 전" 배지로 반환
+**에러** — `404 STUDENT_NOT_FOUND` · `404 RUN_NOT_FOUND`(`run_id` 지정 시) · `403 FORBIDDEN`(연결 부재 자녀 · 본인 아닌 학생 — BR-025). 확정 전은 에러 부재 — 고정 노선 + "확정 전" 배지로 반환
 
 ### 3.11 GET /students/{id}/bus-position
 
@@ -737,16 +737,18 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 |---|---|:-:|---|
 | `run_id` · `bus_no` | string | ● | |
 | `run_status` | enum | ● | `moving` 이 아니면 위치 부재 |
-| `lat` · `lng` | number | ○ | 현재 좌표 |
+| `lat` · `lng` | number | ○ | 현재 좌표 — 신호 유실(`last_seen_at` 이 채워질 때) 시 부재. 화면은 좌표 부재로 유실을 판정해 문구만 표시 (BR-056) |
 | `received_at` | datetime | ○ | 좌표 수신 시각. 송신 주기 **2초**(2026-09-14 · 옛값 5~10초) |
 | `last_seen_at` | datetime | ○ | 신호 유실 시 마지막 확인 시각 — 화면은 "마지막 확인 위치 · N분 전". **유실 판정은 마지막 수신 후 2분**(2026-08-31 사용자 확정, Ruling 208). `TECH_DECISIONS §관제 경고`의 *"2분 이상 미수신"* 과 **같은 값으로 통일**한다 — 갈라 두면 관제에는 경고가 떴는데 학부모 화면은 정상으로 보이는 구간이 생긴다. ⚠ **판정 주기 10초**(`ARCHITECTURE §9`)와 다른 값이며 층이 다르다 — 주기는 얼마나 자주 보는가이고 이 값은 얼마나 오래 끊겨야 유실인가다 |
-| `current_stop_name` | string | ○ | **마지막으로 도착한** 승하차지 이름 — 도착 기록이 없으면 부재 (§4.3 `current_stop` 과 같은 판정, 2026-09-17 문면 정정, `Ruling 304`) |
+| `current_stop_name` | string | ○ | **마지막으로 도착한** 승하차지 이름 — 도착 기록이 없으면 부재 (§4.3 `current_stop` 과 같은 판정, 2026-09-17 문면 정정, `Ruling 304`). 신호 유실 때도 유지 (BR-056) |
 
 당일 미등원(`absent`)이면 위치 부재 + 화면 안내 "오늘은 버스를 이용하지 않습니다".
 
 실시간 갱신은 WebSocket `/ws/students/{id}/run` (§7).
 
-**에러** — `404 STUDENT_NOT_FOUND` · `403 FORBIDDEN`(연결 부재 자녀). `run_status` 가 `moving` 이 아니거나 당일 `absent` 인 경우는 에러 부재 — 좌표 필드 부재로 반환
+**권한** 학부모(연결 자녀) · 학생(본인) — §3.5 와 같은 판정 (BR-025)
+
+**에러** — `404 STUDENT_NOT_FOUND` · `403 FORBIDDEN`(연결 부재 자녀 · 본인 아닌 학생) · `404 RUN_NOT_FOUND`(오늘 그 학생의 회차 부재 — 필수 `run_id`·`bus_no` 를 채울 회차가 없음, §3.10 과 같은 코드, BR-121). `run_status` 가 `moving` 이 아니거나 당일 `absent` 인 경우는 에러 부재 — 좌표 필드 부재로 반환
 
 ### 3.12 GET /notifications
 

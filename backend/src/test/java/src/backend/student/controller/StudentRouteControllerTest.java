@@ -167,12 +167,30 @@ class StudentRouteControllerTest {
                 .andExpect(jsonPath("$.data.stops[2].stop_id").value(3));
     }
 
+    /**
+     * 학생 본인도 자기 노선을 본다(§3.10 권한 "학부모 · 학생" · S-04, BR-025) — 학생 계정엔 보호자 행이 없어
+     * 보호자 전용 판정만 쓰면 {@code 403} 이 된다. 남의 노선은 여전히 {@code 403}.
+     */
+    @Test
+    void 학생_본인은_자기_노선을_조회하고_남의_노선은_403_이다() throws Exception {
+        mockMvc.perform(get(ROUTE.formatted(STUDENT_4_ID)).header("Authorization", 학생_토큰()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.my_stop_id").value(3));
+        mockMvc.perform(get(ROUTE.formatted(STUDENT_1_ID)).header("Authorization", 학생_토큰()))
+                .andExpect(status().isForbidden());
+    }
+
     /** 연결 부재 자녀는 노선 조회도 403 이다 — S5 의 보호자가 S1 을 조회한다. */
     @Test
     void 연결_부재_자녀의_노선_조회는_403_이다() throws Exception {
         mockMvc.perform(get(ROUTE.formatted(STUDENT_1_ID)).header("Authorization", 토큰(STUDENT_5_GUARDIAN_ACCOUNT)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+    }
+
+    /** {@code studentA4}(학생 4) 본인 계정 10 의 토큰. */
+    private String 학생_토큰() {
+        return "Bearer " + tokenProvider.createAccessToken(10L, ACADEMY_A, Role.STUDENT, AccountStatus.ACTIVE);
     }
 
     private String 토큰(long accountId) {

@@ -11,7 +11,8 @@ import java.time.OffsetDateTime;
  *
  * <p>{@code receivedAt} 과 {@code lastSeenAt} 은 <b>동시에 채워지지 않는다</b> — 신호가 살아 있으면
  * {@code receivedAt} 만, 마지막 수신 후 2분(Ruling 208)이 지나 유실로 판단되면 {@code lastSeenAt} 만
- * 채운다(§3.11 화면 문구 "마지막 확인 위치 · N분 전"의 근거값).
+ * 채운다(§3.11 화면 문구 "마지막 확인 위치 · N분 전"의 근거값). 유실 때 좌표는 비우고
+ * {@code currentStopName} 은 남긴다 — 학부모 앱은 좌표 부재로 유실을 판정하고, 도착 기록은 유실과 무관하다(BR-056).
  */
 public record StudentBusPositionResponse(Long runId, String busNo, String runStatus, BigDecimal lat, BigDecimal lng,
         OffsetDateTime receivedAt, OffsetDateTime lastSeenAt, String currentStopName) {

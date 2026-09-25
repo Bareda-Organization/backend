@@ -12,11 +12,10 @@ import src.backend.student.entity.Student;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * §3.5 {@code GET /students/{id}/runs} 전용 접근 판정 — 문서화된 권한이 "학부모(연결 자녀) ·
+ * §3.5 · §3.10 · §3.11 학생 조회의 접근 판정 — 문서화된 권한이 "학부모(연결 자녀) ·
  * 학생(본인)" 둘이라 {@link LinkedChildLookup}(학부모 전용) 하나로는 못 덮는다.
  *
- * <p>이 저장소에 <b>학생 본인 자기 조회 경로가 이번에 처음 생긴다</b> — {@code StudentRouteController}
- * 의 자바독이 "코드베이스에 학생 본인 접근 경로가 존재하지 않는다" 고 이미 적어 둔 자리다. 본인 판정은
+ * <p>학생 본인 판정은
  * {@link StudentRepository#findByAccountId} 로 요청자 계정에 연결된 학생 레코드를 찾고, 그 id 를
  * 경로의 {@code studentId} 와 대조하는 것으로 충분하다 — 다른 계정의 {@code accountId} 를 빌려 오는
  * 경로가 없어({@code AuthUser} 가 토큰에서 나온다) 우회로가 부재하다.

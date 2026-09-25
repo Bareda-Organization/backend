@@ -20,8 +20,8 @@ import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
-import src.backend.student.access.LinkedChildLookup;
 import src.backend.student.access.StudentRunResolver;
+import src.backend.student.access.StudentRunsAccess;
 import src.backend.student.dto.StudentBusPositionResponse;
 import src.backend.student.entity.Student;
 
@@ -29,9 +29,10 @@ import src.backend.student.entity.Student;
  * 학부모 앱의 실시간 버스 위치(LOC-02, API_SPEC §3.11, 목표 9·11).
  *
  * <p>쿼리 파라미터가 없다(§3.11) — 항상 오늘 날짜로 {@link StudentRunResolver#resolveForToday} 를
- * 부른다. 오늘 그 학생 회차가 아예 없을 때의 코드는 §3.11 에러 사전에 없다(§3.10 은
- * {@code RUN_NOT_FOUND} 를 명시하지만 §3.11 은 침묵) — {@link ErrorCode#RUN_NOT_FOUND} 를 방어적으로
- * 재사용했고, 이 판단은 보고서에 남긴다.
+ * 부른다. 오늘 그 학생 회차가 아예 없으면 {@link ErrorCode#RUN_NOT_FOUND} 다(§3.11 에러 — §3.10 과
+ * 같은 코드. 응답의 필수 필드 {@code run_id}·{@code bus_no} 를 채울 회차가 없다).
+ *
+ * <p>학부모(연결 자녀)와 학생(본인) 둘 다 부른다 — 판정은 {@link StudentRunsAccess}(BR-025).
  */
 @Service
 @RequiredArgsConstructor
@@ -48,7 +49,7 @@ public class StudentBusPositionQueryService {
      */
     public static final Duration STALE_THRESHOLD = Duration.ofMinutes(2);
 
-    private final LinkedChildLookup linkedChildLookup;
+    private final StudentRunsAccess studentRunsAccess;
 
     private final StudentRunResolver studentRunResolver;
 
@@ -61,7 +62,7 @@ public class StudentBusPositionQueryService {
     private final Clock clock;
 
     public StudentBusPositionResponse position(AuthUser requester, Long studentId) {
-        Student student = linkedChildLookup.linkedChild(requester, studentId);
+        Student student = studentRunsAccess.resolve(requester, studentId);
         Run run = studentRunResolver.resolveForToday(student.getAcademyId(), student.getId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
         String busNo = busRepository.findByIdAndAcademyId(run.getBusId(), student.getAcademyId())
@@ -80,7 +81,7 @@ public class StudentBusPositionQueryService {
         RunPositionSnapshot position = snapshot.get();
         if (isStale(position.receivedAt())) {
             return new StudentBusPositionResponse(run.getId(), busNo, runStatus, null, null, null,
-                    position.receivedAt(), null);
+                    position.receivedAt(), position.currentStopName());
         }
         return new StudentBusPositionResponse(run.getId(), busNo, runStatus, position.lat(), position.lng(),
                 position.receivedAt(), null, position.currentStopName());
