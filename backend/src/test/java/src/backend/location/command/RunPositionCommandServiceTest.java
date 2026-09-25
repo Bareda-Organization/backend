@@ -11,6 +11,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +39,7 @@ import src.backend.location.event.RunPositionReceivedEvent;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
 import src.backend.request.repository.ChangeRequestRepository;
+import src.backend.routing.entity.RunStop;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
@@ -179,6 +181,12 @@ class RunPositionCommandServiceTest {
         return OffsetDateTime.now(clock);
     }
 
+    /** 기록 빈은 컨텍스트 하나를 공유하는 시험 전체에서 같은 인스턴스다 — 시험마다 비워야 건수 단언이 순서에 기대지 않는다. */
+    @BeforeEach
+    void 이벤트_기록을_비운다() {
+        capturedEvents.events().clear();
+    }
+
     // ── goal 1 ───────────────────────────────────────────────────────────
 
     @Test
@@ -216,6 +224,49 @@ class RunPositionCommandServiceTest {
         assertThat(event.recordedAt()).as("recordedAt 은 요청이 보낸 기기 시각이어야 한다").isEqualTo(recordedAt);
         assertThat(event.receivedAt()).as("receivedAt 은 recordedAt 과 달라야 한다(서버 수신 시각)")
                 .isNotEqualTo(recordedAt);
+    }
+
+    /**
+     * BR-100 — 현재 정차지 이름·다음 ETA 는 위치를 저장한 트랜잭션이 한 번 계산해 이벤트에 싣는다. 이름은
+     * 마지막으로 도착한 항목, ETA 는 그 뒤 첫 항목의 계획값이다 — 그 사이 경유 지점이 미도착으로 남아 있어도
+     * 이미 지난 것이다(BR-015).
+     */
+    @Test
+    @DisplayName("BR-100 — 이벤트가 현재 정차지 이름과 다음 정차 항목의 ETA 를 싣는다")
+    void 이벤트가_현재_정차지_이름과_다음_ETA_를_싣는다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        OffsetDateTime departTime = now();
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        fixtures.startRun(runId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
+        long firstStopId = fixtures.stop(academyId, "37.500000", "127.000000");
+        long firstRunStopId = fixtures.runStopForStop(versionId, firstStopId, 1, now().minusMinutes(5));
+        OffsetDateTime nextEta = now().plusMinutes(7);
+        fixtures.runStopForStop(versionId, fixtures.stop(academyId, "37.510000", "127.010000"), 2, nextEta);
+        fixtures.runStopForDestination(versionId, 3);
+        // 엔티티로 도착 처리한다 — JDBC 로 바꾸면 같은 트랜잭션의 영속성 컨텍스트가 들고 있는 옛 엔티티가 그대로 읽힌다.
+        RunStop firstRunStop = runStopRepository.findById(firstRunStopId).orElseThrow();
+        firstRunStop.markArrived(now());
+        runStopRepository.saveAndFlush(firstRunStop);
+        String firstStopName = jdbcTemplate.queryForObject("SELECT name FROM stop WHERE id = ?", String.class,
+                firstStopId);
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/position")
+                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"lat": 37.501000, "lng": 127.001000, "recorded_at": "%s"}
+                        """.formatted(now().minusSeconds(3))))
+                .andExpect(status().isNoContent());
+
+        RunPositionReceivedEvent event = capturedEvents.events().get(0);
+        assertThat(event.academyId()).isEqualTo(academyId);
+        assertThat(event.currentStopName()).isEqualTo(firstStopName);
+        assertThat(event.nextEta()).isEqualTo(nextEta);
     }
 
     @Test

@@ -25,7 +25,8 @@ class RunPositionReceivedEventTest {
         OffsetDateTime recordedAt = OffsetDateTime.parse("2026-09-01T08:00:00+09:00");
         OffsetDateTime receivedAt = recordedAt.plusSeconds(3);
 
-        RunPositionReceivedEvent event = new RunPositionReceivedEvent(runId, lat, lng, recordedAt, receivedAt);
+        RunPositionReceivedEvent event = new RunPositionReceivedEvent(runId, lat, lng, recordedAt, receivedAt, 7L,
+                "정문 앞", receivedAt.plusMinutes(5));
 
         assertThat(event.runId()).isEqualTo(runId);
         assertThat(event.lat()).isEqualTo(lat);

@@ -1,8 +1,6 @@
 package src.backend.location.command;
 
 import java.time.Duration;
-import java.util.Comparator;
-import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,16 +15,6 @@ import tools.jackson.databind.json.JsonMapper;
 
 import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.location.event.RunPositionReceivedEvent;
-import src.backend.routing.entity.ConfirmedRoute;
-import src.backend.routing.entity.RunStop;
-import src.backend.routing.entity.Waypoint;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RunStopRepository;
-import src.backend.routing.repository.WaypointRepository;
-import src.backend.run.entity.Run;
-import src.backend.run.repository.RunRepository;
-import src.backend.student.entity.Stop;
-import src.backend.student.repository.StopRepository;
 
 /**
  * {@link RunPositionReceivedEvent} 커밋 후 Redis 최신 좌표를 갱신한다(목표 3, 조율자 판단) — 이력
@@ -66,22 +54,13 @@ public class RunPositionRedisListener {
 
     private final StringRedisTemplate stringRedisTemplate;
 
-    private final RunRepository runRepository;
-
-    private final ConfirmedRouteRepository confirmedRouteRepository;
-
-    private final RunStopRepository runStopRepository;
-
-    private final StopRepository stopRepository;
-
-    private final WaypointRepository waypointRepository;
-
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void updateRedisAfterCommit(RunPositionReceivedEvent event) {
         try {
-            String currentStopName = currentStopNameOf(event.runId());
+            // 현재 정차지 이름은 위치를 저장한 트랜잭션이 한 번 계산해 이벤트에 실어 보낸다(BR-100) — 여기서 다시
+            // 회차·정차 목록을 읽지 않는다.
             RunPositionRedisValue value = new RunPositionRedisValue(event.lat(), event.lng(), event.recordedAt(),
-                    event.receivedAt(), currentStopName);
+                    event.receivedAt(), event.currentStopName());
             String json = JSON_MAPPER.writeValueAsString(value);
             stringRedisTemplate.opsForValue().set(keyOf(event.runId()), json, TTL);
         } catch (RuntimeException e) {
@@ -91,39 +70,5 @@ public class RunPositionRedisListener {
 
     private String keyOf(Long runId) {
         return "run:" + runId + ":position";
-    }
-
-    /**
-     * 가장 최근 도착 처리된 정차 항목의 이름 — {@link src.backend.run.query.RunRouteQueryService} 와
-     * 같은 판정("도착 시각이 채워진 정차 중 seq 최댓값")을 쓴다. 그 클래스를 직접 재사용하지 않고
-     * 다시 적은 이유는 이 좌석의 소유 범위({@code location/}) 밖 클래스를 의존으로 들이지 않기
-     * 위해서다 — 읽기 전용 조회라 중복의 비용이 낮다.
-     */
-    private String currentStopNameOf(Long runId) {
-        Run run = runRepository.findById(runId).orElse(null);
-        if (run == null) {
-            return null;
-        }
-        ConfirmedRoute confirmedRoute = confirmedRouteRepository.findById(runId).orElse(null);
-        if (confirmedRoute == null || confirmedRoute.getCurrentVersionId() == null) {
-            return null;
-        }
-        List<RunStop> ordered = runStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeq(
-                confirmedRoute.getCurrentVersionId(), run.getAcademyId());
-        RunStop currentRunStop = ordered.stream()
-                .filter(stop -> stop.getArrivedAt() != null)
-                .max(Comparator.comparingInt(RunStop::getSeq))
-                .orElse(null);
-        return currentRunStop == null ? null : nameOf(currentRunStop);
-    }
-
-    private String nameOf(RunStop stop) {
-        if (stop.getStopId() != null) {
-            return stopRepository.findById(stop.getStopId()).map(Stop::getName).orElse(null);
-        }
-        if (stop.getWaypointId() == null) {
-            return null; // 학원 항목(Ruling 327) — 그 도착은 운행 종료라 위치 송신이 이미 멈춘 뒤다
-        }
-        return waypointRepository.findById(stop.getWaypointId()).map(Waypoint::getLabel).orElse(null);
     }
 }
