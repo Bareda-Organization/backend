@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.audit.dto.AuditLogItemResponse;
 import src.backend.audit.query.AuditLogQueryService;
+import src.backend.audit.query.AuditQueryFilter;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.response.PageResponse;
@@ -44,6 +45,6 @@ public class AuditLogController {
             @RequestParam(name = "to", required = false) String to,
             @RequestParam(name = "page", required = false) Integer page,
             @RequestParam(name = "size", required = false) Integer size) {
-        return ApiResponse.ok(auditLogQueryService.list(academyId, accountId, from, to, page, size));
+        return ApiResponse.ok(auditLogQueryService.list(new AuditQueryFilter(academyId, accountId, from, to, page, size)));
     }
 }

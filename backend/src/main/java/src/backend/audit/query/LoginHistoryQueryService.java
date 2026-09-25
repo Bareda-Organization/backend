@@ -49,11 +49,11 @@ public class LoginHistoryQueryService {
     private final AccountRepository accountRepository;
 
     /** 로그인 성공·실패·차단 이력을 최신순(동률은 id 오름차순)으로 페이징해 돌려준다(§6.13). */
-    public PageResponse<LoginHistoryItemResponse> list(Long academyId, Long accountId, String from, String to,
-            Integer page, Integer size) {
-        validateFilters(academyId, accountId);
-        Page<AuditLog> result = auditLogRepository.search(AuditCategory.LOGIN, academyId, accountId,
-                AuditQueryRange.from(from), AuditQueryRange.to(to), PageParams.of(page, size).toPageable(ORDER));
+    public PageResponse<LoginHistoryItemResponse> list(AuditQueryFilter filter) {
+        validateFilters(filter.academyId(), filter.accountId());
+        Page<AuditLog> result = auditLogRepository.search(AuditCategory.LOGIN, filter.academyId(),
+                filter.accountId(), AuditQueryRange.from(filter.from()), AuditQueryRange.to(filter.to()),
+                PageParams.of(filter.page(), filter.size()).toPageable(ORDER));
 
         return PageResponse.of(result, result.getContent().stream().map(this::toItem).toList());
     }
