@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.boarding.entity.RiderStatus;
+import src.backend.boarding.event.RiderStatusChangedEvent;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.global.error.BusinessException;
@@ -33,6 +34,7 @@ import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.entity.Run;
+import src.backend.run.event.RunRouteConfirmedEvent;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.access.LinkedChildLookup;
 import src.backend.student.entity.Student;
@@ -152,25 +154,32 @@ public class BoardingIntentCommandService {
 
     /**
      * ③구간 — 운행 시작 후(또는 출발 시각 도달)라 재최적화 없이 미등원만 즉시 수용한다.
-     * {@code riding=true}(되돌리기 시도)는 {@code 403 CHANGE_WINDOW_CLOSED} — 이미 배정된 순번을
-     * 되살릴 수단이 이 구간에 없다(§3.6 ③).
+     * {@code riding=true}(되돌리기 시도)와 아직 타지 않은({@code waiting}) 학생이 아닌 경우는
+     * {@code 403 CHANGE_WINDOW_CLOSED} 다(§3.6 ③, Ruling 334) — 이미 탄 학생을 {@code absent} 로
+     * 덮으면 종료 판정이 그 아이를 잔류로 세지 않는다.
+     *
+     * <p>반영되면 기사·동승자에게 전달한다 — {@link RiderStatusChangedEvent}(WS {@code rider_changed})
+     * 와 {@link RunRouteConfirmedEvent}(기존 {@code route_changed} 알림, 해당 승하차지 미정차).
      *
      * <p>{@code run_rider} 행이 없으면(그 학생이 애초에 이 회차 명단에 없을 때 — 이미 ①구간에서
      * {@code riding=false} 로 확정 배치의 제외 목록에 걸렸던 경우가 대표적이다) 부재 표시·정차지
-     * 재계산을 조용히 건너뛴다 — API_SPEC 이 이 경우를 명시하지 않아 내린 판단이며, 이미 명단에
-     * 없는 학생을 다시 없앨 대상이 없다는 것이 근거다.
+     * 재계산·기사 전달을 조용히 건너뛴다 — 이미 명단에 없는 학생을 다시 없앨 대상이 없다.
      */
     private BoardingIntentToggleResponse applyClosed(Run run, Student student, BoardingIntent intent,
             boolean riding, AuthUser requester, OffsetDateTime now) {
-        if (riding) {
+        Optional<RunRider> rider = runRiderRepository.findByRunIdAndStudentId(run.getId(), student.getId());
+        if (riding || rider.filter(r -> r.getStatus() != RiderStatus.WAITING).isPresent()) {
             throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);
         }
         intent.applyRiding(false, ChangeWindow.CLOSED, now, requester.accountId());
 
-        Optional<RunRider> rider = runRiderRepository.findByRunIdAndStudentId(run.getId(), student.getId());
         rider.ifPresent(r -> {
             r.markAbsent(now);
             skipStopIfNoRidersRemain(run.getId(), r.getStopId());
+            eventPublisher.publishEvent(new RiderStatusChangedEvent(run.getId(), run.getAcademyId(),
+                    student.getId(), r.getId(), statusNameOf(RiderStatus.ABSENT), now, false));
+            eventPublisher.publishEvent(
+                    new RunRouteConfirmedEvent(run.getId(), run.getAcademyId(), run.getBusId(), now));
         });
 
         eventPublisher.publishEvent(

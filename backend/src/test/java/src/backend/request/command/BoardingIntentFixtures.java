@@ -19,7 +19,13 @@ import src.backend.bus.entity.Bus;
 import src.backend.bus.entity.BusSeating;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
+import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
+import src.backend.manager.entity.Assignment;
+import src.backend.manager.entity.Manager;
+import src.backend.manager.entity.ManagerProfile;
+import src.backend.manager.repository.AssignmentRepository;
+import src.backend.manager.repository.ManagerRepository;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.entity.RouteVersionSource;
@@ -73,13 +79,18 @@ public class BoardingIntentFixtures {
 
     private final RunRiderRepository runRiderRepository;
 
+    private final ManagerRepository managerRepository;
+
+    private final AssignmentRepository assignmentRepository;
+
     public BoardingIntentFixtures(AcademyRepository academyRepository, BusRepository busRepository,
             StudentRepository studentRepository, GuardianRepository guardianRepository,
             GuardianStudentRepository guardianStudentRepository, AccountRepository accountRepository,
             AcademyStaffRepository academyStaffRepository, RunRepository runRepository,
             StopRepository stopRepository, ConfirmedRouteRepository confirmedRouteRepository,
             RouteVersionRepository routeVersionRepository, RunStopRepository runStopRepository,
-            RunRiderRepository runRiderRepository) {
+            RunRiderRepository runRiderRepository, ManagerRepository managerRepository,
+            AssignmentRepository assignmentRepository) {
         this.academyRepository = academyRepository;
         this.busRepository = busRepository;
         this.studentRepository = studentRepository;
@@ -93,6 +104,8 @@ public class BoardingIntentFixtures {
         this.routeVersionRepository = routeVersionRepository;
         this.runStopRepository = runStopRepository;
         this.runRiderRepository = runRiderRepository;
+        this.managerRepository = managerRepository;
+        this.assignmentRepository = assignmentRepository;
     }
 
     public long academy() {
@@ -143,6 +156,19 @@ public class BoardingIntentFixtures {
         Account account = accountRepository.save(Account.forSignup(academyId, loginId, "{noop}password", "관계자",
                 "010-1111-1111", null, Role.STAFF));
         academyStaffRepository.save(AcademyStaff.uponApproval(academyId, account.getId()));
+        return account.getId();
+    }
+
+    /** 계정이 연결된 매니저 1명을 그 회차에 배치한다 — 반환값은 알림 수신자인 계정 식별자다. */
+    public long assignedManager(long academyId, long runId, ManagerRole role, OffsetDateTime assignedAt) {
+        Manager manager = managerRepository.save(Manager.register(academyId,
+                new ManagerProfile("매니저" + SEQUENCE.incrementAndGet(), "010-0000-0000", role, null)));
+        Account account = accountRepository.save(Account.forSignup(academyId,
+                "manager" + SEQUENCE.incrementAndGet() + "-" + System.nanoTime(), "{noop}password", "매니저",
+                "010-0000-0000", null, role == ManagerRole.DRIVER ? Role.DRIVER : Role.ESCORT));
+        manager.linkAccount(account.getId());
+        managerRepository.save(manager);
+        assignmentRepository.save(Assignment.uponAssignment(runId, manager.getId(), role, assignedAt, null));
         return account.getId();
     }
 

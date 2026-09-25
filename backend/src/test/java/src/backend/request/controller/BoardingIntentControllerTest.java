@@ -31,6 +31,8 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,13 +40,17 @@ import org.springframework.transaction.annotation.Transactional;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
+import src.backend.boarding.event.RiderStatusChangedEvent;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
+import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.security.JwtTokenProvider;
+import src.backend.manager.repository.AssignmentRepository;
+import src.backend.manager.repository.ManagerRepository;
 import src.backend.request.command.BoardingIntentFixtures;
 import src.backend.routing.pipeline.RouteComputationPipeline;
 import src.backend.routing.repository.ConfirmedRouteRepository;
@@ -75,6 +81,7 @@ import src.backend.student.repository.WeeklyAddressRepository;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
+@RecordApplicationEvents
 class BoardingIntentControllerTest {
 
     private static final String INTENT = "/api/v1/students/%d/runs/%d/intent";
@@ -90,6 +97,9 @@ class BoardingIntentControllerTest {
 
     @Autowired
     private Clock clock;
+
+    @Autowired
+    private ApplicationEvents applicationEvents;
 
     @MockitoSpyBean
     private RouteComputationPipeline routeComputationPipeline;
@@ -141,6 +151,12 @@ class BoardingIntentControllerTest {
     private RunRiderRepository runRiderRepository;
 
     @Autowired
+    private ManagerRepository managerRepository;
+
+    @Autowired
+    private AssignmentRepository assignmentRepository;
+
+    @Autowired
     private RouteRepository routeRepository;
 
     @Autowired
@@ -174,7 +190,7 @@ class BoardingIntentControllerTest {
             fixtures = new BoardingIntentFixtures(academyRepository, busRepository, studentRepository,
                     guardianRepository, guardianStudentRepository, accountRepository, academyStaffRepository,
                     runRepository, stopRepository, confirmedRouteRepository, routeVersionRepository,
-                    runStopRepository, runRiderRepository);
+                    runStopRepository, runRiderRepository, managerRepository, assignmentRepository);
         }
         return fixtures;
     }
@@ -478,6 +494,77 @@ class BoardingIntentControllerTest {
                         .content("{\"riding\":true}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("CHANGE_WINDOW_CLOSED"));
+    }
+
+    /**
+     * BR-006 · Ruling 334 — ③구간 미등원은 아직 타지 않은({@code waiting}) 학생에게만 적용된다. 이미 탄
+     * 학생을 {@code absent} 로 덮으면 종료 판정({@code BOARDED} 만 셈)이 그 아이를 잔류로 세지 않아
+     * 하원 회차가 아이를 태운 채 {@code finished} 로 넘어간다.
+     */
+    @Test
+    @DisplayName("BR-006 — 마감구간에서 이미 탄 학생의 미등원은 403 이고 명단·정차지는 그대로다")
+    void 마감구간에서_이미_탄_학생의_미등원은_403이고_명단은_그대로다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long studentId = fixtures().student(academyId, "탑승중학생");
+        BoardingIntentFixtures.GuardianAccount guardian = fixtures().guardian(academyId, "탑승중보호자");
+        fixtures().linkChild(guardian.guardianId(), studentId, now.minusDays(1));
+        long runId = fixtures().run(academyId, busId, now.minusMinutes(5), now.minusMinutes(35));
+        long stopId = fixtures().stop(academyId, "37.561000", "126.971000");
+        long runStopId = fixtures().confirmedSingleRiderStop(runId, studentId, stopId, now.minusHours(1));
+        entityManager.flush();
+        jdbcTemplate.update("UPDATE run_rider SET status = 'boarded' WHERE run_id = ? AND student_id = ?", runId,
+                studentId);
+        entityManager.clear();
+
+        mockMvc.perform(patch(INTENT.formatted(studentId, runId))
+                        .header("Authorization", 토큰(guardian.accountId(), academyId, Role.PARENT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"riding\":false}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("CHANGE_WINDOW_CLOSED"));
+
+        entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM run_rider WHERE run_id = ? AND student_id = ?",
+                String.class, runId, studentId)).isEqualTo("boarded");
+        assertThat(jdbcTemplate.queryForObject("SELECT change FROM run_stop WHERE id = ?", String.class, runStopId))
+                .isNull();
+    }
+
+    /**
+     * BR-068 · Ruling 334 — ③구간 미등원은 기사·동승자에게 전달된다: WS {@code rider_changed}(기존
+     * {@link RiderStatusChangedEvent} 방송 경로)와 기존 {@code route_changed} 알림.
+     */
+    @Test
+    @DisplayName("BR-068 — 마감구간 미등원은 배치된 기사에게 route_changed 알림과 rider_changed 방송 재료를 낸다")
+    void 마감구간_미등원은_배치된_기사에게_노선변경_알림과_명단변경_이벤트를_낸다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long studentId = fixtures().student(academyId, "미등원학생");
+        BoardingIntentFixtures.GuardianAccount guardian = fixtures().guardian(academyId, "미등원보호자");
+        fixtures().linkChild(guardian.guardianId(), studentId, now.minusDays(1));
+        long runId = fixtures().run(academyId, busId, now.minusMinutes(5), now.minusMinutes(35));
+        long stopId = fixtures().stop(academyId, "37.562000", "126.972000");
+        fixtures().confirmedSingleRiderStop(runId, studentId, stopId, now.minusHours(1));
+        long driverAccountId = fixtures().assignedManager(academyId, runId, ManagerRole.DRIVER, now);
+
+        mockMvc.perform(patch(INTENT.formatted(studentId, runId))
+                        .header("Authorization", 토큰(guardian.accountId(), academyId, Role.PARENT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"riding\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.result").value("applied_no_reroute"));
+
+        entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM notification_log WHERE recipient_account_id = ? AND type = 'route_changed'",
+                Integer.class, driverAccountId)).isEqualTo(1);
+        assertThat(applicationEvents.stream(RiderStatusChangedEvent.class)
+                .filter(event -> event.runId().equals(runId) && event.studentId().equals(studentId))
+                .map(RiderStatusChangedEvent::status))
+                .containsExactly("absent");
     }
 
     // ── 목표 9(부분) — 알림 적재(푸시만, 웹소켓은 Phase 10) ──────────────────
