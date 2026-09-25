@@ -6,8 +6,11 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import jakarta.persistence.LockModeType;
+
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -138,6 +141,15 @@ public interface RunRepository extends JpaRepository<Run, Long> {
             + "r.consecutiveFailures = 0 WHERE r.id = :id AND r.status = src.backend.run.entity.RunStatus.IDLE "
             + "AND r.canceledAt IS NULL")
     int confirmIfIdle(@Param("id") Long id, @Param("confirmedAt") OffsetDateTime confirmedAt);
+
+    /**
+     * 강제 추가·이동을 저장하기 직전에 회차 행을 잠가 읽는다(BR-044) — {@link #confirmIfIdle} 과 같은 행 잠금이라
+     * 둘 중 늦은 쪽은 먼저 커밋된 상태를 본다. 저장이 먼저면 확정 저장이 그 행을 다시 세고, 확정이 먼저면 이 조회가
+     * {@code confirmed} 를 본다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM Run r WHERE r.id = :id AND r.academyId = :academyId")
+    Optional<Run> findLockedByIdAndAcademyId(@Param("id") Long id, @Param("academyId") Long academyId);
 
     /**
      * 확정 실패 1회를 기록한다(목표 4) — {@code consecutive_failures} 만 올린다.

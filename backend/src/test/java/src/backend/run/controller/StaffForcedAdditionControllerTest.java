@@ -1,10 +1,12 @@
 package src.backend.run.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -33,11 +35,18 @@ import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
+import src.backend.run.command.ForcedAdditionStore;
 import src.backend.run.command.RunConfirmationFixtures;
+import src.backend.run.dto.ForcedAdditionRequest;
+import src.backend.run.dto.NewStudentRequest;
+import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
+import src.backend.student.geocoding.spec.GeocodedPoint;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 import src.backend.student.repository.WeeklyAddressRepository;
@@ -98,6 +107,9 @@ class StaffForcedAdditionControllerTest {
 
     @Autowired
     private RunRepository runRepository;
+
+    @Autowired
+    private ForcedAdditionStore forcedAdditionStore;
 
     private RunConfirmationFixtures fixtures;
 
@@ -224,6 +236,45 @@ class StaffForcedAdditionControllerTest {
         강제_추가한다(runId, 학생_추가_본문(studentId, null, "테스트로 100"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.student_id").value(studentId));
+    }
+
+    // ── 취소 회차(BR-042) · 확정 경합(BR-044) ──────────────────────────────
+
+    /** 취소된 회차에 강제 추가하면 확정되지 않아 학생이 어느 명단에도 없게 된다 — 409 RUN_CANCELED 다. */
+    @Test
+    void 취소된_회차에_강제_추가하면_409_RUN_CANCELED_다() throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+        long busId = fixtures().bus(academyId);
+        long runId = 회차를_만든다(academyId, busId, 31);
+        jdbcTemplate.update("UPDATE run SET canceled_at = now() WHERE id = ?", runId);
+        entityManager.clear();
+
+        강제_추가한다(runId, 학생_추가_본문(null, "새학생", "테스트로 100"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("RUN_CANCELED"));
+    }
+
+    /**
+     * 구간 판정은 지오코딩(수 초) 전에 끝난다 — 그 사이 확정 배치가 회차를 확정하면, 저장 단계가 회차 상태를
+     * 다시 보지 않는 한 201 을 받고도 이미 지나간 확정에 합류하지 못한다(BR-044). 저장 단계를 옛 {@code Run}
+     * 으로 직접 불러 그 순간을 재현한다.
+     */
+    @Test
+    void 판정_뒤_확정된_회차는_저장_단계에서_막힌다() {
+        long academyId = fixtures().academyWithCoordinates();
+        long busId = fixtures().bus(academyId);
+        long runId = 회차를_만든다(academyId, busId, 31);
+        Run staleRun = runRepository.findById(runId).orElseThrow();
+        jdbcTemplate.update("UPDATE run SET status = 'confirmed', confirmed_at = now() WHERE id = ?", runId);
+        entityManager.clear();
+
+        assertThatThrownBy(() -> forcedAdditionStore.stage(staleRun, STAFF_ACCOUNT_ID, null,
+                new ForcedAdditionRequest(null, new NewStudentRequest("새학생"), "테스트로 100", null),
+                new GeocodedPoint(new BigDecimal("37.560000"), new BigDecimal("126.970000"), "테스트로 100"),
+                OffsetDateTime.now(clock)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CHANGE_WINDOW_CLOSED);
     }
 
     // ── 학원 격리 ─────────────────────────────────────────────────────────

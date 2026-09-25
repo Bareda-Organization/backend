@@ -107,8 +107,9 @@ public class ProjectedRosterReader {
 
         // ①구간 강제 추가(RTE-06, Ruling 197·198) — 요일별 주소에 없던 학생이라 studentIds 에도 더하고,
         // stopOverrides 에 넣어야 좌표 해석 단계(DailyStopResolver.studentToStop)가 그 정차지를 찾는다.
-        for (RunForcedAddition forcedAddition : runForcedAdditionRepository
-                .findAllByRunIdAndAcademyId(run.getId(), run.getAcademyId())) {
+        List<RunForcedAddition> forcedAdditions = runForcedAdditionRepository.findAllByRunIdAndAcademyId(run.getId(),
+                run.getAcademyId());
+        for (RunForcedAddition forcedAddition : forcedAdditions) {
             if (!studentIds.contains(forcedAddition.getStudentId())) {
                 studentIds.add(forcedAddition.getStudentId());
             }
@@ -117,8 +118,9 @@ public class ProjectedRosterReader {
 
         // 버스 간 이동(RTE-07, API_SPEC §5.8, Ruling 256) — 출발이면 빼고 도착이면 더한다. 출발 쪽은
         // studentStops·stopOverrides 양쪽에서 지운다 — 하나만 지우면 아래 putAll 이 되살린다.
-        for (RunTransfer transfer : runTransferRepository.findAllByFromRunIdAndAcademyId(run.getId(),
-                run.getAcademyId())) {
+        List<RunTransfer> outgoingTransfers = runTransferRepository.findAllByFromRunIdAndAcademyId(run.getId(),
+                run.getAcademyId());
+        for (RunTransfer transfer : outgoingTransfers) {
             studentIds.remove(transfer.getStudentId());
             studentStops.remove(transfer.getStudentId());
             stopOverrides.remove(transfer.getStudentId());
@@ -135,7 +137,18 @@ public class ProjectedRosterReader {
         studentStops.putAll(stopOverrides);
         // 강제 추가·도착 이동으로 다시 태운 학생은 absent 가 아니다 — 한 학생에 행 하나(uk_run_rider_run_student).
         absentStops.keySet().removeAll(studentStops.keySet());
-        return new ProjectedRoster(studentIds, stopOverrides, studentStops, absentStops, incomingTransfers);
+        return new ProjectedRoster(studentIds, stopOverrides, studentStops, absentStops, incomingTransfers,
+                forcedAdditions.size() + outgoingTransfers.size() + incomingTransfers.size());
+    }
+
+    /**
+     * 그 회차의 강제 추가·이동 대기 행 수 — 확정 저장이 트랜잭션 안에서 다시 세어 {@link ProjectedRoster#stagedRowCount()}
+     * 와 다르면 계산 도중 새 행이 들어온 것이다(BR-044). 대기 행은 지워지지 않으므로 수만 비교해도 충분하다.
+     */
+    public int stagedRowCount(Run run) {
+        return (int) runForcedAdditionRepository.countByRunIdAndAcademyId(run.getId(), run.getAcademyId())
+                + runTransferRepository.findAllByFromRunIdAndAcademyId(run.getId(), run.getAcademyId()).size()
+                + runTransferRepository.findAllByToRunIdAndAcademyId(run.getId(), run.getAcademyId()).size();
     }
 
     /** 그 날짜의 요일 — {@code route.weekday} 의 값 공간으로 옮긴다. 시계를 보지 않는다. */

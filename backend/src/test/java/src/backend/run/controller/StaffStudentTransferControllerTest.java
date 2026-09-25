@@ -308,6 +308,22 @@ class StaffStudentTransferControllerTest {
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
+    @Test
+    @DisplayName("BR-042 — 취소된 회차로의 이동은 409 RUN_CANCELED 다")
+    void 취소된_회차로_이동하면_409_RUN_CANCELED_다() throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+        long fromRunId = 회차를_만든다(academyId, fixtures().bus(academyId), 31);
+        long toRunId = 회차를_만든다(academyId, fixtures().bus(academyId), 31);
+        runRepository.findById(toRunId).orElseThrow().cancel(OffsetDateTime.now(clock));
+        long stopId = fixtures().stop(academyId, "37.560000", "126.970000");
+        long studentId = fixtures().student(academyId, "이동학생");
+        학생을_회차_명단에_넣는다(fromRunId, studentId);
+
+        이동_신청한다(studentId, academyId, 이동_본문(fromRunId, toRunId, stopId, null))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("RUN_CANCELED"));
+    }
+
     // ── 배타 검증(stop_id · address) ─────────────────────────────────────
 
     /** {@code stop_id} 와 {@code address} 를 둘 다 보내거나 둘 다 안 보내면 422 다(§5.8 배타 조건). */

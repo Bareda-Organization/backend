@@ -31,6 +31,7 @@ import src.backend.run.entity.RunTransfer;
 import src.backend.run.repository.RunRepository;
 import src.backend.run.repository.RunTransferRepository;
 import src.backend.run.roster.ProjectedRoster;
+import src.backend.run.roster.ProjectedRosterReader;
 
 /**
  * 확정 배치의 짧은 쓰기 트랜잭션 — {@link RunConfirmationService#confirmOne} 이 트랜잭션 밖에서
@@ -64,6 +65,8 @@ public class RunConfirmationPersistence {
 
     private final RunTransferRepository runTransferRepository;
 
+    private final ProjectedRosterReader rosterReader;
+
     private final ApplicationEventPublisher eventPublisher;
 
     /**
@@ -90,6 +93,12 @@ public class RunConfirmationPersistence {
         int updated = runRepository.confirmIfIdle(run.getId(), confirmedAt);
         if (updated == 0) {
             return false;
+        }
+        // confirmIfIdle 이 잡은 행 잠금 뒤라 이후 강제 추가·이동 저장은 confirmed 를 보고 막힌다(StagingRunGuard).
+        // 그 전에 들어온 행은 여기서 세어 이번 확정을 무른다 — 롤백되면 idle 로 남아 다음 틱이 다시 읽는다.
+        if (rosterReader.stagedRowCount(run) != roster.stagedRowCount()) {
+            throw new IllegalStateException("확정 계산 중 강제 추가·이동이 들어왔다 — 다음 틱에 다시 읽는다: runId="
+                    + run.getId());
         }
 
         ConfirmedRoute confirmedRoute = ConfirmedRoute.forRun(run.getId(), confirmedAt);

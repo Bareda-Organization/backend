@@ -58,6 +58,10 @@ public class RunStartCommandService {
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
 
+        if (run.isCanceled()) {
+            // 취소 뒤에도 confirmed 로 남으므로 상태 판정보다 먼저 본다(BR-042).
+            throw new BusinessException(ErrorCode.RUN_CANCELED);
+        }
         if (run.getStatus() == RunStatus.MOVING || run.getStatus() == RunStatus.FINISHED) {
             throw new BusinessException(ErrorCode.RUN_ALREADY_STARTED);
         }

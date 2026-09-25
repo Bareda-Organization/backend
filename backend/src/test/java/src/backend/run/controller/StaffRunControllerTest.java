@@ -179,6 +179,18 @@ class StaffRunControllerTest {
         assertThat(회차_시각(runId, "canceled_at")).isNotNull();
     }
 
+    /** 운행이 시작된 회차는 취소할 수 없다 — 취소 가능 상태는 idle·confirmed 뿐이다(BR-042). */
+    @Test
+    void 운행_중인_회차는_취소하면_409_이다() throws Exception {
+        long runId = 임시_추가된_회차_id(관계자A_토큰(), BUS_A_ID, SERVICE_DATE, "to_academy", "08:25");
+        jdbcTemplate.update("UPDATE run SET status = 'moving', started_at = now() WHERE id = ?", runId);
+        entityManager.clear();
+
+        취소한다(관계자A_토큰(), runId)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("RUN_ALREADY_STARTED"));
+    }
+
     /** 남의 학원 회차를 {@code {id}} 로 지목한 취소는 {@code 404 RUN_NOT_FOUND} 다(Ruling 163). */
     @Test
     void 다른_학원의_회차를_취소하면_404_이다() throws Exception {

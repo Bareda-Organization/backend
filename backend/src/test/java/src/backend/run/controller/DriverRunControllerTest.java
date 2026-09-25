@@ -173,6 +173,24 @@ class DriverRunControllerTest {
     }
 
     @Test
+    @DisplayName("BR-042 — 취소된 회차는 창 안이어도 시작할 수 없다(409 RUN_CANCELED)")
+    void 취소된_회차는_시작할_수_없다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        OffsetDateTime departTime = now().plusMinutes(9);
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        jdbcTemplate.update("UPDATE run SET canceled_at = now() WHERE id = ?", runId);
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/start").header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isConflict())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error.code").value("RUN_CANCELED"));
+
+        assertThat(회차_시작시각(runId)).as("취소된 운행의 시작 알림이 학부모에게 나가면 안 된다").isNull();
+    }
+
+    @Test
     @DisplayName("목표1 급소 — 출발 11분 전은 창 밖이라 403 이고 시작 시각이 기록되지 않는다")
     void 출발_11분_전은_창_밖이라_거부된다() throws Exception {
         DriverRunFixtures fixtures = fixtures();

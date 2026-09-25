@@ -227,6 +227,9 @@ public enum ErrorCode {
     RUN_ALREADY_STARTED(HttpStatus.CONFLICT, "이미 시작된 운행입니다"),
     // 확정 전(idle) 회차의 운행 시작·변경 확인 시도(API_SPEC §4.4·§4.11). 409 인 이유는 위와 같다.
     RUN_NOT_CONFIRMED(HttpStatus.CONFLICT, "확정되지 않은 회차입니다"),
+    // 임시 취소된 회차(§5.10 canceled_at)의 운행 시작·강제 추가·이동(BR-042). 404 가 아닌 것은 행이
+    // 실재하고 관계자 화면에 취소로 보이기 때문이다 — "없다" 고 답하면 기사·관계자가 원인을 못 찾는다.
+    RUN_CANCELED(HttpStatus.CONFLICT, "취소된 회차입니다"),
     // 이미 도착 처리된 승하차지 재처리(API_SPEC §4.5) — 도착 타임스탬프는 최초 1회만 기록된다.
     DUPLICATE_ARRIVE(HttpStatus.FORBIDDEN, "이미 도착 처리된 승하차지입니다"),
     // moving 이 아닌 회차의 도착 처리 시도(API_SPEC §4.5) — 시작 전(idle·confirmed)·이미 종료(finished)

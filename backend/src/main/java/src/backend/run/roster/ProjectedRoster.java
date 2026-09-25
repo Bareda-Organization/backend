@@ -13,9 +13,10 @@ import src.backend.run.entity.RunTransfer;
  * @param studentStops      학생 → 그날의 승하차지(요일별 주소에 {@code stopOverrides} 를 덮은 것)
  * @param absentStops       ①구간 OFF 학생 → 승하차지. 노선 계산에서 빠지고 {@code absent} 행으로만 남는다
  * @param incomingTransfers 이 회차가 도착인 이동 대기 건 — 확정이 명단에 더하며 {@code applied} 로 표시한다
+ * @param stagedRowCount    읽은 강제 추가·이동 행 수 — 확정 저장이 다시 세어 그 사이 들어온 행을 알아챈다(BR-044)
  */
 public record ProjectedRoster(List<Long> studentIds, Map<Long, Long> stopOverrides, Map<Long, Long> studentStops,
-        Map<Long, Long> absentStops, List<RunTransfer> incomingTransfers) {
+        Map<Long, Long> absentStops, List<RunTransfer> incomingTransfers, int stagedRowCount) {
 
     public ProjectedRoster {
         studentIds = List.copyOf(studentIds);
