@@ -21,7 +21,6 @@ import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.access.AcademyScope;
 import src.backend.request.domain.ChangeWindow;
 import src.backend.request.domain.ChangeWindowPolicy;
 import src.backend.request.dto.DecideChangeRequestRequest;
@@ -106,7 +105,7 @@ public class ChangeRequestDecisionService {
     private final Clock clock;
 
     /**
-     * @throws BusinessException {@code 404 APPROVAL_NOT_FOUND} · {@code 403 ACADEMY_SCOPE_VIOLATION} ·
+     * @throws BusinessException {@code 404 APPROVAL_NOT_FOUND}(없음 · 다른 학원, §1.5) ·
      *                            {@code 409 APPROVAL_ALREADY_DECIDED}(이미 처리된 건, 다른 검사보다
      *                            먼저 본다) · {@code 403 CHANGE_WINDOW_CLOSED}(운행 시작 후 도달,
      *                            Ruling 200) · {@code 409 PREVIEW_STALE}(승인, 토큰 불일치·부재) ·
@@ -114,9 +113,9 @@ public class ChangeRequestDecisionService {
      */
     @Transactional
     public DecideChangeRequestResponse decide(AuthUser requester, Long approvalId, DecideChangeRequestRequest req) {
-        ChangeRequest cr = changeRequestRepository.findById(approvalId)
+        // 행 잠금으로 읽는다 — 자동 거절과 겹쳐도 커밋된 상태로 판정한다(BR-028).
+        ChangeRequest cr = changeRequestRepository.findForDecision(approvalId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.APPROVAL_NOT_FOUND));
-        AcademyScope.assertAccessible(requester, cr.getAcademyId());
         // 이미 처리된 건은 창 판정보다 먼저 걸러야 한다 — 두 번째 decide 시도는 캐시가 이미 비어 있어
         // (§ evict), 창 검사보다 뒤에 두면 PREVIEW_STALE 로 오답한다.
         cr.assertPending();
@@ -158,8 +157,7 @@ public class ChangeRequestDecisionService {
         RunRider target = riders.stream()
                 .filter(rider -> rider.getStudentId().equals(cr.getStudentId()))
                 .findFirst()
-                .orElseThrow(() -> new IllegalStateException(
-                        "승인 대상 학생이 회차 명단에 없다 — runId=" + run.getId() + ", studentId=" + cr.getStudentId()));
+                .orElseThrow(() -> new BusinessException(ErrorCode.STUDENT_NOT_IN_RUN));
         Long originalStopId = target.getStopId();
 
         ConfirmedRoute confirmedRoute = confirmedRouteRepository.findById(run.getId())

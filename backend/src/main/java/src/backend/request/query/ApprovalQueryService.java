@@ -21,7 +21,6 @@ import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.access.AcademyScope;
 import src.backend.request.dto.AffectedStudentResponse;
 import src.backend.request.dto.ApprovalCapacityResponse;
 import src.backend.request.dto.ApprovalDetailResponse;
@@ -125,8 +124,7 @@ public class ApprovalQueryService {
      * 자체가 성립하지 않고(그 메서드 javadoc 참고), 이 재최적화 경로에 있던 {@code Route} 조회가
      * 결정된 건에서 실제로 {@code 422 ROUTE_NOT_CONFIGURED_FOR_RUN} 을 냈던 결함이기도 하다.
      *
-     * @throws BusinessException {@code 404 APPROVAL_NOT_FOUND}(대상 없음) ·
-     *                            {@code 403 ACADEMY_SCOPE_VIOLATION}(다른 학원 소속) ·
+     * @throws BusinessException {@code 404 APPROVAL_NOT_FOUND}(대상 없음 · 다른 학원 — 존재 비노출, §1.5 · BR-133) ·
      *                            {@code 409 RUN_NOT_CONFIRMED}({@code PENDING} 건인데 그 회차가 아직
      *                            {@code idle} 일 때만 — ②구간 판정({@code ChangeWindowPolicy})은
      *                            {@code confirmAt} 도래 즉시 서는데, 실제 확정은 30초 폴링 배치가
@@ -135,9 +133,8 @@ public class ApprovalQueryService {
      *                            그 회차의 고정 노선이 없을 때만 — 결정된 건은 이 경로를 타지 않는다)
      */
     public ApprovalDetailResponse detail(AuthUser requester, Long approvalId) {
-        ChangeRequest cr = changeRequestRepository.findById(approvalId)
+        ChangeRequest cr = changeRequestRepository.findByIdAndAcademyId(approvalId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.APPROVAL_NOT_FOUND));
-        AcademyScope.assertAccessible(requester, cr.getAcademyId());
         Long academyId = cr.getAcademyId();
 
         Run run = runRepository.findById(cr.getRunId())

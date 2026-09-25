@@ -309,12 +309,13 @@ class AcademyScopeHttpExhaustiveTest {
         cases.add(c("GET /staff/runs/{runId}/route → B학원 회차 403 ACADEMY_SCOPE_VIOLATION", HttpMethod.GET,
                 "/staff/runs/{runId}/route", new Object[] {ACADEMY_B_RUN_ID}, staffA(), null, 403,
                 "ACADEMY_SCOPE_VIOLATION"));
-        cases.add(c("GET /staff/approvals/{id} → B학원 change_request 403 ACADEMY_SCOPE_VIOLATION", HttpMethod.GET,
-                "/staff/approvals/{id}", new Object[] {academyBChangeRequestId}, staffA(), null, 403,
-                "ACADEMY_SCOPE_VIOLATION"));
-        cases.add(c("POST /staff/approvals/{id}/decide → B학원 change_request 403 ACADEMY_SCOPE_VIOLATION",
+        // BR-133 — §1.5(Ruling 163)·§5.5·§5.6 에러 목록: 타 학원 승인 건은 존재를 숨겨 404
+        cases.add(c("GET /staff/approvals/{id} → B학원 change_request 404 APPROVAL_NOT_FOUND", HttpMethod.GET,
+                "/staff/approvals/{id}", new Object[] {academyBChangeRequestId}, staffA(), null, 404,
+                "APPROVAL_NOT_FOUND"));
+        cases.add(c("POST /staff/approvals/{id}/decide → B학원 change_request 404 APPROVAL_NOT_FOUND",
                 HttpMethod.POST, "/staff/approvals/{id}/decide", new Object[] {academyBChangeRequestId}, staffA(),
-                DECIDE_APPROVE_BODY, 403, "ACADEMY_SCOPE_VIOLATION"));
+                DECIDE_APPROVE_BODY, 404, "APPROVAL_NOT_FOUND"));
         cases.add(c("POST /staff/signup-requests/{id}/decide → B학원 신청 403 ACADEMY_SCOPE_VIOLATION",
                 HttpMethod.POST, "/staff/signup-requests/{id}/decide", new Object[] {academyBSignupRequestId},
                 staffA(), DECIDE_SIGNUP_BODY, 403, "ACADEMY_SCOPE_VIOLATION"));

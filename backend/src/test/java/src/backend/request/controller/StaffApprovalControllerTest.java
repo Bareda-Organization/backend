@@ -520,15 +520,15 @@ class StaffApprovalControllerTest {
 
     // ── 격리·404 ──────────────────────────────────────────────────────────
 
-    /** 다른 학원 관계자가 남의 승인 건을 상세 조회하면 {@code 403 ACADEMY_SCOPE_VIOLATION}. */
+    /** 다른 학원 관계자가 남의 승인 건을 상세 조회하면 존재를 숨겨 {@code 404 APPROVAL_NOT_FOUND}(§1.5 · BR-133). */
     @Test
-    void 다른_학원의_승인_건을_상세_조회하면_403_이다() throws Exception {
+    void 다른_학원의_승인_건을_상세_조회하면_404_이다() throws Exception {
         시나리오 s = 확정된_회차와_승인_대기_건을_만든다();
         long 남의학원 = fixtures().academyWithCoordinates();
 
         상세_조회(관계자_토큰(남의학원), s.approvalId)
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error.code").value("ACADEMY_SCOPE_VIOLATION"));
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("APPROVAL_NOT_FOUND"));
 
         verify(pipeline, times(0)).compute(any());
     }

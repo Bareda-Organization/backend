@@ -21,6 +21,12 @@ import org.springframework.transaction.support.TransactionTemplate;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.bus.repository.BusRepository;
+import src.backend.global.common.enums.AccountStatus;
+import src.backend.global.common.enums.Role;
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
+import src.backend.global.security.AuthUser;
+import src.backend.request.dto.DecideChangeRequestRequest;
 import src.backend.request.entity.ChangeRequestStatus;
 import src.backend.request.repository.BoardingIntentRepository;
 import src.backend.request.repository.ChangeRequestRepository;
@@ -91,6 +97,9 @@ class ChangeRequestAutoRejectionConcurrencyTest {
     private ChangeRequestAutoRejectionPersistence persistence;
 
     @Autowired
+    private ChangeRequestDecisionService decisionService;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
@@ -154,6 +163,55 @@ class ChangeRequestAutoRejectionConcurrencyTest {
                 .isTrue();
         assertThat(changeRequestRepository.findById(changeRequestId).orElseThrow().getStatus())
                 .isEqualTo(ChangeRequestStatus.AUTO_REJECTED);
+    }
+
+    /**
+     * BR-028 — 운행 시작의 자동 거절이 행을 먼저 잡은 채 커밋 전이면, 관계자의 결정은 그 커밋을 기다렸다가
+     * 이미 처리된 건으로 {@code 409 APPROVAL_ALREADY_DECIDED} 가 돼야 한다. 결정이 메모리 상태로
+     * 판정하고 상태 조건 없이 덮어쓰면 {@code auto_rejected} 가 {@code rejected}·{@code approved} 로 뒤집힌다.
+     */
+    @Test
+    @DisplayName("BR-028 — 자동 거절과 관계자 결정이 겹치면 결정은 409 이고 auto_rejected 가 덮이지 않는다")
+    void 자동거절과_관계자_결정이_겹쳐도_자동거절이_덮이지_않는다() throws Exception {
+        ChangeRequestAutoRejectFixtures fixtures = new ChangeRequestAutoRejectFixtures(academyRepository,
+                busRepository, studentRepository, accountRepository, runRepository, boardingIntentRepository,
+                changeRequestRepository, confirmedRouteRepository, routeVersionRepository);
+        OffsetDateTime now = OffsetDateTime.now();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long studentId = fixtures.student(academyId, "학생2");
+        long parentId = fixtures.parentAccount(academyId, "학부모2");
+        long staffId = fixtures.parentAccount(academyId, "관계자2");
+        long runId = fixtures.run(academyId, busId, now.plusHours(2));
+        long changeRequestId = fixtures.pendingChangeRequest(academyId, runId, studentId, parentId,
+                now.minusMinutes(10), now.plusHours(2));
+        AuthUser staff = new AuthUser(staffId, academyId, Role.STAFF, AccountStatus.ACTIVE);
+
+        CountDownLatch 먼저_들어갔다 = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        ErrorCode 결정_결과;
+        try {
+            Future<Boolean> 자동거절 = pool.submit(
+                    () -> 먼저_거절하고_상대가_막힐_때까지_커밋을_미룬다(changeRequestId, now, 먼저_들어갔다));
+            Future<ErrorCode> 결정 = pool.submit(() -> {
+                먼저_들어갔다.await(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                try {
+                    decisionService.decide(staff, changeRequestId, new DecideChangeRequestRequest(false, "사유", null));
+                    return null;
+                } catch (BusinessException e) {
+                    return e.getErrorCode();
+                }
+            });
+            결정_결과 = 결정.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            assertThat(자동거절.get(TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
+        } finally {
+            pool.shutdownNow();
+            pool.awaitTermination(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        }
+
+        assertThat(changeRequestRepository.findById(changeRequestId).orElseThrow().getStatus())
+                .isEqualTo(ChangeRequestStatus.AUTO_REJECTED);
+        assertThat(결정_결과).isEqualTo(ErrorCode.APPROVAL_ALREADY_DECIDED);
     }
 
     private boolean 먼저_거절하고_상대가_막힐_때까지_커밋을_미룬다(long changeRequestId, OffsetDateTime decidedAt,

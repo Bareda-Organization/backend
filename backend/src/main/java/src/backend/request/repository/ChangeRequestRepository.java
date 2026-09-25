@@ -2,9 +2,13 @@ package src.backend.request.repository;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
+
+import jakarta.persistence.LockModeType;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -39,6 +43,18 @@ public interface ChangeRequestRepository extends JpaRepository<ChangeRequest, Lo
      * 한 학생의 변경 요청 이력(§3.9 상태 조회) — 최근 신청이 먼저 보이도록 접수 역순으로 정렬한다.
      */
     List<ChangeRequest> findAllByAcademyIdAndStudentIdOrderByRequestedAtDesc(Long academyId, Long studentId);
+
+    /** 관계자 화면의 승인 건 단건 조회(§5.5 상세) — 다른 학원 건은 존재를 숨겨 비어 있다(§1.5, BR-133). */
+    Optional<ChangeRequest> findByIdAndAcademyId(Long id, Long academyId);
+
+    /**
+     * 승인·거절 결정(§5.6)을 위해 행을 잠그고 읽는다 — 자동 거절(운행 시작·출발 시각 폴링)과 겹치면 먼저 잡은
+     * 쪽이 끝날 때까지 기다린 뒤 커밋된 상태를 보므로, 메모리 상태로 판정하고 덮어써 {@code auto_rejected} 를
+     * 뒤집던 경합이 사라진다(BR-028). 두 탭의 동시 승인도 두 번째가 결정된 상태를 보고 409 가 된다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM ChangeRequest c WHERE c.id = :id AND c.academyId = :academyId")
+    Optional<ChangeRequest> findForDecision(@Param("id") Long id, @Param("academyId") Long academyId);
 
     /**
      * 승인 대기 배지 수(§5.5 목록의 {@code pending_count}) — {@code status} 조회 파라미터가
