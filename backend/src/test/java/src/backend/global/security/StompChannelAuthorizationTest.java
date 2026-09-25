@@ -281,6 +281,39 @@ class StompChannelAuthorizationTest {
                 .startsWith("MESSAGE").contains(PROBE);
     }
 
+    /**
+     * BR-083 — 인증은 CONNECT 에서 한 번뿐이라, 연결을 연 토큰이 만료돼도 세션이 계속 방송을 받았다(퇴사·차단은
+     * refresh 무효화로 막히지만 열린 세션은 그대로). 세션은 그것을 연 access 토큰보다 오래 살지 않는다 —
+     * 만료 뒤 첫 방송 대신 {@code TOKEN_EXPIRED} ERROR 가 가고 연결이 닫힌다.
+     */
+    @Test
+    void 연결을_연_토큰이_만료되면_방송_대신_TOKEN_EXPIRED_로_닫힌다() throws Exception {
+        String shortLived = new JwtTokenProvider(jwtSecret, 2, 60)
+                .createAccessToken(1L, 1L, Role.STAFF, AccountStatus.ACTIVE);
+        String destination = "/topic/academy/1/live";
+        BlockingQueue<String> received = new LinkedBlockingQueue<>();
+        WebSocketSession session = open(received);
+        try {
+            connect(session, received, shortLived);
+            session.sendMessage(new TextMessage(frame("SUBSCRIBE", "id:sub-0", "destination:" + destination)));
+            awaitSubscribed(received, destination);
+
+            Thread.sleep(3_000);
+            received.clear();
+            messagingTemplate.convertAndSend(destination, "after-expiry");
+
+            String outcome = take(received);
+            assertThat(outcome).as("만료 뒤에도 방송이 배달되면 권한 회수가 세션에 닿지 않는다")
+                    .startsWith("ERROR").contains("message:TOKEN_EXPIRED").doesNotContain("after-expiry");
+            for (int i = 0; i < 25 && session.isOpen(); i++) {
+                Thread.sleep(200);
+            }
+            assertThat(session.isOpen()).as("만료된 세션은 닫혀야 한다").isFalse();
+        } finally {
+            session.close();
+        }
+    }
+
     private String token(Long accountId, Long academyId, Role role) {
         return tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
     }

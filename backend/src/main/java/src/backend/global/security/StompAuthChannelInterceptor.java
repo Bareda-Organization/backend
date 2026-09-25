@@ -51,6 +51,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
     private final GuardianChildAccess guardianChildAccess;
     private final RunAssignmentAccess runAssignmentAccess;
     private final StudentRepository studentRepository;
+    private final StompSessionExpiry sessionExpiry;
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -61,6 +62,9 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         // STOMP 는 CONNECT 의 별칭 명령이다 — 둘 중 하나만 보면 다른 쪽으로 인증 없이 세션이 선다(BR-112)
         if (StompCommand.CONNECT.equals(accessor.getCommand()) || StompCommand.STOMP.equals(accessor.getCommand())) {
             authenticateConnect(accessor);
+        } else if (sessionExpiry.isExpired(accessor.getSessionId())) {
+            // 연결을 연 토큰이 만료된 세션의 새 구독·송신은 받지 않는다(BR-083)
+            throw new BusinessException(ErrorCode.TOKEN_EXPIRED);
         } else if (StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
             authorizeSubscribe(accessor);
         } else if (StompCommand.SEND.equals(accessor.getCommand())) {
@@ -90,6 +94,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         AuthUser user = tokenProvider.authenticateAccess(token);
         assertActiveAccount(user);
         accessor.setUser(user);
+        sessionExpiry.record(accessor.getSessionId(), tokenProvider.parse(token).getExpiration().toInstant());
     }
 
     /**
