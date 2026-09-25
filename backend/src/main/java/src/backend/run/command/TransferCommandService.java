@@ -86,6 +86,11 @@ public class TransferCommandService {
         Run toRun = runRepository.findById(request.toRunId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
         AcademyScope.assertAccessible(requester, toRun.getAcademyId());
+        // §5.8 "같은 학원·같은 날짜·같은 방향" — 어긋나면 오늘 등원 명단에서 빠져 다른 날·반대 방향에 더해진다.
+        if (!toRun.getServiceDate().equals(fromRun.getServiceDate())
+                || toRun.getDirection() != fromRun.getDirection()) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED);
+        }
 
         assertWindowOpen(fromRun);
         assertWindowOpen(toRun);

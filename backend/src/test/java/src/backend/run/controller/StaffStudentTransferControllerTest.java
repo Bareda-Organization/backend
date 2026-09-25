@@ -284,6 +284,30 @@ class StaffStudentTransferControllerTest {
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
+    @Test
+    @DisplayName("BR-045 — 도착 회차가 다른 날짜거나 반대 방향이면 422 VALIDATION_FAILED 다(§5.8 같은 날짜·같은 방향)")
+    void 도착_회차가_다른_날짜나_반대_방향이면_422_이다() throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+        long fromBusId = fixtures().bus(academyId);
+        long toBusId = fixtures().bus(academyId);
+        long fromRunId = 회차를_만든다(academyId, fromBusId, 31);
+        OffsetDateTime depart = OffsetDateTime.now(clock).plusMinutes(31);
+        long tomorrowRunId = fixtures().idleRun(academyId, toBusId, depart.toLocalDate().plusDays(1),
+                Direction.TO_ACADEMY, depart.plusDays(1), depart.plusDays(1).minusMinutes(30));
+        long oppositeRunId = fixtures().idleRun(academyId, toBusId, depart.toLocalDate(), Direction.FROM_ACADEMY,
+                depart, depart.minusMinutes(30));
+        long stopId = fixtures().stop(academyId, "37.560000", "126.970000");
+        long studentId = fixtures().student(academyId, "이동학생");
+        학생을_회차_명단에_넣는다(fromRunId, studentId);
+
+        이동_신청한다(studentId, academyId, 이동_본문(fromRunId, tomorrowRunId, stopId, null))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+        이동_신청한다(studentId, academyId, 이동_본문(fromRunId, oppositeRunId, stopId, null))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+    }
+
     // ── 배타 검증(stop_id · address) ─────────────────────────────────────
 
     /** {@code stop_id} 와 {@code address} 를 둘 다 보내거나 둘 다 안 보내면 422 다(§5.8 배타 조건). */
