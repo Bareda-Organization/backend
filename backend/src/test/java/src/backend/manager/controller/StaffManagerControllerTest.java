@@ -29,12 +29,14 @@ import com.jayway.jsonpath.JsonPath;
 
 import jakarta.persistence.EntityManager;
 
+import src.backend.account.entity.Account;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.manager.entity.Assignment;
+import src.backend.manager.entity.Manager;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.run.entity.Run;
 
@@ -207,6 +209,56 @@ class StaffManagerControllerTest {
         assertThat(삭제_시각(managerId)).as("차단됐는데 지워졌다면 배치된 회차의 담당자가 사라진다").isNull();
     }
 
+    /**
+     * 끝난 회차의 배치는 "배치 중" 이 아니다(MGR-04 · BR-023) — 지난 날짜 회차와 오늘 종료된 회차에만
+     * 배치된 매니저는 삭제된다. 막으면 한 번이라도 운행한 매니저는 퇴사 처리가 영원히 불가능하다
+     * (과거 회차의 배치를 푸는 API 가 부재).
+     */
+    @Test
+    void 끝난_회차에만_배치된_매니저는_삭제된다() throws Exception {
+        long managerId = 등록된_매니저_id(관계자A_토큰(), "퇴사예정기사", "010-9100-0005");
+        long busId = 등록된_차량_id(관계자A_토큰(), "지난운행호차", "11나1112", 16);
+        배치한다(managerId, 회차를_만든다(busId, OffsetDateTime.now(clock).minusDays(1)));
+        long finishedRunId = 회차를_만든다(busId, OffsetDateTime.now(clock).plusHours(3));
+        entityManager.find(Run.class, finishedRunId).finish(OffsetDateTime.now(clock));
+        배치한다(managerId, finishedRunId);
+
+        삭제한다(관계자A_토큰(), managerId).andExpect(status().isOk());
+
+        assertThat(삭제_시각(managerId)).isNotNull();
+    }
+
+    // ── MGR-03 역할 변경 — 계정 역할 · 배치 (BR-022) ───────────────────────
+
+    /** 매니저 역할이 곧 앱 권한이다(§5.13) — 연결된 계정의 역할(토큰 {@code role} 클레임의 출처)도 함께 바뀐다. */
+    @Test
+    void 역할을_바꾸면_연결된_계정의_역할도_바뀐다() throws Exception {
+        long managerId = 등록된_매니저_id(관계자A_토큰(), "계정기사", "010-9100-0006");
+        long accountId = 연결된_계정_id(managerId, Role.DRIVER, "role-switch-driver");
+
+        수정한다(관계자A_토큰(), managerId, "{\"role\":\"escort\"}").andExpect(status().isOk());
+
+        entityManager.flush();
+        entityManager.clear();
+        assertThat(jdbcTemplate.queryForObject("SELECT role FROM account WHERE id = ?", String.class, accountId))
+                .as("계정 역할이 driver 로 남으면 재로그인해도 앱은 기사 권한으로 동작한다")
+                .isEqualTo("escort");
+    }
+
+    /**
+     * 끝나지 않은 회차에 배치된 채 역할을 바꾸면 {@code 409 MANAGER_ASSIGNED} 다(MGR-04 "배치 해제 후" 와
+     * 같은 규칙) — 통과시키면 그 회차의 기사 자리에 기사 권한이 없는 사람이 남는다.
+     */
+    @Test
+    void 끝나지_않은_배치가_있으면_역할_변경은_409_MANAGER_ASSIGNED_이다() throws Exception {
+        long managerId = 등록된_매니저_id(관계자A_토큰(), "배치중기사", "010-9100-0007");
+        배치한다(managerId, 회차를_만든다(등록된_차량_id(관계자A_토큰(), "역할호차", "11나1113", 16)));
+
+        수정한다(관계자A_토큰(), managerId, "{\"role\":\"escort\"}")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("MANAGER_ASSIGNED"));
+    }
+
     /** 삭제된 매니저는 목록에서 빠진다 — 목록 쿼리가 {@code deleted_at IS NULL} 을 잃으면 되살아난다. */
     @Test
     void 삭제된_매니저는_목록에_등장하지_않는다() throws Exception {
@@ -370,12 +422,26 @@ class StaffManagerControllerTest {
      * 정적 팩토리를 거치므로 상태 자체는 그 경로가 만들 것과 같다.
      */
     private long 회차를_만든다(long busId) {
-        OffsetDateTime departAt = OffsetDateTime.now(clock).plusHours(3);
-        Run run = Run.forSchedule(ACADEMY_A_ID, busId, null, LocalDate.now(clock), Direction.TO_ACADEMY,
-                departAt, departAt.minusMinutes(CONFIRM_LEAD_MINUTES), "중앙 집결지", "바래다학원 A", null);
+        return 회차를_만든다(busId, OffsetDateTime.now(clock).plusHours(3));
+    }
+
+    private long 회차를_만든다(long busId, OffsetDateTime departAt) {
+        Run run = Run.forSchedule(ACADEMY_A_ID, busId, null, departAt.atZoneSameInstant(clock.getZone()).toLocalDate(),
+                Direction.TO_ACADEMY, departAt, departAt.minusMinutes(CONFIRM_LEAD_MINUTES), "중앙 집결지",
+                "바래다학원 A", null);
         entityManager.persist(run);
         entityManager.flush();
         return run.getId();
+    }
+
+    /** 매니저에 계정을 붙인다 — 가입 승인(§5.2)의 연결과 같은 상태를 엔티티 메서드로 만든다. */
+    private long 연결된_계정_id(long managerId, Role role, String loginId) {
+        Account account = Account.forSignup(ACADEMY_A_ID, loginId, "{noop}x", "계정기사", "010-9100-0006", null,
+                role);
+        entityManager.persist(account);
+        entityManager.find(Manager.class, managerId).linkAccount(account.getId());
+        entityManager.flush();
+        return account.getId();
     }
 
     /** 매니저를 회차에 배치한다 — 배치 API(§5.14)는 T5 소유라 저장소와 정적 팩토리로 만든다. */

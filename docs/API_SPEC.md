@@ -1814,9 +1814,11 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `role` | enum | ● | `driver` · `escort` — **이 값이 앱 권한을 결정** |
 | `work_hours` | object | ○ | 근무 시간. 배치 충돌 검증의 근거 (MGR-06) |
 
-역할 변경 시 매니저 앱 화면 구성이 함께 변경. 계정 연결은 가입 승인(§5.2)의 `link.manager_id`.
+역할 변경 시 매니저 앱 화면 구성이 함께 변경 — **연결된 계정의 역할도 함께 바뀌어** 다음 토큰 재발급(§2.6)부터 앱 권한에 반영된다. 계정 연결은 가입 승인(§5.2)의 `link.manager_id`.
 
-**에러** — `409 MANAGER_ASSIGNED`(회차에 배치된 매니저 삭제) · `404 MANAGER_NOT_FOUND`(`PATCH` · `DELETE` 대상 부재 · 타 학원 — 존재 비노출, Ruling 163)
+**배치 중** = 취소·종료되지 않았고, 운행 중이거나 운행일이 오늘 이후인 회차의 배치. 삭제와 역할 변경이 같은 기준으로 막힌다(MGR-04 "배치 해제 후" — 배치 자리가 곧 역할이라 배치된 채 역할을 바꾸면 그 자리에 권한 없는 사람이 남는다). 지난 회차의 배치는 막지 않는다 — 과거 배치를 푸는 경로가 없어, 세면 한 번이라도 운행한 매니저는 영구히 삭제되지 않는다(2026-09-25 전체 검사 `BR-022`·`BR-023`).
+
+**에러** — `409 MANAGER_ASSIGNED`(배치 중인 매니저의 삭제 · 역할 변경) · `404 MANAGER_NOT_FOUND`(`PATCH` · `DELETE` 대상 부재 · 타 학원 — 존재 비노출, Ruling 163)
 
 ### 5.14 PATCH /staff/runs/{runId}/assignment
 

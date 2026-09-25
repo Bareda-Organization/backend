@@ -233,6 +233,14 @@ public class Account extends BaseTimeEntity {
         this.lastLoginAt = now;
     }
 
+    /**
+     * 매니저 계정의 역할을 바꾼다(MGR-03 · API_SPEC §5.13) — 연결된 {@code manager.role} 이 바뀔 때만
+     * 부른다. 이 값이 토큰 {@code role} 클레임이라, 매니저 역할만 바꾸면 앱 권한이 그대로 남는다.
+     */
+    public void changeRole(Role newRole) {
+        this.role = newRole;
+    }
+
     /** 비밀번호를 변경한다(API_SPEC §2.8·§2.9) — 새 해시는 호출자(PasswordEncoder)가 만들어 넘긴다. */
     public void changePassword(String newPasswordHash) {
         this.passwordHash = newPasswordHash;
