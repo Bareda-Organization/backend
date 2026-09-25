@@ -18,6 +18,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
@@ -26,8 +28,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.jayway.jsonpath.JsonPath;
 
 import src.backend.global.common.enums.AccountStatus;
+import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
+import src.backend.manager.event.AssignmentChangedEvent;
 
 /**
  * §5.14 {@code PATCH /staff/runs/{runId}/assignment} — MGR-05 배치 · MGR-06 충돌 <b>경고</b>
@@ -51,6 +55,7 @@ import src.backend.global.security.JwtTokenProvider;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
+@RecordApplicationEvents
 class StaffRunAssignmentControllerTest {
 
     /** 시드의 학원 A 관계자({@code staffA})와 그 학원. */
@@ -104,7 +109,33 @@ class StaffRunAssignmentControllerTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private ApplicationEvents applicationEvents;
+
     // ── MGR-05 배치 ───────────────────────────────────────────────────────
+
+    /**
+     * 자리에 새로 들어간 매니저마다 {@link AssignmentChangedEvent} 가 나간다 — {@code assignment_changed}
+     * 알림(§9.7 "배치 변경 → 해당 매니저")의 발행 지점이다. 같은 매니저를 다시 지정한 자리는 바뀐 것이
+     * 아니라 나가지 않는다(그 매니저에게 같은 알림이 반복되면 알림이 소음이 된다).
+     */
+    @Test
+    void 새로_배치된_매니저에게만_배치_변경_이벤트가_나간다() throws Exception {
+        long runId = 회차를_만든다(BUS_A1_ID, MORNING);
+        배치한다(관계자A_토큰(), runId, 강기사_종일, null).andExpect(status().isOk());
+        applicationEvents.clear();
+
+        배치한다(관계자A_토큰(), runId, 강기사_종일, 서동승_종일).andExpect(status().isOk());
+
+        assertThat(applicationEvents.stream(AssignmentChangedEvent.class))
+                .singleElement()
+                .satisfies(event -> {
+                    assertThat(event.runId()).isEqualTo(runId);
+                    assertThat(event.academyId()).isEqualTo(ACADEMY_A_ID);
+                    assertThat(event.managerId()).isEqualTo(서동승_종일);
+                    assertThat(event.role()).isEqualTo(ManagerRole.ESCORT);
+                });
+    }
 
     /**
      * 기사와 동승자를 배치하면 {@code assignment} 행이 <b>역할별로 하나씩</b> 생긴다(목표 3).
