@@ -163,4 +163,41 @@ class LoginAuditIntegrationTest {
                 .as("assertNotBlocked() 가 비밀번호 대조보다 먼저 실행돼 어떤 감사 팩토리도 호출되지 않는다")
                 .isEmpty();
     }
+
+    /**
+     * 접속 이력의 {@code ip} 는 클라이언트가 보낸 {@code X-Forwarded-For} 가 아니라 프록시가 덮어쓰는
+     * {@code X-Real-IP} 다(BR-062) — nginx 는 받은 {@code X-Forwarded-For} 뒤에 실제 주소를 덧붙이므로 첫 값은
+     * 요청자가 적은 값이다.
+     */
+    @Test
+    void 로그인_감사의_ip_는_요청자가_적은_X_Forwarded_For_가_아니라_프록시의_X_Real_IP_다() throws Exception {
+        Long accountId = createAccount("P14T1AUD05", "p14t1loginip1", "010-9000-0005");
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .header("X-Forwarded-For", "6.6.6.6, 203.0.113.7")
+                        .header("X-Real-IP", "203.0.113.7")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginBody("p14t1loginip1", RAW_PASSWORD)))
+                .andExpect(status().isOk());
+
+        assertThat(auditRowsFor(accountId)).singleElement()
+                .extracting(AuditLog::getIp).isEqualTo("203.0.113.7");
+    }
+
+    /** IP 형식이 아닌 값이 와도 로그인은 성공하고 {@code ip} 는 비운다(BR-062) — 전에는 {@code inet} 변환 실패로 500. */
+    @Test
+    void IP_형식이_아닌_주소_헤더가_와도_로그인은_성공한다() throws Exception {
+        Long accountId = createAccount("P14T1AUD06", "p14t1loginip2", "010-9000-0006");
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .header("X-Forwarded-For", "unknown")
+                        .header("X-Real-IP", "unknown")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginBody("p14t1loginip2", RAW_PASSWORD)))
+                .andExpect(status().isOk());
+        entityManager.flush();
+
+        assertThat(auditRowsFor(accountId)).singleElement()
+                .extracting(AuditLog::getIp).isNull();
+    }
 }
