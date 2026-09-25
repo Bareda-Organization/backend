@@ -10,6 +10,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.event.RunEndedEvent;
 import src.backend.boarding.repository.RunRiderRepository;
@@ -32,6 +33,8 @@ public class RunEndedBroadcastListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcast(RunEndedEvent event) {
         List<Long> studentIds = runRiderRepository.findAllByRunId(event.runId()).stream()
+                // absent(다른 버스로 옮긴 removed 포함)는 이 버스에 없다 — 학생 채널은 학생 단위라 보내면 다른 버스와 섞인다
+                .filter(rider -> rider.getStatus() != RiderStatus.ABSENT)
                 .map(RunRider::getStudentId)
                 .distinct()
                 .toList();

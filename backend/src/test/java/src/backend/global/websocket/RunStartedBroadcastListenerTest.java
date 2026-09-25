@@ -54,4 +54,22 @@ class RunStartedBroadcastListenerTest {
             return true;
         }));
     }
+
+    @Test
+    @DisplayName("absent 행(다른 버스로 옮긴 removed 포함)의 학생 채널에는 보내지 않는다 — 그 학생은 이 버스에 없다")
+    void absent_학생_채널에는_보내지_않는다() {
+        Long runId = 10L;
+        OffsetDateTime startedAt = OffsetDateTime.now();
+        RunRider rider = RunRider.uponConfirmation(runId, 100L, 1L);
+        RunRider moved = RunRider.uponConfirmation(runId, 200L, 2L);
+        moved.markRemoved(startedAt);
+        when(runRiderRepository.findAllByRunId(runId)).thenReturn(List.of(rider, moved));
+
+        listener.broadcast(new RunStartedEvent(runId, 1L, startedAt, 0));
+
+        verify(gateway).broadcastToRunChannels(eq(runId), eq(1L), argThat(studentIds -> {
+            assertThat(studentIds).containsExactly(100L);
+            return true;
+        }), eq("run_started"), eq(startedAt), argThat(payload -> true));
+    }
 }

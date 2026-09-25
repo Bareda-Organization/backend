@@ -68,7 +68,10 @@ class PositionBroadcastListenerTest {
         when(runRepository.findById(runId)).thenReturn(Optional.of(run));
 
         RunRider rider = RunRider.uponConfirmation(runId, studentId, 7L);
-        when(runRiderRepository.findAllByRunId(runId)).thenReturn(List.of(rider));
+        // 다른 버스로 옮긴 학생(removed) — 학생 채널이 학생 단위라 여기 보내면 학부모 지도에 버스 두 대가 번갈아 뜬다
+        RunRider moved = RunRider.uponConfirmation(runId, 200L, 7L);
+        moved.markRemoved(recordedAt);
+        when(runRiderRepository.findAllByRunId(runId)).thenReturn(List.of(rider, moved));
 
         ConfirmedRoute confirmedRoute = mock(ConfirmedRoute.class);
         when(confirmedRoute.getCurrentVersionId()).thenReturn(50L);
@@ -93,6 +96,8 @@ class PositionBroadcastListenerTest {
         when(stopRepository.findById(7L)).thenReturn(Optional.of(stop));
 
         listener.broadcast(event);
+
+        verify(gateway, never()).send(eq(WebSocketDestinations.studentRun(200L)), any(), any(), any(), any());
 
         // 매니저 채널은 §7 채널 표에 position 이 없다 — 절대 호출되지 않아야 한다.
         verify(gateway, never()).send(eq(WebSocketDestinations.managerRun(runId)), any(), any(), any(), any());

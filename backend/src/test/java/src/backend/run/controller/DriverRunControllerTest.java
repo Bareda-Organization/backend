@@ -323,6 +323,27 @@ class DriverRunControllerTest {
         assertThat(staffLegBusNo).as("관계자 run_started 알림에 호차가 채워진다").isEqualTo(busNo);
     }
 
+    @Test
+    @DisplayName("absent 학생(①구간 OFF·다른 버스로 이동)의 보호자에게는 run_started 가 가지 않는다(§9.4 학부모 알림 부재)")
+    void 미등원_학생의_보호자에게는_운행_시작_알림이_가지_않는다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
+        OffsetDateTime departTime = now();
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long studentId = fixtures.student(academyId, "쉬는학생");
+        fixtures.guardianOf(academyId, studentId, "학부모1", now());
+        fixtures.rider(runId, studentId, stopId, RiderStatus.ABSENT, now());
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/start").header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isOk());
+
+        entityManager.flush();
+        assertThat(알림_행수(runId, "run_started", "parent")).isZero();
+    }
+
     // ── goal 3 — 미결 변경 요청 즉시 종결 ─────────────────────────────────
 
     @Test

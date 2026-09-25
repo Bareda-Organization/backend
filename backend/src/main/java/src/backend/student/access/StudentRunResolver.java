@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.common.enums.ChangeType;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
@@ -110,7 +111,10 @@ public class StudentRunResolver {
         if (run.getStatus() == RunStatus.IDLE) {
             return matchesFixedRoute(run, studentId);
         }
-        return runRiderRepository.findByRunIdAndStudentId(run.getId(), studentId).isPresent();
+        // 버스 간 이동으로 빠진 회차(change=removed)는 그 학생의 회차가 아니다(BR-016) — 명단에 남는 것은 표시용이다.
+        return runRiderRepository.findByRunIdAndStudentId(run.getId(), studentId)
+                .filter(rider -> rider.getChange() != ChangeType.REMOVED)
+                .isPresent();
     }
 
     /** 확정 전 회차는 명단이 없어, 그날 고정 노선에 이 학생의 정차지가 실려 있는지로 대신 판정한다. */
