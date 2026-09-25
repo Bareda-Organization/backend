@@ -2,6 +2,7 @@ package src.backend.run.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 /**
  * 지연 알림 신고 요청(NTF-06, API_SPEC §4.9). {@code reason} 을 문자열로 받는 이유는
@@ -9,5 +10,5 @@ import jakarta.validation.constraints.NotNull;
  * {@code 422 VALIDATION_FAILED} 로 판정해야 한다. {@code minutes} 도 같은 이유로 5분 단위 검증을
  * 서비스 계층에 둔다(빈 검증 애너테이션만으로는 "5의 배수" 를 표현할 수 없다).
  */
-public record DelayRequest(@NotNull Integer minutes, @NotBlank String reason, String message) {
+public record DelayRequest(@NotNull Integer minutes, @NotBlank String reason, @Size(max = 500) String message) {
 }

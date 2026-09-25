@@ -2,6 +2,7 @@ package src.backend.notification.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 /**
  * 단말 등록 요청(API_SPEC §2.11). JSON 필드명은 전역
@@ -10,6 +11,6 @@ import jakarta.validation.constraints.Pattern;
 public record DeviceRegisterRequest(
         @NotBlank String token,
         @NotBlank @Pattern(regexp = "android|ios|web") String platform,
-        @NotBlank String deviceId,
-        String appVersion) {
+        @NotBlank @Size(max = 100) String deviceId,
+        @Size(max = 20) String appVersion) {
 }

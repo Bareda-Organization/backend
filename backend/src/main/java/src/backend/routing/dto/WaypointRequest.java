@@ -2,9 +2,12 @@ package src.backend.routing.dto;
 
 import java.math.BigDecimal;
 
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 /**
  * 강제 경유 지점 지정 요청(RTE-10, API_SPEC §5.15) — {@code address} 와 {@code lat}/{@code lng} 은
@@ -16,6 +19,9 @@ import jakarta.validation.constraints.NotNull;
  *            이 값은 최적화에 뒤집히지 않는다. 범위 밖이면 {@code 422} 다 — 조용히 맨 뒤로 보내면
  *            관계자가 지정한 자리와 다른 결과를 알아챌 수단이 부재하다
  */
-public record WaypointRequest(String address, BigDecimal lat, BigDecimal lng, @NotBlank String label, String note,
+public record WaypointRequest(@Size(max = 255) String address,
+        @DecimalMin("-90.0") @DecimalMax("90.0") BigDecimal lat,
+        @DecimalMin("-180.0") @DecimalMax("180.0") BigDecimal lng,
+        @NotBlank @Size(max = 100) String label, @Size(max = 200) String note,
         @Min(1) Integer seq, @NotNull Boolean apply) {
 }

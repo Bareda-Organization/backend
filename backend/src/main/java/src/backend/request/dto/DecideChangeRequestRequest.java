@@ -1,6 +1,7 @@
 package src.backend.request.dto;
 
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 /**
  * ②구간 승인 결정 요청(API_SPEC §5.6 {@code POST /staff/approvals/{id}/decide}).
@@ -12,6 +13,6 @@ import jakarta.validation.constraints.NotNull;
  */
 public record DecideChangeRequestRequest(
         @NotNull Boolean approve,
-        String rejectReason,
+        @Size(max = 200) String rejectReason,
         String previewToken) {
 }

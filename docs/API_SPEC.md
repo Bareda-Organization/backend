@@ -332,8 +332,8 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|:-:|---|
 | `role` | enum | ● | `parent` · `student` · `driver` · `escort` · `staff` |
-| `login_id` | string | ● | 로그인 아이디. 중복 시 `409 DUPLICATE_LOGIN_ID` |
-| `password` | string | ● | 비밀번호 |
+| `login_id` | string | ● | 로그인 아이디(50자 이하). 중복 시 `409 DUPLICATE_LOGIN_ID` |
+| `password` | string | ● | 비밀번호 — UTF-8 **72바이트 이하**(BCrypt 한도, 한글 24자). 넘으면 `422` |
 | `name` | string | ● | 이름 |
 | `phone` | string | ● | 연락처. 아이디·비밀번호 복구의 인증 수단 (AUTH-08) |
 | `academy_id` | string | ● | `GET /academies/search` 결과의 `id` |
@@ -429,7 +429,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|:-:|---|
 | `current_password` | string | ● | 현재 비밀번호 |
-| `new_password` | string | ● | 새 비밀번호 |
+| `new_password` | string | ● | 새 비밀번호 — UTF-8 72바이트 이하(§2.2) |
 
 **에러** — `401 INVALID_CREDENTIALS` · `422 VALIDATION_FAILED`. 성공 시 기존 refresh 토큰 전량 무효화 — 웹 호출이면 §2.7 과 같은 쿠키 삭제 지시를 함께 반환.
 
