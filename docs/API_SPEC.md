@@ -1726,7 +1726,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 **`POST /staff/runs` 요청**(임시 추가) — `bus_id` · `service_date`(`YYYY-MM-DD`) · `direction` · `depart_time`(`HH:mm`) · `origin_name` · `destination_name` · `est_duration_min`(선택). 만들어진 회차는 **`schedule_id` 가 비어 있다** — 그것이 정규 스케줄에서 나온 회차와 임시 회차를 가르는 유일한 표시다.
 
-**회차 응답 항목** — `id` · `bus_id` · `bus_no` · `schedule_id` · `service_date` · `direction` · `depart_time` · `confirm_at` · `status` · `origin_name` · `destination_name` · `est_duration_min` · `canceled_at` · `assignments[]`(`manager_id` · `name` · `role`)
+**회차 응답 항목** — `id` · `bus_id` · `bus_no` · `schedule_id` · `service_date` · `direction` · `depart_time` · `confirm_at` · `status` · `origin_name` · `destination_name` · `est_duration_min` · `canceled_at` · `assignments[]`(`manager_id` · `name` · `role`) · `consecutive_failures`(integer — 확정 배치의 연속 실패 횟수, 성공 시 0. 확정이 계속 실패하는 회차를 알아보는 재료 — BR-047)
 
 - `depart_time`·`confirm_at` 은 **날짜를 포함한 시각**(`timestamptz`)이다. 스케줄의 `HH:mm` 을 `service_date` 와 합칠 때 시간대는 서비스 기준 시간대(`Asia/Seoul`, `ERD §2`)를 쓴다
 - **`confirm_at` = `depart_time` − 30분**이며 파생이 아니라 저장된 컬럼이다 (`C-03` · `ERD run`). 확정 배치가 "실행 시각이 지난 회차" 를 매 실행마다 조회하기 때문에 컬럼으로 둔다
@@ -2185,6 +2185,7 @@ SMS 연동(`PRD` F-05) 전까지 §2.9 가 `503` 이라 **학원 사용자의 �
 | `stops[]` | array | ● | `stop_id` · `seq` · `name` · `lat` · `lng` · `change` · `arrived_at` · **`eta`** |
 | `destination_eta` | datetime | ● | 도착지 도착 예정 시각 |
 | `driver` · `escort` | object | ● | `name` · `phone` — **원문** |
+| `consecutive_failures` | integer | ● | 확정 배치의 연속 실패 횟수(`ERD run`, 성공 시 0) — 확정이 계속 실패하는 회차를 강제 확정(§6.14) 대상으로 알아보는 재료(BR-047 · `UF-O-07`) |
 
 ```json
 {

@@ -13,12 +13,14 @@ import java.util.List;
  *
  * <p>{@code position} 은 마지막 위치 수신 후 2분 초과(유실)면 비우고 {@code last_seen_at} 만 채운다
  * (Ruling 250 · {@code FEATURE_SPEC §4.16} A-14 live 스냅샷 규칙, {@code API_SPEC §5.18} 과 같은 기준값).
+ *
+ * <p>{@code consecutive_failures} 는 확정이 계속 실패하는 회차를 강제 확정(§6.14) 대상으로 알아보는 재료다(BR-047).
  */
 public record AdminAcademyLiveResponse(List<Run> runs) {
 
     public record Run(Long runId, String busNo, String direction, String runStatus, Position position,
             OffsetDateTime lastSeenAt, OffsetDateTime departTime, OffsetDateTime estDepartTime, List<Stop> stops,
-            OffsetDateTime destinationEta, Contact driver, Contact escort) {
+            OffsetDateTime destinationEta, Contact driver, Contact escort, int consecutiveFailures) {
     }
 
     /** 위치 신호가 아직 한 번도 없거나(Redis 키 부재) 유실(2분 초과)이면 {@code null} — {@link Run#lastSeenAt}. */

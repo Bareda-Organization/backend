@@ -11,6 +11,9 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -19,6 +22,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
@@ -99,6 +103,12 @@ class AdminMonitoringControllerTest extends RedisTestContainerBase {
 
     @Autowired
     private RunRepository runRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     @Autowired
     private ConfirmedRouteRepository confirmedRouteRepository;
@@ -370,6 +380,24 @@ class AdminMonitoringControllerTest extends RedisTestContainerBase {
                 .andExpect(jsonPath("$.data.runs[0].position").doesNotExist())
                 .andExpect(jsonPath("$.data.runs[0].est_depart_time").doesNotExist())
                 .andExpect(jsonPath("$.data.runs[0].depart_time").exists());
+    }
+
+    /** 확정이 계속 실패하는 회차를 강제 확정 대상으로 알아볼 재료(BR-047 · UF-O-07) — 실패 횟수를 싣는다. */
+    @Test
+    void 관제_응답은_확정_연속_실패_횟수를_싣는다() throws Exception {
+        AdminMonitoringFixtures f = fixtures();
+        long academyId = f.academy();
+        long busId = f.bus(academyId);
+        long runId = f.idleRun(academyId, busId, Direction.TO_ACADEMY, now().plusMinutes(20));
+        // recordFailure 는 REQUIRES_NEW 라 이 시험 트랜잭션의 미커밋 행을 못 본다 — 같은 연결로 직접 올린다.
+        jdbcTemplate.update("UPDATE run SET consecutive_failures = 2 WHERE id = ?", runId);
+        entityManager.clear();
+
+        long adminAccountId = f.systemAdminAccount("메인관리자");
+
+        mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 메인관리자_토큰(adminAccountId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.runs[0].consecutive_failures").value(2));
     }
 
     /** 메인 관리자는 어느 학원이든 조회할 수 있다 + 지정 학원의 회차만 나온다(목표 9). */
