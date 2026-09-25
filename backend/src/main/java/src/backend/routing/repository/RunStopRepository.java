@@ -1,6 +1,7 @@
 package src.backend.routing.repository;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -42,6 +43,21 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
             """)
     List<RunStop> findAllByRouteVersionIdAndAcademyIdOrderBySeq(@Param("routeVersionId") Long routeVersionId,
             @Param("academyId") Long academyId);
+
+    /**
+     * 이 승하차지들 중 하나라도 <b>운행 중</b> 회차의 현재 노선에 서는가 — 서면 좌표를 고칠 수 없다
+     * (ARCHITECTURE §8.5 운행 시작과 동시에 노선 잠금, BR-052). 근접 알림·출발 판정이 {@code stop} 좌표를
+     * 매번 다시 읽어, 고치는 순간 운행 중인 버스의 판정 좌표가 바뀐다.
+     */
+    @Query("""
+            SELECT COUNT(rs) > 0 FROM RunStop rs
+            JOIN ConfirmedRoute cr ON cr.currentVersionId = rs.routeVersionId
+            JOIN Run r ON r.id = cr.runId
+            WHERE rs.stopId IN :stopIds
+              AND r.status = src.backend.run.entity.RunStatus.MOVING
+              AND r.academyId = :academyId
+            """)
+    boolean existsOnMovingRun(@Param("stopIds") Collection<Long> stopIds, @Param("academyId") Long academyId);
 
     /**
      * ③구간 미등원 토글이 잔여 0명을 확인한 뒤 건너뛸 정차 항목 1건을 찾는다(API_SPEC §3.6 ③) —

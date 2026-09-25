@@ -1662,7 +1662,11 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 - **배열에서 빠진 승하차지는 노선에서만 빠진다** — 승하차지 행은 지우지 않는다
 - 새 항목은 `POST .../stops` 와 같은 규칙 — 50m 안에 있으면 그 승하차지를 쓴다
 - **고치기 전에 전부 검증한다** — 학원 밖 승하차지·같은 승하차지 두 번이면 **아무것도 바꾸지 않은 채** `422 VALIDATION_FAILED`
-- 응답은 상세와 같은 형태 · 에러 `404 ROUTE_NOT_FOUND`(다른 학원 편성 포함)
+- **운행 중(`moving`) 회차의 현재 노선에 서는 승하차지는 좌표를 고칠 수 없다** — 아무것도 바꾸지 않은 채
+  `403 CHANGE_WINDOW_CLOSED`. 운행 시작과 동시에 노선이 잠기는데(`ARCHITECTURE §8.5`) 근접 알림·출발 판정이
+  승하차지 좌표를 매번 다시 읽어, 고치면 달리는 버스의 판정 좌표가 바뀐다. 이름만 고치는 것은 허용
+  (2026-09-25 `BR-052`, 조율자 판정)
+- 응답은 상세와 같은 형태 · 에러 `404 ROUTE_NOT_FOUND`(다른 학원 편성 포함) · `403 CHANGE_WINDOW_CLOSED`(위)
 
 **`GET /staff/stops/suggest?query=` 응답** — `items[]`, 항목마다 `GET /staff/stops/search` 응답과 같은 모양
 (`lat` · `lng` · `display_name` · `nearby[]`). 최대 10건.
