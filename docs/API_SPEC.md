@@ -334,8 +334,8 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|:-:|---|
 | `role` | enum | ● | `parent` · `student` · `driver` · `escort` · `staff` |
-| `login_id` | string | ● | 로그인 아이디. 중복 시 `409 DUPLICATE_LOGIN_ID` |
-| `password` | string | ● | 비밀번호 |
+| `login_id` | string | ● | 로그인 아이디(50자 이하). 중복 시 `409 DUPLICATE_LOGIN_ID` |
+| `password` | string | ● | 비밀번호 — UTF-8 **72바이트 이하**(BCrypt 한도, 한글 24자). 넘으면 `422` |
 | `name` | string | ● | 이름 |
 | `phone` | string | ● | 연락처. 아이디·비밀번호 복구의 인증 수단 (AUTH-08) |
 | `academy_id` | string | ● | `GET /academies/search` 결과의 `id` |
@@ -431,7 +431,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|:-:|---|
 | `current_password` | string | ● | 현재 비밀번호 |
-| `new_password` | string | ● | 새 비밀번호 |
+| `new_password` | string | ● | 새 비밀번호 — UTF-8 72바이트 이하(§2.2) |
 
 **에러** — `401 INVALID_CREDENTIALS` · `422 VALIDATION_FAILED`. 성공 시 기존 refresh 토큰 전량 무효화 — 웹 호출이면 §2.7 과 같은 쿠키 삭제 지시를 함께 반환.
 
@@ -1795,7 +1795,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 계정 미연결 학생은 연락처·주소가 비어 있는 것이 정상이며, 관계자 화면이 그 상태를 드러낸다.
 
-**상세 응답**은 `guardians[]`(`guardian_id` · `name` · `phone`, 먼저 연결된 차례)를 싣는다(Ruling 326 — 전에는 대표 1명의 `guardian_phone`). 목록의 호차·승하차지 칸(`bus_no` · `stop_name`)과 좌석(`seat_no`)은 **Ruling 326 으로 뺐다**.
+**상세 응답**은 `guardians[]`(`guardian_id` · `name` · `phone` · `account_id`, 먼저 연결된 차례)를 싣는다(Ruling 326 — 전에는 대표 1명의 `guardian_phone`). 학생 본인 계정은 `account_id`(string, 가입 연결 전이면 `null`) — 두 `account_id` 는 관리자 경유 비밀번호 초기화(§5.22 · `Ruling 329`)의 대상이다. 목록의 호차·승하차지 칸(`bus_no` · `stop_name`)과 좌석(`seat_no`)은 **Ruling 326 으로 뺐다**.
 
 **에러** — `404 STUDENT_NOT_FOUND`(`GET` 상세 · `PATCH` · `DELETE` 대상 부재 · 타 학원 — 존재 비노출, Ruling 163)
 
@@ -1847,6 +1847,8 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 역할 변경 시 매니저 앱 화면 구성이 함께 변경 — **연결된 계정의 역할도 함께 바뀌어** 다음 토큰 재발급(§2.6)부터 앱 권한에 반영된다. 계정 연결은 가입 승인(§5.2)의 `link.manager_id`.
 
 **배치 중** = 취소·종료되지 않았고, 운행 중이거나 운행일이 오늘 이후인 회차의 배치. 삭제와 역할 변경이 같은 기준으로 막힌다(MGR-04 "배치 해제 후" — 배치 자리가 곧 역할이라 배치된 채 역할을 바꾸면 그 자리에 권한 없는 사람이 남는다). 지난 회차의 배치는 막지 않는다 — 과거 배치를 푸는 경로가 없어, 세면 한 번이라도 운행한 매니저는 영구히 삭제되지 않는다(2026-09-25 전체 검사 `BR-022`·`BR-023`).
+
+**응답** — 위 필드 + `id` · `account_id`(string, 연결된 계정 — 가입 연결 전이면 `null`. 관리자 경유 비밀번호 초기화 §5.22 의 대상, `Ruling 329`).
 
 **에러** — `409 MANAGER_ASSIGNED`(배치 중인 매니저의 삭제 · 역할 변경) · `404 MANAGER_NOT_FOUND`(`PATCH` · `DELETE` 대상 부재 · 타 학원 — 존재 비노출, Ruling 163)
 
@@ -1955,7 +1957,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 **권한** 학원 관계자 · **요청 (쿼리)** `status`(`open` · `acked` · `canceled`, 기본 `open`) · `date`
 
-**응답** — `items[]` · `unacked_count`(미확인 배지)
+**응답** — `items[]` · `unacked_count`(미확인 배지 — `status`·`date` 필터와 무관하게 그 학원의 미확인·미취소 건수. §6.11 은 전 학원 건수)
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|:-:|---|

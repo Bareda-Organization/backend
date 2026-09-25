@@ -1,5 +1,7 @@
 package src.backend.demo;
 
+import java.time.Clock;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.HashSet;
 import java.util.List;
@@ -82,6 +84,8 @@ public class DemoRunSimulator {
 
     private final RunPositionCommandService runPositionCommandService;
 
+    private final Clock clock;
+
     @Value("${app.demo.academy-id:1}")
     private long demoAcademyId;
 
@@ -126,12 +130,15 @@ public class DemoRunSimulator {
      * 있어야 데모와 실제가 갈라지지 않는다.
      *
      * <p>이미 운행 중인 버스의 다음 회차는 세워 둔다 — 데모 운행은 끝나지 않고 계속 돌아서, 출발시키면
-     * 같은 버스가 지도에 두 대 뜬다.
+     * 같은 버스가 지도에 두 대 뜬다. 단 <b>오늘</b> 운행 중인 회차만 센다(BR-132) — 운행이 끝나지 않으니 자정을
+     * 넘기면 전날 회차가 남고, 그것까지 세면 그 버스의 오늘 회차는 영영 출발하지 않는다.
      */
     private void startDueRuns() {
         for (Long academyId : academies()) {
+            LocalDate today = LocalDate.now(clock);
             Set<Long> busyBusIds = new HashSet<>();
-            runRepository.findAllByAcademyIdAndStatusOrderByDepartTimeAsc(academyId, RunStatus.MOVING)
+            runRepository.findAllByAcademyIdAndStatusOrderByDepartTimeAsc(academyId, RunStatus.MOVING).stream()
+                    .filter(run -> today.equals(run.getServiceDate()))
                     .forEach(run -> busyBusIds.add(run.getBusId()));
             for (Run run : runRepository.findAllByAcademyIdAndStatusOrderByDepartTimeAsc(academyId,
                     RunStatus.CONFIRMED)) {
@@ -177,7 +184,7 @@ public class DemoRunSimulator {
             driverOf(run).ifPresent(driver -> {
                 try {
                     runPositionCommandService.receive(driver, run.getId(),
-                            new RunPositionRequest(point.lat(), point.lng(), OffsetDateTime.now(), null, null));
+                            new RunPositionRequest(point.lat(), point.lng(), OffsetDateTime.now(clock), null, null));
                 } catch (RuntimeException e) {
                     log.debug("[데모] 회차 {} 위치 송신 실패: {}", run.getId(), e.getMessage());
                 }

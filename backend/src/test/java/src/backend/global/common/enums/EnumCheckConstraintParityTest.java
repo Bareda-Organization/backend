@@ -146,8 +146,9 @@ class EnumCheckConstraintParityTest {
                         Set.of("ck_academy_status")),
                 Arguments.of("StaffStatus", dbValuesOf(StaffStatus.class, new StaffStatus.Db()),
                         Set.of("ck_academy_staff_status")),
+                // ck_account_status_before_block 은 blocked 를 뺀 부분집합(Ruling 328) — 합집합이 전체와 같다
                 Arguments.of("AccountStatus", dbValuesOf(AccountStatus.class, new AccountStatus.Db()),
-                        Set.of("ck_account_status")),
+                        Set.of("ck_account_status", "ck_account_status_before_block")),
                 Arguments.of("SignupRequestStatus", dbValuesOf(SignupRequestStatus.class, new SignupRequestStatus.Db()),
                         Set.of("ck_signup_request_status")),
                 Arguments.of("ApproverType", dbValuesOf(ApproverType.class, new ApproverType.Db()),

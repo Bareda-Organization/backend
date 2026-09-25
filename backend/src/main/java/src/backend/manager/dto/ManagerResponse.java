@@ -12,11 +12,14 @@ import src.backend.manager.entity.Manager;
  * 생기기 전에 적재된 행(로컬 시드)이 조회만으로 실패한다.
  *
  * @param role {@code driver} · {@code escort} 소문자 — API_SPEC §9.1 의 값 공간이다
+ * @param accountId 연결된 계정 — 가입 연결 전(AUTH-11)이면 {@code null}. 관리자 경유 비밀번호 초기화(§5.22 · Ruling 329)의 대상
  */
-public record ManagerResponse(Long id, String name, String phone, String role, Map<String, Object> workHours) {
+public record ManagerResponse(Long id, String name, String phone, String role, Map<String, Object> workHours,
+        String accountId) {
 
     public static ManagerResponse from(Manager manager) {
         return new ManagerResponse(manager.getId(), manager.getName(), manager.getPhone(),
-                manager.getRole().name().toLowerCase(Locale.ROOT), manager.getWorkHours());
+                manager.getRole().name().toLowerCase(Locale.ROOT), manager.getWorkHours(),
+                manager.getAccountId() == null ? null : String.valueOf(manager.getAccountId()));
     }
 }

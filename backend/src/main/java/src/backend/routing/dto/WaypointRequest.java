@@ -2,9 +2,12 @@ package src.backend.routing.dto;
 
 import java.math.BigDecimal;
 
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 /**
  * 강제 경유 지점 지정 요청(RTE-10, API_SPEC §5.15) — {@code address} 와 {@code lat}/{@code lng} 은
@@ -18,6 +21,9 @@ import jakarta.validation.constraints.NotNull;
  * @param previewToken {@code apply=true} 에 필수 — 미리보기 응답의 값. 없거나 낡았으면 {@code 409 PREVIEW_STALE}
  *                     이고, 배포는 그 미리보기의 지점·순번·계산을 그대로 쓴다(BR-051)
  */
-public record WaypointRequest(String address, BigDecimal lat, BigDecimal lng, @NotBlank String label, String note,
+public record WaypointRequest(@Size(max = 255) String address,
+        @DecimalMin("-90.0") @DecimalMax("90.0") BigDecimal lat,
+        @DecimalMin("-180.0") @DecimalMax("180.0") BigDecimal lng,
+        @NotBlank @Size(max = 100) String label, @Size(max = 200) String note,
         @Min(1) Integer seq, @NotNull Boolean apply, String previewToken) {
 }

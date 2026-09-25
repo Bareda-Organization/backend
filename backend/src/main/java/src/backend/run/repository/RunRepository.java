@@ -126,7 +126,7 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      */
     @AcademyScopeExempt(reason = "근접 알림 스케줄러는 시각이 촉발하는 전 학원 대상 조회라 좁힐 학원이 부재하다 — "
             + "findDueForConfirmation 와 같은 근거. 호출부는 "
-            + "배치(ProximityNotificationScheduler)뿐이라는 전제 — 요청 경로에서 부르면 이 예외가 우회로가 된다")
+            + "배치(ProximityNotificationScheduler · RunPositionLostGaugeScheduler)뿐이라는 전제 — 요청 경로에서 부르면 이 예외가 우회로가 된다")
     List<Run> findByStatusAndCanceledAtIsNullAndIdGreaterThanOrderByIdAsc(RunStatus status, Long afterId,
             Pageable pageable);
 
@@ -184,7 +184,7 @@ public interface RunRepository extends JpaRepository<Run, Long> {
     /**
      * 회차 id 목록을 학원 조건 없이 읽는다(AdminEmergencyQueryService, §6.11) — 호출부가 넘기는
      * id 는 이미 emergency_alert.run_id 에서 온 값이고, 그 조회(EmergencyAlertRepository
-     * #findAllByOrderByReceivedAtDesc) 자체가 메인 관리자 콘솔의 명시적 전 학원 예외라 여기서 다시
+     * #findAllByState) 자체가 메인 관리자 콘솔의 명시적 전 학원 예외라 여기서 다시
      * 학원으로 좁힐 근거가 부재하다(AccountRepository#findAllByIdIn 과 같은 근거).
      */
     @AcademyScopeExempt(reason = "메인 관리자 콘솔의 전 학원 비상 알림 조회(AdminEmergencyQueryService) — 호출부가 "

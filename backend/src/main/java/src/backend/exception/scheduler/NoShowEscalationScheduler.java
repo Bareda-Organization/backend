@@ -16,6 +16,7 @@ import src.backend.exception.command.NoShowEscalationPersistence;
 import src.backend.exception.entity.NoShowCase;
 import src.backend.exception.repository.NoShowCaseRepository;
 import src.backend.observability.metrics.NoShowEscalationMetrics;
+import src.backend.observability.metrics.SchedulerHealthMetrics;
 
 /**
  * 미승차 에스컬레이션 폴링의 진입점(목표 1, API_SPEC §4.8) — 대기 만료 + 무응답 케이스를 모아
@@ -54,6 +55,8 @@ public class NoShowEscalationScheduler {
 
     private final NoShowEscalationMetrics metrics;
 
+    private final SchedulerHealthMetrics schedulerHealthMetrics;
+
     /**
      * 대기 만료 + 무응답 케이스를 에스컬레이션한다.
      *
@@ -89,6 +92,7 @@ public class NoShowEscalationScheduler {
             }
         } catch (Exception e) {
             log.warn("미승차 케이스 {} 에스컬레이션 실패 — 다음 틱에 재시도한다", caseId, e);
+            schedulerHealthMetrics.recordItemFailure(getClass());
         }
     }
 }

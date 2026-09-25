@@ -4,9 +4,12 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import jakarta.persistence.LockModeType;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -28,15 +31,25 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     Optional<Account> findByLoginId(String loginId);
 
     /**
-     * 연락처로 계정을 찾는다(API_SPEC §2.9 아이디·비밀번호 복구 — {@code type} 이
-     * {@code login_id}·{@code password} 둘 다 이 조회로 대상 계정을 특정한다).
+     * 로그인 대조용 조회 — 행을 잠가 같은 계정의 로그인을 직렬화한다(C-11 · BR-026).
      *
-     * <p>{@code account.phone} 에는 DB UNIQUE 제약이 없다 — 같은 연락처로 여러 계정이 가입된
-     * 경우 이 조회가 둘 이상을 만나면 {@code IncorrectResultSizeDataAccessException} 을 던진다.
-     * 그 경우를 어떻게 다룰지(예: 최신 계정 우선)는 이 조회의 호출자(Task 4)가 판단할 몫이다.
+     * <p>잠그지 않으면 동시 실패가 모두 같은 {@code failed_attempts} 를 읽고 "+1" 을 덮어써 누적이 유실되고,
+     * 5회 차단이 걸리지 않는다. 잠금 구간은 비밀번호 대조(수십 ms)를 포함하지만 같은 계정끼리만 기다린다.
      */
-    @AcademyScopeExempt(reason = "§2.9 계정 복구 — 전화번호만 들고 시작해 소속 학원이 미상")
-    Optional<Account> findByPhone(String phone);
+    @AcademyScopeExempt(reason = "§2.5 로그인 — 아이디만 들고 시작해 소속 학원이 이 조회의 결과로 비로소 결정")
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM Account a WHERE a.loginId = :loginId")
+    Optional<Account> findByLoginIdForUpdate(@Param("loginId") String loginId);
+
+    /**
+     * 재신청할 계정을 잠그고 읽는다(§2.4 · BR-063) — 동시 재신청이 둘 다 {@code rejected} 를 보고 요청 행을 두 개
+     * 쌓지 않게, 두 번째는 {@code pending} 을 읽어 {@code 409 REAPPLY_NOT_ALLOWED} 가 된다.
+     */
+    @AcademyScopeExempt(reason = "§2.4 본인 재신청 — 계정 자체의 조회라 학원 조건이 판정에 개입 부재. 재신청은 학원을 다시 "
+            + "고르는 흐름이라 좁힐 학원도 미확정. 호출부가 토큰의 accountId 만 넘긴다는 전제")
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM Account a WHERE a.id = :id")
+    Optional<Account> findByIdForUpdate(@Param("id") Long id);
 
     /**
      * 학원의 특정 계정들을 가져온다 — 메인 관리자 콘솔의 학원 상세({@code staff_accounts[]}, API_SPEC §6.3)가
@@ -46,6 +59,9 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
      * {@code academy_staff} 행이 가리키는 계정이 실제로 그 학원 소속인지 아무도 보지 않게 되기 때문이다.
      */
     List<Account> findAllByAcademyIdAndIdIn(Long academyId, Collection<Long> ids);
+
+    /** 학원 안의 계정 한 건 — 관리자 경유 비밀번호 초기화(API_SPEC §5.22)가 타 학원 계정을 존재 비노출 404 로 거른다. */
+    Optional<Account> findByIdAndAcademyId(Long id, Long academyId);
 
     /**
      * 학원별 소속 사용자 수(API_SPEC §6.1 {@code user_count}) — 역할과 상태를 인자로 받아 무엇을 세는지

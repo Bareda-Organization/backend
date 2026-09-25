@@ -170,9 +170,10 @@ class AuthFlowIntegrationTest {
     void 거부측_목록이_허용_목록_밖_실제_핸들러_전부와_일치한다() {
         List<String> all = AccountStatusGateEndpoints.productionEndpoints(handlerMapping, handlerMethod -> true);
         assertThat(all)
-                .as("프로덕션 핸들러 110개(Ruling 324 로 link-requests 제거 106→105, R27-B 가 "
+                .as("프로덕션 핸들러 111개(Ruling 324 로 link-requests 제거 106→105, R27-B 가 "
                         + "GET /staff/routes/{id}/path 를 더해 105→106, 주소 검색·좌표 정차지 추가가 "
-                        + "106→108, R30 의 승하차지 한 번에 저장·주소 자동완성이 108→110) — 늘었는데 이 단언만 "
+                        + "106→108, R30 의 승하차지 한 번에 저장·주소 자동완성이 108→110, Ruling 329 의 "
+                        + "관리자 경유 비밀번호 초기화가 110→111) — 늘었는데 이 단언만 "
                         + "고치면 거부측 목록이 낡는다. "
                         + "Phase 2 의 12 + Phase 3 의 12 + Phase 5 의 25"
                         + "(학생 5 + 차량·매니저 7 + 자녀 연결 3 + 스케줄 4 + 회차·배치 4 + 요일별 주소 2)"
@@ -198,8 +199,9 @@ class AuthFlowIntegrationTest {
                         + " + S2 의 1(회차 비상 알림 처리 상태 조회 §4.15)"
                         + " + R27-B 의 1(고정 노선 도로 경로 조회 §5.9)"
                         + " + R28 의 2(승하차지 주소 검색 1 + 좌표로 정차지 추가 1, §5.9)"
-                        + " + R30 의 2(승하차지 한 번에 저장 1 + 주소 자동완성 1, §5.9 · Ruling 325)")
-                .hasSize(110);
+                        + " + R30 의 2(승하차지 한 번에 저장 1 + 주소 자동완성 1, §5.9 · Ruling 325)"
+                        + " + Ruling 329 의 1(관리자 경유 비밀번호 초기화 §5.22)")
+                .hasSize(111);
 
         assertThat(AccountStatusGateEndpoints.productionEndpoints(
                 handlerMapping, AccountStatusGateEndpoints::deniedWhenPending))

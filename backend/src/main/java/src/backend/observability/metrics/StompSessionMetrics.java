@@ -1,8 +1,10 @@
 package src.backend.observability.metrics;
 
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.context.event.EventListener;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.SessionConnectedEvent;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
@@ -23,22 +25,29 @@ import io.micrometer.core.instrument.MeterRegistry;
 @Component
 public class StompSessionMetrics {
 
-    private final AtomicInteger activeSessions = new AtomicInteger();
+    /**
+     * 연결된 세션 ID — 개수를 올리고 내리는 대신 집합으로 짝지어 센다(BR-128). CONNECT 가 인터셉터에서 거부된 소켓은
+     * 연결 이벤트 없이 해제 이벤트만 오고, 해제 이벤트는 중복 발행될 수 있어 단순 감소는 다른 세션 몫을 깎는다.
+     */
+    private final Set<String> activeSessionIds = ConcurrentHashMap.newKeySet();
 
     public StompSessionMetrics(MeterRegistry registry) {
-        Gauge.builder("schoolbus.stomp.sessions", activeSessions, AtomicInteger::get)
+        Gauge.builder("schoolbus.stomp.sessions", activeSessionIds, Set::size)
                 .description("활성 STOMP 세션 수")
                 .register(registry);
     }
 
     @EventListener
     public void onConnected(SessionConnectedEvent event) {
-        activeSessions.incrementAndGet();
+        String sessionId = SimpMessageHeaderAccessor.getSessionId(event.getMessage().getHeaders());
+        if (sessionId != null) {
+            activeSessionIds.add(sessionId);
+        }
     }
 
-    /** 해제 이벤트가 중복으로 와도 0 아래로 내려가지 않게 막는다 — 음수 게이지는 대시보드를 읽을 수 없게 만든다. */
+    /** 연결된 적 없는 세션·이미 해제된 세션의 해제는 아무것도 바꾸지 않는다 — 음수·과소 계수를 함께 막는다. */
     @EventListener
     public void onDisconnected(SessionDisconnectEvent event) {
-        activeSessions.updateAndGet(current -> current > 0 ? current - 1 : 0);
+        activeSessionIds.remove(event.getSessionId());
     }
 }

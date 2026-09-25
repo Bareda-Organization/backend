@@ -64,6 +64,7 @@ CREATE TABLE account (
     role            varchar(20)  NOT NULL,
     status          varchar(10)  NOT NULL,
     failed_attempts integer      NOT NULL DEFAULT 0,
+    status_before_block varchar(10),
     blocked_at      timestamptz,
     block_reason    varchar(100),
     unblocked_by    bigint,
@@ -76,6 +77,9 @@ CREATE TABLE account (
     CONSTRAINT ck_account_role CHECK (role IN ('parent', 'student', 'driver', 'escort', 'staff', 'system_admin')),
     CONSTRAINT ck_account_status CHECK (status IN ('pending', 'active', 'rejected', 'blocked')),
     CONSTRAINT ck_account_failed_attempts CHECK (failed_attempts BETWEEN 0 AND 5),
+    -- 차단 직전 상태(Ruling 328) — blocked 일 때만 존재하고 해제가 이 값으로 되돌린다.
+    CONSTRAINT ck_account_status_before_block CHECK (status_before_block IN ('pending', 'active', 'rejected')),
+    CONSTRAINT ck_account_status_before_block_pair CHECK ((status = 'blocked') = (status_before_block IS NOT NULL)),
     CONSTRAINT ck_account_academy_scope CHECK (role = 'system_admin' OR academy_id IS NOT NULL)
 );
 
@@ -826,6 +830,8 @@ CREATE INDEX ix_signup_request_academy_status_requested ON signup_request (acade
 
 CREATE INDEX ix_audit_log_academy_occurred ON audit_log (academy_id, occurred_at DESC);
 CREATE INDEX ix_audit_log_actor_occurred ON audit_log (actor_account_id, occurred_at DESC);
+-- 필터 없는 감사·접속 이력 첫 화면(§6.13) — 무기한 보존 테이블의 전 표 정렬을 막는다(BR-089).
+CREATE INDEX ix_audit_log_category_occurred ON audit_log (category, occurred_at DESC);
 
 CREATE INDEX ix_rider_status_history_rider_changed ON rider_status_history (run_rider_id, changed_at DESC);
 

@@ -45,6 +45,8 @@ public enum ErrorCode {
     TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "토큰이 만료되었습니다. 다시 로그인해 주세요"),
     // 아이디·비밀번호 복구(AUTH-08)의 SMS 인증 코드가 만료·불일치할 때(API_SPEC §2.9·§8.1).
     VERIFICATION_CODE_INVALID(HttpStatus.FORBIDDEN, "인증번호가 올바르지 않거나 만료되었습니다"),
+    // 전화번호 복구(§2.9)는 SMS 발송 수단이 설정되기 전까지 닫는다(Ruling 329) — 관리자 경유(§5.22·§6.7)로 안내.
+    RECOVERY_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "전화번호로 찾기는 준비 중입니다. 학원(관리자)에 비밀번호 초기화를 요청해 주세요"),
 
     // ── 학원 격리 ────────────────────────────────────────────────────────────────
     // 계열별 구역 — 인증 계열은 위쪽 AUTH_* 무리에서 자란다(무리 사이에 끼워 넣으면 같은 줄 부근을

@@ -771,6 +771,8 @@ org.springframework.boot:spring-boot-testcontainers
 | 알림 발송 실패율 임계 초과 | 경고 | |
 | 배치 지연 p95 임계 초과 | 정보 | 증설 검토 신호 |
 
+규칙 파일은 `infra/observability/prometheus/alerts.yml` — 2·3행이 들어 있다(2026-09-25 BR-064: 미승차는 `schoolbus_scheduler_failures_total{scheduler="no-show-escalation"}` 증가 · 마지막 성공 경과 180초 초과, 위치는 `schoolbus_run_position_lost` 게이지). 나머지 행과 전달 경로(Alertmanager)는 미구성.
+
 **알럿을 등급으로 가르는 기준은 "지금 아이가 위험한가"** 다. 시스템 지표가 아니라 그 지표가 뜻하는 현실 상황으로 판단한다.
 
 ---

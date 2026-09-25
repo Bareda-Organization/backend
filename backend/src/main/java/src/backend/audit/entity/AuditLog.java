@@ -126,6 +126,22 @@ public class AuditLog {
     }
 
     /**
+     * 관계자가 학원 사용자의 비밀번호를 초기화한 사실(API_SPEC §5.22 · Ruling 329) — {@code action=update}.
+     * 강제 확정({@link #forRunForceConfirm})처럼 구별 문자열은 {@code detail.action} 에 둔다(Ruling 260).
+     */
+    public static AuditLog forAccountPasswordReset(Long academyId, Long actorAccountId, String actorLoginId,
+            Long targetAccountId, OffsetDateTime occurredAt) {
+        AuditLog log = new AuditLog(AuditCategory.DATA_ACCESS, AuditAction.UPDATE, occurredAt);
+        log.academyId = academyId;
+        log.actorAccountId = actorAccountId;
+        log.actorLoginId = actorLoginId;
+        log.targetType = TARGET_TYPE_ACCOUNT;
+        log.targetId = targetAccountId;
+        log.detail = Map.of("action", "account.password_reset");
+        return log;
+    }
+
+    /**
      * L3 필드가 실린 응답을 실제로 읽었을 때의 기록(SYS-01 · FEATURE_SPEC §6.3 · Phase 14 T1 목표 1).
      *
      * <p>요청 1건당 1행이다(Ruling 242 잠정) — 응답에 학생이 여러 명 실려도 행을 늘리지 않는다.
@@ -227,6 +243,7 @@ public class AuditLog {
      * {@code reason}, {@code fallback_used}, {@code route_version_id}. API_SPEC §6.14 감사 문장은
      * 조율자가 이 판정과 같은 내용으로 정본을 정정한다.
      *
+     * @param academyId      회차의 학원 — 없으면 §6.13 {@code academy_id} 필터 조회에서 빠진다(BR-129)
      * @param actorAccountId 강제 확정을 실행한 메인 관리자
      * @param actorLoginId   그 관리자의 로그인 아이디 스냅샷
      * @param runId          강제 확정된 회차 — {@code target_id}
@@ -234,9 +251,10 @@ public class AuditLog {
      * @param fallbackUsed   실제로 저장된 {@code route_version.fallback_used} 값
      * @param routeVersionId 신규 생성된 {@code route_version} 의 id
      */
-    public static AuditLog forRunForceConfirm(Long actorAccountId, String actorLoginId, Long runId, String reason,
-            boolean fallbackUsed, Long routeVersionId, OffsetDateTime occurredAt) {
+    public static AuditLog forRunForceConfirm(Long academyId, Long actorAccountId, String actorLoginId, Long runId,
+            String reason, boolean fallbackUsed, Long routeVersionId, OffsetDateTime occurredAt) {
         AuditLog log = new AuditLog(AuditCategory.DATA_ACCESS, AuditAction.UPDATE, occurredAt);
+        log.academyId = academyId;
         log.actorAccountId = actorAccountId;
         log.actorLoginId = actorLoginId;
         log.targetType = TARGET_TYPE_RUN;

@@ -85,7 +85,7 @@ public class SignupCommandService {
     /** 거절 후 재신청(AUTH-03) — 학원을 다시 선택하고, 새 승인 요청 행을 쌓는다(이력 보존). */
     @Transactional
     public ReapplyResponse reapply(Long accountId, ReapplyRequestPayload payload) {
-        Account account = accountRepository.findById(accountId)
+        Account account = accountRepository.findByIdForUpdate(accountId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
         Academy academy = findActiveAcademy(payload.academyId());
 

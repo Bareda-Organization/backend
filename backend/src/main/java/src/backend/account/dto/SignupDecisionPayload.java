@@ -1,6 +1,7 @@
 package src.backend.account.dto;
 
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 /**
  * 관계자의 가입 요청 수락·거절 요청(API_SPEC §5.2).
@@ -12,5 +13,5 @@ import jakarta.validation.constraints.NotNull;
  *
  * <p>JSON 필드명은 전역 {@code spring.jackson.property-naming-strategy: SNAKE_CASE}(Ruling 104)가 변환한다.
  */
-public record SignupDecisionPayload(@NotNull Boolean accept, String rejectReason, SignupLinkPayload link) {
+public record SignupDecisionPayload(@NotNull Boolean accept, @Size(max = 200) String rejectReason, SignupLinkPayload link) {
 }

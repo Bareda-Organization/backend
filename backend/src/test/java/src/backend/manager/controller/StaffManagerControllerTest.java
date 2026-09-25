@@ -321,6 +321,18 @@ class StaffManagerControllerTest {
         assertThat(found).doesNotContain("한제외");
     }
 
+    /** 목록은 연결된 계정 식별자를 싣는다 — 관리자 경유 비밀번호 초기화(§5.22 · Ruling 329)의 대상. 시드 강기사는 계정 13. */
+    @Test
+    void 목록은_연결된_계정_식별자를_싣는다() throws Exception {
+        String found = 본문(mockMvc.perform(get("/api/v1/staff/managers?q=강기사&size=100")
+                .header("Authorization", 관계자A_토큰()))
+                .andExpect(status().isOk())
+                .andReturn());
+
+        assertThat((java.util.List<String>) com.jayway.jsonpath.JsonPath.read(found, "$.data.items[*].account_id"))
+                .containsExactly("13");
+    }
+
     /**
      * 검색어의 LIKE 와일드카드는 리터럴로 다뤄진다 — {@code q="%"} 하나가 전체 매칭이 되면 검색이
      * 필터가 아니라 전량 조회가 된다.

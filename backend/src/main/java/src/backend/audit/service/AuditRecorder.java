@@ -5,10 +5,10 @@ import java.time.OffsetDateTime;
 import java.util.Map;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import src.backend.account.entity.Account;
@@ -31,9 +31,14 @@ import src.backend.audit.repository.AuditLogRepository;
  * "감사가 조회를 막지 않는다" 는 요건은 만족해도 "감사가 조용히 사라진다" 는 새 위험을 만든다.
  * 실패는 예외를 던지지 않고 로그만 남긴다 — 이 서비스를 부르는 조회 서비스가 그 실패로 응답을
  * 실패시키면 안 되기 때문이다(같은 이유의 연장).
+ *
+ * <p><b>새 트랜잭션 경계가 {@code try} 의 안쪽이어야 한다</b>(BR-038). 메서드에 {@code REQUIRES_NEW} 를
+ * 붙이고 본문에서 예외를 삼키면, 저장소 안에서 난 예외가 이미 그 트랜잭션에 롤백 표시를 남겨 메서드를 나설
+ * 때 커밋이 {@code UnexpectedRollbackException} 을 조회 쪽으로 던진다 — 약속과 반대로 감사 실패가 조회를
+ * 실패시킨다. 그래서 {@link TransactionTemplate} 으로 경계를 열고 그 바깥에서 잡는다. 커넥션을 얻지 못한
+ * 경우({@code CannotCreateTransactionException})도 같은 {@code catch} 가 받는다.
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class AuditRecorder {
 
@@ -42,6 +47,17 @@ public class AuditRecorder {
     private final AccountRepository accountRepository;
 
     private final Clock clock;
+
+    private final TransactionTemplate requiresNew;
+
+    public AuditRecorder(AuditLogRepository auditLogRepository, AccountRepository accountRepository, Clock clock,
+            PlatformTransactionManager transactionManager) {
+        this.auditLogRepository = auditLogRepository;
+        this.accountRepository = accountRepository;
+        this.clock = clock;
+        this.requiresNew = new TransactionTemplate(transactionManager);
+        this.requiresNew.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+    }
 
     /**
      * L3 필드가 실린 응답 조회 1건을 감사 1행으로 남긴다(목표 1) — 조회 트랜잭션이 실패해도 이미 커밋된
@@ -56,13 +72,15 @@ public class AuditRecorder {
      *                   {@code academyId} 가 아니다
      * @param targetType {@code student}·{@code run_roster} 등 Ruling 242 값 도메인
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordDataAccessRead(Long academyId, Long actorAccountId, String targetType, Long targetId,
             Map<String, Object> detail) {
         try {
-            String actorLoginId = accountRepository.findById(actorAccountId).map(Account::getLoginId).orElse(null);
-            auditLogRepository.save(AuditLog.forDataAccessRead(academyId, actorAccountId, actorLoginId, targetType,
-                    targetId, detail, OffsetDateTime.now(clock)));
+            requiresNew.executeWithoutResult(status -> {
+                String actorLoginId =
+                        accountRepository.findById(actorAccountId).map(Account::getLoginId).orElse(null);
+                auditLogRepository.save(AuditLog.forDataAccessRead(academyId, actorAccountId, actorLoginId,
+                        targetType, targetId, detail, OffsetDateTime.now(clock)));
+            });
         } catch (RuntimeException e) {
             log.error("감사 로그 적재 실패 — 조회 자체는 정상 처리됨. targetType={}, targetId={}, actorAccountId={}",
                     targetType, targetId, actorAccountId, e);

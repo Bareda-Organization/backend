@@ -121,7 +121,8 @@ class AcademyScopeRepositoryConventionTest {
      * 그러면 로그인 시 어느 계정인지 결정할 수단이 사라진다.
      */
     private static final List<String> MUST_STAY_UNSCOPED = List.of(
-            "AccountRepository#findByPhone",
+            // findByPhone 은 Ruling 329(§2.9 503)로 호출부가 사라져 삭제 · 로그인은 잠금 조회(BR-026)로 옮겼다
+            "AccountRepository#findByLoginIdForUpdate",
             "AccountRepository#findByLoginId",
             "AccountRepository#existsByLoginId",
             "RefreshTokenRepository#findByTokenHash",

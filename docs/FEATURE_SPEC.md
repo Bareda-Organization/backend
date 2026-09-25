@@ -965,6 +965,7 @@ NTF-12(푸시 단말 등록·해지)는 계층 기능 ID 부재 — 로그인 �
 | `CHANGE_REQUEST_WRITE` | 변경 신청 | **학부모** |
 | `CHANGE_APPROVE` | ②구간 승인·거절 | 관계자 |
 | `SIGNUP_APPROVE` | 학부모·학생·매니저 가입 승인 | 관계자 |
+| `ACCOUNT_PASSWORD_RESET` | 학부모·학생·매니저 비밀번호 초기화 — 관리자 경유 복구 (`API_SPEC §5.22`) | 관계자 (2026-09-25 `Ruling 329` 신설) |
 | `MANAGER_MANAGE` · `BUS_MANAGE` · `SCHEDULE_MANAGE` | 인력 · 차량 · 스케줄 관리 | 관계자 |
 | `MONITOR_ACADEMY` | 학원 대시보드 · 실시간 현황 | 관계자 |
 | `MONITOR_ALL` | 전 학원 관제 (ETA 포함) | **메인관리자** |

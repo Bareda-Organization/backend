@@ -294,9 +294,9 @@ class AdminAcademyControllerTest {
             "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) VALUES "
                     + "((SELECT id FROM academy WHERE code = 'P3T1USRQQ'), 'p3t1uactive', 'x', '활성학부모', "
                     + "'010-0000-5001', 'parent', 'active')",
-            "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) VALUES "
+            "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status, status_before_block) VALUES "
                     + "((SELECT id FROM academy WHERE code = 'P3T1USRQQ'), 'p3t1ublocked', 'x', '차단동승자', "
-                    + "'010-0000-5002', 'escort', 'blocked')",
+                    + "'010-0000-5002', 'escort', 'blocked', 'active')",
             "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) VALUES "
                     + "((SELECT id FROM academy WHERE code = 'P3T1USRQQ'), 'p3t1upending', 'x', '대기학부모', "
                     + "'010-0000-5003', 'parent', 'pending')",
@@ -322,9 +322,9 @@ class AdminAcademyControllerTest {
             "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) VALUES "
                     + "((SELECT id FROM academy WHERE code = 'P3T1USLQQ'), 'p3t1lactive', 'x', '활성기사', "
                     + "'010-0000-5006', 'driver', 'active')",
-            "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) VALUES "
+            "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status, status_before_block) VALUES "
                     + "((SELECT id FROM academy WHERE code = 'P3T1USLQQ'), 'p3t1lblocked', 'x', '차단학생', "
-                    + "'010-0000-5007', 'student', 'blocked')",
+                    + "'010-0000-5007', 'student', 'blocked', 'active')",
             "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) VALUES "
                     + "((SELECT id FROM academy WHERE code = 'P3T1USLQQ'), 'p3t1lpending', 'x', '대기학부모', "
                     + "'010-0000-5008', 'parent', 'pending')",

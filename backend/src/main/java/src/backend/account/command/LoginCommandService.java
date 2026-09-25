@@ -1,9 +1,12 @@
 package src.backend.account.command;
 
+import java.net.InetAddress;
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +42,13 @@ import src.backend.global.security.JwtTokenProvider;
 @Service
 @RequiredArgsConstructor
 public class LoginCommandService {
+
+    /**
+     * 미등록 아이디의 대조 상대 — 존재 계정과 같은 BCrypt 계산을 거치게 해 응답 시간으로 계정 존재가 드러나지 않게
+     * 한다(BR-130). 어떤 원문과도 맞지 않도록 버리는 난수로 만든다. 운영 인코더와 같은 BCrypt 기본 강도(10)다.
+     */
+    private static final String UNKNOWN_ACCOUNT_HASH =
+            new BCryptPasswordEncoder().encode(UUID.randomUUID().toString());
 
     private final AccountRepository accountRepository;
     private final AcademyRepository academyRepository;
@@ -93,16 +103,15 @@ public class LoginCommandService {
      * 던지는 {@code BusinessException} 은 롤백 대상에서 제외한다 — 실패 응답을 던지는 것과 그 실패를
      * 기록하는 것은 같은 트랜잭션 안에서 둘 다 커밋돼야 하는, 서로 다른 두 가지 일이다.
      *
-     * <p>{@code ip} 는 {@link RequestContextHolder} 로 얻는다 — 이 저장소에 요청 IP 를 읽는 기존
-     * 관례가 없어(전체 검색 결과 {@code X-Forwarded-For}·{@code getRemoteAddr} 0건) 이 태스크가 새로
-     * 만든다. 프록시 헤더를 우선하고 없으면 원격 주소로 내려간다.
+     * <p>{@code ip} 는 {@link RequestContextHolder} 로 얻는다 — 해석 규칙은 {@link #resolveClientIp()}.
      */
     @Transactional(noRollbackFor = BusinessException.class)
     public LoginResult login(String loginId, String rawPassword) {
         OffsetDateTime now = OffsetDateTime.now(clock);
         String ip = resolveClientIp();
-        Account account = accountRepository.findByLoginId(loginId).orElse(null);
+        Account account = accountRepository.findByLoginIdForUpdate(loginId).orElse(null);
         if (account == null) {
+            passwordEncoder.matches(rawPassword, UNKNOWN_ACCOUNT_HASH);
             auditLogRepository.save(AuditLog.forLoginFail(null, null, loginId, ip, now));
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS,
                     new LoginFailureDetail(Account.REMAINING_AFTER_FIRST_FAILURE));
@@ -182,13 +191,15 @@ public class LoginCommandService {
     }
 
     /**
-     * 요청 발신 IP(감사 {@code ip}, Phase 14 T1 목표 2) — 이 저장소에 기존 관례가 없어(전체 검색 결과
-     * {@code X-Forwarded-For}·{@code getRemoteAddr} 0건) 여기서 처음 정한다.
+     * 요청 발신 IP(감사 {@code ip}, Phase 14 T1 목표 2).
      *
-     * <p>프록시를 거치면 {@code getRemoteAddr()} 이 프록시 자신의 주소를 돌려주므로
-     * {@code X-Forwarded-For} 를 우선한다 — 그 헤더가 콤마로 여러 홉을 나열할 때 <b>첫 값</b>이 원 클라
-     * 이언트다(관례적 해석). 요청 컨텍스트가 없는 자리(배치·테스트 등)에서는 {@code null} 을 돌려
-     * {@code ip} 컬럼이 비게 둔다 — 억지로 값을 채우면 실제로 없었던 발신지를 지어내는 셈이다.
+     * <p><b>{@code X-Real-IP} 를 쓰고 {@code X-Forwarded-For} 는 쓰지 않는다</b>(BR-062). nginx 는 받은
+     * {@code X-Forwarded-For} 뒤에 실제 주소를 덧붙이므로 첫 값은 요청자가 적은 값이라 접속 이력을 위조할 수 있다.
+     * {@code X-Real-IP} 는 nginx 가 {@code $remote_addr} 로 항상 덮어쓰고(`infra/proxy/nginx*.conf`), 운영
+     * 백엔드는 프록시 밖에 포트를 열지 않는다. 프록시 없이 직접 붙은 요청(로컬)은 원격 주소로 내려간다.
+     *
+     * <p>IP 표기가 아니면 {@code null} 이다 — {@code audit_log.ip} 가 {@code inet} 이라 그대로 저장하면 로그인
+     * 자체가 500 이 된다. 요청 컨텍스트가 없는 자리(배치·테스트 등)도 {@code null} 이다.
      */
     private String resolveClientIp() {
         var attributes = RequestContextHolder.getRequestAttributes();
@@ -196,10 +207,12 @@ public class LoginCommandService {
             return null;
         }
         HttpServletRequest request = servletAttributes.getRequest();
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
+        String realIp = request.getHeader("X-Real-IP");
+        String candidate = realIp != null && !realIp.isBlank() ? realIp.trim() : request.getRemoteAddr();
+        try {
+            return InetAddress.ofLiteral(candidate).getHostAddress();
+        } catch (IllegalArgumentException | NullPointerException e) {
+            return null;
         }
-        return request.getRemoteAddr();
     }
 }

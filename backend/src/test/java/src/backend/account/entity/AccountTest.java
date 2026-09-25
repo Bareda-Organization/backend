@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.OffsetDateTime;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -66,5 +68,37 @@ class AccountTest {
                         .isEqualTo(ErrorCode.REAPPLY_NOT_ALLOWED));
 
         assertThat(ErrorCode.REAPPLY_NOT_ALLOWED.getStatus().value()).isEqualTo(409);
+    }
+
+    /**
+     * 해제는 차단 직전 상태로 돌린다(Ruling 328 · API_SPEC §6.12) — 승인 대기 중 차단된 계정이 해제만으로
+     * {@code active} 가 되면 가입 승인을 건너뛴다(BR-004).
+     */
+    @Test
+    void 승인_대기_중_차단된_계정을_해제하면_pending_으로_돌아간다() {
+        Account pending = Account.forSignup(1L, "login6", "hash", "이름", "010-0000-0006", null, Role.STAFF);
+        for (int i = 0; i < Account.MAX_FAILED_ATTEMPTS; i++) {
+            pending.recordLoginFailure(OffsetDateTime.now());
+        }
+        assertThat(pending.getStatus()).isEqualTo(AccountStatus.BLOCKED);
+        assertThat(pending.getStatusBeforeBlock()).isEqualTo(AccountStatus.PENDING);
+
+        pending.unblock(99L, OffsetDateTime.now());
+
+        assertThat(pending.getStatus()).isEqualTo(AccountStatus.PENDING);
+        assertThat(pending.getStatusBeforeBlock()).as("해제 후에는 비운다 — CHECK 짝 조건").isNull();
+    }
+
+    @Test
+    void 거절_상태에서_차단된_계정을_해제하면_rejected_로_돌아간다() {
+        Account rejected = Account.forSignup(1L, "login7", "hash", "이름", "010-0000-0007", null, Role.PARENT);
+        ReflectionTestUtils.setField(rejected, "status", AccountStatus.REJECTED);
+        for (int i = 0; i < Account.MAX_FAILED_ATTEMPTS; i++) {
+            rejected.recordLoginFailure(OffsetDateTime.now());
+        }
+
+        rejected.unblock(99L, OffsetDateTime.now());
+
+        assertThat(rejected.getStatus()).isEqualTo(AccountStatus.REJECTED);
     }
 }

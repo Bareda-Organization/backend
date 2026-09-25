@@ -43,7 +43,7 @@ public class SignupApprovalCommandService {
      */
     @Transactional
     public SignupDecisionResponse decide(AuthUser requester, Long requestId, SignupDecisionPayload payload) {
-        SignupRequest request = signupRequestRepository.findById(requestId)
+        SignupRequest request = signupRequestRepository.findByIdForUpdate(requestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.SIGNUP_REQUEST_NOT_FOUND));
         AcademyScope.assertAccessible(requester, request.getAcademyId());
         assertApprovedByStaff(request);

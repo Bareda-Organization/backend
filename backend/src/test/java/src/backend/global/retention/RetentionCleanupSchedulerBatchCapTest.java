@@ -12,6 +12,8 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.Limit;
@@ -19,6 +21,7 @@ import org.springframework.data.domain.Limit;
 import src.backend.account.repository.RefreshTokenRepository;
 import src.backend.location.repository.RunPositionRepository;
 import src.backend.notification.repository.NotificationLogRepository;
+import src.backend.observability.metrics.SchedulerHealthMetrics;
 import src.backend.student.repository.LinkCodeRepository;
 
 /**
@@ -64,7 +67,9 @@ class RetentionCleanupSchedulerBatchCapTest {
 
         RetentionCleanupScheduler scheduler = new RetentionCleanupScheduler(
                 notificationLogRepository, runPositionRepository, refreshTokenRepository,
-                linkCodeRepository, retentionPolicy, clock);
+                linkCodeRepository, retentionPolicy, clock,
+                new SchedulerHealthMetrics(
+                        new SimpleMeterRegistry()));
 
         scheduler.cleanUp();
 

@@ -45,9 +45,17 @@ public class RunLiveStateResolver {
 
     /** 회차 1건의 위치·유실·현재/다음 정차 판정. {@code run} 은 호출부가 이미 학원 범위로 확인한 것이라는 전제다. */
     public RunLiveState resolve(Run run) {
+        return resolve(run, orderedStopsOf(run));
+    }
+
+    /**
+     * 호출부가 이미 읽은 정차 순서({@code seq} 오름차순)로 판정한다(BR-065) — 관제 화면은 응답을 그리려고 정차 목록을
+     * 먼저 읽으므로, 여기서 확정 노선·정차를 다시 읽으면 회차마다 같은 쿼리가 두 번 나간다.
+     */
+    public RunLiveState resolve(Run run, List<RunStop> orderedStops) {
         RunPositionSnapshot position = runPositionReader.read(run.getId()).orElse(null);
         boolean stale = isStale(position);
-        StopPair stops = currentNextStopIdsOf(run);
+        StopPair stops = currentNextStopIdsOf(orderedStops);
         return new RunLiveState(
                 position == null ? null : position.lat(),
                 position == null ? null : position.lng(),
@@ -70,16 +78,19 @@ public class RunLiveStateResolver {
         return elapsed.compareTo(StudentBusPositionQueryService.STALE_THRESHOLD) >= 0;
     }
 
-    /** 확정 노선이 없으면(아직 미확정) 둘 다 null 이다. */
-    private StopPair currentNextStopIdsOf(Run run) {
+    /** 확정 노선이 없으면(아직 미확정) 빈 목록이다. */
+    private List<RunStop> orderedStopsOf(Run run) {
         Long currentVersionId = confirmedRouteRepository.findById(run.getId())
                 .map(ConfirmedRoute::getCurrentVersionId)
                 .orElse(null);
         if (currentVersionId == null) {
-            return new StopPair(null, null);
+            return List.of();
         }
-        List<RunStop> stops = runStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeq(
-                currentVersionId, run.getAcademyId());
+        return runStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeq(currentVersionId, run.getAcademyId());
+    }
+
+    /** 정차가 없으면(확정 노선 부재) 둘 다 null 이다. */
+    private StopPair currentNextStopIdsOf(List<RunStop> stops) {
         RunStop current = stops.stream()
                 .filter(stop -> stop.getArrivedAt() != null)
                 .max(Comparator.comparingInt(RunStop::getSeq))

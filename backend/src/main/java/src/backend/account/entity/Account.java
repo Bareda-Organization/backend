@@ -90,6 +90,14 @@ public class Account extends BaseTimeEntity {
     @Column(name = "failed_attempts", nullable = false)
     private int failedAttempts;
 
+    /**
+     * 차단 직전 상태(Ruling 328) — {@code blocked} 일 때만 값이 있다(CHECK {@code ck_account_status_before_block}).
+     * 해제가 이 값으로 돌아가야 승인 대기·거절 계정이 해제만으로 {@code active} 가 되지 않는다.
+     */
+    @Convert(converter = AccountStatus.Db.class)
+    @Column(name = "status_before_block", length = 10)
+    private AccountStatus statusBeforeBlock;
+
     @Column(name = "blocked_at")
     private OffsetDateTime blockedAt;
 
@@ -216,6 +224,7 @@ public class Account extends BaseTimeEntity {
     public int recordLoginFailure(OffsetDateTime now) {
         this.failedAttempts++;
         if (this.failedAttempts >= MAX_FAILED_ATTEMPTS) {
+            this.statusBeforeBlock = this.status;
             this.status = AccountStatus.BLOCKED;
             this.blockedAt = now;
             this.blockReason = "로그인 실패 " + MAX_FAILED_ATTEMPTS + "회 누적(C-11)";
@@ -250,7 +259,7 @@ public class Account extends BaseTimeEntity {
      * 메인 관리자가 로그인 차단을 해제한다(AUTH-06 · API_SPEC §6.12) — {@code blocked} 가 아니면
      * {@link BusinessException}({@code ACCOUNT_NOT_BLOCKED}, 409).
      *
-     * <p><b>{@code failedAttempts} 초기화가 이 메서드의 절반이다.</b> 상태만 {@code active} 로 돌리고
+     * <p><b>{@code failedAttempts} 초기화가 이 메서드의 절반이다.</b> 상태만 되돌리고
      * 카운터를 두면 상한을 채운 값이 남아 <b>다음 1회 실패로 즉시 재차단</b>된다. 그런데 해제 직후의
      * 로그인은 성공하고, 성공하는 순간 {@link #recordLoginSuccess} 가 카운터를 0 으로 돌려놓아
      * "해제 후 로그인 200" 만 보는 단언으로는 이 결함을 관측할 수단이 부재하다.
@@ -258,13 +267,18 @@ public class Account extends BaseTimeEntity {
      * <p>{@code blockedAt}·{@code blockReason} 은 지우지 않는다 — 마지막 차단이 언제 왜 걸렸는지는
      * 해제 뒤에도 남아야 하는 이력이고, {@code unblockedAt} 과 짝을 이뤄 한 사건의 시작과 끝이 된다.
      *
+     * <p><b>돌아가는 상태는 {@code active} 고정이 아니라 차단 직전 상태다</b>(Ruling 328). 차단 사유는 로그인
+     * 실패 5회이고 가입 승인과 무관하다 — {@code active} 고정이면 승인 대기 중 차단된 관계자 계정이 해제만으로
+     * 가입 승인을 건너뛰고 학원 전체 개인정보 권한을 얻는다.
+     *
      * @param actorAccountId 해제를 실행한 메인 관리자 계정({@code unblocked_by})
      */
     public void unblock(Long actorAccountId, OffsetDateTime now) {
         if (status != AccountStatus.BLOCKED) {
             throw new BusinessException(ErrorCode.ACCOUNT_NOT_BLOCKED);
         }
-        this.status = AccountStatus.ACTIVE;
+        this.status = statusBeforeBlock;
+        this.statusBeforeBlock = null;
         this.failedAttempts = 0;
         this.unblockedBy = actorAccountId;
         this.unblockedAt = now;

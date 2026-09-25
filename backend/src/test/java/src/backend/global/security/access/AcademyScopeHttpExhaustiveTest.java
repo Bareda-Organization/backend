@@ -109,6 +109,7 @@ class AcademyScopeHttpExhaustiveTest {
     private Long academyBScheduleId;
     private Long academyBNotificationId;
     private Long academyBAccountId;
+    private Long academyBParentAccountId;
     private Long academyBRouteId;
     private Long academyBChangeRequestId;
     private Long academyBSignupRequestId;
@@ -124,6 +125,8 @@ class AcademyScopeHttpExhaustiveTest {
         academyBNotificationId =
                 queryOne("SELECT id FROM notification_log WHERE academy_id = ? ORDER BY id LIMIT 1", ACADEMY_B);
         academyBAccountId = queryOne("SELECT id FROM account WHERE academy_id = ? ORDER BY id LIMIT 1", ACADEMY_B);
+        academyBParentAccountId = queryOne(
+                "SELECT id FROM account WHERE academy_id = ? AND role = 'parent' ORDER BY id LIMIT 1", ACADEMY_B);
 
         assertThat(academyBStudentId).as("B학원 학생 시드가 없으면 대조 재료가 없다").isNotNull();
         assertThat(academyBBusId).as("B학원 차량 시드가 없으면 대조 재료가 없다").isNotNull();
@@ -131,6 +134,7 @@ class AcademyScopeHttpExhaustiveTest {
         assertThat(academyBScheduleId).as("B학원 스케줄 시드가 없으면 대조 재료가 없다").isNotNull();
         assertThat(academyBNotificationId).as("B학원 알림 시드가 없으면 대조 재료가 없다").isNotNull();
         assertThat(academyBAccountId).as("B학원 계정 시드가 없으면 픽스처를 못 심는다").isNotNull();
+        assertThat(academyBParentAccountId).as("B학원 학부모 계정 시드가 없으면 대조 재료가 없다").isNotNull();
 
         academyBRouteId = jdbcTemplate.queryForObject(
                 "INSERT INTO route (academy_id, bus_id, weekday, direction, active) "
@@ -259,6 +263,11 @@ class AcademyScopeHttpExhaustiveTest {
                 "STUDENT_NOT_FOUND"));
         cases.add(c("PATCH /staff/buses/{id} → B학원 차량 404", HttpMethod.PATCH, "/staff/buses/{id}",
                 new Object[] {academyBBusId}, staffA(), EMPTY_BODY, 404, "BUS_NOT_FOUND"));
+        // Ruling 329 — 관리자 경유 비밀번호 초기화(§5.22). 학부모로 고른 이유는 관계자 계정이면 역할 필터로도
+        // 404 가 나와 학원 조건을 검사하지 못해서다(findByIdAndAcademyId).
+        cases.add(c("POST /staff/accounts/{accountId}/password-reset → B학원 학부모 404", HttpMethod.POST,
+                "/staff/accounts/{accountId}/password-reset", new Object[] {academyBParentAccountId}, staffA(), null,
+                404, "ACCOUNT_NOT_FOUND"));
         cases.add(c("PATCH /staff/managers/{id} → B학원 매니저 404", HttpMethod.PATCH, "/staff/managers/{id}",
                 new Object[] {academyBManagerId}, staffA(), EMPTY_BODY, 404, "MANAGER_NOT_FOUND"));
         cases.add(c("DELETE /staff/managers/{id} → B학원 매니저 404", HttpMethod.DELETE, "/staff/managers/{id}",

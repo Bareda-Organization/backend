@@ -17,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import src.backend.account.repository.RefreshTokenRepository;
 import src.backend.location.repository.RunPositionRepository;
 import src.backend.notification.repository.NotificationLogRepository;
+import src.backend.observability.metrics.SchedulerHealthMetrics;
 import src.backend.student.repository.LinkCodeRepository;
 
 /**
@@ -60,6 +61,8 @@ public class RetentionCleanupScheduler {
 
     private final Clock clock;
 
+    private final SchedulerHealthMetrics schedulerHealthMetrics;
+
     /**
      * 보유 기간이 지난 4개 테이블의 행을 지운다.
      *
@@ -97,6 +100,7 @@ public class RetentionCleanupScheduler {
             cleanUpTable(tableName, cutoff, finder, deleter);
         } catch (Exception e) {
             log.warn("보존 정리 실패 — {} (다음 틱에 재시도)", tableName, e);
+            schedulerHealthMetrics.recordItemFailure(getClass());
         }
     }
 

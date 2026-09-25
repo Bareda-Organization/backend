@@ -55,7 +55,7 @@ public class BoardingController {
     @PostMapping("/revert")
     public ApiResponse<RiderRevertResponse> revert(@AuthenticationPrincipal AuthUser authUser,
             @PathVariable Long runId, @PathVariable Long riderId,
-            @RequestBody(required = false) RiderRevertRequest request) {
+            @Valid @RequestBody(required = false) RiderRevertRequest request) {
         RiderRevertRequest body = request != null ? request : new RiderRevertRequest(null);
         return ApiResponse.ok(boardingCommandService.revert(authUser, runId, riderId, body));
     }
