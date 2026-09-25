@@ -32,7 +32,7 @@ public class ChangeRequestDecidedNotificationListener {
     /**
      * {@code dedup_key} 형태 — ERD 의 {@code {event}:{run_id}:{대상}:{판정 시각}} 을 그대로 따른다
      * ({@link ChangeRequestAutoRejectedNotificationListener} 와 같은 근거로 대상 자리는
-     * {@code studentId} 다).
+     * {@code changeRequestId} 다, BR-067).
      */
     private static final String DEDUP_KEY_FORMAT = "change_decided:%d:%d:%s";
 
@@ -62,7 +62,7 @@ public class ChangeRequestDecidedNotificationListener {
                 .compose(new ChangeDecidedSubject(event.approved(), event.rejectReason(), studentName));
         notificationOutbox.append(new NotificationDraft(event.academyId(), requester.getId(), requester.getName(),
                 requester.getRole(), NotificationType.CHANGE_DECIDED, message.title(), message.body(),
-                DEDUP_KEY_FORMAT.formatted(event.runId(), event.studentId(), event.decidedAt()),
+                DEDUP_KEY_FORMAT.formatted(event.runId(), event.changeRequestId(), event.decidedAt()),
                 event.studentId(), studentName, null));
     }
 }

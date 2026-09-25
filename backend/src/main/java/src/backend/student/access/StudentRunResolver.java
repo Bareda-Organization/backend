@@ -139,7 +139,12 @@ public class StudentRunResolver {
                 .orElse(Set.of());
     }
 
-    private boolean belongsTo(Run run, Long studentId) {
+    /**
+     * 이 학생이 그 회차의 대상인가 — 확정 전은 고정 노선, 확정 이후는 명단({@code run_rider})으로 판정한다.
+     * 탑승 의사 OFF 로 남은 {@code absent} 행도 대상이다(①에서 끈 학생의 ② 켜기는 404 가 아니라 403) · 다른
+     * 버스로 옮긴 {@code removed} 행은 대상이 아니다(BR-016).
+     */
+    public boolean belongsTo(Run run, Long studentId) {
         if (run.getStatus() == RunStatus.IDLE) {
             return matchesFixedRoute(run, studentId);
         }

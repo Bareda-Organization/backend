@@ -1,7 +1,8 @@
 package src.backend.notification.command;
 
 import java.time.OffsetDateTime;
-import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -51,24 +52,40 @@ public class DelayNotificationListener {
 
     @EventListener
     public void appendDelayNotice(DelayRequestedEvent event) {
-        NotificationMessage message = delayComposer
-                .compose(new DelaySubject(event.reason(), event.minutes(), event.message()));
-        // 관계자 알림에만 호차를 채운다(목표 5, 정본 범위) — 학부모·학생 알림은 이미 자녀 이름이 있다.
+        DelaySubject subject = new DelaySubject(event.reason(), event.minutes(), event.message());
+        // 관계자 알림에만 호차를 채운다(목표 5, 정본 범위) — 학부모·학생 알림은 자녀 이름이 있다.
         String busNo = busNoOf(event.runId(), event.academyId());
-        append(event, event.staffRecipients(), Role.STAFF, message, busNo);
-        append(event, event.guardianRecipients(), Role.PARENT, message, null);
-        append(event, event.studentRecipients(), Role.STUDENT, message, null);
+        for (DelayNoticeRecipient recipient : event.staffRecipients()) {
+            append(event, recipient, Role.STAFF, delayComposer.compose(subject), null, busNo);
+        }
+        // 대상 자녀는 id 목록으로 한 번씩 읽는다 — 수신자마다 다시 조회하지 않는다(BR-143).
+        Map<Long, Student> byId = studentRepository.findAllByAcademyIdAndIdIn(event.academyId(),
+                event.guardianRecipients().stream().map(DelayNoticeRecipient::dedupTargetId).toList())
+                .stream().collect(Collectors.toMap(Student::getId, student -> student));
+        for (DelayNoticeRecipient recipient : event.guardianRecipients()) {
+            Student student = byId.get(recipient.dedupTargetId());
+            append(event, recipient, Role.PARENT, messageFor(subject, student), student, null);
+        }
+        Map<Long, Student> byAccount = studentRepository.findAllByAcademyIdAndAccountIdIn(event.academyId(),
+                event.studentRecipients().stream().map(DelayNoticeRecipient::accountId).toList())
+                .stream().collect(Collectors.toMap(Student::getAccountId, student -> student));
+        for (DelayNoticeRecipient recipient : event.studentRecipients()) {
+            Student student = byAccount.get(recipient.accountId());
+            append(event, recipient, Role.STUDENT, messageFor(subject, student), student, null);
+        }
     }
 
-    private void append(DelayRequestedEvent event, List<DelayNoticeRecipient> recipients, Role role,
-            NotificationMessage message, String busNo) {
-        for (DelayNoticeRecipient recipient : recipients) {
-            Student student = studentOf(role, recipient);
-            notificationOutbox.append(new NotificationDraft(event.academyId(), recipient.accountId(),
-                    recipient.name(), role, NotificationType.DELAY, message.title(), message.body(),
-                    dedupKey(event.runId(), recipient.dedupTargetId(), event.sentAt()),
-                    student != null ? student.getId() : null, student != null ? student.getName() : null, busNo));
-        }
+    /** 학부모·학생 몫 문구 — 자녀 이름을 싣는다(ATT-03, BR-077). 학생 행을 못 찾으면 관계자 문구와 같다. */
+    private NotificationMessage messageFor(DelaySubject subject, Student student) {
+        return delayComposer.compose(student == null ? subject : subject.forStudent(student.getName()));
+    }
+
+    private void append(DelayRequestedEvent event, DelayNoticeRecipient recipient, Role role,
+            NotificationMessage message, Student student, String busNo) {
+        notificationOutbox.append(new NotificationDraft(event.academyId(), recipient.accountId(),
+                recipient.name(), role, NotificationType.DELAY, message.title(), message.body(),
+                dedupKey(event.runId(), targetOf(role, recipient), event.sentAt()),
+                student != null ? student.getId() : null, student != null ? student.getName() : null, busNo));
     }
 
     /** {@link DelayRequestedEvent} 는 runId 만 나르므로 Run → Bus 를 한 번 더 거친다(목표 5). */
@@ -81,20 +98,18 @@ public class DelayNotificationListener {
     }
 
     /**
-     * 대상 자녀를 역할별로 가른다 — 관계자는 회차 전체(다수 학생)를 알리므로 특정 자녀가 없다
-     * ({@code delay} 관계자 수신은 "회차 전체" 이지 개별 학생이 아니다, API_SPEC §9.7).
-     * 학부모는 {@link DelayNoticeRecipient#dedupTargetId} 가 이미 studentId 다(자바독). 학생은 본인이
-     * 대상이라 {@code accountId} 로 자신의 학생 행을 역조회한다.
+     * 멱등키의 대상 자리 — 역할 접두로 계정 ID·학생 ID 공간을 가른다(BR-007). 학부모는 형제자매를 가르려고
+     * 대상 학생({@link DelayNoticeRecipient#dedupTargetId})까지 붙인다.
      */
-    private Student studentOf(Role role, DelayNoticeRecipient recipient) {
+    private static String targetOf(Role role, DelayNoticeRecipient recipient) {
         return switch (role) {
-            case PARENT -> studentRepository.findById(recipient.dedupTargetId()).orElse(null);
-            case STUDENT -> studentRepository.findByAccountId(recipient.accountId()).orElse(null);
-            default -> null;
+            case PARENT -> "guardian:" + recipient.accountId() + ":" + recipient.dedupTargetId();
+            case STUDENT -> "student:" + recipient.accountId();
+            default -> "staff:" + recipient.accountId();
         };
     }
 
-    private String dedupKey(Long runId, Long targetId, OffsetDateTime sentAt) {
-        return "delay:%d:%d:%s".formatted(runId, targetId, sentAt);
+    private String dedupKey(Long runId, String target, OffsetDateTime sentAt) {
+        return "delay:%d:%s:%s".formatted(runId, target, sentAt);
     }
 }

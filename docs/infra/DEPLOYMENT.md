@@ -446,6 +446,8 @@ sudo docker compose -f /opt/school-bus/docker-compose.prod.yml \
 | `/school-bus/demo/NAVER_DIRECTIONS_KEY` | SecureString | NCP 콘솔에서 Directions API 발급. **키 미보유 시에도 반드시 등록** — 아래 참고 |
 | `/school-bus/demo/ROUTING_PROVIDER` | String | `naver`(NCP 키 없으면 `osrm` 로 무료 대체 — `application.yml` 의 `routing.provider`) |
 
+**prod 프로파일 전용 3개 — FCM 푸시(`Ruling 331`)** — `FCM_PROJECT_ID`(String) · `FCM_CLIENT_EMAIL`(String) · `FCM_PRIVATE_KEY`(SecureString, 서비스 계정 JSON 의 `private_key` — 줄바꿈이 `\n` 문자여도 받는다). Firebase 프로젝트 생성·서비스 계정 키 발급은 사용자 작업. **지금 `deploy.sh` 는 `demo` 만 다루므로 위 9개에 넣지 않았다** — `prod` 로 전환할 때 `deploy.sh`·이 표에 함께 추가한다. `prod` 에서 셋 중 하나라도 비면, 또는 로그 전용 발송으로 뜨면 기동이 실패한다(조용히 미발송으로 운영되는 상태 차단). `demo` 는 로그 전용 발송 그대로.
+
 **⚠️ NCP 키가 없어도 위 두 항목은 등록해야 한다.** `deploy.sh` 의 `get_param` 은 9개 전부를 필수로 보고, 파라미터가 없거나 값이 비면 **1단계에서 배포를 중단**한다(`ROUTING_PROVIDER=osrm` 만 등록하고 두 키를 비워두면 배포 자체가 진행되지 않는다). `osrm` 폴백을 쓰려면 두 항목에 `unused` 같은 임의 문자열을 넣어 등록하고 `ROUTING_PROVIDER` 를 `osrm` 으로 둔다 — `osrm` 일 때 앱은 이 두 값을 읽지 않는다. "필수 9개" 라는 단순한 계약을 유지하려는 의도적 설계(선택 항목을 섞으면 어떤 값이 비어도 되는지가 스크립트·문서·compose 세 곳에서 갈린다).
 
 ```bash

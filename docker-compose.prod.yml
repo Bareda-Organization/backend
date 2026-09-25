@@ -105,6 +105,10 @@ services:
       NAVER_DIRECTIONS_KEY_ID: ${NAVER_DIRECTIONS_KEY_ID:-}
       NAVER_DIRECTIONS_KEY: ${NAVER_DIRECTIONS_KEY:-}
       ROUTING_PROVIDER: ${ROUTING_PROVIDER:-naver}
+      # prod 프로파일 전용 — FCM 서비스 계정 자격 증명(Ruling 331). demo 는 읽지 않는다(로그 전용 발송).
+      FCM_PROJECT_ID: ${FCM_PROJECT_ID:-}
+      FCM_CLIENT_EMAIL: ${FCM_CLIENT_EMAIL:-}
+      FCM_PRIVATE_KEY: ${FCM_PRIVATE_KEY:-}
       # 컨테이너에 준 메모리 안에서만 힙을 잡게 한다 — 서버 전체 메모리 기준으로 잡으면 함께 죽는다.
       JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -XX:InitialRAMPercentage=40"
     expose:

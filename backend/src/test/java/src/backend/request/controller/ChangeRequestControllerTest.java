@@ -268,6 +268,34 @@ class ChangeRequestControllerTest {
         assertThat(notifiedStudentName).as("student_name 이 채워진다").isEqualTo("학생1");
     }
 
+    /**
+     * BR-084 — 같은 학원이라도 그 자녀가 대상이 아닌 회차(다른 차량의 노선)는 존재를 숨겨 {@code 404
+     * RUN_NOT_FOUND} 다(§1.11). 대상 판정이 없으면 대상 밖 학생의 요청이 관계자 승인 대기에 올라간다.
+     */
+    @Test
+    @DisplayName("BR-084 — 그 자녀가 대상이 아닌 같은 학원 회차를 지목하면 404 RUN_NOT_FOUND 이고 행이 생기지 않는다")
+    void 대상이_아닌_회차를_지목하면_404이다() throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+        long busId = fixtures().bus(academyId);
+        long otherBusId = fixtures().bus(academyId);
+        long stopId = fixtures().stop(academyId, "37.560000", "126.970000");
+        fixtures().route(academyId, busId, WEEKDAY, Direction.TO_ACADEMY, stopId);
+
+        long studentId = fixtures().student(academyId, "학생1");
+        fixtures().verifiedAddress(studentId, stopId, WEEKDAY, Direction.TO_ACADEMY, "37.560000", "126.970000");
+        long accountId = changeRequestFixtures().parentLinkedTo(academyId, studentId);
+
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusHours(3);
+        long otherRunId = fixtures().idleRun(academyId, otherBusId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+
+        신청_요청(accountId, academyId, studentId, "cancel", otherRunId, null, null)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("RUN_NOT_FOUND"));
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM change_request WHERE run_id = ?",
+                Integer.class, otherRunId)).isZero();
+    }
+
     // ── 목표 9 — ③구간은 타입을 가리지 않는다 ──────────────────────────────────────────
 
     @Test
@@ -286,6 +314,9 @@ class ChangeRequestControllerTest {
         long runId = fixtures().idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
         jdbcTemplate.update("UPDATE run SET status = 'moving' WHERE id = ?", runId);
+        // 확정 이후 회차의 대상 판정은 명단으로 한다(BR-084) — 확정 배치가 만들었을 명단 행을 둔다.
+        jdbcTemplate.update("INSERT INTO run_rider (run_id, student_id, stop_id, status, created_at, updated_at) "
+                + "VALUES (?, ?, ?, 'waiting', now(), now())", runId, studentId, stopId);
         // JDBC 로 상태를 직접 바꾼 뒤 같은 트랜잭션에서 JPA 로 다시 읽으면, 이미 이 트랜잭션이
         // 관리 중인 Run 인스턴스를 1차 캐시가 그대로 돌려줘(신선한 SELECT 결과를 무시) status 가
         // 여전히 idle 로 보인다. clear() 로 영속성 컨텍스트를 비워 다음 조회가 DB 를 다시 읽게 한다.
@@ -312,6 +343,9 @@ class ChangeRequestControllerTest {
         long runId = fixtures().idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
         jdbcTemplate.update("UPDATE run SET status = 'moving' WHERE id = ?", runId);
+        // 확정 이후 회차의 대상 판정은 명단으로 한다(BR-084) — 확정 배치가 만들었을 명단 행을 둔다.
+        jdbcTemplate.update("INSERT INTO run_rider (run_id, student_id, stop_id, status, created_at, updated_at) "
+                + "VALUES (?, ?, ?, 'waiting', now(), now())", runId, studentId, stopId);
         entityManager.clear(); // 위 테스트와 같은 이유 — 1차 캐시의 idle 스냅샷을 비운다.
 
         // ③구간 판정은 relocate 상세(주소 검증)를 보기 전에 이뤄진다 — new_address 없이도 막혀야 한다.

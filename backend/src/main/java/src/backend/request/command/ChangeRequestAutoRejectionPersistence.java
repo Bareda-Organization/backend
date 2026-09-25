@@ -20,9 +20,10 @@ import src.backend.request.repository.ChangeRequestRepository;
  * {@code moving} 종결 서비스가 이 클래스의 {@link #autoRejectOne} 만 부른다.
  *
  * <p>{@code ChangeRequestAutoRejectionScheduler}·{@code ChangeRequestAutoRejectionService} 와
- * 다른 빈으로 둔 이유는 두 가지다. 첫째, 호출부가 한 틱·한 회차 안에서 여러 건을 순회할 때 항목마다
+ * 다른 빈으로 둔 이유는 두 가지다. 첫째, 폴링이 한 틱 안에서 여러 건을 순회할 때 항목마다
  * <b>독립된 트랜잭션</b>이어야 하나가 실패해도 나머지가 함께 롤백되지 않는다 — 같은 빈 안에서
- * {@code this} 를 호출하면 Spring AOP 프록시를 우회해 트랜잭션이 새로 열리지 않는다. 둘째, 이
+ * {@code this} 를 호출하면 Spring AOP 프록시를 우회해 트랜잭션이 새로 열리지 않는다. 운행 시작 경로는
+ * 바깥 트랜잭션에 합류하므로 이 격리가 없다(운행 시작과 원자적, {@code ChangeRequestAutoRejectionService}). 둘째, 이
  * 클래스만 저장소·이벤트 발행에 의존하게 좁혀 두 호출부가 같은 부수효과를 공유한다는 것을 코드로
  * 보증한다({@code RunConfirmationPersistence} 와 같은 근거).
  */

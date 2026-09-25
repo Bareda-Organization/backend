@@ -1,8 +1,8 @@
 package src.backend.request.command;
-
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,12 +11,15 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.request.entity.ChangeRequestStatus;
 import src.backend.request.repository.BoardingIntentRepository;
+import src.backend.request.entity.ChangeRequest;
 import src.backend.request.repository.ChangeRequestRepository;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
@@ -60,6 +63,9 @@ class ChangeRequestAutoRejectionServiceTest {
     private ChangeRequestRepository changeRequestRepository;
 
     @Autowired
+    private PlatformTransactionManager transactionManager;
+
+    @Autowired
     private ConfirmedRouteRepository confirmedRouteRepository;
 
     @Autowired
@@ -92,6 +98,34 @@ class ChangeRequestAutoRejectionServiceTest {
         jdbcTemplate.update("DELETE FROM account WHERE academy_id IN " + academyIds);
         jdbcTemplate.update("DELETE FROM bus WHERE academy_id IN " + academyIds);
         jdbcTemplate.update("DELETE FROM academy WHERE name = '" + ChangeRequestAutoRejectFixtures.ACADEMY_NAME + "'");
+    }
+
+    /**
+     * BR-067 — 운행 시작은 {@code terminateForRun} 을 자기 트랜잭션 안에서 부른다. 같은 학생의 대기 건이 둘
+     * 남아 있으면(한도 경합 수정 전의 데이터) 두 건의 자동 거절 알림이 같은 멱등키를 만들어 두 번째가
+     * 실패하고, 건별 {@code try-catch} 는 합류한 트랜잭션을 되살리지 못해 운행 시작 전체가
+     * {@code UnexpectedRollbackException} 으로 롤백됐다. 운행 시작과 같은 형태(바깥 트랜잭션)로 부른다.
+     */
+    @Test
+    @DisplayName("BR-067 — 같은 학생의 대기 건이 둘이어도 운행 시작 트랜잭션 안의 자동 거절이 둘 다 종결하고 커밋된다")
+    void 운행_시작_트랜잭션_안에서_같은_학생의_대기_두_건도_함께_종결된다() {
+        OffsetDateTime now = OffsetDateTime.now();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long studentId = fixtures.student(academyId, "학생3");
+        long parentId = fixtures.parentAccount(academyId, "학부모3");
+        long runId = fixtures.run(academyId, busId, now.plusMinutes(5));
+        long first = fixtures.pendingChangeRequest(academyId, runId, studentId, parentId, now.minusMinutes(10),
+                now.plusMinutes(5));
+        long second = fixtures.pendingChangeRequest(academyId, runId, studentId, parentId, now.minusMinutes(9),
+                now.plusMinutes(5));
+
+        new TransactionTemplate(transactionManager)
+                .executeWithoutResult(tx -> service.terminateForRun(academyId, runId, now));
+
+        assertThat(changeRequestRepository.findAllById(List.of(first, second)))
+                .extracting(ChangeRequest::getStatus)
+                .containsOnly(ChangeRequestStatus.AUTO_REJECTED);
     }
 
     @Test

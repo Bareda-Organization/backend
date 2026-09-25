@@ -160,6 +160,30 @@ class StaffNotificationControllerTest {
                 .andExpect(jsonPath("$.data.items[0].acked").value(false));
     }
 
+    /**
+     * BR-071 — {@code acked=false} 는 "확인 안 한 중요 통지" 를 찾는 필터다. 수신 확인 대상 밖 종류(승하차·
+     * 운행 시작 등)는 영원히 {@code acked=false} 라 섞이면 배지({@code unacked_count}, 중요 3종만 셈)와
+     * 목록이 어긋난다(NTF-10 — 쓰는 쪽과 세는 쪽이 같은 집합).
+     */
+    @Test
+    @DisplayName("BR-071 — acked=false 목록은 수신 확인 대상 종류만 담아 unacked_count 와 같은 집합이다")
+    void acked_false_목록은_배지와_같은_집합이다() throws Exception {
+        StaffNotificationFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long staffAccountId = fixtures.staffAccount(academyId, "관계자");
+        long importantId = fixtures.sentNotification(academyId, NotificationType.NO_SHOW, "학생1", Role.PARENT,
+                "미승차", "01호차", now(), now());
+        fixtures.sentNotification(academyId, NotificationType.BOARDING, "학생2", Role.PARENT, "승차", "01호차", now(),
+                now());
+
+        mockMvc.perform(get("/api/v1/staff/notifications").param("acked", "false")
+                .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.unacked_count").value(1))
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].notification_id").value(importantId));
+    }
+
     // ── goal 10 — 푸시 off 로 차단된 건도 전수 조회에 남는다 ─────────────────
 
     @Test

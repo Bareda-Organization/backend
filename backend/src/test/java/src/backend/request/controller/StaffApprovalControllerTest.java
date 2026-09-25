@@ -2,6 +2,7 @@ package src.backend.request.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -104,7 +105,7 @@ class StaffApprovalControllerTest {
     @Autowired
     private ChangeRequestRepository changeRequestRepository;
 
-    @Autowired
+    @MockitoSpyBean
     private RunRiderRepository runRiderRepository;
 
     @MockitoSpyBean
@@ -136,6 +137,21 @@ class StaffApprovalControllerTest {
                 .andExpect(jsonPath("$.data.pending_count").value(3));
 
         verify(pipeline, times(0)).compute(any());
+    }
+
+    /**
+     * BR-075 — 목록은 같은 회차의 항목이 여럿이어도 그 회차 명단을 한 번만 읽는다. 항목마다 회차·명단 전량·
+     * 버스·학생을 다시 읽으면 목록 한 번에 조회가 항목 수에 비례해 는다.
+     */
+    @Test
+    void 목록은_같은_회차의_명단을_한_번만_읽는다() throws Exception {
+        long academyId = 확정된_회차와_승인_대기_3건을_만든다();
+        org.mockito.Mockito.clearInvocations(runRiderRepository);
+
+        목록_조회(관계자_토큰(academyId), null).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items", org.hamcrest.Matchers.hasSize(3)));
+
+        verify(runRiderRepository, times(1)).findAllByRunIdAndAcademyId(anyLong(), anyLong());
     }
 
     /** 대기 건이 없으면 {@code items} 는 빈 배열이고 {@code pending_count} 는 0이다. */
@@ -249,6 +265,33 @@ class StaffApprovalControllerTest {
         목록_조회(관계자_토큰(academyId), "approved").andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items", org.hamcrest.Matchers.hasSize(1)))
                 .andExpect(jsonPath("$.data.items[0].will_remove_stop").value(false));
+    }
+
+    /**
+     * BR-076 — 승인 목록은 "30분 안쪽 변경 승인" 목록이다(§5.5). ①구간에서 학부모가 스스로 즉시 반영한 신청은
+     * 승인을 거치지 않았고 마감({@code deadline_at} ●)도 없어 {@code status=approved} 에 나오면 안 된다.
+     */
+    @Test
+    void 승인_목록에는_즉시반영_구간_신청이_나오지_않는다() throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+        long busId = fixtures().bus(academyId);
+        long firstStop = fixtures().stop(academyId, "37.560000", "126.970000");
+        fixtures().route(academyId, busId, WEEKDAY, Direction.TO_ACADEMY, firstStop);
+        long 학생1 = fixtures().student(academyId, "학생1");
+        fixtures().verifiedAddress(학생1, firstStop, WEEKDAY, Direction.TO_ACADEMY, "37.560000", "126.970000");
+        OffsetDateTime departTime = SERVICE_DATE.atTime(8, 0).atOffset(java.time.ZoneOffset.of("+09:00"));
+        long runId = fixtures().idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        confirmationService.confirmOne(runId);
+
+        ChangeRequest 즉시반영건 = ChangeRequest.forRequest(academyId, runId, 학생1,
+                ChangeRequestSource.CHANGE_REQUEST, ChangeRequestType.CANCEL, (short) 1, 학생1,
+                OffsetDateTime.now());
+        즉시반영건.approve(null, OffsetDateTime.now(), null, null);
+        changeRequestRepository.save(즉시반영건);
+
+        목록_조회(관계자_토큰(academyId), "approved").andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items", org.hamcrest.Matchers.hasSize(0)));
     }
 
     // ── 목표 12 — 상세는 정확히 1회 실행한다 ──────────────────────────────
@@ -520,15 +563,15 @@ class StaffApprovalControllerTest {
 
     // ── 격리·404 ──────────────────────────────────────────────────────────
 
-    /** 다른 학원 관계자가 남의 승인 건을 상세 조회하면 {@code 403 ACADEMY_SCOPE_VIOLATION}. */
+    /** 다른 학원 관계자가 남의 승인 건을 상세 조회하면 존재를 숨겨 {@code 404 APPROVAL_NOT_FOUND}(§1.5 · BR-133). */
     @Test
-    void 다른_학원의_승인_건을_상세_조회하면_403_이다() throws Exception {
+    void 다른_학원의_승인_건을_상세_조회하면_404_이다() throws Exception {
         시나리오 s = 확정된_회차와_승인_대기_건을_만든다();
         long 남의학원 = fixtures().academyWithCoordinates();
 
         상세_조회(관계자_토큰(남의학원), s.approvalId)
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error.code").value("ACADEMY_SCOPE_VIOLATION"));
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("APPROVAL_NOT_FOUND"));
 
         verify(pipeline, times(0)).compute(any());
     }

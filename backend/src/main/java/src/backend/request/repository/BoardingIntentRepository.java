@@ -1,9 +1,11 @@
 package src.backend.request.repository;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -45,6 +47,30 @@ public interface BoardingIntentRepository extends JpaRepository<BoardingIntent, 
      * 요청이 아니라 배치 프로세스 스스로가 만든 값이라 호출부에 별도 학원 확인 지점이 없고, 이 조회
      * 자체도 그 값을 그대로 받아 쓸 뿐이다.
      */
+    /**
+     * (회차, 학생) 행이 없을 때만 기본값(탑승 ON·한도 미사용)으로 만든다 — {@code ON CONFLICT DO NOTHING}
+     * 이라 두 요청이 동시에 처음 만들어도 뒤 요청이 {@code uk_boarding_intent_run_student} 위반으로
+     * 실패하지 않고 앞 요청의 커밋을 기다렸다가 그 행을 쓴다(BR-027).
+     */
+    @AcademyScopeExempt(reason = "runId 는 호출부가 RunRepository.findByIdAndAcademyId 로 이미 학원 범위에 좁혀 얻은 "
+            + "회차의 식별자다(findByRunIdAndStudentId 와 같은 전제). boarding_intent 는 academy_id 컬럼이 부재하다")
+    @Modifying
+    @Query(value = "INSERT INTO boarding_intent (run_id, student_id, riding, change_used_count, created_at) "
+            + "VALUES (:runId, :studentId, true, 0, :createdAt) ON CONFLICT (run_id, student_id) DO NOTHING",
+            nativeQuery = true)
+    int insertIfAbsent(@Param("runId") Long runId, @Param("studentId") Long studentId,
+            @Param("createdAt") OffsetDateTime createdAt);
+
+    /**
+     * ②구간 변경 한도 1회를 조건부 UPDATE 로 소비한다(C-04 회차당 1회) — 읽고-판단하고-쓰면 동시 요청 두
+     * 건이 모두 {@code change_used_count=0} 을 읽고 통과한다(BR-027). 0 이면 이미 소진됐다.
+     */
+    @AcademyScopeExempt(reason = "id 는 호출부가 학원 범위에 좁혀 얻은 회차의 boarding_intent 행에서 읽은 값이다 — "
+            + "boarding_intent 는 academy_id 컬럼이 부재하다")
+    @Modifying(flushAutomatically = true)
+    @Query("UPDATE BoardingIntent b SET b.changeUsedCount = 1 WHERE b.id = :id AND b.changeUsedCount = 0")
+    int claimChangeQuota(@Param("id") Long id);
+
     @AcademyScopeExempt(reason = "runId 는 확정 배치 스케줄러가 내부적으로 순회하는 식별자다 — 외부 요청이 닿는 "
             + "경로가 아니라 사용자 학원 범위를 확인할 지점 자체가 없다(RunRepository 의 배치 전용 조회와 같은 근거). "
             + "boarding_intent 는 academy_id 컬럼이 부재해 조인 없이는 재확인할 수도 없다")

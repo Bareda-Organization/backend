@@ -1,8 +1,6 @@
 package src.backend.notification.command;
 
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -42,8 +40,12 @@ import src.backend.student.repository.StudentRepository;
 @RequiredArgsConstructor
 public class RunStartedNotificationListener {
 
-    /** {@code dedup_key} 형태 — ERD 의 {@code {event}:{run_id}:{대상}:{판정 시각}}. 대상은 accountId. */
-    private static final String DEDUP_KEY_FORMAT = "run_started:%d:%d:%s";
+    /**
+     * {@code dedup_key} 형태 — ERD 의 {@code {event}:{run_id}:{대상}:{판정 시각}}. 대상 자리에 역할 접두
+     * ({@code staff:계정} · {@code guardian:계정:학생} · {@code student:계정})를 붙인다 — 계정 ID 와 학생
+     * ID 는 서로 독립인 시퀀스라, 접두 없이 한 칸에 섞으면 값이 겹칠 때 운행 시작 전체가 롤백된다(BR-007).
+     */
+    private static final String DEDUP_KEY_FORMAT = "run_started:%d:%s:%s";
 
     private final AcademyStaffRepository academyStaffRepository;
 
@@ -87,7 +89,7 @@ public class RunStartedNotificationListener {
         for (AcademyStaffAccountView recipient : staff) {
             notificationOutbox.append(new NotificationDraft(event.academyId(), recipient.accountId(),
                     recipient.name(), Role.STAFF, NotificationType.RUN_STARTED, message.title(), message.body(),
-                    DEDUP_KEY_FORMAT.formatted(event.runId(), recipient.accountId(), event.startedAt()),
+                    DEDUP_KEY_FORMAT.formatted(event.runId(), "staff:" + recipient.accountId(), event.startedAt()),
                     null, null, busNo));
         }
     }
@@ -112,29 +114,20 @@ public class RunStartedNotificationListener {
     }
 
     /**
-     * 학부모 — 학생 1명에 보호자가 여럿이어도 <b>한 명(첫 보호자)</b> 에게만 보낸다.
+     * 학부모 — 연결된 보호자 전원(BR-073, §9.7 수신자 "학부모" · Ruling 326 한 학생에 보호자 여럿).
      *
-     * <p>{@code findGuardianAccountsByAcademyId} 가 정렬을 고정해 두므로, 그 순서에서 학생당
-     * 처음 나오는 행만 취하는 것으로 "첫 보호자"가 결정론적이 된다.
-     *
-     * <p>{@code dedup_key} 의 대상 자리에 {@code accountId} 가 아니라 <b>studentId</b> 를 쓴다 —
-     * {@code dedup_key} 는 테이블 전체에서 UNIQUE(ERD)라, 같은 회차에 형제자매가 함께 타 같은
-     * 보호자 계정으로 귀결되면 accountId 는 두 학생에서 같아진다. studentId 는 이 반복에서 항상
-     * 서로 달라 그 충돌이 나지 않는다.
+     * <p>{@code dedup_key} 의 대상 자리에 보호자 계정과 <b>studentId</b> 를 함께 쓴다 — 같은 회차에
+     * 형제자매가 함께 타 같은 보호자 계정으로 귀결되면 계정만으로는 두 학생에서 같아진다.
      */
     private void appendToGuardians(RunStartedEvent event, NotificationMessage message, List<Long> studentIds) {
         List<GuardianAccountRecipient> guardians = guardianStudentRepository
                 .findGuardianAccountsByAcademyId(event.academyId(), studentIds);
-        Map<Long, GuardianAccountRecipient> firstGuardianPerStudent = new LinkedHashMap<>();
         for (GuardianAccountRecipient guardian : guardians) {
-            firstGuardianPerStudent.putIfAbsent(guardian.getStudentId(), guardian);
-        }
-        for (Map.Entry<Long, GuardianAccountRecipient> entry : firstGuardianPerStudent.entrySet()) {
-            GuardianAccountRecipient guardian = entry.getValue();
             notificationOutbox.append(new NotificationDraft(event.academyId(), guardian.getAccountId(),
                     guardian.getName(), Role.PARENT, NotificationType.RUN_STARTED, message.title(), message.body(),
-                    DEDUP_KEY_FORMAT.formatted(event.runId(), entry.getKey(), event.startedAt()),
-                    entry.getKey(), guardian.getStudentName(), null));
+                    DEDUP_KEY_FORMAT.formatted(event.runId(),
+                            "guardian:" + guardian.getAccountId() + ":" + guardian.getStudentId(), event.startedAt()),
+                    guardian.getStudentId(), guardian.getStudentName(), null));
         }
     }
 
@@ -145,7 +138,7 @@ public class RunStartedNotificationListener {
         for (Student student : students) {
             notificationOutbox.append(new NotificationDraft(event.academyId(), student.getAccountId(),
                     student.getName(), Role.STUDENT, NotificationType.RUN_STARTED, message.title(), message.body(),
-                    DEDUP_KEY_FORMAT.formatted(event.runId(), student.getAccountId(), event.startedAt()),
+                    DEDUP_KEY_FORMAT.formatted(event.runId(), "student:" + student.getAccountId(), event.startedAt()),
                     student.getId(), student.getName(), null));
         }
     }

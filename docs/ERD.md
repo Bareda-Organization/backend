@@ -794,12 +794,12 @@ erDiagram
 | `bus_no` | varchar(20) | | 호차 |
 | `type` | varchar(30) | NN | API_SPEC §9.7 알림 종류. CHECK |
 | `title` · `body` | varchar(200) · text | NN | 발송 문구 |
-| `popup` | boolean | NN default false | 팝업 노출 대상 여부 |
+| `popup` | boolean | NN default false | 팝업 노출 대상 여부 — 비상 2종(`emergency`·`emergency_canceled`)만 `true`(NTF-09, BR-070) |
 | `push_state` 🆕 | varchar(10) | NN default `pending` | `pending`(발송 대기) · `sent`(발송 완료) · `failed`(재시도 상한 초과) · `skipped`(수신 설정 off — 발송 대상 밖). CHECK. **off 는 푸시만 차단하고 이 레코드는 항상 생성** |
 | `push_attempts` 🆕 | integer | NN default 0 | 발송 시도 횟수. 상한 초과 시 `failed` 로 전이하고 경보 |
 | `last_attempt_at` 🆕 | timestamptz | | 마지막 시도 시각. 재시도 간격(지수 백오프) 판정 |
 | `fail_reason` 🆕 | varchar(200) | | 마지막 실패 사유 |
-| `dedup_key` 🆕 | varchar(120) | NN UK | 발송 멱등키. `{event}:{run_id}:{대상}:{판정 시각}` 형태. 이벤트 재시도·중복 소비로 같은 알림이 두 번 나가는 것을 DB 가 차단 (ARCHITECTURE §11) |
+| `dedup_key` 🆕 | varchar(120) | NN UK | 발송 멱등키. `{event}:{run_id}:{대상}:{판정 시각}` 형태. **대상 자리는 역할 접두로 식별자 공간을 가른다**(`staff:계정` · `guardian:계정:학생` · `student:계정` — 계정 ID 와 학생 ID 는 독립 시퀀스라 접두 없이 섞으면 값이 겹칠 때 같은 키가 된다, BR-007). 이벤트 재시도·중복 소비로 같은 알림이 두 번 나가는 것을 DB 가 차단 (ARCHITECTURE §11) |
 | `created_at` | timestamptz | NN default now() | **레코드 생성 = 아웃박스 적재 시각.** 상태 변경과 같은 트랜잭션에서 기록 |
 | `sent_at` | timestamptz | | 발송 완료 시각. `push_state='sent'` 일 때만 |
 | `read_at` | timestamptz | | 읽음 시각 |
@@ -1054,8 +1054,8 @@ erDiagram
 | `device_token(account_id) WHERE revoked_at IS NULL` | 발송 시 계정의 **유효 토큰 전량** 조회. 부분 인덱스라 해지분은 색인 대상 밖 |
 | `notification_log(push_state, created_at) WHERE push_state = 'pending'` | **아웃박스 워커가 미발송분을 폴링** — 커밋 직후 발송에 실패했거나 앱이 죽어 누락된 건을 회수. 부분 인덱스라 발송 완료분은 색인 대상 밖 (ARCHITECTURE §11) |
 | `notification_log(recipient_account_id, created_at desc)` | 알림 목록 **14일** + 미읽음 배지 (NTF-08) |
-| `notification_log(academy_id, sent_at desc)` | 관계자 알림 로그 전수 조회 (NTF-11 · A-13) |
-| `notification_log(academy_id, acked)` partial `WHERE acked = false` | 미확인 배지 집계 (NTF-10) |
+| `notification_log(academy_id, COALESCE(sent_at, created_at) desc)` | 관계자 알림 로그 전수 조회 (NTF-11 · A-13) — 발송 전·건너뛴 행도 담으려 조회가 이 식으로 정렬·기간 필터하므로 식 인덱스(BR-090) |
+| `notification_log(academy_id)` partial `WHERE acked = false AND type IN ('delay','no_show','route_changed')` | 미확인 배지 집계 (NTF-10) — 수신 확인 대상 3종만. 그 밖 종류는 영원히 `acked=false` 라 조건에 넣지 않으면 전 행이 색인된다(BR-090) |
 | `run_position(run_id, recorded_at desc)` | 실시간 위치 — 회차의 최신 좌표 1건 조회가 지배적 (LOC-02) |
 | `assignment(manager_id, run_id)` | 매니저의 배치 회차 판정 — API 접근 범위 검사 경로 (API_SPEC §1.5) |
 | `assignment(run_id)` | 대시보드의 배치 인력·확인 응답 표시 (MON-05). UK `(run_id, role)` 가 겸함 — 별도 인덱스 부재(BR-142) |

@@ -112,7 +112,7 @@ public class NotificationLog {
         this.type = type;
         this.title = title;
         this.body = body;
-        this.popup = false;
+        this.popup = NotificationType.EMERGENCY_TYPES.contains(type);
         this.pushState = PushState.PENDING;
         this.pushAttempts = 0;
         this.dedupKey = dedupKey;

@@ -15,10 +15,14 @@ public class DelayComposer implements NotificationComposer<DelaySubject> {
 
     private static final String TITLE = "지연 알림";
 
+    /** 학부모·학생 몫 문구 앞머리 — 자녀 이름 필수(ATT-03, BR-077). */
+    private static final String STUDENT_PREFIX = "%s 학생이 탄 버스 — ";
+
     @Override
     public NotificationMessage compose(DelaySubject subject) {
         String body = subject.message() != null ? subject.message() : autoBody(subject);
-        return new NotificationMessage(TITLE, body);
+        return new NotificationMessage(TITLE,
+                subject.studentName() == null ? body : STUDENT_PREFIX.formatted(subject.studentName()) + body);
     }
 
     private String autoBody(DelaySubject subject) {

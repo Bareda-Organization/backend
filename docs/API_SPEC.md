@@ -499,7 +499,8 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | 갱신 | 같은 `(account_id, device_id)` 재등록은 토큰을 덮어씀 — 행이 늘지 않음 |
 | 다기기 | 한 계정이 여러 기기 보유 가능. 발송은 **유효한 전 토큰**에 |
 | 해지 | 로그아웃(§2.7) 시 해당 기기 토큰 자동 해지. `DELETE` 는 수동 해지 |
-| 무효 토큰 | 발송 실패가 `NotRegistered` 계열이면 서버가 해당 행을 정리 |
+| 무효 토큰 | 발송 실패가 `NotRegistered` 계열이면 서버가 해당 행을 정리 — FCM HTTP v1 의 `404 UNREGISTERED` · `400 INVALID_ARGUMENT` 면 그 행의 `revoked_at` 을 채운다(Ruling 331). 그 밖의 실패(429·5xx·네트워크)는 행을 두고 아웃박스 재시도 |
+| 채널 | FCM HTTP v1 한 채널(android·ios·web, Ruling 331). 등록된 유효 단말이 없는 계정은 푸시를 보내지 않고 알림 목록(§3.12)에만 남는다 |
 
 **에러** — `422 VALIDATION_FAILED`
 
@@ -632,12 +633,12 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | ① 출발 30분 전까지 | 즉시 반영 — `absent` 기록 · 명단 제외 · **노선 재최적화**. 학부모 알림 부재, 관계자 통지 |
 
 ⚠ **① 의 "노선 재최적화" 는 호출이 아니라 결과다 (2026-08-30, Ruling 198).** ①구간(출발 30분 전까지) 동안 회차는 `idle` 이고 `confirmed_route` 행이 **부재**해 재최적화할 대상이 없다 — 확정 시각이 곧 ①/② 경계이기 때문이다(`run.confirm_at` · `ck_run_confirm_at` CHECK · ARCHITECTURE §9). 따라서 ①구간 토글은 **`boarding_intent` 만 갱신**하고, 반영은 뒤이어 도는 확정 배치(RTE-02)가 그 값을 읽어 산출하는 것으로 이뤄진다(ARCHITECTURE §8.1 입력 3축). **예외** — 회차 임시 추가(API_SPEC §5.10)로 출발 30분 이내에 만들어진 회차는 생성 시점에 `confirm_at` 이 이미 지나 곧바로 확정되므로 **② 구간부터 시작**한다.
-| ② 30분 안쪽 ~ 출발 전 | 승인 대기로 접수 + 관계자 푸시(REQ-05). 승인 시 **재최적화·재배포**(§5.6). **회차당 1회** — 단위는 회차(`Run`)이며 등원·하원이 각각 1회씩. 소진 후 `403 CHANGE_LIMIT_REACHED` |
+| ② 30분 안쪽 ~ 출발 전 | 승인 대기로 접수 + 관계자 푸시(REQ-05). 승인 시 **재최적화·재배포**(§5.6). **회차당 1회** — 단위는 회차(`Run`)이며 등원·하원이 각각 1회씩. 소진 후 `403 CHANGE_LIMIT_REACHED`. **`riding=false`(끄기)만 접수** — `riding=true`(켜기)는 `403 CHANGE_WINDOW_CLOSED`(30분 안쪽은 추가 불가 · 취소만 승인 경로, PRD "오늘만 다른 승하차지" · BR-029). 현재 탑승 의사와 같은 값은 한도·요청 없이 `applied`(무변경) |
 | ③ 운행 시작 후 | `riding=false` 만 **승인 없이 즉시 수용** — `applied_no_reroute`. **대상은 아직 타지 않은(`waiting`) 학생만** — `boarded`·`alighted`·`no_show` 면 `403 CHANGE_WINDOW_CLOSED`(`Ruling 334`). `absent` 기록 + 해당 승하차지를 **경유하되 정차하지 않음**(`skipped`) + 기사·동승자 전달(WS `rider_changed` · `route_changed` 알림, `Ruling 334`). **노선·순번 불변, 재최적화 부재** (C-04 ③ · C-05). `riding=true`(되돌리기)는 `403 CHANGE_WINDOW_CLOSED` |
 
 서버 처리 실패 시 기존 상태 복구 + **횟수 미소진** (C-10).
 
-**에러** — `403 CHANGE_LIMIT_REACHED` · `403 CHANGE_WINDOW_CLOSED`(③ 구간의 `riding=true` 되돌리기 · ③ 구간 대상 학생이 `waiting` 이 아님) · `404 RUN_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163) · `404 STUDENT_NOT_FOUND` · `403 FORBIDDEN`(연결 부재 자녀 — 학부모 전용, 학생 계정 호출 포함)
+**에러** — `403 CHANGE_LIMIT_REACHED` · `403 CHANGE_WINDOW_CLOSED`(②·③ 구간의 `riding=true` · ③ 구간 대상 학생이 `waiting` 이 아님) · `404 RUN_NOT_FOUND`(대상 부재 · 타 학원 · **그 자녀의 대상 회차가 아님** — 존재 비노출, Ruling 163 · BR-084. 대상 = 확정 전 고정 노선 · 확정 후 명단에 있거나 그 회차의 탑승 의사를 끈 학생) · `404 STUDENT_NOT_FOUND` · `403 FORBIDDEN`(연결 부재 자녀 — 학부모 전용, 학생 계정 호출 포함)
 
 ### 3.7 GET · PATCH /students/{id}/weekly-address
 
@@ -687,7 +688,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | ② | 승인 대기 접수 — **관리자 승인을 통해서만 반영**, 승인 시 **재최적화·재배포**(§5.6). 거절 시 기존 경로 유지. 회차당 1회 |
 | ③ | `403 CHANGE_WINDOW_CLOSED` |
 
-**에러** — `403 CHANGE_WINDOW_CLOSED` · `403 CHANGE_LIMIT_REACHED` · `422 ADDRESS_VERIFICATION_FAILED` · `404 RUN_NOT_FOUND` · `404 STUDENT_NOT_FOUND` · `403 FORBIDDEN`(연결 부재 자녀)
+**에러** — `403 CHANGE_WINDOW_CLOSED` · `403 CHANGE_LIMIT_REACHED` · `422 ADDRESS_VERIFICATION_FAILED` · `404 RUN_NOT_FOUND`(대상 부재 · 타 학원 · 그 자녀의 대상 회차가 아님 — §3.6 과 같은 기준, BR-084) · `404 STUDENT_NOT_FOUND` · `403 FORBIDDEN`(연결 부재 자녀)
 
 ### 3.9 GET /students/{id}/change-requests
 
@@ -768,7 +769,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | `student_id` · `student_name` | string | ○ | 대상 자녀 |
 | `sent_at` | datetime | ● | 발송 시각 |
 | `read_at` | datetime | ○ | 읽음 시각 |
-| `popup` | boolean | ● | 팝업 노출 대상 여부 (NTF-09) |
+| `popup` | boolean | ● | 팝업 노출 대상 여부 (NTF-09) — 비상 2종(`emergency`·`emergency_canceled`)만 `true` |
 | `unread_count` | integer | ● | 봉투 레벨 — 미읽음 배지 |
 
 보관 기간 **14일**. 설정 off 알림도 목록에 존치 — off 는 푸시만 차단.
@@ -1106,6 +1107,8 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | `absent` 학생 | 대상 밖 (C-02) |
 
 **수신 설정 대상 밖** — 지연 알림은 설정 항목 자체가 부재하고 항상 발송 (NTF-07). 미리보기는 클라이언트가 구성.
+
+**문구** — 학부모·학생 몫은 본문 앞에 자녀 이름을 붙인다(`"{이름} 학생이 탄 버스 — " + 본문`, ATT-03 · Ruling 225 · BR-077). 관계자 몫은 회차 전체를 알리므로 이름 없이 본문 그대로 + 호차(`bus_no`).
 
 **에러** — `403 ESCORT_ONLY`(기사 호출) · `403 FORBIDDEN`(배치되지 않은 회차 · 타 학원 회차 · 존재하지 않는 회차 — 셋 다 같은 코드, `§1.11` 매니저 앱 회차 자원 규칙, Ruling 259(b). 배치 판정이 회차 조회보다 먼저다) · `422 VALIDATION_FAILED`(`minutes` 가 **5분 단위** 아님) · `409 RUN_NOT_MOVING` · `409 DELAY_DUPLICATE`(직전 발신과 `minutes`·`reason`·`message` 전부 동일)
 
@@ -1482,7 +1485,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 }
 ```
 
-**에러(상세)** — `404 APPROVAL_NOT_FOUND`(대상 없음) · `409 RUN_NOT_CONFIRMED`(`PENDING` 건인데 회차가 아직 `idle` — ②구간 판정 성립 이후 확정 배치가 돌기 전 창) · `422 ROUTE_NOT_CONFIGURED_FOR_RUN`(`PENDING` 건인데 그 회차의 고정 노선 부재) · `422 ACADEMY_COORDINATES_MISSING`(학원 좌표 미등록). **에러(목록)** — §1.11 공통 항목 외 고유 에러 부재. 대기 건 0개는 빈 `items[]` 로 반환.
+**에러(상세)** — `404 APPROVAL_NOT_FOUND`(대상 없음 · 타 학원 — 존재 비노출, §1.5 · Ruling 163 · BR-133) · `409 RUN_NOT_CONFIRMED`(`PENDING` 건인데 회차가 아직 `idle` — ②구간 판정 성립 이후 확정 배치가 돌기 전 창) · `422 ROUTE_NOT_CONFIGURED_FOR_RUN`(`PENDING` 건인데 그 회차의 고정 노선 부재) · `422 ACADEMY_COORDINATES_MISSING`(학원 좌표 미등록). **에러(목록)** — §1.11 공통 항목 외 고유 에러 부재. 대기 건 0개는 빈 `items[]` 로 반환.
 
 ### 5.6 POST /staff/approvals/{id}/decide
 
@@ -1504,7 +1507,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 **출발 시각 도달 또는 `Run.status` → `moving` 중 먼저 오는 시점**에 미처리 요청은 서버가 **자동 거절** — 재최적화 없이 기존 노선 유지 + 학부모 통지 → `status=auto_rejected`, **횟수 미소진** (C-04). 그 시점 이후 도달한 승인 조작은 `409 CHANGE_WINDOW_CLOSED` 로 반영 부재.
 
-**에러** — `409 APPROVAL_ALREADY_DECIDED` · **`403 CHANGE_WINDOW_CLOSED`**(운행 시작 후 도달 — ⚠ **2026-08-30 정정, Ruling 200.** 원래 `409` 로 적혀 있었으나 이 코드의 정의 자리인 **§8.3 사전이 403** 이고, 이 문서의 다른 **8곳이 전부 403**(§1.6 ③ · §3.6 · §3.8 · §5.7 · §5.8 · §5.15 · §8.3)이라 **이 한 줄만 어긋나 있었다.** `ErrorCode` 는 코드 하나에 상태 하나를 싣는 구조라 두 값을 함께 둘 수 없고, 새 코드를 만드는 것은 "새 상태값을 만들지 않는다"(`CLAUDE.md`)에 걸린다. 사전이 정의고 각 절은 사용처이므로 **사전이 이긴다**) · `409 PREVIEW_STALE`(미리보기 이후 입력 변경 — 재조회 후 재시도) · `404 APPROVAL_NOT_FOUND` · `422 VALIDATION_FAILED`(`approve=false` 인데 `reject_reason` 부재)
+**에러** — `409 APPROVAL_ALREADY_DECIDED` · **`403 CHANGE_WINDOW_CLOSED`**(운행 시작 후 도달 — ⚠ **2026-08-30 정정, Ruling 200.** 원래 `409` 로 적혀 있었으나 이 코드의 정의 자리인 **§8.3 사전이 403** 이고, 이 문서의 다른 **8곳이 전부 403**(§1.6 ③ · §3.6 · §3.8 · §5.7 · §5.8 · §5.15 · §8.3)이라 **이 한 줄만 어긋나 있었다.** `ErrorCode` 는 코드 하나에 상태 하나를 싣는 구조라 두 값을 함께 둘 수 없고, 새 코드를 만드는 것은 "새 상태값을 만들지 않는다"(`CLAUDE.md`)에 걸린다. 사전이 정의고 각 절은 사용처이므로 **사전이 이긴다**) · `409 PREVIEW_STALE`(미리보기 이후 입력 변경 — 재조회 후 재시도) · `409 STUDENT_NOT_IN_RUN`(승인 대상 학생이 그 회차 명단에 없음 — 접수 뒤 명단이 바뀐 경우, BR-030) · `404 APPROVAL_NOT_FOUND`(대상 없음 · 타 학원 — 존재 비노출, BR-133) · `422 VALIDATION_FAILED`(`approve=false` 인데 `reject_reason` 부재). 결정은 그 승인 건을 행 잠금으로 읽어 자동 거절과 겹쳐도 커밋된 상태로 판정한다(BR-028)
 
 ### 5.7 POST /staff/runs/{runId}/forced-add
 
@@ -2603,7 +2606,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `boarding_canceled` | 되돌리기로 `boarded` → `waiting` (BRD-05, Ruling 219) — 기발송 승차 알림은 정정하지 않음 | 학부모 | ● (`boarding` 토글 귀속, Ruling 223) |
 | `alighting_canceled` | 되돌리기로 `alighted` → `boarded` (BRD-05, Ruling 219) — 기발송 하차 알림은 정정하지 않음 | 학부모 | ● (`boarding` 토글 귀속 — `alighting` 토글 부재, Ruling 223) |
 | `no_show` | `no_show` | 학부모 + 관계자 | ● |
-| `absent` | 학부모 사전 OFF · **②구간 승인** (C-04) | **관계자만** | — |
+| `absent` | ① 변경 신청 `cancel`(§3.8) · **②구간 취소 승인**(§5.6) (C-04). ① 탑승 토글 OFF 는 `intent_changed` 가 이미 관계자에게 알리므로 겹쳐 보내지 않는다(PRD "오늘 안 타요" — 관계자 통지 하나, 조율자 판정 2026-09-25 · BR-110) | **관계자만** | — |
 | `arrive` | 서버의 위치 기반 자동 이벤트 (NTF-04) | 학부모 · 학생 | ● |
 | `delay` | `POST /runs/{runId}/delay` | **관계자** + 현재 승하차지 **이후** 학생·학부모 (M-05) | **부재 — 항상 발송** |
 | `run_started` | `Run` → `moving` | 관계자 · 학부모 · 학생 (M-10 · RUN-05) | **항상 발송** — 단말 푸시 수신만 개인 설정으로 조절 |

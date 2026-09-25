@@ -222,7 +222,7 @@ class DelayNotificationControllerTest {
         Long guardianLegStudentId = jdbcTemplate.queryForObject(
                 "SELECT student_id FROM notification_log WHERE type = 'delay' AND recipient_role = 'parent' "
                         + "AND dedup_key LIKE ?",
-                Long.class, "delay:" + runId + ":" + studentId + ":%");
+                Long.class, "delay:" + runId + ":guardian:%:" + studentId + ":%");
         assertThat(guardianLegStudentId).as("학부모 갈래의 student_id 가 채워진다").isEqualTo(studentId);
 
         Long studentAccountId = jdbcTemplate.queryForObject("SELECT account_id FROM student WHERE id = ?",
@@ -230,14 +230,14 @@ class DelayNotificationControllerTest {
         Long studentLegStudentId = jdbcTemplate.queryForObject(
                 "SELECT student_id FROM notification_log WHERE type = 'delay' AND recipient_role = 'student' "
                         + "AND dedup_key LIKE ?",
-                Long.class, "delay:" + runId + ":" + studentAccountId + ":%");
+                Long.class, "delay:" + runId + ":student:" + studentAccountId + ":%");
         assertThat(studentLegStudentId).as("학생 갈래의 student_id 가 본인 studentId 와 일치한다")
                 .isEqualTo(studentId);
 
         Long staffLegStudentId = jdbcTemplate.queryForObject(
                 "SELECT student_id FROM notification_log WHERE type = 'delay' AND recipient_role = 'staff' "
                         + "AND dedup_key LIKE ?",
-                Long.class, "delay:" + runId + ":" + staffAccountId + ":%");
+                Long.class, "delay:" + runId + ":staff:" + staffAccountId + ":%");
         assertThat(staffLegStudentId).as("관계자 갈래는 회차 전체를 알리므로 student_id 가 null 로 남는다").isNull();
 
         // R14 목표 5 — 관계자 알림에도 호차가 채워진다(Run → Bus 조회).
@@ -245,7 +245,7 @@ class DelayNotificationControllerTest {
         String staffLegBusNo = jdbcTemplate.queryForObject(
                 "SELECT bus_no FROM notification_log WHERE type = 'delay' AND recipient_role = 'staff' "
                         + "AND dedup_key LIKE ?",
-                String.class, "delay:" + runId + ":" + staffAccountId + ":%");
+                String.class, "delay:" + runId + ":staff:" + staffAccountId + ":%");
         assertThat(staffLegBusNo).as("관계자 delay 알림에 호차가 채워진다").isEqualTo(busNo);
     }
 
@@ -745,32 +745,32 @@ class DelayNotificationControllerTest {
                 runId);
     }
 
-    /** {@code dedup_key} 의 대상 자리가 studentId 인 학부모(PARENT) 알림 건수(커맨드 서비스 자바독 참고). */
+    /** {@code dedup_key} 의 대상 자리가 {@code guardian:계정:studentId} 인 학부모(PARENT) 알림 건수(BR-007). */
     private long 학부모_알림수(long runId, long studentId) {
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM notification_log WHERE type = 'delay' AND recipient_role = 'parent' "
                         + "AND dedup_key LIKE ?",
-                Integer.class, "delay:" + runId + ":" + studentId + ":%");
+                Integer.class, "delay:" + runId + ":guardian:%:" + studentId + ":%");
         return count == null ? 0 : count;
     }
 
-    /** {@code dedup_key} 의 대상 자리가 자기 accountId 인 관계자(STAFF) 알림 건수(학부모와 달리 studentId 가 아니다). */
+    /** {@code dedup_key} 의 대상 자리가 {@code staff:accountId} 인 관계자(STAFF) 알림 건수(BR-007). */
     private long 관계자_알림수(long runId, long staffAccountId) {
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM notification_log WHERE type = 'delay' AND recipient_role = 'staff' "
                         + "AND dedup_key LIKE ?",
-                Integer.class, "delay:" + runId + ":" + staffAccountId + ":%");
+                Integer.class, "delay:" + runId + ":staff:" + staffAccountId + ":%");
         return count == null ? 0 : count;
     }
 
-    /** {@code dedup_key} 의 대상 자리가 그 학생의 accountId 인 학생(STUDENT) 알림 건수(studentId 자체가 아니다). */
+    /** {@code dedup_key} 의 대상 자리가 {@code student:accountId} 인 학생(STUDENT) 알림 건수(BR-007). */
     private long 학생_알림수(long runId, long studentId) {
         Long accountId = jdbcTemplate.queryForObject("SELECT account_id FROM student WHERE id = ?", Long.class,
                 studentId);
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM notification_log WHERE type = 'delay' AND recipient_role = 'student' "
                         + "AND dedup_key LIKE ?",
-                Integer.class, "delay:" + runId + ":" + accountId + ":%");
+                Integer.class, "delay:" + runId + ":student:" + accountId + ":%");
         return count == null ? 0 : count;
     }
 }

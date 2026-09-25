@@ -61,18 +61,17 @@ public class RunApproachingStopNotificationListener {
         appendToStudent(event, message, studentName);
     }
 
-    /** 그 학생의 <b>첫 보호자</b> 1명에게만 적재한다. 연결된 보호자가 없으면 아무 것도 하지 않는다. */
+    /** 그 학생의 보호자 전원에게 적재한다(BR-073) — 수신자 구분 자리에 보호자 계정을 붙여 서로 가른다. */
     private void appendToGuardian(RunApproachingStopEvent event, NotificationMessage message, String studentName) {
         List<GuardianAccountRecipient> guardians = guardianStudentRepository
                 .findGuardianAccountsByAcademyId(event.academyId(), List.of(event.studentId()));
-        if (guardians.isEmpty()) {
-            return;
+        for (GuardianAccountRecipient guardian : guardians) {
+            notificationOutbox.append(new NotificationDraft(event.academyId(), guardian.getAccountId(),
+                    guardian.getName(), Role.PARENT, NotificationType.ARRIVE, message.title(), message.body(),
+                    DEDUP_KEY_FORMAT.formatted(event.runId(), event.stopId(), event.studentId(),
+                            "parent:" + guardian.getAccountId()),
+                    event.studentId(), studentName, null));
         }
-        GuardianAccountRecipient firstGuardian = guardians.get(0);
-        notificationOutbox.append(new NotificationDraft(event.academyId(), firstGuardian.getAccountId(),
-                firstGuardian.getName(), Role.PARENT, NotificationType.ARRIVE, message.title(), message.body(),
-                DEDUP_KEY_FORMAT.formatted(event.runId(), event.stopId(), event.studentId(), "parent"),
-                event.studentId(), studentName, null));
     }
 
     /**

@@ -70,6 +70,11 @@ public enum NotificationType {
     public static final Set<NotificationType> IMPORTANT_FOR_ACK =
             Set.of(DELAY, NO_SHOW, ROUTE_CHANGED);
 
+    /**
+     * 비상 알림 2종 — 팝업 병행(NTF-09 · C-17)과 짧은 재시도 간격(TECH_DECISIONS §7.3)이 이 집합에 걸린다(BR-070).
+     */
+    public static final Set<NotificationType> EMERGENCY_TYPES = Set.of(EMERGENCY, EMERGENCY_CANCELED);
+
     /** {@link NotificationType} 을 소문자 snake_case 컬럼 값으로 잇는 JPA 컨버터. */
     @Converter
     public static class Db extends LowerCaseEnumConverter<NotificationType> {

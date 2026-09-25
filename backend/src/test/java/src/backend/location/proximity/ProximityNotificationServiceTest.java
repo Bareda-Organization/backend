@@ -146,9 +146,10 @@ class ProximityNotificationServiceTest extends RedisTestContainerBase {
 
         // 학생 계정을 연결하지 않아 학부모 몫만 적재된다 — dedup_key 대상 자리는 목표 4 로 "parent"·
         // "student" 로 갈린다(R14).
-        String dedupKey = "approaching:%d:%d:%d:parent".formatted(runId, stopId, studentId);
+        // 학부모 몫은 보호자 계정마다 한 행이라 대상 자리가 "parent:<계정>" 이다(BR-073).
+        String dedupKey = "approaching:%d:%d:%d:parent:%%".formatted(runId, stopId, studentId);
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "SELECT type, student_id, student_name FROM notification_log WHERE dedup_key = ?", dedupKey);
+                "SELECT type, student_id, student_name FROM notification_log WHERE dedup_key LIKE ?", dedupKey);
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).get("type")).isEqualTo("arrive");
         assertThat(proximityNotifiedAt(runStopId)).isNotNull();
@@ -182,8 +183,8 @@ class ProximityNotificationServiceTest extends RedisTestContainerBase {
 
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
                 "SELECT recipient_role, body, student_name FROM notification_log "
-                        + "WHERE dedup_key IN (?, ?) ORDER BY recipient_role",
-                "approaching:%d:%d:%d:parent".formatted(runId, stopId, studentId),
+                        + "WHERE dedup_key LIKE ? OR dedup_key = ? ORDER BY recipient_role",
+                "approaching:%d:%d:%d:parent:%%".formatted(runId, stopId, studentId),
                 "approaching:%d:%d:%d:student".formatted(runId, stopId, studentId));
         assertThat(rows).as("학부모·학생 두 행이 각각 적재된다").hasSize(2);
         assertThat(rows).extracting(row -> row.get("recipient_role"))
@@ -374,9 +375,9 @@ class ProximityNotificationServiceTest extends RedisTestContainerBase {
     }
 
     private int notificationCount(long runId, long stopId, long studentId) {
-        String dedupKey = "approaching:%d:%d:%d:parent".formatted(runId, stopId, studentId);
+        String dedupKey = "approaching:%d:%d:%d:parent:%%".formatted(runId, stopId, studentId);
         Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM notification_log WHERE dedup_key = ?", Integer.class, dedupKey);
+                "SELECT COUNT(*) FROM notification_log WHERE dedup_key LIKE ?", Integer.class, dedupKey);
         return count == null ? 0 : count;
     }
 

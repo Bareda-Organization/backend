@@ -70,4 +70,7 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
      * "오늘 명단은 유지" — 이미 편성된 회차의 명단이 학생 행을 참조하는 이상 퇴원 여부와 무관하다).
      */
     List<Student> findAllByAcademyIdAndIdIn(Long academyId, Collection<Long> ids);
+
+    /** 계정이 연결된 학생들을 계정 id 로 한 번에 읽는다 — 알림 수신자(학생 계정)마다 다시 조회하지 않으려고(BR-143). */
+    List<Student> findAllByAcademyIdAndAccountIdIn(Long academyId, Collection<Long> accountIds);
 }

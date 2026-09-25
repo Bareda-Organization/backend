@@ -68,7 +68,7 @@ public class NotificationDispatcher {
         }
         OffsetDateTime now = OffsetDateTime.now(clock);
         if (notificationLogRepository.claim(notificationId, PushState.PENDING,
-                retryPolicy.attemptedBefore(now), now) == 0) {
+                retryPolicy.attemptedBefore(target.getType(), now), now) == 0) {
             return;
         }
         send(target, target.getPushAttempts() + 1, now);

@@ -395,6 +395,28 @@ class NotificationControllerTest {
 
     // ── 호출 도우미 ──────────────────────────────────────────────────────
 
+    /**
+     * BR-072 — 메인 관리자는 소속 학원이 없어({@code academyId=null}) 학원 조건으로 좁히면 비상 알림(사고 학원
+     * 앞으로 적재)이 목록·미읽음 배지에 항상 0건이다. 전역 계정은 수신자로만 좁힌다.
+     */
+    @Test
+    @DisplayName("BR-072 — 메인 관리자 앞으로 적재한 알림이 목록과 미읽음 배지에 나온다")
+    void 메인_관리자_앞_알림이_목록에_나온다() throws Exception {
+        NotificationLogFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long adminAccountId = fixtures.account(academyId, "메인관리자", Role.SYSTEM_ADMIN);
+        long emergencyId = fixtures.notification(academyId, adminAccountId, "메인관리자", Role.SYSTEM_ADMIN, null, null,
+                NotificationType.EMERGENCY, "비상", "비상 발생", true, now(), now(), null);
+
+        mockMvc.perform(get("/api/v1/notifications")
+                        .header("Authorization", "Bearer " + tokenProvider.createAccessToken(adminAccountId, null,
+                                Role.SYSTEM_ADMIN, AccountStatus.ACTIVE)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.unread_count").value(1))
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].notification_id").value(emergencyId));
+    }
+
     private String 토큰(long accountId, long academyId, Role role) {
         return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
     }

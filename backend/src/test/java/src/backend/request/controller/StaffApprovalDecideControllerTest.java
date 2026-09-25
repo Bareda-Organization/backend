@@ -365,17 +365,61 @@ class StaffApprovalDecideControllerTest {
     // 통과해 버려 재처리 차단이 실제로는 검증되지 않는다(직접 실측: 원시 SQL·JPA findById 모두 첫
     // 결정 뒤에도 pending 이었다). 실제 커밋이 필요해 StaffApprovalDecideAtomicityTest 로 옮겼다.
 
-    /** 다른 학원 관계자가 결정을 시도하면 {@code 403 ACADEMY_SCOPE_VIOLATION}. */
+    /** 다른 학원 관계자가 결정을 시도하면 존재를 숨겨 {@code 404 APPROVAL_NOT_FOUND}(§1.5 · BR-133). */
     @Test
-    void 다른_학원_관계자가_결정하면_403_이다() throws Exception {
+    void 다른_학원_관계자가_결정하면_404_이다() throws Exception {
         결정_시나리오 s = 정상_시나리오();
         long 남의학원 = fixtures().academyWithCoordinates();
 
         결정_요청(관계자_토큰(남의학원), s.approvalId, 거절_바디("아무 사유"))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error.code").value("ACADEMY_SCOPE_VIOLATION"));
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("APPROVAL_NOT_FOUND"));
 
         verify(pipeline, times(0)).compute(any());
+    }
+
+    /**
+     * BR-030 — 승인 대상 학생이 그 회차 명단에 없으면(명단이 접수 뒤 바뀐 경우 등) 승인은 처리되지 않은
+     * 예외(500)가 아니라 {@code 409 STUDENT_NOT_IN_RUN} 이다(§5.8 과 같은 코드) — 관계자 화면이 이유를 표시할
+     * 수 있어야 한다.
+     */
+    @Test
+    void 명단에_없는_학생의_승인은_409_STUDENT_NOT_IN_RUN_이다() throws Exception {
+        결정_시나리오 s = 정상_시나리오();
+        long studentId = changeRequestRepository.findById(s.approvalId).orElseThrow().getStudentId();
+        jdbcTemplate.update("DELETE FROM run_rider WHERE run_id = ? AND student_id = ?", s.runId, studentId);
+        String token = 미리보기_토큰_조회(s);
+
+        결정_요청(관계자_토큰(s.academyId), s.approvalId, 승인_바디(token))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("STUDENT_NOT_IN_RUN"));
+    }
+
+    /**
+     * BR-019 — 배포된 경유 지점(RTE-10)은 ②구간 승인 재배포에서도 위치가 고정돼 남아야 한다(ARCHITECTURE §8.2).
+     * 승인 계산이 고정 지점을 빈 목록으로 넘기면 새 판본에서 경유 지점이 제거 절차 없이 사라진다.
+     */
+    @Test
+    void 승인_재배포는_배포된_경유_지점을_유지한다() throws Exception {
+        결정_시나리오 s = 정상_시나리오();
+        Long versionId = jdbcTemplate.queryForObject(
+                "SELECT current_version_id FROM confirmed_route WHERE run_id = ?", Long.class, s.runId);
+        Long waypointId = jdbcTemplate.queryForObject("INSERT INTO waypoint (run_id, label, lat, lng, applied, "
+                + "created_by) VALUES (?, '경유', 37.563000, 126.973000, true, 1) RETURNING id", Long.class, s.runId);
+        Integer lastSeq = jdbcTemplate.queryForObject("SELECT max(seq) FROM run_stop WHERE route_version_id = ?",
+                Integer.class, versionId);
+        jdbcTemplate.update("INSERT INTO run_stop (route_version_id, waypoint_id, seq) VALUES (?, ?, ?)", versionId,
+                waypointId, lastSeq + 1);
+        String token = 미리보기_토큰_조회(s);
+
+        결정_요청(관계자_토큰(s.academyId), s.approvalId, 승인_바디(token)).andExpect(status().isOk());
+
+        Long newVersionId = jdbcTemplate.queryForObject(
+                "SELECT current_version_id FROM confirmed_route WHERE run_id = ?", Long.class, s.runId);
+        assertThat(newVersionId).isNotEqualTo(versionId);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM run_stop WHERE route_version_id = ? AND waypoint_id = ?", Integer.class,
+                newVersionId, waypointId)).isEqualTo(1);
     }
 
     /** 존재하지 않는 승인 건은 {@code 404 APPROVAL_NOT_FOUND}. */
