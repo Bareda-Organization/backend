@@ -23,7 +23,7 @@ import src.backend.run.entity.Run;
 
 /**
  * 확정 배치의 동승자 자동 배정(Ruling 330, ARCHITECTURE §8.2 ⑤) — 동승자 자리가 빈 회차에만 {@link AttendantAssigner}
- * 를 불러 배정하고 {@link AssignmentChangedEvent} 를 낸다. 수동 배치(§5.14)가 있으면 건드리지 않고, 후보가 없거나
+ * 를 불러 배정하고 {@link AssignmentChangedEvent} 를 낸다. 수동 배치(API_SPEC §5.14)가 있으면 건드리지 않고, 후보가 없거나
  * 전원 충돌이면 빈 채로 둔다 — 확정을 실패시키지 않는다. 확정 저장 트랜잭션({@link RunConfirmationPersistence#persist})
  * 안에서만 부른다 — 확정이 롤백되면 배정도 되돌아간다.
  */
