@@ -576,6 +576,65 @@ class StaffWaypointControllerTest {
         assertThat(현재_버전_번호(s.runId)).isEqualTo(versionNo);
     }
 
+    // ── BR-021 — 배포는 계산의 바탕이 된 판본·운행 구간을 다시 확인한다 ─────────────────
+
+    /**
+     * 미리보기 뒤 다른 배포가 끼어 판본이 바뀌었으면 {@code 409 PREVIEW_STALE} 이다 — 그대로 배포하면 끼어든 배포의
+     * 내용(예: 승인된 승하차지 변경)을 모르는 계산이 그 위를 덮는다. 지문 재료가 같아도 판본이 다르면 막는다.
+     */
+    @Test
+    void 미리보기_뒤_다른_배포가_끼면_409_PREVIEW_STALE_이다() throws Exception {
+        시나리오 s = 확정된_회차를_만든다();
+        String token = 미리보기_토큰(경유_요청한다(s.runId, 경유_본문("판본경유로 1", "판본", false))
+                .andExpect(status().isOk()).andReturn());
+        다른_배포를_끼운다(s.runId);
+        int versionNo = 현재_버전_번호(s.runId);
+
+        경유_요청한다(s.runId, 토큰_본문("판본경유로 1", "판본", token))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("PREVIEW_STALE"));
+        assertThat(현재_버전_번호(s.runId)).isEqualTo(versionNo);
+    }
+
+    /**
+     * 배포 트랜잭션은 회차를 잠그고 운행 구간을 다시 본다 — 요청 첫머리에서 본 뒤 운행이 시작됐으면
+     * {@code 403 CHANGE_WINDOW_CLOSED} 다(ARCHITECTURE §8.5 운행 시작과 동시에 노선 잠금). 서비스를 거치면
+     * 첫머리 판정이 먼저 막으므로 저장소를 직접 불러 그 사이를 재현한다.
+     */
+    @Test
+    void 배포_직전에_운행이_시작됐으면_저장소가_배포하지_않는다() throws Exception {
+        시나리오 s = 확정된_회차를_만든다();
+        경유_요청한다(s.runId, 경유_본문("시작경유로 1", "시작", false)).andExpect(status().isOk());
+        WaypointPreview preview = previewCache.find(s.runId).orElseThrow();
+        Run 첫머리에_읽은_회차 = runRepository.findById(s.runId).orElseThrow();
+        int versionNo = 현재_버전_번호(s.runId);
+        jdbcTemplate.update("UPDATE run SET status = 'moving', started_at = now() WHERE id = ?", s.runId);
+        entityManager.flush();
+        entityManager.clear();
+        Waypoint waypoint = waypointRepository.findById(preview.waypointId()).orElseThrow();
+
+        assertThatThrownBy(() -> waypointStore.deployAdd(첫머리에_읽은_회차, waypoint, preview, 1L, OffsetDateTime.now()))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.CHANGE_WINDOW_CLOSED);
+        assertThat(현재_버전_번호(s.runId)).isEqualTo(versionNo);
+    }
+
+    /** 다른 관계자의 배포를 흉내 낸다 — 현재 판본을 복사해 다음 번호로 올리고 확정 노선이 그 판본을 가리키게 한다. */
+    private void 다른_배포를_끼운다(long runId) {
+        long current = 현재_버전_id(runId);
+        Long next = jdbcTemplate.queryForObject("""
+                INSERT INTO route_version (confirmed_route_id, version_no, source, est_duration_min, est_distance_km,
+                    published_at, input_fingerprint, engine_name, policy_snapshot, fallback_used, road_path, created_by)
+                SELECT confirmed_route_id, version_no + 1, 'approval', est_duration_min, est_distance_km, now(),
+                    input_fingerprint, engine_name, policy_snapshot, fallback_used, road_path, created_by
+                FROM route_version WHERE id = ? RETURNING id""", Long.class, current);
+        jdbcTemplate.update("INSERT INTO run_stop (route_version_id, stop_id, waypoint_id, seq, eta) "
+                + "SELECT ?, stop_id, waypoint_id, seq, eta FROM run_stop WHERE route_version_id = ?", next, current);
+        jdbcTemplate.update("UPDATE confirmed_route SET current_version_id = ? WHERE run_id = ?", next, runId);
+        entityManager.flush();
+        entityManager.clear();
+    }
+
     // ── BR-120 — 경유 지점은 노선 편성 권한 ────────────────────────────────
 
     /** 경유 지점은 {@code ROUTE_MANAGE}(FEATURE_SPEC §6.2) — 스케줄 권한만 가진 주체에게는 닫혀 있어야 한다. */

@@ -10,6 +10,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
+import src.backend.request.domain.ChangeWindow;
+import src.backend.request.domain.ChangeWindowPolicy;
 import src.backend.routing.command.WaypointPreviewCache.WaypointPreview;
 import src.backend.routing.engine.spec.OrderedStop;
 import src.backend.routing.entity.ConfirmedRoute;
@@ -24,6 +28,7 @@ import src.backend.routing.repository.RunStopRepository;
 import src.backend.routing.repository.WaypointRepository;
 import src.backend.run.entity.Run;
 import src.backend.run.event.RunRouteConfirmedEvent;
+import src.backend.run.repository.RunRepository;
 
 /**
  * 강제 경유 지점 배포의 짧은 쓰기 트랜잭션(RTE-10, API_SPEC §5.15) — {@link WaypointCommandService}
@@ -48,6 +53,8 @@ public class WaypointStore {
     private final WaypointRepository waypointRepository;
 
     private final ApplicationEventPublisher eventPublisher;
+
+    private final RunRepository runRepository;
 
     /**
      * 새 미리보기 경유 지점 후보를 저장한다 — 기존 미배포 후보를 지우고 새 후보로 교체하는 두 쓰기를
@@ -89,6 +96,7 @@ public class WaypointStore {
     private RouteVersion deployNewVersion(Run run, WaypointPreview preview, Long createdBy, OffsetDateTime now) {
         RouteComputation computation = preview.computation();
         String fingerprint = preview.fingerprint();
+        assertStillDeployable(run, preview, now);
         ConfirmedRoute confirmedRoute = confirmedRouteRepository.findById(run.getId())
                 .orElseThrow(() -> new IllegalStateException("확정 노선이 없다 — runId=" + run.getId()));
         Long currentVersionId = confirmedRoute.getCurrentVersionId();
@@ -103,6 +111,26 @@ public class WaypointStore {
         confirmedRouteRepository.assignCurrentVersion(run.getId(), newVersion.getId());
         runStopRepository.saveAll(runStopsOf(newVersion.getId(), computation));
         return newVersion;
+    }
+
+    /**
+     * 배포 트랜잭션 안에서 다시 확인한다(BR-021) — 회차 행을 잠근 뒤 ① 운행이 시작됐으면 {@code 403
+     * CHANGE_WINDOW_CLOSED}(ARCHITECTURE §8.5 운행 시작과 동시에 노선 잠금) ② 계산의 바탕 판본이 지금 판본이
+     * 아니면 {@code 409 PREVIEW_STALE} — 그 사이 끼어든 배포(승인·다른 경유 지점)를 모르는 계산이 그 위를 덮지
+     * 않게 한다. 잠금이 같은 회차의 배포를 줄 세우므로 두 배포가 같은 판본 번호를 만들어 500 이 나지 않는다.
+     */
+    private void assertStillDeployable(Run run, WaypointPreview preview, OffsetDateTime now) {
+        Run locked = runRepository.findLockedByIdAndAcademyId(run.getId(), run.getAcademyId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        if (ChangeWindowPolicy.segmentOf(locked, now) == ChangeWindow.CLOSED) {
+            throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);
+        }
+        Long currentVersionId = confirmedRouteRepository.findById(run.getId())
+                .map(ConfirmedRoute::getCurrentVersionId)
+                .orElse(null);
+        if (!preview.baseVersionId().equals(currentVersionId)) {
+            throw new BusinessException(ErrorCode.PREVIEW_STALE);
+        }
     }
 
     /** {@code RunConfirmationPersistence.runStopsOf} 와 같은 계산(중복 헬퍼 관례, 그 클래스 자바독 참고). */
