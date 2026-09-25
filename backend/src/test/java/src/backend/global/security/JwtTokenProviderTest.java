@@ -3,6 +3,8 @@ package src.backend.global.security;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.Clock;
+
 import org.junit.jupiter.api.Test;
 
 import io.jsonwebtoken.Claims;
@@ -18,7 +20,7 @@ import src.backend.global.common.enums.Role;
 class JwtTokenProviderTest {
 
     private final JwtTokenProvider provider = new JwtTokenProvider(
-            "test-secret-key-for-jwt-that-is-at-least-32-bytes-long!!", 900, 1209600);
+            "test-secret-key-for-jwt-that-is-at-least-32-bytes-long!!", 900, 1209600, Clock.systemUTC());
 
     @Test
     void access_token_round_trip() {
