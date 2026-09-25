@@ -18,8 +18,8 @@ import src.backend.monitoring.query.AdminRunRosterQueryService;
 
 /**
  * 메인 관리자 콘솔의 회차별 승하차지·학생 명단 API(API_SPEC §6.9, O-06, 목표 10·11). 사진·연락처를
- * 원문으로 담는 L3 조회라 {@link CanMonitorAll} 로만 좁힌다 — 감사 로그는 이 태스크의 범위 밖이다
- * (SYS-01, Phase 14).
+ * 원문으로 담는 L3 조회라 {@link CanMonitorAll} 로만 좁히고, 조회 시마다
+ * {@link src.backend.monitoring.query.AdminRunRosterQueryService} 가 감사 로그를 남긴다(SYS-01).
  */
 @Tag(name = ApiTags.ADMIN)
 @RestController

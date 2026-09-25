@@ -34,6 +34,7 @@ public class RunStartedBroadcastListener {
 
     private final WebSocketBroadcastGateway gateway;
 
+    /** 운행 시작을 학생·매니저·학원·관리자 채널 4종 전부에 방송한다. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcast(RunStartedEvent event) {
         List<Long> studentIds = runRiderRepository.findAllByRunId(event.runId()).stream()

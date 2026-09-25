@@ -30,6 +30,7 @@ public class RunEndedBroadcastListener {
 
     private final WebSocketBroadcastGateway gateway;
 
+    /** 운행 종료를 학생·매니저·학원·관리자 채널 4종 전부에 방송한다. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcast(RunEndedEvent event) {
         List<Long> studentIds = runRiderRepository.findAllByRunId(event.runId()).stream()

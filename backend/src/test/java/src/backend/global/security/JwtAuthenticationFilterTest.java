@@ -4,6 +4,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Clock;
+
 import javax.crypto.SecretKey;
 
 import org.junit.jupiter.api.Test;
@@ -31,7 +33,7 @@ import src.backend.global.common.enums.Role;
  * 클레임을 빠뜨리는 경우)을 흉내 낸다.
  */
 @WebMvcTest(controllers = JwtAuthFilterTestController.class)
-@Import({SecurityConfig.class, JwtTokenProvider.class})
+@Import({SecurityConfig.class, JwtTokenProvider.class, src.backend.global.config.ClockConfig.class})
 class JwtAuthenticationFilterTest {
 
     @Autowired
@@ -74,7 +76,7 @@ class JwtAuthenticationFilterTest {
 
     @Test
     void 만료된_access_토큰은_401_TOKEN_EXPIRED_다() throws Exception {
-        String expired = new JwtTokenProvider(jwtSecret, -60, 60)
+        String expired = new JwtTokenProvider(jwtSecret, -60, 60, Clock.systemUTC())
                 .createAccessToken(7L, 1L, Role.PARENT, AccountStatus.ACTIVE);
 
         mockMvc.perform(get("/api/v1/jwt-filter-test/protected").header("Authorization", "Bearer " + expired))
@@ -85,7 +87,7 @@ class JwtAuthenticationFilterTest {
     /** BR-103 — 서명 검증이 빠지면 아무 키로 만든 토큰이 통과한다. */
     @Test
     void 다른_키로_서명한_토큰은_401_UNAUTHORIZED_다() throws Exception {
-        String forged = new JwtTokenProvider("forged-secret-forged-secret-forged-secret-0123", 900, 60)
+        String forged = new JwtTokenProvider("forged-secret-forged-secret-forged-secret-0123", 900, 60, Clock.systemUTC())
                 .createAccessToken(7L, 1L, Role.PARENT, AccountStatus.ACTIVE);
 
         mockMvc.perform(get("/api/v1/jwt-filter-test/protected").header("Authorization", "Bearer " + forged))

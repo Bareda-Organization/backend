@@ -27,6 +27,7 @@ import net.javacrumbs.shedlock.spring.annotation.EnableSchedulerLock;
 @EnableSchedulerLock(defaultLockAtMostFor = "PT1M")
 public class ShedLockConfig {
 
+    /** DB 시각 기준 분산 락 제공자 — 인스턴스별 시스템 시계 어긋남을 없앤다. */
     @Bean
     public LockProvider lockProvider(DataSource dataSource) {
         return new JdbcTemplateLockProvider(JdbcTemplateLockProvider.Configuration.builder()

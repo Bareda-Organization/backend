@@ -38,6 +38,7 @@ public class RiderChangedBroadcastListener {
 
     private final WebSocketBroadcastGateway gateway;
 
+    /** 승하차 상태 변경을 매니저·학원·관리자 채널에 방송한다({@code stop_skipped} 는 항상 false). */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcast(RiderStatusChangedEvent event) {
         String studentName = studentRepository.findById(event.studentId())

@@ -9,14 +9,17 @@ public final class WebSocketDestinations {
 
     public static final String ADMIN_LIVE = "/topic/admin/live";
 
+    /** 학생 1명의 개인 채널 — 회차 명단에 오른 학생마다 따로 보낸다. */
     public static String studentRun(Long studentId) {
         return "/topic/students/%d/run".formatted(studentId);
     }
 
+    /** 매니저 앱의 회차 1건 채널. */
     public static String managerRun(Long runId) {
         return "/topic/manager/runs/%d".formatted(runId);
     }
 
+    /** 학원 관제 채널. */
     public static String academyLive(Long academyId) {
         return "/topic/academy/%d/live".formatted(academyId);
     }

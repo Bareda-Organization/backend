@@ -13,6 +13,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class ClockConfig {
 
+    /** Asia/Seoul 기준 시스템 Clock 빈 — 테스트는 이 빈을 고정 Clock 으로 교체해 대체한다. */
     @Bean
     public Clock clock() {
         return Clock.system(ZoneId.of("Asia/Seoul"));

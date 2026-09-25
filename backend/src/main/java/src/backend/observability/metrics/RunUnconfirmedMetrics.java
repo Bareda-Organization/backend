@@ -22,6 +22,7 @@ public class RunUnconfirmedMetrics {
                 .register(registry);
     }
 
+    /** 최근 집계값으로 게이지를 바꾼다. */
     public void update(long count) {
         value.set(count);
     }

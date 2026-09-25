@@ -3,6 +3,7 @@ package src.backend.global.security;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.net.URI;
+import java.time.Clock;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -93,7 +94,7 @@ class StompChannelAuthorizationTest {
 
     @Test
     void 만료된_access_토큰의_CONNECT_는_TOKEN_EXPIRED_로_거부된다() throws Exception {
-        String expired = new JwtTokenProvider(jwtSecret, -60, 60)
+        String expired = new JwtTokenProvider(jwtSecret, -60, 60, Clock.systemUTC())
                 .createAccessToken(1L, 1L, Role.STAFF, AccountStatus.ACTIVE);
 
         assertThat(connectOutcome("CONNECT", expired)).startsWith("ERROR").contains("message:TOKEN_EXPIRED");
@@ -101,7 +102,7 @@ class StompChannelAuthorizationTest {
 
     @Test
     void 다른_키로_서명한_토큰의_CONNECT_는_UNAUTHORIZED_로_거부된다() throws Exception {
-        String forged = new JwtTokenProvider("forged-secret-forged-secret-forged-secret-0123", 900, 60)
+        String forged = new JwtTokenProvider("forged-secret-forged-secret-forged-secret-0123", 900, 60, Clock.systemUTC())
                 .createAccessToken(1L, 1L, Role.STAFF, AccountStatus.ACTIVE);
 
         assertThat(connectOutcome("CONNECT", forged)).startsWith("ERROR").contains("message:UNAUTHORIZED");
@@ -288,7 +289,7 @@ class StompChannelAuthorizationTest {
      */
     @Test
     void 연결을_연_토큰이_만료되면_방송_대신_TOKEN_EXPIRED_로_닫힌다() throws Exception {
-        String shortLived = new JwtTokenProvider(jwtSecret, 2, 60)
+        String shortLived = new JwtTokenProvider(jwtSecret, 2, 60, Clock.systemUTC())
                 .createAccessToken(1L, 1L, Role.STAFF, AccountStatus.ACTIVE);
         String destination = "/topic/academy/1/live";
         BlockingQueue<String> received = new LinkedBlockingQueue<>();

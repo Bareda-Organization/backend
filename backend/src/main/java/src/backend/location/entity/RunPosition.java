@@ -15,7 +15,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 운행 중 버스 위치 — 송신 주기가 5~10초라 한 회차에 수백 행이 쌓이는 최대 적재 테이블이다
+ * 운행 중 버스 위치 — 송신 주기가 2초(Ruling 279)라 한 회차에 수백 행이 쌓이는 최대 적재 테이블이다
  * (ERD §3.4 · ARCHITECTURE §7~8).
  *
  * <p>{@code run} 은 논리적 부모이나 DB FK 가 미설정이다(ERD §4.2 — 파티션 단위 DROP 으로 정리해야 해서

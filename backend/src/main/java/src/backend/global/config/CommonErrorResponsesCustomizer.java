@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import io.swagger.v3.core.converter.ModelConverters;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
+import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.media.MediaType;
 import io.swagger.v3.oas.models.media.Schema;
@@ -44,23 +45,33 @@ public class CommonErrorResponsesCustomizer implements OpenApiCustomizer {
     public void customise(OpenAPI openApi) {
         registerErrorSchema(openApi);
         openApi.getPaths().forEach((path, item) -> {
-            boolean open = isPublic(path);
-            item.readOperations().forEach(operation -> {
-                if (!open) {
-                    merge(operation, "401", UNAUTHORIZED);
-                    merge(operation, "403", FORBIDDEN);
-                }
-                merge(operation, "422", UNPROCESSABLE);
-            });
-            // 엔드포인트 고유 항목은 공통 항목 뒤에 잇는다 — 같은 상태 코드를 쓰는 자리가 실제로 있다
-            // (예 §4.6 승하차 처리의 403 ESCORT_ONLY 는 공통 403 과 나란히 뜬다).
-            item.readOperationsMap().forEach((httpMethod, operation) -> {
-                Map<String, String> byStatus = EndpointErrorResponses.BY_ENDPOINT
-                        .get(httpMethod.name() + " " + path.replaceFirst(ApiPathPrefixConfig.API_PREFIX, ""));
-                if (byStatus != null) {
-                    byStatus.forEach((status, codes) -> merge(operation, status, codes));
-                }
-            });
+            applyCommonResponses(item, isPublic(path));
+            applyEndpointSpecificResponses(path, item);
+        });
+    }
+
+    /** 그 경로의 모든 오퍼레이션에 공통 401·403·422 를 붙인다(비인증 허용 경로는 401·403 제외). */
+    private void applyCommonResponses(PathItem item, boolean open) {
+        item.readOperations().forEach(operation -> {
+            if (!open) {
+                merge(operation, "401", UNAUTHORIZED);
+                merge(operation, "403", FORBIDDEN);
+            }
+            merge(operation, "422", UNPROCESSABLE);
+        });
+    }
+
+    /**
+     * 엔드포인트 고유 항목은 공통 항목 뒤에 잇는다 — 같은 상태 코드를 쓰는 자리가 실제로 있다
+     * (예 §4.6 승하차 처리의 403 ESCORT_ONLY 는 공통 403 과 나란히 뜬다).
+     */
+    private void applyEndpointSpecificResponses(String path, PathItem item) {
+        item.readOperationsMap().forEach((httpMethod, operation) -> {
+            Map<String, String> byStatus = EndpointErrorResponses.BY_ENDPOINT
+                    .get(httpMethod.name() + " " + path.replaceFirst(ApiPathPrefixConfig.API_PREFIX, ""));
+            if (byStatus != null) {
+                byStatus.forEach((status, codes) -> merge(operation, status, codes));
+            }
         });
     }
 

@@ -5,8 +5,8 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 /**
- * 메인 관리자 콘솔의 학원 1곳 실시간 관제 응답(API_SPEC §6.8, O-05, 목표 8·9) — {@code moving}
- * 상태인 회차만 싣는다.
+ * 메인 관리자 콘솔의 학원 1곳 실시간 관제 응답(API_SPEC §6.8, O-05, 목표 8·9) — 오늘 회차를 상태와
+ * 무관하게(idle·confirmed·moving·finished 4종) 싣는다(Ruling 315).
  *
  * <p>{@code stops[].eta} · {@code destination_eta} 는 {@code run_stop.eta} 저장값을 그대로 읽은
  * 계획값이다 — 실시간으로 다시 계산하지 않는다(Ruling 232 확정 — 계획값, 재계산 부재).

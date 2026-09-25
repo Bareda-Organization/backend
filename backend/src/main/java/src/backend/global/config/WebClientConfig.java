@@ -21,6 +21,7 @@ import reactor.netty.http.client.HttpClient;
 @Configuration
 public class WebClientConfig {
 
+    /** connect 3초·read/write 5초 타임아웃을 붙인 공용 {@link WebClient} 빈. */
     @Bean
     public WebClient webClient(WebClient.Builder builder) {
         HttpClient httpClient = HttpClient.create()

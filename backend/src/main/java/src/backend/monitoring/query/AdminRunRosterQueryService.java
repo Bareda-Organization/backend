@@ -71,6 +71,7 @@ public class AdminRunRosterQueryService {
 
     private final AuditRecorder auditRecorder;
 
+    /** 그 회차의 승하차지별 학생 명단(사진·연락처 원문, API_SPEC §6.9) — 조회마다 감사 로그를 남긴다. */
     public AdminRunRosterResponse roster(Long runId) {
         Run run = runRepository.findById(runId).orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
         Long academyId = run.getAcademyId();

@@ -31,6 +31,7 @@ public class WebSocketBroadcastGateway {
     private final WebSocketPublishMetrics publishMetrics;
     private final Clock clock;
 
+    /** 목적지 1곳에 봉투를 실어 보내고 발행 지연을 계측한다. */
     public void send(String destination, String event, Long runId, OffsetDateTime occurredAt, Object payload) {
         messagingTemplate.convertAndSend(destination, new WebSocketEnvelope(event, runId, occurredAt, payload));
         publishMetrics.recordLatency(Duration.between(occurredAt, OffsetDateTime.now(clock)));
@@ -41,6 +42,10 @@ public class WebSocketBroadcastGateway {
      * 학생 채널은 그 회차 명단에 오른 학생마다 각자의 {@code /topic/students/{id}/run} 으로 따로
      * 보낸다(같은 페이로드를 studentId 수만큼 반복 전송) — STOMP 심플 브로커에 학생별 목적지를 한 번에
      * 묶어 보내는 수단이 없어서다.
+     *
+     * <p>§20.2 파라미터 신호 — 6개를 파라미터 객체로 묶지 않는다. 리스너 9곳이 이미 각자의 이벤트
+     * 레코드에서 값을 꺼내 이 순서 그대로 넘기는 관례라, 객체 하나로 싸면 그 변환 보일러플레이트가
+     * 호출부마다 새로 생긴다.
      */
     public void broadcastToRunChannels(Long runId, Long academyId, List<Long> studentIds, String event,
             OffsetDateTime occurredAt, Object payload) {

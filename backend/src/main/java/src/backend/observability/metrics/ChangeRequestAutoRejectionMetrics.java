@@ -20,6 +20,7 @@ public class ChangeRequestAutoRejectionMetrics {
                 .register(registry);
     }
 
+    /** 자동 거절 1건을 카운터에 반영한다. */
     public void recordRejected() {
         counter.increment();
     }

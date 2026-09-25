@@ -1,6 +1,7 @@
 package src.backend.global.security;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.util.Date;
 import java.util.UUID;
 
@@ -44,14 +45,17 @@ public class JwtTokenProvider {
     private final SecretKey key;
     private final long accessValidityMs;
     private final long refreshValidityMs;
+    private final Clock clock;
 
     public JwtTokenProvider(
             @Value("${jwt.secret}") String secret,
             @Value("${jwt.access-token-validity-seconds}") long accessValiditySeconds,
-            @Value("${jwt.refresh-token-validity-seconds}") long refreshValiditySeconds) {
+            @Value("${jwt.refresh-token-validity-seconds}") long refreshValiditySeconds,
+            Clock clock) {
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.accessValidityMs = accessValiditySeconds * 1000;
         this.refreshValidityMs = refreshValiditySeconds * 1000;
+        this.clock = clock;
     }
 
     public String createAccessToken(Long accountId, Long academyId, Role role, AccountStatus status) {
@@ -72,7 +76,7 @@ public class JwtTokenProvider {
      */
     private String build(Long accountId, Long academyId, Role role, AccountStatus status, String type,
             long validityMs) {
-        Date now = new Date();
+        Date now = Date.from(clock.instant());
         return Jwts.builder()
                 .id(UUID.randomUUID().toString())
                 .subject(String.valueOf(accountId))

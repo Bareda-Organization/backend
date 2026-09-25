@@ -43,20 +43,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String token = resolveToken(request);
         if (token != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            try {
-                AuthUser principal = tokenProvider.authenticateAccess(token);
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(principal, null, principal.authorities());
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authentication);
-            } catch (BusinessException e) {
-                // 위조·만료 토큰은 인증을 세우지 않는다(익명으로 진행) — 보호 자원이면 엔트리 포인트가
-                // 여기 남긴 코드(TOKEN_EXPIRED · UNAUTHORIZED)로 401 본문을 쓴다(BR-033)
-                SecurityContextHolder.clearContext();
-                request.setAttribute(AUTH_FAILURE_ATTR, e.getErrorCode());
-            }
+            authenticate(request, token);
         }
         chain.doFilter(request, response);
+    }
+
+    /** 토큰을 검증해 SecurityContext 를 채운다 — 위조·만료면 익명으로 남기고 거부 사유만 남긴다. */
+    private void authenticate(HttpServletRequest request, String token) {
+        try {
+            AuthUser principal = tokenProvider.authenticateAccess(token);
+            UsernamePasswordAuthenticationToken authentication =
+                    new UsernamePasswordAuthenticationToken(principal, null, principal.authorities());
+            authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+        } catch (BusinessException e) {
+            // 위조·만료 토큰은 인증을 세우지 않는다(익명으로 진행) — 보호 자원이면 엔트리 포인트가
+            // 여기 남긴 코드(TOKEN_EXPIRED · UNAUTHORIZED)로 401 본문을 쓴다(BR-033)
+            SecurityContextHolder.clearContext();
+            request.setAttribute(AUTH_FAILURE_ATTR, e.getErrorCode());
+        }
     }
 
     private String resolveToken(HttpServletRequest request) {

@@ -77,13 +77,13 @@ public class RetentionCleanupScheduler {
     public void cleanUp() {
         OffsetDateTime now = OffsetDateTime.now(clock);
 
-        cleanUpSafely("notification_log", now, retentionPolicy.notificationLogCutoff(now),
+        cleanUpSafely("notification_log", retentionPolicy.notificationLogCutoff(now),
                 notificationLogRepository::findIdsForRetentionCleanup, notificationLogRepository::deleteAllByIdInBatch);
-        cleanUpSafely("run_position", now, retentionPolicy.runPositionCutoff(now),
+        cleanUpSafely("run_position", retentionPolicy.runPositionCutoff(now),
                 runPositionRepository::findIdsForRetentionCleanup, runPositionRepository::deleteAllByIdInBatch);
-        cleanUpSafely("refresh_token", now, retentionPolicy.refreshTokenCutoff(now),
+        cleanUpSafely("refresh_token", retentionPolicy.refreshTokenCutoff(now),
                 refreshTokenRepository::findIdsForRetentionCleanup, refreshTokenRepository::deleteAllByIdInBatch);
-        cleanUpSafely("link_code", now, now,
+        cleanUpSafely("link_code", now,
                 linkCodeRepository::findIdsForRetentionCleanup, linkCodeRepository::deleteAllByIdInBatch);
     }
 
@@ -94,7 +94,7 @@ public class RetentionCleanupScheduler {
      * 좁히면 예상 못 한 버그가 이 메서드를 끊어 {@link #cleanUp} 의 나머지 3개 테이블 정리 여부와
      * 무관하게 배치 자체가 실패로 끝난다({@code NoShowEscalationScheduler.escalateSafely} 와 같은 근거).
      */
-    private void cleanUpSafely(String tableName, OffsetDateTime now, OffsetDateTime cutoff,
+    private void cleanUpSafely(String tableName, OffsetDateTime cutoff,
             BiFunction<OffsetDateTime, Limit, List<Long>> finder, Consumer<List<Long>> deleter) {
         try {
             cleanUpTable(tableName, cutoff, finder, deleter);
