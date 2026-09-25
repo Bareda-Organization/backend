@@ -15,6 +15,8 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+
 import src.backend.student.geocoding.spec.GeocodedPoint;
 import src.backend.student.geocoding.spec.GeocodingUnavailableException;
 import src.backend.student.geocoding.spec.PlaceSearchClient;
@@ -28,12 +30,16 @@ import src.backend.student.geocoding.spec.PlaceSearchClient;
  * {@code mapy} 에 <b>경위도 × 10⁷ 정수</b>로 온다. 한 번에 최대 5건이다. 본문은 JSON 인데 머리는
  * {@code text/plain} 이다.
  *
- * <p>재시도·서킷을 두지 않는다 — 자동완성의 보조 후보라 실패하면 주소 후보만 보이면 되고, 입력마다
- * 부르는 호출에 재시도를 얹으면 느린 순간이 길어질 뿐이다. 대신 상한 시간을 짧게 둔다.
+ * <p>재시도를 두지 않는다 — 자동완성의 보조 후보라 실패하면 주소 후보만 보이면 되고, 입력마다
+ * 부르는 호출에 재시도를 얹으면 느린 순간이 길어질 뿐이다. 대신 상한 시간을 짧게 둔다. 서킷은 둔다
+ * (§7 규칙 11 · BR-163) — 공급자 장애 동안 입력마다 상한 시간(3초)을 기다리지 않고 곧바로 주소 후보로 넘어간다.
  */
 @Component
 @ConditionalOnProperty(name = "app.place-search.provider", havingValue = "naver", matchIfMissing = true)
 public class NaverPlaceSearchClient implements PlaceSearchClient {
+
+    /** Resilience4j 인스턴스 이름({@code application.yml}) — 지오코딩과 다른 상품이라 서킷을 가른다. */
+    public static final String RESILIENCE_INSTANCE = "placeSearch";
 
     private static final String LOCAL_PATH = "/search/v1/local";
 
@@ -66,6 +72,7 @@ public class NaverPlaceSearchClient implements PlaceSearchClient {
     }
 
     @Override
+    @CircuitBreaker(name = RESILIENCE_INSTANCE, fallbackMethod = "unavailable")
     public List<FoundPlace> search(String query) {
         LocalResponse response;
         try {
@@ -90,6 +97,17 @@ public class NaverPlaceSearchClient implements PlaceSearchClient {
                 .map(item -> new FoundPlace(withoutTags(item.title()),
                         new GeocodedPoint(degrees(item.mapy()), degrees(item.mapx()), item.addressOrJibun())))
                 .toList();
+    }
+
+    /**
+     * 서킷이 열려 막힌 호출도 호출자가 이미 처리하는 포트 예외 하나로 모은다. {@code private} 이 아닌 것은
+     * Resilience4j 가 리플렉션으로 찾기 때문이다.
+     */
+    List<FoundPlace> unavailable(String query, Throwable cause) {
+        if (cause instanceof GeocodingUnavailableException unavailable) {
+            throw unavailable;
+        }
+        throw new GeocodingUnavailableException("장소 검색 호출 실패: " + query, cause);
     }
 
     private URI localUri(String query) {
