@@ -17,6 +17,7 @@ import src.backend.routing.entity.Route;
 public record RouteResponse(Long id, Long busId, String busNo, String weekday, String direction,
         String name, boolean active) {
 
+    /** {@code route} 와 별도 조회한 {@code busNo} 를 합쳐 응답을 조립한다 — 요일·방향은 소문자로 내려간다. */
     public static RouteResponse of(Route route, String busNo) {
         return new RouteResponse(route.getId(), route.getBusId(), busNo,
                 lower(route.getWeekday().name()), lower(route.getDirection().name()),

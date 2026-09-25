@@ -167,7 +167,7 @@ controller  →  command / query  →  repository  →  entity
 | **푸시 발송** | `PushSender`(`notification/push/spec`) | FCM · APNs · 알림톡(2~3단계)이 서로 다른 채널 |
 | **알림 문구 생성** | `NotificationComposer`(`notification/domain/spec`) | 문구·다국어가 바뀔 축 |
 
-**`PositionSource` 포트는 없다** — 위치 원천이 매니저 앱 1종으로 확정돼(§10.1) 교체 축이 성립하지 않는다. `location/command/DriverPositionController` 가 HTTP 로 직접 수신(BR-146).
+**`PositionSource` 포트는 없다(BR-146 · BR-161)** — 위치 원천이 매니저 앱 1종으로 확정돼(§10.1) 교체 축이 성립하지 않는다. `location/command/DriverPositionController` 가 HTTP 로 직접 수신하고, 개발용 시뮬레이션(`demo/DemoRunSimulator`)도 실 단말과 같은 명령 진입점(`RunPositionCommandService#receive`)을 그대로 호출한다 — 둘을 가르는 구현체가 없어 인터페이스로 뽑을 대상이 부재.
 
 **구현체 선택은 설정 한 곳에서 한다** — `@ConditionalOnProperty` 나 이름 기반 레지스트리로 주입하고, 호출부에 분기를 두지 않는다. 분기를 호출부에 두면 교체가 전수 수정이 된다.
 

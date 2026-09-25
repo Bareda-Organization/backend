@@ -68,7 +68,7 @@ public class RouteStopArranger {
      *
      * <p><b>지운 뒤 밀어내고서야 넣는다.</b> 이 {@code flush} 가 {@code uk_route_stop_route_seq} 를
      * 지키는 유일한 장치다 — Hibernate 는 한 번의 flush 안에서 INSERT 를 DELETE 보다 <b>먼저</b>
-     * 실행하고, {@code seq} 가 {@code IDENTITY} 라 {@code save} 는 그 자리에서 INSERT 를 내보낸다.
+     * 실행하고, {@code id} 가 {@code IDENTITY} 라 {@code save} 는 그 자리에서 INSERT 를 내보낸다.
      * 밀어내지 않으면 옛 1번과 새 1번이 같은 순간 테이블에 존재해 순서를 바꾸는 요청마다 제약 위반이
      * 난다.
      *

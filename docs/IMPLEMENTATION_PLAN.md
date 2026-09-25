@@ -1510,7 +1510,7 @@ void 확정_시각이_도래하면_idle_회차가_confirmed_로_전이한다() {
 | 9 | **전 엔드포인트 Swagger + 시드 기반 예시** | §3 | "Try it out" 이 401·404 로 끝남 |
 | 10 | **정책 상수는 코드 상수, 학원별 임계값은 DB** | TECH_DECISIONS §12.2 | yml 로 빼면 운영에서 사양 값이 조용히 변경 |
 | 11 | **외부 지도 API 호출은 Resilience4j 로 보호** | §8 | 외부 장애가 계산 경로 전체를 정지 |
-| 12 | **교체 축은 `spec`/`impl` 로 분리** — `RouteEngine` · `AttendantAssigner` · `MapRouteClient` · `GeocodingClient` · `PlaceSearchClient` · `NavProvider` · `PhotoStorage` · `ApprovalPreviewCache` · `PushSender` · `NotificationComposer`(`PositionSource` 는 부재 — 위치 원천이 매니저 앱 1종이라 교체 축이 성립하지 않음, BR-146). 호출부는 `spec` 만 의존하고 구현체 선택은 설정 한 곳 | `ARCHITECTURE §3.2.1` | 교체가 전수 수정이 됨 |
+| 12 | **교체 축은 `spec`/`impl` 로 분리** — `RouteEngine` · `AttendantAssigner` · `MapRouteClient` · `GeocodingClient` · `PlaceSearchClient` · `NavProvider` · `PhotoStorage` · `ApprovalPreviewCache` · `PushSender` · `NotificationComposer`(`PositionSource` 는 부재 — 위치 원천이 매니저 앱 1종이라 교체 축이 성립하지 않음, BR-146 · BR-161). 호출부는 `spec` 만 의존하고 구현체 선택은 설정 한 곳 | `ARCHITECTURE §3.2.1` | 교체가 전수 수정이 됨 |
 | 13 | **엔티티는 정적 팩토리로만 생성** — `@Builder`·`@Setter` 부착 부재. DTO 는 `record` | `ARCHITECTURE §3.2.3` | 빌더가 상태 전이 불변식을 우회 |
 | 14 | **엔티티를 컨트롤러 밖으로 내보내지 않음** — 요청·응답 전용 DTO, 응답은 **역할별로 분리**, 공통 응답 봉투 적용 | `ARCHITECTURE §3.2.2` · `API_SPEC §1.10` | 필드가 하나 늘 때마다 전 역할에 자동 노출 |
 | 15 | **테스트는 Testcontainers** — H2 미사용 | §10 | PostgreSQL CHECK·partial UNIQUE·`jsonb` 를 검증 불가 |

@@ -1,4 +1,4 @@
-package src.backend.routing.query;
+package src.backend.routing.assembly;
 
 import java.util.List;
 import java.util.Map;

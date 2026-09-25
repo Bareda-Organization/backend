@@ -110,7 +110,6 @@ public class StaffRouteController {
         return ApiResponse.ok(routePathQueryService.path(requester, id));
     }
 
-    /** 고정 노선 삭제(RTE-01, §5.9) — 행을 지우고 정차 순서도 FK CASCADE 로 함께 사라진다. */
     /** 좌표로 정차지 더하기 — 주소 검색({@code GET /staff/stops/search}) 결과를 지도에서 확정한 뒤. */
     @CanManageRoute
     @Operation(summary = "고정 노선 편성 · 정차 순서 최적화 — 좌표로 정차지 추가")
@@ -129,6 +128,7 @@ public class StaffRouteController {
         return ApiResponse.ok(routeCommandService.saveStops(requester, id, request));
     }
 
+    /** 고정 노선 삭제(RTE-01, §5.9) — 행을 지우고 정차 순서도 FK CASCADE 로 함께 사라진다. */
     @CanManageRoute
     @Operation(summary = "고정 노선 편성 · 정차 순서 최적화 — 삭제")
     @DeleteMapping("/{id}")

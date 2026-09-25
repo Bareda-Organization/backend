@@ -142,21 +142,29 @@ public class DemoRunSimulator {
                     .forEach(run -> busyBusIds.add(run.getBusId()));
             for (Run run : runRepository.findAllByAcademyIdAndStatusOrderByDepartTimeAsc(academyId,
                     RunStatus.CONFIRMED)) {
-                if (!isDemo(run) || busyBusIds.contains(run.getBusId())) {
-                    continue;
+                if (startIfDue(run, busyBusIds)) {
+                    busyBusIds.add(run.getBusId());
                 }
-                driverOf(run).ifPresent(driver -> {
-                    try {
-                        runStartCommandService.start(driver, run.getId());
-                        busyBusIds.add(run.getBusId());
-                        log.info("[데모] 회차 {} 운행 시작", run.getId());
-                    } catch (RuntimeException e) {
-                        // 시작 창 밖(START_WINDOW_CLOSED)이 대부분이다 — 데모에서는 정상 상태라 조용히 넘긴다.
-                        log.debug("[데모] 회차 {} 시작 보류: {}", run.getId(), e.getMessage());
-                    }
-                });
             }
         }
+    }
+
+    /** 데모 대상이고 그 버스가 아직 안 바쁘면 이 회차를 출발시킨다 — 성공하면 {@code true}(§20.2, BR-101). */
+    private boolean startIfDue(Run run, Set<Long> busyBusIds) {
+        if (!isDemo(run) || busyBusIds.contains(run.getBusId())) {
+            return false;
+        }
+        return driverOf(run).map(driver -> {
+            try {
+                runStartCommandService.start(driver, run.getId());
+                log.info("[데모] 회차 {} 운행 시작", run.getId());
+                return true;
+            } catch (RuntimeException e) {
+                // 시작 창 밖(START_WINDOW_CLOSED)이 대부분이다 — 데모에서는 정상 상태라 조용히 넘긴다.
+                log.debug("[데모] 회차 {} 시작 보류: {}", run.getId(), e.getMessage());
+                return false;
+            }
+        }).orElse(false);
     }
 
     private boolean isDemo(Run run) {
@@ -173,23 +181,28 @@ public class DemoRunSimulator {
                         .findAllByAcademyIdAndStatusOrderByDepartTimeAsc(academyId, RunStatus.MOVING).stream())
                 .toList();
         for (Run run : movingRuns) {
-            List<GeoPoint> path = roadPathOf(run.getId());
-            if (path.size() < 2) {
-                continue;
-            }
-            int step = Math.max(1, path.size() / (int) (LAP_MINUTES * 60_000L / TICK_MS));
-            int cursor = (cursorByRun.getOrDefault(run.getId(), 0) + step) % path.size();
-            cursorByRun.put(run.getId(), cursor);
-            GeoPoint point = path.get(cursor);
-            driverOf(run).ifPresent(driver -> {
-                try {
-                    runPositionCommandService.receive(driver, run.getId(),
-                            new RunPositionRequest(point.lat(), point.lng(), OffsetDateTime.now(clock), null, null));
-                } catch (RuntimeException e) {
-                    log.debug("[데모] 회차 {} 위치 송신 실패: {}", run.getId(), e.getMessage());
-                }
-            });
+            advanceOne(run);
         }
+    }
+
+    /** 회차 하나를 도로 경로 위 다음 지점으로 옮기고 그 위치를 실 단말과 같은 명령 경로로 보낸다(§20.2, BR-101). */
+    private void advanceOne(Run run) {
+        List<GeoPoint> path = roadPathOf(run.getId());
+        if (path.size() < 2) {
+            return;
+        }
+        int step = Math.max(1, path.size() / (int) (LAP_MINUTES * 60_000L / TICK_MS));
+        int cursor = (cursorByRun.getOrDefault(run.getId(), 0) + step) % path.size();
+        cursorByRun.put(run.getId(), cursor);
+        GeoPoint point = path.get(cursor);
+        driverOf(run).ifPresent(driver -> {
+            try {
+                runPositionCommandService.receive(driver, run.getId(),
+                        new RunPositionRequest(point.lat(), point.lng(), OffsetDateTime.now(clock), null, null));
+            } catch (RuntimeException e) {
+                log.debug("[데모] 회차 {} 위치 송신 실패: {}", run.getId(), e.getMessage());
+            }
+        });
     }
 
     /** 확정 노선의 도로 경로. 아직 확정 전이거나 배포된 버전이 없으면 빈 목록이다. */

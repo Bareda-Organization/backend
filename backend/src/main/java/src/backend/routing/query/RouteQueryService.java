@@ -20,6 +20,7 @@ import src.backend.global.request.PageParams;
 import src.backend.global.request.SortParam;
 import src.backend.global.response.PageResponse;
 import src.backend.global.security.AuthUser;
+import src.backend.routing.assembly.RouteDetailAssembler;
 import src.backend.routing.dto.RouteDetailResponse;
 import src.backend.routing.dto.RouteListRequest;
 import src.backend.routing.dto.RouteResponse;

@@ -14,6 +14,7 @@ import src.backend.student.entity.Stop;
  */
 public record RouteStopResponse(Long stopId, int seq, String name, BigDecimal lat, BigDecimal lng) {
 
+    /** 정차 순서 행({@code routeStop})과 위치 원본({@code stop})을 합쳐 응답 한 자리를 만든다. */
     public static RouteStopResponse of(RouteStop routeStop, Stop stop) {
         return new RouteStopResponse(routeStop.getStopId(), routeStop.getSeq(), stop.getName(),
                 stop.getLat(), stop.getLng());
