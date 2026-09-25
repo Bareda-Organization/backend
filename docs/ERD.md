@@ -232,6 +232,7 @@ erDiagram
 | `status` | varchar(10) | NN | `pending` · `active` · `rejected` · `blocked`. CHECK |
 | `failed_attempts` | integer | NN default 0 | 로그인 연속 실패 횟수. **5회** 도달 시 `blocked` (C-11) |
 | `blocked_at` | timestamptz | | 차단 일시 |
+| `status_before_block` 🆕 | varchar(10) | | 차단 직전 상태(`active`·`pending`·`rejected`). `blocked` 전이 시 저장, 해제 시 이 값으로 복원 후 NULL — `status='blocked'` 일 때만 NOT NULL. CHECK (2026-09-25 `Ruling 328`) |
 | `block_reason` | varchar(100) | | 차단 사유 — 차단 목록의 `reason` |
 | `unblocked_by` | bigint | | 해제 처리자 계정. 이력 요건 (AUTH-06 · API_SPEC §6.12) |
 | `unblocked_at` | timestamptz | | 해제 일시 (API_SPEC §6.12) |
@@ -548,6 +549,7 @@ erDiagram
 | `route_version_id` 🆕 | bigint | FK NN | 소속 버전. 재배포마다 새 행 집합 생성 |
 | `stop_id` | bigint | FK | 학생 승하차지. 경유 지점이면 NULL |
 | `waypoint_id` 🆕 | bigint | FK | 강제 경유지. 학생 승하차지면 NULL |
+| `destination` 🆕 | boolean | NN default false | **등원 회차의 도착지(학원) 항목** — 마지막 순번 1행만 `true`, 이때 `stop_id`·`waypoint_id` 둘 다 NULL. 이 항목의 도착 처리가 운행 종료(C-15). `stop_id` · `waypoint_id` · `destination` 중 정확히 하나 (2026-09-25 `Ruling 327`) |
 | `seq` | integer | NN | 운행 순번. `skipped` 여도 재부여 부재 |
 | `change` | varchar(10) | | `added` · `skipped`. NULL = 변경 부재. CHECK |
 | `skip_notice` | varchar(200) | | 미경유 안내 문구 |
@@ -1006,7 +1008,7 @@ erDiagram
 |---|---|---|
 | `bus` | `student_capacity = capacity - driver_count - escort_count` | 학생 탑승 가능 인원 계산식 (BUS-04) |
 | `bus` | `capacity > driver_count + escort_count` | 학생 정원이 0 이하인 차량 차단 |
-| `run_stop` | `(stop_id IS NOT NULL) <> (waypoint_id IS NOT NULL)` | 정차 항목은 학생 승하차지 **또는** 강제 경유지 — 배타적 (RTE-10) |
+| `run_stop` | `num_nonnulls(stop_id, waypoint_id, NULLIF(destination, false)) = 1` | 정차 항목은 학생 승하차지 · 강제 경유지 · 도착지(학원) 중 **정확히 하나** (RTE-10 · C-15). ⚠ 현재 V1 은 앞의 둘만 배타 — 도착지 항목 도입(2026-09-25 `Ruling 327`) 때 함께 교체 |
 | `run_stop` | `change IN ('added','skipped')` | 승하차지에 `removed` 부재 (FEATURE_SPEC §3.5 적용 대상) |
 | `run_rider` | `change IN ('added','removed')` | 탑승자에 `skipped` 부재 |
 | `run_rider` | `status IN ('waiting','boarded','alighted','absent','no_show')` | 탑승 상태 5종 (C-02) |
@@ -1015,6 +1017,7 @@ erDiagram
 | `account` | `status IN ('pending','active','rejected','blocked')` | 계정 상태 4종 |
 | `account` | `role = 'system_admin' OR academy_id IS NOT NULL` | 메인 관리자 외 전 계정은 학원 소속 (API_SPEC §1.5) |
 | `account` | `failed_attempts BETWEEN 0 AND 5` | 로그인 차단 **5회** (C-11) |
+| `account` | `(status = 'blocked') = (status_before_block IS NOT NULL)` · `status_before_block IN ('pending','active','rejected')` | 차단 직전 상태는 차단 중에만 존재 (2026-09-25 `Ruling 328`) |
 | `change_request` | `status IN ('pending','approved','rejected','auto_rejected')` | 변경 요청 상태 4종 |
 | `change_request` | `status <> 'rejected' OR reject_reason IS NOT NULL` | 거절 시 사유 필수 |
 | `change_request` | `type <> 'relocate' OR new_address IS NOT NULL` | 위치 변경은 주소 필수 |

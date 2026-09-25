@@ -39,7 +39,7 @@
 | 베이스 경로 | `/api/v1` — 이 문서의 모든 경로는 이 접두사 생략 표기 |
 | 요청·응답 본문 | `application/json; charset=utf-8` 고정. **예외 — 학생 사진 업로드(§5.11)만 `multipart/form-data`**(JSON 파트 + 파일 파트). 파일은 이미지 3종(`jpeg`·`png`·`webp`), 상한 5MB 🆕 |
 | 필드 명명 | `snake_case` |
-| 식별자 | 서버 발급 문자열. 경로 파라미터 `{id}` · `{runId}` · `{stopId}` · `{riderId}` |
+| 식별자 | 서버 발급 문자열. 경로 파라미터 `{id}` · `{runId}` · `{stopId}` · `{riderId}` — **응답 본문의 모든 식별자(`id` · `*_id`)도 JSON 문자열**(2026-09-25 `Ruling 332` — `Ruling 275` 미결 해소, `Ruling 171` 유지). 요청 본문의 식별자는 문자열·숫자 둘 다 수용 |
 | 성공 상태 | 조회·수정 `200`, 생성 `201`, 본문 없는 처리 `204` |
 | 시각 표기 | ISO-8601 + 오프셋 (`2026-08-24T08:30:00+09:00`). 서비스 기준 시간대 `Asia/Seoul` |
 | 날짜 표기 | `YYYY-MM-DD`. `date` 쿼리 파라미터 미지정 시 서버 기준 당일 |
@@ -416,7 +416,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 로그아웃 (AUTH-09). refresh 토큰 무효화. 정본 API명세서에 경로 미기재 — AUTH-09 · §1.4 의 로그아웃 허용 규칙에서 도출.
 
-**권한** 전 역할 (`pending` 포함) · **요청** `refresh_token` (string) — §2.6 과 같이 **쿠키 우선, 없으면 본문** · **응답** `204`
+**권한** 전 역할 (`pending` 포함) · **요청** `refresh_token` (string) — §2.6 과 같이 **쿠키 우선, 없으면 본문** · `device_id` (string, 선택 — 있으면 그 기기의 푸시 단말 토큰을 함께 해지, §2.11 · `Ruling 331`) · **응답** `204`
 
 **웹 응답에는 쿠키 삭제 지시가 함께 붙는다** — `Set-Cookie: refresh_token=; Max-Age=0; Path=/api/v1/auth` (속성은 발급 시와 동일해야 브라우저가 같은 쿠키로 인식). 서버측 무효화만 하고 이 헤더를 빠뜨리면 브라우저에 죽은 쿠키가 남아 다음 접속이 `401` 한 번을 더 거친다.
 
@@ -445,7 +445,11 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 전화번호 인증(SMS) 복구 또는 관리자 경유 복구 요청. 관계자 계정 비밀번호 초기화는 메인 관리자 경로(§6.7).
 
-**에러** — `404 ACCOUNT_NOT_FOUND`(미등록 전화번호) · `403 VERIFICATION_CODE_INVALID`(SMS 인증 코드 만료·불일치) · `422 VALIDATION_FAILED`(`type` 누락). 비인증 경로라 계정 상태 항목은 미적용 (§1.11).
+⚠ **SMS 발송 수단이 설정되기 전에는 `503 RECOVERY_UNAVAILABLE`** (2026-09-25 `Ruling 329`) — 코드 발급·대조·초기화를 전부 수행하지 않는다. 문자 연동은 `PRD` F-05(2단계) 범위라 지금 단계에 발송 채널이 부재하고, 발송 없는 전화번호 인증은 정상 사용자에겐 불능 · 공격자에겐 대입 경로다. 그 동안의 복구는 **관리자 경유** — 학부모·학생·매니저는 §5.22, 관계자는 §6.7.
+
+**SMS 연동 후 재개 조건** — 임시 비밀번호·아이디는 **SMS 로만** 전달(응답 본문에 싣지 않음) · 같은 번호 발급 60초 1회 · 하루 5회 · 대조 횟수는 조건부 UPDATE 로 누적.
+
+**에러** — `503 RECOVERY_UNAVAILABLE`(SMS 발송 수단 미설정 — Ruling 329) · `404 ACCOUNT_NOT_FOUND`(미등록 전화번호) · `403 VERIFICATION_CODE_INVALID`(SMS 인증 코드 만료·불일치) · `422 VALIDATION_FAILED`(`type` 누락). 비인증 경로라 계정 상태 항목은 미적용 (§1.11).
 
 ---
 
@@ -621,11 +625,11 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 ⚠ **① 의 "노선 재최적화" 는 호출이 아니라 결과다 (2026-08-30, Ruling 198).** ①구간(출발 30분 전까지) 동안 회차는 `idle` 이고 `confirmed_route` 행이 **부재**해 재최적화할 대상이 없다 — 확정 시각이 곧 ①/② 경계이기 때문이다(`run.confirm_at` · `ck_run_confirm_at` CHECK · ARCHITECTURE §9). 따라서 ①구간 토글은 **`boarding_intent` 만 갱신**하고, 반영은 뒤이어 도는 확정 배치(RTE-02)가 그 값을 읽어 산출하는 것으로 이뤄진다(ARCHITECTURE §8.1 입력 3축). **예외** — 회차 임시 추가(API_SPEC §5.10)로 출발 30분 이내에 만들어진 회차는 생성 시점에 `confirm_at` 이 이미 지나 곧바로 확정되므로 **② 구간부터 시작**한다.
 | ② 30분 안쪽 ~ 출발 전 | 승인 대기로 접수 + 관계자 푸시(REQ-05). 승인 시 **재최적화·재배포**(§5.6). **회차당 1회** — 단위는 회차(`Run`)이며 등원·하원이 각각 1회씩. 소진 후 `403 CHANGE_LIMIT_REACHED` |
-| ③ 운행 시작 후 | `riding=false` 만 **승인 없이 즉시 수용** — `applied_no_reroute`. `absent` 기록 + 해당 승하차지를 **경유하되 정차하지 않음**(`skipped`) + 기사·동승자 푸시. **노선·순번 불변, 재최적화 부재** (C-04 ③ · C-05). `riding=true`(되돌리기)는 `403 CHANGE_WINDOW_CLOSED` |
+| ③ 운행 시작 후 | `riding=false` 만 **승인 없이 즉시 수용** — `applied_no_reroute`. **대상은 아직 타지 않은(`waiting`) 학생만** — `boarded`·`alighted`·`no_show` 면 `403 CHANGE_WINDOW_CLOSED`(`Ruling 334`). `absent` 기록 + 해당 승하차지를 **경유하되 정차하지 않음**(`skipped`) + 기사·동승자 전달(WS `rider_changed` · `route_changed` 알림, `Ruling 334`). **노선·순번 불변, 재최적화 부재** (C-04 ③ · C-05). `riding=true`(되돌리기)는 `403 CHANGE_WINDOW_CLOSED` |
 
 서버 처리 실패 시 기존 상태 복구 + **횟수 미소진** (C-10).
 
-**에러** — `403 CHANGE_LIMIT_REACHED` · `403 CHANGE_WINDOW_CLOSED`(③ 구간의 `riding=true` 되돌리기) · `404 RUN_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163) · `404 STUDENT_NOT_FOUND` · `403 FORBIDDEN`(연결 부재 자녀 — 학부모 전용, 학생 계정 호출 포함)
+**에러** — `403 CHANGE_LIMIT_REACHED` · `403 CHANGE_WINDOW_CLOSED`(③ 구간의 `riding=true` 되돌리기 · ③ 구간 대상 학생이 `waiting` 이 아님) · `404 RUN_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163) · `404 STUDENT_NOT_FOUND` · `403 FORBIDDEN`(연결 부재 자녀 — 학부모 전용, 학생 계정 호출 포함)
 
 ### 3.7 GET · PATCH /students/{id}/weekly-address
 
@@ -921,7 +925,8 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|:-:|---|
-| `stops[]` | array | ● | `stop_id` · `seq` · `name` · `address` · `lat` · `lng` · `change` · `student_count` |
+| `stops[]` | array | ● | `stop_id` · `seq` · `name` · `address` · `lat` · `lng` · `change` · `student_count` · `is_destination` |
+| `stops[].is_destination` | boolean | ● | **등원 회차의 마지막 항목(학원)만 `true`** — 이 항목의 도착 처리(§4.5)가 운행 종료(C-15). 이름·좌표는 학원, `student_count` 0. 하원 회차에는 부재(학원이 출발지) (2026-09-25 `Ruling 327`) |
 | `current_stop` | object | ○ | **마지막으로 도착한** 승하차지 — 도착 기록이 없으면 부재. 다음에 설 곳은 `next_stop` 이다 (2026-09-14 문면 정정, `Ruling 281`) |
 | `next_stop` | object | ○ | 다음 승하차지. **`skipped` 는 건너뛰고 실제 경유지를 반환** |
 | `next_stop.lat` · `next_stop.lng` | number | ● | **외부 내비게이션 앱 콜백용** |
@@ -982,6 +987,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 |---|---|
 | 시점 | 도착 직전 |
 | 효과 | ① 도착 타임스탬프 기록 ② 기사 화면 포인터 전진 ③ **최종 지점이면 운행 종료 판정** (C-15) |
+| **최종 지점** | 등원 = **학원 항목**(§4.3 `is_destination=true`) · 하원 = 마지막 하차지. 등원의 마지막 승차지 도착은 일반 도착(포인터 전진) — 그 승차지 학생의 승차 처리가 계속 가능 (2026-09-25 `Ruling 327`) |
 | **종료 겸함** | `is_final=true` 일 때 — 등원: 즉시 `run_status=finished` + 전원 자동 `alighted`. 하원: 잔류 0명이면 즉시 `finished`, 미하차 존재 시 `finish_pending=true` + `moving` 유지 (RUN-06) |
 | 보류 해제 | 하원 보류 중 마지막 탑승자가 `alighted` 되는 순간 **서버가 자동으로 `finished` 전이** — 기사 재조작 부재. `run_ended` 발행 |
 | 중복 | 동일 승하차지 재처리 차단 — `403 DUPLICATE_ARRIVE` |
@@ -1817,7 +1823,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 **권한** 학원 관계자 · **목적** 회차별 기사·동승자 배치. 시간 충돌 경고 반환
 
-⚠ **`[조정 중]` 중 `MGR-05` 수동 배치와 `MGR-06` 충돌 경고만 2026-08-26 확정했다**(Ruling 153). **동승자 자동 배정은 Phase 6 T6 `AttendantAssigner`(2026-08-29, `routing/assign/spec/AttendantAssigner` · 구현 `SequentialAttendantAssigner`)로 구현 완료**다 — 노선 계산 파이프라인 ⑤단계(`ARCHITECTURE §8.2`)이며 엔드포인트가 아니다. 이 절이 규정하는 것은 **관계자가 손으로 지정하는 경로**뿐이다.
+⚠ **`[조정 중]` 중 `MGR-05` 수동 배치와 `MGR-06` 충돌 경고만 2026-08-26 확정했다**(Ruling 153). **동승자 자동 배정은 노선 계산 파이프라인 ⑤단계**이며 엔드포인트가 아니다 — 확정 배치가 **동승자 자리가 빈 회차에만** `AttendantAssigner`(Phase 6 T6, 구현 `SequentialAttendantAssigner`)를 호출하고, 수동 배치가 있으면 건드리지 않는다. 후보가 없으면 빈 채로 확정. 배정되면 그 매니저에게 `assignment_changed`(§9.7). ⚠ 2026-09-25 전체 검사에서 **배정기가 운영 코드 어디에서도 호출되지 않는 것**이 드러났다 — 옛 문면 "구현 완료" 는 배정기 클래스의 존재를 뜻했을 뿐이다(`Ruling 330`). 파이프라인 단계 정의는 `ARCHITECTURE §8.2`. 이 절이 규정하는 것은 **관계자가 손으로 지정하는 경로**뿐이다.
 
 **요청** — 둘 다 선택이나 **최소 하나는 필요**하다(둘 다 비면 `422 VALIDATION_FAILED`).
 
@@ -2016,6 +2022,30 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 ⚠ **다른 정책 상수(30분 · ±10분 · 14일 · 5회 등)는 전역 값이라 이 엔드포인트의 대상 밖** — 학원이 바꿀 수 있게 하면 사양이 흔들림.
 
 **에러** — `422 VALIDATION_FAILED`(허용 범위 밖 값 — `no_show_wait_minutes` 는 1~30)
+
+### 5.22 POST /staff/accounts/{accountId}/password-reset
+
+학부모 · 학생 · 매니저 계정의 비밀번호 초기화 — **관리자 경유 복구** (AUTH-08 · C-11, 2026-09-25 `Ruling 329` 신설).
+
+**권한** 학원 관계자 · **요청** 본문 부재
+
+**응답**
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|:-:|---|
+| `account_id` | string | ● | |
+| `login_id` | string | ● | 아이디 분실 안내용 |
+| `temporary_password` | string | ● | **1회 반환** — 재조회로는 다시 못 봄(§6.7 과 같은 형태) |
+
+| 처리 | 내용 |
+|---|---|
+| 대상 | **같은 학원**의 `parent` · `student` · `driver` · `escort` 계정. 관계자 계정은 §6.7(메인 관리자) |
+| 효과 | 비밀번호 교체 · refresh 토큰 전량 무효화(C-14) · 감사 기록(`action=update`) |
+| 차단 계정 | 초기화는 차단을 풀지 않음 — 해제는 메인 관리자(C-11 · §6.12) |
+
+SMS 연동(`PRD` F-05) 전까지 §2.9 가 `503` 이라 **학원 사용자의 유일한 복구 경로**다.
+
+**에러** — `404 ACCOUNT_NOT_FOUND`(부재 · 타 학원 · 관계자·메인 관리자 계정 — 존재 비노출)
 
 ---
 
@@ -2226,6 +2256,8 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `blocked_at` | datetime | ● | 차단 일시 |
 | `failed_attempts` | integer | ● | 시도 횟수 — **5회** 누적이 기준 |
 | `reason` | string | ● | 차단 사유 |
+| `role` | enum | ● | §9.1 |
+| `status_before_block` | enum | ● | 차단 직전 계정 상태 — `active` · `pending` · `rejected`. 해제하면 이 값으로 돌아간다(§6.12 · `Ruling 328`) |
 
 **계정 단위 차단만** — IP 차단 부재 (C-11).
 
@@ -2253,7 +2285,9 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 로그인 차단 해제 (AUTH-06, O-03).
 
-**요청** 본문 부재 · **응답** `account_status`(`active`) · `unblocked_by` · `unblocked_at` · **이력** 처리자·일시 저장
+**요청** 본문 부재 · **응답** `account_status`(**차단 직전 상태로 복귀** — `active` · `pending` · `rejected`) · `unblocked_by` · `unblocked_at` · **이력** 처리자·일시 저장
+
+**해제는 로그인 차단만 푼다** (2026-09-25 `Ruling 328`) — 차단 사유는 로그인 실패 5회(C-11)이고 가입 승인과 무관하다. 무조건 `active` 로 두면 승인 대기 중 차단된 계정이 **가입 승인 없이** 활성화되고, 관계자 역할이면 학원 전체 개인정보 권한을 얻는다.
 
 **에러** — `404 ACCOUNT_NOT_FOUND` · `409 ACCOUNT_NOT_BLOCKED`(`blocked` 아닌 계정의 해제 시도)
 
@@ -2337,9 +2371,9 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 |---|---|---|
 | `position` | `POST /runs/{runId}/position` (**2초** 주기 · 옛값 5~10초) | `lat` · `lng` · `received_at` · `current_stop_name`(§4.3 `current_stop` 과 같은 판정 — **마지막으로 도착한** 승하차지 이름, 도착 기록이 없으면 부재, 2026-09-17 문면 정정 `Ruling 304`). **학부모·학생 채널은 ETA 부재** (C-08), 관제 채널만 `eta` 포함 |
 | `stop_arrived` | `POST /runs/{runId}/stops/{stopId}/arrive` | `stop_id` · `seq` · `name` · `arrived_at` · `next_stop_id`. 기사 포인터 전진의 방송 — 동승자 처리 명단은 불변 |
-| `rider_changed` | `PATCH /runs/{runId}/riders/{riderId}` · `revert` | `rider_id` · `student_id` · `student_name` · `status` · `stop_id` · `changed_at` · `counts` · `stop_skipped`. **5초** 이내 반영 |
-| `run_started` | `POST /runs/{runId}/start` | `run_status`(`moving`) · `started_at` · `auto_boarded_count` |
-| `run_ended` | 서버의 `finished` 전이 (§4.10) | `run_status`(`finished`) · `finished_at` · `auto_alighted_count` |
+| `rider_changed` | `PATCH /runs/{runId}/riders/{riderId}` · `revert` · **§3.6 ③구간 `riding=false`**(`status=absent` · `stop_skipped`, `Ruling 334`) | `rider_id` · `student_id` · `student_name` · `status` · `stop_id` · `changed_at` · `counts` · `stop_skipped`. **5초** 이내 반영 |
+| `run_started` | `POST /runs/{runId}/start` | `run_status`(`moving`) · `started_at` · `auto_boarded_count`. **학생 채널은 `auto_boarded_count` 부재** (C-08 · §1.12, `Ruling 335`) |
+| `run_ended` | 서버의 `finished` 전이 (§4.10) | `run_status`(`finished`) · `finished_at` · `auto_alighted_count`. **학생 채널은 `auto_alighted_count` 부재** (C-08 · §1.12, `Ruling 335`) |
 | `emergency_raised` | `POST /runs/{runId}/emergency` | `emergency_id` · `type` · `bus_no` · `raised_by{name, role, phone}` · `position{lat, lng}` · `rider_count`(발신 시점 회차에 배정된 라이더 전원 수, 승하차 상태 무관) · `raised_at`. **관계자·메인 관리자 채널 전용** (C-17) |
 | `emergency_acked` | `POST /staff/emergencies/{id}/ack` | `emergency_id` · `acked_by_name` · `acked_at`. **매니저 채널 전용** — 발신자 앱에 "학원이 확인했습니다" 표시 (A-16) |
 | `approval_requested` | ② 구간 요청 접수 (REQ-05) | `approval_id` · `student_name` · `run_id` · `stop_name` · `deadline_at`. **관계자 채널 전용** |
@@ -2370,6 +2404,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `ACCOUNT_NOT_FOUND` | 404 | 미존재 계정 지정 — 복구 요청의 미등록 전화번호, 관계자 계정·차단 계정 처리 대상 부재 |
 | `ACCOUNT_NOT_BLOCKED` | 409 | `blocked` 아닌 계정에 차단 해제 시도 (AUTH-06) |
 | `VERIFICATION_CODE_INVALID` | 403 | 아이디·비밀번호 복구의 SMS 인증 코드 만료·불일치 (AUTH-08) |
+| `RECOVERY_UNAVAILABLE` | 503 | 전화번호 복구(§2.9) 호출 시 SMS 발송 수단이 미설정 — 관리자 경유(§5.22 · §6.7)로 안내 (2026-09-25 `Ruling 329`) |
 
 ### 8.2 인가 · 격리
 
@@ -2524,8 +2559,8 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `approval_requested` | ② 구간 요청 접수 (REQ-05) | 관계자 | — |
 | `intent_changed` | 학부모 토글 | 관계자 | — |
 | ~~`link_requested`~~ | **폐지(Ruling 324)** — 자녀 연결 요청(§3.2) 단계 자체가 없어졌다. 실제로 발송 경로가 배선된 적이 없었다(코드에 정의만 있고 호출부 부재) | — | — |
-| `route_changed` | 확정 후 노선 변경 (RUN-07) | 기사 · 동승자 | — |
-| `assignment_changed` | 당일 배치 변경 (MGR-05) | 해당 매니저 | — |
+| `route_changed` | 확정 후 노선 변경 (RUN-07) — **§3.6 ③구간 미등원 반영 포함**(해당 승하차지 미정차, `Ruling 334`) | 기사 · 동승자 | — |
+| `assignment_changed` | 당일 배치 변경 (MGR-05) — **확정 배치의 동승자 자동 배정 포함**(`Ruling 330`) | 해당 매니저 | — |
 | `no_show_escalated` | 미승차 3분 경과·무응답 (EXC-01) | 관계자 | — |
 | `exception_reported` | `POST /runs/{runId}/reports` 접수 (EXC-02·03, §4.13) | 관계자 | — |
 | `emergency` | 매니저 앱 비상 발신 (EXC-04) | **관계자 + 메인 관리자** | **부재 — 항상 발송** (C-17) |
