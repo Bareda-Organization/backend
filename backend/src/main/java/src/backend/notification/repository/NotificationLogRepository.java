@@ -217,7 +217,8 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
      * 막혀 {@code SKIPPED} 로 남은 행도 그대로 나와야 한다(§5.17 "푸시 off 로 차단된 건도 레코드로
      * 존치"). {@code sent_at} 이 비어 있을 수 있는 행({@code SKIPPED}·아직 안 보낸 {@code PENDING})은
      * {@code COALESCE(sent_at, created_at)} 으로 정렬·기간필터 모두를 대신한다 — 그렇지 않으면 그런
-     * 행이 날짜 필터를 걸 때마다 조용히 빠진다.
+     * 행이 날짜 필터를 걸 때마다 조용히 빠진다. 그 식 그대로 식 인덱스
+     * ({@code ix_notification_log_academy_shown})가 있다(BR-090).
      *
      * <p>{@code acked} 를 주면 수신 확인 대상 종류({@code importantTypes})로도 좁힌다 — 대상 밖 종류는 영원히
      * {@code acked=false} 라, 섞이면 "확인 안 한 중요 통지" 목록이 배지({@link #countUnackedForStaffLog})와
@@ -243,7 +244,8 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
      * 잃는다.
      *
      * <p>수신 확인 대상 3종({@link NotificationType#IMPORTANT_FOR_ACK}, FEATURE_SPEC NTF-10)만 센다 — 목록의
-     * {@code acked} 필터도 같은 3종으로 좁힌다(BR-071).
+     * {@code acked} 필터도 같은 3종으로 좁히고, 부분 인덱스({@code ix_notification_log_academy_unacked})의
+     * 조건도 같은 3종이다(BR-090).
      */
     @Query("""
             SELECT COUNT(n) FROM NotificationLog n

@@ -1051,8 +1051,8 @@ erDiagram
 | `device_token(account_id) WHERE revoked_at IS NULL` | 발송 시 계정의 **유효 토큰 전량** 조회. 부분 인덱스라 해지분은 색인 대상 밖 |
 | `notification_log(push_state, created_at) WHERE push_state = 'pending'` | **아웃박스 워커가 미발송분을 폴링** — 커밋 직후 발송에 실패했거나 앱이 죽어 누락된 건을 회수. 부분 인덱스라 발송 완료분은 색인 대상 밖 (ARCHITECTURE §11) |
 | `notification_log(recipient_account_id, created_at desc)` | 알림 목록 **14일** + 미읽음 배지 (NTF-08) |
-| `notification_log(academy_id, sent_at desc)` | 관계자 알림 로그 전수 조회 (NTF-11 · A-13) |
-| `notification_log(academy_id, acked)` partial `WHERE acked = false` | 미확인 배지 집계 (NTF-10) |
+| `notification_log(academy_id, COALESCE(sent_at, created_at) desc)` | 관계자 알림 로그 전수 조회 (NTF-11 · A-13) — 발송 전·건너뛴 행도 담으려 조회가 이 식으로 정렬·기간 필터하므로 식 인덱스(BR-090) |
+| `notification_log(academy_id)` partial `WHERE acked = false AND type IN ('delay','no_show','route_changed')` | 미확인 배지 집계 (NTF-10) — 수신 확인 대상 3종만. 그 밖 종류는 영원히 `acked=false` 라 조건에 넣지 않으면 전 행이 색인된다(BR-090) |
 | `run_position(run_id, recorded_at desc)` | 실시간 위치 — 회차의 최신 좌표 1건 조회가 지배적 (LOC-02) |
 | `assignment(manager_id, run_id)` | 매니저의 배치 회차 판정 — API 접근 범위 검사 경로 (API_SPEC §1.5) |
 | `assignment(run_id)` | 대시보드의 배치 인력·확인 응답 표시 (MON-05) |

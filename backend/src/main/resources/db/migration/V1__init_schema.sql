@@ -798,8 +798,11 @@ CREATE INDEX ix_device_token_account_active ON device_token (account_id) WHERE r
 -- 아웃박스 워커가 미발송분을 폴링한다. 부분 인덱스라 발송 완료분은 색인 대상 밖이다.
 CREATE INDEX ix_notification_log_pending ON notification_log (push_state, created_at) WHERE push_state = 'pending';
 CREATE INDEX ix_notification_log_recipient_created ON notification_log (recipient_account_id, created_at DESC);
-CREATE INDEX ix_notification_log_academy_sent ON notification_log (academy_id, sent_at DESC);
-CREATE INDEX ix_notification_log_academy_unacked ON notification_log (academy_id, acked) WHERE acked = false;
+-- 관계자 알림 로그(§5.17)는 발송 전·건너뛴 행까지 담으려 COALESCE(sent_at, created_at) 로 정렬·기간 필터한다 — 식 인덱스(BR-090)
+CREATE INDEX ix_notification_log_academy_shown ON notification_log (academy_id, (COALESCE(sent_at, created_at)) DESC);
+-- 미확인 배지는 수신 확인 대상 3종만 센다(NotificationType.IMPORTANT_FOR_ACK) — 그 밖 종류는 영원히 acked=false 라 조건에 넣지 않으면 전 행이 색인된다(BR-090)
+CREATE INDEX ix_notification_log_academy_unacked ON notification_log (academy_id)
+    WHERE acked = false AND type IN ('delay', 'no_show', 'route_changed');
 
 CREATE INDEX ix_run_position_run_recorded ON run_position (run_id, recorded_at DESC);
 
