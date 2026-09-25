@@ -41,6 +41,7 @@ import src.backend.manager.entity.Manager;
 import src.backend.manager.repository.ManagerRepository;
 import src.backend.run.access.RunAssignmentAccess;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.query.RunPositionCache;
 import src.backend.student.query.RunPositionSnapshot;
@@ -49,11 +50,9 @@ import src.backend.student.query.RunPositionSnapshot;
  * 비상 신고 발신·취소·확인(EXC-04, Phase 11 T2 목표 5·8·9·10) — {@code emergency_alert} 를 쓰는
  * 유일한 지점이다.
  *
- * <p><b>발신 시 회차 상태를 확인하지 않는다</b>(판단 근거, 보고서 항목) — {@link RunStartCommandService}
- * 등 다른 회차 커맨드와 달리 이 서비스는 {@code run.status} 를 가드로 쓰지 않는다. 비상 상황은
- * {@code idle}(출발 전 대기 중 차량 이상 발견 등)에서도 일어날 수 있고, 목표 5~11 어디에도 상태
- * 제약이 명시돼 있지 않다 — 배치({@link RunAssignmentAccess#assertAssignedDriverOrEscort})만 통과하면
- * 신고는 언제나 접수돼야 한다는 것이 안전 기능의 기본 전제다.
+ * <p><b>발신은 확정({@code confirmed}) 이후 회차에만 받는다</b>(API_SPEC §4.14 "발신 시점" · M-15 ·
+ * UF-X-08, BR-109) — 확정 전({@code idle}) 회차는 {@code 409 RUN_NOT_CONFIRMED}. 운행 중이 아니어도
+ * (확정 뒤 출발 전 차량 이상 등) 받는다.
  */
 @Slf4j
 @Service
@@ -93,6 +92,9 @@ public class EmergencyCommandService {
         Assignment assignment = runAssignmentAccess.assertAssignedDriverOrEscort(requester, runId);
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        if (run.getStatus() == RunStatus.IDLE) {
+            throw new BusinessException(ErrorCode.RUN_NOT_CONFIRMED);
+        }
 
         Optional<EmergencyAlert> replay = emergencyAlertRepository.findByClientKey(request.clientKey());
         if (replay.isPresent()) {
@@ -122,7 +124,7 @@ public class EmergencyCommandService {
         if (request.memo() != null) {
             alert.attachMemo(request.memo());
         }
-        attachLocationIfCached(alert, runId);
+        attachLocation(alert, runId, request, occurredAt);
 
         emergencyAlertRepository.save(alert);
 
@@ -219,6 +221,22 @@ public class EmergencyCommandService {
     private long notifiedCount(Long academyId) {
         return academyStaffRepository.countByAcademyIdAndStatus(academyId, StaffStatus.ACTIVE)
                 + accountRepository.countByRoleAndStatus(Role.SYSTEM_ADMIN, AccountStatus.ACTIVE);
+    }
+
+    /**
+     * 발신 시점 위치를 붙인다(§4.14) — 단말이 {@code lat}·{@code lng} 를 둘 다 보냈으면 그 좌표와 발신 시각을,
+     * 아니면 위치 캐시의 최신 좌표를 쓴다(BR-109). 한쪽만 온 좌표는 요청 오류다.
+     */
+    private void attachLocation(EmergencyAlert alert, Long runId, EmergencyRaiseRequest request,
+            OffsetDateTime occurredAt) {
+        if ((request.lat() == null) != (request.lng() == null)) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED);
+        }
+        if (request.lat() != null) {
+            alert.attachLocation(request.lat(), request.lng(), occurredAt);
+            return;
+        }
+        attachLocationIfCached(alert, runId);
     }
 
     /**
