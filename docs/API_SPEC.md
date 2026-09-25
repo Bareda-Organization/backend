@@ -1924,7 +1924,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 **권한** 학원 관계자 · **요청 (쿼리)** `status`(`open` · `acked` · `canceled`, 기본 `open`) · `date`
 
-**응답** — `items[]` · `unacked_count`(미확인 배지)
+**응답** — `items[]` · `unacked_count`(미확인 배지 — `status`·`date` 필터와 무관하게 그 학원의 미확인·미취소 건수. §6.11 은 전 학원 건수)
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|:-:|---|
