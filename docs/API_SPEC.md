@@ -1237,7 +1237,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|:-:|---|
 | `provider` | enum | ● | **서버가 정한 활성 공급자.** 앱은 이 값으로 띄울 내비를 고른다 |
-| `origin` | object | ○ | `lat` · `lng` · `name` — 출발지. `moving` 이면 **미반환**(앱이 현재 위치를 쓴다) |
+| `origin` | object | ○ | `lat` · `lng` · `name` — 출발지. **등원 = 확정 노선의 첫 승차지 · 하원 = 학원**(좌표·이름 모두 그 지점 것, Ruling 190 · 2026-09-25 BR-049). `moving` 이면 **미반환**(앱이 현재 위치를 쓴다) |
 | `waypoints[]` | array | ● | 경유지. `lat` · `lng` · `name` · `stop_id` · `seq`. **순서가 곧 주행 순서** |
 | `destination` | object | ● | `lat` · `lng` · `name` · `stop_id` — 최종 목적지 |
 | `truncated` | boolean | ● | 상한 때문에 **잘렸는지 여부** |

@@ -182,7 +182,11 @@ class NavigationControllerTest {
 
     // ── 목표 20 — confirmed 는 origin 이 담기고 moving 은 비어야 한다 ─────────────
 
-    /** 출발 30분 전 확정 시점부터 기사가 노선을 미리 볼 수 있어야 한다(X-01) — 그 수단이 origin. */
+    /**
+     * 출발 30분 전 확정 시점부터 기사가 노선을 미리 볼 수 있어야 한다(X-01) — 그 수단이 origin. 등원의
+     * 출발점은 학원이 아니라 첫 승차지다(Ruling 190, 확정 배치와 같은 규칙) — BR-049: 전에는 학원 좌표에
+     * 스케줄의 출발지 이름("출발지")을 붙여 좌표와 이름이 서로 다른 곳을 가리켰다.
+     */
     @Test
     void confirmed_회차는_200이고_origin에_출발지_좌표가_담긴다() throws Exception {
         long runId = 회차_생성("confirmed");
@@ -192,8 +196,23 @@ class NavigationControllerTest {
         조회한다(기사_토큰(), runId, "next")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.origin").exists())
+                .andExpect(jsonPath("$.data.origin.lat").value(37.401))
+                .andExpect(jsonPath("$.data.origin.lng").value(127.001))
+                .andExpect(jsonPath("$.data.origin.name").value("정차지1"));
+    }
+
+    /** BR-049 — 하원의 출발점은 학원이고, 이름도 학원 것이다. */
+    @Test
+    void 하원_confirmed_회차의_origin은_학원_좌표와_이름이다() throws Exception {
+        long runId = 회차_생성("confirmed", "from_academy");
+        long versionId = 노선버전_생성(runId);
+        정차_추가(versionId, 1, 정차지_생성(1));
+
+        조회한다(기사_토큰(), runId, "next")
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.origin.lat").value(37.497942))
-                .andExpect(jsonPath("$.data.origin.lng").value(127.027621));
+                .andExpect(jsonPath("$.data.origin.lng").value(127.027621))
+                .andExpect(jsonPath("$.data.origin.name").value("바래다학원 A"));
     }
 
     /**
@@ -283,14 +302,18 @@ class NavigationControllerTest {
      * 로의 암묵 캐스팅은 리터럴 텍스트에서만 안정적이다, 기존 {@code *SchemaValidationTest} 관례와 동일).
      */
     private long 회차_생성(String status) {
+        return 회차_생성(status, "to_academy");
+    }
+
+    private long 회차_생성(String status, String direction) {
         String depart = SERVICE_DATE + "T09:00:00+09";
         String confirmAt = SERVICE_DATE + "T08:30:00+09";
         Long runId = jdbcTemplate.queryForObject(
                 "INSERT INTO run (academy_id, bus_id, service_date, direction, depart_time, confirm_at, "
                         + "status, origin_name, destination_name) VALUES (?, ?, '" + SERVICE_DATE
-                        + "', 'to_academy', '" + depart + "', '" + confirmAt + "', ?, '출발지', '도착지') "
+                        + "', ?, '" + depart + "', '" + confirmAt + "', ?, '출발지', '도착지') "
                         + "RETURNING id",
-                Long.class, ACADEMY_A_ID, BUS_A_ID, status);
+                Long.class, ACADEMY_A_ID, BUS_A_ID, direction, status);
         jdbcTemplate.update(
                 "INSERT INTO assignment (run_id, manager_id, role, assigned_at) VALUES (?, ?, 'driver', now())",
                 runId, DRIVER_MANAGER_ID);
