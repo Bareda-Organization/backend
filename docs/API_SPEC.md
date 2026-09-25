@@ -1053,6 +1053,8 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 **이력 보존** — 누가·언제·무엇을 바꿨는지 저장. 기발송 알림은 후속 처리 대상
 
+**미승차 되돌리기** — `no_show` 에서 벗어나면 미승차 케이스(§4.8)를 종결하고(에스컬레이션 중단) 그 승하차지의 `skipped` 를 해제. 다시 `no_show` 가 되면 같은 케이스를 재개(대기 시간 재시작)
+
 **에러** — `403 ESCORT_ONLY` · `409 RUN_NOT_MOVING` · `404 RIDER_NOT_FOUND` · `404 RUN_NOT_FOUND` · `409 STOP_ALREADY_DEPARTED`(승하차지를 이미 떠난 뒤 — `run_stop.departed_at IS NOT NULL`, Ruling 305·307)
 
 ### 4.8 POST /runs/{runId}/riders/{riderId}/no-show-contacts

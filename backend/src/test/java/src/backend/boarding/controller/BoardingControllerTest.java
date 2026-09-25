@@ -728,6 +728,69 @@ class BoardingControllerTest {
                 waitingGuardian.accountId())).as("⑥waiting 인 채 출발한 학생은 발송 대상이 아니다(목표9)").isEqualTo(0);
     }
 
+    // ── BR-009 — 미승차를 되돌리면 케이스·미정차 표시도 함께 풀린다 ──────────────────
+
+    /**
+     * 미승차 → 되돌리기 → 다시 미승차. 되돌리기가 케이스를 열어 둔 채 두면 ①되돌린 학생이 대기 만료 뒤
+     * 에스컬레이션되고 ②유일한 탑승자였던 승하차지가 {@code skipped} 로 남으며 ③두 번째 미승차가
+     * {@code uk_no_show_case_run_rider} 위반으로 500 이 된다.
+     */
+    @Test
+    @DisplayName("BR-009 — 미승차를 되돌리면 케이스가 종결되고 미정차가 풀리며, 다시 미승차하면 200 으로 같은 케이스가 재개된다")
+    void 미승차를_되돌린_뒤_다시_미승차하면_200이고_같은_케이스가_재개된다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long stopId = fixtures().stop(academyId, "37.500000", "127.000000");
+        long studentId = fixtures().student(academyId, "학생-BR009");
+        long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
+        long runStopId = fixtures().confirmedRunStop(runId, stopId, now.minusMinutes(30));
+        long riderId = fixtures().runRider(runId, studentId, stopId);
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
+        String escortToken = 토큰(escortAccountId, academyId, Role.ESCORT);
+
+        mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId)).header("Authorization", escortToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(statusUpdateBody("no_show", "manual", UUID.randomUUID(), now)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.stop_skipped").value(true));
+        entityManager.flush();
+        Long caseId = jdbcTemplate.queryForObject("SELECT id FROM no_show_case WHERE run_rider_id = ?", Long.class,
+                riderId);
+
+        mockMvc.perform(post(REVERT.formatted(runId, riderId)).header("Authorization", escortToken)
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("waiting"));
+        entityManager.flush();
+
+        assertThat(jdbcTemplate.queryForObject("SELECT resolved_at IS NOT NULL FROM no_show_case WHERE id = ?",
+                Boolean.class, caseId)).as("①되돌리면 케이스가 종결돼 에스컬레이션 대상에서 빠진다").isTrue();
+        assertThat(jdbcTemplate.queryForObject("SELECT change FROM run_stop WHERE id = ?", String.class, runStopId))
+                .as("②잔여가 다시 1명이 됐으니 미정차 표시가 풀린다").isNull();
+
+        // 첫 케이스가 되돌리기 전에 이미 만료·에스컬레이션까지 갔던 경우 — 재개가 그 흔적을 지우는지 본다.
+        jdbcTemplate.update("UPDATE no_show_case SET expires_at = ?, escalated_at = ? WHERE id = ?",
+                now.minusMinutes(20), now.minusMinutes(15), caseId);
+        entityManager.clear();
+
+        mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId)).header("Authorization", escortToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(statusUpdateBody("no_show", "manual", UUID.randomUUID(), now)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.no_show_case.case_id").value(caseId));
+        entityManager.flush();
+
+        java.util.Map<String, Object> reopened = jdbcTemplate.queryForMap(
+                "SELECT resolved_at, escalated_at, expires_at = ? AS restarted FROM no_show_case WHERE id = ?",
+                now.plusMinutes(AcademySetting.DEFAULT_NO_SHOW_WAIT_MINUTES), caseId);
+        assertThat(reopened.get("resolved_at")).as("③재개된 케이스는 다시 열린다").isNull();
+        assertThat(reopened.get("escalated_at")).as("④이전 에스컬레이션 흔적이 지워진다").isNull();
+        assertThat(reopened.get("restarted")).as("⑤대기 카운트다운이 두 번째 미승차 시점부터 다시 시작된다")
+                .isEqualTo(true);
+    }
+
     /**
      * 그 승하차지를 실제로 출발 처리한다(Ruling 308, R15-T3 시험 전용) — 근접 알림 스케줄러가 타는
      * 것과 같은 진입점({@link StopDepartureService#claimAndPublish})을 그대로 불러 {@code
