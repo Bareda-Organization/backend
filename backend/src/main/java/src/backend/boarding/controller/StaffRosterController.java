@@ -36,6 +36,7 @@ public class StaffRosterController {
 
     private final RosterQueryService rosterQueryService;
 
+    /** 관계자용 호차 명단(§5.4) — 위임 대상은 {@link RosterQueryService#staffRoster}. */
     @CanReadStaffRoster
     @Operation(summary = "호차별 일일 명단 (RST-03, A-04)")
     @GetMapping("/{runId}/roster")

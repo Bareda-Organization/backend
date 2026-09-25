@@ -66,6 +66,7 @@ public class EmergencyStaffQueryService {
 
     private final Clock clock;
 
+    /** 관계자용 비상 알림 목록(§5.16) — 상태·날짜로 거르고, 배치된 매니저 연락처를 함께 채운다. */
     public EmergencyStaffListResponse list(AuthUser requester, String status, String date) {
         EmergencyStatusFilter statusFilter = EmergencyStatusFilter.from(status);
         LocalDate parsedDate = ApiValues.date(date);
