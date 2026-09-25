@@ -218,6 +218,38 @@ class RunPositionCommandServiceTest {
                 .isNotEqualTo(recordedAt);
     }
 
+    @Test
+    @DisplayName("BR-115 — 요청의 speed·heading 이 이력에 저장되고, 컬럼 범위 밖 값은 500 이 아니라 422 다")
+    void speed_heading_을_저장하고_범위_밖은_422다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        OffsetDateTime departTime = now();
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        fixtures.startRun(runId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        String template = """
+                {"lat": 37.501000, "lng": 127.001000, "recorded_at": "%s", "speed": %s, "heading": %s}
+                """;
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/position")
+                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(template.formatted(now().minusSeconds(3), "32.5", "270.0")))
+                .andExpect(status().isNoContent());
+        java.util.Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT speed, heading FROM run_position WHERE run_id = ?", runId);
+        assertThat((java.math.BigDecimal) row.get("speed")).isEqualByComparingTo("32.5");
+        assertThat((java.math.BigDecimal) row.get("heading")).isEqualByComparingTo("270.0");
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/position")
+                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(template.formatted(now().minusSeconds(1), "1000", "361")))
+                .andExpect(status().isUnprocessableEntity());
+    }
+
     // ── goal 2 ───────────────────────────────────────────────────────────
 
     @Test

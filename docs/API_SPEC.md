@@ -1131,7 +1131,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 |---|---|:-:|---|
 | `lat` · `lng` | number | ● | 좌표 |
 | `recorded_at` | datetime | ● | 단말 측정 시각 |
-| `speed` · `heading` | number | ○ | 속도 · 진행 방향 |
+| `speed` · `heading` | number | ○ | 속도(km/h, 0~999.99) · 진행 방향(도, 0~360). 범위 밖이면 `422 VALIDATION_FAILED`. 이력(`run_position`)에 그대로 저장 (2026-09-25 BR-115) |
 
 응답 `204`. 서버는 이 좌표를 근거로 "곧 도착합니다" 예고 알림(NTF-04)을 자동 발송하고 WebSocket `position` 이벤트를 방송.
 

@@ -56,7 +56,7 @@ public class RunPositionCommandService {
 
         OffsetDateTime receivedAt = OffsetDateTime.now(clock);
         RunPosition position = RunPosition.onReceive(runId, request.lat(), request.lng(),
-                request.recordedAt(), receivedAt);
+                request.recordedAt(), receivedAt, request.speed(), request.heading());
         runPositionRepository.save(position);
 
         eventPublisher.publishEvent(

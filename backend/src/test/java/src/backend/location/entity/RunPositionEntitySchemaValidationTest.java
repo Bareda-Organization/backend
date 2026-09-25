@@ -59,7 +59,7 @@ class RunPositionEntitySchemaValidationTest extends MigratedPostgresTestBase {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.of("+09:00"));
 
         RunPosition position = RunPosition.onReceive(1L,
-                new BigDecimal("37.500000"), new BigDecimal("127.000000"), now, now);
+                new BigDecimal("37.500000"), new BigDecimal("127.000000"), now, now, null, null);
         entityManager.persist(position);
         entityManager.flush();
         entityManager.clear();
