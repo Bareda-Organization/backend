@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -29,10 +30,12 @@ import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
+import src.backend.global.common.enums.Weekday;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
 import src.backend.run.command.RunConfirmationFixtures;
+import src.backend.run.command.RunConfirmationService;
 import src.backend.run.entity.RunForcedAddition;
 import src.backend.run.repository.RunForcedAdditionRepository;
 import src.backend.run.repository.RunRepository;
@@ -46,7 +49,7 @@ import src.backend.student.repository.WeeklyAddressRepository;
  * <p>대상이 두 회차(출발·도착)라 {@code StaffForcedAdditionControllerTest} 와 달리 구간·정원·학원
  * 판정을 <b>어느 쪽 회차 기준인지</b>까지 갈라서 확인한다. 명단 소속(§5.8 이 말하는 "당일 명단")은
  * 경로 정확도보다 존재 여부만 필요하므로, 요일별 주소 대신 강제 추가 1건으로 만든다 —
- * {@code TransferCommandService.projectedRosterStudentIds} 가 강제 추가도 명단에 합치기 때문이다.
+ * {@code ProjectedRosterReader} 가 강제 추가도 명단에 합치기 때문이다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -90,6 +93,9 @@ class StaffStudentTransferControllerTest {
 
     @Autowired
     private RunForcedAdditionRepository runForcedAdditionRepository;
+
+    @Autowired
+    private RunConfirmationService confirmationService;
 
     private RunConfirmationFixtures fixtures;
 
@@ -158,6 +164,58 @@ class StaffStudentTransferControllerTest {
         학생을_회차_명단에_넣는다(toRunId, occupyingStudentId);
 
         이동_신청한다(studentId, academyId, 이동_본문(fromRunId, toRunId, stopId, null))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("CAPACITY_EXCEEDED"));
+    }
+
+    @Test
+    @DisplayName("BR-043 — 도착 회차에 대기 중인 이동이 정원을 채웠으면 강제 추가도 409 다")
+    void 대기_중인_도착_이동도_강제_추가_정원에_잡힌다() throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+        long fromBusId = fixtures().bus(academyId);
+        long toBusId = busRepository.save(Bus.register(academyId, "이동정원", "00나0000", new BusSeating(3, 1, 1)))
+                .getId();
+        long fromRunId = 회차를_만든다(academyId, fromBusId, 31);
+        long toRunId = 회차를_만든다(academyId, toBusId, 31);
+        long stopId = fixtures().stop(academyId, "37.560000", "126.970000");
+        long studentId = fixtures().student(academyId, "이동학생");
+        학생을_회차_명단에_넣는다(fromRunId, studentId);
+        이동_신청한다(studentId, academyId, 이동_본문(fromRunId, toRunId, stopId, null)).andExpect(status().isCreated());
+
+        long addedStudentId = fixtures().student(academyId, "추가학생");
+        mockMvc.perform(post("/api/v1/staff/runs/" + toRunId + "/forced-add")
+                        .header("Authorization", 토큰(academyId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"student_id\":" + addedStudentId + ",\"address\":\"테스트로 100\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("CAPACITY_EXCEEDED"));
+    }
+
+    @Test
+    @DisplayName("BR-093 — 출발 회차가 먼저 확정돼도 도착 회차 정원은 그 이동 학생을 센다")
+    void 출발_회차가_먼저_확정돼도_도착_정원에_이동_학생이_남는다() throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+        long fromBusId = fixtures().bus(academyId);
+        long toBusId = busRepository.save(Bus.register(academyId, "이동정원", "00나0000", new BusSeating(3, 1, 1)))
+                .getId();
+        long otherBusId = fixtures().bus(academyId);
+        long fromRunId = 회차를_만든다(academyId, fromBusId, 31);
+        long toRunId = 회차를_만든다(academyId, toBusId, 31);
+        long otherRunId = 회차를_만든다(academyId, otherBusId, 31);
+        long firstStop = fixtures().stop(academyId, "37.560000", "126.970000");
+        long lastStop = fixtures().stop(academyId, "37.561000", "126.971000");
+        fixtures().route(academyId, fromBusId, Weekday.THU, Direction.TO_ACADEMY, firstStop, lastStop);
+        long studentId = fixtures().student(academyId, "이동학생");
+        학생을_회차_명단에_넣는다(fromRunId, studentId);
+        학생을_회차_명단에_넣는다(fromRunId, fixtures().student(academyId, "잔류학생"));
+        이동_신청한다(studentId, academyId, 이동_본문(fromRunId, toRunId, firstStop, null))
+                .andExpect(status().isCreated());
+
+        confirmationService.confirmOne(fromRunId);
+
+        long secondStudentId = fixtures().student(academyId, "두번째학생");
+        학생을_회차_명단에_넣는다(otherRunId, secondStudentId);
+        이동_신청한다(secondStudentId, academyId, 이동_본문(otherRunId, toRunId, firstStop, null))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("CAPACITY_EXCEEDED"));
     }
@@ -393,7 +451,7 @@ class StaffStudentTransferControllerTest {
         return fixtures().idleRun(academyId, busId, now.toLocalDate(), Direction.TO_ACADEMY, departTime, confirmAt);
     }
 
-    /** 강제 추가 1건으로 그 회차의 당일 명단에 학생을 올린다({@code projectedRosterStudentIds} 가 합친다). */
+    /** 강제 추가 1건으로 그 회차의 당일 명단에 학생을 올린다({@code ProjectedRosterReader} 가 합친다). */
     private void 학생을_회차_명단에_넣는다(long runId, long studentId) {
         long stopId = fixtures().stop(academyId(runId), "37.561000", "126.971000");
         runForcedAdditionRepository

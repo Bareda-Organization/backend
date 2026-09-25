@@ -27,7 +27,10 @@ import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.domain.RunConfirmationFingerprint;
 import src.backend.run.entity.Run;
 import src.backend.run.event.RunRouteConfirmedEvent;
+import src.backend.run.entity.RunTransfer;
 import src.backend.run.repository.RunRepository;
+import src.backend.run.repository.RunTransferRepository;
+import src.backend.run.roster.ProjectedRoster;
 
 /**
  * 확정 배치의 짧은 쓰기 트랜잭션 — {@link RunConfirmationService#confirmOne} 이 트랜잭션 밖에서
@@ -59,12 +62,16 @@ public class RunConfirmationPersistence {
 
     private final RunRiderRepository runRiderRepository;
 
+    private final RunTransferRepository runTransferRepository;
+
     private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 회차를 확정하고 4종 산출물({@code confirmed_route}·{@code route_version}·{@code run_stop}·
-     * {@code run_rider})을 저장한다. {@code absentStops} 는 노선 계산에서 뺀 ①구간 OFF 학생으로,
-     * {@code absent} 행으로만 남는다(FEATURE_SPEC §3.3).
+     * {@code run_rider})을 저장한다. {@code roster.absentStops()} 는 노선 계산에서 뺀 ①구간 OFF 학생으로,
+     * {@code absent} 행으로만 남는다(FEATURE_SPEC §3.3). 도착 이동 대기 건은 이 트랜잭션 안에서
+     * {@code applied} 로 표시한다 — 확정이 롤백되면 표시도 함께 되돌아가야 하고, 출발 회차 쪽 확정은
+     * 표시하지 않는다(도착 회차 확정 전까지 그 학생은 도착 회차의 대기 인원이다, BR-093).
      *
      * <p><b>{@code confirmIfIdle} 이 0행을 갱신하면 그 자리에서 조용히 반환한다</b>(목표 2) — 동시
      * 스레드 중 나중 것이 진 경우다. 이미 진 경쟁에서 계산 결과를 그대로 버리는 것이 맞다 — 먼저
@@ -79,7 +86,7 @@ public class RunConfirmationPersistence {
      *         부정확해지는 결함이었다.
      */
     public boolean persist(Run run, RouteComputation computation, GeoPoint origin, GeoPoint destination,
-            Weekday weekday, Map<Long, Long> studentStops, Map<Long, Long> absentStops, OffsetDateTime confirmedAt) {
+            Weekday weekday, ProjectedRoster roster, OffsetDateTime confirmedAt) {
         int updated = runRepository.confirmIfIdle(run.getId(), confirmedAt);
         if (updated == 0) {
             return false;
@@ -89,7 +96,7 @@ public class RunConfirmationPersistence {
         confirmedRouteRepository.save(confirmedRoute);
 
         String fingerprint = RunConfirmationFingerprint.of(run.getAcademyId(), weekday, run.getDirection(),
-                run.getDepartTime(), origin, destination, studentStops, List.of());
+                run.getDepartTime(), origin, destination, roster.studentStops(), List.of());
         RouteVersion version = RouteVersion.forConfirmedRoute(run.getId(), INITIAL_VERSION_NO,
                 RouteVersionSource.CONFIRM_BATCH, computation.estDurationMin(), computation.estDistanceKm(),
                 confirmedAt, fingerprint, computation.snapshot().engineName(), computation.snapshot().policySnapshot(),
@@ -98,8 +105,12 @@ public class RunConfirmationPersistence {
         confirmedRouteRepository.assignCurrentVersion(run.getId(), version.getId());
 
         runStopRepository.saveAll(runStopsOf(version.getId(), computation));
-        runRiderRepository.saveAll(runRidersOf(run.getId(), studentStops, absentStops,
+        runRiderRepository.saveAll(runRidersOf(run.getId(), roster.studentStops(), roster.absentStops(),
                 computation.unresolvedStudentIds(), confirmedAt));
+        if (!roster.incomingTransfers().isEmpty()) {
+            runTransferRepository.markApplied(roster.incomingTransfers().stream().map(RunTransfer::getId).toList(),
+                    confirmedAt);
+        }
 
         eventPublisher.publishEvent(
                 new RunRouteConfirmedEvent(run.getId(), run.getAcademyId(), run.getBusId(), confirmedAt));

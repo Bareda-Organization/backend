@@ -4,13 +4,9 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -24,11 +20,6 @@ import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.observability.metrics.RunConfirmationMetrics;
-import src.backend.request.entity.ChangeRequest;
-import src.backend.request.entity.ChangeRequestStatus;
-import src.backend.request.entity.ChangeRequestType;
-import src.backend.request.repository.ChangeRequestRepository;
-import src.backend.request.repository.BoardingIntentRepository;
 import src.backend.routing.domain.GeoPoint;
 import src.backend.routing.entity.Route;
 import src.backend.routing.entity.RouteStop;
@@ -42,15 +33,11 @@ import src.backend.routing.pipeline.RouteComputationPipeline;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
 import src.backend.run.entity.Run;
-import src.backend.run.entity.RunForcedAddition;
-import src.backend.run.entity.RunTransfer;
-import src.backend.run.repository.RunForcedAdditionRepository;
 import src.backend.run.repository.RunRepository;
-import src.backend.run.repository.RunTransferRepository;
+import src.backend.run.roster.ProjectedRoster;
+import src.backend.run.roster.ProjectedRosterReader;
 import src.backend.student.entity.Stop;
 import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentDailyStop;
-import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
  * 확정 배치의 오케스트레이터(RTE-08, Phase 7) — 회차 1건을 idle → confirmed 로 전이시키는 전체
@@ -94,14 +81,7 @@ public class RunConfirmationService {
 
     private final StopRepository stopRepository;
 
-    private final WeeklyAddressRepository weeklyAddressRepository;
-
-    private final ChangeRequestRepository changeRequestRepository;
-    private final BoardingIntentRepository boardingIntentRepository;
-
-    private final RunForcedAdditionRepository runForcedAdditionRepository;
-
-    private final RunTransferRepository runTransferRepository;
+    private final ProjectedRosterReader rosterReader;
 
     private final RouteComputationPipeline pipeline;
 
@@ -185,64 +165,11 @@ public class RunConfirmationService {
             destination = new GeoPoint(lastStop.getLat(), lastStop.getLng());
         }
 
-        List<StudentDailyStop> dailyStops = weeklyAddressRepository.findDailyStopsByStopIds(run.getAcademyId(),
-                stopIds, weekday, run.getDirection());
-        // ①구간 탑승 의사 토글(riding=false)이 남긴 학생은 여기서 걸러낸다 — DailyRoster 를 만들기
-        // 전이라 노선 계산은 이 학생을 보지 않는다(목표 1, P-03). run_rider 에는 absent 행으로 남긴다 —
-        // absent 는 "확정 노선 산출 시점 부여" 이고 집계 "미등원 N명"·관계자 명단(RST-03)이 그 행을 센다
-        // (FEATURE_SPEC §3.3, BR-013).
-        Set<Long> excludedStudentIds = new HashSet<>(
-                boardingIntentRepository.findStudentIdsByRunIdAndRidingFalse(run.getId()));
-        Map<Long, Long> absentStops = dailyStops.stream()
-                .filter(stop -> excludedStudentIds.contains(stop.getStudentId()))
-                .collect(Collectors.toMap(StudentDailyStop::getStudentId, StudentDailyStop::getStopId,
-                        (first, duplicate) -> first));
-        // 강제 추가 병합이 뒤에서 덧붙이므로 가변 목록으로 둔다(RTE-06).
-        List<Long> studentIds = new ArrayList<>(
-                dailyStops.stream().map(StudentDailyStop::getStudentId).distinct()
-                        .filter(studentId -> !excludedStudentIds.contains(studentId))
-                        .toList());
-        Map<Long, Long> studentStops = dailyStops.stream()
-                .filter(stop -> !excludedStudentIds.contains(stop.getStudentId()))
-                .collect(Collectors.toMap(StudentDailyStop::getStudentId, StudentDailyStop::getStopId,
-                        (first, duplicate) -> first));
+        // 명단 규칙은 정원 판정 경로와 한 벌이다(ProjectedRosterReader 자바독, BR-043).
+        ProjectedRoster projected = rosterReader.read(run, weekday, stopIds);
 
-        // P-06 일일 변경(승인된 경유지 이동)이 요일별 주소를 이긴다 — DailyStopResolver.studentToStop 과
-        // 같은 우선순위(그 클래스 자바독). 여기서 studentStops 에도 같은 값을 덮어써야 fingerprint·
-        // run_rider 가 실제로 계산에 쓰인 경유지와 일치한다 — roster 쪽에만 넣으면 노선은 바뀐 자리로
-        // 서는데 학생의 배정 기록만 옛 경유지로 남는다.
-        Map<Long, Long> stopOverrides = new HashMap<>(changeRequestRepository
-                .findAllByAcademyIdAndRunIdAndTypeAndStatusOrderByRequestedAtAsc(run.getAcademyId(), run.getId(),
-                        ChangeRequestType.RELOCATE, ChangeRequestStatus.APPROVED)
-                .stream()
-                .collect(Collectors.toMap(ChangeRequest::getStudentId, ChangeRequest::getNewStopId,
-                        (first, last) -> last)));
-        // 승인된 경유지 이동이 OFF 학생을 명단에 되살리지 않게 한다(BR-012).
-        stopOverrides.keySet().removeAll(excludedStudentIds);
-
-        // ①구간 강제 추가(RTE-06, Ruling 197·198)도 같은 방식으로 합친다 — 요일별 주소에 없던
-        // 학생이라 studentIds 에도 새로 더해야 하고, stopOverrides 에 넣어야 좌표 해석 단계
-        // (DailyStopResolver.studentToStop)가 그 정차지를 실제로 찾는다.
-        for (RunForcedAddition forcedAddition : runForcedAdditionRepository
-                .findAllByRunIdAndAcademyId(run.getId(), run.getAcademyId())) {
-            if (!studentIds.contains(forcedAddition.getStudentId())) {
-                studentIds.add(forcedAddition.getStudentId());
-            }
-            stopOverrides.put(forcedAddition.getStudentId(), forcedAddition.getStopId());
-        }
-
-        // 버스 간 이동(RTE-07, API_SPEC §5.8, Ruling 256)도 강제 추가와 같은 합류 지점에서 반영한다 —
-        // 이 회차가 출발·도착 어느 쪽이든 대기 건이 있을 수 있어 두 단계로 나눈다(각각 독립적으로
-        // 검증 가능해야 한다는 요구가 있어 메서드를 분리했다).
-        applyOutgoingTransfers(run, studentIds, studentStops, stopOverrides);
-        applyIncomingTransfers(run, studentIds, stopOverrides);
-
-        studentStops.putAll(stopOverrides);
-        // 강제 추가·도착 이동으로 다시 태운 학생은 absent 가 아니다 — 한 학생에 행 하나(uk_run_rider_run_student).
-        absentStops.keySet().removeAll(studentStops.keySet());
-
-        DailyRoster roster = new DailyRoster(run.getAcademyId(), weekday, run.getDirection(), studentIds,
-                stopOverrides);
+        DailyRoster roster = new DailyRoster(run.getAcademyId(), weekday, run.getDirection(),
+                projected.studentIds(), projected.stopOverrides());
         ComputationPolicy policy = new ComputationPolicy(MAP_TIMEOUT, CallerPolicy.BATCH,
                 RouteVersionSource.CONFIRM_BATCH, forceFallback);
         RouteComputationInput input = new RouteComputationInput(roster, origin, destination, List.of(),
@@ -255,8 +182,8 @@ public class RunConfirmationService {
         // 자리라 배치 지연 지표(목표 8)를 여기서 계측한다.
         OffsetDateTime confirmedAt = OffsetDateTime.now(clock);
 
-        boolean persisted = persistence.persist(run, computation, origin, destination, weekday, studentStops,
-                absentStops, confirmedAt);
+        boolean persisted = persistence.persist(run, computation, origin, destination, weekday, projected,
+                confirmedAt);
         // persisted == false 는 동시 확정 경합에서 진 시도다(persist() javadoc) — 이 시도는 기록하지
         // 않는다. 승패 신호 없이 무조건 기록하면 표본 수가 확정 사건 수보다 부풀어, 이 지표가 가장
         // 필요한 순간(인스턴스 증설로 경합이 잦아질 때) 가장 부정확해진다. 실패해 위에서 예외로 빠진
@@ -266,44 +193,6 @@ public class RunConfirmationService {
             metrics.recordLag(Duration.between(run.getConfirmAt(), confirmedAt));
         }
         return persisted;
-    }
-
-    /**
-     * 버스 간 이동(RTE-07, Ruling 256) 중 이 회차가 <b>출발</b>인 대기 건을 명단에서 뺀다.
-     *
-     * <p>{@code studentStops}(요일별 주소 기준 기본 배정)와 {@code stopOverrides}(P-06·강제 추가가
-     * 이미 얹어 둔 override) 양쪽에서 지운다 — 하나만 지우면 바로 다음의
-     * {@code studentStops.putAll(stopOverrides)} 가 지운 것을 되살릴 수 있다. 상태로 거르지 않고
-     * 항상 재계산하므로(자기 치유, {@link RunTransfer} 자바독) 이미 반영된 건을 다시 걸러도
-     * 두 자료구조 어디에도 없어 안전하게 아무 일도 하지 않는다.
-     */
-    private void applyOutgoingTransfers(Run run, List<Long> studentIds, Map<Long, Long> studentStops,
-            Map<Long, Long> stopOverrides) {
-        for (RunTransfer transfer : runTransferRepository.findAllByFromRunIdAndAcademyId(run.getId(),
-                run.getAcademyId())) {
-            studentIds.remove(transfer.getStudentId());
-            studentStops.remove(transfer.getStudentId());
-            stopOverrides.remove(transfer.getStudentId());
-            transfer.markApplied(OffsetDateTime.now(clock));
-            runTransferRepository.save(transfer);
-        }
-    }
-
-    /**
-     * 같은 이동 중 이 회차가 <b>도착</b>인 대기 건을 명단에 더한다 — 강제 추가(RTE-06)와 같은 방식으로
-     * {@code studentIds} 에 더하고 {@code stopOverrides} 에 정차지를 얹는다. 요일별 주소에 없던
-     * 학생이라 {@code stopOverrides} 에 넣어야 좌표 해석 단계가 그 정차지를 실제로 찾는다.
-     */
-    private void applyIncomingTransfers(Run run, List<Long> studentIds, Map<Long, Long> stopOverrides) {
-        for (RunTransfer transfer : runTransferRepository.findAllByToRunIdAndAcademyId(run.getId(),
-                run.getAcademyId())) {
-            if (!studentIds.contains(transfer.getStudentId())) {
-                studentIds.add(transfer.getStudentId());
-            }
-            stopOverrides.put(transfer.getStudentId(), transfer.getStopId());
-            transfer.markApplied(OffsetDateTime.now(clock));
-            runTransferRepository.save(transfer);
-        }
     }
 
     /**

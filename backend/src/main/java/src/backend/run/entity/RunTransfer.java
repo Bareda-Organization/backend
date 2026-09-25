@@ -20,10 +20,10 @@ import lombok.NoArgsConstructor;
  * ({@code RunConfirmationService#confirmOne})가 그 회차 쪽 절반(제외 또는 추가)을 반영한다 —
  * 강제 추가({@link RunForcedAddition})와 같은 "대기 후 배치 합류" 형태다(Ruling 197·198 계열).
  *
- * <p>출발·도착 두 회차의 확정 시점이 다를 수 있어 {@link RunTransferStatus#STAGED} 는
- * 두 회차 모두 아직 반영하지 않은 상태, {@link RunTransferStatus#APPLIED} 는 한쪽 이상이
- * 반영한 상태를 뜻한다. 배치 처리 메서드는 상태로 대상을 거르지 않고 항상 재계산하므로
- * (자기 치유) 이 행 자체는 재시도에 안전하다 — 상태는 조회 편의를 위한 기록일 뿐이다.
+ * <p>{@link RunTransferStatus#APPLIED} 는 <b>도착 회차</b> 확정이 명단에 더한 상태다 — 출발 회차가 먼저
+ * 확정돼도 {@link RunTransferStatus#STAGED} 로 남아, 도착 회차 확정 전까지 도착 회차의 정원 판정과
+ * {@code TRANSFER_ALREADY_STAGED} 방어가 그 학생을 계속 본다(BR-093). 확정 배치는 상태로 대상을 거르지
+ * 않고 항상 재계산하므로(자기 치유) 이 행 자체는 재시도에 안전하다.
  */
 @Entity
 @Table(name = "run_transfer")
@@ -80,11 +80,5 @@ public class RunTransfer {
     public static RunTransfer stage(Long studentId, Long fromRunId, Long toRunId, Long stopId, String note,
             Long requestedByAccountId, OffsetDateTime createdAt) {
         return new RunTransfer(studentId, fromRunId, toRunId, stopId, note, requestedByAccountId, createdAt);
-    }
-
-    /** 출발·도착 중 한쪽의 확정 배치가 이 이동을 명단에 반영했을 때 호출한다. */
-    public void markApplied(OffsetDateTime appliedAt) {
-        this.status = RunTransferStatus.APPLIED;
-        this.appliedAt = appliedAt;
     }
 }
