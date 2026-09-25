@@ -42,6 +42,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     private static final String HEADER = "Authorization";
     private static final String PREFIX = "Bearer ";
+    private static final String APP_DESTINATION_PREFIX = "/app/";
 
     private static final Pattern STUDENT_RUN_PATTERN = Pattern.compile("^/topic/students/(\\d+)/run$");
     private static final Pattern MANAGER_RUN_PATTERN = Pattern.compile("^/topic/manager/runs/(\\d+)$");
@@ -63,8 +64,22 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             authenticateConnect(accessor);
         } else if (StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
             authorizeSubscribe(accessor);
+        } else if (StompCommand.SEND.equals(accessor.getCommand())) {
+            rejectBrokerSend(accessor);
         }
         return message;
+    }
+
+    /**
+     * 클라이언트 SEND 는 애플리케이션 목적지({@code /app/**})만 받는다(BR-008). 브로커 목적지
+     * ({@code /topic}·{@code /queue}·{@code /user})로 온 SEND 는 심플 브로커가 구독자에게 그대로 배달해
+     * 서버 발행분과 구별되지 않는 가짜 위치·비상 이벤트가 되므로 거부한다.
+     */
+    private void rejectBrokerSend(StompHeaderAccessor accessor) {
+        String destination = accessor.getDestination();
+        if (destination == null || !destination.startsWith(APP_DESTINATION_PREFIX)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
     }
 
     private void authenticateConnect(StompHeaderAccessor accessor) {

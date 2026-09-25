@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketHandler;
@@ -38,6 +39,9 @@ class StompChannelAuthorizationTest {
 
     @Autowired
     private JwtTokenProvider tokenProvider;
+
+    @Autowired
+    private SimpMessagingTemplate messagingTemplate;
 
     /**
      * 목표 8(Ruling 87 이월) — REST 의 pending 허용 목록에 WebSocket 대응 항목이 없어 CONNECT 자체를
@@ -108,6 +112,70 @@ class StompChannelAuthorizationTest {
         String frame = connectAndSubscribe(token, "/topic/admin/live");
 
         assertThat(frame).as("플랫폼 범위가 아니면 관리자 채널은 거부돼야 한다").startsWith("ERROR");
+    }
+
+    /**
+     * BR-008 — 브로커 목적지({@code /topic/**}·{@code /queue/**}·{@code /user/**})로 온 클라이언트 SEND 는
+     * 심플 브로커가 구독자에게 그대로 배달한다. 서버 발행분과 구별할 수단이 없으므로 SEND 자체를 거부해야
+     * 한다. 구독자 쪽에 가짜 본문이 <b>도착하지 않는다</b>는 것까지 봐야 "거부 프레임만 오고 배달은 됐다" 가 갈린다.
+     */
+    @Test
+    void 브로커_목적지로_SEND_하면_FORBIDDEN_으로_거부되고_구독자에게_배달되지_않는다() throws Exception {
+        String destination = "/topic/academy/1/live";
+        String fake = "fake-emergency-injected";
+        BlockingQueue<String> subscriberFrames = new LinkedBlockingQueue<>();
+        WebSocketSession subscriber = open(subscriberFrames);
+        BlockingQueue<String> senderFrames = new LinkedBlockingQueue<>();
+        WebSocketSession sender = open(senderFrames);
+        try {
+            connect(subscriber, subscriberFrames, tokenProvider.createAccessToken(1L, 1L, Role.STAFF, AccountStatus.ACTIVE));
+            subscriber.sendMessage(new TextMessage(frame("SUBSCRIBE", "id:sub-0", "destination:" + destination)));
+            awaitSubscribed(subscriberFrames, destination);
+
+            // 다른 학원의 학부모 — 구독 권한이 전혀 없는 채널로 보낸다
+            connect(sender, senderFrames, tokenProvider.createAccessToken(3L, 2L, Role.PARENT, AccountStatus.ACTIVE));
+            sender.sendMessage(new TextMessage("SEND\ndestination:" + destination
+                    + "\ncontent-type:text/plain\n\n" + fake + NULL_TERMINATOR));
+
+            String leaked = null;
+            for (String f; (f = subscriberFrames.poll(2, TimeUnit.SECONDS)) != null; ) {
+                if (f.contains(fake)) {
+                    leaked = f;
+                }
+            }
+            assertThat(leaked).as("클라이언트 SEND 가 구독자에게 배달되면 가짜 이벤트 주입이 성립한다").isNull();
+            String outcome = take(senderFrames);
+            assertThat(outcome).startsWith("ERROR").contains("FORBIDDEN");
+        } finally {
+            subscriber.close();
+            sender.close();
+        }
+    }
+
+    private WebSocketSession open(BlockingQueue<String> received) throws Exception {
+        return new StandardWebSocketClient()
+                .execute(new FrameCollector(received), null, URI.create("ws://localhost:" + port + "/ws/location"))
+                .get(FRAME_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+    }
+
+    private static void connect(WebSocketSession session, BlockingQueue<String> received, String token)
+            throws Exception {
+        session.sendMessage(new TextMessage(frame("CONNECT",
+                "accept-version:1.2", "host:localhost", "Authorization:Bearer " + token)));
+        assertThat(take(received)).startsWith("CONNECTED");
+    }
+
+    /** 구독 등록과 발행 사이 경합이 있어, 표식을 반복 발행해 첫 MESSAGE 가 올 때까지 기다린다. */
+    private void awaitSubscribed(BlockingQueue<String> received, String destination) throws InterruptedException {
+        for (int attempt = 0; attempt < 25; attempt++) {
+            messagingTemplate.convertAndSend(destination, "subscribed-probe");
+            String f = received.poll(200, TimeUnit.MILLISECONDS);
+            if (f != null) {
+                assertThat(f).startsWith("MESSAGE");
+                return;
+            }
+        }
+        throw new AssertionError("구독이 성립하지 않았다: " + destination);
     }
 
     /** CONNECT 성공을 전제로, SUBSCRIBE 에 대해 서버가 돌려주는 첫 프레임(보통 ERROR)을 그대로 반환한다. */
