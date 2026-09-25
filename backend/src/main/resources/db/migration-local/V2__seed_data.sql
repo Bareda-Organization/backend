@@ -43,31 +43,31 @@ VALUES
 -- 계정: 역할 6종(parent/student/driver/escort/staff/system_admin) × 상태 4종을 전수 시연한다.
 -- system_admin·escort 는 §3.4 기재상 active 외 상태를 요구하지 않는다(판단: 미기재분).
 INSERT INTO account (id, academy_id, login_id, password_hash, name, phone, role, status,
-                      failed_attempts, blocked_at, block_reason, created_at, updated_at)
+                      failed_attempts, blocked_at, block_reason, created_at, updated_at, status_before_block)
 OVERRIDING SYSTEM VALUE
 VALUES
-    (1, NULL, 'sysadmin', '${seedPasswordHash}', '시스템관리자', '010-0000-0001', 'system_admin', 'active', 0, NULL, NULL, now(), now()),
-    (2, 1, 'staffA', '${seedPasswordHash}', '김운영', '010-0000-0002', 'staff', 'active', 0, NULL, NULL, now(), now()),
-    (3, 2, 'staffB', '${seedPasswordHash}', '이운영', '010-0000-0003', 'staff', 'active', 0, NULL, NULL, now(), now()),
-    (4, 1, 'staffPending', '${seedPasswordHash}', '박대기', '010-0000-0004', 'staff', 'pending', 0, NULL, NULL, now(), now()),
-    (5, 1, 'parentA1', '${seedPasswordHash}', '최부모', '010-1000-0001', 'parent', 'active', 0, NULL, NULL, now(), now()),
-    (6, 1, 'parentA2', '${seedPasswordHash}', '정부모', '010-1000-0002', 'parent', 'active', 0, NULL, NULL, now(), now()),
-    (7, 1, 'parentA3', '${seedPasswordHash}', '한부모', '010-1000-0003', 'parent', 'active', 0, NULL, NULL, now(), now()),
-    (8, 1, 'parentPending', '${seedPasswordHash}', '조대기', '010-1000-0004', 'parent', 'pending', 0, NULL, NULL, now(), now()),
-    (9, 2, 'parentB1', '${seedPasswordHash}', '윤부모', '010-2000-0001', 'parent', 'active', 0, NULL, NULL, now(), now()),
-    (10, 1, 'studentA4', '${seedPasswordHash}', '이하늘', '010-3000-0004', 'student', 'active', 0, NULL, NULL, now(), now()),
-    (11, 1, 'studentRejected', '${seedPasswordHash}', '거절학생', '010-3000-0099', 'student', 'rejected', 0, NULL, NULL, now(), now()),
-    (12, 2, 'studentB1', '${seedPasswordHash}', '정다은', '010-4000-0001', 'student', 'active', 0, NULL, NULL, now(), now()),
-    (13, 1, 'driverA1', '${seedPasswordHash}', '강기사', '010-5000-0001', 'driver', 'active', 0, NULL, NULL, now(), now()),
-    (14, 1, 'driverA2', '${seedPasswordHash}', '오기사', '010-5000-0002', 'driver', 'active', 0, NULL, NULL, now(), now()),
-    (15, 1, 'driverBlocked', '${seedPasswordHash}', '차단기사', '010-5000-0099', 'driver', 'blocked', 5, now() - interval '10 minutes', '연속 로그인 실패 5회', now(), now()),
-    (16, 2, 'driverB1', '${seedPasswordHash}', '남기사', '010-6000-0001', 'driver', 'active', 0, NULL, NULL, now(), now()),
-    (17, 1, 'escortA1', '${seedPasswordHash}', '서동승', '010-7000-0001', 'escort', 'active', 0, NULL, NULL, now(), now()),
-    (18, 1, 'escortA2', '${seedPasswordHash}', '문동승', '010-7000-0002', 'escort', 'active', 0, NULL, NULL, now(), now()),
-    (19, 2, 'escortB1', '${seedPasswordHash}', '류동승', '010-8000-0001', 'escort', 'active', 0, NULL, NULL, now(), now()),
+    (1, NULL, 'sysadmin', '${seedPasswordHash}', '시스템관리자', '010-0000-0001', 'system_admin', 'active', 0, NULL, NULL, now(), now(), NULL),
+    (2, 1, 'staffA', '${seedPasswordHash}', '김운영', '010-0000-0002', 'staff', 'active', 0, NULL, NULL, now(), now(), NULL),
+    (3, 2, 'staffB', '${seedPasswordHash}', '이운영', '010-0000-0003', 'staff', 'active', 0, NULL, NULL, now(), now(), NULL),
+    (4, 1, 'staffPending', '${seedPasswordHash}', '박대기', '010-0000-0004', 'staff', 'pending', 0, NULL, NULL, now(), now(), NULL),
+    (5, 1, 'parentA1', '${seedPasswordHash}', '최부모', '010-1000-0001', 'parent', 'active', 0, NULL, NULL, now(), now(), NULL),
+    (6, 1, 'parentA2', '${seedPasswordHash}', '정부모', '010-1000-0002', 'parent', 'active', 0, NULL, NULL, now(), now(), NULL),
+    (7, 1, 'parentA3', '${seedPasswordHash}', '한부모', '010-1000-0003', 'parent', 'active', 0, NULL, NULL, now(), now(), NULL),
+    (8, 1, 'parentPending', '${seedPasswordHash}', '조대기', '010-1000-0004', 'parent', 'pending', 0, NULL, NULL, now(), now(), NULL),
+    (9, 2, 'parentB1', '${seedPasswordHash}', '윤부모', '010-2000-0001', 'parent', 'active', 0, NULL, NULL, now(), now(), NULL),
+    (10, 1, 'studentA4', '${seedPasswordHash}', '이하늘', '010-3000-0004', 'student', 'active', 0, NULL, NULL, now(), now(), NULL),
+    (11, 1, 'studentRejected', '${seedPasswordHash}', '거절학생', '010-3000-0099', 'student', 'rejected', 0, NULL, NULL, now(), now(), NULL),
+    (12, 2, 'studentB1', '${seedPasswordHash}', '정다은', '010-4000-0001', 'student', 'active', 0, NULL, NULL, now(), now(), NULL),
+    (13, 1, 'driverA1', '${seedPasswordHash}', '강기사', '010-5000-0001', 'driver', 'active', 0, NULL, NULL, now(), now(), NULL),
+    (14, 1, 'driverA2', '${seedPasswordHash}', '오기사', '010-5000-0002', 'driver', 'active', 0, NULL, NULL, now(), now(), NULL),
+    (15, 1, 'driverBlocked', '${seedPasswordHash}', '차단기사', '010-5000-0099', 'driver', 'blocked', 5, now() - interval '10 minutes', '연속 로그인 실패 5회', now(), now(), 'active'),
+    (16, 2, 'driverB1', '${seedPasswordHash}', '남기사', '010-6000-0001', 'driver', 'active', 0, NULL, NULL, now(), now(), NULL),
+    (17, 1, 'escortA1', '${seedPasswordHash}', '서동승', '010-7000-0001', 'escort', 'active', 0, NULL, NULL, now(), now(), NULL),
+    (18, 1, 'escortA2', '${seedPasswordHash}', '문동승', '010-7000-0002', 'escort', 'active', 0, NULL, NULL, now(), now(), NULL),
+    (19, 2, 'escortB1', '${seedPasswordHash}', '류동승', '010-8000-0001', 'escort', 'active', 0, NULL, NULL, now(), now(), NULL),
     -- 학원 C(inactive) 소속 active 계정 — FEATURE_SPEC O-01("비활성화해도 기존 사용자 로그인 유지")을
     -- Swagger 로 시연하려면 로그인할 기존 사용자가 있어야 한다(§3.4 명시 시나리오의 재료).
-    (20, 3, 'staffC', '${seedPasswordHash}', '한관리', '010-9000-0001', 'staff', 'active', 0, NULL, NULL, now(), now());
+    (20, 3, 'staffC', '${seedPasswordHash}', '한관리', '010-9000-0001', 'staff', 'active', 0, NULL, NULL, now(), now(), NULL);
 
 -- 가입 요청: 대기 2건(staff·parent) + 거절 1건(student, 거절 사유 보유) + 승인 1건(staffA 의 과거
 -- 이력) — SIGNUP-01~04 화면에서 3개 상태(pending/accepted/rejected)를 전부 조회할 수 있게 한다.

@@ -64,6 +64,7 @@ CREATE TABLE account (
     role            varchar(20)  NOT NULL,
     status          varchar(10)  NOT NULL,
     failed_attempts integer      NOT NULL DEFAULT 0,
+    status_before_block varchar(10),
     blocked_at      timestamptz,
     block_reason    varchar(100),
     unblocked_by    bigint,
@@ -76,6 +77,9 @@ CREATE TABLE account (
     CONSTRAINT ck_account_role CHECK (role IN ('parent', 'student', 'driver', 'escort', 'staff', 'system_admin')),
     CONSTRAINT ck_account_status CHECK (status IN ('pending', 'active', 'rejected', 'blocked')),
     CONSTRAINT ck_account_failed_attempts CHECK (failed_attempts BETWEEN 0 AND 5),
+    -- 차단 직전 상태(Ruling 328) — blocked 일 때만 존재하고 해제가 이 값으로 되돌린다.
+    CONSTRAINT ck_account_status_before_block CHECK (status_before_block IN ('pending', 'active', 'rejected')),
+    CONSTRAINT ck_account_status_before_block_pair CHECK ((status = 'blocked') = (status_before_block IS NOT NULL)),
     CONSTRAINT ck_account_academy_scope CHECK (role = 'system_admin' OR academy_id IS NOT NULL)
 );
 

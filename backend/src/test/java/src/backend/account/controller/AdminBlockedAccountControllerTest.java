@@ -192,6 +192,30 @@ class AdminBlockedAccountControllerTest {
                 .doesNotContain(SeedFixtures.DRIVER_BLOCKED_LOGIN_ID);
     }
 
+    /**
+     * 승인 대기 중 차단된 관계자 계정은 해제해도 {@code pending} 이다(Ruling 328 · BR-004) — {@code active} 면
+     * 가입 승인 없이 학원 전체 개인정보 권한을 얻는다. 목록은 역할과 돌아갈 상태를 보여 준다(§6.10).
+     */
+    @Test
+    void 승인_대기_중_차단된_관계자를_해제하면_pending_으로_돌아간다() throws Exception {
+        jdbcTemplate.update("""
+                INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status,
+                                     failed_attempts, blocked_at, block_reason, status_before_block)
+                VALUES (1, 'br004pending', 'x', '대기차단', '010-0000-4004', 'staff', 'blocked',
+                        5, now(), '로그인 실패 5회 누적(C-11)', 'pending')
+                """);
+        long accountId = 계정_식별자("br004pending");
+
+        String body = 차단_목록_본문();
+        assertThat((String) 항목값(body, "br004pending", "role")).isEqualTo("staff");
+        assertThat((String) 항목값(body, "br004pending", "status_before_block")).isEqualTo("pending");
+
+        mockMvc.perform(post("/api/v1/admin/blocked-accounts/" + accountId + "/unblock")
+                        .header("Authorization", 메인관리자_토큰()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.account_status").value("pending"));
+    }
+
     /** {@code blocked} 가 아닌 계정의 해제 시도는 {@code 409 ACCOUNT_NOT_BLOCKED} 다(§6.12). */
     @Test
     void blocked_가_아닌_계정을_해제하려_하면_409_ACCOUNT_NOT_BLOCKED_다() throws Exception {
