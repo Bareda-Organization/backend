@@ -38,6 +38,7 @@ public class NoShowContactController {
 
     private final NoShowContactCommandService noShowContactCommandService;
 
+    /** 연락 시도 기록(§4.8) — 동승자 여부 판정은 {@link NoShowContactCommandService} 안에서 한다. */
     @AuthenticatedOnly
     @Operation(summary = "미승차 연락 시도 기록 (EXC-01)")
     @PostMapping

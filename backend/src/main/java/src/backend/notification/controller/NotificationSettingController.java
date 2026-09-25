@@ -41,6 +41,7 @@ public class NotificationSettingController {
 
     private final NotificationSettingCommandService notificationSettingCommandService;
 
+    /** 알림 설정 조회(§3.14) — 행이 없는 계정은 기본값 DTO 로 응답한다. */
     @CanManageNotificationSetting
     @Operation(summary = "알림 설정 (NTF-07, P-09)")
     @GetMapping

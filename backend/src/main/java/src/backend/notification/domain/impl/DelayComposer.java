@@ -2,6 +2,7 @@ package src.backend.notification.domain.impl;
 
 import org.springframework.stereotype.Component;
 
+import src.backend.notification.domain.spec.DelaySubject;
 import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.run.entity.DelayReason;

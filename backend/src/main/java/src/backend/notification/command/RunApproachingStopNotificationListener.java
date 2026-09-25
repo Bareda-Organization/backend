@@ -9,7 +9,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.global.common.enums.Role;
 import src.backend.location.event.RunApproachingStopEvent;
-import src.backend.notification.domain.impl.RunApproachingStopSubject;
+import src.backend.notification.domain.spec.RunApproachingStopSubject;
 import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.notification.entity.NotificationType;

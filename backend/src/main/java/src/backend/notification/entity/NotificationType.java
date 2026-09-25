@@ -64,8 +64,8 @@ public enum NotificationType {
      * 전 실제로 그 상태였고 좌석 양쪽 시험 모두 통과했다). 그래서 상수를 여기 한 곳에 두고
      * 쓰는 쪽·세는 쪽이 함께 참조한다 — 넓히거나 좁히면 배지 대상도 같이 움직인다.
      *
-     * <p>⚠ 정본이 이 분류를 {@code NotificationType} 값으로 못박은 문장은 부재하다 — 위 규칙4·5 를
-     * 붙여 읽은 추론이다(Ruling 226·227). 정본이 명시하면 이 집합만 고치면 된다.
+     * <p>{@code FEATURE_SPEC} NTF-10(2026-09-02 확정, Ruling 227)이 이 3종을 값으로 못박은 정의처다 —
+     * "읽음 처리로 acked 가 되는 종류와 미확인 배지가 세는 종류는 같은 3종" 이라 다른 문서는 참조만.
      */
     public static final Set<NotificationType> IMPORTANT_FOR_ACK =
             Set.of(DELAY, NO_SHOW, ROUTE_CHANGED);

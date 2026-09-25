@@ -18,7 +18,6 @@ import src.backend.monitoring.dto.StaffRunRiderAggregateView;
  * {@link RunRider} 영속성 접근 — {@code run_rider} 는 {@code academy_id} 컬럼이 부재한 <b>부모 경유</b>
  * 자원이다(ERD §6.1). 확정 배치(Phase 7)는 {@code saveAll()} 로 회차별 명단을 한 번에 쌓기만 했으나,
  * Phase 8(②구간 승인 미리보기)이 처음으로 그 명단을 다시 읽어야 해 조회 메서드를 더한다.
- * 자원이다(ERD §6.1).
  */
 public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
 
@@ -53,8 +52,6 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
 
     /**
      * 그 승하차지에 아직 남은(부재 처리되지 않은) 탑승자 수(API_SPEC §3.6 ③ "잔여 0명이면 {@code run_stop}
-
-    /**
      * 을 {@code skipped}") — 방금 부재로 바꾼 학생을 포함해 센 뒤 0이면 그 정차지를 건너뛴다.
      *
      * <p>{@code runId} 근거는 {@link #findByRunIdAndStudentId} 와 같다.
@@ -76,10 +73,6 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
     long countByRunIdAndStatus(Long runId, RiderStatus status);
 
     /**
-     * 하원 최종 지점 도착 처리에서 종료가 보류될 때(Phase 9 goal 10) 기사 화면에 실을 미하차 잔류
-     * 명단 — 이름·현재 승하차지를 이 조회에서 함께 채운다({@code RunArriveResponse.remaining[]}
-     * 이 별도 조회 없이 바로 응답에 실릴 수 있게).
-
      * 승하차 처리(API_SPEC §4.6·§4.7)가 다룰 탑승자 1건 — {@code status} 가 {@link RiderStatus#ABSENT}
      * 인 행은 제외한다. §4.6 이 "{@code absent} 로 명단에서 제외된 탑승자"를 {@code 404 RIDER_NOT_FOUND}
      * 로 명시하기 때문에, 존재하지 않는 {@code riderId} 와 이미 제외된 탑승자를 이 메서드 하나로
@@ -102,10 +95,9 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
     List<RunRider> findAllByRunId(Long runId);
 
     /**
-     * 그 승하차지에 아직 남은(부재·미승차 둘 다 빠진) 탑승자 수 — {@code no_show} 도 잔여 0명 판정에서
-     * 빠져야 한다(목표 7). {@link #countByRunIdAndStopIdAndStatusNot} 은 단일 상태 제외만 지원해
-     * 미승차까지 함께 빼는 이 자리에는 쓸 수 없다 — Spring Data 파생 쿼리가 다중값 NOT 제외를
-     * 메서드명만으로 표현하지 못해 {@code @Query} 로 직접 쓴다.
+     * 하원 최종 지점 도착 처리에서 종료가 보류될 때(Phase 9 goal 10) 기사 화면에 실을 미하차 잔류
+     * 명단 — 이름·현재 승하차지를 이 조회에서 함께 채운다({@code RunArriveResponse.remaining[]}
+     * 이 별도 조회 없이 바로 응답에 실릴 수 있게).
      *
      * <p>{@code runId} 근거는 {@link #findByRunIdAndStudentId} 와 같다.
      */

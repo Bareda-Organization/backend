@@ -1,4 +1,4 @@
-package src.backend.notification.domain.impl;
+package src.backend.notification.domain.spec;
 
 /**
  * 근접(도착) 알림 문구의 재료(NTF-04, API_SPEC §9.7 {@code arrive}) — {@link RunApproachingStopComposer}

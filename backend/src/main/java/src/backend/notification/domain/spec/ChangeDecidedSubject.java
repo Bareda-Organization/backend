@@ -1,4 +1,4 @@
-package src.backend.notification.domain.impl;
+package src.backend.notification.domain.spec;
 
 /**
  * ②구간 변경 요청 관리자 결정 알림 문구의 재료(API_SPEC §5.6·§9.7 {@code change_decided}) —

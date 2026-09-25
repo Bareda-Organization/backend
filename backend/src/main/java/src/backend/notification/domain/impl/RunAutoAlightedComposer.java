@@ -4,6 +4,7 @@ import org.springframework.stereotype.Component;
 
 import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
+import src.backend.notification.domain.spec.RunAutoAlightedSubject;
 
 /**
  * 등원 최종 도착 처리의 자동 하차를 알리는 문구(API_SPEC §9.7 {@code alighting}) — 문구에 자녀

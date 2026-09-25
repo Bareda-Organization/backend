@@ -37,6 +37,7 @@ public class DeviceController {
 
     private final DeviceCommandService deviceCommandService;
 
+    /** 단말 등록(§2.11) — 같은 {@code (account, device)} 행이 있으면 지우고 새로 만든다(행 대체). */
     @CanRegisterDevice
     @AllowedWhenPending
     @Operation(summary = "푸시 수신 단말 등록·해지 (NTF-12)")
@@ -47,6 +48,7 @@ public class DeviceController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(response));
     }
 
+    /** 단말 해지(§2.11) — 대상이 없거나 본인 소유가 아니어도 조용히 204(멱등). */
     @CanRegisterDevice
     @AllowedWhenPending
     @Operation(summary = "푸시 수신 단말 해지 (NTF-12)")

@@ -1,4 +1,4 @@
-package src.backend.notification.domain.impl;
+package src.backend.notification.domain.spec;
 
 /**
  * 변경 요청 자동 거절 알림 문구의 재료(API_SPEC §1.6·§9.7 {@code change_decided}) —

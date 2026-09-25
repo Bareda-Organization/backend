@@ -67,10 +67,10 @@ class NotificationSettingControllerTest {
         return "Bearer " + tokenProvider.createAccessToken(accountId, 1L, role, AccountStatus.ACTIVE);
     }
 
-    // ── 목표7 — 조회: 설정 행이 없어도 기본값(전부 on)으로 자가 치유해 돌려준다 ─────
+    // ── 목표7 — 조회: 설정 행이 없어도 기본값(전부 on)을 돌려준다(저장은 하지 않는다, BR-096) ─────
 
     @Test
-    @DisplayName("목표7 — 설정 행이 없는 계정도 GET 하면 기본값(전부 on)을 돌려주고 행을 자가 치유한다")
+    @DisplayName("목표7 — 설정 행이 없는 계정도 GET 하면 기본값(전부 on)을 돌려주되 행을 만들지 않는다")
     void 설정_행이_없어도_GET_하면_기본값을_돌려준다() throws Exception {
         long accountId = parentAccount();
         assertThat(notificationSettingRepository.findById(accountId)).as("사전 조건 — 설정 행이 없다").isEmpty();
@@ -81,7 +81,8 @@ class NotificationSettingControllerTest {
                 .andExpect(jsonPath("$.data.boarding").value(true))
                 .andExpect(jsonPath("$.data.no_show").value(true));
 
-        assertThat(notificationSettingRepository.findById(accountId)).as("자가 치유로 행이 생겨야 한다").isPresent();
+        assertThat(notificationSettingRepository.findById(accountId))
+                .as("조회는 쓰기를 겸하지 않는다(BR-096) — 행을 만드는 것은 PATCH 뿐이다").isEmpty();
     }
 
     // ── 목표7 — 수정: PATCH 로 바뀐 값이 응답과 다음 GET 조회 모두에 반영된다 ─────

@@ -28,9 +28,9 @@ import src.backend.student.repository.StudentRepository;
 
 /**
  * 운행 시작을 {@code run_started} 알림으로 옮기는 구독자(API_SPEC §9.7 — 수신자 관계자·학부모·
- * 학생 3대상, 항상 발송). "항상 발송"은 {@link src.backend.notification.entity.NotificationSetting}
- * 의 on/off 대상이 도착·승차·미승차 3종뿐이라 이 알림이 애초에 그 토글 밖이라는 뜻이다 — 이
- * 리스너가 따로 걸러야 할 설정이 없다.
+ * 학생 3대상). 발송 시점 필터는 {@link src.backend.notification.entity.NotificationSetting#isEnabledFor}
+ * 가 맡는다 — {@code RUN_STARTED} 는 §3.14 "등하원(승차·하차·운행 시작) 알림" 대로 {@code boarding}
+ * 토글에 귀속(NTF-05)이라, 이 리스너는 적재만 하고 켜짐·꺼짐 판정을 스스로 하지 않는다.
  *
  * <p>{@code @TransactionalEventListener} 가 아니라 평범한 {@code @EventListener} 인 이유는
  * {@link RunRouteConfirmedNotificationListener} 와 같다 — 이 이벤트는 회차 시작 커맨드 서비스가
@@ -63,6 +63,7 @@ public class RunStartedNotificationListener {
 
     private final NotificationComposer<RunStartedEvent> runStartedComposer;
 
+    /** 운행 시작(목표 5, §9.7) — 관계자 전원 + 명단에 남은(absent 제외) 학생의 보호자·본인에게 적재한다. */
     @EventListener
     public void appendRunStarted(RunStartedEvent event) {
         NotificationMessage message = runStartedComposer.compose(event);

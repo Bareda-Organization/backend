@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.notification.entity.DeviceToken;
 
+/** {@code device_token}(§2.11 푸시 단말) 저장소 — 등록·해지·발송 대상 조회·무효 토큰 정리. */
 public interface DeviceTokenRepository extends JpaRepository<DeviceToken, Long> {
     /** (account_id, device_id) UNIQUE — 같은 기기 재등록 시 기존 행을 찾아 대체하는 데 쓴다. */
     @AcademyScopeExempt(reason = "§2.11 본인 단말 등록 — device_token 은 account 부모 경유라 계정이 곧 학원 범위이고, "

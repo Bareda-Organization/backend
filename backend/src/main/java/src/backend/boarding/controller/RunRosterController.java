@@ -33,6 +33,7 @@ public class RunRosterController {
 
     private final RosterQueryService rosterQueryService;
 
+    /** 매니저용 명단(§4.2) — 회차 접근·확정 여부 판정은 {@link RosterQueryService#managerRoster} 위임. */
     @CanReadRoster
     @Operation(summary = "승하차지별 명단 (RST-01·02·04, M-03)")
     @GetMapping("/{runId}/roster")

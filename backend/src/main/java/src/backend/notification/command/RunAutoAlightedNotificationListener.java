@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.global.common.enums.Role;
-import src.backend.notification.domain.impl.RunAutoAlightedSubject;
+import src.backend.notification.domain.spec.RunAutoAlightedSubject;
 import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.notification.entity.NotificationType;

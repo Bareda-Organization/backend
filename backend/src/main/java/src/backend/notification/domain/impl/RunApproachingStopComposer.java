@@ -4,6 +4,7 @@ import org.springframework.stereotype.Component;
 
 import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
+import src.backend.notification.domain.spec.RunApproachingStopSubject;
 
 /**
  * 근접 알림(API_SPEC §9.7 {@code arrive}, NTF-04)의 문구 — 수신자는 학부모·학생 둘(목표 4)이고,

@@ -26,7 +26,7 @@ import src.backend.global.security.AuthUser;
 /**
  * 기사·동승자 단말의 현장 예외 보고 등록 API(API_SPEC §4.13, EXC-02·03).
  *
- * <p>{@link DriverRunController} 와 같은 표면이다 — {@code /staff} 접두어가 없고, 배치 여부 인가
+ * <p>{@link src.backend.run.controller.DriverRunController} 와 같은 표면이다 — {@code /staff} 접두어가 없고, 배치 여부 인가
  * ({@code DRIVER_ONLY}/{@code ESCORT_ONLY} 대 일반 {@code FORBIDDEN})는 컨트롤러가 아니라
  * {@link src.backend.run.access.RunAssignmentAccess} 가 커맨드 서비스 안에서 판정한다.
  */

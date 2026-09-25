@@ -46,6 +46,7 @@ public class EmergencyRunQueryService {
 
     private final RunAssignmentAccess runAssignmentAccess;
 
+    /** 그 회차에서 내가 신고한 비상 알림 목록(§4.15) — 확인·취소 여부를 신고자 단말에 그대로 보여준다. */
     public RunEmergencyListResponse list(AuthUser requester, Long runId) {
         runAssignmentAccess.assertAssignedDriverOrEscort(requester, runId);
 

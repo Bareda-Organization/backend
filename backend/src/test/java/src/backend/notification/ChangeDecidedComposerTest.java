@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 import src.backend.notification.domain.impl.ChangeDecidedComposer;
-import src.backend.notification.domain.impl.ChangeDecidedSubject;
+import src.backend.notification.domain.spec.ChangeDecidedSubject;
 import src.backend.notification.domain.spec.NotificationMessage;
 
 /**

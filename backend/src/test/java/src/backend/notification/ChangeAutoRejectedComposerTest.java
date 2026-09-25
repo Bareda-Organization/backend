@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 import src.backend.notification.domain.impl.ChangeAutoRejectedComposer;
-import src.backend.notification.domain.impl.ChangeAutoRejectedSubject;
+import src.backend.notification.domain.spec.ChangeAutoRejectedSubject;
 import src.backend.notification.domain.spec.NotificationMessage;
 
 /**

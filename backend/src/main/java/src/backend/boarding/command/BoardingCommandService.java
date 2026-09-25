@@ -3,7 +3,6 @@ package src.backend.boarding.command;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -29,8 +28,8 @@ import src.backend.boarding.event.RiderStatusChangedEvent;
 import src.backend.boarding.event.RunEndedEvent;
 import src.backend.boarding.repository.RiderStatusHistoryRepository;
 import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.exception.entity.NoShowCase;
-import src.backend.exception.repository.NoShowCaseRepository;
+import src.backend.exception.command.NoShowCaseAccess;
+import src.backend.exception.dto.NoShowCaseView;
 import src.backend.global.common.enums.Role;
 import src.backend.location.proximity.StopDepartureService;
 import src.backend.global.error.BusinessException;
@@ -65,19 +64,16 @@ import src.backend.run.repository.RunRepository;
 @RequiredArgsConstructor
 public class BoardingCommandService {
 
-    /** 운행 중 미승차로 잔여 0명이 된 정차지에 남기는 사유(C-05, {@code run_stop.skip_notice}). */
-    private static final String SKIP_NOTICE = "운행 중 미승차로 전원 미탑승";
-
-    /** 미승차로 잔여 0명 판정 시 제외할 상태 — 이미 결석·미승차로 처리된 탑승자는 잔여가 아니다(목표 7). */
-    private static final List<RiderStatus> NOT_REMAINING = List.of(RiderStatus.ABSENT, RiderStatus.NO_SHOW);
-
     private final RunRepository runRepository;
 
     private final RunRiderRepository runRiderRepository;
 
     private final RiderStatusHistoryRepository riderStatusHistoryRepository;
 
-    private final NoShowCaseRepository noShowCaseRepository;
+    private final NoShowCaseAccess noShowCaseAccess;
+
+    /** {@code stop_skipped} 판정·해제 협력자(§20.2, BR-101 — 미승차·되돌리기 두 경로가 공유한다). */
+    private final StopSkipJudge stopSkipJudge;
 
     /**
      * 미승차 대기 시간(분)을 학원별로 읽는다(Phase 11 목표 2, API_SPEC §5.21) — 학원마다 값이 다르고,
@@ -301,14 +297,14 @@ public class BoardingCommandService {
      * 계산 전에 발행하면 항상 {@code false} 를 실어 보내게 된다.
      */
     private RiderStatusUpdateResponse handleNoShow(Run run, RunRider rider, OffsetDateTime now) {
-        NoShowCase noShowCase = openNoShowCase(run, rider, now);
+        NoShowCaseView noShowCase = openNoShowCase(run, rider, now);
 
-        boolean stopSkipped = skipStopIfNoRidersRemain(run.getId(), rider.getStopId());
+        boolean stopSkipped = stopSkipJudge.skipIfNoRidersRemain(run.getId(), rider.getStopId());
         eventPublisher.publishEvent(new RiderNoShowEvent(run.getId(), run.getAcademyId(), rider.getStudentId(),
-                rider.getId(), noShowCase.getId(), rider.getStopId(), stopSkipped, now));
+                rider.getId(), noShowCase.caseId(), rider.getStopId(), stopSkipped, now));
 
         RiderStatusUpdateResponse.NoShowCaseSummary summary = new RiderStatusUpdateResponse.NoShowCaseSummary(
-                noShowCase.getId(), noShowCase.getStartedAt(), noShowCase.getExpiresAt());
+                noShowCase.caseId(), noShowCase.startedAt(), noShowCase.expiresAt());
         return RiderStatusUpdateResponse.withNoShowCase(rider.getId(), now, summary, stopSkipped);
     }
 
@@ -316,17 +312,12 @@ public class BoardingCommandService {
      * 미승차 대기 카운트다운을 시작한다 — 학원별 대기 시간(목표 2) 뒤 만료. 탑승자당 케이스는 1개
      * ({@code uk_no_show_case_run_rider})라, 되돌린 뒤 다시 미승차면 기존 케이스를 재개한다(BR-009).
      */
-    private NoShowCase openNoShowCase(Run run, RunRider rider, OffsetDateTime now) {
+    private NoShowCaseView openNoShowCase(Run run, RunRider rider, OffsetDateTime now) {
         int waitMinutes = academySettingRepository.findById(run.getAcademyId())
                 .map(AcademySetting::getNoShowWaitMinutes)
                 .orElse(AcademySetting.DEFAULT_NO_SHOW_WAIT_MINUTES);
         OffsetDateTime expiresAt = now.plus(Duration.ofMinutes(waitMinutes));
-        return noShowCaseRepository.findByRunRiderId(rider.getId())
-                .map(existing -> {
-                    existing.reopen(now, expiresAt);
-                    return existing;
-                })
-                .orElseGet(() -> noShowCaseRepository.save(NoShowCase.forRunRider(rider.getId(), now, expiresAt, now)));
+        return noShowCaseAccess.openOrReopen(rider.getId(), now, expiresAt);
     }
 
     /**
@@ -339,43 +330,12 @@ public class BoardingCommandService {
     private void syncNoShowAfterRevert(Run run, RunRider rider, RiderStatus fromStatus, RiderStatus toStatus,
             OffsetDateTime now) {
         if (fromStatus == RiderStatus.NO_SHOW && toStatus != RiderStatus.NO_SHOW) {
-            noShowCaseRepository.findByRunRiderId(rider.getId()).ifPresent(noShowCase -> noShowCase.resolveByRevert(now));
-            currentRunStop(run.getId(), rider.getStopId()).ifPresent(RunStop::clearSkipped);
+            noShowCaseAccess.resolveByRevert(rider.getId(), now);
+            stopSkipJudge.clearSkipped(run.getId(), rider.getStopId());
         } else if (toStatus == RiderStatus.NO_SHOW && fromStatus != RiderStatus.NO_SHOW) {
             openNoShowCase(run, rider, now);
-            skipStopIfNoRidersRemain(run.getId(), rider.getStopId());
+            stopSkipJudge.skipIfNoRidersRemain(run.getId(), rider.getStopId());
         }
-    }
-
-    /** 확정 노선 현재 버전에서 그 승하차지의 정차 항목 — 확정 노선이 아직 없으면 비어 있다. */
-    private Optional<RunStop> currentRunStop(Long runId, Long stopId) {
-        return confirmedRouteRepository.findById(runId)
-                .map(ConfirmedRoute::getCurrentVersionId)
-                .flatMap(versionId -> runStopRepository.findByRouteVersionIdAndStopId(versionId, stopId));
-    }
-
-    /**
-     * 그 승하차지에 아직 남은(부재·미승차 둘 다 빠진) 탑승자가 0명이면 확정 노선의 정차 항목을
-     * {@code skipped} 로 표시하고 {@code true} 를 돌려준다(C-05 후자 경로, §4.6 {@code stop_skipped}).
-     *
-     * <p>{@code no_show} 도 잔여 판정에서 빼야 한다(목표 7) — 방금 이 호출 직전에 {@code applyTransition}
-     * 이 이 탑승자 자신을 {@code NO_SHOW} 로 이미 바꿔 놓은 상태라, {@code ABSENT} 만 빼면 그 탑승자
-     * 자신이 스스로를 "남은 사람"으로 세어 잔여가 영원히 0이 되지 않는다.
-     * {@link src.backend.request.command.BoardingIntentCommandService#skipStopIfNoRidersRemain} 이
-     * 확정 노선을 찾는 것과 같은 경로를 그대로 재사용하되, 제외 상태 집합만 이 경로에 맞게 넓힌
-     * {@link RunRiderRepository#countByRunIdAndStopIdAndStatusNotIn} 을 쓴다.
-     */
-    private boolean skipStopIfNoRidersRemain(Long runId, Long stopId) {
-        long remaining = runRiderRepository.countByRunIdAndStopIdAndStatusNotIn(runId, stopId, NOT_REMAINING);
-        if (remaining > 0) {
-            return false;
-        }
-        return currentRunStop(runId, stopId)
-                .map(runStop -> {
-                    runStop.markSkipped(SKIP_NOTICE);
-                    return true;
-                })
-                .orElse(false);
     }
 
     /**
@@ -404,11 +364,11 @@ public class BoardingCommandService {
             return RiderStatusUpdateResponse.of(history.getRunRiderId(), statusName(toStatus),
                     history.getChangedAt(), false);
         }
-        return noShowCaseRepository.findByRunRiderId(history.getRunRiderId())
+        return noShowCaseAccess.find(history.getRunRiderId())
                 .map(noShowCase -> RiderStatusUpdateResponse.withNoShowCase(history.getRunRiderId(),
                         history.getChangedAt(),
-                        new RiderStatusUpdateResponse.NoShowCaseSummary(noShowCase.getId(),
-                                noShowCase.getStartedAt(), noShowCase.getExpiresAt()),
+                        new RiderStatusUpdateResponse.NoShowCaseSummary(noShowCase.caseId(),
+                                noShowCase.startedAt(), noShowCase.expiresAt()),
                         false))
                 .orElseGet(() -> RiderStatusUpdateResponse.of(history.getRunRiderId(), statusName(toStatus),
                         history.getChangedAt(), false));

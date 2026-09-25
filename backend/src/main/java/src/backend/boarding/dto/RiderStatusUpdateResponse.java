@@ -7,8 +7,9 @@ import java.time.OffsetDateTime;
  * 접두를 쓰지만, {@link src.backend.request.dto.BoardingIntentToggleResponse} 가 이미 정리한 관례대로
  * 순수 {@code Long} 으로 노출한다.
  *
- * <p>{@code noShowCase} 는 {@code status=no_show} 일 때만 채운다 — 그 외 상태는 {@code null} 이라
- * 응답 JSON 에서 {@code no_show_case} 필드 자체가 빠진다(Jackson 기본 동작).
+ * <p>{@code noShowCase} 는 {@code status=no_show} 일 때만 채운다 — 그 외 상태는 {@code null} 이고,
+ * {@code application.yml}에 {@code default-property-inclusion} 설정이 없어 응답 JSON 에도
+ * {@code "no_show_case": null} 로 그대로 실린다(필드 자체가 빠지지 않는다).
  */
 public record RiderStatusUpdateResponse(Long riderId, String status, OffsetDateTime changedAt,
         NoShowCaseSummary noShowCase, boolean stopSkipped) {

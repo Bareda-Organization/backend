@@ -59,6 +59,7 @@ public class ExceptionReportCommandService {
 
     private final Clock clock;
 
+    /** 현장 예외 보고 등록(§4.13) — 저장과 같은 트랜잭션에서 관계자 통지 이벤트를 발행한다. */
     public ExceptionReportCreateResponse report(AuthUser requester, Long runId,
             ExceptionReportCreateRequest request) {
         runAssignmentAccess.assertAssignedDriverOrEscort(requester, runId);

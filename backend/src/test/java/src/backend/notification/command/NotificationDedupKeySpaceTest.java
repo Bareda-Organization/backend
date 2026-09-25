@@ -20,7 +20,7 @@ import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.notification.domain.impl.DelaySubject;
+import src.backend.notification.domain.spec.DelaySubject;
 import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.run.event.DelayNoticeRecipient;
