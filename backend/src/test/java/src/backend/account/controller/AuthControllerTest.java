@@ -112,8 +112,10 @@ class AuthControllerTest {
      * (Hibernate identity map, PK 로 이미 관리 중인 엔티티는 쿼리 결과로 덮어쓰지 않는다).
      */
     private void forceStatus(Long accountId, String status, int failedAttempts) {
-        jdbcTemplate.update("UPDATE account SET status = ?, failed_attempts = ? WHERE id = ?",
-                status, failedAttempts, accountId);
+        // 차단 전이는 직전 상태를 남긴다(Ruling 328) — SET 우변의 status 는 갱신 전 값이다
+        jdbcTemplate.update("UPDATE account SET status_before_block = CASE WHEN ? = 'blocked' THEN status END, "
+                        + "status = ?, failed_attempts = ? WHERE id = ?",
+                status, status, failedAttempts, accountId);
         entityManager.clear();
     }
 

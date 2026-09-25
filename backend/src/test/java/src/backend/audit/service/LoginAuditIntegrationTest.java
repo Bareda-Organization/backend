@@ -75,8 +75,10 @@ class LoginAuditIntegrationTest {
     /** {@code AuthControllerTest#forceStatus} 와 같은 근거 — raw UPDATE 후 1차 캐시를 비워야 이후
      * {@code accountRepository} 조회·{@code login()} 이 방금 UPDATE 된 상태를 본다. */
     private void forceStatus(Long accountId, String status, int failedAttempts) {
-        jdbcTemplate.update("UPDATE account SET status = ?, failed_attempts = ? WHERE id = ?",
-                status, failedAttempts, accountId);
+        // 차단 전이는 직전 상태를 남긴다(Ruling 328) — SET 우변의 status 는 갱신 전 값이다
+        jdbcTemplate.update("UPDATE account SET status_before_block = CASE WHEN ? = 'blocked' THEN status END, "
+                        + "status = ?, failed_attempts = ? WHERE id = ?",
+                status, status, failedAttempts, accountId);
         entityManager.clear();
     }
 
