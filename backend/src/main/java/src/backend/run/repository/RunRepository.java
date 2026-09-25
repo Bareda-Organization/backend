@@ -142,6 +142,10 @@ public interface RunRepository extends JpaRepository<Run, Long> {
             + "AND r.canceledAt IS NULL")
     int confirmIfIdle(@Param("id") Long id, @Param("confirmedAt") OffsetDateTime confirmedAt);
 
+    /** 차량의 오늘 이후 · 미취소 회차 중 주어진 상태의 것 — 정원 축소 경고(§5.12, BR-116)가 쓴다. */
+    List<Run> findAllByAcademyIdAndBusIdAndServiceDateGreaterThanEqualAndCanceledAtIsNullAndStatusIn(Long academyId,
+            Long busId, LocalDate today, Collection<RunStatus> statuses);
+
     /**
      * 강제 추가·이동을 저장하기 직전에 회차 행을 잠가 읽는다(BR-044) — {@link #confirmIfIdle} 과 같은 행 잠금이라
      * 둘 중 늦은 쪽은 먼저 커밋된 상태를 본다. 저장이 먼저면 확정 저장이 그 행을 다시 세고, 확정이 먼저면 이 조회가

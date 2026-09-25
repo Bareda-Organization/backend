@@ -1798,6 +1798,15 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 정원 검증의 기준은 `student_capacity`. 초과 시 `409 CAPACITY_EXCEEDED` — 현재 인원과 정원을 `details` 에 반환 (BUS-04). 정원 축소로 기배정 인원이 초과하면 경고.
 
+**`PATCH` 응답의 `warnings[]`**(2026-09-25, BR-116) — 그 차량의 **오늘 이후 · 미취소 · `idle`·`confirmed`** 회차 중 배정 인원이 수정 후 `student_capacity` 를 넘는 회차마다 1건. 배정 인원은 확정 회차면 `absent` 를 뺀 명단, 확정 전이면 예정 명단(§5.7·§5.8 정원 판정과 같은 규칙). **경고이고 차단이 아니다**(§5.14 와 같은 축) — 수정은 저장되고, 없으면 빈 배열. 목록·등록 응답에는 이 필드가 없다.
+
+| 필드 | 설명 |
+|---|---|
+| `code` | `CAPACITY_BELOW_ASSIGNED` |
+| `run_id` | 넘치는 회차 |
+| `assigned_count` | 그 회차의 배정 인원 |
+| `student_capacity` | 수정 후 학생 탑승 가능 인원 |
+
 **에러** — `409 CAPACITY_EXCEEDED`(학생 탑승 가능 인원 초과 — `details` 에 현재 인원·정원) · `409 DUPLICATE_BUS_NO`(같은 학원에 같은 호차 — 등록·수정 공통, 2026-08-26 신설 · Ruling 164) · `404 BUS_NOT_FOUND`(`PATCH` 대상 부재 · 타 학원 — 존재 비노출, Ruling 163)
 
 ### 5.13 매니저 관리 (MGR-01~04, A-12)

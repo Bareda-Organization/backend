@@ -8,6 +8,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -15,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
@@ -57,6 +61,9 @@ class StaffBusControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Autowired
     private JwtTokenProvider tokenProvider;
@@ -153,6 +160,36 @@ class StaffBusControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.capacity").value(30))
                 .andExpect(jsonPath("$.data.student_capacity").value(28));
+    }
+
+    /**
+     * 정원을 줄여 오늘 이후 회차의 배정 인원을 밑돌면 경고한다 — 경고이고 차단이 아니다(§5.12 · BR-116). 확정 회차는
+     * {@code absent} 를 뺀 {@code run_rider} 수로 센다.
+     */
+    @Test
+    void 정원을_기배정_인원_아래로_줄이면_경고가_실린다() throws Exception {
+        long busId = 등록된_차량_id(관계자A_토큰(), "경고호차", "77가7777", 16);
+        OffsetDateTime depart = LocalDate.now(ZoneId.of("Asia/Seoul")).plusDays(1).atTime(8, 0)
+                .atZone(ZoneId.of("Asia/Seoul")).toOffsetDateTime();
+        Long runId = jdbcTemplate.queryForObject("INSERT INTO run (academy_id, bus_id, service_date, direction, "
+                + "depart_time, confirm_at, status, origin_name, destination_name) VALUES (?, ?, ?, 'to_academy', ?, ?, "
+                + "'confirmed', '출발', '학원') RETURNING id", Long.class, ACADEMY_A_ID, busId, depart.toLocalDate(),
+                depart, depart.minusMinutes(30));
+        for (long studentId : new long[] { 1L, 2L, 3L }) {
+            jdbcTemplate.update("INSERT INTO run_rider (run_id, student_id, stop_id, status) VALUES (?, ?, 1, ?)", runId,
+                    studentId, studentId == 3L ? "absent" : "waiting");
+        }
+
+        // capacity 4 → student_capacity 2 : 배정 2명(absent 제외)이라 경고 없음, 3 이면 1 이라 경고
+        수정한다(관계자A_토큰(), busId, "{\"capacity\":4}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.warnings").isEmpty());
+        수정한다(관계자A_토큰(), busId, "{\"capacity\":3}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.student_capacity").value(1))
+                .andExpect(jsonPath("$.data.warnings[0].code").value("CAPACITY_BELOW_ASSIGNED"))
+                .andExpect(jsonPath("$.data.warnings[0].run_id").value(runId))
+                .andExpect(jsonPath("$.data.warnings[0].assigned_count").value(2));
     }
 
     /** 수정도 같은 정원 하한을 받는다 — 등록만 막고 수정을 열어 두면 정원을 낮추는 경로로 그대로 우회된다. */
