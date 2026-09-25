@@ -7,6 +7,7 @@ public record ForcedAdditionResponse(Long forcedAdditionId, Long runId, Long stu
 
     private static final String STAGED = "staged";
 
+    /** 방금 대기 등록한 {@link RunForcedAddition} 을 응답으로 옮긴다 — {@code status} 는 언제나 staged. */
     public static ForcedAdditionResponse from(RunForcedAddition entity) {
         return new ForcedAdditionResponse(entity.getId(), entity.getRunId(), entity.getStudentId(),
                 entity.getStopId(), STAGED);

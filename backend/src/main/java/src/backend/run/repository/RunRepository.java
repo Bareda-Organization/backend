@@ -39,9 +39,12 @@ public interface RunRepository extends JpaRepository<Run, Long> {
     List<Run> findAllByAcademyIdAndServiceDateOrderByDepartTimeAsc(Long academyId, LocalDate serviceDate);
 
     /**
-     * 한 학원에서 그 상태인 회차 목록(§6.8 메인 관리자 관제, 목표 8·9) — 지금은 {@code MOVING}
-     * 하나만 호출부(관제 조회)가 넘긴다. 상태 조건을 고정하지 않고 파라미터로 두는 이유는 서비스
-     * 계층이 "운행 중" 이라는 판정을 이 메서드 이름이 아니라 자신의 자바독에 명시하게 하기 위함이다.
+     * 한 학원에서 그 상태인 회차 목록 — 지금은 {@code MOVING} 하나만 호출부(데모 시뮬레이터의 운행
+     * 중 버스 판정 · {@code AdminAcademyQueryService} 의 학원 상세 "운행 중 차량 수" 집계)가 넘긴다.
+     * §6.8 메인 관리자 관제는 <b>이 메서드를 쓰지 않는다</b> — 오늘 회차를 상태 무관 전부 반환하도록
+     * 바뀌며(Ruling 315) 날짜 조건이 있는 {@code findAllByAcademyIdAndServiceDateOrderByDepartTimeAsc}
+     * 로 옮겨 갔다. 상태 조건을 고정하지 않고 파라미터로 두는 이유는 서비스 계층이 "운행 중" 이라는
+     * 판정을 이 메서드 이름이 아니라 자신의 자바독에 명시하게 하기 위함이다.
      */
     List<Run> findAllByAcademyIdAndStatusOrderByDepartTimeAsc(Long academyId, RunStatus status);
 

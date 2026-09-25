@@ -11,6 +11,7 @@ import src.backend.run.entity.Run;
  */
 public record RunStartResponse(String runStatus, OffsetDateTime startedAt, Integer autoBoardedCount) {
 
+    /** 시작 전이 직후의 {@link Run} 상태와 자동 승차 인원을 응답으로 옮긴다. */
     public static RunStartResponse of(Run run, Integer autoBoardedCount) {
         return new RunStartResponse(run.getStatus().name().toLowerCase(Locale.ROOT), run.getStartedAt(),
                 autoBoardedCount);

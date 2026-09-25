@@ -1,12 +1,10 @@
 package src.backend.run.roster;
 
-import java.time.LocalDate;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -24,6 +22,7 @@ import src.backend.request.repository.ChangeRequestRepository;
 import src.backend.routing.entity.RouteStop;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
+import src.backend.run.domain.RunWeekday;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunForcedAddition;
 import src.backend.run.entity.RunTransfer;
@@ -64,7 +63,7 @@ public class ProjectedRosterReader {
 
     /** 고정 노선을 찾아 읽는다 — 노선이 없으면 요일별 주소 몫은 0명이다(강제 추가·이동만 남는다). */
     public ProjectedRoster read(Run run) {
-        Weekday weekday = weekdayOf(run.getServiceDate());
+        Weekday weekday = RunWeekday.of(run.getServiceDate());
         List<Long> stopIds = routeRepository
                 .findByAcademyIdAndBusIdAndWeekdayAndDirection(run.getAcademyId(), run.getBusId(), weekday,
                         run.getDirection())
@@ -164,8 +163,4 @@ public class ProjectedRosterReader {
                 + runTransferRepository.findAllByToRunIdAndAcademyId(run.getId(), run.getAcademyId()).size();
     }
 
-    /** 그 날짜의 요일 — {@code route.weekday} 의 값 공간으로 옮긴다. 시계를 보지 않는다. */
-    private static Weekday weekdayOf(LocalDate serviceDate) {
-        return Weekday.valueOf(serviceDate.getDayOfWeek().name().substring(0, 3).toUpperCase(Locale.ROOT));
-    }
 }

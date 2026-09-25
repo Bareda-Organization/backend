@@ -15,6 +15,7 @@ import src.backend.run.entity.Run;
 public record RunArriveResponse(OffsetDateTime arrivedAt, NextStopResponse nextStop, boolean isFinal,
         String runStatus, boolean finishPending, List<RemainingRiderResponse> remaining, Integer autoAlightedCount) {
 
+    /** 이번 도착 처리가 무엇을 겸했는지(다음 정차지·최종 여부·잔류)를 응답으로 옮긴다. */
     public static RunArriveResponse of(OffsetDateTime arrivedAt, NextStopResponse nextStop, boolean isFinal,
             Run run, List<RemainingRiderResponse> remaining, Integer autoAlightedCount) {
         return new RunArriveResponse(arrivedAt, nextStop, isFinal, run.getStatus().name().toLowerCase(Locale.ROOT),

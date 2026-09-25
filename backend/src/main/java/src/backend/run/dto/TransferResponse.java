@@ -25,6 +25,7 @@ public record TransferResponse(Long transferId, Long studentId, Long fromRunId, 
     public record ToImpact(long riderCountBefore, long riderCountAfter, int capacity) {
     }
 
+    /** 방금 대기 등록한 {@link RunTransfer} 와 정원 즉시 영향을 응답으로 옮긴다. */
     public static TransferResponse of(RunTransfer entity, TransferImpact impact) {
         return new TransferResponse(entity.getId(), entity.getStudentId(), entity.getFromRunId(),
                 entity.getToRunId(), entity.getStopId(), STAGED, impact);

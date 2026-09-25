@@ -40,6 +40,7 @@ public class RunAckChangesCommandService {
 
     private final Clock clock;
 
+    /** 요청자가 배치된 회차인지 확인한 뒤 현재 배포 버전 전체를 확인 처리한다(RUN-07). */
     public RunAckChangesResponse ackChanges(AuthUser requester, Long runId) {
         Assignment assignment = runAssignmentAccess.assertAssignedDriverOrEscort(requester, runId);
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())

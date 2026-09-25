@@ -12,7 +12,7 @@ import java.time.OffsetDateTime;
  *
  * <p>{@code autoBoardedCount} 는 §7.1 {@code run_started} payload 의 필수 필드다 — 발행 시점에
  * {@code RunStartCommandService.start} 가 이미 계산해 둔 값을 그대로 threading 한다(새 조회 없음).
- * 자동 탑승이 없는 방향(등원 외 회차)에서는 {@code 0} 이다.
+ * 자동 탑승은 하원 회차에서만 일어난다(C-07) — 등원 회차에서는 {@code 0} 이다.
  */
 public record RunStartedEvent(Long runId, Long academyId, OffsetDateTime startedAt, int autoBoardedCount) {
 }

@@ -24,6 +24,7 @@ import src.backend.manager.entity.Manager;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.repository.ConfirmedRouteRepository;
+import src.backend.run.domain.RunStartWindowPolicy;
 import src.backend.run.dto.ManagerRunResponse;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
@@ -53,6 +54,8 @@ public class ManagerRunQueryService {
     private final RunRiderRepository runRiderRepository;
 
     private final ConfirmedRouteRepository confirmedRouteRepository;
+
+    private final RunStartWindowPolicy runStartWindowPolicy;
 
     private final Clock clock;
 
@@ -87,7 +90,8 @@ public class ManagerRunQueryService {
     private ManagerRunResponse toResponse(AuthUser requester, Run run, String busNo, Assignment assignment) {
         long[] addedRemoved = addedRemovedOf(requester, run);
         boolean ackRequired = ackRequiredOf(requester, run, assignment);
-        return ManagerRunResponse.of(run, busNo, assignment, addedRemoved[0], addedRemoved[1], ackRequired);
+        return ManagerRunResponse.of(run, busNo, assignment, addedRemoved[0], addedRemoved[1], ackRequired,
+                runStartWindowPolicy);
     }
 
     /** {@code [added_count, removed_count]} — ②구간 승인이 이 회차 명단에 반영한 변경 배지. */

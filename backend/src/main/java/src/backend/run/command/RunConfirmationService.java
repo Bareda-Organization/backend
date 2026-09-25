@@ -2,10 +2,8 @@ package src.backend.run.command;
 
 import java.time.Clock;
 import java.time.Duration;
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -15,7 +13,6 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.academy.entity.Academy;
 import src.backend.academy.repository.AcademyRepository;
-import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
@@ -32,6 +29,8 @@ import src.backend.routing.pipeline.RouteComputationInput;
 import src.backend.routing.pipeline.RouteComputationPipeline;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
+import src.backend.run.domain.RunRouteEndpoints;
+import src.backend.run.domain.RunWeekday;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
 import src.backend.run.roster.ProjectedRoster;
@@ -45,8 +44,6 @@ import src.backend.student.repository.StopRepository;
  * {@link #confirmOne} 을 부른다).
  *
  * <p><b>이 클래스는 {@code @Transactional} 이 아니다.</b> {@link RouteComputationPipeline#compute}
-
-/**
  * 는 외부 지도 API 를 호출하는데, 그 호출을 트랜잭션 안에 넣으면 공급자가 느린 만큼 DB 커넥션을 붙든
  * 채 대기한다(그 클래스 자신의 javadoc 이 명시한 설계). 그래서 "읽기 → 계산" 은 여기서 트랜잭션 밖에
  * 두고, "확정 표시(idle → confirmed) + 4종 산출물 저장 + 이벤트 발행" 만 별도 빈
@@ -109,6 +106,11 @@ public class RunConfirmationService {
      * (읽기 → 계산 → {@link RunConfirmationPersistence#persist} → 지표)은 배치 경로와 완전히 같다 —
      * {@link #confirmOne(Long)} 은 {@code forceFallback=false} 로 이 메서드를 그대로 통과한다.
      *
+     * <p>§20.2 — 본문이 기준(20줄)을 넘긴 채 둔다. "읽기 → 좌표 결정 → 계산 → 저장 → 계측" 은 한
+     * 회차를 확정하는 단일 순서고, 각 단계가 다음 단계 입력을 바로 쓴다 — private 메서드로 쪼개면
+     * 그 순서를 파일 안 여러 자리로 흩어 놓을 뿐 책임은 늘지 않는다(중복이었던 요일·좌표 규칙은
+     * RunWeekday·RunRouteEndpoints 로 이미 뺐다, BR-101).
+     *
      * @return {@link RunConfirmationPersistence#persist} 가 실제로 확정을 저장했으면 {@code true},
      *         진 경쟁이거나 회차가 이미 취소·삭제됐으면 {@code false} — 관리자 강제 확정 컨트롤러는
      *         이 값이 {@code false} 면 {@code RUN_NOT_IDLE} 로 답한다(호출 전에 idle 을 이미 확인했는데도
@@ -129,7 +131,7 @@ public class RunConfirmationService {
             throw new BusinessException(ErrorCode.ACADEMY_COORDINATES_MISSING);
         }
 
-        Weekday weekday = weekdayOf(run.getServiceDate());
+        Weekday weekday = RunWeekday.of(run.getServiceDate());
         Route route = routeRepository
                 .findByAcademyIdAndBusIdAndWeekdayAndDirection(run.getAcademyId(), run.getBusId(), weekday,
                         run.getDirection())
@@ -154,16 +156,10 @@ public class RunConfirmationService {
         }
 
         GeoPoint academyPoint = new GeoPoint(academy.getLat(), academy.getLng());
-        GeoPoint origin;
-        GeoPoint destination;
-        // Ruling 190 — 반대쪽 끝은 노선의 첫/마지막 정차지다: 등원은 첫 승차지→학원, 하원은 학원→마지막 하차지.
-        if (run.getDirection() == Direction.TO_ACADEMY) {
-            origin = new GeoPoint(firstStop.getLat(), firstStop.getLng());
-            destination = academyPoint;
-        } else {
-            origin = academyPoint;
-            destination = new GeoPoint(lastStop.getLat(), lastStop.getLng());
-        }
+        RunRouteEndpoints.Endpoints endpoints = RunRouteEndpoints.of(run.getDirection(), academyPoint,
+                new GeoPoint(firstStop.getLat(), firstStop.getLng()), new GeoPoint(lastStop.getLat(), lastStop.getLng()));
+        GeoPoint origin = endpoints.origin();
+        GeoPoint destination = endpoints.destination();
 
         // 명단 규칙은 정원 판정 경로와 한 벌이다(ProjectedRosterReader 자바독, BR-043).
         ProjectedRoster projected = rosterReader.read(run, weekday, stopIds);
@@ -182,8 +178,7 @@ public class RunConfirmationService {
         // 자리라 배치 지연 지표(목표 8)를 여기서 계측한다.
         OffsetDateTime confirmedAt = OffsetDateTime.now(clock);
 
-        boolean persisted = persistence.persist(run, computation, origin, destination, weekday, projected,
-                confirmedAt);
+        boolean persisted = persistence.persist(run, computation, endpoints, weekday, projected, confirmedAt);
         // persisted == false 는 동시 확정 경합에서 진 시도다(persist() javadoc) — 이 시도는 기록하지
         // 않는다. 승패 신호 없이 무조건 기록하면 표본 수가 확정 사건 수보다 부풀어, 이 지표가 가장
         // 필요한 순간(인스턴스 증설로 경합이 잦아질 때) 가장 부정확해진다. 실패해 위에서 예외로 빠진
@@ -193,15 +188,5 @@ public class RunConfirmationService {
             metrics.recordLag(Duration.between(run.getConfirmAt(), confirmedAt));
         }
         return persisted;
-    }
-
-    /**
-     * 그 날짜의 요일 — {@code route.weekday} 의 값 공간으로 옮긴다({@code RunGenerationService.weekdayOf}
-
-    /**
-     * 와 같은 계산). {@code LocalDate} 자체가 요일을 들고 있으므로 시계를 보지 않는다.
-     */
-    private Weekday weekdayOf(LocalDate serviceDate) {
-        return Weekday.valueOf(serviceDate.getDayOfWeek().name().substring(0, 3).toUpperCase(Locale.ROOT));
     }
 }

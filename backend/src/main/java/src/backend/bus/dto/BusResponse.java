@@ -16,10 +16,12 @@ import src.backend.bus.entity.Bus;
 public record BusResponse(Long id, String busNo, String plateNo, int capacity, int studentCapacity,
         boolean operable, @JsonInclude(JsonInclude.Include.NON_NULL) List<BusWarning> warnings) {
 
+    /** 경고 없는 목록·등록 응답 — {@link #from(Bus, List)} 의 {@code warnings=null} 단축형. */
     public static BusResponse from(Bus bus) {
         return from(bus, null);
     }
 
+    /** {@link Bus} 엔티티와 정원 축소 경고(있으면)를 응답으로 옮긴다. */
     public static BusResponse from(Bus bus, List<BusWarning> warnings) {
         return new BusResponse(bus.getId(), bus.getBusNo(), bus.getPlateNo(), bus.getCapacity(),
                 bus.getStudentCapacity(), bus.isOperable(), warnings);

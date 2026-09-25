@@ -69,6 +69,14 @@ public class TransferCommandService {
 
     private final Clock clock;
 
+    /**
+     * ①구간 전용 버스 간 이동(§5.8) — 두 회차 모두 ①구간·정원·주소를 확인한 뒤 대기 상태로만
+     * 등록한다.
+     *
+     * <p>§20.2 — 본문이 기준(20줄)을 넘긴 채 둔다. "학생 소속 판정 → 두 회차 구간 판정 → 정원 판정
+     * → 주소 확인" 이 트랜잭션 밖에서 순서대로 실행돼야 한다는 것이 클래스 javadoc 의 요점이라,
+     * 쪼개면 그 순서 보장이 파일 안 여러 자리로 흩어진다.
+     */
     public TransferResponse transfer(AuthUser requester, Long studentId, TransferRequest request) {
         // {id} 는 학생이다(§5.8 경로) — 존재 비노출(Ruling 163)이라 타 학원 학생도 404.
         Student student = studentRepository.findByIdAndAcademyIdAndDeletedAtIsNull(studentId, requester.academyId())

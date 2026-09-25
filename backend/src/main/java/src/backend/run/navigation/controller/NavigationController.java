@@ -40,6 +40,7 @@ public class NavigationController {
 
     private final NavigationQueryService navigationQueryService;
 
+    /** {@code GET /runs/{runId}/navigation}(RUN-08) — 외부 내비게이션 앱으로 넘길 목적지 좌표를 낸다. */
     @CanReadRoute
     @Operation(summary = "외부 내비게이션 앱 연동 (RUN-08, M-09)")
     @GetMapping("/{runId}/navigation")

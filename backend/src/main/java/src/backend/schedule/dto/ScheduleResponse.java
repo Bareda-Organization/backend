@@ -19,6 +19,7 @@ public record ScheduleResponse(Long id, Long busId, String busNo, String weekday
 
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT);
 
+    /** {@link Schedule} 엔티티와 함께 조회한 차량 번호를 응답 형태로 옮긴다. */
     public static ScheduleResponse of(Schedule schedule, String busNo) {
         return new ScheduleResponse(schedule.getId(), schedule.getBusId(), busNo,
                 lower(schedule.getWeekday().name()), lower(schedule.getDirection().name()),
