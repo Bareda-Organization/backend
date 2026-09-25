@@ -4,9 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -125,6 +127,9 @@ class SignupDecidedDispatchFailureTest {
 
         수락한다(requestId).andExpect(status().isOk());
 
+        // 즉시 발송은 전용 실행기에서 돈다(BR-069) — 실패 기록이 행에 옮겨질 때까지 기다린다.
+        Awaitility.await().atMost(Duration.ofSeconds(5))
+                .until(() -> 알림_행(LOGIN_ID_PREFIX + "row").stream().anyMatch(row -> row.get("fail_reason") != null));
         List<Map<String, Object>> rows = 알림_행(LOGIN_ID_PREFIX + "row");
         assertThat(rows)
                 .as("행이 없으면 재시도할 대상 자체가 부재해 그 알림은 영구 유실이다")

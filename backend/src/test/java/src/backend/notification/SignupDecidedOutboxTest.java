@@ -4,9 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -132,6 +134,10 @@ class SignupDecidedOutboxTest {
      */
     private void 발송된_가입_결정_알림이_한_건이다(String loginId) {
         long accountId = fixture.계정_식별자(loginId);
+        // 즉시 발송은 전용 실행기에서 돈다(BR-069) — 발송 결과가 행에 옮겨질 때까지 기다린다.
+        Awaitility.await().atMost(Duration.ofSeconds(5)).until(() -> jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM notification_log WHERE recipient_account_id = ? AND type = 'signup_decided' "
+                        + "AND push_state <> 'pending'", Integer.class, accountId) > 0);
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT push_state, sent_at, dedup_key, title, body, recipient_role
                   FROM notification_log

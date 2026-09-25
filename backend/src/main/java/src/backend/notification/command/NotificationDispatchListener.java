@@ -2,6 +2,8 @@ package src.backend.notification.command;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.task.TaskRejectedException;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -22,20 +24,30 @@ public class NotificationDispatchListener {
 
     private final NotificationDispatcher notificationDispatcher;
 
+    private final ThreadPoolTaskExecutor notificationDispatchExecutor;
+
     /**
      * {@code AFTER_COMMIT} 이라 상태 변경이 확정된 뒤에만 돈다 — 롤백되면 호출 자체가 부재해
      * "일어나지 않은 일" 을 통지하지 않는다.
      *
-     * <p>예외를 삼키는 이유는 이 시점이 <b>커밋 이후</b>이기 때문이다. 여기서 던지면 이미 성사된
-     * 승인·승하차의 응답이 실패로 뒤집힌다. 발송 실패는 행이 {@code pending} 으로 남아 워커가
-     * 다시 집으므로, 삼켜도 잃는 것은 부재하다.
+     * <p>발송은 전용 실행기에서 돈다({@code NotificationDispatchConfig}, BR-069) — 요청 스레드는 제출만 하고
+     * 돌아간다. 예외를 삼키는 이유는 이 시점이 <b>커밋 이후</b>이기 때문이다. 발송 실패·제출 거절(대기열 가득)은
+     * 행이 {@code pending} 으로 남아 워커가 다시 집으므로, 삼켜도 잃는 것은 부재하다.
      */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void dispatchAfterCommit(NotificationAppended event) {
         try {
-            notificationDispatcher.dispatch(event.notificationId());
+            notificationDispatchExecutor.execute(() -> dispatch(event.notificationId()));
+        } catch (TaskRejectedException e) {
+            log.warn("[outbox] 즉시 발송 대기열이 가득 차 워커 재시도로 넘긴다. id={}", event.notificationId());
+        }
+    }
+
+    private void dispatch(Long notificationId) {
+        try {
+            notificationDispatcher.dispatch(notificationId);
         } catch (RuntimeException e) {
-            log.warn("[outbox] 즉시 발송이 실패해 워커 재시도로 넘긴다. id={}", event.notificationId(), e);
+            log.warn("[outbox] 즉시 발송이 실패해 워커 재시도로 넘긴다. id={}", notificationId, e);
         }
     }
 }
