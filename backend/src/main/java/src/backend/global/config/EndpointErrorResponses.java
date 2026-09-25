@@ -50,7 +50,7 @@ public final class EndpointErrorResponses {
             entry("POST /auth/login", Map.of("401", "INVALID_CREDENTIALS", "403", "AUTH_ACCOUNT_BLOCKED · AUTH_STAFF_INACTIVE")),
             entry("POST /auth/logout", Map.of("401", "TOKEN_EXPIRED")),
             entry("POST /auth/password", Map.of("401", "INVALID_CREDENTIALS", "422", "VALIDATION_FAILED")),
-            entry("POST /auth/recover", Map.of("403", "VERIFICATION_CODE_INVALID", "404", "ACCOUNT_NOT_FOUND", "422", "VALIDATION_FAILED")),
+            entry("POST /auth/recover", Map.of("422", "VALIDATION_FAILED", "503", "RECOVERY_UNAVAILABLE")),
             entry("POST /auth/refresh", Map.of("401", "TOKEN_EXPIRED")),
             entry("POST /auth/signup", Map.of("404", "ACADEMY_NOT_FOUND", "409", "DUPLICATE_LOGIN_ID", "422", "VALIDATION_FAILED")),
             entry("POST /me/students/link", Map.of("403", "LINK_CODE_INVALID", "409", "ALREADY_LINKED")),
@@ -66,6 +66,7 @@ public final class EndpointErrorResponses {
             entry("POST /staff/runs/{runId}/forced-add", Map.of("403", "CHANGE_WINDOW_CLOSED", "404", "RUN_NOT_FOUND", "409", "CAPACITY_EXCEEDED", "422", "ADDRESS_VERIFICATION_FAILED · VALIDATION_FAILED")),
             entry("POST /staff/runs/{runId}/waypoints", Map.of("403", "CHANGE_WINDOW_CLOSED", "404", "RUN_NOT_FOUND", "422", "ADDRESS_VERIFICATION_FAILED · VALIDATION_FAILED")),
             entry("POST /staff/signup-requests/{id}/decide", Map.of("403", "FORBIDDEN", "404", "SIGNUP_REQUEST_NOT_FOUND · STUDENT_NOT_FOUND · MANAGER_NOT_FOUND", "409", "APPROVAL_ALREADY_DECIDED · SIGNUP_TARGET_BLOCKED", "422", "LINK_REQUIRED · VALIDATION_FAILED")),
+            entry("POST /staff/accounts/{accountId}/password-reset", Map.of("404", "ACCOUNT_NOT_FOUND")),
             entry("POST /staff/students/{id}/transfer", Map.of("403", "CHANGE_WINDOW_CLOSED · ACADEMY_SCOPE_VIOLATION", "404", "RUN_NOT_FOUND", "409", "CAPACITY_EXCEEDED · STUDENT_NOT_IN_RUN · TRANSFER_ALREADY_STAGED", "422", "ADDRESS_VERIFICATION_FAILED · VALIDATION_FAILED")),
             entry("POST /students/{id}/change-requests", Map.of("403", "CHANGE_WINDOW_CLOSED · CHANGE_LIMIT_REACHED · FORBIDDEN", "404", "RUN_NOT_FOUND · STUDENT_NOT_FOUND", "422", "ADDRESS_VERIFICATION_FAILED")));
 

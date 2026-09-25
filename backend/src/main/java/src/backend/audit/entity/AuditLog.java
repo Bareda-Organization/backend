@@ -126,6 +126,22 @@ public class AuditLog {
     }
 
     /**
+     * 관계자가 학원 사용자의 비밀번호를 초기화한 사실(API_SPEC §5.22 · Ruling 329) — {@code action=update}.
+     * 강제 확정({@link #forRunForceConfirm})처럼 구별 문자열은 {@code detail.action} 에 둔다(Ruling 260).
+     */
+    public static AuditLog forAccountPasswordReset(Long academyId, Long actorAccountId, String actorLoginId,
+            Long targetAccountId, OffsetDateTime occurredAt) {
+        AuditLog log = new AuditLog(AuditCategory.DATA_ACCESS, AuditAction.UPDATE, occurredAt);
+        log.academyId = academyId;
+        log.actorAccountId = actorAccountId;
+        log.actorLoginId = actorLoginId;
+        log.targetType = TARGET_TYPE_ACCOUNT;
+        log.targetId = targetAccountId;
+        log.detail = Map.of("action", "account.password_reset");
+        return log;
+    }
+
+    /**
      * L3 필드가 실린 응답을 실제로 읽었을 때의 기록(SYS-01 · FEATURE_SPEC §6.3 · Phase 14 T1 목표 1).
      *
      * <p>요청 1건당 1행이다(Ruling 242 잠정) — 응답에 학생이 여러 명 실려도 행을 늘리지 않는다.

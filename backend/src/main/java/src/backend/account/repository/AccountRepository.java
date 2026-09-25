@@ -42,17 +42,6 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     Optional<Account> findByLoginIdForUpdate(@Param("loginId") String loginId);
 
     /**
-     * 연락처로 계정을 찾는다(API_SPEC §2.9 아이디·비밀번호 복구 — {@code type} 이
-     * {@code login_id}·{@code password} 둘 다 이 조회로 대상 계정을 특정한다).
-     *
-     * <p>{@code account.phone} 에는 DB UNIQUE 제약이 없다 — 같은 연락처로 여러 계정이 가입된
-     * 경우 이 조회가 둘 이상을 만나면 {@code IncorrectResultSizeDataAccessException} 을 던진다.
-     * 그 경우를 어떻게 다룰지(예: 최신 계정 우선)는 이 조회의 호출자(Task 4)가 판단할 몫이다.
-     */
-    @AcademyScopeExempt(reason = "§2.9 계정 복구 — 전화번호만 들고 시작해 소속 학원이 미상")
-    Optional<Account> findByPhone(String phone);
-
-    /**
      * 학원의 특정 계정들을 가져온다 — 메인 관리자 콘솔의 학원 상세({@code staff_accounts[]}, API_SPEC §6.3)가
      * {@code academy_staff} 행에 이름·아이디·연락처를 채울 때 쓴다.
      *
@@ -60,6 +49,9 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
      * {@code academy_staff} 행이 가리키는 계정이 실제로 그 학원 소속인지 아무도 보지 않게 되기 때문이다.
      */
     List<Account> findAllByAcademyIdAndIdIn(Long academyId, Collection<Long> ids);
+
+    /** 학원 안의 계정 한 건 — 관리자 경유 비밀번호 초기화(API_SPEC §5.22)가 타 학원 계정을 존재 비노출 404 로 거른다. */
+    Optional<Account> findByIdAndAcademyId(Long id, Long academyId);
 
     /**
      * 학원별 소속 사용자 수(API_SPEC §6.1 {@code user_count}) — 역할과 상태를 인자로 받아 무엇을 세는지

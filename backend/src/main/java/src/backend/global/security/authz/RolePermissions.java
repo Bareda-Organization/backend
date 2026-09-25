@@ -92,6 +92,7 @@ public final class RolePermissions {
                     Permissions.ROUTE_MANAGE,
                     Permissions.CHANGE_APPROVE,
                     Permissions.SIGNUP_APPROVE,
+                    Permissions.ACCOUNT_PASSWORD_RESET,
                     Permissions.MANAGER_MANAGE,
                     Permissions.BUS_MANAGE,
                     Permissions.SCHEDULE_MANAGE,

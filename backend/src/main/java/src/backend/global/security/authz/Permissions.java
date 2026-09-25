@@ -99,6 +99,9 @@ public final class Permissions {
     /** 학부모·학생·매니저 가입 승인. 관계자. */
     public static final String SIGNUP_APPROVE = "SIGNUP_APPROVE";
 
+    /** 학부모·학생·매니저 비밀번호 초기화 — 관리자 경유 복구(API_SPEC §5.22 · Ruling 329). 관계자. */
+    public static final String ACCOUNT_PASSWORD_RESET = "ACCOUNT_PASSWORD_RESET";
+
     /** 매니저(기사·동승자) 등록·배치. 관계자. */
     public static final String MANAGER_MANAGE = "MANAGER_MANAGE";
 

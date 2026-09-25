@@ -27,7 +27,6 @@ import src.backend.account.command.LoginCommandService;
 import src.backend.account.command.LoginResult;
 import src.backend.account.command.LogoutCommandService;
 import src.backend.account.command.PasswordChangeCommandService;
-import src.backend.account.command.RecoverCommandService;
 import src.backend.account.command.RefreshCommandService;
 import src.backend.account.command.RefreshResult;
 import src.backend.account.dto.LoginRequestPayload;
@@ -35,7 +34,6 @@ import src.backend.account.dto.LoginResponse;
 import src.backend.account.dto.LogoutRequestPayload;
 import src.backend.account.dto.PasswordChangeRequestPayload;
 import src.backend.account.dto.RecoverRequestPayload;
-import src.backend.account.dto.RecoverResponse;
 import src.backend.account.dto.RefreshRequestPayload;
 import src.backend.account.dto.RefreshResponse;
 import src.backend.global.config.ApiTags;
@@ -68,7 +66,6 @@ public class AuthController {
     private final RefreshCommandService refreshCommandService;
     private final LogoutCommandService logoutCommandService;
     private final PasswordChangeCommandService passwordChangeCommandService;
-    private final RecoverCommandService recoverCommandService;
     private final RefreshTokenCookieAssembler cookieAssembler;
 
     /**
@@ -179,12 +176,17 @@ public class AuthController {
         return responseBuilder.build();
     }
 
-    /** 아이디·비밀번호 복구(API_SPEC §2.9) — 응답 스키마는 Task 4 가 설계했다(보고서 ⑥). */
+    /**
+     * 아이디·비밀번호 복구(API_SPEC §2.9) — SMS 발송 수단이 설정되기 전이라 {@code 503 RECOVERY_UNAVAILABLE}
+     * 이다(Ruling 329). 코드 발급·대조·초기화를 전부 하지 않는다 — 발송 없는 코드는 정상 사용자에겐 불능이고,
+     * 코드를 맞히면 임시 비밀번호를 응답으로 내주던 옛 구현은 전화번호만 아는 제3자의 대입 경로였다.
+     * 그동안의 복구는 관리자 경유다(학부모·학생·매니저 §5.22 · 관계자 §6.7).
+     */
     @PublicEndpoint
-    @Operation(summary = "아이디·비밀번호 복구 (AUTH-08)")
+    @Operation(summary = "아이디·비밀번호 복구 (AUTH-08) — SMS 연동 전 503")
     @PostMapping("/auth/recover")
-    public ApiResponse<RecoverResponse> recover(@Valid @RequestBody RecoverRequestPayload payload) {
-        return ApiResponse.ok(
-                recoverCommandService.recover(payload.type(), payload.phone(), payload.verificationCode()));
+    public ApiResponse<Void> recover(@Valid @RequestBody RecoverRequestPayload payload) {
+        // ponytail: SMS 포트가 없어 항상 거절 — 연동 시 §2.9 재개 조건(SMS 로만 전달 · 발급 빈도 제한 · 조건부 대조)을 갖춘 서비스로 교체
+        throw new BusinessException(ErrorCode.RECOVERY_UNAVAILABLE);
     }
 }

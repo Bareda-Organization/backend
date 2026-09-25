@@ -668,134 +668,37 @@ class AuthControllerTest {
 
     // ── §2.9 아이디·비밀번호 복구 ────────────────────────────────────────
 
-    /** §2.9 verification_code 미전달 = 코드 발송 요청 — 코드가 DB 에 남는다. */
+    /**
+     * SMS 발송 수단이 없는 동안 복구는 {@code 503 RECOVERY_UNAVAILABLE} 이고 코드를 발급하지 않는다(Ruling 329 ·
+     * BR-005) — 발송 없는 코드는 정상 사용자에겐 불능이고, 코드를 맞히면 임시 비밀번호가 응답 본문으로 나가
+     * 추측 대입 경로가 된다. 코드 발송 요청 · 코드 제출 두 형태 모두 같은 응답이다.
+     */
     @Test
-    void 코드_미포함_복구_요청은_코드를_발송하고_저장한다() throws Exception {
-        createAccount("P2T4AUT11", "p2t4recoversnd", "010-7000-0011");
+    void 복구는_SMS_발송_수단이_없어_503_RECOVERY_UNAVAILABLE_이고_코드를_남기지_않는다() throws Exception {
+        createAccount("P2T4AUT21", "p2t4recoff", "010-7000-0021");
 
-        mockMvc.perform(post("/api/v1/auth/recover")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"type\": \"login_id\", \"phone\": \"010-7000-0011\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.code_sent").value(true));
-
-        String savedCode = jdbcTemplate.queryForObject(
-                "SELECT code FROM verification_code WHERE phone = ? ORDER BY created_at DESC LIMIT 1",
-                String.class, "010-7000-0011");
-        assertThat(savedCode).hasSize(6);
-    }
-
-    /** §2.9 아이디 복구 — 코드 대조 성공 시 등록된 로그인 아이디를 돌려준다. */
-    @Test
-    void 아이디_복구는_코드_대조_후_로그인_아이디를_반환한다() throws Exception {
-        createAccount("P2T4AUT12", "p2t4recoverid", "010-7000-0012");
-        mockMvc.perform(post("/api/v1/auth/recover")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"type\": \"login_id\", \"phone\": \"010-7000-0012\"}"))
-                .andExpect(status().isOk());
-        String code = jdbcTemplate.queryForObject(
-                "SELECT code FROM verification_code WHERE phone = ? ORDER BY created_at DESC LIMIT 1",
-                String.class, "010-7000-0012");
-
-        mockMvc.perform(post("/api/v1/auth/recover")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"type\": \"login_id\", \"phone\": \"010-7000-0012\", \"verification_code\": \"%s\"}"
-                                .formatted(code)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.login_id").value("p2t4recoverid"));
-    }
-
-    /** §2.9 비밀번호 복구 — 코드 대조 성공 시 임시 비밀번호를 발급하고, 그 비밀번호로 즉시 로그인할 수 있다. */
-    @Test
-    void 비밀번호_복구는_코드_대조_후_임시_비밀번호로_로그인할_수_있게_한다() throws Exception {
-        createAccount("P2T4AUT13", "p2t4recoverpw", "010-7000-0013");
-        mockMvc.perform(post("/api/v1/auth/recover")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"type\": \"password\", \"phone\": \"010-7000-0013\"}"))
-                .andExpect(status().isOk());
-        String code = jdbcTemplate.queryForObject(
-                "SELECT code FROM verification_code WHERE phone = ? ORDER BY created_at DESC LIMIT 1",
-                String.class, "010-7000-0013");
-
-        MvcResult recoverResult = mockMvc.perform(post("/api/v1/auth/recover")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"type\": \"password\", \"phone\": \"010-7000-0013\", \"verification_code\": \"%s\"}"
-                                .formatted(code)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.temporary_password").exists())
-                .andReturn();
-        String temporaryPassword = readField(recoverResult, "$.data.temporary_password");
-
-        mockMvc.perform(post("/api/v1/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(loginBody("p2t4recoverpw", temporaryPassword)))
-                .andExpect(status().isOk());
+        requestRecoverCode("010-7000-0021")
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.error.code").value("RECOVERY_UNAVAILABLE"));
+        submitRecoverCode("010-7000-0021", "123456")
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.error.code").value("RECOVERY_UNAVAILABLE"));
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM verification_code WHERE phone = ?", Integer.class, "010-7000-0021"))
+                .as("코드를 발급하지 않아야 한다").isZero();
     }
 
     /**
-     * 목표 문장 — 인증 코드를 5회 틀리면 그 뒤로는 <b>옳은 코드도</b> 거부된다.
-     *
-     * <p>이 메서드만 클래스 {@code @Transactional} 밖에서 돈다({@code NOT_SUPPORTED}). 검증 대상이
-     * "실패 누적이 커밋되는가" 인데, 테스트 트랜잭션 안에서는 요청이 실패해도 실제 롤백이 일어나지
-     * 않아 <b>누적을 잃는 구현과 지키는 구현이 같은 결과를 낸다</b> — 트랜잭션 안에 두면 이 단언은
-     * 아무것도 검사하지 못한다. 대신 커밋된 행이 남으므로 앞뒤로 직접 지운다.
-     *
-     * <p>6회째에 <b>옳은</b> 코드를 넣는 것이 핵심이다. 틀린 코드를 넣으면 상한이 있든 없든 403 이라
-     * 두 구현이 갈리지 않는다.
+     * 같은 연락처의 계정이 둘이어도 복구가 {@code 500} 이 아니다(BR-036) — {@code account.phone} 은 UNIQUE 가
+     * 아니라 학생이 보호자 번호로 가입하면 겹친다.
      */
     @Test
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    void 인증_코드를_5회_틀리면_옳은_코드도_거부된다() throws Exception {
-        String academyCode = "P2T4AUT19";
-        String loginId = "p2t4reccapqqq";
-        String phone = "010-7000-0019";
-        deleteRecoverFixture(academyCode, loginId, phone);
-        try {
-            createAccount(academyCode, loginId, phone);
-            requestRecoverCode(phone).andExpect(status().isOk());
-            String code = latestCode(phone);
-            String wrongCode = code.equals("000000") ? "111111" : "000000";
+    void 같은_연락처의_계정이_둘이어도_복구가_500_이_아니다() throws Exception {
+        createAccount("P2T4AUT22", "p2t4recdup1", "010-7000-0022");
+        createAccount("P2T4AUT23", "p2t4recdup2", "010-7000-0022");
 
-            for (int i = 0; i < 5; i++) {
-                submitRecoverCode(phone, wrongCode)
-                        .andExpect(status().isForbidden())
-                        .andExpect(jsonPath("$.error.code").value("VERIFICATION_CODE_INVALID"));
-            }
-            assertThat(latestAttemptCount(phone))
-                    .as("실패한 대조가 커밋되지 않으면 상한은 영원히 도달하지 않는다")
-                    .isEqualTo(5);
-
-            submitRecoverCode(phone, code)
-                    .andExpect(status().isForbidden())
-                    .andExpect(jsonPath("$.error.code").value("VERIFICATION_CODE_INVALID"));
-        } finally {
-            deleteRecoverFixture(academyCode, loginId, phone);
-        }
-    }
-
-    /**
-     * 목표 문장 — 코드를 재발급하면 이전 미소비 코드가 함께 무효화된다.
-     *
-     * <p>단언을 응답이 아니라 DB 로 하는 이유 — 대조는 최신 1건만 보므로, 무효화를 빼도 옛 코드
-     * 제출은 어차피 "최신과 값이 다름" 으로 403 이 된다. 즉 응답만 보면 이 조치가 있으나 없으나
-     * 같다. 살아 있는 코드가 몇 건인지 세는 것만이 둘을 가른다 — 옛 코드가 유효한 채로 쌓이면
-     * 상한(위 테스트)을 재발급으로 우회할 수 있다.
-     */
-    @Test
-    void 코드를_재발급하면_이전_미소비_코드가_무효화된다() throws Exception {
-        String phone = "010-7000-0020";
-        createAccount("P2T4AUT20", "p2t4recreissu", phone);
-
-        requestRecoverCode(phone).andExpect(status().isOk());
-        String firstCode = latestCode(phone);
-        requestRecoverCode(phone).andExpect(status().isOk());
-        String secondCode = latestCode(phone);
-        assertThat(secondCode).as("재발급이 실제로 새 코드를 만들어야 이 테스트가 성립한다").isNotEqualTo(firstCode);
-
-        Integer aliveCodes = jdbcTemplate.queryForObject(
-                "SELECT count(*) FROM verification_code WHERE phone = ? AND consumed_at IS NULL",
-                Integer.class, phone);
-        assertThat(aliveCodes).as("재발급 뒤 살아 있는 코드는 최신 1건뿐이어야 한다").isEqualTo(1);
+        requestRecoverCode("010-7000-0022")
+                .andExpect(status().isServiceUnavailable());
     }
 
     // ── §2.9 보조 ────────────────────────────────────────────────────────
@@ -813,26 +716,4 @@ class AuthControllerTest {
                         .formatted(phone, code)));
     }
 
-    private String latestCode(String phone) {
-        return jdbcTemplate.queryForObject(
-                "SELECT code FROM verification_code WHERE phone = ? ORDER BY created_at DESC, id DESC LIMIT 1",
-                String.class, phone);
-    }
-
-    private int latestAttemptCount(String phone) {
-        return jdbcTemplate.queryForObject(
-                "SELECT attempt_count FROM verification_code WHERE phone = ? ORDER BY created_at DESC, id DESC LIMIT 1",
-                Integer.class, phone);
-    }
-
-    /**
-     * 트랜잭션 밖에서 도는 테스트의 픽스처를 지운다 — 남기면 다음 실행이 UNIQUE 제약에서 실패한다.
-     * {@code refresh_token} 은 {@code fk_refresh_token_account} 가 CASCADE 라 계정과 함께 지워지고,
-     * {@code account} → {@code academy} 는 RESTRICT 라 순서를 지켜야 한다.
-     */
-    private void deleteRecoverFixture(String academyCode, String loginId, String phone) {
-        jdbcTemplate.update("DELETE FROM verification_code WHERE phone = ?", phone);
-        jdbcTemplate.update("DELETE FROM account WHERE login_id = ?", loginId);
-        jdbcTemplate.update("DELETE FROM academy WHERE code = ?", academyCode);
-    }
 }
