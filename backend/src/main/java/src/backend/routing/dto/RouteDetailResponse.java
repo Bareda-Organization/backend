@@ -16,6 +16,7 @@ import src.backend.routing.entity.Route;
 public record RouteDetailResponse(Long id, Long busId, String busNo, String weekday, String direction,
         String name, boolean active, List<RouteStopResponse> stops) {
 
+    /** 요약({@link RouteResponse})을 만들어 필드를 재사용하고 정차 목록만 얹는다. */
     public static RouteDetailResponse of(Route route, String busNo, List<RouteStopResponse> stops) {
         RouteResponse summary = RouteResponse.of(route, busNo);
         return new RouteDetailResponse(summary.id(), summary.busId(), summary.busNo(), summary.weekday(),
