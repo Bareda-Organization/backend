@@ -8,6 +8,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -52,7 +54,7 @@ class DemoRunSimulatorTest {
 
     private final DemoRunSimulator simulator = new DemoRunSimulator(runRepository, assignmentRepository,
             managerRepository, mock(ConfirmedRouteRepository.class), mock(RouteVersionRepository.class),
-            runStartCommandService, mock(RunPositionCommandService.class));
+            runStartCommandService, mock(RunPositionCommandService.class), Clock.systemDefaultZone());
 
     @BeforeEach
     void setUp() {
@@ -96,6 +98,22 @@ class DemoRunSimulatorTest {
         verify(runStartCommandService, never()).start(any(), eq(6L));
     }
 
+    /**
+     * 전날 운행 중으로 남은 회차가 그 버스의 오늘 회차 출발을 막지 않는다(BR-132) — 시뮬레이터는 운행을 끝내지 않아
+     * 자정을 넘기면 전날 {@code moving} 회차가 남는다. 날짜를 보지 않으면 그 버스는 영영 출발하지 않는다.
+     */
+    @Test
+    void 전날_운행_중으로_남은_회차는_그_버스의_오늘_회차를_막지_않는다() {
+        Run yesterday = 회차(1000L, 1000L, DEMO_ACADEMY);
+        when(yesterday.getServiceDate()).thenReturn(LocalDate.now().minusDays(1));
+        회차들(DEMO_ACADEMY, RunStatus.MOVING, yesterday);
+        회차들(DEMO_ACADEMY, RunStatus.CONFIRMED, 회차(1001L, 1000L, DEMO_ACADEMY));
+
+        simulator.tick();
+
+        verify(runStartCommandService).start(any(), eq(1001L));
+    }
+
     private void 회차들(long academyId, RunStatus status, Run... runs) {
         when(runRepository.findAllByAcademyIdAndStatusOrderByDepartTimeAsc(academyId, status))
                 .thenReturn(List.of(runs));
@@ -107,6 +125,7 @@ class DemoRunSimulatorTest {
         when(run.getId()).thenReturn(runId);
         when(run.getBusId()).thenReturn(busId);
         when(run.getAcademyId()).thenReturn(academyId);
+        when(run.getServiceDate()).thenReturn(LocalDate.now());
 
         Assignment assignment = mock(Assignment.class);
         when(assignment.getManagerId()).thenReturn(runId);
