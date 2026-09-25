@@ -39,6 +39,7 @@ import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.command.BoardingCommandFixtures;
 import src.backend.boarding.event.RiderStatusChangedEvent;
+import src.backend.boarding.event.RunEndedEvent;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
@@ -726,6 +727,150 @@ class BoardingControllerTest {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM notification_log WHERE recipient_account_id = ?", Integer.class,
                 waitingGuardian.accountId())).as("⑥waiting 인 채 출발한 학생은 발송 대상이 아니다(목표9)").isEqualTo(0);
+    }
+
+    // ── BR-009 — 미승차를 되돌리면 케이스·미정차 표시도 함께 풀린다 ──────────────────
+
+    /**
+     * 미승차 → 되돌리기 → 다시 미승차. 되돌리기가 케이스를 열어 둔 채 두면 ①되돌린 학생이 대기 만료 뒤
+     * 에스컬레이션되고 ②유일한 탑승자였던 승하차지가 {@code skipped} 로 남으며 ③두 번째 미승차가
+     * {@code uk_no_show_case_run_rider} 위반으로 500 이 된다.
+     */
+    @Test
+    @DisplayName("BR-009 — 미승차를 되돌리면 케이스가 종결되고 미정차가 풀리며, 다시 미승차하면 200 으로 같은 케이스가 재개된다")
+    void 미승차를_되돌린_뒤_다시_미승차하면_200이고_같은_케이스가_재개된다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long stopId = fixtures().stop(academyId, "37.500000", "127.000000");
+        long studentId = fixtures().student(academyId, "학생-BR009");
+        long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
+        long runStopId = fixtures().confirmedRunStop(runId, stopId, now.minusMinutes(30));
+        long riderId = fixtures().runRider(runId, studentId, stopId);
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
+        String escortToken = 토큰(escortAccountId, academyId, Role.ESCORT);
+
+        mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId)).header("Authorization", escortToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(statusUpdateBody("no_show", "manual", UUID.randomUUID(), now)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.stop_skipped").value(true));
+        entityManager.flush();
+        Long caseId = jdbcTemplate.queryForObject("SELECT id FROM no_show_case WHERE run_rider_id = ?", Long.class,
+                riderId);
+
+        mockMvc.perform(post(REVERT.formatted(runId, riderId)).header("Authorization", escortToken)
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("waiting"));
+        entityManager.flush();
+
+        assertThat(jdbcTemplate.queryForObject("SELECT resolved_at IS NOT NULL FROM no_show_case WHERE id = ?",
+                Boolean.class, caseId)).as("①되돌리면 케이스가 종결돼 에스컬레이션 대상에서 빠진다").isTrue();
+        assertThat(jdbcTemplate.queryForObject("SELECT change FROM run_stop WHERE id = ?", String.class, runStopId))
+                .as("②잔여가 다시 1명이 됐으니 미정차 표시가 풀린다").isNull();
+
+        // 첫 케이스가 되돌리기 전에 이미 만료·에스컬레이션까지 갔던 경우 — 재개가 그 흔적을 지우는지 본다.
+        jdbcTemplate.update("UPDATE no_show_case SET expires_at = ?, escalated_at = ? WHERE id = ?",
+                now.minusMinutes(20), now.minusMinutes(15), caseId);
+        entityManager.clear();
+
+        mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId)).header("Authorization", escortToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(statusUpdateBody("no_show", "manual", UUID.randomUUID(), now)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.no_show_case.case_id").value(caseId));
+        entityManager.flush();
+
+        java.util.Map<String, Object> reopened = jdbcTemplate.queryForMap(
+                "SELECT resolved_at, escalated_at, expires_at = ? AS restarted FROM no_show_case WHERE id = ?",
+                now.plusMinutes(AcademySetting.DEFAULT_NO_SHOW_WAIT_MINUTES), caseId);
+        assertThat(reopened.get("resolved_at")).as("③재개된 케이스는 다시 열린다").isNull();
+        assertThat(reopened.get("escalated_at")).as("④이전 에스컬레이션 흔적이 지워진다").isNull();
+        assertThat(reopened.get("restarted")).as("⑤대기 카운트다운이 두 번째 미승차 시점부터 다시 시작된다")
+                .isEqualTo(true);
+    }
+
+    // ── BR-078 — 멱등 재생은 같은 탑승자·같은 상태일 때만 ───────────────────────────
+
+    @Test
+    @DisplayName("BR-078 — 다른 탑승자 처리에 이미 쓰인 client_key 를 재사용하면 422 이고 새 처리는 저장되지 않는다")
+    void 다른_탑승자에_쓰인_client_key_를_재사용하면_422다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long stopId = fixtures().stop(academyId, "37.500000", "127.000000");
+        long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
+        long riderA = fixtures().runRider(runId, fixtures().student(academyId, "학생-BR078-A"), stopId);
+        long riderB = fixtures().runRider(runId, fixtures().student(academyId, "학생-BR078-B"), stopId);
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
+        String escortToken = 토큰(escortAccountId, academyId, Role.ESCORT);
+        UUID sharedKey = UUID.randomUUID();
+
+        mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderA)).header("Authorization", escortToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(statusUpdateBody("boarded", "manual", sharedKey, now)))
+                .andExpect(status().isOk());
+        entityManager.flush();
+
+        mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderB)).header("Authorization", escortToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(statusUpdateBody("boarded", "manual", sharedKey, now)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+        mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderA)).header("Authorization", escortToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(statusUpdateBody("no_show", "manual", sharedKey, now)))
+                .andExpect(status().isUnprocessableEntity());
+        entityManager.flush();
+
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM run_rider WHERE id = ?", String.class, riderB))
+                .as("B 의 처리는 A 의 결과로 대체된 적 없이 그대로다").isEqualTo("waiting");
+    }
+
+    // ── BR-031 — 하원 종료 보류 회차는 마지막 탑승자가 미승차로 빠져도 끝난다 ─────────────
+
+    /**
+     * 최종 지점 도착 때 잔류가 있어 종료가 보류된 하원 회차({@code finish_pending}). 자동 승차로 잘못
+     * {@code boarded} 가 된 마지막 학생을 동승자가 [되돌리기]→[미승차] 로 처리하면 {@code boarded} 가 0명이
+     * 되는데, 종료 판정이 하차 경로에만 걸려 있으면 회차가 {@code moving} 에 멈춘다(C-15).
+     */
+    @Test
+    @DisplayName("BR-031 — 하원 종료 보류 회차의 마지막 탑승자를 되돌린 뒤 미승차 처리하면 회차가 종료된다")
+    void 하원_종료_보류_회차의_마지막_탑승자를_미승차_처리하면_회차가_종료된다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long stopId = fixtures().stop(academyId, "37.500000", "127.000000");
+        long studentId = fixtures().student(academyId, "학생-BR031");
+        long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
+        long riderId = fixtures().runRider(runId, studentId, stopId);
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
+        String escortToken = 토큰(escortAccountId, academyId, Role.ESCORT);
+
+        mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId)).header("Authorization", escortToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(statusUpdateBody("boarded", "manual", UUID.randomUUID(), now)))
+                .andExpect(status().isOk());
+        entityManager.flush();
+        jdbcTemplate.update("UPDATE run SET finish_pending = true WHERE id = ?", runId);
+        entityManager.clear();
+
+        mockMvc.perform(post(REVERT.formatted(runId, riderId)).header("Authorization", escortToken)
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId)).header("Authorization", escortToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(statusUpdateBody("no_show", "manual", UUID.randomUUID(), now)))
+                .andExpect(status().isOk());
+        entityManager.flush();
+
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM run WHERE id = ?", String.class, runId))
+                .as("boarded 0명이 됐으니 보류된 종료가 완성된다").isEqualTo("finished");
+        assertThat(applicationEvents.stream(RunEndedEvent.class)).as("run_ended 재료 이벤트 1건").hasSize(1);
     }
 
     /**

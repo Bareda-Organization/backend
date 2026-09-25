@@ -18,7 +18,7 @@ import lombok.NoArgsConstructor;
  * 미승차 에스컬레이션 케이스 — 대기 만료 시각을 컬럼으로 고정해 학원 설정(대기 한도)이 나중에 바뀌어도
  * 발생 당시 판정 기준을 재현한다(ERD §3.4 · BRD-05).
  *
- * <p>{@code run_rider_id} 는 UNIQUE 라 탑승자당 케이스가 최대 1개다. 시각 컬럼은 전부 도메인 값이라
+ * <p>{@code run_rider_id} 는 UNIQUE 라 탑승자당 케이스가 최대 1개다 — 되돌린 뒤 다시 미승차면 {@link #reopen} 으로 재개한다. 시각 컬럼은 전부 도메인 값이라
  * (대기 시작·만료·해소·에스컬레이션·생성) auditing 대상이 아니며(엔티티 작성 규약 p1-entity-conventions.md §4.4, Ruling 62),
  * 전부 평범한 필드로 두고 팩토리 파라미터로 받는다 — 호출부가 {@code Clock} 에서 얻어 넘긴다.
  */
@@ -76,6 +76,24 @@ public class NoShowCase {
      */
     public void resolveByAnswer(OffsetDateTime resolvedAt) {
         this.resolvedAt = resolvedAt;
+    }
+
+    /** 동승자가 미승차를 되돌렸을 때 케이스를 종결한다(BR-009, API_SPEC §4.7) — 대기할 이유가 사라졌다. */
+    public void resolveByRevert(OffsetDateTime resolvedAt) {
+        this.resolvedAt = resolvedAt;
+    }
+
+    /**
+     * 되돌린 탑승자를 다시 미승차 처리할 때 케이스를 새로 시작한다(BR-009) — {@code run_rider_id} 가
+     * UNIQUE 라 새 행을 만들 수 없다. 이전 판단·에스컬레이션은 지난 대기에 대한 것이라 지우고, 연락 이력
+     * ({@code no_show_contact})은 그대로 남는다.
+     */
+    public void reopen(OffsetDateTime startedAt, OffsetDateTime expiresAt) {
+        this.startedAt = startedAt;
+        this.expiresAt = expiresAt;
+        this.resolvedAt = null;
+        this.decision = null;
+        this.escalatedAt = null;
     }
 
     /**

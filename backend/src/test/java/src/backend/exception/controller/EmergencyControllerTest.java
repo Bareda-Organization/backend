@@ -257,6 +257,116 @@ class EmergencyControllerTest extends RedisTestContainerBase {
         assertThat(신고_좌표_존재(runId)).as("캐시 미스는 좌표를 비운 채 성공해야지 발신 자체를 막으면 안 된다").isFalse();
     }
 
+    /**
+     * BR-109 — 단말이 보낸 발신 시점 좌표가 캐시의 최신 좌표보다 우선한다(§4.14 {@code lat}·{@code lng}).
+     * 통신 두절 중 발신해 복구 뒤 도착하면 캐시는 이미 다른 지점이다.
+     */
+    @Test
+    void 요청_좌표가_오면_캐시보다_우선해_발신_위치로_저장된다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long runId = fixtures.confirmedRun(academyId, fixtures.bus(academyId), now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        위치를_기록한다(runId, "37.560000", "126.970000");
+
+        mockMvc.perform(post(RAISE.formatted(runId))
+                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"accident\",\"client_key\":\"%s\",\"lat\":37.5,\"lng\":127.0}"
+                                .formatted(UUID.randomUUID())))
+                .andExpect(status().isCreated());
+
+        assertThat(신고_좌표(runId)).isEqualTo(new BigDecimal[] { new BigDecimal("37.500000"),
+                new BigDecimal("127.000000") });
+    }
+
+    /** BR-109 — 확정 전({@code idle}) 회차 발신은 §4.14 "confirmed 이후면 허용" 에 따라 409 다. */
+    @Test
+    void 확정_전_회차에서_발신하면_409_RUN_NOT_CONFIRMED다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long runId = fixtures.confirmedRun(academyId, fixtures.bus(academyId), now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        entityManager.flush();
+        jdbcTemplate.update("UPDATE run SET status = 'idle' WHERE id = ?", runId);
+        entityManager.clear();
+
+        mockMvc.perform(post(RAISE.formatted(runId))
+                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(요청본문("accident", null, UUID.randomUUID())))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("RUN_NOT_CONFIRMED"));
+
+        assertThat(신고건수(runId)).isEqualTo(0);
+    }
+
+    /** BR-137 — 같은 {@code client_key} 재전송은 새 접수가 아니라 흡수라 §1.7 대로 200 이다(최초 접수만 201). */
+    @Test
+    void 같은_client_key_재전송은_200이고_최초_신고를_돌려준다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long runId = fixtures.confirmedRun(academyId, fixtures.bus(academyId), now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        String token = 토큰(driverAccountId, academyId, Role.DRIVER);
+        String body = 요청본문("accident", null, UUID.randomUUID());
+
+        String first = mockMvc.perform(post(RAISE.formatted(runId)).header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String firstId = com.jayway.jsonpath.JsonPath.read(first, "$.data.emergency_id");
+
+        mockMvc.perform(post(RAISE.formatted(runId)).header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.emergency_id").value(firstId))
+                .andExpect(jsonPath("$.data.replayed").doesNotExist());
+
+        assertThat(신고건수(runId)).isEqualTo(1);
+    }
+
+    /** BR-078 — 다른 학원 신고에 쓰인 {@code client_key} 가 겹치면 그 신고를 돌려주지 않고 거절한다. */
+    @Test
+    void 다른_학원_신고에_쓰인_client_key_를_재사용하면_422이고_남의_신고를_돌려주지_않는다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyA = fixtures.academy();
+        long runA = fixtures.confirmedRun(academyA, fixtures.bus(academyA), now());
+        long driverA = fixtures.assignedManager(academyA, runA, ManagerRole.DRIVER, "기사A", now());
+        long academyB = fixtures.academy();
+        long runB = fixtures.confirmedRun(academyB, fixtures.bus(academyB), now());
+        long driverB = fixtures.assignedManager(academyB, runB, ManagerRole.DRIVER, "기사B", now());
+        UUID sharedKey = UUID.randomUUID();
+
+        mockMvc.perform(post(RAISE.formatted(runA)).header("Authorization", 토큰(driverA, academyA, Role.DRIVER))
+                        .contentType(MediaType.APPLICATION_JSON).content(요청본문("accident", null, sharedKey)))
+                .andExpect(status().isCreated());
+        mockMvc.perform(post(RAISE.formatted(runB)).header("Authorization", 토큰(driverB, academyB, Role.DRIVER))
+                        .contentType(MediaType.APPLICATION_JSON).content(요청본문("accident", null, sharedKey)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.data").doesNotExist());
+    }
+
+    /** BR-039 — 캐시 <b>읽기 실패</b>(여기선 값 형식 불일치로 재현)도 미스와 같이 좌표 없이 접수돼야 한다. */
+    @Test
+    void 위치_캐시_읽기가_실패해도_신고_발신은_성공한다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long runId = fixtures.confirmedRun(academyId, busId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        stringRedisTemplate.opsForValue().set("run:%d:position".formatted(runId), "{not-json");
+
+        mockMvc.perform(post(RAISE.formatted(runId))
+                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(요청본문("accident", null, UUID.randomUUID())))
+                .andExpect(status().isCreated());
+
+        assertThat(신고건수(runId)).as("신고 행이 롤백되지 않고 남는다").isEqualTo(1);
+        assertThat(신고_좌표_존재(runId)).isFalse();
+    }
+
     // ── goal 9 — 1분 이내 취소 · 경계값 ──────────────────────────────────
 
     @Test

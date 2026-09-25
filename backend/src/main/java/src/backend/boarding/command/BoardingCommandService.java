@@ -133,7 +133,7 @@ public class BoardingCommandService {
 
         Optional<RiderStatusHistory> replay = riderStatusHistoryRepository.findByClientKey(request.clientKey());
         if (replay.isPresent()) {
-            return replayResponse(replay.get());
+            return replayResponse(assertSameRequest(replay.get(), runId, riderId, request.status()));
         }
 
         if (run.getStatus() != RunStatus.MOVING) {
@@ -153,7 +153,10 @@ public class BoardingCommandService {
                 ActorType.ESCORT, now, requester.accountId())));
 
         if (targetStatus == RiderStatus.NO_SHOW) {
-            return handleNoShow(run, rider, now);
+            RiderStatusUpdateResponse response = handleNoShow(run, rider, now);
+            // 하원 보류 회차 — 마지막 탑승자가 미승차로 빠져도 boarded 0명이다(BR-031, C-15).
+            notifyIfRunJustEnded(run, now);
+            return response;
         }
         if (targetStatus == RiderStatus.ALIGHTED) {
             notifyIfRunJustEnded(run, now);
@@ -204,6 +207,7 @@ public class BoardingCommandService {
         riderStatusHistoryRepository.save(RiderStatusHistory.of(new RiderStatusHistory.Context(rider.getId(),
                 fromStatus, targetStatus, true, request.reason(), null, null, null, ActorType.ESCORT, now,
                 requester.accountId())));
+        syncNoShowAfterRevert(run, rider, fromStatus, targetStatus, now);
 
         // WebSocket rider_changed 방송(API_SPEC §7.1)의 트리거 표가 revert 도 명시한다 — T2 소유 목표 4·5·6.
         // 알림 로그 적재 리스너(BoardingNotificationListener)는 이제 이 이벤트를 구독하지 않는다 —
@@ -255,7 +259,7 @@ public class BoardingCommandService {
     }
 
     /**
-     * 하원 자동 종료 경계(목표 10, T2 소유) — 방금 처리한 하차가 그 회차의 마지막 잔여 탑승자였는지를
+     * 하원 자동 종료 경계(목표 10, T2 소유) — 방금 처리한 하차·미승차(BR-031)가 그 회차의 마지막 잔여 탑승자였는지를
      * {@link RunCompletionService} 에 위임해 묻고, 그 호출로 실제 종료됐을 때만
      * {@link RunEndedEvent} 를 발행한다. 반환값을 무시하고 매번(또는 전혀) 발행하면 알림이 잔류자가
      * 있는 회차에도 나가거나 정작 종료된 회차에서 나가지 않는 결함이 된다 — 이 분기 자체가 T3 이
@@ -283,11 +287,7 @@ public class BoardingCommandService {
      * 계산 전에 발행하면 항상 {@code false} 를 실어 보내게 된다.
      */
     private RiderStatusUpdateResponse handleNoShow(Run run, RunRider rider, OffsetDateTime now) {
-        int waitMinutes = academySettingRepository.findById(run.getAcademyId())
-                .map(AcademySetting::getNoShowWaitMinutes)
-                .orElse(AcademySetting.DEFAULT_NO_SHOW_WAIT_MINUTES);
-        OffsetDateTime expiresAt = now.plus(Duration.ofMinutes(waitMinutes));
-        NoShowCase noShowCase = noShowCaseRepository.save(NoShowCase.forRunRider(rider.getId(), now, expiresAt, now));
+        NoShowCase noShowCase = openNoShowCase(run, rider, now);
 
         boolean stopSkipped = skipStopIfNoRidersRemain(run.getId(), rider.getStopId());
         eventPublisher.publishEvent(new RiderNoShowEvent(run.getId(), run.getAcademyId(), rider.getStudentId(),
@@ -296,6 +296,48 @@ public class BoardingCommandService {
         RiderStatusUpdateResponse.NoShowCaseSummary summary = new RiderStatusUpdateResponse.NoShowCaseSummary(
                 noShowCase.getId(), noShowCase.getStartedAt(), noShowCase.getExpiresAt());
         return RiderStatusUpdateResponse.withNoShowCase(rider.getId(), now, summary, stopSkipped);
+    }
+
+    /**
+     * 미승차 대기 카운트다운을 시작한다 — 학원별 대기 시간(목표 2) 뒤 만료. 탑승자당 케이스는 1개
+     * ({@code uk_no_show_case_run_rider})라, 되돌린 뒤 다시 미승차면 기존 케이스를 재개한다(BR-009).
+     */
+    private NoShowCase openNoShowCase(Run run, RunRider rider, OffsetDateTime now) {
+        int waitMinutes = academySettingRepository.findById(run.getAcademyId())
+                .map(AcademySetting::getNoShowWaitMinutes)
+                .orElse(AcademySetting.DEFAULT_NO_SHOW_WAIT_MINUTES);
+        OffsetDateTime expiresAt = now.plus(Duration.ofMinutes(waitMinutes));
+        return noShowCaseRepository.findByRunRiderId(rider.getId())
+                .map(existing -> {
+                    existing.reopen(now, expiresAt);
+                    return existing;
+                })
+                .orElseGet(() -> noShowCaseRepository.save(NoShowCase.forRunRider(rider.getId(), now, expiresAt, now)));
+    }
+
+    /**
+     * 되돌리기가 {@code no_show} 를 드나들 때 미승차의 부수 효과를 맞춘다(BR-009). 벗어나면 케이스를
+     * 종결하고(에스컬레이션 대상에서 빠짐) 그 승하차지의 미정차 표시를 푼다 — 이 탑승자가 다시 잔여로
+     * 세어지기 때문이다. 되돌린 결과가 {@code no_show} 면({@code no_show → waiting → no_show}, Ruling 305
+     * 반복) {@link #handleNoShow} 와 같은 상태를 만든다. 알림 이벤트는 되돌리기 쪽 규칙(Ruling 308)을
+     * 따라 새로 내지 않는다.
+     */
+    private void syncNoShowAfterRevert(Run run, RunRider rider, RiderStatus fromStatus, RiderStatus toStatus,
+            OffsetDateTime now) {
+        if (fromStatus == RiderStatus.NO_SHOW && toStatus != RiderStatus.NO_SHOW) {
+            noShowCaseRepository.findByRunRiderId(rider.getId()).ifPresent(noShowCase -> noShowCase.resolveByRevert(now));
+            currentRunStop(run.getId(), rider.getStopId()).ifPresent(RunStop::clearSkipped);
+        } else if (toStatus == RiderStatus.NO_SHOW && fromStatus != RiderStatus.NO_SHOW) {
+            openNoShowCase(run, rider, now);
+            skipStopIfNoRidersRemain(run.getId(), rider.getStopId());
+        }
+    }
+
+    /** 확정 노선 현재 버전에서 그 승하차지의 정차 항목 — 확정 노선이 아직 없으면 비어 있다. */
+    private Optional<RunStop> currentRunStop(Long runId, Long stopId) {
+        return confirmedRouteRepository.findById(runId)
+                .map(ConfirmedRoute::getCurrentVersionId)
+                .flatMap(versionId -> runStopRepository.findByRouteVersionIdAndStopId(versionId, stopId));
     }
 
     /**
@@ -314,16 +356,28 @@ public class BoardingCommandService {
         if (remaining > 0) {
             return false;
         }
-        Optional<ConfirmedRoute> confirmedRoute = confirmedRouteRepository.findById(runId);
-        if (confirmedRoute.isEmpty() || confirmedRoute.get().getCurrentVersionId() == null) {
-            return false;
-        }
-        return runStopRepository.findByRouteVersionIdAndStopId(confirmedRoute.get().getCurrentVersionId(), stopId)
+        return currentRunStop(runId, stopId)
                 .map(runStop -> {
                     runStop.markSkipped(SKIP_NOTICE);
                     return true;
                 })
                 .orElse(false);
+    }
+
+    /**
+     * 재생 대상이 이 요청과 같은 처리인지 대조한다(BR-078) — {@code findByClientKey} 는 학원 범위 밖 조회라
+     * 대조 책임이 서비스에 있다({@code RiderStatusHistoryRepository} 예외 사유). 같은 회차의 같은 탑승자·같은
+     * 상태가 아니면 키가 다른 처리에 재사용된 것이라, 남의 결과를 돌려주고 새 처리를 버리는 대신 422 로 거절한다.
+     */
+    private RiderStatusHistory assertSameRequest(RiderStatusHistory history, Long runId, Long riderId,
+            String status) {
+        boolean sameRequest = history.getRunRiderId().equals(riderId)
+                && history.getToStatus() == parseTargetStatus(status)
+                && runRiderRepository.findByIdAndRunIdAndStatusNot(riderId, runId, RiderStatus.ABSENT).isPresent();
+        if (!sameRequest) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED);
+        }
+        return history;
     }
 
     /**

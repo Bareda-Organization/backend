@@ -80,6 +80,17 @@ public interface NoShowCaseRepository extends JpaRepository<NoShowCase, Long> {
     int escalateIfDue(@Param("id") Long id, @Param("now") OffsetDateTime now);
 
     /**
+     * 그 회차의 <b>열린</b>({@code resolvedAt IS NULL}) 미승차 케이스 — 매니저 앱 명단(§4.2
+     * {@code students[].no_show_case})이 카운트다운을 되살리는 재료다(BR-081). 학원 조건은
+     * {@link #findActiveForStaffDashboard} 와 같이 {@code run} 조인에 건다.
+     */
+    @Query("SELECT n FROM NoShowCase n "
+            + "JOIN RunRider rr ON rr.id = n.runRiderId "
+            + "JOIN Run r ON r.id = rr.runId "
+            + "WHERE r.academyId = :academyId AND rr.runId = :runId AND n.resolvedAt IS NULL")
+    List<NoShowCase> findOpenByRunIdAndAcademyId(@Param("runId") Long runId, @Param("academyId") Long academyId);
+
+    /**
      * 회차 목록의 <b>진행 중</b>({@code resolvedAt IS NULL}) 미승차 에스컬레이션 케이스를 학생·
      * 승하차지 이름과 함께 읽는다(§5.3 {@code runs[].no_show_cases[]}, BRD-05, Phase 13 T1) —
      * 관계자 웹 대시보드 전용이라는 뜻으로 메서드 이름에 용도를 남긴다(Ruling 238).

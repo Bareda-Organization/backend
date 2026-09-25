@@ -151,6 +151,7 @@
 | 대상 | ① 승하차 처리 `PATCH /runs/{runId}/riders/{riderId}` (BRD-06 오프라인 큐) ② **비상 발신** `POST /runs/{runId}/emergency` (EXC-04 — 통신 두절 상태 발신이 복구 후 중복 도착 가능) |
 | 키 | 요청 본문 `client_key` — 단말이 생성하는 UUID |
 | 재전송 | 동일 `client_key` 재수신 시 **중복 무시**하고 최초 처리 결과를 `200` 으로 반환 |
+| 키 충돌 | 같은 `client_key` 가 **다른 대상**으로 오면(승하차 — 다른 회차·탑승자·`status` / 비상 — 다른 회차·`type`) 재생하지 않고 `422 VALIDATION_FAILED`. 대조는 배치·학원 범위 확인 뒤 |
 | 보존 | 회차 종료 후 24시간 |
 
 ### 1.8 페이징
@@ -230,7 +231,7 @@ HTTP 상태 코드 + 본문. 본문 형태는 전 엔드포인트 공통.
 
 | 항목 | 규칙 |
 |---|---|
-| 보호자 연락처 | 매니저 앱 응답에서 **마스킹** (`010-2XXX-8814`). 관계자 웹·메인 관리자 콘솔은 원문 |
+| 보호자 연락처 | 매니저 앱 응답에서 **마스킹** (`010-2XXX-8814`) — 저장 형식(하이픈·공백 유무)과 무관하게 숫자 자릿수로 가르고, 해석할 수 없으면 `XXX-XXXX-XXXX`. 관계자 웹·메인 관리자 콘솔은 원문 |
 | 학생 사진 | 서버 저장. `photo_url` 은 매니저 앱 · 관계자 웹 · 메인 관리자 콘솔에만 반환 — 학부모·학생 앱 응답에 부재 |
 | 타 학생 정보 | 학부모·학생 앱 응답에 타 학생의 이름·상태·인원수 부재 (C-08) |
 | 위치 데이터 보유 기간 · 14세 미만 동의 | 법정 요건 검토 후 확정 — 미확정 |
@@ -262,13 +263,14 @@ HTTP 상태 코드 + 본문. 본문 형태는 전 엔드포인트 공통.
 
 ⚠ **이 방법이 못 보는 것** — `null` 이 지역 변수·삼항식·`Optional.orElse(null)` 을 거쳐 들어가는 경로는 리터럴 위치 대조로 잡히지 않는다. 위 ②가 그 구멍을 일부 덮지만(§4.2 `photo_url` 이 그 경로였다) **전수를 보장하지 않는다.** 이 목록은 **하한**이다.
 
-#### 목록 — **`●` 인 필드 13개 · 6개 절** (전부 `curl` 재현 완료)
+#### 목록 — **`●` 인 필드 15개 · 7개 절** (13개는 `curl` 재현 · 2026-09-25 추가 2개(§4.2·§5.4 `guardian_phone`)는 시험으로 재현)
 
 | 절 | 필드 | `null` 이 나오는 조건 | 처분 |
 |---|---|---|---|
 | §4.1 | `est_duration_min` | 스케줄이 소요시간을 안 적은 회차(시드 7건 전부) | ✅ **`○` 로 정정** — §5.10 입력이 `○` 이고 §5.13 이 *"nullable 이라 대개 비어 있다"* 고 이미 적고 있었다 |
 | §4.2 | `photo_url` | 사진 미등록 학생(시드 6명 전원) | ✅ **`○` 로 정정** — 판정 근거는 §4.2 |
 | §6.9 | `photo_url` · `student_phone` | 위와 같은 컬럼 | ✅ **`○` 로 정정** — 같은 판정이 이 절에만 안 걸려 있었다 |
+| §4.2 · §5.4 | `guardian_phone` | 보호자를 아직 연결하지 않은 학생(관계자가 먼저 등록 → P-02 로 나중에 연결) | ✅ **`○` 로 정정**(2026-09-25 BR-082) — 매니저 앱 파서(`as String`)가 명단 전체를 실패시켜 앱도 함께 수정. 시험 `RunRosterControllerTest#결석_학생은_명단에서_빠지고_집계에만_남는다` 가 `null` 을 고정 |
 | §5.5 상세 | `route_preview` · `est_time_before` · `est_time_after` · `est_distance_before` · `est_distance_after` · `preview_token` | 결정이 끝난 건 | ✅ **`◐` 로 개정** — 판정 근거는 §5.5 |
 | §3.12 | `sent_at` | 미발송·발송 실패 건(`push_state != sent`) | ⏸ **미판정** — 아래 |
 | §4.3 | `next_stop.lat` · `next_stop.lng` | 배포 후 제거된 경유 지점이 다음 차례일 때 | ⏸ **미판정** — 아래 |
@@ -849,12 +851,12 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | `student_id` · `name` | string | ● | |
 | `photo_url` | string | ○ | **육안 확인용** — 태그(NFC/QR) 미사용. **미등록 학생은 `null`** — 아래 대체 표시 규칙 |
 | `class_name` | string | ○ | 반 |
-| `guardian_phone` | string | ● | **마스킹** (`010-2XXX-8814`) |
+| `guardian_phone` | string | ○ | **마스킹** (`010-2XXX-8814`). **보호자 미연결 학생은 `null`** — 앱은 연락처 칸을 생략(§1.13 목록, BR-082) |
 | `note` | string | ○ | 특이사항·비고 (STU-07) |
 | `can_go_alone` | boolean | ● | 혼자 귀가 가능 여부 (STU-08). 하원 하차 판단 근거 |
 | `status` | enum | ● | `waiting` · `boarded` · `alighted` · `no_show` |
 | `change` | enum | ○ | `added` · `removed` |
-| `no_show_case` | object | ○ | `started_at` · `expires_at` — **3분** 카운트다운 (EXC-01) |
+| `no_show_case` | object | ○ | `case_id` · `started_at` · `expires_at` — **3분** 카운트다운 (EXC-01). 열린 미승차 케이스가 있는 `no_show` 학생에만 — 앱 재진입 시 카운트다운 복원(§4.6 응답과 같은 모양, BR-081) |
 
 ```json
 {
@@ -1053,6 +1055,8 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 **이력 보존** — 누가·언제·무엇을 바꿨는지 저장. 기발송 알림은 후속 처리 대상
 
+**미승차 되돌리기** — `no_show` 에서 벗어나면 미승차 케이스(§4.8)를 종결하고(에스컬레이션 중단) 그 승하차지의 `skipped` 를 해제. 다시 `no_show` 가 되면 같은 케이스를 재개(대기 시간 재시작)
+
 **에러** — `403 ESCORT_ONLY` · `409 RUN_NOT_MOVING` · `404 RIDER_NOT_FOUND` · `404 RUN_NOT_FOUND` · `409 STOP_ALREADY_DEPARTED`(승하차지를 이미 떠난 뒤 — `run_stop.departed_at IS NOT NULL`, Ruling 305·307)
 
 ### 4.8 POST /runs/{runId}/riders/{riderId}/no-show-contacts
@@ -1179,7 +1183,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | `occurred_at` | datetime | ○ | 단말 기록 시각. 오프라인 발신분의 실제 시각 |
 | `client_key` | string | ● | 오프라인 큐 멱등키 (UUID) |
 
-**응답** `201` — `emergency_id` · `raised_at` · `cancelable_until`(발신 +**1분**) · `notified`(수신자 수)
+**응답** `201`(같은 `client_key` 재전송은 최초 접수 결과를 `200` — §1.7) — `emergency_id` · `raised_at` · `cancelable_until`(발신 +**1분**) · `notified`(수신자 수)
 
 | 처리 | 내용 |
 |---|---|
@@ -1357,14 +1361,14 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 호차별 일일 명단 (RST-03, A-04).
 
-**응답** — `items[]` (학생 단위 표)
+**응답** — 학생 단위 행의 **배열**을 `data` 에 그대로 싣는다(`items` 로 감싸지 않음 — 관계자 웹 `roster.ts` 가 이 형태를 읽는다, 2026-09-25 BR-155)
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|:-:|---|
 | `student_id` · `name` | string | ● | |
 | `class_name` | string | ○ | 반 |
 | `stop_name` | string | ● | 승하차지 |
-| `guardian_phone` | string | ● | **원문** — 관계자 웹은 마스킹 대상 밖 |
+| `guardian_phone` | string | ○ | **원문** — 관계자 웹은 마스킹 대상 밖. 보호자 미연결 학생은 `null`(§1.13 목록, BR-082) |
 | `change` | enum | ○ | `added`(초록) · `removed`(빨강) |
 | `status` | enum | ● | `waiting` · `boarded` · `alighted` · `absent` · `no_show` |
 | `note` | string | ○ | 비고 (STU-07) |

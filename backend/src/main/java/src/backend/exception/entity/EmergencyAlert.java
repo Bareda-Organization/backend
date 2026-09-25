@@ -147,13 +147,11 @@ public class EmergencyAlert {
         this.positionRecordedAt = recordedAt;
     }
 
-    /** 관계자·메인관리자의 확인 처리(EXC-04) — 최초 확인자만 기록한다({@link #isAcked} 로 중복을 막는다). */
-    public void ack(Long ackedBy, OffsetDateTime ackedAt) {
-        this.ackedBy = ackedBy;
-        this.ackedAt = ackedAt;
-    }
-
-    /** 이미 확인 처리됐는가 — {@code 409 ALREADY_ACKED} 판정에 쓰인다. */
+    /**
+     * 이미 확인 처리됐는가 — {@code 409 ALREADY_ACKED} 의 빠른 판정. 확인 자체는 엔티티 변경이 아니라
+     * {@code EmergencyAlertRepository#ackIfUnacked}(조건부 UPDATE)로만 쓴다 — 동시 확인에서 최초 확인자를
+     * 지키는 것이 그 WHERE 절이다(BR-079).
+     */
     public boolean isAcked() {
         return ackedAt != null;
     }

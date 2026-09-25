@@ -24,6 +24,8 @@ import src.backend.academy.repository.AcademyRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.exception.entity.NoShowCase;
+import src.backend.exception.repository.NoShowCaseRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
@@ -116,6 +118,9 @@ class RunRosterControllerTest {
     @Autowired
     private RunRiderRepository runRiderRepository;
 
+    @Autowired
+    private NoShowCaseRepository noShowCaseRepository;
+
     private Phase9RosterFixtures fixtures() {
         RunConfirmationFixtures base = new RunConfirmationFixtures(academyRepository, busRepository, routeRepository,
                 routeStopRepository, stopRepository, studentRepository, weeklyAddressRepository, runRepository);
@@ -186,6 +191,8 @@ class RunRosterControllerTest {
         assertThat(students).hasSize(1);
         assertThat((String) JsonPath.read(body, "$.data.stops[0].students[0].name")).isEqualTo("학생1");
         assertThat((Integer) JsonPath.read(body, "$.data.counts.absent_n")).isEqualTo(1);
+        // BR-082 — 보호자를 연결하지 않은 학생은 guardian_phone 이 null 이다(§4.2 ○, §1.13 목록)
+        assertThat((Object) JsonPath.read(body, "$.data.stops[0].students[0].guardian_phone")).isNull();
     }
 
     @Test
@@ -243,6 +250,52 @@ class RunRosterControllerTest {
                 토큰(manager.accountId(), academyId, Role.DRIVER)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+    }
+
+    /**
+     * BR-081 — 동승자 앱이 재실행·재진입하면 PATCH 응답에만 있던 3분 카운트다운을 명단에서 되찾아야 한다
+     * (§4.2 {@code students[].no_show_case}, EXC-01).
+     */
+    @Test
+    void 미승차_학생은_열린_케이스의_카운트다운을_함께_싣는다() throws Exception {
+        Phase9RosterFixtures fx = fixtures();
+        long academyId = fx.academyWithCoordinates();
+        long busId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.500000", "127.000000");
+        fx.route(academyId, busId, Weekday.WED, Direction.TO_ACADEMY, stopId);
+        long student1 = fx.student(academyId, "학생1");
+        long student2 = fx.student(academyId, "학생2");
+        fx.verifiedAddress(student1, stopId, Weekday.WED, Direction.TO_ACADEMY, "37.500000", "127.000000");
+        fx.verifiedAddress(student2, stopId, Weekday.WED, Direction.TO_ACADEMY, "37.500000", "127.000000");
+        OffsetDateTime departTime = OffsetDateTime.parse("2031-07-02T08:00:00+09:00");
+        long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY,
+                departTime, departTime.minusMinutes(30));
+        OffsetDateTime startedAt = departTime.plusMinutes(5);
+        RunRider noShowRider = runRiderRepository.findAllByRunIdAndAcademyId(runId, academyId).stream()
+                .filter(rider -> rider.getStudentId() == student1).findFirst().orElseThrow();
+        noShowRider.markNoShow(startedAt);
+        runRiderRepository.save(noShowRider);
+        long caseId = noShowCaseRepository.save(NoShowCase.forRunRider(noShowRider.getId(), startedAt,
+                startedAt.plusMinutes(3), startedAt)).getId();
+        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.ESCORT, "동승자");
+        fx.assign(runId, manager.managerId(), ManagerRole.ESCORT);
+
+        String body = 본문(mockMvc.perform(get("/api/v1/runs/" + runId + "/roster").header("Authorization",
+                        토큰(manager.accountId(), academyId, Role.ESCORT)))
+                .andExpect(status().isOk())
+                .andReturn());
+
+        List<String> expiresAt = JsonPath.read(body,
+                "$.data.stops[0].students[?(@.status == 'no_show')].no_show_case.expires_at");
+        assertThat(expiresAt).hasSize(1);
+        assertThat(OffsetDateTime.parse(expiresAt.get(0))).isEqualTo(startedAt.plusMinutes(3));
+        List<Object> caseIds = JsonPath.read(body,
+                "$.data.stops[0].students[?(@.status == 'no_show')].no_show_case.case_id");
+        assertThat(caseIds).as("매니저 앱 NoShowCase.fromJson 이 case_id 를 필수 문자열로 읽는다")
+                .containsExactly(String.valueOf(caseId));
+        List<Object> waitingCases = JsonPath.read(body,
+                "$.data.stops[0].students[?(@.status == 'waiting')].no_show_case");
+        assertThat(waitingCases).as("미승차가 아닌 학생은 케이스가 없다").allMatch(value -> value == null);
     }
 
     private void 결석_처리한다(long academyId, long runId, long studentId) {

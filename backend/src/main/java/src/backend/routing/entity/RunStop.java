@@ -118,6 +118,15 @@ public class RunStop {
         this.skipNotice = skipNotice;
     }
 
+    /**
+     * 미승차를 되돌려 그 승하차지에 탑승자가 다시 생기면 미정차 표시를 푼다(BR-009, C-05). {@code change}
+     * 는 {@code skipped} 외에 쓰는 경로가 없어 {@code null}(원래 노선 그대로)로 되돌린다.
+     */
+    public void clearSkipped() {
+        this.change = null;
+        this.skipNotice = null;
+    }
+
     /** 기사의 도착 처리로 도착 시각을 기록한다(API_SPEC §4.5, RUN-04). 재처리는 호출부가 막는다. */
     public void markArrived(OffsetDateTime arrivedAt) {
         this.arrivedAt = arrivedAt;

@@ -11,6 +11,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 
 import src.backend.academy.entity.StaffStatus;
@@ -40,6 +41,7 @@ import src.backend.manager.entity.Manager;
 import src.backend.manager.repository.ManagerRepository;
 import src.backend.run.access.RunAssignmentAccess;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.query.RunPositionCache;
 import src.backend.student.query.RunPositionSnapshot;
@@ -48,12 +50,11 @@ import src.backend.student.query.RunPositionSnapshot;
  * 비상 신고 발신·취소·확인(EXC-04, Phase 11 T2 목표 5·8·9·10) — {@code emergency_alert} 를 쓰는
  * 유일한 지점이다.
  *
- * <p><b>발신 시 회차 상태를 확인하지 않는다</b>(판단 근거, 보고서 항목) — {@link RunStartCommandService}
- * 등 다른 회차 커맨드와 달리 이 서비스는 {@code run.status} 를 가드로 쓰지 않는다. 비상 상황은
- * {@code idle}(출발 전 대기 중 차량 이상 발견 등)에서도 일어날 수 있고, 목표 5~11 어디에도 상태
- * 제약이 명시돼 있지 않다 — 배치({@link RunAssignmentAccess#assertAssignedDriverOrEscort})만 통과하면
- * 신고는 언제나 접수돼야 한다는 것이 안전 기능의 기본 전제다.
+ * <p><b>발신은 확정({@code confirmed}) 이후 회차에만 받는다</b>(API_SPEC §4.14 "발신 시점" · M-15 ·
+ * UF-X-08, BR-109) — 확정 전({@code idle}) 회차는 {@code 409 RUN_NOT_CONFIRMED}. 운행 중이 아니어도
+ * (확정 뒤 출발 전 차량 이상 등) 받는다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -83,20 +84,28 @@ public class EmergencyCommandService {
 
     /**
      * 비상 신고 접수(목표 1·5·8) — 재전송({@code client_key} 재사용)은 새 행을 만들지 않고 최초 접수
-     * 결과를 그대로 돌려준다({@code BoardingCommandService#updateStatus} 와 같은 재생 형태, 가장
-     * 먼저 갈리는 분기인 이유도 같다).
+     * 결과를 그대로 돌려준다({@code BoardingCommandService#updateStatus} 와 같은 재생 형태). 재생은 배치·
+     * 회차 확인 <b>뒤</b>에, 같은 회차·같은 종류일 때만 한다(BR-078) — 키가 다른 신고에 재사용됐으면 남의
+     * 신고(다른 학원 포함)를 돌려주고 이번 신고를 버리는 대신 422 로 거절한다.
      */
     public EmergencyRaiseResponse raise(AuthUser requester, Long runId, EmergencyRaiseRequest request) {
-        Optional<EmergencyAlert> replay = emergencyAlertRepository.findByClientKey(request.clientKey());
-        if (replay.isPresent()) {
-            EmergencyAlert existing = replay.get();
-            return new EmergencyRaiseResponse(String.valueOf(existing.getId()), existing.getReceivedAt(),
-                    existing.cancelableUntil(), notifiedCount(existing.getAcademyId()));
-        }
-
         Assignment assignment = runAssignmentAccess.assertAssignedDriverOrEscort(requester, runId);
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        if (run.getStatus() == RunStatus.IDLE) {
+            throw new BusinessException(ErrorCode.RUN_NOT_CONFIRMED);
+        }
+
+        Optional<EmergencyAlert> replay = emergencyAlertRepository.findByClientKey(request.clientKey());
+        if (replay.isPresent()) {
+            EmergencyAlert existing = replay.get();
+            if (!existing.getRunId().equals(runId) || existing.getType() != parseType(request.type())) {
+                throw new BusinessException(ErrorCode.VALIDATION_FAILED);
+            }
+            return new EmergencyRaiseResponse(String.valueOf(existing.getId()), existing.getReceivedAt(),
+                    existing.cancelableUntil(), notifiedCount(existing.getAcademyId()), true);
+        }
+
         Bus bus = busRepository.findByIdAndAcademyId(run.getBusId(), requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.BUS_NOT_FOUND));
 
@@ -115,7 +124,7 @@ public class EmergencyCommandService {
         if (request.memo() != null) {
             alert.attachMemo(request.memo());
         }
-        attachLocationIfCached(alert, runId);
+        attachLocation(alert, runId, request, occurredAt);
 
         emergencyAlertRepository.save(alert);
 
@@ -131,7 +140,7 @@ public class EmergencyCommandService {
                 bus.getBusNo(), type, raisedBy, position, alert.getRiderCount(), now));
 
         return new EmergencyRaiseResponse(String.valueOf(alert.getId()), now, alert.cancelableUntil(),
-                notifiedCount(requester.academyId()));
+                notifiedCount(requester.academyId()), false);
     }
 
     /**
@@ -192,7 +201,9 @@ public class EmergencyCommandService {
         }
 
         OffsetDateTime now = OffsetDateTime.now(clock);
-        alert.ack(requester.accountId(), now);
+        if (emergencyAlertRepository.ackIfUnacked(alert.getId(), requester.accountId(), now) == 0) {
+            throw new BusinessException(ErrorCode.ALREADY_ACKED); // 동시에 먼저 확인한 쪽이 있다(BR-079)
+        }
 
         String ackedByName = accountRepository.findById(requester.accountId()).map(Account::getName).orElse(null);
         eventPublisher.publishEvent(
@@ -215,11 +226,34 @@ public class EmergencyCommandService {
     }
 
     /**
-     * 위치 캐시(Redis, T1 계약)에 값이 있을 때만 붙인다 — 비어 있어도 신고 자체는 반드시 성공해야
-     * 하는 안전 요구(목표 8, 판단 근거 — 보고서 항목)라 여기서 예외를 던지지 않고 조용히 건너뛴다.
+     * 발신 시점 위치를 붙인다(§4.14) — 단말이 {@code lat}·{@code lng} 를 둘 다 보냈으면 그 좌표와 발신 시각을,
+     * 아니면 위치 캐시의 최신 좌표를 쓴다(BR-109). 한쪽만 온 좌표는 요청 오류다.
+     */
+    private void attachLocation(EmergencyAlert alert, Long runId, EmergencyRaiseRequest request,
+            OffsetDateTime occurredAt) {
+        if ((request.lat() == null) != (request.lng() == null)) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED);
+        }
+        if (request.lat() != null) {
+            alert.attachLocation(request.lat(), request.lng(), occurredAt);
+            return;
+        }
+        attachLocationIfCached(alert, runId);
+    }
+
+    /**
+     * 위치 캐시(Redis, T1 계약)에 값이 있을 때만 붙인다 — 신고 자체는 반드시 성공해야 하는 안전 요구
+     * (목표 8)라, 값이 비었을 때뿐 아니라 <b>읽기 실패</b>(Redis 연결·시간 초과·값 형식 불일치)도 위치 없이
+     * 접수한다(BR-039). 실패는 경고 로그로만 남긴다 — 여기서 던지면 {@code emergency_alert} 행까지 롤백된다.
      */
     private void attachLocationIfCached(EmergencyAlert alert, Long runId) {
-        Optional<RunPositionSnapshot> snapshot = runPositionCache.find(runId);
+        Optional<RunPositionSnapshot> snapshot;
+        try {
+            snapshot = runPositionCache.find(runId);
+        } catch (RuntimeException e) {
+            log.warn("비상 신고 위치 첨부 실패 — 위치 없이 접수한다. runId={}", runId, e);
+            return;
+        }
         snapshot.ifPresent(position -> alert.attachLocation(position.lat(), position.lng(), position.recordedAt()));
     }
 

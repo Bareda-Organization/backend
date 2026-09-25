@@ -1055,17 +1055,21 @@ erDiagram
 | `notification_log(academy_id, acked)` partial `WHERE acked = false` | 미확인 배지 집계 (NTF-10) |
 | `run_position(run_id, recorded_at desc)` | 실시간 위치 — 회차의 최신 좌표 1건 조회가 지배적 (LOC-02) |
 | `assignment(manager_id, run_id)` | 매니저의 배치 회차 판정 — API 접근 범위 검사 경로 (API_SPEC §1.5) |
-| `assignment(run_id)` | 대시보드의 배치 인력·확인 응답 표시 (MON-05) |
+| `assignment(run_id)` | 대시보드의 배치 인력·확인 응답 표시 (MON-05). UK `(run_id, role)` 가 겸함 — 별도 인덱스 부재(BR-142) |
 | `student(academy_id, name)` partial `WHERE deleted_at IS NULL` | 학생 목록·검색, 강제 추가 자동완성 (STU-01) |
 | `stop(academy_id, lat, lng)` | 주소 검증 후 **승하차지 매칭** — 좌표 근접 탐색 (STU-05) |
-| `guardian_student(guardian_id)` · `guardian_student(student_id)` | 학부모 접근 범위 판정, 자녀 목록 (P-02 · §1.5) |
+| `guardian_student(guardian_id)` · `guardian_student(student_id)` | 학부모 접근 범위 판정, 자녀 목록 (P-02 · §1.5). `guardian_id` 쪽은 UK `(guardian_id, student_id)` 가 겸함(BR-142) |
 | `weekly_address(student_id, weekday, direction)` | 확정 배치의 일일 승하차지 수집. UK 가 겸함 (C-16) |
-| `boarding_intent(run_id)` | 확정 배치의 탑승 의사 수집 (ATT-02) |
+| `boarding_intent(run_id)` | 확정 배치의 탑승 의사 수집 (ATT-02). UK `(run_id, student_id)` 가 겸함(BR-142) |
 | `signup_request(academy_id, status, requested_at)` | 가입 요청 대기 목록·미처리 배지 (AUTH-10) |
 | `audit_log(academy_id, occurred_at desc)` · `audit_log(actor_account_id, occurred_at desc)` | 감사·접속 이력 필터 (SYS-01·02) |
 | `rider_status_history(run_rider_id, changed_at desc)` | 되돌리기 대상의 직전 상태 조회 (BRD-05) |
 | `refresh_token(account_id)` partial `WHERE revoked_at IS NULL` | 로그아웃·차단 시 유효 토큰 전량 무효화 (C-14) |
 | `academy_staff(academy_id)` partial `WHERE status = 'active'` | 정원 판정(재직자 수)과 학원의 현 관계자 조회. UK 가 겸함 (ACAD-05·06) |
+| `exception_report(academy_id, reported_at desc)` | 관계자 예외 보고 목록 — 유형·회차·기간 필터 + 최근순 (A-16). **무기한 보존**(§7.2)이라 누적 전 행 스캔을 막는다 (BR-091) |
+| `account(academy_id, role)` | 학원별 역할 계정 집계·목록 (§6.x 콘솔 · 관계자 계정) (BR-091) |
+| `guardian(academy_id)` · `schedule(academy_id)` · `route(academy_id)` | 학원 범위 목록·연락처 조회 — 학원 격리 선행 인덱스 (BR-091) |
+| `manager(academy_id, name)` partial `WHERE deleted_at IS NULL` | 매니저 검색·미배치 집계 (MGR-01 · MON-05) (BR-091) |
 
 **학원 격리 선행 인덱스** — 학원 범위로 직접 조회하는 테이블(`academy_setting` · `signup_request` · `academy_staff` · `account` · `student` · `guardian` · `manager` · `bus` · `stop` · `schedule` · `route` · `run` · `change_request` · `notification_log` · `audit_log` · `exception_report` · `emergency_alert` — §6.1 의 직접 보유 17개)은 복합 인덱스의 **첫 컬럼을 `academy_id`** 로 둠. 격리 조건이 모든 쿼리에 무조건 붙는 술어이기 때문.
 
