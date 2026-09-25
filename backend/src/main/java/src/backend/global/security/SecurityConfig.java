@@ -27,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.config.ApiPathPrefixConfig;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.request.RequestIdFilter;
 import src.backend.global.security.authz.RolePermissions;
 
 import java.util.Arrays;
@@ -137,6 +138,8 @@ public class SecurityConfig {
         // `credentials: include` 요청을 통째로 거부해 웹 로그인 자체가 성립하지 않는다.
         // 허용 출처가 `*` 가 아니라 명시 목록이라 이 조합이 성립한다.
         configuration.setAllowCredentials(true);
+        // 브라우저는 노출 목록에 없는 응답 헤더를 스크립트에 숨긴다 — 웹이 요청 추적 식별자(§1.3)를 읽게 한다
+        configuration.setExposedHeaders(List.of(RequestIdFilter.HEADER));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/**", configuration);
