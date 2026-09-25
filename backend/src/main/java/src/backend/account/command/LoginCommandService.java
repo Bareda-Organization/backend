@@ -101,7 +101,7 @@ public class LoginCommandService {
     public LoginResult login(String loginId, String rawPassword) {
         OffsetDateTime now = OffsetDateTime.now(clock);
         String ip = resolveClientIp();
-        Account account = accountRepository.findByLoginId(loginId).orElse(null);
+        Account account = accountRepository.findByLoginIdForUpdate(loginId).orElse(null);
         if (account == null) {
             auditLogRepository.save(AuditLog.forLoginFail(null, null, loginId, ip, now));
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS,

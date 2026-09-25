@@ -4,9 +4,12 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import jakarta.persistence.LockModeType;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -26,6 +29,17 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     /** 로그인 아이디로 계정을 찾는다(API_SPEC §2.5 로그인). */
     @AcademyScopeExempt(reason = "§2.5 로그인 — 아이디만 들고 시작해 소속 학원이 이 조회의 결과로 비로소 결정")
     Optional<Account> findByLoginId(String loginId);
+
+    /**
+     * 로그인 대조용 조회 — 행을 잠가 같은 계정의 로그인을 직렬화한다(C-11 · BR-026).
+     *
+     * <p>잠그지 않으면 동시 실패가 모두 같은 {@code failed_attempts} 를 읽고 "+1" 을 덮어써 누적이 유실되고,
+     * 5회 차단이 걸리지 않는다. 잠금 구간은 비밀번호 대조(수십 ms)를 포함하지만 같은 계정끼리만 기다린다.
+     */
+    @AcademyScopeExempt(reason = "§2.5 로그인 — 아이디만 들고 시작해 소속 학원이 이 조회의 결과로 비로소 결정")
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM Account a WHERE a.loginId = :loginId")
+    Optional<Account> findByLoginIdForUpdate(@Param("loginId") String loginId);
 
     /**
      * 연락처로 계정을 찾는다(API_SPEC §2.9 아이디·비밀번호 복구 — {@code type} 이
