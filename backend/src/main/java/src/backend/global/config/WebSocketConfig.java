@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.global.error.StompErrorFrameHandler;
 import src.backend.global.security.StompAuthChannelInterceptor;
+import src.backend.global.security.StompSessionExpiry;
 
 /**
  * 실시간 위치·알림 채널(STOMP over WebSocket) 설정.
@@ -33,6 +34,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final StompAuthChannelInterceptor authChannelInterceptor;
     private final ForbiddenSubscriptionCloseFactory forbiddenSubscriptionCloseFactory;
+    private final StompSessionExpiry sessionExpiry;
     @Value("${app.ws.allowed-origin-patterns}")
     private final String[] allowedOriginPatterns;
     @Value("${app.ws.outbound.core-pool-size:0}")
@@ -79,6 +81,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
      */
     @Override
     public void configureClientOutboundChannel(ChannelRegistration registration) {
+        registration.interceptors(sessionExpiry);
         if (outboundCorePoolSize <= 0) {
             // taskExecutor() 를 부르는 것 자체가 기본 실행기를 교체하므로, 값이 없으면 손대지 않는다.
             return;

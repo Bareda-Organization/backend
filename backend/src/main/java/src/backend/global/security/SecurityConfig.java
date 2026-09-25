@@ -1,11 +1,11 @@
 package src.backend.global.security;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.config.Customizer;
@@ -16,15 +16,18 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.servlet.HandlerExceptionResolver;
 
 import lombok.RequiredArgsConstructor;
 
 import src.backend.global.config.ApiPathPrefixConfig;
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
+import src.backend.global.request.RequestIdFilter;
 import src.backend.global.security.authz.RolePermissions;
 
 import java.util.Arrays;
@@ -62,7 +65,8 @@ public class SecurityConfig {
     private String allowedOrigins;
 
     @Bean
-    SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain filterChain(HttpSecurity http,
+            @Qualifier("handlerExceptionResolver") HandlerExceptionResolver exceptionResolver) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
                 .cors(Customizer.withDefaults())
@@ -85,8 +89,13 @@ public class SecurityConfig {
                         // API 테스트용 Swagger UI(springdoc) — 문서·UI 자체는 공개, 보호 API 호출은 Authorize 로 넣은 토큰이 검증
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         .anyRequest().authenticated())
-                // 인증 안 된 요청은 403 대신 401 로 응답(토큰 필요함을 명확히)
-                .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+                // 인증 안 된 요청은 403 대신 401 — 본문은 GlobalExceptionHandler 가 §1.10 형태로 쓴다(BR-033).
+                // 필터가 남긴 사유가 없으면(토큰 부재) UNAUTHORIZED, 만료면 TOKEN_EXPIRED 라 클라이언트가
+                // "재발급 시도" 와 "로그인부터" 를 가른다(§8.1)
+                .exceptionHandling(e -> e.authenticationEntryPoint((request, response, ex) ->
+                        exceptionResolver.resolveException(request, response, null, new BusinessException(
+                                request.getAttribute(JwtAuthenticationFilter.AUTH_FAILURE_ATTR) instanceof ErrorCode code
+                                        ? code : ErrorCode.UNAUTHORIZED))))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
@@ -129,6 +138,8 @@ public class SecurityConfig {
         // `credentials: include` 요청을 통째로 거부해 웹 로그인 자체가 성립하지 않는다.
         // 허용 출처가 `*` 가 아니라 명시 목록이라 이 조합이 성립한다.
         configuration.setAllowCredentials(true);
+        // 브라우저는 노출 목록에 없는 응답 헤더를 스크립트에 숨긴다 — 웹이 요청 추적 식별자(§1.3)를 읽게 한다
+        configuration.setExposedHeaders(List.of(RequestIdFilter.HEADER));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/**", configuration);

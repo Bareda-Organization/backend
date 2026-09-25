@@ -44,8 +44,17 @@ public class WebSocketBroadcastGateway {
      */
     public void broadcastToRunChannels(Long runId, Long academyId, List<Long> studentIds, String event,
             OffsetDateTime occurredAt, Object payload) {
+        broadcastToRunChannels(runId, academyId, studentIds, event, occurredAt, payload, payload);
+    }
+
+    /**
+     * 학생 채널에만 다른 payload 를 싣는 형태 — 학부모·학생 앱에 인원수를 보내지 않기 위함이다(C-08,
+     * Ruling 335). 매니저·관제·관리자 채널은 {@code payload} 를 그대로 받는다.
+     */
+    public void broadcastToRunChannels(Long runId, Long academyId, List<Long> studentIds, String event,
+            OffsetDateTime occurredAt, Object studentPayload, Object payload) {
         for (Long studentId : studentIds) {
-            send(WebSocketDestinations.studentRun(studentId), event, runId, occurredAt, payload);
+            send(WebSocketDestinations.studentRun(studentId), event, runId, occurredAt, studentPayload);
         }
         send(WebSocketDestinations.managerRun(runId), event, runId, occurredAt, payload);
         send(WebSocketDestinations.academyLive(academyId), event, runId, occurredAt, payload);

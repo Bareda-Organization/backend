@@ -1689,7 +1689,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 **에러** — `409 DUPLICATE_ROUTE`(같은 차량·요일·방향이 이미 편성됨) · `404 ROUTE_NOT_FOUND` · `404 BUS_NOT_FOUND` · `422 VALIDATION_FAILED`(`stop_ids` 중복·학원 밖) · `503 MAP_ROUTE_UNAVAILABLE`(외부 도로 경로 API 서킷 개방 — §8)
 
-⚠ **`stop_ids` 의 두 거부 사유는 현재 구현의 응답에서 구별되지 않는다** — 중복이든 학원 밖이든 `422 VALIDATION_FAILED` 이고, 사유를 가르던 문구가 응답에 도달하지 않는다(`GlobalExceptionHandler` 가 `ErrorCode` 의 고정 문구만 싣는 저장소 전역 성질). **이 절이 사유를 둘로 적은 것은 사양이 그렇게 요구하기 때문**이고, 구현이 그것을 전달하지 못하는 것은 **별도 단위로 등재된 사안**이다 — 화면이 사유를 갈라 안내해야 하면 `ErrorCode` 를 나누는 것이 현재 유일한 수단이다.
+⚠ **`stop_ids` 의 두 거부 사유는 코드가 같다** — 중복이든 학원 밖이든 `422 VALIDATION_FAILED` 이고, 사유는 `error.message` 문구로만 갈린다("같은 승하차지를 두 번 담을 수 없습니다" · "편성할 수 없는 승하차지가 있습니다"). 2026-09-25 전에는 `GlobalExceptionHandler` 가 `ErrorCode` 의 고정 문구만 실어 그 문구도 도달하지 않았다(BR-135 로 해소). 화면이 사유를 **코드로** 갈라 분기해야 하면 `ErrorCode` 를 나누는 것이 유일한 수단이다.
 
 **`GET /staff/routes/{id}/path` 응답**(R27-B 신설) — `road_path`(`{lat,lng}[]`, 순서 있음) · `fallback_used`(`true` 면 직선거리 근사) · `stops[]`(`stop_id` · `seq` · `name` · `lat` · `lng`, 상세 응답과 같은 모양)
 
@@ -2348,6 +2348,8 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 
 - **엔드포인트를 늘리지 않는 이유** — 인가 검증은 이미 SUBSCRIBE 프레임에 붙어 있어(`StompAuthChannelInterceptor`) 그 자리를 넓히면 되지만, 엔드포인트를 4개로 늘리면 **핸드셰이크 인증을 4벌** 만들어야 하고 규칙이 갈린다.
 - **`4403` 은 그대로 유지** — 구독 거부 시 STOMP `ERROR` 프레임을 보내고 세션을 닫으며, 닫는 코드가 `4403` 이다. 즉 "구독 검사 결과가 연결 종료로 나타나는" 형태다.
+- **채널은 서버 발행 전용** — 클라이언트 `SEND` 는 `/app/**` 외 목적지(`/topic`·`/queue`·`/user`)면 `ERROR` 프레임 `FORBIDDEN` 으로 거부하고 세션을 닫는다. 브로커가 클라이언트 `SEND` 를 구독자에게 그대로 배달해 서버 발행분과 구별되지 않기 때문이다
+- **세션은 연결한 access 토큰보다 오래 살지 않는다** — 그 토큰이 만료되면 다음 방송 대신 `ERROR` 프레임 `TOKEN_EXPIRED` 를 보내고 세션을 닫는다(새 구독·송신도 같은 코드로 거부). 클라이언트는 토큰을 재발급(§2.6)해 다시 연결한다. 퇴사·차단은 재발급이 막혀(§2.6·C-14) 재연결이 성립하지 않는다
 - ⚠ **옛 경로 `/topic/tenant/{tenantId}/**` 는 이 표로 대체되어 사라진다** — N:M 멤버십 시절 어휘이고 코드·스키마·사양은 전부 `academy` 로 정리됐다(Ruling 121). 클라이언트 계약이라 소비자가 생기는 시점까지 미뤄 뒀고, 이 표가 그 소비자다.
 
 **목적지 문면** — 브로커 프리픽스는 `/topic` 이다. 아래 표의 `/ws/...` 표기는 채널을 가리키는 이름이고 **실제 SUBSCRIBE 경로는 오른쪽 열**이다.
@@ -2365,8 +2367,8 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 |---|---|---|
 | `/ws/students/{id}/run` | 학부모(연결 자녀) · 학생(본인) | `position` · `stop_arrived` · `run_started` · `run_ended` |
 | `/ws/manager/runs/{id}` | 해당 회차 배치 기사 · 동승자 | `rider_changed` · `stop_arrived` · `run_started` · `run_ended` · **`emergency_acked`** |
-| `/ws/academy/{id}/live` | 해당 학원 관계자 | `position` · `rider_changed` · `stop_arrived` · `run_started` · `run_ended` · `approval_requested` · **`emergency_raised`** |
-| `/ws/admin/live` | 메인 관리자 | `position` · `rider_changed` · `stop_arrived` · `run_started` · `run_ended` · **`emergency_raised`** |
+| `/ws/academy/{id}/live` | 해당 학원 관계자 | `position` · `rider_changed` · `stop_arrived` · `run_started` · `run_ended` · `approval_requested` · **`emergency_raised`** · **`emergency_canceled`** |
+| `/ws/admin/live` | 메인 관리자 | `position` · `rider_changed` · `stop_arrived` · `run_started` · `run_ended` · **`emergency_raised`** · **`emergency_canceled`** |
 
 **공통 봉투**
 
@@ -2387,6 +2389,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `run_started` | `POST /runs/{runId}/start` | `run_status`(`moving`) · `started_at` · `auto_boarded_count`. **학생 채널은 `auto_boarded_count` 부재** (C-08 · §1.12, `Ruling 335`) |
 | `run_ended` | 서버의 `finished` 전이 (§4.10) | `run_status`(`finished`) · `finished_at` · `auto_alighted_count`. **학생 채널은 `auto_alighted_count` 부재** (C-08 · §1.12, `Ruling 335`) |
 | `emergency_raised` | `POST /runs/{runId}/emergency` | `emergency_id` · `type` · `bus_no` · `raised_by{name, role, phone}` · `position{lat, lng}` · `rider_count`(발신 시점 회차에 배정된 라이더 전원 수, 승하차 상태 무관) · `raised_at`. **관계자·메인 관리자 채널 전용** (C-17) |
+| `emergency_canceled` | `DELETE /runs/{runId}/emergency/{id}` (§4.14 — 발신 후 1분 안 취소) | `emergency_id` · `bus_no` · `canceled_at`. **관계자·메인 관리자 채널 전용** — `emergency_raised` 를 받은 화면이 같은 신고를 닫는다(§4.14 "취소 사실도 수신자에게 통지") |
 | `emergency_acked` | `POST /staff/emergencies/{id}/ack` | `emergency_id` · `acked_by_name` · `acked_at`. **매니저 채널 전용** — 발신자 앱에 "학원이 확인했습니다" 표시 (A-16) |
 | `approval_requested` | ② 구간 요청 접수 (REQ-05) | `approval_id` · `student_name` · `run_id` · `stop_name` · `deadline_at`. **관계자 채널 전용** |
 
@@ -2455,6 +2458,11 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `RIDER_NOT_FOUND` | 404 | 미존재 탑승자, 또는 `absent` 로 명단에서 제외된 탑승자 지정 |
 | `STOP_NOT_FOUND` | 404 | 해당 회차에 존재하지 않는 승하차지 지정 · 관계자 웹 `stop_id` 지정 시 타 학원 승하차지(존재 비노출, `§5.8`) |
 | `NO_SHOW_CASE_NOT_FOUND` | 404 | `no_show` 미처리 탑승자에 연락 시도 기록 (EXC-01) |
+| `DELAY_DUPLICATE` | 409 | 같은 회차의 직전 지연 알림과 `minutes`·`reason`·`message` 가 전부 같은 재발신 — 지연 알림은 갱신 의미라 재요청 금지 시간을 두지 않고 내용이 그대로면 거부 (§4.9 · Ruling 253) |
+| `RUN_NOT_IDLE` | 409 | `idle` 이 아닌 회차의 강제 확정 시도 (§6.14) |
+| `RUN_NOT_DUE` | 409 | 판정 시각(`confirm_at`)이 아직 지나지 않은 회차의 강제 확정 시도 (§6.14) |
+| `STUDENT_NOT_IN_RUN` | 409 | 버스 간 이동 대상 학생이 출발 회차의 당일 명단(요일별 주소·탑승 의사·강제 추가 기준)에 부재 (§5.8 · RTE-07) |
+| `TRANSFER_ALREADY_STAGED` | 409 | 같은 학생의 처리 대기 중인 이동 건이 이미 존재 — 최종 목적지 회차를 판정할 수 없어 새 신청을 막음 (§5.8) |
 
 ### 8.5 자원 · 검증
 
@@ -2483,6 +2491,11 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `DUPLICATE_SCHEDULE` | 409 | 같은 `bus_id`·`weekday`·`direction`·`depart_time` 조합의 스케줄 중복 등록·수정 — 유일성 근거는 `schedule(bus_id, weekday, direction, depart_time)` UNIQUE (SCH-01 · §5.10). 422 가 아니라 409 인 것은 요청 형식이 아니라 자원이 충돌한 것이기 때문이며 `DUPLICATE_BUS_NO` 와 같은 형태다 (2026-08-26 신설, Ruling 153) |
 | `ROUTE_NOT_FOUND` | 404 | 미존재 고정 노선 지정 (RTE-01 · §5.9 `GET`·`PATCH`·`DELETE`·`optimize`). **다른 학원의 편성을 `{id}` 로 지목한 경우도 이 코드다** — `SCHEDULE_NOT_FOUND` 와 같은 처리이며, 학원 조건을 쿼리에 넣어 "없음" 과 "남의 학원" 을 같은 빈 결과로 만든다 (2026-08-29 신설, Ruling 180) |
 | `DUPLICATE_ROUTE` | 409 | 같은 `bus_id`·`weekday`·`direction` 조합의 고정 노선 중복 편성·수정 — 유일성 근거는 `route(bus_id, weekday, direction)` UNIQUE(`uk_route_bus_weekday_direction`)이고 애플리케이션 선검사가 아니다 (RTE-01 · §5.9). **동시 2요청은 서로의 미커밋 INSERT 를 보지 못한 채 둘 다 선검사를 지나므로**, 제약 위반을 이 코드로 번역하지 않으면 그 경합이 500 으로 샌다. 422 가 아니라 409 인 것은 `DUPLICATE_SCHEDULE`·`DUPLICATE_BUS_NO` 와 같은 형태다 (2026-08-29 신설, Ruling 180) |
+| `ADDRESS_VERIFICATION_UNAVAILABLE` | 503 | 주소 좌표 변환 서비스(네이버 지오코딩)에 연결 불가 — 주소 검증을 거치는 경로(§3.7 · §3.8 · §5.7 · §5.8 · §5.9 승하차지 검색 · §5.15). ⚠ **`ADDRESS_VERIFICATION_FAILED`(422)와 합치지 않는다** — 그쪽은 주소를 고쳐 다시 보낼 자리, 이쪽은 같은 주소를 잠시 뒤 다시 보낼 자리 |
+| `DUPLICATE_WEEKLY_ADDRESS` | 409 | 한 요청 안에 같은 요일·방향의 주소가 둘 이상 — 유일성 근거는 DB UNIQUE (§3.7). 같은 칸을 나중에 다시 고치는 것은 덮어쓰기라 이 코드가 아님 |
+| `DUPLICATE_NOTIFICATION` | 409 | 같은 멱등키(`notification_log.dedup_key`)의 알림 적재가 겹침 — 이미 통지한 알림. 사용자 요청이 아니라 알림 적재 쪽 충돌이 그 요청의 응답으로 올라오는 형태 |
+| `ACADEMY_COORDINATES_MISSING` | 422 | 학원 좌표(`academy.lat`·`lng`) 미등록 상태의 노선 계산 — ② 구간 승인 미리보기·처리(§5.5) · 고정 노선 최적화(§5.9) · 경유 지점 지정(§5.15). 확정 배치에서는 그 회차만 실패하고 다음 틱에 재시도 (Ruling 190) |
+| `WAYPOINT_NOT_FOUND` | 404 | 미존재·이미 제거된 강제 경유 지점 지정 · 다른 회차 소속 — 존재 비노출 (§5.15 · RTE-10) |
 
 ---
 
@@ -2496,6 +2509,12 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 |---|:-:|---|
 | `ENDPOINT_NOT_FOUND` | 404 | 어느 핸들러에도 매핑되지 않는 경로. ⚠ **자원이 없는 것**(`STUDENT_NOT_FOUND` 등)과 다르다 — 이쪽은 **주소 자체가 존재하지 않는다** |
 | `METHOD_NOT_ALLOWED` | 405 | 경로는 실재하나 그 메서드를 받지 않음(예 — `POST /runs/{runId}/reports` 는 그 메서드 전용이라 GET 으로 부르면 여기에 걸린다). 404 와 가르는 이유는 **경로를 고칠지 메서드를 고칠지**가 갈리기 때문 |
+
+### 8.7 서버
+
+| 코드 | HTTP | 발생 조건 |
+|---|:-:|---|
+| `INTERNAL_ERROR` | 500 | 위 어느 코드로도 분류되지 않은 서버 내부 실패. 상세는 응답에 싣지 않고 서버 로그에만 남긴다 — 클라이언트는 "처리되지 않았습니다"(§1.9)로 표시 |
 
 ## 9. enum 사전
 

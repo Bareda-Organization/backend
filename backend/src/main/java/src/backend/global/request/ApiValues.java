@@ -12,6 +12,7 @@ import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.notification.entity.NotificationType;
+import src.backend.request.entity.ChangeRequestStatus;
 
 /**
  * 요청이 문자열로 실어 보낸 값을 값 도메인으로 옮기는 유일한 지점 — 어긋난 입력은 전부
@@ -60,6 +61,11 @@ public final class ApiValues {
      */
     public static NotificationType notificationType(String raw) {
         return toEnum(NotificationType.class, raw, "알림 종류가 아닙니다: ");
+    }
+
+    /** §5.5 승인 목록의 {@code status} 필터(§9.8 {@code pending}·{@code approved}·…)를 옮긴다. */
+    public static ChangeRequestStatus changeRequestStatus(String raw) {
+        return toEnum(ChangeRequestStatus.class, raw, "변경 요청 상태가 아닙니다: ");
     }
 
     /**

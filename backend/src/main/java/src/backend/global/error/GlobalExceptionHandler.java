@@ -1,14 +1,20 @@
 package src.backend.global.error;
 
+import java.util.Locale;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
@@ -33,13 +39,17 @@ public class GlobalExceptionHandler {
     /**
      * {@code details} 가 있으면(예: {@code INVALID_CREDENTIALS.remaining_attempts}, API_SPEC §2.5)
      * {@link ErrorResponse}의 3-인자 팩토리로 함께 싣는다 — 없으면 기존 2-인자 형태와 동일하다.
+     *
+     * <p>문구는 예외의 메시지다 — 호출부가 개별 사유를 주지 않았으면 코드 기본 문구와 같다. 개별
+     * 사유("보호자 부재 보고는 rider_id 가 필수입니다")를 기본 문구로 덮으면 어느 칸이 틀렸는지가
+     * 응답·로그 어디에도 남지 않는다(BR-135).
      */
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ErrorResponse> handleBusiness(BusinessException e) {
         ErrorCode code = e.getErrorCode();
         ErrorResponse body = e.getDetails() == null
-                ? ErrorResponse.of(code.name(), code.getMessage())
-                : ErrorResponse.of(code.name(), code.getMessage(), e.getDetails());
+                ? ErrorResponse.of(code.name(), e.getMessage())
+                : ErrorResponse.of(code.name(), e.getMessage(), e.getDetails());
         return ResponseEntity.status(code.getStatus()).body(body);
     }
 
@@ -63,7 +73,7 @@ public class GlobalExceptionHandler {
         ErrorCode code = ErrorCode.VALIDATION_FAILED;
         String message = e.getBindingResult().getFieldErrors().stream()
                 .findFirst()
-                .map(err -> err.getField() + ": " + err.getDefaultMessage())
+                .map(err -> snakeCase(err.getField()) + ": " + err.getDefaultMessage())
                 .orElse(code.getMessage());
         return ResponseEntity.status(code.getStatus()).body(ErrorResponse.of(code.name(), message));
     }
@@ -88,6 +98,25 @@ public class GlobalExceptionHandler {
         ErrorCode code = ErrorCode.VALIDATION_FAILED;
         return ResponseEntity.status(code.getStatus())
                 .body(ErrorResponse.of(code.name(), e.getRequestPartName() + " 파트가 필요합니다"));
+    }
+
+    /**
+     * 요청 형식 오류 — 깨진 JSON · enum 밖 값 · 경로/쿼리 타입 불일치 · 파라미터 제약 위반 · Content-Type
+     * 누락(BR-032, §1.11 "형식 위반"). catch-all 로 떨어지면 {@code 500} 이 되어 클라이언트 실수가 서버
+     * 고장으로 보이고, 오프라인 큐가 5xx 를 재시도 대상으로 봐 같은 요청을 끝없이 다시 보낸다.
+     *
+     * <p>Content-Type 누락도 {@code 415} 가 아니라 {@code 422} 다 — 사양의 에러 사전(§8)에 형식 위반
+     * 코드는 {@code VALIDATION_FAILED} 하나뿐이다. 역직렬화 오류 문구는 내부 타입명을 담아 싣지 않는다.
+     */
+    @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class,
+            HandlerMethodValidationException.class, HttpMediaTypeNotSupportedException.class})
+    public ResponseEntity<ErrorResponse> handleMalformedRequest(Exception e) {
+        ErrorCode code = ErrorCode.VALIDATION_FAILED;
+        log.warn("[request] 형식 오류 {}", e.getMessage());
+        String message = e instanceof MethodArgumentTypeMismatchException mismatch
+                ? mismatch.getName() + " 값의 형식이 올바르지 않습니다"
+                : code.getMessage();
+        return ResponseEntity.status(code.getStatus()).body(ErrorResponse.of(code.name(), message));
     }
 
     /**
@@ -147,6 +176,11 @@ public class GlobalExceptionHandler {
         ErrorCode code = ErrorCode.METHOD_NOT_ALLOWED;
         log.warn("[routing] 지원하지 않는 메서드 {}", e.getMessage());
         return ResponseEntity.status(code.getStatus()).body(ErrorResponse.of(code.name(), code.getMessage()));
+    }
+
+    /** 자바 필드 경로({@code newStudent.name})를 요청 본문의 키 표기({@code new_student.name}, Ruling 104)로 옮긴다. */
+    private static String snakeCase(String field) {
+        return field.replaceAll("([a-z0-9])([A-Z])", "$1_$2").toLowerCase(Locale.ROOT);
     }
 
     /** 클라이언트에겐 상세를 감추되, 서버 로그엔 스택트레이스를 남겨야 원인 추적이 가능하다. */

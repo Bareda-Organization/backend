@@ -1,7 +1,5 @@
 package src.backend.request.controller;
 
-import java.util.Locale;
-
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,6 +17,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.global.config.ApiTags;
+import src.backend.global.request.ApiValues;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanApproveChange;
@@ -60,9 +59,7 @@ public class StaffApprovalController {
     @GetMapping
     public ApiResponse<ApprovalListResponse> list(@AuthenticationPrincipal AuthUser requester,
             @RequestParam(required = false) String status) {
-        ChangeRequestStatus parsed = status == null
-                ? ChangeRequestStatus.PENDING
-                : ChangeRequestStatus.valueOf(status.toUpperCase(Locale.ROOT));
+        ChangeRequestStatus parsed = status == null ? ChangeRequestStatus.PENDING : ApiValues.changeRequestStatus(status);
         return ApiResponse.ok(approvalQueryService.list(requester, parsed));
     }
 
