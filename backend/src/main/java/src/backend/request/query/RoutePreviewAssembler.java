@@ -35,6 +35,12 @@ import src.backend.student.repository.StudentRepository;
  * <p>여기 모인 메서드는 재최적화를 <b>실행하지 않는다</b> — 이미 계산된 전/후 값을 견주기만 한다.
  * 목표 12 의 호출 수 계약은 {@link ApprovalQueryService#detail} 이 이 클래스를 부르기 전에 이미
  * 지켜졌으므로, 여기서 호출 횟수를 다시 신경 쓸 필요는 없다.
+ *
+ * <p><b>BR-101 — §20.2 클래스 200줄 신호를 넘긴 채 두는 이유</b>: 메서드 각각(승하차지 병합·순번
+ * 비교·영향 학생 산출 등)은 20줄 미만의 순수 조립 함수이고, 전/후 대조라는 <b>한 책임</b>을 여러
+ * 작은 함수로 나눈 것이라 더 쪼개면 서로 참조하는 헬퍼가 파일 사이로 흩어져 오히려 "전/후 대조를
+ * 어디서 하는가" 를 찾기 어려워진다({@link ApprovalQueryService#detail} 이 이미 이 클래스를 단일
+ * 진입점으로 쓴다).
  */
 @Component
 @RequiredArgsConstructor
