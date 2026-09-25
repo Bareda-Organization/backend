@@ -1681,7 +1681,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 **에러** — `409 DUPLICATE_ROUTE`(같은 차량·요일·방향이 이미 편성됨) · `404 ROUTE_NOT_FOUND` · `404 BUS_NOT_FOUND` · `422 VALIDATION_FAILED`(`stop_ids` 중복·학원 밖) · `503 MAP_ROUTE_UNAVAILABLE`(외부 도로 경로 API 서킷 개방 — §8)
 
-⚠ **`stop_ids` 의 두 거부 사유는 현재 구현의 응답에서 구별되지 않는다** — 중복이든 학원 밖이든 `422 VALIDATION_FAILED` 이고, 사유를 가르던 문구가 응답에 도달하지 않는다(`GlobalExceptionHandler` 가 `ErrorCode` 의 고정 문구만 싣는 저장소 전역 성질). **이 절이 사유를 둘로 적은 것은 사양이 그렇게 요구하기 때문**이고, 구현이 그것을 전달하지 못하는 것은 **별도 단위로 등재된 사안**이다 — 화면이 사유를 갈라 안내해야 하면 `ErrorCode` 를 나누는 것이 현재 유일한 수단이다.
+⚠ **`stop_ids` 의 두 거부 사유는 코드가 같다** — 중복이든 학원 밖이든 `422 VALIDATION_FAILED` 이고, 사유는 `error.message` 문구로만 갈린다("같은 승하차지를 두 번 담을 수 없습니다" · "편성할 수 없는 승하차지가 있습니다"). 2026-09-25 전에는 `GlobalExceptionHandler` 가 `ErrorCode` 의 고정 문구만 실어 그 문구도 도달하지 않았다(BR-135 로 해소). 화면이 사유를 **코드로** 갈라 분기해야 하면 `ErrorCode` 를 나누는 것이 유일한 수단이다.
 
 **`GET /staff/routes/{id}/path` 응답**(R27-B 신설) — `road_path`(`{lat,lng}[]`, 순서 있음) · `fallback_used`(`true` 면 직선거리 근사) · `stops[]`(`stop_id` · `seq` · `name` · `lat` · `lng`, 상세 응답과 같은 모양)
 
