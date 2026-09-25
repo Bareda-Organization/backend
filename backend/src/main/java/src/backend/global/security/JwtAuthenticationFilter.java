@@ -8,14 +8,15 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import lombok.RequiredArgsConstructor;
+
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
 
 /**
  * 모든 요청에서 한 번 실행되며, Authorization: Bearer 토큰을 검증해
@@ -32,6 +33,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String HEADER = "Authorization";
     private static final String PREFIX = "Bearer ";
+    /** 토큰 거부 사유({@link ErrorCode})를 엔트리 포인트로 넘기는 요청 속성 이름. */
+    static final String AUTH_FAILURE_ATTR = JwtAuthenticationFilter.class.getName() + ".failure";
 
     private final JwtTokenProvider tokenProvider;
 
@@ -41,17 +44,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = resolveToken(request);
         if (token != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
-                Claims claims = tokenProvider.parse(token);
-                if (tokenProvider.isAccessToken(claims)) {
-                    AuthUser principal = tokenProvider.resolveAuthUser(claims);
-                    UsernamePasswordAuthenticationToken authentication =
-                            new UsernamePasswordAuthenticationToken(principal, null, principal.authorities());
-                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
-                }
-            } catch (JwtException | IllegalArgumentException e) {
-                // 위조·만료 토큰은 인증을 세우지 않는다(익명으로 진행 → 보호 자원이면 401/403)
+                AuthUser principal = tokenProvider.authenticateAccess(token);
+                UsernamePasswordAuthenticationToken authentication =
+                        new UsernamePasswordAuthenticationToken(principal, null, principal.authorities());
+                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            } catch (BusinessException e) {
+                // 위조·만료 토큰은 인증을 세우지 않는다(익명으로 진행) — 보호 자원이면 엔트리 포인트가
+                // 여기 남긴 코드(TOKEN_EXPIRED · UNAUTHORIZED)로 401 본문을 쓴다(BR-033)
                 SecurityContextHolder.clearContext();
+                request.setAttribute(AUTH_FAILURE_ATTR, e.getErrorCode());
             }
         }
         chain.doFilter(request, response);
