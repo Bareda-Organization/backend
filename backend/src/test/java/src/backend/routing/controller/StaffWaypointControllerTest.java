@@ -469,6 +469,51 @@ class StaffWaypointControllerTest {
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
+    // ── BR-020 — 추가·제거 뒤에도 다른 경유 지점이 "어느 승하차지 사이" 를 지킨다 ─────────
+
+    /** 앞 경유 지점을 지워도 맨 뒤 경유 지점의 순번이 자리 수 안으로 당겨진다 — 옛 순번 그대로면 500 이었다. */
+    @Test
+    void 앞_경유_지점을_지워도_맨_뒤_경유_지점은_자리를_지킨다() throws Exception {
+        시나리오 s = 확정된_회차를_만든다();
+        long front = waypointId아이디_읽는다(경유_추가한다(s.runId, 순번_본문("앞경유로 1", "앞", 2, true))
+                .andExpect(status().isOk()).andReturn());
+        long back = waypointId아이디_읽는다(경유_추가한다(s.runId, 경유_본문("뒤경유로 2", "뒤", true))
+                .andExpect(status().isOk()).andReturn());
+        assertThat(배포된_순번(s.runId, back)).as("승하차지 3 + 경유 2 의 맨 뒤").isEqualTo(5);
+
+        경유_삭제한다(s.runId, front, true).andExpect(status().isOk());
+
+        assertThat(배포된_순번(s.runId, back)).isEqualTo(4);
+    }
+
+    /** 이미 경유 지점이 선 자리에 새로 지정하면 새 지점이 그 자리에 서고 기존 지점은 한 칸 뒤로 밀린다. */
+    @Test
+    void 경유_지점이_선_자리에_지정하면_기존_지점이_한_칸_밀린다() throws Exception {
+        시나리오 s = 확정된_회차를_만든다();
+        경유_추가한다(s.runId, 순번_본문("기존경유로 1", "기존", 2, true)).andExpect(status().isOk());
+
+        MvcResult result = 경유_추가한다(s.runId, 순번_본문("새경유로 2", "새", 2, false))
+                .andExpect(status().isOk()).andReturn();
+
+        java.util.List<String> 변경후 = JsonPath.read(result.getResponse().getContentAsString(StandardCharsets.UTF_8),
+                "$.data.route_preview.stops_after[*].stop_name");
+        assertThat(변경후.subList(1, 3)).containsExactly("새", "기존");
+    }
+
+    /** 두 승하차지 사이에 둔 경유 지점은 앞 경유 지점을 지워도 그 사이에 남는다 — 옛 순번 그대로면 뒤로 밀렸다. */
+    @Test
+    void 앞_경유_지점을_지워도_승하차지_사이_자리가_유지된다() throws Exception {
+        시나리오 s = 확정된_회차를_만든다();
+        long front = waypointId아이디_읽는다(경유_추가한다(s.runId, 순번_본문("앞경유로 1", "앞", 2, true))
+                .andExpect(status().isOk()).andReturn());
+        long middle = waypointId아이디_읽는다(경유_추가한다(s.runId, 순번_본문("사이경유로 2", "사이", 4, true))
+                .andExpect(status().isOk()).andReturn());
+
+        경유_삭제한다(s.runId, front, true).andExpect(status().isOk());
+
+        assertThat(배포된_순번(s.runId, middle)).as("[s1, s2, 사이, s3] — 승하차지 둘 뒤").isEqualTo(3);
+    }
+
     // ── BR-120 — 경유 지점은 노선 편성 권한 ────────────────────────────────
 
     /** 경유 지점은 {@code ROUTE_MANAGE}(FEATURE_SPEC §6.2) — 스케줄 권한만 가진 주체에게는 닫혀 있어야 한다. */

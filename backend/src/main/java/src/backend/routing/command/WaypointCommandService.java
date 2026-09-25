@@ -118,8 +118,11 @@ public class WaypointCommandService {
                 OffsetDateTime.now(clock)));
 
         RouteContext ctx = routeContextOf(run);
-        List<FixedStop> fixedStops = new ArrayList<>(existingFixedStopsOf(ctx));
-        fixedStops.add(new FixedStop(waypoint.getId(), point, seqOf(request, ctx)));
+        int seq = seqOf(request, ctx);
+        List<FixedStop> fixedStops = new ArrayList<>(existingFixedStopsOf(ctx).stream()
+                .map(fs -> fs.seq() >= seq ? shifted(fs, 1) : fs)
+                .toList());
+        fixedStops.add(new FixedStop(waypoint.getId(), point, seq));
 
         return orchestrate(run, waypoint, ctx, fixedStops, request.apply(), requester.accountId(), false);
     }
@@ -136,8 +139,15 @@ public class WaypointCommandService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.WAYPOINT_NOT_FOUND));
 
         RouteContext ctx = routeContextOf(run);
-        List<FixedStop> fixedStops = existingFixedStopsOf(ctx).stream()
+        List<FixedStop> existing = existingFixedStopsOf(ctx);
+        int removedSeq = existing.stream()
+                .filter(fs -> fs.waypointId() == waypoint.getId())
+                .mapToInt(FixedStop::seq)
+                .findFirst()
+                .orElse(Integer.MAX_VALUE);
+        List<FixedStop> fixedStops = existing.stream()
                 .filter(fs -> fs.waypointId() != waypoint.getId())
+                .map(fs -> fs.seq() > removedSeq ? shifted(fs, -1) : fs)
                 .toList();
 
         return orchestrate(run, waypoint, ctx, fixedStops, apply, requester.accountId(), true);
@@ -170,6 +180,16 @@ public class WaypointCommandService {
                     "설 자리는 1부터 %d 사이여야 합니다".formatted(last));
         }
         return request.seq();
+    }
+
+    /**
+     * 고정 순번을 {@code delta} 만큼 옮긴다 — 순번은 절대 자리라, 앞에 경유 지점이 하나 끼거나 빠지면 뒤
+     * 경유 지점이 같은 승하차지 사이에 머물려면 순번이 함께 움직여야 한다(BR-020). 옮기지 않으면 제거 뒤
+     * 순번이 자리 수를 넘거나 추가 때 순번이 겹쳐 엔진이 거부하고({@code RouteSlots}, 500), 넘지 않아도
+     * 관계자가 정한 자리가 다른 승하차지 사이로 바뀐다.
+     */
+    private static FixedStop shifted(FixedStop fixedStop, int delta) {
+        return new FixedStop(fixedStop.waypointId(), fixedStop.point(), fixedStop.seq() + delta);
     }
 
     /** 좌표를 우선하고(재검증 호출을 늘리지 않는다), 없으면 주소를 검증한다. 둘 다 없으면 422. */
