@@ -146,6 +146,7 @@ public final class AccountStatusGateEndpoints {
             "POST /admin/staff-signup-requests/{id}/decide",
             "GET /staff/signup-requests",
             "POST /staff/signup-requests/{id}/decide",
+            "POST /staff/accounts/{accountId}/password-reset",
             "GET /staff/students",
             "POST /staff/students",
             "GET /staff/students/{id}",
