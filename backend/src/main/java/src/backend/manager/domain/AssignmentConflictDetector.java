@@ -16,9 +16,9 @@ import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Weekday;
 import src.backend.manager.dto.AssignmentWarning;
 import src.backend.manager.dto.AssignmentWarningCode;
+import src.backend.manager.dto.ManagerRunWindow;
 import src.backend.manager.entity.Manager;
 import src.backend.manager.entity.WorkHours;
-import src.backend.manager.repository.AssignmentRepository;
 import src.backend.run.entity.Run;
 
 /**
@@ -40,26 +40,33 @@ import src.backend.run.entity.Run;
  * 이 없으면 시작 시각과 같은 점으로 접혀 예전 점 판정과 값이 같아진다 — 두 판정이 서로 다른 축을
  * 쓰던 비대칭(Ruling 193 이전, {@code AssignmentRepository#existsOverlappingAssignment} 가
  * 출발 시각 일치만 봤다)이 이 판정으로 해소됐다.
+ *
+ * <p><b>BR-097 — 저장소를 직접 쥐지 않는다</b>(ARCHITECTURE §3.2 "domain: 저장소 접근 금지"). 겹침
+ * 후보({@link ManagerRunWindow} 목록)는 호출부({@code AssignmentCommandService})가 조회해 넘기고,
+ * 이 클래스는 그 목록으로만 판정한다 — DB 없이 단위 시험이 가능해지고, 조회 조건과 판정 규칙이
+ * 한 클래스에 섞이지 않는다.
  */
 @Component
 @RequiredArgsConstructor
 public class AssignmentConflictDetector {
-
-    private final AssignmentRepository assignmentRepository;
 
     private final Clock clock;
 
     /**
      * 이 매니저를 이 회차의 이 자리에 붙였을 때 나오는 경고 전부 — 충돌이 없으면 <b>빈 목록</b>이다.
      *
-     * @param run     배치 대상 회차. 이미 학원으로 좁혀 꺼낸 것이라 여기서 학원을 다시 판정하지 않는다
-     * @param manager 배치할 매니저. 역할이 자리와 맞는지는 호출부가 조회 조건으로 이미 걸렀다
+     * @param run          배치 대상 회차. 이미 학원으로 좁혀 꺼낸 것이라 여기서 학원을 다시 판정하지 않는다
+     * @param manager      배치할 매니저. 역할이 자리와 맞는지는 호출부가 조회 조건으로 이미 걸렀다
+     * @param otherWindows 이 매니저가 배치된 다른 회차의 시간 창 후보(호출부가 {@code
+     *                     AssignmentRepository#findManagerRunWindows} 로 미리 조회, 지금 배치하려는
+     *                     회차 자신은 제외된 목록)
      */
-    public List<AssignmentWarning> detect(Run run, Manager manager, ManagerRole role) {
+    public List<AssignmentWarning> detect(Run run, Manager manager, ManagerRole role,
+            List<ManagerRunWindow> otherWindows) {
         List<AssignmentWarning> warnings = new ArrayList<>();
         workHoursWarning(run, manager).ifPresent(code ->
                 warnings.add(AssignmentWarning.of(code, manager.getId(), role)));
-        if (doubleBooked(run, manager)) {
+        if (doubleBooked(run, otherWindows)) {
             warnings.add(AssignmentWarning.of(AssignmentWarningCode.MANAGER_DOUBLE_BOOKED, manager.getId(), role));
         }
         return warnings;
@@ -141,12 +148,10 @@ public class AssignmentConflictDetector {
      * 겹침으로 본다. 배타로 두면 그 형태(같은 기사가 쉴 틈 없이 바로 다음 회차를 몬다)가 경고 없이
      * 통과한다.
      */
-    private boolean doubleBooked(Run run, Manager manager) {
+    private boolean doubleBooked(Run run, List<ManagerRunWindow> otherWindows) {
         OffsetDateTime start = run.getDepartTime();
         OffsetDateTime end = windowEnd(run);
-        return assignmentRepository.findManagerRunWindows(run.getAcademyId(), manager.getId(), run.getId(),
-                        run.getServiceDate().minusDays(1), run.getServiceDate().plusDays(1))
-                .stream()
+        return otherWindows.stream()
                 .anyMatch(window -> overlaps(start, end, window.departTime(),
                         windowEnd(window.departTime(), window.estDurationMin())));
     }

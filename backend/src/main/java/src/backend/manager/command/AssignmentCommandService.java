@@ -24,6 +24,7 @@ import src.backend.manager.dto.AssignedManagerResponse;
 import src.backend.manager.dto.AssignedManagerView;
 import src.backend.manager.dto.AssignmentRequest;
 import src.backend.manager.dto.AssignmentWarning;
+import src.backend.manager.dto.ManagerRunWindow;
 import src.backend.manager.dto.RunAssignmentResponse;
 import src.backend.manager.entity.Assignment;
 import src.backend.manager.entity.Manager;
@@ -109,7 +110,9 @@ public class AssignmentCommandService {
         Manager manager = managerRepository
                 .findByIdAndAcademyIdAndRoleAndDeletedAtIsNull(managerId, requester.academyId(), role)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MANAGER_NOT_FOUND));
-        List<AssignmentWarning> warnings = conflictDetector.detect(run, manager, role);
+        List<ManagerRunWindow> otherWindows = assignmentRepository.findManagerRunWindows(requester.academyId(),
+                manager.getId(), run.getId(), run.getServiceDate().minusDays(1), run.getServiceDate().plusDays(1));
+        List<AssignmentWarning> warnings = conflictDetector.detect(run, manager, role, otherWindows);
         OffsetDateTime now = OffsetDateTime.now(clock);
         Optional<Assignment> current = assignmentRepository.findByRunIdAndRole(run.getId(), role);
         boolean newlyPlaced = current.map(assignment -> !assignment.getManagerId().equals(manager.getId()))
