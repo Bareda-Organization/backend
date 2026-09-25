@@ -6,7 +6,6 @@ import java.util.List;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 import src.backend.request.entity.ChangeRequest;
 import src.backend.request.entity.ChangeRequestStatus;
@@ -32,7 +31,6 @@ import src.backend.request.repository.ChangeRequestRepository;
  * 집었더라도(먼저 오는 시점이 출발 시각 쪽이었던 경우) 이 서비스의 호출은 0행 갱신으로 조용히
  * 끝난다(목표 3·목표 4).
  */
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class ChangeRequestAutoRejectionService {
@@ -44,10 +42,12 @@ public class ChangeRequestAutoRejectionService {
     /**
      * 그 회차의 미처리 변경 요청을 전부 자동 거절로 종결한다.
      *
-     * <p><b>한 건의 실패가 다른 건을 막지 않는다</b> — {@code ChangeRequestAutoRejectionScheduler} 와
-     * 같은 근거로 건마다 개별 {@code try-catch} 로 감싼다. 이 서비스가 Phase 9 에 의해 회차 시작
-     * 트랜잭션 안에서 불릴 것을 감안하면, 한 건의 실패로 전체를 던져 회차 시작 자체를 막는 것은 이
-     * 서비스의 책임 밖이다 — 실패한 건은 {@code pending} 으로 남아 다음 폴링 틱이 다시 집는다.
+     * <p><b>운행 시작과 원자적이다</b> — 운행 시작 트랜잭션에 합류해 돌므로 한 건이 실패하면 운행 시작
+     * 전체가 롤백된다. 건별 {@code try-catch} 로는 격리할 수 없다(합류한 트랜잭션은 rollback-only 가 되고
+     * Postgres 는 오류 뒤 같은 트랜잭션의 문장을 거부한다, BR-067). 실제로 있던 실패 원인(같은 학생의 대기
+     * 두 건이 같은 알림 멱등키를 만듦)은 키를 요청 단위로 바꾸고(BR-067) 한도 경합을 막아(BR-027) 없앴다.
+     * 건별 격리는 폴링 경로({@code ChangeRequestAutoRejectionScheduler})만 가진다 — 그쪽은 바깥
+     * 트랜잭션이 없어 건마다 새 트랜잭션이 열린다.
      *
      * @param academyId 그 회차가 속한 학원 — 호출부가 이미 확인한 값을 조회에도 실어 좁힌다
      * @param runId     {@code moving} 으로 전이한 회차
@@ -59,15 +59,7 @@ public class ChangeRequestAutoRejectionService {
                 ChangeRequestStatus.PENDING);
 
         for (ChangeRequest request : pending) {
-            autoRejectSafely(request.getId(), decidedAt);
-        }
-    }
-
-    private void autoRejectSafely(Long changeRequestId, OffsetDateTime decidedAt) {
-        try {
-            persistence.autoRejectOne(changeRequestId, decidedAt);
-        } catch (Exception e) {
-            log.warn("변경 요청 {} 의 moving 종결 자동 거절 실패 — 다음 폴링 틱에 재시도한다", changeRequestId, e);
+            persistence.autoRejectOne(request.getId(), decidedAt);
         }
     }
 }

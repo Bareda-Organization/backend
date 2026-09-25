@@ -248,7 +248,7 @@ class ChangeRequestAutoRejectionSchedulerTest {
 
         // 이 요청이 자동 거절되며 만들 dedup_key 를 미리 점유해, 알림 적재에서 DUPLICATE_NOTIFICATION 이
         // 나게 만든다 — ChangeRequestAutoRejectionPersistence 의 트랜잭션 전체가 롤백된다.
-        String collidingDedupKey = "change_decided:" + badRunId + ":" + badStudentId + ":" + now;
+        String collidingDedupKey = "change_decided:" + badRunId + ":" + badRequestId + ":" + now;
         jdbcTemplate.update(
                 "INSERT INTO notification_log (academy_id, recipient_account_id, recipient_name, recipient_role, "
                         + "type, title, body, dedup_key) VALUES (?, ?, '선점', 'parent', 'change_decided', '선점', '선점', ?)",

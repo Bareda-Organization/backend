@@ -32,10 +32,9 @@ public class ChangeRequestAutoRejectedNotificationListener {
     /**
      * {@code dedup_key} 형태 — ERD 의 {@code {event}:{run_id}:{대상}:{판정 시각}} 을 그대로 따른다.
      *
-     * <p>대상 자리에 {@code changeRequestId} 가 아니라 {@code studentId} 를 쓴다 — 한 학생이 같은
-     * 회차에서 재신청·재자동거절을 겪어도 {@code studentId} 는 그 회차 안에서 안정된 축이고,
-     * 판정 시각(네 번째 자리)이 매번 다시 찍혀 재발생이 조용히 차단되지 않는다
-     * ({@link RunRouteConfirmedNotificationListener} 와 같은 근거).
+     * <p>대상 자리에 {@code changeRequestId} 를 쓴다 — 알림은 요청 한 건의 결과라, 학생으로 잡으면 같은
+     * 학생의 대기 건 둘이 한 판정 시각에 함께 자동 거절될 때 같은 키가 되어 운행 시작 트랜잭션 전체가
+     * 롤백됐다(BR-067).
      */
     private static final String DEDUP_KEY_FORMAT = "change_decided:%d:%d:%s";
 
@@ -65,7 +64,7 @@ public class ChangeRequestAutoRejectedNotificationListener {
         NotificationMessage message = changeAutoRejectedComposer.compose(new ChangeAutoRejectedSubject(studentName));
         notificationOutbox.append(new NotificationDraft(event.academyId(), requester.getId(), requester.getName(),
                 requester.getRole(), NotificationType.CHANGE_DECIDED, message.title(), message.body(),
-                DEDUP_KEY_FORMAT.formatted(event.runId(), event.studentId(), event.decidedAt()),
+                DEDUP_KEY_FORMAT.formatted(event.runId(), event.changeRequestId(), event.decidedAt()),
                 event.studentId(), studentName, null));
     }
 }
