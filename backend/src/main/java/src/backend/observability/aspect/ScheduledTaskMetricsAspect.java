@@ -47,7 +47,7 @@ public class ScheduledTaskMetricsAspect implements ApplicationListener<ContextRe
 
     @Around("@annotation(org.springframework.scheduling.annotation.Scheduled)")
     public Object measure(ProceedingJoinPoint joinPoint) throws Throwable {
-        String scheduler = schedulerName(joinPoint.getTarget().getClass());
+        String scheduler = SchedulerHealthMetrics.nameOf(joinPoint.getTarget().getClass());
         try {
             Object result = joinPoint.proceed();
             metrics.recordSuccess(scheduler);
@@ -76,7 +76,7 @@ public class ScheduledTaskMetricsAspect implements ApplicationListener<ContextRe
             }
             Class<?> targetClass = ClassUtils.getUserClass(beanType);
             if (hasScheduledMethod(targetClass)) {
-                metrics.preRegister(schedulerName(targetClass));
+                metrics.preRegister(SchedulerHealthMetrics.nameOf(targetClass));
             }
         }
     }
@@ -88,14 +88,5 @@ public class ScheduledTaskMetricsAspect implements ApplicationListener<ContextRe
             }
         }
         return false;
-    }
-
-    /** {@code ConnectionLossScheduler} → {@code connection-loss}. 접미사 Scheduler 를 떼고 케밥으로 바꾼다. */
-    private String schedulerName(Class<?> targetClass) {
-        String simpleName = ClassUtils.getUserClass(targetClass).getSimpleName();
-        String base = simpleName.endsWith("Scheduler")
-                ? simpleName.substring(0, simpleName.length() - "Scheduler".length())
-                : simpleName;
-        return base.replaceAll("([a-z0-9])([A-Z])", "$1-$2").toLowerCase();
     }
 }

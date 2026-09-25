@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import src.backend.observability.metrics.ChangeRequestAutoRejectionMetrics;
+import src.backend.observability.metrics.SchedulerHealthMetrics;
 import src.backend.request.command.ChangeRequestAutoRejectionPersistence;
 import src.backend.request.entity.ChangeRequest;
 import src.backend.request.entity.ChangeRequestStatus;
@@ -49,6 +50,8 @@ public class ChangeRequestAutoRejectionScheduler {
     private final Clock clock;
 
     private final ChangeRequestAutoRejectionMetrics metrics;
+
+    private final SchedulerHealthMetrics schedulerHealthMetrics;
 
     /**
      * 마감이 지난 대기 요청을 자동 거절한다.
@@ -91,6 +94,7 @@ public class ChangeRequestAutoRejectionScheduler {
             }
         } catch (Exception e) {
             log.warn("변경 요청 {} 자동 거절 실패 — 다음 틱에 재시도한다", changeRequestId, e);
+            schedulerHealthMetrics.recordItemFailure(getClass());
         }
     }
 }

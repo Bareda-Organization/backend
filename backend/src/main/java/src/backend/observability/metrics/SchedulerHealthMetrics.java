@@ -6,6 +6,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.ClassUtils;
 import org.springframework.stereotype.Component;
 
 import io.micrometer.core.instrument.Gauge;
@@ -14,10 +15,11 @@ import io.micrometer.core.instrument.MeterRegistry;
 /**
  * {@code @Scheduled} 작업이 마지막으로 성공한 뒤 흐른 시간과 실패 누적을 보관한다.
  *
- * <p>이 프로젝트의 스케줄러 4개는 예외를 잡아 로그만 남기고 계속 진행한다 — 판정 로직이 실패해도
- * 앱은 정상 기동 상태를 유지하고, 알림이 나가지 않는 것으로만 뒤늦게 드러난다. 특히
- * {@code SosEscalationScheduler} 가 멈추면 3분 미확인 SOS 가 에스컬레이션되지 않는다.
- * "마지막 성공 이후 경과"를 게이지로 두면 그 정지를 대시보드에서 볼 수 있다.
+ * <p>이 프로젝트의 폴링 스케줄러(미승차 에스컬레이션 · 자동 거절 · 근접·출발 알림 · 확정 · 보존 정리)는 건별
+ * 예외를 잡아 로그만 남기고 계속 진행한다 — 판정 로직이 실패해도 앱은 정상 기동 상태를 유지하고, 알림이 나가지
+ * 않는 것으로만 뒤늦게 드러난다. 특히 {@code NoShowEscalationScheduler} 가 멈추면 3분 미보고 미승차가
+ * 에스컬레이션되지 않는다. "마지막 성공 이후 경과" 게이지는 주기 전체의 정지를, 건별 실패는
+ * {@link #recordItemFailure} 가 실패 카운터로 드러낸다(BR-064).
  *
  * <p>이 클래스는 값만 보관한다. 언제 호출할지는 {@code ScheduledTaskMetricsAspect} 가 정하며,
  * 스케줄러 코드는 이 계측의 존재를 모른다.
@@ -60,6 +62,25 @@ public class SchedulerHealthMetrics {
     public void recordFailure(String scheduler) {
         anchor(scheduler);
         registry.counter(FAILURE_METRIC, "scheduler", scheduler).increment();
+    }
+
+    /**
+     * 스케줄러가 건별로 잡아 삼킨 실패 1건(BR-064) — 주기 자체는 정상 반환하므로 애스펙트가 보지 못한다. 실패 수만
+     * 올리고 성공 시각은 건드리지 않는다(그 주기의 다른 건은 처리됐을 수 있다).
+     *
+     * @param schedulerClass 호출한 스케줄러 — 태그 이름은 {@link #nameOf} 규칙으로 애스펙트의 것과 같다
+     */
+    public void recordItemFailure(Class<?> schedulerClass) {
+        registry.counter(FAILURE_METRIC, "scheduler", nameOf(schedulerClass)).increment();
+    }
+
+    /** {@code ConnectionLossScheduler} → {@code connection-loss}. 접미사 Scheduler 를 떼고 케밥으로 바꾼다. */
+    public static String nameOf(Class<?> schedulerClass) {
+        String simpleName = ClassUtils.getUserClass(schedulerClass).getSimpleName();
+        String base = simpleName.endsWith("Scheduler")
+                ? simpleName.substring(0, simpleName.length() - "Scheduler".length())
+                : simpleName;
+        return base.replaceAll("([a-z0-9])([A-Z])", "$1-$2").toLowerCase();
     }
 
     /**

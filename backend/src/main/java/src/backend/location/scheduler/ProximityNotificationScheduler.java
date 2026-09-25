@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import src.backend.location.proximity.ProximityNotificationService;
+import src.backend.observability.metrics.SchedulerHealthMetrics;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
@@ -43,6 +44,8 @@ public class ProximityNotificationScheduler {
     private final RunRepository runRepository;
 
     private final ProximityNotificationService proximityNotificationService;
+
+    private final SchedulerHealthMetrics schedulerHealthMetrics;
 
     /**
      * 운행 중인 회차마다 근접 판정을 시도한다.
@@ -82,11 +85,13 @@ public class ProximityNotificationScheduler {
             proximityNotificationService.judgeOne(runId, academyId);
         } catch (Exception e) {
             log.warn("회차 {} 근접 판정 실패 — 다음 틱에 재시도한다", runId, e);
+            schedulerHealthMetrics.recordItemFailure(getClass());
         }
         try {
             proximityNotificationService.judgeDeparture(runId, academyId);
         } catch (Exception e) {
             log.warn("회차 {} 출발 판정 실패 — 다음 틱에 재시도한다", runId, e);
+            schedulerHealthMetrics.recordItemFailure(getClass());
         }
     }
 }
