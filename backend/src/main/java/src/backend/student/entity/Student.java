@@ -24,8 +24,8 @@ import src.backend.global.error.ErrorCode;
  * 가입 승인 시점에 이뤄진다(ERD §3.2 · STU-01~08 · AUTH-11).
  *
  * <p>{@code account_id} 는 계정 미연결(AUTH-11)이 정상이라 nullable 이고, {@code guardian_phone}
- * 컬럼은 존재하지 않는다 — 보호자 연락처는 {@code guardian_student} → {@code guardian} →
- * {@code account.phone} 조인 조회 대상이다(A-10). {@code deleted_at} 은 퇴원 soft delete 컬럼이며
+ * 컬럼은 존재하지 않는다 — 보호자 연락처는 {@code guardian_student} → {@code guardian.phone} 조인
+ * 조회 대상이다(계정 연락처와 분리, Ruling 326). {@code deleted_at} 은 퇴원 soft delete 컬럼이며
  * 조회 필터({@code @Where} 등)를 엔티티에 붙이지 않는다 — 오늘 명단은 퇴원생을 포함해야 하고
  * (STU-04) 관리 목록은 제외해야 해서, 거를지 말지는 <b>조회하는 쪽</b>이 정할 일이다.
  */
@@ -104,9 +104,12 @@ public class Student extends BaseTimeEntity {
     /**
      * 관계자가 학생 정보를 고친다(STU-03, API_SPEC §5.11 PATCH) — {@code null} 인 항목은 그대로 둔다.
      *
-     * <p>보호자 연락처·승하차 주소를 인자로 받지 않는 것이 "관계자 입력 대상 밖"(A-10)을 강제하는
-     * 방식이다 — 요청 본문에 실려 와도 이 메서드까지 닿을 경로가 부재하다. 학원과 계정 연결도 같은
-     * 이유로 여기 없다({@link #linkAccount} 가 따로 받는다).
+     * <p>승하차 주소를 인자로 받지 않는 것이 "관계자 입력 대상 밖"(A-10)을 강제하는 방식이다 — 요청
+     * 본문에 실려 와도 이 메서드까지 닿을 경로가 부재하다. 보호자 연락처는 대상 밖이 아니라
+     * {@code guardians[]} 로 받지만, 그 값은 {@code Student} 가 아니라 {@link
+     * src.backend.student.entity.Guardian#changePhone} 이 직접 반영한다(Ruling 326) — 그래서 이
+     * 메서드에도 인자가 없다. 학원과 계정 연결도 같은 이유로 여기 없다({@link #linkAccount} 가 따로
+     * 받는다).
      */
     public void update(StudentProfile profile) {
         this.name = profile.name() == null ? this.name : profile.name();

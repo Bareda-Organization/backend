@@ -10,8 +10,10 @@ import jakarta.validation.constraints.Size;
  * 학생 등록 요청(STU-02, API_SPEC §5.11 POST).
  *
  * <p><b>보호자 연락처와 승하차 주소를 받는 필드가 부재한 것이 사양이다</b>(A-10, 2026-08-24 확정) —
- * 연락처는 연결된 보호자 계정에서 조회하고 주소는 학부모가 요일별로 등록한다(§3.7). 본문에 실어
- * 보내도 바인딩될 자리가 없어 무시된다({@code AcademyRegisterRequest} 의 {@code code} 와 같은 방식).
+ * 등록 시점에는 아직 보호자가 연결돼 있지 않고, 연결 뒤의 연락처({@code guardian.phone})는 별도
+ * 경로({@code PATCH .../guardians[]}, Ruling 326)로 고친다. 주소는 학부모가 요일별로 등록한다(§3.7).
+ * 본문에 실어 보내도 바인딩될 자리가 없어 무시된다({@code AcademyRegisterRequest} 의 {@code code} 와
+ * 같은 방식).
  *
  * <p><b>사진을 받는 필드가 여기 부재한 것도 사양이다</b>(Ruling 160) — 요청의 {@code photo} 는
  * 멀티파트의 <b>파일 파트</b>이고(§1.1), 응답·컬럼의 {@code photo_url} 은 서버가 저장한 뒤 만들어 준

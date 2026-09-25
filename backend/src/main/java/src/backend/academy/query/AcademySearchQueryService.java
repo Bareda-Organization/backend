@@ -20,9 +20,8 @@ import src.backend.global.persistence.LikeEscape;
 public class AcademySearchQueryService {
 
     /**
-     * 비인증 공개 엔드포인트라 {@code q="%"} 같은 값이 전체 활성 학원을 반환하지 않도록 거는 상한.
-     * API_SPEC §2.1 은 구체적인 상한값을 못박지 않아, 가입 화면에서 학원을 고르는 UX 상 한 화면에
-     * 다 보여줄 만한 크기로 자체 결정한다.
+     * 비인증 공개 엔드포인트라 {@code q="%"} 같은 값이 전체 활성 학원을 반환하지 않도록 거는 상한 —
+     * API_SPEC §2.1 이 명시한 값("정렬·상한 — … 최대 20건")과 같다.
      */
     private static final int MAX_RESULTS = 20;
 

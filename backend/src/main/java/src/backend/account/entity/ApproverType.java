@@ -9,9 +9,9 @@ import src.backend.global.common.converter.LowerCaseEnumConverter;
  */
 public enum ApproverType {
 
-    /** 학원 관계자(메인 관리자)가 승인. */
+    /** 그 학원의 관계자(학원 소속 {@code Role.STAFF} 계정)가 승인 — 학생·학부모·기사·매니저 가입 대상. */
     STAFF,
-    /** 플랫폼 관리자가 승인. */
+    /** 메인 관리자(운영사 {@code SYSTEM_ADMIN})가 승인 — 학원 관계자 가입 대상(FEATURE_SPEC §3.1). */
     SYSTEM_ADMIN;
 
     /** {@link ApproverType} 을 소문자 컬럼 값으로 잇는 JPA 컨버터. */
