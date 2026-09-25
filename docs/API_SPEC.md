@@ -1054,7 +1054,9 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | `no_show` | **즉시 발송** | 미승차 카운트 +1 + **에스컬레이션 시작** |
 | `absent` | **부재** — 학부모가 스스로 설정한 값 | 미등원 카운트 +1 |
 
-**에러** — `403 ESCORT_ONLY` · `409 RUN_NOT_MOVING` · `422 VALIDATION_FAILED` · `404 RIDER_NOT_FOUND`(미존재 탑승자 · `absent` 로 명단에서 제외된 탑승자) · `404 RUN_NOT_FOUND`
+**전이 표(FEATURE_SPEC §3.3, Ruling 345)** — 이 엔드포인트가 받는 것은 `waiting→boarded` · `waiting→no_show` · `boarded→alighted` 셋뿐이다. 같은 상태 재요청을 포함해 그 밖은 `409 RIDER_TRANSITION_NOT_ALLOWED` — 상태·이력·이벤트 변화 없음. 표 밖으로 가려면 되돌리기(§4.7)가 먼저다. `client_key` 재전송(멱등 재생)은 이 판정보다 먼저 처리된다.
+
+**에러** — `403 ESCORT_ONLY` · `409 RUN_NOT_MOVING` · `409 RIDER_TRANSITION_NOT_ALLOWED`(전이 표 밖 · Ruling 345) · `422 VALIDATION_FAILED` · `404 RIDER_NOT_FOUND`(미존재 탑승자 · `absent` 로 명단에서 제외된 탑승자) · `404 RUN_NOT_FOUND`
 
 ### 4.7 POST /runs/{runId}/riders/{riderId}/revert
 
@@ -2476,6 +2478,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `STOP_ALREADY_DEPARTED` | 409 | 승하차지를 이미 떠난 뒤의 되돌리기 시도(§4.7) — `run_stop.departed_at IS NOT NULL`. 도착 처리된 정차지에서 버스가 100m 밖으로 벗어난 최초 시점에 기록(claimDeparture 조건부 UPDATE). 횟수 제한은 부재하나 이 경계만 막음 (BRD-05, 2026-09-19 사용자 확정 Ruling 305, 판정 방식은 Ruling 307 로 교체) |
 | `RUN_NOT_CONFIRMED` | 409 | 확정 전(`idle`) 회차의 명단·운행 진입·경유 지점 지정(§5.15) |
 | `RUN_NOT_MOVING` | 409 | `moving` 아닌 회차에 위치 업로드·승하차 처리 |
+| `RIDER_TRANSITION_NOT_ALLOWED` | 409 | 승하차 처리(§4.6)가 FEATURE_SPEC §3.3 전이 표(`waiting→boarded` · `waiting→no_show` · `boarded→alighted`) 밖의 상태를 요청 — 같은 상태 재요청 포함. 표 밖으로 가려면 되돌리기(§4.7)가 먼저다. 422 가 아니라 409 인 이유는 `STOP_ALREADY_DEPARTED` 와 같다 — 요청 형식이 아니라 탑승자의 현재 상태가 막는다 (2026-09-25 신설, Ruling 345) |
 | `RUN_NOT_FOUND` | 404 | 존재하지 않는 회차 · 타 학원 — 존재 비노출, Ruling 163 |
 | `RUN_ALREADY_STARTED` | 409 | 이미 `moving` · `finished` 인 회차에 운행 시작 요청 · 임시 취소(§5.10 — 취소는 `idle`·`confirmed` 만) (RUN-02 · §9.3 운행 상태 전이) |
 | `RUN_CANCELED` | 409 | 임시 취소된 회차(§5.10 `canceled_at`)에 운행 시작(§4.4) · 강제 추가(§5.7) · 이동(§5.8). 404 가 아닌 것은 행이 실재하고 관계자 화면에 취소로 보이기 때문 (BR-042) |
