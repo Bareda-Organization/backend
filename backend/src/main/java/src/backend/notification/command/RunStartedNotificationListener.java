@@ -1,8 +1,6 @@
 package src.backend.notification.command;
 
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -113,10 +111,7 @@ public class RunStartedNotificationListener {
     }
 
     /**
-     * 학부모 — 학생 1명에 보호자가 여럿이어도 <b>한 명(첫 보호자)</b> 에게만 보낸다.
-     *
-     * <p>{@code findGuardianAccountsByAcademyId} 가 정렬을 고정해 두므로, 그 순서에서 학생당
-     * 처음 나오는 행만 취하는 것으로 "첫 보호자"가 결정론적이 된다.
+     * 학부모 — 연결된 보호자 전원(BR-073, §9.7 수신자 "학부모" · Ruling 326 한 학생에 보호자 여럿).
      *
      * <p>{@code dedup_key} 의 대상 자리에 보호자 계정과 <b>studentId</b> 를 함께 쓴다 — 같은 회차에
      * 형제자매가 함께 타 같은 보호자 계정으로 귀결되면 계정만으로는 두 학생에서 같아진다.
@@ -124,17 +119,12 @@ public class RunStartedNotificationListener {
     private void appendToGuardians(RunStartedEvent event, NotificationMessage message, List<Long> studentIds) {
         List<GuardianAccountRecipient> guardians = guardianStudentRepository
                 .findGuardianAccountsByAcademyId(event.academyId(), studentIds);
-        Map<Long, GuardianAccountRecipient> firstGuardianPerStudent = new LinkedHashMap<>();
         for (GuardianAccountRecipient guardian : guardians) {
-            firstGuardianPerStudent.putIfAbsent(guardian.getStudentId(), guardian);
-        }
-        for (Map.Entry<Long, GuardianAccountRecipient> entry : firstGuardianPerStudent.entrySet()) {
-            GuardianAccountRecipient guardian = entry.getValue();
             notificationOutbox.append(new NotificationDraft(event.academyId(), guardian.getAccountId(),
                     guardian.getName(), Role.PARENT, NotificationType.RUN_STARTED, message.title(), message.body(),
                     DEDUP_KEY_FORMAT.formatted(event.runId(),
-                            "guardian:" + guardian.getAccountId() + ":" + entry.getKey(), event.startedAt()),
-                    entry.getKey(), guardian.getStudentName(), null));
+                            "guardian:" + guardian.getAccountId() + ":" + guardian.getStudentId(), event.startedAt()),
+                    guardian.getStudentId(), guardian.getStudentName(), null));
         }
     }
 
