@@ -3,7 +3,6 @@ package src.backend.request.command;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -34,7 +33,6 @@ import src.backend.request.preview.ApprovalPreviewResolver.OriginDestination;
 import src.backend.request.preview.spec.ApprovalPreview;
 import src.backend.request.preview.spec.ApprovalPreviewCache;
 import src.backend.request.repository.ChangeRequestRepository;
-import src.backend.routing.engine.spec.OrderedStop;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.Route;
 import src.backend.routing.entity.RouteStop;
@@ -182,7 +180,7 @@ public class ChangeRequestDecisionService {
                 computation.snapshot().fallbackUsed(), computation.roadPath(), requester.accountId(), decidedAt);
         routeVersionRepository.save(newVersion);
         confirmedRouteRepository.assignCurrentVersion(run.getId(), newVersion.getId());
-        runStopRepository.saveAll(runStopsOf(newVersion.getId(), computation));
+        runStopRepository.saveAll(RunStop.listOf(newVersion.getId(), computation, run.getDirection()));
 
         // assignCurrentVersion 이 clearAutomatically=true 라 위 호출 시점에 영속 컨텍스트 전체가
         // 비워진다 — target·cr 은 그 이전에 로드해 둔 인스턴스라 이 시점부턴 준영속(detached) 상태다.
@@ -268,20 +266,4 @@ public class ChangeRequestDecisionService {
         return Weekday.valueOf(serviceDate.getDayOfWeek().name().substring(0, 3).toUpperCase(Locale.ROOT));
     }
 
-    /** {@code computation.stops()} 와 {@code etas()} 는 자리로 대응한다({@code RunConfirmationPersistence} 와 같은 헬퍼). */
-    private static List<RunStop> runStopsOf(Long versionId, RouteComputation computation) {
-        List<OrderedStop> stops = computation.stops();
-        List<OffsetDateTime> etas = computation.etas();
-        List<RunStop> runStops = new ArrayList<>(stops.size());
-        for (int i = 0; i < stops.size(); i++) {
-            OrderedStop stop = stops.get(i);
-            OffsetDateTime eta = etas.get(i);
-            if (stop.stopId() != null) {
-                runStops.add(RunStop.forStop(versionId, stop.stopId(), stop.seq(), eta));
-            } else {
-                runStops.add(RunStop.forWaypoint(versionId, stop.waypointId(), stop.seq(), eta));
-            }
-        }
-        return runStops;
-    }
 }

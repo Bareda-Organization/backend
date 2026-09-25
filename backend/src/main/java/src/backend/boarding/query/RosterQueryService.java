@@ -12,6 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.academy.entity.Academy;
+import src.backend.academy.repository.AcademyRepository;
 import src.backend.audit.service.AuditRecorder;
 import src.backend.boarding.dto.ManagerRosterResponse;
 import src.backend.boarding.dto.ManagerRosterResponse.Counts;
@@ -71,6 +73,8 @@ public class RosterQueryService {
 
     private final StopRepository stopRepository;
 
+    private final AcademyRepository academyRepository;
+
     private final StudentRepository studentRepository;
 
     private final GuardianStudentRepository guardianStudentRepository;
@@ -97,13 +101,18 @@ public class RosterQueryService {
         Map<Long, String> maskedPhonesById = maskedPhonesOf(requester, studentsById.keySet());
         List<RunStop> boardingStops = boardingStopsOf(requester, run);
         Map<Long, Stop> stopsById = stopRepository
-                .findAllByAcademyIdAndIdIn(requester.academyId(), boardingStops.stream().map(RunStop::getStopId).toList())
+                .findAllByAcademyIdAndIdIn(requester.academyId(),
+                        boardingStops.stream().map(RunStop::getStopId).filter(id -> id != null).toList())
                 .stream()
                 .collect(Collectors.toMap(Stop::getId, stop -> stop));
+        Academy academy = academyRepository.findById(run.getAcademyId()).orElse(null);
         Map<Long, List<RunRider>> ridersByStopId = riders.stream().collect(Collectors.groupingBy(RunRider::getStopId));
         List<StopGroup> stops = boardingStops.stream()
-                .map(runStop -> toStopGroup(runStop, stopsById.get(runStop.getStopId()),
-                        ridersByStopId.getOrDefault(runStop.getStopId(), List.of()), studentsById, maskedPhonesById))
+                .map(runStop -> runStop.isDestination()
+                        ? destinationGroupOf(runStop, academy)
+                        : toStopGroup(runStop, stopsById.get(runStop.getStopId()),
+                                ridersByStopId.getOrDefault(runStop.getStopId(), List.of()), studentsById,
+                                maskedPhonesById))
                 .toList();
         recordManagerRosterAudit(requester, run, stops);
         return new ManagerRosterResponse(String.valueOf(run.getId()), busNo, lower(run.getDirection().name()),
@@ -196,9 +205,16 @@ public class RosterQueryService {
                 .toList();
         String name = stopInfo == null ? null : stopInfo.getName();
         String address = stopInfo == null ? null : stopInfo.getAddress();
-        return new StopGroup(String.valueOf(runStop.getStopId()), runStop.getSeq(), name, address,
+        return new StopGroup(String.valueOf(runStop.getId()), runStop.getSeq(), name, address,
                 runStop.getChange() == null ? null : lower(runStop.getChange().name()), runStop.getSkipNotice(),
-                runStop.getArrivedAt(), students);
+                runStop.getArrivedAt(), false, students);
+    }
+
+    /** 등원 회차의 학원 항목(Ruling 327) — 탈 학생이 없고 이름·주소는 학원 것이다. */
+    private StopGroup destinationGroupOf(RunStop runStop, Academy academy) {
+        return new StopGroup(String.valueOf(runStop.getId()), runStop.getSeq(),
+                academy == null ? null : academy.getName(), academy == null ? null : academy.getAddress(), null, null,
+                runStop.getArrivedAt(), true, List.of());
     }
 
     private RosterStudent toRosterStudent(RunRider rider, Student student, String maskedPhone) {
@@ -223,7 +239,10 @@ public class RosterQueryService {
         return new Counts(boarded, waiting, noShow, absentN);
     }
 
-    /** 확정 노선의 정차 항목 중 <b>학생 승하차지</b>(RTE-10 강제 경유지 제외)만 순번대로 고른다. */
+    /**
+     * 확정 노선의 정차 항목 중 <b>학생 승하차지</b>와 등원 <b>학원 항목</b>을 순번대로 고른다 — 강제
+     * 경유지(RTE-10)는 도착 처리 대상이 아니라 뺀다. 학원 항목을 빼면 앱에 등원 종료 수단이 없다(Ruling 327).
+     */
     private List<RunStop> boardingStopsOf(AuthUser requester, Run run) {
         Long currentVersionId = confirmedRouteRepository.findById(run.getId())
                 .map(ConfirmedRoute::getCurrentVersionId)
@@ -233,7 +252,7 @@ public class RosterQueryService {
         }
         List<RunStop> runStops = runStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeq(currentVersionId,
                 requester.academyId());
-        return runStops.stream().filter(stop -> stop.getStopId() != null).toList();
+        return runStops.stream().filter(stop -> stop.getStopId() != null || stop.isDestination()).toList();
     }
 
     private Map<Long, Student> studentsOf(AuthUser requester, List<RunRider> riders) {

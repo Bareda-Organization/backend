@@ -10,6 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.academy.entity.Academy;
+import src.backend.academy.repository.AcademyRepository;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
@@ -55,6 +57,8 @@ public class RunRouteQueryService {
 
     private final WaypointRepository waypointRepository;
 
+    private final AcademyRepository academyRepository;
+
     public RunRouteResponse route(AuthUser requester, Long runId) {
         ManagerRunAccess.RunAssignment assigned = managerRunAccess.requireAssignedRun(requester, runId);
         Run run = assigned.run();
@@ -93,22 +97,25 @@ public class RunRouteQueryService {
         Map<Long, Waypoint> waypointsById = waypointRepository.findAllAppliedByRunIdAndAcademyId(run.getId(),
                 academyId).stream().collect(Collectors.toMap(Waypoint::getId, waypoint -> waypoint));
         Map<Long, Long> studentCountsByStopId = studentCountsByStopId(run);
+        Academy academy = academyRepository.findById(academyId).orElse(null);
 
         List<RouteStop> stops = runStops.stream()
-                .map(runStop -> toRouteStop(runStop, stopsById.get(runStop.getStopId()),
-                        waypointsById.get(runStop.getWaypointId()), studentCountsByStopId))
+                .map(runStop -> toRouteStop(runStop, stopsById, waypointsById, academy, studentCountsByStopId))
                 .toList();
 
         RunStop currentRunStop = runStops.stream()
                 .filter(stop -> stop.getArrivedAt() != null)
                 .max(Comparator.comparingInt(RunStop::getSeq))
                 .orElse(null);
+        int afterSeq = currentRunStop == null ? -1 : currentRunStop.getSeq();
+        // 다음은 "마지막 도착 뒤" 에서만 고른다(BR-015) — 경유 지점은 도착 처리 대상이 아니라, 그 뒤
+        // 승하차지에 도착한 뒤에도 "미도착" 으로 남는다. 미도착 전체의 최소 순번을 고르면 지난 경유
+        // 지점이 next_stop 에 고정된다.
         RunStop nextRunStop = runStops.stream()
-                .filter(stop -> stop.getArrivedAt() == null && stop.getChange() != ChangeType.SKIPPED)
-                .filter(stop -> hasResolvedTarget(stop, stopsById, waypointsById))
+                .filter(stop -> stop.getSeq() > afterSeq && stop.getChange() != ChangeType.SKIPPED)
+                .filter(stop -> hasResolvedTarget(stop, stopsById, waypointsById, academy))
                 .min(Comparator.comparingInt(RunStop::getSeq))
                 .orElse(null);
-        int afterSeq = currentRunStop == null ? -1 : currentRunStop.getSeq();
         String skippedNotice = runStops.stream()
                 .filter(stop -> stop.getChange() == ChangeType.SKIPPED && stop.getSeq() > afterSeq)
                 .min(Comparator.comparingInt(RunStop::getSeq))
@@ -116,11 +123,9 @@ public class RunRouteQueryService {
                 .orElse(null);
 
         RouteStop currentStop = currentRunStop == null ? null
-                : toRouteStop(currentRunStop, stopsById.get(currentRunStop.getStopId()),
-                        waypointsById.get(currentRunStop.getWaypointId()), studentCountsByStopId);
+                : toRouteStop(currentRunStop, stopsById, waypointsById, academy, studentCountsByStopId);
         RouteStop nextStop = nextRunStop == null ? null
-                : toRouteStop(nextRunStop, stopsById.get(nextRunStop.getStopId()),
-                        waypointsById.get(nextRunStop.getWaypointId()), studentCountsByStopId);
+                : toRouteStop(nextRunStop, stopsById, waypointsById, academy, studentCountsByStopId);
 
         return new RunRouteResponse(stops, currentStop, nextStop, skippedNotice);
     }
@@ -135,7 +140,11 @@ public class RunRouteQueryService {
      * {@code stops[]} 배열 자체(전체 목록)는 그대로 좌표 없는 항목을 보존한다 — 그쪽은 상위 항목에만
      * {@code ●} 가 있고 내부 필드는 별도 등급(API_SPEC §1.13)이라 이 필터를 적용할 근거가 없다.
      */
-    private boolean hasResolvedTarget(RunStop runStop, Map<Long, Stop> stopsById, Map<Long, Waypoint> waypointsById) {
+    private boolean hasResolvedTarget(RunStop runStop, Map<Long, Stop> stopsById, Map<Long, Waypoint> waypointsById,
+            Academy academy) {
+        if (runStop.isDestination()) {
+            return academy != null && academy.hasCoordinates();
+        }
         return stopsById.get(runStop.getStopId()) != null || waypointsById.get(runStop.getWaypointId()) != null;
     }
 
@@ -147,17 +156,26 @@ public class RunRouteQueryService {
                 .collect(Collectors.groupingBy(RunRider::getStopId, Collectors.counting()));
     }
 
-    private RouteStop toRouteStop(RunStop runStop, Stop stop, Waypoint waypoint, Map<Long, Long> studentCounts) {
+    /** 학원 항목은 이름·주소·좌표를 학원에서 싣는다(Ruling 327) — 탑승 인원은 늘 0 이다. */
+    private RouteStop toRouteStop(RunStop runStop, Map<Long, Stop> stopsById, Map<Long, Waypoint> waypointsById,
+            Academy academy, Map<Long, Long> studentCounts) {
         String change = runStop.getChange() == null ? null : runStop.getChange().name().toLowerCase(java.util.Locale.ROOT);
+        Stop stop = stopsById.get(runStop.getStopId());
         if (stop != null) {
             long studentCount = studentCounts.getOrDefault(stop.getId(), 0L);
-            return new RouteStop(stop.getId(), runStop.getSeq(), stop.getName(), stop.getAddress(), stop.getLat(),
-                    stop.getLng(), change, studentCount);
+            return new RouteStop(runStop.getId(), runStop.getSeq(), stop.getName(), stop.getAddress(), stop.getLat(),
+                    stop.getLng(), change, studentCount, false);
         }
+        Waypoint waypoint = waypointsById.get(runStop.getWaypointId());
         if (waypoint != null) {
-            return new RouteStop(null, runStop.getSeq(), waypoint.getLabel(), waypoint.getAddress(),
-                    waypoint.getLat(), waypoint.getLng(), change, 0L);
+            return new RouteStop(runStop.getId(), runStop.getSeq(), waypoint.getLabel(), waypoint.getAddress(),
+                    waypoint.getLat(), waypoint.getLng(), change, 0L, false);
         }
-        return new RouteStop(null, runStop.getSeq(), null, null, null, null, change, 0L);
+        if (runStop.isDestination() && academy != null) {
+            return new RouteStop(runStop.getId(), runStop.getSeq(), academy.getName(), academy.getAddress(),
+                    academy.getLat(), academy.getLng(), change, 0L, true);
+        }
+        return new RouteStop(runStop.getId(), runStop.getSeq(), null, null, null, null, change, 0L,
+                runStop.isDestination());
     }
 }

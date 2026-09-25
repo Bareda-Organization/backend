@@ -178,10 +178,16 @@ class StaffApprovalDecideControllerTest {
         Long currentVersionId = jdbcTemplate.queryForObject(
                 "SELECT current_version_id FROM confirmed_route WHERE run_id = ?", Long.class, s.runId);
         List<Long> stopIds = jdbcTemplate.queryForList(
-                "SELECT stop_id FROM run_stop WHERE route_version_id = ? ORDER BY seq", Long.class,
+                "SELECT stop_id FROM run_stop WHERE route_version_id = ? AND NOT destination ORDER BY seq", Long.class,
                 currentVersionId);
         assertThat(stopIds).as("취소된 학생(midStop)의 정류장이 실제로 배포된 노선에서 빠져야 한다")
                 .containsExactly(s.firstStopId, s.lastStopId);
+        // BR-002(Ruling 327) — 재최적화로 쌓은 새 버전도 등원이면 맨 뒤에 학원 항목을 싣는다. 빠지면 승인 뒤부터
+        // 매니저 앱 명단에 학원 도착 버튼이 없어 등원 운행이 끝나지 않는다.
+        Boolean lastIsDestination = jdbcTemplate.queryForObject(
+                "SELECT destination FROM run_stop WHERE route_version_id = ? ORDER BY seq DESC LIMIT 1", Boolean.class,
+                currentVersionId);
+        assertThat(lastIsDestination).as("새 버전의 마지막 항목은 학원이어야 한다").isTrue();
 
         // run_stop(배포된 노선)만 보면 target.markAbsent(...) 자체가 커밋됐는지는 못 본다 — 그 학생의
         // 명단 상태(run_rider.status)를 직접 확인한다.
@@ -250,7 +256,7 @@ class StaffApprovalDecideControllerTest {
         Long currentVersionId = jdbcTemplate.queryForObject(
                 "SELECT current_version_id FROM confirmed_route WHERE run_id = ?", Long.class, s.runId);
         List<Long> stopIds = jdbcTemplate.queryForList(
-                "SELECT stop_id FROM run_stop WHERE route_version_id = ? ORDER BY seq", Long.class,
+                "SELECT stop_id FROM run_stop WHERE route_version_id = ? AND NOT destination ORDER BY seq", Long.class,
                 currentVersionId);
         assertThat(stopIds).as("거절은 기존 노선을 그대로 유지해야 한다")
                 .containsExactly(s.firstStopId, s.midStopId, s.lastStopId);
@@ -331,7 +337,7 @@ class StaffApprovalDecideControllerTest {
         Long currentVersionId = jdbcTemplate.queryForObject(
                 "SELECT current_version_id FROM confirmed_route WHERE run_id = ?", Long.class, s.runId);
         List<Long> stopIds = jdbcTemplate.queryForList(
-                "SELECT stop_id FROM run_stop WHERE route_version_id = ? ORDER BY seq", Long.class,
+                "SELECT stop_id FROM run_stop WHERE route_version_id = ? AND NOT destination ORDER BY seq", Long.class,
                 currentVersionId);
         assertThat(stopIds).as("A 승인 결과만 반영돼야 한다 — B 가 지우려던 lastStop 이 되살아나면 안 된다")
                 .containsExactly(s.firstStopId, s.lastStopId);

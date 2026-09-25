@@ -149,7 +149,7 @@ class StaffRunRouteControllerTest {
         OffsetDateTime departTime = OffsetDateTime.now().plusHours(1);
         long runId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
         long versionId = fx.confirmedRouteWithVersion(runId, departTime.minusMinutes(40));
-        fx.runStopForStop(versionId, stopId, 1, departTime);
+        long runStopId = fx.runStopForStop(versionId, stopId, 1, departTime);
         long driverAccountId = fx.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사1", OffsetDateTime.now());
         fx.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자1", OffsetDateTime.now());
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
@@ -164,7 +164,7 @@ class StaffRunRouteControllerTest {
                 .perform(get("/api/v1/staff/runs/" + runId + "/route")
                         .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.stops[0].stop_id").value((int) stopId))
+                .andExpect(jsonPath("$.data.stops[0].stop_id").value((int) runStopId))
                 .andExpect(jsonPath("$.data.route_version").value(1))
                 .andExpect(jsonPath("$.data.published_at").exists())
                 .andExpect(jsonPath("$.data.ack.driver").value(true))

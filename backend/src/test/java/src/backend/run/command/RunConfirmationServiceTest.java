@@ -159,10 +159,12 @@ class RunConfirmationServiceTest {
                 "SELECT jsonb_array_length(road_path) FROM route_version WHERE id = ?", Integer.class, versionId);
         assertThat(roadPathLength).as("배포된 노선인데 road_path 가 비어 있다").isGreaterThan(0);
 
-        List<Long> runStopIds = jdbcTemplate.queryForList(
-                "SELECT stop_id FROM run_stop WHERE route_version_id = ? ORDER BY seq", Long.class, versionId);
-        assertThat(runStopIds).as("v1 정차 목록은 편성된 두 정차지 순서 그대로여야 한다")
-                .containsExactly(firstStop, lastStop);
+        List<Map<String, Object>> runStops = jdbcTemplate.queryForList(
+                "SELECT stop_id, destination FROM run_stop WHERE route_version_id = ? ORDER BY seq", versionId);
+        assertThat(runStops).extracting(row -> row.get("stop_id"))
+                .as("v1 정차 목록은 편성된 두 정차지 순서 그대로이고, 등원이라 맨 뒤에 학원 항목이 붙는다(Ruling 327)")
+                .containsExactly(firstStop, lastStop, null);
+        assertThat(runStops).extracting(row -> row.get("destination")).containsExactly(false, false, true);
 
         List<Long> riderStudentIds = jdbcTemplate.queryForList(
                 "SELECT student_id FROM run_rider WHERE run_id = ? ORDER BY student_id", Long.class, runId);

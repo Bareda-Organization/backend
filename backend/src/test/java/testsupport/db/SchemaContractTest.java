@@ -260,6 +260,9 @@ class SchemaContractTest extends MigratedPostgresTestBase {
                 execute(connection, 정차_항목_INSERT(connection, "stop_id, waypoint_id", "%d, %d")));
         위반_INSERT_가_제약_이름과_함께_거부되는지_확인한다("ck_run_stop_target", connection ->
                 execute(connection, 정차_항목_INSERT(connection, "stop_id, waypoint_id", "NULL, NULL")));
+        // 학원 항목(Ruling 327)은 승하차지·경유 지점과 겹칠 수 없다 — 셋 중 정확히 하나
+        위반_INSERT_가_제약_이름과_함께_거부되는지_확인한다("ck_run_stop_target", connection ->
+                execute(connection, 정차_항목_INSERT(connection, "stop_id, destination", "%d, true")));
     }
 
     /**

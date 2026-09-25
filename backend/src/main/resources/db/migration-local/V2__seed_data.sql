@@ -371,6 +371,16 @@ VALUES
     (14, 7, 1, NULL, 1, NULL),
     (15, 7, 2, NULL, 2, NULL);
 
+-- 등원 확정 노선의 도착지(학원) 항목 — 마지막 순번 1행(Ruling 327). 확정 배치는 이 행을 스스로 붙이지만
+-- 시드는 행을 직접 넣으므로 손으로 붙인다. 없으면 매니저 앱 명단에 학원 도착 버튼이 없어 등원 운행이
+-- 끝나지 않는다. 대상은 등원 회차의 현재 버전 v1(R3)=3 · v1(R5)=4 · v1(R8)=6.
+INSERT INTO run_stop (id, route_version_id, seq, destination)
+OVERRIDING SYSTEM VALUE
+VALUES
+    (16, 3, 6, true),
+    (17, 4, 2, true),
+    (18, 6, 3, true);
+
 -- 탑승 상태 5종 전수(waiting/boarded/alighted/absent/no_show) — R2 에 waiting 2, R3 에 나머지 4.
 INSERT INTO run_rider (id, run_id, student_id, stop_id, status, boarded_at, alighted_at)
 OVERRIDING SYSTEM VALUE

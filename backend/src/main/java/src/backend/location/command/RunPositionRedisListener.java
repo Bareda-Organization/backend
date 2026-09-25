@@ -121,6 +121,9 @@ public class RunPositionRedisListener {
         if (stop.getStopId() != null) {
             return stopRepository.findById(stop.getStopId()).map(Stop::getName).orElse(null);
         }
+        if (stop.getWaypointId() == null) {
+            return null; // 학원 항목(Ruling 327) — 그 도착은 운행 종료라 위치 송신이 이미 멈춘 뒤다
+        }
         return waypointRepository.findById(stop.getWaypointId()).map(Waypoint::getLabel).orElse(null);
     }
 }

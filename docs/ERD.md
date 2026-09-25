@@ -1008,7 +1008,7 @@ erDiagram
 |---|---|---|
 | `bus` | `student_capacity = capacity - driver_count - escort_count` | 학생 탑승 가능 인원 계산식 (BUS-04) |
 | `bus` | `capacity > driver_count + escort_count` | 학생 정원이 0 이하인 차량 차단 |
-| `run_stop` | `num_nonnulls(stop_id, waypoint_id, NULLIF(destination, false)) = 1` | 정차 항목은 학생 승하차지 · 강제 경유지 · 도착지(학원) 중 **정확히 하나** (RTE-10 · C-15). ⚠ 현재 V1 은 앞의 둘만 배타 — 도착지 항목 도입(2026-09-25 `Ruling 327`) 때 함께 교체 |
+| `run_stop` | `num_nonnulls(stop_id, waypoint_id, NULLIF(destination, false)) = 1` | 정차 항목은 학생 승하차지 · 강제 경유지 · 도착지(학원) 중 **정확히 하나** (RTE-10 · C-15 · 2026-09-25 `Ruling 327`, V1 반영) |
 | `run_stop` | `change IN ('added','skipped')` | 승하차지에 `removed` 부재 (FEATURE_SPEC §3.5 적용 대상) |
 | `run_rider` | `change IN ('added','removed')` | 탑승자에 `skipped` 부재 |
 | `run_rider` | `status IN ('waiting','boarded','alighted','absent','no_show')` | 탑승 상태 5종 (C-02) |

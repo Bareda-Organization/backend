@@ -1,7 +1,6 @@
 package src.backend.routing.command;
 
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.context.ApplicationEventPublisher;
@@ -10,7 +9,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
-import src.backend.routing.engine.spec.OrderedStop;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.entity.RouteVersionSource;
@@ -100,24 +98,8 @@ public class WaypointStore {
                 computation.snapshot().fallbackUsed(), computation.roadPath(), createdBy, now);
         routeVersionRepository.save(newVersion);
         confirmedRouteRepository.assignCurrentVersion(run.getId(), newVersion.getId());
-        runStopRepository.saveAll(runStopsOf(newVersion.getId(), computation));
+        runStopRepository.saveAll(RunStop.listOf(newVersion.getId(), computation, run.getDirection()));
         return newVersion;
     }
 
-    /** {@code RunConfirmationPersistence.runStopsOf} 와 같은 계산(중복 헬퍼 관례, 그 클래스 자바독 참고). */
-    private static List<RunStop> runStopsOf(Long versionId, RouteComputation computation) {
-        List<OrderedStop> stops = computation.stops();
-        List<OffsetDateTime> etas = computation.etas();
-        List<RunStop> runStops = new ArrayList<>(stops.size());
-        for (int i = 0; i < stops.size(); i++) {
-            OrderedStop stop = stops.get(i);
-            OffsetDateTime eta = etas.get(i);
-            if (stop.stopId() != null) {
-                runStops.add(RunStop.forStop(versionId, stop.stopId(), stop.seq(), eta));
-            } else {
-                runStops.add(RunStop.forWaypoint(versionId, stop.waypointId(), stop.seq(), eta));
-            }
-        }
-        return runStops;
-    }
 }

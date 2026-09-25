@@ -115,10 +115,14 @@ public class NavigationQueryService {
         if (versionId == null) {
             return List.of();
         }
-        return navRunStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeqAsc(versionId, run.getAcademyId())
-                .stream()
+        List<NavStopRow> rows = navRunStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeqAsc(versionId,
+                run.getAcademyId());
+        // 도착 완료분은 "마지막 도착 뒤" 로 뺀다(BR-015) — 경유 지점은 도착 처리 대상이 아니라 미도착으로
+        // 남는다. 도착 여부만 보면 지난 경유 지점을 매번 첫 목적지로 되돌려 안내한다.
+        int afterSeq = rows.stream().filter(NavStopRow::arrived).mapToInt(NavStopRow::seq).max().orElse(-1);
+        return rows.stream()
                 .filter(row -> row.change() != ChangeType.SKIPPED)
-                .filter(row -> !row.arrived())
+                .filter(row -> row.seq() > afterSeq)
                 .toList();
     }
 

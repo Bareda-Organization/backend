@@ -161,7 +161,8 @@ public class WaypointCommandService {
      * {@code 422} 다 — 조용히 맨 뒤로 보내면 관계자가 지정한 자리와 다른 결과가 나온 것을 알 수 없다.
      */
     private int seqOf(WaypointRequest request, RouteContext ctx) {
-        int last = ctx.beforeRunStops().size() + 1;
+        // 학원 항목(Ruling 327)은 계산 대상이 아니라 늘 맨 뒤에 따로 붙는다 — 세지 않는다.
+        int last = (int) ctx.beforeRunStops().stream().filter(rs -> !rs.isDestination()).count() + 1;
         if (request.seq() == null) {
             return last;
         }

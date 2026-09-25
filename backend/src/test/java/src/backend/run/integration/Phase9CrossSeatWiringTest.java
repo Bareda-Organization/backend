@@ -174,8 +174,8 @@ class Phase9CrossSeatWiringTest {
         long driverAccountId = fixtures().assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
         long escortAccountId = fixtures().assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
         long versionId = fixtures().confirmedRouteWithVersion(runId, now());
-        fixtures().runStopForStop(versionId, stop1, 1, now());
-        fixtures().runStopForStop(versionId, stop2, 2, now());
+        long runStop1 = fixtures().runStopForStop(versionId, stop1, 1, now());
+        long runStop2 = fixtures().runStopForStop(versionId, stop2, 2, now());
 
         long absentStudentId = fixtures().student(academyId, "결석학생");
         fixtures().rider(runId, absentStudentId, stop2, RiderStatus.ABSENT, now());
@@ -183,10 +183,10 @@ class Phase9CrossSeatWiringTest {
         long boardedRiderId = fixtures().rider(runId, boardedStudentId, stop2, RiderStatus.BOARDED, now());
 
         // T2 — 최종지점 도착, 탑승자 1명이 남아 있어 종료가 보류된다(실제 arrive 경로).
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + stop1 + "/arrive")
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop1 + "/arrive")
                         .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + stop2 + "/arrive")
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop2 + "/arrive")
                         .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.finish_pending").value(true));
@@ -227,12 +227,12 @@ class Phase9CrossSeatWiringTest {
         fixtures().startRun(runId, now());
         long driverAccountId = fixtures().assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
         long versionId = fixtures().confirmedRouteWithVersion(runId, now());
-        fixtures().runStopForStop(versionId, stop1, 1, now());
-        fixtures().runStopForStop(versionId, stop2, 2, now());
+        long runStop1 = fixtures().runStopForStop(versionId, stop1, 1, now());
+        long runStop2 = fixtures().runStopForStop(versionId, stop2, 2, now());
         fixtures().runStopForStop(versionId, stop3, 3, now());
 
         // T2 — 1번 정차지에 실제로 도착(최종이 아니라 회차는 계속 moving).
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + stop1 + "/arrive")
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop1 + "/arrive")
                         .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.is_final").value(false));
@@ -241,8 +241,8 @@ class Phase9CrossSeatWiringTest {
         mockMvc.perform(get("/api/v1/runs/" + runId + "/route")
                         .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.current_stop.stop_id").value(stop1))
-                .andExpect(jsonPath("$.data.next_stop.stop_id").value(stop2));
+                .andExpect(jsonPath("$.data.current_stop.stop_id").value(runStop1))
+                .andExpect(jsonPath("$.data.next_stop.stop_id").value(runStop2));
     }
 
     // ── 3. T3(미승차 → 정차지 skip) → T4(내비게이션) — 실제로 skip 된 정차지가 내비 결과에서 빠진다 ──

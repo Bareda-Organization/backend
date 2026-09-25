@@ -209,6 +209,10 @@ class StaffWaypointControllerTest {
         assertThat(현재_버전에_경유_지점이_포함됐나(s.runId, waypointId))
                 .as("버전 번호만 오르고 그 지점이 실제 노선(run_stop)에 안 들어가면 안 된다")
                 .isTrue();
+        // BR-002(Ruling 327) — 경유 지점 배포로 쌓은 새 버전도 등원이면 맨 뒤가 학원 항목이다.
+        assertThat(jdbcTemplate.queryForObject("SELECT rs.destination FROM run_stop rs JOIN confirmed_route cr "
+                + "ON cr.current_version_id = rs.route_version_id WHERE cr.run_id = ? ORDER BY rs.seq DESC LIMIT 1",
+                Boolean.class, s.runId)).as("새 버전의 마지막 항목은 학원이어야 한다").isTrue();
         verify(routeChangedListener, times(1)).appendRouteChanged(any());
     }
 

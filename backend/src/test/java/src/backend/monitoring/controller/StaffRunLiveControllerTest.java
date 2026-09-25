@@ -297,6 +297,32 @@ class StaffRunLiveControllerTest extends RedisTestContainerBase {
                 .andExpect(jsonPath("$.data.runs[0].last_seen_at").exists());
     }
 
+    /**
+     * BR-002(Ruling 327) — 마지막 승차지에 도착한 등원 회차는 다음 정차가 학원 항목이다. 그 항목은
+     * 승하차지도 경유 지점도 아니라, 이름을 두 갈래로만 찾으면 관제 조회 전체가 실패한다.
+     */
+    @Test
+    @DisplayName("BR-002 — 다음 정차가 학원 항목이면 next_stop 에 학원 이름이 나온다")
+    void 다음_정차가_학원_항목이면_학원_이름이_나온다() throws Exception {
+        DriverRunFixtures fx = fixtures();
+        long academyId = fx.academy();
+        academyIds.add(academyId);
+        long busId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.500000", "127.000000");
+        OffsetDateTime departTime = now();
+        long runId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
+        fx.startRun(runId, now());
+        long versionId = fx.confirmedRouteWithVersion(runId, departTime.minusMinutes(40));
+        long runStopId = fx.runStopForStop(versionId, stopId, 1, departTime);
+        fx.runStopForDestination(versionId, 2);
+        jdbcTemplate.update("UPDATE run_stop SET arrived_at = now() WHERE id = ?", runStopId);
+        long staffAccountId = fx.staffAccount(academyId, "관계자1");
+
+        mockMvc.perform(get("/api/v1/staff/runs/live").header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.runs[0].next_stop").value(DriverRunFixtures.ACADEMY_NAME));
+    }
+
     private String 토큰(long accountId, long academyId, Role role) {
         return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
     }

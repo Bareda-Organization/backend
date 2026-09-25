@@ -135,8 +135,10 @@ public class PositionBroadcastListener {
      * (Ruling 232 확정 — 계획값, 재계산 부재). 미도착 정차가 없으면(전 구간 도착 완료) {@code null}.
      */
     private OffsetDateTime nextEtaOf(List<RunStop> ordered) {
+        int afterSeq = ordered.stream().filter(stop -> stop.getArrivedAt() != null).mapToInt(RunStop::getSeq)
+                .max().orElse(-1);
         return ordered.stream()
-                .filter(stop -> stop.getArrivedAt() == null)
+                .filter(stop -> stop.getSeq() > afterSeq)
                 .min(Comparator.comparingInt(RunStop::getSeq))
                 .map(RunStop::getEta)
                 .orElse(null);
@@ -145,6 +147,9 @@ public class PositionBroadcastListener {
     private String nameOf(RunStop stop) {
         if (stop.getStopId() != null) {
             return stopRepository.findById(stop.getStopId()).map(Stop::getName).orElse(null);
+        }
+        if (stop.getWaypointId() == null) {
+            return null; // 학원 항목(Ruling 327) — 그 도착은 운행 종료라 위치 송신이 이미 멈춘 뒤다
         }
         return waypointRepository.findById(stop.getWaypointId()).map(Waypoint::getLabel).orElse(null);
     }

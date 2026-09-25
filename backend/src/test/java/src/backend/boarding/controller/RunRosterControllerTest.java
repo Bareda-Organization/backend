@@ -13,6 +13,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -116,6 +117,16 @@ class RunRosterControllerTest {
     @Autowired
     private RunRiderRepository runRiderRepository;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    /** 학생 승하차지 {@code stopId} 가 실린 정차 항목의 {@code run_stop.id}. */
+    private long 정차_항목_id(long runId, long stopId) {
+        return jdbcTemplate.queryForObject("SELECT rs.id FROM run_stop rs JOIN confirmed_route cr "
+                + "ON cr.current_version_id = rs.route_version_id WHERE cr.run_id = ? AND rs.stop_id = ?",
+                Long.class, runId, stopId);
+    }
+
     private Phase9RosterFixtures fixtures() {
         RunConfirmationFixtures base = new RunConfirmationFixtures(academyRepository, busRepository, routeRepository,
                 routeStopRepository, stopRepository, studentRepository, weeklyAddressRepository, runRepository);
@@ -150,11 +161,44 @@ class RunRosterControllerTest {
                 .isEqualTo("010-2XXX-8814");
         // §1.1 "식별자는 서버 발급 문자열" — run_id·stop_id·rider_id·student_id 는 전부 String 이어야 한다.
         assertThat((String) JsonPath.read(body, "$.data.run_id")).isEqualTo(String.valueOf(runId));
-        assertThat((String) JsonPath.read(body, "$.data.stops[0].stop_id")).isEqualTo(String.valueOf(stopId));
+        // stop_id 는 정차 항목(run_stop.id)이다 — 도착 처리(§4.5)가 이 값을 그대로 받는다(Ruling 327).
+        assertThat((String) JsonPath.read(body, "$.data.stops[0].stop_id"))
+                .isEqualTo(String.valueOf(정차_항목_id(runId, stopId)));
         assertThat((String) JsonPath.read(body, "$.data.stops[0].students[0].student_id"))
                 .isEqualTo(String.valueOf(studentId));
         Object riderId = JsonPath.read(body, "$.data.stops[0].students[0].rider_id");
         assertThat(riderId).isInstanceOf(String.class);
+    }
+
+    @Test
+    void BR_002_등원_명단의_마지막_항목은_학생_없는_학원_항목이다() throws Exception {
+        // 매니저 앱의 "다음 도착 처리" 버튼이 이 목록에서 나온다 — 학원 항목이 없으면 등원 운행을 끝낼 수단이 없다.
+        Phase9RosterFixtures fx = fixtures();
+        long academyId = fx.academyWithCoordinates();
+        long busId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.500000", "127.000000");
+        fx.route(academyId, busId, Weekday.WED, Direction.TO_ACADEMY, stopId);
+        long studentId = fx.student(academyId, "학생1");
+        fx.verifiedAddress(studentId, stopId, Weekday.WED, Direction.TO_ACADEMY, "37.500000", "127.000000");
+        OffsetDateTime departTime = OffsetDateTime.parse("2031-07-02T08:00:00+09:00");
+        long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY,
+                departTime, departTime.minusMinutes(30));
+        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
+        fx.assign(runId, manager.managerId(), ManagerRole.DRIVER);
+
+        MvcResult result = mockMvc
+                .perform(get("/api/v1/runs/" + runId + "/roster").header("Authorization",
+                        토큰(manager.accountId(), academyId, Role.DRIVER)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String body = 본문(result);
+        assertThat((List<?>) JsonPath.read(body, "$.data.stops")).hasSize(2);
+        assertThat((Boolean) JsonPath.read(body, "$.data.stops[0].is_destination")).isFalse();
+        assertThat((Boolean) JsonPath.read(body, "$.data.stops[1].is_destination")).isTrue();
+        assertThat((String) JsonPath.read(body, "$.data.stops[1].name")).isEqualTo(RunConfirmationFixtures.ACADEMY_NAME);
+        assertThat((List<?>) JsonPath.read(body, "$.data.stops[1].students")).isEmpty();
+        assertThat((String) JsonPath.read(body, "$.data.stops[1].stop_id")).isNotEqualTo("null");
     }
 
     @Test

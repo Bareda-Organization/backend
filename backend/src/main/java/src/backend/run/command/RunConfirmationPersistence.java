@@ -15,7 +15,6 @@ import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.global.common.enums.Weekday;
 import src.backend.routing.domain.GeoPoint;
-import src.backend.routing.engine.spec.OrderedStop;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.entity.RouteVersionSource;
@@ -96,7 +95,7 @@ public class RunConfirmationPersistence {
         routeVersionRepository.save(version);
         confirmedRouteRepository.assignCurrentVersion(run.getId(), version.getId());
 
-        runStopRepository.saveAll(runStopsOf(version.getId(), computation));
+        runStopRepository.saveAll(RunStop.listOf(version.getId(), computation, run.getDirection()));
         runRiderRepository.saveAll(runRidersOf(run.getId(), studentStops, computation.unresolvedStudentIds()));
 
         eventPublisher.publishEvent(
@@ -105,22 +104,6 @@ public class RunConfirmationPersistence {
         return true;
     }
 
-    /** {@code computation.stops()} 와 {@code etas()} 는 자리로 대응한다({@link RouteComputation} 계약). */
-    private static List<RunStop> runStopsOf(Long versionId, RouteComputation computation) {
-        List<OrderedStop> stops = computation.stops();
-        List<OffsetDateTime> etas = computation.etas();
-        List<RunStop> runStops = new ArrayList<>(stops.size());
-        for (int i = 0; i < stops.size(); i++) {
-            OrderedStop stop = stops.get(i);
-            OffsetDateTime eta = etas.get(i);
-            if (stop.stopId() != null) {
-                runStops.add(RunStop.forStop(versionId, stop.stopId(), stop.seq(), eta));
-            } else {
-                runStops.add(RunStop.forWaypoint(versionId, stop.waypointId(), stop.seq(), eta));
-            }
-        }
-        return runStops;
-    }
 
     /** 좌표를 얻지 못해 계산에서 분리된 학생({@code unresolvedStudentIds})은 명단에서도 뺀다(목표 2와 같은 근거). */
     private static List<RunRider> runRidersOf(Long runId, Map<Long, Long> studentStops,
