@@ -20,6 +20,7 @@ import src.backend.bus.entity.BusSeating;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
+import src.backend.global.common.enums.Weekday;
 import src.backend.global.common.enums.Role;
 import src.backend.manager.entity.Assignment;
 import src.backend.manager.entity.Manager;
@@ -27,10 +28,15 @@ import src.backend.manager.entity.ManagerProfile;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
 import src.backend.routing.entity.ConfirmedRoute;
+import src.backend.routing.entity.Route;
+import src.backend.routing.entity.RoutePlan;
+import src.backend.routing.entity.RouteStop;
 import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.entity.RouteVersionSource;
 import src.backend.routing.entity.RunStop;
 import src.backend.routing.repository.ConfirmedRouteRepository;
+import src.backend.routing.repository.RouteRepository;
+import src.backend.routing.repository.RouteStopRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.entity.Run;
@@ -40,10 +46,14 @@ import src.backend.student.entity.GuardianStudent;
 import src.backend.student.entity.Stop;
 import src.backend.student.entity.Student;
 import src.backend.student.entity.StudentProfile;
+import src.backend.student.domain.VerifiedAddressEntry;
+import src.backend.student.entity.WeeklyAddress;
+import src.backend.student.geocoding.spec.GeocodedPoint;
 import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
+import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
  * 탑승 의사 토글 시험이 쓰는 실제 행 — {@code RunConfirmationFixtures}(Phase 7)와 같은 이유로 정상
@@ -83,6 +93,12 @@ public class BoardingIntentFixtures {
 
     private final AssignmentRepository assignmentRepository;
 
+    private final RouteRepository routeRepository;
+
+    private final RouteStopRepository routeStopRepository;
+
+    private final WeeklyAddressRepository weeklyAddressRepository;
+
     public BoardingIntentFixtures(AcademyRepository academyRepository, BusRepository busRepository,
             StudentRepository studentRepository, GuardianRepository guardianRepository,
             GuardianStudentRepository guardianStudentRepository, AccountRepository accountRepository,
@@ -90,7 +106,8 @@ public class BoardingIntentFixtures {
             StopRepository stopRepository, ConfirmedRouteRepository confirmedRouteRepository,
             RouteVersionRepository routeVersionRepository, RunStopRepository runStopRepository,
             RunRiderRepository runRiderRepository, ManagerRepository managerRepository,
-            AssignmentRepository assignmentRepository) {
+            AssignmentRepository assignmentRepository, RouteRepository routeRepository,
+            RouteStopRepository routeStopRepository, WeeklyAddressRepository weeklyAddressRepository) {
         this.academyRepository = academyRepository;
         this.busRepository = busRepository;
         this.studentRepository = studentRepository;
@@ -106,6 +123,26 @@ public class BoardingIntentFixtures {
         this.runRiderRepository = runRiderRepository;
         this.managerRepository = managerRepository;
         this.assignmentRepository = assignmentRepository;
+        this.routeRepository = routeRepository;
+        this.routeStopRepository = routeStopRepository;
+        this.weeklyAddressRepository = weeklyAddressRepository;
+    }
+
+    /**
+     * 그 학생을 이 버스의 월요일·등원 회차 대상으로 등록한다(BR-084 — 토글·변경 신청은 대상 회차만 받는다).
+     * {@link #run} 이 만드는 회차는 전부 2030-04-01(월)·등원이라 고정 노선 한 벌이면 된다. 같은 버스에
+     * 두 번째 학생을 등록하면 기존 노선에 정차지를 덧붙인다.
+     */
+    public void enrol(long academyId, long busId, long studentId, long stopId) {
+        Route route = routeRepository.findByAcademyIdAndBusIdAndWeekdayAndDirection(academyId, busId, Weekday.MON,
+                Direction.TO_ACADEMY).orElseGet(() -> routeRepository.save(Route.register(academyId,
+                        new RoutePlan(busId, Weekday.MON, Direction.TO_ACADEMY, "본선", true))));
+        int seq = routeStopRepository.findAllOrderedByRouteIdAndAcademyId(route.getId(), academyId).size() + 1;
+        routeStopRepository.save(RouteStop.forRoute(route.getId(), stopId, seq));
+        VerifiedAddressEntry entry = new VerifiedAddressEntry(new VerifiedAddressEntry.AddressSlot(Weekday.MON,
+                Direction.TO_ACADEMY), new VerifiedAddressEntry.AddressText("서울시 어딘가", null),
+                new GeocodedPoint(new BigDecimal("37.5"), new BigDecimal("127.0"), "서울시 어딘가"));
+        weeklyAddressRepository.save(WeeklyAddress.verified(studentId, entry, stopId, OffsetDateTime.now()));
     }
 
     public long academy() {

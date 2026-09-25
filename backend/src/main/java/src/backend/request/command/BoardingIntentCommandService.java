@@ -99,9 +99,9 @@ public class BoardingIntentCommandService {
         OffsetDateTime now = OffsetDateTime.now(clock);
         ChangeWindow segment = ChangeWindowPolicy.segmentOf(run, now);
 
+        boardingIntentRepository.insertIfAbsent(run.getId(), student.getId(), now);
         BoardingIntent intent = boardingIntentRepository.findByRunIdAndStudentId(run.getId(), student.getId())
-                .orElseGet(() -> boardingIntentRepository
-                        .save(BoardingIntent.forRun(run.getId(), student.getId(), now)));
+                .orElseThrow();
 
         return switch (segment) {
             case IMMEDIATE -> applyImmediate(run, student, intent, request.riding(), requester, now);
@@ -135,7 +135,7 @@ public class BoardingIntentCommandService {
      */
     private BoardingIntentToggleResponse requestApproval(Run run, Student student, BoardingIntent intent,
             AuthUser requester, OffsetDateTime now) {
-        intent.consumeChangeQuota();
+        ChangeRequestStore.consumeChangeQuota(boardingIntentRepository, intent);
 
         ChangeRequest changeRequest = ChangeRequest.forRequest(run.getAcademyId(), run.getId(), student.getId(),
                 ChangeRequestSource.INTENT, ChangeRequestType.CANCEL, ChangeWindow.APPROVAL_REQUIRED.code(),

@@ -8,6 +8,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
 import src.backend.request.domain.ChangeWindow;
 import src.backend.request.entity.BoardingIntent;
 import src.backend.request.entity.ChangeRequest;
@@ -111,13 +113,23 @@ public class ChangeRequestStore {
      */
     private void applyApprovalRequired(ChangeRequest changeRequest, Student student, Run run, OffsetDateTime now) {
         BoardingIntent boardingIntent = findOrCreateIntent(run.getId(), student.getId(), now);
-        boardingIntent.consumeChangeQuota();
-        boardingIntentRepository.save(boardingIntent);
+        consumeChangeQuota(boardingIntentRepository, boardingIntent);
         changeRequest.assignDeadline(run.getDepartTime());
     }
 
     private BoardingIntent findOrCreateIntent(Long runId, Long studentId, OffsetDateTime now) {
-        return boardingIntentRepository.findByRunIdAndStudentId(runId, studentId)
-                .orElseGet(() -> BoardingIntent.forRun(runId, studentId, now));
+        boardingIntentRepository.insertIfAbsent(runId, studentId, now);
+        return boardingIntentRepository.findByRunIdAndStudentId(runId, studentId).orElseThrow();
+    }
+
+    /**
+     * ②구간 한도 1회 소비 — 조건부 UPDATE 가 판정하고(동시 요청 중 하나만 1행), 성공하면 메모리 값을 맞춘다
+     * (BR-027). 탑승 의사 토글({@link BoardingIntentCommandService})과 같은 한도를 공유해 같은 절차를 쓴다.
+     */
+    static void consumeChangeQuota(BoardingIntentRepository repository, BoardingIntent intent) {
+        if (repository.claimChangeQuota(intent.getId()) == 0) {
+            throw new BusinessException(ErrorCode.CHANGE_LIMIT_REACHED);
+        }
+        intent.consumeChangeQuota();
     }
 }

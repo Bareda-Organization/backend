@@ -85,6 +85,9 @@ public class BoardingIntent {
     /**
      * ②구간 변경 한도 1회를 소비한다 — 이미 소진했으면 {@code 403 CHANGE_LIMIT_REACHED}(엔티티 단에서
      * 막아 DB CHECK 위반({@code DataIntegrityViolationException})으로 새지 않게 한다).
+     *
+     * <p>동시 요청의 판정은 이 메서드가 아니라 {@code BoardingIntentRepository#claimChangeQuota} 의
+     * 조건부 UPDATE 가 한다 — 이 메서드는 그 UPDATE 가 성공한 뒤 메모리 값을 맞추는 데 쓴다(BR-027).
      */
     public void consumeChangeQuota() {
         if (!hasChangeQuota()) {
