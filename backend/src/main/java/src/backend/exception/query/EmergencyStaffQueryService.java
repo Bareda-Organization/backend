@@ -2,7 +2,6 @@ package src.backend.exception.query;
 
 import java.time.Clock;
 import java.time.LocalDate;
-import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.HashSet;
 import java.util.List;
@@ -25,7 +24,7 @@ import src.backend.exception.repository.EmergencyAlertRepository;
 import src.backend.global.common.LowerCaseFormatter;
 import src.backend.global.request.ApiValues;
 import src.backend.global.security.AuthUser;
-import src.backend.manager.dto.AssignedManagerAccountView;
+import src.backend.manager.dto.AssignedManagerContactView;
 import src.backend.manager.entity.Manager;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
@@ -38,10 +37,9 @@ import src.backend.run.repository.RunRepository;
  * EmergencyStaffItemResponse} 자바독) 이 조회가 매번 {@code raisedBy}(manager.id) 를 일괄
  * 재조회해 이름·전화·역할을 채운다.
  *
- * <p>{@code contacts}(그 회차 배치 기사·동승자)는 {@link AssignmentRepository
- * #findAssignedManagerAccounts} 를 회차별로 호출해 채운다 — 배치 시험 자체가 회차당 소수이므로
- * 회차 수만큼의 추가 조회를 받아들인다({@code manager/} 모듈에 배치 인력을 일괄 조회하는 메서드가
- * 없고, 이 좌석의 쓰기 소유가 그 모듈까지 미치지 않는다).
+ * <p>{@code contacts}(그 회차 배치 기사·동승자)는 {@link AssignmentRepository#findAssignedManagerContacts} 로
+ * 목록의 회차 전부를 한 번에 읽는다(BR-087) — 회차마다 읽으면 무기한 보존되는 신고가 쌓일수록 호출 한 번의
+ * 쿼리 수가 늘어난다. 그 조회는 삭제된 매니저도 실으므로 여기서 거른다. 상태·날짜 필터도 쿼리로 건다.
  *
  * <p>{@code status} 값·기본값·우선순위는 {@link EmergencyStatusFilter} 가 정의한다(§6.11 과
  * 공유, Ruling 297). {@code date} 필터는 {@code received_at} 의 날짜 성분이다 — {@code
@@ -72,17 +70,13 @@ public class EmergencyStaffQueryService {
         EmergencyStatusFilter statusFilter = EmergencyStatusFilter.from(status);
         LocalDate parsedDate = ApiValues.date(date);
 
-        List<EmergencyAlert> alerts = emergencyAlertRepository
-                .findAllByAcademyIdOrderByReceivedAtDesc(requester.academyId()).stream()
-                .filter(statusFilter::matches)
-                .filter(alert -> matchesDate(alert, parsedDate))
-                .toList();
+        List<EmergencyAlert> alerts = alertsOf(requester.academyId(), statusFilter, parsedDate);
 
-        Map<Long, List<AssignedManagerAccountView>> contactsByRunId = alerts.stream()
-                .map(EmergencyAlert::getRunId)
-                .distinct()
-                .collect(Collectors.toMap(runId -> runId,
-                        runId -> assignmentRepository.findAssignedManagerAccounts(requester.academyId(), runId)));
+        Map<Long, List<AssignedManagerContactView>> contactsByRunId = alerts.isEmpty() ? Map.of()
+                : assignmentRepository.findAssignedManagerContacts(requester.academyId(),
+                                alerts.stream().map(EmergencyAlert::getRunId).distinct().toList())
+                        .stream()
+                        .collect(Collectors.groupingBy(AssignedManagerContactView::runId));
 
         Set<Long> managerIds = new HashSet<>(alerts.stream().map(EmergencyAlert::getRaisedBy).toList());
         contactsByRunId.values().forEach(views -> views.forEach(v -> managerIds.add(v.managerId())));
@@ -114,20 +108,18 @@ public class EmergencyStaffQueryService {
         return new EmergencyStaffListResponse(items, unackedCount);
     }
 
-    /** {@code date} 생략(null) 은 항상 통과. 있으면 {@code receivedAt} 을 학원 자정 경계로 환산해 대조한다. */
-    private boolean matchesDate(EmergencyAlert alert, LocalDate date) {
+    /** {@code date} 생략(null) 이면 날짜 조건 없이, 있으면 {@code receivedAt} 을 학원 자정 경계 구간으로 거른다. */
+    private List<EmergencyAlert> alertsOf(Long academyId, EmergencyStatusFilter statusFilter, LocalDate date) {
         if (date == null) {
-            return true;
+            return emergencyAlertRepository.findAllByAcademyIdAndState(academyId, statusFilter.name());
         }
         ZoneId zone = clock.getZone();
-        OffsetDateTime from = date.atStartOfDay(zone).toOffsetDateTime();
-        OffsetDateTime to = date.plusDays(1).atStartOfDay(zone).toOffsetDateTime();
-        OffsetDateTime receivedAt = alert.getReceivedAt();
-        return !receivedAt.isBefore(from) && receivedAt.isBefore(to);
+        return emergencyAlertRepository.findAllByAcademyIdAndStateReceivedBetween(academyId, statusFilter.name(),
+                date.atStartOfDay(zone).toOffsetDateTime(), date.plusDays(1).atStartOfDay(zone).toOffsetDateTime());
     }
 
     private EmergencyStaffItemResponse toItem(EmergencyAlert alert, Manager raiser, Account acker, Run run,
-            List<AssignedManagerAccountView> assigned, Map<Long, Manager> managersById) {
+            List<AssignedManagerContactView> assigned, Map<Long, Manager> managersById) {
         EmergencyStaffItemResponse.RaisedBy raisedBy = new EmergencyStaffItemResponse.RaisedBy(
                 raiser == null ? null : raiser.getName(),
                 LowerCaseFormatter.lower(alert.getRaisedByRole().name()),
@@ -138,8 +130,9 @@ public class EmergencyStaffQueryService {
 
         List<EmergencyStaffItemResponse.Contact> contacts = assigned == null ? List.of()
                 : assigned.stream()
+                        .filter(v -> isLive(managersById.get(v.managerId())))
                         .map(v -> new EmergencyStaffItemResponse.Contact(v.name(),
-                                LowerCaseFormatter.lower(v.role().name()), managerAt(managersById, v.managerId())))
+                                LowerCaseFormatter.lower(v.role().name()), v.phone()))
                         .toList();
 
         EmergencyStaffItemResponse.AckedBy ackedBy = acker == null ? null
@@ -152,8 +145,8 @@ public class EmergencyStaffQueryService {
                 alert.isAcked(), ackedBy);
     }
 
-    private String managerAt(Map<Long, Manager> managersById, Long managerId) {
-        Manager manager = managersById.get(managerId);
-        return manager == null ? null : manager.getPhone();
+    /** 삭제된 매니저는 연락처에서 뺀다 — 회차별로 읽던 옛 조회({@code findAssignedManagerAccounts})와 같은 결과. */
+    private boolean isLive(Manager manager) {
+        return manager != null && manager.getDeletedAt() == null;
     }
 }

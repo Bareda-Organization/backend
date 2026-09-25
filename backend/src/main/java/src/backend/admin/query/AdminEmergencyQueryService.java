@@ -3,6 +3,8 @@ package src.backend.admin.query;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -25,7 +27,7 @@ import src.backend.exception.entity.EmergencyAlert;
 import src.backend.exception.query.EmergencyStatusFilter;
 import src.backend.exception.repository.EmergencyAlertRepository;
 import src.backend.global.common.LowerCaseFormatter;
-import src.backend.manager.dto.AssignedManagerAccountView;
+import src.backend.manager.dto.AssignedManagerContactView;
 import src.backend.manager.entity.Manager;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
@@ -35,7 +37,7 @@ import src.backend.run.repository.RunRepository;
 /**
  * 메인 관리자 콘솔의 전 학원 비상 알림 조회(Phase 11 목표 11, Phase 13 목표 13) — {@code
  * emergency_alert} 를 {@code academy_id} 로 좁히지 않는 유일한 읽기 경로다({@link
- * EmergencyAlertRepository#findAllByOrderByReceivedAtDesc} 의 {@code @AcademyScopeExempt} 참고).
+ * EmergencyAlertRepository#findAllByState} 의 {@code @AcademyScopeExempt} 참고).
  *
  * <p>§5.16 상속 필드({@code raisedBy}·{@code position}·{@code contacts}·{@code direction}·{@code
  * ackedBy})를 채우는 방식은 {@link src.backend.exception.query.EmergencyStaffQueryService} 와
@@ -74,23 +76,28 @@ public class AdminEmergencyQueryService {
     public AdminEmergencyListResponse list(String status, Long academyId) {
         EmergencyStatusFilter statusFilter = EmergencyStatusFilter.from(status);
 
-        List<EmergencyAlert> alerts = emergencyAlertRepository.findAllByOrderByReceivedAtDesc().stream()
-                .filter(statusFilter::matches)
-                .filter(alert -> academyId == null || academyId.equals(alert.getAcademyId()))
-                .toList();
+        // 상태·학원 조건을 쿼리로 건다(BR-087) — 무기한 보존 테이블을 통째로 읽어 거르지 않는다.
+        List<EmergencyAlert> alerts = academyId == null
+                ? emergencyAlertRepository.findAllByState(statusFilter.name())
+                : emergencyAlertRepository.findAllByAcademyIdAndState(academyId, statusFilter.name());
 
         Map<Long, Academy> academiesById = academyRepository
                 .findAllById(alerts.stream().map(EmergencyAlert::getAcademyId).toList())
                 .stream()
                 .collect(Collectors.toMap(Academy::getId, a -> a));
 
-        Map<Long, List<AssignedManagerAccountView>> contactsByAlertId = alerts.stream()
-                .collect(Collectors.toMap(EmergencyAlert::getId,
-                        alert -> assignmentRepository.findAssignedManagerAccounts(alert.getAcademyId(),
-                                alert.getRunId())));
+        // 배치 인력은 학원마다 한 번에 읽는다(BR-087) — 신고마다 읽으면 쿼리 수가 누적 신고 수에 비례한다.
+        Map<Long, List<AssignedManagerContactView>> contactsByRunId = new HashMap<>();
+        alerts.stream()
+                .collect(Collectors.groupingBy(EmergencyAlert::getAcademyId,
+                        Collectors.mapping(EmergencyAlert::getRunId, Collectors.toSet())))
+                .forEach((alertAcademyId, runIds) -> assignmentRepository
+                        .findAssignedManagerContacts(alertAcademyId, runIds)
+                        .forEach(view -> contactsByRunId.computeIfAbsent(view.runId(), key -> new ArrayList<>())
+                                .add(view)));
 
         Set<Long> managerIds = new HashSet<>(alerts.stream().map(EmergencyAlert::getRaisedBy).toList());
-        contactsByAlertId.values().forEach(views -> views.forEach(v -> managerIds.add(v.managerId())));
+        contactsByRunId.values().forEach(views -> views.forEach(v -> managerIds.add(v.managerId())));
 
         Map<Long, Manager> managersById = managerRepository.findAllByIdIn(managerIds).stream()
                 .collect(Collectors.toMap(Manager::getId, m -> m));
@@ -111,7 +118,7 @@ public class AdminEmergencyQueryService {
                 .map(alert -> toItem(alert, academiesById.get(alert.getAcademyId()),
                         managersById.get(alert.getRaisedBy()),
                         alert.getAckedBy() == null ? null : ackersById.get(alert.getAckedBy()),
-                        runsById.get(alert.getRunId()), contactsByAlertId.get(alert.getId()), managersById, now))
+                        runsById.get(alert.getRunId()), contactsByRunId.get(alert.getRunId()), managersById, now))
                 .toList();
 
         // 배지는 필터(상태·학원)와 무관하다(BR-066) — 목록에서 세면 "확인됨" 탭에서 0 이 된다.
@@ -126,7 +133,7 @@ public class AdminEmergencyQueryService {
      * 계산식은 Phase 13 T3 소유가 아니라 그대로 둔다.
      */
     private AdminEmergencyItemResponse toItem(EmergencyAlert alert, Academy academy, Manager raiser, Account acker,
-            Run run, List<AssignedManagerAccountView> assigned, Map<Long, Manager> managersById,
+            Run run, List<AssignedManagerContactView> assigned, Map<Long, Manager> managersById,
             OffsetDateTime now) {
         OffsetDateTime elapsedEnd = alert.getCanceledAt() != null ? alert.getCanceledAt()
                 : alert.getAckedAt() != null ? alert.getAckedAt() : now;
@@ -146,8 +153,9 @@ public class AdminEmergencyQueryService {
 
         List<AdminEmergencyItemResponse.Contact> contacts = assigned == null ? List.of()
                 : assigned.stream()
+                        .filter(v -> isLive(managersById.get(v.managerId())))
                         .map(v -> new AdminEmergencyItemResponse.Contact(v.name(),
-                                LowerCaseFormatter.lower(v.role().name()), managerAt(managersById, v.managerId())))
+                                LowerCaseFormatter.lower(v.role().name()), v.phone()))
                         .toList();
 
         AdminEmergencyItemResponse.AckedBy ackedBy = acker == null ? null
@@ -161,8 +169,8 @@ public class AdminEmergencyQueryService {
                 alert.getCanceledAt(), ackedBy, elapsedSeconds);
     }
 
-    private String managerAt(Map<Long, Manager> managersById, Long managerId) {
-        Manager manager = managersById.get(managerId);
-        return manager == null ? null : manager.getPhone();
+    /** 삭제된 매니저는 연락처에서 뺀다 — 신고별로 읽던 옛 조회({@code findAssignedManagerAccounts})와 같은 결과. */
+    private boolean isLive(Manager manager) {
+        return manager != null && manager.getDeletedAt() == null;
     }
 }

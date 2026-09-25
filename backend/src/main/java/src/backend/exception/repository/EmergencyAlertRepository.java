@@ -1,16 +1,26 @@
 package src.backend.exception.repository;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import src.backend.exception.entity.EmergencyAlert;
 import src.backend.global.security.access.AcademyScopeExempt;
 
 /** {@link EmergencyAlert} 영속성 접근(EXC-04, Phase 11 T2). */
 public interface EmergencyAlertRepository extends JpaRepository<EmergencyAlert, Long> {
+
+    /**
+     * 신고의 처리 상태를 {@code EmergencyStatusFilter} 와 같은 규칙으로 계산해 거른다 — 취소가 확인보다 앞선다
+     * (취소 뒤 확인된 신고는 {@code CANCELED}).
+     */
+    String SELECT_BY_STATE = "SELECT a FROM EmergencyAlert a WHERE (CASE WHEN a.canceledAt IS NOT NULL THEN 'CANCELED' "
+            + "WHEN a.ackedAt IS NOT NULL THEN 'ACKED' ELSE 'OPEN' END) = :state";
 
     /**
      * {@code client_key} 로 재전송을 가려낸다({@code uk_emergency_alert_client_key}) —
@@ -32,8 +42,20 @@ public interface EmergencyAlertRepository extends JpaRepository<EmergencyAlert, 
     /** 확인 처리 대상 1건(목표 10) — 학원 관계자 화면은 회차를 모르고 신고 id 만 안다. */
     Optional<EmergencyAlert> findByIdAndAcademyId(Long id, Long academyId);
 
-    /** 학원 관계자 화면의 비상 알림 목록(목표 10) — 최근 신고가 먼저 보이게 접수 역순이다. */
-    List<EmergencyAlert> findAllByAcademyIdOrderByReceivedAtDesc(Long academyId);
+    /**
+     * 학원의 비상 알림 목록 — 상태 필터(§5.16 · §6.11)를 쿼리로 건다(BR-087). 무기한 보존되는 테이블이라 자바에서
+     * 거르면 호출마다 학원 전 기간 행을 읽는다. 최근 신고가 먼저 보이게 접수 역순이다.
+     *
+     * @param state {@link src.backend.exception.query.EmergencyStatusFilter} 의 이름({@code OPEN}·{@code ACKED}·{@code CANCELED})
+     */
+    @Query(SELECT_BY_STATE + " AND a.academyId = :academyId ORDER BY a.receivedAt DESC")
+    List<EmergencyAlert> findAllByAcademyIdAndState(@Param("academyId") Long academyId, @Param("state") String state);
+
+    /** {@link #findAllByAcademyIdAndState} 에 접수 시각 구간({@code [from, to)}, §5.16 {@code date})을 더한다. */
+    @Query(SELECT_BY_STATE + " AND a.academyId = :academyId AND a.receivedAt >= :from AND a.receivedAt < :to "
+            + "ORDER BY a.receivedAt DESC")
+    List<EmergencyAlert> findAllByAcademyIdAndStateReceivedBetween(@Param("academyId") Long academyId,
+            @Param("state") String state, @Param("from") OffsetDateTime from, @Param("to") OffsetDateTime to);
 
     /** 발신자가 자기 회차의 신고 상태를 조회하는 목록(§4.15) — 최근 신고가 먼저 보이게 접수 역순이다. */
     List<EmergencyAlert> findAllByRunIdAndAcademyIdOrderByReceivedAtDesc(Long runId, Long academyId);
@@ -46,7 +68,8 @@ public interface EmergencyAlertRepository extends JpaRepository<EmergencyAlert, 
      */
     @AcademyScopeExempt(reason = "§6.x 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
             + "예외를 여는 판정은 컨트롤러의 @CanMonitorAll 하나다(AccountRepository#findStaffAccountsForConsole 과 같은 형태)")
-    List<EmergencyAlert> findAllByOrderByReceivedAtDesc();
+    @Query(SELECT_BY_STATE + " ORDER BY a.receivedAt DESC")
+    List<EmergencyAlert> findAllByState(@Param("state") String state);
 
     /** 학원 관계자의 미확인 배지(§5.16 {@code unacked_count}) — 목록 필터와 무관하게 학원 전체의 미확인·미취소 건수. */
     long countByAcademyIdAndAckedAtIsNullAndCanceledAtIsNull(Long academyId);
