@@ -50,6 +50,7 @@ public class EmergencyNotificationListener {
 
     private final NotificationComposer<EmergencyCanceledEvent> emergencyCanceledComposer;
 
+    /** 신고 접수(목표 6·9) — 학원 관계자 전원 + 메인관리자 전원에게 {@code emergency} 알림을 적재한다. */
     @EventListener
     public void appendRaised(EmergencyRaisedEvent event) {
         NotificationMessage message = emergencyRaisedComposer.compose(event);
@@ -59,6 +60,7 @@ public class EmergencyNotificationListener {
                 NotificationType.EMERGENCY, message, event.busNo());
     }
 
+    /** 신고 취소(목표 6·9) — 같은 대상에게 {@code emergency_canceled} 알림을 적재한다. */
     @EventListener
     public void appendCanceled(EmergencyCanceledEvent event) {
         NotificationMessage message = emergencyCanceledComposer.compose(event);
