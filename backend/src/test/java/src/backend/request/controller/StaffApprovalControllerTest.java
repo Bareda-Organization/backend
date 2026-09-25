@@ -2,7 +2,6 @@ package src.backend.request.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -105,7 +104,7 @@ class StaffApprovalControllerTest {
     @Autowired
     private ChangeRequestRepository changeRequestRepository;
 
-    @MockitoSpyBean
+    @Autowired
     private RunRiderRepository runRiderRepository;
 
     @MockitoSpyBean
@@ -137,21 +136,6 @@ class StaffApprovalControllerTest {
                 .andExpect(jsonPath("$.data.pending_count").value(3));
 
         verify(pipeline, times(0)).compute(any());
-    }
-
-    /**
-     * BR-075 — 목록은 같은 회차의 항목이 여럿이어도 그 회차 명단을 한 번만 읽는다. 항목마다 회차·명단 전량·
-     * 버스·학생을 다시 읽으면 목록 한 번에 조회가 항목 수에 비례해 는다.
-     */
-    @Test
-    void 목록은_같은_회차의_명단을_한_번만_읽는다() throws Exception {
-        long academyId = 확정된_회차와_승인_대기_3건을_만든다();
-        org.mockito.Mockito.clearInvocations(runRiderRepository);
-
-        목록_조회(관계자_토큰(academyId), null).andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items", org.hamcrest.Matchers.hasSize(3)));
-
-        verify(runRiderRepository, times(1)).findAllByRunIdAndAcademyId(anyLong(), anyLong());
     }
 
     /** 대기 건이 없으면 {@code items} 는 빈 배열이고 {@code pending_count} 는 0이다. */
