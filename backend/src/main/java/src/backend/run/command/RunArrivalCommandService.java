@@ -4,6 +4,10 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.PersistenceContext;
+
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,6 +59,9 @@ public class RunArrivalCommandService {
 
     private final RunRepository runRepository;
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     private final RunStopRepository runStopRepository;
 
     private final ConfirmedRouteRepository confirmedRouteRepository;
@@ -98,6 +105,9 @@ public class RunArrivalCommandService {
 
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        // 회차 행을 잠그고 다시 읽은 뒤 판정한다(BR-041) — 같은 정차 항목 도착 두 건, 하원 최종 도착과 마지막
+        // 하차({@link RunCompletionService} 도 같은 행을 잠근다)가 겹쳐도 한쪽이 끝난 뒤에 세고 판정한다.
+        entityManager.refresh(run, LockModeType.PESSIMISTIC_WRITE);
         if (run.getStatus() != RunStatus.MOVING) {
             throw new BusinessException(ErrorCode.RUN_NOT_MOVING);
         }

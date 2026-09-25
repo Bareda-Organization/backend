@@ -4,6 +4,10 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.PersistenceContext;
+
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,6 +45,9 @@ public class RunStartCommandService {
 
     private final RunRepository runRepository;
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     private final RunRiderRepository runRiderRepository;
 
     private final RunAssignmentAccess runAssignmentAccess;
@@ -57,7 +64,10 @@ public class RunStartCommandService {
         runAssignmentAccess.assertAssignedDriver(requester, runId);
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
-
+        // 회차 행을 잠그고 다시 읽은 뒤 판정한다(BR-041, §7 규칙 3) — 시작 요청 두 건이 겹치면 늦은 쪽은
+        // 앞쪽 커밋 뒤의 moving 을 보고 409 로 끝난다. 잠그지 않으면 둘 다 confirmed 를 보고 통과해 운행 시작
+        // 알림이 두 번 나간다.
+        entityManager.refresh(run, LockModeType.PESSIMISTIC_WRITE);
         if (run.getStatus() == RunStatus.MOVING || run.getStatus() == RunStatus.FINISHED) {
             throw new BusinessException(ErrorCode.RUN_ALREADY_STARTED);
         }
