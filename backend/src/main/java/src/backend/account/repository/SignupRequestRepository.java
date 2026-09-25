@@ -2,9 +2,14 @@ package src.backend.account.repository;
 
 import java.util.Optional;
 
+import jakarta.persistence.LockModeType;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import src.backend.account.entity.ApproverType;
 import src.backend.account.entity.SignupRequest;
@@ -13,6 +18,16 @@ import src.backend.global.security.access.AcademyScopeExempt;
 
 /** {@link SignupRequest} 영속성 접근. */
 public interface SignupRequestRepository extends JpaRepository<SignupRequest, Long> {
+
+    /**
+     * 수락·거절할 요청을 잠그고 읽는다(§5.2·§6.5 · BR-063) — 같은 요청의 동시 처리가 둘 다 {@code pending} 을 보고
+     * 진행하지 않게, 두 번째 요청은 첫 처리가 커밋된 뒤의 상태를 읽어 {@code 409 APPROVAL_ALREADY_DECIDED} 가 된다.
+     */
+    @AcademyScopeExempt(reason = "§5.2·§6.5 승인 — 학원 판정은 호출부가 읽은 행으로 AcademyScope.assertAccessible(§5.2) "
+            + "또는 approver_type 필터(§6.5 메인 관리자 전 학원)로 한다. 잠금 조회는 findById 와 같은 범위")
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM SignupRequest r WHERE r.id = :id")
+    Optional<SignupRequest> findByIdForUpdate(@Param("id") Long id);
 
     /**
      * 계정의 최신 가입 요청(API_SPEC §2.3 승인 대기 화면) — 재신청은 새 행을 쌓으므로(엔티티 javadoc),

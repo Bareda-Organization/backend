@@ -47,7 +47,7 @@ public class StaffApprovalCommandService {
      */
     @Transactional
     public SignupDecisionResponse decide(Long deciderId, Long requestId, StaffDecisionPayload payload) {
-        SignupRequest request = signupRequestRepository.findById(requestId)
+        SignupRequest request = signupRequestRepository.findByIdForUpdate(requestId)
                 .filter(candidate -> candidate.getApproverType() == ApproverType.SYSTEM_ADMIN)
                 .orElseThrow(() -> new BusinessException(ErrorCode.SIGNUP_REQUEST_NOT_FOUND));
 
