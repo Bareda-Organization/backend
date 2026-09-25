@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
@@ -61,10 +60,13 @@ import src.backend.student.repository.WeeklyAddressRepository;
  * 예정 경로도 없을 때</b>다(R20-A, Ruling 321) — 매니저용 {@link RunRouteQueryService#route} 는 같은
  * 상태에서 빈 200 을 돌려주지만(운행 중 단말의 일시적 공백을 허용), 관계자는 확정 노선을 "보는"
  * 용도라 둘 다 없으면 아직 볼 것이 없다는 뜻이다.
+ *
+ * <p><b>클래스에 트랜잭션을 걸지 않는다</b>(BR-046) — 예정 경로 계산이 외부 지도 API 를 부르므로, 그 안에
+ * 있으면 지도가 느린 만큼 DB 커넥션을 쥔 채 기다린다({@code RouteComputationPipeline} 자바독과 같은 근거).
+ * 조회는 저장소 호출마다 짧은 읽기 트랜잭션으로 끝난다.
  */
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class StaffRunRouteQueryService {
 
     /** 예정 경로 계산 — 관계자가 화면에서 대기 중이므로 서킷 개방 시 즉시 오류로 끝낸다(ON_DEMAND). */
