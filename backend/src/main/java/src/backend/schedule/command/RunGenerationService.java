@@ -2,17 +2,16 @@ package src.backend.schedule.command;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Locale;
 
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.run.command.RunCommandService;
+import src.backend.run.domain.RunWeekday;
 import src.backend.run.entity.RunDraft;
 import src.backend.schedule.entity.Schedule;
 import src.backend.schedule.repository.ScheduleRepository;
@@ -46,7 +45,7 @@ public class RunGenerationService {
      * 운영 조작이 불가능해진다. 배치는 {@code DailyRunGenerator} 가 오늘 날짜로 부른다.
      */
     public int generate(LocalDate serviceDate) {
-        List<Schedule> schedules = scheduleRepository.findAllByWeekdayAndActiveIsTrue(weekdayOf(serviceDate));
+        List<Schedule> schedules = scheduleRepository.findAllByWeekdayAndActiveIsTrue(RunWeekday.of(serviceDate));
         int created = 0;
         RuntimeException firstFailure = null;
         for (Schedule schedule : schedules) {
@@ -96,14 +95,4 @@ public class RunGenerationService {
                 schedule.getDestinationName(), schedule.getEstDurationMin());
     }
 
-    /**
-     * 그 날짜의 요일 — {@code schedule.weekday} 의 값 공간으로 옮긴다.
-     *
-     * <p>{@code LocalDate} 자체가 요일을 들고 있으므로 시계를 보지 않는다. 시계가 필요한 것은 "오늘이
-     * 며칠인가" 뿐이고 그 판정은 이 메서드 밖에 있다 — 섞으면 지난 날짜를 다시 만들 때 오늘 요일로
-     * 스케줄을 고르게 된다.
-     */
-    private Weekday weekdayOf(LocalDate serviceDate) {
-        return Weekday.valueOf(serviceDate.getDayOfWeek().name().substring(0, 3).toUpperCase(Locale.ROOT));
-    }
 }

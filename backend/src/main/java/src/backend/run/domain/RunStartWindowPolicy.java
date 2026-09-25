@@ -23,8 +23,16 @@ public class RunStartWindowPolicy {
 
     /** {@code now} 가 {@code departTime} 의 ±10분 창 안(양끝 포함)인지 — 밖이면 호출부가 403 으로 답한다. */
     public boolean isWithinWindow(OffsetDateTime departTime, OffsetDateTime now) {
-        OffsetDateTime earliest = departTime.minus(WINDOW);
-        OffsetDateTime latest = departTime.plus(WINDOW);
-        return !now.isBefore(earliest) && !now.isAfter(latest);
+        return !now.isBefore(earliestStart(departTime)) && !now.isAfter(latestStart(departTime));
+    }
+
+    /** 운행 시작 버튼이 열리는 가장 이른 시각 — 출발 10분 전(API_SPEC §4.1 {@code start_window.from}). */
+    public OffsetDateTime earliestStart(OffsetDateTime departTime) {
+        return departTime.minus(WINDOW);
+    }
+
+    /** 운행 시작 버튼이 닫히는 가장 늦은 시각 — 출발 10분 후(API_SPEC §4.1 {@code start_window.to}). */
+    public OffsetDateTime latestStart(OffsetDateTime departTime) {
+        return departTime.plus(WINDOW);
     }
 }

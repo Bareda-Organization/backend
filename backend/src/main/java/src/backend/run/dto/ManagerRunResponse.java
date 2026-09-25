@@ -4,6 +4,7 @@ import java.time.OffsetDateTime;
 import java.util.Locale;
 
 import src.backend.manager.entity.Assignment;
+import src.backend.run.domain.RunStartWindowPolicy;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 
@@ -28,9 +29,11 @@ public record ManagerRunResponse(String runId, String busNo, String direction, O
         boolean ackRequired, String roleInRun) {
 
     public static ManagerRunResponse of(Run run, String busNo, Assignment assignment, long addedCount,
-            long removedCount, boolean ackRequired) {
+            long removedCount, boolean ackRequired, RunStartWindowPolicy startWindowPolicy) {
         OffsetDateTime departTime = run.getDepartTime();
-        StartWindow startWindow = new StartWindow(departTime.minusMinutes(10), departTime.plusMinutes(10));
+        // §20.4 — 창 값은 RunStartWindowPolicy 가 유일한 소유(BR-101, 2026-09-25 검사).
+        StartWindow startWindow = new StartWindow(startWindowPolicy.earliestStart(departTime),
+                startWindowPolicy.latestStart(departTime));
         return new ManagerRunResponse(String.valueOf(run.getId()), busNo, lower(run.getDirection().name()),
                 departTime, run.getOriginName(), run.getDestinationName(), run.getEstDurationMin(),
                 lower(run.getStatus().name()), run.getStatus() != RunStatus.IDLE, run.getConfirmAt(),

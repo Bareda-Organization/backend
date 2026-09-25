@@ -2,9 +2,7 @@ package src.backend.run.query;
 
 import java.time.Clock;
 import java.time.Duration;
-import java.time.LocalDate;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -38,6 +36,8 @@ import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
 import src.backend.routing.repository.RouteVersionRepository;
+import src.backend.run.domain.RunRouteEndpoints;
+import src.backend.run.domain.RunWeekday;
 import src.backend.run.dto.RunRouteResponse;
 import src.backend.run.dto.RunRouteResponse.RouteStop;
 import src.backend.run.dto.StaffRunRouteResponse;
@@ -142,7 +142,7 @@ public class StaffRunRouteQueryService {
             return java.util.Optional.empty();
         }
 
-        Weekday weekday = weekdayOf(run.getServiceDate());
+        Weekday weekday = RunWeekday.of(run.getServiceDate());
         Route route = routeRepository
                 .findByAcademyIdAndBusIdAndWeekdayAndDirection(run.getAcademyId(), run.getBusId(), weekday,
                         run.getDirection())
@@ -167,16 +167,11 @@ public class StaffRunRouteQueryService {
         }
 
         GeoPoint academyPoint = new GeoPoint(academy.getLat(), academy.getLng());
-        GeoPoint origin;
-        GeoPoint destination;
-        // Ruling 190 — 등원은 첫 승차지→학원, 하원은 학원→마지막 하차지(confirmOne 과 같은 규칙).
-        if (run.getDirection() == src.backend.global.common.enums.Direction.TO_ACADEMY) {
-            origin = new GeoPoint(firstStop.getLat(), firstStop.getLng());
-            destination = academyPoint;
-        } else {
-            origin = academyPoint;
-            destination = new GeoPoint(lastStop.getLat(), lastStop.getLng());
-        }
+        // Ruling 190(confirmOne 과 같은 규칙) — RunRouteEndpoints 로 통합(BR-101).
+        RunRouteEndpoints.Endpoints endpoints = RunRouteEndpoints.of(run.getDirection(), academyPoint,
+                new GeoPoint(firstStop.getLat(), firstStop.getLng()), new GeoPoint(lastStop.getLat(), lastStop.getLng()));
+        GeoPoint origin = endpoints.origin();
+        GeoPoint destination = endpoints.destination();
 
         List<StudentDailyStop> dailyStops = weeklyAddressRepository.findDailyStopsByStopIds(run.getAcademyId(),
                 stopIds, weekday, run.getDirection(), run.getServiceDate().atStartOfDay(clock.getZone()).toOffsetDateTime());
@@ -200,11 +195,6 @@ public class StaffRunRouteQueryService {
 
         return java.util.Optional.of(new StaffRunRouteResponse(stops, null, null, null, 0, null,
                 new Ack(false, false), computation.roadPath(), computation.snapshot().fallbackUsed(), false));
-    }
-
-    /** {@code confirmOne(RunConfirmationService)} 의 같은 이름 메서드와 동일 규칙(요일 값 공간 변환). */
-    private Weekday weekdayOf(LocalDate serviceDate) {
-        return Weekday.valueOf(serviceDate.getDayOfWeek().name().substring(0, 3).toUpperCase(Locale.ROOT));
     }
 
     private RouteStop toRouteStop(OrderedStop stop, Stop stopEntity, Map<Long, Long> studentCounts) {

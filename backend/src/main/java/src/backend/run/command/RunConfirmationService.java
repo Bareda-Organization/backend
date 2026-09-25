@@ -2,10 +2,8 @@ package src.backend.run.command;
 
 import java.time.Clock;
 import java.time.Duration;
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -15,7 +13,6 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.academy.entity.Academy;
 import src.backend.academy.repository.AcademyRepository;
-import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
@@ -32,6 +29,8 @@ import src.backend.routing.pipeline.RouteComputationInput;
 import src.backend.routing.pipeline.RouteComputationPipeline;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
+import src.backend.run.domain.RunRouteEndpoints;
+import src.backend.run.domain.RunWeekday;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
 import src.backend.run.roster.ProjectedRoster;
@@ -129,7 +128,7 @@ public class RunConfirmationService {
             throw new BusinessException(ErrorCode.ACADEMY_COORDINATES_MISSING);
         }
 
-        Weekday weekday = weekdayOf(run.getServiceDate());
+        Weekday weekday = RunWeekday.of(run.getServiceDate());
         Route route = routeRepository
                 .findByAcademyIdAndBusIdAndWeekdayAndDirection(run.getAcademyId(), run.getBusId(), weekday,
                         run.getDirection())
@@ -154,16 +153,10 @@ public class RunConfirmationService {
         }
 
         GeoPoint academyPoint = new GeoPoint(academy.getLat(), academy.getLng());
-        GeoPoint origin;
-        GeoPoint destination;
-        // Ruling 190 — 반대쪽 끝은 노선의 첫/마지막 정차지다: 등원은 첫 승차지→학원, 하원은 학원→마지막 하차지.
-        if (run.getDirection() == Direction.TO_ACADEMY) {
-            origin = new GeoPoint(firstStop.getLat(), firstStop.getLng());
-            destination = academyPoint;
-        } else {
-            origin = academyPoint;
-            destination = new GeoPoint(lastStop.getLat(), lastStop.getLng());
-        }
+        RunRouteEndpoints.Endpoints endpoints = RunRouteEndpoints.of(run.getDirection(), academyPoint,
+                new GeoPoint(firstStop.getLat(), firstStop.getLng()), new GeoPoint(lastStop.getLat(), lastStop.getLng()));
+        GeoPoint origin = endpoints.origin();
+        GeoPoint destination = endpoints.destination();
 
         // 명단 규칙은 정원 판정 경로와 한 벌이다(ProjectedRosterReader 자바독, BR-043).
         ProjectedRoster projected = rosterReader.read(run, weekday, stopIds);
@@ -193,15 +186,5 @@ public class RunConfirmationService {
             metrics.recordLag(Duration.between(run.getConfirmAt(), confirmedAt));
         }
         return persisted;
-    }
-
-    /**
-     * 그 날짜의 요일 — {@code route.weekday} 의 값 공간으로 옮긴다({@code RunGenerationService.weekdayOf}
-
-    /**
-     * 와 같은 계산). {@code LocalDate} 자체가 요일을 들고 있으므로 시계를 보지 않는다.
-     */
-    private Weekday weekdayOf(LocalDate serviceDate) {
-        return Weekday.valueOf(serviceDate.getDayOfWeek().name().substring(0, 3).toUpperCase(Locale.ROOT));
     }
 }
