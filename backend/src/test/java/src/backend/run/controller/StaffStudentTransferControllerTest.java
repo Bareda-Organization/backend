@@ -495,7 +495,7 @@ class StaffStudentTransferControllerTest {
     private void 학생을_회차_명단에_넣는다(long runId, long studentId) {
         long stopId = fixtures().stop(academyId(runId), "37.561000", "126.971000");
         runForcedAdditionRepository
-                .save(RunForcedAddition.forRun(runId, studentId, stopId, STAFF_ACCOUNT_ID, OffsetDateTime.now(clock)));
+                .save(RunForcedAddition.forRun(runId, studentId, stopId, STAFF_ACCOUNT_ID, OffsetDateTime.now(clock), null));
     }
 
     private long academyId(long runId) {

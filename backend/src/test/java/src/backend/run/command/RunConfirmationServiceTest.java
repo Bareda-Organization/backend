@@ -239,7 +239,7 @@ class RunConfirmationServiceTest {
                 departTime.minusMinutes(30));
 
         runForcedAdditionRepository.save(
-                RunForcedAddition.forRun(runId, forcedStudent, forcedStop, 1L, OffsetDateTime.now(clock)));
+                RunForcedAddition.forRun(runId, forcedStudent, forcedStop, 1L, OffsetDateTime.now(clock), null));
 
         confirmationService.confirmOne(runId);
 
@@ -385,7 +385,7 @@ class RunConfirmationServiceTest {
                 departTime.minusMinutes(30));
 
         runForcedAdditionRepository.save(
-                RunForcedAddition.forRun(fromRunId, student, forcedStop, 1L, OffsetDateTime.now(clock)));
+                RunForcedAddition.forRun(fromRunId, student, forcedStop, 1L, OffsetDateTime.now(clock), null));
         runTransferRepository.save(RunTransfer.stage(student, fromRunId, toRunId, destinationStop, null, 1L,
                 OffsetDateTime.now(clock)));
 

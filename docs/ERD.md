@@ -587,6 +587,7 @@ erDiagram
 | `stop_id` | bigint | FK NN | 주소 검증 결과 매칭·생성된 승하차지 |
 | `added_by` | bigint | NN | 지정한 관계자 계정 |
 | `added_at` | timestamptz | NN default now() | |
+| `note` | text | | 관계자가 적은 비고(API_SPEC §5.7 `note`). 2026-09-25 추가(BR-118) — 전에는 요청이 받고 버렸다 |
 
 `UNIQUE (run_id, student_id)` — 같은 회차에 같은 학생을 두 번 강제 추가할 수 없다.
 

@@ -149,6 +149,21 @@ class StaffForcedAdditionControllerTest {
                 .andExpect(jsonPath("$.data.status").value("staged"));
     }
 
+    /** 관계자가 적은 비고는 대기 행에 남는다 — 받고 버리면 웹의 "메모" 입력이 사라진다(BR-118). */
+    @Test
+    void 강제_추가_비고가_저장된다() throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+        long busId = fixtures().bus(academyId);
+        long runId = 회차를_만든다(academyId, busId, 31);
+
+        강제_추가한다(runId, "{\"new_student\":{\"name\":\"새학생\"},\"address\":\"테스트로 100\",\"note\":\"오늘만 탑승\"}")
+                .andExpect(status().isCreated());
+
+        entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject("SELECT note FROM run_forced_addition WHERE run_id = ?", String.class,
+                runId)).isEqualTo("오늘만 탑승");
+    }
+
     /** 출발 20분 전(②구간)은 관계자 요청이라도 403 이다 — ①구간 전용이 §5.7 본문의 명시 규칙이다. */
     @Test
     void 출발_20분_전에는_403_이다() throws Exception {

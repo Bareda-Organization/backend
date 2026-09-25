@@ -50,7 +50,7 @@ public class ForcedAdditionStore {
                 : studentRepository.save(newStudent(run.getAcademyId(), request));
         Long stopId = stopMatcher.matchOrCreate(run.getAcademyId(), point).getId();
         RunForcedAddition forcedAddition = RunForcedAddition.forRun(run.getId(), student.getId(), stopId, addedBy,
-                now);
+                now, request.note());
         return runForcedAdditionRepository.save(forcedAddition);
     }
 
