@@ -191,6 +191,8 @@ class RunRosterControllerTest {
         assertThat(students).hasSize(1);
         assertThat((String) JsonPath.read(body, "$.data.stops[0].students[0].name")).isEqualTo("학생1");
         assertThat((Integer) JsonPath.read(body, "$.data.counts.absent_n")).isEqualTo(1);
+        // BR-082 — 보호자를 연결하지 않은 학생은 guardian_phone 이 null 이다(§4.2 ○, §1.13 목록)
+        assertThat((Object) JsonPath.read(body, "$.data.stops[0].students[0].guardian_phone")).isNull();
     }
 
     @Test

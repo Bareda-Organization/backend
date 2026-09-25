@@ -263,13 +263,14 @@ HTTP 상태 코드 + 본문. 본문 형태는 전 엔드포인트 공통.
 
 ⚠ **이 방법이 못 보는 것** — `null` 이 지역 변수·삼항식·`Optional.orElse(null)` 을 거쳐 들어가는 경로는 리터럴 위치 대조로 잡히지 않는다. 위 ②가 그 구멍을 일부 덮지만(§4.2 `photo_url` 이 그 경로였다) **전수를 보장하지 않는다.** 이 목록은 **하한**이다.
 
-#### 목록 — **`●` 인 필드 13개 · 6개 절** (전부 `curl` 재현 완료)
+#### 목록 — **`●` 인 필드 15개 · 7개 절** (13개는 `curl` 재현 · 2026-09-25 추가 2개(§4.2·§5.4 `guardian_phone`)는 시험으로 재현)
 
 | 절 | 필드 | `null` 이 나오는 조건 | 처분 |
 |---|---|---|---|
 | §4.1 | `est_duration_min` | 스케줄이 소요시간을 안 적은 회차(시드 7건 전부) | ✅ **`○` 로 정정** — §5.10 입력이 `○` 이고 §5.13 이 *"nullable 이라 대개 비어 있다"* 고 이미 적고 있었다 |
 | §4.2 | `photo_url` | 사진 미등록 학생(시드 6명 전원) | ✅ **`○` 로 정정** — 판정 근거는 §4.2 |
 | §6.9 | `photo_url` · `student_phone` | 위와 같은 컬럼 | ✅ **`○` 로 정정** — 같은 판정이 이 절에만 안 걸려 있었다 |
+| §4.2 · §5.4 | `guardian_phone` | 보호자를 아직 연결하지 않은 학생(관계자가 먼저 등록 → P-02 로 나중에 연결) | ✅ **`○` 로 정정**(2026-09-25 BR-082) — 매니저 앱 파서(`as String`)가 명단 전체를 실패시켜 앱도 함께 수정. 시험 `RunRosterControllerTest#결석_학생은_명단에서_빠지고_집계에만_남는다` 가 `null` 을 고정 |
 | §5.5 상세 | `route_preview` · `est_time_before` · `est_time_after` · `est_distance_before` · `est_distance_after` · `preview_token` | 결정이 끝난 건 | ✅ **`◐` 로 개정** — 판정 근거는 §5.5 |
 | §3.12 | `sent_at` | 미발송·발송 실패 건(`push_state != sent`) | ⏸ **미판정** — 아래 |
 | §4.3 | `next_stop.lat` · `next_stop.lng` | 배포 후 제거된 경유 지점이 다음 차례일 때 | ⏸ **미판정** — 아래 |
@@ -850,7 +851,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | `student_id` · `name` | string | ● | |
 | `photo_url` | string | ○ | **육안 확인용** — 태그(NFC/QR) 미사용. **미등록 학생은 `null`** — 아래 대체 표시 규칙 |
 | `class_name` | string | ○ | 반 |
-| `guardian_phone` | string | ● | **마스킹** (`010-2XXX-8814`) |
+| `guardian_phone` | string | ○ | **마스킹** (`010-2XXX-8814`). **보호자 미연결 학생은 `null`** — 앱은 연락처 칸을 생략(§1.13 목록, BR-082) |
 | `note` | string | ○ | 특이사항·비고 (STU-07) |
 | `can_go_alone` | boolean | ● | 혼자 귀가 가능 여부 (STU-08). 하원 하차 판단 근거 |
 | `status` | enum | ● | `waiting` · `boarded` · `alighted` · `no_show` |
@@ -1367,7 +1368,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `student_id` · `name` | string | ● | |
 | `class_name` | string | ○ | 반 |
 | `stop_name` | string | ● | 승하차지 |
-| `guardian_phone` | string | ● | **원문** — 관계자 웹은 마스킹 대상 밖 |
+| `guardian_phone` | string | ○ | **원문** — 관계자 웹은 마스킹 대상 밖. 보호자 미연결 학생은 `null`(§1.13 목록, BR-082) |
 | `change` | enum | ○ | `added`(초록) · `removed`(빨강) |
 | `status` | enum | ● | `waiting` · `boarded` · `alighted` · `absent` · `no_show` |
 | `note` | string | ○ | 비고 (STU-07) |
