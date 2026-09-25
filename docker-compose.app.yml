@@ -119,6 +119,7 @@ services:
       - --storage.tsdb.retention.time=7d
     volumes:
       - ./infra/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/observability/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
     ports:
       # 대시보드는 Grafana 로 보지만, 지표 이름·라벨을 직접 확인할 때 필요하다.
       - "9090:9090"

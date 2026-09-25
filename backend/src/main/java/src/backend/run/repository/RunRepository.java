@@ -99,7 +99,8 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      */
     @AcademyScopeExempt(reason = "근접 알림 스케줄러는 시각이 촉발하는 전 학원 대상 조회라 좁힐 학원이 부재하다 — "
             + "findByStatusAndConfirmAtLessThanEqualAndCanceledAtIsNullOrderByConfirmAtAsc 와 같은 근거. 호출부는 "
-            + "배치(ProximityNotificationScheduler)뿐이라는 전제 — 요청 경로에서 부르면 이 예외가 우회로가 된다")
+            + "배치(ProximityNotificationScheduler · RunPositionLostGaugeScheduler)뿐이라는 전제 — 요청 경로에서 부르면 "
+            + "이 예외가 우회로가 된다")
     List<Run> findByStatusAndCanceledAtIsNullOrderByIdAsc(RunStatus status, Pageable pageable);
 
     /**

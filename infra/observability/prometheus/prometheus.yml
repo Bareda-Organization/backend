@@ -3,6 +3,10 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+# §13.4 알럿 규칙(BR-064).
+rule_files:
+  - /etc/prometheus/alerts.yml
+
 scrape_configs:
   # Spring Boot — 이 job 하나에서 HTTP 요청·JVM·HikariCP·Tomcat·커스텀 지표가 모두 나온다.
   - job_name: backend

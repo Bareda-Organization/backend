@@ -76,5 +76,8 @@ class MetricsExposureTest {
         assertThat(body)
                 .as("8행 미승차 에스컬레이션")
                 .contains("schoolbus_no_show_escalated_total");
+        assertThat(body)
+                .as("§13.4 알럿 '운행 중 회차의 위치가 2분 이상 미수신' 의 재료(BR-064)")
+                .contains("schoolbus_run_position_lost");
     }
 }
