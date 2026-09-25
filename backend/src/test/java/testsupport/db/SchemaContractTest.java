@@ -70,6 +70,14 @@ class SchemaContractTest extends MigratedPostgresTestBase {
     /** 계정 연결이 승인 시점에 일어나 그 전에는 NULL 인 레코드 3종 (AUTH-11). */
     private static final List<String> ACCOUNT_LINKED_TABLES = List.of("student", "guardian", "manager");
 
+    /**
+     * 학원 범위로 직접 조회하는 테이블 — ERD §5.3 끝 문단 · §6.2 "직접 보유 17개". 격리 조건이 모든
+     * 쿼리에 붙는 술어라 {@code academy_id} 를 첫 컬럼으로 둔 인덱스(PK·UNIQUE 포함)가 있어야 한다.
+     */
+    private static final List<String> ACADEMY_SCOPED_TABLES = List.of("academy_setting", "signup_request",
+            "academy_staff", "account", "student", "guardian", "manager", "bus", "stop", "schedule", "route", "run",
+            "change_request", "notification_log", "audit_log", "exception_report", "emergency_alert");
+
     /** 엔티티 클래스를 훑는 기준 패키지 — {@code BackendApplication} 의 컴포넌트 스캔 루트와 같다. */
     private static final String ENTITY_BASE_PACKAGE = "src.backend";
 
@@ -171,6 +179,26 @@ class SchemaContractTest extends MigratedPostgresTestBase {
         } finally {
             StandardServiceRegistryBuilder.destroy(registry);
         }
+    }
+
+    /**
+     * ERD §5.3 "학원 격리 선행 인덱스" 약속을 17개 전수로 대조한다(BR-091) — 빠지면 학원 하나의 목록·검색이
+     * 누적 전 행을 읽는다({@code exception_report} 는 무기한 보존인데 인덱스가 0개였다).
+     */
+    @Test
+    void 학원_범위_테이블_17개는_academy_id_를_첫_컬럼으로_둔_인덱스를_가진다() throws SQLException {
+        List<String> missing = new ArrayList<>();
+        for (String table : ACADEMY_SCOPED_TABLES) {
+            List<String> leading = queryColumn("""
+                    SELECT indexdef FROM pg_indexes
+                    WHERE schemaname = 'public' AND tablename = '%s' AND indexdef LIKE '%% (academy_id%%'
+                    """.formatted(table));
+            if (leading.isEmpty()) {
+                missing.add(table);
+            }
+        }
+
+        assertThat(missing).as("academy_id 선행 인덱스가 없는 학원 범위 테이블").isEmpty();
     }
 
     @Test

@@ -767,7 +767,9 @@ CREATE UNIQUE INDEX uk_academy_staff_academy_active ON academy_staff (academy_id
 
 -- =====================================================================================
 -- 인덱스 (ERD §5.3) — UNIQUE 제약이 겸하는 것(run_stop(route_version_id, seq) ·
--- weekly_address(student_id, weekday, direction))은 중복 생성하지 않는다.
+-- weekly_address(student_id, weekday, direction) · assignment(run_id) · guardian_student(guardian_id) ·
+-- boarding_intent(run_id) — 선행 컬럼이 같은 UK)은 중복 생성하지 않는다.
+-- 학원 범위로 직접 조회하는 테이블 17개는 academy_id 를 첫 컬럼으로 둔 인덱스(PK·UK 포함)를 가진다(ERD §5.3 끝 문단).
 -- =====================================================================================
 
 -- 확정 배치가 30초마다 "실행 시각이 지난 회차" 를 조회한다. 부재하면 전체 회차 전수 스캔.
@@ -804,16 +806,13 @@ CREATE INDEX ix_notification_log_academy_unacked ON notification_log (academy_id
 CREATE INDEX ix_run_position_run_recorded ON run_position (run_id, recorded_at DESC);
 
 CREATE INDEX ix_assignment_manager_run ON assignment (manager_id, run_id);
-CREATE INDEX ix_assignment_run ON assignment (run_id);
 
 CREATE INDEX ix_student_academy_name ON student (academy_id, name) WHERE deleted_at IS NULL;
 -- 주소 검증 후 승하차지 매칭 — 좌표 근접 탐색.
 CREATE INDEX ix_stop_academy_coord ON stop (academy_id, lat, lng);
 
-CREATE INDEX ix_guardian_student_guardian ON guardian_student (guardian_id);
 CREATE INDEX ix_guardian_student_student ON guardian_student (student_id);
 
-CREATE INDEX ix_boarding_intent_run ON boarding_intent (run_id);
 CREATE INDEX ix_signup_request_academy_status_requested ON signup_request (academy_id, status, requested_at);
 
 CREATE INDEX ix_audit_log_academy_occurred ON audit_log (academy_id, occurred_at DESC);
@@ -823,3 +822,12 @@ CREATE INDEX ix_rider_status_history_rider_changed ON rider_status_history (run_
 
 -- 로그아웃·차단 시 유효 토큰 전량 무효화. 부분 인덱스라 무효화된 토큰은 색인 대상 밖이다.
 CREATE INDEX ix_refresh_token_account_active ON refresh_token (account_id) WHERE revoked_at IS NULL;
+
+-- 학원 격리 선행 인덱스 — 위에서 academy_id 선행 인덱스·UK 가 없던 6개(BR-091).
+-- 예외 보고는 무기한 보존이라 누적 전 행을 읽지 않도록 기간 조회 순서까지 둔다.
+CREATE INDEX ix_exception_report_academy_reported ON exception_report (academy_id, reported_at DESC);
+CREATE INDEX ix_account_academy_role ON account (academy_id, role);
+CREATE INDEX ix_guardian_academy ON guardian (academy_id);
+CREATE INDEX ix_manager_academy_name ON manager (academy_id, name) WHERE deleted_at IS NULL;
+CREATE INDEX ix_schedule_academy ON schedule (academy_id);
+CREATE INDEX ix_route_academy ON route (academy_id);
