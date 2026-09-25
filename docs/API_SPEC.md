@@ -497,7 +497,8 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | 갱신 | 같은 `(account_id, device_id)` 재등록은 토큰을 덮어씀 — 행이 늘지 않음 |
 | 다기기 | 한 계정이 여러 기기 보유 가능. 발송은 **유효한 전 토큰**에 |
 | 해지 | 로그아웃(§2.7) 시 해당 기기 토큰 자동 해지. `DELETE` 는 수동 해지 |
-| 무효 토큰 | 발송 실패가 `NotRegistered` 계열이면 서버가 해당 행을 정리 |
+| 무효 토큰 | 발송 실패가 `NotRegistered` 계열이면 서버가 해당 행을 정리 — FCM HTTP v1 의 `404 UNREGISTERED` · `400 INVALID_ARGUMENT` 면 그 행의 `revoked_at` 을 채운다(Ruling 331). 그 밖의 실패(429·5xx·네트워크)는 행을 두고 아웃박스 재시도 |
+| 채널 | FCM HTTP v1 한 채널(android·ios·web, Ruling 331). 등록된 유효 단말이 없는 계정은 푸시를 보내지 않고 알림 목록(§3.12)에만 남는다 |
 
 **에러** — `422 VALIDATION_FAILED`
 

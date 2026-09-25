@@ -297,6 +297,14 @@ app:
   #    CORS 필터를 타지 않아 이 값이 유일한 방어선이다. 미주입 시 기동 실패가 맞다.
   ws:
     allowed-origin-patterns: ${WS_ALLOWED_ORIGIN_PATTERNS}
+  # 실 푸시는 FCM 한 채널(Ruling 331). ⚠️ 자격 증명 3개는 기본값을 두지 않는다 — 빠지면 기동 실패가 맞다.
+  #    로그 전용 구현(LoggingPushSender)은 prod 에서 스스로 기동을 막는다.
+  push:
+    sender: fcm
+    fcm:
+      project-id: ${FCM_PROJECT_ID}
+      client-email: ${FCM_CLIENT_EMAIL}
+      private-key: ${FCM_PRIVATE_KEY}
 
 ---
 # 데모 배포 프로파일 — prod 를 기준으로 데모 시드 로드를 더한 것이다.
