@@ -184,6 +184,9 @@ CREATE TABLE guardian (
     account_id bigint      NOT NULL,
     name       varchar(50) NOT NULL,
     phone      varchar(30) NOT NULL,
+    -- 자녀 연결 코드 입력 시도 창(§3.4 · BR-024) — 창 시작 후 10분 안의 시도 횟수. 6자리 코드 대입을 막는다.
+    link_attempt_count        integer     NOT NULL DEFAULT 0,
+    link_attempt_window_start timestamptz,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT fk_guardian_academy FOREIGN KEY (academy_id) REFERENCES academy (id) ON DELETE RESTRICT,

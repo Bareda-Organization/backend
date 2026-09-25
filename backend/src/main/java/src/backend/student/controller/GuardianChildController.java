@@ -17,6 +17,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.global.config.ApiTags;
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanLinkChild;
@@ -63,6 +65,9 @@ public class GuardianChildController {
      *
      * <p>응답에 코드를 되돌려주지 않는다 — 대조는 서버가 하고 클라이언트는 비교하지 않는다는 것이
      * 이 단계의 전제다(§3.4).
+     *
+     * <p>{@code 403 LINK_CODE_INVALID} 를 여기서 던진다 — 서비스 트랜잭션이 시도 횟수를 커밋한 뒤여야
+     * 실패한 입력도 상한에 세어진다(BR-024).
      */
     @CanLinkChild
     @Operation(summary = "코드 입력 → 서버 인증으로 연결 완료 (P-02) — 학부모")
@@ -70,6 +75,7 @@ public class GuardianChildController {
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<ChildLinkedResponse> link(@AuthenticationPrincipal AuthUser authUser,
             @Valid @RequestBody ChildLinkSubmitRequest request) {
-        return ApiResponse.ok(childLinkCommandService.completeLink(authUser, request.code()));
+        return ApiResponse.ok(childLinkCommandService.completeLink(authUser, request.code())
+                .orElseThrow(() -> new BusinessException(ErrorCode.LINK_CODE_INVALID)));
     }
 }

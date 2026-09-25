@@ -3,6 +3,8 @@ package src.backend.student.command;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Optional;
 
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -22,6 +24,7 @@ import src.backend.student.entity.Guardian;
 import src.backend.student.entity.GuardianStudent;
 import src.backend.student.entity.LinkCode;
 import src.backend.student.entity.Student;
+import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.LinkCodeRepository;
 import src.backend.student.repository.StudentRepository;
@@ -37,9 +40,9 @@ import src.backend.student.repository.StudentRepository;
  * {@code link_code} 의 불변식(코드는 한 번만 쓰이고 만료가 있다)이다. 주체로 가르면 그 불변식이 두
  * 파일에 흩어져 한쪽만 고쳐진다.
  *
- * <p>거부 3종(만료 · 불일치 · 재사용)이 <b>같은 {@code 403 LINK_CODE_INVALID}</b> 로 합류하는 자리가
- * {@link #completeLink} 하나다 — 판정을 갈라 두면 "이 코드는 실재하는데 만료됐다" 가 응답에서 새어
- * 나간다(§3.4).
+ * <p>거부(만료 · 불일치 · 재사용 · 시도 상한 · 퇴원)가 <b>같은 {@code 403 LINK_CODE_INVALID}</b> 로
+ * 합류하는 자리가 {@link #completeLink} 의 빈 결과 하나다 — 판정을 갈라 두면 "이 코드는 실재하는데
+ * 만료됐다" 가 응답에서 새어 나간다(§3.4).
  */
 @Service
 @RequiredArgsConstructor
@@ -58,6 +61,14 @@ public class ChildLinkCommandService {
     private static final int CODE_LENGTH = 6;
 
     /**
+     * 보호자 한 명이 {@link #CODE_VALIDITY_MINUTES} 창 안에 코드를 넣을 수 있는 횟수(BR-024).
+     *
+     * <p>창을 코드 수명과 같게 두어, 코드 하나가 살아 있는 동안 한 보호자의 추측 기회가 5번으로 묶인다.
+     * 5 는 로그인 차단(C-11)·복구 코드 대조 상한과 같은 값이다.
+     */
+    private static final int MAX_ATTEMPTS_PER_WINDOW = 5;
+
+    /**
      * 같은 자녀 중복 연결을 막는 제약 이름({@code V1__init_schema.sql}).
      *
      * <p>이름으로 가려 번역하는 이유는 이 저장이 {@code guardian_student} 의 FK 두 개
@@ -71,6 +82,8 @@ public class ChildLinkCommandService {
     private final GuardianChildAccess guardianChildAccess;
 
     private final StudentRepository studentRepository;
+
+    private final GuardianRepository guardianRepository;
 
     private final GuardianStudentRepository guardianStudentRepository;
 
@@ -87,10 +100,12 @@ public class ChildLinkCommandService {
     /**
      * ① 학생이 인증 코드를 만든다(S-05, §3.3) — 선행 조건이 없다(Ruling 324).
      *
-     * <p>학생 레코드가 없는 계정(기사·학부모 등)은 {@code 403 FORBIDDEN} 이다.
+     * <p>학생 레코드가 없는 계정(기사·학부모 등)과 퇴원한 학생은 {@code 403 FORBIDDEN} 이다 — 퇴원생의
+     * 코드는 어차피 연결되지 않는다(BR-122).
      */
     public LinkCodeIssueResponse issueCode(AuthUser requester) {
         Student student = studentRepository.findByAccountId(requester.accountId())
+                .filter(found -> found.getDeletedAt() == null)
                 .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN));
         OffsetDateTime now = OffsetDateTime.now(clock);
 
@@ -105,19 +120,28 @@ public class ChildLinkCommandService {
      * <p>판정 순서가 이 메서드의 핵심이다 — <b>코드 유효성이 먼저</b>고 연결 여부가 나중이다. 뒤집으면
      * 이미 연결된 자녀에 대해 "코드는 맞다" 가 {@code 409} 로 드러나, 유출된 코드를 쥔 쪽이 그 값이
      * 실재하는지 확인할 수 있다.
+     *
+     * <p><b>거부를 예외가 아니라 빈 결과로 돌려준다</b> — 예외를 던지면 트랜잭션이 롤백되며 방금 센 시도
+     * 횟수까지 사라져 상한이 무의미해진다(BR-024). {@code 403 LINK_CODE_INVALID} 는 호출부가 커밋 뒤에 던진다.
+     *
+     * @return 연결 결과, 코드를 쓸 수 없으면 빈 값
      */
-    public ChildLinkedResponse completeLink(AuthUser requester, String code) {
+    public Optional<ChildLinkedResponse> completeLink(AuthUser requester, String code) {
         Guardian guardian = guardianChildAccess.requireGuardian(requester);
         OffsetDateTime now = OffsetDateTime.now(clock);
-        LinkCode linkCode = usableCode(guardian, code, now);
-
-        Student student = studentRepository.findByIdAndAcademyIdAndDeletedAtIsNull(
-                linkCode.getStudentId(), guardian.getAcademyId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.STUDENT_NOT_FOUND));
-
-        linkCode.markUsed(now);
-        saveLink(guardian, student, now);
-        return ChildLinkedResponse.from(student);
+        if (guardianRepository.consumeLinkAttempt(guardian.getId(), guardian.getAcademyId(), now,
+                now.minusMinutes(CODE_VALIDITY_MINUTES), MAX_ATTEMPTS_PER_WINDOW) == 0) {
+            return Optional.empty();
+        }
+        Optional<LinkCode> linkCode = usableCode(guardian, code, now);
+        Optional<Student> student = linkCode.flatMap(found -> studentRepository
+                .findByIdAndAcademyIdAndDeletedAtIsNull(found.getStudentId(), guardian.getAcademyId()));
+        if (student.isEmpty()
+                || linkCodeRepository.markUsedIfUnused(linkCode.get().getId(), guardian.getAcademyId(), now) == 0) {
+            return Optional.empty();
+        }
+        saveLink(guardian, student.get(), now);
+        return Optional.of(ChildLinkedResponse.from(student.get()));
     }
 
     /**
@@ -153,17 +177,18 @@ public class ChildLinkCommandService {
     }
 
     /**
-     * 그 학원 안에서 <b>지금 쓸 수 있는</b> 코드 — 없으면 {@code 403 LINK_CODE_INVALID}.
+     * 그 학원 안에서 <b>지금 쓸 수 있는</b> 코드 — 정확히 1건일 때만 돌려준다.
      *
-     * <p>불일치(후보 0건) · 만료 · 재사용이 여기서 같은 결과로 합쳐진다. 재발급으로 살아 있는 코드가
-     * 둘 이상일 수 있으므로 후보를 훑어 쓸 수 있는 첫 건을 고른다.
+     * <p>불일치(후보 0건) · 만료 · 재사용이 여기서 같은 결과로 합쳐진다. 발급은 학원 안 중복을 보지 않아
+     * 6자리 난수가 겹칠 수 있고, 쓸 수 있는 후보가 둘이면 어느 쪽을 골라도 <b>다른 집 자녀</b>를 연결할 수
+     * 있어 거부한다(BR-085). 학생이 다시 발급하면 풀린다.
      */
-    private LinkCode usableCode(Guardian guardian, String code, OffsetDateTime now) {
-        return linkCodeRepository.findByCodeForAcademy(code, guardian.getAcademyId())
+    private Optional<LinkCode> usableCode(Guardian guardian, String code, OffsetDateTime now) {
+        List<LinkCode> usable = linkCodeRepository.findByCodeForAcademy(code, guardian.getAcademyId())
                 .stream()
                 .filter(candidate -> candidate.isUsable(now))
-                .findFirst()
-                .orElseThrow(() -> new BusinessException(ErrorCode.LINK_CODE_INVALID));
+                .toList();
+        return usable.size() == 1 ? Optional.of(usable.get(0)) : Optional.empty();
     }
 
     /**

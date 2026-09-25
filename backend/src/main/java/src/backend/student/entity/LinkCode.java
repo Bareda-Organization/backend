@@ -80,9 +80,4 @@ public class LinkCode {
     public boolean isUsable(OffsetDateTime now) {
         return usedAt == null && !now.isAfter(expiresAt);
     }
-
-    /** 연결이 성립해 이 코드를 소비 처리한다 — 재사용 차단의 유일한 근거가 이 값이다(ERD §3.2). */
-    public void markUsed(OffsetDateTime now) {
-        this.usedAt = now;
-    }
 }
