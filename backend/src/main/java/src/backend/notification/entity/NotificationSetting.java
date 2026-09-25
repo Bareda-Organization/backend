@@ -85,10 +85,9 @@ public class NotificationSetting {
      * 강제한다. 이전에는 마지막 분기가 {@code return true}(설정 대상 밖)로 떨어지는 if-else 사슬이라,
      * {@code boarding} 소관인 새 종류를 등록에서 빠뜨려도 조용히 "항상 발송"으로 새는 형태였다 —
      * 그 형태의 결함이 실제로 한 번 났다(2026-09-02 Ruling 223, {@code ALIGHTING_CANCELED} 를
-     * 처음엔 존재하지 않는 {@code alighting} 토글 소관으로 잘못 짚었던 사례). 지금 이 파일에는
-     * {@code BOARDING_CANCELED}·{@code ALIGHTING_CANCELED} 2종이 아직 없다(T4 미병합) — 병합해
-     * 컴파일이 깨지면 그 2종을 {@code BOARDING} 계열 {@code case} 에 추가할 것(둘 다 {@code boarding}
-     * 토글 소관, Ruling 223).
+     * 처음엔 존재하지 않는 {@code alighting} 토글 소관으로 잘못 짚었던 사례). {@code BOARDING_CANCELED}·
+     * {@code ALIGHTING_CANCELED}(되돌리기 정정, Phase 12 T4)도 둘 다 {@code boarding} 토글 소관이라
+     * 아래 {@code BOARDING} 계열 {@code case} 에 이미 들어 있다(Ruling 223).
      */
     public boolean isEnabledFor(NotificationType type) {
         return switch (type) {
