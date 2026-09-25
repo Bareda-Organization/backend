@@ -83,8 +83,8 @@ public class StaffScheduleController {
     @CanManageSchedule
     @Operation(summary = "운행 스케줄 · 일일 회차 — 삭제")
     @DeleteMapping("/{id}")
-    public ApiResponse<Void> delete(@AuthenticationPrincipal AuthUser requester, @PathVariable Long id) {
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@AuthenticationPrincipal AuthUser requester, @PathVariable Long id) {
         scheduleCommandService.delete(requester, id);
-        return ApiResponse.ok(null);
     }
 }

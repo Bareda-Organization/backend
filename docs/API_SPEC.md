@@ -1579,7 +1579,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `POST /staff/routes` | RTE-01 | 편성. 응답 `201` |
 | `GET /staff/routes/{id}` | RTE-01 | 상세 — 정차 순서를 `seq` 차례로 함께 싣는다 |
 | `PATCH /staff/routes/{id}` | RTE-01 | 수정 — §1.9 대로 변경 후 자원 상태를 그대로 반환 |
-| `DELETE /staff/routes/{id}` | RTE-01 | 삭제. **행을 지운다**(soft delete 부재) — 정차 순서도 `route_stop` FK CASCADE 로 함께 사라진다 |
+| `DELETE /staff/routes/{id}` | RTE-01 | 삭제. **행을 지운다**(soft delete 부재) — 정차 순서도 `route_stop` FK CASCADE 로 함께 사라진다. 성공 `204`(본문 부재, §1.1) |
 | `POST /staff/routes/{id}/optimize` | RTE-09 | 정차 순서 최적화. 결과는 상세와 같은 형태 |
 | `GET /staff/routes/{id}/path` | RTE-01 | 정차 순서대로 이은 **도로 경로**. 응답 `road_path[{lat,lng}]` · `fallback_used` · `stops[]` |
 | `GET /staff/stops/search?address=` | RTE-01 | **주소 검색** — 도로명 주소를 좌표로 옮긴다. **아무것도 만들지 않는다** |
@@ -1701,10 +1701,10 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `GET /staff/schedules` | SCH-01 | 목록 (§1.8 페이징) |
 | `POST /staff/schedules` | SCH-01 | 등록 |
 | `PATCH /staff/schedules/{id}` | SCH-01 | 수정 — `active=false` 로 두면 다음 회차 생성부터 제외 |
-| `DELETE /staff/schedules/{id}` | SCH-01 | 삭제. **행을 지운다**(soft delete 부재) — 이미 만들어진 회차는 `run.schedule_id` 가 NULL 이 되어 그대로 남는다 (`ERD` FK `SET NULL`) |
+| `DELETE /staff/schedules/{id}` | SCH-01 | 삭제. **행을 지운다**(soft delete 부재) — 이미 만들어진 회차는 `run.schedule_id` 가 NULL 이 되어 그대로 남는다 (`ERD` FK `SET NULL`). 성공 `204`(본문 부재, §1.1) |
 | `GET /staff/runs?service_date=` | SCH-02 | 그 날짜의 회차 목록. 생략하면 **오늘** |
 | `POST /staff/runs` | SCH-03 | 특정일 회차 **임시 추가** — 스케줄에 없는 1회성 운행 |
-| `DELETE /staff/runs/{id}` | SCH-03 | 특정일 회차 **임시 취소** — 행을 지우지 않고 `canceled_at` 을 채운다 |
+| `DELETE /staff/runs/{id}` | SCH-03 | 특정일 회차 **임시 취소** — 행을 지우지 않고 `canceled_at` 을 채운다. 성공 `204`(본문 부재, §1.1) |
 
 ⚠ **`GET /staff/runs` 는 `§5.18 GET /staff/runs/live` 와 다른 것이다** — 이쪽은 날짜로 보는 **회차 목록**(SCH-02 결과 확인), 저쪽은 관제용 **실시간 스냅샷**(MON-07)이다. 경로가 비슷해도 합치지 않는다.
 
@@ -1805,7 +1805,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `GET /staff/managers?q=` | MGR-01 | 목록·검색 |
 | `POST /staff/managers` | MGR-02 | 등록 |
 | `PATCH /staff/managers/{id}` | MGR-03 | 수정 |
-| `DELETE /staff/managers/{id}` | MGR-04 | 삭제 — 배치 중이면 `409 MANAGER_ASSIGNED` |
+| `DELETE /staff/managers/{id}` | MGR-04 | 삭제 — 배치 중이면 `409 MANAGER_ASSIGNED`. 성공 `204`(본문 부재, §1.1) |
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|:-:|---|

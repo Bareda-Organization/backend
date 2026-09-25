@@ -183,7 +183,7 @@ class StaffManagerControllerTest {
     void 배치되지_않은_매니저를_삭제하면_deleted_at_이_채워진다() throws Exception {
         long managerId = 등록된_매니저_id(관계자A_토큰(), "퇴사기사", "010-9100-0001");
 
-        삭제한다(관계자A_토큰(), managerId).andExpect(status().isOk());
+        삭제한다(관계자A_토큰(), managerId).andExpect(status().isNoContent());
 
         assertThat(삭제_시각(managerId)).isNotNull();
     }
@@ -223,7 +223,7 @@ class StaffManagerControllerTest {
         entityManager.find(Run.class, finishedRunId).finish(OffsetDateTime.now(clock));
         배치한다(managerId, finishedRunId);
 
-        삭제한다(관계자A_토큰(), managerId).andExpect(status().isOk());
+        삭제한다(관계자A_토큰(), managerId).andExpect(status().isNoContent());
 
         assertThat(삭제_시각(managerId)).isNotNull();
     }
@@ -265,7 +265,7 @@ class StaffManagerControllerTest {
         long managerId = 등록된_매니저_id(관계자A_토큰(), "사라질기사", "010-9100-0003");
         assertThat(목록_본문(관계자A_토큰())).as("삭제 전에는 목록에 있어야 부재 단언이 의미를 갖는다").contains("사라질기사");
 
-        삭제한다(관계자A_토큰(), managerId).andExpect(status().isOk());
+        삭제한다(관계자A_토큰(), managerId).andExpect(status().isNoContent());
 
         assertThat(목록_본문(관계자A_토큰())).doesNotContain("사라질기사");
     }
@@ -274,7 +274,7 @@ class StaffManagerControllerTest {
     @Test
     void 삭제된_매니저를_다시_삭제하면_404_MANAGER_NOT_FOUND_이다() throws Exception {
         long managerId = 등록된_매니저_id(관계자A_토큰(), "두번지울기사", "010-9100-0004");
-        삭제한다(관계자A_토큰(), managerId).andExpect(status().isOk());
+        삭제한다(관계자A_토큰(), managerId).andExpect(status().isNoContent());
 
         삭제한다(관계자A_토큰(), managerId)
                 .andExpect(status().isNotFound())

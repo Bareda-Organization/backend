@@ -172,7 +172,7 @@ class ManagerDeletionLoginTest {
     private void 매니저를_삭제한다() throws Exception {
         mockMvc.perform(delete("/api/v1/staff/managers/" + managerId)
                         .header("Authorization", staffToken))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
     }
 
     private ResultActions 로그인한다(String loginId, String password) throws Exception {

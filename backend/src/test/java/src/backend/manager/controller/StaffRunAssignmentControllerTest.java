@@ -304,7 +304,7 @@ class StaffRunAssignmentControllerTest {
         배치한다(관계자A_토큰(), 취소할_회차, 강기사_종일, null).andExpect(status().isOk());
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
                         .delete("/api/v1/staff/runs/" + 취소할_회차).header("Authorization", 관계자A_토큰()))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         배치한다(관계자A_토큰(), 남길_회차, 강기사_종일, null)
                 .andExpect(status().isOk())

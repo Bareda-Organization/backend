@@ -82,8 +82,8 @@ public class StaffRunController {
     @CanManageSchedule
     @Operation(summary = "운행 스케줄 · 일일 회차 — 특정일 회차 임시 취소")
     @DeleteMapping("/{id}")
-    public ApiResponse<Void> cancel(@AuthenticationPrincipal AuthUser requester, @PathVariable Long id) {
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void cancel(@AuthenticationPrincipal AuthUser requester, @PathVariable Long id) {
         runCommandService.cancel(requester, id);
-        return ApiResponse.ok(null);
     }
 }

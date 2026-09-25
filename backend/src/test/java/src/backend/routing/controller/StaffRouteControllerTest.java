@@ -273,7 +273,7 @@ class StaffRouteControllerTest {
         long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "thu", "from_academy", STOPS_OF_A);
         assertThat(정차_순서(routeId)).as("정차지가 없으면 아래 부재 단언은 아무것도 검사하지 않는다").isNotEmpty();
 
-        삭제한다(관계자A_토큰(), routeId).andExpect(status().isOk());
+        삭제한다(관계자A_토큰(), routeId).andExpect(status().isNoContent());
 
         entityManager.flush();
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM route WHERE id = ?", Integer.class,
@@ -422,7 +422,7 @@ class StaffRouteControllerTest {
     void 삭제한_조합은_같은_조합으로_다시_편성할_수_있다() throws Exception {
         long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "sat", "from_academy", STOPS_OF_A);
 
-        삭제한다(관계자A_토큰(), routeId).andExpect(status().isOk());
+        삭제한다(관계자A_토큰(), routeId).andExpect(status().isNoContent());
         entityManager.flush();
 
         편성한다(관계자A_토큰(), BUS_A_ID, "sat", "from_academy", STOPS_OF_A)
