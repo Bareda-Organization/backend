@@ -31,8 +31,7 @@ public class AcademySettingCommandService {
     @Transactional
     public AcademySettingResponse update(AuthUser requester, AcademySettingUpdateRequest request) {
         requireStaff(requester);
-        AcademySetting setting = academySettingRepository.findById(requester.academyId())
-                .orElseGet(() -> academySettingRepository.save(AcademySetting.forAcademy(requester.academyId())));
+        AcademySetting setting = academySettingRepository.findOrCreate(requester.academyId());
         setting.changeNoShowWaitMinutes(request.noShowWaitMinutes());
         return AcademySettingResponse.from(setting);
     }

@@ -6,7 +6,6 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.academy.dto.AcademySettingResponse;
-import src.backend.academy.entity.AcademySetting;
 import src.backend.academy.repository.AcademySettingRepository;
 import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
@@ -32,9 +31,7 @@ public class AcademySettingQueryService {
     @Transactional
     public AcademySettingResponse get(AuthUser requester) {
         requireStaff(requester);
-        AcademySetting setting = academySettingRepository.findById(requester.academyId())
-                .orElseGet(() -> academySettingRepository.save(AcademySetting.forAcademy(requester.academyId())));
-        return AcademySettingResponse.from(setting);
+        return AcademySettingResponse.from(academySettingRepository.findOrCreate(requester.academyId()));
     }
 
     private void requireStaff(AuthUser requester) {
