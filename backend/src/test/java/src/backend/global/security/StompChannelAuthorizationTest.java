@@ -34,6 +34,7 @@ class StompChannelAuthorizationTest {
 
     private static final long FRAME_TIMEOUT_SECONDS = 5;
     private static final char NULL_TERMINATOR = '\0';
+    private static final String PROBE = "channel-authz-probe";
 
     @LocalServerPort
     private int port;
@@ -155,7 +156,8 @@ class StompChannelAuthorizationTest {
 
         String frame = connectAndSubscribe(token, "/topic/manager/runs/1");
 
-        assertThat(frame).as("배치 여부를 확인하지 않으면 남의 회차 관제가 새는 통로가 된다").startsWith("ERROR");
+        assertThat(frame).as("배치 여부를 확인하지 않으면 남의 회차 관제가 새는 통로가 된다").startsWith("ERROR")
+                .contains("message:FORBIDDEN");
     }
 
     /**
@@ -168,7 +170,8 @@ class StompChannelAuthorizationTest {
 
         String frame = connectAndSubscribe(token, "/topic/admin/live");
 
-        assertThat(frame).as("플랫폼 범위가 아니면 관리자 채널은 거부돼야 한다").startsWith("ERROR");
+        assertThat(frame).as("플랫폼 범위가 아니면 관리자 채널은 거부돼야 한다").startsWith("ERROR")
+                .contains("message:FORBIDDEN");
     }
 
     /**
@@ -233,6 +236,76 @@ class StompChannelAuthorizationTest {
             }
         }
         throw new AssertionError("구독이 성립하지 않았다: " + destination);
+    }
+
+    // ── BR-102 — 채널별 허용 쪽과 학생 채널 분기. 거부만 있으면 "항상 거부" 로 망가져도 초록이고,
+    // 학생 채널은 판정 줄이 빠져도(아무 학부모가 남의 자녀 위치를 받아도) 초록이었다.
+    // 시드(V2): parentA1(계정 5)↔학생 1·2 · parentA2(계정 6)↔학생 3·4 · studentA4(계정 10)=학생 4 ·
+    // driverA1(계정 13)·escortA1(계정 17) 은 회차 1 배치 · sysadmin(계정 1)
+
+    @Test
+    void 학부모는_연결된_자녀_채널을_구독한다() throws Exception {
+        assertThat(subscribeOutcome(token(5L, 1L, Role.PARENT), "/topic/students/1/run"))
+                .startsWith("MESSAGE").contains(PROBE);
+    }
+
+    @Test
+    void 학부모는_연결되지_않은_학생_채널을_구독하지_못한다() throws Exception {
+        assertThat(subscribeOutcome(token(5L, 1L, Role.PARENT), "/topic/students/3/run"))
+                .startsWith("ERROR").contains("message:FORBIDDEN");
+    }
+
+    @Test
+    void 학생은_본인_채널을_구독한다() throws Exception {
+        assertThat(subscribeOutcome(token(10L, 1L, Role.STUDENT), "/topic/students/4/run"))
+                .startsWith("MESSAGE").contains(PROBE);
+    }
+
+    @Test
+    void 학생은_다른_학생_채널을_구독하지_못한다() throws Exception {
+        assertThat(subscribeOutcome(token(10L, 1L, Role.STUDENT), "/topic/students/1/run"))
+                .startsWith("ERROR").contains("message:FORBIDDEN");
+    }
+
+    @Test
+    void 배치된_기사와_동승자는_매니저_채널을_구독한다() throws Exception {
+        assertThat(subscribeOutcome(token(13L, 1L, Role.DRIVER), "/topic/manager/runs/1"))
+                .startsWith("MESSAGE").contains(PROBE);
+        assertThat(subscribeOutcome(token(17L, 1L, Role.ESCORT), "/topic/manager/runs/1"))
+                .startsWith("MESSAGE").contains(PROBE);
+    }
+
+    @Test
+    void 메인_관리자는_관리자_채널을_구독한다() throws Exception {
+        assertThat(subscribeOutcome(token(1L, null, Role.SYSTEM_ADMIN), "/topic/admin/live"))
+                .startsWith("MESSAGE").contains(PROBE);
+    }
+
+    private String token(Long accountId, Long academyId, Role role) {
+        return tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
+    }
+
+    /**
+     * CONNECT → SUBSCRIBE 뒤 구독 결과 프레임을 돌려준다 — 거부면 ERROR 가, 허용이면 반복 발행한 표식의
+     * MESSAGE 가 온다. "ERROR 가 안 왔다" 로 허용을 판정하면 구독이 조용히 무시돼도 통과하므로 표식을 받는다.
+     */
+    private String subscribeOutcome(String token, String destination) throws Exception {
+        BlockingQueue<String> received = new LinkedBlockingQueue<>();
+        WebSocketSession session = open(received);
+        try {
+            connect(session, received, token);
+            session.sendMessage(new TextMessage(frame("SUBSCRIBE", "id:sub-0", "destination:" + destination)));
+            for (int attempt = 0; attempt < 25; attempt++) {
+                messagingTemplate.convertAndSend(destination, PROBE);
+                String f = received.poll(200, TimeUnit.MILLISECONDS);
+                if (f != null) {
+                    return f;
+                }
+            }
+            throw new AssertionError("구독 결과 프레임(ERROR 또는 MESSAGE)이 오지 않았다: " + destination);
+        } finally {
+            session.close();
+        }
     }
 
     /** CONNECT 성공을 전제로, SUBSCRIBE 에 대해 서버가 돌려주는 첫 프레임(보통 ERROR)을 그대로 반환한다. */
