@@ -375,6 +375,26 @@ class StaffEmergencyControllerTest {
         assertThat(id목록(body)).contains(ackedId).doesNotContain(openId);
     }
 
+    /**
+     * 미확인 배지({@code unacked_count})는 상태·날짜 필터와 무관하게 학원 전체의 미확인·미취소 건수다(§5.16 · BR-066) —
+     * 필터를 따라가면 "확인됨" 탭을 여는 순간 미확인 비상이 있어도 배지가 0 이 된다.
+     */
+    @Test
+    void 미확인_배지는_status_필터를_따라가지_않는다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long staffAccountId = fixtures.staffAccount(academyId, "직원");
+
+        신고를_발신한다(academyId, fixtures);
+        long ackedId = 신고를_발신한다(academyId, fixtures);
+        확인시각을_옮긴다(ackedId, OffsetDateTime.now());
+
+        String body = 목록을_조회한다(staffAccountId, academyId, "status", "acked");
+
+        assertThat(((Number) com.jayway.jsonpath.JsonPath.read(body, "$.data.unacked_count")).longValue())
+                .as("열린 신고 1건이 있다").isEqualTo(1);
+    }
+
     @Test
     void status_canceled_를_주면_취소된_신고만_담는다() throws Exception {
         EmergencyFixtures fixtures = fixtures();

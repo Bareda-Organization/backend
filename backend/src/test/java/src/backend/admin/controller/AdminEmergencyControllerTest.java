@@ -309,6 +309,29 @@ class AdminEmergencyControllerTest {
         assertThat(id목록(body)).contains(ackedId).doesNotContain(openId);
     }
 
+    /** 미확인 배지는 status 필터와 무관하다(§6.11 → §5.16 · BR-066) — "확인됨" 을 열어도 열린 신고가 세어진다. */
+    @Test
+    void 미확인_배지는_status_필터를_따라가지_않는다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long adminAccountId = fixtures.systemAdminAccount("메인관리자");
+
+        신고를_발신한다(academyId, fixtures);
+        long ackedId = 신고를_발신한다(academyId, fixtures);
+        확인시각을_옮긴다(ackedId, now());
+
+        String openBody = 목록을_조회한다(adminAccountId);
+        String ackedBody = mockMvc.perform(get(LIST).param("status", "acked")
+                        .header("Authorization", 메인관리자_토큰(adminAccountId)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        long openBadge = ((Number) com.jayway.jsonpath.JsonPath.read(openBody, "$.data.unacked_count")).longValue();
+        assertThat(openBadge).as("열린 신고가 있다").isPositive();
+        assertThat(((Number) com.jayway.jsonpath.JsonPath.read(ackedBody, "$.data.unacked_count")).longValue())
+                .as("탭을 바꿔도 배지는 같아야 한다").isEqualTo(openBadge);
+    }
+
     @Test
     void 잘못된_status_값은_422_VALIDATION_FAILED_이다() throws Exception {
         long adminAccountId = fixtures().systemAdminAccount("메인관리자");

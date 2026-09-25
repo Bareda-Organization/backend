@@ -47,4 +47,12 @@ public interface EmergencyAlertRepository extends JpaRepository<EmergencyAlert, 
     @AcademyScopeExempt(reason = "§6.x 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
             + "예외를 여는 판정은 컨트롤러의 @CanMonitorAll 하나다(AccountRepository#findStaffAccountsForConsole 과 같은 형태)")
     List<EmergencyAlert> findAllByOrderByReceivedAtDesc();
+
+    /** 학원 관계자의 미확인 배지(§5.16 {@code unacked_count}) — 목록 필터와 무관하게 학원 전체의 미확인·미취소 건수. */
+    long countByAcademyIdAndAckedAtIsNullAndCanceledAtIsNull(Long academyId);
+
+    /** 메인 관리자 콘솔의 미확인 배지(§6.11) — 목록 필터와 무관하게 전 학원의 미확인·미취소 건수. */
+    @AcademyScopeExempt(reason = "§6.11 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
+            + "배지는 전 학원의 미확인 신고를 세는 것이 목적이라 좁힐 학원이 부재")
+    long countByAckedAtIsNullAndCanceledAtIsNull();
 }

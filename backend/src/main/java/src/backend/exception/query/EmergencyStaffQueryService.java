@@ -107,7 +107,9 @@ public class EmergencyStaffQueryService {
                         runsById.get(alert.getRunId()), contactsByRunId.get(alert.getRunId()), managersById))
                 .toList();
 
-        long unackedCount = items.stream().filter(item -> !item.acked() && item.canceledAt() == null).count();
+        // 배지는 필터(상태·날짜)와 무관하다(BR-066) — 목록에서 세면 "확인됨" 탭에서 0 이 된다.
+        long unackedCount =
+                emergencyAlertRepository.countByAcademyIdAndAckedAtIsNullAndCanceledAtIsNull(requester.academyId());
 
         return new EmergencyStaffListResponse(items, unackedCount);
     }
