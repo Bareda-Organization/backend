@@ -1735,6 +1735,8 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 **일일 회차 생성 (SCH-02)** — 하루 1회 도는 배치가 그날 요일의 **`active=true` 스케줄**로 회차를 만든다. 전용 엔드포인트를 두지 않는다.
 
 - **중복 실행은 오류가 아니라 무시다.** 재기동·수동 재실행이 정상 동작이므로 이미 있는 회차는 조용히 건너뛰고 생성 건수만 센다
+- **기동이 끝나면 오늘 회차 생성을 한 번 돈다** — 00:05 에 서버가 내려가 있었던 날의 보충(BR-017). 위 무시 규칙 덕에 멱등이다
+- **스케줄 하나의 실패가 나머지를 막지 않는다** — 그 스케줄만 건너뛰고 나머지를 다 만든 뒤 실패를 로그·지표로 드러낸다(BR-017)
 - 멱등의 근거는 **`run(bus_id, service_date, direction, depart_time)` UNIQUE** 이고 애플리케이션 선검사가 아니다 — 동시 2회 실행은 서로의 미커밋 INSERT 를 보지 못한 채 둘 다 선검사를 지난다
 
 **에러** — `404 SCHEDULE_NOT_FOUND`(`PATCH`·`DELETE` 대상 부재) · `404 BUS_NOT_FOUND`(지정 차량 부재·타 학원) · `409 DUPLICATE_SCHEDULE`(같은 `bus_id`·`weekday`·`direction`·`depart_time` 조합 중복) · `404 RUN_NOT_FOUND`(`DELETE /staff/runs/{id}` 대상 부재 · 타 학원 — 존재 비노출, Ruling 163) · `409 DUPLICATE_RUN`(같은 차량·날짜·방향·출발 시각 회차 중복 추가) — 이상 2026-08-26 신설 (Ruling 153)

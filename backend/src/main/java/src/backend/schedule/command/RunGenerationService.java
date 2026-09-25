@@ -7,6 +7,7 @@ import java.util.Locale;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
@@ -28,6 +29,7 @@ import src.backend.schedule.repository.ScheduleRepository;
  * 회차까지 되돌리고, 예외로 더럽혀진 영속성 문맥은 이어서 쓸 수도 없다. 그래서 건너뛸지 말지의 판정을
  * {@link RunCommandService#create} <b>바깥</b>에서 한다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RunGenerationService {
@@ -46,10 +48,25 @@ public class RunGenerationService {
     public int generate(LocalDate serviceDate) {
         List<Schedule> schedules = scheduleRepository.findAllByWeekdayAndActiveIsTrue(weekdayOf(serviceDate));
         int created = 0;
+        RuntimeException firstFailure = null;
         for (Schedule schedule : schedules) {
-            if (creates(schedule, serviceDate)) {
-                created++;
+            // 스케줄 하나의 실패가 뒤 순서의 학원 스케줄을 끊지 않게 한다(BR-017, 회차 단위 격리) — 나머지를 다
+            // 만든 뒤 첫 실패를 다시 던져 드러낸다(삼키지 않는다, 아래 creates 자바독).
+            try {
+                if (creates(schedule, serviceDate)) {
+                    created++;
+                }
+            } catch (RuntimeException e) {
+                log.warn("스케줄 {} 의 {} 회차 생성 실패 — 나머지 스케줄은 계속 만든다", schedule.getId(), serviceDate, e);
+                if (firstFailure == null) {
+                    firstFailure = e;
+                } else {
+                    firstFailure.addSuppressed(e);
+                }
             }
+        }
+        if (firstFailure != null) {
+            throw firstFailure;
         }
         return created;
     }
