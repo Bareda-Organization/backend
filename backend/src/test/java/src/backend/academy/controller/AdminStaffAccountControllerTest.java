@@ -281,6 +281,24 @@ class AdminStaffAccountControllerTest {
         assertThat(문자열_컬럼(staff.accountId(), "email")).isEqualTo("fixed@example.com");
     }
 
+    /**
+     * 빈 이름·공백 연락처·형식이 아닌 연락처는 {@code 422 VALIDATION_FAILED} 이고 저장값은 그대로다(BR-124) —
+     * 목록에 이름 없는 계정이 생기고 계정 복구 번호가 공백이 되는 것을 막는다.
+     */
+    @Test
+    void 빈_이름과_형식이_아닌_연락처는_422_VALIDATION_FAILED_다() throws Exception {
+        관계자 staff = 관계자를_만든다("p3t3blnk");
+
+        for (String body : new String[] {"{\"name\":\"\"}", "{\"name\":\"  \"}", "{\"phone\":\" \"}",
+                "{\"phone\":\"abc\"}"}) {
+            수정한다(staff.accountId(), body)
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+        }
+        동기화한다();
+        assertThat(문자열_컬럼(staff.accountId(), "name")).isNotBlank();
+    }
+
     /** 미존재 계정 지정은 {@code 404 ACCOUNT_NOT_FOUND} 다(§6.7). */
     @Test
     void 없는_계정을_수정하려_하면_404_ACCOUNT_NOT_FOUND_다() throws Exception {

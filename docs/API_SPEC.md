@@ -2162,7 +2162,7 @@ SMS 연동(`PRD` F-05) 전까지 §2.9 가 `503` 이라 **학원 사용자의 �
 
 `account.status` 는 이 전환에서 **바뀌지 않는다** — 계정 상태 4종(`pending`·`active`·`rejected`·`blocked`)에 `inactive` 가 부재하고, 퇴사는 계정의 생명주기가 아니라 **그 학원에서의 재직 여부**라 `academy_staff.status` 가 표현한다.
 
-**에러** — `404 ACCOUNT_NOT_FOUND` · `409 STAFF_QUOTA_EXCEEDED`(`status=active` 전환 대상 학원에 이미 `active` 관계자 존재)
+**에러** — `404 ACCOUNT_NOT_FOUND` · `409 STAFF_QUOTA_EXCEEDED`(`status=active` 전환 대상 학원에 이미 `active` 관계자 존재) · `422 VALIDATION_FAILED`(`name` 이 공백뿐 · `phone` 이 숫자·하이픈 형식 밖 — 주면 비울 수 없다, BR-124)
 
 ### 6.8 GET /admin/academies/{id}/runs/live
 
