@@ -70,6 +70,21 @@ class MalformedRequestTest {
                 .content("{\"lat\":91,\"lng\":127.0,\"recorded_at\":\"2026-09-25T08:00:00+09:00\"}")));
     }
 
+    /** BR-135 — 서비스가 적은 개별 사유가 코드 기본 문구로 덮이지 않고 {@code error.message} 에 실린다. */
+    @Test
+    void 개별_사유가_error_message_에_실린다() throws Exception {
+        mockMvc.perform(get("/api/v1/staff/approvals").param("status", "done").header("Authorization", staff()))
+                .andExpect(jsonPath("$.error.message").value("변경 요청 상태가 아닙니다: done"));
+    }
+
+    /** BR-135 — {@code @Valid} 실패 필드명은 사양의 snake_case 로 나간다(자바 필드명 {@code loginId} 가 아니다). */
+    @Test
+    void 검증_실패_필드명은_snake_case_다() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/login").contentType("application/json")
+                        .content("{\"login_id\":\"\",\"password\":\"x\"}"))
+                .andExpect(jsonPath("$.error.message").value(org.hamcrest.Matchers.startsWith("login_id: ")));
+    }
+
     private static void expect422(ResultActions result) throws Exception {
         result.andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
