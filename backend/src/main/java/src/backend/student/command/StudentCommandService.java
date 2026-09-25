@@ -2,6 +2,7 @@ package src.backend.student.command;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -12,6 +13,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.account.entity.Account;
+import src.backend.account.repository.AccountRepository;
+import src.backend.audit.entity.AuditAction;
+import src.backend.audit.entity.AuditLog;
+import src.backend.audit.repository.AuditLogRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
@@ -52,6 +58,10 @@ public class StudentCommandService {
 
     private final StudentPhotoWriter studentPhotoWriter;
 
+    private final AuditLogRepository auditLogRepository;
+
+    private final AccountRepository accountRepository;
+
     private final Clock clock;
 
     /**
@@ -83,6 +93,19 @@ public class StudentCommandService {
                 request.className(), request.note(), request.canGoAlone()));
         if (request.guardians() != null) {
             changeGuardianPhones(student, request.guardians());
+        }
+        List<String> l3Fields = new ArrayList<>();
+        if (photo != null) {
+            l3Fields.add("photo_url");
+        }
+        if (request.note() != null) {
+            l3Fields.add("note");
+        }
+        if (request.guardians() != null) {
+            l3Fields.add("guardians");
+        }
+        if (!l3Fields.isEmpty()) {
+            recordChange(requester, student, AuditAction.UPDATE, Map.of("fields", l3Fields));
         }
         return student.getId();
     }
@@ -118,7 +141,18 @@ public class StudentCommandService {
         OffsetDateTime at = OffsetDateTime.now(clock);
         student.withdraw(at);
         unlinkGuardians(student, at);
+        recordChange(requester, student, AuditAction.DELETE, Map.of());
         return StudentWithdrawalResponse.from(student);
+    }
+
+    /**
+     * L3 수정·퇴원을 감사 1행으로 남긴다(Ruling 333 · SYS-01) — 변경과 <b>같은 트랜잭션</b>이다. 강제 확정·차단 해제와
+     * 같은 근거로, 감사가 빠진 변경은 누가 보호자 번호를 바꿨는지 되짚을 근거가 없어 변경 자체를 남기지 않는다.
+     */
+    private void recordChange(AuthUser requester, Student student, AuditAction action, Map<String, Object> detail) {
+        String actorLoginId = accountRepository.findById(requester.accountId()).map(Account::getLoginId).orElse(null);
+        auditLogRepository.save(AuditLog.forDataAccessChange(action, student.getAcademyId(), requester.accountId(),
+                actorLoginId, "student", student.getId(), detail, OffsetDateTime.now(clock)));
     }
 
     /**
