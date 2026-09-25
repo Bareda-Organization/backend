@@ -35,7 +35,6 @@ import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.entity.Run;
 import src.backend.run.event.RunRouteConfirmedEvent;
-import src.backend.run.repository.RunRepository;
 import src.backend.student.access.LinkedChildLookup;
 import src.backend.student.entity.Student;
 
@@ -60,7 +59,7 @@ public class BoardingIntentCommandService {
 
     private final LinkedChildLookup linkedChildLookup;
 
-    private final RunRepository runRepository;
+    private final TargetRunLookup targetRunLookup;
 
     private final BoardingIntentRepository boardingIntentRepository;
 
@@ -79,22 +78,17 @@ public class BoardingIntentCommandService {
     /**
      * 자녀·회차를 확인하고 3구간 중 하나로 처리한다.
      *
-     * <p>회차 조회는 {@link RunRepository#findByIdAndAcademyId} 로 학원 범위에 직접 좁혀 얻는다 —
-     * 별도로 {@code AcademyScope.assertAccessible} 를 부르지 않는다. 다른 학원의 회차를 지목하면
-     * 이 조회가 곧바로 빈 결과가 되어 {@code 404 RUN_NOT_FOUND} 로 답하는데, 이는 API_SPEC §3.6 의
-     * 에러 표에 {@code ACADEMY_SCOPE_VIOLATION} 이 없고 대신 같은 {@code {id}} 지목 자원인
-     * {@code SCHEDULE_NOT_FOUND}·{@code ROUTE_NOT_FOUND} 가 "없음"과 "남의 학원"을 같은 404 로
-     * 답하는 관례(Ruling 153·180)를 따른 것이다. 이 조회가 성공한 뒤에는 {@code run.academyId} 가
-     * {@code student.academyId} 와 같음이 보장되므로, 그 뒤의 {@link BoardingIntentRepository
-     * #findByRunIdAndStudentId}(부모 경유·{@code AcademyScopeExempt}) 가 전제하는 "호출부가 이미
-     * 학원 소속을 확인했다" 를 이 시점에 만족한다.
+     * <p>회차는 {@link TargetRunLookup} 이 학원 범위와 "그 자녀의 대상 회차인가" 를 함께 판정해 얻는다 —
+     * 다른 학원의 회차·대상이 아닌 회차는 모두 {@code 404 RUN_NOT_FOUND}(§1.11, Ruling 163 · BR-084).
+     * 이 조회가 성공한 뒤에는 {@code run.academyId} 가 {@code student.academyId} 와 같음이 보장되므로,
+     * 그 뒤의 {@link BoardingIntentRepository#findByRunIdAndStudentId}(부모 경유·{@code AcademyScopeExempt})
+     * 가 전제하는 "호출부가 이미 학원 소속을 확인했다" 를 이 시점에 만족한다.
      */
     @Transactional
     public BoardingIntentToggleResponse toggle(AuthUser requester, Long studentId, Long runId,
             BoardingIntentToggleRequest request) {
         Student student = linkedChildLookup.linkedChild(requester, studentId);
-        Run run = runRepository.findByIdAndAcademyId(runId, student.getAcademyId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        Run run = targetRunLookup.targetRun(student, runId);
 
         OffsetDateTime now = OffsetDateTime.now(clock);
         ChangeWindow segment = ChangeWindowPolicy.segmentOf(run, now);
@@ -105,7 +99,7 @@ public class BoardingIntentCommandService {
 
         return switch (segment) {
             case IMMEDIATE -> applyImmediate(run, student, intent, request.riding(), requester, now);
-            case APPROVAL_REQUIRED -> requestApproval(run, student, intent, requester, now);
+            case APPROVAL_REQUIRED -> requestApproval(run, student, intent, request.riding(), requester, now);
             case CLOSED -> applyClosed(run, student, intent, request.riding(), requester, now);
         };
     }
@@ -126,15 +120,21 @@ public class BoardingIntentCommandService {
     }
 
     /**
-     * ②구간 — 즉시 반영하지 않고 승인 대기 큐에 올린다. {@code riding} 방향(켜기·끄기)을 구분해 저장할
-     * 컬럼이 {@link ChangeRequest} 에 없어({@code type} 이 {@code RELOCATE}·{@code CANCEL} 둘뿐)
-     * 항상 {@link ChangeRequestType#CANCEL} 로 접수한다 — 승인 단계(이 태스크 범위 밖)를 구현할 때
-     * 반영 방향을 되짚을 근거가 이 요청 자체에 없다는 뜻이라 보고에 남긴다.
+     * ②구간 — 끄기만 승인 대기 큐에 {@link ChangeRequestType#CANCEL} 로 올린다(BR-029). 켜기는
+     * {@code 403 CHANGE_WINDOW_CLOSED} — 30분 안쪽에는 추가 불가, 취소만 승인 경로다(PRD "오늘만 다른
+     * 승하차지"). 현재 의사와 같은 값은 한도·요청 없이 무변경 {@code applied} 로 답한다.
      *
      * <p>응답의 {@code riding} 은 <b>바뀌지 않은 기존 값</b>이다(§3.6) — 실제 반영은 승인 이후다.
      */
     private BoardingIntentToggleResponse requestApproval(Run run, Student student, BoardingIntent intent,
-            AuthUser requester, OffsetDateTime now) {
+            boolean riding, AuthUser requester, OffsetDateTime now) {
+        if (riding == intent.isRiding()) {
+            return BoardingIntentToggleResponse.applied(riding, riderStatusOf(run.getId(), student.getId(), riding),
+                    quotaLeftOf(intent));
+        }
+        if (riding) {
+            throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);
+        }
         ChangeRequestStore.consumeChangeQuota(boardingIntentRepository, intent);
 
         ChangeRequest changeRequest = ChangeRequest.forRequest(run.getAcademyId(), run.getId(), student.getId(),

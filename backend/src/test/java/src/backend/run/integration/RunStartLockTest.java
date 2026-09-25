@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
+import src.backend.boarding.entity.RiderStatus;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
@@ -161,6 +162,9 @@ class RunStartLockTest {
         long runId = fixtures().confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
         long driverAccountId = fixtures().assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        // 변경 신청은 그 자녀의 대상 회차만 받는다(BR-084) — 확정 명단에 학생을 둔다.
+        fixtures().rider(runId, studentId, fixtures().stop(academyId, "37.560000", "126.970000"), RiderStatus.WAITING,
+                now());
 
         // 실제 시작 경로 — jdbcTemplate 로 상태를 직접 바꾸지 않는다.
         mockMvc.perform(post("/api/v1/runs/" + runId + "/start")

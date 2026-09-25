@@ -190,7 +190,8 @@ class BoardingIntentControllerTest {
             fixtures = new BoardingIntentFixtures(academyRepository, busRepository, studentRepository,
                     guardianRepository, guardianStudentRepository, accountRepository, academyStaffRepository,
                     runRepository, stopRepository, confirmedRouteRepository, routeVersionRepository,
-                    runStopRepository, runRiderRepository, managerRepository, assignmentRepository);
+                    runStopRepository, runRiderRepository, managerRepository, assignmentRepository, routeRepository,
+                    routeStopRepository, weeklyAddressRepository);
         }
         return fixtures;
     }
@@ -221,6 +222,7 @@ class BoardingIntentControllerTest {
         long guardianAccountId = guardian1.accountId();
         fixtures().linkChild(guardian1.guardianId(), studentId, now.minusDays(1));
         long runId = fixtures().run(academyId, busId, now.plusHours(2), now.plusMinutes(90));
+        fixtures().enrol(academyId, busId, studentId, fixtures().stop(academyId, "37.550000", "126.960000"));
 
         mockMvc.perform(patch(INTENT.formatted(studentId, runId))
                         .header("Authorization", 토큰(guardianAccountId, academyId, Role.PARENT))
@@ -315,6 +317,7 @@ class BoardingIntentControllerTest {
         long guardianAccountId = guardian2.accountId();
         fixtures().linkChild(guardian2.guardianId(), studentId, now.minusDays(1));
         long runId = fixtures().run(academyId, busId, now.plusMinutes(20), now.minusMinutes(10));
+        fixtures().enrol(academyId, busId, studentId, fixtures().stop(academyId, "37.550000", "126.960000"));
 
         mockMvc.perform(patch(INTENT.formatted(studentId, runId))
                         .header("Authorization", 토큰(guardianAccountId, academyId, Role.PARENT))
@@ -377,6 +380,7 @@ class BoardingIntentControllerTest {
         BoardingIntentFixtures.GuardianAccount guardian = fixtures().guardian(academyId, "보호자11");
         fixtures().linkChild(guardian.guardianId(), studentId, now.minusDays(1));
         long runId = fixtures().run(academyId, busId, now.plusMinutes(20), now.minusMinutes(10));
+        fixtures().enrol(academyId, busId, studentId, fixtures().stop(academyId, "37.550000", "126.960000"));
 
         doThrow(new RuntimeException("응답 조립 직전 실패를 대신한다 — 롤백을 강제한다"))
                 .when(runRiderRepository).findByRunIdAndStudentId(runId, studentId);
@@ -399,7 +403,10 @@ class BoardingIntentControllerTest {
 
     // ── 목표 5 — 한도 소진 후 재요청은 403 ──────────────────────────────────
 
-    /** ②구간 변경 한도는 회차당 1회다 — 소진 후 재요청은 {@code 403 CHANGE_LIMIT_REACHED}(목표 5). */
+    /**
+     * ②구간 변경 한도는 회차당 1회다 — 소진 후 재요청은 {@code 403 CHANGE_LIMIT_REACHED}(목표 5). 재요청은
+     * 끄기다 — ②구간 켜기는 승인 경로 자체가 없어 한도와 무관하게 무변경·403 으로 갈린다(BR-029).
+     */
     @Test
     @DisplayName("목표5 — 한도 소진 후 승인대기 재요청은 403 CHANGE_LIMIT_REACHED 다")
     void 한도_소진_후_승인대기_재요청은_403_이다() throws Exception {
@@ -411,6 +418,7 @@ class BoardingIntentControllerTest {
         long guardianAccountId = guardian3.accountId();
         fixtures().linkChild(guardian3.guardianId(), studentId, now.minusDays(1));
         long runId = fixtures().run(academyId, busId, now.plusMinutes(20), now.minusMinutes(10));
+        fixtures().enrol(academyId, busId, studentId, fixtures().stop(academyId, "37.550000", "126.960000"));
         String 토큰 = 토큰(guardianAccountId, academyId, Role.PARENT);
 
         mockMvc.perform(patch(INTENT.formatted(studentId, runId))
@@ -422,7 +430,7 @@ class BoardingIntentControllerTest {
         mockMvc.perform(patch(INTENT.formatted(studentId, runId))
                         .header("Authorization", 토큰)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"riding\":true}"))
+                        .content("{\"riding\":false}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("CHANGE_LIMIT_REACHED"));
 
@@ -441,6 +449,92 @@ class BoardingIntentControllerTest {
                         .content("{\"riding\":false}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.result").value("pending_approval"));
+    }
+
+    /**
+     * BR-029 — ②구간 켜기는 승인 경로가 없다(PRD "오늘만 다른 승하차지": 30분 이내 추가 불가, 취소만 승인
+     * 경로). 켜기를 취소로 접수하면 관계자가 승인했을 때 뜻과 반대로 명단에서 빠진다.
+     */
+    @Test
+    @DisplayName("BR-029 — 승인대기구간에서 끈 학생의 켜기는 403 이고 요청·한도가 남지 않는다")
+    void 승인대기구간_켜기는_403이고_요청이_생기지_않는다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long studentId = fixtures().student(academyId, "켜기학생");
+        BoardingIntentFixtures.GuardianAccount guardian = fixtures().guardian(academyId, "켜기보호자");
+        fixtures().linkChild(guardian.guardianId(), studentId, now.minusDays(1));
+        long runId = fixtures().run(academyId, busId, now.plusMinutes(20), now.minusMinutes(10));
+        fixtures().enrol(academyId, busId, studentId, fixtures().stop(academyId, "37.553000", "126.963000"));
+        jdbcTemplate.update("INSERT INTO boarding_intent (run_id, student_id, riding, change_used_count, applied_segment, "
+                + "created_at) VALUES (?, ?, false, 0, 1, now())", runId, studentId);
+
+        mockMvc.perform(patch(INTENT.formatted(studentId, runId))
+                        .header("Authorization", 토큰(guardian.accountId(), academyId, Role.PARENT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"riding\":true}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("CHANGE_WINDOW_CLOSED"));
+
+        entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM change_request WHERE run_id = ?", Integer.class,
+                runId)).isZero();
+        assertThat(jdbcTemplate.queryForObject("SELECT change_used_count FROM boarding_intent WHERE run_id = ?",
+                Integer.class, runId)).isZero();
+    }
+
+    /** BR-029 — ②구간에서 현재 의사와 같은 값(이미 타는 학생의 켜기)은 한도·요청 없이 무변경 {@code applied} 다. */
+    @Test
+    @DisplayName("BR-029 — 승인대기구간에서 현재 의사와 같은 값은 한도를 쓰지 않고 applied 로 답한다")
+    void 승인대기구간_같은_값은_무변경_applied_이다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long studentId = fixtures().student(academyId, "같은값학생");
+        BoardingIntentFixtures.GuardianAccount guardian = fixtures().guardian(academyId, "같은값보호자");
+        fixtures().linkChild(guardian.guardianId(), studentId, now.minusDays(1));
+        long runId = fixtures().run(academyId, busId, now.plusMinutes(20), now.minusMinutes(10));
+        fixtures().enrol(academyId, busId, studentId, fixtures().stop(academyId, "37.554000", "126.964000"));
+
+        mockMvc.perform(patch(INTENT.formatted(studentId, runId))
+                        .header("Authorization", 토큰(guardian.accountId(), academyId, Role.PARENT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"riding\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.result").value("applied"))
+                .andExpect(jsonPath("$.data.riding").value(true))
+                .andExpect(jsonPath("$.data.change_quota_left").value(1));
+
+        entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM change_request WHERE run_id = ?", Integer.class,
+                runId)).isZero();
+    }
+
+    /**
+     * BR-084 — 같은 학원이라도 그 자녀가 대상이 아닌 회차는 {@code 404 RUN_NOT_FOUND}(§1.11). 대상 판정이
+     * 없으면 대상 밖 학생의 토글이 {@code boarding_intent} 행을 만들고 승인 대기·관제 알림에 올라간다.
+     */
+    @Test
+    @DisplayName("BR-084 — 그 자녀가 대상이 아닌 같은 학원 회차를 지목하면 404 RUN_NOT_FOUND 이고 행이 생기지 않는다")
+    void 대상이_아닌_회차를_지목하면_404이다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long studentId = fixtures().student(academyId, "대상밖학생");
+        BoardingIntentFixtures.GuardianAccount guardian = fixtures().guardian(academyId, "대상밖보호자");
+        fixtures().linkChild(guardian.guardianId(), studentId, now.minusDays(1));
+        long runId = fixtures().run(academyId, busId, now.plusMinutes(20), now.minusMinutes(10));
+
+        mockMvc.perform(patch(INTENT.formatted(studentId, runId))
+                        .header("Authorization", 토큰(guardian.accountId(), academyId, Role.PARENT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"riding\":false}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("RUN_NOT_FOUND"));
+
+        entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM boarding_intent WHERE run_id = ?", Integer.class,
+                runId)).isZero();
     }
 
     // ── 목표 8 — ③구간 재최적화 없는 즉시 수용 ──────────────────────────────
@@ -462,6 +556,7 @@ class BoardingIntentControllerTest {
         fixtures().linkChild(guardian4.guardianId(), studentId, now.minusDays(1));
         long runId = fixtures().run(academyId, busId, now.minusMinutes(5), now.minusMinutes(35));
         long stopId = fixtures().stop(academyId, "37.560000", "126.970000");
+        fixtures().enrol(academyId, busId, studentId, stopId);
         long runStopId = fixtures().confirmedSingleRiderStop(runId, studentId, stopId, now.minusHours(1));
         String 토큰 = 토큰(guardianAccountId, academyId, Role.PARENT);
 
@@ -512,6 +607,7 @@ class BoardingIntentControllerTest {
         fixtures().linkChild(guardian.guardianId(), studentId, now.minusDays(1));
         long runId = fixtures().run(academyId, busId, now.minusMinutes(5), now.minusMinutes(35));
         long stopId = fixtures().stop(academyId, "37.561000", "126.971000");
+        fixtures().enrol(academyId, busId, studentId, stopId);
         long runStopId = fixtures().confirmedSingleRiderStop(runId, studentId, stopId, now.minusHours(1));
         entityManager.flush();
         jdbcTemplate.update("UPDATE run_rider SET status = 'boarded' WHERE run_id = ? AND student_id = ?", runId,
@@ -547,6 +643,7 @@ class BoardingIntentControllerTest {
         fixtures().linkChild(guardian.guardianId(), studentId, now.minusDays(1));
         long runId = fixtures().run(academyId, busId, now.minusMinutes(5), now.minusMinutes(35));
         long stopId = fixtures().stop(academyId, "37.562000", "126.972000");
+        fixtures().enrol(academyId, busId, studentId, stopId);
         fixtures().confirmedSingleRiderStop(runId, studentId, stopId, now.minusHours(1));
         long driverAccountId = fixtures().assignedManager(academyId, runId, ManagerRole.DRIVER, now);
 
@@ -586,6 +683,7 @@ class BoardingIntentControllerTest {
         long guardian5AccountId = guardian5.accountId();
         fixtures().linkChild(guardian5.guardianId(), immediateStudentId, now.minusDays(1));
         long immediateRunId = fixtures().run(academyId, busId, now.plusHours(2), now.plusMinutes(90));
+        fixtures().enrol(academyId, busId, immediateStudentId, fixtures().stop(academyId, "37.551000", "126.961000"));
 
         mockMvc.perform(patch(INTENT.formatted(immediateStudentId, immediateRunId))
                         .header("Authorization", 토큰(guardian5AccountId, academyId, Role.PARENT))
@@ -598,6 +696,7 @@ class BoardingIntentControllerTest {
         long guardian6AccountId = guardian6.accountId();
         fixtures().linkChild(guardian6.guardianId(), approvalStudentId, now.minusDays(1));
         long approvalRunId = fixtures().run(academyId, busId, now.plusMinutes(20), now.minusMinutes(10));
+        fixtures().enrol(academyId, busId, approvalStudentId, fixtures().stop(academyId, "37.552000", "126.962000"));
 
         mockMvc.perform(patch(INTENT.formatted(approvalStudentId, approvalRunId))
                         .header("Authorization", 토큰(guardian6AccountId, academyId, Role.PARENT))

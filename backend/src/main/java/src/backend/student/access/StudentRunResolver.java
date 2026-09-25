@@ -106,7 +106,8 @@ public class StudentRunResolver {
                 .or(() -> candidates.stream().max(Comparator.comparing(Run::getDepartTime)));
     }
 
-    private boolean belongsTo(Run run, Long studentId) {
+    /** 이 학생이 그 회차의 대상인가 — 확정 전은 고정 노선, 확정 이후는 명단({@code run_rider})으로 판정한다. */
+    public boolean belongsTo(Run run, Long studentId) {
         if (run.getStatus() == RunStatus.IDLE) {
             return matchesFixedRoute(run, studentId);
         }

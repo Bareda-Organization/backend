@@ -624,12 +624,12 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | ① 출발 30분 전까지 | 즉시 반영 — `absent` 기록 · 명단 제외 · **노선 재최적화**. 학부모 알림 부재, 관계자 통지 |
 
 ⚠ **① 의 "노선 재최적화" 는 호출이 아니라 결과다 (2026-08-30, Ruling 198).** ①구간(출발 30분 전까지) 동안 회차는 `idle` 이고 `confirmed_route` 행이 **부재**해 재최적화할 대상이 없다 — 확정 시각이 곧 ①/② 경계이기 때문이다(`run.confirm_at` · `ck_run_confirm_at` CHECK · ARCHITECTURE §9). 따라서 ①구간 토글은 **`boarding_intent` 만 갱신**하고, 반영은 뒤이어 도는 확정 배치(RTE-02)가 그 값을 읽어 산출하는 것으로 이뤄진다(ARCHITECTURE §8.1 입력 3축). **예외** — 회차 임시 추가(API_SPEC §5.10)로 출발 30분 이내에 만들어진 회차는 생성 시점에 `confirm_at` 이 이미 지나 곧바로 확정되므로 **② 구간부터 시작**한다.
-| ② 30분 안쪽 ~ 출발 전 | 승인 대기로 접수 + 관계자 푸시(REQ-05). 승인 시 **재최적화·재배포**(§5.6). **회차당 1회** — 단위는 회차(`Run`)이며 등원·하원이 각각 1회씩. 소진 후 `403 CHANGE_LIMIT_REACHED` |
+| ② 30분 안쪽 ~ 출발 전 | 승인 대기로 접수 + 관계자 푸시(REQ-05). 승인 시 **재최적화·재배포**(§5.6). **회차당 1회** — 단위는 회차(`Run`)이며 등원·하원이 각각 1회씩. 소진 후 `403 CHANGE_LIMIT_REACHED`. **`riding=false`(끄기)만 접수** — `riding=true`(켜기)는 `403 CHANGE_WINDOW_CLOSED`(30분 안쪽은 추가 불가 · 취소만 승인 경로, PRD "오늘만 다른 승하차지" · BR-029). 현재 탑승 의사와 같은 값은 한도·요청 없이 `applied`(무변경) |
 | ③ 운행 시작 후 | `riding=false` 만 **승인 없이 즉시 수용** — `applied_no_reroute`. **대상은 아직 타지 않은(`waiting`) 학생만** — `boarded`·`alighted`·`no_show` 면 `403 CHANGE_WINDOW_CLOSED`(`Ruling 334`). `absent` 기록 + 해당 승하차지를 **경유하되 정차하지 않음**(`skipped`) + 기사·동승자 전달(WS `rider_changed` · `route_changed` 알림, `Ruling 334`). **노선·순번 불변, 재최적화 부재** (C-04 ③ · C-05). `riding=true`(되돌리기)는 `403 CHANGE_WINDOW_CLOSED` |
 
 서버 처리 실패 시 기존 상태 복구 + **횟수 미소진** (C-10).
 
-**에러** — `403 CHANGE_LIMIT_REACHED` · `403 CHANGE_WINDOW_CLOSED`(③ 구간의 `riding=true` 되돌리기 · ③ 구간 대상 학생이 `waiting` 이 아님) · `404 RUN_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163) · `404 STUDENT_NOT_FOUND` · `403 FORBIDDEN`(연결 부재 자녀 — 학부모 전용, 학생 계정 호출 포함)
+**에러** — `403 CHANGE_LIMIT_REACHED` · `403 CHANGE_WINDOW_CLOSED`(②·③ 구간의 `riding=true` · ③ 구간 대상 학생이 `waiting` 이 아님) · `404 RUN_NOT_FOUND`(대상 부재 · 타 학원 · **그 자녀의 대상 회차가 아님** — 존재 비노출, Ruling 163 · BR-084. 대상 = 확정 전 고정 노선 · 확정 후 명단에 있거나 그 회차의 탑승 의사를 끈 학생) · `404 STUDENT_NOT_FOUND` · `403 FORBIDDEN`(연결 부재 자녀 — 학부모 전용, 학생 계정 호출 포함)
 
 ### 3.7 GET · PATCH /students/{id}/weekly-address
 
@@ -679,7 +679,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | ② | 승인 대기 접수 — **관리자 승인을 통해서만 반영**, 승인 시 **재최적화·재배포**(§5.6). 거절 시 기존 경로 유지. 회차당 1회 |
 | ③ | `403 CHANGE_WINDOW_CLOSED` |
 
-**에러** — `403 CHANGE_WINDOW_CLOSED` · `403 CHANGE_LIMIT_REACHED` · `422 ADDRESS_VERIFICATION_FAILED` · `404 RUN_NOT_FOUND` · `404 STUDENT_NOT_FOUND` · `403 FORBIDDEN`(연결 부재 자녀)
+**에러** — `403 CHANGE_WINDOW_CLOSED` · `403 CHANGE_LIMIT_REACHED` · `422 ADDRESS_VERIFICATION_FAILED` · `404 RUN_NOT_FOUND`(대상 부재 · 타 학원 · 그 자녀의 대상 회차가 아님 — §3.6 과 같은 기준, BR-084) · `404 STUDENT_NOT_FOUND` · `403 FORBIDDEN`(연결 부재 자녀)
 
 ### 3.9 GET /students/{id}/change-requests
 

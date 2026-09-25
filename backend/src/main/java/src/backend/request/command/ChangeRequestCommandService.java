@@ -17,7 +17,6 @@ import src.backend.request.dto.ChangeRequestCreateRequest;
 import src.backend.request.dto.ChangeRequestCreateResponse;
 import src.backend.request.entity.ChangeRequestType;
 import src.backend.run.entity.Run;
-import src.backend.run.repository.RunRepository;
 import src.backend.student.access.LinkedChildLookup;
 import src.backend.student.command.AddressVerification;
 import src.backend.student.entity.Student;
@@ -41,7 +40,7 @@ public class ChangeRequestCommandService {
 
     private final LinkedChildLookup linkedChildLookup;
 
-    private final RunRepository runRepository;
+    private final TargetRunLookup targetRunLookup;
 
     private final AddressVerification addressVerification;
 
@@ -52,8 +51,7 @@ public class ChangeRequestCommandService {
     public ChangeRequestCreateResponse submit(AuthUser requester, Long studentId, ChangeRequestCreateRequest request) {
         Student student = linkedChildLookup.linkedChild(requester, studentId);
         ChangeRequestType type = parseType(request.type());
-        Run run = runRepository.findByIdAndAcademyId(request.runId(), student.getAcademyId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        Run run = targetRunLookup.targetRun(student, request.runId());
 
         OffsetDateTime now = OffsetDateTime.now(clock);
         ChangeWindow window = ChangeWindowPolicy.segmentOf(run, now);
