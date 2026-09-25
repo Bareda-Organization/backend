@@ -23,9 +23,9 @@ import src.backend.run.repository.RunRepository;
 /**
  * 기사·동승자의 노선 변경 확인 응답 처리(API_SPEC §4.11, RUN-07·M-04).
  *
- * <p>요청의 {@code change_ids[]} 는 받되 쓰지 않는다 — {@link Assignment#ack} 의 javadoc이 이미
- * 밝히듯 스키마가 변경 건 단위 확인을 담을 자리가 없고({@code acked_route_version_id} 가 배포 버전
- * 1개만 가리킨다), 요청에 그 필드가 와도 이 서비스는 현재 배포 버전 전체를 확인 처리한다.
+ * <p>요청 본문은 없다(Ruling 344) — {@link Assignment#ack} 의 javadoc이 이미 밝히듯 스키마가
+ * 변경 건 단위 확인을 담을 자리가 없고({@code acked_route_version_id} 가 배포 버전 1개만
+ * 가리킨다), 이 서비스는 언제나 현재 배포 버전 전체를 확인 처리한다.
  */
 @Service
 @RequiredArgsConstructor
