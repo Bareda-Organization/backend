@@ -2608,8 +2608,8 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 |---|---|---|:-:|
 | `boarding` | `boarded` | 학부모 | ● |
 | `alighting` | `alighted` — **동승자 처리분과 등원 종료 자동 처리분 모두** (C-07) | 학부모 | ● |
-| `boarding_canceled` | 되돌리기로 `boarded` → `waiting` (BRD-05, Ruling 219) — 기발송 승차 알림은 정정하지 않음 | 학부모 | ● (`boarding` 토글 귀속, Ruling 223) |
-| `alighting_canceled` | 되돌리기로 `alighted` → `boarded` (BRD-05, Ruling 219) — 기발송 하차 알림은 정정하지 않음 | 학부모 | ● (`boarding` 토글 귀속 — `alighting` 토글 부재, Ruling 223) |
+| ~~`boarding_canceled`~~ | **폐지(Ruling 308)** — 되돌리기(BRD-05)에 정정 알림을 내던 옛 규칙(Ruling 219). 승하차 알림 자체가 **출발 시점에 확정 결과로 1회 발송**으로 바뀌면서(Ruling 308), 출발 전 되돌리기는 발송 전이라 정정할 알림이 없음. `notification.type` CHECK·enum 값은 과거 발송분 보존용으로 남아 있으나 신규 생산 0건(BR-158) | — | — |
+| ~~`alighting_canceled`~~ | **폐지(Ruling 308)** — 사유는 `boarding_canceled` 와 동일. CHECK·enum 값은 과거 발송분 보존용으로 남아 있으나 신규 생산 0건(BR-158) | — | — |
 | `no_show` | `no_show` | 학부모 + 관계자 | ● |
 | `absent` | ① 변경 신청 `cancel`(§3.8) · **②구간 취소 승인**(§5.6) (C-04). ① 탑승 토글 OFF 는 `intent_changed` 가 이미 관계자에게 알리므로 겹쳐 보내지 않는다(PRD "오늘 안 타요" — 관계자 통지 하나, 조율자 판정 2026-09-25 · BR-110) | **관계자만** | — |
 | `arrive` | 서버의 위치 기반 자동 이벤트 (NTF-04) | 학부모 · 학생 | ● |

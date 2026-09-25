@@ -125,6 +125,9 @@
 | `notification` | 알림 생성 · 발송 · 수신 확인 · 로그 | NTF |
 | `monitoring` | 관계자 대시보드 · 메인 관리자 관제 | MON |
 | `audit` | 감사 로그 · 접속 이력 | SYS |
+| `admin` | 메인 관리자 전용 — 비상 알림 조회 · 강제 확정(`§6.14`) | A-16 |
+| `demo` | 데모·개발용 회차 시뮬레이터(실 단말 없이 위치·진행 재현) | — |
+| `observability` | 지표(Micrometer) 계측 · 스케줄러 헬스 게이지 | TECH_DECISIONS §13 |
 | `global` | 인가 · 예외 · 응답 규약 · 설정 · 관측 | — |
 
 **`request` 를 별도 모듈로 뺀 이유** — 탑승 의사(ATT)와 변경 신청(REQ)은 담는 데이터가 다르지만 **3구간 판정·승인 큐·회차당 1회 한도**라는 규칙을 공유. 두 모듈로 갈라두면 그 규칙이 양쪽에 복제되어 한쪽만 고쳐지는 결함이 발생.
@@ -153,13 +156,18 @@ controller  →  command / query  →  repository  →  entity
 
 | 교체 축 | 인터페이스 (`spec`) | 왜 갈라야 하는가 |
 |---|---|---|
-| **순서 최적화** | `RouteOptimizer` | 알고리즘 기준이 미확정 (PRD §10.1 G). 휴리스틱 → 정교한 해법으로 교체 예정 |
-| **동승자 자동 배정** | `EscortAssigner` | 근무 시간·충돌 판정 규칙이 학원마다 달라질 가능성 |
-| **도로 경로·거리** | `MapRouteClient` | **네이버 API 확정**(C-18). 폴백(직선거리 근사) 구현체도 같은 인터페이스라 장애 시 교체만으로 동작 |
-| **지오코딩** | `GeocodingClient` | **네이버 API 확정**(C-18). 학부모의 일일 승하차지 등록 시점에 호출 (P-06 · STU-05) |
-| **푸시 발송** | `PushSender` | FCM · APNs · 알림톡(2~3단계)이 서로 다른 채널 |
-| **위치 원천** | `PositionSource` | 실 단말 GPS ↔ 개발용 시뮬레이션 |
-| **알림 문구 생성** | `NotificationComposer` | 문구·다국어가 바뀔 축 |
+| **순서 최적화** | `RouteEngine`(`routing/engine/spec`) | 알고리즘 기준이 미확정 (PRD §10.1 G). 휴리스틱 → 정교한 해법으로 교체 예정 |
+| **동승자 자동 배정** | `AttendantAssigner`(`routing/assign/spec`) | 근무 시간·충돌 판정 규칙이 학원마다 달라질 가능성 |
+| **도로 경로·거리** | `MapRouteClient`(`routing/map/spec`) | **네이버 API 확정**(C-18). 폴백(직선거리 근사) 구현체도 같은 인터페이스라 장애 시 교체만으로 동작 |
+| **지오코딩** | `GeocodingClient`(`student/geocoding/spec`) | **네이버 API 확정**(C-18). 학부모의 일일 승하차지 등록 시점에 호출 (P-06 · STU-05) |
+| **장소 검색(자동완성)** | `PlaceSearchClient`(`student/geocoding/spec`) | 고정 노선 정차지 검색 — 네이버 검색 API. 키 발급 전 임시 구현 교체 대상 (BR-146) |
+| **내비게이션 공급자** | `NavProvider`(`run/navigation/spec`) | MVP 는 카카오내비 단독(`IMPLEMENTATION_PLAN §7` 규칙 12) — 공급자 전환은 구현체 추가 + 설정 |
+| **사진 저장소** | `PhotoStorage`(`student/photo/spec`) | 학생 사진 등 첨부 저장 위치(로컬 ↔ 오브젝트 스토리지) 교체 가능성 |
+| **승인 미리보기 캐시** | `ApprovalPreviewCache`(`request/preview/spec`) | 미리보기 산출물 보관 방식(인메모리 ↔ Redis) 교체 가능성 |
+| **푸시 발송** | `PushSender`(`notification/push/spec`) | FCM · APNs · 알림톡(2~3단계)이 서로 다른 채널 |
+| **알림 문구 생성** | `NotificationComposer`(`notification/domain/spec`) | 문구·다국어가 바뀔 축 |
+
+**`PositionSource` 포트는 없다** — 위치 원천이 매니저 앱 1종으로 확정돼(§10.1) 교체 축이 성립하지 않는다. `location/command/DriverPositionController` 가 HTTP 로 직접 수신(BR-146).
 
 **구현체 선택은 설정 한 곳에서 한다** — `@ConditionalOnProperty` 나 이름 기반 레지스트리로 주입하고, 호출부에 분기를 두지 않는다. 분기를 호출부에 두면 교체가 전수 수정이 된다.
 
