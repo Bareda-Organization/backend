@@ -73,7 +73,11 @@ public class RefreshCommandService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.TOKEN_EXPIRED));
 
         OffsetDateTime now = OffsetDateTime.now(clock);
-        refreshTokenRepository.revokeByTokenHash(stored.getTokenHash(), now);
+        // 조건부 무효화의 결과로 선점을 판정한다(BR-061) — 동시 요청이 둘 다 "미해지" 를 읽어도 무효화에 성공한
+        // 한 건만 새 토큰을 받는다. 결과를 버리면 세션 사슬이 두 갈래로 갈린다.
+        if (refreshTokenRepository.revokeByTokenHash(stored.getTokenHash(), now) != 1) {
+            throw new BusinessException(ErrorCode.TOKEN_EXPIRED);
+        }
 
         String newAccessToken = jwtTokenProvider.createAccessToken(account.getId(), account.getAcademyId(),
                 account.getRole(), account.getStatus());
