@@ -855,7 +855,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | `can_go_alone` | boolean | ● | 혼자 귀가 가능 여부 (STU-08). 하원 하차 판단 근거 |
 | `status` | enum | ● | `waiting` · `boarded` · `alighted` · `no_show` |
 | `change` | enum | ○ | `added` · `removed` |
-| `no_show_case` | object | ○ | `started_at` · `expires_at` — **3분** 카운트다운 (EXC-01) |
+| `no_show_case` | object | ○ | `case_id` · `started_at` · `expires_at` — **3분** 카운트다운 (EXC-01). 열린 미승차 케이스가 있는 `no_show` 학생에만 — 앱 재진입 시 카운트다운 복원(§4.6 응답과 같은 모양, BR-081) |
 
 ```json
 {

@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.audit.service.AuditRecorder;
 import src.backend.boarding.dto.ManagerRosterResponse;
 import src.backend.boarding.dto.ManagerRosterResponse.Counts;
+import src.backend.boarding.dto.ManagerRosterResponse.NoShowCountdown;
 import src.backend.boarding.dto.ManagerRosterResponse.RosterStudent;
 import src.backend.boarding.dto.ManagerRosterResponse.StopGroup;
 import src.backend.boarding.dto.StaffRosterItemResponse;
@@ -23,6 +24,8 @@ import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.BusRepository;
+import src.backend.exception.entity.NoShowCase;
+import src.backend.exception.repository.NoShowCaseRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
@@ -77,6 +80,8 @@ public class RosterQueryService {
 
     private final AuditRecorder auditRecorder;
 
+    private final NoShowCaseRepository noShowCaseRepository;
+
     /**
      * 매니저 앱의 승하차지별 명단(§4.2) — 확정 전(idle) 회차는 {@code 409 RUN_NOT_CONFIRMED}(명단이
      * 아직 채워지지 않아 빈 배열과 "확정됐는데 비었다" 가 구별되지 않기 때문, {@code ErrorCode} 참고).
@@ -101,9 +106,15 @@ public class RosterQueryService {
                 .stream()
                 .collect(Collectors.toMap(Stop::getId, stop -> stop));
         Map<Long, List<RunRider>> ridersByStopId = riders.stream().collect(Collectors.groupingBy(RunRider::getStopId));
+        Map<Long, NoShowCountdown> countdownsByRiderId = noShowCaseRepository
+                .findOpenByRunIdAndAcademyId(run.getId(), requester.academyId()).stream()
+                .collect(Collectors.toMap(NoShowCase::getRunRiderId,
+                        noShowCase -> new NoShowCountdown(String.valueOf(noShowCase.getId()), noShowCase.getStartedAt(),
+                                noShowCase.getExpiresAt())));
         List<StopGroup> stops = boardingStops.stream()
                 .map(runStop -> toStopGroup(runStop, stopsById.get(runStop.getStopId()),
-                        ridersByStopId.getOrDefault(runStop.getStopId(), List.of()), studentsById, maskedPhonesById))
+                        ridersByStopId.getOrDefault(runStop.getStopId(), List.of()), studentsById, maskedPhonesById,
+                        countdownsByRiderId))
                 .toList();
         recordManagerRosterAudit(requester, run, stops);
         return new ManagerRosterResponse(String.valueOf(run.getId()), busNo, lower(run.getDirection().name()),
@@ -188,11 +199,12 @@ public class RosterQueryService {
     }
 
     private StopGroup toStopGroup(RunStop runStop, Stop stopInfo, List<RunRider> ridersAtStop,
-            Map<Long, Student> studentsById, Map<Long, String> maskedPhonesById) {
+            Map<Long, Student> studentsById, Map<Long, String> maskedPhonesById,
+            Map<Long, NoShowCountdown> countdownsByRiderId) {
         List<RosterStudent> students = ridersAtStop.stream()
                 .filter(rider -> rider.getStatus() != RiderStatus.ABSENT)
                 .map(rider -> toRosterStudent(rider, studentsById.get(rider.getStudentId()),
-                        maskedPhonesById.get(rider.getStudentId())))
+                        maskedPhonesById.get(rider.getStudentId()), countdownsByRiderId.get(rider.getId())))
                 .toList();
         String name = stopInfo == null ? null : stopInfo.getName();
         String address = stopInfo == null ? null : stopInfo.getAddress();
@@ -201,11 +213,14 @@ public class RosterQueryService {
                 runStop.getArrivedAt(), students);
     }
 
-    private RosterStudent toRosterStudent(RunRider rider, Student student, String maskedPhone) {
+    /** {@code countdown} 은 {@code no_show} 학생에게만 싣는다 — 되돌려 종결된 케이스는 조회에서 이미 빠진다. */
+    private RosterStudent toRosterStudent(RunRider rider, Student student, String maskedPhone,
+            NoShowCountdown countdown) {
         return new RosterStudent(String.valueOf(rider.getId()), String.valueOf(rider.getStudentId()),
                 student.getName(), student.getPhotoUrl(), student.getClassName(), maskedPhone, student.getNote(),
                 student.isCanGoAlone(), lower(rider.getStatus().name()),
-                rider.getChange() == null ? null : lower(rider.getChange().name()));
+                rider.getChange() == null ? null : lower(rider.getChange().name()),
+                rider.getStatus() == RiderStatus.NO_SHOW ? countdown : null);
     }
 
     private StaffRosterItemResponse toStaffItem(RunRider rider, Student student, Stop stop, String rawPhone) {
