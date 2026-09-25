@@ -589,6 +589,7 @@ erDiagram
 | `stop_id` | bigint | FK NN | 주소 검증 결과 매칭·생성된 승하차지 |
 | `added_by` | bigint | NN | 지정한 관계자 계정 |
 | `added_at` | timestamptz | NN default now() | |
+| `note` | text | | 관계자가 적은 비고(API_SPEC §5.7 `note`). 2026-09-25 추가(BR-118) — 전에는 요청이 받고 버렸다 |
 
 `UNIQUE (run_id, student_id)` — 같은 회차에 같은 학생을 두 번 강제 추가할 수 없다.
 
@@ -894,10 +895,10 @@ erDiagram
 | `to_run_id` | bigint | FK NN | 도착 회차 |
 | `stop_id` | bigint | FK | 도착 회차 노선의 승하차지. 주소 검증 후 채워지는 경로면 등록 시점엔 NULL |
 | `note` | text | | 비고 |
-| `status` | varchar(10) | NN | `staged` · `applied`. CHECK |
+| `status` | varchar(10) | NN | `staged` · `applied`. CHECK. `applied` 는 **도착 회차** 확정이 명단에 더한 상태 — 출발 회차가 먼저 확정돼도 `staged` 로 남아 도착 회차의 정원 판정이 그 학생을 센다(BR-093) |
 | `requested_by_account_id` | bigint | NN | 이동을 요청한 관계자 계정 |
 | `created_at` | timestamptz | NN | |
-| `applied_at` | timestamptz | | 확정 배치 반영 시각 |
+| `applied_at` | timestamptz | | 도착 회차 확정 배치가 반영한 시각 |
 
 **존재 이유** — ①구간에서 학생 1명을 다른 회차로 옮기는 요청을 즉시 재최적화하지 않고 대기시키는 단위. `run_forced_addition` 과 같은 논리로, `RunConfirmationService` 의 확정 배치가 그날 두 회차 명단에 각각 합칠 때 실제로 반영된다(Ruling 198 과 같은 근거). **근거** RTE-07 · A-07 · API_SPEC §5.8
 

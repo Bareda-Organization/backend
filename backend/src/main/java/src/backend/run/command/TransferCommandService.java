@@ -1,13 +1,8 @@
 package src.backend.run.command;
 
 import java.time.Clock;
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
-import java.util.Optional;
-import java.util.Set;
 
 import org.springframework.stereotype.Service;
 
@@ -15,18 +10,12 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.access.AcademyScope;
 import src.backend.request.domain.ChangeWindow;
 import src.backend.request.domain.ChangeWindowPolicy;
-import src.backend.request.repository.BoardingIntentRepository;
-import src.backend.routing.entity.Route;
-import src.backend.routing.entity.RouteStop;
-import src.backend.routing.repository.RouteRepository;
-import src.backend.routing.repository.RouteStopRepository;
 import src.backend.run.dto.TransferCapacityDetail;
 import src.backend.run.dto.TransferRequest;
 import src.backend.run.dto.TransferResponse;
@@ -35,14 +24,14 @@ import src.backend.run.dto.TransferResponse.ToImpact;
 import src.backend.run.dto.TransferResponse.TransferImpact;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunTransfer;
-import src.backend.run.repository.RunForcedAdditionRepository;
 import src.backend.run.repository.RunRepository;
 import src.backend.run.repository.RunTransferRepository;
+import src.backend.run.roster.ProjectedRoster;
+import src.backend.run.roster.ProjectedRosterReader;
 import src.backend.student.command.AddressVerification;
 import src.backend.student.entity.Student;
 import src.backend.student.geocoding.spec.GeocodedPoint;
 import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentDailyStop;
 import src.backend.student.repository.StudentRepository;
 import src.backend.student.repository.WeeklyAddressRepository;
 
@@ -66,17 +55,9 @@ public class TransferCommandService {
 
     private final BusRepository busRepository;
 
-    private final RouteRepository routeRepository;
-
-    private final RouteStopRepository routeStopRepository;
-
-    private final WeeklyAddressRepository weeklyAddressRepository;
-
-    private final BoardingIntentRepository boardingIntentRepository;
-
-    private final RunForcedAdditionRepository runForcedAdditionRepository;
-
     private final RunTransferRepository runTransferRepository;
+
+    private final ProjectedRosterReader rosterReader;
 
     private final StudentRepository studentRepository;
 
@@ -105,25 +86,31 @@ public class TransferCommandService {
         Run toRun = runRepository.findById(request.toRunId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
         AcademyScope.assertAccessible(requester, toRun.getAcademyId());
+        // §5.8 "같은 학원·같은 날짜·같은 방향" — 어긋나면 오늘 등원 명단에서 빠져 다른 날·반대 방향에 더해진다.
+        if (!toRun.getServiceDate().equals(fromRun.getServiceDate())
+                || toRun.getDirection() != fromRun.getDirection()) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED);
+        }
 
         assertWindowOpen(fromRun);
         assertWindowOpen(toRun);
 
-        Set<Long> fromRoster = projectedRosterStudentIds(fromRun);
-        if (!fromRoster.contains(student.getId())) {
-            throw new BusinessException(ErrorCode.STUDENT_NOT_IN_RUN);
-        }
-
+        // 예정 명단이 대기 중인 출발 이동을 이미 빼므로 중복 대기를 먼저 본다 — 순서가 바뀌면
+        // TRANSFER_ALREADY_STAGED 가 STUDENT_NOT_IN_RUN 으로 가려진다.
         if (runTransferRepository.existsStagedByStudentIdAndAcademyId(student.getId(), requester.academyId())) {
             throw new BusinessException(ErrorCode.TRANSFER_ALREADY_STAGED);
+        }
+
+        ProjectedRoster fromRoster = rosterReader.read(fromRun);
+        if (!fromRoster.contains(student.getId())) {
+            throw new BusinessException(ErrorCode.STUDENT_NOT_IN_RUN);
         }
 
         assertStopOrAddressExclusive(request);
 
         Bus toBus = busRepository.findByIdAndAcademyId(toRun.getBusId(), requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.BUS_NOT_FOUND));
-        long toCurrentCount = projectedRosterStudentIds(toRun).size()
-                + runTransferRepository.countStagedByToRunIdAndAcademyId(toRun.getId(), requester.academyId());
+        long toCurrentCount = rosterReader.read(toRun).size();
         if (toCurrentCount + 1 > toBus.getStudentCapacity()) {
             throw new BusinessException(ErrorCode.CAPACITY_EXCEEDED,
                     new TransferCapacityDetail(toCurrentCount, toBus.getStudentCapacity()));
@@ -166,48 +153,5 @@ public class TransferCommandService {
             // 둘 다 없거나 둘 다 있으면 어느 쪽으로 처리할지 정할 수 없다.
             throw new BusinessException(ErrorCode.VALIDATION_FAILED);
         }
-    }
-
-    /**
-     * 회차의 당일 명단(§5.8 "확정 전이면 boarding_intent·요일별 주소 기준 예정 명단") — 정원 판정에도
-     * 이 크기를 쓴다.
-     *
-     * <p>사양 문면은 강제 추가를 명시하지 않지만, 강제 추가로 이 회차에 이미 대기 중인 학생을 뺐다.
-     * 빼면 그 학생이 "이 회차 명단에 없다" 는 이유로 이 회차 밖으로는 다시 이동시킬 수 없게 되어,
-     * {@link RunConfirmationService#confirmOne} 이 실제로 반영하는 명단(요일별 주소 + 강제 추가 병합,
-     * {@code applyOutgoingTransfers} 가 같은 두 자료구조에서 뺀다)과도 어긋난다 — 그 확정 배치가 쓰는
-     * "당일 명단" 정의를 그대로 재사용한다.
-     *
-     * <p>같은 이유로 <b>이미 대기 중인 이동 건은 포함하지 않는다</b> — 그 건은 도착 회차의 확정 배치가
-     * 반영해야 비로소 그 회차 명단의 일원이 되고, 그 전까지는 "예정" 이 아니라 "신청 중" 이다.
-     */
-    private Set<Long> projectedRosterStudentIds(Run run) {
-        Set<Long> studentIds = new HashSet<>();
-        Weekday weekday = weekdayOf(run.getServiceDate());
-        Optional<Route> route = routeRepository.findByAcademyIdAndBusIdAndWeekdayAndDirection(run.getAcademyId(),
-                run.getBusId(), weekday, run.getDirection());
-        if (route.isPresent()) {
-            List<RouteStop> routeStops = routeStopRepository.findAllOrderedByRouteIdAndAcademyId(route.get().getId(),
-                    run.getAcademyId());
-            if (!routeStops.isEmpty()) {
-                List<Long> stopIds = routeStops.stream().map(RouteStop::getStopId).toList();
-                Set<Long> excluded = new HashSet<>(
-                        boardingIntentRepository.findStudentIdsByRunIdAndRidingFalse(run.getId()));
-                weeklyAddressRepository.findDailyStopsByStopIds(run.getAcademyId(), stopIds, weekday,
-                        run.getDirection(), run.getServiceDate().atStartOfDay(clock.getZone()).toOffsetDateTime())
-                        .stream()
-                        .map(StudentDailyStop::getStudentId)
-                        .filter(id -> !excluded.contains(id))
-                        .forEach(studentIds::add);
-            }
-        }
-        runForcedAdditionRepository.findAllByRunIdAndAcademyId(run.getId(), run.getAcademyId())
-                .forEach(forcedAddition -> studentIds.add(forcedAddition.getStudentId()));
-        return studentIds;
-    }
-
-    /** {@code RunConfirmationService.weekdayOf} 와 같은 계산 — 시계를 보지 않고 날짜에서 바로 얻는다. */
-    private static Weekday weekdayOf(LocalDate serviceDate) {
-        return Weekday.valueOf(serviceDate.getDayOfWeek().name().substring(0, 3).toUpperCase(Locale.ROOT));
     }
 }

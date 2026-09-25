@@ -68,6 +68,11 @@ public class RunStartCommandService {
         // 앞쪽 커밋 뒤의 moving 을 보고 409 로 끝난다. 잠그지 않으면 둘 다 confirmed 를 보고 통과해 운행 시작
         // 알림이 두 번 나간다.
         entityManager.refresh(run, LockModeType.PESSIMISTIC_WRITE);
+
+        if (run.isCanceled()) {
+            // 취소 뒤에도 confirmed 로 남으므로 상태 판정보다 먼저 본다(BR-042).
+            throw new BusinessException(ErrorCode.RUN_CANCELED);
+        }
         if (run.getStatus() == RunStatus.MOVING || run.getStatus() == RunStatus.FINISHED) {
             throw new BusinessException(ErrorCode.RUN_ALREADY_STARTED);
         }

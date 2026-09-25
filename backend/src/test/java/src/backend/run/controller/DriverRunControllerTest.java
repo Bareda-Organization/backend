@@ -186,6 +186,24 @@ class DriverRunControllerTest {
     }
 
     @Test
+    @DisplayName("BR-042 — 취소된 회차는 창 안이어도 시작할 수 없다(409 RUN_CANCELED)")
+    void 취소된_회차는_시작할_수_없다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        OffsetDateTime departTime = now().plusMinutes(9);
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        jdbcTemplate.update("UPDATE run SET canceled_at = now() WHERE id = ?", runId);
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/start").header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isConflict())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error.code").value("RUN_CANCELED"));
+
+        assertThat(회차_시작시각(runId)).as("취소된 운행의 시작 알림이 학부모에게 나가면 안 된다").isNull();
+    }
+
+    @Test
     @DisplayName("목표1 급소 — 출발 11분 전은 창 밖이라 403 이고 시작 시각이 기록되지 않는다")
     void 출발_11분_전은_창_밖이라_거부된다() throws Exception {
         DriverRunFixtures fixtures = fixtures();
@@ -316,6 +334,27 @@ class DriverRunControllerTest {
                         + "AND dedup_key LIKE ?",
                 String.class, "run_started:" + runId + ":%");
         assertThat(staffLegBusNo).as("관계자 run_started 알림에 호차가 채워진다").isEqualTo(busNo);
+    }
+
+    @Test
+    @DisplayName("absent 학생(①구간 OFF·다른 버스로 이동)의 보호자에게는 run_started 가 가지 않는다(§9.4 학부모 알림 부재)")
+    void 미등원_학생의_보호자에게는_운행_시작_알림이_가지_않는다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
+        OffsetDateTime departTime = now();
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long studentId = fixtures.student(academyId, "쉬는학생");
+        fixtures.guardianOf(academyId, studentId, "학부모1", now());
+        fixtures.rider(runId, studentId, stopId, RiderStatus.ABSENT, now());
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/start").header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isOk());
+
+        entityManager.flush();
+        assertThat(알림_행수(runId, "run_started", "parent")).isZero();
     }
 
     // ── goal 3 — 미결 변경 요청 즉시 종결 ─────────────────────────────────

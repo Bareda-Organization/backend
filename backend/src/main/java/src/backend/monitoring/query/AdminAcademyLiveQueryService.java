@@ -128,7 +128,7 @@ public class AdminAcademyLiveQueryService {
         return new AdminAcademyLiveResponse.Run(run.getId(), busNo, lower(run.getDirection().name()),
                 lower(run.getStatus().name()), position, lastSeenAt, run.getDepartTime(), run.getStartedAt(), stops,
                 destinationEtaOf(run), contactOf(contacts, ManagerRole.DRIVER), contactOf(contacts,
-                        ManagerRole.ESCORT));
+                        ManagerRole.ESCORT), run.getConsecutiveFailures());
     }
 
     /**

@@ -241,7 +241,7 @@ class RunConfirmationServiceTest {
                 departTime.minusMinutes(30));
 
         runForcedAdditionRepository.save(
-                RunForcedAddition.forRun(runId, forcedStudent, forcedStop, 1L, OffsetDateTime.now(clock)));
+                RunForcedAddition.forRun(runId, forcedStudent, forcedStop, 1L, OffsetDateTime.now(clock), null));
 
         confirmationService.confirmOne(runId);
 
@@ -256,6 +256,9 @@ class RunConfirmationServiceTest {
                 forcedStudent);
         assertThat(forcedRiderStop).as("강제 추가 시 지정한 정차지가 학생의 탑승 기록에 그대로 반영돼야 한다")
                 .isEqualTo(forcedStop);
+        assertThat(jdbcTemplate.queryForObject("SELECT change FROM run_rider WHERE run_id = ? AND student_id = ?",
+                String.class, runId, forcedStudent))
+                .as("BR-016 — 당일 추가된 탑승자는 added(초록, FEATURE_SPEC §3.5) — 없으면 변경 배지가 늘 0").isEqualTo("added");
 
         Long versionId = jdbcTemplate.queryForObject(
                 "SELECT current_version_id FROM confirmed_route WHERE run_id = ?", Long.class, runId);
@@ -267,14 +270,14 @@ class RunConfirmationServiceTest {
 
     /**
      * F4 S1 목표 7 — 버스 간 이동(RTE-07, §5.8, Ruling 256) 대기 행이 강제 추가와 같은 합류 지점
-     * ({@code applyOutgoingTransfers}·{@code applyIncomingTransfers})에서 <b>양쪽 회차</b>에
+     * ({@code ProjectedRosterReader#read})에서 <b>양쪽 회차</b>에
      * 각각 반영되는지 본다. 대상 학생은 요일별 주소로 출발 회차에 정상 배정돼 있다 — 이동이 실제로
      * 뺐는지가 "원래도 명단에 없었다"와 구별되려면 정상 경로로 이미 태워져 있어야 한다. 도착 정차지는
      * 도착 회차의 편성 노선 밖의 것을 써서(강제 추가 시험과 같은 근거) override 가 실제로 적용됐는지
      * 함께 본다.
      */
     @Test
-    @DisplayName("목표7 — 버스 간 이동 대기 행이 출발·도착 두 확정 배치에 각각 반영되고 상태가 applied 로 바뀐다")
+    @DisplayName("목표7 — 버스 간 이동 대기 행이 출발·도착 두 확정 배치에 각각 반영되고 도착 확정이 applied 로 바꾼다")
     void 버스_간_이동_대기_행이_출발_도착_양쪽_확정_배치에_반영된다() {
         long academyId = fixtures().academyWithCoordinates();
 
@@ -307,21 +310,25 @@ class RunConfirmationServiceTest {
 
         confirmationService.confirmOne(fromRunId);
 
-        List<Long> fromRiderIds = jdbcTemplate.queryForList(
-                "SELECT student_id FROM run_rider WHERE run_id = ?", Long.class, fromRunId);
-        assertThat(fromRiderIds).as("출발 회차 확정 배치가 이동 대상을 명단에서 빼야 한다 — 요일별 주소만 봤다면 "
-                + "여전히 남아 있을 것이다").doesNotContain(transferringStudent);
+        assertThat(jdbcTemplate.queryForList(
+                "SELECT status || ':' || change FROM run_rider WHERE run_id = ? AND student_id = ?", String.class,
+                fromRunId, transferringStudent))
+                .as("BR-016 — 출발 회차는 이동 대상을 태우지 않되 명단에서 지우지 않고 removed 로 남긴다(RTE-04) — "
+                        + "요일별 주소만 봤다면 waiting 으로 남을 것이다")
+                .containsExactly("absent:removed");
 
         String statusAfterOutgoing = jdbcTemplate.queryForObject(
                 "SELECT status FROM run_transfer WHERE id = ?", String.class, transfer.getId());
-        assertThat(statusAfterOutgoing).as("출발 쪽 확정 배치만 돌아도 상태는 이미 applied 로 바뀐다("
-                + "두 회차 중 먼저 도는 쪽이 반영하는 시점 기준)").isEqualTo("applied");
+        assertThat(statusAfterOutgoing).as("출발 쪽 확정은 상태를 바꾸지 않는다 — 도착 회차 확정 전까지 그 학생은 "
+                + "도착 회차의 대기 인원이다(BR-093)").isEqualTo("staged");
 
         confirmationService.confirmOne(toRunId);
 
         List<Long> toRiderIds = jdbcTemplate.queryForList(
                 "SELECT student_id FROM run_rider WHERE run_id = ?", Long.class, toRunId);
         assertThat(toRiderIds).as("도착 회차 확정 배치가 이동 대상을 명단에 더해야 한다").contains(transferringStudent);
+        assertThat(jdbcTemplate.queryForObject("SELECT change FROM run_rider WHERE run_id = ? AND student_id = ?",
+                String.class, toRunId, transferringStudent)).as("BR-016 — 도착 회차에는 added").isEqualTo("added");
 
         Long toRiderStop = jdbcTemplate.queryForObject(
                 "SELECT stop_id FROM run_rider WHERE run_id = ? AND student_id = ?", Long.class, toRunId,
@@ -338,13 +345,12 @@ class RunConfirmationServiceTest {
 
         String statusAfterIncoming = jdbcTemplate.queryForObject(
                 "SELECT status FROM run_transfer WHERE id = ?", String.class, transfer.getId());
-        assertThat(statusAfterIncoming).as("도착 쪽 확정 배치도 상태로 거르지 않고 다시 처리한다(자기 치유) — "
-                + "이미 applied 였어도 그대로 applied 로 남는다").isEqualTo("applied");
+        assertThat(statusAfterIncoming).as("도착 쪽 확정이 명단에 더하며 applied 로 표시한다").isEqualTo("applied");
     }
 
     /**
      * F5 S1 목표1(F4 R1 ⚠) — 강제 추가 병합({@code confirmOne} 218행)과 버스 간 이동 제외
-     * ({@link #applyOutgoingTransfers}, 229행)의 순서가 결과에 드러나는 케이스. 위 F4 S1 목표 7
+     * ({@code ProjectedRosterReader#read})의 순서가 결과에 드러나는 케이스. 위 F4 S1 목표 7
      * 시험은 이동 대상이 요일별 주소로 이미 명단에 올라 있어 두 단계의 순서를 가르지 못한다(어느
      * 순서든 제거된다) — 이 시험은 대상 학생을 강제 추가로만 명단에 올려, 제외가 강제 추가 병합보다
      * 먼저 돌면 "아직 없는 학생을 지우는" 셈이 되어 no-op 이 되고, 뒤이은 강제 추가 병합이 그 학생을
@@ -381,17 +387,19 @@ class RunConfirmationServiceTest {
                 departTime.minusMinutes(30));
 
         runForcedAdditionRepository.save(
-                RunForcedAddition.forRun(fromRunId, student, forcedStop, 1L, OffsetDateTime.now(clock)));
+                RunForcedAddition.forRun(fromRunId, student, forcedStop, 1L, OffsetDateTime.now(clock), null));
         runTransferRepository.save(RunTransfer.stage(student, fromRunId, toRunId, destinationStop, null, 1L,
                 OffsetDateTime.now(clock)));
 
         confirmationService.confirmOne(fromRunId);
 
-        List<Long> fromRiderIds = jdbcTemplate.queryForList(
-                "SELECT student_id FROM run_rider WHERE run_id = ?", Long.class, fromRunId);
-        assertThat(fromRiderIds).as("강제 추가 병합 다음에 이동 제외가 돌아야 한다 — 순서가 뒤바뀌면 "
-                + "제외가 먼저 돌아 아직 없는 학생을 지우는 셈이라 no-op 이 되고, 뒤이은 강제 추가 병합이 "
-                + "이 학생을 다시 채워 넣어 출발 명단에 남는다").doesNotContain(student);
+        assertThat(jdbcTemplate.queryForList(
+                "SELECT status || ':' || change FROM run_rider WHERE run_id = ? AND student_id = ?", String.class,
+                fromRunId, student))
+                .as("강제 추가 병합 다음에 이동 제외가 돌아야 한다 — 순서가 뒤바뀌면 제외가 먼저 돌아 아직 없는 학생을 "
+                        + "지우는 셈이라 no-op 이 되고, 뒤이은 강제 추가 병합이 이 학생을 waiting 으로 다시 채워 넣는다. "
+                        + "빠진 학생은 removed 로 남는다(BR-016, RTE-04)")
+                .containsExactly("absent:removed");
 
         confirmationService.confirmOne(toRunId);
 

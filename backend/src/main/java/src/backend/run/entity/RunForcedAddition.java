@@ -48,17 +48,23 @@ public class RunForcedAddition {
     @Column(name = "added_at", nullable = false)
     private OffsetDateTime addedAt;
 
-    private RunForcedAddition(Long runId, Long studentId, Long stopId, Long addedBy, OffsetDateTime addedAt) {
+    /** 관계자가 적은 비고(§5.7 {@code note}, 선택). */
+    @Column(name = "note", columnDefinition = "text")
+    private String note;
+
+    private RunForcedAddition(Long runId, Long studentId, Long stopId, Long addedBy, OffsetDateTime addedAt,
+            String note) {
         this.runId = runId;
         this.studentId = studentId;
         this.stopId = stopId;
         this.addedBy = addedBy;
         this.addedAt = addedAt;
+        this.note = note;
     }
 
     /** 관계자가 ①구간에서 회차에 학생을 강제로 얹을 때 생성한다(RTE-06). */
     public static RunForcedAddition forRun(Long runId, Long studentId, Long stopId, Long addedBy,
-            OffsetDateTime addedAt) {
-        return new RunForcedAddition(runId, studentId, stopId, addedBy, addedAt);
+            OffsetDateTime addedAt, String note) {
+        return new RunForcedAddition(runId, studentId, stopId, addedBy, addedAt, note);
     }
 }

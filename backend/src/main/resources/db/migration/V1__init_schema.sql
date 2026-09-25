@@ -404,6 +404,7 @@ CREATE TABLE run_forced_addition (
     stop_id    bigint      NOT NULL,
     added_by   bigint      NOT NULL,
     added_at   timestamptz NOT NULL DEFAULT now(),
+    note       text,
     CONSTRAINT uk_run_forced_addition_run_student UNIQUE (run_id, student_id),
     CONSTRAINT fk_run_forced_addition_run FOREIGN KEY (run_id) REFERENCES run (id) ON DELETE CASCADE,
     CONSTRAINT fk_run_forced_addition_student FOREIGN KEY (student_id) REFERENCES student (id) ON DELETE RESTRICT,

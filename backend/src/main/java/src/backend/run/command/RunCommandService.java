@@ -22,6 +22,7 @@ import src.backend.run.dto.RunCreateRequest;
 import src.backend.run.dto.RunResponse;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunDraft;
+import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 
 /**
@@ -101,12 +102,16 @@ public class RunCommandService {
     /**
      * 특정일 회차를 임시로 취소한다(SCH-03, §5.10) — 행을 지우지 않고 {@code canceled_at} 을 채운다.
      *
-     * <p>대상이 다른 학원이면 {@code 404 RUN_NOT_FOUND} 다.
+     * <p>대상이 다른 학원이면 {@code 404 RUN_NOT_FOUND} 다. 운행이 시작된 회차({@code moving}·{@code finished})는
+     * {@code 409 RUN_ALREADY_STARTED} 다 — 달리는 버스의 회차를 취소 표시해도 운행은 멈추지 않는다(BR-042).
      */
     public void cancel(AuthUser requester, Long runId) {
-        runRepository.findByIdAndAcademyId(runId, requester.academyId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND))
-                .cancel(OffsetDateTime.now(clock));
+        Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        if (run.getStatus() != RunStatus.IDLE && run.getStatus() != RunStatus.CONFIRMED) {
+            throw new BusinessException(ErrorCode.RUN_ALREADY_STARTED);
+        }
+        run.cancel(OffsetDateTime.now(clock));
     }
 
     /**

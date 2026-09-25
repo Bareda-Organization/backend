@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.academy.dto.AcademyStaffAccountView;
 import src.backend.academy.repository.AcademyStaffRepository;
+import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.entity.Bus;
@@ -103,6 +104,8 @@ public class RunStartedNotificationListener {
     /** 지금 그 회차 명단에 오른 학생들 — 확정 배치가 쌓은 뒤 승인된 변경까지 반영된 현재 상태다. */
     private List<Long> studentIdsOf(RunStartedEvent event) {
         return runRiderRepository.findAllByRunIdAndAcademyId(event.runId(), event.academyId()).stream()
+                // absent(①구간 OFF·②구간 취소·다른 버스로 이동)는 이 버스에 타지 않는다 — 학부모 알림 부재(§9.4)
+                .filter(rider -> rider.getStatus() != RiderStatus.ABSENT)
                 .map(RunRider::getStudentId)
                 .distinct()
                 .toList();

@@ -179,6 +179,18 @@ class StaffRunControllerTest {
         assertThat(회차_시각(runId, "canceled_at")).isNotNull();
     }
 
+    /** 운행이 시작된 회차는 취소할 수 없다 — 취소 가능 상태는 idle·confirmed 뿐이다(BR-042). */
+    @Test
+    void 운행_중인_회차는_취소하면_409_이다() throws Exception {
+        long runId = 임시_추가된_회차_id(관계자A_토큰(), BUS_A_ID, SERVICE_DATE, "to_academy", "08:25");
+        jdbcTemplate.update("UPDATE run SET status = 'moving', started_at = now() WHERE id = ?", runId);
+        entityManager.clear();
+
+        취소한다(관계자A_토큰(), runId)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("RUN_ALREADY_STARTED"));
+    }
+
     /** 남의 학원 회차를 {@code {id}} 로 지목한 취소는 {@code 404 RUN_NOT_FOUND} 다(Ruling 163). */
     @Test
     void 다른_학원의_회차를_취소하면_404_이다() throws Exception {
@@ -266,6 +278,20 @@ class StaffRunControllerTest {
                 "$.data[?(@.id == %d)].assignments[*].role".formatted(배치가_있는_회차)))
                 .as("배치를 빼면 §5.14 로 붙인 담당자를 되읽을 경로가 부재해진다")
                 .isNotEmpty();
+    }
+
+    /**
+     * 확정이 계속 실패하는 회차를 관계자·관리자가 알아볼 재료 — {@code consecutive_failures} 를 회차 응답에 싣는다
+     * (BR-047, 조율자 판정 ③ — UF-O-07 이 비운 것은 경보 채널이고 식별 재료는 이미 있는 값).
+     */
+    @Test
+    void 회차_목록은_확정_연속_실패_횟수를_싣는다() throws Exception {
+        long runId = 임시_추가된_회차_id(관계자A_토큰(), BUS_A_ID, SERVICE_DATE, "to_academy", "09:35");
+        jdbcTemplate.update("UPDATE run SET consecutive_failures = 3 WHERE id = ?", runId);
+        entityManager.clear();
+
+        assertThat(JsonPath.<List<Integer>>read(목록_본문(관계자A_토큰(), SERVICE_DATE),
+                "$.data[?(@.id == %d)].consecutive_failures".formatted(runId))).containsExactly(3);
     }
 
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────

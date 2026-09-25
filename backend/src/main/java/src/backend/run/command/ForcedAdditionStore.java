@@ -36,6 +36,8 @@ public class ForcedAdditionStore {
 
     private final RunForcedAdditionRepository runForcedAdditionRepository;
 
+    private final StagingRunGuard stagingRunGuard;
+
     /**
      * @param existingStudent {@code student_id} 로 지정된 기존 학생, 또는 {@code new_student} 직접
      *                        입력이면 {@code null}(이 메서드가 새로 만든다)
@@ -43,11 +45,12 @@ public class ForcedAdditionStore {
     @Transactional
     public RunForcedAddition stage(Run run, Long addedBy, Student existingStudent, ForcedAdditionRequest request,
             GeocodedPoint point, OffsetDateTime now) {
+        stagingRunGuard.lockIdle(run);
         Student student = existingStudent != null ? existingStudent
                 : studentRepository.save(newStudent(run.getAcademyId(), request));
         Long stopId = stopMatcher.matchOrCreate(run.getAcademyId(), point).getId();
         RunForcedAddition forcedAddition = RunForcedAddition.forRun(run.getId(), student.getId(), stopId, addedBy,
-                now);
+                now, request.note());
         return runForcedAdditionRepository.save(forcedAddition);
     }
 

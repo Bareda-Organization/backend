@@ -862,7 +862,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | `guardian_phone` | string | ○ | **마스킹** (`010-2XXX-8814`). **보호자 미연결 학생은 `null`** — 앱은 연락처 칸을 생략(§1.13 목록, BR-082) |
 | `note` | string | ○ | 특이사항·비고 (STU-07) |
 | `can_go_alone` | boolean | ● | 혼자 귀가 가능 여부 (STU-08). 하원 하차 판단 근거 |
-| `status` | enum | ● | `waiting` · `boarded` · `alighted` · `no_show` |
+| `status` | enum | ● | `waiting` · `boarded` · `alighted` · `no_show`. **`absent` 는 `change=removed` 행에서만** — 버스 간 이동으로 빠진 학생은 명단에서 지우지 않고 빨강으로 남긴다(RTE-04). 처리 대상이 아니며 `absent_n` 에 세지 않는다 |
 | `change` | enum | ○ | `added` · `removed` |
 | `no_show_case` | object | ○ | `case_id` · `started_at` · `expires_at` — **3분** 카운트다운 (EXC-01). 열린 미승차 케이스가 있는 `no_show` 학생에만 — 앱 재진입 시 카운트다운 복원(§4.6 응답과 같은 모양, BR-081) |
 
@@ -962,7 +962,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | 부수 효과 | 위치 송신 시작 · **노선 전면 잠금**(③ 구간 진입) · 운행 시작 알림(NTF-05) |
 | 하원 | 탑승자 **전원 자동 `boarded`** (C-07 · BRD-03) |
 
-**에러** — `403 DRIVER_ONLY` · `403 START_WINDOW_CLOSED`(출발 시각 **±10분** 창 밖) · `409 RUN_ALREADY_STARTED`(이미 `moving` · `finished`) · `409 RUN_NOT_CONFIRMED` · `404 RUN_NOT_FOUND` · `403 FORBIDDEN`(배치되지 않은 회차)
+**에러** — `403 DRIVER_ONLY` · `403 START_WINDOW_CLOSED`(출발 시각 **±10분** 창 밖) · `409 RUN_ALREADY_STARTED`(이미 `moving` · `finished`) · `409 RUN_NOT_CONFIRMED` · `409 RUN_CANCELED`(임시 취소된 회차) · `404 RUN_NOT_FOUND` · `403 FORBIDDEN`(배치되지 않은 회차)
 
 ### 4.5 POST /runs/{runId}/stops/{stopId}/arrive
 
@@ -1540,7 +1540,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `stop_id` | 매칭·생성된 승하차지 id |
 | `status` | 항상 `staged` — 확정 배치가 명단에 합칠 때까지의 대기 상태 |
 
-**에러** — `403 CHANGE_WINDOW_CLOSED`(② 구간 이후 추가 — 관계자도 예외 부재) · `409 CAPACITY_EXCEEDED`(정원 초과) · `422 ADDRESS_VERIFICATION_FAILED`(주소 검증 실패 — 저장 보류) · `422 VALIDATION_FAILED`(`student_id`·`new_student` 가 동시에 없거나 있음) · `404 RUN_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163)
+**에러** — `403 CHANGE_WINDOW_CLOSED`(② 구간 이후 추가 — 관계자도 예외 부재. 판정 뒤 저장 전에 확정 배치가 회차를 확정한 경우 포함) · `409 RUN_CANCELED`(임시 취소된 회차) · `409 CAPACITY_EXCEEDED`(정원 초과) · `422 ADDRESS_VERIFICATION_FAILED`(주소 검증 실패 — 저장 보류) · `422 VALIDATION_FAILED`(`student_id`·`new_student` 가 동시에 없거나 있음) · `404 RUN_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163)
 
 ### 5.8 POST /staff/students/{id}/transfer
 
@@ -1562,7 +1562,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | 필드 | 필수 | 설명 |
 |---|:---:|---|
 | `from_run_id` | ● | 출발(현재) 회차 |
-| `to_run_id` | ● | 도착 회차. 같은 학원·같은 날짜·같은 방향. `from_run_id` 와 같으면 `422 VALIDATION_FAILED` |
+| `to_run_id` | ● | 도착 회차. 같은 학원·같은 날짜·같은 방향 — 날짜·방향이 다르거나 `from_run_id` 와 같으면 `422 VALIDATION_FAILED` |
 | `stop_id` | 조건부 | 도착 회차 노선의 기존 승하차지. `address` 와 **배타적이며 하나 필수**(`422 VALIDATION_FAILED`) |
 | `address` | 조건부 | 강제 방문지 — 검증 → 매칭/신규 생성(STU-05) |
 | `note` | ○ | 비고 |
@@ -1577,7 +1577,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `status` | 항상 `staged` |
 | `impact` | `from{rider_count_before, rider_count_after}` · `to{rider_count_before, rider_count_after, capacity}` |
 
-**에러** — `403 CHANGE_WINDOW_CLOSED`(둘 중 한 회차라도 ② 구간) · `409 CAPACITY_EXCEEDED`(도착 회차 정원 초과 — 현재 인원·정원 병기) · `409 STUDENT_NOT_IN_RUN`(학생이 출발 회차 명단 밖) · `409 TRANSFER_ALREADY_STAGED`(같은 학생의 미적용 이동이 이미 있음) · `422 ADDRESS_VERIFICATION_FAILED`(주소 검증 실패) · `422 VALIDATION_FAILED`(`stop_id`·`address` 동시 없음/있음 · `from_run_id`=`to_run_id`) · `404 RUN_NOT_FOUND`/`STUDENT_NOT_FOUND`/`STOP_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163. `stop_id` 는 요청 학원으로 좁혀 조회하므로 타 학원 승하차지는 부재와 같다 — 2026-09-05 F4 S1 실측으로 추가) · `403 ACADEMY_SCOPE_VIOLATION`(도착 회차가 타 학원)
+**에러** — `403 CHANGE_WINDOW_CLOSED`(둘 중 한 회차라도 ② 구간 — 저장 전에 확정된 경우 포함) · `409 RUN_CANCELED`(둘 중 한 회차라도 임시 취소) · `409 CAPACITY_EXCEEDED`(도착 회차 정원 초과 — 현재 인원·정원 병기) · `409 STUDENT_NOT_IN_RUN`(학생이 출발 회차 명단 밖) · `409 TRANSFER_ALREADY_STAGED`(같은 학생의 미적용 이동이 이미 있음) · `422 ADDRESS_VERIFICATION_FAILED`(주소 검증 실패) · `422 VALIDATION_FAILED`(`stop_id`·`address` 동시 없음/있음 · `from_run_id`=`to_run_id` · 도착 회차의 날짜·방향이 출발 회차와 다름) · `404 RUN_NOT_FOUND`/`STUDENT_NOT_FOUND`/`STOP_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163. `stop_id` 는 요청 학원으로 좁혀 조회하므로 타 학원 승하차지는 부재와 같다 — 2026-09-05 F4 S1 실측으로 추가) · `403 ACADEMY_SCOPE_VIOLATION`(도착 회차가 타 학원)
 
 ### 5.9 고정 노선 편성 · 정차 순서 최적화 (RTE-01 · RTE-09, A-08)
 
@@ -1720,7 +1720,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `DELETE /staff/schedules/{id}` | SCH-01 | 삭제. **행을 지운다**(soft delete 부재) — 이미 만들어진 회차는 `run.schedule_id` 가 NULL 이 되어 그대로 남는다 (`ERD` FK `SET NULL`). 성공 `204`(본문 부재, §1.1) |
 | `GET /staff/runs?service_date=` | SCH-02 | 그 날짜의 회차 목록. 생략하면 **오늘** |
 | `POST /staff/runs` | SCH-03 | 특정일 회차 **임시 추가** — 스케줄에 없는 1회성 운행 |
-| `DELETE /staff/runs/{id}` | SCH-03 | 특정일 회차 **임시 취소** — 행을 지우지 않고 `canceled_at` 을 채운다. 성공 `204`(본문 부재, §1.1) |
+| `DELETE /staff/runs/{id}` | SCH-03 | 특정일 회차 **임시 취소** — 행을 지우지 않고 `canceled_at` 을 채운다. **`idle`·`confirmed` 만** — 운행이 시작된 회차는 `409 RUN_ALREADY_STARTED`. 취소된 회차는 매니저 목록(§4.1)에서 빠지고 시작·강제 추가·이동은 `409 RUN_CANCELED`. 성공 `204`(본문 부재, §1.1) |
 
 ⚠ **`GET /staff/runs` 는 `§5.18 GET /staff/runs/live` 와 다른 것이다** — 이쪽은 날짜로 보는 **회차 목록**(SCH-02 결과 확인), 저쪽은 관제용 **실시간 스냅샷**(MON-07)이다. 경로가 비슷해도 합치지 않는다.
 
@@ -1742,7 +1742,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 **`POST /staff/runs` 요청**(임시 추가) — `bus_id` · `service_date`(`YYYY-MM-DD`) · `direction` · `depart_time`(`HH:mm`) · `origin_name` · `destination_name` · `est_duration_min`(선택). 만들어진 회차는 **`schedule_id` 가 비어 있다** — 그것이 정규 스케줄에서 나온 회차와 임시 회차를 가르는 유일한 표시다.
 
-**회차 응답 항목** — `id` · `bus_id` · `bus_no` · `schedule_id` · `service_date` · `direction` · `depart_time` · `confirm_at` · `status` · `origin_name` · `destination_name` · `est_duration_min` · `canceled_at` · `assignments[]`(`manager_id` · `name` · `role`)
+**회차 응답 항목** — `id` · `bus_id` · `bus_no` · `schedule_id` · `service_date` · `direction` · `depart_time` · `confirm_at` · `status` · `origin_name` · `destination_name` · `est_duration_min` · `canceled_at` · `assignments[]`(`manager_id` · `name` · `role`) · `consecutive_failures`(integer — 확정 배치의 연속 실패 횟수, 성공 시 0. 확정이 계속 실패하는 회차를 알아보는 재료 — BR-047)
 
 - `depart_time`·`confirm_at` 은 **날짜를 포함한 시각**(`timestamptz`)이다. 스케줄의 `HH:mm` 을 `service_date` 와 합칠 때 시간대는 서비스 기준 시간대(`Asia/Seoul`, `ERD §2`)를 쓴다
 - **`confirm_at` = `depart_time` − 30분**이며 파생이 아니라 저장된 컬럼이다 (`C-03` · `ERD run`). 확정 배치가 "실행 시각이 지난 회차" 를 매 실행마다 조회하기 때문에 컬럼으로 둔다
@@ -1751,6 +1751,8 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 **일일 회차 생성 (SCH-02)** — 하루 1회 도는 배치가 그날 요일의 **`active=true` 스케줄**로 회차를 만든다. 전용 엔드포인트를 두지 않는다.
 
 - **중복 실행은 오류가 아니라 무시다.** 재기동·수동 재실행이 정상 동작이므로 이미 있는 회차는 조용히 건너뛰고 생성 건수만 센다
+- **기동이 끝나면 오늘 회차 생성을 한 번 돈다** — 00:05 에 서버가 내려가 있었던 날의 보충(BR-017). 위 무시 규칙 덕에 멱등이다
+- **스케줄 하나의 실패가 나머지를 막지 않는다** — 그 스케줄만 건너뛰고 나머지를 다 만든 뒤 실패를 로그·지표로 드러낸다(BR-017)
 - 멱등의 근거는 **`run(bus_id, service_date, direction, depart_time)` UNIQUE** 이고 애플리케이션 선검사가 아니다 — 동시 2회 실행은 서로의 미커밋 INSERT 를 보지 못한 채 둘 다 선검사를 지난다
 
 **에러** — `404 SCHEDULE_NOT_FOUND`(`PATCH`·`DELETE` 대상 부재) · `404 BUS_NOT_FOUND`(지정 차량 부재·타 학원) · `409 DUPLICATE_SCHEDULE`(같은 `bus_id`·`weekday`·`direction`·`depart_time` 조합 중복) · `404 RUN_NOT_FOUND`(`DELETE /staff/runs/{id}` 대상 부재 · 타 학원 — 존재 비노출, Ruling 163) · `409 DUPLICATE_RUN`(같은 차량·날짜·방향·출발 시각 회차 중복 추가) — 이상 2026-08-26 신설 (Ruling 153)
@@ -1812,6 +1814,15 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 정원 검증의 기준은 `student_capacity`. 초과 시 `409 CAPACITY_EXCEEDED` — 현재 인원과 정원을 `details` 에 반환 (BUS-04). 정원 축소로 기배정 인원이 초과하면 경고.
 
+**`PATCH` 응답의 `warnings[]`**(2026-09-25, BR-116) — 그 차량의 **오늘 이후 · 미취소 · `idle`·`confirmed`** 회차 중 배정 인원이 수정 후 `student_capacity` 를 넘는 회차마다 1건. 배정 인원은 확정 회차면 `absent` 를 뺀 명단, 확정 전이면 예정 명단(§5.7·§5.8 정원 판정과 같은 규칙). **경고이고 차단이 아니다**(§5.14 와 같은 축) — 수정은 저장되고, 없으면 빈 배열. 목록·등록 응답에는 이 필드가 없다.
+
+| 필드 | 설명 |
+|---|---|
+| `code` | `CAPACITY_BELOW_ASSIGNED` |
+| `run_id` | 넘치는 회차 |
+| `assigned_count` | 그 회차의 배정 인원 |
+| `student_capacity` | 수정 후 학생 탑승 가능 인원 |
+
 **에러** — `409 CAPACITY_EXCEEDED`(학생 탑승 가능 인원 초과 — `details` 에 현재 인원·정원) · `409 DUPLICATE_BUS_NO`(같은 학원에 같은 호차 — 등록·수정 공통, 2026-08-26 신설 · Ruling 164) · `404 BUS_NOT_FOUND`(`PATCH` 대상 부재 · 타 학원 — 존재 비노출, Ruling 163)
 
 ### 5.13 매니저 관리 (MGR-01~04, A-12)
@@ -1842,7 +1853,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 **권한** 학원 관계자 · **목적** 회차별 기사·동승자 배치. 시간 충돌 경고 반환
 
-⚠ **`[조정 중]` 중 `MGR-05` 수동 배치와 `MGR-06` 충돌 경고만 2026-08-26 확정했다**(Ruling 153). **동승자 자동 배정은 노선 계산 파이프라인 ⑤단계**이며 엔드포인트가 아니다 — 확정 배치가 **동승자 자리가 빈 회차에만** `AttendantAssigner`(Phase 6 T6, 구현 `SequentialAttendantAssigner`)를 호출하고, 수동 배치가 있으면 건드리지 않는다. 후보가 없으면 빈 채로 확정. 배정되면 그 매니저에게 `assignment_changed`(§9.7). ⚠ 2026-09-25 전체 검사에서 **배정기가 운영 코드 어디에서도 호출되지 않는 것**이 드러났다 — 옛 문면 "구현 완료" 는 배정기 클래스의 존재를 뜻했을 뿐이다(`Ruling 330`). 파이프라인 단계 정의는 `ARCHITECTURE §8.2`. 이 절이 규정하는 것은 **관계자가 손으로 지정하는 경로**뿐이다.
+⚠ **`[조정 중]` 중 `MGR-05` 수동 배치와 `MGR-06` 충돌 경고만 2026-08-26 확정했다**(Ruling 153). **동승자 자동 배정은 노선 계산 파이프라인 ⑤단계**이며 엔드포인트가 아니다 — 확정 배치가 **동승자 자리가 빈 회차에만** `AttendantAssigner`(Phase 6 T6, 구현 `SequentialAttendantAssigner`)를 호출하고, 수동 배치가 있으면 건드리지 않는다. 후보가 없으면 빈 채로 확정. 배정되면 그 매니저에게 `assignment_changed`(§9.7). 2026-09-25 전체 검사에서 배정기가 운영 코드 어디에서도 호출되지 않는 것이 드러나(옛 문면 "구현 완료" 는 배정기 클래스의 존재를 뜻했을 뿐) **같은 날 확정 저장 트랜잭션에 연결했다**(`Ruling 330` · BR-018) — 확정이 롤백되면 배정도 되돌아가고, 배정된 동승자는 같은 확정의 노선 확정 알림도 받는다. 파이프라인 단계 정의는 `ARCHITECTURE §8.2`. 이 절이 규정하는 것은 **관계자가 손으로 지정하는 경로**뿐이다.
 
 **요청** — 둘 다 선택이나 **최소 하나는 필요**하다(둘 다 비면 `422 VALIDATION_FAILED`).
 
@@ -2202,6 +2213,7 @@ SMS 연동(`PRD` F-05) 전까지 §2.9 가 `503` 이라 **학원 사용자의 �
 | `stops[]` | array | ● | `stop_id` · `seq` · `name` · `lat` · `lng` · `change` · `arrived_at` · **`eta`** |
 | `destination_eta` | datetime | ● | 도착지 도착 예정 시각 |
 | `driver` · `escort` | object | ● | `name` · `phone` — **원문** |
+| `consecutive_failures` | integer | ● | 확정 배치의 연속 실패 횟수(`ERD run`, 성공 시 0) — 확정이 계속 실패하는 회차를 강제 확정(§6.14) 대상으로 알아보는 재료(BR-047 · `UF-O-07`) |
 
 ```json
 {
@@ -2460,7 +2472,8 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `RUN_NOT_CONFIRMED` | 409 | 확정 전(`idle`) 회차의 명단·운행 진입·경유 지점 지정(§5.15) |
 | `RUN_NOT_MOVING` | 409 | `moving` 아닌 회차에 위치 업로드·승하차 처리 |
 | `RUN_NOT_FOUND` | 404 | 존재하지 않는 회차 · 타 학원 — 존재 비노출, Ruling 163 |
-| `RUN_ALREADY_STARTED` | 409 | 이미 `moving` · `finished` 인 회차에 운행 시작 요청 (RUN-02 · §9.3 운행 상태 전이) |
+| `RUN_ALREADY_STARTED` | 409 | 이미 `moving` · `finished` 인 회차에 운행 시작 요청 · 임시 취소(§5.10 — 취소는 `idle`·`confirmed` 만) (RUN-02 · §9.3 운행 상태 전이) |
+| `RUN_CANCELED` | 409 | 임시 취소된 회차(§5.10 `canceled_at`)에 운행 시작(§4.4) · 강제 추가(§5.7) · 이동(§5.8). 404 가 아닌 것은 행이 실재하고 관계자 화면에 취소로 보이기 때문 (BR-042) |
 | `DUPLICATE_RUN` | 409 | 같은 차량·날짜·방향·출발 시각의 회차를 **임시 추가**(§5.10 `POST /staff/runs`)로 다시 만들려는 시도. 유일성 근거는 `run(bus_id, service_date, direction, depart_time)` UNIQUE 다. ⚠ **일일 회차 생성 배치(SCH-02)는 이 코드를 내지 않는다** — 배치의 중복 실행은 재기동·수동 재실행이라는 정상 동작이라 오류가 아니라 무시이고, 이미 있는 회차를 조용히 건너뛴다. 같은 제약이 두 경로에서 다르게 읽히는 것이 요점이라 여기 적어 둔다 (2026-08-26 신설, Ruling 153) |
 | `DUPLICATE_ASSIGNMENT` | 409 | 한 회차의 **같은 역할**을 두 요청이 동시에 채우려 함 — `assignment(run_id, role)` UNIQUE 위반 (§5.14 · MGR-05). 순차 요청은 교체로 처리되므로 이 코드가 나오는 것은 경합뿐이다. ⚠ 근무 시간·중복 배치 충돌과 **다른 축**이다 — 그쪽은 경고이고 저장되지만(MGR-06) 이쪽은 저장 자체가 거부된다 (2026-08-26 신설, Ruling 153) |
 | `RIDER_NOT_FOUND` | 404 | 미존재 탑승자, 또는 `absent` 로 명단에서 제외된 탑승자 지정 |
@@ -2561,6 +2574,8 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `no_show` | 미승차 | 레드 | 동승자 |
 
 **`absent` 와 `no_show` 는 반드시 구분** — `absent` 는 학부모 알림 부재·명단 행 제외, `no_show` 는 즉시 알림 + **3분** 에스컬레이션 (C-02).
+
+버스 간 이동으로 출발 회차에서 빠진 학생은 `absent` + `change=removed` 로 남는다 — 흐름(승하차·알림·종료 판정)은 `absent` 와 같고, 명단(§4.2·§5.4)에서는 빨강으로 보이며 "미등원 N명"(`absent_n`)에는 세지 않는다(RTE-04 · BR-016).
 
 ### 9.5 변경 구분 (`change`)
 

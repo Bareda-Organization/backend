@@ -32,6 +32,8 @@ public class TransferStore {
 
     private final RunTransferRepository runTransferRepository;
 
+    private final StagingRunGuard stagingRunGuard;
+
     /**
      * @param point {@code address} 경로일 때만 채워진다 — {@code stop_id} 경로면 {@code null} 이고
      *              {@link TransferRequest#stopId()} 를 그대로 쓴다(배타 조건은 호출부가 이미 확인함)
@@ -39,6 +41,10 @@ public class TransferStore {
     @Transactional
     public RunTransfer stage(Run fromRun, Run toRun, Student student, TransferRequest request, GeocodedPoint point,
             Long requestedByAccountId, OffsetDateTime now) {
+        // 잠금 순서를 id 로 고정해 두 이동이 서로의 회차를 반대 순서로 잠그는 교착을 막는다.
+        boolean fromFirst = fromRun.getId() < toRun.getId();
+        stagingRunGuard.lockIdle(fromFirst ? fromRun : toRun);
+        stagingRunGuard.lockIdle(fromFirst ? toRun : fromRun);
         Long stopId = point != null ? stopMatcher.matchOrCreate(toRun.getAcademyId(), point).getId()
                 : request.stopId();
         RunTransfer transfer = RunTransfer.stage(student.getId(), fromRun.getId(), toRun.getId(), stopId,

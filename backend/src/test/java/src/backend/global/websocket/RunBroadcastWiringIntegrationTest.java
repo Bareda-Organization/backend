@@ -96,7 +96,8 @@ class RunBroadcastWiringIntegrationTest {
         long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, now, now.minusMinutes(30));
         long driver = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사" + unique, now);
         long escort = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자" + unique, now);
-        fixtures.runStopForStop(fixtures.confirmedRouteWithVersion(runId, now), stopId, 1, now);
+        // 도착 처리 경로의 {stopId} 는 정차 항목(run_stop.id)이다(Ruling 327 · API_SPEC §4.5).
+        long runStopId = fixtures.runStopForStop(fixtures.confirmedRouteWithVersion(runId, now), stopId, 1, now);
         long riderId = fixtures.rider(runId, fixtures.student(academyId, "학생" + unique), stopId,
                 RiderStatus.WAITING, now);
 
@@ -110,7 +111,7 @@ class RunBroadcastWiringIntegrationTest {
                 .andExpect(status().is2xxSuccessful());
         assertThat(sentEvents()).contains("position");
 
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + stopId + "/arrive")
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStopId + "/arrive")
                         .header("Authorization", token(driver, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
         assertThat(sentEvents()).contains("stop_arrived");

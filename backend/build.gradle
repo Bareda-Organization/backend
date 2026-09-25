@@ -172,6 +172,8 @@ tasks.named('test') {
     // 빈을 없애지 않고 표현식만 바꾸는 이유는 위 아웃박스 워커와 같다 — 없애면 @Scheduled 배선이
     // 어느 테스트에도 걸리지 않아 애너테이션을 지워도 초록이 된다.
     systemProperty 'app.run.generation.cron', '-'
+    // 기동 직후 오늘 회차 보충(DailyRunStartupCatchUp)도 끈다 — 컨텍스트마다 시드 스케줄로 회차를 만들면 회차 수 단언이 갈린다.
+    systemProperty 'app.run.generation.on-startup', 'false'
 
     // 보존 정리 배치(RetentionCleanupScheduler)도 같은 이유로 끈다 — 위 일일 회차 생성과 같은 cron
     // 기반이라 같은 비활성 표현식을 쓴다. 배경에서 돌면 테스트가 심어 둔 기한 밖 행을 먼저 지워

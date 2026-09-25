@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import src.backend.global.common.enums.ChangeType;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
 import src.backend.global.security.access.AcademyScopeExempt;
@@ -227,6 +228,9 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
     /**
      * 그 회차들 중 이 학생이 명단에 있는 회차 — 학생 회차 판정이 회차마다 명단을 따로 묻지 않게 한 번에
      * 모은다(BR-058). 학원 조건은 {@code run} 부모 조인으로 건다({@link #findAllByRunIdAndAcademyId} 와 같은 형태).
+     *
+     * <p>버스 간 이동으로 빠진 행({@code change = removed})은 세지 않는다(BR-016) — 명단에 남는 것은 관계자·매니저
+     * 표시용이고 그 학생은 그 버스에 없다. {@code change} 가 비면 변경 없음이라 포함한다.
      */
     @Query("""
             SELECT rr.runId FROM RunRider rr
@@ -234,7 +238,9 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
             WHERE rr.studentId = :studentId
               AND rr.runId IN :runIds
               AND r.academyId = :academyId
+              AND (rr.change IS NULL OR rr.change <> :removed)
             """)
     List<Long> findRunIdsByAcademyIdAndStudentIdAndRunIdIn(@Param("academyId") Long academyId,
-            @Param("studentId") Long studentId, @Param("runIds") Collection<Long> runIds);
+            @Param("studentId") Long studentId, @Param("runIds") Collection<Long> runIds,
+            @Param("removed") ChangeType removed);
 }

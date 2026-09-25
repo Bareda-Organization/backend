@@ -1,6 +1,7 @@
 package src.backend.run.scheduler;
 
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -16,7 +17,6 @@ import lombok.extern.slf4j.Slf4j;
 import src.backend.observability.metrics.RunConfirmationMetrics;
 import src.backend.run.command.RunConfirmationService;
 import src.backend.run.entity.Run;
-import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 
 /**
@@ -39,7 +39,7 @@ public class RunConfirmationScheduler {
 
     /**
      * 한 틱이 한 번에 집는 상한(목표 6) — 상한 없이 전건을 집으면 회차가 몰린 틱 하나가 워커 풀을
-     * 오래 붙든다({@code RunRepository.findByStatusAndConfirmAtLessThanEqualAndCanceledAtIsNullOrderByConfirmAtAsc}
+     * 오래 붙든다({@code RunRepository.findDueForConfirmation}
      * 의 {@code pageable} 이 이 값을 받는다).
      */
     static final int BATCH_SIZE = 50;
@@ -70,9 +70,8 @@ public class RunConfirmationScheduler {
             initialDelayString = "${app.run.confirmation.initial-delay-ms:0}")
     public void confirmDueRuns() {
         OffsetDateTime now = OffsetDateTime.now(clock);
-        List<Run> dueRuns = runRepository
-                .findByStatusAndConfirmAtLessThanEqualAndCanceledAtIsNullOrderByConfirmAtAsc(RunStatus.IDLE, now,
-                        PageRequest.of(0, BATCH_SIZE));
+        List<Run> dueRuns = runRepository.findDueForConfirmation(now, LocalDate.now(clock),
+                PageRequest.of(0, BATCH_SIZE));
 
         List<CompletableFuture<Void>> tasks = dueRuns.stream()
                 .map(run -> CompletableFuture.runAsync(() -> confirmSafely(run.getId()), runConfirmationExecutor))

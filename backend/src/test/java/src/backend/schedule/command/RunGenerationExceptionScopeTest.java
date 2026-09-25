@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
@@ -53,7 +55,7 @@ class RunGenerationExceptionScopeTest {
     }
 
     /**
-     * 중복이 <b>아닌</b> 실패는 드러낸다 — 배치가 그 자리에서 멈추고 예외가 그대로 올라간다.
+     * 중복이 <b>아닌</b> 실패는 드러낸다 — 나머지 스케줄을 다 돈 뒤 예외가 그대로 올라간다(BR-017).
      *
      * <p>이 단언이 없으면 {@code catch} 가 오류 코드를 보지 않는 구현이 통과하고, 그 구현에서는
      * 차량이 사라진 스케줄·정책 위반이 전부 "만들 것이 없었다" 로 보고된다.
@@ -68,6 +70,23 @@ class RunGenerationExceptionScopeTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.BUS_NOT_FOUND);
+    }
+
+    /**
+     * 한 스케줄의 실패가 <b>뒤 순서의 학원 스케줄</b>까지 끊지 않는다(BR-017, ARCHITECTURE §9.4 회차 단위 격리) —
+     * 나머지를 다 만든 뒤 첫 실패를 다시 던져 드러낸다(위 시험의 "삼키지 않는다" 는 그대로).
+     */
+    @Test
+    void 한_스케줄의_실패가_뒤_스케줄의_생성을_막지_않는다() {
+        when(scheduleRepository.findAllByWeekdayAndActiveIsTrue(any(Weekday.class)))
+                .thenReturn(List.of(mock(Schedule.class), mock(Schedule.class)));
+        when(runCommandService.create(any(RunDraft.class)))
+                .thenThrow(new BusinessException(ErrorCode.BUS_NOT_FOUND))
+                .thenReturn(null);
+
+        assertThatThrownBy(() -> runGenerationService.generate(SERVICE_DATE))
+                .isInstanceOf(BusinessException.class);
+        verify(runCommandService, times(2)).create(any(RunDraft.class));
     }
 
     /** 그날 요일의 활성 스케줄이 한 건 있는 상태 — 회차 생성이 한 번은 시도된다. */

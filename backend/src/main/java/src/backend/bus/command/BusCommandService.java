@@ -1,5 +1,6 @@
 package src.backend.bus.command;
 
+import java.util.List;
 import java.util.function.Supplier;
 
 import org.hibernate.exception.ConstraintViolationException;
@@ -12,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.bus.dto.BusRegisterRequest;
 import src.backend.bus.dto.BusResponse;
 import src.backend.bus.dto.BusUpdateRequest;
+import src.backend.bus.dto.BusWarning;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.entity.BusSeating;
 import src.backend.bus.repository.BusRepository;
@@ -36,6 +38,8 @@ public class BusCommandService {
     private static final String BUS_NO_UNIQUE_CONSTRAINT = "uk_bus_academy_bus_no";
 
     private final BusRepository busRepository;
+
+    private final BusLoadReader busLoadReader;
 
     /**
      * 차량을 등록한다(§5.12) — 학생 탑승 가능 인원은 정원에서 승무 인원을 빼 <b>서버가 계산</b>한다.
@@ -65,11 +69,24 @@ public class BusCommandService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.BUS_NOT_FOUND));
         Supplier<BusResponse> apply = () -> {
             bus.update(request.busNo(), request.plateNo(), request.capacity(), request.operable());
-            return BusResponse.from(bus);
+            return BusResponse.from(bus, capacityWarningsOf(requester.academyId(), bus));
         };
         return renamesBusNo(bus, request.busNo())
                 ? enforcingUniqueBusNo(requester.academyId(), request.busNo(), apply)
                 : apply.get();
+    }
+
+    /**
+     * 정원 축소로 오늘 이후 회차의 배정 인원이 새 학생 정원을 넘으면 경고한다(§5.12, BR-116) — 경고이고 차단이
+     * 아니다({@code §5.14} 배치 경고와 같은 축). 정원을 늘리거나 그대로 둔 수정도 같은 판정을 거친다 — 이미 넘친
+     * 회차가 있으면 그 사실을 계속 드러낸다.
+     */
+    private List<BusWarning> capacityWarningsOf(Long academyId, Bus bus) {
+        return busLoadReader.assignedCountsByRun(academyId, bus.getId()).entrySet().stream()
+                .filter(entry -> entry.getValue() > bus.getStudentCapacity())
+                .map(entry -> BusWarning.capacityBelowAssigned(entry.getKey(), entry.getValue(),
+                        bus.getStudentCapacity()))
+                .toList();
     }
 
     /**

@@ -160,6 +160,32 @@ class ManagerRunControllerTest {
     }
 
     @Test
+    void 취소된_회차는_매니저_목록에_나오지_않는다() throws Exception {
+        Phase9RosterFixtures fx = fixtures();
+        long academyId = fx.academyWithCoordinates();
+        long busId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.500000", "127.000000");
+        fx.route(academyId, busId, Weekday.TUE, Direction.TO_ACADEMY, stopId);
+        LocalDate serviceDate = LocalDate.parse(SERVICE_DATE);
+        OffsetDateTime departTime = OffsetDateTime.parse("2031-07-01T08:00:00+09:00");
+        long runId = fx.confirmedRun(academyId, busId, serviceDate, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.ESCORT, "취소동승자");
+        fx.assign(runId, manager.managerId(), ManagerRole.ESCORT);
+        runRepository.findById(runId).orElseThrow().cancel(departTime.minusHours(1));
+
+        MvcResult result = mockMvc
+                .perform(get("/api/v1/manager/runs").param("date", SERVICE_DATE).header("Authorization",
+                        토큰(manager.accountId(), academyId, Role.ESCORT)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        java.util.List<?> items = JsonPath.read(본문(result), "$.data.items");
+        assertThat(items).as("취소된 회차가 뜨면 기사가 시작해 학부모에게 취소된 운행의 시작 알림이 간다(BR-042)")
+                .isEmpty();
+    }
+
+    @Test
     void 배치는_남아도_탈퇴한_매니저의_토큰은_403이다() throws Exception {
         Phase9RosterFixtures fx = fixtures();
         long academyId = fx.academyWithCoordinates();

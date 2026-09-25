@@ -28,6 +28,7 @@ import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.BusRepository;
 import src.backend.exception.entity.NoShowCase;
 import src.backend.exception.repository.NoShowCaseRepository;
+import src.backend.global.common.enums.ChangeType;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
@@ -210,7 +211,8 @@ public class RosterQueryService {
             Map<Long, Student> studentsById, Map<Long, String> maskedPhonesById,
             Map<Long, NoShowCountdown> countdownsByRiderId) {
         List<RosterStudent> students = ridersAtStop.stream()
-                .filter(rider -> rider.getStatus() != RiderStatus.ABSENT)
+                // absent 는 개인 행을 빼되, 버스 간 이동으로 빠진 removed 행은 빨강으로 보인다(RTE-04 · §4.2)
+                .filter(rider -> rider.getStatus() != RiderStatus.ABSENT || rider.getChange() == ChangeType.REMOVED)
                 .map(rider -> toRosterStudent(rider, studentsById.get(rider.getStudentId()),
                         maskedPhonesById.get(rider.getStudentId()), countdownsByRiderId.get(rider.getId())))
                 .toList();
@@ -249,7 +251,10 @@ public class RosterQueryService {
         long boarded = riders.stream().filter(rider -> rider.getStatus() == RiderStatus.BOARDED).count();
         long waiting = riders.stream().filter(rider -> rider.getStatus() == RiderStatus.WAITING).count();
         long noShow = riders.stream().filter(rider -> rider.getStatus() == RiderStatus.NO_SHOW).count();
-        long absentN = riders.stream().filter(rider -> rider.getStatus() == RiderStatus.ABSENT).count();
+        // 다른 버스로 옮긴 학생(removed)은 미등원이 아니다
+        long absentN = riders.stream()
+                .filter(rider -> rider.getStatus() == RiderStatus.ABSENT && rider.getChange() != ChangeType.REMOVED)
+                .count();
         return new Counts(boarded, waiting, noShow, absentN);
     }
 

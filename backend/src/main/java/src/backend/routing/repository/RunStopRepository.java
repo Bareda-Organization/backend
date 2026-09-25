@@ -92,7 +92,7 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
      */
     @AcademyScopeExempt(reason = "routeVersionId 는 근접 알림 스케줄러가 RunRepository 로 이미 학원과 무관하게 골라낸 "
             + "run.id 에서 confirmed_route.current_version_id 로 얻은 값만 넘긴다는 전제다(findByRouteVersionIdAndStopId 와 "
-            + "같은 근거) — 확정 배치가 findByStatusAndConfirmAtLessThanEqualAndCanceledAtIsNullOrderByConfirmAtAsc 로 "
+            + "같은 근거) — 확정 배치가 findDueForConfirmation 로 "
             + "전 학원을 대상으로 골라내는 것과 같은 형태")
     @Query("""
             SELECT rs FROM RunStop rs

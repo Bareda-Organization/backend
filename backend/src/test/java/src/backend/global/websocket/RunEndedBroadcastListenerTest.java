@@ -54,4 +54,21 @@ class RunEndedBroadcastListenerTest {
         assertThat(sent.get("/topic/academy/1/live")).contains("autoAlightedCount=5");
         assertThat(sent.get("/topic/admin/live")).contains("autoAlightedCount=5");
     }
+
+    @Test
+    @DisplayName("absent 행(다른 버스로 옮긴 removed 포함)의 학생 채널에는 보내지 않는다")
+    void absent_학생_채널에는_보내지_않는다() {
+        Long runId = 10L;
+        OffsetDateTime finishedAt = OffsetDateTime.now();
+        RunRider rider = RunRider.uponConfirmation(runId, 100L, 1L);
+        RunRider moved = RunRider.uponConfirmation(runId, 200L, 2L);
+        moved.markRemoved(finishedAt);
+        when(runRiderRepository.findAllByRunId(runId)).thenReturn(List.of(rider, moved));
+
+        listener.broadcast(new RunEndedEvent(runId, 1L, finishedAt, 0L));
+
+        // 실제 게이트웨이로 보내 목적지를 센다(Ruling 335 시험과 같은 방식) — 옮긴 학생(200)의 채널은 부재.
+        Map<String, String> sent = RunStartedBroadcastListenerTest.sentPayloads(template);
+        assertThat(sent).containsKey("/topic/students/100/run").doesNotContainKey("/topic/students/200/run");
+    }
 }
