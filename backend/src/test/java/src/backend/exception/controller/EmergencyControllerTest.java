@@ -257,6 +257,26 @@ class EmergencyControllerTest extends RedisTestContainerBase {
         assertThat(신고_좌표_존재(runId)).as("캐시 미스는 좌표를 비운 채 성공해야지 발신 자체를 막으면 안 된다").isFalse();
     }
 
+    /** BR-039 — 캐시 <b>읽기 실패</b>(여기선 값 형식 불일치로 재현)도 미스와 같이 좌표 없이 접수돼야 한다. */
+    @Test
+    void 위치_캐시_읽기가_실패해도_신고_발신은_성공한다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long runId = fixtures.confirmedRun(academyId, busId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        stringRedisTemplate.opsForValue().set("run:%d:position".formatted(runId), "{not-json");
+
+        mockMvc.perform(post(RAISE.formatted(runId))
+                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(요청본문("accident", null, UUID.randomUUID())))
+                .andExpect(status().isCreated());
+
+        assertThat(신고건수(runId)).as("신고 행이 롤백되지 않고 남는다").isEqualTo(1);
+        assertThat(신고_좌표_존재(runId)).isFalse();
+    }
+
     // ── goal 9 — 1분 이내 취소 · 경계값 ──────────────────────────────────
 
     @Test

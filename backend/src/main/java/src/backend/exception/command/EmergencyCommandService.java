@@ -11,6 +11,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 
 import src.backend.academy.entity.StaffStatus;
@@ -54,6 +55,7 @@ import src.backend.student.query.RunPositionSnapshot;
  * 제약이 명시돼 있지 않다 — 배치({@link RunAssignmentAccess#assertAssignedDriverOrEscort})만 통과하면
  * 신고는 언제나 접수돼야 한다는 것이 안전 기능의 기본 전제다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -215,11 +217,18 @@ public class EmergencyCommandService {
     }
 
     /**
-     * 위치 캐시(Redis, T1 계약)에 값이 있을 때만 붙인다 — 비어 있어도 신고 자체는 반드시 성공해야
-     * 하는 안전 요구(목표 8, 판단 근거 — 보고서 항목)라 여기서 예외를 던지지 않고 조용히 건너뛴다.
+     * 위치 캐시(Redis, T1 계약)에 값이 있을 때만 붙인다 — 신고 자체는 반드시 성공해야 하는 안전 요구
+     * (목표 8)라, 값이 비었을 때뿐 아니라 <b>읽기 실패</b>(Redis 연결·시간 초과·값 형식 불일치)도 위치 없이
+     * 접수한다(BR-039). 실패는 경고 로그로만 남긴다 — 여기서 던지면 {@code emergency_alert} 행까지 롤백된다.
      */
     private void attachLocationIfCached(EmergencyAlert alert, Long runId) {
-        Optional<RunPositionSnapshot> snapshot = runPositionCache.find(runId);
+        Optional<RunPositionSnapshot> snapshot;
+        try {
+            snapshot = runPositionCache.find(runId);
+        } catch (RuntimeException e) {
+            log.warn("비상 신고 위치 첨부 실패 — 위치 없이 접수한다. runId={}", runId, e);
+            return;
+        }
         snapshot.ifPresent(position -> alert.attachLocation(position.lat(), position.lng(), position.recordedAt()));
     }
 
