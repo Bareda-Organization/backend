@@ -66,7 +66,7 @@ public class DelayNotificationListener {
             Student student = studentOf(role, recipient);
             notificationOutbox.append(new NotificationDraft(event.academyId(), recipient.accountId(),
                     recipient.name(), role, NotificationType.DELAY, message.title(), message.body(),
-                    dedupKey(event.runId(), recipient.dedupTargetId(), event.sentAt()),
+                    dedupKey(event.runId(), targetOf(role, recipient), event.sentAt()),
                     student != null ? student.getId() : null, student != null ? student.getName() : null, busNo));
         }
     }
@@ -94,7 +94,19 @@ public class DelayNotificationListener {
         };
     }
 
-    private String dedupKey(Long runId, Long targetId, OffsetDateTime sentAt) {
-        return "delay:%d:%d:%s".formatted(runId, targetId, sentAt);
+    /**
+     * 멱등키의 대상 자리 — 역할 접두로 계정 ID·학생 ID 공간을 가른다(BR-007). 학부모는 형제자매를 가르려고
+     * 대상 학생({@link DelayNoticeRecipient#dedupTargetId})까지 붙인다.
+     */
+    private static String targetOf(Role role, DelayNoticeRecipient recipient) {
+        return switch (role) {
+            case PARENT -> "guardian:" + recipient.accountId() + ":" + recipient.dedupTargetId();
+            case STUDENT -> "student:" + recipient.accountId();
+            default -> "staff:" + recipient.accountId();
+        };
+    }
+
+    private String dedupKey(Long runId, String target, OffsetDateTime sentAt) {
+        return "delay:%d:%s:%s".formatted(runId, target, sentAt);
     }
 }
