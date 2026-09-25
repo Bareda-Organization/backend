@@ -17,6 +17,7 @@ import src.backend.manager.entity.Manager;
 public record ManagerResponse(Long id, String name, String phone, String role, Map<String, Object> workHours,
         String accountId) {
 
+    /** {@link Manager} 엔티티에서 응답 필드를 뽑는다 — {@code accountId} 는 문자열로, 없으면 {@code null}. */
     public static ManagerResponse from(Manager manager) {
         return new ManagerResponse(manager.getId(), manager.getName(), manager.getPhone(),
                 manager.getRole().name().toLowerCase(Locale.ROOT), manager.getWorkHours(),

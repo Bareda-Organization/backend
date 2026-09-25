@@ -19,6 +19,7 @@ import src.backend.global.common.enums.ManagerRole;
  */
 public record AssignmentWarning(String code, Long managerId, String role, String message) {
 
+    /** {@link AssignmentWarningCode} 에서 이름·메시지를 꺼내고 역할을 API 값 공간으로 바꿔 담는다. */
     public static AssignmentWarning of(AssignmentWarningCode code, Long managerId, ManagerRole role) {
         return new AssignmentWarning(code.name(), managerId, role.name().toLowerCase(Locale.ROOT),
                 code.getMessage());
