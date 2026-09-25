@@ -19,7 +19,7 @@
 
 **반드시 spec을 만드는 경우**: 외부 시스템 연동 · 전략 패턴 · 여러 구현체가 존재하거나 존재할 가능성이 있는 경우 · Mock 구현이 필요한 경우 · 추후 MSA로 분리될 가능성이 있는 경우
 
-예: `LocationSource`, `NotificationSender`, `EtaService`, `RouteEngine`, `SmsSender`, `PushSender`, `StorageService`, `ImageUploader`
+예(실재 포트 — `ARCHITECTURE §3.2.1`): `RouteEngine`, `AttendantAssigner`, `MapRouteClient`, `GeocodingClient`, `PlaceSearchClient`, `NavProvider`, `PhotoStorage`, `ApprovalPreviewCache`, `PushSender`, `NotificationComposer`
 
 **spec을 만들지 않는 경우**: 단순 CRUD 서비스. 구현이 하나뿐이고 변경 가능성이 거의 없으면 인터페이스를 만들지 않는다.
 
@@ -178,14 +178,18 @@ Command·Query를 Event 이름에 사용하지 않는다.
 
 | Port | 구현 후보 |
 | --- | --- |
-| `LocationSource` | Mock, Phone, Bus, Beacon |
-| `NotificationSender` | Log, WebSocket (후보: FCM, SMS, Kakao, Email) |
-| `MapRouteClient` | OSRM, Naver (후보: Google) — 실도로 경로/거리 조회 |
+| `MapRouteClient` | 폴백(직선거리 근사), Naver — 실도로 경로/거리 조회 |
 | `RouteEngine` | Heuristic(sweep+NN+2-opt) (후보: 외부 최적화 엔진) — 방문 순서 결정 |
-| `EtaService` | Internal, gRPC, AI ETA |
-| `StorageService` | Local, S3, MinIO |
+| `AttendantAssigner` | 근무 시간·충돌 판정 기반 배정(후보: 학원별 규칙 교체) |
+| `GeocodingClient` | Naver — 주소 → 좌표 변환 |
+| `PlaceSearchClient` | Naver 검색 API(자동완성) — 고정 노선 정차지 검색 |
+| `NavProvider` | KakaoNavProvider(MVP 단독, 후보: Tmap) — 매니저 앱 내비 링크 |
+| `PhotoStorage` | Local(후보: S3, MinIO) — 학생 사진 등 첨부 |
+| `ApprovalPreviewCache` | 인메모리(후보: Redis) — 승인 미리보기 산출물 |
+| `PushSender` | Log, WebSocket(후보: FCM, APNs, 알림톡) |
+| `NotificationComposer` | 문구 템플릿 생성 — 다국어 확장 축 |
 
-주의: `MapRouteClient`(외부 지도 API로 실도로 경로를 얻는 포트)와 `RouteEngine`(정차 순서를 계산하는 알고리즘 포트)은 서로 다른 포트다 — OSRM/네이버 스위치는 `MapRouteClient` 쪽이다.
+주의: `MapRouteClient`(외부 지도 API로 실도로 경로를 얻는 포트)와 `RouteEngine`(정차 순서를 계산하는 알고리즘 포트)은 서로 다른 포트다 — 폴백/네이버 스위치는 `MapRouteClient` 쪽이다. **위치 원천은 포트가 아니다** — 매니저 앱 1종 확정으로 `location/command/DriverPositionController` 가 HTTP 로 직접 수신한다(BR-146).
 
 ## 16. 새로운 기능 추가 원칙
 
