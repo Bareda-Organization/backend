@@ -249,6 +249,15 @@ VALUES
 -- 회차 5건 — 3구간 전수: R1 idle(출발 3시간 전) · R2 confirmed(20분 전, 이미 확정 지남) ·
 -- R3 moving(10분 전 출발) · R4 finished(3시간 전 출발, 종료) · R5 confirmed(B 학원, 격리 검증용).
 -- confirm_at 은 반드시 depart_time - 30분이어야 하므로(ck_run_confirm_at) 같은 now() 식에서 유도한다.
+-- ⚠⚠ 한계(BR-139, Ruling 346) — `service_date` 는 적용 시각의 한국 날짜((now() AT TIME ZONE
+-- 'Asia/Seoul')::date)이고 `depart_time` 은 적용 시각 기준 상대값(now() + interval)이다. 이
+-- 시드를 한국시간 20시 이후·03시 이전에 적용하면 R1(+3h)·R6(+4h)·R8(+2h) 같은 회차의
+-- `depart_time` 한국 날짜가 `service_date` 와 갈린다(자정을 건너뛰므로). 운행일을 출발 시각에서
+-- 유도해 맞추는 쪽은 고치지 않는다 — R1·R6·R8 이 공유하는 고정 노선(route id=1)·정기 배차
+-- (schedule id=1, 위 요일 계산)는 **한 행**인데, 그 행의 요일은 "오늘"(적용일 기준)로 고정돼
+-- 있어 운행일이 내일로 밀리면 `RunConfirmationService` 의 (학원·버스·요일·방향) 노선 조회가
+-- 실패해 확정 배치·경로 미리보기가 깨진다 — 지금 결함(자정 뒤 오래 켠 로컬 서버의 매니저 목록
+-- 누락)보다 해가 크다. 재구성(`docker compose down`+`up`)으로 매번 새로 깔리므로 실무 영향은 적다.
 -- ⚠ `est_duration_min`(계획 소요시간) — 실제 흐름에서는 `RunGenerationService` 가 `schedule` 값을
 -- 그대로 옮긴다. 시드는 행을 직접 넣으므로 그 복사를 손으로 한다. 비워 두면 화면의 "예정 도착"이
 -- 전부 `-` 가 된다(2026-09-19 조율자 눈 확인). `route_version.est_duration_min`(확정 노선의 실측
