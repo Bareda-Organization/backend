@@ -3,12 +3,16 @@ package src.backend.global.error;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
@@ -88,6 +92,25 @@ public class GlobalExceptionHandler {
         ErrorCode code = ErrorCode.VALIDATION_FAILED;
         return ResponseEntity.status(code.getStatus())
                 .body(ErrorResponse.of(code.name(), e.getRequestPartName() + " 파트가 필요합니다"));
+    }
+
+    /**
+     * 요청 형식 오류 — 깨진 JSON · enum 밖 값 · 경로/쿼리 타입 불일치 · 파라미터 제약 위반 · Content-Type
+     * 누락(BR-032, §1.11 "형식 위반"). catch-all 로 떨어지면 {@code 500} 이 되어 클라이언트 실수가 서버
+     * 고장으로 보이고, 오프라인 큐가 5xx 를 재시도 대상으로 봐 같은 요청을 끝없이 다시 보낸다.
+     *
+     * <p>Content-Type 누락도 {@code 415} 가 아니라 {@code 422} 다 — 사양의 에러 사전(§8)에 형식 위반
+     * 코드는 {@code VALIDATION_FAILED} 하나뿐이다. 역직렬화 오류 문구는 내부 타입명을 담아 싣지 않는다.
+     */
+    @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class,
+            HandlerMethodValidationException.class, HttpMediaTypeNotSupportedException.class})
+    public ResponseEntity<ErrorResponse> handleMalformedRequest(Exception e) {
+        ErrorCode code = ErrorCode.VALIDATION_FAILED;
+        log.warn("[request] 형식 오류 {}", e.getMessage());
+        String message = e instanceof MethodArgumentTypeMismatchException mismatch
+                ? mismatch.getName() + " 값의 형식이 올바르지 않습니다"
+                : code.getMessage();
+        return ResponseEntity.status(code.getStatus()).body(ErrorResponse.of(code.name(), message));
     }
 
     /**
