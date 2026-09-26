@@ -4,10 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 
 import org.junit.jupiter.api.Test;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import src.backend.global.common.enums.AccountStatus;
@@ -125,5 +128,41 @@ class JwtTokenProviderTest {
         assertThatThrownBy(() -> provider.resolveAuthUser(claimsWithoutRole))
                 .as("role 클레임이 없으면 AuthUser 를 만들 수 없어야 한다")
                 .isInstanceOf(JwtException.class);
+    }
+
+    /**
+     * BR-164 후속 — 발급은 주입 시계를 쓰지만 검증({@code parse}) 은 시스템 시계로 {@code exp} 를
+     * 판정하면, 고정 시계가 과거인 {@code @SpringBootTest} 에서 로그인 직후 받은 토큰이 곧바로
+     * 만료로 판정된다. 발급·검증이 <b>같은</b> 주입 시계를 보면 과거 시계로도 유효해야 한다.
+     */
+    @Test
+    void 과거로_고정된_시계로_발급한_토큰을_같은_시계로_검증하면_유효하다() {
+        Clock fixedPastClock = Clock.fixed(Instant.parse("2026-08-26T02:00:00Z"), ZoneOffset.UTC);
+        JwtTokenProvider providerWithFixedClock = new JwtTokenProvider(
+                "test-secret-key-for-jwt-that-is-at-least-32-bytes-long!!", 900, 1209600, fixedPastClock);
+
+        String token = providerWithFixedClock.createAccessToken(7L, 1L, Role.DRIVER, AccountStatus.ACTIVE);
+
+        Claims claims = providerWithFixedClock.parse(token);
+
+        assertThat(claims.getSubject()).isEqualTo("7");
+    }
+
+    /** 같은 주입 시계 기준으로 유효기간을 넘기면 검증도 그 시계를 보고 만료로 판정해야 한다. */
+    @Test
+    void 검증은_주입_시계_기준으로_유효기간을_넘기면_만료로_판정한다() {
+        Instant issuedAt = Instant.parse("2026-08-26T02:00:00Z");
+        Clock clockAtIssue = Clock.fixed(issuedAt, ZoneOffset.UTC);
+        JwtTokenProvider providerWithFixedClock = new JwtTokenProvider(
+                "test-secret-key-for-jwt-that-is-at-least-32-bytes-long!!", 900, 1209600, clockAtIssue);
+
+        String token = providerWithFixedClock.createAccessToken(7L, 1L, Role.DRIVER, AccountStatus.ACTIVE);
+
+        Clock clockPastExpiry = Clock.fixed(issuedAt.plusSeconds(901), ZoneOffset.UTC);
+        JwtTokenProvider providerAfterExpiry = new JwtTokenProvider(
+                "test-secret-key-for-jwt-that-is-at-least-32-bytes-long!!", 900, 1209600, clockPastExpiry);
+
+        assertThatThrownBy(() -> providerAfterExpiry.parse(token))
+                .isInstanceOf(ExpiredJwtException.class);
     }
 }

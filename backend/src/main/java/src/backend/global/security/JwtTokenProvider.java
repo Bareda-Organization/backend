@@ -90,9 +90,19 @@ public class JwtTokenProvider {
                 .compact();
     }
 
-    /** 서명·만료를 검증하고 클레임을 돌려준다. 실패 시 {@link io.jsonwebtoken.JwtException}. */
+    /**
+     * 서명·만료를 검증하고 클레임을 돌려준다. 실패 시 {@link io.jsonwebtoken.JwtException}.
+     *
+     * <p>{@code exp} 판정에 발급({@link #build})과 <b>같은</b> 주입 {@link #clock} 을 쓴다 — jjwt
+     * 파서는 시계를 안 주면 시스템 시계로 만료를 판정하는데, 그러면 고정 시계가 과거인
+     * {@code @SpringBootTest} 에서 발급한 토큰이 검증 단계에서 곧바로 만료로 떨어진다(BR-164 후속).
+     */
     public Claims parse(String token) {
-        Jws<Claims> jws = Jwts.parser().verifyWith(key).build().parseSignedClaims(token);
+        Jws<Claims> jws = Jwts.parser()
+                .clock(() -> Date.from(clock.instant()))
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token);
         return jws.getPayload();
     }
 
