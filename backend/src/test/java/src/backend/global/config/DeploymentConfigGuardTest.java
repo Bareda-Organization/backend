@@ -130,6 +130,22 @@ class DeploymentConfigGuardTest {
                 .doesNotContain("clean-disabled: true");
     }
 
+    @Test
+    @DisplayName("BR-168 — prod·demo 프로파일이 부하 측정값(Hikari 20 · STOMP 송신 32)을 명시한다")
+    void deployProfilesPinLoadTestedPoolSizes() {
+        // 부하 측정(2026-09-09 §13.5)이 정한 값이 어느 프로파일에도 없으면 2 vCPU 운영 기계에서
+        // 커넥션 10 · 송신 스레드 4 로 기동한다(W12-02) — 측정은 끝났는데 반영이 안 된 상태를 막는다.
+        for (String profile : new String[] {"prod", "demo"}) {
+            String section = sectionOf("on-profile: " + profile);
+            assertThat(section)
+                    .as("%s 프로파일은 Hikari 최대 풀 크기를 20 으로 명시해야 한다", profile)
+                    .contains("maximum-pool-size: 20");
+            assertThat(section)
+                    .as("%s 프로파일은 STOMP 송신 실행기 코어 스레드 수를 32 로 명시해야 한다", profile)
+                    .contains("core-pool-size: 32");
+        }
+    }
+
     /** `---` 로 구분된 프로파일 문서 중 표식(marker)을 포함한 것을 돌려준다. */
     private String sectionOf(String marker) {
         for (String section : applicationYml.split("(?m)^---$")) {
