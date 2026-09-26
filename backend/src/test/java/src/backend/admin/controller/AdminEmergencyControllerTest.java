@@ -213,7 +213,7 @@ class AdminEmergencyControllerTest {
 
         Map<String, Object> academyInfo = (Map<String, Object>) item.get("academy");
         assertThat(academyInfo).as("academy 는 §6.11 고유 필드다").isNotNull();
-        assertThat(((Number) academyInfo.get("id")).longValue()).isEqualTo(academyId);
+        assertThat(Long.parseLong((String) academyInfo.get("id"))).isEqualTo(academyId);
 
         Map<String, Object> raisedBy = (Map<String, Object>) item.get("raised_by");
         assertThat(raisedBy).containsEntry("name", "기사").containsEntry("role", "driver");
@@ -360,8 +360,8 @@ class AdminEmergencyControllerTest {
     }
 
     private List<Long> id목록(String body) {
-        List<Number> ids = JsonPath.read(body, "$.data.items[*].emergency_id");
-        return ids.stream().map(Number::longValue).toList();
+        List<String> ids = JsonPath.read(body, "$.data.items[*].emergency_id");
+        return ids.stream().map(Long::parseLong).toList();
     }
 
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────
