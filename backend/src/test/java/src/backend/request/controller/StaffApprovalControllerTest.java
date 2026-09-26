@@ -166,6 +166,51 @@ class StaffApprovalControllerTest {
         verify(pipeline, times(0)).compute(any());
     }
 
+    // ── Ruling 358 — §5.5 목록은 페이지 단위로 잘라 온다(§1.8) ──────────────
+
+    /**
+     * {@code Ruling 358} — 대기 25건을 서로 다른 회차 25개에 흩어 만든 뒤 {@code size=20} 으로 첫
+     * 페이지를 받으면 정확히 20건만 오고(전량이 오면 실패), 그 페이지의 회차 20개에 대해서만 명단
+     * 일괄 조회가 도는지(=DB 에서 잘라 온다)를 같은 시나리오로 함께 확인한다. {@code pending_count}
+     * 는 페이지·필터와 무관하게 25 그대로다.
+     *
+     * <p>수정 전 관측(RED) — {@code ApprovalListResponse} 에 {@code page}·{@code size}·
+     * {@code total_count}·{@code has_next} 필드가 없어 컴파일 자체가 실패했고, 컨트롤러가
+     * {@code page}·{@code size} 쿼리 파라미터를 받지 않아 항상 25건 전부를 돌려줬다(수정 전 코드로
+     * {@code items} 크기만 확인하는 임시 단언을 돌려 25 를 직접 봤다).
+     */
+    @Test
+    void 목록은_페이지_단위로_잘라_그_페이지의_회차만_명단을_읽는다() throws Exception {
+        long academyId = 학원과_승인_대기_N건을_만든다(25);
+
+        목록_조회(관계자_토큰(academyId), null, 0, 20).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items", org.hamcrest.Matchers.hasSize(20)))
+                .andExpect(jsonPath("$.data.page").value(0))
+                .andExpect(jsonPath("$.data.size").value(20))
+                .andExpect(jsonPath("$.data.total_count").value(25))
+                .andExpect(jsonPath("$.data.has_next").value(true))
+                .andExpect(jsonPath("$.data.pending_count").value(25));
+        verify(runRiderRepository, times(20)).findAllByRunIdAndAcademyId(anyLong(), anyLong());
+
+        org.mockito.Mockito.clearInvocations(runRiderRepository);
+
+        목록_조회(관계자_토큰(academyId), null, 1, 20).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items", org.hamcrest.Matchers.hasSize(5)))
+                .andExpect(jsonPath("$.data.page").value(1))
+                .andExpect(jsonPath("$.data.has_next").value(false))
+                .andExpect(jsonPath("$.data.pending_count").value(25));
+        verify(runRiderRepository, times(5)).findAllByRunIdAndAcademyId(anyLong(), anyLong());
+    }
+
+    /** {@code size} 가 §1.8 상한(100)을 넘으면 잘라 주지 않고 {@code 422 VALIDATION_FAILED} 로 거부한다. */
+    @Test
+    void size_가_상한을_넘으면_422_다() throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+
+        목록_조회(관계자_토큰(academyId), null, 0, 101).andExpect(status().is(422))
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+    }
+
     // ── 거절·자동거절 건이 있어도 목록 조회는 500 이 아니다 (BK1) ──────────
 
     /**
@@ -664,6 +709,32 @@ class StaffApprovalControllerTest {
         return academyId;
     }
 
+    /**
+     * {@code Ruling 358} 목록 페이징 전용 — 대기 {@code n}건을 서로 다른 회차 {@code n}개에 하나씩
+     * 흩어 만든다. 페이지가 실제로 DB 에서 잘리는지(=회차 일괄 조회가 그 페이지 몫만 도는지)는 회차가
+     * 전부 같으면 구분되지 않으므로, 회차를 일부러 겹치지 않게 만든다. 노선·명단(확정 배치)은 이
+     * 시험의 관심사가 아니라 만들지 않는다 — {@code toSummary} 는 명단에 없는 학생을 "배정 정보
+     * 없음" 으로 안전하게 반환한다({@link src.backend.request.query.ApprovalQueryService#decidedSubjectStopOf}
+     * 와 같은 경로).
+     */
+    private long 학원과_승인_대기_N건을_만든다(int n) throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+        long busId = fixtures().bus(academyId);
+        OffsetDateTime baseDepartTime = SERVICE_DATE.atTime(8, 0).atOffset(java.time.ZoneOffset.of("+09:00"));
+        for (int i = 0; i < n; i++) {
+            OffsetDateTime departTime = baseDepartTime.plusMinutes(i);
+            long runId = fixtures().idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
+                    departTime.minusMinutes(30));
+            long studentId = fixtures().student(academyId, "학생" + i);
+            ChangeRequest changeRequest = ChangeRequest.forRequest(academyId, runId, studentId,
+                    ChangeRequestSource.CHANGE_REQUEST, ChangeRequestType.CANCEL, (short) 2, studentId,
+                    OffsetDateTime.now());
+            changeRequest.assignDeadline(departTime);
+            changeRequestRepository.save(changeRequest);
+        }
+        return academyId;
+    }
+
     private String 상세_본문에서_토큰(시나리오 s) throws Exception {
         String body = 상세_조회(관계자_토큰(s.academyId), s.approvalId)
                 .andExpect(status().isOk())
@@ -678,6 +749,15 @@ class StaffApprovalControllerTest {
     private ResultActions 목록_조회(String token, String status) throws Exception {
         String uri = status == null ? "/api/v1/staff/approvals" : "/api/v1/staff/approvals?status=" + status;
         return mockMvc.perform(get(uri).header("Authorization", token));
+    }
+
+    private ResultActions 목록_조회(String token, String status, int page, int size) throws Exception {
+        StringBuilder uri = new StringBuilder("/api/v1/staff/approvals?page=").append(page).append("&size=")
+                .append(size);
+        if (status != null) {
+            uri.append("&status=").append(status);
+        }
+        return mockMvc.perform(get(uri.toString()).header("Authorization", token));
     }
 
     private ResultActions 상세_조회(String token, long approvalId) throws Exception {

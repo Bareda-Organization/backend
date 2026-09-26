@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import jakarta.persistence.LockModeType;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -26,12 +27,14 @@ import src.backend.request.entity.ChangeRequestType;
 public interface ChangeRequestRepository extends JpaRepository<ChangeRequest, Long> {
 
     /**
-     * 승인 목록(§5.5 — 30분 안쪽 변경 승인) — 접수 순으로 정렬해 먼저 온 요청이 먼저 보이게 한다.
+     * 승인 목록(§5.5 — 30분 안쪽 변경 승인) — DB 에서 페이지 단위로 잘라 가져온다({@code Ruling 358}).
      * {@code windowSegment} 로 ②구간 건만 고른다 — ①구간 신청은 승인 없이 {@code approved} 로 저장되고
-     * 마감도 없어 이 목록 대상이 아니다(BR-076).
+     * 마감도 없어 이 목록 대상이 아니다(BR-076). 정렬은 호출부가 {@code pageable} 에 실어 넘긴다 —
+     * {@code pending} 은 마감 임박 순, 결정된 상태는 결정 시각 역순으로 서로 다르기 때문이다
+     * ({@code ApprovalQueryService#sortOf}).
      */
-    List<ChangeRequest> findAllByAcademyIdAndStatusAndWindowSegmentOrderByRequestedAtAsc(Long academyId,
-            ChangeRequestStatus status, Short windowSegment);
+    Page<ChangeRequest> findAllByAcademyIdAndStatusAndWindowSegment(Long academyId, ChangeRequestStatus status,
+            Short windowSegment, Pageable pageable);
 
     /**
      * 한 회차에 승인된 경유지 이동 요청들(P-06, Phase 8) — 확정 배치가 그날의 승하차지를 조립할 때

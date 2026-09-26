@@ -10,6 +10,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
@@ -24,6 +26,7 @@ import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.request.PageParams;
 import src.backend.global.security.AuthUser;
 import src.backend.request.assembly.RoutePreviewAssembler;
 import src.backend.request.domain.ChangeWindow;
@@ -114,13 +117,16 @@ public class ApprovalQueryService {
     /**
      * 승인 대기 목록(§5.5 목록) — 재최적화를 실행하지 않는다. 저장된 값과 단순 집계만 반환한다.
      *
-     * <p>회차·버스·학생·승하차지를 id 목록으로 한 번씩 읽고, 명단은 회차마다 한 번만 읽는다 — 항목마다 따로
-     * 읽으면 목록 한 번에 조회가 항목 수에 비례해 는다(BR-075, ARCHITECTURE §14 R3).
+     * <p>DB 에서 페이지 단위로 잘라 온다(§1.8, {@code Ruling 358}) — 회차·버스·학생·승하차지 일괄 조회는
+     * 그 페이지에 실린 요청들만 대상으로 한다. 회차·버스·학생·승하차지를 id 목록으로 한 번씩 읽고, 명단은
+     * 회차마다 한 번만 읽는다 — 항목마다 따로 읽으면 목록 한 번에 조회가 항목 수에 비례해 는다(BR-075,
+     * ARCHITECTURE §14 R3).
      */
-    public ApprovalListResponse list(AuthUser requester, ChangeRequestStatus status) {
-        List<ChangeRequest> requests = changeRequestRepository
-                .findAllByAcademyIdAndStatusAndWindowSegmentOrderByRequestedAtAsc(requester.academyId(), status,
-                        ChangeWindow.APPROVAL_REQUIRED.code());
+    public ApprovalListResponse list(AuthUser requester, ChangeRequestStatus status, PageParams pageParams) {
+        Page<ChangeRequest> page = changeRequestRepository.findAllByAcademyIdAndStatusAndWindowSegment(
+                requester.academyId(), status, ChangeWindow.APPROVAL_REQUIRED.code(),
+                pageParams.toPageable(sortOf(status)));
+        List<ChangeRequest> requests = page.getContent();
         Map<Long, Run> runs = runRepository
                 .findAllByIdInAndAcademyId(requests.stream().map(ChangeRequest::getRunId).distinct().toList(), requester.academyId())
                 .stream().collect(Collectors.toMap(Run::getId, run -> run));
@@ -147,7 +153,22 @@ public class ApprovalQueryService {
             return toSummary(cr, run, ridersByRun.get(run.getId()), busNo, studentName, stops, requester.academyId());
         }).toList();
         long pendingCount = changeRequestRepository.countByAcademyIdAndStatus(requester.academyId(), ChangeRequestStatus.PENDING);
-        return ApprovalListResponse.of(items, pendingCount);
+        return ApprovalListResponse.of(page, items, pendingCount);
+    }
+
+    /**
+     * 목록 정렬(§5.5 목록, {@code Ruling 358}) — {@code pending} 은 마감 임박이 위로 오게 오름차순,
+     * 결정된 상태는 최근 결정이 위로 오게 내림차순이다. {@code decidedAt} 은 세 전이 메서드
+     * ({@link ChangeRequest#approve}·{@link ChangeRequest#reject}·{@link ChangeRequest#autoReject})가
+     * 결정 즉시 채우므로 결정된 건에서 {@code null} 일 일이 없지만, 그 전제가 깨지는 경우를 대비해
+     * {@code requestedAt} 내림차순을 동순위 결선으로 덧붙인다(정본이 "없으면 requested_at 내림차순"
+     * 이라 명시한 자리).
+     */
+    private Sort sortOf(ChangeRequestStatus status) {
+        if (status == ChangeRequestStatus.PENDING) {
+            return Sort.by(Sort.Direction.ASC, "deadlineAt");
+        }
+        return Sort.by(Sort.Direction.DESC, "decidedAt").and(Sort.by(Sort.Direction.DESC, "requestedAt"));
     }
 
     /** 목록이 표시할 승하차지 전부 — 명단의 승하차지와 이동 요청의 목적지를 한 번에 읽는다(BR-075). */

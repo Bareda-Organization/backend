@@ -18,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.global.config.ApiTags;
 import src.backend.global.request.ApiValues;
+import src.backend.global.request.PageParams;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanApproveChange;
@@ -48,8 +49,11 @@ public class StaffApprovalController {
 
     /**
      * 승인 대기 목록(§5.5 목록) — {@code status} 를 주지 않으면 대기중(pending)만 보여준다.
+     * {@code page}·{@code size} 는 §1.8 페이징 공통 규약({@link PageParams}) 그대로다 —
+     * 상한을 넘긴 {@code size} 는 잘라 주지 않고 {@code 422 VALIDATION_FAILED} 로 거부한다
+     * ({@code Ruling 358}).
      *
-     * <p>단일 파라미터라 {@code @RequestParam} 에 이름을 손으로 적을 필요는 없지만
+     * <p>세 파라미터를 각각 손으로 적는 이유는 {@code status} 하나만 있던 시절과 같다
      * ({@code StaffRunController} 의 근거는 여러 개로 묶일 때 문제였다), 대문자 enum
      * ({@code PENDING})과 쿼리 값(소문자 {@code pending})의 표기가 다르므로 문자열로 받아 직접
      * 변환한다.
@@ -58,9 +62,10 @@ public class StaffApprovalController {
     @Operation(summary = "30분 안쪽 변경 승인 대기 목록·상세 (REQ-04·05, A-05)")
     @GetMapping
     public ApiResponse<ApprovalListResponse> list(@AuthenticationPrincipal AuthUser requester,
-            @RequestParam(required = false) String status) {
+            @RequestParam(required = false) String status, @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
         ChangeRequestStatus parsed = status == null ? ChangeRequestStatus.PENDING : ApiValues.changeRequestStatus(status);
-        return ApiResponse.ok(approvalQueryService.list(requester, parsed));
+        return ApiResponse.ok(approvalQueryService.list(requester, parsed, PageParams.of(page, size)));
     }
 
     /**
