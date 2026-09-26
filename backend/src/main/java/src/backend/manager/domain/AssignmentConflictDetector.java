@@ -5,7 +5,6 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 
 import org.springframework.stereotype.Component;
@@ -164,8 +163,7 @@ public class AssignmentConflictDetector {
 
     /** 주어진 시각의 요일 — 주입된 {@code Clock} 의 시간대로 옮겨 본다. */
     private Weekday weekdayOf(OffsetDateTime time) {
-        return Weekday.valueOf(time.atZoneSameInstant(clock.getZone()).getDayOfWeek()
-                .name().substring(0, 3).toUpperCase(Locale.ROOT));
+        return Weekday.of(time.atZoneSameInstant(clock.getZone()).toLocalDate());
     }
 
     /** 주어진 시각의 <b>시:분</b> — 근무 구간과 같은 축으로 옮긴다({@code Clock} 의 시간대). */

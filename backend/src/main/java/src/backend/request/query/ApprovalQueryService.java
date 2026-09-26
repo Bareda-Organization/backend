@@ -1,11 +1,9 @@
 package src.backend.request.query;
 
-import java.time.LocalDate;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -185,7 +183,7 @@ public class ApprovalQueryService {
 
         Run run = runRepository.findById(cr.getRunId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
-        Weekday weekday = weekdayOf(run.getServiceDate());
+        Weekday weekday = Weekday.of(run.getServiceDate());
         List<RunRider> riders = runRiderRepository.findAllByRunIdAndAcademyId(run.getId(), academyId);
         ApprovalSummaryResponse summary = toSummary(cr, run, riders, academyId);
 
@@ -345,7 +343,7 @@ public class ApprovalQueryService {
             Map<Long, Stop> stops, Long academyId) {
         Long resolvedStopId = cr.getNewStopId();
         if (resolvedStopId == null) {
-            Weekday weekday = weekdayOf(run.getServiceDate());
+            Weekday weekday = Weekday.of(run.getServiceDate());
             resolvedStopId = weeklyAddressRepository
                     .findDailyStops(academyId, List.of(cr.getStudentId()), weekday, run.getDirection())
                     .stream()
@@ -378,11 +376,4 @@ public class ApprovalQueryService {
     private record SubjectStop(String stopName, int remainingRiders, boolean willRemoveStop) {
     }
 
-    /**
-     * 그 날짜의 요일 — {@code RunConfirmationService.weekdayOf} 와 같은 계산(중복 헬퍼 관례, 그
-     * 클래스 javadoc 참고). {@code LocalDate} 자체가 요일을 들고 있으므로 시계를 보지 않는다.
-     */
-    private Weekday weekdayOf(LocalDate serviceDate) {
-        return Weekday.valueOf(serviceDate.getDayOfWeek().name().substring(0, 3).toUpperCase(Locale.ROOT));
-    }
 }

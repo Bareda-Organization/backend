@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.persistence.ConstraintViolations;
 import src.backend.global.request.ApiValues;
 import src.backend.global.security.AuthUser;
 import src.backend.routing.assembly.RouteDetailAssembler;
@@ -28,6 +28,7 @@ import src.backend.routing.entity.RoutePlan;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
 import src.backend.routing.repository.RunStopRepository;
+import src.backend.run.entity.RunStatus;
 import src.backend.student.command.StopMatcher;
 import src.backend.student.entity.Stop;
 import src.backend.student.geocoding.spec.GeocodedPoint;
@@ -185,7 +186,8 @@ public class RouteCommandService {
                         || existing.get(item.stopId()).getLng().compareTo(item.lng()) != 0)
                 .map(RouteStopsSaveRequest.Item::stopId)
                 .toList();
-        if (!relocated.isEmpty() && runStopRepository.existsOnMovingRun(relocated, requester.academyId())) {
+        if (!relocated.isEmpty()
+                && runStopRepository.existsOnMovingRun(relocated, requester.academyId(), RunStatus.MOVING)) {
             throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);
         }
     }
@@ -283,9 +285,7 @@ public class RouteCommandService {
         }
     }
 
-    /** 원인 체인에서 {@link ConstraintViolationException} 을 찾아 거부한 주체가 유일성 제약인지만 본다. */
     private boolean isSlotViolation(DataIntegrityViolationException e) {
-        return e.getCause() instanceof ConstraintViolationException cve
-                && ROUTE_SLOT_UNIQUE_CONSTRAINT.equals(cve.getConstraintName());
+        return ConstraintViolations.isViolationOf(e, ROUTE_SLOT_UNIQUE_CONSTRAINT);
     }
 }

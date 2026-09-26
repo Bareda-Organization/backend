@@ -6,7 +6,6 @@ import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -120,7 +119,7 @@ public class StudentRunResolver {
         Map<Direction, Set<Long>> idleBusIds = new EnumMap<>(Direction.class);
         runs.stream().filter(run -> run.getStatus() == RunStatus.IDLE).map(Run::getDirection).distinct()
                 .forEach(direction -> idleBusIds.put(direction,
-                        busesServing(academyId, studentId, weekdayOf(date), direction)));
+                        busesServing(academyId, studentId, Weekday.of(date), direction)));
         return runs.stream()
                 .filter(run -> run.getStatus() == RunStatus.IDLE
                         ? idleBusIds.get(run.getDirection()).contains(run.getBusId())
@@ -153,7 +152,7 @@ public class StudentRunResolver {
 
     /** 확정 전 회차는 명단이 없어, 그날 고정 노선에 이 학생의 정차지가 실려 있는지로 대신 판정한다. */
     private boolean matchesFixedRoute(Run run, Long studentId) {
-        Weekday weekday = weekdayOf(run.getServiceDate());
+        Weekday weekday = Weekday.of(run.getServiceDate());
         List<StudentDailyStop> dailyStops = weeklyAddressRepository.findDailyStops(run.getAcademyId(),
                 List.of(studentId), weekday, run.getDirection());
         if (dailyStops.isEmpty()) {
@@ -164,7 +163,4 @@ public class StudentRunResolver {
                 .stream().map(RouteStopReader.Entry::stopId).anyMatch(studentStopId::equals);
     }
 
-    private Weekday weekdayOf(LocalDate serviceDate) {
-        return Weekday.valueOf(serviceDate.getDayOfWeek().name().substring(0, 3).toUpperCase(Locale.ROOT));
-    }
 }

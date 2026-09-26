@@ -24,6 +24,7 @@ import src.backend.manager.entity.WorkHours;
 import src.backend.manager.event.ManagerRoleChangedEvent;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
+import src.backend.run.entity.RunStatus;
 
 /** 매니저 등록·수정·삭제(MGR-02·03·04, API_SPEC §5.13). */
 @Service
@@ -81,7 +82,8 @@ public class ManagerCommandService {
 
     /** 삭제·역할 변경이 같은 기준("배치 해제 후", MGR-04)을 보도록 판정을 한 곳에 둔다. */
     private void assertNoUnfinishedAssignment(Manager manager) {
-        if (assignmentRepository.existsUnfinishedByManagerId(manager.getId(), LocalDate.now(clock))) {
+        if (assignmentRepository.existsUnfinishedByManagerId(manager.getId(), LocalDate.now(clock),
+                RunStatus.FINISHED, RunStatus.MOVING)) {
             throw new BusinessException(ErrorCode.MANAGER_ASSIGNED);
         }
     }

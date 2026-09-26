@@ -3,7 +3,6 @@ package src.backend.bus.command;
 import java.util.List;
 import java.util.function.Supplier;
 
-import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +18,7 @@ import src.backend.bus.entity.BusSeating;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.persistence.ConstraintViolations;
 import src.backend.global.security.AuthUser;
 
 /** 차량 등록·수정(BUS-02·03, API_SPEC §5.12). */
@@ -134,9 +134,7 @@ public class BusCommandService {
         }
     }
 
-    /** 원인 체인에서 {@link ConstraintViolationException} 을 찾아 거부한 주체가 호차 제약인지만 본다. */
     private boolean isBusNoViolation(DataIntegrityViolationException e) {
-        return e.getCause() instanceof ConstraintViolationException cve
-                && BUS_NO_UNIQUE_CONSTRAINT.equals(cve.getConstraintName());
+        return ConstraintViolations.isViolationOf(e, BUS_NO_UNIQUE_CONSTRAINT);
     }
 }

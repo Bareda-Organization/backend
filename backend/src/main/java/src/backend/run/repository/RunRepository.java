@@ -108,10 +108,10 @@ public interface RunRepository extends JpaRepository<Run, Long> {
     @AcademyScopeExempt(reason = "확정 배치(RTE-08)는 시각이 촉발하는 전 학원 대상 조회라 좁힐 학원이 부재하다 — "
             + "학원 하나로 좁히면 나머지 학원의 회차가 확정되지 않는다. 호출부는 배치(RunConfirmationScheduler)뿐이라는 "
             + "전제 — 요청 경로에서 부르면 이 예외가 우회로가 된다(ScheduleRepository.findAllByWeekdayAndActiveIsTrue 와 같은 근거)")
-    @Query("SELECT r FROM Run r WHERE r.status = src.backend.run.entity.RunStatus.IDLE AND r.confirmAt <= :now "
+    @Query("SELECT r FROM Run r WHERE r.status = :idleStatus AND r.confirmAt <= :now "
             + "AND r.serviceDate >= :today AND r.canceledAt IS NULL ORDER BY r.consecutiveFailures ASC, r.confirmAt ASC")
     List<Run> findDueForConfirmation(@Param("now") OffsetDateTime now, @Param("today") LocalDate today,
-            Pageable pageable);
+            @Param("idleStatus") RunStatus idleStatus, Pageable pageable);
 
     /**
      * 근접 알림 스케줄러(NTF-04, 목표 13·15)의 조회 대상 — 시각 문턱이 없다는 점이

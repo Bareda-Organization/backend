@@ -23,6 +23,7 @@ import src.backend.manager.access.ManagerRunAccess;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RunStop;
 import src.backend.routing.entity.Waypoint;
+import src.backend.routing.query.CurrentRunStopResolver;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.routing.repository.WaypointRepository;
@@ -108,10 +109,7 @@ public class RunRouteQueryService {
                 .map(runStop -> toRouteStop(runStop, stopsById, waypointsById, academy, studentCountsByStopId))
                 .toList();
 
-        RunStop currentRunStop = runStops.stream()
-                .filter(stop -> stop.getArrivedAt() != null)
-                .max(Comparator.comparingInt(RunStop::getSeq))
-                .orElse(null);
+        RunStop currentRunStop = CurrentRunStopResolver.resolve(runStops).orElse(null);
         int afterSeq = currentRunStop == null ? -1 : currentRunStop.getSeq();
         // 다음은 "마지막 도착 뒤" 에서만 고른다(BR-015) — 경유 지점은 도착 처리 대상이 아니라, 그 뒤
         // 승하차지에 도착한 뒤에도 "미도착" 으로 남는다. 미도착 전체의 최소 순번을 고르면 지난 경유

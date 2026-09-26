@@ -21,6 +21,7 @@ import src.backend.location.repository.RunPositionRepository;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RunStop;
 import src.backend.routing.entity.Waypoint;
+import src.backend.routing.query.CurrentRunStopResolver;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.routing.repository.WaypointRepository;
@@ -98,13 +99,9 @@ public class RunPositionCommandService {
         return runStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeq(versionId, run.getAcademyId());
     }
 
-    /** 가장 최근 도착 처리된 정차 항목의 이름 — "도착 시각이 채워진 정차 중 seq 최댓값"(§4.3 과 같은 판정). */
+    /** 가장 최근 도착 처리된 정차 항목의 이름(§4.3). */
     private String currentStopNameOf(List<RunStop> ordered) {
-        return ordered.stream()
-                .filter(stop -> stop.getArrivedAt() != null)
-                .max(Comparator.comparingInt(RunStop::getSeq))
-                .map(this::nameOf)
-                .orElse(null);
+        return CurrentRunStopResolver.resolve(ordered).map(this::nameOf).orElse(null);
     }
 
     /**

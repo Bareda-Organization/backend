@@ -6,7 +6,6 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 
-import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import org.springframework.stereotype.Service;
@@ -16,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.persistence.ConstraintViolations;
 import src.backend.global.security.AuthUser;
 import src.backend.student.access.GuardianChildAccess;
 import src.backend.student.dto.ChildLinkedResponse;
@@ -170,10 +170,8 @@ public class ChildLinkCommandService {
         }
     }
 
-    /** 원인 체인에서 {@link ConstraintViolationException} 을 찾아 거부한 주체가 연결 제약인지만 본다. */
     private boolean isDuplicateLink(DataIntegrityViolationException e) {
-        return e.getCause() instanceof ConstraintViolationException cve
-                && GUARDIAN_STUDENT_UNIQUE_CONSTRAINT.equals(cve.getConstraintName());
+        return ConstraintViolations.isViolationOf(e, GUARDIAN_STUDENT_UNIQUE_CONSTRAINT);
     }
 
     /**

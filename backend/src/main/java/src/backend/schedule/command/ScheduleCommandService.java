@@ -2,7 +2,6 @@ package src.backend.schedule.command;
 
 import java.util.function.Supplier;
 
-import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,6 +12,7 @@ import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.persistence.ConstraintViolations;
 import src.backend.global.request.ApiValues;
 import src.backend.global.security.AuthUser;
 import src.backend.schedule.dto.ScheduleRegisterRequest;
@@ -148,9 +148,7 @@ public class ScheduleCommandService {
         }
     }
 
-    /** 원인 체인에서 {@link ConstraintViolationException} 을 찾아 거부한 주체가 유일성 제약인지만 본다. */
     private boolean isSlotViolation(DataIntegrityViolationException e) {
-        return e.getCause() instanceof ConstraintViolationException cve
-                && SCHEDULE_SLOT_UNIQUE_CONSTRAINT.equals(cve.getConstraintName());
+        return ConstraintViolations.isViolationOf(e, SCHEDULE_SLOT_UNIQUE_CONSTRAINT);
     }
 }

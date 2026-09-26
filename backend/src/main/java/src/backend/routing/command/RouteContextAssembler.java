@@ -1,10 +1,8 @@
 package src.backend.routing.command;
 
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import org.springframework.stereotype.Component;
@@ -61,7 +59,7 @@ public class RouteContextAssembler {
     /** 재최적화에 필요한 노선·기준점·현재 배포본·명단을 한 번에 모은다 — add·remove 가 공유한다. */
     public RouteContext contextOf(Run run) {
         Long academyId = run.getAcademyId();
-        Weekday weekday = weekdayOf(run.getServiceDate());
+        Weekday weekday = Weekday.of(run.getServiceDate());
 
         Academy academy = academyRepository.findById(academyId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACADEMY_NOT_FOUND));
@@ -116,8 +114,4 @@ public class RouteContextAssembler {
         return new DailyRoster(run.getAcademyId(), weekday, run.getDirection(), studentIds, stopOverrides);
     }
 
-    /** {@code RunConfirmationService.weekdayOf} 와 같은 계산. {@code LocalDate} 자체가 요일을 들고 있으므로 시계를 보지 않는다. */
-    private static Weekday weekdayOf(LocalDate serviceDate) {
-        return Weekday.valueOf(serviceDate.getDayOfWeek().name().substring(0, 3).toUpperCase(Locale.ROOT));
-    }
 }

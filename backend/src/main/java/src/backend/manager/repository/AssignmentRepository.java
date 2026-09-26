@@ -17,6 +17,7 @@ import src.backend.manager.dto.AssignedManagerView;
 import src.backend.manager.dto.ManagerRunWindow;
 import src.backend.manager.entity.Assignment;
 import src.backend.manager.dto.StaffAssignmentAckView;
+import src.backend.run.entity.RunStatus;
 
 /**
  * {@link Assignment} 영속성 접근 — <b>배치 여부 판정</b>(MGR-04)과 배치 자체를 만들고 되읽는 경로
@@ -49,9 +50,10 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
             + "managerId 를 넘기면 타 학원 매니저의 배치 여부가 새어 이 예외가 우회로가 된다")
     @Query("SELECT CASE WHEN COUNT(a) > 0 THEN TRUE ELSE FALSE END FROM Assignment a, Run r "
             + "WHERE r.id = a.runId AND a.managerId = :managerId AND r.canceledAt IS NULL "
-            + "AND r.status <> src.backend.run.entity.RunStatus.FINISHED "
-            + "AND (r.status = src.backend.run.entity.RunStatus.MOVING OR r.serviceDate >= :today)")
-    boolean existsUnfinishedByManagerId(@Param("managerId") Long managerId, @Param("today") LocalDate today);
+            + "AND r.status <> :finishedStatus "
+            + "AND (r.status = :movingStatus OR r.serviceDate >= :today)")
+    boolean existsUnfinishedByManagerId(@Param("managerId") Long managerId, @Param("today") LocalDate today,
+            @Param("finishedStatus") RunStatus finishedStatus, @Param("movingStatus") RunStatus movingStatus);
 
     /**
      * 그 회차의 그 자리에 이미 붙어 있는 배치(MGR-05, §5.14) — 있으면 <b>교체</b>이고 없으면 신규다.

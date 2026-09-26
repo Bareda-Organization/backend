@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -18,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.persistence.ConstraintViolations;
 import src.backend.global.security.AuthUser;
 import src.backend.manager.domain.AssignmentConflictDetector;
 import src.backend.manager.dto.AssignedManagerResponse;
@@ -150,8 +150,7 @@ public class AssignmentCommandService {
         try {
             return action.get();
         } catch (DataIntegrityViolationException e) {
-            if (e.getCause() instanceof ConstraintViolationException cve
-                    && ASSIGNMENT_ROLE_UNIQUE_CONSTRAINT.equals(cve.getConstraintName())) {
+            if (ConstraintViolations.isViolationOf(e, ASSIGNMENT_ROLE_UNIQUE_CONSTRAINT)) {
                 throw new BusinessException(ErrorCode.DUPLICATE_ASSIGNMENT);
             }
             throw e;
