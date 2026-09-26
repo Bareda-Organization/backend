@@ -3,9 +3,10 @@ package src.backend.boarding.dto;
 import java.time.OffsetDateTime;
 
 /**
- * 승하차 처리 응답(API_SPEC §4.6) — {@code rider_id} 는 문서 예시가 {@code "rider_5521"} 처럼 문자열
- * 접두를 쓰지만, {@link src.backend.request.dto.BoardingIntentToggleResponse} 가 이미 정리한 관례대로
- * 순수 {@code Long} 으로 노출한다.
+ * 승하차 처리 응답(API_SPEC §4.6) — {@code rider_id}·{@code case_id} 필드 타입은 {@code Long} 이지만
+ * JSON 으로는 {@link src.backend.global.config.IdentifierJsonConfig} 가 문자열로 감싸 내보낸다
+ * (API_SPEC §1.1, Ruling 332). 문서 예시의 {@code "rider_5521"} 접두는 표기 관례일 뿐 실제 값은
+ * 순번 그대로다.
  *
  * <p>{@code noShowCase} 는 {@code status=no_show} 일 때만 채운다 — 그 외 상태는 {@code null} 이고,
  * {@code application.yml}에 {@code default-property-inclusion} 설정이 없어 응답 JSON 에도

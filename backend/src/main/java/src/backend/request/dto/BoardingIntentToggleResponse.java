@@ -12,9 +12,9 @@ import java.time.OffsetDateTime;
  * {@code applied_no_reroute} 다).
  *
  * <p>{@code change_request_id} 는 {@link src.backend.request.entity.ChangeRequest} 의 PK 를 그대로
- * 옮긴다 — API_SPEC 예시가 {@code "creq_8812"} 처럼 문자열 접두를 쓰지만, 이 응답 계약을 새로
- * 만드는 이 태스크는 기존 코드 관례({@code AssignedManagerAccountView.managerId} 등 식별자는
- * 항상 순수 {@code Long})를 따른다 — 문서·코드 표기가 갈리는 지점이라 판단 근거로 보고에 남긴다.
+ * 옮긴다. 필드 타입은 {@code Long} 이지만 JSON 으로는 {@link src.backend.global.config.IdentifierJsonConfig}
+ * 가 문자열로 감싸 내보낸다(API_SPEC §1.1, Ruling 332) — API_SPEC 예시의 {@code "creq_8812"} 접두는
+ * 표기 관례일 뿐 실제 값은 순번 그대로다.
  */
 public record BoardingIntentToggleResponse(String result, boolean riding, String riderStatus,
         Long changeRequestId, int changeQuotaLeft, OffsetDateTime deadlineAt) {
