@@ -1,9 +1,7 @@
 package src.backend.run.command;
 
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
@@ -11,17 +9,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
-import src.backend.boarding.entity.RunRider;
-import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.boarding.command.RunRiderPersistence;
 import src.backend.global.common.enums.Weekday;
-import src.backend.routing.entity.ConfirmedRoute;
-import src.backend.routing.entity.RouteVersion;
-import src.backend.routing.entity.RouteVersionSource;
-import src.backend.routing.entity.RunStop;
+import src.backend.routing.command.RouteVersionDeploymentService;
 import src.backend.routing.pipeline.RouteComputation;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RouteVersionRepository;
-import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.domain.RunConfirmationFingerprint;
 import src.backend.run.domain.RunRouteEndpoints;
 import src.backend.run.entity.Run;
@@ -49,18 +40,13 @@ import src.backend.run.roster.ProjectedRosterReader;
 @Transactional
 public class RunConfirmationPersistence {
 
-    /** 확정 배치가 처음 만드는 노선 버전은 항상 v1 이다 — 재최적화(RTE-10)가 만드는 v2 이상은 이 클래스의 범위 밖이다. */
-    private static final int INITIAL_VERSION_NO = 1;
-
     private final RunRepository runRepository;
 
-    private final ConfirmedRouteRepository confirmedRouteRepository;
+    /** 확정 노선(v1) 저장 진입점(BR-094·095) — {@code routing} 소유 테이블에 직접 쓰지 않는다. */
+    private final RouteVersionDeploymentService routeVersionDeploymentService;
 
-    private final RouteVersionRepository routeVersionRepository;
-
-    private final RunStopRepository runStopRepository;
-
-    private final RunRiderRepository runRiderRepository;
+    /** 최초 탑승자 명단 저장 진입점(BR-095) — {@code boarding} 소유 테이블에 직접 쓰지 않는다. */
+    private final RunRiderPersistence runRiderPersistence;
 
     private final RunTransferRepository runTransferRepository;
 
@@ -102,20 +88,10 @@ public class RunConfirmationPersistence {
                     + run.getId());
         }
 
-        ConfirmedRoute confirmedRoute = ConfirmedRoute.forRun(run.getId(), confirmedAt);
-        confirmedRouteRepository.save(confirmedRoute);
-
         String fingerprint = RunConfirmationFingerprint.of(run.getAcademyId(), weekday, run.getDirection(),
                 run.getDepartTime(), endpoints.origin(), endpoints.destination(), roster.studentStops(), List.of());
-        RouteVersion version = RouteVersion.forConfirmedRoute(run.getId(), INITIAL_VERSION_NO,
-                RouteVersionSource.CONFIRM_BATCH, computation.estDurationMin(), computation.estDistanceKm(),
-                confirmedAt, fingerprint, computation.snapshot().engineName(), computation.snapshot().policySnapshot(),
-                computation.snapshot().fallbackUsed(), computation.roadPath(), null, confirmedAt);
-        routeVersionRepository.save(version);
-        confirmedRouteRepository.assignCurrentVersion(run.getId(), version.getId());
-
-        runStopRepository.saveAll(RunStop.listOf(version.getId(), computation, run.getDirection()));
-        runRiderRepository.saveAll(runRidersOf(run.getId(), roster, computation.unresolvedStudentIds(), confirmedAt));
+        routeVersionDeploymentService.confirmInitial(run, computation, fingerprint, confirmedAt);
+        runRiderPersistence.confirmRiders(run.getId(), roster, computation.unresolvedStudentIds(), confirmedAt);
         if (!roster.incomingTransfers().isEmpty()) {
             runTransferRepository.markApplied(roster.incomingTransfers().stream().map(RunTransfer::getId).toList(),
                     confirmedAt);
@@ -128,37 +104,5 @@ public class RunConfirmationPersistence {
                 new RunRouteConfirmedEvent(run.getId(), run.getAcademyId(), run.getBusId(), confirmedAt));
 
         return true;
-    }
-
-
-    /**
-     * 좌표를 얻지 못해 계산에서 분리된 학생({@code unresolvedStudentIds})은 명단에서도 뺀다(목표 2와 같은 근거).
-     * OFF 학생은 {@code absent}, 출발 이동 학생은 {@code absent · removed}, 당일 추가 학생은 {@code added} 로 남긴다.
-     */
-    private static List<RunRider> runRidersOf(Long runId, ProjectedRoster roster, List<Long> unresolvedStudentIds,
-            OffsetDateTime confirmedAt) {
-        List<RunRider> riders = new ArrayList<>();
-        for (Map.Entry<Long, Long> entry : roster.studentStops().entrySet()) {
-            Long studentId = entry.getKey();
-            if (unresolvedStudentIds.contains(studentId)) {
-                continue;
-            }
-            RunRider rider = RunRider.uponConfirmation(runId, studentId, entry.getValue());
-            if (roster.addedStudentIds().contains(studentId)) {
-                rider.markAdded();
-            }
-            riders.add(rider);
-        }
-        for (Map.Entry<Long, Long> entry : roster.absentStops().entrySet()) {
-            RunRider rider = RunRider.uponConfirmation(runId, entry.getKey(), entry.getValue());
-            rider.markAbsent(confirmedAt);
-            riders.add(rider);
-        }
-        for (Map.Entry<Long, Long> entry : roster.removedStops().entrySet()) {
-            RunRider rider = RunRider.uponConfirmation(runId, entry.getKey(), entry.getValue());
-            rider.markRemoved(confirmedAt);
-            riders.add(rider);
-        }
-        return riders;
     }
 }
