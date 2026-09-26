@@ -160,26 +160,29 @@ public interface GuardianStudentRepository extends JpaRepository<GuardianStudent
             @Param("studentIds") List<Long> studentIds);
 
     /**
-     * 승하차 알림(API_SPEC §4.6 {@code boarded}·{@code alighted}·{@code no_show})의 학부모 수신자 —
-     * 학생 1명에 보호자가 여럿일 수 있어 목록으로 돌려주며, 전부에게 발송한다.
+     * 승하차 알림(API_SPEC §4.6 {@code boarded}·{@code alighted}·{@code no_show}, BR-134)의 학부모
+     * 수신자를 <b>여러 학생에 대해 한 번에</b> 모은다 — 학생 1명에 보호자가 여럿일 수 있어 학생별로
+     * 여러 행이 돌아온다. 승하차지에 있는 학생 수만큼 반복 호출하던 것을 학생 id 목록 하나로 묶는다.
      *
      * <p>{@code guardian.name} 을 읽는다 — {@link #findGuardianPhonesByAcademyId} 가 전화번호를 읽는
      * {@code guardian} 과 같은 테이블이라 별도 조인이 필요 없다(둘 다 Ruling 326 이후 {@code guardian}
-     * 이 원본, {@code account} 는 더 이상 관련 없다).
+     * 이 원본, {@code account} 는 더 이상 관련 없다). {@link #findGuardianAccountsByAcademyId} 를
+     * 그대로 쓰지 못하는 이유는 그쪽이 {@code account.name} 을 읽기 때문이다 — 바꾸면 이 알림 기록의
+     * {@code recipient_name} 이 달라진다.
      *
      * <p>{@code unlinked_at} 이 채워진 연결은 뺀다 — 퇴원·연결 해제된 보호자에게는 보내지 않는다.
      * 학원 조건은 {@code student} 부모를 조인해 건다(ERD §6.1 부모 경유).
      */
     @Query("""
-            SELECT g.accountId AS accountId, g.name AS name, s.name AS studentName
+            SELECT gs.studentId AS studentId, g.accountId AS accountId, g.name AS name, s.name AS studentName
             FROM GuardianStudent gs
             JOIN Guardian g ON g.id = gs.guardianId
             JOIN Student s ON s.id = gs.studentId
-            WHERE gs.studentId = :studentId
+            WHERE gs.studentId IN :studentIds
               AND gs.unlinkedAt IS NULL
               AND s.academyId = :academyId
-            ORDER BY gs.linkedAt ASC, gs.id ASC
+            ORDER BY gs.studentId ASC, gs.linkedAt ASC, gs.id ASC
             """)
-    List<GuardianAccountView> findActiveGuardianAccountsByStudentId(@Param("studentId") Long studentId,
-            @Param("academyId") Long academyId);
+    List<GuardianAccountRecipient> findActiveGuardianAccountsByStudentIds(@Param("academyId") Long academyId,
+            @Param("studentIds") List<Long> studentIds);
 }

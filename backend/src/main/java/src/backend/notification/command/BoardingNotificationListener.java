@@ -2,6 +2,8 @@ package src.backend.notification.command;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -22,7 +24,7 @@ import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.notification.entity.NotificationType;
 import src.backend.run.event.StopDepartedEvent;
 import src.backend.student.entity.Student;
-import src.backend.student.repository.GuardianAccountView;
+import src.backend.student.repository.GuardianAccountRecipient;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StudentRepository;
 
@@ -63,19 +65,30 @@ public class BoardingNotificationListener {
      * 학부모 알림(BRD-01·02·04)을 여기서 함께 다룬다. {@code waiting} 인 채 출발한 학생은 발송
      * 대상이 아니다(목표 9) — {@link RunRiderRepository#findFinalizedByRunIdAndStopId} 가 이미 그
      * 상태를 걸러 조회한다.
+     *
+     * <p>보호자 조회는 학생마다 따로 묻지 않고 <b>학생 id 전부를 한 번에</b> 묻는다(BR-134) —
+     * {@link GuardianStudentRepository#findActiveGuardianAccountsByStudentIds} 결과를 학생별로
+     * 묶어 두고 그 그룹으로 순회한다.
      */
     @EventListener
     public void appendStopDeparted(StopDepartedEvent event) {
         List<RunRider> finalized = runRiderRepository.findFinalizedByRunIdAndStopId(event.runId(), event.stopId());
+        if (finalized.isEmpty()) {
+            return;
+        }
+        List<Long> studentIds = finalized.stream().map(RunRider::getStudentId).distinct().toList();
+        Map<Long, List<GuardianAccountRecipient>> guardiansByStudentId = guardianStudentRepository
+                .findActiveGuardianAccountsByStudentIds(event.academyId(), studentIds).stream()
+                .collect(Collectors.groupingBy(GuardianAccountRecipient::getStudentId));
         for (RunRider rider : finalized) {
-            List<GuardianAccountView> guardians = guardianStudentRepository
-                    .findActiveGuardianAccountsByStudentId(rider.getStudentId(), event.academyId());
+            List<GuardianAccountRecipient> guardians = guardiansByStudentId
+                    .getOrDefault(rider.getStudentId(), List.of());
             if (guardians.isEmpty()) {
                 continue;
             }
             NotificationMessage message = composeFor(rider.getStatus(), guardians.get(0).getStudentName());
             NotificationType type = typeOf(rider.getStatus());
-            for (GuardianAccountView guardian : guardians) {
+            for (GuardianAccountRecipient guardian : guardians) {
                 notificationOutbox.append(new NotificationDraft(event.academyId(), guardian.getAccountId(),
                         guardian.getName(), Role.PARENT, type, message.title(), message.body(),
                         STOP_DEPARTED_DEDUP_KEY_FORMAT.formatted(rider.getId(), guardian.getAccountId(),
