@@ -2,7 +2,6 @@ package src.backend.monitoring.query;
 
 import java.time.Clock;
 import java.time.LocalDate;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -27,6 +26,7 @@ import src.backend.manager.dto.StaffAssignmentAckView;
 import src.backend.monitoring.dto.StaffRunLiveResponse;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RunStop;
+import src.backend.routing.query.CurrentRunStopResolver;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.routing.repository.WaypointRepository;
@@ -149,10 +149,7 @@ public class StaffRunLiveQueryService {
      * 도착을 "마이너스 지연" 으로 보여주는 것은 관계자에게 혼동만 준다는 판단(확신 없는 지점, 보고서 §2).
      */
     private int delayMinutesOf(Run run, List<RunStop> stops) {
-        RunStop lastArrived = stops.stream()
-                .filter(stop -> stop.getArrivedAt() != null)
-                .max(Comparator.comparingInt(RunStop::getSeq))
-                .orElse(null);
+        RunStop lastArrived = CurrentRunStopResolver.resolve(stops).orElse(null);
         if (lastArrived != null && lastArrived.getEta() != null) {
             long minutes = java.time.Duration.between(lastArrived.getEta(), lastArrived.getArrivedAt()).toMinutes();
             return (int) Math.max(0, minutes);
