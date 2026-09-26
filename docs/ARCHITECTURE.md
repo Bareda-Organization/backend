@@ -234,6 +234,7 @@ Java 25 의 `record` 는 불변이고 `equals`·`hashCode`·`toString` 이 자�
 notification · audit · monitoring   ← (구독) ← 전 모듈이 발행하는 도메인 이벤트
 routing → student · bus · schedule · request   (읽기)
 run · boarding → routing (확정 노선 조회) · notification (이벤트 발행)
+location → run (회차 상태·명단 조회)
 account → academy
 ```
 
@@ -242,6 +243,7 @@ account → academy
 - **`run` 테이블은 세 모듈이 쓴다** — `schedule` 이 생성(SCH-02), `routing` 이 확정 전이(§9.3), `run` 이 시작·종료. 소유는 `run` 모듈이고 나머지 둘은 **상태 전이 메서드를 통해서만** 접근. 다른 모듈이 컬럼을 직접 갱신하면 §9.3 의 조건부 UPDATE 규칙이 우회됨.
 - **승하차지 마스터(`stop`)의 소유는 `student` 모듈** — 생성 계기가 주소 검증(STU-05)이기 때문. `routing`·`boarding` 은 읽기만.
 - `notification` 은 **누구도 직접 호출하지 않는다** — 이벤트 구독으로만 동작. 승하차 처리 트랜잭션이 푸시 발송 실패로 롤백되는 상황을 막기 위함 (BRD-04).
+- **정차지 출발 선점(`StopDepartureService`)의 소유는 `run` 모듈** — 근접 판정(`location`)·다음 정차지 도착 폴백(`run`)·운행 종료 강제 적용(`run`) 세 호출부가 이 클래스 하나로 모인다. `location` 이 그 결과(`StopDepartedEvent`)를 부르는 쪽이라 `location → run` 한 방향만 남는다(BR-094, 이전엔 양방향 순환이었다).
 
 ---
 
