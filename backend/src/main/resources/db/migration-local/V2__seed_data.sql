@@ -470,7 +470,13 @@ OVERRIDING SYSTEM VALUE
 VALUES (1, 1, 3, '2호차', 14, 'driver', 'vehicle_fault', '엔진 경고등 점등, 정비 필요',
         37.568000, 126.979500, 4, now() - interval '3 minutes', now() - interval '3 minutes', gen_random_uuid(), NULL, NULL);
 
--- exception_report: 0행 — §3.4 미기재(정의 부재, Phase9/11 영역), FK 제약도 없어 생략해도 무해(판단).
+-- 예외 보고 1건(R3, 학원 A) — §3.4 미기재(정의 부재, Phase9/11 영역)지만 SeedFixtures.EXCEPTION_REPORT_EXAMPLE_ID
+-- 의 Swagger "Try it out" 이 실제 행을 가리키게 하려 추가(BR-113 잔여, Ruling 348). reported_by 는
+-- run 3(moving)의 배정 기사 driverA2(account_id=14, manager 2, assignment 5)다.
+INSERT INTO exception_report (id, academy_id, run_id, run_rider_id, type, memo, reported_by, reported_at)
+OVERRIDING SYSTEM VALUE
+VALUES (1, 1, 3, NULL, 'vehicle_issue', '뒷좌석 안전벨트 버클 파손 — 해당 좌석 비우고 운행, 정비팀에 통보', 14,
+        now() - interval '4 minutes');
 
 -- 위치 이력 3건(R3, moving 중 5분 간격) — TRACK-01.
 INSERT INTO run_position (id, run_id, lat, lng, speed, heading, recorded_at, received_at)
@@ -561,6 +567,7 @@ SELECT setval(pg_get_serial_sequence('rider_status_history', 'id'), (SELECT COAL
 SELECT setval(pg_get_serial_sequence('no_show_case', 'id'), (SELECT COALESCE(MAX(id), 1) FROM no_show_case));
 SELECT setval(pg_get_serial_sequence('no_show_contact', 'id'), (SELECT COALESCE(MAX(id), 1) FROM no_show_contact));
 SELECT setval(pg_get_serial_sequence('emergency_alert', 'id'), (SELECT COALESCE(MAX(id), 1) FROM emergency_alert));
+SELECT setval(pg_get_serial_sequence('exception_report', 'id'), (SELECT COALESCE(MAX(id), 1) FROM exception_report));
 SELECT setval(pg_get_serial_sequence('run_position', 'id'), (SELECT COALESCE(MAX(id), 1) FROM run_position));
 SELECT setval(pg_get_serial_sequence('notification_log', 'id'), (SELECT COALESCE(MAX(id), 1) FROM notification_log));
 SELECT setval(pg_get_serial_sequence('device_token', 'id'), (SELECT COALESCE(MAX(id), 1) FROM device_token));

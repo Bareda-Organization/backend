@@ -164,10 +164,9 @@ public final class SeedFixtures {
     public static final String EMERGENCY_ALERT_A_ID = "1";
 
     /**
-     * 예외 보고 상세({@code StaffReportController#id}) 예시 — {@code exception_report} 는 로컬
-     * 시드가 0행이라(§3.4 미기재, 이 클래스 상단 설명 참고) 실제로 가리키는 행이 부재하다. 값을
-     * 사전에 올려 "사전 없어 대표값 1로 떨어짐"만 피하고, "Try it out" 성공은 보장하지 않는다
-     * (판단 근거는 {@code FIX-BEB.md} §2).
+     * 학원 A 예외 보고(회차 {@link #RUN_MOVING_ID}, {@code vehicle_issue}, 신고자 driverA2) —
+     * {@code StaffReportController#id} 예시. 로컬 시드에 실제 행이 있어 "Try it out" 이 200 을
+     * 돌려준다({@code FIX-BEB2.md} — BR-113 잔여, Ruling 348).
      */
     public static final String EXCEPTION_REPORT_EXAMPLE_ID = "1";
 

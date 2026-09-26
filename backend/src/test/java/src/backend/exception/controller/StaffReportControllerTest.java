@@ -23,6 +23,7 @@ import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.exception.entity.ExceptionReportType;
 import src.backend.exception.repository.ExceptionReportRepository;
+import src.backend.global.common.SeedFixtures;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
@@ -294,6 +295,21 @@ class StaffReportControllerTest {
                 .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("REPORT_NOT_FOUND"));
+    }
+
+    // ── 로컬 시드 — Swagger 예시 id 가 실제 행을 가리키는지(BR-113 잔여, Ruling 348) ──
+
+    @Test
+    @DisplayName("로컬 시드 — EXCEPTION_REPORT_EXAMPLE_ID 상세는 404 가 아니라 그 학원 A 보고를 200 으로 돌려준다")
+    void 시드_EXCEPTION_REPORT_EXAMPLE_ID_상세는_200이다() throws Exception {
+        long reportId = Long.parseLong(SeedFixtures.EXCEPTION_REPORT_EXAMPLE_ID);
+        long staffAccountId = Long.parseLong(SeedFixtures.ACCOUNT_STAFF_A_ID);
+        long academyId = Long.parseLong(SeedFixtures.ACADEMY_A_ID);
+
+        mockMvc.perform(get("/api/v1/staff/reports/" + reportId)
+                .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.report_id").value(reportId));
     }
 
     // ── 호출 도우미 ──────────────────────────────────────────────────────
