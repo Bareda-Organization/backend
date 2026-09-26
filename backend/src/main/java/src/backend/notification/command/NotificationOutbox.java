@@ -3,7 +3,6 @@ package src.backend.notification.command;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 
-import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
@@ -14,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.persistence.ConstraintViolations;
 import src.backend.notification.entity.NotificationLog;
 import src.backend.notification.event.NotificationAppendedEvent;
 import src.backend.notification.repository.NotificationLogRepository;
@@ -80,9 +80,7 @@ public class NotificationOutbox {
         }
     }
 
-    /** 원인 체인에서 {@link ConstraintViolationException} 을 찾아 거부한 주체가 멱등키 제약인지만 본다. */
     private boolean isDedupViolation(DataIntegrityViolationException e) {
-        return e.getCause() instanceof ConstraintViolationException cve
-                && DEDUP_UNIQUE_CONSTRAINT.equals(cve.getConstraintName());
+        return ConstraintViolations.isViolationOf(e, DEDUP_UNIQUE_CONSTRAINT);
     }
 }

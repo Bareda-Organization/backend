@@ -6,7 +6,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.persistence.ConstraintViolations;
 import src.backend.student.domain.VerifiedAddressEntry;
 import src.backend.student.domain.VerifiedAddressEntry.AddressSlot;
 import src.backend.student.entity.WeeklyAddress;
@@ -96,7 +96,6 @@ public class WeeklyAddressStore {
      * 밖에서 터져 번역할 자리를 지나친 뒤가 되고, 사용자에게 {@code 500} 이 나간다.
      */
     private static boolean duplicateSlot(DataIntegrityViolationException e) {
-        return e.getCause() instanceof ConstraintViolationException violation
-                && WEEKDAY_DIRECTION_UNIQUE_CONSTRAINT.equals(violation.getConstraintName());
+        return ConstraintViolations.isViolationOf(e, WEEKDAY_DIRECTION_UNIQUE_CONSTRAINT);
     }
 }

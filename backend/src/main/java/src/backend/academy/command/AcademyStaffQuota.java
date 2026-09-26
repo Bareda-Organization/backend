@@ -2,7 +2,6 @@ package src.backend.academy.command;
 
 import java.util.function.Supplier;
 
-import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
@@ -12,6 +11,7 @@ import src.backend.academy.entity.StaffStatus;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.persistence.ConstraintViolations;
 
 /**
  * 학원당 재직 관계자 1명 정원을 판정하는 <b>유일한 지점</b>(C-01 · ACAD-05·06).
@@ -85,9 +85,7 @@ public class AcademyStaffQuota {
         }
     }
 
-    /** 원인 체인에서 {@link ConstraintViolationException} 을 찾아 거부한 주체가 정원 인덱스인지만 본다. */
     private boolean isQuotaViolation(DataIntegrityViolationException e) {
-        return e.getCause() instanceof ConstraintViolationException cve
-                && QUOTA_UNIQUE_INDEX.equals(cve.getConstraintName());
+        return ConstraintViolations.isViolationOf(e, QUOTA_UNIQUE_INDEX);
     }
 }

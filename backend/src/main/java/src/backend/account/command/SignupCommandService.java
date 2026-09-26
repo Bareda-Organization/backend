@@ -4,7 +4,6 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.Locale;
 
-import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -27,6 +26,7 @@ import src.backend.account.repository.SignupRequestRepository;
 import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.persistence.ConstraintViolations;
 
 /** 가입 신청 생명주기(AUTH-01·AUTH-03, API_SPEC §2.2·§2.4) — 최초 신청과 거절 후 재신청을 함께 다룬다. */
 @Service
@@ -99,10 +99,8 @@ public class SignupCommandService {
         return new ReapplyResponse(account.getStatus().name().toLowerCase(Locale.ROOT), requestedAt);
     }
 
-    /** 원인 체인에서 {@link ConstraintViolationException} 을 찾아 제약명이 login_id UNIQUE 인지만 본다. */
     private boolean isLoginIdUniqueViolation(DataIntegrityViolationException e) {
-        return e.getCause() instanceof ConstraintViolationException cve
-                && LOGIN_ID_UNIQUE_CONSTRAINT.equals(cve.getConstraintName());
+        return ConstraintViolations.isViolationOf(e, LOGIN_ID_UNIQUE_CONSTRAINT);
     }
 
     /** role=staff 는 메인 관리자가, 그 외 역할은 학원 관계자가 승인한다(API_SPEC §2.2). */
