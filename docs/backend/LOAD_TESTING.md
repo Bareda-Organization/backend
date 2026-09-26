@@ -199,8 +199,7 @@ docker exec school-bus-postgres-1 psql -U schoolbus -d postgres -c "CREATE DATAB
 관측(Prometheus·Grafana)은 School-Bus 전용 컨테이너가 아니라 **여러 프로젝트가 함께 쓰는 로컬 관측
 스택**(`/Users/mskim/Desktop/PJ/observability-stack`, 별도 저장소)을 쓴다 — School-Bus 전용
 `docker-compose.observe.yml`·`infra/observability/prometheus/prometheus-load.yml` 은 이 스택과 같은
-일(부하 시험용 Prometheus·Grafana)을 중복으로 하고 있어 **더 이상 쓰지 않는다**(O1, 2026-09-26 —
-파일 삭제는 아직 대기 중, 그 사이 이 절의 지시를 그대로 따르면 두 파일은 참조되지 않는다). **사람이
+일(부하 시험용 Prometheus·Grafana)을 중복으로 해서 **삭제했다**(O1 · 2026-09-26 `4e85dad8`). **사람이
 따라 칠 명령 전체는 그 저장소의 README 를 그대로 따른다** — 복사하지 않는다(복사본은 낡는다).
 School-Bus 만의 값은 아래 셋뿐이다.
 
