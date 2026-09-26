@@ -1,4 +1,4 @@
-package src.backend.global.websocket;
+package src.backend.run.command;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -12,9 +12,10 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
-import src.backend.boarding.event.RunEndedEvent;
 import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.global.websocket.WebSocketBroadcastGateway;
 import src.backend.run.entity.RunStatus;
+import src.backend.run.event.RunEndedEvent;
 
 /**
  * {@code run_ended} 방송(API_SPEC §7.1) — 채널 4종 전부. {@code @TransactionalEventListener

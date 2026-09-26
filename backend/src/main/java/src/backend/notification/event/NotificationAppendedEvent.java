@@ -7,5 +7,5 @@ package src.backend.notification.event;
  * 같은 트랜잭션 안이어야 하고 발송은 그 밖이어야 한다(TECH_DECISIONS §7.5) — 한 메서드에 두면
  * 발송 실패가 상태 변경을 롤백시킨다.
  */
-public record NotificationAppended(Long notificationId) {
+public record NotificationAppendedEvent(Long notificationId) {
 }

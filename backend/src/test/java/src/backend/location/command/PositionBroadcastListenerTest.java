@@ -1,4 +1,4 @@
-package src.backend.global.websocket;
+package src.backend.location.command;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -18,6 +18,8 @@ import org.junit.jupiter.api.Test;
 
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.global.websocket.WebSocketBroadcastGateway;
+import src.backend.global.websocket.WebSocketDestinations;
 import src.backend.location.event.RunPositionReceivedEvent;
 
 /**

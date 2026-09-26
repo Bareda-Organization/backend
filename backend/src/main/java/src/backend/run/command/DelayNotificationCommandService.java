@@ -30,7 +30,7 @@ import src.backend.run.entity.DelayNotice;
 import src.backend.run.entity.DelayReason;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
-import src.backend.run.event.DelayNoticeRecipient;
+import src.backend.run.dto.DelayNoticeRecipient;
 import src.backend.run.event.DelayRequestedEvent;
 import src.backend.run.repository.DelayNoticeRepository;
 import src.backend.run.repository.RunRepository;

@@ -3,6 +3,7 @@ package src.backend.run.event;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import src.backend.run.dto.DelayNoticeRecipient;
 import src.backend.run.entity.DelayReason;
 
 /**

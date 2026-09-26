@@ -12,15 +12,15 @@ import src.backend.academy.dto.AcademyStaffAccountView;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
-import src.backend.boarding.event.RiderNoShowEvent;
+import src.backend.boarding.event.RiderMarkedNoShowEvent;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.global.common.enums.Role;
-import src.backend.location.event.StopDepartedEvent;
 import src.backend.notification.domain.spec.NoShowParentSubject;
 import src.backend.notification.domain.spec.RiderStatusChangedSubject;
 import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.notification.entity.NotificationType;
+import src.backend.run.event.StopDepartedEvent;
 import src.backend.student.entity.Student;
 import src.backend.student.repository.GuardianAccountView;
 import src.backend.student.repository.GuardianStudentRepository;
@@ -39,7 +39,7 @@ import src.backend.student.repository.StudentRepository;
  *
  * <p>멱등(목표 12)의 1차 방어선은 이 리스너가 아니라 <b>{@code claimDeparture} 조건부 UPDATE</b>다 —
  * 같은 정차지가 여러 경로로 중복 선점을 시도해도 {@link StopDepartedEvent} 는 최초 1회만 발행된다
- * ({@link src.backend.location.proximity.StopDepartureService} 참고). {@code dedup_key} 는
+ * ({@link src.backend.run.command.StopDepartureService} 참고). {@code dedup_key} 는
  * {@link NotificationOutbox} 의 통상적인 2차 방어선일 뿐이다.
  */
 @Component
@@ -56,7 +56,7 @@ public class BoardingNotificationListener {
     private final NotificationOutbox notificationOutbox;
     private final NotificationComposer<RiderStatusChangedSubject> riderStatusChangedComposer;
     private final NotificationComposer<NoShowParentSubject> noShowParentComposer;
-    private final NotificationComposer<RiderNoShowEvent> noShowStaffComposer;
+    private final NotificationComposer<RiderMarkedNoShowEvent> noShowStaffComposer;
 
     /**
      * 그 승하차지를 출발할 때(Ruling 308) 확정 결과를 학생별로 1건씩 적재한다 — 승차·하차·미승차
@@ -113,12 +113,12 @@ public class BoardingNotificationListener {
      * (Ruling 311).
      */
     @EventListener
-    public void appendRiderNoShow(RiderNoShowEvent event) {
+    public void appendRiderNoShow(RiderMarkedNoShowEvent event) {
         appendToStaff(event);
     }
 
     /** 관계자 수신자 전원이 같은 학생을 가리키므로 학생 이름은 대상자 순회 전에 한 번만 조회한다. */
-    private void appendToStaff(RiderNoShowEvent event) {
+    private void appendToStaff(RiderMarkedNoShowEvent event) {
         List<AcademyStaffAccountView> staff = academyStaffRepository.findActiveAccountsByAcademyId(event.academyId());
         if (staff.isEmpty()) {
             return;

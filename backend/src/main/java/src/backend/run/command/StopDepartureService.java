@@ -1,4 +1,4 @@
-package src.backend.location.proximity;
+package src.backend.run.command;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -10,11 +10,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
-import src.backend.location.event.StopDepartedEvent;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RunStop;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RunStopRepository;
+import src.backend.run.event.StopDepartedEvent;
 
 /**
  * 정차지 출발 선점 + {@link StopDepartedEvent} 발행을 한 곳에 모은다(Ruling 308·312, IMPLEMENTATION_PLAN §8.23 T3) —

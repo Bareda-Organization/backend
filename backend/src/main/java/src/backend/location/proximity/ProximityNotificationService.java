@@ -19,6 +19,7 @@ import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RunStop;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RunStopRepository;
+import src.backend.run.command.StopDepartureService;
 import src.backend.student.entity.Stop;
 import src.backend.student.repository.StopRepository;
 

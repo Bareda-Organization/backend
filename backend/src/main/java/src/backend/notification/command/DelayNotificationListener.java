@@ -17,7 +17,7 @@ import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.notification.entity.NotificationType;
 import src.backend.run.entity.Run;
-import src.backend.run.event.DelayNoticeRecipient;
+import src.backend.run.dto.DelayNoticeRecipient;
 import src.backend.run.event.DelayRequestedEvent;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.entity.Student;

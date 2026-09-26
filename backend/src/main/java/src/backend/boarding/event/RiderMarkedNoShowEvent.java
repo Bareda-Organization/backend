@@ -18,6 +18,6 @@ import java.time.OffsetDateTime;
  * {@code stop_skipped} 필드가 있는 것도 방증이다: 그 값이 {@code true} 가 되는 유일한 경로가 미승차인데
  * (C-05), 이 이벤트가 방송을 못 받으면 그 필드는 영원히 {@code false} 로만 나간다).
  */
-public record RiderNoShowEvent(Long runId, Long academyId, Long studentId, Long runRiderId, Long caseId,
+public record RiderMarkedNoShowEvent(Long runId, Long academyId, Long studentId, Long runRiderId, Long caseId,
         Long stopId, boolean stopSkipped, OffsetDateTime changedAt) {
 }

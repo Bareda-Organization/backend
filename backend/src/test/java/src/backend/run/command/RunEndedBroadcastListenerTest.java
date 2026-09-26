@@ -1,4 +1,4 @@
-package src.backend.global.websocket;
+package src.backend.run.command;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
@@ -14,9 +14,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import src.backend.boarding.entity.RunRider;
-import src.backend.boarding.event.RunEndedEvent;
 import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.global.websocket.WebSocketBroadcastGateway;
 import src.backend.observability.metrics.WebSocketPublishMetrics;
+import src.backend.run.event.RunEndedEvent;
 
 /**
  * {@code run_ended} 방송(목표 4·10) — {@code autoAlightedCount} 는 T3 가 이벤트 필드를 비워 둔 채

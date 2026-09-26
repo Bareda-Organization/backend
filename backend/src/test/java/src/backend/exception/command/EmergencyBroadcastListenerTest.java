@@ -1,4 +1,4 @@
-package src.backend.global.websocket;
+package src.backend.exception.command;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -26,6 +26,8 @@ import src.backend.exception.entity.EmergencyType;
 import src.backend.exception.event.EmergencyAckedEvent;
 import src.backend.exception.event.EmergencyCanceledEvent;
 import src.backend.exception.event.EmergencyRaisedEvent;
+import src.backend.global.websocket.WebSocketBroadcastGateway;
+import src.backend.global.websocket.WebSocketDestinations;
 
 /**
  * 비상 신고 접수·확인·취소 방송의 채널 audience(Phase 11 T2 목표 6·7·10) — 게이트 리뷰(R2)가 지목한

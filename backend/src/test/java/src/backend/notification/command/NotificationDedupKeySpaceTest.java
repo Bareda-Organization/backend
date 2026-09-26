@@ -23,7 +23,7 @@ import src.backend.bus.repository.BusRepository;
 import src.backend.notification.domain.spec.DelaySubject;
 import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
-import src.backend.run.event.DelayNoticeRecipient;
+import src.backend.run.dto.DelayNoticeRecipient;
 import src.backend.run.entity.DelayReason;
 import src.backend.run.event.DelayRequestedEvent;
 import src.backend.run.event.RunStartedEvent;

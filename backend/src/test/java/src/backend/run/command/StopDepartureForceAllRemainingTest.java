@@ -1,4 +1,4 @@
-package src.backend.location.proximity;
+package src.backend.run.command;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -15,6 +15,7 @@ import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
+import src.backend.location.proximity.ProximityFixtures;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;

@@ -1,4 +1,4 @@
-package src.backend.global.websocket;
+package src.backend.location.command;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -13,13 +13,15 @@ import lombok.RequiredArgsConstructor;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.global.websocket.WebSocketBroadcastGateway;
+import src.backend.global.websocket.WebSocketDestinations;
 import src.backend.location.event.RunPositionReceivedEvent;
 
 /**
  * {@code position} 방송(API_SPEC §7·§7.1, 목표 4·6) — 채널 3종뿐이다. {@code /ws/manager/runs/{id}}
  * 는 §7 채널 표에 {@code position} 이 없어 제외한다(매니저 채널은 {@code rider_changed}·{@code
  * stop_arrived}·{@code run_started}·{@code run_ended}·{@code emergency_acked} 만 받는다).
- * {@code @TransactionalEventListener(AFTER_COMMIT)} 근거는 {@link RunStartedBroadcastListener} 와 같다.
+ * {@code @TransactionalEventListener(AFTER_COMMIT)} 근거는 {@code run.command.RunStartedBroadcastListener} 와 같다.
  *
  * <p><b>학부모·학생 채널과 관제 채널(academy·admin)은 페이로드 타입 자체가 다르다</b>(C-08) —
  * {@code eta} 는 값을 {@code null} 로 비우는 것이 아니라 <b>레코드 컴포넌트 자체를 두지 않아야</b>

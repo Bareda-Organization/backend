@@ -18,7 +18,7 @@ import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
-import src.backend.boarding.event.RunEndedEvent;
+import src.backend.run.event.RunEndedEvent;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;

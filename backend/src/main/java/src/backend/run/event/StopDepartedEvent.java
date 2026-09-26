@@ -1,4 +1,4 @@
-package src.backend.location.event;
+package src.backend.run.event;
 
 import java.time.OffsetDateTime;
 

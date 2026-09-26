@@ -56,7 +56,7 @@ import testsupport.redis.RedisTestContainerBase;
  * {@code POST /runs/{runId}/emergency} 발신 경로를 실제로 태워 {@code emergency_raised} 방송이
  * 7필드(API_SPEC §7.1, Phase 14 F1 이월 ②·목표 10)를 싣는지, 그 중 {@code position} 이 위치
  * 캐시(LOC-02, Ruling 208)에 심은 실좌표를 그대로 옮기는지(F1 결과 ①, R3 ⑩c) 검증한다.
- * {@link EmergencyBroadcastListenerTest} 는 리스너 메서드를 직접 호출해 페이로드 조립만 보므로,
+ * {@link src.backend.exception.command.EmergencyBroadcastListenerTest} 는 리스너 메서드를 직접 호출해 페이로드 조립만 보므로,
  * "그 호출이 실제로 발신 흐름에서 일어나는가" 는 별개로 확인해야 한다 — 이 클래스가 그 자리다.
  *
  * <p>{@link SimpMessagingTemplate} 을 {@code @MockitoBean} 으로 대체해 {@link WebSocketBroadcastGateway}

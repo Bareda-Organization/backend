@@ -2,7 +2,7 @@ package src.backend.notification.domain.impl;
 
 import org.springframework.stereotype.Component;
 
-import src.backend.boarding.event.RunEndedEvent;
+import src.backend.run.event.RunEndedEvent;
 import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
 

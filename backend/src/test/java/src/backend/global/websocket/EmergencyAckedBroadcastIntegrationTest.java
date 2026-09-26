@@ -46,7 +46,7 @@ import testsupport.redis.RedisTestContainerBase;
  * {@code POST /staff/emergencies/{id}/ack} 발신 경로를 실제로 태워 {@code emergency_acked} 방송이
  * 매니저 채널({@code managerRun}) 하나로만 나가고, 3필드(API_SPEC §7.1, {@code Ruling 277})가
  * 발행 지점({@link src.backend.exception.command.EmergencyCommandService#ack})의 이름 조회
- * 결과를 그대로 싣는지(`Ruling 278`) 검증한다. {@link EmergencyBroadcastListenerTest} 는 손으로
+ * 결과를 그대로 싣는지(`Ruling 278`) 검증한다. {@link src.backend.exception.command.EmergencyBroadcastListenerTest} 는 손으로
  * 만든 이벤트를 리스너에 직접 넣어 페이로드 조립만 보므로, "그 이벤트가 애초에 발행 지점에서 옳게
  * 만들어지는가" 는 별개로 확인해야 한다 — 이 클래스가 그 자리다({@link EmergencyRaisedBroadcastIntegrationTest}
  * 와 같은 이유, {@code emergency_raised} 의 짝).
