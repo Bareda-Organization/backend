@@ -1877,13 +1877,13 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 ```json
 {
-  "run_id": 8,
+  "run_id": "8",
   "assignments": [
-    { "manager_id": 12, "name": "강기사", "role": "driver" },
-    { "manager_id": 31, "name": "서동승", "role": "escort" }
+    { "manager_id": "12", "name": "강기사", "role": "driver" },
+    { "manager_id": "31", "name": "서동승", "role": "escort" }
   ],
   "warnings": [
-    { "code": "WORK_HOURS_MISMATCH", "manager_id": 12, "role": "driver",
+    { "code": "WORK_HOURS_MISMATCH", "manager_id": "12", "role": "driver",
       "message": "근무 시간 밖입니다" }
   ]
 }
