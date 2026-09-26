@@ -4,12 +4,17 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.concurrent.ThreadPoolExecutor;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+import src.backend.observability.metrics.WebSocketOutboundDropMetrics;
 import src.backend.observability.metrics.WebSocketPublishMetrics;
 
 /**
@@ -22,19 +27,43 @@ import src.backend.observability.metrics.WebSocketPublishMetrics;
  *
  * <p>발행 지연 계측이 이 게이트에 붙는 이유도 같다 — 리스너 8곳이 이미 넘기는 {@code occurredAt}
  * (원본 도메인 이벤트 시각)을 여기서 한 번만 현재 시각과 비교하면, 리스너가 늘어도 계측이 따라온다.
+ *
+ * <p><b>과부하 때 이벤트 종류별로 버림 여부가 갈리는 자리도 여기다</b>(BR-170, Ruling 349) —
+ * 리스너를 고치지 않고 이 송신 채널에서 가른다. 위치({@code position})는 2~5초 뒤 새 값이
+ * 덮어쓰는 데이터라 팬아웃 실행기 큐가 가득 차면 버리고, 나머지(비상·승하차 등)는 큐가 가득
+ * 차도 {@code CallerRunsPolicy}(호출 스레드가 대신 보냄, {@link src.backend.global.config.WebSocketConfig})
+ * 로 유실 없이 전달된다.
  */
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class WebSocketBroadcastGateway {
+
+    /** 과부하 때 버려도 되는 유일한 이벤트 종류(Ruling 349). */
+    private static final String DROPPABLE_EVENT = "position";
 
     private final SimpMessagingTemplate messagingTemplate;
     private final WebSocketPublishMetrics publishMetrics;
+    private final WebSocketOutboundDropMetrics dropMetrics;
+    @Qualifier("outboundTaskExecutor")
+    private final ThreadPoolTaskExecutor outboundTaskExecutor;
     private final Clock clock;
 
-    /** 목적지 1곳에 봉투를 실어 보내고 발행 지연을 계측한다. */
+    /** 목적지 1곳에 봉투를 실어 보내고 발행 지연을 계측한다. 큐 포화 때 {@code position} 은 버린다. */
     public void send(String destination, String event, Long runId, OffsetDateTime occurredAt, Object payload) {
+        if (DROPPABLE_EVENT.equals(event) && isOutboundQueueFull()) {
+            dropMetrics.recordPositionDropped();
+            log.warn("팬아웃 실행기 큐 포화로 위치 방송 버림 — destination={}, runId={}", destination, runId);
+            return;
+        }
         messagingTemplate.convertAndSend(destination, new WebSocketEnvelope(event, runId, occurredAt, payload));
         publishMetrics.recordLatency(Duration.between(occurredAt, OffsetDateTime.now(clock)));
+    }
+
+    /** 팬아웃 실행기 큐에 남은 자리가 없는지 본다(BR-170) — 큐 상한은 {@code WebSocketConfig} 가 정한다. */
+    private boolean isOutboundQueueFull() {
+        ThreadPoolExecutor delegate = outboundTaskExecutor.getThreadPoolExecutor();
+        return delegate.getQueue().remainingCapacity() == 0;
     }
 
     /**

@@ -21,7 +21,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 class WebSocketOutboundPoolSizeTest {
 
     @Autowired
-    @Qualifier("clientOutboundChannelExecutor")
+    @Qualifier("outboundTaskExecutor")
     private ThreadPoolTaskExecutor outboundExecutor;
 
     /** 단언 — 준 값이 실제 실행기에 반영된다. 설정 메서드 호출 여부가 아니라 결과 빈을 본다. */

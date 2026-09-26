@@ -12,10 +12,12 @@ import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.global.websocket.WebSocketBroadcastGateway;
+import src.backend.observability.metrics.WebSocketOutboundDropMetrics;
 import src.backend.observability.metrics.WebSocketPublishMetrics;
 import src.backend.run.event.RunEndedEvent;
 
@@ -28,7 +30,8 @@ class RunEndedBroadcastListenerTest {
     private final RunRiderRepository runRiderRepository = mock(RunRiderRepository.class);
     private final SimpMessagingTemplate template = mock(SimpMessagingTemplate.class);
     private final WebSocketBroadcastGateway gateway = new WebSocketBroadcastGateway(template,
-            mock(WebSocketPublishMetrics.class), Clock.systemUTC());
+            mock(WebSocketPublishMetrics.class), mock(WebSocketOutboundDropMetrics.class),
+            mock(ThreadPoolTaskExecutor.class), Clock.systemUTC());
 
     private final RunEndedBroadcastListener listener = new RunEndedBroadcastListener(runRiderRepository, gateway);
 
