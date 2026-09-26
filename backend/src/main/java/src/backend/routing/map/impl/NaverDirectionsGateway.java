@@ -51,8 +51,18 @@ public class NaverDirectionsGateway {
     /** {@code resilience4j.*.instances} 의 키 — 재시도·서킷이 같은 이름을 공유한다. */
     public static final String RESILIENCE_INSTANCE = "mapRoute";
 
-    /** 온디맨드 호출의 재시도 설정 이름 — 격벽·서킷은 {@link #RESILIENCE_INSTANCE} 를 공유한다. */
+    /** 온디맨드 호출의 재시도 설정 이름 — 서킷은 {@link #RESILIENCE_INSTANCE} 를 공유한다. */
     public static final String ON_DEMAND_RETRY_INSTANCE = "mapRouteOnDemand";
+
+    /**
+     * 배치 전용 격벽 이름(`Ruling 350` — 배치 3칸). 온디맨드와 이름을 나누는 이유는 아래
+     * {@link #legsOf} 의 {@code @Bulkhead} 주석 참고 — 화면 조회 1건이 배치 칸을 빼앗으면 07:30
+     * 동시 확정 시각에 회차가 직선거리 근사로 확정된다(BR-169).
+     */
+    public static final String BATCH_BULKHEAD_INSTANCE = "mapRouteBatch";
+
+    /** 온디맨드 전용 격벽 이름(`Ruling 350` — 온디맨드 1칸). 재시도 설정 이름과 문자열은 같지만 별개 축이다. */
+    public static final String ON_DEMAND_BULKHEAD_INSTANCE = "mapRouteOnDemand";
 
     private static final String DRIVING_PATH = "/map-direction-15/v1/driving";
 
@@ -103,6 +113,11 @@ public class NaverDirectionsGateway {
      * 붙어, 관리자가 승인 화면에서 얼마를 기다릴지를 yml 값이 정하게 된다. 거부는 단발 실패와 같은
      * 경로로 흡수되어 직선거리 근사가 된다 — 서킷 개방과 달리 {@code ON_DEMAND} 라도 오류가 아니다.
      *
+     * <p>⚠ <b>격벽은 {@link #ON_DEMAND_BULKHEAD_INSTANCE} 와 칸을 나눈다</b>(`Ruling 350`, BR-169) —
+     * 이름을 공유하던 시절에는 화면 조회 1건이 배치 칸을 빼앗아, 07:30 같은 확정 시각에 회차 1건이
+     * 직선거리 근사로 확정됐다. 서킷·재시도는 그대로 공급자 단위로 공유한다({@link #RESILIENCE_INSTANCE}) —
+     * 공급자 장애 여부는 배치·온디맨드가 같은 사실을 봐야 하지만, 동시성 칸은 그렇지 않다.
+     *
      * <p><b>{@code fallbackMethod} 가 {@code @Retry} 쪽에 있어야 한다.</b> 두 애스펙트의 순서는
      * Retry 가 바깥 · CircuitBreaker 가 안쪽으로 고정돼 있다({@code order} 2147483642 · 2147483643).
      * 안쪽에 fallback 을 걸면 {@link io.github.resilience4j.circuitbreaker.CallNotPermittedException}
@@ -126,7 +141,7 @@ public class NaverDirectionsGateway {
      *
      * @throws MapRouteUnavailableException 공급자에 닿지 못한 전부 — 타임아웃 · 5xx · 서킷 개방
      */
-    @Bulkhead(name = RESILIENCE_INSTANCE)
+    @Bulkhead(name = BATCH_BULKHEAD_INSTANCE)
     @CircuitBreaker(name = RESILIENCE_INSTANCE)
     @Retry(name = RESILIENCE_INSTANCE, fallbackMethod = "unavailable")
     public List<RoadLeg> legsOf(List<GeoPoint> segment, Duration timeout) {
@@ -134,10 +149,11 @@ public class NaverDirectionsGateway {
     }
 
     /**
-     * {@link #legsOf} 와 같되 재시도만 온디맨드 설정({@value #ON_DEMAND_RETRY_INSTANCE})을 쓴다 — 격벽·서킷은
+     * {@link #legsOf} 와 같되 재시도는 온디맨드 설정({@value #ON_DEMAND_RETRY_INSTANCE})을, 격벽은
+     * 온디맨드 전용 칸({@value #ON_DEMAND_BULKHEAD_INSTANCE})을 쓴다(`Ruling 350`, BR-169) — 서킷은
      * 공급자가 같으므로 배치와 공유한다(BR-050, ARCHITECTURE §8.3 "재시도를 호출자가 주입").
      */
-    @Bulkhead(name = RESILIENCE_INSTANCE)
+    @Bulkhead(name = ON_DEMAND_BULKHEAD_INSTANCE)
     @CircuitBreaker(name = RESILIENCE_INSTANCE)
     @Retry(name = ON_DEMAND_RETRY_INSTANCE, fallbackMethod = "unavailable")
     public List<RoadLeg> legsOfOnDemand(List<GeoPoint> segment, Duration timeout) {

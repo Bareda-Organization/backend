@@ -17,9 +17,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -111,6 +113,20 @@ class NaverDirectionsResilienceTest {
     private static final AtomicInteger PEAK_IN_FLIGHT = new AtomicInteger();
 
     /**
+     * BR-169 — 화면(ON_DEMAND) 호출이 공급자 안에서 <b>실제로 격벽 칸을 쥔 채</b> 멈추게 하는 문(2점
+     * 요청만 여기 걸린다 — {@link #HOLD_MARKER_POINT_COUNT}). 기본은 {@code null} 이라 다른 시험에는
+     * 영향이 없다. 지연으로 겹침을 흉내 내지 않는 이유는 {@code RESPONSE_DELAY_MILLIS} 하나로는 화면과
+     * 배치를 구별해 서로 다른 지연을 줄 수 없어서다.
+     */
+    private static final AtomicReference<CountDownLatch> ON_DEMAND_ENTERED = new AtomicReference<>();
+
+    /** 위 문을 여는 손잡이 — 시험이 배치 결과를 다 본 뒤에 이걸 내려 화면 호출을 마저 끝낸다. */
+    private static final AtomicReference<CountDownLatch> ON_DEMAND_RELEASE = new AtomicReference<>();
+
+    /** 지점 2개(경유지 0개) 요청만 화면 홀드 문에 걸린다 — 배치 호출은 지점을 3개 이상으로 구별한다. */
+    private static final int HOLD_MARKER_POINT_COUNT = 2;
+
+    /**
      * 공급자 대역.
      *
      * <p>정적 초기화로 띄우는 것은 {@link DynamicPropertySource} 가 컨텍스트를 띄우기 <b>전에</b>
@@ -130,6 +146,10 @@ class NaverDirectionsResilienceTest {
 
     @Autowired
     private BulkheadRegistry bulkheadRegistry;
+
+    /** BR-169 — 확정 배치 워커 풀. 실제 풀 크기(수정 전 4 · 수정 후 3)로 동시 제출 수를 정한다. */
+    @Autowired
+    private ExecutorService runConfirmationExecutor;
 
     /** 상한을 테스트에 옮겨 적지 않는다 — 옮겨 적으면 yml 값이 바뀔 때 두 값이 조용히 갈린다. */
     @Value("${app.routing.map.max-waypoints}")
@@ -160,6 +180,8 @@ class NaverDirectionsResilienceTest {
         FAIL_MODE.set(0);
         IN_FLIGHT.set(0);
         PEAK_IN_FLIGHT.set(0);
+        ON_DEMAND_ENTERED.set(null);
+        ON_DEMAND_RELEASE.set(null);
     }
 
     /**
@@ -415,6 +437,54 @@ class NaverDirectionsResilienceTest {
     }
 
     /**
+     * BR-169(`Ruling 350`) — 화면(ON_DEMAND) 호출 1건이 격벽 칸을 쥐고 있어도, 확정 배치가 <b>실제
+     * 워커 풀</b>({@code runConfirmationExecutor})로 회차를 동시에 계산하면 <b>하나도 직선 근사로
+     * 떨어지면 안 된다.</b>
+     *
+     * <p>배치 동시 호출 수를 손으로 고르지 않고 풀의 <b>현재 최대 크기</b>를 그대로 쓴다 — 수정 전
+     * 이 값은 격벽 전체 칸 수(4)를 가리켜, 화면이 쥔 1칸 때문에 4건 중 하나가 반드시 거부된다. 수정
+     * 후에는 배치 칸 수(3)를 가리키고 격벽도 갈라, 화면과 무관하게 3건 전부 통과한다.
+     *
+     * <p>화면 호출은 로컬 대역 안에서 {@code CountDownLatch} 로 실제로 멈춰 세운다 — 응답 지연으로
+     * "겹침"을 흉내 내면 화면·배치가 같은 지연 손잡이({@code RESPONSE_DELAY_MILLIS})를 공유해 순서를
+     * 보장할 수 없다.
+     */
+    @Test
+    void 화면_호출이_격벽을_쥐어도_확정_배치는_직선_근사로_떨어지지_않는다() throws Exception {
+        ON_DEMAND_ENTERED.set(new CountDownLatch(1));
+        ON_DEMAND_RELEASE.set(new CountDownLatch(1));
+        RESPONSE_DELAY_MILLIS.set(100);
+        ExecutorService 화면_호출자 = Executors.newSingleThreadExecutor();
+        try {
+            화면_호출자.submit(() -> mapRouteClient.route(요청(지점_두개(), Duration.ofSeconds(10), CallerPolicy.ON_DEMAND)));
+            assertThat(ON_DEMAND_ENTERED.get().await(5, TimeUnit.SECONDS))
+                    .as("화면 호출이 공급자 안으로 들어가지 않아 격벽 점유를 확인할 수 없다")
+                    .isTrue();
+
+            int 배치_동시_건수 = ((ThreadPoolExecutor) runConfirmationExecutor).getMaximumPoolSize();
+            List<Future<RoadRoute>> 배치_작업 = new ArrayList<>(배치_동시_건수);
+            for (int i = 0; i < 배치_동시_건수; i++) {
+                배치_작업.add(runConfirmationExecutor.submit(
+                        () -> mapRouteClient.route(요청(지점_여러개(3), Duration.ofSeconds(5), CallerPolicy.BATCH))));
+            }
+            List<RoadRoute> 배치_결과 = new ArrayList<>(배치_동시_건수);
+            for (Future<RoadRoute> each : 배치_작업) {
+                배치_결과.add(each.get(10, TimeUnit.SECONDS));
+            }
+
+            assertThat(배치_결과)
+                    .as("화면 호출 1건이 격벽 칸을 쥐었다고 확정 배치(%d건)가 직선 근사로 떨어지면 안 된다 — 격벽을 공유하는 것이다", 배치_동시_건수)
+                    .allSatisfy(route -> assertThat(route.fallbackUsed()).isFalse());
+        } finally {
+            CountDownLatch release = ON_DEMAND_RELEASE.get();
+            if (release != null) {
+                release.countDown();
+            }
+            화면_호출자.shutdown();
+        }
+    }
+
+    /**
      * 격벽 거부는 <b>재시도되지 않고</b> <b>서킷 집계에도 들어가지 않는다</b> — 애스펙트 순서를 무는
      * 자리다.
      *
@@ -492,9 +562,14 @@ class NaverDirectionsResilienceTest {
                 .isEqualTo(CircuitBreaker.State.OPEN);
     }
 
-    /** yml 값을 테스트에 옮겨 적지 않는다 — 옮겨 적으면 상한이 바뀔 때 두 값이 조용히 갈린다. */
+    /**
+     * yml 값을 테스트에 옮겨 적지 않는다 — 옮겨 적으면 상한이 바뀔 때 두 값이 조용히 갈린다.
+     *
+     * <p>이 파일의 동시 호출 시험은 전부 {@code CallerPolicy.BATCH} 만 쓰므로 배치 전용 격벽
+     * ({@link NaverDirectionsGateway#BATCH_BULKHEAD_INSTANCE})의 상한을 본다(BR-169, `Ruling 350`).
+     */
     private int 동시_호출_상한() {
-        return bulkheadRegistry.bulkhead(NaverDirectionsGateway.RESILIENCE_INSTANCE)
+        return bulkheadRegistry.bulkhead(NaverDirectionsGateway.BATCH_BULKHEAD_INSTANCE)
                 .getBulkheadConfig().getMaxConcurrentCalls();
     }
 
@@ -561,10 +636,12 @@ class NaverDirectionsResilienceTest {
 
     private static void 응답한다(HttpExchange exchange) throws IOException {
         PROVIDER_HITS.incrementAndGet();
-        POINTS_PER_REQUEST.add(지점_수(exchange.getRequestURI()));
+        int 지점_수 = 지점_수(exchange.getRequestURI());
+        POINTS_PER_REQUEST.add(지점_수);
         REQUEST_PATHS.add(exchange.getRequestURI().getPath());
         PEAK_IN_FLIGHT.accumulateAndGet(IN_FLIGHT.incrementAndGet(), Math::max);
         try {
+            화면_홀드_문이면_대기한다(지점_수);
             지연한다();
         } finally {
             IN_FLIGHT.decrementAndGet();
@@ -590,6 +667,27 @@ class NaverDirectionsResilienceTest {
             }
         }
         return waypoints + 2;
+    }
+
+    /**
+     * 화면(ON_DEMAND) 호출이 실제로 공급자 안에 들어와 격벽 칸을 쥔 상태를 만든다 — 문이 걸려 있지
+     * 않으면(다른 시험이거나 아직 열지 않았으면) 곧장 지나간다.
+     */
+    private static void 화면_홀드_문이면_대기한다(int 지점_수) {
+        if (지점_수 != HOLD_MARKER_POINT_COUNT) {
+            return;
+        }
+        CountDownLatch entered = ON_DEMAND_ENTERED.get();
+        CountDownLatch release = ON_DEMAND_RELEASE.get();
+        if (entered == null || release == null) {
+            return;
+        }
+        entered.countDown();
+        try {
+            release.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private static void 지연한다() {
