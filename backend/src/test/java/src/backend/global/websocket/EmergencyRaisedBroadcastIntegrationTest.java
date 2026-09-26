@@ -68,15 +68,17 @@ import testsupport.redis.RedisTestContainerBase;
  * 만든 행은 커밋된 채로 남지만 {@link EmergencyFixtures} 가 매번 새 식별자를 쓰므로 이후 실행과
  * 충돌하지 않는다.
  *
- * <p>{@link RedisTestContainerBase} 를 상속해 위치 캐시를 쓴다 — {@link EmergencyPositionRecordedAtIntegrationTest}
- * 와 같은 방식(원문 camelCase JSON, {@code run:{runId}:position} 키)이다. 심는 좌표는 그 클래스의
+ * <p>전역 장치({@link RedisTestContainerBase}·{@code RedisTestContainerContextCustomizerFactory})가
+ * 물려주는 전용 컨테이너로 위치 캐시를 쓴다(BR-107 이후 직접 상속은 걷어냄) —
+ * {@link EmergencyPositionRecordedAtIntegrationTest} 와 같은 방식(원문 camelCase JSON,
+ * {@code run:{runId}:position} 키)이다. 심는 좌표는 그 클래스의
  * 예시값(37.512345/127.098765)과 **다르게** 둔다 — 같은 값을 쓰면 다른 시험이 남긴 캐시 잔존과
  * 구별이 안 된다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
-class EmergencyRaisedBroadcastIntegrationTest extends RedisTestContainerBase {
+class EmergencyRaisedBroadcastIntegrationTest {
 
     private static final String RAISE = "/api/v1/runs/%d/emergency";
 

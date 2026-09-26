@@ -109,7 +109,8 @@ flutter test --dart-define=API_BASE_URL=http://localhost:<포트>/api/v1
   - **`@MockitoBean`** 사용 — `@MockBean`은 Boot 4에서 제거됨
   - 보안 빈을 명시 import 해야 필터체인이 산다: `@Import({SecurityConfig.class, JwtAuthenticationFilter.class, JwtTokenProvider.class})`
   - 응답 검증은 `ApiResponse` 봉투 기준: `jsonPath("$.success")`, `jsonPath("$.data.xxx")`
-- **새 테스트에 DB를 끌어들이지 않는다** — `@SpringBootTest`는 `BackendApplicationTests` 하나로 충분하다. 새 테스트는 단위 또는 `@WebMvcTest`로 쓴다.
+- **통합 시험은 실제 로컬 Postgres 를 쓰는 `@SpringBootTest` 가 표준이다**(`IMPLEMENTATION_PLAN §7` 규칙 15) — `@WebMvcTest` 는 예외(`JwtAuthenticationFilterTest` · `AccountStatusGateInterceptorTest` 2곳뿐)다. 순수 단위 시험(서비스를 `mock()`으로 직접 조립)이 가능하면 그쪽을 먼저 쓰되, 보안 필터·학원 격리·Flyway 스키마까지 함께 검증해야 하면 슬라이스로 축소하지 말고 `@SpringBootTest` 를 쓴다.
+- **고정 시계는 새로 만들지 않고 `testsupport.clock` 의 공유 설정을 `@Import` 한다**(BR-107) — 값이 같은 `Clock` 을 클래스마다 중첩 `@TestConfiguration` 으로 선언하면 `@SpringBootTest` 컨텍스트 캐시 키가 갈려 같은 값인데도 컨텍스트가 중복 기동된다. 필요한 값이 없으면 `testsupport.clock.FixedClockNNNNConfig` 를 새로 추가한다.
 
 ---
 

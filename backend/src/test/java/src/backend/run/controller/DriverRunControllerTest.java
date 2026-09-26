@@ -7,25 +7,21 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
-import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.annotation.Import;
 
 import com.jayway.jsonpath.JsonPath;
 
@@ -57,6 +53,7 @@ import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
+import testsupport.clock.FixedClock20300401Config;
 
 /**
  * 기사·동승자 단말의 회차 운행 조작 API(§4.4·§4.5·§4.11) — Phase 9 T2 목표 1(±10분 창) · 2(운행 시작
@@ -72,6 +69,7 @@ import src.backend.student.repository.StudentRepository;
 @AutoConfigureMockMvc
 @Transactional
 @RecordApplicationEvents
+@Import(FixedClock20300401Config.class)
 class DriverRunControllerTest {
 
     @Autowired
@@ -143,17 +141,6 @@ class DriverRunControllerTest {
     @Autowired
     private ApplicationEvents applicationEvents;
 
-    @TestConfiguration
-    static class FixedClockConfig {
-
-        private static final Instant FIXED = Instant.parse("2030-04-01T03:00:00Z"); // 2030-04-01 12:00 KST
-
-        @Bean
-        @Primary
-        Clock fixedClock() {
-            return Clock.fixed(FIXED, ZoneId.of("Asia/Seoul"));
-        }
-    }
 
     private DriverRunFixtures fixtures() {
         return new DriverRunFixtures(academyRepository, busRepository, stopRepository, studentRepository,

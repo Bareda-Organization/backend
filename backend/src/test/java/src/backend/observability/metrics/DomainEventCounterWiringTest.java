@@ -7,7 +7,6 @@ import static org.mockito.Mockito.doThrow;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,11 +14,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.context.annotation.Import;
 
 import io.micrometer.core.instrument.MeterRegistry;
 
@@ -43,6 +40,7 @@ import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
+import testsupport.clock.FixedClock20330401Config;
 
 /**
  * 카운터 3종(관측 목표 3, Phase 14 이월 ④)이 <b>실제 이벤트 경로</b>로 오르는지 본다 —
@@ -57,6 +55,7 @@ import src.backend.student.repository.StudentRepository;
  * 밖에서 이미 오른 값이 섞여 있을 수 있다({@code RunUnconfirmedGaugeSchedulerTest} 와 같은 근거).
  */
 @SpringBootTest
+@Import(FixedClock20330401Config.class)
 class DomainEventCounterWiringTest {
 
     private static final Instant FIXED = Instant.parse("2033-04-01T03:00:00Z"); // 2033-04-01 12:00 KST
@@ -131,15 +130,6 @@ class DomainEventCounterWiringTest {
 
     private NoShowEscalationFixtures noShowFixtures;
 
-    @TestConfiguration
-    static class FixedClockConfig {
-
-        @Bean
-        @Primary
-        Clock fixedClock() {
-            return Clock.fixed(FIXED, ZoneId.of("Asia/Seoul"));
-        }
-    }
 
     @BeforeEach
     void setUp() {

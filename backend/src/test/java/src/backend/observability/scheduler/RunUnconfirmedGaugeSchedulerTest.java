@@ -2,9 +2,7 @@ package src.backend.observability.scheduler;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.time.Clock;
 import java.time.LocalDate;
 
@@ -14,10 +12,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.context.annotation.Import;
 
 import io.micrometer.core.instrument.MeterRegistry;
 
@@ -31,6 +27,7 @@ import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 import src.backend.student.repository.WeeklyAddressRepository;
+import testsupport.clock.FixedClock20300401Config;
 
 /**
  * {@code schoolbus.run.unconfirmed} 게이지(관측 목표 8)가 <b>값</b>까지 맞게 세는지 본다 —
@@ -50,6 +47,7 @@ import src.backend.student.repository.WeeklyAddressRepository;
  * 시험이 심은 5건만큼만 값이 얼마나 늘었는지를 보면 그 시드 오염과 무관하게 판정할 수 있다.
  */
 @SpringBootTest
+@Import(FixedClock20300401Config.class)
 class RunUnconfirmedGaugeSchedulerTest {
 
     private static final LocalDate SERVICE_DATE = LocalDate.of(2030, 4, 1);
@@ -92,17 +90,6 @@ class RunUnconfirmedGaugeSchedulerTest {
 
     private RunConfirmationFixtures fixtures;
 
-    @TestConfiguration
-    static class FixedClockConfig {
-
-        private static final Instant FIXED = Instant.parse("2030-04-01T03:00:00Z"); // 2030-04-01 12:00 KST
-
-        @Bean
-        @Primary
-        Clock fixedClock() {
-            return Clock.fixed(FIXED, ZoneId.of("Asia/Seoul"));
-        }
-    }
 
     @BeforeEach
     void setUp() {

@@ -5,27 +5,23 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
-import java.time.temporal.ChronoUnit;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.context.annotation.Import;
 
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
-import testsupport.redis.RedisTestContainerBase;
+import testsupport.clock.SeedDateClockConfig;
 
 /**
  * 학부모 앱의 실시간 버스 위치 API(LOC-02, API_SPEC §3.11, Ruling 208) — 목표 9·11.
@@ -47,7 +43,8 @@ import testsupport.redis.RedisTestContainerBase;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-class StudentBusPositionControllerTest extends RedisTestContainerBase {
+@Import(SeedDateClockConfig.class)
+class StudentBusPositionControllerTest {
 
     private static final String POSITION = "/api/v1/students/%d/bus-position";
 
@@ -89,19 +86,6 @@ class StudentBusPositionControllerTest extends RedisTestContainerBase {
     private Clock clock;
 
     /** 시드 회차의 {@code service_date} 를 읽어 그 날짜로 Clock 을 이동시킨다 — 클래스 자바독 참고. */
-    @TestConfiguration
-    static class SeedDateClockConfig {
-
-        @Bean
-        @Primary
-        Clock seedDateClock(JdbcTemplate jdbcTemplate) {
-            ZoneId seoul = ZoneId.of("Asia/Seoul");
-            Clock base = Clock.system(seoul);
-            LocalDate seedDate = jdbcTemplate.queryForObject("SELECT MIN(service_date) FROM run", LocalDate.class);
-            long offsetDays = ChronoUnit.DAYS.between(LocalDate.now(base), seedDate);
-            return Clock.offset(base, Duration.ofDays(offsetDays));
-        }
-    }
 
     /** 신호가 살아 있으면(§3.11) 좌표가 담기고 last_seen_at 은 비어야 한다. */
     @Test

@@ -3,11 +3,11 @@ package src.backend.global.config;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -70,8 +70,8 @@ class FlywayCleanStrategyGuardTest {
 
         Flyway flyway = mock(Flyway.class);
         Configuration configuration = mock(Configuration.class);
-        when(flyway.getConfiguration()).thenReturn(configuration);
-        when(configuration.getUrl()).thenReturn("jdbc:postgresql://prod-db.example.com:5432/schoolbus");
+        given(flyway.getConfiguration()).willReturn(configuration);
+        given(configuration.getUrl()).willReturn("jdbc:postgresql://prod-db.example.com:5432/schoolbus");
 
         assertThatThrownBy(() -> strategy.migrate(flyway))
                 .isInstanceOf(IllegalStateException.class);
@@ -90,8 +90,8 @@ class FlywayCleanStrategyGuardTest {
 
         Flyway flyway = mock(Flyway.class);
         Configuration configuration = mock(Configuration.class);
-        when(flyway.getConfiguration()).thenReturn(configuration);
-        when(configuration.getUrl()).thenReturn("jdbc:postgresql://localhost:5432/schoolbus");
+        given(flyway.getConfiguration()).willReturn(configuration);
+        given(configuration.getUrl()).willReturn("jdbc:postgresql://localhost:5432/schoolbus");
 
         strategy.migrate(flyway);
 
@@ -115,8 +115,8 @@ class FlywayCleanStrategyGuardTest {
 
         Flyway flyway = mock(Flyway.class);
         Configuration configuration = mock(Configuration.class);
-        when(flyway.getConfiguration()).thenReturn(configuration);
-        when(configuration.getUrl()).thenReturn(jdbcUrl);
+        given(flyway.getConfiguration()).willReturn(configuration);
+        given(configuration.getUrl()).willReturn(jdbcUrl);
 
         assertThatThrownBy(() -> strategy.migrate(flyway))
                 .isInstanceOf(IllegalStateException.class);
@@ -133,9 +133,9 @@ class FlywayCleanStrategyGuardTest {
 
         Flyway flyway = mock(Flyway.class);
         Configuration configuration = mock(Configuration.class);
-        when(flyway.getConfiguration()).thenReturn(configuration);
-        when(configuration.getUrl()).thenReturn(null);
-        when(configuration.getDataSource()).thenReturn(null);
+        given(flyway.getConfiguration()).willReturn(configuration);
+        given(configuration.getUrl()).willReturn(null);
+        given(configuration.getDataSource()).willReturn(null);
 
         assertThatThrownBy(() -> strategy.migrate(flyway))
                 .isInstanceOf(IllegalStateException.class);
@@ -153,10 +153,10 @@ class FlywayCleanStrategyGuardTest {
         Flyway flyway = mock(Flyway.class);
         Configuration configuration = mock(Configuration.class);
         DataSource dataSource = mock(DataSource.class);
-        when(flyway.getConfiguration()).thenReturn(configuration);
-        when(configuration.getUrl()).thenReturn(null);
-        when(configuration.getDataSource()).thenReturn(dataSource);
-        when(dataSource.getConnection()).thenThrow(new SQLException("connection refused"));
+        given(flyway.getConfiguration()).willReturn(configuration);
+        given(configuration.getUrl()).willReturn(null);
+        given(configuration.getDataSource()).willReturn(dataSource);
+        given(dataSource.getConnection()).willThrow(new SQLException("connection refused"));
 
         assertThatThrownBy(() -> strategy.migrate(flyway))
                 .isInstanceOf(IllegalStateException.class);
@@ -211,12 +211,12 @@ class FlywayCleanStrategyGuardTest {
         DataSource dataSource = mock(DataSource.class);
         Connection connection = mock(Connection.class);
         DatabaseMetaData metaData = mock(DatabaseMetaData.class);
-        when(flyway.getConfiguration()).thenReturn(configuration);
-        when(configuration.getUrl()).thenReturn(null);
-        when(configuration.getDataSource()).thenReturn(dataSource);
-        when(dataSource.getConnection()).thenReturn(connection);
-        when(connection.getMetaData()).thenReturn(metaData);
-        when(metaData.getURL()).thenReturn("jdbc:postgresql://localhost:32768/test");
+        given(flyway.getConfiguration()).willReturn(configuration);
+        given(configuration.getUrl()).willReturn(null);
+        given(configuration.getDataSource()).willReturn(dataSource);
+        given(dataSource.getConnection()).willReturn(connection);
+        given(connection.getMetaData()).willReturn(metaData);
+        given(metaData.getURL()).willReturn("jdbc:postgresql://localhost:32768/test");
 
         strategy.migrate(flyway);
 

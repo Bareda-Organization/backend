@@ -4,10 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -54,7 +54,7 @@ class PositionBroadcastListenerTest {
         // 다른 버스로 옮긴 학생(removed) — 학생 채널이 학생 단위라 여기 보내면 학부모 지도에 버스 두 대가 번갈아 뜬다
         RunRider moved = RunRider.uponConfirmation(runId, 200L, 7L);
         moved.markRemoved(recordedAt);
-        when(runRiderRepository.findAllByRunId(runId)).thenReturn(List.of(rider, moved));
+        given(runRiderRepository.findAllByRunId(runId)).willReturn(List.of(rider, moved));
 
         listener.broadcast(event);
 

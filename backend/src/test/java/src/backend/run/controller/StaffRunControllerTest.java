@@ -10,25 +10,21 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.annotation.Import;
 
 import com.jayway.jsonpath.JsonPath;
 
@@ -38,6 +34,7 @@ import jakarta.persistence.PersistenceContext;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
+import testsupport.clock.FixedClock20260826T02Config;
 
 /**
  * §5.10 {@code /staff/runs} — SCH-02 결과 조회 · SCH-03 임시 추가·취소.
@@ -52,6 +49,7 @@ import src.backend.global.security.JwtTokenProvider;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
+@Import(FixedClock20260826T02Config.class)
 class StaffRunControllerTest {
 
     /** 시드의 학원 A 관계자({@code staffA})와 그 학원. */
@@ -97,17 +95,6 @@ class StaffRunControllerTest {
     private Clock clock;
 
     /** 시각을 고정한다(횡단 규칙 1) — "오늘" 판정이 주입된 시계를 보는지 재려면 고정이 필요하다. */
-    @TestConfiguration
-    static class FixedClockConfig {
-
-        private static final Instant FIXED = Instant.parse("2026-08-26T02:00:00Z");
-
-        @Bean
-        @Primary
-        Clock fixedClock() {
-            return Clock.fixed(FIXED, ZoneId.of("Asia/Seoul"));
-        }
-    }
 
     // ── SCH-03 임시 추가 ──────────────────────────────────────────────────
 

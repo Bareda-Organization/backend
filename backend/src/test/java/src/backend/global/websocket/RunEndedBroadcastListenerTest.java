@@ -1,8 +1,8 @@
 package src.backend.global.websocket;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -42,7 +42,7 @@ class RunEndedBroadcastListenerTest {
 
         RunRider riderA = RunRider.uponConfirmation(runId, 100L, 1L);
         RunRider riderB = RunRider.uponConfirmation(runId, 200L, 2L);
-        when(runRiderRepository.findAllByRunId(runId)).thenReturn(List.of(riderA, riderB));
+        given(runRiderRepository.findAllByRunId(runId)).willReturn(List.of(riderA, riderB));
 
         listener.broadcast(event);
 
@@ -63,7 +63,7 @@ class RunEndedBroadcastListenerTest {
         RunRider rider = RunRider.uponConfirmation(runId, 100L, 1L);
         RunRider moved = RunRider.uponConfirmation(runId, 200L, 2L);
         moved.markRemoved(finishedAt);
-        when(runRiderRepository.findAllByRunId(runId)).thenReturn(List.of(rider, moved));
+        given(runRiderRepository.findAllByRunId(runId)).willReturn(List.of(rider, moved));
 
         listener.broadcast(new RunEndedEvent(runId, 1L, finishedAt, 0L));
 

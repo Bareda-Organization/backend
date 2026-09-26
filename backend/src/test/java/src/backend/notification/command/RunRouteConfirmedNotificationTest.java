@@ -3,22 +3,18 @@ package src.backend.notification.command;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.context.annotation.Import;
 
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.account.entity.Account;
@@ -42,6 +38,7 @@ import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 import src.backend.student.repository.WeeklyAddressRepository;
+import testsupport.clock.FixedClock20300401Config;
 
 /**
  * 확정 시 {@code route_changed} 알림 발행(Phase 7 목표 7) — {@link RunRouteConfirmedNotificationListener}
@@ -54,6 +51,7 @@ import src.backend.student.repository.WeeklyAddressRepository;
  * 되돌릴 뿐 커밋 여부를 가려낼 수단이 없어진다.
  */
 @SpringBootTest
+@Import(FixedClock20300401Config.class)
 class RunRouteConfirmedNotificationTest {
 
     private static final LocalDate SERVICE_DATE = LocalDate.of(2030, 4, 1); // 월요일
@@ -105,17 +103,6 @@ class RunRouteConfirmedNotificationTest {
     @Autowired
     private Clock clock;
 
-    @TestConfiguration
-    static class FixedClockConfig {
-
-        private static final Instant FIXED = Instant.parse("2030-04-01T03:00:00Z"); // 2030-04-01 12:00 KST
-
-        @Bean
-        @Primary
-        Clock fixedClock() {
-            return Clock.fixed(FIXED, ZoneId.of("Asia/Seoul"));
-        }
-    }
 
     @AfterEach
     void 뒷정리한다() {

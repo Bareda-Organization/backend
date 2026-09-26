@@ -8,10 +8,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.List;
 
 import jakarta.persistence.EntityManager;
@@ -23,16 +21,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.annotation.Import;
 
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
@@ -55,6 +51,7 @@ import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 import src.backend.student.repository.WeeklyAddressRepository;
+import testsupport.clock.FixedClock20300401Config;
 
 /**
  * 학부모 앱의 일일 변경 신청(P-06, API_SPEC §3.8·§3.9) — Phase 8 목표 9(③구간 전 타입 차단) ·
@@ -67,6 +64,7 @@ import src.backend.student.repository.WeeklyAddressRepository;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
+@Import(FixedClock20300401Config.class)
 class ChangeRequestControllerTest {
 
     private static final String CHANGE_REQUESTS = "/api/v1/students/%d/change-requests";
@@ -137,17 +135,6 @@ class ChangeRequestControllerTest {
 
     private ChangeRequestFixtures changeRequestFixtures;
 
-    @TestConfiguration
-    static class FixedClockConfig {
-
-        private static final Instant FIXED = Instant.parse("2030-04-01T03:00:00Z"); // 2030-04-01 12:00 KST
-
-        @Bean
-        @Primary
-        Clock fixedClock() {
-            return Clock.fixed(FIXED, ZoneId.of("Asia/Seoul"));
-        }
-    }
 
     private RunConfirmationFixtures fixtures() {
         if (fixtures == null) {

@@ -3,10 +3,10 @@ package src.backend.schedule.command;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -48,8 +48,8 @@ class RunGenerationExceptionScopeTest {
     @Test
     void 중복_회차는_건너뛰고_생성_건수에서_빠진다() {
         스케줄_하나가_있다();
-        when(runCommandService.create(any(RunDraft.class)))
-                .thenThrow(new BusinessException(ErrorCode.DUPLICATE_RUN));
+        given(runCommandService.create(any(RunDraft.class)))
+                .willThrow(new BusinessException(ErrorCode.DUPLICATE_RUN));
 
         assertThat(runGenerationService.generate(SERVICE_DATE)).isZero();
     }
@@ -63,8 +63,8 @@ class RunGenerationExceptionScopeTest {
     @Test
     void 중복이_아닌_실패는_삼키지_않고_드러낸다() {
         스케줄_하나가_있다();
-        when(runCommandService.create(any(RunDraft.class)))
-                .thenThrow(new BusinessException(ErrorCode.BUS_NOT_FOUND));
+        given(runCommandService.create(any(RunDraft.class)))
+                .willThrow(new BusinessException(ErrorCode.BUS_NOT_FOUND));
 
         assertThatThrownBy(() -> runGenerationService.generate(SERVICE_DATE))
                 .isInstanceOf(BusinessException.class)
@@ -78,11 +78,11 @@ class RunGenerationExceptionScopeTest {
      */
     @Test
     void 한_스케줄의_실패가_뒤_스케줄의_생성을_막지_않는다() {
-        when(scheduleRepository.findAllByWeekdayAndActiveIsTrue(any(Weekday.class)))
-                .thenReturn(List.of(mock(Schedule.class), mock(Schedule.class)));
-        when(runCommandService.create(any(RunDraft.class)))
-                .thenThrow(new BusinessException(ErrorCode.BUS_NOT_FOUND))
-                .thenReturn(null);
+        given(scheduleRepository.findAllByWeekdayAndActiveIsTrue(any(Weekday.class)))
+                .willReturn(List.of(mock(Schedule.class), mock(Schedule.class)));
+        given(runCommandService.create(any(RunDraft.class)))
+                .willThrow(new BusinessException(ErrorCode.BUS_NOT_FOUND))
+                .willReturn(null);
 
         assertThatThrownBy(() -> runGenerationService.generate(SERVICE_DATE))
                 .isInstanceOf(BusinessException.class);
@@ -91,7 +91,7 @@ class RunGenerationExceptionScopeTest {
 
     /** 그날 요일의 활성 스케줄이 한 건 있는 상태 — 회차 생성이 한 번은 시도된다. */
     private void 스케줄_하나가_있다() {
-        when(scheduleRepository.findAllByWeekdayAndActiveIsTrue(any(Weekday.class)))
-                .thenReturn(List.of(mock(Schedule.class)));
+        given(scheduleRepository.findAllByWeekdayAndActiveIsTrue(any(Weekday.class)))
+                .willReturn(List.of(mock(Schedule.class)));
     }
 }

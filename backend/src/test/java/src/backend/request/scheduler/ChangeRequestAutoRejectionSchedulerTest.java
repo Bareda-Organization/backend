@@ -3,9 +3,7 @@ package src.backend.request.scheduler;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -13,10 +11,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.context.annotation.Import;
 
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.account.repository.AccountRepository;
@@ -29,6 +25,7 @@ import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.StudentRepository;
+import testsupport.clock.FixedClock20310401Config;
 
 /**
  * 자동 거절 폴링({@link ChangeRequestAutoRejectionScheduler#rejectDueChangeRequests}) 수준의 검증
@@ -41,6 +38,7 @@ import src.backend.student.repository.StudentRepository;
  * {@link ChangeRequestAutoRejectFixtures#ACADEMY_NAME} 로 표시된 행을 직접 지운다.
  */
 @SpringBootTest
+@Import(FixedClock20310401Config.class)
 class ChangeRequestAutoRejectionSchedulerTest {
 
     @Autowired
@@ -83,17 +81,6 @@ class ChangeRequestAutoRejectionSchedulerTest {
 
     private OffsetDateTime now;
 
-    @TestConfiguration
-    static class FixedClockConfig {
-
-        private static final Instant FIXED = Instant.parse("2031-04-01T03:00:00Z"); // 2031-04-01 12:00 KST
-
-        @Bean
-        @Primary
-        Clock fixedClock() {
-            return Clock.fixed(FIXED, ZoneId.of("Asia/Seoul"));
-        }
-    }
 
     @BeforeEach
     void setUp() {

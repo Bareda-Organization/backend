@@ -3,10 +3,8 @@ package src.backend.schedule.command;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
@@ -16,10 +14,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
+import testsupport.clock.FixedClock20260826T01Config;
 
 /**
  * 일일 회차 생성 배치(SCH-02, API_SPEC §5.10) — <b>멱등</b>과 <b>비활성 제외</b>가 판정 대상이다.
@@ -33,6 +31,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * 섞은 구현(확정 시각을 실행 시각 기준으로 잡는 구현)과 구별되지 않는다.
  */
 @SpringBootTest
+@Import(FixedClock20260826T01Config.class)
 class RunGenerationServiceTest {
 
     /** 시드 학원 A. */
@@ -74,18 +73,6 @@ class RunGenerationServiceTest {
      * <p>{@code ClockConfig} 의 빈을 덮어쓰지 않고 {@link Primary} 로 하나 더 둔다 — 덮으려면 빈 정의
      * 덮어쓰기를 열어야 하고, 그것을 열면 이 클래스 밖의 사고까지 조용히 통과한다.
      */
-    @TestConfiguration
-    static class FixedClockConfig {
-
-        /** 값 자체에 의미는 없다 — 고정돼 있다는 사실만이 검사 대상이다. */
-        private static final Instant FIXED = Instant.parse("2026-08-26T01:00:00Z");
-
-        @Bean
-        @Primary
-        Clock fixedClock() {
-            return Clock.fixed(FIXED, ZoneId.of("Asia/Seoul"));
-        }
-    }
 
     /**
      * 앞선 실행이 남긴 행을 지우고, <b>그러고 나서</b> 판정 날짜를 고른다.

@@ -1,8 +1,8 @@
 package src.backend.global.dev;
 
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import java.util.Set;
 
@@ -33,7 +33,7 @@ class DevResetServiceTest {
 
     @Test
     void 리셋하면_미리보기_캐시도_비운다() {
-        when(stringRedisTemplate.keys("run:*:position")).thenReturn(Set.of());
+        given(stringRedisTemplate.keys("run:*:position")).willReturn(Set.of());
 
         service.reset();
 

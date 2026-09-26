@@ -1,10 +1,10 @@
 package src.backend.global.websocket;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -52,7 +52,7 @@ class RunStartedBroadcastListenerTest {
         RunRider riderA = RunRider.uponConfirmation(runId, 100L, 1L);
         RunRider riderB = RunRider.uponConfirmation(runId, 200L, 2L);
         RunRider riderADuplicate = RunRider.uponConfirmation(runId, 100L, 3L);
-        when(runRiderRepository.findAllByRunId(runId)).thenReturn(List.of(riderA, riderB, riderADuplicate));
+        given(runRiderRepository.findAllByRunId(runId)).willReturn(List.of(riderA, riderB, riderADuplicate));
 
         listener.broadcast(event);
 
@@ -86,7 +86,7 @@ class RunStartedBroadcastListenerTest {
         RunRider rider = RunRider.uponConfirmation(runId, 100L, 1L);
         RunRider moved = RunRider.uponConfirmation(runId, 200L, 2L);
         moved.markRemoved(startedAt);
-        when(runRiderRepository.findAllByRunId(runId)).thenReturn(List.of(rider, moved));
+        given(runRiderRepository.findAllByRunId(runId)).willReturn(List.of(rider, moved));
 
         listener.broadcast(new RunStartedEvent(runId, 1L, startedAt, 0));
 

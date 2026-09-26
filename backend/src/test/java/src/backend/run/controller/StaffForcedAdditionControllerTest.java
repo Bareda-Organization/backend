@@ -8,22 +8,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.math.BigDecimal;
 import java.time.Clock;
-import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.annotation.Import;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -50,6 +46,7 @@ import src.backend.student.geocoding.spec.GeocodedPoint;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 import src.backend.student.repository.WeeklyAddressRepository;
+import testsupport.clock.FixedClock20260826T02Config;
 
 /**
  * §5.7 {@code POST /staff/runs/{runId}/forced-add}(RTE-06, Ruling 197·198).
@@ -65,6 +62,7 @@ import src.backend.student.repository.WeeklyAddressRepository;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
+@Import(FixedClock20260826T02Config.class)
 class StaffForcedAdditionControllerTest {
 
     private static final long STAFF_ACCOUNT_ID = 9001L;
@@ -114,17 +112,6 @@ class StaffForcedAdditionControllerTest {
     private RunConfirmationFixtures fixtures;
 
     /** 시각을 고정한다(횡단 규칙 1) — 구간 판정이 주입된 시계를 보는지 재려면 고정이 필요하다. */
-    @TestConfiguration
-    static class FixedClockConfig {
-
-        private static final Instant FIXED = Instant.parse("2026-08-26T02:00:00Z");
-
-        @Bean
-        @Primary
-        Clock fixedClock() {
-            return Clock.fixed(FIXED, ZoneId.of("Asia/Seoul"));
-        }
-    }
 
     private RunConfirmationFixtures fixtures() {
         if (fixtures == null) {

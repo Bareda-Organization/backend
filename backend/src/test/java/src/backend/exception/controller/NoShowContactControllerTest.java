@@ -6,9 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.List;
 
 import jakarta.persistence.EntityManager;
@@ -18,15 +16,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.annotation.Import;
 
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
@@ -51,6 +47,7 @@ import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
+import testsupport.clock.FixedClock20310401Config;
 
 /**
  * 미승차 연락 시도 기록(API_SPEC §4.8, Phase 11 목표 3) — {@code POST
@@ -63,6 +60,7 @@ import src.backend.student.repository.StudentRepository;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
+@Import(FixedClock20310401Config.class)
 class NoShowContactControllerTest {
 
     private static final String RECORD_ATTEMPT = "/api/v1/runs/%d/riders/%d/no-show-contacts";
@@ -135,17 +133,6 @@ class NoShowContactControllerTest {
 
     private BoardingCommandFixtures fixtures;
 
-    @TestConfiguration
-    static class FixedClockConfig {
-
-        private static final Instant FIXED = Instant.parse("2031-04-01T03:00:00Z"); // 2031-04-01 12:00 KST
-
-        @Bean
-        @Primary
-        Clock fixedClock() {
-            return Clock.fixed(FIXED, ZoneId.of("Asia/Seoul"));
-        }
-    }
 
     private BoardingCommandFixtures fixtures() {
         if (fixtures == null) {

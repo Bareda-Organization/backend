@@ -1,7 +1,6 @@
 package src.backend.routing.pipeline;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -104,12 +103,6 @@ class RouteComputationPipelineTest {
                 .containsExactlyInAnyOrderElementsOf(unresolvableStudents);
         assertThat(computation.stops()).extracting(OrderedStop::stopId)
                 .containsExactlyInAnyOrderElementsOf(stopIds);
-    }
-
-    @Test
-    @DisplayName("좌표 미확보가 있어도 예외를 던지지 않는다")
-    void doesNotFailWhenSomeStudentsAreUnresolved() {
-        assertThatCode(() -> pipeline.compute(inputFrom(ORIGIN))).doesNotThrowAnyException();
     }
 
     @Test

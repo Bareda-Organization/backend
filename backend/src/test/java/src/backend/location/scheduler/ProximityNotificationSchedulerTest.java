@@ -43,7 +43,6 @@ import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
-import testsupport.redis.RedisTestContainerBase;
 
 /**
  * 근접 알림 배치({@link ProximityNotificationScheduler}) 수준의 검증(Phase 10 이월 ②, Phase 11
@@ -65,7 +64,7 @@ import testsupport.redis.RedisTestContainerBase;
  * {@code StaffApprovalDecideAtomicityTest} 가 저장소 스파이에 쓰는 것과 같은 기법이다.
  */
 @SpringBootTest
-class ProximityNotificationSchedulerTest extends RedisTestContainerBase {
+class ProximityNotificationSchedulerTest {
 
     /** 정차지 좌표(37.500000, 127.000000) 기준 약 200m — 300m 문턱 안쪽({@code ProximityNotificationServiceTest} 와 같은 값). */
     private static final String NEAR_LAT = "37.501799";

@@ -6,22 +6,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.annotation.Import;
 
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.bus.entity.Bus;
@@ -42,6 +38,7 @@ import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 import src.backend.student.repository.WeeklyAddressRepository;
+import testsupport.clock.FixedClock20260827Config;
 
 /**
  * §5.8 {@code POST /staff/students/{id}/transfer}(RTE-07, Ruling 256) — F4 S1 목표 6.
@@ -54,6 +51,7 @@ import src.backend.student.repository.WeeklyAddressRepository;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
+@Import(FixedClock20260827Config.class)
 class StaffStudentTransferControllerTest {
 
     private static final long STAFF_ACCOUNT_ID = 9101L;
@@ -100,17 +98,6 @@ class StaffStudentTransferControllerTest {
     private RunConfirmationFixtures fixtures;
 
     /** 시각을 고정한다(횡단 규칙 1) — 구간 판정이 주입된 시계를 보는지 재려면 고정이 필요하다. */
-    @TestConfiguration
-    static class FixedClockConfig {
-
-        private static final Instant FIXED = Instant.parse("2026-08-27T02:00:00Z");
-
-        @Bean
-        @Primary
-        Clock fixedClock() {
-            return Clock.fixed(FIXED, ZoneId.of("Asia/Seoul"));
-        }
-    }
 
     private RunConfirmationFixtures fixtures() {
         if (fixtures == null) {

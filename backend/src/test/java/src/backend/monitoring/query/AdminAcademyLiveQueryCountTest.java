@@ -5,9 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
@@ -17,12 +15,10 @@ import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.annotation.Import;
 
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
@@ -44,6 +40,7 @@ import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
+import testsupport.clock.FixedClock20300401Config;
 
 /**
  * 메인 관리자 관제(§6.8) 호출 1회의 쿼리 수가 정차지 수에 비례하지 않고, 회차 하나가 더하는 쿼리가 확정 노선·정차
@@ -53,6 +50,7 @@ import src.backend.student.repository.StudentRepository;
 @SpringBootTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @AutoConfigureMockMvc
 @Transactional
+@Import(FixedClock20300401Config.class)
 class AdminAcademyLiveQueryCountTest {
 
     private static final String LIVE = "/api/v1/admin/academies/%d/runs/live";
@@ -117,17 +115,6 @@ class AdminAcademyLiveQueryCountTest {
     @Autowired
     private AssignmentRepository assignmentRepository;
 
-    @TestConfiguration
-    static class FixedClockConfig {
-
-        private static final Instant FIXED = Instant.parse("2030-04-01T03:00:00Z"); // AdminMonitoringFixtures.SERVICE_DATE
-
-        @Bean
-        @Primary
-        Clock fixedClock() {
-            return Clock.fixed(FIXED, ZoneId.of("Asia/Seoul"));
-        }
-    }
 
     @Test
     void 정차지가_늘어도_관제_쿼리_수는_같다() throws Exception {

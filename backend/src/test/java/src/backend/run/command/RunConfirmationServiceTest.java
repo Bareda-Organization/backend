@@ -4,10 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 
@@ -15,11 +13,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.annotation.Import;
 
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.bus.repository.BusRepository;
@@ -38,6 +34,7 @@ import src.backend.run.repository.RunTransferRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 import src.backend.student.repository.WeeklyAddressRepository;
+import testsupport.clock.FixedClock20300401Config;
 
 /**
  * 확정 배치 오케스트레이터({@link RunConfirmationService#confirmOne})의 <b>내용물</b> 검증
@@ -50,6 +47,7 @@ import src.backend.student.repository.WeeklyAddressRepository;
  */
 @SpringBootTest
 @Transactional
+@Import(FixedClock20300401Config.class)
 class RunConfirmationServiceTest {
 
     private static final LocalDate SERVICE_DATE = LocalDate.of(2030, 4, 1); // 월요일
@@ -97,17 +95,6 @@ class RunConfirmationServiceTest {
 
     private RunConfirmationFixtures fixtures;
 
-    @TestConfiguration
-    static class FixedClockConfig {
-
-        private static final Instant FIXED = Instant.parse("2030-04-01T03:00:00Z"); // 2030-04-01 12:00 KST
-
-        @Bean
-        @Primary
-        Clock fixedClock() {
-            return Clock.fixed(FIXED, ZoneId.of("Asia/Seoul"));
-        }
-    }
 
     private RunConfirmationFixtures fixtures() {
         if (fixtures == null) {

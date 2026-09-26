@@ -5,27 +5,24 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.time.temporal.ChronoUnit;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.annotation.Import;
 
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.SeedFixtures;
 import src.backend.global.security.JwtTokenProvider;
+import testsupport.clock.SeedDateClockConfig;
 
 /**
  * 자녀·본인 당일 회차 목록 API(P-04 · S-01, API_SPEC §3.5, 목표 5).
@@ -59,6 +56,7 @@ import src.backend.global.security.JwtTokenProvider;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional // 아래 시드 복원이 이 클래스 밖으로 새지 않게 한다 — 복원 훅 주석 참고.
+@Import(SeedDateClockConfig.class)
 class StudentRunsControllerTest {
 
     private static final String RUNS = "/api/v1/students/%d/runs";
@@ -115,19 +113,6 @@ class StudentRunsControllerTest {
     private JwtTokenProvider tokenProvider;
 
     /** 시드 회차의 {@code service_date} 를 읽어 그 날짜로 Clock 을 이동시킨다 — 클래스 자바독 참고. */
-    @TestConfiguration
-    static class SeedDateClockConfig {
-
-        @Bean
-        @Primary
-        Clock seedDateClock(JdbcTemplate jdbcTemplate) {
-            ZoneId seoul = ZoneId.of("Asia/Seoul");
-            Clock base = Clock.system(seoul);
-            LocalDate seedDate = jdbcTemplate.queryForObject("SELECT MIN(service_date) FROM run", LocalDate.class);
-            long offsetDays = ChronoUnit.DAYS.between(LocalDate.now(base), seedDate);
-            return Clock.offset(base, Duration.ofDays(offsetDays));
-        }
-    }
 
     /** student1 이 속한 회차 5건을 출발 시각 순(moving → confirmed run2 → confirmed run8 → idle run1 → idle run6)으로 반환한다. */
     @Test

@@ -14,18 +14,13 @@ import jakarta.persistence.PersistenceContext;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -45,15 +40,18 @@ import src.backend.global.security.JwtTokenProvider;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
 import src.backend.run.repository.RunRepository;
+import testsupport.clock.FixedClock20300401Config;
 import testsupport.redis.RedisTestContainerBase;
+import org.springframework.context.annotation.Import;
 
 /**
  * 기사·동승자 단말의 비상 신고 발신·취소 API(EXC-04, Phase 11 T2 목표 5·8·9) — {@code /runs/{runId}/emergency}.
  *
- * <p>{@link RedisTestContainerBase} 를 상속한다 — 목표 8(위치 자동 첨부)이 실제 Redis 캐시(T1 계약,
- * {@code run:{runId}:position})를 읽는지 검증하려면 진짜 Redis 가 필요하다. 공유
- * {@code school-bus-redis-1} 대신 클래스 전용 컨테이너를 쓰는 이유는 그 베이스 클래스 자바독과 같다
- * (병렬 좌석 간 이름공간 충돌 회피).
+ * <p>목표 8(위치 자동 첨부)이 실제 Redis 캐시(T1 계약, {@code run:{runId}:position})를 읽는지
+ * 검증하려면 진짜 Redis 가 필요하다 — {@link RedisTestContainerBase} 를 상속하지 않아도 전역 장치
+ * ({@code RedisTestContainerContextCustomizerFactory})가 같은 전용 컨테이너를 자동으로 물려준다
+ * (BR-107, 상속은 중복이라 걷어냄). 공유 {@code school-bus-redis-1} 대신 전용 컨테이너를 쓰는 이유는
+ * 그 클래스 자바독과 같다(병렬 좌석 간 이름공간 충돌 회피).
  *
  * <p>목표 9 경계값(정확히 60초)은 Clock 을 흐르게 두는 대신 {@code received_at} 을 직접
  * UPDATE 해 고정 Clock 과의 차이를 원하는 만큼 정확히 만든다 — {@code DriverRunControllerTest} 의
@@ -63,7 +61,8 @@ import testsupport.redis.RedisTestContainerBase;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
-class EmergencyControllerTest extends RedisTestContainerBase {
+@Import(FixedClock20300401Config.class)
+class EmergencyControllerTest {
 
     private static final String RAISE = "/api/v1/runs/%d/emergency";
 
@@ -112,17 +111,6 @@ class EmergencyControllerTest extends RedisTestContainerBase {
     @Autowired
     private AcademyStaffRepository academyStaffRepository;
 
-    @TestConfiguration
-    static class FixedClockConfig {
-
-        private static final Instant FIXED = Instant.parse("2030-04-01T03:00:00Z"); // 2030-04-01 12:00 KST
-
-        @Bean
-        @Primary
-        Clock fixedClock() {
-            return Clock.fixed(FIXED, ZoneId.of("Asia/Seoul"));
-        }
-    }
 
     private EmergencyFixtures fixtures() {
         return new EmergencyFixtures(academyRepository, busRepository, accountRepository, managerRepository,

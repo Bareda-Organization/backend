@@ -42,17 +42,18 @@ import testsupport.redis.RedisTestContainerBase;
  * 시각)을 {@code position_recorded_at} 컬럼에 그대로 저장하는지 검증한다(Phase 13 목표 13 판정 ③,
  * Ruling 236).
  *
- * <p>{@code StaffEmergencyControllerTest} 는 일부러 {@link RedisTestContainerBase} 를 상속하지
- * 않는다(그 클래스 자바독 참고) — 캐시가 비어도 신고 발신 자체는 성공해야 한다는 정상 경로를
- * 검증하기 위해서다({@code 위치_캐시가_없으면_position_필드가_모두_null이다}). 이 클래스는 그
+ * <p>모든 {@code @SpringBootTest} 가 전역 장치({@code RedisTestContainerContextCustomizerFactory})로
+ * 전용 Redis 컨테이너를 자동으로 받는다(BR-107 이후 {@link RedisTestContainerBase} 상속과 무관).
+ * 그래서 컨테이너 유무가 아니라 <b>그 컨테이너에 실제로 값을 넣었는지</b>가 두 시험을 가른다 —
+ * {@code StaffEmergencyControllerTest} 는 일부러 캐시를 비운 채 신고 발신 자체는 성공해야 한다는
+ * 정상 경로를 검증하고({@code 위치_캐시가_없으면_position_필드가_모두_null이다}), 이 클래스는 그
  * 반대쪽, 즉 캐시가 <b>있을 때</b> 실제로 소비되는지를 검증하는 것이 유일한 목적이라 별도 파일로
- * 둔다 — 한 클래스에 Redis 컨테이너 상속 여부가 갈리는 시험을 섞으면 그 이유가 클래스 선언만
- * 보고는 드러나지 않는다.
+ * 둔다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
-class EmergencyPositionRecordedAtIntegrationTest extends RedisTestContainerBase {
+class EmergencyPositionRecordedAtIntegrationTest {
 
     private static final String RAISE = "/api/v1/runs/%d/emergency";
 
