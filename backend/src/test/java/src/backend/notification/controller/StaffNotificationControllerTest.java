@@ -116,7 +116,8 @@ class StaffNotificationControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(2))
                 .andExpect(jsonPath("$.data.items[*].notification_id")
-                        .value(org.hamcrest.Matchers.containsInAnyOrder((int) matchingSent, (int) matchingPending)));
+                        .value(org.hamcrest.Matchers.containsInAnyOrder(
+                                String.valueOf(matchingSent), String.valueOf(matchingPending))));
     }
 
     // ── goal 10 — acked 필터 ─────────────────────────────────────────────

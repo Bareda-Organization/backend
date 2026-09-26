@@ -166,8 +166,8 @@ class SignupReapplyQueueTest {
                                 staffAccountId, academyId, Role.STAFF, AccountStatus.ACTIVE)))
                 .andExpect(status().isOk())
                 .andReturn();
-        List<Integer> ids = JsonPath.read(result.getResponse().getContentAsString(StandardCharsets.UTF_8),
+        List<String> ids = JsonPath.read(result.getResponse().getContentAsString(StandardCharsets.UTF_8),
                 "$.data.items[?(@.name == '조대기')].request_id");
-        return ids.stream().map(Integer::longValue).toList();
+        return ids.stream().map(Long::parseLong).toList();
     }
 }

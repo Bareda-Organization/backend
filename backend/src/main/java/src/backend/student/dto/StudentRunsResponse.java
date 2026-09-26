@@ -6,9 +6,10 @@ import java.util.List;
 /**
  * 자녀·본인 당일 회차 목록(API_SPEC §3.5, P-04 · S-01).
  *
- * <p>{@code runId} 는 문서 표기가 {@code string} 이지만 순수 식별자로 {@code Long} 을 쓴다 —
- * {@code BoardingIntentToggleResponse.changeRequestId} 가 이미 같은 어긋남에 같은 판단을 내렸다
- * (문서 예시의 접두 문자열은 표기 관례일 뿐, 이 저장소의 식별자 응답 관례는 항상 순수 {@code Long}).
+ * <p>{@code runId} 필드 타입은 자바 코드에서 {@code Long} 그대로다 — JSON 으로는
+ * {@link src.backend.global.config.IdentifierJsonConfig} 가 문자열로 감싸 내보낸다(API_SPEC §1.1,
+ * Ruling 332). 예전에는 이 필드를 순수 {@code Long} 으로 노출하는 것이 관례였으나 그 판단은
+ * Ruling 332 로 뒤집혔다.
  *
  * <p>{@code riding}·{@code changeQuotaLeft} 는 그 회차에 {@code boarding_intent} 행이 아직 없으면
  * 기본값(탑승 ON·한도 미사용, {@link src.backend.request.entity.BoardingIntent#forRun} 의 초기값과

@@ -225,10 +225,10 @@ class StaffScheduleControllerTest {
 
         Integer ownedByOther = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM schedule WHERE academy_id <> ?", Integer.class, ACADEMY_A_ID);
-        assertThat(JsonPath.<java.util.List<Integer>>read(bodyOfA, "$.data.items[*].id"))
+        assertThat(JsonPath.<java.util.List<String>>read(bodyOfA, "$.data.items[*].id"))
                 .as("학원 A 목록에 타 학원 스케줄 %d 건 중 하나라도 섞이면 안 된다", ownedByOther)
                 .allSatisfy(id -> assertThat(jdbcTemplate.queryForObject(
-                        "SELECT academy_id FROM schedule WHERE id = ?", Long.class, id.longValue()))
+                        "SELECT academy_id FROM schedule WHERE id = ?", Long.class, Long.parseLong(id)))
                         .isEqualTo(ACADEMY_A_ID));
     }
 
@@ -263,7 +263,7 @@ class StaffScheduleControllerTest {
         MvcResult result = 등록한다(token, busId, weekday, direction, departTime)
                 .andExpect(status().isCreated())
                 .andReturn();
-        return ((Number) JsonPath.read(본문(result), "$.data.id")).longValue();
+        return Long.parseLong(JsonPath.read(본문(result), "$.data.id"));
     }
 
     private ResultActions 수정한다(String token, long scheduleId, String body) throws Exception {

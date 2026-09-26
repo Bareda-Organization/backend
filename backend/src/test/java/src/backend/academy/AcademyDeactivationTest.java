@@ -88,7 +88,7 @@ class AcademyDeactivationTest {
                         .content("{\"name\": \"%s\", \"region\": \"울산\"}".formatted(ACADEMY_NAME)))
                 .andExpect(status().isCreated())
                 .andReturn();
-        academyId = ((Number) JsonPath.read(본문(학원), "$.data.academy_id")).longValue();
+        academyId = Long.parseLong(JsonPath.read(본문(학원), "$.data.academy_id"));
 
         가입한다("staff", STAFF_LOGIN_ID, "010-0000-2003");
         mockMvc.perform(post("/api/v1/admin/staff-signup-requests/" + 관계자_요청_식별자(adminToken) + "/decide")
@@ -107,7 +107,7 @@ class AcademyDeactivationTest {
                         .content("{\"name\": \"재직기사\", \"phone\": \"010-0000-2001\", \"role\": \"driver\"}"))
                 .andExpect(status().isCreated())
                 .andReturn();
-        long managerId = ((Number) JsonPath.read(본문(매니저), "$.data.id")).longValue();
+        long managerId = Long.parseLong(JsonPath.read(본문(매니저), "$.data.id"));
 
         가입한다("driver", DRIVER_LOGIN_ID, "010-0000-2001");
         mockMvc.perform(post("/api/v1/staff/signup-requests/" + 기사_요청_식별자(staffToken) + "/decide")
@@ -147,11 +147,11 @@ class AcademyDeactivationTest {
                         .header("Authorization", adminToken))
                 .andExpect(status().isOk())
                 .andReturn();
-        List<Integer> ids = JsonPath.read(본문(result),
+        List<String> ids = JsonPath.read(본문(result),
                 "$.data.items[?(@.academy.id == '%d')].request_id".formatted(academyId));
         assertThat(ids)
                 .as("등록한 학원의 관계자 요청이 메인 관리자 큐에 1건 떠야 픽스처가 성립한다").hasSize(1);
-        return ids.get(0).longValue();
+        return Long.parseLong(ids.get(0));
     }
 
     private long 기사_요청_식별자(String staffToken) throws Exception {
@@ -159,10 +159,10 @@ class AcademyDeactivationTest {
                         .header("Authorization", staffToken))
                 .andExpect(status().isOk())
                 .andReturn();
-        List<Integer> ids = JsonPath.read(본문(result), "$.data.items[*].request_id");
+        List<String> ids = JsonPath.read(본문(result), "$.data.items[*].request_id");
         assertThat(ids)
                 .as("이 학원의 승인 큐에는 기사 요청 1건만 있어야 한다").hasSize(1);
-        return ids.get(0).longValue();
+        return Long.parseLong(ids.get(0));
     }
 
     private String 본문(MvcResult result) throws Exception {

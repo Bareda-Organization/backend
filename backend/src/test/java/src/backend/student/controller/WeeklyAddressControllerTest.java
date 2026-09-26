@@ -257,7 +257,7 @@ class WeeklyAddressControllerTest {
 
         Long stopId = 승하차지(ACADEMY_B_STUDENT_ID, "sun", "to_academy");
         assertThat(stopId).isNotNull();
-        assertThat(JsonPath.<Number>read(본문(result), "$.data.entries[0].stop_id").longValue()).isEqualTo(stopId);
+        assertThat(Long.valueOf(JsonPath.<String>read(본문(result), "$.data.entries[0].stop_id"))).isEqualTo(stopId);
         assertThat(jdbcTemplate.queryForObject("SELECT academy_id FROM stop WHERE id = ?", Long.class, stopId))
                 .isEqualTo(ACADEMY_B);
     }

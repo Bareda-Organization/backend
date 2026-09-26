@@ -589,7 +589,7 @@ class StaffRunAssignmentControllerTest {
                         .formatted(busId, SERVICE_DATE, departTime)))
                 .andExpect(status().isCreated())
                 .andReturn();
-        return ((Number) JsonPath.read(본문(result), "$.data.id")).longValue();
+        return Long.parseLong(JsonPath.read(본문(result), "$.data.id"));
     }
 
     /**
@@ -607,7 +607,7 @@ class StaffRunAssignmentControllerTest {
                         .formatted(busId, SERVICE_DATE, departTime, estDurationMin)))
                 .andExpect(status().isCreated())
                 .andReturn();
-        return ((Number) JsonPath.read(본문(result), "$.data.id")).longValue();
+        return Long.parseLong(JsonPath.read(본문(result), "$.data.id"));
     }
 
     private ResultActions 배치한다(String token, long runId, Long driverId, Long escortId) throws Exception {

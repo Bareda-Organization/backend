@@ -357,7 +357,7 @@ class StaffDashboardControllerTest {
                 .perform(get("/api/v1/staff/dashboard").header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andReturn();
-        Long dashboardRunId = ((Number) JsonPath.read(본문(dashboard), "$.data.runs[0].run_id")).longValue();
+        Long dashboardRunId = Long.parseLong(JsonPath.read(본문(dashboard), "$.data.runs[0].run_id"));
         assertThat(dashboardRunId).isEqualTo(runId);
 
         mockMvc.perform(get("/api/v1/staff/runs/" + dashboardRunId + "/roster").header("Authorization",
@@ -527,10 +527,10 @@ class StaffDashboardControllerTest {
                 .perform(get("/api/v1/staff/dashboard").header("Authorization", 토큰(staffAccountId, myAcademyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andReturn();
-        // JsonPath 는 숫자를 기본적으로 Integer 로 읽어 Long 인 myRunId·otherRunId 와 equals 가
-        // 어긋난다(AssertionError 로 나타남) — Number 로 받아 longValue() 로 맞춘다.
-        List<Number> rawRunIds = JsonPath.read(본문(result), "$.data.runs[*].run_id");
-        List<Long> runIds = rawRunIds.stream().map(Number::longValue).toList();
+        // run_id 는 문자열로 나간다(API_SPEC §1.1, Ruling 332) — Long 인 myRunId·otherRunId 와
+        // 비교하려면 파싱해서 맞춘다.
+        List<String> rawRunIds = JsonPath.read(본문(result), "$.data.runs[*].run_id");
+        List<Long> runIds = rawRunIds.stream().map(Long::parseLong).toList();
         assertThat(runIds).contains(myRunId).doesNotContain(otherRunId);
 
         mockMvc.perform(get("/api/v1/staff/runs/" + otherRunId + "/roster").header("Authorization",

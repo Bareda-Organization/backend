@@ -188,7 +188,7 @@ class StaffEmploymentLoginTest {
                         .content("{\"name\": \"P3T3재직학원%s\", \"region\": \"서울\"}".formatted(loginId)))
                 .andExpect(status().isCreated())
                 .andReturn();
-        long academyId = ((Number) JsonPath.read(본문(학원), "$.data.academy_id")).longValue();
+        long academyId = Long.parseLong(JsonPath.read(본문(학원), "$.data.academy_id"));
 
         mockMvc.perform(post("/api/v1/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -202,7 +202,7 @@ class StaffEmploymentLoginTest {
                         .header("Authorization", adminToken))
                 .andExpect(status().isOk())
                 .andReturn();
-        List<Integer> ids = JsonPath.read(본문(큐),
+        List<String> ids = JsonPath.read(본문(큐),
                 "$.data.items[?(@.academy.id == '%d')].request_id".formatted(academyId));
         assertThat(ids).as("등록한 학원의 관계자 요청이 승인 큐에 1건 떠야 픽스처가 성립한다").hasSize(1);
 

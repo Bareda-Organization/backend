@@ -173,8 +173,8 @@ class OperationSetupFlowTest {
         assertThat(내_회차)
                 .as("등록한 스케줄에서 오늘의 회차가 나와야 ⑤와 ⑨가 이어진 것이다")
                 .hasSize(1);
-        long runId = ((Number) 내_회차.get(0).get("id")).longValue();
-        assertThat(((Number) 내_회차.get(0).get("bus_id")).longValue())
+        long runId = Long.parseLong((String) 내_회차.get(0).get("id"));
+        assertThat(Long.parseLong((String) 내_회차.get(0).get("bus_id")))
                 .as("회차가 ③에서 등록한 차량을 물려받아야 스케줄이 실제로 그 차량을 쓴 것이다")
                 .isEqualTo(busId);
 
@@ -210,7 +210,7 @@ class OperationSetupFlowTest {
                                 """))
                 .andExpect(status().isCreated())
                 .andReturn();
-        return ((Number) JsonPath.read(본문(result), "$.data.id")).longValue();
+        return Long.parseLong(JsonPath.read(본문(result), "$.data.id"));
     }
 
     /** 근무 시간은 오늘 요일의 출발 시각을 덮는 구간으로 준다 — MGR-06 경고 없이 배치되는 쪽이다. */
@@ -224,7 +224,7 @@ class OperationSetupFlowTest {
                                 """.formatted(오늘_요일)))
                 .andExpect(status().isCreated())
                 .andReturn();
-        return ((Number) JsonPath.read(본문(result), "$.data.id")).longValue();
+        return Long.parseLong(JsonPath.read(본문(result), "$.data.id"));
     }
 
     private long 스케줄을_등록한다(String staffToken, long busId, String 오늘_요일) throws Exception {
@@ -238,7 +238,7 @@ class OperationSetupFlowTest {
                                 """.formatted(busId, 오늘_요일, DEPART_TIME)))
                 .andExpect(status().isCreated())
                 .andReturn();
-        return ((Number) JsonPath.read(본문(result), "$.data.id")).longValue();
+        return Long.parseLong(JsonPath.read(본문(result), "$.data.id"));
     }
 
     // ── 단언 ──────────────────────────────────────────────────────────────
@@ -321,10 +321,10 @@ class OperationSetupFlowTest {
                 .andReturn();
         String name = jdbcTemplate.queryForObject(
                 "SELECT name FROM account WHERE login_id = ?", String.class, loginId);
-        List<Integer> ids = JsonPath.read(본문(result),
+        List<String> ids = JsonPath.read(본문(result),
                 "$.data.items[?(@.name == '%s')].request_id".formatted(name));
         assertThat(ids).as("관계자 큐에 %s 의 요청이 정확히 1건 떠야 한다", loginId).hasSize(1);
-        return ids.get(0).longValue();
+        return Long.parseLong(ids.get(0));
     }
 
     private MockMultipartFile 데이터_파트(String json) {

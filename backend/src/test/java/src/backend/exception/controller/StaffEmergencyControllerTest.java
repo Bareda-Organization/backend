@@ -453,8 +453,8 @@ class StaffEmergencyControllerTest {
     }
 
     private List<Long> id목록(String body) {
-        List<Number> ids = JsonPath.read(body, "$.data.items[*].emergency_id");
-        return ids.stream().map(Number::longValue).toList();
+        List<String> ids = JsonPath.read(body, "$.data.items[*].emergency_id");
+        return ids.stream().map(Long::parseLong).toList();
     }
 
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────

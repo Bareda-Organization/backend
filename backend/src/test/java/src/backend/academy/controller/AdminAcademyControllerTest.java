@@ -93,7 +93,7 @@ class AdminAcademyControllerTest {
                         .content(등록_본문("P3T1경고학원", "대구")))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.warnings[0]").value("DUPLICATE_NAME_REGION"))
-                .andExpect(jsonPath("$.data.academy_id").isNumber());
+                .andExpect(jsonPath("$.data.academy_id").isString());
     }
 
     /** 처음 등록에는 경고가 붙지 않는다 — 붙는다면 위 단언은 중복 판정이 아니라 상수를 검사한 것이 된다. */
@@ -388,7 +388,7 @@ class AdminAcademyControllerTest {
     }
 
     private long 등록하고_식별자를_받는다(String name, String region) throws Exception {
-        return ((Number) JsonPath.read(등록한다(name, region), "$.data.academy_id")).longValue();
+        return Long.parseLong(JsonPath.read(등록한다(name, region), "$.data.academy_id"));
     }
 
     private void 비활성화한다(long academyId) throws Exception {
@@ -414,7 +414,7 @@ class AdminAcademyControllerTest {
                         .param("q", code))
                 .andExpect(status().isOk())
                 .andReturn();
-        return ((Number) JsonPath.read(본문(result), "$.data.items[0].id")).longValue();
+        return Long.parseLong(JsonPath.read(본문(result), "$.data.items[0].id"));
     }
 
     /** 응답 본문을 UTF-8 로 읽는다 — 기본 인코딩으로 읽으면 한글 필드가 깨져 대조가 어긋난다. */

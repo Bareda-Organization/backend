@@ -380,7 +380,7 @@ class StaffManagerControllerTest {
         assertThat(JsonPath.<Integer>read(첫_페이지, "$.data.total_count"))
                 .as("total_count 는 한 페이지 건수가 아니라 전체 행 수다").isGreaterThan(PAGE_SIZE);
         assertThat(JsonPath.<Boolean>read(첫_페이지, "$.data.has_next")).isTrue();
-        assertThat(JsonPath.<List<Integer>>read(둘째_페이지, "$.data.items[*].id"))
+        assertThat(JsonPath.<List<String>>read(둘째_페이지, "$.data.items[*].id"))
                 .as("다음 페이지가 앞 페이지와 겹치면 뒤쪽 매니저에 닿을 수단이 부재하다")
                 .doesNotContainAnyElementsOf(JsonPath.read(첫_페이지, "$.data.items[*].id"));
     }
@@ -517,7 +517,7 @@ class StaffManagerControllerTest {
                 "{\"name\":\"%s\",\"phone\":\"%s\",\"role\":\"driver\"}".formatted(name, phone))
                 .andExpect(status().isCreated())
                 .andReturn();
-        return ((Number) JsonPath.read(본문(result), "$.data.id")).longValue();
+        return Long.parseLong(JsonPath.read(본문(result), "$.data.id"));
     }
 
     private long 등록된_차량_id(String token, String busNo, String plateNo, int capacity) throws Exception {
@@ -528,7 +528,7 @@ class StaffManagerControllerTest {
                         .formatted(busNo, plateNo, capacity)))
                 .andExpect(status().isCreated())
                 .andReturn();
-        return ((Number) JsonPath.read(본문(result), "$.data.id")).longValue();
+        return Long.parseLong(JsonPath.read(본문(result), "$.data.id"));
     }
 
     private String 페이지_본문(String token, int page, int size) throws Exception {

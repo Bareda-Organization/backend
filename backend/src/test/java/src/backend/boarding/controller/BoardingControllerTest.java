@@ -239,7 +239,7 @@ class BoardingControllerTest {
                         .content(statusUpdateBody("no_show", "manual", UUID.randomUUID(), now)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("no_show"))
-                .andExpect(jsonPath("$.data.no_show_case.case_id").isNumber());
+                .andExpect(jsonPath("$.data.no_show_case.case_id").isString());
 
         entityManager.flush();
         assertThat(jdbcTemplate.queryForObject("SELECT status FROM run_rider WHERE id = ?", String.class, riderId))

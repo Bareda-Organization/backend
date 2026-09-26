@@ -178,9 +178,9 @@ class StaffRouteControllerTest {
         String body = 본문(mockMvc.perform(get("/api/v1/staff/routes/" + routeId)
                 .header("Authorization", 관계자A_토큰())).andExpect(status().isOk()).andReturn());
 
-        assertThat(JsonPath.<List<Integer>>read(body, "$.data.stops[*].stop_id"))
+        assertThat(JsonPath.<List<String>>read(body, "$.data.stops[*].stop_id"))
                 .as("보낸 차례가 그대로 나와야 한다 — 정렬을 빼면 DB 가 돌려주는 임의 순서가 실린다")
-                .containsExactly(3, 1, 4);
+                .containsExactly("3", "1", "4");
         assertThat(JsonPath.<List<Integer>>read(body, "$.data.stops[*].seq")).containsExactly(1, 2, 3);
     }
 
@@ -294,9 +294,9 @@ class StaffRouteControllerTest {
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM route WHERE academy_id <> ?",
                 Integer.class, ACADEMY_A_ID))
                 .as("타 학원 편성이 실재해야 격리가 무언가를 격리한 것이 된다").isPositive();
-        assertThat(JsonPath.<List<Integer>>read(bodyOfA, "$.data.items[*].id"))
+        assertThat(JsonPath.<List<String>>read(bodyOfA, "$.data.items[*].id"))
                 .allSatisfy(id -> assertThat(jdbcTemplate.queryForObject(
-                        "SELECT academy_id FROM route WHERE id = ?", Long.class, id.longValue()))
+                        "SELECT academy_id FROM route WHERE id = ?", Long.class, Long.parseLong(id)))
                         .isEqualTo(ACADEMY_A_ID));
     }
 
@@ -317,9 +317,9 @@ class StaffRouteControllerTest {
         long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "fri", "from_academy", List.of(4L, 3L, 2L, 1L));
 
         String body = 본문(최적화한다(관계자A_토큰(), routeId).andExpect(status().isOk()).andReturn());
-        assertThat(JsonPath.<List<Integer>>read(body, "$.data.stops[*].stop_id"))
+        assertThat(JsonPath.<List<String>>read(body, "$.data.stops[*].stop_id"))
                 .as("응답이 재배열 결과를 그대로 실어야 관리자가 무엇이 달라졌는지 본다")
-                .containsExactly(1, 2, 3, 4);
+                .containsExactly("1", "2", "3", "4");
 
         entityManager.flush();
         assertThat(정차_순서(routeId))
@@ -374,7 +374,7 @@ class StaffRouteControllerTest {
         assertThat((boolean) JsonPath.read(끝쪽, "$.data.has_next"))
                 .as("마지막 쪽인데 다음이 있다고 답하면 클라이언트가 빈 쪽을 한 번 더 요청한다")
                 .isFalse();
-        assertThat(JsonPath.<List<Integer>>read(첫쪽, "$.data.items[*].id"))
+        assertThat(JsonPath.<List<String>>read(첫쪽, "$.data.items[*].id"))
                 .as("두 쪽이 같은 항목을 담으면 페이지 위치가 반영되지 않은 것이다")
                 .doesNotContainAnyElementsOf(JsonPath.read(끝쪽, "$.data.items[*].id"));
     }
@@ -460,7 +460,7 @@ class StaffRouteControllerTest {
         assertThat((int) JsonPath.read(body, "$.data.road_path.length()"))
                 .as("정차지가 2곳이면 학원 기준점까지 더해 최소 2점(구간 1개)이 나와야 한다")
                 .isPositive();
-        assertThat(JsonPath.<List<Integer>>read(body, "$.data.stops[*].stop_id")).containsExactly(1, 2);
+        assertThat(JsonPath.<List<String>>read(body, "$.data.stops[*].stop_id")).containsExactly("1", "2");
         assertThat((boolean) JsonPath.read(body, "$.data.fallback_used")).isFalse();
     }
 
@@ -492,9 +492,9 @@ class StaffRouteControllerTest {
 
         String body = 본문(경로를_읽는다(관계자A_토큰(), routeId).andExpect(status().isOk()).andReturn());
 
-        assertThat(JsonPath.<List<Integer>>read(body, "$.data.stops[*].stop_id"))
+        assertThat(JsonPath.<List<String>>read(body, "$.data.stops[*].stop_id"))
                 .as("존재하지 않는(=타 학원) 정차지는 목록에서 빠지고 500 대신 나머지만 남는다")
-                .containsExactly(1);
+                .containsExactly("1");
     }
 
     private ResultActions 경로를_읽는다(String token, long routeId) throws Exception {
@@ -774,7 +774,7 @@ class StaffRouteControllerTest {
         MvcResult result = 편성한다(token, busId, weekday, direction, stopIds)
                 .andExpect(status().isCreated())
                 .andReturn();
-        return ((Number) JsonPath.read(본문(result), "$.data.id")).longValue();
+        return Long.parseLong(JsonPath.read(본문(result), "$.data.id"));
     }
 
     private ResultActions 상세를_읽는다(String token, long routeId) throws Exception {

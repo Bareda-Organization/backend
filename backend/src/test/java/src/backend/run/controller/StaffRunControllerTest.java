@@ -203,10 +203,10 @@ class StaffRunControllerTest {
         long 그날 = 임시_추가된_회차_id(관계자A_토큰(), BUS_A_ID, SERVICE_DATE, "to_academy", "09:05");
         long 다른날 = 임시_추가된_회차_id(관계자A_토큰(), BUS_A_ID, OTHER_DATE, "to_academy", "09:05");
 
-        List<Integer> ids = JsonPath.read(목록_본문(관계자A_토큰(), SERVICE_DATE), "$.data[*].id");
+        List<String> ids = JsonPath.read(목록_본문(관계자A_토큰(), SERVICE_DATE), "$.data[*].id");
 
-        assertThat(ids).contains((int) 그날);
-        assertThat(ids).as("날짜 조건이 빠지면 오늘 화면에 다른 날 회차가 함께 뜬다").doesNotContain((int) 다른날);
+        assertThat(ids).contains(String.valueOf(그날));
+        assertThat(ids).as("날짜 조건이 빠지면 오늘 화면에 다른 날 회차가 함께 뜬다").doesNotContain(String.valueOf(다른날));
     }
 
     /** 목록은 소속 학원 것만 담는다 — 학원 조건이 빠져도 목록은 그럴듯하게 동작한다. */
@@ -215,10 +215,10 @@ class StaffRunControllerTest {
         long 우리 = 임시_추가된_회차_id(관계자A_토큰(), BUS_A_ID, SERVICE_DATE, "to_academy", "09:15");
         long 남의것 = 임시_추가된_회차_id(관계자B_토큰(), BUS_B_ID, SERVICE_DATE, "to_academy", "09:15");
 
-        List<Integer> ids = JsonPath.read(목록_본문(관계자A_토큰(), SERVICE_DATE), "$.data[*].id");
+        List<String> ids = JsonPath.read(목록_본문(관계자A_토큰(), SERVICE_DATE), "$.data[*].id");
 
-        assertThat(ids).contains((int) 우리);
-        assertThat(ids).as("타 학원 회차가 섞이면 격리가 샌 것이다").doesNotContain((int) 남의것);
+        assertThat(ids).contains(String.valueOf(우리));
+        assertThat(ids).as("타 학원 회차가 섞이면 격리가 샌 것이다").doesNotContain(String.valueOf(남의것));
     }
 
     /**
@@ -242,7 +242,7 @@ class StaffRunControllerTest {
                 ACADEMY_A_ID, 오늘);
         assertThat(오늘_회차_수).as("오늘 회차가 없으면 아래 단언은 아무것도 검사하지 않는다").isPositive();
 
-        List<Integer> ids = JsonPath.read(목록_본문(관계자A_토큰(), null), "$.data[*].id");
+        List<String> ids = JsonPath.read(목록_본문(관계자A_토큰(), null), "$.data[*].id");
 
         assertThat(ids).hasSize(오늘_회차_수);
     }
@@ -299,7 +299,7 @@ class StaffRunControllerTest {
         MvcResult result = 임시_추가한다(token, busId, serviceDate, direction, departTime)
                 .andExpect(status().isCreated())
                 .andReturn();
-        return ((Number) JsonPath.read(본문(result), "$.data.id")).longValue();
+        return Long.parseLong(JsonPath.read(본문(result), "$.data.id"));
     }
 
     private ResultActions 취소한다(String token, long runId) throws Exception {

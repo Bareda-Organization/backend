@@ -170,7 +170,7 @@ class AdminRunForceConfirmControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.run_id").value(runId))
                 .andExpect(jsonPath("$.data.fallback_used").value(true))
-                .andExpect(jsonPath("$.data.route_version_id").isNumber())
+                .andExpect(jsonPath("$.data.route_version_id").isString())
                 .andExpect(jsonPath("$.data.confirmed_at").isNotEmpty());
 
         동기화한다();
