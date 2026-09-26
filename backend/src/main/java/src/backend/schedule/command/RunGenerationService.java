@@ -8,10 +8,10 @@ import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.run.command.RunCommandService;
-import src.backend.run.domain.RunWeekday;
 import src.backend.run.entity.RunDraft;
 import src.backend.schedule.entity.Schedule;
 import src.backend.schedule.repository.ScheduleRepository;
@@ -45,7 +45,7 @@ public class RunGenerationService {
      * 운영 조작이 불가능해진다. 배치는 {@code DailyRunGenerator} 가 오늘 날짜로 부른다.
      */
     public int generate(LocalDate serviceDate) {
-        List<Schedule> schedules = scheduleRepository.findAllByWeekdayAndActiveIsTrue(RunWeekday.of(serviceDate));
+        List<Schedule> schedules = scheduleRepository.findAllByWeekdayAndActiveIsTrue(Weekday.of(serviceDate));
         int created = 0;
         RuntimeException firstFailure = null;
         for (Schedule schedule : schedules) {

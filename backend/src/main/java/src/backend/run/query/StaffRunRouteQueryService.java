@@ -37,7 +37,6 @@ import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.run.domain.RunRouteEndpoints;
-import src.backend.run.domain.RunWeekday;
 import src.backend.run.dto.RunRouteResponse;
 import src.backend.run.dto.RunRouteResponse.RouteStop;
 import src.backend.run.dto.StaffRunRouteResponse;
@@ -147,7 +146,7 @@ public class StaffRunRouteQueryService {
             return java.util.Optional.empty();
         }
 
-        Weekday weekday = RunWeekday.of(run.getServiceDate());
+        Weekday weekday = Weekday.of(run.getServiceDate());
         Route route = routeRepository
                 .findByAcademyIdAndBusIdAndWeekdayAndDirection(run.getAcademyId(), run.getBusId(), weekday,
                         run.getDirection())

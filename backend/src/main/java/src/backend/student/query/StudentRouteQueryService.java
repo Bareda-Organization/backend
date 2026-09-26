@@ -5,7 +5,6 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -132,7 +131,7 @@ public class StudentRouteQueryService {
     /** idle 은 명단이 없어 그날 고정 노선의 정차지로, 확정 후는 실제 명단({@code run_rider})으로 찾는다. */
     private Long myStopId(Run run, Long studentId) {
         if (run.getStatus() == RunStatus.IDLE) {
-            Weekday weekday = weekdayOf(run.getServiceDate());
+            Weekday weekday = Weekday.of(run.getServiceDate());
             return weeklyAddressRepository
                     .findDailyStops(run.getAcademyId(), List.of(studentId), weekday, run.getDirection()).stream()
                     .findFirst().map(StudentDailyStop::getStopId)
@@ -145,7 +144,7 @@ public class StudentRouteQueryService {
     /** 확정 전은 고정 노선, 확정 후는 확정 노선(현재 버전)의 정차지 순서를 그대로 받는다(routing 모듈 진입점). */
     private List<RouteStopReader.Entry> stopEntries(Run run, Long academyId) {
         if (run.getStatus() == RunStatus.IDLE) {
-            return routeStopReader.fixedRouteStops(academyId, run.getBusId(), weekdayOf(run.getServiceDate()),
+            return routeStopReader.fixedRouteStops(academyId, run.getBusId(), Weekday.of(run.getServiceDate()),
                     run.getDirection());
         }
         return routeStopReader.confirmedRouteStops(run.getId(), academyId);
@@ -211,7 +210,4 @@ public class StudentRouteQueryService {
                 .orElse(new StudentRouteResponse.EscortContact(null, null));
     }
 
-    private Weekday weekdayOf(LocalDate serviceDate) {
-        return Weekday.valueOf(serviceDate.getDayOfWeek().name().substring(0, 3).toUpperCase(Locale.ROOT));
-    }
 }

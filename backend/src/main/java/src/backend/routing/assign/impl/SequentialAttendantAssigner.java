@@ -5,7 +5,6 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 import org.springframework.stereotype.Component;
 
@@ -99,8 +98,7 @@ public class SequentialAttendantAssigner implements AttendantAssigner {
     }
 
     private Weekday weekdayOf(OffsetDateTime time) {
-        return Weekday.valueOf(time.atZoneSameInstant(clock.getZone()).getDayOfWeek()
-                .name().substring(0, 3).toUpperCase(Locale.ROOT));
+        return Weekday.of(time.atZoneSameInstant(clock.getZone()).toLocalDate());
     }
 
     private LocalTime timeOf(OffsetDateTime time) {

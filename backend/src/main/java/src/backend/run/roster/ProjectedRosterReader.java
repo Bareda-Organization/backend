@@ -22,7 +22,6 @@ import src.backend.request.repository.ChangeRequestRepository;
 import src.backend.routing.entity.RouteStop;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
-import src.backend.run.domain.RunWeekday;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunForcedAddition;
 import src.backend.run.entity.RunTransfer;
@@ -63,7 +62,7 @@ public class ProjectedRosterReader {
 
     /** 고정 노선을 찾아 읽는다 — 노선이 없으면 요일별 주소 몫은 0명이다(강제 추가·이동만 남는다). */
     public ProjectedRoster read(Run run) {
-        Weekday weekday = RunWeekday.of(run.getServiceDate());
+        Weekday weekday = Weekday.of(run.getServiceDate());
         List<Long> stopIds = routeRepository
                 .findByAcademyIdAndBusIdAndWeekdayAndDirection(run.getAcademyId(), run.getBusId(), weekday,
                         run.getDirection())

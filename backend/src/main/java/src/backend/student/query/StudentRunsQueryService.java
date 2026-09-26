@@ -95,7 +95,7 @@ public class StudentRunsQueryService {
 
     private RunContext toContext(Run run, Long studentId) {
         if (run.getStatus() == RunStatus.IDLE) {
-            Weekday weekday = weekdayOf(run.getServiceDate());
+            Weekday weekday = Weekday.of(run.getServiceDate());
             Long stopId = weeklyAddressRepository
                     .findDailyStops(run.getAcademyId(), List.of(studentId), weekday, run.getDirection()).stream()
                     .findFirst().map(StudentDailyStop::getStopId)
@@ -126,10 +126,6 @@ public class StudentRunsQueryService {
         return new StudentRunsResponse.Item(run.getId(), nameOf(run.getDirection()), busNo, run.getDepartTime(),
                 nameOf(run.getStatus()), run.getStatus() != RunStatus.IDLE, riding, riderStatus, stopDto,
                 changeQuotaLeft);
-    }
-
-    private Weekday weekdayOf(LocalDate serviceDate) {
-        return Weekday.valueOf(serviceDate.getDayOfWeek().name().substring(0, 3).toUpperCase(Locale.ROOT));
     }
 
     private static String statusNameOf(RiderStatus status) {

@@ -1,10 +1,8 @@
 package src.backend.request.command;
 
 import java.time.Clock;
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Locale;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -232,7 +230,7 @@ public class ChangeRequestDecisionService {
      */
     private void assertFingerprintFresh(ChangeRequest cr, Run run, Long academyId, List<RunRider> riders,
             String cachedFingerprint) {
-        Weekday weekday = weekdayOf(run.getServiceDate());
+        Weekday weekday = Weekday.of(run.getServiceDate());
         Academy academy = academyRepository.findById(academyId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACADEMY_NOT_FOUND));
         if (!academy.hasCoordinates()) {
@@ -251,11 +249,6 @@ public class ChangeRequestDecisionService {
         if (!freshFingerprint.equals(cachedFingerprint)) {
             throw new BusinessException(ErrorCode.PREVIEW_STALE);
         }
-    }
-
-    /** 그 날짜의 요일 — {@code ApprovalQueryService.weekdayOf} 와 같은 계산(중복 헬퍼 관례). */
-    private Weekday weekdayOf(LocalDate serviceDate) {
-        return Weekday.valueOf(serviceDate.getDayOfWeek().name().substring(0, 3).toUpperCase(Locale.ROOT));
     }
 
 }
