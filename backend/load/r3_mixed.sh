@@ -36,6 +36,17 @@ echo "배치 대기 회차 ${IDLE_BEFORE}건 중 ${BATCH_N}건을 도래시킨�
 cpu_ns() { curl -sf "$PROM" | awk '$0 ~ "^process_cpu_time_ns_total[ {]" {print $NF}'; }
 metric() { curl -sf "$PROM" | awk -v n="$1" '$0 ~ "^"n"[ {]" {s+=$NF; k=1} END {if(!k) print 0; else printf "%.6g", s}'; }
 
+# k6 → Prometheus 원격 쓰기, 기본 꺼짐(K6_PROM_RW=1 로 켠다) — r1_round.sh 와 같은 스위치·같은 이유
+# (문자열 + word-splitting, 빈 배열 + set -u 조합이 bash 3.2 에서 죽는 문제 회피).
+# 세션·위치 두 k6 실행이 겹치므로 testid 태그를 따로 붙여 대시보드에서 구분한다.
+K6_OUT_ARGS_SESSIONS=""; K6_OUT_ARGS_POSITION=""
+if [ "${K6_PROM_RW:-0}" = "1" ]; then
+    export K6_PROMETHEUS_RW_SERVER_URL="${K6_PROMETHEUS_RW_SERVER_URL:-http://localhost:9090/api/v1/write}"
+    export K6_PROMETHEUS_RW_TREND_STATS="${K6_PROMETHEUS_RW_TREND_STATS:-p(95),p(99),max}"
+    K6_OUT_ARGS_SESSIONS="-o experimental-prometheus-rw --tag testid=${TAG}_sessions"
+    K6_OUT_ARGS_POSITION="-o experimental-prometheus-rw --tag testid=${TAG}_position"
+fi
+
 "$DIR/sampler.sh" "$TAG" "$TOTAL" > /dev/null &
 SAMP=$!
 CPU0="$(cpu_ns)"; T0="$(date +%s)"
@@ -45,7 +56,7 @@ THR0="$(metric schoolbus_routing_stub_load_throttled_total)"; TMO0="$(metric sch
 
 cd "$DIR/k6"
 # ③ 세션 먼저 올린다 — 방송을 받을 대상이 붙어 있어야 위치·배치의 팬아웃 비용이 실제로 발생한다.
-k6 run -e SCENARIO3_TARGET_VUS="$SESSIONS" -e SCENARIO3_RAMP_SEC="$RAMP" -e SCENARIO3_HOLD_SEC="$HOLD" \
+k6 run $K6_OUT_ARGS_SESSIONS -e SCENARIO3_TARGET_VUS="$SESSIONS" -e SCENARIO3_RAMP_SEC="$RAMP" -e SCENARIO3_HOLD_SEC="$HOLD" \
     --summary-export="$DIR/results/${TAG}_sessions.json" scenario3_admin_fanout.js \
     > "$DIR/results/${TAG}_sessions.log" 2>&1 &
 K6_S=$!
@@ -54,7 +65,7 @@ sleep $((RAMP + 15))
 echo "t+$((RAMP + 15))s 위치 부하 시작 (연결 $(metric tomcat_connections_current_connections)건)"
 
 # ④ 위치 부하.
-k6 run -e SCENARIO2_CSV="./${TAG}_runs.csv" -e SCENARIO2_DURATION_SEC="$POS_DUR" \
+k6 run $K6_OUT_ARGS_POSITION -e SCENARIO2_CSV="./${TAG}_runs.csv" -e SCENARIO2_DURATION_SEC="$POS_DUR" \
     -e SCENARIO2_INTERVAL_SEC=5 -e SCENARIO2_OBSERVERS=2 -e SCENARIO2_JITTER=true \
     --summary-export="$DIR/results/${TAG}_position.json" scenario2_position.js \
     > "$DIR/results/${TAG}_position.log" 2>&1 &

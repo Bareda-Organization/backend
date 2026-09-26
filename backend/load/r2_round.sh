@@ -17,6 +17,15 @@ docker exec -i "$PG_CONTAINER" psql -U schoolbus -d schoolbus_load -q -v n="$N" 
     < "$DIR/sql/scenario2_prep.sql" | grep -v '^$' > "$DIR/k6/scenario2_runs_n${N}.csv"
 echo "심은 회차 수: $(wc -l < "$DIR/k6/scenario2_runs_n${N}.csv")"
 
+# k6 → Prometheus 원격 쓰기, 기본 꺼짐(K6_PROM_RW=1 로 켠다) — r1_round.sh 와 같은 스위치·같은 이유
+# (문자열 + word-splitting, 빈 배열 + set -u 조합이 bash 3.2 에서 죽는 문제 회피).
+K6_OUT_ARGS=""
+if [ "${K6_PROM_RW:-0}" = "1" ]; then
+    export K6_PROMETHEUS_RW_SERVER_URL="${K6_PROMETHEUS_RW_SERVER_URL:-http://localhost:9090/api/v1/write}"
+    export K6_PROMETHEUS_RW_TREND_STATS="${K6_PROMETHEUS_RW_TREND_STATS:-p(95),p(99),max}"
+    K6_OUT_ARGS="-o experimental-prometheus-rw --tag testid=r2_n${N}"
+fi
+
 "$DIR/snapshot.sh" "r2_n${N}_before" > /dev/null
 # 누적 CPU 시간 — 1초 표본은 5초 주기의 버스트를 놓쳐 최대값이 회차마다 들쭉날쭉하다(같은 N=1200
 # 에서 0.19 ~ 0.38). 누적값의 차는 표본 시점과 무관해 "평균 몇 코어를 썼나"를 흔들림 없이 준다.
@@ -31,7 +40,7 @@ SNAP_PID=$!
 
 cd "$DIR/k6"
 set +e
-k6 run -e SCENARIO2_CSV="./scenario2_runs_n${N}.csv" \
+k6 run $K6_OUT_ARGS -e SCENARIO2_CSV="./scenario2_runs_n${N}.csv" \
     -e SCENARIO2_DURATION_SEC="$DURATION" \
     -e SCENARIO2_INTERVAL_SEC="$INTERVAL" \
     -e SCENARIO2_OBSERVERS="$OBSERVERS" \
