@@ -3,9 +3,7 @@ package src.backend.exception.scheduler;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -13,10 +11,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.context.annotation.Import;
 
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
@@ -28,6 +24,7 @@ import src.backend.exception.repository.NoShowCaseRepository;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
+import testsupport.clock.FixedClock20320401Config;
 
 /**
  * 미승차 에스컬레이션 폴링({@link NoShowEscalationScheduler#escalateDueNoShowCases}) 수준의 검증
@@ -39,6 +36,7 @@ import src.backend.student.repository.StudentRepository;
  * 와 같은 근거). 뒷정리는 {@link NoShowEscalationFixtures#ACADEMY_NAME} 로 표시된 행을 직접 지운다.
  */
 @SpringBootTest
+@Import(FixedClock20320401Config.class)
 class NoShowEscalationSchedulerTest {
 
     @Autowired
@@ -81,17 +79,6 @@ class NoShowEscalationSchedulerTest {
 
     private OffsetDateTime now;
 
-    @TestConfiguration
-    static class FixedClockConfig {
-
-        private static final Instant FIXED = Instant.parse("2032-04-01T03:00:00Z"); // 2032-04-01 12:00 KST
-
-        @Bean
-        @Primary
-        Clock fixedClock() {
-            return Clock.fixed(FIXED, ZoneId.of("Asia/Seoul"));
-        }
-    }
 
     @BeforeEach
     void setUp() {

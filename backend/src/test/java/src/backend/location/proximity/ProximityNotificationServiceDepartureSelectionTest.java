@@ -24,7 +24,6 @@ import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
-import testsupport.redis.RedisTestContainerBase;
 
 /**
  * {@link ProximityNotificationService#judgeDeparture} 의 <b>선정과 거리 판정의 결합</b>(R17-T1b 공백
@@ -36,7 +35,7 @@ import testsupport.redis.RedisTestContainerBase;
  * 위치를 그때그때 대상이어야 할 정차지의 100m 밖에 두어 종단 간으로 확인한다.
  */
 @SpringBootTest
-class ProximityNotificationServiceDepartureSelectionTest extends RedisTestContainerBase {
+class ProximityNotificationServiceDepartureSelectionTest {
 
     /** 정차지 3곳을 서로 1km 이상 떨어뜨려 둔다 — 엉뚱한 정차지 좌표로 판정해도 우연히 통과하지 않게. */
     private static final String STOP_A_LAT = "37.500000";

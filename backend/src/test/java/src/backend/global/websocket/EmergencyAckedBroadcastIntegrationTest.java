@@ -59,14 +59,16 @@ import testsupport.redis.RedisTestContainerBase;
  * 이 시험이 만든 행은 커밋된 채로 남지만 {@link EmergencyFixtures} 가 매번 새 식별자를 쓰므로 이후
  * 실행과 충돌하지 않는다.
  *
- * <p>{@link RedisTestContainerBase} 를 상속한다 — 위치 캐시 자체는 이 시험의 관심사가 아니지만,
- * 발신(raise) 경로가 {@code RunPositionCache} 를 통해 실제 Redis 빈을 참조하므로 컨테이너 없이는
- * 앱 컨텍스트가 뜨지 않는다({@code EmergencyControllerTest} 와 같은 이유).
+ * <p>위치 캐시 자체는 이 시험의 관심사가 아니지만, 발신(raise) 경로가 {@code RunPositionCache} 를
+ * 통해 실제 Redis 빈을 참조하므로 컨테이너가 있어야 앱 컨텍스트가 뜬다 — 전역 장치({@link
+ * RedisTestContainerBase}·{@code RedisTestContainerContextCustomizerFactory})가 상속 여부와
+ * 무관하게 모든 {@code @SpringBootTest} 에 전용 컨테이너를 물려주므로 충족된다(BR-107 이후
+ * 상속은 걷어냄, {@code EmergencyControllerTest} 와 같은 이유).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
-class EmergencyAckedBroadcastIntegrationTest extends RedisTestContainerBase {
+class EmergencyAckedBroadcastIntegrationTest {
 
     private static final String RAISE = "/api/v1/runs/%d/emergency";
 

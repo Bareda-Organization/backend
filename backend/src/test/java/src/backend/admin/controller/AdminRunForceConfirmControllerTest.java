@@ -6,23 +6,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.annotation.Import;
 
 import jakarta.persistence.EntityManager;
 
@@ -42,6 +38,7 @@ import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 import src.backend.student.repository.WeeklyAddressRepository;
+import testsupport.clock.FixedClock20300401Config;
 
 /**
  * 강제 확정 콘솔 개입(API_SPEC §6.14, F3 S2 목표 11) — {@code POST
@@ -55,6 +52,7 @@ import src.backend.student.repository.WeeklyAddressRepository;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
+@Import(FixedClock20300401Config.class)
 class AdminRunForceConfirmControllerTest {
 
     private static final LocalDate SERVICE_DATE = LocalDate.of(2030, 4, 1); // 월요일
@@ -64,17 +62,6 @@ class AdminRunForceConfirmControllerTest {
     private static final String FORCE_CONFIRM = "/api/v1/admin/runs/%d/force-confirm";
 
     /** 고정 "현재 시각" — 2030-04-01 12:00 KST. {@code confirm_at} 을 이 값의 앞뒤로 둬 경과 여부를 가른다. */
-    @TestConfiguration
-    static class FixedClockConfig {
-
-        private static final Instant FIXED = Instant.parse("2030-04-01T03:00:00Z");
-
-        @Bean
-        @Primary
-        Clock fixedClock() {
-            return Clock.fixed(FIXED, ZoneId.of("Asia/Seoul"));
-        }
-    }
 
     @Autowired
     private MockMvc mockMvc;

@@ -9,9 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
-import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -20,10 +18,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -56,7 +51,8 @@ import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
-import testsupport.redis.RedisTestContainerBase;
+import testsupport.clock.FixedClock20300401Config;
+import org.springframework.context.annotation.Import;
 
 /**
  * §5.18 {@code GET /staff/runs/live} — Phase 13 T1 목표 6·7.
@@ -69,7 +65,8 @@ import testsupport.redis.RedisTestContainerBase;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-class StaffRunLiveControllerTest extends RedisTestContainerBase {
+@Import(FixedClock20300401Config.class)
+class StaffRunLiveControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -136,19 +133,6 @@ class StaffRunLiveControllerTest extends RedisTestContainerBase {
     @Autowired
     private ChangeRequestRepository changeRequestRepository;
 
-    @TestConfiguration
-    static class FixedClockConfig {
-
-        // DriverRunFixtures.confirmedRun·idleRun 이 serviceDate 를 2030-04-01 로 고정해 두므로
-        // (departTime 인자와 무관) 그 날짜와 맞춰야 한다 — 다른 날짜를 쓰면 조회가 항상 빈 목록이다.
-        private static final Instant FIXED = Instant.parse("2030-04-01T03:00:00Z");
-
-        @Bean
-        @Primary
-        Clock fixedClock() {
-            return Clock.fixed(FIXED, ZoneId.of("Asia/Seoul"));
-        }
-    }
 
     private final List<Long> academyIds = new ArrayList<>();
 

@@ -9,9 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Clock;
-import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -19,16 +17,14 @@ import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.annotation.Import;
 
 import com.jayway.jsonpath.JsonPath;
 
@@ -36,6 +32,7 @@ import src.backend.global.common.SeedFixtures;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
+import testsupport.clock.FixedClock20260826Config;
 
 /**
  * §3.1·§3.3·§3.4 자녀 연결 2단계와 자녀 목록 — P-02 · S-05 · ATT-03.
@@ -54,6 +51,7 @@ import src.backend.global.security.JwtTokenProvider;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
+@Import(FixedClock20260826Config.class)
 class ChildLinkControllerTest {
 
     private static final String CHILDREN = "/api/v1/me/students";
@@ -105,18 +103,6 @@ class ChildLinkControllerTest {
      * <p>고정하지 않으면 "만료된 코드는 거부된다" 는 단언이 <b>아무 때나 통과</b>한다 — 코드를 과거로
      * 밀어 넣어도 실제 만료 판정이 무엇을 기준으로 하는지 알 수단이 부재하기 때문이다.
      */
-    @TestConfiguration
-    static class FixedClockConfig {
-
-        /** 값 자체에 의미는 없다 — 고정돼 있다는 사실만이 검사 대상이다. */
-        private static final Instant FIXED = Instant.parse("2026-08-26T00:00:00Z");
-
-        @Bean
-        @Primary
-        Clock fixedClock() {
-            return Clock.fixed(FIXED, ZoneId.of("Asia/Seoul"));
-        }
-    }
 
     // ── ① 코드 생성 (S-05, §3.3) ─────────────────────────────────────────
 

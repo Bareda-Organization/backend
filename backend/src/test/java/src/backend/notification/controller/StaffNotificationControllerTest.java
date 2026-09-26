@@ -5,20 +5,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.annotation.Import;
 
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
@@ -28,6 +24,7 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.notification.entity.NotificationType;
 import src.backend.notification.repository.NotificationLogRepository;
+import testsupport.clock.FixedClock20300401Config;
 
 /**
  * 관계자 웹의 알림 로그 전수 조회 API(§5.17, Phase 12 T3 goal 10·11) — {@code type}·{@code date}·
@@ -42,6 +39,7 @@ import src.backend.notification.repository.NotificationLogRepository;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
+@Import(FixedClock20300401Config.class)
 class StaffNotificationControllerTest {
 
     @Autowired
@@ -65,17 +63,6 @@ class StaffNotificationControllerTest {
     @Autowired
     private NotificationLogRepository notificationLogRepository;
 
-    @TestConfiguration
-    static class FixedClockConfig {
-
-        private static final Instant FIXED = Instant.parse("2030-04-01T03:00:00Z"); // 2030-04-01 12:00 KST
-
-        @Bean
-        @Primary
-        Clock fixedClock() {
-            return Clock.fixed(FIXED, ZoneId.of("Asia/Seoul"));
-        }
-    }
 
     private StaffNotificationFixtures fixtures() {
         return new StaffNotificationFixtures(academyRepository, accountRepository, academyStaffRepository,

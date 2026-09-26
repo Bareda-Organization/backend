@@ -11,9 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Clock;
-import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -21,9 +19,8 @@ import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpMethod;
 import org.springframework.mock.web.MockMultipartFile;
@@ -39,6 +36,7 @@ import src.backend.global.common.SeedFixtures;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
+import testsupport.clock.FixedClock20260826Config;
 
 /**
  * §5.11 {@code /staff/students} — STU-01~04 · 07 · 08.
@@ -55,6 +53,7 @@ import src.backend.global.security.JwtTokenProvider;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
+@Import(FixedClock20260826Config.class)
 class StaffStudentControllerTest {
 
     private static final Long ACADEMY_A = Long.valueOf(SeedFixtures.ACADEMY_A_ID);
@@ -95,18 +94,6 @@ class StaffStudentControllerTest {
      * <p>{@code ClockConfig} 의 빈을 덮어쓰지 않고 {@link Primary} 로 하나 더 둔다 — 같은 이름으로
      * 덮으려면 빈 정의 덮어쓰기를 열어야 하고, 그것을 열면 이 클래스 밖의 사고까지 조용히 통과한다.
      */
-    @TestConfiguration
-    static class FixedClockConfig {
-
-        /** 값 자체에 의미는 없다 — 고정돼 있다는 사실만이 검사 대상이다. */
-        private static final Instant FIXED = Instant.parse("2026-08-26T00:00:00Z");
-
-        @Bean
-        @Primary
-        Clock fixedClock() {
-            return Clock.fixed(FIXED, ZoneId.of("Asia/Seoul"));
-        }
-    }
 
     /**
      * 소속 학원은 토큰이 정한다(§1.5) — 요청 본문에 학원을 지정할 자리가 부재하다.

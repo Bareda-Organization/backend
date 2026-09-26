@@ -7,9 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -17,18 +15,17 @@ import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.annotation.Import;
 
 import src.backend.global.common.SeedFixtures;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
+import testsupport.clock.FixedClock20260826Config;
 
 /**
  * 퇴원(STU-04)이 보호자 연결을 해제하는지 — {@code ERD §7.1} · UF-P-01 (Ruling 172).
@@ -46,6 +43,7 @@ import src.backend.global.security.JwtTokenProvider;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
+@Import(FixedClock20260826Config.class)
 class StudentWithdrawalUnlinkTest {
 
     private static final Long ACADEMY_A = Long.valueOf(SeedFixtures.ACADEMY_A_ID);
@@ -73,17 +71,6 @@ class StudentWithdrawalUnlinkTest {
     private EntityManager entityManager;
 
     /** {@code StaffStudentControllerTest} 와 같은 형태 — 값 자체가 아니라 고정돼 있다는 사실이 검사 대상이다. */
-    @TestConfiguration
-    static class FixedClockConfig {
-
-        private static final Instant FIXED = Instant.parse("2026-08-26T00:00:00Z");
-
-        @Bean
-        @Primary
-        Clock fixedClock() {
-            return Clock.fixed(FIXED, ZoneId.of("Asia/Seoul"));
-        }
-    }
 
     /**
      * 퇴원은 그 학생의 살아 있는 연결에 {@code unlinked_at} 을 채운다.

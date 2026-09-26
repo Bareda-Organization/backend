@@ -6,20 +6,17 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doCallRealMethod;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
@@ -34,6 +31,7 @@ import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 import src.backend.student.repository.WeeklyAddressRepository;
+import testsupport.clock.FixedClock20300401Config;
 
 /**
  * 확정 배치가 명단을 읽은 뒤 노선 계산(수 초)을 하는 사이에 들어온 강제 추가·이동이 사라지지 않는지 본다(BR-044).
@@ -43,6 +41,7 @@ import src.backend.student.repository.WeeklyAddressRepository;
  * 직접 지운다({@code RunConfirmationSchedulerTest} 와 같은 형태).
  */
 @SpringBootTest
+@Import(FixedClock20300401Config.class)
 class RunConfirmationStagingRaceTest {
 
     private static final LocalDate SERVICE_DATE = LocalDate.of(2030, 4, 1); // 월요일
@@ -84,16 +83,6 @@ class RunConfirmationStagingRaceTest {
     private Clock clock;
 
     private RunConfirmationFixtures fixtures;
-
-    @TestConfiguration
-    static class FixedClockConfig {
-
-        @Bean
-        @Primary
-        Clock fixedClock() {
-            return Clock.fixed(Instant.parse("2030-04-01T03:00:00Z"), ZoneId.of("Asia/Seoul"));
-        }
-    }
 
     @BeforeEach
     void setUp() {

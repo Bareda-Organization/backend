@@ -5,20 +5,16 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.annotation.Import;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -35,6 +31,7 @@ import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 import src.backend.student.repository.WeeklyAddressRepository;
+import testsupport.clock.FixedClock20300401Config;
 
 /**
  * 배치 도래→완료 지연 지표(Phase 7 목표 8) — {@link RunConfirmationService#confirmOne} 이 확정할
@@ -49,6 +46,7 @@ import src.backend.student.repository.WeeklyAddressRepository;
  */
 @SpringBootTest
 @Transactional
+@Import(FixedClock20300401Config.class)
 class RunConfirmationLagMetricTest {
 
     private static final LocalDate SERVICE_DATE = LocalDate.of(2030, 4, 1); // 월요일
@@ -92,17 +90,6 @@ class RunConfirmationLagMetricTest {
 
     private RunConfirmationFixtures fixtures;
 
-    @TestConfiguration
-    static class FixedClockConfig {
-
-        private static final Instant FIXED = Instant.parse("2030-04-01T03:00:00Z"); // 2030-04-01 12:00 KST
-
-        @Bean
-        @Primary
-        Clock fixedClock() {
-            return Clock.fixed(FIXED, ZoneId.of("Asia/Seoul"));
-        }
-    }
 
     private RunConfirmationFixtures fixtures() {
         if (fixtures == null) {

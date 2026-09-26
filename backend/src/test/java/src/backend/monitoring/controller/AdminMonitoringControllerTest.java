@@ -6,10 +6,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -17,10 +15,7 @@ import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
@@ -48,7 +43,8 @@ import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
-import testsupport.redis.RedisTestContainerBase;
+import testsupport.clock.FixedClock20300401Config;
+import org.springframework.context.annotation.Import;
 
 /**
  * 메인 관리자 콘솔의 전체 관제(§6.8)·회차 명단(§6.9) API 컨트롤러 시험(Phase 13 T2 목표 5(관리자
@@ -59,7 +55,8 @@ import testsupport.redis.RedisTestContainerBase;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
-class AdminMonitoringControllerTest extends RedisTestContainerBase {
+@Import(FixedClock20300401Config.class)
+class AdminMonitoringControllerTest {
 
     private static final String LIVE = "/api/v1/admin/academies/%d/runs/live";
 
@@ -128,17 +125,6 @@ class AdminMonitoringControllerTest extends RedisTestContainerBase {
     @Autowired
     private AssignmentRepository assignmentRepository;
 
-    @TestConfiguration
-    static class FixedClockConfig {
-
-        private static final Instant FIXED = Instant.parse("2030-04-01T03:00:00Z"); // 2030-04-01 12:00 KST
-
-        @Bean
-        @Primary
-        Clock fixedClock() {
-            return Clock.fixed(FIXED, ZoneId.of("Asia/Seoul"));
-        }
-    }
 
     private AdminMonitoringFixtures fixtures() {
         return new AdminMonitoringFixtures(academyRepository, academyStaffRepository, busRepository, stopRepository,

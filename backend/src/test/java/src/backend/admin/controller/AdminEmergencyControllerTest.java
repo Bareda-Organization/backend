@@ -11,9 +11,7 @@ import jakarta.persistence.PersistenceContext;
 
 import java.math.BigDecimal;
 import java.time.Clock;
-import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -21,14 +19,12 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.annotation.Import;
 
 import com.jayway.jsonpath.JsonPath;
 
@@ -45,6 +41,7 @@ import src.backend.global.security.JwtTokenProvider;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
 import src.backend.run.repository.RunRepository;
+import testsupport.clock.FixedClock20300401Config;
 
 /**
  * 메인 관리자 콘솔의 전 학원 비상 알림 조회(EXC-04, Phase 11 T2 목표 11) — {@code GET /admin/emergencies}.
@@ -63,6 +60,7 @@ import src.backend.run.repository.RunRepository;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
+@Import(FixedClock20300401Config.class)
 class AdminEmergencyControllerTest {
 
     private static final String RAISE = "/api/v1/runs/%d/emergency";
@@ -107,17 +105,6 @@ class AdminEmergencyControllerTest {
     @Autowired
     private AcademyStaffRepository academyStaffRepository;
 
-    @TestConfiguration
-    static class FixedClockConfig {
-
-        private static final Instant FIXED = Instant.parse("2030-04-01T03:00:00Z"); // 2030-04-01 12:00 KST
-
-        @Bean
-        @Primary
-        Clock fixedClock() {
-            return Clock.fixed(FIXED, ZoneId.of("Asia/Seoul"));
-        }
-    }
 
     private EmergencyFixtures fixtures() {
         return new EmergencyFixtures(academyRepository, busRepository, accountRepository, managerRepository,
