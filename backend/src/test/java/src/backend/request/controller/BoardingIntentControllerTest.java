@@ -358,7 +358,7 @@ class BoardingIntentControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.result").value("pending_approval"))
                 .andExpect(jsonPath("$.data.riding").value(true))
-                .andExpect(jsonPath("$.data.change_request_id").isNumber())
+                .andExpect(jsonPath("$.data.change_request_id").isString())
                 .andExpect(jsonPath("$.data.change_quota_left").value(0));
 
         entityManager.flush();
