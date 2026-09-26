@@ -245,7 +245,7 @@ frontend/
 | **`FE-R3`** | ✅ **완료**(2026-09-14 병합, 네 갈래 충돌 0건) — 학부모 앱 미구현 2건(`§3.10`·`§3.11`) 해소 + 웹 시험 격리. 정본은 **`§5.6`** | 2갈래 | F5 |
 
 **F1 · F3 은 저장소 안에서 파일이 겹치지 않음**(`apps/` 아래 서로 다른 디렉터리) — 동시 진행 가능.
-동시에 돌릴 때의 공유 자원 주의는 `~/.claude/rules/parallel-agents-git.md §0` 을 따름.
+동시에 돌릴 때의 공유 자원 주의는 Skill `parallel-agents` §0 을 따름(옛 `~/.claude/rules/parallel-agents-git.md` 는 2026-09-18 Skill 로 이관 — 아래 기록 속 옛 경로 인용은 당시 문면 그대로 둔다).
 프론트에서 추가로 겹치는 것: **개발 서버 포트**(Next.js 3000 · Flutter web 각 포트)와
 **백엔드 1대**(로컬 8080). 포트를 미리 배정하고 발주문에 적음.
 
@@ -2231,7 +2231,7 @@ cd frontend/apps/parent-app && flutter test --dart-define=API_BASE_URL=http://lo
 | 위치 | 낡은 문장 | 사실 |
 |---|---|---|
 | 이 문서 `§2` 디렉터리 트리 | `frontend/CONVENTIONS_REACT.md` · `frontend/IMPLEMENTATION_PLAN.md` | 2026-09-20 `docs/frontend/` 로 이동(`CLAUDE.md` 문서 통합 표) |
-| 이 문서 `§5` 머리 | `~/.claude/rules/parallel-agents-git.md §0` | 경로 부재 — Skill `parallel-agents` 로 이관 |
+| 이 문서 `§5` 머리 | `~/.claude/rules/parallel-agents-git.md §0` | 경로 부재 — Skill `parallel-agents` 로 이관  ✅ 2026-09-26 정정 |
 | `docs/IMPLEMENTATION_PLAN.md §8.45` 프론트 영향 `332` 행 | "앱 2종은 … 영향 부재" | 서버 전환 **뒤**에는 맞음. **지금은** 매니저 앱 `§4.6` `case_id` 가 숫자를 못 받는 결함 존재(M2) |
 | 같은 행 | "숫자 선언 77곳 · `Number()` 변환 9곳" | 계수 명령 부재로 대조 불가 — `§5.8.1.3` 명령 기준 170줄 · 17곳 |
 | 같은 표 `335` 행 | "앱 먼저 → 서버" | 양쪽 병합 완료(`7a991bb0`) |
