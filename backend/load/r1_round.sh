@@ -14,12 +14,13 @@ PROM="http://localhost:18080/actuator/prometheus"
 TOTAL=$((RAMP + HOLD + 25))
 
 # k6 → Prometheus 원격 쓰기, 기본 꺼짐(K6_PROM_RW=1 로 켠다). 켠 상태에서만 옵션이 붙으므로
-# 끈 상태의 기본 동작은 그대로다(docker-compose.observe.yml 이 :9090 에 수신을 켜 둔다).
+# 끈 상태의 기본 동작은 그대로다 — 수신은 여러 프로젝트가 함께 쓰는 범용 관측 스택
+# (/Users/mskim/Desktop/PJ/observability-stack, Prometheus :9390)이 켜 둔다(O1, docs/backend/LOAD_TESTING.md §7).
 # 배열이 아니라 문자열 + word-splitting 을 쓴다 — macOS 기본 /usr/bin/bash 가 3.2 라 빈 배열을
 # `set -u` 아래서 펼치면 "unbound variable" 로 죽는다(4.4 이전 bash 의 알려진 결함, 실측 확인).
 K6_OUT_ARGS=""
 if [ "${K6_PROM_RW:-0}" = "1" ]; then
-    export K6_PROMETHEUS_RW_SERVER_URL="${K6_PROMETHEUS_RW_SERVER_URL:-http://localhost:9090/api/v1/write}"
+    export K6_PROMETHEUS_RW_SERVER_URL="${K6_PROMETHEUS_RW_SERVER_URL:-http://localhost:9390/api/v1/write}"
     export K6_PROMETHEUS_RW_TREND_STATS="${K6_PROMETHEUS_RW_TREND_STATS:-p(95),p(99),max}"
     K6_OUT_ARGS="-o experimental-prometheus-rw --tag testid=r1_vu${VUS}"
 fi

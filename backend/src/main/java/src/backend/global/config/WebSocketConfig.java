@@ -100,6 +100,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
      * 호출 스레드가 대신 보내 메시지를 잃지 않는다. 위치({@code position}) 이벤트만 큐 포화를
      * 미리 보고 스스로 버린다({@link src.backend.global.websocket.WebSocketBroadcastGateway},
      * Ruling 349) — 이 실행기 자체는 이벤트 종류를 모른다.
+     *
+     * <p>큐 길이는 Spring Boot 의 {@code TaskExecutorMetricsAutoConfiguration} 이 이 빈을 빈 이름
+     * (메서드 이름 {@code outboundTaskExecutor})으로 자동 계측한다(O4, 실측 확인 —
+     * {@code executor_queued_tasks{name="outboundTaskExecutor"}}가 코드 추가 없이 이미 노출됨).
      */
     @Override
     public void configureClientOutboundChannel(ChannelRegistration registration) {

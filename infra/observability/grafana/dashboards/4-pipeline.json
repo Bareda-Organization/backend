@@ -10,7 +10,7 @@
   "timezone": "browser",
   "refresh": "15s",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "editable": true,
   "graphTooltip": 1,
   "liveNow": false,
@@ -427,7 +427,7 @@
     {
       "id": 6,
       "type": "row",
-      "title": "위치·알림·세션",
+      "title": "위치·세션",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -441,7 +441,7 @@
       "id": 7,
       "type": "timeseries",
       "title": "버스 위치 수신률",
-      "description": "버스 위치 보고가 초당 얼마나 들어오는지 origin(GPS/MOCK)별로 구분해서 본다. 0이면 위치 보고 자체가 멈췄다는 뜻이고, MOCK 만 있고 GPS 가 없으면 실단말이 아직 연결되지 않았다는 뜻이다(로컬·데모 환경에서는 정상이지만 운영에서 지속되면 실단말 연동을 의심한다).",
+      "description": "버스 위치 보고(POST /runs/{runId}/position)가 초당 얼마나 들어오는지 HTTP 상태 코드별로 본다. 0이면 위치 보고 자체가 멈췄다는 뜻이다. ⚠ origin(GPS/MOCK)별 지표는 코드에 없다(O3, 2026-09-26 실측 — location 도메인에 origin 개념 자체가 없음) — 옛 설계 문서 기준으로 만들어진 패널이라 실제 노출 지표(http_server_requests_seconds_count)로 교체했다.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -524,8 +524,8 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "rate(schoolbus_bus_location_reports_total{job=\"backend\"}[5m])",
-          "legendFormat": "{{origin}}"
+          "expr": "sum by (status) (rate(http_server_requests_seconds_count{job=\"backend\",uri=\"/runs/{runId}/position\"}[5m]))",
+          "legendFormat": "{{status}}"
         }
       ]
     },
@@ -618,98 +618,6 @@
           "refId": "A",
           "expr": "schoolbus_stomp_sessions{job=\"backend\"}",
           "legendFormat": "활성 세션"
-        }
-      ]
-    },
-    {
-      "id": 9,
-      "type": "timeseries",
-      "title": "알림 발송률 (유형별)",
-      "description": "유형별 초당 알림 발송 수. 0인 채로 지속되면 알림 파이프라인이 멈췄거나, 아직 알림을 트리거할 이벤트(하차·지연·SOS 등)가 발생하지 않았다는 뜻이다 — 둘을 구분하려면 상위 이벤트 발생 로그를 함께 확인해야 한다.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 40
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "ops"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "max",
-            "last"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "rate(schoolbus_notifications_sent_total{job=\"backend\"}[5m])",
-          "legendFormat": "{{type}}"
         }
       ]
     }
