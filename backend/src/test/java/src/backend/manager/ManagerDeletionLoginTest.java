@@ -104,7 +104,7 @@ class ManagerDeletionLoginTest {
                                 """))
                 .andExpect(status().isCreated())
                 .andReturn();
-        managerId = ((Number) JsonPath.read(본문(등록), "$.data.id")).longValue();
+        managerId = Long.parseLong(JsonPath.read(본문(등록), "$.data.id"));
 
         가입한다(DRIVER_LOGIN_ID);
         long 요청 = 요청_식별자(DRIVER_LOGIN_ID);
@@ -202,10 +202,10 @@ class ManagerDeletionLoginTest {
                 .andReturn();
         String name = jdbcTemplate.queryForObject(
                 "SELECT name FROM account WHERE login_id = ?", String.class, loginId);
-        List<Integer> ids = JsonPath.read(본문(result),
+        List<String> ids = JsonPath.read(본문(result),
                 "$.data.items[?(@.name == '%s')].request_id".formatted(name));
         assertThat(ids).as("관계자 큐에 %s 의 요청이 정확히 1건 떠야 한다", loginId).hasSize(1);
-        return ids.get(0).longValue();
+        return Long.parseLong(ids.get(0));
     }
 
     private String 본문(MvcResult result) throws Exception {

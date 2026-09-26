@@ -141,7 +141,7 @@ class StaffBusControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.operable").value(false))
                 .andReturn();
-        long busId = ((Number) JsonPath.read(본문(result), "$.data.id")).longValue();
+        long busId = Long.parseLong(JsonPath.read(본문(result), "$.data.id"));
 
         assertThat(JsonPath.<List<Boolean>>read(목록_본문(관계자A_토큰()),
                 "$.data.items[?(@.id == %d)].operable".formatted(busId)))
@@ -336,7 +336,7 @@ class StaffBusControllerTest {
         assertThat(JsonPath.<Integer>read(첫_페이지, "$.data.total_count"))
                 .as("total_count 는 한 페이지 건수가 아니라 전체 행 수다").isGreaterThan(PAGE_SIZE);
         assertThat(JsonPath.<Boolean>read(첫_페이지, "$.data.has_next")).isTrue();
-        assertThat(JsonPath.<List<Integer>>read(둘째_페이지, "$.data.items[*].id"))
+        assertThat(JsonPath.<List<String>>read(둘째_페이지, "$.data.items[*].id"))
                 .as("다음 페이지가 앞 페이지와 겹치면 뒤쪽 차량에 닿을 수단이 부재하다")
                 .doesNotContainAnyElementsOf(JsonPath.read(첫_페이지, "$.data.items[*].id"));
     }
@@ -397,7 +397,7 @@ class StaffBusControllerTest {
                 "{\"bus_no\":\"%s\",\"plate_no\":\"%s\",\"capacity\":%d}".formatted(busNo, plateNo, capacity))
                 .andExpect(status().isCreated())
                 .andReturn();
-        return ((Number) JsonPath.read(본문(result), "$.data.id")).longValue();
+        return Long.parseLong(JsonPath.read(본문(result), "$.data.id"));
     }
 
     private String 페이지_본문(String token, int page, int size) throws Exception {
