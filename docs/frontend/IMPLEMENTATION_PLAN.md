@@ -2028,6 +2028,217 @@ StudentRouteQueryService.java:178
 ⚠ **`baraeda_core` 도 `--dart-define=API_BASE_URL` 이 필수다** — 앱 2종만 그런 것이 아니다.
 `§5.6` 이하의 표준 실행 명령에 이 패키지가 빠져 있었다.
 
+## 5.8 ⚖ `R31` 목표 표 — 백엔드 전체 검사 반영 (2026-09-26 계획 · **착수 전** · 메인 `67f2c8e5`)
+
+**백엔드 전체 검사(2026-09-25~26)의 1차·2차·W12 수정이 바꾼 계약을 프론트 3제품에 맞추는 라운드.** 이 절은 계획만 고정 — 코드 미수정.
+
+| 입력 | 위치 |
+|---|---|
+| 사양 판정 | `docs/IMPLEMENTATION_PLAN.md §8.45`~`§8.51`(`Ruling 327`~`353`) |
+| 사양 변경 | `git diff 1d34c7d1^ 67f2c8e5 -- docs/` + 판정 반영 커밋 `21e10e26` · `d66b814e`(기준점 앞이라 따로 읽음) |
+| 코드 쪽 계약 | 병합 커밋의 DTO·컨트롤러·`ErrorCode`·WS 리스너 diff · 추적 원장 `backend/report/2026-09-25-백엔드-전체-검사.md` · 갈래 보고서 `backend/report/review-2026-09-25/FIX-*.md`(둘 다 git 추적 밖 — 메인 저장소) |
+
+- **라운드 이름 `R31`** — `R5`~`R30` 이 이미 프론트 라운드 번호(`docs/IMPLEMENTATION_PLAN.md §8.5` 이하). `FE-R5` 로 두면 2026-09-17 `R5` 와 이름 충돌
+- ⚠ **모든 행은 `67f2c8e5` 의 코드·사양에서 직접 확인한 결과.** `§8.45` "프론트 영향" 표 · 작업 지시서 · 갈래 보고서는 인용이라 출발점으로만 씀. 이미 반영된 것은 근거와 함께 `§5.8.1.2` 에서 닫음
+
+### 5.8.1 변경 목록
+
+적용 순서 — **서버 먼저**(서버가 이미 바뀜 · 프론트가 뒤처짐) · **앱 먼저**(프론트가 두 형태를 다 받게 한 뒤 서버) · **한 단위**(같은 회차에 함께).
+
+#### 5.8.1.1 할 일 — 프론트 18건 + 서버 1건
+
+| # | 출처 | 바뀐 계약 | 지금 코드 — 확인 근거 | 프론트가 할 일 | 적용 순서 | RED |
+|:-:|---|---|---|---|---|:-:|
+| **M1** | BR-016 · `Ruling 341` · `91adb811` | `API_SPEC §4.2` `students[].status` 에 **`absent` 가 `change=removed` 행으로 등장** — 버스 간 이동으로 빠진 학생을 명단에 빨강으로 남김(`§9.4`) | `RiderStatus` 에 `absent` 부재 — `run_enums.dart:48~49` 주석이 "명단에서 개인 행 자체가 빠지는 값" 이라는 **낡은 전제** · `roster_response.dart:97~98` 이 모르는 값을 `waiting` 으로 대체 → **다른 버스로 옮긴 학생에게 [탑승]·[미승차] 버튼 노출**(누르면 `409 RIDER_TRANSITION_NOT_ALLOWED`). `roster_screen.dart:396` 은 `added` 표기만 | `absent` 값 추가 · `removed` 행은 `BaraedaBadgeTone.removed` "금일 삭제" · 조작 버튼 부재 · 집계 제외. 운행 화면(`drive_mode`)의 명단 소비처도 같은 판정 | 서버 먼저(병합 완료) | ✅ |
+| **M2** | BR-054 · `Ruling 332` | `§4.6` 응답 `no_show_case.case_id` — **서버는 아직 숫자**(`RiderStatusUpdateResponse.java:30` `Long caseId`) | `rider_update_result.dart:27` → `NoShowCase.fromJson`(`roster_response.dart:51` `case_id as String`) — **[미승차] 응답 파싱이 지금 실패하는 상태.** 서버 기록은 성공 · 앱은 형변환 예외라 `roster_screen.dart:109` 의 `on Failure` 에 안 잡힘. 실서버 시험(`real_backend_manager_endpoints_test.dart`)은 시드 `no_show` 행만 써서 이 응답을 안 읽음 | `case_id` 를 `asIdString` 으로 흡수 — 같은 파일 `rider_id`(`rider_update_result.dart:19`)와 같은 방식 | **앱 먼저** — B1 전에 | ✅ |
+| **M3** | `Ruling 345` · `4e250da2` | `§4.6` `409 RIDER_TRANSITION_NOT_ALLOWED` 신설 — 같은 상태 재요청 포함 | 서버 문구 "허용되지 않는 상태 전이입니다"(`ErrorCode.java:265`)가 그대로 표시(`failure_messages.dart:7~29` 분기 부재) · 실패 시 명단 재조회 부재(`roster_screen.dart:109~111`, 재조회는 성공 갈래 `:102~103` 에만) → 낡은 화면이 낡은 채 남음 | 문구 "이미 처리된 학생입니다 — 명단을 새로 불러왔습니다" + 이 코드면 `rosterProvider` 무효화 | 서버 먼저 | ✅ |
+| **M4** | `Ruling 340` · `400d0f19` | `§4.4` `409 RUN_CANCELED` · 취소 회차는 `§4.1` 목록에서 제외 | 서버 문구 "취소된 회차입니다"(`ErrorCode.java:236`) 표시 — 뜻은 맞음. 실패 갈래에 목록 재조회 부재(`drive_mode_screen.dart:105~107`) → 취소된 카드가 남음 | `failure_messages.dart` 등록 + 이 코드면 `todayRunsProvider` 무효화 | 서버 먼저 | ✅ |
+| **M5** | `Ruling 329` · `UF-X-04` | 전화번호 복구 `503 RECOVERY_UNAVAILABLE` — 학부모·학생·매니저는 **학원 관계자 경유**(`§5.22`) | 매니저 앱에 복구 진입점·안내 부재(`features/auth/presentation/` 에 `recover` 0건). 학부모 앱·웹은 반영 완료(`§5.8.1.2`) | 로그인 화면에 "비밀번호를 잊으면 학원에 초기화를 요청" 안내 한 줄. **전화번호 복구 화면은 만들지 않음**(SMS 연동 전 `503`) | 서버 먼저 | 선택 |
+| **C1** | BR-083 · `534abb76` | `§7` — 세션은 연결한 access 토큰 만료 시각에 `ERROR` 프레임 `TOKEN_EXPIRED` 로 닫힘 · 재발급(`§2.6`) 후 재연결이 계약 | `baraeda_websocket_client.dart:22~29` 자바독이 "서버가 만료를 이유로 세션을 능동적으로 끊지 않는다" — **낡은 전제.** 재연결마다 저장 토큰을 다시 읽기만 함(`:118`) · `onStompError`(`:136`)는 `FORBIDDEN` 만 판정. access 수명 15분(`backend/src/main/resources/application.yml:243`) → **REST 호출이 없는 화면(학부모 앱 실시간 지도 — 첫 진입 REST 1회뿐)은 15분 뒤 같은 만료 토큰으로 6회 재연결 후 `gaveUp` → "연결 끊김"** | `TOKEN_EXPIRED` 프레임이면 재발급을 먼저 부르고 재연결 · 재발급 실패(refresh 만료·퇴사)면 로그인 만료로 넘김 · 자바독 정정 | 서버 먼저(병합 완료) | ✅ |
+| **W1** | BR-054 · `Ruling 332` | 응답 본문 식별자 전부 JSON 문자열(`§1.1`) — **서버 미적용**(원장 `미착수`) | 식별자 `number` 선언 **170줄** · 식별자 `Number()` **17곳**(계수 명령·목록 `§5.8.1.3`). 지도 선택이 `Number(markerId)` → `Number.isInteger` → `run.runId ===`(`DashboardPage.tsx:225~226` · `MonitoringPage.tsx:240~241` · `TodayRunPage.tsx:138·184`) — 서버만 문자열로 바꾸면 **버스·정차지를 눌러도 선택 안 됨**(오류 없이) | raw 타입을 `string \| number` 로 받고 **매핑 함수에서 `asIdString`**(`shared/lib/ws/asIdString.ts`, 이미 존재) · 도메인 타입 `string` · 식별자 `Number()` 제거. 경로 조립은 그대로 | **한 단위 — 안에서 웹 흡수 먼저, 서버(B1) 뒤.** 흡수가 끝나면 서버 전환 순간에 깨지는 창이 없음 | ✅ |
+| **W2** | BR-083 · `534abb76` | C1 과 같은 계약 | `academyRealtimeClient.ts:142` 도 재연결 때 저장 토큰을 읽기만 하고 `:160` `handleStompError` 는 `FORBIDDEN` 만. 대시보드·관제는 REST 7초 폴링(`DashboardPage.tsx:47` · `MonitoringPage.tsx:43`)이 토큰을 갱신해 대개 회복 — **재발급 전의 재연결 시도는 만료 토큰으로 실패하고, 폴링 없는 화면이 구독하면 회복 수단 부재** | `TOKEN_EXPIRED` 면 `refreshAccessToken()`(`http/refreshClient.ts:35` — 동시 재발급 1회로 묶는 구조 이미 존재) 후 재연결 | 서버 먼저 | ✅ |
+| **W3** | BR-157 · `f859ba68` | `§7` 학원·관리자 채널에 `emergency_canceled`(`emergency_id` · `bus_no` · `canceled_at`) 등재 — 서버는 이미 발행(`exception/command/EmergencyBroadcastListener.java:40`) | `wsEventType.ts` 알려진 종류에 부재 → 무시. `emergency_raised` 가 띄운 "비상 상황 발생" 알림(`DashboardPage.tsx:265~268` · `MonitoringPage.tsx:279`)이 **기사가 1분 안에 취소해도 남음** | 종류 추가 + 같은 알림을 "비상 알림 취소 — {호차}" 로 교체(`§4.14` "취소 사실도 수신자에게 통지") | 서버 먼저 | ✅ |
+| **W4** | BR-047 · `Ruling 342` | `§5.10` 회차 응답 · `§6.8` 관제 응답에 `consecutive_failures` | 두 raw 타입에 부재(`schedule/api/index.ts:38` `RawRun` · `admin/api/runsLive.ts`) — 표시 0 | 일일 회차 목록(`RunDayList`) · `(admin)` 강제 확정 화면(`ForceConfirmPage` — `§6.8` 사용)에 "확정 N회 연속 실패"(0 이면 부재). `UF-O-07` 진입 재료 | 서버 먼저 | ✅ |
+| **W5** | BR-116 · `Ruling 343` | `PATCH /staff/buses/{id}` 응답 `warnings[]`(`CAPACITY_BELOW_ASSIGNED` · `run_id` · `assigned_count` · `student_capacity`) — 저장은 성공, 경고만 | `bus/api/index.ts:56~57` 이 `RawBus` 로만 읽어 `warnings` 버림 | 수정 성공 뒤 경고 표시 — 배치 경고와 같은 `AlertBanner` 형태(`ManagerAssignmentDialog.tsx:114~118`) | 서버 먼저 | ✅ |
+| **W6** | `Ruling 328` · `UF-O-03` | `§6.10` 목록에 `role` · `status_before_block` · 해제 후 상태 = 차단 직전 상태 | `admin/api/blockedAccounts.ts:4~12` raw 타입에 두 필드 부재 — 서버는 발행(`account/dto/BlockedAccountResponse.java:18~19`). `UF-O-03` 이 "목록에 역할·차단 직전 상태 표시" 를 요구 | 열 2개 추가 — 해제 결과("해제 후: 승인 대기")를 누르기 전에 보임 | 서버 먼저 | ✅ |
+| **W7** | `Ruling 327` · `86927828` | `§4.3`·`§5.19` `stops[]` 마지막에 학원 항목(`is_destination=true`, 등원만) | `map/routeDisplayState.ts:21` 이 `is_destination` 을 모름 → 학원 자리에 **정차지 마커가 하나 더 찍힘** — 끝점 `destination` 마커(`:59`)와 겹침(`FIX-H.md §2` 관측). 동작 결함 부재 · 표시 중복 | 정차지 마커 산출에서 `is_destination` 항목 제외 | 서버 먼저 | ✅ |
+| **W8** | `Ruling 339` · BR-022·023 | `§5.13` 배치 중이면 **역할 변경도** `409 MANAGER_ASSIGNED` | 서버 문구가 삭제 전용 "회차에 배치된 매니저는 삭제할 수 없습니다"(`ErrorCode.java:117`) — `ManagerForm.tsx:46` 이 그대로 표시 → 역할 변경 거부에 "삭제" 문구 | 수정 화면에서 이 코드면 "배치 중인 매니저는 역할을 바꿀 수 없습니다 — 배치를 먼저 해제" | 서버 먼저 | ✅ |
+| **W9** | `Ruling 338` · BR-052 | `§5.9` 운행 중 회차가 서는 승하차지의 **좌표** 수정 `403 CHANGE_WINDOW_CLOSED`(이름은 허용) | `RouteStopsPanel.tsx:217` 이 서버 문구 "지금은 변경할 수 없는 시간입니다"(`ErrorCode.java:204`) 표시 — 거부 이유 불명 | 이 화면에서 이 코드면 "운행 중인 회차가 서는 승하차지라 위치를 바꿀 수 없습니다 — 운행이 끝난 뒤 다시" | 서버 먼저 | ✅ |
+| **W10** | `35a91ccf`(BR-114) · `Ruling 329`·`340`·`345` | `API_SPEC §8` 사전 **76개** | `shared/lib/http/apiErrorCodes.ts` **58개 — 18개 누락**: `ACADEMY_COORDINATES_MISSING` · `ADDRESS_VERIFICATION_UNAVAILABLE` · `DELAY_DUPLICATE` · `DUPLICATE_NOTIFICATION` · `DUPLICATE_WEEKLY_ADDRESS` · `ENDPOINT_NOT_FOUND` · `INTERNAL_ERROR` · `METHOD_NOT_ALLOWED` · `RECOVERY_UNAVAILABLE` · `RIDER_TRANSITION_NOT_ALLOWED` · `ROUTE_NOT_CONFIGURED_FOR_RUN` · `RUN_CANCELED` · `RUN_NOT_DUE` · `RUN_NOT_IDLE` · `STOP_ALREADY_DEPARTED` · `STUDENT_NOT_IN_RUN` · `TRANSFER_ALREADY_STAGED` · `WAYPOINT_NOT_FOUND`. 계수 — `§8` 표 첫 열(`awk '/^## 8\./,/^## 9\./'`) ↔ 파일 문자열 `comm`. 런타임은 `ApiError.code` 가 `string` 이라 동작 영향 부재 | 18개 추가 + **`§8` 과 이 파일을 대조하는 시험 1개** — 파일 머리 주석의 "정본과 대조해 갱신" 을 사람 손에 맡기지 않음 | 서버 먼저 | ✅ |
+| **P1** | `Ruling 208` · `Ruling 349` | 유실 판정 = 마지막 수신 후 2분(`§3.11`) · 과부하 때 `position` 방송은 버려질 수 있음 | 2분 판정이 **첫 진입 REST 응답에만** 걸림(`live_map_screen.dart:194~207`). WS 로 좌표를 받던 중 끊기면 마지막 좌표와 "현재 위치 · HH:mm:ss 기준"(`:371`)이 그대로 남고 "마지막 확인 위치 · N분 전" 으로 바뀌지 않음. 몇 초 공백을 오류로 다루지 않는 점은 맞음 | 표시 중인 좌표의 `received_at` 이 2분을 넘으면 유실 문구로 전환 — 시각은 `clockProvider` 로 주입 | — (앱 단독) | ✅ |
+| **P2** | BR-024 · `FEATURE_SPEC` 정책 상수 "자녀 연결 코드 입력 — 보호자당 10분에 5회" | `§3.4` 시도 상한 · 중복 코드 거부가 `403 LINK_CODE_INVALID` 에 합류(응답으로 구별하지 않음) | `child_link_screen.dart:93` "코드가 올바르지 않거나 만료됐습니다" 뿐 — 상한에 걸린 학부모가 새 코드를 받아도 최대 10분 실패(`FIX-B.md §2`) | 오류 아래 고정 안내 "여러 번 틀리면 10분 동안 입력이 막힙니다 · 계속 안 되면 자녀 앱에서 코드를 다시 발급". 응답을 가르지 않아 코드 실재 노출 부재 | 서버 먼저 | 선택 |
+| **B1** | BR-054 · `Ruling 332` | 서버 응답 식별자 문자열 전환 | 원장 `미착수` · `StudentRunsResponse.java:20` 등 `Long` — 응답·뷰·봉투 레코드 **66파일 · 약 104필드**(`grep -rE '\b(Long\|long) [a-zA-Z]*(Id\|id)\b'` · `*Response*`·`*View*`·`*Payload*`·`*Envelope*`) | (백엔드 갈래) `WebSocketEnvelope.runId` 자바독 정정 포함(`FIX-F.md §2`) · `§4.6` `rider_id`·`case_id` 포함 | **W1 병합 뒤** | 백엔드 |
+
+#### 5.8.1.2 이미 반영 — 닫음
+
+| 출처 | 계약 | 근거 |
+|---|---|---|
+| BR-111 · `Ruling 335` | 학생 채널 `run_started`·`run_ended` 인원수 제외 — **앱 먼저 → 서버 순서 불요**(양쪽 병합 완료) | 공유 패키지 `ws_payloads.dart:126·149` `as int?` · 학부모 앱 표시 제거 · 서버 학생 채널 전용 payload(`run/command/RunStartedBroadcastListener.java:48~50·61`) — 전부 병합 `7a991bb0`. 매니저 앱은 REST 모델만(`start_run_result.dart:17` `int?`) |
+| BR-005 · `Ruling 329` | `503 RECOVERY_UNAVAILABLE` · `§5.22` 관계자 초기화 | 학부모 앱 `account_recovery_screen.dart:59` · 웹 `LoginForm.tsx:127~129` · 웹 초기화 `AccountPasswordResetDialog`(학생 `StudentForm.tsx:292` · 매니저 `ManagerList.tsx:192`) · `auth/api/passwordReset.ts` — 병합 `6dab9f26`. 매니저 앱 안내만 M5 |
+| BR-006 · BR-068 · `Ruling 334`·`336` | ③구간 `waiting` 한정 · ②구간 켜기 `403 CHANGE_WINDOW_CLOSED` | 학부모 앱 `run_card.dart:75~78` 이 켜기·끄기로 문구 분기 — 병합 `8717550f`. 매니저 앱은 `rider_changed` 수신 시 명단 재조회뿐이라 영향 부재 |
+| BR-055 · BR-056 | `§3.10` 기사·동승자 `◐` · `§3.11` 유실 시 좌표 부재 | `route_detail_screen` "미배치" · 전화 버튼 생략(`1bf434ab`) · 유실 문구는 좌표 부재로 판정(`live_map_screen.dart:194~207`) |
+| BR-082 · BR-081 | `guardian_phone` `○` · `§4.2` `no_show_case` | 매니저 `roster_response.dart:93` `as String?` · `no_show_case` 파싱 — 병합 `68ca788d`. 웹 `run/api/roster.ts:9` `string \| null` |
+| BR-154 · `Ruling 344` | `§4.11` `change_ids[]` 삭제 | 매니저 `roster_api.dart:63~66` 본문 없이 호출 — 병합 `df1c1186`(`FIX-I`) |
+| BR-002 · `Ruling 327` | `§4.2`·`§4.5` `stop_id = run_stop.id` · 학원 항목 | 매니저 앱은 명단 `stop_id` 를 그대로 돌려보냄 — 앱 수정 없이 학원 도착 버튼 생성(`FIX-H.md §4` `drive_mode_destination_test.dart` 12/12). `stop_arrived` 소비처 3곳(학부모 `live_map_providers.dart:180` · 웹 `DashboardPage.tsx:259` · `MonitoringPage.tsx:271`)은 id 비교 없이 이름 표시·재조회만. 매니저 앱 "도착지" 표기는 선택 보완 — 이 라운드에서 제외 |
+| BR-033 | 보호 경로 401 본문 `TOKEN_EXPIRED` | 웹 `httpClient.ts:95~97` 이 이 코드로 재발급 — 서버 수정(`7a991bb0`)으로 동작 시작. Flutter `ApiClient` 는 상태 코드만 봐 영향 부재 |
+| BR-156 · BR-155 | 본문 없는 삭제 `204` · `§5.4` 배열 | 웹 `httpClient.ts` 가 `204` 처리 · `roster.ts` 가 배열 — 문서만 정정 |
+| BR-051 · `Ruling 325` | `§5.15` `preview_token` 필수 | **해당 없음** — 웹의 경유 지점 호출부 부재(`Ruling 325` 로 편성 화면에서 뺌 · `grep waypoints src` → 주석 1건). 화면을 되살릴 때 미리보기 응답의 `preview_token` 을 돌려보낼 것 |
+| BR-109 | `§4.14` 발신 좌표 `lat`·`lng` | 매니저 `emergency_raise_request.dart:31~32` 이미 전송 |
+| BR-119 | `MANAGER_DOUBLE_BOOKED` 구간 판정 | 웹은 서버 경고 문구를 그대로 표시(`ManagerAssignmentDialog.tsx:69`) — 서버 문구 갱신으로 충족 |
+| BR-167 (W12) | Redis 장애 때 위치 조회가 `run_position` 최신 행으로 대체 | 서버가 대체 행에도 2분 판정(`StudentBusPositionQueryService.java:86`) — 오래된 행은 유실로 나감 · `current_stop_name` 은 비어 나가고 앱은 `null` 허용. 학부모 앱 표시 시각은 `received_at`(`live_map_screen.dart:371`) · 웹은 7초 폴링의 `last_seen_at` |
+| `Ruling 350` (W12) | 화면용 지도 칸 1개 — 칸이 없으면 직선 근사 | 웹 `routeDisplayState` 가 `fallback_used` 로 "근사 경로" 안내 이미 표시 |
+| `§1.7` 키 충돌 `422` · `§2.2` 72바이트 · `§3.7` 14건 · `§4.12` 속도·방향 범위 · `§4.14` 재전송 `200` | 입력 검증 강화 | 앱이 만들 수 없는 입력(멱등키는 동작마다 새로 생성 · 요일표 7×2 고정) 또는 서버 문구 표시로 충분. `§4.12` — 매니저 앱 실 GPS 소스가 아직 부재(`core/location/position_source.dart` `UnavailablePositionSource` 하나). **붙일 때 iOS 의 음수 속도·방향(측정 불가 표시)을 빼고 보낼 것** |
+
+#### 5.8.1.3 W1 이 없앨 식별자 `Number()` 17곳 — 2026-09-26 계수
+
+`grep -rn 'Number(' src --include=*.ts --include=*.tsx`(시험 제외 **30곳**) 중 식별자만. 나머지 13곳은 좌표·정원·분·인원수.
+
+- `app/(staff)/change-approval/[id]/page.tsx:8` · `app/(staff)/route/[id]/page.tsx:8`
+- `busId` — `schedule/components/ScheduleForm.tsx:127` · `RunAddForm.tsx:99` · `route/components/RouteForm.tsx:107`
+- `admin/components/MonitoringPage.tsx:240·374` · `AuditLogPage.tsx:43·44` · `ForceConfirmPage.tsx:100`
+- `run/components/ManagerAssignmentDialog.tsx:65·66` · `TodayRunPage.tsx:138·184` · `DashboardPage.tsx:225` · `ForcedAddDialog.tsx:56`
+- `approval/components/SignupDecideDialog.tsx:58`
+
+식별자 `number` 선언 170줄의 계수 — `grep -rnE '\b[a-zA-Z]*(Id|_id|id)\??: number' src --include=*.ts --include=*.tsx | grep -v '\.test\.'`(raw 타입 · 도메인 타입 · 함수 인자 포함). 이름별 상위 — `id` 33 · `runId` 28 · `stopId` 10 · `run_id` 10 · `accountId` 8.
+
+### 5.8.2 막힌 것
+
+| 무엇 | 막는 것 | 풀리면 할 일 |
+|---|---|---|
+| FCM 실토큰 등록(`Ruling 331` · `API_SPEC §2.11`) | **Firebase 프로젝트 · 서비스 계정 키 · 앱 설정 파일(`google-services.json` · `GoogleService-Info.plist`) · 웹 푸시 키 — 사용자 작업.** 프론트 3종 어디에도 Firebase SDK 부재(`pubspec.yaml`·`package.json` 0건). 지금은 UUID 를 단말 토큰으로 등록(`device_registration_panel.dart:27`) → 서버가 FCM 거부를 받아 행 정리 — 기능 손상 부재 · 푸시 미도착 | 앱 2종·웹 FCM SDK · 실토큰 등록 · 토큰 갱신 시 재등록. **같은 단위에 `§2.7` 로그아웃 `device_id` 동봉** — 지금 `auth_api.dart:91~101` 은 `refresh_token` 만. 키 없이도 선행 가능하나 효과는 실발송 뒤라 함께 묶음 |
+| 서버 식별자 문자열 전환(B1) | 백엔드 갈래 필요 — **선행 아님, W1 뒤** | `§5.8.4` 배정대로 |
+| `§5.5` 결정된 승인 건의 전 기간 조회(BR-075 미수정분) | 사양 판정 대기 — 페이징 봉투를 넣으면 응답 모양 변경(`FIX-C.md §2`) | 판정 뒤 웹 `approval/api/changeApprovals.ts` 동반 |
+| `§6.9` `guardian_phone` `●` 인데 서버가 `null` 가능(`FIX-E.md §2`) | 사양·서버 판정 | 웹 `RunRosterDialog` 는 이 필드를 그리지 않아 화면 영향 부재 — 판정만 |
+
+### 5.8.3 LOGIN · OBS2 병합 뒤 확인 항목
+
+두 작업 창의 변경은 아직 main 에 부재 — 의도는 작업 지시서 `backend/report/review-2026-09-25/BRIEF-LOGIN.md` · `BRIEF-OBS2.md` 로 읽음.
+
+#### 5.8.3.1 LOGIN — 로그인 응답 계약 불변 확인
+
+지시서 불변식상 계약은 그대로 — `401 INVALID_CREDENTIALS` + `details.remaining_attempts` 4·3·2·1 → 5회째 `403 AUTH_ACCOUNT_BLOCKED` · 차단 계정은 비밀번호와 무관하게 `403` · 퇴사 관계자 거부는 대조 통과 뒤. **계약이 바뀌었으면 이 라운드의 첫 항목으로 올림.**
+
+접점 전수 — `grep -rnE "remaining_attempts|remainingAttempts|AUTH_ACCOUNT_BLOCKED|INVALID_CREDENTIALS|AUTH_STAFF_INACTIVE|auth/login|blocked-accounts|/unblock" apps packages`(83줄 · 28파일).
+
+| 갈래 | 운영 코드 | 실서버 계약 시험 |
+|---|---|---|
+| 웹 | `auth/components/LoginForm.tsx:39~47·73~74`(잔여 횟수 · 차단 · 퇴사 분기) · `admin/components/UnblockConfirmDialog.tsx` · `admin/api/blockedAccounts.ts` | `features/auth/api/realBackend.test.ts:266~319`(실패 4회 `remaining_attempts` 4·3·2·1 → 5회째 `403` → 맞는 비밀번호도 `403`) · `features/admin/api/realBackend.test.ts:188~215`(차단 재현 → 해제 → 로그인) · 로그인 도우미 `shared/testing/rawRestLogin.ts` · `realBackendReset.ts` |
+| 학부모 | `features/auth/presentation/login_screen.dart:94~99` · `blocked_screen.dart` · `settings/presentation/password_change_screen.dart`(`§2.8` 의 `401 INVALID_CREDENTIALS`) | `test/support/real_backend_target.dart:80` — 로그인 도우미, 실서버 파일 전부가 지남 |
+| 매니저 | `features/auth/presentation/login_screen.dart:95~100` · `blocked_screen.dart` | `test/support/real_backend_target.dart:64·115` |
+| 공유 패키지 | `auth/auth_api.dart` · `auth/account_status.dart` | `test/integration/real_backend_auth_test.dart:204~229`(목표 9 — `driverBlocked` 맞는 비밀번호 → `403`) · `test/support/driver_blocked_seed_reset.dart:30~48` |
+
+- ⚠ `driver_blocked_seed_reset.dart:30` 주석이 "`assertNotBlocked()` 가 비밀번호 대조보다 **먼저**" 를 근거로 적음 — LOGIN 이 대조를 잠금 밖으로 옮기면 **순서 서술이 낡을 가능성.** 탐침은 맞는 비밀번호라 결과(`403`)는 불변식 2 로 유지 — 주석만 확인
+- 퇴사 관계자(`AUTH_STAFF_INACTIVE`)는 웹 단위 시험(`LoginForm.test.tsx`)뿐 — 시드(`V2__seed_data.sql`)에 퇴사 관계자 계정이 부재해 프론트 실서버 확인 수단 부재. 백엔드 불변식 4 시험 소관
+
+#### 5.8.3.2 OBS2 · W12 — WebSocket 계약 불변 확인
+
+- OBS2 의 `WebSocketConfig` 송신 실행기 지표 등록은 동작 불변이 의도. 이미 병합된 후속(`4d82467c`)이 세션 송신 버퍼 64KB · 송신 시간 10초를 명시 — 넘는 세션은 서버가 닫고 클라이언트는 재연결(웹 `wsBackoffPolicy.ts` · 공유 패키지 `ws_backoff_policy.dart` — 1·2·4·8·16·30초 6회)
+- `docker-compose.observe.yml`(OBS2 가 삭제)을 가리키는 **프론트 문서·스크립트 0건** — `grep -rn "docker-compose.observe\|prometheus-load" .` 결과는 `infra/` · `backend/load/r1_round.sh` · `docs/backend/LOAD_TESTING.md` 뿐(OBS2 범위). 정정 항목 부재
+- 위치 방송 누락(`Ruling 349`) — 몇 초 공백을 오류로 다루는 화면 부재(웹은 마커 갱신만 늦음 · 학부모 앱은 마지막 좌표 유지). **2분 유실 표시는 학부모 앱이 첫 진입에만 판정** → P1
+- WS 접점 전수 — `grep -rlE "BaraedaWebSocketClient|AcademyRealtimeClient|createStompClient|/ws\b|wsUrl|stomp" apps packages`(29파일). 실서버 계약 시험 5파일:
+
+| 갈래 | 실서버 계약 시험 |
+|---|---|
+| 웹 | `src/shared/lib/ws/wsRealBackendAuth.test.ts` |
+| 공유 패키지 | `test/integration/baraeda_websocket_client_connect_test.dart` · `ws_forbidden_subscribe_close_code_test.dart` |
+| 매니저 | `test/integration/real_backend_manager_channel_test.dart` |
+| 학부모 | `test/integration/real_backend_p3_test.dart` |
+
+#### 5.8.3.3 실행 — 병합 뒤 조율자 1회 (전용 서버 · 주소 명시 · 건너뜀 0)
+
+⚠ **주소 인자를 빠뜨리면 적재 단계에서 실패** — `realBackendTarget.ts` · `real_backend_target.dart` 3벌이 던짐(`§5.5` 목표 0). 기본값 8080 은 조율자 시드 서버라 쓰지 않음.
+
+```bash
+# 전용 백엔드 — LOGIN·OBS2 병합 main 을 전용 포트·전용 DB 로
+cd backend && ./gradlew bootRun --args='--server.port=<전용포트> --spring.datasource.url=jdbc:postgresql://localhost:15432/<전용DB>'
+
+# 웹 — 주소는 호스트까지(/api/v1 은 시험이 붙임)
+cd frontend/apps/academy-web && NEXT_PUBLIC_API_BASE_URL=http://localhost:<전용포트> \
+  npx vitest run src/features/auth/api/realBackend.test.ts src/features/admin/api/realBackend.test.ts \
+  src/shared/lib/ws/wsRealBackendAuth.test.ts
+
+# Flutter 3종 — 주소는 /api/v1 까지
+cd frontend/packages/baraeda_core && flutter test --dart-define=API_BASE_URL=http://localhost:<전용포트>/api/v1 \
+  test/integration/real_backend_auth_test.dart test/integration/baraeda_websocket_client_connect_test.dart \
+  test/integration/ws_forbidden_subscribe_close_code_test.dart --reporter json
+cd frontend/apps/manager-app && flutter test --dart-define=API_BASE_URL=http://localhost:<전용포트>/api/v1 \
+  test/integration/real_backend_manager_channel_test.dart --reporter json
+cd frontend/apps/parent-app && flutter test --dart-define=API_BASE_URL=http://localhost:<전용포트>/api/v1 \
+  --dart-define=FIXTURE_DB=<전용DB> test/integration/real_backend_p3_test.dart --reporter json
+```
+
+- 판정 — 웹은 vitest 요약의 `skipped` **0**. Flutter 는 `--reporter json` 의 `testDone` 중 `hidden:false` 이고 이름이 `loading `·`(setUpAll)`·`(tearDownAll)` 이 아닌 것만 세어 `skipped:true` **0**(`§5.6` 공통 3)
+- ⚠ **계약 시험이 되돌릴 수 없는 상태를 소비함** — 웹 차단 재현은 계정 하나를 5회 실패시키고, 관리자 해제 시험은 `driverBlocked` 를 풀어 공유 패키지 목표 9 를 깸(`driver_blocked_seed_reset.dart` 가 조건부 `/dev/reset` 으로 복구). **같은 DB 로 두 번 돌리기 전에 시드 재구성**
+- 백엔드 서버는 확인 직후 내림(`lsof -iTCP:<전용포트>` 빈 결과)
+
+### 5.8.4 갈래 배정
+
+앱·패키지 단위로 가름 — 파일 겹침 0. **동시 3좌석 상한**(`§5.5` — 4좌석은 메모리 부족 실측). 부하 측정 · LOGIN · OBS2 가 끝난 뒤 착수.
+
+| 회차 | 좌석 | 대상 | 항목 | 규모(추정) | 순서 · 겹침 |
+|:-:|:-:|---|---|---|---|
+| 1 | `W-ID` | `academy-web` 식별자 | W1 | 약 50파일 · 기계적 치환 + 지도 선택 3화면 | `DashboardPage`·`MonitoringPage` 가 회차 2 `W-UI` 와 겹쳐 회차를 가름 |
+| 1 | `M` | `manager-app` | M1~M5 | 5건 · 모델 2 · 화면 2 · 문구 | — |
+| 1 | `C` | `baraeda_core` | C1 | 1건 · WS 클라이언트 + 재발급 진입점 | 학부모·매니저 앱이 의존 — 병합 뒤 두 앱 단위 시험 재실행 |
+| 2 | `B-ID` | `backend` | B1 | 응답 레코드 66파일 · WS 봉투 | **`W-ID` 병합 뒤.** 백엔드 전체 시험은 병합 뒤 조율자 1회(`FIX_COMMON §3`) |
+| 2 | `W-UI` | `academy-web` 나머지 | W2~W10 | 9건 | `W-ID` 병합 뒤 |
+| 2 | `P` | `parent-app` | P1 · P2 | 2건 | `C` 병합 뒤(실시간 지도가 공유 패키지 클라이언트를 씀) |
+
+- 적용 순서 요약(프론트 18건) — **앱 먼저 2건**(M2 · W1 → 그다음 B1) · **서버 먼저 15건**(서버 병합 완료 · 프론트만 남음 — M1·M3~M5 · C1 · W2~W10 · P2) · **앱 단독 1건**(P1)
+- FCM 단위(`§5.8.2`)는 키가 풀린 뒤 별도 회차 — 앱 2종·웹에 걸쳐 회차 1·2 와 같은 파일(`device_registration_panel.dart` · `auth_api.dart`)을 건드림
+
+### 5.8.5 목표 표 — 전항 통과가 완료 조건
+
+- 좌석은 **단위 시험만** 돌림 — 실서버 시험(`test/integration/` · `real_backend*` · `realBackend.test.ts`)은 좌석이 돌리지 않음(`FIX_COMMON §3` · 주소 누락 사고 3회)
+- 착수 직후 기준값을 잼 — 마지막 기록은 `docs/IMPLEMENTATION_PLAN.md §8.46`(웹 vitest 351 통과 · 77 건너뜀 · `baraeda_core` 41 · `baraeda_ui` 83 · 학부모 106 · 매니저 115)이고 그 뒤 병합(`FIX-I` 등)으로 달라졌을 가능성
+- RED ✅ — `IMPLEMENTATION_PLAN §4.6`(메인) TDD. 고치기 전 실패를 눈으로 보고 실패 문면을 보고서에
+
+| # | 좌석 | 완료 조건 | 검증 |
+|:-:|:-:|---|---|
+| 1 | `W-ID` | 식별자 `number` 선언 0 | `§5.8.1.3` 의 계수 명령 → **0줄**. raw 타입은 `string \| number` 순서로 적어 이 정규식에 안 걸림 |
+| 2 | `W-ID` | 식별자 `Number()` 0 | `§5.8.1.3` 목록 17곳 → 0 |
+| 3 | `W-ID` | ✅ **서버가 숫자든 문자열이든 지도 선택이 동작** | 대시보드·관제·금일 운행의 마커 클릭 시험에 **문자열 id 응답** 가짜 데이터 → 지금 코드의 선택 실패를 먼저 봄 → 흡수 뒤 통과. 숫자 id 응답도 통과 |
+| 4 | `W-ID` | 정적 분석·시험 | `npx tsc --noEmit` 새 오류 0(기존 1건 `src/app/layout.tsx(13,50) LayoutProps` — `.next` 생성 타입 부재, `FIX-D.md §2` — 소유 밖) · `npm run lint` 0건 · `npx vitest run` 실패 0 |
+| 5 | `M` | ✅ M1 | `status: absent` · `change: removed` 학생을 담은 명단 JSON 으로 위젯 시험 — "금일 삭제" 배지 · [탑승]·[미승차] 부재. 지금 코드의 버튼 노출을 먼저 봄 |
+| 6 | `M` | ✅ M2 | `case_id: 12`(숫자)인 `§4.6` 응답으로 `RiderUpdateResult.fromJson` — 지금 형변환 예외 → 흡수 뒤 `'12'` |
+| 7 | `M` | ✅ M3 · M4 | 가짜 저장소가 `409 RIDER_TRANSITION_NOT_ALLOWED` 를 던지면 문구 + `rosterProvider` 재조회 1회 · `RUN_CANCELED` 면 `todayRunsProvider` 재조회 |
+| 8 | `M` | M5 · 정적 분석 · 시험 | 안내 문구 위젯 시험 · `flutter analyze` 새 지적 0 · `flutter test --exclude-tags real_backend` 실패 0 |
+| 9 | `C` | ✅ C1 | 가짜 STOMP 가 `ERROR message:TOKEN_EXPIRED` 뒤 소켓을 닫으면 **재발급 콜백 1회 → 새 토큰으로 CONNECT.** 지금 코드는 같은 토큰으로 재연결(실패를 먼저 봄). 재발급 실패면 `gaveUp` 이 아니라 로그인 만료. 본보기 `test/websocket/baraeda_websocket_client_reconnect_test.dart` |
+| 10 | `C` | 자바독 정정 · 의존 앱 | `baraeda_websocket_client.dart:22~29` 정정 · `flutter analyze` 새 지적 0 · 학부모·매니저 앱 `flutter test --exclude-tags real_backend` 실패 0 |
+| 11 | `B-ID` | ✅ B1 | 응답 JSON 의 `id`·`*_id` 가 전부 문자열임을 **실제 직렬화로** 검사하는 규약 시험 1개 — 새 레코드가 `Long` 으로 새면 실패. 요청은 숫자·문자열 둘 다 수용(`Ruling 332`) 1건씩. `FIX_COMMON §3` 컨트롤러 규약 시험 동반 |
+| 12 | `W-UI` | ✅ W2 | `academyRealtimeClient.test.ts` — `TOKEN_EXPIRED` 프레임 → `refreshAccessToken` 1회 → 새 토큰 CONNECT |
+| 13 | `W-UI` | ✅ W3 | 대시보드·관제 — `emergency_raised` 뒤 `emergency_canceled` 수신 → 알림이 취소 문구로 |
+| 14 | `W-UI` | ✅ W4 · W5 · W6 · W7 | 각 1건 — 연속 실패 N 표시(0 이면 부재) · 정원 경고 표시 · 차단 목록 열 2개 · 학원 항목 정차지 마커 제외 |
+| 15 | `W-UI` | ✅ W8 · W9 | 코드별 문구 2건 — `MANAGER_ASSIGNED`(수정 화면) · `CHANGE_WINDOW_CLOSED`(승하차지 저장) |
+| 16 | `W-UI` | ✅ W10 | `apiErrorCodes.ts` ↔ `docs/API_SPEC.md §8` 대조 시험 — 지금 18개 누락으로 실패를 먼저 봄 |
+| 17 | `W-UI` | 정적 분석·시험 | 4번과 같음 |
+| 18 | `P` | ✅ P1 | `clockProvider` 를 움직여 WS 좌표 수신 뒤 **2분** → "마지막 확인 위치 · 2분 전". **1분 59초**는 좌표 유지 |
+| 19 | `P` | P2 · 정적 분석 · 시험 | 안내 문구 위젯 시험 · `flutter analyze` 새 지적 0 · `flutter test --exclude-tags real_backend` 실패 0 |
+| 20 | 조율자 | **병합 후 단독 전체 실행** — 실패 0 · 건너뜀 0 | 백엔드 · 웹 · 매니저 · 학부모 · `baraeda_core` · `baraeda_ui`. 전용 포트 · 전용 DB · 주소 인자 명시(`§5.8.3.3` 형식) · 동시 실행 좌석 0 |
+| 21 | 조율자 | **시드 서버 오염 0** | 회차 시작·종료의 `schoolbus` `emergency_alert` 건수 = 정본 `V2__seed_data.sql` 값 |
+
+### 5.8.6 디자인 킷과 부딪히는 곳 — `§4`
+
+| 항목 | 킷 | 판정 |
+|---|---|---|
+| M1 | `ui_kits/manager-app/ManagerScreens.jsx:235` `Badge tone="removed"` "금일 삭제" | **일치** — `baraeda_ui` `BaraedaBadgeTone.removed` 그대로 |
+| P1 | `ui_kits/parent-app/ParentScreens.jsx:78` "현재 위치 · 대치사거리 · 2분 전" — 성공 갈래만 | `docs/` 기준(`API_SPEC §3.11` · `Ruling 208`) — 유실 갈래는 `§8.1` 규칙대로 |
+| W3 · W4 · W5 · W6 | 비상 취소 · 연속 실패 · 정원 경고 · `(admin)` 화면 킷 부재(`§4` 2·4번) | `§8.1` 규칙대로 |
+| 나머지 | 문구 · 데이터 매핑 | 해당 없음 |
+
+### 5.8.7 정정 — 이 절을 쓰며 발견한 낡은 문장 (원문 미수정)
+
+| 위치 | 낡은 문장 | 사실 |
+|---|---|---|
+| 이 문서 `§2` 디렉터리 트리 | `frontend/CONVENTIONS_REACT.md` · `frontend/IMPLEMENTATION_PLAN.md` | 2026-09-20 `docs/frontend/` 로 이동(`CLAUDE.md` 문서 통합 표) |
+| 이 문서 `§5` 머리 | `~/.claude/rules/parallel-agents-git.md §0` | 경로 부재 — Skill `parallel-agents` 로 이관 |
+| `docs/IMPLEMENTATION_PLAN.md §8.45` 프론트 영향 `332` 행 | "앱 2종은 … 영향 부재" | 서버 전환 **뒤**에는 맞음. **지금은** 매니저 앱 `§4.6` `case_id` 가 숫자를 못 받는 결함 존재(M2) |
+| 같은 행 | "숫자 선언 77곳 · `Number()` 변환 9곳" | 계수 명령 부재로 대조 불가 — `§5.8.1.3` 명령 기준 170줄 · 17곳 |
+| 같은 표 `335` 행 | "앱 먼저 → 서버" | 양쪽 병합 완료(`7a991bb0`) |
+| `docs/IMPLEMENTATION_PLAN.md §8.46` "남은 것" | 프론트 후속 "경유 지점 `preview_token`" | 웹 호출부 부재(`Ruling 325`) — 해당 없음 |
+| `baraeda_websocket_client.dart:22~29` 자바독 | 서버가 만료를 이유로 세션을 끊지 않음 | `534abb76` 이후 끊음 — C1 에서 정정 |
+| `manager-app/lib/core/run/run_enums.dart:48~49` 주석 | `absent` 는 명단에서 빠짐 | `91adb811` 이후 `removed` 행으로 남음 — M1 에서 정정 |
+
 ## 6. 완료 조건 — 화면 단위
 
 각 화면은 아래 4개를 전부 통과해야 완료. **"화면이 뜬다" 는 완료가 아님.**
