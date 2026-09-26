@@ -1,4 +1,4 @@
-package src.backend.student.command;
+package src.backend.student.service;
 
 import java.util.ArrayList;
 import java.util.List;

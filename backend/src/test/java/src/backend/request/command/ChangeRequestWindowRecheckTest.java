@@ -36,7 +36,7 @@ import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
 import src.backend.run.command.RunConfirmationFixtures;
 import src.backend.run.repository.RunRepository;
-import src.backend.student.command.AddressVerification;
+import src.backend.student.service.AddressVerification;
 import src.backend.student.entity.Guardian;
 import src.backend.student.entity.GuardianStudent;
 import src.backend.student.geocoding.spec.GeocodedPoint;

@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.AuthUser;
-import src.backend.student.command.AddressVerification;
+import src.backend.student.service.AddressVerification;
 import src.backend.student.geocoding.spec.GeocodedPoint;
 import src.backend.student.geocoding.spec.GeocodingClient;
 import src.backend.student.geocoding.spec.PlaceSearchClient;

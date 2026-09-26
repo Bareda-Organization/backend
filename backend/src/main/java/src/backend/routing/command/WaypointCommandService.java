@@ -40,7 +40,7 @@ import src.backend.routing.repository.WaypointRepository;
 import src.backend.run.domain.RunConfirmationFingerprint;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
-import src.backend.student.command.AddressVerification;
+import src.backend.student.service.AddressVerification;
 import src.backend.student.entity.Stop;
 import src.backend.student.geocoding.spec.GeocodedPoint;
 

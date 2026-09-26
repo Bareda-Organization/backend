@@ -13,6 +13,7 @@ import src.backend.student.domain.VerifiedAddressEntry;
 import src.backend.student.dto.WeeklyAddressResponse;
 import src.backend.student.dto.WeeklyAddressUpdateRequest;
 import src.backend.student.entity.Student;
+import src.backend.student.service.AddressVerification;
 
 /**
  * 학부모의 요일별 주소 설정(P-05 · STU-05·06, API_SPEC §3.7 {@code PATCH}).

@@ -18,7 +18,7 @@ import src.backend.request.dto.ChangeRequestCreateResponse;
 import src.backend.request.entity.ChangeRequestType;
 import src.backend.run.entity.Run;
 import src.backend.student.access.LinkedChildLookup;
-import src.backend.student.command.AddressVerification;
+import src.backend.student.service.AddressVerification;
 import src.backend.student.entity.Student;
 import src.backend.student.geocoding.spec.GeocodedPoint;
 
