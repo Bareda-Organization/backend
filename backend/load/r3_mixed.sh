@@ -37,11 +37,12 @@ cpu_ns() { curl -sf "$PROM" | awk '$0 ~ "^process_cpu_time_ns_total[ {]" {print 
 metric() { curl -sf "$PROM" | awk -v n="$1" '$0 ~ "^"n"[ {]" {s+=$NF; k=1} END {if(!k) print 0; else printf "%.6g", s}'; }
 
 # k6 → Prometheus 원격 쓰기, 기본 꺼짐(K6_PROM_RW=1 로 켠다) — r1_round.sh 와 같은 스위치·같은 이유
-# (문자열 + word-splitting, 빈 배열 + set -u 조합이 bash 3.2 에서 죽는 문제 회피).
+# (문자열 + word-splitting, 빈 배열 + set -u 조합이 bash 3.2 에서 죽는 문제 회피). 수신은 범용 관측
+# 스택(:9390, O1)이 켠다.
 # 세션·위치 두 k6 실행이 겹치므로 testid 태그를 따로 붙여 대시보드에서 구분한다.
 K6_OUT_ARGS_SESSIONS=""; K6_OUT_ARGS_POSITION=""
 if [ "${K6_PROM_RW:-0}" = "1" ]; then
-    export K6_PROMETHEUS_RW_SERVER_URL="${K6_PROMETHEUS_RW_SERVER_URL:-http://localhost:9090/api/v1/write}"
+    export K6_PROMETHEUS_RW_SERVER_URL="${K6_PROMETHEUS_RW_SERVER_URL:-http://localhost:9390/api/v1/write}"
     export K6_PROMETHEUS_RW_TREND_STATS="${K6_PROMETHEUS_RW_TREND_STATS:-p(95),p(99),max}"
     K6_OUT_ARGS_SESSIONS="-o experimental-prometheus-rw --tag testid=${TAG}_sessions"
     K6_OUT_ARGS_POSITION="-o experimental-prometheus-rw --tag testid=${TAG}_position"

@@ -192,28 +192,53 @@ docker exec school-bus-postgres-1 psql -U schoolbus -d postgres -c "CREATE DATAB
 
 ## 7. 회차를 화면으로 보기 — Grafana "5. 부하 시험" 대시보드
 
-로그·요약 파일을 기다리지 않고, 회차가 도는 동안 사람이 직접 화면으로 본다. 관측(prometheus·grafana)은
-컨테이너로, 앱은 지금까지와 같이 **호스트에서** `load` 프로파일로 뜬다 — 서로 다른 compose 파일이라
-`docker-compose.app.yml`(전부 컨테이너 개발 모드)과 **동시에 띄우지 않는다**(포트 3001·9090 이 겹친다).
+로그·요약 파일을 기다리지 않고, 회차가 도는 동안 사람이 직접 화면으로 본다. 앱은 지금까지와 같이
+**호스트에서** `load` 프로파일로 뜬다.
+
+관측(Prometheus·Grafana)은 School-Bus 전용 컨테이너가 아니라 **여러 프로젝트가 함께 쓰는 로컬 관측
+스택**(`/Users/mskim/Desktop/PJ/observability-stack`, 별도 저장소)을 쓴다 — School-Bus 전용
+`docker-compose.observe.yml`·`infra/observability/prometheus/prometheus-load.yml` 은 이 스택과 같은
+일(부하 시험용 Prometheus·Grafana)을 중복으로 하고 있어 **더 이상 쓰지 않는다**(O1, 2026-09-26 —
+파일 삭제는 아직 대기 중, 그 사이 이 절의 지시를 그대로 따르면 두 파일은 참조되지 않는다). **사람이
+따라 칠 명령 전체는 그 저장소의 README 를 그대로 따른다** — 복사하지 않는다(복사본은 낡는다).
+School-Bus 만의 값은 아래 셋뿐이다.
+
+| 값 | 무엇 |
+|---|---|
+| `APP` | `school-bus` |
+| 호스트 앱 `TARGET` | `host.docker.internal:18080` — `load` 프로파일 포트(§6.1), 8080 이 아니다 |
+| 대시보드 폴더 `DIR` | 이 저장소의 `infra/observability/grafana/dashboards`(절대경로로 준다) |
 
 ```bash
-# 1. 관측 스택 기동 (한 번만 — 다음 회차부터는 그대로 둬도 된다)
-docker compose -f docker-compose.observe.yml up -d
+# 1. 범용 스택 기동 (한 번만 — 다음 회차부터는 그대로 둬도 된다)
+cd /Users/mskim/Desktop/PJ/observability-stack && make up
 
-# 2. 앱 기동 — §6.1 과 동일, load 프로파일이 포트 18080 에 뜬다
+# 2. School-Bus 를 프로젝트로 등록 + 전용 대시보드 연결 (한 번만 — 재기동 없이 반영된다)
+make register APP=school-bus TARGET=host.docker.internal:18080 PATH=/actuator/prometheus
+make dashboards PROJECT=school-bus DIR="$(git -C <이 저장소 경로> rev-parse --show-toplevel)/infra/observability/grafana/dashboards"
+
+# 3. 앱 기동 — §6.1 과 동일, load 프로파일이 포트 18080 에 뜬다
 ./gradlew bootRun --args='--spring.profiles.active=load --spring.devtools.restart.enabled=false \
     --app.routing.map.stub.load.min-delay-ms=300 --app.routing.map.stub.load.max-delay-ms=1200 \
     --app.routing.map.stub.load.max-concurrent=4'
 
-# 3. k6 원격 쓰기를 켜고 회차 실행 (기본은 꺼짐 — 켜지 않으면 지금까지와 동일하게 로그·요약 파일만 남는다)
+# 4. k6 원격 쓰기를 켜고 회차 실행 (기본은 꺼짐 — 켜지 않으면 지금까지와 동일하게 로그·요약 파일만 남는다)
 K6_PROM_RW=1 ./r1_round.sh 500      # 또는 r2_round.sh · r3_mixed.sh
 
-# 4. 브라우저에서 확인 — http://localhost:3001 (admin/admin) → "5. 부하 시험"
+# 5. 브라우저에서 확인 — http://localhost:3300 (admin/admin) → "5. 부하 시험"
 #    상단 testid 변수에서 방금 돌린 회차(r1_vu500 등)를 고른다
 
-# 5. 끝나면 내리기
-docker compose -f docker-compose.observe.yml down
+# 6. 끝나면 스택 내리기 — 다른 프로젝트가 같이 쓰고 있을 수 있으니 확인 후(볼륨은 안 지워진다)
+make down
 ```
+
+⚠ `docker-compose.app.yml` 의 prometheus·grafana(호스트 포트 3001·9090, "전부 컨테이너" 개발 모드)는
+**이것과 다른 용도**다 — 그쪽은 backend 를 컨테이너(8080 스크레이프)로 띄운 상태를 배포 흉내로
+관측하고, 이 절은 backend 를 호스트에서 `load` 프로파일(18080)로 띄운 상태를 관측한다. "5. 부하 시험"
+대시보드의 쿼리는 스크레이프 `job` 이 아니라 앱이 늘 붙이는 공통 태그 `application="school-bus"`
+(`application.yml` 의 `management.metrics.tags.application`)로 거르므로 — 컨테이너 모드로 부하를
+걸어도, 이 범용 스택으로 등록해도 값이 같은 대시보드에 찬다.
+(대시보드 1~4 는 여전히 `job="backend"` 로 걸러 컨테이너 모드 전용이다 — 아래 참고.)
 
 **무너짐 신호 3개** — 상단 판정 패널(stat 4개)이 이 값을 바로 보여준다.
 1. **힙 사용률 최대가 85% 를 넘는다** — GC 압박으로 응답이 튀기 시작하는 지점(2026-09-09 부하 한계 측정에서
