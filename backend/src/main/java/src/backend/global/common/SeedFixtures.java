@@ -166,4 +166,14 @@ public final class SeedFixtures {
 
     /** 상태 {@code auto_rejected} 인 변경요청 — 마감을 넘겨 시스템이 자동 반려. */
     public static final String CHANGE_REQUEST_AUTO_REJECTED_ID = "4";
+
+    // ── 로그인 비밀번호 (BR-113) ──────────────────────────────────────────
+
+    /**
+     * {@code local} 프로파일 전 계정 공통 평문 비밀번호. {@code demo}(배포) 는 다르다({@code CLAUDE.md}).
+     * ⚠ 이 상수는 {@code SeedFixturesContractTest}(겹①) 의 대상 밖이다 — DB 에는 이 값의 bcrypt 해시만
+     * 저장되므로(Flyway placeholder {@code seedPasswordHash}), SQL 로 "평문이 이 해시에 대응하는가"를
+     * 확인할 수 없다. 시각 값과 같은 이유로 존재 대조에서 빠진다.
+     */
+    public static final String LOCAL_DEFAULT_PASSWORD = "password";
 }
