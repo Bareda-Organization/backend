@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.routing.entity.RunStop;
+import src.backend.run.entity.RunStatus;
 
 /**
  * {@link RunStop} 영속성 접근 — {@code run_stop} 은 {@code academy_id} 컬럼이 부재한 <b>부모 경유</b>
@@ -53,10 +54,11 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
             JOIN ConfirmedRoute cr ON cr.currentVersionId = rs.routeVersionId
             JOIN Run r ON r.id = cr.runId
             WHERE rs.stopId IN :stopIds
-              AND r.status = src.backend.run.entity.RunStatus.MOVING
+              AND r.status = :movingStatus
               AND r.academyId = :academyId
             """)
-    boolean existsOnMovingRun(@Param("stopIds") Collection<Long> stopIds, @Param("academyId") Long academyId);
+    boolean existsOnMovingRun(@Param("stopIds") Collection<Long> stopIds, @Param("academyId") Long academyId,
+            @Param("movingStatus") RunStatus movingStatus);
 
     /**
      * ③구간 미등원 토글이 잔여 0명을 확인한 뒤 건너뛸 정차 항목 1건을 찾는다(API_SPEC §3.6 ③) —

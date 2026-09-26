@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 
 import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.run.entity.RunTransfer;
+import src.backend.run.entity.RunTransferStatus;
 
 /**
  * {@link RunTransfer} 영속성 접근 — {@code run_transfer} 는 {@code academy_id} 컬럼이
@@ -68,7 +69,8 @@ public interface RunTransferRepository extends JpaRepository<RunTransfer, Long> 
     @Modifying(flushAutomatically = true)
     @AcademyScopeExempt(reason = "findAllByToRunIdAndAcademyId 가 이미 학원으로 좁혀 읽은 이동 id 를 그대로 "
             + "갱신하는 확정 배치 내부 호출이다 — RunRepository.confirmIfIdle 과 같은 근거")
-    @Query("UPDATE RunTransfer rt SET rt.status = src.backend.run.entity.RunTransferStatus.APPLIED, "
+    @Query("UPDATE RunTransfer rt SET rt.status = :appliedStatus, "
             + "rt.appliedAt = :appliedAt WHERE rt.id IN :ids")
-    int markApplied(@Param("ids") Collection<Long> ids, @Param("appliedAt") OffsetDateTime appliedAt);
+    int markApplied(@Param("ids") Collection<Long> ids, @Param("appliedAt") OffsetDateTime appliedAt,
+            @Param("appliedStatus") RunTransferStatus appliedStatus);
 }

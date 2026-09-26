@@ -18,6 +18,7 @@ import src.backend.run.domain.RunRouteEndpoints;
 import src.backend.run.entity.Run;
 import src.backend.run.event.RunRouteConfirmedEvent;
 import src.backend.run.entity.RunTransfer;
+import src.backend.run.entity.RunTransferStatus;
 import src.backend.run.repository.RunRepository;
 import src.backend.run.repository.RunTransferRepository;
 import src.backend.run.roster.ProjectedRoster;
@@ -94,7 +95,7 @@ public class RunConfirmationPersistence {
         runRiderPersistence.confirmRiders(run.getId(), roster, computation.unresolvedStudentIds(), confirmedAt);
         if (!roster.incomingTransfers().isEmpty()) {
             runTransferRepository.markApplied(roster.incomingTransfers().stream().map(RunTransfer::getId).toList(),
-                    confirmedAt);
+                    confirmedAt, RunTransferStatus.APPLIED);
         }
 
         // 노선 확정 알림보다 먼저 — 자동 배정된 동승자도 확정 노선 알림(route_changed)의 수신자가 된다.
