@@ -1,0 +1,47 @@
+# LOAD3 측정 전용 — 앱 · k6 를 Postgres·Redis 와 같은 Docker 네트워크 안에서 띄운다
+# (호스트 포트 전달을 부하 경로에서 뺀다 — LOAD_TESTING §6.4 · Ruling 353·354). 포화 지점 측정은 이 경로로 한다.
+#
+# 기존 docker-compose.yml/.app.yml 을 고치지 않고 별도 파일로 둔 이유: 그 파일들의 backend 서비스는
+# 호스트 프록시(:3000)를 앞에 두는 운영 구성이고, 이번 측정은 그 경로 자체를 빼는 것이 목적이라
+# 오버레이보다 완전히 분리된 파일이 실수로 기존 스택을 건드릴 위험이 없다.
+services:
+  app-load3:
+    image: school-bus-backend:load3
+    container_name: load3-app
+    networks:
+      - school-bus_default
+      - observability
+    cpus: 4.0
+    mem_limit: 4g
+    environment:
+      # FIX-VERIFY A·B 와 같은 힙(2g 고정) + 4 vCPU 흉내(-XX:ActiveProcessorCount, JVM 이 컨테이너
+      # cgroup 이 아니라 이 값을 코어 수로 본다 — start_sized.sh 와 동일 방식).
+      JAVA_TOOL_OPTIONS: "-Xms2g -Xmx2g -XX:ActiveProcessorCount=4"
+    command:
+      - "--spring.profiles.active=load"
+      - "--spring.devtools.restart.enabled=false"
+      - "--server.port=8080"
+      # application-load.yml 의 localhost:15432/16379 를 인자로 덮는다(파일 미변경, LOAD_TESTING.md §6.1 방침)
+      - "--spring.datasource.url=jdbc:postgresql://school-bus-postgres-1:5432/schoolbus_load"
+      - "--spring.datasource.hikari.maximum-pool-size=20"
+      - "--spring.data.redis.host=school-bus-redis-1"
+      - "--spring.data.redis.port=6379"
+      - "--app.routing.map.stub.load.min-delay-ms=300"
+      - "--app.routing.map.stub.load.max-delay-ms=1200"
+      - "--app.routing.map.stub.load.max-concurrent=4"
+      # BR-168/170 확정값 — FIX-VERIFY A·B 와 같은 값이어야 직접 비교가 성립한다.
+      - "--app.ws.outbound.core-pool-size=32"
+      - "--app.ws.outbound.queue-capacity=5000"
+    labels:
+      # observability-stack README ① 컨테이너 라벨 방식 — application 라벨이 host 등록분(school-bus,
+      # targets/school-bus.yml)과 같은 이름이라 기존 "5. 부하 시험" 대시보드 변수를 그대로 쓴다.
+      observability.scrape: "true"
+      observability.port: "8080"
+      observability.path: "/actuator/prometheus"
+      observability.app: "school-bus"
+
+networks:
+  school-bus_default:
+    external: true
+  observability:
+    external: true
