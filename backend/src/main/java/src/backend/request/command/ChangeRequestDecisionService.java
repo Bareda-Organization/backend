@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.academy.entity.Academy;
 import src.backend.academy.repository.AcademyRepository;
+import src.backend.boarding.command.RunRiderPersistence;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.global.common.enums.Weekday;
@@ -33,19 +34,19 @@ import src.backend.request.preview.ApprovalPreviewResolver.OriginDestination;
 import src.backend.request.preview.spec.ApprovalPreview;
 import src.backend.request.preview.spec.ApprovalPreviewCache;
 import src.backend.request.repository.ChangeRequestRepository;
+import src.backend.routing.command.RouteVersionDeploymentService;
+import src.backend.routing.command.RouteVersionDeploymentService.DeployedVersion;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.Route;
 import src.backend.routing.entity.RouteStop;
 import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.entity.RouteVersionSource;
-import src.backend.routing.entity.RunStop;
 import src.backend.routing.pipeline.DailyRoster;
 import src.backend.routing.pipeline.RouteComputation;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
 import src.backend.routing.repository.RouteVersionRepository;
-import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.domain.RunConfirmationFingerprint;
 import src.backend.run.entity.Run;
 import src.backend.run.event.RunRouteConfirmedEvent;
@@ -83,6 +84,9 @@ public class ChangeRequestDecisionService {
 
     private final RunRiderRepository runRiderRepository;
 
+    /** 명단 반영 진입점(BR-095) — {@code boarding} 소유 {@code run_rider} 에 직접 쓰지 않는다. */
+    private final RunRiderPersistence runRiderPersistence;
+
     private final ApprovalPreviewCache previewCache;
 
     private final ApprovalPreviewResolver previewResolver;
@@ -97,7 +101,8 @@ public class ChangeRequestDecisionService {
 
     private final RouteVersionRepository routeVersionRepository;
 
-    private final RunStopRepository runStopRepository;
+    /** 새 노선 버전 배포 진입점(BR-094·095) — {@code routing} 소유 테이블에 직접 쓰지 않는다. */
+    private final RouteVersionDeploymentService routeVersionDeploymentService;
 
     private final ApplicationEventPublisher eventPublisher;
 
@@ -165,20 +170,17 @@ public class ChangeRequestDecisionService {
                 .findFirst()
                 .orElseThrow(() -> new BusinessException(ErrorCode.STUDENT_NOT_IN_RUN));
 
-        Deployment deployment = deployNewVersion(run, academyId, computation, decidedAt, requester.accountId(),
-                preview.fingerprint(), target.getStopId());
+        DeployedVersion deployment = routeVersionDeploymentService.deployNewVersion(run, computation,
+                preview.fingerprint(), RouteVersionSource.APPROVAL, requester.accountId(), decidedAt,
+                target.getStopId());
 
         // assignCurrentVersion 이 clearAutomatically=true 라 deployNewVersion 안에서 영속 컨텍스트
         // 전체가 비워진다 — target·cr 은 그 이전에 로드해 둔 인스턴스라 이 시점부턴 준영속(detached)
-        // 상태다. 세터만 부르고 끝내면 변경이 메모리에만 남고 커밋 때 반영되지 않으므로, 각 저장소의
-        // save() 로 명시적으로 다시 붙인다(merge, ConfirmedRoute.assignCurrentVersion 의 javadoc이
-        // 이미 경고한 것과 같은 함정).
-        if (cr.getType() == ChangeRequestType.CANCEL) {
-            target.markAbsent(decidedAt);
-        } else {
-            target.relocateTo(cr.getNewStopId(), decidedAt);
-        }
-        runRiderRepository.save(target);
+        // 상태다. 세터만 부르고 끝내면 변경이 메모리에만 남고 커밋 때 반영되지 않으므로,
+        // runRiderPersistence.applyApprovalDecision() 이 그 인스턴스를 다시 save() 로 붙인다(merge,
+        // ConfirmedRoute.assignCurrentVersion 의 javadoc이 이미 경고한 것과 같은 함정).
+        boolean cancel = cr.getType() == ChangeRequestType.CANCEL;
+        runRiderPersistence.applyApprovalDecision(target, cancel, cr.getNewStopId(), decidedAt);
 
         cr.approve(requester.accountId(), decidedAt, deployment.stopRemoved(), deployment.newVersion().getId());
         changeRequestRepository.save(cr);
@@ -196,39 +198,6 @@ public class ChangeRequestDecisionService {
 
         return new DecideChangeRequestResponse("approved", deployment.stopRemoved(),
                 deployment.newVersion().getVersionNo(), requester.accountId(), decidedAt);
-    }
-
-    /**
-     * 캐시된 재최적화 결과를 새 노선 버전으로 배포한다(BR-101 — {@code approve} 의 §20.2 크기 신호를
-     * 줄이기 위해 분리, 계산·판단 로직 자체는 바뀌지 않았다). "잔여 0명이면 승하차지 제거" 는 대상
-     * 학생이 떠나는 원래 승하차지가 재최적화 결과에도 남아 있는지로 판정한다(전/후 대조는 실제
-     * 배포될 {@code computation} 을 기준으로 한다, 사각지대 회피).
-     */
-    private Deployment deployNewVersion(Run run, Long academyId, RouteComputation computation,
-            OffsetDateTime decidedAt, Long createdBy, String fingerprint, Long originalStopId) {
-        ConfirmedRoute confirmedRoute = confirmedRouteRepository.findById(run.getId())
-                .orElseThrow(() -> new IllegalStateException("확정 노선이 없다 — runId=" + run.getId()));
-        RouteVersion currentVersion = routeVersionRepository.findById(confirmedRoute.getCurrentVersionId())
-                .orElseThrow(() -> new IllegalStateException(
-                        "노선 버전이 없다 — versionId=" + confirmedRoute.getCurrentVersionId()));
-        List<RunStop> beforeRunStops = runStopRepository
-                .findAllByRouteVersionIdAndAcademyIdOrderBySeq(currentVersion.getId(), academyId);
-
-        boolean stopRemoved = beforeRunStops.stream().anyMatch(rs -> originalStopId.equals(rs.getStopId()))
-                && computation.stops().stream().noneMatch(os -> originalStopId.equals(os.stopId()));
-
-        RouteVersion newVersion = RouteVersion.forConfirmedRoute(run.getId(), currentVersion.getVersionNo() + 1,
-                RouteVersionSource.APPROVAL, computation.estDurationMin(), computation.estDistanceKm(), decidedAt,
-                fingerprint, computation.snapshot().engineName(), computation.snapshot().policySnapshot(),
-                computation.snapshot().fallbackUsed(), computation.roadPath(), createdBy, decidedAt);
-        routeVersionRepository.save(newVersion);
-        confirmedRouteRepository.assignCurrentVersion(run.getId(), newVersion.getId());
-        runStopRepository.saveAll(RunStop.listOf(newVersion.getId(), computation, run.getDirection()));
-        return new Deployment(newVersion, stopRemoved);
-    }
-
-    /** {@link #deployNewVersion} 의 결과 — 새로 배포된 버전과 대상 승하차지 제거 여부. */
-    private record Deployment(RouteVersion newVersion, boolean stopRemoved) {
     }
 
     /** 거절 — 재최적화를 전혀 부르지 않고 기존 노선을 유지한 채 사유와 함께 학부모에게 통보한다. */

@@ -1,4 +1,4 @@
-package src.backend.request.query;
+package src.backend.request.assembly;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;

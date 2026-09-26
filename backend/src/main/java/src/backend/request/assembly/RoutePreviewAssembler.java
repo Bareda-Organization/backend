@@ -1,4 +1,4 @@
-package src.backend.request.query;
+package src.backend.request.assembly;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;

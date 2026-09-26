@@ -27,6 +27,7 @@ import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
+import src.backend.request.assembly.RoutePreviewAssembler;
 import src.backend.request.domain.ChangeWindow;
 import src.backend.request.dto.AffectedStudentResponse;
 import src.backend.request.dto.ApprovalCapacityResponse;
