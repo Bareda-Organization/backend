@@ -12,10 +12,9 @@ import src.backend.run.entity.Run;
 import src.backend.run.entity.RunForcedAddition;
 import src.backend.run.repository.RunForcedAdditionRepository;
 import src.backend.student.command.StopMatcher;
+import src.backend.student.command.StudentCommandService;
 import src.backend.student.entity.Student;
-import src.backend.student.entity.StudentProfile;
 import src.backend.student.geocoding.spec.GeocodedPoint;
-import src.backend.student.repository.StudentRepository;
 
 /**
  * 검증을 마친 강제 추가를 저장한다(RTE-06, API_SPEC §5.7) — 이 클래스가 트랜잭션 경계이고 외부
@@ -30,7 +29,8 @@ import src.backend.student.repository.StudentRepository;
 @RequiredArgsConstructor
 public class ForcedAdditionStore {
 
-    private final StudentRepository studentRepository;
+    /** 신규 학생 직접 입력 등록 진입점(BR-095) — {@code student} 소유 테이블에 직접 쓰지 않는다. */
+    private final StudentCommandService studentCommandService;
 
     private final StopMatcher stopMatcher;
 
@@ -52,20 +52,11 @@ public class ForcedAdditionStore {
     public RunForcedAddition stage(Run run, Long addedBy, Student existingStudent, ForcedAdditionRequest request,
             GeocodedPoint point, OffsetDateTime now) {
         stagingRunGuard.lockIdle(run);
-        Student student = existingStudent != null ? existingStudent
-                : studentRepository.save(newStudent(run.getAcademyId(), request));
+        Long studentId = existingStudent != null ? existingStudent.getId()
+                : studentCommandService.registerMinimal(run.getAcademyId(), request.newStudent().name());
         Long stopId = stopMatcher.matchOrCreate(run.getAcademyId(), point).getId();
-        RunForcedAddition forcedAddition = RunForcedAddition.forRun(run.getId(), student.getId(), stopId, addedBy,
+        RunForcedAddition forcedAddition = RunForcedAddition.forRun(run.getId(), studentId, stopId, addedBy,
                 now, request.note());
         return runForcedAdditionRepository.save(forcedAddition);
-    }
-
-    /**
-     * §5.7 의 신규 학생 직접 입력은 이름만 받는다(RTE-06) — 전체 등록(STU-01)의 사진·학년·반 등은
-     * 이 경로의 범위 밖이라 나머지 {@link StudentProfile} 필드는 비워 둔다.
-     */
-    private static Student newStudent(Long academyId, ForcedAdditionRequest request) {
-        StudentProfile profile = new StudentProfile(request.newStudent().name(), null, null, null, null, null, null, null, null);
-        return Student.register(academyId, profile);
     }
 }

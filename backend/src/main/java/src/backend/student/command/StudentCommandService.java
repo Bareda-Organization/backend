@@ -79,6 +79,19 @@ public class StudentCommandService {
     }
 
     /**
+     * 강제 추가(RTE-06, API_SPEC §5.7) 중 신규 학생 직접 입력을 등록한다(BR-095, {@code run} 소유
+     * {@code ForcedAdditionStore#stage} 전용) — {@link #register} 와 별도 진입점을 두는 이유는 이
+     * 경로가 관계자 웹 세션({@link AuthUser})이 아니라 배치 컨텍스트(회차·강제 추가 담당자)에서 오기
+     * 때문이다. §5.7 은 이름만 받으므로 사진·학년·반 등 나머지 {@link StudentProfile} 필드는 비운다 —
+     * 전체 등록(STU-02)의 입력 형태까지 맞출 필요는 없다(YAGNI), {@code student} 모듈이 자기 테이블의
+     * 유일한 쓰기 지점이라는 원칙만 지키면 된다.
+     */
+    public Long registerMinimal(Long academyId, String name) {
+        StudentProfile profile = new StudentProfile(name, null, null, null, null, null, null, null, null);
+        return studentRepository.save(Student.register(academyId, profile)).getId();
+    }
+
+    /**
      * 학생 정보를 고친다(STU-03 · 07 · 08) — 보낸 항목만 반영된다.
      *
      * <p>사진을 새로 올리면 옛 파일은 커밋 뒤에 지워진다 — 안 지우면 교체할 때마다 아무도 가리키지
