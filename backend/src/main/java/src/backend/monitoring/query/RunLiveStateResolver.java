@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.common.enums.ChangeType;
 import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.routing.entity.RunStop;
+import src.backend.routing.query.CurrentRunStopResolver;
 import src.backend.student.query.StudentBusPositionQueryService;
 
 /**
@@ -69,10 +70,7 @@ public class RunLiveStateResolver {
 
     /** 정차가 없으면(확정 노선 부재) 둘 다 null 이다. */
     private StopPair currentNextStopIdsOf(List<RunStop> stops) {
-        RunStop current = stops.stream()
-                .filter(stop -> stop.getArrivedAt() != null)
-                .max(Comparator.comparingInt(RunStop::getSeq))
-                .orElse(null);
+        RunStop current = CurrentRunStopResolver.resolve(stops).orElse(null);
         int afterSeq = current == null ? -1 : current.getSeq();
         // 마지막 도착 뒤에서만 고른다(BR-015) — 도착 처리 대상이 아닌 경유 지점이 미도착으로 남아 있어도
         // 그 뒤 승하차지에 도착했으면 지난 것이다(§4.3 RunRouteQueryService 와 같은 규칙).

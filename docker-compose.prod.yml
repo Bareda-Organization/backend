@@ -68,6 +68,12 @@ services:
     # 컨테이너들과 경합하면 OOM 이 난다. GitHub Actions 가 빌드해 ECR 에 올린 걸 받아 쓴다.
     image: ${ECR_REGISTRY:?ECR_REGISTRY 미설정}/school-bus-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    # 컨테이너 자체의 메모리 상한(FIX-VERIFY.md §5-4) — 없으면 JAVA_TOOL_OPTIONS 의
+    # MaxRAMPercentage=70 이 호스트 전체 메모리(t3.medium 4GB, DEPLOYMENT.md §2.4) 기준으로
+    # 계산돼 postgres·redis·proxy 몫까지 잠식한다. 3GB 로 두면 힙 상한은 약 2.15GB —
+    # 부하 측정(FIX-VERIFY.md §3, 목표 대비 1.3~1.7배 부하에서 힙 최대 1.6~1.9GB)보다 여유가
+    # 있고, 나머지 1GB 는 postgres(~250MB)·redis(maxmemory 128MB)·proxy(nginx, ~50MB)·OS 몫이다.
+    mem_limit: 3072m
     # ⚠️ 인스턴스를 늘리면 안 된다(replicas 금지).
     #    (1) @Scheduled 4개(위치 시뮬·연결끊김·근접/미승차·SOS 에스컬레이션)가 중복 실행돼
     #        같은 알림이 여러 번 나간다
