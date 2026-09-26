@@ -1386,7 +1386,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `status` | enum | ● | `waiting` · `boarded` · `alighted` · `absent` · `no_show` |
 | `note` | string | ○ | 비고 (STU-07) |
 
-**`absent` 는 관계자 웹에서 빨강으로 계속 표시** — 매니저 앱(행 제외)과 상반. 관리자는 누가 왜 빠졌는지 확인이 필요.
+**`absent` 는 관계자 웹에서 빨강으로 계속 표시** — 매니저 앱(행 제외 · `§4.2`)과 상반. 관리자는 누가 왜 빠졌는지 확인이 필요. 예외 하나 — 버스 간 이동으로 빠진 학생(`absent` + `change=removed`)은 **매니저 앱에도** 빨강 행으로 남는다(`§4.2` · `§9.4`).
 
 **에러** — `404 RUN_NOT_FOUND`(존재하지 않는 회차) · `403 ACADEMY_SCOPE_VIOLATION`(타 학원 회차 — `§1.5`, 2026-09-03 X-08 해소 · Ruling 240). 확정 전(`idle`) 회차도 조회 가능 — 진입 차단은 매니저 앱 전용 (M-02)
 
