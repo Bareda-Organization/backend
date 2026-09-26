@@ -45,6 +45,16 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     /** 팬아웃 실행기 큐 상한(BR-170) — 무한 큐는 느린 구독자가 있을 때 힙을 채운다. */
     @Value("${app.ws.outbound.queue-capacity:5000}")
     private final int outboundQueueCapacity;
+    /**
+     * 세션 하나가 보낼 메시지를 버퍼링할 수 있는 최대 바이트 수(FIX-VERIFY.md §5-1) — 미설정 시
+     * Spring 기본값 512KB. {@code WebSocketEnvelope} 페이로드는 실측 200~400바이트라 64KB 면 200배
+     * 여유이고, 최대 세션(8,112, 09-09 부하 한계 측정 §7) 기준 512KB 는 약 4.1GB, 64KB 는 약 520MB다.
+     */
+    @Value("${app.ws.outbound.send-buffer-size-limit:65536}")
+    private final int outboundSendBufferSizeLimit;
+    /** 느린 구독자에게 메시지를 보내는 데 허용하는 최대 시간(ms) — Spring 기본값과 같은 10초를 명시로 고정한다. */
+    @Value("${app.ws.outbound.send-time-limit:10000}")
+    private final int outboundSendTimeLimit;
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
@@ -123,11 +133,14 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     /**
      * SUBSCRIBE 거부 시 종료 코드를 4403 으로 바꾸는 세션 데코레이터를 등록한다(목표 7) —
-     * {@link ForbiddenSubscriptionCloseFactory} 참고.
+     * {@link ForbiddenSubscriptionCloseFactory} 참고. 세션 송신 한도(버퍼·시간)도 여기서 명시한다
+     * — 미설정 시 Spring 기본값(512KB·10초)을 조용히 상속하기 때문이다(FIX-VERIFY.md §5-1).
      */
     @Override
     public void configureWebSocketTransport(WebSocketTransportRegistration registration) {
         registration.addDecoratorFactory(forbiddenSubscriptionCloseFactory);
+        registration.setSendBufferSizeLimit(outboundSendBufferSizeLimit);
+        registration.setSendTimeLimit(outboundSendTimeLimit);
     }
 
     @Bean
