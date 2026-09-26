@@ -12,7 +12,7 @@ import src.backend.academy.dto.AcademyStaffAccountView;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
-import src.backend.boarding.event.RiderNoShowEvent;
+import src.backend.boarding.event.RiderMarkedNoShowEvent;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.global.common.enums.Role;
 import src.backend.location.event.StopDepartedEvent;
@@ -56,7 +56,7 @@ public class BoardingNotificationListener {
     private final NotificationOutbox notificationOutbox;
     private final NotificationComposer<RiderStatusChangedSubject> riderStatusChangedComposer;
     private final NotificationComposer<NoShowParentSubject> noShowParentComposer;
-    private final NotificationComposer<RiderNoShowEvent> noShowStaffComposer;
+    private final NotificationComposer<RiderMarkedNoShowEvent> noShowStaffComposer;
 
     /**
      * 그 승하차지를 출발할 때(Ruling 308) 확정 결과를 학생별로 1건씩 적재한다 — 승차·하차·미승차
@@ -113,12 +113,12 @@ public class BoardingNotificationListener {
      * (Ruling 311).
      */
     @EventListener
-    public void appendRiderNoShow(RiderNoShowEvent event) {
+    public void appendRiderNoShow(RiderMarkedNoShowEvent event) {
         appendToStaff(event);
     }
 
     /** 관계자 수신자 전원이 같은 학생을 가리키므로 학생 이름은 대상자 순회 전에 한 번만 조회한다. */
-    private void appendToStaff(RiderNoShowEvent event) {
+    private void appendToStaff(RiderMarkedNoShowEvent event) {
         List<AcademyStaffAccountView> staff = academyStaffRepository.findActiveAccountsByAcademyId(event.academyId());
         if (staff.isEmpty()) {
             return;

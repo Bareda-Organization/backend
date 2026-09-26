@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import src.backend.boarding.entity.RunRider;
-import src.backend.boarding.event.RunEndedEvent;
+import src.backend.run.event.RunEndedEvent;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.observability.metrics.WebSocketPublishMetrics;
 

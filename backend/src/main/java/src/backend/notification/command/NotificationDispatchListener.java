@@ -11,7 +11,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 import lombok.RequiredArgsConstructor;
 
-import src.backend.notification.event.NotificationAppended;
+import src.backend.notification.event.NotificationAppendedEvent;
 
 /**
  * 커밋 직후 즉시 발송을 거는 자리(TECH_DECISIONS §7.2 ①) — 워커만 있으면 폴링 주기만큼 늦어지고,
@@ -37,7 +37,7 @@ public class NotificationDispatchListener {
      * 행이 {@code pending} 으로 남아 워커가 다시 집으므로, 삼켜도 잃는 것은 부재하다.
      */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void dispatchAfterCommit(NotificationAppended event) {
+    public void dispatchAfterCommit(NotificationAppendedEvent event) {
         try {
             notificationDispatchExecutor.execute(() -> dispatch(event.notificationId()));
         } catch (TaskRejectedException e) {

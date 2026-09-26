@@ -1,4 +1,4 @@
-package src.backend.boarding.event;
+package src.backend.run.event;
 
 import java.time.OffsetDateTime;
 
@@ -13,7 +13,7 @@ import java.time.OffsetDateTime;
  * <p>{@code autoAlightedCount} 는 §7.1 {@code run_ended} payload 의 필수 필드다 — 발행자
  * ({@code RunArrivalCommandService}·{@code BoardingCommandService})가
  * {@link src.backend.boarding.repository.RunRiderRepository#countByRunIdAndStatus} 로 값을 채워
- * 이벤트에 싣고, {@code global.websocket.RunEndedBroadcastListener} 가 그대로 방송 payload 에 옮긴다.
+ * 이벤트에 싣고, {@code run.command.RunEndedBroadcastListener} 가 그대로 방송 payload 에 옮긴다.
  */
 public record RunEndedEvent(Long runId, Long academyId, OffsetDateTime finishedAt, long autoAlightedCount) {
 }

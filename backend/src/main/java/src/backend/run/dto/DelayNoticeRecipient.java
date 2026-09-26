@@ -1,4 +1,4 @@
-package src.backend.run.event;
+package src.backend.run.dto;
 
 /**
  * {@link DelayRequestedEvent} 가 나르는 수신자 1행 — 관계자·학부모·학생 3집합이 전부 같은 모양을 쓴다.

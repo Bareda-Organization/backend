@@ -12,7 +12,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
-import src.backend.boarding.event.RunEndedEvent;
+import src.backend.run.event.RunEndedEvent;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.run.entity.RunStatus;
 

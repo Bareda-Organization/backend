@@ -23,9 +23,9 @@ import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RiderStatusHistory;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.entity.VerifyMethod;
-import src.backend.boarding.event.RiderNoShowEvent;
+import src.backend.boarding.event.RiderMarkedNoShowEvent;
 import src.backend.boarding.event.RiderStatusChangedEvent;
-import src.backend.boarding.event.RunEndedEvent;
+import src.backend.run.event.RunEndedEvent;
 import src.backend.boarding.repository.RiderStatusHistoryRepository;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.exception.command.NoShowCaseAccess;
@@ -289,7 +289,7 @@ public class BoardingCommandService {
     /**
      * 미승차 케이스 생성(목표 7) — 학원별 대기 시간(목표 2) 뒤 만료로 저장하고, 학부모·관계자 두 갈래
      * 알림 + WebSocket {@code rider_changed} 방송(Phase 10 이월 ⑤, 이 클래스 상단 참고) 두 갈래 재료가
-     * 될 {@link RiderNoShowEvent} 를 발행한다.
+     * 될 {@link RiderMarkedNoShowEvent} 를 발행한다.
      *
      * <p>{@code stop_skipped}(API_SPEC §4.6, C-05)는 {@link #skipStopIfNoRidersRemain} 이 실제로
      * 계산한다 — C-05 가 명시하는 두 발생 경로(③구간 미등원·운행 중 미승차) 중 여기가 후자다. 이벤트
@@ -300,7 +300,7 @@ public class BoardingCommandService {
         NoShowCaseView noShowCase = openNoShowCase(run, rider, now);
 
         boolean stopSkipped = stopSkipJudge.skipIfNoRidersRemain(run.getId(), rider.getStopId());
-        eventPublisher.publishEvent(new RiderNoShowEvent(run.getId(), run.getAcademyId(), rider.getStudentId(),
+        eventPublisher.publishEvent(new RiderMarkedNoShowEvent(run.getId(), run.getAcademyId(), rider.getStudentId(),
                 rider.getId(), noShowCase.caseId(), rider.getStopId(), stopSkipped, now));
 
         RiderStatusUpdateResponse.NoShowCaseSummary summary = new RiderStatusUpdateResponse.NoShowCaseSummary(

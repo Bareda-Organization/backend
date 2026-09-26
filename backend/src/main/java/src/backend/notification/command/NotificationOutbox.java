@@ -15,7 +15,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.notification.entity.NotificationLog;
-import src.backend.notification.event.NotificationAppended;
+import src.backend.notification.event.NotificationAppendedEvent;
 import src.backend.notification.repository.NotificationLogRepository;
 
 /**
@@ -48,7 +48,7 @@ public class NotificationOutbox {
     /**
      * 발송 대기 행을 적재하고 커밋 후 즉시 발송을 예약한다.
      *
-     * <p>{@link NotificationAppended} 를 여기서 발행하는 이유는 적재한 쪽만 행 식별자를 알기
+     * <p>{@link NotificationAppendedEvent} 를 여기서 발행하는 이유는 적재한 쪽만 행 식별자를 알기
      * 때문이다 — 리스너가 {@code dedup_key} 로 다시 찾게 하면 같은 키의 옛 행을 집을 수 있다.
      *
      * <p>{@code saveAndFlush} 로 <b>즉시</b> 내보내는 것이 중요하다. 커밋까지 미루면 제약 위반이
@@ -70,7 +70,7 @@ public class NotificationOutbox {
                     draft.academyId(), draft.recipientAccountId(), draft.recipientName(),
                     draft.recipientRole(), draft.type(), draft.title(), draft.body(), draft.dedupKey(),
                     OffsetDateTime.now(clock), draft.studentId(), draft.studentName(), draft.busNo()));
-            eventPublisher.publishEvent(new NotificationAppended(appended.getId()));
+            eventPublisher.publishEvent(new NotificationAppendedEvent(appended.getId()));
             return appended.getId();
         } catch (DataIntegrityViolationException e) {
             if (isDedupViolation(e)) {

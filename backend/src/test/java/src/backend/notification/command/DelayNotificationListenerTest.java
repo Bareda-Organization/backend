@@ -21,7 +21,7 @@ import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Role;
 import src.backend.notification.domain.impl.DelayComposer;
 import src.backend.run.entity.DelayReason;
-import src.backend.run.event.DelayNoticeRecipient;
+import src.backend.run.dto.DelayNoticeRecipient;
 import src.backend.run.event.DelayRequestedEvent;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.entity.Student;
