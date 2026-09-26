@@ -19,7 +19,7 @@ import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.access.AcademyScope;
 import src.backend.manager.repository.AssignmentRepository;
-import src.backend.monitoring.dto.StaffAssignmentAckView;
+import src.backend.manager.dto.StaffAssignmentAckView;
 import src.backend.routing.domain.GeoPoint;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.Route;

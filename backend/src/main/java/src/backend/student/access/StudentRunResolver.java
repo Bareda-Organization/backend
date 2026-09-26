@@ -15,19 +15,16 @@ import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.boarding.rider.RunRiderReader;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ChangeType;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
-import src.backend.routing.entity.Route;
-import src.backend.routing.entity.RouteStop;
-import src.backend.routing.repository.RouteRepository;
-import src.backend.routing.repository.RouteStopRepository;
-import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.routing.stops.RouteStopReader;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
-import src.backend.run.repository.RunRepository;
+import src.backend.run.lookup.RunLookup;
 import src.backend.student.repository.StudentDailyStop;
 import src.backend.student.repository.WeeklyAddressRepository;
 
@@ -40,18 +37,20 @@ import src.backend.student.repository.WeeklyAddressRepository;
  * 그날 고정 노선 배정(요일별 주소 → 편성 정차지)으로 대신 판정한다. 확정 이후(§CONFIRMED·MOVING·
  * FINISHED)는 실제 명단 {@code run_rider} 로 판정한다 — 명단이 확정 순간의 스냅샷이라 고정 노선이
  * 그 뒤 바뀌어도 이 판정은 흔들리지 않는다.
+ *
+ * <p>{@code run}·{@code routing}·{@code boarding} 의 저장소를 직접 참조하지 않고 각 모듈이 내놓은
+ * 읽기 전용 진입점({@link RunLookup}·{@link RouteStopReader}·{@link RunRiderReader})만 부른다
+ * (BR-094 · BR-162, ARCHITECTURE §3.3 읽기 방향).
  */
 @Component
 @RequiredArgsConstructor
 public class StudentRunResolver {
 
-    private final RunRepository runRepository;
+    private final RunLookup runLookup;
 
-    private final RunRiderRepository runRiderRepository;
+    private final RunRiderReader runRiderReader;
 
-    private final RouteRepository routeRepository;
-
-    private final RouteStopRepository routeStopRepository;
+    private final RouteStopReader routeStopReader;
 
     private final WeeklyAddressRepository weeklyAddressRepository;
 
@@ -59,7 +58,7 @@ public class StudentRunResolver {
 
     /** {@code run_id} 를 명시한 경우(§3.10) — 학원 밖이거나 그 학생 회차가 아니면 둘 다 404. */
     public Run resolveByRunId(Long academyId, Long studentId, Long runId) {
-        Run run = runRepository.findByIdAndAcademyId(runId, academyId)
+        Run run = runLookup.findByIdAndAcademyId(runId, academyId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
         if (!belongsTo(run, studentId)) {
             throw new BusinessException(ErrorCode.RUN_NOT_FOUND);
@@ -110,15 +109,14 @@ public class StudentRunResolver {
      * 차량 1질의라 학원의 그날 회차 수와 무관하다.
      */
     private List<Run> runsOf(Long academyId, Long studentId, LocalDate date) {
-        List<Run> runs = runRepository.findAllByAcademyIdAndServiceDateOrderByDepartTimeAsc(academyId, date)
+        List<Run> runs = runLookup.findAllByAcademyIdAndServiceDate(academyId, date)
                 .stream()
                 .filter(run -> !run.isCanceled())
                 .toList();
         List<Long> confirmedRunIds = runs.stream().filter(run -> run.getStatus() != RunStatus.IDLE)
                 .map(Run::getId).toList();
         Set<Long> riderRunIds = confirmedRunIds.isEmpty() ? Set.of()
-                : Set.copyOf(runRiderRepository.findRunIdsByAcademyIdAndStudentIdAndRunIdIn(academyId, studentId,
-                        confirmedRunIds, ChangeType.REMOVED));
+                : runRiderReader.runIdsExcludingRemoved(academyId, studentId, confirmedRunIds);
         Map<Direction, Set<Long>> idleBusIds = new EnumMap<>(Direction.class);
         runs.stream().filter(run -> run.getStatus() == RunStatus.IDLE).map(Run::getDirection).distinct()
                 .forEach(direction -> idleBusIds.put(direction,
@@ -134,8 +132,7 @@ public class StudentRunResolver {
     private Set<Long> busesServing(Long academyId, Long studentId, Weekday weekday, Direction direction) {
         return weeklyAddressRepository.findDailyStops(academyId, List.of(studentId), weekday, direction).stream()
                 .findFirst()
-                .map(stop -> Set.copyOf(routeRepository.findBusIdsServingStop(academyId, weekday, direction,
-                        stop.getStopId())))
+                .map(stop -> routeStopReader.busIdsServingStop(academyId, weekday, direction, stop.getStopId()))
                 .orElse(Set.of());
     }
 
@@ -149,8 +146,8 @@ public class StudentRunResolver {
             return matchesFixedRoute(run, studentId);
         }
         // 버스 간 이동으로 빠진 회차(change=removed)는 그 학생의 회차가 아니다(BR-016) — 명단에 남는 것은 표시용이다.
-        return runRiderRepository.findByRunIdAndStudentId(run.getId(), studentId)
-                .filter(rider -> rider.getChange() != ChangeType.REMOVED)
+        return runRiderReader.findRider(run.getId(), studentId)
+                .filter(rider -> rider.change() != ChangeType.REMOVED)
                 .isPresent();
     }
 
@@ -163,13 +160,8 @@ public class StudentRunResolver {
             return false;
         }
         Long studentStopId = dailyStops.get(0).getStopId();
-        return routeRepository
-                .findByAcademyIdAndBusIdAndWeekdayAndDirection(run.getAcademyId(), run.getBusId(), weekday,
-                        run.getDirection())
-                .map(Route::getId)
-                .map(routeId -> routeStopRepository.findAllOrderedByRouteIdAndAcademyId(routeId, run.getAcademyId()))
-                .map(routeStops -> routeStops.stream().map(RouteStop::getStopId).anyMatch(studentStopId::equals))
-                .orElse(false);
+        return routeStopReader.fixedRouteStops(run.getAcademyId(), run.getBusId(), weekday, run.getDirection())
+                .stream().map(RouteStopReader.Entry::stopId).anyMatch(studentStopId::equals);
     }
 
     private Weekday weekdayOf(LocalDate serviceDate) {

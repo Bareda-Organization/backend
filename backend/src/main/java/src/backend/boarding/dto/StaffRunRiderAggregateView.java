@@ -1,4 +1,4 @@
-package src.backend.monitoring.dto;
+package src.backend.boarding.dto;
 
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.global.common.enums.ChangeType;

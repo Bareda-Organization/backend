@@ -13,7 +13,6 @@ import lombok.extern.slf4j.Slf4j;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
-import src.backend.student.command.AddressVerification;
 import src.backend.student.domain.StopProximity;
 import src.backend.student.dto.StopSearchResponse;
 import src.backend.student.dto.StopSuggestResponse;
@@ -23,6 +22,7 @@ import src.backend.student.geocoding.spec.GeocodingClient;
 import src.backend.student.geocoding.spec.GeocodingUnavailableException;
 import src.backend.student.geocoding.spec.PlaceSearchClient;
 import src.backend.student.repository.StopRepository;
+import src.backend.student.service.AddressVerification;
 
 /** 주소 → 좌표 검색(고정 노선 편성 화면) — 조회 전용이라 승하차지를 만들지 않는다. */
 @Slf4j

@@ -16,7 +16,7 @@ import src.backend.manager.dto.AssignedManagerContactView;
 import src.backend.manager.dto.AssignedManagerView;
 import src.backend.manager.dto.ManagerRunWindow;
 import src.backend.manager.entity.Assignment;
-import src.backend.monitoring.dto.StaffAssignmentAckView;
+import src.backend.manager.dto.StaffAssignmentAckView;
 
 /**
  * {@link Assignment} 영속성 접근 — <b>배치 여부 판정</b>(MGR-04)과 배치 자체를 만들고 되읽는 경로
@@ -194,7 +194,7 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
      * 같은 조회 하나를 공유한다. 판정식({@link StaffAssignmentAckView#acked()})은 이 값을 실제로 쓰는
      * 쓰기 경로 {@code RunAckChangesCommandService} 의 조건을 그대로 반대로 읽은 것이다.
      */
-    @Query("SELECT new src.backend.monitoring.dto.StaffAssignmentAckView(a.runId, a.role, m.name, "
+    @Query("SELECT new src.backend.manager.dto.StaffAssignmentAckView(a.runId, a.role, m.name, "
             + "a.ackedRouteVersionId, cr.currentVersionId) "
             + "FROM Assignment a JOIN Manager m ON m.id = a.managerId "
             + "LEFT JOIN ConfirmedRoute cr ON cr.runId = a.runId "

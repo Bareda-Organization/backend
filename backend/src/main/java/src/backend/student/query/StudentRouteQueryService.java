@@ -16,8 +16,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.academy.entity.Academy;
 import src.backend.academy.repository.AcademyRepository;
-import src.backend.boarding.entity.RunRider;
-import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.boarding.rider.RunRiderReader;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
@@ -29,12 +28,7 @@ import src.backend.global.request.ApiValues;
 import src.backend.global.security.AuthUser;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
-import src.backend.routing.entity.ConfirmedRoute;
-import src.backend.routing.entity.Route;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RouteRepository;
-import src.backend.routing.repository.RouteStopRepository;
-import src.backend.routing.repository.RunStopRepository;
+import src.backend.routing.stops.RouteStopReader;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 import src.backend.student.access.StudentRunResolver;
@@ -61,6 +55,10 @@ import src.backend.student.repository.WeeklyAddressRepository;
  * 학원이므로, {@link Academy} 엔티티에서 합성한 항목 하나를 방향에 따라 뒤(등원)/앞(하원)에 덧붙인다
  * (좌표·이름은 {@code Academy}, {@code stop_id} 는 API_SPEC §1.13 의 "경유 지점은 항상 null" 선례를
  * 따라 {@code null}).
+ *
+ * <p>고정 노선·확정 노선의 정차지 순서, 명단 소속은 {@code routing}·{@code boarding} 저장소를 직접
+ * 참조하지 않고 각 모듈의 읽기 전용 진입점({@link RouteStopReader}·{@link RunRiderReader})만 부른다
+ * (BR-094, ARCHITECTURE §3.3 읽기 방향).
  */
 @Service
 @RequiredArgsConstructor
@@ -71,17 +69,11 @@ public class StudentRouteQueryService {
 
     private final StudentRunResolver studentRunResolver;
 
-    private final RunRiderRepository runRiderRepository;
+    private final RunRiderReader runRiderReader;
 
     private final WeeklyAddressRepository weeklyAddressRepository;
 
-    private final RouteRepository routeRepository;
-
-    private final RouteStopRepository routeStopRepository;
-
-    private final ConfirmedRouteRepository confirmedRouteRepository;
-
-    private final RunStopRepository runStopRepository;
+    private final RouteStopReader routeStopReader;
 
     private final StopRepository stopRepository;
 
@@ -102,9 +94,10 @@ public class StudentRouteQueryService {
         Long academyId = student.getAcademyId();
 
         Long myStopId = myStopId(run, student.getId());
-        List<WindowEntry> windowed = window(stopEntries(run, academyId), myStopId);
+        List<RouteStopReader.Entry> windowed = window(stopEntries(run, academyId), myStopId);
         Map<Long, Stop> stopsById = stopRepository
-                .findAllByAcademyIdAndIdIn(academyId, windowed.stream().map(WindowEntry::stopId).toList()).stream()
+                .findAllByAcademyIdAndIdIn(academyId, windowed.stream().map(RouteStopReader.Entry::stopId).toList())
+                .stream()
                 .collect(Collectors.toMap(Stop::getId, stop -> stop));
         List<StudentRouteResponse.Stop> stops = new ArrayList<>(windowed.stream()
                 .map(entry -> toStop(entry, stopsById.get(entry.stopId())))
@@ -145,36 +138,21 @@ public class StudentRouteQueryService {
                     .findFirst().map(StudentDailyStop::getStopId)
                     .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
         }
-        return runRiderRepository.findByRunIdAndStudentId(run.getId(), studentId).map(RunRider::getStopId)
+        return runRiderReader.findRider(run.getId(), studentId).map(RunRiderReader.Entry::stopId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
     }
 
-    private List<WindowEntry> stopEntries(Run run, Long academyId) {
+    /** 확정 전은 고정 노선, 확정 후는 확정 노선(현재 버전)의 정차지 순서를 그대로 받는다(routing 모듈 진입점). */
+    private List<RouteStopReader.Entry> stopEntries(Run run, Long academyId) {
         if (run.getStatus() == RunStatus.IDLE) {
-            return routeRepository
-                    .findByAcademyIdAndBusIdAndWeekdayAndDirection(academyId, run.getBusId(),
-                            weekdayOf(run.getServiceDate()), run.getDirection())
-                    .map(Route::getId)
-                    .map(routeId -> routeStopRepository.findAllOrderedByRouteIdAndAcademyId(routeId, academyId))
-                    .orElse(List.of())
-                    .stream()
-                    .map(routeStop -> new WindowEntry(routeStop.getStopId(), routeStop.getSeq(), null))
-                    .toList();
+            return routeStopReader.fixedRouteStops(academyId, run.getBusId(), weekdayOf(run.getServiceDate()),
+                    run.getDirection());
         }
-        Long currentVersionId = confirmedRouteRepository.findById(run.getId()).map(ConfirmedRoute::getCurrentVersionId)
-                .orElse(null);
-        if (currentVersionId == null) {
-            return List.of();
-        }
-        return runStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeq(currentVersionId, academyId).stream()
-                .filter(runStop -> runStop.getStopId() != null)
-                .map(runStop -> new WindowEntry(runStop.getStopId(), runStop.getSeq(),
-                        runStop.getChange() == null ? null : runStop.getChange().name().toLowerCase(Locale.ROOT)))
-                .toList();
+        return routeStopReader.confirmedRouteStops(run.getId(), academyId);
     }
 
     /** 이 학생 정차지의 위치를 기준으로 그 앞 최대 2개까지만 남긴다(§3.10 "표시 범위"). */
-    private List<WindowEntry> window(List<WindowEntry> entries, Long myStopId) {
+    private List<RouteStopReader.Entry> window(List<RouteStopReader.Entry> entries, Long myStopId) {
         int myIndex = -1;
         for (int i = 0; i < entries.size(); i++) {
             if (myStopId.equals(entries.get(i).stopId())) {
@@ -188,7 +166,7 @@ public class StudentRouteQueryService {
         return entries.subList(Math.max(0, myIndex - 2), myIndex + 1);
     }
 
-    private StudentRouteResponse.Stop toStop(WindowEntry entry, Stop stop) {
+    private StudentRouteResponse.Stop toStop(RouteStopReader.Entry entry, Stop stop) {
         if (stop == null) {
             return new StudentRouteResponse.Stop(entry.stopId(), entry.seq(), null, null, null, null, entry.change());
         }
@@ -235,8 +213,5 @@ public class StudentRouteQueryService {
 
     private Weekday weekdayOf(LocalDate serviceDate) {
         return Weekday.valueOf(serviceDate.getDayOfWeek().name().substring(0, 3).toUpperCase(Locale.ROOT));
-    }
-
-    private record WindowEntry(Long stopId, int seq, String change) {
     }
 }

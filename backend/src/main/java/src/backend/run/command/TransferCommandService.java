@@ -28,7 +28,7 @@ import src.backend.run.repository.RunRepository;
 import src.backend.run.repository.RunTransferRepository;
 import src.backend.run.roster.ProjectedRoster;
 import src.backend.run.roster.ProjectedRosterReader;
-import src.backend.student.command.AddressVerification;
+import src.backend.student.service.AddressVerification;
 import src.backend.student.entity.Student;
 import src.backend.student.geocoding.spec.GeocodedPoint;
 import src.backend.student.repository.StopRepository;
