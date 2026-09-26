@@ -140,11 +140,11 @@ List<RunRider> findFinalizedByRunIdAndStopId(@Param("runId") Long runId,
 이름 붙인 상수가 그 뜻을 붙잡아 두면서 문자열도 짧아진다.
 
 ⚠ **이미 글자로 박혀 있는 것은 고치지 않는다** (2026-09-19 사용자 지시 — *"지금까지 한 건 놔두고 앞으로만"*).
-대상은 `RunRiderRepository` 의 4건뿐이 아니라 **2026-09-19 이전 작성된 6개 파일의 쿼리 8개** —
-`AcademyStaffRepository`(1) · `ChangeRequestRepository`(1) · `RunStopRepository`(1) ·
-`RunTransferRepository`(1) · `RunRepository`(1) · `RunRiderRepository`(3, 그중 4건이 이 절의
-예시가 나온 자리). **새로 쓰는 쿼리부터** 이 규칙을 따른다 — 위 6개 파일이라도 **새 `@Query` 를
-추가할 때**는 예외 대상이 아니다.
+대상은 `RunRiderRepository` 의 3건뿐이 아니라 **2026-09-19 이전 작성된 5개 파일의 쿼리 7개**(2026-09-26
+재계수 — `AcademyStaffRepository`(BR-126)·4곳(BR-172)이 이미 빠져나가 6개 파일 8개에서 줄었다) —
+`ChangeRequestRepository`(1) · `RunStopRepository`(1) · `RunTransferRepository`(1) ·
+`RunRepository`(1) · `RunRiderRepository`(3, 그중 1건이 이 절의 예시가 나온 자리). **새로 쓰는 쿼리부터**
+이 규칙을 따른다 — 위 5개 파일이라도 **새 `@Query` 를 추가할 때**는 예외 대상이 아니다.
 
 ## 10. DTO 규칙
 
