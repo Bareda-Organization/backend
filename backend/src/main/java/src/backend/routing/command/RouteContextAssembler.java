@@ -13,9 +13,9 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.academy.entity.Academy;
 import src.backend.academy.repository.AcademyRepository;
+import src.backend.boarding.access.RunRiderRosterAccess;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
-import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
@@ -51,7 +51,7 @@ public class RouteContextAssembler {
     private final AcademyRepository academyRepository;
     private final RouteRepository routeRepository;
     private final RouteStopRepository routeStopRepository;
-    private final RunRiderRepository runRiderRepository;
+    private final RunRiderRosterAccess runRiderRosterAccess;
     private final WaypointRepository waypointRepository;
     private final ConfirmedRouteRepository confirmedRouteRepository;
     private final RouteVersionRepository routeVersionRepository;
@@ -92,7 +92,7 @@ public class RouteContextAssembler {
         List<RunStop> beforeRunStops = runStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeq(
                 currentVersionId, academyId);
 
-        List<RunRider> riders = runRiderRepository.findAllByRunIdAndAcademyId(run.getId(), academyId);
+        List<RunRider> riders = runRiderRosterAccess.ridersOf(run.getId(), academyId);
         DailyRoster roster = rosterOf(run, weekday, riders);
 
         List<Waypoint> appliedWaypoints = waypointRepository.findAllAppliedByRunIdAndAcademyId(run.getId(),
