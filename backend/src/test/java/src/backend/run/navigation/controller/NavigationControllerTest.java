@@ -99,7 +99,7 @@ class NavigationControllerTest {
                 .andExpect(jsonPath("$.data.waypoints", hasSize(0)))
                 .andReturn();
 
-        long destinationStopId = ((Number) JsonPath.read(본문(result), "$.data.destination.stop_id")).longValue();
+        long destinationStopId = Long.parseLong(JsonPath.read(본문(result), "$.data.destination.stop_id"));
         assertThat(destinationStopId).as("도착·미경유를 뺀 다음 지점은 4번이어야 한다 — 하나라도 안 빠지면"
                 + " 지난 곳이나 안 가는 곳으로 안내한다").isEqualTo(s4);
     }

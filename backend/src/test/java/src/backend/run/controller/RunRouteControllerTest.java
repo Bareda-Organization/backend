@@ -154,8 +154,8 @@ class RunRouteControllerTest {
                 .andReturn();
 
         String body = 본문(result);
-        assertThat((Integer) JsonPath.read(body, "$.data.next_stop.stop_id"))
-                .isEqualTo((int) 정차_항목_id(academyId, runId, stop2));
+        assertThat((String) JsonPath.read(body, "$.data.next_stop.stop_id"))
+                .isEqualTo(String.valueOf(정차_항목_id(academyId, runId, stop2)));
         assertThat((String) JsonPath.read(body, "$.data.skipped_notice")).isEqualTo("1번 정차지 결번 — 학생 하차 예정 없음");
     }
 
@@ -229,9 +229,9 @@ class RunRouteControllerTest {
                 .andExpect(status().isOk())
                 .andReturn();
 
-        assertThat((Integer) JsonPath.read(본문(result), "$.data.next_stop.stop_id"))
+        assertThat((String) JsonPath.read(본문(result), "$.data.next_stop.stop_id"))
                 .as("stop2 에 도착했으면 그 앞 경유 지점은 지난 것이다 — 다음은 stop3")
-                .isEqualTo((int) 정차_항목_id(academyId, runId, stop3));
+                .isEqualTo(String.valueOf(정차_항목_id(academyId, runId, stop3)));
     }
 
     @Test
@@ -274,8 +274,8 @@ class RunRouteControllerTest {
                 .andReturn();
 
         String body = 본문(result);
-        assertThat((Integer) JsonPath.read(body, "$.data.next_stop.stop_id"))
-                .isEqualTo((int) 정차_항목_id(academyId, runId, stop2));
+        assertThat((String) JsonPath.read(body, "$.data.next_stop.stop_id"))
+                .isEqualTo(String.valueOf(정차_항목_id(academyId, runId, stop2)));
         assertThat((Double) JsonPath.read(body, "$.data.next_stop.lat")).isNotNull();
         assertThat((Double) JsonPath.read(body, "$.data.next_stop.lng")).isNotNull();
         // stops[] 전체 목록은 API_SPEC §1.13 의 "등급이 다른 것" carve-out 대상이라 제거된 경유지
