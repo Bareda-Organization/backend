@@ -34,7 +34,8 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
      * 로그인 대조용 조회 — 행을 잠가 같은 계정의 로그인을 직렬화한다(C-11 · BR-026).
      *
      * <p>잠그지 않으면 동시 실패가 모두 같은 {@code failed_attempts} 를 읽고 "+1" 을 덮어써 누적이 유실되고,
-     * 5회 차단이 걸리지 않는다. 잠금 구간은 비밀번호 대조(수십 ms)를 포함하지만 같은 계정끼리만 기다린다.
+     * 5회 차단이 걸리지 않는다. 비밀번호 대조(BCrypt)는 이 잠금을 잡기 전에 끝낸다({@code LoginCommandService}) —
+     * 잠금 구간에 넣으면 그 시간만큼 DB 연결이 묶인다.
      */
     @AcademyScopeExempt(reason = "§2.5 로그인 — 아이디만 들고 시작해 소속 학원이 이 조회의 결과로 비로소 결정")
     @Lock(LockModeType.PESSIMISTIC_WRITE)
