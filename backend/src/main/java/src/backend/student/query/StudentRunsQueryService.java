@@ -15,8 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.boarding.entity.RiderStatus;
-import src.backend.boarding.entity.RunRider;
-import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.boarding.rider.RunRiderReader;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Weekday;
@@ -24,8 +23,7 @@ import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.request.ApiValues;
 import src.backend.global.security.AuthUser;
-import src.backend.request.entity.BoardingIntent;
-import src.backend.request.repository.BoardingIntentRepository;
+import src.backend.request.query.BoardingIntentReadQueryService;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 import src.backend.student.access.StudentRunResolver;
@@ -60,9 +58,9 @@ public class StudentRunsQueryService {
 
     private final StudentRunResolver studentRunResolver;
 
-    private final RunRiderRepository runRiderRepository;
+    private final RunRiderReader runRiderReader;
 
-    private final BoardingIntentRepository boardingIntentRepository;
+    private final BoardingIntentReadQueryService boardingIntentReadQueryService;
 
     private final WeeklyAddressRepository weeklyAddressRepository;
 
@@ -92,7 +90,7 @@ public class StudentRunsQueryService {
     }
 
     /** 회차마다 필요한 {@code run_rider} 조회를 한 번만 하기 위한 중간 묶음 — 정차지·탑승 상태가 둘 다 여기서 나온다. */
-    private record RunContext(Run run, Long studentId, Long stopId, Optional<RunRider> rider) {
+    private record RunContext(Run run, Long studentId, Long stopId, Optional<RunRiderReader.Entry> rider) {
     }
 
     private RunContext toContext(Run run, Long studentId) {
@@ -104,21 +102,20 @@ public class StudentRunsQueryService {
                     .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
             return new RunContext(run, studentId, stopId, Optional.empty());
         }
-        RunRider rider = runRiderRepository.findByRunIdAndStudentId(run.getId(), studentId)
+        RunRiderReader.Entry rider = runRiderReader.findRider(run.getId(), studentId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
-        return new RunContext(run, studentId, rider.getStopId(), Optional.of(rider));
+        return new RunContext(run, studentId, rider.stopId(), Optional.of(rider));
     }
 
     private StudentRunsResponse.Item toItem(RunContext context, Map<Long, Stop> stopsById) {
         Run run = context.run();
         String busNo = busRepository.findByIdAndAcademyId(run.getBusId(), run.getAcademyId()).map(Bus::getBusNo)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
-        BoardingIntent intent = boardingIntentRepository
-                .findByRunIdAndStudentId(run.getId(), context.studentId())
-                .orElse(null);
-        boolean riding = intent == null || intent.isRiding();
-        int changeQuotaLeft = intent == null || intent.hasChangeQuota() ? 1 : 0;
-        String riderStatus = context.rider().map(r -> statusNameOf(r.getStatus()))
+        BoardingIntentReadQueryService.Intent intent = boardingIntentReadQueryService.findIntent(run.getId(),
+                context.studentId());
+        boolean riding = intent.riding();
+        int changeQuotaLeft = intent.hasChangeQuota() ? 1 : 0;
+        String riderStatus = context.rider().map(r -> statusNameOf(r.status()))
                 .orElse(statusNameOf(riding ? RiderStatus.WAITING : RiderStatus.ABSENT));
         Stop stop = stopsById.get(context.stopId());
         if (stop == null) {
