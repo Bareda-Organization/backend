@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.ArrayList;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.Parameter;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -12,11 +13,18 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.method.HandlerMethod;
+import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -37,6 +45,11 @@ class SwaggerExampleSeedContractTest {
 
     @LocalServerPort
     private int port;
+
+    // springdoc 도 자기 매핑 빈을 등록하므로 이름으로 고른다(OpenApiCoverageTest 와 같은 근거).
+    @Autowired
+    @Qualifier("requestMappingHandlerMapping")
+    private RequestMappingHandlerMapping handlerMapping;
 
     private final TestRestTemplate restTemplate = new TestRestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -128,5 +141,55 @@ class SwaggerExampleSeedContractTest {
         });
 
         assertThat(unknown).as("SeedFixtures 상수가 아닌 리터럴 값").isEmpty();
+    }
+
+    /**
+     * 경로 변수 "id" 가 사전 없이 대표값 1 로 떨어지는 오퍼레이션이 0 인지 검사한다(BR-113 잔여, Ruling 348).
+     * 문서(JSON)만 보면 "우연히 진짜 1 인 예시"와 "사전이 없어 떨어진 대표값 1"을 구분할 수 없어서
+     * ({@code FIX-T.md} §2), {@link SeedExampleOperationCustomizer#customize} 가 실제로 참조하는 키
+     * (컨트롤러 클래스명 + "#" + 파라미터명)를 그대로 재현해 사전 부재 자체를 판정한다.
+     */
+    @Test
+    void 경로_변수_id_는_예시_사전에_전부_등록돼_있다() {
+        List<String> missing = new ArrayList<>();
+        for (Map.Entry<RequestMappingInfo, HandlerMethod> entry : handlerMapping.getHandlerMethods().entrySet()) {
+            HandlerMethod handlerMethod = entry.getValue();
+            if (!isProductionController(handlerMethod.getBeanType())) {
+                continue;
+            }
+            for (MethodParameter parameter : handlerMethod.getMethodParameters()) {
+                PathVariable pathVariable = parameter.getParameterAnnotation(PathVariable.class);
+                if (pathVariable == null) {
+                    continue;
+                }
+                String name = pathVariableName(pathVariable, parameter);
+                if (!"id".equals(name)) {
+                    continue; // 이름으로 자원이 갈리는 파라미터(runId 등)는 위 시험이 이미 본다
+                }
+                String key = handlerMethod.getBeanType().getSimpleName() + "#" + name;
+                if (!SeedExampleValues.PARAMETER_EXAMPLES.containsKey(key)) {
+                    missing.add(key);
+                }
+            }
+        }
+        assertThat(missing).as("사전에 없어 대표값 1로 떨어지는 id 경로 변수").isEmpty();
+    }
+
+    /** {@code @PathVariable} 에 이름을 안 적은 경우 컴파일러의 {@code -parameters} 산출물에서 읽는다. */
+    private static String pathVariableName(PathVariable pathVariable, MethodParameter parameter) {
+        if (!pathVariable.value().isBlank()) {
+            return pathVariable.value();
+        }
+        Parameter reflected = parameter.getMethod().getParameters()[parameter.getParameterIndex()];
+        return reflected.getName();
+    }
+
+    /** {@code OpenApiCoverageTest.isProductionController} 와 같은 판정 — 시험 전용 컨트롤러는 사양 대상이 아니다. */
+    private static boolean isProductionController(Class<?> beanType) {
+        if (!beanType.getPackageName().startsWith("src.backend")) {
+            return false;
+        }
+        var codeSource = beanType.getProtectionDomain().getCodeSource();
+        return codeSource != null && codeSource.getLocation().getPath().contains("/classes/java/main/");
     }
 }

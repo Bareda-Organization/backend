@@ -133,6 +133,44 @@ public final class SeedFixtures {
     /** 정원 4석(학생석 2석)으로 잔여석이 근접한 학원 A 버스 — 정원 초과 차단 시연용. */
     public static final String BUS_NEAR_FULL_ID = "2";
 
+    // ── Swagger 경로 변수 "id" 사전 채움용 (BR-113 잔여, Ruling 348) ─────────
+    // 컨트롤러마다 "id" 가 가리키는 자원이 달라, 이름이 그 자원을 그대로 말한다.
+
+    /** 학원 A 정기 배차(등원, 1호차) — {@code StaffScheduleController#id}. */
+    public static final String SCHEDULE_A_ID = "1";
+
+    /** 학원 A 보호자 1({@code parentA1}) 수신, 미확인 상태인 알림 — {@code NotificationController#id}. */
+    public static final String NOTIFICATION_PARENT_A1_UNREAD_ID = "1";
+
+    /** 학원 A 매니저(기사 강기사, {@code driverA1}) — {@code StaffManagerController#id}. */
+    public static final String MANAGER_DRIVER_A1_ID = "1";
+
+    /** 관계자 계정 staffA(학원 A 소속, active) — {@code AdminStaffAccountController#id}. */
+    public static final String ACCOUNT_STAFF_A_ID = "2";
+
+    /** 로그인 차단된 계정 driverBlocked(학원 A 소속) — {@code AdminBlockedAccountController#id}. */
+    public static final String ACCOUNT_DRIVER_BLOCKED_ID = "15";
+
+    /** 학원 A 고정 노선(등원, 1호차) — {@code StaffRouteController#id}. */
+    public static final String ROUTE_A_FIXED_ID = "1";
+
+    /** 가입 대기 중인 관계자 신청(staffPending, 학원 A) — {@code AdminStaffApprovalController#id}. */
+    public static final String SIGNUP_REQUEST_STAFF_PENDING_ID = "1";
+
+    /** 가입 대기 중인 학부모 신청(parentPending, 학원 A) — {@code SignupApprovalController#id}. */
+    public static final String SIGNUP_REQUEST_PARENT_PENDING_ID = "2";
+
+    /** 학원 A 비상 알림(미확인, R3) — {@code EmergencyController#id}·{@code StaffEmergencyController#id}. */
+    public static final String EMERGENCY_ALERT_A_ID = "1";
+
+    /**
+     * 예외 보고 상세({@code StaffReportController#id}) 예시 — {@code exception_report} 는 로컬
+     * 시드가 0행이라(§3.4 미기재, 이 클래스 상단 설명 참고) 실제로 가리키는 행이 부재하다. 값을
+     * 사전에 올려 "사전 없어 대표값 1로 떨어짐"만 피하고, "Try it out" 성공은 보장하지 않는다
+     * (판단 근거는 {@code FIX-BEB.md} §2).
+     */
+    public static final String EXCEPTION_REPORT_EXAMPLE_ID = "1";
+
     // ── 회차 R1~R5 — 3구간 배치 + 상태 4종 ───────────────────────────────
     // R1=①구간(idle, 여유) · R2=②구간(confirmed, 임박) · R3=③구간(moving, 이미 출발) ·
     // R4(finished, 추가 상태) · R5(confirmed, 학원 B 격리 검증용).

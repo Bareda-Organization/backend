@@ -59,5 +59,16 @@ final class SeedExampleValues {
             Map.entry("AdminAcademyController#id", SeedFixtures.ACADEMY_A_ID),
             Map.entry("AdminAcademyLiveController#id", SeedFixtures.ACADEMY_A_ID),
             Map.entry("StaffApprovalController#id", SeedFixtures.CHANGE_REQUEST_PENDING_ID),
-            Map.entry("StaffRunController#id", SeedFixtures.RUN_IDLE_ID));
+            Map.entry("StaffRunController#id", SeedFixtures.RUN_IDLE_ID),
+            Map.entry("StaffScheduleController#id", SeedFixtures.SCHEDULE_A_ID),
+            Map.entry("NotificationController#id", SeedFixtures.NOTIFICATION_PARENT_A1_UNREAD_ID),
+            Map.entry("AdminStaffAccountController#id", SeedFixtures.ACCOUNT_STAFF_A_ID),
+            Map.entry("StaffManagerController#id", SeedFixtures.MANAGER_DRIVER_A1_ID),
+            Map.entry("StaffRouteController#id", SeedFixtures.ROUTE_A_FIXED_ID),
+            Map.entry("AdminBlockedAccountController#id", SeedFixtures.ACCOUNT_DRIVER_BLOCKED_ID),
+            Map.entry("SignupApprovalController#id", SeedFixtures.SIGNUP_REQUEST_PARENT_PENDING_ID),
+            Map.entry("AdminStaffApprovalController#id", SeedFixtures.SIGNUP_REQUEST_STAFF_PENDING_ID),
+            Map.entry("EmergencyController#id", SeedFixtures.EMERGENCY_ALERT_A_ID),
+            Map.entry("StaffEmergencyController#id", SeedFixtures.EMERGENCY_ALERT_A_ID),
+            Map.entry("StaffReportController#id", SeedFixtures.EXCEPTION_REPORT_EXAMPLE_ID));
 }
