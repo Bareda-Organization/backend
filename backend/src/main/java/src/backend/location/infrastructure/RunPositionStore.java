@@ -32,9 +32,9 @@ import src.backend.observability.metrics.RunPositionFallbackMetrics;
  * 한 번이다(관제가 회차 수만큼 쿼리를 내지 않게). 대체 값의 {@code currentStopName} 은 {@code null} — 이력 행에
  * 없는 값이다. 근접 판정은 대체하지 않는다({@link #findCached}) — 그 틱을 건너뛰고 다음 틱(10초)에 다시 본다.
  *
- * <p>인터페이스(spec)로 가르지 않는다 — 최신 좌표를 Redis 에 두는 것은 인스턴스 간 공유 때문이고(ARCHITECTURE
- * §9.5) 바꿀 구현 후보가 없다. 교체 축이 없는 곳에 포트를 씌우지 않는다(ARCHITECTURE §3.2.1). 호출자는 Redis 를
- * 모르고 이 클래스만 안다(CODE_CONVENTIONS §12·§13).
+ * <p>인터페이스(spec)로 가르지 않는다 — 최신 좌표를 Redis 에 두는 것은 인스턴스 간 공유 때문이고
+ * (ARCHITECTURE §9.5) 바꿀 구현 후보가 없다. 교체 축이 없는 곳에 포트를 씌우지 않는다(ARCHITECTURE §3.2.1).
+ * 호출자는 Redis 를 모르고 이 클래스만 안다(CODE_CONVENTIONS 의 Service·Infrastructure 규칙).
  *
  * <p>⚠ 값 형식은 평문 camelCase JSON — 전역 {@code ObjectMapper}(SNAKE_CASE)를 쓰지 않고 이 클래스 전용
  * {@link JsonMapper} 로 읽고 쓴다. 다형 직렬화기({@code RedisTemplate<String,Object>})로 되돌리지 마라.
