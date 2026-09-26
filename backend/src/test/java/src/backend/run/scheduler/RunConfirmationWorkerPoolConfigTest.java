@@ -40,10 +40,20 @@ class RunConfirmationWorkerPoolConfigTest {
      */
     @Test
     void 풀_크기는_지도_API_격벽_상한을_넘지_않는다() {
-        int bulkheadLimit = bulkheadRegistry.bulkhead("mapRoute").getBulkheadConfig().getMaxConcurrentCalls();
+        int bulkheadLimit = bulkheadRegistry.bulkhead("mapRouteBatch").getBulkheadConfig().getMaxConcurrentCalls();
 
         assertThat(((ThreadPoolExecutor) runConfirmationExecutor).getMaximumPoolSize())
                 .isLessThanOrEqualTo(bulkheadLimit);
+    }
+
+    /**
+     * BR-169(`Ruling 350`) — 격벽을 배치 3칸 · 온디맨드 1칸으로 가른 뒤에는 풀 기본값이 <b>배치 칸
+     * 수</b>여야 한다. 가르기 전에는 이 기본값이 전체 칸 수(4)를 가리켜, 화면 조회가 칸 하나를 쥐면
+     * 풀이 뽑아낸 나머지 요청 중 하나가 격벽에서 거부돼 직선 근사로 확정된다(BR-169 원 지적).
+     */
+    @Test
+    void 풀_크기_기본값은_배치_격벽_상한이다() {
+        assertThat(((ThreadPoolExecutor) runConfirmationExecutor).getMaximumPoolSize()).isEqualTo(3);
     }
 
     @Test
