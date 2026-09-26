@@ -263,14 +263,14 @@ HTTP 상태 코드 + 본문. 본문 형태는 전 엔드포인트 공통.
 
 ⚠ **이 방법이 못 보는 것** — `null` 이 지역 변수·삼항식·`Optional.orElse(null)` 을 거쳐 들어가는 경로는 리터럴 위치 대조로 잡히지 않는다. 위 ②가 그 구멍을 일부 덮지만(§4.2 `photo_url` 이 그 경로였다) **전수를 보장하지 않는다.** 이 목록은 **하한**이다.
 
-#### 목록 — **`●` 인 필드 15개 · 7개 절** (13개는 `curl` 재현 · 2026-09-25 추가 2개(§4.2·§5.4 `guardian_phone`)는 시험으로 재현)
+#### 목록 — **`●` 인 필드 15개 · 7개 절** (13개는 `curl` 재현 · 2026-09-25~26 추가 3개(§4.2·§5.4·§6.9 `guardian_phone`)는 시험으로 재현)
 
 | 절 | 필드 | `null` 이 나오는 조건 | 처분 |
 |---|---|---|---|
 | §4.1 | `est_duration_min` | 스케줄이 소요시간을 안 적은 회차(시드 7건 전부) | ✅ **`○` 로 정정** — §5.10 입력이 `○` 이고 §5.13 이 *"nullable 이라 대개 비어 있다"* 고 이미 적고 있었다 |
 | §4.2 | `photo_url` | 사진 미등록 학생(시드 6명 전원) | ✅ **`○` 로 정정** — 판정 근거는 §4.2 |
 | §6.9 | `photo_url` · `student_phone` | 위와 같은 컬럼 | ✅ **`○` 로 정정** — 같은 판정이 이 절에만 안 걸려 있었다 |
-| §4.2 · §5.4 | `guardian_phone` | 보호자를 아직 연결하지 않은 학생(관계자가 먼저 등록 → P-02 로 나중에 연결) | ✅ **`○` 로 정정**(2026-09-25 BR-082) — 매니저 앱 파서(`as String`)가 명단 전체를 실패시켜 앱도 함께 수정. 시험 `RunRosterControllerTest#결석_학생은_명단에서_빠지고_집계에만_남는다` 가 `null` 을 고정 |
+| §4.2 · §5.4 · §6.9 | `guardian_phone` | 보호자를 아직 연결하지 않은 학생(관계자가 먼저 등록 → P-02 로 나중에 연결) | ✅ **`○` 로 정정**(2026-09-25 §4.2·§5.4 BR-082, 2026-09-26 §6.9 `Ruling 359`) — 매니저 앱 파서(`as String`)가 명단 전체를 실패시켜 앱도 함께 수정. 시험 `RunRosterControllerTest#결석_학생은_명단에서_빠지고_집계에만_남는다`(§4.2·§5.4) · 신설 `AdminRunRosterControllerTest`(§6.9)가 `null` 을 고정 |
 | §5.5 상세 | `route_preview` · `est_time_before` · `est_time_after` · `est_distance_before` · `est_distance_after` · `preview_token` | 결정이 끝난 건 | ✅ **`◐` 로 개정** — 판정 근거는 §5.5 |
 | §3.12 | `sent_at` | 미발송·발송 실패 건(`push_state != sent`) | ⏸ **미판정** — 아래 |
 | §4.3 | `next_stop.lat` · `next_stop.lng` | 배포 후 제거된 경유 지점이 다음 차례일 때 | ⏸ **미판정** — 아래 |
@@ -1400,9 +1400,17 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 #### 목록 — `GET /staff/approvals`
 
-**요청 (쿼리)** `status` (enum, 선택 — 기본 `pending`)
+**요청 (쿼리)** `status` (enum, 선택 — 기본 `pending`) · `page`·`size`(§1.8 공통 페이징, `Ruling 358`)
 
-**응답** — `items[]` · `pending_count`. **재최적화를 실행하지 않음** — 저장된 값과 단순 집계만 반환.
+**응답** — `items[]` · `pending_count` + `page`·`size`·`total_count`·`has_next`(§1.8 페이징 봉투,
+`Ruling 358`). **재최적화를 실행하지 않음** — 저장된 값과 단순 집계만 반환하며, **DB 에서 그 페이지만
+잘라 온다**(전량 적재 후 자르기 아님 — 결정된 상태(`approved`·`rejected`·`auto_rejected`)는 전 기간이
+쌓여 무제한 조회가 되던 것을 이 페이징이 막는다). `pending_count` 는 페이지·필터와 무관한 **전체** 대기
+수다(기존 의미 그대로).
+
+**정렬** — `pending` 은 `deadline_at` 오름차순(마감 임박이 위), 결정된 상태(`approved`·`rejected`·
+`auto_rejected`)는 `decided_at` 내림차순(최근 결정이 위 — 동시각이면 `requested_at` 내림차순으로
+결선).
 
 ⚠ **결정이 끝난 항목은 대상 학생이 이미 그 회차 명단에서 빠져 있을 수 있다** (2026-09-12 신설, Ruling 265).
 거절·자동거절은 명단을 되돌리지 않으므로, **다른 회차로 옮기려다 거절된 요청**의 학생은 그 회차
@@ -1483,7 +1491,12 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
       "will_remove_stop": true,
       "requested_at": "2026-08-24T08:12:41+09:00"
     }
-  ]
+  ],
+  "pending_count": 1,
+  "page": 0,
+  "size": 20,
+  "total_count": 1,
+  "has_next": false
 }
 ```
 
@@ -2275,10 +2288,10 @@ SMS 연동(`PRD` F-05) 전까지 §2.9 가 `503` 이라 **학원 사용자의 �
 | `student_id` · `name` | string | ● | |
 | `photo_url` | string | ○ | **미등록 학생은 `null`** — 근거·대체 표시는 §4.2 와 같다(2026-09-14 정정) |
 | `student_phone` | string | ○ | 학생 연락처 — **원문**. **휴대전화 미보유 학생은 `null`**(C-13 · `§5.11` 입력이 `○`) |
-| `guardian_phone` | string | ● | 학부모 연락처 — **원문** |
+| `guardian_phone` | string | ○ | 학부모 연락처 — **원문**. **보호자 미연결 학생은 `null`**(§1.13 목록, `Ruling 359`) |
 | `status` | enum | ● | 탑승 상태 |
 
-⚠ **`photo_url`·`student_phone` 은 2026-09-14 까지 `●` 로 적혀 있었다** (`BE-R2` 목표 16 이 전수 계수로 발견). 같은 컬럼을 읽는 §4.2 만 고치고 이 절을 두면 **관제 화면(O-06)을 만드는 쪽이 같은 자리에서 다시 죽는다** — 실측에서 이 응답도 두 필드를 `null` 로 보냈다.
+⚠ **`photo_url`·`student_phone` 은 2026-09-14 까지 `●` 로 적혀 있었다** (`BE-R2` 목표 16 이 전수 계수로 발견). 같은 컬럼을 읽는 §4.2 만 고치고 이 절을 두면 **관제 화면(O-06)을 만드는 쪽이 같은 자리에서 다시 죽는다** — 실측에서 이 응답도 두 필드를 `null` 로 보냈다. **`guardian_phone` 도 2026-09-25 까지 `●` 로 적혀 있었다**(`Ruling 359`, BR-082 잔여) — 같은 컬럼을 읽는 §4.2·§5.4 는 이미 `○` 로 정정됐고 이 절만 남아 있었다.
 
 **에러** — `404 RUN_NOT_FOUND`. 학원 격리 예외는 §6.8 과 동일
 
