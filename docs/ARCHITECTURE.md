@@ -234,6 +234,7 @@ Java 25 의 `record` 는 불변이고 `equals`·`hashCode`·`toString` 이 자�
 notification · audit · monitoring   ← (구독) ← 전 모듈이 발행하는 도메인 이벤트
 routing → student · bus · schedule · request   (읽기)
 run · boarding → routing (확정 노선 조회) · notification (이벤트 발행)
+routing → run (확정 전이 · 회차 잠금)
 location → run (회차 상태·명단 조회)
 student · monitoring · exception → location (회차 최신 좌표 — RunPositionStore, BR-098)
 account → academy
@@ -245,6 +246,7 @@ account → academy
 - **승하차지 마스터(`stop`)의 소유는 `student` 모듈** — 생성 계기가 주소 검증(STU-05)이기 때문. `routing`·`boarding` 은 읽기만.
 - `notification` 은 **누구도 직접 호출하지 않는다** — 이벤트 구독으로만 동작. 승하차 처리 트랜잭션이 푸시 발송 실패로 롤백되는 상황을 막기 위함 (BRD-04).
 - **정차지 출발 선점(`StopDepartureService`)의 소유는 `run` 모듈** — 근접 판정(`location`)·다음 정차지 도착 폴백(`run`)·운행 종료 강제 적용(`run`) 세 호출부가 이 클래스 하나로 모인다. `location` 이 그 결과(`StopDepartedEvent`)를 부르는 쪽이라 `location → run` 한 방향만 남는다(BR-094, 이전엔 양방향 순환이었다).
+- **예외: `academy → account` 역참조 1곳.** `academy.command.StaffAccountCommandService.update`(관계자 계정 수정, §6.7)가 `account.entity.Account.changeProfile`·`changePassword`(임시 비밀번호 초기화) · `account.repository.RefreshTokenRepository.revokeAllValidByAccountId` 를 직접 부른다. `account` 모듈이 이미 가진 초기화 진입점(`AccountPasswordResetCommandService`, §5.22)은 대상 역할이 학부모·학생·기사·동승자로 한정되고("관계자는 메인 관리자 경로(§6.7), 메인 관리자는 대상 밖") 호출자의 소속 학원으로 스코프돼 있어, 전 학원 범위로 관계자 계정을 다루는 §6.7 과 대상·인가 경계가 다르다 — 그대로 재사용하면 서로 다른 두 인가 경계가 한 메서드에 섞인다. 재사용만을 위해 새 위임 클래스를 만들면 3줄짜리 감싸기에 그쳐 추상화 이득이 없다(BR-094·BR-095, 2차 정리 갈래 M 판단 유지, R31-BEB).
 
 ---
 
