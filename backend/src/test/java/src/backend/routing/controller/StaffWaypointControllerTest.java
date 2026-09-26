@@ -159,7 +159,7 @@ class StaffWaypointControllerTest {
 
         경유_추가한다(s.runId, 경유_본문("새경유로 10", "임시 정류장", false))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.waypoint_id").isNumber())
+                .andExpect(jsonPath("$.data.waypoint_id").isString())
                 .andExpect(jsonPath("$.data.applied").value(false))
                 .andExpect(jsonPath("$.data.route_preview.stops_after", org.hamcrest.Matchers.hasSize(4)))
                 .andExpect(jsonPath("$.data.route_preview.stops_after[3].stop_name")
@@ -718,7 +718,7 @@ class StaffWaypointControllerTest {
 
     private long waypointId아이디_읽는다(MvcResult result) throws Exception {
         String body = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        return ((Number) JsonPath.read(body, "$.data.waypoint_id")).longValue();
+        return Long.parseLong(JsonPath.read(body, "$.data.waypoint_id"));
     }
 
     private long 현재_버전_id(long runId) {
