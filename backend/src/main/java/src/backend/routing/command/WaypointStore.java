@@ -1,7 +1,6 @@
 package src.backend.routing.command;
 
 import java.time.OffsetDateTime;
-import java.util.List;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
@@ -15,14 +14,9 @@ import src.backend.request.domain.ChangeWindow;
 import src.backend.request.domain.ChangeWindowPolicy;
 import src.backend.routing.command.WaypointPreviewCache.WaypointPreview;
 import src.backend.routing.entity.ConfirmedRoute;
-import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.entity.RouteVersionSource;
-import src.backend.routing.entity.RunStop;
 import src.backend.routing.entity.Waypoint;
-import src.backend.routing.pipeline.RouteComputation;
 import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RouteVersionRepository;
-import src.backend.routing.repository.RunStopRepository;
 import src.backend.routing.repository.WaypointRepository;
 import src.backend.run.entity.Run;
 import src.backend.run.event.RunRouteConfirmedEvent;
@@ -37,6 +31,11 @@ import src.backend.run.repository.RunRepository;
  * 않는다 — 이 회차는 이미 확정된 상태에서 들어온다(§5.15 전제). {@code route_changed} 알림은
  * {@link RunRouteConfirmedEvent} 를 그대로 재사용한다({@code RunRouteConfirmedNotificationListener}
  * 가 이미 재확정 경로를 겨냥해 만들어져 있다, 그 클래스 자바독).
+ *
+ * <p><b>노선 버전 저장 자체는 {@link RouteVersionDeploymentService} 에 위임한다</b>(BR-094·095,
+ * 2026-09-25 검사 W02-17) — ②구간 승인 배포({@code ChangeRequestDecisionService})가 거의 같은 코드를
+ * 중복 소유하던 것을 그 공유 클래스로 모았다. 이 클래스는 경유 지점 고유의 배포 전 재확인
+ * ({@link #assertStillDeployable})과 {@code waypoint} 행 상태 전이만 담당한다.
  */
 @Component
 @RequiredArgsConstructor
@@ -44,9 +43,7 @@ public class WaypointStore {
 
     private final ConfirmedRouteRepository confirmedRouteRepository;
 
-    private final RouteVersionRepository routeVersionRepository;
-
-    private final RunStopRepository runStopRepository;
+    private final RouteVersionDeploymentService deploymentService;
 
     private final WaypointRepository waypointRepository;
 
@@ -87,28 +84,14 @@ public class WaypointStore {
     }
 
     /**
-     * 새 노선 버전을 저장하고 "현재 버전" 포인터를 그 행으로 옮긴다 — 추가·제거 양쪽이 공유하는
-     * 절차다. 버전 번호는 이 트랜잭션 안에서 다시 읽은 현재 버전 기준으로 매긴다({@code +1}) — 밖에서
-     * 미리 읽어 넘긴 값을 쓰면 그 사이 다른 배포가 끼어든 경합을 못 잡는다.
+     * 배포 전 재확인({@link #assertStillDeployable})을 거친 뒤 새 노선 버전 저장을 공유 클래스에
+     * 맡긴다 — 추가·제거 양쪽이 이 순서를 공유한다. 경유 지점 배포는 "잔여 0명이면 승하차지 제거"
+     * 판정이 필요 없어 {@code watchedStopId} 를 넘기지 않는다.
      */
-    private RouteVersion deployNewVersion(Run run, WaypointPreview preview, Long createdBy, OffsetDateTime now) {
-        RouteComputation computation = preview.computation();
-        String fingerprint = preview.fingerprint();
+    private void deployNewVersion(Run run, WaypointPreview preview, Long createdBy, OffsetDateTime now) {
         assertStillDeployable(run, preview, now);
-        ConfirmedRoute confirmedRoute = confirmedRouteRepository.findById(run.getId())
-                .orElseThrow(() -> new IllegalStateException("확정 노선이 없다 — runId=" + run.getId()));
-        Long currentVersionId = confirmedRoute.getCurrentVersionId();
-        RouteVersion currentVersion = routeVersionRepository.findById(currentVersionId)
-                .orElseThrow(() -> new IllegalStateException("노선 버전이 없다 — versionId=" + currentVersionId));
-
-        RouteVersion newVersion = RouteVersion.forConfirmedRoute(run.getId(), currentVersion.getVersionNo() + 1,
-                RouteVersionSource.WAYPOINT, computation.estDurationMin(), computation.estDistanceKm(), now,
-                fingerprint, computation.snapshot().engineName(), computation.snapshot().policySnapshot(),
-                computation.snapshot().fallbackUsed(), computation.roadPath(), createdBy, now);
-        routeVersionRepository.save(newVersion);
-        confirmedRouteRepository.assignCurrentVersion(run.getId(), newVersion.getId());
-        runStopRepository.saveAll(RunStop.listOf(newVersion.getId(), computation, run.getDirection()));
-        return newVersion;
+        deploymentService.deployNewVersion(run, preview.computation(), preview.fingerprint(),
+                RouteVersionSource.WAYPOINT, createdBy, now, null);
     }
 
     /**
