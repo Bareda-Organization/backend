@@ -41,6 +41,7 @@ public class MeQueryService {
     private final GuardianStudentRepository guardianStudentRepository;
     private final ManagerRepository managerRepository;
 
+    /** 그 계정의 프로필과 role 별 부가 필드를 §2.10 응답으로 조립한다. */
     @Transactional(readOnly = true)
     public MeResponse getMe(Long accountId) {
         Account account = accountRepository.findById(accountId)

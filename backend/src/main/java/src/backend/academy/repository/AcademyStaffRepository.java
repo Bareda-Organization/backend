@@ -70,8 +70,17 @@ public interface AcademyStaffRepository extends JpaRepository<AcademyStaff, Long
      * <p>{@code s.academyId = :academyId} 가 WHERE 에 그대로 있어 학원으로 이미 좁혀진 조회이므로
      * {@code AcademyScopeExempt} 가 필요 없다.
      */
+    default List<AcademyStaffAccountView> findActiveAccountsByAcademyId(Long academyId) {
+        return findAccountsByAcademyIdAndStatus(academyId, StaffStatus.ACTIVE);
+    }
+
+    /**
+     * {@link #findActiveAccountsByAcademyId} 의 실제 질의 — enum 을 완전 경로 문자열로 박지 않고
+     * 파라미터로 받는다({@code CODE_CONVENTIONS §9.1}, `@Query` 문자열은 Java `import` 가 닿지 않는다).
+     */
     @Query("SELECT new src.backend.academy.dto.AcademyStaffAccountView(a.id, a.name) "
             + "FROM AcademyStaff s, Account a "
-            + "WHERE a.id = s.accountId AND s.academyId = :academyId AND s.status = src.backend.academy.entity.StaffStatus.ACTIVE")
-    List<AcademyStaffAccountView> findActiveAccountsByAcademyId(@Param("academyId") Long academyId);
+            + "WHERE a.id = s.accountId AND s.academyId = :academyId AND s.status = :status")
+    List<AcademyStaffAccountView> findAccountsByAcademyIdAndStatus(@Param("academyId") Long academyId,
+            @Param("status") StaffStatus status);
 }

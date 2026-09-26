@@ -95,6 +95,7 @@ public class StudentRouteQueryService {
 
     private final Clock clock;
 
+    /** 학생 1명의 노선(§3.10) — 오늘 회차가 없으면 {@code 404 RUN_NOT_FOUND}, 학생·회차 접근 불가는 각각의 사양 오류. */
     public StudentRouteResponse route(AuthUser requester, Long studentId, String rawDate, String rawRunId) {
         Student student = studentRunsAccess.resolve(requester, studentId);
         Run run = resolveRun(student, rawDate, rawRunId);

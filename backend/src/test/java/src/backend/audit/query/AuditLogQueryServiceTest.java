@@ -51,7 +51,8 @@ class AuditLogQueryServiceTest {
                 Map.of("fields", "student_phone"), now));
 
         try {
-            PageResponse<AuditLogItemResponse> result = auditLogQueryService.list(null, 격리_계정, null, null, 0, 20);
+            PageResponse<AuditLogItemResponse> result =
+                    auditLogQueryService.list(new AuditQueryFilter(null, 격리_계정, null, null, 0, 20));
 
             assertThat(result.items())
                     .as("격리 계정으로 좁혔으니 방금 심은 행 1건만 실려야 한다")

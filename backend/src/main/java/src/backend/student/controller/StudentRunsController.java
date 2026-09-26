@@ -34,6 +34,7 @@ public class StudentRunsController {
 
     private final StudentRunsQueryService studentRunsQueryService;
 
+    /** 학생 1명의 그날 회차 목록을 돌려준다(§3.5) — {@code date} 미지정이면 오늘. */
     @CanReadStudentRuns
     @Operation(summary = "자녀의 당일 회차 (P-04 · S-01)")
     @GetMapping

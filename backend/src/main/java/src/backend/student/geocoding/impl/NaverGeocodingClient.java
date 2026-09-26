@@ -98,13 +98,6 @@ public class NaverGeocodingClient implements GeocodingClient {
         return firstAddressOf(response);
     }
 
-    /**
-     * 공급자에 닿지 못한 전부를 포트 예외 하나로 모은다 — 호출부가 원인별로 분기하지 않게 하기
-     * 위함이다.
-     *
-     * <p>{@code private} 이 아닌 것은 Resilience4j 가 리플렉션으로 찾기 때문이고, 시그니처가 원
-     * 메서드 + {@link Throwable} 인 것도 그 규약이다.
-     */
     /** 자동완성 — 공급자가 준 후보를 최대 {@value #CANDIDATE_LIMIT}건까지 그대로 돌려준다. */
     @Override
     @CircuitBreaker(name = RESILIENCE_INSTANCE)
@@ -131,10 +124,18 @@ public class NaverGeocodingClient implements GeocodingClient {
                 .toList();
     }
 
+    /**
+     * 공급자에 닿지 못한 전부를 포트 예외 하나로 모은다 — 호출부가 원인별로 분기하지 않게 하기
+     * 위함이다. {@link #unavailable} 도 같은 계약이다.
+     *
+     * <p>{@code private} 이 아닌 것은 Resilience4j 가 리플렉션으로 찾기 때문이고, 시그니처가 원
+     * 메서드 + {@link Throwable} 인 것도 그 규약이다.
+     */
     List<GeocodedPoint> candidatesUnavailable(String query, Throwable cause) {
         throw new GeocodingUnavailableException("지오코딩 호출 실패: " + query, cause);
     }
 
+    /** {@link #candidatesUnavailable} 와 같은 계약 — {@link #geocode} 전용 fallback. */
     Optional<GeocodedPoint> unavailable(String address, Throwable cause) {
         throw new GeocodingUnavailableException("지오코딩 호출 실패: " + address, cause);
     }

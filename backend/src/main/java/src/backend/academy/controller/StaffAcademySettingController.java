@@ -40,6 +40,7 @@ public class StaffAcademySettingController {
 
     private final AcademySettingCommandService academySettingCommandService;
 
+    /** 요청자 학원의 현재 설정을 돌려준다. */
     @AuthenticatedOnly
     @Operation(summary = "학원별 설정 (EXC-01 · M-13 · A-17)")
     @GetMapping

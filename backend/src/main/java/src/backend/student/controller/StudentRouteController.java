@@ -37,6 +37,7 @@ public class StudentRouteController {
 
     private final StudentRouteQueryService studentRouteQueryService;
 
+    /** 학생 1명의 상세 노선을 돌려준다(§3.10) — {@code date}·{@code run_id} 미지정 시 오늘 회차. */
     @CanReadStudentRoute
     @Operation(summary = "상세 노선 (LOC-03, P-08 · S-04)")
     @GetMapping

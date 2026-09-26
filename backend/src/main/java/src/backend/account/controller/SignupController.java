@@ -39,6 +39,7 @@ public class SignupController {
     private final SignupCommandService signupCommandService;
     private final SignupStatusQueryService signupStatusQueryService;
 
+    /** form 가입을 접수하고 `pending` 계정을 만든다 — 승인 주체는 역할에 따라 갈린다(§2.2). */
     @PublicEndpoint
     @Operation(summary = "form 회원가입 (AUTH-01, C-01)")
     @PostMapping("/auth/signup")
@@ -46,6 +47,7 @@ public class SignupController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(signupCommandService.signup(payload)));
     }
 
+    /** 대기 화면이 상태·거절 사유를 다시 그리기 위한 조회 — `pending`·`rejected` 도 호출 가능. */
     @AuthenticatedOnly
     @AllowedWhenPending
     @Operation(summary = "승인 대기 화면 (AUTH-03)")
@@ -54,6 +56,7 @@ public class SignupController {
         return ApiResponse.ok(signupStatusQueryService.getStatus(authUser.accountId()));
     }
 
+    /** 거절된 계정이 다른 학원을 다시 골라 심사를 새로 받는다 — `rejected` 상태에서만 호출 가능. */
     @AuthenticatedOnly
     @AllowedWhenRejected
     @Operation(summary = "거절 후 재신청 — 학원 재선택 (AUTH-03)")

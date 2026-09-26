@@ -129,6 +129,7 @@ public class NaverPlaceSearchClient implements PlaceSearchClient {
         return new BigDecimal(scaled).movePointLeft(COORDINATE_SHIFT).setScale(COORDINATE_SCALE, RoundingMode.HALF_UP);
     }
 
+    /** 네이버 지역 검색 응답 바디 — 후보 목록만 옮겨 담는다. */
     record LocalResponse(List<LocalItem> items) {
     }
 

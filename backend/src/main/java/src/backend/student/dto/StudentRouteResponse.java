@@ -20,9 +20,11 @@ import java.util.List;
 public record StudentRouteResponse(Long runId, String busNo, OffsetDateTime departTime, boolean confirmed,
         Contact driver, EscortContact escort, Long myStopId, List<Stop> stops) {
 
+    /** 기사 표시용 이름만 — 연락처는 없다(위 클래스 자바독). */
     public record Contact(String name) {
     }
 
+    /** 동승자 이름·연락처 — 학부모가 연락 가능한 유일한 대상이다. */
     public record EscortContact(String name, String phone) {
     }
 

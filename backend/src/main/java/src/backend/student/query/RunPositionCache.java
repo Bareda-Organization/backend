@@ -43,6 +43,7 @@ public class RunPositionCache {
         this.stringRedisTemplate = stringRedisTemplate;
     }
 
+    /** 그 회차의 마지막 위치 스냅샷 — 신호가 없거나 형식이 틀리면(위 자바독) 빈 값. */
     public Optional<RunPositionSnapshot> find(Long runId) {
         String raw = stringRedisTemplate.opsForValue().get(KEY_FORMAT.formatted(runId));
         if (raw == null || raw.isBlank()) {

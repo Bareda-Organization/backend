@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.audit.dto.LoginHistoryItemResponse;
+import src.backend.audit.query.AuditQueryFilter;
 import src.backend.audit.query.LoginHistoryQueryService;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
@@ -30,6 +31,7 @@ public class LoginHistoryController {
 
     private final LoginHistoryQueryService loginHistoryQueryService;
 
+    /** 로그인 성공·실패·차단 이력을 필터·페이징으로 조회한다(§6.13). */
     @CanReadAudit
     @Operation(summary = "접속 이력 조회 (SYS-02)")
     @GetMapping
@@ -40,6 +42,7 @@ public class LoginHistoryController {
             @RequestParam(name = "to", required = false) String to,
             @RequestParam(name = "page", required = false) Integer page,
             @RequestParam(name = "size", required = false) Integer size) {
-        return ApiResponse.ok(loginHistoryQueryService.list(academyId, accountId, from, to, page, size));
+        return ApiResponse
+                .ok(loginHistoryQueryService.list(new AuditQueryFilter(academyId, accountId, from, to, page, size)));
     }
 }

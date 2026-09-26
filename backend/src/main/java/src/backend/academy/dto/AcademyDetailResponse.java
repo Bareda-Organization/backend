@@ -17,6 +17,7 @@ public record AcademyDetailResponse(Long id, String code, String name, String re
         String address, String contact, String memo,
         List<AcademyStaffAccountResponse> staffAccounts, AcademyStatsResponse stats) {
 
+    /** 학원 엔티티와 함께 조회한 집계값·관계자 목록을 §6.3 응답 모양으로 조립한다. */
     public static AcademyDetailResponse from(Academy academy, long staffCount, long userCount,
             List<AcademyStaffAccountResponse> staffAccounts, AcademyStatsResponse stats) {
         return new AcademyDetailResponse(academy.getId(), academy.getCode(), academy.getName(),

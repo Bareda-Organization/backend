@@ -49,7 +49,7 @@ public class GuardianStudent {
         this.linkedAt = linkedAt;
     }
 
-    /** 연결 요청·코드 대조가 끝나 자녀 연결이 성립하는 시점에 생성한다(P-02). */
+    /** 인증 코드 대조가 끝나 자녀 연결이 성립하는 시점에 생성한다(P-02, Ruling 324 이후 코드 단일 경로). */
     public static GuardianStudent uponLink(Long guardianId, Long studentId, OffsetDateTime linkedAt) {
         return new GuardianStudent(guardianId, studentId, linkedAt);
     }

@@ -105,7 +105,7 @@ public class StaffStudentController {
                 studentCommandService.register(authUser, request, photoOf(photo))));
     }
 
-    /** 학생 정보 수정(STU-03 · 07 · 08, §5.11) — 주소·보호자 연락처는 대상 밖이다(A-10). */
+    /** 학생 정보 수정(STU-03 · 07 · 08, §5.11) — 주소는 대상 밖이다(A-10). 보호자 연락처는 {@code guardians[]} 로 함께 고친다(Ruling 326). */
     @CanManageStudent
     @Operation(summary = "학생 관리 — 수정")
     @PatchMapping("/{id}")

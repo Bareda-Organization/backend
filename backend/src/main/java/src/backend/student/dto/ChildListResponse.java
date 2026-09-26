@@ -16,6 +16,7 @@ import src.backend.student.repository.LinkedChild;
  */
 public record ChildListResponse(List<Item> items) {
 
+    /** 연결된 자녀 목록을 §3.1 응답 모양으로 옮긴다. */
     public static ChildListResponse from(List<LinkedChild> children) {
         return new ChildListResponse(children.stream().map(Item::from).toList());
     }
@@ -30,6 +31,7 @@ public record ChildListResponse(List<Item> items) {
      */
     public record Item(String studentId, String name, String className, OffsetDateTime linkedAt) {
 
+        /** 연결 투영 1건을 목록 항목 하나로 옮긴다 — {@code studentId} 는 문자열(Ruling 171). */
         public static Item from(LinkedChild child) {
             return new Item(String.valueOf(child.getStudentId()), child.getName(), child.getClassName(),
                     child.getLinkedAt());

@@ -23,6 +23,7 @@ public record StaffAccountDetailResponse(Long accountId, String name, String log
         String academyName, String status,
         @JsonInclude(JsonInclude.Include.NON_NULL) String temporaryPassword) {
 
+    /** 수정된 계정·재직 상태를 §6.7 "변경 후 자원 상태" 응답으로 조립한다. */
     public static StaffAccountDetailResponse from(Account account, String academyName, StaffStatus status,
             String temporaryPassword) {
         return new StaffAccountDetailResponse(account.getId(), account.getName(), account.getLoginId(),

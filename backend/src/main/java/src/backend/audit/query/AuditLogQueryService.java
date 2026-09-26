@@ -47,11 +47,12 @@ public class AuditLogQueryService {
 
     private final AccountRepository accountRepository;
 
-    public PageResponse<AuditLogItemResponse> list(Long academyId, Long accountId, String from, String to,
-            Integer page, Integer size) {
-        validateFilters(academyId, accountId);
-        Page<AuditLog> result = auditLogRepository.search(AuditCategory.DATA_ACCESS, academyId, accountId,
-                AuditQueryRange.from(from), AuditQueryRange.to(to), PageParams.of(page, size).toPageable(ORDER));
+    /** 개인정보 조회·수정 이력을 최신순(동률은 id 오름차순)으로 페이징해 돌려준다(§6.13). */
+    public PageResponse<AuditLogItemResponse> list(AuditQueryFilter filter) {
+        validateFilters(filter.academyId(), filter.accountId());
+        Page<AuditLog> result = auditLogRepository.search(AuditCategory.DATA_ACCESS, filter.academyId(),
+                filter.accountId(), AuditQueryRange.from(filter.from()), AuditQueryRange.to(filter.to()),
+                PageParams.of(filter.page(), filter.size()).toPageable(ORDER));
 
         Map<Long, String> academyNames = academyNamesOf(result.getContent());
         return PageResponse.of(result,

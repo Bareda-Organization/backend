@@ -28,11 +28,11 @@ public class AcademySettingCommandService {
 
     private final AcademySettingRepository academySettingRepository;
 
+    /** 미승차 대기 시간을 바꾼다 — 1~30분 범위 밖이면 {@code 422 VALIDATION_FAILED}(X-06). */
     @Transactional
     public AcademySettingResponse update(AuthUser requester, AcademySettingUpdateRequest request) {
         requireStaff(requester);
-        AcademySetting setting = academySettingRepository.findById(requester.academyId())
-                .orElseGet(() -> academySettingRepository.save(AcademySetting.forAcademy(requester.academyId())));
+        AcademySetting setting = academySettingRepository.findOrCreate(requester.academyId());
         setting.changeNoShowWaitMinutes(request.noShowWaitMinutes());
         return AcademySettingResponse.from(setting);
     }

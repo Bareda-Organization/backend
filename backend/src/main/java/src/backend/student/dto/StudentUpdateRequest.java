@@ -11,8 +11,9 @@ import jakarta.validation.constraints.Size;
 /**
  * 학생 정보 수정 요청(STU-03, API_SPEC §5.11 PATCH) — 보낸 항목만 반영되고 {@code null} 은 그대로 둔다.
  *
- * <p>사양이 "주소·보호자 연락처는 대상 밖" 이라 적은 것을 <b>필드 부재로</b> 표현한다(A-10) —
- * {@link StudentRegisterRequest} 와 같은 이유다.
+ * <p>사양이 "주소는 대상 밖" 이라 적은 것을 <b>필드 부재로</b> 표현한다(A-10) —
+ * {@link StudentRegisterRequest} 와 같은 이유다. 보호자 연락처는 대상 밖이 아니라 {@code guardians[]} 로
+ * 받는다(Ruling 326).
  *
  * <p>등록 요청과 필드가 같은데도 타입을 나눈 것은 <b>필수 여부가 다르기 때문</b>이다. 등록은
  * {@code name}·{@code can_go_alone} 이 필수고 수정은 전부 선택이라, 한 타입으로 겸하면 필수 검증을

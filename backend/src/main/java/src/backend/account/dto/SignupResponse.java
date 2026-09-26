@@ -15,6 +15,7 @@ public record SignupResponse(
         OffsetDateTime requestedAt,
         String approver) {
 
+    /** 방금 접수한 가입 신청의 상태·승인 주체를 §2.2 응답 모양으로 옮긴다. */
     public static SignupResponse of(AccountStatus status, OffsetDateTime requestedAt, ApproverType approverType) {
         return new SignupResponse(status.name().toLowerCase(Locale.ROOT), requestedAt,
                 approverType.name().toLowerCase(Locale.ROOT));

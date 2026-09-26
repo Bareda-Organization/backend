@@ -10,6 +10,7 @@ import java.util.List;
  */
 public interface PlaceSearchClient {
 
+    /** 장소 이름 일부로 후보를 찾는다 — 후보가 없으면 빈 목록(예외가 아니다). */
     List<FoundPlace> search(String query);
 
     /** 찾은 장소 하나 — 이름은 표시명 기본값, 점의 표시명은 도로명 주소다. */

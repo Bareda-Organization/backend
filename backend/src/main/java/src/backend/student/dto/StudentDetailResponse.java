@@ -43,6 +43,7 @@ public record StudentDetailResponse(String studentId, String name, String studen
      */
     public record GuardianContact(String guardianId, String name, String phone, String accountId) {
 
+        /** 보호자 엔티티를 응답 항목 하나로 옮긴다 — 식별자는 문자열(Ruling 171). */
         public static GuardianContact of(Guardian guardian) {
             return new GuardianContact(String.valueOf(guardian.getId()), guardian.getName(), guardian.getPhone(),
                     String.valueOf(guardian.getAccountId()));

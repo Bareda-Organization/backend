@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.audit.dto.AuditLogItemResponse;
 import src.backend.audit.query.AuditLogQueryService;
+import src.backend.audit.query.AuditQueryFilter;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.response.PageResponse;
@@ -33,6 +34,7 @@ public class AuditLogController {
 
     private final AuditLogQueryService auditLogQueryService;
 
+    /** 개인정보 조회·수정 이력을 필터·페이징으로 조회한다(§6.13). */
     @CanReadAudit
     @Operation(summary = "감사 로그 조회 (SYS-01)")
     @GetMapping
@@ -43,6 +45,6 @@ public class AuditLogController {
             @RequestParam(name = "to", required = false) String to,
             @RequestParam(name = "page", required = false) Integer page,
             @RequestParam(name = "size", required = false) Integer size) {
-        return ApiResponse.ok(auditLogQueryService.list(academyId, accountId, from, to, page, size));
+        return ApiResponse.ok(auditLogQueryService.list(new AuditQueryFilter(academyId, accountId, from, to, page, size)));
     }
 }

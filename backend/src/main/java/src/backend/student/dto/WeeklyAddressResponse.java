@@ -14,6 +14,7 @@ import src.backend.student.entity.WeeklyAddress;
  */
 public record WeeklyAddressResponse(List<WeeklyAddressEntryResponse> entries) {
 
+    /** 저장된 칸 전부를 요일·방향 순으로 정렬해 §3.7 응답으로 옮긴다. */
     public static WeeklyAddressResponse from(List<WeeklyAddress> addresses) {
         return new WeeklyAddressResponse(addresses.stream()
                 .sorted(Comparator.comparing(WeeklyAddress::getWeekday).thenComparing(WeeklyAddress::getDirection))

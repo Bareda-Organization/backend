@@ -72,6 +72,7 @@ public class StudentRunsQueryService {
 
     private final Clock clock;
 
+    /** 학생 1명의 그날 회차 목록(§3.5) — {@code rawDate} 미지정이면 오늘. */
     public StudentRunsResponse runs(AuthUser requester, Long studentId, String rawDate) {
         Student student = studentRunsAccess.resolve(requester, studentId);
         LocalDate date = rawDate == null ? LocalDate.now(clock) : ApiValues.date(rawDate);
