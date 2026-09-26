@@ -189,3 +189,38 @@ docker exec school-bus-postgres-1 psql -U schoolbus -d postgres -c "CREATE DATAB
 - **부하가 가장 높은 회차에서 `docker exec` 가 Docker Desktop 의 VM 을 멈춰 세웠다**(2회). 확정 배치 드레인 판정을 2초마다 SQL 로 세던 것이 원인 — 지금은 actuator 지표(`schoolbus_run_confirmation_lag_seconds_count` 증가분)로 센다. **호스트가 포화하는 회차에서 Docker 명령 실패는 환경 문제로 분류한다**
 - **`lsof` 로 연결 수를 세면 연결 수백 개부터 표본기 자체가 1초를 넘겨** 버스트를 놓친다. `tomcat_connections_current_connections` 로 대체
 - **1초 표본의 최대값은 회차마다 갈린다**(같은 N=1,200 에서 0.19 ~ 0.38). 판정에는 `process_cpu_time_ns_total` **누적 차**를 쓴다 — 표본 시점과 무관하다
+
+## 7. 회차를 화면으로 보기 — Grafana "5. 부하 시험" 대시보드
+
+로그·요약 파일을 기다리지 않고, 회차가 도는 동안 사람이 직접 화면으로 본다. 관측(prometheus·grafana)은
+컨테이너로, 앱은 지금까지와 같이 **호스트에서** `load` 프로파일로 뜬다 — 서로 다른 compose 파일이라
+`docker-compose.app.yml`(전부 컨테이너 개발 모드)과 **동시에 띄우지 않는다**(포트 3001·9090 이 겹친다).
+
+```bash
+# 1. 관측 스택 기동 (한 번만 — 다음 회차부터는 그대로 둬도 된다)
+docker compose -f docker-compose.observe.yml up -d
+
+# 2. 앱 기동 — §6.1 과 동일, load 프로파일이 포트 18080 에 뜬다
+./gradlew bootRun --args='--spring.profiles.active=load --spring.devtools.restart.enabled=false \
+    --app.routing.map.stub.load.min-delay-ms=300 --app.routing.map.stub.load.max-delay-ms=1200 \
+    --app.routing.map.stub.load.max-concurrent=4'
+
+# 3. k6 원격 쓰기를 켜고 회차 실행 (기본은 꺼짐 — 켜지 않으면 지금까지와 동일하게 로그·요약 파일만 남는다)
+K6_PROM_RW=1 ./r1_round.sh 500      # 또는 r2_round.sh · r3_mixed.sh
+
+# 4. 브라우저에서 확인 — http://localhost:3001 (admin/admin) → "5. 부하 시험"
+#    상단 testid 변수에서 방금 돌린 회차(r1_vu500 등)를 고른다
+
+# 5. 끝나면 내리기
+docker compose -f docker-compose.observe.yml down
+```
+
+**무너짐 신호 3개** — 상단 판정 패널(stat 4개)이 이 값을 바로 보여준다.
+1. **힙 사용률 최대가 85% 를 넘는다** — GC 압박으로 응답이 튀기 시작하는 지점(2026-09-09 부하 한계 측정에서
+   실제로 힙 3.8GB 까지 올라간 뒤 프로세스가 죽었다).
+2. **5xx 비율이 0 이 아니다** — 정상 회차는 항상 0이다.
+3. **Hikari 타임아웃 누적 또는 방송 버림 누적이 오른다** — DB 커넥션 고갈(HikariCP) 또는 팬아웃 큐
+   포화(BR-170, Ruling 349 — 위치만 버려지는 게 정상이고 그 외 이벤트가 버려지면 결함이다)로 읽는다.
+
+⚠ 대시보드 1~4(API·서버·데이터·파이프라인)는 `job="backend"` 를 8080(컨테이너) 기준으로 만든 것이라
+이 모드(18080·호스트)에서는 값이 비어 보인다 — 부하 시험 중에는 "5. 부하 시험" 하나만 본다.

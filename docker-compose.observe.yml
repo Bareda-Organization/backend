@@ -1,0 +1,65 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# 부하 시험 전용 관측 스택 — prometheus + grafana + redis-exporter 만 컨테이너로 띄운다.
+# 앱은 컨테이너가 아니라 **호스트에서** SPRING_PROFILES_ACTIVE=load 로 뜬다
+# (docs/backend/LOAD_TESTING.md §6.1) — prometheus 가 host.docker.internal:18080 을 긁는다.
+#
+#   docker compose -f docker-compose.observe.yml up -d
+#   docker compose -f docker-compose.observe.yml down
+#
+# 접근 경로 — Grafana http://localhost:3001 (admin/admin) · Prometheus http://localhost:9090
+# k6 원격 쓰기 수신 엔드포인트 — http://localhost:9090/api/v1/write
+#
+# ⚠⚠ 이 파일과 `docker-compose.app.yml` 은 **같은 포트(3001·9090)를 쓰는 서로 다른 모드**다 —
+#   대시보드 URL 을 하나로 고정해 사람이 헷갈리지 않게 하려는 의도다. **둘을 동시에 띄우지
+#   마라** — 포트 충돌로 둘 중 하나가 기동에 실패한다. docker-compose.app.yml 은 "전부 컨테이너"
+#   개발 모드(백엔드도 컨테이너, 8080 스크레이프)이고, 이 파일은 "앱은 호스트, 관측만 컨테이너"
+#   부하 시험 모드(18080 스크레이프)다. 인프라(postgres:15432·redis:16379)는 두 모드가
+#   docker-compose.yml 하나를 공유한다 — 이 파일이 postgres·redis 를 새로 띄우지 않는다.
+#
+# ⚠ 확인용으로 잠깐 띄울 때는 `-p schoolbus-obscheck` 로 프로젝트 이름을 바꾸고 포트 매핑도
+#   임시 오버라이드 파일로 3002·9091 로 덮어써서, 이미 도는 부하 시험(메인 저장소)의 3001·9090 을
+#   건드리지 않는다. 확인이 끝나면 오버라이드 파일과 함께 즉시 지운다(docs/backend/LOAD_TESTING.md
+#   에는 정상 사용법만 남기고 이 절차는 적지 않는다 — 확인 전용이라 사용자가 칠 일이 없다).
+# ─────────────────────────────────────────────────────────────────────────────
+services:
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=1d
+      # k6 -o experimental-prometheus-rw 가 여기로 직접 쓴다(remote_write receiver).
+      - --web.enable-remote-write-receiver
+    volumes:
+      - ./infra/observability/prometheus/prometheus-load.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - redis-exporter
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.67.0
+    environment:
+      # docker-compose.yml 이 이미 띄운 redis(호스트 16379) 를 그대로 본다 — 이 파일이 redis 를
+      # 새로 만들지 않는다. host.docker.internal 로 호스트에 낸 포트를 그대로 가리킨다.
+      REDIS_ADDR: "redis://host.docker.internal:16379"
+    expose:
+      - "9121"
+
+  grafana:
+    image: grafana/grafana:11.5.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+    volumes:
+      # docker-compose.app.yml 과 같은 provisioning·대시보드 디렉터리를 그대로 재사용한다 —
+      # 대시보드 5개(1~4 기존 + 5 부하 시험) 모두 여기서도 보인다. 단 1~4 는 job="backend" 를
+      # 8080 스크레이프 기준으로 만들었으므로 이 모드(18080)에서는 "5. 부하 시험"만 값이 찬다.
+      - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
