@@ -5,6 +5,10 @@ import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+
+import io.swagger.v3.core.jackson.ModelResolver;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
@@ -29,6 +33,25 @@ import src.backend.global.common.SeedFixtures;
 public class OpenApiConfig {
 
     private static final String BEARER_SCHEME = "bearerAuth";
+
+    /**
+     * springdoc 이 스키마를 만들 때 {@code SNAKE_CASE} 필드명(전역 네이밍 전략, Ruling 104)을 쓰게
+     * 한다(BR-113). 이 빈이 없으면 swagger-core 가 자기 기본 {@code ObjectMapper} 로 스키마 필드명을
+     * 만들어 실제 응답이 {@code login_id} 를 내려줘도 문서에는 {@code loginId} 로 실린다 —
+     * Swagger UI 가 보여주는 그대로 요청하면 {@code 422 VALIDATION_FAILED} 로 끝나는 진짜 원인이었다
+     * (규칙 9가 막으려던 "Try it out 실패" 그 자체).
+     *
+     * <p>앱이 실제로 쓰는 {@code ObjectMapper} 빈을 그대로 주입할 수 없다 — Boot 4 는 웹 직렬화에
+     * Jackson 3(패키지 {@code tools.jackson.*})를 쓰지만, springdoc 이 물고 온 swagger-core 는 아직
+     * Jackson 2({@code com.fasterxml.jackson.*})만 받는다. 두 세대가 타입부터 달라 공유할 수 없으므로
+     * {@link ModelResolver} 전용으로 같은 네이밍 전략만 옮긴 새 Jackson 2 인스턴스를 만든다.
+     */
+    @Bean
+    public ModelResolver modelResolver() {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
+        return new ModelResolver(mapper);
+    }
 
     // ── 태그 — docs/API_SPEC.md §2~§6 도메인 절과 1:1 대응. 숫자 접두사는 정렬 고정용
     //    (application.yml 공통 섹션의 springdoc.swagger-ui.tags-sorter: alpha 때문에 필요) ──

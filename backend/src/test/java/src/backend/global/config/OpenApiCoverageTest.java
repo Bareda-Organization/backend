@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -263,6 +264,68 @@ class OpenApiCoverageTest {
         orphans.removeAll(registered);
 
         assertThat(orphans).as("표에는 있는데 등록된 핸들러가 없는 경로").isEmpty();
+    }
+
+    /**
+     * 목표 7 — 오퍼레이션마다 2xx 응답 본문에 예시가 달린 필드가 하나 이상 있다(BR-113, Ruling 348).
+     * {@code IMPLEMENTATION_PLAN §3.3} 은 "최소 1개 응답 예시"를 응답 스키마 어딘가에 예시가 달린
+     * 필드 하나로 판정해도 된다고 규정한다 — 111개 엔드포인트마다 {@code @ApiResponse} 본문을
+     * 손으로 쓰지 않고 {@link SeedExampleSchemaCustomizer} 가 스키마 단위로 채운 값을 전수 확인한다.
+     * 본문이 없는 응답(204 등)만 있는 오퍼레이션은 확인할 스키마 자체가 없어 대상에서 뺀다.
+     */
+    @Test
+    void everyOperationHasAtLeastOneResponseExample() throws Exception {
+        JsonNode apiDocs = apiDocs();
+        JsonNode schemas = apiDocs.path("components").path("schemas");
+        List<String> missing = new ArrayList<>();
+        forEachProductionOperation(apiDocs, (endpoint, operation) -> {
+            boolean[] hasBody = {false};
+            boolean[] hasExample = {false};
+            operation.path("responses").fieldNames().forEachRemaining(status -> {
+                if (!status.startsWith("2")) {
+                    return;
+                }
+                JsonNode content = operation.path("responses").path(status).path("content");
+                content.fieldNames().forEachRemaining(mediaType -> {
+                    hasBody[0] = true;
+                    if (hasExampleSomewhere(content.path(mediaType).path("schema"), schemas, new HashSet<>())) {
+                        hasExample[0] = true;
+                    }
+                });
+            });
+            if (hasBody[0] && !hasExample[0]) {
+                missing.add(endpoint);
+            }
+        });
+        missing.sort(Comparator.naturalOrder());
+
+        assertThat(missing).as("2xx 응답 본문에 예시가 하나도 없는 오퍼레이션").isEmpty();
+    }
+
+    /** {@code schema} 노드 자신이나 {@code $ref}·{@code items}·{@code properties} 를 따라간 곳에 예시가 있는지. */
+    private boolean hasExampleSomewhere(JsonNode schema, JsonNode allSchemas, Set<String> visitedRefs) {
+        if (schema == null || schema.isMissingNode()) {
+            return false;
+        }
+        if (schema.hasNonNull("example")) {
+            return true;
+        }
+        if (schema.has("$ref")) {
+            String ref = schema.path("$ref").asText();
+            String name = ref.substring(ref.lastIndexOf('/') + 1);
+            return visitedRefs.add(name) && hasExampleSomewhere(allSchemas.path(name), allSchemas, visitedRefs);
+        }
+        if (schema.has("items")) {
+            return hasExampleSomewhere(schema.path("items"), allSchemas, visitedRefs);
+        }
+        if (schema.has("properties")) {
+            for (JsonNode property : schema.path("properties")) {
+                if (hasExampleSomewhere(property, allSchemas, visitedRefs)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /** 비인증 허용 경로인지 — {@link PublicEndpoints} 가 정본이고 여기 다시 적지 않는다. */
