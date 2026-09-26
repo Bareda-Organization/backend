@@ -66,13 +66,21 @@ class PageParamsTest {
     void 상한을_넘긴_size_는_100_으로_절삭되지_않는다() {
         assertThatThrownBy(() -> PageParams.of(0, 100_000))
                 .as("절삭하면 size=100000 요청이 조용히 100 건만 받고, 클라이언트는 나머지를 건너뛴 줄 모른다")
-                .isInstanceOf(BusinessException.class);
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.VALIDATION_FAILED);
     }
 
     @Test
     void size_0_과_음수_page_는_거부한다() {
-        assertThatThrownBy(() -> PageParams.of(0, 0)).isInstanceOf(BusinessException.class);
-        assertThatThrownBy(() -> PageParams.of(-1, 20)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> PageParams.of(0, 0))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.VALIDATION_FAILED);
+        assertThatThrownBy(() -> PageParams.of(-1, 20))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.VALIDATION_FAILED);
     }
 
     /** {@code sort} 를 주지 않으면 엔드포인트 기본 정렬이다. */
@@ -106,6 +114,8 @@ class PageParamsTest {
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.VALIDATION_FAILED);
         assertThatThrownBy(() -> SortParam.parse("name:sideways", SORTABLE, FALLBACK))
-                .isInstanceOf(BusinessException.class);
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.VALIDATION_FAILED);
     }
 }

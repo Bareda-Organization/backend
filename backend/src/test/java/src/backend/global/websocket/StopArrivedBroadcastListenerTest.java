@@ -3,9 +3,9 @@ package src.backend.global.websocket;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -37,7 +37,7 @@ class StopArrivedBroadcastListenerTest {
         StopArrivedEvent event = new StopArrivedEvent(runId, academyId, 7L, 2, "정문 앞", arrivedAt, 8L);
 
         RunRider riderA = RunRider.uponConfirmation(runId, 100L, 7L);
-        when(runRiderRepository.findAllByRunId(runId)).thenReturn(List.of(riderA));
+        given(runRiderRepository.findAllByRunId(runId)).willReturn(List.of(riderA));
 
         listener.broadcast(event);
 
@@ -59,7 +59,7 @@ class StopArrivedBroadcastListenerTest {
         OffsetDateTime arrivedAt = OffsetDateTime.now();
         StopArrivedEvent event = new StopArrivedEvent(runId, academyId, 9L, 5, "종점", arrivedAt, null);
 
-        when(runRiderRepository.findAllByRunId(runId)).thenReturn(List.of());
+        given(runRiderRepository.findAllByRunId(runId)).willReturn(List.of());
 
         listener.broadcast(event);
 

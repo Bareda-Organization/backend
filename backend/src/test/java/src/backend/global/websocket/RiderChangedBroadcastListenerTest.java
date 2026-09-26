@@ -5,11 +5,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import java.time.OffsetDateTime;
 import java.util.Optional;
@@ -49,10 +49,10 @@ class RiderChangedBroadcastListenerTest {
                 OffsetDateTime.now(), false);
 
         Student student = mock(Student.class);
-        when(student.getName()).thenReturn("홍길동");
-        when(studentRepository.findById(studentId)).thenReturn(Optional.of(student));
-        when(runRiderRepository.findByRunIdAndStudentId(runId, studentId)).thenReturn(Optional.empty());
-        when(runRiderRepository.countByRunIdAndStatus(eq(runId), any(RiderStatus.class))).thenReturn(0L);
+        given(student.getName()).willReturn("홍길동");
+        given(studentRepository.findById(studentId)).willReturn(Optional.of(student));
+        given(runRiderRepository.findByRunIdAndStudentId(runId, studentId)).willReturn(Optional.empty());
+        given(runRiderRepository.countByRunIdAndStatus(eq(runId), any(RiderStatus.class))).willReturn(0L);
 
         listener.broadcast(event);
 
@@ -77,12 +77,12 @@ class RiderChangedBroadcastListenerTest {
                 OffsetDateTime.now(), false);
 
         Student student = mock(Student.class);
-        when(student.getName()).thenReturn("김민성");
-        when(studentRepository.findById(studentId)).thenReturn(Optional.of(student));
+        given(student.getName()).willReturn("김민성");
+        given(studentRepository.findById(studentId)).willReturn(Optional.of(student));
 
         RunRider rider = RunRider.uponConfirmation(runId, studentId, 55L);
-        when(runRiderRepository.findByRunIdAndStudentId(runId, studentId)).thenReturn(Optional.of(rider));
-        when(runRiderRepository.countByRunIdAndStatus(eq(runId), any(RiderStatus.class))).thenReturn(0L);
+        given(runRiderRepository.findByRunIdAndStudentId(runId, studentId)).willReturn(Optional.of(rider));
+        given(runRiderRepository.countByRunIdAndStatus(eq(runId), any(RiderStatus.class))).willReturn(0L);
 
         listener.broadcast(event);
 

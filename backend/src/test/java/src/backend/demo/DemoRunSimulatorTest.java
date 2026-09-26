@@ -3,10 +3,10 @@ package src.backend.demo;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.LocalDate;
@@ -105,7 +105,7 @@ class DemoRunSimulatorTest {
     @Test
     void 전날_운행_중으로_남은_회차는_그_버스의_오늘_회차를_막지_않는다() {
         Run yesterday = 회차(1000L, 1000L, DEMO_ACADEMY);
-        when(yesterday.getServiceDate()).thenReturn(LocalDate.now().minusDays(1));
+        given(yesterday.getServiceDate()).willReturn(LocalDate.now().minusDays(1));
         회차들(DEMO_ACADEMY, RunStatus.MOVING, yesterday);
         회차들(DEMO_ACADEMY, RunStatus.CONFIRMED, 회차(1001L, 1000L, DEMO_ACADEMY));
 
@@ -115,24 +115,24 @@ class DemoRunSimulatorTest {
     }
 
     private void 회차들(long academyId, RunStatus status, Run... runs) {
-        when(runRepository.findAllByAcademyIdAndStatusOrderByDepartTimeAsc(academyId, status))
-                .thenReturn(List.of(runs));
+        given(runRepository.findAllByAcademyIdAndStatusOrderByDepartTimeAsc(academyId, status))
+                .willReturn(List.of(runs));
     }
 
     /** 회차 하나와, 그 회차에 배치된 기사(계정 id = 회차 id + 50000)를 함께 세운다. */
     private Run 회차(long runId, long busId, long academyId) {
         Run run = mock(Run.class);
-        when(run.getId()).thenReturn(runId);
-        when(run.getBusId()).thenReturn(busId);
-        when(run.getAcademyId()).thenReturn(academyId);
-        when(run.getServiceDate()).thenReturn(LocalDate.now());
+        given(run.getId()).willReturn(runId);
+        given(run.getBusId()).willReturn(busId);
+        given(run.getAcademyId()).willReturn(academyId);
+        given(run.getServiceDate()).willReturn(LocalDate.now());
 
         Assignment assignment = mock(Assignment.class);
-        when(assignment.getManagerId()).thenReturn(runId);
-        when(assignmentRepository.findByRunIdAndRole(runId, ManagerRole.DRIVER)).thenReturn(Optional.of(assignment));
+        given(assignment.getManagerId()).willReturn(runId);
+        given(assignmentRepository.findByRunIdAndRole(runId, ManagerRole.DRIVER)).willReturn(Optional.of(assignment));
         Manager manager = mock(Manager.class);
-        when(manager.getAccountId()).thenReturn(runId + 50000L);
-        when(managerRepository.findById(runId)).thenReturn(Optional.of(manager));
+        given(manager.getAccountId()).willReturn(runId + 50000L);
+        given(managerRepository.findById(runId)).willReturn(Optional.of(manager));
         return run;
     }
 }

@@ -5,10 +5,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import java.time.OffsetDateTime;
 import java.util.Optional;
@@ -53,20 +53,20 @@ class ApprovalRequestedBroadcastListenerTest {
                 requestedAt);
 
         Student student = mock(Student.class);
-        when(student.getName()).thenReturn("이서연");
-        when(studentRepository.findById(studentId)).thenReturn(Optional.of(student));
+        given(student.getName()).willReturn("이서연");
+        given(studentRepository.findById(studentId)).willReturn(Optional.of(student));
 
         RunRider rider = RunRider.uponConfirmation(runId, studentId, 7L);
-        when(runRiderRepository.findByRunIdAndStudentId(runId, studentId)).thenReturn(Optional.of(rider));
+        given(runRiderRepository.findByRunIdAndStudentId(runId, studentId)).willReturn(Optional.of(rider));
 
         Stop stop = mock(Stop.class);
-        when(stop.getName()).thenReturn("정문 앞");
-        when(stopRepository.findById(7L)).thenReturn(Optional.of(stop));
+        given(stop.getName()).willReturn("정문 앞");
+        given(stopRepository.findById(7L)).willReturn(Optional.of(stop));
 
         ChangeRequest changeRequest = mock(ChangeRequest.class);
         OffsetDateTime deadline = requestedAt.plusHours(1);
-        when(changeRequest.getDeadlineAt()).thenReturn(deadline);
-        when(changeRequestRepository.findById(changeRequestId)).thenReturn(Optional.of(changeRequest));
+        given(changeRequest.getDeadlineAt()).willReturn(deadline);
+        given(changeRequestRepository.findById(changeRequestId)).willReturn(Optional.of(changeRequest));
 
         listener.broadcast(event);
 

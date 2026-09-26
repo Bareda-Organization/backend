@@ -2,8 +2,8 @@ package src.backend.global.retention;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -53,17 +53,17 @@ class RetentionCleanupSchedulerBatchCapTest {
     @Test
     void 매_조회_호출마다_배치_상한을_그대로_넘긴다() {
         // 다른 3개 테이블은 빈 목록만 반환해 이 시험이 notification_log 호출에만 집중하게 한다.
-        when(runPositionRepository.findIdsForRetentionCleanup(any(), any())).thenReturn(List.of());
-        when(refreshTokenRepository.findIdsForRetentionCleanup(any(), any())).thenReturn(List.of());
-        when(linkCodeRepository.findIdsForRetentionCleanup(any(), any())).thenReturn(List.of());
+        given(runPositionRepository.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
+        given(refreshTokenRepository.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
+        given(linkCodeRepository.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
 
         // notification_log 는 2회차에 걸쳐 지워지도록 1회차엔 상한만큼, 2회차엔 그보다 적게 돌려준다 —
         // 그래야 "매 호출마다" 상한이 유지되는지(1회차만 우연히 맞고 2회차부터 새는 결함도) 잡힌다.
         List<Long> firstRound = fakeIds(RetentionPolicy.BATCH_SIZE);
         List<Long> secondRound = fakeIds(3);
-        when(notificationLogRepository.findIdsForRetentionCleanup(any(), any()))
-                .thenReturn(firstRound)
-                .thenReturn(secondRound);
+        given(notificationLogRepository.findIdsForRetentionCleanup(any(), any()))
+                .willReturn(firstRound)
+                .willReturn(secondRound);
 
         RetentionCleanupScheduler scheduler = new RetentionCleanupScheduler(
                 notificationLogRepository, runPositionRepository, refreshTokenRepository,

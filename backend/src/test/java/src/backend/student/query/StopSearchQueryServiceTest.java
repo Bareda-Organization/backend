@@ -3,10 +3,10 @@ package src.backend.student.query;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.util.stream.IntStream;
@@ -35,9 +35,9 @@ class StopSearchQueryServiceTest {
         GeocodingClient geocodingClient = mock(GeocodingClient.class);
         PlaceSearchClient placeSearchClient = mock(PlaceSearchClient.class);
         StopRepository stopRepository = mock(StopRepository.class);
-        when(placeSearchClient.search("테헤란")).thenReturn(IntStream.range(0, 5)
+        given(placeSearchClient.search("테헤란")).willReturn(IntStream.range(0, 5)
                 .mapToObj(i -> new PlaceSearchClient.FoundPlace("장소" + i, point(i))).toList());
-        when(geocodingClient.candidates("테헤란")).thenReturn(IntStream.range(0, 10).mapToObj(i -> point(10 + i))
+        given(geocodingClient.candidates("테헤란")).willReturn(IntStream.range(0, 10).mapToObj(i -> point(10 + i))
                 .toList());
         StopSearchQueryService service = new StopSearchQueryService(mock(AddressVerification.class), stopRepository,
                 geocodingClient, placeSearchClient);

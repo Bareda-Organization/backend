@@ -211,7 +211,9 @@ class AcademyStaffQuotaTest {
         assertThatThrownBy(() -> academyStaffQuota.enforce(fullAcademyId,
                 () -> academyStaffRepository.save(
                         AcademyStaff.uponApproval(fullAcademyId, 계정_식별자("p3t1q7b")))))
-                .isInstanceOf(BusinessException.class);
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.STAFF_QUOTA_EXCEEDED);
 
         assertThatCode(() -> academyStaffQuota.enforce(otherAcademyId,
                 () -> academyStaffRepository.save(

@@ -3,8 +3,8 @@ package src.backend.boarding.command;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -156,7 +156,7 @@ class RunCompletionBoundaryTest {
         AuthUser escort = new AuthUser(escortAccountId, academyId, Role.ESCORT, AccountStatus.ACTIVE);
         Run run = runRepository.findById(runId).orElseThrow();
 
-        when(runCompletionService.completeIfAllAlighted(eq(run), any())).thenReturn(true);
+        given(runCompletionService.completeIfAllAlighted(eq(run), any())).willReturn(true);
 
         boardingCommandService.updateStatus(escort, runId, alightingRiderId,
                 new RiderStatusUpdateRequest("alighted", "manual", UUID.randomUUID(), now));
@@ -187,7 +187,7 @@ class RunCompletionBoundaryTest {
         AuthUser escort = new AuthUser(escortAccountId, academyId, Role.ESCORT, AccountStatus.ACTIVE);
         Run run = runRepository.findById(runId).orElseThrow();
 
-        when(runCompletionService.completeIfAllAlighted(eq(run), any())).thenReturn(false);
+        given(runCompletionService.completeIfAllAlighted(eq(run), any())).willReturn(false);
 
         boardingCommandService.updateStatus(escort, runId, alightingRiderId,
                 new RiderStatusUpdateRequest("alighted", "manual", UUID.randomUUID(), now));
@@ -231,7 +231,7 @@ class RunCompletionBoundaryTest {
         // eq(run) 참조 동일성 매칭이 깨진다 — any(Run.class) 로 완화한다.
         entityManager.clear();
 
-        when(runCompletionService.completeIfAllAlighted(any(Run.class), any())).thenReturn(true);
+        given(runCompletionService.completeIfAllAlighted(any(Run.class), any())).willReturn(true);
 
         boardingCommandService.updateStatus(escort, runId, alightingRiderId,
                 new RiderStatusUpdateRequest("alighted", "manual", UUID.randomUUID(), now));

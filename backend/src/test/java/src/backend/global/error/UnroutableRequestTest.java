@@ -1,5 +1,6 @@
 package src.backend.global.error;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -61,8 +62,9 @@ class UnroutableRequestTest {
         mockMvc.perform(post("/api/v1/auth/login").contentType("application/json").content("{}"))
                 .andExpect(result -> {
                     int s = result.getResponse().getStatus();
-                    org.junit.jupiter.api.Assertions.assertTrue(s != 404 && s != 405,
-                            "실재하는 핸들러가 404·405 로 떨어지면 새 처리기가 너무 넓게 잡은 것이다 — 실제 " + s);
+                    assertThat(s)
+                            .as("실재하는 핸들러가 404·405 로 떨어지면 새 처리기가 너무 넓게 잡은 것이다 — 실제 %s", s)
+                            .isNotIn(404, 405);
                 });
     }
 }

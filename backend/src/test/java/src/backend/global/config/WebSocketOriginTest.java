@@ -1,9 +1,9 @@
 package src.backend.global.config;
 
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,7 +32,7 @@ class WebSocketOriginTest {
 
         StompEndpointRegistry registry = mock(StompEndpointRegistry.class);
         StompWebSocketEndpointRegistration registration = mock(StompWebSocketEndpointRegistration.class);
-        when(registry.addEndpoint(eq("/ws/location"))).thenReturn(registration);
+        given(registry.addEndpoint(eq("/ws/location"))).willReturn(registration);
 
         config.registerStompEndpoints(registry);
 
