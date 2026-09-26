@@ -10,7 +10,8 @@ import src.backend.global.common.converter.LowerCaseEnumConverter;
  */
 public enum ManagerRole {
 
-    DRIVER, ESCORT;
+    DRIVER, // 차량을 운전하는 기사
+    ESCORT; // 승하차를 보조하는 동승자
 
     /** {@link ManagerRole} 을 소문자 컬럼 값으로 잇는 JPA 컨버터. */
     @Converter
