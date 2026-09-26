@@ -13,13 +13,9 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
-import src.backend.account.repository.RefreshTokenRepository;
 import src.backend.audit.repository.AuditLogRepository;
 import src.backend.global.error.BusinessException;
-import src.backend.global.security.JwtTokenProvider;
 
 /**
  * 미등록 아이디도 비밀번호 대조를 한 번 한다(BR-130) — 대조를 건너뛰면 BCrypt 계산(수십 ms) 유무로 응답 시간이
@@ -31,13 +27,12 @@ class LoginCommandServiceTest {
 
     private final PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
 
-    private final LoginCommandService service = new LoginCommandService(accountRepository,
-            mock(AcademyRepository.class), mock(AcademyStaffRepository.class), mock(RefreshTokenRepository.class),
-            passwordEncoder, mock(JwtTokenProvider.class), Clock.systemUTC(), mock(AuditLogRepository.class), 3600L);
+    private final LoginCommandService service = new LoginCommandService(accountRepository, passwordEncoder,
+            Clock.systemUTC(), mock(AuditLogRepository.class), mock(LoginSettlement.class));
 
     @Test
     void 미등록_아이디도_비밀번호_대조를_한_번_한다() {
-        given(accountRepository.findByLoginIdForUpdate("nobody")).willReturn(Optional.empty());
+        given(accountRepository.findByLoginId("nobody")).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.login("nobody", "guess", null)).isInstanceOf(BusinessException.class);
 
