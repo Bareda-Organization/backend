@@ -112,6 +112,11 @@ public class AdminRunRosterQueryService {
                 Map.of("student_ids", studentIds, "fields", List.of("photo_url", "guardian_phone")));
     }
 
+    /**
+     * §20.2 — 파라미터 5개가 기준(4개)을 넘지만 {@code record} 로 묶지 않는다. 다섯 값이 각자 다른
+     * 조회(정차지·학생·학부모 전화)의 결과를 한 응답 조각으로 조립하는 데만 쓰이는 나열형 데이터라
+     * 별도 타입으로 묶어도 그 타입을 이 메서드 밖에서 쓸 곳이 없다(BR-101).
+     */
     private AdminRunRosterResponse.StopGroup toStopGroup(RunStop runStop, Stop stop, List<RunRider> ridersAtStop,
             Map<Long, Student> studentsById, Map<Long, String> guardianPhonesById) {
         List<AdminRunRosterResponse.Student> students = ridersAtStop.stream()
