@@ -239,10 +239,10 @@ class StaffRunLiveControllerTest {
                 .andExpect(jsonPath("$.data.runs[0].last_seen_at").doesNotExist())
                 .andReturn();
 
-        // JsonPath 는 숫자를 Integer 로 읽어 Long 인 movingRunId 와 equals 가 어긋난다
-        // (StaffDashboardControllerTest 목표5 와 같은 원인) — Number 로 받아 longValue() 로 맞춘다.
-        List<Number> rawRunIds = JsonPath.read(본문(result), "$.data.runs[*].run_id");
-        List<Long> runIds = rawRunIds.stream().map(Number::longValue).toList();
+        // run_id 는 문자열로 나간다(API_SPEC §1.1, Ruling 332) — Long 인 movingRunId 와
+        // 비교하려면 파싱해서 맞춘다.
+        List<String> rawRunIds = JsonPath.read(본문(result), "$.data.runs[*].run_id");
+        List<Long> runIds = rawRunIds.stream().map(Long::parseLong).toList();
         assertThat(runIds).hasSize(1).containsExactly(movingRunId);
     }
 
