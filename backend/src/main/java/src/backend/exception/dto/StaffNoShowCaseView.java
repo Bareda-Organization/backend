@@ -1,4 +1,4 @@
-package src.backend.monitoring.dto;
+package src.backend.exception.dto;
 
 import java.time.OffsetDateTime;
 

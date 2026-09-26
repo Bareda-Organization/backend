@@ -12,7 +12,7 @@ import src.backend.global.common.enums.ChangeType;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
 import src.backend.global.security.access.AcademyScopeExempt;
-import src.backend.monitoring.dto.StaffRunRiderAggregateView;
+import src.backend.boarding.dto.StaffRunRiderAggregateView;
 
 /**
  * {@link RunRider} 영속성 접근 — {@code run_rider} 는 {@code academy_id} 컬럼이 부재한 <b>부모 경유</b>
@@ -162,7 +162,7 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
      * {@code academy_id} 컬럼이 부재한 부모 경유 자원이라(ERD §6.1, {@code Run} 경유) 학원 조건을
      * {@code run} 쪽 조인에 건다.
      */
-    @Query("SELECT new src.backend.monitoring.dto.StaffRunRiderAggregateView(rr.runId, rr.status, rr.change, "
+    @Query("SELECT new src.backend.boarding.dto.StaffRunRiderAggregateView(rr.runId, rr.status, rr.change, "
             + "COUNT(rr)) FROM RunRider rr JOIN Run r ON r.id = rr.runId "
             + "WHERE r.academyId = :academyId AND rr.runId IN :runIds "
             + "GROUP BY rr.runId, rr.status, rr.change")

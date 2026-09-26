@@ -24,10 +24,10 @@ import src.backend.global.request.ApiValues;
 import src.backend.global.security.AuthUser;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
-import src.backend.monitoring.dto.StaffAssignmentAckView;
+import src.backend.manager.dto.StaffAssignmentAckView;
 import src.backend.monitoring.dto.StaffDashboardResponse;
-import src.backend.monitoring.dto.StaffNoShowCaseView;
-import src.backend.monitoring.dto.StaffRunRiderAggregateView;
+import src.backend.exception.dto.StaffNoShowCaseView;
+import src.backend.boarding.dto.StaffRunRiderAggregateView;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
@@ -130,6 +130,11 @@ public class StaffDashboardQueryService {
         return new StaffDashboardResponse.Metrics(movingBuses, boarded, noShow, absent, unassignedManagers);
     }
 
+    /**
+     * §20.2 — 파라미터 5개가 기준(4개)을 넘지만 {@code record} 로 묶지 않는다. 회차 하나에 대해 미리
+     * 모아 둔 조회 결과 4묶음(호차·탑승 집계·확인 현황·미승차 케이스)을 한 응답 행으로 접는 조립
+     * 전용 메서드라, 넷을 하나의 타입으로 묶어도 이 메서드 밖에서 그 타입을 쓸 곳이 없다(BR-101).
+     */
     private StaffDashboardResponse.Run toRunResponse(Run run, Map<Long, String> busNos,
             Map<Long, List<StaffRunRiderAggregateView>> riderAggByRun,
             Map<Long, List<StaffAssignmentAckView>> ackViewsByRun,

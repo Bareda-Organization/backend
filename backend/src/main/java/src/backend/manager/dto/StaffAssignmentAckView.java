@@ -1,4 +1,4 @@
-package src.backend.monitoring.dto;
+package src.backend.manager.dto;
 
 import src.backend.global.common.enums.ManagerRole;
 

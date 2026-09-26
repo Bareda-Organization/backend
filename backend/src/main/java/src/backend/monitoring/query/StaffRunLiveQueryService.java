@@ -21,7 +21,7 @@ import src.backend.global.common.enums.ChangeType;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.security.AuthUser;
 import src.backend.manager.repository.AssignmentRepository;
-import src.backend.monitoring.dto.StaffAssignmentAckView;
+import src.backend.manager.dto.StaffAssignmentAckView;
 import src.backend.monitoring.dto.StaffRunLiveResponse;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RunStop;

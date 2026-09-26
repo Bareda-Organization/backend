@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import src.backend.exception.entity.NoShowCase;
 import src.backend.global.security.access.AcademyScopeExempt;
-import src.backend.monitoring.dto.StaffNoShowCaseView;
+import src.backend.exception.dto.StaffNoShowCaseView;
 
 /**
  * {@link NoShowCase} 영속성 접근 — {@code no_show_case} 는 {@code run_rider} 를 부모로 두는 부모 경유
@@ -100,7 +100,7 @@ public interface NoShowCaseRepository extends JpaRepository<NoShowCase, Long> {
      * {@code academy_id} 컬럼이 부재한 이중 부모 경유 자원이라({@code no_show_case} → {@code run_rider}
      * → {@code run}) 학원 조건을 {@code run} 쪽 조인에 건다.
      */
-    @Query("SELECT new src.backend.monitoring.dto.StaffNoShowCaseView(rr.runId, s.name, st.name, n.expiresAt) "
+    @Query("SELECT new src.backend.exception.dto.StaffNoShowCaseView(rr.runId, s.name, st.name, n.expiresAt) "
             + "FROM NoShowCase n "
             + "JOIN RunRider rr ON rr.id = n.runRiderId "
             + "JOIN Student s ON s.id = rr.studentId "
