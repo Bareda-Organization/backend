@@ -321,6 +321,12 @@ spring:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+    hikari:
+      # 부하 측정(2026-09-09 §13.5)이 정한 값(BR-168) — 측정 기계(10코어)에서 정한 잠정값이다.
+      # 운영 권장 사양(4 vCPU)에서 재측정 전까지 이 값을 쓴다(Ruling 351). 백엔드는 인스턴스
+      # 1대뿐이라(위 backend 서비스 주석 — replicas 금지) 20 + 운영자 접속 여유로 postgres
+      # max_connections 기본값 100(docker-compose.prod.yml 이 별도 지정 안 함)을 넘지 않는다.
+      maximum-pool-size: 20
   data:
     redis:
       host: ${REDIS_HOST}
@@ -337,6 +343,9 @@ app:
   #    CORS 필터를 타지 않아 이 값이 유일한 방어선이다. 미주입 시 기동 실패가 맞다.
   ws:
     allowed-origin-patterns: ${WS_ALLOWED_ORIGIN_PATTERNS}
+    outbound:
+      # 부하 측정(§13.5)이 정한 값(BR-168) — 위 hikari 주석과 같은 잠정값 근거(Ruling 351).
+      core-pool-size: 32
   # 실 푸시는 FCM 한 채널(Ruling 331). ⚠️ 자격 증명 3개는 기본값을 두지 않는다 — 빠지면 기동 실패가 맞다.
   #    로그 전용 구현(LoggingPushSender)은 prod 에서 스스로 기동을 막는다.
   push:
@@ -363,6 +372,9 @@ spring:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+    hikari:
+      # prod 섹션과 같은 근거(BR-168, Ruling 351) — demo 도 인스턴스 1대라 같은 계산이 그대로 적용된다.
+      maximum-pool-size: 20
   data:
     redis:
       host: ${REDIS_HOST}
@@ -380,3 +392,5 @@ app:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:}
   ws:
     allowed-origin-patterns: ${WS_ALLOWED_ORIGIN_PATTERNS}
+    outbound:
+      core-pool-size: 32   # prod 섹션과 같은 근거(BR-168, Ruling 351)
