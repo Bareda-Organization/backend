@@ -189,6 +189,7 @@ docker exec school-bus-postgres-1 psql -U schoolbus -d postgres -c "CREATE DATAB
 - **부하가 가장 높은 회차에서 `docker exec` 가 Docker Desktop 의 VM 을 멈춰 세웠다**(2회). 확정 배치 드레인 판정을 2초마다 SQL 로 세던 것이 원인 — 지금은 actuator 지표(`schoolbus_run_confirmation_lag_seconds_count` 증가분)로 센다. **호스트가 포화하는 회차에서 Docker 명령 실패는 환경 문제로 분류한다**
 - **`lsof` 로 연결 수를 세면 연결 수백 개부터 표본기 자체가 1초를 넘겨** 버스트를 놓친다. `tomcat_connections_current_connections` 로 대체
 - **1초 표본의 최대값은 회차마다 갈린다**(같은 N=1,200 에서 0.19 ~ 0.38). 판정에는 `process_cpu_time_ns_total` **누적 차**를 쓴다 — 표본 시점과 무관하다
+- **macOS Docker Desktop 의 호스트→컨테이너 포트 전달(15432)이 고부하에서 26~29초씩 멈춘다**(O2, `Ruling 353`③, 근거 `FIX-LOAD2.md §3-2`) — 앱은 이미 보낸 쿼리의 응답을 기다리고, 같은 순간 Postgres 는 `ClientRead`(다음 명령을 기다림) 상태다. 즉 어느 쪽도 일을 안 하는 게 아니라 **바이트가 둘 사이 전달 경로에 묶인다** — 스레드 덤프는 전부 소켓 읽기, `pg_stat_activity` 는 실행 중 쿼리 0·잠금 0, CPU 는 한산(서명 3가지). Hikari 풀 크기를 5배로 늘려도 실패율이 그대로면 이 증상을 의심한다. **포화 지점을 찾는 회차는 앱(과 k6)을 Postgres 와 같은 Docker 네트워크에서 띄운다** — 호스트 앱 → 컨테이너 DB 경로로는 재지 않는다. 멈추면 Docker Desktop 을 재시작한다(컨테이너는 보존— `docker compose down` 아님). ⚠ 재시작 뒤 `restart: always` 로 설정된 다른 프로젝트 컨테이너가 같이 켜질 수 있다 — 재시작 후 `docker ps` 로 School-Bus 것만 남았는지 확인할 것
 
 ## 7. 회차를 화면으로 보기 — Grafana "5. 부하 시험" 대시보드
 
