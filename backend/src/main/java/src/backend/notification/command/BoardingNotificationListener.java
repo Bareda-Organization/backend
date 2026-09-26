@@ -15,12 +15,12 @@ import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.event.RiderMarkedNoShowEvent;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.global.common.enums.Role;
-import src.backend.location.event.StopDepartedEvent;
 import src.backend.notification.domain.spec.NoShowParentSubject;
 import src.backend.notification.domain.spec.RiderStatusChangedSubject;
 import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.notification.entity.NotificationType;
+import src.backend.run.event.StopDepartedEvent;
 import src.backend.student.entity.Student;
 import src.backend.student.repository.GuardianAccountView;
 import src.backend.student.repository.GuardianStudentRepository;
@@ -39,7 +39,7 @@ import src.backend.student.repository.StudentRepository;
  *
  * <p>멱등(목표 12)의 1차 방어선은 이 리스너가 아니라 <b>{@code claimDeparture} 조건부 UPDATE</b>다 —
  * 같은 정차지가 여러 경로로 중복 선점을 시도해도 {@link StopDepartedEvent} 는 최초 1회만 발행된다
- * ({@link src.backend.location.proximity.StopDepartureService} 참고). {@code dedup_key} 는
+ * ({@link src.backend.run.command.StopDepartureService} 참고). {@code dedup_key} 는
  * {@link NotificationOutbox} 의 통상적인 2차 방어선일 뿐이다.
  */
 @Component

@@ -23,7 +23,6 @@ import src.backend.boarding.repository.RemainingRiderView;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.global.common.enums.ChangeType;
 import src.backend.global.common.enums.Direction;
-import src.backend.location.proximity.StopDepartureService;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
