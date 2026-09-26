@@ -6,8 +6,6 @@ import java.sql.SQLException;
 import java.util.Map;
 
 import org.flywaydb.core.Flyway;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
@@ -27,8 +25,15 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
  * <p>패키지를 {@code src.backend} 트리 밖({@code testsupport}) 에 둔 이유는
  * {@code testsupport.timeaudit.BaseTimeEntityAuditingTest} 와 같다 — {@code BackendApplication} 의
  * 기본 컴포넌트·엔티티 스캔 범위에 테스트 전용 클래스가 섞여 들어가는 것을 막기 위함이다.
+ *
+ * <p>컨테이너는 {@code RedisTestContainerBase} 와 같은 이유로 JVM 당 1회만 기동한다(BR-149) —
+ * 예전에는 {@code @Testcontainers}·{@code @Container} 를 썼는데, 그 조합은 컨테이너 수명을
+ * <b>상속한 시험 클래스마다</b> 관리해 14개 클래스가 매번 새 컨테이너를 띄우고 전체 마이그레이션을
+ * 다시 적용했다. 정적 초기화로 한 번만 띄우고 클래스별 격리는 {@link #migrate}가 매번 하는
+ * {@code flyway.clean() → flyway.migrate()} 로 대신한다 — 그래서 이 클래스를 상속하는 시험은
+ * 여전히 자기 {@code @BeforeAll} 에서 {@link #migrate} 를 불러야 한다(컨테이너만 공유, 스키마
+ * 상태는 공유하지 않음). 회수는 Ryuk 사이드카가 JVM 종료 시점에 한다.
  */
-@Testcontainers
 public abstract class MigratedPostgresTestBase {
 
     /** 스키마 마이그레이션 위치 — 전 프로파일 공통이며 {@code V1__init_schema.sql} 만 들어 있다. */
@@ -37,8 +42,11 @@ public abstract class MigratedPostgresTestBase {
     /** 데모 시드 위치 — {@code local}·{@code demo} 프로파일에서만 스키마 위치에 더해진다. */
     protected static final String SEED_LOCATION = "classpath:db/migration-local";
 
-    @Container
     protected static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16");
+
+    static {
+        POSTGRES.start();
+    }
 
     /** 넘긴 위치의 마이그레이션만 빈 스키마에 적용한다. 이전 호출의 결과는 남지 않는다. */
     protected static void migrate(String... locations) {
