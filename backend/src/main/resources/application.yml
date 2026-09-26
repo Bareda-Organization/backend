@@ -44,6 +44,12 @@ spring:
     redis:
       host: localhost
       port: 16379
+      # 시간 상한(BR-166, W12-01) — 비우면 Lettuce 기본값 60초라, 답하지 않는 Redis 앞에서 DB 커넥션을 쥔 스레드가
+      # 60초씩 묶여 풀(Hikari)이 마르고 전 API 가 멈춘다. 최신 좌표 단건·MGET 은 로컬망에서 ms 단위라 500ms 면
+      # 정상 요청을 자르지 않고, 넘기면 좌표 조회는 run_position 최신 행으로 대체한다(TECH_DECISIONS §14.2).
+      # 연결이 끊긴 동안의 명령을 쌓지 않고 즉시 거절하는 설정은 location/infrastructure/RedisClientConfig.
+      timeout: 500ms
+      connect-timeout: 1s
 
 # 주소 → 좌표 변환 (C-18 네이버 확정, Ruling 157). stub 으로 바꾸면 결정론적 스텁이 뜬다 —
 # 테스트 전체 묶음은 build.gradle 이 이 값을 stub 으로 넘겨 돈다(네트워크·요금·NCP 계정 상태가

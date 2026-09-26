@@ -8,7 +8,7 @@ import java.util.Optional;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import lombok.RequiredArgsConstructor;
 
@@ -24,16 +24,17 @@ import src.backend.student.entity.Stop;
 import src.backend.student.repository.StopRepository;
 
 /**
- * 회차 1건의 근접·출발 두 판정 — {@link #judgeOne}(NTF-04, Ruling 207)은 위치 읽기 → 다음 미도착
+ * 회차 1건의 근접·출발 두 판정 — {@link #judgeOne}(NTF-04, Ruling 207)은 위치를 읽은 뒤 다음 미도착
  * 정차지 조회 → 거리 판정 → 선점 → 이벤트 발행까지를 <b>한 트랜잭션</b>으로 묶는다(목표 13·15).
  * {@link #judgeDeparture}(Ruling 307, R14-T2 목표 6a)는 같은 재료(위치 읽기·거리 판정·선점 형태)를
  * 재사용해 도착된 정차지의 출발 시점만 독립적으로 기록한다 — 두 판정이 서로 다른 정차 항목을
  * 보므로 트랜잭션도 나눈다({@link #judgeDeparture} 자체 주석 참고).
  *
- * <p>{@code RunConfirmationService} 처럼 트랜잭션을 둘로 쪼개지 않는다 — 이쪽은 느린 외부 I/O가
- * 없다({@code RunPositionReader} 는 로컬 Redis 단건 읽기뿐이고, 노선 계산처럼 외부 지도 API 를
- * 부르지 않는다). 선점({@link RunStopRepository#claimProximityNotice}) 뒤 이벤트 발행이 실패하면
- * 이 트랜잭션 전체가 롤백돼 선점도 함께 취소된다 — 그 근거는 그 메서드의 주석에 있다.
+ * <p><b>위치 읽기는 트랜잭션 밖이다(BR-166, W12-01)</b> — 트랜잭션을 연 뒤(커넥션을 빌린 뒤) Redis 를 읽으면
+ * Redis 가 답하지 않는 동안 운행 중 회차마다 DB 커넥션이 1개씩 묶인다. 그래서 읽기를 먼저 하고 나머지만
+ * {@link TransactionTemplate} 으로 묶는다. Redis 가 실패하면 예외가 그대로 나가 스케줄러가 그 회차의 이번 틱을
+ * 건너뛴다(대체 조회 부재 — TECH_DECISIONS §14.2). 선점({@link RunStopRepository#claimProximityNotice}) 뒤 이벤트
+ * 발행이 실패하면 그 트랜잭션 전체가 롤백돼 선점도 함께 취소된다 — 그 근거는 그 메서드의 주석에 있다.
  */
 @Component
 @RequiredArgsConstructor
@@ -57,6 +58,8 @@ public class ProximityNotificationService {
 
     private final ApplicationEventPublisher eventPublisher;
 
+    private final TransactionTemplate transactionTemplate;
+
     private final Clock clock;
 
     /**
@@ -75,13 +78,12 @@ public class ProximityNotificationService {
      * 정차지 조회) 모양이 비슷하지만 §20.3-4 는 중복을 3번째 등장에서 추출하라고 하고, 이건 2벌뿐이다.
      * 조기 반환 5개가 순서대로 이어지는 한 트랜잭션의 서술이라 쪼개면 오히려 흐름이 파일 사이로 흩어진다.
      */
-    @Transactional
     public void judgeOne(Long runId, Long academyId) {
-        Optional<RunPositionSnapshot> position = runPositionReader.read(runId);
-        if (position.isEmpty()) {
-            return;
-        }
+        runPositionReader.read(runId).ifPresent(position -> transactionTemplate.executeWithoutResult(
+                status -> judgeOneAt(runId, academyId, position)));
+    }
 
+    private void judgeOneAt(Long runId, Long academyId, RunPositionSnapshot position) {
         Optional<ConfirmedRoute> confirmedRoute = confirmedRouteRepository.findById(runId);
         if (confirmedRoute.isEmpty() || confirmedRoute.get().getCurrentVersionId() == null) {
             return;
@@ -99,7 +101,7 @@ public class ProximityNotificationService {
             return;
         }
 
-        GeoPoint busPosition = new GeoPoint(position.get().lat(), position.get().lng());
+        GeoPoint busPosition = new GeoPoint(position.lat(), position.lng());
         GeoPoint stopPosition = new GeoPoint(stop.get().getLat(), stop.get().getLng());
         if (!proximityJudge.isWithinThreshold(busPosition, stopPosition)) {
             return;
@@ -134,15 +136,14 @@ public class ProximityNotificationService {
      * (Ruling 308, IMPLEMENTATION_PLAN §8.23 T3 목표 2). {@code academyId} 는 그 이벤트에 실어 보낸다.
      *
      * <p>§20.2 크기 신호 — 나누지 않는 이유는 {@link #judgeOne} 주석과 같다(조기 반환 체인, 중복은
-     * 2벌뿐이라 §20.3-4 의 3번째 추출 기준 미달).
+     * 2벌뿐이라 §20.3-4 의 3번째 추출 기준 미달). 위치 읽기가 트랜잭션 밖인 이유는 클래스 자바독(BR-166).
      */
-    @Transactional
     public void judgeDeparture(Long runId, Long academyId) {
-        Optional<RunPositionSnapshot> position = runPositionReader.read(runId);
-        if (position.isEmpty()) {
-            return;
-        }
+        runPositionReader.read(runId).ifPresent(position -> transactionTemplate.executeWithoutResult(
+                status -> judgeDepartureAt(runId, academyId, position)));
+    }
 
+    private void judgeDepartureAt(Long runId, Long academyId, RunPositionSnapshot position) {
         Optional<ConfirmedRoute> confirmedRoute = confirmedRouteRepository.findById(runId);
         if (confirmedRoute.isEmpty() || confirmedRoute.get().getCurrentVersionId() == null) {
             return;
@@ -160,7 +161,7 @@ public class ProximityNotificationService {
             return;
         }
 
-        GeoPoint busPosition = new GeoPoint(position.get().lat(), position.get().lng());
+        GeoPoint busPosition = new GeoPoint(position.lat(), position.lng());
         GeoPoint stopPosition = new GeoPoint(stop.get().getLat(), stop.get().getLng());
         if (!proximityJudge.hasDeparted(busPosition, stopPosition)) {
             return;
