@@ -503,7 +503,7 @@ class StaffEmergencyControllerTest {
         return items.get(0);
     }
 
-    /** 위치 캐시가 있었다면 붙었을 값을 시험용으로 직접 심는다({@link RunPositionCache} 우회, Ruling 236). */
+    /** 위치 캐시가 있었다면 붙었을 값을 시험용으로 직접 심는다({@code RunPositionStore} 우회, Ruling 236). */
     private void 위치를_기록한다(long emergencyId, BigDecimal lat, BigDecimal lng, OffsetDateTime recordedAt) {
         jdbcTemplate.update("UPDATE emergency_alert SET lat = ?, lng = ?, position_recorded_at = ? WHERE id = ?",
                 lat, lng, recordedAt, emergencyId);

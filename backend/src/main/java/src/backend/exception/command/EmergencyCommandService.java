@@ -36,6 +36,8 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
+import src.backend.location.dto.RunPositionRedisValue;
+import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.manager.entity.Assignment;
 import src.backend.manager.entity.Manager;
 import src.backend.manager.repository.ManagerRepository;
@@ -43,8 +45,6 @@ import src.backend.run.access.RunAssignmentAccess;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
-import src.backend.student.query.RunPositionCache;
-import src.backend.student.query.RunPositionSnapshot;
 
 /**
  * 비상 신고 발신·취소·확인(EXC-04, Phase 11 T2 목표 5·8·9·10) — {@code emergency_alert} 를 쓰는
@@ -76,7 +76,7 @@ public class EmergencyCommandService {
 
     private final AccountRepository accountRepository;
 
-    private final RunPositionCache runPositionCache;
+    private final RunPositionStore runPositionStore;
 
     private final ApplicationEventPublisher eventPublisher;
 
@@ -242,14 +242,14 @@ public class EmergencyCommandService {
     }
 
     /**
-     * 위치 캐시(Redis, T1 계약)에 값이 있을 때만 붙인다 — 신고 자체는 반드시 성공해야 하는 안전 요구
-     * (목표 8)라, 값이 비었을 때뿐 아니라 <b>읽기 실패</b>(Redis 연결·시간 초과·값 형식 불일치)도 위치 없이
+     * 최신 좌표에 값이 있을 때만 붙인다 — Redis 가 죽으면 {@link RunPositionStore} 가 DB 최신 행으로 대체한다
+     * (BR-167). 신고 자체는 반드시 성공해야 하는 안전 요구(목표 8)라, 그 밖의 <b>읽기 실패</b>도 위치 없이
      * 접수한다(BR-039). 실패는 경고 로그로만 남긴다 — 여기서 던지면 {@code emergency_alert} 행까지 롤백된다.
      */
     private void attachLocationIfCached(EmergencyAlert alert, Long runId) {
-        Optional<RunPositionSnapshot> snapshot;
+        Optional<RunPositionRedisValue> snapshot;
         try {
-            snapshot = runPositionCache.find(runId);
+            snapshot = runPositionStore.find(runId);
         } catch (RuntimeException e) {
             log.warn("비상 신고 위치 첨부 실패 — 위치 없이 접수한다. runId={}", runId, e);
             return;

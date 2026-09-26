@@ -235,6 +235,7 @@ notification · audit · monitoring   ← (구독) ← 전 모듈이 발행하�
 routing → student · bus · schedule · request   (읽기)
 run · boarding → routing (확정 노선 조회) · notification (이벤트 발행)
 location → run (회차 상태·명단 조회)
+student · monitoring · exception → location (회차 최신 좌표 — RunPositionStore, BR-098)
 account → academy
 ```
 

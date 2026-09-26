@@ -13,7 +13,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.location.event.RunApproachingStopEvent;
+import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.routing.domain.GeoPoint;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RunStop;
@@ -42,7 +44,7 @@ public class ProximityNotificationService {
 
     private static final int NEXT_STOP_LIMIT = 1;
 
-    private final RunPositionReader runPositionReader;
+    private final RunPositionStore runPositionStore;
 
     private final ProximityJudge proximityJudge;
 
@@ -79,11 +81,11 @@ public class ProximityNotificationService {
      * 조기 반환 5개가 순서대로 이어지는 한 트랜잭션의 서술이라 쪼개면 오히려 흐름이 파일 사이로 흩어진다.
      */
     public void judgeOne(Long runId, Long academyId) {
-        runPositionReader.read(runId).ifPresent(position -> transactionTemplate.executeWithoutResult(
+        runPositionStore.findCached(runId).ifPresent(position -> transactionTemplate.executeWithoutResult(
                 status -> judgeOneAt(runId, academyId, position)));
     }
 
-    private void judgeOneAt(Long runId, Long academyId, RunPositionSnapshot position) {
+    private void judgeOneAt(Long runId, Long academyId, RunPositionRedisValue position) {
         Optional<ConfirmedRoute> confirmedRoute = confirmedRouteRepository.findById(runId);
         if (confirmedRoute.isEmpty() || confirmedRoute.get().getCurrentVersionId() == null) {
             return;
@@ -139,11 +141,11 @@ public class ProximityNotificationService {
      * 2벌뿐이라 §20.3-4 의 3번째 추출 기준 미달). 위치 읽기가 트랜잭션 밖인 이유는 클래스 자바독(BR-166).
      */
     public void judgeDeparture(Long runId, Long academyId) {
-        runPositionReader.read(runId).ifPresent(position -> transactionTemplate.executeWithoutResult(
+        runPositionStore.findCached(runId).ifPresent(position -> transactionTemplate.executeWithoutResult(
                 status -> judgeDepartureAt(runId, academyId, position)));
     }
 
-    private void judgeDepartureAt(Long runId, Long academyId, RunPositionSnapshot position) {
+    private void judgeDepartureAt(Long runId, Long academyId, RunPositionRedisValue position) {
         Optional<ConfirmedRoute> confirmedRoute = confirmedRouteRepository.findById(runId);
         if (confirmedRoute.isEmpty() || confirmedRoute.get().getCurrentVersionId() == null) {
             return;

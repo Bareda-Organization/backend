@@ -1,6 +1,7 @@
 package src.backend.location.repository;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.domain.Limit;
@@ -12,8 +13,7 @@ import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.location.entity.RunPosition;
 
 /**
- * {@link RunPosition} 영속성 접근(목표 3) — 지금은 적재(save)와 보존 정리 삭제만 필요하다. 그 외
- * 조회 메서드는 LOC-02(위치 이력 조회)가 실제로 쓰는 시점에 그 좌석이 더한다(YAGNI).
+ * {@link RunPosition} 영속성 접근(목표 3) — 적재(save) · 보존 정리 삭제 · Redis 장애 시 최신 행 대체 조회(BR-167).
  */
 public interface RunPositionRepository extends JpaRepository<RunPosition, Long> {
 
@@ -29,4 +29,18 @@ public interface RunPositionRepository extends JpaRepository<RunPosition, Long> 
             + "academy_id 컬럼 자체가 부재해 학원 조건을 걸 수단이 없다")
     @Query("select p.id from RunPosition p where p.recordedAt < :cutoff order by p.id")
     List<Long> findIdsForRetentionCleanup(@Param("cutoff") OffsetDateTime cutoff, Limit limit);
+
+    /**
+     * 회차별 최신 행 1건씩 — Redis 최신 좌표의 대체 재료(BR-167, TECH_DECISIONS §14.2). 여러 회차를 한 번에 읽어
+     * 관제가 회차 수만큼 쿼리를 내지 않는다. 인덱스 {@code ix_run_position_run_recorded (run_id, recorded_at DESC)}.
+     */
+    @AcademyScopeExempt(reason = "Redis 최신 좌표의 대체 조회 — 호출자(RunPositionStore 의 소비자)가 이미 학원 범위로 "
+            + "확인한 회차 id 만 넘기고, run_position 에는 academy_id 컬럼이 부재하다")
+    @Query(value = """
+            SELECT DISTINCT ON (run_id) *
+            FROM run_position
+            WHERE run_id IN (:runIds)
+            ORDER BY run_id, recorded_at DESC, id DESC
+            """, nativeQuery = true)
+    List<RunPosition> findLatestByRunIdIn(@Param("runIds") Collection<Long> runIds);
 }

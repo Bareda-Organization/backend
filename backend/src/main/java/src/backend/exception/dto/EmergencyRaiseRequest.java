@@ -15,7 +15,7 @@ import jakarta.validation.constraints.NotNull;
  * {@code 422 VALIDATION_FAILED} 로 판정해야 한다.
  *
  * <p>{@code lat}·{@code lng} 는 선택이다(API_SPEC §4.14, BR-109) — 둘 다 오면 발신 시점 위치로 그대로
- * 저장하고, 없으면 서버가 {@code RunPositionCache}(Redis, T1 소유 계약)의 최신 좌표로 대체한다. 통신
+ * 저장하고, 없으면 서버가 {@code RunPositionStore}(Redis — 장애면 DB 최신 행)의 최신 좌표로 대체한다. 통신
  * 두절 중 발신한 건이 복구 뒤 도착하면 캐시는 이미 다른 지점이라 단말 좌표가 우선이다.
  *
  * <p>{@code occurredAt} 이 비어 있으면 서버가 접수 시각({@code receivedAt} 과 동일)으로 채운다

@@ -3,6 +3,7 @@ package src.backend.observability.scheduler;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.data.domain.PageRequest;
@@ -11,6 +12,8 @@ import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.location.dto.RunPositionRedisValue;
+import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.monitoring.query.RunLiveStateResolver;
 import src.backend.observability.metrics.RunPositionLostMetrics;
 import src.backend.run.entity.Run;
@@ -36,6 +39,8 @@ public class RunPositionLostGaugeScheduler {
 
     private final RunLiveStateResolver runLiveStateResolver;
 
+    private final RunPositionStore runPositionStore;
+
     private final RunPositionLostMetrics metrics;
 
     private final Clock clock;
@@ -53,9 +58,12 @@ public class RunPositionLostGaugeScheduler {
         while (true) {
             List<Run> moving = runRepository.findByStatusAndCanceledAtIsNullAndIdGreaterThanOrderByIdAsc(
                     RunStatus.MOVING, afterId, PageRequest.of(0, BATCH_SIZE));
+            // 좌표는 묶음마다 한 번에 읽는다 — 회차마다 읽으면 Redis 대기가 회차 수만큼 곱해진다(BR-166).
+            Map<Long, RunPositionRedisValue> positions = runPositionStore.findAll(
+                    moving.stream().map(Run::getId).toList());
             lost += moving.stream()
                     .filter(run -> run.getStartedAt() != null && !run.getStartedAt().isAfter(startedBefore))
-                    .filter(run -> runLiveStateResolver.resolve(run, List.of()).stale())
+                    .filter(run -> runLiveStateResolver.resolve(List.of(), positions.get(run.getId())).stale())
                     .count();
             if (moving.size() < BATCH_SIZE) {
                 break;

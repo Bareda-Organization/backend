@@ -20,6 +20,8 @@ import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.location.dto.RunPositionRedisValue;
+import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.manager.dto.AssignedManagerContactView;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.monitoring.dto.AdminAcademyLiveResponse;
@@ -62,6 +64,8 @@ public class AdminAcademyLiveQueryService {
     private final AssignmentRepository assignmentRepository;
 
     private final RunLiveStateResolver runLiveStateResolver;
+
+    private final RunPositionStore runPositionStore;
 
     private final Clock clock;
 
@@ -115,22 +119,25 @@ public class AdminAcademyLiveQueryService {
                                 .filter(Objects::nonNull).distinct().toList())
                 .stream()
                 .collect(Collectors.toMap(Stop::getId, stop -> stop));
+        // 좌표도 한 번에 읽는다 — 회차마다 읽으면 Redis 대기·대체 조회가 회차 수만큼 곱해진다(BR-166·BR-167).
+        Map<Long, RunPositionRedisValue> positions = runPositionStore.findAll(runIds);
 
         List<AdminAcademyLiveResponse.Run> runs = todayRuns.stream()
                 .map(run -> toRun(run, orderedStopsByRunId.get(run.getId()), stopsById,
-                        busNoByBusId.get(run.getBusId()), contactsByRunId.getOrDefault(run.getId(), List.of())))
+                        busNoByBusId.get(run.getBusId()), contactsByRunId.getOrDefault(run.getId(), List.of()),
+                        positions.get(run.getId())))
                 .toList();
         return new AdminAcademyLiveResponse(runs);
     }
 
     private AdminAcademyLiveResponse.Run toRun(Run run, List<RunStop> ordered, Map<Long, Stop> stopsById, String busNo,
-            List<AssignedManagerContactView> contacts) {
+            List<AssignedManagerContactView> contacts, RunPositionRedisValue latest) {
         List<AdminAcademyLiveResponse.Stop> stops = ordered.stream()
                 .filter(stop -> stop.getStopId() != null)
                 .map(runStop -> toStop(runStop, stopsById.get(runStop.getStopId())))
                 .toList();
 
-        RunLiveState liveState = runLiveStateResolver.resolve(run, ordered);
+        RunLiveState liveState = runLiveStateResolver.resolve(ordered, latest);
         // 유실(2분 초과, Ruling 250 · FEATURE_SPEC §4.16 A-14) 이면 position 을 비우고 last_seen_at 만
         // 채운다 — receivedAt() == null 만 보면(옛 판) 2분 넘게 갱신이 없는데도 마지막 좌표를 계속
         // 내보내는 결함이 된다. §5.18(StaffRunLiveQueryService) 과 같은 판단 기준.

@@ -1,16 +1,14 @@
 package src.backend.global.dev;
 
-import java.util.Set;
-
 import org.flywaydb.core.Flyway;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.flyway.autoconfigure.FlywayMigrationStrategy;
 import org.springframework.context.annotation.Profile;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.request.preview.spec.ApprovalPreviewCache;
 
 /**
@@ -39,14 +37,11 @@ import src.backend.request.preview.spec.ApprovalPreviewCache;
 @RequiredArgsConstructor
 public class DevResetService {
 
-    /** 위치 캐시 키 형태 — {@code RunPositionRedisListener} 가 쓰는 것과 같은 접두사다. */
-    private static final String POSITION_KEY_PATTERN = "run:*:position";
-
     private final Flyway flyway;
 
     private final FlywayMigrationStrategy migrationStrategy;
 
-    private final StringRedisTemplate stringRedisTemplate;
+    private final RunPositionStore runPositionStore;
 
     private final ApprovalPreviewCache previewCache;
 
@@ -58,11 +53,6 @@ public class DevResetService {
     public int reset() {
         migrationStrategy.migrate(flyway);
         previewCache.clear();
-        Set<String> positionKeys = stringRedisTemplate.keys(POSITION_KEY_PATTERN);
-        if (positionKeys == null || positionKeys.isEmpty()) {
-            return 0;
-        }
-        stringRedisTemplate.delete(positionKeys);
-        return positionKeys.size();
+        return runPositionStore.deleteAll();
     }
 }
