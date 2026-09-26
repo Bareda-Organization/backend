@@ -142,17 +142,17 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "jvm_threads_live_threads{job=\"backend\"}",
+          "expr": "jvm_threads_live_threads{application=\"school-bus\"}",
           "legendFormat": "live"
         },
         {
           "refId": "B",
-          "expr": "jvm_threads_daemon_threads{job=\"backend\"}",
+          "expr": "jvm_threads_daemon_threads{application=\"school-bus\"}",
           "legendFormat": "daemon"
         },
         {
           "refId": "C",
-          "expr": "jvm_threads_peak_threads{job=\"backend\"}",
+          "expr": "jvm_threads_peak_threads{application=\"school-bus\"}",
           "legendFormat": "peak"
         }
       ]
@@ -244,7 +244,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "jvm_threads_states_threads{job=\"backend\"}",
+          "expr": "jvm_threads_states_threads{application=\"school-bus\"}",
           "legendFormat": "{{state}}"
         }
       ]
@@ -336,17 +336,17 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "tomcat_threads_busy_threads{job=\"backend\"}",
+          "expr": "tomcat_threads_busy_threads{application=\"school-bus\"}",
           "legendFormat": "busy"
         },
         {
           "refId": "B",
-          "expr": "tomcat_threads_current_threads{job=\"backend\"}",
+          "expr": "tomcat_threads_current_threads{application=\"school-bus\"}",
           "legendFormat": "current"
         },
         {
           "refId": "C",
-          "expr": "tomcat_threads_config_max_threads{job=\"backend\"}",
+          "expr": "tomcat_threads_config_max_threads{application=\"school-bus\"}",
           "legendFormat": "config max"
         }
       ]
@@ -438,7 +438,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "100 * tomcat_threads_busy_threads{job=\"backend\"} / tomcat_threads_config_max_threads{job=\"backend\"}",
+          "expr": "100 * tomcat_threads_busy_threads{application=\"school-bus\"} / tomcat_threads_config_max_threads{application=\"school-bus\"}",
           "legendFormat": "포화율"
         }
       ]
@@ -543,17 +543,17 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "hikaricp_connections_active{job=\"backend\"}",
+          "expr": "hikaricp_connections_active{application=\"school-bus\"}",
           "legendFormat": "active"
         },
         {
           "refId": "B",
-          "expr": "hikaricp_connections_idle{job=\"backend\"}",
+          "expr": "hikaricp_connections_idle{application=\"school-bus\"}",
           "legendFormat": "idle"
         },
         {
           "refId": "C",
-          "expr": "hikaricp_connections_pending{job=\"backend\"}",
+          "expr": "hikaricp_connections_pending{application=\"school-bus\"}",
           "legendFormat": "pending"
         }
       ]
@@ -645,12 +645,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "rate(hikaricp_connections_acquire_seconds_sum{job=\"backend\"}[5m]) / rate(hikaricp_connections_acquire_seconds_count{job=\"backend\"}[5m])",
+          "expr": "rate(hikaricp_connections_acquire_seconds_sum{application=\"school-bus\"}[5m]) / rate(hikaricp_connections_acquire_seconds_count{application=\"school-bus\"}[5m])",
           "legendFormat": "평균 획득 대기시간"
         },
         {
           "refId": "B",
-          "expr": "hikaricp_connections_acquire_seconds_max{job=\"backend\"}",
+          "expr": "hikaricp_connections_acquire_seconds_max{application=\"school-bus\"}",
           "legendFormat": "최대"
         }
       ]
@@ -742,7 +742,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "increase(hikaricp_connections_timeout_total{job=\"backend\"}[5m])",
+          "expr": "increase(hikaricp_connections_timeout_total{application=\"school-bus\"}[5m])",
           "legendFormat": "타임아웃"
         }
       ]
@@ -834,7 +834,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "100 * hikaricp_connections_active{job=\"backend\"} / hikaricp_connections_max{job=\"backend\"}",
+          "expr": "100 * hikaricp_connections_active{application=\"school-bus\"} / hikaricp_connections_max{application=\"school-bus\"}",
           "legendFormat": "사용률"
         }
       ]
@@ -1041,12 +1041,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "process_cpu_usage{job=\"backend\"}",
+          "expr": "process_cpu_usage{application=\"school-bus\"}",
           "legendFormat": "process"
         },
         {
           "refId": "B",
-          "expr": "system_cpu_usage{job=\"backend\"}",
+          "expr": "system_cpu_usage{application=\"school-bus\"}",
           "legendFormat": "system"
         }
       ]
@@ -1138,12 +1138,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(jvm_memory_used_bytes{job=\"backend\",area=\"heap\"})",
+          "expr": "sum(jvm_memory_used_bytes{application=\"school-bus\",area=\"heap\"})",
           "legendFormat": "used"
         },
         {
           "refId": "B",
-          "expr": "sum(jvm_memory_max_bytes{job=\"backend\",area=\"heap\"})",
+          "expr": "sum(jvm_memory_max_bytes{application=\"school-bus\",area=\"heap\"})",
           "legendFormat": "max"
         }
       ]
@@ -1235,12 +1235,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(jvm_memory_used_bytes{job=\"backend\",area=\"nonheap\"})",
+          "expr": "sum(jvm_memory_used_bytes{application=\"school-bus\",area=\"nonheap\"})",
           "legendFormat": "used"
         },
         {
           "refId": "B",
-          "expr": "sum(jvm_memory_max_bytes{job=\"backend\",area=\"nonheap\"})",
+          "expr": "sum(jvm_memory_max_bytes{application=\"school-bus\",area=\"nonheap\"})",
           "legendFormat": "max"
         }
       ]
@@ -1424,7 +1424,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "rate(jvm_gc_pause_seconds_sum{job=\"backend\"}[5m])",
+          "expr": "rate(jvm_gc_pause_seconds_sum{application=\"school-bus\"}[5m])",
           "legendFormat": "GC pause"
         }
       ]
@@ -1608,12 +1608,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "process_files_open_files{job=\"backend\"}",
+          "expr": "process_files_open_files{application=\"school-bus\"}",
           "legendFormat": "open"
         },
         {
           "refId": "B",
-          "expr": "process_files_max_files{job=\"backend\"}",
+          "expr": "process_files_max_files{application=\"school-bus\"}",
           "legendFormat": "max"
         }
       ]
@@ -1705,12 +1705,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "rate(hikaricp_connections_usage_seconds_sum{job=\"backend\"}[5m]) / rate(hikaricp_connections_usage_seconds_count{job=\"backend\"}[5m])",
+          "expr": "rate(hikaricp_connections_usage_seconds_sum{application=\"school-bus\"}[5m]) / rate(hikaricp_connections_usage_seconds_count{application=\"school-bus\"}[5m])",
           "legendFormat": "평균"
         },
         {
           "refId": "B",
-          "expr": "hikaricp_connections_usage_seconds_max{job=\"backend\"}",
+          "expr": "hikaricp_connections_usage_seconds_max{application=\"school-bus\"}",
           "legendFormat": "최대"
         }
       ]

@@ -327,7 +327,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "schoolbus_scheduler_last_success_age_seconds{job=\"backend\"}",
+          "expr": "schoolbus_scheduler_last_success_age_seconds{application=\"school-bus\"}",
           "legendFormat": "{{scheduler}}"
         }
       ]
@@ -419,7 +419,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "rate(schoolbus_scheduler_failures_total{job=\"backend\"}[5m])",
+          "expr": "rate(schoolbus_scheduler_failures_total{application=\"school-bus\"}[5m])",
           "legendFormat": "{{scheduler}}"
         }
       ]
@@ -524,7 +524,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (status) (rate(http_server_requests_seconds_count{job=\"backend\",uri=\"/runs/{runId}/position\"}[5m]))",
+          "expr": "sum by (status) (rate(http_server_requests_seconds_count{application=\"school-bus\",uri=\"/runs/{runId}/position\"}[5m]))",
           "legendFormat": "{{status}}"
         }
       ]
@@ -616,7 +616,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "schoolbus_stomp_sessions{job=\"backend\"}",
+          "expr": "schoolbus_stomp_sessions{application=\"school-bus\"}",
           "legendFormat": "활성 세션"
         }
       ]
