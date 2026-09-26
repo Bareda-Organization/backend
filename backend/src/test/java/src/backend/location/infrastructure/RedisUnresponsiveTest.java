@@ -2,8 +2,12 @@ package src.backend.location.infrastructure;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Clock;
 import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -17,6 +21,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.zaxxer.hikari.HikariDataSource;
@@ -36,7 +42,7 @@ import testsupport.redis.RedisFreeze;
  *
  * <p>응답 없음은 이 시험 JVM 의 전용 Redis 컨테이너를 얼려 만든다({@link RedisFreeze}). {@code @Transactional} 을
  * 쓰지 않는다 — 시험 트랜잭션이 커넥션을 쥐면 서비스가 쥔 커넥션을 셀 수 없다. 시드 회차 R3(학원 1, moving)과
- * 그 학생 2·보호자 5 를 읽기만 한다.
+ * 그 학생 2·보호자 5·기사(계정 14)를 쓴다 — 위치 수신 시험이 적재한 행만 직접 지운다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -50,6 +56,12 @@ class RedisUnresponsiveTest {
     private static final long RUN_MOVING_ID = 3L;
 
     private static final long GUARDIAN_ACCOUNT = 5L;
+
+    /** R3 에 배치된 기사(manager 2) 의 계정. */
+    private static final long DRIVER_ACCOUNT = 14L;
+
+    /** 위치 수신 시험이 심는 좌표 — 이 값으로 적재된 행을 찾고 지운다. */
+    private static final String MARKER_LAT = "37.444441";
 
     @Autowired
     private MockMvc mockMvc;
@@ -65,6 +77,12 @@ class RedisUnresponsiveTest {
 
     @Autowired
     private RedisConnectionFactory redisConnectionFactory;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private Clock clock;
 
     /**
      * 학부모 버스 위치 조회가 얼린 Redis 앞에서 1초 안에 끝난다 — 응답 코드는 보지 않는다(대체 조회는 BR-167 의
@@ -117,6 +135,37 @@ class RedisUnresponsiveTest {
                 .getClientOptions().orElseThrow();
 
         assertThat(options.getDisconnectedBehavior()).isEqualTo(ClientOptions.DisconnectedBehavior.REJECT_COMMANDS);
+    }
+
+    /**
+     * 위치 수신은 Redis 가 답하지 않아도 성공한다 — 이력({@code run_position})은 커밋된 뒤라 되돌릴 수 없고, Redis 최신
+     * 좌표 갱신 실패는 삼켜 다음 송신에 맡긴다(계획서 §3.1 "확인할 것"). 요청이 끝나면 커넥션도 풀로 돌아온다.
+     */
+    @Test
+    @DisplayName("BR-166 — 응답 없는 Redis 앞에서도 위치 수신은 이력을 남기고 204")
+    void 응답_없는_Redis_앞에서도_위치_수신은_이력을_남기고_204() throws Exception {
+        String body = """
+                {"lat": %s, "lng": 127.444441, "recorded_at": "%s"}
+                """.formatted(MARKER_LAT, OffsetDateTime.now(clock));
+        try {
+            try (RedisFreeze ignored = RedisFreeze.start()) {
+                mockMvc.perform(post("/api/v1/runs/%d/position".formatted(RUN_MOVING_ID))
+                                .header("Authorization", "Bearer " + tokenProvider.createAccessToken(DRIVER_ACCOUNT,
+                                        ACADEMY_A, Role.DRIVER, AccountStatus.ACTIVE))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(body))
+                        .andExpect(status().isNoContent());
+            }
+
+            Integer saved = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM run_position WHERE run_id = ? AND lat = ?::numeric", Integer.class,
+                    RUN_MOVING_ID, MARKER_LAT);
+            assertThat(saved).as("커밋된 위치 이력").isEqualTo(1);
+            assertThat(hikari().getHikariPoolMXBean().getActiveConnections()).isZero();
+        } finally {
+            jdbcTemplate.update("DELETE FROM run_position WHERE run_id = ? AND lat = ?::numeric", RUN_MOVING_ID,
+                    MARKER_LAT);
+        }
     }
 
     private HikariDataSource hikari() throws Exception {
