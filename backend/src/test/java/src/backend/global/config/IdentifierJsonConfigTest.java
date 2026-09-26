@@ -45,4 +45,22 @@ class IdentifierJsonConfigTest {
 
         assertThat(json).contains("\"id\":\"7\"").contains("\"staffCount\":3").contains("\"userCount\":40");
     }
+
+    /** 요청 쪽 레코드 — 이 모듈은 역직렬화를 건드리지 않으므로 숫자·문자열 둘 다 그대로 받는다. */
+    private record NewRecordRequest(Long ownerId) {
+    }
+
+    @Test
+    void 요청_본문의_식별자는_JSON_숫자로_와도_받는다() {
+        NewRecordRequest request = mapper.readValue("{\"ownerId\": 5}", NewRecordRequest.class);
+
+        assertThat(request.ownerId()).isEqualTo(5L);
+    }
+
+    @Test
+    void 요청_본문의_식별자는_JSON_문자열로_와도_받는다() {
+        NewRecordRequest request = mapper.readValue("{\"ownerId\": \"5\"}", NewRecordRequest.class);
+
+        assertThat(request.ownerId()).isEqualTo(5L);
+    }
 }
