@@ -1,16 +1,14 @@
 package src.backend.global.dev;
 
-import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-import java.util.Set;
 
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.flyway.autoconfigure.FlywayMigrationStrategy;
-import org.springframework.data.redis.core.StringRedisTemplate;
 
+import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.request.preview.spec.ApprovalPreviewCache;
 
 /**
@@ -25,16 +23,14 @@ class DevResetServiceTest {
 
     private final Flyway flyway = mock(Flyway.class);
     private final FlywayMigrationStrategy migrationStrategy = mock(FlywayMigrationStrategy.class);
-    private final StringRedisTemplate stringRedisTemplate = mock(StringRedisTemplate.class);
+    private final RunPositionStore runPositionStore = mock(RunPositionStore.class);
     private final ApprovalPreviewCache previewCache = mock(ApprovalPreviewCache.class);
 
-    private final DevResetService service = new DevResetService(flyway, migrationStrategy, stringRedisTemplate,
+    private final DevResetService service = new DevResetService(flyway, migrationStrategy, runPositionStore,
             previewCache);
 
     @Test
     void 리셋하면_미리보기_캐시도_비운다() {
-        given(stringRedisTemplate.keys("run:*:position")).willReturn(Set.of());
-
         service.reset();
 
         verify(previewCache).clear();

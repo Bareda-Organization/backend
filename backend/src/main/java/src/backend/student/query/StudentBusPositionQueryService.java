@@ -15,6 +15,8 @@ import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.BusRepository;
+import src.backend.location.dto.RunPositionRedisValue;
+import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
@@ -57,7 +59,7 @@ public class StudentBusPositionQueryService {
 
     private final BusRepository busRepository;
 
-    private final RunPositionCache runPositionCache;
+    private final RunPositionStore runPositionStore;
 
     private final Clock clock;
 
@@ -75,11 +77,12 @@ public class StudentBusPositionQueryService {
             return StudentBusPositionResponse.withoutPosition(run.getId(), busNo, runStatus);
         }
 
-        Optional<RunPositionSnapshot> snapshot = runPositionCache.find(run.getId());
+        // Redis 가 죽으면 run_position 최신 행으로 대체된다(BR-167) — 그때 current_stop_name 은 비어 나간다.
+        Optional<RunPositionRedisValue> snapshot = runPositionStore.find(run.getId());
         if (snapshot.isEmpty()) {
             return StudentBusPositionResponse.withoutPosition(run.getId(), busNo, runStatus);
         }
-        RunPositionSnapshot position = snapshot.get();
+        RunPositionRedisValue position = snapshot.get();
         if (isStale(position.receivedAt())) {
             return new StudentBusPositionResponse(run.getId(), busNo, runStatus, null, null, null,
                     position.receivedAt(), position.currentStopName());

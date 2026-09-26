@@ -10,13 +10,16 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
-import src.backend.monitoring.query.RunLiveState;
+import src.backend.location.dto.RunPositionRedisValue;
+import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.monitoring.query.RunLiveStateResolver;
 import src.backend.observability.metrics.RunPositionLostMetrics;
 import src.backend.run.entity.Run;
@@ -31,39 +34,43 @@ class RunPositionLostGaugeSchedulerTest {
 
     private static final Instant NOW = Instant.parse("2030-04-01T03:00:00Z");
 
+    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+
     private final RunRepository runRepository = mock(RunRepository.class);
 
-    private final RunLiveStateResolver resolver = mock(RunLiveStateResolver.class);
+    private final RunPositionStore runPositionStore = mock(RunPositionStore.class);
 
     private final SimpleMeterRegistry registry = new SimpleMeterRegistry();
 
-    private final RunPositionLostGaugeScheduler scheduler = new RunPositionLostGaugeScheduler(runRepository, resolver,
-            new RunPositionLostMetrics(registry), Clock.fixed(NOW, ZoneId.of("Asia/Seoul")));
+    private final Clock clock = Clock.fixed(NOW, SEOUL);
+
+    private final RunPositionLostGaugeScheduler scheduler = new RunPositionLostGaugeScheduler(runRepository,
+            new RunLiveStateResolver(clock), runPositionStore, new RunPositionLostMetrics(registry), clock);
 
     @Test
     void 출발_2분이_지나고_위치가_끊긴_회차만_센다() {
-        Run lost = run(5);
-        Run fresh = run(5);
-        Run justStarted = run(1);
+        Run lost = run(1L, 5);
+        Run fresh = run(2L, 5);
+        Run justStarted = run(3L, 1);
         given(runRepository.findByStatusAndCanceledAtIsNullAndIdGreaterThanOrderByIdAsc(eq(RunStatus.MOVING), eq(0L), any()))
                 .willReturn(List.of(lost, fresh, justStarted));
-        given(resolver.resolve(eq(lost), any())).willReturn(state(true));
-        given(resolver.resolve(eq(fresh), any())).willReturn(state(false));
-        given(resolver.resolve(eq(justStarted), any())).willReturn(state(true));
+        given(runPositionStore.findAll(List.of(1L, 2L, 3L)))
+                .willReturn(Map.of(1L, receivedMinutesAgo(3), 2L, receivedMinutesAgo(0)));
 
         scheduler.refresh();
 
         assertThat(registry.get("schoolbus.run.position.lost").gauge().value()).isEqualTo(1.0d);
     }
 
-    private Run run(int startedMinutesAgo) {
+    private Run run(long id, int startedMinutesAgo) {
         Run run = mock(Run.class);
-        given(run.getStartedAt()).willReturn(OffsetDateTime.ofInstant(NOW, ZoneId.of("Asia/Seoul"))
-                .minusMinutes(startedMinutesAgo));
+        given(run.getId()).willReturn(id);
+        given(run.getStartedAt()).willReturn(OffsetDateTime.ofInstant(NOW, SEOUL).minusMinutes(startedMinutesAgo));
         return run;
     }
 
-    private RunLiveState state(boolean stale) {
-        return new RunLiveState(null, null, null, null, stale, null, null);
+    private RunPositionRedisValue receivedMinutesAgo(int minutes) {
+        OffsetDateTime receivedAt = OffsetDateTime.ofInstant(NOW, SEOUL).minusMinutes(minutes);
+        return new RunPositionRedisValue(BigDecimal.ONE, BigDecimal.ONE, receivedAt, receivedAt, null);
     }
 }

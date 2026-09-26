@@ -20,6 +20,8 @@ import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.ChangeType;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.security.AuthUser;
+import src.backend.location.dto.RunPositionRedisValue;
+import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.dto.StaffAssignmentAckView;
 import src.backend.monitoring.dto.StaffRunLiveResponse;
@@ -55,6 +57,8 @@ public class StaffRunLiveQueryService {
 
     private final RunLiveStateResolver runLiveStateResolver;
 
+    private final RunPositionStore runPositionStore;
+
     private final ConfirmedRouteRepository confirmedRouteRepository;
 
     private final RunStopRepository runStopRepository;
@@ -83,9 +87,11 @@ public class StaffRunLiveQueryService {
         Map<Long, List<StaffAssignmentAckView>> ackViewsByRun = assignmentRepository
                 .findAckViewsForStaffDashboard(requester.academyId(), runIds).stream()
                 .collect(Collectors.groupingBy(StaffAssignmentAckView::runId));
+        // 좌표는 회차 전부를 한 번에 읽는다 — Redis 대기·대체 조회가 회차 수만큼 곱해지지 않게(BR-166·BR-167).
+        Map<Long, RunPositionRedisValue> positions = runPositionStore.findAll(runIds);
 
         List<StaffRunLiveResponse.Run> runResponses = movingRuns.stream()
-                .map(run -> toRunResponse(run, busNos, ackViewsByRun))
+                .map(run -> toRunResponse(run, busNos, ackViewsByRun, positions.get(run.getId())))
                 .toList();
         return new StaffRunLiveResponse(runResponses);
     }
@@ -97,9 +103,9 @@ public class StaffRunLiveQueryService {
     }
 
     private StaffRunLiveResponse.Run toRunResponse(Run run, Map<Long, String> busNos,
-            Map<Long, List<StaffAssignmentAckView>> ackViewsByRun) {
+            Map<Long, List<StaffAssignmentAckView>> ackViewsByRun, RunPositionRedisValue latest) {
         List<RunStop> stops = orderedStopsOf(run);
-        RunLiveState state = runLiveStateResolver.resolve(run, stops);
+        RunLiveState state = runLiveStateResolver.resolve(stops, latest);
 
         // state.lat() 은 유실(stale) 이어도 마지막 값을 그대로 담아 온다(RunLiveState 자바독) —
         // null 로 지울지는 이 소비 측이 정해야 해서, 유실 판정은 stale() 로 본다. lat() != null 로

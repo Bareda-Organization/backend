@@ -556,7 +556,7 @@ sudo docker compose -f /opt/school-bus/docker-compose.prod.yml --env-file /opt/s
 | 인증서 만료 | `docker compose logs certbot`, 80 포트 개방 여부 확인 | certbot 갱신 재시도, 방화벽 규칙 수정 | 갱신 결과 |
 | Swagger UI 401 · 기동 실패 | §2.12 절차 확인 | EC2 에서 `.htpasswd` 재생성 후 `proxy` 컨테이너 재기동 | 재생성 시각 |
 | 지도 API 장애(노선 계산 ③단계 영향) | `resilience4j_circuitbreaker_state{name="geocoding"\|"mapRoute"}` 값 확인(관측 목표 8) | 자동 폴백 — 직선거리 근사로 배차 유지, 화면에 폴백 사실 표시, 배치는 계속 진행. 서킷 닫히면 다음 회차부터 정상, 이미 배포된 노선은 재계산 제외 | 폴백 지속 시간 |
-| Redis 장애(최신 좌표·캐시 영향) | `docker compose logs redis`, `redis-cli ping` | 자동 대체 — 위치는 DB 이력 최신 행으로 조회, 캐시 미스로 계산 반복 | 장애 지속 시간 |
+| Redis 장애(최신 좌표·캐시 영향) | `docker compose logs redis`, `redis-cli ping`, 지표 `schoolbus.position.fallback` 증가 | 자동 대체 — 위치 조회 3종(학부모 버스 위치 · 관계자 관제 · 메인 관리자 관제)과 비상 신고 위치는 DB 이력 최신 행으로 조회(현재 정차지 이름은 비어 나감). 근접·출발 판정은 그 틱을 건너뛰고 다음 틱에 다시 본다. 캐시 미스로 계산 반복 | 장애 지속 시간 |
 | DB 장애(전면 영향) | `docker compose ps postgres`, 헬스체크 UP 여부 확인 | 매니저 앱은 오프라인 큐로 승하차만 지속, 나머지 제품은 조회 불가. 복구 후 큐 동기화(멱등, `client_key` UNIQUE) | 장애 시작·복구 시각 |
 | 앱 인스턴스 재시작(WS 끊김·배치 중단) | `docker compose ps backend`, 재시작 로그 확인 | 자동 복구 — 클라이언트 자동 재접속, 배치는 폴링이라 놓친 회차를 다음 틱에 자동 회수. 별도 절차 부재 | 재시작 원인 |
 | 배치 밀림(확정 지연) | `schoolbus_run_confirmation_lag_seconds` 값 확인(관측 목표 8 — 값이 계속 늘면 워커 수·인스턴스 증설 신호) | 도래분은 다음 틱으로 자동 이월. 지속되면 워커 수 증설, 그다음 인스턴스(§3) | 지연 수치 추이 |

@@ -207,7 +207,7 @@ class RunPositionCrossConsumerIntegrationTest {
                 .content(body))
                 .andExpect(status().isNoContent());
 
-        // 2. T3 실제 읽기 — RunPositionReader 가 그 값을 성공적으로 파싱해야만 거리 판정까지 가서
+        // 2. T3 실제 읽기 — RunPositionStore 가 그 값을 성공적으로 파싱해야만 거리 판정까지 가서
         //    알림이 적재된다. 파싱이 실패하면(다형 태그 혼입 등) judgeOne 이 조용히 아무 것도 안 하고
         //    반환해 이 단언이 실패한다 — 그것이 이 시험이 검사하는 결함이다.
         proximityNotificationService.judgeOne(runId, academyId);
@@ -217,10 +217,10 @@ class RunPositionCrossConsumerIntegrationTest {
         String dedupKey = "approaching:%d:%d:%d:parent:%%".formatted(runId, stopId, studentId);
         Integer notificationCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM notification_log WHERE dedup_key LIKE ?", Integer.class, dedupKey);
-        assertThat(notificationCount).as("T3(RunPositionReader)가 T1 이 실제로 쓴 값을 파싱해 근접 알림을 적재해야 한다")
+        assertThat(notificationCount).as("근접 판정(RunPositionStore 경유)이 T1 이 실제로 쓴 값을 파싱해 근접 알림을 적재해야 한다")
                 .isEqualTo(1);
 
-        // 3. T4 실제 읽기 — RunPositionCache 를 거쳐 GET 응답에 좌표가 그대로 나와야 한다.
+        // 3. T4 실제 읽기 — RunPositionStore 를 거쳐 GET 응답에 좌표가 그대로 나와야 한다.
         mockMvc.perform(get("/api/v1/students/" + studentId + "/bus-position")
                 .header("Authorization", 학부모_토큰(guardianAccountId, academyId)))
                 .andExpect(status().isOk())

@@ -37,7 +37,7 @@ import src.backend.run.repository.RunRepository;
 import testsupport.redis.RedisTestContainerBase;
 
 /**
- * 비상 신고 발신 시점에 {@code RunPositionCache}(LOC-02, Ruling 208 계약)에 값이 있으면
+ * 비상 신고 발신 시점에 {@code RunPositionStore}(LOC-02, Ruling 208 계약)에 값이 있으면
  * {@code EmergencyAlert.attachLocation} 이 그 스냅샷의 {@code recordedAt}(위치 발신 장비가 찍은
  * 시각)을 {@code position_recorded_at} 컬럼에 그대로 저장하는지 검증한다(Phase 13 목표 13 판정 ③,
  * Ruling 236).
