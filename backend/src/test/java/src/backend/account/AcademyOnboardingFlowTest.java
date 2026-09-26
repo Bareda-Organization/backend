@@ -78,7 +78,7 @@ class AcademyOnboardingFlowTest {
                         .content("{\"name\": \"P3T2흐름학원\", \"region\": \"성남\"}"))
                 .andExpect(status().isCreated())
                 .andReturn();
-        long academyId = ((Number) JsonPath.read(본문(등록), "$.data.academy_id")).longValue();
+        long academyId = Long.parseLong(JsonPath.read(본문(등록), "$.data.academy_id"));
         String academyCode = JsonPath.read(본문(등록), "$.data.code");
 
         가입_경로에서_찾을_수_있다(academyCode, academyId);
@@ -172,10 +172,10 @@ class AcademyOnboardingFlowTest {
                         .header("Authorization", adminToken))
                 .andExpect(status().isOk())
                 .andReturn();
-        List<Integer> ids = JsonPath.read(본문(result),
+        List<String> ids = JsonPath.read(본문(result),
                 "$.data.items[?(@.academy.code == '%s')].request_id".formatted(academyCode));
         assertThat(ids).as("등록한 학원의 관계자 요청이 메인 관리자 큐에 떠야 흐름이 이어진다").hasSize(1);
-        return ids.get(0).longValue();
+        return Long.parseLong(ids.get(0));
     }
 
     private long 학부모_요청_식별자(String staffToken, String loginId) throws Exception {
@@ -185,10 +185,10 @@ class AcademyOnboardingFlowTest {
                 .andReturn();
         String name = jdbcTemplate.queryForObject(
                 "SELECT name FROM account WHERE login_id = ?", String.class, loginId);
-        List<Integer> ids = JsonPath.read(본문(result),
+        List<String> ids = JsonPath.read(본문(result),
                 "$.data.items[?(@.name == '%s')].request_id".formatted(name));
         assertThat(ids).as("관계자 큐에 %s 의 요청이 정확히 1건 떠야 한다", loginId).hasSize(1);
-        return ids.get(0).longValue();
+        return Long.parseLong(ids.get(0));
     }
 
     /**

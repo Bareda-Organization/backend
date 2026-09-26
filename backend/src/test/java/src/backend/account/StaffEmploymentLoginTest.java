@@ -188,7 +188,7 @@ class StaffEmploymentLoginTest {
                         .content("{\"name\": \"P3T3재직학원%s\", \"region\": \"서울\"}".formatted(loginId)))
                 .andExpect(status().isCreated())
                 .andReturn();
-        long academyId = ((Number) JsonPath.read(본문(학원), "$.data.academy_id")).longValue();
+        long academyId = Long.parseLong(JsonPath.read(본문(학원), "$.data.academy_id"));
 
         mockMvc.perform(post("/api/v1/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
