@@ -1,4 +1,4 @@
-package src.backend.global.websocket;
+package src.backend.boarding.command;
 
 import java.time.OffsetDateTime;
 
@@ -12,12 +12,14 @@ import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.event.RiderMarkedNoShowEvent;
 import src.backend.boarding.event.RiderStatusChangedEvent;
 import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.global.websocket.WebSocketBroadcastGateway;
+import src.backend.global.websocket.WebSocketDestinations;
 import src.backend.student.repository.StudentRepository;
 
 /**
  * {@code rider_changed} 방송(API_SPEC §7.1) — 매니저·학원·관리자 채널(목표 5, C-08·§1.12: 학부모·
  * 학생 채널은 이 이벤트를 받지 않는다). {@code @TransactionalEventListener(AFTER_COMMIT)} 근거는
- * {@link RunStartedBroadcastListener} 와 같다.
+ * {@code run.command.RunStartedBroadcastListener} 와 같다.
  *
  * <p>{@link RiderStatusChangedEvent} 갈래는 {@code stop_skipped} 를 항상 {@code false} 로 채운다 —
  * 정차지 skip 은 미승차로 잔여가 0명이 될 때만 일어나는데({@code BoardingCommandService.handleNoShow}),

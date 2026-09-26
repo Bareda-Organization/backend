@@ -1,4 +1,4 @@
-package src.backend.global.websocket;
+package src.backend.exception.command;
 
 import java.time.OffsetDateTime;
 import java.util.Locale;
@@ -12,10 +12,12 @@ import lombok.RequiredArgsConstructor;
 import src.backend.exception.event.EmergencyAckedEvent;
 import src.backend.exception.event.EmergencyCanceledEvent;
 import src.backend.exception.event.EmergencyRaisedEvent;
+import src.backend.global.websocket.WebSocketBroadcastGateway;
+import src.backend.global.websocket.WebSocketDestinations;
 
 /**
  * 비상 신고 접수·확인·취소 방송(EXC-04, Phase 11 T2 목표 6·10·11) — {@code @TransactionalEventListener
- * (AFTER_COMMIT)} 근거는 {@link RunStartedBroadcastListener} 와 같다.
+ * (AFTER_COMMIT)} 근거는 {@code run.command.RunStartedBroadcastListener} 와 같다.
  *
  * <p><b>{@link WebSocketBroadcastGateway#broadcastToRunChannels} 를 쓰지 않는다</b> — 그 메서드는
  * 회차 명단 학생 채널({@code /topic/students/{id}/run})까지 항상 포함하는데, 목표 7(학부모·학생

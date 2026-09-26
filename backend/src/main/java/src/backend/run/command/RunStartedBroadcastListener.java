@@ -1,4 +1,4 @@
-package src.backend.global.websocket;
+package src.backend.run.command;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.global.websocket.WebSocketBroadcastGateway;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.event.RunStartedEvent;
 

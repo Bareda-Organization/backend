@@ -1,4 +1,4 @@
-package src.backend.global.websocket;
+package src.backend.boarding.command;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -21,6 +21,8 @@ import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.event.RiderStatusChangedEvent;
 import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.global.websocket.WebSocketBroadcastGateway;
+import src.backend.global.websocket.WebSocketDestinations;
 import src.backend.student.entity.Student;
 import src.backend.student.repository.StudentRepository;
 

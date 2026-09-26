@@ -1,4 +1,4 @@
-package src.backend.global.websocket;
+package src.backend.request.command;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -19,6 +19,8 @@ import org.junit.jupiter.api.Test;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.request.entity.ChangeRequest;
+import src.backend.global.websocket.WebSocketBroadcastGateway;
+import src.backend.global.websocket.WebSocketDestinations;
 import src.backend.request.event.ApprovalRequestedEvent;
 import src.backend.request.repository.ChangeRequestRepository;
 import src.backend.student.entity.Stop;

@@ -1,4 +1,4 @@
-package src.backend.global.websocket;
+package src.backend.run.command;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.atLeastOnce;
@@ -19,6 +19,8 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.global.websocket.WebSocketBroadcastGateway;
+import src.backend.global.websocket.WebSocketEnvelope;
 import src.backend.observability.metrics.WebSocketPublishMetrics;
 import src.backend.run.event.RunStartedEvent;
 
