@@ -162,6 +162,21 @@ public interface RunRepository extends JpaRepository<Run, Long> {
             + "AND r.canceledAt IS NULL")
     int confirmIfIdle(@Param("id") Long id, @Param("confirmedAt") OffsetDateTime confirmedAt);
 
+    /**
+     * 스케줄이 만든 <b>오늘 이후 · 주어진 상태 · 미취소</b> 회차 — 스케줄 수정·삭제를 미리 만든 회차에 반영할 때
+     * 고른다(Ruling 366 ②). 오늘({@code today})은 포함하지 않는다 — 오늘 회차는 확정 배치가 이미 걸려 있을 수 있다.
+     */
+    List<Run> findAllByAcademyIdAndScheduleIdAndServiceDateAfterAndStatusAndCanceledAtIsNull(Long academyId,
+            Long scheduleId, LocalDate today, RunStatus status);
+
+    /**
+     * 그 스케줄이 그날 그 방향으로 <b>살아 있는</b>(미취소) 회차를 이미 가졌는가 — 스케줄 수정 뒤 내일 회차를 만들기
+     * 전에 본다. 확정·시작된 회차는 수정 반영 대상이 아니라 옛 출발 시각으로 남으므로, 유일성 조합만 보면 새 시각으로
+     * 같은 스케줄의 회차가 하나 더 생긴다.
+     */
+    boolean existsByAcademyIdAndScheduleIdAndServiceDateAndDirectionAndCanceledAtIsNull(Long academyId,
+            Long scheduleId, LocalDate serviceDate, Direction direction);
+
     /** 차량의 오늘 이후 · 미취소 회차 중 주어진 상태의 것 — 정원 축소 경고(§5.12, BR-116)가 쓴다. */
     List<Run> findAllByAcademyIdAndBusIdAndServiceDateGreaterThanEqualAndCanceledAtIsNullAndStatusIn(Long academyId,
             Long busId, LocalDate today, Collection<RunStatus> statuses);

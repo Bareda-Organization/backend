@@ -12,7 +12,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.schedule.command.RunGenerationService;
 
 /**
- * 일일 회차 생성 배치(SCH-02, API_SPEC §5.10) — 하루 한 번 그날의 회차를 만든다.
+ * 일일 회차 생성 배치(SCH-02, API_SPEC §5.10) — 하루 한 번 <b>오늘과 내일</b>의 회차를 만든다(Ruling 366).
  *
  * <p>전용 엔드포인트를 두지 않는다(§5.10) — 회차 생성은 요청이 아니라 <b>날짜가 바뀌는 것</b>이
  * 일으키는 일이고, 관계자가 손으로 부르는 경로를 열면 그 경로가 곧 중복 실행의 통로가 된다.
@@ -30,7 +30,10 @@ public class DailyRunGenerator {
     private final Clock clock;
 
     /**
-     * 오늘의 회차를 만든다.
+     * 오늘과 내일의 회차를 만든다 — 내일 것을 미리 만드는 이유는 학부모의 "특정 날짜 하루만" 변경 신청
+     * (FEATURE_SPEC P-06)이 전날에 걸려야 하기 때문이다. 지평을 1일로 둔 것은 스케줄 수정 반영
+     * ({@code ScheduleRunSync}) 대상을 그 하루로 묶기 위함이다. 이미 있는 회차는 건너뛰므로(멱등)
+     * 기동 직후 보충({@code DailyRunStartupCatchUp})이 같은 메서드를 다시 불러도 안전하다.
      *
      * <p>실행 시각을 설정으로 받는 이유는 <b>테스트에서 배경 실행을 끄기 위함</b>이다 — 배경 배치가
      * 테스트가 만든 스케줄을 먼저 집으면 생성 건수 단언이 실행 시각에 따라 갈린다
@@ -53,7 +56,13 @@ public class DailyRunGenerator {
      */
     @Scheduled(cron = "${app.run.generation.cron:0 5 0 * * *}", zone = "Asia/Seoul")
     @SchedulerLock(name = "daily-run-generator", lockAtMostFor = "PT30M")
-    public void generateToday() {
-        runGenerationService.generate(LocalDate.now(clock));
+    public void generateTodayAndTomorrow() {
+        LocalDate today = LocalDate.now(clock);
+        try {
+            runGenerationService.generate(today);
+        } finally {
+            // 오늘 생성이 실패해도 내일 것은 만든다 — 오늘 실패가 내일 회차까지 막으면 전날 변경 신청이 통째로 불가하다.
+            runGenerationService.generate(today.plusDays(1));
+        }
     }
 }
