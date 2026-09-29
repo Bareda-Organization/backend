@@ -365,6 +365,9 @@ CREATE TABLE run (
     finished_at      timestamptz,
     finish_pending   boolean      NOT NULL DEFAULT false,
     canceled_at      timestamptz,
+    -- 취소를 낸 쪽 — staff(관계자가 직접) · schedule(스케줄 변경이 반영). 스케줄 재활성이 되살릴 수 있는 것은
+    -- schedule 뿐이다. NULL 이면서 canceled_at 이 채워진 행은 출처를 모르는 취소라 되살리지 않는다.
+    cancel_source    varchar(10),
     -- 확정 배치가 이 회차에서 연속으로 실패한 횟수(Phase 7 목표 4) — 배치 재시작으로 사라지면 안 되는
     -- 값이라 인메모리가 아니라 이 컬럼에 둔다. 확정에 성공하면 0으로 되돌아간다.
     consecutive_failures integer   NOT NULL DEFAULT 0,
@@ -376,6 +379,7 @@ CREATE TABLE run (
     CONSTRAINT fk_run_schedule FOREIGN KEY (schedule_id) REFERENCES schedule (id) ON DELETE SET NULL,
     CONSTRAINT ck_run_direction CHECK (direction IN ('to_academy', 'from_academy')),
     CONSTRAINT ck_run_status CHECK (status IN ('idle', 'confirmed', 'moving', 'finished')),
+    CONSTRAINT ck_run_cancel_source CHECK (cancel_source IN ('staff', 'schedule')),
     CONSTRAINT ck_run_confirm_at CHECK (confirm_at = depart_time - interval '30 minutes')
 );
 

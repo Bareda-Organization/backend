@@ -21,6 +21,7 @@ import src.backend.run.domain.RunConfirmationPolicy;
 import src.backend.run.dto.RunCreateRequest;
 import src.backend.run.dto.RunResponse;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunCancelSource;
 import src.backend.run.entity.RunDraft;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
@@ -117,10 +118,18 @@ public class RunCommandService {
     /**
      * 스케줄이 바뀐 내용을 그 스케줄의 미래 회차 1건에 옮긴다(Ruling 366 ②) — 출발 시각은 {@link #create} 와 같은
      * 규칙({@code departureOf}, 주입된 {@code Clock} 의 시간대)으로 확정하고 확정 시각을 출발 30분 전으로 다시
-     * 계산한다. 대상 회차가 시작 전(idle)·미취소인지는 호출부가 고른다.
+     * 계산한다. 대상 회차가 시작 전(idle)인지는 호출부가 고른다.
+     *
+     * <p>옮긴 자리를 <b>다른</b> 회차(임시 회차·다른 스케줄의 회차)가 이미 잡고 있으면 {@code 409 DUPLICATE_RUN} 이다
+     * (Ruling 367 ③) — 선검사 없이 두면 커밋 때 UNIQUE 위반이 500 으로 나간다. 예외는 스케줄 변경 트랜잭션 전체를
+     * 되돌린다(부분 반영 금지). 동시 요청 두 건의 경합은 선검사가 못 막고 UNIQUE 가 막는다({@link #create} 와 같은 한계).
      */
     public void moveToPlan(Run run, RunDraft plan) {
         OffsetDateTime departAt = departureOf(plan);
+        if (runRepository.existsByAcademyIdAndBusIdAndServiceDateAndDirectionAndDepartTimeAndIdNot(
+                run.getAcademyId(), plan.busId(), run.getServiceDate(), run.getDirection(), departAt, run.getId())) {
+            throw new BusinessException(ErrorCode.DUPLICATE_RUN);
+        }
         run.moveToPlan(plan.busId(), departAt, RunConfirmationPolicy.confirmAtOf(departAt), plan.originName(),
                 plan.destinationName(), plan.estDurationMin());
     }
@@ -137,7 +146,7 @@ public class RunCommandService {
         if (run.getStatus() != RunStatus.IDLE && run.getStatus() != RunStatus.CONFIRMED) {
             throw new BusinessException(ErrorCode.RUN_ALREADY_STARTED);
         }
-        run.cancel(OffsetDateTime.now(clock));
+        run.cancel(OffsetDateTime.now(clock), RunCancelSource.STAFF);
     }
 
     /**

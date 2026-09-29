@@ -1,6 +1,7 @@
 package src.backend.schedule.command;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Clock;
 import java.time.LocalDate;
@@ -18,7 +19,10 @@ import testsupport.clock.FixedClock20260826T01Config;
 
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
+import src.backend.run.command.RunCommandService;
 import src.backend.schedule.dto.ScheduleRegisterRequest;
 import src.backend.schedule.dto.ScheduleUpdateRequest;
 
@@ -48,6 +52,9 @@ class ScheduleRunSyncTest {
 
     @Autowired
     private ScheduleCommandService scheduleCommandService;
+
+    @Autowired
+    private RunCommandService runCommandService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -191,6 +198,85 @@ class ScheduleRunSyncTest {
         assertThat(취소됨(회차)).as("행을 지우면 안 된다 — schedule_id 만 비워지고 회차는 취소 표시로 남는다").isTrue();
     }
 
+    @Test
+    void 껐다_다시_켜면_스케줄이_취소한_내일_회차가_되살아난다() {
+        long scheduleId = 시드로_스케줄과_내일_회차를_넣는다();
+
+        scheduleCommandService.update(admin, scheduleId, 수정(null, null, null, false));
+        assertThat(내일_회차_취소됨(scheduleId)).as("끄면 취소 표시(출처: 스케줄)").isTrue();
+        scheduleCommandService.update(admin, scheduleId, 수정(null, null, null, true));
+
+        assertThat(내일_회차_취소됨(scheduleId)).as("다시 켜면 스케줄이 취소한 회차는 취소가 풀린다").isFalse();
+        assertThat(회차_수(scheduleId)).as("새 회차를 만들지 않고 그 회차를 되살린다").isEqualTo(1);
+    }
+
+    @Test
+    void 관계자가_취소한_내일_회차는_스케줄을_껐다_켜도_취소로_남는다() {
+        long scheduleId = 시드로_스케줄과_내일_회차를_넣는다();
+        long 회차 = jdbcTemplate.queryForObject("SELECT id FROM run WHERE schedule_id = ?", Long.class, scheduleId);
+        runCommandService.cancel(admin, 회차);
+
+        scheduleCommandService.update(admin, scheduleId, 수정(null, null, null, false));
+        scheduleCommandService.update(admin, scheduleId, 수정(null, null, null, true));
+
+        assertThat(취소됨(회차)).as("관계자가 직접 취소한 회차를 스케줄 재활성이 되살리면 안 된다").isTrue();
+        assertThat(회차_수(scheduleId)).isEqualTo(1);
+    }
+
+    @Test
+    void 요일이_복귀하면_스케줄이_취소한_내일_회차가_되살아난다() {
+        long scheduleId = 시드로_스케줄과_내일_회차를_넣는다();
+
+        scheduleCommandService.update(admin, scheduleId, 수정("fri", null, null, null));
+        scheduleCommandService.update(admin, scheduleId, 수정("thu", null, null, null));
+
+        assertThat(내일_회차_취소됨(scheduleId)).isFalse();
+        assertThat(회차_수(scheduleId)).isEqualTo(1);
+    }
+
+    @Test
+    void 꺼진_동안_고친_출발_시각으로_되살아난다() {
+        long scheduleId = 시드로_스케줄과_내일_회차를_넣는다();
+        scheduleCommandService.update(admin, scheduleId, 수정(null, null, null, false));
+        scheduleCommandService.update(admin, scheduleId, 수정(null, "03:47", null, null));
+
+        scheduleCommandService.update(admin, scheduleId, 수정(null, null, null, true));
+
+        assertThat(내일_회차_취소됨(scheduleId)).isFalse();
+        assertThat(내일_회차_시각(scheduleId, "depart_time"))
+                .as("되살린 회차에 계획을 다시 옮긴다")
+                .isEqualTo(TOMORROW.atTime(3, 47).atZone(clock.getZone()).toOffsetDateTime());
+        assertThat(내일_회차_시각(scheduleId, "confirm_at"))
+                .isEqualTo(내일_회차_시각(scheduleId, "depart_time").minusMinutes(30));
+    }
+
+    @Test
+    void 이미_확정된_회차는_취소_출처가_스케줄이어도_되살리지_않는다() {
+        long scheduleId = 시드로_스케줄과_내일_회차를_넣는다();
+        scheduleCommandService.update(admin, scheduleId, 수정(null, null, null, false));
+        jdbcTemplate.update("UPDATE run SET status = 'confirmed', confirmed_at = now() WHERE schedule_id = ?",
+                scheduleId);
+
+        scheduleCommandService.update(admin, scheduleId, 수정(null, null, null, true));
+
+        assertThat(내일_회차_취소됨(scheduleId)).as("확정된 회차는 스케줄 변경의 반영 대상이 아니다").isTrue();
+    }
+
+    @Test
+    void 출발_시각을_임시_회차와_같은_시각으로_고치면_409_이고_스케줄과_회차가_그대로다() {
+        long scheduleId = 시드로_스케줄과_내일_회차를_넣는다();
+        회차를_넣는다(null, TOMORROW, "03:47", "idle");
+
+        assertThatThrownBy(() -> scheduleCommandService.update(admin, scheduleId, 수정(null, "03:47", null, null)))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.DUPLICATE_RUN));
+
+        assertThat(jdbcTemplate.queryForObject("SELECT depart_time::text FROM schedule WHERE id = ?",
+                String.class, scheduleId)).as("스케줄 변경 전체가 되돌려진다(부분 반영 금지)").isEqualTo("03:07:00");
+        assertThat(내일_회차_시각(scheduleId, "depart_time"))
+                .isEqualTo(TOMORROW.atTime(3, 7).atZone(clock.getZone()).toOffsetDateTime());
+    }
+
     // ── 픽스처 ────────────────────────────────────────────────────────────
 
     /** 등록 경로를 거치지 않고 직접 넣는다 — 수정·삭제 시험이 등록 시점 생성에 기대지 않게 한다. */
@@ -217,7 +303,7 @@ class ScheduleRunSyncTest {
         return new ScheduleUpdateRequest(null, weekday, null, departTime, originName, null, null, active);
     }
 
-    private long 회차를_넣는다(long scheduleId, LocalDate date, String departTime, String status) {
+    private long 회차를_넣는다(Long scheduleId, LocalDate date, String departTime, String status) {
         return jdbcTemplate.queryForObject("""
                 INSERT INTO run (academy_id, bus_id, schedule_id, service_date, direction, depart_time, confirm_at,
                                  status, origin_name, destination_name)

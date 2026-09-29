@@ -1779,14 +1779,16 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | 스케줄에서 일어난 일 | 그 회차에 |
 |---|---|
 | 출발 시각 · 차량 · 출발지 · 도착지 · 소요 시간 수정 | 그 값을 옮김. `depart_time` 을 `service_date` 와 합쳐 다시 확정하고 `confirm_at` = 출발 − 30분 재계산 |
-| 비활성 · 삭제 · 요일 또는 방향이 그 회차와 달라짐 | **임시 취소**(`canceled_at` — SCH-03 과 같은 표시, 행 삭제 부재. 이미 붙은 탑승 의사·변경 신청 행이 있을 수 있어서) |
+| 비활성 · 삭제 · 요일 또는 방향이 그 회차와 달라짐 | **임시 취소**(`canceled_at` — SCH-03 과 같은 표시, 행 삭제 부재. 이미 붙은 탑승 의사·변경 신청 행이 있을 수 있어서). 취소 출처 `run.cancel_source = schedule` 을 함께 남김 |
+| 재활성 · 요일/방향 복귀 (그 스케줄이 다시 뒷받침) | 출처가 `schedule` 인 **내일 이후 `idle`** 회차의 취소를 풀고 계획을 다시 옮김(`Ruling 367`). 같은 스케줄·날짜·방향의 살아 있는 회차가 이미 있으면 되살리지 않음 |
 | 등록 · 활성 · 요일/방향 변경 뒤 요일이 내일 | 내일 회차를 만듦(같은 스케줄의 살아 있는 내일 회차가 이미 있으면 만들지 않음) |
 
 - **오늘 회차는 건드리지 않는다** — 확정 배치가 이미 걸려 있을 수 있다. 이미 확정·시작·취소된 회차도 그대로다
-- 비활성 뒤 다시 켜도 그 시각의 취소된 회차는 되살리지 않는다(관계자가 직접 취소한 회차와 구별할 수단이 부재) — 시각이 바뀌었으면 새 회차가 생긴다
+- **관계자가 직접 취소한 회차(`SCH-03`, `cancel_source = staff`)는 스케줄이 어떻게 바뀌어도 되살리지 않는다** — 출처를 모르는 옛 취소(`cancel_source` NULL)도 마찬가지
+- **옮길 자리를 다른 회차(임시 회차 · 다른 스케줄의 회차)가 이미 잡고 있으면 `409 DUPLICATE_RUN`** 이고 스케줄 변경 전체가 되돌려진다(부분 반영 부재 — `Ruling 367`). 취소된 회차가 잡은 자리도 같다(UNIQUE 는 취소 여부를 가리지 않음)
 - 멱등의 근거는 **`run(bus_id, service_date, direction, depart_time)` UNIQUE** 이고 애플리케이션 선검사가 아니다 — 동시 2회 실행은 서로의 미커밋 INSERT 를 보지 못한 채 둘 다 선검사를 지난다
 
-**에러** — `404 SCHEDULE_NOT_FOUND`(`PATCH`·`DELETE` 대상 부재) · `404 BUS_NOT_FOUND`(지정 차량 부재·타 학원) · `409 DUPLICATE_SCHEDULE`(같은 `bus_id`·`weekday`·`direction`·`depart_time` 조합 중복) · `404 RUN_NOT_FOUND`(`DELETE /staff/runs/{id}` 대상 부재 · 타 학원 — 존재 비노출, Ruling 163) · `409 DUPLICATE_RUN`(같은 차량·날짜·방향·출발 시각 회차 중복 추가) — 이상 2026-08-26 신설 (Ruling 153)
+**에러** — `404 SCHEDULE_NOT_FOUND`(`PATCH`·`DELETE` 대상 부재) · `404 BUS_NOT_FOUND`(지정 차량 부재·타 학원) · `409 DUPLICATE_SCHEDULE`(같은 `bus_id`·`weekday`·`direction`·`depart_time` 조합 중복) · `404 RUN_NOT_FOUND`(`DELETE /staff/runs/{id}` 대상 부재 · 타 학원 — 존재 비노출, Ruling 163) · `409 DUPLICATE_RUN`(같은 차량·날짜·방향·출발 시각 회차 중복 추가 · **스케줄 수정이 옮긴 회차의 자리가 다른 회차와 겹침** — `PATCH /staff/schedules/{id}`) — 이상 2026-08-26 신설 (Ruling 153 · `Ruling 367`)
 
 ### 5.11 학생 관리 (STU-01~08, A-10)
 
@@ -2508,7 +2510,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `RUN_NOT_FOUND` | 404 | 존재하지 않는 회차 · 타 학원 — 존재 비노출, Ruling 163 |
 | `RUN_ALREADY_STARTED` | 409 | 이미 `moving` · `finished` 인 회차에 운행 시작 요청 · 임시 취소(§5.10 — 취소는 `idle`·`confirmed` 만) (RUN-02 · §9.3 운행 상태 전이) |
 | `RUN_CANCELED` | 409 | 임시 취소된 회차(§5.10 `canceled_at`)에 운행 시작(§4.4) · 강제 추가(§5.7) · 이동(§5.8). 404 가 아닌 것은 행이 실재하고 관계자 화면에 취소로 보이기 때문 (BR-042) |
-| `DUPLICATE_RUN` | 409 | 같은 차량·날짜·방향·출발 시각의 회차를 **임시 추가**(§5.10 `POST /staff/runs`)로 다시 만들려는 시도. 유일성 근거는 `run(bus_id, service_date, direction, depart_time)` UNIQUE 다. ⚠ **일일 회차 생성 배치(SCH-02)는 이 코드를 내지 않는다** — 배치의 중복 실행은 재기동·수동 재실행이라는 정상 동작이라 오류가 아니라 무시이고, 이미 있는 회차를 조용히 건너뛴다. 같은 제약이 두 경로에서 다르게 읽히는 것이 요점이라 여기 적어 둔다 (2026-08-26 신설, Ruling 153) |
+| `DUPLICATE_RUN` | 409 | 같은 차량·날짜·방향·출발 시각의 회차를 **임시 추가**(§5.10 `POST /staff/runs`)로 다시 만들려는 시도, 또는 **스케줄 수정(§5.10 `PATCH /staff/schedules/{id}`)이 미리 만든 회차를 옮기려는 자리가 이미 다른 회차의 것**인 경우(`Ruling 367`). 유일성 근거는 `run(bus_id, service_date, direction, depart_time)` UNIQUE 다. ⚠ **일일 회차 생성 배치(SCH-02)는 이 코드를 내지 않는다** — 배치의 중복 실행은 재기동·수동 재실행이라는 정상 동작이라 오류가 아니라 무시이고, 이미 있는 회차를 조용히 건너뛴다. 같은 제약이 두 경로에서 다르게 읽히는 것이 요점이라 여기 적어 둔다 (2026-08-26 신설, Ruling 153) |
 | `DUPLICATE_ASSIGNMENT` | 409 | 한 회차의 **같은 역할**을 두 요청이 동시에 채우려 함 — `assignment(run_id, role)` UNIQUE 위반 (§5.14 · MGR-05). 순차 요청은 교체로 처리되므로 이 코드가 나오는 것은 경합뿐이다. ⚠ 근무 시간·중복 배치 충돌과 **다른 축**이다 — 그쪽은 경고이고 저장되지만(MGR-06) 이쪽은 저장 자체가 거부된다 (2026-08-26 신설, Ruling 153) |
 | `RIDER_NOT_FOUND` | 404 | 미존재 탑승자, 또는 `absent` 로 명단에서 제외된 탑승자 지정 |
 | `STOP_NOT_FOUND` | 404 | 해당 회차에 존재하지 않는 승하차지 지정 · 관계자 웹 `stop_id` 지정 시 타 학원 승하차지(존재 비노출, `§5.8`) |
@@ -2702,7 +2704,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 
 ### 11.1 POST /dev/reset
 
-DB 를 Flyway 시드 상태로 되돌리고 위치 캐시(Redis)를 비운다. Swagger 로 어지럽힌 상태를
+DB 를 Flyway 시드 상태로 되돌리고 위치 캐시(Redis)를 비운 뒤 **내일 회차만** 만든다(`Ruling 367` — 초기화 뒤에도 학부모 "내일" 변경·탑승 끄기를 시험할 수 있게. 오늘 회차는 만들지 않는다: 실서버 계약 시험이 초기화 직후 시드 상태에 기댄다). Swagger 로 어지럽힌 상태를
 앱 재시작 없이 초기화하는 용도이고, 웹·앱의 **실서버 계약 시험이 착수 전에 부른다.**
 
 | 항목 | 값 |
@@ -2718,6 +2720,6 @@ DB 를 Flyway 시드 상태로 되돌리고 위치 캐시(Redis)를 비운다. S
 | ① | `@Profile("local")` | `demo`·`prod` 에서 빈 미생성. 안쪽(위험 프로파일 혼재 · 비 localhost 데이터소스 거부)은 `LocalFlywayCleanStrategy` 가 맡는다 |
 | ② | `app.dev-tools.reset.enabled` | `build.gradle` 의 test 태스크가 `false` 로 심어 **테스트 컨텍스트에 미등록**. 이 저장소의 시험은 `local` 프로파일로 돌아 ①만으로는 안 막히고, 열어 두면 전체 실행 도중 공유 DB 가 통째로 지워진다 |
 
-구현 — `global/dev/DevResetController` · `DevResetService`. 미리보기 캐시도 함께 비운다(`ApprovalPreviewCache`).
+구현 — `global/dev/DevResetController` · `DevResetService`. 미리보기 캐시도 함께 비운다(`ApprovalPreviewCache`). 내일 회차 생성은 일일 배치와 같은 `RunGenerationService.generate(내일)` 이라 멱등이다.
 
 **팀원 체험용 서버(스테이징)에서도 켜져 있다**(Ruling 364) — `local,staging` 프로파일이라 겹①을 통과하고, compose 안의 DB 는 컨테이너 이름 `postgres` 로 불려 `LocalFlywayCleanStrategy` 의 localhost 판정에 걸리므로 staging 섹션이 `app.flyway-clean.extra-allowed-hosts: postgres` 로 그 이름 하나만 연다. 관계자 웹 머리말의 **[테스트 데이터 초기화]** 버튼이 이 엔드포인트를 부르고 성공하면 로그아웃한다(초기화가 로그인 유지 토큰까지 지운다). `pending` 계정은 상태 게이트가 `403` 으로 막는다(허용 목록에 부재).

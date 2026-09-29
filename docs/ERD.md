@@ -468,6 +468,7 @@ erDiagram
 | `finished_at` | timestamptz | | 종료 시각 |
 | `finish_pending` | boolean | NN default false | 하원 최종 도착 처리 후 미하차 잔류로 종료 보류 중 |
 | `canceled_at` | timestamptz | | 임시 취소 (SCH-03) |
+| `cancel_source` | varchar(10) | | 취소를 낸 쪽 — `staff`(관계자 직접 취소) · `schedule`(스케줄 변경 반영). CHECK. 스케줄 재활성이 되살리는 것은 `schedule` 뿐이고, NULL 인 옛 취소는 되살리지 않음 (`Ruling 367`) |
 | `consecutive_failures` | integer | NN default 0 | 확정 배치가 이 회차에서 연속 실패한 횟수(Phase 7 목표 4). 배치 재시작에도 사라지면 안 되는 값이라 인메모리가 아니라 컬럼에 보유. 확정 성공 시 0 으로 복귀 |
 | `created_at` · `updated_at` | timestamptz | NN | |
 

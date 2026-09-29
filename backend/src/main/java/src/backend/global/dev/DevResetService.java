@@ -1,5 +1,8 @@
 package src.backend.global.dev;
 
+import java.time.Clock;
+import java.time.LocalDate;
+
 import org.flywaydb.core.Flyway;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.flyway.autoconfigure.FlywayMigrationStrategy;
@@ -10,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.request.preview.spec.ApprovalPreviewCache;
+import src.backend.schedule.command.RunGenerationService;
 
 /**
  * 개발용 초기화 — DB 를 시드 적재 직후 상태로 되돌린다.
@@ -45,14 +49,25 @@ public class DevResetService {
 
     private final ApprovalPreviewCache previewCache;
 
+    private final RunGenerationService runGenerationService;
+
+    private final Clock clock;
+
     /**
-     * DB 를 비우고 스키마·시드를 다시 적재한 뒤 위치 캐시와 승인 미리보기 캐시를 지운다.
+     * DB 를 비우고 스키마·시드를 다시 적재한 뒤 위치 캐시와 승인 미리보기 캐시를 지우고 <b>내일</b> 회차를 만든다.
+     *
+     * <p>내일 회차를 만드는 이유는 스테이징 초기화 버튼 뒤에도 학부모 "내일" 변경·탑승 끄기를 시험할 수 있어야
+     * 해서다(Ruling 367 ④) — 기동 보충({@code DailyRunStartupCatchUp})은 기동 때 한 번뿐이라 초기화는 채워 주지 않는다.
+     * <b>오늘 회차는 만들지 않는다</b> — 웹·Flutter 실서버 계약 시험이 초기화 직후의 시드 상태에 기댄다. 생성은 캐시를
+     * 다 지운 <b>뒤에</b> 해서, 스케줄 하나가 실패해 예외가 올라와도 캐시 정리는 끝나 있다.
      *
      * @return 지운 위치 캐시 키 개수 — 되돌린 사실을 호출자가 눈으로 확인할 수 있게 한다
      */
     public int reset() {
         migrationStrategy.migrate(flyway);
         previewCache.clear();
-        return runPositionStore.deleteAll();
+        int clearedPositionKeys = runPositionStore.deleteAll();
+        runGenerationService.generate(LocalDate.now(clock).plusDays(1));
+        return clearedPositionKeys;
     }
 }
