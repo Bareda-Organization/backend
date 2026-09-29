@@ -102,6 +102,7 @@ grep -n '🔸' docs/FEATURE_SPEC.md docs/PRD.md docs/USER_FLOWS.md docs/API_SPEC
 | 문서 | 담는 것 |
 |---|---|
 | **[infra/DEPLOYMENT.md](infra/DEPLOYMENT.md)** | 운영 배포 절차(EC2 1대 + `docker-compose.prod.yml`). 설계 근거는 [archive/specs/2026-08-10-mvp-배포-design.md](archive/specs/2026-08-10-mvp-배포-design.md) |
+| **[infra/STAGING.md](infra/STAGING.md)** | 팀원 체험용 서버 — 집 PC + Cloudflare Tunnel + `docker-compose.staging.yml` · Android APK QR 설치(`Ruling 363`) |
 | `infra/OPERATIONS_PLAN.html` | 운영 계획(사람용 렌더) |
 
 ### 4.4 원본·렌더 — 추적 밖

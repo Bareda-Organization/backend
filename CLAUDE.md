@@ -80,6 +80,7 @@ cd backend
 | `docker-compose.yml` | **개발 인프라만** — postgres(15432) · redis(16379) | `docker compose up -d` |
 | `+ docker-compose.app.yml` | **앱 오버레이** — backend · **관계자 웹** · proxy(:3000) · 관측 | `docker compose -f docker-compose.yml -f docker-compose.app.yml up -d --build` |
 | `docker-compose.prod.yml` | **배포** — ECR 이미지 · 영속 볼륨 · TLS | `docs/infra/DEPLOYMENT.md` |
+| `docker-compose.staging.yml` | **스테이징(팀원 체험용 · 집 PC)** — 단독 파일 · `local,staging` 프로파일 · 메모리 DB · Cloudflare Tunnel | `docs/infra/STAGING.md` |
 
 **개발 방식은 둘 중 하나를 고른다.**
 1. **인프라만 컨테이너 + 백엔드는 IDE** — `docker compose up -d` 후 `./gradlew bootRun`. Swagger 는 `http://localhost:8080/...`

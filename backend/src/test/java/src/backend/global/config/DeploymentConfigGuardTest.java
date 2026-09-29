@@ -146,6 +146,32 @@ class DeploymentConfigGuardTest {
         }
     }
 
+    @Test
+    @DisplayName("staging 프로파일은 local 의 공개된 값(시드 비밀번호·JWT 키·허용 출처 2종)을 기본값 없이 덮고 /dev/reset 을 끈다")
+    void stagingProfileOverridesPublicLocalValues() {
+        // 스테이징은 `local,staging` 으로 켜서 local 의 데모 시드·버스 시뮬레이터를 쓰되 공개 주소에 뜬다.
+        // local 값이 하나라도 새면 시드 "password" 로 PLATFORM_ADMIN 로그인, 공개 JWT 키로 토큰 위조,
+        // POST /dev/reset 으로 DB 통째 초기화가 누구에게나 열린다. 전부 앱은 정상 기동하는 형태다.
+        String staging = sectionOf("on-profile: staging");
+        assertThat(staging)
+                .as("staging 은 공개된 local 값을 전부 기본값 없는 환경변수로 덮어야 한다")
+                .contains("seedPasswordHash: ${SEED_PASSWORD_HASH}")
+                .contains("secret: ${JWT_SECRET}")
+                .contains("allowed-origins: ${CORS_ALLOWED_ORIGINS}")
+                .contains("allowed-origin-patterns: ${WS_ALLOWED_ORIGIN_PATTERNS}")
+                .doesNotContain("${SEED_PASSWORD_HASH:")
+                .doesNotContain("${JWT_SECRET:")
+                .doesNotContain("${CORS_ALLOWED_ORIGINS:")
+                .doesNotContain("${WS_ALLOWED_ORIGIN_PATTERNS:");
+        assertThat(staging)
+                .as("staging 은 POST /dev/reset 을 꺼야 한다")
+                .contains("  dev-tools:\n    reset:\n      enabled: false");
+        // 한 파일의 프로파일 문서는 뒤에 있는 것이 이긴다 — local 보다 앞에 두면 위 값이 전부 local 에 진다.
+        assertThat(applicationYml.indexOf("on-profile: staging"))
+                .as("staging 섹션은 local 섹션보다 뒤에 있어야 덮어쓴다")
+                .isGreaterThan(applicationYml.indexOf("on-profile: local"));
+    }
+
     /** `---` 로 구분된 프로파일 문서 중 표식(marker)을 포함한 것을 돌려준다. */
     private String sectionOf(String marker) {
         for (String section : applicationYml.split("(?m)^---$")) {

@@ -5778,3 +5778,9 @@ C 는 A 가 고칠 파일을 **읽기만** 하고 고치지 않는다. **`docs/I
 | Ruling | 원장 | 판정 | 근거 |
 |---|---|---|---|
 | 362 | `USER_FLOWS UF-X-03` · `AUTH-09` | ① 학부모·학생 홈 머리말 오른쪽에 **`[로그아웃]`**(매니저 앱 홈과 같은 자리) — 설정 화면 맨 아래 버튼은 유지 ② 공용 머리말 `AppHeader` 가 `onBack` 을 안 받아도 **뒤에 화면이 있으면 뒤로 버튼을 스스로 그린다**(Material `AppBar` 의 `automaticallyImplyLeading` 과 같은 규칙) ③ 두 앱 로그인 → 회원가입을 `go` → `push` | ① 로그아웃이 홈 맨 아래 `[설정]` → 설정 맨 아래에만 있어 사용자가 찾지 못했다 ② 학부모 앱 5개 화면(설정·등하원 일정·노선 상세·자녀 연결·실시간 위치)이 `onBack` 을 빠뜨려 뒤로 버튼이 없었다 — 화면마다 넘기게 두면 다음 화면이 또 빠뜨린다 ③ `go` 는 로그인 화면을 교체해 **가입을 끝내지 않으면 로그인으로 돌아갈 길이 없었다**(두 앱 공통). 매니저 앱은 Material `AppBar` 라 원래 뒤로 버튼이 저절로 붙었다 |
+
+## 8.58 ⚖ 팀원 체험용 서버(스테이징) — 집 PC · Android QR `Ruling 363` (2026-09-29 · 사용자 "로컬 서버 운영방식으로" · "안드로이드로 · qr 방식 설치" · "버스가 움직이는거도 봐야해" · "서버도 개발용, 테스트용 처럼 도커를 별도로")
+
+| Ruling | 원장 | 판정 | 근거 |
+|---|---|---|---|
+| 363 | `docs/infra/STAGING.md` · `docker-compose.staging.yml` · `application.yml` staging 섹션 | ① 팀원 체험은 **집 PC 1대 + Cloudflare Tunnel**, 웹도 같은 주소(Vercel 미사용) ② 앱은 **Android 만**, APK 를 서버 `/download/` 에 두고 QR 로 설치 — iOS 제외 ③ 백엔드는 **`local,staging`** — local 의 데모 시드·버스 시뮬레이터를 쓰고 공개된 값 4개(시드 비밀번호 · JWT 키 · REST/WS 허용 출처)를 기본값 없는 환경변수로 덮고 `/dev/reset` 을 끈다 ④ postgres 는 메모리(tmpfs) — **매일 재시작으로 시드 상태 복귀** ⑤ AWS 절차(`DEPLOYMENT.md`)는 실사용자 단계용으로 유지 | ① 목적이 실사용자 운영이 아니라 원격 팀원 피드백이라 비용 0 이 우선. 새로 고침 쿠키가 `SameSite=Strict` 라 웹을 다른 주소에 두면 로그인 유지 불가 ② iOS 원격 설치는 QR 을 써도 Apple 개발자 등록(연 $99)이 필요 ③ `demo` 프로파일은 시뮬레이터(`@Profile("local")`)·V14 가 빠지고 영속 DB 라 여러 날에 걸친 시뮬레이터 동작이 검증된 적 없다 — local 은 매일 확인하던 동작 그대로 ④ 시드의 운행 시각이 `now()` 기준이라 하루가 지나면 버스가 멈춘다. 함께 고친 배포 막힘 2건 — Android 출시 빌드 실패(`flutter_secure_storage` 11 이 compileSdk 37 요구) · 학부모 앱이 `https` 서버에도 `ws://` 로 붙던 결함(공용 `wsUrlFromApiBaseUrl` 로 이관) |

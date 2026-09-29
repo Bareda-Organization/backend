@@ -404,3 +404,33 @@ app:
     allowed-origin-patterns: ${WS_ALLOWED_ORIGIN_PATTERNS}
     outbound:
       core-pool-size: 32   # prod 섹션과 같은 근거(BR-168, Ruling 351)
+
+---
+# 스테이징(팀원 체험용 서버) — `local,staging` 두 프로파일을 함께 켠다(docker-compose.staging.yml).
+# local 의 데모 시드·버스 시뮬레이터(DemoRunSimulator)는 그대로 쓰고, 공개 주소에 올라가면 위험해지는
+# local 값만 덮는다. ⚠️ 이 섹션은 local 섹션보다 **뒤**에 있어야 이긴다(한 파일의 프로파일 문서는 뒤가 이긴다).
+# ⚠️ 전부 기본값을 두지 않는다 — 빠뜨리면 저장소에 공개된 값으로 조용히 뜨는 대신 기동 실패가 맞다.
+spring:
+  config:
+    activate:
+      on-profile: staging
+  flyway:
+    placeholders:
+      # local 의 평문 "password" 해시는 공개 저장소에 있다 — 시드 계정 전부가 이 값으로 바뀐다.
+      seedPasswordHash: ${SEED_PASSWORD_HASH}
+jwt:
+  # local 기본 키는 공개돼 있어 그대로 두면 아무 역할의 토큰이나 위조할 수 있다.
+  secret: ${JWT_SECRET}
+app:
+  # DB 초기화는 compose 가 한다(postgres 데이터가 메모리에 있어 재기동 = 시드 상태). LocalFlywayCleanStrategy 는
+  # 데이터소스가 localhost 가 아니면 기동을 막으므로 clean() 을 끈다(docker-compose.app.yml 과 같은 탈출구).
+  flyway-clean:
+    suppressed: true
+  # POST /dev/reset(DB 통째 초기화)은 역할을 가리지 않아 로그인한 팀원 누구나 부를 수 있다 — 공개 주소에서는 끈다.
+  dev-tools:
+    reset:
+      enabled: false
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
+  ws:
+    allowed-origin-patterns: ${WS_ALLOWED_ORIGIN_PATTERNS}

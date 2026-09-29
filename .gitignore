@@ -35,6 +35,10 @@ backend/HELP.md
 !backend/gradle/wrapper/gradle-wrapper.jar
 backend/.env
 
+# 스테이징(집 PC) — 비밀값 파일과 APK 내려받기 폴더(docker-compose.staging.yml)
+/.env
+/downloads/
+
 # 배포 (운영 시크릿 — 커밋 금지)
 # Swagger UI basic auth 계정 파일. 작업 트리에 만들지 않고 EC2 에서 직접 생성한다
 # (절차: docs/infra/DEPLOYMENT.md §2.12). 실수로 만들어졌을 때를 대비해 여기서도 막아 둔다.
