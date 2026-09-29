@@ -943,6 +943,8 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | `next_stop` | object | ○ | 다음 승하차지. **`skipped` 는 건너뛰고 실제 경유지를 반환** |
 | `next_stop.lat` · `next_stop.lng` | number | ● | **외부 내비게이션 앱 콜백용** |
 | `skipped_notice` | string | ○ | "○○ 승하차지는 오늘 미경유" 라인 |
+| `road_path[]` | array | ● | 확정 노선의 **도로 경로** 좌표(`lat`·`lng`, 순서 있음) — 기사 운행 화면 가운데 지도가 그린다. `route_version.road_path` 를 그대로 싣고, 비어 있는 옛 버전이면 빈 배열. 앱은 2점 미만이면 선을 그리지 않고 승하차지 핀만 (2026-09-30 `Ruling 365`) |
+| `fallback_used` | boolean | ● | `true` 면 `road_path` 가 직선거리 근사 — 화면이 "근사 경로" 로 표시(`Ruling 309`) |
 
 미경유는 표시만 — **재최적화 · ETA 재계산 · 경로 안내 부재** (C-05). 주행 판단은 기사.
 
@@ -2038,7 +2040,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 **권한** 학원 관계자 · **메인 관리자**(`Ruling 323`, `R22`, 2026-09-20 사용자 승인 — 전체 관제 화면 §6.8 이 버스를 눌러 노선을 그릴 때 이 조회를 쓴다. 그 전까지 `403 FORBIDDEN` 으로 막혀 기능이 통째로 동작하지 않았다). 학원 격리는 그대로 §1.5 가 판정한다 — 메인 관리자만 타 학원 회차를 통과한다
 
-**응답** — §4.3 과 같은 구조 + `route_version` · `published_at` · `ack{driver, escort}` · `road_path[]` · `fallback_used` · `confirmed`
+**응답** — §4.3 과 같은 구조(`road_path[]` · `fallback_used` 포함 — 2026-09-30 `Ruling 365` 로 §4.3 에도 실림) + `route_version` · `published_at` · `ack{driver, escort}` · `confirmed`
 
 매니저용 §4.3 은 **배치된 회차**로 범위가 한정(§1.5)돼 관계자가 호출하면 `403`. 관계자가 승인 화면·경유 지점 미리보기 **밖에서** 확정 노선을 보는 경로가 필요.
 

@@ -20,11 +20,14 @@ import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 import src.backend.manager.access.ManagerRunAccess;
+import src.backend.routing.domain.GeoPoint;
 import src.backend.routing.entity.ConfirmedRoute;
+import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.entity.RunStop;
 import src.backend.routing.entity.Waypoint;
 import src.backend.routing.query.CurrentRunStopResolver;
 import src.backend.routing.repository.ConfirmedRouteRepository;
+import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.routing.repository.WaypointRepository;
 import src.backend.run.dto.RunRouteResponse;
@@ -60,6 +63,8 @@ public class RunRouteQueryService {
 
     private final AcademyRepository academyRepository;
 
+    private final RouteVersionRepository routeVersionRepository;
+
     /** 매니저가 배치된 회차인지 확인한 뒤 확정 노선을 조립한다(§4.3) — 미확정이면 409. */
     public RunRouteResponse route(AuthUser requester, Long runId) {
         ManagerRunAccess.RunAssignment assigned = managerRunAccess.requireAssignedRun(requester, runId);
@@ -71,7 +76,7 @@ public class RunRouteQueryService {
                 .map(ConfirmedRoute::getCurrentVersionId)
                 .orElse(null);
         if (currentVersionId == null) {
-            return new RunRouteResponse(List.of(), null, null, null);
+            return new RunRouteResponse(List.of(), null, null, null, List.of(), false);
         }
         return buildFromVersion(run, currentVersionId);
     }
@@ -130,7 +135,12 @@ public class RunRouteQueryService {
         RouteStop nextStop = nextRunStop == null ? null
                 : toRouteStop(nextRunStop, stopsById, waypointsById, academy, studentCountsByStopId);
 
-        return new RunRouteResponse(stops, currentStop, nextStop, skippedNotice);
+        // 도로 경로는 버전에 딸린 값이다(Ruling 365) — 버전 행이 없는 이례적 상태면 지도가 핀만 그리도록 빈 목록.
+        RouteVersion version = routeVersionRepository.findById(currentVersionId).orElse(null);
+        List<GeoPoint> roadPath = version == null || version.getRoadPath() == null ? List.of() : version.getRoadPath();
+        boolean fallbackUsed = version != null && version.isFallbackUsed();
+
+        return new RunRouteResponse(stops, currentStop, nextStop, skippedNotice, roadPath, fallbackUsed);
     }
 
     /**

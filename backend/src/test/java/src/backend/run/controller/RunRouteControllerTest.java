@@ -194,6 +194,37 @@ class RunRouteControllerTest {
     }
 
     @Test
+    void Ruling_365_운행_화면_지도용으로_확정_노선의_도로_경로와_근사_여부를_싣는다() throws Exception {
+        // R32 M1 — 기사 운행 화면 가운데 지도가 도로 경로를 그리려면 §4.3 에도 §5.19 와 같은
+        // road_path·fallback_used 가 있어야 한다. 없으면 앱이 정차지를 직선으로 잇게 되고, 직선은
+        // 건물·강을 가로질러 기사가 실제 경로로 오인한다.
+        Phase9RosterFixtures fx = fixtures();
+        long academyId = fx.academyWithCoordinates();
+        long busId = fx.bus(academyId);
+        long stop1 = fx.stop(academyId, "37.500000", "127.000000");
+        long stop2 = fx.stop(academyId, "37.510000", "127.010000");
+        fx.route(academyId, busId, Weekday.FRI, Direction.TO_ACADEMY, stop1, stop2);
+        long student1 = fx.student(academyId, "학생1");
+        long student2 = fx.student(academyId, "학생2");
+        fx.verifiedAddress(student1, stop1, Weekday.FRI, Direction.TO_ACADEMY, "37.500000", "127.000000");
+        fx.verifiedAddress(student2, stop2, Weekday.FRI, Direction.TO_ACADEMY, "37.510000", "127.010000");
+        OffsetDateTime departTime = OffsetDateTime.parse("2031-07-04T08:00:00+09:00");
+        long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY,
+                departTime, departTime.minusMinutes(30));
+        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
+        fx.assign(runId, manager.managerId(), ManagerRole.DRIVER);
+
+        mockMvc.perform(get("/api/v1/runs/" + runId + "/route").header("Authorization",
+                        토큰(manager.accountId(), academyId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.road_path").isArray())
+                .andExpect(jsonPath("$.data.road_path.length()").value(org.hamcrest.Matchers.greaterThan(1)))
+                .andExpect(jsonPath("$.data.road_path[0].lat").isNumber())
+                .andExpect(jsonPath("$.data.road_path[0].lng").isNumber())
+                .andExpect(jsonPath("$.data.fallback_used").isBoolean());
+    }
+
+    @Test
     void BR_015_지나간_경유_지점은_next_stop_에_남지_않는다() throws Exception {
         // 경유 지점은 도착 처리 대상이 아니다 — 그 뒤 승하차지에 도착했으면 경유 지점도 지난 것이다.
         Phase9RosterFixtures fx = fixtures();

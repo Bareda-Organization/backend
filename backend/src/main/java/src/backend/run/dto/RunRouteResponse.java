@@ -3,6 +3,8 @@ package src.backend.run.dto;
 import java.math.BigDecimal;
 import java.util.List;
 
+import src.backend.routing.domain.GeoPoint;
+
 /**
  * 매니저 앱의 실시간 노선(API_SPEC §4.3 {@code GET /runs/{runId}/route}, RUN-03·M-08·M-09,
  * Ruling 205, Phase 9 목표 8) — 확정 노선(정차 순서)에 미승차(③구간) 반영 결과만 얹은 <b>표시용</b>
@@ -17,9 +19,14 @@ import java.util.List;
  *         next_stop} 만은 {@code RunRouteQueryService#hasResolvedTarget} 이 좌표 없는 항목을
  *         건너뛰어 이 필드의 필수 약속을 지킨다
  * @param skippedNotice 다음에 지나칠 미경유 승하차지 안내 한 줄("○○ 승하차지는 오늘 미경유")
+ * @param roadPath 확정 노선의 도로 경로 좌표(순서 있음) — 기사 운행 화면 지도가 그린다(Ruling 365).
+ *                 {@code route_version.road_path} 를 그대로 내고, 비어 있는 옛 버전이면 빈 목록이다.
+ *                 §5.19 {@link StaffRunRouteResponse#roadPath()} 와 같은 이름·모양
+ * @param fallbackUsed {@code true} 면 {@code roadPath} 가 직선거리 근사다 — 화면이 "근사 경로" 를 표시해
+ *                     직선을 실제 경로로 오인하지 않게 한다(Ruling 309)
  */
 public record RunRouteResponse(List<RouteStop> stops, RouteStop currentStop, RouteStop nextStop,
-        String skippedNotice) {
+        String skippedNotice, List<GeoPoint> roadPath, boolean fallbackUsed) {
 
     /**
      * 정차 항목 1건 — 학생 승하차지({@code Stop})든 강제 경유지({@code Waypoint})든 같은 모양으로
