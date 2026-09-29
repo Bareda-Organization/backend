@@ -94,6 +94,11 @@ public class Run extends BaseTimeEntity {
     @Column(name = "canceled_at")
     private OffsetDateTime canceledAt;
 
+    /** 취소를 낸 쪽. 취소 전에는 {@code null} 이고, 출처를 모르는 옛 취소도 {@code null} 이라 되살리지 않는다. */
+    @Convert(converter = RunCancelSource.Db.class)
+    @Column(name = "cancel_source", length = 10)
+    private RunCancelSource cancelSource;
+
     /**
      * 확정 배치가 이 회차에서 연속으로 실패한 횟수(Phase 7 목표 4) — 성공하면 0으로 되돌아간다.
      *
@@ -142,10 +147,18 @@ public class Run extends BaseTimeEntity {
      * 회차에만</b> 표시되어야 하고, 지우면 "오늘은 쉬기로 했다" 와 "회차가 아직 안 만들어졌다" 가
      * 구별되지 않는다. 다음 배치가 지워진 회차를 그대로 다시 만들기까지 한다.
      *
-     * <p>시각을 파라미터로 받는다(횡단 규칙 1) — 호출부가 주입된 {@code Clock} 에서 얻어 넘긴다.
+     * <p>시각을 파라미터로 받는다(횡단 규칙 1) — 호출부가 주입된 {@code Clock} 에서 얻어 넘긴다. 취소 출처를 함께
+     * 기록해, 스케줄이 취소한 회차만 {@link #reinstate} 로 되살릴 수 있게 한다.
      */
-    public void cancel(OffsetDateTime canceledAt) {
+    public void cancel(OffsetDateTime canceledAt, RunCancelSource source) {
         this.canceledAt = canceledAt;
+        this.cancelSource = source;
+    }
+
+    /** 취소를 푼다 — 스케줄 재활성이 스케줄이 취소한 회차를 되살릴 때만 쓴다(Ruling 367 ②). */
+    public void reinstate() {
+        this.canceledAt = null;
+        this.cancelSource = null;
     }
 
     /**

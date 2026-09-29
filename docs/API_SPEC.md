@@ -1779,14 +1779,16 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | 스케줄에서 일어난 일 | 그 회차에 |
 |---|---|
 | 출발 시각 · 차량 · 출발지 · 도착지 · 소요 시간 수정 | 그 값을 옮김. `depart_time` 을 `service_date` 와 합쳐 다시 확정하고 `confirm_at` = 출발 − 30분 재계산 |
-| 비활성 · 삭제 · 요일 또는 방향이 그 회차와 달라짐 | **임시 취소**(`canceled_at` — SCH-03 과 같은 표시, 행 삭제 부재. 이미 붙은 탑승 의사·변경 신청 행이 있을 수 있어서) |
+| 비활성 · 삭제 · 요일 또는 방향이 그 회차와 달라짐 | **임시 취소**(`canceled_at` — SCH-03 과 같은 표시, 행 삭제 부재. 이미 붙은 탑승 의사·변경 신청 행이 있을 수 있어서). 취소 출처 `run.cancel_source = schedule` 을 함께 남김 |
+| 재활성 · 요일/방향 복귀 (그 스케줄이 다시 뒷받침) | 출처가 `schedule` 인 **내일 이후 `idle`** 회차의 취소를 풀고 계획을 다시 옮김(`Ruling 367`). 같은 스케줄·날짜·방향의 살아 있는 회차가 이미 있으면 되살리지 않음 |
 | 등록 · 활성 · 요일/방향 변경 뒤 요일이 내일 | 내일 회차를 만듦(같은 스케줄의 살아 있는 내일 회차가 이미 있으면 만들지 않음) |
 
 - **오늘 회차는 건드리지 않는다** — 확정 배치가 이미 걸려 있을 수 있다. 이미 확정·시작·취소된 회차도 그대로다
-- 비활성 뒤 다시 켜도 그 시각의 취소된 회차는 되살리지 않는다(관계자가 직접 취소한 회차와 구별할 수단이 부재) — 시각이 바뀌었으면 새 회차가 생긴다
+- **관계자가 직접 취소한 회차(`SCH-03`, `cancel_source = staff`)는 스케줄이 어떻게 바뀌어도 되살리지 않는다** — 출처를 모르는 옛 취소(`cancel_source` NULL)도 마찬가지
+- **옮길 자리를 다른 회차(임시 회차 · 다른 스케줄의 회차)가 이미 잡고 있으면 `409 DUPLICATE_RUN`** 이고 스케줄 변경 전체가 되돌려진다(부분 반영 부재 — `Ruling 367`). 취소된 회차가 잡은 자리도 같다(UNIQUE 는 취소 여부를 가리지 않음)
 - 멱등의 근거는 **`run(bus_id, service_date, direction, depart_time)` UNIQUE** 이고 애플리케이션 선검사가 아니다 — 동시 2회 실행은 서로의 미커밋 INSERT 를 보지 못한 채 둘 다 선검사를 지난다
 
-**에러** — `404 SCHEDULE_NOT_FOUND`(`PATCH`·`DELETE` 대상 부재) · `404 BUS_NOT_FOUND`(지정 차량 부재·타 학원) · `409 DUPLICATE_SCHEDULE`(같은 `bus_id`·`weekday`·`direction`·`depart_time` 조합 중복) · `404 RUN_NOT_FOUND`(`DELETE /staff/runs/{id}` 대상 부재 · 타 학원 — 존재 비노출, Ruling 163) · `409 DUPLICATE_RUN`(같은 차량·날짜·방향·출발 시각 회차 중복 추가) — 이상 2026-08-26 신설 (Ruling 153)
+**에러** — `404 SCHEDULE_NOT_FOUND`(`PATCH`·`DELETE` 대상 부재) · `404 BUS_NOT_FOUND`(지정 차량 부재·타 학원) · `409 DUPLICATE_SCHEDULE`(같은 `bus_id`·`weekday`·`direction`·`depart_time` 조합 중복) · `404 RUN_NOT_FOUND`(`DELETE /staff/runs/{id}` 대상 부재 · 타 학원 — 존재 비노출, Ruling 163) · `409 DUPLICATE_RUN`(같은 차량·날짜·방향·출발 시각 회차 중복 추가 · **스케줄 수정이 옮긴 회차의 자리가 다른 회차와 겹침** — `PATCH /staff/schedules/{id}`) — 이상 2026-08-26 신설 (Ruling 153 · `Ruling 367`)
 
 ### 5.11 학생 관리 (STU-01~08, A-10)
 
@@ -2508,7 +2510,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `RUN_NOT_FOUND` | 404 | 존재하지 않는 회차 · 타 학원 — 존재 비노출, Ruling 163 |
 | `RUN_ALREADY_STARTED` | 409 | 이미 `moving` · `finished` 인 회차에 운행 시작 요청 · 임시 취소(§5.10 — 취소는 `idle`·`confirmed` 만) (RUN-02 · §9.3 운행 상태 전이) |
 | `RUN_CANCELED` | 409 | 임시 취소된 회차(§5.10 `canceled_at`)에 운행 시작(§4.4) · 강제 추가(§5.7) · 이동(§5.8). 404 가 아닌 것은 행이 실재하고 관계자 화면에 취소로 보이기 때문 (BR-042) |
-| `DUPLICATE_RUN` | 409 | 같은 차량·날짜·방향·출발 시각의 회차를 **임시 추가**(§5.10 `POST /staff/runs`)로 다시 만들려는 시도. 유일성 근거는 `run(bus_id, service_date, direction, depart_time)` UNIQUE 다. ⚠ **일일 회차 생성 배치(SCH-02)는 이 코드를 내지 않는다** — 배치의 중복 실행은 재기동·수동 재실행이라는 정상 동작이라 오류가 아니라 무시이고, 이미 있는 회차를 조용히 건너뛴다. 같은 제약이 두 경로에서 다르게 읽히는 것이 요점이라 여기 적어 둔다 (2026-08-26 신설, Ruling 153) |
+| `DUPLICATE_RUN` | 409 | 같은 차량·날짜·방향·출발 시각의 회차를 **임시 추가**(§5.10 `POST /staff/runs`)로 다시 만들려는 시도, 또는 **스케줄 수정(§5.10 `PATCH /staff/schedules/{id}`)이 미리 만든 회차를 옮기려는 자리가 이미 다른 회차의 것**인 경우(`Ruling 367`). 유일성 근거는 `run(bus_id, service_date, direction, depart_time)` UNIQUE 다. ⚠ **일일 회차 생성 배치(SCH-02)는 이 코드를 내지 않는다** — 배치의 중복 실행은 재기동·수동 재실행이라는 정상 동작이라 오류가 아니라 무시이고, 이미 있는 회차를 조용히 건너뛴다. 같은 제약이 두 경로에서 다르게 읽히는 것이 요점이라 여기 적어 둔다 (2026-08-26 신설, Ruling 153) |
 | `DUPLICATE_ASSIGNMENT` | 409 | 한 회차의 **같은 역할**을 두 요청이 동시에 채우려 함 — `assignment(run_id, role)` UNIQUE 위반 (§5.14 · MGR-05). 순차 요청은 교체로 처리되므로 이 코드가 나오는 것은 경합뿐이다. ⚠ 근무 시간·중복 배치 충돌과 **다른 축**이다 — 그쪽은 경고이고 저장되지만(MGR-06) 이쪽은 저장 자체가 거부된다 (2026-08-26 신설, Ruling 153) |
 | `RIDER_NOT_FOUND` | 404 | 미존재 탑승자, 또는 `absent` 로 명단에서 제외된 탑승자 지정 |
 | `STOP_NOT_FOUND` | 404 | 해당 회차에 존재하지 않는 승하차지 지정 · 관계자 웹 `stop_id` 지정 시 타 학원 승하차지(존재 비노출, `§5.8`) |

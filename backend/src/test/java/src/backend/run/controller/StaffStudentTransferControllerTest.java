@@ -33,6 +33,7 @@ import src.backend.routing.repository.RouteStopRepository;
 import src.backend.run.command.RunConfirmationFixtures;
 import src.backend.run.command.RunConfirmationService;
 import src.backend.run.entity.RunForcedAddition;
+import src.backend.run.entity.RunCancelSource;
 import src.backend.run.repository.RunForcedAdditionRepository;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.StopRepository;
@@ -301,7 +302,7 @@ class StaffStudentTransferControllerTest {
         long academyId = fixtures().academyWithCoordinates();
         long fromRunId = 회차를_만든다(academyId, fixtures().bus(academyId), 31);
         long toRunId = 회차를_만든다(academyId, fixtures().bus(academyId), 31);
-        runRepository.findById(toRunId).orElseThrow().cancel(OffsetDateTime.now(clock));
+        runRepository.findById(toRunId).orElseThrow().cancel(OffsetDateTime.now(clock), RunCancelSource.STAFF);
         long stopId = fixtures().stop(academyId, "37.560000", "126.970000");
         long studentId = fixtures().student(academyId, "이동학생");
         학생을_회차_명단에_넣는다(fromRunId, studentId);

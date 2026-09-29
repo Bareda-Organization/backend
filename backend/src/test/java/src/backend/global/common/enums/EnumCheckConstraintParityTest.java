@@ -53,6 +53,7 @@ import src.backend.request.entity.ChangeRequestStatus;
 import src.backend.request.entity.ChangeRequestType;
 import src.backend.routing.entity.RouteVersionSource;
 import src.backend.run.entity.DelayReason;
+import src.backend.run.entity.RunCancelSource;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.entity.RunTransferStatus;
 import src.backend.student.entity.Gender;
@@ -157,6 +158,8 @@ class EnumCheckConstraintParityTest {
                         Set.of("ck_verification_code_purpose")),
                 Arguments.of("Gender", dbValuesOf(Gender.class, new Gender.Db()), Set.of("ck_student_gender")),
                 Arguments.of("RunStatus", dbValuesOf(RunStatus.class, new RunStatus.Db()), Set.of("ck_run_status")),
+                Arguments.of("RunCancelSource", dbValuesOf(RunCancelSource.class, new RunCancelSource.Db()),
+                        Set.of("ck_run_cancel_source")),
                 Arguments.of("DelayReason", dbValuesOf(DelayReason.class, new DelayReason.Db()),
                         Set.of("ck_delay_notice_reason")),
                 Arguments.of("RunTransferStatus", dbValuesOf(RunTransferStatus.class, new RunTransferStatus.Db()),

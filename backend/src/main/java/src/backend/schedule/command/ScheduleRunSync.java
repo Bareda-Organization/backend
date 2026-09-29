@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.common.enums.Weekday;
 import src.backend.run.command.RunCommandService;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunCancelSource;
 import src.backend.run.entity.RunDraft;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
@@ -26,6 +27,10 @@ import src.backend.schedule.entity.Schedule;
  *
  * <p>스케줄이 더는 그 회차를 뒷받침하지 않으면(비활성 · 요일 또는 방향이 다름 · 삭제) 행을 지우지 않고 취소 표시한다
  * — 이미 붙은 탑승 의사·변경 신청 행이 있을 수 있어서다. 뒷받침하면 속성을 옮긴다.
+ *
+ * <p>이 취소에는 출처 {@link RunCancelSource#SCHEDULE} 를 남긴다(Ruling 367 ②). 스케줄이 다시 뒷받침하면(재활성 ·
+ * 요일/방향 복귀) 그 출처의 내일 이후 {@code idle} 회차만 취소를 풀고 계획을 다시 옮긴다 — 관계자가 직접 취소한
+ * 회차({@link RunCancelSource#STAFF})는 절대 되살리지 않는다.
  */
 @Component
 @RequiredArgsConstructor
@@ -47,9 +52,10 @@ class ScheduleRunSync {
             if (backs(schedule, run)) {
                 runCommandService.moveToPlan(run, draftOf(schedule, run.getServiceDate()));
             } else {
-                run.cancel(OffsetDateTime.now(clock));
+                run.cancel(OffsetDateTime.now(clock), RunCancelSource.SCHEDULE);
             }
         }
+        reinstateBacked(schedule, today);
         LocalDate tomorrow = today.plusDays(1);
         if (schedule.isActive() && schedule.getWeekday() == Weekday.of(tomorrow)
                 && !runRepository.existsByAcademyIdAndScheduleIdAndServiceDateAndDirectionAndCanceledAtIsNull(
@@ -60,7 +66,27 @@ class ScheduleRunSync {
 
     /** 삭제 전 — 미래 회차를 전부 취소 표시한다(삭제되면 {@code run.schedule_id} 가 비워져 더는 찾을 수 없다). */
     void cancelUpcoming(Schedule schedule) {
-        upcomingIdleRuns(schedule, LocalDate.now(clock)).forEach(run -> run.cancel(OffsetDateTime.now(clock)));
+        upcomingIdleRuns(schedule, LocalDate.now(clock))
+                .forEach(run -> run.cancel(OffsetDateTime.now(clock), RunCancelSource.SCHEDULE));
+    }
+
+    /**
+     * 스케줄이 취소했던 회차 중 <b>지금 다시 뒷받침되는 것</b>의 취소를 풀고 계획을 옮긴다. 같은 스케줄·날짜·방향의
+     * 살아 있는 회차가 이미 있으면 되살리지 않는다(같은 스케줄의 회차가 둘이 된다).
+     */
+    private void reinstateBacked(Schedule schedule, LocalDate today) {
+        for (Run run : runRepository.findAllByAcademyIdAndScheduleIdAndServiceDateAfterAndStatusAndCancelSource(
+                schedule.getAcademyId(), schedule.getId(), today, RunStatus.IDLE, RunCancelSource.SCHEDULE)) {
+            if (backs(schedule, run) && !hasLiveRun(schedule, run)) {
+                run.reinstate();
+                runCommandService.moveToPlan(run, draftOf(schedule, run.getServiceDate()));
+            }
+        }
+    }
+
+    private boolean hasLiveRun(Schedule schedule, Run run) {
+        return runRepository.existsByAcademyIdAndScheduleIdAndServiceDateAndDirectionAndCanceledAtIsNull(
+                schedule.getAcademyId(), schedule.getId(), run.getServiceDate(), run.getDirection());
     }
 
     private List<Run> upcomingIdleRuns(Schedule schedule, LocalDate today) {

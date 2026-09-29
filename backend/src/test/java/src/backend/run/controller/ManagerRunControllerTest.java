@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.jayway.jsonpath.JsonPath;
 
 import src.backend.academy.repository.AcademyRepository;
+import src.backend.run.entity.RunCancelSource;
 import src.backend.account.repository.AccountRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
@@ -172,7 +173,7 @@ class ManagerRunControllerTest {
                 departTime.minusMinutes(30));
         Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.ESCORT, "취소동승자");
         fx.assign(runId, manager.managerId(), ManagerRole.ESCORT);
-        runRepository.findById(runId).orElseThrow().cancel(departTime.minusHours(1));
+        runRepository.findById(runId).orElseThrow().cancel(departTime.minusHours(1), RunCancelSource.STAFF);
 
         MvcResult result = mockMvc
                 .perform(get("/api/v1/manager/runs").param("date", SERVICE_DATE).header("Authorization",

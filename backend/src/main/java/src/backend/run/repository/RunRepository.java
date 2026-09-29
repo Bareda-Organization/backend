@@ -22,6 +22,7 @@ import jakarta.persistence.LockModeType;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunCancelSource;
 import src.backend.run.entity.RunStatus;
 
 /** {@link Run} 영속성 접근 — 조회는 전부 학원으로 좁혀져 호출부가 조건을 빼먹을 자리가 부재하다. */
@@ -168,6 +169,20 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      */
     List<Run> findAllByAcademyIdAndScheduleIdAndServiceDateAfterAndStatusAndCanceledAtIsNull(Long academyId,
             Long scheduleId, LocalDate today, RunStatus status);
+
+    /**
+     * 스케줄이 <b>취소한</b> 오늘 이후 · 주어진 상태 회차 — 스케줄 재활성·요일/방향 복귀 때 되살릴 후보다(Ruling 367 ②).
+     * 관계자가 직접 취소한 회차({@code cancel_source = staff})와 출처를 모르는 옛 취소({@code NULL})는 고르지 않는다.
+     */
+    List<Run> findAllByAcademyIdAndScheduleIdAndServiceDateAfterAndStatusAndCancelSource(Long academyId,
+            Long scheduleId, LocalDate today, RunStatus status, RunCancelSource cancelSource);
+
+    /**
+     * 그 차량·날짜·방향·출발 시각을 <b>다른</b> 회차가 이미 잡고 있는가 — 스케줄 수정이 회차를 옮기기 전에 본다.
+     * 취소된 회차도 센다({@code uk_run_bus_date_direction_depart} 가 취소 여부를 가리지 않는다).
+     */
+    boolean existsByAcademyIdAndBusIdAndServiceDateAndDirectionAndDepartTimeAndIdNot(Long academyId, Long busId,
+            LocalDate serviceDate, Direction direction, OffsetDateTime departTime, Long id);
 
     /**
      * 그 스케줄이 그날 그 방향으로 <b>살아 있는</b>(미취소) 회차를 이미 가졌는가 — 스케줄 수정 뒤 내일 회차를 만들기
