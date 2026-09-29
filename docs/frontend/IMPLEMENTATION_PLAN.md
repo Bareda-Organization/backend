@@ -2303,6 +2303,124 @@ Orca Run `run_a57d9b1df2cf` · 작업 창 전부 `claude-sonnet-5[1m]` `high` ·
 - 조율자 시드 서버 오염 0 — 회차 내내 `:8080` 미기동 · `schoolbus` 테이블 0 유지
 - 화면(브라우저·시뮬레이터) 확인은 사용자 지시로 제외
 
+## 5.9 `R32` 목표 표 — UX 점검 반영 · 매니저 앱 운행 화면 지도 (2026-09-30 계획)
+
+**2026-09-30 화면 3종 UX 점검(코드 읽기 · 51건)을 고치고, 매니저 앱 운행 화면 가운데의 빈 지도 자리를 채우는 라운드.** 사용자 지시 *"ux 개선 진행 · 오케스트레이터 통해서 실행 · 매니저앱에서 특정 회차 들어갈 때 화면 중앙에 지도 … 비워져 있었어"*. 이 절은 계획만 고정 — 코드 미수정. 범위 판정 `Ruling 365`(`docs/IMPLEMENTATION_PLAN.md §8.60`).
+
+| 입력 | 위치 |
+|---|---|
+| 점검 결과 | 점검 기준 `0e1d93fc` · 요약 원장은 조율자 기억(`school-bus-ux-audit-2026-09-30`) — 아래 표가 그 전문을 갈래별로 옮긴 것 |
+| 조율자 재확인 | 매니저 비상 신고 진입 부재(`emergency_screen.dart` 주석 "죽은 라우트") · 학부모 일정 진입이 배지 하나 · 백엔드가 학부모·기사의 웹 로그인을 역할로 막지 않음(토큰 발급 실측) |
+
+- ⚠ **표의 줄 번호는 `0e1d93fc` 기준 인용.** 좌석이 착수 때 심볼 이름으로 다시 찾는다
+- 심각도 — 높음 = 막히거나 되돌릴 수 없는 실수 · 중간 = 헤맴 · 낮음 = 거슬림
+
+### 5.9.1 변경 목록
+
+#### 관계자 웹 — 갈래 `W`
+
+| # | 심각도 | 지금 | 할 일 | 근거(인용) |
+|:-:|:-:|---|---|---|
+| W1 | 높음 | 학부모·학생·기사·동승자 계정이 웹 로그인을 통과해 `/login`↔`/dashboard` 를 오감 | 로그인 응답 역할이 `staff`·`system_admin` 이 아니면 세션을 비우고 "학부모·학생·매니저는 앱을 이용해 주세요" 안내 | `features/auth/lib/navigation.ts:43-57` · `LoginForm.tsx` |
+| W2 | 중간 | 관계자 화면 판정이 `/dashboard` 만 검사 — 메인 관리자가 `/student` 등을 직접 치면 관계자 화면이 열림 | 관계자 경로 전부 나열(관리자 쪽 `ADMIN_PATH_SEGMENTS` 와 같은 방식) | `navigation.ts:51` |
+| W3 | 높음 | 학생·기사·동승자 가입 승인에 학생·매니저 ID 직접 입력 — 목록에 ID 미표시라 사실상 승인 불가 | 이름 검색 → 고르는 목록 | `features/approval/components/SignupDecideDialog.tsx:124-142` |
+| W4 | 중간 | 가입 승인 대화상자 역할이 `student`·`driver` 영문 | 한글 역할명 | `SignupDecideDialog.tsx:121-123` |
+| W5 | 높음 | 실시간 비상 알림이 대시보드 한 줄 — 다른 알림에 덮임 · 유형 영문 · 목록 링크·확인 버튼 부재 · 사이드바 건수 부재 | 관계자 전 화면 팝업(확인 전까지 유지) · 한글 유형 · 비상 목록 링크 · 사이드바 '비상 알림' 건수(`SideNav` badge) | `features/run/components/DashboardPage.tsx:268,280` · `app/(staff)/layout.tsx` |
+| W6 | 높음 | 관계자 비상 목록에 연락처 부재 · 자동 갱신 부재 · 위치가 좌표 숫자 | 관리자 화면의 상세 대화상자·주기 갱신 재사용 · 위치는 지도 링크 | `features/emergency/components/EmergencyList.tsx:76` · 본보기 `admin/components/EmergencyDetailDialog.tsx:39` · `EmergencyAlertsPage.tsx:63` |
+| W7 | 중간 | 변경 승인 상세의 처리 기한이 시각만 — 남은 시간 부재(A-05) | 남은 분·초 | `features/approval/components/ChangeApprovalDetail.tsx:239` |
+| W8 | 중간 | "새로고침 후 다시 확인" 안내에 버튼 부재 · 불러오기 실패에 재시도 부재 | '다시 불러오기' 2곳 | `ChangeApprovalDetail.tsx:212-218,242-243` |
+| W9 | 중간 | 목록 11곳+ 시각이 ISO 원문 | 공용 시각 포맷 1곳 → 열 렌더에 연결(`RunDayList` 방식 참고) | `ScheduleList.tsx:72` · `NotificationList.tsx:92` · `SignupApprovalPage.tsx:64` · `ReportList.tsx:60` · `EmergencyList.tsx:76` · `EmergencyAlertsPage.tsx:79` · `AuditLogPage.tsx:80,89` · `MemberApprovalsPage.tsx:45` · `ForceConfirmPage.tsx:77-78` · `BlockedAccountsPage.tsx:63` · `DashboardPage.tsx:473` · `TodayRunPage.tsx:452` |
+| W10 | 중간 | 목록 13곳이 0건이면 머리글만 · 행이 키보드로 안 열림 | `RosterTable` 한 곳에 빈 목록 문구 + 행 `tabIndex`·Enter | `shared/ui/transit/RosterTable.tsx` |
+| W11 | 중간 | 대시보드 '미탑승 확인 대기 N건' 띠에 처리 화면 링크 부재 | 해당 운행 금일 운행 화면 링크 | `DashboardPage.tsx:386-391` |
+| W12 | 중간 | 학원을 비활성으로 저장하면 확인 없이 소속 전원 차단(UF-O-04 는 인원 확인 창 요구) | 비활성 저장 전 확인 창(인원을 줄 API 가 없으면 경고 문구만 — 보고서에 판단 기록) | `features/admin/components/AcademyFormDialog.tsx` |
+| W13 | 낮음 | 이탈 경고가 노선 편집에만 | 학생 폼·학원 설정에도 `leaveGuard` | `shared/lib/navigation/leaveGuard.ts` |
+| W14 | 낮음 | 가입 대기 화면 불러오기 실패에 버튼 부재 | '다시 시도' | `features/auth/components/SignupStatusPanel.tsx:44,59` |
+| W15 | 낮음 | `USER_FLOWS UF-M-08` 이 `Ruling 325` 로 제거된 A-15 웹 화면을 아직 설명 | 문서 정정 | `docs/USER_FLOWS.md` |
+
+#### 학부모·학생 앱 — 갈래 `P`
+
+| # | 심각도 | 지금 | 할 일 | 근거(인용) |
+|:-:|:-:|---|---|---|
+| P1 | 높음 | 부모 연결 코드 생성(S-05)이 일정 화면에만 있고 학생은 그 화면에 갈 길 부재 | 학생 홈에 '부모 연결 코드' 진입 | `schedule/presentation/schedule_screen.dart:131` · `home/presentation/widgets/pending_change_badge.dart:25-29` |
+| P2 | 높음 | 일정 화면(주간 주소 · 변경 신청) 진입이 '처리 대기 N건' 배지뿐 — 0건이면 진입 불가 | 홈에 항상 보이는 '일정' 진입 | `home/presentation/home_screen.dart:128-144` |
+| P3 | 높음 | 자녀 연결 화면이 자녀 0명일 때만 — 둘째 연결 불가 | 자녀 선택 옆 '자녀 추가' | `home_screen.dart:86-94` |
+| P4 | 높음 | 탑승 스위치가 확인 없이 OFF · 카드 전체가 지도 이동 영역 · 확정까지 남은 시간 부재 | OFF 로 바꿀 때만 확인 · 스위치 줄은 지도 이동 제외 · 남은 시간 | `home/presentation/widgets/run_card.dart:77,95-96,121-126` |
+| P5 | 높음 | 자녀를 바꿔도 주간 주소 입력칸·고른 운행이 이전 자녀 값 유지 → 다른 아이 이름으로 저장 위험 | 두 위젯에 자녀 ID 를 key 로 — **지금 코드의 값 유지를 위젯 시험으로 먼저 봄**(재현 안 되면 `잘못 짚음`) | `schedule/presentation/widgets/weekly_address_editor.dart:36-41` · `change_request_panel.dart:33` |
+| P6 | 중간 | 학생 실시간 지도에 노선 상세 버튼 부재(학부모는 있음) | 학생에게도 표시 | `live_map/presentation/live_map_screen.dart:119-137` |
+| P7 | 중간 | 오류 띠 4곳·연결 끊김 띠에 다시 시도 부재 · 당겨서 새로고침 부재 | 다시 시도 버튼 · 홈 `RefreshIndicator` | `live_map_screen.dart:218-226` · `home_screen.dart:83,137,158,186` |
+| P8 | 중간 | 날짜·시각이 `DateTime` 원문 3곳 | `DateFormat` + `toLocal()` | `run_card.dart:59` · `change_request_panel.dart:82` · `child_link/presentation/child_link_screen.dart:173` |
+| P9 | 중간 | 승인 대기 화면이 상태를 처음 한 번만 조회 | '상태 다시 확인' | `auth/presentation/pending_approval_screen.dart:43-45` |
+| P10 | 중간 | 알림을 누르면 읽음만 — 관련 화면 이동 부재 | 알림 종류별 이동 | `home/presentation/widgets/notification_list.dart:48,52-55` |
+| P11 | 중간 | 주간 주소 빈 목록에 '추가' 부재 | 빈 화면 '추가' | `weekly_address_editor.dart:95-97` |
+| P12 | 중간 | 변경 요청이 오늘 운행만 선택 · 제출 불가 이유 부재 | 사양(P-06 · `UF-P-06`)이 날짜 선택이면 날짜 선택 · 부족한 입력 안내 | `change_request_panel.dart:106-126,180` |
+| P13 | 낮음 | 차단 안내 문구가 학원 관리자·메인 관리자를 섞음 | 문의처 하나로(`UF-X-04` · `Ruling 329`) | `auth/presentation/blocked_screen.dart:31-33` |
+| P14 | 낮음 | 입력 도중 뒤로가기에 확인 부재(`PopScope` 0건) | 주소·변경 요청 입력 화면에만 | — |
+| P15 | 낮음 | 배지에 화면 읽기 설명 부재 | `Semantics(label: '처리 대기 N건')` | `pending_change_badge.dart` |
+
+#### 매니저 앱 — 갈래 `M`
+
+| # | 심각도 | 지금 | 할 일 | 근거(인용) |
+|:-:|:-:|---|---|---|
+| M1 | **사용자 지시** | 운행 화면 가운데가 "지도 자리 — 연동은 다음 라운드" 빈 상자(높이 160) | 확정 노선 도로 경로 + 승하차지 + 현재 버스 위치를 보이는 지도(M-08 · M-09 "노선"). 기존 `route_map_screen.dart` · `core/map/map_surface.dart` · `naver/naver_map_adapter.dart` 재사용 · 도착·종료 대형 버튼이 화면 밖으로 밀리지 않게 | `drive_mode/presentation/drive_mode_screen.dart:255-264` |
+| M2 | 높음 | 비상 신고 화면이 라우트만 있고 진입 버튼 부재(M-15 — 기사·동승자 모두) | 홈·운행·명단 머리말에 항상 보이는 비상 버튼 | `emergency/presentation/emergency_screen.dart:26-29` · `app/router.dart:108` |
+| M3 | 높음 | 종료 보고서(보호자 부재 등)가 기사 운행 화면에서만 — 동승자 보고 불가(M-14 공통) | 명단 화면에 '예외 보고' | `drive_mode_screen.dart:188,337` · `home/presentation/home_screen.dart:146-156` |
+| M4 | 높음 | 노선 변경 확인 띠(M-04 공통)가 명단 화면에만 — 기사는 명단에 못 감 | 운행 화면에도 같은 띠 | `roster/presentation/roster_screen.dart:251-261` |
+| M5 | 높음 | 기사 운행 화면에 다음 승하차지 이름 하나 — 남은 승하차지·명단 부재(M-08 "클릭 → 명단") | 남은 승하차지 목록(조회 전용 — 승하차 처리는 동승자만, M-12) | `drive_mode_screen.dart:319-322` |
+| M6 | 높음 | 운행 시작·도착 처리가 확인 없이 전송 — 마지막 도착 = 운행 종료 | 최소 마지막 승하차지 도착에 확인 창 | `drive_mode_screen.dart:188,310,322` |
+| M7 | 높음 | [미승차]가 [탑승] 옆 · 확인 없이 전송 | 확인 창 또는 짧은 취소 가능 시간 | `roster_screen.dart:320-324,482-490` |
+| M8 | 중간 | 오류 원문 5곳 노출 | 기존 `describeFailure` 재사용 | `home_screen.dart:56` · `drive_mode_screen.dart:280` · `roster_screen.dart:233` · `route_map/presentation/route_map_screen.dart:72` · `offline_queue/presentation/offline_queue_screen.dart:84` |
+| M9 | 중간 | 확정 전 카드가 안 눌리는 이유 부재(M-02 "출발 30분 전 확정" 안내) | "출발 30분 전 확정 후 열림 (HH:mm)" | `home_screen.dart:116-118,137` |
+| M10 | 중간 | '운행 시작 가능 시간(출발 ±10분)이 아닙니다'만 — 가능 시각 부재 | "HH:mm 부터 시작 가능" | `drive_mode_screen.dart:307` |
+| M11 | 중간 | 종료 보고서 메모 필수 표시 부재 · 보호자 부재 대상 빈 목록 이유 부재 · 중복 제출 가능 | 필수 표시 · 빈 목록 안내 · 제출 뒤 버튼 끄기 | `run_end/presentation/run_end_screen.dart:58,180,195` |
+| M12 | 중간 | 미승차 연락 시트 '3분 경과 후에만 선택' 이 글자뿐 · 남은 시간 부재 | 대기 시간 전 선택지 끄기 · 남은 시간(대기 시간은 학원 설정값 — A-17) | `roster_screen.dart:515,591` |
+| M13 | 중간 | 설정·비밀번호 변경 화면 부재(AUTH-07 · `UF-X-09` — 전 역할) | 학부모 앱 비밀번호 변경 화면을 본보기로 추가 | 학부모 앱 `password_change` |
+| M14 | 낮음 | 명단의 '노선 지도' 버튼이 기사 조건이라 동승자에겐 안 보이고 기사는 명단에 안 옴 | 삭제(동승자 지도 화면 부재 — `USER_FLOWS §1`) | `roster_screen.dart:194` |
+| M15 | 낮음 | 운행 중 Android 뒤로가기 확인 부재 | 운행 중에만 확인 | — |
+| M16 | 확인 | 운행 화면에서 뒤로 나간 뒤 위치 송신이 계속되는지 불명 | 코드로 판정 — 끊기면 결함으로 고치고, 계속되면 근거만 보고 | `drive_mode` 위치 송신부 |
+
+### 5.9.2 이번 범위 밖 — `Ruling 365`
+
+| 항목 | 이유 |
+|---|---|
+| 관계자 웹 A-07 수동 조정(버스 간 학생 이동) 화면 | 새 화면 · `§3.3` 미등재 — 범위 판정 필요 |
+| 매니저 앱 외부 내비 연결(M-09 · RUN-08) | 서버 `NavigationController` 는 있으나 카카오내비 호출에 카카오 앱 키 필요(FCM 과 같은 막힘) |
+| 학부모 홈 '설정'·'알림' 배치 · 탑승 스위치 터치 크기 | 화면을 봐야 판정 — 병합 뒤 조율자 화면 확인 |
+
+### 5.9.3 갈래 배정
+
+앱 단위로 가름 — 파일 겹침 0. 동시 3좌석(`§5.5` — 4좌석은 메모리 부족 실측). **`frontend/packages/**` 는 세 갈래 모두 읽기만** — 공유 위젯 변경이 필요하면 앱 안에서 해결하고 보고서에 적음. `docs/` 는 세 갈래 모두 고칠 수 있음(겹치면 병합 때 조율자가 해소).
+
+| 좌석 | 대상 | 항목 | 우선순위 |
+|:-:|---|---|---|
+| `W` | `frontend/apps/academy-web/**` | W1~W15 | 높음(W1·W3·W5·W6) 먼저 |
+| `P` | `frontend/apps/parent-app/**` | P1~P15 | 높음(P1~P5) 먼저 |
+| `M` | `frontend/apps/manager-app/**` | M1~M16 | **M1(사용자 지시) → 높음(M2~M7)** 먼저 |
+
+### 5.9.4 목표 표 — 전항 통과가 완료 조건
+
+- RED ✅ — 고치기 전 실패를 눈으로 보고 실패 문면을 보고서에(`docs/IMPLEMENTATION_PLAN.md §4.6`). 재현이 안 되면 고치지 않고 `잘못 짚음`
+- 좌석은 **단위 시험만** — 실서버 시험은 병합 뒤 조율자(`§5.8.5` 와 같은 규칙)
+- 착수 직후 기준값을 잼 — 마지막 기록 `§5.8.8`(웹 · 학부모 · 매니저 시험 수)
+
+| # | 좌석 | 완료 조건 | 검증 |
+|:-:|:-:|---|---|
+| 1 | `W` | ✅ W1 · W2 | 로그인 응답 역할 `parent` 로 로그인 폼 시험 → 세션 비움 + 안내 문구 · `/student` 경로에서 `system_admin` 세션이면 관리자 쪽으로. 지금 코드의 대시보드 이동을 먼저 봄 |
+| 2 | `W` | ✅ W3 · W4 | 가입 승인 대화상자 — 학생 역할이면 **ID 입력칸 부재 · 이름 검색 목록에서 골라 승인 요청 본문에 그 학생 ID** · 역할 한글 |
+| 3 | `W` | ✅ W5 · W6 | `emergency_raised` 수신 → 대시보드가 아닌 화면에서도 팝업 · 다른 알림 뒤에도 유지 · 사이드바 건수 · 비상 목록 행에 연락처 |
+| 4 | `W` | ✅ W7~W12 각 1건 | 남은 시간 · 다시 불러오기 · 시각 포맷(ISO 원문 부재) · 빈 목록 문구 + Enter 로 행 열기 · 미탑승 띠 링크 · 비활성 저장 전 확인 |
+| 5 | `W` | 정적 분석·시험 | `npx tsc --noEmit` 새 오류 0 · `npm run lint` 0 · `npx vitest run --exclude '**/realBackend.test.ts' --exclude '**/wsRealBackendAuth.test.ts'` 실패 0 |
+| 6 | `P` | ✅ P1~P3 | 학생 홈에 연결 코드 진입 · 학부모 홈에 배지 0건에도 일정 진입 · 자녀 1명 이상에도 '자녀 추가' — 지금 코드의 부재를 먼저 봄 |
+| 7 | `P` | ✅ P4 · P5 | 스위치 OFF → 확인 창 · 취소하면 요청 부재 · 스위치 탭이 지도 이동 안 함 · 자녀 전환 뒤 주소 칸이 새 자녀 값 |
+| 8 | `P` | ✅ P6~P12 각 1건 | 위 표의 할 일 그대로 |
+| 9 | `P` | 정적 분석·시험 | `flutter analyze` 새 지적 0 · `flutter test --exclude-tags real_backend` 실패 0 |
+| 10 | `M` | ✅ **M1** | 운행 화면 위젯 시험 — **"지도 자리" 문구 부재 · 지도 면(가짜 지도 어댑터) 존재 · 승하차지 핀 수 = 노선의 승하차지 수 · 버스 위치 표시.** 지금 코드의 빈 상자를 먼저 봄 |
+| 11 | `M` | ✅ M2~M7 | 비상 버튼 3화면 · 동승자 명단의 예외 보고 · 운행 화면의 변경 확인 띠 · 남은 승하차지 목록 · 마지막 도착 확인 창(취소하면 요청 부재) · 미승차 확인(취소하면 요청 부재) |
+| 12 | `M` | ✅ M8~M15 각 1건 | 위 표의 할 일 그대로 · M16 판정 근거 |
+| 13 | `M` | 정적 분석·시험 | 9번과 같음(매니저 앱) |
+| 14 | 조율자 | **병합 후 단독 전체 실행** — 실패 0 · 건너뜀 0 | 웹 · 학부모 · 매니저 · `baraeda_core` · `baraeda_ui` 단위 + 실서버(전용 포트 · 전용 DB · 주소 명시) |
+| 15 | 조율자 | **화면 확인 — 운행 화면 지도** | 매니저 앱을 시뮬레이터로 띄워 운행 중 회차에 진입 → 지도에 노선·승하차지·버스가 **보이는 것을 눈으로**(검사 초록 ≠ 화면 — `R17~R21` 교훈) |
+| 16 | 조율자 | 시나리오 문서 동기화 | `docs/TEST_SCENARIOS.html` §5 알려진 문제 · 해당 단계의 표시를 고친 만큼 제거 |
+
 ## 6. 완료 조건 — 화면 단위
 
 각 화면은 아래 4개를 전부 통과해야 완료. **"화면이 뜬다" 는 완료가 아님.**
