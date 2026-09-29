@@ -422,14 +422,11 @@ jwt:
   # local 기본 키는 공개돼 있어 그대로 두면 아무 역할의 토큰이나 위조할 수 있다.
   secret: ${JWT_SECRET}
 app:
-  # DB 초기화는 compose 가 한다(postgres 데이터가 메모리에 있어 재기동 = 시드 상태). LocalFlywayCleanStrategy 는
-  # 데이터소스가 localhost 가 아니면 기동을 막으므로 clean() 을 끈다(docker-compose.app.yml 과 같은 탈출구).
+  # 테스트 데이터 초기화(POST /dev/reset · 웹 머리말 버튼 · 백엔드 재시작)가 실제로 DB 를 비우게 한다(Ruling 364).
+  # LocalFlywayCleanStrategy 는 localhost 만 clean() 을 허용하는데 compose 안의 DB 는 컨테이너 이름 `postgres` 로
+  # 불린다 — 그 이름 하나만 더 연다. 부를 수 있는 것은 승인된(active) 계정뿐이다(대기 계정은 상태 게이트가 403).
   flyway-clean:
-    suppressed: true
-  # POST /dev/reset(DB 통째 초기화)은 역할을 가리지 않아 로그인한 팀원 누구나 부를 수 있다 — 공개 주소에서는 끈다.
-  dev-tools:
-    reset:
-      enabled: false
+    extra-allowed-hosts: postgres
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS}
   ws:

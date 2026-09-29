@@ -5784,3 +5784,10 @@ C 는 A 가 고칠 파일을 **읽기만** 하고 고치지 않는다. **`docs/I
 | Ruling | 원장 | 판정 | 근거 |
 |---|---|---|---|
 | 363 | `docs/infra/STAGING.md` · `docker-compose.staging.yml` · `application.yml` staging 섹션 | ① 팀원 체험은 **집 PC 1대 + Cloudflare Tunnel**, 웹도 같은 주소(Vercel 미사용) ② 앱은 **Android 만**, APK 를 서버 `/download/` 에 두고 QR 로 설치 — iOS 제외 ③ 백엔드는 **`local,staging`** — local 의 데모 시드·버스 시뮬레이터를 쓰고 공개된 값 4개(시드 비밀번호 · JWT 키 · REST/WS 허용 출처)를 기본값 없는 환경변수로 덮고 `/dev/reset` 을 끈다 ④ postgres 는 메모리(tmpfs) — **매일 재시작으로 시드 상태 복귀** ⑤ AWS 절차(`DEPLOYMENT.md`)는 실사용자 단계용으로 유지 | ① 목적이 실사용자 운영이 아니라 원격 팀원 피드백이라 비용 0 이 우선. 새로 고침 쿠키가 `SameSite=Strict` 라 웹을 다른 주소에 두면 로그인 유지 불가 ② iOS 원격 설치는 QR 을 써도 Apple 개발자 등록(연 $99)이 필요 ③ `demo` 프로파일은 시뮬레이터(`@Profile("local")`)·V14 가 빠지고 영속 DB 라 여러 날에 걸친 시뮬레이터 동작이 검증된 적 없다 — local 은 매일 확인하던 동작 그대로 ④ 시드의 운행 시각이 `now()` 기준이라 하루가 지나면 버스가 멈춘다. 함께 고친 배포 막힘 2건 — Android 출시 빌드 실패(`flutter_secure_storage` 11 이 compileSdk 37 요구) · 학부모 앱이 `https` 서버에도 `ws://` 로 붙던 결함(공용 `wsUrlFromApiBaseUrl` 로 이관) |
+
+## 8.59 ⚖ 스테이징 테스트 데이터 초기화 — 웹 버튼 `Ruling 364` (2026-09-30 · 사용자 "테스트 환경을 초기화할 수 있게도 하면 좋을 것 같아")
+
+| Ruling | 원장 | 판정 | 근거 |
+|---|---|---|---|
+| 364 | `API_SPEC §11.1` · `docs/infra/STAGING.md §8` · `application.yml` staging 섹션 · `LocalFlywayCleanStrategy` | ① 스테이징에서 `POST /dev/reset` 을 **켠다**(Ruling 363 ③ 의 "끈다" 를 뒤집음) ② `LocalFlywayCleanStrategy` 에 **`app.flyway-clean.extra-allowed-hosts`**(기본 빈 목록) — staging 섹션만 `postgres` 를 연다 ③ 관계자 웹 머리말(관계자·메인 관리자)에 **[테스트 데이터 초기화]** — 빌드 인자 `NEXT_PUBLIC_TEST_DATA_RESET=true` 일 때만(스테이징 compose). 확인 창 → 초기화 → 로그아웃 ④ 백엔드 재시작도 초기화가 된다(기동 시 clean) — 매일 cron 은 `restart backend` 하나 | ① 팀원이 운영자 없이 되풀이 테스트해야 하고, 시드의 승인 대기·운행 시각이 초기화 시각 기준이라 시나리오를 시작하기 직전 초기화가 필요 ② clean() 을 억제한 채 켜면 `migrate()` 만 해 **200 인데 데이터가 그대로**(조용한 성공) — localhost 판정을 약화하지 않고 컨테이너 이름 하나만 명시로 연다. 겹①(`@Profile("local")`)·겹②(`prod`·`demo` 병기 거부)는 그대로. 버린 길 — 백엔드를 postgres 네트워크 공간에 붙여 `localhost` 로 부르기(postgres 재시작 때 백엔드 통신이 끊기는 운영 함정) · 호스트 cron 이 요청 파일을 감시(새 엔드포인트 + 1분 지연) ③ 부를 수 있는 것은 active 계정뿐 — `pending` 은 상태 게이트 `403`, 무토큰 `401`(스테이징 실측). 초기화가 refresh 토큰 행까지 지워 두면 나중에 아무 화면에서나 튕기므로 즉시 로그아웃 |
+

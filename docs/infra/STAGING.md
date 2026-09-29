@@ -8,7 +8,7 @@
 | 공개 | Cloudflare Tunnel — 공유기 포트 개방 부재 · HTTPS 는 Cloudflare 가 처리 |
 | 웹 | 같은 서버·같은 주소(Vercel 미사용 — 새로 고침 쿠키가 `SameSite=Strict` 라 주소가 갈리면 로그인 유지 불가) |
 | 앱 | Android 만 · APK 를 서버의 `/download/` 에 두고 QR 로 설치. iOS 는 제외(원격 설치에 Apple 개발자 등록 필수) |
-| 데이터 | 백엔드 `local,staging` 프로파일 — 데모 시드 + 버스 시뮬레이터. **매일 새벽 시드 상태로 초기화** |
+| 데이터 | 백엔드 `local,staging` 프로파일 — 데모 시드 + 버스 시뮬레이터. **매일 새벽 시드 상태로 초기화** · 팀원이 웹 머리말 **[테스트 데이터 초기화]** 로 언제든 초기화(`Ruling 364`) |
 
 모든 요청은 `https://bus.<도메인>` → Cloudflare → 집 PC 의 `cloudflared` → `proxy`(nginx) → `/api`·`/ws` 는 backend, `/download` 는 APK 폴더, 나머지는 web.
 
@@ -102,17 +102,23 @@ scp build/app/outputs/flutter-apk/app-release.apk <집 PC>:School-Bus/downloads/
 - 파일만 바꾸면 되고 서버 재시작은 필요 없다
 - **QR** — PC Chrome 에서 `https://bus.<도메인>/download/` 을 열고 주소창의 공유 → **QR 코드 만들기**. 팀원은 찍고 → `parent.apk` 또는 `manager.apk` → "출처를 알 수 없는 앱 설치" 허용 → 설치
 
-## 8. 매일 초기화 (필수)
+## 8. 초기화
 
-시드의 운행 시각이 **기동 시각 기준**이라 하루가 지나면 버스가 움직이지 않는다. postgres 데이터가 메모리에 있어 재시작 = 시드 상태.
+시드의 운행 시각이 **초기화 시각 기준**이라 하루가 지나면 버스가 움직이지 않는다. 방법 셋 — 결과는 같다(DB 시드 상태 · 버스 다시 출발).
+
+| 방법 | 누가 | 걸리는 시간 |
+|---|---|---|
+| 관계자 웹 머리말 **[테스트 데이터 초기화]** | 로그인한 팀원 누구나 | 수 초 · 누른 사람은 로그아웃된다 |
+| `docker compose restart backend` | 집 PC 운영자 | 약 20초 접속 불가 |
+| 매일 새벽 자동 (아래 cron) | — | 약 20초 |
 
 ```bash
 crontab -e
-0 5 * * * cd $HOME/School-Bus && docker compose restart postgres redis backend
+0 5 * * * cd $HOME/School-Bus && docker compose restart backend
 ```
 
-- 약 1분간 접속 불가. 팀원이 만든 데이터도 함께 사라진다
-- 낮에 버스를 다시 움직이고 싶을 때도 같은 명령
+- ⚠ **모든 팀원의 데이터가 함께 되돌아간다** — 다른 사람이 테스트 중이면 먼저 알린다
+- 초기화 뒤 앱은 다음 토큰 갱신 때 로그인 화면으로 돌아간다(로그인 유지 토큰이 지워지기 때문 — 결함 아님)
 
 ## 9. 코드 갱신 · 문제 확인
 

@@ -79,6 +79,33 @@ class FlywayCleanStrategyGuardTest {
         verify(flyway, never()).clean();
     }
 
+    @DisplayName("겹③(추가 허용 호스트) — 설정에 명시한 호스트만 localhost 처럼 clean 을 허용하고, 목록 밖 호스트는 여전히 거부한다")
+    @Test
+    void migrateCleansOnlyExplicitlyAllowedExtraHost() {
+        // 스테이징 compose 는 DB 를 `postgres` 라는 컨테이너 이름으로 부른다(docker-compose.staging.yml).
+        // 그 이름을 명시로 열어야 초기화(/dev/reset)가 실제로 DB 를 비운다 — 열지 않으면 거부 예외.
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("local");
+        environment.setProperty("app.flyway-clean.extra-allowed-hosts", "postgres");
+        LocalFlywayCleanStrategy strategy = new LocalFlywayCleanStrategy(environment);
+
+        Flyway allowed = mock(Flyway.class);
+        Configuration allowedConfig = mock(Configuration.class);
+        given(allowed.getConfiguration()).willReturn(allowedConfig);
+        given(allowedConfig.getUrl()).willReturn("jdbc:postgresql://postgres:5432/schoolbus");
+        strategy.migrate(allowed);
+        InOrder order = inOrder(allowed);
+        order.verify(allowed).clean();
+        order.verify(allowed).migrate();
+
+        Flyway other = mock(Flyway.class);
+        Configuration otherConfig = mock(Configuration.class);
+        given(other.getConfiguration()).willReturn(otherConfig);
+        given(otherConfig.getUrl()).willReturn("jdbc:postgresql://prod-db.example.com:5432/schoolbus");
+        assertThatThrownBy(() -> strategy.migrate(other)).isInstanceOf(IllegalStateException.class);
+        verify(other, never()).clean();
+    }
+
     @DisplayName("겹③ — localhost 데이터소스면 clean 을 migrate 보다 먼저 호출한다")
     @Test
     void migrateCleansLocalhostDataSourceInOrder() {

@@ -4,6 +4,8 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
 
 import javax.sql.DataSource;
@@ -39,6 +41,12 @@ public class LocalFlywayCleanStrategy implements FlywayMigrationStrategy {
     private final boolean cleanSuppressed;
 
     /**
+     * 겹③ 에 더하는 허용 호스트 — 기본은 빈 목록. 스테이징 compose 가 DB 를 컨테이너 이름({@code postgres})으로
+     * 부르므로 그 이름만 명시로 연다(Ruling 364). 겹①·② 는 그대로라 {@code prod}·{@code demo} 에는 닿지 않는다.
+     */
+    private final Set<String> allowedHosts;
+
+    /**
      * 겹② — {@code @Profile} 이 실수로 삭제·오탈자가 나도 살아남도록, 활성 프로파일을 여기서
      * 직접 재확인해 위험 프로파일이 섞여 있으면 빈 생성 시점(=컨텍스트 기동 시점)에 실패시킨다.
      */
@@ -50,6 +58,11 @@ public class LocalFlywayCleanStrategy implements FlywayMigrationStrategy {
             }
         }
         this.cleanSuppressed = environment.getProperty("app.flyway-clean.suppressed", Boolean.class, false);
+        String[] extraHosts = environment.getProperty("app.flyway-clean.extra-allowed-hosts", String[].class,
+                new String[0]);
+        Set<String> hosts = new HashSet<>(ALLOWED_CLEAN_HOSTS);
+        hosts.addAll(Arrays.asList(extraHosts));
+        this.allowedHosts = Set.copyOf(hosts);
     }
 
     /**
@@ -105,7 +118,7 @@ public class LocalFlywayCleanStrategy implements FlywayMigrationStrategy {
         String withoutJdbcPrefix = jdbcUrl.startsWith("jdbc:") ? jdbcUrl.substring("jdbc:".length()) : jdbcUrl;
         try {
             String host = new URI(withoutJdbcPrefix).getHost();
-            return host != null && ALLOWED_CLEAN_HOSTS.contains(host);
+            return host != null && allowedHosts.contains(host);
         } catch (URISyntaxException e) {
             return false;
         }

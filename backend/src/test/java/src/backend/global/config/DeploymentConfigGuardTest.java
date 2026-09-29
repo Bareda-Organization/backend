@@ -147,11 +147,11 @@ class DeploymentConfigGuardTest {
     }
 
     @Test
-    @DisplayName("staging 프로파일은 local 의 공개된 값(시드 비밀번호·JWT 키·허용 출처 2종)을 기본값 없이 덮고 /dev/reset 을 끈다")
+    @DisplayName("staging 프로파일은 local 의 공개된 값(시드 비밀번호·JWT 키·허용 출처 2종)을 기본값 없이 덮는다")
     void stagingProfileOverridesPublicLocalValues() {
         // 스테이징은 `local,staging` 으로 켜서 local 의 데모 시드·버스 시뮬레이터를 쓰되 공개 주소에 뜬다.
-        // local 값이 하나라도 새면 시드 "password" 로 PLATFORM_ADMIN 로그인, 공개 JWT 키로 토큰 위조,
-        // POST /dev/reset 으로 DB 통째 초기화가 누구에게나 열린다. 전부 앱은 정상 기동하는 형태다.
+        // local 값이 하나라도 새면 시드 "password" 로 PLATFORM_ADMIN 로그인, 공개 JWT 키로 토큰 위조가
+        // 누구에게나 열린다. 전부 앱은 정상 기동하는 형태다.
         String staging = sectionOf("on-profile: staging");
         assertThat(staging)
                 .as("staging 은 공개된 local 값을 전부 기본값 없는 환경변수로 덮어야 한다")
@@ -163,13 +163,31 @@ class DeploymentConfigGuardTest {
                 .doesNotContain("${JWT_SECRET:")
                 .doesNotContain("${CORS_ALLOWED_ORIGINS:")
                 .doesNotContain("${WS_ALLOWED_ORIGIN_PATTERNS:");
-        assertThat(staging)
-                .as("staging 은 POST /dev/reset 을 꺼야 한다")
-                .contains("  dev-tools:\n    reset:\n      enabled: false");
         // 한 파일의 프로파일 문서는 뒤에 있는 것이 이긴다 — local 보다 앞에 두면 위 값이 전부 local 에 진다.
         assertThat(applicationYml.indexOf("on-profile: staging"))
                 .as("staging 섹션은 local 섹션보다 뒤에 있어야 덮어쓴다")
                 .isGreaterThan(applicationYml.indexOf("on-profile: local"));
+    }
+
+    @Test
+    @DisplayName("Ruling 364 — staging 의 테스트 데이터 초기화는 실제로 DB 를 비운다(clean 억제 부재 · postgres 호스트만 추가 허용)")
+    void stagingResetActuallyCleans() {
+        // clean() 을 억제하면 POST /dev/reset 이 migrate() 만 하고 200 을 돌려준다 — 팀원은 초기화됐다고 믿지만
+        // 데이터는 그대로인, 조용히 성공하는 형태다. 추가 허용 호스트는 스테이징 compose 의 DB 컨테이너 이름 하나뿐이어야 하고
+        // 다른 섹션에는 없어야 한다(prod·demo 는 LocalFlywayCleanStrategy 자체가 막지만 local 개발은 localhost 만 허용).
+        String staging = sectionOf("on-profile: staging");
+        assertThat(staging)
+                .as("staging 은 clean 을 억제하지 않고 초기화를 끄지 않으며, postgres 호스트만 추가로 연다")
+                .doesNotContain("suppressed: true")
+                .doesNotContain("reset:\n      enabled: false")
+                .contains("extra-allowed-hosts: postgres\n");
+        for (String section : applicationYml.split("(?m)^---$")) {
+            if (!section.contains("on-profile: staging")) {
+                assertThat(section)
+                        .as("추가 허용 호스트는 staging 섹션에만 있어야 한다")
+                        .doesNotContain("extra-allowed-hosts");
+            }
+        }
     }
 
     /** `---` 로 구분된 프로파일 문서 중 표식(marker)을 포함한 것을 돌려준다. */

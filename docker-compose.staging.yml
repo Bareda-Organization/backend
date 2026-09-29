@@ -6,10 +6,11 @@
 #   docker compose -f docker-compose.staging.yml up -d --build
 #
 # 개발용(docker-compose.yml + .app.yml)과 다른 점
-#   - 백엔드 프로파일이 `local,staging` — 데모 시드·버스 시뮬레이터는 그대로, 공개된 비밀번호·JWT 키·
-#     /dev/reset 은 staging 섹션이 덮는다(application.yml 맨 끝)
-#   - postgres 데이터가 메모리(tmpfs)에 있다 — 재기동하면 시드 상태로 돌아간다. 시드의 운행 시각이
-#     "기동 시각 기준" 이라 매일 새로 깔아야 버스가 움직인다(문서의 매일 초기화 절)
+#   - 백엔드 프로파일이 `local,staging` — 데모 시드·버스 시뮬레이터는 그대로, 공개된 비밀번호·JWT 키는
+#     staging 섹션이 덮는다(application.yml 맨 끝)
+#   - 테스트 데이터 초기화 3갈래가 전부 시드 상태로 되돌린다(Ruling 364) — 웹 머리말의 [테스트 데이터 초기화]
+#     버튼 · `docker compose restart backend` · 매일 새벽 cron. 시드의 운행 시각이 "초기화 시각 기준" 이라
+#     하루 한 번은 초기화해야 버스가 움직인다(문서의 매일 초기화 절)
 #   - 관측 스택(Grafana·Prometheus) 없음 · 모든 서비스 자동 재시작
 #   - /download/ 에서 APK 를 내려준다(./downloads 폴더)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -23,7 +24,8 @@ services:
       POSTGRES_DB: schoolbus
       POSTGRES_USER: schoolbus
       POSTGRES_PASSWORD: schoolbus
-    # 데이터는 메모리에만 — 컨테이너가 재시작되면 빈 DB 로 뜨고 백엔드 Flyway 가 스키마+시드를 새로 깐다.
+    # 데이터는 메모리에만 — 디스크에 쌓이지 않는다. 초기화 자체는 백엔드가 기동·/dev/reset 때 DB 를 비우고
+    # 스키마+시드를 새로 깐다(staging 섹션이 이 컨테이너 이름 `postgres` 를 비워도 되는 호스트로 연다).
     tmpfs:
       - /var/lib/postgresql/data
     healthcheck:
@@ -74,6 +76,8 @@ services:
       args:
         # 브라우저 번들에 박히는 주소 — 공개 주소 그대로. 바꾸면 web 이미지를 다시 빌드해야 한다.
         NEXT_PUBLIC_API_BASE_URL: ${PUBLIC_URL}
+        # 머리말에 [테스트 데이터 초기화] 버튼을 보인다(Ruling 364). 개발용 compose 에는 없다.
+        NEXT_PUBLIC_TEST_DATA_RESET: "true"
     expose:
       - "3000"
     depends_on:

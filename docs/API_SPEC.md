@@ -2706,3 +2706,5 @@ DB 를 Flyway 시드 상태로 되돌리고 위치 캐시(Redis)를 비운다. S
 | ② | `app.dev-tools.reset.enabled` | `build.gradle` 의 test 태스크가 `false` 로 심어 **테스트 컨텍스트에 미등록**. 이 저장소의 시험은 `local` 프로파일로 돌아 ①만으로는 안 막히고, 열어 두면 전체 실행 도중 공유 DB 가 통째로 지워진다 |
 
 구현 — `global/dev/DevResetController` · `DevResetService`. 미리보기 캐시도 함께 비운다(`ApprovalPreviewCache`).
+
+**팀원 체험용 서버(스테이징)에서도 켜져 있다**(Ruling 364) — `local,staging` 프로파일이라 겹①을 통과하고, compose 안의 DB 는 컨테이너 이름 `postgres` 로 불려 `LocalFlywayCleanStrategy` 의 localhost 판정에 걸리므로 staging 섹션이 `app.flyway-clean.extra-allowed-hosts: postgres` 로 그 이름 하나만 연다. 관계자 웹 머리말의 **[테스트 데이터 초기화]** 버튼이 이 엔드포인트를 부르고 성공하면 로그아웃한다(초기화가 로그인 유지 토큰까지 지운다). `pending` 계정은 상태 게이트가 `403` 으로 막는다(허용 목록에 부재).
