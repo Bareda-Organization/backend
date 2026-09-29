@@ -64,8 +64,6 @@ public class NaverDirectionsGateway {
     /** 온디맨드 전용 격벽 이름(`Ruling 350` — 온디맨드 1칸). 재시도 설정 이름과 문자열은 같지만 별개 축이다. */
     public static final String ON_DEMAND_BULKHEAD_INSTANCE = "mapRouteOnDemand";
 
-    private static final String DRIVING_PATH = "/map-direction-15/v1/driving";
-
     private static final String KEY_ID_HEADER = "x-ncp-apigw-api-key-id";
 
     private static final String KEY_HEADER = "x-ncp-apigw-api-key";
@@ -83,6 +81,9 @@ public class NaverDirectionsGateway {
 
     private final String baseUrl;
 
+    /** Directions 5 · 15 경로 — {@code max-waypoints} 와 짝으로 바꾼다({@code application.yml} 주석). */
+    private final String drivingPath;
+
     private final String keyId;
 
     private final String key;
@@ -94,12 +95,14 @@ public class NaverDirectionsGateway {
      */
     public NaverDirectionsGateway(WebClient.Builder builder,
             @Value("${app.routing.map.naver.base-url}") String baseUrl,
+            @Value("${app.routing.map.naver.driving-path}") String drivingPath,
             @Value("${app.routing.map.naver.key-id:}") String keyId,
             @Value("${app.routing.map.naver.key:}") String key) {
         HttpClient httpClient = HttpClient.create()
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, CONNECT_TIMEOUT_MILLIS);
         this.webClient = builder.clientConnector(new ReactorClientHttpConnector(httpClient)).build();
         this.baseUrl = baseUrl;
+        this.drivingPath = drivingPath;
         this.keyId = keyId;
         this.key = key;
     }
@@ -366,7 +369,7 @@ public class NaverDirectionsGateway {
      */
     private URI drivingUri(List<GeoPoint> segment) {
         UriComponentsBuilder url = UriComponentsBuilder.fromUriString(baseUrl)
-                .path(DRIVING_PATH)
+                .path(drivingPath)
                 .queryParam("start", coordinate(segment.getFirst()))
                 .queryParam("goal", coordinate(segment.getLast()));
         List<GeoPoint> middle = segment.subList(1, segment.size() - 1);

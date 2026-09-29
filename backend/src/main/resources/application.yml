@@ -206,10 +206,14 @@ app:
       # 증상은 "경로가 이상하다" 로만 보인다.
       # 근거 — docs/IMPLEMENTATION_PLAN.md §8.2 할당량 판정(2026-09-13 사용자 확정).
       # 넘으면 어댑터가 구간을 나눠 부르고 결과를 이어 붙인다.
-      max-waypoints: 17
+      # Directions 15 한도가 바닥나면 둘을 짝으로 바꿔 Directions 5 로 돈다(Ruling 361) —
+      # max-waypoints 7(경유지 5 + start/goal) · driving-path /map-direction/v1/driving.
+      # 하나만 바꾸면 5 에 경유지 15개를 보내 문서 밖 동작에 기대게 된다(위 기각 사유와 같다).
+      max-waypoints: ${NAVER_DIRECTIONS_MAX_POINTS:17}
       naver:
         # ⚠️ maps.apigw.ntruss.com 이다 — 구 호스트는 이 자격증명으로 401 을 낸다(지오코딩 주석 참조).
         base-url: https://maps.apigw.ntruss.com
+        driving-path: ${NAVER_DIRECTIONS_PATH:/map-direction-15/v1/driving}
         # NCP 자격증명은 상품별이 아니라 애플리케이션 단위라 지오코딩과 같은 키를 쓴다.
         key-id: ${NAVER_MAPS_KEY_ID:${NAVER_DIRECTIONS_KEY_ID:}}
         key: ${NAVER_MAPS_KEY:${NAVER_DIRECTIONS_KEY:}}
