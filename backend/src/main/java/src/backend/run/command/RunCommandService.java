@@ -100,6 +100,32 @@ public class RunCommandService {
     }
 
     /**
+     * 회차를 만들되 이미 있으면 건너뛴다 — 만들었으면 {@code true}. 스케줄 등록·수정 트랜잭션 <b>안에서</b> 부르는
+     * 경로용이다: {@link #create} 는 중복이면 예외를 던지고, 그 예외는 같은 트랜잭션을 롤백 전용으로 더럽혀
+     * (호출부가 잡아도) 스케줄 변경까지 되돌린다. 그래서 먼저 존재를 본다. 동시 실행이 선검사를 함께 지나는 경우는
+     * UNIQUE 가 막고 {@code DUPLICATE_RUN} 이 나간다(배치와 같은 한계).
+     */
+    public boolean createIfAbsent(RunDraft draft) {
+        if (runRepository.existsByAcademyIdAndBusIdAndServiceDateAndDirectionAndDepartTime(
+                draft.academyId(), draft.busId(), draft.serviceDate(), draft.direction(), departureOf(draft))) {
+            return false;
+        }
+        create(draft);
+        return true;
+    }
+
+    /**
+     * 스케줄이 바뀐 내용을 그 스케줄의 미래 회차 1건에 옮긴다(Ruling 366 ②) — 출발 시각은 {@link #create} 와 같은
+     * 규칙({@code departureOf}, 주입된 {@code Clock} 의 시간대)으로 확정하고 확정 시각을 출발 30분 전으로 다시
+     * 계산한다. 대상 회차가 시작 전(idle)·미취소인지는 호출부가 고른다.
+     */
+    public void moveToPlan(Run run, RunDraft plan) {
+        OffsetDateTime departAt = departureOf(plan);
+        run.moveToPlan(plan.busId(), departAt, RunConfirmationPolicy.confirmAtOf(departAt), plan.originName(),
+                plan.destinationName(), plan.estDurationMin());
+    }
+
+    /**
      * 특정일 회차를 임시로 취소한다(SCH-03, §5.10) — 행을 지우지 않고 {@code canceled_at} 을 채운다.
      *
      * <p>대상이 다른 학원이면 {@code 404 RUN_NOT_FOUND} 다. 운행이 시작된 회차({@code moving}·{@code finished})는

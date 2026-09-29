@@ -42,6 +42,8 @@ public class ScheduleCommandService {
 
     private final BusRepository busRepository;
 
+    private final ScheduleRunSync scheduleRunSync;
+
     /**
      * 스케줄을 등록한다(§5.10) — 소속 학원은 토큰에서만 온다(§1.5).
      *
@@ -52,8 +54,11 @@ public class ScheduleCommandService {
         Bus bus = findOwnBus(requester, request.busId());
         SchedulePlan plan = planOf(request);
         Schedule schedule = Schedule.register(requester.academyId(), plan);
-        return enforcingUniqueSlot(requester.academyId(), plan,
-                () -> ScheduleResponse.of(scheduleRepository.save(schedule), bus.getBusNo()));
+        return enforcingUniqueSlot(requester.academyId(), plan, () -> {
+            Schedule saved = scheduleRepository.save(schedule);
+            scheduleRunSync.reflect(saved);
+            return ScheduleResponse.of(saved, bus.getBusNo());
+        });
     }
 
     /**
@@ -69,6 +74,7 @@ public class ScheduleCommandService {
         boolean movesSlot = schedule.movesSlot(plan);
         Supplier<ScheduleResponse> apply = () -> {
             schedule.update(plan);
+            scheduleRunSync.reflect(schedule);
             return ScheduleResponse.of(schedule, bus.getBusNo());
         };
         return movesSlot ? enforcingUniqueSlot(requester.academyId(), merged(schedule, plan), apply) : apply.get();
@@ -80,10 +86,13 @@ public class ScheduleCommandService {
      *
      * <p>이미 만들어진 회차는 남는다 — {@code fk_run_schedule} 이 {@code ON DELETE SET NULL} 이라
      * {@code run.schedule_id} 만 비워진다. CASCADE 였다면 스케줄 정리 한 번이 과거 운행 기록을 함께
-     * 지운다.
+     * 지운다. 다만 <b>내일 이후 아직 시작 전인 회차는 먼저 취소 표시한다</b>(Ruling 366 ② — 지운 스케줄의 회차가
+     * 운행 대상으로 남지 않게).
      */
     public void delete(AuthUser requester, Long scheduleId) {
-        scheduleRepository.delete(findOwnSchedule(requester, scheduleId));
+        Schedule schedule = findOwnSchedule(requester, scheduleId);
+        scheduleRunSync.cancelUpcoming(schedule);
+        scheduleRepository.delete(schedule);
     }
 
     private Schedule findOwnSchedule(AuthUser requester, Long scheduleId) {

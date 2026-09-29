@@ -148,6 +148,21 @@ public class Run extends BaseTimeEntity {
         this.canceledAt = canceledAt;
     }
 
+    /**
+     * 스케줄 수정을 아직 시작 전인 미래 회차에 옮긴다(Ruling 366 ②) — 차량·출발·확정 시각·출발지·도착지·소요 시간만
+     * 바꾼다. 상태·날짜·방향은 그대로다(방향이 바뀌면 옮기지 않고 취소한다). 확정 시각은 호출부가 출발에서 다시
+     * 계산해 넘긴다({@code ck_run_confirm_at}).
+     */
+    public void moveToPlan(Long busId, OffsetDateTime departTime, OffsetDateTime confirmAt, String originName,
+            String destinationName, Integer estDurationMin) {
+        this.busId = busId;
+        this.departTime = departTime;
+        this.confirmAt = confirmAt;
+        this.originName = originName;
+        this.destinationName = destinationName;
+        this.estDurationMin = estDurationMin;
+    }
+
     /** 이미 취소된 회차인가 — 확정 배치·운행 시작·비상 신고·학생 접근 판정이 이 값으로 제외한다. */
     public boolean isCanceled() {
         return canceledAt != null;
