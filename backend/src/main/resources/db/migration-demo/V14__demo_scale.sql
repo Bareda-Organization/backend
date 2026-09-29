@@ -266,7 +266,7 @@ SELECT 1000 + a, 10 + a, 'staff', 'system_admin', 'accepted', now() - interval '
 FROM demo_academy;
 
 -- ── 구간 변경 승인 ────────────────────────────────────────────────────────────
--- 대기 — 하원 회차마다 2건(승하차지 이동 1 · 탑승 취소 1) = 학원마다 6건. ②구간 요청은 접수될 때 회차당
+-- 대기 — 하원 회차마다 3건(가까운 이동 1 · 먼 이동 1 · 탑승 취소 1) = 학원마다 9건. ②구간 요청은 접수될 때 회차당
 -- 1회 한도를 소비하므로(ChangeRequestStore.applyApprovalRequired) 탑승 의사 행에 소비 흔적을 함께 남긴다 —
 -- 없으면 승인·자동 거절이 되돌릴 한도를 못 찾는다.
 -- 이력 — 등원 회차마다 거절 1 · 자동 거절 1. 승인 이력은 넣지 않는다 — 승인된 이동은 확정 배치가 노선에
@@ -296,6 +296,32 @@ JOIN (VALUES
 ) AS x(n, d, source, type, status, reason, ago) ON x.n = s.n
 JOIN run r ON r.id = 1000 + s.k * 2 + x.d
 JOIN stop st ON st.id = s.stop_id + 1;
+
+-- 먼 이동 — 위 가까운 이동은 바로 옆 승하차지라 승인 화면의 전/후 노선이 거의 같다. 전/후가 크게 갈리는
+-- 사례를 하원 회차마다 1건 둔다(2026-09-29 사용자 요청). 목적지는 같은 학원의 다른 회랑 중 방향이 가장
+-- 먼 쪽의 1번 승하차지(회랑 끝, 학원에서 약 2.8km) — 강·고속도로를 비켜 잡은 회랑이라 우회가 통학 경로로
+-- 보인다. 5번(약 2km)으로 잡았을 때는 "후" 노선이 "전" 노선에서 0.4~2.2km 만 벗어나 몇 건은 지도에서
+-- 차이가 안 보였다 → 1번으로 30건 중 29건이 1.1~2.8km 벗어남(2026-09-29 실측 · 잠실 1호차만 0.4km —
+-- 원래 노선이 이미 그 근처를 지난다).
+-- 13번 학생은 자기 승하차지를 혼자 쓰므로, 승인하면 그 승하차지가 노선에서 빠지는 것까지 함께 보인다.
+INSERT INTO change_request (academy_id, run_id, student_id, requested_by, source, type, new_address, new_lat,
+                             new_lng, new_stop_id, reason, stop_removed, status, window_segment,
+                             requested_at, deadline_at)
+SELECT s.academy_id, r.id, s.id, s.id, 'change_request', 'relocate', st.address, st.lat, st.lng, st.id,
+       '오늘은 학원 반대편 이모 댁에서 하원합니다', false, 'pending', 2,
+       r.depart_time - interval '29 minutes 30 seconds', r.depart_time
+FROM demo_student s
+JOIN demo_bus me ON me.k = s.k
+CROSS JOIN LATERAL (
+    SELECT o.k FROM demo_bus o
+    WHERE o.a = me.a AND o.b <> me.b
+    ORDER BY (o.dlat * me.dlat + o.dlng * me.dlng)
+             / (sqrt(o.dlat * o.dlat + o.dlng * o.dlng) * sqrt(me.dlat * me.dlat + me.dlng * me.dlng))
+    LIMIT 1
+) far
+JOIN run r ON r.id = 1000 + s.k * 2 + 1
+JOIN stop st ON st.id = 10000 + far.k * 15
+WHERE s.n = 13;
 
 INSERT INTO boarding_intent (run_id, student_id, riding, change_used_count)
 SELECT run_id, student_id, true, 1 FROM change_request
