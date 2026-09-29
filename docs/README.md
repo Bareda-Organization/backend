@@ -102,6 +102,7 @@ grep -n '🔸' docs/FEATURE_SPEC.md docs/PRD.md docs/USER_FLOWS.md docs/API_SPEC
 | 문서 | 담는 것 |
 |---|---|
 | **[infra/DEPLOYMENT.md](infra/DEPLOYMENT.md)** | 운영 배포 절차(EC2 1대 + `docker-compose.prod.yml`). 설계 근거는 [archive/specs/2026-08-10-mvp-배포-design.md](archive/specs/2026-08-10-mvp-배포-design.md) |
+| `TEST_SCENARIOS.html` | 팀원 테스트 시나리오(사람용 · git 추적 밖) — 역할 6종 체크리스트 74항목 · 초기화 뒤 시간표 · 알려진 문제 K1~K12. 스테이징 `/download/` 로 배포 |
 | **[infra/STAGING.md](infra/STAGING.md)** | 팀원 체험용 서버 — 집 PC + Cloudflare Tunnel + `docker-compose.staging.yml` · Android APK QR 설치(`Ruling 363`) |
 | `infra/OPERATIONS_PLAN.html` | 운영 계획(사람용 렌더) |
 
