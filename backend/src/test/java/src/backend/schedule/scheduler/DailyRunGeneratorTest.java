@@ -32,8 +32,19 @@ class DailyRunGeneratorTest {
         // KST 2026-09-25 00:05 = UTC 2026-09-24 15:05
         Clock clock = Clock.fixed(Instant.parse("2026-09-24T15:05:00Z"), ZoneId.of("Asia/Seoul"));
 
-        new DailyRunGenerator(service, clock).generateToday();
+        new DailyRunGenerator(service, clock).generateTodayAndTomorrow();
 
         verify(service).generate(LocalDate.of(2026, 9, 25));
+    }
+
+    @Test
+    void 같은_실행이_내일_회차도_만든다() {
+        RunGenerationService service = mock(RunGenerationService.class);
+        // KST 2026-09-25 00:05 → 내일은 2026-09-26. 학부모 "특정 날짜" 변경 신청이 전날에 걸리려면 내일 회차가 있어야 한다(Ruling 366).
+        Clock clock = Clock.fixed(Instant.parse("2026-09-24T15:05:00Z"), ZoneId.of("Asia/Seoul"));
+
+        new DailyRunGenerator(service, clock).generateTodayAndTomorrow();
+
+        verify(service).generate(LocalDate.of(2026, 9, 26));
     }
 }
