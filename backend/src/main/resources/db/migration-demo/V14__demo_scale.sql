@@ -18,6 +18,7 @@
 --   학원 10+a · 관계자 계정 1000+a · 버스 1000+k · 기사 1100+k · 동승자 1200+k · 가입 신청 계정 1300+(a-1)*10+j
 --   승하차지 10000+k*15+(i-1) · 학생·보호자·학부모 계정 20000+g
 --   고정 노선·배차·회차 1000+k*2+d (d: 0=등원, 1=하원)
+--   내일 요일 노선·스케줄 2000+k*2+d (Ruling 367 — 회차 생성이 내일 것을 미리 만들어 둘 근거)
 --
 -- 로그인 아이디 (비밀번호는 V2 와 같다)
 --   관계자 staff01~staff10 · 기사 driver011(학원 01 의 1호차)~ · 동승자 escort011~
@@ -184,7 +185,8 @@ SELECT id, true, true, true, now() FROM demo_student;
 CREATE TEMP TABLE demo_leg ON COMMIT DROP AS
 SELECT b.*, d.d, 1000 + b.k * 2 + d.d AS leg_id,
        CASE d.d WHEN 0 THEN 'to_academy' ELSE 'from_academy' END AS direction,
-       (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from (now() AT TIME ZONE 'Asia/Seoul'))::int + 1] AS weekday
+       (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from (now() AT TIME ZONE 'Asia/Seoul'))::int + 1] AS weekday,
+       (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from (now() AT TIME ZONE 'Asia/Seoul' + interval '1 day'))::int + 1] AS tomorrow_weekday
 FROM demo_bus b CROSS JOIN (VALUES (0), (1)) AS d(d);
 
 INSERT INTO route (id, academy_id, bus_id, weekday, direction, name, active, created_at, updated_at)
@@ -202,6 +204,30 @@ INSERT INTO schedule (id, academy_id, bus_id, weekday, direction, depart_time, o
                        destination_name, est_duration_min, active, created_at, updated_at)
 OVERRIDING SYSTEM VALUE
 SELECT l.leg_id, l.academy_id, l.bus_id, l.weekday, l.direction,
+       CASE l.d WHEN 0 THEN TIME '08:30' ELSE TIME '17:30' END,
+       CASE l.d WHEN 0 THEN l.bus_no || ' 첫 승차지' ELSE l.short || ' 데모학원' END,
+       CASE l.d WHEN 0 THEN l.short || ' 데모학원' ELSE l.bus_no || ' 마지막 하차지' END,
+       40, true, now(), now()
+FROM demo_leg l;
+
+-- 내일 요일 노선·스케줄 — 오늘 요일 것과 같은 버스·방향·출발 시각에 요일만 내일이다(Ruling 367). 회차 생성이 내일 것을
+-- 미리 만들 때(기동 보충 · `/dev/reset`) 데모 학원 30대의 내일 회차가 생기고, 학부모 앱에서 '내일' 변경·탑승 끄기를 시험할 수
+-- 있다. 노선까지 더하는 이유는 명단 미리보기 · 확정 · 변경 승인이 회차의 요일로 고정 노선을 찾기 때문이다 — 노선이 없으면
+-- 회차만 있고 정차지가 없다. 오늘 요일 행과 회차는 그대로다.
+INSERT INTO route (id, academy_id, bus_id, weekday, direction, name, active, created_at, updated_at)
+OVERRIDING SYSTEM VALUE
+SELECT 1000 + leg_id, academy_id, bus_id, tomorrow_weekday, direction,
+       bus_no || CASE d WHEN 0 THEN ' 등원' ELSE ' 하원' END, true, now(), now()
+FROM demo_leg;
+
+INSERT INTO route_stop (route_id, stop_id, seq)
+SELECT 1000 + l.leg_id, 10000 + l.k * 15 + (CASE l.d WHEN 0 THEN i ELSE 16 - i END) - 1, i
+FROM demo_leg l CROSS JOIN generate_series(1, 15) AS i;
+
+INSERT INTO schedule (id, academy_id, bus_id, weekday, direction, depart_time, origin_name,
+                       destination_name, est_duration_min, active, created_at, updated_at)
+OVERRIDING SYSTEM VALUE
+SELECT 1000 + l.leg_id, l.academy_id, l.bus_id, l.tomorrow_weekday, l.direction,
        CASE l.d WHEN 0 THEN TIME '08:30' ELSE TIME '17:30' END,
        CASE l.d WHEN 0 THEN l.bus_no || ' 첫 승차지' ELSE l.short || ' 데모학원' END,
        CASE l.d WHEN 0 THEN l.short || ' 데모학원' ELSE l.bus_no || ' 마지막 하차지' END,
