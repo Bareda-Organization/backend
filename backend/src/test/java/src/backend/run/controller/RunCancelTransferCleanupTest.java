@@ -163,6 +163,10 @@ class RunCancelTransferCleanupTest {
                 .header("Authorization", 토큰(erasable.academyId()))).andExpect(status().isNoContent());
         assertThat(이동_행_수(erasable.transferId())).as("출발 회차 취소는 이동을 지우지 않는다").isEqualTo(1L);
 
+        // 관계자는 확정된 회차도 임시 취소할 수 있다(§5.10) — 취소된 회차는 idle 이 아니어도 판정에서 빠진다.
+        동기화한다();
+        jdbcTemplate.update("UPDATE run SET status = 'confirmed' WHERE id = ?", erasable.fromRunId());
+
         mockMvc.perform(delete("/api/v1/staff/transfers/" + erasable.transferId())
                 .header("Authorization", 토큰(erasable.academyId()))).andExpect(status().isNoContent());
         assertThat(이동_행_수(erasable.transferId())).isZero();
