@@ -1,5 +1,6 @@
 package src.backend.global.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -14,8 +15,13 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 @Configuration
 public class NotificationDispatchConfig {
 
-    /** ponytail: 고정 2개 — 실 푸시 채널(FCM) 응답 시간을 잰 뒤 조정한다. 발송 1건이 연결을 1개만 쥔다. */
-    private static final int THREADS = 2;
+    /**
+     * 기본 스레드 수 8 — 발송 1건은 기기마다 FCM HTTP 를 순차 호출해 대부분 응답 대기라 스레드가 싸고, 건당 DB 연결은
+     * 짧은 SQL 4개뿐이다(R46 D #15). 2개일 때 처리율은 FCM 지연 150ms 기준 약 13건/s 로 10대 동시 출발(약 260건)에
+     * 20초가 걸렸다. 8개면 약 4배다. 연결 풀 20 중 스케줄러 최대 10 · 확정 워커 3 과 겹쳐도 풀이 차면
+     * {@code connection-timeout} 3초 뒤 실패해 그 행이 {@code pending} 으로 남고 워커가 다시 집는다.
+     */
+    private static final int DEFAULT_THREADS = 8;
 
     /** 대기열 상한 — 무한 대기열은 발송 채널이 멈췄을 때 힙을 채운다. 넘치면 워커 재시도로 넘어간다. */
     private static final int QUEUE_CAPACITY = 1000;
@@ -26,10 +32,11 @@ public class NotificationDispatchConfig {
      * 바뀐다(병합 검증에서 {@code WebSocketOutboundPoolSizeTest} 가 7 대신 2 를 보고 드러남).
      */
     @Bean(defaultCandidate = false)
-    public ThreadPoolTaskExecutor notificationDispatchExecutor() {
+    public ThreadPoolTaskExecutor notificationDispatchExecutor(
+            @Value("${app.notification.dispatch.core-pool-size:" + DEFAULT_THREADS + "}") int threads) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(THREADS);
-        executor.setMaxPoolSize(THREADS);
+        executor.setCorePoolSize(threads);
+        executor.setMaxPoolSize(threads);
         executor.setQueueCapacity(QUEUE_CAPACITY);
         executor.setThreadNamePrefix("notification-dispatch-");
         return executor;

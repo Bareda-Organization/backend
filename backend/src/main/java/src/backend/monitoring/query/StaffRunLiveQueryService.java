@@ -9,7 +9,6 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
@@ -41,10 +40,12 @@ import src.backend.student.repository.StopRepository;
  * 사람이 읽는 이름으로 바꾸는 것 ②{@code progress}·{@code delay_minutes} 계산(둘 다 정차 순서
  * 전체를 다시 훑어야 해 정차 항목을 {@link RunOrderedStopsLoader} 로 따로 읽는다 — 중복 조회는
  * {@code RunLiveStateResolver} 자바독이 이미 인정한 트레이드오프다) ③기사·동승자 이름.
+ *
+ * <p>클래스에 {@code @Transactional} 을 두지 않는다 — Redis 좌표 읽기({@code RunPositionStore}, 최대 명령 시간 상한
+ * 500ms)가 트랜잭션 안에 있으면 그 동안 DB 연결을 쥔다(R46 D #13). 저장소 호출마다 짧은 읽기 트랜잭션이 돈다.
  */
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class StaffRunLiveQueryService {
 
     private final RunRepository runRepository;

@@ -179,7 +179,7 @@ class RunPositionFallbackTest {
     /** 회차별 최신 행 조회문(DISTINCT ON)의 누적 실행 횟수 — 문장 원문으로 찾는다. */
     private long 대체_조회_실행_횟수(Statistics statistics) {
         return Arrays.stream(statistics.getQueries())
-                .filter(query -> query.toLowerCase(Locale.ROOT).contains("distinct on"))
+                .filter(query -> query.toLowerCase(Locale.ROOT).contains("join lateral"))
                 .mapToLong(query -> statistics.getQueryStatistics(query).getExecutionCount())
                 .sum();
     }

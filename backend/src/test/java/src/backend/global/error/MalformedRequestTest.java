@@ -51,7 +51,7 @@ class MalformedRequestTest {
 
     @Test
     void 파라미터_제약_위반은_422() throws Exception {
-        expect422(mockMvc.perform(get("/api/v1/staff/stops/search").param("address", " ")
+        expect422(mockMvc.perform(get("/api/v1/staff/stops/suggest").param("query", " ")
                 .header("Authorization", staff())));
     }
 

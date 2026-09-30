@@ -94,17 +94,6 @@ public class ExceptionReportQueryService {
     }
 
     /**
-     * 상세(§5.20 상세).
-     *
-     * @throws BusinessException {@code 404 REPORT_NOT_FOUND}(미존재·다른 학원 소속 둘 다 이 코드)
-     */
-    public StaffReportItemResponse detail(AuthUser requester, Long reportId) {
-        ExceptionReport report = exceptionReportRepository.findByIdAndAcademyId(reportId, requester.academyId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.REPORT_NOT_FOUND));
-        return toItems(List.of(report), requester.academyId()).get(0);
-    }
-
-    /**
      * 보고 목록을 항목으로 조립한다 — 회차·버스·보고자·탑승자·학생을 한 번에 읽어 쿼리 수가 보고 수에 비례하지
      * 않게 한다(BR-228, {@code EmergencyStaffQueryService#list} 와 같은 형태).
      */

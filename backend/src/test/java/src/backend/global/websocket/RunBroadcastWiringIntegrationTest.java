@@ -13,12 +13,19 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
+import org.springframework.messaging.simp.SimpMessageType;
+import org.springframework.messaging.simp.broker.AbstractBrokerMessageHandler;
+import org.springframework.messaging.simp.broker.SimpleBrokerMessageHandler;
+import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -63,6 +70,7 @@ class RunBroadcastWiringIntegrationTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private JwtTokenProvider tokenProvider;
     @MockitoBean private SimpMessagingTemplate messagingTemplate;
+    @Autowired @Qualifier("simpleBrokerMessageHandler") private AbstractBrokerMessageHandler broker;
 
     @Autowired private AcademyRepository academyRepository;
     @Autowired private BusRepository busRepository;
@@ -105,6 +113,8 @@ class RunBroadcastWiringIntegrationTest {
                 .andExpect(status().isOk());
         assertThat(sentEvents()).contains("run_started");
 
+        // 위치 방송은 구독자가 있는 채널에만 나간다(R46 D #6) — 학원 관제 채널에 구독자 1명을 브로커 등록부에 직접 둔다.
+        구독자를_둔다(WebSocketDestinations.academyLive(academyId));
         mockMvc.perform(post("/api/v1/runs/" + runId + "/position").header("Authorization", token(driver, academyId, Role.DRIVER))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"lat\":37.5601,\"lng\":126.9701,\"recorded_at\":\"%s\"}".formatted(OffsetDateTime.now())))
@@ -123,6 +133,20 @@ class RunBroadcastWiringIntegrationTest {
                                 .formatted(UUID.randomUUID(), OffsetDateTime.now())))
                 .andExpect(status().isOk());
         assertThat(sentEvents()).as("마지막 하차가 종료 보류 회차를 끝낸다").contains("rider_changed", "run_ended");
+    }
+
+    @AfterEach
+    void 구독자를_치운다() {
+        ((SimpleBrokerMessageHandler) broker).getSubscriptionRegistry().unregisterAllSubscriptions("wiring-test-session");
+    }
+
+    private void 구독자를_둔다(String destination) {
+        SimpMessageHeaderAccessor headers = SimpMessageHeaderAccessor.create(SimpMessageType.SUBSCRIBE);
+        headers.setSessionId("wiring-test-session");
+        headers.setSubscriptionId("wiring-test-sub");
+        headers.setDestination(destination);
+        ((SimpleBrokerMessageHandler) broker).getSubscriptionRegistry()
+                .registerSubscription(MessageBuilder.createMessage(new byte[0], headers.getMessageHeaders()));
     }
 
     /** 직전 단계 뒤로 나간 방송의 이벤트 이름들 — 읽은 뒤 기록을 비워 단계마다 새로 센다. */

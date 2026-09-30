@@ -78,7 +78,7 @@ public final class AccountStatusGateEndpoints {
      *
      * <p>Phase 11 T3 이 3개를 더했다 — {@code POST /runs/{runId}/reports}(§4.13, 권한 "기사 또는 동승자")는
      * Phase 9 의 운행 중 단말 엔드포인트와 같은 형태로 {@code @PreAuthorize} 없이 서비스 계층이
-     * 인가한다. {@code GET /staff/reports} · {@code GET /staff/reports/{id}}(§5.20, 권한 "학원
+     * 인가한다. {@code GET /staff/reports}(§5.20, 권한 "학원
      * 관계자")는 관계자 관리 화면이라 근거가 앞 Phase 들과 같다.
      *
      * <p>Phase 12 T1 이 2개를 더했다 — {@code GET}·{@code PATCH /me/notification-settings}(§3.14,
@@ -178,9 +178,7 @@ public final class AccountStatusGateEndpoints {
             "POST /staff/routes",
             "GET /staff/routes/{id}",
             "GET /staff/routes/{id}/path",
-            "POST /staff/routes/{id}/stops",
             "PUT /staff/routes/{id}/stops",
-            "GET /staff/stops/search",
             "GET /staff/stops/suggest",
             "PATCH /staff/routes/{id}",
             "DELETE /staff/routes/{id}",
@@ -237,7 +235,6 @@ public final class AccountStatusGateEndpoints {
             // Phase 11 T3 — 현장 예외 보고 등록(§4.13) 기사·동승자 단말 기능 1개 + 관계자 웹 조회(§5.20) 2개.
             "POST /runs/{runId}/reports",
             "GET /staff/reports",
-            "GET /staff/reports/{id}",
             // Phase 12 T1 — 알림 수신 설정 조회·수정(§3.14) 학부모·학생 화면 2개.
             "GET /me/notification-settings",
             "PATCH /me/notification-settings",
