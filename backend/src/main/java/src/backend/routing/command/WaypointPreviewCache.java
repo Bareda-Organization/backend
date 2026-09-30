@@ -1,5 +1,6 @@
 package src.backend.routing.command;
 
+import java.time.LocalDate;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -17,26 +18,36 @@ import src.backend.routing.pipeline.RouteComputation;
  * 규칙이고, 크기가 회차 수로 묶인다.
  *
  * <p>프로세스 메모리에 둔다 — 백엔드 인스턴스가 1개라는 배포 전제({@code InMemoryApprovalPreviewCache} 와 같은 근거).
- * ponytail: 배포되지 않은 미리보기는 지난 회차 것도 남는다 — 회차 수만큼이 상한이라 정리를 두지 않음.
+ * 배포하지 않은 미리보기는 그 회차의 운행일이 지나도 남으므로, 일일 회차 생성 배치가 날짜가 바뀔 때
+ * {@link #evictBefore} 로 지난 날짜 회차의 것을 지운다(R36-BE).
  * 다중 인스턴스가 되면 승인 미리보기 캐시와 함께 Redis 로 옮긴다.
  */
 @Component
 public class WaypointPreviewCache {
 
-    private final Map<Long, WaypointPreview> store = new ConcurrentHashMap<>();
+    private final Map<Long, Entry> store = new ConcurrentHashMap<>();
 
     /** 이 회차에 지금 유효한 미리보기. */
     public Optional<WaypointPreview> find(Long runId) {
-        return Optional.ofNullable(store.get(runId));
+        return Optional.ofNullable(store.get(runId)).map(Entry::preview);
     }
 
-    public void put(Long runId, WaypointPreview preview) {
-        store.put(runId, preview);
+    /** 미리보기를 보관한다 — {@code serviceDate} 는 그 회차의 운행일이고, 지난 날짜 정리({@link #evictBefore})의 기준이다. */
+    public void put(Long runId, LocalDate serviceDate, WaypointPreview preview) {
+        store.put(runId, new Entry(serviceDate, preview));
     }
 
     /** 배포한 미리보기를 지운다 — 같은 토큰으로 두 번 배포되지 않게 한다. */
     public void evict(Long runId) {
         store.remove(runId);
+    }
+
+    /** 운행일이 {@code today} 보다 앞선 회차의 미리보기를 지운다 — 지난 회차는 배포할 수 없어 남겨 둘 이유가 없다. */
+    public void evictBefore(LocalDate today) {
+        store.values().removeIf(entry -> entry.serviceDate().isBefore(today));
+    }
+
+    private record Entry(LocalDate serviceDate, WaypointPreview preview) {
     }
 
     /**

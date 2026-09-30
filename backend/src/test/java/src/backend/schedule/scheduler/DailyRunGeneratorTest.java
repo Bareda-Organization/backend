@@ -12,6 +12,8 @@ import java.time.ZoneId;
 import org.junit.jupiter.api.Test;
 
 import src.backend.global.config.ClockConfig;
+import src.backend.routing.command.WaypointPreviewCache;
+import src.backend.routing.command.WaypointPreviewCache.WaypointPreview;
 import src.backend.schedule.command.RunGenerationService;
 
 /**
@@ -32,7 +34,7 @@ class DailyRunGeneratorTest {
         // KST 2026-09-25 00:05 = UTC 2026-09-24 15:05
         Clock clock = Clock.fixed(Instant.parse("2026-09-24T15:05:00Z"), ZoneId.of("Asia/Seoul"));
 
-        new DailyRunGenerator(service, clock).generateTodayAndTomorrow();
+        new DailyRunGenerator(service, new WaypointPreviewCache(), clock).generateTodayAndTomorrow();
 
         verify(service).generate(LocalDate.of(2026, 9, 25));
     }
@@ -43,8 +45,23 @@ class DailyRunGeneratorTest {
         // KST 2026-09-25 00:05 → 내일은 2026-09-26. 학부모 "특정 날짜" 변경 신청이 전날에 걸리려면 내일 회차가 있어야 한다(Ruling 366).
         Clock clock = Clock.fixed(Instant.parse("2026-09-24T15:05:00Z"), ZoneId.of("Asia/Seoul"));
 
-        new DailyRunGenerator(service, clock).generateTodayAndTomorrow();
+        new DailyRunGenerator(service, new WaypointPreviewCache(), clock).generateTodayAndTomorrow();
 
         verify(service).generate(LocalDate.of(2026, 9, 26));
+    }
+
+    @Test
+    void 같은_실행이_지난_날짜_회차의_경유_지점_미리보기를_정리한다() {
+        RunGenerationService service = mock(RunGenerationService.class);
+        WaypointPreviewCache previewCache = new WaypointPreviewCache();
+        // KST 2026-09-25 00:05 — 어제(09-24) 회차 미리보기는 지워지고 오늘(09-25) 것은 남는다(R36-BE 목표 9).
+        Clock clock = Clock.fixed(Instant.parse("2026-09-24T15:05:00Z"), ZoneId.of("Asia/Seoul"));
+        previewCache.put(1L, LocalDate.of(2026, 9, 24), new WaypointPreview("y", 1L, false, 1, "fp", 1L, null));
+        previewCache.put(2L, LocalDate.of(2026, 9, 25), new WaypointPreview("t", 1L, false, 1, "fp", 1L, null));
+
+        new DailyRunGenerator(service, previewCache, clock).generateTodayAndTomorrow();
+
+        assertThat(previewCache.find(1L)).isEmpty();
+        assertThat(previewCache.find(2L)).isPresent();
     }
 }
