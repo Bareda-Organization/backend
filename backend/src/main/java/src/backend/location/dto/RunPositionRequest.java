@@ -16,7 +16,7 @@ import jakarta.validation.constraints.NotNull;
  * <p>{@code speed}(km/h)·{@code heading}(도) 범위는 저장 컬럼 {@code numeric(5,2)} 와 방위 정의에서 온다 —
  * 밖의 값을 받으면 저장 단계에서 {@code 500} 으로 새므로 입구에서 {@code 422} 로 막는다(BR-115).
  *
- * <p>{@code recorded_at} 은 서버 수신 시각과 5분 넘게 어긋나면 {@code 422} 다(BR-243) — 시각 비교에 서버 시계가 필요해 요청 검증이 아니라 {@code RunPositionCommandService} 가 본다.
+ * <p>{@code recorded_at} 은 서버 수신 시각과 5분 넘게 어긋나면 서버 수신 시각으로 바꿔 저장한다(BR-243, Ruling 379 ②) — 시각 비교에 서버 시계가 필요해 요청 검증이 아니라 {@code RunPositionCommandService} 가 본다.
  */
 public record RunPositionRequest(
         @NotNull @DecimalMin("-90") @DecimalMax("90") BigDecimal lat,
