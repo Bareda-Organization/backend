@@ -53,7 +53,7 @@ public class StaffManagerController {
 
     /** 매니저 목록·검색(MGR-01, §5.13) — 삭제된 매니저는 실리지 않는다. */
     @CanManageManager
-    @Operation(summary = "매니저 관리 — 목록·검색")
+    @Operation(summary = "매니저 관리 — 목록·검색 (MGR-01)")
     @GetMapping
     public ApiResponse<PageResponse<ManagerResponse>> list(@AuthenticationPrincipal AuthUser requester,
             @ModelAttribute ManagerListRequest request) {
@@ -62,7 +62,7 @@ public class StaffManagerController {
 
     /** 매니저 등록(MGR-02, §5.13). */
     @CanManageManager
-    @Operation(summary = "매니저 관리 — 등록")
+    @Operation(summary = "매니저 관리 — 등록 (MGR-02)")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<ManagerResponse> register(@AuthenticationPrincipal AuthUser requester,
@@ -72,7 +72,7 @@ public class StaffManagerController {
 
     /** 매니저 수정(MGR-03, §5.13) — §1.9 대로 변경 후 자원 상태를 그대로 반환한다. */
     @CanManageManager
-    @Operation(summary = "매니저 관리 — 수정")
+    @Operation(summary = "매니저 관리 — 수정 (MGR-03)")
     @PatchMapping("/{id}")
     public ApiResponse<ManagerResponse> update(@AuthenticationPrincipal AuthUser requester, @PathVariable Long id,
             @Valid @RequestBody ManagerUpdateRequest request) {
@@ -81,7 +81,7 @@ public class StaffManagerController {
 
     /** 매니저 삭제(MGR-04, §5.13) — 회차에 배치돼 있으면 {@code 409 MANAGER_ASSIGNED}. */
     @CanManageManager
-    @Operation(summary = "매니저 관리 — 삭제")
+    @Operation(summary = "매니저 관리 — 삭제 (MGR-04)")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@AuthenticationPrincipal AuthUser requester, @PathVariable Long id) {
