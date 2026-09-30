@@ -1849,6 +1849,20 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 **에러** — `404 STUDENT_NOT_FOUND`(`GET` 상세 · `PATCH` · `DELETE` 대상 부재 · 타 학원 — 존재 비노출, Ruling 163)
 
+### 5.11.1 GET /files/photos/{fileName}
+
+학생 사진 파일 (STU-01 `photo` · §4.2 `photo_url`, 2026-09-30 `Ruling 377`). `photo_url` 이 가리키는 파일을 내려준다 — 그전에는 서빙 경로가 없어 링크가 404 였다.
+
+| 항목 | 값 |
+|---|---|
+| 권한 | `STUDENT_READ_PHOTO` 보유 역할(관계자 · 기사 · 동승자 등) **이고** 요청자 학원 = 그 사진 학생의 학원 |
+| 응답 | `200` 이미지 본문(`Content-Type` = 저장 형식) · `Cache-Control: private` |
+| 정적 공개 | 부재 — 사진은 L3(`FEATURE_SPEC §6.3`)라 무인증 정적 경로로 열지 않는다 |
+
+`photo_url` 값은 `/api/v1/files/photos/<파일명>` 이다(앱은 로그인 토큰을 붙여 요청).
+
+**에러** — `404 STUDENT_NOT_FOUND`(파일 부재 · 사진 주인이 타 학원 · 퇴원 학생 — 존재 비노출) · `403 FORBIDDEN`(권한 부재)
+
 ### 5.12 차량 관리 (BUS-01~04, A-11)
 
 | 메서드 · 경로 | 기능 ID | 설명 |
