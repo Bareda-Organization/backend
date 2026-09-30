@@ -68,16 +68,15 @@ class AttendantAutoAssignment {
     }
 
     /**
-     * 그 매니저가 이미 배치된 다른 회차의 시간대. 소요가 비었으면 출발 시각부터 1분으로 본다 — {@link BusyWindow} 는
-     * 빈 구간을 받지 않고, 수동 배치 판정({@code AssignmentConflictDetector#windowEnd})도 소요가 없으면 출발 시각
-     * 한 점으로 접는다.
+     * 그 매니저가 이미 배치된 다른 회차의 시간대. 소요가 비었으면 출발 시각 한 점으로 본다 — 수동 배치 판정
+     * ({@code AssignmentConflictDetector#windowEnd})과 같은 접기 규칙이다.
      */
     private List<BusyWindow> busyWindowsOf(Run run, Long managerId) {
         // 운행일 전후 하루만 본다 — 수동 배치 판정(AssignmentConflictDetector, BR-088)과 같은 범위.
         return assignmentRepository.findManagerRunWindows(run.getAcademyId(), managerId, run.getId(),
                         run.getServiceDate().minusDays(1), run.getServiceDate().plusDays(1)).stream()
                 .map(window -> new BusyWindow(window.departTime(), window.departTime().plusMinutes(
-                        Math.max(1, window.estDurationMin() == null ? 0 : window.estDurationMin()))))
+                        window.estDurationMin() == null ? 0 : window.estDurationMin())))
                 .toList();
     }
 }
