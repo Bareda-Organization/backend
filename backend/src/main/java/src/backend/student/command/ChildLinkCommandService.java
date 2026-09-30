@@ -60,6 +60,9 @@ public class ChildLinkCommandService {
     /** 코드 자릿수 — {@code link_code.code} 가 {@code varchar(10)} 이고 학생이 불러 주는 값이다. */
     private static final int CODE_LENGTH = 6;
 
+    /** 발급 때 학원 안 살아 있는 코드와 겹치면 다시 뽑는 최대 횟수(BR-215). */
+    private static final int MAX_CODE_DRAWS = 10;
+
     /**
      * 보호자 한 명이 {@link #CODE_VALIDITY_MINUTES} 창 안에 코드를 넣을 수 있는 횟수(BR-024).
      *
@@ -102,6 +105,10 @@ public class ChildLinkCommandService {
      *
      * <p>학생 레코드가 없는 계정(기사·학부모 등)과 퇴원한 학생은 {@code 403 FORBIDDEN} 이다 — 퇴원생의
      * 코드는 어차피 연결되지 않는다(BR-122).
+     *
+     * <p>다시 발급하면 <b>이전 코드는 그 자리에서 만료</b>된다 — 화면에는 가장 나중 코드가 떠 있다. 새 코드는 학원 안에서
+     * 살아 있는 다른 코드와 겹치지 않게 뽑아, 입력 쪽 "후보가 둘이면 거부"({@link #usableCode})가 정상 사용에서
+     * 발동하지 않게 한다(BR-215).
      */
     public LinkCodeIssueResponse issueCode(AuthUser requester) {
         Student student = studentRepository.findByAccountId(requester.accountId())
@@ -109,8 +116,11 @@ public class ChildLinkCommandService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN));
         OffsetDateTime now = OffsetDateTime.now(clock);
 
-        LinkCode saved = linkCodeRepository.save(LinkCode.forStudent(student.getId(), generateCode(),
-                now.plusMinutes(CODE_VALIDITY_MINUTES), now));
+        // 앞선 코드를 무효로 만들어 학생 한 명의 살아 있는 코드를 1개로 묶는다 — 반복 발급으로 학원의 6자리 공간을
+        // 채워 다른 학생의 코드를 충돌시키는 길을 막는다(BR-215).
+        linkCodeRepository.expireLiveCodes(student.getId(), student.getAcademyId(), now, now.minusSeconds(1));
+        LinkCode saved = linkCodeRepository.save(LinkCode.forStudent(student.getId(),
+                generateUnusedCode(student.getAcademyId(), now), now.plusMinutes(CODE_VALIDITY_MINUTES), now));
         return LinkCodeIssueResponse.from(saved);
     }
 
@@ -200,6 +210,20 @@ public class ChildLinkCommandService {
         if (guardianStudentRepository.existsByGuardianIdAndStudentId(guardian.getId(), studentId)) {
             throw new BusinessException(ErrorCode.ALREADY_LINKED);
         }
+    }
+
+    /** 그 학원 안에서 지금 쓸 수 있는 코드와 겹치지 않는 6자리 — 겹치면 다시 뽑는다. */
+    private String generateUnusedCode(Long academyId, OffsetDateTime now) {
+        for (int draw = 0; draw < MAX_CODE_DRAWS; draw++) {
+            String code = generateCode();
+            boolean taken = linkCodeRepository.findByCodeForAcademy(code, academyId).stream()
+                    .anyMatch(existing -> existing.isUsable(now));
+            if (!taken) {
+                return code;
+            }
+        }
+        // 학원당 살아 있는 코드는 학생 수 이하라 10번 연속 겹칠 수 없다 — 도달하면 코드 공간이 아닌 다른 결함이다.
+        throw new IllegalStateException("연결 코드를 " + MAX_CODE_DRAWS + "번 뽑아도 학원 안에서 겹친다");
     }
 
     private String generateCode() {
