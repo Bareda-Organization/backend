@@ -2641,7 +2641,7 @@ Run `run_d7daf69b57f8` · 4갈래 병합 B `7f781ccc` · W `827250d1` · P `065e
 | 1 | 관계자 웹 · 금일 운행 상세 | `TodayRunPage.tsx` → `buildRouteDisplayState`(`features/map/routeDisplayState.ts`) | `GET /staff/runs/{id}/route`(§5.19) `stops[]` | ✅ `is_waypoint`(신설 `Ruling 400`) · `change=skipped` |
 | 2 | 관계자 웹 · 운행 관리(대시보드) | `DashboardPage.tsx` → 같은 `buildRouteDisplayState` | 같음 | ✅ 같음 |
 | 3 | 관계자 웹 · 전체 관제 | `MonitoringPage.tsx` → 같은 `buildRouteDisplayState` | 같음 | ✅ 같음 |
-| 4 | 관계자 웹 · 구간 변경 승인 미리보기 | `ChangeApprovalDetail.tsx` `stopsToMarkers` | `GET /staff/change-approvals/{id}` `route_preview.stops_before/after`(§5.5) | ❌ 경유 지점은 좌표가 `null` 이라 **마커를 못 그린다**(`API_SPEC §5.5`·기존 코드가 건너뜀) — `Ruling 402` |
+| 4 | 관계자 웹 · 구간 변경 승인 미리보기 | `ChangeApprovalDetail.tsx` `stopsToMarkers` | `GET /staff/approvals/{id}` `route_preview.stops_before/after`(§5.5) | ❌ 경유 지점은 좌표가 `null` 이라 **마커를 못 그린다**(`API_SPEC §5.5`·기존 코드가 건너뜀) — `Ruling 402` |
 | 5 | 관계자 웹 · 고정 노선 편성 | `RouteMapPanel.tsx` | `GET /staff/routes/{id}`(§5.9) | 해당 없음 — 회차 아닌 고정 노선이라 경유 지점·미경유가 없다 |
 | 6 | 매니저 앱 · 운행 화면 가운데 지도 + 노선 지도 화면 | `route_map_view.dart` `RouteMapView`(둘이 공유) → `MapSurface` | `GET /runs/{id}/route`(§4.3) `stops[]` | ✅ `is_waypoint` · `change=skipped` |
 | 7 | 학부모·학생 앱 · 버스 위치 지도 | `live_map_screen.dart` — **버스 마커 하나뿐**(승하차지·경유 지점을 안 그린다) | `GET /students/{id}/bus-position`(§3.11) | 해당 없음 — 그릴 정차 마커가 없다. 정차 마커를 새로 그리는 것은 이 회차 범위 밖 |
