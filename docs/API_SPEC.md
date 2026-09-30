@@ -1392,6 +1392,8 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 **에러** — `404 RUN_NOT_FOUND`(존재하지 않는 회차) · `403 ACADEMY_SCOPE_VIOLATION`(타 학원 회차 — `§1.5`, 2026-09-03 X-08 해소 · Ruling 240). 확정 전(`idle`) 회차도 조회 가능 — 진입 차단은 매니저 앱 전용 (M-02)
 
+**확정 전(`idle`) 회차는 예정 명단이다**(2026-09-30 R35 `Ruling 368`) — `run_rider` 는 확정이 채우므로 그 전에는 비어 있다. `§5.8` 이동의 `STUDENT_NOT_IN_RUN` 판정과 확정 배치가 쓰는 계산(요일별 주소 학생 − ①구간 탑승 OFF + 강제 추가 − 출발 이동 + 도착 이동)을 **그대로 읽어** 행을 준다. 행 모양은 같고 `status=waiting` · `change` 는 `null` 이다. 탑승 OFF 학생과 출발 이동 대기(`staged`) 학생은 **넣지 않는다** — 방금 옮긴 학생이 출발 명단에 그대로 보이면 관계자가 다시 옮기려다 `TRANSFER_ALREADY_STAGED` 를 받는다. 도착 회차에는 이동 대기 학생이 들어온다. 확정 뒤(`confirmed`·`moving`·`finished`) 응답은 `run_rider` 그대로이고 바뀌지 않는다.
+
 ### 5.5 GET /staff/approvals · GET /staff/approvals/{id}
 
 30분 안쪽 변경 승인 대기 목록·상세 (REQ-04·05, A-05). 접수 시 푸시 통지.

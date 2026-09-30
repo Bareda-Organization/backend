@@ -41,6 +41,8 @@ import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
+import src.backend.run.roster.ProjectedRoster;
+import src.backend.run.roster.ProjectedRosterReader;
 import src.backend.student.entity.Stop;
 import src.backend.student.entity.Student;
 import src.backend.student.repository.GuardianPhone;
@@ -86,6 +88,8 @@ public class RosterQueryService {
     private final AuditRecorder auditRecorder;
 
     private final NoShowCaseRepository noShowCaseRepository;
+
+    private final ProjectedRosterReader projectedRosterReader;
 
     /**
      * 매니저 앱의 승하차지별 명단(§4.2) — 확정 전(idle) 회차는 {@code 409 RUN_NOT_CONFIRMED}(명단이
@@ -170,18 +174,53 @@ public class RosterQueryService {
         Run run = runRepository.findById(runId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
         AcademyScope.assertAccessible(requester, run.getAcademyId());
+        List<StaffRosterItemResponse> items = run.getStatus() == RunStatus.IDLE
+                ? plannedStaffItems(requester, run)
+                : confirmedStaffItems(requester, run);
+        recordStaffRosterAudit(requester, run, items);
+        return items;
+    }
+
+    /** 확정 뒤 회차의 명단 — {@code run_rider} 원본 그대로다. */
+    private List<StaffRosterItemResponse> confirmedStaffItems(AuthUser requester, Run run) {
         List<RunRider> riders = runRiderRepository.findAllByRunIdAndAcademyId(run.getId(), requester.academyId());
         Map<Long, Student> studentsById = studentsOf(requester, riders);
         Map<Long, String> rawPhonesById = rawPhonesOf(requester, studentsById.keySet());
         List<Long> stopIds = riders.stream().map(RunRider::getStopId).distinct().toList();
         Map<Long, Stop> stopsById = stopRepository.findAllByAcademyIdAndIdIn(requester.academyId(), stopIds).stream()
                 .collect(Collectors.toMap(Stop::getId, stop -> stop));
-        List<StaffRosterItemResponse> items = riders.stream()
+        return riders.stream()
                 .map(rider -> toStaffItem(rider, studentsById.get(rider.getStudentId()), stopsById.get(rider.getStopId()),
                         rawPhonesById.get(rider.getStudentId())))
                 .toList();
-        recordStaffRosterAudit(requester, run, items);
-        return items;
+    }
+
+    /**
+     * 확정 전(idle) 회차의 예정 명단 — {@code run_rider} 는 확정이 채우므로 아직 비어 있다. 확정 배치와
+     * §5.8 이동 판정이 쓰는 {@link ProjectedRosterReader} 규칙을 그대로 읽는다(요일별 주소 − 탑승 OFF +
+     * 강제 추가 − 출발 이동 + 도착 이동) — 명단 표시용 계산을 따로 두면 화면에 보이는 학생과 이동 판정이
+     * 어긋난다. 탑승 OFF·출발 이동으로 빠진 학생은 넣지 않고, 행은 {@code status=waiting} · {@code change}
+     * 부재다.
+     */
+    private List<StaffRosterItemResponse> plannedStaffItems(AuthUser requester, Run run) {
+        ProjectedRoster planned = projectedRosterReader.read(run);
+        Map<Long, Student> studentsById = studentRepository
+                .findAllByAcademyIdAndIdIn(requester.academyId(), planned.studentIds()).stream()
+                .collect(Collectors.toMap(Student::getId, student -> student));
+        Map<Long, String> rawPhonesById = rawPhonesOf(requester, studentsById.keySet());
+        Map<Long, Stop> stopsById = stopRepository
+                .findAllByAcademyIdAndIdIn(requester.academyId(), planned.studentStops().values().stream().distinct().toList())
+                .stream().collect(Collectors.toMap(Stop::getId, stop -> stop));
+        return planned.studentIds().stream()
+                .filter(studentsById::containsKey)
+                .map(studentId -> {
+                    Student student = studentsById.get(studentId);
+                    Stop stop = stopsById.get(planned.studentStops().get(studentId));
+                    return new StaffRosterItemResponse(studentId, student.getName(), student.getClassName(),
+                            stop == null ? null : stop.getName(), rawPhonesById.get(studentId), null,
+                            lower(RiderStatus.WAITING.name()), student.getNote());
+                })
+                .toList();
     }
 
     /**
