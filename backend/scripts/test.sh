@@ -14,12 +14,17 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-export PATH="/Applications/Code/Docker.app/Contents/Resources/bin:$PATH"
-PG_CONTAINER="${PG_CONTAINER:-school-bus-postgres-1}"
+# docker 는 PATH 에서 찾고, 없을 때만 이 기계의 설치 위치를 시도한다(다른 기계·다른 설치 경로에서도 돈다).
+command -v docker >/dev/null 2>&1 || export PATH="/Applications/Code/Docker.app/Contents/Resources/bin:$PATH"
+command -v docker >/dev/null 2>&1 || { echo "docker 를 찾을 수 없다 — Docker 를 설치·실행하라"; exit 2; }
+
+# postgres 컨테이너는 이름이 아니라 개발 인프라가 내는 포트(15432)로 찾는다 — 저장소 폴더 이름이 다른 클론·
+# 워크트리에서는 compose 프로젝트 이름이 달라 `school-bus-postgres-1` 이 아니다. PG_CONTAINER 로 직접 지정도 된다.
+PG_CONTAINER="${PG_CONTAINER:-$(docker ps --filter publish=15432 --format '{{.Names}}' | head -n 1)}"
 PG_USER="${PG_USER:-schoolbus}"
 
-docker exec "$PG_CONTAINER" true 2>/dev/null || {
-  echo "postgres 컨테이너($PG_CONTAINER)가 없다 — 먼저 인프라를 띄워라:"
+[ -n "$PG_CONTAINER" ] && docker exec "$PG_CONTAINER" true 2>/dev/null || {
+  echo "postgres 컨테이너(포트 15432)가 없다 — 먼저 인프라를 띄워라:"
   echo "  docker compose up -d postgres redis"
   exit 2
 }
