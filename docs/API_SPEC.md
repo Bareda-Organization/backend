@@ -2406,6 +2406,8 @@ O-04 · SYS-01·02. 정본 API명세서에 경로 미기재 — 감사 로그 �
 | `GET /admin/audit-logs` | SYS-01 | `actor` · `action`(`read` · `update` · `delete`) · `target_type` · `target_id` · `academy_name` · `occurred_at` |
 | `GET /admin/login-history` | SYS-02 | `account_id` · `login_id` · `result`(`success` · `fail`) · `ip` · `occurred_at` · `block_event` |
 
+**`block_event` 행의 `account_id` · `login_id`** — 차단(`block`) 행은 차단된 계정(행위자와 같다), **해제(`unblock`) 행은 해제된 계정**이다(BR-219 — 계정별 이력이 끊기지 않게). 해제한 관리자는 `audit_log.actor_account_id` 와 해제 응답의 `unblocked_by`(§6.12)가 갖는다 — 이 목록의 행이 싣지 않는다. `account_id` 필터도 같은 뜻 — 해제된 계정의 해제 행이 걸리고, 해제한 관리자의 필터에는 걸리지 않는다.
+
 쿼리 파라미터 — `academy_id` · `account_id` · `from` · `to` · 페이징.
 
 **에러** — `404 ACADEMY_NOT_FOUND`(`academy_id` 필터가 미등록 학원) · `404 ACCOUNT_NOT_FOUND`(`account_id` 필터가 미등록 계정)

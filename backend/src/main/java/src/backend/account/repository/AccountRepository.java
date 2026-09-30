@@ -91,7 +91,7 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     @AcademyScopeExempt(reason = "§6.4 메인 관리자 콘솔의 전 학원 조회(ARCHITECTURE §6.2 격리 예외) — 한 페이지에 여러 학원이 "
             + "섞여 좁힐 학원이 부재. 호출부가 이미 학원 범위로 확인된 조회가 돌려준 account_id 만 넘긴다는 전제 "
             + "(승인 큐 조회의 account_id, 또는 emergency_alert.acked_by — 후자는 토큰의 accountId 로만 채워져 "
-            + "요청 파라미터가 아니다) — 요청 파라미터의 식별자를 직접 넘기면 임의 계정의 연락처를 읽는 통로가 된다")
+            + "요청 파라미터가 아니다, 또는 §6.13 접속 이력 해제 행의 target_id — 감사 행에서 읽은 값) — 요청 파라미터의 식별자를 직접 넘기면 임의 계정의 연락처를 읽는 통로가 된다")
     List<Account> findAllByIdIn(Collection<Long> ids);
 
     /**
