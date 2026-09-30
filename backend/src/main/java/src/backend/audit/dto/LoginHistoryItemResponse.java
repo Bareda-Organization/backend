@@ -17,7 +17,9 @@ import java.time.OffsetDateTime;
  * @param loginId   {@code AuditLog.actorLoginId} 스냅샷 — 계정이 없어도 시도된 문자열이 남는다
  * @param result    {@code success}·{@code fail} 중 하나. {@code block}·{@code unblock} 행은
  *                  결과 축이 아니라 {@code blockEvent} 축이라 {@code null}
+ * @param blockAction {@code block}·{@code unblock} — 차단 행과 해제 행을 가른다({@code blockEvent} 는 둘 다 true,
+ *                   {@code Ruling 394}). 그 밖의 행은 {@code null}
  */
 public record LoginHistoryItemResponse(Long accountId, String loginId, String result, String ip,
-        OffsetDateTime occurredAt, boolean blockEvent) {
+        OffsetDateTime occurredAt, boolean blockEvent, String blockAction) {
 }

@@ -14,7 +14,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 
+import src.backend.academy.entity.Academy;
 import src.backend.academy.entity.StaffStatus;
+import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
@@ -77,6 +79,8 @@ public class EmergencyCommandService {
     private final ManagerRepository managerRepository;
 
     private final AcademyStaffRepository academyStaffRepository;
+
+    private final AcademyRepository academyRepository;
 
     private final AccountRepository accountRepository;
 
@@ -141,7 +145,8 @@ public class EmergencyCommandService {
                 raiser == null ? null : raiser.getPhone());
         EmergencyRaisedEvent.Position position = new EmergencyRaisedEvent.Position(alert.getLat(), alert.getLng());
 
-        eventPublisher.publishEvent(new EmergencyRaisedEvent(alert.getId(), requester.academyId(), runId,
+        String academyName = academyRepository.findById(requester.academyId()).map(Academy::getName).orElse(null);
+        eventPublisher.publishEvent(new EmergencyRaisedEvent(alert.getId(), requester.academyId(), academyName, runId,
                 bus.getBusNo(), type, raisedBy, position, alert.getRiderCount(), now));
 
         return new EmergencyRaiseResponse(String.valueOf(alert.getId()), now, alert.cancelableUntil(),

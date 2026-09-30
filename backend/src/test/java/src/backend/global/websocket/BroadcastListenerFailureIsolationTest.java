@@ -89,7 +89,7 @@ class BroadcastListenerFailureIsolationTest {
                 call("rider_changed(no_show)", () -> rider.broadcast(
                         new RiderMarkedNoShowEvent(1L, 1L, 2L, 3L, 4L, 5L, false, AT))),
                 call("approval_requested", () -> approval.broadcast(new ApprovalRequestedEvent(1L, 1L, 1L, 2L, AT))),
-                call("emergency_raised", () -> emergency.broadcastRaised(new EmergencyRaisedEvent(1L, 1L, 1L, "1호차",
+                call("emergency_raised", () -> emergency.broadcastRaised(new EmergencyRaisedEvent(1L, 1L, "학원", 1L, "1호차",
                         EmergencyType.ACCIDENT, new EmergencyRaisedEvent.RaisedBy("기사", "driver", "010"),
                         new EmergencyRaisedEvent.Position(null, null), 0, AT))),
                 call("emergency_acked", () -> emergency.broadcastAcked(new EmergencyAckedEvent(1L, 1L, 1L, "매니저", AT))),
