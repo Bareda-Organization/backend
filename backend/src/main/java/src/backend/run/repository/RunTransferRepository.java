@@ -83,4 +83,17 @@ public interface RunTransferRepository extends JpaRepository<RunTransfer, Long> 
             + "rt.appliedAt = :appliedAt WHERE rt.id IN :ids")
     int markApplied(@Param("ids") Collection<Long> ids, @Param("appliedAt") OffsetDateTime appliedAt,
             @Param("appliedStatus") RunTransferStatus appliedStatus);
+
+    /**
+     * 반영 전({@code staged}) 이동 1건을 지운다 — 지운 행 수를 돌려주므로 동시에 같은 행을 지운 쪽이 있으면 0 이다.
+     * 출발 회차의 학원으로 좁힌다(부모 경유 자원).
+     */
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            DELETE FROM RunTransfer rt
+            WHERE rt.id = :id
+              AND rt.status = src.backend.run.entity.RunTransferStatus.STAGED
+              AND rt.fromRunId IN (SELECT r.id FROM Run r WHERE r.academyId = :academyId)
+            """)
+    int deleteStagedByIdAndAcademyId(@Param("id") Long id, @Param("academyId") Long academyId);
 }

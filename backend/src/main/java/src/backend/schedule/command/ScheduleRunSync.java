@@ -2,7 +2,6 @@ package src.backend.schedule.command;
 
 import java.time.Clock;
 import java.time.LocalDate;
-import java.time.OffsetDateTime;
 import java.util.List;
 
 import org.springframework.stereotype.Component;
@@ -12,6 +11,8 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.common.enums.Weekday;
 import src.backend.run.command.RunCommandService;
 import src.backend.run.entity.Run;
+import src.backend.global.security.AuthUser;
+import src.backend.run.command.RunCancellation;
 import src.backend.run.entity.RunCancelSource;
 import src.backend.run.entity.RunDraft;
 import src.backend.run.entity.RunStatus;
@@ -40,19 +41,21 @@ class ScheduleRunSync {
 
     private final RunCommandService runCommandService;
 
+    private final RunCancellation runCancellation;
+
     private final Clock clock;
 
     /**
      * 등록·수정 뒤 — 미래 회차를 맞추고, 활성이고 요일이 내일이면 내일 회차를 (없으면) 만든다. 이미 확정·시작돼 옮기지
      * 못한 살아 있는 회차가 내일에 있으면 새로 만들지 않는다(같은 스케줄의 회차가 둘이 된다).
      */
-    void reflect(Schedule schedule) {
+    void reflect(AuthUser requester, Schedule schedule) {
         LocalDate today = LocalDate.now(clock);
         for (Run run : upcomingIdleRuns(schedule, today)) {
             if (backs(schedule, run)) {
                 runCommandService.moveToPlan(run, draftOf(schedule, run.getServiceDate()));
             } else {
-                run.cancel(OffsetDateTime.now(clock), RunCancelSource.SCHEDULE);
+                runCancellation.cancel(requester, run, RunCancelSource.SCHEDULE);
             }
         }
         reinstateBacked(schedule, today);
@@ -65,9 +68,9 @@ class ScheduleRunSync {
     }
 
     /** 삭제 전 — 미래 회차를 전부 취소 표시한다(삭제되면 {@code run.schedule_id} 가 비워져 더는 찾을 수 없다). */
-    void cancelUpcoming(Schedule schedule) {
+    void cancelUpcoming(AuthUser requester, Schedule schedule) {
         upcomingIdleRuns(schedule, LocalDate.now(clock))
-                .forEach(run -> run.cancel(OffsetDateTime.now(clock), RunCancelSource.SCHEDULE));
+                .forEach(run -> runCancellation.cancel(requester, run, RunCancelSource.SCHEDULE));
     }
 
     /**

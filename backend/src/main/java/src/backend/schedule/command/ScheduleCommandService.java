@@ -56,7 +56,7 @@ public class ScheduleCommandService {
         Schedule schedule = Schedule.register(requester.academyId(), plan);
         return enforcingUniqueSlot(requester.academyId(), plan, () -> {
             Schedule saved = scheduleRepository.save(schedule);
-            scheduleRunSync.reflect(saved);
+            scheduleRunSync.reflect(requester, saved);
             return ScheduleResponse.of(saved, bus.getBusNo());
         });
     }
@@ -74,7 +74,7 @@ public class ScheduleCommandService {
         boolean movesSlot = schedule.movesSlot(plan);
         Supplier<ScheduleResponse> apply = () -> {
             schedule.update(plan);
-            scheduleRunSync.reflect(schedule);
+            scheduleRunSync.reflect(requester, schedule);
             return ScheduleResponse.of(schedule, bus.getBusNo());
         };
         return movesSlot ? enforcingUniqueSlot(requester.academyId(), merged(schedule, plan), apply) : apply.get();
@@ -91,7 +91,7 @@ public class ScheduleCommandService {
      */
     public void delete(AuthUser requester, Long scheduleId) {
         Schedule schedule = findOwnSchedule(requester, scheduleId);
-        scheduleRunSync.cancelUpcoming(schedule);
+        scheduleRunSync.cancelUpcoming(requester, schedule);
         scheduleRepository.delete(schedule);
     }
 

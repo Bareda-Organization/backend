@@ -22,13 +22,22 @@ class StagingRunGuard {
     private final RunRepository runRepository;
 
     void lockIdle(Run run) {
-        Run locked = runRepository.findLockedByIdAndAcademyId(run.getId(), run.getAcademyId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        Run locked = lock(run.getId(), run.getAcademyId());
         if (locked.isCanceled()) {
             throw new BusinessException(ErrorCode.RUN_CANCELED);
         }
         if (locked.getStatus() != RunStatus.IDLE) {
             throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);
         }
+    }
+
+    /**
+     * 판정 없이 잠근 회차를 돌려준다 — 임시 취소된 회차도 잠가야 하는 이동 대기 취소(§5.8.1)와 회차 취소가 쓴다.
+     * 같은 영속성 컨텍스트가 그 회차를 먼저 읽었다면 잠금 조회는 낡은 상태를 돌려주므로, 호출부는 잠그기 전에 회차를
+     * 읽지 않는다.
+     */
+    Run lock(Long runId, Long academyId) {
+        return runRepository.findLockedByIdAndAcademyId(runId, academyId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
     }
 }
