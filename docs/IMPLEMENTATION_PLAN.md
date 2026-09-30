@@ -6002,3 +6002,32 @@ R37-IT 보고 ④(학부모 앱 `ALREADY_LINKED` 문구) · 프론트 검사 `F0
 | 7 | 결함을 고쳤으면 그 패키지 `flutter test` 실패 0 · 건너뜀 0 · `flutter analyze` 0 | 결과 직접 집계 |
 
 **결과 (2026-09-30 완료)** — 목표 1 ✅ 서버 `409 ALREADY_LINKED`(`{"error":{"code":"ALREADY_LINKED","message":"이미 연결된 대상입니다"}}`) 이고 학부모 앱이 "이미 연결된 자녀입니다" 띠를 표시(iOS 시뮬레이터 `chk1-already-linked-parent-app.png`). 이 오류는 **다른 학부모가 아니라 같은 학부모가 같은 자녀를 다시 연결할 때** 나온다 — 다른 학부모(`parentA1`)가 같은 학생(`studentA4`)을 연결하면 `201`(보호자 여러 명 허용). 목표 2 ⚠ **카메라 되돌림은 이미 수정돼 재현되지 않으나(`7c394837`) 지도를 끌 수 없는 별개의 결함을 발견** — `NaverMap` 의 `forceGesture` 기본값 `false` 라 `ListView` 안에서 실제 마우스 드래그 4회 모두 지도 미이동. `forceGesture: true` 로 수정(`5510fe08`, 시험 `parent-app/test/architecture/map_gesture_test`) 후 끌기 직후 지도 이동 · 6초 뒤에도 되돌려지지 않음. 목표 3 ✅ 권한 회수 상태에서 확정 회차 운행 화면에 배너 표시 · 권한 창 미표시(6초 관찰) · `grant` 3초 뒤 배너 소멸. 같은 결함이 **매니저 앱 운행 지도**(`SingleChildScrollView`)에도 있어 동일 수정(`4ffe8ece`, 시험 `manager-app/test/core/map/map_gesture_test`). 목표 4 컨트롤러 `@Get/Post/Put/Patch/DeleteMapping` 를 메서드·경로 단위로 파싱 계수 = **113개 + local 전용 `POST /dev/reset` 1개**(애너테이션 줄 수 114 와 일치, 중복 0). 테스트는 결과 파일 집계 **334클래스 1,895건**(실패 5 = `Ruling 361` 라이브 2클래스). README 반영, `5717`행은 당시 기록이라 미수정. 목표 5 `.env.example` 에 키 이름 6종(지도 키 2 · 검색 키 2 · Directions 5 전환 짝 2 — 짝은 빈 값이 기본값을 덮으므로 주석 처리). 목표 6 `WebSocketConfig`·`application.yml` 주석 정정(`Vercel` 0건, 값 변경 부재, `compileJava` 통과). 목표 7 parent-app `flutter test` 221 통과 · 실패 0 · 건너뜀 0 · analyze 0 / manager-app 313 통과 · 실패 0 · 건너뜀 0 · analyze 0 (`--exclude-tags real_backend` — 실서버 계약 시험은 `POST /dev/reset` 으로 내 확인용 DB 를 지우므로 제외).
+
+## 8.73 ⚖ `R46-BE` — 성능 개선(감사 제외) + 바로 고칠 것 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 410~419 · 백엔드 갈래)
+
+R46 개선 11항목 중 백엔드 몫이다. 조사 원문은 `.claude/survey-2026-09-30/`(D 성능 · A 사양 격차 · E 개발 인프라)이고 항목마다 코드로 먼저 재현했다. 감사 기록(`D #2·#3`)은 사용자 결정 뒤 다음 차례라 손대지 않았다.
+
+### R46-BE 판정
+
+| Ruling | 판정 | 근거 |
+|:-:|---|---|
+| **410** | 화면·앱·시험 어디에서도 호출하지 않는 API 3건을 삭제한다 — 주소 한 건 검색(`/staff/stops/search`) · 좌표로 정차지 추가(`/staff/routes/{id}/stops` 의 POST) · 예외 보고 상세(`/staff/reports/{id}`). 함께 `REPORT_NOT_FOUND` 코드 · `RouteStopAddRequest` 삭제 | 호출처 계수 — 웹 `frontend/apps/academy-web` 는 `suggestStops` · `saveRouteStops`(PUT) · `getReports` 만 부른다(`getReportDetail` 은 함수와 자체 단위 시험뿐, 화면 호출 0). 매니저 앱·학부모 앱은 세 경로 문자열 0건(`/runs/{id}/reports` 는 다른 API). 2026-09-23 개편(PUT 저장 · `suggest`)이 앞 둘을 대체 |
+| **411** | `FEATURE_SPEC S-03` 문면을 학생이 실제로 받는 알림 3종(도착 임박 · 운행 시작 · 지연)에 맞춘다 — 옛 문면 "스케줄·노선 변경" 삭제 | `API_SPEC §9.7` 이 행마다 수신자를 적은 정의처(Ruling 258 과 같은 근거)이고 코드가 같다 — 학생 수신자를 만드는 리스너는 `DelayNotificationListener` · `RunApproachingStopNotificationListener` · `RunStartedNotificationListener` 뿐. `route_changed` 는 기사·동승자, `change_decided` 는 학부모 수신 |
+
+`Ruling 412`~`419` 는 쓰지 않았다.
+
+### R46-BE 목표 표
+
+| # | 완료 조건 | 확인 수단 |
+|:-:|---|---|
+| 1 | `D #14` 대체 조회가 `LATERAL … LIMIT 1` 이고 옛 `DISTINCT ON` 과 같은 행(여러 회차 · 기록 시각 동률은 id 큰 쪽) · 실행 계획에 전체 정렬 없음 | `RunPositionRepositoryLatestTest` 2건 · 옛 쿼리 복원 시 계획 시험만 · 정렬 뒤집기 시 결과 시험만 실패 |
+| 2 | `D #13` 위치 읽기 3종은 Redis 호출 시점에 트랜잭션이 없다 | `RedisReadOutsideTransactionTest` · 클래스 트랜잭션 복원 시 실패 |
+| 3 | `D #8` 학생 회차 목록 SQL 수가 학원 회차 수와 무관 | `StudentRunsSqlCountTest`(회차 40개 추가, 21 → 21) · 회차마다 소속 질의로 바꾸면 실패 |
+| 4 | `D #15·#17` 알림 발송 스레드 8(설정값) · Hikari 연결 대기 3초(prod·demo·staging) · 누수 감지(staging·load) | `NotificationDispatch*PoolSizeTest` 2건 · `DeploymentConfigGuardTest` 확장 |
+| 5 | `D #6` 구독자 있는 채널은 반드시 받고 없는 채널은 직렬화 0 | `PositionSubscriberFilterTest` 2건(실제 WebSocket 구독) · 늘 거짓 시 받는 쪽만 · 확인 제거 시 안 보내는 쪽만 실패 |
+| 6 | `A #10·#16·#17` · `E #11` 판정과 결과 | 위 Ruling · 아래 결과 |
+| 7 | 백엔드 전체 `--rerun` 실패는 라이브 5건 외 0 | 결과 XML 합계 |
+| 8 | 깨진 참조 증가 0 | `build.py` 전 0 → 후 0 |
+| 9 | 정리 — `r46_be` 연결 0 뒤 DROP | `pg_database` |
+
+**결과 (2026-10-01)** — 목표 1~5 ✅ 시험 신설(`RunPositionRepositoryLatestTest` · `RedisReadOutsideTransactionTest` · `StudentRunsSqlCountTest` · `NotificationDispatch*PoolSizeTest` 2 · `PositionSubscriberFilterTest` · `DeploymentConfigGuardTest` 확장) 각각 RED→GREEN 과 결함 심기 9종으로 그 시험만 실패 확인. 목표 3 은 **재현 안 됨** — 학생 회차 목록은 이미 회차 수와 무관(SQL 21 → 21), 회귀 방지 시험만 추가. 목표 6 `A #10` 서버 무변경(사양이 주소 선택 — 사용자 결정 대기) · `A #16` `Ruling 410` · `A #17` `Ruling 411` · `E #11` 완료. 목표 7 백엔드 전체 `--rerun` **340클래스 1,892건** · 실패 1(`ControllerAuthorizationConventionTest` — 인가 검사 핸들러 수 하한이 API 3종 삭제를 못 따라감, 하한 111 로 정정 뒤 그 클래스 재실행 통과) · 건너뜀 0. 목표 8 깨진 참조 0 → 0. `D #5` 는 미착수(다음 차례).
