@@ -180,23 +180,6 @@ class StaffRosterControllerTest {
         assertThat((String) JsonPath.read(body, "$.data[0].status")).isEqualTo("absent");
     }
 
-    @Test
-    void 확정_전_회차도_조회할_수_있다() throws Exception {
-        Phase9RosterFixtures fx = fixtures();
-        long academyId = fx.academyWithCoordinates();
-        long busId = fx.bus(academyId);
-        long stopId = fx.stop(academyId, "37.500000", "127.000000");
-        fx.route(academyId, busId, Weekday.THU, Direction.TO_ACADEMY, stopId);
-        OffsetDateTime departTime = OffsetDateTime.parse("2031-07-03T08:00:00+09:00");
-        long runId = fx.idleRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY, departTime,
-                departTime.minusMinutes(30));
-        long staffAccountId = 관계자_계정을_만든다(academyId);
-
-        mockMvc.perform(get("/api/v1/staff/runs/" + runId + "/roster").header("Authorization",
-                토큰(staffAccountId, academyId)))
-                .andExpect(status().isOk());
-    }
-
     /** 확정 전(idle) 회차는 요일별 주소 기준 예정 명단이다 — {@code status=waiting} · {@code change} 부재(§5.4). */
     @Test
     void 확정_전_회차는_예정_명단을_준다() throws Exception {
