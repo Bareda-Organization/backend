@@ -12,6 +12,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 
 import src.backend.student.geocoding.spec.GeocodedPoint;
+import testsupport.live.LiveCredentials;
 
 /**
  * 실 네이버 Geocoding 어댑터 검증(C-18 · Ruling 157) — <b>자격증명이 있을 때만 돈다.</b>
@@ -47,16 +48,7 @@ class NaverGeocodingClientLiveTest {
      * 상태가 조용히 생긴다 — 그때 실 어댑터는 아무에게도 검증되지 않는다.
      */
     static boolean 자격증명이_있다() {
-        return 값이_있다("NAVER_MAPS_KEY_ID", "NAVER_DIRECTIONS_KEY_ID")
-                && 값이_있다("NAVER_MAPS_KEY", "NAVER_DIRECTIONS_KEY");
-    }
-
-    private static boolean 값이_있다(String 우선, String 폴백) {
-        return 비지_않음(System.getenv(우선)) || 비지_않음(System.getenv(폴백));
-    }
-
-    private static boolean 비지_않음(String value) {
-        return value != null && !value.isBlank();
+        return LiveCredentials.available();
     }
 
     /**

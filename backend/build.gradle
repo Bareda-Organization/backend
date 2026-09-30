@@ -238,6 +238,12 @@ tasks.named('test') {
     // (여전히 건너뜀 — 실 API 를 호출하지 않는다).
     readDotEnv().each { key, value -> environment key, value }
 
+    // -PrequireLive: 실 API 시험(*LiveTest)이 자격증명이 없어 조용히 건너뛰는 대신 실패하게 한다(BR-238).
+    // 병합 직전 검사처럼 "건너뛰면 안 되는" 실행에서만 준다 — 기본 동작(건너뜀)은 그대로다.
+    if (project.hasProperty('requireLive')) {
+        systemProperty 'requireLive', 'true'
+    }
+
     // 커넥션 풀 상한을 낮춘다. @SpringBootTest 컨텍스트는 한 번 뜨면 JVM 이 끝날 때까지 캐시에 남고
     // 각자 Hikari 풀(기본 상한 10)을 붙든 채로 있다 — 컨텍스트가 예닐곱이면 그 한 번의 실행만으로
     // 70 개를 쥔다. 로컬 Postgres 는 max_connections=100 이고 에이전트가 동시에 두셋 돌므로,
