@@ -13,7 +13,14 @@ import src.backend.account.entity.VerificationCode;
 import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.account.entity.VerificationPurpose;
 
-/** {@link VerificationCode} 영속성 접근. */
+/**
+ * {@link VerificationCode} 영속성 접근.
+ *
+ * <p><b>지금 운영 코드의 호출부가 없다</b>(BR-248) — 전화번호 인증 복구는 SMS 연동 전까지 닫혀
+ * {@code POST /auth/recover} 가 항상 {@code RECOVERY_UNAVAILABLE} 이다(Ruling 329). 엔티티·열거형과 함께 SMS 재개 때
+ * <b>재설계해 쓸 자리</b>로 남겨 둔 것이고, 테이블 정의(ERD · V1)와 스키마 대조 시험이 이 짝을 잡고 있다. 재개 조건
+ * (번호당 발급 60초 1회·하루 5회, 대조 횟수는 조건부 UPDATE)이 옛 설계와 달라 그대로 재사용하지 않는다.
+ */
 public interface VerificationCodeRepository extends JpaRepository<VerificationCode, Long> {
 
     /**
@@ -39,8 +46,8 @@ public interface VerificationCodeRepository extends JpaRepository<VerificationCo
      * 깨지고 깨진 자리는 조용히 실패한다.
      *
      * <p>{@code clearAutomatically} 는 반대 방향의 위험도 함께 만든다 — <b>이 호출 뒤에는 호출 이전에
-     * 로드한 엔티티가 전부 detach 된다.</b> {@code RecoverCommandService#recover} 는 이 호출보다 먼저
-     * {@code account} 를 로드하므로, 이 줄 뒤에 {@code account.changePassword(...)} 같은 변경이 한 줄만
+     * 로드한 엔티티가 전부 detach 된다.</b> (삭제된 {@code RecoverCommandService#recover} 는 이 호출보다 먼저
+     * {@code account} 를 로드했다 — 재개 때 같은 형태가 되살아나면) 이 줄 뒤에 {@code account.changePassword(...)} 같은 변경이 한 줄만
      * 들어와도 그 변경은 더티 체킹 대상에서 빠져 예외도 로그도 없이 사라진다. 뒤에서 다시 변경하려면
      * 재조회해야 한다(리뷰 라운드 2 m-3).
      *

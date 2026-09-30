@@ -15,7 +15,10 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 아이디·비밀번호 복구 인증 코드 — {@code POST /auth/recover} 가 만료·불일치를 판정하려면
+ * <p><b>지금 운영 코드의 호출부가 없다</b>(BR-248) — SMS 연동 전까지 전화번호 인증 복구는 닫혀 있다(Ruling 329).
+ * SMS 재개 때 재설계해 쓸 자리로 남긴 것이고, 아래 서술은 <b>닫히기 전 설계</b>다.
+ *
+ * <p>아이디·비밀번호 복구 인증 코드 — {@code POST /auth/recover} 가 만료·불일치를 판정하려면
  * 서버가 발급분을 보관해야 한다(ERD §3.2 · AUTH-08 · API_SPEC §2.9 · §8.1).
  *
  * <p>{@code purpose} 값은 {@code login_id} · {@code password} 다(재료 문서의 {@code recover_id}/
