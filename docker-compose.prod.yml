@@ -12,6 +12,8 @@
 #   3. backend 를 빌드하지 않고 ECR 이미지를 pull 한다 (EC2 에서 Gradle 빌드는 메모리 부족)
 #   4. 화면 서비스가 없다 — 이 저장소는 백엔드 API 전용이다
 #   5. proxy 가 443(TLS)을 종단하고, certbot 이 인증서를 자동 갱신한다
+#   6. 관측 스택(prometheus · alertmanager · grafana · node-exporter)이 함께 뜬다 — 호스트에는 Prometheus·Grafana 의
+#      loopback 포트만 연다(인터넷에서 닿지 않는다). 접근은 docs/infra/DEPLOYMENT.md §11
 #
 # ⚠️ 필요한 환경변수는 infra/scripts/deploy.sh 가 SSM Parameter Store 에서 읽어
 #    /opt/school-bus/.env 로 생성한다. 이 파일에는 비밀값을 절대 적지 않는다.
@@ -88,9 +90,11 @@ services:
     environment:
       # ⚠️ 이 줄이 없으면 application.yml 의 기본값 `local` 로 뜬다 — localhost DB 를 찾고
       #    로컬 데모 시드가 운영 DB 에 실행된다. 반드시 명시한다.
-      #    demo 프로파일은 prod 를 기반으로 (a) 데모 시드 로드, (b) Mock 위치 소스 활성을 더한 것이다.
-      #    실 기사 단말 GPS 가 없는 데모에서 prod 를 그대로 쓰면 버스가 움직이지 않는다.
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-demo}
+      #    **기본값을 두지 않는다.** 예전에는 `:-demo` 라 SSM 값이 빠진 배포가 가짜 시드 + 가짜 버스
+      #    (DemoRunSimulator)로 조용히 떴다. deploy.sh 가 SSM 에서 읽어 `prod` 또는 `demo` 를 .env 에 쓴다.
+      #    prod = 실 운영(계정 0개 · 첫 메인 관리자는 아래 BOOTSTRAP_ADMIN_*), demo = prod 에 데모 시드와
+      #    Mock 위치 소스를 더한 것(실 기사 단말 GPS 가 없는 데모에서 버스를 움직이려는 용도).
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:?SPRING_PROFILES_ACTIVE 미설정 — prod 또는 demo 를 명시한다(deploy.sh 가 SSM 에서 씀)}
       # 컨테이너 내부에서는 서비스 이름으로 접속한다 (localhost 아님)
       DB_URL: jdbc:postgresql://postgres:5432/schoolbus
       DB_USERNAME: schoolbus
@@ -115,8 +119,28 @@ services:
       FCM_PROJECT_ID: ${FCM_PROJECT_ID:-}
       FCM_CLIENT_EMAIL: ${FCM_CLIENT_EMAIL:-}
       FCM_PRIVATE_KEY: ${FCM_PRIVATE_KEY:-}
+      # ── 선택 항목(SSM 에 없으면 yml 기본값으로 뜬다) ──
+      # 장소 이름 검색 키(주소 자동완성 보조 후보). 비면 401 로 후보가 줄 뿐 기능은 산다.
+      NAVER_SEARCH_CLIENT_ID: ${NAVER_SEARCH_CLIENT_ID:-}
+      NAVER_SEARCH_CLIENT_SECRET: ${NAVER_SEARCH_CLIENT_SECRET:-}
+      # Directions 15 일일 한도(Ruling 361) 전환 — 경로와 최대 지점 수는 **짝**이다(deploy.sh 가 한쪽만 있으면 멈춘다).
+      # 값 없는 키(`KEY:`)는 .env 에 있을 때만 컨테이너에 넘어간다 — `${KEY:-}` 로 쓰면 빈 문자열이 넘어가
+      # yml 기본값(`/map-direction-15/v1/driving` · 17)을 덮어 경로가 빈 값이 된다.
+      NAVER_DIRECTIONS_PATH:
+      NAVER_DIRECTIONS_MAX_POINTS:
+      # 첫 메인 관리자(system_admin) — 메인 관리자가 하나도 없을 때만 1회 만든다(FirstSystemAdminBootstrap).
+      # 비밀번호는 평문이 아니라 bcrypt 해시다(DEPLOYMENT.md §4). 이미 있으면 값은 무시된다.
+      BOOTSTRAP_ADMIN_LOGIN_ID: ${BOOTSTRAP_ADMIN_LOGIN_ID:-}
+      BOOTSTRAP_ADMIN_PASSWORD_HASH: ${BOOTSTRAP_ADMIN_PASSWORD_HASH:-}
+      # 학생 사진 저장 경로 — 아래 named volume(photo-data)의 마운트 경로와 **같아야** 한다. 고정값이다(SSM 으로 열지
+      # 않는다): 어긋나면 사진이 컨테이너 안에만 쌓여 재배포마다 사라지는데 앱은 정상 기동한다.
+      PHOTO_STORAGE_ROOT: /app/var/photos
       # 컨테이너에 준 메모리 안에서만 힙을 잡게 한다 — 서버 전체 메모리 기준으로 잡으면 함께 죽는다.
       JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -XX:InitialRAMPercentage=40"
+    volumes:
+      # 학생 사진 — 컨테이너 안(/app/var/photos)에만 두면 배포로 컨테이너가 새로 만들어질 때마다 전부 사라진다.
+      # 백업은 infra/scripts/backup-db.sh 가 함께 한다. 저장소를 S3 로 옮기는 것은 오픈 이슈 W.
+      - photo-data:/app/var/photos
     expose:
       - "8080"
     healthcheck:
@@ -171,7 +195,83 @@ services:
       /bin/sh -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done"
     logging: *cloudwatch
 
+  # ── 관측 스택 (R46 ops C #10) ─────────────────────────────────────────────
+  # 설정·규칙·대시보드는 개발용 docker-compose.app.yml 과 같은 infra/observability/ 파일을 쓴다.
+  # 운영에서 다른 점: 보존 15일 · 메모리 한도 · 컨테이너 로그도 CloudWatch · 호스트 포트는 loopback 만.
+  # Prometheus 는 backend 가 healthy 가 아니어도 떠야 한다 — 그때가 관측이 가장 필요한 때라 depends_on 을 걸지 않는다.
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    restart: unless-stopped
+    mem_limit: 512m
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      # 개발은 7일이고 운영은 15일이다. 디스크는 이 볼륨이 정한다(prometheus-data).
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./infra/observability/prometheus/prometheus.prod.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/observability/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      # 127.0.0.1 — 인터넷에서 안 닿는다. 발화 중인 경보(/alerts)는 수신 채널이 정해지기 전까지 여기서만 보인다.
+      - "127.0.0.1:9090:9090"
+    logging: *cloudwatch
+
+  # 경보 라우팅 자리 — 수신 채널이 아직 정해지지 않아 어디로도 보내지 않는다(설정 파일 주석 참고).
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    restart: unless-stopped
+    mem_limit: 96m
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - ./infra/observability/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    expose:
+      - "9093"
+    logging: *cloudwatch
+
+  # 호스트의 CPU·메모리·디스크 — 디스크 80% 경보(alerts.yml)의 출처다.
+  # ⚠ rslave 전파는 리눅스 호스트(EC2)에서만 된다. macOS Docker Desktop 에서는 기동이 실패한다.
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    restart: unless-stopped
+    mem_limit: 64m
+    command:
+      - --path.rootfs=/host
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    expose:
+      - "9100"
+    logging: *cloudwatch
+
+  # 대시보드 5종은 파일로 프로비저닝한다(UI 수정은 되돌아간다). 외부에 열지 않는다 — 127.0.0.1 에만 바인딩하고
+  # SSM 포트 포워딩으로 접근한다(DEPLOYMENT.md §11). 초기 관리자 비밀번호는 SSM(GRAFANA_ADMIN_PASSWORD).
+  # 볼륨이 없어 컨테이너를 다시 만들 때마다 SSM 값으로 초기화된다 — 저장할 사용자·설정이 없다.
+  grafana:
+    image: grafana/grafana:11.5.0
+    restart: unless-stopped
+    mem_limit: 256m
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD 미설정}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+    volumes:
+      - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:3001:3000"
+    depends_on:
+      - prometheus
+    logging: *cloudwatch
+
 volumes:
   postgres-data:
+  # 학생 사진 — 재배포(컨테이너 재생성)에도 남는다. 지우면(`down -v`) 사진이 사라진다.
+  photo-data:
+  prometheus-data:
   certbot-conf:
   certbot-www:

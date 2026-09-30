@@ -1,0 +1,31 @@
+# 운영용 Prometheus 설정 — 개발용 prometheus.yml 에서 postgres-exporter · redis-exporter job 을 뺀 것이다
+# (운영 compose 에는 그 둘이 없다 — DB 접속 비밀번호를 exporter 에 URL 로 넘기는 방식이 특수문자에 약해 뒤로 미뤘다).
+# 그래서 대시보드 3-data 의 postgres·redis 패널은 운영에서 비어 있다. 스크레이프 주기·규칙 파일 경로는 개발용과 같으니
+# 한쪽을 고치면 다른 쪽도 본다.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+# 경보 전달 자리 — 수신 채널이 정해지기 전에는 Alertmanager 가 어디로도 보내지 않는다(alertmanager.yml 참고).
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+scrape_configs:
+  # Spring Boot — /actuator 는 외부(nginx)에서 404 이지만 이 컨테이너 네트워크 안에서는 열려 있다.
+  - job_name: backend
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['backend:8080']
+
+  - job_name: node
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']

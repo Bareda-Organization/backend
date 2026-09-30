@@ -1,0 +1,75 @@
+# alerts.yml 규칙 단위 시험 — promtool 이 가짜 시계열로 발화 여부를 본다(운영 서버 없이 조건식·for 를 검증한다).
+#   docker run --rm -v "$PWD/infra/observability/prometheus:/p" --entrypoint promtool prom/prometheus:v3.1.0 test rules /p/alerts.test.yml
+rule_files:
+  - alerts.yml
+evaluation_interval: 15s
+
+tests:
+  # 미확정 회차: 0 → 1 로 바뀐 뒤 1분(for)을 넘겨야 발화한다. 0 인 동안은 조용하다.
+  - interval: 15s
+    input_series:
+      - series: 'schoolbus_run_unconfirmed{application="school-bus"}'
+        values: '0x7 1x40'
+    alert_rule_test:
+      - eval_time: 1m45s
+        alertname: RunUnconfirmed
+        exp_alerts: []
+      - eval_time: 2m30s   # 1 이 된 지 30초 — 아직 pending
+        alertname: RunUnconfirmed
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: RunUnconfirmed
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              application: school-bus
+            exp_annotations:
+              summary: 확정 시각을 5분 넘긴 미확정 회차가 있다 — 기사가 노선을 받지 못했다
+
+  # 푸시 실패: 누적 카운터가 늘어난 구간에서만 발화하고, 10분 창을 지나 증가가 멈추면 꺼진다.
+  - interval: 15s
+    input_series:
+      - series: 'schoolbus_notification_push_failures_total{application="school-bus"}'
+        values: '0x20 3x100'
+      - series: 'schoolbus_notification_push_failures_total{application="quiet"}'
+        values: '0x120'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: PushDeliveryFailing
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: PushDeliveryFailing
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              application: school-bus
+            exp_annotations:
+              summary: 재시도를 소진해 실패로 굳은 푸시 알림이 최근 10분 안에 있다
+      - eval_time: 20m   # 증가가 5분 무렵에 멈춘 지 10분 넘음 — 창에서 빠져 꺼진다
+        alertname: PushDeliveryFailing
+        exp_alerts: []
+
+  # 디스크: `/` 가 80% 를 넘어 10분 유지돼야 발화한다. 다른 마운트 지점은 보지 않는다.
+  - interval: 1m
+    input_series:
+      - series: 'node_filesystem_size_bytes{mountpoint="/",instance="h"}'
+        values: '100x30'
+      - series: 'node_filesystem_avail_bytes{mountpoint="/",instance="h"}'
+        values: '15x30'
+      - series: 'node_filesystem_size_bytes{mountpoint="/var/lib/docker",instance="h"}'
+        values: '100x30'
+      - series: 'node_filesystem_avail_bytes{mountpoint="/var/lib/docker",instance="h"}'
+        values: '5x30'
+    alert_rule_test:
+      - eval_time: 5m   # 85% 이지만 아직 10분이 안 됐다
+        alertname: HostDiskAlmostFull
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: HostDiskAlmostFull
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              mountpoint: /
+              instance: h
+            exp_annotations:
+              summary: 호스트 루트 디스크 사용률이 80% 를 넘은 지 10분 됐다

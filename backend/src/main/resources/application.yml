@@ -233,6 +233,12 @@ app:
     local:
       root: ${PHOTO_STORAGE_ROOT:./var/photos}
       url-prefix: /api/v1/files/photos
+  # 첫 메인 관리자(system_admin) 1회 생성 — prod 는 계정이 0개이고 가입 신청 5종에 이 역할이 없어 배포해도 로그인할 사람이
+  # 없다. 메인 관리자가 하나도 없을 때만 만들고 있으면 값은 무시된다(FirstSystemAdminBootstrap). 비밀번호는 평문이 아니라
+  # bcrypt 해시다 — 평문이면 기동이 멈춘다. 값은 SSM 선택 항목(DEPLOYMENT.md §3·§4)이며 로그에 남기지 않는다.
+  bootstrap-admin:
+    login-id: ${BOOTSTRAP_ADMIN_LOGIN_ID:}
+    password-hash: ${BOOTSTRAP_ADMIN_PASSWORD_HASH:}
   # STOMP(WebSocket) 허용 출처. REST 의 app.cors.allowed-origins 와 별개다 —
   # 스프링에서 WebSocket 핸드셰이크는 CORS 필터를 타지 않고 자체 origin 검사를 한다.
   # 이 기본값 `*` 은 로컬 전용이다. prod·demo·staging 절은 기본값 없이 요구한다 — EC2 운영은
@@ -379,7 +385,8 @@ app:
 # 데모 배포 프로파일 — prod 를 기준으로 데모 시드 로드를 더한 것이다.
 # prod 는 시드가 없어 계정이 0개인데, PLATFORM_ADMIN·ACADEMY_ADMIN 은
 # API 로 만들 수 없다(AuthCommandService 가 403, MemberController 도 거부).
-# 즉 시드 없이 배포하면 **아무도 로그인할 수 없다.**
+# 즉 시드 없이 배포하면 **아무도 로그인할 수 없다** — prod 는 첫 메인 관리자를 BOOTSTRAP_ADMIN_* 로 1회 만든다
+# (app.bootstrap-admin · FirstSystemAdminBootstrap). demo 는 시드가 그 자리를 채운다.
 #
 # prod 의 datasource·redis 블록을 상속하지 않고 다시 적는다. spring.profiles.group 으로
 # 묶으면 줄은 줄지만 "지금 어떤 값이 쓰이는지"를 이 파일만 봐서 알 수 없게 된다 —
