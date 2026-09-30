@@ -228,7 +228,7 @@ app:
     storage: local
     local:
       root: ${PHOTO_STORAGE_ROOT:./var/photos}
-      url-prefix: /files/photos
+      url-prefix: /api/v1/files/photos
   # STOMP(WebSocket) 허용 출처. REST 의 app.cors.allowed-origins 와 별개다 —
   # 스프링에서 WebSocket 핸드셰이크는 CORS 필터를 타지 않고 자체 origin 검사를 한다.
   ws:

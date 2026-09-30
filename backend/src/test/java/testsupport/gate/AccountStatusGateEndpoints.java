@@ -132,6 +132,9 @@ public final class AccountStatusGateEndpoints {
      * (§4.15, EXC-04 · M-15, 권한 "그 회차에 배치된 기사·동승자") — 배치된 매니저만 닿는 자리라
      * 대기·거절 계정에는 근거가 부재하다({@code POST /runs/{runId}/emergency} 와 같은 근거).
      *
+     * <p>BR-214 가 1개를 더했다 — 학생 사진 파일 {@code GET /files/photos/{fileName}}(§5.11.1, Ruling 377,
+     * 권한 {@code STUDENT_READ_PHOTO}) — 승인된 계정의 기능이라 대기·거절 계정에는 근거가 부재하다.
+     *
      * <p>⚠ 두 좌석이 각자 자기 것만 더해 <b>병합 뒤에야</b> 개수가 어긋났다 — 이 목록은 전체를 세는
      * 시험이라 좌석 하나의 워크트리에서는 늘 통과한다(2026-09-09 실측, 전역 규칙 §18 과 같은 형태).
      */
@@ -266,7 +269,9 @@ public final class AccountStatusGateEndpoints {
             // S1 — 자녀·본인 당일 회차 목록(§3.5, P-04 · S-01) 학부모·학생 기능 1개.
             "GET /students/{id}/runs",
             // S2 — 회차 비상 알림 처리 상태 조회(§4.15, EXC-04 · M-15) 매니저 앱 기능 1개.
-            "GET /runs/{runId}/emergencies");
+            "GET /runs/{runId}/emergencies",
+            // BR-214 — 학생 사진 파일(§5.11.1, Ruling 377) 사진 읽기 권한 보유 역할의 기능 1개.
+            "GET /files/photos/{fileName}");
 
     /** {@code pending} 의 거부측 — {@code rejected} 거부측에 재신청 1개를 더한다({@code @AllowedWhenRejected} 는 pending 을 열지 않는다). */
     public static final List<String> DENIED_WHEN_PENDING = concat(DENIED_WHEN_REJECTED, "POST /auth/signup/reapply");
