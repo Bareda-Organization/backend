@@ -7,10 +7,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.bus.entity.Bus;
+import src.backend.bus.repository.BusRepository;
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
+import src.backend.run.dto.TransferCapacityDetail;
 import src.backend.run.dto.TransferRequest;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunTransfer;
 import src.backend.run.repository.RunTransferRepository;
+import src.backend.run.roster.ProjectedRosterReader;
 import src.backend.student.command.StopMatcher;
 import src.backend.student.entity.Student;
 import src.backend.student.geocoding.spec.GeocodedPoint;
@@ -34,6 +40,10 @@ public class TransferStore {
 
     private final StagingRunGuard stagingRunGuard;
 
+    private final BusRepository busRepository;
+
+    private final ProjectedRosterReader rosterReader;
+
     /**
      * 두 회차를 id 오름차순으로 잠근 뒤 정차지를 확정하고 이동을 {@code staged} 로 저장한다.
      *
@@ -52,10 +62,25 @@ public class TransferStore {
         boolean fromFirst = fromRun.getId() < toRun.getId();
         stagingRunGuard.lockIdle(fromFirst ? fromRun : toRun);
         stagingRunGuard.lockIdle(fromFirst ? toRun : fromRun);
+        assertSeatLeft(toRun);
         Long stopId = point != null ? stopMatcher.matchOrCreate(toRun.getAcademyId(), point).getId()
                 : request.stopId();
         RunTransfer transfer = RunTransfer.stage(student.getId(), fromRun.getId(), toRun.getId(), stopId,
                 request.note(), requestedByAccountId, now);
         return runTransferRepository.save(transfer);
+    }
+
+    /**
+     * 두 회차를 잠근 <b>뒤</b> 도착 회차의 정원을 다시 센다(BR-206) — {@link TransferCommandService} 의 정원 선검사는
+     * 잠금 밖이라 자리 1개 남은 회차로 요청 둘이 동시에 오면 둘 다 통과한다.
+     */
+    private void assertSeatLeft(Run toRun) {
+        Bus toBus = busRepository.findByIdAndAcademyId(toRun.getBusId(), toRun.getAcademyId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.BUS_NOT_FOUND));
+        long current = rosterReader.read(toRun).size();
+        if (current + 1 > toBus.getStudentCapacity()) {
+            throw new BusinessException(ErrorCode.CAPACITY_EXCEEDED,
+                    new TransferCapacityDetail(current, toBus.getStudentCapacity()));
+        }
     }
 }

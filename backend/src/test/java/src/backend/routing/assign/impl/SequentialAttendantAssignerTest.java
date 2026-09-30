@@ -106,18 +106,30 @@ class SequentialAttendantAssignerTest {
     }
 
     @Test
-    @DisplayName("앞 회차가 끝나는 시각과 새 회차가 시작하는 시각이 같은 맞배치는 겹침이 아니다")
-    void backToBackAssignmentIsNotOverlap() {
+    @DisplayName("BR-209 — 앞 회차가 끝나는 시각과 새 회차가 시작하는 시각이 같은 맞배치도 겹침이다(API_SPEC §5.14 양끝 포함)")
+    void backToBackAssignmentIsOverlap() {
         WorkHours workHours = workHours("07:00", "10:00");
-        // 앞 회차: 07:00~08:00, 새 회차: 08:00~08:30 — 경계가 닿기만 한다.
+        // 앞 회차: 07:00~08:00, 새 회차: 08:00~08:30 — 경계가 닿으면 수동 배치도 MANAGER_DOUBLE_BOOKED 를 낸다.
         BusyWindow backToBack = new BusyWindow(MON_08_00.minusHours(1), MON_08_00);
         AttendantAssignInput input = inputWith(30,
                 new AttendantCandidate(1L, workHours, List.of(backToBack)));
 
         AttendantAssignment result = assigner.assign(input);
 
-        assertThat(result.managerId()).isEqualTo(1L);
-        assertThat(result.rejections()).isEmpty();
+        assertThat(result.managerId()).isNull();
+        assertThat(result.rejections()).containsExactly(new AssignRejection(1L, RejectReason.ALREADY_ASSIGNED));
+    }
+
+    @Test
+    @DisplayName("BR-209 — 소요가 없는 다른 회차는 출발 시각 한 점이고, 새 회차 구간의 끝과 같은 시각이면 겹침이다")
+    void pointWindowOnRunEndIsOverlap() {
+        WorkHours workHours = workHours("07:00", "10:00");
+        BusyWindow point = new BusyWindow(MON_08_00.plusMinutes(30), MON_08_00.plusMinutes(30));
+        AttendantAssignInput input = inputWith(30, new AttendantCandidate(1L, workHours, List.of(point)));
+
+        AttendantAssignment result = assigner.assign(input);
+
+        assertThat(result.rejections()).containsExactly(new AssignRejection(1L, RejectReason.ALREADY_ASSIGNED));
     }
 
     @Test

@@ -7,10 +7,13 @@ import java.util.Optional;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
+
+import jakarta.persistence.LockModeType;
 
 import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.routing.entity.RunStop;
@@ -73,6 +76,18 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
             + "RunRepository.findByIdAndAcademyId 로 회차를 먼저 학원 범위에 좁힌 뒤 confirmed_route.current_version_id 로 "
             + "얻은 값만 넘긴다는 전제(RunRiderRepository.findByRunIdAndStudentId 와 같은 근거)")
     Optional<RunStop> findByRouteVersionIdAndStopId(Long routeVersionId, Long stopId);
+
+    /**
+     * {@link #findByRouteVersionIdAndStopId} 와 같은 정차 항목을 <b>행 잠금</b>으로 읽는다(BR-229) — 같은 승하차지의 마지막 두
+     * 명이 동시에 미승차 처리되면 서로의 미커밋 변경을 못 봐 둘 다 "아직 1명 남음" 으로 세고 어느 쪽도 건너뜀을 표시하지
+     * 못했다. 잔여 판정 <b>앞</b>에서 이 잠금을 잡으면 뒤 요청은 앞 요청이 커밋한 뒤에 센다.
+     */
+    @AcademyScopeExempt(reason = "findByRouteVersionIdAndStopId 와 같은 근거 — 호출부가 학원 범위로 좁힌 회차의 확정 노선 "
+            + "버전 id 만 넘긴다는 전제")
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT rs FROM RunStop rs WHERE rs.routeVersionId = :routeVersionId AND rs.stopId = :stopId")
+    Optional<RunStop> findLockedByRouteVersionIdAndStopId(@Param("routeVersionId") Long routeVersionId,
+            @Param("stopId") Long stopId);
 
     /**
      * 다음 미도착 승하차지 1건(근접 알림 NTF-04, API_SPEC §4.12 Ruling 207) — {@code Pageable} 의

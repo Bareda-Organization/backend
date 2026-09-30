@@ -7,10 +7,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.bus.entity.Bus;
+import src.backend.bus.repository.BusRepository;
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
 import src.backend.run.dto.ForcedAdditionRequest;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunForcedAddition;
 import src.backend.run.repository.RunForcedAdditionRepository;
+import src.backend.run.roster.ProjectedRoster;
+import src.backend.run.roster.ProjectedRosterReader;
 import src.backend.student.command.StopMatcher;
 import src.backend.student.command.StudentCommandService;
 import src.backend.student.entity.Student;
@@ -38,6 +44,10 @@ public class ForcedAdditionStore {
 
     private final StagingRunGuard stagingRunGuard;
 
+    private final BusRepository busRepository;
+
+    private final ProjectedRosterReader rosterReader;
+
     /**
      * 회차를 잠근 뒤 학생(신규면 생성)·정차지를 확정하고 강제 추가를 {@code staged} 로 저장한다.
      *
@@ -52,11 +62,34 @@ public class ForcedAdditionStore {
     public RunForcedAddition stage(Run run, Long addedBy, Student existingStudent, ForcedAdditionRequest request,
             GeocodedPoint point, OffsetDateTime now) {
         stagingRunGuard.lockIdle(run);
+        if (existingStudent != null && runForcedAdditionRepository.existsByRunIdAndAcademyIdAndStudentId(run.getId(),
+                run.getAcademyId(), existingStudent.getId())) {
+            throw new BusinessException(ErrorCode.FORCED_ADDITION_ALREADY_STAGED);
+        }
+        assertSeatLeft(run, existingStudent == null ? null : existingStudent.getId());
         Long studentId = existingStudent != null ? existingStudent.getId()
                 : studentCommandService.registerMinimal(run.getAcademyId(), request.newStudent().name());
         Long stopId = stopMatcher.matchOrCreate(run.getAcademyId(), point).getId();
         RunForcedAddition forcedAddition = RunForcedAddition.forRun(run.getId(), studentId, stopId, addedBy,
                 now, request.note());
         return runForcedAdditionRepository.save(forcedAddition);
+    }
+
+    /**
+     * 정원을 센다(BR-206) — 회차를 잠근 <b>뒤</b> 부르면 앞 요청이 커밋한 대기 행까지 센다. {@link ForcedAdditionCommandService}
+     * 의 선검사는 잠금 밖이라 자리 1개 남은 회차에 요청 둘이 동시에 오면 둘 다 통과하므로, 저장 안에서 다시 부른다.
+     *
+     * <p>이미 예정 명단에 든 학생(요일별 주소)은 명단이 늘지 않으니 자리를 더 세지 않는다(BR-205).
+     *
+     * @param studentId 기존 학생 id, 신규 학생이면 {@code null}(항상 한 자리 더 쓴다)
+     */
+    void assertSeatLeft(Run run, Long studentId) {
+        Bus bus = busRepository.findByIdAndAcademyId(run.getBusId(), run.getAcademyId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.BUS_NOT_FOUND));
+        ProjectedRoster roster = rosterReader.read(run);
+        boolean needsSeat = studentId == null || !roster.contains(studentId);
+        if (needsSeat && roster.size() + 1 > bus.getStudentCapacity()) {
+            throw new BusinessException(ErrorCode.CAPACITY_EXCEEDED);
+        }
     }
 }

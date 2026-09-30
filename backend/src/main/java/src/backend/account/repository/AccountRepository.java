@@ -65,6 +65,15 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     Optional<Account> findByIdAndAcademyId(Long id, Long academyId);
 
     /**
+     * {@link #findByIdAndAcademyId} 를 <b>행 잠금</b>으로 읽는다(BR-249) — 비밀번호 초기화처럼 전 컬럼을 덮어쓰는 변경이
+     * 그 사이 커밋된 로그인 실패 차단({@code failed_attempts}·{@code status})을 지우지 않게 로그인 대조({@link
+     * #findByLoginIdForUpdate})와 같은 행 잠금으로 직렬화한다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM Account a WHERE a.id = :id AND a.academyId = :academyId")
+    Optional<Account> findByIdAndAcademyIdForUpdate(@Param("id") Long id, @Param("academyId") Long academyId);
+
+    /**
      * 학원별 소속 사용자 수(API_SPEC §6.1 {@code user_count}) — 역할과 상태를 인자로 받아 무엇을 세는지
      * 호출부가 정한다.
      *

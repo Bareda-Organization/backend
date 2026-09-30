@@ -35,6 +35,7 @@ import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.persistence.ClientKeyLock;
 import src.backend.global.security.AuthUser;
 import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.location.infrastructure.RunPositionStore;
@@ -70,6 +71,9 @@ public class EmergencyCommandService {
 
     private final RunAssignmentAccess runAssignmentAccess;
 
+    /** 같은 {@code client_key} 의 동시 재전송을 직렬화한다(BR-226). */
+    private final ClientKeyLock clientKeyLock;
+
     private final ManagerRepository managerRepository;
 
     private final AcademyStaffRepository academyStaffRepository;
@@ -96,6 +100,7 @@ public class EmergencyCommandService {
             throw new BusinessException(ErrorCode.RUN_NOT_CONFIRMED);
         }
 
+        clientKeyLock.acquire(request.clientKey());
         Optional<EmergencyAlert> replay = emergencyAlertRepository.findByClientKey(request.clientKey());
         if (replay.isPresent()) {
             EmergencyAlert existing = replay.get();
