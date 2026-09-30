@@ -201,6 +201,35 @@ class SchemaContractTest extends MigratedPostgresTestBase {
         assertThat(missing).as("academy_id 선행 인덱스가 없는 학원 범위 테이블").isEmpty();
     }
 
+    /**
+     * 조회 조건에 쓰는 컬럼 4곳의 인덱스(BR-258) — 없으면 그 조회가 전 테이블 순차 스캔이다. 확정 배치가 회차마다 부르는
+     * {@code weekly_address(stop_id)} 조회가 가장 잦고, {@code stop} 삭제가 걸 FK 검사도 같은 컬럼을 훑는다.
+     */
+    @Test
+    void 조회_조건_컬럼_4곳은_인덱스를_가진다() throws SQLException {
+        Map<String, String> expectedColumns = Map.of(
+                "weekly_address", "(stop_id)",
+                "waypoint", "(run_id)",
+                "signup_request", "(account_id, requested_at DESC)",
+                "link_code", "(code)");
+        List<String> missing = new ArrayList<>();
+        expectedColumns.forEach((table, columns) -> {
+            try {
+                List<String> definitions = queryColumn("""
+                        SELECT indexdef FROM pg_indexes
+                        WHERE schemaname = 'public' AND tablename = '%s' AND indexdef LIKE '%%%s%%'
+                        """.formatted(table, columns));
+                if (definitions.isEmpty()) {
+                    missing.add(table + columns);
+                }
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+
+        assertThat(missing).as("조회 조건 컬럼에 인덱스가 없는 테이블").isEmpty();
+    }
+
     @Test
     void 계정_연결_레코드_3종의_account_id_UNIQUE_는_account_id_가_있는_행만_대상으로_한다() throws SQLException {
         for (String table : ACCOUNT_LINKED_TABLES) {

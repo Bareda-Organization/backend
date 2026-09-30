@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +24,7 @@ import src.backend.exception.entity.EmergencyAlert;
 import src.backend.exception.repository.EmergencyAlertRepository;
 import src.backend.global.common.LowerCaseFormatter;
 import src.backend.global.request.ApiValues;
+import src.backend.global.request.PageParams;
 import src.backend.global.security.AuthUser;
 import src.backend.manager.dto.AssignedManagerContactView;
 import src.backend.manager.entity.Manager;
@@ -65,6 +67,9 @@ public class EmergencyStaffQueryService {
     private final RunRepository runRepository;
 
     private final Clock clock;
+
+    /** 페이징 없는 목록의 행 수 상한(BR-228) — 최근 신고부터 자른다. */
+    private static final Limit LIST_LIMIT = Limit.of(PageParams.UNPAGED_LIST_MAX);
 
     /** 관계자용 비상 알림 목록(§5.16) — 상태·날짜로 거르고, 배치된 매니저 연락처를 함께 채운다. */
     public EmergencyStaffListResponse list(AuthUser requester, String status, String date) {
@@ -112,11 +117,12 @@ public class EmergencyStaffQueryService {
     /** {@code date} 생략(null) 이면 날짜 조건 없이, 있으면 {@code receivedAt} 을 학원 자정 경계 구간으로 거른다. */
     private List<EmergencyAlert> alertsOf(Long academyId, EmergencyStatusFilter statusFilter, LocalDate date) {
         if (date == null) {
-            return emergencyAlertRepository.findAllByAcademyIdAndState(academyId, statusFilter.name());
+            return emergencyAlertRepository.findAllByAcademyIdAndState(academyId, statusFilter.name(), LIST_LIMIT);
         }
         ZoneId zone = clock.getZone();
         return emergencyAlertRepository.findAllByAcademyIdAndStateReceivedBetween(academyId, statusFilter.name(),
-                date.atStartOfDay(zone).toOffsetDateTime(), date.plusDays(1).atStartOfDay(zone).toOffsetDateTime());
+                date.atStartOfDay(zone).toOffsetDateTime(), date.plusDays(1).atStartOfDay(zone).toOffsetDateTime(),
+                LIST_LIMIT);
     }
 
     private EmergencyStaffItemResponse toItem(EmergencyAlert alert, Manager raiser, Account acker, Run run,

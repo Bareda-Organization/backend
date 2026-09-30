@@ -4,6 +4,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -46,5 +47,6 @@ public interface ExceptionReportRepository extends JpaRepository<ExceptionReport
             ORDER BY er.reportedAt DESC
             """)
     List<ExceptionReport> search(@Param("academyId") Long academyId, @Param("type") ExceptionReportType type,
-            @Param("runId") Long runId, @Param("from") OffsetDateTime from, @Param("to") OffsetDateTime to);
+            @Param("runId") Long runId, @Param("from") OffsetDateTime from, @Param("to") OffsetDateTime to,
+            Limit limit);
 }

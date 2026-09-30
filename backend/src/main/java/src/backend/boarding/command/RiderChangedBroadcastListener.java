@@ -7,6 +7,7 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.event.RiderMarkedNoShowEvent;
@@ -28,6 +29,7 @@ import src.backend.student.repository.StudentRepository;
  * §7.1 line 1995 의 트리거가 {@code PATCH /runs/{runId}/riders/{riderId}} <b>엔드포인트</b>로 적혀
  * {@code status} 값과 무관하게 걸린다는 근거는 {@link RiderMarkedNoShowEvent} 의 javadoc 참고).
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class RiderChangedBroadcastListener {
@@ -43,21 +45,25 @@ public class RiderChangedBroadcastListener {
     /** 승하차 상태 변경을 매니저·학원·관리자 채널에 방송한다({@code stop_skipped} 는 항상 false). */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcast(RiderStatusChangedEvent event) {
-        String studentName = studentRepository.findById(event.studentId())
-                .map(student -> student.getName())
-                .orElse(null);
-        Long stopId = runRiderRepository.findByRunIdAndStudentId(event.runId(), event.studentId())
-                .map(rider -> rider.getStopId())
-                .orElse(null);
-        Counts counts = countsOf(event.runId());
+        try {
+            String studentName = studentRepository.findById(event.studentId())
+                    .map(student -> student.getName())
+                    .orElse(null);
+            Long stopId = runRiderRepository.findByRunIdAndStudentId(event.runId(), event.studentId())
+                    .map(rider -> rider.getStopId())
+                    .orElse(null);
+            Counts counts = countsOf(event.runId());
 
-        Payload payload = new Payload(event.runRiderId(), event.studentId(), studentName, event.status(), stopId,
-                event.changedAt(), counts, false);
-        gateway.send(WebSocketDestinations.managerRun(event.runId()), EVENT, event.runId(), event.changedAt(),
-                payload);
-        gateway.send(WebSocketDestinations.academyLive(event.academyId()), EVENT, event.runId(), event.changedAt(),
-                payload);
-        gateway.send(WebSocketDestinations.ADMIN_LIVE, EVENT, event.runId(), event.changedAt(), payload);
+            Payload payload = new Payload(event.runRiderId(), event.studentId(), studentName, event.status(), stopId,
+                    event.changedAt(), counts, false);
+            gateway.send(WebSocketDestinations.managerRun(event.runId()), EVENT, event.runId(), event.changedAt(),
+                    payload);
+            gateway.send(WebSocketDestinations.academyLive(event.academyId()), EVENT, event.runId(), event.changedAt(),
+                    payload);
+            gateway.send(WebSocketDestinations.ADMIN_LIVE, EVENT, event.runId(), event.changedAt(), payload);
+        } catch (RuntimeException e) {
+            log.warn("rider_changed 방송 실패 — runId={}", event.runId(), e);
+        }
     }
 
     /**
@@ -68,18 +74,22 @@ public class RiderChangedBroadcastListener {
      */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcast(RiderMarkedNoShowEvent event) {
-        String studentName = studentRepository.findById(event.studentId())
-                .map(student -> student.getName())
-                .orElse(null);
-        Counts counts = countsOf(event.runId());
+        try {
+            String studentName = studentRepository.findById(event.studentId())
+                    .map(student -> student.getName())
+                    .orElse(null);
+            Counts counts = countsOf(event.runId());
 
-        Payload payload = new Payload(event.runRiderId(), event.studentId(), studentName, "no_show", event.stopId(),
-                event.changedAt(), counts, event.stopSkipped());
-        gateway.send(WebSocketDestinations.managerRun(event.runId()), EVENT, event.runId(), event.changedAt(),
-                payload);
-        gateway.send(WebSocketDestinations.academyLive(event.academyId()), EVENT, event.runId(), event.changedAt(),
-                payload);
-        gateway.send(WebSocketDestinations.ADMIN_LIVE, EVENT, event.runId(), event.changedAt(), payload);
+            Payload payload = new Payload(event.runRiderId(), event.studentId(), studentName, "no_show", event.stopId(),
+                    event.changedAt(), counts, event.stopSkipped());
+            gateway.send(WebSocketDestinations.managerRun(event.runId()), EVENT, event.runId(), event.changedAt(),
+                    payload);
+            gateway.send(WebSocketDestinations.academyLive(event.academyId()), EVENT, event.runId(), event.changedAt(),
+                    payload);
+            gateway.send(WebSocketDestinations.ADMIN_LIVE, EVENT, event.runId(), event.changedAt(), payload);
+        } catch (RuntimeException e) {
+            log.warn("rider_changed(no_show) 방송 실패 — runId={}", event.runId(), e);
+        }
     }
 
     private Counts countsOf(Long runId) {

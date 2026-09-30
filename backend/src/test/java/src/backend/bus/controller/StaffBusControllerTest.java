@@ -192,6 +192,33 @@ class StaffBusControllerTest {
                 .andExpect(jsonPath("$.data.warnings[0].assigned_count").value(2));
     }
 
+    /** BR-274(Ruling 391) — 경고 항목이 회차 번호만이 아니라 운행일·출발 시각·방향을 실어, 관리자가 어느 회차인지 찾을 수 있다. */
+    @Test
+    void 경고_항목은_회차의_운행일_출발_시각_방향을_싣는다() throws Exception {
+        long busId = 등록된_차량_id(관계자A_토큰(), "식별호차", "88가8888", 16);
+        OffsetDateTime depart = LocalDate.now(ZoneId.of("Asia/Seoul")).plusDays(1).atTime(8, 30)
+                .atZone(ZoneId.of("Asia/Seoul")).toOffsetDateTime();
+        Long runId = jdbcTemplate.queryForObject("INSERT INTO run (academy_id, bus_id, service_date, direction, "
+                + "depart_time, confirm_at, status, origin_name, destination_name) VALUES (?, ?, ?, 'from_academy', ?, ?, "
+                + "'confirmed', '출발', '학원') RETURNING id", Long.class, ACADEMY_A_ID, busId, depart.toLocalDate(),
+                depart, depart.minusMinutes(30));
+        for (long studentId : new long[] { 1L, 2L }) {
+            jdbcTemplate.update("INSERT INTO run_rider (run_id, student_id, stop_id, status) VALUES (?, ?, 1, 'waiting')",
+                    runId, studentId);
+        }
+
+        String body = 본문(수정한다(관계자A_토큰(), busId, "{\"capacity\":3}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.warnings[0].run_id").value(runId))
+                .andExpect(jsonPath("$.data.warnings[0].service_date").value(depart.toLocalDate().toString()))
+                .andExpect(jsonPath("$.data.warnings[0].direction").value("from_academy"))
+                .andExpect(jsonPath("$.data.warnings[0].assigned_count").value(2))
+                .andExpect(jsonPath("$.data.warnings[0].student_capacity").value(1))
+                .andReturn());
+        assertThat(OffsetDateTime.parse(JsonPath.<String>read(body, "$.data.warnings[0].depart_time")).toInstant())
+                .isEqualTo(depart.toInstant());
+    }
+
     /** 수정도 같은 정원 하한을 받는다 — 등록만 막고 수정을 열어 두면 정원을 낮추는 경로로 그대로 우회된다. */
     @Test
     void 정원을_기사와_동승자_수_이하로_낮추는_수정은_차단된다() throws Exception {

@@ -29,6 +29,12 @@ public record PageParams(int page, int size) {
     /** 한 페이지 최대 크기(API_SPEC §1.8) — 없으면 {@code size=100000} 한 번이 전량 조회가 된다. */
     public static final int MAX_SIZE = 100;
 
+    /**
+     * 페이징이 없는 목록(§5.16 · §5.20 · §6.11)이 한 번에 돌려주는 최대 행 수(BR-228) — 최근 것부터 자른다. 이 목록들은
+     * 무기한 보존 테이블이라 상한이 없으면 호출 한 번이 누적 전량을 읽는다.
+     */
+    public static final int UNPAGED_LIST_MAX = 200;
+
     public PageParams {
         if (page < DEFAULT_PAGE || size < 1 || size > MAX_SIZE) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED);

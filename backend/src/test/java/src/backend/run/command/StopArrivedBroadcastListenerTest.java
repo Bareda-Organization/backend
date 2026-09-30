@@ -70,4 +70,19 @@ class StopArrivedBroadcastListenerTest {
                     return true;
                 }));
     }
+    @Test
+    @DisplayName("absent 행(다른 버스로 옮긴 removed 포함)의 학생 채널에는 보내지 않는다")
+    void absent_학생_채널에는_보내지_않는다() {
+        Long runId = 10L;
+        OffsetDateTime arrivedAt = OffsetDateTime.now();
+        RunRider rider = RunRider.uponConfirmation(runId, 100L, 7L);
+        RunRider moved = RunRider.uponConfirmation(runId, 200L, 7L);
+        moved.markRemoved(arrivedAt);
+        given(runRiderRepository.findAllByRunId(runId)).willReturn(List.of(rider, moved));
+
+        listener.broadcast(new StopArrivedEvent(runId, 1L, 7L, 2, "정문 앞", arrivedAt, 8L));
+
+        verify(gateway).broadcastToRunChannels(eq(runId), eq(1L), eq(List.of(100L)), eq("stop_arrived"),
+                eq(arrivedAt), org.mockito.ArgumentMatchers.any());
+    }
 }

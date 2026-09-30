@@ -21,6 +21,9 @@ public interface ManagerRepository extends JpaRepository<Manager, Long> {
             + "호출부가 토큰의 accountId 만 넘긴다는 전제 — 요청 파라미터의 accountId 를 넘기면 이 예외가 우회로가 된다")
     Optional<Manager> findByAccountId(Long accountId);
 
+    /** 학원 안에서 계정 여러 개의 매니저를 한 번에(BR-228) — 예외 보고 목록이 보고마다 {@link #findByAccountId} 를 부르지 않게 한다. */
+    List<Manager> findAllByAcademyIdAndAccountIdIn(Long academyId, Collection<Long> accountIds);
+
     /**
      * 가입 승인이 연결할 매니저 1건(AUTH-11 · API_SPEC §5.2) — 학원과 <b>역할</b>로 함께 좁힌다.
      *
@@ -35,9 +38,10 @@ public interface ManagerRepository extends JpaRepository<Manager, Long> {
     List<Manager> findAllByAcademyIdAndRoleAndDeletedAtIsNullOrderByIdAsc(Long academyId, ManagerRole role);
 
     /**
-     * 한 학원의 매니저 목록·검색(MGR-01, §5.13 {@code ?q=}) — 학원 조건이 <b>쿼리에 고정</b>돼 있다.
+     * 한 학원의 매니저 목록·검색(MGR-01, §5.13 {@code ?q=&role=&linked=}) — 학원 조건이 <b>쿼리에 고정</b>돼 있다.
      *
-     * <p>{@code q} 가 비면 전체, 있으면 이름 부분 일치다. 두 경우를 메서드로 가르지 않은 이유는
+     * <p>{@code q} 가 비면 전체, 있으면 이름 부분 일치다. {@code role}·{@code linked}({@code account_id} 유무)도 {@code null} 이면
+     * 조건을 건너뛴다. 경우를 메서드로 가르지 않은 이유는
      * 갈라 두면 <b>한쪽에만</b> {@code deleted_at IS NULL} 이 붙는 형태가 실제로 생기기 때문이다 —
      * 그러면 검색어를 넣는 순간 삭제된 매니저가 되살아난다.
      *
@@ -45,9 +49,12 @@ public interface ManagerRepository extends JpaRepository<Manager, Long> {
      * 가 이스케이프한 입력을 해석하기 위한 짝이다 — 없으면 {@code q="%"} 하나가 전체 매칭이 된다.
      */
     @Query("SELECT m FROM Manager m WHERE m.academyId = :academyId AND m.deletedAt IS NULL "
-            + "AND (:name IS NULL OR LOWER(m.name) LIKE :name ESCAPE '\\')")
+            + "AND (:name IS NULL OR LOWER(m.name) LIKE :name ESCAPE '\\') "
+            + "AND (:role IS NULL OR m.role = :role) "
+            + "AND (:linked IS NULL OR (:linked = true AND m.accountId IS NOT NULL) "
+            + "OR (:linked = false AND m.accountId IS NULL))")
     Page<Manager> searchByAcademyId(@Param("academyId") Long academyId, @Param("name") String namePattern,
-            Pageable pageable);
+            @Param("role") ManagerRole role, @Param("linked") Boolean linked, Pageable pageable);
 
     /**
      * 수정·삭제 대상 매니저 1건(MGR-03·04, §5.13) — 학원이 어긋나거나 이미 삭제됐으면 빈 결과이고

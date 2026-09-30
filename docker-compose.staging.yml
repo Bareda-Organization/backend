@@ -84,7 +84,8 @@ services:
       - backend
     restart: unless-stopped
 
-  # 라우팅은 개발용과 같은 설정 파일을 쓴다 — /api·/ws·/swagger-ui → backend, /download → APK, 나머지 → web.
+  # 라우팅은 개발용 설정에 운영의 보호(인증 경로 속도 제한 · Swagger 차단 · 터널 뒤 접속자 IP)를 더한 스테이징 전용 파일이다(BR-230) —
+  # /api·/ws → backend, /download → APK, 나머지 → web.
   proxy:
     image: nginx:alpine
     ports:
@@ -92,7 +93,7 @@ services:
       # 바깥 공개는 아래 cloudflared 가 컨테이너 네트워크로 proxy:80 에 직접 붙는다.
       - "127.0.0.1:3100:80"
     volumes:
-      - ./infra/proxy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./infra/proxy/nginx.staging.conf:/etc/nginx/conf.d/default.conf:ro
       - ./downloads:/usr/share/nginx/downloads:ro
     depends_on:
       - backend

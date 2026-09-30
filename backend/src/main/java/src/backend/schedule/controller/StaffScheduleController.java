@@ -53,7 +53,7 @@ public class StaffScheduleController {
 
     /** 스케줄 목록(SCH-01, §5.10) — 비활성 스케줄도 실린다. */
     @CanManageSchedule
-    @Operation(summary = "운행 스케줄 · 일일 회차 — 목록 (§1.8 페이징)")
+    @Operation(summary = "운행 스케줄 · 일일 회차 — 목록 (§1.8 페이징) (SCH-01)")
     @GetMapping
     public ApiResponse<PageResponse<ScheduleResponse>> list(@AuthenticationPrincipal AuthUser requester,
             @ModelAttribute ScheduleListRequest request) {
@@ -62,7 +62,7 @@ public class StaffScheduleController {
 
     /** 스케줄 등록(SCH-01, §5.10) — 같은 유일성 조합이 이미 있으면 {@code 409 DUPLICATE_SCHEDULE}. */
     @CanManageSchedule
-    @Operation(summary = "운행 스케줄 · 일일 회차 — 등록")
+    @Operation(summary = "운행 스케줄 · 일일 회차 — 등록 (SCH-01)")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<ScheduleResponse> register(@AuthenticationPrincipal AuthUser requester,
@@ -72,7 +72,7 @@ public class StaffScheduleController {
 
     /** 스케줄 수정(SCH-01, §5.10) — §1.9 대로 변경 후 자원 상태를 그대로 반환한다. */
     @CanManageSchedule
-    @Operation(summary = "운행 스케줄 · 일일 회차 — 수정")
+    @Operation(summary = "운행 스케줄 · 일일 회차 — 수정 (SCH-01)")
     @PatchMapping("/{id}")
     public ApiResponse<ScheduleResponse> update(@AuthenticationPrincipal AuthUser requester,
             @PathVariable Long id, @Valid @RequestBody ScheduleUpdateRequest request) {
@@ -81,7 +81,7 @@ public class StaffScheduleController {
 
     /** 스케줄 삭제(SCH-01, §5.10) — 행을 지우고, 이미 만들어진 회차는 남는다. */
     @CanManageSchedule
-    @Operation(summary = "운행 스케줄 · 일일 회차 — 삭제")
+    @Operation(summary = "운행 스케줄 · 일일 회차 — 삭제 (SCH-01)")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@AuthenticationPrincipal AuthUser requester, @PathVariable Long id) {

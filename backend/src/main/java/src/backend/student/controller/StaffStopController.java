@@ -37,7 +37,7 @@ public class StaffStopController {
 
     /** 도로명 주소 → 좌표. <b>아무것도 만들지 않는다</b> — 반영은 노선에 더할 때 일어난다. */
     @CanManageRoute
-    @Operation(summary = "승하차지 주소 검색 — 좌표와 근처 기존 승하차지")
+    @Operation(summary = "승하차지 주소 검색 — 좌표와 근처 기존 승하차지 (RTE-01)")
     @GetMapping("/search")
     public ApiResponse<StopSearchResponse> search(@AuthenticationPrincipal AuthUser requester,
             @RequestParam @NotBlank String address) {
@@ -46,7 +46,7 @@ public class StaffStopController {
 
     /** 주소 자동완성 — 일부만 친 주소로 후보 여럿. 후보가 없으면 빈 목록이다(오류가 아니다). */
     @CanManageRoute
-    @Operation(summary = "승하차지 주소 자동완성 — 후보 여럿과 각 후보 근처 기존 승하차지")
+    @Operation(summary = "승하차지 주소 자동완성 — 후보 여럿과 각 후보 근처 기존 승하차지 (RTE-01)")
     @GetMapping("/suggest")
     public ApiResponse<StopSuggestResponse> suggest(@AuthenticationPrincipal AuthUser requester,
             @RequestParam @NotBlank @Size(max = 100) String query) {

@@ -332,6 +332,33 @@ class StaffRosterControllerTest {
                 .andExpect(jsonPath("$.error.code").value("RUN_NOT_FOUND"));
     }
 
+    /** BR-227 — 메인 관리자(학원 id 없음)도 권한표상 이 경로를 읽는다: 실재 회차의 명단이 그 회차 학원 기준으로 나와야 한다. */
+    @Test
+    void 메인_관리자는_실재_회차의_명단을_받는다() throws Exception {
+        Phase9RosterFixtures fx = fixtures();
+        long academyId = fx.academyWithCoordinates();
+        long busId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.500000", "127.000000");
+        fx.route(academyId, busId, Weekday.THU, Direction.TO_ACADEMY, stopId);
+        long studentId = fx.student(academyId, "학생1");
+        fx.verifiedAddress(studentId, stopId, Weekday.THU, Direction.TO_ACADEMY, "37.500000", "127.000000");
+        fx.guardianWithPhone(academyId, studentId, "010-2345-8814");
+        OffsetDateTime departTime = OffsetDateTime.parse("2031-07-03T08:00:00+09:00");
+        long confirmedRunId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY,
+                departTime, departTime.minusMinutes(30));
+        String adminToken = "Bearer " + tokenProvider.createAccessToken(1L, null, Role.SYSTEM_ADMIN,
+                AccountStatus.ACTIVE);
+
+        MvcResult confirmed = mockMvc
+                .perform(get("/api/v1/staff/runs/" + confirmedRunId + "/roster").header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        List<?> items = JsonPath.read(본문(confirmed), "$.data");
+        assertThat(items).hasSize(1);
+        assertThat((String) JsonPath.read(본문(confirmed), "$.data[0].guardian_phone")).isEqualTo("010-2345-8814");
+    }
+
     private long 관계자_계정을_만든다(long academyId) {
         Account account = accountRepository.save(Account.forSignup(academyId,
                 "p9staff" + System.nanoTime(), "{noop}password", "관계자", "010-0000-0000", null, Role.STAFF));

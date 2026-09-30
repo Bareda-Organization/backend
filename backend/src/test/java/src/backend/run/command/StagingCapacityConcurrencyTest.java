@@ -1,6 +1,7 @@
 package src.backend.run.command;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 
@@ -41,6 +42,8 @@ import src.backend.routing.repository.RouteStopRepository;
 import src.backend.run.dto.ForcedAdditionRequest;
 import src.backend.run.dto.NewStudentRequest;
 import src.backend.run.dto.TransferRequest;
+import src.backend.run.entity.RunForcedAddition;
+import src.backend.run.repository.RunForcedAdditionRepository;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
@@ -75,6 +78,9 @@ class StagingCapacityConcurrencyTest {
 
     @Autowired
     private TransferCommandService transferCommandService;
+
+    @Autowired
+    private RunForcedAdditionRepository runForcedAdditionRepository;
 
     @Autowired
     private AcademyRepository academyRepository;
@@ -239,6 +245,29 @@ class StagingCapacityConcurrencyTest {
                 .as("정원 1석 회차의 예정 명단이 2명이 되면 확정 뒤 초과 인원이 그대로 탄다")
                 .isEqualTo(1);
         assertThat(outcome).isEqualTo(new Outcome(1, 1));
+    }
+
+    @Test
+    @DisplayName("BR-271 — 선검사를 통과한 뒤 학생이 도착 회차에 강제 추가돼도 잠금 뒤 재검사가 409 STUDENT_ALREADY_IN_RUN 으로 막는다")
+    void 선검사_뒤_도착_회차에_들어온_학생의_이동은_잠금_뒤에_막힌다() {
+        long academyId = fixtures.academyWithCoordinates();
+        long toRunId = idleRun(academyId, fixtures.bus(academyId));
+        long studentId = studentOnNewRun(academyId, "끼어든학생");
+        long stopId = fixtures.stop(academyId, "37.561000", "126.971000");
+        AuthUser staff = new AuthUser(STAFF_ACCOUNT_ID, academyId, Role.STAFF, AccountStatus.ACTIVE);
+        // 주소 검증은 선검사와 저장 사이에 있다 — 그 자리에서 다른 요청이 강제 추가를 끝낸 상황을 만든다.
+        doAnswer(invocation -> {
+            runForcedAdditionRepository.save(RunForcedAddition.forRun(toRunId, studentId, stopId, STAFF_ACCOUNT_ID,
+                    OffsetDateTime.now(clock), null));
+            return invocation.callRealMethod();
+        }).when(addressVerification).verifySingle(anyString());
+
+        assertThatThrownBy(() -> transferCommandService.transfer(staff, studentId,
+                new TransferRequest(fromRunOf(studentId), toRunId, null, ADDRESS, null)))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.STUDENT_ALREADY_IN_RUN));
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM run_transfer WHERE to_run_id = ?",
+                Integer.class, toRunId)).isZero();
     }
 
     /** 자기 버스·노선·회차를 가진 학생 — 그 회차의 예정 명단에 요일별 주소로 들어 있다. */

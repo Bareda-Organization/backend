@@ -1,5 +1,8 @@
 package src.backend.routing.repository;
 
+import java.util.Collection;
+import java.util.List;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -15,6 +18,19 @@ import src.backend.routing.entity.ConfirmedRoute;
  * 확정 시 merge 경로)로 충분하고, 이 인터페이스는 "현재 버전 포인터 전진" 전용 갱신만 선언한다.
  */
 public interface ConfirmedRouteRepository extends JpaRepository<ConfirmedRoute, Long> {
+
+    /**
+     * 회차 여러 개의 확정 노선을 한 번에(BR-247) — 관제 조회가 회차마다 {@code findById} 를 부르지 않게 한다. 학원 조건은
+     * 부모 {@code Run} 조인이다({@code RunStopRepository} 와 같은 형태).
+     */
+    @Query("""
+            SELECT c FROM ConfirmedRoute c
+            JOIN Run r ON r.id = c.runId
+            WHERE c.runId IN :runIds
+              AND r.academyId = :academyId
+            """)
+    List<ConfirmedRoute> findAllByRunIdInAndAcademyId(@Param("runIds") Collection<Long> runIds,
+            @Param("academyId") Long academyId);
 
     /**
      * 노선 계산 산출물로 만든 {@code route_version} 을 저장한 뒤 "현재 버전" 포인터를 그 행으로

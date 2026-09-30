@@ -34,6 +34,19 @@ public interface WaypointRepository extends JpaRepository<Waypoint, Long> {
             @Param("runId") Long runId, @Param("academyId") Long academyId);
 
     /**
+     * 경유 지점 여러 개의 이름을 한 번에(BR-247) — 관제 조회가 정차명을 회차마다 {@code findById} 로 읽던 것을 대신한다.
+     * 배포·제거 여부는 거르지 않는다(정차 항목이 가리키는 대로 이름만 읽는다). 학원 조건은 {@code Run} 조인이다.
+     */
+    @Query("""
+            SELECT w FROM Waypoint w
+            JOIN Run r ON r.id = w.runId
+            WHERE w.id IN :waypointIds
+              AND r.academyId = :academyId
+            """)
+    List<Waypoint> findAllByIdInAndAcademyId(@Param("waypointIds") java.util.Collection<Long> waypointIds,
+            @Param("academyId") Long academyId);
+
+    /**
      * 회차 1건에 이미 배포된 경유 지점 전체(제거되지 않은 것만) — 새 경유 지점 추가·제거를 위한
      * 재최적화가 "지금 노선에 이미 고정된 지점" 을 알아야 그 자리를 유지한 채 계산할 수 있다.
      */

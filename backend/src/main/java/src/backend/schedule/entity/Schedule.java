@@ -134,6 +134,11 @@ public class Schedule extends BaseTimeEntity {
                 || changes(plan.departTime(), this.departTime);
     }
 
+    /** 예상 소요시간을 지운다(Ruling 390) — {@link #update} 는 {@code null} 을 "유지" 로 읽으므로 지우기는 이 메서드가 맡는다. */
+    public void clearEstDuration() {
+        this.estDurationMin = null;
+    }
+
     private static boolean changes(Object requested, Object current) {
         return requested != null && !requested.equals(current);
     }

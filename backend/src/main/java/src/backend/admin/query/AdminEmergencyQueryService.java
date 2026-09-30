@@ -12,6 +12,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +28,7 @@ import src.backend.exception.entity.EmergencyAlert;
 import src.backend.exception.query.EmergencyStatusFilter;
 import src.backend.exception.repository.EmergencyAlertRepository;
 import src.backend.global.common.LowerCaseFormatter;
+import src.backend.global.request.PageParams;
 import src.backend.manager.dto.AssignedManagerContactView;
 import src.backend.manager.entity.Manager;
 import src.backend.manager.repository.AssignmentRepository;
@@ -65,6 +67,9 @@ public class AdminEmergencyQueryService {
 
     private final Clock clock;
 
+    /** 페이징 없는 목록의 행 수 상한(BR-228) — 최근 신고부터 자른다. */
+    private static final Limit LIST_LIMIT = Limit.of(PageParams.UNPAGED_LIST_MAX);
+
     /**
      * {@code status}·{@code academy_id} 쿼리 필터(§6.11, R6 목표 3) — 프런트(academy-web
      * {@code emergencies.ts})가 이미 보내고 있던 값을 서버가 그동안 무시하고 있었다(Ruling 294).
@@ -78,8 +83,8 @@ public class AdminEmergencyQueryService {
 
         // 상태·학원 조건을 쿼리로 건다(BR-087) — 무기한 보존 테이블을 통째로 읽어 거르지 않는다.
         List<EmergencyAlert> alerts = academyId == null
-                ? emergencyAlertRepository.findAllByState(statusFilter.name())
-                : emergencyAlertRepository.findAllByAcademyIdAndState(academyId, statusFilter.name());
+                ? emergencyAlertRepository.findAllByState(statusFilter.name(), LIST_LIMIT)
+                : emergencyAlertRepository.findAllByAcademyIdAndState(academyId, statusFilter.name(), LIST_LIMIT);
 
         Map<Long, Academy> academiesById = academyRepository
                 .findAllById(alerts.stream().map(EmergencyAlert::getAcademyId).toList())

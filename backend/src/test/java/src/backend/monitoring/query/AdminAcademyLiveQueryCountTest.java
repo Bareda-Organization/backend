@@ -133,8 +133,9 @@ class AdminAcademyLiveQueryCountTest {
         assertThat(관제_쿼리_수(academyId, token)).isEqualTo(oneStop);
     }
 
+    /** BR-247 — 확정 노선·정차 순서를 회차 수와 무관한 배치 조회로 읽는다(회차마다 2쿼리를 더하던 것을 없앤다). */
     @Test
-    void 회차_하나가_더하는_쿼리는_확정_노선과_정차_순서_두_건이다() throws Exception {
+    void 회차가_늘어도_관제_쿼리_수는_같다() throws Exception {
         AdminMonitoringFixtures f = fixtures();
         long academyId = f.academy();
         String token = 메인관리자_토큰(f.systemAdminAccount("메인관리자"));
@@ -142,10 +143,31 @@ class AdminAcademyLiveQueryCountTest {
                 now().plusMinutes(5));
 
         long oneRun = 관제_쿼리_수(academyId, token);
-        f.runStopForStop(운행_중_회차(f, academyId), f.stop(academyId, "37.510000", "127.030000"), 1,
+        for (int i = 0; i < 3; i++) {
+            f.runStopForStop(운행_중_회차(f, academyId), f.stop(academyId, "37.51" + i + "000", "127.030000"), 1,
+                    now().plusMinutes(5));
+        }
+
+        assertThat(관제_쿼리_수(academyId, token)).isEqualTo(oneRun);
+    }
+
+    /** BR-247 — 관계자 실시간 조회는 현재·다음 정차명을 회차마다 따로 읽던 것을 한 번에 읽는다. */
+    @Test
+    void 관계자_실시간_조회도_회차가_늘어도_쿼리_수가_같다() throws Exception {
+        AdminMonitoringFixtures f = fixtures();
+        long academyId = f.academy();
+        String token = "Bearer " + tokenProvider.createAccessToken(f.staffAccount(academyId, "관계자"), academyId,
+                Role.STAFF, AccountStatus.ACTIVE);
+        f.runStopForStop(운행_중_회차(f, academyId), f.stop(academyId, "37.500000", "127.030000"), 1,
                 now().plusMinutes(5));
 
-        assertThat(관제_쿼리_수(academyId, token) - oneRun).isLessThanOrEqualTo(2);
+        long oneRun = 쿼리_수("/api/v1/staff/runs/live", token);
+        for (int i = 0; i < 3; i++) {
+            f.runStopForStop(운행_중_회차(f, academyId), f.stop(academyId, "37.51" + i + "000", "127.030000"), 1,
+                    now().plusMinutes(5));
+        }
+
+        assertThat(쿼리_수("/api/v1/staff/runs/live", token)).isEqualTo(oneRun);
     }
 
     private long 운행_중_회차(AdminMonitoringFixtures f, long academyId) {
@@ -156,12 +178,16 @@ class AdminAcademyLiveQueryCountTest {
     }
 
     private long 관제_쿼리_수(long academyId, String token) throws Exception {
+        return 쿼리_수(LIVE.formatted(academyId), token);
+    }
+
+    private long 쿼리_수(String path, String token) throws Exception {
         // 시험 트랜잭션의 1차 캐시가 방금 만든 정차지를 들고 있으면 정차마다의 조회가 DB 에 닿지 않아 가려진다
         entityManager.flush();
         entityManager.clear();
         Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
         statistics.clear();
-        mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", token)).andExpect(status().isOk());
+        mockMvc.perform(get(path).header("Authorization", token)).andExpect(status().isOk());
         return statistics.getPrepareStatementCount();
     }
 
