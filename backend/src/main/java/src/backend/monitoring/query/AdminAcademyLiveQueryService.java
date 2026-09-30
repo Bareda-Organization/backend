@@ -95,8 +95,9 @@ public class AdminAcademyLiveQueryService {
             throw new BusinessException(ErrorCode.ACADEMY_NOT_FOUND);
         }
 
+        // 임시 취소된 회차는 뺀다(Ruling 375) — 취소 표시 필드 없이 idle·confirmed 로 섞이지 않게.
         List<Run> todayRuns = runRepository.findAllByAcademyIdAndServiceDateOrderByDepartTimeAsc(academyId,
-                LocalDate.now(clock));
+                LocalDate.now(clock)).stream().filter(run -> !run.isCanceled()).toList();
         if (todayRuns.isEmpty()) {
             return new AdminAcademyLiveResponse(List.of());
         }

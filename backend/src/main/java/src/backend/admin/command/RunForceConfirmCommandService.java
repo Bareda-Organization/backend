@@ -57,7 +57,7 @@ public class RunForceConfirmCommandService {
 
     /**
      * 강제 확정을 실행한다 — 미존재 회차는 {@code 404 RUN_NOT_FOUND}, idle 이 아니면
-     * {@code 409 RUN_NOT_IDLE}, {@code confirm_at} 이 아직이면 {@code 409 RUN_NOT_DUE}(§6.14).
+     * {@code 409 RUN_NOT_IDLE}, 임시 취소된 회차면 {@code 409 RUN_CANCELED}(Ruling 375), {@code confirm_at} 이 아직이면 {@code 409 RUN_NOT_DUE}(§6.14).
      *
      * <p>{@link RunConfirmationService#confirmOne(Long, boolean)} 이 {@code false} 를 반환하는
      * 경우도 {@code RUN_NOT_IDLE} 로 매핑한다 — 이 지점까지 idle 임을 이미 확인했으므로, 그 사이
@@ -86,6 +86,10 @@ public class RunForceConfirmCommandService {
     public ForceConfirmResponse forceConfirm(Long runId, Long actorAccountId, String reason) {
         Run run = runRepository.findById(runId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        if (run.isCanceled()) {
+            // 취소 회차는 status 가 idle 로 남으므로 상태 판정보다 먼저 본다(Ruling 375) — RUN_NOT_IDLE 로는 원인을 알 수 없다.
+            throw new BusinessException(ErrorCode.RUN_CANCELED);
+        }
         if (run.getStatus() != RunStatus.IDLE) {
             throw new BusinessException(ErrorCode.RUN_NOT_IDLE);
         }

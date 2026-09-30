@@ -202,6 +202,32 @@ class StaffDashboardControllerTest {
         assertThat((Integer) JsonPath.read(본문(result), "$.data.runs[0].removed_count")).isZero();
     }
 
+    /**
+     * BR-220(Ruling 375) — 임시 취소된 회차는 {@code runs[]} 에서 빠지고 지표에도 들지 않는다. 취소된 회차에만 배치된
+     * 매니저는 그 회차가 운행하지 않으므로 {@code unassigned_managers} 에 센다.
+     */
+    @Test
+    @DisplayName("BR-220 — 임시 취소된 회차는 runs[] 에서 빠지고 그 회차에만 배치된 매니저는 미배치로 센다")
+    void 임시_취소된_회차는_대시보드에서_빠진다() throws Exception {
+        DriverRunFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        OffsetDateTime departTime = now().plusHours(1);
+        long liveRunId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
+        long canceledRunId = fx.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        fx.assignedManager(academyId, liveRunId, ManagerRole.DRIVER, "살아있는기사", now());
+        fx.assignedManager(academyId, canceledRunId, ManagerRole.ESCORT, "취소회차동승자", now());
+        long staffAccountId = fx.staffAccount(academyId, "관계자1");
+        runRepository.findById(canceledRunId).orElseThrow().cancel(now(), src.backend.run.entity.RunCancelSource.STAFF);
+
+        mockMvc.perform(get("/api/v1/staff/dashboard").header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.runs.length()").value(1))
+                .andExpect(jsonPath("$.data.runs[0].run_id").value(liveRunId))
+                .andExpect(jsonPath("$.data.metrics.unassigned_managers").value(1));
+    }
+
     // ── R21-B 목표 1·2·4 — 실제 출발·도착 시각(started_at·finished_at) ─────────
 
     /**
