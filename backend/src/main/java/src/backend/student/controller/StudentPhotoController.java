@@ -10,6 +10,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import lombok.RequiredArgsConstructor;
@@ -36,7 +39,9 @@ public class StudentPhotoController {
 
     /** 사진 파일을 내려준다 — 공유 캐시에 남지 않도록 {@code Cache-Control: private} 이다. */
     @CanReadStudentPhoto
-    @Operation(summary = "학생 사진 파일 (STU-01, §5.11.1)")
+    @Operation(summary = "학생 사진 파일 (STU-01, §5.11.1)", responses = @ApiResponse(responseCode = "200",
+            content = @Content(mediaType = "image/*",
+                    schema = @Schema(type = "string", format = "binary", example = "(이미지 바이너리 — png · jpeg · webp)"))))
     @GetMapping("/{fileName}")
     public ResponseEntity<byte[]> photo(@AuthenticationPrincipal AuthUser authUser,
             @PathVariable("fileName") String fileName) {
