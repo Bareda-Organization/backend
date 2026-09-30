@@ -114,7 +114,6 @@ class AcademyScopeHttpExhaustiveTest {
     private Long academyBChangeRequestId;
     private Long academyBSignupRequestId;
     private Long academyBEmergencyAlertId;
-    private Long academyBExceptionReportId;
     private Long academyBTransferId;
     private String academyBPhotoFileName;
     private String academyBStudentPhotoUrl;
@@ -162,11 +161,6 @@ class AcademyScopeHttpExhaustiveTest {
                         + "VALUES (?, ?, 'B-TEST', ?, 'driver', 'accident', 0, now(), ?) RETURNING id",
                 Long.class, ACADEMY_B, ACADEMY_B_RUN_ID, academyBAccountId, UUID.randomUUID());
 
-        academyBExceptionReportId = jdbcTemplate.queryForObject(
-                "INSERT INTO exception_report (academy_id, run_id, type, memo, reported_by, reported_at) "
-                        + "VALUES (?, ?, 'vehicle_issue', 'f3-s4 fixture', ?, now()) RETURNING id",
-                Long.class, ACADEMY_B, ACADEMY_B_RUN_ID, academyBAccountId);
-
         // 이동 대기 취소(§5.8.1)의 학원 조건은 출발 회차를 거친다 — 같은 회차를 출발·도착으로 두어도 조회는 성립한다.
         academyBTransferId = jdbcTemplate.queryForObject(
                 "INSERT INTO run_transfer (student_id, from_run_id, to_run_id, status, requested_by_account_id) "
@@ -192,7 +186,6 @@ class AcademyScopeHttpExhaustiveTest {
         jdbcTemplate.update("DELETE FROM change_request WHERE id = ?", academyBChangeRequestId);
         jdbcTemplate.update("DELETE FROM signup_request WHERE id = ?", academyBSignupRequestId);
         jdbcTemplate.update("DELETE FROM emergency_alert WHERE id = ?", academyBEmergencyAlertId);
-        jdbcTemplate.update("DELETE FROM exception_report WHERE id = ?", academyBExceptionReportId);
         jdbcTemplate.update("DELETE FROM run_transfer WHERE id = ?", academyBTransferId);
         jdbcTemplate.update("UPDATE student SET photo_url = ? WHERE id = ?", academyBStudentPhotoUrl, academyBStudentId);
     }
@@ -309,10 +302,6 @@ class AcademyScopeHttpExhaustiveTest {
                 new Object[] {academyBRouteId}, staffA(), null, 404, "ROUTE_NOT_FOUND"));
         cases.add(c("GET /staff/routes/{id} → B학원 노선 404", HttpMethod.GET, "/staff/routes/{id}",
                 new Object[] {academyBRouteId}, staffA(), null, 404, "ROUTE_NOT_FOUND"));
-        // R28 — 좌표로 정차지 추가(§5.9). 남의 학원 노선은 존재를 드러내지 않고 404 다.
-        cases.add(c("POST /staff/routes/{id}/stops → B학원 노선 404", HttpMethod.POST, "/staff/routes/{id}/stops",
-                new Object[] {academyBRouteId}, staffA(),
-                "{\"lat\":37.5,\"lng\":126.9,\"name\":\"남의 학원\"}", 404, "ROUTE_NOT_FOUND"));
         // R30 — 승하차지 한 번에 저장(§5.9, Ruling 325). 남의 학원 노선은 존재를 드러내지 않고 404 다.
         cases.add(c("PUT /staff/routes/{id}/stops → B학원 노선 404", HttpMethod.PUT, "/staff/routes/{id}/stops",
                 new Object[] {academyBRouteId}, staffA(), "{\"stops\":[]}", 404, "ROUTE_NOT_FOUND"));
@@ -445,9 +434,6 @@ class AcademyScopeHttpExhaustiveTest {
         cases.add(c("POST /staff/emergencies/{id}/ack → B학원 신고 404 EMERGENCY_NOT_FOUND", HttpMethod.POST,
                 "/staff/emergencies/{id}/ack", new Object[] {academyBEmergencyAlertId}, staffA(), null, 404,
                 "EMERGENCY_NOT_FOUND"));
-        cases.add(c("GET /staff/reports/{id} → B학원 보고 404 REPORT_NOT_FOUND", HttpMethod.GET,
-                "/staff/reports/{id}", new Object[] {academyBExceptionReportId}, staffA(), null, 404,
-                "REPORT_NOT_FOUND"));
 
         return List.copyOf(cases);
     }

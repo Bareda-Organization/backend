@@ -250,68 +250,6 @@ class StaffReportControllerTest {
                 .andExpect(jsonPath("$.data.items[0].report_id").value(matching));
     }
 
-    // ── goal 16 — 상세 ────────────────────────────────────────────────────
-
-    @Test
-    @DisplayName("goal16 — 상세는 자기 학원 보고를 200 으로 돌려준다")
-    void 상세는_자기_학원_보고를_200으로_돌려준다() throws Exception {
-        ExceptionReportFixtures fixtures = fixtures();
-        long academyId = fixtures.academy();
-        long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        long staffAccountId = fixtures.staffAccount(academyId, "관계자");
-        long reportId = fixtures.exceptionReport(academyId, runId, ExceptionReportType.ETC, "기타 보고",
-                driverAccountId, now(), null);
-
-        mockMvc.perform(get("/api/v1/staff/reports/" + reportId)
-                .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.report_id").value(reportId))
-                .andExpect(jsonPath("$.data.memo").value("기타 보고"));
-    }
-
-    @Test
-    @DisplayName("goal16 급소 — 상세는 존재하지 않거나 다른 학원 소속인 id 면 404 REPORT_NOT_FOUND 다")
-    void 상세는_없거나_다른_학원_소속이면_404다() throws Exception {
-        ExceptionReportFixtures fixtures = fixtures();
-        long academyId = fixtures.academy();
-        long otherAcademyId = fixtures.academy();
-        long busId = fixtures.bus(otherAcademyId);
-        long runId = fixtures.confirmedRun(otherAcademyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(otherAcademyId, runId, ManagerRole.DRIVER, "타학원기사", now());
-        long staffAccountId = fixtures.staffAccount(academyId, "관계자");
-        long otherAcademyReportId = fixtures.exceptionReport(otherAcademyId, runId, ExceptionReportType.ETC,
-                "다른 학원 보고", driverAccountId, now(), null);
-
-        // 존재하지 않는 id
-        mockMvc.perform(get("/api/v1/staff/reports/999999999")
-                .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error.code").value("REPORT_NOT_FOUND"));
-
-        // 다른 학원 소속 id
-        mockMvc.perform(get("/api/v1/staff/reports/" + otherAcademyReportId)
-                .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error.code").value("REPORT_NOT_FOUND"));
-    }
-
-    // ── 로컬 시드 — Swagger 예시 id 가 실제 행을 가리키는지(BR-113 잔여, Ruling 348) ──
-
-    @Test
-    @DisplayName("로컬 시드 — EXCEPTION_REPORT_EXAMPLE_ID 상세는 404 가 아니라 그 학원 A 보고를 200 으로 돌려준다")
-    void 시드_EXCEPTION_REPORT_EXAMPLE_ID_상세는_200이다() throws Exception {
-        long reportId = Long.parseLong(SeedFixtures.EXCEPTION_REPORT_EXAMPLE_ID);
-        long staffAccountId = Long.parseLong(SeedFixtures.ACCOUNT_STAFF_A_ID);
-        long academyId = Long.parseLong(SeedFixtures.ACADEMY_A_ID);
-
-        mockMvc.perform(get("/api/v1/staff/reports/" + reportId)
-                .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.report_id").value(reportId));
-    }
-
     // ── 호출 도우미 ──────────────────────────────────────────────────────
 
     private String 토큰(long accountId, long academyId, Role role) {

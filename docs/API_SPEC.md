@@ -1667,8 +1667,6 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `DELETE /staff/routes/{id}` | RTE-01 | 삭제. **행을 지운다**(soft delete 부재) — 정차 순서도 `route_stop` FK CASCADE 로 함께 사라진다. 성공 `204`(본문 부재, §1.1) |
 | `POST /staff/routes/{id}/optimize` | RTE-09 | 정차 순서 최적화. 결과는 상세와 같은 형태 |
 | `GET /staff/routes/{id}/path` | RTE-01 | 정차 순서대로 이은 **도로 경로**. 응답 `road_path[{lat,lng}]` · `fallback_used` · `stops[]` |
-| `GET /staff/stops/search?address=` | RTE-01 | **주소 검색** — 도로명 주소를 좌표로 옮긴다. **아무것도 만들지 않는다** |
-| `POST /staff/routes/{id}/stops` | RTE-01 | **좌표로 정차지 추가** — 노선 **맨 끝**에 붙인다 |
 | `PUT /staff/routes/{id}/stops` | RTE-01 | **승하차지 한 번에 저장**(Ruling 325) — 추가·수정·삭제·순서를 한 트랜잭션으로 |
 | `GET /staff/stops/suggest?query=` | RTE-01 | **주소 자동완성**(Ruling 325) — 후보 여럿. **아무것도 만들지 않는다** |
 | `GET /staff/routes/{id}/path` | RTE-01 | **도로 경로**(R27-B 신설) — 정차 순서(`seq`)대로 이은 실제 도로 좌표열. 관계자 웹이 편성 화면 지도에 그린다 |
@@ -1704,35 +1702,20 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 ⚠ ~~**좌표를 호출자가 넘기는 것은 현재 스키마에서 유일한 선택지다**(Ruling 184).~~ **Ruling 325 로 대체** — 학원 좌표가 생겨 서버가 공개된 규칙으로 정할 수 있게 됐다. 아래는 당시 근거로 남긴다. `academy`·`route` 어느 쪽에도 **좌표 컬럼이 부재**하다. 서버가 정차지 중 하나를 골라 기준점으로 쓰는 안은 **그 고름이 요청·응답 어디에도 남지 않아 산출 조건이 관측 불가**가 되어 기각했다 — `TECH_DECISIONS §8.5.1`("왜 이 순서로 돌았나를 재현 가능하게")과 정면으로 어긋난다. **Phase 7 이 `academy` 좌표 컬럼을 추가하면 이 계약이 바뀐다.**
 
-#### 주소로 정차지를 더하는 흐름 — 검색 → 확인 → 수정 → 반영 (2026-09-22 사용자 지시)
+#### 주소로 정차지를 더하는 흐름 — 자동완성 → 확인 → 수정 → 저장 (2026-09-22 사용자 지시 · 2026-09-23 개편 · `Ruling 410`)
 
-정차지를 `stop_id` 로만 고르던 자리를 **도로명 주소 검색**으로 바꾼다. 세 단계로 가른 이유는
+정차지를 `stop_id` 로만 고르던 자리를 **도로명 주소 자동완성**으로 바꾼다. 세 단계로 가른 이유는
 **지오코딩이 돌려주는 점이 버스가 실제로 서는 자리와 다르기 때문**이다 — 건물 중심점이 나오는데
-버스는 그 블록 모퉁이나 도로가에 선다. 관계자가 지도에서 그 차이를 메운 뒤에 반영한다.
+버스는 그 블록 모퉁이나 도로가에 선다. 관계자가 지도에서 그 차이를 메운 뒤에 저장한다.
 
 | 단계 | 호출 | 성질 |
 |---|---|---|
-| ① 검색 | `GET /staff/stops/search?address=<도로명 주소>` | **조회 전용** — 승하차지를 만들지 않는다 |
+| ① 자동완성 | `GET /staff/stops/suggest?query=<도로명 주소 일부>` | **조회 전용** — 승하차지를 만들지 않는다 |
 | ② 확인·수정 | (호출 없음) | 화면이 좌표를 임시 핀으로 찍고, 관계자가 지도를 눌러 옮긴다 |
-| ③ 반영 | `POST /staff/routes/{id}/stops` | 이때 비로소 승하차지가 생기고 노선 끝에 붙는다 |
+| ③ 저장 | `PUT /staff/routes/{id}/stops` | 이때 비로소 승하차지가 생기고 노선에 붙는다 |
 
-**`GET /staff/stops/search` 응답** — `lat` · `lng` · `display_name`(정규화 주소) ·
-`nearby[]`(`stop_id` · `name` · `address` · `lat` · `lng` · `distance_m`). `nearby` 는 **50m 안**의
-기존 승하차지다(근접 병합 임계와 같은 값, STU-05) — 화면이 "이 자리에 이미 있다" 를 알려 관계자가
-같은 자리에 둘째를 만들지 않게 한다.
-
-**에러** — `422 ADDRESS_VERIFICATION_FAILED`(그런 주소가 없다 — 사용자가 고칠 자리) ·
-`503 ADDRESS_VERIFICATION_UNAVAILABLE`(공급자에 못 닿았다 — 이따가 다시 보낼 자리). 둘을 가르는
-근거는 §3.7·§3.8 과 같다.
-
-**`POST /staff/routes/{id}/stops` 요청** — `lat` · `lng` · `name`(표시명, 필수 · 최대 100자) ·
-`address`(생략 시 `name` 을 주소 자리에 씀). **좌표를 서버가 다시 지오코딩하지 않는다** — 그러면
-②에서 관계자가 옮긴 지점이 사라진다.
-
-- **50m 안에 기존 승하차지가 있으면 그것을 쓴다**(새로 만들지 않는다) — 지도에서 몇 미터 어긋나게
-  찍는 것은 흔하고, 그때마다 새로 만들면 명단·노선이 같은 자리를 둘로 센다
-- **이미 그 노선에 있는 승하차지면 `422 VALIDATION_FAILED`** — 버스가 같은 자리에 두 번 선다
-- 응답은 **상세와 같은 형태**(`stops[]` 포함)
+**폐기(`Ruling 410`, 2026-10-01)** — 주소 한 건 검색(`/staff/stops/search`)과 좌표로 한 곳만 더하는 추가(`/staff/routes/{id}/stops` 의 POST)는
+2026-09-23 개편(`PUT` 저장 · `suggest`)이 대체한 뒤 웹·매니저 앱·학부모 앱 어디에서도 호출하지 않아 삭제했다.
 
 #### 승하차지 한 번에 저장 · 주소 자동완성 (2026-09-23 사용자 지시, Ruling 325)
 
@@ -1745,7 +1728,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 - **기존 승하차지의 이름·좌표를 이 값으로 고친다** — 승하차지는 학원의 한 장소라, 그것을 쓰는 **다른 노선·학생 주소에도
   함께 반영**된다. 노선별 사본을 만들지 않는 이유는 학생 주소(`weekly_address.stop_id`)가 옛 행을 가리킨 채 남기 때문이다
 - **배열에서 빠진 승하차지는 노선에서만 빠진다** — 승하차지 행은 지우지 않는다
-- 새 항목은 `POST .../stops` 와 같은 규칙 — 50m 안에 있으면 그 승하차지를 쓴다
+- **새 항목은 50m 안에 기존 승하차지가 있으면 그것을 쓴다**(새로 만들지 않는다, STU-05) — 지도에서 몇 미터 어긋나게 찍는 것은 흔하고, 그때마다 새로 만들면 명단·노선이 같은 자리를 둘로 센다. 결과로 같은 승하차지가 두 번 담기면 `422 VALIDATION_FAILED`(버스가 같은 자리에 두 번 선다)
 - **고치기 전에 전부 검증한다** — 학원 밖 승하차지·같은 승하차지 두 번이면 **아무것도 바꾸지 않은 채** `422 VALIDATION_FAILED`
 - **운행 중(`moving`) 회차의 현재 노선에 서는 승하차지는 좌표를 고칠 수 없다** — 아무것도 바꾸지 않은 채
   `403 CHANGE_WINDOW_CLOSED`. 운행 시작과 동시에 노선이 잠기는데(`ARCHITECTURE §8.5`) 근접 알림·출발 판정이
@@ -1753,11 +1736,12 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
   (2026-09-25 `BR-052`, 조율자 판정)
 - 응답은 상세와 같은 형태 · 에러 `404 ROUTE_NOT_FOUND`(다른 학원 편성 포함) · `403 CHANGE_WINDOW_CLOSED`(위)
 
-**`GET /staff/stops/suggest?query=` 응답** — `items[]`, 항목마다 `GET /staff/stops/search` 응답과 같은 모양
-(`lat` · `lng` · `display_name` · `nearby[]`). 최대 10건.
+**`GET /staff/stops/suggest?query=` 응답** — `items[]`(최대 10건), 항목마다 `lat` · `lng` · `display_name`(정규화 주소) ·
+`nearby[]`(`stop_id` · `name` · `address` · `lat` · `lng` · `distance_m`). `nearby` 는 **50m 안**의 기존 승하차지다(근접 병합 임계와 같은 값,
+STU-05) — 화면이 "이 자리에 이미 있다" 를 알려 관계자가 같은 자리에 둘째를 만들지 않게 한다.
 
-- **후보가 없으면 빈 목록이다** — 입력하는 동안에는 흔한 상태라 오류가 아니다(`search` 의 `422` 와 다르다)
-- 공급자에 못 닿으면 `503 ADDRESS_VERIFICATION_UNAVAILABLE`
+- **후보가 없으면 빈 목록이다** — 입력하는 동안에는 흔한 상태라 오류가 아니다(`422` 아님)
+- 공급자에 못 닿으면 `503 ADDRESS_VERIFICATION_UNAVAILABLE`("그런 주소가 없다" 와 "지금 물어볼 수 없다" 는 화면 안내가 다르다)
 - 후보는 **장소 검색(최대 5건) → 주소 검색** 차례다. 장소 후보는 `place_name`(장소 이름 — 표시명 기본값)을 더 싣고,
   `display_name` 은 도로명 주소다. 주소 후보에는 `place_name` 이 없다
 - 공급자 둘 — 장소는 **NAVER API HUB 지역 검색**(`신정역` · `목동 현대백화점`), 주소는 **네이버 지오코딩**(`신정동 1`).
@@ -2135,7 +2119,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 **에러** — `409 RUN_NOT_CONFIRMED`(확정 전이고, **그 학원·버스·요일·방향에 대응하는 고정 노선도 없을 때만** — 있으면 위 `confirmed=false` 경로로 `200`) · `404 RUN_NOT_FOUND`
 
-### 5.20 GET /staff/reports · GET /staff/reports/{id}
+### 5.20 GET /staff/reports
 
 예외 보고 조회 (EXC-02 · EXC-03, M-14). §4.13 의 쓰기에 대응하는 읽기.
 
@@ -2147,7 +2131,9 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 **행 수 상한** — 이 목록은 페이징(§1.8)을 적용하지 않는 대신 **최근 보고부터 최대 200건**만 돌려준다(2026-09-30 BR-228 — `exception_report` 는 무기한 보존이라 상한이 없으면 호출 한 번이 누적 전량을 읽는다). 더 오래된 보고는 `date` 로 하루씩 좁혀 조회한다.
 
-**에러** — `404 REPORT_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163)
+**폐기(`Ruling 410`, 2026-10-01)** — 상세 조회(`/staff/reports/{id}`)는 목록 항목과 필드가 같고 화면이 호출하지 않아 삭제했다. 그와 함께 `REPORT_NOT_FOUND` 코드도 사라졌다.
+
+**에러** — 이 목록은 고유 에러가 부재(§1.11 공통 항목만).
 
 ### 5.21 GET · PATCH /staff/academy-settings
 
@@ -2629,7 +2615,6 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `SIGNUP_REQUEST_NOT_FOUND` | 404 | 미존재 가입 요청 지정 (AUTH-10 · ACAD-05) |
 | `APPROVAL_NOT_FOUND` | 404 | 미존재 승인 요청 지정 (REQ-04) |
 | `EMERGENCY_NOT_FOUND` | 404 | 미존재 비상 알림 지정 · 타 학원 — 존재 비노출, Ruling 163 (EXC-04) |
-| `REPORT_NOT_FOUND` | 404 | 미존재 예외 보고 지정 · 타 학원 — 존재 비노출, Ruling 163 (EXC-02·03) |
 | `NOTIFICATION_NOT_FOUND` | 404 | 미존재 알림 지정 (NTF-08) |
 | `MANAGER_NOT_FOUND` | 404 | 미존재 매니저 지정 (MGR-03·04) |
 | `BUS_NOT_FOUND` | 404 | 미존재 차량 지정 (BUS-03) |

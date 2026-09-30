@@ -33,7 +33,6 @@ import src.backend.routing.dto.RouteListRequest;
 import src.backend.routing.dto.RouteOptimizeRequest;
 import src.backend.routing.dto.RoutePathResponse;
 import src.backend.routing.dto.RouteRegisterRequest;
-import src.backend.routing.dto.RouteStopAddRequest;
 import src.backend.routing.dto.RouteStopsSaveRequest;
 import src.backend.routing.dto.RouteResponse;
 import src.backend.routing.dto.RouteUpdateRequest;
@@ -108,15 +107,6 @@ public class StaffRouteController {
     public ApiResponse<RoutePathResponse> path(@AuthenticationPrincipal AuthUser requester,
             @PathVariable Long id) {
         return ApiResponse.ok(routePathQueryService.path(requester, id));
-    }
-
-    /** 좌표로 정차지 더하기 — 주소 검색({@code GET /staff/stops/search}) 결과를 지도에서 확정한 뒤. */
-    @CanManageRoute
-    @Operation(summary = "고정 노선 편성 · 정차 순서 최적화 — 좌표로 정차지 추가 (RTE-01)")
-    @PostMapping("/{id}/stops")
-    public ApiResponse<RouteDetailResponse> addStop(@AuthenticationPrincipal AuthUser requester,
-            @PathVariable Long id, @Valid @RequestBody RouteStopAddRequest request) {
-        return ApiResponse.ok(routeCommandService.addStop(requester, id, request));
     }
 
     /** 승하차지 한 번에 저장 — 추가·수정·삭제·순서를 한 트랜잭션으로(2026-09-23 사용자 지시). */

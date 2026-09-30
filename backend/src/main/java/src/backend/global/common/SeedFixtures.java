@@ -165,8 +165,8 @@ public final class SeedFixtures {
 
     /**
      * 학원 A 예외 보고(회차 {@link #RUN_MOVING_ID}, {@code vehicle_issue}, 신고자 driverA2) —
-     * {@code StaffReportController#id} 예시. 로컬 시드에 실제 행이 있어 "Try it out" 이 200 을
-     * 돌려준다({@code FIX-BEB2.md} — BR-113 잔여, Ruling 348).
+     * 예외 보고 목록 시험용 시드 행 — 상세 조회({@code GET /staff/reports/{id}})는 R46-BE 가 삭제해 Swagger
+     * 예시({@code StaffReportController#id})는 더 쓰이지 않는다(BR-113 잔여, Ruling 348 의 예시 배선은 폐기).
      */
     public static final String EXCEPTION_REPORT_EXAMPLE_ID = "1";
 
