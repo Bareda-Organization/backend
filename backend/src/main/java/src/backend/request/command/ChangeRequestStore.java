@@ -85,6 +85,7 @@ public class ChangeRequestStore {
     private ChangeWindow windowAt(Run run, OffsetDateTime now) {
         Run fresh = runRepository.findByIdAndAcademyId(run.getId(), run.getAcademyId()).orElseThrow(
                 () -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        ChangeWindowPolicy.assertNotCanceled(fresh);
         ChangeWindow window = ChangeWindowPolicy.segmentOf(fresh, now);
         if (window == ChangeWindow.CLOSED) {
             throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);

@@ -54,6 +54,7 @@ import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
 import src.backend.run.command.RunConfirmationFixtures;
 import src.backend.run.command.RunConfirmationService;
+import src.backend.run.entity.RunCancelSource;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
@@ -248,6 +249,33 @@ class StaffApprovalDecideControllerTest {
                 "SELECT riding FROM boarding_intent WHERE run_id = ? AND student_id = ?", Boolean.class, s.runId,
                 studentId);
         assertThat(riding).as("승인된 취소는 탑승 의사를 false 로 남겨야 한다").isFalse();
+    }
+
+    /** BR-224 (Ruling 376) — 취소된 회차의 대기 건은 승인할 수 없고 노선 판본도 늘지 않는다. */
+    @Test
+    void 취소된_회차의_승인은_409_RUN_CANCELED_이다() throws Exception {
+        결정_시나리오 s = 정상_시나리오();
+        String token = 미리보기_토큰_조회(s);
+        runRepository.findById(s.runId).orElseThrow().cancel(OffsetDateTime.now(), RunCancelSource.STAFF);
+
+        결정_요청(관계자_토큰(s.academyId), s.approvalId, 승인_바디(token))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("RUN_CANCELED"));
+
+        Integer versionCount = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM route_version WHERE confirmed_route_id = ?", Integer.class, s.runId);
+        assertThat(versionCount).as("취소된 회차에 새 노선 판본이 생기면 안 된다").isEqualTo(1);
+    }
+
+    /** BR-224 (Ruling 376) — 취소된 회차의 대기 건도 거절은 허용된다(대기 건을 정리할 수단). */
+    @Test
+    void 취소된_회차의_거절은_허용된다() throws Exception {
+        결정_시나리오 s = 정상_시나리오();
+        runRepository.findById(s.runId).orElseThrow().cancel(OffsetDateTime.now(), RunCancelSource.STAFF);
+
+        결정_요청(관계자_토큰(s.academyId), s.approvalId, 거절_바디("회차 취소"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("rejected"));
     }
 
     // ── 목표 4 — 거절 ────────────────────────────────────────────────────

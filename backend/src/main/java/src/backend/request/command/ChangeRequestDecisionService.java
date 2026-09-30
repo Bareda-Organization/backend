@@ -114,7 +114,7 @@ public class ChangeRequestDecisionService {
      * @throws BusinessException {@code 404 APPROVAL_NOT_FOUND}(없음 · 다른 학원, §1.5) ·
      *                            {@code 409 APPROVAL_ALREADY_DECIDED}(이미 처리된 건, 다른 검사보다
      *                            먼저 본다) · {@code 403 CHANGE_WINDOW_CLOSED}(운행 시작 후 도달,
-     *                            Ruling 200) · {@code 409 PREVIEW_STALE}(승인, 토큰 불일치·부재) ·
+     *                            Ruling 200) · {@code 409 RUN_CANCELED}(승인, 취소된 회차, Ruling 376) · {@code 409 PREVIEW_STALE}(승인, 토큰 불일치·부재) ·
      *                            {@code 422 VALIDATION_FAILED}(거절, 사유 부재)
      */
     @Transactional
@@ -154,8 +154,10 @@ public class ChangeRequestDecisionService {
         // 배포된 노선 버전을 보고 다음 판본 번호를 매겨야 하는데, 잠금이 없으면 둘 다 같은 옛 버전을
         // 기준으로 같은 판본 번호를 써 uk_route_version_confirmed_route_version_no UNIQUE 위반(500)이
         // 난다. 새 잠금 수단을 만들지 않고 그쪽이 쓰는 저장소 메서드를 호출만 한다.
-        runRepository.findLockedByIdAndAcademyId(run.getId(), academyId)
+        Run locked = runRepository.findLockedByIdAndAcademyId(run.getId(), academyId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        // Ruling 376 — 취소된 회차에는 노선을 새로 배포하지 않는다(거절은 허용). 잠근 뒤 판정해야 취소와 겹쳐도 안전하다.
+        ChangeWindowPolicy.assertNotCanceled(locked);
         ApprovalPreview preview = previewCache.find(cr.getId())
                 .filter(cached -> cached.token().equals(previewToken))
                 .orElseThrow(() -> new BusinessException(ErrorCode.PREVIEW_STALE));

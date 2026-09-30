@@ -56,6 +56,7 @@ import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.command.RunConfirmationFixtures;
 import src.backend.run.command.RunConfirmationService;
+import src.backend.run.entity.RunCancelSource;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
@@ -830,6 +831,27 @@ class BoardingIntentControllerTest {
                         .content("{\"riding\":false}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("RUN_NOT_FOUND"));
+    }
+
+    /** BR-224 (Ruling 376) — 임시 취소된 회차에는 탑승 토글이 통과하지 못하고 관계자 알림도 남지 않는다. */
+    @Test
+    void 취소된_회차에_토글하면_409_RUN_CANCELED_이다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long studentId = fixtures().student(academyId, "학생1");
+        BoardingIntentFixtures.GuardianAccount guardian = fixtures().guardian(academyId, "보호자1");
+        fixtures().linkChild(guardian.guardianId(), studentId, now.minusDays(1));
+        long runId = fixtures().run(academyId, busId, now.plusHours(2), now.plusMinutes(90));
+        fixtures().enrol(academyId, busId, studentId, fixtures().stop(academyId, "37.550000", "126.960000"));
+        runRepository.findById(runId).orElseThrow().cancel(OffsetDateTime.now(), RunCancelSource.STAFF);
+
+        mockMvc.perform(patch(INTENT.formatted(studentId, runId))
+                        .header("Authorization", 토큰(guardian.accountId(), academyId, Role.PARENT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"riding\":false}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("RUN_CANCELED"));
     }
 
     private String 토큰(long accountId, long academyId, Role role) {

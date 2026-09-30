@@ -45,6 +45,7 @@ import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
 import src.backend.run.command.RunConfirmationFixtures;
 import src.backend.run.command.RunConfirmationService;
+import src.backend.run.entity.RunCancelSource;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
@@ -497,6 +498,26 @@ class ChangeRequestControllerTest {
                 .filter(cr -> cr.getRunId().equals(runId))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    /** BR-224 (Ruling 376) — 임시 취소된 회차에는 변경 신청이 접수되지 않는다(한도도 소비하지 않는다). */
+    @Test
+    void 취소된_회차에_변경_신청하면_409_RUN_CANCELED_이다() throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+        long busId = fixtures().bus(academyId);
+        long stop = fixtures().stop(academyId, "37.560000", "126.970000");
+        fixtures().route(academyId, busId, WEEKDAY, Direction.TO_ACADEMY, stop);
+        long studentId = fixtures().student(academyId, "학생1");
+        fixtures().verifiedAddress(studentId, stop, WEEKDAY, Direction.TO_ACADEMY, "37.560000", "126.970000");
+        long accountId = changeRequestFixtures().parentLinkedTo(academyId, studentId);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusMinutes(31);
+        long runId = fixtures().idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        runRepository.findById(runId).orElseThrow().cancel(OffsetDateTime.now(), RunCancelSource.STAFF);
+
+        신청_요청(accountId, academyId, studentId, "cancel", runId, null, null)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("RUN_CANCELED"));
     }
 
     private ResultActions 신청_요청(long accountId, Long academyId, long studentId, String type, long runId,
