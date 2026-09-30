@@ -235,6 +235,8 @@ app:
       url-prefix: /api/v1/files/photos
   # STOMP(WebSocket) 허용 출처. REST 의 app.cors.allowed-origins 와 별개다 —
   # 스프링에서 WebSocket 핸드셰이크는 CORS 필터를 타지 않고 자체 origin 검사를 한다.
+  # 이 기본값 `*` 은 로컬 전용이다. prod·demo·staging 절은 기본값 없이 요구한다 — EC2 운영은
+  # docker-compose.prod.yml, 스테이징은 Cloudflare Tunnel 의 공개 주소(PUBLIC_URL)를 넣는다.
   ws:
     allowed-origin-patterns: ${WS_ALLOWED_ORIGIN_PATTERNS:*}
   # /api/** CORS 허용 출처 — 새 프론트엔드 프레임워크 개발 서버가 다른 포트에서 붙을 때 대비

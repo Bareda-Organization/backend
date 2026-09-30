@@ -58,7 +58,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // 로컬은 "*", 배포는 웹(Vercel) 출처만 허용한다 — 웹이 API 와 다른 출처가 됐기 때문이다.
+        // 로컬은 "*", 배포는 WS_ALLOWED_ORIGIN_PATTERNS 로 주입한 웹 출처만 허용한다 — EC2 운영은
+        // docker-compose.prod.yml(DEPLOYMENT.md), 스테이징은 Cloudflare Tunnel 의 공개 주소 PUBLIC_URL(STAGING.md).
         // 네이티브 앱은 Origin 헤더를 보내지 않아 이 제한에 걸리지 않는다.
         registry.addEndpoint("/ws/location").setAllowedOriginPatterns(allowedOriginPatterns);
         // 거부 사유를 REST 와 같은 어휘(ErrorCode 이름)로 ERROR 프레임에 싣는다 — 기본 변환기는 채널
