@@ -27,6 +27,7 @@ import src.backend.run.entity.RunForcedAddition;
 import src.backend.run.entity.RunTransfer;
 import src.backend.run.repository.RunForcedAdditionRepository;
 import src.backend.run.repository.RunTransferRepository;
+import src.backend.run.roster.ProjectedRoster.StagedRows;
 import src.backend.student.repository.StudentDailyStop;
 import src.backend.student.repository.WeeklyAddressRepository;
 
@@ -149,17 +150,27 @@ public class ProjectedRosterReader {
         Set<Long> addedStudentIds = new HashSet<>(studentIds);
         addedStudentIds.removeAll(weeklyStudentIds);
         return new ProjectedRoster(studentIds, stopOverrides, studentStops, absentStops, addedStudentIds, removedStops,
-                incomingTransfers, forcedAdditions.size() + outgoingTransfers.size() + incomingTransfers.size());
+                incomingTransfers, stagedRowsOf(forcedAdditions, outgoingTransfers, incomingTransfers));
     }
 
     /**
-     * 그 회차의 강제 추가·이동 대기 행 수 — 확정 저장이 트랜잭션 안에서 다시 세어 {@link ProjectedRoster#stagedRowCount()}
-     * 와 다르면 계산 도중 새 행이 들어온 것이다(BR-044). 대기 행은 지워지지 않으므로 수만 비교해도 충분하다.
+     * 그 회차의 강제 추가·이동 행 id — 확정 저장이 트랜잭션 안에서 다시 읽어 {@link ProjectedRoster#stagedRows()}
+     * 와 다르면 계산 도중 행이 들어오거나 취소된 것이다(BR-044). 이동 대기는 취소로 지워지므로(§5.8.1) 수만
+     * 비교하면 취소 1 + 새 등록 1 을 놓친다.
      */
-    public int stagedRowCount(Run run) {
-        return (int) runForcedAdditionRepository.countByRunIdAndAcademyId(run.getId(), run.getAcademyId())
-                + runTransferRepository.findAllByFromRunIdAndAcademyId(run.getId(), run.getAcademyId()).size()
-                + runTransferRepository.findAllByToRunIdAndAcademyId(run.getId(), run.getAcademyId()).size();
+    public StagedRows stagedRows(Run run) {
+        return stagedRowsOf(runForcedAdditionRepository.findAllByRunIdAndAcademyId(run.getId(), run.getAcademyId()),
+                runTransferRepository.findAllByFromRunIdAndAcademyId(run.getId(), run.getAcademyId()),
+                runTransferRepository.findAllByToRunIdAndAcademyId(run.getId(), run.getAcademyId()));
+    }
+
+    private static StagedRows stagedRowsOf(List<RunForcedAddition> forcedAdditions, List<RunTransfer> outgoing,
+            List<RunTransfer> incoming) {
+        Set<Long> transferIds = new HashSet<>();
+        outgoing.forEach(transfer -> transferIds.add(transfer.getId()));
+        incoming.forEach(transfer -> transferIds.add(transfer.getId()));
+        return new StagedRows(forcedAdditions.stream().map(RunForcedAddition::getId).collect(Collectors.toSet()),
+                transferIds);
     }
 
 }

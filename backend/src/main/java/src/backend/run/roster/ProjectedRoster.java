@@ -16,11 +16,11 @@ import src.backend.run.entity.RunTransfer;
  * @param addedStudentIds   요일별 주소에 없다가 강제 추가·도착 이동으로 올라온 학생 — {@code change=added}
  * @param removedStops      출발 이동으로 빠진 학생 → 승하차지. {@code absent · change=removed} 행으로 남는다(RTE-04)
  * @param incomingTransfers 이 회차가 도착인 이동 대기 건 — 확정이 명단에 더하며 {@code applied} 로 표시한다
- * @param stagedRowCount    읽은 강제 추가·이동 행 수 — 확정 저장이 다시 세어 그 사이 들어온 행을 알아챈다(BR-044)
+ * @param stagedRows        읽은 강제 추가·이동 행의 id — 확정 저장이 다시 읽어 그 사이 들어오거나 취소된 행을 알아챈다(BR-044)
  */
 public record ProjectedRoster(List<Long> studentIds, Map<Long, Long> stopOverrides, Map<Long, Long> studentStops,
         Map<Long, Long> absentStops, Set<Long> addedStudentIds, Map<Long, Long> removedStops,
-        List<RunTransfer> incomingTransfers, int stagedRowCount) {
+        List<RunTransfer> incomingTransfers, StagedRows stagedRows) {
 
     public ProjectedRoster {
         studentIds = List.copyOf(studentIds);
@@ -30,6 +30,18 @@ public record ProjectedRoster(List<Long> studentIds, Map<Long, Long> stopOverrid
         addedStudentIds = Set.copyOf(addedStudentIds);
         removedStops = Map.copyOf(removedStops);
         incomingTransfers = List.copyOf(incomingTransfers);
+    }
+
+    /**
+     * 그 회차가 읽은 강제 추가·이동 행의 id 집합 — 수가 아니라 id 로 비교해야 취소 1 + 새 등록 1 처럼 수는 같고
+     * 내용이 다른 변경을 잡는다(이동 대기 취소, API_SPEC §5.8.1). 식별자는 재사용되지 않는다.
+     */
+    public record StagedRows(Set<Long> forcedAdditionIds, Set<Long> transferIds) {
+
+        public StagedRows {
+            forcedAdditionIds = Set.copyOf(forcedAdditionIds);
+            transferIds = Set.copyOf(transferIds);
+        }
     }
 
     /** 정원 판정의 현재 인원. */
