@@ -228,6 +228,25 @@ class AdminMonitoringControllerTest {
                 .andExpect(jsonPath("$.data.runs[0].destination_eta").doesNotExist());
     }
 
+    /** BR-220(Ruling 375) — 임시 취소된 회차는 관제 회차 목록에서 빠진다(취소 표시 없이 idle 로 섞이지 않는다). */
+    @Test
+    void 임시_취소된_회차는_관제_목록에서_빠진다() throws Exception {
+        AdminMonitoringFixtures f = fixtures();
+        long academyId = f.academy();
+        long busId = f.bus(academyId);
+        OffsetDateTime departTime = now().plusHours(2);
+        long liveRunId = f.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
+        long canceledRunId = f.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        runRepository.findById(canceledRunId).orElseThrow().cancel(now(), src.backend.run.entity.RunCancelSource.STAFF);
+        long adminAccountId = f.systemAdminAccount("메인관리자");
+
+        mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 메인관리자_토큰(adminAccountId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.runs.length()").value(1))
+                .andExpect(jsonPath("$.data.runs[0].run_id").value(liveRunId));
+    }
+
     /**
      * 마지막 위치 수신 후 2분 초과(유실)면 {@code position} 을 비우고 {@code last_seen_at} 만 채운다
      * (목표 9 — Ruling 250 · {@code FEATURE_SPEC §4.16} A-14, {@code §5.18} 과 같은 기준값). 위

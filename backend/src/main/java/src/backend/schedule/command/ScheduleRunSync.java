@@ -81,8 +81,7 @@ class ScheduleRunSync {
         for (Run run : runRepository.findAllByAcademyIdAndScheduleIdAndServiceDateAfterAndStatusAndCancelSource(
                 schedule.getAcademyId(), schedule.getId(), today, RunStatus.IDLE, RunCancelSource.SCHEDULE)) {
             if (backs(schedule, run) && !hasLiveRun(schedule, run)) {
-                run.reinstate();
-                runCommandService.moveToPlan(run, draftOf(schedule, run.getServiceDate()));
+                runCommandService.reinstateToPlan(run, draftOf(schedule, run.getServiceDate()));
             }
         }
     }

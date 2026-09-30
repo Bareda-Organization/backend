@@ -162,10 +162,16 @@ public class WaypointCommandService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.PREVIEW_STALE));
     }
 
-    /** 회차를 학원으로 좁혀 읽고 구간을 판정한다 — ③구간(운행 시작 후)만 막는다(클래스 javadoc). */
+    /**
+     * 회차를 학원으로 좁혀 읽고 구간을 판정한다 — ③구간(운행 시작 후)만 막는다(클래스 javadoc). 임시 취소된 회차는
+     * {@code 409 RUN_CANCELED} 다(BR-210, Ruling 376).
+     */
     private Run loadRunInWindow(AuthUser requester, Long runId) {
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        if (run.isCanceled()) {
+            throw new BusinessException(ErrorCode.RUN_CANCELED);
+        }
         ChangeWindow window = ChangeWindowPolicy.segmentOf(run, OffsetDateTime.now(clock));
         if (window == ChangeWindow.CLOSED) {
             throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);

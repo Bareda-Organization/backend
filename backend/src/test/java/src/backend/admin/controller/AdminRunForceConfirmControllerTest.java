@@ -322,6 +322,23 @@ class AdminRunForceConfirmControllerTest {
                 .andExpect(jsonPath("$.error.code").value("RUN_NOT_IDLE"));
     }
 
+    /** BR-220(Ruling 375) — 임시 취소된 회차의 강제 확정은 {@code 409 RUN_CANCELED} 다(화면에 idle 로 보여도 원인이 드러난다). */
+    @Test
+    @DisplayName("BR-220 — 임시 취소된 회차의 강제 확정은 409 RUN_CANCELED 다")
+    void 취소된_회차는_409_RUN_CANCELED_다() throws Exception {
+        long runId = dueIdleRunWithoutCoordinates();
+        int updated = jdbcTemplate.update("UPDATE run SET canceled_at = now(), cancel_source = 'staff' WHERE id = ?", runId);
+        assertThat(updated).isEqualTo(1);
+        동기화한다();
+
+        mockMvc.perform(post(FORCE_CONFIRM.formatted(runId))
+                        .header("Authorization", 메인관리자_토큰())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"취소된 회차를 강제 확정 시도\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("RUN_CANCELED"));
+    }
+
     /** 미존재 회차는 {@code 404 RUN_NOT_FOUND} 다(§6.14). */
     @Test
     @DisplayName("목표11 — 없는 회차의 강제 확정은 404 RUN_NOT_FOUND 다")

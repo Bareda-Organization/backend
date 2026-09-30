@@ -69,8 +69,9 @@ public class StaffDashboardQueryService {
      */
     public StaffDashboardResponse dashboard(AuthUser requester, String requestedDate) {
         LocalDate serviceDate = requestedDate == null ? LocalDate.now(clock) : ApiValues.date(requestedDate);
+        // 임시 취소된 회차는 표와 지표에서 뺀다(Ruling 375) — 운행하지 않는 회차가 idle 로 섞이고, 그 회차의 배치가 매니저를 "배치됨" 으로 센다.
         List<Run> runs = runRepository.findAllByAcademyIdAndServiceDateOrderByDepartTimeAsc(
-                requester.academyId(), serviceDate);
+                requester.academyId(), serviceDate).stream().filter(run -> !run.isCanceled()).toList();
         if (runs.isEmpty()) {
             int unassignedManagers = (int) managerRepository
                     .countActiveForStaffDashboard(requester.academyId());
