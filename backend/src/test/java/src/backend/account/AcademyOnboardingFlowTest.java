@@ -75,7 +75,7 @@ class AcademyOnboardingFlowTest {
         MvcResult 등록 = mockMvc.perform(post("/api/v1/admin/academies")
                         .header("Authorization", adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\": \"P3T2흐름학원\", \"region\": \"성남\"}"))
+                        .content("{\"name\": \"P3T2흐름학원\", \"region\": \"성남\", \"address\": \"테헤란로 152\"}"))
                 .andExpect(status().isCreated())
                 .andReturn();
         long academyId = Long.parseLong(JsonPath.read(본문(등록), "$.data.academy_id"));

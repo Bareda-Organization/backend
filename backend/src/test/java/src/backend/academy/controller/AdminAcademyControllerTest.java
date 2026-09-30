@@ -370,7 +370,8 @@ class AdminAcademyControllerTest {
     }
 
     private String 등록_본문(String name, String region) {
-        return "{\"name\":\"%s\",\"region\":\"%s\"}".formatted(name, region);
+        // Ruling 450 — 주소는 필수다. 번지가 붙어 스텁이 좌표로 옮길 수 있는 주소를 함께 보낸다.
+        return "{\"name\":\"%s\",\"region\":\"%s\",\"address\":\"테헤란로 152\"}".formatted(name, region);
     }
 
     private String 등록한다(String name, String region) throws Exception {

@@ -198,7 +198,7 @@ erDiagram
 | `code` | varchar(32) | UK NN | 학원 코드. **서버 자동 생성** — 관리자 입력 부재. 가입 검색 대상 (ACAD-02) |
 | `name` | varchar(100) | NN | 학원명 |
 | `region` | varchar(50) | NN | 지역(시·군·구). 동명 학원 구분값 |
-| `address` | varchar(255) | | 학원 주소 |
+| `address` | varchar(255) | | 학원 주소. **API 는 필수**(등록 누락·수정으로 비우기 `422`, `Ruling 450`)이나 컬럼은 NULL 허용을 유지 — 주소 없이 좌표만 가진 시드 학원(A·B)이 있고 시드 SQL 을 고치면 영속 DB 체크섬이 바뀐다 |
 | `contact` | varchar(30) | | 대표 연락처. 승인 대기 화면의 `academy_contact` |
 | `memo` | text | | 운영사 내부 메모 |
 | `status` | varchar(10) | NN | `active` · `inactive`. CHECK |

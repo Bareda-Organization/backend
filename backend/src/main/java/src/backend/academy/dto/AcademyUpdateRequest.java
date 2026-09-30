@@ -5,6 +5,9 @@ import jakarta.validation.constraints.Size;
 /**
  * 학원 정보 수정·비활성화 요청(API_SPEC §6.3 PATCH) — 보낸 항목만 반영되고 {@code null} 은 그대로 둔다.
  *
+ * <p>{@code address} 는 보내지 않거나 {@code null} 이면 유지, 비우거나 공백이면 {@code 422}
+ * ({@code Ruling 450} — 주소는 필수라 지울 수 없다).
+ *
  * <p>{@code code} 필드가 부재한 것이 "코드는 수정 대상 밖" 을 표현하는 방식이다. 본문에 {@code code} 를
  * 실어 보내도 바인딩될 자리가 없어 무시된다.
  *
