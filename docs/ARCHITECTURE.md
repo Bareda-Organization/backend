@@ -162,7 +162,7 @@ controller  →  command / query  →  repository  →  entity
 | **지오코딩** | `GeocodingClient`(`student/geocoding/spec`) | **네이버 API 확정**(C-18). 학부모의 일일 승하차지 등록 시점에 호출 (P-06 · STU-05) |
 | **장소 검색(자동완성)** | `PlaceSearchClient`(`student/geocoding/spec`) | 고정 노선 정차지 검색 — 네이버 검색 API. 키 발급 전 임시 구현 교체 대상 (BR-146) |
 | **내비게이션 공급자** | `NavProvider`(`run/navigation/spec`) | MVP 는 카카오내비 단독(`IMPLEMENTATION_PLAN §7` 규칙 12) — 공급자 전환은 구현체 추가 + 설정 |
-| **사진 저장소** | `PhotoStorage`(`student/photo/spec`) | 학생 사진 등 첨부 저장 위치(로컬 ↔ 오브젝트 스토리지) 교체 가능성 |
+| **사진 저장소** | `PhotoStorage`(`student/photo/spec`) | 학생 사진 등 첨부 저장 위치(로컬 ↔ 오브젝트 스토리지) 교체 가능성. **저장소가 어디든 서빙은 인증 경로 하나** — `GET /files/photos/{fileName}`(`API_SPEC §5.11.1`)이 `STUDENT_READ_PHOTO` + 같은 학원 요청자에게만 내려주고 정적 공개 경로는 두지 않는다(사진은 L3, `Ruling 377`). `photo_url` 은 이 경로의 접두사(`/api/v1/files/photos`)를 갖는다 |
 | **승인 미리보기 캐시** | `ApprovalPreviewCache`(`request/preview/spec`) | 미리보기 산출물 보관 방식(인메모리 ↔ Redis) 교체 가능성 |
 | **푸시 발송** | `PushSender`(`notification/push/spec`) | FCM · APNs · 알림톡(2~3단계)이 서로 다른 채널 |
 | **알림 문구 생성** | `NotificationComposer`(`notification/domain/spec`) | 문구·다국어가 바뀔 축 |
@@ -559,6 +559,10 @@ access(단기) + refresh(장기). 실행·새로고침 시 refresh 로 자동 �
 채널 4개와 채널별 방송 이벤트의 정본은 **[API_SPEC §7](./API_SPEC.md)** — 이 문서는 중복 기재하지 않음.
 
 **채널을 역할별로 가른 이유** — 이벤트마다 수신자를 정하는 대신 채널을 나누면 **구독 권한 검증 한 번으로 노출 범위가 결정**됨. 특히 학부모·학생 채널에는 `rider_changed` 를 싣지 않는다 — 그 payload 에 타 학생 이름과 탑승 인원이 들어 있어 C-08(탑승 인원 미표시) · API_SPEC §1.12 에 어긋남. 학부모 화면의 본인 자녀 상태는 REST 조회로 충당.
+
+**`route_changed` 는 데이터가 아니라 "다시 불러오라" 는 신호다** (`Ruling 373`). 확정 노선이 새 판본으로 바뀌면(확정 배치 · ②구간 승인 재최적화 · ③구간 미등원 반영 · 경유 지점 배포 · 강제 확정) 매니저 채널에만 `run_id`·`changed_at` 을 보내고, 받은 매니저 앱이 노선·명단 REST 를 다시 부른다. **본문에 노선을 싣지 않는 이유** — 재조회가 권한·마스킹을 그대로 지나므로 방송 경로가 새 노출 경로가 되지 않는다. 관제·관리자 채널은 폴링이 있어 대상 밖이다.
+
+**커밋 뒤 방송 리스너는 실패를 WARN 으로 기록하고 삼킨다.** `AFTER_COMMIT` 방송은 롤백된 확정이 화면에 남지 않게 하려고 커밋 뒤에 보내며, 송신 실패는 예상된 운영 상황(브로커 다운·연결 끊김)이라 리스너 안에서 WARN 한 줄로 끝낸다. 유실분은 클라이언트가 재연결 때 REST 로 전량 동기화한다. 규약·근거는 `CODE_CONVENTIONS §6.1`.
 
 **구독 시점에 인가를 검증.** 연결만 인증하고 구독 경로를 검사하지 않으면 토큰 보유자가 남의 채널을 구독. §5.1 의 3층을 구독 핸들러에서도 통과시킬 것.
 
