@@ -3,6 +3,7 @@ package src.backend.run.repository;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -20,6 +21,15 @@ import src.backend.run.entity.RunTransferStatus;
  * 가리켜 두 방향으로 각각 조인해야 한다.
  */
 public interface RunTransferRepository extends JpaRepository<RunTransfer, Long> {
+
+    /** 이동 1건을 출발 회차의 학원으로 좁혀 읽는다(취소 §5.8.1) — 타 학원 이동은 부재와 같다. */
+    @Query("""
+            SELECT rt FROM RunTransfer rt
+            JOIN Run r ON r.id = rt.fromRunId
+            WHERE rt.id = :id
+              AND r.academyId = :academyId
+            """)
+    Optional<RunTransfer> findByIdAndAcademyId(@Param("id") Long id, @Param("academyId") Long academyId);
 
     /**
      * 출발 회차 쪽 확정 배치({@code RunConfirmationService#confirmOne})가 명단에서 뺄 대상 전체.
