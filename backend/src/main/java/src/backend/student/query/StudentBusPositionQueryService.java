@@ -7,7 +7,6 @@ import java.util.Locale;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
@@ -35,10 +34,12 @@ import src.backend.student.entity.Student;
  * 같은 코드. 응답의 필수 필드 {@code run_id}·{@code bus_no} 를 채울 회차가 없다).
  *
  * <p>학부모(연결 자녀)와 학생(본인) 둘 다 부른다 — 판정은 {@link StudentRunsAccess}(BR-025).
+ *
+ * <p>클래스에 {@code @Transactional} 을 두지 않는다 — Redis 좌표 읽기({@code RunPositionStore}, 최대 명령 시간 상한
+ * 500ms)가 트랜잭션 안에 있으면 그 동안 DB 연결을 쥔다(R46 D #13). 저장소 호출마다 짧은 읽기 트랜잭션이 돈다.
  */
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class StudentBusPositionQueryService {
 
     /**

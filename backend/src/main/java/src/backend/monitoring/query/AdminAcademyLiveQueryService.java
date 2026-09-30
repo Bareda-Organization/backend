@@ -10,7 +10,6 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
@@ -40,10 +39,12 @@ import src.backend.student.repository.StopRepository;
  * API_SPEC §6.8 에 선택 필드(`○`)라 Redis 값이 없거나 유실(2분 초과)이면 객체 자체를 {@code null} 로
  * 비운다(필드는 있고 값만 비는 형태로 두지 않는다). 유실이면 {@code last_seen_at} 만 채운다(Ruling
  * 250 · FEATURE_SPEC §4.16 A-14).
+ *
+ * <p>클래스에 {@code @Transactional} 을 두지 않는다 — Redis 좌표 읽기({@code RunPositionStore}, 최대 명령 시간 상한
+ * 500ms)가 트랜잭션 안에 있으면 그 동안 DB 연결을 쥔다(R46 D #13). 저장소 호출마다 짧은 읽기 트랜잭션이 돈다.
  */
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class AdminAcademyLiveQueryService {
 
     private final AcademyRepository academyRepository;
