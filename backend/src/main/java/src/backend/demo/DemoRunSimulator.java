@@ -142,7 +142,8 @@ public class DemoRunSimulator {
                     .forEach(run -> busyBusIds.add(run.getBusId()));
             for (Run run : runRepository.findAllByAcademyIdAndStatusOrderByDepartTimeAsc(academyId,
                     RunStatus.CONFIRMED)) {
-                if (startIfDue(run, busyBusIds)) {
+                // 시작 창이 지난 옛 회차는 틱마다 start 예외만 만든다(BR-217)
+                if (today.equals(run.getServiceDate()) && startIfDue(run, busyBusIds)) {
                     busyBusIds.add(run.getBusId());
                 }
             }
@@ -175,11 +176,18 @@ public class DemoRunSimulator {
         return Stream.concat(Stream.of(demoAcademyId), demoAcademyIds.stream()).distinct().toList();
     }
 
+    /**
+     * 오늘 운행 중인 회차만 전진시킨다(BR-217) — 시뮬레이터가 운행을 끝내지 않아 켜 둔 일수만큼 옛 {@code moving} 회차가
+     * 쌓이고, 그것까지 전진시키면 틱(2초)마다 비용이 일수에 비례해 늘고 지난 날의 버스 위치가 계속 방송된다.
+     */
     private void advanceMovingRuns() {
+        LocalDate today = LocalDate.now(clock);
         List<Run> movingRuns = academies().stream()
                 .flatMap(academyId -> runRepository
                         .findAllByAcademyIdAndStatusOrderByDepartTimeAsc(academyId, RunStatus.MOVING).stream())
+                .filter(run -> today.equals(run.getServiceDate()))
                 .toList();
+        cursorByRun.keySet().retainAll(movingRuns.stream().map(Run::getId).toList());
         for (Run run : movingRuns) {
             advanceOne(run);
         }

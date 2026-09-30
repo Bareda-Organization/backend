@@ -101,7 +101,7 @@ public final class EndpointErrorResponses {
             entry("POST /staff/schedules", Map.of("404", "BUS_NOT_FOUND", "409", "DUPLICATE_SCHEDULE")),
             entry("POST /staff/signup-requests/{id}/decide", Map.of("403", "FORBIDDEN", "404", "SIGNUP_REQUEST_NOT_FOUND · STUDENT_NOT_FOUND · MANAGER_NOT_FOUND", "409", "APPROVAL_ALREADY_DECIDED · SIGNUP_TARGET_BLOCKED", "422", "LINK_REQUIRED · VALIDATION_FAILED")),
             entry("POST /staff/accounts/{accountId}/password-reset", Map.of("404", "ACCOUNT_NOT_FOUND")),
-            entry("POST /staff/students/{id}/transfer", Map.of("403", "CHANGE_WINDOW_CLOSED · ACADEMY_SCOPE_VIOLATION", "404", "RUN_NOT_FOUND", "409", "CAPACITY_EXCEEDED · STUDENT_NOT_IN_RUN · TRANSFER_ALREADY_STAGED", "422", "ADDRESS_VERIFICATION_FAILED · VALIDATION_FAILED")),
+            entry("POST /staff/students/{id}/transfer", Map.of("403", "CHANGE_WINDOW_CLOSED · ACADEMY_SCOPE_VIOLATION", "404", "RUN_NOT_FOUND", "409", "CAPACITY_EXCEEDED · STUDENT_ALREADY_IN_RUN · STUDENT_NOT_IN_RUN · TRANSFER_ALREADY_STAGED", "422", "ADDRESS_VERIFICATION_FAILED · VALIDATION_FAILED")),
             entry("POST /students/{id}/change-requests", Map.of("403", "CHANGE_WINDOW_CLOSED · CHANGE_LIMIT_REACHED · FORBIDDEN", "404", "RUN_NOT_FOUND · STUDENT_NOT_FOUND", "422", "ADDRESS_VERIFICATION_FAILED")),
             entry("PUT /staff/routes/{id}/stops", Map.of("404", "ROUTE_NOT_FOUND", "422", "VALIDATION_FAILED")));
 

@@ -238,6 +238,50 @@ class BoardingConcurrencyTest {
     }
 
     @Test
+    @DisplayName("BR-267 — 같은 탑승자에 서로 다른 client_key 로 boarded 를 동시에 보내면 한 건만 처리되고 이력은 1행이다")
+    void 다른_client_key_동시_승차는_한_건만_처리된다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures.academy();
+        long[] escortAccountId = new long[1];
+        long runId = movingRunWithEscort(academyId, escortAccountId);
+        long stopId = fixtures.stop(academyId, "37.500000", "127.000000");
+        long riderId = fixtures.runRider(runId, fixtures.student(academyId, "동시학생"), stopId);
+        AuthUser escort = new AuthUser(escortAccountId[0], academyId, Role.ESCORT, AccountStatus.ACTIVE);
+
+        // 두 요청이 탑승자를 waiting 으로 읽은 뒤에야 각자 boarded 를 쓰게 한다 — 읽기 전에 직렬화하는 가드가 있으면 뒤 요청은 배리어에 못 온다.
+        CyclicBarrier bothRead = new CyclicBarrier(2);
+        RepositoryReadHooks.afterRead("findByIdAndRunIdAndStatusNot", () -> meetOrGiveUp(bothRead));
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        List<Future<?>> futures;
+        try {
+            futures = List.of(
+                    pool.submit(() -> boardingCommandService.updateStatus(escort, runId, riderId,
+                            new RiderStatusUpdateRequest("boarded", "manual", UUID.randomUUID(), now))),
+                    pool.submit(() -> boardingCommandService.updateStatus(escort, runId, riderId,
+                            new RiderStatusUpdateRequest("boarded", "manual", UUID.randomUUID(), now))));
+            long rejected = 0;
+            for (Future<?> future : futures) {
+                try {
+                    future.get(WAIT_LIMIT_SECONDS, TimeUnit.SECONDS);
+                } catch (java.util.concurrent.ExecutionException e) {
+                    assertThat(e.getCause()).isInstanceOf(src.backend.global.error.BusinessException.class);
+                    rejected++;
+                }
+            }
+            assertThat(rejected).as("뒤 요청은 이미 boarded 인 탑승자에 대한 전이라 거절된다").isEqualTo(1);
+        } finally {
+            pool.shutdownNow();
+            pool.awaitTermination(WAIT_LIMIT_SECONDS, TimeUnit.SECONDS);
+        }
+
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM rider_status_history WHERE run_rider_id = ?",
+                Integer.class, riderId))
+                .as("같은 탑승자의 boarded 는 이력 1행이다 — 2면 두 요청이 모두 waiting 을 읽고 각자 승차를 기록한 것이다")
+                .isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("BR-226 — 같은 client_key 로 비상 신고를 동시에 두 번 보내도 500 이 아니라 재생 응답이고 신고는 1건이다")
     void 같은_client_key_비상_신고_동시_재전송은_재생으로_답한다() throws Exception {
         long academyId = fixtures.academy();

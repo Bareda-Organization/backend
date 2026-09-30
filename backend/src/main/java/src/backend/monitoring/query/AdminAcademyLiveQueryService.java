@@ -25,10 +25,7 @@ import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.manager.dto.AssignedManagerContactView;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.monitoring.dto.AdminAcademyLiveResponse;
-import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RunStop;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.entity.Stop;
@@ -55,9 +52,7 @@ public class AdminAcademyLiveQueryService {
 
     private final BusRepository busRepository;
 
-    private final ConfirmedRouteRepository confirmedRouteRepository;
-
-    private final RunStopRepository runStopRepository;
+    private final RunOrderedStopsLoader runOrderedStopsLoader;
 
     private final StopRepository stopRepository;
 
@@ -82,7 +77,7 @@ public class AdminAcademyLiveQueryService {
      * 메서드를 그대로 재사용한다.
      *
      * <p>운행 전 회차는 관제용 필드가 비어서 나간다 — 노선 확정 전이라 {@code stops} 가 빈 배열
-     * ({@link #orderedStopsOf} 가 확정 노선 부재 시 {@code List.of()}), 시작 전이라
+     * ({@link RunOrderedStopsLoader} 가 확정 노선 부재 시 {@code List.of()}), 시작 전이라
      * {@code est_depart_time}({@code run.startedAt})과 {@code position} 이 {@code null} 이다.
      * <b>키는 존재하고 값만 빈다.</b>
      *
@@ -112,8 +107,8 @@ public class AdminAcademyLiveQueryService {
                 .findAssignedManagerContacts(academyId, runIds).stream()
                 .collect(Collectors.groupingBy(AssignedManagerContactView::runId));
 
-        Map<Long, List<RunStop>> orderedStopsByRunId = todayRuns.stream()
-                .collect(Collectors.toMap(Run::getId, this::orderedStopsOf));
+        // 확정 노선·정차 순서도 회차 수와 무관한 2쿼리로 읽는다(BR-247)
+        Map<Long, List<RunStop>> orderedStopsByRunId = runOrderedStopsLoader.load(academyId, todayRuns);
         // 정차지 이름·좌표는 오늘 회차 전부의 것을 한 번에 읽는다(BR-065) — 정차마다 읽으면 호출 한 번이 수백 쿼리다.
         Map<Long, Stop> stopsById = stopRepository.findAllByAcademyIdAndIdIn(academyId,
                         orderedStopsByRunId.values().stream().flatMap(List::stream).map(RunStop::getStopId)
@@ -184,20 +179,6 @@ public class AdminAcademyLiveQueryService {
                 stop == null ? null : stop.getName(), stop == null ? null : stop.getLat(),
                 stop == null ? null : stop.getLng(), runStop.getChange() == null ? null : lower(runStop.getChange()
                         .name()), runStop.getArrivedAt(), eta);
-    }
-
-    /**
-     * {@code PositionBroadcastListener#currentStopNameOf} 와 같은 조회 경로(확정 노선 버전 →
-     * 정차 순서)를 이 서비스 자신의 소유 범위 안에서 다시 계산한다 — 그 클래스를 직접 재사용하지
-     * 않는 이유도 같다(소유 모듈이 다르다).
-     */
-    private List<RunStop> orderedStopsOf(Run run) {
-        ConfirmedRoute confirmedRoute = confirmedRouteRepository.findById(run.getId()).orElse(null);
-        if (confirmedRoute == null || confirmedRoute.getCurrentVersionId() == null) {
-            return List.of();
-        }
-        return runStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeq(confirmedRoute.getCurrentVersionId(),
-                run.getAcademyId());
     }
 
     private static String lower(String value) {

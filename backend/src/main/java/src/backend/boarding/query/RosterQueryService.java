@@ -108,8 +108,8 @@ public class RosterQueryService {
         }
         String busNo = busNoOf(requester, run);
         List<RunRider> riders = runRiderRepository.findAllByRunIdAndAcademyId(run.getId(), requester.academyId());
-        Map<Long, Student> studentsById = studentsOf(requester, riders);
-        Map<Long, String> maskedPhonesById = maskedPhonesOf(requester, studentsById.keySet());
+        Map<Long, Student> studentsById = studentsOf(requester.academyId(), riders);
+        Map<Long, String> maskedPhonesById = maskedPhonesOf(requester.academyId(), studentsById.keySet());
         List<RunStop> boardingStops = boardingStopsOf(requester, run);
         Map<Long, Stop> stopsById = stopRepository
                 .findAllByAcademyIdAndIdIn(requester.academyId(),
@@ -184,11 +184,11 @@ public class RosterQueryService {
 
     /** 확정 뒤 회차의 명단 — {@code run_rider} 원본 그대로다. */
     private List<StaffRosterItemResponse> confirmedStaffItems(AuthUser requester, Run run) {
-        List<RunRider> riders = runRiderRepository.findAllByRunIdAndAcademyId(run.getId(), requester.academyId());
-        Map<Long, Student> studentsById = studentsOf(requester, riders);
-        Map<Long, String> rawPhonesById = rawPhonesOf(requester, studentsById.keySet());
+        List<RunRider> riders = runRiderRepository.findAllByRunIdAndAcademyId(run.getId(), run.getAcademyId());
+        Map<Long, Student> studentsById = studentsOf(run.getAcademyId(), riders);
+        Map<Long, String> rawPhonesById = rawPhonesOf(run.getAcademyId(), studentsById.keySet());
         List<Long> stopIds = riders.stream().map(RunRider::getStopId).distinct().toList();
-        Map<Long, Stop> stopsById = stopRepository.findAllByAcademyIdAndIdIn(requester.academyId(), stopIds).stream()
+        Map<Long, Stop> stopsById = stopRepository.findAllByAcademyIdAndIdIn(run.getAcademyId(), stopIds).stream()
                 .collect(Collectors.toMap(Stop::getId, stop -> stop));
         return riders.stream()
                 .map(rider -> toStaffItem(rider, studentsById.get(rider.getStudentId()), stopsById.get(rider.getStopId()),
@@ -209,11 +209,11 @@ public class RosterQueryService {
     private List<StaffRosterItemResponse> plannedStaffItems(AuthUser requester, Run run) {
         ProjectedRoster planned = projectedRosterReader.read(run);
         Map<Long, Student> studentsById = studentRepository
-                .findAllByAcademyIdAndIdIn(requester.academyId(), planned.studentIds()).stream()
+                .findAllByAcademyIdAndIdIn(run.getAcademyId(), planned.studentIds()).stream()
                 .collect(Collectors.toMap(Student::getId, student -> student));
-        Map<Long, String> rawPhonesById = rawPhonesOf(requester, studentsById.keySet());
+        Map<Long, String> rawPhonesById = rawPhonesOf(run.getAcademyId(), studentsById.keySet());
         Map<Long, Stop> stopsById = stopRepository
-                .findAllByAcademyIdAndIdIn(requester.academyId(), planned.studentStops().values().stream().distinct().toList())
+                .findAllByAcademyIdAndIdIn(run.getAcademyId(), planned.studentStops().values().stream().distinct().toList())
                 .stream().collect(Collectors.toMap(Stop::getId, stop -> stop));
         Map<Long, Long> transferIdsByStudent = planned.incomingTransfers().stream()
                 .collect(Collectors.toMap(RunTransfer::getStudentId, RunTransfer::getId, (first, duplicate) -> first));
@@ -249,7 +249,7 @@ public class RosterQueryService {
         if (studentIds.isEmpty()) {
             return;
         }
-        auditRecorder.recordDataAccessRead(requester.academyId(), requester.accountId(), "run_roster", run.getId(),
+        auditRecorder.recordDataAccessRead(run.getAcademyId(), requester.accountId(), "run_roster", run.getId(),
                 Map.of("student_ids", studentIds, "fields", List.of("guardian_phone", "note")));
     }
 
@@ -320,24 +320,24 @@ public class RosterQueryService {
         return runStops.stream().filter(stop -> stop.getStopId() != null || stop.isDestination()).toList();
     }
 
-    private Map<Long, Student> studentsOf(AuthUser requester, List<RunRider> riders) {
+    private Map<Long, Student> studentsOf(Long academyId, List<RunRider> riders) {
         List<Long> studentIds = riders.stream().map(RunRider::getStudentId).distinct().toList();
-        return studentRepository.findAllByAcademyIdAndIdIn(requester.academyId(), studentIds).stream()
+        return studentRepository.findAllByAcademyIdAndIdIn(academyId, studentIds).stream()
                 .collect(Collectors.toMap(Student::getId, student -> student));
     }
 
-    private Map<Long, String> maskedPhonesOf(AuthUser requester, Set<Long> studentIds) {
-        return phonesOf(requester, studentIds).entrySet().stream()
+    private Map<Long, String> maskedPhonesOf(Long academyId, Set<Long> studentIds) {
+        return phonesOf(academyId, studentIds).entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> GuardianPhoneMasker.mask(entry.getValue())));
     }
 
-    private Map<Long, String> rawPhonesOf(AuthUser requester, Set<Long> studentIds) {
-        return phonesOf(requester, studentIds);
+    private Map<Long, String> rawPhonesOf(Long academyId, Set<Long> studentIds) {
+        return phonesOf(academyId, studentIds);
     }
 
     /** 학생 1명에 보호자가 여럿이면 조회가 이미 고정한 정렬의 <b>첫 값</b>만 남긴다(원본과 같은 근거). */
-    private Map<Long, String> phonesOf(AuthUser requester, Set<Long> studentIds) {
-        List<GuardianPhone> phones = guardianStudentRepository.findGuardianPhonesByAcademyId(requester.academyId(),
+    private Map<Long, String> phonesOf(Long academyId, Set<Long> studentIds) {
+        List<GuardianPhone> phones = guardianStudentRepository.findGuardianPhonesByAcademyId(academyId,
                 studentIds.stream().toList());
         Map<Long, String> result = new LinkedHashMap<>();
         for (GuardianPhone phone : phones) {

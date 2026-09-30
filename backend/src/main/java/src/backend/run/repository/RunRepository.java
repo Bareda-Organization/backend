@@ -17,7 +17,6 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.persistence.LockModeType;
 
 import src.backend.global.common.enums.Direction;
 import src.backend.global.security.access.AcademyScopeExempt;

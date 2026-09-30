@@ -2,9 +2,7 @@ package src.backend.run.roster;
 
 import java.time.Clock;
 import java.time.LocalDate;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.stereotype.Component;
 
@@ -13,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.command.BusLoadReader;
+import src.backend.global.common.LowerCaseFormatter;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
@@ -34,15 +33,18 @@ class ProjectedBusLoadReader implements BusLoadReader {
     private final Clock clock;
 
     @Override
-    public Map<Long, Integer> assignedCountsByRun(Long academyId, Long busId) {
-        Map<Long, Integer> counts = new LinkedHashMap<>();
-        for (Run run : runRepository.findAllByAcademyIdAndBusIdAndServiceDateGreaterThanEqualAndCanceledAtIsNullAndStatusIn(
-                academyId, busId, LocalDate.now(clock), List.of(RunStatus.IDLE, RunStatus.CONFIRMED))) {
-            counts.put(run.getId(), run.getStatus() == RunStatus.CONFIRMED
-                    ? (int) runRiderRepository.findAllByRunIdAndAcademyId(run.getId(), academyId).stream()
-                            .filter(rider -> rider.getStatus() != RiderStatus.ABSENT).count()
-                    : rosterReader.read(run).size());
-        }
-        return counts;
+    public List<RunLoad> assignedCountsByRun(Long academyId, Long busId) {
+        return runRepository.findAllByAcademyIdAndBusIdAndServiceDateGreaterThanEqualAndCanceledAtIsNullAndStatusIn(
+                academyId, busId, LocalDate.now(clock), List.of(RunStatus.IDLE, RunStatus.CONFIRMED)).stream()
+                .map(run -> new RunLoad(run.getId(), run.getServiceDate(), run.getDepartTime(),
+                        LowerCaseFormatter.lower(run.getDirection().name()), assignedCountOf(academyId, run)))
+                .toList();
+    }
+
+    private int assignedCountOf(Long academyId, Run run) {
+        return run.getStatus() == RunStatus.CONFIRMED
+                ? (int) runRiderRepository.findAllByRunIdAndAcademyId(run.getId(), academyId).stream()
+                        .filter(rider -> rider.getStatus() != RiderStatus.ABSENT).count()
+                : rosterReader.read(run).size();
     }
 }

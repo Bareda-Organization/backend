@@ -1,6 +1,7 @@
 package src.backend.notification.command;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -164,6 +165,32 @@ class RunEndedAssignmentAbsentNotificationTest {
 
         new TransactionTemplate(transactionManager).executeWithoutResult(tx -> eventPublisher.publishEvent(event));
         assertThat(count("assignment_changed", account.getId())).isEqualTo(1);
+    }
+
+    /**
+     * AFTER_COMMIT 적재가 실패해도(여기서는 같은 {@code dedup_key} 의 중복 — {@code DUPLICATE_NOTIFICATION}) 이미 커밋된
+     * 배치 변경의 호출자에게 예외가 퍼지면 안 된다(Ruling 379 후속, BR-207 과 같은 형태) — 퍼지면 배치는 저장됐는데
+     * 요청이 500 으로 응답된다. 통지가 빠지는 것은 배치 자체를 되돌릴 이유가 아니다.
+     */
+    @Test
+    void 통지_적재가_실패해도_커밋된_배치_변경의_호출자에게_예외가_퍼지지_않는다() {
+        long academyId = fixtures().academyWithCoordinates();
+        long runId = run(academyId);
+        Account account = accountRepository.save(Account.forSignup(academyId, "mgr" + System.nanoTime(), "x",
+                "기사", "010-0000-0000", null, Role.DRIVER));
+        Manager manager = managerRepository.save(Manager.register(academyId,
+                new ManagerProfile("기사", "010-0000-0000", ManagerRole.DRIVER, null)));
+        manager.linkAccount(account.getId());
+        managerRepository.save(manager);
+        AssignmentChangedEvent event = new AssignmentChangedEvent(runId, academyId, manager.getId(),
+                ManagerRole.DRIVER, OffsetDateTime.now());
+        new TransactionTemplate(transactionManager).executeWithoutResult(tx -> eventPublisher.publishEvent(event));
+
+        assertThatCode(() -> new TransactionTemplate(transactionManager)
+                .executeWithoutResult(tx -> eventPublisher.publishEvent(event)))
+                .as("같은 이벤트의 두 번째 커밋 — 적재가 중복으로 실패해도 호출자는 성공해야 한다")
+                .doesNotThrowAnyException();
+        assertThat(count("assignment_changed", account.getId())).as("통지는 한 건만 남는다").isEqualTo(1);
     }
 
     @Test

@@ -830,7 +830,17 @@ CREATE INDEX ix_stop_academy_coord ON stop (academy_id, lat, lng);
 
 CREATE INDEX ix_guardian_student_student ON guardian_student (student_id);
 
+-- 조회 조건 컬럼 인덱스(BR-258) — 없으면 전 테이블 순차 스캔이다.
+-- 승하차지가 걸린 주소 조회(확정 배치가 회차마다 · 예정 명단) · stop 삭제 때 FK(ON DELETE SET NULL) 검사.
+CREATE INDEX ix_weekly_address_stop ON weekly_address (stop_id) WHERE stop_id IS NOT NULL;
+-- 회차의 경유 지점 목록.
+CREATE INDEX ix_waypoint_run ON waypoint (run_id);
+-- 자녀 연결 코드 조회(연결 코드는 앱이 유일하게 뽑는다 — UNIQUE 를 걸지 않고 조회만 빠르게 한다).
+CREATE INDEX ix_link_code_code ON link_code (code);
+
 CREATE INDEX ix_signup_request_academy_status_requested ON signup_request (academy_id, status, requested_at);
+-- 계정별 최근 신청 1건(가입 상태 조회·재신청) — 계정 FK 삭제 검사도 이 컬럼을 훑는다(BR-258).
+CREATE INDEX ix_signup_request_account_requested ON signup_request (account_id, requested_at DESC);
 
 CREATE INDEX ix_audit_log_academy_occurred ON audit_log (academy_id, occurred_at DESC);
 CREATE INDEX ix_audit_log_actor_occurred ON audit_log (actor_account_id, occurred_at DESC);

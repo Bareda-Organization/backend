@@ -20,8 +20,8 @@ import src.backend.run.event.RunRouteConfirmedEvent;
  * ({@code exception.command.EmergencyBroadcastListener#broadcastAcked} 와 같은 이유).
  *
  * <p>{@code @TransactionalEventListener(AFTER_COMMIT)} 근거는 {@link RunStartedBroadcastListener} 와 같다 —
- * 롤백된 확정이 화면에 남지 않게 한다. 이 시점의 예외는 이미 커밋된 요청의 응답(500)과 뒤 리스너를 깨므로
- * 방송 실패는 여기서 기록만 하고 삼킨다.
+ * 롤백된 확정이 화면에 남지 않게 한다. 방송 실패는 여기서 WARN 한 줄로 기록하고 삼킨다 — 삼키지 않아도 응답은
+ * 바뀌지 않지만 스프링이 오류 스택으로 남긴다(2026-09-30 F8 관측).
  */
 @Slf4j
 @Component

@@ -83,4 +83,10 @@ class ErrorCodeCatalogTest {
                         .as("%s 의 HTTP 상태가 API_SPEC §8.5 와 어긋난다", code.name())
                         .isEqualTo(expected));
     }
+
+    /** API_SPEC §8 — 이동의 도착 회차 중복은 권한이 아니라 대상 회차의 현재 상태가 막는 것이라 409 다(Ruling 392). */
+    @Test
+    void STUDENT_ALREADY_IN_RUN_은_409_다() {
+        assertThat(ErrorCode.STUDENT_ALREADY_IN_RUN.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+    }
 }

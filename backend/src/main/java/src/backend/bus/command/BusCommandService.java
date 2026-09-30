@@ -82,10 +82,10 @@ public class BusCommandService {
      * 회차가 있으면 그 사실을 계속 드러낸다.
      */
     private List<BusWarning> capacityWarningsOf(Long academyId, Bus bus) {
-        return busLoadReader.assignedCountsByRun(academyId, bus.getId()).entrySet().stream()
-                .filter(entry -> entry.getValue() > bus.getStudentCapacity())
-                .map(entry -> BusWarning.capacityBelowAssigned(entry.getKey(), entry.getValue(),
-                        bus.getStudentCapacity()))
+        return busLoadReader.assignedCountsByRun(academyId, bus.getId()).stream()
+                .filter(load -> load.assignedCount() > bus.getStudentCapacity())
+                .map(load -> BusWarning.capacityBelowAssigned(load.runId(), load.serviceDate(), load.departTime(),
+                        load.direction(), load.assignedCount(), bus.getStudentCapacity()))
                 .toList();
     }
 

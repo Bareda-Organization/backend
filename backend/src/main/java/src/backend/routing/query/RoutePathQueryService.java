@@ -8,7 +8,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
@@ -39,10 +38,12 @@ import src.backend.student.repository.StopRepository;
  * <p>조회 서비스({@link RouteQueryService})와 별도 컴포넌트인 이유는 <b>이 클래스만 외부 포트를
  * 호출</b>하기 때문이다 — 상세·목록 조회에 이 책임을 얹으면 트랜잭션 안에서 도로 경로 호출이
  * 섞이는 자리가 하나 더 생긴다(SRP, {@code RouteDetailAssembler} 와 같은 분리 근거).
+ *
+ * <p><b>클래스에 트랜잭션을 열지 않는다</b>(BR-211) — 지도 호출이 느린 만큼 DB 커넥션을 쥔 채 기다리지 않도록, 저장소 조회는
+ * 각자 짧은 읽기 트랜잭션으로 끝나고 지도 호출은 그 밖에서 일어난다({@code StaffRunRouteQueryService} 와 같은 형태, BR-046).
  */
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class RoutePathQueryService {
 
     /** 관계자가 화면에서 대기 중이므로 서킷 개방 시 즉시 오류로 끝낸다(ON_DEMAND, {@code StaffRunRouteQueryService} 와 같은 값). */

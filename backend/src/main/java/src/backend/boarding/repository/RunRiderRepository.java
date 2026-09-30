@@ -4,7 +4,10 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import jakarta.persistence.LockModeType;
+
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -93,9 +96,14 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
      *
      * <p>{@code runId} 근거는 {@link #findByRunIdAndStudentId} 와 같다 — 호출부가 이미 학원 범위로
      * 좁혀 얻은 회차의 식별자라는 전제다.
+     *
+     * <p><b>탑승자 행을 잠근다</b>(BR-267, {@code PESSIMISTIC_WRITE}) — 승하차·되돌리기·연락 기록이 이 행을 읽고
+     * 상태를 바꾸므로, 같은 탑승자에 대한 서로 다른 {@code client_key} 요청이 둘 다 옛 상태를 읽고 이력을 두 번
+     * 남기지 못하게 한다. 뒤 요청은 앞 요청이 커밋한 뒤의 상태를 읽는다. 트랜잭션 안에서만 부른다.
      */
     @AcademyScopeExempt(reason = "runId 는 호출부가 RunRepository.findByIdAndAcademyId 로 이미 학원 범위에 좁혀 얻은 "
             + "회차의 식별자라는 전제다(findByRunIdAndStudentId 와 같은 근거)")
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<RunRider> findByIdAndRunIdAndStatusNot(Long id, Long runId, RiderStatus excludedStatus);
 
     /**

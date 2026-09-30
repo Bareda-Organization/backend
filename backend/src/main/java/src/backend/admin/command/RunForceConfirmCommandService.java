@@ -62,7 +62,8 @@ public class RunForceConfirmCommandService {
      * <p>{@link RunConfirmationService#confirmOne(Long, boolean)} 이 {@code false} 를 반환하는
      * 경우도 {@code RUN_NOT_IDLE} 로 매핑한다 — 이 지점까지 idle 임을 이미 확인했으므로, 그 사이
      * {@code confirmIfIdle} 경쟁에서 진 것만이 남은 원인이다(다른 확정 경로가 먼저 같은 회차를
-     * confirmed 로 옮긴 경우).
+     * confirmed 로 옮긴 경우). 단 진 원인이 <b>그 사이 커밋된 취소</b>면 회차를 다시 읽어
+     * {@code 409 RUN_CANCELED} 로 답한다(BR-270) — 취소는 status 를 idle 로 남기므로 "이미 확정됨" 으로는 원인을 알 수 없다.
      *
      * <p>확정 직후 {@link ConfirmedRoute} 를 재조회해 {@code route_version_id}·{@code confirmed_at}
      * 을 얻고, 그 버전의 {@link RouteVersion#isFallbackUsed()} 를 응답에 그대로 싣는다 — 스펙 문면은
@@ -100,7 +101,10 @@ public class RunForceConfirmCommandService {
 
         boolean persisted = runConfirmationService.confirmOne(runId, true);
         if (!persisted) {
-            throw new BusinessException(ErrorCode.RUN_NOT_IDLE);
+            // 확정에서 진 원인이 취소일 수 있다(BR-270) — 위 검사는 낡은 읽기라 그 뒤 커밋된 취소를 못 본다.
+            // confirmIfIdle 이 영속성 컨텍스트를 비우므로(clearAutomatically) 이 조회는 DB 의 현재 값을 읽는다.
+            boolean canceled = runRepository.findById(runId).map(Run::isCanceled).orElse(false);
+            throw new BusinessException(canceled ? ErrorCode.RUN_CANCELED : ErrorCode.RUN_NOT_IDLE);
         }
 
         ConfirmedRoute confirmedRoute = confirmedRouteRepository.findById(runId)

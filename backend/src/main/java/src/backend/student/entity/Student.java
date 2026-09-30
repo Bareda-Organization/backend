@@ -102,7 +102,9 @@ public class Student extends BaseTimeEntity {
     }
 
     /**
-     * 관계자가 학생 정보를 고친다(STU-03, API_SPEC §5.11 PATCH) — {@code null} 인 항목은 그대로 둔다.
+     * 관계자가 학생 정보를 고친다(STU-03, API_SPEC §5.11 PATCH) — 받은 값으로 <b>그대로 바꾼다</b>. 유지·지움·필수 검증은
+     * 호출부가 {@link src.backend.global.request.Patch} 로 끝낸 뒤 넘기므로 {@code null} 은 "지움" 이다(Ruling 390).
+     * 다만 {@code photoUrl} 은 사진 파트를 보내지 않으면 {@code null} 이라 그대로 둔다 — 사진은 지우기 규칙 밖이다.
      *
      * <p>승하차 주소를 인자로 받지 않는 것이 "관계자 입력 대상 밖"(A-10)을 강제하는 방식이다 — 요청
      * 본문에 실려 와도 이 메서드까지 닿을 경로가 부재하다. 보호자 연락처는 대상 밖이 아니라
@@ -112,15 +114,15 @@ public class Student extends BaseTimeEntity {
      * 받는다).
      */
     public void update(StudentProfile profile) {
-        this.name = profile.name() == null ? this.name : profile.name();
-        this.studentPhone = profile.studentPhone() == null ? this.studentPhone : profile.studentPhone();
+        this.name = profile.name();
+        this.studentPhone = profile.studentPhone();
         this.photoUrl = profile.photoUrl() == null ? this.photoUrl : profile.photoUrl();
-        this.gender = profile.gender() == null ? this.gender : profile.gender();
-        this.birthDate = profile.birthDate() == null ? this.birthDate : profile.birthDate();
-        this.grade = profile.grade() == null ? this.grade : profile.grade();
-        this.className = profile.className() == null ? this.className : profile.className();
-        this.note = profile.note() == null ? this.note : profile.note();
-        this.canGoAlone = profile.canGoAlone() == null ? this.canGoAlone : profile.canGoAlone();
+        this.gender = profile.gender();
+        this.birthDate = profile.birthDate();
+        this.grade = profile.grade();
+        this.className = profile.className();
+        this.note = profile.note();
+        this.canGoAlone = profile.canGoAlone();
     }
 
     /**

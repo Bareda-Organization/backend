@@ -16,6 +16,7 @@ import src.backend.run.dto.TransferRequest;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunTransfer;
 import src.backend.run.repository.RunTransferRepository;
+import src.backend.run.roster.ProjectedRoster;
 import src.backend.run.roster.ProjectedRosterReader;
 import src.backend.student.command.StopMatcher;
 import src.backend.student.entity.Student;
@@ -62,7 +63,7 @@ public class TransferStore {
         boolean fromFirst = fromRun.getId() < toRun.getId();
         stagingRunGuard.lockIdle(fromFirst ? fromRun : toRun);
         stagingRunGuard.lockIdle(fromFirst ? toRun : fromRun);
-        assertSeatLeft(toRun);
+        assertRoomFor(toRun, student.getId());
         Long stopId = point != null ? stopMatcher.matchOrCreate(toRun.getAcademyId(), point).getId()
                 : request.stopId();
         RunTransfer transfer = RunTransfer.stage(student.getId(), fromRun.getId(), toRun.getId(), stopId,
@@ -71,13 +72,17 @@ public class TransferStore {
     }
 
     /**
-     * 두 회차를 잠근 <b>뒤</b> 도착 회차의 정원을 다시 센다(BR-206) — {@link TransferCommandService} 의 정원 선검사는
-     * 잠금 밖이라 자리 1개 남은 회차로 요청 둘이 동시에 오면 둘 다 통과한다.
+     * 두 회차를 잠근 <b>뒤</b> 도착 회차의 소속(BR-271)·정원(BR-206)을 다시 본다 — {@link TransferCommandService} 의
+     * 선검사는 잠금 밖이라 자리 1개 남은 회차로 요청 둘이 동시에 오거나, 그 사이 학생이 도착 회차에 강제 추가되면 통과한다.
      */
-    private void assertSeatLeft(Run toRun) {
+    private void assertRoomFor(Run toRun, Long studentId) {
         Bus toBus = busRepository.findByIdAndAcademyId(toRun.getBusId(), toRun.getAcademyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.BUS_NOT_FOUND));
-        long current = rosterReader.read(toRun).size();
+        ProjectedRoster toRoster = rosterReader.read(toRun);
+        if (toRoster.contains(studentId)) {
+            throw new BusinessException(ErrorCode.STUDENT_ALREADY_IN_RUN);
+        }
+        long current = toRoster.size();
         if (current + 1 > toBus.getStudentCapacity()) {
             throw new BusinessException(ErrorCode.CAPACITY_EXCEEDED,
                     new TransferCapacityDetail(current, toBus.getStudentCapacity()));

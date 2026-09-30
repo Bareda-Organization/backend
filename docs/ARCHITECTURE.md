@@ -240,7 +240,29 @@ student · monitoring · exception → location (회차 최신 좌표 — RunPos
 account → academy
 ```
 
-- **역방향 참조를 금지.** `student` 가 `routing` 을 알면 주소 수정 트랜잭션 안에 외부 지도 API 호출이 포함됨. 주소 변경은 **이벤트만 발행**하고 재계산 여부는 `routing` 이 판단.
+- **역방향 참조를 금지가 원칙이나, 현재 코드에는 서로를 import 하는 쌍 17개가 있다**(2026-09-30 BR-232 — `import src.backend.<모듈>.` 줄을 소스에서 센 결과, 횡단 계층 `global`·`observability`·비운영 `demo` 제외). 위 화살표 표는 **의도한 방향**이고 아래 표는 **실제로 양방향인 쌍의 허용 목록**이다. `student` 가 `routing` 을 알면 주소 수정 트랜잭션 안에 외부 지도 API 호출이 포함됨. 주소 변경은 **이벤트만 발행**하고 재계산 여부는 `routing` 이 판단.
+
+  | 쌍 | 앞 모듈이 뒤 모듈에서 가져다 쓰는 것(import 가 많은 타입) | 뒤 모듈이 앞 모듈에서 가져다 쓰는 것 |
+  |---|---|---|
+  | `academy↔account` | `Account` · `AccountRepository` | `Academy` · `AcademyRepository` · `AcademyStaffRepository` |
+  | `academy↔run` | `Run` · `RunRepository` | `AcademyRepository` · `Academy` |
+  | `academy↔student` | `GeocodedPoint` · `AddressVerification` | `Academy` · `AcademyRepository` |
+  | `account↔audit` | `AuditLog` · `AuditLogRepository` | `AccountRepository` · `Account` |
+  | `account↔student` | `Guardian` · `GuardianRepository` | `Account` · `AccountRepository` |
+  | `boarding↔exception` | `NoShowCase` · `NoShowCaseAccess` | `RunRiderRepository` · `RunRider` |
+  | `boarding↔routing` | `ConfirmedRoute` · `RunStop` | `RunRiderRosterAccess` · `RunRider` |
+  | `boarding↔run` | `ProjectedRoster` · `Run` | `RunRiderRepository` · `RunRider` |
+  | `boarding↔student` | `StudentRepository` · `Stop` | `RunRiderReader` · `RunRiderRepository` |
+  | `location↔student` | `Stop` · `StopRepository` | `RunPositionStore`(BR-098) |
+  | `manager↔run` | `Run` · `RunRepository` | `AssignmentRepository` · `Assignment` |
+  | `request↔routing` | `RouteComputation` · `ConfirmedRoute` | `ChangeWindowPolicy` · `RoutePreviewResponse` |
+  | `request↔run` | `Run` · `RunRepository` | `ChangeWindowPolicy` · `ChangeRequest` |
+  | `request↔student` | `Student` · `StopRepository` | `BoardingIntentReadQueryService` |
+  | `routing↔run` | `Run` · `RunRepository` | `ConfirmedRoute` · `ConfirmedRouteRepository` |
+  | `routing↔student` | `Stop` · `StopRepository` | `RouteStopReader` |
+  | `run↔student` | `StopRepository` · `Student` | `Run` · `RunLookup` |
+
+  이 표는 `ModuleMutualDependencyTest`(소스 스캔, 외부 라이브러리 없음)가 지킨다 — **표에 없는 새 양방향 쌍이 생기거나, 표에 남았는데 끊어진 쌍이 있으면 실패한다.** 새 쌍이 정말 필요하면 이유를 위 표와 시험의 목록에 같이 적는다. 이미 있는 쌍을 코드에서 없애는 리팩터링(`RunRiderReader`·`RouteStopReader` 같은 포트로 끊기)은 별도 작업이고, 끊는 순간 이 표와 시험 목록에서 지운다.
 - **비상 알림의 소유는 `exception` 모듈** — 발신은 매니저 앱(기사·동승자 **둘 다**), 수신은 관계자·메인 관리자. 승하차와 달리 역할을 제한하지 않는 유일한 쓰기 경로 (EXC-04).
 - **`run` 테이블은 세 모듈이 쓴다** — `schedule` 이 생성(SCH-02), `routing` 이 확정 전이(§9.3), `run` 이 시작·종료. 소유는 `run` 모듈이고 나머지 둘은 **상태 전이 메서드를 통해서만** 접근. 다른 모듈이 컬럼을 직접 갱신하면 §9.3 의 조건부 UPDATE 규칙이 우회됨.
 - **승하차지 마스터(`stop`)의 소유는 `student` 모듈** — 생성 계기가 주소 검증(STU-05)이기 때문. `routing`·`boarding` 은 읽기만.
@@ -411,6 +433,7 @@ access(단기) + refresh(장기). 실행·새로고침 시 refresh 로 자동 �
 - 도로 경로 호출의 **재시도 횟수는 `CallerPolicy` 로 갈린다** — 배치 3회 · 온디맨드 2회(`application.yml` `mapRoute` · `mapRouteOnDemand`). 서킷은 공급자가 같아 공유
 - **격벽(동시 호출 칸)은 공유하지 않는다**(`Ruling 350`, BR-169) — 배치 3칸(`mapRouteBatch`) · 온디맨드 1칸(`mapRouteOnDemand`), 합계 4 = 공급자 동시성 상한. 예전에 칸을 공유했을 때는 화면 조회 1건이 07:30 같은 확정 시각에 배치 칸을 빼앗아 회차가 직선거리 근사로 확정됐다 — 확정 워커 풀 기본값(`RunConfirmationWorkerPoolConfig`)이 배치 칸 수를 그대로 따른다
 - **재시도 대상은 타임아웃·연결 실패·5xx 뿐** — 4xx·"경로 없음" 은 다시 불러도 답이 같아 할당량만 소모(`TransientMapRouteFailure`, 2026-09-25 `BR-050`). 대상 밖 실패도 직선거리 근사 폴백은 그대로
+- **서킷이 실패로 세는 것은 재시도 대상에 일일 한도 소진 429 를 더한 것**(`MapRouteCircuitFailure`, `Ruling 379` ⑤ · `BR-208`) — 429 는 재시도는 안 하지만 서킷이 열려야 같은 날 헛호출이 멈춘다. 그 밖의 4xx·"경로 없음" 은 세지 않는다
 
 ### 8.4 온디맨드 계산의 응답 시간 예산
 

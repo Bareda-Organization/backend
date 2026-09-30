@@ -12,6 +12,10 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.PersistenceContext;
+
 import lombok.RequiredArgsConstructor;
 
 import src.backend.global.common.enums.ManagerRole;
@@ -69,15 +73,20 @@ public class AssignmentCommandService {
 
     private final Clock clock;
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     /**
      * 회차에 기사·동승자를 배치한다(§5.14) — 지정하지 않은 자리는 <b>그대로 둔다</b>.
      *
      * <p>충돌이 있어도 저장한다(Ruling 152). 응답의 {@code assignments[]} 는 이번 요청이 바꾼 것만이
      * 아니라 그 회차의 현재 배치 전부다 — 기사만 바꾼 요청이 동승자를 지운 것처럼 보이지 않게 한다.
      *
-     * <p>임시 취소된 회차는 {@code 409 RUN_CANCELED} 다(BR-210, Ruling 376) — 요청 첫머리에서 읽은 값으로 판정한다. 회차를 잠그지
-     * 않는 것은 같은 자리를 동시에 채우는 두 요청이 {@code 409 DUPLICATE_ASSIGNMENT} 로 갈리는 계약({@code AssignmentConcurrencyTest})이 잠금으로 직렬화되면
-     * 사라지기 때문이다.
+     * <p>임시 취소된 회차는 {@code 409 RUN_CANCELED} 다(BR-210, Ruling 376). 회차를 <b>공유 잠금</b>({@code FOR SHARE})으로
+     * 다시 읽어 판정한다(BR-269) — 취소({@code RunCancellation})는 같은 행을 쓰기 잠금으로 잠그므로, 취소가 커밋되기 전에
+     * 들어온 배치는 커밋을 기다린 뒤 취소된 상태를 보고 끝나고 배치가 먼저면 취소가 배치 커밋을 기다린다. 쓰기 잠금이 아니라
+     * 공유 잠금인 것은 같은 자리를 동시에 채우는 두 요청이 서로를 막지 않아야 {@code 409 DUPLICATE_ASSIGNMENT} 로 갈리는
+     * 계약({@code AssignmentConcurrencyTest})이 남기 때문이다.
      */
     public RunAssignmentResponse assign(AuthUser requester, Long runId, AssignmentRequest request) {
         if (request.isEmpty()) {
@@ -85,6 +94,7 @@ public class AssignmentCommandService {
         }
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        entityManager.refresh(run, LockModeType.PESSIMISTIC_READ);
         if (run.isCanceled()) {
             throw new BusinessException(ErrorCode.RUN_CANCELED);
         }

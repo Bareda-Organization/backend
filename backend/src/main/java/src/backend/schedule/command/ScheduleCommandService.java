@@ -14,6 +14,7 @@ import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.persistence.ConstraintViolations;
 import src.backend.global.request.ApiValues;
+import src.backend.global.request.Patch;
 import src.backend.global.security.AuthUser;
 import src.backend.schedule.dto.ScheduleRegisterRequest;
 import src.backend.schedule.dto.ScheduleResponse;
@@ -74,6 +75,9 @@ public class ScheduleCommandService {
         boolean movesSlot = schedule.movesSlot(plan);
         Supplier<ScheduleResponse> apply = () -> {
             schedule.update(plan);
+            if (Patch.clears(request.estDurationMin())) {
+                schedule.clearEstDuration();
+            }
             scheduleRunSync.reflect(requester, schedule);
             return ScheduleResponse.of(schedule, bus.getBusNo());
         };
@@ -111,10 +115,14 @@ public class ScheduleCommandService {
                 request.originName(), request.destinationName(), request.estDurationMin(), request.active());
     }
 
+    /** 키 없는 항목은 {@code null}(유지)이고, 필수 항목의 명시적 {@code null}·빈 문자열은 여기서 {@code 422} 다(Ruling 390). */
     private SchedulePlan planOf(ScheduleUpdateRequest request) {
-        return new SchedulePlan(request.busId(), ApiValues.weekday(request.weekday()),
-                ApiValues.direction(request.direction()), ApiValues.time(request.departTime()),
-                request.originName(), request.destinationName(), request.estDurationMin(), request.active());
+        return new SchedulePlan(Patch.required(request.busId(), null),
+                ApiValues.weekday(Patch.required(request.weekday(), null)),
+                ApiValues.direction(Patch.required(request.direction(), null)),
+                ApiValues.time(Patch.required(request.departTime(), null)),
+                Patch.required(request.originName(), null), Patch.required(request.destinationName(), null),
+                Patch.optional(request.estDurationMin(), null), Patch.required(request.active(), null));
     }
 
     /** 선검사가 볼 조합 — 요청이 준 값이 우선이고 주지 않은 항목은 지금 스케줄의 값이다. */

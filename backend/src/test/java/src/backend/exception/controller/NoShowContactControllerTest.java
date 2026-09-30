@@ -28,6 +28,8 @@ import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.command.BoardingCommandFixtures;
+import src.backend.boarding.entity.RiderStatus;
+import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.exception.entity.NoShowCase;
@@ -152,6 +154,10 @@ class NoShowContactControllerTest {
         long studentId = fixtures().student(academyId, "학생-T1F1");
         long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
         long riderId = fixtures().runRider(runId, studentId, stopId);
+        // 케이스는 탑승자가 no_show 일 때만 존재한다 — 실제 상태와 같게 맞춘다(BR-254)
+        RunRider rider = runRiderRepository.findById(riderId).orElseThrow();
+        rider.markNoShow(now.minusMinutes(10));
+        runRiderRepository.save(rider);
         NoShowCase noShowCase = noShowCaseRepository
                 .save(NoShowCase.forRunRider(riderId, now.minusMinutes(10), now.minusMinutes(1), now.minusMinutes(10)));
         entityManager.flush();
@@ -184,6 +190,35 @@ class NoShowContactControllerTest {
         entityManager.flush();
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM no_show_contact WHERE no_show_case_id = ?",
                 Integer.class, caseId)).as("①적재된 행 수").isEqualTo(1);
+    }
+
+    /** BR-254 — 미승차를 되돌린 탑승자(케이스는 종결 행으로 남는다, BR-009)에게는 연락 기록을 받지 않는다(§4.8). */
+    @Test
+    @DisplayName("BR-254 — 미승차를 되돌린 탑승자에게 연락을 기록하면 404 NO_SHOW_CASE_NOT_FOUND")
+    void 되돌린_탑승자에게는_연락을_기록하지_못한다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long[] s = caseScenario(now);
+        long academyId = s[0];
+        long runId = s[1];
+        long riderId = s[2];
+        long caseId = s[3];
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
+        RunRider rider = runRiderRepository.findById(riderId).orElseThrow();
+        rider.revertTo(RiderStatus.WAITING, now);
+        runRiderRepository.save(rider);
+        noShowCaseRepository.findById(caseId).orElseThrow().resolveByRevert(now);
+        entityManager.flush();
+
+        mockMvc.perform(post(RECORD_ATTEMPT.formatted(runId, riderId))
+                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"attempt_type\":\"call\",\"result\":\"answered\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("NO_SHOW_CASE_NOT_FOUND"));
+
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM no_show_contact WHERE no_show_case_id = ?",
+                Integer.class, caseId)).as("이력이 쌓이지 않아야 한다").isZero();
     }
 
     // ── 목표3 — 중단: result=answered 면 카운트다운을 멈춘다 ────────────────────

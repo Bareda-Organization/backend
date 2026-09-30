@@ -48,6 +48,21 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
             @Param("academyId") Long academyId);
 
     /**
+     * 노선 판본 여러 개의 정차 항목을 한 번에(BR-247) — {@link #findAllByRouteVersionIdAndAcademyIdOrderBySeq} 를 회차마다
+     * 부르던 관제 조회용이다. 정렬은 {@code seq} 뿐이라 판본별 순서는 호출부가 판본 id 로 묶어 유지한다.
+     */
+    @Query("""
+            SELECT rs FROM RunStop rs
+            JOIN RouteVersion rv ON rv.id = rs.routeVersionId
+            JOIN Run r ON r.id = rv.confirmedRouteId
+            WHERE rs.routeVersionId IN :routeVersionIds
+              AND r.academyId = :academyId
+            ORDER BY rs.seq ASC
+            """)
+    List<RunStop> findAllByRouteVersionIdInAndAcademyId(@Param("routeVersionIds") Collection<Long> routeVersionIds,
+            @Param("academyId") Long academyId);
+
+    /**
      * 이 승하차지들 중 하나라도 <b>운행 중</b> 회차의 현재 노선에 서는가 — 서면 좌표를 고칠 수 없다
      * (ARCHITECTURE §8.5 운행 시작과 동시에 노선 잠금, BR-052). 근접 알림·출발 판정이 {@code stop} 좌표를
      * 매번 다시 읽어, 고치는 순간 운행 중인 버스의 판정 좌표가 바뀐다.
