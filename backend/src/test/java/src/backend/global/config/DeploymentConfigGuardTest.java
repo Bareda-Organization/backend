@@ -5,6 +5,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -21,11 +25,77 @@ import org.junit.jupiter.api.Test;
  */
 class DeploymentConfigGuardTest {
 
+    /**
+     * yml 이 읽지만 운영 compose 가 일부러 넘기지 않는 환경변수 — 이유가 없으면 여기 넣지 않는다.
+     * 넘기는 쪽이 늘 맞다(안 넘기면 운영은 yml 기본값으로 조용히 뜬다).
+     */
+    private static final Set<String> COMPOSE_EXEMPT_ENV = Set.of(
+            // 지오코딩·경로 키의 우선 이름이다 — 운영은 fallback 이름(NAVER_DIRECTIONS_KEY_ID · NAVER_DIRECTIONS_KEY)
+            // 하나로 두 API 를 함께 쓴다(application.yml `${NAVER_MAPS_KEY_ID:${NAVER_DIRECTIONS_KEY_ID:}}`).
+            "NAVER_MAPS_KEY_ID", "NAVER_MAPS_KEY");
+
     private static String applicationYml;
+
+    private static String prodCompose;
 
     @BeforeAll
     static void readConfig() throws IOException {
         applicationYml = Files.readString(Path.of("src/main/resources/application.yml"));
+        prodCompose = Files.readString(Path.of("../docker-compose.prod.yml"));
+    }
+
+    @Test
+    @DisplayName("R46 ops C #4 — application.yml 이 읽는 환경변수는 운영 compose 의 backend 가 전부 넘긴다(의도적 제외 목록만 예외)")
+    void prodComposePassesEveryEnvVarTheYmlReads() {
+        // 안 넘기면 운영은 yml 기본값으로 조용히 뜬다 — 네이버 Directions 한도 전환(Ruling 361) · 장소 검색 키 ·
+        // 사진 저장 경로를 운영에서 못 바꾸는 상태가 실제로 있었다. 목록을 손으로 적지 않고 yml 에서 뽑는다.
+        Set<String> ymlEnv = new TreeSet<>();
+        Matcher yml = Pattern.compile("\\$\\{([A-Z][A-Z0-9_]*)").matcher(applicationYml);
+        while (yml.find()) {
+            ymlEnv.add(yml.group(1));
+        }
+        Set<String> composeEnv = new TreeSet<>();
+        Matcher compose = Pattern.compile("(?m)^ {6}([A-Z][A-Z0-9_]*):").matcher(composeServiceBlock("backend"));
+        while (compose.find()) {
+            composeEnv.add(compose.group(1));
+        }
+
+        ymlEnv.removeAll(composeEnv);
+        ymlEnv.removeAll(COMPOSE_EXEMPT_ENV);
+        assertThat(ymlEnv).as("yml 이 읽는데 운영 compose backend 가 넘기지 않는 환경변수").isEmpty();
+    }
+
+    @Test
+    @DisplayName("R46 ops C #3 — 운영 compose 는 SPRING_PROFILES_ACTIVE 에 기본값을 두지 않는다(demo 로 조용히 뜨지 않는다)")
+    void prodComposeHasNoDefaultProfile() {
+        // 기본값이 demo 면 SSM 값이 빠진 배포가 가짜 시드 + 가짜 버스(DemoRunSimulator)로 뜬다.
+        assertThat(composeServiceBlock("backend"))
+                .contains("SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:?")
+                .doesNotContain("${SPRING_PROFILES_ACTIVE:-");
+    }
+
+    @Test
+    @DisplayName("R46 ops C #5 — 학생 사진 저장 경로는 named volume 마운트 경로와 같다")
+    void photoStorageRootIsOnANamedVolume() {
+        // 마운트 경로와 저장 경로가 어긋나면 사진은 컨테이너 안에만 쌓여 재배포마다 사라진다 — 앱은 정상 기동한다.
+        String backend = composeServiceBlock("backend");
+        Matcher root = Pattern.compile("(?m)^ {6}PHOTO_STORAGE_ROOT: (\\S+)$").matcher(backend);
+        assertThat(root.find()).as("compose 는 PHOTO_STORAGE_ROOT 를 고정값으로 넘긴다(SSM 으로 바꾸면 볼륨과 어긋난다)").isTrue();
+        assertThat(backend).contains("- photo-data:" + root.group(1));
+        assertThat(prodCompose).contains("\nvolumes:\n").containsPattern("(?m)^ {2}photo-data:$");
+    }
+
+    @Test
+    @DisplayName("R46 ops C #11 — 운영 프록시의 /healthz 는 actuator health 만 프록시하고 /actuator 는 계속 404 다")
+    void proxyExposesOnlyHealthzNotActuator() throws IOException {
+        String nginx = Files.readString(Path.of("../infra/proxy/nginx.prod.conf"));
+        int healthz = nginx.indexOf("location = /healthz");
+        assertThat(healthz).as("외부 가동 감시가 칠 공개 헬스 주소").isNotNegative();
+        String block = nginx.substring(healthz, nginx.indexOf('}', healthz));
+        // health 상세는 show-details: never 라 {"status":"UP"} 뿐이다 — 정적 200 이면 backend 가 죽어도 감시가 못 안다.
+        assertThat(block).contains("proxy_pass http://backend_pool/actuator/health");
+        int actuator = nginx.indexOf("location /actuator");
+        assertThat(nginx.substring(actuator, nginx.indexOf('}', actuator))).contains("return 404");
     }
 
     @Test
@@ -232,6 +302,16 @@ class DeploymentConfigGuardTest {
                     .isTrue();
         }
         assertThat("/api/v1/auth/refresh".matches(regex)).as("refresh 는 추측 대상이 아니라 제한에서 뺀다").isFalse();
+    }
+
+    /** 운영 compose 의 서비스 하나(다음 서비스 머리나 최상위 키 직전까지)를 돌려준다. */
+    private String composeServiceBlock(String service) {
+        Matcher block = Pattern.compile("(?ms)^ {2}" + service + ":\\n(.*?)(?=^ {2}[a-z][a-z-]*:\\n|^[a-z]+:|\\z)")
+                .matcher(prodCompose);
+        if (!block.find()) {
+            throw new AssertionError("운영 compose 에서 서비스를 찾지 못했다: " + service);
+        }
+        return block.group(1);
     }
 
     /** `---` 로 구분된 프로파일 문서 중 표식(marker)을 포함한 것을 돌려준다. */

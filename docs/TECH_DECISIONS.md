@@ -715,7 +715,7 @@ org.springframework.boot:spring-boot-testcontainers
 | 학원별 임계값 (미승차 대기 **3분**) | **DB** (`academy_setting`) | 학원마다 다름 (EXC-01) |
 | 전역 정책 상수 (30분 · ±10분 · 14일 · 5회 · 감사 로그 보관 2년 · 반복 조회 묶음 10분) | `application.yml` 아닌 **코드 상수** | 사양이 고정한 값이라 환경별로 달라지면 안 됨. yml 로 빼면 운영에서 조용히 바뀔 수 있음. 감사 2개는 `RetentionPolicy.AUDIT_LOG_RETENTION` · `AuditRecorder.DATA_ACCESS_DEDUP_WINDOW` (`Ruling 445`) |
 | 폴링 주기 · 워커 수 · 타임아웃 | `application.yml` | 부하에 따라 조정하는 값 |
-| 시크릿 (DB 비밀번호 · 지도 API 키 · 푸시 인증서) | **SSM Parameter Store** | 이미지·저장소에 넣지 않음 |
+| 시크릿 (DB 비밀번호 · 지도 API 키 · 푸시 인증서 · 첫 관리자 해시 · Grafana 비밀번호) | **SSM Parameter Store** | 이미지·저장소에 넣지 않음 |
 
 ⚠ **주기와 임계값을 가른다.** yml 에 두는 것은 "얼마나 자주 검사하는가"이고, "언제 발동하는가"는 사양이 정한 값이다. 이전 코드는 미승차 임계값이 코드 상수 10분이었고 학원별 설정이 불가능했다.
 
@@ -764,14 +764,15 @@ org.springframework.boot:spring-boot-testcontainers
 
 | 조건 | 등급 | 근거 |
 |---|---|---|
-| `confirm_at + 5분` 경과인데 `idle` 인 회차 ≥ 1 | **즉시** | 기사가 노선을 못 받음 → 운행 불가 |
+| `confirm_at + 5분` 경과인데 `idle` 인 회차 ≥ 1 | **즉시** | 기사가 노선을 못 받음 → 운행 불가. **확정 배치 실패의 1차 방어**(강제 확정 §14.3 이 그다음 수단) |
 | 미승차 에스컬레이션이 **3분 초과** 미보고 | **즉시** | 안전 (EXC-01) |
 | 운행 중 회차의 위치가 **2분 이상** 미수신 | 경고 | 관제 불가 (P-07 의 "마지막 확인 위치"로 저하) |
 | 지도 API 서킷 open | 경고 | 폴백으로 계산 중 — 품질 저하 |
-| 알림 발송 실패율 임계 초과 | 경고 | |
+| 알림 발송 실패율 임계 초과 | 경고 | 분모(시도 수) 지표가 없어 율이 아니라 **최근 10분 안의 실패 건수 증가**로 본다 — 실패 지표는 재시도를 전부 소진해 `failed` 로 굳은 건수뿐 |
 | 배치 지연 p95 임계 초과 | 정보 | 증설 검토 신호 |
+| 호스트 루트 디스크 사용률 80% 초과 (10분 유지) | 경고 | 디스크가 차면 postgres 쓰기가 실패해 전면 정지 — 이미지·로그·사진·DB 가 한 디스크(R46 ops, `Ruling 456`) |
 
-규칙 파일은 `infra/observability/prometheus/alerts.yml` — 2·3행이 들어 있다(2026-09-25 BR-064: 미승차는 `schoolbus_scheduler_failures_total{scheduler="no-show-escalation"}` 증가 · 마지막 성공 경과 180초 초과, 위치는 `schoolbus_run_position_lost` 게이지). 나머지 행과 전달 경로(Alertmanager)는 미구성.
+규칙 파일은 `infra/observability/prometheus/alerts.yml` — 1·2·3·5행과 디스크 행이 들어 있다(2026-09-25 BR-064: 미승차는 `schoolbus_scheduler_failures_total{scheduler="no-show-escalation"}` 증가 · 마지막 성공 경과 180초 초과, 위치는 `schoolbus_run_position_lost` 게이지. 2026-10-01 R46 ops `Ruling 455`·`456`: 1행은 `schoolbus_run_unconfirmed > 0` 이 1분 유지, 5행은 `schoolbus_notification_push_failures_total` 의 10분 증가, 디스크는 마운트 지점 `/` 사용률). 조건식은 `alerts.test.yml` 이 promtool 로 검사한다. **4행(서킷 open)·6행(배치 지연 p95)은 미구성.** 전달 경로는 운영 compose 에 Alertmanager 자리만 있고 수신 채널이 미정이라 어디로도 보내지 않는다(`DEPLOYMENT.md §11`).
 
 **알럿을 등급으로 가르는 기준은 "지금 아이가 위험한가"** 다. 시스템 지표가 아니라 그 지표가 뜻하는 현실 상황으로 판단한다.
 

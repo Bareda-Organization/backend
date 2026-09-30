@@ -6077,3 +6077,37 @@ R46 개선 11항목 중 9번(CI)·10번(`.gitignore`) 몫. 조사 원문 `.claud
 | **443** | Docker 이미지 태그는 부 버전까지 고정, `docker-compose.prod.yml` 의 `IMAGE_TAG` 는 필수 변수 | `latest`·주 버전 태그는 재배포 때 예고 없이 바뀜(조사 C #24) |
 
 **결과 (2026-10-01)** — 백엔드 기본 전체 332클래스 1,893건 실패 0·건너뜀 0(네이버 키가 있는 상태) · `liveTest` 7건 통과(한도 초과 가짜 응답이면 5건 건너뜀 · 다른 400 이면 5건 실패) · 웹 662 · Flutter core 69 · ui 228 · manager 315 · parent 251(`--exclude-tags real_backend`) · `actionlint` 0. **실제 GitHub 실행은 미수행** — 첫 실행에서 러너 Docker·Testcontainers·시간 한도(40분)·`-PciQuiet` 확인. `Ruling 444` 미사용.
+
+## 8.76 ⚖ `R46-OPS` — 첫 배포 전 막힌 것 · 최소 관측 (2026-10-01 · 분기점 `760eef57` · 번호대 452~458 · 운영 갈래)
+
+R46 개선 11항목 중 3번(운영 준비)에서 **사용자 결정이 없어도 필요한 것**만이다. 조사 원문 `.claude/survey-2026-09-30/C-운영-배포-관측.md` #3·#4·#5·#10·#11·#12·#13·#18. 백업 주기·RPO(#16·#17) · 개인정보 파기(#19) · 웹 운영 배포(#1) · 경보 수신 채널 연결 · 저장소 공개(#2) · 비용(#26)은 결정 대기라 손대지 않았다. 갈래 보고서 `.claude/r46/report-ops.md`(무시 파일).
+
+### R46-OPS 판정
+
+| Ruling | 판정 | 근거 |
+|:-:|---|---|
+| **452** | 운영 배포의 프로파일은 SSM `SPRING_PROFILES_ACTIVE`(`prod`·`demo`)를 `deploy.sh` 가 명시적으로 읽고, 없거나 그 밖의 값이면 컨테이너에 닿기 전에 배포를 멈춘다. compose 에는 기본값이 없다. `prod` 는 FCM 3종을 SSM 필수로 읽는다. `.env` 는 전부 읽고 검증한 **뒤에** 쓴다 | 기본값이 `demo` 라 값이 빠진 배포가 가짜 시드 + 가짜 버스로 조용히 떴다(조사 C #3). `.env` 를 먼저 비우면 멈춘 배포가 백업 크론(같은 `.env` 로 compose 를 읽음)을 다음 배포까지 실패시킨다 |
+| **453** | 메인 관리자(`system_admin`)가 하나도 없을 때만 환경변수 `BOOTSTRAP_ADMIN_LOGIN_ID`·`BOOTSTRAP_ADMIN_PASSWORD_HASH` 로 활성 계정 1개와 등록부 행을 만든다(`FirstSystemAdminBootstrap`). 이미 있으면 값을 읽지도 않는다. 평문(bcrypt 아님) · 한쪽만 있음 · 이미 쓰는 아이디는 기동 거부. 로그에 비밀번호·해시를 남기지 않는다. 조건은 "계정 0개"가 아니라 "메인 관리자 0명"(등록부 기준) | prod 는 계정이 0개이고 가입 신청 5종에 메인 관리자가 없어 배포가 성공해도 로그인할 사람이 없었다(`uponGrant` 호출부는 시험뿐, `ApplicationRunner` 0건). 메인 관리자 없이 다른 계정만 있는 상태는 정상 경로로 생기지 않아 두 조건이 실제로는 같다 |
+| **454** | 운영 compose 에 `prometheus`(보존 15일 · 볼륨) · `alertmanager` · `node-exporter` · `grafana` 를 더한다. 개발용과 같은 `infra/observability/` 설정을 재사용하고 운영 전용 Prometheus 설정(`prometheus.prod.yml` — postgres·redis exporter job 제외)만 따로 둔다. Prometheus·Grafana 는 호스트 `127.0.0.1` 에만 바인딩하고 SSM 포트 포워딩으로 접근한다. Grafana 초기 비밀번호는 SSM 필수. **Alertmanager 수신 채널은 사용자 결정 대기 — receiver 는 수신자 없음(`unrouted`)** | 조사 C #10·#11 — 운영에서 지표를 긁는 곳이 없었다. 22번 포트가 닫혀 있어 SSH 터널 대신 SSM 포트 포워딩이다 |
+| **455** | 경보 규칙 2종을 더한다 — `RunUnconfirmed`(`schoolbus_run_unconfirmed > 0` 1분 유지 · `TECH_DECISIONS §13.4` 1행) · `PushDeliveryFailing`(`schoolbus_notification_push_failures_total` 10분 증가 · 5행). 5행은 **율이 아니라 건수**다 — 분모 지표가 없고 있는 지표는 재시도를 소진해 `failed` 로 굳은 건수뿐 | 조사 C #11·#13 — 확정 배치 실패의 1차 방어. 게이지 이름은 `MetricsExposureTest` 가 이미 검사한다 |
+| **456** | 경보 `HostDiskAlmostFull` — 마운트 지점 `/` 사용률 80% 초과 10분 유지(node-exporter `--path.rootfs=/host` · `pid: host`) | DB·사진·이미지·로그가 한 디스크라 차면 postgres 쓰기가 실패해 전면 정지(조사 C #18) |
+| **457** | 프록시에 공개 헬스 `/healthz` 하나를 연다 — backend `/actuator/health` 를 프록시(상태 문자열만 · DOWN 이면 503)하고 IP 당 분당 30회로 제한한다. `/actuator` 나머지는 계속 404 | 외부 가동 감시가 칠 주소가 없었다(조사 C #11). 정적 200 은 backend 가 죽어도 초록이라 프록시하는 형태로 정했다 |
+| **458** | ① `application.yml` 이 읽는 환경변수는 운영 compose backend 가 전부 넘긴다 — 의도적 제외는 시험의 목록으로만(`DeploymentConfigGuardTest`). 선택 항목(장소 검색 키 · Directions 경로·지점 수 · 첫 관리자)은 SSM **선택**이고 `ParameterNotFound` 만 "없음"으로 본다. Directions 두 값은 짝(`Ruling 361`), 값이 없으면 컨테이너에 넘기지 않는다(빈 문자열이 yml 기본값을 덮는다). ② 사진은 named volume `photo-data` 를 `/app/var/photos` 에 마운트하고 경로는 compose 고정값(SSM 으로 열지 않는다). `backup-db.sh` 가 사진 묶음도 S3 `photos/` 로 올린다(7일). ③ 배포 성공 뒤 `docker image prune -af --filter until=72h` · 로그 그룹 보관 7일(`put-retention-policy`)·ECR 수명주기 최근 10개(절차서) | 조사 C #4·#5·#12·#18 — 재배포마다 사진 소실 · 운영에서 Directions 전환 불가 · 이미지·로그 무기한 누적 |
+
+`Ruling 459` 이상은 쓰지 않았다.
+
+### R46-OPS 목표 표
+
+| # | 완료 조건 | 확인 수단 |
+|:-:|---|---|
+| 1 | 프로파일 값이 없으면 `deploy.sh` 가 멈추고 compose 가 기본 `demo` 로 풀리지 않는다 | `DeployScriptGuardTest`(가짜 `aws` 로 스크립트 실행) · `docker compose … config` 오류 출력 |
+| 2 | 첫 관리자 러너 — 0명이면 1개 · 있으면 0 · 해시 아님 거부 · 로그에 비밀값 없음 | `FirstSystemAdminBootstrapTest` 7건 RED→GREEN · 결함 심기 |
+| 3 | yml 환경변수 ⊆ 운영 compose · Directions 짝 한쪽만이면 `deploy.sh` 중단 | `DeploymentConfigGuardTest` · `DeployScriptGuardTest` RED→GREEN · 결함 심기 |
+| 4 | 사진 볼륨이 컨테이너 재생성 뒤에도 남는다 | `config` 의 volumes · 로컬 재생성 전후 파일 유지(`-p r46ops`) |
+| 5 | 관측 3종 + 경보 규칙 문법 | `promtool check rules`·`test rules` · `amtool check-config` · `config -q` · 로컬 기동 |
+| 6 | `/healthz` 200 · `/actuator` 404 | `nginx -t` + 실제 nginx 컨테이너 응답 |
+| 7 | 문서 — `DEPLOYMENT.md`(§2.3·§2.5·§3·§4·§6·§7.2·§8·§10·§11) · `TECH_DECISIONS §13.4` · 이 절 | `grep` |
+| 8 | 고친 모듈 시험 + 전체를 세는 시험 실패 0 | 결과 XML |
+| 9 | 정리 — 로컬 컨테이너·서버 종료, `r46_ops` DROP | `docker ps` · `pg_database` |
+
+**결과 (2026-10-01)** — 목표 1~9 ✅. 신설 시험 3클래스(`FirstSystemAdminBootstrapTest` 7 · `DeployScriptGuardTest` 11 · `DeploymentConfigGuardTest` +4)는 전부 구현 전 RED 를 결과 XML 로 확인했고, 결함 심기 27종(러너 7 · compose·nginx 5 · `deploy.sh` 10 · 경보 5)이 각각 그 시험만 실패시킨 뒤 원복(`git status` 빈 결과). 경보 식은 `promtool test rules` · `check rules` · `amtool check-config` · `nginx -t` 통과, 로컬 `-p r46ops` 기동에서 Prometheus 규칙 6개 health ok · 사진 볼륨은 컨테이너 재생성 전후 파일 유지 · 백업 tar 스트림 복원 · `/healthz` 200 · `/actuator` 404. 백엔드 전체 `--rerun` **340클래스 1,912건 실패 0 · 건너뜀 0**(전체를 세는 시험 12종 결과 XML 확인). 깨진 참조 0. **실제 AWS 실행은 미수행** — 첫 배포 뒤 확인할 것: 디스크 경보가 EC2 에서 `mountpoint="/"` 시리즈를 보는지 · `prod` 프로파일 실기동의 첫 관리자 생성 · 메모리 한도 합(`t3.medium` 초과 위험).

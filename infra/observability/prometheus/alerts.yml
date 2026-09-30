@@ -1,5 +1,8 @@
 # TECH_DECISIONS §13.4 알럿 — 조건 · 지표 이름은 그 표를 따른다(BR-064).
-# 전달 경로(Alertmanager·메신저)는 아직 없다 — Prometheus 화면(/alerts)에서 발화 여부만 보인다.
+# 전달 경로: 운영 compose 에 Alertmanager 자리는 있으나 수신 채널이 미정이라(Ruling 454) 어디로도 보내지 않는다 —
+# Prometheus 화면(/alerts)에서 발화 여부만 보인다. 개발용 compose 에는 Alertmanager 가 없다.
+# 규칙 문법·발화 조건은 alerts.test.yml 이 promtool 로 검사한다:
+#   docker run --rm -v "$PWD/infra/observability/prometheus:/p" --entrypoint promtool prom/prometheus:v3.1.0 test rules /p/alerts.test.yml
 groups:
   - name: schoolbus
     rules:
@@ -24,3 +27,31 @@ groups:
           severity: warning
         annotations:
           summary: 위치가 2분 넘게 안 들어오는 운행 중 회차가 있다
+      # "confirm_at + 5분 경과인데 idle 인 회차 ≥ 1 — 즉시"(§13.4 1행). 게이지가 이미 5분 여유를 반영한 값이라 0 초과면
+      # 기사가 노선을 못 받은 채 출발 시각이 지난 것이다. 게이지는 30초마다 갱신되니 for 1m 이면 두 번 연속 관측 뒤 발화한다.
+      # 이 규칙이 확정 배치 실패의 1차 방어다 — 강제 확정(POST /admin/runs/{runId}/force-confirm)은 그다음 수단이다.
+      - alert: RunUnconfirmed
+        expr: schoolbus_run_unconfirmed > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: 확정 시각을 5분 넘긴 미확정 회차가 있다 — 기사가 노선을 받지 못했다
+      # "알림 발송 실패율 임계 초과 — 경고"(§13.4 5행). 지표는 재시도를 전부 소진해 failed 로 굳은 건수뿐이고 분모(시도 수)
+      # 지표가 없어 율이 아니라 건수로 본다. 임계는 실제 운영 값을 본 뒤 조정한다 — 앱에 Firebase 가 없으면(조사 C #14) 모든
+      # 발송이 실패로 굳어 이 경보가 계속 발화하고, 그것이 맞는 신호다.
+      - alert: PushDeliveryFailing
+        expr: increase(schoolbus_notification_push_failures_total[10m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: 재시도를 소진해 실패로 굳은 푸시 알림이 최근 10분 안에 있다
+      # 호스트 루트 디스크 80% — DB 볼륨 · 사진 · 이미지 · 로그가 같은 디스크라 차면 postgres 쓰기가 실패해 전면 정지다.
+      # 값은 node-exporter(--path.rootfs=/host · pid: host)가 내는 마운트 지점 `/` 기준이다.
+      - alert: HostDiskAlmostFull
+        expr: 100 * (1 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) > 80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: 호스트 루트 디스크 사용률이 80% 를 넘은 지 10분 됐다
