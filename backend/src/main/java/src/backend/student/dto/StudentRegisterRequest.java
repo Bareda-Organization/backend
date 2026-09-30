@@ -33,6 +33,6 @@ public record StudentRegisterRequest(
         LocalDate birthDate,
         @Size(max = 20) String grade,
         @Size(max = 50) String className,
-        String note,
+        @Size(max = 200) String note,
         @NotNull Boolean canGoAlone) {
 }

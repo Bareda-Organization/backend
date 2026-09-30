@@ -82,6 +82,17 @@ class RequestLengthValidationTest {
                         "{\"minutes\":5,\"reason\":\"traffic\",\"message\":\"%s\"}".formatted("가".repeat(501))),
                 Arguments.of("정정 사유 201자", HttpMethod.POST, "/api/v1/runs/999999/riders/999999/revert", escort,
                         "{\"reason\":\"%s\"}".formatted("가".repeat(201))),
+                Arguments.of("강제 추가 note 201자", HttpMethod.POST, "/api/v1/staff/runs/999999/forced-add", staff,
+                        "{\"student_id\":1,\"address\":\"주소\",\"note\":\"%s\"}".formatted("가".repeat(201))),
+                Arguments.of("학원 등록 memo 201자", HttpMethod.POST, "/api/v1/admin/academies", admin,
+                        "{\"name\":\"n\",\"region\":\"r\",\"memo\":\"%s\"}".formatted("가".repeat(201))),
+                Arguments.of("학원 수정 memo 201자", HttpMethod.PATCH, "/api/v1/admin/academies/999999", admin,
+                        "{\"memo\":\"%s\"}".formatted("가".repeat(201))),
+                Arguments.of("비상 신고 memo 201자", HttpMethod.POST, "/api/v1/runs/999999/emergency", escort,
+                        "{\"type\":\"accident\",\"memo\":\"%s\",\"client_key\":\"%s\"}"
+                                .formatted("가".repeat(201), java.util.UUID.randomUUID())),
+                Arguments.of("예외 보고 memo 201자", HttpMethod.POST, "/api/v1/runs/999999/reports", escort,
+                        "{\"type\":\"vehicle_issue\",\"memo\":\"%s\"}".formatted("가".repeat(201))),
                 Arguments.of("강제 추가 신규 학생 이름 51자", HttpMethod.POST, "/api/v1/staff/runs/999999/forced-add", staff,
                         "{\"new_student\":{\"name\":\"%s\"},\"address\":\"주소\"}".formatted("가".repeat(51))));
     }

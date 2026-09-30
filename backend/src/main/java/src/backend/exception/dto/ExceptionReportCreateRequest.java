@@ -1,6 +1,7 @@
 package src.backend.exception.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 /**
  * 현장 예외 보고 등록 요청(API_SPEC §4.13, EXC-02·03).
@@ -15,6 +16,6 @@ import jakarta.validation.constraints.NotBlank;
  */
 public record ExceptionReportCreateRequest(
         @NotBlank String type,
-        @NotBlank String memo,
+        @NotBlank @Size(max = 200) String memo,
         Long riderId) {
 }

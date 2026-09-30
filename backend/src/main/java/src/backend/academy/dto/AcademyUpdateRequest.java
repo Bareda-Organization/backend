@@ -16,6 +16,6 @@ public record AcademyUpdateRequest(
         @Size(max = 50) String region,
         @Size(max = 255) String address,
         @Size(max = 30) String contact,
-        String memo,
+        @Size(max = 200) String memo,
         String status) {
 }
