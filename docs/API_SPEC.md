@@ -1382,7 +1382,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `metrics.boarded` | integer | ● | 승차 완료 인원 |
 | `metrics.no_show` | integer | ● | 미승차 인원 (MON-04) |
 | `metrics.absent` | integer | ● | 미등원 인원 (MON-06) |
-| `metrics.unassigned_managers` | integer | ● | 배치 대기 매니저 수 |
+| `metrics.unassigned_managers` | integer | ● | 배치 대기 매니저 수 — **사람 수**(재직 매니저 중 오늘 회차 어디에도 배치되지 않은 수). 회차 수가 아니다. 관계자 웹은 "오늘 배치 없는 매니저 N명" 으로 표기한다(`R46-WEB` · 프론트 `Ruling 423`) |
 | `runs[]` | array | ● | 금일 회차 표 — **임시 취소된 회차는 빼고** 지표(`metrics.*`)도 세지 않는다(`Ruling 375`) |
 
 **`runs[]`**
