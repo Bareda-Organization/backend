@@ -241,7 +241,7 @@ public class WaypointCommandService {
                 ctx.originDestination().destination(), fixedStops, run.getDepartTime(), policy);
         RouteComputation computation = pipeline.compute(input);
         String token = UUID.randomUUID().toString();
-        previewCache.put(run.getId(), new WaypointPreview(token, waypoint.getId(), removal, seq,
+        previewCache.put(run.getId(), run.getServiceDate(), new WaypointPreview(token, waypoint.getId(), removal, seq,
                 fingerprintOf(run, ctx, fixedStops), ctx.currentVersion().getId(), computation));
         return responseOf(run, waypoint, ctx, computation, false, token);
     }
