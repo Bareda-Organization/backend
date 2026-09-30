@@ -14,7 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **뒤집은 이유** — `git worktree` 는 추적 파일만 체크아웃한다. Orca 가 만든 자식 워크트리에서 뜬 에이전트가 빌드 명령(`-PtestDbUrl` 필수)·Docker 포트·Flyway 재구성 정책·사양 4종을 모르는 채 시작했다. 2026-09-02(docs 전면 제외)·2026-09-09(`.claude`·`CLAUDE.md` 제외) 결정을 이 범위에서 뒤집는다.
 - **여전히 제외** — 사람용 렌더(`docs/**` 의 HTML·PDF·PNG)와 기획 원본 `.docx`(파생본·바이너리) · 보고서(`report/`) · 라운드별 작업 기록(`.claude/` 나머지 — ⚠ **`.superpowers/` 는 2026-09-20 삭제**, 정본이 쓰던 근거 24개는 `docs/archive/sdd/`) · 재생성 가능한 색인(`graft/` · `.docgraph/`).
-- ⚠ **원격은 공개 저장소(`mskim98/School-Bus`)다.** 문서는 **로컬 커밋만** 유지하고 push 하지 않는다(2026-09-18 사용자 결정). 워크트리 체크아웃에는 로컬 커밋이면 충분하다.
+- ⚠ **원격은 공개 저장소(`mskim98/School-Bus`)다.** 2026-09-18 결정은 "문서는 로컬 커밋만"이었으나 **2026-09-30 사용자 지시로 문서 포함 전부 push 했다**(1,325 커밋 · 비밀값 검사 0건). 이후 push 는 사용자에게 한 번 확인하고, push 전에는 `backend/.env`·`.env.local` 의 실제 값이 커밋에 없는지 검사한다.
 - 새 워크트리에서는 색인을 한 번 만든다 — `graft build .` (부모의 캐시를 복사하므로 **1.7초**)
 
 **프론트엔드는 2026-09-10 사용자 결정으로 범위 안이다** — 2026-09-04 Ruling 255(영구 범위 밖)를 뒤집었다. `docs/IMPLEMENTATION_PLAN` 의 Phase F1~F4 `➖` 표기는 옛 Flutter 계획에 대한 것이라 그대로 두고, **프론트 작업의 창구는 `docs/frontend/IMPLEMENTATION_PLAN.md` 로 분리**했다.
