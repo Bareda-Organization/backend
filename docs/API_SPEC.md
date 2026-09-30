@@ -590,7 +590,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 **ETA · 탑승 인원 부재** (C-08).
 
-**에러** — `404 STUDENT_NOT_FOUND` · `403 FORBIDDEN`(연결 부재 자녀 · 본인 아닌 학생 — §3 도입부)
+**에러** — `404 STUDENT_NOT_FOUND`(퇴원 학생 — 학부모 경로의 자녀와 **학생 본인 계정** 모두) · `403 FORBIDDEN`(연결 부재 자녀 · 본인 아닌 학생 — §3 도입부)
 
 ### 3.6 PATCH /students/{id}/runs/{runId}/intent
 
@@ -728,7 +728,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 **표시 범위 — 승차지 이전 2개 · 승차지 · 하차지만** (P-08). 승하차지별 탑승 인원 · ETA 부재 (C-08).
 
-**에러** — `404 STUDENT_NOT_FOUND` · `404 RUN_NOT_FOUND`(`run_id` 지정 시) · `403 FORBIDDEN`(연결 부재 자녀 · 본인 아닌 학생 — BR-025). 확정 전은 에러 부재 — 고정 노선 + "확정 전" 배지로 반환
+**에러** — `404 STUDENT_NOT_FOUND`(퇴원 학생 — 학생 본인 포함, BR-212) · `404 RUN_NOT_FOUND`(`run_id` 지정 시) · `403 FORBIDDEN`(연결 부재 자녀 · 본인 아닌 학생 — BR-025). 확정 전은 에러 부재 — 고정 노선 + "확정 전" 배지로 반환
 
 ### 3.11 GET /students/{id}/bus-position
 
@@ -751,7 +751,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 **권한** 학부모(연결 자녀) · 학생(본인) — §3.5 와 같은 판정 (BR-025)
 
-**에러** — `404 STUDENT_NOT_FOUND` · `403 FORBIDDEN`(연결 부재 자녀 · 본인 아닌 학생) · `404 RUN_NOT_FOUND`(오늘 그 학생의 회차 부재 — 필수 `run_id`·`bus_no` 를 채울 회차가 없음, §3.10 과 같은 코드, BR-121). `run_status` 가 `moving` 이 아니거나 당일 `absent` 인 경우는 에러 부재 — 좌표 필드 부재로 반환
+**에러** — `404 STUDENT_NOT_FOUND`(퇴원 학생 — 학생 본인 포함, BR-212) · `403 FORBIDDEN`(연결 부재 자녀 · 본인 아닌 학생) · `404 RUN_NOT_FOUND`(오늘 그 학생의 회차 부재 — 필수 `run_id`·`bus_no` 를 채울 회차가 없음, §3.10 과 같은 코드, BR-121). `run_status` 가 `moving` 이 아니거나 당일 `absent` 인 경우는 에러 부재 — 좌표 필드 부재로 반환
 
 ### 3.12 GET /notifications
 

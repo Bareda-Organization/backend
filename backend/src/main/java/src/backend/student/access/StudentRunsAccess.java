@@ -39,7 +39,9 @@ public class StudentRunsAccess {
      * <p>학부모는 {@link LinkedChildLookup} 에 그대로 위임한다(연결 부재 {@code 403} · 퇴원생
      * {@code 404}, 그 판정 순서가 이미 정본이다). 학생은 자기 계정에 연결된 학생이 없거나, 있어도
      * 그 id 가 경로의 {@code studentId} 와 다르면 {@code 403} 이다 — §3 도입부가 "본인 아닌 학생" 을
-     * {@code 403} 으로 못박아, 여기서는 {@code 404} 로 존재 여부를 흘리지 않는다.
+     * {@code 403} 으로 못박아, 여기서는 {@code 404} 로 존재 여부를 흘리지 않는다. <b>본인이어도 퇴원했으면
+     * {@code 404}</b> 다(BR-212) — 퇴원 처리가 학생 본인 계정을 건드리지 않아, 판정이 없으면 명단에서 빠진
+     * 학생이 실시간 버스 위치를 계속 받는다.
      */
     public Student resolve(AuthUser requester, Long studentId) {
         if (requester.role() == Role.STUDENT) {
@@ -56,6 +58,9 @@ public class StudentRunsAccess {
                 .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN));
         if (!self.getId().equals(studentId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+        if (self.getDeletedAt() != null) {
+            throw new BusinessException(ErrorCode.STUDENT_NOT_FOUND);
         }
         return self;
     }
