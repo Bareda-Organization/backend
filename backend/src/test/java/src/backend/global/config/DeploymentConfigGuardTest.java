@@ -147,6 +147,21 @@ class DeploymentConfigGuardTest {
     }
 
     @Test
+    @DisplayName("R46 D #17 — prod·demo·staging 은 Hikari 연결 대기 상한을 3초로 명시하고 staging·load 는 누수 감지를 켠다")
+    void hikariTimeoutsArePinnedPerProfile() throws IOException {
+        // 기본 30초는 풀이 찬 순간 요청 스레드가 연결을 30초씩 기다리며 쌓인다 — 앱은 정상 기동해 배포 뒤에야 드러난다.
+        for (String profile : new String[] {"prod", "demo", "staging"}) {
+            assertThat(sectionOf("on-profile: " + profile))
+                    .as("%s 프로파일은 connection-timeout 3000 을 명시해야 한다", profile)
+                    .contains("connection-timeout: 3000");
+        }
+        assertThat(sectionOf("on-profile: staging")).contains("leak-detection-threshold: 5000");
+        assertThat(Files.readString(Path.of("src/main/resources/application-load.yml")))
+                .as("부하 프로파일은 연결 보유자 특정을 위해 누수 감지를 켠다")
+                .contains("leak-detection-threshold: 5000");
+    }
+
+    @Test
     @DisplayName("staging 프로파일은 local 의 공개된 값(시드 비밀번호·JWT 키·허용 출처 2종)을 기본값 없이 덮는다")
     void stagingProfileOverridesPublicLocalValues() {
         // 스테이징은 `local,staging` 으로 켜서 local 의 데모 시드·버스 시뮬레이터를 쓰되 공개 주소에 뜬다.

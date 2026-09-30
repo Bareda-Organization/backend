@@ -343,6 +343,10 @@ spring:
       # 1대뿐이라(위 backend 서비스 주석 — replicas 금지) 20 + 운영자 접속 여유로 postgres
       # max_connections 기본값 100(docker-compose.prod.yml 이 별도 지정 안 함)을 넘지 않는다.
       maximum-pool-size: 20
+      # 3초 — 기본 30초는 풀이 찼을 때 요청 스레드가 연결을 30초씩 기다리며 쌓인다(2026-09-09 붕괴 형태, R46 D #17).
+      # 빨리 실패하면 요청은 다음 시도에서 회복하고, 알림 발송·확정 배치는 pending 행이 남아 다음 주기에 다시 집힌다.
+      # max-lifetime 은 기본 30분이 맞아 그대로 둔다 — postgres·프록시의 유휴 연결 제한이 그보다 길다.
+      connection-timeout: 3000
   data:
     redis:
       host: ${REDIS_HOST}
@@ -391,6 +395,7 @@ spring:
     hikari:
       # prod 섹션과 같은 근거(BR-168, Ruling 351) — demo 도 인스턴스 1대라 같은 계산이 그대로 적용된다.
       maximum-pool-size: 20
+      connection-timeout: 3000   # prod 섹션과 같은 근거(R46 D #17)
   data:
     redis:
       host: ${REDIS_HOST}
@@ -420,6 +425,13 @@ spring:
   config:
     activate:
       on-profile: staging
+  datasource:
+    hikari:
+      # 풀은 local 과 같은 기본 10 그대로다. 타임아웃은 prod 섹션과 같은 근거(R46 D #17).
+      connection-timeout: 3000
+      # 연결을 5초 넘게 쥔 스레드의 스택을 로그에 남긴다 — 팀원 체험 중 풀이 마르면 누가 쥐었는지 이 로그로 특정한다.
+      # 5초인 이유 — 정상 요청은 연결을 수십 ms 만 쥐고 가장 긴 읽기(Redis 500ms 상한 포함)도 1초 안이라 오탐이 없다.
+      leak-detection-threshold: 5000
   flyway:
     placeholders:
       # local 의 평문 "password" 해시는 공개 저장소에 있다 — 시드 계정 전부가 이 값으로 바뀐다.

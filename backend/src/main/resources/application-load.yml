@@ -13,6 +13,10 @@ spring:
     url: jdbc:postgresql://localhost:15432/schoolbus_load
     username: schoolbus
     password: schoolbus
+    hikari:
+      # 연결을 5초 넘게 쥔 스레드의 스택을 로그에 남긴다 — 붕괴 시 연결 보유자를 특정하는 수단이다(R46 D #1·#17).
+      # connection-timeout 은 일부러 기본 30초로 둔다 — 운영값(3초)으로 줄이면 09-09 측정과 대기 시간을 비교할 수 없다.
+      leak-detection-threshold: 5000
   flyway:
     locations: classpath:db/migration,classpath:db/migration-local
     placeholders:
