@@ -6,7 +6,7 @@
 |---|---|
 | 문서 버전 | v1.1 |
 | 작성일 | 2026-08-24 |
-| 개정일 | 2026-09-04 — `V8` 보존 정리 인덱스 6개 반영 · §7.2 `run_position` 90일·`audit_log` 무기한 확정(Ruling 243). 이전 개정 — 2026-09-03 — `V3`~`V7` 반영: `run_stop.proximity_notified_at`(V3) · `shedlock` 테이블 신설(V4) · `notification_log.type` CHECK 확장 확인(V5·V6, 서술 변경 없음) · `emergency_alert.position_recorded_at` 및 `occurred_at`·`received_at` 서술 정정(V7, Ruling 236). DDL-ERD 컬럼 전수 대조로 `academy.lat`·`lng` · `run.consecutive_failures` 보완. `notification_log.acked` 추적 범위 명확화(Ruling 227·228), §8 갱신(X-04·X-05 신설 반영, `academy.code` 해소 반영), 공통 규칙 표기 C-01~C-18. 테이블 41개 · 그룹 5개. Ruling 190·207·210·219·227·228·236 반영 |
+| 개정일 | 2026-09-30 — §5.3 에 조회 인덱스 4개(BR-258, `V1`)와 `V8` 보존 정리 인덱스 5개(BR-259, 실제 `CREATE INDEX` 5문 — 아래 6개는 셈이 어긋난 옛 표기) 등재. 이전 개정 — 2026-09-04 — `V8` 보존 정리 인덱스 6개 반영 · §7.2 `run_position` 90일·`audit_log` 무기한 확정(Ruling 243). 이전 개정 — 2026-09-03 — `V3`~`V7` 반영: `run_stop.proximity_notified_at`(V3) · `shedlock` 테이블 신설(V4) · `notification_log.type` CHECK 확장 확인(V5·V6, 서술 변경 없음) · `emergency_alert.position_recorded_at` 및 `occurred_at`·`received_at` 서술 정정(V7, Ruling 236). DDL-ERD 컬럼 전수 대조로 `academy.lat`·`lng` · `run.consecutive_failures` 보완. `notification_log.acked` 추적 범위 명확화(Ruling 227·228), §8 갱신(X-04·X-05 신설 반영, `academy.code` 해소 반영), 공통 규칙 표기 C-01~C-18. 테이블 41개 · 그룹 5개. Ruling 190·207·210·219·227·228·236 반영 |
 | 기준 | FEATURE_SPEC.md · PRD.md · USER_FLOWS.md · API_SPEC.md v1.0 (2026-08-24) |
 | DBMS | PostgreSQL |
 | 성격 | **To-Be 설계** — 현 코드베이스의 실측 기록 부재. 구현은 이 문서에 맞춰 갱신 대상 |
@@ -1085,6 +1085,13 @@ erDiagram
 | `account(academy_id, role)` | 학원별 역할 계정 집계·목록 (§6.x 콘솔 · 관계자 계정) (BR-091) |
 | `guardian(academy_id)` · `schedule(academy_id)` · `route(academy_id)` | 학원 범위 목록·연락처 조회 — 학원 격리 선행 인덱스 (BR-091) |
 | `manager(academy_id, name)` partial `WHERE deleted_at IS NULL` | 매니저 검색·미배치 집계 (MGR-01 · MON-05) (BR-091) |
+| `weekly_address(stop_id)` partial `WHERE stop_id IS NOT NULL` | 승하차지가 걸린 요일별 주소 조회 — 확정 배치가 회차마다 · 확정 전 예정 명단·노선을 열 때마다 부른다. `stop` 삭제의 FK(`ON DELETE SET NULL`) 검사도 이 컬럼을 훑는다 (2026-09-30 BR-258) |
+| `waypoint(run_id)` | 회차의 경유 지점 목록 (RTE-10) (BR-258) |
+| `signup_request(account_id, requested_at desc)` | 계정별 최근 가입 신청 1건 — 가입 상태 조회·재신청 (AUTH-10) (BR-258) |
+| `link_code(code)` | 자녀 연결 코드 조회 (S-05) — 코드는 앱이 유일하게 뽑고 **UNIQUE 는 걸지 않는다**(만료 코드와 겹칠 수 있음). 조회만 빠르게 (BR-258) |
+| `notification_log(created_at)` · `run_position(recorded_at)` | **보존 정리 배치의 컷오프 조회**(전 학원·전 회차의 컷오프 이전 행, Ruling 243) — 기존 복합 인덱스는 선행 컬럼이 달라 쓰이지 않는다. `V8__add_retention_indexes.sql` (BR-259) |
+| `refresh_token(revoked_at)` partial `WHERE revoked_at IS NOT NULL` · `refresh_token(expires_at)` partial `WHERE revoked_at IS NULL` | 보존 정리의 토큰 삭제 — 폐기된 토큰은 `revoked_at`, 아직 폐기되지 않은 토큰은 `expires_at` 을 컷오프와 견준다. 두 부분 인덱스로 조건을 나눈다 (BR-259) |
+| `link_code(expires_at)` | 보존 정리의 만료된 연결 코드 삭제 (BR-259) |
 
 **학원 격리 선행 인덱스** — 학원 범위로 직접 조회하는 테이블(`academy_setting` · `signup_request` · `academy_staff` · `account` · `student` · `guardian` · `manager` · `bus` · `stop` · `schedule` · `route` · `run` · `change_request` · `notification_log` · `audit_log` · `exception_report` · `emergency_alert` — §6.1 의 직접 보유 17개)은 복합 인덱스의 **첫 컬럼을 `academy_id`** 로 둠. 격리 조건이 모든 쿼리에 무조건 붙는 술어이기 때문.
 

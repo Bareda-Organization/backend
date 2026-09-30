@@ -21,6 +21,9 @@ public interface ManagerRepository extends JpaRepository<Manager, Long> {
             + "호출부가 토큰의 accountId 만 넘긴다는 전제 — 요청 파라미터의 accountId 를 넘기면 이 예외가 우회로가 된다")
     Optional<Manager> findByAccountId(Long accountId);
 
+    /** 학원 안에서 계정 여러 개의 매니저를 한 번에(BR-228) — 예외 보고 목록이 보고마다 {@link #findByAccountId} 를 부르지 않게 한다. */
+    List<Manager> findAllByAcademyIdAndAccountIdIn(Long academyId, Collection<Long> accountIds);
+
     /**
      * 가입 승인이 연결할 매니저 1건(AUTH-11 · API_SPEC §5.2) — 학원과 <b>역할</b>로 함께 좁힌다.
      *

@@ -7,6 +7,7 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.global.websocket.WebSocketBroadcastGateway;
@@ -26,6 +27,7 @@ import src.backend.student.repository.StudentRepository;
  * <p>{@code @TransactionalEventListener(AFTER_COMMIT)} 근거는 {@code run.command.RunStartedBroadcastListener}
  * 와 같다.
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class ApprovalRequestedBroadcastListener {
@@ -45,19 +47,23 @@ public class ApprovalRequestedBroadcastListener {
     /** 커밋 후 학생·정차지·마감을 채워 {@code approval_requested} 를 학원 관제 채널에 방송한다. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcast(ApprovalRequestedEvent event) {
-        String studentName = studentRepository.findById(event.studentId())
-                .map(student -> student.getName())
-                .orElse(null);
-        String stopName = runRiderRepository.findByRunIdAndStudentId(event.runId(), event.studentId())
-                .map(rider -> stopRepository.findById(rider.getStopId()).map(stop -> stop.getName()).orElse(null))
-                .orElse(null);
-        OffsetDateTime deadlineAt = changeRequestRepository.findById(event.changeRequestId())
-                .map(changeRequest -> changeRequest.getDeadlineAt())
-                .orElse(null);
+        try {
+            String studentName = studentRepository.findById(event.studentId())
+                    .map(student -> student.getName())
+                    .orElse(null);
+            String stopName = runRiderRepository.findByRunIdAndStudentId(event.runId(), event.studentId())
+                    .map(rider -> stopRepository.findById(rider.getStopId()).map(stop -> stop.getName()).orElse(null))
+                    .orElse(null);
+            OffsetDateTime deadlineAt = changeRequestRepository.findById(event.changeRequestId())
+                    .map(changeRequest -> changeRequest.getDeadlineAt())
+                    .orElse(null);
 
-        Payload payload = new Payload(event.changeRequestId(), studentName, event.runId(), stopName, deadlineAt);
-        gateway.send(WebSocketDestinations.academyLive(event.academyId()), EVENT, event.runId(), event.requestedAt(),
-                payload);
+            Payload payload = new Payload(event.changeRequestId(), studentName, event.runId(), stopName, deadlineAt);
+            gateway.send(WebSocketDestinations.academyLive(event.academyId()), EVENT, event.runId(), event.requestedAt(),
+                    payload);
+        } catch (RuntimeException e) {
+            log.warn("approval_requested 방송 실패 — runId={}", event.runId(), e);
+        }
     }
 
     /** {@code approval_id} · {@code student_name} · {@code run_id} · {@code stop_name} · {@code deadline_at}. */

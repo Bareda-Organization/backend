@@ -75,6 +75,10 @@ public class NoShowContactCommandService {
         }
         RunRider rider = runRiderRepository.findByIdAndRunIdAndStatusNot(riderId, runId, RiderStatus.ABSENT)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RIDER_NOT_FOUND));
+        // 되돌린 탑승자(BR-009)는 종결된 케이스 행이 남지만 더는 no_show 가 아니다 — §4.8 "no_show 미처리 탑승자" (BR-254)
+        if (rider.getStatus() != RiderStatus.NO_SHOW) {
+            throw new BusinessException(ErrorCode.NO_SHOW_CASE_NOT_FOUND);
+        }
         NoShowCase noShowCase = noShowCaseRepository.findByRunRiderId(rider.getId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NO_SHOW_CASE_NOT_FOUND));
 

@@ -71,7 +71,7 @@ public class StaffStudentController {
 
     /** 학생 목록·검색(STU-01, §5.11) — 강제 추가 자동완성과 공용이다. */
     @CanReadStudentRecord
-    @Operation(summary = "학생 관리 — 목록·검색")
+    @Operation(summary = "학생 관리 — 목록·검색 (STU-01)")
     @GetMapping
     public ApiResponse<PageResponse<StudentSummaryResponse>> list(@AuthenticationPrincipal AuthUser authUser,
             @ModelAttribute StudentListRequest request) {
@@ -80,7 +80,7 @@ public class StaffStudentController {
 
     /** 학생 상세(STU-01, §5.11). */
     @CanReadStudentRecord
-    @Operation(summary = "학생 관리 — 상세")
+    @Operation(summary = "학생 관리 — 상세 (STU-01)")
     @GetMapping("/{id}")
     public ApiResponse<StudentDetailResponse> detail(@AuthenticationPrincipal AuthUser authUser,
             @PathVariable Long id) {
@@ -95,7 +95,7 @@ public class StaffStudentController {
      * 조립하면 같은 조인이 두 곳에 생긴다.
      */
     @CanManageStudent
-    @Operation(summary = "학생 관리 — 등록")
+    @Operation(summary = "학생 관리 — 등록 (STU-02)")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<StudentDetailResponse> register(@AuthenticationPrincipal AuthUser authUser,
@@ -107,7 +107,7 @@ public class StaffStudentController {
 
     /** 학생 정보 수정(STU-03 · 07 · 08, §5.11) — 주소는 대상 밖이다(A-10). 보호자 연락처는 {@code guardians[]} 로 함께 고친다(Ruling 326). */
     @CanManageStudent
-    @Operation(summary = "학생 관리 — 수정")
+    @Operation(summary = "학생 관리 — 수정 (STU-03)")
     @PatchMapping("/{id}")
     public ApiResponse<StudentDetailResponse> update(@AuthenticationPrincipal AuthUser authUser,
             @PathVariable Long id, @Valid @RequestPart("data") StudentUpdateRequest request,
@@ -118,7 +118,7 @@ public class StaffStudentController {
 
     /** 퇴원 처리(STU-04, §5.11) — soft delete 이며 오늘 명단은 유지된다. */
     @CanManageStudent
-    @Operation(summary = "학생 관리 — 퇴원 soft delete")
+    @Operation(summary = "학생 관리 — 퇴원 soft delete (STU-04)")
     @DeleteMapping("/{id}")
     public ApiResponse<StudentWithdrawalResponse> withdraw(@AuthenticationPrincipal AuthUser authUser,
             @PathVariable Long id) {

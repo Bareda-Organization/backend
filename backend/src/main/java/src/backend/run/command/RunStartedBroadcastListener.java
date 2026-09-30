@@ -9,6 +9,7 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
@@ -24,7 +25,11 @@ import src.backend.run.event.RunStartedEvent;
  * <p>{@code @TransactionalEventListener(AFTER_COMMIT)} 인 이유는 WS 발신이 outbox 행 적재(알림 모듈의
  * 평범한 {@code @EventListener})와 달리 <b>같은 트랜잭션 롤백으로 되돌릴 수 없는 외부 부수효과</b>이기 때문이다.
  * 커밋 전에 보내면, 그 뒤 트랜잭션이 롤백됐을 때 "일어나지 않은 회차 시작"이 관제 화면에 남는다.
+ *
+ * <p>커밋 뒤 방송 리스너는 전부 방송 실패를 기록만 하고 삼킨다(BR-207) — 이 시점의 예외는 이미 커밋된 요청의 응답(500)과
+ * 같은 이벤트의 뒤 리스너를 깨뜨린다.
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class RunStartedBroadcastListener {
@@ -38,16 +43,20 @@ public class RunStartedBroadcastListener {
     /** 운행 시작을 학생·매니저·학원·관리자 채널 4종 전부에 방송한다. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcast(RunStartedEvent event) {
-        List<Long> studentIds = runRiderRepository.findAllByRunId(event.runId()).stream()
-                // absent(다른 버스로 옮긴 removed 포함)는 이 버스에 없다 — 학생 채널은 학생 단위라 보내면 다른 버스와 섞인다
-                .filter(rider -> rider.getStatus() != RiderStatus.ABSENT)
-                .map(RunRider::getStudentId)
-                .distinct()
-                .toList();
-        String runStatus = RunStatus.MOVING.name().toLowerCase(Locale.ROOT);
-        gateway.broadcastToRunChannels(event.runId(), event.academyId(), studentIds, EVENT, event.startedAt(),
-                new StudentPayload(runStatus, event.startedAt()),
-                new Payload(runStatus, event.startedAt(), event.autoBoardedCount()));
+        try {
+            List<Long> studentIds = runRiderRepository.findAllByRunId(event.runId()).stream()
+                    // absent(다른 버스로 옮긴 removed 포함)는 이 버스에 없다 — 학생 채널은 학생 단위라 보내면 다른 버스와 섞인다
+                    .filter(rider -> rider.getStatus() != RiderStatus.ABSENT)
+                    .map(RunRider::getStudentId)
+                    .distinct()
+                    .toList();
+            String runStatus = RunStatus.MOVING.name().toLowerCase(Locale.ROOT);
+            gateway.broadcastToRunChannels(event.runId(), event.academyId(), studentIds, EVENT, event.startedAt(),
+                    new StudentPayload(runStatus, event.startedAt()),
+                    new Payload(runStatus, event.startedAt(), event.autoBoardedCount()));
+        } catch (RuntimeException e) {
+            log.warn("run_started 방송 실패 — runId={}", event.runId(), e);
+        }
     }
 
     /**

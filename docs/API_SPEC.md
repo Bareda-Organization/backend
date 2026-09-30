@@ -1090,7 +1090,17 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 `result=answered` 면 카운트다운 중단. **3분** 경과 + 무응답이면 관계자 에스컬레이션 보고.
 
-**에러** — `403 ESCORT_ONLY` · `404 NO_SHOW_CASE_NOT_FOUND`(`no_show` 미처리 탑승자에 연락 기록 시도) · `404 RIDER_NOT_FOUND` · `409 RUN_NOT_MOVING`
+**응답 `201`** — 방금 남긴 시도와 그 시도가 케이스에 미친 결과(§1.9). `resolved_at` 이 채워지면 카운트다운이 멈춘 것(`result=answered` 또는 `decision=depart`)이고 `null` 이면 아직 대기 중이다 — 별도 불리언은 두지 않는다. (2026-09-30 BR-261 — 코드가 이미 내던 형태를 사양에 등재)
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|:-:|---|
+| `case_id` | string | ● | 미승차 케이스 |
+| `attempt_type` · `result` | enum | ● | 요청 값 그대로 |
+| `decision` | enum | ○ | 요청에 `decision` 이 없으면 `null` |
+| `attempted_at` | datetime | ● | 이 시도를 서버가 기록한 시각 |
+| `resolved_at` | datetime | ○ | 케이스가 종결된 시각 — 위 설명 |
+
+**에러** — `403 ESCORT_ONLY` · `404 NO_SHOW_CASE_NOT_FOUND`(`no_show` 미처리 탑승자에 연락 기록 시도 — **미승차를 되돌려 `waiting` 으로 돌아간 탑승자 포함**, 2026-09-30 BR-254) · `404 RIDER_NOT_FOUND` · `409 RUN_NOT_MOVING`
 
 ### 4.9 POST /runs/{runId}/delay
 
@@ -1155,6 +1165,8 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | `lat` · `lng` | number | ● | 좌표 |
 | `recorded_at` | datetime | ● | 단말 측정 시각 |
 | `speed` · `heading` | number | ○ | 속도(km/h, 0~999.99) · 진행 방향(도, 0~360). 범위 밖이면 `422 VALIDATION_FAILED`. 이력(`run_position`)에 그대로 저장 (2026-09-25 BR-115) |
+
+`recorded_at` 이 **서버 수신 시각과 5분 넘게 어긋나면**(미래·과거 양쪽) `422 VALIDATION_FAILED` 로 거절한다(2026-09-30 BR-243 — 단말 시계는 신뢰 경계 밖이라 Redis 장애 대체 조회의 "최신" 판정과 보존 정리 기준을 틀어 놓는다).
 
 응답 `204`. 서버는 이 좌표를 근거로 "곧 도착합니다" 예고 알림(NTF-04)을 자동 발송하고 WebSocket `position` 이벤트를 방송.
 
@@ -1396,6 +1408,8 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 **`absent` 는 관계자 웹에서 빨강으로 계속 표시** — 매니저 앱(행 제외 · `§4.2`)과 상반. 관리자는 누가 왜 빠졌는지 확인이 필요. 예외 하나 — 버스 간 이동으로 빠진 학생(`absent` + `change=removed`)은 **매니저 앱에도** 빨강 행으로 남는다(`§4.2` · `§9.4`).
 
 **에러** — `404 RUN_NOT_FOUND`(존재하지 않는 회차) · `403 ACADEMY_SCOPE_VIOLATION`(타 학원 회차 — `§1.5`, 2026-09-03 X-08 해소 · Ruling 240). 확정 전(`idle`) 회차도 조회 가능 — 진입 차단은 매니저 앱 전용 (M-02)
+
+**메인 관리자도 이 경로를 읽는다**(권한표 `ROSTER_READ`·`STUDENT_READ_SENSITIVE`) — 학원 id 가 없는 토큰이라 조회 기준은 요청자가 아니라 **그 회차의 학원**이다(2026-09-30 BR-227). 전 학원 관제 화면은 `§6.9` 가 따로 있다.
 
 **확정 전(`idle`) 회차는 예정 명단이다**(2026-09-30 R35 `Ruling 368`) — `run_rider` 는 확정이 채우므로 그 전에는 비어 있다. `§5.8` 이동의 `STUDENT_NOT_IN_RUN` 판정과 확정 배치가 쓰는 계산(요일별 주소 학생 − ①구간 탑승 OFF + 강제 추가 − 출발 이동 + 도착 이동)을 **그대로 읽어** 행을 준다. 행 모양은 같고 `status=waiting` 이다. `change` 는 **확정이 붙일 값과 같다** — 요일별 주소에 없다가 강제 추가(§5.7)·도착 이동(§5.8)으로 들어온 학생 행만 `added`, 나머지는 `null`(`Ruling 369` ② · `Ruling 370` — 확정 순간 초록 표시가 새로 생기지 않게). 탑승 OFF 학생과 출발 이동 대기(`staged`) 학생은 **넣지 않는다** — 방금 옮긴 학생이 출발 명단에 그대로 보이면 관계자가 다시 옮기려다 `TRANSFER_ALREADY_STAGED` 를 받는다. 도착 회차에는 이동 대기 학생이 들어온다. 확정 뒤(`confirmed`·`moving`·`finished`) 응답은 `run_rider` 그대로이고 바뀌지 않는다.
 
@@ -1824,6 +1838,8 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `PATCH /staff/students/{id}` | STU-03 | 수정 — 주소는 대상 밖, **보호자 연락처는 고칠 수 있다**(Ruling 326) |
 | `DELETE /staff/students/{id}` | STU-04 | 퇴원 soft delete — **오늘 명단은 유지**, 내일부터 제외 |
 
+**`DELETE /staff/students/{id}` 응답 `200`** — `{ student_id, deleted_at }`. `204` 가 아니라 본문을 돌려주는 것은 §1.9("변경 후 자원 상태를 그대로 반환") 때문이다 — 퇴원의 변경분은 `deleted_at` 하나이고 그 값이 없으면 클라이언트가 지워졌는지 구별할 수 없다. 학생 정보 전체는 싣지 않는다(§1.12, 목록에서 뺀 개인정보가 삭제 응답으로 다시 나가지 않게)(2026-09-30 BR-261).
+
 **`GET /staff/students` 응답 `items[]`** — `student_id` · `name` · `class_name` · `guardian_phone` · `guardian_count`(integer — 연결된 보호자 계정 수, 해지된 연결은 제외. `guardian_phone` 은 그중 대표 1명뿐이라 연결 수는 이 값으로 따로 센다)
 
 **`POST` · `PATCH` 요청**
@@ -2042,6 +2058,8 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 `POST /staff/emergencies/{id}/ack` — 접수 응답. 발신자 앱에 "학원이 확인했습니다" 표시. 확인 이력(누가·언제) 저장. **이미 확인된 건 재확인은 `409 ALREADY_ACKED`**.
 
+**행 수 상한** — `items[]` 는 접수 시각 역순으로 **최대 200건**(2026-09-30 BR-228 · `§6.11` 도 같다). 기본값 `open` 은 미확인분만이라 사실상 닿지 않고, `acked`·`canceled` 를 오래 쌓았을 때의 상한이다. `unacked_count` 는 이 상한과 무관하다. 더 오래된 건은 `date` 로 좁힌다(`§6.11` 은 `date` 가 없어 상한 밖 이력을 볼 수단이 아직 없다).
+
 **에러** — `404 EMERGENCY_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163) · `409 ALREADY_ACKED`
 
 ### 5.17 GET /staff/notifications
@@ -2108,6 +2126,8 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 **응답** — `items[]` — `report_id` · `type`(§9.8 `report_type`) · `memo` · `run_id` · `bus_no` · `student_name`(`guardian_absent` 일 때) · `reported_by` · `reported_at` · `handled`(boolean) · `handled_at`
 
 보고가 푸시 1회로만 전달되면 되짚을 수단이 부재. `ERD` 의 `exception_report.academy_id` 가 "학원 범위 조회 대상"으로 정의된 것이 이 조회를 전제.
+
+**행 수 상한** — 이 목록은 페이징(§1.8)을 적용하지 않는 대신 **최근 보고부터 최대 200건**만 돌려준다(2026-09-30 BR-228 — `exception_report` 는 무기한 보존이라 상한이 없으면 호출 한 번이 누적 전량을 읽는다). 더 오래된 보고는 `date` 로 하루씩 좁혀 조회한다.
 
 **에러** — `404 REPORT_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163)
 
@@ -2386,6 +2406,8 @@ SMS 연동(`PRD` F-05) 전까지 §2.9 가 `503` 이라 **학원 사용자의 �
 | `elapsed_since_raised` | integer | ● | 발신 후 경과 초. 관계자 미응답 상황을 운영사가 즉시 인지 |
 
 관제 지도에서 발신 회차를 강조 표시.
+
+**행 수 상한** — `items[]` 는 접수 시각 역순 **최대 200건**(`§5.16` 과 같다, 2026-09-30 BR-228).
 
 **에러** — §1.11 공통 항목 외 고유 에러 부재.
 

@@ -223,6 +223,58 @@ class RunPositionCommandServiceTest {
      * 마지막으로 도착한 항목, ETA 는 그 뒤 첫 항목의 계획값이다 — 그 사이 경유 지점이 미도착으로 남아 있어도
      * 이미 지난 것이다(BR-015).
      */
+    /** BR-243 — 단말 시계가 서버와 5분 넘게 어긋난 recorded_at 은 저장하지 않는다(대체 조회·보존 정리 기준이 틀어진다). */
+    @Test
+    @DisplayName("BR-243 — recorded_at 이 서버 시각에서 5분 넘게 미래·과거로 어긋나면 422 이고 적재하지 않는다")
+    void 단말_시각이_크게_어긋난_위치는_422다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        OffsetDateTime departTime = now();
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        fixtures.startRun(runId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+
+        for (OffsetDateTime skewed : List.of(now().plusDays(1), now().plusMinutes(6), now().minusMinutes(6))) {
+            mockMvc.perform(post("/api/v1/runs/" + runId + "/position")
+                    .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                            {"lat": 37.501000, "lng": 127.001000, "recorded_at": "%s"}
+                            """.formatted(skewed)))
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+        }
+
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM run_position WHERE run_id = ?", Integer.class,
+                runId)).as("어긋난 시각의 위치는 적재되지 않아야 한다").isZero();
+    }
+
+    /** 위 시험의 짝 — 경계 안쪽(±4분)은 통과한다("항상 거절" 로 구현해도 통과하는 함정 방지). */
+    @Test
+    @DisplayName("BR-243 — recorded_at 이 서버 시각 ±4분 안이면 204 다")
+    void 단말_시각이_허용_오차_안이면_204다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        OffsetDateTime departTime = now();
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        fixtures.startRun(runId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+
+        for (OffsetDateTime nearby : List.of(now().plusMinutes(4), now().minusMinutes(4))) {
+            mockMvc.perform(post("/api/v1/runs/" + runId + "/position")
+                    .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                            {"lat": 37.501000, "lng": 127.001000, "recorded_at": "%s"}
+                            """.formatted(nearby)))
+                    .andExpect(status().isNoContent());
+        }
+    }
+
     @Test
     @DisplayName("BR-100 — 이벤트가 현재 정차지 이름과 다음 정차 항목의 ETA 를 싣는다")
     void 이벤트가_현재_정차지_이름과_다음_ETA_를_싣는다() throws Exception {

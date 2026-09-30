@@ -240,7 +240,29 @@ student · monitoring · exception → location (회차 최신 좌표 — RunPos
 account → academy
 ```
 
-- **역방향 참조를 금지.** `student` 가 `routing` 을 알면 주소 수정 트랜잭션 안에 외부 지도 API 호출이 포함됨. 주소 변경은 **이벤트만 발행**하고 재계산 여부는 `routing` 이 판단.
+- **역방향 참조를 금지가 원칙이나, 현재 코드에는 서로를 import 하는 쌍 17개가 있다**(2026-09-30 BR-232 — `import src.backend.<모듈>.` 줄을 소스에서 센 결과, 횡단 계층 `global`·`observability`·비운영 `demo` 제외). 위 화살표 표는 **의도한 방향**이고 아래 표는 **실제로 양방향인 쌍의 허용 목록**이다. `student` 가 `routing` 을 알면 주소 수정 트랜잭션 안에 외부 지도 API 호출이 포함됨. 주소 변경은 **이벤트만 발행**하고 재계산 여부는 `routing` 이 판단.
+
+  | 쌍 | 앞 모듈이 뒤 모듈에서 가져다 쓰는 것(import 가 많은 타입) | 뒤 모듈이 앞 모듈에서 가져다 쓰는 것 |
+  |---|---|---|
+  | `academy↔account` | `Account` · `AccountRepository` | `Academy` · `AcademyRepository` · `AcademyStaffRepository` |
+  | `academy↔run` | `Run` · `RunRepository` | `AcademyRepository` · `Academy` |
+  | `academy↔student` | `GeocodedPoint` · `AddressVerification` | `Academy` · `AcademyRepository` |
+  | `account↔audit` | `AuditLog` · `AuditLogRepository` | `AccountRepository` · `Account` |
+  | `account↔student` | `Guardian` · `GuardianRepository` | `Account` · `AccountRepository` |
+  | `boarding↔exception` | `NoShowCase` · `NoShowCaseAccess` | `RunRiderRepository` · `RunRider` |
+  | `boarding↔routing` | `ConfirmedRoute` · `RunStop` | `RunRiderRosterAccess` · `RunRider` |
+  | `boarding↔run` | `ProjectedRoster` · `Run` | `RunRiderRepository` · `RunRider` |
+  | `boarding↔student` | `StudentRepository` · `Stop` | `RunRiderReader` · `RunRiderRepository` |
+  | `location↔student` | `Stop` · `StopRepository` | `RunPositionStore`(BR-098) |
+  | `manager↔run` | `Run` · `RunRepository` | `AssignmentRepository` · `Assignment` |
+  | `request↔routing` | `RouteComputation` · `ConfirmedRoute` | `ChangeWindowPolicy` · `RoutePreviewResponse` |
+  | `request↔run` | `Run` · `RunRepository` | `ChangeWindowPolicy` · `ChangeRequest` |
+  | `request↔student` | `Student` · `StopRepository` | `BoardingIntentReadQueryService` |
+  | `routing↔run` | `Run` · `RunRepository` | `ConfirmedRoute` · `ConfirmedRouteRepository` |
+  | `routing↔student` | `Stop` · `StopRepository` | `RouteStopReader` |
+  | `run↔student` | `StopRepository` · `Student` | `Run` · `RunLookup` |
+
+  이 표는 `ModuleMutualDependencyTest`(소스 스캔, 외부 라이브러리 없음)가 지킨다 — **표에 없는 새 양방향 쌍이 생기거나, 표에 남았는데 끊어진 쌍이 있으면 실패한다.** 새 쌍이 정말 필요하면 이유를 위 표와 시험의 목록에 같이 적는다. 이미 있는 쌍을 코드에서 없애는 리팩터링(`RunRiderReader`·`RouteStopReader` 같은 포트로 끊기)은 별도 작업이고, 끊는 순간 이 표와 시험 목록에서 지운다.
 - **비상 알림의 소유는 `exception` 모듈** — 발신은 매니저 앱(기사·동승자 **둘 다**), 수신은 관계자·메인 관리자. 승하차와 달리 역할을 제한하지 않는 유일한 쓰기 경로 (EXC-04).
 - **`run` 테이블은 세 모듈이 쓴다** — `schedule` 이 생성(SCH-02), `routing` 이 확정 전이(§9.3), `run` 이 시작·종료. 소유는 `run` 모듈이고 나머지 둘은 **상태 전이 메서드를 통해서만** 접근. 다른 모듈이 컬럼을 직접 갱신하면 §9.3 의 조건부 UPDATE 규칙이 우회됨.
 - **승하차지 마스터(`stop`)의 소유는 `student` 모듈** — 생성 계기가 주소 검증(STU-05)이기 때문. `routing`·`boarding` 은 읽기만.

@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -62,18 +63,20 @@ public interface EmergencyAlertRepository extends JpaRepository<EmergencyAlert, 
 
     /**
      * 학원의 비상 알림 목록 — 상태 필터(§5.16 · §6.11)를 쿼리로 건다(BR-087). 무기한 보존되는 테이블이라 자바에서
-     * 거르면 호출마다 학원 전 기간 행을 읽는다. 최근 신고가 먼저 보이게 접수 역순이다.
+     * 거르면 호출마다 학원 전 기간 행을 읽는다. 최근 신고가 먼저 보이게 접수 역순이고, {@code limit} 으로 행 수를
+     * 자른다(BR-228 — {@link src.backend.global.request.PageParams#UNPAGED_LIST_MAX}).
      *
      * @param state {@link src.backend.exception.query.EmergencyStatusFilter} 의 이름({@code OPEN}·{@code ACKED}·{@code CANCELED})
      */
     @Query(SELECT_BY_STATE + " AND a.academyId = :academyId ORDER BY a.receivedAt DESC")
-    List<EmergencyAlert> findAllByAcademyIdAndState(@Param("academyId") Long academyId, @Param("state") String state);
+    List<EmergencyAlert> findAllByAcademyIdAndState(@Param("academyId") Long academyId, @Param("state") String state,
+            Limit limit);
 
     /** {@link #findAllByAcademyIdAndState} 에 접수 시각 구간({@code [from, to)}, §5.16 {@code date})을 더한다. */
     @Query(SELECT_BY_STATE + " AND a.academyId = :academyId AND a.receivedAt >= :from AND a.receivedAt < :to "
             + "ORDER BY a.receivedAt DESC")
     List<EmergencyAlert> findAllByAcademyIdAndStateReceivedBetween(@Param("academyId") Long academyId,
-            @Param("state") String state, @Param("from") OffsetDateTime from, @Param("to") OffsetDateTime to);
+            @Param("state") String state, @Param("from") OffsetDateTime from, @Param("to") OffsetDateTime to, Limit limit);
 
     /** 발신자가 자기 회차의 신고 상태를 조회하는 목록(§4.15) — 최근 신고가 먼저 보이게 접수 역순이다. */
     List<EmergencyAlert> findAllByRunIdAndAcademyIdOrderByReceivedAtDesc(Long runId, Long academyId);
@@ -87,7 +90,7 @@ public interface EmergencyAlertRepository extends JpaRepository<EmergencyAlert, 
     @AcademyScopeExempt(reason = "§6.x 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
             + "예외를 여는 판정은 컨트롤러의 @CanMonitorAll 하나다(AccountRepository#findStaffAccountsForConsole 과 같은 형태)")
     @Query(SELECT_BY_STATE + " ORDER BY a.receivedAt DESC")
-    List<EmergencyAlert> findAllByState(@Param("state") String state);
+    List<EmergencyAlert> findAllByState(@Param("state") String state, Limit limit);
 
     /** 학원 관계자의 미확인 배지(§5.16 {@code unacked_count}) — 목록 필터와 무관하게 학원 전체의 미확인·미취소 건수. */
     long countByAcademyIdAndAckedAtIsNullAndCanceledAtIsNull(Long academyId);
