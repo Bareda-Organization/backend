@@ -23,6 +23,7 @@ import src.backend.academy.entity.Academy;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
+import src.backend.audit.entity.AuditAction;
 import src.backend.audit.entity.AuditLog;
 import src.backend.audit.repository.AuditLogRepository;
 import src.backend.global.common.enums.AccountStatus;
@@ -81,7 +82,7 @@ class AuditQueryControllerTest {
     void login_history_는_data_access_카테고리_행을_반환하지_않는다() throws Exception {
         Long dataAccessOnlyAccountId = createAccount("P14T1AUD05", "p14t1queryda1");
         auditLogRepository.save(AuditLog.forDataAccessRead(null, dataAccessOnlyAccountId, "p14t1queryda1",
-                "run_roster", 999L, Map.of("student_ids", List.of("1"), "fields", List.of("note")),
+                "run_roster", 999L, Map.of("student_ids", List.of("1"), "fields", List.of("note")), null,
                 OffsetDateTime.now()));
 
         mockMvc.perform(get("/api/v1/admin/login-history")
@@ -117,7 +118,7 @@ class AuditQueryControllerTest {
     void audit_logs_는_academy_id가_null인_행도_200으로_academy_name_null을_반환한다() throws Exception {
         Long accountId = createAccount("P14T1AUD09", "p14t1nullacd1");
         auditLogRepository.save(AuditLog.forDataAccessRead(null, accountId, "p14t1nullacd1",
-                "emergency", 777L, Map.of("student_ids", List.of("1"), "fields", List.of("note")),
+                "emergency", 777L, Map.of("student_ids", List.of("1"), "fields", List.of("note")), null,
                 OffsetDateTime.now()));
 
         mockMvc.perform(get("/api/v1/admin/audit-logs")
@@ -163,7 +164,7 @@ class AuditQueryControllerTest {
         Account account = accountRepository.save(Account.forSignup(academy.getId(), "p14t1jsonkey1",
                 passwordEncoder.encode(RAW_PASSWORD), "감사조회테스트", "010-9100-0001", null, Role.PARENT));
         auditLogRepository.save(AuditLog.forDataAccessRead(academy.getId(), account.getId(), "p14t1jsonkey1",
-                "run_roster", 12345L, Map.of("student_ids", List.of("1"), "fields", List.of("note")),
+                "run_roster", 12345L, Map.of("student_ids", List.of("1"), "fields", List.of("note")), null,
                 OffsetDateTime.now()));
 
         mockMvc.perform(get("/api/v1/admin/audit-logs")
@@ -201,5 +202,52 @@ class AuditQueryControllerTest {
                 .andExpect(jsonPath("$.data.items[0].ip").exists())
                 .andExpect(jsonPath("$.data.items[0].occurred_at").exists())
                 .andExpect(jsonPath("$.data.items[0].block_event").value(false));
+    }
+
+    /** R46 감사 화면(Ruling 446) — {@code action} 으로 조회·수정·삭제를 가른다. 안 주면 셋 다 나온다. */
+    @Test
+    void audit_logs_는_action_필터로_조회_수정_삭제를_가른다() throws Exception {
+        Long accountId = createAccount("R46AUD01", "r46actionflt1");
+        OffsetDateTime now = OffsetDateTime.now();
+        auditLogRepository.save(AuditLog.forDataAccessRead(null, accountId, "r46actionflt1", "student", 1L,
+                Map.of("student_ids", List.of("1")), null, now));
+        auditLogRepository.save(AuditLog.forDataAccessChange(AuditAction.UPDATE, null, accountId, "r46actionflt1",
+                "student", 1L, Map.of("fields", List.of("note")), now));
+        auditLogRepository.save(AuditLog.forDataAccessChange(AuditAction.DELETE, null, accountId, "r46actionflt1",
+                "student", 1L, Map.of(), now));
+
+        mockMvc.perform(get("/api/v1/admin/audit-logs").header("Authorization", 메인관리자_토큰())
+                        .param("account_id", String.valueOf(accountId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total_count").value(3));
+        mockMvc.perform(get("/api/v1/admin/audit-logs").header("Authorization", 메인관리자_토큰())
+                        .param("account_id", String.valueOf(accountId)).param("action", "update"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total_count").value(1))
+                .andExpect(jsonPath("$.data.items[0].action").value("update"));
+    }
+
+    @Test
+    void audit_logs_의_action_이_조회_수정_삭제_밖이면_422_다() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/audit-logs").header("Authorization", 메인관리자_토큰())
+                        .param("action", "login_success"))
+                .andExpect(status().isUnprocessableEntity());
+    }
+
+    /** R46 감사 화면(Ruling 447) — 이름·로그인 아이디 일부로 계정을 찾는다. 검색어가 비면 아무도 안 돌려준다. */
+    @Test
+    void audit_actors_는_이름_또는_로그인_아이디_일부로_계정을_찾는다() throws Exception {
+        Long accountId = createAccount("R46AUD02", "r46actorfind1");
+
+        mockMvc.perform(get("/api/v1/admin/audit-actors").header("Authorization", 메인관리자_토큰())
+                        .param("q", "R46ACTORFIND"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].account_id").value(String.valueOf(accountId)))
+                .andExpect(jsonPath("$.data.items[0].login_id").value("r46actorfind1"))
+                .andExpect(jsonPath("$.data.items[0].name").value("감사조회테스트"));
+        mockMvc.perform(get("/api/v1/admin/audit-actors").header("Authorization", 메인관리자_토큰())
+                        .param("q", "  "))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items").isEmpty());
     }
 }

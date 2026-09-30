@@ -37,4 +37,19 @@ class AuditLogSearchPlanTest {
 
         assertThat(String.join("\n", plan)).contains("ix_audit_log_category_occurred");
     }
+
+    /** 보존 정리(Ruling 445)가 카테고리별로 오래된 행만 읽는다 — 시간 인덱스를 따로 두지 않고 기존 인덱스를 쓴다. */
+    @Test
+    void 보존_정리_조회가_category_occurred_at_인덱스를_쓴다() {
+        jdbcTemplate.execute("SET LOCAL enable_seqscan = off");
+        jdbcTemplate.execute("SET LOCAL enable_sort = off");
+
+        List<String> plan = jdbcTemplate.queryForList("""
+                EXPLAIN SELECT id FROM audit_log
+                WHERE category = 'login' AND occurred_at < now() - interval '2 years'
+                ORDER BY occurred_at LIMIT 5000
+                """, String.class);
+
+        assertThat(String.join("\n", plan)).contains("ix_audit_log_category_occurred");
+    }
 }

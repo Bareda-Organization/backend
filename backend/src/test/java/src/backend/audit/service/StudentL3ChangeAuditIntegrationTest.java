@@ -61,8 +61,11 @@ class StudentL3ChangeAuditIntegrationTest {
     void 학생_목록은_보호자_연락처가_실린_학생마다_read_1행을_남긴다() throws Exception {
         Set<Long> before = 학생_감사_행(AuditAction.READ).stream().map(AuditLog::getId).collect(Collectors.toSet());
 
+        // 같은 행위자가 10분 안에 다시 읽은 학생은 기록하지 않는다(Ruling 445) — 다른 시험이 읽은 학생이 빠지지 않게
+        // 이 시험만의 행위자로 읽는다
         MvcResult result = mockMvc.perform(get("/api/v1/staff/students").param("size", "100")
-                        .header("Authorization", 관계자_토큰()))
+                        .header("Authorization", "Bearer " + tokenProvider.createAccessToken(
+                                7_700_000_001L, ACADEMY_A, Role.STAFF, AccountStatus.ACTIVE)))
                 .andExpect(status().isOk())
                 .andReturn();
 

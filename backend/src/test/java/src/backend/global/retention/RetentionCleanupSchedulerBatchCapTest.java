@@ -20,6 +20,7 @@ import org.springframework.data.domain.Limit;
 
 import src.backend.account.repository.RefreshTokenRepository;
 import src.backend.location.repository.RunPositionRepository;
+import src.backend.audit.repository.AuditLogRepository;
 import src.backend.notification.repository.NotificationLogRepository;
 import src.backend.observability.metrics.SchedulerHealthMetrics;
 import src.backend.student.repository.LinkCodeRepository;
@@ -49,13 +50,15 @@ class RetentionCleanupSchedulerBatchCapTest {
     private final RunPositionRepository runPositionRepository = mock(RunPositionRepository.class);
     private final RefreshTokenRepository refreshTokenRepository = mock(RefreshTokenRepository.class);
     private final LinkCodeRepository linkCodeRepository = mock(LinkCodeRepository.class);
+    private final AuditLogRepository auditLogRepository = mock(AuditLogRepository.class);
 
     @Test
     void 매_조회_호출마다_배치_상한을_그대로_넘긴다() {
-        // 다른 3개 테이블은 빈 목록만 반환해 이 시험이 notification_log 호출에만 집중하게 한다.
+        // 다른 4개 테이블은 빈 목록만 반환해 이 시험이 notification_log 호출에만 집중하게 한다.
         given(runPositionRepository.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
         given(refreshTokenRepository.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
         given(linkCodeRepository.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
+        given(auditLogRepository.findIdsForRetentionCleanup(any(), any(), any())).willReturn(List.of());
 
         // notification_log 는 2회차에 걸쳐 지워지도록 1회차엔 상한만큼, 2회차엔 그보다 적게 돌려준다 —
         // 그래야 "매 호출마다" 상한이 유지되는지(1회차만 우연히 맞고 2회차부터 새는 결함도) 잡힌다.
@@ -67,7 +70,7 @@ class RetentionCleanupSchedulerBatchCapTest {
 
         RetentionCleanupScheduler scheduler = new RetentionCleanupScheduler(
                 notificationLogRepository, runPositionRepository, refreshTokenRepository,
-                linkCodeRepository, retentionPolicy, clock,
+                linkCodeRepository, auditLogRepository, retentionPolicy, clock,
                 new SchedulerHealthMetrics(
                         new SimpleMeterRegistry()));
 

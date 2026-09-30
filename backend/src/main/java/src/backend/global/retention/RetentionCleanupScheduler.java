@@ -15,6 +15,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import src.backend.account.repository.RefreshTokenRepository;
+import src.backend.audit.entity.AuditCategory;
+import src.backend.audit.repository.AuditLogRepository;
 import src.backend.location.repository.RunPositionRepository;
 import src.backend.notification.repository.NotificationLogRepository;
 import src.backend.observability.metrics.SchedulerHealthMetrics;
@@ -22,12 +24,12 @@ import src.backend.student.repository.LinkCodeRepository;
 
 /**
  * 보존 정리 배치의 진입점(목표 6·7, ERD §7 · TECH_DECISIONS §12.2 · Ruling 243) — 보유 기간이 지난
- * 4개 테이블({@code notification_log} · {@code run_position} · {@code refresh_token} ·
- * {@code link_code})의 행을 회차(배치) 단위로 나눠 지운다(Ruling 324 — {@code link_request} 삭제로
- * 5개→4개).
+ * 5개 테이블({@code notification_log} · {@code run_position} · {@code refresh_token} ·
+ * {@code link_code} · {@code audit_log})의 행을 회차(배치) 단위로 나눠 지운다(Ruling 324 — {@code link_request}
+ * 삭제로 5개→4개, Ruling 445 — {@code audit_log} 편입으로 4개→5개).
  *
  * <p><b>여기 없는 테이블은 지우지 않는 것이 이 클래스의 본체다</b>(목표 6, ERD §7.1·§7.2 무기한 보존
- * 대상 — {@code audit_log} · {@code rider_status_history} · {@code no_show_case} ·
+ * 대상 — {@code rider_status_history} · {@code no_show_case} ·
  * {@code no_show_contact} · {@code exception_report} · {@code emergency_alert} · {@code route_version} ·
  * {@code run_stop}). 새 테이블을 이 배치에 넣으려면 {@link RetentionPolicy} 에 상수를 먼저 더해야
  * 하므로, 무기한 보존 테이블이 실수로 섞여 들어오는 경로 자체가 없다.
@@ -57,6 +59,8 @@ public class RetentionCleanupScheduler {
 
     private final LinkCodeRepository linkCodeRepository;
 
+    private final AuditLogRepository auditLogRepository;
+
     private final RetentionPolicy retentionPolicy;
 
     private final Clock clock;
@@ -64,7 +68,7 @@ public class RetentionCleanupScheduler {
     private final SchedulerHealthMetrics schedulerHealthMetrics;
 
     /**
-     * 보유 기간이 지난 4개 테이블의 행을 지운다.
+     * 보유 기간이 지난 5개 테이블의 행을 지운다.
      *
      * <p>실행 주기를 설정으로 받는 이유는 <b>테스트에서 배경 실행을 끄기 위함</b>이다 —
      * {@code DailyRunGenerator} 와 같은 형태로, {@code build.gradle} 이 {@code -}(비활성)를 넣는다.
@@ -85,13 +89,18 @@ public class RetentionCleanupScheduler {
                 refreshTokenRepository::findIdsForRetentionCleanup, refreshTokenRepository::deleteAllByIdInBatch);
         cleanUpSafely("link_code", now,
                 linkCodeRepository::findIdsForRetentionCleanup, linkCodeRepository::deleteAllByIdInBatch);
+        for (AuditCategory category : AuditCategory.values()) {
+            cleanUpSafely("audit_log/" + category, retentionPolicy.auditLogCutoff(now),
+                    (cutoff, limit) -> auditLogRepository.findIdsForRetentionCleanup(category, cutoff, limit),
+                    auditLogRepository::deleteAllByIdInBatch);
+        }
     }
 
     /**
      * 테이블 하나를 정리하고, 무엇이 됐든 실패를 삼켜 다른 테이블의 정리를 막지 않는다.
      *
      * <p>{@code BusinessException} 처럼 예상한 실패로 좁히지 않고 {@link Exception} 전체를 잡는다 —
-     * 좁히면 예상 못 한 버그가 이 메서드를 끊어 {@link #cleanUp} 의 나머지 3개 테이블 정리 여부와
+     * 좁히면 예상 못 한 버그가 이 메서드를 끊어 {@link #cleanUp} 의 나머지 4개 테이블 정리 여부와
      * 무관하게 배치 자체가 실패로 끝난다({@code NoShowEscalationScheduler.escalateSafely} 와 같은 근거).
      */
     private void cleanUpSafely(String tableName, OffsetDateTime cutoff,

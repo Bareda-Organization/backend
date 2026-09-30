@@ -1,7 +1,11 @@
 package src.backend.audit.repository;
 
 import java.time.OffsetDateTime;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
 
+import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -20,10 +24,13 @@ import src.backend.global.security.access.AcademyScopeExempt;
  * <p>{@code from}·{@code to} 를 항상 구체값으로 요구한다 — {@code (:from IS NULL OR ...)} 형태로
  * {@code OffsetDateTime} 파라미터를 열어 두면 PostgreSQL 이 그 파라미터의 타입을 못 정해 500
  * (예: {@code ExceptionReportRepository} 가 문서화한 실측)이 난다. {@code academyId}·{@code accountId} 는
- * {@link #search} 가 필터 조합별 조회로 갈라 {@code IS NULL} 분기를 두지 않는다(BR-089).
- * 미지정 필터의 기본값(연도 1~9999)은 조회 서비스가 채운다.
+ * {@link #search} 가 필터 조합별 조회로 갈라 {@code IS NULL} 분기를 두지 않는다(BR-089) — {@code action} 도 같다: 안 고르면
+ * 전 동작 목록({@link #ALL_ACTIONS})을 넘긴다. 미지정 필터의 기본값(연도 1~9999)은 조회 서비스가 채운다.
  */
 public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
+
+    /** 동작을 거르지 않는다는 뜻 — 접속 이력은 네 동작을 전부, 감사 로그는 {@code action} 을 안 준 요청이 쓴다. */
+    List<AuditAction> ALL_ACTIONS = Arrays.asList(AuditAction.values());
 
     /**
      * 감사·접속 이력 검색(§6.13) — 주어진 필터에 맞는 조회 하나로 보낸다(BR-089).
@@ -34,19 +41,21 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
      */
     @AcademyScopeExempt(reason = "§6.13 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
             + "academy_id 는 선택 필터이고, 받은 값은 아래 학원 조건 조회로 그대로 넘긴다")
-    default Page<AuditLog> search(AuditCategory category, Long academyId, Long accountId, OffsetDateTime from,
-            OffsetDateTime to, Pageable pageable) {
+    default Page<AuditLog> search(AuditCategory category, Collection<AuditAction> actions, Long academyId,
+            Long accountId, OffsetDateTime from, OffsetDateTime to, Pageable pageable) {
         if (academyId != null && accountId != null) {
-            return findAllByCategoryAndAcademyIdAndActorAccountIdAndOccurredAtBetween(category, academyId, accountId,
-                    from, to, pageable);
+            return findAllByCategoryAndActionInAndAcademyIdAndActorAccountIdAndOccurredAtBetween(category, actions,
+                    academyId, accountId, from, to, pageable);
         }
         if (academyId != null) {
-            return findAllByCategoryAndAcademyIdAndOccurredAtBetween(category, academyId, from, to, pageable);
+            return findAllByCategoryAndActionInAndAcademyIdAndOccurredAtBetween(category, actions, academyId, from, to,
+                    pageable);
         }
         if (accountId != null) {
-            return findAllByCategoryAndActorAccountIdAndOccurredAtBetween(category, accountId, from, to, pageable);
+            return findAllByCategoryAndActionInAndActorAccountIdAndOccurredAtBetween(category, actions, accountId, from,
+                    to, pageable);
         }
-        return findAllByCategoryAndOccurredAtBetween(category, from, to, pageable);
+        return findAllByCategoryAndActionInAndOccurredAtBetween(category, actions, from, to, pageable);
     }
 
     /**
@@ -59,7 +68,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     default Page<AuditLog> searchLoginHistory(Long academyId, Long accountId, OffsetDateTime from, OffsetDateTime to,
             Pageable pageable) {
         if (accountId == null) {
-            return search(AuditCategory.LOGIN, academyId, null, from, to, pageable);
+            return search(AuditCategory.LOGIN, ALL_ACTIONS, academyId, null, from, to, pageable);
         }
         if (academyId != null) {
             return findLoginHistoryByAcademyAndAccount(AuditCategory.LOGIN, AuditAction.UNBLOCK, academyId, accountId,
@@ -96,22 +105,36 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
             @Param("from") OffsetDateTime from, @Param("to") OffsetDateTime to, Pageable pageable);
 
     /** 학원·계정 둘 다 지정한 검색. */
-    Page<AuditLog> findAllByCategoryAndAcademyIdAndActorAccountIdAndOccurredAtBetween(AuditCategory category,
-            Long academyId, Long actorAccountId, OffsetDateTime from, OffsetDateTime to, Pageable pageable);
+    Page<AuditLog> findAllByCategoryAndActionInAndAcademyIdAndActorAccountIdAndOccurredAtBetween(
+            AuditCategory category, Collection<AuditAction> actions, Long academyId, Long actorAccountId,
+            OffsetDateTime from, OffsetDateTime to, Pageable pageable);
 
     /** 학원만 지정한 검색. */
-    Page<AuditLog> findAllByCategoryAndAcademyIdAndOccurredAtBetween(AuditCategory category, Long academyId,
-            OffsetDateTime from, OffsetDateTime to, Pageable pageable);
+    Page<AuditLog> findAllByCategoryAndActionInAndAcademyIdAndOccurredAtBetween(AuditCategory category,
+            Collection<AuditAction> actions, Long academyId, OffsetDateTime from, OffsetDateTime to,
+            Pageable pageable);
 
     /** 계정만 지정한 검색 — 메인 관리자 콘솔(§6.13)이라 학원으로 좁히지 않는다. */
     @AcademyScopeExempt(reason = "§6.13 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
             + "예외를 여는 판정은 컨트롤러의 @CanReadAudit 하나다")
-    Page<AuditLog> findAllByCategoryAndActorAccountIdAndOccurredAtBetween(AuditCategory category,
-            Long actorAccountId, OffsetDateTime from, OffsetDateTime to, Pageable pageable);
+    Page<AuditLog> findAllByCategoryAndActionInAndActorAccountIdAndOccurredAtBetween(AuditCategory category,
+            Collection<AuditAction> actions, Long actorAccountId, OffsetDateTime from, OffsetDateTime to,
+            Pageable pageable);
 
     /** 필터 없는 첫 화면 — {@code ix_audit_log_category_occurred} 를 탄다. */
     @AcademyScopeExempt(reason = "§6.13 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
             + "예외를 여는 판정은 컨트롤러의 @CanReadAudit 하나다")
-    Page<AuditLog> findAllByCategoryAndOccurredAtBetween(AuditCategory category, OffsetDateTime from,
-            OffsetDateTime to, Pageable pageable);
+    Page<AuditLog> findAllByCategoryAndActionInAndOccurredAtBetween(AuditCategory category,
+            Collection<AuditAction> actions, OffsetDateTime from, OffsetDateTime to, Pageable pageable);
+
+    /**
+     * 보존 정리 배치(R46 감사 B)가 지울 id 를 오래된 순으로 {@code limit} 만큼 — 카테고리별로 불러 기존
+     * {@code ix_audit_log_category_occurred} 를 탄다(시간만으로 읽는 인덱스를 따로 두면 첫 화면 조회의 실행 계획이
+     * 그쪽으로 옮겨 간다). 전 학원의 만료 행이 대상이라 학원 조건을 걸지 않는다.
+     */
+    @AcademyScopeExempt(reason = "보존 정리 배치 — 전 학원의 만료 감사 행이 대상이고, 부르는 주체가 사용자 요청이 아니라 "
+            + "스케줄러라 요청 주체의 소속 자체가 부재")
+    @Query("select a.id from AuditLog a where a.category = :category and a.occurredAt < :cutoff order by a.occurredAt")
+    List<Long> findIdsForRetentionCleanup(@Param("category") AuditCategory category,
+            @Param("cutoff") OffsetDateTime cutoff, Limit limit);
 }

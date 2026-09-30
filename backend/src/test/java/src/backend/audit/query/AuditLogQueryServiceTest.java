@@ -48,11 +48,11 @@ class AuditLogQueryServiceTest {
     void 학원_소속_없는_행이_있어도_목록_조회는_NPE_없이_학원명_null_로_응답한다() {
         OffsetDateTime now = OffsetDateTime.now(clock);
         AuditLog log = auditLogRepository.save(AuditLog.forDataAccessRead(null, 격리_계정, "관리자심음", "student", 1L,
-                Map.of("fields", "student_phone"), now));
+                Map.of("fields", "student_phone"), null, now));
 
         try {
             PageResponse<AuditLogItemResponse> result =
-                    auditLogQueryService.list(new AuditQueryFilter(null, 격리_계정, null, null, 0, 20));
+                    auditLogQueryService.list(new AuditQueryFilter(null, 격리_계정, null, null, 0, 20), null);
 
             assertThat(result.items())
                     .as("격리 계정으로 좁혔으니 방금 심은 행 1건만 실려야 한다")

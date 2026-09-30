@@ -8,7 +8,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
@@ -60,10 +59,14 @@ import src.backend.student.repository.StudentRepository;
  * 마스킹 여부({@link GuardianPhoneMasker})와 {@code absent} 학생의 노출 여부(매니저 앱은 행 제외
  * · 관계자 웹은 빨강 표시로 존치). 한쪽만 고치면 어느 화면이 깨졌는지 코드만 보고는 알 수 없어
  * 이 클래스 하나에 함께 둔다.
+ *
+ * <p>클래스에 {@code @Transactional} 을 두지 않는다 — 감사 기록({@code AuditRecorder}, {@code REQUIRES_NEW})이 읽기
+ * 트랜잭션 안에서 돌면 요청 하나가 DB 연결을 둘 쥐고, 동시 요청이 풀 크기에 닿으면 서로의 두 번째 연결을 기다려
+ * 풀리지 않는다(R46 감사 #1). 저장소 호출마다 짧은 읽기 트랜잭션이 돌고, 감사는 조회가 끝난 뒤에 기록한다 —
+ * 조회가 예외로 끝나면 감사 호출에 닿지 않는다.
  */
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class RosterQueryService {
 
     private final ManagerRunAccess managerRunAccess;

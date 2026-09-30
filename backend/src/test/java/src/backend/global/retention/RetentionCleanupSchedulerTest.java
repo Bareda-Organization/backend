@@ -157,13 +157,17 @@ class RetentionCleanupSchedulerTest {
     }
 
     @Test
-    @DisplayName("목표3.3 — 무기한 보존 테이블(audit_log)은 정리 대상이 아니다")
-    void 무기한_보존_테이블은_건드리지_않는다() {
-        long veryOld = insertAuditLog(now.minusDays(400));
+    @DisplayName("R46 감사 B — audit_log 는 2년 초과 행만 지워지고 2년 안 행은 남는다(두 category 모두)")
+    void 감사_로그는_2년_초과_행만_지워진다() {
+        long inWindow = insertAuditLog(now.minusDays(725), "login");
+        long outOfWindowLogin = insertAuditLog(now.minusDays(736), "login");
+        long outOfWindowDataAccess = insertAuditLog(now.minusDays(736), "data_access");
 
         scheduler.cleanUp();
 
-        assertThat(existsAuditLog(veryOld)).as("audit_log 는 보존 정리와 무관하게 남아야 한다").isTrue();
+        assertThat(existsAuditLog(inWindow)).as("2년 안 행은 남는다").isTrue();
+        assertThat(existsAuditLog(outOfWindowLogin)).as("2년 초과 로그인 기록은 지워진다").isFalse();
+        assertThat(existsAuditLog(outOfWindowDataAccess)).as("2년 초과 조회 기록도 지워진다").isFalse();
     }
 
     @Test
@@ -344,12 +348,12 @@ class RetentionCleanupSchedulerTest {
 
     // ---- audit_log ----
 
-    private long insertAuditLog(OffsetDateTime occurredAt) {
+    private long insertAuditLog(OffsetDateTime occurredAt, String category) {
         long id = jdbcTemplate.queryForObject("""
                 INSERT INTO audit_log (category, action, occurred_at)
-                VALUES ('login', 'login_success', ?)
+                VALUES (?, ?, ?)
                 RETURNING id
-                """, Long.class, occurredAt);
+                """, Long.class, category, "login".equals(category) ? "login_success" : "read", occurredAt);
         auditLogIds.add(id);
         return id;
     }

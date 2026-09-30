@@ -2434,15 +2434,20 @@ O-04 · SYS-01·02. 정본 API명세서에 경로 미기재 — 감사 로그 �
 | 메서드 · 경로 | 기능 ID | 응답 항목 |
 |---|---|---|
 | `GET /admin/audit-logs` | SYS-01 | `actor` · `action`(`read` · `update` · `delete`) · `target_type` · `target_id` · `academy_name` · `occurred_at` |
+| `GET /admin/audit-actors` | SYS-01 | `items[]` — `account_id` · `name` · `login_id` · `role` · `academy_name`(소속 없으면 `null`). 감사 화면이 행위자를 이름으로 고르는 목록 |
 | `GET /admin/login-history` | SYS-02 | `account_id` · `login_id` · `result`(`success` · `fail`) · `ip` · `occurred_at` · `block_event` · `block_action`(`block` · `unblock`) |
 
 **`block_action`** — `block_event=true` 인 행에서 차단 행이면 `block`, 해제 행이면 `unblock`, 나머지 행은 `null`(키는 존재). `block_event`(불리언)는 두 행 모두 `true` 라 그대로 두고 이 필드가 둘을 가른다 — 기존 소비처를 깨지 않는 추가다(`Ruling 394`, ERD `audit_log.action` 의 `block`·`unblock` 투영). **`result` 는 로그인 시도 행(`success` · `fail`)에만 값이 있고 차단·해제 행은 `null`**(`LoginHistoryQueryService.toItem` — 로그인 시도가 아니라 상태 변경이라서) — 클라이언트는 `null` 을 실패로 그리지 않는다.
 
 **`block_event` 행의 `account_id` · `login_id`** — 차단(`block`) 행은 차단된 계정(행위자와 같다), **해제(`unblock`) 행은 해제된 계정**이다(BR-219 — 계정별 이력이 끊기지 않게). 해제한 관리자는 `audit_log.actor_account_id` 와 해제 응답의 `unblocked_by`(§6.12)가 갖는다 — 이 목록의 행이 싣지 않는다. `account_id` 필터도 같은 뜻 — 해제된 계정의 해제 행이 걸리고, 해제한 관리자의 필터에는 걸리지 않는다.
 
-쿼리 파라미터 — `academy_id` · `account_id` · `from` · `to` · 페이징. **`from` · `to` 는 §1.1 의 시각 표기(ISO-8601 + 오프셋, 예 `2026-09-30T00:00:00+09:00`)이며 날짜만(`2026-09-30`) 보내면 `422 VALIDATION_FAILED`** 다(`Ruling 399`).
+쿼리 파라미터 — `academy_id` · `account_id` · `from` · `to` · 페이징 · **`action`**(`/admin/audit-logs` 만 — `read` · `update` · `delete` 중 하나, 안 주면 셋 다. 그 밖의 값은 `422 VALIDATION_FAILED`, `Ruling 446`). **`from` · `to` 는 §1.1 의 시각 표기(ISO-8601 + 오프셋, 예 `2026-09-30T00:00:00+09:00`)이며 날짜만(`2026-09-30`) 보내면 `422 VALIDATION_FAILED`** 다(`Ruling 399`).
 
-**에러** — `404 ACADEMY_NOT_FOUND`(`academy_id` 필터가 미등록 학원) · `404 ACCOUNT_NOT_FOUND`(`account_id` 필터가 미등록 계정)
+**에러** — `404 ACADEMY_NOT_FOUND`(`academy_id` 필터가 미등록 학원) · `404 ACCOUNT_NOT_FOUND`(`account_id` 필터가 미등록 계정) · `422 VALIDATION_FAILED`(`action` 이 조회·수정·삭제 밖 · `from`·`to` 형식)
+
+**`GET /admin/audit-actors`(`Ruling 447`)** — 쿼리 `q` 하나. 이름 또는 로그인 아이디에 `q` 가 들어 있는(대소문자 무시) 계정을 이름순으로 **최대 20건**, 페이징 없음. `q` 가 비거나 공백뿐이면 빈 `items` 다(전 계정을 돌려주지 않는다). 권한 메인 관리자(`@CanReadAudit`). 행위자는 관계자만이 아니라 매니저·메인 관리자도 될 수 있어 `/admin/staff-accounts`(§6.6, 관계자만)로 대신하지 않는다.
+
+**감사 기록 규칙(`Ruling 445`)** — ① 같은 행위자가 같은 학생의 L3 를 10분 안에 다시 조회하면 새 행을 쓰지 않는다. 묶는 기준은 행위자·학생이고 시각은 **마지막으로 기록한 시각**이라 계속 보고 있어도 10분마다 1행은 남는다. 두 번째 조회에 새로 실린 학생은 기록하고, 그 행의 `detail.student_ids` 에는 새 학생만 담는다. ② `audit_log` 는 2년 지난 행을 삭제한다(ERD §7.2). ③ 조회 행에도 접속 IP 를 남긴다(ERD §3.4 `ip`) — 이 API 응답에는 싣지 않는다.
 
 ### 6.14 POST /admin/runs/{runId}/force-confirm
 
