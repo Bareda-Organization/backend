@@ -6076,3 +6076,5 @@ R46 개선 11항목 중 3번(운영 준비)에서 **사용자 결정이 없어�
 | 7 | 문서 — `DEPLOYMENT.md`(§2.3·§2.5·§3·§4·§6·§7.2·§8·§10·§11) · `TECH_DECISIONS §13.4` · 이 절 | `grep` |
 | 8 | 고친 모듈 시험 + 전체를 세는 시험 실패 0 | 결과 XML |
 | 9 | 정리 — 로컬 컨테이너·서버 종료, `r46_ops` DROP | `docker ps` · `pg_database` |
+
+**결과 (2026-10-01)** — 목표 1~9 ✅. 신설 시험 3클래스(`FirstSystemAdminBootstrapTest` 7 · `DeployScriptGuardTest` 11 · `DeploymentConfigGuardTest` +4)는 전부 구현 전 RED 를 결과 XML 로 확인했고, 결함 심기 27종(러너 7 · compose·nginx 5 · `deploy.sh` 10 · 경보 5)이 각각 그 시험만 실패시킨 뒤 원복(`git status` 빈 결과). 경보 식은 `promtool test rules` · `check rules` · `amtool check-config` · `nginx -t` 통과, 로컬 `-p r46ops` 기동에서 Prometheus 규칙 6개 health ok · 사진 볼륨은 컨테이너 재생성 전후 파일 유지 · 백업 tar 스트림 복원 · `/healthz` 200 · `/actuator` 404. 백엔드 전체 `--rerun` **340클래스 1,912건 실패 0 · 건너뜀 0**(전체를 세는 시험 12종 결과 XML 확인). 깨진 참조 0. **실제 AWS 실행은 미수행** — 첫 배포 뒤 확인할 것: 디스크 경보가 EC2 에서 `mountpoint="/"` 시리즈를 보는지 · `prod` 프로파일 실기동의 첫 관리자 생성 · 메모리 한도 합(`t3.medium` 초과 위험).
