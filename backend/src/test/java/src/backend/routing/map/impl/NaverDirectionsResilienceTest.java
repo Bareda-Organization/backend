@@ -227,6 +227,26 @@ class NaverDirectionsResilienceTest {
     }
 
     /**
+     * 요청 데이터 탓 실패(400 · 경로 없음)는 서킷 실패율에 세지 않는다(BR-208) — 좌표가 나쁜 노선 몇 건이 몰렸다는
+     * 이유로 공급자가 멀쩡한데 서킷이 열리면 온디맨드 화면이 503 을 받는다. 재시도 분류({@link TransientMapRouteFailure},
+     * BR-050)와 같은 기준이다. 짝 시험은 위의 {@link #서킷이_열리면_온디맨드는_즉시_오류이고_배치는_폴백이다}(500 은 센다).
+     */
+    @Test
+    void 다시_불러도_같은_실패는_서킷을_열지_않는다() {
+        CircuitBreaker breaker = circuitBreakerRegistry.circuitBreaker(NaverDirectionsGateway.RESILIENCE_INSTANCE);
+        for (int mode : new int[] {2, 3}) {
+            FAIL_MODE.set(mode);
+            for (int i = 0; i < 10; i++) {
+                mapRouteClient.route(요청(지점_두개(), Duration.ofSeconds(2), CallerPolicy.BATCH));
+            }
+
+            assertThat(breaker.getState())
+                    .as("응답 형태 %d(요청 탓 실패)를 10번 받았는데 서킷이 열렸다 — 공급자는 멀쩡하다", mode)
+                    .isEqualTo(CircuitBreaker.State.CLOSED);
+        }
+    }
+
+    /**
      * 재시도 횟수는 호출자가 고른다(ARCHITECTURE §8.3) — 사용자가 화면 앞에서 기다리는 온디맨드는 배치보다
      * 적게 다시 부른다. 같은 횟수면 온디맨드 최악 대기가 배치와 같은 배수로 늘어난다.
      */

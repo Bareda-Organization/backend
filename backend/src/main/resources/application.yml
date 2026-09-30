@@ -125,6 +125,9 @@ resilience4j:
         wait-duration-in-open-state: 10s
         permitted-number-of-calls-in-half-open-state: 3
         automatic-transition-from-open-to-half-open-enabled: true
+        # 실패로 세는 것은 재시도와 같은 분류다(BR-208, BR-050) — 타임아웃·연결 실패·5xx 만. 4xx·"경로 없음" 은 요청
+        # 데이터 탓이라 공급자가 멀쩡한데도 서킷을 열어 온디맨드 화면을 503 으로 만든다.
+        record-failure-predicate: src.backend.routing.map.impl.TransientMapRouteFailure
         # 격벽이 거부한 호출은 공급자 장애가 아니다 — 공급자는 멀쩡한데 우리가 스스로 막은 것이다.
         # 집계에 넣으면 동시 도래가 한 번 몰린 것만으로 실패율이 임계를 넘어 서킷이 열리고,
         # 그 순간부터 온디맨드가 503 을 받는다. 자기 보호 장치가 서로를 넘어뜨리는 형태다.
