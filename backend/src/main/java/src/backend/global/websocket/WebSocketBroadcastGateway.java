@@ -7,7 +7,13 @@ import java.util.List;
 import java.util.concurrent.ThreadPoolExecutor;
 
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
+import org.springframework.messaging.simp.SimpMessageType;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.messaging.simp.broker.AbstractBrokerMessageHandler;
+import org.springframework.messaging.simp.broker.SimpleBrokerMessageHandler;
+import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Component;
 
@@ -49,8 +55,25 @@ public class WebSocketBroadcastGateway {
     private final ThreadPoolTaskExecutor outboundTaskExecutor;
     private final Clock clock;
 
-    /** 목적지 1곳에 봉투를 실어 보내고 발행 지연을 계측한다. 큐 포화 때 {@code position} 은 버린다. */
+    /**
+     * 구독 여부를 묻는 심플 브로커 — 시험이 게이트웨이를 직접 만드는 곳이 있어 생성자가 아니라 세터로 받는다. 없으면(null)
+     * 걸러내지 않고 그대로 보낸다.
+     */
+    private SimpleBrokerMessageHandler simpleBroker;
+
+    @Autowired(required = false)
+    void setSimpleBrokerMessageHandler(@Qualifier("simpleBrokerMessageHandler") AbstractBrokerMessageHandler broker) {
+        this.simpleBroker = broker instanceof SimpleBrokerMessageHandler simple ? simple : null;
+    }
+
+    /**
+     * 목적지 1곳에 봉투를 실어 보내고 발행 지연을 계측한다. 큐 포화 때 {@code position} 은 버린다. {@code position} 은
+     * 구독자가 없는 목적지에는 직렬화하지 않고 건너뛴다(R46 D #6) — 위치 1건이 22채널로 나가는데 대부분 아무도 안 본다.
+     */
     public void send(String destination, String event, Long runId, OffsetDateTime occurredAt, Object payload) {
+        if (DROPPABLE_EVENT.equals(event) && !hasSubscriber(destination)) {
+            return;
+        }
         if (DROPPABLE_EVENT.equals(event) && isOutboundQueueFull()) {
             dropMetrics.recordPositionDropped();
             log.warn("팬아웃 실행기 큐 포화로 위치 방송 버림 — destination={}, runId={}", destination, runId);
@@ -58,6 +81,20 @@ public class WebSocketBroadcastGateway {
         }
         messagingTemplate.convertAndSend(destination, new WebSocketEnvelope(event, runId, occurredAt, payload));
         publishMetrics.recordLatency(Duration.between(occurredAt, OffsetDateTime.now(clock)));
+    }
+
+    /**
+     * 브로커가 실제로 쓰는 구독 등록부에 그 목적지 구독이 있는지 본다 — 브로커가 배달 대상을 찾는 것과 같은 조회라 "구독자가
+     * 있는데 걸러지는" 경우가 없다(구독 등록 직전 1건은 걸러지지만 그 1건은 원래도 등록 전에 지나간다). 브로커를 모르면 보낸다.
+     */
+    private boolean hasSubscriber(String destination) {
+        if (simpleBroker == null) {
+            return true;
+        }
+        SimpMessageHeaderAccessor headers = SimpMessageHeaderAccessor.create(SimpMessageType.MESSAGE);
+        headers.setDestination(destination);
+        return !simpleBroker.getSubscriptionRegistry()
+                .findSubscriptions(MessageBuilder.createMessage(new byte[0], headers.getMessageHeaders())).isEmpty();
     }
 
     /** 팬아웃 실행기 큐에 남은 자리가 없는지 본다(BR-170) — 큐 상한은 {@code WebSocketConfig} 가 정한다. */
