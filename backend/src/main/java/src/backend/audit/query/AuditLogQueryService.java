@@ -17,6 +17,7 @@ import src.backend.academy.entity.Academy;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.audit.dto.AuditLogItemResponse;
+import src.backend.audit.entity.AuditAction;
 import src.backend.audit.entity.AuditCategory;
 import src.backend.audit.entity.AuditLog;
 import src.backend.audit.repository.AuditLogRepository;
@@ -39,6 +40,10 @@ import src.backend.global.response.PageResponse;
 @Transactional(readOnly = true)
 public class AuditLogQueryService {
 
+    /** 조회·수정 이력 화면이 고를 수 있는 동작 — 로그인·차단 동작은 접속 이력(§6.13 login-history)의 몫이다. */
+    private static final List<AuditAction> DATA_ACCESS_ACTIONS =
+            List.of(AuditAction.READ, AuditAction.UPDATE, AuditAction.DELETE);
+
     private static final Sort ORDER = Sort.by(Sort.Direction.DESC, "occurredAt").and(Sort.by(Sort.Direction.ASC, "id"));
 
     private final AuditLogRepository auditLogRepository;
@@ -47,16 +52,31 @@ public class AuditLogQueryService {
 
     private final AccountRepository accountRepository;
 
-    /** 개인정보 조회·수정 이력을 최신순(동률은 id 오름차순)으로 페이징해 돌려준다(§6.13). */
-    public PageResponse<AuditLogItemResponse> list(AuditQueryFilter filter) {
+    /**
+     * 개인정보 조회·수정 이력을 최신순(동률은 id 오름차순)으로 페이징해 돌려준다(§6.13).
+     *
+     * @param action {@code read}·{@code update}·{@code delete} 중 하나만 보고 싶을 때(R46 감사 화면, Ruling 446).
+     *               {@code null} 이면 셋 다다. 그 밖의 값은 {@code 422 VALIDATION_FAILED}
+     */
+    public PageResponse<AuditLogItemResponse> list(AuditQueryFilter filter, String action) {
         validateFilters(filter.academyId(), filter.accountId());
-        Page<AuditLog> result = auditLogRepository.search(AuditCategory.DATA_ACCESS, filter.academyId(),
-                filter.accountId(), AuditQueryRange.from(filter.from()), AuditQueryRange.to(filter.to()),
+        Page<AuditLog> result = auditLogRepository.search(AuditCategory.DATA_ACCESS, actionsOf(action),
+                filter.academyId(), filter.accountId(), AuditQueryRange.from(filter.from()), AuditQueryRange.to(filter.to()),
                 PageParams.of(filter.page(), filter.size()).toPageable(ORDER));
 
         Map<Long, String> academyNames = academyNamesOf(result.getContent());
         return PageResponse.of(result,
                 result.getContent().stream().map(log -> toItem(log, academyNames.get(log.getAcademyId()))).toList());
+    }
+
+    private static List<AuditAction> actionsOf(String action) {
+        if (action == null) {
+            return AuditLogRepository.ALL_ACTIONS;
+        }
+        return DATA_ACCESS_ACTIONS.stream().filter(candidate -> lower(candidate.name()).equals(action.trim()))
+                .findFirst().map(List::of)
+                .orElseThrow(() -> new BusinessException(ErrorCode.VALIDATION_FAILED,
+                        "action 은 read · update · delete 중 하나여야 합니다: " + action));
     }
 
     /** {@code academy_id}·{@code account_id} 필터가 미등록 대상을 가리키면 404 다(§6.13 에러 표). */

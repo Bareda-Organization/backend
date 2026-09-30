@@ -201,8 +201,9 @@ class AuthFlowIntegrationTest {
                         + " + R30 의 2(승하차지 한 번에 저장 1 + 주소 자동완성 1, §5.9 · Ruling 325)"
                         + " + Ruling 329 의 1(관리자 경유 비밀번호 초기화 §5.22)"
                         + " + R36-BE 의 1(이동 대기 취소 §5.8.1)"
-                        + " + BR-214 의 1(학생 사진 파일 §5.11.1)")
-                .hasSize(110);
+                        + " + BR-214 의 1(학생 사진 파일 §5.11.1)"
+                        + " + R46 감사 의 1(행위자 찾기 §6.13 · Ruling 447)")
+                .hasSize(111);
 
         assertThat(AccountStatusGateEndpoints.productionEndpoints(
                 handlerMapping, AccountStatusGateEndpoints::deniedWhenPending))

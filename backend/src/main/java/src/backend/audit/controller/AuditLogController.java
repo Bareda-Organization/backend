@@ -21,7 +21,7 @@ import src.backend.global.security.authz.CanReadAudit;
 /**
  * 메인 관리자 콘솔의 개인정보 조회·수정 이력 조회 API(SYS-01, API_SPEC §6.13, Phase 14 T1 목표 3).
  *
- * <p>{@code academy_id}·{@code account_id}·{@code from}·{@code to} 를 {@code @RequestParam} 에
+ * <p>{@code academy_id}·{@code account_id}·{@code from}·{@code to}·{@code action} 을 {@code @RequestParam} 에
  * 손으로 적는다 — 쿼리 파라미터는 Jackson {@code SNAKE_CASE} 전략을 거치지 않아
  * {@code @ModelAttribute} 로 묶으면 {@code academy_id} 가 조용히 안 붙는다
  * ({@code StaffReportController} 와 같은 근거).
@@ -43,8 +43,10 @@ public class AuditLogController {
             @RequestParam(name = "account_id", required = false) Long accountId,
             @RequestParam(name = "from", required = false) String from,
             @RequestParam(name = "to", required = false) String to,
+            @RequestParam(name = "action", required = false) String action,
             @RequestParam(name = "page", required = false) Integer page,
             @RequestParam(name = "size", required = false) Integer size) {
-        return ApiResponse.ok(auditLogQueryService.list(new AuditQueryFilter(academyId, accountId, from, to, page, size)));
+        return ApiResponse.ok(auditLogQueryService.list(new AuditQueryFilter(academyId, accountId, from, to, page, size),
+                action));
     }
 }

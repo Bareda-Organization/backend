@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import jakarta.persistence.LockModeType;
 
+import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -156,4 +157,18 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
             + "학원으로 좁힐 수 없다 — §1.5 정의(Role#hasPlatformScope)와 {@link #findAllByRoleAndStatus} 가 "
             + "이미 같은 판단을 내렸다")
     long countByRoleAndStatus(Role role, AccountStatus status);
+
+    /**
+     * 감사 화면의 행위자 찾기(R46 감사, API_SPEC §6.13 {@code GET /admin/audit-actors}) — 이름 또는 로그인 아이디에
+     * {@code q} 가 들어 있는 계정을 이름순으로 {@code limit} 건까지. 빈 검색어는 전건과 같아지므로 호출부가 막는다.
+     */
+    @AcademyScopeExempt(reason = "§6.13 메인 관리자 콘솔 — 감사 이력은 전 학원 범위이고 행위자는 어느 학원의 계정이든 될 수 있어 "
+            + "학원으로 좁히면 화면이 성립하지 않는다. 예외 판정은 컨트롤러의 @CanReadAudit 하나다")
+    @Query("""
+            SELECT a FROM Account a
+            WHERE LOWER(a.name) LIKE LOWER(CONCAT('%', :q, '%'))
+               OR LOWER(a.loginId) LIKE LOWER(CONCAT('%', :q, '%'))
+            ORDER BY a.name, a.id
+            """)
+    List<Account> searchByNameOrLoginId(@Param("q") String q, Limit limit);
 }

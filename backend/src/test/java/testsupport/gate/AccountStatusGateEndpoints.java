@@ -103,6 +103,9 @@ public final class AccountStatusGateEndpoints {
      * /admin/audit-logs}·{@code GET /admin/login-history}(§6.13, 권한 "메인관리자") — 관리자 전용
      * 콘솔 화면이라 대기·거절 계정에는 근거가 부재하다(Ruling 145 와 같은 근거).
      *
+     * <p>R46 감사 화면이 1개를 더했다 — 행위자 찾기 {@code GET /admin/audit-actors}(§6.13, 권한 "메인관리자",
+     * {@code @CanReadAudit}) — 같은 감사 콘솔의 부속 조회라 근거가 같다(Ruling 145 와 같은 근거).
+     *
      * <p>F1 S3 가 1개를 더했다 — 관계자 웹 확정 노선 조회 {@code GET
      * /staff/runs/{runId}/route}(§5.19, RTE-02, 권한 "학원 관계자", {@code @CanMonitorAcademy}) —
      * {@code GET /staff/dashboard}(Phase 13 T1)와 같은 계열의 관계자 관리 화면이라 근거가 같다
@@ -250,9 +253,10 @@ public final class AccountStatusGateEndpoints {
             // (§6.9) 1개.
             "GET /admin/academies/{id}/runs/live",
             "GET /admin/runs/{runId}/roster",
-            // Phase 14 T1 — 메인관리자 콘솔 감사·접속 이력 조회(§6.13) 2개.
+            // Phase 14 T1 — 메인관리자 콘솔 감사·접속 이력 조회(§6.13) 2개 + R46 감사 화면의 행위자 찾기 1개.
             "GET /admin/audit-logs",
             "GET /admin/login-history",
+            "GET /admin/audit-actors",
             // F1 S3 — 관계자 웹 확정 노선 조회(§5.19) 1개.
             "GET /staff/runs/{runId}/route",
             // F3 S1 — 지연 알림 신고(§4.9, NTF-06) 동승자 단말 기능 1개.
