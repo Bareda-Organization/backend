@@ -22,6 +22,7 @@ public record MeResponse(
         String managerRole,
         Integer linkedStudentCount) {
 
-    public record Academy(String id, String name) {
+    /** {@code contact} 는 학원 대표 연락처 — 미등록이면 {@code null}(API_SPEC §2.10, Ruling 460). */
+    public record Academy(String id, String name, String contact) {
     }
 }
