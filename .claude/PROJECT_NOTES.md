@@ -18,7 +18,7 @@
 |---|---|
 | **작업 범위** | **`backend/` + `frontend/`.** 2026-08-25 에는 백엔드 전용이었으나 2026-09-10 사용자 결정으로 프론트가 범위 안으로 돌아왔다(Ruling 255 영구 범위 밖을 뒤집음) |
 | **사양·설계의 정본** | **`docs/` 사양·설계.** 진입점은 [`docs/README.md`](../docs/README.md) — 여기서 시작한다 |
-| **구현 추적** | 백엔드 [`docs/IMPLEMENTATION_PLAN.md`](../docs/IMPLEMENTATION_PLAN.md) **§8 진행 추적 표가 단일 창구.** 프론트는 [`docs/frontend/IMPLEMENTATION_PLAN.md`](../docs/frontend/IMPLEMENTATION_PLAN.md). 진행 상태를 다른 문서에 적지 않는다 |
+| **구현 추적** | 백엔드 [`docs/IMPLEMENTATION_PLAN.md`](../docs/IMPLEMENTATION_PLAN.md) **§8 진행 추적 표가 단일 창구.** 프론트는 [`docs/frontend/IMPLEMENTATION_PLAN.md`](../docs/frontend/IMPLEMENTATION_PLAN.md). 진행 상태를 다른 문서에 적지 않는다. 끝난 Phase·라운드 기록은 `docs/archive/rounds/`(원문 그대로 · 파일별 절 범위는 그 폴더 `README.md`)로 옮겼고, Ruling 번호는 백엔드 계획서 §11 색인에서 기록 위치를 찾는다 |
 | **코드 컨벤션** | 백엔드 `docs/backend/CODE_CONVENTIONS.md` · 프론트 `docs/frontend/CONVENTIONS_REACT.md`(관계자 웹, Next.js) · `docs/frontend/CONVENTIONS_FLUTTER.md`(학부모·학생 앱, 매니저 앱) |
 
 - 제품 3개 — 관계자 웹(Next.js) · 학부모·학생 앱(Flutter) · 매니저 앱(Flutter). 앱 하나가 로그인 결과의 역할로 갈라진다(학부모↔학생, 기사↔동승자)
@@ -156,7 +156,7 @@ flutter test --dart-define=API_BASE_URL=http://localhost:<포트>/api/v1
 
 ## debugger
 
-> ⚠ **일부 무효 예정** — **포트별 증상표·로그 포맷·비동기 스레드 모델의 기제(커밋 후 발행 · dedup skip · STOMP push)는 유효**. **Phase 0 에서 소멸하는 것**: `@Scheduled` 4종의 구체 주기 · Mock 위치 소스 기본값 · `V2__seed_data.sql` 의 계정 구성 — 옛 도메인 설정 블록(`app.location.mock` · `app.sos` · `app.drivesession` · `app.connection`)이 폐기 대상이다 (`IMPLEMENTATION_PLAN` §1.2).
+> ⚠ **일부 무효 예정** — **포트별 증상표·로그 포맷·비동기 스레드 모델의 기제(커밋 후 발행 · dedup skip · STOMP push)는 유효**. **Phase 0 에서 소멸하는 것**: `@Scheduled` 4종의 구체 주기 · Mock 위치 소스 기본값 · `V2__seed_data.sql` 의 계정 구성 — 옛 도메인 설정 블록(`app.location.mock` · `app.sos` · `app.drivesession` · `app.connection`)이 폐기 대상이다 (`docs/archive/rounds/be-phases-0-14.md §1.2).
 
 **포트별 증상표** — 실패를 보면 먼저 여기를 대조한다.
 

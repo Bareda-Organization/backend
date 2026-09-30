@@ -16,7 +16,7 @@
 | `docs/backend/` | 백엔드**만** — 코드 컨벤션 · 부하 시험 · 옛 계획 | 한 모듈에만 해당 |
 | `docs/frontend/` | 프론트**만** — React·Flutter 규칙 · 프론트 계획 · 셋업 | 한 모듈에만 해당 |
 | `docs/infra/` | 배포·운영**만** — 배포 절차 · 운영 계획 | 한 모듈에만 해당 |
-| `docs/archive/` | **끝난** 기능별 계획·설계 (`plans/` · `specs/`) | 이력이지 지시가 아니다 |
+| `docs/archive/` | **끝난** 기능별 계획·설계 (`plans/` · `specs/`) · 끝난 계획서 라운드·Phase 기록(`rounds/`, 원문 그대로) | 이력이지 지시가 아니다 |
 | `docs/render/` | **사람용 렌더** — HTML · PDF · PNG. ⚠ **파생본이라 git 추적 밖** | `.md` 를 고쳐도 자동 동기화 부재 |
 | `docs/source/` | **기획 원본** — `.docx` · 브레인스토밍 이미지. 추적 밖 | 불변 |
 
@@ -68,7 +68,7 @@ grep -n '🔸' docs/FEATURE_SPEC.md docs/PRD.md docs/USER_FLOWS.md docs/API_SPEC
 |---|---|
 | **[ARCHITECTURE.md](ARCHITECTURE.md)** | 모듈 경계 · 계층 규칙 · 인가 3층 · **노선 계산 파이프라인** · **시간 기반 배치**(출발 30분 전 도래) · 실시간 전달 · 인프라 · 리스크 |
 | **[ERD.md](ERD.md)** | 테이블 39개 · 컬럼 · 관계 · 제약 · 인덱스 · 학원 격리 · 보존 정책. Mermaid ERD 5장 |
-| **[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)** | **구현 추적의 메인 문서** — 현 코드 처분 방침 · Flyway 재작성 · Mock/Swagger 일치 · 테스트·부하 테스트 전략 · **기능 단위 TDD 사이클(§4.6)** · Phase 0~14 + F1~F4 · 횡단 규칙 **24개** · 진행 추적 표. **세션 재개 시 여기부터** |
+| **[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)** | **구현 추적의 메인 문서** — 현 코드 처분 방침 · Flyway 재작성 · Mock/Swagger 일치 · 테스트·부하 테스트 전략 · **기능 단위 TDD 사이클(§4.6)** · 횡단 규칙 **24개** · 진행 추적 표 · 열린 항목 · **Ruling 색인(§11)** · 최근 라운드(`R46-*`). 끝난 Phase 0~14·F1~F4·라운드 기록은 [archive/rounds/](archive/rounds/README.md)(원문 그대로). **세션 재개 시 여기부터** |
 | **[TECH_DECISIONS.md](TECH_DECISIONS.md)** | **기술 선택과 불채택** — Security 경계 · 배치 · 상태 전이 · 시각 주입 · 운영 · 관측 · 장애 대응. 왜 그 라이브러리를 **안 쓰기로** 했는지의 근거 |
 
 
@@ -92,7 +92,7 @@ grep -n '🔸' docs/FEATURE_SPEC.md docs/PRD.md docs/USER_FLOWS.md docs/API_SPEC
 
 | 문서 | 담는 것 |
 |---|---|
-| **[frontend/IMPLEMENTATION_PLAN.md](frontend/IMPLEMENTATION_PLAN.md)** | **프론트 작업의 단일 창구** — 제품 3종(관계자 웹 Next.js · 학부모 앱 · 매니저 앱) · 라운드 추적 · 디자인 킷과 정본이 어긋나는 항목 |
+| **[frontend/IMPLEMENTATION_PLAN.md](frontend/IMPLEMENTATION_PLAN.md)** | **프론트 작업의 단일 창구** — 제품 3종(관계자 웹 Next.js · 학부모 앱 · 매니저 앱) · 최근 라운드 추적(`R46-*`) · 디자인 킷과 정본이 어긋나는 항목. 끝난 F2~F5·라운드 기록은 [archive/rounds/](archive/rounds/README.md) |
 | **[frontend/CONVENTIONS_REACT.md](frontend/CONVENTIONS_REACT.md)** | React·Next.js 규칙 — 기능 폴더 구조 · `index.ts` 공개 창구 · Emotion |
 | **[frontend/CONVENTIONS_FLUTTER.md](frontend/CONVENTIONS_FLUTTER.md)** | Dart·Flutter 규칙 |
 | **[frontend/SETUP.md](frontend/SETUP.md)** | 개발 환경 셋업 — 인프라·백엔드 기동 · 관계자 웹(:3000) · 앱 2종 실행 인자(`API_BASE_URL` · `NAVER_MAP_CLIENT_ID`) · 로그인 계정 (2026-09-30 실측으로 재작성) |

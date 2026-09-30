@@ -16,7 +16,7 @@ BASE(브랜치 시작점): 238eb2f — docs 확정 커밋
 | T3 자기정합 | 완료 조건의 "존치 테스트 4종" 과 삭제되는 컨트롤러·이벤트 | Ruling 5 로 해소 |
 | 리뷰 루브릭 충돌 | 계획이 명령하는 것 중 리뷰가 결함으로 볼 항목 | 부재 |
 
-Ruling 1: `global/security` 의 JWT·필터·SecurityConfig·STOMP 인터셉터는 삭제하지 않고 옛 도메인 의존만 끊는다 — 근거: `IMPLEMENTATION_PLAN §1.2` 가 "골격 살림" 으로 판정. 틀렸을 때 비용: Phase 2 가 골격을 한 번 더 손봄(파일 5개).
+Ruling 1: `global/security` 의 JWT·필터·SecurityConfig·STOMP 인터셉터는 삭제하지 않고 옛 도메인 의존만 끊는다 — 근거: `docs/archive/rounds/be-phases-0-14.md §1.2` 가 "골격 살림" 으로 판정. 틀렸을 때 비용: Phase 2 가 골격을 한 번 더 손봄(파일 5개).
 Ruling 2: `Role` enum 을 새로 만들지 않는다. `AuthUser` 는 `accountId · academyId · role(String)` 로 축소하고 타입화는 Phase 2 가 맡는다 — 근거: 역할 6종은 `API_SPEC §9.1` 이 소유하고 Phase 2 산출물. 틀렸을 때 비용: Phase 2 에서 `AuthUser` 재수정 1파일.
 Ruling 3: 옛 도메인 이벤트·포트에만 매달린 관측 3파일(`BusLocationMetricsListener`·`MetricsNotificationSender`·`PipelineMetrics` 의 옛 태그 메서드)은 삭제하고 aspect·`SchedulerHealthMetrics`·`StompSessionMetrics` 만 존치 — 근거: `§1.2` 는 "살림 · **구독 대상 교체**" 이며 교체할 새 이벤트가 Phase 7·10 에서 생김. 틀렸을 때 비용: Phase 10 에서 리스너 1개 재작성(이미 재작성 예정).
 Ruling 4: 새 모듈 16개 디렉터리는 `.gitkeep` 으로 추적한다. `package-info.java` 는 미사용 — 근거: `CLAUDE.md` 가 `package-info.java` 금지. 틀렸을 때 비용: 파일 16개 삭제.
@@ -902,7 +902,7 @@ Task 2(P2): complete (commits `9e3ff94`..`09fed25`, review clean, 0 parked).
 
 **원칙 — 재작업을 줄이는 개선과 검증을 줄이는 개선을 가른다.** 전자(규약 파일 · 자기 점검 10항 · 절전 억제 · 리뷰어 판정 파일 · 브리프 선작성)는 안전망을 건드리지 않고 순수 이득이다. 후자(스위트 실행 축소 · 리뷰 축소 · RED 관측 축소)는 **지금 찾을 것을 나중에 찾게 만들 뿐이고, 나중에 찾는 비용이 몇 배다.** 틀렸을 때 비용: 부재.
 
-**Ruling 94 (사용자 요청 2026-08-25): 병렬 가능 구간을 판정해 `docs/IMPLEMENTATION_PLAN.md §8.1` 에 표로 신설한다.** Phase 진입 시 그 표를 먼저 보고 "재판정" 항목은 해당 Phase 절의 완료 조건을 읽어 확정한다.
+**Ruling 94 (사용자 요청 2026-08-25): 병렬 가능 구간을 판정해 `docs/archive/rounds/be-phases-0-14.md §8.1` 에 표로 신설한다.** Phase 진입 시 그 표를 먼저 보고 "재판정" 항목은 해당 Phase 절의 완료 조건을 읽어 확정한다.
 
 **§8 선행 열이 "읽는 순서" 로 적힌 곳이 섞여 있다는 것을 실측으로 확인.** 분기점이 하나(4‖5)뿐인 9단 직렬로 보였으나, 절을 읽으니 셋이 갈린다 —
 
@@ -1315,7 +1315,7 @@ T5 보고(§5.1 확장 지점 8) — 그 자리에 **옛 `TenantGuard` 와 같�
 
 - `ERD §6.2` "직접 보유 16개" → **17개**(커밋 `c77d6ab`). §6.1 표 17행 · §5.3 인덱스 문단 17개 나열 · 코드 17개 모두와 대조해 §6.2 한 곳만 어긋난 것을 확인
 - `reference.md` 의 `TenantGuard` 죽은 참조 2건 → `AcademyScope` 로 갱신(같은 커밋). 두 문장의 논지는 그대로 성립해 예시 클래스명만 교체
-- `IMPLEMENTATION_PLAN §1.2` 처분표에 이행 결과 반영. **날짜가 붙은 과거 계획 문서 6종의 `TenantGuard` 언급 16건은 고치지 않는다** — 당시 기록을 고치면 거짓 기록이 된다
+- `docs/archive/rounds/be-phases-0-14.md §1.2` 처분표에 이행 결과 반영. **날짜가 붙은 과거 계획 문서 6종의 `TenantGuard` 언급 16건은 고치지 않는다** — 당시 기록을 고치면 거짓 기록이 된다
 
 ### Ruling 120 — STOMP 학원 대조: `BusinessException(ACADEMY_SCOPE_VIOLATION)` 채택
 
