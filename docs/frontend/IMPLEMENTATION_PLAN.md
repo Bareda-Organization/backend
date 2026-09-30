@@ -2697,7 +2697,7 @@ Run `run_d7daf69b57f8` · 4갈래 병합 B `7f781ccc` · W `827250d1` · P `065e
 | # | 지금 | 할 일 |
 |:-:|---|---|
 | R41-A | `borderDefault`(라이트 흰 배경 1.89 · 다크 카드 2.09)가 입력칸·스위치 꺼짐 트랙·보조 버튼·선택 칩과 카드 외곽선·타임라인 점·시트 손잡이에 **같이** 쓰인다 | 조작 요소 경계 전용 토큰 `borderControl` 신설 — 입력칸 3종(`input`·`textarea`·`select`) · 스위치 꺼짐 트랙 · 보조 버튼 · 지연 선택 칩 · 코드 입력칸만 옮긴다. 카드·타임라인 점·손잡이는 `borderDefault` 그대로 |
-| R41-B | `BaraedaButton.sm` 36 — 앱 2종 **21곳**에서 쓴다(매니저 명단 `roster_screen.dart` 5곳 포함). 누르는 영역이 보이는 크기와 같다 | 보이는 크기 36 유지 · **누르는 영역만 48×48 이상**(이웃 영역과 겹치지 않음) |
+| R41-B | `BaraedaButton.sm` 36 — 앱 2종 **19곳**에서 쓴다(매니저 명단 `roster_screen.dart` 5곳 포함). 누르는 영역이 보이는 크기와 같다 | 보이는 크기 36 유지 · **누르는 영역만 48×48 이상**(이웃 영역과 겹치지 않음) |
 | R41-C | 지시서의 "미사용 11종" 은 **낡은 목록**이다 — 웹 전용 3종(`RosterTable`·`SideNav`·`PageHeader`)은 `be58803d` 가 이미 삭제했고 `BaraedaSegmentedControl`(앱 5곳)·`BaraedaCodeInput`(`child_link_screen`)은 앱이 이미 쓴다. 실제 미사용은 `BaraedaDialog`·`BaraedaBottomSheet`·`BaraedaIconButton`·`BaraedaCheckbox`·`BaraedaSearchField`·`BaraedaTabBar` 6종 | 대화상자·바닥 시트 결함 3종(본문 스크롤 · 뒤로가기 · 낭독 배경 차단) 수정 → 앱 Material `AlertDialog` 4곳 · `IconButton` 1곳 · `showModalBottomSheet` 1곳을 공용판으로 · 앱이 Material `SegmentedButton` 을 쓰는 2곳을 `BaraedaSegmentedControl` 로 · 앱에 같은 일을 하는 Material 코드가 없는 `BaraedaCheckbox`·`BaraedaSearchField`·`BaraedaTabBar` 삭제 |
 
 ### 5.15.2 목표 표 — 전항 통과가 완료 조건
@@ -2714,7 +2714,7 @@ Run `run_d7daf69b57f8` · 4갈래 병합 B `7f781ccc` · W `827250d1` · P `065e
 ### 5.15.3 판정
 
 - **`Ruling 403` — 조작 요소 경계 전용 토큰 `borderControl`** (A). 카드 외곽선은 장식 구분선이라 WCAG 비텍스트 3:1 대상이 아니다 — 입력칸·스위치·버튼 윤곽처럼 **그 선이 없으면 조작 요소를 못 찾는 자리**만 3:1 이상으로 올린다. `borderDefault` 값을 올리는 안은 버림(전 화면 테두리가 진해진다). 킷에 없는 토큰이라 `§4` 불일치 목록에 행 추가
-- **`Ruling 404` — `sm` 버튼은 보이는 크기 36 · 누르는 영역 48** (B). 레이아웃을 바꿔 보이는 크기를 48 로 키우는 안은 버림: 앱 2종 21곳(명단 한 줄 3~4개 · 머리말 · 지도 위 칩)이 전부 커져 조밀 배치가 깨지고, 한 위젯 안에서 끝나는 해법이 있다. 대가 — 세로 배치가 12 커진다(누르는 영역이 레이아웃 박스 안에 있어야 이웃과 겹치지 않으므로 Material `MaterialTapTargetSize.padded` 와 같은 방식)
+- **`Ruling 404` — `sm` 버튼은 보이는 크기 36 · 누르는 영역 48** (B). 레이아웃을 바꿔 보이는 크기를 48 로 키우는 안은 버림: 앱 2종 19곳(명단 한 줄 3~4개 · 머리말 · 지도 위 칩)이 전부 커져 조밀 배치가 깨지고, 한 위젯 안에서 끝나는 해법이 있다. 대가 — 세로 배치가 12 커진다(누르는 영역이 레이아웃 박스 안에 있어야 이웃과 겹치지 않으므로 Material `MaterialTapTargetSize.padded` 와 같은 방식)
 - **`Ruling 405` — 공용 위젯은 앱이 같은 일을 할 때만 둔다** (C). 공용판의 결함을 고친 뒤 앱의 Material 호출을 공용판으로 옮긴다. 옮길 곳이 없는 것(`BaraedaCheckbox`·`BaraedaSearchField`·`BaraedaTabBar`)은 삭제 — 낡은 공용 코드는 결함이 잠복한다(F07-11)
 
 ### 5.15.4 진행
