@@ -107,6 +107,11 @@ class StudentPhotoTransactionBoundaryTest {
         }
 
         @Override
+        public java.util.Optional<byte[]> read(String fileName) {
+            return delegate.read(fileName);
+        }
+
+        @Override
         public void delete(String photoUrl) {
             delegate.delete(photoUrl);
         }

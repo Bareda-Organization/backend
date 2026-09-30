@@ -247,6 +247,24 @@ class StudentRunsControllerTest {
                 .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
     }
 
+    /**
+     * 퇴원한 학생 본인 계정은 회차·노선·버스 위치 조회를 모두 {@code 404 STUDENT_NOT_FOUND} 로 받는다(BR-212) —
+     * 학부모 경로({@code LinkedChildLookup})가 퇴원 자녀를 막는 것과 같은 코드다. 퇴원 처리는 학생 본인 계정을
+     * 건드리지 않아 이 판정이 없으면 명단에서 빠진 학생이 학원 버스의 실시간 위치를 계속 받는다.
+     */
+    @Test
+    void 퇴원한_학생_본인은_회차_노선_버스위치_조회가_404_STUDENT_NOT_FOUND_이다() throws Exception {
+        jdbcTemplate.update("UPDATE student SET deleted_at = now() WHERE id = ?", STUDENT_4_ID);
+        String selfToken = "Bearer " + tokenProvider.createAccessToken(STUDENT_4_SELF_ACCOUNT, ACADEMY_A,
+                Role.STUDENT, AccountStatus.ACTIVE);
+
+        for (String path : new String[] {RUNS, "/api/v1/students/%d/route", "/api/v1/students/%d/bus-position"}) {
+            mockMvc.perform(get(path.formatted(STUDENT_4_ID)).header("Authorization", selfToken))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.error.code").value("STUDENT_NOT_FOUND"));
+        }
+    }
+
     private String 토큰(long accountId) {
         return "Bearer " + tokenProvider.createAccessToken(accountId, ACADEMY_A, Role.PARENT, AccountStatus.ACTIVE);
     }

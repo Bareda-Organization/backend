@@ -33,7 +33,7 @@ public record StudentUpdateRequest(
         LocalDate birthDate,
         @Size(max = 20) String grade,
         @Size(max = 50) String className,
-        String note,
+        @Size(max = 200) String note,
         Boolean canGoAlone,
         @Valid List<GuardianPhoneChange> guardians) {
 

@@ -98,8 +98,8 @@ public class Academy extends BaseTimeEntity {
     }
 
     /**
-     * 확정 배치(RTE-08)의 노선 기준점을 정한다 — 지오코딩 자동 채움은 이 Phase 의 범위 밖이라
-     * 좌표는 이 메서드를 통해서만 채워진다. 한쪽만 넘기면 DB CHECK 이전에 여기서 걸러진다.
+     * 확정 배치(RTE-08)의 노선 기준점을 정한다 — 등록·주소 수정이 주소를 지오코딩한 결과로 부른다
+     * (Ruling 374). 한쪽만 넘기면 DB CHECK 이전에 여기서 걸러진다.
      */
     public void assignCoordinates(BigDecimal lat, BigDecimal lng) {
         if (lat == null || lng == null) {
@@ -107,6 +107,12 @@ public class Academy extends BaseTimeEntity {
         }
         this.lat = lat;
         this.lng = lng;
+    }
+
+    /** 주소를 비웠을 때 좌표도 함께 비운다(Ruling 374) — 옛 주소의 좌표가 남아 확정이 엉뚱한 곳을 향하는 것을 막는다. */
+    public void clearCoordinates() {
+        this.lat = null;
+        this.lng = null;
     }
 
     /** 확정 배치가 이 학원을 기준점으로 쓸 수 있는지 — 둘 다 있을 때만 참이다(목표 5). */

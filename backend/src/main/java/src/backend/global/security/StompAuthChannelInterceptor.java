@@ -172,6 +172,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
     private void authorizeStudentChannel(AuthUser subscriber, Long studentId) {
         if (subscriber.role() == Role.STUDENT) {
             boolean self = studentRepository.findByAccountId(subscriber.accountId())
+                    .filter(student -> student.getDeletedAt() == null)
                     .map(student -> student.getId().equals(studentId))
                     .orElse(false);
             if (!self) {

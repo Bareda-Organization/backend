@@ -109,7 +109,11 @@ class ChildLinkConcurrencyTest {
     @Test
     void 같은_자녀를_동시에_연결하면_성공_1건_실패_1건이고_500_이_부재한다() throws Exception {
         String 코드1 = 요청하고_코드를_받는다();
-        String 코드2 = 요청하고_코드를_받는다();
+        // 발급은 이전 코드를 만료시켜(BR-215) 같은 학생의 살아 있는 코드가 둘이 될 수 없다 — 이 시험이 겹치려는
+        // "코드 2건" 은 두 번째를 직접 심어 만든다.
+        String 코드2 = 코드1.equals("000000") ? "000001" : "000000";
+        jdbcTemplate.update("INSERT INTO link_code (student_id, code, expires_at, created_at) "
+                + "VALUES (?, ?, now() + interval '10 minutes', now())", STUDENT_A4_ID, 코드2);
 
         CountDownLatch 먼저_들어갔다 = new CountDownLatch(1);
         ExecutorService pool = Executors.newFixedThreadPool(2);
@@ -207,7 +211,7 @@ class ChildLinkConcurrencyTest {
     // ── 도우미 ────────────────────────────────────────────────────────────
 
     /**
-     * 발급을 커밋해 학부모가 넣을 코드를 얻는다 — 두 번 부르면 살아 있는 코드가 둘이 된다.
+     * 발급을 커밋해 학부모가 넣을 코드를 얻는다 — 두 번 부르면 앞 코드는 만료된다(BR-215).
      *
      * <p>SQL 로 직접 심지 않고 서비스를 부르는 이유는, 심어 넣은 행이 실제 발급 경로가 만드는 것과
      * 다른 상태일 수 있기 때문이다. 이 시험이 검사하려는 것은 <b>그 경로가 만든 코드 2개</b>가 겹칠 때다.

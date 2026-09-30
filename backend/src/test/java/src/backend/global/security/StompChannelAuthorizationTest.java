@@ -46,6 +46,9 @@ class StompChannelAuthorizationTest {
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     @Value("${jwt.secret}")
     private String jwtSecret;
 
@@ -260,6 +263,18 @@ class StompChannelAuthorizationTest {
     void 학생은_본인_채널을_구독한다() throws Exception {
         assertThat(subscribeOutcome(token(10L, 1L, Role.STUDENT), "/topic/students/4/run"))
                 .startsWith("MESSAGE").contains(PROBE);
+    }
+
+    /** 퇴원한 학생 본인은 자기 채널도 구독하지 못한다(BR-212) — HTTP 조회가 404 로 막히는 것과 같은 판정이다. */
+    @Test
+    void 퇴원한_학생은_본인_채널을_구독하지_못한다() throws Exception {
+        jdbcTemplate.update("UPDATE student SET deleted_at = now() WHERE id = 4");
+        try {
+            assertThat(subscribeOutcome(token(10L, 1L, Role.STUDENT), "/topic/students/4/run"))
+                    .startsWith("ERROR").contains("message:FORBIDDEN");
+        } finally {
+            jdbcTemplate.update("UPDATE student SET deleted_at = NULL WHERE id = 4");
+        }
     }
 
     @Test

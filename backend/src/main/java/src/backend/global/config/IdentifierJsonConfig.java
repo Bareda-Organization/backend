@@ -28,7 +28,7 @@ import tools.jackson.databind.ser.std.ToStringSerializer;
 @Configuration
 public class IdentifierJsonConfig {
 
-    private static final Pattern ID_PROPERTY_NAME = Pattern.compile("^(id|.*Id)$");
+    private static final Pattern ID_PROPERTY_NAME = Pattern.compile("^(id|.*Id|.*By)$");
 
     /** Spring Boot 가 {@code JacksonModule} 빈을 전역 {@code ObjectMapper} 에 자동 등록한다. */
     @Bean

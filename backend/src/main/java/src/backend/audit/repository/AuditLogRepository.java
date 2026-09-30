@@ -5,7 +5,10 @@ import java.time.OffsetDateTime;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import src.backend.audit.entity.AuditAction;
 import src.backend.audit.entity.AuditCategory;
 import src.backend.audit.entity.AuditLog;
 import src.backend.global.security.access.AcademyScopeExempt;
@@ -45,6 +48,52 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
         }
         return findAllByCategoryAndOccurredAtBetween(category, from, to, pageable);
     }
+
+    /**
+     * 접속 이력 검색(§6.13 {@code login-history}) — {@link #search} 와 같되 <b>계정 필터의 뜻이 다르다</b>(BR-219).
+     * 해제({@code unblock}) 행은 "해제된 계정" 의 이력이라 {@code target_id} 로 맞추고, 나머지는 행위자로 맞춘다 —
+     * 해제 행의 행위자는 해제한 관리자이고 그 기록은 감사 로그(§6.12)의 몫이다. 계정 필터가 없으면 {@link #search} 다.
+     */
+    @AcademyScopeExempt(reason = "§6.13 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
+            + "academy_id 는 선택 필터이고, 받은 값은 아래 학원 조건 조회로 그대로 넘긴다")
+    default Page<AuditLog> searchLoginHistory(Long academyId, Long accountId, OffsetDateTime from, OffsetDateTime to,
+            Pageable pageable) {
+        if (accountId == null) {
+            return search(AuditCategory.LOGIN, academyId, null, from, to, pageable);
+        }
+        if (academyId != null) {
+            return findLoginHistoryByAcademyAndAccount(AuditCategory.LOGIN, AuditAction.UNBLOCK, academyId, accountId,
+                    from, to, pageable);
+        }
+        return findLoginHistoryByAccount(AuditCategory.LOGIN, AuditAction.UNBLOCK, accountId, from, to, pageable);
+    }
+
+    /** 학원·계정 둘 다 지정한 접속 이력 검색 — 해제 행은 해제된 계정으로 맞춘다. */
+    @Query("""
+            SELECT a FROM AuditLog a
+            WHERE a.category = :category AND a.academyId = :academyId
+              AND a.occurredAt BETWEEN :from AND :to
+              AND ((a.action <> :unblock AND a.actorAccountId = :accountId)
+                   OR (a.action = :unblock AND a.targetId = :accountId))
+            """)
+    Page<AuditLog> findLoginHistoryByAcademyAndAccount(@Param("category") AuditCategory category,
+            @Param("unblock") AuditAction unblock, @Param("academyId") Long academyId,
+            @Param("accountId") Long accountId, @Param("from") OffsetDateTime from, @Param("to") OffsetDateTime to,
+            Pageable pageable);
+
+    /** 계정만 지정한 접속 이력 검색 — 해제 행은 해제된 계정으로 맞춘다. */
+    @AcademyScopeExempt(reason = "§6.13 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
+            + "예외를 여는 판정은 컨트롤러의 @CanReadAudit 하나다")
+    @Query("""
+            SELECT a FROM AuditLog a
+            WHERE a.category = :category
+              AND a.occurredAt BETWEEN :from AND :to
+              AND ((a.action <> :unblock AND a.actorAccountId = :accountId)
+                   OR (a.action = :unblock AND a.targetId = :accountId))
+            """)
+    Page<AuditLog> findLoginHistoryByAccount(@Param("category") AuditCategory category,
+            @Param("unblock") AuditAction unblock, @Param("accountId") Long accountId,
+            @Param("from") OffsetDateTime from, @Param("to") OffsetDateTime to, Pageable pageable);
 
     /** 학원·계정 둘 다 지정한 검색. */
     Page<AuditLog> findAllByCategoryAndAcademyIdAndActorAccountIdAndOccurredAtBetween(AuditCategory category,

@@ -116,6 +116,8 @@ class AcademyScopeHttpExhaustiveTest {
     private Long academyBEmergencyAlertId;
     private Long academyBExceptionReportId;
     private Long academyBTransferId;
+    private String academyBPhotoFileName;
+    private String academyBStudentPhotoUrl;
 
     @BeforeEach
     void B학원_자원_id를_읽고_5개_픽스처를_심는다() {
@@ -170,6 +172,13 @@ class AcademyScopeHttpExhaustiveTest {
                 "INSERT INTO run_transfer (student_id, from_run_id, to_run_id, status, requested_by_account_id) "
                         + "VALUES (?, ?, ?, 'staged', ?) RETURNING id",
                 Long.class, academyBStudentId, ACADEMY_B_RUN_ID, ACADEMY_B_RUN_ID, academyBAccountId);
+
+        // 사진 서빙(§5.11.1)은 photo_url 의 파일명으로 학원을 좁힌다 — B학원 학생에 사진 주소를 붙였다가 되돌린다.
+        academyBStudentPhotoUrl = jdbcTemplate.queryForObject(
+                "SELECT photo_url FROM student WHERE id = ?", String.class, academyBStudentId);
+        academyBPhotoFileName = UUID.randomUUID() + ".jpg";
+        jdbcTemplate.update("UPDATE student SET photo_url = ? WHERE id = ?",
+                "/api/v1/files/photos/" + academyBPhotoFileName, academyBStudentId);
     }
 
     /**
@@ -185,6 +194,7 @@ class AcademyScopeHttpExhaustiveTest {
         jdbcTemplate.update("DELETE FROM emergency_alert WHERE id = ?", academyBEmergencyAlertId);
         jdbcTemplate.update("DELETE FROM exception_report WHERE id = ?", academyBExceptionReportId);
         jdbcTemplate.update("DELETE FROM run_transfer WHERE id = ?", academyBTransferId);
+        jdbcTemplate.update("UPDATE student SET photo_url = ? WHERE id = ?", academyBStudentPhotoUrl, academyBStudentId);
     }
 
     @TestFactory
@@ -243,10 +253,10 @@ class AcademyScopeHttpExhaustiveTest {
     }
 
     /**
-     * 48개 경로 변수 핸들러 전부(49건 — 탑승 의사 토글이 studentId·runId 두 축을 따로 검사해 하나
+     * 49개 경로 변수 핸들러 전부(50건 — 탑승 의사 토글이 studentId·runId 두 축을 따로 검사해 하나
      * 늘어난다) — {@code POST /runs/{runId}/delay} 는 F3 S5 가 §1.11 매니저 앱 회차 자원 그룹에
      * 추가(합류 정정, Ruling 259(b)). {@code POST /staff/students/{id}/transfer} 는 F4 S1 이
-     * 버스 간 이동(§5.8)으로, {@code DELETE /staff/transfers/{transferId}} 는 R36-BE 가 이동 대기 취소(§5.8.1)로 추가. 패턴별 근거는 클래스 javadoc, 개별 근거는 각 케이스 옆
+     * 버스 간 이동(§5.8)으로, {@code DELETE /staff/transfers/{transferId}} 는 R36-BE 가 이동 대기 취소(§5.8.1)로, {@code GET /files/photos/{fileName}} 은 BR-214 가 학생 사진 서빙(§5.11.1)으로 추가. 패턴별 근거는 클래스 javadoc, 개별 근거는 각 케이스 옆
      * 주석(보고서 항목①).
      */
     private List<ScopeCase> buildCases() {
@@ -273,6 +283,9 @@ class AcademyScopeHttpExhaustiveTest {
         cases.add(c("DELETE /staff/transfers/{transferId} → B학원 이동 404", HttpMethod.DELETE,
                 "/staff/transfers/{transferId}", new Object[] {academyBTransferId}, staffA(), null, 404,
                 "TRANSFER_NOT_FOUND"));
+        // BR-214 — 학생 사진 파일(§5.11.1) — 파일명이 B학원 학생 것이면 A학원 계정에는 존재를 숨기고 404 다.
+        cases.add(c("GET /files/photos/{fileName} → B학원 학생 사진 404", HttpMethod.GET, "/files/photos/{fileName}",
+                new Object[] {academyBPhotoFileName}, staffA(), null, 404, "STUDENT_NOT_FOUND"));
         cases.add(c("PATCH /staff/buses/{id} → B학원 차량 404", HttpMethod.PATCH, "/staff/buses/{id}",
                 new Object[] {academyBBusId}, staffA(), EMPTY_BODY, 404, "BUS_NOT_FOUND"));
         // Ruling 329 — 관리자 경유 비밀번호 초기화(§5.22). 학부모로 고른 이유는 관계자 계정이면 역할 필터로도

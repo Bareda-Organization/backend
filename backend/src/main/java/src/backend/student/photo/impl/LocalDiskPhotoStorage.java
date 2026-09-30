@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -76,13 +77,30 @@ public class LocalDiskPhotoStorage implements PhotoStorage {
         }
     }
 
+    /** 요청의 파일명을 그대로 {@code resolve} 하지 않는다 — {@link #delete} 와 같은 경로 이탈 검사를 거친다. */
+    @Override
+    public Optional<byte[]> read(String fileName) {
+        if (!isPlainFileName(fileName)) {
+            return Optional.empty();
+        }
+        try {
+            Path file = root.resolve(fileName);
+            return Files.isRegularFile(file) ? Optional.of(Files.readAllBytes(file)) : Optional.empty();
+        } catch (IOException e) {
+            throw new UncheckedIOException("학생 사진을 읽지 못했습니다", e);
+        }
+    }
+
     private String fileNameOf(String photoUrl) {
         if (photoUrl == null || !photoUrl.startsWith(urlPrefix + "/")) {
             return null;
         }
         String fileName = photoUrl.substring(urlPrefix.length() + 1);
-        boolean traversal = fileName.isBlank() || fileName.contains("/") || fileName.contains("\\")
-                || fileName.contains("..");
-        return traversal ? null : fileName;
+        return isPlainFileName(fileName) ? fileName : null;
+    }
+
+    private static boolean isPlainFileName(String fileName) {
+        return fileName != null && !fileName.isBlank() && !fileName.contains("/") && !fileName.contains("\\")
+                && !fileName.contains("..");
     }
 }

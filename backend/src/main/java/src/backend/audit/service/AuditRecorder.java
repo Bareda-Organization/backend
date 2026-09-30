@@ -2,6 +2,7 @@ package src.backend.audit.service;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.stereotype.Service;
@@ -74,16 +75,35 @@ public class AuditRecorder {
      */
     public void recordDataAccessRead(Long academyId, Long actorAccountId, String targetType, Long targetId,
             Map<String, Object> detail) {
+        recordDataAccessReads(academyId, actorAccountId, targetType, Map.of(targetId, detail));
+    }
+
+    /**
+     * L3 를 싣는 <b>목록</b> 응답의 감사 — 실린 자원마다 1행을 남기되(Ruling 333) 트랜잭션·계정 조회는 <b>한 번</b>
+     * 이다(BR-213). 자원마다 {@link #recordDataAccessRead} 를 부르면 페이지 100건이 트랜잭션 100개·계정 SELECT 100회가
+     * 되고, 그동안 바깥 읽기 트랜잭션이 커넥션을 쥔 채 두 번째 커넥션을 기다린다.
+     *
+     * @param detailByTargetId 자원 id → 그 행의 {@code detail}. 삽입 순서대로 적재한다. 비어 있으면 아무것도 하지 않는다
+     */
+    public void recordDataAccessReads(Long academyId, Long actorAccountId, String targetType,
+            Map<Long, Map<String, Object>> detailByTargetId) {
+        if (detailByTargetId.isEmpty()) {
+            return;
+        }
         try {
             requiresNew.executeWithoutResult(status -> {
                 String actorLoginId =
                         accountRepository.findById(actorAccountId).map(Account::getLoginId).orElse(null);
-                auditLogRepository.save(AuditLog.forDataAccessRead(academyId, actorAccountId, actorLoginId,
-                        targetType, targetId, detail, OffsetDateTime.now(clock)));
+                OffsetDateTime occurredAt = OffsetDateTime.now(clock);
+                List<AuditLog> rows = detailByTargetId.entrySet().stream()
+                        .map(target -> AuditLog.forDataAccessRead(academyId, actorAccountId, actorLoginId,
+                                targetType, target.getKey(), target.getValue(), occurredAt))
+                        .toList();
+                auditLogRepository.saveAll(rows);
             });
         } catch (RuntimeException e) {
-            log.error("감사 로그 적재 실패 — 조회 자체는 정상 처리됨. targetType={}, targetId={}, actorAccountId={}",
-                    targetType, targetId, actorAccountId, e);
+            log.error("감사 로그 적재 실패 — 조회 자체는 정상 처리됨. targetType={}, targetIds={}, actorAccountId={}",
+                    targetType, detailByTargetId.keySet(), actorAccountId, e);
         }
     }
 }

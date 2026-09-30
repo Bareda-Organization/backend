@@ -183,13 +183,25 @@ public class AuditLog {
         return log;
     }
 
+    /** {@code actor_login_id} 컬럼 길이 — {@code account.login_id} 와 같다. */
+    private static final int ACTOR_LOGIN_ID_MAX_LENGTH = 50;
+
+    /** 앞 {@code max} 글자 — 컬럼은 문자 수로 세므로 서로게이트 쌍을 가르지 않게 코드포인트 단위로 자른다. */
+    private static String firstCodePoints(String value, int max) {
+        if (value == null || value.codePointCount(0, value.length()) <= max) {
+            return value;
+        }
+        return value.substring(0, value.offsetByCodePoints(0, max));
+    }
+
     /**
      * 로그인 실패(SYS-02 · API_SPEC §2.5) — 비밀번호 불일치와 <b>존재하지 않는 로그인 아이디</b> 둘 다
      * 이 팩토리를 쓴다. ERD §3.4 이 {@code actor_account_id} 설명에 "로그인 실패는 계정 미확정
      * 가능성 존재" 라고 명시해, 계정을 특정하지 못한 실패도 기록 대상임을 전제한다 — 그 경우
      * {@code actorAccountId} 는 {@code null}, {@code targetId} 도 {@code null} 이고
-     * {@code actorLoginId} 에는 시도된 문자열이 그대로 남는다(계정이 없어도 "누가 무엇으로
-     * 시도했는지"는 감사 대상이다).
+     * {@code actorLoginId} 에는 시도된 문자열이 남는다(계정이 없어도 "누가 무엇으로
+     * 시도했는지"는 감사 대상이다) — 컬럼이 {@code varchar(50)} 이라 <b>앞 50자까지만</b> 남긴다. 등록될 수 없는
+     * 긴 아이디를 그대로 넣으면 저장이 실패해 로그인 응답이 {@code 500} 이 된다(BR-216).
      *
      * <p><b>차단된 계정의 대조 전 거부는 이 팩토리를 부르지 않는다</b>(Ruling 242 — 카운터도 안
      * 오르는 시도이므로 감사 이력에도 남기지 않는다. 심을 변형 4가 바로 이 경계를 시험한다).
@@ -199,7 +211,7 @@ public class AuditLog {
         AuditLog log = new AuditLog(AuditCategory.LOGIN, AuditAction.LOGIN_FAIL, occurredAt);
         log.academyId = academyId;
         log.actorAccountId = actorAccountId;
-        log.actorLoginId = actorLoginId;
+        log.actorLoginId = firstCodePoints(actorLoginId, ACTOR_LOGIN_ID_MAX_LENGTH);
         log.targetType = TARGET_TYPE_ACCOUNT;
         log.targetId = actorAccountId;
         log.ip = ip;

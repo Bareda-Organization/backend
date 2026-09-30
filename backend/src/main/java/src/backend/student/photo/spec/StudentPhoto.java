@@ -50,6 +50,15 @@ public record StudentPhoto(String extension, byte[] content) {
         return new StudentPhoto(extensionOf(content), content);
     }
 
+    /** 응답 {@code Content-Type} — 확장자가 내용의 서명으로 정해진 값이라({@link #of}) 그대로 옮긴다. */
+    public String contentType() {
+        return switch (extension) {
+            case "png" -> "image/png";
+            case "webp" -> "image/webp";
+            default -> "image/jpeg";
+        };
+    }
+
     private static String extensionOf(byte[] content) {
         if (startsWith(content, PNG_SIGNATURE, 0)) {
             return "png";
