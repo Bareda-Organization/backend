@@ -433,6 +433,7 @@ access(단기) + refresh(장기). 실행·새로고침 시 refresh 로 자동 �
 - 도로 경로 호출의 **재시도 횟수는 `CallerPolicy` 로 갈린다** — 배치 3회 · 온디맨드 2회(`application.yml` `mapRoute` · `mapRouteOnDemand`). 서킷은 공급자가 같아 공유
 - **격벽(동시 호출 칸)은 공유하지 않는다**(`Ruling 350`, BR-169) — 배치 3칸(`mapRouteBatch`) · 온디맨드 1칸(`mapRouteOnDemand`), 합계 4 = 공급자 동시성 상한. 예전에 칸을 공유했을 때는 화면 조회 1건이 07:30 같은 확정 시각에 배치 칸을 빼앗아 회차가 직선거리 근사로 확정됐다 — 확정 워커 풀 기본값(`RunConfirmationWorkerPoolConfig`)이 배치 칸 수를 그대로 따른다
 - **재시도 대상은 타임아웃·연결 실패·5xx 뿐** — 4xx·"경로 없음" 은 다시 불러도 답이 같아 할당량만 소모(`TransientMapRouteFailure`, 2026-09-25 `BR-050`). 대상 밖 실패도 직선거리 근사 폴백은 그대로
+- **서킷이 실패로 세는 것은 재시도 대상에 일일 한도 소진 429 를 더한 것**(`MapRouteCircuitFailure`, `Ruling 379` ⑤ · `BR-208`) — 429 는 재시도는 안 하지만 서킷이 열려야 같은 날 헛호출이 멈춘다. 그 밖의 4xx·"경로 없음" 은 세지 않는다
 
 ### 8.4 온디맨드 계산의 응답 시간 예산
 

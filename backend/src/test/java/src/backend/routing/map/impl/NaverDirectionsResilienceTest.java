@@ -102,7 +102,7 @@ class NaverDirectionsResilienceTest {
 
     /**
      * 공급자 응답 형태 — 0 정상 · 1 은 500(재시도·서킷 개방을 만드는 입력) · 2 는 400(잘못된 요청) ·
-     * 3 은 200 인데 경로 부재. 2·3 은 같은 요청을 다시 보내도 답이 같은 실패다(BR-050).
+     * 3 은 200 인데 경로 부재 · 4 는 429(일일 한도 소진). 2·3·4 는 같은 요청을 다시 보내도 답이 같은 실패다(BR-050).
      */
     private static final AtomicInteger FAIL_MODE = new AtomicInteger();
 
@@ -215,7 +215,7 @@ class NaverDirectionsResilienceTest {
      */
     @Test
     void 다시_불러도_같은_실패는_재시도하지_않는다() {
-        for (int mode : new int[] {2, 3}) {
+        for (int mode : new int[] {2, 3, 4}) {
             PROVIDER_HITS.set(0);
             FAIL_MODE.set(mode);
 
@@ -244,6 +244,22 @@ class NaverDirectionsResilienceTest {
                     .as("응답 형태 %d(요청 탓 실패)를 10번 받았는데 서킷이 열렸다 — 공급자는 멀쩡하다", mode)
                     .isEqualTo(CircuitBreaker.State.CLOSED);
         }
+    }
+
+    /**
+     * 일일 한도 소진(429)은 재시도는 하지 않되 서킷은 <b>실패로 센다</b>(Ruling 379 ⑤, Ruling 361) — 공급자 쪽 사정이라
+     * 서킷이 열려야 같은 날 남은 헛호출이 멈춘다. 400·경로 없음(요청 탓)과 갈리는 점은 서킷이 그 실패를 세느냐다.
+     */
+    @Test
+    void 한도_소진_429_는_서킷을_연다() {
+        CircuitBreaker breaker = circuitBreakerRegistry.circuitBreaker(NaverDirectionsGateway.RESILIENCE_INSTANCE);
+        FAIL_MODE.set(4);
+        for (int i = 0; i < 10; i++) {
+            mapRouteClient.route(요청(지점_두개(), Duration.ofSeconds(2), CallerPolicy.BATCH));
+        }
+
+        assertThat(breaker.getState()).as("429 를 10번 받았는데 서킷이 닫혀 있다 — 한도 소진 중에도 헛호출이 계속 나간다")
+                .isEqualTo(CircuitBreaker.State.OPEN);
     }
 
     /**
@@ -670,9 +686,9 @@ class NaverDirectionsResilienceTest {
         // 그러면 이 클래스의 "정상 경로" 단언이 전부 폴백을 보고 실패한다(실제로 그렇게 나왔다).
         exchange.getResponseHeaders().add("Content-Type", "application/json");
         int mode = FAIL_MODE.get();
-        byte[] body = (mode == 1 || mode == 2 ? "{\"error\":\"boom\"}" : mode == 3 ? "{\"route\":{}}" : 정상_응답())
+        byte[] body = (mode == 1 || mode == 2 || mode == 4 ? "{\"error\":\"boom\"}" : mode == 3 ? "{\"route\":{}}" : 정상_응답())
                 .getBytes(StandardCharsets.UTF_8);
-        exchange.sendResponseHeaders(mode == 1 ? 500 : mode == 2 ? 400 : 200, body.length);
+        exchange.sendResponseHeaders(mode == 1 ? 500 : mode == 2 ? 400 : mode == 4 ? 429 : 200, body.length);
         exchange.getResponseBody().write(body);
         exchange.close();
     }
