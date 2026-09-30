@@ -6,26 +6,25 @@
 
 ⚠ **모델 자리를 채울 때 정의 파일을 `grep -m1 '^model:'` 로 확인한다**(전역 규칙 `parallel-agents-git.md §4.1`). **`head`·`sed` 로 훑으면 전역 rtk hook 이 출력을 압축해 `model:` 줄을 삼킨다** — 2026-08-29 에 실제로 "정의에 `model` 이 없다" 로 잘못 읽었다(아래 "알려진 함정" 의 rtk 압축 항목과 같은 기제다).
 
-작성일 2026-07-28 / 최종 갱신 2026-08-25 / 검증 방식: 소스 직접 확인(앱 미기동)
+작성일 2026-07-28 / 최종 갱신 2026-08-25 · **2026-10-01 일부 절 재확인**(작업 범위 · Kafka 제거 · `maxHeapSize` · 포트 — `CLAUDE.md` 와 코드로 대조, 나머지 절은 미재확인) / 검증 방식: 소스 직접 확인(앱 미기동)
 
 ---
 
-## 현재 작업 범위 — **백엔드 전용** (2026-08-25 사용자 확정)
+## 현재 작업 범위 — **백엔드 + 프론트엔드** (2026-09-10 프론트 복귀 · `CLAUDE.md` 가 기준)
 
 이 절을 가장 먼저 읽는다. 아래 4개가 세션 시작 시점의 전제다.
 
 | 항목 | 내용 |
 |---|---|
-| **작업 범위** | **`backend/` 만.** 프론트엔드는 착수 대상 밖 |
-| **사양·설계의 정본** | **`docs/` 10종.** 진입점은 [`docs/README.md`](../docs/README.md) — 여기서 시작한다 |
-| **구현 추적** | [`docs/IMPLEMENTATION_PLAN.md`](../docs/IMPLEMENTATION_PLAN.md) **§8 진행 추적 표가 단일 창구.** 진행 상태를 다른 문서에 적지 않는다 |
-| **코드 컨벤션** | `docs/backend/CODE_CONVENTIONS.md` (Claude 참조용 Markdown) |
+| **작업 범위** | **`backend/` + `frontend/`.** 2026-08-25 에는 백엔드 전용이었으나 2026-09-10 사용자 결정으로 프론트가 범위 안으로 돌아왔다(Ruling 255 영구 범위 밖을 뒤집음) |
+| **사양·설계의 정본** | **`docs/` 사양·설계.** 진입점은 [`docs/README.md`](../docs/README.md) — 여기서 시작한다 |
+| **구현 추적** | 백엔드 [`docs/IMPLEMENTATION_PLAN.md`](../docs/IMPLEMENTATION_PLAN.md) **§8 진행 추적 표가 단일 창구.** 프론트는 [`docs/frontend/IMPLEMENTATION_PLAN.md`](../docs/frontend/IMPLEMENTATION_PLAN.md). 진행 상태를 다른 문서에 적지 않는다 |
+| **코드 컨벤션** | 백엔드 `docs/backend/CODE_CONVENTIONS.md` · 프론트 `docs/frontend/CONVENTIONS_REACT.md`(관계자 웹, Next.js) · `docs/frontend/CONVENTIONS_FLUTTER.md`(학부모·학생 앱, 매니저 앱) |
 
-**프론트 작업은 범위 밖이다.** 사양(`FEATURE_SPEC` · `USER_FLOWS` 등)에 프론트 요구가 그대로 남아 있으나 **만들 것이 사라진 것이 아니라 지금 만들지 않는 것**이며, 사양에서 지우지 않는다. `IMPLEMENTATION_PLAN` Phase F1~F4 는 `➖ 범위 밖` 으로 고정돼 상태 갱신 대상이 아니다.
-
-- 백엔드 Phase **15개**(0~14)가 갱신 대상, 프론트 Phase **4개**(F1~F4)가 범위 밖
+- 제품 3개 — 관계자 웹(Next.js) · 학부모·학생 앱(Flutter) · 매니저 앱(Flutter). 앱 하나가 로그인 결과의 역할로 갈라진다(학부모↔학생, 기사↔동승자)
+- `docs/IMPLEMENTATION_PLAN.md` 의 Phase F1~F4 `➖` 표기는 **옛 Flutter 계획**에 대한 것이라 그대로 둔다 — 프론트 창구는 `docs/frontend/IMPLEMENTATION_PLAN.md`
 - 프론트 문서는 `docs/frontend/` 에 있다 — `IMPLEMENTATION_PLAN.md` · `CONVENTIONS_REACT.md` · `CONVENTIONS_FLUTTER.md` · `SETUP.md`(2026-09-30 재작성). 옛 `frontend/docs/` 3종은 2026-09-20 문서 통합으로 부재
-- 프론트 전용 에이전트 2개(`ui-implementer` · `design-system-auditor`)는 **삭제됨**. 프론트 작업 요청을 받으면 범위 밖임을 먼저 알린다
+- 옛 프론트 전용 에이전트 2개(`ui-implementer` · `design-system-auditor`)는 삭제됨(범위 밖이던 시기의 정리) — 프론트 작업은 전역 에이전트와 Skill `baraeda-screen-check` 로 한다
 
 ⚠ **아래 절 중 옛 도메인 코드를 서술한 부분은 `IMPLEMENTATION_PLAN` Phase 0(걷어내기) 시점에 무효가 된다.** 해당 위치에 `무효 예정` 표기를 붙여 뒀다 — 표기가 붙은 값을 근거로 지적하지 않는다.
 
@@ -42,10 +41,10 @@
 | 웹 스타터 | **`spring-boot-starter-webmvc`** — 구 `spring-boot-starter-web` 아님. 테스트는 `spring-boot-starter-webmvc-test` |
 | group / base package | `group = 'src'` / **`src.backend`** (비관례적) — 새 클래스는 반드시 `src.backend` 하위. 벗어나면 컴포넌트 스캔에서 빠진다 |
 | DB / 스키마 | PostgreSQL 16 + **Flyway**(`ddl-auto: validate`) |
-| 주요 인프라 의존 | PostgreSQL · Redis 7 · Kafka 3.9(KRaft) |
+| 주요 인프라 의존 | PostgreSQL · Redis 7 (Kafka 는 `b48af995` 로 제거 — 실제로 흐르는 메시지가 0이었다) |
 | 코드 그래프 | 루트에 **`graft/` 존재** → 코드 탐색은 graft 우선(`graft ask`·`grep`·`callers`·`skeleton`), Explore agent 금지 |
 
-Boot 4 특유의 아티팩트 분리(주석이 `build.gradle`에 상세히 있음): `spring-boot-starter-flyway` + `flyway-database-postgresql` 둘 다 필요, `spring-boot-starter-kafka`(신형명), HTTP 클라이언트는 webflux가 아니라 **`spring-boot-starter-webclient`**.
+Boot 4 특유의 아티팩트 분리(주석이 `build.gradle`에 상세히 있음): `spring-boot-starter-flyway` + `flyway-database-postgresql` 둘 다 필요, HTTP 클라이언트는 webflux가 아니라 **`spring-boot-starter-webclient`**.
 
 ---
 
@@ -66,7 +65,7 @@ cd backend
 - ⚠ **Postgres `max_connections=100` 은 여러 좌석이 공유한다.** 동시에 뜬 bootRun 서버 + 테스트 JVM 이 많으면 순간적으로 커넥션이 소진돼 `FATAL: sorry, too many clients already`(SQLSTATE 53300)가 `Failed to load ApplicationContext` 형태로 나타난다 — 아래 "알려진 함정" 절 참고.
 - 기동 명령은 **안내만 하고 직접 실행하지 않는다**(사용자에게 요청):
   ```bash
-  docker compose up -d postgres redis kafka   # 루트에서
+  docker compose up -d postgres redis   # 루트에서
   ```
 - 로컬 postgres는 **의도적으로 영속 볼륨이 없다**(`docker-compose.yml:15-17`). `down` 후 `up` 하면 Flyway가 V1(스키마)+V2(데모 시드)를 매번 새로 구성한다. `stop`/`start`는 데이터가 남으므로 리셋하려면 반드시 `down`을 거친다.
 
@@ -123,11 +122,11 @@ flutter test --dart-define=API_BASE_URL=http://localhost:<포트>/api/v1
 - **spec/impl 분리 기준은 단 하나 — "구현이 변경될 가능성이 있는가"**. 외부 연동·전략 패턴·복수 구현체·Mock 필요·MSA 분리 후보만 `spec/`+`impl/`로 나눈다. 단순 CRUD(`StudentService`·`BusService`·`TenantService` 등)는 **인터페이스를 만들지 않는 게 맞다** — "인터페이스가 없다"를 위반으로 잡지 말 것.
 - **엔티티 패키지는 예외 없이 `entity/`.** 옛 코드의 `notification`·`routing` 이 `domain/` 을 쓰던 것은 2026-08-24 재작성으로 소멸.
 - **CQRS**: Command(생성·수정·삭제)는 **Query를 호출하지 않는다**. Projection은 읽기 모델만 만들고 비즈니스 로직을 두지 않는다.
-- **계층 책임**: Controller는 검증·인증사용자 확인·서비스 호출만 / Service는 HTTP·Redis·Kafka·JPA를 직접 알지 않고 Port(spec) 경유 / Repository는 JPA 접근만 / 외부 기술은 `infrastructure/`.
+- **계층 책임**: Controller는 검증·인증사용자 확인·서비스 호출만 / Service는 HTTP·Redis·JPA를 직접 알지 않고 Port(spec) 경유 / Repository는 JPA 접근만 / 외부 기술은 `infrastructure/`.
 - **DTO**: Entity를 직접 반환하지 않는다. Request DTO → Service → Response DTO.
-- **Event 이름은 과거형** (`LocationUpdatedEvent`, `StudentBoardedEvent`). Command·Query 어휘를 이벤트명에 쓰지 않는다. 서비스 간 직접 체이닝 호출 금지, Kafka 경유 우선.
+- **Event 이름은 과거형** (`LocationUpdatedEvent`, `StudentBoardedEvent`). Command·Query 어휘를 이벤트명에 쓰지 않는다. 서비스 간 직접 체이닝 호출 금지 — 커밋 뒤 도메인 이벤트(`@TransactionalEventListener(AFTER_COMMIT)`)로 잇는다(Kafka 는 제거됨).
 - **응답 규약**: `ApiResponse<T> { success, data, message }` 3필드뿐 — **머신리더블 `errorCode` 필드는 없다**(의도된 설계). 예외는 `BusinessException` + `ErrorCode` enum(8종), 전역 처리는 `GlobalExceptionHandler`. `@Valid` 실패는 `findFirst()`로 **첫 필드 오류 1개만** `"필드명: 메시지"` 형식으로 반환한다.
-- **마이그레이션 — 2026-08-24 방향 전환으로 규칙이 뒤집혔다.** 첫 배포 이전인 현재는 **`V1__init_schema.sql` 을 직접 수정하고 로컬 DB 를 재구성**한다(`docker compose down` → `up -d postgres redis kafka`). 버전을 쌓지 않는다. 옛 규칙("`V{n}` 추가, V1 수정 금지")은 **첫 배포 이후에 되살아난다** — 근거와 전환 시점은 `docs/IMPLEMENTATION_PLAN.md` §2.1·§2.2. 데모 시드는 `db/migration-local/`(**`local`·`demo` 두 프로파일에서만 로드**, prod 미적용). 시드 비밀번호 해시는 Flyway placeholder `seedPasswordHash`로 주입 — local은 `application.yml` 기본값(평문 `password`), demo는 SSM 값(기본값 없음).
+- **마이그레이션 — 2026-08-24 방향 전환으로 규칙이 뒤집혔다.** 첫 배포 이전인 현재는 **`V1__init_schema.sql` 을 직접 수정하고 로컬 DB 를 재구성**한다(`docker compose down` → `up -d postgres redis`). 버전을 쌓지 않는다. 옛 규칙("`V{n}` 추가, V1 수정 금지")은 **첫 배포 이후에 되살아난다** — 근거와 전환 시점은 `docs/IMPLEMENTATION_PLAN.md` §2.1·§2.2. 데모 시드는 `db/migration-local/`(**`local`·`demo` 두 프로파일에서만 로드**, prod 미적용). 시드 비밀번호 해시는 Flyway placeholder `seedPasswordHash`로 주입 — local은 `application.yml` 기본값(평문 `password`), demo는 SSM 값(기본값 없음).
 - **`package-info.java`를 두지 않는다** (패키지 레벨 애너테이션이 필요할 때만 예외).
 
 ---
@@ -161,21 +160,20 @@ flutter test --dart-define=API_BASE_URL=http://localhost:<포트>/api/v1
 
 **포트별 증상표** — 실패를 보면 먼저 여기를 대조한다.
 
-`3000 frontend` 행은 참고용 — 프론트는 현재 착수 대상 밖이다.
+프론트는 범위 안이다(2026-09-10~) — 전부 컨테이너로 띄우면 모든 HTTP 가 proxy(:3000) 한 곳을 지난다(`CLAUDE.md` Docker 절).
 
 | 포트 | 서비스 | 꺼져 있을 때의 증상 |
 |---|---|---|
-| 5432 | postgres | `bootRun`·`@SpringBootTest` 컨텍스트 로드 실패(Hikari 연결 거부 / Flyway 실패). **가장 흔한 원인** |
-| 6379 | redis | 앱은 뜨지만 캐시·Pub/Sub 경로에서 연결 예외 |
-| **29092** | kafka | **가장 헷갈리는 증상** — API는 200을 반환하는데 **알림·WebSocket push가 오지 않는다**. 호스트에서 `bootRun` 할 땐 `PLAINTEXT_HOST`(29092), 컨테이너 내부는 `kafka:9092` |
+| 15432 | postgres | `bootRun`·`@SpringBootTest` 컨텍스트 로드 실패(Hikari 연결 거부 / Flyway 실패). **가장 흔한 원인** |
+| 16379 | redis | 앱은 뜨지만 캐시·Pub/Sub 경로에서 연결 예외 |
 | 8080 | backend | Swagger UI `http://localhost:8080/swagger-ui/index.html` |
-| 3000 | frontend | `--profile frontend`로만 기동(기본 compose에서 제외) |
+| 3000 | proxy(관계자 웹 · API · Swagger) | `docker-compose.app.yml` 오버레이로만 기동(기본 compose 에서 제외). 네이버 지도 키 서비스 URL 과 CORS 허용 목록이 이 포트로 등록돼 있다 |
 
 - **Docker가 꺼져 있으면 직접 `docker compose up`을 실행하지 말고 사용자에게 요청**한다. 그 실패는 코드 결함이 아니라 **환경 문제로 분류**해 보고한다.
 - **로그 포맷**: 별도 logback 설정이 없어 Spring Boot 기본 콘솔 포맷. `spring.jpa.properties.hibernate.format_sql: true`라 SQL이 정렬 출력된다.
 - **비동기·스레드 모델** — "저장은 됐는데 후속이 안 온다"류 버그는 대부분 여기다:
-  1. `@TransactionalEventListener(AFTER_COMMIT)`(`global/event/TransactionalDomainEventRelay`) → **커밋 이후**에야 Kafka 발행. 롤백되면 아무 일도 안 일어난다.
-  2. Kafka `@KafkaListener` 소비 → 알림 생성. **`dedupKey` 중복이면 조용히 skip**한다(멱등 처리) — "두 번째 요청에 알림이 안 온다"는 정상 동작일 수 있다.
+  1. `@TransactionalEventListener(AFTER_COMMIT)`(`global/event/TransactionalDomainEventRelay`) → **커밋 이후**에야 실행된다(알림·WebSocket 방송 리스너 전부 이 방식). 롤백되면 아무 일도 안 일어난다. (`global/event/TransactionalDomainEventRelay` 는 Kafka 제거 때 사라졌다)
+  2. 알림 리스너(`notification/command/*Listener`)가 알림 행을 만든다. **`dedupKey` 중복이면 조용히 skip**한다(멱등 처리) — "두 번째 요청에 알림이 안 온다"는 정상 동작일 수 있다.
   3. STOMP 브로커 스레드에서 `/user/queue/**`·`/topic/tenant/{id}/**` push. `PushTargetResolver`가 대상을 못 찾으면 개인 큐뿐 아니라 **토픽 broadcast까지 통째로 skip**된다.
   4. `@Scheduled` 4종: 위치 tick 3,000ms / 연결끊김 점검 10,000ms(유예 30초) / 등원 접근 점검 15,000ms / SOS 에스컬레이션 30,000ms. 주기값은 `application.yml`의 `app.*` 하위.
 - **Mock 위치 소스가 기본 켜져 있다** — 학생(`app.location.mock.enabled`)·**버스(`app.location.bus-mock.enabled`) 둘 다 local 기본 `true`**. 좌표가 저절로 움직이는 건 버그가 아니다. prod 프로파일에서는 둘 다 `false`, 실 GPS push가 `true`.
@@ -264,7 +262,7 @@ flutter test --dart-define=API_BASE_URL=http://localhost:<포트>/api/v1
 
 - **코드 결함과 구별하는 법** — 같은 클래스가 매 회차 똑같이 실패하면 코드 결함이다. **회차마다 실패하는 클래스 이름이 달라지면** 이 커넥션 경합이다(2026-09-14 실측: 3회 시도에서 각각 다른 클래스 조합이 걸렸다).
 - **원인** — `max_connections=100` 이 서버 전체 공유다(`parallel-agents-git.md §0`). `backend/build.gradle` 이 테스트 Hikari 풀을 `maximum-pool-size=6`으로 제한해 두었는데도, `@SpringBootTest` 설정 조합이 많아 캐시된 컨텍스트마다 별도 풀이 생긴다 — 한 회차 안에서 `HikariPool-73` 까지 번호가 올라간 적이 있다. 여러 좌석의 bootRun 서버 + 테스트 JVM 이 겹치면 순간적으로 100을 넘긴다.
-- **이 저장소 Hikari 풀 크기·`maxHeapSize`(1024m) 설정은 2026-09-14 이전부터 있던 값이다** — 커밋 `9dc43753`(목표 9·10) 은 이 설정을 건드리지 않았다. 직접 대조: `git show 2ea66814:backend/build.gradle`.
+- **이 저장소 Hikari 풀 크기·`maxHeapSize` 설정은 2026-09-14 이전부터 있던 값이다** — 커밋 `9dc43753`(목표 9·10) 은 이 설정을 건드리지 않았다. 직접 대조: `git show 2ea66814:backend/build.gradle`. (당시 1024m — 현재 `build.gradle` 은 `maxHeapSize = '2048m'`.)
 - **재발 시 대응** — **`docker`·`psql` 로 손대지 말고 같은 명령을 그대로 재시도한다**(연결 스냅샷이 낮으면 몇 초~몇 분 뒤 재시도로 통과한다. 2026-09-14 실측: 4번째 시도에서 통과). 다른 좌석과 동시에 대량 테스트를 돌리는 시점을 조율하는 것이 근본 대책이나, `maxParallelForks`·`forkEvery` 조정은 다른 좌석에도 영향을 주는 공유 설정이라 **혼자 판단해 바꾸지 않는다.**
 
 ### 🔴 로컬 Redis 는 **16379** 인데 앱 기본값은 **6379** 다 — 전체 실행에 `SPRING_DATA_REDIS_PORT` 를 준다 (⚠ `./gradlew test` 한정으로 2026-09-14 해소됨, 아래 참고)
