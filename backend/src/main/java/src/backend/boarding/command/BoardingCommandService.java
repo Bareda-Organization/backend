@@ -33,6 +33,7 @@ import src.backend.exception.dto.NoShowCaseView;
 import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.persistence.ClientKeyLock;
 import src.backend.global.security.AuthUser;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RunStop;
@@ -109,6 +110,9 @@ public class BoardingCommandService {
 
     private final RunAssignmentAccess runAssignmentAccess;
 
+    /** 같은 {@code client_key} 의 동시 재전송을 직렬화한다(BR-226). */
+    private final ClientKeyLock clientKeyLock;
+
     private final ApplicationEventPublisher eventPublisher;
 
     private final Clock clock;
@@ -127,6 +131,7 @@ public class BoardingCommandService {
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
 
+        clientKeyLock.acquire(request.clientKey());
         Optional<RiderStatusHistory> replay = riderStatusHistoryRepository.findByClientKey(request.clientKey());
         if (replay.isPresent()) {
             return replayResponse(assertSameRequest(replay.get(), runId, riderId, request.status()));
