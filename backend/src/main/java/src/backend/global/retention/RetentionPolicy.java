@@ -2,6 +2,7 @@ package src.backend.global.retention;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.time.Period;
 
 import org.springframework.stereotype.Component;
 
@@ -10,7 +11,7 @@ import org.springframework.stereotype.Component;
  * "사양이 고정한 값은 코드 상수") — 보유 일수 · 배치 상한을 여기 상수로만 두고 yml 에는 두지 않는다.
  * {@code RetentionCleanupScheduler} 의 실행 주기(cron)만 yml 이 받는다.
  *
- * <p><b>여기 없는 테이블은 지우지 않는다.</b> {@code audit_log} · {@code rider_status_history} ·
+ * <p><b>여기 없는 테이블은 지우지 않는다.</b> {@code rider_status_history} ·
  * {@code no_show_case} · {@code no_show_contact} · {@code exception_report} · {@code emergency_alert} ·
  * {@code route_version} · {@code run_stop} 은 무기한 보존 대상(ERD §7.1·§7.2)이라 이 클래스가 상수를
  * 두지 않았고, 상수가 없으면 그 테이블의 컷오프 자체를 계산할 수 없다 — 실수로 지우는 경로를 만들려면
@@ -18,6 +19,14 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class RetentionPolicy {
+
+    /**
+     * 감사 로그({@code audit_log}) 보관 기간 — <b>2026-10-01 사용자 결정(R46 감사 B · Ruling 445)</b>, 두 category(조회·수정·삭제
+     * 기록과 로그인 기록) 모두 같다. 기존 "삭제 부재(무기한)" 를 바꾼 값이다. 근거는 개인정보 안전성 확보조치 기준의
+     * 접속기록 보관(1년 이상, 대규모·민감정보 2년 이상)이고, 그 문구·적용 대상은 법률 검토(L-06~08)에서 다시 확인한다.
+     * 달력 기준 2년이다({@code Duration} 이 아니라 {@link Period}) — 윤년이 끼어도 "2년 전" 이다.
+     */
+    public static final Period AUDIT_LOG_RETENTION = Period.ofYears(2);
 
     /** 알림 로그 보관 기간 — 14일 확정(ERD §7.2 "notification_log — 14일 — 알림 보관 기간"). */
     public static final Duration NOTIFICATION_LOG_RETENTION = Duration.ofDays(14);
@@ -42,6 +51,11 @@ public class RetentionPolicy {
      * 같은 틱 안에서 반복 호출해 여러 회차로 나눠 지운다.
      */
     public static final int BATCH_SIZE = 5_000;
+
+    /** {@code audit_log} 삭제 기준 시각 — 이보다 이전에 일어난 행이 대상(두 category 모두). */
+    public OffsetDateTime auditLogCutoff(OffsetDateTime now) {
+        return now.minus(AUDIT_LOG_RETENTION);
+    }
 
     /** {@code notification_log} 삭제 기준 시각 — 이보다 이전에 생성된 행이 대상. */
     public OffsetDateTime notificationLogCutoff(OffsetDateTime now) {

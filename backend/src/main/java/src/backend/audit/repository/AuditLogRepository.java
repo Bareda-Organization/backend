@@ -1,7 +1,9 @@
 package src.backend.audit.repository;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 
+import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -114,4 +116,15 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
             + "예외를 여는 판정은 컨트롤러의 @CanReadAudit 하나다")
     Page<AuditLog> findAllByCategoryAndOccurredAtBetween(AuditCategory category, OffsetDateTime from,
             OffsetDateTime to, Pageable pageable);
+
+    /**
+     * 보존 정리 배치(R46 감사 B)가 지울 id 를 오래된 순으로 {@code limit} 만큼 — 카테고리별로 불러 기존
+     * {@code ix_audit_log_category_occurred} 를 탄다(시간만으로 읽는 인덱스를 따로 두면 첫 화면 조회의 실행 계획이
+     * 그쪽으로 옮겨 간다). 전 학원의 만료 행이 대상이라 학원 조건을 걸지 않는다.
+     */
+    @AcademyScopeExempt(reason = "보존 정리 배치 — 전 학원의 만료 감사 행이 대상이고, 부르는 주체가 사용자 요청이 아니라 "
+            + "스케줄러라 요청 주체의 소속 자체가 부재")
+    @Query("select a.id from AuditLog a where a.category = :category and a.occurredAt < :cutoff order by a.occurredAt")
+    List<Long> findIdsForRetentionCleanup(@Param("category") AuditCategory category,
+            @Param("cutoff") OffsetDateTime cutoff, Limit limit);
 }

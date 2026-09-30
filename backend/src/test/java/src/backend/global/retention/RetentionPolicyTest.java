@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.time.Period;
 import java.time.ZoneOffset;
 
 import org.junit.jupiter.api.Test;
@@ -34,6 +35,12 @@ class RetentionPolicyTest {
     void 재발급_토큰_컷오프는_30일_전이다() {
         assertThat(RetentionPolicy.REFRESH_TOKEN_RETENTION_AFTER_EXPIRY_OR_REVOCATION).isEqualTo(Duration.ofDays(30));
         assertThat(policy.refreshTokenCutoff(now)).isEqualTo(now.minusDays(30));
+    }
+
+    @Test
+    void 감사_로그_컷오프는_2년_전이다() {
+        assertThat(RetentionPolicy.AUDIT_LOG_RETENTION).isEqualTo(Period.ofYears(2));
+        assertThat(policy.auditLogCutoff(now)).isEqualTo(now.minusYears(2));
     }
 
     @Test
