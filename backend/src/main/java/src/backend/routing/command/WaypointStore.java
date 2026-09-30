@@ -95,7 +95,7 @@ public class WaypointStore {
     }
 
     /**
-     * 배포 트랜잭션 안에서 다시 확인한다(BR-021) — 회차 행을 잠근 뒤 ① 운행이 시작됐으면 {@code 403
+     * 배포 트랜잭션 안에서 다시 확인한다(BR-021) — 회차 행을 잠근 뒤 ⓪ 그 사이 취소됐으면 {@code 409 RUN_CANCELED}(BR-210) ① 운행이 시작됐으면 {@code 403
      * CHANGE_WINDOW_CLOSED}(ARCHITECTURE §8.5 운행 시작과 동시에 노선 잠금) ② 계산의 바탕 판본이 지금 판본이
      * 아니면 {@code 409 PREVIEW_STALE} — 그 사이 끼어든 배포(승인·다른 경유 지점)를 모르는 계산이 그 위를 덮지
      * 않게 한다. 잠금이 같은 회차의 배포를 줄 세우므로 두 배포가 같은 판본 번호를 만들어 500 이 나지 않는다.
@@ -103,6 +103,9 @@ public class WaypointStore {
     private void assertStillDeployable(Run run, WaypointPreview preview, OffsetDateTime now) {
         Run locked = runRepository.findLockedByIdAndAcademyId(run.getId(), run.getAcademyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        if (locked.isCanceled()) {
+            throw new BusinessException(ErrorCode.RUN_CANCELED);
+        }
         if (ChangeWindowPolicy.segmentOf(locked, now) == ChangeWindow.CLOSED) {
             throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);
         }

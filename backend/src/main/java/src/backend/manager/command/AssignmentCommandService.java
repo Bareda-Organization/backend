@@ -74,6 +74,10 @@ public class AssignmentCommandService {
      *
      * <p>충돌이 있어도 저장한다(Ruling 152). 응답의 {@code assignments[]} 는 이번 요청이 바꾼 것만이
      * 아니라 그 회차의 현재 배치 전부다 — 기사만 바꾼 요청이 동승자를 지운 것처럼 보이지 않게 한다.
+     *
+     * <p>임시 취소된 회차는 {@code 409 RUN_CANCELED} 다(BR-210, Ruling 376) — 요청 첫머리에서 읽은 값으로 판정한다. 회차를 잠그지
+     * 않는 것은 같은 자리를 동시에 채우는 두 요청이 {@code 409 DUPLICATE_ASSIGNMENT} 로 갈리는 계약({@code AssignmentConcurrencyTest})이 잠금으로 직렬화되면
+     * 사라지기 때문이다.
      */
     public RunAssignmentResponse assign(AuthUser requester, Long runId, AssignmentRequest request) {
         if (request.isEmpty()) {
@@ -81,6 +85,9 @@ public class AssignmentCommandService {
         }
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        if (run.isCanceled()) {
+            throw new BusinessException(ErrorCode.RUN_CANCELED);
+        }
         List<AssignmentWarning> warnings = enforcingUniqueRole(() -> {
             List<AssignmentWarning> collected = new ArrayList<>();
             collected.addAll(place(requester, run, ManagerRole.DRIVER, request.driverManagerId()));
