@@ -5870,3 +5870,20 @@ BE1 구현이 취소 판정에 등록과 같은 잠금(`StagingRunGuard.lockIdle
 
 **결과(2026-09-30 완료)** — 병합 `be-main` `9d0ab62e`(transfer: `057955ea`·`598a4984`·`40a4bab4`·`aa3818ae`·`11d1cd2e`) · `789fd1a6`(small: `9067eec8`·`f3c8cab7`·`f6086321`). 목표 1~10·10a 전부 통과 — 작업 창 보고의 결과 XML 집계와 심은 변형(transfer 12종 · small 6종) 기준. 11행: 백엔드 전체 `./gradlew test --rerun` 304클래스 · **1,724건 · 실패 5 · 오류 0 · 건너뜀 0** — 실패 5건은 `Ruling 361` 라이브 2클래스(`NaverDirectionsClientLiveTest` 4 · `RunConfirmationServiceLiveTest` 1)뿐이고, 그 2클래스를 `NAVER_DIRECTIONS_PATH=/map-direction/v1/driving NAVER_DIRECTIONS_MAX_POINTS=7` 로 따로 돌려 5건 통과.
 - 설계 판단 기록 — ①취소 판정은 조건부 DELETE 한 문장이 아니라 **두 회차 행 잠금(id 순) → 잠근 인스턴스로 판정 → 조건부 삭제**: 한 문장 DELETE 는 확정의 미커밋 `idle → confirmed` 를 보지 못함 ②확정 저장 가드(BR-044)를 행 수에서 **강제 추가·이동 행 id 집합** 비교로 교체 ③회차 임시 취소는 `RunCancellation` 한 지점(관계자 · 스케줄 두 경로)이 들어오는 `staged` 이동을 지움 ④BE3 정리는 `WaypointPreviewCache.put` 이 `Clock` 의 오늘보다 앞선 운행일 항목을 지움 — 처음에 일일 회차 배치에 얹었다가 `schedule → routing` 역방향 의존(§3.3 위반)이라 routing 안으로 옮김
+
+## 8.66 ⚖ `R36-BE2` — 매니저 채널 `route_changed` 방송 `Ruling 373` (2026-09-30 · 프론트 R36-FE FE6 요청 · main `99852822`)
+
+### ⚖ Ruling 373 — 확정 노선이 바뀌면 매니저 채널로 `route_changed` 를 방송한다
+
+매니저 앱(FE6, main `6253d9e2`)은 매니저 채널에서 `route_changed` 를 받으면 노선·명단을 다시 불러오게 됐는데 **서버가 그 이벤트를 방송하지 않는다** — ②구간 승인 재최적화·경유 지점 배포 뒤 운행 화면이 옛 노선을 계속 보여 준다(③구간 미등원은 `rider_changed` 로 이미 반영). 푸시 알림 `route_changed`(§9.7)는 이미 같은 계기(`RunRouteConfirmedEvent`)에서 나가지만 앱이 떠 있는 동안의 화면 갱신 수단이 아니다.
+
+⇒ `RunRouteConfirmedEvent` 가 커밋된 뒤 **매니저 채널에만** `route_changed`(`run_id` · `changed_at`) 를 방송한다. 본문에 노선을 싣지 않는다 — 받은 앱이 §4.3·§4.2 를 다시 불러 권한·마스킹 판정을 그대로 지난다. 관제·관리자 채널은 대상 밖(관계자 웹은 7초 폴링). `API_SPEC §7`(채널 표 · §7.1) 반영.
+- 버린 길 — 관제 채널에도 방송: 관계자 웹에 소비자가 없고 폴링이 이미 있다(`YAGNI`)
+
+| # | 완료 조건 | 검사 조건 (심을 변형) |
+|:-:|---|---|
+| 1 | `RunRouteConfirmedEvent` 커밋 뒤 `/topic/manager/runs/{runId}` 로 봉투 `event=route_changed` · `run_id` · payload `run_id`·`changed_at` 1건 | 방송 호출을 no-op → 실패 |
+| 2 | 롤백된 트랜잭션에서는 방송 부재(`AFTER_COMMIT`) | 리스너를 커밋 전 단계로 바꾸면 실패 |
+| 3 | 매니저 채널 외(학생·관제·관리자) 방송 부재 | `broadcastToRunChannels` 로 바꾸면 실패 |
+| 4 | 실제 경로 2개 — ②구간 변경 승인(§5.6) · 경유 지점 배포(§5.15) — 뒤에 방송이 나감 | 경로별 시험. 이벤트 발행을 한 경로에서 빼면 그 시험만 실패 |
+| 5 | 방송 실패(예외)가 요청 응답·다른 리스너를 깨지 않는다 | 게이트웨이가 예외를 던지게 한 시험 |
