@@ -71,7 +71,15 @@ cd backend
 ./gradlew test  -PtestDbUrl=jdbc:postgresql://localhost:15432/<전용DB이름>            # 전체 테스트
 ./gradlew test  -PtestDbUrl=jdbc:postgresql://localhost:15432/<전용DB이름> --tests 'src.backend.BackendApplicationTests'   # 단일 테스트 클래스
 ./gradlew test  -PtestDbUrl=jdbc:postgresql://localhost:15432/<전용DB이름> --tests '*.메서드명'                             # 단일 테스트 메서드
+
+# 실 네이버 API 시험(@Tag("live") 3클래스)은 기본 test 에서 빠져 있다 — 따로 돈다. backend/.env 의 자격증명 필요.
+# Directions 15 일일 한도가 바닥났으면(Ruling 361) 그 응답은 실패가 아니라 건너뜀이고, 다른 오류는 그대로 실패한다.
+./gradlew liveTest -PtestDbUrl=jdbc:postgresql://localhost:15432/<전용DB이름>
+# 한도 회피(Directions 5 전환)는 경로·상한을 짝으로: NAVER_DIRECTIONS_PATH=/map-direction/v1/driving NAVER_DIRECTIONS_MAX_POINTS=7 ./gradlew liveTest …
+# 병합 직전처럼 "자격증명이 없으면 건너뛰지 말고 실패" 해야 하면 test 에 -PrequireLive 를 주면 라이브 시험까지 포함해 돈다.
 ```
+
+**한 명령 검증.** 저장소 루트의 `scripts/verify.sh` 가 백엔드(전용 DB 자동 생성·삭제) + 관계자 웹 + Flutter 4곳을 CI(`.github/workflows/ci.yml`)와 같은 명령으로 돈다 — `scripts/verify.sh web flutter` 처럼 골라서도 된다. 실서버 계약 시험과 실 API 시험은 뺀다. CI 상세·로그 정책은 `docs/infra/DEPLOYMENT.md §5.1`.
 
 ## Docker — 개발 / 배포가 파일로 갈려 있다 (2026-09-18 분리)
 

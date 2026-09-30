@@ -354,7 +354,7 @@ git add infra/proxy/nginx.prod.conf
 git commit -m "chore(deploy): nginx 도메인 치환"
 ```
 
-(macOS `sed -i ''` 기준 — Linux 는 `sed -i` 로 따옴표 없이 실행한다.) 이 커밋을 `main` 에 push 하면 §2.14 최초 배포가 자동으로 트리거된다. `.htpasswd`(§2.12)와 GitHub 시크릿(§2.13)을 아직 안 넣었다면 워크플로가 실패하니 그 둘을 먼저 끝낸다.
+(macOS `sed -i ''` 기준 — Linux 는 `sed -i` 로 따옴표 없이 실행한다.) `deploy-backend.yml` 은 수동 실행 전용(2026-09-09)이라 이 커밋을 push 해도 배포되지 않음 — §2.14 에서 직접 실행. `.htpasswd`(§2.12)와 GitHub 시크릿(§2.13)을 아직 안 넣었다면 워크플로가 실패하니 그 둘을 먼저 끝낸다.
 
 ### 2.12 Swagger Basic Auth 계정 (`.htpasswd`)
 
@@ -414,14 +414,14 @@ sudo docker compose -f /opt/school-bus/docker-compose.prod.yml \
 
 ### 2.14 최초 배포·검증
 
-§2.11 커밋을 push 하면(또는 Actions 탭에서 `deploy-backend.yml`·`deploy-web.yml` 을 각각 `workflow_dispatch` 로) 최초 배포가 실행된다. 검증 기준(설계 문서 §8, 9개 전부 통과해야 완료로 간주):
+§2.11 커밋을 push 한 뒤 Actions 탭에서 `deploy-backend.yml` 을 `workflow_dispatch` 로 실행하면 최초 배포가 실행된다(push 자동 배포는 없음 — 웹 배포 워크플로 `deploy-web.yml` 은 2026-09-09 제거). 검증 기준(설계 문서 §8, 9개 전부 통과해야 완료로 간주):
 
 1. 컨테이너 내부 `/actuator/health` 가 `UP`(DataSource·Redis 포함). 외부에서는 404
 2. `https://app.<도메인>` 에서 데모 계정 로그인 성공
 3. 관리자 관제 화면에서 버스 마커가 실제로 이동
 4. 배차 시뮬레이션 실행이 500 미발생
 5. WebSocket 이 `wss` 로 연결되고 위치 갱신 수신
-6. `main` push 시 자동 재배포 후 1~5 재통과
+6. 재배포(`workflow_dispatch`) 후 1~5 재통과
 7. 브라우저 콘솔에 CORS 오류 부재
 8. `nmap <EIP>` 기준 개방 포트가 80·443 뿐(22·5432·6379·9092 폐쇄)
 9. `pg_dump` 백업이 S3 에 적재, 복구 리허설 1회 성공(§7)
@@ -482,11 +482,28 @@ aws ssm put-parameter --name /school-bus/demo/SEED_PASSWORD_HASH --type SecureSt
 
 ## 5. 일상 배포
 
-`main` push 중 `backend/**`·`docker-compose.prod.yml`·`infra/**` 변경분이 있으면 `deploy-backend.yml` 이 자동 실행(테스트 → 이미지 빌드 → ECR → SSM Send Command → EC2 배포). `frontend/**` 변경은 `deploy-web.yml` 이 별도로 자동 실행.
+`deploy-backend.yml` 은 **수동 실행 전용**이다(`workflow_dispatch` — 2026-09-09). `main` push 로 배포되지 않는다. 실행 흐름은 테스트 → 이미지 빌드 → ECR → SSM Send Command → EC2 배포. 웹 배포 워크플로(`deploy-web.yml`)는 제거된 상태이며 배포 구성은 다시 만든다.
 
-수동 트리거: GitHub 저장소 Actions 탭 → 해당 워크플로 선택 → `Run workflow`(`workflow_dispatch`).
+수동 트리거: GitHub 저장소 Actions 탭 → `deploy-backend` 선택 → `Run workflow`.
 
-동시 배포 처리: 백엔드는 `concurrency: cancel-in-progress: false` — 겹치면 취소 대신 줄을 세운다(옛 이미지가 새 이미지를 덮어쓰는 사고 방지). 웹은 `cancel-in-progress: true` — 마지막 push 만 반영된다.
+### 5.1 CI — `ci.yml` (2026-10-01)
+
+`main` push · 모든 PR 에서 도는 **검증 전용** 워크플로. 배포·시크릿과 무관하다.
+
+| job | 실행 내용 | 제외 |
+|---|---|---|
+| `backend` | compose 의 postgres(`max_connections=300`)를 띄우고 전용 DB 를 만든 뒤 `./gradlew test -PtestDbUrl=… -PciQuiet`. Redis 는 시험이 Testcontainers 로 붙임 | `@Tag("live")` 실 네이버 API 시험 |
+| `web` | `scripts/verify.sh web` — `next typegen` · `tsc --noEmit` · `lint` · `vitest`(Node 22) | 파일명 `*realBackend*.test.ts`(실서버 계약 시험) |
+| `flutter` | `scripts/verify.sh flutter` — 4개 패키지의 `pub get` · `build_runner`(있는 곳) · `analyze` · `test`(3.44.8) | `@Tags(['real_backend'])` 시험 |
+
+- 바뀐 모듈의 job 만 돈다(`dorny/paths-filter`). `ci.yml` 이 바뀌면 전부 돈다. 같은 PR 의 새 커밋은 앞선 실행을 취소한다
+- 로컬 재현: `scripts/verify.sh`(전부) · `scripts/verify.sh web flutter`(골라서). 백엔드는 `backend/scripts/test.sh` 가 전용 DB 를 만들고 지움
+- **로그 정책 — 저장소가 공개라 Actions 로그도 공개다.** 비밀값 없이 돈다(네이버 키 불필요 — `build.gradle` 이 지오코딩·경로·장소검색을 stub 으로 고정). 백엔드는 `-PciQuiet` 으로 로그 수준을 WARN 으로 낮추고 결과 XML 에서 stdout·stderr 를 뺀다 — 실패 때 남는 것은 시험 이름·실패 요약뿐. `deploy-backend.yml` 도 실패 시 backend 컨테이너 로그 120줄을 찍지 않고 `deploy.sh` 가 쓴 실패 사유 줄만 남긴다(로그는 EC2 에서 확인)
+- 결과 XML 은 artifact `backend-test-results`(7일)로 남는다
+- 실 네이버 API 시험은 CI 에서 돌지 않는다 — 자격증명이 없고 Directions 일일 한도가 있다. 실행법은 `CLAUDE.md` "Build & run"
+- 의존성·이미지·액션 갱신은 `.github/dependabot.yml`(주 1회 · 생태계별 묶음)이 PR 로 올린다. Docker 이미지 태그는 부 버전까지 고정
+
+동시 배포 처리: 백엔드는 `concurrency: cancel-in-progress: false` — 겹치면 취소 대신 줄을 세운다(옛 이미지가 새 이미지를 덮어쓰는 사고 방지).
 
 `.htpasswd` 는 `infra/**` 배포에 영향받지 않는다 — `deploy-backend.yml` 의 두 `s3 sync` 가 `--exclude "proxy/.htpasswd"` 로 이 파일을 동기화·삭제 대상에서 제외한다(§2.12). 배포마다 재업로드는 불필요.
 
