@@ -333,6 +333,57 @@ class StaffManagerControllerTest {
                 .containsExactly("13");
     }
 
+    /** BR-273(Ruling 391) — {@code role} 은 그 역할의 매니저만 남긴다. 값이 어긋나면 다른 enum 파라미터처럼 {@code 422} 다. */
+    @Test
+    void role_필터는_그_역할의_매니저만_반환한다() throws Exception {
+        등록된_매니저_id(관계자A_토큰(), "필터기사", "010-9400-0001");
+        mockMvc.perform(post("/api/v1/staff/managers").header("Authorization", 관계자A_토큰())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"필터동승\",\"phone\":\"010-9400-0002\",\"role\":\"escort\"}"))
+                .andExpect(status().isCreated());
+
+        String escorts = 본문(mockMvc.perform(get("/api/v1/staff/managers?role=escort&size=100")
+                        .header("Authorization", 관계자A_토큰()))
+                .andExpect(status().isOk()).andReturn());
+        assertThat((java.util.List<String>) JsonPath.read(escorts, "$.data.items[*].role"))
+                .isNotEmpty().containsOnly("escort");
+        assertThat(escorts).contains("필터동승").doesNotContain("필터기사");
+
+        mockMvc.perform(get("/api/v1/staff/managers?role=pilot").header("Authorization", 관계자A_토큰()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+    }
+
+    /** BR-273 — {@code linked=true} 는 계정이 연결된 매니저만, {@code false} 는 미연결만이고, 페이지 건수도 그 집합의 것이다. */
+    @Test
+    void linked_필터는_계정_연결_여부로_가르고_건수도_그_집합이다() throws Exception {
+        등록된_매니저_id(관계자A_토큰(), "미연결기사", "010-9400-0003");
+
+        String linked = 본문(mockMvc.perform(get("/api/v1/staff/managers?linked=true&size=100")
+                        .header("Authorization", 관계자A_토큰()))
+                .andExpect(status().isOk()).andReturn());
+        assertThat((java.util.List<Object>) JsonPath.read(linked, "$.data.items[*].account_id"))
+                .isNotEmpty().doesNotContainNull();
+        assertThat(linked).contains("강기사").doesNotContain("미연결기사");
+
+        String unlinked = 본문(mockMvc.perform(get("/api/v1/staff/managers?linked=false&size=1")
+                        .header("Authorization", 관계자A_토큰()))
+                .andExpect(status().isOk()).andReturn());
+        assertThat(unlinked).contains("\"account_id\":null");
+        long unlinkedCount = ((Number) JsonPath.read(unlinked, "$.data.total_count")).longValue();
+        assertThat(unlinkedCount).isGreaterThanOrEqualTo(1);
+        String all = 본문(mockMvc.perform(get("/api/v1/staff/managers?size=100")
+                        .header("Authorization", 관계자A_토큰()))
+                .andExpect(status().isOk()).andReturn());
+        assertThat(unlinkedCount)
+                .as("미연결 건수는 전체보다 작다 — 연결된 시드 매니저가 있다")
+                .isLessThan(((Number) JsonPath.read(all, "$.data.total_count")).longValue());
+
+        mockMvc.perform(get("/api/v1/staff/managers?linked=maybe").header("Authorization", 관계자A_토큰()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+    }
+
     /**
      * 검색어의 LIKE 와일드카드는 리터럴로 다뤄진다 — {@code q="%"} 하나가 전체 매칭이 되면 검색이
      * 필터가 아니라 전량 조회가 된다.

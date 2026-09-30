@@ -8,6 +8,7 @@ import java.util.Locale;
 
 import src.backend.exception.entity.ExceptionReportType;
 import src.backend.global.common.enums.Direction;
+import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
@@ -74,6 +75,16 @@ public final class ApiValues {
      * {@code 422} 없이 "미확인만" 필터로 둔갑하기 때문이다.
      */
     public static Boolean ackedFilter(String raw) {
+        return booleanFilter(raw, "acked");
+    }
+
+    /** 매니저 목록의 {@code linked} 쿼리 필터 — {@link #ackedFilter} 와 같은 이유로 {@code Boolean.parseBoolean} 을 쓰지 않는다. */
+    public static Boolean linkedFilter(String raw) {
+        return booleanFilter(raw, "linked");
+    }
+
+    /** {@code true}·{@code false}(대소문자 무시) 만 받고 나머지는 {@code 422} 다. */
+    private static Boolean booleanFilter(String raw, String name) {
         if (raw == null) {
             return null;
         }
@@ -84,7 +95,12 @@ public final class ApiValues {
         if ("false".equalsIgnoreCase(trimmed)) {
             return Boolean.FALSE;
         }
-        throw new BusinessException(ErrorCode.VALIDATION_FAILED, "acked 값이 true/false 가 아닙니다: " + raw);
+        throw new BusinessException(ErrorCode.VALIDATION_FAILED, name + " 값이 true/false 가 아닙니다: " + raw);
+    }
+
+    /** {@code driver}·{@code escort}(§9.8) 를 {@link ManagerRole} 로 옮긴다 — 매니저 목록의 {@code role} 필터. */
+    public static ManagerRole managerRole(String raw) {
+        return toEnum(ManagerRole.class, raw, "매니저 역할이 아닙니다: ");
     }
 
     /** {@code HH:mm} 을 {@link LocalTime} 으로 옮긴다 — 날짜가 없는 시각이다. */
