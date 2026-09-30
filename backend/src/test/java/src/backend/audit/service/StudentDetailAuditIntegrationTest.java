@@ -7,8 +7,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,10 +42,8 @@ import src.backend.global.security.JwtTokenProvider;
  *
  * <p>등록 자체도 {@code target_id} 가 같은 감사 행을 하나 남긴다 — {@code StaffStudentController.register}
  * 가 응답을 조립할 때 {@code studentQueryService.detail(...)} 을 그대로 호출하기 때문이다(§1.9 "쓰기
- * 후 자원 상태를 그대로 반환"). 그래서 {@code target_id} 만으로 걸러 {@code hasSize(1)} 을 단언하면
- * 등록이 남긴 행과 이 테스트가 실제로 검증하려는 GET 호출의 행을 구별하지 못한다(실측 — size 2 로
- * 실패). 등록 직후의 행 id 집합을 먼저 떠 두고, GET 이후 그 집합에 없는 새 행만 걸러 이 GET 호출이
- * 남긴 행 정확히 1건인지를 가른다.
+ * 후 자원 상태를 그대로 반환"). 같은 관계자가 10분 안에 그 학생을 다시 GET 하면 묶여 행이 늘지 않으므로
+ * (Ruling 445), 이 시험은 등록이 남긴 행을 조회 경로의 행으로 본다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -67,26 +63,28 @@ class StudentDetailAuditIntegrationTest {
 
     @Test
     void 관계자_학생_상세_조회는_감사_로그_1건을_남기고_student_ids_를_담는다() throws Exception {
+        // 등록 응답이 학생 상세를 그대로 돌려주므로(§1.9) 등록 요청이 같은 조회 경로로 첫 행을 남긴다
         long studentId = 등록한다("{\"name\":\"P14T1감사대상\",\"can_go_alone\":false}");
 
-        Set<Long> idsBeforeGet = 대상_감사_행(studentId).stream().map(AuditLog::getId).collect(Collectors.toSet());
-
-        mockMvc.perform(get("/api/v1/staff/students/" + studentId)
-                        .header("Authorization", 관계자_토큰()))
-                .andExpect(status().isOk());
-
-        List<AuditLog> newRows = 대상_감사_행(studentId).stream()
-                .filter(log -> !idsBeforeGet.contains(log.getId()))
-                .toList();
-        assertThat(newRows)
-                .as("GET 호출 자체가 새로 남긴 행 — 등록이 이미 남긴 행은 idsBeforeGet 으로 제외했다")
-                .hasSize(1);
-        AuditLog row = newRows.get(0);
+        List<AuditLog> rows = 대상_감사_행(studentId);
+        assertThat(rows).hasSize(1);
+        AuditLog row = rows.get(0);
         assertThat(row.getAction()).isEqualTo(AuditAction.READ);
         assertThat(row.getAcademyId()).isEqualTo(ACADEMY_A);
         @SuppressWarnings("unchecked")
         List<String> studentIds = (List<String>) row.getDetail().get("student_ids");
         assertThat(studentIds).containsExactly(String.valueOf(studentId));
+    }
+
+    @Test
+    void 같은_관계자가_10분_안에_같은_학생을_다시_조회하면_행이_늘지_않는다() throws Exception {
+        long studentId = 등록한다("{\"name\":\"R46감사묶기\",\"can_go_alone\":false}");
+
+        mockMvc.perform(get("/api/v1/staff/students/" + studentId)
+                        .header("Authorization", 관계자_토큰()))
+                .andExpect(status().isOk());
+
+        assertThat(대상_감사_행(studentId)).as("등록이 남긴 1행뿐 — GET 은 같은 행위자·학생이라 묶였다").hasSize(1);
     }
 
     private List<AuditLog> 대상_감사_행(long studentId) {

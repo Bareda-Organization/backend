@@ -163,6 +163,7 @@ public class AuditLog {
         log.targetType = targetType;
         log.targetId = targetId;
         log.detail = detail;
+        log.ip = ip;
         return log;
     }
 

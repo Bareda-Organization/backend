@@ -9,7 +9,6 @@ import java.util.stream.Collectors;
 
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
@@ -49,10 +48,14 @@ import src.backend.student.repository.StudentRepository;
  * <p>{@code RosterQueryService#phonesOf} 와 판정 방식은 같지만(학생당 첫 보호자 연락처) 그 메서드가
  * {@code private} 이라 직접 재사용할 수 없어(p13-task-t2.md §1 목표 10) 같은 {@link
  * GuardianStudentRepository#findGuardianPhonesByAcademyId} 호출을 이 클래스가 다시 감싼다.
+ *
+ * <p>클래스에 {@code @Transactional} 을 두지 않는다 — 감사 기록({@code AuditRecorder}, {@code REQUIRES_NEW})이 읽기
+ * 트랜잭션 안에서 돌면 요청 하나가 DB 연결을 둘 쥐고, 동시 요청이 풀 크기에 닿으면 서로의 두 번째 연결을 기다려
+ * 풀리지 않는다(R46 감사 #1). 저장소 호출마다 짧은 읽기 트랜잭션이 돌고, 감사는 조회가 끝난 뒤에 기록한다 —
+ * 조회가 예외로 끝나면 감사 호출에 닿지 않는다.
  */
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class AdminRunRosterQueryService {
 
     private final RunRepository runRepository;

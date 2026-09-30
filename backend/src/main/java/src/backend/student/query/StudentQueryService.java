@@ -8,7 +8,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
@@ -33,10 +32,14 @@ import src.backend.student.repository.StudentRepository;
  * <p>목록과 상세가 <b>같은 보호자 연락처 조회</b>를 공유한다 — 연락처는 {@code student} 에 복제하지
  * 않고 매번 조인해 얻는 값이라(A-10), 두 경로가 따로 조립하면 한쪽만 {@code unlinked_at} 조건을
  * 빠뜨리는 식으로 같은 학생의 번호가 화면마다 달라진다.
+ *
+ * <p>클래스에 {@code @Transactional} 을 두지 않는다 — 감사 기록({@code AuditRecorder}, {@code REQUIRES_NEW})이 읽기
+ * 트랜잭션 안에서 돌면 요청 하나가 DB 연결을 둘 쥐고, 동시 요청이 풀 크기에 닿으면 서로의 두 번째 연결을 기다려
+ * 풀리지 않는다(R46 감사 #1). 저장소 호출마다 짧은 읽기 트랜잭션이 돌고, 감사는 조회가 끝난 뒤에 기록한다 —
+ * 조회가 예외로 끝나면 감사 호출에 닿지 않는다.
  */
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class StudentQueryService {
 
     /**
