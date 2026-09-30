@@ -38,8 +38,9 @@ import src.backend.student.repository.StudentRepository;
 
 /**
  * 커밋 뒤 방송 리스너 8곳 전부(BR-207) — 방송 송신·명단 조회가 예외를 던져도 리스너 밖으로 퍼지지 않아야 한다.
- * {@code AFTER_COMMIT} 시점의 예외는 이미 커밋된 요청의 응답(500)과 같은 이벤트의 뒤 리스너를 깨뜨린다
- * ({@code RunRouteChangedBroadcastListener} 자바독). 새 방송 리스너를 만들면 여기에 한 줄을 더한다.
+ * {@code AFTER_COMMIT} 시점의 예외는 응답을 바꾸지 않고 스프링이 {@code afterCompletion} 오류 스택으로만 남긴다
+ * (2026-09-30 F8 관측) — 방송 실패는 예상된 운영 상황이라 리스너가 WARN 한 줄로 남기게 한다. 새 방송 리스너를
+ * 만들면 여기에 한 줄을 더한다.
  */
 class BroadcastListenerFailureIsolationTest {
 
