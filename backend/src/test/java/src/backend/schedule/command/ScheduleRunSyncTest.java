@@ -24,6 +24,7 @@ import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 import src.backend.run.command.RunCommandService;
 import src.backend.schedule.dto.ScheduleRegisterRequest;
+import src.backend.global.request.Patch;
 import src.backend.schedule.dto.ScheduleUpdateRequest;
 
 /**
@@ -161,8 +162,8 @@ class ScheduleRunSyncTest {
     void 방향을_바꾸면_옛_방향의_내일_회차가_취소되고_새_방향의_회차가_생긴다() {
         long scheduleId = 시드로_스케줄과_내일_회차를_넣는다();
 
-        scheduleCommandService.update(admin, scheduleId, new ScheduleUpdateRequest(null, null, "from_academy", null,
-                null, null, null, null));
+        scheduleCommandService.update(admin, scheduleId, new ScheduleUpdateRequest(null, null, Patch.of("from_academy"),
+                null, null, null, null, null));
 
         List<Boolean> 취소여부 = jdbcTemplate.queryForList(
                 "SELECT canceled_at IS NOT NULL FROM run WHERE schedule_id = ? ORDER BY direction", Boolean.class,
@@ -300,7 +301,13 @@ class ScheduleRunSyncTest {
     }
 
     private ScheduleUpdateRequest 수정(String weekday, String departTime, String originName, Boolean active) {
-        return new ScheduleUpdateRequest(null, weekday, null, departTime, originName, null, null, active);
+        return new ScheduleUpdateRequest(null, sent(weekday), null, sent(departTime), sent(originName), null, null,
+                sent(active));
+    }
+
+    /** 이 시험에서 {@code null} 은 "키를 보내지 않음" 이다 — 보낸 값만 {@link Patch} 로 감싼다. */
+    private static <T> Patch<T> sent(T value) {
+        return value == null ? null : Patch.of(value);
     }
 
     private long 회차를_넣는다(Long scheduleId, LocalDate date, String departTime, String status) {

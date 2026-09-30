@@ -17,6 +17,8 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -487,6 +489,71 @@ class StaffStudentControllerTest {
         mockMvc.perform(get(BASE + "/" + studentId).header("Authorization", 관계자_토큰(ACADEMY_A)))
                 .andExpect(jsonPath("$.data.note").value("보호자 동행 필요"))
                 .andExpect(jsonPath("$.data.can_go_alone").value(false));
+    }
+
+    private static final String 선택_항목_전부 = """
+            {"name":"P5T1지우기","can_go_alone":true,"student_phone":"010-1111-2222","gender":"male",
+             "birth_date":"2015-03-01","grade":"3학년","class_name":"가반","note":"특이사항"}""";
+
+    /** BR-272(Ruling 390) — 키가 없으면 유지, 선택(○) 항목의 명시적 {@code null} 은 지움이다. */
+    @Test
+    void 선택_항목을_null_로_보내면_지워지고_키가_없는_항목은_유지된다() throws Exception {
+        long studentId = 등록한다(선택_항목_전부);
+
+        mockMvc.perform(수정_요청(studentId, """
+                        {"gender":null,"birth_date":null,"student_phone":null}""")
+                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
+                .andExpect(status().isOk());
+        entityManager.flush();
+
+        assertThat(jdbcTemplate.queryForMap(
+                "SELECT gender, birth_date, student_phone, grade, class_name, note FROM student WHERE id = ?",
+                studentId))
+                .containsEntry("gender", null).containsEntry("birth_date", null)
+                .containsEntry("student_phone", null)
+                .containsEntry("grade", "3학년").containsEntry("class_name", "가반").containsEntry("note", "특이사항");
+    }
+
+    /** BR-272 — 선택 문자열 항목의 빈 문자열은 빈 문자열로 저장되지 않고 {@code null} 이 된다. */
+    @Test
+    void 선택_문자열_항목의_빈_문자열은_null_로_저장된다() throws Exception {
+        long studentId = 등록한다(선택_항목_전부);
+
+        mockMvc.perform(수정_요청(studentId, """
+                        {"student_phone":"","gender":"","grade":"","class_name":"","note":""}""")
+                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
+                .andExpect(status().isOk());
+        entityManager.flush();
+
+        assertThat(jdbcTemplate.queryForMap(
+                "SELECT gender, student_phone, grade, class_name, note FROM student WHERE id = ?", studentId))
+                .containsEntry("gender", null).containsEntry("student_phone", null).containsEntry("grade", null)
+                .containsEntry("class_name", null).containsEntry("note", null);
+    }
+
+    /** BR-272 — 필수(●) 항목 {@code name}·{@code can_go_alone} 에 {@code null}·빈 문자열을 보내면 {@code 422} 다. */
+    @ParameterizedTest
+    @ValueSource(strings = {"{\"name\":null}", "{\"name\":\"\"}", "{\"can_go_alone\":null}"})
+    void 필수_항목을_null_이나_빈_문자열로_보내면_422_이고_바뀌지_않는다(String body) throws Exception {
+        long studentId = 등록한다(선택_항목_전부);
+
+        mockMvc.perform(수정_요청(studentId, body).header("Authorization", 관계자_토큰(ACADEMY_A)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+        entityManager.flush();
+
+        assertThat(jdbcTemplate.queryForMap("SELECT name, can_go_alone FROM student WHERE id = ?", studentId))
+                .containsEntry("name", "P5T1지우기").containsEntry("can_go_alone", true);
+    }
+
+    /** BR-272 — {@code Patch} 안쪽 값에도 길이 제약이 걸린다(추출기가 없으면 조용히 무시돼 DB 오류로 샌다). */
+    @Test
+    void 길이를_넘긴_특이사항은_422_이다() throws Exception {
+        long studentId = 등록한다(선택_항목_전부);
+
+        mockMvc.perform(수정_요청(studentId, "{\"note\":\"" + "가".repeat(201) + "\"}")
+                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
+                .andExpect(status().isUnprocessableEntity());
     }
 
     /**

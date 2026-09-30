@@ -3,6 +3,8 @@ package src.backend.global.config;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -69,5 +71,21 @@ class OpenApiConfigTest {
         assertThat(body).contains("\"type\":\"http\"");
         assertThat(body).contains("\"scheme\":\"bearer\"");
         assertThat(body).contains("\"bearerFormat\":\"JWT\"");
+    }
+
+    /**
+     * BR-272 — PATCH 요청 스키마의 {@code Patch} 항목이 객체({@code {value:…}})가 아니라 안쪽 타입으로 나온다. 이 확인이 없으면
+     * Swagger 예시·프론트 생성 타입이 조용히 어긋난다.
+     */
+    @Test
+    void patchRequestSchemas_exposeInnerTypes() {
+        JsonNode schemas = JsonMapper.builder().build().readTree(apiDocsJson()).at("/components/schemas");
+
+        assertThat(schemas.at("/StudentUpdateRequest/properties/student_phone/type").asString()).isEqualTo("string");
+        assertThat(schemas.at("/StudentUpdateRequest/properties/can_go_alone/type").asString()).isEqualTo("boolean");
+        assertThat(schemas.at("/StudentUpdateRequest/properties/birth_date/type").asString()).isEqualTo("string");
+        assertThat(schemas.at("/ScheduleUpdateRequest/properties/est_duration_min/type").asString())
+                .isEqualTo("integer");
+        assertThat(schemas.at("/ScheduleUpdateRequest/properties/active/type").asString()).isEqualTo("boolean");
     }
 }

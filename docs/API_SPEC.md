@@ -1794,7 +1794,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `est_duration_min` | integer | ○ | 예상 소요시간(분) |
 | `active` | boolean | ○ | 기본 `true`. `false` 인 스케줄은 회차를 만들지 않는다 |
 
-`PATCH` 는 보낸 필드만 고친다 — **키가 없으면 유지 · 선택(○) 항목에 `null` 을 명시하면 지움 · 선택 문자열 항목의 빈 문자열(`""`)은 `null` 로 저장 · 필수(●) 항목의 `null`·빈 문자열은 `422 VALIDATION_FAILED`**(`Ruling 390` — §5.11 과 같다). **`bus_id`·`weekday`·`direction`·`depart_time` 넷이 유일성 조합**이라, 그중 하나만 고쳐도 기존 스케줄과 충돌하면 `409 DUPLICATE_SCHEDULE`.
+`PATCH` 는 보낸 필드만 고친다 — **키가 없으면 유지 · 선택(○) 항목에 `null` 을 명시하면 지움 · 선택 문자열 항목의 빈 문자열(`""`)은 `null` 로 저장 · 필수(●) 항목의 `null`·빈 문자열은 `422 VALIDATION_FAILED`**(`Ruling 390` — §5.11 과 같다). **`active` 는 ○ 이지만 지울 값이 아니라 켜고 끄는 값이라 `null` 도 `422`** 다(지우면 어느 쪽인지 정할 수 없고, 모르고 켜면 회차가 생긴다). **`bus_id`·`weekday`·`direction`·`depart_time` 넷이 유일성 조합**이라, 그중 하나만 고쳐도 기존 스케줄과 충돌하면 `409 DUPLICATE_SCHEDULE`.
 
 **응답** — `id` · `bus_id` · `bus_no` · `weekday` · `direction` · `depart_time` · `origin_name` · `destination_name` · `est_duration_min` · `active`
 

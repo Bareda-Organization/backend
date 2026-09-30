@@ -11,6 +11,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.nio.charset.StandardCharsets;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -140,6 +142,45 @@ class StaffScheduleControllerTest {
         entityManager.flush();
         assertThat(jdbcTemplate.queryForObject("SELECT active FROM schedule WHERE id = ?", Boolean.class,
                 scheduleId)).isFalse();
+    }
+
+    /** BR-272(Ruling 390) — 키가 없으면 유지, 선택 항목의 명시적 {@code null} 은 지움이다. */
+    @Test
+    void 소요시간을_null_로_보내면_지워지고_키가_없으면_유지된다() throws Exception {
+        long scheduleId = 등록된_스케줄_id(관계자A_토큰(), BUS_A_ID, "thu", "to_academy", FREE_TIME);
+        수정한다(관계자A_토큰(), scheduleId, "{\"est_duration_min\":30}").andExpect(status().isOk());
+
+        수정한다(관계자A_토큰(), scheduleId, "{\"origin_name\":\"이름만 수정\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.est_duration_min").value(30));
+
+        수정한다(관계자A_토큰(), scheduleId, "{\"est_duration_min\":null}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.est_duration_min").doesNotExist());
+
+        entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject("SELECT est_duration_min FROM schedule WHERE id = ?", Integer.class,
+                scheduleId)).isNull();
+        assertThat(jdbcTemplate.queryForObject("SELECT origin_name FROM schedule WHERE id = ?", String.class,
+                scheduleId)).isEqualTo("이름만 수정");
+    }
+
+    /** BR-272 — 필수(●) 항목에 {@code null}·빈 문자열을 보내면 {@code 422} 이고 아무것도 바뀌지 않는다. */
+    @ParameterizedTest
+    @ValueSource(strings = {"{\"bus_id\":null}", "{\"weekday\":null}", "{\"weekday\":\"\"}",
+            "{\"direction\":null}", "{\"direction\":\"\"}", "{\"depart_time\":null}", "{\"depart_time\":\"\"}",
+            "{\"origin_name\":null}", "{\"origin_name\":\"\"}", "{\"destination_name\":null}",
+            "{\"destination_name\":\"\"}", "{\"active\":null}"})
+    void 필수_항목을_null_이나_빈_문자열로_보내면_422_이다(String body) throws Exception {
+        long scheduleId = 등록된_스케줄_id(관계자A_토큰(), BUS_A_ID, "thu", "to_academy", FREE_TIME);
+
+        수정한다(관계자A_토큰(), scheduleId, body)
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+
+        entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject("SELECT origin_name FROM schedule WHERE id = ?", String.class,
+                scheduleId)).isEqualTo("중앙 집결지");
     }
 
     /** 수정도 유일성 조합을 받는다 — 시각만 옮겨도 기존 스케줄과 겹치면 {@code 409} 다. */
