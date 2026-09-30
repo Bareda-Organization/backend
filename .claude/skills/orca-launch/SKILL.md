@@ -19,7 +19,7 @@ orca worktree create --name <이름> --setup run      # 프론트 의존성이 �
   | 작업 | 붙일 것 |
   |---|---|
   | 결과 집계 · 로그 추출 · 개수 세기 | `--model claude-haiku-4-5` — **effort 는 주지 않는다** |
-  | 구현 · 리뷰 | **`--model 'claude-sonnet-5[1m]' --effort high`** — ⭐ **sonnet 은 언제나 `[1m]`**(2026-09-19 사용자 상시 지시) |
+  | 구현 · 리뷰 | **`--model 'claude-sonnet-5-5[1m]' --effort xhigh`** — ⭐ **sonnet 은 언제나 `[1m]`**(2026-09-19 사용자 상시 지시) · ⭐ **effort 는 `xhigh`**(2026-10-01 사용자 상시 지시 *"sonnet 을 앞으로 xhigh 로"* — 그 전 기본 `high`) |
   | 코드를 건드려 재현하는 디버깅 | 워크트리 + `--model claude-opus-5 --effort xhigh` |
 
   ⚠ **사양 충돌 판정 · 원인 미상 디버깅은 기본적으로 창을 띄우지 않는다 — 주 세션이 이미 `opus[1m]` · `xhigh` 다.** 별도 창이 값을 하는 경우는 둘뿐이다: ①**코드를 건드려 재현**해야 해서 워크트리 격리가 필요할 때 ②로그·파일을 대량으로 읽어 **주 세션의 조율 맥락을 밀어낼 때**. 둘 다 아니면 여기서 한다.
