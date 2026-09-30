@@ -20,6 +20,7 @@ import src.backend.audit.entity.AuditLog;
 import src.backend.audit.repository.AuditLogRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.request.Patch;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.access.AcademyScope;
 import src.backend.student.dto.StudentRegisterRequest;
@@ -100,10 +101,14 @@ public class StudentCommandService {
     public Long update(AuthUser requester, Long studentId, StudentUpdateRequest request,
             StudentPhoto photo) {
         Student student = find(requester, studentId);
-        student.update(new StudentProfile(requirePresent(request.name()), request.studentPhone(),
-                studentPhotoWriter.replace(student.getPhotoUrl(), photo), parseGender(request.gender()),
-                request.birthDate(), request.grade(),
-                request.className(), request.note(), request.canGoAlone()));
+        student.update(new StudentProfile(Patch.required(request.name(), student.getName()),
+                Patch.optional(request.studentPhone(), student.getStudentPhone()),
+                studentPhotoWriter.replace(student.getPhotoUrl(), photo), genderOf(request, student),
+                Patch.optional(request.birthDate(), student.getBirthDate()),
+                Patch.optional(request.grade(), student.getGrade()),
+                Patch.optional(request.className(), student.getClassName()),
+                Patch.optional(request.note(), student.getNote()),
+                Patch.required(request.canGoAlone(), student.isCanGoAlone())));
         if (request.guardians() != null) {
             changeGuardianPhones(student, request.guardians());
         }
@@ -195,18 +200,12 @@ public class StudentCommandService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN));
     }
 
-    /**
-     * 필수 항목은 <b>보내지 않는 것</b>만 허용하고 빈 문자열은 거부한다 — 공백만 남기면 이름 없는
-     * 학생이 명단에 남는데 저장은 조용히 성공한다.
-     */
-    private String requirePresent(String value) {
-        if (value == null) {
-            return null;
+    /** 성별은 문자열로 받아 {@link Gender} 로 옮기므로 {@link Patch#optional} 을 못 쓴다 — 키 없음·지움·값을 여기서 가른다. */
+    private Gender genderOf(StudentUpdateRequest request, Student student) {
+        if (request.gender() == null) {
+            return student.getGender();
         }
-        if (value.isBlank()) {
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED);
-        }
-        return value;
+        return parseGender(request.gender().value());
     }
 
     /** 값을 주지 않으면 {@code null}(= 바꾸지 않음)이고, 사양에 없는 값은 조용히 무시하지 않고 422 로 거부한다. */

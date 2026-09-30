@@ -3,13 +3,19 @@ package src.backend.student.dto;
 import java.time.LocalDate;
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+import src.backend.global.request.Patch;
+
 /**
- * 학생 정보 수정 요청(STU-03, API_SPEC §5.11 PATCH) — 보낸 항목만 반영되고 {@code null} 은 그대로 둔다.
+ * 학생 정보 수정 요청(STU-03, API_SPEC §5.11 PATCH) — 보낸 항목만 반영된다(Ruling 390).
+ *
+ * <p>항목이 {@link Patch} 인 것은 키가 없는 것({@code null} — 유지)과 명시적 {@code null}({@code Patch.of(null)} — 선택
+ * 항목이면 지움, 필수 항목이면 {@code 422})을 가르기 위해서다. 해석 규칙은 {@link Patch}.
  *
  * <p>사양이 "주소는 대상 밖" 이라 적은 것을 <b>필드 부재로</b> 표현한다(A-10) —
  * {@link StudentRegisterRequest} 와 같은 이유다. 보호자 연락처는 대상 밖이 아니라 {@code guardians[]} 로
@@ -22,19 +28,19 @@ import jakarta.validation.constraints.Size;
  * <p>사진은 {@link StudentRegisterRequest} 와 같은 이유로 여기 부재하다(Ruling 160) — 멀티파트의
  * 파일 파트 {@code photo} 로 온다.
  *
- * <p>{@code canGoAlone} 이 {@link Boolean} 인 것은 "언급하지 않음" 과 {@code false} 를 갈라야 하기
+ * <p>{@code canGoAlone} 이 {@code Patch<Boolean>} 인 것은 "언급하지 않음" 과 {@code false} 를 갈라야 하기
  * 때문이다 — {@code boolean} 이면 이름만 고치는 요청이 혼자 귀가 가능 여부를 매번 {@code false} 로
  * 되돌린다(STU-08).
  */
 public record StudentUpdateRequest(
-        @Size(max = 50) String name,
-        @Size(max = 30) String studentPhone,
-        String gender,
-        LocalDate birthDate,
-        @Size(max = 20) String grade,
-        @Size(max = 50) String className,
-        @Size(max = 200) String note,
-        Boolean canGoAlone,
+        @Schema(implementation = String.class) Patch<@Size(max = 50) String> name,
+        @Schema(implementation = String.class) Patch<@Size(max = 30) String> studentPhone,
+        @Schema(implementation = String.class) Patch<String> gender,
+        @Schema(implementation = LocalDate.class) Patch<LocalDate> birthDate,
+        @Schema(implementation = String.class) Patch<@Size(max = 20) String> grade,
+        @Schema(implementation = String.class) Patch<@Size(max = 50) String> className,
+        @Schema(implementation = String.class) Patch<@Size(max = 200) String> note,
+        @Schema(implementation = Boolean.class) Patch<Boolean> canGoAlone,
         @Valid List<GuardianPhoneChange> guardians) {
 
     /**

@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.global.persistence.LikeEscape;
+import src.backend.global.request.ApiValues;
 import src.backend.global.request.PageParams;
 import src.backend.global.request.SortParam;
 import src.backend.global.response.PageResponse;
@@ -38,7 +39,8 @@ public class ManagerQueryService {
     private final ManagerRepository managerRepository;
 
     /**
-     * 소속 학원의 매니저 목록(§5.13) — {@code q} 를 주면 이름 부분 일치로 좁힌다.
+     * 소속 학원의 매니저 목록(§5.13) — {@code q} 를 주면 이름 부분 일치로, {@code role}·{@code linked} 를 주면 역할·계정
+     * 연결 여부로 좁힌다(Ruling 391). 셋 다 저장소 쿼리 안에서 좁혀 {@code total_count} 가 좁힌 집합의 건수가 된다.
      *
      * <p>삭제된 매니저는 저장소 쿼리가 거른다 — 여기서 한 번 더 거르지 않는 이유는 그러면
      * {@code total_count} 와 페이지 경계가 삭제분을 포함한 값으로 남아, 관계자가 2페이지를 눌러도
@@ -46,6 +48,7 @@ public class ManagerQueryService {
      */
     public PageResponse<ManagerResponse> list(AuthUser requester, ManagerListRequest request) {
         Page<Manager> page = managerRepository.searchByAcademyId(requester.academyId(), namePattern(request.q()),
+                ApiValues.managerRole(request.role()), ApiValues.linkedFilter(request.linked()),
                 PageParams.of(request.page(), request.size())
                         .toPageable(SortParam.parse(request.sort(), SORTABLE_FIELDS, DEFAULT_SORT)));
         List<ManagerResponse> items = page.getContent().stream().map(ManagerResponse::from).toList();

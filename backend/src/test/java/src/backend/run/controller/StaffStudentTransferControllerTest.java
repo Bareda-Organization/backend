@@ -1,5 +1,6 @@
 package src.backend.run.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -36,6 +37,7 @@ import src.backend.run.entity.RunForcedAddition;
 import src.backend.run.entity.RunCancelSource;
 import src.backend.run.repository.RunForcedAdditionRepository;
 import src.backend.run.repository.RunRepository;
+import src.backend.run.repository.RunTransferRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 import src.backend.student.repository.WeeklyAddressRepository;
@@ -92,6 +94,9 @@ class StaffStudentTransferControllerTest {
 
     @Autowired
     private RunForcedAdditionRepository runForcedAdditionRepository;
+
+    @Autowired
+    private RunTransferRepository runTransferRepository;
 
     @Autowired
     private RunConfirmationService confirmationService;
@@ -359,6 +364,26 @@ class StaffStudentTransferControllerTest {
         이동_신청한다(studentId, academyId, 이동_본문(fromRunId, anotherToRunId, stopId, null))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("TRANSFER_ALREADY_STAGED"));
+    }
+
+    // ── 도착 회차 중복(Ruling 392) ────────────────────────────────────────
+
+    @Test
+    @DisplayName("BR-271 — 도착 회차 명단에 이미 있는 학생을 옮기면 409 STUDENT_ALREADY_IN_RUN 이고 이동 행이 남지 않는다")
+    void 도착_회차_명단에_이미_있는_학생을_옮기면_409_이다() throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+        long fromRunId = 회차를_만든다(academyId, fixtures().bus(academyId), 31);
+        long toRunId = 회차를_만든다(academyId, fixtures().bus(academyId), 31);
+        long stopId = fixtures().stop(academyId, "37.560000", "126.970000");
+        long studentId = fixtures().student(academyId, "양쪽학생");
+        학생을_회차_명단에_넣는다(fromRunId, studentId);
+        학생을_회차_명단에_넣는다(toRunId, studentId);
+
+        이동_신청한다(studentId, academyId, 이동_본문(fromRunId, toRunId, stopId, null))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("STUDENT_ALREADY_IN_RUN"));
+
+        assertThat(runTransferRepository.existsStagedByStudentIdAndAcademyId(studentId, academyId)).isFalse();
     }
 
     // ── 주소 경로(STU-05) ────────────────────────────────────────────────

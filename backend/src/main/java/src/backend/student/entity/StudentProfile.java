@@ -10,9 +10,9 @@ import java.time.LocalDate;
  * 방식이다. 보호자 연락처({@code guardian.phone})는 대상 밖이 아니라 별도 경로({@code
  * PATCH .../guardians[]})로 고친다(Ruling 326) — 등록·수정 값 묶음인 이 타입에는 없다.
  *
- * <p><b>{@code null} 은 "바꾸지 않음" 이다</b> — PATCH 는 보낸 필드만 반영하므로 값을 비우는 것과
- * 언급하지 않는 것을 JSON 만으로 가르려면 별도 표현이 필요하고 이 사양은 그것을 요구하지 않는다
- * ({@code AcademyProfile} 과 같은 규약).
+ * <p>등록에서 {@code null} 은 "값 없음" 이고, 수정({@link Student#update})에서도 호출부가 유지·지움을 이미 풀어 넘기므로
+ * 그대로 저장할 값이다(Ruling 390 — 키 없음과 명시적 {@code null} 은 요청 레코드가 가르고
+ * {@link src.backend.global.request.Patch} 가 푼다).
  *
  * @param canGoAlone 혼자 귀가 가능 여부(STU-08). {@code boolean} 이 아니라 {@link Boolean} 인 것은
  *                   수정 요청에서 "언급하지 않음" 을 {@code false} 와 갈라야 하기 때문이다 —
