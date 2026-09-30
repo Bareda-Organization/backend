@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.request.domain.ChangeWindowPolicy;
 import src.backend.request.repository.BoardingIntentRepository;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
@@ -29,6 +30,7 @@ class TargetRunLookup {
     /**
      * 대상 = 확정 전 고정 노선·확정 후 명단에 있는 학생({@link StudentRunResolver#belongsTo}) 또는 그 회차의
      * 탑승 의사를 끈 학생 — ①구간 OFF 학생은 확정 명단에서 빠지지만 여전히 그 회차의 대상이다.
+     * 대상이라도 임시 취소된 회차면 {@code 409 RUN_CANCELED}(Ruling 376) — 대상이 아닌 회차의 404 가 먼저다.
      */
     Run targetRun(Student student, Long runId) {
         Run run = runRepository.findByIdAndAcademyId(runId, student.getAcademyId())
@@ -39,6 +41,7 @@ class TargetRunLookup {
         if (!ridingOff && !studentRunResolver.belongsTo(run, student.getId())) {
             throw new BusinessException(ErrorCode.RUN_NOT_FOUND);
         }
+        ChangeWindowPolicy.assertNotCanceled(run);
         return run;
     }
 }

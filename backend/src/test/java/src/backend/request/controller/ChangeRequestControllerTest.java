@@ -40,11 +40,14 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.request.entity.ChangeRequest;
+import src.backend.request.entity.ChangeRequestSource;
+import src.backend.request.entity.ChangeRequestType;
 import src.backend.request.repository.ChangeRequestRepository;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
 import src.backend.run.command.RunConfirmationFixtures;
 import src.backend.run.command.RunConfirmationService;
+import src.backend.run.entity.RunCancelSource;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
@@ -488,6 +491,33 @@ class ChangeRequestControllerTest {
                 .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
     }
 
+    /** BR-251 — 이력은 최근 100건까지만 싣고, {@code pending_count} 는 잘린 이력과 무관하게 전체 대기 건수다. */
+    @Test
+    void 신청_이력은_최근_100건까지만_싣고_대기_건수는_전체를_센다() throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+        long busId = fixtures().bus(academyId);
+        long stop = fixtures().stop(academyId, "37.560000", "126.970000");
+        fixtures().route(academyId, busId, WEEKDAY, Direction.TO_ACADEMY, stop);
+        long studentId = fixtures().student(academyId, "학생1");
+        fixtures().verifiedAddress(studentId, stop, WEEKDAY, Direction.TO_ACADEMY, "37.560000", "126.970000");
+        long accountId = changeRequestFixtures().parentLinkedTo(academyId, studentId);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusMinutes(20);
+        long runId = fixtures().idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        OffsetDateTime base = OffsetDateTime.now(clock).minusDays(1);
+        for (int i = 0; i < 105; i++) {
+            changeRequestRepository.save(ChangeRequest.forRequest(academyId, runId, studentId,
+                    ChangeRequestSource.CHANGE_REQUEST, ChangeRequestType.CANCEL, (short) 2, accountId,
+                    base.plusSeconds(i)));
+        }
+        entityManager.flush();
+
+        mockMvc.perform(get(CHANGE_REQUESTS.formatted(studentId)).header("Authorization", 토큰(accountId, academyId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(100))
+                .andExpect(jsonPath("$.data.pending_count").value(105));
+    }
+
     // ── 헬퍼 ──────────────────────────────────────────────────────────────────────
 
     private ChangeRequest 그_회차의_신청을_찾는다(long runId, long studentId) {
@@ -497,6 +527,55 @@ class ChangeRequestControllerTest {
                 .filter(cr -> cr.getRunId().equals(runId))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    /** BR-250 — ①구간에서 이미 승인된 탑승 취소를 다시 신청하면(재전송) 새 신청 행을 만들지 않고 앞의 것을 돌려준다. */
+    @Test
+    void 이미_취소된_학생의_취소_신청을_다시_보내도_행은_하나다() throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+        long busId = fixtures().bus(academyId);
+        long stop = fixtures().stop(academyId, "37.560000", "126.970000");
+        fixtures().route(academyId, busId, WEEKDAY, Direction.TO_ACADEMY, stop);
+        long studentId = fixtures().student(academyId, "학생1");
+        fixtures().verifiedAddress(studentId, stop, WEEKDAY, Direction.TO_ACADEMY, "37.560000", "126.970000");
+        long accountId = changeRequestFixtures().parentLinkedTo(academyId, studentId);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusMinutes(31);
+        long runId = fixtures().idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+
+        String first = 본문(신청_요청(accountId, academyId, studentId, "cancel", runId, null, null)
+                .andExpect(status().isCreated()).andReturn());
+        String second = 본문(신청_요청(accountId, academyId, studentId, "cancel", runId, null, null)
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.data.result").value("applied"))
+                .andReturn());
+        entityManager.flush();
+
+        Integer rows = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM change_request WHERE run_id = ? AND student_id = ? AND type = 'cancel'",
+                Integer.class, runId, studentId);
+        assertThat(rows).as("같은 취소를 재전송할 때마다 승인 행이 쌓이면 이력과 관계자 통지가 중복된다").isEqualTo(1);
+        assertThat(com.jayway.jsonpath.JsonPath.<String>read(second, "$.data.change_request_id"))
+                .isEqualTo(com.jayway.jsonpath.JsonPath.<String>read(first, "$.data.change_request_id"));
+    }
+
+    /** BR-224 (Ruling 376) — 임시 취소된 회차에는 변경 신청이 접수되지 않는다(한도도 소비하지 않는다). */
+    @Test
+    void 취소된_회차에_변경_신청하면_409_RUN_CANCELED_이다() throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+        long busId = fixtures().bus(academyId);
+        long stop = fixtures().stop(academyId, "37.560000", "126.970000");
+        fixtures().route(academyId, busId, WEEKDAY, Direction.TO_ACADEMY, stop);
+        long studentId = fixtures().student(academyId, "학생1");
+        fixtures().verifiedAddress(studentId, stop, WEEKDAY, Direction.TO_ACADEMY, "37.560000", "126.970000");
+        long accountId = changeRequestFixtures().parentLinkedTo(academyId, studentId);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusMinutes(31);
+        long runId = fixtures().idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        runRepository.findById(runId).orElseThrow().cancel(OffsetDateTime.now(), RunCancelSource.STAFF);
+
+        신청_요청(accountId, academyId, studentId, "cancel", runId, null, null)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("RUN_CANCELED"));
     }
 
     private ResultActions 신청_요청(long accountId, Long academyId, long studentId, String type, long runId,

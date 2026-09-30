@@ -71,8 +71,7 @@ public class StaffApprovalController {
     /**
      * 승인 대기 상세(§5.5 상세) — 이 시점에 재최적화를 1회 실행해 전/후 대조를 산출한다.
      *
-     * @throws src.backend.global.error.BusinessException {@code 404 APPROVAL_NOT_FOUND}(대상 없음) ·
-     *                                                     {@code 403 ACADEMY_SCOPE_VIOLATION}(다른 학원 소속)
+     * @throws src.backend.global.error.BusinessException {@code 404 APPROVAL_NOT_FOUND}(대상 없음 · 다른 학원 소속 포함)
      */
     @CanApproveChange
     @Operation(summary = "30분 안쪽 변경 승인 상세 (REQ-04·05, A-05)")
@@ -87,8 +86,7 @@ public class StaffApprovalController {
      * 면 {@code reject_reason} 이 필수다(둘 다 서비스 계층에서 검사한다, {@code
      * ChangeRequestCreateRequest} 와 같은 조건부 필수 패턴).
      *
-     * @throws src.backend.global.error.BusinessException {@code 404 APPROVAL_NOT_FOUND} ·
-     *                                                     {@code 403 ACADEMY_SCOPE_VIOLATION} ·
+     * @throws src.backend.global.error.BusinessException {@code 404 APPROVAL_NOT_FOUND}(다른 학원 소속 포함) ·
      *                                                     {@code 409 APPROVAL_ALREADY_DECIDED} ·
      *                                                     {@code 403 CHANGE_WINDOW_CLOSED} ·
      *                                                     {@code 409 PREVIEW_STALE} ·

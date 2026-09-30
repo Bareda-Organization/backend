@@ -113,11 +113,35 @@ public class FcmPushSender implements PushSender {
         }
     }
 
-    /** 404 {@code UNREGISTERED} · 400 {@code INVALID_ARGUMENT} — 그 토큰으로는 다시 보내도 도착하지 않는다. */
+    /**
+     * 404 {@code UNREGISTERED} · 400 {@code INVALID_ARGUMENT} — 그 토큰으로는 다시 보내도 도착하지 않는다.
+     * 단 {@code INVALID_ARGUMENT} 는 본문(제목·본문·{@code data}) 이 거부돼도 같은 코드라서(BR-221), 위반 필드가
+     * 밝혀졌고 {@code message.token} 이 아니면 토큰 탓이 아니므로 해지하지 않고 실패로 남겨 재시도에 맡긴다.
+     */
     private static boolean isInvalidToken(HttpResponse<String> response) {
         String body = response.body() == null ? "" : response.body();
-        return (response.statusCode() == 404 && body.contains("UNREGISTERED"))
-                || (response.statusCode() == 400 && body.contains("INVALID_ARGUMENT"));
+        if (response.statusCode() == 404) {
+            return body.contains("UNREGISTERED");
+        }
+        return response.statusCode() == 400 && body.contains("INVALID_ARGUMENT") && !blamesOtherThanToken(body);
+    }
+
+    /** 응답의 {@code fieldViolations} 가 있고 그 어느 것도 {@code message.token} 이 아니면 본문 문제다. */
+    private static boolean blamesOtherThanToken(String body) {
+        try {
+            boolean anyViolation = false;
+            for (JsonNode detail : JSON.readTree(body).path("error").path("details")) {
+                for (JsonNode violation : detail.path("fieldViolations")) {
+                    anyViolation = true;
+                    if (violation.path("field").asString("").startsWith("message.token")) {
+                        return false;
+                    }
+                }
+            }
+            return anyViolation;
+        } catch (RuntimeException e) {
+            return false; // 읽을 수 없는 본문은 예전처럼 토큰 오류로 본다
+        }
     }
 
     private static String payloadOf(PushMessage message, String token) {

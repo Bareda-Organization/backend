@@ -92,6 +92,43 @@ class DeviceControllerTest {
                 .count()).isEqualTo(1);
     }
 
+    /**
+     * BR-223 — 한 물리 기기의 토큰은 한 계정에만 유효하다. 같은 토큰을 다른 계정이 등록하면(가족이 폰을 돌려 쓰는
+     * 경우) 앞 계정의 유효 행은 해지된다 — 안 그러면 앞 계정 앞으로 적재된 자녀 승하차 알림이 그 폰으로 간다.
+     */
+    @Test
+    @Sql(statements = {
+            "INSERT INTO academy (code, name, region, status) "
+                    + "VALUES ('BR223QQQQQQ', '학원BR223', '서울', 'active')",
+            "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) "
+                    + "VALUES ((SELECT id FROM academy WHERE code = 'BR223QQQQQQ'), "
+                    + "'br223a', 'x', '앞계정', '010-0000-0231', 'parent', 'active')",
+            "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) "
+                    + "VALUES ((SELECT id FROM academy WHERE code = 'BR223QQQQQQ'), "
+                    + "'br223b', 'x', '뒷계정', '010-0000-0232', 'parent', 'active')"
+    })
+    void 같은_토큰을_다른_계정이_등록하면_앞_계정의_단말은_해지된다() throws Exception {
+        Long academyId = academyRepository.findAll().stream()
+                .filter(a -> a.getCode().equals("BR223QQQQQQ")).findFirst().orElseThrow().getId();
+        Long firstAccountId = accountRepository.findByLoginId("br223a").orElseThrow().getId();
+        Long secondAccountId = accountRepository.findByLoginId("br223b").orElseThrow().getId();
+        String payload = """
+                {"token": "shared-phone-token", "platform": "android", "device_id": "device-%s"}
+                """;
+
+        for (Long accountId : new Long[] {firstAccountId, secondAccountId}) {
+            mockMvc.perform(post("/api/v1/me/devices")
+                            .header("Authorization", "Bearer " + tokenProvider.createAccessToken(accountId,
+                                    academyId, Role.PARENT, AccountStatus.ACTIVE))
+                            .contentType(MediaType.APPLICATION_JSON).content(payload.formatted(accountId)))
+                    .andExpect(status().isCreated());
+        }
+
+        assertThat(deviceTokenRepository.findAllByAccountIdAndRevokedAtIsNull(firstAccountId))
+                .as("같은 폰의 토큰이 앞 계정 이름으로 유효하게 남으면 앞 계정 알림이 뒷사람 폰에 뜬다").isEmpty();
+        assertThat(deviceTokenRepository.findAllByAccountIdAndRevokedAtIsNull(secondAccountId)).hasSize(1);
+    }
+
     @Test
     @Sql(statements = {
             "INSERT INTO academy (code, name, region, status) "

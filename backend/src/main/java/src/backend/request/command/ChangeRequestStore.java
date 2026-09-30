@@ -2,6 +2,8 @@ package src.backend.request.command;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Optional;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
@@ -16,6 +18,7 @@ import src.backend.request.domain.ChangeWindowPolicy;
 import src.backend.request.entity.BoardingIntent;
 import src.backend.request.entity.ChangeRequest;
 import src.backend.request.entity.ChangeRequestSource;
+import src.backend.request.entity.ChangeRequestStatus;
 import src.backend.request.entity.ChangeRequestType;
 import src.backend.request.event.AbsentRecordedEvent;
 import src.backend.request.event.ApprovalRequestedEvent;
@@ -72,9 +75,32 @@ public class ChangeRequestStore {
     public ChangeRequest submitCancel(Student student, Run run, Long requestedBy, String reason) {
         OffsetDateTime now = OffsetDateTime.now(clock);
         ChangeWindow window = windowAt(run, now);
+        if (window == ChangeWindow.IMMEDIATE) {
+            Optional<ChangeRequest> already = alreadyCanceled(student, run);
+            if (already.isPresent()) {
+                return already.get();
+            }
+        }
         ChangeRequest changeRequest = create(student, run, window, ChangeRequestType.CANCEL, requestedBy, reason,
                 now);
         return finish(changeRequest, student, run, window, requestedBy, now);
+    }
+
+    /**
+     * ①구간에서 이미 탑승 의사가 꺼져 있고 승인된 취소 신청이 있으면 그 신청을 돌려준다(BR-250) — 재전송(네트워크 재시도·
+     * 더블탭)이 승인 행과 관계자 {@code absent} 통지를 그 횟수만큼 쌓지 않는다.
+     */
+    private Optional<ChangeRequest> alreadyCanceled(Student student, Run run) {
+        boolean off = boardingIntentRepository.findByRunIdAndStudentId(run.getId(), student.getId())
+                .filter(intent -> !intent.isRiding()).isPresent();
+        if (!off) {
+            return Optional.empty();
+        }
+        List<ChangeRequest> approved = changeRequestRepository
+                .findAllByAcademyIdAndRunIdAndTypeAndStatusOrderByRequestedAtAsc(student.getAcademyId(), run.getId(),
+                        ChangeRequestType.CANCEL, ChangeRequestStatus.APPROVED);
+        return approved.stream().filter(cr -> cr.getStudentId().equals(student.getId()))
+                .reduce((first, last) -> last);
     }
 
     /**
@@ -85,6 +111,7 @@ public class ChangeRequestStore {
     private ChangeWindow windowAt(Run run, OffsetDateTime now) {
         Run fresh = runRepository.findByIdAndAcademyId(run.getId(), run.getAcademyId()).orElseThrow(
                 () -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        ChangeWindowPolicy.assertNotCanceled(fresh);
         ChangeWindow window = ChangeWindowPolicy.segmentOf(fresh, now);
         if (window == ChangeWindow.CLOSED) {
             throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);

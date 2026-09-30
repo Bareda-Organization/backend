@@ -140,7 +140,7 @@ class StaffApprovalControllerTest {
     }
 
     /**
-     * BR-075 — 목록은 같은 회차의 항목이 여럿이어도 그 회차 명단을 한 번만 읽는다. 항목마다 회차·명단 전량·
+     * BR-075·BR-252 — 목록은 같은 회차의 항목이 여럿이어도 회차마다 명단을 따로 읽지 않고 회차 id 목록으로 한 번에 읽는다. 항목마다 회차·명단 전량·
      * 버스·학생을 다시 읽으면 목록 한 번에 조회가 항목 수에 비례해 는다.
      */
     @Test
@@ -151,7 +151,8 @@ class StaffApprovalControllerTest {
         목록_조회(관계자_토큰(academyId), null).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items", org.hamcrest.Matchers.hasSize(3)));
 
-        verify(runRiderRepository, times(1)).findAllByRunIdAndAcademyId(anyLong(), anyLong());
+        verify(runRiderRepository, times(1)).findAllByRunIdInAndAcademyId(any(), anyLong());
+        verify(runRiderRepository, times(0)).findAllByRunIdAndAcademyId(anyLong(), anyLong());
     }
 
     /** 대기 건이 없으면 {@code items} 는 빈 배열이고 {@code pending_count} 는 0이다. */
@@ -181,6 +182,8 @@ class StaffApprovalControllerTest {
      */
     @Test
     void 목록은_페이지_단위로_잘라_그_페이지의_회차만_명단을_읽는다() throws Exception {
+        org.mockito.ArgumentCaptor<java.util.Collection<Long>> runIdsCaptor = org.mockito.ArgumentCaptor
+                .forClass(java.util.Collection.class);
         long academyId = 학원과_승인_대기_N건을_만든다(25);
 
         목록_조회(관계자_토큰(academyId), null, 0, 20).andExpect(status().isOk())
@@ -190,7 +193,9 @@ class StaffApprovalControllerTest {
                 .andExpect(jsonPath("$.data.total_count").value(25))
                 .andExpect(jsonPath("$.data.has_next").value(true))
                 .andExpect(jsonPath("$.data.pending_count").value(25));
-        verify(runRiderRepository, times(20)).findAllByRunIdAndAcademyId(anyLong(), anyLong());
+        verify(runRiderRepository, times(1)).findAllByRunIdInAndAcademyId(runIdsCaptor.capture(), anyLong());
+        assertThat(runIdsCaptor.getValue()).as("명단은 그 페이지의 회차 20개에 대해서만, 한 번에 읽는다").hasSize(20);
+        verify(runRiderRepository, times(0)).findAllByRunIdAndAcademyId(anyLong(), anyLong());
 
         org.mockito.Mockito.clearInvocations(runRiderRepository);
 
@@ -199,7 +204,8 @@ class StaffApprovalControllerTest {
                 .andExpect(jsonPath("$.data.page").value(1))
                 .andExpect(jsonPath("$.data.has_next").value(false))
                 .andExpect(jsonPath("$.data.pending_count").value(25));
-        verify(runRiderRepository, times(5)).findAllByRunIdAndAcademyId(anyLong(), anyLong());
+        verify(runRiderRepository, times(1)).findAllByRunIdInAndAcademyId(runIdsCaptor.capture(), anyLong());
+        assertThat(runIdsCaptor.getValue()).hasSize(5);
     }
 
     /** {@code size} 가 §1.8 상한(100)을 넘으면 잘라 주지 않고 {@code 422 VALIDATION_FAILED} 로 거부한다. */

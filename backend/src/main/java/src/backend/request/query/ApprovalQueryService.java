@@ -1,7 +1,6 @@
 package src.backend.request.query;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -130,10 +129,10 @@ public class ApprovalQueryService {
         Map<Long, Run> runs = runRepository
                 .findAllByIdInAndAcademyId(requests.stream().map(ChangeRequest::getRunId).distinct().toList(), requester.academyId())
                 .stream().collect(Collectors.toMap(Run::getId, run -> run));
-        Map<Long, List<RunRider>> ridersByRun = new HashMap<>();
-        for (Long runId : runs.keySet()) {
-            ridersByRun.put(runId, runRiderRepository.findAllByRunIdAndAcademyId(runId, requester.academyId()));
-        }
+        Map<Long, List<RunRider>> ridersByRun = runRiderRepository
+                .findAllByRunIdInAndAcademyId(runs.keySet(), requester.academyId()).stream()
+                .collect(Collectors.groupingBy(RunRider::getRunId));
+        runs.keySet().forEach(runId -> ridersByRun.putIfAbsent(runId, List.of()));
         Map<Long, String> busNos = busRepository
                 .findAllByAcademyIdAndIdIn(requester.academyId(), runs.values().stream().map(Run::getBusId).distinct().toList())
                 .stream().collect(Collectors.toMap(Bus::getId, Bus::getBusNo));

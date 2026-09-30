@@ -249,6 +249,56 @@ class NotificationOutboxWorkerTest {
         return snapshot;
     }
 
+    /**
+     * BR-222 — 백오프 대기 중인 옛 행 100건(한 틱 상한)이 후보 자리를 채워도, 아직 시도하지 않은 새 알림은
+     * 같은 틱에 발송된다. 자바에서 백오프를 거르기 전에 100건을 자르면 새 알림(비상 포함)이 밀린다.
+     */
+    @Test
+    void 백오프_대기_옛_행_100건이_새_알림을_밀어내지_않는다() {
+        OffsetDateTime 옛날 = OffsetDateTime.now(clock).minusYears(10);
+        for (int i = 0; i < 100; i++) {
+            jdbcTemplate.update("""
+                    INSERT INTO notification_log (academy_id, recipient_account_id, recipient_name,
+                            recipient_role, type, title, body, push_state, push_attempts, last_attempt_at,
+                            dedup_key, created_at)
+                    VALUES (1, ?, '조대기', 'parent', 'signup_decided', '가입 심사 안내',
+                            '가입 심사 결과가 나왔습니다.', 'pending', 1, now() - interval '30 seconds', ?, ?)
+                    """, 픽스처_계정, 픽스처_키_접두 + "backoff-" + i, 옛날);
+        }
+        long 새_알림 = 픽스처_행을_심는다("fresh", "pending", 0, null);
+
+        notificationOutboxWorker.sweep();
+
+        assertThat(알림_행(새_알림).get("push_state"))
+                .as("옛 행 100건이 후보 자리를 채우면 새 알림은 백오프가 풀릴 때까지 후보가 되지 못한다")
+                .isEqualTo("sent");
+    }
+
+    /**
+     * BR-225 — 3번째 시도를 선점한 직후 프로세스가 죽어 {@code pending}·{@code push_attempts=3} 으로 남은 행은
+     * 워커가 {@code failed} 로 옮긴다. 후보 조건({@code push_attempts < 3})에 걸리지 않아 영영 정체하는 것을 막는다.
+     */
+    @Test
+    void 시도_상한에서_멈춘_행은_워커가_failed_로_옮긴다() {
+        long 멈춘_행 = 픽스처_행을_심는다("stuck", "pending", 3, OffsetDateTime.now(clock).minusMinutes(5));
+
+        notificationOutboxWorker.sweep();
+
+        assertThat(알림_행(멈춘_행).get("push_state"))
+                .as("발송도 실패 기록도 없이 pending 으로 남으면 14일 뒤 보존 정리 때까지 추적할 수단이 부재하다")
+                .isEqualTo("failed");
+    }
+
+    /** BR-225 — 방금 3번째 시도를 선점해 발송 중일 수 있는 행은 옮기지 않는다(최소 간격 전). */
+    @Test
+    void 방금_3번째_시도를_선점한_행은_failed_로_옮기지_않는다() {
+        long 발송_중 = 픽스처_행을_심는다("in-flight", "pending", 3, OffsetDateTime.now(clock));
+
+        notificationOutboxWorker.sweep();
+
+        assertThat(알림_행(발송_중).get("push_state")).isEqualTo("pending");
+    }
+
     /** 지금 시각 기준으로 워커가 집을 후보의 식별자 목록 — 워커가 쓰는 인자를 그대로 넘긴다. */
     private List<Long> 회수_후보() {
         return notificationLogRepository.findRetryCandidates(PushState.PENDING,
