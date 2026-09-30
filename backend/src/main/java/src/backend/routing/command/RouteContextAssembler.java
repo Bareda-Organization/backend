@@ -37,7 +37,7 @@ import src.backend.run.entity.Run;
 /**
  * {@link WaypointCommandService} 의 add·remove 가 공유하는 재최적화 문맥 조립(RTE-10, API_SPEC §5.15).
  *
- * <p>{@code WaypointCommandService} 에서 가른 이유는 §20.2 크기 신호다(342줄, BR-101, W02-17) — 구간
+ * <p>{@code WaypointCommandService} 에서 가른 이유는 CODE_CONVENTIONS §20.2 크기 신호다(342줄, BR-101, W02-17) — 구간
  * 판정·배포 분기와 이 조립(학원·고정 노선·확정 노선·명단 8개 저장소를 오가는 조회)은 바뀌는 계기가
  * 다르다. 계산 자체(재최적화 파이프라인 호출)는 여전히 {@code WaypointCommandService} 가 한다 — 이
  * 클래스는 그 계산의 입력을 모으기만 한다.

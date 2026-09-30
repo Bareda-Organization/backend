@@ -20,8 +20,8 @@ public interface AcademySettingRepository extends JpaRepository<AcademySetting, 
 
     /**
      * 행이 없으면 기본값으로 자가 치유해 만든다(GET·PATCH 공용, BR-096) — 예전에는 조회·수정 두
-     * 서비스가 이 get-or-create 를 각자 복제해 규칙이 한쪽만 바뀔 위험이 있었다({@code CODE_CONVENTIONS
-     * §20.4}).
+     * 서비스가 이 get-or-create 를 각자 복제해 규칙이 한쪽만 바뀔 위험이 있었다
+     * ({@code CODE_CONVENTIONS §20.4}).
      *
      * <p>동시에 두 요청이 모두 "행 없음" 을 보는 경우를 <b>DB 가 흡수</b>한다(BR-246) — {@code INSERT ... ON CONFLICT
      * DO NOTHING} 이라 뒤 요청은 앞 요청의 커밋을 기다린 뒤 아무것도 하지 않고 그 행을 읽는다. {@code save()} 와

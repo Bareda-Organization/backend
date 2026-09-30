@@ -48,7 +48,7 @@ public class TransferStore {
     /**
      * 두 회차를 id 오름차순으로 잠근 뒤 정차지를 확정하고 이동을 {@code staged} 로 저장한다.
      *
-     * <p>§20.2 — 파라미터 7개를 넘긴 채 둔다. 호출부가 하나({@link TransferCommandService#transfer})
+     * <p>CODE_CONVENTIONS §20.2 — 파라미터 7개를 넘긴 채 둔다. 호출부가 하나({@link TransferCommandService#transfer})
      * 뿐이고 일곱 값이 전부 이 저장에 필요한 서로 다른 도메인 값이라, record 로 묶어도 그 record 를
      * 만드는 자리가 호출부로 그대로 옮겨갈 뿐 파라미터 수는 줄지 않는다 — 유일한 인접 동타입 쌍
      * ({@code fromRun}·{@code toRun})은 이름으로 구분된다.

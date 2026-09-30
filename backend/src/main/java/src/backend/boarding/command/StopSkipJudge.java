@@ -18,7 +18,7 @@ import src.backend.routing.repository.RunStopRepository;
 
 /**
  * 그 승하차지의 {@code skipped} 표시를 다루는 협력자(C-05, API_SPEC §4.6 {@code stop_skipped}) —
- * {@link BoardingCommandService} 의 미승차 처리·되돌리기 두 경로가 함께 쓰는 판정이라 뗐다(§20.2,
+ * {@link BoardingCommandService} 의 미승차 처리·되돌리기 두 경로가 함께 쓰는 판정이라 뗐다(CODE_CONVENTIONS §20.2,
  * BR-101 — 원래 한 클래스에 있어 한쪽 경로를 고칠 때 다른 쪽의 같은 판정을 놓치기 쉬웠다).
  *
  * <p>{@code @Transactional(propagation = MANDATORY)} 다 — 호출부가 이미 연 승하차 처리 트랜잭션

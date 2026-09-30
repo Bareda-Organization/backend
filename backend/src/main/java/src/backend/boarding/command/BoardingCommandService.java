@@ -73,7 +73,7 @@ public class BoardingCommandService {
 
     private final NoShowCaseAccess noShowCaseAccess;
 
-    /** {@code stop_skipped} 판정·해제 협력자(§20.2, BR-101 — 미승차·되돌리기 두 경로가 공유한다). */
+    /** {@code stop_skipped} 판정·해제 협력자(CODE_CONVENTIONS §20.2, BR-101 — 미승차·되돌리기 두 경로가 공유한다). */
     private final StopSkipJudge stopSkipJudge;
 
     /**

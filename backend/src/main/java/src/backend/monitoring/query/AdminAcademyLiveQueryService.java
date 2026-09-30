@@ -81,7 +81,7 @@ public class AdminAcademyLiveQueryService {
      * {@code est_depart_time}({@code run.startedAt})과 {@code position} 이 {@code null} 이다.
      * <b>키는 존재하고 값만 빈다.</b>
      *
-     * <p>§20.2 크기 신호 — 나누지 않는다. 오늘 회차·버스·매니저 연락처·정차지를 각각 한 번에 읽어
+     * <p>CODE_CONVENTIONS §20.2 크기 신호 — 나누지 않는다. 오늘 회차·버스·매니저 연락처·정차지를 각각 한 번에 읽어
      * ID 로 묶는 배치 로딩(BR-065, N+1 방지)이 순서대로 이어지는 서술이라, 단계를 private 메서드로
      * 쪼개면 맵 4개를 그만큼 파라미터로 주고받아야 해 오히려 시그니처가 늘어난다.
      */

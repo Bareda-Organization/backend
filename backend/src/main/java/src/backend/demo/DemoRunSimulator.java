@@ -150,7 +150,7 @@ public class DemoRunSimulator {
         }
     }
 
-    /** 데모 대상이고 그 버스가 아직 안 바쁘면 이 회차를 출발시킨다 — 성공하면 {@code true}(§20.2, BR-101). */
+    /** 데모 대상이고 그 버스가 아직 안 바쁘면 이 회차를 출발시킨다 — 성공하면 {@code true}(CODE_CONVENTIONS §20.2, BR-101). */
     private boolean startIfDue(Run run, Set<Long> busyBusIds) {
         if (!isDemo(run) || busyBusIds.contains(run.getBusId())) {
             return false;
@@ -193,7 +193,7 @@ public class DemoRunSimulator {
         }
     }
 
-    /** 회차 하나를 도로 경로 위 다음 지점으로 옮기고 그 위치를 실 단말과 같은 명령 경로로 보낸다(§20.2, BR-101). */
+    /** 회차 하나를 도로 경로 위 다음 지점으로 옮기고 그 위치를 실 단말과 같은 명령 경로로 보낸다(CODE_CONVENTIONS §20.2, BR-101). */
     private void advanceOne(Run run) {
         List<GeoPoint> path = roadPathOf(run.getId());
         if (path.size() < 2) {

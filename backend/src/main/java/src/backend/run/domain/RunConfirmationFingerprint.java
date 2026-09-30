@@ -35,7 +35,7 @@ public final class RunConfirmationFingerprint {
     /**
      * 확정 배치가 이번 계산에 쓴 입력 전부를 하나의 지문으로 압축한다.
      *
-     * <p>§20.2 — 파라미터 8개를 넘긴 채 둔다. 호출부가 {@code run}·{@code request}·{@code routing}
+     * <p>CODE_CONVENTIONS §20.2 — 파라미터 8개를 넘긴 채 둔다. 호출부가 {@code run}·{@code request}·{@code routing}
      * 세 모듈에 걸쳐 있어(2026-09-25 검사 BR-101) 시그니처를 바꾸면 그 세 곳을 모두 고쳐야 한다 —
      * 이 워크트리(`run`·`schedule`·`bus` 소유)만으로는 안전하게 바꿀 수 없어 그대로 둔다.
      *
