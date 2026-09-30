@@ -317,6 +317,8 @@ public enum ErrorCode {
     // 같은 학생을 다시 이동 신청할 때 — 이미 처리 대기 중인 이동 건이 있으면 어느 회차가 최종
     // 목적지인지 판정할 수 없어 새 신청을 막는다.
     TRANSFER_ALREADY_STAGED(HttpStatus.CONFLICT, "이미 처리 대기 중인 이동 요청이 있습니다"),
+    // 도착 회차 명단(예정 명단 포함)에 그 학생이 이미 있을 때(Ruling 392) — 옮길 것이 없는데 201 이 나가고 impact 가 +1 로 부풀던 결함.
+    STUDENT_ALREADY_IN_RUN(HttpStatus.CONFLICT, "학생이 이미 도착 회차 명단에 있습니다"),
     // 같은 학생을 같은 회차에 다시 강제 추가할 때(§5.7, Ruling 378) — 대기 행은 회차당 학생 1건이라 두 번째는 UNIQUE 위반이
     // 되는데, 그 위반을 옮기지 않으면 500 으로 샌다. 두 번째 요청의 승하차지를 조용히 버리지 않으려 멱등 201 이 아니라 409 다.
     FORCED_ADDITION_ALREADY_STAGED(HttpStatus.CONFLICT, "이미 강제 추가 대기 중인 학생입니다"),

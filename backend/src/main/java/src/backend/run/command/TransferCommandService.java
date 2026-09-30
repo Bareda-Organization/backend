@@ -118,7 +118,11 @@ public class TransferCommandService {
 
         Bus toBus = busRepository.findByIdAndAcademyId(toRun.getBusId(), requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.BUS_NOT_FOUND));
-        long toCurrentCount = rosterReader.read(toRun).size();
+        ProjectedRoster toRoster = rosterReader.read(toRun);
+        if (toRoster.contains(student.getId())) {
+            throw new BusinessException(ErrorCode.STUDENT_ALREADY_IN_RUN);
+        }
+        long toCurrentCount = toRoster.size();
         if (toCurrentCount + 1 > toBus.getStudentCapacity()) {
             throw new BusinessException(ErrorCode.CAPACITY_EXCEEDED,
                     new TransferCapacityDetail(toCurrentCount, toBus.getStudentCapacity()));
