@@ -64,6 +64,10 @@ class FcmPushSenderTest {
             if (body.contains("\"dead-token\"")) {
                 respond(exchange, 404, "{\"error\":{\"code\":404,\"status\":\"NOT_FOUND\",\"details\":[{\"@type\":"
                         + "\"type.googleapis.com/google.firebase.fcm.v1.FcmError\",\"errorCode\":\"UNREGISTERED\"}]}}");
+            } else if (body.contains("\"bad-token\"")) {
+                respond(exchange, 400, invalidArgument("message.token"));
+            } else if (body.contains("\"bad-payload\"")) {
+                respond(exchange, 400, invalidArgument("message.data[0].value"));
             } else {
                 respond(exchange, sendStatus, sendStatus == 200 ? "{\"name\":\"projects/demo/messages/1\"}"
                         : "{\"error\":{\"code\":503,\"status\":\"UNAVAILABLE\"}}");
@@ -100,6 +104,36 @@ class FcmPushSenderTest {
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("503");
         verify(deviceTokenRepository, never()).revokeInvalid(any(), any());
+    }
+
+    /** BR-221 — 본문(payload) 때문에 생긴 {@code INVALID_ARGUMENT} 는 토큰 탓이 아니라 단말을 해지하지 않고 재시도에 맡긴다. */
+    @Test
+    void 본문_문제의_INVALID_ARGUMENT_는_단말을_해지하지_않는다() throws Exception {
+        given(deviceTokenRepository.findAllByAccountIdAndRevokedAtIsNull(7L))
+                .willReturn(List.of(token(1L, "bad-payload")));
+
+        assertThatThrownBy(() -> sender().send(new PushMessage(7L, NotificationType.DELAY, "지연", "본문", false)))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("400");
+        verify(deviceTokenRepository, never()).revokeInvalid(any(), any());
+    }
+
+    /** BR-221 — {@code message.token} 을 가리키는 {@code INVALID_ARGUMENT} 는 여전히 무효 토큰이라 해지한다. */
+    @Test
+    void 토큰_문제의_INVALID_ARGUMENT_는_해지한다() throws Exception {
+        given(deviceTokenRepository.findAllByAccountIdAndRevokedAtIsNull(7L))
+                .willReturn(List.of(token(3L, "bad-token")));
+
+        sender().send(new PushMessage(7L, NotificationType.DELAY, "지연", "본문", false));
+
+        verify(deviceTokenRepository).revokeInvalid(eq(3L), any());
+    }
+
+    private static String invalidArgument(String field) {
+        return "{\"error\":{\"code\":400,\"status\":\"INVALID_ARGUMENT\",\"details\":["
+                + "{\"@type\":\"type.googleapis.com/google.rpc.BadRequest\",\"fieldViolations\":[{\"field\":\""
+                + field + "\",\"description\":\"invalid\"}]},"
+                + "{\"@type\":\"type.googleapis.com/google.firebase.fcm.v1.FcmError\",\"errorCode\":\"INVALID_ARGUMENT\"}]}}";
     }
 
     private FcmPushSender sender() throws Exception {
