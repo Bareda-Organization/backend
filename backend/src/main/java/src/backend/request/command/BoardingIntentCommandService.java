@@ -118,6 +118,11 @@ public class BoardingIntentCommandService {
      */
     private BoardingIntentToggleResponse applyImmediate(Run run, Student student, BoardingIntent intent,
             boolean riding, AuthUser requester, OffsetDateTime now) {
+        if (riding == intent.isRiding()) {
+            // BR-250 — 같은 값의 재전송은 무변경 응답이다. 이벤트를 내면 관계자 푸시가 그 횟수만큼 간다.
+            return BoardingIntentToggleResponse.applied(riding, riderStatusOf(run.getId(), student.getId(), riding),
+                    quotaLeftOf(intent));
+        }
         intent.applyRiding(riding, ChangeWindow.IMMEDIATE, now, requester.accountId());
         eventPublisher.publishEvent(
                 new IntentChangedEvent(run.getId(), run.getAcademyId(), student.getId(), riding, now));
