@@ -89,7 +89,7 @@ services:
   # 엣지 리버스 프록시 — 브라우저가 닿는 유일한 진입점.
   # /api·/ws·/swagger-ui → backend, 나머지 `/` → web. 설정: infra/proxy/nginx.conf
   proxy:
-    image: nginx:alpine
+    image: nginx:1.31.6-alpine
     ports:
       # ⚠ 3000 이다 — 80 이 아니다. 이유가 둘 있고 둘 다 외부 등록값에 묶여 있다.
       #  1) 네이버 지도 키의 "서비스 URL" 이 `http://localhost:3000` 으로 등록돼 있다

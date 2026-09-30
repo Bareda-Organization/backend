@@ -19,7 +19,7 @@ name: school-bus-staging
 
 services:
   postgres:
-    image: postgres:16
+    image: postgres:16.15
     environment:
       POSTGRES_DB: schoolbus
       POSTGRES_USER: schoolbus
@@ -36,7 +36,7 @@ services:
     restart: unless-stopped
 
   redis:
-    image: redis:7
+    image: redis:7.4.11
     # 저장하지 않는다 — DB 와 함께 재시작마다 비워진다(버스 위치는 어차피 2분짜리 값이다).
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     restart: unless-stopped
@@ -87,7 +87,7 @@ services:
   # 라우팅은 개발용 설정에 운영의 보호(인증 경로 속도 제한 · Swagger 차단 · 터널 뒤 접속자 IP)를 더한 스테이징 전용 파일이다(BR-230) —
   # /api·/ws → backend, /download → APK, 나머지 → web.
   proxy:
-    image: nginx:alpine
+    image: nginx:1.31.6-alpine
     ports:
       # 집 PC 자신에서 확인할 때만 쓴다(127.0.0.1 — 공유기 안 다른 기기에도 안 열린다).
       # 바깥 공개는 아래 cloudflared 가 컨테이너 네트워크로 proxy:80 에 직접 붙는다.
@@ -103,7 +103,7 @@ services:
   # Cloudflare Tunnel — 집 PC 가 먼저 Cloudflare 로 연결을 열어 두고, 공개 주소 요청을 그 연결로 받는다.
   # 공개 주소 → 서비스 대상은 Cloudflare 대시보드에서 `http://proxy:80` 으로 지정한다(문서 참고).
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared:2026.9.3
     command: ["tunnel", "--no-autoupdate", "run"]
     environment:
       TUNNEL_TOKEN: ${TUNNEL_TOKEN:?.env 에 Cloudflare Tunnel 토큰이 필요하다}
