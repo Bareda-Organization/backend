@@ -112,16 +112,28 @@ class RedisUnresponsiveTest {
     @Test
     @DisplayName("BR-166 — 근접 판정은 Redis 를 기다리는 동안 DB 커넥션을 쥐지 않는다")
     void 근접_판정은_Redis_를_기다리는_동안_DB_커넥션을_쥐지_않는다() throws Exception {
-        int activeWhileWaiting;
+        int maxActiveWhileWaiting = 0;
+        int samplesWhileWaiting = 0;
         CompletableFuture<Void> judging;
         try (RedisFreeze ignored = RedisFreeze.start()) {
             judging = CompletableFuture.runAsync(() -> proximityNotificationService.judgeOne(RUN_MOVING_ID, ACADEMY_A));
-            Thread.sleep(300);
-            activeWhileWaiting = hikari().getHikariPoolMXBean().getActiveConnections();
+            // 판정이 아직 Redis 를 기다리는 동안(끝나지 않은 동안)에만 표본을 센다 — 명령 상한(1초) 안에서 여러 번 잰다.
+            for (int i = 0; i < 5; i++) {
+                Thread.sleep(100);
+                if (judging.isDone()) {
+                    break;
+                }
+                samplesWhileWaiting++;
+                maxActiveWhileWaiting = Math.max(maxActiveWhileWaiting,
+                        hikari().getHikariPoolMXBean().getActiveConnections());
+            }
         }
         judging.handle((ok, e) -> null).get(10, TimeUnit.SECONDS);
 
-        assertThat(activeWhileWaiting).as("Redis 대기 중 쥔 DB 커넥션 수").isZero();
+        assertThat(samplesWhileWaiting)
+                .as("판정이 Redis 대기에 들어가지 못했다 — 0 이 나와도 커넥션을 안 쥔다는 증거가 못 된다(공허 통과)")
+                .isGreaterThanOrEqualTo(3);
+        assertThat(maxActiveWhileWaiting).as("Redis 대기 중 쥔 DB 커넥션 수").isZero();
     }
 
     /**

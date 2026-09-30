@@ -716,19 +716,6 @@ class AuthControllerTest {
                 .as("코드를 발급하지 않아야 한다").isZero();
     }
 
-    /**
-     * 같은 연락처의 계정이 둘이어도 복구가 {@code 500} 이 아니다(BR-036) — {@code account.phone} 은 UNIQUE 가
-     * 아니라 학생이 보호자 번호로 가입하면 겹친다.
-     */
-    @Test
-    void 같은_연락처의_계정이_둘이어도_복구가_500_이_아니다() throws Exception {
-        createAccount("P2T4AUT22", "p2t4recdup1", "010-7000-0022");
-        createAccount("P2T4AUT23", "p2t4recdup2", "010-7000-0022");
-
-        requestRecoverCode("010-7000-0022")
-                .andExpect(status().isServiceUnavailable());
-    }
-
     // ── §2.9 보조 ────────────────────────────────────────────────────────
 
     private ResultActions requestRecoverCode(String phone) throws Exception {

@@ -9,7 +9,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
@@ -44,6 +46,9 @@ class DemoRunSimulatorTest {
 
     private static final long DEMO_ACADEMY = 11L;
 
+    /** 운영과 같은 서비스 시간대의 고정 시계 — 기계 시간대·자정 근처 실행에 결과가 갈리지 않는다(BR-265). */
+    private static final Clock CLOCK = Clock.fixed(Instant.parse("2030-04-01T03:00:00Z"), ZoneId.of("Asia/Seoul"));
+
     private final RunRepository runRepository = mock(RunRepository.class);
 
     private final AssignmentRepository assignmentRepository = mock(AssignmentRepository.class);
@@ -54,7 +59,7 @@ class DemoRunSimulatorTest {
 
     private final DemoRunSimulator simulator = new DemoRunSimulator(runRepository, assignmentRepository,
             managerRepository, mock(ConfirmedRouteRepository.class), mock(RouteVersionRepository.class),
-            runStartCommandService, mock(RunPositionCommandService.class), Clock.systemDefaultZone());
+            runStartCommandService, mock(RunPositionCommandService.class), CLOCK);
 
     @BeforeEach
     void setUp() {
@@ -105,7 +110,7 @@ class DemoRunSimulatorTest {
     @Test
     void 전날_운행_중으로_남은_회차는_그_버스의_오늘_회차를_막지_않는다() {
         Run yesterday = 회차(1000L, 1000L, DEMO_ACADEMY);
-        given(yesterday.getServiceDate()).willReturn(LocalDate.now().minusDays(1));
+        given(yesterday.getServiceDate()).willReturn(LocalDate.now(CLOCK).minusDays(1));
         회차들(DEMO_ACADEMY, RunStatus.MOVING, yesterday);
         회차들(DEMO_ACADEMY, RunStatus.CONFIRMED, 회차(1001L, 1000L, DEMO_ACADEMY));
 
@@ -125,7 +130,7 @@ class DemoRunSimulatorTest {
         given(run.getId()).willReturn(runId);
         given(run.getBusId()).willReturn(busId);
         given(run.getAcademyId()).willReturn(academyId);
-        given(run.getServiceDate()).willReturn(LocalDate.now());
+        given(run.getServiceDate()).willReturn(LocalDate.now(CLOCK));
 
         Assignment assignment = mock(Assignment.class);
         given(assignment.getManagerId()).willReturn(runId);

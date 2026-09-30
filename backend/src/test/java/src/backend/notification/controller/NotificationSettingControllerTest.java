@@ -119,8 +119,21 @@ class NotificationSettingControllerTest {
         long accountId = accountRepository.save(Account.forSignup(1L, loginId, "{noop}password", "학생",
                 "010-7000-0003", null, Role.STUDENT)).getId();
 
-        mockMvc.perform(get(NOTIFICATION_SETTINGS).header("Authorization", 토큰(accountId, Role.STUDENT)))
-                .andExpect(status().isOk());
+        String token = 토큰(accountId, Role.STUDENT);
+
+        mockMvc.perform(get(NOTIFICATION_SETTINGS).header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.arrive").value(true));
+
+        mockMvc.perform(patch(NOTIFICATION_SETTINGS).header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"arrive\":false,\"boarding\":true,\"no_show\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.arrive").value(false));
+
+        mockMvc.perform(get(NOTIFICATION_SETTINGS).header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.arrive").value(false));
     }
 
     // ── 목표9 — 설정 대상 밖 항목을 PATCH 하면 422 VALIDATION_FAILED ────────────
@@ -168,7 +181,11 @@ class NotificationSettingControllerTest {
         mockMvc.perform(patch(NOTIFICATION_SETTINGS).header("Authorization", 토큰(accountId, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"arrive\":true,\"boarding\":false,\"no_show\":true}"))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.boarding").value(false));
+
+        assertThat(notificationSettingRepository.findById(accountId).orElseThrow().isBoarding())
+                .as("200 만 오고 저장이 안 됐다").isFalse();
     }
 
     // ── 학부모·학생 전용 — 학원 관계자(STAFF) 는 이 화면을 쓸 수 없다 ────────────

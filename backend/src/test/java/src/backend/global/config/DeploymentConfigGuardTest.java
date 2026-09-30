@@ -190,6 +190,35 @@ class DeploymentConfigGuardTest {
         }
     }
 
+    /**
+     * BR-035 — 로그인 무차별 대입 완화 경로가 컨트롤러의 실제 경로(API 접두사 포함)와 어긋나 조용히 무효였다.
+     * nginx 설정 문자열이 접두사를 바꾸거나 옛 {@code /api/auth/} 경로로 돌아가면 제한이 한 번도 걸리지 않는데도
+     * 앱은 정상 동작하므로, 설정을 문자열로 읽어 실제 경로가 그 정규식에 걸리는지 본다.
+     */
+    @Test
+    @DisplayName("nginx 요청 수 제한 location 이 API 접두사를 포함한 실제 인증 경로에 걸리고 옛 경로가 부재한다")
+    void nginxRateLimitPathMatchesRealAuthPaths() throws IOException {
+        String nginx = Files.readString(Path.of("../infra/proxy/nginx.prod.conf"));
+        String regex = nginx.lines().map(String::strip)
+                .filter(line -> line.startsWith("location ~ ") && line.endsWith("{"))
+                .map(line -> line.substring("location ~ ".length(), line.length() - 1).strip())
+                .filter(location -> location.contains("login"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("로그인 요청 수 제한 location(정규식)을 찾지 못했다"));
+
+        // 주석은 옛 경로를 이력으로 언급하므로 설정 줄만 본다.
+        String directives = nginx.lines().filter(line -> !line.strip().startsWith("#"))
+                .collect(java.util.stream.Collectors.joining("\n"));
+        assertThat(directives).as("존재하지 않는 옛 경로 — 제한이 한 번도 걸리지 않는다").doesNotContain("/api/auth/");
+        for (String path : new String[] {"/auth/login", "/auth/signup", "/auth/signup/reapply", "/auth/recover",
+                "/me/students/link"}) {
+            assertThat((ApiPathPrefixConfig.API_PREFIX + path).matches(regex))
+                    .as("%s 가 요청 수 제한 정규식 %s 에 걸리지 않는다", ApiPathPrefixConfig.API_PREFIX + path, regex)
+                    .isTrue();
+        }
+        assertThat("/api/v1/auth/refresh".matches(regex)).as("refresh 는 추측 대상이 아니라 제한에서 뺀다").isFalse();
+    }
+
     /** `---` 로 구분된 프로파일 문서 중 표식(marker)을 포함한 것을 돌려준다. */
     private String sectionOf(String marker) {
         for (String section : applicationYml.split("(?m)^---$")) {
