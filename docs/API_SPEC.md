@@ -1594,7 +1594,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | 권한 | 학원 관계자 |
 | 목적 | 학생 1명을 출발 회차 명단에서 제외하고 도착 회차 명단에 추가 |
 | 구간 | **① 구간 전용** — 둘 중 한 회차라도 ② 구간이면 `403 CHANGE_WINDOW_CLOSED`(UF-M-04) |
-| 대상 | 학생이 출발 회차의 당일 명단(확정 전이면 `boarding_intent`·요일별 주소 기준 예정 명단)에 있어야 함 — 없으면 `409 STUDENT_NOT_IN_RUN` |
+| 대상 | 학생이 출발 회차의 당일 명단(확정 전이면 `boarding_intent`·요일별 주소 기준 예정 명단)에 있어야 함 — 없으면 `409 STUDENT_NOT_IN_RUN`. **도착 회차 명단(예정 명단 포함)에 이미 있으면 `409 STUDENT_ALREADY_IN_RUN`**(`Ruling 392` — 옮길 것이 없는데 `201` 이 나가고 `impact` 가 부풀던 결함) |
 | 정원 | 도착 회차 초과 시 `409 CAPACITY_EXCEEDED`(현재 인원·정원 병기) |
 | 반영 시점 | 저장만 하고 끝난다 — 그날 두 회차 명단에 실제로 합쳐지는 것은 각 회차의 확정 배치다(Ruling 198) |
 
@@ -1618,7 +1618,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `status` | 항상 `staged` |
 | `impact` | `from{rider_count_before, rider_count_after}` · `to{rider_count_before, rider_count_after, capacity}` |
 
-**에러** — `403 CHANGE_WINDOW_CLOSED`(둘 중 한 회차라도 ② 구간 — 저장 전에 확정된 경우 포함) · `409 RUN_CANCELED`(둘 중 한 회차라도 임시 취소) · `409 CAPACITY_EXCEEDED`(도착 회차 정원 초과 — 현재 인원·정원 병기) · `409 STUDENT_NOT_IN_RUN`(학생이 출발 회차 명단 밖) · `409 TRANSFER_ALREADY_STAGED`(같은 학생의 미적용 이동이 이미 있음) · `422 ADDRESS_VERIFICATION_FAILED`(주소 검증 실패) · `422 VALIDATION_FAILED`(`stop_id`·`address` 동시 없음/있음 · `from_run_id`=`to_run_id` · 도착 회차의 날짜·방향이 출발 회차와 다름) · `404 RUN_NOT_FOUND`/`STUDENT_NOT_FOUND`/`STOP_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163. `stop_id` 는 요청 학원으로 좁혀 조회하므로 타 학원 승하차지는 부재와 같다 — 2026-09-05 F4 S1 실측으로 추가) · `403 ACADEMY_SCOPE_VIOLATION`(도착 회차가 타 학원)
+**에러** — `403 CHANGE_WINDOW_CLOSED`(둘 중 한 회차라도 ② 구간 — 저장 전에 확정된 경우 포함) · `409 RUN_CANCELED`(둘 중 한 회차라도 임시 취소) · `409 CAPACITY_EXCEEDED`(도착 회차 정원 초과 — 현재 인원·정원 병기) · `409 STUDENT_NOT_IN_RUN`(학생이 출발 회차 명단 밖) · `409 TRANSFER_ALREADY_STAGED`(같은 학생의 미적용 이동이 이미 있음) · `409 STUDENT_ALREADY_IN_RUN`(학생이 도착 회차 명단에 이미 있음 — `Ruling 392`) · `422 ADDRESS_VERIFICATION_FAILED`(주소 검증 실패) · `422 VALIDATION_FAILED`(`stop_id`·`address` 동시 없음/있음 · `from_run_id`=`to_run_id` · 도착 회차의 날짜·방향이 출발 회차와 다름) · `404 RUN_NOT_FOUND`/`STUDENT_NOT_FOUND`/`STOP_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163. `stop_id` 는 요청 학원으로 좁혀 조회하므로 타 학원 승하차지는 부재와 같다 — 2026-09-05 F4 S1 실측으로 추가) · `403 ACADEMY_SCOPE_VIOLATION`(도착 회차가 타 학원)
 
 ### 5.8.1 DELETE /staff/transfers/{transferId}
 
@@ -1794,7 +1794,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `est_duration_min` | integer | ○ | 예상 소요시간(분) |
 | `active` | boolean | ○ | 기본 `true`. `false` 인 스케줄은 회차를 만들지 않는다 |
 
-`PATCH` 는 보낸 필드만 고친다. **`bus_id`·`weekday`·`direction`·`depart_time` 넷이 유일성 조합**이라, 그중 하나만 고쳐도 기존 스케줄과 충돌하면 `409 DUPLICATE_SCHEDULE`.
+`PATCH` 는 보낸 필드만 고친다 — **키가 없으면 유지 · 선택(○) 항목에 `null` 을 명시하면 지움 · 선택 문자열 항목의 빈 문자열(`""`)은 `null` 로 저장 · 필수(●) 항목의 `null`·빈 문자열은 `422 VALIDATION_FAILED`**(`Ruling 390` — §5.11 과 같다). **`bus_id`·`weekday`·`direction`·`depart_time` 넷이 유일성 조합**이라, 그중 하나만 고쳐도 기존 스케줄과 충돌하면 `409 DUPLICATE_SCHEDULE`.
 
 **응답** — `id` · `bus_id` · `bus_no` · `weekday` · `direction` · `depart_time` · `origin_name` · `destination_name` · `est_duration_min` · `active`
 
@@ -1856,6 +1856,8 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `can_go_alone` | boolean | ● | 혼자 귀가 가능 여부 (STU-08) |
 | `guardians` | array | ○ | **`PATCH` 전용**(Ruling 326) — `[{guardian_id, phone}]`. 이 학생과 연결된 보호자만(아니면 **아무것도 안 바꾼 채** `422 VALIDATION_FAILED`). `phone` 은 숫자·하이픈 |
 
+**`PATCH` 의 지우기**(`Ruling 390`) — 키가 없으면 유지 · 선택(○) 항목에 `null` 을 명시하면 지움 · 선택 문자열 항목의 빈 문자열(`""`)은 `null` 로 저장 · 필수(●) 항목의 `null`·빈 문자열은 `422 VALIDATION_FAILED`. `photo`(파일)·`guardians` 는 이 규칙 밖이다.
+
 ⚠ **관계자가 입력하지 않는 것** (2026-08-24 확정, A-10 · **2026-09-23 Ruling 326 으로 보호자 연락처는 고칠 수 있게 바뀜**).
 
 | 항목 | 어디서 오는가 |
@@ -1907,6 +1909,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 |---|---|
 | `code` | `CAPACITY_BELOW_ASSIGNED` |
 | `run_id` | 넘치는 회차 |
+| `service_date` · `depart_time` · `direction` | 그 회차의 운행일 · 예정 출발 시각 · 방향 — 관리자가 어느 회차인지 찾게 한다(`Ruling 391`) |
 | `assigned_count` | 그 회차의 배정 인원 |
 | `student_capacity` | 수정 후 학생 탑승 가능 인원 |
 
@@ -1916,7 +1919,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 | 메서드 · 경로 | 기능 ID | 설명 |
 |---|---|---|
-| `GET /staff/managers?q=` | MGR-01 | 목록·검색 |
+| `GET /staff/managers?q=&role=&linked=` | MGR-01 | 목록·검색 — `role`(`driver`·`escort`, 선택) · `linked`(boolean, 선택 — `true` 면 계정이 연결된 매니저만, `false` 면 미연결만. 가입 승인의 매니저 후보 고르기용, `Ruling 391`) |
 | `POST /staff/managers` | MGR-02 | 등록 |
 | `PATCH /staff/managers/{id}` | MGR-03 | 수정 |
 | `DELETE /staff/managers/{id}` | MGR-04 | 삭제 — 배치 중이면 `409 MANAGER_ASSIGNED`. 성공 `204`(본문 부재, §1.1) |
@@ -2587,6 +2590,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `STUDENT_NOT_IN_RUN` | 409 | 버스 간 이동 대상 학생이 출발 회차의 당일 명단(요일별 주소·탑승 의사·강제 추가 기준)에 부재 (§5.8 · RTE-07) |
 | `TRANSFER_NOT_FOUND` | 404 | 이동 대기 기록 부재 · 타 학원 (§5.8.1, Ruling 369) |
 | `TRANSFER_ALREADY_STAGED` | 409 | 같은 학생의 처리 대기 중인 이동 건이 이미 존재 — 최종 목적지 회차를 판정할 수 없어 새 신청을 막음 (§5.8) |
+| `STUDENT_ALREADY_IN_RUN` | 409 | 이동(§5.8)의 도착 회차 명단(예정 명단 포함)에 학생이 이미 있음 (`Ruling 392`) |
 | `FORCED_ADDITION_ALREADY_STAGED` | 409 | 같은 학생의 강제 추가 대기가 그 회차에 이미 존재 — 두 번째 요청의 승하차지를 조용히 버리지 않으려 멱등 응답 대신 거부 (§5.7, Ruling 378) |
 
 ### 8.5 자원 · 검증
