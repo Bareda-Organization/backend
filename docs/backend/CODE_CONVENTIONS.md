@@ -92,6 +92,15 @@ private final NotificationSender notificationSender;
 
 예: `LocationChangeCommandService` → `RoutingCommandService.republishForBus` — 반환된 planId가 `LocationChangeRequestResponse.appliedPlanId`이고, 기사 알림은 그 안에서 `RoutePlanPublishedEvent`로 나간다.
 
+### 6.1 커밋 뒤 방송 리스너는 실패를 WARN 한 줄로 기록하고 삼킨다 (2026-09-30)
+
+WebSocket 방송 리스너(`@TransactionalEventListener(phase = AFTER_COMMIT)`)는 방송 송신·명단 조회가 던진 `RuntimeException` 을 **리스너 안에서 `log.warn(..., e)` 로 기록하고 삼킨다.**
+
+- **삼켜도 되는 이유** — 이미 커밋된 뒤라 롤백할 것이 없고, 방송 실패는 브로커 다운·연결 끊김처럼 **예상된 운영 상황**이다. 유실분은 클라이언트가 재연결 때 REST 로 전량 동기화한다(`API_SPEC §7.1`).
+- **삼키지 않으면** — 스프링 7 은 `afterCompletion` 단계의 리스너 예외를 **응답에 반영하지 않고** 오류 스택으로만 남긴다(2026-09-30 시험 관측). 즉 "커밋 뒤 리스너가 던지면 응답이 500 이 된다" 는 전제는 **성립하지 않으며**, 삼키는 목적은 응답 보호가 아니라 **의도된 실패를 오류 스택이 아니라 WARN 한 줄로 남기는 것**이다.
+- **새 방송 리스너를 만들면** `BroadcastListenerFailureIsolationTest` 에 한 줄을 더한다(리스너 8곳이 전부 이 시험에 걸려 있다).
+- **알림 발송은 이 규칙 밖이다** — 잃으면 안 되는 통지는 아웃박스 적재 + 워커 재시도(`TECH_DECISIONS §7`)로 다룬다. WARN 후 삼킴은 유실을 복구할 필요가 없는 방송(`position` 등)과 클라이언트가 재조회하는 신호(`route_changed` 등)에만 쓴다.
+
 ## 7. CQRS 원칙
 
 - **Command**: 생성 · 수정 · 삭제
@@ -149,6 +158,15 @@ List<RunRider> findFinalizedByRunIdAndStopId(@Param("runId") Long runId,
 ## 10. DTO 규칙
 
 `Controller` → Request DTO → `Service` → Response DTO. Entity를 직접 반환하지 않는다.
+
+### 10.1 `PATCH` 요청의 항목은 `Patch<T>` 로 받는다 (`Ruling 390`, `global/request/Patch.java`)
+
+"키가 없다"(유지) 와 "`null` 을 보냈다"(지움) 를 가려야 하는 `PATCH` 는 요청 레코드의 항목을 `Patch<T>` 로 선언한다. 항목이 `null` 이면 키가 없는 것이고, `Patch` 가 있으면 키가 있는 것이며 그 `value()` 가 `null` 이면 명시적 `null` 이다.
+
+- **`Optional<T>` 로 받지 않는다** — Jackson 3 는 키가 없을 때도 `null` 일 때도 `Optional.empty()` 를 넣어 둘을 가를 수 없다(실측, `@JsonSetter(nulls = SET)` 을 달아도 같다).
+- 값의 해석은 `Patch.required(field, current)`(필수 ● — 명시적 `null`·빈 문자열은 `422`) 와 `Patch.optional(field, current)`(선택 ○ — 명시적 `null`·빈 문자열은 지움) 두 메서드로만 한다. 항목마다 `if (field != null)` 를 새로 쓰지 않는다.
+- Bean Validation 은 `Patch<@Size(max = 30) String>` 처럼 안쪽 값에 건다(`PatchValueExtractor`). Swagger 는 `@Schema(implementation = …)` 로 안쪽 타입을 알려 준다.
+- **적용 범위는 사양이 정한 곳뿐이다** — 스케줄·학생 `PATCH`(`API_SPEC §5.10`·`§5.11`). 나머지 `PATCH` 는 일반 타입에 `null` = 유지 그대로이며(`API_SPEC §1.14`), 넓히려면 사양 절을 먼저 고친다.
 
 ## 11. Controller 규칙
 
