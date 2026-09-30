@@ -2605,6 +2605,8 @@ Run `run_d7daf69b57f8` · 4갈래 병합 B `7f781ccc` · W `827250d1` · P `065e
 - **main 병합** `3ab3e267`(R36-FE 1차) · 백엔드 R36-BE 받음 `99852822`
 - **목표 9 ✅ 실서버 FE1**(8182 · `99852822` 코드 · `fe_rb`) — `POST /staff/students/1/transfer`(1104 → 1106, 주소) `201 transfer_id="2"` → 1106 예정 명단 김철수 `change=added` · `transfer_id="2"`(문자열) → `DELETE /staff/transfers/1` `204` → 두 명단 원복(출발 회차에 학생 복귀) → 같은 id 재삭제 `404 TRANSFER_NOT_FOUND`
 - **목표 10 브라우저 ✅ 일부**(5173 → 8182 · Chrome) — 2호차 하원 행 "추가 · 대기 · [이동 취소]" → 확인 대화상자("김철수 학생 — 이동 취소" · [돌아가기]·[이동 취소하기]) → `DELETE /staff/transfers/2` 1회 → 명단 재조회 → 김철수 행 사라짐(`fe1-*.png`) · 비상 알림 "지도에서 보기" = `https://map.naver.com/p/search/37.568,126.9795` · `_blank`. FE2(기한 지난 대기 건)는 서버가 기한에 곧바로 자동 거절해 화면으로 만들 수단이 없어 **가짜 시계 단위 시험으로만** 판정. ⚠ 확인 중 새 결함 5건(조작 뒤 선택 회차가 첫 회차로 튐 · 노선 없는 도착 회차의 빈 승하차지 목록 · 오해 부르는 "확정되지 않은 회차" 띠 · 공용 대화상자 역할 부재 · 취소 문구) → 전체 검사 원장 `frontend/report/review-2026-09-30/C00.md` 로 수정 라운드에서 처리. 시뮬레이터(FE6)는 백엔드 방송 병합 뒤
+- **백엔드 3차 받음** `5acf319b`(main `b42b866d` — 사진 서버 `Ruling 377` · 374~378 서버 · BR 52건). 8182 를 새 코드·새 스키마로 다시 띄워 실서버 계약: 웹 **76/77** · core 9 · 매니저 26 · 학부모 28(`FIXTURE_DB=fe_rb`) — 실패 1 = 웹 `admin` `createAcademy·updateAcademy` 가 가짜 주소 "서울시 어딘가" 로 새 주소 검증(`Ruling 374`)에 `422` → 시험 데이터 수정 항목(원장 `N-04`, 갈래 XC)
+- **사진 실서버·화면 ✅(`Ruling 385`)** — 김철수에게 사진 등록 → `photo_url=/api/v1/files/photos/<uuid>.png` · 토큰 없이 `401` · 토큰으로 `200 image/png` → 관계자 웹 학생 수정 폼의 사진이 `blob:` 주소로 그려짐(`naturalWidth 40` = 올린 40×40 이미지) · 사진 요청에 `Authorization: Bearer` 실림(`frontend/report/r36fe/photo-web.png`)
 
 ## 6. 완료 조건 — 화면 단위
 
