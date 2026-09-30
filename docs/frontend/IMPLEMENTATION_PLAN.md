@@ -2603,6 +2603,8 @@ Run `run_d7daf69b57f8` · 4갈래 병합 B `7f781ccc` · W `827250d1` · P `065e
 
 - **`Ruling 389`** — 웹 공용 검사 수정(갈래 XC)의 판단 3건. ①**공용 `Dialog` 는 바깥 클릭으로 닫지 않는다**(전 화면) — 입력 중이던 폼이 스치는 클릭에 사라지는 것을 막는다. Esc·[취소]·[닫기] 로 닫고, 대화상자 역할(`role="dialog"`·`aria-modal`·제목 연결)·열릴 때 초점 이동·`position: fixed` 를 함께 넣었다(검사 C00-04·F04-04). 되돌리려면 `Dialog` 에 옵션 한 줄 ②**관계자 웹 가입 대기·거절 화면에도 [상태 다시 확인]**(`UF-X-02` 를 웹에 적용) · 거절 화면의 재신청은 확인 한 단계 ③**강제 확정 표의 열 이름** — `depart_time` "출발 시각" · `est_depart_time` "출발 예정(추정)"(§6.8 정의 — 확정 시각이 아님). 확정 시각 열은 목록 응답에 `confirm_at` 이 없어 두지 못했다(백엔드 요청)
 
+- **`Ruling 393`~`395`**(백엔드 `docs/IMPLEMENTATION_PLAN §8.69` R37) — 프론트 검사에서 서버로 넘긴 3건이 닫힘: 관제 `runs[].confirm_at`(F03-11) · `login-history` `block_action`(N-05) · `emergency_raised` 의 `academy_id`·`academy_name`(F03-05). 웹 반영은 같은 갈래.
+
 ### 5.13.5 진행
 
 - 갈래 W — 병합 `2bf99f90`(커밋 `f90d50d8`..`0e45ae33`). 작업 창 실측: `vitest` 89파일 462 통과 · 실패 0 · 건너뜀 0 · lint 0 · `tsc` 는 기존 `layout.tsx LayoutProps`(`.next` 생성 타입 부재) 1건뿐 · 변형 12건 전부 새 시험이 잡음. ⚠ FE1 API 층은 구현 전 실패를 못 봤고 구현 뒤 변형 3건으로 대신 확인(보고서 2항)

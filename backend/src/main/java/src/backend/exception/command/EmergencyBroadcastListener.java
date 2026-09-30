@@ -47,8 +47,8 @@ public class EmergencyBroadcastListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcastRaised(EmergencyRaisedEvent event) {
         try {
-            RaisedPayload payload = new RaisedPayload(event.emergencyId(), event.type().name().toLowerCase(Locale.ROOT),
-                    event.busNo(), event.raisedBy(), event.position(), event.riderCount(), event.raisedAt());
+            RaisedPayload payload = new RaisedPayload(event.emergencyId(), event.academyId(), event.academyName(),
+                    event.type().name().toLowerCase(Locale.ROOT), event.busNo(), event.raisedBy(), event.position(), event.riderCount(), event.raisedAt());
             sendToStaffAndAdmin(event.academyId(), event.runId(), RAISED_EVENT, event.raisedAt(), payload);
         } catch (RuntimeException e) {
             log.warn("emergency_raised 방송 실패 — runId={}", event.runId(), e);
@@ -85,12 +85,13 @@ public class EmergencyBroadcastListener {
     }
 
     /**
-     * {@code emergency_raised} 7필드(API_SPEC §7.1) — {@code raisedBy}·{@code position} 은
+     * {@code emergency_raised} 9필드(API_SPEC §7.1 — 학원 id·이름은 {@code Ruling 395}) — {@code raisedBy}·{@code position} 은
      * {@link EmergencyRaisedEvent} 의 중첩 레코드를 그대로 옮겨 싣는다(같은 모양을 이 리스너에
      * 다시 선언하지 않는다).
      */
-    private record RaisedPayload(Long emergencyId, String type, String busNo, EmergencyRaisedEvent.RaisedBy raisedBy,
-            EmergencyRaisedEvent.Position position, Integer riderCount, OffsetDateTime raisedAt) {
+    private record RaisedPayload(Long emergencyId, Long academyId, String academyName, String type, String busNo,
+            EmergencyRaisedEvent.RaisedBy raisedBy, EmergencyRaisedEvent.Position position, Integer riderCount,
+            OffsetDateTime raisedAt) {
     }
 
     /**

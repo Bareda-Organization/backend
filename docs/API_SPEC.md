@@ -2308,6 +2308,7 @@ SMS 연동(`PRD` F-05) 전까지 §2.9 가 `503` 이라 **학원 사용자의 �
 | `position` | object | ○ | `lat` · `lng` · `received_at` |
 | `last_seen_at` | datetime | ○ | 마지막 위치 수신 시각. **마지막 수신 후 2분 초과(유실)면 `position` 을 비우고 이 값만 채운다** — `FEATURE_SPEC §4.16` A-14 live 스냅샷 규칙, `API_SPEC §5.18` 과 같은 기준값(Ruling 250, 2026-09-04 정정 — 이전 판은 이 행이 없어 관리자 응답만 유실 규칙이 빠져 있었다) |
 | `depart_time` | datetime | ● | 출발 시각 |
+| `confirm_at` | datetime | ● | 확정 판정 시각 = `depart_time` − 30분(`run.confirm_at` 저장값 — 클라이언트가 다시 빼지 않는다, C-03). 강제 확정(§6.14) 화면의 "확정 예정" 이 이 값을 쓴다 (`Ruling 393`) |
 | `est_depart_time` | datetime | ● | 출발 예정 시각 |
 | `stops[]` | array | ● | `stop_id` · `seq` · `name` · `lat` · `lng` · `change` · `arrived_at` · **`eta`** |
 | `destination_eta` | datetime | ● | 도착지 도착 예정 시각 |
@@ -2324,6 +2325,7 @@ SMS 연동(`PRD` F-05) 전까지 §2.9 가 `503` 이라 **학원 사용자의 �
       "run_status": "moving",
       "position": { "lat": 37.501234, "lng": 127.039876, "received_at": "2026-08-24T08:44:02+09:00" },
       "depart_time": "2026-08-24T08:30:00+09:00",
+      "confirm_at": "2026-08-24T08:00:00+09:00",
       "est_depart_time": "2026-08-24T08:31:40+09:00",
       "stops": [
         { "stop_id": "stop_119", "seq": 5, "name": "중앙로 스타빌딩 앞", "arrived_at": "2026-08-24T08:41:12+09:00", "eta": null },
@@ -2431,7 +2433,9 @@ O-04 · SYS-01·02. 정본 API명세서에 경로 미기재 — 감사 로그 �
 | 메서드 · 경로 | 기능 ID | 응답 항목 |
 |---|---|---|
 | `GET /admin/audit-logs` | SYS-01 | `actor` · `action`(`read` · `update` · `delete`) · `target_type` · `target_id` · `academy_name` · `occurred_at` |
-| `GET /admin/login-history` | SYS-02 | `account_id` · `login_id` · `result`(`success` · `fail`) · `ip` · `occurred_at` · `block_event` |
+| `GET /admin/login-history` | SYS-02 | `account_id` · `login_id` · `result`(`success` · `fail`) · `ip` · `occurred_at` · `block_event` · `block_action`(`block` · `unblock`) |
+
+**`block_action`** — `block_event=true` 인 행에서 차단 행이면 `block`, 해제 행이면 `unblock`, 나머지 행은 `null`(키는 존재). `block_event`(불리언)는 두 행 모두 `true` 라 그대로 두고 이 필드가 둘을 가른다 — 기존 소비처를 깨지 않는 추가다(`Ruling 394`, ERD `audit_log.action` 의 `block`·`unblock` 투영).
 
 **`block_event` 행의 `account_id` · `login_id`** — 차단(`block`) 행은 차단된 계정(행위자와 같다), **해제(`unblock`) 행은 해제된 계정**이다(BR-219 — 계정별 이력이 끊기지 않게). 해제한 관리자는 `audit_log.actor_account_id` 와 해제 응답의 `unblocked_by`(§6.12)가 갖는다 — 이 목록의 행이 싣지 않는다. `account_id` 필터도 같은 뜻 — 해제된 계정의 해제 행이 걸리고, 해제한 관리자의 필터에는 걸리지 않는다.
 
@@ -2511,7 +2515,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `rider_changed` | `PATCH /runs/{runId}/riders/{riderId}` · `revert` · **§3.6 ③구간 `riding=false`**(`status=absent` · `stop_skipped`, `Ruling 334`) | `rider_id` · `student_id` · `student_name` · `status` · `stop_id` · `changed_at` · `counts` · `stop_skipped`. **5초** 이내 반영 |
 | `run_started` | `POST /runs/{runId}/start` | `run_status`(`moving`) · `started_at` · `auto_boarded_count`. **학생 채널은 `auto_boarded_count` 부재** (C-08 · §1.12, `Ruling 335`) |
 | `run_ended` | 서버의 `finished` 전이 (§4.10) | `run_status`(`finished`) · `finished_at` · `auto_alighted_count`. **학생 채널은 `auto_alighted_count` 부재** (C-08 · §1.12, `Ruling 335`) |
-| `emergency_raised` | `POST /runs/{runId}/emergency` | `emergency_id` · `type` · `bus_no` · `raised_by{name, role, phone}` · `position{lat, lng}` · `rider_count`(발신 시점 회차에 배정된 라이더 전원 수, 승하차 상태 무관) · `raised_at`. **관계자·메인 관리자 채널 전용** (C-17) |
+| `emergency_raised` | `POST /runs/{runId}/emergency` | `emergency_id` · **`academy_id` · `academy_name`**(그 회차의 학원 — 메인 관리자 전체 관제 배너가 어느 학원 신고인지 표시, `Ruling 395`. 관계자 채널도 같은 페이로드) · `type` · `bus_no` · `raised_by{name, role, phone}` · `position{lat, lng}` · `rider_count`(발신 시점 회차에 배정된 라이더 전원 수, 승하차 상태 무관) · `raised_at`. **관계자·메인 관리자 채널 전용** (C-17) |
 | `emergency_canceled` | `DELETE /runs/{runId}/emergency/{id}` (§4.14 — 발신 후 1분 안 취소) | `emergency_id` · `bus_no` · `canceled_at`. **관계자·메인 관리자 채널 전용** — `emergency_raised` 를 받은 화면이 같은 신고를 닫는다(§4.14 "취소 사실도 수신자에게 통지") |
 | `emergency_acked` | `POST /staff/emergencies/{id}/ack` | `emergency_id` · `acked_by_name` · `acked_at`. **매니저 채널 전용** — 발신자 앱에 "학원이 확인했습니다" 표시 (A-16) |
 | `route_changed` | 확정 노선이 새 판본으로 바뀜 — 확정 배치 · ②구간 변경 승인 재최적화(§5.6) · ③구간 미등원 반영(§3.6) · 경유 지점 배포(§5.15) · 강제 확정(§6.x). 알림 `route_changed`(§9.7)와 같은 계기 (`Ruling 373`) | `run_id` · `changed_at`. **매니저 채널 전용** — 매니저 앱이 받으면 노선(§4.3)·명단(§4.2)을 다시 불러온다. 본문에 노선을 싣지 않는다(재조회가 권한·마스킹을 그대로 지난다) |

@@ -206,6 +206,35 @@ class EmergencyRaisedBroadcastIntegrationTest {
         assertThat(payload.has("raised_at")).as("raised_at 키가 없다").isTrue();
     }
 
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void 관리자_채널로_나간_emergency_raised_는_그_회차_학원의_id_와_이름을_싣는다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER,
+                "기사" + System.nanoTime(), OffsetDateTime.now());
+
+        mockMvc.perform(post(RAISE.formatted(runId))
+                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"accident\",\"memo\":null,\"client_key\":\"%s\"}"
+                                .formatted(UUID.randomUUID())))
+                .andExpect(status().isCreated());
+
+        // 목적지와 봉투를 짝으로 잡아 /topic/admin/live 로 나간 것만 본다 — Ruling 395
+        ArgumentCaptor<String> destinationCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object> envelopeCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(messagingTemplate, times(2)).convertAndSend(destinationCaptor.capture(), envelopeCaptor.capture());
+        int adminIndex = destinationCaptor.getAllValues().indexOf(WebSocketDestinations.ADMIN_LIVE);
+        assertThat(adminIndex).as("관리자 채널로 방송이 나가지 않았다").isGreaterThanOrEqualTo(0);
+
+        JsonNode payload = objectMapper.valueToTree(envelopeCaptor.getAllValues().get(adminIndex)).get("payload");
+        assertThat(payload.get("academy_id").asLong()).isEqualTo(academyId);
+        assertThat(payload.get("academy_name").asText()).isEqualTo(EmergencyFixtures.ACADEMY_NAME);
+    }
+
     private String 토큰(long accountId, long academyId, Role role) {
         return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
     }

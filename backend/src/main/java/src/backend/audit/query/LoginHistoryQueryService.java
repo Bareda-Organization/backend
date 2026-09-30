@@ -88,12 +88,17 @@ public class LoginHistoryQueryService {
             case LOGIN_FAIL -> "fail";
             default -> null;
         };
-        boolean blockEvent = log.getAction() == AuditAction.BLOCK || log.getAction() == AuditAction.UNBLOCK;
+        String blockAction = switch (log.getAction()) {
+            case BLOCK -> "block";
+            case UNBLOCK -> "unblock";
+            default -> null;
+        };
+        boolean blockEvent = blockAction != null;
         if (log.getAction() == AuditAction.UNBLOCK) {
             return new LoginHistoryItemResponse(log.getTargetId(), unblockedLoginIds.get(log.getTargetId()), result,
-                    log.getIp(), log.getOccurredAt(), blockEvent);
+                    log.getIp(), log.getOccurredAt(), blockEvent, blockAction);
         }
         return new LoginHistoryItemResponse(log.getActorAccountId(), log.getActorLoginId(), result, log.getIp(),
-                log.getOccurredAt(), blockEvent);
+                log.getOccurredAt(), blockEvent, blockAction);
     }
 }

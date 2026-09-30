@@ -80,6 +80,26 @@ class LoginHistoryUnblockRowTest {
                 .andExpect(jsonPath("$.data.items", hasSize(0)));
     }
 
+    @Test
+    void 차단_행과_해제_행은_block_action_으로_구분된다() throws Exception {
+        Academy academy = academyRepository.save(Academy.register("R37BA01", "R37학원", "서울", null, null));
+        Account target = accountRepository.save(Account.forSignup(academy.getId(), "r37target",
+                passwordEncoder.encode("password1234!"), "차단대상", "010-3700-0000", null, Role.PARENT));
+        OffsetDateTime blockedAt = OffsetDateTime.now().minusMinutes(10);
+        auditLogRepository.save(AuditLog.forLoginBlock(academy.getId(), target.getId(), "r37target", "10.0.0.1",
+                blockedAt));
+        auditLogRepository.save(AuditLog.forAccountUnblock(academy.getId(), ADMIN_ACCOUNT_ID, "admin", target.getId(),
+                blockedAt.plusMinutes(5)));
+
+        // 최신순 — 해제가 먼저, 차단이 다음(Ruling 394)
+        mockMvc.perform(get("/api/v1/admin/login-history").header("Authorization", 관리자())
+                        .param("account_id", String.valueOf(target.getId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items", hasSize(2)))
+                .andExpect(jsonPath("$.data.items[0].block_action").value("unblock"))
+                .andExpect(jsonPath("$.data.items[1].block_action").value("block"));
+    }
+
     private String 관리자() {
         return "Bearer " + tokenProvider.createAccessToken(ADMIN_ACCOUNT_ID, null, Role.SYSTEM_ADMIN,
                 AccountStatus.ACTIVE);

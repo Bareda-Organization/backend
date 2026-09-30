@@ -52,7 +52,7 @@ class EmergencyBroadcastListenerTest {
         Long emergencyId = 1L;
         Long academyId = 10L;
         Long runId = 100L;
-        EmergencyRaisedEvent event = new EmergencyRaisedEvent(emergencyId, academyId, runId, "1호차",
+        EmergencyRaisedEvent event = new EmergencyRaisedEvent(emergencyId, academyId, "테스트학원", runId, "1호차",
                 EmergencyType.ACCIDENT, new EmergencyRaisedEvent.RaisedBy("김기사", "driver", "010-1234-5678"),
                 new EmergencyRaisedEvent.Position(new BigDecimal("37.5"), new BigDecimal("127.1")), 5,
                 OffsetDateTime.now());
@@ -78,7 +78,7 @@ class EmergencyBroadcastListenerTest {
         EmergencyRaisedEvent.RaisedBy raisedBy = new EmergencyRaisedEvent.RaisedBy("이기사", "driver", "010-2222-3333");
         EmergencyRaisedEvent.Position position = new EmergencyRaisedEvent.Position(new BigDecimal("37.512345"),
                 new BigDecimal("127.098765"));
-        EmergencyRaisedEvent event = new EmergencyRaisedEvent(emergencyId, academyId, runId, "2호차",
+        EmergencyRaisedEvent event = new EmergencyRaisedEvent(emergencyId, academyId, "테스트학원", runId, "2호차",
                 EmergencyType.VEHICLE_FAULT, raisedBy, position, 12, OffsetDateTime.now());
 
         listener.broadcastRaised(event);
@@ -105,7 +105,7 @@ class EmergencyBroadcastListenerTest {
     @Test
     @DisplayName("위치 캐시가 없었던 신고는 position 의 lat·lng 가 null 로 그대로 실린다")
     void 위치_캐시가_없으면_position_이_null_로_실린다() {
-        EmergencyRaisedEvent event = new EmergencyRaisedEvent(5L, 10L, 100L, "3호차", EmergencyType.ACCIDENT,
+        EmergencyRaisedEvent event = new EmergencyRaisedEvent(5L, 10L, "테스트학원", 100L, "3호차", EmergencyType.ACCIDENT,
                 new EmergencyRaisedEvent.RaisedBy("박동승", "escort", "010-4444-5555"),
                 new EmergencyRaisedEvent.Position(null, null), 0, OffsetDateTime.now());
 

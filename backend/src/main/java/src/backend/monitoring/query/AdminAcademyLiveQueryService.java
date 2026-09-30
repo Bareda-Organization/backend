@@ -143,7 +143,7 @@ public class AdminAcademyLiveQueryService {
         OffsetDateTime lastSeenAt = position == null ? liveState.receivedAt() : null;
 
         return new AdminAcademyLiveResponse.Run(run.getId(), busNo, lower(run.getDirection().name()),
-                lower(run.getStatus().name()), position, lastSeenAt, run.getDepartTime(), run.getStartedAt(), stops,
+                lower(run.getStatus().name()), position, lastSeenAt, run.getDepartTime(), run.getConfirmAt(), run.getStartedAt(), stops,
                 destinationEtaOf(run), contactOf(contacts, ManagerRole.DRIVER), contactOf(contacts,
                         ManagerRole.ESCORT), run.getConsecutiveFailures());
     }

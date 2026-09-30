@@ -11,6 +11,8 @@ import src.backend.exception.entity.EmergencyType;
  * 목표 11) 둘 다 이 이벤트 하나를 구독한다({@link src.backend.run.event.RunStartedEvent} 와 같은
  * "한 이벤트, 리스너 둘" 형태).
  *
+ * <p>{@code academyName} 은 메인 관리자 전체 관제 배너가 어느 학원 신고인지 보이려고 싣는다(API_SPEC §7.1, {@code Ruling 395}).
+ *
  * <p>{@code memo} 는 여전히 담지 않는다 — 알림 문구 컴포저가 경로 변경 알림에 명시한 이유와 같다:
  * 알림 문구는 기기 알림함·잠금화면에 그대로 노출되므로 상세를 싣지 않고, 상세는 REST 조회
  * ({@code GET /staff/emergencies}·{@code GET /admin/emergencies})로만 연다.
@@ -22,8 +24,8 @@ import src.backend.exception.entity.EmergencyType;
  * 이벤트는 구독측(알림 모듈)의 타입을 참조하지 않는다(§7 규칙 17)는 경계는 그대로 지킨다 — 알림
  * 리스너는 이 필드들을 읽지 않는다.
  */
-public record EmergencyRaisedEvent(Long emergencyId, Long academyId, Long runId, String busNo, EmergencyType type,
-        RaisedBy raisedBy, Position position, Integer riderCount, OffsetDateTime raisedAt) {
+public record EmergencyRaisedEvent(Long emergencyId, Long academyId, String academyName, Long runId, String busNo,
+        EmergencyType type, RaisedBy raisedBy, Position position, Integer riderCount, OffsetDateTime raisedAt) {
 
     /** 발신자 표시(API_SPEC §7.1) — 관계자·메인 관리자 채널 전용(C-17)이라 연락처까지 그대로 싣는다. */
     public record RaisedBy(String name, String role, String phone) {

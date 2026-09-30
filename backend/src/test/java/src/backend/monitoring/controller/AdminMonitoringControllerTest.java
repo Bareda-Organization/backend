@@ -206,6 +206,27 @@ class AdminMonitoringControllerTest {
                 .isEqualTo(departTime.plusMinutes(estDurationMin));
     }
 
+    /** 강제 확정 화면의 "확정 예정" 이 읽는 {@code confirm_at} = 출발 30분 전(Ruling 393) — 출발 시각을 채우면 이 단언이 문다. */
+    @Test
+    void 관제_회차는_confirm_at_으로_출발_30분_전_판정_시각을_싣는다() throws Exception {
+        AdminMonitoringFixtures f = fixtures();
+        long academyId = f.academy();
+        long busId = f.bus(academyId);
+        OffsetDateTime departTime = now().minusMinutes(20);
+        f.movingRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30),
+                now().minusMinutes(15), 40);
+        long adminAccountId = f.systemAdminAccount("메인관리자");
+
+        MvcResult result = mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization",
+                        메인관리자_토큰(adminAccountId)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String body = result.getResponse().getContentAsString();
+        OffsetDateTime confirmAt = OffsetDateTime.parse(JsonPath.<String>read(body, "$.data.runs[0].confirm_at"));
+        assertThat(confirmAt).isEqualTo(departTime.minusMinutes(30));
+    }
+
     /**
      * {@code est_duration_min} 이 없으면 {@code destination_eta} 가 응답에서 비어야 한다(목표 6) —
      * {@code AdminAcademyLiveQueryService#destinationEtaOf} 자바독이 Ruling 232 근거로 이미 이 분기를
