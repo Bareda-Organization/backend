@@ -48,7 +48,7 @@ class AuditLogQueryServiceTest {
     void 학원_소속_없는_행이_있어도_목록_조회는_NPE_없이_학원명_null_로_응답한다() {
         OffsetDateTime now = OffsetDateTime.now(clock);
         AuditLog log = auditLogRepository.save(AuditLog.forDataAccessRead(null, 격리_계정, "관리자심음", "student", 1L,
-                Map.of("fields", "student_phone"), now));
+                Map.of("fields", "student_phone"), null, now));
 
         try {
             PageResponse<AuditLogItemResponse> result =

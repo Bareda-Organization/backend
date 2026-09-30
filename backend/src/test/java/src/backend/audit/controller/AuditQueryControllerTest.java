@@ -81,7 +81,7 @@ class AuditQueryControllerTest {
     void login_history_는_data_access_카테고리_행을_반환하지_않는다() throws Exception {
         Long dataAccessOnlyAccountId = createAccount("P14T1AUD05", "p14t1queryda1");
         auditLogRepository.save(AuditLog.forDataAccessRead(null, dataAccessOnlyAccountId, "p14t1queryda1",
-                "run_roster", 999L, Map.of("student_ids", List.of("1"), "fields", List.of("note")),
+                "run_roster", 999L, Map.of("student_ids", List.of("1"), "fields", List.of("note")), null,
                 OffsetDateTime.now()));
 
         mockMvc.perform(get("/api/v1/admin/login-history")
@@ -117,7 +117,7 @@ class AuditQueryControllerTest {
     void audit_logs_는_academy_id가_null인_행도_200으로_academy_name_null을_반환한다() throws Exception {
         Long accountId = createAccount("P14T1AUD09", "p14t1nullacd1");
         auditLogRepository.save(AuditLog.forDataAccessRead(null, accountId, "p14t1nullacd1",
-                "emergency", 777L, Map.of("student_ids", List.of("1"), "fields", List.of("note")),
+                "emergency", 777L, Map.of("student_ids", List.of("1"), "fields", List.of("note")), null,
                 OffsetDateTime.now()));
 
         mockMvc.perform(get("/api/v1/admin/audit-logs")
@@ -163,7 +163,7 @@ class AuditQueryControllerTest {
         Account account = accountRepository.save(Account.forSignup(academy.getId(), "p14t1jsonkey1",
                 passwordEncoder.encode(RAW_PASSWORD), "감사조회테스트", "010-9100-0001", null, Role.PARENT));
         auditLogRepository.save(AuditLog.forDataAccessRead(academy.getId(), account.getId(), "p14t1jsonkey1",
-                "run_roster", 12345L, Map.of("student_ids", List.of("1"), "fields", List.of("note")),
+                "run_roster", 12345L, Map.of("student_ids", List.of("1"), "fields", List.of("note")), null,
                 OffsetDateTime.now()));
 
         mockMvc.perform(get("/api/v1/admin/audit-logs")

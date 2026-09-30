@@ -1,6 +1,5 @@
 package src.backend.account.controller;
 
-import java.net.InetAddress;
 import java.util.Locale;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -41,6 +40,7 @@ import src.backend.account.dto.RefreshResponse;
 import src.backend.global.config.ApiTags;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.request.ClientIp;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.AuthenticatedOnly;
@@ -83,7 +83,7 @@ public class AuthController {
             @RequestHeader(value = "X-Client-Type", required = false, defaultValue = "app") String clientType,
             @Valid @RequestBody LoginRequestPayload payload, HttpServletRequest request) {
         LoginResult result = loginCommandService.login(payload.loginId(), payload.password(),
-                resolveClientIp(request));
+                ClientIp.of(request));
         boolean isWeb = CLIENT_TYPE_WEB.equalsIgnoreCase(clientType);
 
         LoginResponse.Academy academy = result.role().hasPlatformScope() ? null
@@ -191,25 +191,5 @@ public class AuthController {
     public ApiResponse<Void> recover(@Valid @RequestBody RecoverRequestPayload payload) {
         // ponytail: SMS 포트가 없어 항상 거절 — 연동 시 §2.9 재개 조건(SMS 로만 전달 · 발급 빈도 제한 · 조건부 대조)을 갖춘 서비스로 교체
         throw new BusinessException(ErrorCode.RECOVERY_UNAVAILABLE);
-    }
-
-    /**
-     * 로그인 감사 {@code ip}(Phase 14 T1 목표 2, BR-131) — 클라이언트 종류 판정과 같은 이유로 이 계층에
-     * 둔다: {@code Service}·저장소는 HTTP 를 몰라야 한다({@code CODE_CONVENTIONS §12}).
-     *
-     * <p>{@code X-Real-IP} 를 쓰고 {@code X-Forwarded-For} 는 쓰지 않는다(BR-062) — nginx 는 받은
-     * {@code X-Forwarded-For} 뒤에 실제 주소를 덧붙이므로 첫 값은 요청자가 적은 값이라 위조 가능하다.
-     * {@code X-Real-IP} 는 nginx 가 {@code $remote_addr} 로 항상 덮어쓴다(`infra/proxy/nginx*.conf`).
-     * IP 표기가 아니면 {@code null} 이다 — {@code audit_log.ip} 가 {@code inet} 이라 그대로 저장하면
-     * 로그인 자체가 500 이 된다.
-     */
-    private String resolveClientIp(HttpServletRequest request) {
-        String realIp = request.getHeader("X-Real-IP");
-        String candidate = realIp != null && !realIp.isBlank() ? realIp.trim() : request.getRemoteAddr();
-        try {
-            return InetAddress.ofLiteral(candidate).getHostAddress();
-        } catch (IllegalArgumentException | NullPointerException e) {
-            return null;
-        }
     }
 }

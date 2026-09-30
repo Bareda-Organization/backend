@@ -152,9 +152,10 @@ public class AuditLog {
      *
      * @param targetType {@code student}·{@code run_roster} 등 Ruling 242 가 고정한 값 도메인
      * @param targetId   단일 학생 조회면 그 학생 id, 회차 명단이면 그 회차(run) id
+     * @param ip         요청 발신 IP(R46 감사 C) — 요청 밖에서 불렀거나 IP 표기가 아니면 {@code null}
      */
     public static AuditLog forDataAccessRead(Long academyId, Long actorAccountId, String actorLoginId,
-            String targetType, Long targetId, Map<String, Object> detail, OffsetDateTime occurredAt) {
+            String targetType, Long targetId, Map<String, Object> detail, String ip, OffsetDateTime occurredAt) {
         AuditLog log = new AuditLog(AuditCategory.DATA_ACCESS, AuditAction.READ, occurredAt);
         log.academyId = academyId;
         log.actorAccountId = actorAccountId;
