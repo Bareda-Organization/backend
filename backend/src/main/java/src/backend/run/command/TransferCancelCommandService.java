@@ -53,11 +53,10 @@ public class TransferCancelCommandService {
     /** 이동 대기를 취소한다 — 없음·타 학원 {@code 404}, 어느 한 회차라도 ① 구간이 끝났거나 이미 반영됐으면 {@code 403}. */
     @Transactional
     public void cancel(AuthUser requester, Long transferId) {
-        Long academyId = requester.academyId();
-        RunTransfer found = runTransferRepository.findByIdAndAcademyId(transferId, academyId)
+        RunTransfer found = runTransferRepository.findByIdAndAcademyId(transferId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.TRANSFER_NOT_FOUND));
-        Run fromRun = runOf(found.getFromRunId(), academyId);
-        Run toRun = runOf(found.getToRunId(), academyId);
+        Run fromRun = runOf(found.getFromRunId(), requester.academyId());
+        Run toRun = runOf(found.getToRunId(), requester.academyId());
         assertWindowOpen(fromRun);
         assertWindowOpen(toRun);
 
@@ -66,14 +65,14 @@ public class TransferCancelCommandService {
         stagingRunGuard.lockIdle(fromFirst ? fromRun : toRun);
         stagingRunGuard.lockIdle(fromFirst ? toRun : fromRun);
 
-        RunTransfer transfer = runTransferRepository.findByIdAndAcademyId(transferId, academyId)
+        RunTransfer transfer = runTransferRepository.findByIdAndAcademyId(transferId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.TRANSFER_NOT_FOUND));
         if (transfer.getStatus() != RunTransferStatus.STAGED) {
             throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);
         }
         runTransferRepository.delete(transfer);
         String actorLoginId = accountRepository.findById(requester.accountId()).map(Account::getLoginId).orElse(null);
-        auditLogRepository.save(AuditLog.forDataAccessChange(AuditAction.DELETE, academyId, requester.accountId(),
+        auditLogRepository.save(AuditLog.forDataAccessChange(AuditAction.DELETE, requester.academyId(), requester.accountId(),
                 actorLoginId, "run_transfer", transfer.getId(), Map.of(), OffsetDateTime.now(clock)));
     }
 

@@ -120,6 +120,9 @@ public final class AccountStatusGateEndpoints {
      * Ruling 256, 권한 "학원 관계자") — {@code POST /staff/runs/{runId}/forced-add}(Phase 8)와 같은
      * 계열의 관계자 관리 화면 기능이라 대기·거절 계정에는 근거가 부재하다(Ruling 145 와 같은 근거).
      *
+     * <p>R36-BE 가 1개를 더했다 — 이동 대기 취소 {@code DELETE /staff/transfers/{transferId}}(§5.8.1, Ruling 369,
+     * 권한 "학원 관계자") — 버스 간 이동 등록과 같은 계열의 관계자 관리 화면 기능이라 근거가 같다.
+     *
      * <p>S1 이 1개를 더했다 — 자녀·본인 당일 회차 목록 {@code GET /students/{id}/runs}(§3.5,
      * P-04 · S-01, 권한 "학부모(연결 자녀) · 학생(본인)") — {@code GET /students/{id}/route}
      * (Phase 10)와 같은 계열의 승인된 학부모·학생 기능이라 대기·거절 계정에는 근거가 부재하다
@@ -258,6 +261,8 @@ public final class AccountStatusGateEndpoints {
             "POST /admin/runs/{runId}/force-confirm",
             // F4 S1 — 버스 간 이동(§5.8, RTE-07, Ruling 256) 관계자 관리 화면 기능 1개.
             "POST /staff/students/{id}/transfer",
+            // R36-BE — 이동 대기 취소(§5.8.1, Ruling 369) 관계자 관리 화면 기능 1개.
+            "DELETE /staff/transfers/{transferId}",
             // S1 — 자녀·본인 당일 회차 목록(§3.5, P-04 · S-01) 학부모·학생 기능 1개.
             "GET /students/{id}/runs",
             // S2 — 회차 비상 알림 처리 상태 조회(§4.15, EXC-04 · M-15) 매니저 앱 기능 1개.

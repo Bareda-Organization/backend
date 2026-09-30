@@ -41,6 +41,7 @@ import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
+import src.backend.run.entity.RunTransfer;
 import src.backend.run.roster.ProjectedRoster;
 import src.backend.run.roster.ProjectedRosterReader;
 import src.backend.student.entity.Stop;
@@ -199,8 +200,11 @@ public class RosterQueryService {
      * 확정 전(idle) 회차의 예정 명단 — {@code run_rider} 는 확정이 채우므로 아직 비어 있다. 확정 배치와
      * §5.8 이동 판정이 쓰는 {@link ProjectedRosterReader} 규칙을 그대로 읽는다(요일별 주소 − 탑승 OFF +
      * 강제 추가 − 출발 이동 + 도착 이동) — 명단 표시용 계산을 따로 두면 화면에 보이는 학생과 이동 판정이
-     * 어긋난다. 탑승 OFF·출발 이동으로 빠진 학생은 넣지 않고, 행은 {@code status=waiting} · {@code change}
-     * 부재다.
+     * 어긋난다. 탑승 OFF·출발 이동으로 빠진 학생은 넣지 않고, 행은 {@code status=waiting} 이다.
+     *
+     * <p>{@code change} 는 확정이 붙일 값과 같다(Ruling 370) — 확정({@code RunRiderPersistence#ridersOf})이
+     * {@code added} 를 붙이는 집합({@link ProjectedRoster#addedStudentIds()}: 강제 추가·도착 이동)이면
+     * {@code added}, 아니면 없다. {@code transfer_id} 는 그중 도착 이동 대기 행에만 실린다(§5.8.1 취소용).
      */
     private List<StaffRosterItemResponse> plannedStaffItems(AuthUser requester, Run run) {
         ProjectedRoster planned = projectedRosterReader.read(run);
@@ -211,14 +215,17 @@ public class RosterQueryService {
         Map<Long, Stop> stopsById = stopRepository
                 .findAllByAcademyIdAndIdIn(requester.academyId(), planned.studentStops().values().stream().distinct().toList())
                 .stream().collect(Collectors.toMap(Stop::getId, stop -> stop));
+        Map<Long, Long> transferIdsByStudent = planned.incomingTransfers().stream()
+                .collect(Collectors.toMap(RunTransfer::getStudentId, RunTransfer::getId, (first, duplicate) -> first));
         return planned.studentIds().stream()
                 .filter(studentsById::containsKey)
                 .map(studentId -> {
                     Student student = studentsById.get(studentId);
                     Stop stop = stopsById.get(planned.studentStops().get(studentId));
                     return new StaffRosterItemResponse(studentId, student.getName(), student.getClassName(),
-                            stop == null ? null : stop.getName(), rawPhonesById.get(studentId), null,
-                            lower(RiderStatus.WAITING.name()), student.getNote());
+                            stop == null ? null : stop.getName(), rawPhonesById.get(studentId),
+                            planned.addedStudentIds().contains(studentId) ? lower(ChangeType.ADDED.name()) : null,
+                            lower(RiderStatus.WAITING.name()), student.getNote(), transferIdsByStudent.get(studentId));
                 })
                 .toList();
     }
@@ -283,7 +290,7 @@ public class RosterQueryService {
         return new StaffRosterItemResponse(rider.getStudentId(), student.getName(), student.getClassName(),
                 stop == null ? null : stop.getName(), rawPhone,
                 rider.getChange() == null ? null : lower(rider.getChange().name()), lower(rider.getStatus().name()),
-                student.getNote());
+                student.getNote(), null);
     }
 
     private Counts countsOf(List<RunRider> riders) {
