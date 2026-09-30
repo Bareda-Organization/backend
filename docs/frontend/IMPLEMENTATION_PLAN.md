@@ -221,7 +221,9 @@ frontend/
 | 3 | 매니저 앱 7화면 | M-15 비상 알림 · M-06 오프라인 큐 부재 | 화면 2종 신설 |
 | 4 | 메인 관리자 콘솔 | O-01~07 · `API_SPEC §6` | 킷 전체 부재 |
 | 5 | 라이트 글자색 4종 — `--text-tertiary` `#8F9995` · `--amber-ink` `#C77E12` · `--red-ink` `#C93F2C` · `--status-idle` `#6B7672` (`design-system/tokens/`) | 앱 `#626D69` · `#96600F` · `#B93826` · `#545C58` (`baraeda_ui`, 글자 대비 4.5:1 이상 — `Ruling 386` ④) | **앱이 이김.** 킷 갱신은 사용자 원격 작업. 킷 값으로 되돌리면 라이트 테마 글자 대비가 4.5:1 미만 |
-| 6 | 터치 크기 — `Button` md 44 · 킷 토큰 `--tap-min` 은 48 (킷 안에서 둘이 어긋남) | `BaraedaButton.md` 48 · `BaraedaIconButton` 48 · 전화 버튼 48 = `tapMin` (`Ruling 386` ③). `sm` 36 은 킷과 같은 값으로 유지(보류) | **킷의 토큰(48)을 따름.** 컴포넌트 44 는 킷의 내부 불일치 |
+| 6 | 터치 크기 — `Button` md 44 · 킷 토큰 `--tap-min` 은 48 (킷 안에서 둘이 어긋남) | `BaraedaButton.md` 48 · `BaraedaIconButton` 48 · 전화 버튼 48 = `tapMin` (`Ruling 386` ③). `sm` 은 8번 행(`Ruling 404`) | **킷의 토큰(48)을 따름.** 컴포넌트 44 는 킷의 내부 불일치 |
+| 7 | 조작 요소 경계 — 킷에는 `--border-default` 하나뿐(입력칸·스위치 꺼짐 트랙·카드 외곽선·타임라인 점이 같이 씀) | 앱은 조작 요소 전용 `borderControl` 을 둠 — 라이트 `#828C88`(흰 카드 3.47 · 페이지 바탕 3.17) · 다크 `#6F7A76`(카드 3.77 · 페이지 바탕 4.18 · 떠 있는 면 3.35). `borderDefault` 는 그대로(`Ruling 403`) | **앱이 이김.** 킷 갱신은 사용자 원격 작업. 킷 값(`--border-default`)으로 되돌리면 입력칸 경계가 흰 배경 1.89 |
+| 8 | `Button` sm 36 — 킷은 보이는 크기와 누르는 영역이 같음 | `BaraedaButton.sm` 보이는 크기 36 유지 · 누르는 영역 48×48(`Ruling 404`) | **앱이 이김.** 킷의 sm 그대로면 터치 목표 36 |
 
 **이 어긋남은 결함이 아니라 시점 차이.** 디자인 킷은 구 기획 시점에서 멈춰 있고 정본은 그 뒤에 바뀜.
 
@@ -2687,6 +2689,44 @@ Run `run_d7daf69b57f8` · 4갈래 병합 B `7f781ccc` · W `827250d1` · P `065e
 - 매니저 앱 `0d7ba272` — 시험 **312**(hidden:false) 통과 · 실패 0 · 건너뜀 0(`--exclude-tags real_backend`) · `flutter analyze` 0 · 변형 6건 전부 해당 시험만 실패. 경유 지점 배포 뒤 제거돼 이름·좌표가 `null` 인 행은 파서가 건너뜀(전에는 노선 전체 파싱 실패 가능)
 - 화면 ✅ — 웹(:3000 → :8210 · `it_r39`): 금일 운행 상세·운행 관리·전체 관제 3화면 모두 마커 `stop-N "1"` · `waypoint-N "경유"` · `stop-N "2"`(불투명도 0.55 — 서버 seq 는 1·3) · 출발·도착 칩. iOS 시뮬레이터(iPhone 17): 매니저 앱 운행 화면·노선 지도 — 초록 핀 1 · 흐린 핀 2 · "경유" 칩 · 미경유 안내 띠. 스크린샷 `frontend/report/r39/`
 - 승인 미리보기(§5.5) 지도 · 학부모 앱 지도 · 고정 노선 편성 지도는 표기 대상 없음(5.14.1)
+
+## 5.15 `R41-UI` 목표 표 — 공유 UI 패키지 보류 3건 (2026-09-30 계획 · 기준 HEAD `bd287dfb` `mskim98/r41-ui` · 판정 `Ruling 403~405`)
+
+`Ruling 386` 이 보류한 3건 — 사용자 지시 *"작은 개선 부분 전부 수정"*. 근거 `frontend/report/review-2026-09-30/F07.md` F07-09·10·11 · `FIX-XK.md` "미처리로 남긴 것".
+
+### 5.15.1 변경 목록 (착수 전 실측 — `graft grep`·`grep -rlw` 로 센 결과)
+
+| # | 지금 | 할 일 |
+|:-:|---|---|
+| R41-A | `borderDefault`(라이트 흰 배경 1.89 · 다크 카드 2.09)가 입력칸·스위치 꺼짐 트랙·보조 버튼·선택 칩과 카드 외곽선·타임라인 점·시트 손잡이에 **같이** 쓰인다 | 조작 요소 경계 전용 토큰 `borderControl` 신설 — 입력칸 3종(`input`·`textarea`·`select`) · 스위치 꺼짐 트랙 · 보조 버튼 · 지연 선택 칩 · 코드 입력칸만 옮긴다. 카드·타임라인 점·손잡이는 `borderDefault` 그대로 |
+| R41-B | `BaraedaButton.sm` 36 — 앱 2종 **19곳**에서 쓴다(매니저 명단 `roster_screen.dart` 5곳 포함). 누르는 영역이 보이는 크기와 같다 | 보이는 크기 36 유지 · **누르는 영역만 48×48 이상**(이웃 영역과 겹치지 않음) |
+| R41-C | 지시서의 "미사용 11종" 은 **낡은 목록**이다 — 웹 전용 3종(`RosterTable`·`SideNav`·`PageHeader`)은 `be58803d` 가 이미 삭제했고 `BaraedaSegmentedControl`(앱 5곳)·`BaraedaCodeInput`(`child_link_screen`)은 앱이 이미 쓴다. 실제 미사용은 `BaraedaDialog`·`BaraedaBottomSheet`·`BaraedaIconButton`·`BaraedaCheckbox`·`BaraedaSearchField`·`BaraedaTabBar` 6종 | 대화상자·바닥 시트 결함 3종(본문 스크롤 · 뒤로가기 · 낭독 배경 차단) 수정 → 앱 Material `AlertDialog` 4곳 · `IconButton` 1곳 · `showModalBottomSheet` 1곳을 공용판으로 · 앱이 Material `SegmentedButton` 을 쓰는 2곳을 `BaraedaSegmentedControl` 로 · 앱에 같은 일을 하는 Material 코드가 없는 `BaraedaCheckbox`·`BaraedaSearchField`·`BaraedaTabBar` 삭제 |
+
+### 5.15.2 목표 표 — 전항 통과가 완료 조건
+
+| # | 완료 조건 | 검증 |
+|:-:|---|---|
+| 1 | A — `borderControl` 신설 · 라이트/다크 대비 계산표(보고서) · 입력칸·스위치가 새 토큰을 쓴다는 위젯 시험. **RED 먼저** | `flutter test test/theme test/widgets/forms` · 커밋 뒤 `borderControl` 을 `borderDefault` 값으로 되돌리면 그 시험만 실패 |
+| 2 | B — `sm` 버튼 누르는 영역 ≥ 48(`tester.getSize`·빗나간 탭 시험) · 이웃 버튼 누르는 영역 겹침 0. **RED 먼저** | 새 시험 · 변형(`sm` 을 36 으로 되돌림)이 그 시험만 실패 |
+| 3 | C — 삭제 파일 목록 + 삭제 전 `grep -rlw` 0건 증거 · 공용판 결함 3종 시험(긴 본문 스크롤 · 뒤로가기 · 낭독 배경 차단) **RED 먼저** · 옮긴 곳마다 시험(확인·취소 · 뒤로가기) | 새 시험 · 변형이 그 시험만 실패 |
+| 4 | 화면 — 매니저 명단(버튼 줄) · 라이트 입력칸 화면(학부모 로그인) · 옮긴 대화상자 1개 전/후 스크린샷 | `frontend/report/r41/ui-*.png` |
+| 5 | 손댄 패키지(`baraeda_ui`·매니저·학부모) `flutter test` 실패 0·건너뜀 0 · `flutter analyze` 0 | 명령·수치는 5.15.4 |
+| 6 | 정리 — `:8250` 종료 · `it_r41u` 연결 0 뒤 `DROP`(`FORCE` 금지) · 시뮬레이터 `2F82BAEA…` 종료 · 잔여 `flutter_tester` 0 | 명령·수치는 5.15.4 |
+
+### 5.15.3 판정
+
+- **`Ruling 403` — 조작 요소 경계 전용 토큰 `borderControl`** (A). 카드 외곽선은 장식 구분선이라 WCAG 비텍스트 3:1 대상이 아니다 — 입력칸·스위치·버튼 윤곽처럼 **그 선이 없으면 조작 요소를 못 찾는 자리**만 3:1 이상으로 올린다. `borderDefault` 값을 올리는 안은 버림(전 화면 테두리가 진해진다). 킷에 없는 토큰이라 `§4` 불일치 목록에 행 추가
+- **`Ruling 404` — `sm` 버튼은 보이는 크기 36 · 누르는 영역 48** (B). 레이아웃을 바꿔 보이는 크기를 48 로 키우는 안은 버림: 앱 2종 19곳(명단 한 줄 3~4개 · 머리말 · 지도 위 칩)이 전부 커져 조밀 배치가 깨지고, 한 위젯 안에서 끝나는 해법이 있다. 대가 — 세로 배치가 12 커진다(누르는 영역이 레이아웃 박스 안에 있어야 이웃과 겹치지 않으므로 Material `MaterialTapTargetSize.padded` 와 같은 방식)
+- **`Ruling 405` — 공용 위젯은 앱이 같은 일을 할 때만 둔다** (C). 공용판의 결함을 고친 뒤 앱의 Material 호출을 공용판으로 옮긴다. 옮길 곳이 없는 것(`BaraedaCheckbox`·`BaraedaSearchField`·`BaraedaTabBar`)은 삭제 — 낡은 공용 코드는 결함이 잠복한다(F07-11)
+
+### 5.15.4 진행
+
+- (착수) 목표 표 고정
+- **A** `2262e6f0` — `borderControl` 라이트 `#828C88`(흰 카드 3.47 · 페이지 바탕 3.17) · 다크 `#6F7A76`(카드 3.77 · 페이지 바탕 4.18 · 떠 있는 면 3.35). 새 시험 위젯 14 + 대비 8 — 입력칸 테두리를 `borderDefault` 로 되돌리면 입력칸 시험 2건만 실패 · 라이트 값을 `stone300` 으로 되돌리면 대비 시험 3건만 실패
+- **B** `dd3a158b` — `sm` 보이는 크기 36 · 누르는 영역 48×48. 시험 7건 — 영역 넓히기를 끄면 2건 · `HitTestBehavior.opaque` 를 `deferToChild` 로 바꾸면 1건만 실패
+- **C** 공용판 결함 3종 `f13ccf5f`(시험 7건 RED → 통과 · 변형 5종이 각자 해당 시험만 실패) · 삭제 3종 `3afe13bf`(삭제 전 `grep -rlw` 앱·패키지 lib 0건) · 앱 이관 `63d67f61`(`AlertDialog` 4 · `IconButton` 1 · `showModalBottomSheet` 1 · `SegmentedButton` 2) · 화면에서 발견한 버튼 줄 결함 `f52b4cf8`
+- 손댄 패키지 — `baraeda_ui` **148** · 매니저 앱 **313** · 학부모 앱 **220**(`--exclude-tags real_backend`, `hidden:false` 만 센 값) 전부 실패 0 · 건너뜀 0 · `flutter analyze` 0
+- 화면 ✅ — iOS 시뮬레이터 전·후 14장 `frontend/report/r41/ui-*.png`
 
 ## 6. 완료 조건 — 화면 단위
 
