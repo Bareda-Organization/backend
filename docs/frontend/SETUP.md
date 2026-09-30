@@ -1,132 +1,233 @@
-# 새 프론트엔드 개발 환경 셋업 가이드
+# 프론트엔드 개발 환경 셋업
 
-기존 `..`(Next.js 데모)를 다른 프레임워크로 새로 작업하려는 개발자를 위한 문서다. 백엔드 (Spring)와 인프라 (Postgres/Redis/Kafka)는 이미 완성돼 있으므로, **이 문서만 따라오면
-백엔드를 Docker로 띄우고 새 프론트엔드에서 바로 API를 붙일 수 있는 상태**를 만들 수 있다.
+백엔드를 로컬에서 띄우고 관계자 웹(Next.js)과 앱 2종(Flutter)을 그 백엔드에 붙이는 절차. 기준 커밋 `0b8aa3e0`(2026-09-30).
 
-## 1. 사전 준비물
+- 제품 구성·라운드 추적: `docs/frontend/IMPLEMENTATION_PLAN.md`
+- 코드 규칙: `docs/frontend/CONVENTIONS_REACT.md` · `docs/frontend/CONVENTIONS_FLUTTER.md`
+- 엔드포인트 계약: `docs/API_SPEC.md`
+- 배포·스테이징: `docs/infra/DEPLOYMENT.md` · `docs/infra/STAGING.md`
 
-- **Docker Desktop** (Docker Compose v2 포함) — 반드시 실행 중이어야 한다.
-- **Git**
-- (선택) 백엔드를 Docker 없이 로컬에서 직접 띄우고 싶다면 **Java 25** — 전체를 Docker로만 띄울 거라면 불필요.
-- 새 프론트엔드 스택에 맞는 런타임 (Node.js, 또는 선택한 프레임워크가 요구하는 것)은 각자 준비.
+## 1. 준비물
 
-## 2. 클론 및 환경변수 파일 준비
+| 대상 | 필요한 것 |
+|---|---|
+| 공통 | Git · Docker Desktop(Compose v2, 실행 중) |
+| 백엔드 | Java 25 — `backend/build.gradle` 의 toolchain 고정값 |
+| 관계자 웹 | Node.js 22(`frontend/apps/academy-web/Dockerfile` 의 `node:22-alpine`) · npm |
+| 앱 2종 | Flutter(각 `pubspec.yaml` 의 Dart `^3.12.2`) · iOS 는 Xcode |
+
+## 2. 클론
 
 ```bash
 git clone https://github.com/mskim98/School-Bus.git
 cd School-Bus
-cp backend/.env.example backend/.env
 ```
 
-`../../backend/.env`는 `../../.gitignore`에 걸려 있어 저장소에 없다. `.env.example`을 복사해서 만든다. 로컬 (`local` 프로파일)에서는
-`application.yml`의 기본값 (DB/Redis/Kafka 접속 정보)이 그대로 쓰이므로
-`.env`를 안 채워도 기동은 된다 — 다만 `JWT_SECRET`은 채워두는 습관을 들이는 게 좋다.
+- 백엔드는 설정 파일 없이 기동됨 — `local` 프로파일 기본값(`application.yml`)이 DB `localhost:15432` · Redis `localhost:16379` · JWT 키를 채움
+- `backend/.env`(`backend/.env.example` 을 복사)는 **컨테이너 모드(§3.2)에서만** 읽힘 — `docker-compose.app.yml` 의 `env_file`. `bootRun` 은 이 파일을 읽지 않음
+- 네이버 키(`NAVER_MAPS_KEY_ID` · `NAVER_MAPS_KEY` · 장소 검색용 `NAVER_SEARCH_CLIENT_ID` · `NAVER_SEARCH_CLIENT_SECRET`)가 없으면 주소 변환·경로 계산·장소 검색 호출만 실패하고 나머지는 동작
 
-## 3. 백엔드 + 인프라 Docker로 한 번에 띄우기
+## 3. 백엔드 띄우기
 
-루트 `../../docker-compose.yml`의 `frontend` 서비스에는 `profiles: ["frontend"]`가 걸려 있어서, **기본 `docker compose up`은 frontend를
-자동으로 제외**하고 postgres / redis / kafka / backend만 띄운다 — 서비스 이름을 일일이 나열할 필요가 없다.
+개발용 Docker 구성은 파일 둘로 갈림. 둘 중 하나를 고름.
 
-```bash
-docker compose up -d --build
-```
-
-- `postgres` : 5432 (스키마+데모 데이터는 Flyway가 기동 시 자동 구성)
-- `redis` : 6379
-- `kafka` : 29092 (호스트에서 접속용), 내부 통신은 9092
-- `backend` : 8080 — Spring Boot API 서버
-
-첫 기동은 백엔드 이미지 빌드 (Gradle) 때문에 몇 분 걸릴 수 있다. 로그로 진행 확인:
+### 3.1 인프라만 컨테이너 + 백엔드는 터미널·IDE (반복 개발용)
 
 ```bash
-docker compose logs -f backend
-```
-
-`Started BackendApplication`이 찍히면 준비 완료.
-
-기존 Next.js 프론트까지 함께 보고 싶을 때만 profile을 명시해서 띄운다:
-
-```bash
-docker compose --profile frontend up -d --build
-```
-
-### 대안: 백엔드는 로컬에서 직접 실행 (Java 25 필요, 반복 개발에 더 빠름)
-
-인프라만 컨테이너로 띄우고 백엔드는 IDE/로컬에서 `bootRun`으로 돌리면 코드 변경 후 재기동이 훨씬 빠르다 (devtools 자동 재시작 포함).
-
-```bash
-docker compose up -d postgres redis kafka
+docker compose up -d          # postgres · redis
 cd backend
-./gradlew bootRun
+./gradlew bootRun             # http://localhost:8080
 ```
 
-## 4. 정상 기동 확인
+| 서비스 | 호스트 포트 | 비고 |
+|---|---|---|
+| postgres | `15432` | DB·사용자·비밀번호 모두 `schoolbus` |
+| redis | `16379` | 컨테이너 안 포트는 6379 |
+| backend(`bootRun`) | `8080` | 코드 수정 시 devtools 가 자동 재시작 |
 
-- API 문서 JSON: `curl -s http://localhost:8080/v3/api-docs` → OpenAPI 스펙 (JSON)이 내려오면 기동 성공 (이 프로젝트는
-  `spring-boot-starter-actuator`를 쓰지 않으므로 `/actuator/health`는 없다)
-- API 문서 (Swagger UI): `http://localhost:8080/swagger-ui/index.html`
-    - 좌측 상단에 "00. MVP 사용 API" 그룹으로 MVP 범위 엔드포인트가 모여 있다.
-    - `/api/auth/login` 호출 결과의 `accessToken`을 우측 상단 **Authorize** 버튼에 넣으면 이후 요청에 자동으로 인증 헤더가 붙는다.
+포트나 DB 를 바꿔 띄울 때:
 
-## 5. 테스트 계정 (Flyway 로컬 시드, 비밀번호 전부 `password`)
+```bash
+./gradlew bootRun --args='--server.port=8230 --spring.datasource.url=jdbc:postgresql://localhost:15432/<DB이름>'
+```
 
-| 역할          | 이메일              |
-|---------------|---------------------|
-| 학생          | student@school.com  |
-| 학부모        | parent@school.com   |
-| 운전기사      | driver@school.com   |
-| 학원 관리자   | admin@school.com    |
-| 플랫폼 관리자 | platform@school.com |
+### 3.2 전부 컨테이너 (웹까지 포함)
 
-5계층 모두 같은 학원 (한빛학원) 소속으로 미리 연결돼 있어 역할별 화면을 바로 테스트할 수 있다.
+```bash
+docker compose -f docker-compose.yml -f docker-compose.app.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.app.yml down
+```
 
-## 6. 데이터를 시드 상태로 초기화하고 싶을 때
+- `down` 에도 `-f` 두 개를 그대로 줌. 빼면 backend·proxy·관측 컨테이너가 남음(번거로우면 `export COMPOSE_FILE=docker-compose.yml:docker-compose.app.yml`)
+- 모든 HTTP 가 proxy `:3000` 한 곳을 지남
 
-로컬 Postgres 컨테이너는 **의도적으로 영속 볼륨이 없다**. 즉:
+| 접근 | 주소 |
+|---|---|
+| 관계자 웹 | `http://localhost:3000` |
+| API | `http://localhost:3000/api/v1/...` |
+| WebSocket | `ws://localhost:3000/ws/location` |
+| Swagger UI | `http://localhost:3000/swagger-ui/index.html` |
+| Grafana | `http://localhost:3001`(admin / admin) |
+| Prometheus | `http://localhost:9090` |
 
-- `docker compose stop` / `start` (컨테이너 유지) → 데이터 그대로 남음
-- `docker compose down` 후 다시 `up` (컨테이너 재생성) → Flyway가 스키마+시드를 처음부터 다시 구성 → **깨끗한 상태로 리셋**
+- `/actuator` 는 proxy 가 라우팅하지 않아 404 가 정상. 헬스는 `docker compose -f docker-compose.yml -f docker-compose.app.yml exec backend curl -s localhost:8080/actuator/health`
+- proxy 가 `:3000` 인 이유: 네이버 지도 키의 서비스 URL 과 백엔드 CORS 허용 목록이 둘 다 `http://localhost:3000` 으로 등록됨. 다른 포트로 열면 지도 SDK 인증이 401 로 거절되어 "지도를 불러오지 못했습니다" 만 표시됨. 포트를 바꾸려면 NCP 콘솔의 서비스 URL 부터 바꿈
 
-새 프론트엔드를 반복 테스트하다가 데이터가 꼬였다면 `docker compose down` 후 `up`으로 되돌리면 된다.
+## 4. 기동 확인
 
-## 7. 새 프론트엔드에서 API 연결 시 꼭 확인할 것
+`bootRun`(3.1) 기준:
 
-1. **API Base URL**: `http://localhost:8080`
-2. **인증 방식**: 역할 기반 JWT. `/api/auth/login`으로 로그인 후 발급받은 `accessToken`을
-   `Authorization: Bearer <token>` 헤더로 붙여야 한다. (`/api/auth/**`, `/actuator/health`,
-   `/swagger-ui/**`, `/v3/api-docs/**`, `/ws/**`만 인증 없이 열려 있고 나머지는 전부 토큰 필요)
-3. **CORS는 흔한 개발 포트가 이미 허용돼 있다**: `/api/**`는
-   `SecurityConfig`(`../../backend/src/main/java/src/backend/global/security/SecurityConfig.java`)의
-   `CorsConfigurationSource` 빈이 `application.yml`의 `app.cors.allowed-origins` 목록에 있는 출처만 허용한다. 로컬 (`local` 프로파일) 기본값에 아래
-   포트가 이미 포함돼 있어 대부분의 프레임워크 개발 서버는 별도 설정 없이 바로 붙는다.
-    - `http://localhost:3000` (Next.js / CRA), `http://localhost:5173` (Vite),
-      `http://localhost:4200` (Angular), `http://localhost:8081`, 그리고 `127.0.0.1` 버전들
-    - 다른 포트를 쓴다면 `application.yml`의 `app.cors.allowed-origins`에 추가하거나, 환경변수 `CORS_ALLOWED_ORIGINS`(콤마 구분)로 오버라이드한다 — 예:
-      `CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5555 ./gradlew bootRun`
-    - `/ws/location`(WebSocket)은 이 설정과 무관하게 이미 모든 origin을 허용한다.
-    - **운영 (`prod`) 프로파일은 기본값이 없다** — `CORS_ALLOWED_ORIGINS`를 명시하지 않으면 허용 출처가 0개 (전부 차단)이므로, 배포 시 실제 프론트 도메인을 반드시 환경변수로
-      넣어야 한다.
-4. **실시간 위치 스트림**: `/ws/location`이 STOMP over WebSocket 엔드포인트다. Mock GPS가 기본 활성화 (`app.location.mock.enabled: true`)돼 있어
-   실 기기 연동 없이도 위치가 흘러간다.
-5. **API 명세 참고 문서**:
-    - `../../docs/API_SPEC.md` — 전체 API 계약 (엔드포인트 69개 · 에러 사전 · WebSocket)
-    - Swagger UI가 가장 최신이므로 실제 요청/응답 스키마는 Swagger 기준으로 확인할 것
+```bash
+curl -s http://localhost:8080/actuator/health          # {"groups":["liveness","readiness"],"status":"UP"}
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/v3/api-docs   # 200
+```
 
-## 8. 기존 `..` 처리
+- Swagger UI: `http://localhost:8080/swagger-ui/index.html`
+- 로그인 응답(`data` 안)의 `access_token` 값을 우측 상단 **Authorize** 에 넣음. `Bearer ` 접두사 없이 토큰 값만 — 인증 스킴이 HTTP bearer 로 등록돼 있어 헤더는 자동으로 붙음
 
-새 프레임워크로 교체할 계획이라면:
+## 5. 로그인 계정 (Flyway 로컬 시드)
 
-- 기존 `..` 디렉터리는 참고용 (화면 흐름·시나리오 파악)으로만 두고 새 프론트엔드는 별도 디렉터리 (예: `web/`)에 만드는 것을 권장한다 — 한 번에 지우기보다 비교하면서 이전하는 편이 안전하다.
-- 루트 `../../docker-compose.yml`의 `frontend` 서비스는 새 프론트엔드가 준비되면 빌드 경로 (`build: ./frontend`)와 포트를 새 디렉터리에 맞게 수정하거나, 새
-  프론트엔드는 Docker Compose에 넣지 않고 자체 개발 서버로 띄워도 무방하다 (백엔드 API는 컨테이너 밖에서도 `localhost:8080`으로 접근 가능).
+- 로그인 값은 **이메일이 아니라 `login_id`**. 비밀번호는 전부 `password`(로컬 전용. 배포·스테이징은 별도 값)
+- 요청: `POST /api/v1/auth/login` · 본문 `{"login_id":"staffA","password":"password"}` · 헤더 `X-Client-Type: app | web`(웹은 refresh 토큰을 쿠키로, 앱은 본문으로 받음 — `API_SPEC §1.2.1`)
+- 연속 5회 실패 시 계정이 `blocked`(`driverBlocked` 시드가 이 상태)
 
-## 9. 트러블슈팅
+`backend/src/main/resources/db/migration-local/V2__seed_data.sql`(계정 20개)의 학원 A(`바래다학원 A`)·B·C:
 
-- **포트 충돌** (`5432`/`6379`/`8080` 등 이미 사용 중): 로컬에 다른 Postgres/Redis가 떠 있는지 확인하거나
-  `../../docker-compose.yml`의 `ports` 매핑을 조정.
-- **`docker compose up` 후 backend가 계속 재시작됨**: `docker compose logs backend`로 원인 확인 — 대개 postgres healthcheck 통과 전에 접속을
-  시도하는 경우이므로 `depends_on: condition: service_healthy`가 걸려 있는지, 혹은 이미지 빌드가 실패했는지 로그로 확인.
-- **로그인은 되는데 이후 요청이 401**: Swagger의 Authorize에 토큰을 `Bearer ` 접두사 없이 넣었는지 확인 (springdoc이 자동으로 붙여주므로 토큰 값만 넣으면 된다).
-- **CORS 에러가 여전히 발생**: ① 프론트 개발 서버 주소가 `app.cors.allowed-origins` 목록과 프로토콜·호스트·포트까지 정확히 일치하는지 (`http://localhost:3000`과
-  `http://127.0.0.1:3000`은 다른 출처로 취급됨) ② `application.yml` 수정 후 백엔드를 재시작했는지 (설정은 기동 시 한 번만 읽는다) ③ 요청 경로가 `/api/`로 시작하는지
-  (다른 경로는 이 CORS 설정 대상이 아니다) 확인.
+| 역할 | 학원 A | 학원 B | 학원 C(운영정지) |
+|---|---|---|---|
+| 시스템 관리자(`system_admin`) | `sysadmin`(소속 학원 없음) | | |
+| 학원 관리자(`staff`) | `staffA` | `staffB` | `staffC` |
+| 학부모(`parent`) | `parentA1` · `parentA2` · `parentA3` | `parentB1` | |
+| 학생(`student`) | `studentA4` | `studentB1` | |
+| 기사(`driver`) | `driverA1` · `driverA2` | `driverB1` | |
+| 동승자(`escort`) | `escortA1` · `escortA2` | `escortB1` | |
+
+승인·차단 상태 시연용(모두 학원 A): `staffPending` · `parentPending`(승인 대기) · `studentRejected`(가입 거절) · `driverBlocked`(차단).
+
+`db/migration-local/V13__demo_fleet.sql`(학원 A 소속 6개): 기사 `driverD3` · `driverD4` · `driverD5` · 동승자 `escortD3` · `escortD4` · `escortD5`.
+
+`db/migration-demo/V14__demo_scale.sql`(학원 10곳 · 학생 600명 규모): `local` 프로파일에서만 적재됨(테스트 DB 는 제외). 계정 규칙:
+
+| 역할 | 로그인 값 |
+|---|---|
+| 학원 관리자 | `staff01` ~ `staff10` |
+| 기사 | `driver011` ~ (학원 번호 2자리 + 호차 1~3) |
+| 동승자 | `escort011` ~ |
+| 학부모 | `parent01001`(학원 01 의 학생 001) ~ `parent10060` |
+
+## 6. 데이터를 시드 상태로 되돌리기
+
+방법 셋. 상황에 맞게 고름(앞의 두 방법은 3.1 방식 기준).
+
+| 방법 | 동작 |
+|---|---|
+| `bootRun` 재기동(3.1) | `local` 프로파일은 **기동마다** DB 를 `clean()` 후 다시 적재(`LocalFlywayCleanStrategy`). 데이터소스가 `localhost` 일 때만 실행되고 아니면 기동 실패 |
+| `POST /api/v1/dev/reset` | 앱 재시작 없이 DB 를 시드 상태로 되돌리고 위치 캐시를 비운 뒤 **내일 회차만** 생성. 인증만 요구(역할 무관). `local` 프로파일에서만 존재. 응답 `data.cleared_position_keys` |
+| `docker compose down` 후 `up` | postgres 컨테이너에 영속 볼륨이 없어 컨테이너 재생성 시 초기화. 컨테이너 모드(3.2)의 backend 는 `clean()` 을 끈 채 기동하므로 backend 재시작만으로는 초기화되지 않음 |
+
+- `docker compose down` 에는 `-v` 를 붙이지 않음
+- `stop` / `start`(컨테이너 유지)는 데이터가 남음
+- `POST /dev/reset` 이 지우는 위치 캐시는 Redis 키 패턴 전체 — **같은 Redis(`16379`)를 쓰는 다른 백엔드의 최신 좌표도 함께 지워짐**
+- 관계자 웹 머리말의 **[테스트 데이터 초기화]** 버튼은 `NEXT_PUBLIC_TEST_DATA_RESET=true` 로 빌드·기동한 웹에만 보임(기본은 숨김)
+- 시드 SQL 을 고친 뒤 이미 적용된 DB 로 앱만 다시 띄우면 `FlywayValidateException` 으로 기동 실패 — 체크섬 불일치이므로 `down` → `up` 으로 재구성
+
+## 7. 관계자 웹 (`frontend/apps/academy-web`)
+
+```bash
+cd frontend/apps/academy-web
+npm install
+```
+
+`.env.local`(git 추적 밖 — 새로 만듦)에 네이버 지도 웹 SDK 클라이언트 ID:
+
+```
+NEXT_PUBLIC_NAVER_MAP_CLIENT_ID=<키>
+```
+
+```bash
+npm run dev      # http://localhost:3000
+```
+
+| 항목 | 값 |
+|---|---|
+| API 주소 | 환경변수 `NEXT_PUBLIC_API_BASE_URL`(기본 `http://localhost:8080`) 뒤에 `/api/v1` 이 자동으로 붙음 |
+| WebSocket | 같은 변수의 스킴을 `ws` 로 바꾸고 `/ws/location` 을 붙임(`/api/v1` 은 붙지 않음) |
+| 검사 | `npm test`(vitest) · `npm run lint` · `npx tsc --noEmit` |
+
+- ⚠ **웹은 `:3000` 에서만 지도 인증·CORS 가 맞음.** `npm run dev` 는 기본 `3000` 을 쓰므로 3.2 의 proxy 와 동시에 띄울 수 없음 — 둘 중 하나만
+- `NEXT_PUBLIC_*` 값은 브라우저 번들에 그대로 실림. 지도 키는 비밀이 아니고 보호는 NCP 콘솔의 서비스 URL 등록으로 함
+
+## 8. 앱 2종 (`frontend/apps/manager-app` · `frontend/apps/parent-app`)
+
+### 8.1 최초 1회 — 생성 코드 만들기
+
+`*.g.dart` · `*.freezed.dart` 는 git 이 추적하지 않음. 새로 받은 저장소에서는 없으므로 아래를 먼저 실행:
+
+```bash
+cd frontend/packages/baraeda_core && flutter pub get && dart run build_runner build --delete-conflicting-outputs
+cd ../../apps/manager-app         && flutter pub get && dart run build_runner build --delete-conflicting-outputs
+cd ../parent-app                  && flutter pub get
+```
+
+- `parent-app` 은 `build_runner` 를 돌려도 생성 파일이 0개
+
+### 8.2 실행
+
+앱 디렉터리(`manager-app` 또는 `parent-app`)에서 — 두 앱의 인자가 같음:
+
+```bash
+flutter run \
+  --dart-define=API_BASE_URL=http://localhost:8080/api/v1 \
+  --dart-define=NAVER_MAP_CLIENT_ID=<키>
+```
+
+| 인자 | 없을 때 |
+|---|---|
+| `API_BASE_URL` | 기본값 `http://localhost:8080/api/v1`(`lib/core/constants/api_constants.dart`). 다른 포트·DB 로 띄운 백엔드에 붙일 때 지정 |
+| `NAVER_MAP_CLIENT_ID` | **지도가 그려지지 않고 회색 격자만 표시**(SDK 가 키 없이 초기화되어 `NClientUnspecifiedException` code 800 — 2026-09-30 실측). 키 값은 어떤 파일에도 커밋하지 않음 |
+
+- 키 값: 웹의 `frontend/apps/academy-web/.env.local` 의 `NEXT_PUBLIC_NAVER_MAP_CLIENT_ID` 와 같은 값
+- 로그인 응답의 `refresh_token` 이 본문에 오므로 앱은 `X-Client-Type: app` 을 명시해 호출(`ApiConstants.clientType`)
+
+빌드만 확인할 때(iOS 시뮬레이터용):
+
+```bash
+flutter build ios --simulator --debug \
+  --dart-define=API_BASE_URL=http://localhost:8080/api/v1 \
+  --dart-define=NAVER_MAP_CLIENT_ID=<키>
+```
+
+### 8.3 검사
+
+```bash
+flutter test          # 단위·위젯. 실서버를 부르는 test/integration/real_backend_*_test.dart 는 아래 인자 필요
+flutter analyze
+```
+
+- 실서버 계약 시험은 `--dart-define=API_BASE_URL=http://localhost:<전용포트>/api/v1` 을 주지 않으면 스스로 실패함(`test/support/real_backend_target.dart`). **공유 DB(`schoolbus`)가 아닌 전용 DB 로 띄운 백엔드**에만 겨눔 — 이 시험은 실행하면서 DB 의 행을 바꿈
+- 백엔드 시험은 `-PtestDbUrl` 이 필수. `backend/scripts/test.sh` 가 전용 DB 를 만들고 끝나면 지움
+
+## 9. API 연결 시 확인할 것
+
+1. **기본 주소**: `http://localhost:8080/api/v1` (proxy 모드는 `http://localhost:3000/api/v1`). 모든 API 경로에 `/api/v1` 접두사(`ApiPathPrefixConfig.API_PREFIX`)
+2. **응답 봉투**: 성공 응답 본문은 `{"success":true,"data":{...},"message":null}`. 필드는 전부 snake_case
+3. **인증**: `Authorization: Bearer <access_token>`. 인증 없이 열린 경로는 아래뿐이고 나머지는 전부 토큰 필요
+   - `GET /api/v1/academies/search` · `POST /api/v1/auth/signup` · `login` · `refresh` · `recover`(`PublicEndpoints`)
+   - `/actuator/health` · `/actuator/prometheus` · `/ws/**` · `/swagger-ui/**` · `/v3/api-docs/**`
+4. **CORS**(`/api/**` 만 대상): `app.cors.allowed-origins` 목록에 있는 출처만 허용. `local` 기본값:
+   `http://localhost:3000` · `:5173` · `:4200` · `:8081` · `http://127.0.0.1:3000` · `:5173`
+   - 목록 밖 출처는 `403`. `CORS_ALLOWED_ORIGINS`(쉼표 구분)를 주면 **기본 목록 전체를 대체**함 — 예: `CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5555 ./gradlew bootRun`
+   - `prod` · `demo` · `staging` 은 기본값이 없어 미지정 시 허용 출처가 0개
+5. **실시간 위치 스트림**: `/ws/location`(STOMP over WebSocket, 접두사 `/api/v1` 없음). 허용 출처는 REST 와 별개인 `app.ws.allowed-origin-patterns`(환경변수 `WS_ALLOWED_ORIGIN_PATTERNS`) — `local` 기본값은 `*`(모든 출처), `prod` · `demo` · `staging` 은 기본값이 없어 미지정 시 기동 실패. Origin 헤더를 보내지 않는 네이티브 앱은 이 제한과 무관
+6. **버스 위치 시뮬레이터**: 위치는 기사 단말이 올리는 값이고 서버는 2분만 유효한 값으로 봄 — 아무도 올리지 않으면 지도가 비어 있음. `local` 프로파일은 `DemoRunSimulator` 가 기동 15초 뒤부터 기사 단말 자리를 대신해 시드 회차를 출발시키고 위치를 올림(별도 설정 스위치 없음)
+7. **계약 문서**: 엔드포인트 목록·요청·응답·오류 코드는 `docs/API_SPEC.md`. 실제 스키마는 Swagger UI 가 가장 최신
+
+## 10. 문제 해결
+
+- **포트 충돌**(`15432` · `16379` · `8080` · `3000`): `lsof -iTCP -sTCP:LISTEN -P` 로 점유 프로세스 확인. 호스트 포트는 `docker-compose.yml` 의 `ports` 에서 조정
+- **로그인 `401`**: 이메일이 아니라 `login_id`(§5)를 보냈는지, 비밀번호가 `password` 인지 확인. 이전 경로 `/api/auth/login` 은 존재하지 않음 — `/api/v1/auth/login`
+- **로그인은 되는데 이후 요청이 `401`**: Swagger Authorize 에 `Bearer ` 접두사를 붙였는지 확인(토큰 값만 입력)
+- **CORS 오류**: ① 개발 서버 주소가 허용 목록과 프로토콜·호스트·포트까지 일치하는지(`http://localhost:3000` 과 `http://127.0.0.1:3000` 은 다른 출처) ② 설정을 바꾼 뒤 백엔드를 재시작했는지 ③ 요청 경로가 `/api/` 로 시작하는지
+- **지도가 회색 격자 / "지도를 불러오지 못했습니다"**: 앱은 `NAVER_MAP_CLIENT_ID` 인자(§8.2), 웹은 `.env.local` 의 키와 `:3000` 포트(§7)를 확인
+- **`flutter run` 이 `*.freezed.dart` · `*.g.dart` 없다고 실패**: §8.1 의 `build_runner` 를 실행
+- **`docker compose up` 후 backend 가 계속 재시작**(3.2): `docker compose -f docker-compose.yml -f docker-compose.app.yml logs backend` 로 원인 확인
