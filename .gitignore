@@ -77,6 +77,9 @@ node_modules/
 /report/
 backend/report/
 backend/load/results/
+# 화면 확인 스크린샷(메인 저장소 frontend/report/<라운드>/) · 도구가 만드는 .playwright/ — 36MB 안팎이라 실수로 공개 저장소에 올라가지 않게 한다
+frontend/report/
+/.playwright/
 
 # 문서 그래프 색인 — 파생본, 정본은 docs/ (규칙 ~/.claude/rules/docgraph.md)
 .docgraph/

@@ -152,6 +152,10 @@ jobs:
           else
             echo "::error::배포 실패 (status=$STATUS)"
           fi
+          # 공개 저장소라 Actions 로그도 공개다. deploy.sh 는 실패 시 backend 컨테이너 로그 120줄을 stderr 로
+          # 내는데(주소·이름 같은 개인정보가 섞일 수 있다) 그 전문을 그대로 찍지 않는다 — deploy.sh 가 직접 쓴
+          # 실패 사유 줄(오류·기동 실패·배포 실패)만 남기고, 로그는 EC2 에서 본다.
           aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
-            --query StandardErrorContent --output text || true
+            --query StandardErrorContent --output text | grep -E '^(오류|기동 실패|배포 실패)' || true
+          echo "::notice::backend 로그는 Actions 에 남기지 않는다 — EC2 에서 docker compose -f /opt/school-bus/docker-compose.prod.yml logs --tail 120 backend"
           exit 1
