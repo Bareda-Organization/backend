@@ -38,6 +38,19 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
     List<RunRider> findAllByRunIdAndAcademyId(@Param("runId") Long runId, @Param("academyId") Long academyId);
 
     /**
+     * 회차 여러 개의 명단을 한 번에(BR-252) — {@link #findAllByRunIdAndAcademyId} 를 회차마다 부르던 목록 조회가
+     * 페이지 크기만큼 질의를 내지 않게 한다. 학원 조건은 같은 부모(Run) 조인이다.
+     */
+    @Query("""
+            SELECT rr FROM RunRider rr
+            JOIN Run r ON r.id = rr.runId
+            WHERE rr.runId IN :runIds
+              AND r.academyId = :academyId
+            """)
+    List<RunRider> findAllByRunIdInAndAcademyId(@Param("runIds") java.util.Collection<Long> runIds,
+            @Param("academyId") Long academyId);
+
+    /**
      * ③구간 미등원 토글(API_SPEC §3.6)이 상태를 옮길 그 학생의 명단 행 1건 —
      * {@code uk_run_rider_run_student} UNIQUE(암시)가 결과를 한 건으로 좁힌다.
      *
