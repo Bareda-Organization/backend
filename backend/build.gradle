@@ -148,7 +148,11 @@ def readDotEnv = {
     return entries
 }
 
-tasks.named('test') {
+// 실 API 시험(@Tag("live"))이 System.getenv() 로 읽는 자격증명 키 4개 — 기본 test 는 이 키를 빼고, liveTest 만 넣는다.
+def liveTestEnvKeys = ['NAVER_MAPS_KEY_ID', 'NAVER_MAPS_KEY', 'NAVER_DIRECTIONS_KEY_ID', 'NAVER_DIRECTIONS_KEY']
+
+// test · liveTest 가 같은 JVM 설정을 쓴다 — 갈라지는 것은 아래 두 태스크의 태그·환경변수뿐이다.
+tasks.withType(Test).configureEach {
     useJUnitPlatform()
     // LocalFlywayCleanStrategy 가 clean() 을 건너뛰게 한다(Phase 2 Task 3, Ruling 89) — 여러
     // @SpringBootTest 컨텍스트가 한 JVM 안에서 같은 로컬 Postgres 를 공유할 때, 한쪽의 clean() 이
@@ -230,20 +234,13 @@ tasks.named('test') {
     // migration-demo 만 뺀 값이다 — application.yml 의 local 목록을 바꾸면 여기도 같이 바꾼다.
     systemProperty 'spring.flyway.locations', 'classpath:db/migration,classpath:db/migration-local'
 
-    // NaverDirectionsClientLiveTest·NaverGeocodingClientLiveTest 는 위 stub 설정을 인라인
-    // @TestPropertySource 로 덮어쓰고 System.getenv() 로 자격증명을 찾는다. backend/.env 는
-    // docker-compose·bootRun 전용이라 Gradle 테스트 JVM 에는 저절로 전달되지 않아, 자격증명이
-    // 실재해도 두 시험이 항상 건너뛰었다(Ruling 276) — 실 응답의 형태가 우리 파싱과 맞는지 확인할
-    // 수단이 꺼져 있던 것과 같은 말이다. .env 가 없는 환경(CI 등)에서는 빈 목록이라 동작이 그대로다
-    // (여전히 건너뜀 — 실 API 를 호출하지 않는다).
-    // ⚠ .env 전체를 넣지 않는다(BR-239) — NAVER_DIRECTIONS_PATH·NAVER_DIRECTIONS_MAX_POINTS(Ruling 361 의
-    // Directions 5 전환)나 JWT_SECRET 같은 값이 시험 JVM 에 들어가면 경로·상한을 리터럴로 고정한 시험이
-    // 개발자 .env 에 따라 갈린다. 실 API 시험이 System.getenv() 로 읽는 자격증명 키 4개만 넘긴다.
-    def liveTestEnvKeys = ['NAVER_MAPS_KEY_ID', 'NAVER_MAPS_KEY', 'NAVER_DIRECTIONS_KEY_ID', 'NAVER_DIRECTIONS_KEY']
-    readDotEnv().findAll { key, value -> key in liveTestEnvKeys }.each { key, value -> environment key, value }
+    // 실 API 시험(NaverDirectionsClientLiveTest 등 @Tag("live"))은 위 stub 설정을 인라인
+    // @TestPropertySource 로 덮어쓴다. 그 시험은 기본 test 에서 빠지고 liveTest 에서만 돌며, 자격증명
+    // 환경변수도 liveTest 에만 넘긴다(아래 태스크 정의).
 
-    // -PrequireLive: 실 API 시험(*LiveTest)이 자격증명이 없어 조용히 건너뛰는 대신 실패하게 한다(BR-238).
+    // -PrequireLive: 실 API 시험(@Tag("live"))이 자격증명이 없어 조용히 건너뛰는 대신 실패하게 한다(BR-238).
     // 병합 직전 검사처럼 "건너뛰면 안 되는" 실행에서만 준다 — 기본 동작(건너뜀)은 그대로다.
+    // 이 옵션을 주면 test 도 라이브 시험을 포함한다(아래 test 정의) — 안 그러면 기본 test 에서 빠져 이 검사가 사라진다.
     if (project.hasProperty('requireLive')) {
         systemProperty 'requireLive', 'true'
     }
@@ -329,6 +326,46 @@ tasks.named('test') {
     // "2048m 은 실사용 610MB 라 더 올릴 근거가 없다"(294행)도 그 시절 값이라 지금은 성립하지 않는다.
     // **테스트가 늘 때마다 이 값을 함께 본다** — 컨텍스트 캐시가 함께 늘기 때문이다.
     maxHeapSize = '2048m'
+}
+
+/*
+ * 실 API 시험(@Tag("live") — NaverDirectionsClientLiveTest · RunConfirmationServiceLiveTest ·
+ * NaverGeocodingClientLiveTest)을 기본 test 에서 분리한다(R46 · Ruling 440).
+ *
+ * 기본 test 가 늘 실패 5건으로 끝났다 — Directions 15 일일 한도가 바닥나면(Ruling 361) 실 API 시험 5건이
+ * 실패하고, "5건은 늘 있는 것" 이 굳어 진짜 회귀가 섞여도 눈에 안 띄었다. 그래서 기본 test 는 네이버 키·한도와
+ * 무관하게 결정론적이 되게 라이브 시험과 자격증명 환경변수를 뺀다. 실 API 시험은 `./gradlew liveTest` 로 따로 돈다.
+ * 예외 — `-PrequireLive`(병합 직전 검사)를 주면 test 도 라이브를 포함한다(BR-238 의 의미 유지).
+ *
+ * 한도 초과 응답은 시험이 실패가 아니라 건너뜀으로 처리한다(testsupport.live.DirectionsQuota).
+ */
+tasks.named('test') {
+    useJUnitPlatform {
+        if (!project.hasProperty('requireLive')) {
+            excludeTags 'live'
+        }
+    }
+    // 셸이 준 값이 시험 JVM 으로 새지 않게 한다 — NAVER_DIRECTIONS_PATH 를 셸에 주면 라이브 밖의
+    // NaverDirectionsResilienceTest 3건이 실패했다(2026-09-30). 키는 -PrequireLive 일 때만 남긴다.
+    if (!project.hasProperty('requireLive')) {
+        (liveTestEnvKeys + ['NAVER_DIRECTIONS_PATH', 'NAVER_DIRECTIONS_MAX_POINTS']).each { environment.remove(it) }
+    } else {
+        readDotEnv().findAll { key, value -> key in liveTestEnvKeys }.each { key, value -> environment key, value }
+    }
+}
+
+tasks.register('liveTest', Test) {
+    description = '실 네이버 API 를 부르는 @Tag("live") 시험만 돈다(자격증명 필요 · 일일 한도 초과는 건너뜀).'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeTags 'live'
+    }
+    // backend/.env 의 자격증명 키 4개만 넘긴다(BR-239 — .env 전체를 넣지 않는다). .env 가 없으면 셸 환경이
+    // 그대로 쓰인다. Directions 15 한도가 바닥났으면 셸에서
+    // NAVER_DIRECTIONS_PATH=/map-direction/v1/driving NAVER_DIRECTIONS_MAX_POINTS=7 을 짝으로 준다(Ruling 361).
+    readDotEnv().findAll { key, value -> key in liveTestEnvKeys }.each { key, value -> environment key, value }
 }
 
 /**

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.math.BigDecimal;
 import java.util.Optional;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +34,7 @@ import testsupport.live.LiveCredentials;
 @SpringBootTest
 @TestPropertySource(properties = "geocoding.provider=naver")
 @EnabledIf("자격증명이_있다")
+@Tag("live")
 class NaverGeocodingClientLiveTest {
 
     /** 좌표가 알려진 주소 — 서울시청이고 위도 37.5 · 경도 127.0 부근이다. */
