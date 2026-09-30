@@ -8,6 +8,7 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
@@ -19,6 +20,7 @@ import src.backend.run.event.StopArrivedEvent;
  * {@code stop_arrived} 방송(API_SPEC §7.1) — 채널 4종 전부. {@code @TransactionalEventListener
  * (AFTER_COMMIT)} 근거는 {@link RunStartedBroadcastListener} 와 같다.
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class StopArrivedBroadcastListener {
@@ -32,16 +34,20 @@ public class StopArrivedBroadcastListener {
     /** 승하차지 도착을 학생·매니저·학원·관리자 채널 4종 전부에 방송한다. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcast(StopArrivedEvent event) {
-        List<Long> studentIds = runRiderRepository.findAllByRunId(event.runId()).stream()
-                // absent(다른 버스로 옮긴 removed 포함)는 이 버스에 없다 — 다른 방송 리스너와 같은 필터(BR-233)
-                .filter(rider -> rider.getStatus() != RiderStatus.ABSENT)
-                .map(RunRider::getStudentId)
-                .distinct()
-                .toList();
-        Payload payload = new Payload(event.stopId(), event.seq(), event.name(), event.arrivedAt(),
-                event.nextStopId());
-        gateway.broadcastToRunChannels(event.runId(), event.academyId(), studentIds, EVENT, event.arrivedAt(),
-                payload);
+        try {
+            List<Long> studentIds = runRiderRepository.findAllByRunId(event.runId()).stream()
+                    // absent(다른 버스로 옮긴 removed 포함)는 이 버스에 없다 — 다른 방송 리스너와 같은 필터(BR-233)
+                    .filter(rider -> rider.getStatus() != RiderStatus.ABSENT)
+                    .map(RunRider::getStudentId)
+                    .distinct()
+                    .toList();
+            Payload payload = new Payload(event.stopId(), event.seq(), event.name(), event.arrivedAt(),
+                    event.nextStopId());
+            gateway.broadcastToRunChannels(event.runId(), event.academyId(), studentIds, EVENT, event.arrivedAt(),
+                    payload);
+        } catch (RuntimeException e) {
+            log.warn("stop_arrived 방송 실패 — runId={}", event.runId(), e);
+        }
     }
 
     /** {@code stop_id} · {@code seq} · {@code name} · {@code arrived_at} · {@code next_stop_id}. */
