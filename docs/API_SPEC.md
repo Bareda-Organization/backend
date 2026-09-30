@@ -1613,7 +1613,9 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | 처리 | 행 삭제(취소 상태를 두지 않는다 — 반영 전 대기 기록이라 남길 이력이 없다). 감사 기록 1건 |
 | 응답 | `204` 본문 부재 |
 
-**에러** — `404 TRANSFER_NOT_FOUND`(없음 · 타 학원) · `403 CHANGE_WINDOW_CLOSED`(두 회차 중 하나라도 ① 구간이 끝났거나 이미 `applied`) · `409 RUN_CANCELED`(두 회차 중 하나라도 임시 취소 — 등록과 같은 판정)
+**에러** — `404 TRANSFER_NOT_FOUND`(없음 · 타 학원) · `403 CHANGE_WINDOW_CLOSED`(**임시 취소되지 않은** 회차 중 하나라도 ① 구간이 끝났거나 `idle` 이 아님 · 이미 `applied`)
+
+**임시 취소된 회차** (`Ruling 372`) — `idle`·① 구간 판정은 임시 취소되지 않은 회차에만 건다(취소된 회차는 판정에서 빼되 잠금은 잡는다). 그래서 출발 회차가 임시 취소된 이동도 이 API 로 지울 수 있고 `409 RUN_CANCELED` 는 없다. 도착 회차가 임시 취소되면 그 회차로 들어오는 `staged` 이동은 취소 시점에 자동으로 지워진다(§5.10).
 
 **동시성** — 두 회차를 잠근 뒤 판정하고 지운다(확정 배치·등록과 같은 행 잠금). 확정 배치가 계산을 마친 뒤 저장 직전에 행 id 집합을 다시 대조하므로, 취소와 새 등록이 끼어 행 수가 같아도 낡은 명단은 저장되지 않는다(BR-044).
 
@@ -1758,7 +1760,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `DELETE /staff/schedules/{id}` | SCH-01 | 삭제. **행을 지운다**(soft delete 부재) — 이미 만들어진 회차는 `run.schedule_id` 가 NULL 이 되어 그대로 남는다 (`ERD` FK `SET NULL`) — 다만 **내일 이후 · `idle` · 미취소 회차는 삭제 전에 취소 표시**한다(아래 "스케줄 변경의 반영"). 성공 `204`(본문 부재, §1.1) |
 | `GET /staff/runs?service_date=` | SCH-02 | 그 날짜의 회차 목록. 생략하면 **오늘** |
 | `POST /staff/runs` | SCH-03 | 특정일 회차 **임시 추가** — 스케줄에 없는 1회성 운행 |
-| `DELETE /staff/runs/{id}` | SCH-03 | 특정일 회차 **임시 취소** — 행을 지우지 않고 `canceled_at` 을 채운다. **`idle`·`confirmed` 만** — 운행이 시작된 회차는 `409 RUN_ALREADY_STARTED`. 취소된 회차는 매니저 목록(§4.1)에서 빠지고 시작·강제 추가·이동은 `409 RUN_CANCELED`. 성공 `204`(본문 부재, §1.1) |
+| `DELETE /staff/runs/{id}` | SCH-03 | 특정일 회차 **임시 취소** — 행을 지우지 않고 `canceled_at` 을 채운다. **`idle`·`confirmed` 만** — 운행이 시작된 회차는 `409 RUN_ALREADY_STARTED`. 취소된 회차는 매니저 목록(§4.1)에서 빠지고 시작·강제 추가·이동은 `409 RUN_CANCELED`. **그 회차로 들어오는 반영 전(`staged`) 이동 대기는 취소와 함께 삭제**되어(감사 1건씩) 학생이 출발 회차 명단으로 돌아온다(`Ruling 372`) — 스케줄 비활성화·삭제로 회차가 취소되는 경로도 같다. `applied` 이동과 취소를 푸는 것은 이동을 바꾸지 않는다. 성공 `204`(본문 부재, §1.1) |
 
 ⚠ **`GET /staff/runs` 는 `§5.18 GET /staff/runs/live` 와 다른 것이다** — 이쪽은 날짜로 보는 **회차 목록**(SCH-02 결과 확인), 저쪽은 관제용 **실시간 스냅샷**(MON-07)이다. 경로가 비슷해도 합치지 않는다.
 
