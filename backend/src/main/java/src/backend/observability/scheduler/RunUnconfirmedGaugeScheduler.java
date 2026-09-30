@@ -1,6 +1,7 @@
 package src.backend.observability.scheduler;
 
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
@@ -20,6 +21,7 @@ import src.backend.run.repository.RunRepository;
  * <p>문턱을 {@code §13.4} 알럿 조건과 맞춰 {@code confirm_at + 5분} 이 지난 idle 회차로 잡는다 —
  * 확정 배치 자체의 조회 문턱({@code confirm_at <= now})보다 5분 여유를 더 준 것은, 이 게이지가
  * "배치가 늦다" 가 아니라 "배치가 늦어 경보를 울릴 만큼 늦다" 를 재려는 목적이기 때문이다.
+ * 운행일이 오늘 이후인 회차만 센다(BR-231) — 확정 배치가 집지 않는 지난 날짜 idle 회차를 세면 경보가 다시 꺼지지 않는다.
  *
  * <p>{@code @SchedulerLock} — 인스턴스마다 같은 집계를 반복 계산하는 것을 막을 뿐, 이중 실행이
  * 데이터를 틀리게 만들지는 않는다(쓰기 없는 순수 조회). 그래도 다른 스케줄러와 같은 관례를 따라
@@ -46,8 +48,7 @@ public class RunUnconfirmedGaugeScheduler {
     @SchedulerLock(name = "run-unconfirmed-gauge", lockAtMostFor = "PT2M")
     public void refresh() {
         OffsetDateTime threshold = OffsetDateTime.now(clock).minusMinutes(5);
-        long count = runRepository.countByStatusAndConfirmAtLessThanEqualAndCanceledAtIsNull(
-                RunStatus.IDLE, threshold);
+        long count = runRepository.countOverdueUnconfirmed(RunStatus.IDLE, threshold, LocalDate.now(clock));
         metrics.update(count);
     }
 }

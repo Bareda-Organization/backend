@@ -151,6 +151,11 @@ class RunUnconfirmedGaugeSchedulerTest {
                 now.minusMinutes(8).plusMinutes(30), now.minusMinutes(8));
         jdbcTemplate.update("UPDATE run SET canceled_at = ? WHERE id = ?", now, canceledRunId);
 
+        // 제외 4(BR-231) — confirm_at 은 10분 지났고 idle·미취소지만 운행일이 어제다. 지난 날짜 idle 회차는 확정 배치 조회(
+        // service_date >= today)도 집지 않아 영구히 idle 이라, 세면 경보가 다시 꺼지지 않는다.
+        fixtures.idleRun(academyId, busId, SERVICE_DATE.minusDays(1), Direction.TO_ACADEMY,
+                now.minusMinutes(10).plusMinutes(30), now.minusMinutes(10));
+
         scheduler.refresh();
 
         assertThat(gaugeValue() - before)

@@ -230,12 +230,15 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      * 5분 넘긴(경고 여유) idle 회차 수. {@code threshold} 에 {@code now - 5분} 을 넘겨받는다 — 알럿
      * 조건과 확정 배치 조회의 문턱이 다르므로({@code +5분} 여유) 이 메서드를 따로 둔다.
      *
-     * <p>{@code canceled_at IS NULL} 을 더한 이유는 {@link
-     * #findDueForConfirmation} 와 같다 —
-     * 취소된 회차는 애초에 확정 대상이 아니라 "노선을 못 받은" 위험이 없다.
+     * <p>{@link #findDueForConfirmation} 과 같은 두 조건을 건다. ① {@code canceled_at IS NULL} — 취소된 회차는 애초에
+     * 확정 대상이 아니라 "노선을 못 받은" 위험이 없다. ② {@code service_date >= today}(BR-231) — 지난 날짜 idle 회차는
+     * 확정 배치가 집지 않아 영구히 idle 이고, 세면 "0 이 아니면 곧 운행 사고" 경보가 다시 꺼지지 않는다.
      */
     @AcademyScopeExempt(reason = "미확정 회차 게이지(관측 목표 8)는 시각이 촉발하는 전 학원 대상 집계라 좁힐 학원이 "
             + "부재하다 — findDueForConfirmation 와 같은 근거. "
             + "호출부는 관측 스케줄러(RunUnconfirmedGaugeScheduler)뿐이라는 전제")
-    long countByStatusAndConfirmAtLessThanEqualAndCanceledAtIsNull(RunStatus status, OffsetDateTime threshold);
+    @Query("SELECT COUNT(r) FROM Run r WHERE r.status = :status AND r.confirmAt <= :threshold "
+            + "AND r.serviceDate >= :today AND r.canceledAt IS NULL")
+    long countOverdueUnconfirmed(@Param("status") RunStatus status, @Param("threshold") OffsetDateTime threshold,
+            @Param("today") LocalDate today);
 }
