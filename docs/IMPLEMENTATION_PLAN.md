@@ -5823,3 +5823,50 @@ C 는 A 가 고칠 파일을 **읽기만** 하고 고치지 않는다. **`docs/I
 
 **2026-09-30 부터 백엔드·프론트 메인 세션 분리 운영** — 백엔드 세션 Ruling 370~379(이 §8) · 프론트 세션 Ruling 380~389(`docs/frontend/IMPLEMENTATION_PLAN.md` 에 기록). 인수인계 `.claude/HANDOFF-BE.md` · `.claude/HANDOFF-FE.md`(git 추적 밖).
 
+
+## 8.65 ⚖ `R36-BE` 목표 표 — 이동 대기 취소 · 예정 명단 표시 · 미리보기 캐시 정리 · 연결 거절 확인 (2026-09-30 **완료** · 분기점 `ed60f5d8` · 백엔드 세션)
+
+**근거** — `Ruling 369`(§8.64) · R35 B 보고 · R32 W 보고 5 · `WaypointPreviewCache` 의 `ponytail:` 주석. 백엔드 하위 조율 창이 `be-main` 에 병합하고 main 병합은 main 세션에 요청한다.
+
+### ⚖ Ruling 370 — 예정 명단의 `change` 는 확정이 붙일 값과 같다 (BE2 범위)
+
+`Ruling 369` ② 는 이동 대기로 들어온 행에만 `change=added` 를 요구했다. 그러나 확정(`RunRiderPersistence.ridersOf`)은 **강제 추가(§5.7)로 들어온 학생에게도** `added` 를 붙인다(`ProjectedRoster.addedStudentIds` = 요일별 주소 밖에서 강제 추가·도착 이동으로 올라온 학생). 이동 대기만 표시하면 `Ruling 369` 가 없애려던 "확정 순간 초록 표시가 새로 생김" 이 강제 추가 행에 그대로 남는다.
+
+⇒ **예정 행의 `change` = `ProjectedRoster.addedStudentIds` 소속이면 `added`, 아니면 `null`.** `transfer_id` 는 도착 이동 대기 행에만(강제 추가 행은 `null`). `API_SPEC §5.4` 반영. 프론트 영향은 색 표시뿐(이미 `change` 로 색을 고른다).
+
+### ⚖ Ruling 371 — 예정 명단 `stop_name` 은 필수(●) 그대로 둔다 (BE5)
+
+R35 B 보고의 "정차지가 삭제되면 `stop_name` 이 `null`" 은 **도달 경로가 부재**하다 — ①정차지 삭제 API 부재(`@DeleteMapping` 전수 8개 중 정차지 대상 0) ②예정 명단이 읽는 정차지 참조가 전부 FK `ON DELETE RESTRICT`(`route_stop` · `run_forced_addition` · `run_transfer` · 확정 뒤 `run_rider`). `weekly_address.stop_id` 는 `SET NULL` 이지만 예정 계산은 노선 정차지 id 로 요일별 주소를 찾으므로 `NULL` 행은 애초에 안 잡힌다. ⇒ 문서 ● 유지 · 코드의 방어용 `null` 분기 유지(도달 불가). 정차지 삭제 기능이 생기면 그때 다시 판정한다.
+
+### BE4 판정 — 이미 거절한다 (코드 변경 부재 · 문서 누락 보완)
+
+`Student.linkAccount` · `Manager.linkAccount` 가 **다른 계정과 이미 연결된 레코드면 `409 ALREADY_LINKED`** 를 던지고, 가입 수락은 한 트랜잭션이라 계정은 `pending` 으로 남는다. 매니저 쪽은 시험이 있고(`SignupApprovalControllerTest` "이미_계정이_연결된_매니저를_다시_연결하면_409") **학생 쪽 시험이 부재**했다. `API_SPEC §5.2` 에러 목록에 `409 ALREADY_LINKED` 가 빠져 있어 추가했다(§8 설명도 확장).
+
+### ⚖ Ruling 372 — 임시 취소된 회차와 이동 대기 (2026-09-30 · BE1 구현 중 발견)
+
+BE1 구현이 취소 판정에 등록과 같은 잠금(`StagingRunGuard.lockIdle`)을 써서 **두 회차 중 하나라도 임시 취소면 `409 RUN_CANCELED`** 가 됐다. 그런데 도착 회차가 임시 취소되면 그 회차는 확정되지 않아(`canceled_at IS NULL` 조건) 이동이 영영 반영되지 않는데, **출발 회차의 확정은 여전히 그 학생을 뺀다**(출발 이동은 상태를 거르지 않음) — 학생이 어느 버스에도 없게 되고, 같은 학생의 다른 이동도 `TRANSFER_ALREADY_STAGED` 로 막히며, 취소 API 까지 `409` 라 **되돌릴 수단이 없다.**
+
+⇒ ① **회차를 임시 취소하면 그 회차로 들어오는 `staged` 이동을 지운다**(감사 1행씩) — 학생은 출발 회차 명단으로 돌아간다. 취소 경로 전부(관계자 §5.10 · 스케줄 비활성화의 `schedule` 출처)가 같은 지점을 지나게 한다. 되살려도(`uncancel`) 이동은 돌아오지 않는다 — 관계자가 다시 옮긴다 ② **§5.8.1 취소는 임시 취소된 회차를 막지 않는다** — 판정(`idle` · ① 구간)은 임시 취소되지 않은 회차에만 건다. 출발 회차가 취소된 이동(학생을 B 로 옮긴 뒤 A 가 취소됨)은 그대로 두되 관계자가 지울 수 있어야 한다.
+- 버린 길 — 예정 계산에서 "도착 회차가 취소된 출발 이동" 을 무시: 출발 회차가 확정된 뒤 도착 회차가 되살아나 확정되면 **같은 학생이 두 회차 명단에** 들어간다.
+
+### 목표 표
+
+| # | 항목 | 완료 조건 | 검사 조건 (심을 변형) |
+|:-:|:-:|---|---|
+| 1 | BE1 | `DELETE /staff/transfers/{transferId}` — `staged` · 두 회차 `idle` → `204`, 행 삭제, `audit_log` 1행(`DATA_ACCESS`·`DELETE`) | 행 수 0 · 감사 1행을 센다. 삭제 호출을 no-op 으로 바꾸면 실패 |
+| 2 | BE1 | 없음 · 타 학원 → `404 TRANSFER_NOT_FOUND`(존재 비노출) | 타 학원 관계자 요청 시험. 학원 조건을 빼면 실패 |
+| 3 | BE1 | 두 회차 중 하나라도 `idle` 아님 · 이미 `applied` → `403 CHANGE_WINDOW_CLOSED`, 행 유지 | 도착 회차만 `confirmed` 인 경우를 따로 시험. 한쪽 회차만 검사하도록 바꾸면 실패 |
+| 4 | BE1 | 권한 — 학원 관계자만. 학부모·기사 `403`. 전수 목록 3곳(`AccountStatusGateEndpoints` · `AuthFlowIntegrationTest` · `AcademyScopeHttpExhaustiveTest`) 등재 · `ControllerAuthorizationConventionTest` · `ErrorCodeCatalogTest` 통과 | 해당 시험 클래스가 결과 XML 에 실재하고 실패 0 |
+| 5 | BE1 | **확정 배치와의 경쟁** — `ProjectedRosterReader.stagedRowCount` 비교(BR-044)가 "대기 행은 지워지지 않는다" 전제에 기댄다. 취소가 생기면 "취소 1 + 새 이동 1" 이 같은 수를 만들어 낡은 명단이 저장된다 → 수가 아니라 **행 id 집합**(또는 동등한 수단)으로 비교 | 계산 뒤 취소 1 + 새 등록 1 을 끼운 뒤 저장이 불일치를 잡는 시험. 옛 수 비교로 되돌리면 실패 |
+| 6 | BE1 | 취소 뒤 그 학생이 출발 회차 예정 명단에 다시 보이고 도착 회차에서 빠지며, 같은 학생을 다시 이동 등록할 수 있다 | 취소 → §5.4 두 회차 → §5.8 재등록 `201` |
+| 7 | BE2 | `idle` 도착 회차 예정 명단 — 이동 행 `change=added` + `transfer_id`(JSON 문자열) · 강제 추가 행 `change=added` + `transfer_id=null` · 요일별 주소 행 둘 다 `null` (`Ruling 369`·`370`) | 세 종류를 한 회차에 두고 대조. `change` 를 늘 `null` 로 되돌리면 실패 |
+| 8 | BE2 | 확정 뒤 명단(§5.4) 응답은 바뀌지 않는다 — `transfer_id` 는 `null` | 확정 회차 시험 1건 |
+| 9 | BE3 | `WaypointPreviewCache` 가 **지난 날짜 회차**의 미리보기를 지운다 — 기존 일일 배치에 얹거나 `@Scheduled`(잠금 규약 `SchedulerLockConventionTest`) · `ponytail:` 주석 제거 | 어제·오늘 회차 미리보기를 넣고 정리 → 어제만 사라짐. 정리를 no-op 으로 바꾸면 실패 |
+| 10 | BE4 | 학생 계정 수락에서 이미 다른 계정과 연결된 학생을 지정 → `409 ALREADY_LINKED` · 계정 `pending` 유지 · `student.account_id` 불변 | 새 시험. `Student.linkAccount` 의 검사를 지우면 실패 |
+| 10a | BE1 (Ruling 372) | 도착 회차를 임시 취소(관계자·스케줄 두 경로)하면 그 회차로 들어오는 `staged` 이동이 지워지고(감사 행) 학생이 출발 회차 예정 명단에 돌아온다 · 임시 취소된 회차가 낀 이동도 §5.8.1 로 `204` | 취소 경로마다 시험. 삭제를 한 경로에서만 부르면 다른 경로 시험이 실패 |
+| 11 | 전체 | 병합 뒤 백엔드 전체 시험 — 실패는 `Ruling 361` 라이브 2클래스(5건)뿐 · 그 2클래스는 `NAVER_DIRECTIONS_PATH=/map-direction/v1/driving NAVER_DIRECTIONS_MAX_POINTS=7` 로 따로 통과 · 건너뜀 수 기록 | 결과 XML 직접 집계 |
+
+**자원** — 작업 창 워크트리 `be-*` · 시험 DB `be_*` · 포트 `8190~8199` · `schoolbus` 와 `:8080`·`:3000` 보존.
+
+**결과(2026-09-30 완료)** — 병합 `be-main` `9d0ab62e`(transfer: `057955ea`·`598a4984`·`40a4bab4`·`aa3818ae`·`11d1cd2e`) · `789fd1a6`(small: `9067eec8`·`f3c8cab7`·`f6086321`). 목표 1~10·10a 전부 통과 — 작업 창 보고의 결과 XML 집계와 심은 변형(transfer 12종 · small 6종) 기준. 11행: 백엔드 전체 `./gradlew test --rerun` 304클래스 · **1,724건 · 실패 5 · 오류 0 · 건너뜀 0** — 실패 5건은 `Ruling 361` 라이브 2클래스(`NaverDirectionsClientLiveTest` 4 · `RunConfirmationServiceLiveTest` 1)뿐이고, 그 2클래스를 `NAVER_DIRECTIONS_PATH=/map-direction/v1/driving NAVER_DIRECTIONS_MAX_POINTS=7` 로 따로 돌려 5건 통과.
+- 설계 판단 기록 — ①취소 판정은 조건부 DELETE 한 문장이 아니라 **두 회차 행 잠금(id 순) → 잠근 인스턴스로 판정 → 조건부 삭제**: 한 문장 DELETE 는 확정의 미커밋 `idle → confirmed` 를 보지 못함 ②확정 저장 가드(BR-044)를 행 수에서 **강제 추가·이동 행 id 집합** 비교로 교체 ③회차 임시 취소는 `RunCancellation` 한 지점(관계자 · 스케줄 두 경로)이 들어오는 `staged` 이동을 지움 ④BE3 정리는 `WaypointPreviewCache.put` 이 `Clock` 의 오늘보다 앞선 운행일 항목을 지움 — 처음에 일일 회차 배치에 얹었다가 `schedule → routing` 역방향 의존(§3.3 위반)이라 routing 안으로 옮김

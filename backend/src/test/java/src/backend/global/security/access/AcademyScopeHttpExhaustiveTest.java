@@ -115,6 +115,7 @@ class AcademyScopeHttpExhaustiveTest {
     private Long academyBSignupRequestId;
     private Long academyBEmergencyAlertId;
     private Long academyBExceptionReportId;
+    private Long academyBTransferId;
 
     @BeforeEach
     void B학원_자원_id를_읽고_5개_픽스처를_심는다() {
@@ -163,6 +164,12 @@ class AcademyScopeHttpExhaustiveTest {
                 "INSERT INTO exception_report (academy_id, run_id, type, memo, reported_by, reported_at) "
                         + "VALUES (?, ?, 'vehicle_issue', 'f3-s4 fixture', ?, now()) RETURNING id",
                 Long.class, ACADEMY_B, ACADEMY_B_RUN_ID, academyBAccountId);
+
+        // 이동 대기 취소(§5.8.1)의 학원 조건은 출발 회차를 거친다 — 같은 회차를 출발·도착으로 두어도 조회는 성립한다.
+        academyBTransferId = jdbcTemplate.queryForObject(
+                "INSERT INTO run_transfer (student_id, from_run_id, to_run_id, status, requested_by_account_id) "
+                        + "VALUES (?, ?, ?, 'staged', ?) RETURNING id",
+                Long.class, academyBStudentId, ACADEMY_B_RUN_ID, ACADEMY_B_RUN_ID, academyBAccountId);
     }
 
     /**
@@ -177,6 +184,7 @@ class AcademyScopeHttpExhaustiveTest {
         jdbcTemplate.update("DELETE FROM signup_request WHERE id = ?", academyBSignupRequestId);
         jdbcTemplate.update("DELETE FROM emergency_alert WHERE id = ?", academyBEmergencyAlertId);
         jdbcTemplate.update("DELETE FROM exception_report WHERE id = ?", academyBExceptionReportId);
+        jdbcTemplate.update("DELETE FROM run_transfer WHERE id = ?", academyBTransferId);
     }
 
     @TestFactory
@@ -235,10 +243,10 @@ class AcademyScopeHttpExhaustiveTest {
     }
 
     /**
-     * 47개 경로 변수 핸들러 전부(48건 — 탑승 의사 토글이 studentId·runId 두 축을 따로 검사해 하나
+     * 48개 경로 변수 핸들러 전부(49건 — 탑승 의사 토글이 studentId·runId 두 축을 따로 검사해 하나
      * 늘어난다) — {@code POST /runs/{runId}/delay} 는 F3 S5 가 §1.11 매니저 앱 회차 자원 그룹에
      * 추가(합류 정정, Ruling 259(b)). {@code POST /staff/students/{id}/transfer} 는 F4 S1 이
-     * 버스 간 이동(§5.8)으로 추가. 패턴별 근거는 클래스 javadoc, 개별 근거는 각 케이스 옆
+     * 버스 간 이동(§5.8)으로, {@code DELETE /staff/transfers/{transferId}} 는 R36-BE 가 이동 대기 취소(§5.8.1)로 추가. 패턴별 근거는 클래스 javadoc, 개별 근거는 각 케이스 옆
      * 주석(보고서 항목①).
      */
     private List<ScopeCase> buildCases() {
@@ -261,6 +269,10 @@ class AcademyScopeHttpExhaustiveTest {
         cases.add(c("POST /staff/students/{id}/transfer → B학원 학생 404", HttpMethod.POST,
                 "/staff/students/{id}/transfer", new Object[] {academyBStudentId}, staffA(), TRANSFER_BODY, 404,
                 "STUDENT_NOT_FOUND"));
+        // R36-BE — 이동 대기 취소(§5.8.1) — findByIdAndAcademyId 가 출발 회차의 학원으로 좁힌다.
+        cases.add(c("DELETE /staff/transfers/{transferId} → B학원 이동 404", HttpMethod.DELETE,
+                "/staff/transfers/{transferId}", new Object[] {academyBTransferId}, staffA(), null, 404,
+                "TRANSFER_NOT_FOUND"));
         cases.add(c("PATCH /staff/buses/{id} → B학원 차량 404", HttpMethod.PATCH, "/staff/buses/{id}",
                 new Object[] {academyBBusId}, staffA(), EMPTY_BODY, 404, "BUS_NOT_FOUND"));
         // Ruling 329 — 관리자 경유 비밀번호 초기화(§5.22). 학부모로 고른 이유는 관계자 계정이면 역할 필터로도

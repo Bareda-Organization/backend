@@ -479,6 +479,34 @@ class SignupApprovalControllerTest {
     }
 
     /**
+     * 이미 다른 계정이 붙은 학생 레코드는 재연결 대상이 아니다(R36-BE 목표 10) — 덮어쓰면 앞 계정(학생 본인)이 자기
+     * 데이터에 닿을 근거를 잃는데 응답은 200 이라 아무도 알아채지 못한다. 수락은 한 트랜잭션이라 신청 계정은
+     * {@code pending} 으로 남고, 시드 학생 4 의 {@code account_id}(10)는 그대로여야 한다.
+     */
+    @Test
+    @Sql(statements = {
+            "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) VALUES "
+                    + "(1, 'p3t2student', 'x', 'P3T2대기학생', '010-0000-2003', 'student', 'pending')",
+            "INSERT INTO signup_request (account_id, academy_id, requested_role, approver_type, status, requested_at) "
+                    + "VALUES ((SELECT id FROM account WHERE login_id = 'p3t2student'), 1, 'student', 'staff', "
+                    + "'pending', now())"
+    })
+    void 이미_계정이_연결된_학생을_다시_연결하면_409_ALREADY_LINKED_고_아무것도_바뀌지_않는다() throws Exception {
+        long linkedStudentId = 4L;
+        long originalAccountId = 10L;
+
+        처리한다(요청_식별자("p3t2student"), ACADEMY_A, 수락_본문(linkedStudentId))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("ALREADY_LINKED"));
+
+        반영한다();
+        assertThat(계정_상태(계정_식별자("p3t2student"))).as("거절된 수락은 계정을 활성화하지 않는다").isEqualTo("pending");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT account_id FROM student WHERE id = ?", Long.class, linkedStudentId))
+                .as("앞 계정 연결이 덮어써지지 않는다").isEqualTo(originalAccountId);
+    }
+
+    /**
      * 학생 수락은 {@code link} 가 없으면 여전히 {@code 422 LINK_REQUIRED} 다 — Ruling 324 의 완화는
      * {@code role=parent} 에만 해당하고, 학생·기사·동승자는 계정↔레코드 연결(AUTH-11)이 그대로 필수다.
      */

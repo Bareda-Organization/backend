@@ -49,6 +49,8 @@ public class RunCommandService {
 
     private final BusRepository busRepository;
 
+    private final RunCancellation runCancellation;
+
     private final Clock clock;
 
     /**
@@ -146,7 +148,7 @@ public class RunCommandService {
         if (run.getStatus() != RunStatus.IDLE && run.getStatus() != RunStatus.CONFIRMED) {
             throw new BusinessException(ErrorCode.RUN_ALREADY_STARTED);
         }
-        run.cancel(OffsetDateTime.now(clock), RunCancelSource.STAFF);
+        runCancellation.cancel(requester, run, RunCancelSource.STAFF);
     }
 
     /**
