@@ -228,6 +228,28 @@ class StaffApprovalDecideControllerTest {
         assertThat(previewCache.find(s.approvalId)).as("결정 후 미리보기 캐시는 비어 있어야 한다").isEmpty();
     }
 
+    /**
+     * BR-203 — ②구간 취소가 승인되면 {@code boarding_intent.riding} 도 {@code false} 로 반영된다. 안 그러면
+     * 학부모 회차 목록이 {@code riding=true} + {@code rider_status=absent} 를 함께 돌려준다(API_SPEC §3.6).
+     */
+    @Test
+    void 취소_승인은_탑승_의사도_끈다() throws Exception {
+        결정_시나리오 s = 정상_시나리오();
+        String token = 미리보기_토큰_조회(s);
+        // 실제 신청 경로(토글·변경 신청)는 접수 때 riding=true 행을 만든다 — 그 상태에서 승인한다.
+        Long studentId = jdbcTemplate.queryForObject("SELECT student_id FROM change_request WHERE id = ?",
+                Long.class, s.approvalId);
+        jdbcTemplate.update("INSERT INTO boarding_intent (run_id, student_id, riding, change_used_count, created_at) "
+                + "VALUES (?, ?, true, 1, now())", s.runId, studentId);
+
+        결정_요청(관계자_토큰(s.academyId), s.approvalId, 승인_바디(token)).andExpect(status().isOk());
+
+        Boolean riding = jdbcTemplate.queryForObject(
+                "SELECT riding FROM boarding_intent WHERE run_id = ? AND student_id = ?", Boolean.class, s.runId,
+                studentId);
+        assertThat(riding).as("승인된 취소는 탑승 의사를 false 로 남겨야 한다").isFalse();
+    }
+
     // ── 목표 4 — 거절 ────────────────────────────────────────────────────
 
     /**

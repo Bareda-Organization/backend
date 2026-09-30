@@ -23,6 +23,7 @@ import src.backend.request.domain.ChangeWindow;
 import src.backend.request.domain.ChangeWindowPolicy;
 import src.backend.request.dto.DecideChangeRequestRequest;
 import src.backend.request.dto.DecideChangeRequestResponse;
+import src.backend.request.entity.BoardingIntent;
 import src.backend.request.entity.ChangeRequest;
 import src.backend.request.entity.ChangeRequestType;
 import src.backend.request.event.AbsentRecordedEvent;
@@ -31,6 +32,7 @@ import src.backend.request.preview.ApprovalPreviewResolver;
 import src.backend.request.preview.ApprovalPreviewResolver.OriginDestination;
 import src.backend.request.preview.spec.ApprovalPreview;
 import src.backend.request.preview.spec.ApprovalPreviewCache;
+import src.backend.request.repository.BoardingIntentRepository;
 import src.backend.request.repository.ChangeRequestRepository;
 import src.backend.routing.command.RouteVersionDeploymentService;
 import src.backend.routing.command.RouteVersionDeploymentService.DeployedVersion;
@@ -81,6 +83,8 @@ public class ChangeRequestDecisionService {
     private final RunRepository runRepository;
 
     private final RunRiderRepository runRiderRepository;
+
+    private final BoardingIntentRepository boardingIntentRepository;
 
     /** 명단 반영 진입점(BR-095) — {@code boarding} 소유 {@code run_rider} 에 직접 쓰지 않는다. */
     private final RunRiderPersistence runRiderPersistence;
@@ -179,6 +183,9 @@ public class ChangeRequestDecisionService {
         // ConfirmedRoute.assignCurrentVersion 의 javadoc이 이미 경고한 것과 같은 함정).
         boolean cancel = cr.getType() == ChangeRequestType.CANCEL;
         runRiderPersistence.applyApprovalDecision(target, cancel, cr.getNewStopId(), decidedAt);
+        if (cancel) {
+            turnRidingOff(cr, decidedAt, requester.accountId());
+        }
 
         cr.approve(requester.accountId(), decidedAt, deployment.stopRemoved(), deployment.newVersion().getId());
         changeRequestRepository.save(cr);
@@ -196,6 +203,19 @@ public class ChangeRequestDecisionService {
 
         return new DecideChangeRequestResponse("approved", deployment.stopRemoved(),
                 deployment.newVersion().getVersionNo(), requester.accountId(), decidedAt);
+    }
+
+    /**
+     * ②구간 취소 승인의 탑승 의사 반영(BR-203) — {@code run_rider} 만 {@code absent} 로 바꾸면 학부모 회차
+     * 목록이 {@code riding=true} + {@code rider_status=absent} 를 함께 돌려준다. 접수 때 만든 행을 다시
+     * 읽어 끈다(영속 컨텍스트가 배포 중 비워져 이전 인스턴스는 쓸 수 없다).
+     */
+    private void turnRidingOff(ChangeRequest cr, OffsetDateTime decidedAt, Long decidedBy) {
+        boardingIntentRepository.insertIfAbsent(cr.getRunId(), cr.getStudentId(), decidedAt);
+        BoardingIntent intent = boardingIntentRepository.findByRunIdAndStudentId(cr.getRunId(), cr.getStudentId())
+                .orElseThrow();
+        intent.applyRiding(false, ChangeWindow.APPROVAL_REQUIRED, decidedAt, decidedBy);
+        boardingIntentRepository.save(intent);
     }
 
     /** 거절 — 재최적화를 전혀 부르지 않고 기존 노선을 유지한 채 사유와 함께 학부모에게 통보한다. */
