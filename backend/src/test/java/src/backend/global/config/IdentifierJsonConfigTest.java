@@ -2,11 +2,15 @@ package src.backend.global.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.OffsetDateTime;
+
 import org.junit.jupiter.api.Test;
 
 import tools.jackson.databind.json.JsonMapper;
 
 import src.backend.academy.dto.AcademySummaryResponse;
+import src.backend.account.dto.AccountUnblockResponse;
+import src.backend.request.dto.DecideChangeRequestResponse;
 
 /**
  * 응답 식별자 문자열 전환 규약 시험(API_SPEC §1.1, Ruling 332) — 실제 직렬화로 검사한다. 목록에
@@ -44,6 +48,20 @@ class IdentifierJsonConfigTest {
         String json = mapper.writeValueAsString(response);
 
         assertThat(json).contains("\"id\":\"7\"").contains("\"staffCount\":3").contains("\"userCount\":40");
+    }
+
+    /**
+     * 처리자 계정을 가리키는 {@code ...By} 필드도 식별자다(BR-218) — 이름이 {@code Id} 로 끝나지 않아 규약이 놓쳤고,
+     * 관계자 웹 타입은 {@code string} 인데 서버가 숫자를 내고 있었다. 응답 레코드 중 {@code Long ...By} 는 이 둘뿐이다.
+     */
+    @Test
+    void 처리자_식별자_By_필드도_문자열로_직렬화된다() {
+        OffsetDateTime at = OffsetDateTime.parse("2026-09-30T00:00:00Z");
+
+        assertThat(mapper.writeValueAsString(new AccountUnblockResponse("active", 9L, at)))
+                .contains("\"unblockedBy\":\"9\"");
+        assertThat(mapper.writeValueAsString(new DecideChangeRequestResponse("approved", false, 1, 9L, at)))
+                .contains("\"decidedBy\":\"9\"").contains("\"routeVersion\":1");
     }
 
     /** 요청 쪽 레코드 — 이 모듈은 역직렬화를 건드리지 않으므로 숫자·문자열 둘 다 그대로 받는다. */

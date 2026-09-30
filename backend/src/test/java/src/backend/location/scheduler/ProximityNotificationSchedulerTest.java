@@ -223,6 +223,26 @@ class ProximityNotificationSchedulerTest {
         // 이 학원 것만 센다 — 다른 학원의 기존 moving 회차(시드 R3 등)가 앞자리를 차지해도 이 학원 51건은
         // 전부 판정돼야 한다.
         verify(proximityNotificationService, times(total)).judgeOne(anyLong(), eq(academyId));
+        // BR-235 — 출발 판정도 같은 51건을 돈다. 이 호출을 지우면 51번째 이후 회차의 출발 판정이 멈춘다.
+        verify(proximityNotificationService, times(total)).judgeDeparture(anyLong(), eq(academyId));
+    }
+
+    /**
+     * BR-235 — 근접·출발 두 판정은 각자 독립된 try-catch 다. 근접 판정이 던져도 같은 회차의 출발 판정은
+     * 이번 틱에 그대로 불려야 한다(두 try 를 하나로 합치면 이 시험이 빨개진다).
+     */
+    @Test
+    void 근접_판정이_던져도_같은_회차의_출발_판정은_불린다() {
+        ProximityFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        long runId = fullyWiredMovingRun(fx, academyId, busId, "출발학생", "출발학부모").runId();
+        doThrow(new RuntimeException("의도적 실패 — 근접 판정")).when(proximityNotificationService)
+                .judgeOne(eq(runId), anyLong());
+
+        scheduler.judgeMovingRuns();
+
+        verify(proximityNotificationService, times(1)).judgeDeparture(eq(runId), eq(academyId));
     }
 
     @Test

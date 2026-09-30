@@ -33,6 +33,15 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     Optional<Student> findByIdAndAcademyIdAndDeletedAtIsNull(Long id, Long academyId);
 
     /**
+     * 이 사진 파일이 그 학원의 <b>재학생</b> 것인지(API_SPEC §5.11.1) — 학원과 퇴원 여부가 쿼리에 고정돼 있어
+     * "없음" · "남의 학원" · "퇴원" 이 같은 {@code false} 가 된다(존재 비노출).
+     *
+     * <p>접두사 대신 끝 조각({@code /<파일명>})으로 맞춘다 — {@code photo_url} 의 접두사가 배포마다 달랐던 옛 행도
+     * 같은 파일이면 찾는다.
+     */
+    boolean existsByPhotoUrlEndingWithAndAcademyIdAndDeletedAtIsNull(String fileNameTail, Long academyId);
+
+    /**
      * 관계자 웹의 학생 목록·검색(STU-01, API_SPEC §5.11) — 학원과 퇴원 여부가 <b>쿼리에 고정</b>돼
      * 호출부가 빼먹을 자리가 부재하다.
      *

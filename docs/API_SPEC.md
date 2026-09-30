@@ -39,7 +39,7 @@
 | 베이스 경로 | `/api/v1` — 이 문서의 모든 경로는 이 접두사 생략 표기 |
 | 요청·응답 본문 | `application/json; charset=utf-8` 고정. **예외 — 학생 사진 업로드(§5.11)만 `multipart/form-data`**(JSON 파트 + 파일 파트). 파일은 이미지 3종(`jpeg`·`png`·`webp`), 상한 5MB 🆕 |
 | 필드 명명 | `snake_case` |
-| 식별자 | 서버 발급 문자열. 경로 파라미터 `{id}` · `{runId}` · `{stopId}` · `{riderId}` — **응답 본문의 모든 식별자(`id` · `*_id`)도 JSON 문자열**(2026-09-25 `Ruling 332` — `Ruling 275` 미결 해소, `Ruling 171` 유지). 요청 본문의 식별자는 문자열·숫자 둘 다 수용 |
+| 식별자 | 서버 발급 문자열. 경로 파라미터 `{id}` · `{runId}` · `{stopId}` · `{riderId}` — **응답 본문의 모든 식별자(`id` · `*_id` · 처리자 계정을 가리키는 `*_by` — `unblocked_by` · `decided_by`)도 JSON 문자열**(2026-09-25 `Ruling 332` — `Ruling 275` 미결 해소, `Ruling 171` 유지). 요청 본문의 식별자는 문자열·숫자 둘 다 수용 |
 | 성공 상태 | 조회·수정 `200`, 생성 `201`, 본문 없는 처리 `204` |
 | 시각 표기 | ISO-8601 + 오프셋 (`2026-08-24T08:30:00+09:00`). 서비스 기준 시간대 `Asia/Seoul` |
 | 날짜 표기 | `YYYY-MM-DD`. `date` 쿼리 파라미터 미지정 시 서버 기준 당일 |
@@ -210,6 +210,7 @@ HTTP 상태 코드 + 본문. 본문 형태는 전 엔드포인트 공통.
 | `VALIDATION_FAILED` | 422 | 필수 필드 누락 · 형식 위반 |
 
 - **비인증 허용 경로 5개**(§1.2)에는 위 401·403 항목이 미적용 — `VALIDATION_FAILED` 만 해당.
+- **자유 입력 메모·비고 문자열의 최대 길이는 200자**(2026-09-30 BR-255 · BR-257) — `note`(학생 등록·수정 §5.11, 강제 추가 §5.7) · `memo`(학원 등록·수정 §6.2·§6.3, 비상 신고 §4.14, 현장 예외 보고 §4.13). 넘으면 `422 VALIDATION_FAILED`. 경유 지점·버스 간 이동의 `note` 는 원래 200자였고 그 값에 맞췄다. DB 는 `text` 라 자리 부족이 아니라 수 MB 저장을 막는 상한이다.
 - `500` 계열 서버 오류에는 클라이언트가 "처리되지 않았습니다" 표시. 성공 표시는 서버 2xx 확인 뒤에만 (C-10 · §1.9).
 - 개별 엔드포인트의 `**에러**` 줄에는 **그 엔드포인트 고유의 실패 시나리오만** 기재. 단 그 경로에서 **특별한 의미**를 갖는 공통 코드는 개별 기재 — 예 승하차 처리의 `403 ESCORT_ONLY`(기사 호출 차단, §4.6) · 매니저 앱 회차 자원의 `403 FORBIDDEN`(배치되지 않은 회차, §1.5) · 관제의 학원 격리 예외(§6.8).
 
@@ -498,6 +499,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 |---|---|
 | 갱신 | 같은 `(account_id, device_id)` 재등록은 토큰을 덮어씀 — 행이 늘지 않음 |
 | 다기기 | 한 계정이 여러 기기 보유 가능. 발송은 **유효한 전 토큰**에 |
+| 계정 전환 | 같은 `token` 값을 다른 계정이 등록하면 **앞 계정의 유효 행은 `revoked_at` 을 채워 해지** — 한 물리 기기의 토큰은 한 계정에만 유효(로그아웃에 `device_id` 가 없거나 세션이 만료된 채 계정을 바꿔도 앞 계정 알림이 그 폰으로 가지 않는다) |
 | 해지 | 로그아웃(§2.7) 시 해당 기기 토큰 자동 해지. `DELETE` 는 수동 해지 |
 | 무효 토큰 | 발송 실패가 `NotRegistered` 계열이면 서버가 해당 행을 정리 — FCM HTTP v1 의 `404 UNREGISTERED` · `400 INVALID_ARGUMENT` 면 그 행의 `revoked_at` 을 채운다(Ruling 331). 그 밖의 실패(429·5xx·네트워크)는 행을 두고 아웃박스 재시도 |
 | 채널 | FCM HTTP v1 한 채널(android·ios·web, Ruling 331). 등록된 유효 단말이 없는 계정은 푸시를 보내지 않고 알림 목록(§3.12)에만 남는다 |
@@ -546,6 +548,8 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 **권한** 학생 · **요청** 본문 부재 · **응답** `201` — `code`(string) · `expires_at`(datetime)
 
+**다시 호출하면 이전 코드는 그 자리에서 만료된다**(BR-215) — 학생 한 명이 쥔 살아 있는 코드는 언제나 1개. 새 코드는 같은 학원 안에서 살아 있는 다른 학생의 코드와 겹치지 않게 뽑는다(겹치면 학부모 입력이 후보 둘로 거부되기 때문 — §3.4).
+
 **에러** — §1.11 공통 항목 외 고유 에러 부재. 퇴원한 학생은 학생 레코드가 없는 계정과 같은 `403 FORBIDDEN`(BR-122).
 
 ### 3.4 POST /me/students/link
@@ -590,7 +594,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 **ETA · 탑승 인원 부재** (C-08).
 
-**에러** — `404 STUDENT_NOT_FOUND` · `403 FORBIDDEN`(연결 부재 자녀 · 본인 아닌 학생 — §3 도입부)
+**에러** — `404 STUDENT_NOT_FOUND`(퇴원 학생 — 학부모 경로의 자녀와 **학생 본인 계정** 모두) · `403 FORBIDDEN`(연결 부재 자녀 · 본인 아닌 학생 — §3 도입부)
 
 ### 3.6 PATCH /students/{id}/runs/{runId}/intent
 
@@ -704,7 +708,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | `reject_reason` | string | ○ | `rejected` 일 때 |
 | `run_id` · `requested_at` · `decided_at` | — | ● / ○ | 대상 회차 · 신청 시각 · 처리 시각 |
 
-응답 최상위에 `pending_count` 포함 — 홈 배지용. `pending` 동안 화면 안내는 **기존 승하차지 탑승**이고 처리중 뱃지를 상시 노출. `auto_rejected` 는 출발 시각 도달 또는 운행 시작으로 서버가 자동 거절한 건 — 기존 노선 유지 + 학부모 통지, 횟수 미소진 (C-04).
+이력은 **최근 100건까지**만 싣는다(페이징 부재 — 장기 운영 시 학생당 누적 방지). 응답 최상위에 `pending_count` 포함 — 홈 배지용이며 **잘린 이력과 무관하게 전체 대기 건수**. `pending` 동안 화면 안내는 **기존 승하차지 탑승**이고 처리중 뱃지를 상시 노출. `auto_rejected` 는 출발 시각 도달 또는 운행 시작으로 서버가 자동 거절한 건 — 기존 노선 유지 + 학부모 통지, 횟수 미소진 (C-04).
 
 **에러** — `404 STUDENT_NOT_FOUND` · `403 FORBIDDEN`(연결 부재 자녀)
 
@@ -728,7 +732,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 **표시 범위 — 승차지 이전 2개 · 승차지 · 하차지만** (P-08). 승하차지별 탑승 인원 · ETA 부재 (C-08).
 
-**에러** — `404 STUDENT_NOT_FOUND` · `404 RUN_NOT_FOUND`(`run_id` 지정 시) · `403 FORBIDDEN`(연결 부재 자녀 · 본인 아닌 학생 — BR-025). 확정 전은 에러 부재 — 고정 노선 + "확정 전" 배지로 반환
+**에러** — `404 STUDENT_NOT_FOUND`(퇴원 학생 — 학생 본인 포함, BR-212) · `404 RUN_NOT_FOUND`(`run_id` 지정 시) · `403 FORBIDDEN`(연결 부재 자녀 · 본인 아닌 학생 — BR-025). 확정 전은 에러 부재 — 고정 노선 + "확정 전" 배지로 반환
 
 ### 3.11 GET /students/{id}/bus-position
 
@@ -751,7 +755,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 **권한** 학부모(연결 자녀) · 학생(본인) — §3.5 와 같은 판정 (BR-025)
 
-**에러** — `404 STUDENT_NOT_FOUND` · `403 FORBIDDEN`(연결 부재 자녀 · 본인 아닌 학생) · `404 RUN_NOT_FOUND`(오늘 그 학생의 회차 부재 — 필수 `run_id`·`bus_no` 를 채울 회차가 없음, §3.10 과 같은 코드, BR-121). `run_status` 가 `moving` 이 아니거나 당일 `absent` 인 경우는 에러 부재 — 좌표 필드 부재로 반환
+**에러** — `404 STUDENT_NOT_FOUND`(퇴원 학생 — 학생 본인 포함, BR-212) · `403 FORBIDDEN`(연결 부재 자녀 · 본인 아닌 학생) · `404 RUN_NOT_FOUND`(오늘 그 학생의 회차 부재 — 필수 `run_id`·`bus_no` 를 채울 회차가 없음, §3.10 과 같은 코드, BR-121). `run_status` 가 `moving` 이 아니거나 당일 `absent` 인 경우는 에러 부재 — 좌표 필드 부재로 반환
 
 ### 3.12 GET /notifications
 
@@ -1563,7 +1567,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `stop_id` | 매칭·생성된 승하차지 id |
 | `status` | 항상 `staged` — 확정 배치가 명단에 합칠 때까지의 대기 상태 |
 
-**에러** — `403 CHANGE_WINDOW_CLOSED`(② 구간 이후 추가 — 관계자도 예외 부재. 판정 뒤 저장 전에 확정 배치가 회차를 확정한 경우 포함) · `409 RUN_CANCELED`(임시 취소된 회차) · `409 CAPACITY_EXCEEDED`(정원 초과) · `422 ADDRESS_VERIFICATION_FAILED`(주소 검증 실패 — 저장 보류) · `422 VALIDATION_FAILED`(`student_id`·`new_student` 가 동시에 없거나 있음) · `404 RUN_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163)
+**에러** — `403 CHANGE_WINDOW_CLOSED`(② 구간 이후 추가 — 관계자도 예외 부재. 판정 뒤 저장 전에 확정 배치가 회차를 확정한 경우 포함) · `409 RUN_CANCELED`(임시 취소된 회차) · `409 CAPACITY_EXCEEDED`(정원 초과 — 이미 그 회차 예정 명단에 든 학생은 명단이 늘지 않아 자리를 더 세지 않는다) · `409 FORCED_ADDITION_ALREADY_STAGED`(같은 학생의 강제 추가 대기가 그 회차에 이미 있음 — `Ruling 378`) · `422 ADDRESS_VERIFICATION_FAILED`(주소 검증 실패 — 저장 보류) · `422 VALIDATION_FAILED`(`student_id`·`new_student` 가 동시에 없거나 있음) · `404 RUN_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163)
 
 ### 5.8 POST /staff/students/{id}/transfer
 
@@ -2404,6 +2408,8 @@ O-04 · SYS-01·02. 정본 API명세서에 경로 미기재 — 감사 로그 �
 | `GET /admin/audit-logs` | SYS-01 | `actor` · `action`(`read` · `update` · `delete`) · `target_type` · `target_id` · `academy_name` · `occurred_at` |
 | `GET /admin/login-history` | SYS-02 | `account_id` · `login_id` · `result`(`success` · `fail`) · `ip` · `occurred_at` · `block_event` |
 
+**`block_event` 행의 `account_id` · `login_id`** — 차단(`block`) 행은 차단된 계정(행위자와 같다), **해제(`unblock`) 행은 해제된 계정**이다(BR-219 — 계정별 이력이 끊기지 않게). 해제한 관리자는 `audit_log.actor_account_id` 와 해제 응답의 `unblocked_by`(§6.12)가 갖는다 — 이 목록의 행이 싣지 않는다. `account_id` 필터도 같은 뜻 — 해제된 계정의 해제 행이 걸리고, 해제한 관리자의 필터에는 걸리지 않는다.
+
 쿼리 파라미터 — `academy_id` · `account_id` · `from` · `to` · 페이징.
 
 **에러** — `404 ACADEMY_NOT_FOUND`(`academy_id` 필터가 미등록 학원) · `404 ACCOUNT_NOT_FOUND`(`account_id` 필터가 미등록 계정)
@@ -2559,6 +2565,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `STUDENT_NOT_IN_RUN` | 409 | 버스 간 이동 대상 학생이 출발 회차의 당일 명단(요일별 주소·탑승 의사·강제 추가 기준)에 부재 (§5.8 · RTE-07) |
 | `TRANSFER_NOT_FOUND` | 404 | 이동 대기 기록 부재 · 타 학원 (§5.8.1, Ruling 369) |
 | `TRANSFER_ALREADY_STAGED` | 409 | 같은 학생의 처리 대기 중인 이동 건이 이미 존재 — 최종 목적지 회차를 판정할 수 없어 새 신청을 막음 (§5.8) |
+| `FORCED_ADDITION_ALREADY_STAGED` | 409 | 같은 학생의 강제 추가 대기가 그 회차에 이미 존재 — 두 번째 요청의 승하차지를 조용히 버리지 않으려 멱등 응답 대신 거부 (§5.7, Ruling 378) |
 
 ### 8.5 자원 · 검증
 

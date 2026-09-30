@@ -4,6 +4,10 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.PersistenceContext;
+
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +50,9 @@ public class RunCommandService {
     private static final String RUN_SLOT_UNIQUE_CONSTRAINT = "uk_run_bus_date_direction_depart";
 
     private final RunRepository runRepository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     private final BusRepository busRepository;
 
@@ -120,13 +127,40 @@ public class RunCommandService {
     /**
      * 스케줄이 바뀐 내용을 그 스케줄의 미래 회차 1건에 옮긴다(Ruling 366 ②) — 출발 시각은 {@link #create} 와 같은
      * 규칙({@code departureOf}, 주입된 {@code Clock} 의 시간대)으로 확정하고 확정 시각을 출발 30분 전으로 다시
-     * 계산한다. 대상 회차가 시작 전(idle)인지는 호출부가 고른다.
+     * 계산한다.
+     *
+     * <p>회차 행을 잠그고 다시 읽은 뒤 판정한다(BR-204) — 호출부가 고른 시각과 옮기는 시각 사이에 확정·취소가 커밋됐을
+     * 수 있고, 낡은 엔티티에 계획을 얹으면 변경 감지가 행 전체를 UPDATE 해 그 확정을 되돌린다. 그 사이 시작 전(idle)이
+     * 아니거나 취소됐으면 옮기지 않는다.
      *
      * <p>옮긴 자리를 <b>다른</b> 회차(임시 회차·다른 스케줄의 회차)가 이미 잡고 있으면 {@code 409 DUPLICATE_RUN} 이다
      * (Ruling 367 ③) — 선검사 없이 두면 커밋 때 UNIQUE 위반이 500 으로 나간다. 예외는 스케줄 변경 트랜잭션 전체를
      * 되돌린다(부분 반영 금지). 동시 요청 두 건의 경합은 선검사가 못 막고 UNIQUE 가 막는다({@link #create} 와 같은 한계).
      */
     public void moveToPlan(Run run, RunDraft plan) {
+        entityManager.refresh(run, LockModeType.PESSIMISTIC_WRITE);
+        if (run.isCanceled() || run.getStatus() != RunStatus.IDLE) {
+            return;
+        }
+        applyPlan(run, plan);
+    }
+
+    /**
+     * 스케줄이 취소한 회차의 취소를 풀고 계획을 다시 옮긴다(Ruling 367 ②, BR-244) — 상태 전이는 {@code run} 모듈이 맡는다
+     * (ARCHITECTURE §3.3). 잠그고 다시 읽은 뒤 <b>지금도</b> 스케줄이 취소한 시작 전(idle) 회차일 때만 푼다 — 그 사이
+     * 관계자가 다시 취소했거나 확정됐으면 건드리지 않는다.
+     */
+    public void reinstateToPlan(Run run, RunDraft plan) {
+        entityManager.refresh(run, LockModeType.PESSIMISTIC_WRITE);
+        if (run.getCancelSource() != RunCancelSource.SCHEDULE || run.getStatus() != RunStatus.IDLE) {
+            return;
+        }
+        run.reinstate();
+        applyPlan(run, plan);
+    }
+
+    /** 잠근 회차에 계획을 옮긴다 — 자리를 다른 회차가 잡고 있으면 {@code 409 DUPLICATE_RUN}. */
+    private void applyPlan(Run run, RunDraft plan) {
         OffsetDateTime departAt = departureOf(plan);
         if (runRepository.existsByAcademyIdAndBusIdAndServiceDateAndDirectionAndDepartTimeAndIdNot(
                 run.getAcademyId(), plan.busId(), run.getServiceDate(), run.getDirection(), departAt, run.getId())) {
@@ -140,14 +174,12 @@ public class RunCommandService {
      * 특정일 회차를 임시로 취소한다(SCH-03, §5.10) — 행을 지우지 않고 {@code canceled_at} 을 채운다.
      *
      * <p>대상이 다른 학원이면 {@code 404 RUN_NOT_FOUND} 다. 운행이 시작된 회차({@code moving}·{@code finished})는
-     * {@code 409 RUN_ALREADY_STARTED} 다 — 달리는 버스의 회차를 취소 표시해도 운행은 멈추지 않는다(BR-042).
+     * {@code 409 RUN_ALREADY_STARTED} 다 — 달리는 버스의 회차를 취소 표시해도 운행은 멈추지 않는다(BR-042). 이미 취소된
+     * 회차는 아무것도 바꾸지 않고 성공한다(멱등, Ruling 376). 두 판정은 회차를 잠근 뒤 {@link RunCancellation} 이 한다(BR-204).
      */
     public void cancel(AuthUser requester, Long runId) {
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
-        if (run.getStatus() != RunStatus.IDLE && run.getStatus() != RunStatus.CONFIRMED) {
-            throw new BusinessException(ErrorCode.RUN_ALREADY_STARTED);
-        }
         runCancellation.cancel(requester, run, RunCancelSource.STAFF);
     }
 

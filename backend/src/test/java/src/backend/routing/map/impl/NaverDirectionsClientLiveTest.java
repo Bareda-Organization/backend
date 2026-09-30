@@ -16,6 +16,7 @@ import src.backend.routing.domain.GeoPoint;
 import src.backend.routing.map.spec.CallerPolicy;
 import src.backend.routing.map.spec.RoadRoute;
 import src.backend.routing.map.spec.RoadRouteRequest;
+import testsupport.live.LiveCredentials;
 
 /**
  * 실 NCP Direction 어댑터 검증 — <b>자격증명이 있을 때만 돈다.</b>
@@ -46,16 +47,7 @@ class NaverDirectionsClientLiveTest {
 
     /** yml 과 같은 폴백 순서로 자격증명을 찾는다({@code NAVER_MAPS_*} → {@code NAVER_DIRECTIONS_*}). */
     static boolean 자격증명이_있다() {
-        return 값이_있다("NAVER_MAPS_KEY_ID", "NAVER_DIRECTIONS_KEY_ID")
-                && 값이_있다("NAVER_MAPS_KEY", "NAVER_DIRECTIONS_KEY");
-    }
-
-    private static boolean 값이_있다(String 우선, String 폴백) {
-        return 비지_않음(System.getenv(우선)) || 비지_않음(System.getenv(폴백));
-    }
-
-    private static boolean 비지_않음(String value) {
-        return value != null && !value.isBlank();
+        return LiveCredentials.available();
     }
 
     /**

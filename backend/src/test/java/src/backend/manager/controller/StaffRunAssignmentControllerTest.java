@@ -109,6 +109,9 @@ class StaffRunAssignmentControllerTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
+
     @Autowired
     private ApplicationEvents applicationEvents;
 
@@ -171,6 +174,22 @@ class StaffRunAssignmentControllerTest {
 
         assertThat(배치_행_수(runId, "driver")).as("행이 둘이면 한 회차에 기사가 두 명이다").isEqualTo(1);
         assertThat(역할별_배치(runId, "driver")).isEqualTo(오기사_오전만);
+    }
+
+    /** BR-210(Ruling 376) — 임시 취소된 회차에는 배치가 저장되지 않고 알림 이벤트도 나가지 않는다({@code 409 RUN_CANCELED}). */
+    @Test
+    void 취소된_회차에는_배치할_수_없고_이벤트도_나가지_않는다() throws Exception {
+        long runId = 회차를_만든다(BUS_A1_ID, MORNING);
+        jdbcTemplate.update("UPDATE run SET canceled_at = now(), cancel_source = 'staff' WHERE id = ?", runId);
+        entityManager.clear(); // 같은 트랜잭션의 낡은 엔티티가 JDBC 갱신을 가리지 않게
+        applicationEvents.clear();
+
+        배치한다(관계자A_토큰(), runId, 강기사_종일, null)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("RUN_CANCELED"));
+
+        assertThat(배치_행_수(runId, "driver")).isZero();
+        assertThat(applicationEvents.stream(AssignmentChangedEvent.class)).isEmpty();
     }
 
     /** 기사만 바꾼 요청이 동승자를 지우지 않는다 — 응답이 그 회차의 현재 배치 전부를 싣는 이유다. */

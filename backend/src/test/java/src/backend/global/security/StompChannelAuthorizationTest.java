@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.net.URI;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.socket.CloseStatus;
@@ -24,6 +26,9 @@ import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 
+import testsupport.clock.AdvanceableClock;
+import testsupport.clock.AdvanceableClockConfig;
+
 /**
  * {@link StompAuthChannelInterceptor} 의 계정 상태 게이트(목표 8)와 SUBSCRIBE 기본 차단(목표 7)을
  * {@link StompAcademyScopeSubscriptionTest} 와 별도 파일로 둔다 — 그쪽은 학원 격리 한 갈래만 다루고,
@@ -31,6 +36,7 @@ import src.backend.global.common.enums.Role;
  * 대상을 그대로 말하게 한다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@Import(AdvanceableClockConfig.class)
 class StompChannelAuthorizationTest {
 
     private static final long FRAME_TIMEOUT_SECONDS = 5;
@@ -45,6 +51,12 @@ class StompChannelAuthorizationTest {
 
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
+
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private AdvanceableClock advanceableClock;
 
     @Value("${jwt.secret}")
     private String jwtSecret;
@@ -262,6 +274,18 @@ class StompChannelAuthorizationTest {
                 .startsWith("MESSAGE").contains(PROBE);
     }
 
+    /** 퇴원한 학생 본인은 자기 채널도 구독하지 못한다(BR-212) — HTTP 조회가 404 로 막히는 것과 같은 판정이다. */
+    @Test
+    void 퇴원한_학생은_본인_채널을_구독하지_못한다() throws Exception {
+        jdbcTemplate.update("UPDATE student SET deleted_at = now() WHERE id = 4");
+        try {
+            assertThat(subscribeOutcome(token(10L, 1L, Role.STUDENT), "/topic/students/4/run"))
+                    .startsWith("ERROR").contains("message:FORBIDDEN");
+        } finally {
+            jdbcTemplate.update("UPDATE student SET deleted_at = NULL WHERE id = 4");
+        }
+    }
+
     @Test
     void 학생은_다른_학생_채널을_구독하지_못한다() throws Exception {
         assertThat(subscribeOutcome(token(10L, 1L, Role.STUDENT), "/topic/students/1/run"))
@@ -289,17 +313,17 @@ class StompChannelAuthorizationTest {
      */
     @Test
     void 연결을_연_토큰이_만료되면_방송_대신_TOKEN_EXPIRED_로_닫힌다() throws Exception {
-        String shortLived = new JwtTokenProvider(jwtSecret, 2, 60, Clock.systemUTC())
-                .createAccessToken(1L, 1L, Role.STAFF, AccountStatus.ACTIVE);
+        String token = token(1L, 1L, Role.STAFF);
         String destination = "/topic/academy/1/live";
         BlockingQueue<String> received = new LinkedBlockingQueue<>();
         WebSocketSession session = open(received);
         try {
-            connect(session, received, shortLived);
+            connect(session, received, token);
             session.sendMessage(new TextMessage(frame("SUBSCRIBE", "id:sub-0", "destination:" + destination)));
             awaitSubscribed(received, destination);
 
-            Thread.sleep(3_000);
+            // 실제 시간을 기다리지 않는다 — 서버 시계를 access 토큰 유효 기간 밖으로 민다(BR-265).
+            advanceableClock.advance(Duration.ofDays(1));
             received.clear();
             messagingTemplate.convertAndSend(destination, "after-expiry");
 
@@ -311,6 +335,7 @@ class StompChannelAuthorizationTest {
             }
             assertThat(session.isOpen()).as("만료된 세션은 닫혀야 한다").isFalse();
         } finally {
+            advanceableClock.reset();
             session.close();
         }
     }

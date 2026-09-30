@@ -1,8 +1,10 @@
 package src.backend.schedule.scheduler;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -45,6 +47,36 @@ class DailyRunGeneratorTest {
 
         new DailyRunGenerator(service, clock).generateTodayAndTomorrow();
 
+        verify(service).generate(LocalDate.of(2026, 9, 26));
+    }
+
+    /**
+     * BR-241 — 오늘·내일이 모두 실패하면 <b>오늘의 예외</b>가 올라가고 내일 예외는 suppressed 로 남는다. {@code finally} 안의
+     * 예외가 {@code try} 의 예외를 대체하면 호출부(기동 보충·스케줄러·지표)가 내일 예외만 보고 오늘 실패를 잃는다.
+     */
+    @Test
+    void 오늘과_내일이_모두_실패하면_오늘_예외를_던지고_내일_예외를_덧붙인다() {
+        RunGenerationService service = mock(RunGenerationService.class);
+        Clock clock = Clock.fixed(Instant.parse("2026-09-24T15:05:00Z"), ZoneId.of("Asia/Seoul"));
+        IllegalStateException today = new IllegalStateException("오늘 실패");
+        IllegalStateException tomorrow = new IllegalStateException("내일 실패");
+        when(service.generate(LocalDate.of(2026, 9, 25))).thenThrow(today);
+        when(service.generate(LocalDate.of(2026, 9, 26))).thenThrow(tomorrow);
+
+        assertThatThrownBy(() -> new DailyRunGenerator(service, clock).generateTodayAndTomorrow())
+                .isSameAs(today)
+                .hasSuppressedException(tomorrow);
+    }
+
+    /** BR-241 — 오늘만 실패해도 내일 생성은 시도하고, 던지는 것은 오늘 예외다(기존 동작 유지). */
+    @Test
+    void 오늘만_실패해도_내일은_만들고_오늘_예외를_던진다() {
+        RunGenerationService service = mock(RunGenerationService.class);
+        Clock clock = Clock.fixed(Instant.parse("2026-09-24T15:05:00Z"), ZoneId.of("Asia/Seoul"));
+        IllegalStateException today = new IllegalStateException("오늘 실패");
+        when(service.generate(LocalDate.of(2026, 9, 25))).thenThrow(today);
+
+        assertThatThrownBy(() -> new DailyRunGenerator(service, clock).generateTodayAndTomorrow()).isSameAs(today);
         verify(service).generate(LocalDate.of(2026, 9, 26));
     }
 }

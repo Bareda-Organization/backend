@@ -2,6 +2,8 @@ package src.backend.request.domain;
 
 import java.time.OffsetDateTime;
 
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 
@@ -12,6 +14,19 @@ import src.backend.run.entity.RunStatus;
 public final class ChangeWindowPolicy {
 
     private ChangeWindowPolicy() {
+    }
+
+    /**
+     * 임시 취소된 회차는 탑승 토글·변경 신청·승인을 받지 않는다(Ruling 376, BR-224) — {@link Run#cancel} 은
+     * 상태를 바꾸지 않고 {@code canceledAt} 만 채우므로 {@link #segmentOf} 가 걸러내지 못한다. 대상 회차를 얻는
+     * 지점({@code TargetRunLookup} · 저장 시점 재판정 · 승인 잠금 뒤)이 각자 이 검사를 부른다. 거절은 부르지 않는다.
+     *
+     * @throws BusinessException {@code 409 RUN_CANCELED}
+     */
+    public static void assertNotCanceled(Run run) {
+        if (run.isCanceled()) {
+            throw new BusinessException(ErrorCode.RUN_CANCELED);
+        }
     }
 
     /**

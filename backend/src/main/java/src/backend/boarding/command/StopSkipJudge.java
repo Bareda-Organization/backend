@@ -50,11 +50,13 @@ public class StopSkipJudge {
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public boolean skipIfNoRidersRemain(Long runId, Long stopId) {
+        // 정차 항목을 먼저 잠근다(BR-229) — 같은 승하차지의 다른 미승차 처리가 커밋한 뒤에 세야 마지막 한 명이 잔여 0을 본다.
+        Optional<RunStop> lockedRunStop = currentRunStop(runId, stopId);
         long remaining = runRiderRepository.countByRunIdAndStopIdAndStatusNotIn(runId, stopId, NOT_REMAINING);
         if (remaining > 0) {
             return false;
         }
-        return currentRunStop(runId, stopId)
+        return lockedRunStop
                 .map(runStop -> {
                     runStop.markSkipped(SKIP_NOTICE);
                     return true;
@@ -68,10 +70,10 @@ public class StopSkipJudge {
         currentRunStop(runId, stopId).ifPresent(RunStop::clearSkipped);
     }
 
-    /** 확정 노선 현재 버전에서 그 승하차지의 정차 항목 — 확정 노선이 아직 없으면 비어 있다. */
+    /** 확정 노선 현재 버전에서 그 승하차지의 정차 항목을 행 잠금으로 읽는다 — 확정 노선이 아직 없으면 비어 있다. */
     private Optional<RunStop> currentRunStop(Long runId, Long stopId) {
         return confirmedRouteRepository.findById(runId)
                 .map(ConfirmedRoute::getCurrentVersionId)
-                .flatMap(versionId -> runStopRepository.findByRouteVersionIdAndStopId(versionId, stopId));
+                .flatMap(versionId -> runStopRepository.findLockedByRouteVersionIdAndStopId(versionId, stopId));
     }
 }

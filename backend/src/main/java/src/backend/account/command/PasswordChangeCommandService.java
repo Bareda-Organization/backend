@@ -31,7 +31,8 @@ public class PasswordChangeCommandService {
     /** 현재 비밀번호 불일치 시 {@code 401 INVALID_CREDENTIALS}(API_SPEC §2.8) — 형식 오류는 {@code @Valid} 가 앞단에서 걸러 {@code 422} 로 응답한다. */
     @Transactional
     public void changePassword(Long accountId, String currentPassword, String newPassword) {
-        Account account = accountRepository.findById(accountId)
+        // 행 잠금으로 읽는다(BR-249) — 전 컬럼 UPDATE 가 그 사이 커밋된 로그인 실패 차단을 지우지 않게 한다.
+        Account account = accountRepository.findByIdForUpdate(accountId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
         if (!passwordEncoder.matches(currentPassword, account.getPasswordHash())) {
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);

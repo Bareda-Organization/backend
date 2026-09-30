@@ -11,6 +11,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -32,6 +33,8 @@ import src.backend.global.security.AuthUser;
 class NotificationSettingQueryConcurrencyTest {
 
     private static final long TIMEOUT_SECONDS = 30;
+
+    private final List<Long> 만든_계정들 = new java.util.ArrayList<>();
     private static final AtomicInteger SEQUENCE = new AtomicInteger();
 
     @Autowired
@@ -64,6 +67,11 @@ class NotificationSettingQueryConcurrencyTest {
             assertThat(결과)
                     .as("조회는 500 을 내면 안 된다 — 실제 결과=%s", 결과)
                     .allSatisfy(t -> assertThat(t).isNull());
+            // 자바독의 두 번째 약속 — 조회만으로는 행이 생기지 않는다(BR-096). 예외가 안 나는 순서로 한 스레드만
+            // 저장에 성공해도 500 은 없으므로, 500 검사만으로는 get-or-create 회귀를 못 문다.
+            assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM notification_setting WHERE account_id = ?",
+                    Integer.class, accountId))
+                    .as("조회가 notification_setting 행을 만들었다 — CQRS 위반(BR-096)").isZero();
         } finally {
             pool.shutdownNow();
         }
@@ -81,11 +89,22 @@ class NotificationSettingQueryConcurrencyTest {
         };
     }
 
+    /** 시험이 커밋해 둔 계정을 지운다 — 학원 1 의 학부모 수를 세는 다른 시험에 누적되지 않게 한다. */
+    @AfterEach
+    void 만든_계정을_지운다() {
+        for (long accountId : 만든_계정들) {
+            jdbcTemplate.update("DELETE FROM notification_setting WHERE account_id = ?", accountId);
+            jdbcTemplate.update("DELETE FROM account WHERE id = ?", accountId);
+        }
+        만든_계정들.clear();
+    }
+
     private long 새_학부모_계정() {
         String loginId = "p12t7conc" + SEQUENCE.incrementAndGet() + "-" + System.nanoTime();
         long accountId = accountRepository.save(Account.forSignup(1L, loginId, "{noop}password", "학부모",
                 "010-7000-0009", null, Role.PARENT)).getId();
         jdbcTemplate.update("DELETE FROM notification_setting WHERE account_id = ?", accountId);
+        만든_계정들.add(accountId);
         return accountId;
     }
 }

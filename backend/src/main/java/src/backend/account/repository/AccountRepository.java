@@ -65,6 +65,15 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     Optional<Account> findByIdAndAcademyId(Long id, Long academyId);
 
     /**
+     * {@link #findByIdAndAcademyId} 를 <b>행 잠금</b>으로 읽는다(BR-249) — 비밀번호 초기화처럼 전 컬럼을 덮어쓰는 변경이
+     * 그 사이 커밋된 로그인 실패 차단({@code failed_attempts}·{@code status})을 지우지 않게 로그인 대조({@link
+     * #findByLoginIdForUpdate})와 같은 행 잠금으로 직렬화한다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM Account a WHERE a.id = :id AND a.academyId = :academyId")
+    Optional<Account> findByIdAndAcademyIdForUpdate(@Param("id") Long id, @Param("academyId") Long academyId);
+
+    /**
      * 학원별 소속 사용자 수(API_SPEC §6.1 {@code user_count}) — 역할과 상태를 인자로 받아 무엇을 세는지
      * 호출부가 정한다.
      *
@@ -91,7 +100,7 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     @AcademyScopeExempt(reason = "§6.4 메인 관리자 콘솔의 전 학원 조회(ARCHITECTURE §6.2 격리 예외) — 한 페이지에 여러 학원이 "
             + "섞여 좁힐 학원이 부재. 호출부가 이미 학원 범위로 확인된 조회가 돌려준 account_id 만 넘긴다는 전제 "
             + "(승인 큐 조회의 account_id, 또는 emergency_alert.acked_by — 후자는 토큰의 accountId 로만 채워져 "
-            + "요청 파라미터가 아니다) — 요청 파라미터의 식별자를 직접 넘기면 임의 계정의 연락처를 읽는 통로가 된다")
+            + "요청 파라미터가 아니다, 또는 §6.13 접속 이력 해제 행의 target_id — 감사 행에서 읽은 값) — 요청 파라미터의 식별자를 직접 넘기면 임의 계정의 연락처를 읽는 통로가 된다")
     List<Account> findAllByIdIn(Collection<Long> ids);
 
     /**

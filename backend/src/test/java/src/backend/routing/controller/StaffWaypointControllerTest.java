@@ -269,6 +269,35 @@ class StaffWaypointControllerTest {
                 .andExpect(jsonPath("$.error.code").value("CHANGE_WINDOW_CLOSED"));
     }
 
+    /** BR-210(Ruling 376) — 임시 취소된 회차에는 경유 지점 미리보기·배포가 {@code 409 RUN_CANCELED} 다. */
+    @Test
+    void 취소된_회차는_경유_지점_지정이_409_RUN_CANCELED_다() throws Exception {
+        시나리오 s = 확정된_회차를_만든다();
+        jdbcTemplate.update("UPDATE run SET canceled_at = now(), cancel_source = 'staff' WHERE id = ?", s.runId);
+
+        경유_추가한다(s.runId, 경유_본문("새경유로 31", "취소 회차 미리보기", false))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("RUN_CANCELED"));
+        경유_요청한다(s.runId, "{\"address\":\"새경유로 31\",\"label\":\"취소 회차 배포\",\"apply\":true,\"preview_token\":\"x\"}")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("RUN_CANCELED"));
+    }
+
+    /** BR-210 — 배포된 경유 지점의 제거도 취소 회차에는 {@code 409 RUN_CANCELED} 다(추가와 같은 가드). */
+    @Test
+    void 취소된_회차는_경유_지점_삭제도_409_RUN_CANCELED_다() throws Exception {
+        시나리오 s = 확정된_회차를_만든다();
+        MvcResult added = 경유_추가한다(s.runId, 경유_본문("새경유로 32", "취소 전 배포", true))
+                .andExpect(status().isOk())
+                .andReturn();
+        long waypointId = waypointId아이디_읽는다(added);
+        jdbcTemplate.update("UPDATE run SET canceled_at = now(), cancel_source = 'staff' WHERE id = ?", s.runId);
+
+        경유_삭제한다(s.runId, waypointId, false)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("RUN_CANCELED"));
+    }
+
     // ── 목표 4 — 확정 노선이 아직 산출되지 않은 회차는 409 ────────────────
 
     /**
@@ -620,6 +649,25 @@ class StaffWaypointControllerTest {
         assertThatThrownBy(() -> waypointStore.deployAdd(첫머리에_읽은_회차, waypoint, preview, 1L, OffsetDateTime.now()))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.CHANGE_WINDOW_CLOSED);
+        assertThat(현재_버전_번호(s.runId)).isEqualTo(versionNo);
+    }
+
+    /** BR-210 — 요청 첫머리에서 본 뒤 회차가 취소됐으면 배포 트랜잭션이 잠근 행을 다시 보고 {@code 409 RUN_CANCELED} 다. */
+    @Test
+    void 배포_직전에_취소됐으면_저장소가_배포하지_않는다() throws Exception {
+        시나리오 s = 확정된_회차를_만든다();
+        경유_요청한다(s.runId, 경유_본문("취소경유로 1", "취소", false)).andExpect(status().isOk());
+        WaypointPreview preview = previewCache.find(s.runId).orElseThrow();
+        Run 첫머리에_읽은_회차 = runRepository.findById(s.runId).orElseThrow();
+        int versionNo = 현재_버전_번호(s.runId);
+        jdbcTemplate.update("UPDATE run SET canceled_at = now(), cancel_source = 'staff' WHERE id = ?", s.runId);
+        entityManager.flush();
+        entityManager.clear();
+        Waypoint waypoint = waypointRepository.findById(preview.waypointId()).orElseThrow();
+
+        assertThatThrownBy(() -> waypointStore.deployAdd(첫머리에_읽은_회차, waypoint, preview, 1L, OffsetDateTime.now()))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.RUN_CANCELED);
         assertThat(현재_버전_번호(s.runId)).isEqualTo(versionNo);
     }
 

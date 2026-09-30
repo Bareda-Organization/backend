@@ -7,8 +7,6 @@ import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 
-import src.backend.bus.entity.Bus;
-import src.backend.bus.repository.BusRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
@@ -18,7 +16,6 @@ import src.backend.run.dto.ForcedAdditionRequest;
 import src.backend.run.dto.ForcedAdditionResponse;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
-import src.backend.run.roster.ProjectedRosterReader;
 import src.backend.student.service.AddressVerification;
 import src.backend.student.entity.Student;
 import src.backend.student.geocoding.spec.GeocodedPoint;
@@ -42,11 +39,7 @@ public class ForcedAdditionCommandService {
 
     private final RunRepository runRepository;
 
-    private final BusRepository busRepository;
-
     private final StudentRepository studentRepository;
-
-    private final ProjectedRosterReader rosterReader;
 
     private final AddressVerification addressVerification;
 
@@ -67,9 +60,8 @@ public class ForcedAdditionCommandService {
 
         Student existingStudent = resolveExistingStudent(requester.academyId(), request);
 
-        Bus bus = busRepository.findByIdAndAcademyId(run.getBusId(), run.getAcademyId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.BUS_NOT_FOUND));
-        assertCapacityAvailable(run, bus);
+        // 빠른 실패용 선검사 — 잠금 밖이라 확정 판정은 ForcedAdditionStore#stage 안에서 다시 한다(BR-206).
+        forcedAdditionStore.assertSeatLeft(run, existingStudent == null ? null : existingStudent.getId());
 
         GeocodedPoint point = addressVerification.verifySingle(request.address());
 
@@ -96,16 +88,5 @@ public class ForcedAdditionCommandService {
         }
         return studentRepository.findByIdAndAcademyIdAndDeletedAtIsNull(request.studentId(), academyId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.STUDENT_NOT_FOUND));
-    }
-
-    /**
-     * 정원 판정(BUS-04) — 강제 추가 시점의 {@code run_rider} 는 아직 없으므로(회차가 idle), 확정 배치가
-     * 만들 예정 명단({@link ProjectedRosterReader} — 대기 중인 강제 추가·이동 포함, OFF 제외)에 이번 1건을
-     * 더해 {@link Bus#getStudentCapacity()} 와 비교한다(BR-043).
-     */
-    private void assertCapacityAvailable(Run run, Bus bus) {
-        if (rosterReader.read(run).size() + 1 > bus.getStudentCapacity()) {
-            throw new BusinessException(ErrorCode.CAPACITY_EXCEEDED);
-        }
     }
 }

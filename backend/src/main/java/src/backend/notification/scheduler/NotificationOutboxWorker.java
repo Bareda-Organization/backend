@@ -38,6 +38,9 @@ public class NotificationOutboxWorker {
      */
     private static final int BATCH_SIZE = 100;
 
+    /** 상한 횟수까지 시도하다 결과 기록 없이 멈춘 행의 {@code fail_reason}. */
+    private static final String STALLED_REASON = "시도 중 중단";
+
     private final NotificationLogRepository notificationLogRepository;
 
     private final NotificationDispatcher notificationDispatcher;
@@ -68,6 +71,7 @@ public class NotificationOutboxWorker {
     @SchedulerLock(name = "notification-outbox-worker", lockAtMostFor = "PT2M")
     public void sweep() {
         OffsetDateTime now = OffsetDateTime.now(clock);
+        failStalled(now);
         List<NotificationLog> candidates = notificationLogRepository.findRetryCandidates(
                 PushState.PENDING, NotificationRetryPolicy.MAX_ATTEMPTS, retryPolicy.attemptedBefore(now),
                 PageRequest.of(0, BATCH_SIZE));
@@ -75,6 +79,19 @@ public class NotificationOutboxWorker {
         candidates.stream()
                 .filter(candidate -> retryPolicy.retryDue(candidate, now))
                 .forEach(this::dispatchAndObserve);
+    }
+
+    /**
+     * 마지막 시도 도중 멈춰 상한 횟수로 남은 {@code pending} 행을 {@code failed} 로 옮긴다(BR-225). 최소 재시도 간격이
+     * 지난 행만 옮겨, 방금 마지막 시도를 선점해 발송 중인 행은 건드리지 않는다. 실패 메트릭도 함께 올린다.
+     */
+    private void failStalled(OffsetDateTime now) {
+        int moved = notificationLogRepository.failStalled(PushState.PENDING, PushState.FAILED,
+                NotificationRetryPolicy.MAX_ATTEMPTS, now.minus(NotificationRetryPolicy.MIN_RETRY_INTERVAL),
+                STALLED_REASON);
+        for (int i = 0; i < moved; i++) {
+            pushMetrics.recordFailure();
+        }
     }
 
     /**

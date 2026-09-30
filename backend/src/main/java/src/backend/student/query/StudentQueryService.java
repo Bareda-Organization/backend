@@ -82,10 +82,12 @@ public class StudentQueryService {
                 .map(student -> StudentSummaryResponse.of(student, links.phones().get(student.getId()),
                         links.counts().getOrDefault(student.getId(), 0)))
                 .toList();
+        // 실린 학생마다 1행(Ruling 333)이되 한 트랜잭션으로 — 학생마다 열면 페이지 100건이 트랜잭션 100개다(BR-213).
+        Map<Long, Map<String, Object>> audited = new LinkedHashMap<>();
         items.stream().filter(item -> item.guardianPhone() != null)
-                .forEach(item -> auditRecorder.recordDataAccessRead(academyId, requester.accountId(), "student",
-                        Long.valueOf(item.studentId()), Map.of("student_ids", List.of(item.studentId()), "fields",
-                                List.of("guardian_phone"))));
+                .forEach(item -> audited.put(Long.valueOf(item.studentId()),
+                        Map.of("student_ids", List.of(item.studentId()), "fields", List.of("guardian_phone"))));
+        auditRecorder.recordDataAccessReads(academyId, requester.accountId(), "student", audited);
         return PageResponse.of(page, items);
     }
 
