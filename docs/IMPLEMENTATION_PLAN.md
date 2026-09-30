@@ -5908,3 +5908,27 @@ BE1 구현이 취소 판정에 등록과 같은 잠금(`StagingRunGuard.lockIdle
 | 390 | `API_SPEC §5.10`·`§5.11` PATCH | **키 없음 = 유지 · 선택(○) 항목의 명시적 `null` = 지움 · 선택 문자열의 빈 문자열 = `null` 로 저장 · 필수(●) 항목의 `null`·빈 문자열 = `422`**. 대상은 스케줄·학생 `PATCH`(요청된 두 곳). 키 없음과 `null` 은 요청 레코드가 가른다(방식은 구현 — 새 의존성 없이) | 학생 성별·생년월일 · 스케줄 소요시간을 한 번 넣으면 지울 수 없었고 빈 문자열이 그대로 저장됐다. 프론트는 폼에서 막고 있음(`Ruling 387`). 다른 `PATCH` 는 요청이 오면 같은 규칙으로 넓힌다 |
 | 391 | `§5.13` · `§5.12` | `GET /staff/managers` 에 `role` · `linked` 선택 필터 · 차량 `PATCH` 의 `warnings[]` 항목에 `service_date`·`depart_time`·`direction` | 웹이 매니저 후보를 10쪽 훑어 걸러 1,000명 넘는 학원에서 누락 · 경고가 회차 번호만 줘 관리자가 회차를 찾을 수 없었다. 둘 다 추가라 기존 소비자 영향 부재 |
 | 392 | `§5.8` · `§8` | 도착 회차 명단(예정 명단 포함)에 이미 있는 학생의 이동은 **`409 STUDENT_ALREADY_IN_RUN`**(신설) | 옮길 것이 없는데 `201` 이 나가고 `impact.to.rider_count_after` 가 +1 로 부풀었다(프론트 실서버 실측 `:8182`). 강제 추가(§5.7)의 같은 경우는 F1(BR-205)이 정원 이중 계산만 막고 허용 — 승하차지 지정이 목적일 수 있어 그대로 둔다 |
+
+## 8.69 ⚖ `R37` — 프론트 검사에서 넘어온 계약 3건 `Ruling 393`~`395` (2026-09-30 · main 중계 · 백엔드+관계자 웹 한 갈래 · 분기점 `e3370a16`)
+
+| Ruling | 원장 | 판정 | 근거 |
+|---|---|---|---|
+| 393 | 프론트 F03-11 · `API_SPEC §6.8` | 관제 `runs[]` 에 **`confirm_at`**(● · `run.confirm_at` 저장값 = `depart_time` − 30분) 추가. 웹 강제 확정 표의 "확정 예정" 열이 `depart_time` 이 아니라 이 값을 쓴다 | 열 이름은 확정 예정인데 출발 시각을 보여 30분 어긋났다. 클라이언트가 출발 시각에서 빼면 정책 상수가 바뀔 때 갈리므로(C-03) 저장값을 싣는다. 추가라 기존 소비자 영향 부재 |
+| 394 | 프론트 N-05 · BR-219 후속 · `API_SPEC §6.13` | `GET /admin/login-history` 에 **`block_action`**(`block` · `unblock` · 그 밖의 행 `null`) 추가, `block_event` 불리언은 그대로. 웹 로그인 이력이 "차단" / "해제" 를 다른 문구로 보여 준다 | `block_event=true` 가 차단 행과 해제 행 양쪽에 붙어 화면이 "차단·해제" 로만 쓸 수 있었다. `block_event` 값을 바꾸는 안(문자열화)은 기존 소비처를 깨서 버림 — 필드 추가는 깨지 않음. ERD `audit_log.action` 의 `block`·`unblock` 투영 그대로 |
+| 395 | 프론트 F03-05 · `API_SPEC §7.1` | `emergency_raised` 페이로드에 **`academy_id` · `academy_name`**(그 회차의 학원)을 싣는다. **학원 채널 `/ws/academy/{id}/live` 도 같은 페이로드**를 받는다. 웹 관제 비상 배너가 학원명을 보여 준다 | 메인 관리자는 여러 학원 신고를 한 채널로 받는데 어느 학원인지 알 수 없었다. 학원 채널을 따로 가르면 페이로드가 두 벌이 되고 방송 조립이 갈라진다 — 같은 값을 실어도 학원 채널 소비자(자기 학원명)에게 해가 없어 한 벌로 둔다 |
+
+### R37 목표 표 (착수 전 고정)
+
+| # | 완료 조건 | 실행 · 판정 |
+|---|---|---|
+| 1 | **A 서버** — 비상 발신 → `/topic/admin/live` 의 `emergency_raised` 에 `academy_id` · `academy_name` 이 그 회차 학원 값(새 시험). 방송 조립에서 학원 필드를 빼면 그 시험만 실패 | 백엔드 시험 + 변형 |
+| 2 | **A 웹** — 관제 비상 배너가 이벤트의 `academy_name` 을 렌더(vitest). 렌더를 지우면 실패 | vitest + 변형 |
+| 3 | **B 서버** — 한 계정 차단 → 해제 → `login-history` 두 행이 구분되는 값으로 나온다(새 시험). 구분 값을 한쪽으로 고정하면 실패 | 백엔드 시험 + 변형 |
+| 4 | **B 웹** — 로그인 이력 표가 차단 / 해제를 다른 문구로 보여 준다(vitest) | vitest + 변형 |
+| 5 | **C 서버** — `§6.8 runs[]` 의 `confirm_at` = `depart_time` − 30분(새 시험). 필드를 `depart_time` 으로 채우면 실패 | 백엔드 시험 + 변형 |
+| 6 | **C 웹** — 강제 확정 표 "확정 예정" 열이 `confirm_at` 값(vitest). `depart_time` 으로 되돌리면 실패 | vitest + 변형 |
+| 7 | `API_SPEC` 3곳 · 이 절(`Ruling 393~395`) · `docs/frontend/IMPLEMENTATION_PLAN.md` 한 줄 | `grep` |
+| 8 | 백엔드 전체 — `NAVER_DIRECTIONS_PATH=/map-direction/v1/driving NAVER_DIRECTIONS_MAX_POINTS=7 backend/scripts/test.sh --rerun` (Directions 15 일일 한도 고갈 — 두 변수 짝으로) | 결과 XML 직접 집계 · 실패 0 · 건너뜀 수 기록 |
+| 9 | 웹 — `frontend/apps/academy-web` 에서 vitest 전체 실패 0 · 건너뜀 0 · `tsc` 0 · `lint` 0 | 실행 출력 |
+
+1·3·5·2·4·6 은 RED(실패를 눈으로)를 먼저 보고, 커밋 뒤 결함을 심어 그 시험만 실패하는지 확인하고 되돌린다(되돌린 뒤 `git status --porcelain` 빈 결과).
