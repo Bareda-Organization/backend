@@ -245,6 +245,14 @@ tasks.withType(Test).configureEach {
         systemProperty 'requireLive', 'true'
     }
 
+    // -PciQuiet: 공개 저장소의 Actions 로그·artifact 에 애플리케이션 로그가 남지 않게 한다(CI 전용, .github/workflows/ci.yml).
+    // 로그 수준을 WARN 으로 낮추고 결과 XML 에서 stdout·stderr 를 뺀다 — 실패 때 남는 것은 시험 이름·실패 요약이다.
+    if (project.hasProperty('ciQuiet')) {
+        systemProperty 'logging.level.root', 'WARN'
+        reports.junitXml.includeSystemOutLog = false
+        reports.junitXml.includeSystemErrLog = false
+    }
+
     // 커넥션 풀 상한을 낮춘다. @SpringBootTest 컨텍스트는 한 번 뜨면 JVM 이 끝날 때까지 캐시에 남고
     // 각자 Hikari 풀(기본 상한 10)을 붙든 채로 있다 — 컨텍스트가 예닐곱이면 그 한 번의 실행만으로
     // 70 개를 쥔다. 로컬 Postgres 는 max_connections=100 이고 에이전트가 동시에 두셋 돌므로,
