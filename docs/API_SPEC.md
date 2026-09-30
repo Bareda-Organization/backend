@@ -1335,7 +1335,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 다자녀는 **연결 추가만** 수행 — 학부모 재가입 부재.
 
-**에러** — `422 LINK_REQUIRED`(수락 시 학생·매니저 레코드 연결 누락. `role=parent` 는 대상 아님) · `409 APPROVAL_ALREADY_DECIDED`(이미 처리된 요청) · `409 SIGNUP_TARGET_BLOCKED`(승인 대상 계정이 `blocked` — §8.1) · `404 SIGNUP_REQUEST_NOT_FOUND` · `404 STUDENT_NOT_FOUND`(`link.student_ids[]` 대상 부재) · `404 MANAGER_NOT_FOUND`(`link.manager_id` 대상 부재) · `403 FORBIDDEN`(`role=staff` 요청 — 메인 관리자 경로 §6.5) · `422 VALIDATION_FAILED`(`accept=false` 인데 `reject_reason` 부재)
+**에러** — `422 LINK_REQUIRED`(수락 시 학생·매니저 레코드 연결 누락. `role=parent` 는 대상 아님) · `409 APPROVAL_ALREADY_DECIDED`(이미 처리된 요청) · `409 ALREADY_LINKED`(`link.student_ids[]` 의 학생이나 `link.manager_id` 의 매니저가 **이미 다른 계정과 연결됨** — 덮어쓰지 않고 거절, 계정은 `pending` 그대로 · 같은 학생 id 중복 · 학부모에게 이미 연결된 자녀) · `409 SIGNUP_TARGET_BLOCKED`(승인 대상 계정이 `blocked` — §8.1) · `404 SIGNUP_REQUEST_NOT_FOUND` · `404 STUDENT_NOT_FOUND`(`link.student_ids[]` 대상 부재) · `404 MANAGER_NOT_FOUND`(`link.manager_id` 대상 부재) · `403 FORBIDDEN`(`role=staff` 요청 — 메인 관리자 경로 §6.5) · `422 VALIDATION_FAILED`(`accept=false` 인데 `reject_reason` 부재)
 
 ### 5.3 GET /staff/dashboard
 
@@ -1387,13 +1387,13 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `change` | enum | ○ | `added`(초록) · `removed`(빨강) |
 | `status` | enum | ● | `waiting` · `boarded` · `alighted` · `absent` · `no_show` |
 | `note` | string | ○ | 비고 (STU-07) |
-| `transfer_id` | string | ○ | **확정 전 예정 명단에서** 이동 대기(§5.8, `staged`)로 이 회차에 들어온 학생 행에만 — 이 값으로 §5.8.1 취소. 그 행은 `change=added`(초록)로 표시 (`Ruling 369`) |
+| `transfer_id` | string | ○ | **확정 전 예정 명단에서** 이동 대기(§5.8, `staged`)로 이 회차에 들어온 학생 행에만 — 이 값으로 §5.8.1 취소. 그 행은 `change=added`(초록)로 표시 (`Ruling 369`). 강제 추가(§5.7)로 들어온 행도 `change=added` 지만 `transfer_id` 는 `null` 이다(`Ruling 370`) |
 
 **`absent` 는 관계자 웹에서 빨강으로 계속 표시** — 매니저 앱(행 제외 · `§4.2`)과 상반. 관리자는 누가 왜 빠졌는지 확인이 필요. 예외 하나 — 버스 간 이동으로 빠진 학생(`absent` + `change=removed`)은 **매니저 앱에도** 빨강 행으로 남는다(`§4.2` · `§9.4`).
 
 **에러** — `404 RUN_NOT_FOUND`(존재하지 않는 회차) · `403 ACADEMY_SCOPE_VIOLATION`(타 학원 회차 — `§1.5`, 2026-09-03 X-08 해소 · Ruling 240). 확정 전(`idle`) 회차도 조회 가능 — 진입 차단은 매니저 앱 전용 (M-02)
 
-**확정 전(`idle`) 회차는 예정 명단이다**(2026-09-30 R35 `Ruling 368`) — `run_rider` 는 확정이 채우므로 그 전에는 비어 있다. `§5.8` 이동의 `STUDENT_NOT_IN_RUN` 판정과 확정 배치가 쓰는 계산(요일별 주소 학생 − ①구간 탑승 OFF + 강제 추가 − 출발 이동 + 도착 이동)을 **그대로 읽어** 행을 준다. 행 모양은 같고 `status=waiting` · `change` 는 `null` 이다. 탑승 OFF 학생과 출발 이동 대기(`staged`) 학생은 **넣지 않는다** — 방금 옮긴 학생이 출발 명단에 그대로 보이면 관계자가 다시 옮기려다 `TRANSFER_ALREADY_STAGED` 를 받는다. 도착 회차에는 이동 대기 학생이 들어온다. 확정 뒤(`confirmed`·`moving`·`finished`) 응답은 `run_rider` 그대로이고 바뀌지 않는다.
+**확정 전(`idle`) 회차는 예정 명단이다**(2026-09-30 R35 `Ruling 368`) — `run_rider` 는 확정이 채우므로 그 전에는 비어 있다. `§5.8` 이동의 `STUDENT_NOT_IN_RUN` 판정과 확정 배치가 쓰는 계산(요일별 주소 학생 − ①구간 탑승 OFF + 강제 추가 − 출발 이동 + 도착 이동)을 **그대로 읽어** 행을 준다. 행 모양은 같고 `status=waiting` 이다. `change` 는 **확정이 붙일 값과 같다** — 요일별 주소에 없다가 강제 추가(§5.7)·도착 이동(§5.8)으로 들어온 학생 행만 `added`, 나머지는 `null`(`Ruling 369` ② · `Ruling 370` — 확정 순간 초록 표시가 새로 생기지 않게). 탑승 OFF 학생과 출발 이동 대기(`staged`) 학생은 **넣지 않는다** — 방금 옮긴 학생이 출발 명단에 그대로 보이면 관계자가 다시 옮기려다 `TRANSFER_ALREADY_STAGED` 를 받는다. 도착 회차에는 이동 대기 학생이 들어온다. 확정 뒤(`confirmed`·`moving`·`finished`) 응답은 `run_rider` 그대로이고 바뀌지 않는다.
 
 ### 5.5 GET /staff/approvals · GET /staff/approvals/{id}
 
@@ -2548,7 +2548,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `MANAGER_ASSIGNED` | 409 | 회차에 배치된 매니저 삭제 시도 (MGR-04) |
 | `ACADEMY_NOT_FOUND` | 404 | 미등록·비활성 학원 지정 |
 | `STUDENT_NOT_FOUND` | 404 | 미존재 학생 |
-| `ALREADY_LINKED` | 409 | 이미 연결된 자녀 재연결 |
+| `ALREADY_LINKED` | 409 | 이미 연결된 자녀 재연결 · 가입 수락에서 이미 다른 계정과 연결된 학생·매니저 지정(§5.2) |
 | ~~`LINK_REQUEST_NOT_FOUND`~~ | ~~404~~ | **폐지(Ruling 324)** — `§3.3` 코드 생성에 선행 조건이 없어져 이 판정 자체가 성립하지 않는다. Ruling 170(2026-08-26 신설)이 채운 사양의 빈칸이 이번 개정으로 통째로 사라졌다 |
 | `VALIDATION_FAILED` | 422 | 필수 누락·형식 위반. 지연 시간이 **5분 단위**가 아닌 경우 포함 |
 | `ROUTE_NOT_CONFIGURED_FOR_RUN` | 422 | 회차 확정 시점에 그 회차의 학원·버스·요일·방향에 대응하는 **고정 노선이 부재** — 노선 자체가 미등록이거나, 노선은 있으나 정차지가 0건이거나, 정차지가 가리키는 승하차지가 학원 밖(삭제·이관)인 경우를 모두 포함. `RunConfirmationService`·`ApprovalPreviewResolver` 공통 (Ruling 190). ⚠ **`§8.4` 가 아니라 여기인 이유** — `§8.4`(운행·명단)는 11항 전부가 409·404 계열(상태 전이 충돌·대상 부재)이고 422 가 하나도 없다. 이 코드는 "요청이 틀렸다" 가 아니라 **"확정에 필요한 자원이 준비되지 않았다"** 는 뜻이라 HTTP 상태와 성격 둘 다 이 절의 선례와 맞는다 (2026-09-12 신설, Ruling 269) |
