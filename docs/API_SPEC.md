@@ -862,7 +862,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 |---|---|:-:|---|
 | `run_id` · `bus_no` · `direction` | — | ● | 회차 요약 |
 | `counts.boarded` · `counts.waiting` · `counts.no_show` · `counts.absent_n` | integer | ● | 집계. **`absent` 는 개인 행 제외, 집계에만 존치** |
-| `stops[]` | array | ● | 운행 순서(`seq`) 정렬 |
+| `stops[]` | array | ● | 운행 순서(`seq`) 정렬. **승하차지(`stop_id` 가 있는 정차 항목)와 등원 도착지만 싣고 강제 경유 지점(§5.15 — `stop_id` 부재)은 싣지 않는다**(`RosterQueryService.boardingStopsOf`) — 경유 지점은 태우거나 내릴 학생이 없어 명단 단위가 아니다. 기사가 경유 지점을 보는 곳은 노선(§4.3 `stops[]`)과 운행 화면 지도다 (`Ruling 398`) |
 | `stops[].stop_id` · `seq` · `name` · `address` | — | ● | `stop_id` 는 **정차 항목 id(`run_stop.id`)** — §4.5 도착 처리가 이 값을 그대로 받는다 (2026-09-25 `Ruling 327`) |
 | `stops[].change` | enum | ○ | `added`(초록) · `skipped`(빨강 취소선, 순번 유지) |
 | `stops[].skip_notice` | string | ○ | `skipped` 안내 문구 |
