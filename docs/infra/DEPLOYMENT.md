@@ -696,7 +696,7 @@ flutter build ipa --release --dart-define=API_BASE_URL=https://api.<도메인> -
 | 외부 노출 | **없음** — Prometheus(`127.0.0.1:9090`)·Grafana(`127.0.0.1:3001`)는 호스트 loopback 에만 바인딩하고, exporter·Alertmanager 는 컨테이너 네트워크 안에서만 닿는다. 보안 그룹은 80·443 뿐이다 |
 | 운영에 없는 것 | postgres-exporter · redis-exporter — 그래서 대시보드 `3. 데이터 계층` 의 postgres·redis 패널은 비어 있다 |
 
-⚠ **메모리.** 한도의 합 928MB 는 backend 한도(3GB)와 합치면 `t3.medium`(4GB)을 넘는다. 한도는 상한이지 예약이 아니고 실사용은 대략 300MB 로 추정하지만(측정 전) 배포 순간 신·구 backend 가 함께 살아 있는 시점에는 스왑 2GB(§2.8)에 기댄다. 관측을 켠 채 안정적으로 운영하려면 권장 사양(4 vCPU · 8GB — 2026-09-09 부하 한계 측정 §13 · `Ruling 351`)으로 올린다.
+⚠ **메모리.** 한도의 합 928MB 는 backend 한도(3GB)와 합치면 `t3.medium`(4GB)을 넘는다. 한도는 상한이지 예약이 아니고 실사용은 대략 300MB 로 추정하지만(측정 전) 배포 순간 신·구 backend 가 함께 살아 있는 시점에는 스왑 2GB(§2.8)에 기댄다. 관측을 켠 채 안정적으로 운영하려면 권장 사양(4 vCPU · 8GB — 2026-09-09 부하 한계 측정 보고서 13절 · `Ruling 351`)으로 올린다.
 
 ### 11.1 접근 — SSM 포트 포워딩
 
@@ -718,7 +718,7 @@ Grafana 는 볼륨이 없어 컨테이너를 다시 만들 때마다 SSM 값으�
 
 규칙은 `infra/observability/prometheus/alerts.yml` 이고, 조건식·`for` 는 `alerts.test.yml`(promtool 단위 시험)이 가짜 시계열로 검사한다. `TECH_DECISIONS §13.4` 표와 행 단위로 대응한다.
 
-| 경보 | 조건 | 등급 | §13.4 |
+| 경보 | 조건 | 등급 | `TECH_DECISIONS §13.4` 행 |
 |---|---|---|---|
 | `RunUnconfirmed` | `schoolbus_run_unconfirmed > 0` 이 1분 유지 | 즉시(critical) | 1행 |
 | `NoShowEscalationFailing` · `NoShowEscalationStalled` | 미승차 에스컬레이션 실패 · 180초 초과 미성공 | 즉시(critical) | 2행 |
