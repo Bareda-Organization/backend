@@ -280,7 +280,7 @@ HTTP 상태 코드 + 본문. 본문 형태는 전 엔드포인트 공통.
 
 | 필드 | 조건 |
 |---|---|
-| `stops[].stop_id` | **경유 지점 항목은 정상 흐름에서 항상 `null`** — 이 배열이 승하차지와 강제 경유지를 같은 모양으로 싣기 때문 |
+| `stops[].stop_id` | **경유 지점은 해당 없음** — 경유 지점 항목도 `run_stop.id` 를 싣는다(`Ruling 327`·`400`, 2026-09-30 정정 — 전에는 "경유 지점 항목은 항상 `null`" 이라 적혀 코드와 어긋났다). 경유 지점 여부는 `stops[].is_waypoint`(§4.3)로 가른다. `null` 은 확정 전 예정 경로(§5.19 `confirmed=false`)에서 승하차지 행이 풀리지 않을 때만 |
 | `stops[].name` · `address` · `lat` · `lng` | 배포 후 제거된 경유 지점 |
 
 #### 처분 규칙 — 표기를 바꿀 때와 기록만 할 때
@@ -955,7 +955,8 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|:-:|---|
-| `stops[]` | array | ● | `stop_id` · `seq` · `name` · `address` · `lat` · `lng` · `change` · `student_count` · `is_destination` |
+| `stops[]` | array | ● | `stop_id` · `seq` · `name` · `address` · `lat` · `lng` · `change` · `student_count` · `is_destination` · `is_waypoint` |
+| `stops[].is_waypoint` | boolean | ● | **강제 경유 지점(§5.15) 항목만 `true`**(`Ruling 400`, 2026-09-30) — 승하차지·학원 항목은 `false`. 경유 지점은 `stop_id`(=`run_stop.id`)·`student_count`(0) 등 다른 필드가 승하차지와 같은 모양이라 이 값으로만 가른다. 지도가 경유 지점을 번호 없는 "경유" 마커로 그리고 승하차지 번호에서 뺀다. 배포 후 제거돼 좌표가 `null` 인 행도 경유 지점이면 `true` |
 | `stops[].is_destination` | boolean | ● | **등원 회차의 마지막 항목(학원)만 `true`** — 이 항목의 도착 처리(§4.5)가 운행 종료(C-15). 이름·좌표는 학원, `student_count` 0. 하원 회차에는 부재(학원이 출발지) (2026-09-25 `Ruling 327`) |
 | `current_stop` | object | ○ | **마지막으로 도착한** 승하차지 — 도착 기록이 없으면 부재. 다음에 설 곳은 `next_stop` 이다 (2026-09-14 문면 정정, `Ruling 281`) |
 | `next_stop` | object | ○ | 다음 승하차지. **`skipped` 는 건너뛰고 실제 경유지를 반환** |
@@ -2126,7 +2127,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 **권한** 학원 관계자 · **메인 관리자**(`Ruling 323`, `R22`, 2026-09-20 사용자 승인 — 전체 관제 화면 §6.8 이 버스를 눌러 노선을 그릴 때 이 조회를 쓴다. 그 전까지 `403 FORBIDDEN` 으로 막혀 기능이 통째로 동작하지 않았다). 학원 격리는 그대로 §1.5 가 판정한다 — 메인 관리자만 타 학원 회차를 통과한다
 
-**응답** — §4.3 과 같은 구조(`road_path[]` · `fallback_used` 포함 — 2026-09-30 `Ruling 365` 로 §4.3 에도 실림) + `route_version` · `published_at` · `ack{driver, escort}` · `confirmed`
+**응답** — §4.3 과 같은 구조(`road_path[]` · `fallback_used` 포함 — 2026-09-30 `Ruling 365` 로 §4.3 에도 실림 · `stops[].is_waypoint` 도 §4.3 과 같다 — `Ruling 400`) + `route_version` · `published_at` · `ack{driver, escort}` · `confirmed`
 
 매니저용 §4.3 은 **배치된 회차**로 범위가 한정(§1.5)돼 관계자가 호출하면 `403`. 관계자가 승인 화면·경유 지점 미리보기 **밖에서** 확정 노선을 보는 경로가 필요.
 

@@ -1,6 +1,7 @@
 package src.backend.run.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -263,6 +264,41 @@ class RunRouteControllerTest {
         assertThat((String) JsonPath.read(본문(result), "$.data.next_stop.stop_id"))
                 .as("stop2 에 도착했으면 그 앞 경유 지점은 지난 것이다 — 다음은 stop3")
                 .isEqualTo(String.valueOf(정차_항목_id(academyId, runId, stop3)));
+    }
+
+    @Test
+    void R39_Ruling_400_is_waypoint_는_경유_지점_항목만_true_이고_승하차지와_학원은_false_다() throws Exception {
+        // 지도가 경유 지점을 승하차지와 다른 모양으로 그리려면 구분할 필드가 필요하다 — 두 항목 모두
+        // stop_id 는 run_stop.id 라 그 값으로는 못 가른다. §4.3·§5.19 가 같은 조립을 공유한다.
+        Phase9RosterFixtures fx = fixtures();
+        long academyId = fx.academyWithCoordinates();
+        long busId = fx.bus(academyId);
+        long stop1 = fx.stop(academyId, "37.500000", "127.000000");
+        fx.route(academyId, busId, Weekday.FRI, Direction.TO_ACADEMY, stop1);
+        long student1 = fx.student(academyId, "학생1");
+        fx.verifiedAddress(student1, stop1, Weekday.FRI, Direction.TO_ACADEMY, "37.500000", "127.000000");
+        OffsetDateTime departTime = OffsetDateTime.parse("2031-07-04T08:00:00+09:00");
+        long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY,
+                departTime, departTime.minusMinutes(30));
+        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
+        fx.assign(runId, manager.managerId(), ManagerRole.DRIVER);
+        Long versionId = confirmedRouteRepository.findById(runId).map(ConfirmedRoute::getCurrentVersionId)
+                .orElseThrow();
+        Waypoint waypoint = waypointRepository.save(Waypoint.forRun(runId, "주유소", null,
+                new BigDecimal("37.505000"), new BigDecimal("127.005000"), null, manager.managerId(),
+                OffsetDateTime.now()));
+        waypoint.apply();
+        waypointRepository.save(waypoint);
+        // 등원 회차는 학원 항목이 순번 2 를 이미 차지한다 — 순번 유일 제약을 피해 3 에 둔다(순서는 이 시험의 관심 밖).
+        runStopRepository.save(RunStop.forWaypoint(versionId, waypoint.getId(), 3, null));
+
+        mockMvc.perform(get("/api/v1/runs/" + runId + "/route").header("Authorization",
+                        토큰(manager.accountId(), academyId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.stops[?(@.name == '주유소')].is_waypoint").value(true))
+                .andExpect(jsonPath("$.data.stops[?(@.is_waypoint == true)]", hasSize(1)))
+                .andExpect(jsonPath("$.data.stops[0].is_waypoint").value(false))
+                .andExpect(jsonPath("$.data.stops[?(@.is_destination == true)].is_waypoint").value(false));
     }
 
     @Test

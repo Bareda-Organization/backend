@@ -177,18 +177,18 @@ public class RunRouteQueryService {
         if (stop != null) {
             long studentCount = studentCounts.getOrDefault(stop.getId(), 0L);
             return new RouteStop(runStop.getId(), runStop.getSeq(), stop.getName(), stop.getAddress(), stop.getLat(),
-                    stop.getLng(), change, studentCount, false);
+                    stop.getLng(), change, studentCount, false, false);
         }
         Waypoint waypoint = waypointsById.get(runStop.getWaypointId());
         if (waypoint != null) {
             return new RouteStop(runStop.getId(), runStop.getSeq(), waypoint.getLabel(), waypoint.getAddress(),
-                    waypoint.getLat(), waypoint.getLng(), change, 0L, false);
+                    waypoint.getLat(), waypoint.getLng(), change, 0L, false, true);
         }
         if (runStop.isDestination() && academy != null) {
             return new RouteStop(runStop.getId(), runStop.getSeq(), academy.getName(), academy.getAddress(),
-                    academy.getLat(), academy.getLng(), change, 0L, true);
+                    academy.getLat(), academy.getLng(), change, 0L, true, false);
         }
         return new RouteStop(runStop.getId(), runStop.getSeq(), null, null, null, null, change, 0L,
-                runStop.isDestination());
+                runStop.isDestination(), runStop.getWaypointId() != null);
     }
 }
