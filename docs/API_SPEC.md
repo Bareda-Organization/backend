@@ -1387,6 +1387,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `change` | enum | ○ | `added`(초록) · `removed`(빨강) |
 | `status` | enum | ● | `waiting` · `boarded` · `alighted` · `absent` · `no_show` |
 | `note` | string | ○ | 비고 (STU-07) |
+| `transfer_id` | string | ○ | **확정 전 예정 명단에서** 이동 대기(§5.8, `staged`)로 이 회차에 들어온 학생 행에만 — 이 값으로 §5.8.1 취소. 그 행은 `change=added`(초록)로 표시 (`Ruling 369`) |
 
 **`absent` 는 관계자 웹에서 빨강으로 계속 표시** — 매니저 앱(행 제외 · `§4.2`)과 상반. 관리자는 누가 왜 빠졌는지 확인이 필요. 예외 하나 — 버스 간 이동으로 빠진 학생(`absent` + `change=removed`)은 **매니저 앱에도** 빨강 행으로 남는다(`§4.2` · `§9.4`).
 
@@ -1600,6 +1601,19 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `impact` | `from{rider_count_before, rider_count_after}` · `to{rider_count_before, rider_count_after, capacity}` |
 
 **에러** — `403 CHANGE_WINDOW_CLOSED`(둘 중 한 회차라도 ② 구간 — 저장 전에 확정된 경우 포함) · `409 RUN_CANCELED`(둘 중 한 회차라도 임시 취소) · `409 CAPACITY_EXCEEDED`(도착 회차 정원 초과 — 현재 인원·정원 병기) · `409 STUDENT_NOT_IN_RUN`(학생이 출발 회차 명단 밖) · `409 TRANSFER_ALREADY_STAGED`(같은 학생의 미적용 이동이 이미 있음) · `422 ADDRESS_VERIFICATION_FAILED`(주소 검증 실패) · `422 VALIDATION_FAILED`(`stop_id`·`address` 동시 없음/있음 · `from_run_id`=`to_run_id` · 도착 회차의 날짜·방향이 출발 회차와 다름) · `404 RUN_NOT_FOUND`/`STUDENT_NOT_FOUND`/`STOP_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163. `stop_id` 는 요청 학원으로 좁혀 조회하므로 타 학원 승하차지는 부재와 같다 — 2026-09-05 F4 S1 실측으로 추가) · `403 ACADEMY_SCOPE_VIOLATION`(도착 회차가 타 학원)
+
+### 5.8.1 DELETE /staff/transfers/{transferId}
+
+이동 대기 취소 (A-07 보조, 2026-09-30 `Ruling 369`). §5.8 로 저장한 **반영 전(`staged`)** 이동 기록을 지운다 — 관계자가 잘못 옮겼을 때 확정 배치 전에 되돌리는 수단.
+
+| 항목 | 값 |
+|---|---|
+| 권한 | 학원 관계자(자기 학원 이동 기록만) |
+| 조건 | `status = staged` **이고** 출발·도착 두 회차 모두 ① 구간(`idle`) — 등록 조건과 같다 |
+| 처리 | 행 삭제(취소 상태를 두지 않는다 — 반영 전 대기 기록이라 남길 이력이 없다). 감사 기록 1건 |
+| 응답 | `204` 본문 부재 |
+
+**에러** — `404 TRANSFER_NOT_FOUND`(없음 · 타 학원) · `403 CHANGE_WINDOW_CLOSED`(두 회차 중 하나라도 ① 구간이 끝났거나 이미 `applied`)
 
 ### 5.9 고정 노선 편성 · 정차 순서 최적화 (RTE-01 · RTE-09, A-08)
 
@@ -2521,6 +2535,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `RUN_NOT_IDLE` | 409 | `idle` 이 아닌 회차의 강제 확정 시도 (§6.14) |
 | `RUN_NOT_DUE` | 409 | 판정 시각(`confirm_at`)이 아직 지나지 않은 회차의 강제 확정 시도 (§6.14) |
 | `STUDENT_NOT_IN_RUN` | 409 | 버스 간 이동 대상 학생이 출발 회차의 당일 명단(요일별 주소·탑승 의사·강제 추가 기준)에 부재 (§5.8 · RTE-07) |
+| `TRANSFER_NOT_FOUND` | 404 | 이동 대기 기록 부재 · 타 학원 (§5.8.1, Ruling 369) |
 | `TRANSFER_ALREADY_STAGED` | 409 | 같은 학생의 처리 대기 중인 이동 건이 이미 존재 — 최종 목적지 회차를 판정할 수 없어 새 신청을 막음 (§5.8) |
 
 ### 8.5 자원 · 검증
