@@ -105,7 +105,7 @@ public class RunConfirmationService {
      * (읽기 → 계산 → {@link RunConfirmationPersistence#persist} → 지표)은 배치 경로와 완전히 같다 —
      * {@link #confirmOne(Long)} 은 {@code forceFallback=false} 로 이 메서드를 그대로 통과한다.
      *
-     * <p>§20.2 — 본문이 기준(20줄)을 넘긴 채 둔다. "읽기 → 좌표 결정 → 계산 → 저장 → 계측" 은 한
+     * <p>CODE_CONVENTIONS §20.2 — 본문이 기준(20줄)을 넘긴 채 둔다. "읽기 → 좌표 결정 → 계산 → 저장 → 계측" 은 한
      * 회차를 확정하는 단일 순서고, 각 단계가 다음 단계 입력을 바로 쓴다 — private 메서드로 쪼개면
      * 그 순서를 파일 안 여러 자리로 흩어 놓을 뿐 책임은 늘지 않는다(중복이었던 요일·좌표 규칙은
      * {@code Weekday.of}·RunRouteEndpoints 로 이미 뺐다, BR-101·BR-099).

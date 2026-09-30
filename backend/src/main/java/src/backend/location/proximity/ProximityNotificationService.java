@@ -76,8 +76,8 @@ public class ProximityNotificationService {
      *       인스턴스가 먼저 선점 — 목표 15)</li>
      * </ul>
      *
-     * <p>§20.2 크기 신호(20줄 초과) — 굳이 나누지 않는다. {@link #judgeDeparture} 와 앞부분(위치·노선·
-     * 정차지 조회) 모양이 비슷하지만 §20.3-4 는 중복을 3번째 등장에서 추출하라고 하고, 이건 2벌뿐이다.
+     * <p>CODE_CONVENTIONS §20.2 크기 신호(20줄 초과) — 굳이 나누지 않는다. {@link #judgeDeparture} 와 앞부분(위치·노선·
+     * 정차지 조회) 모양이 비슷하지만 CODE_CONVENTIONS §20.3-4 는 중복을 3번째 등장에서 추출하라고 하고, 이건 2벌뿐이다.
      * 조기 반환 5개가 순서대로 이어지는 한 트랜잭션의 서술이라 쪼개면 오히려 흐름이 파일 사이로 흩어진다.
      */
     public void judgeOne(Long runId, Long academyId) {
@@ -137,8 +137,8 @@ public class ProximityNotificationService {
      * {@code StopDepartedEvent} 를 발행한다 — 그 승하차지의 확정 결과를 학생별로 통지하는 재료다
      * (Ruling 308, IMPLEMENTATION_PLAN §8.23 T3 목표 2). {@code academyId} 는 그 이벤트에 실어 보낸다.
      *
-     * <p>§20.2 크기 신호 — 나누지 않는 이유는 {@link #judgeOne} 주석과 같다(조기 반환 체인, 중복은
-     * 2벌뿐이라 §20.3-4 의 3번째 추출 기준 미달). 위치 읽기가 트랜잭션 밖인 이유는 클래스 자바독(BR-166).
+     * <p>CODE_CONVENTIONS §20.2 크기 신호 — 나누지 않는 이유는 {@link #judgeOne} 주석과 같다(조기 반환 체인, 중복은
+     * 2벌뿐이라 CODE_CONVENTIONS §20.3-4 의 3번째 추출 기준 미달). 위치 읽기가 트랜잭션 밖인 이유는 클래스 자바독(BR-166).
      */
     public void judgeDeparture(Long runId, Long academyId) {
         runPositionStore.findCached(runId).ifPresent(position -> transactionTemplate.executeWithoutResult(

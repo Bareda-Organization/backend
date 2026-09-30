@@ -16,7 +16,7 @@ import src.backend.run.entity.RunStatus;
  * 별도 컬럼이 아니라 목록 화면이 "명단 진입 가능" 배지를 매번 상태값과 비교해 다시 계산하지 않도록
  * 여기서 한 번 계산해 싣는다.
  *
- * <p>§20.2 — 필드 15개를 넘긴 채 둔다(2026-09-25 검사 BR-101). 필드 목록은 API_SPEC §4.1 응답
+ * <p>CODE_CONVENTIONS §20.2 — 필드 15개를 넘긴 채 둔다(2026-09-25 검사 BR-101). 필드 목록은 API_SPEC §4.1 응답
  * 스키마가 정한 계약이라 코드 쪽에서 임의로 줄이거나 쪼갤 수 없다 — 줄이려면 사양을 먼저 바꿔야 한다.
  *
  * @param startWindow 운행 시작 버튼 활성 창 — 출발 시각 ±10분(FEATURE_SPEC §2.1)
@@ -35,7 +35,7 @@ public record ManagerRunResponse(String runId, String busNo, String direction, O
     public static ManagerRunResponse of(Run run, String busNo, Assignment assignment, long addedCount,
             long removedCount, boolean ackRequired, RunStartWindowPolicy startWindowPolicy) {
         OffsetDateTime departTime = run.getDepartTime();
-        // §20.4 — 창 값은 RunStartWindowPolicy 가 유일한 소유(BR-101, 2026-09-25 검사).
+        // CODE_CONVENTIONS §20.4 — 창 값은 RunStartWindowPolicy 가 유일한 소유(BR-101, 2026-09-25 검사).
         StartWindow startWindow = new StartWindow(startWindowPolicy.earliestStart(departTime),
                 startWindowPolicy.latestStart(departTime));
         return new ManagerRunResponse(String.valueOf(run.getId()), busNo, lower(run.getDirection().name()),

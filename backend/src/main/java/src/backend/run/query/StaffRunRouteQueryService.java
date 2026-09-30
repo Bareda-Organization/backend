@@ -133,7 +133,7 @@ public class StaffRunRouteQueryService {
      *
      * <p>캐시하지 않는다 — 관리자만 쓰고 조회가 잦지 않다(사용자 확정, Ruling 321 정정).
      *
-     * <p>§20.2 — 본문이 기준(20줄)을 넘긴 채 둔다. {@code confirmOne(RunConfirmationService)} 과
+     * <p>CODE_CONVENTIONS §20.2 — 본문이 기준(20줄)을 넘긴 채 둔다. {@code confirmOne(RunConfirmationService)} 과
      * 같은 "학원 → 노선 → 정차지 → 좌표" 조회 순서를 읽기 전용으로 따라가는 한 흐름이고, 실패마다
      * 즉시 {@code Optional.empty()} 로 빠지는 이른 반환이 이미 중첩을 얕게 유지한다.
      *

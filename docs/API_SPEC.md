@@ -295,6 +295,18 @@ HTTP 상태 코드 + 본문. 본문 형태는 전 엔드포인트 공통.
 - **§3.12 `sent_at`** — ⚠ **해법이 이 저장소에 이미 있고 한쪽에만 적용돼 있다.** 같은 컬럼을 읽는 **§5.17 은 값이 없으면 `created_at` 으로 대체**해 `●` 를 지킨다. 즉 부재가 아니라 **적용 범위의 비대칭**이라, 같은 대체를 §3.12 에 넓히면 정본을 안 고치고 해소된다 — **서버 수정이라 이 라운드 밖**이다
 - **§4.3 `next_stop.lat` · `lng`** — 이 절이 두 필드를 필수로 적은 **이유가 "외부 내비게이션 앱 콜백용"** 이다. 좌표 없는 정차지를 `next_stop` 으로 내보내는 것 자체가 그 용도를 깨므로, **정본을 내리는 것보다 서버가 그런 항목을 내보내지 않는 편**이 맞을 수 있다. ⚠ 서버 쪽 주석(`RunRouteResponse`)은 *"`RouteStop` 은 항상 좌표를 갖는다"* 고 적어 두었으나 **같은 파일의 대체 분기가 그 전제를 깬다** — 주석이 근거가 아니다
 
+### 1.14 `PATCH` 의 의미는 절마다 다르다 — 항목을 지우는 규칙 (`Ruling 390`)
+
+`PATCH` 는 보낸 필드만 고친다는 점만 공통이고, **`null` 을 보냈을 때의 처리가 엔드포인트마다 다르다.** 클라이언트가 한 `PATCH` 의 규칙을 다른 `PATCH` 에 옮겨 쓰지 않는다.
+
+| 대상 | 키가 없을 때 | 명시적 `null` · 빈 문자열(`""`) |
+|---|---|---|
+| **스케줄(§5.10) · 학생(§5.11)** 의 `PATCH` 만 | 유지 | 선택(○) 항목은 **지움**(`""` 는 `null` 로 저장) · 필수(●) 항목은 `422 VALIDATION_FAILED` |
+| **그 밖의 `PATCH`** (§5.12 차량 · §5.13 매니저 · §6.3 학원 등) | 유지 | **`null` = 유지** — 키가 없는 것과 같아 항목을 지우는 수단이 없다 |
+
+- **왜 갈렸는가** — 선택 항목을 비우는 화면이 있는 곳은 스케줄·학생이라 여기에만 "지움" 을 넣었다(웹이 `Ruling 387` 에서 "`PATCH` 로 못 지우는 항목" 을 폼에서 막고 있던 것이 이 규칙으로 대체됨). 나머지 `PATCH` 는 지울 항목이 없어 종전 의미를 그대로 둔다.
+- 서버는 `Patch<T>` 로 "키가 있다" 와 "값" 을 함께 받는다(`docs/backend/CODE_CONVENTIONS.md §10.1`). 다른 `PATCH` 를 이 규칙으로 넓힐 때는 해당 절을 먼저 고친다.
+
 ---
 
 ## 2. 인증 · 가입 (AUTH)
@@ -414,6 +426,8 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 **응답** — `access_token`(본문). 회전한 refresh 는 앱이면 본문 `refresh_token`, 웹이면 `Set-Cookie`(속성은 §1.2.1 과 동일).
 
 **에러** — `401 TOKEN_EXPIRED`(만료·로그아웃·차단으로 무효화) → 재로그인 요구. 쿠키·본문 어디에도 refresh 가 없으면 `401 TOKEN_EXPIRED`.
+
+**재로그인 신호는 이 `401` 하나다** (프론트 `Ruling 386`). 앱·웹은 재발급 요청의 `401` 에서만 저장된 토큰을 지우고 로그인 화면으로 보내며, `400` · `403` · `5xx` · 연결 실패는 일시 장애로 보고 토큰을 남긴 채 재시도한다. 서버가 다른 코드로 refresh 를 거절하는 경로를 만들면 그 세션은 클라이언트에서 지워지지 않으므로, 세션을 끊는 거절은 `TOKEN_EXPIRED`(401)로 보낸다. 현재 `RefreshCommandService` 는 거절 사유(무효·만료·차단·퇴사) 전부를 `TOKEN_EXPIRED` 로 던진다.
 
 ### 2.7 POST /auth/logout
 
@@ -896,7 +910,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
           "rider_id": "rider_5521",
           "student_id": "stu_301",
           "name": "김서준",
-          "photo_url": "https://cdn.example/s/301.jpg",
+          "photo_url": "/api/v1/files/photos/301.jpg",
           "class_name": "초등 A반",
           "guardian_phone": "010-2XXX-8814",
           "note": "할머니가 데리러 옴",
@@ -1543,7 +1557,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 **승인 이력 저장 — 책임 소재.** 누가·언제·무엇을·자동 거절 여부를 기록.
 
-**출발 시각 도달 또는 `Run.status` → `moving` 중 먼저 오는 시점**에 미처리 요청은 서버가 **자동 거절** — 재최적화 없이 기존 노선 유지 + 학부모 통지 → `status=auto_rejected`, **횟수 미소진** (C-04). 그 시점 이후 도달한 승인 조작은 `409 CHANGE_WINDOW_CLOSED` 로 반영 부재.
+**출발 시각 도달 또는 `Run.status` → `moving` 중 먼저 오는 시점**에 미처리 요청은 서버가 **자동 거절** — 재최적화 없이 기존 노선 유지 + 학부모 통지 → `status=auto_rejected`, **횟수 미소진** (C-04). 그 시점 이후 도달한 승인 조작은 반영 부재 — 이미 자동 거절로 종결된 건은 `409 APPROVAL_ALREADY_DECIDED`(처리된 건은 창 판정보다 먼저 걸러진다), 자동 거절 폴링(30초)이 아직 돌기 전에 도달한 건은 `403 CHANGE_WINDOW_CLOSED`(`Ruling 200`).
 
 **에러** — `409 APPROVAL_ALREADY_DECIDED` · `409 RUN_CANCELED`(승인하려는 회차가 임시 취소됨 — 거절은 허용, `Ruling 376`) · **`403 CHANGE_WINDOW_CLOSED`**(운행 시작 후 도달 — ⚠ **2026-08-30 정정, Ruling 200.** 원래 `409` 로 적혀 있었으나 이 코드의 정의 자리인 **§8.3 사전이 403** 이고, 이 문서의 다른 **8곳이 전부 403**(§1.6 ③ · §3.6 · §3.8 · §5.7 · §5.8 · §5.15 · §8.3)이라 **이 한 줄만 어긋나 있었다.** `ErrorCode` 는 코드 하나에 상태 하나를 싣는 구조라 두 값을 함께 둘 수 없고, 새 코드를 만드는 것은 "새 상태값을 만들지 않는다"(`CLAUDE.md`)에 걸린다. 사전이 정의고 각 절은 사용처이므로 **사전이 이긴다**) · `409 PREVIEW_STALE`(미리보기 이후 입력 변경 — 재조회 후 재시도) · `409 STUDENT_NOT_IN_RUN`(승인 대상 학생이 그 회차 명단에 없음 — 접수 뒤 명단이 바뀐 경우, BR-030) · `404 APPROVAL_NOT_FOUND`(대상 없음 · 타 학원 — 존재 비노출, BR-133) · `422 VALIDATION_FAILED`(`approve=false` 인데 `reject_reason` 부재). 결정은 그 승인 건을 행 잠금으로 읽어 자동 거절과 겹쳐도 커밋된 상태로 판정한다(BR-028)
 
@@ -1881,7 +1895,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | 응답 | `200` 이미지 본문(`Content-Type` = 저장 형식) · `Cache-Control: private` |
 | 정적 공개 | 부재 — 사진은 L3(`FEATURE_SPEC §6.3`)라 무인증 정적 경로로 열지 않는다 |
 
-`photo_url` 값은 `/api/v1/files/photos/<파일명>` 이다(앱은 로그인 토큰을 붙여 요청).
+`photo_url` 값은 `/api/v1/files/photos/<파일명>` 이다. 앱은 로그인 토큰을 헤더에 붙여 요청하고, 웹은 `<img src>` 가 헤더를 실을 수 없어 토큰을 실은 요청의 응답을 blob 으로 그린다. 옛 절대 URL 로 저장된 값은 토큰 없이 그대로 연다(프론트 `Ruling 385`).
 
 **에러** — `404 STUDENT_NOT_FOUND`(파일 부재 · 사진 주인이 타 학원 · 퇴원 학생 — 존재 비노출) · `403 FORBIDDEN`(권한 부재)
 
@@ -2435,7 +2449,7 @@ O-04 · SYS-01·02. 정본 API명세서에 경로 미기재 — 감사 로그 �
 | `GET /admin/audit-logs` | SYS-01 | `actor` · `action`(`read` · `update` · `delete`) · `target_type` · `target_id` · `academy_name` · `occurred_at` |
 | `GET /admin/login-history` | SYS-02 | `account_id` · `login_id` · `result`(`success` · `fail`) · `ip` · `occurred_at` · `block_event` · `block_action`(`block` · `unblock`) |
 
-**`block_action`** — `block_event=true` 인 행에서 차단 행이면 `block`, 해제 행이면 `unblock`, 나머지 행은 `null`(키는 존재). `block_event`(불리언)는 두 행 모두 `true` 라 그대로 두고 이 필드가 둘을 가른다 — 기존 소비처를 깨지 않는 추가다(`Ruling 394`, ERD `audit_log.action` 의 `block`·`unblock` 투영).
+**`block_action`** — `block_event=true` 인 행에서 차단 행이면 `block`, 해제 행이면 `unblock`, 나머지 행은 `null`(키는 존재). `block_event`(불리언)는 두 행 모두 `true` 라 그대로 두고 이 필드가 둘을 가른다 — 기존 소비처를 깨지 않는 추가다(`Ruling 394`, ERD `audit_log.action` 의 `block`·`unblock` 투영). **`result` 는 로그인 시도 행(`success` · `fail`)에만 값이 있고 차단·해제 행은 `null`**(`LoginHistoryQueryService.toItem` — 로그인 시도가 아니라 상태 변경이라서) — 클라이언트는 `null` 을 실패로 그리지 않는다.
 
 **`block_event` 행의 `account_id` · `login_id`** — 차단(`block`) 행은 차단된 계정(행위자와 같다), **해제(`unblock`) 행은 해제된 계정**이다(BR-219 — 계정별 이력이 끊기지 않게). 해제한 관리자는 `audit_log.actor_account_id` 와 해제 응답의 `unblocked_by`(§6.12)가 갖는다 — 이 목록의 행이 싣지 않는다. `account_id` 필터도 같은 뜻 — 해제된 계정의 해제 행이 걸리고, 해제한 관리자의 필터에는 걸리지 않는다.
 
@@ -2518,7 +2532,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `emergency_raised` | `POST /runs/{runId}/emergency` | `emergency_id` · **`academy_id` · `academy_name`**(그 회차의 학원 — 메인 관리자 전체 관제 배너가 어느 학원 신고인지 표시, `Ruling 395`. 관계자 채널도 같은 페이로드) · `type` · `bus_no` · `raised_by{name, role, phone}` · `position{lat, lng}` · `rider_count`(발신 시점 회차에 배정된 라이더 전원 수, 승하차 상태 무관) · `raised_at`. **관계자·메인 관리자 채널 전용** (C-17) |
 | `emergency_canceled` | `DELETE /runs/{runId}/emergency/{id}` (§4.14 — 발신 후 1분 안 취소) | `emergency_id` · `bus_no` · `canceled_at`. **관계자·메인 관리자 채널 전용** — `emergency_raised` 를 받은 화면이 같은 신고를 닫는다(§4.14 "취소 사실도 수신자에게 통지") |
 | `emergency_acked` | `POST /staff/emergencies/{id}/ack` | `emergency_id` · `acked_by_name` · `acked_at`. **매니저 채널 전용** — 발신자 앱에 "학원이 확인했습니다" 표시 (A-16) |
-| `route_changed` | 확정 노선이 새 판본으로 바뀜 — 확정 배치 · ②구간 변경 승인 재최적화(§5.6) · ③구간 미등원 반영(§3.6) · 경유 지점 배포(§5.15) · 강제 확정(§6.x). 알림 `route_changed`(§9.7)와 같은 계기 (`Ruling 373`) | `run_id` · `changed_at`. **매니저 채널 전용** — 매니저 앱이 받으면 노선(§4.3)·명단(§4.2)을 다시 불러온다. 본문에 노선을 싣지 않는다(재조회가 권한·마스킹을 그대로 지난다) |
+| `route_changed` | 확정 노선이 새 판본으로 바뀜 — 확정 배치 · ②구간 변경 승인 재최적화(§5.6) · ③구간 미등원 반영(§3.6) · 경유 지점 배포(§5.15) · 강제 확정(§6.14). 알림 `route_changed`(§9.7)와 같은 계기 (`Ruling 373`) | `run_id` · `changed_at`. **매니저 채널 전용** — 매니저 앱이 받으면 노선(§4.3)·명단(§4.2)을 다시 불러온다. 본문에 노선을 싣지 않는다(재조회가 권한·마스킹을 그대로 지난다) |
 | `approval_requested` | ② 구간 요청 접수 (REQ-05) | `approval_id` · `student_name` · `run_id` · `stop_name` · `deadline_at`. **관계자 채널 전용** |
 
 - 재연결 시 클라이언트는 대응 REST 조회로 전량 동기화 — 이벤트 유실 보정.

@@ -51,7 +51,7 @@ public class ForcedAdditionStore {
     /**
      * 회차를 잠근 뒤 학생(신규면 생성)·정차지를 확정하고 강제 추가를 {@code staged} 로 저장한다.
      *
-     * <p>§20.2 — 파라미터 6개를 넘긴 채 둔다. 호출부가 하나({@link ForcedAdditionCommandService#add})
+     * <p>CODE_CONVENTIONS §20.2 — 파라미터 6개를 넘긴 채 둔다. 호출부가 하나({@link ForcedAdditionCommandService#add})
      * 뿐이고 여섯 값이 전부 이 저장에 필요한 서로 다른 도메인 값이라 record 로 묶어도 파라미터 수는
      * 줄지 않는다.
      *

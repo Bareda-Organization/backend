@@ -86,7 +86,7 @@ public class DelayNotificationCommandService {
      * 매니저가 배치된 회차인지 확인하고 {@code minutes}·{@code reason} 값 도메인을 검증한 뒤 지연을
      * 기록한다(§4.6, NTF-06).
      *
-     * <p>§20.2 — 본문이 기준(20줄)을 넘긴 채 둔다. "배치 확인 → 값 도메인 검증 → 대상 정차지 결정 →
+     * <p>CODE_CONVENTIONS §20.2 — 본문이 기준(20줄)을 넘긴 채 둔다. "배치 확인 → 값 도메인 검증 → 대상 정차지 결정 →
      * 저장 → 이벤트 발행" 은 한 번의 지연 신고가 거치는 단일 순서다.
      */
     public DelayResponse notifyDelay(AuthUser requester, Long runId, DelayRequest request) {

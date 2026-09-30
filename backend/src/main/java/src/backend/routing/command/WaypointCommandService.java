@@ -56,7 +56,7 @@ import src.backend.student.geocoding.spec.GeocodedPoint;
  * (즉시·승인 필요)은 전부 허용하고 ③구간(운행 시작 후)만 막는다는 뜻이라, {@code ChangeRequestCommandService}
  * 와 같은 형태로 판정한다({@code ForcedAdditionCommandService} 처럼 ①구간 전용이 아니다).
  *
- * <p>§20.2 크기 신호(BR-101) — 문맥 조립은 {@link RouteContextAssembler} 로 뺐으나(342→312줄) 여전히
+ * <p>CODE_CONVENTIONS §20.2 크기 신호(BR-101) — 문맥 조립은 {@link RouteContextAssembler} 로 뺐으나(342→312줄) 여전히
  * 200줄을 넘는다. add·remove·preview·deploy·responseOf 가 같은 {@link RouteContext}·{@link RouteComputation}
  * 을 순서대로 주고받는 한 흐름이라 더 가르면 그 상태를 필드로 다시 들고 다녀야 해(협력자 중복) 오히려
  * 추적이 어려워진다고 판단해 여기 남긴다.
