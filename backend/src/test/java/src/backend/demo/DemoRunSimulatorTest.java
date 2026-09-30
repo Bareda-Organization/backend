@@ -52,8 +52,10 @@ class DemoRunSimulatorTest {
 
     private final RunStartCommandService runStartCommandService = mock(RunStartCommandService.class);
 
+    private final ConfirmedRouteRepository confirmedRouteRepository = mock(ConfirmedRouteRepository.class);
+
     private final DemoRunSimulator simulator = new DemoRunSimulator(runRepository, assignmentRepository,
-            managerRepository, mock(ConfirmedRouteRepository.class), mock(RouteVersionRepository.class),
+            managerRepository, confirmedRouteRepository, mock(RouteVersionRepository.class),
             runStartCommandService, mock(RunPositionCommandService.class), Clock.systemDefaultZone());
 
     @BeforeEach
@@ -112,6 +114,27 @@ class DemoRunSimulatorTest {
         simulator.tick();
 
         verify(runStartCommandService).start(any(), eq(1001L));
+    }
+
+    /**
+     * 전날 이전 회차는 전진·출발 시도 모두 하지 않는다(BR-217) — 시뮬레이터가 운행을 끝내지 않아 켜 둔 일수만큼 옛 회차가
+     * 쌓이고, 날짜를 보지 않으면 틱(2초)마다 그 수만큼 경로 조회·위치 송신을 되풀이한다.
+     */
+    @Test
+    void 전날_이전_회차는_전진도_출발도_시키지_않는다() {
+        Run movingToday = 회차(1000L, 1000L, DEMO_ACADEMY);
+        Run movingYesterday = 회차(1001L, 1001L, DEMO_ACADEMY);
+        given(movingYesterday.getServiceDate()).willReturn(LocalDate.now().minusDays(1));
+        회차들(DEMO_ACADEMY, RunStatus.MOVING, movingToday, movingYesterday);
+        Run confirmedYesterday = 회차(1002L, 1002L, DEMO_ACADEMY);
+        given(confirmedYesterday.getServiceDate()).willReturn(LocalDate.now().minusDays(1));
+        회차들(DEMO_ACADEMY, RunStatus.CONFIRMED, confirmedYesterday);
+
+        simulator.tick();
+
+        verify(confirmedRouteRepository).findById(1000L);
+        verify(confirmedRouteRepository, never()).findById(1001L);
+        verify(runStartCommandService, never()).start(any(), eq(1002L));
     }
 
     private void 회차들(long academyId, RunStatus status, Run... runs) {
