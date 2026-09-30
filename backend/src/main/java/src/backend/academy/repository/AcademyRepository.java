@@ -2,6 +2,7 @@ package src.backend.academy.repository;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -31,6 +32,17 @@ public interface AcademyRepository extends JpaRepository<Academy, Long> {
      * {@code warnings[]} 에 {@code DUPLICATE_NAME_REGION} 을 담는다.
      */
     boolean existsByNameAndRegion(String name, String region);
+
+    /**
+     * 학원 행을 잠그고 그 학원 안의 작업을 직렬화한다(BR-201) — 같은 학원의 회차 여러 개가 병렬 확정 스레드에서 동승자를
+     * 동시에 고르면 서로의 미커밋 배정을 못 봐 같은 동승자가 겹치는 회차 여러 개에 배정된다. 잠금은 트랜잭션이 끝날 때
+     * 풀리므로 뒤 스레드는 앞 스레드가 커밋한 배정을 읽는다. 다른 학원의 확정은 막지 않는다.
+     *
+     * <p>{@code FOR NO KEY UPDATE} 인 이유 — 학생·버스 등 학원을 참조하는 행의 INSERT 가 잡는 {@code FOR KEY SHARE}
+     * 와 충돌하지 않아, 그 등록들을 기다리게 하지도 서로 잠금을 올리다 교착하지도 않는다.
+     */
+    @Query(value = "SELECT id FROM academy WHERE id = :id FOR NO KEY UPDATE", nativeQuery = true)
+    Optional<Long> lockById(@Param("id") Long id);
 
     /**
      * 메인 관리자 콘솔의 학원 목록·검색(API_SPEC §6.1).

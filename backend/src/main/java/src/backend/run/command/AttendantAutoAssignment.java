@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.academy.repository.AcademyRepository;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.manager.entity.Assignment;
 import src.backend.manager.entity.WorkHours;
@@ -26,6 +27,7 @@ import src.backend.run.entity.Run;
  * 를 불러 배정하고 {@link AssignmentChangedEvent} 를 낸다. 수동 배치(API_SPEC §5.14)가 있으면 건드리지 않고, 후보가 없거나
  * 전원 충돌이면 빈 채로 둔다 — 확정을 실패시키지 않는다. 확정 저장 트랜잭션({@link RunConfirmationPersistence#persist})
  * 안에서만 부른다 — 확정이 롤백되면 배정도 되돌아간다.
+ * 학원 행 잠금으로 같은 학원의 배정을 직렬화한다 — 병렬 확정 스레드가 같은 동승자를 겹치는 회차에 중복 배정하지 않게 한다(BR-201).
  */
 @Component
 @RequiredArgsConstructor
@@ -37,6 +39,8 @@ class AttendantAutoAssignment {
 
     private final AttendantAssigner attendantAssigner;
 
+    private final AcademyRepository academyRepository;
+
     private final ApplicationEventPublisher eventPublisher;
 
     /** @param estDurationMin ④ ETA 산출의 총 소요 — 근무 시간·중복 배치 판정의 회차 시간대 끝을 정한다 */
@@ -44,6 +48,8 @@ class AttendantAutoAssignment {
         if (assignmentRepository.findByRunIdAndRole(run.getId(), ManagerRole.ESCORT).isPresent()) {
             return;
         }
+        // 같은 학원의 다른 회차가 동시에 배정 중이면 그 커밋을 기다렸다가 겹침 창을 읽는다(BR-201).
+        academyRepository.lockById(run.getAcademyId());
         List<AttendantCandidate> candidates = managerRepository
                 .findAllByAcademyIdAndRoleAndDeletedAtIsNullOrderByIdAsc(run.getAcademyId(), ManagerRole.ESCORT)
                 .stream()
