@@ -6031,3 +6031,37 @@ R46 개선 11항목 중 백엔드 몫이다. 조사 원문은 `.claude/survey-20
 | 9 | 정리 — `r46_be` 연결 0 뒤 DROP | `pg_database` |
 
 **결과 (2026-10-01)** — 목표 1~5 ✅ 시험 신설(`RunPositionRepositoryLatestTest` · `RedisReadOutsideTransactionTest` · `StudentRunsSqlCountTest` · `NotificationDispatch*PoolSizeTest` 2 · `PositionSubscriberFilterTest` · `DeploymentConfigGuardTest` 확장) 각각 RED→GREEN 과 결함 심기 9종으로 그 시험만 실패 확인. 목표 3 은 **재현 안 됨** — 학생 회차 목록은 이미 회차 수와 무관(SQL 21 → 21), 회귀 방지 시험만 추가. 목표 6 `A #10` 서버 무변경(사양이 주소 선택 — 사용자 결정 대기) · `A #16` `Ruling 410` · `A #17` `Ruling 411` · `E #11` 완료. 목표 7 백엔드 전체 `--rerun` **340클래스 1,892건** · 실패 1(`ControllerAuthorizationConventionTest` — 인가 검사 핸들러 수 하한이 API 3종 삭제를 못 따라감, 하한 111 로 정정 뒤 그 클래스 재실행 통과) · 건너뜀 0. 목표 8 깨진 참조 0 → 0. `D #5` 는 미착수(다음 차례).
+
+## 8.74 ⚖ `R46-AUDIT` — 감사 기록 묶기 · 보존 2년 · 조회 IP · 감사 화면 (2026-10-01 · 분기점 `3bfc4f93` · 번호대 445~449 · 감사 갈래)
+
+R46 개선 11항목 중 사용자 지시 2번·8번의 감사 몫이다. 조사 원문은 `.claude/survey-2026-09-30/D-성능-확장성.md` #2·#3 과 `B1-관계자웹-실사용.md` #16. `Ruling 333`(L3 감사는 조회·수정·삭제, 목록은 실린 학생마다 1행)의 목적은 그대로 두고 아래 3가지를 더한다.
+
+### R46-AUDIT 판정
+
+| Ruling | 판정 | 근거 |
+|:-:|---|---|
+| **445** | ① 같은 행위자가 같은 학생의 L3 를 **10분 안에 다시 조회하면 새 행을 쓰지 않는다**(판단은 서버 · `update`·`delete`·로그인 기록은 묶지 않음) ② `audit_log` 보존을 **무기한에서 2년**으로(두 category 모두) ③ 조회(`read`) 행에도 **접속 IP** 를 남긴다 | 2026-10-01 사용자 결정. ① 화면 7초 폴링이 하루 수만 행을 쌓음(`D #3`) — 화면이 보내는 표시로 거르면 요청을 직접 만들어 기록을 피할 수 있어 서버가 판단. 묶기 키는 **행위자·학생**, 시각은 **마지막으로 기록한 시각**(불변식: 짝마다 10분에 최소 1번). 두 번째 조회에 새로 실린 학생은 기록(명단 행의 `detail.student_ids` 는 새 학생만). ② 근거는 개인정보 안전성 확보조치 기준의 접속기록 보관(1년 이상 · 대규모·민감정보 2년 이상 — 조율 시점의 기억 기준이라 **L-06~08 법률 검토에서 재확인**). ③ 로그인 기록과 같은 추출(`X-Real-IP` 우선 — `ClientIp`). 수정·삭제 행(`forDataAccessChange` 등 호출 4곳)은 소유 범위 밖이라 IP 가 아직 비어 있음 |
+| **446** | `GET /admin/audit-logs` 에 `action`(`read`·`update`·`delete`) 필터를 더한다. 안 주면 셋 다, 그 밖의 값은 `422 VALIDATION_FAILED` | 감사 화면이 동작 필터를 요구(B1 #16). 조회 행이 수정·삭제 행을 묻는 문제(조사 원문)에 대한 화면 쪽 수단. API_SPEC §6.13 에 반영 |
+| **447** | 감사 화면의 행위자 찾기용 `GET /admin/audit-actors?q=` 를 신설한다(메인 관리자 · 이름 또는 로그인 아이디 부분 일치 · 최대 20건 · 빈 검색어는 빈 목록) | 계정 ID 숫자 입력을 이름 검색으로 바꾸려면 받아 줄 API 가 필요. `/admin/staff-accounts`(§6.6)는 관계자만 싣고 `q` 를 받지 않는데 감사 행위자는 매니저·메인 관리자도 될 수 있어 재사용 불가. 전수 목록 4곳 중 2곳 등재(게이트 거부 목록 · 핸들러 수). 경로변수가 없어 나머지 2곳은 해당 없음 |
+| **448** | 묶기 판단 저장소는 **메모리**(`AuditRecorder` 안 `ConcurrentHashMap`). 재기동 때 한 번 더 기록되는 것을 허용 | 백엔드 인스턴스 1개 전제(`CLAUDE.md` 배포 절). DB 조회는 폴링마다 `detail->student_ids`(jsonb 배열 안, 인덱스 부재)를 훑어야 해 조회를 줄이려고 조회를 더하는 꼴. 오차 방향이 "기록이 더 남는 쪽" |
+| **449** | 감사 기록을 읽기 트랜잭션 밖으로 — 조회 서비스 3종(`RosterQueryService` · `AdminRunRosterQueryService` · `StudentQueryService`)의 **클래스 `@Transactional(readOnly)` 제거** | 요청 하나가 DB 연결 2개(읽기 + `REQUIRES_NEW` 감사)를 쥐던 것(`D #2`). 커밋 뒤 이벤트는 Spring 이 `afterCommit` 을 연결 반환 전에 부르므로 효과가 없고, 컨트롤러 후처리는 감사 내용 조립을 5곳이 다시 해야 한다. 엔티티 연관 매핑 0개라 지연 로딩 부재 · R46-BE 가 위치 읽기 3종에 쓴 방식과 같다 |
+
+### R46-AUDIT 목표 표
+
+| # | 완료 조건 | 확인 수단 |
+|:-:|---|---|
+| 1 | 같은 명단을 10분 안에 두 번 → 행 1 · 10분 넘어 → 행 2 | `AuditRecorderDedupTest` · 창 0 으로 심으면 묶기 시험 3건 실패 |
+| 2 | 두 번째 조회에 새 학생 → 그 학생 기록 | 같은 시험 · 키를 "명단 첫 학생" 으로 심으면 그 시험만 실패 |
+| 3 | 다른 행위자 · update · delete · 로그인은 묶이지 않음 | 같은 시험 3건 · 키에서 행위자를 빼면 그 시험 실패 |
+| 4 | 2년 지난 `audit_log` 삭제 · 안쪽 보존 | `RetentionPolicyTest` · `RetentionCleanupSchedulerTest` |
+| 5 | 조회 행에 IP(프록시 헤더 포함) | `AuditReadRequestIntegrationTest` |
+| 6 | 기록 시점에 조회 트랜잭션 없음 · 조회 실패 시 기록 시도 0 | 같은 시험 + 클래스 트랜잭션 복원 시 실패 |
+| 7 | 감사 화면 — 학원 선택 · 행위자 찾기 · 동작 필터가 요청에 실림 | vitest 4건 + api 2건 · `tsc`·`lint` 0 · 1440·1024 스크린샷 |
+| 8 | 전체를 세는 시험 + `audit`·`boarding`·`monitoring`·`student`·`retention` 실패 0 | 결과 XML |
+| 9 | `Ruling 445` 정본 반영 · 깨진 참조 증가 0 | `grep` · docgraph 0 → 0 |
+| 10 | 정리 — :8340·:5173 종료 · `r46_audit` DROP | `lsof` · `pg_database` |
+
+`Ruling 450` 이후는 쓰지 않았다.
+
+**결과 (2026-10-01)** — 목표 1~7 ✅. 시험 신설 `AuditRecorderDedupTest` 4 · `AuditReadRequestIntegrationTest` 4 · 보존(`RetentionPolicyTest` 1 · `RetentionCleanupSchedulerTest` 1 교체 · `AuditLogSearchPlanTest` 1) · `AuditQueryControllerTest` 3 · 웹 `AuditLogPage.test` 4 · `auditLog.test` 2 · 실서버 계약 1. 결함 심기 13종으로 각각 해당 시험이 실패함을 확인. 기존 시험 조정 — `StudentDetailAuditIntegrationTest`(등록이 이미 첫 조회 행을 남기므로 GET 행 대신 "묶여 안 늘어남" 으로) · `StudentL3ChangeAuditIntegrationTest` 목록 시험(자기만의 행위자) · `AdminListPaging.test`(필터를 동작으로). 목표 8 **85클래스 575건 실패 0 · 건너뜀 0**. 웹 단위 시험 668건 통과(실서버 계약 2파일은 대상 주소가 필요해 별도: `realBackend.test.ts` 17건 자기 서버 :8340 에서 통과). 목표 9 깨진 참조 0 → 0.
+
