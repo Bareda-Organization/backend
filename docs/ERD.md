@@ -6,7 +6,7 @@
 |---|---|
 | 문서 버전 | v1.1 |
 | 작성일 | 2026-08-24 |
-| 개정일 | 2026-09-30 — §5.3 에 조회 인덱스 4개(BR-258, `V1`)와 `V8` 보존 정리 인덱스 5개(BR-259, 실제 `CREATE INDEX` 5문 — 아래 6개는 셈이 어긋난 옛 표기) 등재. 이전 개정 — 2026-09-04 — `V8` 보존 정리 인덱스 6개 반영 · §7.2 `run_position` 90일·`audit_log` 무기한 확정(Ruling 243). 이전 개정 — 2026-09-03 — `V3`~`V7` 반영: `run_stop.proximity_notified_at`(V3) · `shedlock` 테이블 신설(V4) · `notification_log.type` CHECK 확장 확인(V5·V6, 서술 변경 없음) · `emergency_alert.position_recorded_at` 및 `occurred_at`·`received_at` 서술 정정(V7, Ruling 236). DDL-ERD 컬럼 전수 대조로 `academy.lat`·`lng` · `run.consecutive_failures` 보완. `notification_log.acked` 추적 범위 명확화(Ruling 227·228), §8 갱신(X-04·X-05 신설 반영, `academy.code` 해소 반영), 공통 규칙 표기 C-01~C-18. 테이블 41개 · 그룹 5개. Ruling 190·207·210·219·227·228·236 반영 |
+| 개정일 | 2026-10-01 — §3.4 `audit_log.ip` 를 조회 행까지 확장 · §7.2·§7.3 `audit_log` 무기한 → 2년(`Ruling 445`). 이전 개정 — 2026-09-30 — §5.3 에 조회 인덱스 4개(BR-258, `V1`)와 `V8` 보존 정리 인덱스 5개(BR-259, 실제 `CREATE INDEX` 5문 — 아래 6개는 셈이 어긋난 옛 표기) 등재. 이전 개정 — 2026-09-04 — `V8` 보존 정리 인덱스 6개 반영 · §7.2 `run_position` 90일·`audit_log` 무기한 확정(Ruling 243). 이전 개정 — 2026-09-03 — `V3`~`V7` 반영: `run_stop.proximity_notified_at`(V3) · `shedlock` 테이블 신설(V4) · `notification_log.type` CHECK 확장 확인(V5·V6, 서술 변경 없음) · `emergency_alert.position_recorded_at` 및 `occurred_at`·`received_at` 서술 정정(V7, Ruling 236). DDL-ERD 컬럼 전수 대조로 `academy.lat`·`lng` · `run.consecutive_failures` 보완. `notification_log.acked` 추적 범위 명확화(Ruling 227·228), §8 갱신(X-04·X-05 신설 반영, `academy.code` 해소 반영), 공통 규칙 표기 C-01~C-18. 테이블 41개 · 그룹 5개. Ruling 190·207·210·219·227·228·236 반영 |
 | 기준 | FEATURE_SPEC.md · PRD.md · USER_FLOWS.md · API_SPEC.md v1.0 (2026-08-24) |
 | DBMS | PostgreSQL |
 | 성격 | **To-Be 설계** — 현 코드베이스의 실측 기록 부재. 구현은 이 문서에 맞춰 갱신 대상 |
@@ -849,7 +849,7 @@ erDiagram
 | `action` | varchar(20) | NN | `read` · `update` · `delete` · `login_success` · `login_fail` · `block` · `unblock`. CHECK. `GET /admin/login-history` 는 이 값을 그대로 노출하지 않고 **투영**함 — `login_success`→`result=success` · `login_fail`→`result=fail` · `block`·`unblock`→`block_event` (API_SPEC §6) |
 | `target_type` | varchar(50) | | 대상 자원 종류 |
 | `target_id` | bigint | | 대상 자원 식별자 |
-| `ip` | inet | | 접속 IP. `category=login` 대상 |
+| `ip` | inet | | 접속 IP. `category=login` 행과 `category=data_access` 의 **조회(`read`) 행**에 채움(`Ruling 445`) — `X-Real-IP`(프록시가 덮어씀) 우선, 없으면 연결 주소, IP 표기가 아니면 null. 수정·삭제 행은 아직 비어 있음 |
 | `block_event` | boolean | NN default false | 이 시도가 차단을 유발했는지 |
 | `detail` | jsonb | | 코드별 부가 정보 |
 | `occurred_at` | timestamptz | NN | 발생 시각 |
@@ -1157,7 +1157,7 @@ erDiagram
 | `notification_log` | **14일** | 알림 보관 기간 (NTF-08 · FEATURE_SPEC §2.1) |
 | `rider_status_history` | 무기한 (아카이빙 대상) | 되돌리기 이력 보존 요건 (BRD-05 · NFR-07) |
 | `no_show_case` · `no_show_contact` · `exception_report` · `emergency_alert` | 무기한 (아카이빙 대상) | 사건 대응 이력. 비상 알림은 **사고 시각 판정 근거**(`occurred_at`)라 정리 대상 밖 (EXC-04) |
-| `audit_log` | **무기한 — 정리 배치 대상 밖 (2026-09-04 Ruling 243)** | 접속·변경 이력 저장이 요건이나 기간 규정 부재 (NFR-08). Phase 14 보존 정리 배치는 이 테이블에 닿지 않음(시험으로 고정) |
+| `audit_log` | **2년 (2026-10-01 사용자 결정 · `Ruling 445`)** — 두 category 모두, 코드 상수 `RetentionPolicy.AUDIT_LOG_RETENTION`(달력 기준 2년). 2026-09-04 `Ruling 243` 의 "무기한" 을 바꾼다 | 개인정보 안전성 확보조치 기준의 접속기록 보관(1년 이상 · 대규모·민감정보 2년 이상 — 조율 시점의 기억 기준이라 **L-06~08 법률 검토에서 재확인**) (NFR-08). 삭제는 category 별로 기존 `(category, occurred_at desc)` 인덱스를 탄다 |
 | `run_position` | **90일 (2026-09-04 사용자 확정 · Ruling 243 · X-09 해소)** — 코드 상수 `RetentionPolicy.RUN_POSITION_RETENTION` | 실사용 전환 시 법정 검토(L-06~08)에서 재조정 여지만 존치. 위치정보 보유기간이 개발 전 확인 대상. 위치정보법 시행령의 최대 1년이 상한 후보 (PRD §10.1 L-06·L-07 · §11.1 L-08 · API_SPEC §1.12) |
 | `refresh_token` | **만료·폐기 후 30일 (잠정 · Ruling 243)** — 코드 상수 `RetentionPolicy.REFRESH_TOKEN_RETENTION_AFTER_EXPIRY_OR_REVOCATION` | 폐기 직후 그 토큰으로 재사용을 시도하는 정황을 감사할 여지를 둠 (BR-141) |
 | `link_code` | 만료 즉시 (Ruling 243) | 재사용 불가한 1회성 코드라 감사 가치가 없어 컷오프를 두지 않음(BR-141) |
@@ -1171,7 +1171,7 @@ erDiagram
 | `run_position` | 회차당 **1,350행 안팎** (송신 **2초** × 운행 45분. 옛 5초 기준 540행의 2.5배) | 행 단위 DELETE 배치. 보유 **90일**(§7.2) |
 | `notification_log` | 승하차 처리 1건당 학부모·관계자 다중 행 | 행 단위 DELETE 배치. 보관 **14일**(§7.2) |
 | `refresh_token` · `link_code` | 계정·인증 흐름당 소량 | 행 단위 DELETE 배치. 만료·폐기 기준(§7.2) |
-| `audit_log` | 개인정보 조회마다 1행 | **정리 배치 대상 밖 — 무기한 보존**(§7.2 · Ruling 243) |
+| `audit_log` | 개인정보 조회마다 1행 — 같은 행위자·학생은 10분 안에 묶어 1행(`Ruling 445`) | 행 단위 DELETE 배치. 보유 **2년**(§7.2 · `Ruling 445`) |
 | `rider_status_history` | 탑승자 수 × 상태 전이 수 | 정리 배치 대상 밖 — 무기한 보존. 회차 단위 조회가 지배적이라 인덱스로 충분 |
 
 **정리 배치의 전제** — 정리 대상 중 `run_position`·`notification_log` 는 §4.2 에 따라 FK 미설정(대량 적재·독립 보존 주기). `refresh_token`·`link_code` 는 §4.1 대로 FK 를 갖지만 컷오프 판정이 부모 상태가 아니라 자기 컬럼(만료·폐기 시각)만 보므로 행 단위 DELETE 로 지워도 무방.
