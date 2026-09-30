@@ -38,8 +38,12 @@ public record RunRouteResponse(List<RouteStop> stops, RouteStop currentStop, Rou
      * <p>{@code stopId} 는 정차 항목 id({@code run_stop.id}) — 도착 처리(§4.5)가 받는 값과 같다(Ruling 327).
      * 확정 전 예정 경로(§5.19 {@code confirmed=false})는 정차 항목이 아직 없어 승하차지 id 를 싣는다.
      * {@code isDestination} 은 등원 회차의 마지막 학원 항목에서만 {@code true} 다.
+     *
+     * <p>{@code isWaypoint} 는 강제 경유 지점(§5.15) 항목에서만 {@code true} 다(Ruling 400) — 경유 지점은
+     * 이름·좌표만 있고 태울 학생이 없어 승하차지와 모양이 같아 다른 필드로는 가를 수 없고, 지도가
+     * 승하차지와 다른 마커로 그리려면 이 값이 필요하다. 배포 후 제거돼 좌표가 없는 행도 대상이면 {@code true}.
      */
     public record RouteStop(Long stopId, int seq, String name, String address, BigDecimal lat, BigDecimal lng,
-            String change, long studentCount, boolean isDestination) {
+            String change, long studentCount, boolean isDestination, boolean isWaypoint) {
     }
 }

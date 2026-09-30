@@ -203,11 +203,11 @@ public class StaffRunRouteQueryService {
 
     private RouteStop toRouteStop(OrderedStop stop, Stop stopEntity, Map<Long, Long> studentCounts) {
         if (stopEntity == null) {
-            return new RouteStop(null, stop.seq(), null, null, null, null, null, 0L, false);
+            return new RouteStop(null, stop.seq(), null, null, null, null, null, 0L, false, false);
         }
         long studentCount = studentCounts.getOrDefault(stopEntity.getId(), 0L);
         return new RouteStop(stopEntity.getId(), stop.seq(), stopEntity.getName(), stopEntity.getAddress(),
-                stopEntity.getLat(), stopEntity.getLng(), null, studentCount, false);
+                stopEntity.getLat(), stopEntity.getLng(), null, studentCount, false, false);
     }
 
     /**

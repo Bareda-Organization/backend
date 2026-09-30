@@ -2630,6 +2630,64 @@ Run `run_d7daf69b57f8` · 4갈래 병합 B `7f781ccc` · W `827250d1` · P `065e
 - **화면** — 브라우저: 사이드바 진입 뒤 고른 회차가 7초 갱신 뒤에도 유지(C00-01) · 대화상자 `role=dialog`·`aria-modal`·제목 연결·초점 안쪽 · 바깥 클릭에 안 닫히고 Esc 로 닫힘(`Ruling 389`) · 학생 사진 blob 표시(`Ruling 385`). 시뮬레이터: FE6(위)
 - **남은 것** — 백엔드 요청 3건(비상 방송 `emergency_raised` 에 학원 식별 · 접속 이력 `block_event` 을 block/unblock 으로 · 강제 확정 목록 `confirm_at`) · `Ruling 386` 보류 3건(비텍스트 테두리 대비 · `BaraedaButton.sm` 36 · 미사용 공용 위젯 8종) · 눈 확인이 더 필요한 것 — 학부모 지도 카메라 수동 조작 유지(F05-09) · 매니저 운행 전 위치 권한 배너(M2-02)는 실기기
 
+## 5.14 `R39` 목표 표 — 지도의 강제 경유 지점·미경유 표기 (2026-09-30 계획 · **2026-09-30 완료** — 결과 `5.14.5`)
+
+사용자 결정(2026-09-30) *"지도에 표기해줘"* — `PRD §10` 오픈 이슈 Q(강제 노선의 지도 표현, RTE-06·08·10) 해소. 기준 HEAD `9776c82f`(`mskim98/r39`). 이전 화면 확인(`frontend/report/r37-it/ios-mgr-06-map-before-after.png`)에서 경유 지점을 배포해도 **경로선만 우회하고 경유 지점 전용 표시가 없었다** — 모든 마커가 같은 초록 번호 핀. 판정 `Ruling 400~402`.
+
+### 5.14.1 지도 전수 표 (`graft grep` 으로 `MapMarker` 생성 지점을 센 결과 — 2026-09-30)
+
+| # | 제품 · 화면 | 마커 생성 지점 | 쓰는 API | 경유 지점 · 취소를 알 수 있나 |
+|:-:|---|---|---|---|
+| 1 | 관계자 웹 · 금일 운행 상세 | `TodayRunPage.tsx` → `buildRouteDisplayState`(`features/map/routeDisplayState.ts`) | `GET /staff/runs/{id}/route`(§5.19) `stops[]` | ✅ `is_waypoint`(신설 `Ruling 400`) · `change=skipped` |
+| 2 | 관계자 웹 · 운행 관리(대시보드) | `DashboardPage.tsx` → 같은 `buildRouteDisplayState` | 같음 | ✅ 같음 |
+| 3 | 관계자 웹 · 전체 관제 | `MonitoringPage.tsx` → 같은 `buildRouteDisplayState` | 같음 | ✅ 같음 |
+| 4 | 관계자 웹 · 구간 변경 승인 미리보기 | `ChangeApprovalDetail.tsx` `stopsToMarkers` | `GET /staff/change-approvals/{id}` `route_preview.stops_before/after`(§5.5) | ❌ 경유 지점은 좌표가 `null` 이라 **마커를 못 그린다**(`API_SPEC §5.5`·기존 코드가 건너뜀) — `Ruling 402` |
+| 5 | 관계자 웹 · 고정 노선 편성 | `RouteMapPanel.tsx` | `GET /staff/routes/{id}`(§5.9) | 해당 없음 — 회차 아닌 고정 노선이라 경유 지점·미경유가 없다 |
+| 6 | 매니저 앱 · 운행 화면 가운데 지도 + 노선 지도 화면 | `route_map_view.dart` `RouteMapView`(둘이 공유) → `MapSurface` | `GET /runs/{id}/route`(§4.3) `stops[]` | ✅ `is_waypoint` · `change=skipped` |
+| 7 | 학부모·학생 앱 · 버스 위치 지도 | `live_map_screen.dart` — **버스 마커 하나뿐**(승하차지·경유 지점을 안 그린다) | `GET /students/{id}/bus-position`(§3.11) | 해당 없음 — 그릴 정차 마커가 없다. 정차 마커를 새로 그리는 것은 이 회차 범위 밖 |
+
+- 웹은 경유 지점을 **배포하는 화면이 없다**(`RouteOptimizeConfirmDialog` 주석뿐) — 경유 지점은 API(§5.15)로만 만들어진다. 지도 표기 대상은 위 1~3
+- 계수 명령: `graft grep "MapMarker"`·`grep -rlE "data-marker-id|NaverMap|NMarker" apps packages`
+
+### 5.14.2 변경 목록
+
+| # | 지금 | 할 일 |
+|:-:|---|---|
+| R39-1 | §4.3·§5.19 `stops[]` 가 승하차지·경유 지점을 같은 모양으로 싣는다 — `stop_id`(=`run_stop.id`)·`student_count` 로 가를 수 없다 | **서버 응답에 `stops[].is_waypoint`(boolean, `●`) 추가**(`Ruling 400` — main 승인) |
+| R39-2 | 웹·매니저 앱 마커가 전부 초록 번호 핀 | 경유 지점 = 번호 없는 **다른 모양** 마커 + 글자 "경유" · 미경유(`skipped`) = 흐리게 + 회색 + 번호 취소선 |
+| R39-3 | 매니저 명단 머리(`{seq}. 이름`)와 지도 핀이 서버 `seq` 를 그대로 쓴다 — 경유 지점이 낀 노선은 번호가 1·3·4 로 **건너뛴다** | 지도 핀과 명단 머리를 **경유 지점을 뺀 연속 번호**로 통일(`Ruling 400`) |
+
+### 5.14.3 목표 표 — 전항 통과가 완료 조건
+
+| # | 완료 조건 | 검증 |
+|:-:|---|---|
+| 1 | 지도 전수 표(5.14.1) | 이 절의 표 · `graft grep` |
+| 2 | 지도마다 경유 지점·미경유 표기 — 앱은 위젯 시험, 웹은 vitest. **RED 먼저** | 커밋 뒤 경유 지점 판별을 항상 `false` 로 바꾸면 그 시험만 실패 |
+| 3 | 번호 규칙 — 경유 지점이 낀 노선에서 지도 핀 번호 = 명단 번호(웹 · 매니저) | 위젯·vitest 시험 |
+| 4 | 백엔드 — 경유 지점 배포 뒤 §4.3·§5.19 응답에서 그 항목만 `is_waypoint=true` | `backend/scripts/test.sh --tests '*RunRouteControllerTest*'`(RED 확인 · 항상 `false` 변형이 그 시험만 실패) |
+| 5 | 화면 — 웹 각 지도(1~3) · iOS 시뮬레이터 매니저 앱 운행 지도 스크린샷 | `frontend/report/r39/` |
+| 6 | 웹 vitest 전체 실패 0·건너뜀 0(실서버 시험 제외 패턴 `§5.9.4` 목표 5) · `tsc` 0 · lint 0 · 손댄 Flutter 패키지 시험 실패 0·건너뜀 0 · `flutter analyze` 0 | 명령·수치는 5.14.5 |
+| 7 | 정리 — `:8210`·`:3000` 종료 · `it_r39` 연결 0 뒤 `DROP`(`FORCE` 금지) · 띄운 시뮬레이터만 종료 · 잔여 `flutter_tester` 0 | 명령·수치는 5.14.5 |
+
+### 5.14.4 판정
+
+- **`Ruling 400` — 강제 경유 지점 표기 · 번호 규칙 · 서버 계약 추가** (2026-09-30, main 승인 · 사용자 결정 *"지도에 표기해줘"* 의 구체화)
+  - **경유 지점** — 승하차지와 **모양이 다른** 번호 없는 마커 + 글자 **"경유"**. 색만으로 가르지 않는다(접근성 — 모양·글자가 구분 수단). 출발·도착 칩(어두운 채움)과도 달라야 해서 **흰 바탕 · 회색 테두리 칩**으로 한다
+  - **미경유(`change=skipped`) 승하차지** — 흐리게(불투명도 낮춤) + 회색 핀 + 번호 취소선. 명단의 빨강 취소선과 같은 뜻 — 색이 아니라 취소선·흐림이 수단
+  - **번호** — 지도 핀은 서버 `seq` 를 그대로 쓰지 않고 **경유 지점을 뺀 연속 번호**(승하차지·학원 항목의 서버 순번 순위)로 매긴다. 근거: 명단(§4.2)은 `Ruling 398` 로 경유 지점을 싣지 않고 서버 `seq` 는 경유 지점 자리를 건너뛴 채라, **둘 다 서버 값을 쓰면 번호가 1·3·4 로 비어 "2번은 어디" 가 된다.** 그래서 매니저 명단 머리도 같은 연속 번호로 바꾼다 — 지도와 명단이 같은 규칙(서버 `seq` 순 순위)이라 어긋나지 않는다
+  - **서버 계약 추가**(`API_SPEC §4.3`·`§5.19` `stops[].is_waypoint`, boolean `●`) — 경유 지점 항목만 `true`. 전에는 승하차지·경유 지점이 모든 필드에서 같은 모양이라(`stop_id` 둘 다 `run_stop.id` · 경유 지점 `student_count=0` 은 인원 없는 승하차지와 같다) 프론트가 추론할 수단이 없었다. 조율자가 프론트 추론(명단 대조)안을 버리고 서버 추가안을 택했다 — 명단을 함께 불러오지 않는 웹 3화면에 추가 호출이 필요하고 취약하기 때문. 기존 필드는 그대로라 하위 호환. `API_SPEC §1.13` 표의 *"경유 지점 `stop_id` 는 항상 `null`"* 은 코드(`run_stop.id`, `Ruling 327`)와 어긋나 **코드에 맞춰 정정**
+- **`Ruling 401` — 강제 추가(§5.7)는 지도에 표기하지 않는다.** 강제 추가는 **탑승자(학생) 단위**다 — 노선 응답의 승하차지 항목 `change` 는 `RunStop` 에서 오고, 코드에서 `RunStop.change` 에 값을 넣는 곳은 `skipped`(미승차 반영) 하나뿐이다(`added` 는 명단의 `RunRider.change`). 그래서 노선 응답에 판별 근거가 없다(로컬 시드 V2 만 `run_stop.change='added'` 를 직접 넣어 응답에 `added` 가 나오는 회차가 있다 — 운영 경로에는 없다). **지도는 승하차지 단위 · 강제 추가는 명단의 초록으로** 본다. 운영 경로에서 `change=added` 가 실리는 날이 오면 그때 지도 표기를 정한다
+- **`Ruling 402` — 승인 미리보기(§5.5) 지도의 경유 지점은 마커를 그리지 않는다.** `route_preview.stops_*` 의 경유 지점 항목은 좌표가 `null` 이다(기존 코드가 건너뜀). 좌표를 만들어내지 않는다 — 억지로 맞추면 삭제된 승하차지가 조용히 빠진 지도가 나간다. 경로선은 그대로 우회하고 정차지 표에는 이름이 있다
+
+### 5.14.5 진행
+
+- (착수) 백엔드 `is_waypoint` — RED 확인: `RunRouteControllerTest` 새 시험이 `JSON path "$.data.stops[?(@.name == '주유소')].is_waypoint"` 부재로 실패 → 구현 뒤 `RunRouteControllerTest` 7 · `StaffRunRouteControllerTest` 12 통과 · 실패 0
+- 백엔드 `36430c17` — 변형(경유 분기 `true`→`false`) 시 새 시험 1건만 실패(원복·트리 확인)
+- 웹 `d9adab97` — vitest 109파일 **662** 통과 · 실패 0 · 건너뜀 0(`realBackend`·`wsRealBackendAuth` 제외) · `tsc` 0 · lint 0 · 변형 5건 전부 해당 시험만 실패. 손댄 파일 밖 1건: `StudentTransferDialog` 의 승하차지 선택지에서 경유 지점 제외(같은 필드를 쓰는 곳 — 시험 1건)
+- 매니저 앱 `0d7ba272` — 시험 **312**(hidden:false) 통과 · 실패 0 · 건너뜀 0(`--exclude-tags real_backend`) · `flutter analyze` 0 · 변형 6건 전부 해당 시험만 실패. 경유 지점 배포 뒤 제거돼 이름·좌표가 `null` 인 행은 파서가 건너뜀(전에는 노선 전체 파싱 실패 가능)
+- 화면 ✅ — 웹(:3000 → :8210 · `it_r39`): 금일 운행 상세·운행 관리·전체 관제 3화면 모두 마커 `stop-N "1"` · `waypoint-N "경유"` · `stop-N "2"`(불투명도 0.55 — 서버 seq 는 1·3) · 출발·도착 칩. iOS 시뮬레이터(iPhone 17): 매니저 앱 운행 화면·노선 지도 — 초록 핀 1 · 흐린 핀 2 · "경유" 칩 · 미경유 안내 띠. 스크린샷 `frontend/report/r39/`
+- 승인 미리보기(§5.5) 지도 · 학부모 앱 지도 · 고정 노선 편성 지도는 표기 대상 없음(5.14.1)
+
 ## 6. 완료 조건 — 화면 단위
 
 각 화면은 아래 4개를 전부 통과해야 완료. **"화면이 뜬다" 는 완료가 아님.**
