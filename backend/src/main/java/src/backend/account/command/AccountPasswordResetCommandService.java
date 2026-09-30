@@ -57,7 +57,8 @@ public class AccountPasswordResetCommandService {
      */
     @Transactional
     public AccountPasswordResetResponse reset(AuthUser requester, Long accountId) {
-        Account target = accountRepository.findByIdAndAcademyId(accountId, requester.academyId())
+        // 행 잠금으로 읽는다(BR-249) — 전 컬럼 UPDATE 가 그 사이 커밋된 로그인 실패 차단을 지우지 않게 한다.
+        Account target = accountRepository.findByIdAndAcademyIdForUpdate(accountId, requester.academyId())
                 .filter(account -> RESETTABLE_ROLES.contains(account.getRole()))
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
         Account actor = accountRepository.findById(requester.accountId())

@@ -61,7 +61,8 @@ public class SignupDecision {
     public SignupDecisionResponse close(SignupRequest request, Decision decision, Long deciderId,
             Consumer<Account> onAccept) {
         request.assertPending();
-        Account account = accountRepository.findById(request.getAccountId())
+        // 행 잠금으로 읽는다(BR-249) — 잠그지 않고 읽어 전 컬럼을 덮어쓰면 그 사이 커밋된 로그인 실패 차단이 지워진다.
+        Account account = accountRepository.findByIdForUpdate(request.getAccountId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
         OffsetDateTime decidedAt = OffsetDateTime.now(clock);
         String rejectReason = decision.accept() ? null : requireRejectReason(decision.rejectReason());

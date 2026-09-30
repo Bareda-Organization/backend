@@ -19,15 +19,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.aop.framework.ProxyFactory;
-import org.springframework.beans.factory.config.BeanPostProcessor;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.repository.Repository;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import org.aopalliance.intercept.MethodInterceptor;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import jakarta.persistence.EntityManager;
@@ -56,6 +48,7 @@ import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import testsupport.clock.FixedClock20300401Config;
+import testsupport.concurrency.RepositoryReadHooks;
 
 /**
  * 승하차·비상 신고의 동시 요청 — BR-226(같은 {@code client_key} 가 동시에 두 번 오면 두 번째가 UNIQUE 위반 500 이 되던
@@ -69,41 +62,8 @@ import testsupport.clock.FixedClock20300401Config;
  * <p>{@code @Transactional} 을 쓰지 않는다 — 두 스레드가 서로의 커밋을 보지 못하는 경합 자체가 사라진다.
  */
 @SpringBootTest
-@Import({FixedClock20300401Config.class, BoardingConcurrencyTest.ReadHooks.class})
+@Import({FixedClock20300401Config.class, RepositoryReadHooks.class})
 class BoardingConcurrencyTest {
-
-    /** 저장소 메서드 이름 → 그 조회가 끝난 직후 실행할 동작. 시험이 등록하고 뒷정리에서 비운다. */
-    private static final Map<String, Runnable> AFTER_READ = new ConcurrentHashMap<>();
-
-    /**
-     * 모든 저장소 빈을 감싸 {@link #AFTER_READ} 의 훅을 조회 직후에 부른다 — 스프링 데이터 저장소는 인터페이스 프록시라
-     * Mockito 스파이로는 원본을 부를 수 없어 이 방식으로 "읽고 나서 쓰기 전" 지점을 잡는다.
-     */
-    @TestConfiguration
-    static class ReadHooks {
-
-        @Bean
-        static BeanPostProcessor repositoryReadHook() {
-            return new BeanPostProcessor() {
-                @Override
-                public Object postProcessAfterInitialization(Object bean, String beanName) {
-                    if (!(bean instanceof Repository<?, ?>)) {
-                        return bean;
-                    }
-                    ProxyFactory factory = new ProxyFactory(bean);
-                    factory.addAdvice((MethodInterceptor) invocation -> {
-                        Object result = invocation.proceed();
-                        Runnable hook = AFTER_READ.get(invocation.getMethod().getName());
-                        if (hook != null) {
-                            hook.run();
-                        }
-                        return result;
-                    });
-                    return factory.getProxy();
-                }
-            };
-        }
-    }
 
     private static final long BARRIER_LIMIT_SECONDS = 3;
 
@@ -184,7 +144,7 @@ class BoardingConcurrencyTest {
 
     @AfterEach
     void tearDown() {
-        AFTER_READ.clear();
+        RepositoryReadHooks.clear();
         cleanUpMarkedRows();
     }
 
@@ -266,7 +226,7 @@ class BoardingConcurrencyTest {
         RiderStatusUpdateRequest request = new RiderStatusUpdateRequest("boarded", "manual", clientKey, now);
 
         CyclicBarrier bothMissedReplay = new CyclicBarrier(2);
-        AFTER_READ.put("findByClientKey", () -> meetOrGiveUp(bothMissedReplay));
+        RepositoryReadHooks.afterRead("findByClientKey", () -> meetOrGiveUp(bothMissedReplay));
 
         runConcurrently(() -> boardingCommandService.updateStatus(escort, runId, riderId, request),
                 () -> boardingCommandService.updateStatus(escort, runId, riderId, request));
@@ -288,7 +248,7 @@ class BoardingConcurrencyTest {
         EmergencyRaiseRequest request = new EmergencyRaiseRequest("ACCIDENT", null, clientKey, null, null, null);
 
         CyclicBarrier bothMissedReplay = new CyclicBarrier(2);
-        AFTER_READ.put("findByClientKey", () -> meetOrGiveUp(bothMissedReplay));
+        RepositoryReadHooks.afterRead("findByClientKey", () -> meetOrGiveUp(bothMissedReplay));
 
         runConcurrently(() -> emergencyCommandService.raise(escort, runId, request),
                 () -> emergencyCommandService.raise(escort, runId, request));
@@ -314,7 +274,7 @@ class BoardingConcurrencyTest {
 
         // 두 요청이 남은 사람 수를 센 뒤에야 각자 결과를 반영하게 한다 — 서로의 미커밋 미승차를 못 본 채 센다.
         CyclicBarrier bothCounted = new CyclicBarrier(2);
-        AFTER_READ.put("countByRunIdAndStopIdAndStatusNotIn", () -> meetOrGiveUp(bothCounted));
+        RepositoryReadHooks.afterRead("countByRunIdAndStopIdAndStatusNotIn", () -> meetOrGiveUp(bothCounted));
 
         runConcurrently(
                 () -> boardingCommandService.updateStatus(escort, runId, firstRider,
