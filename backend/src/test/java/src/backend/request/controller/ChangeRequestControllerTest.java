@@ -40,6 +40,8 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.request.entity.ChangeRequest;
+import src.backend.request.entity.ChangeRequestSource;
+import src.backend.request.entity.ChangeRequestType;
 import src.backend.request.repository.ChangeRequestRepository;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
@@ -487,6 +489,33 @@ class ChangeRequestControllerTest {
                         .header("Authorization", 토큰(otherAccountId, otherAcademyId)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+    }
+
+    /** BR-251 — 이력은 최근 100건까지만 싣고, {@code pending_count} 는 잘린 이력과 무관하게 전체 대기 건수다. */
+    @Test
+    void 신청_이력은_최근_100건까지만_싣고_대기_건수는_전체를_센다() throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+        long busId = fixtures().bus(academyId);
+        long stop = fixtures().stop(academyId, "37.560000", "126.970000");
+        fixtures().route(academyId, busId, WEEKDAY, Direction.TO_ACADEMY, stop);
+        long studentId = fixtures().student(academyId, "학생1");
+        fixtures().verifiedAddress(studentId, stop, WEEKDAY, Direction.TO_ACADEMY, "37.560000", "126.970000");
+        long accountId = changeRequestFixtures().parentLinkedTo(academyId, studentId);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusMinutes(20);
+        long runId = fixtures().idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        OffsetDateTime base = OffsetDateTime.now(clock).minusDays(1);
+        for (int i = 0; i < 105; i++) {
+            changeRequestRepository.save(ChangeRequest.forRequest(academyId, runId, studentId,
+                    ChangeRequestSource.CHANGE_REQUEST, ChangeRequestType.CANCEL, (short) 2, accountId,
+                    base.plusSeconds(i)));
+        }
+        entityManager.flush();
+
+        mockMvc.perform(get(CHANGE_REQUESTS.formatted(studentId)).header("Authorization", 토큰(accountId, academyId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(100))
+                .andExpect(jsonPath("$.data.pending_count").value(105));
     }
 
     // ── 헬퍼 ──────────────────────────────────────────────────────────────────────

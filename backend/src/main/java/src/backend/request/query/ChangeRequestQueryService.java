@@ -2,6 +2,7 @@ package src.backend.request.query;
 
 import java.util.List;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,14 +29,17 @@ public class ChangeRequestQueryService {
 
     private final ChangeRequestRepository changeRequestRepository;
 
-    /** 연결된 자녀의 변경 신청 이력 전부 + 대기 중 건수(홈 배지용, §3.9). */
+    /** 이력 조회 상한 — 사양(§3.9)에 페이징이 없어 최근 이 건수까지만 싣는다(BR-251). */
+    static final int HISTORY_LIMIT = 100;
+
+    /** 연결된 자녀의 최근 변경 신청 이력({@value #HISTORY_LIMIT}건까지) + 전체 대기 중 건수(홈 배지용, §3.9). */
     public ChangeRequestListResponse list(AuthUser requester, Long studentId) {
         Student student = linkedChildLookup.linkedChild(requester, studentId);
         List<ChangeRequest> changeRequests = changeRequestRepository
-                .findAllByAcademyIdAndStudentIdOrderByRequestedAtDesc(student.getAcademyId(), student.getId());
-        long pendingCount = changeRequests.stream()
-                .filter(changeRequest -> changeRequest.getStatus() == ChangeRequestStatus.PENDING)
-                .count();
+                .findByAcademyIdAndStudentIdOrderByRequestedAtDesc(student.getAcademyId(), student.getId(),
+                        PageRequest.of(0, HISTORY_LIMIT));
+        long pendingCount = changeRequestRepository.countByAcademyIdAndStudentIdAndStatus(student.getAcademyId(),
+                student.getId(), ChangeRequestStatus.PENDING);
         List<ChangeRequestResponse> items = changeRequests.stream().map(ChangeRequestResponse::from).toList();
         return new ChangeRequestListResponse(items, pendingCount);
     }

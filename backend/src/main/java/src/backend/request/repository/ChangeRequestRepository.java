@@ -50,6 +50,13 @@ public interface ChangeRequestRepository extends JpaRepository<ChangeRequest, Lo
      */
     List<ChangeRequest> findAllByAcademyIdAndStudentIdOrderByRequestedAtDesc(Long academyId, Long studentId);
 
+    /** 위와 같은 이력을 상한({@code limit})만큼만 — §3.9 가 전 기간을 무한정 싣지 않게 한다(BR-251). */
+    List<ChangeRequest> findByAcademyIdAndStudentIdOrderByRequestedAtDesc(Long academyId, Long studentId,
+            org.springframework.data.domain.Pageable limit);
+
+    /** 학생의 {@code status} 별 건수 — 이력이 잘려도 홈 배지({@code pending_count})는 전체를 세야 한다. */
+    long countByAcademyIdAndStudentIdAndStatus(Long academyId, Long studentId, ChangeRequestStatus status);
+
     /** 관계자 화면의 승인 건 단건 조회(§5.5 상세) — 다른 학원 건은 존재를 숨겨 비어 있다(§1.5, BR-133). */
     Optional<ChangeRequest> findByIdAndAcademyId(Long id, Long academyId);
 
