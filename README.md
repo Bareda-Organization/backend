@@ -3,7 +3,7 @@
 학원 통학버스의 **노선 편성 · 운행 · 승하차 · 알림**을 다루는 멀티 테넌트 백엔드입니다.
 Spring Boot 4 · Java 25 · PostgreSQL · Redis 로 만들었고, 이 저장소는 **백엔드 전용**입니다.
 
-- 엔드포인트 **106개**(+ local 전용 개발 도구 1개) · 테스트 **218클래스 1,285개**
+- 엔드포인트 **113개**(+ local 전용 개발 도구 1개) · 테스트 **334클래스 1,895개**
 - API 문서는 실행 후 Swagger UI 에서 봅니다 (아래 §3)
 
 ---
@@ -137,7 +137,7 @@ POST /api/v1/dev/reset
 
 ```bash
 cd backend
-./gradlew test                                  # 전체 (218클래스 1,285개, 4분 안팎)
+./gradlew test                                  # 전체 (334클래스 1,895개, 6분 안팎)
 ./gradlew test --tests '*OpenApiCoverageTest'   # 한 클래스만
 ```
 
@@ -165,7 +165,7 @@ cp backend/.env.example backend/.env    # 값을 채웁니다. 이 파일은 커
 ```
 backend/          Spring Boot 애플리케이션 (도메인 14개 + global 인프라)
   src/main/       프로덕션 코드
-  src/test/       테스트 218클래스
+  src/test/       테스트 334클래스
   load/           k6 부하 시험 스크립트
 infra/            nginx · Prometheus · Grafana · 배포 스크립트
 docker-compose.yml        로컬 실행

@@ -5984,3 +5984,21 @@ R37-IT 보고 ④·⑤ 의 후속이다. 새 판정이 필요하면 `Ruling 399`
 
 **결과 (2026-09-30 완료)** — 목표 1 `MultipartMalformedRequestTest` 2건(JSON 으로 보낸 multipart `PATCH` 실서버 호출 `500`→`422` · 크기 초과 전용 핸들러 유지) 커밋 `244c898c`. 목표 2 `DevResetServiceTest` 3건 + 결정적 재현 절차(수정 전 `500` 3/3 → 수정 후 `200` 3/3) 커밋 `dde53d54`. 목표 3 **지도 격자의 원인은 코드가 아니라 실행 인자** — 앱은 `--dart-define=NAVER_MAP_CLIENT_ID` 가 없으면 키 없이 SDK 를 초기화해 `NClientUnspecifiedException(code 800)` 과 함께 타일이 안 그려지고(격자), 키를 주면 두 앱 모두 타일이 렌더링됨 — `docs/frontend/SETUP.md` 의 실행 예에 이 인자가 없다(제안). 목표 4 `API_SPEC §1.1`·`§5.11`·`§6.13` 커밋 `aba40b04`. 목표 5 백엔드 전체 1,894건 중 실패 5(`Ruling 361` 라이브 2클래스 — 환경변수 짝으로 5/5 통과) · 웹 655/655 · Flutter 단위 core 69 · ui 106 · 매니저 302 · 학부모 220 실패 0 · 건너뜀 0 · `tsc`·`eslint`·`flutter analyze` 4곳 0 · 실서버 4묶음 웹 77 · core 9 · 매니저 26 · 학부모 28 실패 0 · 건너뜀 0.
 
+
+## 8.72 ⚖ `R41-CHK` — 화면 미확인 3건 확인 + 문서·설정 오기 3건 (2026-09-30 · 분기점 `bd287dfb` · 번호대 407~409 예약)
+
+R37-IT 보고 ④(학부모 앱 `ALREADY_LINKED` 문구) · 프론트 검사 `F05-09` · `FIX-XF M2-02` 의 화면 미확인과 R40 보고 ④ 의 오기를 확인한다. 새 판정이 필요하면 `Ruling 407`~`409`.
+
+### R41-CHK 목표 표 (착수 전 고정)
+
+| # | 완료 조건 | 확인 수단 |
+|---|---|---|
+| 1 | 학부모 앱 "이미 연결된 자녀" — 학부모 A 가 연결한 학생을 학부모 B 가 다시 연결하면 서버 `409 ALREADY_LINKED` 이고 앱(`child_link_screen.dart:103`)이 "이미 연결된 자녀" 문구를 보인다 | 요청·응답 원문 + 시뮬레이터 스크린샷. 문구가 안 나오면 RED 시험 → 수정 |
+| 2 | `F05-09` — 운행 중 버스 위치가 2초마다 갱신돼도 사용자가 끌거나 확대한 지도 카메라가 되돌려지지 않는다 | 끌기 전 · 끈 직후 · 6초 뒤 스크린샷 3장. 되돌려지면 RED 시험 → 수정 |
+| 3 | `M2-02` — 위치 권한을 뺀 매니저 앱이 확정·출발 전 회차 운행 화면에서 배너를 보이고 권한 창을 다시 띄우지 않으며, 권한을 주면 앱을 다시 켜지 않고 배너가 사라진다 | `simctl privacy revoke/grant location` + 스크린샷 3장. 어긋나면 RED 시험 → 수정 |
+| 4 | 엔드포인트 수 — 무엇을 셌는지 적고 컨트롤러 매핑 애너테이션을 메서드·경로 단위로 다시 세어 `README.md` 수치(엔드포인트 · 테스트 클래스·건수)를 지금 값으로. `IMPLEMENTATION_PLAN` 5717행은 당시 판정 기록이라 고치지 않는다 | 파싱 계수 명령 + 결과 파일 집계 |
+| 5 | `backend/.env.example` 에 `NAVER_MAPS_KEY_ID` · `NAVER_MAPS_KEY` · `NAVER_SEARCH_CLIENT_ID` · `NAVER_SEARCH_CLIENT_SECRET` · `NAVER_DIRECTIONS_PATH` · `NAVER_DIRECTIONS_MAX_POINTS` 가 빈 값으로 존재하고 실제 키 값은 없다 | `grep` (키 이름 6건 · 값 0건) |
+| 6 | `WebSocketConfig` 주석과 `application.yml` `app.ws.allowed-origin-patterns` 주석이 "Vercel" 이 아니라 EC2 + 프록시 · 스테이징 Cloudflare Tunnel 을 말한다. 값은 그대로 | `grep -n Vercel` 0건 + `git diff` 에 값 변경 부재 + `./gradlew compileJava` 통과 |
+| 7 | 결함을 고쳤으면 그 패키지 `flutter test` 실패 0 · 건너뜀 0 · `flutter analyze` 0 | 결과 직접 집계 |
+
+**결과 (2026-09-30 완료)** — 목표 1 ✅ 서버 `409 ALREADY_LINKED`(`{"error":{"code":"ALREADY_LINKED","message":"이미 연결된 대상입니다"}}`) 이고 학부모 앱이 "이미 연결된 자녀입니다" 띠를 표시(iOS 시뮬레이터 `chk1-already-linked-parent-app.png`). 이 오류는 **다른 학부모가 아니라 같은 학부모가 같은 자녀를 다시 연결할 때** 나온다 — 다른 학부모(`parentA1`)가 같은 학생(`studentA4`)을 연결하면 `201`(보호자 여러 명 허용). 목표 2 ⚠ **카메라 되돌림은 이미 수정돼 재현되지 않으나(`7c394837`) 지도를 끌 수 없는 별개의 결함을 발견** — `NaverMap` 의 `forceGesture` 기본값 `false` 라 `ListView` 안에서 실제 마우스 드래그 4회 모두 지도 미이동. `forceGesture: true` 로 수정(`5510fe08`, 시험 `parent-app/test/architecture/map_gesture_test`) 후 끌기 직후 지도 이동 · 6초 뒤에도 되돌려지지 않음. 목표 3 ✅ 권한 회수 상태에서 확정 회차 운행 화면에 배너 표시 · 권한 창 미표시(6초 관찰) · `grant` 3초 뒤 배너 소멸. 같은 결함이 **매니저 앱 운행 지도**(`SingleChildScrollView`)에도 있어 동일 수정(`4ffe8ece`, 시험 `manager-app/test/core/map/map_gesture_test`). 목표 4 컨트롤러 `@Get/Post/Put/Patch/DeleteMapping` 를 메서드·경로 단위로 파싱 계수 = **113개 + local 전용 `POST /dev/reset` 1개**(애너테이션 줄 수 114 와 일치, 중복 0). 테스트는 결과 파일 집계 **334클래스 1,895건**(실패 5 = `Ruling 361` 라이브 2클래스). README 반영, `5717`행은 당시 기록이라 미수정. 목표 5 `.env.example` 에 키 이름 6종(지도 키 2 · 검색 키 2 · Directions 5 전환 짝 2 — 짝은 빈 값이 기본값을 덮으므로 주석 처리). 목표 6 `WebSocketConfig`·`application.yml` 주석 정정(`Vercel` 0건, 값 변경 부재, `compileJava` 통과). 목표 7 parent-app `flutter test` 221 통과 · 실패 0 · 건너뜀 0 · analyze 0 / manager-app 313 통과 · 실패 0 · 건너뜀 0 · analyze 0 (`--exclude-tags real_backend` — 실서버 계약 시험은 `POST /dev/reset` 으로 내 확인용 DB 를 지우므로 제외).
