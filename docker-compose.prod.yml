@@ -27,7 +27,7 @@ x-logging: &cloudwatch
 
 services:
   postgres:
-    image: postgres:16
+    image: postgres:16.15
     restart: unless-stopped
     environment:
       POSTGRES_DB: schoolbus
@@ -49,7 +49,7 @@ services:
     logging: *cloudwatch
 
   redis:
-    image: redis:7
+    image: redis:7.4.11
     restart: unless-stopped
     # 위치 캐시(TTL 9초) 전용이라 영속화가 불필요하다 — 유실돼도 다음 tick 에 복구된다.
     # 대신 메모리 상한을 걸어 Spring 의 몫을 침범하지 않게 한다.
@@ -66,7 +66,7 @@ services:
   backend:
     # EC2 에서 빌드하지 않는다 — Gradle(Java 25) 빌드가 2GB 안팎을 먹어 실행 중인
     # 컨테이너들과 경합하면 OOM 이 난다. GitHub Actions 가 빌드해 ECR 에 올린 걸 받아 쓴다.
-    image: ${ECR_REGISTRY:?ECR_REGISTRY 미설정}/school-bus-backend:${IMAGE_TAG:-latest}
+    image: ${ECR_REGISTRY:?ECR_REGISTRY 미설정}/school-bus-backend:${IMAGE_TAG:?IMAGE_TAG 미설정}
     restart: unless-stopped
     # 컨테이너 자체의 메모리 상한(FIX-VERIFY.md §5-4) — 없으면 JAVA_TOOL_OPTIONS 의
     # MaxRAMPercentage=70 이 호스트 전체 메모리(t3.medium 4GB, DEPLOYMENT.md §2.4) 기준으로
@@ -137,7 +137,7 @@ services:
   # 엣지 프록시 — 인터넷에서 닿는 유일한 지점. TLS 를 여기서 종단한다.
   # `/`(화면) 라우팅이 없다 — 이 서버는 백엔드 API 전용이다.
   proxy:
-    image: nginx:alpine
+    image: nginx:1.31.6-alpine
     restart: unless-stopped
     ports:
       - "80:80"    # ACME 챌린지 + HTTPS 리다이렉트 전용
@@ -162,7 +162,7 @@ services:
   # 최초 발급은 이 컨테이너가 아니라 infra/certbot/init-cert.sh 로 한 번 수행한다 —
   # 인증서가 없는 상태에서는 nginx 의 443 블록이 기동에 실패해 순환 의존이 생기기 때문이다.
   certbot:
-    image: certbot/certbot
+    image: certbot/certbot:v5.8.0
     restart: unless-stopped
     volumes:
       - certbot-conf:/etc/letsencrypt

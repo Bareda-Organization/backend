@@ -6,16 +6,20 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.env.Environment;
 import org.springframework.test.context.TestPropertySource;
 
 import src.backend.routing.domain.GeoPoint;
 import src.backend.routing.map.spec.CallerPolicy;
 import src.backend.routing.map.spec.RoadRoute;
 import src.backend.routing.map.spec.RoadRouteRequest;
+import testsupport.live.DirectionsQuota;
 import testsupport.live.LiveCredentials;
 
 /**
@@ -31,6 +35,7 @@ import testsupport.live.LiveCredentials;
 @SpringBootTest(properties = "app.routing.map.provider=naver")
 @TestPropertySource(properties = "app.routing.map.provider=naver")
 @EnabledIf("자격증명이_있다")
+@Tag("live")
 class NaverDirectionsClientLiveTest {
 
     /** 서울시청. */
@@ -44,6 +49,15 @@ class NaverDirectionsClientLiveTest {
 
     @Autowired
     private NaverDirectionsClient naverDirectionsClient;
+
+    @Autowired
+    private Environment environment;
+
+    /** 일일 한도가 바닥났으면 실패가 아니라 건너뛴다 — 다른 오류는 그대로 시험이 돌아 실패한다. */
+    @BeforeEach
+    void 한도가_남아_있어야_돈다() {
+        DirectionsQuota.assumeQuotaLeft(environment);
+    }
 
     /** yml 과 같은 폴백 순서로 자격증명을 찾는다({@code NAVER_MAPS_*} → {@code NAVER_DIRECTIONS_*}). */
     static boolean 자격증명이_있다() {

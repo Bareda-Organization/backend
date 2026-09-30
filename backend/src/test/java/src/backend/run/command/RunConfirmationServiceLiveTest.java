@@ -4,10 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.OffsetDateTime;
 
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +25,7 @@ import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 import src.backend.student.repository.WeeklyAddressRepository;
+import testsupport.live.DirectionsQuota;
 
 /**
  * 확정 배치의 <b>진입점 그대로</b>(스케줄러가 부르는 {@code confirmOne(Long)}) 실 NCP API 를
@@ -38,12 +42,22 @@ import src.backend.student.repository.WeeklyAddressRepository;
 @TestPropertySource(properties = "app.routing.map.provider=naver")
 @EnabledIf("src.backend.routing.map.impl.NaverDirectionsClientLiveTest#자격증명이_있다")
 @Transactional
+@Tag("live")
 class RunConfirmationServiceLiveTest {
 
     private static final Weekday WEEKDAY = Weekday.MON;
 
     @Autowired
     private RunConfirmationService confirmationService;
+
+    @Autowired
+    private Environment environment;
+
+    /** 일일 한도가 바닥났으면 실패가 아니라 건너뛴다 — 다른 오류는 그대로 시험이 돌아 실패한다. */
+    @BeforeEach
+    void 한도가_남아_있어야_돈다() {
+        DirectionsQuota.assumeQuotaLeft(environment);
+    }
 
     @Autowired
     private AcademyRepository academyRepository;

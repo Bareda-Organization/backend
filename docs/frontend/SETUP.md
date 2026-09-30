@@ -152,7 +152,7 @@ npm run dev      # http://localhost:3000
 |---|---|
 | API 주소 | 환경변수 `NEXT_PUBLIC_API_BASE_URL`(기본 `http://localhost:8080`) 뒤에 `/api/v1` 이 자동으로 붙음 |
 | WebSocket | 같은 변수의 스킴을 `ws` 로 바꾸고 `/ws/location` 을 붙임(`/api/v1` 은 붙지 않음) |
-| 검사 | `npm test`(vitest) · `npm run lint` · `npx tsc --noEmit` |
+| 검사 | `npx next typegen && npx tsc --noEmit`(라우트 타입을 먼저 생성) · `npm run lint` · `npx vitest run --exclude '**/*[Rr]ealBackend*.test.ts'`(실서버 계약 시험 제외 — CI 와 같은 명령) |
 
 - ⚠ **웹은 `:3000` 에서만 지도 인증·CORS 가 맞음.** `npm run dev` 는 기본 `3000` 을 쓰므로 3.2 의 proxy 와 동시에 띄울 수 없음 — 둘 중 하나만
 - `NEXT_PUBLIC_*` 값은 브라우저 번들에 그대로 실림. 지도 키는 비밀이 아니고 보호는 NCP 콘솔의 서비스 URL 등록으로 함
@@ -200,11 +200,14 @@ flutter build ios --simulator --debug \
 ### 8.3 검사
 
 ```bash
-flutter test          # 단위·위젯. 실서버를 부르는 test/integration/real_backend_*_test.dart 는 아래 인자 필요
 flutter analyze
+flutter test --exclude-tags real_backend   # 단위·위젯. 실서버 계약 시험(@Tags(['real_backend']))은 제외 — CI 와 같은 명령
 ```
 
-- 실서버 계약 시험은 `--dart-define=API_BASE_URL=http://localhost:<전용포트>/api/v1` 을 주지 않으면 스스로 실패함(`test/support/real_backend_target.dart`). **공유 DB(`schoolbus`)가 아닌 전용 DB 로 띄운 백엔드**에만 겨눔 — 이 시험은 실행하면서 DB 의 행을 바꿈
+- 한 번에 전부(백엔드 + 웹 + Flutter 4곳): 저장소 루트에서 `scripts/verify.sh`. 골라서는 `scripts/verify.sh web flutter`. CI(`.github/workflows/ci.yml`)가 같은 검사를 돎(`docs/infra/DEPLOYMENT.md §5.1`)
+- `--exclude-tags` 는 패키지의 `dart_test.yaml` 에 태그 선언이 있어야 걸러짐(선언이 없으면 아무것도 안 걸러지는 빈 플래그). 실서버 계약 시험 파일 머리에는 `@Tags(['real_backend'])` 가 붙어 있어야 함
+
+- 실서버 계약 시험은 `flutter test --tags real_backend --dart-define=API_BASE_URL=http://localhost:<전용포트>/api/v1` 로 돌림. 주소를 주지 않으면 스스로 실패함(`test/support/real_backend_target.dart`). **공유 DB(`schoolbus`)가 아닌 전용 DB 로 띄운 백엔드**에만 겨눔 — 이 시험은 실행하면서 DB 의 행을 바꿈
 - 백엔드 시험은 `-PtestDbUrl` 이 필수. `backend/scripts/test.sh` 가 전용 DB 를 만들고 끝나면 지움
 
 ## 9. API 연결 시 확인할 것
