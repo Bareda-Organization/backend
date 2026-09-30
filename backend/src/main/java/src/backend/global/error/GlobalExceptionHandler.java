@@ -18,6 +18,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 import src.backend.global.response.ErrorResponse;
@@ -102,14 +103,15 @@ public class GlobalExceptionHandler {
 
     /**
      * 요청 형식 오류 — 깨진 JSON · enum 밖 값 · 경로/쿼리 타입 불일치 · 파라미터 제약 위반 · Content-Type
-     * 누락(BR-032, §1.11 "형식 위반"). catch-all 로 떨어지면 {@code 500} 이 되어 클라이언트 실수가 서버
+     * 누락 · multipart 엔드포인트에 다른 매체(JSON 등)를 보낸 요청(BR-032, §1.11 "형식 위반"). catch-all 로 떨어지면 {@code 500} 이 되어 클라이언트 실수가 서버
      * 고장으로 보이고, 오프라인 큐가 5xx 를 재시도 대상으로 봐 같은 요청을 끝없이 다시 보낸다.
      *
      * <p>Content-Type 누락도 {@code 415} 가 아니라 {@code 422} 다 — 사양의 에러 사전(§8)에 형식 위반
      * 코드는 {@code VALIDATION_FAILED} 하나뿐이다. 역직렬화 오류 문구는 내부 타입명을 담아 싣지 않는다.
      */
     @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class,
-            HandlerMethodValidationException.class, HttpMediaTypeNotSupportedException.class})
+            HandlerMethodValidationException.class, HttpMediaTypeNotSupportedException.class,
+            MultipartException.class})
     public ResponseEntity<ErrorResponse> handleMalformedRequest(Exception e) {
         ErrorCode code = ErrorCode.VALIDATION_FAILED;
         log.warn("[request] 형식 오류 {}", e.getMessage());
@@ -121,6 +123,7 @@ public class GlobalExceptionHandler {
 
     /**
      * 업로드 크기가 컨테이너 방어선({@code spring.servlet.multipart.max-file-size})을 넘은 경우.
+     * {@link MultipartException} 의 하위라 위 형식 오류 목록보다 이 핸들러가 더 가까운 일치로 먼저 받는다.
      *
      * <p>사양 상한 5MB 는 그보다 낮아 사진 검증이 먼저 잡는다(§1.1) — 이 핸들러가 무는 것은 그
      * 방어선까지 넘긴 요청이고, 그때도 {@code 500} 이 아니라 같은 {@code 422} 여야 클라이언트가
