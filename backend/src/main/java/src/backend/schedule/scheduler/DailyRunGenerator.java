@@ -60,9 +60,16 @@ public class DailyRunGenerator {
         LocalDate today = LocalDate.now(clock);
         try {
             runGenerationService.generate(today);
-        } finally {
+        } catch (RuntimeException todayFailure) {
             // 오늘 생성이 실패해도 내일 것은 만든다 — 오늘 실패가 내일 회차까지 막으면 전날 변경 신청이 통째로 불가하다.
-            runGenerationService.generate(today.plusDays(1));
+            // 둘 다 실패하면 오늘 예외를 던지고 내일 예외는 덧붙인다(BR-241) — finally 의 예외는 try 의 예외를 대체한다.
+            try {
+                runGenerationService.generate(today.plusDays(1));
+            } catch (RuntimeException tomorrowFailure) {
+                todayFailure.addSuppressed(tomorrowFailure);
+            }
+            throw todayFailure;
         }
+        runGenerationService.generate(today.plusDays(1));
     }
 }
