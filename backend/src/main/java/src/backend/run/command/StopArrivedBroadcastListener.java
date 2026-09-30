@@ -9,6 +9,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.global.websocket.WebSocketBroadcastGateway;
@@ -32,6 +33,8 @@ public class StopArrivedBroadcastListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcast(StopArrivedEvent event) {
         List<Long> studentIds = runRiderRepository.findAllByRunId(event.runId()).stream()
+                // absent(다른 버스로 옮긴 removed 포함)는 이 버스에 없다 — 다른 방송 리스너와 같은 필터(BR-233)
+                .filter(rider -> rider.getStatus() != RiderStatus.ABSENT)
                 .map(RunRider::getStudentId)
                 .distinct()
                 .toList();
