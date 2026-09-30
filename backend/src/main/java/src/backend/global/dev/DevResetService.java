@@ -1,9 +1,12 @@
 package src.backend.global.dev;
 
 import java.time.Clock;
+import java.sql.SQLException;
 import java.time.LocalDate;
 
 import org.flywaydb.core.Flyway;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.flyway.autoconfigure.FlywayMigrationStrategy;
 import org.springframework.context.annotation.Profile;
@@ -41,6 +44,14 @@ import src.backend.schedule.command.RunGenerationService;
 @RequiredArgsConstructor
 public class DevResetService {
 
+    private static final Logger log = LoggerFactory.getLogger(DevResetService.class);
+
+    /** Postgres 교착 감지 SQLState(40P01) — 두 트랜잭션이 서로의 잠금을 기다려 한쪽이 중단됐다는 뜻이다. */
+    private static final String DEADLOCK_SQL_STATE = "40P01";
+
+    /** 교착이 이어질 때 포기하는 횟수 — 매 시도가 교착 확률이 낮은 짧은 창이라 몇 번이면 충분하다. */
+    static final int MAX_MIGRATE_ATTEMPTS = 5;
+
     private final Flyway flyway;
 
     private final FlywayMigrationStrategy migrationStrategy;
@@ -64,10 +75,40 @@ public class DevResetService {
      * @return 지운 위치 캐시 키 개수 — 되돌린 사실을 호출자가 눈으로 확인할 수 있게 한다
      */
     public int reset() {
-        migrationStrategy.migrate(flyway);
+        migrateRetryingOnDeadlock();
         previewCache.clear();
         int clearedPositionKeys = runPositionStore.deleteAll();
         runGenerationService.generate(LocalDate.now(clock).plusDays(1));
         return clearedPositionKeys;
+    }
+
+    /**
+     * 시드 재적재를 하되 교착으로 중단되면 처음부터 다시 한다(R38-B).
+     *
+     * <p>{@code clean()} 이 테이블을 지우는 동안 배치·요청 트랜잭션이 같은 테이블을 잡고 있으면 Postgres 가 교착을
+     * 감지해 한쪽을 중단시키는데, 그 희생자가 {@code DROP TABLE academy CASCADE} 면 첫 호출이 {@code 500} 이 된다.
+     * 스케줄러를 멈춰도 요청 트랜잭션은 남으므로 잠그지 않고, {@code clean()} 이 몇 번을 해도 같은 결과라는 점에 기대 재시도한다.
+     */
+    private void migrateRetryingOnDeadlock() {
+        for (int attempt = 1; ; attempt++) {
+            try {
+                migrationStrategy.migrate(flyway);
+                return;
+            } catch (RuntimeException e) {
+                if (attempt >= MAX_MIGRATE_ATTEMPTS || !isDeadlock(e)) {
+                    throw e;
+                }
+                log.warn("[dev-reset] 교착으로 중단돼 다시 시도한다 ({}/{})", attempt, MAX_MIGRATE_ATTEMPTS);
+            }
+        }
+    }
+
+    private static boolean isDeadlock(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof SQLException sql && DEADLOCK_SQL_STATE.equals(sql.getSQLState())) {
+                return true;
+            }
+        }
+        return false;
     }
 }

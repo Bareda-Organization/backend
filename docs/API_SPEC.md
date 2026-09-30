@@ -37,7 +37,7 @@
 | 항목 | 규칙 |
 |---|---|
 | 베이스 경로 | `/api/v1` — 이 문서의 모든 경로는 이 접두사 생략 표기 |
-| 요청·응답 본문 | `application/json; charset=utf-8` 고정. **예외 — 학생 사진 업로드(§5.11)만 `multipart/form-data`**(JSON 파트 + 파일 파트). 파일은 이미지 3종(`jpeg`·`png`·`webp`), 상한 5MB 🆕 |
+| 요청·응답 본문 | `application/json; charset=utf-8` 고정. **예외 — 학생 사진 업로드(§5.11)만 `multipart/form-data`**(JSON 파트 + 파일 파트). 파일은 이미지 3종(`jpeg`·`png`·`webp`), 상한 5MB 🆕. **이 절의 `POST`·`PATCH` 에 `multipart/form-data` 가 아닌 매체(JSON 등)를 보내면 `422 VALIDATION_FAILED`** — 형식 위반이지 서버 오류(`500`)가 아니다(`Ruling 399`) |
 | 필드 명명 | `snake_case` |
 | 식별자 | 서버 발급 문자열. 경로 파라미터 `{id}` · `{runId}` · `{stopId}` · `{riderId}` — **응답 본문의 모든 식별자(`id` · `*_id` · 처리자 계정을 가리키는 `*_by` — `unblocked_by` · `decided_by`)도 JSON 문자열**(2026-09-25 `Ruling 332` — `Ruling 275` 미결 해소, `Ruling 171` 유지). 요청 본문의 식별자는 문자열·숫자 둘 다 수용 |
 | 성공 상태 | 조회·수정 `200`, 생성 `201`, 본문 없는 처리 `204` |
@@ -1856,7 +1856,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 **`GET /staff/students` 응답 `items[]`** — `student_id` · `name` · `class_name` · `guardian_phone` · `guardian_count`(integer — 연결된 보호자 계정 수, 해지된 연결은 제외. `guardian_phone` 은 그중 대표 1명뿐이라 연결 수는 이 값으로 따로 센다)
 
-**`POST` · `PATCH` 요청**
+**`POST` · `PATCH` 요청** — 매체는 `multipart/form-data`(§1.1: JSON 파트 `data` + 선택 파일 파트 `photo`). **다른 `Content-Type`(예: `application/json`)은 `422 VALIDATION_FAILED`** 이며 `500` 이 아니다(`Ruling 399`). 아래 필드 중 `photo` 는 파일 파트, 나머지는 `data` 파트의 키다.
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|:-:|---|
@@ -2453,7 +2453,7 @@ O-04 · SYS-01·02. 정본 API명세서에 경로 미기재 — 감사 로그 �
 
 **`block_event` 행의 `account_id` · `login_id`** — 차단(`block`) 행은 차단된 계정(행위자와 같다), **해제(`unblock`) 행은 해제된 계정**이다(BR-219 — 계정별 이력이 끊기지 않게). 해제한 관리자는 `audit_log.actor_account_id` 와 해제 응답의 `unblocked_by`(§6.12)가 갖는다 — 이 목록의 행이 싣지 않는다. `account_id` 필터도 같은 뜻 — 해제된 계정의 해제 행이 걸리고, 해제한 관리자의 필터에는 걸리지 않는다.
 
-쿼리 파라미터 — `academy_id` · `account_id` · `from` · `to` · 페이징.
+쿼리 파라미터 — `academy_id` · `account_id` · `from` · `to` · 페이징. **`from` · `to` 는 §1.1 의 시각 표기(ISO-8601 + 오프셋, 예 `2026-09-30T00:00:00+09:00`)이며 날짜만(`2026-09-30`) 보내면 `422 VALIDATION_FAILED`** 다(`Ruling 399`).
 
 **에러** — `404 ACADEMY_NOT_FOUND`(`academy_id` 필터가 미등록 학원) · `404 ACCOUNT_NOT_FOUND`(`account_id` 필터가 미등록 계정)
 

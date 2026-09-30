@@ -1,10 +1,14 @@
 package src.backend.global.dev;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -63,5 +67,43 @@ class DevResetServiceTest {
         order.verify(migrationStrategy).migrate(flyway);
         order.verify(runGenerationService).generate(LocalDate.of(2026, 8, 27));
         verify(runGenerationService, never()).generate(LocalDate.of(2026, 8, 26));
+    }
+
+    /**
+     * 초기화가 도는 동안 다른 트랜잭션(배치·요청)이 같은 테이블을 잡고 있으면 Postgres 가 교착을 감지해 한쪽을
+     * 중단시키고, 그 희생자가 {@code DROP TABLE academy CASCADE} 였을 때 첫 호출이 {@code 500} 이었다(R38-B).
+     * {@code clean()} 은 몇 번을 다시 해도 같은 결과라 교착이면 처음부터 다시 한다.
+     */
+    @Test
+    void 교착으로_중단되면_다시_시도해_성공한다() {
+        doThrow(new RuntimeException("Unable to drop academy",
+                new SQLException("deadlock detected", "40P01")))
+                .doNothing().when(migrationStrategy).migrate(flyway);
+
+        service.reset();
+
+        verify(migrationStrategy, times(2)).migrate(flyway);
+        verify(runGenerationService).generate(LocalDate.of(2026, 8, 27));
+    }
+
+    /** 교착이 아닌 실패(접속 거부·SQL 오류)까지 되풀이하면 원인이 가려진다 — 첫 실패를 그대로 올린다. */
+    @Test
+    void 교착이_아닌_실패는_다시_시도하지_않는다() {
+        doThrow(new IllegalStateException("localhost 가 아니다")).when(migrationStrategy).migrate(flyway);
+
+        assertThatThrownBy(service::reset).isInstanceOf(IllegalStateException.class);
+        verify(migrationStrategy, times(1)).migrate(flyway);
+    }
+
+    /** 교착이 끝없이 이어지면 무한히 붙들지 않고 포기해 원인을 그대로 올린다. */
+    @Test
+    void 교착이_계속되면_횟수를_채우고_포기한다() {
+        doThrow(new RuntimeException("Unable to drop academy",
+                new SQLException("deadlock detected", "40P01")))
+                .when(migrationStrategy).migrate(flyway);
+
+        assertThatThrownBy(service::reset).hasRootCauseInstanceOf(SQLException.class);
+        verify(migrationStrategy, times(DevResetService.MAX_MIGRATE_ATTEMPTS)).migrate(flyway);
+        verify(previewCache, never()).clear();
     }
 }

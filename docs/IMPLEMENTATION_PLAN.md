@@ -5961,3 +5961,26 @@ BE1 구현이 취소 판정에 등록과 같은 잠금(`StagingRunGuard.lockIdle
 | 4 | 오늘 바뀐 영역의 정본끼리 모순·오기를 찾아 고친 것 / 판단 필요한 것 분리 | 보고서 |
 | 5 | 코드 주석을 고쳤으면 `./gradlew compileJava compileTestJava` 통과 | 실행 출력 |
 
+## 8.71 ⚖ `R38` — 연동 시험 후속 3건 + 마무리 전체 실행 (2026-09-30 · 분기점 `9776c82f` · 번호대 399 · 410~412 예약)
+
+R37-IT 보고 ④·⑤ 의 후속이다. 새 판정이 필요하면 `Ruling 399`·`410`~`412`.
+
+### R38 목표 표 (착수 전 고정)
+
+| # | 완료 조건 | 실행 · 판정 |
+|---|---|---|
+| 1 | **A** JSON 으로 보낸 multipart `PATCH` → `422 VALIDATION_FAILED`(수정 전 `500`). 크기 초과 핸들러 시험은 통과 유지 | 새 시험 RED→GREEN + 변형(`GlobalExceptionHandler` 목록에서 `MultipartException` 제거 → 새 시험만 실패) |
+| 2 | **B** `POST /dev/reset` 첫 호출 `500`(Flyway 교착)의 재현·원인·수정 — 같은 절차 3회 연속 `200` | 수정 전 500 관측 → 수정 후 3회 · 자동 시험은 가능 여부 판정 |
+| 3 | **C** 매니저·학부모 앱 지도 바탕 타일(30초 대기 뒤) 렌더링 여부와 원인 | iOS 시뮬레이터 스크린샷 · 코드 결함이면 수정 · 외부 자원이면 증거만 |
+| 4 | **D** `API_SPEC` 3곳 — `§6.13` from·to 형식 · `§5.11` multipart 매체 · `§1.1` 같은 규칙 | `grep` |
+| 5 | 마무리 전체 실행 — 백엔드(`--rerun`, 실패는 `Ruling 361` 라이브 2클래스 5건뿐) · 웹 vitest·tsc·lint · Flutter 4곳 단위·analyze · 실서버 4묶음 | 결과 파일 직접 집계 |
+| 6 | 정리 — `:8200`·`:3000` 종료 · `it_r38` 연결 0 뒤 `DROP`(FORCE 금지) · 시뮬레이터 종료 · 잔여 `flutter_tester` 0 | 실측 |
+
+| Ruling | 대상 | 판정 | 근거 |
+|---|---|---|---|
+| 399 | multipart 엔드포인트(`POST`·`PATCH /staff/students` — 이 저장소의 유일한 multipart)에 JSON 등 다른 매체를 보낸 요청 · 감사·접속 이력 `from`·`to` 형식 | **형식 위반 = `422 VALIDATION_FAILED`**(500 아님). 서버는 `GlobalExceptionHandler.handleMalformedRequest` 목록에 `MultipartException` 을 추가해 근본에서 고침. 사양은 `API_SPEC §1.1`·`§5.11`·`§6.13` 에 각각 한 줄 | 잘못된 매체는 클라이언트 실수인데 `500` 이면 오프라인 큐가 끝없이 재시도한다(`BR-032`). 크기 초과(`MaxUploadSizeExceededException`)는 `MultipartException` 의 하위지만 더 가까운 전용 핸들러가 계속 받는다(시험으로 고정). `from`·`to` 는 §1.1 시각 규약 그대로 — 계약 변경 없음(서버 동작은 이미 그랬고 사양에 빈칸이었다) |
+
+**`POST /dev/reset` 첫 호출 500(R38-B, 판정 아님 — 결함 수정)** — 원인: `Flyway clean()` 이 `DROP TABLE academy CASCADE` 로 전 테이블에 `AccessExclusiveLock` 을 잡는 동안 다른 트랜잭션(2초마다 도는 `DemoRunSimulator` 의 회차 시작 처리 · 요청)이 이미 다른 테이블을 잡은 채 `run` 등을 읽으면 Postgres 가 교착(`40P01`)을 감지해 나중에 기다린 쪽을 중단시키고, 그 희생자가 `DROP` 이면 `500`. 수정: `DevResetService` 가 교착이면 처음부터 다시 시도(최대 5회 · `clean()` 은 몇 번을 해도 같은 결과). 스케줄러를 멈추는 길은 요청 트랜잭션이 남아 버리고 전역 스케줄러에 개발 도구가 얽혀 채택하지 않음.
+
+**결과 (2026-09-30 완료)** — 목표 1 `MultipartMalformedRequestTest` 2건(JSON 으로 보낸 multipart `PATCH` 실서버 호출 `500`→`422` · 크기 초과 전용 핸들러 유지) 커밋 `244c898c`. 목표 2 `DevResetServiceTest` 3건 + 결정적 재현 절차(수정 전 `500` 3/3 → 수정 후 `200` 3/3) 커밋 `dde53d54`. 목표 3 **지도 격자의 원인은 코드가 아니라 실행 인자** — 앱은 `--dart-define=NAVER_MAP_CLIENT_ID` 가 없으면 키 없이 SDK 를 초기화해 `NClientUnspecifiedException(code 800)` 과 함께 타일이 안 그려지고(격자), 키를 주면 두 앱 모두 타일이 렌더링됨 — `docs/frontend/SETUP.md` 의 실행 예에 이 인자가 없다(제안). 목표 4 `API_SPEC §1.1`·`§5.11`·`§6.13` 커밋 `aba40b04`. 목표 5 백엔드 전체 1,894건 중 실패 5(`Ruling 361` 라이브 2클래스 — 환경변수 짝으로 5/5 통과) · 웹 655/655 · Flutter 단위 core 69 · ui 106 · 매니저 302 · 학부모 220 실패 0 · 건너뜀 0 · `tsc`·`eslint`·`flutter analyze` 4곳 0 · 실서버 4묶음 웹 77 · core 9 · 매니저 26 · 학부모 28 실패 0 · 건너뜀 0.
+
