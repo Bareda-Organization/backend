@@ -1895,7 +1895,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | 응답 | `200` 이미지 본문(`Content-Type` = 저장 형식) · `Cache-Control: private` |
 | 정적 공개 | 부재 — 사진은 L3(`FEATURE_SPEC §6.3`)라 무인증 정적 경로로 열지 않는다 |
 
-`photo_url` 값은 `/api/v1/files/photos/<파일명>` 이다(앱은 로그인 토큰을 붙여 요청).
+`photo_url` 값은 `/api/v1/files/photos/<파일명>` 이다. 앱은 로그인 토큰을 헤더에 붙여 요청하고, 웹은 `<img src>` 가 헤더를 실을 수 없어 토큰을 실은 요청의 응답을 blob 으로 그린다. 옛 절대 URL 로 저장된 값은 토큰 없이 그대로 연다(프론트 `Ruling 385`).
 
 **에러** — `404 STUDENT_NOT_FOUND`(파일 부재 · 사진 주인이 타 학원 · 퇴원 학생 — 존재 비노출) · `403 FORBIDDEN`(권한 부재)
 
