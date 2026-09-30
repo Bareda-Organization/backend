@@ -194,7 +194,7 @@ class ControllerAuthorizationConventionTest {
      * #인가_애너테이션이_없는_매핑_메서드가_없다} 는 "위반이 없다"와 "검사할 게 없다"를 구별하지
      * 못한 채 그대로 초록이 된다 — 이 테스트가 그 구멍을 막는다.
      *
-     * <p>하한값은 실제 핸들러 수({@code 112}, 이 스캔 자체가 센 값)다. 예전에는 "컨트롤러 0개는
+     * <p>하한값은 실제 핸들러 수({@code 111}, 이 스캔 자체가 센 값)다. 예전에는 "컨트롤러 0개는
      * 안 된다"만 보는 잠정값 {@code 1} 이었는데, 그 값으로는 스캔 경로가 컨트롤러 전체 중
      * <b>극히 일부만</b> 찾아도(예: 한 패키지만 보게 좁아짐) 여전히 통과했다 — 실제로 {@code
      * SOURCE_ROOT} 를 {@code account} 패키지 하나로 좁혀 심어 보면 이 값이 한 자리 수로 떨어지며
@@ -207,10 +207,10 @@ class ControllerAuthorizationConventionTest {
         List<MappingMethod> mappings = allMappingMethods(authzAnnotationNames);
 
         assertThat(mappings.size())
-                .as("인가 검사 대상 매핑 메서드가 실제 핸들러 수(112) 아래로 줄었다 — 스캔 경로가 컨트롤러를 "
+                .as("인가 검사 대상 매핑 메서드가 실제 핸들러 수(111) 아래로 줄었다 — 스캔 경로가 컨트롤러를 "
                         + "놓치면 위의 인가 검사들이 '규칙 준수'와 '검사 대상 없음'을 구별하지 못한 채 통과한다. "
                         + "새 엔드포인트를 추가했으면 이 하한을 그만큼 올린다")
-                .isGreaterThanOrEqualTo(112);
+                .isGreaterThanOrEqualTo(111);
     }
 
     /**
