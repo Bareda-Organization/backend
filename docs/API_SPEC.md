@@ -1090,7 +1090,17 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 
 `result=answered` 면 카운트다운 중단. **3분** 경과 + 무응답이면 관계자 에스컬레이션 보고.
 
-**에러** — `403 ESCORT_ONLY` · `404 NO_SHOW_CASE_NOT_FOUND`(`no_show` 미처리 탑승자에 연락 기록 시도) · `404 RIDER_NOT_FOUND` · `409 RUN_NOT_MOVING`
+**응답 `201`** — 방금 남긴 시도와 그 시도가 케이스에 미친 결과(§1.9). `resolved_at` 이 채워지면 카운트다운이 멈춘 것(`result=answered` 또는 `decision=depart`)이고 `null` 이면 아직 대기 중이다 — 별도 불리언은 두지 않는다. (2026-09-30 BR-261 — 코드가 이미 내던 형태를 사양에 등재)
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|:-:|---|
+| `case_id` | string | ● | 미승차 케이스 |
+| `attempt_type` · `result` | enum | ● | 요청 값 그대로 |
+| `decision` | enum | ○ | 요청에 `decision` 이 없으면 `null` |
+| `attempted_at` | datetime | ● | 이 시도를 서버가 기록한 시각 |
+| `resolved_at` | datetime | ○ | 케이스가 종결된 시각 — 위 설명 |
+
+**에러** — `403 ESCORT_ONLY` · `404 NO_SHOW_CASE_NOT_FOUND`(`no_show` 미처리 탑승자에 연락 기록 시도 — **미승차를 되돌려 `waiting` 으로 돌아간 탑승자 포함**, 2026-09-30 BR-254) · `404 RIDER_NOT_FOUND` · `409 RUN_NOT_MOVING`
 
 ### 4.9 POST /runs/{runId}/delay
 
@@ -1827,6 +1837,8 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `POST /staff/students` | STU-02 | 등록 |
 | `PATCH /staff/students/{id}` | STU-03 | 수정 — 주소는 대상 밖, **보호자 연락처는 고칠 수 있다**(Ruling 326) |
 | `DELETE /staff/students/{id}` | STU-04 | 퇴원 soft delete — **오늘 명단은 유지**, 내일부터 제외 |
+
+**`DELETE /staff/students/{id}` 응답 `200`** — `{ student_id, deleted_at }`. `204` 가 아니라 본문을 돌려주는 것은 §1.9("변경 후 자원 상태를 그대로 반환") 때문이다 — 퇴원의 변경분은 `deleted_at` 하나이고 그 값이 없으면 클라이언트가 지워졌는지 구별할 수 없다. 학생 정보 전체는 싣지 않는다(§1.12, 목록에서 뺀 개인정보가 삭제 응답으로 다시 나가지 않게)(2026-09-30 BR-261).
 
 **`GET /staff/students` 응답 `items[]`** — `student_id` · `name` · `class_name` · `guardian_phone` · `guardian_count`(integer — 연결된 보호자 계정 수, 해지된 연결은 제외. `guardian_phone` 은 그중 대표 1명뿐이라 연결 수는 이 값으로 따로 센다)
 
