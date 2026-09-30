@@ -42,4 +42,18 @@ public interface RunForcedAdditionRepository extends JpaRepository<RunForcedAddi
               AND r.academyId = :academyId
             """)
     long countByRunIdAndAcademyId(@Param("runId") Long runId, @Param("academyId") Long academyId);
+
+    /**
+     * 그 회차에 그 학생의 강제 추가 대기 행이 이미 있는가(BR-205) — {@code uk_run_forced_addition_run_student} 위반을 500 으로
+     * 흘리지 않으려 저장 전에 본다. 학원 조건은 위 조회와 같은 이유로 {@code Run} 조인에 건다.
+     */
+    @Query("""
+            SELECT COUNT(rfa) > 0 FROM RunForcedAddition rfa
+            JOIN Run r ON r.id = rfa.runId
+            WHERE rfa.runId = :runId
+              AND r.academyId = :academyId
+              AND rfa.studentId = :studentId
+            """)
+    boolean existsByRunIdAndAcademyIdAndStudentId(@Param("runId") Long runId, @Param("academyId") Long academyId,
+            @Param("studentId") Long studentId);
 }

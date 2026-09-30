@@ -31,6 +31,7 @@ import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
+import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.JwtTokenProvider;
@@ -178,6 +179,39 @@ class StaffForcedAdditionControllerTest {
         강제_추가한다(runId, 학생_추가_본문(null, "학생2", "테스트로 200"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("CAPACITY_EXCEEDED"));
+    }
+
+    /** BR-205 — 같은 학생을 같은 회차에 다시 강제 추가하면 UNIQUE 위반 500 이 아니라 409 다. */
+    @Test
+    void 같은_학생을_같은_회차에_두_번_강제_추가하면_409_FORCED_ADDITION_ALREADY_STAGED_다() throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+        long busId = fixtures().bus(academyId);
+        long runId = 회차를_만든다(academyId, busId, 31);
+        long studentId = fixtures().student(academyId, "기존학생");
+
+        강제_추가한다(runId, 학생_추가_본문(studentId, null, "테스트로 100")).andExpect(status().isCreated());
+
+        강제_추가한다(runId, 학생_추가_본문(studentId, null, "테스트로 200"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("FORCED_ADDITION_ALREADY_STAGED"));
+    }
+
+    /** BR-205 — 요일별 주소로 이미 예정 명단에 있는 학생은 명단이 늘지 않으니 정원이 찬 회차에도 강제 추가된다. */
+    @Test
+    void 이미_예정_명단에_있는_학생은_정원이_찬_회차에도_강제_추가된다() throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+        long busId = busRepository.save(Bus.register(academyId, "정원시험", "00가0000", new BusSeating(3, 1, 1)))
+                .getId();
+        Weekday weekday = Weekday.of(OffsetDateTime.now(clock).toLocalDate());
+        long stopId = fixtures().stop(academyId, "37.560000", "126.970000");
+        fixtures().route(academyId, busId, weekday, Direction.TO_ACADEMY, stopId);
+        long studentId = fixtures().student(academyId, "명단학생");
+        fixtures().verifiedAddress(studentId, stopId, weekday, Direction.TO_ACADEMY, "37.560000", "126.970000");
+        long runId = 회차를_만든다(academyId, busId, 31);
+
+        강제_추가한다(runId, 학생_추가_본문(studentId, null, "테스트로 100"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.student_id").value(studentId));
     }
 
     // ── 주소 검증(STU-05) ────────────────────────────────────────────────

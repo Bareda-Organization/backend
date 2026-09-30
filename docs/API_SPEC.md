@@ -1563,7 +1563,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `stop_id` | 매칭·생성된 승하차지 id |
 | `status` | 항상 `staged` — 확정 배치가 명단에 합칠 때까지의 대기 상태 |
 
-**에러** — `403 CHANGE_WINDOW_CLOSED`(② 구간 이후 추가 — 관계자도 예외 부재. 판정 뒤 저장 전에 확정 배치가 회차를 확정한 경우 포함) · `409 RUN_CANCELED`(임시 취소된 회차) · `409 CAPACITY_EXCEEDED`(정원 초과) · `422 ADDRESS_VERIFICATION_FAILED`(주소 검증 실패 — 저장 보류) · `422 VALIDATION_FAILED`(`student_id`·`new_student` 가 동시에 없거나 있음) · `404 RUN_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163)
+**에러** — `403 CHANGE_WINDOW_CLOSED`(② 구간 이후 추가 — 관계자도 예외 부재. 판정 뒤 저장 전에 확정 배치가 회차를 확정한 경우 포함) · `409 RUN_CANCELED`(임시 취소된 회차) · `409 CAPACITY_EXCEEDED`(정원 초과 — 이미 그 회차 예정 명단에 든 학생은 명단이 늘지 않아 자리를 더 세지 않는다) · `409 FORCED_ADDITION_ALREADY_STAGED`(같은 학생의 강제 추가 대기가 그 회차에 이미 있음 — `Ruling 378`) · `422 ADDRESS_VERIFICATION_FAILED`(주소 검증 실패 — 저장 보류) · `422 VALIDATION_FAILED`(`student_id`·`new_student` 가 동시에 없거나 있음) · `404 RUN_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163)
 
 ### 5.8 POST /staff/students/{id}/transfer
 
@@ -2559,6 +2559,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `STUDENT_NOT_IN_RUN` | 409 | 버스 간 이동 대상 학생이 출발 회차의 당일 명단(요일별 주소·탑승 의사·강제 추가 기준)에 부재 (§5.8 · RTE-07) |
 | `TRANSFER_NOT_FOUND` | 404 | 이동 대기 기록 부재 · 타 학원 (§5.8.1, Ruling 369) |
 | `TRANSFER_ALREADY_STAGED` | 409 | 같은 학생의 처리 대기 중인 이동 건이 이미 존재 — 최종 목적지 회차를 판정할 수 없어 새 신청을 막음 (§5.8) |
+| `FORCED_ADDITION_ALREADY_STAGED` | 409 | 같은 학생의 강제 추가 대기가 그 회차에 이미 존재 — 두 번째 요청의 승하차지를 조용히 버리지 않으려 멱등 응답 대신 거부 (§5.7, Ruling 378) |
 
 ### 8.5 자원 · 검증
 
