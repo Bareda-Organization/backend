@@ -904,6 +904,8 @@ erDiagram
 
 **존재 이유** — ①구간에서 학생 1명을 다른 회차로 옮기는 요청을 즉시 재최적화하지 않고 대기시키는 단위. `run_forced_addition` 과 같은 논리로, `RunConfirmationService` 의 확정 배치가 그날 두 회차 명단에 각각 합칠 때 실제로 반영된다(Ruling 198 과 같은 근거). **근거** RTE-07 · A-07 · API_SPEC §5.8
 
+**`staged` 행은 지워질 수 있다 — 취소 상태 값이 따로 없다.** 관계자의 `[이동 취소]`(`DELETE /staff/transfers/{transferId}`, `API_SPEC §5.8.1` · `Ruling 369`)가 행을 삭제하고, 도착 회차가 임시 취소(`run.canceled_at`)되면 그 회차로 들어오는 `staged` 행이 취소와 함께 삭제된다(`Ruling 372`). `applied` 행은 지우지 않는다.
+
 ---
 
 ## 4. 관계 목록
