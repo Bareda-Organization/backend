@@ -2208,7 +2208,8 @@ SMS 연동(`PRD` F-05) 전까지 §2.9 가 `503` 이라 **학원 사용자의 �
 |---|---|:-:|---|
 | `name` | string | ● | 학원명. 가입 검색 대상 |
 | `region` | string | ● | 지역(시·군·구). 동명 학원 구분에 필수 |
-| `address` · `contact` · `memo` | string | ○ | 주소 · 대표 연락처 · 내부 메모 |
+| `address` | string | ● | 학원 주소(`Ruling 450`). 누락·공백은 `422 VALIDATION_FAILED`. 서버가 이 주소로 학원 좌표를 구한다 |
+| `contact` · `memo` | string | ○ | 대표 연락처 · 내부 메모 |
 
 **학원 코드는 서버가 자동 생성** (2026-08-24 확정). 관리자가 입력하지 않으며 응답으로 돌려받는다. 충돌은 서버가 재생성으로 흡수하므로 **클라이언트에 중복 에러가 노출되지 않는다.**
 
@@ -2216,9 +2217,9 @@ SMS 연동(`PRD` F-05) 전까지 §2.9 가 `503` 이라 **학원 사용자의 �
 
 **학원명 + 지역 중복은 경고만** — 저장 허용. `warnings[]`(`DUPLICATE_NAME_REGION`) 포함. 분원 존재 가능성이 근거.
 
-**학원 좌표는 서버가 `address` 로 구한다**(`Ruling 374`) — 등원 회차의 최종 지점(C-15 · `Ruling 327`)이라 좌표가 없으면 그 학원의 회차 확정이 전부 `ACADEMY_COORDINATES_MISSING` 으로 실패한다. 학생 주소(§3.7)와 같은 주소 검증을 트랜잭션 밖에서 거쳐 저장한다. `address` 를 비우면 좌표도 비운다(확정 불가 상태 — 관리자가 주소를 넣어야 운행 판정이 시작된다).
+**학원 좌표는 서버가 `address` 로 구한다**(`Ruling 374`) — 등원 회차의 최종 지점(C-15 · `Ruling 327`)이라 좌표가 없으면 그 학원의 회차 확정이 전부 `ACADEMY_COORDINATES_MISSING` 으로 실패한다. 학생 주소(§3.7)와 같은 주소 검증을 트랜잭션 밖에서 거쳐 저장한다. **주소는 필수다**(`Ruling 450`) — 주소 없는 학원은 첫 운행 날 회차 확정이 전부 실패하므로 등록 때 막는다. 좌표 없이 저장되는 등록 경로는 없다.
 
-**에러** — `422 ADDRESS_VERIFICATION_FAILED`(`address` 를 좌표로 옮기지 못함 — 저장 보류, `Ruling 374`)
+**에러** — `422 VALIDATION_FAILED`(`address` 누락·공백, `Ruling 450`) · `422 ADDRESS_VERIFICATION_FAILED`(`address` 를 좌표로 옮기지 못함 — 저장 보류, `Ruling 374`)
 
 ### 6.3 GET · PATCH /admin/academies/{id}
 
@@ -2233,9 +2234,11 @@ SMS 연동(`PRD` F-05) 전까지 §2.9 가 `503` 이라 **학원 사용자의 �
 | 코드 | 변경 경로 부재. 소속은 내부 ID 로 연결되므로 코드가 바뀌어도 기존 가입자에 무영향이나, 자동 생성값이라 바꿀 이유가 부재 |
 | `status=inactive` (ACAD-04) | ① 가입 학원 검색 결과에서 제외 ② 신규 가입 요청 차단. **기존 사용자 로그인 유지** — 운행 중 로그아웃 방지 |
 | 물리 삭제 | 부재 — soft delete 만 |
-| `address` 변경 | 좌표를 새 주소로 다시 구한다(§6.2 · `Ruling 374`) |
+| `address` 변경 | 좌표를 새 주소로 다시 구한다(§6.2 · `Ruling 374`). **같은 주소를 다시 보내면** 좌표를 다시 구하지 않고 그대로 둔다 — 화면이 폼 전체를 보내도 이름만 고친 수정이 주소 검증에 막히거나 좌표를 잃지 않는다 |
+| `address` 비움 | 빈 문자열·공백은 `422 VALIDATION_FAILED` — 주소는 필수라 지울 수 없다(`Ruling 450`). **키가 없거나 `null` 이면 기존 주소·좌표를 유지**한다(§1.14 — 이 `PATCH` 는 `null` = 유지) |
+| 주소 없이 저장된 기존 학원 | 시드 학원처럼 좌표만 있고 주소가 없는 학원도 `address` 를 보내지 않는 수정(비활성화 등)은 그대로 저장된다. 관계자 웹 폼은 이 학원을 열면 주소 입력을 요구한다(`Ruling 450`) |
 
-**에러** — `404 ACADEMY_NOT_FOUND` · `422 ADDRESS_VERIFICATION_FAILED`(바뀐 `address` 를 좌표로 옮기지 못함 — 저장 보류)
+**에러** — `404 ACADEMY_NOT_FOUND` · `422 VALIDATION_FAILED`(`address` 를 빈 문자열·공백으로 보냄, `Ruling 450`) · `422 ADDRESS_VERIFICATION_FAILED`(바뀐 `address` 를 좌표로 옮기지 못함 — 저장 보류)
 
 ### 6.4 GET /admin/staff-signup-requests
 
