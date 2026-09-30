@@ -2044,6 +2044,8 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 
 `POST /staff/emergencies/{id}/ack` — 접수 응답. 발신자 앱에 "학원이 확인했습니다" 표시. 확인 이력(누가·언제) 저장. **이미 확인된 건 재확인은 `409 ALREADY_ACKED`**.
 
+**행 수 상한** — `items[]` 는 접수 시각 역순으로 **최대 200건**(2026-09-30 BR-228 · `§6.11` 도 같다). 기본값 `open` 은 미확인분만이라 사실상 닿지 않고, `acked`·`canceled` 를 오래 쌓았을 때의 상한이다. `unacked_count` 는 이 상한과 무관하다. 더 오래된 건은 `date` 로 좁힌다(`§6.11` 은 `date` 가 없어 상한 밖 이력을 볼 수단이 아직 없다).
+
 **에러** — `404 EMERGENCY_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163) · `409 ALREADY_ACKED`
 
 ### 5.17 GET /staff/notifications
@@ -2110,6 +2112,8 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 **응답** — `items[]` — `report_id` · `type`(§9.8 `report_type`) · `memo` · `run_id` · `bus_no` · `student_name`(`guardian_absent` 일 때) · `reported_by` · `reported_at` · `handled`(boolean) · `handled_at`
 
 보고가 푸시 1회로만 전달되면 되짚을 수단이 부재. `ERD` 의 `exception_report.academy_id` 가 "학원 범위 조회 대상"으로 정의된 것이 이 조회를 전제.
+
+**행 수 상한** — 이 목록은 페이징(§1.8)을 적용하지 않는 대신 **최근 보고부터 최대 200건**만 돌려준다(2026-09-30 BR-228 — `exception_report` 는 무기한 보존이라 상한이 없으면 호출 한 번이 누적 전량을 읽는다). 더 오래된 보고는 `date` 로 하루씩 좁혀 조회한다.
 
 **에러** — `404 REPORT_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163)
 
@@ -2388,6 +2392,8 @@ SMS 연동(`PRD` F-05) 전까지 §2.9 가 `503` 이라 **학원 사용자의 �
 | `elapsed_since_raised` | integer | ● | 발신 후 경과 초. 관계자 미응답 상황을 운영사가 즉시 인지 |
 
 관제 지도에서 발신 회차를 강조 표시.
+
+**행 수 상한** — `items[]` 는 접수 시각 역순 **최대 200건**(`§5.16` 과 같다, 2026-09-30 BR-228).
 
 **에러** — §1.11 공통 항목 외 고유 에러 부재.
 
