@@ -5825,7 +5825,7 @@ C 는 A 가 고칠 파일을 **읽기만** 하고 고치지 않는다. **`docs/I
 |---|---|---|---|
 | 369 | `API_SPEC §5.8.1`(신설) · `§5.4` · `§8`(`TRANSFER_NOT_FOUND` 신설) | ① `DELETE /staff/transfers/{transferId}` — `staged` 이고 두 회차 모두 `idle` 일 때만 행 삭제(취소 상태 부재) · 아니면 `403 CHANGE_WINDOW_CLOSED` · 없음·타 학원 `404 TRANSFER_NOT_FOUND` ② 확정 전 예정 명단(§5.4)에서 이동 대기로 들어온 학생 행에 `change=added` + `transfer_id` | ① 저장한 이동을 되돌릴 수단이 없었다(R34 W 보고). 반영 전 대기 기록이라 이력 보존 가치가 낮아 스키마 변경 없는 삭제를 택함 — 감사 기록은 남김 ② 확정 순간 초록 표시가 갑자기 생기던 것(R35 B 보고)을 예정 단계부터 일관되게. 취소 버튼이 그 행의 `transfer_id` 를 쓴다 |
 
-**2026-09-30 부터 백엔드·프론트 메인 세션 분리 운영** — 백엔드 세션 Ruling 370~379(이 §8) · 프론트 세션 Ruling 380~389(`docs/frontend/IMPLEMENTATION_PLAN.md` 에 기록). 인수인계 `.claude/HANDOFF-BE.md` · `.claude/HANDOFF-FE.md`(git 추적 밖).
+**2026-09-30 부터 백엔드·프론트 메인 세션 분리 운영** — 백엔드 세션 Ruling 370~379(이 §8) · 프론트 세션 Ruling 380~389(`docs/frontend/IMPLEMENTATION_PLAN.md` 에 기록) · 390~399 는 main 이 중계한 백엔드 추가 번호대(§8.68~§8.70). 인수인계 `.claude/HANDOFF-BE.md` · `.claude/HANDOFF-FE.md`(git 추적 밖).
 
 
 ## 8.65 ⚖ `R36-BE` 목표 표 — 이동 대기 취소 · 예정 명단 표시 · 미리보기 캐시 정리 · 연결 거절 확인 (2026-09-30 **완료** · 분기점 `ed60f5d8` · 백엔드 세션)
