@@ -910,7 +910,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
           "rider_id": "rider_5521",
           "student_id": "stu_301",
           "name": "김서준",
-          "photo_url": "https://cdn.example/s/301.jpg",
+          "photo_url": "/api/v1/files/photos/301.jpg",
           "class_name": "초등 A반",
           "guardian_phone": "010-2XXX-8814",
           "note": "할머니가 데리러 옴",
