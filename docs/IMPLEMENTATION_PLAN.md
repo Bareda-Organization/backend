@@ -1482,7 +1482,7 @@ void 확정_시각이_도래하면_idle_회차가_confirmed_로_전이한다() {
 | 3 | **강제 노선의 지도 표현** (오픈 이슈 Q) | F3 ②구간 승인 화면의 강제 추가 승하차지 표기가 미확정 |
 | 4 | **`frontend/` 현 코드의 처분 판정** (§1.4) | 판정 시점이 2026-08-24 라 재개 시점의 코드와 어긋날 가능성이 존재. 재개 전에 다시 대조 |
 
-`frontend/docs/` 3종(`FLUTTER_CODE_CONVENTIONS.md` · `DESIGN_SYSTEM.md` · `FRONTEND_SETUP.md`)은 재개 시점의 규칙 원본으로 존치하되 **범위 밖 기간 동안 갱신 대상이 아님.**
+~~`frontend/docs/` 3종(`FLUTTER_CODE_CONVENTIONS.md` · `DESIGN_SYSTEM.md` · `FRONTEND_SETUP.md`)은 재개 시점의 규칙 원본으로 존치~~ — **2026-09-10 프론트 재개 · 2026-09-20 문서 통합으로 그 경로는 부재.** 지금의 규칙 원본은 `docs/frontend/CONVENTIONS_REACT.md` · `CONVENTIONS_FLUTTER.md` · `SETUP.md`(2026-09-30 R40 재작성).
 
 **보존된 Phase 정의** — 백엔드 API 가 선행. 제품 4종은 배포 단위가 다르나 코드 공유 범위가 `ARCHITECTURE §4.1` 에 정의돼 있음.
 

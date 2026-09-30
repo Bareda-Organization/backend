@@ -95,7 +95,7 @@ grep -n '🔸' docs/FEATURE_SPEC.md docs/PRD.md docs/USER_FLOWS.md docs/API_SPEC
 | **[frontend/IMPLEMENTATION_PLAN.md](frontend/IMPLEMENTATION_PLAN.md)** | **프론트 작업의 단일 창구** — 제품 3종(관계자 웹 Next.js · 학부모 앱 · 매니저 앱) · 라운드 추적 · 디자인 킷과 정본이 어긋나는 항목 |
 | **[frontend/CONVENTIONS_REACT.md](frontend/CONVENTIONS_REACT.md)** | React·Next.js 규칙 — 기능 폴더 구조 · `index.ts` 공개 창구 · Emotion |
 | **[frontend/CONVENTIONS_FLUTTER.md](frontend/CONVENTIONS_FLUTTER.md)** | Dart·Flutter 규칙 |
-| `frontend/SETUP.md` | 프론트 셋업 기록. ⚠ 옛 Flutter 단일 앱 시절 기준이라 현 3제품 구성과 어긋난다 |
+| **[frontend/SETUP.md](frontend/SETUP.md)** | 개발 환경 셋업 — 인프라·백엔드 기동 · 관계자 웹(:3000) · 앱 2종 실행 인자(`API_BASE_URL` · `NAVER_MAP_CLIENT_ID`) · 로그인 계정 (2026-09-30 실측으로 재작성) |
 
 ### 4.3 인프라 — `docs/infra/`
 

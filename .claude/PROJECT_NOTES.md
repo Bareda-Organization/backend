@@ -24,7 +24,7 @@
 **프론트 작업은 범위 밖이다.** 사양(`FEATURE_SPEC` · `USER_FLOWS` 등)에 프론트 요구가 그대로 남아 있으나 **만들 것이 사라진 것이 아니라 지금 만들지 않는 것**이며, 사양에서 지우지 않는다. `IMPLEMENTATION_PLAN` Phase F1~F4 는 `➖ 범위 밖` 으로 고정돼 상태 갱신 대상이 아니다.
 
 - 백엔드 Phase **15개**(0~14)가 갱신 대상, 프론트 Phase **4개**(F1~F4)가 범위 밖
-- 프론트 문서로 남은 것은 `frontend/docs/` 3개 — `FLUTTER_CODE_CONVENTIONS.md` · `DESIGN_SYSTEM.md` · `FRONTEND_SETUP.md`. **재개 시점의 규칙 원본으로 존치하되 갱신 대상이 아니다**
+- 프론트 문서는 `docs/frontend/` 에 있다 — `IMPLEMENTATION_PLAN.md` · `CONVENTIONS_REACT.md` · `CONVENTIONS_FLUTTER.md` · `SETUP.md`(2026-09-30 재작성). 옛 `frontend/docs/` 3종은 2026-09-20 문서 통합으로 부재
 - 프론트 전용 에이전트 2개(`ui-implementer` · `design-system-auditor`)는 **삭제됨**. 프론트 작업 요청을 받으면 범위 밖임을 먼저 알린다
 
 ⚠ **아래 절 중 옛 도메인 코드를 서술한 부분은 `IMPLEMENTATION_PLAN` Phase 0(걷어내기) 시점에 무효가 된다.** 해당 위치에 `무효 예정` 표기를 붙여 뒀다 — 표기가 붙은 값을 근거로 지적하지 않는다.
@@ -247,7 +247,7 @@ flutter test --dart-define=API_BASE_URL=http://localhost:<포트>/api/v1
 | `docs/IMPLEMENTATION_PLAN.md` | 구현 순서·진행 추적 단일 창구 | 완료/미완 표기가 실제와 어긋난다 |
 | `docs/backend/CODE_CONVENTIONS.md` | 코드 컨벤션 원본 | `convention-auditor`가 틀린 근거로 지적한다 |
 
-- **대조 범위는 `backend/` 뿐이다.** 프론트는 착수 대상 밖이라 `frontend/` 코드와 `frontend/docs/` 3종은 드리프트 지적 대상이 아니다 — 갱신하지 않기로 한 문서를 "낡았다"고 올리지 않는다.
+- **대조 범위는 `backend/` 와 `frontend/` 전부다**(2026-09-10 프론트 재개 뒤). ~~프론트는 착수 대상 밖이라 `frontend/docs/` 3종은 드리프트 지적 대상이 아니다~~ — 그 경로는 2026-09-20 부재, 프론트 규칙 원본은 `docs/frontend/*.md` 이고 낡으면 지적 대상이다.
 - **기준선 수치는 부재.** 옛 기준선이던 Swagger `"00. MVP 사용 API"` 태그 17개는 **2026-08-24 방향 전환으로 무효**(태그 체계 자체가 폐기). 새 기준선은 Phase 1 이후 `IMPLEMENTATION_PLAN` §2.3 의 테이블 수와 §3.3 의 대조 테스트 3종이 대신한다.
 - **`docs/backend/*.html`은 대조 대상이 아니다.** `CODE_CONVENTIONS.html` 등은 `CODE_CONVENTIONS.md`의 사람용 렌더이며 **원칙만 동기화하고 자동 동기화하지 않는다**(의도된 설계). HTML이 Markdown과 다르다는 지적은 올리지 않는다.
 - **`docs/source/학원 통학버스 통합관리 시스템.docx` 는 기획 원본(불변)** 이라 코드와 어긋나는 게 정상이다. 대조 대상이 아니다. (`projectInfo.md` 는 2026-08-24 삭제)
