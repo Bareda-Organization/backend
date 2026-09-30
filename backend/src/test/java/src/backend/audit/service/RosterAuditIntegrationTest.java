@@ -2,6 +2,7 @@ package src.backend.audit.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.LocalDate;
@@ -183,6 +184,46 @@ class RosterAuditIntegrationTest {
         assertThat(rows)
                 .as("run_id·student_id 는 서로 다른 시퀀스라 숫자가 우연히 겹칠 수 있어 target_type 도 함께 좁힌다")
                 .hasSize(1);
+        AuditLog row = rows.get(0);
+        assertThat(row.getActorAccountId()).isEqualTo(staffAccount.getId());
+        @SuppressWarnings("unchecked")
+        List<String> studentIds = (List<String>) row.getDetail().get("student_ids");
+        assertThat(studentIds).containsExactly(String.valueOf(studentId));
+        @SuppressWarnings("unchecked")
+        List<String> fields = (List<String>) row.getDetail().get("fields");
+        assertThat(fields).containsExactlyInAnyOrder("guardian_phone", "note");
+    }
+
+    /**
+     * BR-236 — 확정 전(idle) 회차의 예정 명단(R33)도 보호자 연락처 원본을 내보내므로 같은 감사가 남아야 한다.
+     * 위 두 시험은 확정 뒤 회차만 지나서, 예정 갈래에서 감사 호출이 빠져도 초록이었다.
+     */
+    @Test
+    void 확정_전_회차의_예정_명단_조회도_감사_로그_1건을_남긴다() throws Exception {
+        Phase9RosterFixtures fx = fixtures();
+        long academyId = fx.academyWithCoordinates();
+        long busId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.500000", "127.000000");
+        fx.route(academyId, busId, Weekday.MON, Direction.TO_ACADEMY, stopId);
+        long studentId = fx.student(academyId, "학생1");
+        fx.verifiedAddress(studentId, stopId, Weekday.MON, Direction.TO_ACADEMY, "37.500000", "127.000000");
+        OffsetDateTime departTime = OffsetDateTime.parse("2031-09-01T08:00:00+09:00");
+        long runId = fx.idleRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        Account staffAccount = accountRepository.save(Account.forSignup(academyId, "br236staff" + System.nanoTime(),
+                "{noop}password", "관계자", "010-0000-0000", null, Role.STAFF));
+
+        mockMvc.perform(get("/api/v1/staff/runs/" + runId + "/roster").header("Authorization",
+                "Bearer " + tokenProvider.createAccessToken(staffAccount.getId(), academyId, Role.STAFF,
+                        AccountStatus.ACTIVE)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].student_id").value(String.valueOf(studentId)));
+
+        List<AuditLog> rows = auditLogRepository.findAll().stream()
+                .filter(log -> log.getCategory() == AuditCategory.DATA_ACCESS
+                        && "run_roster".equals(log.getTargetType()) && log.getTargetId().equals(runId))
+                .toList();
+        assertThat(rows).as("예정 명단이 원본 보호자 번호를 내보내는데 열람 감사가 남지 않았다").hasSize(1);
         AuditLog row = rows.get(0);
         assertThat(row.getActorAccountId()).isEqualTo(staffAccount.getId());
         @SuppressWarnings("unchecked")
