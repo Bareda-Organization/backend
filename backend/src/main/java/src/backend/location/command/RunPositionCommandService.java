@@ -1,6 +1,7 @@
 package src.backend.location.command;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.List;
@@ -65,6 +66,9 @@ public class RunPositionCommandService {
 
     private final Clock clock;
 
+    /** 단말 {@code recorded_at} 과 서버 수신 시각의 허용 차이(양방향) — 기기 시계 오차를 넉넉히 받되 하루 단위 어긋남은 거른다(BR-243). */
+    private static final Duration RECORDED_AT_TOLERANCE = Duration.ofMinutes(5);
+
     /**
      * 기사 단말의 위치 1건을 적재하고 {@link RunPositionReceivedEvent} 를 발행한다 — 배치 기사인지 ·
      * 회차 존재 · {@code moving} 상태 순으로 거절 조건을 확인한 뒤(API_SPEC §4.12), Redis 갱신은
@@ -79,6 +83,10 @@ public class RunPositionCommandService {
         }
 
         OffsetDateTime receivedAt = OffsetDateTime.now(clock);
+        // 기기 시계는 신뢰 경계 밖이다 — 어긋난 recorded_at 이 Redis 장애 대체 조회의 "최신" 이나 보존 정리 기준을 틀어 놓지 않게 한다(BR-243)
+        if (Duration.between(request.recordedAt(), receivedAt).abs().compareTo(RECORDED_AT_TOLERANCE) > 0) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED);
+        }
         RunPosition position = RunPosition.onReceive(runId, request.lat(), request.lng(),
                 request.recordedAt(), receivedAt, request.speed(), request.heading());
         runPositionRepository.save(position);
