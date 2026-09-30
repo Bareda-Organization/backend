@@ -2735,6 +2735,14 @@ Run `run_d7daf69b57f8` · 4갈래 병합 B `7f781ccc` · W `827250d1` · P `065e
 - **② 결과** — 시뮬레이터로 본 곳: 매니저 비상(새로고침 · 취소) · 오프라인 대기열(삭제) · 학부모 홈(로그아웃 · 설정 · 일정 · 자녀 추가) · 학생 홈(부모 연결 코드) · 실시간 버스 위치(버스 위치로) · 노선 상세(전화하기) · 알림 더 보기. 지도 위 칩 밀림 · 고정 높이 행 잘림 **0건**. 못 본 것 — 조회 실패 때 뜨는 `다시 시도`(AlertBanner 안 `sm`)
 - **③ 결과** — `baraeda_core` 69 · `baraeda_ui` 148 · 매니저 앱 315 · 학부모 앱 221(`--exclude-tags real_backend`, `hidden:false` 만) 전부 실패 0 · 건너뜀 0 · `flutter analyze` 4곳 0
 
+### 5.15.6 `R43` — 공용 버튼이 `block` 이 아닌데도 가로 전체로 늘어나는 결함 (2026-09-30 · 기준 HEAD `b756a743` `mskim98/r43`)
+
+- **목표** — `BaraedaButton` 이 `block: false` 일 때 내용 폭이 되게 한다(디자인 킷 `Button.jsx` 는 `block ? 'flex' : 'inline-flex'`)
+- **원인** — 안쪽 `Ink` 의 자식 `Center` 에 `widthFactor` 가 없어, 부모가 폭 상한만 줘도(Column 기본 정렬 · `Align` · `EmptyState`·`AlertBanner` 의 action 자리) 그 폭 전체로 늘어남. 크기 3종 전부 해당. 바깥 누르는 영역 `Center` 는 R41-UI 가 이미 고침
+- **수정** — 안쪽 `Center(widthFactor: block ? null : 1)` 한 줄. 시험 `button_width_test.dart` 10건(크기 3종 × Column·Align·block + sm 누르는 영역 48) — 수정 전 6건 실패(내용 폭) → 통과 · 수정을 되돌리면 그 6건만 실패
+- **사용처 감사** — 호출 69곳(앱 2종 · 패키지, 테스트 제외): `block: true` 12 · 부모가 폭을 강제(`Column stretch`·목록 항목)해 **변화 없음 23** · `Row`·`Wrap` 안이라 폭 제약 없음 **변화 없음 15** · **부모가 폭 상한만 줘서 늘어나던 곳 19 → 내용 폭으로 변경**(매니저 5 · 학부모 14). 19곳 전부 의도가 내용 폭(가운데 재시도 버튼 · 배너 안 작은 버튼 · 왼쪽 정렬 칩) — **`block: true` 를 새로 붙인 곳 0**
+- **`Ruling 406` — 전폭 버튼은 부모가 아니라 `block: true` 로 요청한다** — 공용 버튼은 `block` 이 아니면 내용 폭. `Column(crossAxisAlignment: stretch)` 처럼 부모가 폭을 강제하는 자리는 그대로 전폭이 되므로 기존 전폭 화면(로그인 · 폼 제출 등 23곳)은 변화 없음. 앞으로 전폭이 필요한 새 버튼은 `block: true` 를 명시한다
+
 ## 6. 완료 조건 — 화면 단위
 
 각 화면은 아래 4개를 전부 통과해야 완료. **"화면이 뜬다" 는 완료가 아님.**
