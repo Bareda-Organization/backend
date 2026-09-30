@@ -88,7 +88,7 @@ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/v3/api-docs   # 2
 ## 5. 로그인 계정 (Flyway 로컬 시드)
 
 - 로그인 값은 **이메일이 아니라 `login_id`**. 비밀번호는 전부 `password`(로컬 전용. 배포·스테이징은 별도 값)
-- 요청: `POST /api/v1/auth/login` · 본문 `{"login_id":"staffA","password":"password"}` · 헤더 `X-Client-Type: app | web`(웹은 refresh 토큰을 쿠키로, 앱은 본문으로 받음 — `API_SPEC §1.2.1`)
+- 요청: `POST /auth/login`(베이스 경로 `/api/v1` 생략 — `API_SPEC §1.1` 표기) · 본문 `{"login_id":"staffA","password":"password"}` · 헤더 `X-Client-Type: app | web`(웹은 refresh 토큰을 쿠키로, 앱은 본문으로 받음 — `API_SPEC §1.2.1`)
 - 연속 5회 실패 시 계정이 `blocked`(`driverBlocked` 시드가 이 상태)
 
 `backend/src/main/resources/db/migration-local/V2__seed_data.sql`(계정 20개)의 학원 A(`바래다학원 A`)·B·C:
@@ -122,7 +122,7 @@ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/v3/api-docs   # 2
 | 방법 | 동작 |
 |---|---|
 | `bootRun` 재기동(3.1) | `local` 프로파일은 **기동마다** DB 를 `clean()` 후 다시 적재(`LocalFlywayCleanStrategy`). 데이터소스가 `localhost` 일 때만 실행되고 아니면 기동 실패 |
-| `POST /api/v1/dev/reset` | 앱 재시작 없이 DB 를 시드 상태로 되돌리고 위치 캐시를 비운 뒤 **내일 회차만** 생성. 인증만 요구(역할 무관). `local` 프로파일에서만 존재. 응답 `data.cleared_position_keys` |
+| `POST /dev/reset` (`/api/v1` 아래) | 앱 재시작 없이 DB 를 시드 상태로 되돌리고 위치 캐시를 비운 뒤 **내일 회차만** 생성. 인증만 요구(역할 무관). `local` 프로파일에서만 존재. 응답 `data.cleared_position_keys` |
 | `docker compose down` 후 `up` | postgres 컨테이너에 영속 볼륨이 없어 컨테이너 재생성 시 초기화. 컨테이너 모드(3.2)의 backend 는 `clean()` 을 끈 채 기동하므로 backend 재시작만으로는 초기화되지 않음 |
 
 - `docker compose down` 에는 `-v` 를 붙이지 않음
@@ -212,7 +212,7 @@ flutter analyze
 1. **기본 주소**: `http://localhost:8080/api/v1` (proxy 모드는 `http://localhost:3000/api/v1`). 모든 API 경로에 `/api/v1` 접두사(`ApiPathPrefixConfig.API_PREFIX`)
 2. **응답 봉투**: 성공 응답 본문은 `{"success":true,"data":{...},"message":null}`. 필드는 전부 snake_case
 3. **인증**: `Authorization: Bearer <access_token>`. 인증 없이 열린 경로는 아래뿐이고 나머지는 전부 토큰 필요
-   - `GET /api/v1/academies/search` · `POST /api/v1/auth/signup` · `login` · `refresh` · `recover`(`PublicEndpoints`)
+   - `/api/v1` 아래 `GET /academies/search` · `POST /auth/signup` · `login` · `refresh` · `recover`(`PublicEndpoints`)
    - `/actuator/health` · `/actuator/prometheus` · `/ws/**` · `/swagger-ui/**` · `/v3/api-docs/**`
 4. **CORS**(`/api/**` 만 대상): `app.cors.allowed-origins` 목록에 있는 출처만 허용. `local` 기본값:
    `http://localhost:3000` · `:5173` · `:4200` · `:8081` · `http://127.0.0.1:3000` · `:5173`
