@@ -1,11 +1,14 @@
 package src.backend.routing.command;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.stereotype.Component;
+
+import lombok.RequiredArgsConstructor;
 
 import src.backend.routing.pipeline.RouteComputation;
 
@@ -18,22 +21,31 @@ import src.backend.routing.pipeline.RouteComputation;
  * 규칙이고, 크기가 회차 수로 묶인다.
  *
  * <p>프로세스 메모리에 둔다 — 백엔드 인스턴스가 1개라는 배포 전제({@code InMemoryApprovalPreviewCache} 와 같은 근거).
- * 배포하지 않은 미리보기는 그 회차의 운행일이 지나도 남으므로, 일일 회차 생성 배치가 날짜가 바뀔 때
- * {@link #evictBefore} 로 지난 날짜 회차의 것을 지운다(R36-BE).
+ * 배포하지 않은 미리보기는 그 회차의 운행일이 지나도 남으므로, 새 미리보기를 넣을 때({@link #put}) 주입된
+ * {@link Clock} 의 오늘보다 운행일이 앞선 것을 함께 지운다(R36-BE) — 별도 배치를 두지 않고 routing 모듈 안에서
+ * 끝낸다(ARCHITECTURE §3.3 은 {@code schedule} 이 {@code routing} 을 알지 않는 방향이다). 쌓이는 양은
+ * "마지막 미리보기 이후" 로 묶인다.
  * 다중 인스턴스가 되면 승인 미리보기 캐시와 함께 Redis 로 옮긴다.
  */
 @Component
+@RequiredArgsConstructor
 public class WaypointPreviewCache {
 
     private final Map<Long, Entry> store = new ConcurrentHashMap<>();
+
+    private final Clock clock;
 
     /** 이 회차에 지금 유효한 미리보기. */
     public Optional<WaypointPreview> find(Long runId) {
         return Optional.ofNullable(store.get(runId)).map(Entry::preview);
     }
 
-    /** 미리보기를 보관한다 — {@code serviceDate} 는 그 회차의 운행일이고, 지난 날짜 정리({@link #evictBefore})의 기준이다. */
+    /**
+     * 미리보기를 보관한다 — {@code serviceDate} 는 그 회차의 운행일이고, 지난 날짜 정리({@link #evictBefore})의
+     * 기준이다. 넣기 전에 오늘({@code Clock}) 보다 운행일이 앞선 미리보기를 지운다.
+     */
     public void put(Long runId, LocalDate serviceDate, WaypointPreview preview) {
+        evictBefore(LocalDate.now(clock));
         store.put(runId, new Entry(serviceDate, preview));
     }
 
@@ -42,7 +54,7 @@ public class WaypointPreviewCache {
         store.remove(runId);
     }
 
-    /** 운행일이 {@code today} 보다 앞선 회차의 미리보기를 지운다 — 지난 회차는 배포할 수 없어 남겨 둘 이유가 없다. */
+    /** 운행일이 {@code today} 보다 앞선 회차의 미리보기를 지운다 — 지난 회차는 배포할 수 없어 남겨 둘 이유가 없다({@link #put} 이 부른다). */
     public void evictBefore(LocalDate today) {
         store.values().removeIf(entry -> entry.serviceDate().isBefore(today));
     }

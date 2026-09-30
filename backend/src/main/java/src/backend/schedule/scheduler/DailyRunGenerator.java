@@ -9,7 +9,6 @@ import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 
-import src.backend.routing.command.WaypointPreviewCache;
 import src.backend.schedule.command.RunGenerationService;
 
 /**
@@ -18,8 +17,7 @@ import src.backend.schedule.command.RunGenerationService;
  * <p>전용 엔드포인트를 두지 않는다(§5.10) — 회차 생성은 요청이 아니라 <b>날짜가 바뀌는 것</b>이
  * 일으키는 일이고, 관계자가 손으로 부르는 경로를 열면 그 경로가 곧 중복 실행의 통로가 된다.
  *
- * <p>이 클래스가 하는 일은 <b>"오늘이 며칠인가" 를 정하는 것</b>과, 그 날짜로 지난 회차의 경유 지점 미리보기를
- * 지우는 것뿐이다. 무엇을 만들지는
+ * <p>이 클래스가 하는 일은 <b>"오늘이 며칠인가" 를 정하는 것뿐</b>이다. 무엇을 만들지는
  * {@link RunGenerationService} 가 정한다 — 실행 시각과 대상 날짜를 가르면 지난 날짜를 다시 만드는
  * 운영 조작이 그 서비스를 그대로 부르는 것으로 가능해진다(ARCHITECTURE §9.2 두 시계).
  */
@@ -29,12 +27,10 @@ public class DailyRunGenerator {
 
     private final RunGenerationService runGenerationService;
 
-    private final WaypointPreviewCache waypointPreviewCache;
-
     private final Clock clock;
 
     /**
-     * 지난 날짜 회차의 경유 지점 미리보기를 지우고 오늘과 내일의 회차를 만든다 — 내일 것을 미리 만드는 이유는 학부모의 "특정 날짜 하루만" 변경 신청
+     * 오늘과 내일의 회차를 만든다 — 내일 것을 미리 만드는 이유는 학부모의 "특정 날짜 하루만" 변경 신청
      * (FEATURE_SPEC P-06)이 전날에 걸려야 하기 때문이다. 지평을 1일로 둔 것은 스케줄 수정 반영
      * ({@code ScheduleRunSync}) 대상을 그 하루로 묶기 위함이다. 이미 있는 회차는 건너뛰므로(멱등)
      * 기동 직후 보충({@code DailyRunStartupCatchUp})이 같은 메서드를 다시 불러도 안전하다.
@@ -62,8 +58,6 @@ public class DailyRunGenerator {
     @SchedulerLock(name = "daily-run-generator", lockAtMostFor = "PT30M")
     public void generateTodayAndTomorrow() {
         LocalDate today = LocalDate.now(clock);
-        // 날짜가 바뀌는 이 배치가 지난 날짜 회차의 경유 지점 미리보기를 함께 정리한다(R36-BE) — 별도 배치를 두지 않는다.
-        waypointPreviewCache.evictBefore(today);
         try {
             runGenerationService.generate(today);
         } finally {
