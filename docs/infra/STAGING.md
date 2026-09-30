@@ -12,6 +12,8 @@
 
 모든 요청은 `https://bus.<도메인>` → Cloudflare → 집 PC 의 `cloudflared` → `proxy`(nginx) → `/api`·`/ws` 는 backend, `/download` 는 APK 폴더, 나머지는 web.
 
+프록시 설정은 `infra/proxy/nginx.staging.conf` 다(개발용 `nginx.conf` 가 아니다, 2026-09-30 BR-230). 인터넷에 열린 주소라 운영 프록시의 보호를 옮겼다 — ①로그인·가입·복구·자녀 연결 경로는 접속자 IP 당 분당 20회로 제한(초과 `429`) ②**Swagger UI·`/v3/api-docs` 는 공개하지 않는다**(`404` — API 스펙은 로컬 `localhost:8080` 에서 본다) ③Cloudflare 의 `CF-Connecting-IP` 를 사설 대역(터널 컨테이너)에서 온 요청에서만 채택해 감사 로그의 접속 IP 가 터널 주소로 찍히지 않는다. 설정을 고친 뒤 문법은 파일 머리말의 `nginx -t` 한 줄로 확인한다.
+
 ---
 
 ## 1. 준비물
