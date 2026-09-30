@@ -185,7 +185,7 @@ class StaffEmploymentLoginTest {
         MvcResult 학원 = mockMvc.perform(post("/api/v1/admin/academies")
                         .header("Authorization", adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\": \"P3T3재직학원%s\", \"region\": \"서울\"}".formatted(loginId)))
+                        .content("{\"name\": \"P3T3재직학원%s\", \"region\": \"서울\", \"address\": \"테헤란로 152\"}".formatted(loginId)))
                 .andExpect(status().isCreated())
                 .andReturn();
         long academyId = Long.parseLong(JsonPath.read(본문(학원), "$.data.academy_id"));

@@ -8,6 +8,8 @@ import src.backend.academy.dto.AcademyRegisterRequest;
 import src.backend.academy.dto.AcademyRegisterResponse;
 import src.backend.academy.dto.AcademyUpdateRequest;
 import src.backend.academy.repository.AcademyRepository;
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
 import src.backend.student.geocoding.spec.GeocodedPoint;
 import src.backend.student.service.AddressVerification;
 
@@ -34,8 +36,8 @@ public class AcademyCommandService {
      * <p>학원명 + 지역이 겹쳐도 <b>저장을 막지 않는다</b>. 분원이 실제로 존재할 수 있어 중복을 에러로
      * 다루면 정당한 등록이 통째로 막히기 때문이며, 대신 경고를 실어 관리자가 알아채게 한다.
      *
-     * <p>{@code address} 가 있으면 좌표로 옮겨 함께 저장한다 — 옮기지 못하면 {@code 422} 로 저장을 보류한다.
-     * 좌표가 없는 학원은 회차 확정이 전부 실패한다.
+     * <p>주소를 좌표로 옮겨 함께 저장한다 — 옮기지 못하면 {@code 422} 로 저장을 보류한다.
+     * 좌표가 없는 학원은 회차 확정이 전부 실패한다. 주소 누락·공백은 요청 검증이 {@code 422} 로 막는다({@code Ruling 450}).
      */
     public AcademyRegisterResponse register(AcademyRegisterRequest request) {
         return academyStore.register(request, coordinatesOf(request.address()));
@@ -50,9 +52,15 @@ public class AcademyCommandService {
      * <p>{@code address} 가 바뀌면 좌표를 다시 구한다. <b>같은 주소를 다시 보낸 수정은 지오코딩하지 않는다</b>
      * — 관리자 화면이 폼 전체를 보내도 이름만 고친 수정이 공급자 장애·주소 표기 변화로 막히면 안 된다.
      *
+     * <p>주소를 비우거나 공백으로 보내면 {@code 422} 다({@code Ruling 450}) — 지오코딩을 부르기 전에 거른다.
+     * 주소를 보내지 않으면 주소·좌표를 그대로 둔다.
+     *
      * @return 수정된 학원의 식별자 — 응답 조립은 조회 쪽이 맡는다(§1.9 "변경 후 자원 상태를 반환")
      */
     public Long update(Long academyId, AcademyUpdateRequest request) {
+        if (request.address() != null && request.address().isBlank()) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED);
+        }
         GeocodedPoint point = addressChanged(academyId, request.address()) ? coordinatesOf(request.address()) : null;
         return academyStore.update(academyId, request, point);
     }
@@ -67,11 +75,8 @@ public class AcademyCommandService {
                 .orElse(false);
     }
 
-    /** 빈 주소는 좌표 없음({@code null}), 그 밖에는 검증을 통과한 좌표 — 못 옮기면 {@code 422}. */
+    /** 검증을 통과한 좌표 — 못 옮기면 {@code 422}. */
     private GeocodedPoint coordinatesOf(String address) {
-        if (address == null || address.isBlank()) {
-            return null;
-        }
         return addressVerification.verifySingle(address.trim());
     }
 }

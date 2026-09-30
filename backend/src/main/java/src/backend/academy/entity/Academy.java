@@ -109,12 +109,6 @@ public class Academy extends BaseTimeEntity {
         this.lng = lng;
     }
 
-    /** 주소를 비웠을 때 좌표도 함께 비운다(Ruling 374) — 옛 주소의 좌표가 남아 확정이 엉뚱한 곳을 향하는 것을 막는다. */
-    public void clearCoordinates() {
-        this.lat = null;
-        this.lng = null;
-    }
-
     /** 확정 배치가 이 학원을 기준점으로 쓸 수 있는지 — 둘 다 있을 때만 참이다(목표 5). */
     public boolean hasCoordinates() {
         return lat != null && lng != null;

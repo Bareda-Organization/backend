@@ -85,7 +85,7 @@ class AcademyDeactivationTest {
         MvcResult 학원 = mockMvc.perform(post("/api/v1/admin/academies")
                         .header("Authorization", adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\": \"%s\", \"region\": \"울산\"}".formatted(ACADEMY_NAME)))
+                        .content("{\"name\": \"%s\", \"region\": \"울산\", \"address\": \"테헤란로 152\"}".formatted(ACADEMY_NAME)))
                 .andExpect(status().isCreated())
                 .andReturn();
         academyId = Long.parseLong(JsonPath.read(본문(학원), "$.data.academy_id"));

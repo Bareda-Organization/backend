@@ -85,7 +85,7 @@ class RequestLengthValidationTest {
                 Arguments.of("강제 추가 note 201자", HttpMethod.POST, "/api/v1/staff/runs/999999/forced-add", staff,
                         "{\"student_id\":1,\"address\":\"주소\",\"note\":\"%s\"}".formatted("가".repeat(201))),
                 Arguments.of("학원 등록 memo 201자", HttpMethod.POST, "/api/v1/admin/academies", admin,
-                        "{\"name\":\"n\",\"region\":\"r\",\"memo\":\"%s\"}".formatted("가".repeat(201))),
+                        "{\"name\":\"n\",\"region\":\"r\",\"address\":\"테헤란로 152\",\"memo\":\"%s\"}".formatted("가".repeat(201))),
                 Arguments.of("학원 수정 memo 201자", HttpMethod.PATCH, "/api/v1/admin/academies/999999", admin,
                         "{\"memo\":\"%s\"}".formatted("가".repeat(201))),
                 Arguments.of("비상 신고 memo 201자", HttpMethod.POST, "/api/v1/runs/999999/emergency", escort,

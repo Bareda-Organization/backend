@@ -41,7 +41,7 @@ public class AcademyStore {
     private final AcademyCodeGenerator academyCodeGenerator;
 
     /**
-     * 학원과 기본 설정을 한 트랜잭션에 저장한다 — {@code point} 가 {@code null} 이면 좌표 없이 저장한다.
+     * 학원과 기본 설정을 한 트랜잭션에 저장한다 — 좌표는 이미 구해진 값으로 넘어온다.
      *
      * <p>설정({@link AcademySetting})을 같은 트랜잭션에서 만드는 이유는 그 팩토리 javadoc 이 "학원 등록과 같은
      * 트랜잭션" 을 전제로 두기 때문이다 — 안 만들면 첫 조회가 자가 치유 경로로 즉석 생성해야 한다.
@@ -56,17 +56,15 @@ public class AcademyStore {
         // memo 는 정적 팩토리가 받지 않는다 — 등록 시점의 식별 정보가 아니라 운영 중 붙이고 지우는
         // 내부 메모라, 생성 인자를 6개로 늘리는 대신 수정과 같은 자리를 쓴다.
         academy.update(new AcademyProfile(null, null, null, null, request.memo()));
-        if (point != null) {
-            academy.assignCoordinates(point.lat(), point.lng());
-        }
+        academy.assignCoordinates(point.lat(), point.lng());
         Academy saved = academyRepository.save(academy);
         academySettingRepository.save(AcademySetting.forAcademy(saved.getId()));
         return AcademyRegisterResponse.from(saved, warnings);
     }
 
     /**
-     * 학원 정보를 고치고 좌표를 맞춘다 — {@code address} 를 보낸 수정이면 좌표를 {@code point} 로 바꾸고
-     * ({@code null} 이면 비운다), 보내지 않은 수정이면 좌표를 건드리지 않는다.
+     * 학원 정보를 고치고 좌표를 맞춘다 — 주소가 바뀌어 새 좌표({@code point})가 넘어온 수정만 좌표를 바꾸고,
+     * 주소를 보내지 않았거나 같은 주소를 다시 보낸 수정({@code point} 가 {@code null})은 좌표를 그대로 둔다.
      *
      * @return 수정된 학원의 식별자 — 응답 조립은 조회 쪽이 맡는다(§1.9)
      */
@@ -75,21 +73,13 @@ public class AcademyStore {
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACADEMY_NOT_FOUND));
         academy.update(new AcademyProfile(requirePresent(request.name()), requirePresent(request.region()),
                 request.address(), request.contact(), request.memo()));
-        if (request.address() != null) {
-            applyCoordinates(academy, point);
+        if (point != null) {
+            academy.assignCoordinates(point.lat(), point.lng());
         }
         if (request.status() != null) {
             academy.changeStatus(parseStatus(request.status()));
         }
         return academy.getId();
-    }
-
-    private void applyCoordinates(Academy academy, GeocodedPoint point) {
-        if (point == null) {
-            academy.clearCoordinates();
-            return;
-        }
-        academy.assignCoordinates(point.lat(), point.lng());
     }
 
     /**
