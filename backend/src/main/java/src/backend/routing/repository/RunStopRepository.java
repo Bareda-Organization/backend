@@ -177,7 +177,7 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
     List<RunStop> findFirstArrivedNotDeparted(@Param("routeVersionId") Long routeVersionId, Pageable pageable);
 
     /**
-     * 도착했지만 아직 출발 처리되지 않은 정차지 <b>전부</b>(Ruling 312, IMPLEMENTATION_PLAN §8.23 T3 목표 8) — 다음
+     * 도착했지만 아직 출발 처리되지 않은 정차지 <b>전부</b>(Ruling 312, docs/archive/rounds/be-rounds-r15-r21.md §8.23 T3 목표 8) — 다음
      * 승하차지 도착 폴백(목표 7)·운행 종료 시 강제 적용(목표 8) 둘 다 "남은 전부"를 한 번에 쓸어야
      * 해서 {@link #findFirstArrivedNotDeparted} 의 limit 1 로는 못 쓴다. 조건은 그 메서드와 같다.
      */

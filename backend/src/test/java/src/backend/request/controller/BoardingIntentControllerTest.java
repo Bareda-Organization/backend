@@ -749,7 +749,7 @@ class BoardingIntentControllerTest {
                 Integer.class, staffAccountId, "approval_requested:" + approvalRunId + ":%")).isEqualTo(1);
 
         // R13 — intent_changed·approval_requested 둘 다 studentId 를 들고 있는 단일 학생
-        // 이벤트라 관계자 수신이어도 student_id 가 채워진다(§8.16 목표 3).
+        // 이벤트라 관계자 수신이어도 student_id 가 채워진다(docs/archive/rounds/be-rounds-r5-r14.md §8.16 목표 3).
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT student_id FROM notification_log WHERE recipient_account_id = ? AND type = 'intent_changed' "
                         + "AND dedup_key LIKE ?",

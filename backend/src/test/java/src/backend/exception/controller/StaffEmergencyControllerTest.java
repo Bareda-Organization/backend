@@ -115,7 +115,7 @@ class StaffEmergencyControllerTest {
         assertThat(알림_행수(emergencyId, staffAccountId, "staff")).as("학원 관계자는 목표 6 에 따라 항상 받아야 한다")
                 .isEqualTo(1);
 
-        // R13 — emergency 는 studentId 대신 busNo 를 채운다(§8.16 목표 4). 실제 신고 차량의 bus_no 와
+        // R13 — emergency 는 studentId 대신 busNo 를 채운다(docs/archive/rounds/be-rounds-r5-r14.md §8.16 목표 4). 실제 신고 차량의 bus_no 와
         // 일치해야 한다.
         String expectedBusNo = jdbcTemplate.queryForObject("SELECT bus_no FROM bus WHERE id = ?", String.class,
                 busId);

@@ -153,7 +153,7 @@ class ProximityNotificationServiceTest {
         assertThat(rows.get(0).get("type")).isEqualTo("arrive");
         assertThat(proximityNotifiedAt(runStopId)).isNotNull();
 
-        // R13 — arrive 는 studentId 를 들고 있는 단일 학생 이벤트다(§8.16 목표 3).
+        // R13 — arrive 는 studentId 를 들고 있는 단일 학생 이벤트다(docs/archive/rounds/be-rounds-r5-r14.md §8.16 목표 3).
         assertThat(rows.get(0).get("student_id")).as("student_id 가 채워진다").isEqualTo(studentId);
         assertThat(rows.get(0).get("student_name")).as("student_name 이 채워진다").isEqualTo("근접학생1");
     }
@@ -326,7 +326,7 @@ class ProximityNotificationServiceTest {
         assertThat(departedAt(runStopId)).as("③재판정해도 최초 기록값 그대로여야 한다").isEqualTo(firstDepartedAt);
     }
 
-    // ── §8.23 T3 목표 2(Ruling 308) — claimDeparture 가 1행을 갱신한 직후에만 알림이 적재된다 ──
+    // ── docs/archive/rounds/be-rounds-r15-r21.md §8.23 T3 목표 2(Ruling 308) — claimDeparture 가 1행을 갱신한 직후에만 알림이 적재된다 ──
 
     @Test
     void 출발_판정이_claimDeparture_에_성공하면_그_승하차지의_확정_결과가_통지된다() {

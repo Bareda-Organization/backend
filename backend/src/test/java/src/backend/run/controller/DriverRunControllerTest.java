@@ -301,7 +301,7 @@ class DriverRunControllerTest {
         assertThat(알림_행수(runId, "run_started", "student")).as("계정 연결된 학생 1명").isEqualTo(1);
 
         // R13 — 학부모·학생 갈래는 studentId·studentName 을 채우고, 관계자 갈래는 회차 전체(다수 학생)를
-        // 가리키므로 null 로 남는다(§8.16 목표 3·5).
+        // 가리키므로 null 로 남는다(docs/archive/rounds/be-rounds-r5-r14.md §8.16 목표 3·5).
         Long parentLegStudentId = jdbcTemplate.queryForObject(
                 "SELECT student_id FROM notification_log WHERE type = 'run_started' AND recipient_role = 'parent' "
                         + "AND dedup_key LIKE ?",
@@ -484,7 +484,7 @@ class DriverRunControllerTest {
         assertThat(라이더_상태(runId, student2)).isEqualTo("alighted");
         assertThat(알림_행수(runId, "alighting", "parent")).as("자동 하차 인원 수와 정확히 같아야 한다").isEqualTo(2);
 
-        // R13 — 자동 하차 alighting 도 studentId·studentName 을 채운다(§8.16 목표 3).
+        // R13 — 자동 하차 alighting 도 studentId·studentName 을 채운다(docs/archive/rounds/be-rounds-r5-r14.md §8.16 목표 3).
         List<Long> alightedStudentIds = jdbcTemplate.queryForList(
                 "SELECT student_id FROM notification_log WHERE type = 'alighting' AND recipient_role = 'parent' "
                         + "AND dedup_key LIKE ?",
@@ -624,7 +624,7 @@ class DriverRunControllerTest {
                 .singleElement().extracting(RunEndedEvent::autoAlightedCount).isEqualTo(0L);
     }
 
-    // ── §8.23 T3 목표 7(Ruling 308) — 다음 승하차지 도착이 이전 정차지의 출발을 강제한다 ──────
+    // ── docs/archive/rounds/be-rounds-r15-r21.md §8.23 T3 목표 7(Ruling 308) — 다음 승하차지 도착이 이전 정차지의 출발을 강제한다 ──────
 
     @Test
     @DisplayName("목표7(Ruling 308) — 위치 신호로 출발 판정이 안 된 이전 정차지도 다음 도착 처리가 강제로 출발시킨다")
@@ -662,7 +662,7 @@ class DriverRunControllerTest {
         assertThat(출발_통지_행수(runId, "boarding", "parent")).as("③출발 확정으로 승차 알림 1건").isEqualTo(1);
     }
 
-    // ── §8.23 T3 목표 8(Ruling 312) — 마지막 승하차지는 운행 종료가 출발로 갈음한다 ───────────
+    // ── docs/archive/rounds/be-rounds-r15-r21.md §8.23 T3 목표 8(Ruling 312) — 마지막 승하차지는 운행 종료가 출발로 갈음한다 ───────────
 
     @Test
     @DisplayName("목표8(Ruling 312) — 다음 정차지가 없는 마지막 승하차지도 운행 종료 시 강제로 출발 처리된다")

@@ -276,7 +276,7 @@ class StaffDashboardControllerTest {
     /**
      * R21-B2 목표 1 — {@code est_duration_min} 이 있으면 {@code depart_time} 에 그 분(分)을 더한
      * 값이 {@code est_arrival_time} 으로 나온다. R20-A 가 시드의 {@code est_duration_min} 을 실
-     * NCP 응답으로 채워(§8.33) 이 값이 이제 실측치라는 전제를 그대로 시험한다.
+     * NCP 응답으로 채워(docs/archive/rounds/be-rounds-r15-r21.md §8.33) 이 값이 이제 실측치라는 전제를 그대로 시험한다.
      */
     @Test
     @DisplayName("R21-B2 목표1 — est_arrival_time 은 depart_time + est_duration_min 이다")

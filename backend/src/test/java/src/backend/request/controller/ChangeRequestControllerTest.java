@@ -245,7 +245,7 @@ class ChangeRequestControllerTest {
                 Integer.class, academyId, "approval_requested:" + runId + ":%");
         assertThat(notified).as("관계자에게 승인 요청 알림이 적재돼야 한다").isEqualTo(1);
 
-        // R13 — ApprovalRequestedEvent 는 studentId 를 들고 있는 단일 학생 이벤트다(§8.16 목표 3).
+        // R13 — ApprovalRequestedEvent 는 studentId 를 들고 있는 단일 학생 이벤트다(docs/archive/rounds/be-rounds-r5-r14.md §8.16 목표 3).
         Long notifiedStudentId = jdbcTemplate.queryForObject(
                 "SELECT student_id FROM notification_log WHERE academy_id = ? AND type = 'approval_requested' "
                         + "AND dedup_key LIKE ?",

@@ -163,7 +163,7 @@ class ChangeRequestAutoRejectionServiceTest {
                 Integer.class, parentId);
         assertThat(notificationCount).isEqualTo(1);
 
-        // R13 — 자동 거절 경로의 change_decided 도 studentId 를 채운다(§8.16 목표 3).
+        // R13 — 자동 거절 경로의 change_decided 도 studentId 를 채운다(docs/archive/rounds/be-rounds-r5-r14.md §8.16 목표 3).
         Long notifiedStudentId = jdbcTemplate.queryForObject(
                 "SELECT student_id FROM notification_log WHERE recipient_account_id = ? AND type = 'change_decided'",
                 Long.class, parentId);

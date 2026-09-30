@@ -16,7 +16,7 @@ import java.time.OffsetDateTime;
  * {@code rider_changed} 방송 재료로 이 이벤트를 그대로 재사용한다(그쪽은 이 필드를 읽지 않는다 —
  * 방송 계약은 바뀌지 않는다). 학부모 승하차 알림({@code BoardingNotificationListener})은 더 이상
  * 이 이벤트를 구독하지 않는다 — 출발 시점의 확정 결과만 통지하도록 옮겨 갔다(Ruling 308,
- * IMPLEMENTATION_PLAN §8.23 T3). 이 필드는 그 이관 전 되돌리기 기원 이벤트를 걸러내던 흔적으로 남아 있다.
+ * docs/archive/rounds/be-rounds-r15-r21.md §8.23 T3). 이 필드는 그 이관 전 되돌리기 기원 이벤트를 걸러내던 흔적으로 남아 있다.
  */
 public record RiderStatusChangedEvent(Long runId, Long academyId, Long studentId, Long runRiderId,
         String status, OffsetDateTime changedAt, boolean reverted) {

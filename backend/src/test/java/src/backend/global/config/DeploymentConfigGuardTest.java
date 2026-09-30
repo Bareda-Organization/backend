@@ -42,7 +42,7 @@ class DeploymentConfigGuardTest {
     @Test
     @DisplayName("옛 도메인 설정 블록(app.location·app.sos·app.connection·app.drivesession)이 부재한다")
     void legacyDomainConfigBlocksAreAbsent() {
-        // 새 사양(바래다 재구축)에 대응물이 없는 옛 도메인 이름이라 폐기됐다(IMPLEMENTATION_PLAN §1.2).
+        // 새 사양(바래다 재구축)에 대응물이 없는 옛 도메인 이름이라 폐기됐다(docs/archive/rounds/be-phases-0-14.md §1.2).
         // "locations:"(Flyway) 처럼 부분 문자열로 오탐하지 않도록 들여쓰기까지 포함한 키를 본다.
         assertThat(applicationYml)
                 .as("옛 도메인 설정 블록은 공통·prod·demo 어느 섹션에도 없어야 한다")
@@ -72,7 +72,7 @@ class DeploymentConfigGuardTest {
     @DisplayName("demo 프로파일 설명 주석이 삭제된 Mock 위치 소스 설정을 더 이상 언급하지 않는다")
     void demoCommentDoesNotReferenceRemovedMockConfig() {
         // 설정을 지우면서 그 근거를 설명하던 주석을 남겨두면, 없는 설정을 설명하는
-        // 거짓 주석이 된다(IMPLEMENTATION_PLAN §1.2 · Task 브리프 §2 주의사항).
+        // 거짓 주석이 된다(docs/archive/rounds/be-phases-0-14.md §1.2 · Task 브리프 §2 주의사항).
         String demoSection = sectionOf("on-profile: demo");
         assertThat(demoSection)
                 .as("demo 섹션은 더 이상 Mock 위치 소스 활성 근거를 설명하지 않아야 한다")
