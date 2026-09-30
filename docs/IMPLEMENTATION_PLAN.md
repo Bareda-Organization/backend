@@ -6032,20 +6032,6 @@ R46 개선 11항목 중 백엔드 몫이다. 조사 원문은 `.claude/survey-20
 
 **결과 (2026-10-01)** — 목표 1~5 ✅ 시험 신설(`RunPositionRepositoryLatestTest` · `RedisReadOutsideTransactionTest` · `StudentRunsSqlCountTest` · `NotificationDispatch*PoolSizeTest` 2 · `PositionSubscriberFilterTest` · `DeploymentConfigGuardTest` 확장) 각각 RED→GREEN 과 결함 심기 9종으로 그 시험만 실패 확인. 목표 3 은 **재현 안 됨** — 학생 회차 목록은 이미 회차 수와 무관(SQL 21 → 21), 회귀 방지 시험만 추가. 목표 6 `A #10` 서버 무변경(사양이 주소 선택 — 사용자 결정 대기) · `A #16` `Ruling 410` · `A #17` `Ruling 411` · `E #11` 완료. 목표 7 백엔드 전체 `--rerun` **340클래스 1,892건** · 실패 1(`ControllerAuthorizationConventionTest` — 인가 검사 핸들러 수 하한이 API 3종 삭제를 못 따라감, 하한 111 로 정정 뒤 그 클래스 재실행 통과) · 건너뜀 0. 목표 8 깨진 참조 0 → 0. `D #5` 는 미착수(다음 차례).
 
-<<<<<<< HEAD
-## 8.75 ⚖ `R46-INFRA` — CI · 라이브 시험 분리 · 공급망 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 440~444 · 인프라 갈래 · 조율자 등재)
-
-R46 개선 11항목 중 9번(CI)·10번(`.gitignore`) 몫. 조사 원문 `.claude/survey-2026-09-30/E-개발인프라-부채.md` #1·#4·#5·#20·#26 · `C-운영-배포-관측.md` #2·#24. 갈래 보고서 `.claude/r46/report-infra.md`(무시 파일).
-
-| Ruling | 판정 | 근거 |
-|:-:|---|---|
-| **440** | 실 네이버 API 시험 3클래스(`NaverDirectionsClientLiveTest` · `RunConfirmationServiceLiveTest` · `NaverGeocodingClientLiveTest`)는 `@Tag("live")` 로 기본 `test` 에서 제외하고 `liveTest` 태스크로 분리. 기본 `test` 는 네이버 자격증명·`NAVER_DIRECTIONS_*` 를 시험 JVM 환경에서 제거. `-PrequireLive` 는 `test` 가 라이브를 포함하는 의미로 유지 | 기본 전체 시험이 Directions 15 일일 한도(`Ruling 361`) 고갈로 늘 실패 5건이라 진짜 회귀가 섞여도 관측 불가 |
-| **441** | 라이브 시험은 Directions 응답이 **400 + "사용량이 한도를 초과" 문구**일 때만 건너뜀(시험 시작 전 1회 호출로 판정 · `testsupport.live.DirectionsQuota`). 그 밖의 오류는 실패 | 어댑터가 공급자 오류를 직선거리 근사로 삼켜 시험이 사유를 못 봄 · 모든 400 을 건너뛰면 어댑터 결함이 초록으로 숨음 |
-| **442** | CI(`.github/workflows/ci.yml`)는 PR·main push 에서 백엔드·웹·Flutter 를 검증만 함(배포·비밀값 무관 · 실서버 계약 시험 제외). 공개 저장소라 로그에 애플리케이션 로그를 남기지 않음(`-PciQuiet` · 배포 실패 로그는 요약만). 로컬 같은 검사는 `scripts/verify.sh` | 저장소 공개 상태(2026-09-30 push) |
-| **443** | Docker 이미지 태그는 부 버전까지 고정, `docker-compose.prod.yml` 의 `IMAGE_TAG` 는 필수 변수 | `latest`·주 버전 태그는 재배포 때 예고 없이 바뀜(조사 C #24) |
-
-**결과 (2026-10-01)** — 백엔드 기본 전체 332클래스 1,893건 실패 0·건너뜀 0(네이버 키가 있는 상태) · `liveTest` 7건 통과(한도 초과 가짜 응답이면 5건 건너뜀 · 다른 400 이면 5건 실패) · 웹 662 · Flutter core 69 · ui 228 · manager 315 · parent 251(`--exclude-tags real_backend`) · `actionlint` 0. **실제 GitHub 실행은 미수행** — 첫 실행에서 러너 Docker·Testcontainers·시간 한도(40분)·`-PciQuiet` 확인. `Ruling 444` 미사용.
-=======
 ## 8.74 ⚖ `R46-AUDIT` — 감사 기록 묶기 · 보존 2년 · 조회 IP · 감사 화면 (2026-10-01 · 분기점 `3bfc4f93` · 번호대 445~449 · 감사 갈래)
 
 R46 개선 11항목 중 사용자 지시 2번·8번의 감사 몫이다. 조사 원문은 `.claude/survey-2026-09-30/D-성능-확장성.md` #2·#3 과 `B1-관계자웹-실사용.md` #16. `Ruling 333`(L3 감사는 조회·수정·삭제, 목록은 실린 학생마다 1행)의 목적은 그대로 두고 아래 3가지를 더한다.
@@ -6079,4 +6065,15 @@ R46 개선 11항목 중 사용자 지시 2번·8번의 감사 몫이다. 조사 
 
 **결과 (2026-10-01)** — 목표 1~7 ✅. 시험 신설 `AuditRecorderDedupTest` 4 · `AuditReadRequestIntegrationTest` 4 · 보존(`RetentionPolicyTest` 1 · `RetentionCleanupSchedulerTest` 1 교체 · `AuditLogSearchPlanTest` 1) · `AuditQueryControllerTest` 3 · 웹 `AuditLogPage.test` 4 · `auditLog.test` 2 · 실서버 계약 1. 결함 심기 13종으로 각각 해당 시험이 실패함을 확인. 기존 시험 조정 — `StudentDetailAuditIntegrationTest`(등록이 이미 첫 조회 행을 남기므로 GET 행 대신 "묶여 안 늘어남" 으로) · `StudentL3ChangeAuditIntegrationTest` 목록 시험(자기만의 행위자) · `AdminListPaging.test`(필터를 동작으로). 목표 8 **85클래스 575건 실패 0 · 건너뜀 0**. 웹 단위 시험 668건 통과(실서버 계약 2파일은 대상 주소가 필요해 별도: `realBackend.test.ts` 17건 자기 서버 :8340 에서 통과). 목표 9 깨진 참조 0 → 0.
 
->>>>>>> mskim98/r46-audit
+## 8.75 ⚖ `R46-INFRA` — CI · 라이브 시험 분리 · 공급망 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 440~444 · 인프라 갈래 · 조율자 등재)
+
+R46 개선 11항목 중 9번(CI)·10번(`.gitignore`) 몫. 조사 원문 `.claude/survey-2026-09-30/E-개발인프라-부채.md` #1·#4·#5·#20·#26 · `C-운영-배포-관측.md` #2·#24. 갈래 보고서 `.claude/r46/report-infra.md`(무시 파일).
+
+| Ruling | 판정 | 근거 |
+|:-:|---|---|
+| **440** | 실 네이버 API 시험 3클래스(`NaverDirectionsClientLiveTest` · `RunConfirmationServiceLiveTest` · `NaverGeocodingClientLiveTest`)는 `@Tag("live")` 로 기본 `test` 에서 제외하고 `liveTest` 태스크로 분리. 기본 `test` 는 네이버 자격증명·`NAVER_DIRECTIONS_*` 를 시험 JVM 환경에서 제거. `-PrequireLive` 는 `test` 가 라이브를 포함하는 의미로 유지 | 기본 전체 시험이 Directions 15 일일 한도(`Ruling 361`) 고갈로 늘 실패 5건이라 진짜 회귀가 섞여도 관측 불가 |
+| **441** | 라이브 시험은 Directions 응답이 **400 + "사용량이 한도를 초과" 문구**일 때만 건너뜀(시험 시작 전 1회 호출로 판정 · `testsupport.live.DirectionsQuota`). 그 밖의 오류는 실패 | 어댑터가 공급자 오류를 직선거리 근사로 삼켜 시험이 사유를 못 봄 · 모든 400 을 건너뛰면 어댑터 결함이 초록으로 숨음 |
+| **442** | CI(`.github/workflows/ci.yml`)는 PR·main push 에서 백엔드·웹·Flutter 를 검증만 함(배포·비밀값 무관 · 실서버 계약 시험 제외). 공개 저장소라 로그에 애플리케이션 로그를 남기지 않음(`-PciQuiet` · 배포 실패 로그는 요약만). 로컬 같은 검사는 `scripts/verify.sh` | 저장소 공개 상태(2026-09-30 push) |
+| **443** | Docker 이미지 태그는 부 버전까지 고정, `docker-compose.prod.yml` 의 `IMAGE_TAG` 는 필수 변수 | `latest`·주 버전 태그는 재배포 때 예고 없이 바뀜(조사 C #24) |
+
+**결과 (2026-10-01)** — 백엔드 기본 전체 332클래스 1,893건 실패 0·건너뜀 0(네이버 키가 있는 상태) · `liveTest` 7건 통과(한도 초과 가짜 응답이면 5건 건너뜀 · 다른 400 이면 5건 실패) · 웹 662 · Flutter core 69 · ui 228 · manager 315 · parent 251(`--exclude-tags real_backend`) · `actionlint` 0. **실제 GitHub 실행은 미수행** — 첫 실행에서 러너 Docker·Testcontainers·시간 한도(40분)·`-PciQuiet` 확인. `Ruling 444` 미사용.
