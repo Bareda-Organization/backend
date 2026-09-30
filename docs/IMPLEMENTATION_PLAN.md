@@ -5824,7 +5824,7 @@ C 는 A 가 고칠 파일을 **읽기만** 하고 고치지 않는다. **`docs/I
 **2026-09-30 부터 백엔드·프론트 메인 세션 분리 운영** — 백엔드 세션 Ruling 370~379(이 §8) · 프론트 세션 Ruling 380~389(`docs/frontend/IMPLEMENTATION_PLAN.md` 에 기록). 인수인계 `.claude/HANDOFF-BE.md` · `.claude/HANDOFF-FE.md`(git 추적 밖).
 
 
-## 8.65 ⚖ `R36-BE` 목표 표 — 이동 대기 취소 · 예정 명단 표시 · 미리보기 캐시 정리 · 연결 거절 확인 (2026-09-30 계획 · 분기점 `ed60f5d8` · 백엔드 세션)
+## 8.65 ⚖ `R36-BE` 목표 표 — 이동 대기 취소 · 예정 명단 표시 · 미리보기 캐시 정리 · 연결 거절 확인 (2026-09-30 **완료** · 분기점 `ed60f5d8` · 백엔드 세션)
 
 **근거** — `Ruling 369`(§8.64) · R35 B 보고 · R32 W 보고 5 · `WaypointPreviewCache` 의 `ponytail:` 주석. 백엔드 하위 조율 창이 `be-main` 에 병합하고 main 병합은 main 세션에 요청한다.
 
@@ -5867,3 +5867,6 @@ BE1 구현이 취소 판정에 등록과 같은 잠금(`StagingRunGuard.lockIdle
 | 11 | 전체 | 병합 뒤 백엔드 전체 시험 — 실패는 `Ruling 361` 라이브 2클래스(5건)뿐 · 그 2클래스는 `NAVER_DIRECTIONS_PATH=/map-direction/v1/driving NAVER_DIRECTIONS_MAX_POINTS=7` 로 따로 통과 · 건너뜀 수 기록 | 결과 XML 직접 집계 |
 
 **자원** — 작업 창 워크트리 `be-*` · 시험 DB `be_*` · 포트 `8190~8199` · `schoolbus` 와 `:8080`·`:3000` 보존.
+
+**결과(2026-09-30 완료)** — 병합 `be-main` `9d0ab62e`(transfer: `057955ea`·`598a4984`·`40a4bab4`·`aa3818ae`·`11d1cd2e`) · `789fd1a6`(small: `9067eec8`·`f3c8cab7`·`f6086321`). 목표 1~10·10a 전부 통과 — 작업 창 보고의 결과 XML 집계와 심은 변형(transfer 12종 · small 6종) 기준. 11행: 백엔드 전체 `./gradlew test --rerun` 304클래스 · **1,724건 · 실패 5 · 오류 0 · 건너뜀 0** — 실패 5건은 `Ruling 361` 라이브 2클래스(`NaverDirectionsClientLiveTest` 4 · `RunConfirmationServiceLiveTest` 1)뿐이고, 그 2클래스를 `NAVER_DIRECTIONS_PATH=/map-direction/v1/driving NAVER_DIRECTIONS_MAX_POINTS=7` 로 따로 돌려 5건 통과.
+- 설계 판단 기록 — ①취소 판정은 조건부 DELETE 한 문장이 아니라 **두 회차 행 잠금(id 순) → 잠근 인스턴스로 판정 → 조건부 삭제**: 한 문장 DELETE 는 확정의 미커밋 `idle → confirmed` 를 보지 못함 ②확정 저장 가드(BR-044)를 행 수에서 **강제 추가·이동 행 id 집합** 비교로 교체 ③회차 임시 취소는 `RunCancellation` 한 지점(관계자 · 스케줄 두 경로)이 들어오는 `staged` 이동을 지움 ④BE3 정리는 `WaypointPreviewCache.put` 이 `Clock` 의 오늘보다 앞선 운행일 항목을 지움 — 처음에 일일 회차 배치에 얹었다가 `schedule → routing` 역방향 의존(§3.3 위반)이라 routing 안으로 옮김
