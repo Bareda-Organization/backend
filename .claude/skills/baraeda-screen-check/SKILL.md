@@ -80,7 +80,7 @@ playwright-cli eval "[...document.querySelectorAll('[data-marker-id]')].filter(e
 playwright-cli eval "[...document.querySelectorAll('div,span')].filter(e=>e.children.length===0&&/^\\d+\\s*(m|km)$/.test(e.textContent.trim())).pop().textContent"
 ```
 
-## ⚠ 이 저장소에서 실제로 걸린 함정 4가지
+## ⚠ 이 저장소에서 실제로 걸린 함정 5가지
 
 각각 한 회차씩 버렸다. 그대로 따라 하면 다시 걸린다.
 
@@ -97,6 +97,10 @@ playwright-cli eval "[...document.querySelectorAll('div,span')].filter(e=>e.chil
 
 **④ 색은 `style` 속성 문자열로 못 읽는다** — 브라우저가 정규화한다.
 반드시 `getComputedStyle(el).backgroundColor` 로 읽는다.
+
+**⑤ ⚠ iOS 시뮬레이터를 화면 좌표로 누르지 마라(osascript · `cliclick` · Computer Use 좌표 클릭) — 사용자 창이 눌린다.**
+2026-09-30 하루에 **두 번**(조사 창 B2 · 작업 창 R44) 좌표 클릭이 시뮬레이터가 아니라 **사용자가 전체 화면으로 보던 Arc 브라우저 영상**에 들어갔다. Simulator 창이 다른 스페이스·화면에 있으면 앞으로 오지 않고, 좌표는 그 자리에 있는 남의 창을 누른다. **되돌릴 수 없고 사용자 작업을 건드린다.**
+→ 앱 화면은 **조작 없이 띄우기**로만 찍는다: 보고 싶은 화면으로 곧장 가는 임시 `--dart-define`(시작 경로·계정)이나 딥링크(`xcrun simctl openurl <UDID> <앱 스킴>://…`)로 열고 `xcrun simctl io <UDID> screenshot <경로>`. 탭·끌기 같은 **조작의 검증은 위젯 시험**으로 한다. 좌표 클릭이 꼭 필요하면 먼저 사용자에게 묻는다.
 
 ## 판정할 때 남길 것
 
