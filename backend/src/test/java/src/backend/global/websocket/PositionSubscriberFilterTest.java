@@ -55,8 +55,8 @@ class PositionSubscriberFilterTest {
     private SimpMessagingTemplate messagingTemplate;
 
     @Test
-    @DisplayName("구독자가 있는 채널의 위치는 받고, 구독자 없는 채널은 직렬화·전송 자체를 하지 않는다")
-    void 구독자_있는_채널은_받고_없는_채널은_보내지_않는다() throws Exception {
+    @DisplayName("구독자가 있는 채널의 위치 방송은 반드시 도착한다")
+    void 구독자_있는_채널은_위치를_받는다() throws Exception {
         BlockingQueue<String> received = new LinkedBlockingQueue<>();
         WebSocketSession session = new StandardWebSocketClient()
                 .execute(new FrameCollector(received), null, URI.create("ws://localhost:" + port + "/ws/location"))
@@ -71,16 +71,22 @@ class PositionSubscriberFilterTest {
 
             String frame = null;
             for (int attempt = 0; attempt < 25 && frame == null; attempt++) {
-                gateway.send(NOT_SUBSCRIBED, "position", 7L, OffsetDateTime.now(), new Object());
                 gateway.send(SUBSCRIBED, "position", 7L, OffsetDateTime.now(), new Object());
                 frame = received.poll(200, TimeUnit.MILLISECONDS);
             }
 
-            assertThat(frame).as("구독한 채널의 위치 방송이 도착해야 한다").startsWith("MESSAGE");
-            verify(messagingTemplate, never()).convertAndSend(eq(NOT_SUBSCRIBED), any(Object.class));
+            assertThat(frame).as("구독한 채널의 위치 방송이 도착해야 한다 — 빠지면 학부모 지도가 멈춘다").startsWith("MESSAGE");
         } finally {
             session.close();
         }
+    }
+
+    @Test
+    @DisplayName("구독자 없는 채널의 위치 방송은 직렬화·전송 자체를 하지 않는다")
+    void 구독자_없는_채널은_위치를_보내지_않는다() {
+        gateway.send(NOT_SUBSCRIBED, "position", 7L, OffsetDateTime.now(), new Object());
+
+        verify(messagingTemplate, never()).convertAndSend(eq(NOT_SUBSCRIBED), any(Object.class));
     }
 
     private record FrameCollector(BlockingQueue<String> received) implements WebSocketHandler {
