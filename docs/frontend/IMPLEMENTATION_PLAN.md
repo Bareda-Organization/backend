@@ -2722,6 +2722,11 @@ Run `run_d7daf69b57f8` · 4갈래 병합 B `7f781ccc` · W `827250d1` · P `065e
 ### 5.15.4 진행
 
 - (착수) 목표 표 고정
+- **A** `2262e6f0` — `borderControl` 라이트 `#828C88`(흰 카드 3.47 · 페이지 바탕 3.17) · 다크 `#6F7A76`(카드 3.77 · 페이지 바탕 4.18 · 떠 있는 면 3.35). 새 시험 위젯 14 + 대비 8 — 입력칸 테두리를 `borderDefault` 로 되돌리면 입력칸 시험 2건만 실패 · 라이트 값을 `stone300` 으로 되돌리면 대비 시험 3건만 실패
+- **B** `dd3a158b` — `sm` 보이는 크기 36 · 누르는 영역 48×48. 시험 7건 — 영역 넓히기를 끄면 2건 · `HitTestBehavior.opaque` 를 `deferToChild` 로 바꾸면 1건만 실패
+- **C** 공용판 결함 3종 `f13ccf5f`(시험 7건 RED → 통과 · 변형 5종이 각자 해당 시험만 실패) · 삭제 3종 `3afe13bf`(삭제 전 `grep -rlw` 앱·패키지 lib 0건) · 앱 이관 `63d67f61`(`AlertDialog` 4 · `IconButton` 1 · `showModalBottomSheet` 1 · `SegmentedButton` 2) · 화면에서 발견한 버튼 줄 결함 `f52b4cf8`
+- 손댄 패키지 — `baraeda_ui` **148** · 매니저 앱 **313** · 학부모 앱 **220**(`--exclude-tags real_backend`, `hidden:false` 만 센 값) 전부 실패 0 · 건너뜀 0 · `flutter analyze` 0
+- 화면 ✅ — iOS 시뮬레이터 전·후 14장 `frontend/report/r41/ui-*.png`
 
 ## 6. 완료 조건 — 화면 단위
 
