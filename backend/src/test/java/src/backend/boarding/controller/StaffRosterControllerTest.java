@@ -31,6 +31,11 @@ import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.security.JwtTokenProvider;
+import src.backend.request.domain.ChangeWindow;
+import src.backend.request.entity.BoardingIntent;
+import src.backend.request.repository.BoardingIntentRepository;
+import src.backend.run.entity.RunTransfer;
+import src.backend.run.repository.RunTransferRepository;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
 import src.backend.routing.repository.RouteRepository;
@@ -111,6 +116,12 @@ class StaffRosterControllerTest {
     @Autowired
     private RunRiderRepository runRiderRepository;
 
+    @Autowired
+    private BoardingIntentRepository boardingIntentRepository;
+
+    @Autowired
+    private RunTransferRepository runTransferRepository;
+
     private Phase9RosterFixtures fixtures() {
         RunConfirmationFixtures base = new RunConfirmationFixtures(academyRepository, busRepository, routeRepository,
                 routeStopRepository, stopRepository, studentRepository, weeklyAddressRepository, runRepository);
@@ -184,6 +195,121 @@ class StaffRosterControllerTest {
         mockMvc.perform(get("/api/v1/staff/runs/" + runId + "/roster").header("Authorization",
                 토큰(staffAccountId, academyId)))
                 .andExpect(status().isOk());
+    }
+
+    /** 확정 전(idle) 회차는 요일별 주소 기준 예정 명단이다 — {@code status=waiting} · {@code change} 부재(§5.4). */
+    @Test
+    void 확정_전_회차는_예정_명단을_준다() throws Exception {
+        Phase9RosterFixtures fx = fixtures();
+        long academyId = fx.academyWithCoordinates();
+        long busId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.500000", "127.000000");
+        fx.route(academyId, busId, Weekday.THU, Direction.TO_ACADEMY, stopId);
+        long studentId = fx.student(academyId, "예정학생");
+        fx.verifiedAddress(studentId, stopId, Weekday.THU, Direction.TO_ACADEMY, "37.500000", "127.000000");
+        fx.guardianWithPhone(academyId, studentId, "010-2345-8814");
+        long runId = 확정_전_회차(fx, academyId, busId);
+        long staffAccountId = 관계자_계정을_만든다(academyId);
+
+        String body = 명단을_읽는다(runId, staffAccountId, academyId);
+
+        assertThat((List<?>) JsonPath.read(body, "$.data")).hasSize(1);
+        assertThat((String) JsonPath.read(body, "$.data[0].student_id")).isEqualTo(String.valueOf(studentId));
+        assertThat((String) JsonPath.read(body, "$.data[0].status")).isEqualTo("waiting");
+        assertThat((Object) JsonPath.read(body, "$.data[0].change")).isNull();
+        assertThat((String) JsonPath.read(body, "$.data[0].guardian_phone")).isEqualTo("010-2345-8814");
+    }
+
+    /** 탑승 OFF(riding=false) 학생은 예정 명단에 넣지 않는다. */
+    @Test
+    void 확정_전_예정_명단에서_탑승_OFF_학생은_빠진다() throws Exception {
+        Phase9RosterFixtures fx = fixtures();
+        long academyId = fx.academyWithCoordinates();
+        long busId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.500000", "127.000000");
+        fx.route(academyId, busId, Weekday.THU, Direction.TO_ACADEMY, stopId);
+        long ridingId = fx.student(academyId, "탑승학생");
+        long offId = fx.student(academyId, "탑승OFF학생");
+        fx.verifiedAddress(ridingId, stopId, Weekday.THU, Direction.TO_ACADEMY, "37.500000", "127.000000");
+        fx.verifiedAddress(offId, stopId, Weekday.THU, Direction.TO_ACADEMY, "37.500000", "127.000000");
+        long runId = 확정_전_회차(fx, academyId, busId);
+        BoardingIntent intent = BoardingIntent.forRun(runId, offId, OffsetDateTime.now());
+        intent.applyRiding(false, ChangeWindow.IMMEDIATE, OffsetDateTime.now(), null);
+        boardingIntentRepository.save(intent);
+        long staffAccountId = 관계자_계정을_만든다(academyId);
+
+        String body = 명단을_읽는다(runId, staffAccountId, academyId);
+
+        List<String> studentIds = JsonPath.read(body, "$.data[*].student_id");
+        assertThat(studentIds).containsExactly(String.valueOf(ridingId));
+    }
+
+    /**
+     * 이동 대기(staged)는 출발 회차에서 빼고 도착 회차에 넣는다 — 확정 배치와 §5.8 판정이 쓰는 계산 그대로다.
+     * 방금 옮긴 학생이 출발 명단에 그대로 보이면 관계자가 다시 옮기려다 TRANSFER_ALREADY_STAGED 를 받는다.
+     */
+    @Test
+    void 확정_전_예정_명단은_이동_대기를_출발에서_빼고_도착에_넣는다() throws Exception {
+        Phase9RosterFixtures fx = fixtures();
+        long academyId = fx.academyWithCoordinates();
+        long fromBusId = fx.bus(academyId);
+        long toBusId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.500000", "127.000000");
+        long toStopId = fx.stop(academyId, "37.510000", "127.010000");
+        fx.route(academyId, fromBusId, Weekday.THU, Direction.TO_ACADEMY, stopId);
+        long studentId = fx.student(academyId, "이동학생");
+        fx.verifiedAddress(studentId, stopId, Weekday.THU, Direction.TO_ACADEMY, "37.500000", "127.000000");
+        long fromRunId = 확정_전_회차(fx, academyId, fromBusId);
+        long toRunId = 확정_전_회차(fx, academyId, toBusId);
+        runTransferRepository.save(RunTransfer.stage(studentId, fromRunId, toRunId, toStopId, null, 1L,
+                OffsetDateTime.now()));
+        long staffAccountId = 관계자_계정을_만든다(academyId);
+
+        String fromBody = 명단을_읽는다(fromRunId, staffAccountId, academyId);
+        String toBody = 명단을_읽는다(toRunId, staffAccountId, academyId);
+
+        assertThat((List<?>) JsonPath.read(fromBody, "$.data")).isEmpty();
+        assertThat((List<?>) JsonPath.read(toBody, "$.data")).hasSize(1);
+        assertThat((String) JsonPath.read(toBody, "$.data[0].student_id")).isEqualTo(String.valueOf(studentId));
+        assertThat((String) JsonPath.read(toBody, "$.data[0].status")).isEqualTo("waiting");
+    }
+
+    /** 확정 뒤에는 run_rider 만 읽는다 — 확정 뒤 요일별 주소가 바뀌어도 응답이 그대로다. */
+    @Test
+    void 확정_뒤_회차는_요일별_주소가_바뀌어도_run_rider_그대로다() throws Exception {
+        Phase9RosterFixtures fx = fixtures();
+        long academyId = fx.academyWithCoordinates();
+        long busId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.500000", "127.000000");
+        fx.route(academyId, busId, Weekday.THU, Direction.TO_ACADEMY, stopId);
+        long studentId = fx.student(academyId, "확정학생");
+        fx.verifiedAddress(studentId, stopId, Weekday.THU, Direction.TO_ACADEMY, "37.500000", "127.000000");
+        OffsetDateTime departTime = OffsetDateTime.parse("2031-07-03T08:00:00+09:00");
+        long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY,
+                departTime, departTime.minusMinutes(30));
+        long lateStudentId = fx.student(academyId, "확정뒤학생");
+        fx.verifiedAddress(lateStudentId, stopId, Weekday.THU, Direction.TO_ACADEMY, "37.500000", "127.000000");
+        long staffAccountId = 관계자_계정을_만든다(academyId);
+
+        String body = 명단을_읽는다(runId, staffAccountId, academyId);
+
+        List<String> studentIds = JsonPath.read(body, "$.data[*].student_id");
+        assertThat(studentIds).containsExactly(String.valueOf(studentId));
+    }
+
+    private long 확정_전_회차(Phase9RosterFixtures fx, long academyId, long busId) {
+        OffsetDateTime departTime = OffsetDateTime.parse("2031-07-03T08:00:00+09:00");
+        return fx.idleRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+    }
+
+    private String 명단을_읽는다(long runId, long staffAccountId, long academyId) throws Exception {
+        MvcResult result = mockMvc
+                .perform(get("/api/v1/staff/runs/" + runId + "/roster").header("Authorization",
+                        토큰(staffAccountId, academyId)))
+                .andExpect(status().isOk())
+                .andReturn();
+        return 본문(result);
     }
 
     /**
