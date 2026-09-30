@@ -219,14 +219,13 @@ class RunPositionCommandServiceTest {
     }
 
     /**
-     * BR-100 — 현재 정차지 이름·다음 ETA 는 위치를 저장한 트랜잭션이 한 번 계산해 이벤트에 싣는다. 이름은
-     * 마지막으로 도착한 항목, ETA 는 그 뒤 첫 항목의 계획값이다 — 그 사이 경유 지점이 미도착으로 남아 있어도
-     * 이미 지난 것이다(BR-015).
+     * BR-243 · Ruling 379 ② — 단말 시계가 서버와 5분 넘게 어긋난 recorded_at 은 거절하지 않고 서버 수신 시각으로 바꿔
+     * 저장한다. 거절하면 시계가 틀어진 기사의 위치가 전부 사라지고, 그대로 두면 대체 조회·보존 정리 기준이 틀어진다.
+     * 저장 행 · 방송·Redis 갱신이 읽는 이벤트 세 곳이 모두 바뀐 값을 써야 한다.
      */
-    /** BR-243 — 단말 시계가 서버와 5분 넘게 어긋난 recorded_at 은 저장하지 않는다(대체 조회·보존 정리 기준이 틀어진다). */
     @Test
-    @DisplayName("BR-243 — recorded_at 이 서버 시각에서 5분 넘게 미래·과거로 어긋나면 422 이고 적재하지 않는다")
-    void 단말_시각이_크게_어긋난_위치는_422다() throws Exception {
+    @DisplayName("BR-243 — recorded_at 이 서버 시각에서 5분 넘게 미래·과거로 어긋나면 204 이고 수신 시각으로 바꿔 저장한다")
+    void 단말_시각이_크게_어긋난_위치는_수신_시각으로_저장한다() throws Exception {
         DriverRunFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
@@ -236,25 +235,31 @@ class RunPositionCommandServiceTest {
         fixtures.startRun(runId, now());
         long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
 
-        for (OffsetDateTime skewed : List.of(now().plusDays(1), now().plusMinutes(6), now().minusMinutes(6))) {
+        List<OffsetDateTime> skewedValues = List.of(now().plusDays(1), now().plusMinutes(6), now().minusMinutes(6));
+        for (OffsetDateTime skewed : skewedValues) {
             mockMvc.perform(post("/api/v1/runs/" + runId + "/position")
                     .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("""
                             {"lat": 37.501000, "lng": 127.001000, "recorded_at": "%s"}
                             """.formatted(skewed)))
-                    .andExpect(status().isUnprocessableEntity())
-                    .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+                    .andExpect(status().isNoContent());
         }
 
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM run_position WHERE run_id = ?", Integer.class,
-                runId)).as("어긋난 시각의 위치는 적재되지 않아야 한다").isZero();
+        List<OffsetDateTime> stored = jdbcTemplate.queryForList(
+                "SELECT recorded_at FROM run_position WHERE run_id = ?", OffsetDateTime.class, runId);
+        assertThat(stored).as("어긋난 시각이어도 위치는 적재돼야 한다").hasSize(skewedValues.size());
+        assertThat(stored).as("저장된 recorded_at 은 전부 서버 수신 시각이어야 한다")
+                .allSatisfy(each -> assertThat(each.toInstant()).isEqualTo(now().toInstant()));
+        assertThat(capturedEvents.events()).as("Redis 갱신·방송이 읽는 이벤트도 바뀐 값을 실어야 한다")
+                .hasSize(skewedValues.size())
+                .allSatisfy(event -> assertThat(event.recordedAt().toInstant()).isEqualTo(now().toInstant()));
     }
 
     /** 위 시험의 짝 — 경계 안쪽(±4분)은 통과한다("항상 거절" 로 구현해도 통과하는 함정 방지). */
     @Test
-    @DisplayName("BR-243 — recorded_at 이 서버 시각 ±4분 안이면 204 다")
-    void 단말_시각이_허용_오차_안이면_204다() throws Exception {
+    @DisplayName("BR-243 — recorded_at 이 서버 시각 ±4분 안이면 원래 값을 그대로 저장한다")
+    void 단말_시각이_허용_오차_안이면_원래_값을_저장한다() throws Exception {
         DriverRunFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
@@ -264,7 +269,8 @@ class RunPositionCommandServiceTest {
         fixtures.startRun(runId, now());
         long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
 
-        for (OffsetDateTime nearby : List.of(now().plusMinutes(4), now().minusMinutes(4))) {
+        List<OffsetDateTime> nearbyValues = List.of(now().plusMinutes(4), now().minusMinutes(4));
+        for (OffsetDateTime nearby : nearbyValues) {
             mockMvc.perform(post("/api/v1/runs/" + runId + "/position")
                     .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
                     .contentType(MediaType.APPLICATION_JSON)
@@ -273,8 +279,19 @@ class RunPositionCommandServiceTest {
                             """.formatted(nearby)))
                     .andExpect(status().isNoContent());
         }
+
+        List<OffsetDateTime> stored = jdbcTemplate.queryForList(
+                "SELECT recorded_at FROM run_position WHERE run_id = ? ORDER BY id", OffsetDateTime.class, runId);
+        assertThat(stored.stream().map(OffsetDateTime::toInstant))
+                .as("허용 오차 안의 단말 시각은 그대로 저장돼야 한다")
+                .containsExactlyElementsOf(nearbyValues.stream().map(OffsetDateTime::toInstant).toList());
     }
 
+    /**
+     * BR-100 — 현재 정차지 이름·다음 ETA 는 위치를 저장한 트랜잭션이 한 번 계산해 이벤트에 싣는다. 이름은
+     * 마지막으로 도착한 항목, ETA 는 그 뒤 첫 항목의 계획값이다 — 그 사이 경유 지점이 미도착으로 남아 있어도
+     * 이미 지난 것이다(BR-015).
+     */
     @Test
     @DisplayName("BR-100 — 이벤트가 현재 정차지 이름과 다음 정차 항목의 ETA 를 싣는다")
     void 이벤트가_현재_정차지_이름과_다음_ETA_를_싣는다() throws Exception {
