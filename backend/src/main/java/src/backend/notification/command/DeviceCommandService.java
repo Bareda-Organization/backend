@@ -27,9 +27,11 @@ public class DeviceCommandService {
      * 단말을 등록한다 — 같은 {@code (accountId, deviceId)} 행이 이미 있으면 삭제 후 새로 만든다
      * ({@code DeviceToken} Javadoc "값 수정이 아니라 행 대체"). DB UNIQUE 제약이 있어 update 로
      * 흉내내지 않고 실제로 지웠다 다시 심어야, 같은 기기를 두 번 등록해도 행이 늘지 않는다.
+     * 같은 토큰을 가진 다른 계정의 유효 행은 먼저 해지한다(BR-223 — 한 기기의 토큰은 한 계정에만 유효).
      */
     @Transactional
     public DeviceRegisterResponse register(Long accountId, DeviceRegisterRequest request) {
+        deviceTokenRepository.revokeOtherAccounts(request.token(), accountId, OffsetDateTime.now(clock));
         deviceTokenRepository.findByAccountIdAndDeviceId(accountId, request.deviceId())
                 .ifPresent(deviceTokenRepository::delete);
         deviceTokenRepository.flush();

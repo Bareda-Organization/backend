@@ -40,4 +40,17 @@ public interface DeviceTokenRepository extends JpaRepository<DeviceToken, Long> 
     @Modifying
     @Query("UPDATE DeviceToken d SET d.revokedAt = :revokedAt WHERE d.id = :id AND d.revokedAt IS NULL")
     int revokeInvalid(@Param("id") Long id, @Param("revokedAt") OffsetDateTime revokedAt);
+
+    /**
+     * 같은 토큰 값을 다른 계정이 등록하면 앞 계정들의 유효 행을 해지한다(BR-223) — 한 물리 기기의 토큰은 한 계정에만
+     * 유효하다. 로그아웃에 {@code device_id} 가 안 실리거나 세션이 만료된 채 계정을 바꾸면 앞 계정의 행이 남아, 앞 계정
+     * 앞으로 적재된 알림(자녀 이름 포함)이 지금 그 폰을 쓰는 사람에게 간다.
+     */
+    @AcademyScopeExempt(reason = "§2.11 본인 단말 등록 — 토큰 값이 같은 다른 계정의 행을 정리하는 갱신이고 학원 조건이 좁힐 것이 부재. "
+            + "호출부가 토큰의 accountId 만 넘긴다는 전제 — 요청 파라미터의 accountId 를 넘기면 이 예외가 우회로가 된다")
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE DeviceToken d SET d.revokedAt = :revokedAt "
+            + "WHERE d.token = :token AND d.accountId <> :accountId AND d.revokedAt IS NULL")
+    int revokeOtherAccounts(@Param("token") String token, @Param("accountId") Long accountId,
+            @Param("revokedAt") OffsetDateTime revokedAt);
 }
