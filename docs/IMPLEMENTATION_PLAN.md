@@ -5978,7 +5978,7 @@ R37-IT 보고 ④·⑤ 의 후속이다. 새 판정이 필요하면 `Ruling 399`
 
 | Ruling | 대상 | 판정 | 근거 |
 |---|---|---|---|
-| 399 | multipart 엔드포인트(`POST`·`PATCH /staff/students` — 이 저장소의 유일한 multipart)에 JSON 등 다른 매체를 보낸 요청 · 감사·접속 이력 `from`·`to` 형식 | **형식 위반 = `422 VALIDATION_FAILED`**(500 아님). 서버는 `GlobalExceptionHandler.handleMalformedRequest` 목록에 `MultipartException` 을 추가해 근본에서 고침. 사양은 `API_SPEC §1.1`·`§5.11`·`§6.13` 에 각각 한 줄 | 잘못된 매체는 클라이언트 실수인데 `500` 이면 오프라인 큐가 끝없이 재시도한다(`BR-032`). 크기 초과(`MaxUploadSizeExceededException`)는 `MultipartException` 의 하위지만 더 가까운 전용 핸들러가 계속 받는다(시험으로 고정). `from`·`to` 는 §1.1 시각 규약 그대로 — 계약 변경 없음(서버 동작은 이미 그랬고 사양에 빈칸이었다) |
+| 399 | multipart 엔드포인트(`POST /staff/students` · `PATCH /staff/students/{id}` — 이 저장소의 유일한 multipart)에 JSON 등 다른 매체를 보낸 요청 · 감사·접속 이력 `from`·`to` 형식 | **형식 위반 = `422 VALIDATION_FAILED`**(500 아님). 서버는 `GlobalExceptionHandler.handleMalformedRequest` 목록에 `MultipartException` 을 추가해 근본에서 고침. 사양은 `API_SPEC §1.1`·`§5.11`·`§6.13` 에 각각 한 줄 | 잘못된 매체는 클라이언트 실수인데 `500` 이면 오프라인 큐가 끝없이 재시도한다(`BR-032`). 크기 초과(`MaxUploadSizeExceededException`)는 `MultipartException` 의 하위지만 더 가까운 전용 핸들러가 계속 받는다(시험으로 고정). `from`·`to` 는 §1.1 시각 규약 그대로 — 계약 변경 없음(서버 동작은 이미 그랬고 사양에 빈칸이었다) |
 
 **`POST /dev/reset` 첫 호출 500(R38-B, 판정 아님 — 결함 수정)** — 원인: `Flyway clean()` 이 `DROP TABLE academy CASCADE` 로 전 테이블에 `AccessExclusiveLock` 을 잡는 동안 다른 트랜잭션(2초마다 도는 `DemoRunSimulator` 의 회차 시작 처리 · 요청)이 이미 다른 테이블을 잡은 채 `run` 등을 읽으면 Postgres 가 교착(`40P01`)을 감지해 나중에 기다린 쪽을 중단시키고, 그 희생자가 `DROP` 이면 `500`. 수정: `DevResetService` 가 교착이면 처음부터 다시 시도(최대 5회 · `clean()` 은 몇 번을 해도 같은 결과). 스케줄러를 멈추는 길은 요청 트랜잭션이 남아 버리고 전역 스케줄러에 개발 도구가 얽혀 채택하지 않음.
 
