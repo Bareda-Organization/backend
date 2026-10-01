@@ -14,12 +14,10 @@ import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.account.entity.VerificationPurpose;
 
 /**
- * {@link VerificationCode} 영속성 접근.
+ * {@link VerificationCode} 영속성 접근 — 전화번호 복구(API_SPEC §2.9 · Ruling 513)가 쓴다.
  *
- * <p><b>지금 운영 코드의 호출부가 없다</b>(BR-248) — 전화번호 인증 복구는 SMS 연동 전까지 닫혀
- * {@code POST /auth/recover} 가 항상 {@code RECOVERY_UNAVAILABLE} 이다(Ruling 329). 엔티티·열거형과 함께 SMS 재개 때
- * <b>재설계해 쓸 자리</b>로 남겨 둔 것이고, 테이블 정의(ERD · V1)와 스키마 대조 시험이 이 짝을 잡고 있다. 재개 조건
- * (번호당 발급 60초 1회·하루 5회, 대조 횟수는 조건부 UPDATE)이 옛 설계와 달라 그대로 재사용하지 않는다.
+ * <p>발급 빈도(번호당 60초 1회·24시간 5회)는 이 테이블의 {@code created_at} 행 수로 세고, 대조 횟수·소비는
+ * <b>조건부 UPDATE</b> 로 누적한다 — 읽고 더하고 쓰는 형태는 동시 대조가 같은 값을 읽어 상한을 넘기게 한다.
  */
 public interface VerificationCodeRepository extends JpaRepository<VerificationCode, Long> {
 
@@ -46,8 +44,7 @@ public interface VerificationCodeRepository extends JpaRepository<VerificationCo
      * 깨지고 깨진 자리는 조용히 실패한다.
      *
      * <p>{@code clearAutomatically} 는 반대 방향의 위험도 함께 만든다 — <b>이 호출 뒤에는 호출 이전에
-     * 로드한 엔티티가 전부 detach 된다.</b> (삭제된 {@code RecoverCommandService#recover} 는 이 호출보다 먼저
-     * {@code account} 를 로드했다 — 재개 때 같은 형태가 되살아나면) 이 줄 뒤에 {@code account.changePassword(...)} 같은 변경이 한 줄만
+     * 로드한 엔티티가 전부 detach 된다.</b> (이 호출은 로드한 계정이 없는 발급 경로에서만 부른다) 이 줄 뒤에 {@code account.changePassword(...)} 같은 변경이 한 줄만
      * 들어와도 그 변경은 더티 체킹 대상에서 빠져 예외도 로그도 없이 사라진다. 뒤에서 다시 변경하려면
      * 재조회해야 한다(리뷰 라운드 2 m-3).
      *
@@ -60,4 +57,36 @@ public interface VerificationCodeRepository extends JpaRepository<VerificationCo
             + "WHERE v.phone = :phone AND v.purpose = :purpose AND v.consumedAt IS NULL")
     int invalidateUnconsumedByPhoneAndPurpose(@Param("phone") String phone,
             @Param("purpose") VerificationPurpose purpose, @Param("now") OffsetDateTime now);
+
+    /** 이 연락처로 {@code since} 이후 발급된 코드 행 수 — 발급 빈도 제한이 센다(목적·소비 여부와 무관). */
+    @AcademyScopeExempt(reason = "§2.9 계정 복구 — 전화번호만 들고 시작해 소속 학원이 미상")
+    long countByPhoneAndCreatedAtAfter(String phone, OffsetDateTime since);
+
+    /**
+     * 대조 시도를 1 올린다 — 상한({@code max})에 닿았거나 이미 소비된 코드는 올리지 않고 0 을 돌려준다(그 코드는 더는
+     * 통과하지 않는다). 읽은 값에 1 을 더해 쓰지 않고 DB 가 한 문장으로 더한다.
+     *
+     * <p>{@code clearAutomatically} 를 켜지 않는다 — 호출부가 이 뒤에 잠근 계정을 변경하므로, 영속성 컨텍스트를 비우면
+     * 그 변경이 예외 없이 사라진다.
+     *
+     * @return 올린 행 수(0 이면 대조할 수 없는 코드)
+     */
+    @AcademyScopeExempt(reason = "§2.9 계정 복구 — 전화번호만 들고 시작해 소속 학원이 미상")
+    @Transactional
+    @Modifying(flushAutomatically = true)
+    @Query("UPDATE VerificationCode v SET v.attemptCount = v.attemptCount + 1 "
+            + "WHERE v.id = :id AND v.consumedAt IS NULL AND v.attemptCount < :max")
+    int recordAttempt(@Param("id") Long id, @Param("max") int max);
+
+    /**
+     * 만료 전이고 아직 쓰이지 않은 코드를 소비한다 — 같은 코드로 동시에 두 번 통과하는 것을 막는 유일한 자리다.
+     *
+     * @return 소비한 행 수(0 이면 만료됐거나 다른 요청이 먼저 썼다)
+     */
+    @AcademyScopeExempt(reason = "§2.9 계정 복구 — 전화번호만 들고 시작해 소속 학원이 미상")
+    @Transactional
+    @Modifying(flushAutomatically = true)
+    @Query("UPDATE VerificationCode v SET v.consumedAt = :now "
+            + "WHERE v.id = :id AND v.consumedAt IS NULL AND v.expiresAt >= :now")
+    int consumeIfValid(@Param("id") Long id, @Param("now") OffsetDateTime now);
 }
