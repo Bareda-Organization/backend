@@ -8,6 +8,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import lombok.RequiredArgsConstructor;
 
@@ -40,6 +41,7 @@ public class SignupCommandService {
     private final SignupRequestRepository signupRequestRepository;
     private final AcademyRepository academyRepository;
     private final PasswordEncoder passwordEncoder;
+    private final TransactionTemplate transactionTemplate;
     private final Clock clock;
 
     /**
@@ -54,17 +56,25 @@ public class SignupCommandService {
      * <p>제약명을 {@link #LOGIN_ID_UNIQUE_CONSTRAINT} 로 좁혀 확인한다(보완 리뷰 Minor #1) — 좁히지
      * 않으면 이 계정에 앞으로 다른 UNIQUE·FK 제약이 늘었을 때 그 위반까지 전부 "아이디 중복" 으로
      * 잘못 답하게 된다.
+     *
+     * <p><b>BCrypt 는 트랜잭션 밖에서 한다</b>(R46 T-3) — 요청당 수십~수백 ms 라 트랜잭션 안에 두면 그 시간만큼 DB
+     * 연결이 묶인다. 그래서 중복·학원 확인(읽기) → 해시 → 짧은 쓰기 트랜잭션 순이고, 이미 있는 아이디는 해시를 만들기
+     * 전에 거절한다.
      */
-    @Transactional
     public SignupResponse signup(SignupRequestPayload payload) {
         if (accountRepository.existsByLoginId(payload.loginId())) {
             throw new BusinessException(ErrorCode.DUPLICATE_LOGIN_ID);
         }
         Academy academy = findActiveAcademy(payload.academyId());
         Role role = Role.valueOf(payload.role().toUpperCase(Locale.ROOT));
+        String passwordHash = passwordEncoder.encode(payload.password());
+        return transactionTemplate.execute(status -> register(academy, role, payload, passwordHash));
+    }
 
-        Account account = Account.forSignup(academy.getId(), payload.loginId(),
-                passwordEncoder.encode(payload.password()), payload.name(), payload.phone(), null, role);
+    /** 계정과 승인 요청을 한 트랜잭션에 쌓는다 — {@code login_id} 충돌은 409 로 옮긴다({@link #signup} 의 TOCTOU 설명). */
+    private SignupResponse register(Academy academy, Role role, SignupRequestPayload payload, String passwordHash) {
+        Account account = Account.forSignup(academy.getId(), payload.loginId(), passwordHash, payload.name(),
+                payload.phone(), null, role);
         try {
             accountRepository.saveAndFlush(account);
         } catch (DataIntegrityViolationException e) {

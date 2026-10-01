@@ -6,7 +6,7 @@ import java.util.Set;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import lombok.RequiredArgsConstructor;
 
@@ -47,6 +47,8 @@ public class AccountPasswordResetCommandService {
 
     private final PasswordEncoder passwordEncoder;
 
+    private final TransactionTemplate transactionTemplate;
+
     private final Clock clock;
 
     /**
@@ -55,9 +57,19 @@ public class AccountPasswordResetCommandService {
      *
      * <p>무효화가 마지막인 이유는 {@code revokeAllValidByAccountId} 가 영속성 컨텍스트를 비워, 그 뒤의 엔티티
      * 변경이 조용히 사라지기 때문이다({@code StaffAccountCommandService} 와 같은 순서).
+     *
+     * <p><b>임시 비밀번호의 BCrypt 는 트랜잭션·행 잠금 밖에서 만든다</b>(R46 T-3) — 새 해시는 저장된 해시와 무관해 잠금을
+     * 기다릴 이유가 없고, 안에 두면 그 계정 행을 잡은 채 수십~수백 ms 를 쓴다. 대상이 없어 404 인 요청도 해시를 한 번
+     * 만드는 것은 받아들인다 — 관계자 전용 경로라 빈도가 낮다.
      */
-    @Transactional
     public AccountPasswordResetResponse reset(AuthUser requester, Long accountId) {
+        String temporaryPassword = temporaryPasswordGenerator.generate();
+        String temporaryHash = passwordEncoder.encode(temporaryPassword);
+        return transactionTemplate.execute(status -> issue(requester, accountId, temporaryPassword, temporaryHash));
+    }
+
+    private AccountPasswordResetResponse issue(AuthUser requester, Long accountId, String temporaryPassword,
+            String temporaryHash) {
         // 행 잠금으로 읽는다(BR-249) — 전 컬럼 UPDATE 가 그 사이 커밋된 로그인 실패 차단을 지우지 않게 한다.
         Account target = accountRepository.findByIdAndAcademyIdForUpdate(accountId, requester.academyId())
                 .filter(account -> RESETTABLE_ROLES.contains(account.getRole()))
@@ -66,8 +78,7 @@ public class AccountPasswordResetCommandService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
         OffsetDateTime now = OffsetDateTime.now(clock);
 
-        String temporaryPassword = temporaryPasswordGenerator.generate();
-        target.issueTemporaryPassword(passwordEncoder.encode(temporaryPassword));
+        target.issueTemporaryPassword(temporaryHash);
         auditLogRepository.save(AuditLog.forAccountPasswordReset(target.getAcademyId(), actor.getId(),
                 actor.getLoginId(), target.getId(), ClientIp.ofCurrentRequest(), now));
         AccountPasswordResetResponse response =

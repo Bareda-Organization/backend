@@ -4,11 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -35,7 +36,8 @@ import src.backend.student.repository.StudentRepository;
 /**
  * BR-007 — {@code run_started}·{@code delay} 멱등키의 대상 자리에 계정 ID 와 학생 ID 가 섞이면, 두
  * 시퀀스가 모두 1 부터라 관계자 계정 ID 와 같은 학원 학생 ID 가 같을 때 두 행이 같은 키가 되어 운행
- * 시작·지연 신고 트랜잭션 전체가 {@code DUPLICATE_NOTIFICATION} 으로 롤백된다.
+ * 시작·지연 신고에서 한 행이 조용히 건너뛰어진다(예전에는 트랜잭션 전체가 롤백됐다 — 같은 키는 건너뛰도록 바뀐 Ruling 622 뒤로는
+ * 키 설계가 틀리면 알림이 빠지므로 이 검사가 더 중요하다).
  */
 class NotificationDedupKeySpaceTest {
 
@@ -96,9 +98,7 @@ class NotificationDedupKeySpaceTest {
     }
 
     private List<String> appendedKeys() {
-        ArgumentCaptor<NotificationDraft> drafts = ArgumentCaptor.forClass(NotificationDraft.class);
-        verify(outbox, atLeastOnce()).append(drafts.capture());
-        return drafts.getAllValues().stream().map(NotificationDraft::dedupKey).toList();
+        return appendedDrafts().stream().map(NotificationDraft::dedupKey).toList();
     }
 
     private static GuardianAccountRecipient guardian(long studentId, long accountId) {
@@ -123,5 +123,17 @@ class NotificationDedupKeySpaceTest {
                 return "학생";
             }
         };
+    }
+
+    /** 적재 호출 전부 — 건별 {@code append} 와 묶음 {@code appendAll}(R46 T-6)을 한 목록으로 모은다. */
+    private List<NotificationDraft> appendedDrafts() {
+        ArgumentCaptor<NotificationDraft> single = ArgumentCaptor.forClass(NotificationDraft.class);
+        verify(outbox, atLeast(0)).append(single.capture());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<NotificationDraft>> batches = ArgumentCaptor.forClass(List.class);
+        verify(outbox, atLeast(0)).appendAll(batches.capture());
+        List<NotificationDraft> all = new ArrayList<>(single.getAllValues());
+        batches.getAllValues().forEach(all::addAll);
+        return all;
     }
 }

@@ -2,6 +2,7 @@ package src.backend.notification.push;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -16,11 +17,14 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPairGenerator;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -29,6 +33,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 
 import src.backend.notification.entity.DevicePlatform;
 import src.backend.notification.entity.DeviceToken;
@@ -53,11 +60,18 @@ class FcmPushSenderTest {
 
     private int sendStatus = 200;
 
+    private final AtomicInteger tokenRequests = new AtomicInteger();
+
+    private volatile long tokenDelayMillis;
+
     @BeforeEach
     void 가짜_FCM_을_띄운다() throws IOException {
         server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
-        server.createContext("/token", exchange -> respond(exchange, 200,
-                "{\"access_token\":\"access-1\",\"expires_in\":3600,\"token_type\":\"Bearer\"}"));
+        server.createContext("/token", exchange -> {
+            sleepQuietly(tokenDelayMillis);
+            respond(exchange, 200, "{\"access_token\":\"access-" + tokenRequests.incrementAndGet()
+                    + "\",\"expires_in\":3600,\"token_type\":\"Bearer\"}");
+        });
         server.createContext("/v1/projects/demo/messages:send", exchange -> {
             String body = read(exchange.getRequestBody());
             sendRequests.add(exchange.getRequestHeaders().getFirst("Authorization") + " " + body);
@@ -129,6 +143,114 @@ class FcmPushSenderTest {
         verify(deviceTokenRepository).revokeInvalid(eq(3L), any());
     }
 
+    /**
+     * R46 S-2 ④ — 접근 토큰 갱신이 느려도 아직 유효한 토큰으로 발송하는 스레드는 막히지 않는다. 만료 5분 전부터는 한 스레드가
+     * 뒤에서 미리 갱신하고, 나머지는 옛 토큰을 그대로 쓴다(락을 쥔 채 교환하면 갱신이 끝날 때까지 전 발송이 줄을 선다).
+     */
+    @Test
+    void 접근_토큰_미리_갱신은_발송을_막지_않는다() throws Exception {
+        given(deviceTokenRepository.findAllByAccountIdAndRevokedAtIsNull(7L))
+                .willReturn(List.of(token(1L, "live-token")));
+        AdjustableClock clock = new AdjustableClock(CLOCK.instant());
+        FcmPushSender sender = sender(clock, CircuitBreakerRegistry.ofDefaults());
+        sender.send(new PushMessage(7L, NotificationType.DELAY, "지연", "본문", false));
+        tokenDelayMillis = 2_500;
+        clock.advance(Duration.ofSeconds(59 * 60 + 30)); // 만료(60분)까지 30초 — 갱신 구간(예전 1분 전 · 지금 5분 전부터)
+
+        long startedAt = System.nanoTime();
+        sender.send(new PushMessage(7L, NotificationType.DELAY, "지연", "본문", false));
+        long tookMillis = Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
+
+        assertThat(tookMillis).as("느린 토큰 교환을 기다리지 않고 옛 토큰으로 바로 보낸다").isLessThan(1_000);
+        await().atMost(Duration.ofSeconds(10)).until(() -> tokenRequests.get() == 2);
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+            sender.send(new PushMessage(7L, NotificationType.DELAY, "지연", "본문", false));
+            assertThat(sendRequests.get(sendRequests.size() - 1)).as("갱신이 끝난 뒤에는 새 토큰").startsWith("Bearer access-2 ");
+        });
+    }
+
+    /** R46 S-2 ① — 일시 장애가 이어지면 서킷이 열려 FCM 을 더 부르지 않고 즉시 거절한다(행은 {@code pending} 으로 남아 워커가 이어받는다). */
+    @Test
+    void 일시_장애가_이어지면_서킷이_열려_호출하지_않는다() throws Exception {
+        sendStatus = 503;
+        given(deviceTokenRepository.findAllByAccountIdAndRevokedAtIsNull(7L))
+                .willReturn(List.of(token(1L, "live-token")));
+        CircuitBreakerRegistry registry = CircuitBreakerRegistry.of(CircuitBreakerConfig.custom()
+                .slidingWindowSize(10).minimumNumberOfCalls(5).failureRateThreshold(50)
+                .waitDurationInOpenState(Duration.ofMinutes(1)).build());
+        FcmPushSender sender = sender(CLOCK, registry);
+
+        for (int i = 0; i < 5; i++) {
+            assertThatThrownBy(() -> sender.send(new PushMessage(7L, NotificationType.DELAY, "지연", "본문", false)))
+                    .isInstanceOf(IllegalStateException.class).hasMessageContaining("503");
+        }
+
+        assertThatThrownBy(() -> sender.send(new PushMessage(7L, NotificationType.DELAY, "지연", "본문", false)))
+                .as("서킷이 열린 뒤에는 FCM 에 가지 않고 거절한다").isInstanceOf(CallNotPermittedException.class);
+        assertThat(sendRequests).as("열린 뒤의 호출은 서버에 닿지 않는다").hasSize(5);
+    }
+
+    /** 단말·본문 문제의 4xx 는 FCM 이 멀쩡하다는 뜻이라 서킷을 열지 않는다(BR-221) — 본문이 잘못된 알림 하나가 전 발송을 막으면 안 된다. */
+    @Test
+    void 본문_문제의_4xx_는_서킷을_열지_않는다() throws Exception {
+        given(deviceTokenRepository.findAllByAccountIdAndRevokedAtIsNull(7L))
+                .willReturn(List.of(token(1L, "bad-payload")));
+        CircuitBreakerRegistry registry = CircuitBreakerRegistry.of(CircuitBreakerConfig.custom()
+                .slidingWindowSize(10).minimumNumberOfCalls(5).failureRateThreshold(50)
+                .waitDurationInOpenState(Duration.ofMinutes(1)).build());
+        FcmPushSender sender = sender(CLOCK, registry);
+
+        for (int i = 0; i < 8; i++) {
+            assertThatThrownBy(() -> sender.send(new PushMessage(7L, NotificationType.DELAY, "지연", "본문", false)))
+                    .isInstanceOf(IllegalStateException.class).hasMessageContaining("400");
+        }
+
+        assertThat(sendRequests).as("8번 모두 서버에 도달했다 — 서킷이 열리지 않았다").hasSize(8);
+    }
+
+    /** R46 S-2 ② — 응답이 100~300ms 가 정상이라 10초는 발송 스레드를 너무 오래 묶는다(8스레드 전부 묶이면 처리율 0.8건/s). */
+    @Test
+    void 요청_시간_상한은_4초_이하다() {
+        assertThat(FcmPushSender.TIMEOUT).isLessThanOrEqualTo(Duration.ofSeconds(4));
+    }
+
+    private static void sleepQuietly(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /** 시험이 시각을 앞으로 보내는 시계. */
+    private static final class AdjustableClock extends Clock {
+
+        private volatile Instant now;
+
+        AdjustableClock(Instant start) {
+            this.now = start;
+        }
+
+        void advance(Duration amount) {
+            now = now.plus(amount);
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return now;
+        }
+    }
+
     private static String invalidArgument(String field) {
         return "{\"error\":{\"code\":400,\"status\":\"INVALID_ARGUMENT\",\"details\":["
                 + "{\"@type\":\"type.googleapis.com/google.rpc.BadRequest\",\"fieldViolations\":[{\"field\":\""
@@ -137,6 +259,10 @@ class FcmPushSenderTest {
     }
 
     private FcmPushSender sender() throws Exception {
+        return sender(CLOCK, CircuitBreakerRegistry.ofDefaults());
+    }
+
+    private FcmPushSender sender(Clock clock, CircuitBreakerRegistry circuitBreakers) throws Exception {
         KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
         generator.initialize(2048);
         String pem = "-----BEGIN PRIVATE KEY-----\n"
@@ -144,7 +270,7 @@ class FcmPushSenderTest {
                 + "\n-----END PRIVATE KEY-----\n";
         String base = "http://localhost:" + server.getAddress().getPort();
         return new FcmPushSender("demo", "push@demo.iam.gserviceaccount.com", pem, base, base + "/token",
-                deviceTokenRepository, CLOCK);
+                deviceTokenRepository, clock, circuitBreakers);
     }
 
     private static DeviceToken token(long id, String value) {

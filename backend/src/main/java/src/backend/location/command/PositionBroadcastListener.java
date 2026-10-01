@@ -47,8 +47,11 @@ public class PositionBroadcastListener {
 
     private final WebSocketBroadcastGateway gateway;
 
-    /** 위치 1건을 채널별로 다른 페이로드 타입으로 갈라 방송한다(관제 쪽만 {@code eta} 포함). */
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    /**
+     * 위치 1건을 채널별로 다른 페이로드 타입으로 갈라 방송한다(관제 쪽만 {@code eta} 포함). 발행이 트랜잭션 밖이어도
+     * 돈다({@code fallbackExecution}) — {@link RunPositionCommandService} 가 커밋을 끝낸 뒤 발행하기 때문이다.
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void broadcast(RunPositionReceivedEvent event) {
         try {
             List<Long> studentIds = runRiderRepository.findAllByRunId(event.runId()).stream()

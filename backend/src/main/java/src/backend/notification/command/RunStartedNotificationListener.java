@@ -1,5 +1,6 @@
 package src.backend.notification.command;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.context.event.EventListener;
@@ -63,19 +64,22 @@ public class RunStartedNotificationListener {
 
     private final NotificationComposer<RunStartedEvent> runStartedComposer;
 
-    /** 운행 시작(목표 5, §9.7) — 관계자 전원 + 명단에 남은(absent 제외) 학생의 보호자·본인에게 적재한다. */
+    /**
+     * 운행 시작(목표 5, §9.7) — 관계자 전원 + 명단에 남은(absent 제외) 학생의 보호자·본인에게 적재한다. 수신자 전원을
+     * 모아 한 번에 적재한다({@link NotificationOutbox#appendAll}, R46 T-6) — 회차 행 잠금 아래에서 문장 수가 수신자 수에
+     * 비례하지 않게 한다.
+     */
     @EventListener
     public void appendRunStarted(RunStartedEvent event) {
         NotificationMessage message = runStartedComposer.compose(event);
 
-        appendToStaff(event, message);
-
+        List<NotificationDraft> drafts = new ArrayList<>(draftsForStaff(event, message));
         List<Long> studentIds = studentIdsOf(event);
-        if (studentIds.isEmpty()) {
-            return;
+        if (!studentIds.isEmpty()) {
+            drafts.addAll(draftsForGuardians(event, message, studentIds));
+            drafts.addAll(draftsForStudents(event, message, studentIds));
         }
-        appendToGuardians(event, message, studentIds);
-        appendToStudents(event, message, studentIds);
+        notificationOutbox.appendAll(drafts);
     }
 
     /**
@@ -83,16 +87,17 @@ public class RunStartedNotificationListener {
      * 같은 대상 규칙). 호차를 채운다(목표 5) — {@link RunStartedEvent} 는 runId 만 나르므로
      * Run → Bus 를 한 번 더 거친다(수신자 전원이 같은 차량을 가리켜 순회 전에 한 번만 조회).
      */
-    private void appendToStaff(RunStartedEvent event, NotificationMessage message) {
+    private List<NotificationDraft> draftsForStaff(RunStartedEvent event, NotificationMessage message) {
         List<AcademyStaffAccountView> staff = academyStaffRepository
                 .findActiveAccountsByAcademyId(event.academyId());
         String busNo = busNoOf(event.runId(), event.academyId());
-        for (AcademyStaffAccountView recipient : staff) {
-            notificationOutbox.append(new NotificationDraft(event.academyId(), recipient.accountId(),
-                    recipient.name(), Role.STAFF, NotificationType.RUN_STARTED, message.title(), message.body(),
-                    DEDUP_KEY_FORMAT.formatted(event.runId(), "staff:" + recipient.accountId(), event.startedAt()),
-                    null, null, busNo));
-        }
+        return staff.stream()
+                .map(recipient -> new NotificationDraft(event.academyId(), recipient.accountId(),
+                        recipient.name(), Role.STAFF, NotificationType.RUN_STARTED, message.title(), message.body(),
+                        DEDUP_KEY_FORMAT.formatted(event.runId(), "staff:" + recipient.accountId(),
+                                event.startedAt()),
+                        null, null, busNo))
+                .toList();
     }
 
     /** 목표 5 — 학부모·학생 알림은 이미 자녀 이름이 있어 호차까지는 요구되지 않는다(정본 범위: 관계자 알림). */
@@ -120,27 +125,33 @@ public class RunStartedNotificationListener {
      * <p>{@code dedup_key} 의 대상 자리에 보호자 계정과 <b>studentId</b> 를 함께 쓴다 — 같은 회차에
      * 형제자매가 함께 타 같은 보호자 계정으로 귀결되면 계정만으로는 두 학생에서 같아진다.
      */
-    private void appendToGuardians(RunStartedEvent event, NotificationMessage message, List<Long> studentIds) {
+    private List<NotificationDraft> draftsForGuardians(RunStartedEvent event, NotificationMessage message,
+            List<Long> studentIds) {
         List<GuardianAccountRecipient> guardians = guardianStudentRepository
                 .findGuardianAccountsByAcademyId(event.academyId(), studentIds);
-        for (GuardianAccountRecipient guardian : guardians) {
-            notificationOutbox.append(new NotificationDraft(event.academyId(), guardian.getAccountId(),
-                    guardian.getName(), Role.PARENT, NotificationType.RUN_STARTED, message.title(), message.body(),
-                    DEDUP_KEY_FORMAT.formatted(event.runId(),
-                            "guardian:" + guardian.getAccountId() + ":" + guardian.getStudentId(), event.startedAt()),
-                    guardian.getStudentId(), guardian.getStudentName(), null));
-        }
+        return guardians.stream()
+                .map(guardian -> new NotificationDraft(event.academyId(), guardian.getAccountId(),
+                        guardian.getName(), Role.PARENT, NotificationType.RUN_STARTED, message.title(),
+                        message.body(),
+                        DEDUP_KEY_FORMAT.formatted(event.runId(),
+                                "guardian:" + guardian.getAccountId() + ":" + guardian.getStudentId(),
+                                event.startedAt()),
+                        guardian.getStudentId(), guardian.getStudentName(), null))
+                .toList();
     }
 
     /** 학생 — 계정이 연결된 학생만(로그인이 없는 학생은 알림을 받을 계정 자체가 없다). */
-    private void appendToStudents(RunStartedEvent event, NotificationMessage message, List<Long> studentIds) {
+    private List<NotificationDraft> draftsForStudents(RunStartedEvent event, NotificationMessage message,
+            List<Long> studentIds) {
         List<Student> students = studentRepository
                 .findAllByIdInAndAcademyIdAndAccountIdIsNotNull(studentIds, event.academyId());
-        for (Student student : students) {
-            notificationOutbox.append(new NotificationDraft(event.academyId(), student.getAccountId(),
-                    student.getName(), Role.STUDENT, NotificationType.RUN_STARTED, message.title(), message.body(),
-                    DEDUP_KEY_FORMAT.formatted(event.runId(), "student:" + student.getAccountId(), event.startedAt()),
-                    student.getId(), student.getName(), null));
-        }
+        return students.stream()
+                .map(student -> new NotificationDraft(event.academyId(), student.getAccountId(),
+                        student.getName(), Role.STUDENT, NotificationType.RUN_STARTED, message.title(),
+                        message.body(),
+                        DEDUP_KEY_FORMAT.formatted(event.runId(), "student:" + student.getAccountId(),
+                                event.startedAt()),
+                        student.getId(), student.getName(), null))
+                .toList();
     }
 }

@@ -8,7 +8,7 @@ import java.util.List;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import lombok.RequiredArgsConstructor;
 
@@ -41,11 +41,16 @@ import src.backend.student.repository.StopRepository;
  * <p><b>{@code run_position} 적재가 먼저, Redis 갱신은 커밋 후</b>(조율자 판단, 목표 3) — 이력 유실은
  * 되돌릴 수 없지만 Redis 만 유실되면 2초(Ruling 279) 뒤 다음 송신이 덮어써 스스로 회복되므로, 회복
  * 가능한 쪽을 나중에 둔다. 이 서비스는 이벤트만 발행하고, 실제 Redis 쓰기는
- * {@link RunPositionRedisListener} 가 {@code AFTER_COMMIT} 에서 한다.
+ * {@link RunPositionRedisListener} 가 커밋 뒤에 한다.
+ *
+ * <p><b>클래스에 {@code @Transactional} 을 달지 않는 것이 요점이다</b>(R46 T-1) — DB 일은
+ * {@link TransactionTemplate} 안에서 끝내고 이벤트는 그 밖에서 발행한다. {@code AFTER_COMMIT} 콜백은
+ * 연결을 반납하기 <em>전에</em> 돌기 때문에, 클래스 트랜잭션 안에서 발행하면 Redis 쓰기(500ms 타임아웃)와
+ * 방송 직렬화가 끝날 때까지 DB 연결을 쥔다. 구독자 둘은 이 발행이 트랜잭션 밖이어도 돌도록
+ * {@code fallbackExecution = true} 다.
  */
 @Service
 @RequiredArgsConstructor
-@Transactional
 public class RunPositionCommandService {
 
     private final RunRepository runRepository;
@@ -64,6 +69,8 @@ public class RunPositionCommandService {
 
     private final ApplicationEventPublisher eventPublisher;
 
+    private final TransactionTemplate transactionTemplate;
+
     private final Clock clock;
 
     /** 단말 {@code recorded_at} 과 서버 수신 시각의 허용 차이(양방향) — 기기 시계 오차를 넉넉히 받되 하루 단위 어긋남은 수신 시각으로 대체한다(BR-243). */
@@ -75,6 +82,12 @@ public class RunPositionCommandService {
      * 이벤트 구독자가 커밋 후에 한다.
      */
     public void receive(AuthUser requester, Long runId, RunPositionRequest request) {
+        RunPositionReceivedEvent event = transactionTemplate.execute(status -> persist(requester, runId, request));
+        eventPublisher.publishEvent(event);
+    }
+
+    /** 인가·상태를 확인하고 위치를 적재한 뒤 구독자에게 실을 이벤트를 만든다 — 한 트랜잭션 안에서 끝나는 DB 구간이다. */
+    private RunPositionReceivedEvent persist(AuthUser requester, Long runId, RunPositionRequest request) {
         runAssignmentAccess.assertAssignedDriver(requester, runId);
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
@@ -91,8 +104,8 @@ public class RunPositionCommandService {
         runPositionRepository.save(position);
 
         List<RunStop> ordered = orderedStopsOf(run);
-        eventPublisher.publishEvent(new RunPositionReceivedEvent(runId, request.lat(), request.lng(),
-                recordedAt, receivedAt, run.getAcademyId(), currentStopNameOf(ordered), nextEtaOf(ordered)));
+        return new RunPositionReceivedEvent(runId, request.lat(), request.lng(), recordedAt, receivedAt,
+                run.getAcademyId(), currentStopNameOf(ordered), nextEtaOf(ordered));
     }
 
     private static boolean isSkewed(OffsetDateTime recordedAt, OffsetDateTime receivedAt) {

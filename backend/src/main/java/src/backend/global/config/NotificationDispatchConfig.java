@@ -26,6 +26,12 @@ public class NotificationDispatchConfig {
     /** 대기열 상한 — 무한 대기열은 발송 채널이 멈췄을 때 힙을 채운다. 넘치면 워커 재시도로 넘어간다. */
     private static final int QUEUE_CAPACITY = 1000;
 
+    /** 비상 전용 스레드 수 — 비상 알림은 드물고(사고 때만) 오래 걸려도 일반 발송을 막지 않으면 되므로 2개면 충분하다(R46 S-2). */
+    private static final int EMERGENCY_THREADS = 2;
+
+    /** 비상 전용 대기열 상한 — 비상 신고가 100건 쌓이는 상황이면 그 뒤는 워커 재시도로 넘어가는 편이 낫다. */
+    private static final int EMERGENCY_QUEUE_CAPACITY = 100;
+
     /**
      * {@code defaultCandidate = false} — 이름으로 지정한 곳({@code NotificationDispatchListener})에만 주입된다.
      * 일반 후보로 두면 Spring Boot 가 이 빈을 기본 실행기로 잡아 STOMP 송신 채널 실행기까지 이 2스레드로
@@ -39,6 +45,20 @@ public class NotificationDispatchConfig {
         executor.setMaxPoolSize(threads);
         executor.setQueueCapacity(QUEUE_CAPACITY);
         executor.setThreadNamePrefix("notification-dispatch-");
+        return executor;
+    }
+
+    /**
+     * 비상 알림 전용 즉시 발송 실행기(R46 S-2) — FCM 이 응답하지 않을 때 일반 발송 8스레드가 모두 묶이면 큐 앞의 일반 알림 뒤에서
+     * 비상 알림이 몇 분 늦게 첫 시도를 한다. 같은 이유로 {@code defaultCandidate = false}.
+     */
+    @Bean(defaultCandidate = false)
+    public ThreadPoolTaskExecutor emergencyDispatchExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(EMERGENCY_THREADS);
+        executor.setMaxPoolSize(EMERGENCY_THREADS);
+        executor.setQueueCapacity(EMERGENCY_QUEUE_CAPACITY);
+        executor.setThreadNamePrefix("emergency-dispatch-");
         return executor;
     }
 }

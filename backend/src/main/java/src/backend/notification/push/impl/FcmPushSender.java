@@ -20,11 +20,17 @@ import java.util.Base64;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.jsonwebtoken.Jwts;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -39,7 +45,12 @@ import src.backend.notification.repository.DeviceTokenRepository;
  * 보내고, FCM 이 무효라고 답한 토큰({@code UNREGISTERED}·{@code INVALID_ARGUMENT})은 해지한다(API_SPEC §2.11).
  *
  * <p>인증은 서비스 계정 키로 서명한 JWT 를 접근 토큰으로 바꾸는 OAuth2 흐름이다 — 새 의존성 없이 이미 쓰는 jjwt 로
- * 서명하고 표준 {@link HttpClient} 로 교환한다. 접근 토큰은 만료 1분 전까지 재사용한다.
+ * 서명하고 표준 {@link HttpClient} 로 교환한다. 접근 토큰은 만료 5분 전부터 뒤에서 미리 갱신하고 그동안 옛 토큰을 쓴다
+ * (R46 S-2 — 교환을 락 안에서 하면 FCM 인증 서버가 느린 동안 전 발송 스레드가 줄을 선다).
+ *
+ * <p><b>서킷</b>({@code resilience4j} 인스턴스 {@code fcm} — 값은 {@code placeSearch} 와 같다)은 <b>일시 장애</b>(네트워크 ·
+ * 429 · 5xx · 접근 토큰 발급 실패)만 센다. 열리면 호출 없이 즉시 거절하고, 행은 {@code pending} 으로 남아 아웃박스 워커가
+ * 이어받는다. 본문·단말 문제의 4xx 는 FCM 이 멀쩡하다는 뜻이라 세지 않는다 — 잘못된 알림 하나가 전 발송을 막으면 안 된다.
  *
  * <p>일시 장애(429·5xx·네트워크)는 예외로 알려 아웃박스 재시도에 맡긴다({@link PushSender} 계약).
  * ponytail: 재시도는 행 단위라 여러 단말 중 일부만 실패해도 성공한 단말에 다시 보낸다 — 단말별 발송 기록이 필요해지면
@@ -49,11 +60,21 @@ import src.backend.notification.repository.DeviceTokenRepository;
 @ConditionalOnProperty(name = "app.push.sender", havingValue = "fcm")
 public class FcmPushSender implements PushSender {
 
+    /** {@code resilience4j.circuitbreaker.instances} 의 이름 — 값은 장소 검색({@code placeSearch})과 같다(R46 S-2). */
+    static final String RESILIENCE_INSTANCE = "fcm";
+
     private static final String SCOPE = "https://www.googleapis.com/auth/firebase.messaging";
 
-    private static final Duration TIMEOUT = Duration.ofSeconds(10);
+    /**
+     * 연결·요청 시간 상한 — 시험이 값을 못박는다({@code FcmPushSenderTest}). 응답이 100~300ms 가 정상이라 4초면 충분하고,
+     * 10초면 FCM 이 응답하지 않을 때 발송 스레드 8개가 모두 10초씩 묶여 처리율이 0.8건/s 로 떨어진다(R46 S-2).
+     */
+    public static final Duration TIMEOUT = Duration.ofSeconds(4);
 
-    private static final Duration TOKEN_REFRESH_MARGIN = Duration.ofMinutes(1);
+    /** 접근 토큰 만료 이 시간 전부터 한 스레드가 뒤에서 미리 갱신한다 — 그 사이 나머지는 아직 유효한 옛 토큰을 쓴다. */
+    private static final Duration TOKEN_REFRESH_AHEAD = Duration.ofMinutes(5);
+
+    private static final Logger log = LoggerFactory.getLogger(FcmPushSender.class);
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
@@ -69,11 +90,18 @@ public class FcmPushSender implements PushSender {
 
     private final Clock clock;
 
+    private final CircuitBreaker circuitBreaker;
+
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
 
-    private String accessToken;
+    /** 가장 최근에 받은 접근 토큰 — 읽는 쪽은 락 없이 본다. */
+    private final AtomicReference<AccessToken> accessToken = new AtomicReference<>();
 
-    private Instant accessTokenExpiresAt = Instant.MIN;
+    /** 미리 갱신이 이미 돌고 있는지 — 같은 구간에 여러 스레드가 동시에 교환하지 않게 한다. */
+    private final AtomicBoolean refreshingAhead = new AtomicBoolean();
+
+    private record AccessToken(String value, Instant expiresAt) {
+    }
 
     /** 자격 증명 3개는 기본값이 없다 — prod 에서 빠지면 기동이 실패한다(SSM 주입, Ruling 331). */
     public FcmPushSender(@Value("${app.push.fcm.project-id}") String projectId,
@@ -81,21 +109,34 @@ public class FcmPushSender implements PushSender {
             @Value("${app.push.fcm.private-key}") String privateKeyPem,
             @Value("${app.push.fcm.base-url:https://fcm.googleapis.com}") String baseUrl,
             @Value("${app.push.fcm.token-uri:https://oauth2.googleapis.com/token}") String tokenUri,
-            DeviceTokenRepository deviceTokenRepository, Clock clock) {
+            DeviceTokenRepository deviceTokenRepository, Clock clock, CircuitBreakerRegistry circuitBreakers) {
         this.clientEmail = clientEmail;
         this.privateKey = parsePrivateKey(privateKeyPem);
         this.sendUri = URI.create(baseUrl + "/v1/projects/" + projectId + "/messages:send");
         this.tokenUri = tokenUri;
         this.deviceTokenRepository = deviceTokenRepository;
         this.clock = clock;
+        this.circuitBreaker = circuitBreakers.circuitBreaker(RESILIENCE_INSTANCE);
     }
 
     /** 유효한 전 단말에 보낸다 — 단말이 없으면 보낼 곳이 없어 아무것도 하지 않는다(인앱 목록에는 행이 남는다). */
     @Override
     public void send(PushMessage message) {
+        List<String> rejections = circuitBreaker.executeSupplier(() -> sendToAll(message));
+        if (!rejections.isEmpty()) {
+            throw new IllegalStateException("FCM 발송 실패 " + rejections);
+        }
+    }
+
+    /**
+     * 단말마다 보내고 FCM 이 거절한 4xx(본문 문제 등)를 모아 돌려준다. <b>일시 장애는 여기서 던진다</b> — 서킷이 센다.
+     * 4xx 는 값으로 돌려줘 서킷 밖에서 실패 처리한다.
+     */
+    private List<String> sendToAll(PushMessage message) {
         List<DeviceToken> tokens = deviceTokenRepository.findAllByAccountIdAndRevokedAtIsNull(
                 message.recipientAccountId());
-        List<String> failures = new ArrayList<>();
+        List<String> transientFailures = new ArrayList<>();
+        List<String> rejections = new ArrayList<>();
         for (DeviceToken token : tokens) {
             HttpResponse<String> response = post(sendUri, "application/json", payloadOf(message, token.getToken()),
                     accessToken());
@@ -106,11 +147,17 @@ public class FcmPushSender implements PushSender {
                 deviceTokenRepository.revokeInvalid(token.getId(), OffsetDateTime.now(clock));
                 continue;
             }
-            failures.add("status=" + response.statusCode());
+            (isTransient(response.statusCode()) ? transientFailures : rejections).add("status=" + response.statusCode());
         }
-        if (!failures.isEmpty()) {
-            throw new IllegalStateException("FCM 발송 실패 " + failures);
+        if (!transientFailures.isEmpty()) {
+            throw new IllegalStateException("FCM 발송 실패 " + transientFailures + rejections);
         }
+        return rejections;
+    }
+
+    /** 429 · 5xx — FCM 쪽 사정이라 다시 보내면 도착할 수 있다. */
+    private static boolean isTransient(int statusCode) {
+        return statusCode == 429 || statusCode >= 500;
     }
 
     /**
@@ -153,12 +200,35 @@ public class FcmPushSender implements PushSender {
         return JSON.writeValueAsString(payload);
     }
 
-    /** 만료 1분 전까지 재사용하고, 그 뒤에는 서비스 계정 JWT 로 새로 받는다. */
-    private synchronized String accessToken() {
+    /**
+     * 유효한 토큰은 락 없이 바로 돌려주고, 만료 {@link #TOKEN_REFRESH_AHEAD} 전부터는 한 스레드가 뒤에서 미리 갱신한다.
+     * 이미 만료됐거나 아직 없으면 이 호출이 직접 교환한다 — 그때도 락을 쥐지 않아 다른 스레드가 이 호출을 기다리지 않는다
+     * (만료 순간 동시에 오는 발송은 각자 교환한다 — 하루 한 번 안팎이고 스레드가 최대 10개라 받아들인다).
+     */
+    private String accessToken() {
         Instant now = clock.instant();
-        if (accessToken != null && now.isBefore(accessTokenExpiresAt.minus(TOKEN_REFRESH_MARGIN))) {
-            return accessToken;
+        AccessToken current = accessToken.get();
+        if (current == null || !now.isBefore(current.expiresAt())) {
+            return exchangeAccessToken(now).value();
         }
+        if (!now.isBefore(current.expiresAt().minus(TOKEN_REFRESH_AHEAD)) && refreshingAhead.compareAndSet(false, true)) {
+            Thread.startVirtualThread(this::refreshAhead);
+        }
+        return current.value();
+    }
+
+    private void refreshAhead() {
+        try {
+            exchangeAccessToken(clock.instant());
+        } catch (RuntimeException e) {
+            log.warn("[fcm] 접근 토큰 미리 갱신이 실패해 만료 때 다시 받는다 — {}", e.getMessage());
+        } finally {
+            refreshingAhead.set(false);
+        }
+    }
+
+    /** 서비스 계정 JWT 를 접근 토큰으로 바꿔 보관한다 — 일시 장애로 센다(서킷). */
+    private AccessToken exchangeAccessToken(Instant now) {
         String assertion = Jwts.builder()
                 .issuer(clientEmail)
                 .claim("scope", SCOPE)
@@ -174,9 +244,10 @@ public class FcmPushSender implements PushSender {
             throw new IllegalStateException("FCM 접근 토큰 발급 실패 status=" + response.statusCode());
         }
         JsonNode node = JSON.readTree(response.body());
-        accessToken = node.get("access_token").asString();
-        accessTokenExpiresAt = now.plusSeconds(node.get("expires_in").asLong());
-        return accessToken;
+        AccessToken exchanged = new AccessToken(node.get("access_token").asString(),
+                now.plusSeconds(node.get("expires_in").asLong()));
+        accessToken.set(exchanged);
+        return exchanged;
     }
 
     private HttpResponse<String> post(URI uri, String contentType, String body, String bearer) {

@@ -2,6 +2,7 @@ package src.backend.location.proximity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -9,9 +10,12 @@ import java.util.Map;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import src.backend.academy.repository.AcademyRepository;
@@ -20,6 +24,8 @@ import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
+import src.backend.location.entity.RunPosition;
+import src.backend.location.repository.RunPositionRepository;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
@@ -55,8 +61,11 @@ class ProximityNotificationServiceTest {
     @Autowired
     private ProximityNotificationService proximityNotificationService;
 
-    @Autowired
+    @MockitoSpyBean
     private StringRedisTemplate stringRedisTemplate;
+
+    @Autowired
+    private RunPositionRepository runPositionRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -110,6 +119,7 @@ class ProximityNotificationServiceTest {
         jdbcTemplate.update("DELETE FROM notification_log WHERE dedup_key LIKE 'approaching:%'");
         // R15-T3(Ruling 308) — BoardingNotificationListener#appendStopDeparted 가 쓰는 dedup_key.
         jdbcTemplate.update("DELETE FROM notification_log WHERE dedup_key LIKE 'stop_departed:%'");
+        jdbcTemplate.update("DELETE FROM run_position WHERE run_id IN (SELECT id FROM run WHERE academy_id IN " + academyIds + ")");
         jdbcTemplate.update("DELETE FROM run WHERE academy_id IN " + academyIds);
         jdbcTemplate.update("DELETE FROM guardian WHERE academy_id IN " + academyIds);
         jdbcTemplate.update("DELETE FROM student WHERE academy_id IN " + academyIds);
@@ -366,6 +376,33 @@ class ProximityNotificationServiceTest {
     }
 
     /** T1 이 아직 만들지 않은 위치 계약(runId·lat·lng·recordedAt·receivedAt·currentStopName)을 직접 흉내낸다. */
+    /**
+     * Redis 가 죽은 동안에도 근접 판정은 {@code run_position} 최신 행으로 한다(R46 · Ruling 624) — 그 틱을 건너뛰면 그 사이 기사가 도착
+     * 처리해 "다음 미도착" 이 넘어간 정차지는 선점 한 번 못 해 <b>도착 임박 알림이 영구히 빠진다</b>.
+     */
+    @Test
+    void Redis_읽기가_실패해도_run_position_최신_행으로_근접_판정한다() {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        ProximityFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.500000", STOP_LNG);
+        long studentId = fx.student(academyId, "근접학생R");
+        fx.guardianOf(academyId, studentId, "근접학부모R", now);
+        long runId = fx.movingRun(academyId, busId, Direction.FROM_ACADEMY, now.plusHours(1), now, now);
+        long versionId = fx.confirmedRouteWithVersion(runId, now);
+        long runStopId = fx.runStopForStop(versionId, stopId, 1, now.plusMinutes(10));
+        fx.rider(runId, studentId, stopId, RiderStatus.WAITING, null);
+        runPositionRepository.save(RunPosition.onReceive(runId, new BigDecimal(NEAR_LAT), new BigDecimal(STOP_LNG), now,
+                now, null, null));
+        Mockito.doThrow(new RedisConnectionFailureException("redis down")).when(stringRedisTemplate).opsForValue();
+
+        proximityNotificationService.judgeOne(runId, academyId);
+
+        assertThat(notificationCount(runId, stopId, studentId)).as("Redis 없이도 도착 임박 알림이 적재된다").isEqualTo(1);
+        assertThat(proximityNotifiedAt(runStopId)).isNotNull();
+    }
+
     private void writePosition(long runId, String lat, String lng) {
         String json = """
                 {"lat":%s,"lng":%s,"recordedAt":"2030-04-01T00:00:00Z","receivedAt":"2030-04-01T00:00:01Z","currentStopName":"흉내"}

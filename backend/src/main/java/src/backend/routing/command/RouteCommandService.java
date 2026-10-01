@@ -17,6 +17,7 @@ import src.backend.global.error.ErrorCode;
 import src.backend.global.persistence.ConstraintViolations;
 import src.backend.global.request.ApiValues;
 import src.backend.global.security.AuthUser;
+import src.backend.routing.domain.RouteStopLimit;
 import src.backend.routing.assembly.RouteDetailAssembler;
 import src.backend.routing.dto.RouteDetailResponse;
 import src.backend.routing.dto.RouteRegisterRequest;
@@ -76,6 +77,7 @@ public class RouteCommandService {
      * 다툰다.
      */
     public RouteDetailResponse register(AuthUser requester, RouteRegisterRequest request) {
+        RouteStopLimit.assertWithin(request.stopIds());
         RoutePlan plan = planOf(request);
         assertOwnBus(requester, plan.busId());
         List<Long> stopIds = orderOf(request.stopIds());
@@ -96,6 +98,7 @@ public class RouteCommandService {
      * 같은 값을 그대로 다시 보내는 요청이 자기 자신을 중복으로 세는 것을 막는다.
      */
     public RouteDetailResponse update(AuthUser requester, Long routeId, RouteUpdateRequest request) {
+        RouteStopLimit.assertWithin(request.stopIds());
         Route route = findOwnRoute(requester, routeId);
         RoutePlan plan = planOf(request);
         if (plan.busId() != null) {
@@ -122,6 +125,7 @@ public class RouteCommandService {
      * 승하차지가 두 번 담기면 마지막 검증이 {@code 422} 로 막는다(버스가 같은 자리에 두 번 서는 것).
      */
     public RouteDetailResponse saveStops(AuthUser requester, Long routeId, RouteStopsSaveRequest request) {
+        RouteStopLimit.assertWithin(request.stops());
         Route route = findOwnRoute(requester, routeId);
         Map<Long, Stop> existing = routeStopArranger.resolve(requester.academyId(), request.existingStopIds());
         assertNotRelocatingStopsOfMovingRun(requester, existing, request);

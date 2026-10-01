@@ -26,6 +26,7 @@ import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.StudentRepository;
 import testsupport.clock.FixedClock20310401Config;
+import testsupport.db.NotificationInsertFailureInjector;
 
 /**
  * 자동 거절 폴링({@link ChangeRequestAutoRejectionScheduler#rejectDueChangeRequests}) 수준의 검증
@@ -233,15 +234,15 @@ class ChangeRequestAutoRejectionSchedulerTest {
         long badRequestId = fixtures.pendingChangeRequest(badAcademyId, badRunId, badStudentId, badParentId,
                 now.minusMinutes(10), now.minusMinutes(1));
 
-        // 이 요청이 자동 거절되며 만들 dedup_key 를 미리 점유해, 알림 적재에서 DUPLICATE_NOTIFICATION 이
-        // 나게 만든다 — ChangeRequestAutoRejectionPersistence 의 트랜잭션 전체가 롤백된다.
-        String collidingDedupKey = "change_decided:" + badRunId + ":" + badRequestId + ":" + now;
-        jdbcTemplate.update(
-                "INSERT INTO notification_log (academy_id, recipient_account_id, recipient_name, recipient_role, "
-                        + "type, title, body, dedup_key) VALUES (?, ?, '선점', 'parent', 'change_decided', '선점', '선점', ?)",
-                badAcademyId, badParentId, collidingDedupKey);
+        // 이 요청이 자동 거절되며 하는 알림 적재가 DB 에서 실패하게 만든다 — ChangeRequestAutoRejectionPersistence 의 트랜잭션 전체가
+        // 롤백된다. 같은 dedup_key 는 건너뛰므로(Ruling 622) 키 선점으로는 실패가 나지 않아 트리거로 거절한다.
+        NotificationInsertFailureInjector.failFor(jdbcTemplate, badAcademyId);
 
-        scheduler.rejectDueChangeRequests();
+        try {
+            scheduler.rejectDueChangeRequests();
+        } finally {
+            NotificationInsertFailureInjector.clear(jdbcTemplate);
+        }
 
         var goodRequest = changeRequestRepository.findById(goodRequestId).orElseThrow();
         assertThat(goodRequest.getStatus()).as("옆 건이 실패해도 이 건은 거절돼야 한다")

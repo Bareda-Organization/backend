@@ -210,9 +210,11 @@ HTTP 상태 코드 + 본문. 본문 형태는 전 엔드포인트 공통.
 | `FORBIDDEN` | 403 | 역할 권한 밖 호출 (FEATURE_SPEC §6 권한 매트릭스) |
 | `ACADEMY_SCOPE_VIOLATION` | 403 | 소속 학원 밖 자원 요청 (§1.5). 메인 관리자 콘솔(§6)은 예외 |
 | `VALIDATION_FAILED` | 422 | 필수 필드 누락 · 형식 위반 |
+| `SERVER_BUSY` | 503 | DB 연결을 얻지 못함(풀 고갈 · 연결 끊김) · 잠금 대기 5초 초과 · 쿼리 취소 — 서버 결함이 아닌 일시 과부하. 응답에 `Retry-After: 3`(초) 가 실리고 **클라이언트는 같은 요청을 잠시 뒤 다시 보낸다**(`Ruling 620`) |
 
 - **비인증 허용 경로 5개**(§1.2)에는 위 401·403 항목이 미적용 — `VALIDATION_FAILED` 만 해당.
 - **자유 입력 메모·비고 문자열의 최대 길이는 200자**(2026-09-30 BR-255 · BR-257) — `note`(학생 등록·수정 §5.11, 강제 추가 §5.7) · `memo`(학원 등록·수정 §6.2·§6.3, 비상 신고 §4.14, 현장 예외 보고 §4.13). 넘으면 `422 VALIDATION_FAILED`. 경유 지점·버스 간 이동의 `note` 는 원래 200자였고 그 값에 맞췄다. DB 는 `text` 라 자리 부족이 아니라 수 MB 저장을 막는 상한이다.
+- `503 SERVER_BUSY` 는 과부하라 **요청이 처리되지 않았다는 것만 확정**이다(재시도 안전 — 쓰기 요청은 `client_key` 멱등 키로 중복을 막는 경로가 이미 있다). 서버 로그에는 스택 없는 `warn` 한 줄(`[db-unavailable]`)만 남아 `5xx` 경보에서 서버 결함(`500`)과 갈라 볼 수 있다.
 - `500` 계열 서버 오류에는 클라이언트가 "처리되지 않았습니다" 표시. 성공 표시는 서버 2xx 확인 뒤에만 (C-10 · §1.9).
 - 개별 엔드포인트의 `**에러**` 줄에는 **그 엔드포인트 고유의 실패 시나리오만** 기재. 단 그 경로에서 **특별한 의미**를 갖는 공통 코드는 개별 기재 — 예 승하차 처리의 `403 ESCORT_ONLY`(기사 호출 차단, §4.6) · 매니저 앱 회차 자원의 `403 FORBIDDEN`(배치되지 않은 회차, §1.5) · 관제의 학원 격리 예외(§6.8).
 
@@ -1793,9 +1795,11 @@ STU-05) — 화면이 "이 자리에 이미 있다" 를 알려 관계자가 같�
 
 **미확정으로 남긴 것** — 최적화 **자동 트리거**와 **가중치 기준**. 가중치는 `PRD §7.1` 이 P2 후속(F-01)에 뒀고, 오픈 이슈 G 가 닫히기 전까지 트리거를 만들지 않는다.
 
-**에러** — `409 DUPLICATE_ROUTE`(같은 차량·요일·방향이 이미 편성됨) · `404 ROUTE_NOT_FOUND` · `404 BUS_NOT_FOUND` · `422 VALIDATION_FAILED`(`stop_ids` 중복·학원 밖) · `503 MAP_ROUTE_UNAVAILABLE`(외부 도로 경로 API 서킷 개방 — §8)
+**에러** — `409 DUPLICATE_ROUTE`(같은 차량·요일·방향이 이미 편성됨) · `404 ROUTE_NOT_FOUND` · `404 BUS_NOT_FOUND` · `422 VALIDATION_FAILED`(`stop_ids` 중복·학원 밖·**50개 초과**) · `503 MAP_ROUTE_UNAVAILABLE`(외부 도로 경로 API 서킷 개방 — §8)
 
-⚠ **`stop_ids` 의 두 거부 사유는 코드가 같다** — 중복이든 학원 밖이든 `422 VALIDATION_FAILED` 이고, 사유는 `error.message` 문구로만 갈린다("같은 승하차지를 두 번 담을 수 없습니다" · "편성할 수 없는 승하차지가 있습니다"). 2026-09-25 전에는 `GlobalExceptionHandler` 가 `ErrorCode` 의 고정 문구만 실어 그 문구도 도달하지 않았다(BR-135 로 해소). 화면이 사유를 **코드로** 갈라 분기해야 하면 `ErrorCode` 를 나누는 것이 유일한 수단이다.
+⚠ **`stop_ids` 의 세 거부 사유는 코드가 같다** — 중복이든 학원 밖이든 50개 초과든 `422 VALIDATION_FAILED` 이고, 사유는 `error.message` 문구로만 갈린다("같은 승하차지를 두 번 담을 수 없습니다" · "편성할 수 없는 승하차지가 있습니다" · "정차지는 한 노선에 최대 50개까지 담을 수 있습니다").
+
+**노선 하나의 정차지는 최대 50개다**(2026-10-01 `Ruling 613`) — 적용 대상은 `POST /staff/routes`·`PATCH /staff/routes/{id}` 의 `stop_ids`, `PUT /staff/routes/{id}/stops` 의 `stops[]`, `POST /staff/routes/{id}/optimize` 의 `fixed_stop_ids` 4곳이고 넘으면 `422 VALIDATION_FAILED` 다. 상한이 없으면 정차지 500개짜리 노선 하나를 열 때마다 외부 경로 호출이 구간 수(17지점당 1회)만큼 나가 일일 한도를 갉아먹고 요청 스레드를 수 분 묶는다. 정상 노선은 30개 안쪽이다. 관계자 웹 폼의 사전 안내는 이 판정의 범위 밖이다(서버 거절 문구가 그대로 보인다). 2026-09-25 전에는 `GlobalExceptionHandler` 가 `ErrorCode` 의 고정 문구만 실어 그 문구도 도달하지 않았다(BR-135 로 해소). 화면이 사유를 **코드로** 갈라 분기해야 하면 `ErrorCode` 를 나누는 것이 유일한 수단이다.
 
 **`GET /staff/routes/{id}/path` 응답**(R27-B 신설) — `road_path`(`{lat,lng}[]`, 순서 있음) · `fallback_used`(`true` 면 직선거리 근사) · `stops[]`(`stop_id` · `seq` · `name` · `lat` · `lng`, 상세 응답과 같은 모양)
 
@@ -2706,7 +2710,6 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `DUPLICATE_ROUTE` | 409 | 같은 `bus_id`·`weekday`·`direction` 조합의 고정 노선 중복 편성·수정 — 유일성 근거는 `route(bus_id, weekday, direction)` UNIQUE(`uk_route_bus_weekday_direction`)이고 애플리케이션 선검사가 아니다 (RTE-01 · §5.9). **동시 2요청은 서로의 미커밋 INSERT 를 보지 못한 채 둘 다 선검사를 지나므로**, 제약 위반을 이 코드로 번역하지 않으면 그 경합이 500 으로 샌다. 422 가 아니라 409 인 것은 `DUPLICATE_SCHEDULE`·`DUPLICATE_BUS_NO` 와 같은 형태다 (2026-08-29 신설, Ruling 180) |
 | `ADDRESS_VERIFICATION_UNAVAILABLE` | 503 | 주소 좌표 변환 서비스(네이버 지오코딩)에 연결 불가 — 주소 검증을 거치는 경로(§3.7 · §3.8 · §5.7 · §5.8 · §5.9 승하차지 검색 · §5.15). ⚠ **`ADDRESS_VERIFICATION_FAILED`(422)와 합치지 않는다** — 그쪽은 주소를 고쳐 다시 보낼 자리, 이쪽은 같은 주소를 잠시 뒤 다시 보낼 자리 |
 | `DUPLICATE_WEEKLY_ADDRESS` | 409 | 한 요청 안에 같은 요일·방향의 주소가 둘 이상 — 유일성 근거는 DB UNIQUE (§3.7). 같은 칸을 나중에 다시 고치는 것은 덮어쓰기라 이 코드가 아님 |
-| `DUPLICATE_NOTIFICATION` | 409 | 같은 멱등키(`notification_log.dedup_key`)의 알림 적재가 겹침 — 이미 통지한 알림. 사용자 요청이 아니라 알림 적재 쪽 충돌이 그 요청의 응답으로 올라오는 형태 |
 | `ACADEMY_COORDINATES_MISSING` | 422 | 학원 좌표(`academy.lat`·`lng`) 미등록 상태의 노선 계산 — ② 구간 승인 미리보기·처리(§5.5) · 고정 노선 최적화(§5.9) · 경유 지점 지정(§5.15). 확정 배치에서는 그 회차만 실패하고 다음 틱에 재시도 (Ruling 190) |
 | `WAYPOINT_NOT_FOUND` | 404 | 미존재·이미 제거된 강제 경유 지점 지정 · 다른 회차 소속 — 존재 비노출 (§5.15 · RTE-10) |
 

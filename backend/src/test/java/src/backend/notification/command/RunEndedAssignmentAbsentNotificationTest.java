@@ -1,9 +1,11 @@
 package src.backend.notification.command;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.time.LocalDate;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 
 import org.junit.jupiter.api.AfterEach;
@@ -164,11 +166,12 @@ class RunEndedAssignmentAbsentNotificationTest {
         assertThat(count("assignment_changed", account.getId())).as("롤백된 배치는 통지하지 않는다").isZero();
 
         new TransactionTemplate(transactionManager).executeWithoutResult(tx -> eventPublisher.publishEvent(event));
-        assertThat(count("assignment_changed", account.getId())).isEqualTo(1);
+        // 커밋 뒤 적재는 알림 실행기에서 비동기로 돈다(R46 T-4) — 커밋한 호출이 돌아온 시점에는 아직 없을 수 있다
+        await().atMost(Duration.ofSeconds(10)).until(() -> count("assignment_changed", account.getId()) == 1);
     }
 
     /**
-     * AFTER_COMMIT 적재가 실패해도(여기서는 같은 {@code dedup_key} 의 중복 — {@code DUPLICATE_NOTIFICATION}) 이미 커밋된
+     * AFTER_COMMIT 적재가 실패해도(예전에는 같은 {@code dedup_key} 의 중복이 예외였으나 지금은 건너뛴다 — Ruling 622) 이미 커밋된
      * 배치 변경의 호출자에게 예외가 퍼지면 안 된다(Ruling 379 후속, BR-207 과 같은 형태) — 퍼지면 배치는 저장됐는데
      * 요청이 500 으로 응답된다. 통지가 빠지는 것은 배치 자체를 되돌릴 이유가 아니다.
      */
@@ -190,7 +193,9 @@ class RunEndedAssignmentAbsentNotificationTest {
                 .executeWithoutResult(tx -> eventPublisher.publishEvent(event)))
                 .as("같은 이벤트의 두 번째 커밋 — 적재가 중복으로 실패해도 호출자는 성공해야 한다")
                 .doesNotThrowAnyException();
-        assertThat(count("assignment_changed", account.getId())).as("통지는 한 건만 남는다").isEqualTo(1);
+        // 두 번째 적재의 중복 실패도 실행기에서 삼켜지고 행은 한 건으로 유지된다(비동기라 잠시 지켜본다)
+        await().during(Duration.ofMillis(500)).atMost(Duration.ofSeconds(10))
+                .until(() -> count("assignment_changed", account.getId()) == 1);
     }
 
     @Test

@@ -1114,8 +1114,17 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 588 | 통과 판정 — 관리자 50 은 4회차 통과 · 200·300·400 통과(컷의 8배 · 예상 25 의 16배) · 500 이상은 판정 보류 | 본문 §8.84 |
 | 589 | 포화 지점 — 위치 수신 포화는 이동 거의 없음 · 09-09 붕괴 두 조건은 통과하나 R46 단독 귀속 불가 · 관계자 폴링 포화 후보(연결 풀 10) | 본문 §8.84 |
 | 610 | 퇴원 파기 때 보호자↔자녀 연결(`guardian_student`)도 삭제 — 파기 뒤 `보호자 → guardian_student → student(익명) → run_rider → stop(주소·좌표)` 로 집 주소가 복원되던 경로를 끊음(사용자 결정 · 검토 `schema` A-4) · 보호자 본인 보존 기간은 열린 항목 | 본문 §8.86 · `docs/ERD.md §7.1` |
+| 613 | 노선 정차지 수 상한 50 — 등록·수정·정차지 저장·최적화 고정 정차지 4곳 DTO `@Size` + 서비스 검증 → 422 (사용자 결정 2026-10-01) | 본문 §8.85 · `docs/API_SPEC.md §5.9` |
 | 614 | `run_rider.boarded_at` · `alighted_at` 삭제 — 읽는 곳 0 · 되돌리기 뒤 값이 틀림 · 같은 시각이 `rider_status_history.changed_at` 에 있음(사용자 결정 · 검토 `schema` A-3). 같은 갈래가 `run_rider.note`(A-2)도 삭제 | 본문 §8.86 · `docs/ERD.md §3` |
 | 615 | 배포 때 nginx 설정 자동 반영 — 프록시 재시작으로 1~2초 끊김 허용, 단 새 설정을 일회용 컨테이너로 `nginx -t` 검사해 통과할 때만 재시작 · 실패하면 배포 중단 (사용자 결정 · 이행은 `Ruling 648·649`) | 본문 §8.87 (결정 원문은 사용자 지시 — 문서에는 이 행이 기록) |
+| 620 | DB 자원 오류(풀 고갈·연결 끊김·잠금 대기 초과·쿼리 취소)는 `503 SERVER_BUSY` + `Retry-After: 3` · 스택 없는 `warn` 한 줄 | 본문 §8.85 · `docs/API_SPEC.md §1.11` |
+| 621 | prod·demo DB 시간 상한 — 누수 감지 5초 · `lock_timeout 5s` · `idle_in_transaction_session_timeout 30s`(`statement_timeout` 은 안 건다) | 본문 §8.85 |
+| 622 | 알림 적재는 한 문장 묶음(`appendAll`) + 같은 `dedup_key` 는 예외 없이 건너뜀 — `DUPLICATE_NOTIFICATION` 삭제 · 운행 시작 적재 SQL 문장 수 수신자 수와 무관 | 본문 §8.85 · `docs/TECH_DECISIONS.md §7.2` |
+| 623 | FCM 보호 — 서킷 `fcm` · 요청 시간 4초 · 비상 전용 발송 실행기 · 접근 토큰 락 없이 미리 갱신 | 본문 §8.85 · `docs/TECH_DECISIONS.md §7.2` |
+| 624 | 근접·출발 판정도 Redis 장애 때 `run_position` 최신 행으로 판정(건너뛰면 도착 임박 알림 영구 누락) | 본문 §8.85 · `docs/TECH_DECISIONS.md` Redis 장애 행 |
+| 625 | Redis 장애 로그는 호출 위치당 분당 1건만 스택과 함께(`RateLimitedWarn`) | 본문 §8.85 |
+| 626 | 퇴원 학생 파기 묶음 200명(삭제 묶음 5,000 과 분리) | 본문 §8.85 |
+| 627 | 트랜잭션 경계 정리 — 위치 수신 발행을 트랜잭션 밖으로 · 비상 신고 Redis 읽기 앞으로 · BCrypt 5곳 밖으로 · 배치 변경 통지 실행기 위임 | 본문 §8.85 |
 | 630 | 인덱스 정비 — 계정 복구 경로 `account(phone)` · `verification_code(phone, created_at desc)`(순차 스캔 4회 → 인덱스) · 중복 `ix_run_bus_date` 삭제 · FK 선행 `run(schedule_id)` · `run_stop(waypoint_id)` 부분 · `run_position` 표 단위 autovacuum | 본문 §8.86 |
 | 631 | 보존 정리 정렬 키를 컷오프 인덱스 키(`recorded_at`)로 · 확정 배치 인덱스를 `(service_date, confirm_at)` 미취소 idle 부분 인덱스로(힙 확인 3,000 → 0 행) | 본문 §8.86 |
 | 632 | 감사·접속 이력 기본 조회 기간 = `to`(없으면 지금)로부터 30일 · 계정별 접속 이력의 해제 행 부분 인덱스 `audit_log(target_id) WHERE action='unblock'` | 본문 §8.86 · `docs/API_SPEC.md §6.13` |
@@ -1459,6 +1468,43 @@ R46 의 서버·웹·앱 개선(`D #1`·`#5`~`#9`·`#13`~`#17`)이 목표 규모
 **결과 (2026-10-01)** — 목표 1~5 ✅. 코드 변경 없음(부하 스크립트·판정 스크립트·문서만). 시험 스크립트가 낸 오류 4건을 측정 중 발견·수정: `scenario2_position.js` echo 비교(문자열 식별자 `Ruling 332`)·묶음 실행기의 stdin 소비·응답 뒤 쉼 송신 모델·판정 스크립트의 확정 건수 기준. `schoolbus_load` 는 **남긴다**(다음 측정 재사용) — 단 학원 1 의 위치용 회차 12,000건 · 학원 불일치 `run_rider` 30,000건이 쌓여 학원 1 대시보드 응답이 5.1MB 라 **다음 측정 전에 `LP-…` 회차와 그 `run_rider` 를 먼저 지운다**(`LOAD_TESTING §6.5.5`).
 
 **다시 재는 명령(한계 판정)** — 호스트가 조용할 때: `ROUND_LABEL=r46_r3_G500f_v570_a R3_ADMINS=500 R3_INTERVAL=2 R3_FIXED_RATE=1 ./r3_mixed.sh 570 1`(700 · 1000 도 같은 형태). 운영 설정 비교가 목적이면 서버를 `--spring.datasource.hikari.maximum-pool-size=20 --spring.datasource.hikari.connection-timeout=3000` 로 띄운다 — 지금 여유 배수는 **연결 풀 10(load 프로파일 기본)** 기준이다.
+
+## 8.85 ⚖ `R46-FIXTX` — 연결·트랜잭션 단축 · 장애 대응 (2026-10-01 · 분기점 `e8ab1fe1` · 번호대 620~629 · 사용자 결정 `Ruling 613`)
+
+R46 검토 5갈래(`tx` · `load` · `stab` · `idx` · 문서 정합 보고)가 지적한 **연결 점유 · 외부 장애 대응** 항목 11건을 코드로 고쳤다. 검토는 읽기 전용 추정이 섞여 있어 항목마다 시험으로 먼저 재현했고(RED), 고친 뒤 결함을 심어 그 시험만 실패하는지 확인했다. 갈래 보고서 `.claude/r46/report-fixtx.md`(무시 파일). 마지막 커밋 `0f331f74` · 브랜치 `mskim98/r46-fixtx`.
+
+### R46-FIXTX 판정
+
+| Ruling | 판정 | 근거 |
+|:-:|---|---|
+| **620** | **DB 자원 오류는 `503 SERVER_BUSY` + `Retry-After: 3`** — 연결 풀 고갈(`CannotCreateTransactionException`) · 연결 끊김(`DataAccessResourceFailureException`) · 잠금 대기 초과(`PessimisticLockingFailureException`) · 쿼리 취소(`QueryTimeoutException`). 로그는 스택 없는 `warn` 한 줄(`[db-unavailable]`). `ErrorCode.SERVER_BUSY` 1개 · `API_SPEC §1.11` 표 1행 | 500 으로 두면 "서버 결함" 5xx 와 "과부하" 5xx 가 섞여 5xx 경보가 오탐이 되고, 풀이 마른 동안 요청마다 스택이 쌓인다 |
+| **621** | **prod·demo 의 DB 시간 상한** — Hikari `leak-detection-threshold: 5000` + 세션 `lock_timeout 5s` · `idle_in_transaction_session_timeout 30s`(`data-source-properties.options`). `statement_timeout` 은 걸지 않는다(보존 정리 5,000행 DELETE · Flyway 가 같은 계정). 로컬·시험에는 걸지 않는다 | 연결 대기 3초(`connection-timeout`)는 "연결을 얻는 대기"만 자르고 잠금 대기·연결을 쥔 시간은 못 자른다. JDBC URL 옵션은 운영 compose 가 `DB_URL` 을 통째로 넘겨 붙일 자리가 없어 Hikari 속성으로 같은 효과를 냈다. 실연결 `SHOW` 로 확인 |
+| **622** | **알림 적재는 한 문장 묶음 + 같은 `dedup_key` 는 건너뜀** — `NotificationOutbox.appendAll`(`INSERT … ON CONFLICT (dedup_key) DO NOTHING RETURNING id, popup`). `DUPLICATE_NOTIFICATION` 삭제. 운행 시작 알림 적재 SQL 문장 수 학생 2명 9 → 7 · 10명 17 → 7(수신자 수와 무관) | 예외로 알리면 PostgreSQL 이 UNIQUE 위반 즉시 트랜잭션을 중단 상태로 만들어 호출부가 잡아도 상태 변경까지 되돌아간다(예전 시험이 "키 충돌 → 그 건 통째 롤백"을 의도로 못박고 있었다). 같은 키는 같은 알림이 이미 있다는 뜻이라 건너뛰어도 통지는 빠지지 않는다. 등원 최종 도착의 학생별 INSERT 는 `RunAutoAlightedEvent` 의 "학생 단위" 결정을 지켜 그대로 둔다 |
+| **623** | **FCM 보호** — ①서킷 `fcm`(`placeSearch` 와 같은 값 · 일시 장애(네트워크·429·5xx·토큰 발급 실패)만 셈, 본문·단말 4xx 는 안 셈) ②요청 시간 상한 10 → 4초 ③비상·비상 취소 전용 즉시 발송 실행기(스레드 2 · 큐 100) ④접근 토큰 만료 5분 전부터 락 없이 미리 갱신 | FCM 이 응답하지 않으면 발송 스레드 8개가 10초씩 묶여 처리율 0.8건/s · 비상 알림이 큐 앞 일반 알림 100건 뒤에 선다. 서킷이 열린 동안은 행이 `pending` 으로 남아 워커(30초)가 이어받는다 |
+| **624** | **근접·출발 판정도 Redis 장애 때 `run_position` 최신 행으로 판정** — `findCached` 삭제 · `find`(DB 대체) 사용 | 건너뛰면 그 사이 기사가 도착 처리해 "다음 미도착" 이 넘어간 정차지의 도착 임박 알림(NTF-04)이 영구히 빠진다. 대체 위치는 지연될 수 있어 300m 진입을 늦게 알 수 있다 |
+| **625** | **Redis 장애 로그는 호출 위치당 분당 1건만 스택과 함께** — `RateLimitedWarn`(생략 건수를 다음 줄에 알림). 위치 수신 리스너 · 최신 좌표 읽기 대체 · 근접 판정 스케줄러(판정별) 3곳 | Redis 가 죽으면 초당 약 70~100줄 스택이 쏟아지고 로그 드라이버가 블로킹 모드면 전송 지연이 로그를 남기는 모든 스레드를 멈출 수 있다 |
+| **626** | **퇴원 학생 파기 묶음 200명** — `RetentionCleanupScheduler` 의 묶음 크기를 테이블별로(삭제 5개·감사 로그는 5,000 유지) | 파기는 한 트랜잭션이 학생·계정 엔티티를 전부 적재하고 커밋 때 건별 UPDATE 를 내 묶음이 크면 연결을 오래 쥔다. 묶음마다 감사 1행이 남는다 |
+| **627** | **트랜잭션 경계 정리** — ①위치 수신: DB 일만 `TransactionTemplate` 으로 감싸고 Redis 갱신·방송은 커밋·연결 반납 **뒤** 발행(구독자 2개 `fallbackExecution = true`) ②비상 신고: 위치 캐시(Redis) 읽기를 트랜잭션·`client_key` 잠금 앞으로 ③BCrypt 5곳(가입 · 비밀번호 변경 · 관리자 초기화 · 관계자 수정 · 전화번호 복구)을 트랜잭션·행 잠금 밖으로 — 비밀번호 변경은 잠근 행의 해시가 대조에 쓴 해시와 다르면 현재 비밀번호를 다시 대조, 복구는 발급된 코드와 입력이 맞을 때만 임시 비밀번호를 미리 계산 ④배치 변경 통지(`assignment_changed`)는 알림 실행기에서 새 트랜잭션으로 적재 | `AFTER_COMMIT` 콜백은 연결을 반납하기 **전에** 돈다(Spring 7.0.8 소스 · 시험이 `ConnectionHolder` 가 묶인 채 Redis 갱신이 호출되는 것을 확인). 콜백에서 새 트랜잭션을 열면 한 요청이 연결 2개를 동시에 쥔다. **계약 변화**: 배치 변경 통지 행이 커밋 직후가 아니라 비동기로 수 ms~ 늦게 나타난다 |
+| **613** (구현) | 노선 정차지 수 상한 50 — 등록·수정(`stop_ids`) · 정차지 저장(`stops[]`) · 최적화(`fixed_stop_ids`) DTO `@Size` + 서비스 검증 → `422 VALIDATION_FAILED` · `API_SPEC §5.9` | 사용자 결정(`Ruling 613` · 검토 갈래 `stab` 의 정차지 상한 지적) — 정차지 500개 노선 하나가 외부 경로 호출 32회를 내 일일 한도를 갉아먹는 것을 막는다 |
+
+### R46-FIXTX 목표 표
+
+| # | 조건 | 결과 |
+|:-:|---|:-:|
+| 1 | 위치 수신 커밋 뒤 작업이 트랜잭션 밖 · Redis·방송 동작 유지 | ✅ 시험 RED→GREEN · 결함 심기 3종 |
+| 2 | BCrypt 5곳이 잠금·트랜잭션 밖 | ✅ 시험 7건 · 결함 심기 7종 |
+| 3 | prod·demo 설정에 누수 감지·잠금 상한·유휴 트랜잭션 상한이 실제 연결에 적용 | ✅ 실연결 `SHOW lock_timeout`=5s · `idle_in_transaction_session_timeout`=30s · 결함 심기 3종 |
+| 4 | DB 자원 오류 503 · `Retry-After` · 스택 없음 | ✅ MockMvc 시험 · 결함 심기 3종 |
+| 5 | T-4 · T-5 · T-6 · #7 · S-2 · 근접 판정 Redis 대체 · S-3 · 613 · T-8 각 시험 RED→GREEN | ✅ 재현 안 된 항목 없음(#7 은 변경 전 시험이 이미 재현) |
+| 6 | 바뀐 범위 + 전수 시험 `--rerun` 실패 0 · 건너뜀 0 | ✅ 전체 시험 `./gradlew test --rerun` 2,064건 · 366개 클래스 · 건너뜀 0 · 실패 0(결과 XML 합계 · 전수 검사 21개 클래스 포함) |
+| 7 | 정본 반영 + `Ruling 62x` · 이 절 · §11 색인 · 깨진 참조 0 | ✅ |
+| 8 | 정리 — 띄운 서버 · `r46_fixtx` DROP | ✅ |
+
+### 범위 밖 · 넘긴 것
+
+- `docker-compose.prod.yml` 로그 드라이버 `awslogs-mode: non-blocking`(S-3 ①) · 경보 규칙 5종(S-1) · `stop_grace_period`(S-8) · JVM OOM 종료 플래그(S-6) — 운영 갈래 몫
+- 매니저 앱 오프라인 큐가 서버 5xx 를 쌓지 않는 문제(S-9) · WS 재연결 포기 정책(S-5) · 웹 폼의 정차지 50개 사전 안내 — 프론트 갈래 몫
+- `Tomcat` 스레드 상한(`review-load` L11) · `idle in transaction` 비율 재표본(`review-tx` 4절 1번) · T-1 적용 전후 `hikaricp_connections_usage_seconds` 비교 — 부하 측정 갈래가 다시 잴 때 확인
 
 ## 8.86 ⚖ `R46-FIXSCHEMA` — 스키마·인덱스 정비 (2026-10-01 · 분기점 `e8ab1fe1` · 번호대 630~639 · 사용자 결정 `Ruling 610`·`614`)
 

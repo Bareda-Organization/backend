@@ -17,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import tools.jackson.databind.json.JsonMapper;
 
+import src.backend.global.common.logging.RateLimitedWarn;
 import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.location.entity.RunPosition;
 import src.backend.location.repository.RunPositionRepository;
@@ -30,7 +31,9 @@ import src.backend.observability.metrics.RunPositionFallbackMetrics;
  * <p><b>Redis 장애 대체(BR-167, TECH_DECISIONS §14.2)</b> — {@link #find}·{@link #findAll} 은 Redis 가 실패하면
  * (연결 실패·시간 상한 초과) {@code run_position} 의 회차별 최신 행으로 같은 형태를 돌려준다. 여러 회차는 조회
  * 한 번이다(관제가 회차 수만큼 쿼리를 내지 않게). 대체 값의 {@code currentStopName} 은 {@code null} — 이력 행에
- * 없는 값이다. 근접 판정은 대체하지 않는다({@link #findCached}) — 그 틱을 건너뛰고 다음 틱(10초)에 다시 본다.
+ * 없는 값이다. <b>근접 판정도 대체한다</b>(R46 · Ruling 624) — 건너뛰면 Redis 가 죽은 동안 기사가 도착 처리해 "다음 미도착" 이 넘어간
+ * 정차지는 선점 한 번 못 해 도착 임박 알림이 영구히 빠진다. 대체 위치는 {@code recorded_at} 이 지연될 수 있어 300m 안 진입을
+ * 늦게 알아챌 수는 있지만 알림이 빠지는 것보다 낫다.
  *
  * <p>인터페이스(spec)로 가르지 않는다 — 최신 좌표를 Redis 에 두는 것은 인스턴스 간 공유 때문이고
  * (ARCHITECTURE §9.5) 바꿀 구현 후보가 없다. 교체 축이 없는 곳에 포트를 씌우지 않는다(ARCHITECTURE §3.2.1).
@@ -60,6 +63,10 @@ public class RunPositionStore {
 
     private final RunPositionFallbackMetrics fallbackMetrics;
 
+    /** Redis 가 죽으면 폴링마다 같은 실패가 난다 — 분당 한 번만 스택과 함께 남긴다(R46 S-3). */
+    private final RateLimitedWarn redisReadFailure = RateLimitedWarn.perMinute(
+            org.slf4j.LoggerFactory.getLogger(RunPositionStore.class));
+
     /** 최신 좌표를 덮어쓴다 — 실패는 호출자에게 던진다(위치 수신 리스너가 삼키고 다음 송신에 맡긴다). */
     public void save(Long runId, RunPositionRedisValue value) {
         stringRedisTemplate.opsForValue().set(keyOf(runId), JSON_MAPPER.writeValueAsString(value), TTL);
@@ -83,7 +90,7 @@ public class RunPositionStore {
         try {
             raws = stringRedisTemplate.opsForValue().multiGet(ids.stream().map(this::keyOf).toList());
         } catch (DataAccessException e) {
-            log.warn("[location] Redis 최신 좌표 읽기 실패 — run_position 최신 행으로 대체한다. runIds={}", ids, e);
+            redisReadFailure.warn(e, "[location] Redis 최신 좌표 읽기 실패 — run_position 최신 행으로 대체한다. runIds={}", ids);
             return fromHistory(ids);
         }
         Map<Long, RunPositionRedisValue> positions = new HashMap<>();
@@ -92,11 +99,6 @@ public class RunPositionStore {
             parse(runId, raws.get(i)).ifPresent(position -> positions.put(runId, position));
         }
         return positions;
-    }
-
-    /** Redis 에서만 읽는다 — 실패는 그대로 던진다(근접 판정은 그 틱을 건너뛴다, 클래스 자바독). */
-    public Optional<RunPositionRedisValue> findCached(Long runId) {
-        return parse(runId, stringRedisTemplate.opsForValue().get(keyOf(runId)));
     }
 
     /** 최신 좌표 키를 전부 지운다(개발용 초기화) — 지운 키 개수. */

@@ -85,6 +85,14 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     List<Account> findAllByPhoneAndRoleInForUpdate(@Param("phone") String phone, @Param("roles") Collection<Role> roles);
 
     /**
+     * 같은 번호의 복구 대상 계정을 잠금 없이 읽는다 — 임시 비밀번호(BCrypt)를 몇 개 미리 만들지 정할 뿐이고, 저장은
+     * {@link #findAllByPhoneAndRoleInForUpdate} 로 다시 읽은 행에 한다(R46 T-3).
+     */
+    @AcademyScopeExempt(reason = "§2.9 계정 복구 — 전화번호만 들고 시작해 소속 학원이 미상")
+    @Query("SELECT a FROM Account a WHERE a.phone = :phone AND a.role IN :roles ORDER BY a.id")
+    List<Account> findAllByPhoneAndRoleIn(@Param("phone") String phone, @Param("roles") Collection<Role> roles);
+
+    /**
      * 학원별 소속 사용자 수(API_SPEC §6.1 {@code user_count}) — 역할과 상태를 인자로 받아 무엇을 세는지
      * 호출부가 정한다.
      *
