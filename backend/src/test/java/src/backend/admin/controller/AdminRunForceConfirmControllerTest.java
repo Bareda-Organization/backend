@@ -208,12 +208,15 @@ class AdminRunForceConfirmControllerTest {
         long runId = dueIdleRun();
 
         mockMvc.perform(post(FORCE_CONFIRM.formatted(runId))
-                        .header("Authorization", 메인관리자_토큰())
+                        .header("Authorization", 메인관리자_토큰()).header("X-Real-IP", "203.0.113.23")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"기사 무응답으로 콘솔 강제 확정\"}"))
                 .andExpect(status().isCreated());
 
         동기화한다();
+        assertThat(jdbcTemplate.queryForObject("SELECT host(ip) FROM audit_log WHERE action = 'update' "
+                + "AND target_type = 'run' AND target_id = ? ORDER BY id DESC LIMIT 1", String.class, runId))
+                .as("강제 확정 기록에도 접속 IP 가 남는다").isEqualTo("203.0.113.23");
         var row = jdbcTemplate.queryForMap(
                 "SELECT detail->>'action' AS detail_action, detail->>'reason' AS detail_reason, "
                         + "(detail->>'fallback_used')::boolean AS detail_fallback_used, "

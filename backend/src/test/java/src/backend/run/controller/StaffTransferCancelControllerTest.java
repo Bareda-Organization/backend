@@ -57,6 +57,8 @@ class StaffTransferCancelControllerTest {
 
     private static final long STAFF_ACCOUNT_ID = 9101L;
 
+    private static final String CLIENT_IP = "203.0.113.24";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -116,6 +118,8 @@ class StaffTransferCancelControllerTest {
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM audit_log WHERE category = 'data_access' "
                 + "AND action = 'delete' AND target_type = 'run_transfer' AND target_id = ?", Long.class,
                 scene.transferId())).as("감사 기록").isEqualTo(1L);
+        assertThat(jdbcTemplate.queryForObject("SELECT host(ip) FROM audit_log WHERE target_type = 'run_transfer' "
+                + "AND target_id = ?", String.class, scene.transferId())).as("감사 기록의 접속 IP").isEqualTo(CLIENT_IP);
     }
 
     @Test
@@ -272,7 +276,7 @@ class StaffTransferCancelControllerTest {
 
     private ResultActions 취소한다(long transferId, long academyId) throws Exception {
         return mockMvc.perform(delete("/api/v1/staff/transfers/" + transferId)
-                .header("Authorization", 토큰(academyId)));
+                .header("Authorization", 토큰(academyId)).header("X-Real-IP", CLIENT_IP));
     }
 
     /** §5.4 예정 명단의 학생 id 들 — 응답의 식별자는 JSON 문자열이다(Ruling 332). */

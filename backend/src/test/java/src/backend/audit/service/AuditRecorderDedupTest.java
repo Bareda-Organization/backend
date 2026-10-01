@@ -103,9 +103,9 @@ class AuditRecorderDedupTest {
         roster(actor, "1");
 
         auditLogRepository.save(AuditLog.forDataAccessChange(AuditAction.UPDATE, 1L, actor, "x", "student", 1L,
-                Map.of("fields", List.of("note")), now));
+                Map.of("fields", List.of("note")), null, now));
         auditLogRepository.save(AuditLog.forDataAccessChange(AuditAction.DELETE, 1L, actor, "x", "student", 1L,
-                Map.of(), now));
+                Map.of(), null, now));
         auditLogRepository.save(AuditLog.forLoginSuccess(1L, actor, "x", "203.0.113.7", now));
 
         assertThat(jdbcTemplate.queryForList(

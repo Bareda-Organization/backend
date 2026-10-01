@@ -20,6 +20,7 @@ import src.backend.audit.entity.AuditLog;
 import src.backend.audit.repository.AuditLogRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.request.ClientIp;
 import src.backend.global.request.Patch;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.access.AcademyScope;
@@ -170,7 +171,8 @@ public class StudentCommandService {
     private void recordChange(AuthUser requester, Student student, AuditAction action, Map<String, Object> detail) {
         String actorLoginId = accountRepository.findById(requester.accountId()).map(Account::getLoginId).orElse(null);
         auditLogRepository.save(AuditLog.forDataAccessChange(action, student.getAcademyId(), requester.accountId(),
-                actorLoginId, "student", student.getId(), detail, OffsetDateTime.now(clock)));
+                actorLoginId, "student", student.getId(), detail, ClientIp.ofCurrentRequest(),
+                OffsetDateTime.now(clock)));
     }
 
     /**

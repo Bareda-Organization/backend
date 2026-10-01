@@ -82,11 +82,12 @@ class StudentL3ChangeAuditIntegrationTest {
     void L3_필드를_고치면_update_1행에_고친_필드명만_남긴다() throws Exception {
         mockMvc.perform(multipart(HttpMethod.PATCH, "/api/v1/staff/students/" + SIBLING_1_ID)
                         .file(데이터("{\"note\":\"감사대상 특이사항\"}"))
-                        .header("Authorization", 관계자_토큰()))
+                        .header("Authorization", 관계자_토큰()).header("X-Real-IP", "203.0.113.21"))
                 .andExpect(status().isOk());
 
         List<AuditLog> rows = 대상_행(AuditAction.UPDATE, SIBLING_1_ID);
         assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).getIp()).as("수정 기록에도 프록시가 덮어쓴 접속 IP 가 남는다").isEqualTo("203.0.113.21");
         assertThat(rows.get(0).getDetail().get("fields")).isEqualTo(List.of("note"));
         assertThat(rows.get(0).getDetail().toString())
                 .as("감사 행에 개인정보 원문을 싣지 않는다(TECH_DECISIONS §13.2)")
@@ -105,10 +106,13 @@ class StudentL3ChangeAuditIntegrationTest {
 
     @Test
     void 퇴원하면_delete_1행을_남긴다() throws Exception {
-        mockMvc.perform(delete("/api/v1/staff/students/" + SIBLING_1_ID).header("Authorization", 관계자_토큰()))
+        mockMvc.perform(delete("/api/v1/staff/students/" + SIBLING_1_ID).header("Authorization", 관계자_토큰())
+                        .header("X-Real-IP", "203.0.113.22"))
                 .andExpect(status().isOk());
 
-        assertThat(대상_행(AuditAction.DELETE, SIBLING_1_ID)).hasSize(1);
+        List<AuditLog> rows = 대상_행(AuditAction.DELETE, SIBLING_1_ID);
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).getIp()).as("퇴원 기록에도 접속 IP 가 남는다").isEqualTo("203.0.113.22");
     }
 
     private List<AuditLog> 학생_감사_행(AuditAction action) {

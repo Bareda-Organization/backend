@@ -212,9 +212,9 @@ class AuditQueryControllerTest {
         auditLogRepository.save(AuditLog.forDataAccessRead(null, accountId, "r46actionflt1", "student", 1L,
                 Map.of("student_ids", List.of("1")), null, now));
         auditLogRepository.save(AuditLog.forDataAccessChange(AuditAction.UPDATE, null, accountId, "r46actionflt1",
-                "student", 1L, Map.of("fields", List.of("note")), now));
+                "student", 1L, Map.of("fields", List.of("note")), null, now));
         auditLogRepository.save(AuditLog.forDataAccessChange(AuditAction.DELETE, null, accountId, "r46actionflt1",
-                "student", 1L, Map.of(), now));
+                "student", 1L, Map.of(), null, now));
 
         mockMvc.perform(get("/api/v1/admin/audit-logs").header("Authorization", 메인관리자_토큰())
                         .param("account_id", String.valueOf(accountId)))

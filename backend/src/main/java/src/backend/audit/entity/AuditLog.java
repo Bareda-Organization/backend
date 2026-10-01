@@ -264,9 +264,10 @@ public class AuditLog {
      * @param reason         강제 확정 사유(§6.14 요청 필드)
      * @param fallbackUsed   실제로 저장된 {@code route_version.fallback_used} 값
      * @param routeVersionId 신규 생성된 {@code route_version} 의 id
+     * @param ip             요청 발신 IP — 요청 밖에서 불렀거나 IP 표기가 아니면 {@code null}
      */
     public static AuditLog forRunForceConfirm(Long academyId, Long actorAccountId, String actorLoginId, Long runId,
-            String reason, boolean fallbackUsed, Long routeVersionId, OffsetDateTime occurredAt) {
+            String reason, boolean fallbackUsed, Long routeVersionId, String ip, OffsetDateTime occurredAt) {
         AuditLog log = new AuditLog(AuditCategory.DATA_ACCESS, AuditAction.UPDATE, occurredAt);
         log.academyId = academyId;
         log.actorAccountId = actorAccountId;
@@ -279,15 +280,18 @@ public class AuditLog {
         detail.put("fallback_used", fallbackUsed);
         detail.put("route_version_id", routeVersionId);
         log.detail = detail;
+        log.ip = ip;
         return log;
     }
 
     /**
      * 관계자·메인 관리자가 L3 필드를 고치거나({@code update}) 학생을 퇴원시킨({@code delete}) 사실(Ruling 333 ·
      * SYS-01). {@code detail} 에는 바뀐 필드명만 담고 값은 담지 않는다 — {@link #forDataAccessRead} 와 같은 이유.
+     *
+     * @param ip 요청 발신 IP — 요청 밖에서 불렀거나 IP 표기가 아니면 {@code null}
      */
     public static AuditLog forDataAccessChange(AuditAction action, Long academyId, Long actorAccountId,
-            String actorLoginId, String targetType, Long targetId, Map<String, Object> detail,
+            String actorLoginId, String targetType, Long targetId, Map<String, Object> detail, String ip,
             OffsetDateTime occurredAt) {
         AuditLog log = new AuditLog(AuditCategory.DATA_ACCESS, action, occurredAt);
         log.academyId = academyId;
@@ -296,6 +300,7 @@ public class AuditLog {
         log.targetType = targetType;
         log.targetId = targetId;
         log.detail = detail;
+        log.ip = ip;
         return log;
     }
 }
