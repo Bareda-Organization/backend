@@ -64,6 +64,9 @@ class RouteStopLimitTest {
     private JwtTokenProvider tokenProvider;
 
     @Autowired
+    private jakarta.validation.Validator validator;
+
+    @Autowired
     private RouteCommandService routeCommandService;
 
     @Autowired
@@ -118,6 +121,27 @@ class RouteStopLimitTest {
         assertValidationFailed(() -> routeCommandService.saveStops(staff, 999_999L, new RouteStopsSaveRequest(items)));
         assertValidationFailed(() -> routeOptimizeService.optimize(staff, 999_999L,
                 new RouteOptimizeRequest(null, null, tooMany)));
+    }
+
+    @Test
+    @DisplayName("요청 DTO 4종 — 빈 검증이 51개를 위반으로 보고 50개는 통과시킨다(서비스 검증과 별개로)")
+    void 요청_DTO_검증은_51개를_위반으로_본다() {
+        List<Long> fifty = LongStream.rangeClosed(1, LIMIT).boxed().toList();
+        List<Long> fiftyOne = LongStream.rangeClosed(1, LIMIT + 1).boxed().toList();
+        List<RouteStopsSaveRequest.Item> itemsOf51 = fiftyOne.stream()
+                .map(i -> new RouteStopsSaveRequest.Item(null, "정차" + i, null, BigDecimal.ONE, BigDecimal.ONE)).toList();
+
+        assertThat(violations(new RouteRegisterRequest(BUS_A_ID, "thu", "to_academy", null, null, fiftyOne))).hasSize(1);
+        assertThat(violations(new RouteUpdateRequest(null, null, null, null, null, fiftyOne))).hasSize(1);
+        assertThat(violations(new RouteStopsSaveRequest(itemsOf51))).hasSize(1);
+        assertThat(violations(new RouteOptimizeRequest(null, null, fiftyOne))).hasSize(1);
+        assertThat(violations(new RouteRegisterRequest(BUS_A_ID, "thu", "to_academy", null, null, fifty))).isEmpty();
+        assertThat(violations(new RouteUpdateRequest(null, null, null, null, null, fifty))).isEmpty();
+        assertThat(violations(new RouteOptimizeRequest(null, null, fifty))).isEmpty();
+    }
+
+    private <T> java.util.Set<jakarta.validation.ConstraintViolation<T>> violations(T request) {
+        return validator.validate(request);
     }
 
     private void assertValidationFailed(ResultActions result) throws Exception {
