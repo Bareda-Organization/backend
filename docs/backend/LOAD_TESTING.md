@@ -245,7 +245,7 @@ R3_INTERVAL=2 R3_POLLING=1 R3_MODE=realistic ROUND_LABEL=r46_r3_real ./r3_mixed.
 
 ### 6.5.4 통과 판정 — 관리자 동시 50 (`Ruling 484`)
 
-**관제 세션 2,000 은 통과 기준이 아니라 한계 측정 참고값이다**(`IMPLEMENTATION_PLAN §5.3`). 통과는 목표 규모(학원 10 · 버스 100 · 학생 2,000 · 위치 2초) + **관리자 동시 50**(학원 관계자 45 + 메인 관리자 5) + 학부모·학생 시청 570~1,900 에서 사양 기준 5항을 지키는가로 정한다.
+**관제 세션 2,000 은 통과 기준이 아니라 한계 측정 참고값이다**(`IMPLEMENTATION_PLAN §5.3`). 예상 실사용은 약 25명이라 컷 50 은 그 2배 여유다. 2026-10-01 결과 — 관리자 50 은 4회차 전부 통과, 400 까지 통과(고정 주기 모델), 500 이상은 판정 보류(`IMPLEMENTATION_PLAN §8.84`). 통과는 목표 규모(학원 10 · 버스 100 · 학생 2,000 · 위치 2초) + **관리자 동시 50**(학원 관계자 45 + 메인 관리자 5) + 학부모·학생 시청 570~1,900 에서 사양 기준 5항을 지키는가로 정한다.
 
 ```bash
 # 관리자 50 · 시청 570 — 통과 판정 회차(위치 2초 · 폴링 · 실제 구독 분포 · 확정 배치 100건)
@@ -274,6 +274,14 @@ ROUND_LABEL=r46_r3_G200_v570_a R3_ADMINS=200 R3_INTERVAL=2 ./r3_mixed.sh 570 1
 - **WS 봉투의 `run_id` 는 JSON 문자열이다**(`"192"` — Ruling 332). `scenario2_position.js` 가 숫자와 `===` 로 비교해 **echo 가 항상 0 으로 잡혔다**(`position_echo_received_total: count>0` 임계가 있어도 k6 종료 코드 99 로만 드러남 — 요청 실패 0 인데 99). `Number(body.run_id)` 로 고쳤다. 식별자 문자열화는 09-09 측정 뒤(2026-09-25)에 들어간 변경이라 09-09 수치는 영향이 없고, 이 시나리오를 09-25 이후 코드에서 처음 돌릴 때 걸리는 함정이다
 - **"응답 뒤 쉼" 모델은 송신 달성률을 인위적으로 낮춘다** — 응답이 평균 0.3초면 2초 주기가 2.3초가 되어 달성률 87% 가 나온다(관리자 300·400 회차에서 달성률 86~89% 인데 POST p95 는 1.4~1.7초로 2초 안이었다). 판정 회차는 `R3_FIXED_RATE=1` 로 앱과 같은 고정 주기로 돌린다. 관리자 50 4회차는 응답 20~35ms 라 두 모델의 차이가 1~2% 미만이어서 기본 모델로 쟀다
 - **회차마다 위치용 회차가 쌓인다** — 위 종료 처리가 없으면 같은 N 의 같은 시험이 회차를 거듭할수록 요청당 CPU 가 늘어난다
+- **측정 DB 가 회차를 거듭하며 오염된다** — `scenario2_prep.sql` 은 회차마다 위치용 회차(`LP-…`)를 학원 1 에 새로 심고 지우지 않는다(회차 시작 때 앞 회차를 `finished` 로만 돌림). 2026-10-01 한 번의 측정에서 학원 1 의 오늘 회차가 12,016건이 되어 학원 1 `GET /staff/dashboard` 응답이 **5.1MB · 0.69초**(정상 학원 7.7KB · 13ms)가 됐고, `r46_link_position_riders.sql` 이 붙인 `run_rider` 30,000건은 학원이 다른 학생·정차지를 가리킨다. **다음 측정 전에 비운다**:
+  ```sql
+  DELETE FROM run_rider WHERE run_id IN (SELECT r.id FROM run r JOIN bus b ON b.id = r.bus_id WHERE b.bus_no LIKE 'LP-%');
+  DELETE FROM assignment WHERE run_id IN (SELECT r.id FROM run r JOIN bus b ON b.id = r.bus_id WHERE b.bus_no LIKE 'LP-%');
+  DELETE FROM run WHERE bus_id IN (SELECT id FROM bus WHERE bus_no LIKE 'LP-%');
+  ```
+  (또는 스키마를 비우고 `r0_capacity_seed.sql` · `r46_parent_seed.sql` 부터 다시 심는다)
+- **호스트에 다른 부하가 있으면 수치가 무효다** — 같은 조건 p95 가 54ms → 2,165~2,747ms 로 50배 갈렸다(게임이 도는 동안). 회차 전후 `r46_host_noise.log` 형태로 측정과 무관한 프로세스 CPU 를 남기고, 높으면 시작하지 않는다
 - **접근 토큰 유효시간 15분** — 토큰 발급과 측정 시작 사이가 길면 401 이 난다. 회차 직전에 발급한다
 
 ## 7. 회차를 화면으로 보기 — Grafana "5. 부하 시험" 대시보드
