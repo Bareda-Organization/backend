@@ -391,21 +391,21 @@ VALUES
     (18, 6, 3, true);
 
 -- 탑승 상태 5종 전수(waiting/boarded/alighted/absent/no_show) — R2 에 waiting 2, R3 에 나머지 4.
-INSERT INTO run_rider (id, run_id, student_id, stop_id, status, boarded_at, alighted_at)
+INSERT INTO run_rider (id, run_id, student_id, stop_id, status)
 OVERRIDING SYSTEM VALUE
 VALUES
-    (1, 2, 1, 1, 'waiting', NULL, NULL),
-    (2, 2, 4, 3, 'waiting', NULL, NULL),
-    (3, 3, 2, 2, 'boarded', now() - interval '5 minutes', NULL),
-    (4, 3, 3, 3, 'alighted', now() - interval '9 minutes', now() - interval '2 minutes'),
-    (5, 3, 1, 1, 'absent', NULL, NULL),
-    (6, 3, 5, 4, 'no_show', NULL, NULL),
-    (7, 5, 6, 5, 'waiting', NULL, NULL),
-    (8, 7, 1, 1, 'waiting', NULL, NULL),
+    (1, 2, 1, 1, 'waiting'),
+    (2, 2, 4, 3, 'waiting'),
+    (3, 3, 2, 2, 'boarded'),
+    (4, 3, 3, 3, 'alighted'),
+    (5, 3, 1, 1, 'absent'),
+    (6, 3, 5, 4, 'no_show'),
+    (7, 5, 6, 5, 'waiting'),
+    (8, 7, 1, 1, 'waiting'),
     -- R8 명단(R14-T3) — 위 run_stop(v1, id=12·13)의 stop1·stop2 와 같은 두 학생을 태워, 경유지
     -- 미리보기의 "전" 표시(2곳)와 실제 명단 기준선이 어긋나지 않게 한다.
-    (9, 8, 1, 1, 'waiting', NULL, NULL),
-    (10, 8, 2, 2, 'waiting', NULL, NULL);
+    (9, 8, 1, 1, 'waiting'),
+    (10, 8, 2, 2, 'waiting');
 
 -- 배차: 회차 5건 × (기사·동승자) 각 1 — R2 는 v2 미확인(acked=v1) 상태로 배지 시연.
 INSERT INTO assignment (id, run_id, manager_id, role, assigned_at, assigned_by, acked_route_version_id, acked_at)

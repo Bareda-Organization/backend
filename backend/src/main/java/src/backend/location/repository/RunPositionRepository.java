@@ -24,10 +24,14 @@ public interface RunPositionRepository extends JpaRepository<RunPosition, Long> 
      *
      * <p>전 학원의 만료 위치 기록이 대상이라 학원 조건을 걸지 않는다 — {@code run_position} 은 애초에
      * {@code academy_id} 컬럼이 부재하다(§4 FK 미설정, 회차 경유로만 학원을 알 수 있다).
+     *
+     * <p>정렬 키는 {@code recorded_at} 이다 — 인덱스 {@code ix_run_position_retention_cutoff (recorded_at)} 의 키와 같아 배치
+     * 크기만큼만 읽는다. {@code order by id} 이면 컷오프가 전체의 약 1%(정상 상태)를 거를 때 플래너가 컷오프 이전 전체를 읽어 id 로
+     * 정렬하는 계획을 골라, 5,000행 배치마다 그 전체를 다시 읽는다(Ruling 631). 같은 시각 행의 순서는 삭제에 영향이 없다.
      */
     @AcademyScopeExempt(reason = "보존 정리 배치(Phase 14 목표 6) — 전 학원의 만료 위치 기록 전건이 대상이고, "
             + "academy_id 컬럼 자체가 부재해 학원 조건을 걸 수단이 없다")
-    @Query("select p.id from RunPosition p where p.recordedAt < :cutoff order by p.id")
+    @Query("select p.id from RunPosition p where p.recordedAt < :cutoff order by p.recordedAt")
     List<Long> findIdsForRetentionCleanup(@Param("cutoff") OffsetDateTime cutoff, Limit limit);
 
     /**

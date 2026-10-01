@@ -27,5 +27,9 @@ CREATE TABLE run_transfer (
 CREATE INDEX idx_run_transfer_from_run ON run_transfer (from_run_id);
 -- 도착 회차 쪽 확정 배치가 "이 회차로 들어올 학생" 을 찾는 조회를 지원한다.
 CREATE INDEX idx_run_transfer_to_run ON run_transfer (to_run_id);
--- 같은 학생의 처리 대기 중인 이동 건 존재 여부(TRANSFER_ALREADY_STAGED 판정)를 지원한다.
+-- 같은 학생의 처리 대기 중인 이동 건 존재 여부(TRANSFER_ALREADY_STAGED 선검사)를 지원한다.
 CREATE INDEX idx_run_transfer_student_status ON run_transfer (student_id, status);
+-- 같은 학생의 대기(staged) 이동 신청은 DB 가 하나만 받는다(R46 A-1) — 선검사는 잠금 밖이라 같은 학생에 대한 요청 둘이
+-- 동시에 오면(관계자 2명 · 더블탭) 둘 다 통과해 staged 행이 둘 생겼다. 위반은 409 TRANSFER_ALREADY_STAGED 로 옮긴다.
+-- 반영된(applied) 이동은 학생당 몇 건이든 남는다.
+CREATE UNIQUE INDEX uk_run_transfer_student_staged ON run_transfer (student_id) WHERE status = 'staged';

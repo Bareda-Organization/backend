@@ -64,4 +64,27 @@ class AuditLogQueryServiceTest {
             auditLogRepository.deleteById(log.getId());
         }
     }
+
+    @Test
+    void from_을_안_주면_30일보다_오래된_행은_빠지고_from_을_주면_나온다() {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        AuditLog old = auditLogRepository.save(AuditLog.forDataAccessRead(null, 격리_계정, "관리자심음", "student", 1L,
+                Map.of("fields", "student_phone"), null, now.minusDays(40)));
+        AuditLog recent = auditLogRepository.save(AuditLog.forDataAccessRead(null, 격리_계정, "관리자심음", "student", 2L,
+                Map.of("fields", "student_phone"), null, now.minusDays(1)));
+
+        try {
+            PageResponse<AuditLogItemResponse> byDefault =
+                    auditLogQueryService.list(new AuditQueryFilter(null, 격리_계정, null, null, 0, 20), null);
+            PageResponse<AuditLogItemResponse> withFrom = auditLogQueryService.list(
+                    new AuditQueryFilter(null, 격리_계정, now.minusDays(60).toString(), null, 0, 20), null);
+
+            assertThat(byDefault.items()).as("기본 기간(30일)에는 하루 전 행만").hasSize(1);
+            assertThat(byDefault.totalCount()).isEqualTo(1);
+            assertThat(withFrom.items()).as("from 을 주면 더 옛 행도 본다").hasSize(2);
+        } finally {
+            auditLogRepository.deleteById(old.getId());
+            auditLogRepository.deleteById(recent.getId());
+        }
+    }
 }

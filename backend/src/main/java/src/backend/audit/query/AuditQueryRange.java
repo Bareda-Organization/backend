@@ -9,7 +9,7 @@ import src.backend.global.error.ErrorCode;
 
 /**
  * {@code GET /admin/audit-logs}·{@code /admin/login-history} 가 공유하는 {@code from}·{@code to}
- * 파싱(API_SPEC §6.13, Phase 14 T1 목표 3·4).
+ * 파싱(API_SPEC §6.13, Phase 14 T1 목표 3·4)과 기본 기간.
  *
  * <p>{@code global/request/ApiValues}(전역 공용 변환기)에 두지 않는다 — 그 클래스는 이 태스크
  * (p14-task-t1.md)의 소유 파일 목록 밖이라, 공용 클래스를 고치면 다른 좌석의 소유 경계를 넘는다.
@@ -20,27 +20,29 @@ import src.backend.global.error.ErrorCode;
  * {@code 2026-08-24T08:30:00+09:00}. {@link OffsetDateTime#parse(CharSequence)} 의 기본
  * 포매터({@code ISO_OFFSET_DATE_TIME})가 이 표기와 정확히 일치해 별도 포매터가 필요 없다.
  *
- * <p>미지정 시 대체값을 연도 1·9999 로 둔 이유 — {@code AuditLogRepository.search} 가
+ * <p><b>{@code from} 을 안 주면 {@link #DEFAULT_PERIOD_DAYS}일 전부터다</b>(Ruling 632) — 연도 1 부터 읽으면 필터 없는 첫
+ * 화면의 개수 쿼리가 보존 기간(2년) 전체를 훑는다(실측 순차 스캔 15,674 버퍼 · 137ms → 30일 962 버퍼 · 6.6ms). 기준은 {@code to} 가
+ * 있으면 {@code to} 이고 없으면 지금이다 — 옛 기간을 보려고 {@code to} 만 줘도 빈 결과가 되지 않는다. 상한은 열어 둔다(미래 행은
+ * 없어 비용이 늘지 않는다).
+ *
+ * <p>미지정 시 대체값을 구체 시각으로 두는 이유 — {@code AuditLogRepository.search} 가
  * {@code (:from IS NULL OR ...)} 형태를 쓰지 않는다(그 자바독의 PostgreSQL 타입 추론 실패 근거와
  * 같다). null 을 걸러내는 책임을 SQL 이 아니라 이 클래스(서비스 계층)로 옮긴 것이다.
  */
-final class AuditQueryRange {
+record AuditQueryRange(OffsetDateTime from, OffsetDateTime to) {
 
-    /** 하한 미지정 시 대체값 — 이 시각보다 이른 감사 기록은 존재할 수 없다. */
-    private static final OffsetDateTime MIN = OffsetDateTime.of(1, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+    /** {@code from} 을 안 줬을 때 거슬러 올라가는 일수. */
+    static final int DEFAULT_PERIOD_DAYS = 30;
 
     /** 상한 미지정 시 대체값. */
     private static final OffsetDateTime MAX = OffsetDateTime.of(9999, 12, 31, 23, 59, 59, 0, ZoneOffset.UTC);
 
-    private AuditQueryRange() {
-    }
-
-    static OffsetDateTime from(String raw) {
-        return raw == null ? MIN : parse(raw, "from");
-    }
-
-    static OffsetDateTime to(String raw) {
-        return raw == null ? MAX : parse(raw, "to");
+    static AuditQueryRange of(String rawFrom, String rawTo, OffsetDateTime now) {
+        OffsetDateTime to = rawTo == null ? MAX : parse(rawTo, "to");
+        OffsetDateTime from = rawFrom == null
+                ? (rawTo == null ? now : to).minusDays(DEFAULT_PERIOD_DAYS)
+                : parse(rawFrom, "from");
+        return new AuditQueryRange(from, to);
     }
 
     private static OffsetDateTime parse(String raw, String paramName) {

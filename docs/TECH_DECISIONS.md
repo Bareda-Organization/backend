@@ -647,9 +647,9 @@ try {
 
 **멱등 보장은 DB 제약이 하고 JPA 는 그 위반을 예외로 받는다.** 조회 후 저장하는 방식(`exists` → `save`)은 두 요청이 동시에 통과하는 창이 남으므로 쓰지 않는다.
 
-### 9.3 파티셔닝은 JPA 와 무관
+### 9.3 파티셔닝은 하지 않는다 — 행 단위 DELETE
 
-`run_position` · `notification_log` · `audit_log` 의 PostgreSQL 선언적 파티셔닝(ERD §7.3)은 **DDL 수준**이라 JPA 코드에 영향이 없다. 애플리케이션은 부모 테이블만 보고, 정리는 파티션 `DROP` 으로 한다.
+`run_position` · `notification_log` · `audit_log` 는 **파티션을 두지 않는다**(`Ruling 243` · ERD §7.3 — 현재 적재량에서 파티션 도입 이득이 없고, 전환은 `V1` 테이블 재생성이 필요해 실사용 전환·법정 검토와 함께 재검토). 정리는 `RetentionCleanupScheduler` 의 **행 단위 DELETE 배치**이고, 하루 약 27만 행을 지우는 `run_position` 은 표 단위 autovacuum 설정(`vacuum_scale_factor = 0.01`)이 죽은 행 회수를 맡는다(`Ruling 630`). 정리 쿼리의 정렬 키는 컷오프 인덱스의 키(`recorded_at`)와 맞춘다(`Ruling 631`). 전환 트리거 — 상시 행수 5천만 초과 · 야간 삭제 10분 초과 · autovacuum 이 하루 이상 밀림. 파티션을 도입하면 DDL 수준이라 JPA 코드는 영향이 없다(부모 테이블만 보고 정리는 파티션 `DROP`).
 
 ### 9.4 되짚어볼 지점
 

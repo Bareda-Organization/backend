@@ -50,15 +50,6 @@ public class RunRider extends BaseTimeEntity {
     @Column(name = "change", length = 10)
     private ChangeType change;
 
-    @Column(name = "note", columnDefinition = "text")
-    private String note;
-
-    @Column(name = "boarded_at")
-    private OffsetDateTime boardedAt;
-
-    @Column(name = "alighted_at")
-    private OffsetDateTime alightedAt;
-
     @Column(name = "changed_at")
     private OffsetDateTime changedAt;
 
@@ -92,8 +83,6 @@ public class RunRider extends BaseTimeEntity {
     /**
      * ③구간(운행 시작 후) 미등원 토글이 반영될 때 부재로 표시한다(ATT-01·02, API_SPEC §3.6).
      *
-     * <p>{@code changedAt} 만 남기고 {@code note} 는 건드리지 않는다.
-     *
      * <p>②구간 취소형 승인(API_SPEC §5.6 "명단 제외(absent)")도 같은 메서드를 쓴다 — 행을 지우지
      * 않고 상태만 바꾼다. {@link src.backend.request.preview.ApprovalPreviewResolver#candidateRosterOf}
      * 가 {@code ABSENT} 를 이미 명단 조립에서 제외하므로, 이후 같은 회차의 다른 승인·재계산이 이
@@ -113,14 +102,12 @@ public class RunRider extends BaseTimeEntity {
     /** 동승자가 승차를 확인한다(BRD-01, API_SPEC §4.6 {@code status=boarded}). */
     public void board(OffsetDateTime changedAt) {
         this.status = RiderStatus.BOARDED;
-        this.boardedAt = changedAt;
         this.changedAt = changedAt;
     }
 
     /** 동승자가 하차를 확인한다(BRD-02, API_SPEC §4.6 {@code status=alighted}). */
     public void alight(OffsetDateTime changedAt) {
         this.status = RiderStatus.ALIGHTED;
-        this.alightedAt = changedAt;
         this.changedAt = changedAt;
     }
 
@@ -133,23 +120,21 @@ public class RunRider extends BaseTimeEntity {
     /**
      * 하원 회차 시작 시 배치가 명단 전원을 일괄 승차 처리한다(C-07 · BRD-03, 목표 11).
      *
-     * <p>{@link #board} 와 저장 값 자체는 같지만(상태·{@code boarded_at}·{@code changed_at}) 메서드를
+     * <p>{@link #board} 와 저장 값 자체는 같지만(상태·{@code changed_at}) 메서드를
      * 따로 둔다 — 동승자가 개별 확인한 것과 시스템이 일괄 반영한 것은 이력에 어떤 {@code actor_type}
      * 을 남길지 호출부가 판단해야 하는 서로 다른 사건이고, 메서드 이름이 그 판단 지점을 코드에서
      * 바로 드러내야 하기 때문이다.
      */
     public void autoBoard(OffsetDateTime changedAt) {
         this.status = RiderStatus.BOARDED;
-        this.boardedAt = changedAt;
         this.changedAt = changedAt;
     }
 
     /**
      * 되돌리기(BRD-05, API_SPEC §4.7)로 직전 상태로 되돌린다.
      *
-     * <p>{@code boarded_at}·{@code alighted_at} 은 건드리지 않는다 — "언제 승차했었는가" 라는 사실은
-     * 되돌려도 사라지지 않고, 지우면 되돌리기 전 이력을 재구성할 근거가 {@code rider_status_history}
-     * 밖에 남지 않는다.
+     * <p>승차·하차 시각은 이 행에 두지 않는다(Ruling 614) — "언제 승차했었는가" 는 되돌려도 사라지지 않는 사실이라
+     * {@code rider_status_history.changed_at} 이력이 기준이다.
      */
     public void revertTo(RiderStatus previousStatus, OffsetDateTime changedAt) {
         this.status = previousStatus;

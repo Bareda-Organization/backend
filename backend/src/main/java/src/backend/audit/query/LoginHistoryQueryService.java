@@ -1,5 +1,7 @@
 package src.backend.audit.query;
 
+import java.time.Clock;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -49,11 +51,14 @@ public class LoginHistoryQueryService {
 
     private final AccountRepository accountRepository;
 
+    private final Clock clock;
+
     /** 로그인 성공·실패·차단 이력을 최신순(동률은 id 오름차순)으로 페이징해 돌려준다(§6.13). */
     public PageResponse<LoginHistoryItemResponse> list(AuditQueryFilter filter) {
         validateFilters(filter.academyId(), filter.accountId());
+        AuditQueryRange range = AuditQueryRange.of(filter.from(), filter.to(), OffsetDateTime.now(clock));
         Page<AuditLog> result = auditLogRepository.searchLoginHistory(filter.academyId(), filter.accountId(),
-                AuditQueryRange.from(filter.from()), AuditQueryRange.to(filter.to()),
+                range.from(), range.to(),
                 PageParams.of(filter.page(), filter.size()).toPageable(ORDER));
         Map<Long, String> unblockedLoginIds = loginIdsOfUnblockedAccounts(result.getContent());
 

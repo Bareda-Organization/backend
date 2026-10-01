@@ -187,6 +187,34 @@ class StagingCapacityConcurrencyTest {
     private record Outcome(int succeeded, int capacityExceeded) {
     }
 
+    /** 두 호출을 동시에 띄워 성공 수와 거부 사유 전체를 돌려준다 — 비즈니스 거부가 아닌 예외는 그대로 던진다. */
+    private Rejections runConcurrentlyCollectingRejections(Callable<?> first, Callable<?> second) throws Exception {
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            List<Future<?>> futures = List.of(pool.submit(first), pool.submit(second));
+            int succeeded = 0;
+            List<ErrorCode> rejected = new java.util.ArrayList<>();
+            for (Future<?> future : futures) {
+                try {
+                    future.get(WAIT_LIMIT_SECONDS, TimeUnit.SECONDS);
+                    succeeded++;
+                } catch (ExecutionException e) {
+                    if (!(e.getCause() instanceof BusinessException business)) {
+                        throw e;
+                    }
+                    rejected.add(business.getErrorCode());
+                }
+            }
+            return new Rejections(succeeded, rejected);
+        } finally {
+            pool.shutdownNow();
+            pool.awaitTermination(WAIT_LIMIT_SECONDS, TimeUnit.SECONDS);
+        }
+    }
+
+    private record Rejections(int succeeded, List<ErrorCode> rejected) {
+    }
+
     private OffsetDateTime departTime() {
         return OffsetDateTime.now(clock).plusMinutes(31);
     }
@@ -268,6 +296,31 @@ class StagingCapacityConcurrencyTest {
                         e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.STUDENT_ALREADY_IN_RUN));
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM run_transfer WHERE to_run_id = ?",
                 Integer.class, toRunId)).isZero();
+    }
+
+    @Test
+    @DisplayName("R46 A-1 — 같은 학생의 이동 신청 두 건(도착 회차가 서로 다름)이 동시에 와도 대기 행은 하나만 남고 나머지는 409 TRANSFER_ALREADY_STAGED 다")
+    void 같은_학생의_이동_두_건이_동시에_와도_대기_행은_하나만_남는다() throws Exception {
+        long academyId = fixtures.academyWithCoordinates();
+        long firstToRunId = idleRun(academyId, fixtures.bus(academyId));
+        long secondToRunId = idleRun(academyId, fixtures.bus(academyId));
+        long studentId = studentOnNewRun(academyId, "이중신청학생");
+        long fromRunId = fromRunOf(studentId);
+        AuthUser staff = new AuthUser(STAFF_ACCOUNT_ID, academyId, Role.STAFF, AccountStatus.ACTIVE);
+        // 두 요청이 "대기 중인 이동이 없다" 는 선검사를 둘 다 지난 뒤에야 저장으로 넘어가게 한다.
+        holdBothRequestsBeforeStaging();
+
+        Rejections outcome = runConcurrentlyCollectingRejections(
+                () -> transferCommandService.transfer(staff, studentId,
+                        new TransferRequest(fromRunId, firstToRunId, null, ADDRESS, null)),
+                () -> transferCommandService.transfer(staff, studentId,
+                        new TransferRequest(fromRunId, secondToRunId, null, ADDRESS, null)));
+
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM run_transfer WHERE student_id = ? AND status = 'staged'",
+                Integer.class, studentId))
+                .as("대기 행이 둘이면 도착 회차 두 곳의 정원에 같은 학생이 잡히고 확정 때 두 곳 모두에 태워진다")
+                .isEqualTo(1);
+        assertThat(outcome).isEqualTo(new Rejections(1, List.of(ErrorCode.TRANSFER_ALREADY_STAGED)));
     }
 
     /** 자기 버스·노선·회차를 가진 학생 — 그 회차의 예정 명단에 요일별 주소로 들어 있다. */

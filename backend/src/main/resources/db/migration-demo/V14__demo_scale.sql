@@ -374,12 +374,10 @@ UNION ALL
 SELECT 1100 + b, 1200 + k, 'escort', now(), 1001 FROM demo_bus WHERE a = 1;
 
 -- 탑승자 — 대부분 하차 완료, 번호 7·14 는 결석(탑승 의사 취소), 번호 19 는 미승차.
-INSERT INTO run_rider (run_id, student_id, stop_id, status, boarded_at, alighted_at)
+INSERT INTO run_rider (run_id, student_id, stop_id, status)
 SELECT 1100 + s.b, s.id, s.stop_id,
-       CASE WHEN s.n IN (7, 14) THEN 'absent' WHEN s.n = 19 THEN 'no_show' ELSE 'alighted' END,
-       CASE WHEN s.n IN (7, 14, 19) THEN NULL ELSE r.started_at + interval '2 minutes' END,
-       CASE WHEN s.n IN (7, 14, 19) THEN NULL ELSE r.started_at + (s.n * 2) * interval '1 minute' END
-FROM demo_student s JOIN run r ON r.id = 1100 + s.b
+       CASE WHEN s.n IN (7, 14) THEN 'absent' WHEN s.n = 19 THEN 'no_show' ELSE 'alighted' END
+FROM demo_student s
 WHERE s.a = 1;
 
 INSERT INTO exception_report (academy_id, run_id, run_rider_id, type, memo, reported_by, reported_at)

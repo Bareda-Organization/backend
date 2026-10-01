@@ -1,8 +1,10 @@
 package src.backend.student.repository;
 
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -185,4 +187,15 @@ public interface GuardianStudentRepository extends JpaRepository<GuardianStudent
             """)
     List<GuardianAccountRecipient> findActiveGuardianAccountsByStudentIds(@Param("academyId") Long academyId,
             @Param("studentIds") List<Long> studentIds);
+
+    /**
+     * 퇴원 학생의 보호자 연결을 지운다(개인정보 파기, Ruling 610) — 학생 행은 익명화돼 남지만 연결 행이 남으면
+     * {@code 보호자(이름·전화) → guardian_student → student → run_rider → stop(주소·좌표)} 로 집 주소가 복원된다. 잃는 것은
+     * "누구의 보호자였나" 뿐이다. 보호자 행 자체는 지우지 않는다(보존 기간은 열린 항목).
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @AcademyScopeExempt(reason = "보존 정리 배치(Ruling 610) — 학생 id 는 전 학원의 파기 대상 조회가 골라낸 값이고, "
+            + "부르는 주체가 스케줄러라 요청 주체의 소속이 부재")
+    @Query("DELETE FROM GuardianStudent gs WHERE gs.studentId IN :studentIds")
+    int deleteAllByStudentIds(@Param("studentIds") Collection<Long> studentIds);
 }

@@ -67,8 +67,8 @@ public class NotificationLogFixtures {
                         student_id, student_name, type, title, body, popup, push_state, dedup_key, created_at,
                         sent_at, read_at)
                 VALUES (?, ?, ?, CAST(? AS varchar), ?, ?, CAST(? AS varchar), ?, ?, ?, 'sent', ?, ?, ?, ?)
-                """, academyId, recipientAccountId, recipientName, recipientRole.name(), studentId, studentName,
-                type.name().toLowerCase(java.util.Locale.ROOT), title, body, popup, dedupKey, createdAt, sentAt,
+                """, academyId, recipientAccountId, recipientName, recipientRole.name().toLowerCase(java.util.Locale.ROOT),
+                studentId, studentName, type.name().toLowerCase(java.util.Locale.ROOT), title, body, popup, dedupKey, createdAt, sentAt,
                 readAt);
         return jdbcTemplate.queryForObject("SELECT id FROM notification_log WHERE dedup_key = ?", Long.class,
                 dedupKey);
