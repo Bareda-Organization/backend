@@ -681,9 +681,11 @@ CREATE TABLE exception_report (
 
 -- 운행 중 버스 위치. 송신 주기가 2초라 한 회차에 약 1,350행이 쌓이는 최대 적재 테이블(ERD §7.3).
 -- run 은 논리적 부모이나 FK 미설정 (ERD §4.2 — 위치 수신마다 부모 행 검사가 붙고, 보존 주기(90일)가 회차와 달라 독립으로 지운다).
--- 파티션은 두지 않는다(Ruling 243) — 보존 정리는 행 단위 DELETE 라 아래 autovacuum 설정이 죽은 행 회수를 맡는다.
+-- recorded_at 기준 일 단위(한국 시간 자정) 범위 파티션이다(R46-LATERBE B-1, Ruling 670 — 이 테이블에 한해 Ruling 243 을 뒤집음).
+-- 보존 정리는 행 DELETE 가 아니라 기간이 지난 파티션 DROP 이라 죽은 행·삭제 전용 인덱스가 생기지 않는다.
+-- 일 파티션은 앱이 미리 만든다(RunPositionPartitionManager — 기동 직후 + 매일). 파티션 키가 PK 에 들어가야 해서 PK 는 (id, recorded_at).
 CREATE TABLE run_position (
-    id          bigint       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id          bigint       GENERATED ALWAYS AS IDENTITY,
     run_id      bigint       NOT NULL,
     lat         numeric(9,6) NOT NULL,
     lng         numeric(9,6) NOT NULL,
@@ -691,13 +693,14 @@ CREATE TABLE run_position (
     received_at timestamptz  NOT NULL,
     speed       numeric(5,2),
     heading     numeric(5,2),
+    PRIMARY KEY (id, recorded_at),
     CONSTRAINT ck_run_position_lat CHECK (lat BETWEEN -90 AND 90),
     CONSTRAINT ck_run_position_lng CHECK (lng BETWEEN -180 AND 180)
-);
+) PARTITION BY RANGE (recorded_at);
 
--- 하루 약 27만 행을 지우는 표라 전역 기준(죽은 행 20%)이면 정상 상태 2,430만 행에서 약 18일치가 쌓인 뒤에야 정리된다.
--- 하루치 삭제(약 1.1%)에 맞춰 1% 로 낮추고, 삽입 기준(가시성 맵 갱신)도 5% 로 낮춘다(R46 I-06).
-ALTER TABLE run_position SET (autovacuum_vacuum_scale_factor = 0.01, autovacuum_vacuum_insert_scale_factor = 0.05);
+-- 안전망 — 해당 날짜 파티션이 없어도 INSERT 가 실패하지 않아 위치 수신이 멈추지 않는다. 평소에는 비어 있어야 하고,
+-- 파티션 미리 만들기가 새 파티션을 만들 때 이 파티션의 그 범위 행을 새 파티션으로 옮긴다.
+CREATE TABLE run_position_default PARTITION OF run_position DEFAULT;
 
 -- 알림 로그. 발송 사실의 근거이자 트랜잭셔널 아웃박스 — 상태 변경과 같은 트랜잭션에서 pending 행을 남긴다.
 -- account·student·run·academy 는 논리적 부모이나 FK 미설정 (ERD §4.2 — 보존 14일, 이름 스냅샷으로 자립).

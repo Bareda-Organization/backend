@@ -1,10 +1,8 @@
 package src.backend.location.repository;
 
-import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
 
-import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -13,26 +11,9 @@ import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.location.entity.RunPosition;
 
 /**
- * {@link RunPosition} 영속성 접근(목표 3) — 적재(save) · 보존 정리 삭제 · Redis 장애 시 최신 행 대체 조회(BR-167).
+ * {@link RunPosition} 영속성 접근(목표 3) — 적재(save) · Redis 장애 시 최신 행 대체 조회(BR-167) — 보존 정리는 일 단위 파티션 DROP 이라 여기 없다({@link src.backend.location.infrastructure.RunPositionPartitionManager}).
  */
 public interface RunPositionRepository extends JpaRepository<RunPosition, Long> {
-
-    /**
-     * 보존 정리 배치 후보 id(목표 6, Phase 14 T2) — {@code recorded_at} 기준으로 자른다(ERD §7.2
-     * "run_position — 미확정 — 법정 요건 검토 대기", {@link src.backend.global.retention.RetentionPolicy}
-     * 잠정값 참고).
-     *
-     * <p>전 학원의 만료 위치 기록이 대상이라 학원 조건을 걸지 않는다 — {@code run_position} 은 애초에
-     * {@code academy_id} 컬럼이 부재하다(§4 FK 미설정, 회차 경유로만 학원을 알 수 있다).
-     *
-     * <p>정렬 키는 {@code recorded_at} 이다 — 인덱스 {@code ix_run_position_retention_cutoff (recorded_at)} 의 키와 같아 배치
-     * 크기만큼만 읽는다. {@code order by id} 이면 컷오프가 전체의 약 1%(정상 상태)를 거를 때 플래너가 컷오프 이전 전체를 읽어 id 로
-     * 정렬하는 계획을 골라, 5,000행 배치마다 그 전체를 다시 읽는다(Ruling 631). 같은 시각 행의 순서는 삭제에 영향이 없다.
-     */
-    @AcademyScopeExempt(reason = "보존 정리 배치(Phase 14 목표 6) — 전 학원의 만료 위치 기록 전건이 대상이고, "
-            + "academy_id 컬럼 자체가 부재해 학원 조건을 걸 수단이 없다")
-    @Query("select p.id from RunPosition p where p.recordedAt < :cutoff order by p.recordedAt")
-    List<Long> findIdsForRetentionCleanup(@Param("cutoff") OffsetDateTime cutoff, Limit limit);
 
     /**
      * 회차별 최신 행 1건씩 — Redis 최신 좌표의 대체 재료(BR-167, TECH_DECISIONS §14.2). 여러 회차를 한 번에 읽어

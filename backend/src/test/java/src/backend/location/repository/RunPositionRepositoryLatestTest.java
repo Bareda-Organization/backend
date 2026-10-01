@@ -14,6 +14,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import src.backend.location.entity.RunPosition;
+import src.backend.location.infrastructure.RunPositionPartitionManager;
 
 /**
  * Redis 장애 대체 조회 {@code findLatestByRunIdIn} — 옛 {@code DISTINCT ON} 쿼리와 같은 행을 내고(기록 시각이 같은
@@ -34,6 +35,9 @@ class RunPositionRepositoryLatestTest {
 
     @Autowired
     private RunPositionRepository repository;
+
+    @Autowired
+    private RunPositionPartitionManager manager;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -58,6 +62,34 @@ class RunPositionRepositoryLatestTest {
         assertThat(actual).containsExactlyInAnyOrder(tieLast, bLatest).isEqualTo(old);
     }
 
+    /**
+     * R46-LATERBE B-1 — 파티션 테이블에서도 엔티티 저장(IDENTITY id 회수)과 최신 1행 조회가 그대로 동작한다. 행이 일 파티션 둘과
+     * 기본 파티션에 흩어져 있어도 회차별 최신 행(기록 시각 → id)이 같다. 시험 트랜잭션이 롤백하므로 만든 파티션도 남지 않는다.
+     */
+    @Test
+    @DisplayName("행이 일 파티션 둘과 기본 파티션에 흩어져 있어도 엔티티 저장·최신 1행 조회가 같다")
+    void 파티션에_걸쳐_있어도_저장과_최신_조회가_같다() {
+        manager.ensureAhead(java.time.LocalDate.of(2099, 3, 1), 1);
+        OffsetDateTime day1 = OffsetDateTime.parse("2099-03-01T10:00:00+09:00");
+        OffsetDateTime day2 = OffsetDateTime.parse("2099-03-02T10:00:00+09:00");
+        행을_심는다(RUN_A, day1);
+        행을_심는다(RUN_A, day2);
+        long saved = repository.save(RunPosition.onReceive(RUN_A, java.math.BigDecimal.valueOf(37.5),
+                java.math.BigDecimal.valueOf(127.0), day2.plusMinutes(30), day2.plusMinutes(30), null, null)).getId();
+        long bLatest = 행을_심는다(RUN_B, day1.plusHours(1));
+
+        List<Long> inPartitions = repository.findLatestByRunIdIn(List.of(RUN_A, RUN_B)).stream()
+                .map(RunPosition::getId).sorted().toList();
+        assertThat(inPartitions).containsExactlyInAnyOrder(saved, bLatest);
+        assertThat(jdbc.queryForObject("SELECT tableoid::regclass::text FROM run_position WHERE id = ?", String.class, saved))
+                .isEqualTo("run_position_p20990302");
+
+        // 파티션이 없는 날짜(기본 파티션)의 행이 더 최근이면 그 행이 최신이다
+        long inDefault = 행을_심는다(RUN_A, OffsetDateTime.parse("2099-03-05T10:00:00+09:00"));
+        assertThat(repository.findLatestByRunIdIn(List.of(RUN_A)).stream().map(RunPosition::getId))
+                .containsExactly(inDefault);
+    }
+
     @Test
     @DisplayName("회차 행이 수천 개여도 실행 계획이 회차 인덱스의 정렬을 그대로 쓴다(전체 정렬 없음)")
     void 실행_계획에_전체_정렬이_없다() {
@@ -78,7 +110,8 @@ class RunPositionRepositoryLatestTest {
                 .collect(Collectors.joining("\n"));
 
         // 정렬 키 중 recorded_at 은 인덱스가 이미 정렬해 둔 것(Presorted) — 동률 묶음만 id 로 다시 정렬한다
-        assertThat(plan).as(plan).contains("ix_run_position_run_recorded", "Presorted Key: run_position.recorded_at");
+        // 파티션 테이블의 인덱스는 파티션마다 자동 이름("<파티션>_run_id_recorded_at_idx")으로 생긴다(R46-LATERBE B-1)
+        assertThat(plan).as(plan).contains("_run_id_recorded_at_idx", "Presorted Key: run_position.recorded_at");
     }
 
     /** 운영 쿼리 원문 — 시험용 사본이 아니라 애너테이션에서 그대로 읽어 쿼리가 바뀌면 이 시험도 따라간다. */

@@ -95,6 +95,7 @@ class SchemaContractTest extends MigratedPostgresTestBase {
                 SELECT table_name FROM information_schema.tables
                 WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
                   AND table_name <> 'flyway_schema_history'
+                  AND table_name NOT IN (SELECT inhrelid::regclass::text FROM pg_inherits)
                 """);
 
         assertThat(actual)
@@ -121,6 +122,7 @@ class SchemaContractTest extends MigratedPostgresTestBase {
                 SELECT table_name FROM information_schema.tables
                 WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
                   AND table_name <> 'flyway_schema_history'
+                  AND table_name NOT IN (SELECT inhrelid::regclass::text FROM pg_inherits)
                 """);
         actualTables.removeAll(ENTITY_UNMAPPED_TABLES);
 
@@ -486,13 +488,29 @@ class SchemaContractTest extends MigratedPostgresTestBase {
                 """)).as("run_stop(waypoint_id) — 경유지 정차는 소수라 NULL 을 뺀 부분 인덱스").hasSize(1);
     }
 
-    /** R46 I-06 — 하루 27만 행을 지우는 {@code run_position} 은 전역 기준(20%)이면 약 18일치 죽은 행이 쌓인 뒤에야 정리된다. */
+    /**
+     * R46-LATERBE B-1(Ruling 670) — {@code run_position} 은 {@code recorded_at} 일 단위 범위 파티션이고 기본 파티션이 있다. 기본
+     * 파티션이 없으면 해당 날짜 파티션을 못 만든 날 위치 INSERT 가 실패해 위치 수신이 멈춘다. PK 는 파티션 키를 포함한다
+     * ({@code (id, recorded_at)}). 삭제 전용 컷오프 인덱스는 없다 — 만료는 파티션 DROP 이다.
+     */
     @Test
-    void run_position_은_표_단위_autovacuum_설정을_가진다() throws SQLException {
-        assertThat(queryColumn("SELECT array_to_string(reloptions, ',') FROM pg_class WHERE oid = 'public.run_position'::regclass")
-                .getFirst())
-                .contains("autovacuum_vacuum_scale_factor=0.01")
-                .contains("autovacuum_vacuum_insert_scale_factor=0.05");
+    void run_position_은_recorded_at_범위_파티션이고_기본_파티션이_있다() throws SQLException {
+        assertThat(queryColumn("""
+                SELECT pg_get_partkeydef('public.run_position'::regclass)
+                """)).containsExactly("RANGE (recorded_at)");
+        assertThat(queryColumn("""
+                SELECT c.relname FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid
+                WHERE i.inhparent = 'public.run_position'::regclass
+                  AND pg_get_expr(c.relpartbound, c.oid) = 'DEFAULT'
+                """)).as("기본 파티션").containsExactly("run_position_default");
+        assertThat(queryColumn("""
+                SELECT a.attname FROM pg_index x
+                JOIN pg_attribute a ON a.attrelid = x.indrelid AND a.attnum = ANY (x.indkey)
+                WHERE x.indrelid = 'public.run_position'::regclass AND x.indisprimary ORDER BY a.attname
+                """)).as("PK 는 파티션 키를 포함한다").containsExactly("id", "recorded_at");
+        assertThat(queryColumn("""
+                SELECT indexname FROM pg_indexes WHERE tablename = 'run_position' AND indexname = 'ix_run_position_retention_cutoff'
+                """)).as("만료는 파티션 DROP 이라 컷오프 인덱스가 불필요").isEmpty();
     }
 
     /**

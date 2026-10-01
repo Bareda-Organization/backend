@@ -17,7 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import src.backend.account.repository.RefreshTokenRepository;
 import src.backend.audit.entity.AuditCategory;
 import src.backend.audit.repository.AuditLogRepository;
-import src.backend.location.repository.RunPositionRepository;
+import src.backend.location.infrastructure.RunPositionPartitionManager;
 import src.backend.notification.repository.NotificationLogRepository;
 import src.backend.observability.metrics.SchedulerHealthMetrics;
 import src.backend.student.repository.LinkCodeRepository;
@@ -37,10 +37,11 @@ import src.backend.student.repository.StudentRepository;
  * {@code run_stop}). 새 테이블을 이 배치에 넣으려면 {@link RetentionPolicy} 에 상수를 먼저 더해야
  * 하므로, 무기한 보존 테이블이 실수로 섞여 들어오는 경로 자체가 없다.
  *
- * <p><b>파티셔닝 대신 행 단위 DELETE</b>(Ruling 243 잠정) — ERD §7.3 은 파티션 DROP 을 권장하지만
- * 이번 Phase 는 도입하지 않는다. 대신 한 번의 삭제 호출을 {@link RetentionPolicy#BATCH_SIZE} 로 잘라
- * 여러 회차에 나눠 지운다(목표 7) — 상한 없이 전건을 한 트랜잭션에서 지우면 오래 쌓인 테이블에서
- * 행 잠금을 길게 붙들어 운영 중 조회를 막는다.
+ * <p><b>{@code run_position} 은 파티션 DROP, 나머지는 행 단위 DELETE</b>(Ruling 243 → R46-LATERBE Ruling 670) — 하루
+ * 약 27만 행이 쌓이는 위치 이력만 일 단위 파티션이라 만료된 날의 파티션을 통째로 지운다
+ * ({@link RunPositionPartitionManager#dropExpired}). 다른 테이블은 한 번의 삭제 호출을
+ * {@link RetentionPolicy#BATCH_SIZE} 로 잘라 여러 회차에 나눠 지운다(목표 7) — 상한 없이 전건을 한 트랜잭션에서 지우면
+ * 오래 쌓인 테이블에서 행 잠금을 길게 붙들어 운영 중 조회를 막는다.
  *
  * <p><b>테이블마다 개별 트랜잭션이다</b> — 조회({@code findIdsForRetentionCleanup})와 삭제
  * ({@code deleteAllByIdInBatch}, {@link org.springframework.data.jpa.repository.JpaRepository} 상속
@@ -62,7 +63,7 @@ public class RetentionCleanupScheduler {
 
     private final NotificationLogRepository notificationLogRepository;
 
-    private final RunPositionRepository runPositionRepository;
+    private final RunPositionPartitionManager runPositionPartitionManager;
 
     private final RefreshTokenRepository refreshTokenRepository;
 
@@ -96,8 +97,7 @@ public class RetentionCleanupScheduler {
 
         cleanUpSafely("notification_log", retentionPolicy.notificationLogCutoff(now), RetentionPolicy.BATCH_SIZE,
                 notificationLogRepository::findIdsForRetentionCleanup, notificationLogRepository::deleteAllByIdInBatch);
-        cleanUpSafely("run_position", retentionPolicy.runPositionCutoff(now), RetentionPolicy.BATCH_SIZE,
-                runPositionRepository::findIdsForRetentionCleanup, runPositionRepository::deleteAllByIdInBatch);
+        dropRunPositionPartitionsSafely(retentionPolicy.runPositionCutoff(now));
         cleanUpSafely("refresh_token", retentionPolicy.refreshTokenCutoff(now), RetentionPolicy.BATCH_SIZE,
                 refreshTokenRepository::findIdsForRetentionCleanup, refreshTokenRepository::deleteAllByIdInBatch);
         cleanUpSafely("link_code", now, RetentionPolicy.BATCH_SIZE,
@@ -108,6 +108,19 @@ public class RetentionCleanupScheduler {
             cleanUpSafely("audit_log/" + category, retentionPolicy.auditLogCutoff(now), RetentionPolicy.BATCH_SIZE,
                     (cutoff, limit) -> auditLogRepository.findIdsForRetentionCleanup(category, cutoff, limit),
                     auditLogRepository::deleteAllByIdInBatch);
+        }
+    }
+
+    /**
+     * 위치 이력은 행을 지우지 않고 <b>기간이 지난 일 파티션을 통째로 DROP</b> 한다(R46-LATERBE B-1, Ruling 670) — 하루 약 27만 행의
+     * 행 단위 DELETE 와 그 뒤 vacuum 이 사라진다. 실패는 {@link #cleanUpSafely} 와 같이 삼켜 다른 테이블 정리를 막지 않는다.
+     */
+    private void dropRunPositionPartitionsSafely(OffsetDateTime cutoff) {
+        try {
+            runPositionPartitionManager.dropExpired(cutoff);
+        } catch (Exception e) {
+            log.warn("보존 정리 실패 — run_position (다음 틱에 재시도)", e);
+            schedulerHealthMetrics.recordItemFailure(getClass());
         }
     }
 
