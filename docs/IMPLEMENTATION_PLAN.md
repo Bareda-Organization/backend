@@ -6135,3 +6135,14 @@ R46 개선 항목 `A #10`(주소 선택 → 사용자 결정 대기)의 결정 �
 | 8 | 정리 — 서버 종료 · 전용 DB DROP | `lsof` · `pg_database` |
 
 **결과 (2026-10-01)** — 목표 1 ✅ `AdminAcademyCoordinatesTest` 12건(새 시험 5 · 뒤집은 시험 1 — "주소를 비우면 좌표도 비운다" → `422`) · RED 5건 실패 확인 · 결함 4종을 하나씩 심어 해당 시험만 실패. **시험이 기존 결함 1건을 잡았다** — 같은 주소를 다시 보낸 수정이 좌표를 지웠다(웹은 폼 전체를 보내므로 이름만 고쳐도 좌표 소실 → 회차 확정 전부 실패) · `Ruling 451` 로 명문화. 목표 2 ✅ `AcademyFormDialog.test.tsx` 10건 · 결함 3종 · 1440·1024 스크린샷. 목표 3 ✅ `Ruling 451`(서버 `:8360` 실측). 목표 4 ✅ 원인은 **시험의 가짜 `useRouter` 가 렌더마다 새 객체를 돌려줘 effect 가 재예약**된 것이고 제품 결함이 아님 — 단독 20회 연속 실패 0 · 원인 줄 원복 시 재현. 목표 5 ✅ 백엔드 `--rerun` 338클래스 1,895건 실패 0 · 건너뜀 0(첫 실행 21건은 같은 DB 에 서버의 데모 시드가 들어간 **환경 오염** — 스키마를 비운 뒤 0) · 웹 705건 · `tsc`·`lint` 0. 목표 6 ✅ 14파일 77건 실패 0 · 건너뜀 0. 목표 7 ✅ 깨진 참조 0 → 0.
+
+## 8.78 ⚖ `R46-WEBF` — 관계자 웹 현장 기능에 딸린 서버 변경 2건 (2026-10-01 · 분기점 `e6376142` · 번호대 490~499 · 웹 현장 갈래)
+
+판정 9건은 웹 쪽이라 `docs/frontend/IMPLEMENTATION_PLAN.md §5.21.1` 에 있다(`Ruling 490~498`). 서버는 아래 둘만 바꿨다.
+
+| 변경 | 내용 | 근거 |
+|---|---|---|
+| `GET /staff/students` 응답 `account_linked` | 학생 본인 계정이 가입 연결됐는지(boolean). 식별자는 싣지 않는다 — 상세만 싣는다 | `Ruling 495` · `StaffStudentControllerTest` 1건 추가(32건) |
+| `GET /staff/students/{id}/weekly-address` 신설 | 관계자 요일별 승하차 주소 조회(STU-06). `STUDENT_READ_SENSITIVE` · 남의 학원 `404` · 성공 시 감사 `read`(`fields=["weekly_address"]`, 묶기 `Ruling 445`) | `Ruling 498` · `StaffWeeklyAddressControllerTest` 5건 · 전수 목록 4곳(`AccountStatusGateEndpoints` · `AuthFlowIntegrationTest` 111→112 · `AcademyScopeHttpExhaustiveTest` 사례 1 · `ControllerAuthorizationConventionTest` 하한 112→113) |
+
+`Ruling 499` 는 쓰지 않았다.
