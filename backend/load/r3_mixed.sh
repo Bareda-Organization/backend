@@ -12,6 +12,8 @@
 # R46-LOAD 가 더한 환경변수 — 기본값은 전부 2026-09-09 와 같은 동작이다(값을 안 주면 09-09 회차 그대로).
 #   R3_INTERVAL   위치 송신 주기(초). 기본 5(09-09). 앱 실제 값은 2(`position_constants.dart`)
 #   R3_POLLING    1 이면 학부모 홈 폴링 + 관계자 웹 폴링을 더한다(scenario5_polling.js). 기본 0
+#   R3_ADMINS     관계자 웹 동시 사용자 수(Ruling 484 통과 기준 = 50). 0 보다 크면 realistic 모드의 관계자·관리자 구성을 이 하나로 정한다 —
+#                 메인 관리자 10% + 학원 관계자 90%(절반 대시보드·절반 금일 운행 탭, 각자 학원 채널 WS·공통 폴링). 폴링을 자동으로 켠다
 #   R3_MODE       admin(기본) = 09-09 처럼 세션 전원이 /topic/admin/live 를 구독
 #                 realistic    = 세션 수만큼 학부모가 자기 학생 채널을 구독 + 관계자 R3_WS_STAFF 명(학원 채널)
 #                                + 메인 관리자 R3_WS_ADMIN 명(관제 채널) — 조사 D "다음 측정 3"의 실제 구독 분포
@@ -24,6 +26,8 @@ POLL="${R3_POLLING:-0}"
 MODE="${R3_MODE:-admin}"
 WS_STAFF="${R3_WS_STAFF:-10}"
 WS_ADMIN="${R3_WS_ADMIN:-2}"
+ADMINS="${R3_ADMINS:-0}"
+[ "$ADMINS" -gt 0 ] && { POLL=1; MODE=realistic; }
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PG="docker exec -i school-bus-postgres-1 psql -U schoolbus -d schoolbus_load -q"
 PGQ="docker exec school-bus-postgres-1 psql -U schoolbus -d schoolbus_load -t -A -c"
@@ -34,7 +38,7 @@ POS_VUS=$((100 * MULT))
 RAMP=60; HOLD=180; POS_DUR=120; TOTAL=$((RAMP + HOLD + 30))
 SCENARIO5_DUR=$((RAMP + HOLD + 10))
 
-echo "== R3 세션=${SESSIONS}(${MODE}) · 위치 VU=${POS_VUS}(${INTERVAL}초 주기 = $((POS_VUS / INTERVAL)) req/s) · 배치=$((100 * MULT))회차 · 폴링=${POLL} =="
+echo "== R3 세션=${SESSIONS}(${MODE}) · 위치 VU=${POS_VUS}(${INTERVAL}초 주기 = $((POS_VUS / INTERVAL)) req/s) · 배치=$((100 * MULT))회차 · 폴링=${POLL} · 관리자=${ADMINS} =="
 
 # ① 위치용 회차를 심는다(moving 상태, 기사 계정 포함). 앞 회차가 심은 위치용 회차는 먼저 종료한다 — 근접 판정 스케줄러가
 #    움직이는 회차 수에 비례해 일하므로, 안 끝내면 회차를 거듭할수록 배경 부하가 늘어 회차끼리 비교가 안 된다.
@@ -95,18 +99,18 @@ K6_S=""; K6_Q=""
 if [ "$MODE" = "realistic" ]; then
     POLL_ENV="-e POLL_PARENT_APPS=0 -e POLL_STAFF_DASH_TABS=0 -e POLL_STAFF_TODAY_TABS=0"
     [ "$POLL" = "1" ] && POLL_ENV=""
-    k6 run $K6_OUT_ARGS_POLL -e POLL_TOKENS="$TOKENS" -e SCENARIO5_DURATION_SEC="$SCENARIO5_DUR" -e SCENARIO5_RAMP_SEC="$RAMP" \
-        -e WS_VIEWERS="$SESSIONS" -e WS_STAFF="$WS_STAFF" -e WS_ADMIN="$WS_ADMIN" $POLL_ENV \
+    k6 run --summary-trend-stats="avg,min,med,max,p(90),p(95),p(99)" $K6_OUT_ARGS_POLL -e POLL_TOKENS="$TOKENS" -e SCENARIO5_DURATION_SEC="$SCENARIO5_DUR" -e SCENARIO5_RAMP_SEC="$RAMP" \
+        -e WS_VIEWERS="$SESSIONS" -e WS_STAFF="$WS_STAFF" -e WS_ADMIN="$WS_ADMIN" -e ADMIN_USERS="$ADMINS" $POLL_ENV \
         --summary-export="$DIR/results/${TAG}_poll.json" scenario5_polling.js \
         > "$DIR/results/${TAG}_poll.log" 2>&1 &
     K6_Q=$!
 else
-    k6 run $K6_OUT_ARGS_SESSIONS -e SCENARIO3_TARGET_VUS="$SESSIONS" -e SCENARIO3_RAMP_SEC="$RAMP" -e SCENARIO3_HOLD_SEC="$HOLD" \
+    k6 run --summary-trend-stats="avg,min,med,max,p(90),p(95),p(99)" $K6_OUT_ARGS_SESSIONS -e SCENARIO3_TARGET_VUS="$SESSIONS" -e SCENARIO3_RAMP_SEC="$RAMP" -e SCENARIO3_HOLD_SEC="$HOLD" \
         --summary-export="$DIR/results/${TAG}_sessions.json" scenario3_admin_fanout.js \
         > "$DIR/results/${TAG}_sessions.log" 2>&1 &
     K6_S=$!
     if [ "$POLL" = "1" ]; then
-        k6 run $K6_OUT_ARGS_POLL -e POLL_TOKENS="$TOKENS" -e SCENARIO5_DURATION_SEC="$SCENARIO5_DUR" \
+        k6 run --summary-trend-stats="avg,min,med,max,p(90),p(95),p(99)" $K6_OUT_ARGS_POLL -e POLL_TOKENS="$TOKENS" -e SCENARIO5_DURATION_SEC="$SCENARIO5_DUR" \
             -e WS_VIEWERS=0 -e WS_STAFF=0 -e WS_ADMIN=0 \
             --summary-export="$DIR/results/${TAG}_poll.json" scenario5_polling.js \
             > "$DIR/results/${TAG}_poll.log" 2>&1 &
@@ -118,7 +122,7 @@ sleep $((RAMP + 15))
 echo "t+$((RAMP + 15))s 위치 부하 시작 (연결 $(metric tomcat_connections_current_connections)건)"
 
 # ④ 위치 부하.
-k6 run $K6_OUT_ARGS_POSITION -e SCENARIO2_CSV="$DIR/results/${TAG}_runs.csv" -e SCENARIO2_DURATION_SEC="$POS_DUR" \
+k6 run --summary-trend-stats="avg,min,med,max,p(90),p(95),p(99)" $K6_OUT_ARGS_POSITION -e SCENARIO2_CSV="$DIR/results/${TAG}_runs.csv" -e SCENARIO2_DURATION_SEC="$POS_DUR" \
     -e SCENARIO2_INTERVAL_SEC="$INTERVAL" -e SCENARIO2_OBSERVERS=2 -e SCENARIO2_JITTER=true \
     --summary-export="$DIR/results/${TAG}_position.json" scenario2_position.js \
     > "$DIR/results/${TAG}_position.log" 2>&1 &

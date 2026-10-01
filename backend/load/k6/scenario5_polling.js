@@ -29,14 +29,20 @@ const num = (name, fallback) => (__ENV[name] === undefined ? fallback : Number(_
 
 const PARENT_APPS = num('POLL_PARENT_APPS', 570);
 const PARENT_INTERVAL_SEC = num('POLL_PARENT_INTERVAL_SEC', 90);
-const STAFF_DASH_TABS = num('POLL_STAFF_DASH_TABS', 11);
-const STAFF_TODAY_TABS = num('POLL_STAFF_TODAY_TABS', 10);
+// ADMIN_USERS — 관계자 웹 동시 사용자 수(Ruling 484: 통과 기준 50). 켜면(>0) 아래 갈래 수를 이 하나로 정한다:
+//   메인 관리자 = 10%(50명이면 5) — 전체 관제(ADMIN_LIVE WS) + 폴링, 학원 관계자 = 나머지(45) — 절반은 대시보드 탭, 절반은 금일 운행 탭
+//   (각자 비상 5초·승인 30초 공통 폴링과 학원 채널 WS 를 가진다). 끄면(0) 아래 개별 변수를 쓴다(R3 B·C 회차의 옛 가정 12명).
+const ADMIN_USERS = num('ADMIN_USERS', 0);
+const MAIN_ADMINS = ADMIN_USERS > 0 ? Math.max(1, Math.round(ADMIN_USERS / 10)) : 0;
+const STAFF_USERS = ADMIN_USERS - MAIN_ADMINS;
+const STAFF_DASH_TABS = ADMIN_USERS > 0 ? Math.ceil(STAFF_USERS / 2) : num('POLL_STAFF_DASH_TABS', 11);
+const STAFF_TODAY_TABS = ADMIN_USERS > 0 ? Math.floor(STAFF_USERS / 2) : num('POLL_STAFF_TODAY_TABS', 10);
 const STAFF_INTERVAL_SEC = num('POLL_STAFF_INTERVAL_SEC', 7);
 const EMERGENCY_INTERVAL_SEC = num('POLL_EMERGENCY_INTERVAL_SEC', 5);
 const APPROVAL_INTERVAL_SEC = num('POLL_APPROVAL_INTERVAL_SEC', 30);
 const WS_VIEWERS = num('WS_VIEWERS', 0);
-const WS_STAFF = num('WS_STAFF', 0);
-const WS_ADMIN = num('WS_ADMIN', 0);
+const WS_STAFF = ADMIN_USERS > 0 ? STAFF_USERS : num('WS_STAFF', 0);
+const WS_ADMIN = ADMIN_USERS > 0 ? MAIN_ADMINS : num('WS_ADMIN', 0);
 const RAMP_SEC = num('SCENARIO5_RAMP_SEC', 60);
 const DURATION_SEC = num('SCENARIO5_DURATION_SEC', 250);
 
@@ -44,6 +50,11 @@ const tokens = JSON.parse(open(__ENV.POLL_TOKENS));
 const parents = new SharedArray('r46_parents', () => tokens.parents);
 const staff = tokens.staff;
 const staffWithRun = staff.filter((s) => s.runId !== null);
+// 위치용 회차 100대가 전부 학원 1(staffA)에 있다. 실제는 학원 10곳이 각 10대씩이라, 학원 1 에 탭의 1/9 만 두면 학원 1 응답
+// (회차당 약 28KB — 100대면 2.8MB)의 총량이 "45탭 × 10대" 와 같아지고 학원 채널 방송 수신 건수도 같아진다.
+const staffA = staff.filter((s) => s.runId === null);
+const staffLoadcap = staffWithRun;
+const pickStaff = () => (__VU % 9 === 0 && staffA.length > 0 ? staffA[0] : staffLoadcap[__VU % staffLoadcap.length]);
 
 // 요청 종류별 서버 응답 시간 — 지연 분포를 종류마다 따로 본다(명단 조회만 감사 기록을 남기는 식으로 비용이 다르다).
 const trend = (name) => new Trend(name, true);
@@ -67,6 +78,9 @@ const viewerLatencyMs = trend('viewer_ws_latency_ms');
 const controlReceived = new Counter('control_ws_messages_received');
 const controlLatencyMs = trend('control_ws_latency_ms');
 const wsConnectFailures = new Counter('ws_connect_failures');
+const adminMonitorMs = trend('poll_admin_live_ms');
+const adminEmergencyMs = trend('poll_admin_emergency_ms');
+const adminAttentionMs = trend('poll_admin_attention_ms');
 
 const scenarios = {};
 if (PARENT_APPS > 0) {
@@ -86,6 +100,10 @@ if (STAFF_TODAY_TABS > 0) scenarios.staff_today_run_tab = loopScenario('staffTod
 if (STAFF_DASH_TABS + STAFF_TODAY_TABS > 0) {
     scenarios.staff_emergency_poll = loopScenario('staffEmergencyPoll', STAFF_DASH_TABS + STAFF_TODAY_TABS);
     scenarios.staff_approval_poll = loopScenario('staffApprovalPoll', STAFF_DASH_TABS + STAFF_TODAY_TABS);
+}
+if (MAIN_ADMINS > 0) {
+    scenarios.admin_monitor_tab = loopScenario('adminMonitorTab', MAIN_ADMINS);
+    scenarios.admin_emergency_poll = loopScenario('adminEmergencyPoll', MAIN_ADMINS);
 }
 const wsScenario = (exec, target) => ({
     executor: 'ramping-vus',
@@ -128,11 +146,11 @@ export function parentHome() {
 
 // 탭이 같은 순간에 나란히 치지 않게 첫 요청을 주기 안에서 무작위로 늦춘다 — 실제 탭은 각자 열린 시각이 다르다.
 const stagger = (intervalSec) => sleep(Math.random() * intervalSec);
-const tabOf = (list) => list[(__VU - 1) % list.length];
+const tabOf = () => pickStaff();
 
 // 대시보드 탭 — 응답을 받은 뒤 7초를 기다려 다음 요청(`usePolling`).
 export function staffDashboardTab() {
-    const tab = tabOf(staff);
+    const tab = tabOf();
     if (__ITER === 0) stagger(STAFF_INTERVAL_SEC);
     const [live, dashboard] = http.batch([get('/staff/runs/live', tab.token), get('/staff/dashboard', tab.token)]);
     record(live, staffLiveMs, staffRequests, staffFailures);
@@ -142,7 +160,8 @@ export function staffDashboardTab() {
 
 // 금일 운행 탭 — 회차 목록·명단(호출마다 감사 기록 대상)·실시간 위치를 함께 받는다.
 export function staffTodayRunTab() {
-    const tab = tabOf(staffWithRun);
+    // 금일 운행 탭은 회차 하나를 고정해 열어 둔다 — 회차가 100개인 학원 1 은 고를 수 없어 R0 학원에서만 고른다.
+    const tab = staffLoadcap[__VU % staffLoadcap.length];
     if (__ITER === 0) stagger(STAFF_INTERVAL_SEC);
     const [dashboard, roster, live] = http.batch([
         get('/staff/dashboard', tab.token),
@@ -157,7 +176,7 @@ export function staffTodayRunTab() {
 
 // 관계자 전 화면 공통 — 비상 목록(5초).
 export function staffEmergencyPoll() {
-    const tab = tabOf(staff);
+    const tab = tabOf();
     if (__ITER === 0) stagger(EMERGENCY_INTERVAL_SEC);
     record(http.get(`${BASE_URL}/staff/emergencies?status=open`, authHeaders(tab.token)), staffEmergencyMs,
         staffRequests, staffFailures);
@@ -166,7 +185,7 @@ export function staffEmergencyPoll() {
 
 // 관계자 전 화면 공통 — 승인 대기 건수(30초).
 export function staffApprovalPoll() {
-    const tab = tabOf(staff);
+    const tab = tabOf();
     if (__ITER === 0) stagger(APPROVAL_INTERVAL_SEC);
     const [signup, approvals] = http.batch([
         get('/staff/signup-requests?status=pending&page=0&size=1', tab.token),
@@ -175,6 +194,29 @@ export function staffApprovalPoll() {
     record(signup, staffSignupMs, staffRequests, staffFailures);
     record(approvals, staffApprovalsMs, staffRequests, staffFailures);
     sleep(APPROVAL_INTERVAL_SEC);
+}
+
+// 메인 관리자 전체 관제 화면 — 선택한 학원의 실시간 회차를 7초마다(응답 뒤 예약), 전 학원 비상 요약·지연 집계를 30초마다
+// (`MonitoringPage` usePolling). 학원은 탭마다 다르게 고른다 — 5개 중 1개가 학원 1(위치용 회차 100대)이다.
+const ADMIN_VIEW_ACADEMIES = [1, ...tokens.staff.filter((x) => x.runId !== null).slice(0, 4).map((x) => x.academyId)];
+export function adminMonitorTab() {
+    const academyId = ADMIN_VIEW_ACADEMIES[__VU % ADMIN_VIEW_ACADEMIES.length];
+    if (__ITER === 0) stagger(STAFF_INTERVAL_SEC);
+    const requests = [get(`/admin/academies/${academyId}/runs/live`, tokens.admin)];
+    if (__ITER % 4 === 0) requests.push(get('/admin/emergencies?status=open', tokens.admin), get('/admin/runs/attention', tokens.admin));
+    const [live, emergency, attention] = http.batch(requests);
+    record(live, adminMonitorMs, staffRequests, staffFailures);
+    if (emergency) record(emergency, adminEmergencyMs, staffRequests, staffFailures);
+    if (attention) record(attention, adminAttentionMs, staffRequests, staffFailures);
+    sleep(STAFF_INTERVAL_SEC);
+}
+
+// 관리자 화면 전체 공통 비상 알림(5초) — 관계자 웹과 같은 Provider 가 `/admin/emergencies` 로 돈다.
+export function adminEmergencyPoll() {
+    if (__ITER === 0) stagger(EMERGENCY_INTERVAL_SEC);
+    record(http.get(`${BASE_URL}/admin/emergencies?status=open`, authHeaders(tokens.admin)), adminEmergencyMs,
+        staffRequests, staffFailures);
+    sleep(EMERGENCY_INTERVAL_SEC);
 }
 
 // 세션 하나 — 토큰으로 STOMP 연결해 목적지 하나를 구독하고 시나리오가 끝날 때까지 받는다.
@@ -213,7 +255,7 @@ export function viewerSession() {
 }
 
 export function staffSession() {
-    const tab = tabOf(staff);
+    const tab = tabOf();
     holdSession(tab.token, `/topic/academy/${tab.academyId}/live`, controlReceived, controlLatencyMs);
 }
 
