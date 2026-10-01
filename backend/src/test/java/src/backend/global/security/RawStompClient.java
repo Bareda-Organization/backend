@@ -35,6 +35,16 @@ final class RawStompClient implements AutoCloseable {
         this.closed = closed;
     }
 
+    /** 소켓만 열고 STOMP {@code CONNECT} 는 보내지 않는다 — 프로토콜을 시작하지 않은 소켓. */
+    static RawStompClient openWithoutConnect(int port) throws Exception {
+        CountDownLatch closed = new CountDownLatch(1);
+        WebSocketSession session = new StandardWebSocketClient()
+                .execute(new Collector(new LinkedBlockingQueue<>(), closed), null,
+                        URI.create("ws://localhost:" + port + "/ws/location"))
+                .get(5, TimeUnit.SECONDS);
+        return new RawStompClient(session, closed);
+    }
+
     /** 소켓을 열고 {@code CONNECT}(하트비트 헤더 = {@code heartBeat})를 보내 {@code CONNECTED} 를 받을 때까지 기다린다. */
     static RawStompClient connect(int port, String token, String heartBeat) throws Exception {
         BlockingQueue<String> frames = new LinkedBlockingQueue<>();

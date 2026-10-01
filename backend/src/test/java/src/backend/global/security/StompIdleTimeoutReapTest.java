@@ -29,7 +29,8 @@ import src.backend.global.websocket.WebSocketBroadcastGateway;
  *
  * <p>두 세션 모두 방송 채널을 구독하고 시험이 방송을 계속 쏜다 — 서버가 쓰기를 계속해도 읽기가 없으면 닫혀야 한다(표준
  * {@code maxSessionIdleTimeout} 은 읽기·쓰기가 둘 다 유휴일 때만 닫아 이 경우를 놓친다). 같은 시간 동안 줄바꿈 하트비트를 1초마다
- * 보낸 세션은 남아야 한다 — 유휴 제한이 살아 있는 클라이언트를 잘못 자르지 않는다는 대조군이다.
+ * 보낸 세션은 남아야 한다 — 유휴 제한이 살아 있는 클라이언트를 잘못 자르지 않는다는 대조군이다. {@code CONNECT} 를 보내지 않고
+ * 소켓만 연 세션도 같은 제한으로 닫힌다 — Spring 의 "첫 메시지 60초" 점검은 새 연결이 들어올 때만 돌아 한가한 때는 그 소켓이 남는다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "app.ws.idle-timeout-ms=3000")
 class StompIdleTimeoutReapTest {
@@ -52,14 +53,15 @@ class StompIdleTimeoutReapTest {
     private StompSessionExpiry sessionExpiry;
 
     @Test
-    @DisplayName("heart-beat:0,0 으로 연결해 조용한 클라이언트는 서버가 방송을 계속 써도 유휴 제한 안에 정리되고 줄을 보낸 클라이언트는 남는다")
-    void 하트비트를_끈_조용한_세션은_유휴_제한_안에_정리된다() throws Exception {
+    @DisplayName("heart-beat:0,0 으로 연결해 조용한 클라이언트와 CONNECT 없는 소켓은 서버가 방송을 계속 써도 유휴 제한 안에 정리되고 줄을 보낸 클라이언트는 남는다")
+    void 하트비트를_끈_조용한_세션과_CONNECT_없는_소켓은_유휴_제한_안에_정리된다() throws Exception {
         double baseSessions = activeSessions();
         int baseExpiry = sessionExpiry.trackedSessionCount();
         String token = tokenProvider.createAccessToken(2L, 1L, Role.STAFF, AccountStatus.ACTIVE);
 
         try (RawStompClient silent = RawStompClient.connect(port, token, "0,0");
-                RawStompClient alive = RawStompClient.connect(port, token, "0,0")) {
+                RawStompClient alive = RawStompClient.connect(port, token, "0,0");
+                RawStompClient noConnect = RawStompClient.openWithoutConnect(port)) {
             silent.subscribe(DESTINATION);
             alive.subscribe(DESTINATION);
             await().atMost(Duration.ofSeconds(5))
@@ -72,6 +74,8 @@ class StompIdleTimeoutReapTest {
                 alive.sendHeartbeat();
             }
 
+            assertThat(noConnect.awaitClosed(Duration.ofSeconds(15))).as("CONNECT 없이 연 소켓도 같은 유휴 제한으로 닫힌다 — 점검이 같은 주기라 늦어도 한 주기 안")
+                    .isTrue();
             assertThat(alive.isOpen()).as("줄을 계속 보낸 세션은 닫히지 않는다").isTrue();
             await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
                 assertThat(activeSessions()).as("조용한 세션만 활성 세션 집합에서 빠진다").isEqualTo(baseSessions + 1);
