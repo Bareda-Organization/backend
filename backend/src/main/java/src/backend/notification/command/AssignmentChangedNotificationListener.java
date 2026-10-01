@@ -48,7 +48,8 @@ public class AssignmentChangedNotificationListener {
                     notificationOutbox.append(new NotificationDraft(event.academyId(), manager.getAccountId(),
                             manager.getName(), roleOf(event.role()), NotificationType.ASSIGNMENT_CHANGED,
                             message.title(), message.body(),
-                            DEDUP_KEY_FORMAT.formatted(event.runId(), event.managerId(), event.changedAt())));
+                            DEDUP_KEY_FORMAT.formatted(event.runId(), event.managerId(), event.changedAt()),
+                            null, null, null, event.runId()));
                 });
     }
 

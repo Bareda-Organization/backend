@@ -17,12 +17,21 @@ public record NotificationDraft(Long academyId, Long recipientAccountId, String 
         Role recipientRole, NotificationType type, String title, String body, String dedupKey,
         Long studentId,
         String studentName,
-        String busNo) {
+        String busNo,
+        Long runId) {
+
+    /** 가리키는 회차가 없는 알림 — {@code runId} 를 {@code null} 로 채운다(R46-FUFEAT ③, Ruling 542). */
+    public NotificationDraft(Long academyId, Long recipientAccountId, String recipientName,
+            Role recipientRole, NotificationType type, String title, String body, String dedupKey,
+            Long studentId, String studentName, String busNo) {
+        this(academyId, recipientAccountId, recipientName, recipientRole, type, title, body, dedupKey,
+                studentId, studentName, busNo, null);
+    }
 
     /** 대상 자녀·호차가 없는 알림 — 셋 다 {@code null}로 채운다. */
     public NotificationDraft(Long academyId, Long recipientAccountId, String recipientName,
             Role recipientRole, NotificationType type, String title, String body, String dedupKey) {
         this(academyId, recipientAccountId, recipientName, recipientRole, type, title, body, dedupKey,
-                null, null, null);
+                null, null, null, null);
     }
 }

@@ -697,6 +697,8 @@ CREATE TABLE notification_log (
     student_id           bigint,
     student_name         varchar(50),
     bus_no               varchar(20),
+    -- 알림이 가리키는 회차(Ruling 542) — 매니저 앱이 알림을 눌러 그 회차 화면으로 가는 근거. 회차를 가리키지 않는 종류는 NULL.
+    run_id               bigint,
     type                 varchar(30)  NOT NULL,
     title                varchar(200) NOT NULL,
     body                 text         NOT NULL,

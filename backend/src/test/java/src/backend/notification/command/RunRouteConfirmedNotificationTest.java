@@ -211,6 +211,24 @@ class RunRouteConfirmedNotificationTest {
     }
 
     @Test
+    @DisplayName("R46-FUFEAT ③ — route_changed 알림 행에는 확정한 회차의 식별자가 실린다(매니저 앱이 눌러서 그 회차로 간다)")
+    void route_changed_알림에는_회차_식별자가_실린다() {
+        RunConfirmationFixtures fixtures = fixtures();
+        long academyId = fixtures.academyWithCoordinates();
+        long busId = fixtures.bus(academyId);
+        long runId = 확정_대상_회차를_만든다(fixtures, academyId, busId);
+        배치된_매니저를_만든다(academyId, runId, ManagerRole.DRIVER, "기사");
+        배치된_매니저를_만든다(academyId, runId, ManagerRole.ESCORT, "동승자");
+
+        confirmationService.confirmOne(runId);
+
+        assertThat(jdbcTemplate.queryForList(
+                "SELECT run_id FROM notification_log WHERE type = 'route_changed' AND dedup_key LIKE ?",
+                Long.class, "route_changed:" + runId + ":%"))
+                .as("두 수신자 행 모두 같은 회차를 가리켜야 한다").containsExactly(runId, runId);
+    }
+
+    @Test
     @DisplayName("목표7 급소 — 확정 트랜잭션이 롤백되면 알림도 적재되지 않는다")
     void 확정_트랜잭션이_롤백되면_알림도_적재되지_않는다() {
         RunConfirmationFixtures fixtures = fixtures();

@@ -83,7 +83,7 @@ public class RunRouteConfirmedNotificationListener {
                     assignee.name(), roleOf(assignee.role()), NotificationType.ROUTE_CHANGED,
                     message.title(), message.body(),
                     DEDUP_KEY_FORMAT.formatted(event.runId(), assignee.managerId(), event.confirmedAt()),
-                    null, null, busNo));
+                    null, null, busNo, event.runId()));
         }
     }
 
