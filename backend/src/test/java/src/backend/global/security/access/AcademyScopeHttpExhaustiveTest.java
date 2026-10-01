@@ -262,6 +262,10 @@ class AcademyScopeHttpExhaustiveTest {
         // 관계자 웹 CRUD — repository 단 findByIdAndAcademyId, AcademyScope 를 거치지 않는다.
         cases.add(c("GET /staff/students/{id} → B학원 학생 404", HttpMethod.GET, "/staff/students/{id}",
                 new Object[] {academyBStudentId}, staffA(), null, 404, "STUDENT_NOT_FOUND"));
+        // STU-06 관계자 요일별 주소 조회(§5.11 · Ruling 498) — findByIdAndAcademyIdAndDeletedAtIsNull 이 남의 학원 학생을 404 로 거른다.
+        cases.add(c("GET /staff/students/{id}/weekly-address → B학원 학생 404", HttpMethod.GET,
+                "/staff/students/{id}/weekly-address", new Object[] {academyBStudentId}, staffA(), null, 404,
+                "STUDENT_NOT_FOUND"));
         // 등록·수정은 multipart/form-data 다(Ruling 159) — "data" 파트로 보낸다(판단 근거①).
         cases.add(cMultipart("PATCH /staff/students/{id} → B학원 학생 404", HttpMethod.PATCH, "/staff/students/{id}",
                 new Object[] {academyBStudentId}, staffA(), EMPTY_BODY, 404, "STUDENT_NOT_FOUND"));

@@ -37,6 +37,7 @@ import src.backend.student.dto.StudentRegisterRequest;
 import src.backend.student.dto.StudentSummaryResponse;
 import src.backend.student.dto.StudentUpdateRequest;
 import src.backend.student.dto.StudentWithdrawalResponse;
+import src.backend.student.dto.WeeklyAddressResponse;
 import src.backend.student.photo.spec.StudentPhoto;
 import src.backend.student.query.StudentQueryService;
 
@@ -85,6 +86,18 @@ public class StaffStudentController {
     public ApiResponse<StudentDetailResponse> detail(@AuthenticationPrincipal AuthUser authUser,
             @PathVariable Long id) {
         return ApiResponse.ok(studentQueryService.detail(authUser, id));
+    }
+
+    /**
+     * 학생의 요일별 승하차 주소 조회(STU-06, §5.11 · Ruling 498) — 관계자는 조회만 한다(입력은 학부모, §3.7). 주소가 L3 라
+     * 상세와 같은 권한을 요구하고 조회마다 감사 기록이 남는다.
+     */
+    @CanReadStudentRecord
+    @Operation(summary = "학생 관리 — 요일별 승하차 주소 조회 (STU-06)")
+    @GetMapping("/{id}/weekly-address")
+    public ApiResponse<WeeklyAddressResponse> weeklyAddresses(@AuthenticationPrincipal AuthUser authUser,
+            @PathVariable Long id) {
+        return ApiResponse.ok(studentQueryService.weeklyAddresses(authUser, id));
     }
 
     /**

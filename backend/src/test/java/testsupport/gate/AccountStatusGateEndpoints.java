@@ -159,6 +159,7 @@ public final class AccountStatusGateEndpoints {
             "GET /staff/students",
             "POST /staff/students",
             "GET /staff/students/{id}",
+            "GET /staff/students/{id}/weekly-address",
             "PATCH /staff/students/{id}",
             "DELETE /staff/students/{id}",
             "GET /staff/buses",

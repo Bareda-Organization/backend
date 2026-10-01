@@ -1833,11 +1833,14 @@ STU-05) — 화면이 "이 자리에 이미 있다" 를 알려 관계자가 같�
 |---|---|---|
 | `GET /staff/students?q=` | STU-01 | 목록·검색. 강제 추가 자동완성과 공용 |
 | `GET /staff/students/{id}` | STU-01 | 상세 |
+| `GET /staff/students/{id}/weekly-address` | STU-06 | 요일별 승하차 주소 **조회**(`Ruling 498`) — 입력은 학부모 몫(§3.7)이고 관계자는 읽기만 한다 |
 | `POST /staff/students` | STU-02 | 등록 |
 | `PATCH /staff/students/{id}` | STU-03 | 수정 — 주소는 대상 밖, **보호자 연락처는 고칠 수 있다**(Ruling 326) |
 | `DELETE /staff/students/{id}` | STU-04 | 퇴원 soft delete — **오늘 명단은 유지**, 내일부터 제외 |
 
 **`DELETE /staff/students/{id}` 응답 `200`** — `{ student_id, deleted_at }`. `204` 가 아니라 본문을 돌려주는 것은 §1.9("변경 후 자원 상태를 그대로 반환") 때문이다 — 퇴원의 변경분은 `deleted_at` 하나이고 그 값이 없으면 클라이언트가 지워졌는지 구별할 수 없다. 학생 정보 전체는 싣지 않는다(§1.12, 목록에서 뺀 개인정보가 삭제 응답으로 다시 나가지 않게)(2026-09-30 BR-261).
+
+**`GET /staff/students/{id}/weekly-address`**(STU-06 · `Ruling 498`) — 권한은 상세와 같다(`STUDENT_READ_SENSITIVE` — 관계자·메인 관리자). 응답은 §3.7 의 `entries[]` 와 같은 구조(요일·방향 순, 아직 등록하지 않았으면 빈 목록)이고 **쓰기 경로는 두지 않는다**. 주소 원문·좌표는 L3 라 조회가 성공하면 감사 `read` 를 남기며(`target_type=student`, `detail.fields=["weekly_address"]`) 같은 행위자·같은 학생의 10분 안 재조회는 새 행을 쓰지 않는다(`Ruling 333`·`445`). **에러** — `404 STUDENT_NOT_FOUND`(남의 학원 학생 · 퇴원생 — 존재 비노출, 이때 감사 행도 남기지 않는다) · `403 FORBIDDEN`(권한 없는 역할)
 
 **`GET /staff/students` 응답 `items[]`** — `student_id` · `name` · `class_name` · `guardian_phone` · `guardian_count`(integer — 연결된 보호자 계정 수, 해지된 연결은 제외. `guardian_phone` 은 그중 대표 1명뿐이라 연결 수는 이 값으로 따로 센다) · `account_linked`(boolean — 학생 본인 계정이 가입 연결됐는지. 가입 승인 화면이 이미 연결된 학생을 고를 수 없게 보이는 데 쓴다. 계정 식별자는 싣지 않는다 — 상세만 싣는다, `Ruling 495`)
 
