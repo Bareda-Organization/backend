@@ -191,6 +191,59 @@ docker exec school-bus-postgres-1 psql -U schoolbus -d postgres -c "CREATE DATAB
 - **1초 표본의 최대값은 회차마다 갈린다**(같은 N=1,200 에서 0.19 ~ 0.38). 판정에는 `process_cpu_time_ns_total` **누적 차**를 쓴다 — 표본 시점과 무관하다
 - **macOS Docker Desktop 의 호스트→컨테이너 포트 전달(15432)이 고부하에서 26~29초씩 멈춘다**(O2, `Ruling 353`③, 근거 `FIX-LOAD2.md §3-2`) — 앱은 이미 보낸 쿼리의 응답을 기다리고, 같은 순간 Postgres 는 `ClientRead`(다음 명령을 기다림) 상태다. 즉 어느 쪽도 일을 안 하는 게 아니라 **바이트가 둘 사이 전달 경로에 묶인다** — 스레드 덤프는 전부 소켓 읽기, `pg_stat_activity` 는 실행 중 쿼리 0·잠금 0, CPU 는 한산(서명 3가지). Hikari 풀 크기를 5배로 늘려도 실패율이 그대로면 이 증상을 의심한다. **포화 지점을 찾는 회차는 앱(과 k6)을 Postgres 와 같은 Docker 네트워크에서 띄운다** — 호스트 앱 → 컨테이너 DB 경로로는 재지 않는다. 멈추면 Docker Desktop 을 재시작한다(컨테이너는 보존— `docker compose down` 아님). ⚠ 재시작 뒤 `restart: always` 로 설정된 다른 프로젝트 컨테이너가 같이 켜질 수 있다 — 재시작 후 `docker ps` 로 School-Bus 것만 남았는지 확인할 것
 
+## 6.5 R46-LOAD(2026-10-01) — 폴링·시청 세션·2초 송신을 더한 재측정
+
+R46 에서 서버·웹·앱이 바뀐 뒤(`IMPLEMENTATION_PLAN §8.84`) 09-09 와 **같은 목표 규모 시드**로 다시 쟀다. 09-09 시나리오에 없던 것 — 열린 앱·웹이 주기적으로 치는 REST 와 실제 구독 분포의 시청 세션 — 을 `scenario5_polling.js` 로 더했다. 결과 해석은 `backend/report/2026-10-01-부하-재측정.md`.
+
+### 6.5.1 추가된 파일
+
+| 파일 | 하는 일 |
+|---|---|
+| `sql/r46_parent_seed.sql` | `r0_capacity_seed.sql` **뒤에** 한 번 더 실행. 학생마다 보호자 1명(학부모 계정 `loadcap-…-par` + `guardian` + `guardian_student`) 2,000. 다시 실행해도 겹치지 않는다 |
+| `r46_mint_tokens.py <출력.json> [학부모 수]` | 학부모 N명 · 관계자 11 · 메인 관리자의 접근 토큰을 **회차 직전에** 발급(유효 15분). k6 안에서 로그인하지 않는 이유 — 학부모 수백 명의 BCrypt 로그인 CPU 가 측정 구간(누적 CPU 차)에 섞인다 |
+| `k6/scenario5_polling.js` | 폴링 + 시청 세션. 환경변수로 갈래를 켜고 끈다(0 이면 끔) |
+
+### 6.5.2 폴링 요청 묶음 — 앱·웹 코드에서 센 값
+
+| 갈래 | 간격 | 요청 | 근거 |
+|---|---|---|---|
+| 학부모 앱 홈 | **90초** | `GET /students/{id}/runs` · `GET /students/{id}/change-requests` · `GET /notifications` — 3요청 동시 | 홈 `VisiblePoller`(`pollInterval` 90초)가 회차·변경 신청을 무효화, 탭 막대 `AppShell` 이 알림을 다시 받음. 앱이 백그라운드·다른 화면이 위에 있으면 멈춤 |
+| 관계자 웹 대시보드 | **7초**(응답 뒤 예약) | `GET /staff/runs/live` + `GET /staff/dashboard` | `usePolling` · `LIVE_POLL_INTERVAL_MS` |
+| 관계자 웹 금일 운행 | **7초** | `GET /staff/dashboard` + `GET /staff/runs/{id}/roster` + `GET /staff/runs/live` | 명단 조회는 호출마다 감사 기록(R46-AUDIT 로 10분 묶기) |
+| 관계자 전 화면 공통 | 5초 · 30초 | `GET /staff/emergencies?status=open`(5초) · `GET /staff/signup-requests` + `GET /staff/approvals`(30초) | `EmergencyAlertProvider` · `ApprovalPendingProvider` — 열린 탭마다 돈다 |
+
+환경변수 — `POLL_PARENT_APPS`(열린 앱 수, 기본 570 = 학부모 1,900명의 30%) · `POLL_PARENT_INTERVAL_SEC`(90) · `POLL_STAFF_DASH_TABS`(11) · `POLL_STAFF_TODAY_TABS`(10) · `POLL_STAFF_INTERVAL_SEC`(7) · `WS_VIEWERS`(학부모가 자기 학생 채널 `/topic/students/{id}/run` 구독) · `WS_STAFF`(학원 채널) · `WS_ADMIN`(관제 채널) · `SCENARIO5_DURATION_SEC` · `SCENARIO5_RAMP_SEC`. 열린 앱 비율 30%·관계자 탭 수는 **가정**이다(조사 D 의 값을 그대로 씀).
+
+학부모 폴링은 `constant-arrival-rate`(앱 수 ÷ 주기)로 모사한다 — 앱 570대를 VU 570개로 만들면 k6 가 서버와 CPU 를 다툰다. 관계자 탭은 탭 하나 = VU 하나의 `요청 → sleep(7초)` 반복이라 응답이 늦어지면 요청도 늦어진다(응답 뒤 예약과 같은 형태).
+
+### 6.5.3 `r2_round.sh`·`r3_mixed.sh` 에 더한 환경변수 (기본값은 09-09 와 같은 동작)
+
+| 변수 | 쓰는 곳 | 뜻 |
+|---|---|---|
+| `ROUND_LABEL` | r2 · r3 | 결과 파일 이름표(기본 `r2_n<N>` · `r3_s<세션>_x<배율>`). 09-09 결과 파일과 겹치지 않게 `r46_…` 로 준다 |
+| `SCENARIO2_INTERVAL_SEC` | r2 | 위치 송신 주기. 앱 실제 값은 **2초**(`position_constants.dart` `transmissionInterval`) |
+| `R3_INTERVAL` | r3 | 같음(기본 5) |
+| `R3_POLLING=1` | r3 | 폴링을 같이 돌린다 |
+| `R3_MODE=realistic` | r3 | 세션을 학부모(자기 학생 채널)·관계자 `R3_WS_STAFF`(10)·메인 관리자 `R3_WS_ADMIN`(2)로 나눈다. 기본 `admin` 은 09-09 처럼 세션 전원이 관제 채널 |
+
+두 스크립트는 회차 시작 때 앞 회차가 심은 위치용 회차(`LP-…`, moving)를 종료한다 — 근접 판정 스케줄러가 움직이는 회차 수에 비례해 일해서, 안 끝내면 회차를 거듭할수록 배경 부하가 늘어 회차끼리 비교가 안 된다. 끝에 **서버 방송 전달 건수**(송신 실행기 완료 태스크 차)·**Hikari 연결 대기 시간초과**·**5xx**·**버려진 위치 방송**의 증가분을 낸다.
+
+```bash
+cd backend/load
+docker exec -i school-bus-postgres-1 psql -U schoolbus -d schoolbus_load -q < sql/r0_capacity_seed.sql
+docker exec -i school-bus-postgres-1 psql -U schoolbus -d schoolbus_load -q < sql/r46_parent_seed.sql
+# 서버: §6.1 의 load 기동에 --spring.data.redis.database=<칸> 을 더한다(공유 Redis 를 다른 작업과 나눌 때)
+
+ROUND_LABEL=r46_r2_n100_i2_a SCENARIO2_INTERVAL_SEC=2 ./r2_round.sh 100 60                  # 위치 수신, 2초 송신
+R3_INTERVAL=2 R3_POLLING=1 R3_MODE=realistic ROUND_LABEL=r46_r3_real ./r3_mixed.sh 1900 1  # 혼합 피크: 2초 송신 + 폴링 + 실제 구독 분포
+```
+
+### 6.5.4 이번에 밟은 함정
+
+- **WS 봉투의 `run_id` 는 JSON 문자열이다**(`"192"` — Ruling 332). `scenario2_position.js` 가 숫자와 `===` 로 비교해 **echo 가 항상 0 으로 잡혔다**(`position_echo_received_total: count>0` 임계가 있어도 k6 종료 코드 99 로만 드러남 — 요청 실패 0 인데 99). `Number(body.run_id)` 로 고쳤다. 식별자 문자열화는 09-09 측정 뒤(2026-09-25)에 들어간 변경이라 09-09 수치는 영향이 없고, 이 시나리오를 09-25 이후 코드에서 처음 돌릴 때 걸리는 함정이다
+- **회차마다 위치용 회차가 쌓인다** — 위 종료 처리가 없으면 같은 N 의 같은 시험이 회차를 거듭할수록 요청당 CPU 가 늘어난다
+- **접근 토큰 유효시간 15분** — 토큰 발급과 측정 시작 사이가 길면 401 이 난다. 회차 직전에 발급한다
+
 ## 7. 회차를 화면으로 보기 — Grafana "5. 부하 시험" 대시보드
 
 로그·요약 파일을 기다리지 않고, 회차가 도는 동안 사람이 직접 화면으로 본다. 앱은 지금까지와 같이

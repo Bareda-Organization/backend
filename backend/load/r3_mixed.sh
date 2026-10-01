@@ -41,6 +41,10 @@ echo "== R3 세션=${SESSIONS}(${MODE}) · 위치 VU=${POS_VUS}(${INTERVAL}초 �
 $PG -c "UPDATE run SET status = 'finished', finished_at = now() WHERE status = 'moving' AND bus_id IN (SELECT id FROM bus WHERE bus_no LIKE 'LP-%')" > /dev/null
 $PG -v n="$POS_VUS" -t -A -F',' < "$DIR/sql/scenario2_prep.sql" | grep -v '^$' > "$DIR/results/${TAG}_runs.csv"
 echo "위치용 회차 $(wc -l < "$DIR/results/${TAG}_runs.csv")건"
+# realistic 모드는 위치용 회차에 명단을 붙인다 — 없으면 학부모의 학생 채널로 방송이 나가지 않아 시청 세션이 아무것도 안 받는다.
+if [ "$MODE" = "realistic" ]; then
+    echo "명단 연결: $($PG -t -A -F' 회차 ' < "$DIR/sql/r46_link_position_riders.sql" | tail -1) 건"
+fi
 
 # ② 배치 대상은 R0 이 심어 둔 회차다 — confirm_at 이 미래라 아직 idle 이다. 회차마다 먼저 되돌려
 #    같은 조건에서 다시 잰다(안 되돌리면 두 번째 라운드가 "동시 도래" 가 아니라 "재확정" 이 된다).
@@ -58,7 +62,9 @@ server_counters() { echo "$(prom_sum executor_completed_tasks_total clientOutbou
 # 폴링·시청 세션 토큰 — 로그인 CPU 가 측정 구간에 섞이지 않게 회차 직전에 미리 발급한다(유효시간 15분).
 TOKENS="$DIR/results/${TAG}_tokens.json"
 if [ "$POLL" = "1" ] || [ "$MODE" = "realistic" ]; then
-    python3 "$DIR/r46_mint_tokens.py" "$TOKENS" 600
+    # 학부모 토큰 수 — 시청 세션 수만큼(최대 2,000). 폴링만 켠 회차는 600 이면 된다(요청마다 무작위로 고른다).
+    MINT=600; [ "$MODE" = "realistic" ] && [ "$SESSIONS" -gt 600 ] && MINT=$([ "$SESSIONS" -gt 2000 ] && echo 2000 || echo "$SESSIONS")
+    python3 "$DIR/r46_mint_tokens.py" "$TOKENS" "$MINT"
 fi
 
 # k6 → Prometheus 원격 쓰기, 기본 꺼짐(K6_PROM_RW=1 로 켠다) — r1_round.sh 와 같은 스위치·같은 이유
