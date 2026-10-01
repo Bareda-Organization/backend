@@ -1443,3 +1443,40 @@ R46 의 서버·웹·앱 개선(`D #1`·`#5`~`#9`·`#13`~`#17`)이 목표 규모
 **결과 (2026-10-01)** — 목표 1~5 ✅. 코드 변경 없음(부하 스크립트·판정 스크립트·문서만). 시험 스크립트가 낸 오류 4건을 측정 중 발견·수정: `scenario2_position.js` echo 비교(문자열 식별자 `Ruling 332`)·묶음 실행기의 stdin 소비·응답 뒤 쉼 송신 모델·판정 스크립트의 확정 건수 기준. `schoolbus_load` 는 **남긴다**(다음 측정 재사용) — 단 학원 1 의 위치용 회차 12,000건 · 학원 불일치 `run_rider` 30,000건이 쌓여 학원 1 대시보드 응답이 5.1MB 라 **다음 측정 전에 `LP-…` 회차와 그 `run_rider` 를 먼저 지운다**(`LOAD_TESTING §6.5.5`).
 
 **다시 재는 명령(한계 판정)** — 호스트가 조용할 때: `ROUND_LABEL=r46_r3_G500f_v570_a R3_ADMINS=500 R3_INTERVAL=2 R3_FIXED_RATE=1 ./r3_mixed.sh 570 1`(700 · 1000 도 같은 형태). 운영 설정 비교가 목적이면 서버를 `--spring.datasource.hikari.maximum-pool-size=20 --spring.datasource.hikari.connection-timeout=3000` 로 띄운다 — 지금 여유 배수는 **연결 풀 10(load 프로파일 기본)** 기준이다.
+
+
+## 8.86 ⚖ `R46-FIXSCHEMA` — 스키마·인덱스 정비 (2026-10-01 · 분기점 `e8ab1fe1` · 번호대 630~639 · 사용자 결정 `Ruling 610`·`614`)
+
+R46 검토(`idx` — 조회 경로와 인덱스 · `schema` — 데이터 구조)의 지적 중 **지금(영속 배포 전 · 스키마 직접 수정 가능) 고칠 것**을 반영했다. 조사 원문은 `.claude/r46/review-idx.md`(`I-*`) · `review-schema.md`(`A-*`·`B-*`)(무시 파일)이고 **항목마다 코드·`EXPLAIN` 으로 먼저 재현**했다 — 재현되지 않은 것은 고치지 않고 아래에 적었다. 스키마는 `V1`·`V10`·시드(`V2`·`V14`)를 직접 고쳤고 새 `V16` 은 만들지 않았다(`CLAUDE.md` Flyway 절). 병합 뒤 `schoolbus` 재구성은 조율자가 한다. 갈래 보고서 `.claude/r46/report-fixschema.md`(무시 파일).
+
+### R46-FIXSCHEMA 판정
+
+| Ruling | 판정 | 근거 |
+|:-:|---|---|
+| **610** | **퇴원 파기 때 `guardian_student` 도 행 삭제** — `StudentAnonymizationService.purge` 가 같은 트랜잭션에서 지운다. 보호자 행 자체는 남긴다(보존 기간은 열린 항목). `ERD §7.1` 의 "학생 쪽이 익명이라 개인을 잇는 값이 없다" 를 정정 · `FEATURE_SPEC` STU-04 | 사용자 결정(검토 `schema` A-4). 승하차지 `stop` 이 학생이 검증한 집 주소를 그대로 담아, 연결이 남으면 `보호자(이름·전화) → guardian_student → student(익명) → run_rider → stop(주소·좌표)` 조인 2번으로 집 주소가 복원됐다. 시험은 파기 뒤 이 조인이 0행임을 보고, 89일 퇴원생의 연결·보호자 본인은 남음을 함께 본다 |
+| **614** | **`run_rider.boarded_at` · `alighted_at` 삭제**(+ 검토 `A-2` 의 `note` 삭제) — `V1` · 시드 `V2`·`V14` 컬럼 목록 · 엔티티 · `ERD §3` | 사용자 결정(검토 `A-3`). 읽는 곳 0(직접 `grep` — `getBoardedAt`·`getAlightedAt`·`getNote` 호출 없음) · 되돌리기 뒤 `status='waiting'` 인데 승차 시각이 채워진 행이 생김 · 같은 시각이 `rider_status_history.changed_at` 에 있어 그쪽이 기준. `note` 는 쓰는 곳도 읽는 곳도 없고 퇴원 파기 목록에서 빠진 자유 문구였다 |
+| **630** | **인덱스 정비** — ①계정 복구(§2.9) `account(phone)` · `verification_code(phone, created_at desc)` ②중복 `ix_run_bus_date` 삭제 ③FK 선행 `run(schedule_id)` · `run_stop(waypoint_id)` 부분 ④`run_position` 표 단위 autovacuum(`vacuum_scale_factor` 0.01 · `vacuum_insert_scale_factor` 0.05) | ①합성 데이터(계정 13,766 · 인증 코드 29,004)에서 4개 조회 전부 `Seq Scan` → 인덱스. `account` 는 `phone` 이 거의 안 바뀌어 HOT 갱신을 안 깸. ②카탈로그 전수 검사가 이 한 쌍만 검출 — 시험을 이름 한 줄이 아니라 "다른 인덱스의 왼쪽 접두와 같은 비유니크 인덱스가 없다" 로. ③검토는 `run.schedule_id` 를 보류로 권했으나 지시서가 둘 다 지시 — 회차 INSERT 마다 항목 +1(하루 약 200건). ④하루 삭제가 정상 상태 표의 약 1.1% 라 1% 가 삭제 직후 하루 1회 돌게 함 |
+| **631** | **보존 정리 정렬 키를 인덱스 키로**(`order by p.recordedAt`) · **확정 배치 인덱스를 `(service_date, confirm_at) WHERE status='idle' AND canceled_at IS NULL` 로 교체**(이름 `ix_run_status_confirm_at` 유지) | 보존 정리는 컷오프가 거르는 비율이 약 1% 일 때만 `Sort ← Index Scan` 이 나온다(10%·90% 에서는 재현되지 않음). 확정 배치 인덱스는 검토안 `(confirm_at) WHERE …` 보다 날짜를 앞에 둔 쪽이 지난 날짜 미확정 300행까지 인덱스 범위 밖으로 만든다 — 힙에서 버리는 행 3,000 → 0 · 버퍼 279 → 5. ⚠ 부분 조건이 리터럴이라 바인딩 파라미터의 일반 계획은 못 쓰나 순차 스캔이 더 비싸 맞춤 계획이 유지됨 — `RunRepository` 의 `:idleStatus` 를 리터럴로 바꾸면 완전히 닫히며 백엔드 트랜잭션 갈래 영역이라 손대지 않았다 |
+| **632** | **감사·접속 이력 기본 조회 기간 = `to`(없으면 지금)로부터 30일**(`AuditQueryRange` · `API_SPEC §6.13`) · **계정별 접속 이력의 해제 행 접근 경로** `audit_log(target_id) WHERE action='unblock'` 부분 인덱스(쿼리는 `unblock` 을 리터럴로) | 합성 60만 행: 개수 쿼리(`Page` 가 매번 실행)가 1년 범위에서 순차 스캔 15,674 버퍼·137ms → 30일 962 버퍼·6.6ms. 일치 0건 계정의 목록 쿼리 48ms → 부분 인덱스로 `BitmapOr` 0.07ms. 검토의 "목록 쿼리 자체" 는 일치 행이 많은 계정에서는 LIMIT 20 이 45 버퍼에서 끝나 재현되지 않았다. 웹 `AuditLogPage` 는 `from` 을 오늘로 채워 보낸다 — 날짜 칸을 비우면 30일로 읽히는 안내가 화면에 없음(웹 영역) |
+| **633** | **같은 학생의 대기(`staged`) 이동 신청은 DB 부분 UNIQUE 인덱스** `uk_run_transfer_student_staged`(`V10`) **가 하나만 받고, 위반은 `TransferStore.stage` 가 `409 TRANSFER_ALREADY_STAGED` 로 옮긴다** | 선검사(`TransferCommandService`)는 잠금 밖이라, 도착 회차가 서로 다른 같은 학생의 요청 둘이 동시에 오면 둘 다 통과해 `staged` 행이 둘 생겼다(같은 회차쌍이면 늦은 쪽이 `STUDENT_ALREADY_IN_RUN` 으로 먼저 막혀 이 경로가 아니다). 시험은 두 요청을 선검사 뒤에 모아 세워(`StagingCapacityConcurrencyTest`) 대기 행 1 · 거부 `[TRANSFER_ALREADY_STAGED]` 를 본다. `applied` 이동은 학생당 몇 건이든 남는다 |
+| **634** | **CHECK 7곳 + 도착지 1행 UNIQUE** — `rider_status_history.from_status`·`to_status`(5종) · `signup_request.requested_role`(5종 — `system_admin` 제외, 가입 API 정규식과 같음) · `notification_log.recipient_role`(6종) · `emergency_alert.raised_by_role`(`driver`·`escort`) · `change_request.window_segment`·`boarding_intent.applied_segment`(1~3) · `uk_run_stop_destination`(`run_stop(route_version_id) WHERE destination`) | 해당 엔티티 자바독의 "CHECK 가 부재해 …" 문구가 이미 알려 둔 누락. 허용 값 집합은 엔티티 enum(`Role` · `ManagerRole` · `RiderStatus` · `ChangeWindow`)에서 직접 가져왔고 `EnumCheckConstraintParityTest` 의 대조표에 올렸다(값 목록형 CHECK 는 직접 센 45건) |
+| **635** | **문서 정정** — `TECH_DECISIONS §9.3` 의 "선언적 파티셔닝 · 정리는 파티션 DROP" 을 `Ruling 243`(파티션 안 함 · 행 단위 DELETE)에 맞춤 · `ERD §4.2`·`V1`·`RunPosition.java` 의 FK 미설정 이유 문구(남는 이유 — 위치 수신마다 부모 행 검사 · 보존 주기 차이) | 검토 `A-6`. `CLAUDE.md` 의 멀티 테넌시 서술은 이미 1:N 으로 고쳐져 있어 손대지 않았다 |
+
+### R46-FIXSCHEMA 목표 표
+
+| # | 완료 조건 | 확인 수단 | 결과 |
+|:-:|---|---|:-:|
+| 1 | 계정 복구 · 보존 정리 · 확정 배치 쿼리가 의도한 인덱스를 탄다(전·후 계획) | 합성 데이터 `EXPLAIN` 전·후 원문 — 갈래 보고서 ③ | ✅ |
+| 2 | A-1 동시 요청 2건 중 1건만 `staged` · 다른 1건 409 | `StagingCapacityConcurrencyTest`(RED → GREEN) · 인덱스 제거·409 변환 제거 결함 심기 | ✅ |
+| 3 | A-5 CHECK 위반 INSERT 가 DB 에서 거부 | `SchemaContractTest` 7곳 + 도착지 1행(RED → GREEN) · 범위 한 칸 넓힘 결함 심기 | ✅ |
+| 4 | 610 파기 뒤 보호자→자녀 연결 0행 | `StudentRetentionAnonymizationTest`(RED `expected 0 but was 1` → GREEN) · 호출 제거·삭제 범위 확대 결함 심기 | ✅ |
+| 5 | 614·A-2 컬럼 삭제 뒤 기동·시드 재구성 성공 | 빈 스키마에서 `bootRun` — `Successfully applied 15 migrations … v15` · `Started BackendApplication` | ✅ |
+| 6 | 바뀐 범위 시험 + 전수 시험 `--rerun` 실패 0 · 건너뜀 0 | 결과 XML — 356 클래스 · 2,039건 · 실패 0 · 오류 0 · 건너뜀 0 | ✅ |
+| 7 | 정본 반영 + `Ruling 63x` — 이 절 · `§11` 색인 · `ERD` · 깨진 참조 0 | `docgraph` 깨진 참조 0건 | ✅ |
+| 8 | 정리 — 띄운 서버 · `r46_fixschema` DROP | 서버는 8530 하나를 두 번 띄웠다 끈 뒤 포트 점유 0 · 전용 DB 삭제 | ✅ |
+
+**결과 (2026-10-01)** — 목표 1~8 ✅. 시험 — `./gradlew test --rerun -PtestDbUrl=…/r46_fixschema` **`BUILD SUCCESSFUL` · 356 클래스 · 2,039건 · 실패 0 · 오류 0 · 건너뜀 0**(스키마 대조 `SchemaContractTest` 19 · `EnumCheckConstraintParityTest` 34 · 시드 `SeedDataLoadTest` 6 · `SeedFixturesContractTest` 50 · `AcademyScopeHttpExhaustiveTest` 57 · `ControllerAuthorizationConventionTest` 9 포함). **첫 전체 실행에서 18건이 실패**했다 — 알림 시험 보조 클래스(`NotificationLogFixtures`)가 `recipient_role` 을 `Role.name()`(대문자)로 넣고 있었는데 앱 변환기가 대소문자를 가려 통과해 오던 것을 새 CHECK 가 드러냈다(한 줄 수정 후 전체 재실행). **결함 심기 19종**(인덱스 제거 · CHECK 범위 한 칸 넓힘 · 변환 분기 제거 · 삭제 호출 제거 · 정렬 키 되돌림 · 기본 기간 무력화 등) 모두 의도한 시험만 실패시켰고 원복 뒤 작업 트리가 비었다. 빈 스키마에서 `bootRun` — `Successfully applied 15 migrations to schema "public", now at version v15` · `Started BackendApplication`.
+
+**재현되지 않았거나 조사 문구와 다르게 판단한 것** — ①보존 정리의 정렬 계획은 컷오프가 거르는 비율이 약 1% 일 때만 나옴(10%·90% 에서는 `order by id` 도 PK 스캔) ②감사 화면의 비용은 목록 쿼리 자체가 아니라 개수 쿼리와 일치 행이 적은 계정의 목록 쿼리 ③A-1 은 같은 (출발·도착) 회차쌍이면 `STUDENT_ALREADY_IN_RUN` 이 먼저 막고, 경합은 도착 회차가 다른 요청 둘에서 난다 ④확정 배치 인덱스는 검토안보다 날짜를 키 앞에 둔 쪽이 지난 날짜 미확정분까지 걸러 채택.
+
+**후속(이 갈래 밖)** — ①`RunRepository.findDueForConfirmation`·`countOverdueUnconfirmed` 의 `:idleStatus`·`:status` 파라미터를 `RunStatus.IDLE` 리터럴로 바꾸면 확정 배치 인덱스가 일반 계획에서도 쓰인다(백엔드 트랜잭션 갈래) ②웹 `AuditLogPage` 에 "기간을 비우면 최근 30일" 안내(웹 갈래) ③`V1`·`V10`·시드를 직접 고쳐 체크섬이 바뀜 — 병합 뒤 `schoolbus` 와 다른 갈래의 `-PtestDbUrl` 전용 DB 는 스키마를 비워 재구성 ④`backend/load/sql/measure_run_artifacts.sql` 은 이번 이전부터 존재하지 않는 `seat_no` 컬럼을 쓰고 있다(부하 전용 · 미수정).
