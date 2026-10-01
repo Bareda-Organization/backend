@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -48,6 +49,10 @@ import src.backend.global.sms.spec.SmsSender;
  * 메서드 전체에 {@code @Transactional} 을 걸고 예외로 거절하면 올린 횟수가 롤백되어 무제한 대조가 된다. 그래서 대조
  * 결과를 값으로 돌려받아 커밋한 뒤에 403 을 던진다. 문자 발송은 트랜잭션의 마지막에 두어, 발송이 실패하면 코드 발급·
  * 비밀번호 교체가 함께 되돌려진다(받지 못한 임시 비밀번호로 계정이 잠기지 않는다).
+ *
+ * <p><b>임시 비밀번호의 BCrypt 는 트랜잭션·행 잠금 밖에서 미리 만든다</b>(R46 T-3) — 발급된 코드와 입력이 맞을 때만, 같은 번호의
+ * 계정 수만큼 만들어 둔다(틀린 코드로 BCrypt 를 태우지 못하게). 대조·소비·교체·문자 발송은 그대로 한 트랜잭션이고, 그
+ * 사이 계정이 늘어 미리 만든 해시가 모자라면 모자란 만큼만 안에서 만든다.
  *
  * <p>번호·코드·임시 비밀번호를 로그에 남기지 않는다.
  */
@@ -109,7 +114,10 @@ public class AccountRecoveryCommandService {
             transactionTemplate.executeWithoutResult(status -> issue(sender, phone, purpose));
             return;
         }
-        Boolean passed = transactionTemplate.execute(status -> verifyAndDeliver(sender, phone, purpose, verificationCode));
+        Map<Long, TemporaryPassword> prepared = purpose == VerificationPurpose.PASSWORD
+                && matchesIssuedCode(phone, purpose, verificationCode) ? prepareTemporaryPasswords(phone) : Map.of();
+        Boolean passed = transactionTemplate
+                .execute(status -> verifyAndDeliver(sender, phone, purpose, verificationCode, prepared));
         if (!Boolean.TRUE.equals(passed)) {
             throw new BusinessException(ErrorCode.VERIFICATION_CODE_INVALID);
         }
@@ -151,8 +159,34 @@ public class AccountRecoveryCommandService {
         verificationCodeRepository.deleteCreatedBefore(now.minusDays(1));
     }
 
+    /** 임시 비밀번호 원문과 저장할 해시 — 해시는 트랜잭션 밖에서 미리 만든다. */
+    private record TemporaryPassword(String plain, String hash) {
+    }
+
+    /** 가장 최근에 발급된 코드와 입력이 같고 아직 쓸 수 있는지 잠금 없이 본다 — 횟수 기록·소비는 하지 않는다(그건 대조 트랜잭션이 한다). */
+    private boolean matchesIssuedCode(String phone, VerificationPurpose purpose, String input) {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        return verificationCodeRepository.findTopByPhoneAndPurposeOrderByCreatedAtDesc(phone, purpose)
+                .filter(issued -> issued.getConsumedAt() == null && issued.getExpiresAt().isAfter(now))
+                .filter(issued -> MessageDigest.isEqual(issued.getCode().getBytes(StandardCharsets.UTF_8),
+                        input.getBytes(StandardCharsets.UTF_8)))
+                .isPresent();
+    }
+
+    /** 같은 번호의 복구 대상 계정마다 임시 비밀번호와 해시를 만든다 — 계정 id 로 찾아 쓴다. */
+    private Map<Long, TemporaryPassword> prepareTemporaryPasswords(String phone) {
+        return accountRepository.findAllByPhoneAndRoleIn(phone, RECOVERABLE_ROLES).stream()
+                .collect(Collectors.toMap(Account::getId, account -> issueTemporaryPassword()));
+    }
+
+    private TemporaryPassword issueTemporaryPassword() {
+        String plain = temporaryPasswordGenerator.generate();
+        return new TemporaryPassword(plain, passwordEncoder.encode(plain));
+    }
+
     /** 통과하면 {@code true} — 실패는 예외가 아니라 값이다(위 클래스 설명, 대조 횟수를 커밋해야 한다). */
-    private boolean verifyAndDeliver(SmsSender sender, String phone, VerificationPurpose purpose, String input) {
+    private boolean verifyAndDeliver(SmsSender sender, String phone, VerificationPurpose purpose, String input,
+            Map<Long, TemporaryPassword> prepared) {
         Optional<VerificationCode> latest = verificationCodeRepository.findTopByPhoneAndPurposeOrderByCreatedAtDesc(phone,
                 purpose);
         if (latest.isEmpty()) {
@@ -171,7 +205,8 @@ public class AccountRecoveryCommandService {
         if (accounts.isEmpty()) {
             return false;
         }
-        String text = purpose == VerificationPurpose.LOGIN_ID ? loginIdText(accounts) : resetPasswords(accounts, now);
+        String text = purpose == VerificationPurpose.LOGIN_ID ? loginIdText(accounts)
+                : resetPasswords(accounts, now, prepared);
         sender.send(phone, text);
         return true;
     }
@@ -184,12 +219,13 @@ public class AccountRecoveryCommandService {
      * 같은 번호의 계정마다 임시 비밀번호로 바꾸고 문자 본문을 만든다. refresh 토큰 무효화는 영속성 컨텍스트를 비우므로
      * 비밀번호 변경이 전부 끝난 뒤에 한다({@code AccountPasswordResetCommandService} 와 같은 순서).
      */
-    private String resetPasswords(List<Account> accounts, OffsetDateTime now) {
+    private String resetPasswords(List<Account> accounts, OffsetDateTime now, Map<Long, TemporaryPassword> prepared) {
         StringBuilder text = new StringBuilder("[바래다]");
         for (Account account : accounts) {
-            String temporaryPassword = temporaryPasswordGenerator.generate();
-            account.changePassword(passwordEncoder.encode(temporaryPassword));
-            text.append(" 아이디 ").append(account.getLoginId()).append(" 임시 비밀번호 ").append(temporaryPassword)
+            TemporaryPassword temporary = prepared.containsKey(account.getId()) ? prepared.get(account.getId())
+                    : issueTemporaryPassword();
+            account.changePassword(temporary.hash());
+            text.append(" 아이디 ").append(account.getLoginId()).append(" 임시 비밀번호 ").append(temporary.plain())
                     .append(" /");
         }
         text.append(" 로그인 뒤 바로 바꿔 주세요");

@@ -6,7 +6,7 @@ import java.util.Locale;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import lombok.RequiredArgsConstructor;
 
@@ -58,6 +58,8 @@ public class StaffAccountCommandService {
 
     private final PasswordEncoder passwordEncoder;
 
+    private final TransactionTemplate transactionTemplate;
+
     private final Clock clock;
 
     /**
@@ -70,16 +72,33 @@ public class StaffAccountCommandService {
      * <p>{@code academy_staff} 행이 없는 계정(승인 대기 중인 관계자)을 {@code 404} 로 돌려보내는 이유는,
      * 그 계정은 아직 어느 학원의 관계자도 아니라 퇴사·재직을 말할 대상 자체가 부재하기 때문이다 —
      * 그 축은 §6.4 승인 큐가 맡는다.
+     *
+     * <p><b>임시 비밀번호의 BCrypt 는 트랜잭션 밖에서 만든다</b>(R46 T-3) — 새 해시는 저장된 값과 무관하고, 안에 두면
+     * 연결을 쥔 채 수십~수백 ms 를 쓴다.
      */
-    @Transactional
     public StaffAccountDetailResponse update(Long accountId, StaffAccountUpdateRequest request) {
+        TemporaryPassword temporary = request.wantsPasswordReset() ? issueTemporaryPassword() : null;
+        return transactionTemplate.execute(status -> apply(accountId, request, temporary));
+    }
+
+    /** 임시 비밀번호 원문과 저장할 해시 — 해시는 트랜잭션 밖에서 미리 만든다. */
+    private record TemporaryPassword(String plain, String hash) {
+    }
+
+    private TemporaryPassword issueTemporaryPassword() {
+        String plain = temporaryPasswordGenerator.generate();
+        return new TemporaryPassword(plain, passwordEncoder.encode(plain));
+    }
+
+    private StaffAccountDetailResponse apply(Long accountId, StaffAccountUpdateRequest request,
+            TemporaryPassword temporary) {
         Account account = accountRepository.findById(accountId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
         AcademyStaff staff = academyStaffRepository.findByAccountId(accountId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
 
         account.changeProfile(request.name(), request.phone(), request.email());
-        String temporaryPassword = resetPasswordIfRequested(account, request);
+        String temporaryPassword = applyTemporaryPassword(account, temporary);
         boolean employmentRevoked = applyEmploymentStatus(staff, request.status());
 
         if (temporaryPassword != null || employmentRevoked) {
@@ -89,14 +108,13 @@ public class StaffAccountCommandService {
                 temporaryPassword);
     }
 
-    /** 초기화를 요청했으면 새 원문을 만들어 해시만 저장하고 원문을 돌려준다 — 아니면 {@code null}. */
-    private String resetPasswordIfRequested(Account account, StaffAccountUpdateRequest request) {
-        if (!request.wantsPasswordReset()) {
+    /** 초기화를 요청했으면 해시만 저장하고 원문을 돌려준다 — 아니면 {@code null}. */
+    private String applyTemporaryPassword(Account account, TemporaryPassword temporary) {
+        if (temporary == null) {
             return null;
         }
-        String temporaryPassword = temporaryPasswordGenerator.generate();
-        account.issueTemporaryPassword(passwordEncoder.encode(temporaryPassword));
-        return temporaryPassword;
+        account.issueTemporaryPassword(temporary.hash());
+        return temporary.plain();
     }
 
     /**
