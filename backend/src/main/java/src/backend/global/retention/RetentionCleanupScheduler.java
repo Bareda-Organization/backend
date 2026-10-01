@@ -54,6 +54,12 @@ import src.backend.student.repository.StudentRepository;
 @RequiredArgsConstructor
 public class RetentionCleanupScheduler {
 
+    /**
+     * 퇴원 학생 파기의 묶음 크기(R46 T-8) — 삭제용 {@link RetentionPolicy#BATCH_SIZE}(5,000)는 한 문장짜리 벌크 DELETE 기준이다.
+     * 파기는 한 트랜잭션이 학생·계정 엔티티를 전부 적재하고 커밋 때 건별 UPDATE 를 쏟아내 묶음이 크면 연결을 오래 쥔다.
+     */
+    private static final int ANONYMIZATION_BATCH_SIZE = 200;
+
     private final NotificationLogRepository notificationLogRepository;
 
     private final RunPositionRepository runPositionRepository;
@@ -88,18 +94,18 @@ public class RetentionCleanupScheduler {
     public void cleanUp() {
         OffsetDateTime now = OffsetDateTime.now(clock);
 
-        cleanUpSafely("notification_log", retentionPolicy.notificationLogCutoff(now),
+        cleanUpSafely("notification_log", retentionPolicy.notificationLogCutoff(now), RetentionPolicy.BATCH_SIZE,
                 notificationLogRepository::findIdsForRetentionCleanup, notificationLogRepository::deleteAllByIdInBatch);
-        cleanUpSafely("run_position", retentionPolicy.runPositionCutoff(now),
+        cleanUpSafely("run_position", retentionPolicy.runPositionCutoff(now), RetentionPolicy.BATCH_SIZE,
                 runPositionRepository::findIdsForRetentionCleanup, runPositionRepository::deleteAllByIdInBatch);
-        cleanUpSafely("refresh_token", retentionPolicy.refreshTokenCutoff(now),
+        cleanUpSafely("refresh_token", retentionPolicy.refreshTokenCutoff(now), RetentionPolicy.BATCH_SIZE,
                 refreshTokenRepository::findIdsForRetentionCleanup, refreshTokenRepository::deleteAllByIdInBatch);
-        cleanUpSafely("link_code", now,
+        cleanUpSafely("link_code", now, RetentionPolicy.BATCH_SIZE,
                 linkCodeRepository::findIdsForRetentionCleanup, linkCodeRepository::deleteAllByIdInBatch);
-        cleanUpSafely("student_anonymization", retentionPolicy.withdrawnStudentCutoff(now),
+        cleanUpSafely("student_anonymization", retentionPolicy.withdrawnStudentCutoff(now), ANONYMIZATION_BATCH_SIZE,
                 studentRepository::findIdsForAnonymization, studentAnonymizationService::anonymize);
         for (AuditCategory category : AuditCategory.values()) {
-            cleanUpSafely("audit_log/" + category, retentionPolicy.auditLogCutoff(now),
+            cleanUpSafely("audit_log/" + category, retentionPolicy.auditLogCutoff(now), RetentionPolicy.BATCH_SIZE,
                     (cutoff, limit) -> auditLogRepository.findIdsForRetentionCleanup(category, cutoff, limit),
                     auditLogRepository::deleteAllByIdInBatch);
         }
@@ -112,10 +118,10 @@ public class RetentionCleanupScheduler {
      * 좁히면 예상 못 한 버그가 이 메서드를 끊어 {@link #cleanUp} 의 나머지 4개 테이블 정리 여부와
      * 무관하게 배치 자체가 실패로 끝난다({@code NoShowEscalationScheduler.escalateSafely} 와 같은 근거).
      */
-    private void cleanUpSafely(String tableName, OffsetDateTime cutoff,
+    private void cleanUpSafely(String tableName, OffsetDateTime cutoff, int batchSize,
             BiFunction<OffsetDateTime, Limit, List<Long>> finder, Consumer<List<Long>> deleter) {
         try {
-            cleanUpTable(tableName, cutoff, finder, deleter);
+            cleanUpTable(tableName, cutoff, batchSize, finder, deleter);
         } catch (Exception e) {
             log.warn("보존 정리 실패 — {} (다음 틱에 재시도)", tableName, e);
             schedulerHealthMetrics.recordItemFailure(getClass());
@@ -126,18 +132,18 @@ public class RetentionCleanupScheduler {
      * 배치 상한(목표 7)만큼씩 반복해 지운다 — 한 회차가 상한만큼 지웠으면(= 아직 남았을 수 있으면)
      * 같은 틱 안에서 다음 회차로 이어가고, 상한보다 적게 지웠으면(= 다 지웠으면) 멈춘다.
      */
-    private void cleanUpTable(String tableName, OffsetDateTime cutoff,
+    private void cleanUpTable(String tableName, OffsetDateTime cutoff, int batchSize,
             BiFunction<OffsetDateTime, Limit, List<Long>> finder, Consumer<List<Long>> deleter) {
         int totalDeleted = 0;
         int roundDeleted;
         do {
-            List<Long> ids = finder.apply(cutoff, Limit.of(RetentionPolicy.BATCH_SIZE));
+            List<Long> ids = finder.apply(cutoff, Limit.of(batchSize));
             roundDeleted = ids.size();
             if (roundDeleted > 0) {
                 deleter.accept(ids);
                 totalDeleted += roundDeleted;
             }
-        } while (roundDeleted == RetentionPolicy.BATCH_SIZE);
+        } while (roundDeleted == batchSize);
 
         if (totalDeleted > 0) {
             log.info("보존 정리 — {} {}행 처리", tableName, totalDeleted);

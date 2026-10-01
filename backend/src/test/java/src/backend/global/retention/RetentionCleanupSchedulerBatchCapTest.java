@@ -90,6 +90,35 @@ class RetentionCleanupSchedulerBatchCapTest {
                 .allSatisfy(limit -> assertThat(limit).isEqualTo(Limit.of(RetentionPolicy.BATCH_SIZE)));
     }
 
+    /**
+     * R46 T-8 — 퇴원 학생 파기는 5,000명이 아니라 <b>200명씩</b> 끊어 처리한다. 한 트랜잭션이 학생·계정 엔티티를 전부 적재하고
+     * 커밋 때 건별 UPDATE 를 쏟아내므로 묶음이 크면 연결을 오래 쥔다(삭제용 상수 5,000 은 한 문장짜리 벌크 DELETE 기준이다).
+     */
+    @Test
+    void 학생_파기는_200명씩_끊어_처리한다() {
+        given(notificationLogRepository.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
+        given(runPositionRepository.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
+        given(refreshTokenRepository.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
+        given(linkCodeRepository.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
+        given(auditLogRepository.findIdsForRetentionCleanup(any(), any(), any())).willReturn(List.of());
+        given(studentRepository.findIdsForAnonymization(any(), any()))
+                .willReturn(fakeIds(200))
+                .willReturn(fakeIds(50));
+        RetentionCleanupScheduler scheduler = new RetentionCleanupScheduler(
+                notificationLogRepository, runPositionRepository, refreshTokenRepository,
+                linkCodeRepository, auditLogRepository, studentRepository, studentAnonymizationService,
+                retentionPolicy, clock, new SchedulerHealthMetrics(new SimpleMeterRegistry()));
+
+        scheduler.cleanUp();
+
+        ArgumentCaptor<Limit> limitCaptor = ArgumentCaptor.forClass(Limit.class);
+        org.mockito.Mockito.verify(studentRepository, org.mockito.Mockito.times(2))
+                .findIdsForAnonymization(any(OffsetDateTime.class), limitCaptor.capture());
+        assertThat(limitCaptor.getAllValues()).as("조회 2회 전부 파기 묶음 200").allSatisfy(
+                limit -> assertThat(limit).isEqualTo(Limit.of(200)));
+        org.mockito.Mockito.verify(studentAnonymizationService, org.mockito.Mockito.times(2)).anonymize(any());
+    }
+
     private List<Long> fakeIds(int size) {
         List<Long> ids = new ArrayList<>(size);
         for (long i = 0; i < size; i++) {
