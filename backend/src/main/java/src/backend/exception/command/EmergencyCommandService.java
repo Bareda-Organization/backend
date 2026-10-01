@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import src.backend.academy.entity.Academy;
 import src.backend.academy.entity.StaffStatus;
@@ -56,11 +57,15 @@ import src.backend.run.repository.RunRepository;
  * <p><b>발신은 확정({@code confirmed}) 이후 회차에만 받는다</b>(API_SPEC §4.14 "발신 시점" · M-15 ·
  * UF-X-08, BR-109) — 확정 전({@code idle}) 회차는 {@code 409 RUN_NOT_CONFIRMED}. 운행 중이 아니어도
  * (확정 뒤 출발 전 차량 이상 등) 받는다.
+ *
+ * <p><b>{@link #raise} 는 클래스 트랜잭션이 아니라 {@link TransactionTemplate} 으로 쓰기만 감싼다</b>(R46 T-5) — 위치 캐시(Redis,
+ * 500ms 상한)를 읽는 동안 DB 연결과 {@code client_key} 잠금을 쥐면 가장 빨라야 하는 접수가 Redis 지연만큼 늦어진다.
+ * 그래서 좌표 없는 요청만 캐시를 <b>트랜잭션 앞에서</b> 읽어 저장 메서드에 넘긴다. {@link #cancel}·{@link #ack} 는
+ * 외부 읽기가 없어 메서드 단위 {@code @Transactional} 이다.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@Transactional
 public class EmergencyCommandService {
 
     private final EmergencyAlertRepository emergencyAlertRepository;
@@ -86,6 +91,8 @@ public class EmergencyCommandService {
 
     private final RunPositionStore runPositionStore;
 
+    private final TransactionTemplate transactionTemplate;
+
     private final ApplicationEventPublisher eventPublisher;
 
     private final Clock clock;
@@ -97,6 +104,14 @@ public class EmergencyCommandService {
      * 신고(다른 학원 포함)를 돌려주고 이번 신고를 버리는 대신 422 로 거절한다.
      */
     public EmergencyRaiseResponse raise(AuthUser requester, Long runId, EmergencyRaiseRequest request) {
+        Optional<RunPositionRedisValue> cachedPosition = request.lat() == null && request.lng() == null
+                ? readCachedPosition(runId) : Optional.empty();
+        return transactionTemplate.execute(status -> persistRaise(requester, runId, request, cachedPosition));
+    }
+
+    /** 접수의 DB 구간 — 배치·회차 확인 · 재전송 재생 · 신고 저장 · 이벤트 발행이 한 트랜잭션이다. */
+    private EmergencyRaiseResponse persistRaise(AuthUser requester, Long runId, EmergencyRaiseRequest request,
+            Optional<RunPositionRedisValue> cachedPosition) {
         Assignment assignment = runAssignmentAccess.assertAssignedDriverOrEscort(requester, runId);
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
@@ -133,7 +148,7 @@ public class EmergencyCommandService {
         if (request.memo() != null) {
             alert.attachMemo(request.memo());
         }
-        attachLocation(alert, runId, request, occurredAt);
+        attachLocation(alert, request, occurredAt, cachedPosition);
 
         emergencyAlertRepository.save(alert);
 
@@ -164,6 +179,7 @@ public class EmergencyCommandService {
      * 확인하지 않고 {@code findByIdAndRunIdAndAcademyId} 복합키만으로 404 를 던져, §4.14 가 명시한
      * "배치되지 않은 회차" 시나리오(driverA1 이 미배치 회차의 신고를 지목)를 결코 만나지 못했다.
      */
+    @Transactional
     public EmergencyCancelResponse cancel(AuthUser requester, Long runId, Long emergencyId) {
         runAssignmentAccess.assertAssignedDriverOrEscort(requester, runId);
         EmergencyAlert alert = emergencyAlertRepository.findByIdAndRunIdAndAcademyId(emergencyId, runId,
@@ -202,6 +218,7 @@ public class EmergencyCommandService {
      * 없으므로 조회를 리스너로 미루지 않는다({@code EmergencyRunQueryService} 가 같은 계정 id 로
      * 이름을 다시 찾는 것과 같은 이유 — {@code emergency_alert} 에 이름 컬럼이 없다).
      */
+    @Transactional
     public EmergencyAckResponse ack(AuthUser requester, Long emergencyId, String ackMemo) {
         EmergencyAlert alert = requester.hasPlatformScope()
                 ? emergencyAlertRepository.findById(emergencyId)
@@ -250,10 +267,10 @@ public class EmergencyCommandService {
 
     /**
      * 발신 시점 위치를 붙인다(§4.14) — 단말이 {@code lat}·{@code lng} 를 둘 다 보냈으면 그 좌표와 발신 시각을,
-     * 아니면 위치 캐시의 최신 좌표를 쓴다(BR-109). 한쪽만 온 좌표는 요청 오류다.
+     * 아니면 트랜잭션 앞에서 읽어 둔 위치 캐시의 최신 좌표를 쓴다(BR-109). 한쪽만 온 좌표는 요청 오류다.
      */
-    private void attachLocation(EmergencyAlert alert, Long runId, EmergencyRaiseRequest request,
-            OffsetDateTime occurredAt) {
+    private void attachLocation(EmergencyAlert alert, EmergencyRaiseRequest request, OffsetDateTime occurredAt,
+            Optional<RunPositionRedisValue> cachedPosition) {
         if ((request.lat() == null) != (request.lng() == null)) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED);
         }
@@ -261,23 +278,21 @@ public class EmergencyCommandService {
             alert.attachLocation(request.lat(), request.lng(), occurredAt);
             return;
         }
-        attachLocationIfCached(alert, runId);
+        cachedPosition.ifPresent(position -> alert.attachLocation(position.lat(), position.lng(), position.recordedAt()));
     }
 
     /**
-     * 최신 좌표에 값이 있을 때만 붙인다 — Redis 가 죽으면 {@link RunPositionStore} 가 DB 최신 행으로 대체한다
-     * (BR-167). 신고 자체는 반드시 성공해야 하는 안전 요구(목표 8)라, 그 밖의 <b>읽기 실패</b>도 위치 없이
-     * 접수한다(BR-039). 실패는 경고 로그로만 남긴다 — 여기서 던지면 {@code emergency_alert} 행까지 롤백된다.
+     * 최신 좌표를 읽는다 — Redis 가 죽으면 {@link RunPositionStore} 가 DB 최신 행으로 대체한다(BR-167). 신고 자체는 반드시
+     * 성공해야 하는 안전 요구(목표 8)라, 그 밖의 <b>읽기 실패</b>도 위치 없이 접수한다(BR-039) — 실패는 경고 로그로만
+     * 남기고 빈 값을 돌려준다. 트랜잭션 앞에서 부르므로 던져도 행이 롤백되지는 않지만 신고가 막히는 것은 마찬가지다.
      */
-    private void attachLocationIfCached(EmergencyAlert alert, Long runId) {
-        Optional<RunPositionRedisValue> snapshot;
+    private Optional<RunPositionRedisValue> readCachedPosition(Long runId) {
         try {
-            snapshot = runPositionStore.find(runId);
+            return runPositionStore.find(runId);
         } catch (RuntimeException e) {
             log.warn("비상 신고 위치 첨부 실패 — 위치 없이 접수한다. runId={}", runId, e);
-            return;
+            return Optional.empty();
         }
-        snapshot.ifPresent(position -> alert.attachLocation(position.lat(), position.lng(), position.recordedAt()));
     }
 
     /**
