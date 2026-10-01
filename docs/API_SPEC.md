@@ -1674,7 +1674,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 | `status` | 항상 `staged` |
 | `impact` | `from{rider_count_before, rider_count_after}` · `to{rider_count_before, rider_count_after, capacity}` |
 
-**에러** — `403 CHANGE_WINDOW_CLOSED`(둘 중 한 회차라도 ② 구간 — 저장 전에 확정된 경우 포함) · `409 RUN_CANCELED`(둘 중 한 회차라도 임시 취소) · `409 CAPACITY_EXCEEDED`(도착 회차 정원 초과 — 현재 인원·정원 병기) · `409 STUDENT_NOT_IN_RUN`(학생이 출발 회차 명단 밖) · `409 TRANSFER_ALREADY_STAGED`(같은 학생의 미적용 이동이 이미 있음) · `409 STUDENT_ALREADY_IN_RUN`(학생이 도착 회차 명단에 이미 있음 — `Ruling 392`) · `422 ADDRESS_VERIFICATION_FAILED`(주소 검증 실패) · `422 VALIDATION_FAILED`(`stop_id`·`address` 동시 없음/있음 · `from_run_id`=`to_run_id` · 도착 회차의 날짜·방향이 출발 회차와 다름) · `404 RUN_NOT_FOUND`/`STUDENT_NOT_FOUND`/`STOP_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163. `stop_id` 는 요청 학원으로 좁혀 조회하므로 타 학원 승하차지는 부재와 같다 — 2026-09-05 F4 S1 실측으로 추가) · `403 ACADEMY_SCOPE_VIOLATION`(도착 회차가 타 학원)
+**에러** — `403 CHANGE_WINDOW_CLOSED`(둘 중 한 회차라도 ② 구간 — 저장 전에 확정된 경우 포함) · `409 RUN_CANCELED`(둘 중 한 회차라도 임시 취소) · `409 CAPACITY_EXCEEDED`(도착 회차 정원 초과 — 현재 인원·정원 병기) · `409 STUDENT_NOT_IN_RUN`(학생이 출발 회차 명단 밖) · `409 TRANSFER_ALREADY_STAGED`(같은 학생의 미적용 이동이 이미 있음 — 선검사가 걸러도 동시 요청 둘이 함께 통과하면 늦은 쪽의 저장을 DB 의 부분 UNIQUE 인덱스가 거부하고 같은 코드로 응답한다, `Ruling 633`) · `409 STUDENT_ALREADY_IN_RUN`(학생이 도착 회차 명단에 이미 있음 — `Ruling 392`) · `422 ADDRESS_VERIFICATION_FAILED`(주소 검증 실패) · `422 VALIDATION_FAILED`(`stop_id`·`address` 동시 없음/있음 · `from_run_id`=`to_run_id` · 도착 회차의 날짜·방향이 출발 회차와 다름) · `404 RUN_NOT_FOUND`/`STUDENT_NOT_FOUND`/`STOP_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163. `stop_id` 는 요청 학원으로 좁혀 조회하므로 타 학원 승하차지는 부재와 같다 — 2026-09-05 F4 S1 실측으로 추가) · `403 ACADEMY_SCOPE_VIOLATION`(도착 회차가 타 학원)
 
 ### 5.8.1 DELETE /staff/transfers/{transferId}
 
@@ -2494,7 +2494,7 @@ O-04 · SYS-01·02. 정본 API명세서에 경로 미기재 — 감사 로그 �
 
 **`block_event` 행의 `account_id` · `login_id`** — 차단(`block`) 행은 차단된 계정(행위자와 같다), **해제(`unblock`) 행은 해제된 계정**이다(BR-219 — 계정별 이력이 끊기지 않게). 해제한 관리자는 `audit_log.actor_account_id` 와 해제 응답의 `unblocked_by`(§6.12)가 갖는다 — 이 목록의 행이 싣지 않는다. **해제 행의 `ip` 도 `null`** — 감사 행에 저장된 IP 는 해제한 관리자의 것(`Ruling 595`)이라 해제된 계정의 접속 IP 로 읽히지 않게 비운다(관리자 IP 는 감사 로그 목록 §6.13 `GET /admin/audit-logs` 의 `ip` 가 갖는다). `account_id` 필터도 같은 뜻 — 해제된 계정의 해제 행이 걸리고, 해제한 관리자의 필터에는 걸리지 않는다.
 
-쿼리 파라미터 — `academy_id` · `account_id` · `from` · `to` · 페이징 · **`action`**(`/admin/audit-logs` 만 — `read` · `update` · `delete` 중 하나, 안 주면 셋 다. 그 밖의 값은 `422 VALIDATION_FAILED`, `Ruling 446`). **`from` · `to` 는 §1.1 의 시각 표기(ISO-8601 + 오프셋, 예 `2026-09-30T00:00:00+09:00`)이며 날짜만(`2026-09-30`) 보내면 `422 VALIDATION_FAILED`** 다(`Ruling 399`).
+쿼리 파라미터 — `academy_id` · `account_id` · `from` · `to` · 페이징 · **`action`**(`/admin/audit-logs` 만 — `read` · `update` · `delete` 중 하나, 안 주면 셋 다. 그 밖의 값은 `422 VALIDATION_FAILED`, `Ruling 446`). **`from` · `to` 는 §1.1 의 시각 표기(ISO-8601 + 오프셋, 예 `2026-09-30T00:00:00+09:00`)이며 날짜만(`2026-09-30`) 보내면 `422 VALIDATION_FAILED`** 다(`Ruling 399`). **`from` 을 안 주면 `to`(없으면 지금)로부터 30일 전부터다**(`Ruling 632`) — 기간 없이 부르면 최근 30일만 돌려주며 `total_count` 도 그 기간의 건수다. 더 옛 이력은 `from` 을 명시한다. `to` 를 안 주면 상한은 열려 있다.
 
 **에러** — `404 ACADEMY_NOT_FOUND`(`academy_id` 필터가 미등록 학원) · `404 ACCOUNT_NOT_FOUND`(`account_id` 필터가 미등록 계정) · `422 VALIDATION_FAILED`(`action` 이 조회·수정·삭제 밖 · `from`·`to` 형식)
 

@@ -1113,6 +1113,14 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 587 | 사양 5항의 시험 환산 + 위치 송신 모델을 앱과 같은 고정 주기로 — 응답 뒤 쉼 모델이 달성률을 인위적으로 낮춤 | 본문 §8.84 |
 | 588 | 통과 판정 — 관리자 50 은 4회차 통과 · 200·300·400 통과(컷의 8배 · 예상 25 의 16배) · 500 이상은 판정 보류 | 본문 §8.84 |
 | 589 | 포화 지점 — 위치 수신 포화는 이동 거의 없음 · 09-09 붕괴 두 조건은 통과하나 R46 단독 귀속 불가 · 관계자 폴링 포화 후보(연결 풀 10) | 본문 §8.84 |
+| 610 | 퇴원 파기 때 보호자↔자녀 연결(`guardian_student`)도 삭제 — 파기 뒤 `보호자 → guardian_student → student(익명) → run_rider → stop(주소·좌표)` 로 집 주소가 복원되던 경로를 끊음(사용자 결정 · 검토 `schema` A-4) · 보호자 본인 보존 기간은 열린 항목 | 본문 §8.86 · `docs/ERD.md §7.1` |
+| 614 | `run_rider.boarded_at` · `alighted_at` 삭제 — 읽는 곳 0 · 되돌리기 뒤 값이 틀림 · 같은 시각이 `rider_status_history.changed_at` 에 있음(사용자 결정 · 검토 `schema` A-3). 같은 갈래가 `run_rider.note`(A-2)도 삭제 | 본문 §8.86 · `docs/ERD.md §3` |
+| 630 | 인덱스 정비 — 계정 복구 경로 `account(phone)` · `verification_code(phone, created_at desc)`(순차 스캔 4회 → 인덱스) · 중복 `ix_run_bus_date` 삭제 · FK 선행 `run(schedule_id)` · `run_stop(waypoint_id)` 부분 · `run_position` 표 단위 autovacuum | 본문 §8.86 |
+| 631 | 보존 정리 정렬 키를 컷오프 인덱스 키(`recorded_at`)로 · 확정 배치 인덱스를 `(service_date, confirm_at)` 미취소 idle 부분 인덱스로(힙 확인 3,000 → 0 행) | 본문 §8.86 |
+| 632 | 감사·접속 이력 기본 조회 기간 = `to`(없으면 지금)로부터 30일 · 계정별 접속 이력의 해제 행 부분 인덱스 `audit_log(target_id) WHERE action='unblock'` | 본문 §8.86 · `docs/API_SPEC.md §6.13` |
+| 633 | 같은 학생의 대기(`staged`) 이동 신청은 DB 부분 UNIQUE 인덱스가 하나만 받고 위반은 `409 TRANSFER_ALREADY_STAGED` | 본문 §8.86 · `docs/ERD.md §5.1` |
+| 634 | CHECK 7곳(`rider_status_history` 상태 2 · `requested_role` · `recipient_role` · `raised_by_role` · `window_segment` · `applied_segment`) + `run_stop` 도착지 버전당 1행 UNIQUE 인덱스 | 본문 §8.86 · `docs/ERD.md §5.2` |
+| 635 | 문서 정정 — 파티셔닝 서술(기술 결정 문서의 파티셔닝 절 · FK 미설정 이유)을 `Ruling 243`(파티션 안 함 · 행 단위 DELETE)에 맞춤 | 본문 §8.86 |
 
 
 ## 8.73 ⚖ `R46-BE` — 성능 개선(감사 제외) + 바로 고칠 것 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 410~419 · 백엔드 갈래)
