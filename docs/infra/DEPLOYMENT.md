@@ -591,6 +591,20 @@ aws ssm put-parameter --name /school-bus/demo/SEED_PASSWORD_HASH --type SecureSt
 
 `.htpasswd` 는 `infra/**` 배포에 영향받지 않는다 — `deploy-backend.yml` 의 두 `s3 sync` 가 `--exclude "proxy/.htpasswd"` 로 이 파일을 동기화·삭제 대상에서 제외한다(§2.12). 배포마다 재업로드는 불필요.
 
+
+### 5.2 종료 대기 — `stop_grace_period` 와 스프링 정상 종료의 관계 (`Ruling 643`)
+
+배포 때 `docker compose up -d` 가 옛 backend 를 멈추는 순서는 **종료 신호(SIGTERM) → 대기 → 강제 종료(SIGKILL)** 다. 대기 시간 두 개가 겹친다.
+
+| 값 | 위치 | 크기 |
+|---|---|:-:|
+| 스프링 정상 종료 대기 — `server.shutdown=graceful` · `spring.lifecycle.timeout-per-shutdown-phase` | **설정 파일에 명시가 없고 Boot 4.1.0 기본값이다**(설정 메타데이터에서 확인) | 30초 |
+| Docker 가 SIGKILL 을 보내기까지 — `stop_grace_period` | `docker-compose.prod.yml`·`docker-compose.staging.yml` backend | 지정 전 기본 10초 → **35초** |
+
+- 스프링은 신호를 받으면 새 요청을 막고 진행 중인 요청을 최대 30초 기다린다. Docker 기본 10초면 그 사이 SIGKILL 이 와 진행 중이던 요청이 오류로 끊긴다. 데이터는 조건부 UPDATE·단일 트랜잭션·아웃박스 복구로 손상되지 않아 피해는 그 요청의 클라이언트 오류 1건 수준이지만, 막을 수 있는 오류다
+- **Docker 값은 스프링 값보다 길어야 한다.** 35초 = 30초 + 5초(연결 풀·메시지 브로커를 닫는 시간). 스프링 값을 올리면(`timeout-per-shutdown-phase: 60s` 등) compose 의 값도 같이 올린다 — `OpsSettingsGuardTest` 가 `application.yml` 에 명시된 값을 읽어 어긋나면 실패한다. 명시가 없는 지금은 Boot 기본값 30초를 상수로 가정하니 Boot 를 올릴 때 설정 메타데이터를 다시 확인한다
+- 35초는 상한이다. 한가한 시각의 배포는 진행 중 요청이 없어 즉시 끝난다. 배포 게이트(`deploy-gate.sh`)가 운행 중 회차를 막는 것과는 별개의 장치다
+- 스테이징은 같은 값이다(`docker compose restart backend` 로 하는 초기화도 이 시간을 쓴다 — `STAGING §8`)
 ---
 
 ## 6. 롤백
@@ -714,7 +728,7 @@ $C start backend
 | 브라우저 CORS 오류 | `CORS_ALLOWED_ORIGINS` 값에 스킴 포함 정확한 출처 존재 여부 확인 | 누락 출처 추가 후 SSM 갱신·재배포 | 추가한 출처 값 |
 | WebSocket 만 연결 실패(REST 는 정상) | `WS_ALLOWED_ORIGIN_PATTERNS` 값과 nginx `/ws/` 블록 Upgrade 헤더 확인 | 패턴 또는 nginx 설정 수정 후 `proxy` 컨테이너 재기동 | 수정한 패턴·설정 값 |
 | 배차·시뮬레이션 `503 MAP_ROUTE_UNAVAILABLE` · 확정 노선에 `fallback_used=true` 다수 | NCP 키 유효성(`.env` 의 `NAVER_DIRECTIONS_KEY_ID`·`NAVER_DIRECTIONS_KEY`) · NCP 콘솔의 Directions 일일 한도 | 키 재발급 후 SSM 갱신·재배포. 대체 공급자는 없다(`Ruling 551`) — 복구될 때까지 직선거리 근사로 계속 확정된다 | 재발급 사유·시각 |
-| 컨테이너 반복 종료 | `free -h` 로 메모리, `docker stats`, 스왑 활성 여부 확인 | 스왑 추가 또는 인스턴스 사양 상향 | 종료 시점·메모리 수치 |
+| 컨테이너 반복 종료 | `free -h` 로 메모리, `docker stats`, 스왑 활성 여부 확인. backend 면 `docker inspect -f '{{.RestartCount}}' <컨테이너>` 와 `docker compose logs backend \| grep OutOfMemoryError`(§11.6 — JVM 이 OOM 이면 스스로 끝나 재시작된다) | 스왑 추가 또는 인스턴스 사양 상향. OOM 반복이면 힙 사용이 늘어난 원인(최근 변경 · 폴링 부하)을 먼저 본다 — 힙 덤프는 남지 않는다(§11.6) | 종료 시점·메모리 수치 |
 | 인증서 만료 | `docker compose logs certbot`, 80 포트 개방 여부 확인 | certbot 갱신 재시도, 방화벽 규칙 수정 | 갱신 결과 |
 | Swagger UI 401 · 기동 실패 | §2.12 절차 확인 | EC2 에서 `.htpasswd` 재생성 후 `proxy` 컨테이너 재기동 | 재생성 시각 |
 | 지도 API 장애(노선 계산 ③단계 영향) | `resilience4j_circuitbreaker_state{name="geocoding"\|"mapRoute"}` 값 확인(관측 목표 8) | 자동 폴백 — 직선거리 근사로 배차 유지, 화면에 폴백 사실 표시, 배치는 계속 진행. 서킷 닫히면 다음 회차부터 정상, 이미 배포된 노선은 재계산 제외 | 폴백 지속 시간 |
@@ -810,8 +824,32 @@ Grafana 는 볼륨이 없어 컨테이너를 다시 만들 때마다 SSM 값으�
 | `HostDiskAlmostFull` | 루트 디스크 사용률 80% 초과가 10분 유지 | 경고 | (표 밖 — 디스크가 차면 postgres 쓰기가 실패해 전면 정지) |
 | `BackupDbStale` | DB 백업 성공 시각이 2시간 넘게 갱신되지 않거나 지표가 아예 없음(5분 유지) | 즉시(critical) | (표 밖 — 매시 백업 중 두 번 연속 실패하면 RPO 1시간을 못 지킨다, `Ruling 500`) |
 | `BackupPhotosStale` | 사진 백업 성공 시각이 26시간 넘게 갱신되지 않거나 지표가 없음 | 경고 | (표 밖) |
+| `BackendDown` | `up{job="backend"} == 0` 이거나 `up` 시계열이 없음(스크레이프 대상이 목록에서 사라짐)이 1분 유지 | 즉시(critical) | (표 밖 — 백엔드가 죽으면 위 백엔드 지표 경보가 값이 없어 **전부 조용해진다**) |
+| `Http5xxRatioHigh` | 최근 5분 요청의 5% 초과가 5xx(actuator 제외 · 분당 6건 이상일 때만 판정)인 상태가 2분 유지 | 즉시(critical) | (표 밖) |
+| `HikariPoolWaiting` | `hikaricp_connections_pending > 0` 이 1분 유지 | 경고 | (표 밖 — 풀 20개가 마르면 3초 뒤 500) |
+| `CircuitBreakerNotClosed` | 지도 API 서킷(`geocoding` · `mapRoute` · `placeSearch`)이 열림·반열림으로 2분 넘게 닫히지 않음 | 경고 | 4행 |
+| `SchedulerStalled` | 확정·알림 재전송 스케줄러가 90초, 근접 판정이 30초(각 주기의 3배) 넘게 마지막 성공이 없는 상태가 1분 유지 | 즉시(critical) | (표 밖 — 확정이 멈추면 `RunUnconfirmed` 보다 먼저 안다) |
+| `RetentionCleanupStalled` | 보존 정리(매일 00:15)가 3일 넘게 성공하지 않음 | 경고 | (표 밖) |
 
-백업 2종은 `backup-db.sh` 가 **S3 업로드를 마친 뒤에만** 쓰는 성공 시각을 node-exporter 가 읽어 낸다(§7) — 덤프가 비었거나 업로드가 실패하면 시각이 갱신되지 않아 경보가 울린다. 4행(지도 API 서킷 open)과 6행(배치 지연 p95)은 아직 규칙이 없다. `PushDeliveryFailing` 은 "율"이 아니라 건수다 — 분모(시도 수) 지표가 없고, 있는 지표는 재시도를 전부 소진해 `failed` 로 굳은 건수뿐이다.
+백업 2종은 `backup-db.sh` 가 **S3 업로드를 마친 뒤에만** 쓰는 성공 시각을 node-exporter 가 읽어 낸다(§7) — 덤프가 비었거나 업로드가 실패하면 시각이 갱신되지 않아 경보가 울린다. 6행(배치 지연 p95)만 아직 규칙이 없다. `PushDeliveryFailing` 은 "율"이 아니라 건수다 — 분모(시도 수) 지표가 없고, 있는 지표는 재시도를 전부 소진해 `failed` 로 굳은 건수뿐이다.
+
+**R46-FIXOPS 추가 6종(`Ruling 640`) 읽는 법**
+
+- 새 규칙은 전부 스크레이프 `job="backend"` 로 걸러 **부하 시험 프로파일을 보지 않는다** — 부하 시험 앱은 별도 관측 스택(`LOAD_TESTING §6`)이 다른 `job` 이름으로 긁고, 그쪽은 풀 10 · 연결 대기 100~190 · 서킷 실패 주입이 정상이다
+- ⚠ **`BackendDown` 이 울리는 동안 위 `RunUnconfirmed` · `RunPositionLost` · `PushDeliveryFailing` 은 침묵이 정상이 아니다** — 백엔드가 죽으면 Prometheus 가 그 시계열을 즉시 끝난 것으로 표시해 **이미 발화 중이던 경보도 해소로 바뀐다.** 그 사이 미확정 회차·위치 유실·푸시 실패는 지표로 볼 수 없다
+- `SchedulerStalled` 의 숫자(90초·30초)는 스케줄러 주기(`poll-interval-ms` 30초 · 10초)의 3배다 — 주기를 바꾸면 규칙의 숫자도 같이 바꾼다(`alerts.yml` 주석). 앱을 재기동하면 경과가 0 부터 다시 세어지므로 **`RetentionCleanupStalled` 는 3일 안에 한 번이라도 재배포하면 못 본다** — 정리가 계속 실패하는 경우는 건별 실패 카운터(`schoolbus_scheduler_failures_total`)가 따로 있다
+- 5xx 비율은 `/actuator/*` 요청을 뺀다(스크레이프·헬스체크가 요청 수에 늘 섞이고 Redis 장애 때 헬스가 503). 분당 6건 미만이면 판정하지 않는다 — 새벽에 한두 건 실패한 것이 비율 50% 로 보여 울리는 것을 막는 하한이다
+
+**울렸을 때 첫 확인**
+
+| 경보 | 첫 확인 |
+|---|---|
+| `BackendDown` | `docker compose ps backend` · `docker compose logs --tail 120 backend`. 재시작이 반복이면 `RestartCount`(§8 · §11.6) |
+| `Http5xxRatioHigh` | Grafana 대시보드의 오류 패널 → `docker compose logs backend \| grep ERROR`. `HikariPoolWaiting` 이 같이 울리면 연결 풀 문제 |
+| `HikariPoolWaiting` | §11.5 의 쿼리 통계로 느린 쿼리 → `SELECT state, count(*) FROM pg_stat_activity GROUP BY 1`(`idle in transaction` 이 쌓이면 트랜잭션이 안 끝나는 곳) |
+| `CircuitBreakerNotClosed` | §8 "지도 API 장애" 행 — 직선거리 근사로 계속 확정되는 상태 |
+| `SchedulerStalled` | `schoolbus_scheduler_last_success_age_seconds` 가 계속 느는 스케줄러 이름을 보고 로그에서 그 클래스의 예외를 찾는다. 푸시 발송이 외부에서 멈춘 것이면 아웃박스가 길어진다(`FCM`) |
+| `RetentionCleanupStalled` | 새벽 00:15 전후 로그에서 `retention` 예외 · 마지막 재배포 시각(3일 안이면 이 경보는 못 본다) |
 
 ### 11.3 경보 수신 — 텔레그램 봇 + 이메일 예비 (`Ruling 480 ④` · `483`)
 
@@ -850,6 +888,39 @@ sudo docker compose -f /opt/school-bus/docker-compose.prod.yml --env-file /opt/s
 `https://api.<도메인>/healthz` 는 인터넷에서 닿는 유일한 헬스 주소다(UptimeRobot 같은 외부 감시용). backend 의 `/actuator/health` 를 그대로 프록시하므로 응답은 `{"status":"UP"}` 뿐이고(상세는 `show-details: never`), backend 나 DB·Redis 가 DOWN 이면 503, backend 가 죽으면 502·504 라 외부 감시가 실패를 본다. 정적 200 이 아니다 — 정적 200 은 backend 가 죽어도 초록이다. IP 당 분당 30회로 제한한다(초과 429). `/actuator` 의 나머지(`prometheus` 등)는 계속 404 다.
 
 ⚠ EC2 가 통째로 죽으면 Prometheus·Alertmanager 도 함께 죽는다 — 서버 사망은 이 외부 감시로만 알 수 있다(등록은 사용자 작업).
+
+
+### 11.5 DB 쿼리 통계 — `pg_stat_statements` (`Ruling 644`)
+
+운영 postgres 는 `shared_preload_libraries=pg_stat_statements` · `random_page_cost=1.1`(gp3 SSD — 기본 4 는 HDD 기준이라 플래너가 인덱스 스캔을 덜 고른다)로 뜬다(`docker-compose.prod.yml` · 스테이징 compose 도 같다). 어느 쿼리가 무거운지는 `idx_scan` 숫자가 아니라 이 확장이 답한다.
+
+```bash
+sudo docker compose -f /opt/school-bus/docker-compose.prod.yml --env-file /opt/school-bus/.env exec -T postgres \
+  psql -U schoolbus -d schoolbus -c "SELECT calls, round(total_exec_time) AS total_ms, round(mean_exec_time::numeric, 2) AS mean_ms, left(query, 100) AS query FROM ops_stats.pg_stat_statements ORDER BY total_exec_time DESC LIMIT 10"
+```
+
+- **확장은 `public` 이 아니라 `ops_stats` 스키마에 있다.** 스테이징은 백엔드 기동·초기화마다 Flyway `clean()` 이 `public` 을 비우는데 `public` 에 만든 확장은 그때 같이 지워진다(2026-10-01 로컬 실측: `public` 에서는 사라지고 `ops_stats` 에서는 남음). 운영은 `clean()` 을 막지만 두 환경이 같은 이름으로 조회하도록 통일했다
+- 확장 생성은 마이그레이션이 아니라 **postgres 초기화 스크립트**(`infra/postgres/init/01-pg-stat-statements.sql`)다 — 확장은 `shared_preload_libraries` 와 짝인 DB 서버 설정이라 앱 스키마 이력(Flyway)에 섞지 않는다. 빈 데이터 디렉터리로 **처음 뜰 때 한 번만** 실행된다(공식 이미지 규칙)
+- ⚠ **이미 초기화된 볼륨**(이 설정이 들어가기 전에 한 번이라도 배포한 서버)은 스크립트가 돌지 않는다 — 이번 배포 뒤 한 번 손으로 만든다:
+  ```bash
+  sudo docker compose -f /opt/school-bus/docker-compose.prod.yml --env-file /opt/school-bus/.env exec -T postgres \
+    psql -U schoolbus -d schoolbus -c "CREATE SCHEMA IF NOT EXISTS ops_stats" -c "CREATE EXTENSION IF NOT EXISTS pg_stat_statements SCHEMA ops_stats"
+  ```
+- ⚠ **이 설정이 들어간 첫 배포는 postgres 컨테이너가 다시 만들어진다**(`command` 가 바뀌어 compose 가 재생성) — DB 가 수 초~수십 초 끊기고 백엔드 연결 풀이 다시 붙는다. 배포의 수십 초 다운타임(§10) 안이다
+- 통계 초기화: `SELECT ops_stats.pg_stat_statements_reset()`. 오버헤드는 검토 문서의 추정(1~2%)이며 측정 전이다
+
+### 11.6 컨테이너 안전장치 — OOM · 로그 · 응답 압축 (`Ruling 641` · `642` · `645`)
+
+| 장치 | 값 | 이유 · 대가 |
+|---|---|---|
+| **OOM 이면 프로세스 종료** | backend `JAVA_TOOL_OPTIONS` 에 `-XX:+ExitOnOutOfMemoryError` | 이 플래그가 없으면 `OutOfMemoryError` 를 던진 스레드만 죽고 JVM 이 살아남아, 스케줄러·발송 스레드가 하나씩 사라진 **반쯤 죽은 서버**가 된다 — 컨테이너는 계속 "실행 중"이라 `restart: unless-stopped` 가 못 본다. 종료하면 재시작 정책이 되살린다(30~60초 다운). OOM 으로 끝난 컨테이너는 `RestartCount` 가 늘고 로그에 `OutOfMemoryError` 가 남는다 |
+| **힙 덤프는 남기지 않는다** | `HeapDumpOnOutOfMemoryError` 부재(`OpsSettingsGuardTest` 가 운영에 들어오는 것을 막는다) | 덤프에는 학생·보호자 개인정보와 JWT 서명 키·FCM 개인 키가 그대로 담기고, 크기가 힙(약 2.15GB)이라 루트 디스크 30GB 를 재시작 반복 때 채운다. 원인 분석이 필요하면 스테이징에서 재현해 뜬다 |
+| **로그 전송은 non-blocking** | `x-logging` 의 `mode: non-blocking` · `max-buffer-size: 25m` | 기본(blocking)이면 CloudWatch 전송이 느려지는 순간 컨테이너의 stdout 쓰기가 막혀 로그를 남기는 모든 스레드가 같이 멈춘다(Redis 장애 때 스택트레이스가 초당 수십 줄 나오는 상황이 원인이 된다). **대가: 버퍼가 차면 로그를 버린다** — 장애 때 일부 유실을 받아들인다. 옵션 이름은 `mode`·`max-buffer-size` 다(`awslogs-mode` 는 없다 — Docker 가 거부) |
+| **JSON 응답 압축** | `nginx.prod.conf` `/api/` 의 `gzip on` · `gzip_types application/json` · `gzip_min_length 1024` | 관제 폴링처럼 키가 반복되는 JSON 은 크게 줄어든다(가짜 2.8KB 응답이 308B — 약 9배, 실제 관제 응답 크기는 미측정). 1KB 미만 · 이미지(사진) · WebSocket 은 대상이 아니다 |
+| **인증 응답은 압축하지 않는다** | `/api/v1/auth/` 와 `= /api/v1/me/link-code` 는 `gzip off` | BREACH — 압축 크기가 응답 안의 비밀(토큰·연결 코드)과 공격자가 넣은 값의 일치를 드러낸다. 로그인·가입·복구·자녀 연결(속도 제한 location)은 압축을 켜지 않은 별도 location 이라 그대로 안전하다. `/auth/*` 전체와 연결 코드 발급이 해당한다 |
+
+- ⚠ **nginx 설정 변경은 배포가 자동 반영하지 않는다** — 설정은 파일 하나를 바인드 마운트하고 `s3 sync` 가 파일을 교체하면 컨테이너는 옛 파일을 계속 본다(§11.2 의 Prometheus 와 같은 이유 — `deploy.sh` 는 Prometheus 만 다시 시작한다). **`nginx.prod.conf` 를 바꾼 배포 뒤에는 proxy 를 한 번 다시 시작한다**: `sudo docker compose -f /opt/school-bus/docker-compose.prod.yml --env-file /opt/school-bus/.env restart proxy`. 잘못된 설정이면 proxy 가 못 떠 공개 API 가 끊기므로 먼저 로컬에서 `nginx -t` 를 본다(§2.11)
+- 압축 확인: `curl -s -D - -o /dev/null -H 'Accept-Encoding: gzip' https://api.<도메인>/api/v1/<JSON 목록 경로> -H 'Authorization: Bearer <토큰>' \| grep -i content-encoding` — 일반 조회는 `gzip`, `/api/v1/auth/refresh` 는 헤더가 없어야 한다
 
 ---
 

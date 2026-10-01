@@ -21,7 +21,7 @@
 # 모든 컨테이너 로그를 CloudWatch 로 보낸다 — EC2 가 죽어도 로그는 남는다.
 # CloudWatch 를 안 쓰려면 이 앵커를 지우고 각 서비스의 `logging: *cloudwatch` 줄을 빼면 된다.
 # ⚠ `mode: non-blocking` — 기본값(blocking)이면 CloudWatch 전송이 느려지는 순간 컨테이너의 stdout 쓰기가 막혀 로그를 남기는 모든 스레드가 같이 멈춘다
-#   (Redis 장애 때 스택트레이스가 초당 수십 줄 쏟아지는 상황이 그 방아쇠다 — review-stab S-3). 대신 버퍼(max-buffer-size)가 차면 로그를 버린다.
+#   (Redis 장애 때 스택트레이스가 초당 수십 줄 나오는 상황이 원인이 된다 — review-stab S-3). 대신 버퍼(max-buffer-size)가 차면 로그를 버린다.
 #   키 이름은 `mode`·`max-buffer-size` 다 — `awslogs-mode` 는 없는 옵션이라 `docker create` 가 거부한다(2026-10-01 실측).
 x-logging: &cloudwatch
   driver: awslogs

@@ -806,8 +806,12 @@ org.springframework.boot:spring-boot-testcontainers
 | 호스트 루트 디스크 사용률 80% 초과 (10분 유지) | 경고 | 디스크가 차면 postgres 쓰기가 실패해 전면 정지 — 이미지·로그·사진·DB 가 한 디스크(R46 ops, `Ruling 456`) |
 | DB 백업 성공 시각이 2시간 넘게 갱신되지 않음(또는 지표 부재) | **즉시** | 매시 백업이 두 번 연속 실패하면 목표 유실 1시간(§12.3)을 못 지킨다. 크론 실패는 로그에만 남아 지표가 유일한 감지 수단(R46 ops2, `Ruling 500`) |
 | 사진 백업 성공 시각이 26시간 넘게 갱신되지 않음(또는 지표 부재) | 경고 | 사진은 매일 백업 — 하루를 넘겨 빠지는 것을 본다(`Ruling 500`) |
+| 백엔드 스크레이프 실패(`up == 0`) 또는 대상이 목록에서 사라짐, 1분 유지 | **즉시** | 백엔드가 죽으면 위 백엔드 지표 규칙이 전부 값이 없어 조용해진다 — 이 규칙이 그 침묵을 대신 알린다(`R46-FIXOPS` `Ruling 640`) |
+| 요청의 5% 초과가 5xx(actuator 제외 · 분당 6건 이상) 2분 유지 | **즉시** | 서비스가 응답은 하지만 실패하는 상태 — 위치·승하차 요청이 오류(`Ruling 640`) |
+| DB 연결 대기(`hikaricp_connections_pending > 0`) 1분 유지 | 경고 | 연결 풀 고갈의 전조 — 마르면 3초 뒤 500(`Ruling 640`) |
+| 확정·알림 재전송 스케줄러 90초 · 근접 판정 30초(주기의 3배) 넘게 마지막 성공 없음, 1분 유지 | **즉시** | 확정이 멈추면 `RunUnconfirmed` 가 울리기 전에 안다. 보존 정리는 3일(경고)(`Ruling 640`) |
 
-규칙 파일은 `infra/observability/prometheus/alerts.yml` — 1·2·3·5행과 디스크·백업 행이 들어 있다(2026-09-25 BR-064: 미승차는 `schoolbus_scheduler_failures_total{scheduler="no-show-escalation"}` 증가 · 마지막 성공 경과 180초 초과, 위치는 `schoolbus_run_position_lost` 게이지. 2026-10-01 R46 ops `Ruling 455`·`456`: 1행은 `schoolbus_run_unconfirmed > 0` 이 1분 유지, 5행은 `schoolbus_notification_push_failures_total` 의 10분 증가, 디스크는 마운트 지점 `/` 사용률). 조건식은 `alerts.test.yml` 이 promtool 로 검사한다. **4행(서킷 open)·6행(배치 지연 p95)은 미구성.** 전달 경로는 운영 compose 의 Alertmanager 가 텔레그램·이메일로 보낸다(§12.5 · `Ruling 501`) — 수신 값이 SSM 에 없으면 수신자 없이 뜨고 발화한 경보는 Prometheus `/alerts` 에서만 보인다(`DEPLOYMENT.md §11`).
+규칙 파일은 `infra/observability/prometheus/alerts.yml` — 1·2·3·4·5행과 디스크·백업·가용성 행이 들어 있다(2026-09-25 BR-064: 미승차는 `schoolbus_scheduler_failures_total{scheduler="no-show-escalation"}` 증가 · 마지막 성공 경과 180초 초과, 위치는 `schoolbus_run_position_lost` 게이지. 2026-10-01 R46 ops `Ruling 455`·`456`: 1행은 `schoolbus_run_unconfirmed > 0` 이 1분 유지, 5행은 `schoolbus_notification_push_failures_total` 의 10분 증가, 디스크는 마운트 지점 `/` 사용률). 조건식은 `alerts.test.yml` 이 promtool 로 검사한다. 4행(서킷)은 `CircuitBreakerNotClosed`(열림·반열림이 2분 넘게 이어짐 — 장애 중에는 열림 ↔ 반열림을 오가 `open` 게이지만 보면 끊긴다 · 2026-10-01 R46-FIXOPS)로 구성했다. **6행(배치 지연 p95)은 미구성.** 전달 경로는 운영 compose 의 Alertmanager 가 텔레그램·이메일로 보낸다(§12.5 · `Ruling 501`) — 수신 값이 SSM 에 없으면 수신자 없이 뜨고 발화한 경보는 Prometheus `/alerts` 에서만 보인다(`DEPLOYMENT.md §11`).
 
 **알럿을 등급으로 가르는 기준은 "지금 아이가 위험한가"** 다. 시스템 지표가 아니라 그 지표가 뜻하는 현실 상황으로 판단한다.
 

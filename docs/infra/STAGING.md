@@ -151,3 +151,7 @@ R46 운영 작업(`DEPLOYMENT §7` 백업 · `DEPLOYMENT §11` 관측 · `DEPLOY
 | prod 프로파일 명시(`b18c60bf`) | **해당 없음** — 스테이징은 `local,staging` 프로파일이고 필수 환경변수는 §6 의 넷 |
 | 이미지 태그 부 버전 고정(`postgres:16.15` · `redis:7.4.11` 등) | **적용됨** — 별도 조치 없음. 태그를 올릴 때는 `docker-compose.staging.yml` 의 값을 바꿈 |
 | 연결 대기 3초 · 누수 감지 5초(`R46 D #17`) | **적용됨** — `staging` 프로파일에 들어 있음(§9 증상표) |
+| 경보 6종 추가(`BackendDown` · `Http5xxRatioHigh` 등 — `R46-FIXOPS`) | **해당 없음** — 관측·경보 컨테이너가 없음 |
+| 로그 `non-blocking` 전송(`awslogs`) · 운영 프록시 JSON 압축(`nginx.prod.conf` `/api/`) | **해당 없음** — 로그는 Docker 기본 드라이버이고 프록시는 `nginx.staging.conf` 라 이번에 바꾸지 않음(터널 뒤라 응답 크기보다 접속이 목적) |
+| OOM 이면 프로세스 종료 · 종료 대기 35초(`R46-FIXOPS` `Ruling 641`·`643`) | **적용됨** — backend 에 `JAVA_TOOL_OPTIONS: -XX:+ExitOnOutOfMemoryError` · `stop_grace_period: 35s`. `docker compose restart backend`(§8 초기화)도 이 종료 대기를 쓴다. 힙 상한은 두지 않음(컨테이너 메모리 한도가 없음) |
+| postgres `pg_stat_statements` · `random_page_cost=1.1`(`Ruling 644`) | **적용됨** — 운영과 같은 `command` + `infra/postgres/init` 초기화 스크립트. 메모리 DB 라 컨테이너를 다시 만들 때마다 스크립트가 돈다. 쿼리 통계는 `ops_stats.pg_stat_statements` — **`public` 이 아닌 이유**: 이 서버는 기동·초기화마다 Flyway `clean()` 이 `public` 을 비우는데 그때 `public` 의 확장이 같이 지워진다(2026-10-01 로컬 실측) |
