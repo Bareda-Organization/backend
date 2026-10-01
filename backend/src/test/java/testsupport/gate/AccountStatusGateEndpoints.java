@@ -135,6 +135,10 @@ public final class AccountStatusGateEndpoints {
      * (§4.15, EXC-04 · M-15, 권한 "그 회차에 배치된 기사·동승자") — 배치된 매니저만 닿는 자리라
      * 대기·거절 계정에는 근거가 부재하다({@code POST /runs/{runId}/emergency} 와 같은 근거).
      *
+     * <p>R46 privacy 가 1개를 더했다 — 보호자 전화 원번호 단건 조회 {@code GET /runs/{runId}/riders/{riderId}/guardian-phone}
+     * (§4.2.1, Ruling 482·521, 권한 "그 회차에 배치된 기사·동승자") — 배치된 매니저만 닿는 자리라 대기·거절 계정에는 근거가 부재하다
+     * ({@code GET /runs/{runId}/roster} 와 같은 근거).
+     *
      * <p>BR-214 가 1개를 더했다 — 학생 사진 파일 {@code GET /files/photos/{fileName}}(§5.11.1, Ruling 377,
      * 권한 {@code STUDENT_READ_PHOTO}) — 승인된 계정의 기능이라 대기·거절 계정에는 근거가 부재하다.
      *
@@ -213,6 +217,8 @@ public final class AccountStatusGateEndpoints {
             "GET /runs/{runId}/roster",
             "GET /runs/{runId}/route",
             "GET /staff/runs/{runId}/roster",
+            // R46 privacy(Ruling 482) — 매니저 앱 보호자 전화 원번호 단건 조회(§4.2.1) 1개.
+            "GET /runs/{runId}/riders/{riderId}/guardian-phone",
             // Phase 9 T3 — 승하차 처리·되돌리기(§4.6·§4.7) 동승자 단말 기능 2개.
             "PATCH /runs/{runId}/riders/{riderId}",
             "POST /runs/{runId}/riders/{riderId}/revert",

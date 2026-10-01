@@ -48,7 +48,7 @@ import src.backend.global.request.ClientIp;
  * <p><b>반복 조회는 묶는다</b>(R46 감사 A · Ruling 445) — 같은 행위자가 같은 학생을 {@link #DATA_ACCESS_DEDUP_WINDOW}
  * 안에 다시 조회하면 그 학생의 행을 더 쓰지 않는다. 폴링 화면(7초마다 명단 재조회)이 하루 수만 행을 쌓지 않게
  * 하는 것이 목적이고, 판단은 <b>서버가 한다</b> — 화면이 보내는 표시로 거르면 요청을 직접 만들어 기록을 피할 수 있다.
- * 키는 <b>행위자·학생</b>이고 시간은 <b>마지막으로 기록한 시각</b>이다(마지막으로 본 시각이 아니다 — 그러면 계속
+ * 키는 <b>행위자·학생·조회한 필드 묶음</b>이고(R46 privacy · Ruling 521 — 명단 조회가 먼저 창을 열었다고 보호자 원번호 접근이 기록에서 빠지면 안 된다) 시간은 <b>마지막으로 기록한 시각</b>이다(마지막으로 본 시각이 아니다 — 그러면 계속
  * 보고 있는 동안 기록이 영영 안 남는다). 명단 단위 키로 잡으면 두 번째 조회에 새로 실린 학생이 빠지므로, 명단은 새로
  * 실린 학생만 골라 {@code detail.student_ids} 에 담아 쓴다. 저장소는 메모리다 — 백엔드 인스턴스가 1개라는 배포
  * 전제(CLAUDE.md)를 따르고, 재기동 때 한 번 더 기록되는 것은 허용한다(기록이 줄어드는 쪽이 아니라 느는 쪽 오차).
@@ -64,10 +64,14 @@ public class AuditRecorder {
     /** {@code detail} 에서 응답에 실린 학생 id 를 담는 키 — 묶기 키(행위자·학생)의 학생 쪽이다. */
     private static final String STUDENT_IDS_KEY = "student_ids";
 
+    /** {@code detail} 에서 응답에 실린 L3 필드명 목록을 담는 키 — 묶기 키의 필드 쪽이다. */
+    private static final String FIELDS_KEY = "fields";
+
     /** 묶기 기록이 이만큼 쌓이면 창이 지난 것을 치운다 — 창 안의 행위자·학생 수가 이 값을 넘을 일은 드물다. */
     private static final int PRUNE_THRESHOLD = 10_000;
 
-    private record ViewedStudent(Long actorAccountId, String studentId) {
+    /** 묶기 키 — 행위자·학생·<b>조회한 필드 묶음</b>. 필드가 다르면 다른 접근이라(명단의 사진·특이사항 vs 보호자 원번호) 서로를 가리지 않는다(Ruling 521). */
+    private record ViewedStudent(Long actorAccountId, String studentId, String fields) {
     }
 
     private final AuditLogRepository auditLogRepository;
@@ -162,7 +166,8 @@ public class AuditRecorder {
         }
         List<String> fresh = new ArrayList<>();
         for (Object studentId : studentIds) {
-            ViewedStudent viewed = new ViewedStudent(actorAccountId, String.valueOf(studentId));
+            ViewedStudent viewed = new ViewedStudent(actorAccountId, String.valueOf(studentId),
+                    String.valueOf(detail.get(FIELDS_KEY)));
             boolean[] isNew = {false};
             lastRecordedAt.compute(viewed, (key, last) -> {
                 if (last != null && now.isBefore(last.plus(DATA_ACCESS_DEDUP_WINDOW))) {

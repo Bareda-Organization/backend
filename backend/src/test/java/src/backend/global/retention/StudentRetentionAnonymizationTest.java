@@ -10,11 +10,13 @@ import java.util.Map;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.util.AopTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 import src.backend.academy.repository.AcademyRepository;
@@ -46,8 +48,14 @@ class StudentRetentionAnonymizationTest {
 
     private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3};
 
-    @Autowired
+    /**
+     * 프록시 안쪽의 실제 스케줄러 — 프록시({@code @SchedulerLock} 어드바이스)를 거치면 잠금 갱신이 이 시험의 트랜잭션에 걸린
+     * 행까지 커밋해 롤백되지 않는다(실측: 학원 행이 시험 뒤에도 남음). 잠금은 이 시험의 대상이 아니다.
+     */
     private RetentionCleanupScheduler scheduler;
+
+    @Autowired
+    private RetentionCleanupScheduler schedulerProxy;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -86,6 +94,11 @@ class StudentRetentionAnonymizationTest {
     private RunRepository runRepository;
 
     private long academyId;
+
+    @BeforeEach
+    void unwrapScheduler() {
+        scheduler = AopTestUtils.getUltimateTargetObject(schedulerProxy);
+    }
 
     private long runId;
 

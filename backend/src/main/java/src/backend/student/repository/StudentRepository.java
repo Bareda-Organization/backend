@@ -91,6 +91,11 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     @Query("select s.id from Student s where s.deletedAt < :cutoff and s.anonymizedAt is null order by s.id")
     List<Long> findIdsForAnonymization(@Param("cutoff") OffsetDateTime cutoff, Limit limit);
 
+    /** 파기 대상 학생 묶음을 id 로 읽는다(Ruling 480 ②·520) — {@link #findIdsForAnonymization} 이 골라낸 id 만 넘긴다. */
+    @AcademyScopeExempt(reason = "보존 정리 배치(Ruling 480 ②) — id 는 전 학원의 파기 대상 조회가 골라낸 값이고, "
+            + "부르는 주체가 스케줄러라 요청 주체의 소속이 부재")
+    List<Student> findAllByIdIn(Collection<Long> ids);
+
     /** 계정이 연결된 학생들을 계정 id 로 한 번에 읽는다 — 알림 수신자(학생 계정)마다 다시 조회하지 않으려고(BR-143). */
     List<Student> findAllByAcademyIdAndAccountIdIn(Long academyId, Collection<Long> accountIds);
 }

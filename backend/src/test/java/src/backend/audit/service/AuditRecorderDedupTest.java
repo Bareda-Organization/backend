@@ -79,7 +79,7 @@ class AuditRecorderDedupTest {
         roster(actor, "1", "2", "3");
 
         List<AuditLog> rows = auditLogRepository.findAll().stream()
-                .filter(log -> actor == log.getActorAccountId()).toList();
+                .filter(log -> Long.valueOf(actor).equals(log.getActorAccountId())).toList();
         assertThat(rows).hasSize(2);
         assertThat(studentIdsOf(rows.get(1))).as("이미 기록한 1·2 는 빼고 새로 실린 3 만").containsExactly("3");
     }

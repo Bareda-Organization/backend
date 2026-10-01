@@ -93,7 +93,7 @@ public class StudentAnonymizationService {
 
     /** 받은 학생 id 묶음을 파기한다 — 묶음 크기는 호출부(배치 상한)가 정한다. */
     public void anonymize(List<Long> studentIds) {
-        studentRepository.findAllById(studentIds).stream()
+        studentRepository.findAllByIdIn(studentIds).stream()
                 .filter(student -> student.getAnonymizedAt() == null)
                 .map(Student::getPhotoUrl)
                 .filter(Objects::nonNull)
@@ -103,7 +103,7 @@ public class StudentAnonymizationService {
 
     private void purge(List<Long> studentIds) {
         OffsetDateTime now = OffsetDateTime.now(clock);
-        List<Student> students = studentRepository.findAllById(studentIds).stream()
+        List<Student> students = studentRepository.findAllByIdIn(studentIds).stream()
                 .filter(student -> student.getAnonymizedAt() == null)
                 .toList();
         if (students.isEmpty()) {
@@ -112,7 +112,7 @@ public class StudentAnonymizationService {
         List<Long> ids = students.stream().map(Student::getId).toList();
         List<Long> accountIds = students.stream().map(Student::getAccountId).filter(Objects::nonNull).toList();
         // 엔티티 변경을 벌크 쿼리보다 먼저 한다 — 벌크 쿼리는 flush 뒤 영속성 컨텍스트를 비워, 그 뒤에 바꾼 엔티티는 저장되지 않는다
-        accountRepository.findAllById(accountIds)
+        accountRepository.findAllByIdIn(accountIds)
                 .forEach(account -> account.anonymizeForRetention(Student.ANONYMIZED_NAME, now));
         students.forEach(student -> student.anonymize(now));
         if (!accountIds.isEmpty()) {
