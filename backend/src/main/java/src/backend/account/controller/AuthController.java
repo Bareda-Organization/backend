@@ -46,6 +46,7 @@ import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.AuthenticatedOnly;
 import src.backend.global.security.authz.PublicEndpoint;
+import src.backend.global.security.gate.AllowedWhenPasswordChange;
 import src.backend.global.security.gate.AllowedWhenPending;
 
 /**
@@ -97,7 +98,8 @@ public class AuthController {
                 result.role().name().toLowerCase(Locale.ROOT),
                 result.status().name().toLowerCase(Locale.ROOT),
                 String.valueOf(result.accountId()),
-                academy);
+                academy,
+                result.mustChangePassword());
 
         ResponseEntity.BodyBuilder responseBuilder = ResponseEntity.ok();
         if (isWeb) {
@@ -141,6 +143,7 @@ public class AuthController {
      */
     @AuthenticatedOnly
     @AllowedWhenPending
+    @AllowedWhenPasswordChange
     @Operation(summary = "로그아웃 (AUTH-09)")
     @PostMapping("/auth/logout")
     public ResponseEntity<Void> logout(@AuthenticationPrincipal AuthUser authUser,
@@ -167,6 +170,7 @@ public class AuthController {
      * 세션이면 브라우저가 refresh 쿠키를 자동으로 함께 보낸다 — Task 4 판단, 보고서 ⑥).
      */
     @AuthenticatedOnly
+    @AllowedWhenPasswordChange
     @Operation(summary = "비밀번호 변경 (AUTH-07)")
     @PostMapping("/auth/password")
     public ResponseEntity<Void> changePassword(@AuthenticationPrincipal AuthUser authUser,

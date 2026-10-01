@@ -98,6 +98,33 @@ class NotificationControllerTest {
                 .andExpect(jsonPath("$.data.items[0].type").value("boarding"));
     }
 
+    // ── R46-FUFEAT ③ — 매니저 알림이 회차를 가리킨다(Ruling 542) ──────────────
+
+    @Test
+    @DisplayName("R46-FUFEAT ③ — run_id 가 있는 알림은 목록에 run_id 를 싣고, 없는 알림은 키는 있고 값은 null 이다")
+    void run_id_는_회차를_가리키는_알림에만_값이_있다() throws Exception {
+        NotificationLogFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long accountId = fixtures.account(academyId, "기사1", Role.DRIVER);
+        jdbcTemplate.update("""
+                INSERT INTO notification_log (academy_id, recipient_account_id, recipient_name, recipient_role,
+                                              run_id, type, title, body, dedup_key)
+                VALUES (?, ?, '기사1', 'driver', 7777, 'route_changed', '노선 변경', '노선이 바뀌었습니다', 'r46-run-id-1')
+                """, academyId, accountId);
+        fixtures.notification(academyId, accountId, "기사1", Role.DRIVER, null, null, NotificationType.RUN_STARTED,
+                "운행 시작", "시작", false, now(), now(), null);
+
+        mockMvc.perform(get("/api/v1/notifications").param("type", "route_changed")
+                .header("Authorization", 토큰(accountId, academyId, Role.DRIVER)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].run_id").value(7777));
+        mockMvc.perform(get("/api/v1/notifications").param("type", "run_started")
+                .header("Authorization", 토큰(accountId, academyId, Role.DRIVER)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].run_id").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.items[0]", org.hamcrest.Matchers.hasKey("run_id")));
+    }
+
     // ── goal 1 — unread_only 필터 ─────────────────────────────────────────
 
     @Test

@@ -1024,10 +1024,10 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 482 | 보호자 전화 — 누를 때만 원번호 단건 조회 + 감사(사용자 결정) | 본문 §8.79(결정 기록) · 구현은 R46-PRIVACY |
 | 483 | 배포·외부 연동(FCM·이메일·SMS·텔레그램·카카오)은 자리만 — 키 없이 빌드·시험 통과(사용자 결정) | 본문 §8.79(결정 기록) · 구현은 R46-INTEG |
 | 490 | 요일 다중 등록은 서버 일괄 API 없이 웹이 요일마다 기존 POST 를 차례로(부분 실패 표시) | `docs/frontend/IMPLEMENTATION_PLAN §5.21` |
-| 491 | 본인 비밀번호 변경은 헤더 버튼 + 대화상자 · 강제 변경 표식은 만들지 않음 | `docs/frontend/IMPLEMENTATION_PLAN §5.21` |
+| 491 | 본인 비밀번호 변경은 헤더 버튼 + 대화상자 · 강제 변경 표식은 만들지 않음 → **`540`·`544` 로 해소** | `docs/frontend/IMPLEMENTATION_PLAN §5.21` |
 | 492 | 노선 변경 확인 표시는 확정·운행 중 회차의 배치된 사람에게만 | `docs/frontend/IMPLEMENTATION_PLAN §5.21` |
 | 493 | 첫날 체크리스트는 onboarding 기능이 다섯 목록을 직접 읽음 | `docs/frontend/IMPLEMENTATION_PLAN §5.21` |
-| 494 | 비상 대응 조치 메모는 이번에 만들지 않음(서버 필드 부재 — 백엔드 후속) | `docs/frontend/IMPLEMENTATION_PLAN §5.21` |
+| 494 | 비상 대응 조치 메모는 이번에 만들지 않음(서버 필드 부재 — 백엔드 후속) → **`541`·`545` 로 해소** | `docs/frontend/IMPLEMENTATION_PLAN §5.21` |
 | 495 | 가입 승인 후보 — 신청자 이름 미리 검색 · 동명이인 구분 · 이미 가입한 학생 비활성(account_linked) | `docs/frontend/IMPLEMENTATION_PLAN §5.21` · `docs/IMPLEMENTATION_PLAN §8.78` |
 | 496 | 주소 없는 옛 학원은 상태 변경 때 address 키 없이 저장 | `docs/frontend/IMPLEMENTATION_PLAN §5.21` |
 | 497 | 전체 관제 요약은 GET /admin/emergencies?status=open 한 번으로 학원별 미확인 비상 집계 | `docs/frontend/IMPLEMENTATION_PLAN §5.21` |
@@ -1072,6 +1072,14 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 552 | 목록 보강 — 노선 목록 `stop_count`(정차지 수) · 학생 목록 이름 자연 정렬(서버 정렬) | 본문 §8.83 · `API_SPEC §5.9·§5.11` |
 | 553 | 전화번호 복구는 번호의 가입 여부를 응답으로 드러내지 않는다 — 발급 응답·빈도 제한·대조 실패가 가입 여부와 무관하게 같다(`Ruling 513` 의 미등록 404 한계를 닫음) | 본문 §8.83 · `API_SPEC §2.9` |
 | 554 | 위치 요청 SQL 줄이기는 이번 갈래에서 착수하지 않는다 — 실측 기준값 요청당 8건, 무효화 설계안은 아래 절 | 본문 §8.83 |
+| 540 | 임시 비밀번호 강제 변경 — 계정 표식(`must_change_password`) · 초기화가 켜고 본인 변경이 끔 · 켜진 동안 변경·me·로그아웃 3개 외 API 는 403 `PASSWORD_CHANGE_REQUIRED` | 본문 §8.82 |
+| 541 | 비상 확인의 조치 메모 — `emergency_alert.ack_memo`(200자 · 선택) · 확인 요청 선택 본문 · `acked_by.memo` 표시 | 본문 §8.82 |
+| 542 | 알림 `run_id` — `notification_log.run_id` · 노선·배치 변경 알림만 채움 · 응답은 추가만 | 본문 §8.82 |
+| 543 | 전체 관제 지연·확정 실패 집계 — 기존 API 로 못 세서 `GET /admin/runs/attention`(문제 있는 학원만) | 본문 §8.82 |
+| 544 | 강제 변경 화면 — 웹은 가드가 취소 없는 대화상자 · 앱은 라우터 고정(뒤로 가기 없음 · 로그아웃만) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.24` |
+| 545 | 조치 메모 입력은 비상 상세 대화상자에서만 · 행 [확인] 은 메모 없이 그대로 · 메인 관리자 상세 표시 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.24` |
+| 546 | 알림 눌러 이동 — `run_id` 있는 노선 변경 → 노선 화면 · 배치 변경 → 기사 운전 / 동승자 명단 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.24` |
+| 547 | 전체 관제 `지연·확정 실패가 있는 학원` 요약 띠 · 학원 선택 목록 표시 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.24` |
 
 
 ## 8.73 ⚖ `R46-BE` — 성능 개선(감사 제외) + 바로 고칠 것 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 410~419 · 백엔드 갈래)
@@ -1270,7 +1278,7 @@ R46 운영(`IMPLEMENTATION_PLAN §8.76`) 위에 사용자 결정(`Ruling 480`·`
 
 | # | 완료 조건 | 확인 수단 |
 |:-:|---|---|
-| 1 | 키·설정 파일 없이 백엔드·웹·Flutter 4곳 빌드·시험 통과 | 백엔드 전체 · 웹 `tsc`·`lint`·vitest · 4패키지 `analyze`·`test --exclude-tags real_backend` |
+| 1 | 초기화 → 표식 · 로그인 응답 표식 · 변경 뒤 해제 · 표식 중 다른 API 거부 · 웹·매니저 앱 강제 이동 | 백엔드 전체 · 웹 `tsc`·`lint`·vitest · 4패키지 `analyze`·`test --exclude-tags real_backend` |
 | 2 | 앱: 로그인 뒤 토큰 등록 호출 · 로그아웃 때 해제 — 가짜 토큰 공급자로 시험 | `device_registrar_test`(8) · 앱 2종 배선 시험 · `device_registration_panel_push_source_test`(3) · 결함 심기 9종 |
 | 3 | SMS: 비활성 → 503 유지 · 가짜 발송기 활성 → 재개 조건대로 동작 · 로그에 번호·코드 원문 0 | `AuthControllerTest` · `AccountRecoveryFlowTest` 9건 · `LoggingSmsSenderTest` 3건 · 결함 심기 7종 |
 | 4 | 준비물 표의 키 이름이 코드의 실제 이름과 일치 | 아래 결과 — 키별 `grep` |
@@ -1302,7 +1310,7 @@ R46 개선 항목 중 개인정보 갈래다. 입력은 사용자 결정 2건 �
 |:-:|---|---|
 | 1 | 퇴원 89일 → 개인정보 유지 · 91일 → 익명화 · 승하차 이력 행 수 불변 · 사진 파일 삭제 · 재실행해도 같은 결과(멱등) | `StudentRetentionAnonymizationTest` · 결함 심기(기간 상수 0일 · 사진 삭제 호출 제거) |
 | 2 | 파기 대상 밖(재학생 · 90일 안 퇴원생)은 한 필드도 안 바뀜 | 같은 시험 — 행 전체 비교 |
-| 3 | 보호자 전화 API — 배정 회차 탑승 학생 200 · 배정 안 된 회차 403 · 명단 밖 탑승자 404 · 다른 학원 403 · 감사 행 1(10분 안 재호출은 묶임) | `RiderGuardianPhoneControllerTest` 7건 · 결함 심기(배정 확인 제거) |
+| 3 | 알림 탭 → 관련 화면 · payload 추가가 기존 시험을 깨지 않음 | `RiderGuardianPhoneControllerTest` 7건 · 결함 심기(배정 확인 제거) |
 | 4 | 매니저 앱 — [전화] → 조회 → `tel:<원번호>` · 실패 시 안내 · 원번호 화면 표시 0 | `roster_guardian_call_test.dart` 7건(가짜 런처) |
 | 5 | 백엔드 전체 · Flutter 4패키지 · 실서버 계약(매니저·core)을 `:8420` 에만 | 결과 XML · 종료 코드 |
 | 6 | 정본 반영 — `Ruling 480 ②`·`482`·`520~524` · `§11` 색인 · 깨진 참조 0 | `build.py` |
@@ -1336,3 +1344,31 @@ R46 작업 창 보고서(`R46-AUDIT` · `R46-OPS` · `R46-OPS2` · `R46-WEBF` ·
 **결과 (2026-10-01)** — 목표 1 ✅ 두 시험이 백엔드 전체 `--rerun`(349클래스 · **1,992건 · 실패 0 · 오류 0 · 건너뜀 0**, `NAVER_DIRECTIONS_*` 미설정) 안에서 통과. 목표 2 ✅ 3곳 RED(4건)→GREEN · 결함 심기 3종 전부 잡힘. 목표 3 ✅ 역방향 가드 2종 RED(정확히 `ROUTING_PROVIDER` 1건)→GREEN · 결함 심기 2종. 목표 4 ✅ 서버·웹 시험 + 결함 심기 6종(서버 4 · 웹 2). 목표 5a ✅ `AccountRecoveryFlowTest` 14건 · 결함 심기 5종 + 학부모 앱 1종. 목표 5 ⛔ **미착수(`Ruling 554`)** — 전 8건만 실측. 목표 6 ✅ 백엔드 위 합계 · 웹 `tsc` 0 · `eslint` 0 · vitest 130파일 762건(실서버 시험 제외). 목표 7 ✅ 깨진 참조 0. 목표 8 아래 정리 결과.
 
 **부수 1건** — 전체 실행의 첫 판에서 `RoutePathTransactionTest` 가 실패(`bus_no varchar(20)` 초과 — 기기 가동 시간이 길어져 `System.nanoTime()` 자릿수가 늚)했고, 이 갈래와 무관한 환경 문제라 `main` 에 이미 있는 수정 `c4213f35`(시험 2개 파일)를 **같은 내용으로 가져와**(`cherry-pick`) 다시 돌려 0건. 병합 때 같은 변경이 양쪽에 있어 충돌 없음.
+## 8.82 ⚖ `R46-FUFEAT` — 임시 비밀번호 강제 변경 · 비상 조치 메모 · 알림 회차 식별자 · 전체 관제 집계 (2026-10-01 · 분기점 `a2b29078` · 번호대 540~549 · 기능 후속 갈래)
+
+`R46-WEBF` 가 서버 필드 부재로 보류한 3건(`Ruling 491`·`494`·`497`)과 매니저 알림의 이동 근거(회차 식별자)를 서버에 더했다. 사용자 자리 비움 중이라 조율자가 "만든다" 로 정한 갈래다(`DECISIONS` 10:40). 클라이언트 몫 판정(`Ruling 544~547`)은 `docs/frontend/IMPLEMENTATION_PLAN.md §5.24` 에 있다. 마이그레이션은 영속 환경 미적용 정책대로 `V1__init_schema.sql` 을 직접 고쳤다(컬럼 3개 · 같은 테이블을 다른 갈래가 고치는지 `git log main -- backend/src/main/resources/db` 로 확인 — 충돌 없음).
+
+### R46-FUFEAT 판정
+
+| Ruling | 판정 | 근거 |
+|:-:|---|---|
+| **540** | **임시 비밀번호 강제 변경은 서버가 막는다.** ① `account.must_change_password`(boolean NN default false). 관리자 초기화 두 경로(`§5.22` 관계자→학부모·학생·매니저, `§6.7` 메인 관리자→관계자)가 `Account.issueTemporaryPassword` 로 켜고, 본인 변경(`§2.8`)의 `Account.changePassword` 가 끈다 — 끄는 자리는 그 한 곳이다. ② 표식은 access 토큰의 `mustChangePassword` 클레임으로 간다(로그인·`refresh` 가 계정의 값을 싣는다 — 상태(`status`)와 같은 방식이라 요청마다 DB 를 읽지 않는다). `AuthUser` 는 5번째 성분 `mustChangePassword` 를 얻고 4-인자 생성자(표식 꺼짐)를 남겨 기존 호출 28곳이 그대로다. ③ 로그인(`must_change_password`)·`GET /me`(`must_change_password`) 응답에 항상 실린다. ④ **막는다 — 허용은 `POST /auth/password` · `GET /me` · `POST /auth/logout` 3개**(`@AllowedWhenPasswordChange` 표시). 그 밖은 `403 PASSWORD_CHANGE_REQUIRED`, STOMP 연결도 같다. 계정 상태 게이트(`AccountStatusGateInterceptor`)가 상태 판정 뒤에 같은 자리에서 판정한다(허용 목록 방식 — 새 엔드포인트의 기본값이 차단) | 표식만 두고 막지 않으면 클라이언트가 이동을 빼먹은 앱(학부모 앱은 아직 처리 없음)에서 임시 비밀번호를 영원히 쓸 수 있고, **임시 값은 초기화한 관리자가 알고 있다** — 서버가 마지막 방어선이어야 한다. 허용 3개는 바꾸고(변경) · 표식 상태를 알고(me) · 나갈 수 있는(로그아웃) 최소 집합이고 refresh 는 공개 엔드포인트라 게이트 밖이다. **한계(사양 §1.4 에 명시)** — 초기화 순간 이미 열려 있던 세션의 access 토큰은 만료까지 표식을 모른다(초기화가 refresh 를 전부 끊어 재로그인으로 이어진다). 보안 **강화**라 `ask` 대상이 아니다 |
+| **541** | **비상 확인에 선택 조치 메모를 남긴다.** `emergency_alert.ack_memo`(varchar(200) · NULL 허용). `POST /staff/emergencies/{id}/ack` 에 **선택 본문** `{memo}` — 본문이 없거나 `memo` 가 공백뿐이면 메모 `null`(앞뒤 공백은 지우고 저장), 200자 초과는 `422 VALIDATION_FAILED` 이고 확인되지 않는다. 확인과 **같은 조건부 UPDATE 한 문장**(`ackIfUnacked`)으로 써서 동시 확인에서 최초 확인자의 메모만 남는다. 응답은 `acked_by` 를 `{name, memo}` 로 확장 — 관계자 목록(`§5.16`)과 메인 관리자 목록(`§6.11`) 둘 다. 발신자(매니저) 앱의 `§4.15` 응답에는 싣지 않았다 | 길이 상한 200 은 발신 메모(`EmergencyRaiseRequest.memo`)와 같다. 따로 UPDATE 하면 최초 확인자가 아닌 쪽의 메모가 기록을 덮는다. 자유 문장이라 개인정보가 들어갈 수 있다는 `R46-WEBF Ruling 494` 의 우려는 발신 메모와 같은 수준(200자 · 학원 범위 · 관계자·메인 관리자만 조회)이라 같은 취급으로 둔다 — 보존은 `emergency_alert` 와 같다 |
+| **542** | **알림이 가리키는 회차를 싣는다.** `notification_log.run_id`(bigint NULL · FK 없음 — 논리적 부모, `ERD §4.2`). 채우는 곳은 매니저 알림 둘 — `RunRouteConfirmedNotificationListener`(`route_changed`) · `AssignmentChangedNotificationListener`(`assignment_changed`). `GET /notifications` 항목에 `run_id` 를 **추가만** 한다(없는 종류는 키는 있고 값 `null`). `NotificationDraft`·`NotificationLog.forOutbox` 는 기존 생성자를 남기고 과부하를 더해 기존 호출처·시험이 그대로다 | 알림 payload 에 회차 식별자가 없어 눌러서 갈 화면을 특정할 수 없었다(`R46-MGR` 이 "갈 화면 없음" 으로 남김). 응답은 추가만이라 학부모·학생 앱·웹 알림 로그의 기존 소비처가 영향 없다(키를 무시) |
+| **543** | **전체 관제 지연·확정 실패 집계는 기존 API 로 못 세서 최소 집계 API 를 만든다 — `GET /admin/runs/attention`(§6.15).** 기존 API 판정: 확정 실패는 `GET /admin/academies/{id}/runs/live` 의 `consecutive_failures` 로 알 수 있으나 학원마다 불러야 해 **학원 수에 비례**하고, **지연은 어느 응답에도 필드가 없다**(`delay_notice` 는 서버 안에만). 정의 — 지연 = 오늘 회차(임시 취소 제외) 중 지연 알림이 1건 이상이고 `finished` 가 아닌 회차(알림 여러 건이어도 한 번 · `EXISTS`) · 확정 실패 = 오늘 회차(임시 취소 제외) 중 `idle` 이고 `consecutive_failures > 0`. **문제 있는 학원만** 실어 응답이 문제 학원 수에 비례한다. 권한 `@CanMonitorAll`(메인 관리자) · 전수 목록 4곳 중 3곳 등재(경로변수 없는 핸들러라 `AcademyScopeHttpExhaustiveTest` 사례는 해당 없음) | 지연을 "도착 − 예정(`delay_minutes`)" 으로 정의하면 회차마다 정차 목록·ETA 를 읽어야 해 집계 쿼리가 무거워지고, 관계자가 "지연 알림이 나간 회차" 를 보고 싶다는 요구(`R46-WEBF Ruling 497`)와도 다르다. 확정 실패에 `idle` 조건을 둔 것은 확정되면 `consecutive_failures` 가 0 으로 돌아가지만(`ERD run`) 옛 값이 남은 행을 읽지 않기 위해서다 |
+
+`Ruling 548`·`549` 는 쓰지 않았다.
+
+### R46-FUFEAT 변경 요약
+
+| 변경 | 내용 |
+|---|---|
+| 스키마(`V1`) | `account.must_change_password` · `emergency_alert.ack_memo` · `notification_log.run_id` — 컬럼 3개 |
+| 새 엔드포인트 | `GET /admin/runs/attention` 1개(`§6.15`) — 전수 목록 `AccountStatusGateEndpoints` · `AuthFlowIntegrationTest`(112→113) · `ControllerAuthorizationConventionTest` 하한(113→114) |
+| 새 오류 코드 | `PASSWORD_CHANGE_REQUIRED`(403, `§8`) |
+| 응답 필드 추가 | 로그인·`/me` `must_change_password` · 알림 `run_id` · 비상 `acked_by.memo` |
+
+### R46-FUFEAT 목표 표
+
+| # | 완료 조건 | 확인 수단 |
+|:-:|---|---|

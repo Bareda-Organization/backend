@@ -95,7 +95,7 @@ public class StaffAccountCommandService {
             return null;
         }
         String temporaryPassword = temporaryPasswordGenerator.generate();
-        account.changePassword(passwordEncoder.encode(temporaryPassword));
+        account.issueTemporaryPassword(passwordEncoder.encode(temporaryPassword));
         return temporaryPassword;
     }
 

@@ -69,7 +69,8 @@ public class NotificationOutbox {
             NotificationLog appended = notificationLogRepository.saveAndFlush(NotificationLog.forOutbox(
                     draft.academyId(), draft.recipientAccountId(), draft.recipientName(),
                     draft.recipientRole(), draft.type(), draft.title(), draft.body(), draft.dedupKey(),
-                    OffsetDateTime.now(clock), draft.studentId(), draft.studentName(), draft.busNo()));
+                    OffsetDateTime.now(clock), draft.studentId(), draft.studentName(), draft.busNo(),
+                    draft.runId()));
             eventPublisher.publishEvent(new NotificationAppendedEvent(appended.getId()));
             return appended.getId();
         } catch (DataIntegrityViolationException e) {

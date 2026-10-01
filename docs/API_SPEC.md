@@ -120,6 +120,8 @@
 ⚠ **2026-08-25 정정 — 이 표가 원래 `pending` 을 "2개만" 으로 적어 `§2.10`·`§2.11` 과 모순이었다.** 두 절이 각각 명시한다 — `§2.10` "**전 역할 공통이며 `pending`·`rejected` 도 호출 가능** — 대기 화면이 상태를 알아야 함", `§2.11` "**인증된 전 역할(`pending` 포함 — 승인 결과 알림이 대상)**". **두 절의 근거가 구체적이고 기능적이라 이쪽이 이긴다** — `/me` 가 없으면 앱 재실행 후 `role`·`status` 재취득 수단이 부재해 **대기 화면 분기 자체가 성립하지 않고**(`§2.6` 응답이 토큰 2개뿐), `/me/devices` 가 없으면 **승인 결과 푸시를 받을 단말이 등록되지 않는다.** "2개" 라는 수치는 그 두 절이 신설되기 전 판의 잔존으로 보인다.
 | `blocked` | 실패 `403 AUTH_ACCOUNT_BLOCKED` | 접근 부재 — 해제는 메인 관리자 |
 
+**임시 비밀번호 강제 변경 게이트** (2026-10-01 `Ruling 540`) — 관리자가 비밀번호를 초기화한 계정(§5.22 · §6.7)은 `account.must_change_password=true` 이고, 이 표식이 켜진 동안 **`POST /auth/password`(§2.8) · `GET /me`(§2.10) · `POST /auth/logout`(§2.7) 3개 외 전 API 는 `403 PASSWORD_CHANGE_REQUIRED`**(WebSocket 연결 포함). 계정 상태와 무관하게 겹쳐 걸린다 — 상태 게이트를 먼저 통과해야 한다. 표식은 로그인·재발급이 access 토큰에 싣는다(§1.4 의 상태와 같은 방식이라 **초기화 순간 이미 열려 있던 세션은 토큰이 만료돼 재발급될 때까지 표식을 모른다** — 초기화는 refresh 토큰 전량 무효화(C-14)를 함께 하므로 그 세션은 재로그인으로 이어진다). 표식을 내리는 길은 **본인 비밀번호 변경(§2.8) 하나**다.
+
 **판정 위치는 서버 인가 계층** (C-01 · FEATURE_SPEC §3.6). 채택 근거는 PRD §6.4.
 
 ### 1.5 학원 격리
@@ -405,6 +407,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | `status` | enum | `pending` · `active` · `rejected` |
 | `account_id` | string | 계정 식별자 |
 | `academy` | object | `id` · `name` · `contact` — `system_admin` 은 `null`. **`contact`** 는 학원 대표 연락처(`academy.contact`) — 학원이 등록하지 않았으면 **키는 있고 값이 `null`**. 매니저 앱이 통신 두절로 비상 신고가 못 나갔을 때 학원에 전화하는 번호다(`Ruling 460`) |
+| `must_change_password` | boolean | **임시 비밀번호 강제 변경 표식**(`Ruling 540`) — 관리자가 초기화한 임시 비밀번호로 로그인했으면 `true`. 항상 값이 있다(`false` 포함). 참이면 클라이언트는 비밀번호 변경 화면에 고정한다(§1.4) |
 
 - `X-Client-Type: web` 이면 응답 헤더에 `Set-Cookie: refresh_token=…; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth; Max-Age={refresh 만료까지의 초}` 가 붙는다 (§1.2.1).
 - `pending` · `rejected` 도 **로그인 성공 + 토큰 발급**. 접근 범위만 §1.4 로 축소.
@@ -449,6 +452,8 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | `new_password` | string | ● | 새 비밀번호 — UTF-8 72바이트 이하(§2.2) |
 
 **에러** — `401 INVALID_CREDENTIALS` · `422 VALIDATION_FAILED`. 성공 시 기존 refresh 토큰 전량 무효화 — 웹 호출이면 §2.7 과 같은 쿠키 삭제 지시를 함께 반환.
+
+**임시 비밀번호 강제 변경 표식(`must_change_password`)이 켜진 계정도 이 호출은 허용**되고(§1.4), **성공하면 표식이 내려간다**(`Ruling 540`). refresh 토큰이 끊기므로 새 비밀번호로 다시 로그인해야 하고, 그 로그인의 토큰에는 표식이 없다.
 
 ### 2.9 POST /auth/recover
 
@@ -499,6 +504,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | `student_id` | string | ○ | `role=student` 일 때 **본인 학생 레코드** |
 | `manager_id` · `manager_role` | string · enum | ○ | `role=driver`·`escort` 일 때 |
 | `linked_student_count` | integer | ○ | `role=parent` 일 때 연결 자녀 수 |
+| `must_change_password` | boolean | ● | 임시 비밀번호 강제 변경 표식(§2.5 와 같다 · `Ruling 540`) — 앱 재실행·새로고침 때도 변경 화면으로 보내려고 싣는다. 이 표식이 켜진 동안에도 **이 호출은 허용**(§1.4) |
 
 **이 엔드포인트가 필요한 이유 둘.** ① **학생 계정이 본인 `student_id` 를 얻을 경로가 부재** — `GET /me/students`(§3.1)는 학부모 전용이고 학생용 조회는 전부 `/students/{id}/...` 형태라, 이것이 없으면 학생 앱의 첫 화면부터 호출이 불가. ② `POST /auth/refresh`(§2.6) 응답이 토큰 2개뿐이라 **앱 재실행 후 `role`·`status` 재취득 수단이 부재** — `pending` 화면 분기가 성립하지 않음.
 
@@ -799,6 +805,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | `student_id` · `student_name` | string | ○ | 대상 자녀 |
 | `sent_at` | datetime | ● | 발송 시각 |
 | `read_at` | datetime | ○ | 읽음 시각 |
+| `run_id` | string | ○ | **알림이 가리키는 회차**(`Ruling 542`) — 매니저 알림 `route_changed` · `assignment_changed`(§9.7)만 값이 있고, 그 밖의 종류는 **키는 있고 값이 `null`**. 매니저 앱이 알림 행을 눌러 그 회차의 화면(노선·운전·명단)으로 가는 근거다. 기존 소비처는 이 필드를 무시해도 영향이 없다(추가만) |
 | `popup` | boolean | ● | 팝업 노출 대상 여부 (NTF-09) — 비상 2종(`emergency`·`emergency_canceled`)만 `true` |
 | `unread_count` | integer | ● | 봉투 레벨 — 미읽음 배지 |
 
@@ -2095,13 +2102,15 @@ STU-05) — 화면이 "이 자리에 이미 있다" 를 알려 관계자가 같�
 | `rider_count` | integer | ● | 발신 시점 회차에 배정된 라이더 전원 수(승하차 상태 무관) |
 | `contacts` | array | ● | 기사·동승자 연락처 |
 | `raised_at` · `acked_at` · `canceled_at` | datetime | ● / ○ / ○ | |
-| `acked_by` | object | ○ | 확인한 관계자 |
+| `acked_by` | object | ○ | 확인한 관계자 — `name` · **`memo`**(확인할 때 남긴 **조치 메모**, 없으면 `null` · `Ruling 541`) |
 
 `POST /staff/emergencies/{id}/ack` — 접수 응답. 발신자 앱에 "학원이 확인했습니다" 표시. 확인 이력(누가·언제) 저장. **이미 확인된 건 재확인은 `409 ALREADY_ACKED`**.
 
+**요청 본문(선택)** — `memo`(string, 선택, **200자 이하**) — 확인과 함께 남기는 **조치 메모**(`Ruling 541`, `119 신고 완료` 같은 사후 조치 기록). **본문 자체가 없어도, `memo` 가 없거나 공백뿐이어도 확인은 그대로 동작**하고 그때 메모는 `null`. 앞뒤 공백은 지우고 저장하며, 최초 확인자의 메모만 남는다(확인과 같은 조건부 UPDATE 한 문장). `[확인]` 은 알림을 봤다는 표시이지 조치를 마쳤다는 뜻이 아니라는 `R46-WEBF Ruling 494` 의 문구는 그대로다 — 조치 내용을 남기고 싶을 때만 메모를 쓴다.
+
 **행 수 상한** — `items[]` 는 접수 시각 역순으로 **최대 200건**(2026-09-30 BR-228 · `§6.11` 도 같다). 기본값 `open` 은 미확인분만이라 사실상 닿지 않고, `acked`·`canceled` 를 오래 쌓았을 때의 상한이다. `unacked_count` 는 이 상한과 무관하다. 더 오래된 건은 `date` 로 좁힌다(`§6.11` 은 `date` 가 없어 상한 밖 이력을 볼 수단이 아직 없다).
 
-**에러** — `404 EMERGENCY_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163) · `409 ALREADY_ACKED`
+**에러** — `404 EMERGENCY_NOT_FOUND`(대상 부재 · 타 학원 — 존재 비노출, Ruling 163) · `409 ALREADY_ACKED` · `422 VALIDATION_FAILED`(`memo` 200자 초과 — 확인되지 않는다)
 
 ### 5.17 GET /staff/notifications
 
@@ -2207,7 +2216,7 @@ STU-05) — 화면이 "이 자리에 이미 있다" 를 알려 관계자가 같�
 | 처리 | 내용 |
 |---|---|
 | 대상 | **같은 학원**의 `parent` · `student` · `driver` · `escort` 계정. 관계자 계정은 §6.7(메인 관리자) |
-| 효과 | 비밀번호 교체 · refresh 토큰 전량 무효화(C-14) · 감사 기록(`action=update`) |
+| 효과 | 비밀번호 교체 · refresh 토큰 전량 무효화(C-14) · 감사 기록(`action=update`) · **`must_change_password=true`**(임시 비밀번호 강제 변경 — 그 계정은 본인이 바꿀 때까지 §2.8·§2.10·§2.7 외 API 를 못 쓴다, §1.4 · `Ruling 540`) |
 | 차단 계정 | 초기화는 차단을 풀지 않음 — 해제는 메인 관리자(C-11 · §6.12) |
 
 SMS 연동(`PRD` F-05) 전까지 §2.9 가 `503` 이라 **학원 사용자의 유일한 복구 경로**다.
@@ -2317,7 +2326,7 @@ SMS 연동(`PRD` F-05) 전까지 §2.9 가 `503` 이라 **학원 사용자의 �
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|:-:|---|
 | `name` · `phone` · `email` | string | ○ | 정보 수정 |
-| `reset_password` | boolean | ○ | 비밀번호 초기화 — 응답에 임시 비밀번호 1회 반환 |
+| `reset_password` | boolean | ○ | 비밀번호 초기화 — 응답에 임시 비밀번호 1회 반환. **그 계정에 `must_change_password=true` 가 서서** 본인이 바꿀 때까지 다른 API 가 막힌다(§1.4 · `Ruling 540`) |
 | `status` | enum | ○ | `active` · `inactive` — 퇴사 시 즉시 권한 회수 |
 
 관계자 계정은 학생 개인정보 전체에 접근 — 퇴사 즉시 비활성화가 요건.
@@ -2453,6 +2462,8 @@ SMS 연동(`PRD` F-05) 전까지 §2.9 가 `503` 이라 **학원 사용자의 �
 | `staff_acked` | boolean | ● | **학원 관계자의 확인 여부** |
 | `elapsed_since_raised` | integer | ● | 발신 후 경과 초. 관계자 미응답 상황을 운영사가 즉시 인지 |
 
+`acked_by` 는 `§5.16` 과 같이 `{name, memo}` 객체다 — **`memo`** 는 학원 관계자가 확인할 때 남긴 조치 메모(`Ruling 541`)라 메인 관리자도 상세에서 본다(없으면 `null`).
+
 관제 지도에서 발신 회차를 강조 표시.
 
 **행 수 상한** — `items[]` 는 접수 시각 역순 **최대 200건**(`§5.16` 과 같다, 2026-09-30 BR-228).
@@ -2512,6 +2523,26 @@ O-04 · SYS-01·02. 정본 API명세서에 경로 미기재 — 감사 로그 �
 **감사** — `audit_log` 에 `category=data_access` · `action=update` · `target_type=run` · `target_id=runId` 로 1행, `detail` 에 `{action: "run.force_confirm", reason, fallback_used, route_version_id}` 기록(누가·언제·왜·폴백 여부, `TECH_DECISIONS §14.3`). ⚠ `action` CHECK 도메인(`ERD audit_log` 7종)과 `GET /admin/audit-logs` 의 action 투영(`API_SPEC §6.12`)을 넓히지 않는다 — 구별 문자열은 `detail.action` 에 둔다(Ruling 260, 2026-09-05).
 
 **에러** — `404 RUN_NOT_FOUND` · `409 RUN_CANCELED`(임시 취소된 회차 — `Ruling 375`) · `409 RUN_NOT_IDLE`(회차가 `idle` 아님) · `409 RUN_NOT_DUE`(`confirm_at` 미도래) · `422 VALIDATION_FAILED`(`reason` 공백)
+
+### 6.15 GET /admin/runs/attention
+
+전체 관제 — **학원별 오늘 지연·확정 실패 집계** (O-05, 2026-10-01 `Ruling 543`). 관제 화면이 어느 학원부터 봐야 하는지 알리는 요약이다.
+
+**권한** 메인 관리자 · **요청** 본문·쿼리 부재 · **날짜는 *오늘* 고정**(§6.8 과 같은 서버 시계)
+
+**응답** — `items[]` — **문제가 있는 학원만** 싣는다(둘 다 0 인 학원은 목록에 없다 · `academy_id` 오름차순).
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|:-:|---|
+| `academy_id` | integer | ● | 학원 식별자 |
+| `delayed_runs` | integer | ● | **지연 회차 수** — 오늘 회차 중 지연 알림(`POST /runs/{runId}/delay`, §4.9)이 **1건 이상 나갔고 아직 `finished` 가 아닌** 회차. 알림이 여러 건이어도 회차는 한 번만 센다 |
+| `confirm_failed_runs` | integer | ● | **확정 실패 회차 수** — 오늘 회차 중 아직 `idle` 인데 `consecutive_failures > 0`(§6.8 의 같은 필드)인 회차 — 강제 확정(§6.14) 대상 후보 |
+
+**공통 제외** — 임시 취소된 회차(`Ruling 375`) · 오늘이 아닌 회차.
+
+**왜 새 엔드포인트인가** — 기존 API 로는 셀 수 없다. 확정 실패는 학원마다 §6.8 을 불러야 알 수 있어 **학원 수에 비례해 요청이 늘고**, 지연은 어느 응답에도 필드가 없다(`R46-WEBF Ruling 497`이 지연·확정 실패 집계를 서버 몫으로 남겼다).
+
+**에러** — §1.11 공통 항목 외 고유 에러 부재.
 
 ---
 
@@ -2587,6 +2618,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `AUTH_ACCOUNT_BLOCKED` | 403 | 로그인 실패 **5회** 누적으로 계정 단위 차단. 해제는 메인 관리자 (C-11) |
 | `SIGNUP_TARGET_BLOCKED` | 409 | 가입 승인(`§5.2`·`§6.5`) 대상 계정이 `blocked` — **요청 주체는 정상 권한 보유**. `pending` 계정도 로그인은 되므로(`§1.4`) 승인 대기 중 실패 5회로 차단될 수 있고, 그때 통과시키면 승인이 차단을 조용히 풀어 해제 권한(AUTH-06)을 우회한다. ⚠ **위 `AUTH_ACCOUNT_BLOCKED` 를 재사용하지 않는다** — 그쪽은 **차단된 계정 자신의 호출**(`§1.11`)이라 승인 화면에 "차단된 계정입니다. 관리자에게 문의하세요" 가 뜨면 승인자가 자신이 차단된 것으로 오해한다. ⚠ **403 이 아니라 409 인 이유** — 요청 주체는 인가돼 있고 막는 것은 **대상 자원의 상태**다. `§8.3` `APPROVAL_ALREADY_DECIDED` 와 같은 형태이며, 같은 승인 경로의 같은 성격의 거부가 403·409 로 갈리면 클라이언트가 분기를 두 벌 만든다 (2026-08-26 신설, Ruling 147) |
 | `AUTH_REJECTED` | 403 | `rejected` 계정이 **허용 6개**(`pending` 의 5개 + `POST /auth/signup/reapply`) 밖 호출. `AUTH_PENDING` 과 코드를 나눈 이유 — `§1.4` 가 대기 화면에 **거절 사유**를 노출하라고 규정하는데, 두 상태가 같은 코드를 쓰면 클라이언트가 "승인 대기 중" 과 "거절됨" 을 구별할 수단이 부재 (2026-08-25 신설) |
+| `PASSWORD_CHANGE_REQUIRED` | 403 | **임시 비밀번호 강제 변경**(`§1.4` · `Ruling 540`) — 관리자가 초기화한 계정(`must_change_password=true`)이 `POST /auth/password`(§2.8) · `GET /me`(§2.10) · `POST /auth/logout`(§2.7) 외 API 를 호출. 401 이 아니라 403 — 인증은 됐고 비밀번호 변경이 선행 조건이다. 클라이언트는 이 코드를 받으면 세션을 다시 확인(`GET /me`)해 변경 화면으로 보낸다 |
 | `AUTH_STAFF_INACTIVE` | 403 | 퇴사 처리된(`academy_staff.status='inactive'`) 관계자 계정의 **로그인**. `§6.7` 이 "퇴사 즉시 권한 회수" 를 요건으로 규정하는데, refresh 토큰 무효화만으로는 **그 순간의 세션**만 끊겨 비밀번호를 아는 퇴사자가 재로그인해 `role=staff` 권한을 그대로 되찾는다. 판정 대상은 `academy_staff` **행이 있고 그 상태가 `inactive` 인 경우뿐**이다 — 행이 부재한 것은 퇴사가 아니라 **아직 승인 전**(`§6.4` 승인 큐의 축)이라 `pending` 관계자의 대기 화면 진입을 막지 않는다. `account.status` 에는 대응 값이 부재하다(4종에 `inactive` 없음) (2026-08-26 신설, Ruling 143) |
 | `DUPLICATE_LOGIN_ID` | 409 | 가입 시 로그인 아이디 중복 |
 | `REAPPLY_NOT_ALLOWED` | 409 | `rejected` 아닌 상태에서 재신청 |
@@ -2773,8 +2805,8 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `approval_requested` | ② 구간 요청 접수 (REQ-05) | 관계자 | — |
 | `intent_changed` | 학부모 토글 | 관계자 | — |
 | ~~`link_requested`~~ | **폐지(Ruling 324)** — 자녀 연결 요청(§3.2) 단계 자체가 없어졌다. 실제로 발송 경로가 배선된 적이 없었다(코드에 정의만 있고 호출부 부재) | — | — |
-| `route_changed` | 확정 후 노선 변경 (RUN-07) — **§3.6 ③구간 미등원 반영 포함**(해당 승하차지 미정차, `Ruling 334`) | 기사 · 동승자 | — |
-| `assignment_changed` | 당일 배치 변경 (MGR-05) — **확정 배치의 동승자 자동 배정 포함**(`Ruling 330`) | 해당 매니저 | — |
+| `route_changed` | 확정 후 노선 변경 (RUN-07) — **§3.6 ③구간 미등원 반영 포함**(해당 승하차지 미정차, `Ruling 334`). **목록 항목에 `run_id`**(§3.12 · `Ruling 542`) — 눌러서 그 회차의 노선 화면으로 | 기사 · 동승자 | — |
+| `assignment_changed` | 당일 배치 변경 (MGR-05) — **확정 배치의 동승자 자동 배정 포함**(`Ruling 330`). **목록 항목에 `run_id`**(§3.12 · `Ruling 542`) — 눌러서 기사는 운전 화면, 동승자는 명단 화면으로 | 해당 매니저 | — |
 | `no_show_escalated` | 미승차 3분 경과·무응답 (EXC-01) | 관계자 | — |
 | `exception_reported` | `POST /runs/{runId}/reports` 접수 (EXC-02·03, §4.13) | 관계자 | — |
 | `emergency` | 매니저 앱 비상 발신 (EXC-04) | **관계자 + 메인 관리자** | **부재 — 항상 발송** (C-17) |

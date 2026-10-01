@@ -107,7 +107,7 @@ public class LoginSettlement {
                 AuditLog.forLoginSuccess(account.getAcademyId(), account.getId(), loginId, ip, now));
 
         String accessToken = jwtTokenProvider.createAccessToken(account.getId(), account.getAcademyId(),
-                account.getRole(), account.getStatus());
+                account.getRole(), account.getStatus(), account.isMustChangePassword());
         String refreshToken = jwtTokenProvider.createRefreshToken(account.getId(), account.getAcademyId(),
                 account.getRole(), account.getStatus());
         refreshTokenRepository.save(RefreshToken.issue(account.getId(),
@@ -116,7 +116,8 @@ public class LoginSettlement {
         Academy academy = resolveAcademy(account);
         return new LoginResult(accessToken, refreshToken, refreshValiditySeconds, account.getId(),
                 account.getAcademyId(), account.getRole(), account.getStatus(),
-                academy == null ? null : academy.getName(), academy == null ? null : academy.getContact());
+                academy == null ? null : academy.getName(), academy == null ? null : academy.getContact(),
+                account.isMustChangePassword());
     }
 
     /**

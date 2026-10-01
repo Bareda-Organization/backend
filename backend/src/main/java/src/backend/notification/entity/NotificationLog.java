@@ -58,6 +58,10 @@ public class NotificationLog {
     @Column(name = "bus_no", length = 20)
     private String busNo;
 
+    /** 알림이 가리키는 회차(Ruling 542) — 매니저 알림(노선·배치 변경)만 채운다. 논리적 부모라 FK 가 없다. */
+    @Column(name = "run_id")
+    private Long runId;
+
     @Convert(converter = NotificationType.Db.class)
     @Column(name = "type", length = 30, nullable = false)
     private NotificationType type;
@@ -130,6 +134,16 @@ public class NotificationLog {
         this.busNo = busNo;
     }
 
+    /** 가리키는 회차까지 받는 생성자 — 나머지 필드는 위 12-인자 생성자와 같다. */
+    private NotificationLog(Long academyId, Long recipientAccountId, String recipientName,
+            Role recipientRole, NotificationType type, String title, String body,
+            String dedupKey, OffsetDateTime createdAt, Long studentId, String studentName, String busNo,
+            Long runId) {
+        this(academyId, recipientAccountId, recipientName, recipientRole, type, title, body, dedupKey, createdAt,
+                studentId, studentName, busNo);
+        this.runId = runId;
+    }
+
     /**
      * 알림을 유발한 이벤트와 같은 트랜잭션에서 발송 대기 행을 만든다(아웃박스 패턴) — 발송 시도·상태 갱신은
      * 도메인 Phase 담당. 파라미터 9개는 CODE_CONVENTIONS.md §20.2 기준(4개)을 크게 넘지만, NN 필드 전부가 아웃박스 삽입
@@ -154,6 +168,15 @@ public class NotificationLog {
             String busNo) {
         return new NotificationLog(academyId, recipientAccountId, recipientName, recipientRole,
                 type, title, body, dedupKey, createdAt, studentId, studentName, busNo);
+    }
+
+    /** 가리키는 회차(R46-FUFEAT ③, Ruling 542)까지 적재하는 과부하 — 매니저 알림(노선·배치 변경)이 쓴다. */
+    public static NotificationLog forOutbox(Long academyId, Long recipientAccountId,
+            String recipientName, Role recipientRole, NotificationType type, String title,
+            String body, String dedupKey, OffsetDateTime createdAt, Long studentId, String studentName,
+            String busNo, Long runId) {
+        return new NotificationLog(academyId, recipientAccountId, recipientName, recipientRole,
+                type, title, body, dedupKey, createdAt, studentId, studentName, busNo, runId);
     }
 
     /**

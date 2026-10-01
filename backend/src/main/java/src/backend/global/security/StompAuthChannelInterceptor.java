@@ -116,6 +116,10 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             case ACTIVE -> {
             }
         }
+        // 임시 비밀번호 강제 변경 표식(Ruling 540) — 변경 전에는 실시간 기능도 쓰지 못한다(REST 게이트와 같은 판정).
+        if (user.mustChangePassword()) {
+            throw new BusinessException(ErrorCode.PASSWORD_CHANGE_REQUIRED);
+        }
     }
 
     private void authorizeSubscribe(StompHeaderAccessor accessor) {

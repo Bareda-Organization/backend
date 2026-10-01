@@ -164,7 +164,7 @@ public class AdminEmergencyQueryService {
                         .toList();
 
         AdminEmergencyItemResponse.AckedBy ackedBy = acker == null ? null
-                : new AdminEmergencyItemResponse.AckedBy(acker.getName());
+                : new AdminEmergencyItemResponse.AckedBy(acker.getName(), alert.getAckMemo());
 
         return new AdminEmergencyItemResponse(alert.getId(), academyInfo,
                 LowerCaseFormatter.lower(alert.getType().name()), alert.getMemo(), raisedBy, alert.getRunId(),

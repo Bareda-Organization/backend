@@ -260,6 +260,8 @@ public final class AccountStatusGateEndpoints {
             // (§6.9) 1개.
             "GET /admin/academies/{id}/runs/live",
             "GET /admin/runs/{runId}/roster",
+            // R46-FUFEAT ④ — 메인관리자 전체 관제의 학원별 오늘 지연·확정 실패 집계(§6.15, Ruling 543) 1개.
+            "GET /admin/runs/attention",
             // Phase 14 T1 — 메인관리자 콘솔 감사·접속 이력 조회(§6.13) 2개 + R46 감사 화면의 행위자 찾기 1개.
             "GET /admin/audit-logs",
             "GET /admin/login-history",

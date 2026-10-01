@@ -43,7 +43,7 @@ public record EmergencyStaffItemResponse(Long emergencyId, String type, String m
     public record Contact(String name, String role, String phone) {
     }
 
-    /** 확인한 관계자(§5.16 {@code acked_by}) — 확인 전이면 {@code null}. */
-    public record AckedBy(String name) {
+    /** 확인한 관계자(§5.16 {@code acked_by}) — 확인 전이면 {@code null}. {@code memo} 는 조치 메모(Ruling 541), 없으면 {@code null}. */
+    public record AckedBy(String name, String memo) {
     }
 }

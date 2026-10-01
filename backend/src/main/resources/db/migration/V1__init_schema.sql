@@ -64,6 +64,8 @@ CREATE TABLE account (
     role            varchar(20)  NOT NULL,
     status          varchar(10)  NOT NULL,
     failed_attempts integer      NOT NULL DEFAULT 0,
+    -- 임시 비밀번호 강제 변경 표식(Ruling 540) — 관리자 초기화가 켜고 본인 변경이 끈다.
+    must_change_password boolean NOT NULL DEFAULT false,
     status_before_block varchar(10),
     blocked_at      timestamptz,
     block_reason    varchar(100),
@@ -646,6 +648,8 @@ CREATE TABLE emergency_alert (
     client_key     uuid         NOT NULL,
     acked_by       bigint,
     acked_at       timestamptz,
+    -- 확인할 때 남기는 조치 메모(Ruling 541) — 선택 입력, 최대 200자.
+    ack_memo       varchar(200),
     canceled_at    timestamptz,
     CONSTRAINT uk_emergency_alert_client_key UNIQUE (client_key),
     CONSTRAINT ck_emergency_alert_type CHECK (type IN ('accident', 'vehicle_fault', 'student_emergency', 'etc')),
@@ -693,6 +697,8 @@ CREATE TABLE notification_log (
     student_id           bigint,
     student_name         varchar(50),
     bus_no               varchar(20),
+    -- 알림이 가리키는 회차(Ruling 542) — 매니저 앱이 알림을 눌러 그 회차 화면으로 가는 근거. 회차를 가리키지 않는 종류는 NULL.
+    run_id               bigint,
     type                 varchar(30)  NOT NULL,
     title                varchar(200) NOT NULL,
     body                 text         NOT NULL,

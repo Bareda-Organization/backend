@@ -29,6 +29,9 @@ public enum ErrorCode {
     // rejected 계정이 허용 목록 밖 API 를 호출할 때(API_SPEC §8.1, 2026-08-25 신설) — AUTH_PENDING 과
     // 코드를 나눠, "승인 대기 중"과 "거절됨"을 클라이언트가 구별해 대기 화면에 거절 사유를 보여줄 수 있게 한다.
     AUTH_REJECTED(HttpStatus.FORBIDDEN, "가입이 거절된 계정입니다"),
+    // 임시 비밀번호 강제 변경 표식(API_SPEC §1.4, Ruling 540)이 켜진 계정이 허용 3개 밖 API 를 호출할 때 — 클라이언트가
+    // 이 코드를 받으면 비밀번호 변경 화면으로 보낸다. 401 이 아니라 403: 인증은 됐고 변경이 선행 조건이다.
+    PASSWORD_CHANGE_REQUIRED(HttpStatus.FORBIDDEN, "임시 비밀번호입니다. 비밀번호를 먼저 변경해 주세요"),
     // blocked 계정의 로그인·API 호출(API_SPEC §1.4·§8.1) — 자격 오류(401)와 구분해야 재시도가 실패 카운터를 올리지 않는다.
     AUTH_ACCOUNT_BLOCKED(HttpStatus.FORBIDDEN, "차단된 계정입니다. 관리자에게 문의하세요"),
     // 미존재 계정 지정(API_SPEC §8.1) — 가입 상태 조회·재신청·본인 프로필 조회가 대상 계정을 못 찾을 때.

@@ -83,14 +83,14 @@ class EmergencyAckConcurrencyTest {
         List<Future<?>> 결과;
         try {
             Future<?> 첫째 = pool.submit(() -> new TransactionTemplate(transactionManager).executeWithoutResult(s -> {
-                emergencyCommandService.ack(first, alertId);
+                emergencyCommandService.ack(first, alertId, null);
                 첫째가_확인했다.countDown();
                 상대가_끝나거나_잠금에_막힐_때까지_커밋을_미룬다(둘째가_끝났다);
             }));
             Future<?> 둘째 = pool.submit(() -> {
                 try {
                     첫째가_확인했다.await(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-                    emergencyCommandService.ack(second, alertId);
+                    emergencyCommandService.ack(second, alertId, null);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 } finally {

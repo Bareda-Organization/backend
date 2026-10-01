@@ -57,9 +57,10 @@ public interface EmergencyAlertRepository extends JpaRepository<EmergencyAlert, 
     @AcademyScopeExempt(reason = "호출부(EmergencyCommandService#ack)가 역할별 범위(관계자 — findByIdAndAcademyId, "
             + "메인 관리자 — 전 학원)로 이미 찾은 신고 id 하나에 대한 조건부 갱신이다 — 그 조회가 이미 좁힌 대상이라 "
             + "이 시점에 학원을 다시 물을 근거가 없다(NoShowCaseRepository#escalateIfDue 와 같은 근거)")
-    @Query("UPDATE EmergencyAlert a SET a.ackedBy = :ackedBy, a.ackedAt = :ackedAt "
+    @Query("UPDATE EmergencyAlert a SET a.ackedBy = :ackedBy, a.ackedAt = :ackedAt, a.ackMemo = :ackMemo "
             + "WHERE a.id = :id AND a.ackedAt IS NULL")
-    int ackIfUnacked(@Param("id") Long id, @Param("ackedBy") Long ackedBy, @Param("ackedAt") OffsetDateTime ackedAt);
+    int ackIfUnacked(@Param("id") Long id, @Param("ackedBy") Long ackedBy, @Param("ackedAt") OffsetDateTime ackedAt,
+            @Param("ackMemo") String ackMemo);
 
     /**
      * 학원의 비상 알림 목록 — 상태 필터(§5.16 · §6.11)를 쿼리로 건다(BR-087). 무기한 보존되는 테이블이라 자바에서

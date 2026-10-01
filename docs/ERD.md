@@ -231,6 +231,7 @@ erDiagram
 | `role` | varchar(20) | NN | `parent` · `student` · `driver` · `escort` · `staff` · `system_admin`. CHECK |
 | `status` | varchar(10) | NN | `pending` · `active` · `rejected` · `blocked`. CHECK |
 | `failed_attempts` | integer | NN default 0 | 로그인 연속 실패 횟수. **5회** 도달 시 `blocked` (C-11) |
+| `must_change_password` 🆕 | boolean | NN default false | **임시 비밀번호 강제 변경 표식**(2026-10-01 `Ruling 540`) — 관리자 초기화(`API_SPEC §5.22`·`§6.7`)가 켜고 본인 변경(`§2.8`)이 끈다. 켜진 동안 계정 상태 게이트가 `§2.8`·`§2.10`·`§2.7` 외 API 를 `403 PASSWORD_CHANGE_REQUIRED` 로 막는다(`§1.4`) |
 | `blocked_at` | timestamptz | | 차단 일시 |
 | `status_before_block` 🆕 | varchar(10) | | 차단 직전 상태(`active`·`pending`·`rejected`). `blocked` 전이 시 저장, 해제 시 이 값으로 복원 후 NULL — `status='blocked'` 일 때만 NOT NULL. CHECK (2026-09-25 `Ruling 328`) |
 | `block_reason` | varchar(100) | | 차단 사유 — 차단 목록의 `reason` |
@@ -750,6 +751,7 @@ erDiagram
 | `client_key` | uuid | NN UK | 오프라인 큐 멱등키 |
 | `acked_by` | bigint | | 확인한 관계자 계정 |
 | `acked_at` | timestamptz | | 관계자 확인 시각 |
+| `ack_memo` 🆕 | varchar(200) | | 확인할 때 남긴 **조치 메모**(선택 · 2026-10-01 `Ruling 541`). 확인 전·메모 없는 확인은 NULL. `acked_at` 과 같은 조건부 UPDATE 로 써서 최초 확인자의 값만 남는다 |
 | `canceled_at` | timestamptz | | 취소 시각. **발신 +1분 이내만 가능하고 레코드는 존치** |
 
 **존재 이유** — 사고 대응의 근거 기록. 위치·탑승자 수·발신 시각을 **스냅샷으로 고정**하는 이유는 사후 조회 시점에 회차·명단이 이미 바뀌어 있기 때문. `occurred_at` 과 `received_at` 을 가르는 이유는 통신 두절 상태의 발신이 복구 후 도착하므로 **사고 시각과 접수 시각이 다르기 때문**. `exception_report`(EXC-02·03)와 별개 테이블인 이유는 수신 범위(관계자 + 메인 관리자)·설정 불가·팝업 병행이라는 처리가 다르기 때문. **근거** EXC-04 · M-15 · A-16 · O-07 · C-17
@@ -795,6 +797,7 @@ erDiagram
 | `student_id` | bigint | | 대상 자녀 |
 | `student_name` | varchar(50) | | 자녀 이름 스냅샷. **알림 문구에 필수 포함되는 값** |
 | `bus_no` | varchar(20) | | 호차 |
+| `run_id` 🆕 | bigint | | 알림이 **가리키는 회차**(2026-10-01 `Ruling 542`) — 매니저 알림 `route_changed`·`assignment_changed` 만 채우고 나머지는 NULL. 매니저 앱이 눌러서 그 회차 화면으로 가는 근거(`API_SPEC §3.12 run_id`). 논리적 부모라 FK 미설정(§4.2) |
 | `type` | varchar(30) | NN | API_SPEC §9.7 알림 종류. CHECK |
 | `title` · `body` | varchar(200) · text | NN | 발송 문구 |
 | `popup` | boolean | NN default false | 팝업 노출 대상 여부 — 비상 2종(`emergency`·`emergency_canceled`)만 `true`(NTF-09, BR-070) |

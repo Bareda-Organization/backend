@@ -80,7 +80,7 @@ public class RefreshCommandService {
         }
 
         String newAccessToken = jwtTokenProvider.createAccessToken(account.getId(), account.getAcademyId(),
-                account.getRole(), account.getStatus());
+                account.getRole(), account.getStatus(), account.isMustChangePassword());
         String newRefreshToken = jwtTokenProvider.createRefreshToken(account.getId(), account.getAcademyId(),
                 account.getRole(), account.getStatus());
         refreshTokenRepository.save(RefreshToken.issue(account.getId(),
