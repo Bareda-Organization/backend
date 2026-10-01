@@ -4,6 +4,8 @@ import java.util.List;
 
 import jakarta.validation.constraints.Size;
 
+import src.backend.routing.domain.RouteStopLimit;
+
 /**
  * 고정 노선 수정 요청(API_SPEC §5.9 {@code PATCH}) — 보내지 않은 필드는 고치지 않는다.
  *
@@ -21,5 +23,5 @@ public record RouteUpdateRequest(
         String direction,
         @Size(max = 100) String name,
         Boolean active,
-        List<Long> stopIds) {
+        @Size(max = RouteStopLimit.MAX_STOPS, message = RouteStopLimit.MESSAGE) List<Long> stopIds) {
 }

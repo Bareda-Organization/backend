@@ -3,6 +3,9 @@ package src.backend.routing.dto;
 import java.util.List;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
+
+import src.backend.routing.domain.RouteStopLimit;
 
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
@@ -29,7 +32,7 @@ import src.backend.global.error.ErrorCode;
 public record RouteOptimizeRequest(
         @Valid GeoPointRequest origin,
         @Valid GeoPointRequest destination,
-        List<Long> fixedStopIds) {
+        @Size(max = RouteStopLimit.MAX_STOPS, message = RouteStopLimit.MESSAGE) List<Long> fixedStopIds) {
 
     /** 자리를 지킬 승하차지(2026-09-23 사용자 지시) — 비우면 전부 다시 매긴다. */
     public List<Long> fixedStopIdsOrEmpty() {

@@ -11,6 +11,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
+import src.backend.routing.domain.RouteStopLimit;
+
 /**
  * 노선의 승하차지를 한 번에 저장한다(§5.9, 2026-09-23 사용자 지시 — 고친 뒤 저장 버튼 한 번).
  *
@@ -18,7 +20,7 @@ import jakarta.validation.constraints.Size;
  *
  * @param stops 저장 후의 정차 목록 전체
  */
-public record RouteStopsSaveRequest(@NotNull @Valid List<Item> stops) {
+public record RouteStopsSaveRequest(@NotNull @Valid @Size(max = RouteStopLimit.MAX_STOPS, message = RouteStopLimit.MESSAGE) List<Item> stops) {
 
     /** 이미 있는 승하차지의 식별자 — 새로 만들 항목({@code stop_id} 부재)은 뺀다. */
     public List<Long> existingStopIds() {

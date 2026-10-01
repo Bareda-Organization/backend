@@ -15,6 +15,7 @@ import src.backend.global.common.enums.Direction;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
+import src.backend.routing.domain.RouteStopLimit;
 import src.backend.routing.assembly.RouteDetailAssembler;
 import src.backend.routing.domain.GeoPoint;
 import src.backend.routing.dto.RouteDetailResponse;
@@ -80,6 +81,7 @@ public class RouteOptimizeService {
      * 부재하다.
      */
     public RouteDetailResponse optimize(AuthUser requester, Long routeId, RouteOptimizeRequest request) {
+        RouteStopLimit.assertWithin(request.fixedStopIds());
         Route route = routeRepository.findByIdAndAcademyId(routeId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.ROUTE_NOT_FOUND));
         List<Long> currentOrder = routeStopRepository

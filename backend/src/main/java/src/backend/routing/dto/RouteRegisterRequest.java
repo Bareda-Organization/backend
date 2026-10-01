@@ -6,6 +6,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
+import src.backend.routing.domain.RouteStopLimit;
+
 /**
  * 고정 노선 편성 요청(API_SPEC §5.9 · Ruling 180).
  *
@@ -25,5 +27,5 @@ public record RouteRegisterRequest(
         @NotBlank String direction,
         @Size(max = 100) String name,
         Boolean active,
-        List<Long> stopIds) {
+        @Size(max = RouteStopLimit.MAX_STOPS, message = RouteStopLimit.MESSAGE) List<Long> stopIds) {
 }
