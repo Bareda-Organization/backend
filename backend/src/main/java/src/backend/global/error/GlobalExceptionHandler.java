@@ -4,9 +4,14 @@ import java.util.Locale;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.dao.PessimisticLockingFailureException;
+import org.springframework.dao.QueryTimeoutException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -36,6 +41,9 @@ import src.backend.routing.map.spec.MapRouteUnavailableException;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    /** DB 자원 오류 응답의 {@code Retry-After}(초) — 연결 대기 상한(3초)과 같은 주기로 다시 시도하게 한다. */
+    private static final String DB_RETRY_AFTER_SECONDS = "3";
 
     /**
      * {@code details} 가 있으면(예: {@code INVALID_CREDENTIALS.remaining_attempts}, API_SPEC §2.5)
@@ -153,6 +161,23 @@ public class GlobalExceptionHandler {
         ErrorCode code = ErrorCode.MAP_ROUTE_UNAVAILABLE;
         log.warn("[map-route] 도로 경로 조회 불가 {}", e.getMessage());
         return ResponseEntity.status(code.getStatus()).body(ErrorResponse.of(code.name(), code.getMessage()));
+    }
+
+    /**
+     * DB 자원 오류를 {@code 503 SERVER_BUSY} + {@code Retry-After} 로 옮긴다(R46 S-7) — 연결 풀 고갈
+     * ({@link CannotCreateTransactionException}) · 연결 끊김({@link DataAccessResourceFailureException}) · 잠금 대기 초과
+     * ({@link PessimisticLockingFailureException}) · 쿼리 취소({@link QueryTimeoutException}).
+     *
+     * <p>로그는 스택 없는 {@code warn} 한 줄이다 — 풀이 마른 동안은 요청마다 이 예외가 나므로 스택을 남기면 같은 스택이
+     * 분당 수백 건 쌓여 정작 원인 추적이 어렵다. 이 예외들은 코드 결함이 아니라 자원 상태라 스택이 알려 주는 것이 없다.
+     */
+    @ExceptionHandler({CannotCreateTransactionException.class, DataAccessResourceFailureException.class,
+            PessimisticLockingFailureException.class, QueryTimeoutException.class})
+    public ResponseEntity<ErrorResponse> handleDbResourceUnavailable(Exception e) {
+        ErrorCode code = ErrorCode.SERVER_BUSY;
+        log.warn("[db-unavailable] {} — {}", e.getClass().getSimpleName(), e.getMessage());
+        return ResponseEntity.status(code.getStatus()).header(HttpHeaders.RETRY_AFTER, DB_RETRY_AFTER_SECONDS)
+                .body(ErrorResponse.of(code.name(), code.getMessage()));
     }
 
     /**

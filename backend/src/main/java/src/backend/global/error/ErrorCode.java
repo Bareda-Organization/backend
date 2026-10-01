@@ -333,6 +333,10 @@ public enum ErrorCode {
     // 경로는 맞고 메서드만 틀린 경우 — 404 와 가르지 않으면 어느 쪽을 고칠지 알 수 없다.
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "지원하지 않는 요청 방식입니다"),
 
+    // DB 연결을 얻지 못했거나(풀 고갈 · 연결 끊김) 잠금·쿼리가 시간 상한을 넘은 경우(R46 S-7) — 요청이 틀린 것도 서버 결함도 아니고
+    // 잠시 뒤 다시 보내면 되는 과부하다. 500 으로 두면 "서버 결함" 5xx 와 섞여 경보가 오탐이 되고 클라이언트가 재시도 여부를 가를 수 없다.
+    SERVER_BUSY(HttpStatus.SERVICE_UNAVAILABLE, "서버가 일시적으로 바쁩니다. 잠시 후 다시 시도해 주세요"),
+
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다");
 
     private final HttpStatus status;
