@@ -306,7 +306,7 @@ frontend/
 - **`Ruling 466` — 같은 기능의 다른 이름은 사양 용어로 통일한다(매니저 앱 몫).** 연락 기록 시트 제목 `미탑승 연락 기록` → `미승차 연락 기록`(명단·알림·사양이 `미승차`). 홈 카드 시각 앞에 `출발`, 운행 화면 카드에도 `출발 HH:mm`. `탑승 끄기`/`탑승 취소` 는 학부모 앱 몫이라 이번 범위 밖
 - **`Ruling 467` — 지연 알림은 보내기 전 문구를 미리 보여 준다.** 입력한 문구는 `○○ 학생이 탄 버스 — {문구}` 그대로(앞머리 규칙은 `§4.9`). 비우면 `자동 문구가 나갑니다 — "{사유}" 사유와 "현재 예상 지연 N분" 이 들어갑니다` — 사유별 완성 문장은 서버(`DelayComposer`)만 만들고 응답에도 내려오지 않으므로 앱이 사본을 들고 있지 않음(서버가 바뀔 때 어긋남)
 - **`Ruling 468` — 외부 내비(RUN-08): `GET /runs/{id}/navigation?scope=remaining` 연동 · 카카오내비 스킴 조립 · 운행 화면 `[외부 내비]`.** 앱 키는 사용자 자원이라 저장소에 없고 `--dart-define=KAKAO_NAVI_APP_KEY=<키>` 로 주입 — **비어 있으면 버튼을 그리지 않음**. 서버가 정한 공급자가 `kakao` 가 아니면 열지 않음. 서버가 상한으로 잘랐으면(`truncated`) 서버 문구를 표시. 4칸 세그먼트(지연 사유·비상 유형·보고 유형)는 공용 `BaraedaSegmentedControl` 에 선택 인자 `wrapByWord`(기본 `false` = 기존 동작)를 더해 낱말 단위 줄바꿈
-- ⚠ **카카오내비 스킴 형식은 SDK 규격에 따라 조립했으나 실제 앱 키·카카오내비 설치 기기로는 열어 보지 못함** — 시험은 주소 조립(좌표 순서 `x=경도 · y=위도` · 경유지 순서 · 앱 키)만 고정. 사용자 준비물 — 카카오 개발자 콘솔 앱 키 발급 · 카카오내비가 설치된 실기기 확인(Android 는 `AndroidManifest` `<queries>` 에 `tel`·`kakaonavi-sdk` 를 등록해 둠)
+- ⚠ **(2026-10-01 `Ruling 530` 이 스킴 조립을 공식 SDK 로 대체 — §5.23)** 아래는 대체 전 기록. **카카오내비 스킴 형식은 SDK 규격에 따라 조립했으나 실제 앱 키·카카오내비 설치 기기로는 열어 보지 못함** — 시험은 주소 조립(좌표 순서 `x=경도 · y=위도` · 경유지 순서 · 앱 키)만 고정. 사용자 준비물 — 카카오 개발자 콘솔 앱 키 발급 · 카카오내비가 설치된 실기기 확인(Android 는 `AndroidManifest` `<queries>` 에 `tel`·`kakaonavi-sdk` 를 등록해 둠)
 
 ### 5.19.2 목표 표 — 전항 통과가 완료 조건 / 결과
 
@@ -320,6 +320,45 @@ frontend/
 | 6 | 실서버 계약 시험 자기 서버만 | `--tags real_backend --dart-define=API_BASE_URL=http://localhost:8370/api/v1` — `baraeda_core` 9 · `manager-app` 26 전부 실패 0 · 건너뜀 0. 서버 변경은 백엔드 account·security·config·error·enums·testsupport·academy 80개 클래스 573건 실패 0 · 관리자 웹 auth vitest 12파일 62건 통과(실서버 계약 포함) |
 | 7 | 정본 반영 + Ruling | `Ruling 460~468` · `API_SPEC §2.5·§2.10` |
 | 8 | 정리 | 서버 :8370 종료 · `r46_mgr` 삭제 · 시뮬레이터 `2F82BAEA…` Shutdown(띄운 적 없음) · 자기 `flutter_tester` 0 |
+
+## 5.23 ✅ `R46-NAVI` 목표 표 — 카카오내비 길안내 점검 · 공식 SDK 전환 (2026-10-01 · 기준 HEAD `506fdec1` `mskim98/r46-navi` · 판정 `Ruling 530~534`)
+
+- **사용자 지시 (2026-10-01)** — 기사 앱 운행 경로 쪽 버튼으로 그 경로를 카카오내비로 길안내. 없으면 구현. 카카오내비 앱 키는 아직 없음. 기능은 `R46-MGR`(`Ruling 468`)이 이미 구현 — 이 라운드는 그 연동이 **공식 지원 방식인지 판정**하고 설치 안내·iOS 설정을 보강
+- **범위** — 매니저 앱 `features/navigation/**` · 운행 화면의 내비 버튼 부분 · iOS/Android 설정. 서버 변경 없음. 사양은 `API_SPEC §4.16` "앱이 하는 일" 한 칸만 정정
+- 사용자가 준비할 것(앱 생성 · 플랫폼 키 등록 · 키를 넣는 곳)은 `docs/frontend/SETUP.md §8.4`
+
+### 5.23.1 판정
+
+- **`Ruling 530` — 카카오내비는 공식 SDK(`kakao_flutter_sdk_navi ^2.0.1`)로 연다. `R46-MGR` 이 손으로 만든 스킴(`kakaonavi-sdk://navigate?apiver&appkey&param`)과 `url_launcher` 경로는 삭제.** 근거 — Kakao Developers 문서 `docs/ko/kakaonavi/flutter`(`NaviApi.navigate` · `isKakaoNaviInstalled` · `NaviApi.webNaviInstall`)와 SDK 2.0.1 소스(`navi_platform_native.dart`) 대조
+  - ① 손 스킴에는 SDK 가 항상 붙이는 `extras`(KA 헤더 · `appPkg` = iOS 번들 ID / Android 패키지명 · Android `keyHash`)가 부재. 카카오내비 앱이 앱 키와 등록된 플랫폼 정보를 맞춰 보는 값이라 실기기에서 호출이 거절될 가능성 존재 — **앱 키·실기기가 없어 거절 여부는 미실증(추정)**
+  - ② 옵션 값 형식 차이 — 손 스킴은 좌표·차종을 숫자로, SDK 는 문자열
+  - ③ 미설치 판정과 설치 페이지 주소(`https://kakaonavi.kakao.com/launch/index.do`)를 SDK 가 제공
+  - ④ 스킴이 바뀌면 SDK 업데이트로 대응
+  - `KakaoSdk.init` 은 **launch 시점에 · 키가 있을 때만**(같은 값으로 다시 불려도 안전) — `main.dart` 불변. `Ruling 468` 중 "스킴 조립" 부분을 이 판정이 대체하고, 나머지(`KAKAO_NAVI_APP_KEY` 가 비면 버튼 숨김 · 공급자가 `kakao` 가 아니면 열지 않음 · `truncated` 안내)는 유지
+- **`Ruling 531` — SDK 요청 값.**
+  - ① `coordType` 을 `wgs84` 로 지정 — SDK 서버 기본값이 KATEC 이라 빠지면 좌표가 다른 곳을 가리킴
+  - ② **차종은 지정하지 않음** — 손 스킴은 1종(승용차)으로 고정했으나 통학버스는 승합차라 통행료·경로 판정이 어긋남. 기사가 카카오내비 앱에 설정한 차종을 따름
+  - ③ `origin` 은 쓰지 않음 — `confirmed` 에서 서버가 싣는 `origin`(등원 첫 승차지 · 하원 학원)은 첫 정차지가 `waypoints`·`destination` 에도 들어 있어 빠지는 지점이 없고, 카카오내비 길안내는 현재 위치에서 출발
+  - ④ 경유지 상한 — SDK 문서·소스 "viaList 최대 3개" = 서버 `KakaoNavProvider` 상한 4(경유지 3 + 목적지 1)로 `Ruling 204` 와 일치 확인. **앱은 자르지 않음**(자를 개수는 서버가 정함)
+- **`Ruling 532` — 미설치 안내.** SDK 가 미설치로 답하면 `카카오내비가 설치돼 있지 않습니다` 배너 + `[설치하기]`. 누르면 SDK 의 설치 안내 페이지를 외부 브라우저로 엶(기기에 맞는 스토어로 연결). **자동으로 열지 않음** — 운전 직전 화면이 갑자기 바뀌는 것을 막으려 사용자가 누를 때만. 설치돼 있는데 열지 못하면(앱 키·플랫폼 등록 오류 등) 설치 안내 없이 `카카오내비를 열지 못했습니다`
+- **`Ruling 533` — 플랫폼 설정.**
+  - iOS `Info.plist` `LSApplicationQueriesSchemes` = `kakaonavi-sdk` — 없으면 설치돼 있어도 SDK 의 `canOpenURL` 이 `false` 라 항상 "미설치". URL scheme `kakao$(KAKAO_NATIVE_APP_KEY)` 는 키가 사용자 자원이라 `ios/Flutter/Debug·Release.xcconfig` 에 자리표시 `placeholder` 를 두고 실제 값은 git 밖 `ios/Flutter/Local.xcconfig` 로 덮음(빌드 산출 `Info.plist` 에 `kakaoplaceholder` · 임시 `Local.xcconfig` 로 덮어쓰기 확인)
+  - Android — SDK 매니페스트가 `<queries>` 에 카카오내비 패키지 `com.locnall.KimGiSa` 를 병합(디버그 APK 병합 매니페스트로 확인)하므로, 쓰이지 않게 된 `kakaonavi-sdk` 스킴 질의를 삭제
+- **`Ruling 534` — 버튼 위치·문구.** 위치는 운행 화면의 회차 카드(출발지→도착지)와 지도 사이로 유지. 사양상 RUN-08 버튼은 M-09 "운행 정보 · 외부 내비"(운행 화면)이고, 노선 지도 화면(`§4.3`)은 별도 조회 화면이라 두 곳에 두면 열기 상태(진행 중 · 안내)가 중복. 문구 `외부 내비` → `카카오내비 길안내`(사용자 표현 · 열리는 앱을 명시)
+- ⚠ **미확인** — 앱 키 · 플랫폼 등록 · 카카오내비가 설치된 실기기가 없어 **카카오내비가 실제로 열려 경로가 뜨는지는 미확인**. 시험은 SDK 경계 직전(요청 값 · 미설치 · 실패 · 공급자 · 잘림 안내)까지 고정
+- **사양 격차(범위 밖 · 미수정)** — `USER_FLOWS UF-D-02` 는 `다음 목적지 1개` · `남은 전 구간` 선택을 적었으나 앱은 `remaining` 만 호출
+
+### 5.23.2 목표 표 — 전항 통과가 완료 조건 / 결과
+
+| # | 목표 | 결과 |
+|:-:|---|---|
+| 1 | 공식 방식 판정 · 근거 · 바꾼 이유 | 손 스킴은 공식 SDK 의 요청과 `extras` 등에서 달라 **SDK 로 전환**(`Ruling 530`). 근거 문서·소스 절은 위 판정 |
+| 2 | 키 없음 → 버튼 숨김 · 가짜 키 → 서버 경로 조회 → 카카오내비 경계 호출 · 미설치 → 설치 안내 · 비카카오 공급자 → 열지 않음 | 위젯 시험 6건 + 요청 값 시험 3건. 새 시험 RED 확인(요청 값 3건 `UnimplementedError` · 위젯 5건 버튼·경계 부재) 뒤 GREEN. 결함 심기 9종 9/9 — 각 결함에 의도한 시험만 실패 |
+| 3 | iOS `Info.plist` · Android `<queries>` | iOS `LSApplicationQueriesSchemes` = `kakaonavi-sdk` · URL scheme `kakao$(KAKAO_NATIVE_APP_KEY)`(빌드 산출물 확인) · Android 병합 매니페스트에 `com.locnall.KimGiSa` |
+| 4 | analyze 0 · 시험 실패 0·건너뜀 0 · iOS 빌드 | 3곳 analyze 0 · `baraeda_core` 77 · `baraeda_ui` 237 · `manager-app` 373 전부 실패 0·건너뜀 0 · `flutter build ios --simulator --no-codesign` 통과 · `flutter build apk --debug` 통과 |
+| 5 | 정본 | `API_SPEC §4.16` "앱이 하는 일" 정정 · 이 절 · `docs/IMPLEMENTATION_PLAN.md §11` 530~534 행 · `docs/frontend/SETUP.md §8.4` |
+| 6 | 정리 | 서버 :8430 미기동(`lsof` 0) · 시뮬레이터 `2F82BAEA…` Shutdown(띄운 적 없음) · 미사용 빈 DB `r46_navi` 연결 0 확인 뒤 삭제 · 자기 `flutter_tester` 잔여 0 |
+- 화면: 위젯 렌더 PNG 2장 — `frontend/report/r46-navi/`(버튼이 보이는 운행 화면 · 미설치 안내 배너). 시뮬레이터는 좌표 클릭 금지로 미사용
 
 ## 6. 완료 조건 — 화면 단위
 

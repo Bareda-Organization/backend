@@ -1022,6 +1022,11 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 504 | 메인 관리자 활성 2명 이상(두 번째는 DB 직접 · 절차서) | 본문 §8.79 |
 | 505 | 비용 한도 알림 — AWS Budgets 이메일 2개(금액은 배포 때) | 본문 §8.79 |
 | 506 | 저장소 공개 유지 — 비밀 5종 전 이력 0건 확인 | 본문 §8.79 |
+| 530 | 카카오내비는 공식 SDK(kakao_flutter_sdk_navi)로 연다 — 손으로 만든 스킴 조립 삭제(Ruling 468 의 스킴 조립 대체) | 프론트 본문 docs/frontend/IMPLEMENTATION_PLAN §5.23 |
+| 531 | SDK 요청 값 — 좌표계 wgs84 지정 · 차종 미지정 · origin 미사용 · 경유지 상한은 서버가 자름(SDK 3 = 서버 4 일치) | 프론트 본문 docs/frontend/IMPLEMENTATION_PLAN §5.23 |
+| 532 | 미설치 안내 — 배너 + [설치하기](SDK 설치 페이지) · 자동으로 열지 않음 · 열기 실패는 별도 문구 | 프론트 본문 docs/frontend/IMPLEMENTATION_PLAN §5.23 |
+| 533 | 플랫폼 설정 — iOS 실행 허용 목록 kakaonavi-sdk · URL scheme 은 Local.xcconfig 자리표시 · Android 쓰이지 않는 스킴 질의 삭제 | 프론트 본문 docs/frontend/IMPLEMENTATION_PLAN §5.23 |
+| 534 | 외부 내비 버튼은 운행 화면 회차 카드와 지도 사이 유지 · 문구 [카카오내비 길안내] | 프론트 본문 docs/frontend/IMPLEMENTATION_PLAN §5.23 |
 
 
 ## 8.73 ⚖ `R46-BE` — 성능 개선(감사 제외) + 바로 고칠 것 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 410~419 · 백엔드 갈래)
