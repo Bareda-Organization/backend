@@ -47,6 +47,8 @@ public enum ErrorCode {
     VERIFICATION_CODE_INVALID(HttpStatus.FORBIDDEN, "인증번호가 올바르지 않거나 만료되었습니다"),
     // 전화번호 복구(§2.9)는 SMS 발송 수단이 설정되기 전까지 닫는다(Ruling 329) — 관리자 경유(§5.22·§6.7)로 안내.
     RECOVERY_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "전화번호로 찾기는 준비 중입니다. 학원(관리자)에 비밀번호 초기화를 요청해 주세요"),
+    // 전화번호 복구(§2.9) 인증번호 발급이 번호당 60초 1회·24시간 5회를 넘길 때(Ruling 513) — 문자 비용과 대조 상한 우회를 막는다.
+    RECOVERY_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "인증번호를 너무 자주 요청했습니다. 잠시 뒤에 다시 시도해 주세요"),
 
     // ── 학원 격리 ────────────────────────────────────────────────────────────────
     // 계열별 구역 — 인증 계열은 위쪽 AUTH_* 무리에서 자란다(무리 사이에 끼워 넣으면 같은 줄 부근을

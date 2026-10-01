@@ -24,6 +24,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.account.command.AccountRecoveryCommandService;
 import src.backend.account.command.LoginCommandService;
 import src.backend.account.command.LoginResult;
 import src.backend.account.command.LogoutCommandService;
@@ -68,6 +69,7 @@ public class AuthController {
     private final RefreshCommandService refreshCommandService;
     private final LogoutCommandService logoutCommandService;
     private final PasswordChangeCommandService passwordChangeCommandService;
+    private final AccountRecoveryCommandService accountRecoveryCommandService;
     private final RefreshTokenCookieAssembler cookieAssembler;
 
     /**
@@ -181,16 +183,15 @@ public class AuthController {
     }
 
     /**
-     * 아이디·비밀번호 복구(API_SPEC §2.9) — SMS 발송 수단이 설정되기 전이라 {@code 503 RECOVERY_UNAVAILABLE}
-     * 이다(Ruling 329). 코드 발급·대조·초기화를 전부 하지 않는다 — 발송 없는 코드는 정상 사용자에겐 불능이고,
-     * 코드를 맞히면 임시 비밀번호를 응답으로 내주던 옛 구현은 전화번호만 아는 제3자의 대입 경로였다.
-     * 그동안의 복구는 관리자 경유다(학부모·학생·매니저 §5.22 · 관계자 §6.7).
+     * 아이디·비밀번호 복구(API_SPEC §2.9) — 문자 발송기가 없으면 {@code 503 RECOVERY_UNAVAILABLE} 이다(Ruling 329 ·
+     * 512). 있으면 코드 없는 요청은 발급, 코드가 있는 요청은 대조이고, 임시 비밀번호·아이디는 문자로만 전달된다(응답 본문
+     * 부재, Ruling 513). 발송기가 없는 동안의 복구는 관리자 경유다(학부모·학생·매니저 §5.22 · 관계자 §6.7).
      */
     @PublicEndpoint
-    @Operation(summary = "아이디·비밀번호 복구 (AUTH-08) — SMS 연동 전 503")
+    @Operation(summary = "아이디·비밀번호 복구 (AUTH-08) — 문자 발송기가 없으면 503")
     @PostMapping("/auth/recover")
     public ApiResponse<Void> recover(@Valid @RequestBody RecoverRequestPayload payload) {
-        // ponytail: SMS 포트가 없어 항상 거절 — 연동 시 §2.9 재개 조건(SMS 로만 전달 · 발급 빈도 제한 · 조건부 대조)을 갖춘 서비스로 교체
-        throw new BusinessException(ErrorCode.RECOVERY_UNAVAILABLE);
+        accountRecoveryCommandService.recover(payload.type(), payload.phone(), payload.verificationCode());
+        return ApiResponse.ok(null);
     }
 }

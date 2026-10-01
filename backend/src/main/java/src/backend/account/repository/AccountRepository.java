@@ -75,6 +75,16 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     Optional<Account> findByIdAndAcademyIdForUpdate(@Param("id") Long id, @Param("academyId") Long academyId);
 
     /**
+     * 연락처가 같은 계정을 <b>행 잠금</b>으로 읽는다(API_SPEC §2.9 · Ruling 513) — 전화번호 복구가 코드 발급 빈도를
+     * 세기 전에 같은 번호의 동시 요청을 직렬화하고, 비밀번호를 교체할 때 그 사이 커밋된 로그인 실패 차단을 지우지 않게
+     * 한다(BR-249). 연락처는 유일하지 않아 여러 건일 수 있다.
+     */
+    @AcademyScopeExempt(reason = "§2.9 계정 복구 — 전화번호만 들고 시작해 소속 학원이 미상")
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM Account a WHERE a.phone = :phone AND a.role IN :roles ORDER BY a.id")
+    List<Account> findAllByPhoneAndRoleInForUpdate(@Param("phone") String phone, @Param("roles") Collection<Role> roles);
+
+    /**
      * 학원별 소속 사용자 수(API_SPEC §6.1 {@code user_count}) — 역할과 상태를 인자로 받아 무엇을 세는지
      * 호출부가 정한다.
      *

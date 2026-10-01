@@ -1031,6 +1031,10 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 504 | 메인 관리자 활성 2명 이상(두 번째는 DB 직접 · 절차서) | 본문 §8.79 |
 | 505 | 비용 한도 알림 — AWS Budgets 이메일 2개(금액은 배포 때) | 본문 §8.79 |
 | 506 | 저장소 공개 유지 — 비밀 5종 전 이력 0건 확인 | 본문 §8.79 |
+| 510 | 푸시 토큰 공급자 포트 `PushTokenSource` + 기본 `PlaceholderPushTokenSource`(자리표시 토큰) · Firebase SDK 는 배포 때 · 로그인 뒤 자동 등록 · 로그아웃 `device_id` 해지 · 끈 기기 기억 | 본문 §8.80 · `frontend/IMPLEMENTATION_PLAN` §5.22 |
+| 511 | 관계자 웹 브라우저 푸시 · 이메일 발송은 사양에 없어 만들지 않는다 | 본문 §8.80 |
+| 512 | 문자 발송 포트 `SmsSender`(`global/sms`) · `app.sms.sender` 값이 없으면 비활성(복구 503 유지) · `logging` 은 개발용(번호 끝 4자리·본문 길이만) | 본문 §8.80 |
+| 513 | 전화번호 복구 재개 값 — 코드 6자리·5분 · 발급 60초 1회·24시간 5회 · 대조 5회 · 문자로만 전달 · 대상 학부모·학생·기사·동승자 · `429 RECOVERY_RATE_LIMITED` | 본문 §8.80 · `API_SPEC §2.9` |
 
 
 ## 8.73 ⚖ `R46-BE` — 성능 개선(감사 제외) + 바로 고칠 것 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 410~419 · 백엔드 갈래)
@@ -1213,3 +1217,30 @@ R46 운영(`IMPLEMENTATION_PLAN §8.76`) 위에 사용자 결정(`Ruling 480`·`
 **결과 (2026-10-01)** — 목표 1~7 ✅(아래 예외 1건 명시). 신설·확장 시험 — `BackupScriptGuardTest` 8 · `AlertmanagerRenderGuardTest` 12 · `DeployScriptGuardTest` +6 · `DeploymentConfigGuardTest` +2 · `CorsCredentialsTest` +1 · promtool 시나리오 +3. 새 동작을 요구하는 시험은 구현 전 RED 를 확인했고(이미 동작하는 것을 고정하는 시험은 결함 심기로 확인), **결함 31종**(백업 스크립트 7 · 부트스트랩 2 · 렌더러 5 · `deploy.sh` 7 · compose·nginx 4 · 경보 5 · CORS 1)을 하나씩 심어 31/31 이 해당 시험에 의해 잡히고 원복 뒤 저장소 상태 31/31 빈 결과. 로컬 실측 — `amtool check-config`(렌더 3종 통과 · 반쪽 설정 거부) · `promtool` 통과 · `-p r46ops2` 기동에서 낡은 DB 백업 지표 → `BackupDbStale` 이 5분 뒤 Alertmanager 에 도착 · `:8400` 에서 허용 출처 preflight 200 / 밖 403 · 쿠키 `SameSite=Strict` · WS `101`/`403` · 복구 절차(`DEPLOYMENT §7.3` 경로 B) 실행으로 원본과 복원본 일치 · 두 번째 메인 관리자 SQL 로 로그인 200. 깨진 참조 0 → 0. 실제 AWS·Vercel·텔레그램·SMTP 는 호출하지 않았다.
 
 **전체 백엔드 시험**(`--rerun`) 344클래스 1,960건 **실패 2 · 건너뜀 0** — 둘 다 이 갈래와 무관하고 깨끗한 DB 의 단독 실행에서 통과한다: ① `AcademySettingFindOrCreateConcurrencyTest` 는 동시 실행 시험이 머신 부하 평균 약 47(다른 작업 창이 같은 머신에서 실행 중)에서 `TimeoutException` — 단독 실행 통과(16초). ② `AuditRecorderDedupTest.두_번째_조회에_새_학생이_실리면_그_학생만_기록된다` 는 같은 DB 에서 앞서 돈 시험이 남긴 `actor_account_id` 가 null 인 `login_fail` 행 때문에 NPE(`actor == log.getActorAccountId()` 가 `audit_log` 전체를 읽고 null 을 언박싱) — 그런 행을 직접 넣으면 **결정적으로 재현**되고 스키마를 비우면 통과한다. 시험 소스는 분기점 이후 변경이 없다(범위 밖이라 고치지 않고 보고). 전체를 세는 시험(`ControllerAuthorizationConventionTest` · `AcademyScopeHttpExhaustiveTest` · `AuthFlowIntegrationTest` · `SchemaContractTest` · `EnumCheckConstraintParityTest` · `ErrorCodeCatalogTest` · `MetricsExposureTest` · `AccountStatusGateInterceptorTest` · `AcademyScopeRepositoryConventionTest`)은 결과 XML 에 있고 실패 0. **실제 AWS 실행은 미수행** — 첫 배포 뒤 확인할 것: 데이터 디스크 마운트·`fstab`(`/dev/nvme1n1` 가정) · 백업 지표가 EC2 의 node-exporter 에 읽히는지 · 복구 소요 시간(약 40분은 추정) · Vercel 빌드(`output: "standalone"` 무시 여부 · 요금제).
+
+## 8.80 ⚖ `R46-INTEG` — 외부 연동 자리 · 푸시 클라이언트 · 문자 복구 (2026-10-01 · 분기점 `6b22d2b2` · 번호대 510~519 · 사용자 결정 `Ruling 483` 의 푸시)
+
+`Ruling 483`(배포·외부 연동은 자리만 만든다 — 포트 + 키가 없을 때 쓰는 기본 구현 + 설정 키 이름 + 사용자가 준비할 목록 · 키가 없어도 빌드·시험이 통과)의 구현이다. 갈래 보고서 `.claude/r46/report-integ.md`(무시 파일). 앱·웹 쪽 기록은 `docs/frontend/IMPLEMENTATION_PLAN.md §5.22`.
+
+| Ruling | 판정 | 근거 |
+|:-:|---|---|
+| **510** | **푸시 클라이언트 자리(앱 2종).** 토큰 공급자 포트 `PushTokenSource`(`baraeda_core`) + 기본 구현 `PlaceholderPushTokenSource`(기기별 자리표시 토큰 `placeholder-<기기 식별자>`)를 둔다. **Firebase SDK(`firebase_messaging`)는 이번에 넣지 않는다** — `google-services.json` · `GoogleService-Info.plist` · 네이티브 빌드 설정을 계정 없이 검증할 수 없고, 의존성만 먼저 넣으면 검증 없이 최소 iOS 버전·Gradle 구성을 바꾼다. 구현체 스케치와 교체 지점은 `DEPLOYMENT §14`. **로그인 성공 직후 `AuthApi.login` 이 `POST /me/devices` 를 부른다**(자동 로그인은 `GET /me` 직후 · 같은 토큰은 한 번만) — 실패해도 로그인은 성공하고 다음 `/me` 가 다시 시도. **로그아웃은 `device_id` 를 싣는다**(`§2.7` — 서버가 그 기기 토큰 해지). 학부모·학생 앱 설정 스위치로 끈 기기는 저장해 다음 로그인·앱 실행이 다시 켜지 않는다(매니저 앱은 끄기 수단 부재 — 알림 on/off 권한이 없다). **버린 길** — 기본 공급자가 토큰을 주지 않는 방식(등록 생략): 로그인 뒤 등록 · 로그아웃 해지 서버 경로가 키 없는 스테이징에서 끝까지 도는지 볼 수 없고 설정 스위치가 시험 불가가 된다. 서버는 FCM 이 거부하는 자리표시 토큰의 행을 해지하므로(`Ruling 331`) 해가 없다 | 조사 `A #1` · `C #14` · `fe-rounds` §5.x "FCM 실토큰 등록" 이월 |
+| **511** | **관계자 웹 브라우저 푸시와 이메일 발송은 사양에 없어 만들지 않는다.** 웹 푸시 — 단말 등록(NTF-12)의 흐름은 앱 진입(`UF-X-09`)뿐이고, 관계자 웹의 비상 알림 수신(A-16)은 열린 화면의 실시간 수신 + 탭 제목 건수 + 사용자가 켠 알림음·브라우저 알림(`R46-WEB`, 프론트 `Ruling 420~422`)으로 이미 정의돼 있다. 서버 `platform=web` 값은 CHECK 에 있으나 호출하는 기능이 없다 — 웹 푸시를 사양에 넣기로 정할 때(서비스 워커 · VAPID · 탭이 닫힌 뒤 수신) 별도 `Ruling`. 이메일 — 사양 4종 · 설계 문서에 이메일을 보내는 기능이 없다(`email` 은 프로필 필드뿐, `API_SPEC §6`·`§5`). 발송 포트를 만들지 않는다(YAGNI). 장애 경보 이메일은 Alertmanager(`Ruling 480`, 운영 갈래) 몫 | `grep -rIln 'serviceWorker\|firebase' frontend/apps/academy-web/src` 0건 · `grep -n '이메일\|email' docs/FEATURE_SPEC.md docs/PRD.md docs/USER_FLOWS.md` 에 발송 기능 0건 |
+| **512** | **문자 발송 포트 `SmsSender`(`global/sms/spec`).** 구현 선택은 `app.sms.sender` 한 곳 — **값이 없으면 어떤 구현도 뜨지 않고** 전화번호 복구는 `503 RECOVERY_UNAVAILABLE` 그대로(`Ruling 329`). `logging` 은 개발용 `LoggingSmsSender`(번호 끝 4자리 · 본문 길이만 로그 · prod 에서 기동 실패). 값이 없을 때 로그 구현이 기본으로 뜨지 않는 이유는 `PushSender`(기본 로그)와 다르다 — 문자가 아무에게도 가지 않는데 복구가 열려 있으면 정상 사용자는 불능이고 공격자에겐 대입 경로가 된다(`Ruling 329` 와 같은 근거). **`notification/` 이 아니라 `global/` 에 둔 이유** — `NotificationModuleIsolationTest`(규칙 17: 다른 모듈은 `notification` 을 직접 부르지 않는다)가 막고, 복구는 발송 실패가 요청 트랜잭션을 되돌려야 하는 동기 호출이라 이벤트 구독 구조와 맞지 않는다. 업체 구현체는 업체가 정해진 뒤(`DEPLOYMENT §14`) | 시험 `LoggingSmsSenderTest` · `AuthControllerTest` 의 503 시험(발송기 없을 때) |
+| **513** | **전화번호 복구 재개 값(`API_SPEC §2.9` 재개 조건의 구현).** 코드 6자리 · 유효 5분 · 같은 번호 발급 60초 1회 · 24시간 5회(번호 기준 · `type` 무관 · `verification_code` 행 수) · 대조 5회(조건부 UPDATE, 틀려 `403` 이어도 횟수는 커밋) · 초과 `429 RECOVERY_RATE_LIMITED` 신설 · **임시 비밀번호·아이디는 문자로만**(응답 본문 부재) · 비밀번호 교체와 동시에 refresh 토큰 전량 무효화 · 문자 발송이 트랜잭션 마지막이라 실패하면 코드 발급·비밀번호 교체가 되돌려짐. **대상은 학부모·학생·기사·동승자** — 관계자·메인 관리자는 문자 한 통(SIM 탈취)으로 학원 전체 권한을 얻게 되므로 제외하고 메인 관리자 경로(`§6.7`)로 둔다(미등록 번호와 같은 `404`). 같은 번호 계정이 여럿이면 전부 초기화하고 한 통에 아이디별로 적는다. `phone` 입력은 20자 이하 — `verification_code.phone` 컬럼이 20자라 넘기면 코드 행 저장에서 500. **알려진 한계(사용자 판단 몫)** — 발급 때 미등록 번호가 `404` 라 번호의 가입 여부가 드러난다(`API_SPEC §2.9` 사양 그대로). 발송기를 켜기 전에 이 노출을 받아들일지 정한다 | 시험 `AccountRecoveryFlowTest` 9건 · 결함 심기 7종 |
+
+### R46-INTEG 목표 표
+
+| # | 완료 조건 | 확인 수단 |
+|:-:|---|---|
+| 1 | 키·설정 파일 없이 백엔드·웹·Flutter 4곳 빌드·시험 통과 | 백엔드 전체 · 웹 `tsc`·`lint`·vitest · 4패키지 `analyze`·`test --exclude-tags real_backend` |
+| 2 | 앱: 로그인 뒤 토큰 등록 호출 · 로그아웃 때 해제 — 가짜 토큰 공급자로 시험 | `device_registrar_test`(8) · 앱 2종 배선 시험 · `device_registration_panel_push_source_test`(3) · 결함 심기 9종 |
+| 3 | SMS: 비활성 → 503 유지 · 가짜 발송기 활성 → 재개 조건대로 동작 · 로그에 번호·코드 원문 0 | `AuthControllerTest` · `AccountRecoveryFlowTest` 9건 · `LoggingSmsSenderTest` 3건 · 결함 심기 7종 |
+| 4 | 준비물 표의 키 이름이 코드의 실제 이름과 일치 | 아래 결과 — 키별 `grep` |
+| 5 | 실서버 계약 시험(해당 패키지)을 자기 서버에만 | 아래 결과 |
+| 6 | 깨진 참조 증가 0 | `build.py` 전후 |
+| 7 | 정리 — 서버 종료 · `r46_integ` DROP | `lsof` · `pg_database` |
+
+**결과 (2026-10-01)** — 목표 1 ✅ 백엔드 `--rerun` 344클래스 1,943건 · 건너뜀 0 · 실패 1(`AcademySettingFindOrCreateConcurrencyTest` 시간 초과 — 다른 창 4개와 내 Flutter·웹 시험이 동시에 도는 부하에서 발생, 단독 재실행 1/1 통과 · 이 갈래가 건드린 코드 아님) · 웹 `next typegen` 뒤 `tsc`·`lint` 0 · vitest 118파일 711건 · Flutter 4패키지 `analyze` 0 · `baraeda_ui` 235 · `baraeda_core` 83 · `parent-app` 259 · `manager-app` 334 전부 실패 0 · 건너뜀 0. 목표 2 ✅ 새 시험 — `device_registrar_test` 8 · 앱 2종 배선 시험 각 1 · `device_registration_panel_push_source_test` 3 · 결함 심기 9종에서 그 시험만 실패. 목표 3 ✅ `AccountRecoveryFlowTest` 9 · `LoggingSmsSenderTest` 3 · 발송기 없을 때 503 은 `AuthControllerTest` 19건 안에서 그대로 통과 · 결함 심기 7종(빈도 제한 제거 포함). 목표 4 ✅ 준비물 표의 키 12개를 `grep` 으로 코드에서 찾음(`app.sms.sender` `LoggingSmsSender` · `app.push.*` `FcmPushSender` · `FCM_*` `application.yml`·`docker-compose.prod.yml` · `PushTokenSource` 계열 `baraeda_core`) — `FirebasePushTokenSource` 만 스케치라 코드 0건이 정상. 목표 5 ✅ 서버 `:8410` · `baraeda_core` 9 · `parent-app` 28(`--dart-define=FIXTURE_DB=r46_integ` 를 줘야 건너뜀 0 — 안 주면 소프트 삭제 시험 1건이 환경 문제로 건너뜀) · `manager-app` 26 · 웹 `realBackend` 14파일 78(복구 `503` 유지 시험 포함) 실패 0 · 건너뜀 0. 목표 6 ✅ 깨진 참조 0(문서 반영 전 9건은 전부 내 `Ruling 512·513` 인용 → 정의처를 쓰자 0). 목표 7 ✅ `:8410` 종료 · `:5173` 미사용 · `r46_integ` DROP.
+
+**부수 수정 1건** — `API_SPEC §8.1` 에 `RECOVERY_RATE_LIMITED` 를 더하자 웹 `apiErrorCodes` 대조 시험이 실패 → `apiErrorCodes.ts` 한 줄 추가(`§8` 이 먼저 바뀌고 웹 사전이 따르는 규칙 그대로).

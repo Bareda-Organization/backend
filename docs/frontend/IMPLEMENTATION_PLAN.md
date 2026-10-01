@@ -321,6 +321,20 @@ frontend/
 | 7 | 정본 반영 + Ruling | `Ruling 460~468` · `API_SPEC §2.5·§2.10` |
 | 8 | 정리 | 서버 :8370 종료 · `r46_mgr` 삭제 · 시뮬레이터 `2F82BAEA…` Shutdown(띄운 적 없음) · 자기 `flutter_tester` 0 |
 
+## 5.22 ⚖ `R46-INTEG` — 푸시 토큰 공급자 · 로그인 뒤 단말 등록 · 로그아웃 해지 (2026-10-01 · 분기점 `6b22d2b2` `mskim98/r46-integ` · 판정 `Ruling 510·511`)
+
+- **사용자 결정** — `Ruling 483`(외부 연동은 자리만) · 조사 `A #1` · `C #14`. 서버·문자 쪽 판정과 목표 표는 `docs/IMPLEMENTATION_PLAN.md §8.80`. 준비물 표는 `docs/infra/DEPLOYMENT.md §14`
+- **범위** — 공용 `baraeda_core`(새 파일 `push/` 4개 + `AuthApi` 연결) · 학부모·학생 앱(`di.dart` · 설정 스위치) · 매니저 앱(`di.dart`). 관계자 웹 변경 부재
+
+### 5.22.1 판정
+
+- **`Ruling 510` — 푸시 토큰은 공급자 포트 `PushTokenSource` 가 준다.** 기본 `PlaceholderPushTokenSource` 는 기기별 자리표시 토큰을 주고(서버가 FCM 거부를 받아 해지 — `Ruling 331`), Firebase SDK 는 이번에 넣지 않는다(설정 파일 없이 검증 불가). `AuthApi.login` 이 로그인 직후 `POST /me/devices` 를 부르고(실패해도 로그인은 성공 · 다음 `/me` 가 재시도), `AuthApi.logout` 이 `device_id` 를 실어 서버가 그 기기 토큰을 해지한다. 학부모·학생 앱 설정 스위치는 공급자 토큰을 쓰고, 끄면 그 사실을 저장해 다음 로그인·앱 실행이 다시 켜지 않는다(공급자가 토큰을 못 주면 안내만). `DeviceRegistrationStorage` 는 두 앱이 함께 쓰게 돼 `baraeda_core` 로 올렸다(저장 키 그대로)
+- **`Ruling 511` — 관계자 웹 브라우저 푸시는 사양에 없어 만들지 않는다.** 웹 `registerDevice` · `unregisterDevice`(`features/auth/api/devices.ts`)는 호출처 0 그대로 둔다 — 비상 알림 수신은 열린 화면의 실시간 수신 + 탭 제목 + 알림음(`R46-WEB`)이 이미 맡는다
+
+### 5.22.2 목표 표
+
+`docs/IMPLEMENTATION_PLAN.md §8.80` 의 `R46-INTEG` 목표 표를 따른다 — 앱 쪽 항목은 2·1·4.
+
 ## 6. 완료 조건 — 화면 단위
 
 각 화면은 아래 4개를 전부 통과해야 완료. **"화면이 뜬다" 는 완료가 아님.**
