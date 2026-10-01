@@ -1,5 +1,7 @@
 package src.backend.audit.query;
 
+import java.time.Clock;
+import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -52,6 +54,8 @@ public class AuditLogQueryService {
 
     private final AccountRepository accountRepository;
 
+    private final Clock clock;
+
     /**
      * 개인정보 조회·수정 이력을 최신순(동률은 id 오름차순)으로 페이징해 돌려준다(§6.13).
      *
@@ -60,8 +64,9 @@ public class AuditLogQueryService {
      */
     public PageResponse<AuditLogItemResponse> list(AuditQueryFilter filter, String action) {
         validateFilters(filter.academyId(), filter.accountId());
+        AuditQueryRange range = AuditQueryRange.of(filter.from(), filter.to(), OffsetDateTime.now(clock));
         Page<AuditLog> result = auditLogRepository.search(AuditCategory.DATA_ACCESS, actionsOf(action),
-                filter.academyId(), filter.accountId(), AuditQueryRange.from(filter.from()), AuditQueryRange.to(filter.to()),
+                filter.academyId(), filter.accountId(), range.from(), range.to(),
                 PageParams.of(filter.page(), filter.size()).toPageable(ORDER));
 
         Map<Long, String> academyNames = academyNamesOf(result.getContent());

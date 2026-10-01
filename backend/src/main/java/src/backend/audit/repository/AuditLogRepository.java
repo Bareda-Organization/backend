@@ -71,37 +71,44 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
             return search(AuditCategory.LOGIN, ALL_ACTIONS, academyId, null, from, to, pageable);
         }
         if (academyId != null) {
-            return findLoginHistoryByAcademyAndAccount(AuditCategory.LOGIN, AuditAction.UNBLOCK, academyId, accountId,
-                    from, to, pageable);
+            return findLoginHistoryByAcademyAndAccount(AuditCategory.LOGIN, academyId, accountId, from, to, pageable);
         }
-        return findLoginHistoryByAccount(AuditCategory.LOGIN, AuditAction.UNBLOCK, accountId, from, to, pageable);
+        return findLoginHistoryByAccount(AuditCategory.LOGIN, accountId, from, to, pageable);
     }
 
-    /** 학원·계정 둘 다 지정한 접속 이력 검색 — 해제 행은 해제된 계정으로 맞춘다. */
+    /**
+     * 학원·계정 둘 다 지정한 접속 이력 검색 — 해제 행은 해제된 계정으로 맞춘다.
+     *
+     * <p>{@code unblock} 을 바인딩 파라미터가 아니라 <b>리터럴</b>로 쓴다(R46 I-05) — 해제 행만 색인하는 부분 인덱스
+     * {@code ix_audit_log_unblock_target} 의 조건({@code action = 'unblock'})을 일반(generic) 계획도 함의로 받아들이게 하려는 것이다.
+     */
     @Query("""
             SELECT a FROM AuditLog a
             WHERE a.category = :category AND a.academyId = :academyId
               AND a.occurredAt BETWEEN :from AND :to
-              AND ((a.action <> :unblock AND a.actorAccountId = :accountId)
-                   OR (a.action = :unblock AND a.targetId = :accountId))
+              AND ((a.action <> src.backend.audit.entity.AuditAction.UNBLOCK AND a.actorAccountId = :accountId)
+                   OR (a.action = src.backend.audit.entity.AuditAction.UNBLOCK AND a.targetId = :accountId))
             """)
     Page<AuditLog> findLoginHistoryByAcademyAndAccount(@Param("category") AuditCategory category,
-            @Param("unblock") AuditAction unblock, @Param("academyId") Long academyId,
-            @Param("accountId") Long accountId, @Param("from") OffsetDateTime from, @Param("to") OffsetDateTime to,
+            @Param("academyId") Long academyId, @Param("accountId") Long accountId, @Param("from") OffsetDateTime from, @Param("to") OffsetDateTime to,
             Pageable pageable);
 
-    /** 계정만 지정한 접속 이력 검색 — 해제 행은 해제된 계정으로 맞춘다. */
+    /**
+     * 계정만 지정한 접속 이력 검색 — 해제 행은 해제된 계정으로 맞춘다. 두 갈래({@code actor_account_id} · 해제 행의
+     * {@code target_id})가 각자 인덱스({@code ix_audit_log_actor_occurred} · {@code ix_audit_log_unblock_target})를 타 {@code BitmapOr}
+     * 로 합쳐진다 — 해제 행의 접근 경로가 없을 때는 일치 행이 적은 계정이 기간 전체를 훑었다(실측 15,674 버퍼 → 18).
+     */
     @AcademyScopeExempt(reason = "§6.13 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
             + "예외를 여는 판정은 컨트롤러의 @CanReadAudit 하나다")
     @Query("""
             SELECT a FROM AuditLog a
             WHERE a.category = :category
               AND a.occurredAt BETWEEN :from AND :to
-              AND ((a.action <> :unblock AND a.actorAccountId = :accountId)
-                   OR (a.action = :unblock AND a.targetId = :accountId))
+              AND ((a.action <> src.backend.audit.entity.AuditAction.UNBLOCK AND a.actorAccountId = :accountId)
+                   OR (a.action = src.backend.audit.entity.AuditAction.UNBLOCK AND a.targetId = :accountId))
             """)
     Page<AuditLog> findLoginHistoryByAccount(@Param("category") AuditCategory category,
-            @Param("unblock") AuditAction unblock, @Param("accountId") Long accountId,
+            @Param("accountId") Long accountId,
             @Param("from") OffsetDateTime from, @Param("to") OffsetDateTime to, Pageable pageable);
 
     /** 학원·계정 둘 다 지정한 검색. */

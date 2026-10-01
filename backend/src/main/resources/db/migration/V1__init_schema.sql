@@ -882,6 +882,9 @@ CREATE INDEX ix_audit_log_academy_occurred ON audit_log (academy_id, occurred_at
 CREATE INDEX ix_audit_log_actor_occurred ON audit_log (actor_account_id, occurred_at DESC);
 -- 필터 없는 감사·접속 이력 첫 화면(§6.13) — 무기한 보존 테이블의 전 표 정렬을 막는다(BR-089).
 CREATE INDEX ix_audit_log_category_occurred ON audit_log (category, occurred_at DESC);
+-- 계정별 접속 이력(§6.13)은 해제(unblock) 행을 행위자가 아니라 해제된 계정(target_id)으로 맞춘다 — 그 접근 경로가 없으면 일치 행이
+-- 적은 계정이 기간 전체를 훑는다(R46 I-05). 해제 행은 드물어 이 인덱스의 쓰기 비용은 사실상 0 이다.
+CREATE INDEX ix_audit_log_unblock_target ON audit_log (target_id) WHERE action = 'unblock';
 
 CREATE INDEX ix_rider_status_history_rider_changed ON rider_status_history (run_rider_id, changed_at DESC);
 

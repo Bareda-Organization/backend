@@ -509,19 +509,62 @@ class SchemaContractTest extends MigratedPostgresTestBase {
                 """)).isEmpty();
     }
 
+    /**
+     * R46 I-05(b) — 계정별 접속 이력은 {@code (행위자 = X AND 해제 아님) OR (해제 AND 대상 = X)} 인데 해제 행의 {@code target_id}
+     * 에 접근 경로가 없어, 일치 행이 적은 계정이 기간 전체를 훑었다(실측 15,674 버퍼 · 48ms → 18 버퍼 · 0.07ms). 해제 행만 색인하는
+     * 부분 인덱스가 {@code BitmapOr} 의 한쪽을 받치는지 합성 행 6만 건으로 본다 — 행은 조회 기간(최근 365일) 안에 퍼뜨린다(기간 밖이면
+     * 플래너가 빈 범위로 보고 다른 계획을 고른다). 시험 트랜잭션이 롤백해 행이 남지 않는다.
+     */
+    @Test
+    void 계정별_접속_이력_조회는_행위자_인덱스와_해제_행의_대상_인덱스를_함께_쓴다() throws SQLException {
+        try (Connection connection = connection()) {
+            connection.setAutoCommit(false);
+            try {
+                execute(connection, """
+                        INSERT INTO audit_log (actor_account_id, actor_login_id, category, action, target_type, target_id,
+                                               occurred_at)
+                        SELECT 100 + (g % 100), 'u', 'login',
+                               CASE WHEN g % 100 < 85 THEN 'login_success' WHEN g % 100 < 97 THEN 'login_fail'
+                                    WHEN g % 100 < 99 THEN 'block' ELSE 'unblock' END,
+                               'account', CASE WHEN g % 100 >= 99 THEN 100 + ((g / 100) % 100) END,
+                               now() - interval '300 days' + g * interval '430 seconds'
+                        FROM generate_series(1, 60000) g
+                        """);
+                execute(connection, "ANALYZE audit_log");
+
+                String plan = 계획을_본다(connection, """
+                        SELECT a.* FROM audit_log a
+                        WHERE a.category = 'login' AND a.occurred_at BETWEEN now() - interval '365 days' AND now()
+                          AND ((a.action <> 'unblock' AND a.actor_account_id = 999)
+                               OR (a.action = 'unblock' AND a.target_id = 999))
+                        ORDER BY a.occurred_at DESC, a.id ASC LIMIT 20
+                        """);
+
+                assertThat(plan).contains("BitmapOr").contains("ix_audit_log_actor_occurred")
+                        .contains("ix_audit_log_unblock_target").doesNotContain("Seq Scan");
+            } finally {
+                connection.rollback();
+            }
+        }
+    }
+
     /** 순차 스캔을 끈 세션에서 계획을 읽는다 — 표가 비어 있어도 "이 인덱스가 이 조건을 받는가" 가 결정적으로 드러난다. */
     private static String 순차_스캔을_끄고_계획을_본다(String sql) throws SQLException {
-        try (Connection connection = connection();
-                Statement statement = connection.createStatement()) {
-            statement.execute("SET enable_seqscan = off");
-            StringBuilder plan = new StringBuilder();
-            try (ResultSet rows = statement.executeQuery("EXPLAIN " + sql)) {
-                while (rows.next()) {
-                    plan.append(rows.getString(1)).append('\n');
-                }
-            }
-            return plan.toString();
+        try (Connection connection = connection()) {
+            execute(connection, "SET enable_seqscan = off");
+            return 계획을_본다(connection, sql);
         }
+    }
+
+    private static String 계획을_본다(Connection connection, String sql) throws SQLException {
+        StringBuilder plan = new StringBuilder();
+        try (Statement statement = connection.createStatement();
+                ResultSet rows = statement.executeQuery("EXPLAIN " + sql)) {
+            while (rows.next()) {
+                plan.append(rows.getString(1)).append('\n');
+            }
+        }
+        return plan.toString();
     }
 
     /**
