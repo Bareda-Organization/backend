@@ -15,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.monitoring.dto.AdminRunAttentionResponse;
-import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.AcademyRunCount;
 import src.backend.run.repository.RunRepository;
 
@@ -35,8 +34,8 @@ public class AdminRunAttentionQueryService {
     /** 오늘 지연 회차 또는 확정 실패 회차가 있는 학원을 학원 식별자 순으로 돌려준다. */
     public AdminRunAttentionResponse list() {
         LocalDate today = LocalDate.now(clock);
-        Map<Long, Long> delayed = byAcademy(runRepository.countDelayedByAcademy(today, RunStatus.FINISHED));
-        Map<Long, Long> confirmFailed = byAcademy(runRepository.countConfirmFailedByAcademy(today, RunStatus.IDLE));
+        Map<Long, Long> delayed = byAcademy(runRepository.countDelayedByAcademy(today));
+        Map<Long, Long> confirmFailed = byAcademy(runRepository.countConfirmFailedByAcademy(today));
 
         Set<Long> academyIds = new TreeSet<>(delayed.keySet());
         academyIds.addAll(confirmFailed.keySet());

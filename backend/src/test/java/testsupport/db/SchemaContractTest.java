@@ -471,8 +471,31 @@ class SchemaContractTest extends MigratedPostgresTestBase {
                 WHERE r.status = 'idle' AND r.confirm_at <= now() AND r.service_date >= current_date
                   AND r.canceled_at IS NULL
                 ORDER BY r.consecutive_failures, r.confirm_at LIMIT 50
-                """);
+                """, "ix_run_open_service_date");
         assertThat(plan).contains("ix_run_status_confirm_at").doesNotContain("Seq Scan");
+    }
+
+    /**
+     * R46-LATERBE I-04(Ruling 673) — 관리자 "주의 필요 회차" 집계는 <b>전 학원</b>의 오늘 미완료 회차를 센다. {@code service_date} 가 선행인
+     * 인덱스가 없으면 {@code (academy_id, service_date, …)} 인덱스를 비선두 열로 전체 훑는다(회차가 쌓일수록 선형 — 3년치 합성 데이터에서
+     * 버퍼 352 → 후 약 150, 실행 0.37 → 0.08ms). 미완료·미취소만 담은 부분 인덱스는 오늘·내일 분량만 가진다. 계획 확인은 순차 스캔을 꺼
+     * 인덱스가 쿼리 조건을 <b>함의로 받아들이는지</b>와 옛 인덱스가 선택되지 않는지를 본다.
+     */
+    @Test
+    void 관리자_주의_회차_집계는_미완료_회차만_담은_service_date_부분_인덱스로_풀린다() throws SQLException {
+        String definition = queryColumn("""
+                SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'ix_run_open_service_date'
+                """).getFirst();
+        assertThat(definition).contains("(service_date)").contains("canceled_at IS NULL")
+                .contains("(status)::text <> 'finished'::text");
+
+        String plan = 순차_스캔을_끄고_계획을_본다("""
+                SELECT r.academy_id, count(r.id) FROM run r
+                WHERE r.service_date = current_date AND r.canceled_at IS NULL AND r.status <> 'finished'
+                  AND EXISTS (SELECT 1 FROM delay_notice d WHERE d.run_id = r.id)
+                GROUP BY r.academy_id
+                """);
+        assertThat(plan).contains("ix_run_open_service_date").doesNotContain("ix_run_academy_date_depart");
     }
 
     /** R46 I-08 — 부모 삭제 경로가 있는 FK 둘({@code schedule} 삭제 → run 갱신 · 경유지 후보 삭제 → run_stop 검사)의 선행 인덱스. */
@@ -568,9 +591,25 @@ class SchemaContractTest extends MigratedPostgresTestBase {
 
     /** 순차 스캔을 끈 세션에서 계획을 읽는다 — 표가 비어 있어도 "이 인덱스가 이 조건을 받는가" 가 결정적으로 드러난다. */
     private static String 순차_스캔을_끄고_계획을_본다(String sql) throws SQLException {
+        return 순차_스캔을_끄고_계획을_본다(sql, new String[0]);
+    }
+
+    /**
+     * 위와 같되, 같은 조건을 받을 수 있는 <b>다른 인덱스</b>를 이 트랜잭션 안에서만 지우고({@code ROLLBACK}) 계획을 읽는다 — 빈 표에서는 두 후보
+     * 인덱스의 비용이 같아 어느 쪽이 뽑히는지 우연이라, 지켜야 할 인덱스가 조건을 받는지만 따로 볼 때 쓴다.
+     */
+    private static String 순차_스캔을_끄고_계획을_본다(String sql, String... 가려둘_인덱스) throws SQLException {
         try (Connection connection = connection()) {
-            execute(connection, "SET enable_seqscan = off");
-            return 계획을_본다(connection, sql);
+            connection.setAutoCommit(false);
+            execute(connection, "SET LOCAL enable_seqscan = off");
+            for (String index : 가려둘_인덱스) {
+                execute(connection, "DROP INDEX " + index);
+            }
+            try {
+                return 계획을_본다(connection, sql);
+            } finally {
+                connection.rollback();
+            }
         }
     }
 

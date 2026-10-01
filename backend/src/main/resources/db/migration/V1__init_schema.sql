@@ -822,6 +822,9 @@ CREATE INDEX ix_run_status_confirm_at ON run (service_date, confirm_at) WHERE st
 CREATE INDEX ix_run_academy_date_depart ON run (academy_id, service_date, depart_time);
 -- 스케줄 삭제(ON DELETE SET NULL)가 run 전체를 훑지 않게 한다(R46 I-08). 버스·날짜 조회는 uk_run_bus_date_direction_depart 가 받친다.
 CREATE INDEX ix_run_schedule ON run (schedule_id);
+-- 관리자 "주의 필요 회차" 집계(지연·확정 실패)는 전 학원의 오늘 미완료 회차를 센다 — service_date 선행 인덱스가 없으면
+-- ix_run_academy_date_depart 를 비선두 열로 전체 훑는다. 미완료·미취소만 담아 오늘·내일 분량만 색인한다(R46-LATERBE I-04).
+CREATE INDEX ix_run_open_service_date ON run (service_date) WHERE canceled_at IS NULL AND status <> 'finished';
 CREATE INDEX ix_run_moving ON run (status) WHERE status = 'moving';
 
 CREATE INDEX ix_run_rider_run_status ON run_rider (run_id, status);
