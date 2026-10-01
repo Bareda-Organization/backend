@@ -13,6 +13,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.sql.Timestamp;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -87,6 +88,9 @@ class ProximityNotificationSchedulerTest {
 
     @Autowired
     private ProximityNotificationScheduler scheduler;
+
+    @Autowired
+    private Clock clock;
 
     @MockitoSpyBean
     private ProximityNotificationService proximityNotificationService;
@@ -219,6 +223,27 @@ class ProximityNotificationSchedulerTest {
 
         verify(proximityNotificationService, times(1)).judgeRun(eq(movingRunId), eq(academyId), any(), any());
         verify(proximityNotificationService, never()).judgeRun(eq(confirmedRunId), anyLong(), any(), any());
+    }
+
+    /**
+     * R46-KFIXBE K-1(Ruling 701) — 운행일이 어제보다 이른 채 끝나지 않은 이동 중 회차는 판정 대상이 아니다. 그 회차를 계속 집으면 처리할 회차가
+     * 날마다 늘고, 어제 운행일(자정을 넘겨 달리는 회차)은 여전히 판정을 받아야 한다.
+     */
+    @Test
+    void 이틀_전_운행일의_끝나지_않은_회차는_판정_대상이_아니고_어제_운행일은_대상이다() {
+        ProximityFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        LocalDate today = LocalDate.now(clock);
+        long staleRunId = fullyWiredMovingRun(fx, academyId, busId, "옛회차학생", "옛회차학부모").runId();
+        jdbcTemplate.update("UPDATE run SET service_date = ? WHERE id = ?", today.minusDays(2), staleRunId);
+        long overnightRunId = fullyWiredMovingRun(fx, academyId, fx.bus(academyId), "자정회차학생", "자정회차학부모").runId();
+        jdbcTemplate.update("UPDATE run SET service_date = ? WHERE id = ?", today.minusDays(1), overnightRunId);
+
+        scheduler.judgeMovingRuns();
+
+        verify(proximityNotificationService, never()).judgeRun(eq(staleRunId), anyLong(), any(), any());
+        verify(proximityNotificationService, times(1)).judgeRun(eq(overnightRunId), eq(academyId), any(), any());
     }
 
     /**

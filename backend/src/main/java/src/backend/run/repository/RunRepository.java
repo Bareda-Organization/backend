@@ -126,12 +126,35 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      * 그대로라 늘 0쪽만 집으면 다음 틱도 같은 묶음이다. 호출부가 마지막 id 를 넘겨 끝까지 이어 읽는다
      * (BR-011). 쪽 번호 대신 id 를 쓰는 이유는 읽는 사이에 회차가 끝나 목록이 줄어도 건너뛰는 행이 없게
      * 하려는 것이다.
+     *
+     * <p><b>{@code service_date >= since}</b> 로 지난 운행일의 이동 중 회차를 뺀다(R46-KFIXBE K-1, Ruling 701) — 잔류 인원을
+     * 정리하지 못해 끝나지 않은 회차가 처리 집합에 영구히 남으면 틱마다 읽는 양이 날마다 늘고, 위치가 없는 그 회차가 유실
+     * 경보를 계속 켜 둔다. {@code since} 는 {@code MovingRunWindowPolicy#earliestServiceDate} 다. 빠진 회차의 수는
+     * {@link #countStaleMoving} 이 센다. {@code ix_run_moving}(부분 인덱스)이 이동 중 회차만 골라 주므로 날짜 조건은 그 소수에
+     * 대한 걸러내기다. {@code status} 를 바인딩 파라미터가 아니라 <b>리터럴</b>로 둔 것도 이 인덱스 때문이다 — 부분 인덱스는 리터럴일 때만 쓰여, 파라미터로 받으면
+     * 일반(generic) 계획이 {@code run_pkey} 로 전 행을 훑는다(14.6만 행 실측 20.7ms · 리터럴은 0.033ms, {@code ix_run_status_confirm_at} 주석과 같은
+     * 근거). 읽기 전용 트랜잭션 한 개로 묶는다 — 근접 판정 시험(R46-LATERBE L5)이 한 틱의 트랜잭션 수를 세는데, 이 조회가
+     * 그중 하나다.
      */
     @AcademyScopeExempt(reason = "근접 알림 스케줄러는 시각이 촉발하는 전 학원 대상 조회라 좁힐 학원이 부재하다 — "
             + "findDueForConfirmation 와 같은 근거. 호출부는 "
             + "배치(ProximityNotificationScheduler · RunPositionLostGaugeScheduler)뿐이라는 전제 — 요청 경로에서 부르면 이 예외가 우회로가 된다")
-    List<Run> findByStatusAndCanceledAtIsNullAndIdGreaterThanOrderByIdAsc(RunStatus status, Long afterId,
+    @Transactional(readOnly = true)
+    @Query("SELECT r FROM Run r WHERE r.status = src.backend.run.entity.RunStatus.MOVING AND r.canceledAt IS NULL "
+            + "AND r.serviceDate >= :since AND r.id > :afterId ORDER BY r.id ASC")
+    List<Run> findMovingFromServiceDate(@Param("since") LocalDate since, @Param("afterId") Long afterId,
             Pageable pageable);
+
+    /**
+     * 처리 집합에서 빠진 <b>끝나지 않은 이동 중 회차</b> 수 — 운행일이 {@code before} 보다 이른 미취소 {@code moving} 회차
+     * (R46-KFIXBE K-1, Ruling 701). {@link #findMovingFromServiceDate} 가 집지 않는 바로 그 회차라, 근접 판정·유실 집계·노선
+     * 잠금이 못 보는 대신 {@code schoolbus.run.moving.stale} 게이지로 사람에게 드러낸다.
+     */
+    @AcademyScopeExempt(reason = "끝나지 않은 이동 중 회차 게이지는 시각이 촉발하는 전 학원 대상 집계라 좁힐 학원이 부재하다 — "
+            + "countOverdueUnconfirmed 와 같은 근거. 호출부는 관측 스케줄러(StaleMovingRunGaugeScheduler)뿐이라는 전제")
+    @Query("SELECT COUNT(r) FROM Run r WHERE r.status = src.backend.run.entity.RunStatus.MOVING "
+            + "AND r.canceledAt IS NULL AND r.serviceDate < :before")
+    long countStaleMoving(@Param("before") LocalDate before);
 
     /**
      * 회차를 idle → confirmed 로 전이한다 — 영향받은 행 수로 성공 여부를 판정한다(목표 2).

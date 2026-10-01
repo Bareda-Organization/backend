@@ -1,5 +1,6 @@
 package src.backend.location.scheduler;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -17,8 +18,8 @@ import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.location.proximity.ProximityNotificationService;
 import src.backend.location.proximity.ProximityNotificationService.Judgment;
 import src.backend.observability.metrics.SchedulerHealthMetrics;
+import src.backend.run.domain.MovingRunWindowPolicy;
 import src.backend.run.entity.Run;
-import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 
 /**
@@ -48,6 +49,8 @@ public class ProximityNotificationScheduler {
     static final int BATCH_SIZE = 50;
 
     private final RunRepository runRepository;
+
+    private final MovingRunWindowPolicy movingRunWindowPolicy;
 
     private final ProximityNotificationService proximityNotificationService;
 
@@ -81,11 +84,11 @@ public class ProximityNotificationScheduler {
             initialDelayString = "${app.location.proximity.initial-delay-ms:0}")
     @SchedulerLock(name = "proximity-notification", lockAtMostFor = "PT30S")
     public void judgeMovingRuns() {
+        LocalDate since = movingRunWindowPolicy.earliestServiceDate();
         long afterId = 0;
         List<Run> page;
         do {
-            page = runRepository.findByStatusAndCanceledAtIsNullAndIdGreaterThanOrderByIdAsc(RunStatus.MOVING,
-                    afterId, PageRequest.of(0, BATCH_SIZE));
+            page = runRepository.findMovingFromServiceDate(since, afterId, PageRequest.of(0, BATCH_SIZE));
             judgeBatch(page);
             if (!page.isEmpty()) {
                 afterId = page.get(page.size() - 1).getId();

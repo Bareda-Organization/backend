@@ -26,6 +26,29 @@ tests:
             exp_annotations:
               summary: 확정 시각을 5분 넘긴 미확정 회차가 있다 — 기사가 노선을 받지 못했다
 
+  # 끝나지 않은 이동 중 회차: 0 → 1 이 된 뒤 30분(for)을 넘겨야 발화한다. 계속 0 인 시계열은 조용하다(R46-KFIXBE K-1).
+  - interval: 1m
+    input_series:
+      - series: 'schoolbus_run_moving_stale{application="school-bus"}'
+        values: '0x10 1x60'
+      - series: 'schoolbus_run_moving_stale{application="quiet"}'
+        values: '0x70'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: StaleMovingRun
+        exp_alerts: []
+      - eval_time: 30m   # 1 이 된 지 19분 — 아직 pending
+        alertname: StaleMovingRun
+        exp_alerts: []
+      - eval_time: 45m
+        alertname: StaleMovingRun
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              application: school-bus
+            exp_annotations:
+              summary: 운행일이 어제보다 이른데 끝나지 않은 이동 중 회차가 있다 — 근접 판정과 위치 유실 경보가 더는 보지 않는다
+
   # 푸시 실패: 누적 카운터가 늘어난 구간에서만 발화하고, 10분 창을 지나 증가가 멈추면 꺼진다.
   - interval: 15s
     input_series:

@@ -10,6 +10,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +40,7 @@ import src.backend.location.repository.RunPositionRepository;
 import src.backend.location.scheduler.ProximityNotificationScheduler;
 import src.backend.observability.metrics.RunPositionFallbackMetrics;
 import src.backend.observability.metrics.SchedulerHealthMetrics;
+import src.backend.run.domain.MovingRunWindowPolicy;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
 
@@ -112,8 +115,8 @@ class RedisFailureLogFloodTest {
         Run run = mock(Run.class);
         when(run.getId()).thenReturn(1L);
         when(run.getAcademyId()).thenReturn(1L);
-        when(runRepository.findByStatusAndCanceledAtIsNullAndIdGreaterThanOrderByIdAsc(any(), any(Long.class),
-                any(PageRequest.class))).thenReturn(List.of(run));
+        when(runRepository.findMovingFromServiceDate(any(LocalDate.class), any(Long.class), any(PageRequest.class)))
+                .thenReturn(List.of(run));
         ProximityNotificationService service = mock(ProximityNotificationService.class);
         RunPositionStore store = mock(RunPositionStore.class);
         when(store.findAll(any())).thenReturn(Map.of(1L, new RunPositionRedisValue(new BigDecimal("37.5"),
@@ -125,8 +128,8 @@ class RedisFailureLogFloodTest {
             onFailure.accept(ProximityNotificationService.Judgment.DEPARTURE, new IllegalStateException("판정 실패"));
             return null;
         }).when(service).judgeRun(any(), any(), any(), any());
-        ProximityNotificationScheduler scheduler = new ProximityNotificationScheduler(runRepository, service, store,
-                mock(SchedulerHealthMetrics.class));
+        ProximityNotificationScheduler scheduler = new ProximityNotificationScheduler(runRepository,
+                new MovingRunWindowPolicy(Clock.systemUTC()), service, store, mock(SchedulerHealthMetrics.class));
         collect(ProximityNotificationScheduler.class);
 
         for (int i = 0; i < FAILURES; i++) {
