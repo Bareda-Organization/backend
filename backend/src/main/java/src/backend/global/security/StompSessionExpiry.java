@@ -50,6 +50,11 @@ public class StompSessionExpiry implements ChannelInterceptor {
         return expiresAt != null && !Instant.now(clock).isBefore(expiresAt);
     }
 
+    /** 만료 시각을 들고 있는 세션 수 — 끊긴 세션이 이 맵에 남지 않는지 실서버 시험이 센다. */
+    int trackedSessionCount() {
+        return expiresAtBySession.size();
+    }
+
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         String sessionId = SimpMessageHeaderAccessor.getSessionId(message.getHeaders());
