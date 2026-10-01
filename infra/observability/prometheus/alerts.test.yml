@@ -133,3 +133,288 @@ tests:
               instance: h
             exp_annotations:
               summary: 학생 사진 백업이 26시간 넘게 성공하지 않았다
+
+  # ── R46-FIXOPS(S-1) — 백엔드 가용성 5종 ─────────────────────────────────────────────────────────────
+
+  # 백엔드 다운: up=0 이 1분 유지돼야 발화한다. 한 번의 스크레이프 실패(15초)는 조용하다.
+  - interval: 15s
+    input_series:
+      - series: 'up{job="backend",instance="backend:8080"}'
+        values: '1x8 0x40'
+    alert_rule_test:
+      - eval_time: 1m45s   # 아직 up=1
+        alertname: BackendDown
+        exp_alerts: []
+      - eval_time: 2m30s   # up=0 이 된 지 30초 — pending
+        alertname: BackendDown
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: BackendDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: backend
+              instance: backend:8080
+            exp_annotations:
+              summary: 백엔드가 1분 넘게 응답하지 않는다 — 이 동안 백엔드 지표에 기대는 다른 경보(미확정 회차·위치 유실·푸시 실패)는 값이 없어 울리지 않는다
+
+  - interval: 15s
+    input_series:
+      - series: 'up{job="backend",instance="backend:8080"}'
+        values: '1x10 0x2 1x40'   # 스크레이프 2번(30초) 실패 — 1분이 안 찬다
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: BackendDown
+        exp_alerts: []
+
+  # 대상이 스크레이프 목록에서 아예 사라진 경우(up 시계열이 없다)도 같은 경보다 — `up == 0` 은 시계열이 없으면 아무것도 못 본다.
+  - interval: 15s
+    input_series:
+      - series: 'up{job="node",instance="h"}'
+        values: '1x40'
+    alert_rule_test:
+      - eval_time: 30s
+        alertname: BackendDown
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: BackendDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: backend
+            exp_annotations:
+              summary: 백엔드가 1분 넘게 응답하지 않는다 — 이 동안 백엔드 지표에 기대는 다른 경보(미확정 회차·위치 유실·푸시 실패)는 값이 없어 울리지 않는다
+
+  # 5xx 비율: 최근 5분 창에서 5% 초과가 2분 유지돼야 발화한다(actuator 제외 · 분당 6건 이상일 때만).
+  - interval: 15s
+    input_series:
+      - series: 'http_server_requests_seconds_count{job="backend",application="school-bus",uri="/runs/{runId}/position",status="200"}'
+        values: '0+60x80'
+      - series: 'http_server_requests_seconds_count{job="backend",application="school-bus",uri="/runs/{runId}/position",status="500"}'
+        values: '0+10x80'   # 10 / 70 = 14%
+      - series: 'http_server_requests_seconds_count{job="backend",application="school-bus",uri="/actuator/prometheus",status="200"}'
+        values: '0+1x80'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: Http5xxRatioHigh
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: Http5xxRatioHigh
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: 최근 5분 요청의 5% 넘게 5xx 로 응답했다(actuator 제외 · 분당 6건 이상일 때만 판정)
+
+  - interval: 15s   # 1% — 임계 아래
+    input_series:
+      - series: 'http_server_requests_seconds_count{job="backend",uri="/runs/{runId}/position",status="200"}'
+        values: '0+99x80'
+      - series: 'http_server_requests_seconds_count{job="backend",uri="/runs/{runId}/position",status="500"}'
+        values: '0+1x80'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: Http5xxRatioHigh
+        exp_alerts: []
+
+  - interval: 15s   # 비율은 50% 지만 요청이 분당 2건 남짓(0.04 req/s) — 한두 건으로 울리지 않는다
+    input_series:
+      - series: 'http_server_requests_seconds_count{job="backend",uri="/runs/{runId}/position",status="200"}'
+        values: '0+0.3x80'
+      - series: 'http_server_requests_seconds_count{job="backend",uri="/runs/{runId}/position",status="500"}'
+        values: '0+0.3x80'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: Http5xxRatioHigh
+        exp_alerts: []
+
+  - interval: 15s   # actuator 가 503(Redis 장애로 헬스 DOWN)이어도 · 부하 시험 프로파일(job 이 다르다)이 5xx 여도 울리지 않는다
+    input_series:
+      - series: 'http_server_requests_seconds_count{job="backend",uri="/runs/{runId}/position",status="200"}'
+        values: '0+60x80'
+      - series: 'http_server_requests_seconds_count{job="backend",uri="/actuator/health",status="503"}'
+        values: '0+30x80'
+      - series: 'http_server_requests_seconds_count{job="school-bus-load",uri="/runs/{runId}/position",status="500"}'
+        values: '0+60x80'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: Http5xxRatioHigh
+        exp_alerts: []
+
+  # DB 연결 대기: pending > 0 이 1분 유지돼야 발화한다. 부하 시험 프로파일(스크레이프 job 이 backend 가 아니다 — 풀 10 · 대기 100~190 이 정상)은 보지 않는다.
+  - interval: 15s
+    input_series:
+      - series: 'hikaricp_connections_pending{job="backend",application="school-bus",pool="HikariPool-1"}'
+        values: '0x8 3x40'
+      - series: 'hikaricp_connections_pending{job="school-bus-load",application="school-bus",pool="HikariPool-1"}'
+        values: '150x48'
+    alert_rule_test:
+      - eval_time: 2m30s   # 대기가 생긴 지 30초 — pending
+        alertname: HikariPoolWaiting
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: HikariPoolWaiting
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: backend
+              application: school-bus
+              pool: HikariPool-1
+            exp_annotations:
+              summary: DB 연결을 기다리는 요청이 1분 넘게 계속 있다 — 풀이 마르면 3초 뒤 500 이 나간다
+
+  - interval: 15s   # 순간 대기(30초)는 조용하다
+    input_series:
+      - series: 'hikaricp_connections_pending{job="backend",pool="HikariPool-1"}'
+        values: '0x8 4x2 0x40'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: HikariPoolWaiting
+        exp_alerts: []
+
+  # 지도 API 서킷: 닫혀 있지 않은 상태(open · half_open)가 2분 유지돼야 발화한다.
+  # 장애가 이어지면 open(10초) → half_open(시험 호출) → open 으로 오가며 `open` 게이지만 보면 매번 끊겨 for 가 안 찬다 — 그래서 closed 가 0 인지를 본다.
+  - interval: 15s
+    input_series:
+      - series: 'resilience4j_circuitbreaker_state{job="backend",application="school-bus",name="mapRoute",state="closed"}'
+        values: '1x8 0x60'
+      - series: 'resilience4j_circuitbreaker_state{job="backend",application="school-bus",name="mapRoute",state="open"}'
+        values: '0x8 1x2 0x2 1x2 0x2 1x2 0x2 1x2 0x2 1x2 0x2 1x2 0x2 1x2 0x2 1x2 0x2 1x2'   # open ↔ half_open 반복
+      - series: 'resilience4j_circuitbreaker_state{job="backend",application="school-bus",name="geocoding",state="closed"}'
+        values: '1x68'
+      - series: 'resilience4j_circuitbreaker_state{job="school-bus-load",application="school-bus",name="mapRoute",state="closed"}'
+        values: '0x68'   # 부하 시험은 실패를 일부러 주입한다
+    alert_rule_test:
+      - eval_time: 3m   # 닫히지 않은 지 1분 — pending
+        alertname: CircuitBreakerNotClosed
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: CircuitBreakerNotClosed
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              name: mapRoute
+            exp_annotations:
+              summary: 지도 API 서킷(mapRoute)이 2분 넘게 닫히지 않았다(열림·반열림 반복 포함) — 해당 호출이 막히거나 대체값으로 처리된다
+
+  - interval: 15s   # 부하 시험 프로파일의 서킷만 열려 있다(백엔드 시리즈 없음) — 실패를 일부러 주입하는 시험이라 조용해야 한다
+    input_series:
+      - series: 'resilience4j_circuitbreaker_state{job="school-bus-load",name="mapRoute",state="closed"}'
+        values: '0x40'
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: CircuitBreakerNotClosed
+        exp_alerts: []
+
+  - interval: 15s   # 90초만 열렸다 닫힘 — 조용하다
+    input_series:
+      - series: 'resilience4j_circuitbreaker_state{job="backend",name="mapRoute",state="closed"}'
+        values: '1x8 0x6 1x40'
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: CircuitBreakerNotClosed
+        exp_alerts: []
+
+  # 스케줄러 정지: 마지막 성공 경과가 주기의 3배를 넘은 채 1분 유지돼야 발화한다 — 확정·아웃박스 30초(90초) · 근접 10초(30초).
+  # 긴 한 틱(확정 100회차 드레인 59~85초)이 지나가는 동안은 조용하다. 값이 계속 늘면 멈춘 것이다.
+  - interval: 15s
+    input_series:
+      - series: 'schoolbus_scheduler_last_success_age_seconds{job="backend",application="school-bus",scheduler="proximity-notification"}'
+        values: '0+15x80'   # 멈춘 지 오래 — 경과가 시계처럼 늘어난다
+      - series: 'schoolbus_scheduler_last_success_age_seconds{job="backend",application="school-bus",scheduler="run-confirmation"}'
+        values: '60x80'   # 주기의 2배 — 아직 정상 범위
+      - series: 'schoolbus_scheduler_last_success_age_seconds{job="backend",application="school-bus",scheduler="notification-outbox-worker"}'
+        values: '0+15x80'
+    alert_rule_test:
+      - eval_time: 1m   # 근접: 30초 넘은 지 15초 — pending
+        alertname: SchedulerStalled
+        exp_alerts: []
+      - eval_time: 2m   # 근접만 발화(105초 넘음) · 아웃박스는 90초를 넘은 지 15초라 pending · 확정은 60초 고정이라 조용
+        alertname: SchedulerStalled
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: backend
+              application: school-bus
+              scheduler: proximity-notification
+            exp_annotations:
+              summary: 스케줄러(proximity-notification)가 주기의 3배 넘게 성공하지 않았다
+      - eval_time: 5m   # 아웃박스도 발화 · 확정(60초 고정)은 끝까지 조용
+        alertname: SchedulerStalled
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: backend
+              application: school-bus
+              scheduler: proximity-notification
+            exp_annotations:
+              summary: 스케줄러(proximity-notification)가 주기의 3배 넘게 성공하지 않았다
+          - exp_labels:
+              severity: critical
+              job: backend
+              application: school-bus
+              scheduler: notification-outbox-worker
+            exp_annotations:
+              summary: 스케줄러(notification-outbox-worker)가 주기의 3배 넘게 성공하지 않았다
+
+  - interval: 15s   # 확정 배치 정지 — 90초 초과가 1분 유지
+    input_series:
+      - series: 'schoolbus_scheduler_last_success_age_seconds{job="backend",application="school-bus",scheduler="run-confirmation"}'
+        values: '0+15x80'
+    alert_rule_test:
+      - eval_time: 2m30s   # 105초부터 90 초과 — 45초가 지나 아직 pending
+        alertname: SchedulerStalled
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: SchedulerStalled
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: backend
+              application: school-bus
+              scheduler: run-confirmation
+            exp_annotations:
+              summary: 스케줄러(run-confirmation)가 주기의 3배 넘게 성공하지 않았다
+
+  - interval: 15s   # 긴 한 틱이 지나가는 동안(경과 85 → 115초, 25초)은 조용하다
+    input_series:
+      - series: 'schoolbus_scheduler_last_success_age_seconds{job="backend",application="school-bus",scheduler="run-confirmation"}'
+        values: '5x20 85 100 115 0 5x40'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: SchedulerStalled
+        exp_alerts: []
+
+  - interval: 15s   # 부하 시험 프로파일(job 이 다르다)의 스케줄러가 멈춰 있어도 조용하다 — 시험 중 끄고 켜는 일이 잦다
+    input_series:
+      - series: 'schoolbus_scheduler_last_success_age_seconds{job="school-bus-load",application="school-bus",scheduler="proximity-notification"}'
+        values: '1000x80'
+      - series: 'schoolbus_scheduler_last_success_age_seconds{job="school-bus-load",application="school-bus",scheduler="retention-cleanup"}'
+        values: '999999x80'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: SchedulerStalled
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: RetentionCleanupStalled
+        exp_alerts: []
+
+  # 보존 정리(매일 00:15): 마지막 성공 경과가 3일(259200초)을 넘으면 발화한다. 하루 한 번 도는 작업이라 for 가 없다.
+  - interval: 1h
+    input_series:
+      - series: 'schoolbus_scheduler_last_success_age_seconds{job="backend",application="school-bus",scheduler="retention-cleanup"}'
+        values: '0+3600x100'
+    alert_rule_test:
+      - eval_time: 72h
+        alertname: RetentionCleanupStalled
+        exp_alerts: []
+      - eval_time: 74h
+        alertname: RetentionCleanupStalled
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: backend
+              application: school-bus
+              scheduler: retention-cleanup
+            exp_annotations:
+              summary: 보존 정리(retention-cleanup)가 3일 넘게 성공하지 않았다 — 보존 기간이 지난 데이터 삭제와 퇴원 학생 개인정보 파기가 멈췄다

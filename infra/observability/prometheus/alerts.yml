@@ -73,3 +73,72 @@ groups:
           severity: warning
         annotations:
           summary: 학생 사진 백업이 26시간 넘게 성공하지 않았다
+
+  # ── 백엔드 가용성(R46-FIXOPS · review-stab S-1 · Ruling 640) ────────────────────────────────────────────
+  # 위 규칙들은 대부분 백엔드가 떠 있어야 값이 생기는 지표를 본다 — 백엔드가 죽으면 시계열이 사라져(스크레이프 실패 때 Prometheus 가 즉시
+  # 끝낸 것으로 표시) 이미 발화 중이던 경보도 해소로 바뀌고 새 경보도 안 생긴다. 그래서 BackendDown 이 먼저 울려야 하고, 그 사이
+  # 미확정 회차 · 위치 유실 · 푸시 실패는 지표로 볼 수 없다. 아래 규칙은 전부 `job="backend"` 로 걸러 부하 시험 프로파일(다른 스택이
+  # 다른 job 이름으로 긁는다 · 풀 10 · 실패 주입이 정상)을 보지 않는다 — 개발용 compose 의 Prometheus 는 Alertmanager 가 없어
+  # 발화해도 /alerts 화면에만 보인다.
+  - name: schoolbus-availability
+    rules:
+      # `up == 0` 은 대상이 있고 스크레이프가 실패한 경우, absent 는 대상이 목록에서 사라져 up 시계열이 아예 없는 경우다(둘 다 같은 경보).
+      - alert: BackendDown
+        expr: up{job="backend"} == 0 or absent(up{job="backend"})
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: 백엔드가 1분 넘게 응답하지 않는다 — 이 동안 백엔드 지표에 기대는 다른 경보(미확정 회차·위치 유실·푸시 실패)는 값이 없어 울리지 않는다
+      # actuator 는 뺀다 — 스크레이프(15초)와 컨테이너 헬스체크(15초)가 요청 수에 늘 섞이고, Redis 가 죽으면 헬스가 503 이 된다.
+      # 분당 6건(0.1/s) 미만이면 판정하지 않는다 — 새벽에 한두 건 실패로 비율이 50% 가 되는 것을 막는다.
+      - alert: Http5xxRatioHigh
+        expr: |
+          sum(rate(http_server_requests_seconds_count{job="backend",status=~"5..",uri!~"/actuator.*"}[5m]))
+            / sum(rate(http_server_requests_seconds_count{job="backend",uri!~"/actuator.*"}[5m])) > 0.05
+          and
+          sum(rate(http_server_requests_seconds_count{job="backend",uri!~"/actuator.*"}[5m])) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: 최근 5분 요청의 5% 넘게 5xx 로 응답했다(actuator 제외 · 분당 6건 이상일 때만 판정)
+      # 풀(운영 20개)이 마르면 연결을 얻으려고 3초(connection-timeout) 기다린 뒤 500 이 나간다. 대기가 1분 이어지면 순간 몰림이 아니다.
+      - alert: HikariPoolWaiting
+        expr: hikaricp_connections_pending{job="backend"} > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: DB 연결을 기다리는 요청이 1분 넘게 계속 있다 — 풀이 마르면 3초 뒤 500 이 나간다
+      # 장애가 이어지면 open(10초) → half_open(시험 호출 3번) → open 으로 오가서 `state="open"` 게이지는 매번 0 으로 끊긴다 — for 가
+      # 안 찬다. 그래서 `closed` 가 0 인지(= 열림이거나 반열림)를 본다. 인스턴스는 geocoding · mapRoute · placeSearch 셋이다.
+      # TECH_DECISIONS §13.4 4행 — 폴백으로 계산 중이라 품질 저하(경고).
+      - alert: CircuitBreakerNotClosed
+        expr: max by (name) (resilience4j_circuitbreaker_state{job="backend",state="closed"}) == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: 지도 API 서킷({{ $labels.name }})이 2분 넘게 닫히지 않았다(열림·반열림 반복 포함) — 해당 호출이 막히거나 대체값으로 처리된다
+      # 마지막 성공 경과가 주기의 3배를 넘은 채 1분 — 확정·아웃박스는 30초 주기(90초), 근접 판정은 10초(30초). for 는 긴 한 틱을 거른다:
+      # 100회차 동시 확정 드레인이 59~85초라 경과가 115초까지 갔다가 내려온다. 이름은 SchedulerHealthMetrics.nameOf 규칙(클래스명 케밥) 그대로다.
+      # 주기를 yml(poll-interval-ms)로 바꾸면 이 숫자도 같이 바꾼다. 미승차 에스컬레이션은 위의 전용 규칙이 따로 본다.
+      - alert: SchedulerStalled
+        expr: |
+          schoolbus_scheduler_last_success_age_seconds{job="backend",scheduler=~"run-confirmation|notification-outbox-worker"} > 90
+          or
+          schoolbus_scheduler_last_success_age_seconds{job="backend",scheduler="proximity-notification"} > 30
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: 스케줄러({{ $labels.scheduler }})가 주기의 3배 넘게 성공하지 않았다
+      # 하루 한 번(00:15) 도는 작업이라 3일(259200초). 앱을 재기동하면 경과가 0 부터 다시 세어지므로 3일 안에 한 번이라도 재배포하면 이 규칙은 못 본다 —
+      # 정리가 계속 실패하는 경우는 건별 실패 카운터(schoolbus_scheduler_failures_total)가 따로 있다.
+      - alert: RetentionCleanupStalled
+        expr: schoolbus_scheduler_last_success_age_seconds{job="backend",scheduler="retention-cleanup"} > 259200
+        labels:
+          severity: warning
+        annotations:
+          summary: 보존 정리(retention-cleanup)가 3일 넘게 성공하지 않았다 — 보존 기간이 지난 데이터 삭제와 퇴원 학생 개인정보 파기가 멈췄다

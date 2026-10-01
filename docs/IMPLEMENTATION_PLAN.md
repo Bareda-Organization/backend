@@ -1113,6 +1113,14 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 587 | 사양 5항의 시험 환산 + 위치 송신 모델을 앱과 같은 고정 주기로 — 응답 뒤 쉼 모델이 달성률을 인위적으로 낮춤 | 본문 §8.84 |
 | 588 | 통과 판정 — 관리자 50 은 4회차 통과 · 200·300·400 통과(컷의 8배 · 예상 25 의 16배) · 500 이상은 판정 보류 | 본문 §8.84 |
 | 589 | 포화 지점 — 위치 수신 포화는 이동 거의 없음 · 09-09 붕괴 두 조건은 통과하나 R46 단독 귀속 불가 · 관계자 폴링 포화 후보(연결 풀 10) | 본문 §8.84 |
+| 640 | 가용성 경보 6종 — 백엔드 다운(`up==0 or absent`) · 5xx 비율 · DB 연결 대기 · 서킷 닫힘 여부 · 스케줄러 정지 · 보존 정리 정지. 부하 시험은 스크레이프 `job` 라벨로 구분 | 본문 §8.87 |
+| 641 | OOM 이면 JVM 이 프로세스를 끝낸다(`ExitOnOutOfMemoryError`) — 힙 덤프는 개인정보·디스크 때문에 넣지 않는다 | 본문 §8.87 |
+| 642 | 운영 로그 드라이버 `mode: non-blocking`(+ 버퍼 25m) — 버퍼가 차면 로그 유실을 받아들인다. 옵션 키는 `mode`(`awslogs-mode` 는 없음) | 본문 §8.87 |
+| 643 | backend 종료 대기 `stop_grace_period: 35s` > 스프링 정상 종료 30초(Boot 기본값) — 두 값의 관계를 시험이 지킨다 | 본문 §8.87 |
+| 644 | `pg_stat_statements` + `random_page_cost=1.1` — 확장은 마이그레이션이 아니라 초기화 스크립트가 `ops_stats` 스키마에 만든다(Flyway `clean()` 이 `public` 의 확장을 지움) | 본문 §8.87 |
+| 645 | 운영 프록시 `/api/` JSON 압축 — 인증 응답(`/auth/*`)·연결 코드 발급은 제외(BREACH) | 본문 §8.87 |
+| 646 | 스테이징 적용 범위 — OOM 종료·종료 대기·postgres 옵션은 적용, 경보·로그 드라이버·압축은 해당 없음 | 본문 §8.87 |
+| 647 | 운영 설정 가드 시험 `OpsSettingsGuardTest` 신설(조율자 승인) · 남긴 한계 — nginx 설정은 배포가 자동 반영하지 않음 · CI 에 promtool 미연결 | 본문 §8.87 |
 
 
 ## 8.73 ⚖ `R46-BE` — 성능 개선(감사 제외) + 바로 고칠 것 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 410~419 · 백엔드 갈래)
@@ -1435,3 +1443,33 @@ R46 의 서버·웹·앱 개선(`D #1`·`#5`~`#9`·`#13`~`#17`)이 목표 규모
 **결과 (2026-10-01)** — 목표 1~5 ✅. 코드 변경 없음(부하 스크립트·판정 스크립트·문서만). 시험 스크립트가 낸 오류 4건을 측정 중 발견·수정: `scenario2_position.js` echo 비교(문자열 식별자 `Ruling 332`)·묶음 실행기의 stdin 소비·응답 뒤 쉼 송신 모델·판정 스크립트의 확정 건수 기준. `schoolbus_load` 는 **남긴다**(다음 측정 재사용) — 단 학원 1 의 위치용 회차 12,000건 · 학원 불일치 `run_rider` 30,000건이 쌓여 학원 1 대시보드 응답이 5.1MB 라 **다음 측정 전에 `LP-…` 회차와 그 `run_rider` 를 먼저 지운다**(`LOAD_TESTING §6.5.5`).
 
 **다시 재는 명령(한계 판정)** — 호스트가 조용할 때: `ROUND_LABEL=r46_r3_G500f_v570_a R3_ADMINS=500 R3_INTERVAL=2 R3_FIXED_RATE=1 ./r3_mixed.sh 570 1`(700 · 1000 도 같은 형태). 운영 설정 비교가 목적이면 서버를 `--spring.datasource.hikari.maximum-pool-size=20 --spring.datasource.hikari.connection-timeout=3000` 로 띄운다 — 지금 여유 배수는 **연결 풀 10(load 프로파일 기본)** 기준이다.
+
+## 8.87 ⚖ `R46-FIXOPS` — 운영 설정 · 경보 (2026-10-01 · 분기점 `e8ab1fe1` · 번호대 640~649 · 수정 갈래 ③)
+
+R46 검토 `stab`(경보 · 로그 드라이버 · OOM · 종료 대기) · `idx`(DB 관측 설정) · `load`(응답 압축)가 올린 운영 설정 항목의 수정이다. 근거 원문은 `.claude/r46/review-stab.md` · `review-idx.md` · `review-load.md`(무시 파일) · 갈래 보고서 `.claude/r46/report-fixops.md`(무시 파일). 코드는 `infra/**` · `docker-compose*.yml` · 절차서 · 시험만 바꿨고 `backend/src/main` · `application*.yml` · 마이그레이션은 건드리지 않았다. 지표 이름은 코드가 아니라 **자기 포트로 띄운 백엔드의 `/actuator/prometheus` 실측**으로 확인했고(규칙이 이름 오타로 조용히 안 울리는 것을 막으려는 것), 검토 문서의 추정 몇 가지는 틀려 바로잡았다.
+
+### R46-FIXOPS 판정
+
+| Ruling | 판정 | 근거 |
+|:-:|---|---|
+| **640** | **가용성 경보 6종**(`alerts.yml` 새 그룹 `schoolbus-availability`) — `BackendDown`(critical · 1분) · `Http5xxRatioHigh`(critical · 2분) · `HikariPoolWaiting`(경고 · 1분) · `CircuitBreakerNotClosed`(경고 · 2분) · `SchedulerStalled`(critical · 1분) · `RetentionCleanupStalled`(경고). ① 백엔드가 죽으면 시계열이 사라져 기존 경보가 **해소로 바뀌므로** `BackendDown = up==0 or absent(up{job="backend"})` 가 그 침묵을 대신 알린다 ② 5xx 비율은 `/actuator/*` 를 빼고 분당 6건 미만이면 판정하지 않는다(실측: `/actuator/prometheus` 요청도 `http_server_requests` 에 잡힘) ③ **서킷은 `state="open"==1` 이 아니라 `state="closed"==0`** — 장애가 이어지면 open(10초) → half_open → open 으로 오가 `open` 게이지는 매번 0 으로 끊겨 `for` 가 안 찬다 ④ 스케줄러는 주기의 3배(확정·알림 재전송 90초 · 근접 30초 · 보존 정리 3일) + `for: 1m`(100회차 동시 확정 드레인 59~85초 동안 경과가 115초까지 가는 정상 틱을 거른다) ⑤ **부하 시험 프로파일 구분 = 스크레이프 `job` 라벨** — 새 규칙 전부 `job="backend"` 로 걸러, 별도 관측 스택이 다른 `job` 으로 긁는 부하 시험(풀 10 · 연결 대기 116~194 · 서킷 실패 주입이 정상)을 보지 않는다 | `alerts.test.yml` 23개 시험 묶음(규칙마다 울리는 경우 · 안 울리는 경우). 규칙을 망가뜨린 15종이 각각 그 경보 시험만 실패시킴. 앱 쪽 태그 추가는 `application*.yml`(백엔드 갈래 영역)이라 하지 않았다 — `job` 라벨만으로 충분. `TECH_DECISIONS §13.4` 에 4행 구성·새 행 4개 반영, `DEPLOYMENT §11.2` |
+| **641** | **OOM 이면 프로세스를 끝낸다** — 운영·스테이징 backend `JAVA_TOOL_OPTIONS` 에 `-XX:+ExitOnOutOfMemoryError`. **힙 덤프(`HeapDumpOnOutOfMemoryError`)는 넣지 않는다** | `OutOfMemoryError` 를 던진 스레드만 죽고 JVM 이 남으면 스케줄러·발송 스레드가 하나씩 사라진 서버가 "실행 중"으로 남아 `restart: unless-stopped` 가 못 본다. 덤프 금지 이유 둘: ① 덤프에 학생·보호자 개인정보와 JWT 서명 키·FCM 개인 키가 그대로 담긴다 ② 힙 크기(약 2.15GB)라 루트 디스크 30GB 를 재시작 반복 때 채운다. 지시서의 "덤프는 디스크 크기 판단 후" 에 대한 판단 |
+| **642** | **운영 로그 드라이버 `mode: non-blocking` · `max-buffer-size: 25m`**(`x-logging` 앵커 — 9개 서비스 전부). **버퍼가 차면 로그를 버린다 — 장애 때 일부 유실을 받아들인다.** 옵션 이름은 **`mode`·`max-buffer-size`** 다 | blocking(기본)이면 CloudWatch 전송이 느려지는 순간 stdout 쓰기가 막혀 로그를 남기는 모든 스레드가 멈춘다(Redis 장애 때 스택트레이스 폭주). 지시서의 `awslogs-mode` 는 **없는 옵션**이다 — 일회용 `docker create --log-driver awslogs --log-opt awslogs-mode=non-blocking` 은 거부(*"max-buffer-size option is only supported with 'mode=non-blocking'"*), `mode=non-blocking` 은 통과(2026-10-01 실측) |
+| **643** | **`stop_grace_period: 35s`**(운영·스테이징 backend) — 스프링 정상 종료 대기(30초)보다 길게(남는 5초는 연결 풀·브로커를 닫는 시간). 두 값의 관계는 `DEPLOYMENT §5.2` 와 `OpsSettingsGuardTest` 가 지킨다 | 스프링 쪽은 설정 파일에 명시가 없고 **Boot 4.1.0 설정 메타데이터의 기본값**(`server.shutdown=graceful` · `spring.lifecycle.timeout-per-shutdown-phase=30s`) — jar 에서 직접 읽었고, 로컬에서 SIGTERM 으로 끄고 `Commencing graceful shutdown` 로그로 graceful 이 켜져 있음을 확인. Docker 기본 10초면 진행 중 요청이 SIGKILL 로 끊긴다. 앱 쪽에 값을 명시하는 것은 백엔드 갈래 영역이라 하지 않고 시험이 기본값 가정을 상수로 박아 둔다 |
+| **644** | **`pg_stat_statements` + `random_page_cost=1.1`**(운영·스테이징 postgres `command`) — **`CREATE EXTENSION` 은 마이그레이션이 아니라 postgres 초기화 스크립트**(`infra/postgres/init/01-pg-stat-statements.sql`)이고 확장은 **`ops_stats` 스키마**에 만든다 | 마이그레이션이 아닌 이유: 확장은 `shared_preload_libraries` 와 짝인 DB 서버 설정이라 앱 스키마 이력에 섞지 않는다(마이그레이션은 스키마 갈래 영역이기도 함). **`public` 이 아닌 이유(실측)**: `public` 에 확장을 만들고 백엔드를 `local` 프로파일로 다시 기동하니 Flyway `clean()` 이 확장을 지웠고(`pg_extension` 에 `plpgsql` 만 남음), `ops_stats` 에 만든 것은 남았다 — 스테이징은 기동·초기화마다 `clean()` 을 한다. 일회용 postgres 컨테이너에서 `shared_preload_libraries` · `random_page_cost` · 스키마 · 뷰 조회(7행)를 확인. 이미 초기화된 볼륨은 스크립트가 안 돌아 `DEPLOYMENT §11.5` 의 한 줄이 필요 |
+| **645** | **운영 프록시 `/api/` 에 JSON 만 압축**(`gzip on` · `gzip_types application/json` · `gzip_min_length 1024` · `gzip_vary on`). **인증 응답 전체(`/api/v1/auth/`)와 연결 코드 발급(`= /api/v1/me/link-code`)은 별도 location 으로 `gzip off`** | 지시서는 "로그인·재발급 응답 제외" 였으나 토큰·코드가 실리는 응답은 이 둘 외에도 있어(`/auth/password` · `/auth/signup-status` · `/me/link-code`) `/auth/*` 전체와 연결 코드 발급으로 넓혔다. 로그인·가입·복구·자녀 연결은 압축을 켜지 않은 기존 속도 제한 location 이 그대로 안전. 일회용 nginx 2개(가짜 백엔드 + 운영 설정)로 동작을 확인: 일반 JSON(2.8KB → 308B)은 `content-encoding: gzip` + `Vary`, 1KB 미만 · 이미지 · 압축 미요청 · `/auth/*` 4경로(재발급 · 가입 상태 · 로그인 · 가입) · 연결 코드 발급 · 자녀 연결은 압축 없음. 인증 location 삭제·`gzip on` 삭제 결함은 각각 토큰 응답이 압축으로 새거나 압축이 사라지는 것으로 드러남 |
+| **646** | **스테이징 적용 범위** — 적용: OOM 종료 · 종료 대기 35초 · postgres 옵션과 초기화 스크립트. 해당 없음: 경보 6종(관측 컨테이너 없음) · 로그 `non-blocking`(`awslogs` 를 안 씀) · 프록시 압축(`nginx.staging.conf` 는 바꾸지 않음 — 터널 뒤라 응답 크기보다 접속이 목적) | `STAGING §10` 표에 행으로 기록. 개발용 `docker-compose.yml` 의 postgres 는 손대지 않았다 — 공유 postgres 가 모든 작업 창의 DB 를 들고 있어 재생성이 금지돼 있고 CI 도 그 파일을 쓴다 |
+| **647** | **운영 설정 가드 시험 `OpsSettingsGuardTest` 신설**(6건 · 조율자 승인 — 새 파일 1개, 기존 파일 수정 없음). 파일 텍스트만 읽어 Docker·DB 없이 돈다. **남긴 한계 2건**: ① nginx 설정(`nginx.prod.conf`)은 파일 하나를 바인드 마운트라 **배포가 자동 반영하지 않는다**(`deploy.sh` 는 Prometheus 만 다시 시작) — 배포 뒤 `restart proxy` 가 필요(`DEPLOYMENT §11.6`) ② CI 에 `promtool test rules` 가 연결돼 있지 않아 경보 시험은 손으로 돈다 | ①을 `deploy.sh` 에 자동화하지 않은 이유: 잘못된 설정이면 proxy 가 못 떠 공개 API 가 끊긴다 — 사전 `nginx -t`(인증서 볼륨 필요)까지 설계해야 해 사용자 결정으로 보고. ②는 `ci.yml` 변경이라 로컬에서 검증이 안 된다 |
+
+### R46-FIXOPS 목표 표
+
+| # | 완료 조건 | 확인 수단 | 결과 |
+|:-:|---|---|:-:|
+| 1 | 경보 규칙 시험 통과 · 규칙마다 울리는 경우·안 울리는 경우 | `promtool test rules` — `SUCCESS`(시험 묶음 23개) · 규칙 결함 15종 | ✅ |
+| 2 | compose 병합 결과에 OOM 종료 · non-blocking · grace 35s · pg 옵션 실재 | `docker compose -f … config` 출력 grep(운영·스테이징) · 일회용 postgres 에서 옵션 적용 확인 | ✅ |
+| 3 | nginx 문법 · `/api/` gzip · 인증 응답 제외 | 일회용 컨테이너 `nginx -t` · 가짜 백엔드 앞 요청 10종의 `content-encoding` | ✅ |
+| 4 | `DeploymentConfigGuardTest` `--rerun` 실패 0 | 결과 XML — 같은 묶음의 인프라 시험 포함 | ✅ |
+| 5 | 정본 반영 · `Ruling 640~647` · 깨진 참조 0 | 이 절 · §11 색인 · `DEPLOYMENT §5.2·§8·§11.2·§11.5·§11.6` · `STAGING §10` · `TECH_DECISIONS §13.4` · docgraph | ✅ |
+| 6 | 정리 — 띄운 컨테이너·서버 0 · 만든 DB DROP | `docker ps` · `lsof` · `pg_stat_activity` | ✅ |
+
+**결과 (2026-10-01)** — 목표 1~6 ✅. 시험 신설: `alerts.test.yml` 묶음 17개 추가(6 → 23) · `OpsSettingsGuardTest` 6건. 결함 심기: 경보 규칙 15종 · 설정 가드 14종 · nginx 2종 — 전부 그 항목만 실패. **사용자가 준비할 것**: 이미 초기화된 운영 볼륨이 있다면 `DEPLOYMENT §11.5` 의 한 줄 · nginx 설정을 바꾼 배포 뒤 `restart proxy`. **남은 항목(보고)**: 앱에 `server.shutdown`·`timeout-per-shutdown-phase` 명시(백엔드 영역) · 정차지 수 상한 등 이 갈래 밖 검토 항목은 다루지 않음.
