@@ -89,4 +89,27 @@ public interface VerificationCodeRepository extends JpaRepository<VerificationCo
     @Query("UPDATE VerificationCode v SET v.consumedAt = :now "
             + "WHERE v.id = :id AND v.consumedAt IS NULL AND v.expiresAt >= :now")
     int consumeIfValid(@Param("id") Long id, @Param("now") OffsetDateTime now);
+
+    /**
+     * 이 번호의 발급을 트랜잭션이 끝날 때까지 직렬화한다(R46 FUBE · Ruling 553) — 계정 행을 잠그는 방식은 <b>미등록 번호에는
+     * 잠글 행이 없어</b> 동시에 들어온 발급이 둘 다 한도를 통과한다. 등록 번호만 한 건 통과·나머지 429 이면 그 차이가
+     * 가입 여부의 단서가 되므로 번호 문자열 자체를 잠금 키로 쓴다.
+     *
+     * @return 항상 1 — {@code pg_advisory_xact_lock} 이 값을 돌려주지 않아 쿼리가 결과 행을 갖게 하려고 센다
+     */
+    @AcademyScopeExempt(reason = "§2.9 계정 복구 — 전화번호만 들고 시작해 소속 학원이 미상")
+    @Query(value = "SELECT count(*) FROM (SELECT pg_advisory_xact_lock(hashtext(:phone)) AS locked) AS lock_result",
+            nativeQuery = true)
+    long lockByPhone(@Param("phone") String phone);
+
+    /**
+     * {@code cutoff} 보다 오래된 발급 행을 지운다 — 미등록 번호의 요청도 행을 남기게 되어(발급 빈도를 가입 여부와 무관하게
+     * 세려고) 번호를 바꿔 가며 보내는 요청이 행을 끝없이 쌓을 수 있다. 하루가 지난 행은 어느 제한({@code 60초·24시간})에도
+     * 세어지지 않고 코드도 만료돼 있어 지워도 동작이 달라지지 않는다.
+     */
+    @AcademyScopeExempt(reason = "§2.9 계정 복구 — 전화번호만 들고 시작해 소속 학원이 미상")
+    @Transactional
+    @Modifying
+    @Query("DELETE FROM VerificationCode v WHERE v.createdAt < :cutoff")
+    int deleteCreatedBefore(@Param("cutoff") OffsetDateTime cutoff);
 }
