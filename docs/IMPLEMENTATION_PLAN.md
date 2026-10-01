@@ -1117,6 +1117,8 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 613 | 노선 정차지 수 상한 50 — 등록·수정·정차지 저장·최적화 고정 정차지 4곳 DTO `@Size` + 서비스 검증 → 422 (사용자 결정 2026-10-01) | 본문 §8.85 · `docs/API_SPEC.md §5.9` |
 | 614 | `run_rider.boarded_at` · `alighted_at` 삭제 — 읽는 곳 0 · 되돌리기 뒤 값이 틀림 · 같은 시각이 `rider_status_history.changed_at` 에 있음(사용자 결정 · 검토 `schema` A-3). 같은 갈래가 `run_rider.note`(A-2)도 삭제 | 본문 §8.86 · `docs/ERD.md §3` |
 | 615 | 배포 때 nginx 설정 자동 반영 — 프록시 재시작으로 1~2초 끊김 허용, 단 새 설정을 일회용 컨테이너로 `nginx -t` 검사해 통과할 때만 재시작 · 실패하면 배포 중단 (사용자 결정 · 이행은 `Ruling 648·649`) | 본문 §8.87 (결정 원문은 사용자 지시 — 문서에는 이 행이 기록) |
+| 616 | 매니저 앱 오프라인 큐 — 비상 신고는 영구 실패 상한(5xx 10회·30분)에서 빼고 성공하거나 사용자가 지울 때까지 재시도(뒤 승하차 행은 막지 않음) · 비상 화면에 *"전송 실패 — 계속 다시 보내는 중 · 급하면 학원에 전화"* 표시 · 서버 접수 화면은 앱이 누른 시각을 보이지 않음(서버 몫으로 보고) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.31` |
+| 617 | 실시간 전송은 STOMP over WebSocket 유지 · 인스턴스 증설 결정 때 SSE 재평가(사용자가 뒤집을 수 있음) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.31` |
 | 618 | "나중" 항목 중 SSE 를 뺀 나머지를 진행(사용자 결정 2026-10-01) — L2 위치 SQL 합치기 · L5 근접 판정 묶음 · 관리자 주의 회차 집계 인덱스(검토 `idx`) · L11 Tomcat 스레드 명시 · **B-1 `run_position` 날짜 범위 파티션(이 테이블에 한해 `Ruling 243` 을 뒤집음)** · B-4 학원 경계 복합 FK · C-14 토큰 무중단 갱신. SSE 전환(`Ruling 617`)만 제외 | `.claude/r46/DECISIONS.md`(무시 파일 — 결정 원문) · 이행: 백엔드 본문 §8.88(`670`~`677`) · 토큰 갱신(C-14)은 실시간 갈래 몫 |
 | 620 | DB 자원 오류(풀 고갈·연결 끊김·잠금 대기 초과·쿼리 취소)는 `503 SERVER_BUSY` + `Retry-After: 3` · 스택 없는 `warn` 한 줄 | 본문 §8.85 · `docs/API_SPEC.md §1.11` |
 | 621 | prod·demo DB 시간 상한 — 누수 감지 5초 · `lock_timeout 5s` · `idle_in_transaction_session_timeout 30s`(`statement_timeout` 은 안 건다) | 본문 §8.85 |
@@ -1147,6 +1149,15 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 652 | 전체 관제 회차 목록 폴링 — 실시간 `connected` 면 30초 · 아니면 7초 · 재연결 직후 한 번 바로 받음 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.30` |
 | 653 | 이벤트 뒤 재조회 묶기 — 웹 대시보드 300ms 묶음 · 매니저 앱 명단·노선 첫 이벤트 뒤 1초 창 안 한 번(창을 밀지 않음) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.30` |
 | 654 | 오프라인 대기열 카드 폭 — 문구가 짧은 카드만 줄어 가운데에 뜨던 것(`Ruling 592` 와 같은 갈래, 화면 확인에서 발견) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.30` |
+| 660 | 웹 숨은 탭의 비상 경로 — stompjs Worker 하트비트 · 비상 폴링 숨은 탭 30초 유지 · 재연결 직후 REST 1회 보충을 `useRealtimeChannel` 공용 콜백(`onReconnected`)으로(비상·승인·관제) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.31` |
+| 661 | 학부모 앱 실시간 연결은 지도가 열려 있는 동안만 · 로그아웃·세션 만료 때 닫음(계정 전환 뒤 옛 권한 구독 방지) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.31` |
+| 662 | 시간 제한 값 — 웹 소켓 버림·연결 10초·GET 15초 · Flutter 연결 10초·핑 10초 · 위치 POST 4초/5초 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.31` · `docs/API_SPEC.md §7.2` |
+| 663 | 학부모 지도 스피너는 첫 진입만 · 재연결 스냅샷이 더 새로우면 WS 좌표 교체 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.31` |
+| 664 | `gaveUp` 상태·화면 처리는 지우지 않고 남김 · `MonitoringPage` "하트비트 10초 감지" 주석 정정 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.31` |
+| 665 | 망 복귀(학부모 오프라인→도달 · 매니저 위치 전송 성공)·복귀 직후 서버 무송신 20초 초과 연결 강제 재연결 · 연결 시도 번호표 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.31` · `docs/API_SPEC.md §7.2` |
+| 666 | 연결 끊김 문구 한 벌(웹·Flutter 같은 제목) · 웹 `(staff)`·`(admin)` 레이아웃 연결 띠 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.31` |
+| 667 | 웹 감사·접속 이력 — 시작일을 비우면 최근 30일 안내(`Ruling 632` 후속) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.31` |
+| 668 | `API_SPEC §7.2` 연결 감시·재연결 규약 표 신설(하트비트 10초·무송신 20초·백오프 1→30초·지터 30%·연결 한도 10초) | `docs/API_SPEC.md §7.2` · `docs/frontend/IMPLEMENTATION_PLAN.md §5.31` |
 | 670 | `run_position` 일(한국 시간 자정) 단위 `RANGE (recorded_at)` 파티션 — PK `(id, recorded_at)` · **기본 파티션 필수** · 앱이 기동 직후+매일 7일 앞까지 미리 만들기(ShedLock) · 만료는 **파티션 DROP**(컷오프가 걸친 날은 남아 실제 보관 90일 이상 91일 미만) · 컷오프 인덱스·행 DELETE·표 단위 autovacuum 삭제 | 본문 §8.88 · `docs/ERD.md §3.4·§5.3·§7.3` · `docs/TECH_DECISIONS.md §9.3` |
 | 671 | 위치 수신 SQL 8 → 5(첫 도착 전 7 → 5) — 인가 `exists` 1 · 확정 노선+정차+이름 조인 1 · 방송 수신자 학생 id 투영. 캐시 없음(무효화 지점 0) | 본문 §8.88 |
 | 672 | 근접·출발 판정 묶음 — 위치는 회차 묶음당 Redis `MGET` 1회 · 회차당 읽기 트랜잭션 1개 · 선점은 판정별 트랜잭션(예외 격리 유지). `Ruling 624` 의 DB 대체는 묶음당 1쿼리로 | 본문 §8.88 |
