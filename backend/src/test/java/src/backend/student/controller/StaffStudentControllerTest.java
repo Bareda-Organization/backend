@@ -219,6 +219,22 @@ class StaffStudentControllerTest {
     }
 
     /**
+     * 학생 본인 계정이 연결됐는지 목록에서 알린다(§5.11 {@code account_linked}, B1 #14) — 가입 승인 화면이 이미 연결된
+     * 학생을 고를 수 없게 보이는 데 쓴다. 계정 번호(식별자)가 아니라 연결 여부만 내는 것이 요점이다.
+     */
+    @Test
+    void 목록은_학생_본인_계정이_연결됐는지만_알린다() throws Exception {
+        String 연결된_학생 = mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A)).param("q", "이하늘"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].account_linked").value(true))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A)).param("q", "김철수"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].account_linked").value(false));
+        assertThat(연결된_학생).as("목록은 학생 본인 계정의 식별자를 싣지 않는다").doesNotContain("\"account_id\"");
+    }
+
+    /**
      * 남의 학원 학생은 <b>없는 것</b>이다 — {@code 403} 이 아니라 {@code 404} 여야 존재 여부가 새지 않는다.
      *
      * <p>같은 식별자를 소유 학원 관계자가 부르면 200 인 것을 함께 본다. 그것이 없으면 "학생 자체가

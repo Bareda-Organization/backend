@@ -22,9 +22,11 @@ import src.backend.global.security.access.AcademyScope;
 import src.backend.student.dto.StudentDetailResponse;
 import src.backend.student.dto.StudentListRequest;
 import src.backend.student.dto.StudentSummaryResponse;
+import src.backend.student.dto.WeeklyAddressResponse;
 import src.backend.student.entity.Student;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StudentRepository;
+import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
  * 관계자 웹의 학생 목록·검색·상세 조회(STU-01, API_SPEC §5.11).
@@ -65,6 +67,8 @@ public class StudentQueryService {
     private final StudentRepository studentRepository;
 
     private final GuardianStudentRepository guardianStudentRepository;
+
+    private final WeeklyAddressRepository weeklyAddressRepository;
 
     private final AuditRecorder auditRecorder;
 
@@ -111,6 +115,25 @@ public class StudentQueryService {
         auditRecorder.recordDataAccessRead(academyId, requester.accountId(), "student", studentId,
                 Map.of("student_ids", List.of(String.valueOf(studentId)), "fields",
                         List.of("photo_url", "note", "guardians")));
+        return response;
+    }
+
+    /**
+     * 학생의 요일별 승하차 주소 조회(STU-06, §5.11 · Ruling 498) — 입력은 학부모 몫(P-05)이고 관계자는 읽기만 한다.
+     *
+     * <p>주소 원문·좌표는 L3 라 조회가 성공한 뒤에만 감사 {@code read} 를 남긴다(상세와 같은 판단). 같은 행위자가 같은 학생을
+     * 10분 안에 다시 조회하면 새 행을 쓰지 않는 묶기는 {@code AuditRecorder} 가 학생 단위로 판단한다(Ruling 445) — 여기서 따로
+     * 묶지 않는다. 남의 학원 학생과 퇴원생은 {@code 404 STUDENT_NOT_FOUND} 다.
+     */
+    public WeeklyAddressResponse weeklyAddresses(AuthUser requester, Long studentId) {
+        Long academyId = academyOf(requester);
+        Student student = studentRepository.findByIdAndAcademyIdAndDeletedAtIsNull(studentId, academyId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.STUDENT_NOT_FOUND));
+
+        WeeklyAddressResponse response = WeeklyAddressResponse
+                .from(weeklyAddressRepository.findAllByStudentIdAndAcademyId(student.getId(), academyId));
+        auditRecorder.recordDataAccessRead(academyId, requester.accountId(), "student", studentId,
+                Map.of("student_ids", List.of(String.valueOf(studentId)), "fields", List.of("weekly_address")));
         return response;
     }
 
