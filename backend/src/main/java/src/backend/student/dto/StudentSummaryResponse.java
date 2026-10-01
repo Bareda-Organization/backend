@@ -5,13 +5,15 @@ import src.backend.student.entity.Student;
 /**
  * 관계자 웹 학생 목록의 항목 하나(API_SPEC §5.11 {@code items[]}).
  *
- * <p>필드 5개가 사양이 정한 전부다 — 학생 상세의 사진·특이사항·생년월일은 여기 싣지 않는다. 목록은
+ * <p>필드 6개가 사양이 정한 전부다 — 학생 상세의 사진·특이사항·생년월일은 여기 싣지 않는다. 목록은
  * 한 번에 100건까지 나가므로, 민감 항목(L3)을 목록에 얹으면 상세를 한 번도 열지 않고도 학원 전체의
  * 개인정보가 한 응답으로 빠져나간다(§1.12).
  *
  * <p>호차·승하차지 칸은 없다(2026-09-23, Ruling 326) — 학생의 승하차지는 요일·등하원마다 달라 "학생 하나에 호차
  * 하나" 가 성립하지 않고, 노선은 학부모가 등록한 요일별 주소로 자동 편성된다.
  *
+ * @param accountLinked 학생 본인 계정이 가입 연결됐는지(B1 #14) — 가입 승인 화면이 이미 연결된 학생을 고를 수 없게 보이는
+ *                      데 쓴다. 계정 식별자가 아니라 연결 여부(boolean)만 낸다 — 식별자는 상세만 싣는다(§5.11)
  * @param guardianCount 이 학생에 연결된(해지되지 않은) 보호자 계정 수 — {@code guardian_phone} 은
  *                      대표 1명뿐이라 "연결이 몇 건인가" 를 그 값의 존재 여부로 추론할 수 없다
  *
@@ -24,7 +26,7 @@ import src.backend.student.entity.Student;
  * 요청이 실패하는 것이 아니라 <b>다른 학생을 가리킨다.</b> 지금 안 아픈 이유는 시드 id 가 한 자리여서일 뿐이다.
  */
 public record StudentSummaryResponse(String studentId, String name, String className, String guardianPhone,
-        int guardianCount) {
+        int guardianCount, boolean accountLinked) {
 
     /**
      * 목록 1행을 만든다 — 보호자 연락처·연결 수는 학생 레코드가 아니라 <b>밖에서 조회한 값</b>으로
@@ -36,6 +38,6 @@ public record StudentSummaryResponse(String studentId, String name, String class
      */
     public static StudentSummaryResponse of(Student student, String guardianPhone, int guardianCount) {
         return new StudentSummaryResponse(String.valueOf(student.getId()), student.getName(),
-                student.getClassName(), guardianPhone, guardianCount);
+                student.getClassName(), guardianPhone, guardianCount, student.getAccountId() != null);
     }
 }

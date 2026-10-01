@@ -1839,7 +1839,7 @@ STU-05) — 화면이 "이 자리에 이미 있다" 를 알려 관계자가 같�
 
 **`DELETE /staff/students/{id}` 응답 `200`** — `{ student_id, deleted_at }`. `204` 가 아니라 본문을 돌려주는 것은 §1.9("변경 후 자원 상태를 그대로 반환") 때문이다 — 퇴원의 변경분은 `deleted_at` 하나이고 그 값이 없으면 클라이언트가 지워졌는지 구별할 수 없다. 학생 정보 전체는 싣지 않는다(§1.12, 목록에서 뺀 개인정보가 삭제 응답으로 다시 나가지 않게)(2026-09-30 BR-261).
 
-**`GET /staff/students` 응답 `items[]`** — `student_id` · `name` · `class_name` · `guardian_phone` · `guardian_count`(integer — 연결된 보호자 계정 수, 해지된 연결은 제외. `guardian_phone` 은 그중 대표 1명뿐이라 연결 수는 이 값으로 따로 센다)
+**`GET /staff/students` 응답 `items[]`** — `student_id` · `name` · `class_name` · `guardian_phone` · `guardian_count`(integer — 연결된 보호자 계정 수, 해지된 연결은 제외. `guardian_phone` 은 그중 대표 1명뿐이라 연결 수는 이 값으로 따로 센다) · `account_linked`(boolean — 학생 본인 계정이 가입 연결됐는지. 가입 승인 화면이 이미 연결된 학생을 고를 수 없게 보이는 데 쓴다. 계정 식별자는 싣지 않는다 — 상세만 싣는다, `Ruling 495`)
 
 **`POST` · `PATCH` 요청** — 매체는 `multipart/form-data`(§1.1: JSON 파트 `data` + 선택 파일 파트 `photo`). **다른 `Content-Type`(예: `application/json`)은 `422 VALIDATION_FAILED`** 이며 `500` 이 아니다(`Ruling 399`). 아래 필드 중 `photo` 는 파일 파트, 나머지는 `data` 파트의 키다.
 
