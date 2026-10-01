@@ -600,6 +600,8 @@ class StaffRouteControllerTest {
      */
     @Test
     void 운행_중_회차가_서는_승하차지의_좌표는_바꿀_수_없다() throws Exception {
+        // 시드 R3 의 운행일은 시드를 깐 날이라 테스트 DB 가 이틀 넘게 묵으면 "어제 이후" 범위(Ruling 701)를 벗어난다 — 오늘로 고정한다
+        jdbcTemplate.update("UPDATE run SET service_date = (now() AT TIME ZONE 'Asia/Seoul')::date WHERE id = 3");
         assertThat(jdbcTemplate.queryForObject("SELECT status FROM run WHERE id = 3", String.class))
                 .as("시드 R3 는 운행 중이고 현재 판본이 승하차지 1~4 에 선다")
                 .isEqualTo("moving");
