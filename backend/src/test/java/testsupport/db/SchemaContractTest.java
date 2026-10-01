@@ -603,7 +603,7 @@ class SchemaContractTest extends MigratedPostgresTestBase {
             connection.setAutoCommit(false);
             execute(connection, "SET LOCAL enable_seqscan = off");
             for (String index : 가려둘_인덱스) {
-                execute(connection, "DROP INDEX " + index);
+                execute(connection, "DROP INDEX IF EXISTS " + index);
             }
             try {
                 return 계획을_본다(connection, sql);
