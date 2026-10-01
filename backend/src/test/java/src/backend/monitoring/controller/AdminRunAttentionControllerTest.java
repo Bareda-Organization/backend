@@ -107,6 +107,7 @@ class AdminRunAttentionControllerTest {
         // 세지 않는 것들
         지연_알림(회차(fixtures, academyId, TODAY, 0, "finished", false), senderId); // 끝난 회차의 지연
         회차(fixtures, academyId, TODAY, 5, "idle", true); // 임시 취소된 회차의 실패
+        지연_알림(회차(fixtures, academyId, TODAY, 0, "moving", true), senderId); // 임시 취소된 회차의 지연
         회차(fixtures, academyId, TODAY, 0, "idle", false); // 실패 0 — 확정 대기일 뿐
         회차(fixtures, academyId, TODAY, 4, "confirmed", false); // 이미 확정됨 — 옛 실패 횟수는 읽지 않는다
         회차(fixtures, academyId, TODAY.minusDays(1), 6, "idle", false); // 어제 회차
@@ -120,6 +121,29 @@ class AdminRunAttentionControllerTest {
                 "$.data.items[?(@.academy_id == %d)]".formatted(academyId));
         assertThat(mine).hasSize(1);
         assertThat(mine.get(0)).containsEntry("delayed_runs", 2).containsEntry("confirm_failed_runs", 2);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void 지연만_있는_학원과_확정_실패만_있는_학원도_각각_목록에_있다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long delayOnly = fixtures.academy();
+        long failureOnly = fixtures.academy();
+        long senderId = fixtures.staffAccount(delayOnly, "발신자");
+        long adminId = fixtures.systemAdminAccount("메인관리자");
+        지연_알림(회차(fixtures, delayOnly, TODAY, 0, "moving", false), senderId);
+        회차(fixtures, failureOnly, TODAY, 2, "idle", false);
+
+        String body = mockMvc.perform(get(ATTENTION).header("Authorization", 메인관리자_토큰(adminId)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        List<Map<String, Object>> delayRow = JsonPath.read(body, "$.data.items[?(@.academy_id == %d)]".formatted(delayOnly));
+        List<Map<String, Object>> failureRow = JsonPath.read(body, "$.data.items[?(@.academy_id == %d)]".formatted(failureOnly));
+        assertThat(delayRow).singleElement().satisfies(row ->
+                assertThat(row).containsEntry("delayed_runs", 1).containsEntry("confirm_failed_runs", 0));
+        assertThat(failureRow).singleElement().satisfies(row ->
+                assertThat(row).containsEntry("delayed_runs", 0).containsEntry("confirm_failed_runs", 1));
     }
 
     @Test
