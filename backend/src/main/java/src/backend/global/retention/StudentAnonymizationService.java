@@ -1,4 +1,4 @@
-package src.backend.student.command;
+package src.backend.global.retention;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -42,6 +42,11 @@ import src.backend.student.repository.WeeklyAddressRepository;
  * <p><b>사진 파일은 트랜잭션보다 먼저 지운다.</b> 학생 사진은 저장소 밖(파일)이라 되돌릴 수 없는데, 파기 대상은 이미 퇴원한
  * 학생이라 파일이 먼저 사라져도 잃는 것이 부재하다. 거꾸로 커밋 뒤에 지우면 그 사이에 프로세스가 끝났을 때 아무도 가리키지 않는
  * 파일이 영영 남고 다시 찾을 방법이 없다 — 파일을 먼저 지우면 트랜잭션이 실패해도 다음 틱이 같은 학생을 다시 잡아 마저 처리한다.
+ *
+ * <p><b>이 클래스가 {@code global.retention} 에 있는 이유</b> — 학생·계정·알림·요청 4개 모듈의 행을 한 트랜잭션에서 건드린다.
+ * {@code student} 안에 두면 {@code notification↔student} 양방향 참조가 생기고(알림은 이벤트로만 부른다는
+ * {@code NotificationModuleIsolationTest} 규칙 위반), 계정·요청 쪽에 나눠 두면 한 트랜잭션이 깨진다. 모듈을 가로지르는 보존
+ * 정리는 이미 {@link RetentionCleanupScheduler} 가 이 패키지에서 하고 있다.
  *
  * <p>같은 id 를 다시 받아도(이미 익명화) 결과가 같다 — 재실행 멱등성은 조회 조건({@code anonymized_at IS NULL})과 이 서비스의
  * 방어 필터가 함께 보장한다.

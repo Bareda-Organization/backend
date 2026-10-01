@@ -23,7 +23,6 @@ import src.backend.location.repository.RunPositionRepository;
 import src.backend.audit.repository.AuditLogRepository;
 import src.backend.notification.repository.NotificationLogRepository;
 import src.backend.observability.metrics.SchedulerHealthMetrics;
-import src.backend.student.command.StudentAnonymizationService;
 import src.backend.student.repository.LinkCodeRepository;
 import src.backend.student.repository.StudentRepository;
 
