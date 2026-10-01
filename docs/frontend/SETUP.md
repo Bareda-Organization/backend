@@ -128,9 +128,9 @@ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/v3/api-docs   # 2
 - `docker compose down` 에는 `-v` 를 붙이지 않음
 - `stop` / `start`(컨테이너 유지)는 데이터가 남음
 - `POST /dev/reset` 이 지우는 위치 캐시는 Redis 키 패턴 전체 — **같은 Redis(`16379`)의 같은 칸(database)을 쓰는 다른 백엔드의 최신 좌표도 함께 지워짐**
-- 백엔드를 둘 이상 동시에 띄우면(예: 작업 창마다 전용 DB) 같은 회차 번호의 위치 키가 섞여 지도의 버스가 두 경로를 번갈아 나옴(2026-10-01 R46-PARENT 실측). 서버마다 `--spring.data.redis.database=<번호>` 로 같은 Redis 안에서 칸을 나눔 — 번호는 (백엔드 포트 ÷ 10)을 16 으로 나눈 나머지(0 이 나오면 15, 0 은 공유용). 시험(`./gradlew test`)은 Testcontainers Redis 라 해당 없음
+- 백엔드를 둘 이상 동시에 띄우면(예: 작업 창마다 전용 DB) 같은 회차 번호의 위치 키가 섞여 지도의 버스가 두 경로를 번갈아 나옴(2026-10-01 R46-PARENT 실측). 서버마다 `--spring.data.redis.database=<번호>` 로 같은 Redis 안에서 칸을 나눔 — 번호는 서버끼리 달라야 하고 0 은 기본 칸(공유)이라 피함(Redis 기본 칸은 0~15). 시험(`./gradlew test`)은 Testcontainers Redis 라 해당 없음
 - 관계자 웹 머리말의 **[테스트 데이터 초기화]** 버튼은 `NEXT_PUBLIC_TEST_DATA_RESET=true` 로 빌드·기동한 웹에만 보임(기본은 숨김)
-- 시드 SQL 을 고친 뒤 이미 적용된 DB 로 앱만 다시 띄우면 `FlywayValidateException` 으로 기동 실패 — 체크섬 불일치이므로 `down` → `up` 으로 재구성
+- 시드 SQL 을 고친 뒤 이미 적용된 DB 로 앱만 다시 띄우면 `FlywayValidateException` 으로 기동 실패 — 체크섬 불일치이므로 `down` → `up` 으로 재구성. 단 `bootRun`(3.1)은 기동마다 `clean()` 하므로 해당 없고, 컨테이너 모드(3.2)와 `-PtestDbUrl` 시험 DB 에 해당
 
 ## 7. 관계자 웹 (`frontend/apps/academy-web`)
 
