@@ -1137,6 +1137,17 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 652 | 전체 관제 회차 목록 폴링 — 실시간 `connected` 면 30초 · 아니면 7초 · 재연결 직후 한 번 바로 받음 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.30` |
 | 653 | 이벤트 뒤 재조회 묶기 — 웹 대시보드 300ms 묶음 · 매니저 앱 명단·노선 첫 이벤트 뒤 1초 창 안 한 번(창을 밀지 않음) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.30` |
 | 654 | 오프라인 대기열 카드 폭 — 문구가 짧은 카드만 줄어 가운데에 뜨던 것(`Ruling 592` 와 같은 갈래, 화면 확인에서 발견) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.30` |
+| 616 | 매니저 앱 오프라인 큐 — 비상 신고는 영구 실패 상한(5xx 10회·30분)에서 빼고 성공하거나 사용자가 지울 때까지 재시도(뒤 승하차 행은 막지 않음) · 비상 화면에 *"전송 실패 — 계속 다시 보내는 중 · 급하면 학원에 전화"* 표시 · 서버 접수 화면은 앱이 누른 시각을 보이지 않음(서버 몫으로 보고) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.31` |
+| 617 | 실시간 전송은 STOMP over WebSocket 유지 · 인스턴스 증설 결정 때 SSE 재평가(사용자가 뒤집을 수 있음) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.31` |
+| 660 | 웹 숨은 탭의 비상 경로 — stompjs Worker 하트비트 · 비상 폴링 숨은 탭 30초 유지 · 재연결 직후 REST 1회 보충을 `useRealtimeChannel` 공용 콜백(`onReconnected`)으로(비상·승인·관제) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.31` |
+| 661 | 학부모 앱 실시간 연결은 지도가 열려 있는 동안만 · 로그아웃·세션 만료 때 닫음(계정 전환 뒤 옛 권한 구독 방지) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.31` |
+| 662 | 시간 제한 값 — 웹 소켓 버림·연결 10초·GET 15초 · Flutter 연결 10초·핑 10초 · 위치 POST 4초/5초 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.31` · `docs/API_SPEC.md §7.2` |
+| 663 | 학부모 지도 스피너는 첫 진입만 · 재연결 스냅샷이 더 새로우면 WS 좌표 교체 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.31` |
+| 664 | `gaveUp` 상태·화면 처리는 지우지 않고 남김 · `MonitoringPage` "하트비트 10초 감지" 주석 정정 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.31` |
+| 665 | 망 복귀(학부모 오프라인→도달 · 매니저 위치 전송 성공)·복귀 직후 서버 무송신 20초 초과 연결 강제 재연결 · 연결 시도 번호표 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.31` · `docs/API_SPEC.md §7.2` |
+| 666 | 연결 끊김 문구 한 벌(웹·Flutter 같은 제목) · 웹 `(staff)`·`(admin)` 레이아웃 연결 띠 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.31` |
+| 667 | 웹 감사·접속 이력 — 시작일을 비우면 최근 30일 안내(`Ruling 632` 후속) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.31` |
+| 668 | `API_SPEC §7.2` 연결 감시·재연결 규약 표 신설(하트비트 10초·무송신 20초·백오프 1→30초·지터 30%·연결 한도 10초) | `docs/API_SPEC.md §7.2` · `docs/frontend/IMPLEMENTATION_PLAN.md §5.31` |
 
 
 ## 8.73 ⚖ `R46-BE` — 성능 개선(감사 제외) + 바로 고칠 것 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 410~419 · 백엔드 갈래)
