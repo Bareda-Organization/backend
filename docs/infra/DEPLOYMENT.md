@@ -850,6 +850,7 @@ Grafana 는 볼륨이 없어 컨테이너를 다시 만들 때마다 SSM 값으�
 | `CircuitBreakerNotClosed` | 지도 API 서킷(`geocoding` · `mapRoute` · `placeSearch`)이 열림·반열림으로 2분 넘게 닫히지 않음 | 경고 | 4행 |
 | `SchedulerStalled` | 확정·알림 재전송 스케줄러가 90초, 근접 판정이 30초(각 주기의 3배) 넘게 마지막 성공이 없는 상태가 1분 유지 | 즉시(critical) | (표 밖 — 확정이 멈추면 `RunUnconfirmed` 보다 먼저 안다) |
 | `RetentionCleanupStalled` | 보존 정리(매일 00:15)가 3일 넘게 성공하지 않음 | 경고 | (표 밖) |
+| `StompSessionsNearCap` | `schoolbus_stomp_sessions{job="backend"} > 3000` 이 5분 유지(동시 연결 상한 4,000 의 75% — §11.7) | 경고 | (표 밖 — 상한에 닿으면 새 연결이 거절되는데 서버는 그 사실을 기록하지 않는다, `Ruling 691`) |
 
 백업 2종은 `backup-db.sh` 가 **S3 업로드를 마친 뒤에만** 쓰는 성공 시각을 node-exporter 가 읽어 낸다(§7) — 덤프가 비었거나 업로드가 실패하면 시각이 갱신되지 않아 경보가 울린다. 6행(배치 지연 p95)만 아직 규칙이 없다. `PushDeliveryFailing` 은 "율"이 아니라 건수다 — 분모(시도 수) 지표가 없고, 있는 지표는 재시도를 전부 소진해 `failed` 로 굳은 건수뿐이다.
 
@@ -870,6 +871,7 @@ Grafana 는 볼륨이 없어 컨테이너를 다시 만들 때마다 SSM 값으�
 | `CircuitBreakerNotClosed` | §8 "지도 API 장애" 행 — 직선거리 근사로 계속 확정되는 상태 |
 | `SchedulerStalled` | `schoolbus_scheduler_last_success_age_seconds` 가 계속 느는 스케줄러 이름을 보고 로그에서 그 클래스의 예외를 찾는다. 푸시 발송이 외부에서 멈춘 것이면 아웃박스가 길어진다(`FCM`) |
 | `RetentionCleanupStalled` | 새벽 00:15 전후 로그에서 `retention` 예외 · 마지막 재배포 시각(3일 안이면 이 경보는 못 본다) |
+| `StompSessionsNearCap` | Grafana "4. 파이프라인 생존" 의 "활성 STOMP 세션" 모양 — 계단이면 이용자 증가, 톱니이면 재연결 반복. 실제 연결 수는 `tomcat_connections_current_connections`(세션 수보다 큰 만큼이 진행 중 HTTP 요청). 판단·대응은 §11.7 |
 
 ### 11.3 경보 수신 — 텔레그램 봇 + 이메일 예비 (`Ruling 480 ④` · `483`)
 
@@ -941,6 +943,32 @@ sudo docker compose -f /opt/school-bus/docker-compose.prod.yml --env-file /opt/s
 
 - **nginx 설정 변경은 배포가 자동 반영한다**(`Ruling 648`) — 설정은 파일 하나를 바인드 마운트하고 `s3 sync` 가 파일을 교체하면 컨테이너는 옛 파일을 계속 보지만(§11.2 의 Prometheus 와 같은 이유), `deploy.sh` 3-1 단계가 **새 설정을 `nginx -t` 로 검사한 뒤 proxy 를 다시 시작**한다. 검사가 실패하면 proxy 는 옛 설정으로 계속 응답하고 배포가 실패로 끝난다. 방식·끊김(1~2초)·한계는 §5.3. 로컬 `nginx -t` 는 첫 오류에서 멈추는데 설정 21번째 줄의 `upstream backend:8080` 과 인증서 경로가 로컬에는 없어, 그 뒤의 문법 오류까지 거르지 못한다 — 실제 검사는 배포 때 EC2 의 같은 네트워크·볼륨으로만 믿을 수 있다
 - 압축 확인: `curl -s -D - -o /dev/null -H 'Accept-Encoding: gzip' https://api.<도메인>/api/v1/<JSON 목록 경로> -H 'Authorization: Bearer <토큰>' \| grep -i content-encoding` — 일반 조회는 `gzip`, `/api/v1/auth/refresh` 는 헤더가 없어야 한다
+
+### 11.7 동시 연결 상한 — Tomcat `max-connections` (`Ruling 690` · `691`)
+
+| 프로파일 | `server.tomcat.max-connections` | 이유 |
+|---|---:|---|
+| prod · demo | **4,000** | 목표 동시 세션(2,000)의 2배 · 최악 힙 약 1.05GB(운영 힙 약 2.15GB 의 49%) |
+| staging | **1,000** | 팀원 체험 서버(동시 접속 수십 명) · 힙이 JVM 기본(호스트 메모리의 1/4) |
+| local · load | 기본 8,192(명시 없음) | 부하 측정이 한계를 재야 한다 — `TomcatThreadPoolConfigTest` 가 이 프로파일 문서에 상한이 없음을 고정 |
+
+**근거 계산** — 09-09 부하 측정 §4 표(`backend/report/2026-09-09-부하-한계-측정.md`, git 추적 밖)에서 직접 계산
+
+- 세션당 힙 약 **0.13MB** — 500세션 339MB · 6,000세션 1,063MB 의 기울기 (1,063 − 339) ÷ 5,500. 세션 0 으로 외삽한 기준 힙 약 274MB
+- 세션당 송신 버퍼 상한 **64KB**(`WebSocketConfig` `send-buffer-size-limit`) — 느린 클라이언트가 버퍼를 다 채우는 최악
+- 최악 힙 ≈ 274MB + (0.13MB + 64KB) × 연결 수 → 기본 8,192 는 **약 1.85GB**(운영 힙 = 컨테이너 3,072MB × 70% ≈ 2.15GB 의 86%) · 4,000 은 **약 1.05GB**(49%)
+- ⚠ 측정 한계 — 힙 최대값은 G1 이 회수를 미룬 쓰레기를 포함해 보수적이고(같은 보고서의 자원 실측 표에서 GC 직후 상주 힙은 135MB), 측정 기계(10코어)·무트래픽 세션 기준이라 4 vCPU 재측정 전까지 잠정(`Ruling 351` 과 같은 단서)
+
+**상한에 닿으면** — Tomcat 11.0.22 소스(`Acceptor` · `LimitLatch` · `SocketWrapperBase`)로 확인
+
+1. 연결 수가 상한이면 `Acceptor` 가 소켓을 받기 **전에** 멈춘다(`countUpOrAwaitConnection`) — 새 연결은 받지 못함
+2. 받지 못한 연결은 OS 의 TCP 대기열(`accept-count` 100)에 쌓이고, 그 대기열이 차면 OS 가 새 연결을 거절하거나 응답하지 않는다 — 클라이언트는 연결 거부 또는 연결 시간 초과(웹 · Flutter 연결 한도 10초, `API_SPEC §7.2`)
+3. **이미 맺어진 연결(세션 · 진행 중 요청)은 영향이 없다** — 막히는 것은 새 연결뿐이라 서버는 OOM 으로 죽지 않는다. 연결이 끊겨 자리가 나면 대기 중이던 연결부터 받는다. 클라이언트는 포기 없이 30초 상한 백오프로 재시도하므로(`API_SPEC §7.2`) 자리가 나면 이어서 붙는다
+4. **WebSocket 도 같은 수에 든다** — 업그레이드는 새 연결이 아니라 같은 소켓을 계속 쓰고(`AbstractProtocol` 이 같은 `SocketWrapperBase` 를 업그레이드 처리기에 넘김), 수는 소켓이 닫힐 때(`SocketWrapperBase.close`)만 줄어든다 → 세션이 끊길 때까지 점유. REST 요청도 같은 한도 안에서 센다
+5. 프록시(nginx)가 backend 로 여는 연결은 요청마다 닫힌다(`upstream backend_pool` 에 `keepalive` 없음) → 연결 수 ≈ WebSocket 세션 수 + 진행 중 HTTP 요청(요청 스레드 100 이하)
+6. **서버는 거절을 기록하지 않는다** — 앱이 그 연결을 본 적이 없다. 그래서 상한 도달 전에 `StompSessionsNearCap`(3,000 = 상한의 75% · 5분 유지 · `job="backend"` 만)이 울린다
+
+**울렸을 때 판단** — 세션 수 그래프(§11.2 표)가 계단이면 이용자 증가라 상한·사양 재계산 대상이다. 위 공식으로 새 연결 수의 최악 힙을 구해 운영 힙(약 2.15GB) 안인지 보고 `application.yml` 의 prod·demo 상한을 올리되 **같은 변경에 경보 임계(상한의 75%)도 함께** 올린다 — `OpsSettingsGuardTest` 가 둘이 맞지 않으면 실패한다. 백엔드는 인스턴스 1대 고정이라(`ARCHITECTURE §9.5`) 한 대로 모자라면 사양을 올리거나 WS 브로커 릴레이를 먼저 만든다. 톱니이면 클라이언트의 재연결 반복(토큰 만료 · 망 불안정 · 앱 버전)이 원인이라 그쪽을 먼저 본다 — **재시작은 모든 세션을 끊어 재연결이 한꺼번에 몰리므로 마지막 수단**.
 
 ---
 

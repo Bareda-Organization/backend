@@ -571,6 +571,22 @@ access(단기) + refresh(장기). 실행·새로고침 시 refresh 로 자동 �
 
 이전 판은 3초 REST 폴링이었으나 **WebSocket 으로 전환**. 관제 화면이 전 학원 버스를 동시에 보므로 폴링은 학원 수에 비례해 부하가 증가하고, 승하차 상태 반영 5초 이내(NFR-02)를 3초 폴링으로 맞추면 대부분의 요청이 변화 없는 응답.
 
+### 10.4 세션이 서버 메모리에 남기는 것 · 동시 연결 상한 (`Ruling 690`)
+
+**세션·구독 정보는 JVM 메모리에만 있다 — DB·Redis 에 저장하지 않음.** 서버 재시작 때 전부 사라지고 클라이언트가 재연결·재구독(`API_SPEC §7.2`). WebSocket 세션 하나가 끊길 때까지 서버가 들고 있는 것:
+
+| 보관물 | 위치 | 제거 시점 |
+|---|---|---|
+| 소켓 + 전송 세션 객체(송신 버퍼 상한 64KB) | Tomcat · Spring `WebSocketSession`(`WebSocketConfig` 송신 한도) | 연결 종료 |
+| 구독 등록부(세션 → 구독 경로) | 내장 심플 브로커(`enableSimpleBroker`) | 연결 종료 · 구독 해제 |
+| 세션 속성 맵(구독 거부 표식 등) | Spring 세션 | 연결 종료 |
+| 토큰 만료 시각 맵(세션 id → 만료 시각 · BR-083) | `StompSessionExpiry` | `SessionDisconnectEvent` |
+| 활성 세션 id 집합(지표 `schoolbus_stomp_sessions`) | `StompSessionMetrics` | `SessionDisconnectEvent` |
+
+- 코드가 직접 쥔 맵 둘(만료 시각 · 활성 세션 id)은 끊김 이벤트로 지운다 — 끊긴 세션이 남아 쌓이는 구조가 아니라 **동시 연결 수에 비례하는** 메모리
+- 비용(09-09 실측): 세션당 힙 약 0.13MB(구독 1개 · 무트래픽) + 송신 버퍼 상한 64KB(느린 클라이언트 최악) → **연결 수 상한이 곧 메모리 상한**
+- 그래서 Tomcat `server.tomcat.max-connections` 를 기본 8,192 에 맡기지 않고 운영·demo 4,000 · 스테이징 1,000 으로 명시(기본 8,192 의 최악 힙 약 1.85GB 가 운영 힙 약 2.15GB 에 근접 · 4,000 이면 약 1.05GB). 상한을 넘는 연결은 OOM 이 아니라 연결 대기·거절이 된다. 값 근거 · 도달 시 동작 · 접근 경보(`StompSessionsNearCap` 3,000)는 `docs/infra/DEPLOYMENT.md §11.7`
+
 ---
 
 ## 11. 알림 파이프라인
