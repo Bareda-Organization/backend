@@ -588,7 +588,7 @@ Flutter 패키지가 부재**하다(경로탐색 REST 래퍼조차 없음). 즉 
 
 | # | 조건 | 결과 |
 |:-:|---|---|
-| 1 | 초기화 → 표식 · 로그인 응답 표식 · 변경 뒤 해제 · 표식 중 다른 API 거부 · 웹·매니저 앱 강제 이동 | ✅ 백엔드 `TemporaryPasswordForcedChangeTest` 6 · 웹 `AuthGateGuard.test` 3 + `AuthSessionProvider.mustChange.test` 1 · 매니저 `must_change_password_test` 3 — 전부 RED→GREEN · 결함 15종을 하나씩 심어 해당 시험만 실패 |
+| 1 | 초기화 → 표식 · 로그인 응답 표식 · 변경 뒤 해제 · 표식 중 다른 API 거부 · 웹·매니저 앱 강제 이동 | ✅ 백엔드 `TemporaryPasswordForcedChangeTest` 6 · 웹 `AuthGateGuard.test` 3 + `AuthSessionProvider.mustChange.test` 1 · 매니저 `must_change_password_test` 3 — 전부 RED→GREEN · 결함 12종(백엔드 6 · 웹 3 · 앱 3)을 하나씩 심어 해당 시험만 실패 |
 | 2 | 조치 메모 저장·표시 · 길이 초과 422 · 메모 없는 확인도 동작 | ✅ 백엔드 `StaffEmergencyControllerTest` +3 · 웹 상세 대화상자 +4 · 메인 관리자 상세 +2 · API +2 |
 | 3 | 알림 탭 → 관련 화면 · payload 추가가 기존 시험을 깨지 않음 | ✅ 매니저 `notifications_screen_test` +5(이동 4 갈래) · 알림 모듈 34클래스 123건 실패 0 |
 | 4 | 집계 판정 근거 · 인가·학원 범위 시험 | ✅ `Ruling 543` · `AdminRunAttentionControllerTest` 4(오늘·취소·완료·확정됨 제외 · 한쪽 문제 학원 · 문제 없는 학원 부재 · 관계자 403) · 웹 요약 띠 +3 · API +1 |
