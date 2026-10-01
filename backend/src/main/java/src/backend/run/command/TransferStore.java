@@ -2,6 +2,7 @@ package src.backend.run.command;
 
 import java.time.OffsetDateTime;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,6 +12,7 @@ import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.persistence.ConstraintViolations;
 import src.backend.run.dto.TransferCapacityDetail;
 import src.backend.run.dto.TransferRequest;
 import src.backend.run.entity.Run;
@@ -35,6 +37,9 @@ import src.backend.student.geocoding.spec.GeocodedPoint;
 @RequiredArgsConstructor
 public class TransferStore {
 
+    /** 같은 학생의 대기(staged) 이동은 하나뿐이라는 DB 판정(V10 의 부분 UNIQUE 인덱스, R46 A-1). */
+    private static final String STAGED_UNIQUE_INDEX = "uk_run_transfer_student_staged";
+
     private final StopMatcher stopMatcher;
 
     private final RunTransferRepository runTransferRepository;
@@ -47,6 +52,11 @@ public class TransferStore {
 
     /**
      * 두 회차를 id 오름차순으로 잠근 뒤 정차지를 확정하고 이동을 {@code staged} 로 저장한다.
+     *
+     * <p><b>대기 중복의 최종 판정은 DB 다</b> — {@link TransferCommandService} 의 선검사는 잠금 밖이라 같은 학생에 대한 요청 둘이
+     * (도착 회차가 달라 서로의 회차 잠금에 안 걸려도) 둘 다 통과한다. 늦은 쪽의 INSERT 를 {@code uk_run_transfer_student_staged}
+     * 가 거부하고, 그 거부를 {@code 409 TRANSFER_ALREADY_STAGED} 로 옮긴다 — 옮기지 않으면 사용자에게 {@code 500} 이 나간다.
+     * {@code flush} 를 이 메서드 안에서 부르는 이유는 커밋 시점까지 미루면 예외가 이 {@code catch} 밖에서 터지기 때문이다.
      *
      * <p>CODE_CONVENTIONS §20.2 — 파라미터 7개를 넘긴 채 둔다. 호출부가 하나({@link TransferCommandService#transfer})
      * 뿐이고 일곱 값이 전부 이 저장에 필요한 서로 다른 도메인 값이라, record 로 묶어도 그 record 를
@@ -68,7 +78,14 @@ public class TransferStore {
                 : request.stopId();
         RunTransfer transfer = RunTransfer.stage(student.getId(), fromRun.getId(), toRun.getId(), stopId,
                 request.note(), requestedByAccountId, now);
-        return runTransferRepository.save(transfer);
+        try {
+            return runTransferRepository.saveAndFlush(transfer);
+        } catch (DataIntegrityViolationException e) {
+            if (ConstraintViolations.isViolationOf(e, STAGED_UNIQUE_INDEX)) {
+                throw new BusinessException(ErrorCode.TRANSFER_ALREADY_STAGED);
+            }
+            throw e;
+        }
     }
 
     /**

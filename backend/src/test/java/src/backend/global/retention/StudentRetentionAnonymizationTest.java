@@ -200,6 +200,60 @@ class StudentRetentionAnonymizationTest {
         }
     }
 
+    @Test
+    @DisplayName("Ruling 610 — 파기 뒤에는 보호자→자녀→승하차지(주소·좌표)로 이어지는 조인이 0행이고, 89일 퇴원생의 연결·보호자 본인은 남는다")
+    void 파기_뒤에는_보호자에서_자녀의_집_주소로_이어지는_경로가_끊긴다() {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        준비한다();
+        long expired = 학생을_심는다("만료학생", now.minusDays(91));
+        long recent = 학생을_심는다("최근학생", now.minusDays(89));
+        long guardianId = 보호자를_심고_연결한다(expired, recent);
+        String expiredPhotoName = 사진_파일명(expired);
+        String recentPhotoName = 사진_파일명(recent);
+        assertThat(보호자에서_자녀_승하차지_행_수(guardianId, expired)).as("파기 전에는 경로가 이어져 있다").isEqualTo(1);
+
+        try {
+            scheduler.cleanUp();
+            entityManager.flush();
+            entityManager.clear();
+
+            assertThat(보호자에서_자녀_승하차지_행_수(guardianId, expired))
+                    .as("보호자(이름·전화) → guardian_student → student(익명) → run_rider → stop(주소·좌표) 조인").isZero();
+            assertThat(행_수("guardian_student", "student_id", expired)).as("연결 행 자체가 삭제된다").isZero();
+            assertThat(보호자에서_자녀_승하차지_행_수(guardianId, recent)).as("89일 퇴원생의 연결은 남는다").isEqualTo(1);
+            assertThat(행_수("guardian", "id", guardianId)).as("보호자 본인은 그대로 — 보존 기간은 열린 항목").isEqualTo(1);
+        } finally {
+            photoStorage.delete("/api/v1/files/photos/" + expiredPhotoName);
+            photoStorage.delete("/api/v1/files/photos/" + recentPhotoName);
+        }
+    }
+
+    private long 보호자를_심고_연결한다(long... studentIds) {
+        long accountId = jdbcTemplate.queryForObject("""
+                INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status)
+                VALUES (?, ?, 'hash', '보호자', '010-5555-6666', 'parent', 'active') RETURNING id
+                """, Long.class, academyId, "guardian-" + studentIds[0]);
+        long guardianId = jdbcTemplate.queryForObject("""
+                INSERT INTO guardian (academy_id, account_id, name, phone) VALUES (?, ?, '보호자', '010-5555-6666')
+                RETURNING id
+                """, Long.class, academyId, accountId);
+        for (long studentId : studentIds) {
+            jdbcTemplate.update("INSERT INTO guardian_student (guardian_id, student_id, linked_at) VALUES (?, ?, now())",
+                    guardianId, studentId);
+        }
+        return guardianId;
+    }
+
+    private long 보호자에서_자녀_승하차지_행_수(long guardianId, long studentId) {
+        return jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM guardian g
+                JOIN guardian_student gs ON gs.guardian_id = g.id
+                JOIN run_rider rr ON rr.student_id = gs.student_id
+                JOIN stop s ON s.id = rr.stop_id
+                WHERE g.id = ? AND gs.student_id = ?
+                """, Long.class, guardianId, studentId);
+    }
+
     private void 준비한다() {
         RunConfirmationFixtures fixtures = new RunConfirmationFixtures(academyRepository, busRepository,
                 routeRepository, routeStopRepository, stopRepository, studentRepository, weeklyAddressRepository,

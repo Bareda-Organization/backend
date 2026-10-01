@@ -21,6 +21,7 @@ import src.backend.notification.repository.DeviceTokenRepository;
 import src.backend.request.repository.ChangeRequestRepository;
 import src.backend.student.entity.Student;
 import src.backend.student.photo.spec.PhotoStorage;
+import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.LinkCodeRepository;
 import src.backend.student.repository.StudentRepository;
 import src.backend.student.repository.WeeklyAddressRepository;
@@ -34,7 +35,8 @@ import src.backend.student.repository.WeeklyAddressRepository;
  * (ERD §7.2) 행을 지우면 이력이 함께 사라진다. 행은 남기고 알아볼 수 있는 값만 바꾼다 — 이름은 {@link Student#ANONYMIZED_NAME},
  * 나머지는 {@code null}.
  *
- * <p>같은 트랜잭션에서 함께 처리하는 것: 요일별 주소·좌표(행 삭제) · 연결 코드(행 삭제) · 변경 요청의 주소·좌표·사유(익명값) ·
+ * <p>같은 트랜잭션에서 함께 처리하는 것: 요일별 주소·좌표(행 삭제) · 연결 코드(행 삭제) · <b>보호자 연결(행 삭제, Ruling 610 —
+ * 남기면 보호자→자녀→승하차지 조인으로 집 주소가 복원된다. 보호자 본인은 남긴다)</b> · 변경 요청의 주소·좌표·사유(익명값) ·
  * 학생의 앱 계정(익명화 + 로그인 불가 + 재발급 토큰·푸시 단말 삭제). 처리 결과는 감사 1행으로 남는다 — 행위자가 없는 시스템
  * 처리라 {@code actor_account_id} 가 {@code null}, {@code detail.purged_students} 에 건수가 담긴다. 감사 행도 같은
  * 트랜잭션이라 "파기는 됐는데 기록이 없다" 가 생기지 않는다.
@@ -61,6 +63,8 @@ public class StudentAnonymizationService {
 
     private final LinkCodeRepository linkCodeRepository;
 
+    private final GuardianStudentRepository guardianStudentRepository;
+
     private final ChangeRequestRepository changeRequestRepository;
 
     private final AccountRepository accountRepository;
@@ -79,13 +83,14 @@ public class StudentAnonymizationService {
 
     public StudentAnonymizationService(StudentRepository studentRepository,
             WeeklyAddressRepository weeklyAddressRepository, LinkCodeRepository linkCodeRepository,
-            ChangeRequestRepository changeRequestRepository, AccountRepository accountRepository,
+            GuardianStudentRepository guardianStudentRepository, ChangeRequestRepository changeRequestRepository, AccountRepository accountRepository,
             RefreshTokenRepository refreshTokenRepository, DeviceTokenRepository deviceTokenRepository,
             AuditLogRepository auditLogRepository, PhotoStorage photoStorage, Clock clock,
             PlatformTransactionManager transactionManager) {
         this.studentRepository = studentRepository;
         this.weeklyAddressRepository = weeklyAddressRepository;
         this.linkCodeRepository = linkCodeRepository;
+        this.guardianStudentRepository = guardianStudentRepository;
         this.changeRequestRepository = changeRequestRepository;
         this.accountRepository = accountRepository;
         this.refreshTokenRepository = refreshTokenRepository;
@@ -126,6 +131,7 @@ public class StudentAnonymizationService {
         }
         weeklyAddressRepository.deleteAllByStudentIds(ids);
         linkCodeRepository.deleteAllByStudentIds(ids);
+        guardianStudentRepository.deleteAllByStudentIds(ids);
         changeRequestRepository.anonymizeAddressesOfStudents(ids, Student.ANONYMIZED_ADDRESS);
         // 시스템 배치라 요청 IP 가 없다(R46-FUBE 의 ip 인자 — 요청 밖은 null)
         auditLogRepository.save(AuditLog.forDataAccessChange(AuditAction.DELETE, null, null, null, "student", null,
