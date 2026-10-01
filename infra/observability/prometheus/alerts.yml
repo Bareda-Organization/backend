@@ -27,6 +27,16 @@ groups:
           severity: warning
         annotations:
           summary: 위치가 2분 넘게 안 들어오는 운행 중 회차가 있다
+      # 운행일이 어제보다 이른데 끝나지 않은 이동 중 회차(R46-KFIXBE K-1 · Ruling 701·702). 근접 판정 · 위치 유실 · 노선 잠금은 그 회차를 더는
+      # 집지 않으므로(위 RunPositionLost 가 영구히 켜져 새 유실을 가리지 않게 뺀 것) 이 경보가 그 회차를 사람에게 드러내는 유일한 신호다. 자동으로
+      # 끝내지 않는다 — 처리는 DEPLOYMENT §11.2 의 절차. 게이지는 10분마다 갱신되고 새로 생기는 건은 날짜가 바뀔 때뿐이라 for 30m 이면 충분하다.
+      - alert: StaleMovingRun
+        expr: schoolbus_run_moving_stale > 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: 운행일이 어제보다 이른데 끝나지 않은 이동 중 회차가 있다 — 근접 판정과 위치 유실 경보가 더는 보지 않는다
       # "confirm_at + 5분 경과인데 idle 인 회차 ≥ 1 — 즉시"(§13.4 1행). 게이지가 이미 5분 여유를 반영한 값이라 0 초과면
       # 기사가 노선을 못 받은 채 출발 시각이 지난 것이다. 게이지는 30초마다 갱신되니 for 1m 이면 두 번 연속 관측 뒤 발화한다.
       # 이 규칙이 확정 배치 실패의 1차 방어다 — 강제 확정(POST /admin/runs/{runId}/force-confirm)은 그다음 수단이다.

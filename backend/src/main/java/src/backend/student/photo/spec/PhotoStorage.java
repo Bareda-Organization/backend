@@ -2,6 +2,8 @@ package src.backend.student.photo.spec;
 
 import java.util.Optional;
 
+import org.springframework.core.io.Resource;
+
 /**
  * 학생 사진 저장 포트(§7 규칙 12 교체 축) — 로컬 디스크 · S3 · 외부 CDN 이 서로 다른 저장소라
  * 호출부는 이 인터페이스만 안다.
@@ -31,10 +33,13 @@ public interface PhotoStorage {
     void delete(String photoUrl);
 
     /**
-     * 저장했던 사진 본문을 읽는다(API_SPEC §5.11.1) — {@code fileName} 은 {@link #store} 가 만든 주소의 마지막 조각이다.
+     * 저장했던 사진 본문의 <b>핸들</b>을 연다(API_SPEC §5.11.1) — {@code fileName} 은 {@link #store} 가 만든 주소의 마지막 조각이다.
+     *
+     * <p>본문 바이트를 여기서 읽지 않는다 — 호출부가 응답으로 흘려 보낼 때 열린다(R46-KFIXBE K-3). 사진 한 장 약 4MB 를 요청마다 힙에
+     * 올리면 느린 클라이언트 200개가 힙 1GB 를 채웠다(R46 leak 실측).
      *
      * <p>파일이 없거나 저장 영역 밖을 가리키는 이름(경로 구분자·{@code ..})이면 {@link Optional#empty()} 다 —
      * 호출부는 둘을 "없음" 으로 똑같이 다룬다.
      */
-    Optional<byte[]> read(String fileName);
+    Optional<Resource> read(String fileName);
 }

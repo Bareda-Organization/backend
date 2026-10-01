@@ -11,6 +11,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
 
 import src.backend.student.photo.spec.PhotoStorage;
@@ -77,18 +79,17 @@ public class LocalDiskPhotoStorage implements PhotoStorage {
         }
     }
 
-    /** 요청의 파일명을 그대로 {@code resolve} 하지 않는다 — {@link #delete} 와 같은 경로 이탈 검사를 거친다. */
+    /**
+     * 요청의 파일명을 그대로 {@code resolve} 하지 않는다 — {@link #delete} 와 같은 경로 이탈 검사를 거친다. 본문은 열지 않고 파일 핸들만
+     * 돌려준다(R46-KFIXBE K-3).
+     */
     @Override
-    public Optional<byte[]> read(String fileName) {
+    public Optional<Resource> read(String fileName) {
         if (!isPlainFileName(fileName)) {
             return Optional.empty();
         }
-        try {
-            Path file = root.resolve(fileName);
-            return Files.isRegularFile(file) ? Optional.of(Files.readAllBytes(file)) : Optional.empty();
-        } catch (IOException e) {
-            throw new UncheckedIOException("학생 사진을 읽지 못했습니다", e);
-        }
+        Path file = root.resolve(fileName);
+        return Files.isRegularFile(file) ? Optional.of(new FileSystemResource(file)) : Optional.empty();
     }
 
     private String fileNameOf(String photoUrl) {

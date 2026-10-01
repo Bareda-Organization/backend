@@ -469,7 +469,7 @@ class SchemaContractTest extends MigratedPostgresTestBase {
         String plan = 순차_스캔을_끄고_계획을_본다("""
                 SELECT r.id FROM run r
                 WHERE r.status = 'idle' AND r.confirm_at <= now() AND r.service_date >= current_date
-                  AND r.canceled_at IS NULL
+                  AND r.canceled_at IS NULL AND (r.confirm_retry_at IS NULL OR r.confirm_retry_at <= now())
                 ORDER BY r.consecutive_failures, r.confirm_at LIMIT 50
                 """, "ix_run_open_service_date");
         assertThat(plan).contains("ix_run_status_confirm_at").doesNotContain("Seq Scan");

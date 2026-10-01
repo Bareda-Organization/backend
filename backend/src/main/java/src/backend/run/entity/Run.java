@@ -111,6 +111,13 @@ public class Run extends BaseTimeEntity {
     @Column(name = "consecutive_failures", nullable = false)
     private int consecutiveFailures;
 
+    /**
+     * 확정 배치가 이 회차를 다시 시도해도 되는 가장 이른 시각(R46-KFIXBE K-2) — {@code null} 이면 바로 대상이다. 판정 시각
+     * ({@code confirm_at})과 다른 시계다. {@code consecutive_failures} 와 같은 이유로 엔티티 변경이 아니라 조건부 UPDATE 가 쓴다.
+     */
+    @Column(name = "confirm_retry_at")
+    private OffsetDateTime confirmRetryAt;
+
     private Run(Long academyId, Long busId, Long scheduleId, LocalDate serviceDate, Direction direction,
             OffsetDateTime departTime, OffsetDateTime confirmAt, String originName, String destinationName,
             Integer estDurationMin) {

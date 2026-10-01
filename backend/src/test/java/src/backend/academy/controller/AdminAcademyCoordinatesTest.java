@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,6 +48,9 @@ class AdminAcademyCoordinatesTest {
 
     @Autowired
     private AcademyRepository academyRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     void 주소를_넣어_등록하면_좌표가_함께_저장된다() throws Exception {
@@ -202,6 +206,42 @@ class AdminAcademyCoordinatesTest {
                 .andExpect(status().isOk());
 
         assertThat(학원(id).hasCoordinates()).isTrue();
+    }
+
+    /**
+     * R46-KFIXBE K-2(Ruling 703) — 학원 좌표가 새로 저장되면 그 학원 회차의 확정 실패 이력이 지워져 고친 즉시 다음 틱에 다시 시도한다
+     * (좌표가 없어 영구 실패하던 회차). 다른 학원 회차와 좌표가 바뀌지 않은 수정은 건드리지 않는다.
+     */
+    @Test
+    void 좌표가_새로_저장되면_그_학원_회차의_확정_실패_이력이_지워진다() throws Exception {
+        실패_이력을_심는다();
+
+        mockMvc.perform(patch("/api/v1/admin/academies/1").header("Authorization", 관리자())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"contact\":\"02-333-3333\"}"))
+                .andExpect(status().isOk());
+        assertThat(실패_횟수(1)).as("주소를 보내지 않아 좌표가 그대로면 이력도 그대로").isEqualTo(4);
+
+        mockMvc.perform(patch("/api/v1/admin/academies/1").header("Authorization", 관리자())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"address\":\"" + "테헤란로 190" + "\"}"))
+                .andExpect(status().isOk());
+
+        assertThat(실패_횟수(1)).as("좌표가 새로 저장된 학원 — 바로 다시 시도").isZero();
+        assertThat(jdbcTemplate.queryForObject("SELECT confirm_retry_at FROM run WHERE id = 1", Object.class)).isNull();
+        assertThat(실패_횟수(5)).as("다른 학원 회차는 그대로").isEqualTo(4);
+    }
+
+    /** 학원 1 의 시드 회차 1 과 학원 2 의 회차 5(idle 로 되돌린다)를 확정 실패 중으로 만든다. */
+    private void 실패_이력을_심는다() {
+        jdbcTemplate.update("UPDATE run SET consecutive_failures = 4, confirm_retry_at = now() + interval '10 minutes' "
+                + "WHERE id = 1");
+        jdbcTemplate.update("UPDATE run SET status = 'idle', confirmed_at = NULL, consecutive_failures = 4, "
+                + "confirm_retry_at = now() + interval '10 minutes' WHERE id = 5");
+    }
+
+    private int 실패_횟수(long runId) {
+        return jdbcTemplate.queryForObject("SELECT consecutive_failures FROM run WHERE id = ?", Integer.class, runId);
     }
 
     private Academy 학원(long id) {

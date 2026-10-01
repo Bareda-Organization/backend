@@ -23,7 +23,7 @@ import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 public class SchedulingConfig implements SchedulingConfigurer, DisposableBean {
 
     /**
-     * 스레드 수 = {@code @Scheduled} 메서드 수(2026-10-01 기준 11개 — 데모 시뮬레이터 · 위치 이력 파티션 미리 만들기 포함). 전부
+     * 스레드 수 = {@code @Scheduled} 메서드 수(2026-10-02 기준 12개 — 데모 시뮬레이터 · 위치 이력 파티션 미리 만들기 · 끝나지 않은 이동 중 회차 지표 포함). 전부
      * {@code fixedDelay}·{@code cron} 이라 한 작업이 자기 자신과 겹쳐 돌지 않으므로, 이 수면 어떤
      * 작업도 남의 작업을 기다리지 않는다. 작업을 더하면 이 값도 함께 올린다 — {@code SchedulingPoolSizeTest} 가 개수를 세어 어긋나면 실패한다.
      *
@@ -31,7 +31,7 @@ public class SchedulingConfig implements SchedulingConfigurer, DisposableBean {
      * (§7 규칙 16)이라 10개가 동시에 커넥션을 쥐는 경우는 드물다. 동시 도래가 커넥션을 밀어내는지는
      * 관측 지표(hikaricp_connections_pending)로 본다.
      */
-    static final int POOL_SIZE = 11;
+    static final int POOL_SIZE = 12;
 
     private final ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
 

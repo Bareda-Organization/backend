@@ -1,5 +1,6 @@
 package src.backend.routing.repository;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
@@ -85,6 +86,9 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
      * 이 승하차지들 중 하나라도 <b>운행 중</b> 회차의 현재 노선에 서는가 — 서면 좌표를 고칠 수 없다
      * (ARCHITECTURE §8.5 운행 시작과 동시에 노선 잠금, BR-052). 근접 알림·출발 판정이 {@code stop} 좌표를
      * 매번 다시 읽어, 고치는 순간 운행 중인 버스의 판정 좌표가 바뀐다.
+     *
+     * <p>운행일이 {@code since} 보다 이른 회차는 세지 않는다(R46-KFIXBE K-1, Ruling 701) — 끝나지 않은 채 남은 옛 회차가
+     * 그 노선 승하차지의 좌표 수정을 영구히 막지 않게 한다. {@code since} 는 {@code MovingRunWindowPolicy#earliestServiceDate}.
      */
     @Query("""
             SELECT COUNT(rs) > 0 FROM RunStop rs
@@ -92,10 +96,11 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
             JOIN Run r ON r.id = cr.runId
             WHERE rs.stopId IN :stopIds
               AND r.status = :movingStatus
+              AND r.serviceDate >= :since
               AND r.academyId = :academyId
             """)
     boolean existsOnMovingRun(@Param("stopIds") Collection<Long> stopIds, @Param("academyId") Long academyId,
-            @Param("movingStatus") RunStatus movingStatus);
+            @Param("movingStatus") RunStatus movingStatus, @Param("since") LocalDate since);
 
     /**
      * ③구간 미등원 토글이 잔여 0명을 확인한 뒤 건너뛸 정차 항목 1건을 찾는다(API_SPEC §3.6 ③) —

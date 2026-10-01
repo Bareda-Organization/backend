@@ -13,6 +13,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.sql.Timestamp;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -87,6 +88,9 @@ class ProximityNotificationSchedulerTest {
 
     @Autowired
     private ProximityNotificationScheduler scheduler;
+
+    @Autowired
+    private Clock clock;
 
     @MockitoSpyBean
     private ProximityNotificationService proximityNotificationService;
@@ -222,6 +226,30 @@ class ProximityNotificationSchedulerTest {
     }
 
     /**
+     * R46-KFIXBE K-1(Ruling 701) — 운행일이 어제보다 이른 채 끝나지 않은 이동 중 회차는 판정 대상이 아니다. 그 회차를 계속 집으면 처리할 회차가
+     * 날마다 늘고, 어제 운행일(자정을 넘겨 달리는 회차)은 여전히 판정을 받아야 한다.
+     */
+    @Test
+    void 이틀_전_운행일의_끝나지_않은_회차는_판정_대상이_아니고_어제_운행일은_대상이다() {
+        ProximityFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        LocalDate today = LocalDate.now(clock);
+        long staleRunId = fullyWiredMovingRun(fx, academyId, busId, "옛회차학생", "옛회차학부모").runId();
+        jdbcTemplate.update("UPDATE run SET service_date = ? WHERE id = ?", today.minusDays(2), staleRunId);
+        long overnightRunId = fullyWiredMovingRun(fx, academyId, fx.bus(academyId), "자정회차학생", "자정회차학부모").runId();
+        jdbcTemplate.update("UPDATE run SET service_date = ? WHERE id = ?", today.minusDays(1), overnightRunId);
+        // 300m 밖 — 판정은 돌되 근접 알림(비동기 발송)은 만들지 않는다. 발송이 다음 시험의 트랜잭션 수 측정 구간에 늦게 끼어들지 않게 한다
+        writePosition(staleRunId, FAR_LAT, STOP_LNG);
+        writePosition(overnightRunId, FAR_LAT, STOP_LNG);
+
+        scheduler.judgeMovingRuns();
+
+        verify(proximityNotificationService, never()).judgeRun(eq(staleRunId), anyLong(), any(), any());
+        verify(proximityNotificationService, times(1)).judgeRun(eq(overnightRunId), eq(academyId), any(), any());
+    }
+
+    /**
      * BR-011 — 판정 뒤에도 회차는 {@code moving} 그대로라, 0쪽만 집으면 다음 틱도 같은 50건이다. 51번째
      * 이후 회차는 운행 내내 근접 알림·출발 판정을 받지 못한다. 한 틱이 쪽을 넘겨 전부 돌아야 한다.
      */
@@ -270,8 +298,14 @@ class ProximityNotificationSchedulerTest {
 
         scheduler.judgeMovingRuns();
 
+        List<Object> judgedRunIds = org.mockito.Mockito.mockingDetails(proximityNotificationService).getInvocations()
+                .stream().filter(call -> call.getMethod().getName().equals("judgeRun"))
+                .map(call -> call.getArguments()[0]).toList();
+        // 시드 회차 R3(운행 중)에 앞선 시험이 Redis 위치를 남겨 두면 그 회차도 판정된다 — 이 시험의 회차 3개만 센다고 가정하지 않고
+        // "판정된 회차마다 읽기 트랜잭션 1개" 로 센다(회차당 2개로 늘면 여전히 실패한다)
+        assertThat(judgedRunIds).as("이 시험이 심은 세 회차는 판정된다").containsAll(runIds);
         assertThat(statistics.getTransactionCount() - before)
-                .as("운행 중 회차 조회 1 + 회차 3개 × 읽기 트랜잭션 1").isEqualTo(1 + 3);
+                .as("운행 중 회차 조회 1 + 판정된 회차 " + judgedRunIds + " × 읽기 트랜잭션 1").isEqualTo(1 + judgedRunIds.size());
         ArgumentCaptor<Collection<Long>> batches = ArgumentCaptor.forClass(Collection.class);
         verify(runPositionStore, atLeastOnce()).findAll(batches.capture());
         assertThat(batches.getAllValues()).as("세 회차의 위치를 한 묶음의 한 번 읽기로").anySatisfy(

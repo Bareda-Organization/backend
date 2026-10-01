@@ -39,7 +39,7 @@ public class StudentPhotoWriter {
         if (photo == null) {
             return null;
         }
-        String photoUrl = photoStorage.store(photo);
+        String photoUrl = photoStorage.store(PhotoResizer.shrink(photo));
         onRollback(() -> photoStorage.delete(photoUrl));
         return photoUrl;
     }

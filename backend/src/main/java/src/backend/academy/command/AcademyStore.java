@@ -21,6 +21,7 @@ import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademySettingRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.run.repository.RunRepository;
 import src.backend.student.geocoding.spec.GeocodedPoint;
 
 /**
@@ -39,6 +40,8 @@ public class AcademyStore {
     private final AcademySettingRepository academySettingRepository;
 
     private final AcademyCodeGenerator academyCodeGenerator;
+
+    private final RunRepository runRepository;
 
     /**
      * 학원과 기본 설정을 한 트랜잭션에 저장한다 — 좌표는 이미 구해진 값으로 넘어온다.
@@ -75,6 +78,8 @@ public class AcademyStore {
                 request.address(), request.contact(), request.memo()));
         if (point != null) {
             academy.assignCoordinates(point.lat(), point.lng());
+            // 좌표가 없어 영구 실패하던 회차가 고친 즉시 다음 틱에 다시 시도된다(R46-KFIXBE K-2, Ruling 703)
+            runRepository.resetConfirmationFailures(academyId);
         }
         if (request.status() != null) {
             academy.changeStatus(parseStatus(request.status()));

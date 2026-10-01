@@ -1,6 +1,7 @@
 package src.backend.observability.scheduler;
 
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -16,8 +17,8 @@ import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.monitoring.query.RunLiveStateResolver;
 import src.backend.observability.metrics.RunPositionLostMetrics;
+import src.backend.run.domain.MovingRunWindowPolicy;
 import src.backend.run.entity.Run;
-import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.query.StudentBusPositionQueryService;
 
@@ -27,6 +28,9 @@ import src.backend.student.query.StudentBusPositionQueryService;
  *
  * <p>유실 판정은 관제 화면과 같은 {@link RunLiveStateResolver} 를 쓴다 — 기준이 갈리면 알럿과 화면이 서로 다른 버스를
  * 가리킨다. 출발 직후 첫 위치가 오기 전인 회차는 세지 않는다(출발 후 2분이 지나야 "미수신" 이다).
+ *
+ * <p>운행일이 어제보다 이른 끝나지 않은 회차는 세지 않는다({@link MovingRunWindowPolicy}, R46-KFIXBE K-1) — 위치가 없는 그
+ * 회차가 이 경보를 영구히 켜 두면 새 유실이 와도 상태가 안 바뀐다. 그 회차는 {@code StaleMovingRunGaugeScheduler} 가 따로 센다.
  */
 @Component
 @RequiredArgsConstructor
@@ -36,6 +40,8 @@ public class RunPositionLostGaugeScheduler {
     private static final int BATCH_SIZE = 500;
 
     private final RunRepository runRepository;
+
+    private final MovingRunWindowPolicy movingRunWindowPolicy;
 
     private final RunLiveStateResolver runLiveStateResolver;
 
@@ -53,11 +59,11 @@ public class RunPositionLostGaugeScheduler {
         OffsetDateTime startedBefore = OffsetDateTime.now(clock).minus(StudentBusPositionQueryService.STALE_THRESHOLD);
         // 운행 중 회차를 id 순으로 끝까지 이어 읽는다 — 첫 묶음만 세면 그 뒤 회차의 유실이 지표에 안 잡힌다
         // (근접 판정 BR-011 과 같은 형태).
+        LocalDate since = movingRunWindowPolicy.earliestServiceDate();
         long lost = 0;
         long afterId = 0L;
         while (true) {
-            List<Run> moving = runRepository.findByStatusAndCanceledAtIsNullAndIdGreaterThanOrderByIdAsc(
-                    RunStatus.MOVING, afterId, PageRequest.of(0, BATCH_SIZE));
+            List<Run> moving = runRepository.findMovingFromServiceDate(since, afterId, PageRequest.of(0, BATCH_SIZE));
             // 좌표는 묶음마다 한 번에 읽는다 — 회차마다 읽으면 Redis 대기가 회차 수만큼 곱해진다(BR-166).
             Map<Long, RunPositionRedisValue> positions = runPositionStore.findAll(
                     moving.stream().map(Run::getId).toList());

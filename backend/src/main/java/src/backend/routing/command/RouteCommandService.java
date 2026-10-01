@@ -28,7 +28,9 @@ import src.backend.routing.entity.RoutePlan;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
 import src.backend.routing.repository.RunStopRepository;
+import src.backend.run.domain.MovingRunWindowPolicy;
 import src.backend.run.entity.RunStatus;
+import src.backend.run.repository.RunRepository;
 import src.backend.student.command.StopMatcher;
 import src.backend.student.entity.Stop;
 import src.backend.student.geocoding.spec.GeocodedPoint;
@@ -62,6 +64,10 @@ public class RouteCommandService {
 
     private final RunStopRepository runStopRepository;
 
+    private final MovingRunWindowPolicy movingRunWindowPolicy;
+
+    private final RunRepository runRepository;
+
     private final RouteDetailAssembler routeDetailAssembler;
 
     private final RouteStopRepository routeStopRepository;
@@ -87,6 +93,7 @@ public class RouteCommandService {
         return enforcingUniqueSlot(requester.academyId(), plan, () -> {
             routeRepository.save(route);
             routeStopArranger.replace(route.getId(), requester.academyId(), stopIds);
+            runRepository.resetConfirmationFailures(requester.academyId());
             return routeDetailAssembler.assemble(route);
         });
     }
@@ -123,6 +130,9 @@ public class RouteCommandService {
      *
      * <p>새 항목은 {@link StopMatcher} 가 정한다 — 50m 안에 이미 있으면 그것을 쓰고, 그 결과 같은
      * 승하차지가 두 번 담기면 마지막 검증이 {@code 422} 로 막는다(버스가 같은 자리에 두 번 서는 것).
+     *
+     * <p>편성·수정·이 저장은 모두 끝에서 그 학원 회차의 확정 실패 이력을 지운다 — 노선이 없어 영구 실패하던 회차가 고친 즉시 다음 틱에 다시
+     * 시도된다(R46-KFIXBE K-2, Ruling 703). 고쳐지지 않았으면 다시 실패해 재시도 간격이 처음부터 늘어난다.
      */
     public RouteDetailResponse saveStops(AuthUser requester, Long routeId, RouteStopsSaveRequest request) {
         RouteStopLimit.assertWithin(request.stops());
@@ -143,12 +153,14 @@ public class RouteCommandService {
         }
         routeStopArranger.resolve(requester.academyId(), order);
         routeStopArranger.replace(routeId, requester.academyId(), order);
+        runRepository.resetConfirmationFailures(requester.academyId());
         return routeDetailAssembler.assemble(route);
     }
 
     /**
      * 좌표가 바뀌는 승하차지가 운행 중 회차의 노선에 서면 {@code 403 CHANGE_WINDOW_CLOSED} 다(ARCHITECTURE §8.5
-     * 운행 시작과 동시에 노선 잠금, BR-052) — 이름만 고치는 것은 판정에 쓰이지 않아 막지 않는다.
+     * 운행 시작과 동시에 노선 잠금, BR-052) — 이름만 고치는 것은 판정에 쓰이지 않아 막지 않는다. 운행일이 어제보다 이른
+     * 끝나지 않은 회차는 잠금 대상이 아니다({@link MovingRunWindowPolicy}, R46-KFIXBE K-1).
      */
     private void assertNotRelocatingStopsOfMovingRun(AuthUser requester, Map<Long, Stop> existing,
             RouteStopsSaveRequest request) {
@@ -159,7 +171,8 @@ public class RouteCommandService {
                 .map(RouteStopsSaveRequest.Item::stopId)
                 .toList();
         if (!relocated.isEmpty()
-                && runStopRepository.existsOnMovingRun(relocated, requester.academyId(), RunStatus.MOVING)) {
+                && runStopRepository.existsOnMovingRun(relocated, requester.academyId(), RunStatus.MOVING,
+                        movingRunWindowPolicy.earliestServiceDate())) {
             throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);
         }
     }
@@ -183,6 +196,7 @@ public class RouteCommandService {
         if (stopIds != null) {
             routeStopArranger.replace(route.getId(), requester.academyId(), stopIds);
         }
+        runRepository.resetConfirmationFailures(requester.academyId());
         return routeDetailAssembler.assemble(route);
     }
 

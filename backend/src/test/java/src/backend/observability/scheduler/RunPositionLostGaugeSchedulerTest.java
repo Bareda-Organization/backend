@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.math.BigDecimal;
@@ -22,8 +23,8 @@ import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.monitoring.query.RunLiveStateResolver;
 import src.backend.observability.metrics.RunPositionLostMetrics;
+import src.backend.run.domain.MovingRunWindowPolicy;
 import src.backend.run.entity.Run;
-import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 
 /**
@@ -45,14 +46,16 @@ class RunPositionLostGaugeSchedulerTest {
     private final Clock clock = Clock.fixed(NOW, SEOUL);
 
     private final RunPositionLostGaugeScheduler scheduler = new RunPositionLostGaugeScheduler(runRepository,
-            new RunLiveStateResolver(clock), runPositionStore, new RunPositionLostMetrics(registry), clock);
+            new MovingRunWindowPolicy(clock), new RunLiveStateResolver(clock), runPositionStore,
+            new RunPositionLostMetrics(registry), clock);
 
     @Test
     void 출발_2분이_지나고_위치가_끊긴_회차만_센다() {
         Run lost = run(1L, 5);
         Run fresh = run(2L, 5);
         Run justStarted = run(3L, 1);
-        given(runRepository.findByStatusAndCanceledAtIsNullAndIdGreaterThanOrderByIdAsc(eq(RunStatus.MOVING), eq(0L), any()))
+        // 조회 범위는 어제부터다(Ruling 701) — 시계가 2030-04-01(서울)이니 2030-03-31 이 아니면 빈 목록이 돌아온다
+        given(runRepository.findMovingFromServiceDate(eq(LocalDate.of(2030, 3, 31)), eq(0L), any()))
                 .willReturn(List.of(lost, fresh, justStarted));
         given(runPositionStore.findAll(List.of(1L, 2L, 3L)))
                 .willReturn(Map.of(1L, receivedMinutesAgo(3), 2L, receivedMinutesAgo(0)));
