@@ -86,7 +86,16 @@ class DeployScriptGuardTest {
                 Arguments.of("Directions 경로만 있고 지점 수가 없다", pathOnly, "NAVER_DIRECTIONS_MAX_POINTS"),
                 Arguments.of("Directions 지점 수만 있고 경로가 없다", pointsOnly, "NAVER_DIRECTIONS_PATH"),
                 Arguments.of("첫 관리자 아이디만 있고 해시가 없다", loginOnly, "BOOTSTRAP_ADMIN_PASSWORD_HASH"),
-                Arguments.of("첫 관리자 해시가 bcrypt 형식이 아니다", plainHash, "bcrypt"));
+                Arguments.of("첫 관리자 해시가 bcrypt 형식이 아니다", plainHash, "bcrypt"),
+                Arguments.of("CORS 허용 출처에 와일드카드가 있다", with("CORS_ALLOWED_ORIGINS", "https://*.example.com"),
+                        "CORS_ALLOWED_ORIGINS"),
+                Arguments.of("WebSocket 허용 출처가 https 가 아니다", with("WS_ALLOWED_ORIGIN_PATTERNS", "http://app.example.com"),
+                        "WS_ALLOWED_ORIGIN_PATTERNS"),
+                Arguments.of("허용 출처에 Vercel 기본 도메인이 있다(다른 사이트라 쿠키가 안 붙고 미리보기가 섞인다)",
+                        with("CORS_ALLOWED_ORIGINS", "https://app.example.com,https://school-bus.vercel.app"), "vercel.app"),
+                Arguments.of("경보 텔레그램 토큰만 있고 채팅 ID 가 없다", with("ALERT_TELEGRAM_BOT_TOKEN", "123456:AAE-token"),
+                        "ALERT_TELEGRAM_CHAT_ID"),
+                Arguments.of("경보 이메일 수신 주소만 있고 SMTP 값이 없다", with("ALERT_EMAIL_TO", "ops@example.com"), "ALERT_SMTP_HOST"));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -131,6 +140,23 @@ class DeployScriptGuardTest {
                 .contains("NAVER_SEARCH_CLIENT_ID='search-id'").contains("NAVER_SEARCH_CLIENT_SECRET='search-secret'")
                 .contains("BOOTSTRAP_ADMIN_LOGIN_ID='owner'").contains("BOOTSTRAP_ADMIN_PASSWORD_HASH='" + BCRYPT_HASH + "'")
                 .contains("FCM_PROJECT_ID='proj'");
+    }
+
+    @Test
+    @DisplayName("경보 수신 값이 있으면 Alertmanager 설정 파일에만 쓰고 .env 에는 싣지 않는다 — 없으면 수신자 없는 파일을 만든다")
+    void alertReceiversAreRenderedIntoTheAlertmanagerFileOnly(@TempDir Path tmp, @TempDir Path tmpNone) throws Exception {
+        Map<String, String> params = requiredParams();
+        params.put("ALERT_TELEGRAM_BOT_TOKEN", "123456:AAE-token");
+        params.put("ALERT_TELEGRAM_CHAT_ID", "-100123");
+
+        Run with = runDeploy(tmp, params);
+        Run none = runDeploy(tmpNone, requiredParams());
+
+        assertThat(with.alertmanagerYml()).contains("telegram_configs").contains("chat_id: -100123");
+        assertThat(with.envFile()).doesNotContain("ALERT_").doesNotContain("AAE-token");
+        assertThat(with.output()).as("비밀값을 출력에 싣지 않는다").doesNotContain("AAE-token");
+        // 파일이 항상 있어야 compose 의 바인드 마운트가 폴더를 새로 만들어 버리지 않는다.
+        assertThat(none.alertmanagerYml()).contains("receiver: notify").doesNotContain("telegram_configs").doesNotContain("email_configs");
     }
 
     @Test
@@ -181,7 +207,9 @@ class DeployScriptGuardTest {
             throw new AssertionError("deploy.sh 가 60초 안에 끝나지 않았다:\n" + output);
         }
         Path env = app.resolve(".env");
-        return new Run(process.exitValue(), output, Files.exists(env) ? Files.readString(env) : null);
+        Path alertmanager = app.resolve("alertmanager").resolve("alertmanager.yml");
+        return new Run(process.exitValue(), output, Files.exists(env) ? Files.readString(env) : null,
+                Files.exists(alertmanager) ? Files.readString(alertmanager) : null);
     }
 
     private static void writeExecutable(Path file, String content) throws IOException {
@@ -189,8 +217,8 @@ class DeployScriptGuardTest {
         file.toFile().setExecutable(true);
     }
 
-    /** 실행 결과 — {@code envFile} 은 만들어지지 않았으면 {@code null}. */
-    private record Run(int exitCode, String output, String envFile) {
+    /** 실행 결과 — {@code envFile}·{@code alertmanagerYml} 은 만들어지지 않았으면 {@code null}. */
+    private record Run(int exitCode, String output, String envFile, String alertmanagerYml) {
     }
 
     /**

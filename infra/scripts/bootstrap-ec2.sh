@@ -4,11 +4,41 @@
 #
 # 사용법:
 #   sudo BACKUP_BUCKET=내버킷명 bash bootstrap-ec2.sh
+#   데이터 디스크가 /dev/nvme1n1 이 아니면 DATA_DEVICE=/dev/... 를 함께 준다(`lsblk` 로 확인).
+#
+# 인스턴스를 새로 만들어 옛 데이터 디스크를 붙인 경우에도 같은 명령이다 — 이미 파일시스템이 있는 디스크는
+# 포맷하지 않고 그대로 마운트한다(복구 절차 DEPLOYMENT.md §7.3).
 set -euo pipefail
 
 BACKUP_BUCKET="${BACKUP_BUCKET:?BACKUP_BUCKET 미설정 — DB 백업이 갈 S3 버킷명}"
+DATA_DEVICE="${DATA_DEVICE:-/dev/nvme1n1}"
 COMPOSE_VERSION="v2.29.7"
 APP_DIR=/opt/school-bus
+DOCKER_VOLUMES=/var/lib/docker/volumes
+TEXTFILE_DIR=/var/lib/node_exporter/textfile
+
+echo "== 0. 데이터 디스크 — DB·사진·Prometheus 지표·인증서(Docker named volume 전부)를 루트 디스크 밖에 둔다 =="
+# 루트 디스크는 인스턴스와 함께 사라지지만(종료 때 삭제) 이 디스크는 남아 새 인스턴스에 붙일 수 있다(DeleteOnTermination=false · §2.4).
+# Docker 설치보다 먼저 해야 한다 — 설치 뒤에 마운트하면 이미 만들어진 볼륨이 가려진다.
+if [ ! -b "$DATA_DEVICE" ]; then
+    echo "오류: 데이터 디스크 $DATA_DEVICE 가 없다 — EC2 에 두 번째 EBS 볼륨이 붙었는지(§2.4), 장치 이름이 맞는지(lsblk) 확인한다." >&2
+    exit 1
+fi
+if ! mountpoint -q "$DOCKER_VOLUMES" && [ -n "$(ls -A "$DOCKER_VOLUMES" 2>/dev/null)" ]; then
+    echo "오류: $DOCKER_VOLUMES 에 이미 데이터가 있다 — 마운트하면 가려진다. 새 인스턴스에서만 실행한다." >&2
+    exit 1
+fi
+# ⚠ 파일시스템이 이미 있는 디스크는 절대 포맷하지 않는다 — 옛 DB 가 그 안에 있다.
+if ! blkid "$DATA_DEVICE" >/dev/null 2>&1; then
+    mkfs -t xfs "$DATA_DEVICE"
+fi
+DATA_UUID="$(blkid -s UUID -o value "$DATA_DEVICE")"
+mkdir -p "$DOCKER_VOLUMES"
+# nofail — 디스크가 안 붙은 채 부팅해도 인스턴스는 뜬다. 그 상태에서 docker 가 켜지면 빈 볼륨으로 뜨므로 아래 마운트 확인을 통과해야 다음으로 간다.
+grep -q "$DATA_UUID" /etc/fstab || echo "UUID=$DATA_UUID $DOCKER_VOLUMES xfs defaults,nofail 0 2" >> /etc/fstab
+mountpoint -q "$DOCKER_VOLUMES" || mount "$DOCKER_VOLUMES"
+mountpoint -q "$DOCKER_VOLUMES" || { echo "오류: $DOCKER_VOLUMES 마운트 실패" >&2; exit 1; }
+df -h "$DOCKER_VOLUMES"
 
 echo "== 1. docker·cron 설치 =="
 dnf update -y
@@ -47,10 +77,15 @@ if [ ! -f /swapfile ]; then
 fi
 free -h
 
-echo "== 5. DB 백업 크론 (매일 03:10) =="
+echo "== 5. 백업 크론 — DB 매시 · 사진 매일 03:10 =="
+# 백업 성공 시각은 node-exporter textfile 수집기가 읽는 이 폴더에 backup-db.sh 가 쓴다(docker-compose.prod.yml 이 읽기 전용으로 마운트).
+# /opt/school-bus 안에 두지 않는 이유 — 배포가 infra/ 를 S3 와 동기화하며 --delete 로 지워 경보가 거짓으로 울린다.
+mkdir -p "$TEXTFILE_DIR"
+chmod 755 "$TEXTFILE_DIR"
 cat > /etc/cron.d/schoolbus-backup <<EOF
 BACKUP_BUCKET=${BACKUP_BUCKET}
-10 3 * * * root ${APP_DIR}/infra/scripts/backup-db.sh >> /var/log/schoolbus-backup.log 2>&1
+0 * * * * root ${APP_DIR}/infra/scripts/backup-db.sh db >> /var/log/schoolbus-backup.log 2>&1
+10 3 * * * root ${APP_DIR}/infra/scripts/backup-db.sh photos >> /var/log/schoolbus-backup.log 2>&1
 EOF
 chmod 644 /etc/cron.d/schoolbus-backup
 
@@ -61,7 +96,7 @@ if ! systemctl is-active --quiet crond; then
     systemctl status crond --no-pager >&2 || true
     exit 1
 fi
-echo "crond 활성 확인 — 백업 크론이 매일 03:10 에 실행된다."
+echo "crond 활성 확인 — DB 백업이 매시, 사진 백업이 매일 03:10 에 실행된다."
 
 echo
 echo "부트스트랩 완료. 다음 단계:"
@@ -70,3 +105,4 @@ echo "  2) api.<도메인> A 레코드를 이 EC2 의 EIP 로 연결한다 (§2.
 echo "     — 인증서 HTTP-01 챌린지가 도메인을 조회하므로 발급보다 먼저 끝내야 한다"
 echo "  3) infra/certbot/init-cert.sh 로 인증서를 발급한다 (§2.10)"
 echo "  4) GitHub Actions 를 돌려 첫 배포를 한다"
+echo "  5) 첫 배포 직후 backup-db.sh 를 손으로 1회 돌리고 복구 연습을 한다 (§7)"

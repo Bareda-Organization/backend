@@ -99,6 +99,43 @@ class DeploymentConfigGuardTest {
     }
 
     @Test
+    @DisplayName("R46 ops2 Ruling 502 — 관계자 웹은 Vercel 이라 운영 compose 에 웹 서비스가 없고 프록시는 백엔드만 프록시하며 / 는 404 다")
+    void prodServesNoWebFrontend() throws IOException {
+        // 웹을 같은 EC2 에 다시 올리면 메모리(t3.medium 4GB)를 더 쓰고, 배포 경로가 둘이 되며, 웹·API 가 같은 출처가 되어
+        // 지금의 출처·쿠키 설정(웹 = 다른 출처의 같은 사이트, DEPLOYMENT.md §12)이 어긋난다.
+        String services = prodCompose.substring(0, prodCompose.indexOf("\nvolumes:\n"));
+        Matcher names = Pattern.compile("(?m)^ {2}([a-z][a-z0-9-]*):\\s*$").matcher(services);
+        Set<String> serviceNames = new TreeSet<>();
+        while (names.find()) {
+            serviceNames.add(names.group(1));
+        }
+        assertThat(serviceNames).as("운영 compose 서비스").contains("backend", "proxy")
+                .noneMatch(name -> name.contains("web") || name.contains("frontend") || name.contains("academy"));
+
+        String nginx = Files.readString(Path.of("../infra/proxy/nginx.prod.conf"));
+        String directives = nginx.lines().filter(line -> !line.strip().startsWith("#")).collect(java.util.stream.Collectors.joining("\n"));
+        Matcher proxyPass = Pattern.compile("proxy_pass\\s+(\\S+?);").matcher(directives);
+        while (proxyPass.find()) {
+            assertThat(proxyPass.group(1)).as("프록시 대상은 백엔드뿐이다").startsWith("http://backend_pool");
+        }
+        // 80 번 서버 블록에도 `location / {`(HTTPS 리다이렉트)가 있다 — 443 서버의 나머지 경로는 파일의 마지막 것이다.
+        int root = directives.lastIndexOf("location / {");
+        assertThat(root).as("나머지 경로 location").isNotNegative();
+        assertThat(directives.substring(root, directives.indexOf('}', root))).contains("return 404");
+    }
+
+    @Test
+    @DisplayName("R46 ops2 Ruling 500 — 백업 성공 시각 지표 폴더가 스크립트·부트스트랩·컴포즈 마운트·node-exporter 옵션에서 같다")
+    void backupMetricFolderIsTheSameEverywhere() throws IOException {
+        // 어긋나면 백업은 멀쩡한데 경보가 상시 울리거나(지표 부재), 백업이 멈춰도 못 보는 쪽으로 틀어진다.
+        String folder = "/var/lib/node_exporter/textfile";
+        String nodeExporter = composeServiceBlock("node-exporter");
+        assertThat(nodeExporter).contains("--collector.textfile.directory=/textfile").contains("- " + folder + ":/textfile:ro");
+        assertThat(Files.readString(Path.of("../infra/scripts/backup-db.sh"))).contains("TEXTFILE_DIR=\"${TEXTFILE_DIR:-" + folder + "}\"");
+        assertThat(Files.readString(Path.of("../infra/scripts/bootstrap-ec2.sh"))).contains("TEXTFILE_DIR=" + folder);
+    }
+
+    @Test
     @DisplayName("demo 프로파일의 시드 비밀번호 해시에 기본값이 없다")
     void demoSeedHashHasNoDefault() {
         // 기본값(${SEED_PASSWORD_HASH:...})을 두면 주입을 깜빡해도 앱이 뜬다.

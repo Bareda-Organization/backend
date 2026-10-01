@@ -11,6 +11,7 @@
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/opt/school-bus}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$APP_DIR/.env"
 PARAM_PREFIX="/school-bus/demo"
 AWS_REGION="${AWS_REGION:-ap-northeast-2}"
@@ -90,6 +91,28 @@ require_bcrypt() {
     fi
 }
 
+require_exact_https_origins() {
+    # 브라우저 허용 출처($1 = 이름, $2 = 쉼표로 이은 값)는 정확히 적은 https 출처만이다 — 관계자 웹이 Vercel 이어도 마찬가지다(Ruling 503).
+    #  - 와일드카드(`*`) 금지: Vercel 미리보기 배포 주소는 가지·PR 마다 바뀌어 목록에 못 넣고, 패턴으로 열면 누구의 미리보기든
+    #    운영 API 를 자격 증명(쿠키)과 함께 부를 수 있다. WebSocket 은 이 값이 유일한 방어선이다(CORS 필터를 안 탄다).
+    #  - `*.vercel.app` 금지: 쿠키(refresh_token · SameSite=Strict)는 API 와 같은 사이트일 때만 붙는다 — 웹은 같은 등록 도메인의
+    #    커스텀 도메인(app.<도메인>)에 연결해야 하고, 기본 도메인을 넣으면 로그인은 되는데 15분 뒤 갱신이 안 된다(DEPLOYMENT.md §12).
+    local origin
+    local -a origins
+    IFS=',' read -r -a origins <<< "$2"
+    for origin in "${origins[@]}"; do
+        origin="${origin//[[:space:]]/}"
+        if [[ ! "$origin" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?$ ]]; then
+            echo "오류: $1 에 정확한 https 출처가 아닌 값이 있다 — 와일드카드·http·경로 금지(예 https://app.<도메인>). 값: $origin" >&2
+            return 1
+        fi
+        if [[ "$origin" == *.vercel.app ]]; then
+            echo "오류: $1 에 Vercel 기본 도메인(vercel.app)이 있다 — 쿠키가 안 붙는 다른 사이트다. 커스텀 도메인(app.<도메인>)을 넣는다(DEPLOYMENT.md §12)." >&2
+            return 1
+        fi
+    done
+}
+
 assert_rendered_hash() {
     # compose 가 컨테이너에 넘길 최종 값이 bcrypt 해시 그대로인지 본다($1 = 변수 이름).
     # ⚠️ compose config 는 값 안의 `$` 를 `$$` 로 이스케이프해 출력하므로 되돌린 뒤 비교한다.
@@ -122,6 +145,10 @@ NAVER_DIRECTIONS_KEY="$(get_param NAVER_DIRECTIONS_KEY)"
 ROUTING_PROVIDER="$(get_param ROUTING_PROVIDER)"
 GRAFANA_ADMIN_PASSWORD="$(get_param GRAFANA_ADMIN_PASSWORD)"
 
+# 출처 목록 — 값이 틀린 배포는 .env 도 컨테이너도 건드리기 전에 멈춘다.
+require_exact_https_origins CORS_ALLOWED_ORIGINS "$CORS_ALLOWED_ORIGINS"
+require_exact_https_origins WS_ALLOWED_ORIGIN_PATTERNS "$WS_ALLOWED_ORIGIN_PATTERNS"
+
 # 프로파일은 기본값 없이 SSM 에서 명시한다 — 값이 빠진 배포가 가짜 시드 + 가짜 버스(demo)로 뜨는 것을 막는다.
 SPRING_PROFILES_ACTIVE="$(get_param SPRING_PROFILES_ACTIVE)"
 case "$SPRING_PROFILES_ACTIVE" in
@@ -148,6 +175,15 @@ NAVER_DIRECTIONS_MAX_POINTS="$(get_param NAVER_DIRECTIONS_MAX_POINTS optional)"
 BOOTSTRAP_ADMIN_LOGIN_ID="$(get_param BOOTSTRAP_ADMIN_LOGIN_ID optional)"
 BOOTSTRAP_ADMIN_PASSWORD_HASH="$(get_param BOOTSTRAP_ADMIN_PASSWORD_HASH optional)"
 
+# 경보 수신(Ruling 480 ④ · 483) — 텔레그램 봇 + 이메일 예비. 전부 선택이고 없으면 수신자 없이 뜬다. .env 가 아니라
+# Alertmanager 설정 파일에만 쓴다(compose 변수가 아니다). 짝·형식 검사는 render-alertmanager.sh 가 하고, 틀리면 여기서 멈춘다.
+ALERT_TELEGRAM_BOT_TOKEN="$(get_param ALERT_TELEGRAM_BOT_TOKEN optional)"
+ALERT_TELEGRAM_CHAT_ID="$(get_param ALERT_TELEGRAM_CHAT_ID optional)"
+ALERT_EMAIL_TO="$(get_param ALERT_EMAIL_TO optional)"
+ALERT_SMTP_HOST="$(get_param ALERT_SMTP_HOST optional)"
+ALERT_SMTP_USER="$(get_param ALERT_SMTP_USER optional)"
+ALERT_SMTP_PASSWORD="$(get_param ALERT_SMTP_PASSWORD optional)"
+
 # Directions 두 값은 짝이다(Ruling 361) — 하나만 바꾸면 Directions 5 에 경유지 15개를 보내 문서 밖 동작에 기댄다.
 require_pair NAVER_DIRECTIONS_PATH NAVER_DIRECTIONS_MAX_POINTS \
     "$NAVER_DIRECTIONS_PATH" "$NAVER_DIRECTIONS_MAX_POINTS" "경로와 최대 지점 수는 짝으로만 바꾼다(Ruling 361)"
@@ -156,6 +192,17 @@ require_pair BOOTSTRAP_ADMIN_LOGIN_ID BOOTSTRAP_ADMIN_PASSWORD_HASH \
     "$BOOTSTRAP_ADMIN_LOGIN_ID" "$BOOTSTRAP_ADMIN_PASSWORD_HASH" "첫 메인 관리자는 아이디와 비밀번호 해시가 모두 필요하다"
 if [[ -n "$BOOTSTRAP_ADMIN_PASSWORD_HASH" ]]; then
     require_bcrypt BOOTSTRAP_ADMIN_PASSWORD_HASH "$BOOTSTRAP_ADMIN_PASSWORD_HASH"
+fi
+
+# Alertmanager 설정 파일 — .env 보다 먼저 만든다(값이 틀리면 .env 도 컨테이너도 건드리기 전에 멈춘다). 파일은 항상 만든다 —
+# compose 가 이 폴더를 바인드 마운트하는데 없으면 Docker 가 빈 폴더를 만들어 Alertmanager 가 기동하지 못한다.
+ALERT_TELEGRAM_BOT_TOKEN="$ALERT_TELEGRAM_BOT_TOKEN" ALERT_TELEGRAM_CHAT_ID="$ALERT_TELEGRAM_CHAT_ID" \
+ALERT_EMAIL_TO="$ALERT_EMAIL_TO" ALERT_SMTP_HOST="$ALERT_SMTP_HOST" \
+ALERT_SMTP_USER="$ALERT_SMTP_USER" ALERT_SMTP_PASSWORD="$ALERT_SMTP_PASSWORD" \
+    "$SCRIPT_DIR/render-alertmanager.sh" "$APP_DIR/alertmanager/alertmanager.yml"
+# Alertmanager 컨테이너는 nobody(65534)로 돈다 — root 가 600 으로 만든 파일은 못 읽어 기동에 실패한다. root 로 도는 EC2 에서만 넘긴다.
+if [[ "$(id -u)" -eq 0 ]]; then
+    chown -R 65534:65534 "$APP_DIR/alertmanager"
 fi
 
 : > "$ENV_FILE"
@@ -195,7 +242,6 @@ fi
 echo "== 1-2. 배포 게이트 — 운행 중(moving) 회차 확인 =="
 # 이미지를 받기 전에 막는다 — pull 뒤에 걸면 새 이미지만 낭비되고 판단은 똑같이 늦다.
 # set -e 라 게이트가 exit 1 이면 여기서 스크립트가 즉시 죽는다(§14.3, moving 회차 강제 종료 금지).
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 "$SCRIPT_DIR/deploy-gate.sh" "$APP_DIR/docker-compose.prod.yml" "$ENV_FILE"
 
 echo "== 2. ECR 로그인 후 새 이미지 수신 =="
@@ -217,6 +263,17 @@ if ! $COMPOSE up -d; then
     $COMPOSE logs --tail 120 backend >&2 || true
     exit 1
 fi
+
+# 설정·규칙 파일은 바인드 마운트라 compose 가 바뀐 줄 모른다(컨테이너가 다시 만들어지지 않는다). 반영 방식이 마운트에 따라 다르다 —
+#  - Alertmanager: 폴더를 마운트하므로 렌더된 새 파일이 보인다 → SIGHUP 으로 다시 읽힌다(침묵 설정 유지). 잘못된 설정이면 기존 설정이
+#    유지된다.
+#  - Prometheus: 파일 하나(alerts.yml · prometheus.prod.yml)를 마운트한다. s3 sync 가 임시 파일을 옮겨 쓰면 컨테이너는 옛 파일을 계속
+#    본다(SIGHUP 으로도 안 읽힌다 — 실측) → 다시 시작해야 새 경보 규칙이 반영된다. 지표는 볼륨에 남는다.
+# 둘 다 실패해도 배포는 성공이고 경고만 남긴다.
+$COMPOSE kill -s HUP alertmanager \
+    || echo "경고: Alertmanager 가 새 설정을 읽지 못했다 — docker compose logs alertmanager 를 확인할 것(DEPLOYMENT.md §11.3)" >&2
+$COMPOSE restart prometheus \
+    || echo "경고: Prometheus 를 다시 시작하지 못했다 — 새 경보 규칙이 반영되지 않았을 수 있다(DEPLOYMENT.md §11)" >&2
 
 echo "== 4. 스모크 테스트 (최대 3분 대기) =="
 for _ in $(seq 1 36); do

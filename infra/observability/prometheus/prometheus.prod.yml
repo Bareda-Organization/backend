@@ -9,7 +9,7 @@ global:
 rule_files:
   - /etc/prometheus/alerts.yml
 
-# 경보 전달 자리 — 수신 채널이 정해지기 전에는 Alertmanager 가 어디로도 보내지 않는다(alertmanager.yml 참고).
+# 경보 전달 — Alertmanager 가 텔레그램·이메일로 보낸다. 수신자 값이 SSM 에 없으면 어디로도 보내지 않는다(render-alertmanager.sh).
 alerting:
   alertmanagers:
     - static_configs:
