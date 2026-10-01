@@ -126,9 +126,9 @@ groups:
       # 주기를 yml(poll-interval-ms)로 바꾸면 이 숫자도 같이 바꾼다. 미승차 에스컬레이션은 위의 전용 규칙이 따로 본다.
       - alert: SchedulerStalled
         expr: |
-          schoolbus_scheduler_last_success_age_seconds{scheduler=~"run-confirmation|notification-outbox-worker"} > 90
+          schoolbus_scheduler_last_success_age_seconds{job="backend",scheduler=~"run-confirmation|notification-outbox-worker"} > 90
           or
-          schoolbus_scheduler_last_success_age_seconds{scheduler="proximity-notification"} > 30
+          schoolbus_scheduler_last_success_age_seconds{job="backend",scheduler="proximity-notification"} > 30
         for: 1m
         labels:
           severity: critical
@@ -137,7 +137,7 @@ groups:
       # 하루 한 번(00:15) 도는 작업이라 3일(259200초). 앱을 재기동하면 경과가 0 부터 다시 세어지므로 3일 안에 한 번이라도 재배포하면 이 규칙은 못 본다 —
       # 정리가 계속 실패하는 경우는 건별 실패 카운터(schoolbus_scheduler_failures_total)가 따로 있다.
       - alert: RetentionCleanupStalled
-        expr: schoolbus_scheduler_last_success_age_seconds{scheduler="retention-cleanup"} > 259200
+        expr: schoolbus_scheduler_last_success_age_seconds{job="backend",scheduler="retention-cleanup"} > 259200
         labels:
           severity: warning
         annotations:

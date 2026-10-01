@@ -319,11 +319,11 @@ tests:
   # 긴 한 틱(확정 100회차 드레인 59~85초)이 지나가는 동안은 조용하다. 값이 계속 늘면 멈춘 것이다.
   - interval: 15s
     input_series:
-      - series: 'schoolbus_scheduler_last_success_age_seconds{application="school-bus",scheduler="proximity-notification"}'
+      - series: 'schoolbus_scheduler_last_success_age_seconds{job="backend",application="school-bus",scheduler="proximity-notification"}'
         values: '0+15x80'   # 멈춘 지 오래 — 경과가 시계처럼 늘어난다
-      - series: 'schoolbus_scheduler_last_success_age_seconds{application="school-bus",scheduler="run-confirmation"}'
+      - series: 'schoolbus_scheduler_last_success_age_seconds{job="backend",application="school-bus",scheduler="run-confirmation"}'
         values: '60x80'   # 주기의 2배 — 아직 정상 범위
-      - series: 'schoolbus_scheduler_last_success_age_seconds{application="school-bus",scheduler="notification-outbox-worker"}'
+      - series: 'schoolbus_scheduler_last_success_age_seconds{job="backend",application="school-bus",scheduler="notification-outbox-worker"}'
         values: '0+15x80'
     alert_rule_test:
       - eval_time: 1m   # 근접: 30초 넘은 지 15초 — pending
@@ -334,6 +334,7 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: critical
+              job: backend
               application: school-bus
               scheduler: proximity-notification
             exp_annotations:
@@ -343,12 +344,14 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: critical
+              job: backend
               application: school-bus
               scheduler: proximity-notification
             exp_annotations:
               summary: 스케줄러(proximity-notification)가 주기의 3배 넘게 성공하지 않았다
           - exp_labels:
               severity: critical
+              job: backend
               application: school-bus
               scheduler: notification-outbox-worker
             exp_annotations:
@@ -356,7 +359,7 @@ tests:
 
   - interval: 15s   # 확정 배치 정지 — 90초 초과가 1분 유지
     input_series:
-      - series: 'schoolbus_scheduler_last_success_age_seconds{application="school-bus",scheduler="run-confirmation"}'
+      - series: 'schoolbus_scheduler_last_success_age_seconds{job="backend",application="school-bus",scheduler="run-confirmation"}'
         values: '0+15x80'
     alert_rule_test:
       - eval_time: 2m30s   # 105초부터 90 초과 — 45초가 지나 아직 pending
@@ -367,6 +370,7 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: critical
+              job: backend
               application: school-bus
               scheduler: run-confirmation
             exp_annotations:
@@ -374,17 +378,31 @@ tests:
 
   - interval: 15s   # 긴 한 틱이 지나가는 동안(경과 85 → 115초, 25초)은 조용하다
     input_series:
-      - series: 'schoolbus_scheduler_last_success_age_seconds{application="school-bus",scheduler="run-confirmation"}'
+      - series: 'schoolbus_scheduler_last_success_age_seconds{job="backend",application="school-bus",scheduler="run-confirmation"}'
         values: '5x20 85 100 115 0 5x40'
     alert_rule_test:
       - eval_time: 6m
         alertname: SchedulerStalled
         exp_alerts: []
 
+  - interval: 15s   # 부하 시험 프로파일(job 이 다르다)의 스케줄러가 멈춰 있어도 조용하다 — 시험 중 끄고 켜는 일이 잦다
+    input_series:
+      - series: 'schoolbus_scheduler_last_success_age_seconds{job="school-bus-load",application="school-bus",scheduler="proximity-notification"}'
+        values: '1000x80'
+      - series: 'schoolbus_scheduler_last_success_age_seconds{job="school-bus-load",application="school-bus",scheduler="retention-cleanup"}'
+        values: '999999x80'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: SchedulerStalled
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: RetentionCleanupStalled
+        exp_alerts: []
+
   # 보존 정리(매일 00:15): 마지막 성공 경과가 3일(259200초)을 넘으면 발화한다. 하루 한 번 도는 작업이라 for 가 없다.
   - interval: 1h
     input_series:
-      - series: 'schoolbus_scheduler_last_success_age_seconds{application="school-bus",scheduler="retention-cleanup"}'
+      - series: 'schoolbus_scheduler_last_success_age_seconds{job="backend",application="school-bus",scheduler="retention-cleanup"}'
         values: '0+3600x100'
     alert_rule_test:
       - eval_time: 72h
@@ -395,6 +413,7 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
+              job: backend
               application: school-bus
               scheduler: retention-cleanup
             exp_annotations:
