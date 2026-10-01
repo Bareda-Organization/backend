@@ -96,6 +96,10 @@ public class EmergencyAlert {
     @Column(name = "acked_at")
     private OffsetDateTime ackedAt;
 
+    /** 확인한 관계자가 남긴 조치 메모(Ruling 541) — 선택 입력이라 확인 전·메모 없는 확인은 {@code null}. */
+    @Column(name = "ack_memo", length = 200)
+    private String ackMemo;
+
     @Column(name = "canceled_at")
     private OffsetDateTime canceledAt;
 

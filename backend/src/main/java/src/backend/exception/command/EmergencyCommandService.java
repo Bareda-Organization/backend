@@ -192,6 +192,9 @@ public class EmergencyCommandService {
      * {@code academyId} 가 없어({@code hasPlatformScope()}) 학원으로 좁힌 조회로는 어떤 신고도 찾지
      * 못해 항상 404 가 나므로, 그 역할만 전 학원 범위로 대상을 찾는다(판단 근거, 보고서 항목).
      *
+     * <p>조치 메모({@code ackMemo}, Ruling 541)는 선택이다 — 확인과 같은 조건부 UPDATE 한 문장으로 쓴다. 따로 쓰면 최초 확인자가
+     * 아닌 쪽의 메모가 최초 확인자의 기록을 덮을 수 있다.
+     *
      * <p>{@code EmergencyAckedEvent.ackedByName} 은 여기서(트랜잭션 안에서) {@link AccountRepository}
      * 로 이름을 조회해 채운다({@code Ruling 277} — 판단 근거, 보고서 항목) — {@link #raise} 가
      * {@code raisedBy.name} 을 발행 지점에서 조회해 싣는 것과 같은 자리다. 리스너
@@ -199,7 +202,7 @@ public class EmergencyCommandService {
      * 없으므로 조회를 리스너로 미루지 않는다({@code EmergencyRunQueryService} 가 같은 계정 id 로
      * 이름을 다시 찾는 것과 같은 이유 — {@code emergency_alert} 에 이름 컬럼이 없다).
      */
-    public EmergencyAckResponse ack(AuthUser requester, Long emergencyId) {
+    public EmergencyAckResponse ack(AuthUser requester, Long emergencyId, String ackMemo) {
         EmergencyAlert alert = requester.hasPlatformScope()
                 ? emergencyAlertRepository.findById(emergencyId)
                         .orElseThrow(() -> new BusinessException(ErrorCode.EMERGENCY_NOT_FOUND))
@@ -211,7 +214,9 @@ public class EmergencyCommandService {
         }
 
         OffsetDateTime now = OffsetDateTime.now(clock);
-        if (emergencyAlertRepository.ackIfUnacked(alert.getId(), requester.accountId(), now) == 0) {
+        int acked = emergencyAlertRepository.ackIfUnacked(alert.getId(), requester.accountId(), now,
+                normalizeMemo(ackMemo));
+        if (acked == 0) {
             throw new BusinessException(ErrorCode.ALREADY_ACKED); // 동시에 먼저 확인한 쪽이 있다(BR-079)
         }
 
@@ -220,6 +225,14 @@ public class EmergencyCommandService {
                 new EmergencyAckedEvent(alert.getId(), alert.getAcademyId(), alert.getRunId(), ackedByName, now));
 
         return new EmergencyAckResponse(alert.getId(), now);
+    }
+
+    /** 조치 메모는 앞뒤 공백을 지우고, 비었으면 메모가 없는 것으로 본다(Ruling 541) — 공백만 있는 문자열을 저장하지 않는다. */
+    private static String normalizeMemo(String memo) {
+        if (memo == null || memo.isBlank()) {
+            return null;
+        }
+        return memo.strip();
     }
 
     /**

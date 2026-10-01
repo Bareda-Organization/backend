@@ -143,7 +143,7 @@ public class EmergencyStaffQueryService {
                         .toList();
 
         EmergencyStaffItemResponse.AckedBy ackedBy = acker == null ? null
-                : new EmergencyStaffItemResponse.AckedBy(acker.getName());
+                : new EmergencyStaffItemResponse.AckedBy(acker.getName(), alert.getAckMemo());
 
         return new EmergencyStaffItemResponse(alert.getId(), LowerCaseFormatter.lower(alert.getType().name()),
                 alert.getMemo(), raisedBy, alert.getRunId(), alert.getBusNo(),

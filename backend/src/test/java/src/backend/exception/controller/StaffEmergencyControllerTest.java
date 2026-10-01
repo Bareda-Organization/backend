@@ -212,6 +212,88 @@ class StaffEmergencyControllerTest {
         assertThat(확인자(emergencyId)).as("먼저 확인한 사람의 기록이 덮어써지면 안 된다").isEqualTo(staffAccountId);
     }
 
+    // ── R46-FUFEAT ② — 확인할 때 남기는 조치 메모(Ruling 541) ────────────────
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void 조치_메모를_남기고_확인하면_관계자_목록과_메인관리자_목록에_보인다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사",
+                OffsetDateTime.now());
+        long staffAccountId = fixtures.staffAccount(academyId, "직원");
+        long adminAccountId = fixtures.systemAdminAccount("메인관리자");
+        long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
+
+        mockMvc.perform(post(ACK.formatted(emergencyId))
+                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"memo\":\"  119 신고 완료, 학부모 연락 중  \"}"))
+                .andExpect(status().isOk());
+
+        assertThat(확인메모(emergencyId)).as("앞뒤 공백은 지우고 저장한다").isEqualTo("119 신고 완료, 학부모 연락 중");
+        Map<String, Object> staffItem = 항목(목록을_조회한다(staffAccountId, academyId, "status", "acked"), emergencyId);
+        assertThat(((Map<String, Object>) staffItem.get("acked_by")).get("memo")).isEqualTo("119 신고 완료, 학부모 연락 중");
+        String adminBody = mockMvc.perform(get("/api/v1/admin/emergencies").param("status", "acked")
+                        .header("Authorization", 메인관리자_토큰(adminAccountId)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        Map<String, Object> adminItem = 항목(adminBody, emergencyId);
+        assertThat(((Map<String, Object>) adminItem.get("acked_by")).get("memo")).isEqualTo("119 신고 완료, 학부모 연락 중");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void 메모_없는_확인도_된다_본문이_없거나_공백이면_메모는_비어_있다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사",
+                OffsetDateTime.now());
+        long staffAccountId = fixtures.staffAccount(academyId, "직원");
+        long adminAccountId = fixtures.systemAdminAccount("메인관리자");
+        long withoutBody = 신고를_발신한다(runId, driverAccountId, academyId);
+        long blankMemo = 신고를_발신한다(runId, driverAccountId, academyId);
+
+        mockMvc.perform(post(ACK.formatted(withoutBody))
+                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .andExpect(status().isOk());
+        mockMvc.perform(post(ACK.formatted(blankMemo))
+                        .header("Authorization", 메인관리자_토큰(adminAccountId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"memo\":\"   \"}"))
+                .andExpect(status().isOk());
+
+        assertThat(확인메모(withoutBody)).isNull();
+        assertThat(확인메모(blankMemo)).as("공백만 있는 메모는 메모가 아니다").isNull();
+        Map<String, Object> item = 항목(목록을_조회한다(staffAccountId, academyId, "status", "acked"), withoutBody);
+        assertThat(((Map<String, Object>) item.get("acked_by")).get("memo")).isNull();
+    }
+
+    @Test
+    void 조치_메모가_200자를_넘으면_422_이고_확인되지_않는다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사",
+                OffsetDateTime.now());
+        long staffAccountId = fixtures.staffAccount(academyId, "직원");
+        long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
+
+        mockMvc.perform(post(ACK.formatted(emergencyId))
+                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"memo\":\"%s\"}".formatted("가".repeat(201))))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+
+        assertThat(확인시각(emergencyId)).as("검증에 걸린 요청은 확인으로 이어지지 않는다").isNull();
+    }
+
     // ── Phase 13 목표 13 — §5.16 응답 필드 형태(정본 정합) ────────────────────
 
     @Test
@@ -563,6 +645,12 @@ class StaffEmergencyControllerTest {
     private Long 확인자(long emergencyId) {
         entityManager.flush();
         return jdbcTemplate.queryForObject("SELECT acked_by FROM emergency_alert WHERE id = ?", Long.class,
+                emergencyId);
+    }
+
+    private String 확인메모(long emergencyId) {
+        entityManager.flush();
+        return jdbcTemplate.queryForObject("SELECT ack_memo FROM emergency_alert WHERE id = ?", String.class,
                 emergencyId);
     }
 

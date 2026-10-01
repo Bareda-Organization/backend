@@ -1,10 +1,13 @@
 package src.backend.exception.controller;
 
+import jakarta.validation.Valid;
+
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -14,6 +17,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.exception.command.EmergencyCommandService;
+import src.backend.exception.dto.EmergencyAckRequest;
 import src.backend.exception.dto.EmergencyAckResponse;
 import src.backend.exception.dto.EmergencyStaffListResponse;
 import src.backend.exception.query.EmergencyStaffQueryService;
@@ -52,12 +56,12 @@ public class StaffEmergencyController {
         return ApiResponse.ok(emergencyStaffQueryService.list(requester, status, date));
     }
 
-    /** 비상 신고 확인(ack) 처리(목표 10). */
+    /** 비상 신고 확인(ack) 처리(목표 10) — 본문은 선택이고, 있으면 조치 메모({@code memo})를 함께 남긴다(Ruling 541). */
     @CanAckEmergency
     @Operation(summary = "비상 알림 확인 응답 (EXC-04, A-16)")
     @PostMapping("/{id}/ack")
     public ApiResponse<EmergencyAckResponse> ack(@AuthenticationPrincipal AuthUser requester,
-            @PathVariable Long id) {
-        return ApiResponse.ok(emergencyCommandService.ack(requester, id));
+            @PathVariable Long id, @Valid @RequestBody(required = false) EmergencyAckRequest request) {
+        return ApiResponse.ok(emergencyCommandService.ack(requester, id, request == null ? null : request.memo()));
     }
 }

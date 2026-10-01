@@ -648,6 +648,8 @@ CREATE TABLE emergency_alert (
     client_key     uuid         NOT NULL,
     acked_by       bigint,
     acked_at       timestamptz,
+    -- 확인할 때 남기는 조치 메모(Ruling 541) — 선택 입력, 최대 200자.
+    ack_memo       varchar(200),
     canceled_at    timestamptz,
     CONSTRAINT uk_emergency_alert_client_key UNIQUE (client_key),
     CONSTRAINT ck_emergency_alert_type CHECK (type IN ('accident', 'vehicle_fault', 'student_emergency', 'etc')),
