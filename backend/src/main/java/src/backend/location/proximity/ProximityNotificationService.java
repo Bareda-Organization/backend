@@ -81,7 +81,7 @@ public class ProximityNotificationService {
      * 조기 반환 5개가 순서대로 이어지는 한 트랜잭션의 서술이라 쪼개면 오히려 흐름이 파일 사이로 흩어진다.
      */
     public void judgeOne(Long runId, Long academyId) {
-        runPositionStore.findCached(runId).ifPresent(position -> transactionTemplate.executeWithoutResult(
+        runPositionStore.find(runId).ifPresent(position -> transactionTemplate.executeWithoutResult(
                 status -> judgeOneAt(runId, academyId, position)));
     }
 
@@ -141,7 +141,7 @@ public class ProximityNotificationService {
      * 2벌뿐이라 CODE_CONVENTIONS §20.3-4 의 3번째 추출 기준 미달). 위치 읽기가 트랜잭션 밖인 이유는 클래스 자바독(BR-166).
      */
     public void judgeDeparture(Long runId, Long academyId) {
-        runPositionStore.findCached(runId).ifPresent(position -> transactionTemplate.executeWithoutResult(
+        runPositionStore.find(runId).ifPresent(position -> transactionTemplate.executeWithoutResult(
                 status -> judgeDepartureAt(runId, academyId, position)));
     }
 
