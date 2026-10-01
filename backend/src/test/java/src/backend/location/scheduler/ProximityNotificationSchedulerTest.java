@@ -239,6 +239,9 @@ class ProximityNotificationSchedulerTest {
         jdbcTemplate.update("UPDATE run SET service_date = ? WHERE id = ?", today.minusDays(2), staleRunId);
         long overnightRunId = fullyWiredMovingRun(fx, academyId, fx.bus(academyId), "자정회차학생", "자정회차학부모").runId();
         jdbcTemplate.update("UPDATE run SET service_date = ? WHERE id = ?", today.minusDays(1), overnightRunId);
+        // 300m 밖 — 판정은 돌되 근접 알림(비동기 발송)은 만들지 않는다. 발송이 다음 시험의 트랜잭션 수 측정 구간에 늦게 끼어들지 않게 한다
+        writePosition(staleRunId, FAR_LAT, STOP_LNG);
+        writePosition(overnightRunId, FAR_LAT, STOP_LNG);
 
         scheduler.judgeMovingRuns();
 
