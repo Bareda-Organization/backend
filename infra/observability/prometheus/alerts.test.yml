@@ -297,6 +297,15 @@ tests:
             exp_annotations:
               summary: 지도 API 서킷(mapRoute)이 2분 넘게 닫히지 않았다(열림·반열림 반복 포함) — 해당 호출이 막히거나 대체값으로 처리된다
 
+  - interval: 15s   # 부하 시험 프로파일의 서킷만 열려 있다(백엔드 시리즈 없음) — 실패를 일부러 주입하는 시험이라 조용해야 한다
+    input_series:
+      - series: 'resilience4j_circuitbreaker_state{job="school-bus-load",name="mapRoute",state="closed"}'
+        values: '0x40'
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: CircuitBreakerNotClosed
+        exp_alerts: []
+
   - interval: 15s   # 90초만 열렸다 닫힘 — 조용하다
     input_series:
       - series: 'resilience4j_circuitbreaker_state{job="backend",name="mapRoute",state="closed"}'
