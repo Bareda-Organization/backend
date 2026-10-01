@@ -33,7 +33,7 @@ public class ReadIdleTimeoutFactory implements WebSocketHandlerDecoratorFactory 
     static final String TOMCAT_READ_IDLE_TIMEOUT_MS = "org.apache.tomcat.websocket.READ_IDLE_TIMEOUT_MS";
 
     /** 클라이언트 무수신 제한(ms). 운영 60초 — 하트비트 10초의 6배라 한 번 늦거나 빠져도 안 걸리고, 하트비트 감시(30초) 뒤의 안전망이다. */
-    @Value("${app.ws.idle-timeout-ms:60000}")
+    @Value("${app.ws.idle-timeout-ms}")
     private final long idleTimeoutMs;
 
     @Override

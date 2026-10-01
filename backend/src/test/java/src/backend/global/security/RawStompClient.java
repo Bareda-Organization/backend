@@ -48,6 +48,11 @@ final class RawStompClient implements AutoCloseable {
         return new RawStompClient(session, closed);
     }
 
+    /** 목적지를 구독한다 — 서버가 이 세션에 방송을 계속 쓰게 해, 쓰기 활동이 있어도 유휴 제한이 걸리는지 보는 데 쓴다. */
+    void subscribe(String destination) throws IOException {
+        session.sendMessage(new TextMessage("SUBSCRIBE\nid:sub-0\ndestination:" + destination + "\n\n" + NULL_TERMINATOR));
+    }
+
     /** 클라이언트 하트비트 — 줄바꿈 한 줄. 서버는 이것을 "아직 살아 있다" 는 읽기로 센다. */
     void sendHeartbeat() throws IOException {
         session.sendMessage(new TextMessage("\n"));

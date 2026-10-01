@@ -255,6 +255,11 @@ app:
   # docker-compose.prod.yml, 스테이징은 Cloudflare Tunnel 의 공개 주소(PUBLIC_URL)를 넣는다.
   ws:
     allowed-origin-patterns: ${WS_ALLOWED_ORIGIN_PATTERNS:*}
+    # 클라이언트가 이 시간(ms) 동안 아무 프레임도 보내지 않은 WebSocket 세션을 서버가 닫는다(R46-CONNCAP, Ruling 693) — STOMP 하트비트를 끈
+    # (heart-beat:0,0) 클라이언트가 조용히 사라지면 읽기 감시가 없어 다음 방송 쓰기가 실패할 때까지 세션을 쥐던 구멍을 막는다. 60초 = 정상
+    # 클라이언트의 하트비트(10초)의 6배라 한 번 늦거나 빠져도 안 걸리고, 하트비트를 협상한 세션의 30초 감시 뒤의 안전망이다. Tomcat 이 10초마다
+    # 점검해 닫히는 시각은 이 값 + 최대 10초다. 모든 프로파일 공통이라 프로파일 절에서 덮지 않는다.
+    idle-timeout-ms: 60000
   # /api/** CORS 허용 출처 — 새 프론트엔드 프레임워크 개발 서버가 다른 포트에서 붙을 때 대비
   # (콤마로 구분된 문자열). 목록에 없는 포트를 쓰면 이 값에 추가하거나 CORS_ALLOWED_ORIGINS로 오버라이드.
   cors:

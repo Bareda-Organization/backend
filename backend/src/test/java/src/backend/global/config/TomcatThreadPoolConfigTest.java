@@ -80,13 +80,38 @@ class TomcatThreadPoolConfigTest {
         }
     }
 
+    @ParameterizedTest
+    @CsvSource({"prod", "demo", "staging"})
+    @DisplayName("WebSocket 무수신 유휴 제한은 모든 운영 프로파일에서 60초다 — 공통 문서의 값을 프로파일 문서가 덮지 않는다")
+    void WebSocket_유휴_제한이_운영에서_60초다(String profile) throws Exception {
+        Binder binder = binderOf(commonDocument(), profileDocument(profile));
+
+        assertThat(binder.bind("app.ws.idle-timeout-ms", Long.class).orElse(0L))
+                .as("%s 의 app.ws.idle-timeout-ms — 0 이거나 없으면 하트비트를 끈 클라이언트가 방송 쓰기 실패까지 세션을 쥔다(Ruling 693)", profile)
+                .isEqualTo(60_000L);
+    }
+
     /** 시험 JVM 의 시스템 속성(build.gradle 이 풀을 6 으로 줄여 둔다)이 yml 에 없는 값을 채우지 않게 뺀 환경에 문서 하나만 올린다. */
-    private static Binder binderOf(PropertySource<?> document) {
+    private static Binder binderOf(PropertySource<?>... documents) {
         StandardEnvironment environment = new StandardEnvironment();
         environment.getPropertySources().remove(StandardEnvironment.SYSTEM_PROPERTIES_PROPERTY_SOURCE_NAME);
         environment.getPropertySources().remove(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME);
-        environment.getPropertySources().addFirst(document);
+        // 인자 순서대로 addFirst 하므로 마지막 문서가 최우선이다 — Spring 처럼 프로파일 문서가 공통 문서를 덮게 (공통, 프로파일) 순으로 준다
+        for (PropertySource<?> document : documents) {
+            environment.getPropertySources().addFirst(document);
+        }
         return Binder.get(environment);
+    }
+
+    /** {@code application.yml} 의 프로파일 없는 공통 문서 — 모든 프로파일이 상속하는 값. */
+    private PropertySource<?> commonDocument() throws Exception {
+        for (PropertySource<?> document : new YamlPropertySourceLoader().load("application",
+                new ClassPathResource("application.yml"))) {
+            if (document.getProperty("spring.config.activate.on-profile") == null) {
+                return document;
+            }
+        }
+        throw new AssertionError("프로파일 없는 공통 문서를 찾지 못했다");
     }
 
     /** {@code application.yml} 의 여러 문서 중 {@code on-profile} 이 일치하는 문서 하나 — 공통 문서의 값은 섞지 않는다. */
