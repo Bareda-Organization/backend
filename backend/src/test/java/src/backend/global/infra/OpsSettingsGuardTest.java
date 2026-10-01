@@ -134,6 +134,34 @@ class OpsSettingsGuardTest {
                 .contains("up{job=\"backend\"} == 0 or absent(up{job=\"backend\"})");
     }
 
+    @Test
+    @DisplayName("STOMP 세션 접근 경보는 시험이 붙어 있고 임계가 운영 동시 연결 상한(max-connections)의 75% 다 — 상한만 바꾸면 실패한다")
+    void stompSessionsAlertTracksConnectionCap() throws IOException {
+        String rules = stripComments(read("infra/observability/prometheus/alerts.yml"));
+        String tests = stripComments(read("infra/observability/prometheus/alerts.test.yml"));
+
+        assertThat(rules).as("경보 규칙").contains("- alert: StompSessionsNearCap\n");
+        assertThat(tests).as("경보 시험").contains("alertname: StompSessionsNearCap\n");
+
+        Matcher threshold = Pattern.compile("schoolbus_stomp_sessions\\{job=\"backend\"\\}\\s*>\\s*(\\d+)").matcher(rules);
+        assertThat(threshold.find()).as("job=\"backend\" 로 걸러야 상한을 일부러 넘겨 한계를 재는 부하 시험 프로파일에 울리지 않는다").isTrue();
+        assertThat(Integer.parseInt(threshold.group(1)))
+                .as("임계는 운영 max-connections(%d)의 75% — 상한에 닿기 전 4분의 1 이 남았을 때 알린다", prodMaxConnections())
+                .isEqualTo(prodMaxConnections() * 3 / 4);
+    }
+
+    /** {@code application.yml} 의 {@code on-profile: prod} 문서에 명시된 {@code server.tomcat.max-connections}. */
+    private static int prodMaxConnections() throws IOException {
+        for (String document : read("backend/src/main/resources/application.yml").split("(?m)^---\\s*$")) {
+            if (Pattern.compile("(?m)^\\s+on-profile:\\s*prod\\s*$").matcher(document).find()) {
+                Matcher cap = Pattern.compile("(?m)^\\s+max-connections:\\s*(\\d+)").matcher(stripComments(document));
+                assertThat(cap.find()).as("prod 문서에 server.tomcat.max-connections 가 명시돼 있어야 한다").isTrue();
+                return Integer.parseInt(cap.group(1));
+            }
+        }
+        throw new AssertionError("application.yml 에 prod 프로파일 문서가 없다");
+    }
+
     /** 컴포즈 파일의 서비스 하나(다음 서비스 머리나 최상위 키 직전까지) — 주석은 걷어 낸다. */
     private static String serviceBlock(String compose, String service) throws IOException {
         Matcher block = Pattern.compile("(?ms)^ {2}" + service + ":\\n(.*?)(?=^ {2}[a-z][a-z-]*:\\n|^[a-z]+:|\\z)")

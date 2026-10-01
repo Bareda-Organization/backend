@@ -150,3 +150,15 @@ groups:
           severity: warning
         annotations:
           summary: 위치 이력 파티션 미리 만들기(run-position-partition)가 3일 넘게 성공하지 않았다 — 남은 미리 만든 파티션이 4일치 이하
+      # 동시 연결 상한(Tomcat max-connections 4,000 · Ruling 690)의 75% — STOMP 세션 수가 3,000 을 5분 넘게 넘으면 울린다(Ruling 691).
+      # 상한에 닿으면 새 연결이 거절되고(REST 포함) 그때는 이미 늦으니 4분의 1 남았을 때 알린다. for 5분은 서버 재시작 뒤 클라이언트가 한꺼번에
+      # 다시 붙는 순간 몰림을 거른다. 목표 동시 세션은 2,000 이라 평소에는 울리지 않는다. 상한(application.yml)을 바꾸면 이 숫자도 75% 로
+      # 같이 바꾼다 — OpsSettingsGuardTest 가 둘의 관계를 지킨다. HTTP 요청도 같은 연결 수에 들지만 프록시가 요청마다 연결을 닫아(upstream
+      # keepalive 없음) 세션 수가 연결 수를 거의 그대로 대표한다.
+      - alert: StompSessionsNearCap
+        expr: schoolbus_stomp_sessions{job="backend"} > 3000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 실시간(WebSocket) 세션이 3,000 을 5분 넘게 넘었다 — 동시 연결 상한 4,000 에 닿으면 새 연결이 거절된다

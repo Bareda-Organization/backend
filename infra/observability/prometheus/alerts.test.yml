@@ -440,3 +440,49 @@ tests:
               scheduler: run-position-partition
             exp_annotations:
               summary: 위치 이력 파티션 미리 만들기(run-position-partition)가 3일 넘게 성공하지 않았다 — 남은 미리 만든 파티션이 4일치 이하
+
+  # STOMP 세션 수(Ruling 691): 3,000(동시 연결 상한 4,000 의 75%)을 초과한 채 5분이 지나야 발화한다.
+  - interval: 1m
+    input_series:
+      - series: 'schoolbus_stomp_sessions{job="backend",application="school-bus"}'
+        values: '2000x4 3500x30'
+    alert_rule_test:
+      - eval_time: 3m   # 아직 2,000 — 조용
+        alertname: StompSessionsNearCap
+        exp_alerts: []
+      - eval_time: 8m   # 초과한 지 4분 — 아직 pending
+        alertname: StompSessionsNearCap
+        exp_alerts: []
+      - eval_time: 10m  # 초과한 지 6분 — 발화
+        alertname: StompSessionsNearCap
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: backend
+              application: school-bus
+            exp_annotations:
+              summary: 실시간(WebSocket) 세션이 3,000 을 5분 넘게 넘었다 — 동시 연결 상한 4,000 에 닿으면 새 연결이 거절된다
+
+  # 안 울림 둘 — 정확히 3,000 은 초과가 아니고, 5분을 못 채우고 내려온 순간 몰림(재연결 폭주)은 거른다.
+  - interval: 1m
+    input_series:
+      - series: 'schoolbus_stomp_sessions{job="backend",application="school-bus",instance="at-limit"}'
+        values: '3000x30'
+      - series: 'schoolbus_stomp_sessions{job="backend",application="school-bus",instance="spike"}'
+        values: '3500x3 2000x27'
+    alert_rule_test:
+      - eval_time: 2m   # spike 가 초과 중이지만 5분 전 — for 가 없으면 여기서 발화한다
+        alertname: StompSessionsNearCap
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: StompSessionsNearCap
+        exp_alerts: []
+
+  - interval: 1m   # 부하 시험 프로파일(job 이 다르다)은 상한을 일부러 넘겨 한계를 재므로 조용하다
+    input_series:
+      - series: 'schoolbus_stomp_sessions{job="school-bus-load",application="school-bus"}'
+        values: '5000x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: StompSessionsNearCap
+        exp_alerts: []

@@ -388,6 +388,11 @@ server:
       max: 100
     # 스레드가 다 찬 뒤 TCP 대기열 — 기본값(100)과 같다. 더 키우면 거절 대신 오래 기다리다 3초 뒤 5xx 가 되는 요청이 늘 뿐이다.
     accept-count: 100
+    # 동시 연결 상한(R46-CONNCAP, Ruling 690) — HTTP 와 WebSocket 연결을 합친 수다(WebSocket 은 업그레이드된 같은 소켓이라 끊길 때까지 센다).
+    # 기본 8,192 의 최악 힙 ≈ 기준 274MB + 세션당 0.13MB(09-09 실측: 500세션 339MB · 6,000세션 1,063MB) × 8,192 + 송신 버퍼 상한
+    # 64KB(WebSocketConfig) × 8,192 ≈ 1.85GB 라 운영 힙(컨테이너 3,072MB × 70% ≈ 2.15GB)에 너무 가깝다. 4,000(목표 동시 세션 2,000 의
+    # 2배)이면 ≈ 1.05GB. 닿으면 OOM 대신 새 연결이 accept-count 대기열에서 기다리다 거절된다(docs/infra/DEPLOYMENT.md §11.7).
+    max-connections: 4000
 
 # 운영은 localhost 개발 출처를 신뢰하면 안 되므로 기본값 없이 환경변수로만 명시 주입(미설정 시 빈 목록 = 전부 차단)
 app:
@@ -452,6 +457,7 @@ server:
     threads:
       max: 100   # prod 섹션과 같은 근거(풀 20 의 5배 — R46-LATERBE L11, Ruling 674)
     accept-count: 100
+    max-connections: 4000   # prod 섹션과 같은 근거(R46-CONNCAP, Ruling 690)
 
 app:
   cors:
@@ -486,6 +492,8 @@ server:
     threads:
       max: 50   # 풀(기본 10)의 5배 — prod 섹션과 같은 근거(R46-LATERBE L11, Ruling 674). 팀원 체험 서버라 50 으로 충분하다
     accept-count: 100
+    # 팀원 체험 서버(동시 접속 수십 명)라 1,000 이면 충분하다. 힙은 JVM 기본(호스트 메모리의 1/4)이라 prod 의 4,000 보다 낮게 둔다 — Ruling 690
+    max-connections: 1000
 jwt:
   # local 기본 키는 공개돼 있어 그대로 두면 아무 역할의 토큰이나 위조할 수 있다.
   secret: ${JWT_SECRET}
