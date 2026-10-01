@@ -52,6 +52,11 @@ public record StudentPhoto(String extension, byte[] content) {
 
     /** 응답 {@code Content-Type} — 확장자가 내용의 서명으로 정해진 값이라({@link #of}) 그대로 옮긴다. */
     public String contentType() {
+        return contentTypeOf(extension);
+    }
+
+    /** 저장된 파일명의 확장자로 {@code Content-Type} 을 고른다 — 본문을 읽지 않고 파일명만으로 답해야 하는 조회가 쓴다. */
+    public static String contentTypeOf(String extension) {
         return switch (extension) {
             case "png" -> "image/png";
             case "webp" -> "image/webp";

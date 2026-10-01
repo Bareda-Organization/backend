@@ -85,6 +85,40 @@ class StudentPhotoServingTest {
         assertThat(body).isEqualTo(PNG);
     }
 
+    /**
+     * R46-KFIXBE K-3 — 하루 캐시 + 파일명 ETag. 같은 사진을 화면마다·재방문마다 다시 받지 않는다(학생 목록 한 화면이 행마다 1장 — 60명이면 약
+     * 228MB 전송). {@code If-None-Match} 가 일치하면 본문 없이 {@code 304}, 다른 파일의 ETag 면 {@code 200} 이다.
+     */
+    @Test
+    void 사진은_하루_캐시와_파일명_ETag_를_싣고_일치하면_304_이다() throws Exception {
+        var first = mockMvc.perform(get("/api/v1/files/photos/" + fileName).header("Authorization", 관계자(ACADEMY_A)))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", org.hamcrest.Matchers.allOf(
+                        org.hamcrest.Matchers.containsString("private"),
+                        org.hamcrest.Matchers.containsString("max-age=86400"))))
+                .andReturn().getResponse();
+        String eTag = first.getHeader("ETag");
+        assertThat(eTag).as("파일명이 UUID 라 내용이 바뀌지 않는다 — 파일명이 ETag").isEqualTo("\"" + fileName + "\"");
+
+        byte[] notModified = mockMvc.perform(get("/api/v1/files/photos/" + fileName)
+                        .header("Authorization", 관계자(ACADEMY_A)).header("If-None-Match", eTag))
+                .andExpect(status().isNotModified())
+                .andReturn().getResponse().getContentAsByteArray();
+        assertThat(notModified).as("304 는 본문이 없다").isEmpty();
+
+        mockMvc.perform(get("/api/v1/files/photos/" + fileName)
+                        .header("Authorization", 관계자(ACADEMY_A)).header("If-None-Match", "\"다른파일.png\""))
+                .andExpect(status().isOk());
+    }
+
+    /** 304 가 접근 권한을 우회하지 않는다 — 남의 학원 관계자가 올바른 ETag 를 들고 와도 404 다(존재를 드러내지 않는다). */
+    @Test
+    void ETag_가_일치해도_다른_학원_관계자는_304_가_아니라_404_이다() throws Exception {
+        mockMvc.perform(get("/api/v1/files/photos/" + fileName).header("Authorization", 관계자(ACADEMY_B))
+                        .header("If-None-Match", "\"" + fileName + "\""))
+                .andExpect(status().isNotFound());
+    }
+
     @Test
     void 다른_학원_관계자는_404_STUDENT_NOT_FOUND_이다() throws Exception {
         mockMvc.perform(get("/api/v1/files/photos/" + fileName).header("Authorization", 관계자(ACADEMY_B)))

@@ -107,7 +107,7 @@ class StudentPhotoTransactionBoundaryTest {
         }
 
         @Override
-        public java.util.Optional<byte[]> read(String fileName) {
+        public java.util.Optional<org.springframework.core.io.Resource> read(String fileName) {
             return delegate.read(fileName);
         }
 
