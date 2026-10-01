@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.util.List;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -408,6 +409,23 @@ class StaffStudentControllerTest {
     }
 
     /**
+     * 이름은 <b>자연 정렬</b>이다(R46 FUBE · B1 #27) — 문자열 순이면 "학생10" 이 "학생2" 앞에 와 학생이 많은 학원의 명단이
+     * 뒤섞여 보인다. 정렬이 쪽 경계를 넘어도 이어져야 하므로 쪽 나누기와 내림차순까지 함께 본다.
+     */
+    @Test
+    void 이름은_자연_정렬로_돌려주고_쪽을_넘겨도_이어진다() throws Exception {
+        등록한다(등록_본문("자연정렬2", null));
+        등록한다(등록_본문("자연정렬10", null));
+        등록한다(등록_본문("자연정렬1", null));
+
+        assertThat(이름_목록("q=자연정렬&size=100")).as("오름차순").containsExactly("자연정렬1", "자연정렬2", "자연정렬10");
+        assertThat(이름_목록("q=자연정렬&size=100&sort=name:desc")).as("내림차순")
+                .containsExactly("자연정렬10", "자연정렬2", "자연정렬1");
+        assertThat(이름_목록("q=자연정렬&size=2&page=0")).as("첫 쪽").containsExactly("자연정렬1", "자연정렬2");
+        assertThat(이름_목록("q=자연정렬&size=2&page=1")).as("둘째 쪽 — 쪽 경계에서 순서가 이어진다").containsExactly("자연정렬10");
+    }
+
+    /**
      * 보호자가 둘일 때 대표로 실리는 것은 <b>먼저 연결된</b> 쪽이다(쿼리의 {@code ORDER BY
      * gs.linkedAt} + {@code putIfAbsent}).
      *
@@ -633,6 +651,13 @@ class StaffStudentControllerTest {
     }
 
     // ── 도우미 ────────────────────────────────────────────────────────────
+
+    private List<String> 이름_목록(String query) throws Exception {
+        MvcResult result = mockMvc.perform(get(BASE + "?" + query).header("Authorization", 관계자_토큰(ACADEMY_A)))
+                .andExpect(status().isOk())
+                .andReturn();
+        return JsonPath.read(본문(result), "$.data.items[*].name");
+    }
 
     private String 관계자_토큰(Long academyId) {
         return "Bearer " + tokenProvider.createAccessToken(1L, academyId, Role.STAFF, AccountStatus.ACTIVE);

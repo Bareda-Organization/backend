@@ -61,6 +61,26 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     Page<Student> searchByAcademyId(@Param("academyId") Long academyId, @Param("q") String q, Pageable pageable);
 
     /**
+     * {@link #searchByAcademyId} 와 같은 조건에 맞는 학생의 id·이름 <b>전건</b> — 이름의 자연 정렬(B1 #27)이 DB 정렬로는
+     * 되지 않아 서버가 줄 세울 때 쓴다. 본 행(보호자 연락처 포함)은 줄 세운 뒤 그 쪽의 id 로만 읽는다.
+     */
+    @Query("""
+            SELECT s.id AS id, s.name AS name FROM Student s
+            WHERE s.academyId = :academyId
+              AND s.deletedAt IS NULL
+              AND LOWER(s.name) LIKE LOWER(CONCAT('%', :q, '%'))
+            """)
+    List<NameRow> findNamesByAcademyId(@Param("academyId") Long academyId, @Param("q") String q);
+
+    /** {@link #findNamesByAcademyId} 의 한 행. */
+    interface NameRow {
+
+        Long getId();
+
+        String getName();
+    }
+
+    /**
      * 그 학생들 중 <b>계정이 연결된</b> 학생만(Phase 9 RUN-05, API_SPEC §9.7 {@code run_started}
      * 의 "학생" 수신자) — {@code account_id} 가 없는 학생은 로그인이 없어 알림을 받을 계정 자체가
      * 없다.

@@ -9,19 +9,23 @@ import src.backend.routing.entity.Route;
  * (고정 노선은 학부모·매니저 앱 응답에 실리지 않는다 — 그쪽은 회차로 좁혀진 §3.10 · §4.3 이다).
  *
  * <p>정차 순서를 담지 않는 것이 목록과 상세를 가르는 축이다 — 행마다 정차지를 실으면 목록 한 번에
- * 편성 수만큼의 조회가 붙는다(API_SPEC §5.5 가 같은 이유로 목록과 상세를 갈랐다).
+ * 편성 수만큼의 조회가 붙는다(API_SPEC §5.5 가 같은 이유로 목록과 상세를 갈랐다). 정차지 <b>수</b>는 한 쪽을
+ * 묶음 질의 하나로 세어 싣는다(R46 FUBE · B1 #10).
  *
  * <p>{@code busNo} 를 함께 싣는 이유는 목록 화면이 차량을 <b>번호로</b> 보여 주기 때문이다 — 빼면
  * 클라이언트가 행마다 차량을 다시 조회해야 한다.
  */
 public record RouteResponse(Long id, Long busId, String busNo, String weekday, String direction,
-        String name, boolean active) {
+        String name, boolean active, int stopCount) {
 
-    /** {@code route} 와 별도 조회한 {@code busNo} 를 합쳐 응답을 조립한다 — 요일·방향은 소문자로 내려간다. */
-    public static RouteResponse of(Route route, String busNo) {
+    /**
+     * {@code route} 와 별도 조회한 {@code busNo}·{@code stopCount} 를 합쳐 응답을 조립한다 — 요일·방향은 소문자로
+     * 내려간다. {@code stopCount} 는 정차 순서 자체가 아니라 <b>수</b>만 싣는다 — 정차지가 없는 빈 편성을 목록에서 가른다.
+     */
+    public static RouteResponse of(Route route, String busNo, int stopCount) {
         return new RouteResponse(route.getId(), route.getBusId(), busNo,
                 lower(route.getWeekday().name()), lower(route.getDirection().name()),
-                route.getName(), route.isActive());
+                route.getName(), route.isActive(), stopCount);
     }
 
     private static String lower(String value) {

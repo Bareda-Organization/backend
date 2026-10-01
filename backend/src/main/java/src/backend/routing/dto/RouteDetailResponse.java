@@ -18,7 +18,7 @@ public record RouteDetailResponse(Long id, Long busId, String busNo, String week
 
     /** 요약({@link RouteResponse})을 만들어 필드를 재사용하고 정차 목록만 얹는다. */
     public static RouteDetailResponse of(Route route, String busNo, List<RouteStopResponse> stops) {
-        RouteResponse summary = RouteResponse.of(route, busNo);
+        RouteResponse summary = RouteResponse.of(route, busNo, stops.size());
         return new RouteDetailResponse(summary.id(), summary.busId(), summary.busNo(), summary.weekday(),
                 summary.direction(), summary.name(), summary.active(), stops);
     }

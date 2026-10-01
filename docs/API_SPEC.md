@@ -1701,7 +1701,7 @@ $ curl -s -X POST http://localhost:8081/api/v1/runs/999999/emergency -H "Authori
 - `stop_ids` 를 보내면 **기존 정차 순서를 전부 대체**한다. 일부만 고치는 경로를 두지 않는 것은 순번이 배열 전체의 성질이라 부분 수정의 의미가 정해지지 않기 때문이다
 - **`stop_ids` 를 주지 않은 편성은 정차지 없이 시작한다** — 차량·요일·방향 칸을 먼저 잡아 두고 승하차지를 나중에 채우는 조작이 실재한다. `PATCH` 에서 생략하면 기존 정차 순서를 그대로 둔다(비우려면 빈 배열을 보낸다)
 
-**응답** — `id` · `bus_id` · `bus_no` · `weekday` · `direction` · `name` · `active`. 상세·편성·수정·최적화는 여기에 **`stops[]`**(`stop_id` · `seq` · `name` · `lat` · `lng`)를 더한다.
+**응답** — `id` · `bus_id` · `bus_no` · `weekday` · `direction` · `name` · `active` · **`stop_count`**(integer — 정차지 수. 정차지 없이 시작한 빈 편성은 `0` 이라 목록에서 가른다, `Ruling 552`). 상세·편성·수정·최적화는 `stop_count` 대신 **`stops[]`**(`stop_id` · `seq` · `name` · `lat` · `lng`)를 싣는다.
 
 **`POST /staff/routes/{id}/optimize` 요청** — `origin`(`lat`·`lng`) · `destination`(`lat`·`lng`) **둘 다 주거나 둘 다 비운다**(Ruling 325)
 
@@ -1853,6 +1853,8 @@ STU-05) — 화면이 "이 자리에 이미 있다" 를 알려 관계자가 같�
 **`DELETE /staff/students/{id}` 응답 `200`** — `{ student_id, deleted_at }`. `204` 가 아니라 본문을 돌려주는 것은 §1.9("변경 후 자원 상태를 그대로 반환") 때문이다 — 퇴원의 변경분은 `deleted_at` 하나이고 그 값이 없으면 클라이언트가 지워졌는지 구별할 수 없다. 학생 정보 전체는 싣지 않는다(§1.12, 목록에서 뺀 개인정보가 삭제 응답으로 다시 나가지 않게)(2026-09-30 BR-261).
 
 **`GET /staff/students/{id}/weekly-address`**(STU-06 · `Ruling 498`) — 권한은 상세와 같다(`STUDENT_READ_SENSITIVE` — 관계자·메인 관리자). 응답은 §3.7 의 `entries[]` 와 같은 구조(요일·방향 순, 아직 등록하지 않았으면 빈 목록)이고 **쓰기 경로는 두지 않는다**. 주소 원문·좌표는 L3 라 조회가 성공하면 감사 `read` 를 남기며(`target_type=student`, `detail.fields=["weekly_address"]`) 같은 행위자·같은 학생의 10분 안 재조회는 새 행을 쓰지 않는다(`Ruling 333`·`445`). **에러** — `404 STUDENT_NOT_FOUND`(남의 학원 학생 · 퇴원생 — 존재 비노출, 이때 감사 행도 남기지 않는다) · `403 FORBIDDEN`(권한 없는 역할)
+
+**`GET /staff/students` 정렬** — 기본 `name` 오름차순이고 이름은 **자연 정렬**이다(`Ruling 552`) — 숫자 덩어리는 크기로 비교해 "학생2" 가 "학생10" 앞에 온다(앞 0 만 다른 이름은 원문 순, 동명은 `id` 오름차순). 쪽 나누기·`sort=name:desc` 와 함께 쓸 수 있고 `total_count` 는 그대로 학생 수다.
 
 **`GET /staff/students` 응답 `items[]`** — `student_id` · `name` · `class_name` · `guardian_phone` · `guardian_count`(integer — 연결된 보호자 계정 수, 해지된 연결은 제외. `guardian_phone` 은 그중 대표 1명뿐이라 연결 수는 이 값으로 따로 센다) · `account_linked`(boolean — 학생 본인 계정이 가입 연결됐는지. 가입 승인 화면이 이미 연결된 학생을 고를 수 없게 보이는 데 쓴다. 계정 식별자는 싣지 않는다 — 상세만 싣는다, `Ruling 495`)
 

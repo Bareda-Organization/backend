@@ -1,5 +1,6 @@
 package src.backend.routing.repository;
 
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -31,4 +32,25 @@ public interface RouteStopRepository extends JpaRepository<RouteStop, Long> {
             """)
     List<RouteStop> findAllOrderedByRouteIdAndAcademyId(@Param("routeId") Long routeId,
             @Param("academyId") Long academyId);
+
+    /**
+     * 목록(§5.9 {@code stop_count})이 쓰는 편성별 정차지 수 — 한 쪽의 편성 전부를 한 번에 센다. 편성마다
+     * 세면 한 쪽(최대 100건)이 질의 100건이 된다. 정차지가 없는 편성은 결과에 없다(호출부가 0 으로 채운다).
+     * 학원 조건은 {@link #findAllOrderedByRouteIdAndAcademyId} 와 같은 이유로 {@code route} 조인에 둔다.
+     */
+    @Query("""
+            SELECT rs.routeId AS routeId, COUNT(rs) AS total FROM RouteStop rs, Route r
+            WHERE rs.routeId = r.id AND r.academyId = :academyId AND r.id IN :routeIds
+            GROUP BY rs.routeId
+            """)
+    List<StopCount> countByRouteIdsAndAcademyId(@Param("routeIds") Collection<Long> routeIds,
+            @Param("academyId") Long academyId);
+
+    /** {@link #countByRouteIdsAndAcademyId} 의 한 행 — 편성 id 와 그 편성의 정차지 수. */
+    interface StopCount {
+
+        Long getRouteId();
+
+        long getTotal();
+    }
 }
