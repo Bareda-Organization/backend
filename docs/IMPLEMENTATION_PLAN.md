@@ -1163,3 +1163,7 @@ R46 개선 항목 `A #10`(주소 선택 → 사용자 결정 대기)의 결정 �
 | 5 | 실서버 계약 시험(해당 패키지)을 자기 서버에만 | 아래 결과 |
 | 6 | 깨진 참조 증가 0 | `build.py` 전후 |
 | 7 | 정리 — 서버 종료 · `r46_integ` DROP | `lsof` · `pg_database` |
+
+**결과 (2026-10-01)** — 목표 1 ✅ 백엔드 `--rerun` 344클래스 1,943건 · 건너뜀 0 · 실패 1(`AcademySettingFindOrCreateConcurrencyTest` 시간 초과 — 다른 창 4개와 내 Flutter·웹 시험이 동시에 도는 부하에서 발생, 단독 재실행 1/1 통과 · 이 갈래가 건드린 코드 아님) · 웹 `next typegen` 뒤 `tsc`·`lint` 0 · vitest 118파일 711건 · Flutter 4패키지 `analyze` 0 · `baraeda_ui` 235 · `baraeda_core` 83 · `parent-app` 259 · `manager-app` 334 전부 실패 0 · 건너뜀 0. 목표 2 ✅ 새 시험 — `device_registrar_test` 8 · 앱 2종 배선 시험 각 1 · `device_registration_panel_push_source_test` 3 · 결함 심기 9종에서 그 시험만 실패. 목표 3 ✅ `AccountRecoveryFlowTest` 9 · `LoggingSmsSenderTest` 3 · 발송기 없을 때 503 은 `AuthControllerTest` 19건 안에서 그대로 통과 · 결함 심기 7종(빈도 제한 제거 포함). 목표 4 ✅ 준비물 표의 키 12개를 `grep` 으로 코드에서 찾음(`app.sms.sender` `LoggingSmsSender` · `app.push.*` `FcmPushSender` · `FCM_*` `application.yml`·`docker-compose.prod.yml` · `PushTokenSource` 계열 `baraeda_core`) — `FirebasePushTokenSource` 만 스케치라 코드 0건이 정상. 목표 5 ✅ 서버 `:8410` · `baraeda_core` 9 · `parent-app` 28(`--dart-define=FIXTURE_DB=r46_integ` 를 줘야 건너뜀 0 — 안 주면 소프트 삭제 시험 1건이 환경 문제로 건너뜀) · `manager-app` 26 · 웹 `realBackend` 14파일 78(복구 `503` 유지 시험 포함) 실패 0 · 건너뜀 0. 목표 6 ✅ 깨진 참조 0(문서 반영 전 9건은 전부 내 `Ruling 512·513` 인용 → 정의처를 쓰자 0). 목표 7 ✅ `:8410` 종료 · `:5173` 미사용 · `r46_integ` DROP.
+
+**부수 수정 1건** — `API_SPEC §8.1` 에 `RECOVERY_RATE_LIMITED` 를 더하자 웹 `apiErrorCodes` 대조 시험이 실패 → `apiErrorCodes.ts` 한 줄 추가(`§8` 이 먼저 바뀌고 웹 사전이 따르는 규칙 그대로).
