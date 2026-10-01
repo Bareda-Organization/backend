@@ -269,9 +269,9 @@ frontend/
 ### 5.17.1 판정
 
 - **`Ruling 420` — 승인 대기는 기존 목록 API 의 `pending_count` 로 센다(서버 변경 없음).** 가입 승인 `GET /staff/signup-requests?status=pending&size=1` · 구간 변경 `GET /staff/approvals?status=pending&size=20`(가장 이른 `deadline_at` 을 고르려 한 쪽을 받음). 관계자 레이아웃의 `ApprovalPendingProvider` 가 한 곳에서 세고 사이드바 배지 · 운행 관리 `처리 대기 · 기한 임박` 띠 · 탭 제목이 같은 값을 본다. `approval_requested` 통지는 운행 관리 화면이 아니라 레이아웃 전역에서 받아 즉시 다시 센다(폴링 30초는 통지를 놓친 경우와 가입 신청 — 통지 없음 — 을 받친다). 대기 목록에 `자동 거절까지` 열. 버린 안 — 새 집계 엔드포인트(백엔드 창과 동시 작업이라 충돌 위험 · 기존 API 로 충분)
-  - 탭 제목 `(N) 비상 발생 · 바래다 관계자 웹`, **소리·브라우저 알림은 머리줄 `[알림음]` 을 사용자가 켠 경우에만**(기본 꺼짐 · 권한 요청은 켜는 조작 안에서만 · 저장은 `localStorage`)
+  - 탭 제목 `(N) 비상 발생 · 바래다 관계자 웹`, **브라우저 알림은 머리줄 `[브라우저 알림]` 을 사용자가 켠 경우에만**(기본 꺼짐 · 권한 요청은 켜는 조작 안에서만 · 저장은 `localStorage`). 소리는 `Ruling 700` 으로 삭제 — 처음에는 `[알림음]` 토글이 소리와 브라우저 알림을 함께 켰다
   - 메인 관리자는 채널에 승인 통지가 없어 가입 승인 대기·차단 계정 수를 30초 폴링(`AdminPendingProvider`)
-- **`Ruling 421` — 비상 알림은 화면 위에 띄우지 않고 머리줄 아래 흐름 속 띠로 둔다.** `position: fixed`(top 72 · right 24)가 등록·배치 변경 버튼을 덮었다(조사 B1 #1). 제공자는 상태만, `EmergencyAlertStrip` 이 그린다. **메인 관리자 레이아웃에도 같은 제공자**를 쓰되 출처(관리자 조회·관리자 채널)를 넘기고 **확인 버튼은 없다**(확인 주체는 관계자). 사양 문장 갱신 — `USER_FLOWS` 비상 알림 수신 절(R32-W5 보완 줄) · 같은 절에 메인 관리자·탭 제목·알림음 보완 줄 추가
+- **`Ruling 421` — 비상 알림은 화면 위에 띄우지 않고 머리줄 아래 흐름 속 띠로 둔다.** `position: fixed`(top 72 · right 24)가 등록·배치 변경 버튼을 덮었다(조사 B1 #1). 제공자는 상태만, `EmergencyAlertStrip` 이 그린다. **메인 관리자 레이아웃에도 같은 제공자**를 쓰되 출처(관리자 조회·관리자 채널)를 넘기고 **확인 버튼은 없다**(확인 주체는 관계자). 사양 문장 갱신 — `USER_FLOWS` 비상 알림 수신 절(R32-W5 보완 줄) · 같은 절에 메인 관리자·탭 제목·알림음 보완 줄 추가(알림음은 이후 `Ruling 700` 으로 삭제 — 줄도 `[브라우저 알림]` 으로 고침)
 - **`Ruling 422` — 폴링 규약(`usePolling`).** ①응답을 받은 뒤 다음 요청을 예약(`setInterval` 금지) ②탭이 숨으면 멈추고 돌아오면 즉시 1회 ③실패하면 간격 ×2 씩(상한 ×8), 성공하면 원래 간격. 대시보드·금일 운행·전체 관제·비상 알림 4곳 적용. **명단 폴링 7초 간격 자체는 그대로**(서버 감사 기록과 얽힘 — 조사 D #3 은 사용자 판정 대기)
 - **`Ruling 423` — 대시보드 `매니저 미배치` 는 "오늘 배치 없는 매니저 N명" 으로 표기한다.** 서버 정의가 재직 매니저 **사람 수**(`API_SPEC §5.3`)라 라벨·단위(건)가 틀렸던 것. 조사가 제안한 "기사·동승 미배치 **회차** N건" 으로 바꾸는 안은 **사양(사람 수)과 어긋나 기각** — 회차 기준 강조가 필요하면 별도 지표로 추가할 일. `API_SPEC §5.3` 에 사람 수임을 명시
 - **`Ruling 424` — 시각 표기.** 운행 출발·도착은 **시:분:초 유지**(`R21-B` 사용자 지시 "출발·도착시간 몇시, 몇분, 초" — 조사 B1 #23 의 `HH:mm` 통일 제안은 이 지시와 충돌해 **그 부분 기각**), 그 밖 예정 시각은 `HH:mm`. 머리줄 날짜는 브라우저 시계가 아니라 **서울 기준**(`formatHeaderDate`). 같은 이름 회차 구분을 위해 회차 목록·리포트 회차 선택 앞에 **출발 시각**을 붙인다(`08:00 1호차 · 등원`)
@@ -420,7 +420,7 @@ frontend/
 ### 5.22.1 판정
 
 - **`Ruling 510` — 푸시 토큰은 공급자 포트 `PushTokenSource` 가 준다.** 기본 `PlaceholderPushTokenSource` 는 기기별 자리표시 토큰을 주고(서버가 FCM 거부를 받아 해지 — `Ruling 331`), Firebase SDK 는 이번에 넣지 않는다(설정 파일 없이 검증 불가). `AuthApi.login` 이 로그인 직후 `POST /me/devices` 를 부르고(실패해도 로그인은 성공 · 다음 `/me` 가 재시도), `AuthApi.logout` 이 `device_id` 를 실어 서버가 그 기기 토큰을 해지한다. 학부모·학생 앱 설정 스위치는 공급자 토큰을 쓰고, 끄면 그 사실을 저장해 다음 로그인·앱 실행이 다시 켜지 않는다(공급자가 토큰을 못 주면 안내만). `DeviceRegistrationStorage` 는 두 앱이 함께 쓰게 돼 `baraeda_core` 로 올렸다(저장 키 그대로)
-- **`Ruling 511` — 관계자 웹 브라우저 푸시는 사양에 없어 만들지 않는다.** 웹 `registerDevice` · `unregisterDevice`(`features/auth/api/devices.ts`)는 호출처 0 그대로 둔다 — 비상 알림 수신은 열린 화면의 실시간 수신 + 탭 제목 + 알림음(`R46-WEB`)이 이미 맡는다
+- **`Ruling 511` — 관계자 웹 브라우저 푸시는 사양에 없어 만들지 않는다.** 웹 `registerDevice` · `unregisterDevice`(`features/auth/api/devices.ts`)는 호출처 0 그대로 둔다 — 비상 알림 수신은 열린 화면의 실시간 수신 + 탭 제목 + 브라우저 알림(`R46-WEB` · 소리는 `Ruling 700` 으로 삭제)이 이미 맡는다
 
 ### 5.22.2 목표 표
 
@@ -728,6 +728,33 @@ R46 전 갈래(§5.17~§5.27) 병합 뒤 화면 확인 전용 창. 관계자 웹
 | 5 | 정적 검사 · 전체 시험 | 웹 `next typegen` + `tsc` 0 · `npm run lint` 0 · vitest(실서버 제외) **141 파일 879건** · `baraeda_core` `flutter analyze` 0 · `flutter test --exclude-tags real_backend` **115건** · 학부모 앱 **324건** · 매니저 앱 **452건**(앱 코드는 안 바뀌고 `baraeda_core` 를 쓰므로 확인용) · `analyze` 3개 0 · 실패 0 · Dart 갈아타기 시험 파일 부하 아래 5회 연속 통과(첫 부하 실행에서 시험의 `CONNECT` 도착 경합이 드러나 고침) |
 | 6 | 정본 반영 · 깨진 참조 0 | 이 절 · `§11` 색인 680~682 · `API_SPEC §7.2` · `USER_FLOWS` · docgraph 깨진 참조 0건(`Ruling 680` 이 §11 · §7.2 · USER_FLOWS · 이 절을 가리킴) |
 | 7 | 정리 | 서버 `:8580`(토큰 수명 120초 · Redis 칸 10) · DB `r46_laterrt` 는 지시대로 남김(웹 개발 서버는 띄우지 않음) · 시험 러너 잔여 없음 |
+
+## 5.33 `R46-KFIXFE` — 웹 경보음 삭제 · 누수 지적 K-4·K-6·K-7 · 실서버 시험의 타이밍 운 제거 · 의존성 경보 (2026-10-02 · 기준 HEAD `ff19e36d` `mskim98/r46-kfixfe` · 판정 `Ruling 700`(조율자) + `710~714`)
+
+사용자 지시 *"웹에서 경보음 기능은 없애줘"*(`Ruling 700`)와 누수 점검 `.claude/r46/review-leak.md` §2 의 클라이언트 지적 K-4~K-7, 조율자가 마무리 실행에서 발견한 실서버 시험 불안정, push 직후 GitHub 이 알린 Dependabot 경보 4종을 한 갈래로 처리. 서버(`backend/**`)는 변경 없음.
+
+### 5.33.1 판정
+
+- **`Ruling 700` — 관계자 웹의 경보음 삭제.** 비상·승인 때 내던 소리(`attentionAlert.ts` 의 `AudioContext` 발신음)와 그 호출을 삭제. **유지**: 탭 제목 `(N) 비상 발생 · …` · 브라우저 알림(권한을 준 경우 — 숨은 탭의 비상 인지 경로, `Ruling 660`) · 화면 띠. 머리줄 토글 `[알림음]` 은 기능이 브라우저 알림만 남아 `[브라우저 알림]` 으로 개명. 저장 키 `attention-alert-enabled` 는 그대로 읽어 이미 켠 사용자는 계속 켜진 상태(키를 바꾸면 켠 사람 전원이 꺼짐). 사양·계획의 "알림음·소리" 서술은 이 절 · `§5.17.1` · `Ruling 511` · `USER_FLOWS` 비상 알림 수신 절에서 정정. **누수 지적 K-5(경보마다 `AudioContext` 를 만들고 `onended` 에만 닫음)는 `AudioContext` 사용 자체가 사라져 해소.** 버린 안 — 토글까지 없애고 "권한이 있으면 항상 알림" 으로 바꾸는 안: 기본 꺼짐·권한 요청은 켜는 조작 안에서만이라는 기존 정책을 지시 범위(경보음) 밖에서 뒤집음
+- **`Ruling 710` — 매니저 앱 위치 스트림이 오류·종료되면 구독을 비우고 권한·서비스를 다시 확인해 재시작(K-4).** `position_source.dart` 의 `getPositionStream().listen` 에 `onError`·`onDone` 을 달아 `_onStreamLost`(구독 취소 · `_subscription = null` · `_recheck()`)를 부름. 비우지 않으면 `_startStream` 의 `_subscription != null` 검사에 막히고 `availability` 가 `available` 인 채라 송신기도 재시작을 안 불러, 운행 중 GPS 를 껐다 켜면 그 회차가 끝날 때까지 위치 송신이 중단. `_startStream` 이 아니라 `_recheck()` 를 부르는 이유 — 서비스가 꺼진 탓이면 `availability` 가 `serviceDisabled` 로 바뀌어 열지 않고, 이후 송신기의 주기(2초) `start()` 가 켜진 것을 알아채 다시 엶(F06-03 기존 경로). 알려진 한계 — 서비스·권한이 정상인데 스트림이 열리자마자 계속 오류·종료되는 경우 지연 없이 재시도가 반복될 가능성(기기에서 확인된 바 없음 · 보고서 ②)
+- **`Ruling 711` — `@stomp/stompjs` 하트비트 워커 Blob URL 미해제(K-7)는 그대로 둔다.** 설치본 7.3.0 `esm6/ticker.js:33` 이 연결마다 `URL.createObjectURL(new Blob(...))` 을 만들고 `disposeWorker()` 는 `terminate()` 만 호출(`revokeObjectURL` 부재). 확인 — `npm view` 의 `latest` 는 이미 설치본 7.3.0, 최신 베타 `7.4.0-beta.2` 의 `ticker.js` 도 같은 코드(어느 버전에도 수정 없음). 영향 — 워커 스크립트 141바이트/연결 · 토큰 만료 15분 주기로 하루 96연결 ≈ 13.5KB, 탭을 닫으면 해제. 우리 앱은 `stompClient.ts` 에서 `heartbeatStrategy: Worker` 를 명시(배경 탭 타이머 지연 대비)해 이 경로를 탐. 버린 안 — `node_modules` 수정 · `URL.createObjectURL` 전역 가로채기(우회 패치 금지) · `Interval` 전략 전환(배경 탭 하트비트 신뢰성 손해가 13.5KB/일보다 큼). 정식 7.4.0 이 나오면 `ticker.js` 의 `revokeObjectURL` 유무만 다시 확인
+- **`Ruling 712` — 지도 정리에서 지도 인스턴스를 `destroy()` 한다(K-6).** `NaverMapSurface.tsx` 정리 함수가 마커·선을 `setMap(null)` 로 뗀 뒤 `mapRef.current?.destroy()` 를 부름. 인증 실패 경로는 `mapRef.current = null` 로 이미 참조를 버려(SDK 가 `maps` 를 비운 상태) `destroy` 를 부르지 않음 — 의도. 브라우저 힙 스냅샷으로 실제 누수량을 재지는 않음(근거는 `@types/navermaps` 의 `Map.destroy()` 존재와 정리 함수의 비대칭)
+- **`Ruling 713` — Dependabot 4종: `next`·`eslint-config-next` 를 `16.3.8` 로, `brace-expansion` 은 락파일만, `vitest` 계열은 올리지 않는다.** `next` critical `GHSA-vcvr-r3jv-pc5j`(`next/og` 원격 코드 실행 — 앱은 `next/og` 를 쓰지 않아 지금 경로는 없으나 패치 버전이라 올림) — 영향 범위 16.2.0~16.3.5 · 같은 16.3 패치 계열의 최신 `16.3.8` 로 정확 고정(저장소 관례). `brace-expansion`(전이 의존) 은 `npm audit fix`(강제 아님)로 `1.1.18→1.1.21` · `5.0.9→5.0.12`. `vitest`·`@vitest/mocker`(medium 2건) 는 수정이 `vitest@5.0.3`(현재 `^3.2.7` 에서 주 버전 +2) 이고 영향 범위가 `2.1.0 – 4.1.10` 이라 3.x 안에는 수정이 없어 **올리지 않음**(지시: 주 버전 변경은 보고만) — 시험 실행기 전용 의존성이라 배포물에 실리지 않음
+- **`Ruling 714` — 토큰 갈아타기 실서버 시험(`wsTokenRenewalRealBackend.test.ts`)은 방송을 스스로 일으키고, 전제를 말한다.** 원인 ① 방송이 데모 시뮬레이터(`DemoRunSimulator` · `app.demo.enabled=true`)의 2초 틱에만 기대는데 머리 주석에 전제가 없어, 꺼진 서버에서는 방송 0건 → 공백 `Infinity` 로 140초 뒤 실패 ② 마지막 단언(두 연결이 같은 방송을 받음)이 타이밍 운 — 방송 묶음 사이가 최대 2.5초인데 갈아타기 확인 대기가 1.5초라 두 번 다 비껴 갈 수 있음(첫 실행 실패 · 같은 명령 재실행 통과). 고친 것 — 시험이 운행 중 회차를 맡은 데모 기사(`driverD3`~`D5`)로 로그인해 그 회차의 현재 위치를 0.4초마다 다시 올림(`POST /runs/{id}/position` · 같은 좌표라 새 상태·알림 없음). 운행 중 회차가 없으면(시험 실행 첫머리의 `POST /dev/reset` 이 회차를 `idle` 로 돌려 시뮬레이터가 다시 출발시킬 때까지 30초 대기) 원인을 말하는 문구로 실패. 클라이언트의 확인 대기·닫는 시점은 그대로 — 늘리면 "1.5초면 새 연결이 이미 방송을 받는다" 는 검사까지 약해짐. 단언은 하나도 약화하지 않음(`bodiesOnBoth > 0` 유지 · 실패 문구에 위치 올리기 성공·실패 건수 병기)
+
+### 5.33.2 목표 표와 결과 (2026-10-02)
+
+| # | 조건 | 결과 |
+|:-:|---|---|
+| 1 | 웹에 소리 코드 0 · 브라우저 알림·탭 제목 유지 · 토글 이름 | `grep -rIn 'AudioContext\|OscillatorNode\|createOscillator\|알림음' frontend/apps/academy-web/src` → 프로덕션 0건(소리가 없음을 검사하는 시험 파일 1곳만 일치) · 새 시험 2건(저장값 `on` 인 사용자에게 브라우저 알림만 내고 소리 미생성 · 꺼짐이면 무동작) RED 3건(토글 이름 시험 2건 포함) → GREEN · 결함 심기 2건(소리 호출 되살림 · 저장 키 변경)이 그 시험 1건에서만 실패 |
+| 2 | 위치 스트림 오류·종료 뒤 재시작 | Dart 시험 3건 RED(3건 실패) → GREEN · 결함 심기 4건(`onError` 삭제 · `onDone` 삭제 · 구독 비우기 삭제 · `_recheck` 대신 직접 열기)이 각각 새 시험에서만 실패 |
+| 3 | 지도 언마운트 때 `destroy` | vitest 1건 RED → GREEN · 결함 심기(`destroy` 호출 제거)가 그 시험 1건에서만 실패 · `src/features/map` 전체 95건 통과 |
+| 4 | K-7 판정 근거 | `Ruling 711` — 설치본·최신 베타 모두 같은 코드, 영향 141바이트/연결 |
+| 5 | 정적 검사 · 전체 시험 | 웹 `next build` 종료 0 · `tsc --noEmit` 종료 0 · `npm run lint` 종료 0 · vitest(실서버 제외) **142 파일 882건 통과 · 실패 0 · 건너뜀 0** · 매니저 앱 `dart analyze` 0 · `flutter test --exclude-tags real_backend` **455건 통과 · 실패 0 · 건너뜀 0** |
+| 6 | 화면 확인 — 머리줄 토글 1024px | 로그인(`staffA`) 뒤 대시보드에서 머리줄 `브라우저 알림 꺼짐` · 저장값 `on` 으로 다시 열면 `브라우저 알림 켜짐`(켠 사람이 계속 켜짐) · 탭 제목 `(3) 비상 발생 · 바래다 관계자 웹` · 비상 띠 유지 — 스크린샷 `frontend/report/r46-kfixfe/` |
+| 7 | 정본 반영 · 깨진 참조 0 | 이 절 · `§11` 색인 700·710~714 · `§5.17.1`·`Ruling 511`·`USER_FLOWS`·`§11` 의 511 행 정정 · docgraph 깨진 참조(아래 확인) |
+| 8 | 정리 | 서버 `:8620`·웹 `:3000` 종료 · 브라우저 세션 종료 · DB `r46_kfixfe` 는 지시대로 남김 |
+| 9 | 실서버 시험 3회 연속 | `NEXT_PUBLIC_API_BASE_URL=http://localhost:8620 npx vitest run src/shared/lib/ws/wsTokenRenewalRealBackend.test.ts` 를 사이에 손질 없이 3번 — **3번 모두 1건 통과 · 건너뜀 0**(154.9초 · 159.4초 · 157.2초) · 갈아탄 연결 3개 · 상태 알림 0회 · 중복 0 · 최대 공백 551·536·523ms · 두 연결이 같은 본문을 받은 수 12·7·8 · 시험이 올린 위치 336·338·338건 중 실패 0 · `--app.demo.enabled=false` 서버에서는 0.5초 만에 "운행 중 회차 없음" 문구로 실패 |
 
 ## 6. 완료 조건 — 화면 단위
 
