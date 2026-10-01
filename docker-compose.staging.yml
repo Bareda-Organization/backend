@@ -20,10 +20,15 @@ name: school-bus-staging
 services:
   postgres:
     image: postgres:16.15
+    # 운영 compose 와 같은 두 옵션(쿼리별 통계 · 임의 읽기 비용 1.1 — 메모리 DB 라 더더욱 맞다). 확장은 아래 초기화 스크립트가 `ops_stats` 스키마에 만든다 —
+    # 이 서버는 백엔드가 기동·초기화마다 Flyway clean() 으로 public 을 비우는데, public 에 만든 확장은 그때 같이 지워진다(2026-10-01 실측).
+    command: ["postgres", "-c", "shared_preload_libraries=pg_stat_statements", "-c", "random_page_cost=1.1"]
     environment:
       POSTGRES_DB: schoolbus
       POSTGRES_USER: schoolbus
       POSTGRES_PASSWORD: schoolbus
+    volumes:
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
     # 데이터는 메모리에만 — 디스크에 쌓이지 않는다. 초기화 자체는 백엔드가 기동·/dev/reset 때 DB 를 비우고
     # 스키마+시드를 새로 깐다(staging 섹션이 이 컨테이너 이름 `postgres` 를 비워도 되는 호스트로 연다).
     tmpfs:
@@ -43,11 +48,16 @@ services:
 
   backend:
     build: ./backend
+    # 종료 신호 뒤 SIGKILL 까지의 시간 — 운영과 같은 값(스프링 graceful 종료 30초보다 길게). `docker compose restart backend`(초기화)도 이 시간을 쓴다.
+    stop_grace_period: 35s
     # 네이버 API 키 등. git 에 없는 파일이라 집 PC 로 따로 복사해 온다(문서 참고).
     env_file:
       - ./backend/.env
     environment:
       SPRING_PROFILES_ACTIVE: local,staging
+      # OutOfMemoryError 가 나면 프로세스를 끝낸다 — 스레드만 죽은 채 "실행 중"으로 남으면 `restart: unless-stopped` 가 못 본다(운영과 같은 이유 ·
+      # 힙 상한은 두지 않는다: 이 서버는 컨테이너 메모리 한도가 없다).
+      JAVA_TOOL_OPTIONS: "-XX:+ExitOnOutOfMemoryError"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/schoolbus
       SPRING_DATASOURCE_USERNAME: schoolbus
       SPRING_DATASOURCE_PASSWORD: schoolbus
