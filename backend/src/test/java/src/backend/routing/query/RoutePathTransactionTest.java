@@ -80,12 +80,12 @@ class RoutePathTransactionTest {
     @Test
     @DisplayName("BR-211 — 편성 도로 경로의 지도 호출은 트랜잭션 밖에서 일어난다")
     void 편성_경로의_지도_호출은_트랜잭션_밖이다() {
-        Academy academy = academyRepository.save(Academy.register("BR211-" + System.nanoTime(), "경로트랜잭션시험학원",
+        Academy academy = academyRepository.save(Academy.register("BR211-" + uniqueSuffix(), "경로트랜잭션시험학원",
                 "서울", null, null));
         academyId = academy.getId();
         academy.assignCoordinates(new BigDecimal("37.500000"), new BigDecimal("127.000000"));
         academyRepository.save(academy);
-        long busId = busRepository.save(Bus.register(academyId, "BR211-" + System.nanoTime(), "22나1234",
+        long busId = busRepository.save(Bus.register(academyId, "BR211-" + uniqueSuffix(), "22나1234",
                 BusSeating.withDefaultCrew(16))).getId();
         Route route = routeRepository
                 .save(Route.register(academyId, new RoutePlan(busId, Weekday.MON, Direction.TO_ACADEMY, "본선", true)));
@@ -107,5 +107,10 @@ class RoutePathTransactionTest {
         assertThat(transactionActiveAtCall).as("지도 호출이 한 번은 일어나야 이 검사가 의미가 있다").isNotEmpty();
         assertThat(transactionActiveAtCall).as("지도 호출 순간 DB 트랜잭션(커넥션)이 열려 있으면 안 된다")
                 .containsOnly(false);
+    }
+
+    /** 시험 행 이름 뒤에 붙이는 짧은 고유값 — {@code System.nanoTime()} 은 기기 가동 시간이 길면 자릿수가 늘어 {@code varchar(20)} 을 넘는다(2026-10-01 실측 · 가동 약 28시간부터). */
+    private static String uniqueSuffix() {
+        return java.util.UUID.randomUUID().toString().substring(0, 8);
     }
 }
