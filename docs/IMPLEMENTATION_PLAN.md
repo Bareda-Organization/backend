@@ -1132,6 +1132,11 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 647 | 운영 설정 가드 시험 `OpsSettingsGuardTest` 신설(조율자 승인) · 남긴 한계 — nginx 설정은 배포가 자동 반영하지 않음(→ `Ruling 648·649` 로 해소) · CI 에 promtool 미연결 | 본문 §8.87 |
 | 648 | 배포가 nginx 설정을 자동 반영하는 방식 — **`restart proxy`**(매 배포 1~2초 끊김). 폴더 마운트 + `nginx -s reload` 는 버림(`infra/proxy/` 에 다른 설정 파일이 같이 있어 이름 바꿈 20여 곳 필요 · 얻는 것은 무끊김뿐) | 본문 §8.87 · `DEPLOYMENT §5.3` |
 | 649 | 반영 전 검사 — `docker compose run --rm --no-deps -T proxy nginx -t` 를 `up -d` 뒤(backend 이름이 풀리는 시점)에 하고, **실패하면 proxy 를 다시 시작하지 않고 배포를 실패로 끝낸다**(Prometheus 반영처럼 경고만 아님). 가드 시험 `OpsSettingsGuardTest` 가 순서·중단을 고정 | 본문 §8.87 · `DEPLOYMENT §5.3·§8·§11.6` |
+| 650 | 매니저 앱 오프라인 큐 — 서버 5xx(비상 신고 포함)도 큐에 · 5xx 를 10회·30분 되풀이한 행은 영구 실패로 재생에서 빼 뒤를 막지 않고 큐 화면에 `전송 실패` 로 남김 · 두절·새 요청 앞 재생은 세지 않음 · 재생 순서 `orderBy(id)` · 스키마 v4 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.30` |
+| 651 | 실시간 연결 재연결 — 포기 없이 30초 상한 무한 재시도(Flutter·웹) · 웹 지터 · 정수 `pow` 넘침(64회째 대기 0) 수정 · 앱 복귀(매니저·학부모)·웹 온라인/탭 복귀 때 `reconnectNow` | `docs/frontend/IMPLEMENTATION_PLAN.md §5.30` |
+| 652 | 전체 관제 회차 목록 폴링 — 실시간 `connected` 면 30초 · 아니면 7초 · 재연결 직후 한 번 바로 받음 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.30` |
+| 653 | 이벤트 뒤 재조회 묶기 — 웹 대시보드 300ms 묶음 · 매니저 앱 명단·노선 첫 이벤트 뒤 1초 창 안 한 번(창을 밀지 않음) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.30` |
+| 654 | 오프라인 대기열 카드 폭 — 문구가 짧은 카드만 줄어 가운데에 뜨던 것(`Ruling 592` 와 같은 갈래, 화면 확인에서 발견) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.30` |
 
 
 ## 8.73 ⚖ `R46-BE` — 성능 개선(감사 제외) + 바로 고칠 것 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 410~419 · 백엔드 갈래)
