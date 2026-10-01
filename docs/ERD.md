@@ -6,7 +6,7 @@
 |---|---|
 | 문서 버전 | v1.1 |
 | 작성일 | 2026-08-24 |
-| 개정일 | 2026-10-01 — R46-POLISH: §3.4 `audit_log.ip` 에 계정 차단 해제 행 포함(`Ruling 595`). 이전 개정 — 2026-10-01 — R46-LAST: §3.4 `audit_log.ip` 에 계정 비밀번호 초기화 행 포함(`Ruling 580`). 이전 개정 — 2026-10-01 — R46 privacy: `student.anonymized_at`(`V15`) · §5.3 `ix_student_retention_cutoff` · §7.1·§7.2·§7.3 퇴원 학생 개인정보 파기(퇴원 90일 뒤 익명화, `Ruling 480 ②`·`520`~`523`). 이전 개정 — 2026-10-01 — §3.4 `audit_log.ip` 를 조회 행까지 확장 · §7.2·§7.3 `audit_log` 무기한 → 2년(`Ruling 445`). 이전 개정 — 2026-09-30 — §5.3 에 조회 인덱스 4개(BR-258, `V1`)와 `V8` 보존 정리 인덱스 5개(BR-259, 실제 `CREATE INDEX` 5문 — 아래 6개는 셈이 어긋난 옛 표기) 등재. 이전 개정 — 2026-09-04 — `V8` 보존 정리 인덱스 6개 반영 · §7.2 `run_position` 90일·`audit_log` 무기한 확정(Ruling 243). 이전 개정 — 2026-09-03 — `V3`~`V7` 반영: `run_stop.proximity_notified_at`(V3) · `shedlock` 테이블 신설(V4) · `notification_log.type` CHECK 확장 확인(V5·V6, 서술 변경 없음) · `emergency_alert.position_recorded_at` 및 `occurred_at`·`received_at` 서술 정정(V7, Ruling 236). DDL-ERD 컬럼 전수 대조로 `academy.lat`·`lng` · `run.consecutive_failures` 보완. `notification_log.acked` 추적 범위 명확화(Ruling 227·228), §8 갱신(X-04·X-05 신설 반영, `academy.code` 해소 반영), 공통 규칙 표기 C-01~C-18. 테이블 41개 · 그룹 5개. Ruling 190·207·210·219·227·228·236 반영 |
+| 개정일 | 2026-10-01 — R46-LATERBE: `run_position` 일 단위 범위 파티션(PK `(id, recorded_at)` · 기본 파티션 · 만료는 파티션 DROP — `Ruling 670` 이 이 테이블에 한해 `Ruling 243` 을 뒤집음) · §4.1 학원 경계 복합 FK 11쌍(부모 `UNIQUE (id, academy_id)` — `Ruling 675`) · §5.3 `ix_run_open_service_date` 추가·`ix_run_position_retention_cutoff` 삭제(`Ruling 673`). 이전 개정 — 2026-10-01 — R46-POLISH: §3.4 `audit_log.ip` 에 계정 차단 해제 행 포함(`Ruling 595`). 이전 개정 — 2026-10-01 — R46-LAST: §3.4 `audit_log.ip` 에 계정 비밀번호 초기화 행 포함(`Ruling 580`). 이전 개정 — 2026-10-01 — R46 privacy: `student.anonymized_at`(`V15`) · §5.3 `ix_student_retention_cutoff` · §7.1·§7.2·§7.3 퇴원 학생 개인정보 파기(퇴원 90일 뒤 익명화, `Ruling 480 ②`·`520`~`523`). 이전 개정 — 2026-10-01 — §3.4 `audit_log.ip` 를 조회 행까지 확장 · §7.2·§7.3 `audit_log` 무기한 → 2년(`Ruling 445`). 이전 개정 — 2026-09-30 — §5.3 에 조회 인덱스 4개(BR-258, `V1`)와 `V8` 보존 정리 인덱스 5개(BR-259, 실제 `CREATE INDEX` 5문 — 아래 6개는 셈이 어긋난 옛 표기) 등재. 이전 개정 — 2026-09-04 — `V8` 보존 정리 인덱스 6개 반영 · §7.2 `run_position` 90일·`audit_log` 무기한 확정(Ruling 243). 이전 개정 — 2026-09-03 — `V3`~`V7` 반영: `run_stop.proximity_notified_at`(V3) · `shedlock` 테이블 신설(V4) · `notification_log.type` CHECK 확장 확인(V5·V6, 서술 변경 없음) · `emergency_alert.position_recorded_at` 및 `occurred_at`·`received_at` 서술 정정(V7, Ruling 236). DDL-ERD 컬럼 전수 대조로 `academy.lat`·`lng` · `run.consecutive_failures` 보완. `notification_log.acked` 추적 범위 명확화(Ruling 227·228), §8 갱신(X-04·X-05 신설 반영, `academy.code` 해소 반영), 공통 규칙 표기 C-01~C-18. 테이블 41개 · 그룹 5개. Ruling 190·207·210·219·227·228·236 반영 |
 | 기준 | FEATURE_SPEC.md · PRD.md · USER_FLOWS.md · API_SPEC.md v1.0 (2026-08-24) |
 | DBMS | PostgreSQL |
 | 성격 | **To-Be 설계** — 현 코드베이스의 실측 기록 부재. 구현은 이 문서에 맞춰 갱신 대상 |
@@ -774,13 +774,15 @@ erDiagram
 
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
-| `id` | bigint | PK | |
+| `id` | bigint | PK(`id`, `recorded_at`) | 파티션 키가 PK 에 들어가야 해 **복합 PK**(`Ruling 670`). 엔티티 `@Id` 는 `id` 하나라 JPA 코드는 그대로 |
 | `run_id` | bigint | NN | 대상 회차. **FK 미설정** (§4) |
 | `lat` · `lng` | numeric(9,6) | NN | 좌표 |
-| `recorded_at` | timestamptz | NN | 단말 측정 시각 |
+| `recorded_at` | timestamptz | NN | 단말 측정 시각. **파티션 키** — 한국 시간 자정 기준 일 단위 범위 파티션 |
 | `received_at` | timestamptz | NN | 서버 수신 시각. 신호 유실 판정("마지막 확인 위치 · N분 전")의 기준 |
 | `speed` | numeric(5,2) | | 속도 |
 | `heading` | numeric(5,2) | | 진행 방향 |
+
+**파티션**(`Ruling 670`) — `PARTITION BY RANGE (recorded_at)` **일(한국 시간 0시~24시) 단위**, 이름 `run_position_pYYYYMMDD`. **기본 파티션 `run_position_default` 가 안전망**이라 해당 날짜 파티션이 없어도 INSERT 가 실패하지 않는다(실패하면 위치 수신이 멈춘다). 앱이 파티션을 미리 만든다(§7.3). 인덱스 `ix_run_position_run_recorded (run_id, recorded_at desc)` 는 파티션마다 자동 생성된다.
 
 **존재 이유** — 송신 주기가 **2초**(2026-09-14 · 옛값 5~10초)라 한 회차에 **천 행 단위**로 쌓이는 최대 적재 테이블. "곧 도착합니다" 자동 발송의 판정 입력이자 관제·학부모 화면의 갱신 원본. **근거** LOC-01·02 · NTF-04 · API_SPEC §4.12 · NFR-03
 
@@ -915,6 +917,8 @@ erDiagram
 
 ### 4.1 FK 를 설정하는 관계
 
+**학원 경계 복합 FK 11쌍(`Ruling 675`)** — `academy_id` 를 가진 자식이 같은 학원의 부모만 가리키게 `FOREIGN KEY (부모_id, academy_id) REFERENCES 부모 (id, academy_id)` 로 건다(부모에 `UNIQUE (id, academy_id)` — `account` · `stop` · `student` · `bus` · `schedule` · `run` 6개). 이전 단일 컬럼 FK 는 "다른 학원의 버스·회차·학생·승하차지·계정" 을 가리켜도 통과시켰고 학원 격리는 앱 코드의 조회 조건만 지켰다. 대상 — `run`·`schedule`·`route` → `bus` · `run` → `schedule` · `change_request` → `run`·`student`·`stop`(`new_stop_id`) · `guardian`·`academy_staff`·`student`·`manager` → `account`. `ON DELETE SET NULL` 인 셋(`run.schedule_id` · `change_request.new_stop_id` · `student`·`manager` 의 `account_id`)은 **컬럼 목록을 붙여**(`SET NULL (schedule_id)`) 자기 컬럼만 비운다 — 목록이 없으면 `academy_id` 까지 비우려다 NOT NULL 로 실패한다. 아래 표의 FK 컬럼 열은 이 쌍들에서 `academy_id` 를 덧붙여 읽는다. **`academy_id` 가 없는 자식**(`run_rider` · `route_stop` · `run_stop` — 부모 경유 §6.1)은 복합 FK 를 걸 수 없어 **점검 쿼리** `backend/load/sql/check_academy_boundary.sql`(전부 0건이어야 함)과 시험 `SeedBoundaryCheckTest` 가 지킨다.
+
 | 부모 → 자식 | 카디널리티 | FK 컬럼 | ON DELETE | 비고 |
 |---|---|---|---|---|
 | `academy` → `academy_setting` | 1 : 1 | `academy_id` | CASCADE | 학원 없이 설정 무의미 |
@@ -977,7 +981,7 @@ erDiagram
 
 | 자식 | 논리적 부모 | 미설정 이유 |
 |---|---|---|
-| `run_position` | `run` | 회차당 **1,350행 안팎**(송신 **2초** · 운행 45분 기준. 옛값 5초일 때 540행). 매 INSERT 마다 부모 행 검사가 붙고, 보존 주기(90일)가 회차와 달라 독립으로 지운다. 파티션은 두지 않는다(`Ruling 243` — 행 단위 DELETE, §7.3) |
+| `run_position` | `run` | 회차당 **1,350행 안팎**(송신 **2초** · 운행 45분 기준. 옛값 5초일 때 540행). 매 INSERT 마다 부모 행 검사가 붙고, 보존 주기(90일)가 회차와 달라 독립으로 지운다(일 단위 파티션 DROP — `Ruling 670`, §7.3) |
 | `notification_log` | `account` · `student` · `academy` | 보존 **14일**이며 수신자 계정·학생이 이후 삭제·연결 해제돼도 발송 사실은 남아야 함. 이름 스냅샷 컬럼으로 표시값을 자립시킴 |
 | `audit_log` | `account` · `academy` | 감사 로그가 감사 대상의 삭제에 연동되면 기록의 목적이 소멸. 로그인 실패는 계정 미특정 가능성도 존재 |
 | `exception_report` | `run` · `run_rider` · `academy` | 사건 기록이라 부모 정리와 독립 존속. 회차 데이터 아카이빙 시 보고만 남기는 선택이 가능 |
@@ -996,6 +1000,7 @@ erDiagram
 |---|---|---|
 | `academy(code)` | UK | 학원 코드 고유값. 자동 생성이라 충돌은 **서버가 재생성으로 흡수** — 클라이언트 에러 부재 (ACAD-02) |
 | `account(login_id)` | UK | 로그인 아이디 중복 차단 (AUTH-01) |
+| `account`·`stop`·`student`·`bus`·`schedule`·`run` 의 `(id, academy_id)` | UK | **복합 FK(§4.1)의 대상** — 자식이 `(부모 id, academy_id)` 쌍으로 가리켜 학원 경계를 DB 가 지킨다. PK 가 `id` 를 이미 유일하게 하므로 새 규칙이 아니라 FK 대상 선언이다 (`Ruling 675`) |
 | `academy_staff(academy_id)` | UK (partial, `status='active'` 한정) | **학원당 재직 관계자 1명** — 초과 승인 차단 `409 STAFF_QUOTA_EXCEEDED` (C-01 · ACAD-05). 조건이 없으면 학원당 행이 평생 1개라 퇴사(`status='inactive'`, ACAD-06) 뒤 새 관계자 승인이 영구 불가 |
 | `academy_staff(account_id)` · `system_admin(account_id)` | UK | 계정 1:1 |
 | `student(account_id)` · `guardian(account_id)` · `manager(account_id)` | UK (partial, `NOT NULL` 한정) | 한 계정이 두 레코드에 연결되는 상태 차단 (AUTH-11) |
@@ -1060,6 +1065,7 @@ erDiagram
 |---|---|
 | `run(service_date, confirm_at)` partial `WHERE status = 'idle' AND canceled_at IS NULL` (`ix_run_status_confirm_at`) | **확정 배치가 30초마다 "실행 시각이 지난 회차"를 조회** — `status='idle' AND canceled_at IS NULL AND confirm_at <= now() AND service_date >= 오늘`. 미취소 idle 만 색인하고 날짜를 앞에 둬서 **취소된 idle 회차와 지난 날짜에 끝내 확정 못 한 idle 회차를 인덱스 범위가 건너뛴다**(합성 3만 행 실측: 힙에서 버리는 행 3,000 → 0 · 버퍼 279 → 5). 확정·운행·종료 전이는 이 인덱스에서 항목이 빠지기만 한다. 미확정 게이지(`countOverdueUnconfirmed`)도 같은 조건이라 `Index Only Scan`. ⚠ 부분 조건이 리터럴이라 바인딩 파라미터의 일반(generic) 계획은 이 인덱스를 못 쓴다 — 순차 스캔이 더 비싸 맞춤 계획이 유지된다 (RTE-02 · C-04 · `Ruling 631`) |
 | `run(academy_id, service_date, depart_time)` | 관계자 대시보드의 금일 회차 표 (MON-01·02) |
+| `run(service_date)` partial `WHERE canceled_at IS NULL AND status <> 'finished'` (`ix_run_open_service_date`) | **관리자 "주의 필요 회차" 집계**(지연·확정 실패 — §6.15)가 **전 학원**의 오늘 미완료 회차를 센다. `service_date` 선행 인덱스가 없으면 위 `academy_id` 선행 인덱스를 비선두 열로 전체 훑는다(3년치 합성 데이터에서 버퍼 352 → 약 150). 오늘·내일 분량만 색인한다. 집계 JPQL 은 상태를 enum 리터럴로 써 일반 계획에서도 이 인덱스를 쓴다 (`Ruling 673`) |
 | ~~`run(bus_id, service_date)`~~ | **삭제**(`Ruling 630`) — `uk_run_bus_date_direction_depart` 의 왼쪽 접두와 같아 읽는 쪽이 UK 로 그대로 풀린다. 매니저 앱 담당 회차 조회(RUN-01) · `run.bus_id` FK 선행 인덱스 요건도 UK 가 충족 |
 | `run(schedule_id)` | 스케줄 삭제(`ON DELETE SET NULL`)가 `run` 전체를 훑지 않게 하는 FK 선행 인덱스 (`Ruling 630`) |
 | `run(status)` partial `WHERE status='moving'` | 관제의 운행 중 회차 목록 (O-05) |
@@ -1107,7 +1113,7 @@ erDiagram
 | `waypoint(run_id)` | 회차의 경유 지점 목록 (RTE-10) (BR-258) |
 | `signup_request(account_id, requested_at desc)` | 계정별 최근 가입 신청 1건 — 가입 상태 조회·재신청 (AUTH-10) (BR-258) |
 | `link_code(code)` | 자녀 연결 코드 조회 (S-05) — 코드는 앱이 유일하게 뽑고 **UNIQUE 는 걸지 않는다**(만료 코드와 겹칠 수 있음). 조회만 빠르게 (BR-258) |
-| `notification_log(created_at)` · `run_position(recorded_at)` | **보존 정리 배치의 컷오프 조회**(전 학원·전 회차의 컷오프 이전 행, Ruling 243) — 기존 복합 인덱스는 선행 컬럼이 달라 쓰이지 않는다. `V8__add_retention_indexes.sql` (BR-259). `run_position` 의 정리 쿼리는 **`order by recorded_at`** 으로 이 인덱스의 키와 정렬 키를 맞춘다 — `order by id` 이면 컷오프가 전체의 약 1%(정상 상태)를 거를 때 플래너가 컷오프 이전 전체를 읽어 id 로 정렬하는 계획을 골라 5,000행 배치마다 그 전체를 다시 읽는다(합성 100만 행 실측) (`Ruling 631`) |
+| `notification_log(created_at)` | **보존 정리 배치의 컷오프 조회**(전 학원의 컷오프 이전 행, `Ruling 243`) — 기존 복합 인덱스는 선행 컬럼이 달라 쓰이지 않는다. `V8__add_retention_indexes.sql` (BR-259). `run_position` 의 컷오프 인덱스(`ix_run_position_retention_cutoff`)는 **삭제**했다 — 만료를 행 DELETE 가 아니라 일 단위 파티션 DROP 으로 하므로(`Ruling 670`, §7.3) 컷오프로 훑을 일이 없다(옛 정렬 키 `Ruling 631` 도 함께 사라짐) |
 | `refresh_token(revoked_at)` partial `WHERE revoked_at IS NOT NULL` · `refresh_token(expires_at)` partial `WHERE revoked_at IS NULL` | 보존 정리의 토큰 삭제 — 폐기된 토큰은 `revoked_at`, 아직 폐기되지 않은 토큰은 `expires_at` 을 컷오프와 견준다. 두 부분 인덱스로 조건을 나눈다 (BR-259) |
 | `link_code(expires_at)` | 보존 정리의 만료된 연결 코드 삭제 (BR-259) |
 
@@ -1175,24 +1181,24 @@ erDiagram
 | `rider_status_history` | 무기한 (아카이빙 대상) | 되돌리기 이력 보존 요건 (BRD-05 · NFR-07) |
 | `no_show_case` · `no_show_contact` · `exception_report` · `emergency_alert` | 무기한 (아카이빙 대상) | 사건 대응 이력. 비상 알림은 **사고 시각 판정 근거**(`occurred_at`)라 정리 대상 밖 (EXC-04) |
 | `audit_log` | **2년 (2026-10-01 사용자 결정 · `Ruling 445`)** — 두 category 모두, 코드 상수 `RetentionPolicy.AUDIT_LOG_RETENTION`(달력 기준 2년). 2026-09-04 `Ruling 243` 의 "무기한" 을 바꾼다 | 개인정보 안전성 확보조치 기준의 접속기록 보관(1년 이상 · 대규모·민감정보 2년 이상 — 조율 시점의 기억 기준이라 **L-06~08 법률 검토에서 재확인**) (NFR-08). 삭제는 category 별로 기존 `(category, occurred_at desc)` 인덱스를 탄다 |
-| `run_position` | **90일 (2026-09-04 사용자 확정 · Ruling 243 · X-09 해소)** — 코드 상수 `RetentionPolicy.RUN_POSITION_RETENTION` | 실사용 전환 시 법정 검토(L-06~08)에서 재조정 여지만 존치. 위치정보 보유기간이 개발 전 확인 대상. 위치정보법 시행령의 최대 1년이 상한 후보 (PRD §10.1 L-06·L-07 · §11.1 L-08 · API_SPEC §1.12) |
+| `run_position` | **90일 (2026-09-04 사용자 확정 · Ruling 243 · X-09 해소)** — 코드 상수 `RetentionPolicy.RUN_POSITION_RETENTION`. 일 단위 파티션이라 **실제 보관은 90일 이상 91일 미만**(컷오프가 걸친 날의 파티션은 통째로 남는다 — `Ruling 670`) | 실사용 전환 시 법정 검토(L-06~08)에서 재조정 여지만 존치. 위치정보 보유기간이 개발 전 확인 대상. 위치정보법 시행령의 최대 1년이 상한 후보 (PRD §10.1 L-06·L-07 · §11.1 L-08 · API_SPEC §1.12) |
 | `refresh_token` | **만료·폐기 후 30일 (잠정 · Ruling 243)** — 코드 상수 `RetentionPolicy.REFRESH_TOKEN_RETENTION_AFTER_EXPIRY_OR_REVOCATION` | 폐기 직후 그 토큰으로 재사용을 시도하는 정황을 감사할 여지를 둠 (BR-141) |
 | `link_code` | 만료 즉시 (Ruling 243) | 재사용 불가한 1회성 코드라 감사 가치가 없어 컷오프를 두지 않음(BR-141) |
 
 ### 7.3 대량 적재 테이블의 정리
 
-**Ruling 243(2026-09-04 사용자 확정) — 파티셔닝은 이번에 안 한다. 정리는 행 단위 DELETE 배치.** 현재 적재량(개발 DB 기준)에서 파티션 도입 이득이 없고, 파티셔닝은 `V1` 테이블 재생성이 필요해 실사용 전환(§7.2 법정 검토)과 함께 재검토하는 편이 맞다는 판단. 구현은 `RetentionCleanupScheduler` — 컷오프(§7.2)를 지난 행을 `Limit.of(BATCH_SIZE)` 로 잘라, 상한만큼 지웠으면(아직 남았을 수 있으면) 같은 틱에서 다음 회차로 이어가고 상한보다 적게 지웠으면 멈춘다. 한 번에 전건을 지우면 오래 쌓인 테이블에서 행 잠금을 길게 붙들어 운영 중 조회를 막기 때문.
+**`run_position` 만 일 단위 범위 파티션, 나머지는 행 단위 DELETE 배치.** `Ruling 243`(2026-09-04 사용자 확정)은 "파티셔닝은 안 한다"였으나 **`Ruling 618`(2026-10-01 사용자)이 `run_position` 한 테이블에 한해 뒤집었다**(`notification_log`·`audit_log` 는 그대로 행 단위 DELETE) — 구현·판정은 `Ruling 670`. 하루 약 27만 행(정상 상태 2,430만 행)을 90일 지나면 행 단위로 지우는 일(삭제 54회전 · 죽은 행 · vacuum)이 파티션 DROP 한 번으로 바뀐다. 구현은 `RunPositionPartitionManager`(미리 만들기 · 만료 DROP)와 `RetentionCleanupScheduler`(DROP 호출) — 나머지 테이블은 컷오프(§7.2)를 지난 행을 `Limit.of(BATCH_SIZE)` 로 잘라, 상한만큼 지웠으면(아직 남았을 수 있으면) 같은 틱에서 다음 회차로 이어가고 상한보다 적게 지웠으면 멈춘다. 한 번에 전건을 지우면 오래 쌓인 테이블에서 행 잠금을 길게 붙들어 운영 중 조회를 막기 때문.
 
 | 테이블 | 적재량 | 처리 |
 |---|---|---|
-| `run_position` | 회차당 **1,350행 안팎** (송신 **2초** × 운행 45분. 옛 5초 기준 540행의 2.5배) | 행 단위 DELETE 배치. 보유 **90일**(§7.2). 하루 삭제가 정상 상태 표의 약 1.1% 라 표 단위 autovacuum 을 `vacuum_scale_factor = 0.01` · `vacuum_insert_scale_factor = 0.05` 로 낮춘다(전역 20% 이면 약 18일치 죽은 행이 쌓인 뒤에야 정리 — `Ruling 630`) |
+| `run_position` | 회차당 **1,350행 안팎** (송신 **2초** × 운행 45분. 옛 5초 기준 540행의 2.5배) | **일 단위 파티션 + 만료 파티션 DROP**(`Ruling 670`). ① **미리 만들기** — `RunPositionPartitionScheduler` 가 기동 직후 한 번과 매일 00:10(ShedLock `run-position-partition`)에 오늘부터 **7일 앞까지** 없는 파티션을 만든다(멈춰도 며칠은 파티션이 남아 있고, 그동안 못 만들어도 **기본 파티션**이 받아 위치 수신은 이어진다). 기본 파티션에 이미 그 날짜 행이 있으면 PostgreSQL 이 파티션 생성을 거절하므로 같은 트랜잭션에서 그 범위 행을 id 보존한 채 새 파티션으로 옮긴다. 실패는 스케줄러 지표 체계(`schoolbus_scheduler_failures_total` · `schoolbus_scheduler_last_success_age_seconds{scheduler="run-position-partition"}`)로 드러난다. ② **만료** — 보존 정리(00:15)가 상한이 컷오프(90일 전) 이하인 일 파티션을 통째로 DROP 하고 기본 파티션의 컷오프 이전 행을 지운다. **컷오프가 걸친 날의 파티션은 남는다 — 실제 보관은 90일 이상 91일 미만**(경계 정렬 · 판정 `Ruling 670`). 행 DELETE 도, 삭제 전용 인덱스도, 표 단위 autovacuum 설정(옛 `Ruling 630`)도 불필요. **대체 조회**(Redis 장애 때 `findLatestByRunIdIn`)는 파티션마다 인덱스를 점 조회한다 — 100개 파티션에서 합성 100회차 계획 7.2ms + 실행 7.9ms(Redis 장애 때만 쓰는 경로). **전환 근거 보존**: 월·주 단위는 경계에 걸친 파티션이 최대 30·7일 더 남고, 맞추려면 행 DELETE 가 되살아난다 |
 | `notification_log` | 승하차 처리 1건당 학부모·관계자 다중 행 | 행 단위 DELETE 배치. 보관 **14일**(§7.2) |
 | `refresh_token` · `link_code` | 계정·인증 흐름당 소량 | 행 단위 DELETE 배치. 만료·폐기 기준(§7.2) |
 | `audit_log` | 개인정보 조회마다 1행 — 같은 행위자·학생은 10분 안에 묶어 1행(`Ruling 445`) | 행 단위 DELETE 배치. 보유 **2년**(§7.2 · `Ruling 445`) |
 | `rider_status_history` | 탑승자 수 × 상태 전이 수 | 정리 배치 대상 밖 — 무기한 보존. 회차 단위 조회가 지배적이라 인덱스로 충분 |
 | `student` (퇴원 90일 경과) | 퇴원 학생 수 — 일 단위로 소량 | 같은 배치 상한(`BATCH_SIZE`)·같은 잠금(`retention-cleanup`)으로 익명화(행 삭제 아님, `Ruling 522`). 대상 조회는 부분 인덱스 `ix_student_retention_cutoff (deleted_at) WHERE deleted_at IS NOT NULL AND anonymized_at IS NULL` 을 탄다 |
 
-**정리 배치의 전제** — 정리 대상 중 `run_position`·`notification_log` 는 §4.2 에 따라 FK 미설정(대량 적재·독립 보존 주기). `refresh_token`·`link_code` 는 §4.1 대로 FK 를 갖지만 컷오프 판정이 부모 상태가 아니라 자기 컬럼(만료·폐기 시각)만 보므로 행 단위 DELETE 로 지워도 무방.
+**정리 배치의 전제** — 정리 대상 중 `run_position`·`notification_log` 는 §4.2 에 따라 FK 미설정(대량 적재·독립 보존 주기). `run_position` 은 파티션 DROP 이라 부모 행 검사 비용 이유는 그대로이고 "DROP 으로 지운다"가 새 이유다. `refresh_token`·`link_code` 는 §4.1 대로 FK 를 갖지만 컷오프 판정이 부모 상태가 아니라 자기 컬럼(만료·폐기 시각)만 보므로 행 단위 DELETE 로 지워도 무방.
 
 ---
 

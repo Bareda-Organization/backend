@@ -651,9 +651,9 @@ try {
 
 **멱등 보장은 DB 제약이 하고 JPA 는 그 위반을 예외로 받는다.** 조회 후 저장하는 방식(`exists` → `save`)은 두 요청이 동시에 통과하는 창이 남으므로 쓰지 않는다.
 
-### 9.3 파티셔닝은 하지 않는다 — 행 단위 DELETE
+### 9.3 파티셔닝 — `run_position` 만 일 단위, 나머지는 행 단위 DELETE
 
-`run_position` · `notification_log` · `audit_log` 는 **파티션을 두지 않는다**(`Ruling 243` · ERD §7.3 — 현재 적재량에서 파티션 도입 이득이 없고, 전환은 `V1` 테이블 재생성이 필요해 실사용 전환·법정 검토와 함께 재검토). 정리는 `RetentionCleanupScheduler` 의 **행 단위 DELETE 배치**이고, 하루 약 27만 행을 지우는 `run_position` 은 표 단위 autovacuum 설정(`vacuum_scale_factor = 0.01`)이 죽은 행 회수를 맡는다(`Ruling 630`). 정리 쿼리의 정렬 키는 컷오프 인덱스의 키(`recorded_at`)와 맞춘다(`Ruling 631`). 전환 트리거 — 상시 행수 5천만 초과 · 야간 삭제 10분 초과 · autovacuum 이 하루 이상 밀림. 파티션을 도입하면 DDL 수준이라 JPA 코드는 영향이 없다(부모 테이블만 보고 정리는 파티션 `DROP`).
+**`run_position` 만 `recorded_at` 일(한국 시간 자정) 단위 범위 파티션**이다(`Ruling 618` 사용자 결정이 `Ruling 243` "파티셔닝 안 함"을 이 테이블에 한해 뒤집음 — 구현·판정 `Ruling 670` · ERD §7.3). `notification_log` · `audit_log` 는 **여전히 파티션을 두지 않고** `RetentionCleanupScheduler` 의 행 단위 DELETE 배치로 정리한다(`Ruling 243` · 보존 14일·2년이라 표가 작다). 설계 요점 — ① **기본 파티션 필수**: 해당 날짜 파티션이 없으면 INSERT 가 실패해 위치 수신 전체가 멈추므로 `run_position_default` 가 안전망이다 ② 파티션은 앱이 미리 만든다(`RunPositionPartitionScheduler` — 기동 직후 + 매일 · 7일 앞까지 · ShedLock · 실패는 스케줄러 지표) ③ 만료는 **행 DELETE 가 아니라 기간이 지난 파티션 DROP**(컷오프가 걸친 날은 남아 실제 보관 90일 이상 91일 미만) ④ PK 는 `(id, recorded_at)` — 엔티티 `@Id id` 와 `findLatestByRunIdIn` 은 그대로 동작한다 ⑤ 일 단위를 고른 이유: 월·주 단위는 경계 파티션이 최대 30·7일 더 남고 맞추려면 행 DELETE 가 되살아난다. 대가는 `run_id` 만으로 거는 대체 조회가 파티션마다 인덱스를 점 조회한다는 것(100개 파티션에서 합성 100회차 계획 7.2ms + 실행 7.9ms — Redis 장애 때만 쓰는 경로).
 
 ### 9.4 되짚어볼 지점
 
@@ -722,6 +722,10 @@ org.springframework.boot:spring-boot-testcontainers
 | 시크릿 (DB 비밀번호 · 지도 API 키 · 푸시 인증서 · 첫 관리자 해시 · Grafana 비밀번호) | **SSM Parameter Store** | 이미지·저장소에 넣지 않음 |
 
 ⚠ **주기와 임계값을 가른다.** yml 에 두는 것은 "얼마나 자주 검사하는가"이고, "언제 발동하는가"는 사양이 정한 값이다. 이전 코드는 미승차 임계값이 코드 상수 10분이었고 학원별 설정이 불가능했다.
+
+### 12.2.1 요청 스레드 수 — DB 연결 풀의 5배 (R46-LATERBE L11 · `Ruling 674`)
+
+**Tomcat 요청 스레드(`server.tomcat.threads.max`)를 명시한다 — 운영·demo 100(풀 20 × 5) · 스테이징 50(풀 10 × 5) · `accept-count` 100.** 명시하지 않으면 기본 200 이라 풀이 마를 때 200개 스레드가 연결을 3초씩 기다리며 서 있다(부하 측정 — 풀 10 에서 `tomcatBusy` 200 · `hikariPend` 116~194). 풀의 4~5배면 **DB 를 안 쓰는 요청**(Redis 읽기 · 헬스)이 연결 대기에 막히지 않을 여유가 남고 연결 대기 스레드는 80개로 한정된다. 풀보다 적게 두면 DB 연결이 놀고, 5배를 넘기면 대기만 길어진다. `accept-count` 는 스레드가 다 찬 뒤 TCP 대기열이라 기본(100)을 명시만 한다 — 키우면 거절 대신 오래 기다리다 3초 뒤 5xx 가 되는 요청만 늘고 줄이면 짧은 몰림에 연결 거부가 난다. STOMP 수신·발신과 스케줄러·알림 발송은 별도 실행기라 이 스레드를 쓰지 않는다. 근거 수치는 측정 기계(10코어) 값이라 운영 사양(4 vCPU)에서 재측정 전까지 잠정이다(`Ruling 351` 과 같은 단서). 설정 가드 — `TomcatThreadPoolConfigTest`(yml 을 프로파일별로 읽어 `스레드 = 풀 × 5` 고정). 이 관계는 `application.yml` 의 prod·demo·staging 문서에 같이 있다 — 풀 크기를 바꾸면 스레드 수도 함께 바꾼다.
 
 ### 12.3 백업 — 목표 유실 1시간 · 복구 1시간 (R46 ops2 · `Ruling 480 ①` · `500`)
 

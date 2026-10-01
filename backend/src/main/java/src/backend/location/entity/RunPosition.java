@@ -19,7 +19,8 @@ import lombok.NoArgsConstructor;
  * (ERD §3.4 · ARCHITECTURE §7~8).
  *
  * <p>{@code run} 은 논리적 부모이나 DB FK 가 미설정이다(ERD §4.2 — 위치 수신마다 부모 행 검사가 붙고 보존 주기(90일)가
- * 회차와 달라 독립으로 지운다. 파티션은 두지 않는다 — Ruling 243, 정리는 행 단위 DELETE). {@code recorded_at}(기기 시각)·{@code received_at}(서버 수신 시각) 은
+ * 회차와 달라 독립으로 지운다. 테이블은 {@code recorded_at} 일 단위 범위 파티션이고 정리는 만료 파티션 DROP 이다 — Ruling 670, PK 는
+ * {@code (id, recorded_at)} 이나 엔티티 {@code @Id} 는 {@code id} 하나로 충분하다). {@code recorded_at}(기기 시각)·{@code received_at}(서버 수신 시각) 은
  * 서로 다른 두 시계이므로 팩토리 파라미터로 각각 받는다 — 위도·경도는 CHECK 경계(±90/±180) 위반을
  * 막기 위해 {@code double} 이 아닌 {@link BigDecimal} 로 받는다(Ruling 34).
  */

@@ -260,7 +260,7 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      * 회차 중 {@code finished} 가 아니고 {@code delay_notice} 가 1건 이상인 것. 알림이 여러 건이어도 회차는 한 번만
      * 센다({@code EXISTS}). 상태를 파라미터가 아니라 enum 리터럴로 쓰는 이유는 부분 인덱스
      * {@code ix_run_open_service_date}({@code status <> 'finished'} 조건)가 일반(generic) 계획에서도 쓰이게 하려는 것이다 —
-     * 파라미터이면 플래너가 조건이 인덱스 조건을 함의하는지 알 수 없다(R46-LATERBE I-04).
+     * 파라미터이면 플래너가 조건이 인덱스 조건을 함의하는지 알 수 없다(R46-LATERBE, Ruling 673).
      */
     @AcademyScopeExempt(reason = "메인 관리자 전체 관제(§6.15)가 전 학원을 학원별로 묶어 세는 조회라 좁힐 학원이 부재하다 — "
             + "countConfirmFailedByAcademy 와 같은 근거와 같은 호출부 전제")

@@ -814,7 +814,7 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 240 | X-08 해소 — 사용자 판정 ② (2026-09-03)… | be-phases-0-14 §6 Phase 13 |
 | 241 | 완료 조건 재계수 — 정본 6항 + 신설 4항 + 전체 실측 = 11항… | be-phases-0-14 §6 Phase 14 |
 | 242 | L3 감사 단위 = 요청 1건 1행 (2026-09-04 사용자 확정… | be-phases-0-14 §6 Phase 14 |
-| 243 | 보존 정리는 행 단위 DELETE 배치, 파티셔닝은 이번에 안 한다 (2026-09-04 사용자 확정… | be-phases-0-14 §6 Phase 14 |
+| 243 | 보존 정리는 행 단위 DELETE 배치, 파티셔닝은 이번에 안 한다 (2026-09-04 사용자 확정 — ⚠ `run_position` 한 테이블은 `Ruling 618`·`670` 이 뒤집어 일 단위 파티션 DROP, `notification_log`·`audit_log` 는 그대로)… | be-phases-0-14 §6 Phase 14 |
 | 244 | 강제 확정 콘솔 개입(TECH_DECISIONS 14.3)의 API 가 API_SPEC 에 부재 → 오픈 이슈 Y 신설… | be-phases-0-14 §6 Phase 14 |
 | 245 | 배포 게이트 위치 = EC2 의 infra/scripts/deploy.sh(이미지 pull 앞)… | be-phases-0-14 §6 Phase 14 |
 | 246 | 좌석 3개 병렬 — 파일 축. T1 감사(핸들러 2·게이트) · T2 보존 정리(V8·리포지토리 삭제 메서드)… | be-phases-0-14 §6 Phase 14 |
@@ -1146,6 +1146,15 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 652 | 전체 관제 회차 목록 폴링 — 실시간 `connected` 면 30초 · 아니면 7초 · 재연결 직후 한 번 바로 받음 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.30` |
 | 653 | 이벤트 뒤 재조회 묶기 — 웹 대시보드 300ms 묶음 · 매니저 앱 명단·노선 첫 이벤트 뒤 1초 창 안 한 번(창을 밀지 않음) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.30` |
 | 654 | 오프라인 대기열 카드 폭 — 문구가 짧은 카드만 줄어 가운데에 뜨던 것(`Ruling 592` 와 같은 갈래, 화면 확인에서 발견) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.30` |
+| 618 | "나중" 항목 중 SSE 를 뺀 나머지를 진행(사용자 결정 2026-10-01) — L2 위치 SQL 합치기 · L5 근접 판정 묶음 · 관리자 주의 회차 집계 인덱스(검토 `idx`) · L11 Tomcat 스레드 명시 · **B-1 `run_position` 날짜 범위 파티션(이 테이블에 한해 `Ruling 243` 을 뒤집음)** · B-4 학원 경계 복합 FK · C-14 토큰 무중단 갱신. SSE 전환(`Ruling 617`)만 제외 | `.claude/r46/DECISIONS.md`(무시 파일 — 결정 원문) · 이행: 백엔드 본문 §8.88(`670`~`677`) · 토큰 갱신(C-14)은 실시간 갈래 몫 |
+| 670 | `run_position` 일(한국 시간 자정) 단위 `RANGE (recorded_at)` 파티션 — PK `(id, recorded_at)` · **기본 파티션 필수** · 앱이 기동 직후+매일 7일 앞까지 미리 만들기(ShedLock) · 만료는 **파티션 DROP**(컷오프가 걸친 날은 남아 실제 보관 90일 이상 91일 미만) · 컷오프 인덱스·행 DELETE·표 단위 autovacuum 삭제 | 본문 §8.88 · `docs/ERD.md §3.4·§5.3·§7.3` · `docs/TECH_DECISIONS.md §9.3` |
+| 671 | 위치 수신 SQL 8 → 5(첫 도착 전 7 → 5) — 인가 `exists` 1 · 확정 노선+정차+이름 조인 1 · 방송 수신자 학생 id 투영. 캐시 없음(무효화 지점 0) | 본문 §8.88 |
+| 672 | 근접·출발 판정 묶음 — 위치는 회차 묶음당 Redis `MGET` 1회 · 회차당 읽기 트랜잭션 1개 · 선점은 판정별 트랜잭션(예외 격리 유지). `Ruling 624` 의 DB 대체는 묶음당 1쿼리로 | 본문 §8.88 |
+| 673 | 관리자 "주의 필요 회차" 집계 — `run(service_date)` 미완료·미취소 부분 인덱스 + 상태 enum 리터럴(일반 계획에서도 인덱스) | 본문 §8.88 · `docs/ERD.md §5.3` |
+| 674 | Tomcat 요청 스레드 = DB 연결 풀의 5배 — prod·demo 100 · staging 50 · `accept-count` 100 | 본문 §8.88 · `docs/TECH_DECISIONS.md §12.2.1` |
+| 675 | 학원 경계 복합 FK 11쌍(부모 `UNIQUE (id, academy_id)`) · `academy_id` 없는 자식(`run_rider`·`route_stop`·`run_stop`)은 점검 쿼리·시험 | 본문 §8.88 · `docs/ERD.md §4.1·§5.1` |
+| 676 | 부하 시드 학원 경계 오염 원인 수정 — 위치용 회차를 학생이 속한 학원마다 심고 같은 학원 학생만 붙임 | 본문 §8.88 · `docs/backend/LOAD_TESTING.md` |
+| 677 | `ErrorCode` 열거 ↔ 에러 코드 사전 양방향 일치 시험 · `SERVER_BUSY` 행 등재 | 본문 §8.88 · `docs/API_SPEC.md §8.7` |
 
 
 ## 8.73 ⚖ `R46-BE` — 성능 개선(감사 제외) + 바로 고칠 것 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 410~419 · 백엔드 갈래)
@@ -1575,3 +1584,41 @@ R46 검토 `stab`(경보 · 로그 드라이버 · OOM · 종료 대기) · `idx
 ### R46-FIXOPS2 — 배포 때 nginx 설정 자동 반영 (2026-10-01 · 분기점 `e38d6f23` · 번호대 648~649 · 사용자 결정 `Ruling 615`)
 
 `Ruling 647` 이 남긴 한계 ① — nginx 설정을 바꾼 배포 뒤에 손으로 `restart proxy` 를 해야 하는 것 — 을 `deploy.sh` 에 넣어 해소했다. **재현**: 파일 하나를 바인드 마운트한 컨테이너는 파일이 `mv` 로 교체돼도 Linux 에서 옛 내용을 계속 보고(다시 마운트하면 새 내용), `nginx -s reload` 는 새 설정을 읽지 못하며, `up -d` 가 backend 를 재생성해도 proxy 는 다시 만들어지지 않는다(compose 5.5.1 실측 · EC2 는 v2.29.7 이라 첫 배포 뒤 확인). **`Ruling 648`**: 반영 방식은 `restart proxy`(1~2초 끊김, 사용자 허용). 폴더 마운트 + reload 는 `infra/proxy/` 에 `nginx.conf`·`nginx.staging.conf` 가 같이 있어 운영 설정을 전용 폴더로 옮겨 이름을 바꿔야 하고, 그 이름이 `application.yml`(다른 갈래 소유)을 포함해 20여 곳에 있어 버렸다. **`Ruling 649`**: `deploy.sh` 3-1 단계 — `up -d` 뒤에 `docker compose run --rm --no-deps -T proxy nginx -t`(새 컨테이너가 교체된 새 파일을 보고 같은 네트워크·볼륨으로 `backend` 이름·인증서를 실제와 같이 본다)를 하고 실패하면 `exit 1`, 통과하면 `restart proxy`. 실제 `docker-compose.prod.yml` proxy 항목으로 만든 일회용 환경에서 정상 설정 통과 · 문법 오류·인증서 경로 없음·backend 이름 해석 실패는 종료코드 1 · 실패 경로에서 proxy 시작 시각 불변·응답 유지를 확인했다. 시험: `OpsSettingsGuardTest` 6 → 7건(검사 → 재시작 순서 · `up -d` 뒤 · 실패 시 `exit 1`) · 결함 심기 6종 전부 그 시험만 실패. 문서: `DEPLOYMENT §5.3`(신설)·`§8`(행 1)·`§10`(행 1)·`§11.6`(정정). **사용자가 준비할 것**: 첫 배포 로그의 `== 3-1.` 아래 `test is successful` 확인 · EC2 compose v2.29.7 에서 "backend 재생성이 proxy 를 다시 만들지 않는다" 확인. 근거 원문 `.claude/r46/report-fixops2.md`(무시 파일).
+
+## 8.88 ⚖ `R46-LATERBE` — "나중" 항목 백엔드 (2026-10-01 · 분기점 `36872c50` · 번호대 670~679 · 사용자 결정 `Ruling 618`)
+
+`Ruling 618`(사용자 *"나중 항목에서 sse 제외하고 작업 진행"*)이 연 백엔드 몫 8건이다 — 근거 원문은 `.claude/r46/review-load.md`(`L2`·`L5`·`L11`) · `review-idx.md`(주의 회차 집계 지적) · `review-schema.md`(`B-1`·`B-4`) · 갈래 보고서 `.claude/r46/report-laterbe.md`(전부 무시 파일). **항목마다 코드·`EXPLAIN` 으로 먼저 재현**했다. 스키마는 `V1`·`V8` 을 직접 고쳤고 새 `V16` 은 만들지 않았다(`CLAUDE.md` Flyway 절) — 병합 뒤 `schoolbus` 와 다른 갈래의 `-PtestDbUrl` 전용 DB 는 스키마를 비워 재구성해야 한다. 같은 시각 도는 연결 수정 갈래(`frontend/**` · `API_SPEC §7` · `USER_FLOWS`)의 소유는 건드리지 않았다.
+
+### R46-LATERBE 판정
+
+| Ruling | 판정 | 근거 |
+|:-:|---|---|
+| **670** | **`run_position` 일 단위 범위 파티션 — 이 테이블에 한해 `Ruling 243` 을 뒤집음**(`Ruling 618`). `PARTITION BY RANGE (recorded_at)` 한국 시간 자정 단위 · PK `(id, recorded_at)` · **`run_position_default` 필수** · 앱이 기동 직후+매일 00:10 에 7일 앞까지 파티션을 만든다(`RunPositionPartitionScheduler` · ShedLock · 실패는 스케줄러 지표) · 보존 정리는 상한이 컷오프 이하인 파티션을 통째 `DROP`(컷오프가 걸친 날은 남음 — **실제 보관 90일 이상 91일 미만**) · 삭제 전용 인덱스 `ix_run_position_retention_cutoff` 와 `findIdsForRetentionCleanup`·표 단위 autovacuum 설정 삭제 | 월·주 단위는 경계 파티션이 최대 30·7일 더 남고 맞추려면 행 `DELETE` 가 되살아나 목적(하루 27만 행 삭제 제거)이 사라진다. 기본 파티션에 그 범위 행이 있으면 PostgreSQL 이 파티션 생성을 거절함을 재현해, 생성 트랜잭션이 그 범위 행을 id 보존한 채 새 파티션으로 옮긴다(빈 스키마 기동에서 시드 3행 이전 확인). 대가 — 파티션 100개에서 `run_id` 만으로 거는 대체 조회(`findLatestByRunIdIn`)가 계획 7.2ms + 실행 7.9ms(Redis 장애 때만 쓰는 경로). 엔티티 `@Id` 와 쿼리는 그대로 동작 |
+| **671** | **위치 수신 SQL 8 → 5**(첫 도착 전 7 → 5) — 인가 매니저·배치 2건 → `exists` 1건 · 확정 노선·정차 목록·정차명 3건 → 조인 1건(`RunStopRepository.findPositionStops`) · 커밋 뒤 탑승자 엔티티 → 학생 id 투영. 캐시 없음 | 무효화 지점 0(모든 읽기가 실시간). 미배치 세 사유가 모두 `FORBIDDEN` 이라 합쳐도 응답 의미가 같다. `TransactionTemplate` 구조(`Ruling 627`)는 유지. 전·후는 Hibernate 준비 문장 수의 요청 전후 차이로 시험이 센다 |
+| **672** | **근접·출발 판정 묶음** — 위치는 회차 묶음(50)당 `RunPositionStore.findAll` 1회(Redis `MGET` 1회) · 회차당 **읽기 트랜잭션 1개**에서 확정 노선을 한 번 읽고 두 판정이 걸렸는지 본다 · 걸린 판정의 선점은 판정별 트랜잭션 · 판정별 예외 격리 유지(`judgeRun(…, onFailure)`) | **지시와 다르게 판단한 2건** — ① "대체 없는 전용 `MGET` 메서드" 대신 기존 `findAll`: `Ruling 624` 가 근접 판정의 DB 대체를 이미 넣었고 `findAll` 이 묶음 전체를 DB 1쿼리로 대체해 장애 중 쿼리가 판정당·회차당 → 묶음당으로 준다. ② 선점까지 한 트랜잭션에 합치지 않음: 선점 뒤 발행이 실패하면 그 트랜잭션만 롤백해 선점을 취소하는 것이 기존 의미인데, 합치면 한 판정의 롤백이 다른 판정의 선점까지 되돌린다 |
+| **673** | **관리자 "주의 필요 회차" 집계 인덱스** — `ix_run_open_service_date ON run (service_date) WHERE canceled_at IS NULL AND status <> 'finished'` + 두 집계 JPQL 의 상태 파라미터를 enum 리터럴로 | 합성 3년치(회차 65,831): 지연 집계가 `(academy_id, service_date, …)` 인덱스를 비선두 열로 전체 훑음(버퍼 352 · 0.37ms) → 부분 인덱스(약 150 · 0.08ms). **확정 실패 집계는 재현 안 됨** — 같은 날 `Ruling 631` 의 `ix_run_status_confirm_at` 이 이미 `service_date` 선행 |
+| **674** | **Tomcat 요청 스레드 = DB 연결 풀의 5배** — prod·demo 100(풀 20) · staging 50(풀 10) · `accept-count` 100 · `application.yml` | 기본 200 이면 풀이 마를 때 200개 스레드가 연결을 기다리며 선다(부하 측정 풀 10 에서 `tomcatBusy` 200 · `hikariPend` 116~194). 5배면 DB 를 안 쓰는 요청이 막히지 않을 여유를 두면서 연결 대기 스레드를 80개로 한정. 측정 기계(10코어) 값이라 4 vCPU 재측정 전까지 잠정(`Ruling 351` 과 같은 단서). 설정 가드 시험이 `스레드 = 풀 × 5` 고정 · 스케줄러 스레드 풀은 `@Scheduled` 11개로(`SchedulingConfig.POOL_SIZE` — 파티션 미리 만들기 추가분) |
+| **675** | **학원 경계 복합 FK 11쌍** — `academy_id` 를 가진 자식이 `(부모 id, academy_id)` 로 같은 학원의 부모만 가리킴(부모 `account`·`stop`·`student`·`bus`·`schedule`·`run` 에 `UNIQUE (id, academy_id)`). `ON DELETE SET NULL` 셋은 컬럼 목록을 붙여 자기 컬럼만 비움. `academy_id` 없는 자식(`run_rider`·`route_stop`·`run_stop`)은 점검 쿼리 `backend/load/sql/check_academy_boundary.sql` + `SeedBoundaryCheckTest` | 대상 — `run`·`schedule`·`route`→`bus` · `run`→`schedule` · `change_request`→`run`·`student`·`stop` · `guardian`·`academy_staff`·`student`·`manager`→`account`. 시드 적재(로컬+데모 규모 V14)가 위반하지 않음을 시험·빈 스키마 기동으로 확인. 컬럼 목록 없는 `SET NULL` 은 NOT NULL `academy_id` 를 비우려다 실패함을 시험이 고정 |
+| **676** | **부하 시드 학원 경계 오염 원인 수정** — 원인은 `r46_link_position_riders.sql`(학원 1 의 위치용 회차에 LOADCAP 학원들의 학생·승하차지를 붙임). 새 판은 같은 학원만 잇고, `scenario2_prep.sql` 은 `academy_id` 를 받으며 `r3_mixed.sh` `realistic` 모드는 위치용 회차를 LOADCAP 학원마다 나눠 심는다 | 같은 데이터에서 옛 스크립트는 점검 쿼리 불일치 2,000+2,000건, 새 스크립트는 0건(2,000명이 10학원 100회차에 붙음). 이미 어긋난 DB 는 점검 파일 머리의 `DELETE` 한 문장으로 정리. 스크립트는 psql 변수 구문(`\set`·`\if`)이라 시험 대신 전·후 실측으로 확인 |
+| **677** | **`ErrorCode` 열거 ↔ `API_SPEC §8` 사전 양방향 일치 시험**(`ErrorCodeSpecParityTest`) · `SERVER_BUSY` 행을 §8.7 에 등재 | `Ruling 620` 이 만든 `SERVER_BUSY` 가 §1.11 에만 있었다(열거 80 − 사전 79 = 1건). 웹 시험은 "§8 ⊆ 웹 목록" 한 방향만 봐 못 잡았다. 반대 방향(사전 ⊆ 열거)도 현재 0건 차이라 함께 고정 |
+
+`Ruling 678`·`679` 는 쓰지 않았다.
+
+### R46-LATERBE 목표 표
+
+| # | 완료 조건 | 확인 수단 | 결과 |
+|:-:|---|---|:-:|
+| 1 | 파티션 INSERT·최신 조회·만료 DROP · 파티션 없는 날짜도 INSERT(DEFAULT) · 미리 만들기 | `RunPositionPartitionManagerTest` 5 · `RunPositionPartitionSchedulerTest` 4 · `RunPositionRepositoryLatestTest` · `SchemaContractTest` — RED→GREEN · 결함 심기 4종(DEFAULT 제거 · 호출 제거 · 경계 한 칸 · 행 이전 제거) · 빈 스키마 기동 로그 | ✅ |
+| 2 | 위치 SQL 수 8 → 5 · 동작 동일 | `RunPositionQueryCountTest` — RED(8 · 7) → GREEN(5 · 5) · 결함 심기 3종 | ✅ |
+| 3 | 근접 판정 Redis·트랜잭션 수 감소 · `Ruling 624` 시험 유지 | `ProximityNotificationSchedulerTest`(트랜잭션 4 = 1+3 · `findAll` 1회) · `ProximityNotificationServiceTest`(격리 · 624) · 결함 심기 4종 | ✅ |
+| 4 | 주의 회차 집계 인덱스 사용 | `EXPLAIN` 전·후(합성 3년치) · `SchemaContractTest` · 결함 심기 2종 | ✅ |
+| 5 | 스레드 설정 실재 · 가드 | `TomcatThreadPoolConfigTest`(prod·demo·staging) — RED→GREEN · 결함 심기 2종 | ✅ |
+| 6 | 복합 FK 위반 INSERT 거부 · 시드 재구성 성공 · `run_rider` 점검 0 | `SchemaContractTest` 3건 · `SeedBoundaryCheckTest` 2건 · 빈 스키마 `bootRun` · 결함 심기 3종 | ✅ |
+| 7 | 부하 시드가 같은 학원만 잇는다 | 같은 데이터에서 옛 스크립트 불일치 2,000+2,000 → 새 스크립트 0 · 스크립트 diff | ✅ |
+| 8 | 백엔드 전체 `--rerun` 1회 실패 0 · 건너뜀 0(네이버 환경변수 없이) | 결과 XML 합계 — <<FULL>> | <<FULLMARK>> |
+| 9 | 정본 반영 + `Ruling 67x` — 이 절 · `§11` 색인(618 포함) · `ERD` · 깨진 참조 0 | `docgraph` | <<DOCMARK>> |
+| 10 | 정리 — 띄운 서버 · `r46_laterbe` 는 **남긴다**(조율자가 일괄) | `lsof` | ✅ |
+
+**재현되지 않았거나 지시와 다르게 판단한 것** — ① 주의 회차 집계(검토 `idx`)의 확정 실패 쪽은 `Ruling 631` 이 이미 해소 ② `Ruling 672` 의 두 가지(전용 `MGET` 메서드 불필요 · 선점은 판정별 트랜잭션) ③ 주의 회차 집계의 합성 데이터 검증에서 같은 트랜잭션의 `UPDATE` 뒤에 만든 인덱스를 플래너가 쓰지 않는 함정(`indcheckxmin`) — 처음엔 "인덱스가 안 쓰인다" 로 오판할 뻔함.
+
+**후속(이 갈래 밖)** — ①`Ruling 676` 의 부하 시드는 `schoolbus_load` 를 다시 심어야 효과가 난다(이미 어긋난 행은 점검 파일의 `DELETE` 로 정리) ②파티션 미리 만들기는 운영에서 **실패 경보**가 별도로 없다 — 스케줄러 공통 지표(`schoolbus_scheduler_last_success_age_seconds{scheduler="run-position-partition"}`)를 가용성 경보(`Ruling 640`)에 넣는 것은 운영 갈래 몫(7일 앞까지 만들어 두어 며칠은 기본 파티션 없이도 안전) ③C-14 토큰 무중단 갱신(`Ruling 618` 의 나머지)은 실시간 갈래 몫.

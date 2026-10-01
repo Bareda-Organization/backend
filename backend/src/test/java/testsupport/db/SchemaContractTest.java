@@ -476,7 +476,7 @@ class SchemaContractTest extends MigratedPostgresTestBase {
     }
 
     /**
-     * R46-LATERBE I-04(Ruling 673) — 관리자 "주의 필요 회차" 집계는 <b>전 학원</b>의 오늘 미완료 회차를 센다. {@code service_date} 가 선행인
+     * R46-LATERBE 주의 회차 집계 인덱스(Ruling 673) — 관리자 "주의 필요 회차" 집계는 <b>전 학원</b>의 오늘 미완료 회차를 센다. {@code service_date} 가 선행인
      * 인덱스가 없으면 {@code (academy_id, service_date, …)} 인덱스를 비선두 열로 전체 훑는다(회차가 쌓일수록 선형 — 3년치 합성 데이터에서
      * 버퍼 352 → 후 약 150, 실행 0.37 → 0.08ms). 미완료·미취소만 담은 부분 인덱스는 오늘·내일 분량만 가진다. 계획 확인은 순차 스캔을 꺼
      * 인덱스가 쿼리 조건을 <b>함의로 받아들이는지</b>와 옛 인덱스가 선택되지 않는지를 본다.
