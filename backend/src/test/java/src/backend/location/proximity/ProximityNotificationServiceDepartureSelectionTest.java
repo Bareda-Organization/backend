@@ -11,6 +11,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.repository.RunRiderRepository;
@@ -24,6 +25,8 @@ import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
+
+import testsupport.location.ProximityJudging;
 
 /**
  * {@link ProximityNotificationService#judgeDeparture} 의 <b>선정과 거리 판정의 결합</b>(R17-T1b 공백
@@ -52,6 +55,9 @@ class ProximityNotificationServiceDepartureSelectionTest {
 
     @Autowired
     private ProximityNotificationService proximityNotificationService;
+
+    @Autowired
+    private RunPositionStore runPositionStore;
 
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
@@ -133,20 +139,20 @@ class ProximityNotificationServiceDepartureSelectionTest {
         // 위치에서 훨씬 멀리 떨어져 있어 결과가 우연히 맞아떨어질 수는 있어도, 어느 id 의 departed_at
         // 이 채워졌는지를 직접 확인하므로 잘못 고른 id 가 채워지면 바로 드러난다.
         writePosition(runId, "37.501800", STOP_B_LNG);
-        proximityNotificationService.judgeDeparture(runId, academyId);
+        ProximityJudging.judge(proximityNotificationService, runPositionStore, runId, academyId);
         assertThat(departedAt(runStopSeq1)).as("①seq 최솟값(1, stopB)의 좌표로 판정해 출발이 기록돼야 한다").isNotNull();
         assertThat(departedAt(runStopSeq2)).as("①아직 seq 2는 대상이 아니다").isNull();
         assertThat(departedAt(runStopSeq3)).as("①아직 seq 3은 대상이 아니다").isNull();
 
         // ②틱2 — seq 1이 해소됐으니 다음 대상은 seq 2(stopC)다. 버스를 stopC 기준 100m 밖으로 옮긴다.
         writePosition(runId, "37.511800", STOP_C_LNG);
-        proximityNotificationService.judgeDeparture(runId, academyId);
+        ProximityJudging.judge(proximityNotificationService, runPositionStore, runId, academyId);
         assertThat(departedAt(runStopSeq2)).as("②seq 2(stopC)의 좌표로 판정해 출발이 기록돼야 한다").isNotNull();
         assertThat(departedAt(runStopSeq3)).as("②아직 seq 3은 대상이 아니다").isNull();
 
         // ③틱3 — 마지막 seq 3(stopA).
         writePosition(runId, "37.521800", STOP_A_LNG);
-        proximityNotificationService.judgeDeparture(runId, academyId);
+        ProximityJudging.judge(proximityNotificationService, runPositionStore, runId, academyId);
         assertThat(departedAt(runStopSeq3)).as("③seq 3(stopA)의 좌표로 판정해 출발이 기록돼야 한다").isNotNull();
     }
 

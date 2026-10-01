@@ -1,10 +1,14 @@
 package src.backend.location.proximity;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.reset;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -18,6 +22,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import src.backend.location.dto.RunPositionRedisValue;
+import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.entity.RiderStatus;
@@ -34,6 +40,8 @@ import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
+
+import testsupport.location.ProximityJudging;
 
 /**
  * {@link ProximityNotificationService#judgeOne} 의 알림 축(NTF-04, 목표 13) — 근접 알림이
@@ -60,6 +68,12 @@ class ProximityNotificationServiceTest {
 
     @Autowired
     private ProximityNotificationService proximityNotificationService;
+
+    @Autowired
+    private RunPositionStore runPositionStore;
+
+    @MockitoSpyBean
+    private ProximityJudge proximityJudge;
 
     @MockitoSpyBean
     private StringRedisTemplate stringRedisTemplate;
@@ -115,6 +129,7 @@ class ProximityNotificationServiceTest {
      */
     @AfterEach
     void 뒷정리한다() {
+        reset(proximityJudge);
         String academyIds = "(SELECT id FROM academy WHERE name = '근접알림시험학원')";
         jdbcTemplate.update("DELETE FROM notification_log WHERE dedup_key LIKE 'approaching:%'");
         // R15-T3(Ruling 308) — BoardingNotificationListener#appendStopDeparted 가 쓰는 dedup_key.
@@ -151,7 +166,7 @@ class ProximityNotificationServiceTest {
 
         writePosition(runId, NEAR_LAT, STOP_LNG);
 
-        proximityNotificationService.judgeOne(runId, academyId);
+        ProximityJudging.judge(proximityNotificationService, runPositionStore, runId, academyId);
 
         // 학생 계정을 연결하지 않아 학부모 몫만 적재된다 — dedup_key 대상 자리는 목표 4 로 "parent"·
         // "student" 로 갈린다(R14).
@@ -188,7 +203,7 @@ class ProximityNotificationServiceTest {
 
         writePosition(runId, NEAR_LAT, STOP_LNG);
 
-        proximityNotificationService.judgeOne(runId, academyId);
+        ProximityJudging.judge(proximityNotificationService, runPositionStore, runId, academyId);
 
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
                 "SELECT recipient_role, body, student_name FROM notification_log "
@@ -220,7 +235,7 @@ class ProximityNotificationServiceTest {
 
         writePosition(runId, FAR_LAT, STOP_LNG);
 
-        proximityNotificationService.judgeOne(runId, academyId);
+        ProximityJudging.judge(proximityNotificationService, runPositionStore, runId, academyId);
 
         assertThat(notificationCount(runId, stopId, studentId)).isZero();
         assertThat(proximityNotifiedAt(runStopId)).isNull();
@@ -241,9 +256,9 @@ class ProximityNotificationServiceTest {
         fx.rider(runId, studentId, stopId, RiderStatus.WAITING, null);
 
         writePosition(runId, NEAR_LAT, STOP_LNG);
-        proximityNotificationService.judgeOne(runId, academyId);
+        ProximityJudging.judge(proximityNotificationService, runPositionStore, runId, academyId);
         // 버스가 문턱 안에 계속 머무는 다음 틱을 흉내낸다 — 재진입 재발송이 없어야 한다(Ruling 207).
-        proximityNotificationService.judgeOne(runId, academyId);
+        ProximityJudging.judge(proximityNotificationService, runPositionStore, runId, academyId);
 
         assertThat(notificationCount(runId, stopId, studentId)).isEqualTo(1);
     }
@@ -267,7 +282,7 @@ class ProximityNotificationServiceTest {
 
         writePosition(runId, NEAR_LAT, STOP_LNG);
 
-        proximityNotificationService.judgeOne(runId, academyId);
+        ProximityJudging.judge(proximityNotificationService, runPositionStore, runId, academyId);
 
         assertThat(notificationCount(runId, stopId, absentStudentId)).isZero();
         assertThat(notificationCount(runId, stopId, waitingStudentId)).isEqualTo(1);
@@ -289,7 +304,7 @@ class ProximityNotificationServiceTest {
 
         writePosition(runId, FAR_LAT, STOP_LNG);
 
-        proximityNotificationService.judgeDeparture(runId, academyId);
+        ProximityJudging.judge(proximityNotificationService, runPositionStore, runId, academyId);
 
         assertThat(departedAt(runStopId)).as("①100m 밖이므로 최초 1회 기록돼야 한다").isNotNull();
     }
@@ -308,7 +323,7 @@ class ProximityNotificationServiceTest {
 
         writePosition(runId, WITHIN_DEPARTURE_LAT, STOP_LNG);
 
-        proximityNotificationService.judgeDeparture(runId, academyId);
+        ProximityJudging.judge(proximityNotificationService, runPositionStore, runId, academyId);
 
         assertThat(departedAt(runStopId)).as("②100m 안쪽이면 아직 출발이 아니다").isNull();
     }
@@ -326,12 +341,12 @@ class ProximityNotificationServiceTest {
         fx.arriveStop(runStopId, now);
 
         writePosition(runId, FAR_LAT, STOP_LNG);
-        proximityNotificationService.judgeDeparture(runId, academyId);
+        ProximityJudging.judge(proximityNotificationService, runPositionStore, runId, academyId);
         OffsetDateTime firstDepartedAt = departedAt(runStopId);
 
         // 버스가 계속 100m 밖에 머무는 다음 틱을 흉내낸다 — claimDeparture 의 조건부 UPDATE 가
         // 이미 채워진 값을 갱신하지 않아야 한다(③최초 1회, claimProximityNotice 와 같은 근거).
-        proximityNotificationService.judgeDeparture(runId, academyId);
+        ProximityJudging.judge(proximityNotificationService, runPositionStore, runId, academyId);
 
         assertThat(departedAt(runStopId)).as("③재판정해도 최초 기록값 그대로여야 한다").isEqualTo(firstDepartedAt);
     }
@@ -356,20 +371,20 @@ class ProximityNotificationServiceTest {
         // ①100m 안쪽 — claimDeparture 가 아직 0행이므로 알림도 아직 없다. student_name 으로 좁힌다 —
         // notification_log 에는 데모 시드가 만든 다른 'boarding' 행이 이미 있을 수 있다.
         writePosition(runId, WITHIN_DEPARTURE_LAT, STOP_LNG);
-        proximityNotificationService.judgeDeparture(runId, academyId);
+        ProximityJudging.judge(proximityNotificationService, runPositionStore, runId, academyId);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM notification_log WHERE type = 'boarding' AND student_id = ?", Integer.class,
                 studentId)).as("①100m 안쪽이면 claimDeparture 가 0행이라 알림도 없다").isZero();
 
         // ②100m 밖 — claimDeparture 가 1행을 갱신하고 나서야 알림이 적재된다.
         writePosition(runId, FAR_LAT, STOP_LNG);
-        proximityNotificationService.judgeDeparture(runId, academyId);
+        ProximityJudging.judge(proximityNotificationService, runPositionStore, runId, academyId);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM notification_log WHERE type = 'boarding' AND student_id = ?", Integer.class,
                 studentId)).as("②claimDeparture 성공 직후 1건 적재").isEqualTo(1);
 
         // ③재판정 — claimDeparture 가 이미 채워진 값을 다시 갱신하지 않으므로(0행) 알림도 늘지 않는다.
-        proximityNotificationService.judgeDeparture(runId, academyId);
+        ProximityJudging.judge(proximityNotificationService, runPositionStore, runId, academyId);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM notification_log WHERE type = 'boarding' AND student_id = ?", Integer.class,
                 studentId)).as("③재판정해도 여전히 1건").isEqualTo(1);
@@ -397,7 +412,7 @@ class ProximityNotificationServiceTest {
                 now, null, null));
         Mockito.doThrow(new RedisConnectionFailureException("redis down")).when(stringRedisTemplate).opsForValue();
 
-        proximityNotificationService.judgeOne(runId, academyId);
+        ProximityJudging.judge(proximityNotificationService, runPositionStore, runId, academyId);
 
         assertThat(notificationCount(runId, stopId, studentId)).as("Redis 없이도 도착 임박 알림이 적재된다").isEqualTo(1);
         assertThat(proximityNotifiedAt(runStopId)).isNotNull();
@@ -408,6 +423,47 @@ class ProximityNotificationServiceTest {
                 {"lat":%s,"lng":%s,"recordedAt":"2030-04-01T00:00:00Z","receivedAt":"2030-04-01T00:00:01Z","currentStopName":"흉내"}
                 """.formatted(lat, lng).strip();
         stringRedisTemplate.opsForValue().set("run:%d:position".formatted(runId), json);
+    }
+
+    /**
+     * BR-235 · R46-LATERBE L5 — 근접·출발은 한 읽기 트랜잭션에서 같이 돌지만 판정별로 격리된다. 근접 판정이 던져도 출발 판정은
+     * 기록되고(출발 이탈 정차지의 {@code departed_at}), 출발 판정이 던져도 근접 알림은 적재된다. 실패는 판정마다 한 번씩 {@code onFailure}
+     * 로 알려진다. 두 판정이 같은 위치에서 모두 걸리도록 정차지 둘(도착한 1번 · 400m 북쪽 2번)을 두고 버스를 가운데(각각 약 200m)에 둔다.
+     */
+    @Test
+    void 근접_판정이_던져도_출발_판정은_기록되고_출발_판정이_던져도_근접_알림은_적재된다() {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        ProximityFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        long arrivedStop = fx.stop(academyId, "37.500000", STOP_LNG);
+        long nextStop = fx.stop(academyId, "37.503599", STOP_LNG);
+        long studentId = fx.student(academyId, "격리학생");
+        fx.guardianOf(academyId, studentId, "격리학부모", now);
+        long runId = fx.movingRun(academyId, busId, Direction.FROM_ACADEMY, now.plusHours(1), now, now);
+        long versionId = fx.confirmedRouteWithVersion(runId, now);
+        long arrivedRunStop = fx.runStopForStop(versionId, arrivedStop, 1, now.plusMinutes(10));
+        fx.runStopForStop(versionId, nextStop, 2, now.plusMinutes(20));
+        fx.arriveStop(arrivedRunStop, now);
+        fx.rider(runId, studentId, nextStop, RiderStatus.WAITING, null);
+        writePosition(runId, NEAR_LAT, STOP_LNG);
+        RunPositionRedisValue position = runPositionStore.find(runId).orElseThrow();
+        List<ProximityNotificationService.Judgment> failures = new ArrayList<>();
+
+        doThrow(new IllegalStateException("의도적 실패 — 근접")).when(proximityJudge).isWithinThreshold(any(), any());
+        proximityNotificationService.judgeRun(runId, academyId, position, (judgment, e) -> failures.add(judgment));
+        assertThat(failures).as("근접 판정만 실패로 알려진다").containsExactly(ProximityNotificationService.Judgment.APPROACH);
+        assertThat(departedAt(arrivedRunStop)).as("근접 판정이 던져도 출발 판정은 기록된다").isNotNull();
+        assertThat(notificationCount(runId, nextStop, studentId)).as("근접 알림은 적재되지 않았다").isZero();
+
+        reset(proximityJudge);
+        jdbcTemplate.update("UPDATE run_stop SET departed_at = NULL WHERE id = ?", arrivedRunStop);
+        failures.clear();
+        doThrow(new IllegalStateException("의도적 실패 — 출발")).when(proximityJudge).hasDeparted(any(), any());
+        proximityNotificationService.judgeRun(runId, academyId, position, (judgment, e) -> failures.add(judgment));
+        assertThat(failures).as("출발 판정만 실패로 알려진다").containsExactly(ProximityNotificationService.Judgment.DEPARTURE);
+        assertThat(departedAt(arrivedRunStop)).as("출발 판정이 던졌으니 기록되지 않는다").isNull();
+        assertThat(notificationCount(runId, nextStop, studentId)).as("출발 판정이 던져도 근접 알림은 적재된다").isEqualTo(1);
     }
 
     private int notificationCount(long runId, long stopId, long studentId) {

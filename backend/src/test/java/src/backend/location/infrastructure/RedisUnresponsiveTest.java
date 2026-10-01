@@ -32,7 +32,7 @@ import io.lettuce.core.ClientOptions;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.location.proximity.ProximityNotificationService;
+import src.backend.location.scheduler.ProximityNotificationScheduler;
 import testsupport.clock.SeedDateClockConfig;
 import testsupport.redis.RedisFreeze;
 
@@ -73,7 +73,7 @@ class RedisUnresponsiveTest {
     private DataSource dataSource;
 
     @Autowired
-    private ProximityNotificationService proximityNotificationService;
+    private ProximityNotificationScheduler proximityNotificationScheduler;
 
     @Autowired
     private RedisConnectionFactory redisConnectionFactory;
@@ -116,7 +116,7 @@ class RedisUnresponsiveTest {
         int samplesWhileWaiting = 0;
         CompletableFuture<Void> judging;
         try (RedisFreeze ignored = RedisFreeze.start()) {
-            judging = CompletableFuture.runAsync(() -> proximityNotificationService.judgeOne(RUN_MOVING_ID, ACADEMY_A));
+            judging = CompletableFuture.runAsync(() -> proximityNotificationScheduler.judgeMovingRuns());
             // 판정이 아직 Redis 를 기다리는 동안(끝나지 않은 동안)에만 표본을 센다 — 명령 상한(1초) 안에서 여러 번 잰다.
             for (int i = 0; i < 5; i++) {
                 Thread.sleep(100);

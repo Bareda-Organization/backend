@@ -120,7 +120,7 @@ class StopDepartureForceAllRemainingEventsTest {
         fx.arriveStop(runStopA, now);
         fx.arriveStop(runStopB, now);
         fx.arriveStop(runStopC, now);
-        // 이미 다른 경로(예: judgeDeparture 의 100m 이탈 판정)가 먼저 선점한 상황을 흉내낸다 —
+        // 이미 다른 경로(예: judgeRun 의 출발 판정(100m 이탈))가 먼저 선점한 상황을 흉내낸다 —
         // 도착 처리는 됐지만 findAllArrivedNotDeparted 조건(departedAt IS NULL)에서 이미 빠져 있다.
         fx.arriveStop(runStopAlreadyDeparted, now);
         runStopRepository.claimDeparture(runStopAlreadyDeparted, now);

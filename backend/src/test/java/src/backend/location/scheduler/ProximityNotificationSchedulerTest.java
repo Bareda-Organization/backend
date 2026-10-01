@@ -1,8 +1,10 @@
 package src.backend.location.scheduler;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -15,10 +17,16 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -31,6 +39,9 @@ import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
+import jakarta.persistence.EntityManagerFactory;
+
+import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.location.proximity.ProximityFixtures;
 import src.backend.location.proximity.ProximityNotificationService;
 import src.backend.routing.repository.ConfirmedRouteRepository;
@@ -51,13 +62,13 @@ import src.backend.student.repository.StudentRepository;
  * <b>인스턴스가 2개일 때 판정을 몇 번 수행하는지</b>를 본다({@code RunConfirmationSchedulerTest} 가
  * 본보기).
  *
- * <p>{@code @Transactional} 을 쓰지 않는다 — {@code judgeOne} 은 회차별로 각각 커밋되고,
+ * <p>{@code @Transactional} 을 쓰지 않는다 — {@code judgeRun} 은 회차별로 각각 커밋되고,
  * {@link ProximityNotificationService} 를 스파이로 감싸면서까지 테스트 트랜잭션에 묶으면 스파이가
  * 가로챈 호출과 실제 커밋 시점이 갈릴 수 있다({@code RunConfirmationSchedulerTest} 와 같은 근거).
  * 뒷정리는 {@link ProximityFixtures} 가 심는 학원 이름으로 표시된 행을 직접 지운다.
  *
  * <p><b>{@link ProximityNotificationService} 를 스파이로 감싸는 이유</b> — 배치 대상 선정(어떤
- * 회차의 {@code judgeOne} 을 부르는가)과 회차 1건의 판정 로직(내부에서 무엇을 하는가)은 서로 다른
+ * 회차의 {@code judgeRun} 을 부르는가)과 회차 1건의 판정 로직(내부에서 무엇을 하는가)은 서로 다른
  * 검증 대상이다. 실제 위치·거리 데이터를 매번 갖추지 않고도 "그 회차가 호출됐는가" 만 볼 수 있어야
  * BATCH_SIZE·MOVING 필터 시험이 좁아진다. 예외 격리 시험은 이 스파이에 {@code doThrow} 를 심어
  * <b>실제로 발생 가능한 예외</b>(회차 1건 처리 중 알 수 없는 실패)를 흉내낸다 —
@@ -69,6 +80,9 @@ class ProximityNotificationSchedulerTest {
     /** 정차지 좌표(37.500000, 127.000000) 기준 약 200m — 300m 문턱 안쪽({@code ProximityNotificationServiceTest} 와 같은 값). */
     private static final String NEAR_LAT = "37.501799";
 
+    /** 정차지(37.500000, 127.000000) 기준 약 11km — 문턱 300m 밖. */
+    private static final String FAR_LAT = "37.600000";
+
     private static final String STOP_LNG = "127.000000";
 
     @Autowired
@@ -76,6 +90,12 @@ class ProximityNotificationSchedulerTest {
 
     @MockitoSpyBean
     private ProximityNotificationService proximityNotificationService;
+
+    @MockitoSpyBean
+    private RunPositionStore runPositionStore;
+
+    @Autowired
+    private EntityManagerFactory entityManagerFactory;
 
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
@@ -133,7 +153,7 @@ class ProximityNotificationSchedulerTest {
      */
     @AfterEach
     void tearDown() {
-        reset(proximityNotificationService);
+        reset(proximityNotificationService, runPositionStore);
         jdbcTemplate.update(
                 "UPDATE shedlock SET lock_until = timezone('utc', CURRENT_TIMESTAMP) - interval '1 hour' "
                         + "WHERE name = 'proximity-notification'");
@@ -197,8 +217,8 @@ class ProximityNotificationSchedulerTest {
 
         scheduler.judgeMovingRuns();
 
-        verify(proximityNotificationService, times(1)).judgeOne(eq(movingRunId), eq(academyId));
-        verify(proximityNotificationService, never()).judgeOne(eq(confirmedRunId), anyLong());
+        verify(proximityNotificationService, times(1)).judgeRun(eq(movingRunId), eq(academyId), any(), any());
+        verify(proximityNotificationService, never()).judgeRun(eq(confirmedRunId), anyLong(), any(), any());
     }
 
     /**
@@ -214,35 +234,49 @@ class ProximityNotificationSchedulerTest {
         int total = ProximityNotificationScheduler.BATCH_SIZE + 1;
         for (int i = 0; i < total; i++) {
             OffsetDateTime departTime = baseDepart.plusMinutes(i);
-            fx.movingRun(academyId, busId, Direction.FROM_ACADEMY, departTime, departTime.minusMinutes(30),
-                    departTime.minusMinutes(30));
+            long runId = fx.movingRun(academyId, busId, Direction.FROM_ACADEMY, departTime,
+                    departTime.minusMinutes(30), departTime.minusMinutes(30));
+            writePosition(runId, NEAR_LAT, STOP_LNG);
         }
 
         scheduler.judgeMovingRuns();
 
         // 이 학원 것만 센다 — 다른 학원의 기존 moving 회차(시드 R3 등)가 앞자리를 차지해도 이 학원 51건은
         // 전부 판정돼야 한다.
-        verify(proximityNotificationService, times(total)).judgeOne(anyLong(), eq(academyId));
-        // BR-235 — 출발 판정도 같은 51건을 돈다. 이 호출을 지우면 51번째 이후 회차의 출발 판정이 멈춘다.
-        verify(proximityNotificationService, times(total)).judgeDeparture(anyLong(), eq(academyId));
+        // 두 판정(근접·출발)은 한 호출 안에서 같이 돈다 — 51번째 이후 회차도 위치가 읽혀 이 호출이 가야 판정이 멈추지 않는다.
+        verify(proximityNotificationService, times(total)).judgeRun(anyLong(), eq(academyId), any(), any());
     }
 
     /**
-     * BR-235 — 근접·출발 두 판정은 각자 독립된 try-catch 다. 근접 판정이 던져도 같은 회차의 출발 판정은
-     * 이번 틱에 그대로 불려야 한다(두 try 를 하나로 합치면 이 시험이 빨개진다).
+     * R46-LATERBE L5(Ruling 672) — 한 틱에서 위치는 <b>묶음당 한 번</b>({@code findAll} = Redis {@code MGET} 1회) 읽고 회차마다
+     * {@code find} 를 부르지 않으며, 판정이 걸리지 않은 회차는 읽기 트랜잭션 <b>1개</b>만 쓴다(전에는 근접·출발 판정이 각자 트랜잭션을
+     * 열어 2개, Redis 읽기도 판정마다 1회씩 2회). 트랜잭션 수는 Hibernate 통계의 완료 건수 차이로 센다 — 이 틱의 전체는 운행 중 회차를
+     * 한 쪽(page) 읽는 조회 1건 + 회차 3개 × 1 이다.
      */
     @Test
-    void 근접_판정이_던져도_같은_회차의_출발_판정은_불린다() {
+    void 판정이_걸리지_않는_회차는_읽기_트랜잭션_1개이고_위치는_묶음당_한_번_읽는다() {
         ProximityFixtures fx = fixtures();
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
-        long runId = fullyWiredMovingRun(fx, academyId, busId, "출발학생", "출발학부모").runId();
-        doThrow(new RuntimeException("의도적 실패 — 근접 판정")).when(proximityNotificationService)
-                .judgeOne(eq(runId), anyLong());
+        List<Long> runIds = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            long runId = fullyWiredMovingRun(fx, academyId, busId, "묶음학생" + i, "묶음학부모" + i).runId();
+            writePosition(runId, FAR_LAT, STOP_LNG); // 300m 밖 — 근접 판정이 걸리지 않는다
+            runIds.add(runId);
+        }
+        Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+        statistics.setStatisticsEnabled(true);
+        long before = statistics.getTransactionCount();
 
         scheduler.judgeMovingRuns();
 
-        verify(proximityNotificationService, times(1)).judgeDeparture(eq(runId), eq(academyId));
+        assertThat(statistics.getTransactionCount() - before)
+                .as("운행 중 회차 조회 1 + 회차 3개 × 읽기 트랜잭션 1").isEqualTo(1 + 3);
+        ArgumentCaptor<Collection<Long>> batches = ArgumentCaptor.forClass(Collection.class);
+        verify(runPositionStore, atLeastOnce()).findAll(batches.capture());
+        assertThat(batches.getAllValues()).as("세 회차의 위치를 한 묶음의 한 번 읽기로").anySatisfy(
+                batch -> assertThat(batch).containsAll(runIds));
+        verify(runPositionStore, never()).find(anyLong());
     }
 
     @Test
@@ -256,11 +290,11 @@ class ProximityNotificationSchedulerTest {
         WiredRun goodRun = fullyWiredMovingRun(fx, academyId, busId, "근접학생정상", "근접학부모정상");
 
         doThrow(new RuntimeException("의도적 실패 — 배치 격리 시험")).when(proximityNotificationService)
-                .judgeOne(eq(badRun.runId()), anyLong());
+                .judgeRun(eq(badRun.runId()), anyLong(), any(), any());
 
         scheduler.judgeMovingRuns();
 
-        verify(proximityNotificationService, times(1)).judgeOne(eq(badRun.runId()), eq(academyId));
+        verify(proximityNotificationService, times(1)).judgeRun(eq(badRun.runId()), eq(academyId), any(), any());
         OffsetDateTime proximityNotifiedAt = jdbcTemplate.queryForObject(
                 "SELECT rs.proximity_notified_at FROM run_stop rs "
                         + "JOIN route_version rv ON rs.route_version_id = rv.id "
@@ -280,7 +314,7 @@ class ProximityNotificationSchedulerTest {
 
         scheduler.judgeMovingRuns();
 
-        verify(proximityNotificationService, never()).judgeOne(eq(runId), anyLong());
+        verify(proximityNotificationService, never()).judgeRun(eq(runId), anyLong(), any(), any());
     }
 
     @Test
@@ -293,7 +327,7 @@ class ProximityNotificationSchedulerTest {
 
         scheduler.judgeMovingRuns();
 
-        verify(proximityNotificationService, times(1)).judgeOne(eq(runId), eq(academyId));
+        verify(proximityNotificationService, times(1)).judgeRun(eq(runId), eq(academyId), any(), any());
     }
 
     /**
@@ -306,7 +340,7 @@ class ProximityNotificationSchedulerTest {
      * {@code judgeMovingRuns()} 가 끝나는 순간 {@code JdbcTemplateLockProvider} 가 {@code lock_until}
      * 을 현재 시각으로 되돌린다. 그 뒤에 행을 읽으면 {@code lockAtMostFor} 가 {@code PT30S} 였는지
      * {@code PT24H} 였는지 구별되지 않는다(둘 다 "이미 풀렸다"로 보인다). 그래서
-     * {@link ProximityNotificationService} 스파이의 {@code judgeOne} 호출 시점(락이 아직
+     * {@link ProximityNotificationService} 스파이의 {@code judgeRun} 호출 시점(락이 아직
      * 살아 있는 메서드 본문 실행 중)에 {@code doAnswer} 로 가로채 그 순간의 값을 캡처한다.
      *
      * <p><b>정확한 초가 아니라 범위로 비교하는 이유</b> — 실행 지연이 섞이므로 "정확히 30초 뒤"는
@@ -328,11 +362,11 @@ class ProximityNotificationSchedulerTest {
                     "SELECT lock_until FROM shedlock WHERE name = ?", Timestamp.class, "proximity-notification");
             heldLockUntil.set(raw.toLocalDateTime().atOffset(ZoneOffset.UTC));
             return invocation.callRealMethod();
-        }).when(proximityNotificationService).judgeOne(anyLong(), anyLong());
+        }).when(proximityNotificationService).judgeRun(anyLong(), anyLong(), any(), any());
 
         scheduler.judgeMovingRuns();
 
-        assertThat(heldLockUntil.get()).as("judgeOne 호출 시점에 lock_until 을 관측하지 못했다").isNotNull();
+        assertThat(heldLockUntil.get()).as("judgeRun 호출 시점에 lock_until 을 관측하지 못했다").isNotNull();
         long secondsUntilExpiry = Duration.between(OffsetDateTime.now(ZoneOffset.UTC), heldLockUntil.get())
                 .getSeconds();
         assertThat(secondsUntilExpiry)
