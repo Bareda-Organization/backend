@@ -1175,6 +1175,11 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 692 | 문서 정본 위치 — 운영 쪽(상한 값·근거·도달 동작·경보 대응)과 설계 쪽(세션이 서버 메모리에 남기는 것)을 가름 | 본문 §8.89 · `docs/infra/DEPLOYMENT.md §11.7` · `docs/ARCHITECTURE.md §10.4` |
 | 693 | 유령 세션 방지 — 클라이언트가 `app.ws.idle-timeout-ms`(60초 · yml 공통) 동안 프레임을 하나도 안 보낸 WebSocket 세션을 서버가 닫음(Tomcat 읽기 전용 유휴 속성). 표준 `maxSessionIdleTimeout`·`heart-beat:0` 거부는 버림 | 본문 §8.89 · `docs/ARCHITECTURE.md §10.4` |
 | 694 | 세션 정리 4경로(정상 종료 · 하트비트 30초 · 유휴 60초 · `CONNECT` 없음)를 실서버 시험 2개가 고정 · 정리 시간은 연결 규약 표의 서버 정리 행(미실측 → 실측) · "첫 메시지 60초" 점검은 새 연결 때만이라는 정정 | 본문 §8.89 · `docs/API_SPEC.md §7.2` |
+| 701 | 끝나지 않은 이동 중 회차 처리 범위 — 근접 판정 · 위치 유실 집계 · 노선 잠금이 운행일 **어제 이후**(오늘 − 1일 · 자정 넘김 운행 고려)의 `moving` 회차만 처리 · `status` 를 JPQL 리터럴로 고정해 부분 인덱스 사용(14.6만 행 20.7ms → 0.033ms) · 자동 종료는 하지 않음 | 본문 §8.90 · `docs/ARCHITECTURE.md §9.6` |
+| 702 | `StaleMovingRun` — 운행일이 어제보다 이른 `moving` 회차 수 게이지 `schoolbus_run_moving_stale`(10분 주기) + 경보(`> 0` 30분 유지 · 경고) · 처리 절차는 DB 직접 갱신(관리자 경로 부재) | 본문 §8.90 · `docs/infra/DEPLOYMENT.md §11.2` |
+| 703 | 영구 실패 확정 재시도 간격 `30초 × 2^(실패−1)` 최대 10분(`run.confirm_retry_at` — 실행 시각 · 판정 시각 `confirm_at` 과 별개) · 설정 오류는 스택 없이 한 줄 · 노선 편성·수정·승하차지 저장과 학원 좌표 저장이 그 학원 실패 이력을 지움 | 본문 §8.90 · `docs/ERD.md` `run` · `docs/ARCHITECTURE.md §9.4` |
+| 704 | 학생 사진 응답을 파일 스트림(`Resource`)으로 · `Cache-Control: private, max-age=86400` + 파일명 `ETag` · `If-None-Match` 일치 시 304(접근 확인 뒤) | 본문 §8.90 · `docs/API_SPEC.md §5.11.1` |
+| 705 | 업로드 사진을 긴 변 512px 로 축소(`ImageIO` · 새 의존성 0) — 못 읽는 형식·이미 작음·4천만 화소 초과(압축 폭탄 방어)·거울상 EXIF 는 원본 · EXIF 회전 3·6·8 은 돌려서 축소 · 기존 저장 파일은 그대로 | 본문 §8.90 · `docs/API_SPEC.md §5.11.1` |
 
 
 ## 8.73 ⚖ `R46-BE` — 성능 개선(감사 제외) + 바로 고칠 것 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 410~419 · 백엔드 갈래)
@@ -1692,3 +1697,36 @@ R46 검토 `stab`(경보 · 로그 드라이버 · OOM · 종료 대기) · `idx
 | 9 | `DEPLOYMENT` 경보 표에 `RunPositionPartitionStalled` 행 | `DEPLOYMENT §11.2` 경보 표 + "울렸을 때 첫 확인" 표에 각각 한 행 | ✅ |
 
 **재현되지 않았거나 지시와 다르게 판단한 것** — ①지시서의 `ServletServerContainerFactoryBean.setMaxSessionIdleTimeout`(표준 값)은 쓰지 않았다 — 위 `693` 근거(서버 방송 쓰기가 유휴로 안 세어져 사라진 구독자가 안 걸림). ②"CONNECT 없음 60초 점검"은 보장되는 시각이 아님(위 `694`). ③`CONNECT` 없는 소켓 사례는 `F1` 에서 앞선 조건(조용한 세션 미정리)이 먼저 실패해 단독 검출은 따로 보지 못했다.
+
+## 8.90 ⚖ `R46-KFIXBE` — leak 지적 K-1·K-2·K-3 백엔드 수정 (2026-10-02 · 분기점 `ff19e36d` · 번호대 701~709 · 사용자 지시 *"K-1~7 개선해줘"* · 조율자 결정 `DECISIONS 10-01 23:30`)
+
+R46 leak 검토(`.claude/r46/review-leak.md` §2)가 짚은 백엔드 3건을 고쳤다. 근거는 그 검토의 실측(끝나지 않은 회차 재현 · 확정 실패 31회/13분 · 사진 동시 200개 힙 1,019MB)이고 갈래 보고서는 `.claude/r46/report-kfixbe.md`(무시 파일)다. 서버는 띄우지 않았고 시험 · `EXPLAIN` · 결함 심기로 확인했다. 앱·웹 몫(K-4·6·7 · 경보음 삭제 `Ruling 700`)은 같은 시각 도는 다른 갈래의 소유다.
+
+### R46-KFIXBE 판정
+
+| Ruling | 판정 | 근거 |
+|:-:|---|---|
+| **701** | **끝나지 않은 이동 중 회차 처리 범위** — 근접 판정(`ProximityNotificationScheduler`) · 위치 유실 집계(`RunPositionLostGaugeScheduler`) · 노선 잠금(`RunStopRepository.existsOnMovingRun`)이 운행일 **오늘 − 1일 이후**의 `moving` 회차만 본다(`MovingRunWindowPolicy`). **자동 종료는 하지 않는다**(조율자 결정 — 사양 C-15 변경) | 어제까지 넣은 이유는 자정을 넘겨 달리는 운행. `status` 를 바인딩 파라미터가 아니라 JPQL enum 리터럴로 고정 — 파라미터면 일반(generic) 계획이 부분 인덱스를 못 써 `run_pkey` 로 14.6만 행을 훑는다(합성 데이터 `EXPLAIN` 20.7ms · 3,032 버퍼 → 0.033ms · 9 버퍼, 옛 회차 수 집계 2,608 → 26 버퍼). Hibernate 가 `status='moving'` 으로 인라인함을 postgres 문장 로그로 확인. 새 인덱스 없음 — `ix_run_moving` · `ix_run_open_service_date` 가 받침. 이전 파생 쿼리가 근접 판정 시험(`Ruling 672`)의 "한 틱 읽기 트랜잭션 1개"에 잡혔으므로 `@Transactional(readOnly = true)` 로 동작 보존 |
+| **702** | **`StaleMovingRun` 지표·경보** — 운행일이 어제보다 이른 미취소 `moving` 회차 수 `schoolbus_run_moving_stale`(`StaleMovingRunGaugeScheduler` 10분 주기) · 경보 `> 0` 이 30분 유지 · 경고. `DEPLOYMENT §11.2` 에 처리 절차(확인 SQL · 학원 확인 · 한 건씩 갱신) | 701 로 처리 집합에서 빠진 바로 그 회차를 사람에게 드러내는 유일한 신호. **관리자가 끝낼 수 있는 기존 경로는 없다** — `Run.finish()` 호출은 `RunCompletionService` 하나이고 그 호출부는 배치된 동승자의 하차·미승차 처리뿐(회차 취소는 `moving` 거부) → 절차는 DB 직접 갱신. Alertmanager 전역 `repeat_interval` 4시간이라 처리할 때까지 4시간마다 재알림(경보별 간격은 만들지 않음) |
+| **703** | **영구 실패 확정 재시도** — 간격 `30초 × 2^(실패 횟수−1)` · 최대 10분(`RunConfirmationPolicy.retryDelayAfter`) · `run.confirm_retry_at`(nullable · `V1` 직접 수정) · `findDueForConfirmation` 이 `confirm_retry_at IS NULL OR <= now` 만 집음 · `BusinessException` 은 스택 없이 한 줄, 그 밖만 `RateLimitedWarn` · 노선 편성·수정·승하차지 저장(`RouteCommandService`)과 학원 좌표 저장(`AcademyStore.update` — 좌표가 새로 저장될 때만)이 그 학원 `idle` 회차의 `consecutive_failures`·`confirm_retry_at` 을 지움 | 지시서 예시 `2^n × 30초` 와 달리 **첫 실패는 다음 틱(30초) 재시도** — 일시적 실패는 전과 같은 속도로 회복하고 영구 실패만 하루 2,880회 → 약 150회. "마지막 실패 시각" 대신 **다음 시도 허용 시각**을 저장 — 행마다 지수 간격을 SQL 로 계산하면 JPQL 로 못 쓰고 네이티브가 필요하다. **두 시계를 섞지 않는다** — 판정 시각 `confirm_at`(출발−30분 · `ck_run_confirm_at`)은 그대로이고 새 컬럼은 실행 시각만 가진다. 시드 INSERT 는 열 목록 변경 불필요(nullable · 기본값 없음) |
+| **704** | **학생 사진 응답 스트림 · 캐시 · 304** — `PhotoStorage.read` 가 `Optional<Resource>`(`FileSystemResource` 핸들 — 본문은 응답으로 흘릴 때 열림) · 응답 `Cache-Control: private, max-age=86400` + `ETag: "<파일명>"` · `If-None-Match` 일치 시 본문 없이 304 | 파일명이 서버가 지은 UUID 이고 `store` 가 항상 새 UUID 로 새 파일을 쓰며 같은 파일을 다시 쓰는 경로가 없어 같은 주소의 내용은 불변(사진 교체 = 새 주소). 304 는 접근 확인(학원 소속 · 퇴원 여부) 뒤에 Spring 이 비교하므로 다른 학원 요청은 올바른 ETag 를 들고 와도 404. 개인정보(L3)라 `private` · 인가는 그대로 |
+| **705** | **업로드 사진 축소** — `PhotoResizer`(JDK `ImageIO` 만) 가 `StudentPhotoWriter.store` 에서 긴 변 512px 로 줄여 저장소에 넘김. 원본 상한 5MB · 형식 3종 검사 유지 · 기존 저장 파일은 바꾸지 않음(개발 단계) | 못 읽는 형식(WebP · CMYK JPEG)·깨진 파일·이미 512px 이하는 원본 그대로이고 축소 실패가 업로드를 막지 않는다. **지시에 없던 보강 2건** — ① 휴대폰 JPEG 는 EXIF 가 "돌려 보라" 고 적는데 다시 인코딩하면 정보가 사라져 사진이 누워 보임 → 회전 3·6·8 은 돌려서 줄이고 거울상(2·4·5·7)은 원본 ② 신뢰할 수 없는 입력을 디코딩하는 첫 자리 — 헤더만 읽어 4천만 화소 초과면 디코딩하지 않음(압축 폭탄) |
+
+`Ruling 706`~`709` 는 쓰지 않았다.
+
+### R46-KFIXBE 목표 표
+
+| # | 완료 조건 | 확인 수단 | 결과 |
+|:-:|---|---|:-:|
+| 1 | 어제보다 이른 `moving` 회차가 근접 판정 · 유실 집계 · 노선 잠금에서 빠지고 어제 회차는 남음 · `StaleMovingRun` 지표·경보 | `StaleMovingRunTest` 2 · `ProximityNotificationSchedulerTest` · `RunPositionLostGaugeSchedulerTest` · `StaffRouteControllerTest` · `alerts.test.yml` — RED → GREEN · 결함 심기 9종(날짜 범위 제거 · 하루 넓힘 · 하루 좁힘 · 경계 `<`→`<=` · 호출부 3곳 범위 미전달 · 읽기 트랜잭션 제거) 모두 해당 시험만 실패 · promtool 변형 3종 실패 | ✅ |
+| 2 | 재시도 간격 증가 · 설정 오류 스택 없음 · 노선·좌표 저장 뒤 즉시 재시도 | `RunConfirmationRetryDelayTest` · `RunConfirmationSchedulerTest` · `RunConfirmationSchedulerLogTest` · `StaffRouteControllerTest` · `AdminAcademyCoordinatesTest` · `SchemaContractTest` — RED → GREEN · 결함 심기 11종 | ✅ |
+| 3 | 사진 스트림 · 304 · 업로드 축소 | `LocalDiskPhotoStorageReadTest` · `StudentPhotoServingTest` · `PhotoResizerTest` 6 · `StudentPhotoWriterTest` — RED → GREEN · 결함 심기 8종 | ✅ |
+| 4 | 백엔드 전체 `--rerun` 실패 0 · 건너뜀 0 | 결과 XML 합계 — **381 클래스 · 2,145건 · 실패 0 · 오류 0 · 건너뜀 0**(`BUILD SUCCESSFUL in 7m 19s` · 스키마가 바뀌어 전체 실행 · 네이버 환경변수 없이). 앞선 전수에서 발견해 고친 것은 아래 "전체 시험에서 발견한 것" | ✅ |
+| 5 | 정본 반영 · 깨진 참조 0 | `ERD` · `ARCHITECTURE §9.4·9.6` · `API_SPEC §5.11.1` · `DEPLOYMENT §11.2` · `TECH_DECISIONS §13.4` · 이 절 · `§11` 색인(701~705) | `build.py` 깨진 참조 0건 | ✅ |
+| 6 | 정리 — 띄운 서버 없음 · `r46_kfixbe` 는 남김 | `lsof` | ✅ |
+
+**전체 시험에서 발견한 것** — ①`SchedulingPoolSizeTest` — `@Scheduled` 메서드가 11 → 12개가 되어 `SchedulingConfig.POOL_SIZE` 를 12 로 올림(작업을 더하면 값도 올린다는 기존 규칙) ②`RunPositionFallbackTest` 3건 — 시드를 한국 시간 23시 50분에 깔고 자정을 넘겨 시험이 돌면 시계가 시드 날짜로 이동해 심은 위치가 시드 위치보다 오래된 것으로 읽혀 실패(코드 결함 아님 · 시드를 새로 깔아 해소) ③`ProximityNotificationSchedulerTest` 의 "읽기 트랜잭션 1개" 시험이 전체 실행에서만 4 대신 5 — 앞선 시험이 시드 회차 R3 의 Redis 위치를 남기면 R3 도 판정돼 회차 3개 가정이 깨짐. **날짜 범위를 없앤(변경 전과 같은) 상태에서도 똑같이 실패해 K-1 과 무관한 기존 상태 의존**임을 확인하고, 판정된 회차 수로 세도록 고침(회차당 트랜잭션이 2개로 늘면 여전히 실패)
+
+**재현되지 않았거나 지시와 다르게 판단한 것** — ① 간격식 `2^(n−1)`(지시서 예시는 `2^n`) · "마지막 실패 시각" 대신 "다음 시도 허용 시각" 컬럼(`703`) ② 지시에 없던 보강 — `status` 리터럴화(`701`) · 사진 EXIF 회전·압축 폭탄 상한(`705`) ③ 시드 R3 의 운행일이 시드를 깐 날이라 테스트 DB 가 이틀 넘게 묵으면 `StaffRouteControllerTest` 의 기존 노선 잠금 시험이 범위(`701`)를 벗어나 실패 — 시험이 R3 운행일을 오늘로 고정하도록 고쳤다 ④ 알림 반복 주기는 경보별로 못 정해(전역 4시간) 지시서의 "1일 1회 수준" 은 맞추지 못함.
+
+**후속(이 갈래 밖)** — ①관리자·관계자가 끝나지 않은 회차를 끝내는 화면·API 는 사양 변경(C-15)이라 사용자 결정 뒤 ②기존 저장 사진은 축소되지 않았다(필요하면 일괄 변환 스크립트) ③WebP 업로드는 JDK 기본 `ImageIO` 가 못 읽어 원본 크기 그대로.

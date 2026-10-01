@@ -298,8 +298,14 @@ class ProximityNotificationSchedulerTest {
 
         scheduler.judgeMovingRuns();
 
+        List<Object> judgedRunIds = org.mockito.Mockito.mockingDetails(proximityNotificationService).getInvocations()
+                .stream().filter(call -> call.getMethod().getName().equals("judgeRun"))
+                .map(call -> call.getArguments()[0]).toList();
+        // 시드 회차 R3(운행 중)에 앞선 시험이 Redis 위치를 남겨 두면 그 회차도 판정된다 — 이 시험의 회차 3개만 센다고 가정하지 않고
+        // "판정된 회차마다 읽기 트랜잭션 1개" 로 센다(회차당 2개로 늘면 여전히 실패한다)
+        assertThat(judgedRunIds).as("이 시험이 심은 세 회차는 판정된다").containsAll(runIds);
         assertThat(statistics.getTransactionCount() - before)
-                .as("운행 중 회차 조회 1 + 회차 3개 × 읽기 트랜잭션 1").isEqualTo(1 + 3);
+                .as("운행 중 회차 조회 1 + 판정된 회차 " + judgedRunIds + " × 읽기 트랜잭션 1").isEqualTo(1 + judgedRunIds.size());
         ArgumentCaptor<Collection<Long>> batches = ArgumentCaptor.forClass(Collection.class);
         verify(runPositionStore, atLeastOnce()).findAll(batches.capture());
         assertThat(batches.getAllValues()).as("세 회차의 위치를 한 묶음의 한 번 읽기로").anySatisfy(
