@@ -1016,13 +1016,13 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 482 | 보호자 전화 — 누를 때만 원번호 단건 조회 + 감사(사용자 결정) | 본문 §8.79(결정 기록) · 구현은 R46-PRIVACY |
 | 483 | 배포·외부 연동(FCM·이메일·SMS·텔레그램·카카오)은 자리만 — 키 없이 빌드·시험 통과(사용자 결정) | 본문 §8.79(결정 기록) · 구현은 R46-INTEG |
 | 490 | 요일 다중 등록은 서버 일괄 API 없이 웹이 요일마다 기존 POST 를 차례로(부분 실패 표시) | 프론트 본문 §5.21 |
-| 491 | 본인 비밀번호 변경은 헤더 버튼 + 대화상자 · 강제 변경 표식은 만들지 않음 | 프론트 본문 §5.21 |
+| 491 | 본인 비밀번호 변경은 헤더 버튼 + 대화상자 · 강제 변경 표식은 만들지 않음 → **`540`·`544` 로 해소** | 프론트 본문 §5.21 |
 | 492 | 노선 변경 확인 표시는 확정·운행 중 회차의 배치된 사람에게만 | 프론트 본문 §5.21 |
 | 493 | 첫날 체크리스트는 onboarding 기능이 다섯 목록을 직접 읽음 | 프론트 본문 §5.21 |
-| 494 | 비상 대응 조치 메모는 이번에 만들지 않음(서버 필드 부재 — 백엔드 후속) | 프론트 본문 §5.21 |
+| 494 | 비상 대응 조치 메모는 이번에 만들지 않음(서버 필드 부재 — 백엔드 후속) → **`541`·`545` 로 해소** | 프론트 본문 §5.21 |
 | 495 | 가입 승인 후보 — 신청자 이름 미리 검색 · 동명이인 구분 · 이미 가입한 학생 비활성(account_linked) | 프론트 본문 §5.21 · 본문 §8.78 |
 | 496 | 주소 없는 옛 학원은 상태 변경 때 address 키 없이 저장 | 프론트 본문 §5.21 |
-| 497 | 전체 관제 요약은 GET /admin/emergencies?status=open 한 번으로 학원별 미확인 비상 집계 | 프론트 본문 §5.21 |
+| 497 | 전체 관제 요약은 GET /admin/emergencies?status=open 한 번으로 학원별 미확인 비상 집계 · 지연·확정 실패 집계는 **`543`·`547` 로 해소** | 프론트 본문 §5.21 |
 | 498 | 관계자 학생 요일별 주소 조회(STU-06) GET /staff/students/{id}/weekly-address 읽기 전용 · L3 감사 | 프론트 본문 §5.21 · 본문 §8.78 |
 | 500 | 백업 — DB 매시 · 사진 매일 · 업로드 뒤 성공 시각 지표 · 경보 | 본문 §8.79 |
 | 501 | 경보 수신 — 텔레그램 봇 + 이메일 예비 · SSM 선택 항목 · 값 없으면 수신자 없이 기동 | 본문 §8.79 |
@@ -1031,6 +1031,14 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 504 | 메인 관리자 활성 2명 이상(두 번째는 DB 직접 · 절차서) | 본문 §8.79 |
 | 505 | 비용 한도 알림 — AWS Budgets 이메일 2개(금액은 배포 때) | 본문 §8.79 |
 | 506 | 저장소 공개 유지 — 비밀 5종 전 이력 0건 확인 | 본문 §8.79 |
+| 540 | 임시 비밀번호 강제 변경 — 계정 표식(`must_change_password`) · 초기화가 켜고 본인 변경이 끔 · 켜진 동안 변경·me·로그아웃 3개 외 API 는 403 `PASSWORD_CHANGE_REQUIRED` | 본문 §8.82 |
+| 541 | 비상 확인의 조치 메모 — `emergency_alert.ack_memo`(200자 · 선택) · 확인 요청 선택 본문 · `acked_by.memo` 표시 | 본문 §8.82 |
+| 542 | 알림 `run_id` — `notification_log.run_id` · 노선·배치 변경 알림만 채움 · 응답은 추가만 | 본문 §8.82 |
+| 543 | 전체 관제 지연·확정 실패 집계 — 기존 API 로 못 세서 `GET /admin/runs/attention`(문제 있는 학원만) | 본문 §8.82 |
+| 544 | 강제 변경 화면 — 웹은 가드가 취소 없는 대화상자 · 앱은 라우터 고정(뒤로 가기 없음 · 로그아웃만) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.24` |
+| 545 | 조치 메모 입력은 비상 상세 대화상자에서만 · 행 [확인] 은 메모 없이 그대로 · 메인 관리자 상세 표시 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.24` |
+| 546 | 알림 눌러 이동 — `run_id` 있는 노선 변경 → 노선 화면 · 배치 변경 → 기사 운전 / 동승자 명단 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.24` |
+| 547 | 전체 관제 `지연·확정 실패가 있는 학원` 요약 띠 · 학원 선택 목록 표시 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.24` |
 
 
 ## 8.73 ⚖ `R46-BE` — 성능 개선(감사 제외) + 바로 고칠 것 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 410~419 · 백엔드 갈래)
@@ -1213,3 +1221,40 @@ R46 운영(`IMPLEMENTATION_PLAN §8.76`) 위에 사용자 결정(`Ruling 480`·`
 **결과 (2026-10-01)** — 목표 1~7 ✅(아래 예외 1건 명시). 신설·확장 시험 — `BackupScriptGuardTest` 8 · `AlertmanagerRenderGuardTest` 12 · `DeployScriptGuardTest` +6 · `DeploymentConfigGuardTest` +2 · `CorsCredentialsTest` +1 · promtool 시나리오 +3. 새 동작을 요구하는 시험은 구현 전 RED 를 확인했고(이미 동작하는 것을 고정하는 시험은 결함 심기로 확인), **결함 31종**(백업 스크립트 7 · 부트스트랩 2 · 렌더러 5 · `deploy.sh` 7 · compose·nginx 4 · 경보 5 · CORS 1)을 하나씩 심어 31/31 이 해당 시험에 의해 잡히고 원복 뒤 저장소 상태 31/31 빈 결과. 로컬 실측 — `amtool check-config`(렌더 3종 통과 · 반쪽 설정 거부) · `promtool` 통과 · `-p r46ops2` 기동에서 낡은 DB 백업 지표 → `BackupDbStale` 이 5분 뒤 Alertmanager 에 도착 · `:8400` 에서 허용 출처 preflight 200 / 밖 403 · 쿠키 `SameSite=Strict` · WS `101`/`403` · 복구 절차(`DEPLOYMENT §7.3` 경로 B) 실행으로 원본과 복원본 일치 · 두 번째 메인 관리자 SQL 로 로그인 200. 깨진 참조 0 → 0. 실제 AWS·Vercel·텔레그램·SMTP 는 호출하지 않았다.
 
 **전체 백엔드 시험**(`--rerun`) 344클래스 1,960건 **실패 2 · 건너뜀 0** — 둘 다 이 갈래와 무관하고 깨끗한 DB 의 단독 실행에서 통과한다: ① `AcademySettingFindOrCreateConcurrencyTest` 는 동시 실행 시험이 머신 부하 평균 약 47(다른 작업 창이 같은 머신에서 실행 중)에서 `TimeoutException` — 단독 실행 통과(16초). ② `AuditRecorderDedupTest.두_번째_조회에_새_학생이_실리면_그_학생만_기록된다` 는 같은 DB 에서 앞서 돈 시험이 남긴 `actor_account_id` 가 null 인 `login_fail` 행 때문에 NPE(`actor == log.getActorAccountId()` 가 `audit_log` 전체를 읽고 null 을 언박싱) — 그런 행을 직접 넣으면 **결정적으로 재현**되고 스키마를 비우면 통과한다. 시험 소스는 분기점 이후 변경이 없다(범위 밖이라 고치지 않고 보고). 전체를 세는 시험(`ControllerAuthorizationConventionTest` · `AcademyScopeHttpExhaustiveTest` · `AuthFlowIntegrationTest` · `SchemaContractTest` · `EnumCheckConstraintParityTest` · `ErrorCodeCatalogTest` · `MetricsExposureTest` · `AccountStatusGateInterceptorTest` · `AcademyScopeRepositoryConventionTest`)은 결과 XML 에 있고 실패 0. **실제 AWS 실행은 미수행** — 첫 배포 뒤 확인할 것: 데이터 디스크 마운트·`fstab`(`/dev/nvme1n1` 가정) · 백업 지표가 EC2 의 node-exporter 에 읽히는지 · 복구 소요 시간(약 40분은 추정) · Vercel 빌드(`output: "standalone"` 무시 여부 · 요금제).
+
+## 8.82 ⚖ `R46-FUFEAT` — 임시 비밀번호 강제 변경 · 비상 조치 메모 · 알림 회차 식별자 · 전체 관제 집계 (2026-10-01 · 분기점 `a2b29078` · 번호대 540~549 · 기능 후속 갈래)
+
+`R46-WEBF` 가 서버 필드 부재로 보류한 3건(`Ruling 491`·`494`·`497`)과 매니저 알림의 이동 근거(회차 식별자)를 서버에 더했다. 사용자 자리 비움 중이라 조율자가 "만든다" 로 정한 갈래다(`DECISIONS` 10:40). 클라이언트 몫 판정(`Ruling 544~547`)은 `docs/frontend/IMPLEMENTATION_PLAN.md §5.24` 에 있다. 마이그레이션은 영속 환경 미적용 정책대로 `V1__init_schema.sql` 을 직접 고쳤다(컬럼 3개 · 같은 테이블을 다른 갈래가 고치는지 `git log main -- backend/src/main/resources/db` 로 확인 — 충돌 없음).
+
+### R46-FUFEAT 판정
+
+| Ruling | 판정 | 근거 |
+|:-:|---|---|
+| **540** | **임시 비밀번호 강제 변경은 서버가 막는다.** ① `account.must_change_password`(boolean NN default false). 관리자 초기화 두 경로(`§5.22` 관계자→학부모·학생·매니저, `§6.7` 메인 관리자→관계자)가 `Account.issueTemporaryPassword` 로 켜고, 본인 변경(`§2.8`)의 `Account.changePassword` 가 끈다 — 끄는 자리는 그 한 곳이다. ② 표식은 access 토큰의 `mustChangePassword` 클레임으로 간다(로그인·`refresh` 가 계정의 값을 싣는다 — 상태(`status`)와 같은 방식이라 요청마다 DB 를 읽지 않는다). `AuthUser` 는 5번째 성분 `mustChangePassword` 를 얻고 4-인자 생성자(표식 꺼짐)를 남겨 기존 호출 28곳이 그대로다. ③ 로그인(`must_change_password`)·`GET /me`(`must_change_password`) 응답에 항상 실린다. ④ **막는다 — 허용은 `POST /auth/password` · `GET /me` · `POST /auth/logout` 3개**(`@AllowedWhenPasswordChange` 표시). 그 밖은 `403 PASSWORD_CHANGE_REQUIRED`, STOMP 연결도 같다. 계정 상태 게이트(`AccountStatusGateInterceptor`)가 상태 판정 뒤에 같은 자리에서 판정한다(허용 목록 방식 — 새 엔드포인트의 기본값이 차단) | 표식만 두고 막지 않으면 클라이언트가 이동을 빼먹은 앱(학부모 앱은 아직 처리 없음)에서 임시 비밀번호를 영원히 쓸 수 있고, **임시 값은 초기화한 관리자가 알고 있다** — 서버가 마지막 방어선이어야 한다. 허용 3개는 바꾸고(변경) · 표식 상태를 알고(me) · 나갈 수 있는(로그아웃) 최소 집합이고 refresh 는 공개 엔드포인트라 게이트 밖이다. **한계(사양 §1.4 에 명시)** — 초기화 순간 이미 열려 있던 세션의 access 토큰은 만료까지 표식을 모른다(초기화가 refresh 를 전부 끊어 재로그인으로 이어진다). 보안 **강화**라 `ask` 대상이 아니다 |
+| **541** | **비상 확인에 선택 조치 메모를 남긴다.** `emergency_alert.ack_memo`(varchar(200) · NULL 허용). `POST /staff/emergencies/{id}/ack` 에 **선택 본문** `{memo}` — 본문이 없거나 `memo` 가 공백뿐이면 메모 `null`(앞뒤 공백은 지우고 저장), 200자 초과는 `422 VALIDATION_FAILED` 이고 확인되지 않는다. 확인과 **같은 조건부 UPDATE 한 문장**(`ackIfUnacked`)으로 써서 동시 확인에서 최초 확인자의 메모만 남는다. 응답은 `acked_by` 를 `{name, memo}` 로 확장 — 관계자 목록(`§5.16`)과 메인 관리자 목록(`§6.11`) 둘 다. 발신자(매니저) 앱의 `§4.15` 응답에는 싣지 않았다 | 길이 상한 200 은 발신 메모(`EmergencyRaiseRequest.memo`)와 같다. 따로 UPDATE 하면 최초 확인자가 아닌 쪽의 메모가 기록을 덮는다. 자유 문장이라 개인정보가 들어갈 수 있다는 `R46-WEBF Ruling 494` 의 우려는 발신 메모와 같은 수준(200자 · 학원 범위 · 관계자·메인 관리자만 조회)이라 같은 취급으로 둔다 — 보존은 `emergency_alert` 와 같다 |
+| **542** | **알림이 가리키는 회차를 싣는다.** `notification_log.run_id`(bigint NULL · FK 없음 — 논리적 부모, `ERD §4.2`). 채우는 곳은 매니저 알림 둘 — `RunRouteConfirmedNotificationListener`(`route_changed`) · `AssignmentChangedNotificationListener`(`assignment_changed`). `GET /notifications` 항목에 `run_id` 를 **추가만** 한다(없는 종류는 키는 있고 값 `null`). `NotificationDraft`·`NotificationLog.forOutbox` 는 기존 생성자를 남기고 과부하를 더해 기존 호출처·시험이 그대로다 | 알림 payload 에 회차 식별자가 없어 눌러서 갈 화면을 특정할 수 없었다(`R46-MGR` 이 "갈 화면 없음" 으로 남김). 응답은 추가만이라 학부모·학생 앱·웹 알림 로그의 기존 소비처가 영향 없다(키를 무시) |
+| **543** | **전체 관제 지연·확정 실패 집계는 기존 API 로 못 세서 최소 집계 API 를 만든다 — `GET /admin/runs/attention`(§6.15).** 기존 API 판정: 확정 실패는 `GET /admin/academies/{id}/runs/live` 의 `consecutive_failures` 로 알 수 있으나 학원마다 불러야 해 **학원 수에 비례**하고, **지연은 어느 응답에도 필드가 없다**(`delay_notice` 는 서버 안에만). 정의 — 지연 = 오늘 회차(임시 취소 제외) 중 지연 알림이 1건 이상이고 `finished` 가 아닌 회차(알림 여러 건이어도 한 번 · `EXISTS`) · 확정 실패 = 오늘 회차(임시 취소 제외) 중 `idle` 이고 `consecutive_failures > 0`. **문제 있는 학원만** 실어 응답이 문제 학원 수에 비례한다. 권한 `@CanMonitorAll`(메인 관리자) · 전수 목록 4곳 중 3곳 등재(경로변수 없는 핸들러라 `AcademyScopeHttpExhaustiveTest` 사례는 해당 없음) | 지연을 "도착 − 예정(`delay_minutes`)" 으로 정의하면 회차마다 정차 목록·ETA 를 읽어야 해 집계 쿼리가 무거워지고, 관계자가 "지연 알림이 나간 회차" 를 보고 싶다는 요구(`R46-WEBF Ruling 497`)와도 다르다. 확정 실패에 `idle` 조건을 둔 것은 확정되면 `consecutive_failures` 가 0 으로 돌아가지만(`ERD run`) 옛 값이 남은 행을 읽지 않기 위해서다 |
+
+`Ruling 548`·`549` 는 쓰지 않았다.
+
+### R46-FUFEAT 변경 요약
+
+| 변경 | 내용 |
+|---|---|
+| 스키마(`V1`) | `account.must_change_password` · `emergency_alert.ack_memo` · `notification_log.run_id` — 컬럼 3개 |
+| 새 엔드포인트 | `GET /admin/runs/attention` 1개(`§6.15`) — 전수 목록 `AccountStatusGateEndpoints` · `AuthFlowIntegrationTest`(112→113) · `ControllerAuthorizationConventionTest` 하한(113→114) |
+| 새 오류 코드 | `PASSWORD_CHANGE_REQUIRED`(403, `§8`) |
+| 응답 필드 추가 | 로그인·`/me` `must_change_password` · 알림 `run_id` · 비상 `acked_by.memo` |
+
+### R46-FUFEAT 목표 표
+
+| # | 완료 조건 | 확인 수단 |
+|:-:|---|---|
+| 1 | 초기화 → 표식 · 로그인 응답 표식 · 변경 뒤 해제 · 표식 중 다른 API 거부 · 웹·매니저 앱 강제 이동 | `TemporaryPasswordForcedChangeTest` 6 · `AuthGateGuard.test` 3 · `AuthSessionProvider.mustChange.test` 1 · `must_change_password_test` 3 — RED→GREEN · 결함 심기 |
+| 2 | 조치 메모 저장·표시 · 길이 초과 422 · 메모 없는 확인도 동작 | `StaffEmergencyControllerTest` +3 · 웹 상세 대화상자 시험 |
+| 3 | 알림 탭 → 관련 화면 · payload 추가가 기존 시험을 깨지 않음 | 매니저 `notifications_screen_test` +5 · `NotificationControllerTest` +1 · `RunRouteConfirmedNotificationTest` +1 · `AssignmentChangedNotificationRunIdTest` |
+| 4 | 집계 판정 근거 · 인가·학원 범위 시험 | `Ruling 543` · `AdminRunAttentionControllerTest` 4 |
+| 5 | 백엔드 전체 · 웹 `tsc`·`lint`·vitest · 매니저·core·ui `analyze`·`test` | **백엔드 전체**(`--rerun`) 349클래스 1,985건 **실패 1 · 건너뜀 0** — 실패는 `RoutePathTransactionTest`(이 갈래와 무관한 기존 결함: 시험 픽스처가 `bus_no` 를 `"BR211-" + System.nanoTime()` 로 만드는데 머신 가동이 약 28시간을 넘어 `nanoTime` 이 15자리가 되면 21자라 `varchar(20)` 초과 — 단독 재실행도 같은 `value too long`). 웹 `tsc`·`lint` 0 · vitest(실서버 제외) 133파일 777건 실패 0 · 매니저 `analyze` 0 · 시험 379건 · core `analyze` 0 · 시험 77건 · ui `analyze` 0 · 시험 237건(건너뜀 0) · 부모 앱 `analyze` 0(공용 모델 변경 영향 없음) |
+| 6 | 실서버 계약(웹 · 매니저 · core)을 자기 서버 `:8440` 에만 | 자기 서버 `:8440` — 웹 14파일 82건 · core 9건 · 매니저 27건 모두 실패 0 · 건너뜀 0(새 계약 시험: 웹 3 · core 2 단언 · 매니저 1) |
+| 7 | 정본 반영 + `Ruling 540~547` · 깨진 참조 0 | `API_SPEC` · `ERD` · 이 절 · `docs/frontend/IMPLEMENTATION_PLAN.md §5.24` · docgraph |
+| 8 | 정리 — `:8440`·`:3000` 종료 · `r46_fufeat` DROP | `lsof` · `pg_database` |
