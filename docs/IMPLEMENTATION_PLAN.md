@@ -1117,6 +1117,7 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 613 | 노선 정차지 수 상한 50 — 등록·수정·정차지 저장·최적화 고정 정차지 4곳 DTO `@Size` + 서비스 검증 → 422 (사용자 결정 2026-10-01) | 본문 §8.85 · `docs/API_SPEC.md §5.9` |
 | 614 | `run_rider.boarded_at` · `alighted_at` 삭제 — 읽는 곳 0 · 되돌리기 뒤 값이 틀림 · 같은 시각이 `rider_status_history.changed_at` 에 있음(사용자 결정 · 검토 `schema` A-3). 같은 갈래가 `run_rider.note`(A-2)도 삭제 | 본문 §8.86 · `docs/ERD.md §3` |
 | 615 | 배포 때 nginx 설정 자동 반영 — 프록시 재시작으로 1~2초 끊김 허용, 단 새 설정을 일회용 컨테이너로 `nginx -t` 검사해 통과할 때만 재시작 · 실패하면 배포 중단 (사용자 결정 · 이행은 `Ruling 648·649`) | 본문 §8.87 (결정 원문은 사용자 지시 — 문서에는 이 행이 기록) |
+| 618 | "나중" 항목 중 SSE 를 뺀 나머지를 진행(사용자 결정 2026-10-01) — L2 위치 SQL 합치기 · L5 근접 판정 묶음 · 관리자 주의 회차 집계 인덱스(검토 `idx`) · L11 Tomcat 스레드 명시 · **B-1 `run_position` 날짜 범위 파티션(이 테이블에 한해 `Ruling 243` 을 뒤집음)** · B-4 학원 경계 복합 FK · C-14 토큰 무중단 갱신. SSE 전환(`Ruling 617`)만 제외 | `.claude/r46/DECISIONS.md`(무시 파일 — 결정 원문) · 이행: 백엔드 본문 §8.88(`670`~`677`) · 토큰 갱신(C-14)은 실시간 갈래 몫 |
 | 620 | DB 자원 오류(풀 고갈·연결 끊김·잠금 대기 초과·쿼리 취소)는 `503 SERVER_BUSY` + `Retry-After: 3` · 스택 없는 `warn` 한 줄 | 본문 §8.85 · `docs/API_SPEC.md §1.11` |
 | 621 | prod·demo DB 시간 상한 — 누수 감지 5초 · `lock_timeout 5s` · `idle_in_transaction_session_timeout 30s`(`statement_timeout` 은 안 건다) | 본문 §8.85 |
 | 622 | 알림 적재는 한 문장 묶음(`appendAll`) + 같은 `dedup_key` 는 예외 없이 건너뜀 — `DUPLICATE_NOTIFICATION` 삭제 · 운행 시작 적재 SQL 문장 수 수신자 수와 무관 | 본문 §8.85 · `docs/TECH_DECISIONS.md §7.2` |
@@ -1146,7 +1147,6 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 652 | 전체 관제 회차 목록 폴링 — 실시간 `connected` 면 30초 · 아니면 7초 · 재연결 직후 한 번 바로 받음 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.30` |
 | 653 | 이벤트 뒤 재조회 묶기 — 웹 대시보드 300ms 묶음 · 매니저 앱 명단·노선 첫 이벤트 뒤 1초 창 안 한 번(창을 밀지 않음) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.30` |
 | 654 | 오프라인 대기열 카드 폭 — 문구가 짧은 카드만 줄어 가운데에 뜨던 것(`Ruling 592` 와 같은 갈래, 화면 확인에서 발견) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.30` |
-| 618 | "나중" 항목 중 SSE 를 뺀 나머지를 진행(사용자 결정 2026-10-01) — L2 위치 SQL 합치기 · L5 근접 판정 묶음 · 관리자 주의 회차 집계 인덱스(검토 `idx`) · L11 Tomcat 스레드 명시 · **B-1 `run_position` 날짜 범위 파티션(이 테이블에 한해 `Ruling 243` 을 뒤집음)** · B-4 학원 경계 복합 FK · C-14 토큰 무중단 갱신. SSE 전환(`Ruling 617`)만 제외 | `.claude/r46/DECISIONS.md`(무시 파일 — 결정 원문) · 이행: 백엔드 본문 §8.88(`670`~`677`) · 토큰 갱신(C-14)은 실시간 갈래 몫 |
 | 670 | `run_position` 일(한국 시간 자정) 단위 `RANGE (recorded_at)` 파티션 — PK `(id, recorded_at)` · **기본 파티션 필수** · 앱이 기동 직후+매일 7일 앞까지 미리 만들기(ShedLock) · 만료는 **파티션 DROP**(컷오프가 걸친 날은 남아 실제 보관 90일 이상 91일 미만) · 컷오프 인덱스·행 DELETE·표 단위 autovacuum 삭제 | 본문 §8.88 · `docs/ERD.md §3.4·§5.3·§7.3` · `docs/TECH_DECISIONS.md §9.3` |
 | 671 | 위치 수신 SQL 8 → 5(첫 도착 전 7 → 5) — 인가 `exists` 1 · 확정 노선+정차+이름 조인 1 · 방송 수신자 학생 id 투영. 캐시 없음(무효화 지점 0) | 본문 §8.88 |
 | 672 | 근접·출발 판정 묶음 — 위치는 회차 묶음당 Redis `MGET` 1회 · 회차당 읽기 트랜잭션 1개 · 선점은 판정별 트랜잭션(예외 격리 유지). `Ruling 624` 의 DB 대체는 묶음당 1쿼리로 | 본문 §8.88 |
@@ -1623,4 +1623,4 @@ R46 검토 `stab`(경보 · 로그 드라이버 · OOM · 종료 대기) · `idx
 
 **재현되지 않았거나 지시와 다르게 판단한 것** — ① 주의 회차 집계(검토 `idx`)의 확정 실패 쪽은 `Ruling 631` 이 이미 해소 ② `Ruling 672` 의 두 가지(전용 `MGET` 메서드 불필요 · 선점은 판정별 트랜잭션) ③ 주의 회차 집계의 합성 데이터 검증에서 같은 트랜잭션의 `UPDATE` 뒤에 만든 인덱스를 플래너가 쓰지 않는 함정(`indcheckxmin`) — 처음엔 "인덱스가 안 쓰인다" 로 오판할 뻔함.
 
-**후속(이 갈래 밖)** — ①`Ruling 676` 의 부하 시드는 `schoolbus_load` 를 다시 심어야 효과가 난다(이미 어긋난 행은 점검 파일의 `DELETE` 로 정리) ②파티션 미리 만들기는 운영에서 **실패 경보**가 별도로 없다 — 스케줄러 공통 지표(`schoolbus_scheduler_last_success_age_seconds{scheduler="run-position-partition"}`)를 가용성 경보(`Ruling 640`)에 넣는 것은 운영 갈래 몫(7일 앞까지 만들어 두어 며칠은 기본 파티션 없이도 안전) ③C-14 토큰 무중단 갱신(`Ruling 618` 의 나머지)은 실시간 갈래 몫.
+**후속(이 갈래 밖)** — ①`Ruling 676` 의 부하 시드는 `schoolbus_load` 를 다시 심어야 효과가 난다(이미 어긋난 행은 점검 파일의 `DELETE` 로 정리) ②파티션 미리 만들기는 운영에서 **실패 경보**가 별도로 없다(→ 병합 뒤 조율자가 `RunPositionPartitionStalled` 3일 규칙 + promtool 시험 추가로 해소) — 스케줄러 공통 지표(`schoolbus_scheduler_last_success_age_seconds{scheduler="run-position-partition"}`)를 가용성 경보(`Ruling 640`)에 넣는 것은 운영 갈래 몫(7일 앞까지 만들어 두어 며칠은 기본 파티션 없이도 안전) ③C-14 토큰 무중단 갱신(`Ruling 618` 의 나머지)은 실시간 갈래 몫.

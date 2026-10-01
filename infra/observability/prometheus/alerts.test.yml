@@ -418,3 +418,25 @@ tests:
               scheduler: retention-cleanup
             exp_annotations:
               summary: 보존 정리(retention-cleanup)가 3일 넘게 성공하지 않았다 — 보존 기간이 지난 데이터 삭제와 퇴원 학생 개인정보 파기가 멈췄다
+
+  # 위치 이력 파티션 미리 만들기(매일 00:10): 마지막 성공 경과가 3일을 넘으면 발화한다(Ruling 670 · 7일 앞까지 만들어 두므로 4일 여유).
+  - interval: 1h
+    input_series:
+      - series: 'schoolbus_scheduler_last_success_age_seconds{job="backend",application="school-bus",scheduler="run-position-partition"}'
+        values: '0+3600x100'
+      - series: 'schoolbus_scheduler_last_success_age_seconds{job="school-bus-load",application="school-bus",scheduler="run-position-partition"}'
+        values: '999999x100'
+    alert_rule_test:
+      - eval_time: 72h
+        alertname: RunPositionPartitionStalled
+        exp_alerts: []
+      - eval_time: 74h
+        alertname: RunPositionPartitionStalled
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: backend
+              application: school-bus
+              scheduler: run-position-partition
+            exp_annotations:
+              summary: 위치 이력 파티션 미리 만들기(run-position-partition)가 3일 넘게 성공하지 않았다 — 남은 미리 만든 파티션이 4일치 이하

@@ -142,3 +142,11 @@ groups:
           severity: warning
         annotations:
           summary: 보존 정리(retention-cleanup)가 3일 넘게 성공하지 않았다 — 보존 기간이 지난 데이터 삭제와 퇴원 학생 개인정보 파기가 멈췄다
+      # 위치 이력 파티션 미리 만들기(매일 00:10 · 7일 앞까지, Ruling 670). 3일 멈춰도 아직 4일치가 남아 있어 그 안에 알린다 —
+      # 8일 넘게 멈추면 기본 파티션에 행이 쌓이고, 뒤늦게 그 날짜 파티션을 만들 때 하루치(약 27만 행)를 한 번에 옮긴다.
+      - alert: RunPositionPartitionStalled
+        expr: schoolbus_scheduler_last_success_age_seconds{job="backend",scheduler="run-position-partition"} > 259200
+        labels:
+          severity: warning
+        annotations:
+          summary: 위치 이력 파티션 미리 만들기(run-position-partition)가 3일 넘게 성공하지 않았다 — 남은 미리 만든 파티션이 4일치 이하
