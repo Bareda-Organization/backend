@@ -2708,7 +2708,6 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `DUPLICATE_ROUTE` | 409 | 같은 `bus_id`·`weekday`·`direction` 조합의 고정 노선 중복 편성·수정 — 유일성 근거는 `route(bus_id, weekday, direction)` UNIQUE(`uk_route_bus_weekday_direction`)이고 애플리케이션 선검사가 아니다 (RTE-01 · §5.9). **동시 2요청은 서로의 미커밋 INSERT 를 보지 못한 채 둘 다 선검사를 지나므로**, 제약 위반을 이 코드로 번역하지 않으면 그 경합이 500 으로 샌다. 422 가 아니라 409 인 것은 `DUPLICATE_SCHEDULE`·`DUPLICATE_BUS_NO` 와 같은 형태다 (2026-08-29 신설, Ruling 180) |
 | `ADDRESS_VERIFICATION_UNAVAILABLE` | 503 | 주소 좌표 변환 서비스(네이버 지오코딩)에 연결 불가 — 주소 검증을 거치는 경로(§3.7 · §3.8 · §5.7 · §5.8 · §5.9 승하차지 검색 · §5.15). ⚠ **`ADDRESS_VERIFICATION_FAILED`(422)와 합치지 않는다** — 그쪽은 주소를 고쳐 다시 보낼 자리, 이쪽은 같은 주소를 잠시 뒤 다시 보낼 자리 |
 | `DUPLICATE_WEEKLY_ADDRESS` | 409 | 한 요청 안에 같은 요일·방향의 주소가 둘 이상 — 유일성 근거는 DB UNIQUE (§3.7). 같은 칸을 나중에 다시 고치는 것은 덮어쓰기라 이 코드가 아님 |
-| `DUPLICATE_NOTIFICATION` | 409 | 같은 멱등키(`notification_log.dedup_key`)의 알림 적재가 겹침 — 이미 통지한 알림. 사용자 요청이 아니라 알림 적재 쪽 충돌이 그 요청의 응답으로 올라오는 형태 |
 | `ACADEMY_COORDINATES_MISSING` | 422 | 학원 좌표(`academy.lat`·`lng`) 미등록 상태의 노선 계산 — ② 구간 승인 미리보기·처리(§5.5) · 고정 노선 최적화(§5.9) · 경유 지점 지정(§5.15). 확정 배치에서는 그 회차만 실패하고 다음 틱에 재시도 (Ruling 190) |
 | `WAYPOINT_NOT_FOUND` | 404 | 미존재·이미 제거된 강제 경유 지점 지정 · 다른 회차 소속 — 존재 비노출 (§5.15 · RTE-10) |
 

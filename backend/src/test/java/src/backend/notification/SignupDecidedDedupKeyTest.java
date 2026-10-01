@@ -76,9 +76,10 @@ class SignupDecidedDedupKeyTest {
         assertThat(적재된_키())
                 .as("키가 이벤트의 판정 시각이 아니라 배달 시각을 따라가면 재배달마다 새 키가 생긴다")
                 .isEqualTo(기대_키);
-        assertThat(결과.get(1))
-                .as("두 번째 배달이 중복으로 막히지 않았다는 것은 그 배달이 <b>다른 키</b>를 만들었다는 뜻이다")
-                .contains(ErrorCode.DUPLICATE_NOTIFICATION);
+        assertThat(결과.get(1)).as("같은 키는 예외 없이 건너뛴다(Ruling 622) — 예외가 나면 상태 변경까지 되돌아간다").isEmpty();
+        assertThat(적재된_행_수())
+                .as("두 번째 배달이 새 행을 만들었다면 그 배달이 <b>다른 키</b>를 만들었다는 뜻이다")
+                .isEqualTo(1);
     }
 
     @Test

@@ -161,14 +161,6 @@ public enum ErrorCode {
     // DUPLICATE_SCHEDULE 과 같은 형태이며, 판정은 애플리케이션 선검사가 아니라 DB UNIQUE 다.
     DUPLICATE_WEEKLY_ADDRESS(HttpStatus.CONFLICT, "같은 요일·방향의 주소가 중복됐습니다"),
 
-    // ── 알림 아웃박스(Phase 4) ──────────────────────────────────────────────────
-    // 같은 dedup_key 의 알림이 이미 적재돼 있을 때(ERD notification_log UNIQUE) — 이벤트가 두 번
-    // 배달됐다는 뜻이다. 그 거부를 옮기지 않으면 DataIntegrityViolationException 이 전역 핸들러의
-    // catch-all 로 떨어져 사용자에게 500 이 나가고, "서버가 고장났다" 와 "이미 통지했다" 가
-    // 구별되지 않는다(AcademyStaffQuota 의 STAFF_QUOTA_EXCEEDED 와 같은 형태).
-    // 403 이 아니라 409 인 것은 막는 것이 권한이 아니라 대상 자원의 상태이기 때문이다.
-    DUPLICATE_NOTIFICATION(HttpStatus.CONFLICT, "이미 적재된 알림입니다"),
-
     // ── 고정 노선 편성(Phase 6, RTE-01 · RTE-09 · A-08) ──────────────────────────
     // 미존재 고정 노선 지정(API_SPEC §5.9 · §8.5, Ruling 180). 다른 학원의 노선을 지목한 경우도 이
     // 코드다 — 학원 조건을 쿼리에 넣어 "없음" 과 "남의 학원" 을 같은 빈 결과로 만들면 존재 여부가

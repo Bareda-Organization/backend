@@ -6,9 +6,11 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.verify;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -96,9 +98,7 @@ class GuardianFanOutTest {
     }
 
     private List<Long> parentRecipients() {
-        ArgumentCaptor<NotificationDraft> drafts = ArgumentCaptor.forClass(NotificationDraft.class);
-        verify(outbox, atLeastOnce()).append(drafts.capture());
-        List<NotificationDraft> parents = drafts.getAllValues().stream()
+        List<NotificationDraft> parents = appendedDrafts().stream()
                 .filter(draft -> draft.recipientRole() == Role.PARENT).toList();
         assertThat(parents.stream().map(NotificationDraft::dedupKey)).doesNotHaveDuplicates();
         return parents.stream().map(NotificationDraft::recipientAccountId).toList();
@@ -126,5 +126,17 @@ class GuardianFanOutTest {
                 return "학생";
             }
         };
+    }
+
+    /** 적재 호출 전부 — 건별 {@code append} 와 묶음 {@code appendAll}(R46 T-6)을 한 목록으로 모은다. */
+    private List<NotificationDraft> appendedDrafts() {
+        ArgumentCaptor<NotificationDraft> single = ArgumentCaptor.forClass(NotificationDraft.class);
+        verify(outbox, atLeast(0)).append(single.capture());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<NotificationDraft>> batches = ArgumentCaptor.forClass(List.class);
+        verify(outbox, atLeast(0)).appendAll(batches.capture());
+        List<NotificationDraft> all = new ArrayList<>(single.getAllValues());
+        batches.getAllValues().forEach(all::addAll);
+        return all;
     }
 }

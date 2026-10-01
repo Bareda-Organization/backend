@@ -3,6 +3,7 @@ package src.backend.notification;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -18,12 +19,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
-import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import src.backend.global.common.enums.Role;
-import src.backend.global.error.BusinessException;
 import src.backend.notification.command.NotificationDispatcher;
 import src.backend.notification.command.NotificationDraft;
 import src.backend.notification.command.NotificationOutbox;
@@ -81,34 +80,32 @@ class NotificationOutboxConcurrencyTest {
     }
 
     /**
-     * 적재 축 — UNIQUE 가 두 번째 INSERT 를 막고, 그 거부가 {@code 500} 이 아니라 업무 예외로 옮겨진다.
+     * 적재 축 — UNIQUE 가 두 번째 INSERT 를 막고, 그 거부가 예외가 아니라 <b>건너뜀</b>이다(R46 Ruling 622).
      *
-     * <p>거부를 옮기지 않으면 사용자에게 "서버가 고장났다" 와 "이미 통지했다" 가 구별되지 않는다
-     * ({@code AcademyStaffQuota} 와 같은 형태의 사고다).
+     * <p>예외로 알리면 PostgreSQL 은 UNIQUE 위반 즉시 그 트랜잭션을 중단 상태로 만들어 같은 트랜잭션의 상태 변경까지
+     * 되돌린다 — 같은 키는 같은 알림이 이미 있다는 뜻이라 건너뛰어도 통지는 빠지지 않는다. 동시에 넣는 두 트랜잭션은 뒤쪽이
+     * 앞쪽의 커밋을 기다린 뒤 건너뛴다.
      */
     @Test
-    void 같은_dedup_key_로_두_스레드가_적재하면_행이_1건이다() throws Exception {
+    void 같은_dedup_key_로_두_스레드가_적재하면_행이_1건이고_둘_다_예외_없이_끝난다() throws Exception {
         String dedupKey = DEDUP_KEY_PREFIX + "append";
         CountDownLatch 출발 = new CountDownLatch(1);
         ExecutorService pool = Executors.newFixedThreadPool(2);
         try {
-            Future<Throwable> 첫째 = pool.submit(적재_호출(dedupKey, 출발));
-            Future<Throwable> 둘째 = pool.submit(적재_호출(dedupKey, 출발));
+            Future<Optional<Long>> 첫째 = pool.submit(적재_호출(dedupKey, 출발));
+            Future<Optional<Long>> 둘째 = pool.submit(적재_호출(dedupKey, 출발));
             출발.countDown();
 
-            // Arrays.asList 인 이유는 성공한 쪽의 결과가 null 이라 List.of 가 거부하기 때문이다.
-            List<Throwable> 결과 = java.util.Arrays.asList(첫째.get(TIMEOUT_SECONDS, TimeUnit.SECONDS),
+            // get 이 던지면(ExecutionException) 한쪽이 예외로 끝난 것이다 — 그 자체가 실패다
+            List<Optional<Long>> 결과 = List.of(첫째.get(TIMEOUT_SECONDS, TimeUnit.SECONDS),
                     둘째.get(TIMEOUT_SECONDS, TimeUnit.SECONDS));
 
             assertThat(적재된_행_수(dedupKey))
                     .as("두 행이 남으면 같은 통지가 두 번 나간다. 실제 결과=%s", 결과)
                     .isEqualTo(1);
-            assertThat(결과.stream().filter(java.util.Objects::isNull).count())
-                    .as("성공은 정확히 1건이어야 한다. 실제 결과=%s", 결과)
+            assertThat(결과.stream().filter(Optional::isPresent).count())
+                    .as("새 행을 만든 쪽은 정확히 1건이어야 한다(나머지는 건너뜀). 실제 결과=%s", 결과)
                     .isEqualTo(1);
-            assertThat(진_쪽의_응답_상태(결과))
-                    .as("DataIntegrityViolationException 이 그대로 올라오면 사용자에게 500 이 나간다")
-                    .isEqualTo(HttpStatus.CONFLICT);
         } finally {
             pool.shutdownNow();
         }
@@ -123,7 +120,7 @@ class NotificationOutboxConcurrencyTest {
     @Test
     void 같은_pending_행을_워커_둘이_집어도_발송은_1회다() throws Exception {
         long notificationId = transactionTemplate.execute(
-                status -> notificationOutbox.append(초안(DEDUP_KEY_PREFIX + "dispatch")));
+                status -> notificationOutbox.append(초안(DEDUP_KEY_PREFIX + "dispatch")).orElseThrow());
         발송_횟수.set(0);
         커밋_직후_발송분을_되돌린다(notificationId);
 
@@ -197,16 +194,11 @@ class NotificationOutboxConcurrencyTest {
                 """, notificationId);
     }
 
-    /** 적재를 한 번 시도하고 <b>실패 원인</b>을 돌려준다 — 성공이면 {@code null} 이다. */
-    private Callable<Throwable> 적재_호출(String dedupKey, CountDownLatch 출발) {
+    /** 적재를 한 번 시도해 새로 만든 행의 id 를 돌려준다 — 같은 키를 건너뛰었으면 비어 있다. */
+    private Callable<Optional<Long>> 적재_호출(String dedupKey, CountDownLatch 출발) {
         return () -> {
             출발.await(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            try {
-                transactionTemplate.execute(status -> notificationOutbox.append(초안(dedupKey)));
-                return null;
-            } catch (RuntimeException e) {
-                return e;
-            }
+            return transactionTemplate.execute(status -> notificationOutbox.append(초안(dedupKey)));
         };
     }
 
@@ -222,14 +214,6 @@ class NotificationOutboxConcurrencyTest {
         };
     }
 
-    /** 진 쪽이 사용자에게 어떤 상태로 나가는지 — 업무 예외가 아니면 전역 핸들러가 500 으로 답한다. */
-    private HttpStatus 진_쪽의_응답_상태(List<Throwable> 결과) {
-        Throwable 진_쪽 = 결과.stream().filter(java.util.Objects::nonNull).findFirst().orElse(null);
-        if (진_쪽 instanceof BusinessException business) {
-            return business.getErrorCode().getStatus();
-        }
-        return HttpStatus.INTERNAL_SERVER_ERROR;
-    }
 
     private NotificationDraft 초안(String dedupKey) {
         return new NotificationDraft(1L, 8L, "조대기", Role.PARENT, NotificationType.SIGNUP_DECIDED,

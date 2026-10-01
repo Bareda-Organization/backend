@@ -25,6 +25,7 @@ import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 import testsupport.clock.FixedClock20320401Config;
+import testsupport.db.NotificationInsertFailureInjector;
 
 /**
  * 미승차 에스컬레이션 폴링({@link NoShowEscalationScheduler#escalateDueNoShowCases}) 수준의 검증
@@ -195,20 +196,18 @@ class NoShowEscalationSchedulerTest {
         long goodCaseId = fixtures.noShowCase(goodRiderId, now.minusMinutes(10), now.minusMinutes(1));
 
         long[] bad = baseScenario();
-        long badStaffAccountId = bad[1];
         long badRiderId = bad[2];
         long badCaseId = fixtures.noShowCase(badRiderId, now.minusMinutes(10), now.minusMinutes(1));
 
-        // 이 케이스가 에스컬레이션되며 만들 dedup_key 를 미리 점유해, 알림 적재에서 DUPLICATE_NOTIFICATION 이
-        // 나게 만든다 — 그 케이스의 트랜잭션 전체(조건부 UPDATE 포함)가 롤백된다.
-        String collidingDedupKey = "no_show_escalated:" + badCaseId + ":" + badStaffAccountId + ":" + now;
-        jdbcTemplate.update(
-                "INSERT INTO notification_log (academy_id, recipient_account_id, recipient_name, recipient_role, "
-                        + "type, title, body, dedup_key) VALUES (?, ?, '선점', 'staff', 'no_show_escalated', "
-                        + "'선점', '선점', ?)",
-                bad[0], badStaffAccountId, collidingDedupKey);
+        // 이 케이스가 에스컬레이션되며 하는 알림 적재가 DB 에서 실패하게 만든다 — 그 케이스의 트랜잭션 전체(조건부 UPDATE 포함)가
+        // 롤백된다. 같은 dedup_key 는 건너뛰므로(Ruling 622) 키 선점으로는 실패가 나지 않아 트리거로 거절한다.
+        NotificationInsertFailureInjector.failFor(jdbcTemplate, bad[0]);
 
-        scheduler.escalateDueNoShowCases();
+        try {
+            scheduler.escalateDueNoShowCases();
+        } finally {
+            NotificationInsertFailureInjector.clear(jdbcTemplate);
+        }
 
         NoShowCase goodCase = noShowCaseRepository.findById(goodCaseId).orElseThrow();
         assertThat(goodCase.getEscalatedAt()).as("옆 건이 실패해도 이 건은 에스컬레이션돼야 한다").isNotNull();
