@@ -31,8 +31,8 @@ services:
     build: ./backend
     # 외부 API 키(NCP 네이버 Directions 등). git 에 없는 파일이라 required:false 로 둔다 —
     # 키 없이도 기동은 되고, 배차(auto-assign)만 401 로 실패한다.
-    # ⚠️ 이게 없으면 routing.provider=naver 인 배차 API 가 "서버 오류"로만 보인다.
-    #    키가 없는 환경에서는 ROUTING_PROVIDER=osrm 로 우회할 수 있다.
+    # ⚠️ 이게 없으면 도로 경로 호출이 실패해 배차 API 가 503(MAP_ROUTE_UNAVAILABLE)로만 보인다.
+    #    대체 지도 공급자는 없다 — 공급자는 app.routing.map.provider(naver 기본 · stub 은 시험용)가 정한다.
     env_file:
       - path: ./backend/.env
         required: false
