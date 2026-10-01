@@ -605,6 +605,24 @@ aws ssm put-parameter --name /school-bus/demo/SEED_PASSWORD_HASH --type SecureSt
 - **Docker 값은 스프링 값보다 길어야 한다.** 35초 = 30초 + 5초(연결 풀·메시지 브로커를 닫는 시간). 스프링 값을 올리면(`timeout-per-shutdown-phase: 60s` 등) compose 의 값도 같이 올린다 — `OpsSettingsGuardTest` 가 `application.yml` 에 명시된 값을 읽어 어긋나면 실패한다. 명시가 없는 지금은 Boot 기본값 30초를 상수로 가정하니 Boot 를 올릴 때 설정 메타데이터를 다시 확인한다
 - 35초는 상한이다. 한가한 시각의 배포는 진행 중 요청이 없어 즉시 끝난다. 배포 게이트(`deploy-gate.sh`)가 운행 중 회차를 막는 것과는 별개의 장치다
 - 스테이징은 같은 값이다(`docker compose restart backend` 로 하는 초기화도 이 시간을 쓴다 — `STAGING §8`)
+
+### 5.3 nginx 설정 반영 — 검사 후 proxy 다시 시작 (`Ruling 615` · `648`)
+
+`deploy.sh` 의 **3-1 단계**(`up -d` 뒤 · 스모크 테스트 앞)가 **매 배포마다** 두 가지를 한다 — ① `docker compose run --rm --no-deps -T proxy nginx -t` 로 새 설정 검사 ② 통과하면 `restart proxy`. 설정을 바꾼 배포도 아닌 배포도 같은 길을 지난다(바뀐 줄을 가려내는 로직이 없어 틀릴 곳이 없다).
+
+| 질문 | 답 |
+|---|---|
+| **왜 다시 시작해야 하나** | proxy 는 `nginx.prod.conf` **파일 하나**를 바인드 마운트한다. `s3 sync` 는 임시 파일에 받아 이름을 바꿔 교체해(새 파일이 생긴 것) 마운트가 옛 파일을 계속 가리킨다 — 일회용 컨테이너 안의 Linux 마운트로 확인: 교체 뒤에도 옛 내용, 다시 마운트하면 새 내용. `nginx -s reload` 는 옛 설정을 다시 읽을 뿐이라 소용없다. `up -d` 는 설정 파일 내용을 보지 않고, backend 가 재생성돼도 proxy 를 다시 만들지 않는다(compose 5.5.1 실측) |
+| **왜 폴더 마운트 + reload 가 아닌가** | `infra/proxy/` 에 개발용 `nginx.conf`·`nginx.staging.conf` 가 같이 있어 그 폴더를 `conf.d/` 로 마운트하면 `server`·`limit_req_zone` 이 겹친다. 운영 설정을 전용 폴더로 옮기고 이름을 바꿔야 하는데, 이름이 코드·시험·문서 20여 곳에 있다. 얻는 것은 1~2초 무끊김뿐이라 사용자가 허용한 재시작을 골랐다 |
+| **끊김** | proxy 재시작 **1~2초**(80·443 연결 거절, WebSocket 재연결). 같은 배포에서 backend 가 이미 수십 초 내려가 있어(§10) 체감 추가분은 작다. 재시작은 `upstream backend` 이름도 새로 풀게 한다 |
+| **검사가 실제와 같은 조건인 이유** | `run` 은 새 컨테이너라 마운트를 새로 해 **교체된 새 파일**을 보고, 같은 compose 네트워크·볼륨이라 `backend` 이름 해석 · 인증서(`certbot-conf`) · `.htpasswd` 마운트가 실제 proxy 와 같다. `--no-deps` 라 다른 서비스는 건드리지 않는다. 일회용 환경에서 확인: 정상 설정 통과 · 문법 오류·인증서 경로 없음·backend 이름 해석 실패는 종료코드 1 |
+| **검사가 실패하면** | **proxy 를 다시 시작하지 않고 배포를 실패로 끝낸다**(`exit 1`, 로그에 `nginx: [emerg] … in /etc/nginx/conf.d/default.conf:<줄>`). 옛 설정으로 proxy 는 계속 응답한다. Prometheus·Alertmanager 반영이 "경고만" 인 것과 다르다 — 잘못된 설정으로 다시 시작하면 proxy 가 못 떠 API 전체가 멈춘다. 고쳐서 다시 배포한다(§8) |
+| **검사 위치가 `up -d` 뒤인 이유** | backend 가 떠 있어야 `upstream backend:8080` 이름이 풀린다 — 먼저 하면 정상 설정도 `host not found in upstream` 으로 실패한다(가드 시험이 순서를 고정). 한계: 같은 배포가 compose 파일(이미지·마운트·명령어)도 바꿔 `up -d` 가 proxy 를 새 설정으로 **재생성**하면, 잘못된 설정은 그 시점에 이미 proxy 를 못 뜨게 한 뒤다. 이때도 3-1 이 같은 파일로 실패해 배포를 "성공" 으로 끝내지 않는다 — 복구는 §6 롤백 또는 설정을 고쳐 다시 배포 |
+
+- 첫 배포 뒤 확인: 배포 로그의 `== 3-1.` 아래에 `configuration file /etc/nginx/nginx.conf test is successful` 가 있어야 한다. EC2 의 compose 는 v2.29.7 이고 위 동작(`run --no-deps`·`restart`)은 v2 공통이지만, "backend 재생성이 proxy 를 다시 만들지 않는다" 는 로컬 v5.5.1 에서만 확인했다
+- 검사용 컨테이너도 `x-logging` 을 받아 배포마다 CloudWatch 로그 스트림이 하나 늘고 2줄이 남는다
+- `.htpasswd` 는 `s3 sync` 가 건드리지 않는 EC2 직접 파일이라(§2.12) 이 단계의 대상이 아니다. 그 파일을 새로 만들었을 때의 재기동(§2.12 3번)은 그대로 필요하다
+
 ---
 
 ## 6. 롤백
@@ -731,6 +749,7 @@ $C start backend
 | 컨테이너 반복 종료 | `free -h` 로 메모리, `docker stats`, 스왑 활성 여부 확인. backend 면 `docker inspect -f '{{.RestartCount}}' <컨테이너>` 와 `docker compose logs backend \| grep OutOfMemoryError`(§11.6 — JVM 이 OOM 이면 스스로 끝나 재시작된다) | 스왑 추가 또는 인스턴스 사양 상향. OOM 반복이면 힙 사용이 늘어난 원인(최근 변경 · 폴링 부하)을 먼저 본다 — 힙 덤프는 남지 않는다(§11.6) | 종료 시점·메모리 수치 |
 | 인증서 만료 | `docker compose logs certbot`, 80 포트 개방 여부 확인 | certbot 갱신 재시도, 방화벽 규칙 수정 | 갱신 결과 |
 | Swagger UI 401 · 기동 실패 | §2.12 절차 확인 | EC2 에서 `.htpasswd` 재생성 후 `proxy` 컨테이너 재기동 | 재생성 시각 |
+| 배포가 `== 3-1.` 단계에서 멈춤(`nginx -t` 실패 · `Ruling 648`) | 배포 로그의 `nginx: [emerg] … default.conf:<줄>` — 줄 번호는 `infra/proxy/nginx.prod.conf` 의 줄이다. `host not found in upstream "backend:8080"` 이면 설정이 아니라 backend 가 안 떠 있는 것 — `docker compose ps backend` | 설정 오류는 그 줄을 고쳐 커밋하고 다시 배포한다(§5.3). proxy 는 다시 시작하지 않아 **옛 설정으로 응답 중**이라 API 는 살아 있다 | 실패 로그 줄 · 고친 줄 |
 | 지도 API 장애(노선 계산 ③단계 영향) | `resilience4j_circuitbreaker_state{name="geocoding"\|"mapRoute"}` 값 확인(관측 목표 8) | 자동 폴백 — 직선거리 근사로 배차 유지, 화면에 폴백 사실 표시, 배치는 계속 진행. 서킷 닫히면 다음 회차부터 정상, 이미 배포된 노선은 재계산 제외 | 폴백 지속 시간 |
 | Redis 장애(최신 좌표·캐시 영향) | `docker compose logs redis`, `redis-cli ping`, 지표 `schoolbus.position.fallback` 증가 | 자동 대체 — 위치 조회 3종(학부모 버스 위치 · 관계자 관제 · 메인 관리자 관제)과 비상 신고 위치는 DB 이력 최신 행으로 조회(현재 정차지 이름은 비어 나감). 근접·출발 판정은 그 틱을 건너뛰고 다음 틱에 다시 본다. 캐시 미스로 계산 반복 | 장애 지속 시간 |
 | DB 장애(전면 영향) | `docker compose ps postgres`, 헬스체크 UP 여부 확인 | 매니저 앱은 오프라인 큐로 승하차만 지속, 나머지 제품은 조회 불가. 복구 후 큐 동기화(멱등, `client_key` UNIQUE) | 장애 시작·복구 시각 |
@@ -776,6 +795,7 @@ flutter build ipa --release --dart-define=API_BASE_URL=https://api.<도메인> -
 | 한계 | 사유 |
 |---|---|
 | 배포 시 수십 초 다운타임 | 단일 인스턴스. §4.2 제약 해소가 선행 조건 |
+| 배포마다 proxy 1~2초 추가 끊김 | 파일 하나를 마운트한 nginx 는 reload 로 새 설정을 못 읽어 다시 시작한다(`Ruling 615` · `648`, §5.3). 폴더 마운트로 바꾸면 없앨 수 있으나 설정 파일 이름이 코드·시험·문서 20여 곳에 있다 |
 | 인스턴스 사망 시 복구가 수동(목표 1시간) | 데모 성격. Auto Scaling Group 미구성. 절차는 §7.3 |
 | DB 최대 1시간 · 사진 최대 하루 유실 | 매시 덤프 + 매일 스냅샷(RPO 1시간, `Ruling 480 ①`). WAL 아카이빙(PITR)은 채택하지 않았다 — 이 규모에서 설정·복구 복잡도가 이득보다 크다 |
 | APM 부재 · 서버 통째 사망은 외부 감시로만 감지 | 경보 수신(텔레그램·이메일, §11.3)은 있으나 Prometheus·Alertmanager 가 EC2 안에 있어 서버가 죽으면 같이 죽는다 — `/healthz` 외부 감시(§11.4)를 걸어야 알 수 있다 |
@@ -919,7 +939,7 @@ sudo docker compose -f /opt/school-bus/docker-compose.prod.yml --env-file /opt/s
 | **JSON 응답 압축** | `nginx.prod.conf` `/api/` 의 `gzip on` · `gzip_types application/json` · `gzip_min_length 1024` | 관제 폴링처럼 키가 반복되는 JSON 은 크게 줄어든다(가짜 2.8KB 응답이 308B — 약 9배, 실제 관제 응답 크기는 미측정). 1KB 미만 · 이미지(사진) · WebSocket 은 대상이 아니다 |
 | **인증 응답은 압축하지 않는다** | `/api/v1/auth/` 와 `= /api/v1/me/link-code` 는 `gzip off` | BREACH — 압축 크기가 응답 안의 비밀(토큰·연결 코드)과 공격자가 넣은 값의 일치를 드러낸다. 로그인·가입·복구·자녀 연결(속도 제한 location)은 압축을 켜지 않은 별도 location 이라 그대로 안전하다. `/auth/*` 전체와 연결 코드 발급이 해당한다 |
 
-- ⚠ **nginx 설정 변경은 배포가 자동 반영하지 않는다** — 설정은 파일 하나를 바인드 마운트하고 `s3 sync` 가 파일을 교체하면 컨테이너는 옛 파일을 계속 본다(§11.2 의 Prometheus 와 같은 이유 — `deploy.sh` 는 Prometheus 만 다시 시작한다). **`nginx.prod.conf` 를 바꾼 배포 뒤에는 proxy 를 한 번 다시 시작한다**: `sudo docker compose -f /opt/school-bus/docker-compose.prod.yml --env-file /opt/school-bus/.env restart proxy`. 잘못된 설정이면 proxy 가 못 떠 공개 API 가 끊기므로 먼저 로컬에서 `nginx -t` 를 본다(§2.11)
+- **nginx 설정 변경은 배포가 자동 반영한다**(`Ruling 648`) — 설정은 파일 하나를 바인드 마운트하고 `s3 sync` 가 파일을 교체하면 컨테이너는 옛 파일을 계속 보지만(§11.2 의 Prometheus 와 같은 이유), `deploy.sh` 3-1 단계가 **새 설정을 `nginx -t` 로 검사한 뒤 proxy 를 다시 시작**한다. 검사가 실패하면 proxy 는 옛 설정으로 계속 응답하고 배포가 실패로 끝난다. 방식·끊김(1~2초)·한계는 §5.3. 로컬 `nginx -t` 는 첫 오류에서 멈추는데 설정 21번째 줄의 `upstream backend:8080` 과 인증서 경로가 로컬에는 없어, 그 뒤의 문법 오류까지 거르지 못한다 — 실제 검사는 배포 때 EC2 의 같은 네트워크·볼륨으로만 믿을 수 있다
 - 압축 확인: `curl -s -D - -o /dev/null -H 'Accept-Encoding: gzip' https://api.<도메인>/api/v1/<JSON 목록 경로> -H 'Authorization: Bearer <토큰>' \| grep -i content-encoding` — 일반 조회는 `gzip`, `/api/v1/auth/refresh` 는 헤더가 없어야 한다
 
 ---
