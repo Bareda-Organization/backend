@@ -1048,6 +1048,10 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 532 | 미설치 안내 — 배너 + [설치하기](SDK 설치 페이지) · 자동으로 열지 않음 · 열기 실패는 별도 문구 | 프론트 본문 docs/frontend/IMPLEMENTATION_PLAN §5.23 |
 | 533 | 플랫폼 설정 — iOS 실행 허용 목록 kakaonavi-sdk · URL scheme 은 Local.xcconfig 자리표시 · Android 쓰이지 않는 스킴 질의 삭제 | 프론트 본문 docs/frontend/IMPLEMENTATION_PLAN §5.23 |
 | 534 | 외부 내비 버튼은 운행 화면 회차 카드와 지도 사이 유지 · 문구 [카카오내비 길안내] | 프론트 본문 docs/frontend/IMPLEMENTATION_PLAN §5.23 |
+| 570 | 길안내 범위는 시트 없이 두 버튼 [다음 목적지]·[남은 전 구간] 으로 고른다 — 서버 scope(next·remaining)와 사양은 이미 같고 앱이 remaining 으로 고정했던 것만 바로잡음(Ruling 534 의 단일 버튼을 캡션+두 버튼으로 대체) | `docs/frontend/IMPLEMENTATION_PLAN §5.26` |
+| 571 | 운행 화면 하단 알림은 묶음으로 다루고 높이를 화면의 40% 로 막는다 — 가장 중요한 한 건 + `알림 N건 더 보기` · 넘치면 묶음 안 스크롤 · 위쪽 스크롤 영역은 지도 최소 높이 140px 이상 | `docs/frontend/IMPLEMENTATION_PLAN §5.26` |
+| 572 | 하단 알림 우선순위 — 도착 처리 실패 > 명단 조회 실패 > 위치 송신 불가 > 카카오내비 미설치 > 길안내 안내 > 도착 처리됨 | `docs/frontend/IMPLEMENTATION_PLAN §5.26` |
+| 573 | 공용 RunSummaryCard 의 큰 글자 가로 넘침은 이 라운드 범위 밖(후속) — 하단 레이아웃 시험은 그 넘침만 허용 | `docs/frontend/IMPLEMENTATION_PLAN §5.26` |
 
 
 ## 8.73 ⚖ `R46-BE` — 성능 개선(감사 제외) + 바로 고칠 것 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 410~419 · 백엔드 갈래)
