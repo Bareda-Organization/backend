@@ -51,7 +51,7 @@ SNAP_PID=$!
 
 cd "$DIR/k6"
 set +e
-k6 run $K6_OUT_ARGS -e SCENARIO2_CSV="$DIR/results/${LABEL}_runs.csv" \
+k6 run --summary-trend-stats="avg,min,med,max,p(90),p(95),p(99)" $K6_OUT_ARGS -e SCENARIO2_CSV="$DIR/results/${LABEL}_runs.csv" \
     -e SCENARIO2_DURATION_SEC="$DURATION" \
     -e SCENARIO2_INTERVAL_SEC="$INTERVAL" \
     -e SCENARIO2_OBSERVERS="$OBSERVERS" \
