@@ -1035,6 +1035,11 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 511 | 관계자 웹 브라우저 푸시 · 이메일 발송은 사양에 없어 만들지 않는다 | 본문 §8.80 |
 | 512 | 문자 발송 포트 `SmsSender`(`global/sms`) · `app.sms.sender` 값이 없으면 비활성(복구 503 유지) · `logging` 은 개발용(번호 끝 4자리·본문 길이만) | 본문 §8.80 |
 | 513 | 전화번호 복구 재개 값 — 코드 6자리·5분 · 발급 60초 1회·24시간 5회 · 대조 5회 · 문자로만 전달 · 대상 학부모·학생·기사·동승자 · `429 RECOVERY_RATE_LIMITED` | 본문 §8.80 · `API_SPEC §2.9` |
+| 550 | 수정·삭제 감사 행(`data_access` update·delete)에도 접속 IP — 학생 L3 수정·퇴원 · 이동 대기 취소 · 회차 강제 확정. 비밀번호 초기화 행은 기능 후속 창 병합 뒤 | 본문 §8.83 · `ERD §3.4` |
+| 551 | 죽은 설정 `ROUTING_PROVIDER` 삭제 — OSRM 구현체 부재 · 지도 공급자는 `app.routing.map.provider`(naver·stub) · 장애 때는 직선거리 근사 · compose→yml · deploy.sh→compose 역방향 가드 | 본문 §8.83 · `DEPLOYMENT §3` |
+| 552 | 목록 보강 — 노선 목록 `stop_count`(정차지 수) · 학생 목록 이름 자연 정렬(서버 정렬) | 본문 §8.83 · `API_SPEC §5.9·§5.11` |
+| 553 | 전화번호 복구는 번호의 가입 여부를 응답으로 드러내지 않는다 — 발급 응답·빈도 제한·대조 실패가 가입 여부와 무관하게 같다(`Ruling 513` 의 미등록 404 한계를 닫음) | 본문 §8.83 · `API_SPEC §2.9` |
+| 554 | 위치 요청 SQL 줄이기는 이번 갈래에서 착수하지 않는다 — 실측 기준값 요청당 8건, 무효화 설계안은 아래 절 | 본문 §8.83 |
 
 
 ## 8.73 ⚖ `R46-BE` — 성능 개선(감사 제외) + 바로 고칠 것 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 410~419 · 백엔드 갈래)
@@ -1244,3 +1249,39 @@ R46 운영(`IMPLEMENTATION_PLAN §8.76`) 위에 사용자 결정(`Ruling 480`·`
 **결과 (2026-10-01)** — 목표 1 ✅ 백엔드 `--rerun` 344클래스 1,943건 · 건너뜀 0 · 실패 1(`AcademySettingFindOrCreateConcurrencyTest` 시간 초과 — 다른 창 4개와 내 Flutter·웹 시험이 동시에 도는 부하에서 발생, 단독 재실행 1/1 통과 · 이 갈래가 건드린 코드 아님) · 웹 `next typegen` 뒤 `tsc`·`lint` 0 · vitest 118파일 711건 · Flutter 4패키지 `analyze` 0 · `baraeda_ui` 235 · `baraeda_core` 83 · `parent-app` 259 · `manager-app` 334 전부 실패 0 · 건너뜀 0. 목표 2 ✅ 새 시험 — `device_registrar_test` 8 · 앱 2종 배선 시험 각 1 · `device_registration_panel_push_source_test` 3 · 결함 심기 9종에서 그 시험만 실패. 목표 3 ✅ `AccountRecoveryFlowTest` 9 · `LoggingSmsSenderTest` 3 · 발송기 없을 때 503 은 `AuthControllerTest` 19건 안에서 그대로 통과 · 결함 심기 7종(빈도 제한 제거 포함). 목표 4 ✅ 준비물 표의 키 12개를 `grep` 으로 코드에서 찾음(`app.sms.sender` `LoggingSmsSender` · `app.push.*` `FcmPushSender` · `FCM_*` `application.yml`·`docker-compose.prod.yml` · `PushTokenSource` 계열 `baraeda_core`) — `FirebasePushTokenSource` 만 스케치라 코드 0건이 정상. 목표 5 ✅ 서버 `:8410` · `baraeda_core` 9 · `parent-app` 28(`--dart-define=FIXTURE_DB=r46_integ` 를 줘야 건너뜀 0 — 안 주면 소프트 삭제 시험 1건이 환경 문제로 건너뜀) · `manager-app` 26 · 웹 `realBackend` 14파일 78(복구 `503` 유지 시험 포함) 실패 0 · 건너뜀 0. 목표 6 ✅ 깨진 참조 0(문서 반영 전 9건은 전부 내 `Ruling 512·513` 인용 → 정의처를 쓰자 0). 목표 7 ✅ `:8410` 종료 · `:5173` 미사용 · `r46_integ` DROP.
 
 **부수 수정 1건** — `API_SPEC §8.1` 에 `RECOVERY_RATE_LIMITED` 를 더하자 웹 `apiErrorCodes` 대조 시험이 실패 → `apiErrorCodes.ts` 한 줄 추가(`§8` 이 먼저 바뀌고 웹 사전이 따르는 규칙 그대로).
+
+
+## 8.83 ⚖ `R46-FUBE` — 감사 IP · 죽은 설정 · 시험 격리 · 목록 보강 · 전화번호 복구 (2026-10-01 · 분기점 `528b4d06` · 번호대 550~559 · 백엔드 후속 갈래)
+
+R46 작업 창 보고서(`R46-AUDIT` · `R46-OPS` · `R46-OPS2` · `R46-WEBF` · `R46-WEB` · `R46-INTEG`)에서 나온 후속 6건 중 5건을 처리했다. 갈래 보고서 `.claude/r46/report-fube.md`(무시 파일). 항목마다 코드로 먼저 재현했다.
+
+### R46-FUBE 판정
+
+| Ruling | 판정 | 근거 |
+|:-:|---|---|
+| **550** | **수정·삭제 감사 행(`data_access` `update`·`delete`)에도 접속 IP 를 남긴다** — 학생 L3 수정·퇴원(`StudentCommandService`) · 이동 대기 취소(`RunTransferRemoval`) · 회차 강제 확정(`RunForceConfirmCommandService`). `AuditLog.forDataAccessChange`·`forRunForceConfirm` 에 `ip` 인자를 더하고 호출부가 `ClientIp.ofCurrentRequest()` 를 넘긴다(요청 밖 배치면 `null`). **비밀번호 초기화 행(`AccountPasswordResetCommandService`)은 남김** — 기능 후속 창이 같은 파일의 인접 줄을 고치는 중이라 충돌 | 조회 행에만 IP 가 있어 "누가 어디서 고쳤나" 를 못 되짚음. 엔티티가 요청 컨텍스트를 모르게 하려고 `@PrePersist` 대신 인자로 받음. 병합 뒤 후속: `forAccountPasswordReset` 에 `ip` 인자 + 호출부 한 줄 |
+| **551** | **죽은 설정 `ROUTING_PROVIDER` 를 삭제한다**(compose 2 · `deploy.sh` 2줄 · SSM 필수 11→10 · `DEPLOYMENT` 안내). `application.yml` 이 읽지 않았고 **OSRM 구현체도 없다** — 지도 공급자는 코드가 `app.routing.map.provider`(`naver` 기본 · `stub` 시험용)로 고르며 장애 때는 직선거리 근사(`fallback_used=true`)·미리보기 `503 MAP_ROUTE_UNAVAILABLE` 이 이미 동작한다. 재발 방지로 `DeploymentConfigGuardTest` 에 역방향 2종(compose backend 가 넘기는 이름은 yml 이 읽는다 · `deploy.sh` 가 `.env` 에 쓰는 이름은 compose 가 쓴다) | 변수를 yml 이 읽게 하면 `osrm` 은 빈 부재로 기동 실패, `stub` 은 운영에서 가짜 경로. 기존 가드는 yml→compose 한 방향만 봐서 못 잡았음 |
+| **552** | **목록 보강** — 노선 목록 항목에 `stop_count`(정차지 수, 빈 편성은 0)를 싣고 관계자 웹 목록에 열을 더한다. 학생 목록 이름은 **자연 정렬**(숫자 덩어리는 크기로 — "학생2" < "학생10")이며 서버가 줄 세운다(쪽 나누기·`sort=name:desc` 유지) | 조사 `B1 #10·#27`. 정차지 수는 한 쪽 편성을 묶음 질의 1회로 셈. 자연 정렬은 PostgreSQL ICU collation 이 마이그레이션·`COLLATE` 표현 문제로 막혀 일치 학생의 id·이름을 줄 세운 뒤 그 쪽만 본 행으로 읽음(수만 명 규모부터 DB 로 이전 — `ponytail:`) |
+| **553** | **전화번호 복구는 번호의 가입 여부를 응답으로 드러내지 않는다**(조율자 결정 2026-10-01 · `Ruling 513` 의 "미등록 `404`" 한계를 닫음). 발급은 미등록·대상 밖 역할 번호도 같은 `200`·같은 한도(번호 기준)·같은 발급 행이고 **문자만 안 나간다**. 같은 번호의 동시 발급은 번호 단위 잠금으로 직렬화, 하루 지난 발급 행은 정리한다. 대조 실패는 이미 이유를 가르지 않는 같은 `403`. `API_SPEC §2.9` 개정 · 학부모 앱 안내를 "가입된 번호라면 문자를 보냈다" 로 | 같은 길을 지나게 하는 것이 두 구현을 맞추는 것보다 어긋남이 적음. **남은 단서** — 응답 시간(문자 발송 지연)과 전수 대입은 서버 응답으로 못 막고 프록시 속도 제한이 담당 |
+| **554** | **위치 요청 SQL 줄이기(`D #5`)는 이번 갈래에서 착수하지 않는다.** 실측 기준값 — 위치 요청 1건당 **준비된 SQL 8건**(Hibernate `getPrepareStatementCount`, 연속 3건 모두 8). 줄일 수 있는 것은 정차 3건(`confirmed_route` · 정차 목록 · 이름 — 8→5)이고 인가·회차 상태는 요청마다 읽어야 한다. 설계안: 회차별 스냅샷 + TTL(≤10초) + 도착(`StopArrivedEvent`)·노선 배포(이벤트 신설)·이름 변경 무효화 + 계산 중 무효화 경합은 세대 번호로 | 무효화 한 곳이라도 빠지면 지난 노선·정차명으로 판정하는 안전 인접 경로라 절반만 넣지 않음 |
+
+**시험 격리 2건(Ruling 불요)** — ①`AuditRecorderDedupTest` 는 `findAll()` 로 전체를 읽어 `actor == log.getActorAccountId()`(`Long` 언박싱)에서 앞선 시험이 남긴 `actor` 없는 행에 NPE → `Objects.equals` · id 정렬. ②`AcademySettingFindOrCreateConcurrencyTest` 의 `TimeoutException` 은 부하가 아니라 **트랜잭션 안에서 `pg_stat_activity` 를 반복 조회**한 것이 원인 — 이 뷰는 접속 목록·상태·쿼리 문장을 트랜잭션 안 첫 조회 때 고정(잠금 대기 여부만 실시간)해, 시험용 풀(`minimum-idle=1`)이 줄어 있으면 뒤 요청이 새로 여는 DB 연결을 영영 세지 못함 → 조회를 시험 스레드(트랜잭션 밖)로 옮기고 풀을 최소로 줄이고 시작해 이 경로를 항상 지나게 함. 대기 상한 20초는 그대로.
+
+### R46-FUBE 목표 표
+
+| # | 완료 조건 | 확인 수단 |
+|:-:|---|---|
+| 1 | 시험 격리 2건이 **전체 실행 안에서** 통과(원인 수정) | 백엔드 전체 `--rerun` 결과 XML |
+| 2 | 수정·삭제 감사 행에 IP | 시험 RED→GREEN · 결함 심기 3종 |
+| 3 | `ROUTING_PROVIDER` 판정 · compose·스크립트·yml·절차서 일치 | `DeploymentConfigGuardTest`(역방향 2종) · `grep` · 결함 심기 2종 |
+| 4 | 정차지 수 · 자연 정렬 | `StaffRouteControllerTest` · `StaffStudentControllerTest` · `NaturalNameOrderTest` · 웹 vitest · 결함 심기 5종 |
+| 5a | 복구 발급·대조 응답이 등록 여부와 무관하게 같다 | `AccountRecoveryFlowTest` · 결함 심기 5종 |
+| 5 | 위치 요청 SQL 수 감소(전 → 후) | **미착수 — 전 8건만 실측(`Ruling 554`)** |
+| 6 | 백엔드 전체 `--rerun` 실패 0·건너뜀 0 · 웹 `tsc`·`lint`·vitest(실서버 제외) 실패 0 | 결과 XML 합계 |
+| 7 | 정본 반영 + `Ruling 550~554` · 깨진 참조 0 | `grep` · docgraph |
+| 8 | 정리 — 서버 · `r46_fube` DROP | `lsof` · `pg_database` |
+
+**결과 (2026-10-01)** — 목표 1 ✅ 두 시험이 백엔드 전체 `--rerun`(349클래스 · **1,992건 · 실패 0 · 오류 0 · 건너뜀 0**, `NAVER_DIRECTIONS_*` 미설정) 안에서 통과. 목표 2 ✅ 3곳 RED(4건)→GREEN · 결함 심기 3종 전부 잡힘. 목표 3 ✅ 역방향 가드 2종 RED(정확히 `ROUTING_PROVIDER` 1건)→GREEN · 결함 심기 2종. 목표 4 ✅ 서버·웹 시험 + 결함 심기 6종(서버 4 · 웹 2). 목표 5a ✅ `AccountRecoveryFlowTest` 14건 · 결함 심기 5종 + 학부모 앱 1종. 목표 5 ⛔ **미착수(`Ruling 554`)** — 전 8건만 실측. 목표 6 ✅ 백엔드 위 합계 · 웹 `tsc` 0 · `eslint` 0 · vitest 130파일 762건(실서버 시험 제외). 목표 7 ✅ 깨진 참조 0. 목표 8 아래 정리 결과.
+
+**부수 1건** — 전체 실행의 첫 판에서 `RoutePathTransactionTest` 가 실패(`bus_no varchar(20)` 초과 — 기기 가동 시간이 길어져 `System.nanoTime()` 자릿수가 늚)했고, 이 갈래와 무관한 환경 문제라 `main` 에 이미 있는 수정 `c4213f35`(시험 2개 파일)를 **같은 내용으로 가져와**(`cherry-pick`) 다시 돌려 0건. 병합 때 같은 변경이 양쪽에 있어 충돌 없음.
+
