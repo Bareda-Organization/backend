@@ -87,7 +87,8 @@ services:
     # 있고, 나머지 1GB 는 postgres(~250MB)·redis(maxmemory 128MB)·proxy(nginx, ~50MB)·OS 몫이다.
     mem_limit: 3072m
     # 종료 신호(SIGTERM) 뒤 SIGKILL 까지 기다리는 시간 — Docker 기본은 10초다. 스프링은 종료 신호를 받으면 새 요청을 막고 진행 중인 요청을 최대
-    # 30초(`spring.lifecycle.timeout-per-shutdown-phase` 기본값 · `server.shutdown=graceful` 기본값 — 2026-10-01 로컬 종료 로그로 확인) 기다린다.
+    # 30초 기다린다(Boot 4.1.0 설정 메타데이터의 기본값 `server.shutdown=graceful` · `spring.lifecycle.timeout-per-shutdown-phase=30s` — 설정 파일에는 명시가 없다.
+    # 2026-10-01 로컬 종료 로그에서도 graceful 종료가 켜져 있음을 확인).
     # 10초면 그 사이 SIGKILL 이 와 진행 중이던 요청이 오류로 끊기니, 스프링의 30초보다 5초 길게 둔다(남는 5초는 연결 풀·브로커를 닫는 시간).
     # 스프링 쪽 값을 바꾸면 이 값도 같이 바꾼다 — 절차서 §5.2.
     stop_grace_period: 35s
