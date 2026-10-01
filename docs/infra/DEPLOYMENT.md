@@ -581,7 +581,8 @@ aws ssm put-parameter --name /school-bus/demo/SEED_PASSWORD_HASH --type SecureSt
 | `flutter` | `scripts/verify.sh flutter` — 4개 패키지의 `pub get` · `build_runner`(있는 곳) · `analyze` · `test`(3.44.8) | `@Tags(['real_backend'])` 시험 |
 
 - 바뀐 모듈의 job 만 돈다(`dorny/paths-filter`). `ci.yml` 이 바뀌면 전부 돈다. 같은 PR 의 새 커밋은 앞선 실행을 취소한다
-- 로컬 재현: `scripts/verify.sh`(전부) · `scripts/verify.sh web flutter`(골라서). 백엔드는 `backend/scripts/test.sh` 가 전용 DB 를 만들고 지움
+- 로컬 재현: `scripts/verify.sh`(전부) · `scripts/verify.sh web flutter`(골라서). 백엔드는 `backend/scripts/test.sh` 가 전용 DB 를 만들고 지움 — `verify.sh` 는 웹·백엔드를 CI 와 같이 **`TZ=UTC`** 로 돌리고 백엔드에는 `-PciQuiet` 도 준다
+- **러너는 UTC · Linux 이고 개발 기계는 한국 시간대 · macOS 다 — "로컬은 통과 · CI 만 실패" 의 원인이 된 세 가지**(`Ruling 720`~`723`, 2026-10-01 첫 push 에서 8건). ①**시간대** — 시험이 기대값을 기기 시간대로 계산하면(`toLocaleTimeString` 에 `timeZone` 없음) UTC 에서 화면(서울 고정)과 어긋난다. 기대값은 서울 시각 문자열로 박는다 · 오프셋 없는 날짜시각을 `new Date()` 에 그대로 넘기지 않는다(기기 시간대로 읽힌다 — 웹 `formatClockTime` 이 이 입력을 서울로 읽게 고쳤다). ②**시각 정밀도** — Linux 의 `OffsetDateTime.now()` 는 나노초 · macOS 는 마이크로초 · `timestamptz` 는 마이크로초라, DB 에 저장했다 읽은 값을 `isEqualTo` 로 비교하는 시험은 **Linux 에서만 실패**한다. 시험에서 그런 시각을 만들 때 `.truncatedTo(ChronoUnit.MICROS)` 를 붙인다(macOS 에서는 이 결함이 안 드러난다). ③**로그 수준** — `-PciQuiet` 이 루트 로그를 WARN 으로 낮추므로 INFO 로그를 읽는 시험은 **자기 로거의 수준을 직접 켜고 복원**한다(앞선 컨텍스트가 같은 JVM 에 남긴 수준에도 달려 단독 실행은 통과 · 전체 실행은 실패하는 형태가 된다)
 - **로그 정책 — 저장소가 공개라 Actions 로그도 공개다.** 비밀값 없이 돈다(네이버 키 불필요 — `build.gradle` 이 지오코딩·경로·장소검색을 stub 으로 고정). 백엔드는 `-PciQuiet` 으로 로그 수준을 WARN 으로 낮추고 결과 XML 에서 stdout·stderr 를 뺀다 — 실패 때 남는 것은 시험 이름·실패 요약뿐. `deploy-backend.yml` 도 실패 시 backend 컨테이너 로그 120줄을 찍지 않고 `deploy.sh` 가 쓴 실패 사유 줄만 남긴다(로그는 EC2 에서 확인)
 - 결과 XML 은 artifact `backend-test-results`(7일)로 남는다
 - 실 네이버 API 시험은 CI 에서 돌지 않는다 — 자격증명이 없고 Directions 일일 한도가 있다. 실행법은 `CLAUDE.md` "Build & run"

@@ -1186,6 +1186,10 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 712 | 지도 정리에서 지도 인스턴스 `destroy()` 호출(K-6) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.33` |
 | 713 | Dependabot — `next`·`eslint-config-next` 16.3.8 · `brace-expansion` 락파일 패치 · `vitest` 계열은 주 버전 변경이 필요해 보류 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.33` |
 | 714 | 토큰 갈아타기 실서버 시험이 방송을 스스로 일으키고(운행 중 회차 기사로 위치 재전송) 전제를 실패 문구로 말함 — 단언 약화 없음 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.33` |
+| 720 | GitHub CI(UTC·Linux)에서만 난 웹 3건 판정 — 화면 시각은 PC 시간대와 무관하게 서울 기준(서버 응답이 오프셋을 포함한 ISO-8601)이라 제품 결함 아님 · `ChangeApprovalDetail` 시험 2건은 기대값을 PC 시간대로 계산한 시험 결함 → 서울 시각 리터럴로 · `formatClockTime`·`formatClockTimeWithSeconds` 가 오프셋 없는 `YYYY-MM-DDTHH:mm[:ss[.fff]]` 를 `formatDateTime` 처럼 서울 벽시계(`+09:00`)로 읽게 | 본문 §8.91 |
+| 721 | `RefreshTokenRepositoryTest` 3건 — Linux `OffsetDateTime.now()` 는 나노초 · macOS 는 마이크로초 · `timestamptz` 는 마이크로초라 저장 후 `isEqualTo` 가 CI 에서만 실패. 운영 쿼리는 시각 동치 비교가 없어 제품 결함 아님 → 시험 시각을 `truncatedTo(MICROS)` | 본문 §8.91 |
+| 722 | `FirstSystemAdminBootstrapTest`·`LoggingSmsSenderTest` — `-PciQuiet`(루트 로그 WARN)이 INFO 로그를 지워 로그를 검사하는 시험이 CI 에서만 실패. `-PciQuiet` 은 그대로 두고 두 시험이 **자기 로거의 INFO 를 직접 켜고 복원** | 본문 §8.91 |
+| 723 | 재발 방지 — `scripts/verify.sh` 가 웹·백엔드를 `TZ=UTC` 로 돌리고 백엔드에 `-PciQuiet` 도 줌(CI 와 같은 조건) · `clockTime.test.ts` 의 시간대 순회에 오프셋 없는 입력 추가 · macOS 는 나노초를 못 재현하므로 DB 왕복 시각은 시험에서 `truncatedTo(MICROS)` 를 붙이는 규칙을 `verify.sh` 머리말과 배포 문서의 CI 절에 기록 | 본문 §8.91 · `docs/infra/DEPLOYMENT.md §5.1` |
 
 
 ## 8.73 ⚖ `R46-BE` — 성능 개선(감사 제외) + 바로 고칠 것 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 410~419 · 백엔드 갈래)
@@ -1736,3 +1740,32 @@ R46 leak 검토(`.claude/r46/review-leak.md` §2)가 짚은 백엔드 3건을 �
 **재현되지 않았거나 지시와 다르게 판단한 것** — ① 간격식 `2^(n−1)`(지시서 예시는 `2^n`) · "마지막 실패 시각" 대신 "다음 시도 허용 시각" 컬럼(`703`) ② 지시에 없던 보강 — `status` 리터럴화(`701`) · 사진 EXIF 회전·압축 폭탄 상한(`705`) ③ 시드 R3 의 운행일이 시드를 깐 날이라 테스트 DB 가 이틀 넘게 묵으면 `StaffRouteControllerTest` 의 기존 노선 잠금 시험이 범위(`701`)를 벗어나 실패 — 시험이 R3 운행일을 오늘로 고정하도록 고쳤다 ④ 알림 반복 주기는 경보별로 못 정해(전역 4시간) 지시서의 "1일 1회 수준" 은 맞추지 못함.
 
 **후속(이 갈래 밖)** — ①관리자·관계자가 끝나지 않은 회차를 끝내는 화면·API 는 사양 변경(C-15)이라 사용자 결정 뒤 ②기존 저장 사진은 축소되지 않았다(필요하면 일괄 변환 스크립트) ③WebP 업로드는 JDK 기본 `ImageIO` 가 못 읽어 원본 크기 그대로.
+
+## 8.91 ⚖ `R46-CIFIX` — GitHub CI 실패 8건 (2026-10-02 · 분기점 `88d0fb81` · 번호대 720~729 · main `ff19e36d` 의 CI 실행 `36877823459`)
+
+push 직후 CI 가 웹 3건 · 백엔드 5건 실패했고 로컬은 전부 통과했다. 원인은 **GitHub Actions 러너가 UTC·Linux 이고 이 개발 기계는 한국 시간대·macOS** 라는 차이였다. 갈래 보고서는 `.claude/r46/report-cifix.md`(무시 파일). 서버는 띄우지 않았다.
+
+### R46-CIFIX 판정
+
+| Ruling | 판정 | 근거 |
+|:-:|---|---|
+| **720** | **웹 3건 — 제품 결함 아님 · 시험 2건 수정 + 공용 서식 1건 보강.** `ChangeApprovalDetail.test.tsx` 2건은 기대값을 PC 시간대(`toLocaleTimeString` 에 `timeZone` 없음)로 계산해 UTC 에서 기대 `08:00`·화면 `17:00` → 기대값을 서울 시각 리터럴(`17:00`·`17:32`·`17:38`·`21:55`)로. `RunDayList.test.tsx` 의 입력 `2026-09-15T08:00:00`(오프셋 없음)은 `formatClockTime` 이 PC 시간대로 읽어 UTC 에서 `17:00` → `formatClockTime`·`formatClockTimeWithSeconds` 가 오프셋 없는 `YYYY-MM-DDTHH:mm[:ss[.fff]]` 를 서울 벽시계(`+09:00` 고정)로 읽게(`formatDateTime` 과 같은 규칙) | 서버 응답은 `API_SPEC §1.1` "ISO-8601 + 오프셋"이고 모든 화면이 `Asia/Seoul` 고정 서식을 거치므로 PC 시간대가 KST 가 아니어도 관계자 화면 시각은 같다. 단 공용 서식 두 개가 오프셋 없는 입력을 서로 다르게 읽는 것은 표시 코드의 규칙 불일치라 시험 입력을 바꾸지 않고 표시 코드를 고쳤다. 한국은 서머타임이 없어 고정 오프셋이 정확. 버린 길 — 기대값 계산에 `timeZone: "Asia/Seoul"` 만 추가(화면과 같은 방식으로 기대값을 만들면 서식이 틀려도 통과하는 거울 시험) |
+| **721** | **`RefreshTokenRepositoryTest` 3건 — 제품 결함 아님 · 시험 시각을 DB 정밀도로.** Linux 의 `OffsetDateTime.now()` 는 나노초 9자리(같은 JRE 25 로 실측 `16:23:48.645672257Z`) · macOS 는 마이크로초 6자리 · `timestamptz` 는 마이크로초라 저장 후 다시 읽은 값이 `isEqualTo` 와 어긋남 → 시험 헬퍼 `now()` 가 `truncatedTo(ChronoUnit.MICROS)` | 운영 쿼리(`revokeByTokenHash`·`revokeAllValidByAccountId`·정리 쿼리)는 `IS NULL`·`<`·`IN` 만 쓰고 시각 동치 비교가 없어 나노초가 동작을 바꾸지 않는다. 기존 시험(`NotificationControllerTest` · `EmergencyPositionRecordedAtIntegrationTest` 등)이 이미 같은 방식 |
+| **722** | **로그를 검사하는 시험 2건 — 제품 결함 아님 · 시험이 자기 로거의 INFO 를 직접 켠다.** `FirstSystemAdminBootstrapTest`(`ListAppender`)는 `@BeforeEach` 에서 러너 로거를 INFO 로 켜고 `@AfterEach` 에서 복원 · `LoggingSmsSenderTest`(`OutputCaptureExtension`)는 `send` 호출 동안 `LoggingSmsSender` 로거를 INFO 로 켜고 `finally` 로 복원 | `-PciQuiet` 은 공개 Actions 로그에 앱 로그를 남기지 않으려고 `logging.level.root=WARN` 을 준다 — INFO 를 지우니 "로그에 비밀번호·인증번호가 없다" 를 검사할 로그 자체가 없어 실패(`LoggingSmsSenderTest` 는 Spring 컨텍스트 없이 돌아 **같은 JVM 의 앞선 컨텍스트가 남긴 수준에 따라** 단독 실행은 통과 · 전체 실행은 실패). 버린 길 — `-PciQuiet` 이 로그 수준을 안 낮추기(공개 로그 보호 목적 약화) · 두 시험을 `-PciQuiet` 에서 제외(보안 시험이 CI 에서만 꺼짐). 로거 단위로 켜므로 앱 나머지 로그는 WARN 그대로 |
+| **723** | **재발 방지.** `scripts/verify.sh` 가 웹(`vitest`)·백엔드를 `TZ=UTC` 로 돌리고 백엔드는 `-PciQuiet` 도 줌 · `clockTime.test.ts` 의 시간대 순회(UTC · 미국 서부 · 서울)에 오프셋 없는 입력 시험 추가 · `verify.sh` 머리말과 `DEPLOYMENT §5.1` 에 한계 기록 — macOS 는 나노초를 못 재현하므로 DB 에 저장했다 읽는 시각을 시험에서 `OffsetDateTime.now()` 로 만들면 `truncatedTo(MICROS)` 를 붙인다 | 로컬은 통과 · CI 만 실패하는 형태가 8건 중 8건. CI 와 같은 조건을 한 명령에 담는 것이 가장 싼 방어. 웹 `vitest` 설정에서 시간대를 강제하지 않은 이유 — 개발자가 KST 로도 돌려 두 시간대를 다 보게 하려는 것이고, 실행 환경에서 시간대를 막는 장치(`clockTime.test.ts` 의 순회)는 이미 있음 |
+
+`Ruling 724`~`729` 는 쓰지 않았다.
+
+### R46-CIFIX 목표 표
+
+| # | 완료 조건 | 확인 수단 | 결과 |
+|:-:|---|---|:-:|
+| 1 | 8건 각각 원인 · 제품 결함 여부 판정 | 위 판정 표 · 웹 3건은 `TZ=UTC npx vitest run` 으로 · 백엔드 `:168`·`:31` 은 `TZ=UTC -PciQuiet` 로 CI 와 같은 줄 번호에서 재현 · 나노초 3건은 Mac 이 마이크로초라 시험 헬퍼에 나노초를 주입해 모사 | ✅ |
+| 2 | 웹 `TZ=UTC` 전체 vitest(실서버 제외) 실패 0 · 기존 시간대도 실패 0 | `scripts/verify.sh web`(`next typegen` · `tsc` · `lint` · `vitest`, `TZ=UTC`) 통과 — **142 파일 · 883건 · 실패 0**. 기존 시간대(KST, `TZ` 미지정)도 같은 **142 파일 · 883건 · 실패 0**(실서버 계약 시험 `*realBackend*` 제외) | ✅ |
+| 3 | 백엔드 `TZ=UTC -PciQuiet` 전수 `--rerun` 실패 0 · 기존 조건도 실패 0 | `TZ=UTC ./gradlew test -PciQuiet --rerun`(전수 · 네이버 환경변수 없이) — 결과 XML 합계 **381 클래스 · 2,145건 · 실패 0 · 오류 0 · 건너뜀 0**(`BUILD SUCCESSFUL in 7m 52s`) · 고친 3클래스(`RefreshTokenRepositoryTest` 7 · `FirstSystemAdminBootstrapTest` 7 · `LoggingSmsSenderTest` 3)도 그 안에서 통과. 기존 조건(`TZ`·`-PciQuiet` 없이) 전수 `--rerun` 도 같은 **381 · 2,145 · 0 · 0 · 0**(`7m 48s`) | ✅ |
+| 4 | 결함 심기 — 고친 줄을 되돌리면 그 시험이 다시 실패 | 웹 2종(`+09:00` 보정 제거 → `RunDayList`·`clockTime` 1건씩 · 표시 시간대 `Asia/Seoul`→`UTC` → 5건) · 백엔드 3종(시험 헬퍼 나노초 · 러너 로거 INFO 켜기 제거 · SMS 로거 INFO 켜기 제거 → CI 와 같은 5건) · 원복마다 `git status --porcelain` 빈 결과 | ✅ |
+| 5 | 정본 반영 · 깨진 참조 0 | 이 절 · `§11` 색인(720~723) · `DEPLOYMENT §5.1` · `docgraph` 깨진 참조 | `python3 ~/.claude/tools/docgraph/build.py .` — 깨진 참조 **0건** | ✅ |
+
+**재현되지 않았거나 지시와 다르게 판단한 것** — ① 나노초 3건은 macOS 에서 직접 재현되지 않아 시험 헬퍼에 나노초를 주입한 모사로 확인했다(Linux JRE 로 `now()` 가 9자리인 것은 따로 실측). ② 지시서의 "`-PciQuiet` 이 로그를 지우면 그 클래스만 수준 보장" 쪽을 골랐다 — 클래스 단위가 아니라 **로거 단위**(`FirstSystemAdminBootstrap`·`LoggingSmsSender`)로 좁혔다.
+
+**후속(이 갈래 밖)** — Flutter CI 는 이번에 실패하지 않아 건드리지 않았다. 나노초·시간대·로그 수준 말고도 "로컬과 러너가 다른 것"(파일 시스템 대소문자 · 로케일 · CPU 수)은 같은 방식으로 추후 드러날 수 있다.
