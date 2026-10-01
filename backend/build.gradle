@@ -298,6 +298,9 @@ tasks.withType(Test).configureEach {
         )
     }
     systemProperty 'spring.datasource.url', project.property('testDbUrl')
+    // 시험 컨테이너(Redis·Postgres) 이름 앞에 붙일 주인 — 전용 DB 이름을 그대로 쓴다(창마다 다르고 이미 필수 인자).
+    // Docker 화면에서 `r46_fixtx-redis-a1b2c3` 처럼 어느 작업 창의 컨테이너인지 보인다(testsupport.TestContainerOwner).
+    systemProperty 'testcontainers.owner', project.property('testDbUrl').toString().replaceAll('^.*/', '').replaceAll('\\?.*$', '')
 
     // 워커 힙 상한을 명시한다(Ruling 188). 이전에는 이 값이 없어 워커가 Gradle Test 태스크의
     // 기본 힙(실측 -Xmx512m — `--info` 로 워커 커맨드라인을 grep 하면 보인다. 어고닉 산정 25%가

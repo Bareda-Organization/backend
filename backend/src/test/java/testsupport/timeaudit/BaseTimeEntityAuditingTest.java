@@ -32,6 +32,8 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import src.backend.BackendApplication;
 import src.backend.global.config.JpaAuditingConfig;
 
+import testsupport.TestContainerOwner;
+
 /**
  * BaseTimeEntity 의 감사 시각이 고정 Clock 을 경유하고 오프셋을 보존하는지, 실제 Postgres 로 검증한다.
  *
@@ -65,7 +67,7 @@ class BaseTimeEntityAuditingTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:16");
+    static PostgreSQLContainer postgres = TestContainerOwner.named(new PostgreSQLContainer("postgres:16"), "postgres");
 
     @Autowired
     private AuditingProbeEntityRepository repository;

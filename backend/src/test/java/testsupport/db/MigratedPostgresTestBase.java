@@ -8,6 +8,8 @@ import java.util.Map;
 import org.flywaydb.core.Flyway;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
+import testsupport.TestContainerOwner;
+
 /**
  * Flyway 마이그레이션을 실제 PostgreSQL 컨테이너에 적용한 뒤, 그 결과를 JDBC 로 직접 들여다보는 테스트의 공통 베이스.
  *
@@ -42,7 +44,8 @@ public abstract class MigratedPostgresTestBase {
     /** 데모 시드 위치 — {@code local}·{@code demo} 프로파일에서만 스키마 위치에 더해진다. */
     protected static final String SEED_LOCATION = "classpath:db/migration-local";
 
-    protected static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16");
+    protected static final PostgreSQLContainer POSTGRES =
+            TestContainerOwner.named(new PostgreSQLContainer("postgres:16"), "postgres");
 
     static {
         POSTGRES.start();

@@ -5,6 +5,8 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.utility.DockerImageName;
 
+import testsupport.TestContainerOwner;
+
 /**
  * 전용 Redis 컨테이너로 {@code spring.data.redis.*} 를 갈아 끼우는 테스트 베이스(목표 3, Phase 10
  * T1) — 공유 컨테이너 {@code school-bus-redis-1} 은 병렬 좌석(T1·T3·T4)이 동시에 건드리므로 여기서는
@@ -65,9 +67,9 @@ public abstract class RedisTestContainerBase {
      * <p>그래서 정적 초기화 블록에서 직접 띄우고 <b>멈추지 않는다</b>(Testcontainers 가 문서화한
      * singleton container 방식). 회수는 Ryuk 사이드카가 JVM 종료 시점에 한다.
      */
-    protected static final GenericContainer<?> REDIS = new GenericContainer<>(
+    protected static final GenericContainer<?> REDIS = TestContainerOwner.named(new GenericContainer<>(
             DockerImageName.parse("redis:7"))
-            .withExposedPorts(6379);
+            .withExposedPorts(6379), "redis");
 
     static {
         REDIS.start();
