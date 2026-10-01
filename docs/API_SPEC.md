@@ -1844,7 +1844,7 @@ STU-05) — 화면이 "이 자리에 이미 있다" 를 알려 관계자가 같�
 
 **`POST /staff/runs` 요청**(임시 추가) — `bus_id` · `service_date`(`YYYY-MM-DD`) · `direction` · `depart_time`(`HH:mm`) · `origin_name` · `destination_name` · `est_duration_min`(선택). 만들어진 회차는 **`schedule_id` 가 비어 있다** — 그것이 정규 스케줄에서 나온 회차와 임시 회차를 가르는 유일한 표시다.
 
-**회차 응답 항목** — `id` · `bus_id` · `bus_no` · `schedule_id` · `service_date` · `direction` · `depart_time` · `confirm_at` · `status` · `origin_name` · `destination_name` · `est_duration_min` · `canceled_at` · `assignments[]`(`manager_id` · `name` · `role`) · `consecutive_failures`(integer — 확정 배치의 연속 실패 횟수, 성공 시 0. 확정이 계속 실패하는 회차를 알아보는 재료 — BR-047)
+**회차 응답 항목** — `id` · `bus_id` · `bus_no` · `schedule_id` · `service_date` · `direction` · `depart_time` · `confirm_at` · `status` · `origin_name` · `destination_name` · `est_duration_min` · `canceled_at` · `assignments[]`(`manager_id` · `name` · `role`) · `consecutive_failures`(integer — 확정 배치의 연속 실패 횟수, 성공 시 0 — 노선 편성·수정·승하차지 저장과 학원 좌표 저장도 그 학원 회차의 값을 0 으로 되돌려 바로 재시도한다(`Ruling 703`). 확정이 계속 실패하는 회차를 알아보는 재료 — BR-047)
 
 - `depart_time`·`confirm_at` 은 **날짜를 포함한 시각**(`timestamptz`)이다. 스케줄의 `HH:mm` 을 `service_date` 와 합칠 때 시간대는 서비스 기준 시간대(`Asia/Seoul`, `ERD §2`)를 쓴다
 - **`confirm_at` = `depart_time` − 30분**이며 파생이 아니라 저장된 컬럼이다 (`C-03` · `ERD run`). 확정 배치가 "실행 시각이 지난 회차" 를 매 실행마다 조회하기 때문에 컬럼으로 둔다
@@ -1927,10 +1927,12 @@ STU-05) — 화면이 "이 자리에 이미 있다" 를 알려 관계자가 같�
 | 항목 | 값 |
 |---|---|
 | 권한 | `STUDENT_READ_PHOTO` 보유 역할(관계자 · 기사 · 동승자 등) **이고** 요청자 학원 = 그 사진 학생의 학원 |
-| 응답 | `200` 이미지 본문(`Content-Type` = 저장 형식) · `Cache-Control: private` |
+| 응답 | `200` 이미지 본문(`Content-Type` = 저장 형식) · `Cache-Control: private, max-age=86400` · `ETag`(파일명 — 서버가 지은 UUID 라 같은 주소의 내용은 바뀌지 않는다). 요청에 `If-None-Match` 가 일치하면 본문 없이 **`304`**(접근 권한 확인은 그 전에 끝나므로 다른 학원 요청은 `304` 가 아니라 `404`). 본문은 파일에서 흘려 보내 서버 힙에 통째로 올리지 않는다(R46-KFIXBE K-3, `Ruling 704`) |
 | 정적 공개 | 부재 — 사진은 L3(`FEATURE_SPEC §6.3`)라 무인증 정적 경로로 열지 않는다 |
 
 `photo_url` 값은 `/api/v1/files/photos/<파일명>` 이다. 앱은 로그인 토큰을 헤더에 붙여 요청하고, 웹은 `<img src>` 가 헤더를 실을 수 없어 토큰을 실은 요청의 응답을 blob 으로 그린다. 옛 절대 URL 로 저장된 값은 토큰 없이 그대로 연다(프론트 `Ruling 385`).
+
+**업로드 사진 축소**(`Ruling 705`) — 학생 등록·수정으로 올린 사진은 서버가 **긴 변 512px 로 줄여** 저장한다(JPEG · PNG · 형식 유지 · 비율 유지 · 휴대폰 EXIF 회전 반영). 원본 상한 5MB 와 형식 3종 검사는 그대로이고, 서버 이미지 도구가 읽지 못하는 형식(WebP · 깨진 파일) · 이미 512px 이하 · 디코딩 상한(4천만 화소) 초과 · 거울상 회전은 **원본 그대로** 저장한다. 이미 저장된 파일은 바꾸지 않는다(개발 단계).
 
 **에러** — `404 STUDENT_NOT_FOUND`(파일 부재 · 사진 주인이 타 학원 · 퇴원 학생 — 존재 비노출) · `403 FORBIDDEN`(권한 부재)
 
@@ -2369,7 +2371,7 @@ SMS 연동(`PRD` F-05) 전까지 §2.9 가 `503` 이라 **학원 사용자의 �
 | `stops[]` | array | ● | `stop_id` · `seq` · `name` · `lat` · `lng` · `change` · `arrived_at` · **`eta`** |
 | `destination_eta` | datetime | ● | 도착지 도착 예정 시각 |
 | `driver` · `escort` | object | ● | `name` · `phone` — **원문** |
-| `consecutive_failures` | integer | ● | 확정 배치의 연속 실패 횟수(`ERD run`, 성공 시 0) — 확정이 계속 실패하는 회차를 강제 확정(§6.14) 대상으로 알아보는 재료(BR-047 · `UF-O-07`) |
+| `consecutive_failures` | integer | ● | 확정 배치의 연속 실패 횟수(`ERD run`, 성공 시 0 · 노선·학원 좌표 저장 때도 0 — `Ruling 703`) — 확정이 계속 실패하는 회차를 강제 확정(§6.14) 대상으로 알아보는 재료(BR-047 · `UF-O-07`) |
 
 ```json
 {

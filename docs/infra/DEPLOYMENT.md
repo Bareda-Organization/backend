@@ -840,6 +840,7 @@ Grafana 는 볼륨이 없어 컨테이너를 다시 만들 때마다 SSM 값으�
 | `RunUnconfirmed` | `schoolbus_run_unconfirmed > 0` 이 1분 유지 | 즉시(critical) | 1행 |
 | `NoShowEscalationFailing` · `NoShowEscalationStalled` | 미승차 에스컬레이션 실패 · 180초 초과 미성공 | 즉시(critical) | 2행 |
 | `RunPositionLost` | `schoolbus_run_position_lost > 0` 이 1분 유지 | 경고 | 3행 |
+| `StaleMovingRun` | `schoolbus_run_moving_stale > 0` 이 30분 유지 — 운행일이 어제보다 이른데 끝나지 않은(`moving`) 회차 | 경고 | (표 밖 — 근접 판정 · 위치 유실 · 노선 잠금이 그 회차를 더는 집지 않아(`Ruling 701`) 이 경보가 유일한 신호다. 같은 경보는 4시간마다 다시 알린다) |
 | `PushDeliveryFailing` | 최근 10분 안에 `schoolbus_notification_push_failures_total` 증가 | 경고 | 5행 |
 | `HostDiskAlmostFull` | 루트 디스크 사용률 80% 초과가 10분 유지 | 경고 | (표 밖 — 디스크가 차면 postgres 쓰기가 실패해 전면 정지) |
 | `BackupDbStale` | DB 백업 성공 시각이 2시간 넘게 갱신되지 않거나 지표가 아예 없음(5분 유지) | 즉시(critical) | (표 밖 — 매시 백업 중 두 번 연속 실패하면 RPO 1시간을 못 지킨다, `Ruling 500`) |
@@ -873,7 +874,31 @@ Grafana 는 볼륨이 없어 컨테이너를 다시 만들 때마다 SSM 값으�
 | `SchedulerStalled` | `schoolbus_scheduler_last_success_age_seconds` 가 계속 느는 스케줄러 이름을 보고 로그에서 그 클래스의 예외를 찾는다. 푸시 발송이 외부에서 멈춘 것이면 아웃박스가 길어진다(`FCM`) |
 | `RetentionCleanupStalled` | 새벽 00:15 전후 로그에서 `retention` 예외 · 마지막 재배포 시각(3일 안이면 이 경보는 못 본다) |
 | `RunPositionPartitionStalled` | 새벽 00:10 전후 로그에서 `run-position-partition` 예외 · `schoolbus_scheduler_failures_total` · 마지막 재배포 시각(재기동하면 경과가 0 부터 다시 세어져 3일 안에 재배포하면 이 경보는 못 본다) |
+| `StaleMovingRun` | 아래 "끝나지 않은 이동 중 회차 처리" 절차 |
 | `StompSessionsNearCap` | Grafana "4. 파이프라인 생존" 의 "활성 STOMP 세션" 모양 — 계단이면 이용자 증가, 톱니이면 재연결 반복. 실제 연결 수는 `tomcat_connections_current_connections`(세션 수보다 큰 만큼이 진행 중 HTTP 요청). 판단·대응은 §11.7 |
+
+**끝나지 않은 이동 중 회차 처리(`StaleMovingRun`, `Ruling 701`·`702`)** — 하원 회차는 마지막 지점에 도착해도 잔류 인원이 있으면 종료를 보류하고(`finish_pending`), 잔류가 0 이 되는 순간에만 끝난다. 그 회차를 맡은 동승자가 하차 처리를 못 하면 영구히 `moving` 으로 남는다. **시스템은 자동으로 끝내지 않는다**(사양 C-15 — 잔류 인원이 남은 회차를 임의로 끝내면 안 됨). **관리자·관계자가 이 회차를 끝낼 수 있는 화면·API 는 아직 없다**(회차 취소도 `moving` 은 거부 — `RunCancellation`) — 현재 처리 수단은 아래 DB 직접 갱신이다. 이 회차는 근접 판정 · 위치 유실 경보 · 노선 승하차지 좌표 잠금에서 이미 빠져 있어 **방치해도 다른 기능을 막지는 않는다**(경보와 관제 목록에만 남는다).
+
+1. 대상과 남은 승객을 확인한다(`sudo docker compose -f /opt/school-bus/docker-compose.prod.yml --env-file /opt/school-bus/.env exec postgres psql -U schoolbus schoolbus` 로 접속):
+
+   ```sql
+   SELECT r.id, r.academy_id, r.service_date, r.direction, r.finish_pending,
+          count(rr.id) FILTER (WHERE rr.status = 'boarded') AS still_boarded
+   FROM run r LEFT JOIN run_rider rr ON rr.run_id = r.id
+   WHERE r.status = 'moving' AND r.canceled_at IS NULL
+     AND r.service_date < (now() AT TIME ZONE 'Asia/Seoul')::date - 1
+   GROUP BY r.id ORDER BY r.service_date;
+   ```
+
+2. 학원에 확인한다 — 그 회차는 이미 지난 운행이다. 남은 승객(`still_boarded`)이 실제로 하차했는지는 학원이 안다.
+3. 끝낸다 — **한 건씩, 확인한 id 로만**. 알림·하차 기록은 만들지 않는다(옛 운행이라 학부모에게 보낼 일이 아니다):
+
+   ```sql
+   UPDATE run SET status = 'finished', finished_at = now(), finish_pending = false
+   WHERE id = <확인한 회차 id> AND status = 'moving' AND service_date < (now() AT TIME ZONE 'Asia/Seoul')::date - 1;
+   ```
+
+4. 게이지는 10분마다 갱신되므로 경보는 그 뒤 해소된다. 같은 회차가 반복되면 원인(동승자가 하차를 못 누르는 화면 흐름)을 따로 조사한다. 관리자 강제 종료 API 는 사양 변경이라 사용자 결정 뒤에 만든다.
 
 ### 11.3 경보 수신 — 텔레그램 봇 + 이메일 예비 (`Ruling 480 ④` · `483`)
 

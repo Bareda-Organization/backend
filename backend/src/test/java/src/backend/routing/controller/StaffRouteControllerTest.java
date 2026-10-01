@@ -657,6 +657,26 @@ class StaffRouteControllerTest {
                 .as(저장_종류 + " — 다른 학원 회차는 그대로").isEqualTo(4);
     }
 
+    /**
+     * R46-KFIXBE K-1(Ruling 701) — 끝나지 않은 채 남은 옛 회차(운행일이 어제보다 이른 {@code moving})가 그 노선 승하차지의 좌표 수정을 영구히
+     * 막지 않는다. 자정을 넘겨 달리는 어제 운행일 회차는 여전히 잠근다.
+     */
+    @Test
+    void 이틀_전_끝나지_않은_회차는_좌표_잠금에서_빠지고_어제_회차는_잠근다() throws Exception {
+        long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "sun", "to_academy", List.of(1L));
+        Map<String, Object> 일번 = jdbcTemplate.queryForMap("SELECT name, lat, lng FROM stop WHERE id = 1");
+        String 좌표_변경 = """
+                {"stops":[{"stop_id":1,"name":"%s","lat":37.599999,"lng":%s}]}""".formatted(일번.get("name"), 일번.get("lng"));
+
+        jdbcTemplate.update("UPDATE run SET service_date = (now() AT TIME ZONE 'Asia/Seoul')::date - 1 WHERE id = 3");
+        승하차지를_저장한다(관계자A_토큰(), routeId, 좌표_변경)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("CHANGE_WINDOW_CLOSED"));
+
+        jdbcTemplate.update("UPDATE run SET service_date = (now() AT TIME ZONE 'Asia/Seoul')::date - 2 WHERE id = 3");
+        승하차지를_저장한다(관계자A_토큰(), routeId, 좌표_변경).andExpect(status().isOk());
+    }
+
     @Test
     void 남의_학원_노선의_승하차지는_저장할_수_없다() throws Exception {
         long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "mon", "from_academy", STOPS_OF_A);
