@@ -6,7 +6,7 @@ import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 
 /**
- * 노선 하나에 담을 수 있는 정차지 수의 상한(R46 S-10 · Ruling 613) — 상한이 없으면 정차지 500개짜리 노선 하나를 열 때마다 외부
+ * 노선 하나에 담을 수 있는 정차지 수의 상한(R46 · Ruling 613) — 상한이 없으면 정차지 500개짜리 노선 하나를 열 때마다 외부
  * 경로 호출이 구간 수만큼 나가 일일 한도를 갉아먹고 요청 스레드를 수 분 묶는다. 요청 DTO 가 같은 상수로 {@code 422} 를 내고,
  * 서비스는 DTO 를 거치지 않는 호출에 같은 검증을 건다.
  */

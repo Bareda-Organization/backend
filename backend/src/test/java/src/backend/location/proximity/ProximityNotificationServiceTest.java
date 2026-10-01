@@ -377,7 +377,7 @@ class ProximityNotificationServiceTest {
 
     /** T1 이 아직 만들지 않은 위치 계약(runId·lat·lng·recordedAt·receivedAt·currentStopName)을 직접 흉내낸다. */
     /**
-     * Redis 가 죽은 동안에도 근접 판정은 {@code run_position} 최신 행으로 한다(R46 S-11) — 그 틱을 건너뛰면 그 사이 기사가 도착
+     * Redis 가 죽은 동안에도 근접 판정은 {@code run_position} 최신 행으로 한다(R46 · Ruling 624) — 그 틱을 건너뛰면 그 사이 기사가 도착
      * 처리해 "다음 미도착" 이 넘어간 정차지는 선점 한 번 못 해 <b>도착 임박 알림이 영구히 빠진다</b>.
      */
     @Test

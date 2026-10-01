@@ -31,7 +31,7 @@ import src.backend.observability.metrics.RunPositionFallbackMetrics;
  * <p><b>Redis 장애 대체(BR-167, TECH_DECISIONS §14.2)</b> — {@link #find}·{@link #findAll} 은 Redis 가 실패하면
  * (연결 실패·시간 상한 초과) {@code run_position} 의 회차별 최신 행으로 같은 형태를 돌려준다. 여러 회차는 조회
  * 한 번이다(관제가 회차 수만큼 쿼리를 내지 않게). 대체 값의 {@code currentStopName} 은 {@code null} — 이력 행에
- * 없는 값이다. <b>근접 판정도 대체한다</b>(R46 S-11) — 건너뛰면 Redis 가 죽은 동안 기사가 도착 처리해 "다음 미도착" 이 넘어간
+ * 없는 값이다. <b>근접 판정도 대체한다</b>(R46 · Ruling 624) — 건너뛰면 Redis 가 죽은 동안 기사가 도착 처리해 "다음 미도착" 이 넘어간
  * 정차지는 선점 한 번 못 해 도착 임박 알림이 영구히 빠진다. 대체 위치는 {@code recorded_at} 이 지연될 수 있어 300m 안 진입을
  * 늦게 알아챌 수는 있지만 알림이 빠지는 것보다 낫다.
  *

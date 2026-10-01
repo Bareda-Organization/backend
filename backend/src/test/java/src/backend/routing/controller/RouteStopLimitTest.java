@@ -38,7 +38,7 @@ import src.backend.routing.dto.RouteStopsSaveRequest;
 import src.backend.routing.dto.RouteUpdateRequest;
 
 /**
- * 노선 하나의 정차지는 최대 50개다(R46 S-10 · Ruling 613) — 상한이 없으면 정차지 500개짜리 노선 하나를 열 때마다 외부 경로
+ * 노선 하나의 정차지는 최대 50개다(R46 · Ruling 613) — 상한이 없으면 정차지 500개짜리 노선 하나를 열 때마다 외부 경로
  * 호출이 32회 나가 일일 한도(3,000)를 갉아먹고 요청 스레드를 수 분 묶는다. 등록 · 수정 · 정차지 저장 · 최적화 고정 정차지 4곳의
  * 요청 DTO 가 {@code 422} 로 막고, 서비스도 DTO 를 거치지 않는 호출에 같은 상한을 건다.
  */
