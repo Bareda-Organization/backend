@@ -26,6 +26,15 @@ final class SchemaCheckFixtures {
                 """);
     }
 
+    /** 코드를 달리한 두 번째 학원 — 학원 경계(복합 FK) 시험이 "다른 학원의 부모" 를 만들 때 쓴다(코드는 UNIQUE). */
+    static long insertAcademy(Connection connection, String code) throws SQLException {
+        return insertReturningId(connection, """
+                INSERT INTO academy (code, name, region, status)
+                VALUES ('%s', '다른학원', '서울', 'active')
+                RETURNING id
+                """.formatted(code));
+    }
+
     /** 가입 승인 대기 계정 1건 — `signup_request` 의 부모다. */
     static long insertAccount(Connection connection, long academyId) throws SQLException {
         return insertReturningId(connection, """
@@ -97,7 +106,8 @@ final class SchemaCheckFixtures {
                 """.formatted(runId));
     }
 
-    private static long insertReturningId(Connection connection, String sql) throws SQLException {
+    /** 임의 INSERT … RETURNING id 를 실행해 id 를 돌려준다 — 전용 헬퍼가 없는 부모 행을 시험이 직접 만들 때 쓴다. */
+    static long insertReturningId(Connection connection, String sql) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(sql);
                 ResultSet generated = statement.executeQuery()) {
             generated.next();

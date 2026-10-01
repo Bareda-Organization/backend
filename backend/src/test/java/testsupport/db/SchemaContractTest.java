@@ -498,6 +498,148 @@ class SchemaContractTest extends MigratedPostgresTestBase {
         assertThat(plan).contains("ix_run_open_service_date").doesNotContain("ix_run_academy_date_depart");
     }
 
+    /**
+     * R46-LATERBE B-4(Ruling 675) — 학원을 넘는 연결을 DB 가 막는다. 단일 컬럼 FK 는 "다른 학원의 버스·회차·학생·승하차지·계정" 을 가리켜도
+     * 통과시켰다(앱 코드의 학원 조건만 방어선). {@code academy_id} 를 가진 자식 11쌍을 {@code (부모 id, academy_id)} 복합 FK 로 바꿨다 —
+     * 자식 학원과 부모 학원이 다르면 FK 이름과 함께 거부된다. 나머지 준비 행은 같은 학원이라 다른 제약에 먼저 걸리지 않는다.
+     */
+    @Test
+    void 학원이_다른_부모를_가리키는_INSERT_는_복합_FK_이름과_함께_거부된다() throws SQLException {
+        위반_INSERT_가_제약_이름과_함께_거부되는지_확인한다("fk_run_bus", connection -> {
+            long academyId = SchemaCheckFixtures.insertAcademy(connection);
+            long otherBus = 다른_학원의_버스(connection);
+            SchemaCheckFixtures.insertRun(connection, academyId, otherBus);
+        });
+        위반_INSERT_가_제약_이름과_함께_거부되는지_확인한다("fk_schedule_bus", connection -> {
+            long academyId = SchemaCheckFixtures.insertAcademy(connection);
+            execute(connection, SCHEDULE_INSERT.formatted(academyId, 다른_학원의_버스(connection), ""));
+        });
+        위반_INSERT_가_제약_이름과_함께_거부되는지_확인한다("fk_route_bus", connection -> {
+            long academyId = SchemaCheckFixtures.insertAcademy(connection);
+            execute(connection, """
+                    INSERT INTO route (academy_id, bus_id, weekday, direction) VALUES (%d, %d, 'mon', 'to_academy')
+                    """.formatted(academyId, 다른_학원의_버스(connection)));
+        });
+        위반_INSERT_가_제약_이름과_함께_거부되는지_확인한다("fk_run_schedule", connection -> {
+            long academyId = SchemaCheckFixtures.insertAcademy(connection);
+            long busId = SchemaCheckFixtures.insertBus(connection, academyId);
+            long otherAcademy = SchemaCheckFixtures.insertAcademy(connection, "CONTRACT-OTHER");
+            long otherSchedule = SchemaCheckFixtures.insertReturningId(connection, SCHEDULE_INSERT.formatted(otherAcademy,
+                    SchemaCheckFixtures.insertBus(connection, otherAcademy), " RETURNING id"));
+            execute(connection, """
+                    INSERT INTO run (academy_id, bus_id, schedule_id, service_date, direction, depart_time, confirm_at,
+                                     status, origin_name, destination_name)
+                    VALUES (%d, %d, %d, DATE '2026-09-01', 'to_academy', TIMESTAMPTZ '2026-09-01 08:00:00+09',
+                            TIMESTAMPTZ '2026-09-01 07:30:00+09', 'idle', '출발지', '도착지')
+                    """.formatted(academyId, busId, otherSchedule));
+        });
+        for (String parent : new String[] { "run", "student", "stop" }) {
+            String constraint = "fk_change_request_" + (parent.equals("stop") ? "new_stop" : parent);
+            위반_INSERT_가_제약_이름과_함께_거부되는지_확인한다(constraint, connection -> {
+                long academyId = SchemaCheckFixtures.insertAcademy(connection);
+                long runId = SchemaCheckFixtures.insertRun(connection, academyId, SchemaCheckFixtures.insertBus(connection, academyId));
+                long studentId = SchemaCheckFixtures.insertStudent(connection, academyId);
+                long otherAcademy = SchemaCheckFixtures.insertAcademy(connection, "CONTRACT-OTHER");
+                if (parent.equals("run")) {
+                    runId = SchemaCheckFixtures.insertRun(connection, otherAcademy, SchemaCheckFixtures.insertBus(connection, otherAcademy));
+                }
+                if (parent.equals("student")) {
+                    studentId = SchemaCheckFixtures.insertStudent(connection, otherAcademy);
+                }
+                String newStop = parent.equals("stop") ? String.valueOf(SchemaCheckFixtures.insertStop(connection, otherAcademy)) : "NULL";
+                execute(connection, """
+                        INSERT INTO change_request (academy_id, run_id, student_id, source, type, status, window_segment,
+                                                    new_address, new_lat, new_lng, new_stop_id, requested_by, requested_at)
+                        VALUES (%d, %d, %d, 'change_request', 'relocate', 'pending', 1,
+                                '새 주소', 37.5, 127.0, %s, 1, now())
+                        """.formatted(academyId, runId, studentId, newStop));
+            });
+        }
+        위반_INSERT_가_제약_이름과_함께_거부되는지_확인한다("fk_guardian_account", connection -> execute(connection, """
+                INSERT INTO guardian (academy_id, account_id, name, phone) VALUES (%d, %d, '보호자', '010-1111-1111')
+                """.formatted(SchemaCheckFixtures.insertAcademy(connection), 다른_학원의_계정(connection))));
+        위반_INSERT_가_제약_이름과_함께_거부되는지_확인한다("fk_academy_staff_account", connection -> execute(connection, """
+                INSERT INTO academy_staff (academy_id, account_id, status) VALUES (%d, %d, 'active')
+                """.formatted(SchemaCheckFixtures.insertAcademy(connection), 다른_학원의_계정(connection))));
+        위반_INSERT_가_제약_이름과_함께_거부되는지_확인한다("fk_student_account", connection -> execute(connection, """
+                INSERT INTO student (academy_id, account_id, name) VALUES (%d, %d, '학생')
+                """.formatted(SchemaCheckFixtures.insertAcademy(connection), 다른_학원의_계정(connection))));
+        위반_INSERT_가_제약_이름과_함께_거부되는지_확인한다("fk_manager_account", connection -> execute(connection, """
+                INSERT INTO manager (academy_id, account_id, name, phone, role) VALUES (%d, %d, '기사', '010-2222-2222', 'driver')
+                """.formatted(SchemaCheckFixtures.insertAcademy(connection), 다른_학원의_계정(connection))));
+    }
+
+    /** 같은 학원 안의 연결은 그대로 통과한다 — 복합 FK 가 정상 쓰기를 막지 않는다. */
+    @Test
+    void 같은_학원_안의_연결은_복합_FK_를_통과한다() throws SQLException {
+        try (Connection connection = connection()) {
+            connection.setAutoCommit(false);
+            try {
+                long academyId = SchemaCheckFixtures.insertAcademy(connection);
+                long busId = SchemaCheckFixtures.insertBus(connection, academyId);
+                long runId = SchemaCheckFixtures.insertRun(connection, academyId, busId);
+                long studentId = SchemaCheckFixtures.insertStudent(connection, academyId);
+                long stopId = SchemaCheckFixtures.insertStop(connection, academyId);
+                execute(connection, """
+                        INSERT INTO change_request (academy_id, run_id, student_id, source, type, status, window_segment,
+                                                    new_address, new_lat, new_lng, new_stop_id, requested_by, requested_at)
+                        VALUES (%d, %d, %d, 'change_request', 'relocate', 'pending', 1,
+                                '새 주소', 37.5, 127.0, %d, 1, now())
+                        """.formatted(academyId, runId, studentId, stopId));
+                assertThat(queryColumn("SELECT count(*) FROM change_request", connection)).containsExactly("1");
+            } finally {
+                connection.rollback();
+            }
+        }
+    }
+
+    /**
+     * 부모 삭제 동작이 복합 FK 로 바뀌어도 그대로다 — 회차를 지우면 변경 요청이 함께 지워지고(CASCADE), 승하차지를 지우면 변경 요청의
+     * {@code new_stop_id} 만 비워진다(SET NULL — 복합 FK 는 컬럼 목록 없이 쓰면 {@code academy_id} 까지 비워 NOT NULL 로 실패한다).
+     */
+    @Test
+    void 복합_FK_로_바꿔도_부모_삭제_동작은_그대로다() throws SQLException {
+        try (Connection connection = connection()) {
+            connection.setAutoCommit(false);
+            try {
+                long academyId = SchemaCheckFixtures.insertAcademy(connection);
+                long runId = SchemaCheckFixtures.insertRun(connection, academyId, SchemaCheckFixtures.insertBus(connection, academyId));
+                long studentId = SchemaCheckFixtures.insertStudent(connection, academyId);
+                long stopId = SchemaCheckFixtures.insertStop(connection, academyId);
+                execute(connection, """
+                        INSERT INTO change_request (academy_id, run_id, student_id, source, type, status, window_segment,
+                                                    new_address, new_lat, new_lng, new_stop_id, requested_by, requested_at)
+                        VALUES (%d, %d, %d, 'change_request', 'relocate', 'pending', 1,
+                                '새 주소', 37.5, 127.0, %d, 1, now())
+                        """.formatted(academyId, runId, studentId, stopId));
+
+                execute(connection, "DELETE FROM stop WHERE id = " + stopId);
+                assertThat(queryColumn("SELECT coalesce(new_stop_id::text, 'null') FROM change_request", connection))
+                        .as("승하차지 삭제 — new_stop_id 만 NULL, 행·academy_id 는 남는다").containsExactly("null");
+
+                execute(connection, "DELETE FROM run WHERE id = " + runId);
+                assertThat(queryColumn("SELECT count(*) FROM change_request", connection))
+                        .as("회차 삭제 — 변경 요청도 함께 지워진다").containsExactly("0");
+            } finally {
+                connection.rollback();
+            }
+        }
+    }
+
+    /** 학원·버스·{@code RETURNING} 꼬리({@code ""} 또는 {@code " RETURNING id"})를 채워 쓰는 스케줄 INSERT. */
+    private static final String SCHEDULE_INSERT = """
+            INSERT INTO schedule (academy_id, bus_id, weekday, direction, depart_time, origin_name, destination_name)
+            VALUES (%d, %d, 'mon', 'to_academy', TIME '08:00', '출발지', '도착지')%s
+            """;
+
+    private static long 다른_학원의_버스(Connection connection) throws SQLException {
+        return SchemaCheckFixtures.insertBus(connection, SchemaCheckFixtures.insertAcademy(connection, "CONTRACT-OTHER"));
+    }
+
+    private static long 다른_학원의_계정(Connection connection) throws SQLException {
+        return SchemaCheckFixtures.insertAccount(connection, SchemaCheckFixtures.insertAcademy(connection, "CONTRACT-OTHER"));
+    }
+
     /** R46 I-08 — 부모 삭제 경로가 있는 FK 둘({@code schedule} 삭제 → run 갱신 · 경유지 후보 삭제 → run_stop 검사)의 선행 인덱스. */
     @Test
     void 부모_삭제_경로가_있는_FK_둘은_선행_인덱스를_가진다() throws SQLException {
@@ -698,6 +840,17 @@ class SchemaContractTest extends MigratedPostgresTestBase {
         try (Statement statement = connection.createStatement()) {
             statement.execute(sql);
         }
+    }
+
+    /** 열린(롤백 예정) 트랜잭션 안에서 첫 열을 읽는다 — 시험이 만든 행은 커밋되지 않으므로 이 커넥션으로만 보인다. */
+    private static List<String> queryColumn(String sql, Connection connection) throws SQLException {
+        List<String> values = new ArrayList<>();
+        try (Statement statement = connection.createStatement(); ResultSet rows = statement.executeQuery(sql)) {
+            while (rows.next()) {
+                values.add(rows.getString(1));
+            }
+        }
+        return values;
     }
 
     private static List<String> queryColumn(String sql) throws SQLException {
