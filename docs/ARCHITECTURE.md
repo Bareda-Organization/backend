@@ -165,6 +165,7 @@ controller  →  command / query  →  repository  →  entity
 | **사진 저장소** | `PhotoStorage`(`student/photo/spec`) | 학생 사진 등 첨부 저장 위치(로컬 ↔ 오브젝트 스토리지) 교체 가능성. **저장소가 어디든 서빙은 인증 경로 하나** — `GET /files/photos/{fileName}`(`API_SPEC §5.11.1`)이 `STUDENT_READ_PHOTO` + 같은 학원 요청자에게만 내려주고 정적 공개 경로는 두지 않는다(사진은 L3, `Ruling 377`). `photo_url` 은 이 경로의 접두사(`/api/v1/files/photos`)를 갖는다 |
 | **승인 미리보기 캐시** | `ApprovalPreviewCache`(`request/preview/spec`) | 미리보기 산출물 보관 방식(인메모리 ↔ Redis) 교체 가능성 |
 | **푸시 발송** | `PushSender`(`notification/push/spec`) | FCM · APNs · 알림톡(2~3단계)이 서로 다른 채널 |
+| **문자 발송** | `SmsSender`(`global/sms/spec`) | 업체가 정해지면 구현체만 더한다. `app.sms.sender` 값이 없으면 어떤 구현도 뜨지 않고 전화번호 복구는 `503`(`Ruling 512`). `notification/` 이 아니라 `global/` 인 이유 — 복구가 발송 실패를 요청 트랜잭션에 되돌려야 하는 **동기 호출**이고, `notification/` 은 다른 모듈이 직접 부르지 않는다(규칙 17) |
 | **알림 문구 생성** | `NotificationComposer`(`notification/domain/spec`) | 문구·다국어가 바뀔 축 |
 
 **`PositionSource` 포트는 없다(BR-146 · BR-161)** — 위치 원천이 매니저 앱 1종으로 확정돼(§10.1) 교체 축이 성립하지 않는다. `location/command/DriverPositionController` 가 HTTP 로 직접 수신하고, 개발용 시뮬레이션(`demo/DemoRunSimulator`)도 실 단말과 같은 명령 진입점(`RunPositionCommandService#receive`)을 그대로 호출한다 — 둘을 가르는 구현체가 없어 인터페이스로 뽑을 대상이 부재.

@@ -737,3 +737,37 @@ Alertmanager 는 떠 있지만 receiver 가 `unrouted`(수신자 없음)라 **�
 `https://api.<도메인>/healthz` 는 인터넷에서 닿는 유일한 헬스 주소다(UptimeRobot 같은 외부 감시용). backend 의 `/actuator/health` 를 그대로 프록시하므로 응답은 `{"status":"UP"}` 뿐이고(상세는 `show-details: never`), backend 나 DB·Redis 가 DOWN 이면 503, backend 가 죽으면 502·504 라 외부 감시가 실패를 본다. 정적 200 이 아니다 — 정적 200 은 backend 가 죽어도 초록이다. IP 당 분당 30회로 제한한다(초과 429). `/actuator` 의 나머지(`prometheus` 등)는 계속 404 다.
 
 ⚠ EC2 가 통째로 죽으면 Prometheus·Alertmanager 도 함께 죽는다 — 서버 사망은 이 외부 감시로만 알 수 있다(등록은 사용자 작업).
+
+---
+
+## 12. 외부 연동 준비물 (2026-10-01 · R46-INTEG · `Ruling 483` · `510~513`)
+
+**외부 연동은 자리만 만들어 뒀다** — 포트(인터페이스) + 키가 없을 때 쓰는 기본 구현 + 설정 키 이름. 키·계정이 없어도 백엔드·웹·앱 4곳의 빌드와 시험은 그대로 통과한다. 아래는 **사용자가 준비할 것**과 **어디에 넣는가**다. 설정 키 이름은 코드에 실제로 있는 이름이다(`grep` 확인은 `IMPLEMENTATION_PLAN §8.80`).
+
+| 연동 | 사용자가 준비할 것 | 설정 키 이름(코드) | 넣는 곳 | 준비 전 동작 |
+|---|---|---|---|---|
+| 푸시 발송(서버) | Firebase 프로젝트 · 서비스 계정 키(JSON) | `app.push.sender=fcm` · `app.push.fcm.project-id` · `app.push.fcm.client-email` · `app.push.fcm.private-key` ← 환경변수 `FCM_PROJECT_ID` · `FCM_CLIENT_EMAIL` · `FCM_PRIVATE_KEY` | SSM `/school-bus/demo/FCM_*` 3개(§3 — `prod` 에서만 필수) | `prod`: 기동 실패(의도). `local`·`demo`: `LoggingPushSender`(로그만) |
+| 푸시 수신(Android 앱 2종) | Firebase 에 앱 2종(학부모·학생 / 매니저) 등록 → `google-services.json` 2개 | (파일) | 각 앱 `android/app/` — **공개 저장소라 커밋하지 않고** 빌드 때 CI 시크릿으로 복원 | 앱이 기기별 자리표시 토큰(`placeholder-<기기 식별자>`)을 등록 — 서버가 FCM 거부를 받아 해지(`Ruling 331`) · 알림 목록·앱 안 갱신은 정상 |
+| 푸시 수신(iOS 앱 2종) | Apple Developer 계정 · APNs 인증 키(`.p8` · 키 ID · 팀 ID) → Firebase 콘솔에 업로드 · `GoogleService-Info.plist` 2개 | (파일) | 각 앱 `ios/Runner/` — 위와 같이 커밋하지 않음. Xcode 에서 Push Notifications capability 추가 | 위와 같음 |
+| 앱 코드 전환 | 위 파일 준비 뒤 `firebase_core` · `firebase_messaging` 의존성 추가 · 앱 시작 때 `Firebase.initializeApp()` · `FirebasePushTokenSource` 작성 | `pushTokenSourceProvider`(parent-app · manager-app `lib/app/di.dart`) | 두 `di.dart` 의 이 provider 한 곳만 교체 — 로그인 뒤 등록 · 로그아웃 해지는 이미 `AuthApi` 가 한다 | `PlaceholderPushTokenSource`(기본) |
+| 웹 브라우저 푸시(VAPID) | **불필요** — 사양에 관계자 웹 브라우저 푸시가 없다(`Ruling 511`) | — | — | — |
+| 문자(SMS) | 업체 선정(알리고 · 솔라피 · NCP SENS 등) · 계정 · API 키 · **발신번호 사전 등록**(통신사 인증 필요) | `app.sms.sender`(값 없음 = 비활성 · `logging` = 개발용 로그) · 업체 구현체의 키 이름은 구현 때 정한다 | 업체 구현체를 더할 때 `application.yml` 키 + `docker-compose.prod.yml` 환경변수 + SSM(§3)을 함께 추가 | 비활성: `POST /auth/recover` 는 `503 RECOVERY_UNAVAILABLE`(복구는 관리자 경유 `API_SPEC §5.22`) |
+| 이메일 | **없음** — 이메일을 보내는 기능이 사양에 없다(`Ruling 511`). 경보 이메일은 §11.3 Alertmanager 몫 | — | — | — |
+
+**Firebase 구현체 스케치(검증 전 — 배포 때 최신 FlutterFire 문서로 확인).** 포트는 `PushTokenSource`(`baraeda_core`)이고 구현은 두 메서드다.
+
+```dart
+class FirebasePushTokenSource implements PushTokenSource {
+  @override
+  Future<String?> currentToken() async {
+    final settings = await FirebaseMessaging.instance.requestPermission();
+    if (settings.authorizationStatus == AuthorizationStatus.denied) return null; // 권한 거부 → 등록 생략
+    return FirebaseMessaging.instance.getToken();
+  }
+
+  @override
+  Stream<void> get onMessage => FirebaseMessaging.onMessage.map((_) {}); // 알림 목록 갱신 연결 자리
+}
+```
+
+`onMessage` 를 알림 목록 갱신에 잇는 곳은 학부모 앱 홈의 주기 갱신(`Ruling 431` 90초)과 같은 자리다 — `ref.invalidate(...)` 한 줄이며, 이어 붙이면 주기를 더 늘릴 수 있다. `google-services.json` · `GoogleService-Info.plist` 가 없는 빌드에서 `Firebase.initializeApp()` 이 실패하므로, 파일이 준비되기 전에는 의존성도 넣지 않는다(`Ruling 510`).

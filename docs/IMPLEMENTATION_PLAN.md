@@ -1002,6 +1002,10 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 456 | 경보 HostDiskAlmostFull — 루트 디스크 80% 10분 | 본문 §8.76 |
 | 457 | 프록시 공개 헬스 /healthz(상태 문자열만 · DOWN 503 · IP 당 분당 30회) · /actuator 는 404 유지 | 본문 §8.76 |
 | 458 | application.yml 이 읽는 환경변수는 운영 compose 가 전부 넘긴다(제외는 시험 목록) · 선택 항목은 SSM 선택 | 본문 §8.76 |
+| 510 | 푸시 토큰 공급자 포트 `PushTokenSource` + 기본 `PlaceholderPushTokenSource`(자리표시 토큰) · Firebase SDK 는 배포 때 · 로그인 뒤 자동 등록 · 로그아웃 `device_id` 해지 · 끈 기기 기억 | 본문 §8.80 · `frontend/IMPLEMENTATION_PLAN` §5.22 |
+| 511 | 관계자 웹 브라우저 푸시 · 이메일 발송은 사양에 없어 만들지 않는다 | 본문 §8.80 |
+| 512 | 문자 발송 포트 `SmsSender`(`global/sms`) · `app.sms.sender` 값이 없으면 비활성(복구 503 유지) · `logging` 은 개발용(번호 끝 4자리·본문 길이만) | 본문 §8.80 |
+| 513 | 전화번호 복구 재개 값 — 코드 6자리·5분 · 발급 60초 1회·24시간 5회 · 대조 5회 · 문자로만 전달 · 대상 학부모·학생·기사·동승자 · `429 RECOVERY_RATE_LIMITED` | 본문 §8.80 · `API_SPEC §2.9` |
 
 
 ## 8.73 ⚖ `R46-BE` — 성능 개선(감사 제외) + 바로 고칠 것 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 410~419 · 백엔드 갈래)
@@ -1136,3 +1140,26 @@ R46 개선 항목 `A #10`(주소 선택 → 사용자 결정 대기)의 결정 �
 | 8 | 정리 — 서버 종료 · 전용 DB DROP | `lsof` · `pg_database` |
 
 **결과 (2026-10-01)** — 목표 1 ✅ `AdminAcademyCoordinatesTest` 12건(새 시험 5 · 뒤집은 시험 1 — "주소를 비우면 좌표도 비운다" → `422`) · RED 5건 실패 확인 · 결함 4종을 하나씩 심어 해당 시험만 실패. **시험이 기존 결함 1건을 잡았다** — 같은 주소를 다시 보낸 수정이 좌표를 지웠다(웹은 폼 전체를 보내므로 이름만 고쳐도 좌표 소실 → 회차 확정 전부 실패) · `Ruling 451` 로 명문화. 목표 2 ✅ `AcademyFormDialog.test.tsx` 10건 · 결함 3종 · 1440·1024 스크린샷. 목표 3 ✅ `Ruling 451`(서버 `:8360` 실측). 목표 4 ✅ 원인은 **시험의 가짜 `useRouter` 가 렌더마다 새 객체를 돌려줘 effect 가 재예약**된 것이고 제품 결함이 아님 — 단독 20회 연속 실패 0 · 원인 줄 원복 시 재현. 목표 5 ✅ 백엔드 `--rerun` 338클래스 1,895건 실패 0 · 건너뜀 0(첫 실행 21건은 같은 DB 에 서버의 데모 시드가 들어간 **환경 오염** — 스키마를 비운 뒤 0) · 웹 705건 · `tsc`·`lint` 0. 목표 6 ✅ 14파일 77건 실패 0 · 건너뜀 0. 목표 7 ✅ 깨진 참조 0 → 0.
+
+## 8.80 ⚖ `R46-INTEG` — 외부 연동 자리 · 푸시 클라이언트 · 문자 복구 (2026-10-01 · 분기점 `6b22d2b2` · 번호대 510~519 · 사용자 결정 `Ruling 483` 의 푸시)
+
+`Ruling 483`(배포·외부 연동은 자리만 만든다 — 포트 + 키가 없을 때 쓰는 기본 구현 + 설정 키 이름 + 사용자가 준비할 목록 · 키가 없어도 빌드·시험이 통과)의 구현이다. 갈래 보고서 `.claude/r46/report-integ.md`(무시 파일). 앱·웹 쪽 기록은 `docs/frontend/IMPLEMENTATION_PLAN.md §5.22`.
+
+| Ruling | 판정 | 근거 |
+|:-:|---|---|
+| **510** | **푸시 클라이언트 자리(앱 2종).** 토큰 공급자 포트 `PushTokenSource`(`baraeda_core`) + 기본 구현 `PlaceholderPushTokenSource`(기기별 자리표시 토큰 `placeholder-<기기 식별자>`)를 둔다. **Firebase SDK(`firebase_messaging`)는 이번에 넣지 않는다** — `google-services.json` · `GoogleService-Info.plist` · 네이티브 빌드 설정을 계정 없이 검증할 수 없고, 의존성만 먼저 넣으면 검증 없이 최소 iOS 버전·Gradle 구성을 바꾼다. 구현체 스케치와 교체 지점은 `DEPLOYMENT §12`. **로그인 성공 직후 `AuthApi.login` 이 `POST /me/devices` 를 부른다**(자동 로그인은 `GET /me` 직후 · 같은 토큰은 한 번만) — 실패해도 로그인은 성공하고 다음 `/me` 가 다시 시도. **로그아웃은 `device_id` 를 싣는다**(`§2.7` — 서버가 그 기기 토큰 해지). 학부모·학생 앱 설정 스위치로 끈 기기는 저장해 다음 로그인·앱 실행이 다시 켜지 않는다(매니저 앱은 끄기 수단 부재 — 알림 on/off 권한이 없다). **버린 길** — 기본 공급자가 토큰을 주지 않는 방식(등록 생략): 로그인 뒤 등록 · 로그아웃 해지 서버 경로가 키 없는 스테이징에서 끝까지 도는지 볼 수 없고 설정 스위치가 시험 불가가 된다. 서버는 FCM 이 거부하는 자리표시 토큰의 행을 해지하므로(`Ruling 331`) 해가 없다 | 조사 `A #1` · `C #14` · `fe-rounds` §5.x "FCM 실토큰 등록" 이월 |
+| **511** | **관계자 웹 브라우저 푸시와 이메일 발송은 사양에 없어 만들지 않는다.** 웹 푸시 — 단말 등록(NTF-12)의 흐름은 앱 진입(`UF-X-09`)뿐이고, 관계자 웹의 비상 알림 수신(A-16)은 열린 화면의 실시간 수신 + 탭 제목 건수 + 사용자가 켠 알림음·브라우저 알림(`R46-WEB`, 프론트 `Ruling 420~422`)으로 이미 정의돼 있다. 서버 `platform=web` 값은 CHECK 에 있으나 호출하는 기능이 없다 — 웹 푸시를 사양에 넣기로 정할 때(서비스 워커 · VAPID · 탭이 닫힌 뒤 수신) 별도 `Ruling`. 이메일 — 사양 4종 · 설계 문서에 이메일을 보내는 기능이 없다(`email` 은 프로필 필드뿐, `API_SPEC §6`·`§5`). 발송 포트를 만들지 않는다(YAGNI). 장애 경보 이메일은 Alertmanager(`Ruling 480`, 운영 갈래) 몫 | `grep -rIln 'serviceWorker\|firebase' frontend/apps/academy-web/src` 0건 · `grep -n '이메일\|email' docs/FEATURE_SPEC.md docs/PRD.md docs/USER_FLOWS.md` 에 발송 기능 0건 |
+| **512** | **문자 발송 포트 `SmsSender`(`global/sms/spec`).** 구현 선택은 `app.sms.sender` 한 곳 — **값이 없으면 어떤 구현도 뜨지 않고** 전화번호 복구는 `503 RECOVERY_UNAVAILABLE` 그대로(`Ruling 329`). `logging` 은 개발용 `LoggingSmsSender`(번호 끝 4자리 · 본문 길이만 로그 · prod 에서 기동 실패). 값이 없을 때 로그 구현이 기본으로 뜨지 않는 이유는 `PushSender`(기본 로그)와 다르다 — 문자가 아무에게도 가지 않는데 복구가 열려 있으면 정상 사용자는 불능이고 공격자에겐 대입 경로가 된다(`Ruling 329` 와 같은 근거). **`notification/` 이 아니라 `global/` 에 둔 이유** — `NotificationModuleIsolationTest`(규칙 17: 다른 모듈은 `notification` 을 직접 부르지 않는다)가 막고, 복구는 발송 실패가 요청 트랜잭션을 되돌려야 하는 동기 호출이라 이벤트 구독 구조와 맞지 않는다. 업체 구현체는 업체가 정해진 뒤(`DEPLOYMENT §12`) | 시험 `LoggingSmsSenderTest` · `AuthControllerTest` 의 503 시험(발송기 없을 때) |
+| **513** | **전화번호 복구 재개 값(`API_SPEC §2.9` 재개 조건의 구현).** 코드 6자리 · 유효 5분 · 같은 번호 발급 60초 1회 · 24시간 5회(번호 기준 · `type` 무관 · `verification_code` 행 수) · 대조 5회(조건부 UPDATE, 틀려 `403` 이어도 횟수는 커밋) · 초과 `429 RECOVERY_RATE_LIMITED` 신설 · **임시 비밀번호·아이디는 문자로만**(응답 본문 부재) · 비밀번호 교체와 동시에 refresh 토큰 전량 무효화 · 문자 발송이 트랜잭션 마지막이라 실패하면 코드 발급·비밀번호 교체가 되돌려짐. **대상은 학부모·학생·기사·동승자** — 관계자·메인 관리자는 문자 한 통(SIM 탈취)으로 학원 전체 권한을 얻게 되므로 제외하고 메인 관리자 경로(`§6.7`)로 둔다(미등록 번호와 같은 `404`). 같은 번호 계정이 여럿이면 전부 초기화하고 한 통에 아이디별로 적는다. `phone` 입력은 20자 이하 — `verification_code.phone` 컬럼이 20자라 넘기면 코드 행 저장에서 500. **알려진 한계(사용자 판단 몫)** — 발급 때 미등록 번호가 `404` 라 번호의 가입 여부가 드러난다(`API_SPEC §2.9` 사양 그대로). 발송기를 켜기 전에 이 노출을 받아들일지 정한다 | 시험 `AccountRecoveryFlowTest` 9건 · 결함 심기 7종 |
+
+### R46-INTEG 목표 표
+
+| # | 완료 조건 | 확인 수단 |
+|:-:|---|---|
+| 1 | 키·설정 파일 없이 백엔드·웹·Flutter 4곳 빌드·시험 통과 | 백엔드 전체 · 웹 `tsc`·`lint`·vitest · 4패키지 `analyze`·`test --exclude-tags real_backend` |
+| 2 | 앱: 로그인 뒤 토큰 등록 호출 · 로그아웃 때 해제 — 가짜 토큰 공급자로 시험 | `device_registrar_test`(8) · 앱 2종 배선 시험 · `device_registration_panel_push_source_test`(3) · 결함 심기 9종 |
+| 3 | SMS: 비활성 → 503 유지 · 가짜 발송기 활성 → 재개 조건대로 동작 · 로그에 번호·코드 원문 0 | `AuthControllerTest` · `AccountRecoveryFlowTest` 9건 · `LoggingSmsSenderTest` 3건 · 결함 심기 7종 |
+| 4 | 준비물 표의 키 이름이 코드의 실제 이름과 일치 | 아래 결과 — 키별 `grep` |
+| 5 | 실서버 계약 시험(해당 패키지)을 자기 서버에만 | 아래 결과 |
+| 6 | 깨진 참조 증가 0 | `build.py` 전후 |
+| 7 | 정리 — 서버 종료 · `r46_integ` DROP | `lsof` · `pg_database` |
