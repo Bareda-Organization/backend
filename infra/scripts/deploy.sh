@@ -273,6 +273,18 @@ $COMPOSE kill -s HUP alertmanager \
 $COMPOSE restart prometheus \
     || echo "경고: Prometheus 를 다시 시작하지 못했다 — 새 경보 규칙이 반영되지 않았을 수 있다(DEPLOYMENT.md §11)" >&2
 
+# nginx(proxy)도 설정 파일 하나(nginx.prod.conf)를 마운트한다 — Prometheus 와 같은 이유로 s3 sync 가 파일을 교체하면 컨테이너는 옛 파일을 계속 본다
+# (마운트가 옛 파일을 가리켜 reload 로도 안 읽힌다). 다시 시작해야 새 설정이 반영된다(Ruling 648 · 매 배포 1~2초 끊김).
+# ⚠ 위 둘과 달리 경고로 넘기지 않는다 — 잘못된 설정으로 다시 시작하면 proxy 가 못 떠 API 전체가 멈춘다. 그래서 **다시 시작하기 전에 새 컨테이너로 먼저 검사**한다:
+# 새 컨테이너는 마운트를 새로 해 교체된 새 파일을 보고, 같은 네트워크·볼륨이라 backend 이름·인증서·.htpasswd 를 실제와 같이 본다
+# (backend 가 떠 있어야 upstream 이름이 풀리므로 위 `up -d` 뒤에 한다). 검사가 실패하면 proxy 는 옛 설정으로 계속 응답하고 배포는 실패로 끝난다.
+echo "== 3-1. nginx 설정 검사 후 proxy 다시 시작 =="
+if ! $COMPOSE run --rm --no-deps -T proxy nginx -t; then
+    echo "배포 실패 — 새 nginx 설정이 nginx -t 를 통과하지 못했다. proxy 는 다시 시작하지 않았고 옛 설정으로 계속 응답한다. 원인을 고쳐 다시 배포할 것(DEPLOYMENT.md §11.6)" >&2
+    exit 1
+fi
+$COMPOSE restart proxy
+
 echo "== 4. 스모크 테스트 (최대 3분 대기) =="
 for _ in $(seq 1 36); do
     if $COMPOSE exec -T backend \
