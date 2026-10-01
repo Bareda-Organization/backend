@@ -66,7 +66,7 @@ public class AccountPasswordResetCommandService {
         OffsetDateTime now = OffsetDateTime.now(clock);
 
         String temporaryPassword = temporaryPasswordGenerator.generate();
-        target.changePassword(passwordEncoder.encode(temporaryPassword));
+        target.issueTemporaryPassword(passwordEncoder.encode(temporaryPassword));
         auditLogRepository.save(AuditLog.forAccountPasswordReset(target.getAcademyId(), actor.getId(),
                 actor.getLoginId(), target.getId(), now));
         AccountPasswordResetResponse response =

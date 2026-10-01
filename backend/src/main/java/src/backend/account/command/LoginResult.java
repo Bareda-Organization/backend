@@ -17,5 +17,6 @@ public record LoginResult(
         Role role,
         AccountStatus status,
         String academyName,
-        String academyContact) {
+        String academyContact,
+        boolean mustChangePassword) {
 }

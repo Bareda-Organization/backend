@@ -91,6 +91,13 @@ public class Account extends BaseTimeEntity {
     private int failedAttempts;
 
     /**
+     * 임시 비밀번호 강제 변경 표식(Ruling 540) — 관리자가 비밀번호를 초기화하면 켜지고, 본인이 바꾸면 꺼진다.
+     * 켜져 있는 동안 계정 상태 게이트가 비밀번호 변경 등 3개 외의 API 를 막는다.
+     */
+    @Column(name = "must_change_password", nullable = false)
+    private boolean mustChangePassword;
+
+    /**
      * 차단 직전 상태(Ruling 328) — {@code blocked} 일 때만 값이 있다(CHECK {@code ck_account_status_before_block}).
      * 해제가 이 값으로 돌아가야 승인 대기·거절 계정이 해제만으로 {@code active} 가 되지 않는다.
      */
@@ -250,9 +257,22 @@ public class Account extends BaseTimeEntity {
         this.role = newRole;
     }
 
-    /** 비밀번호를 변경한다(API_SPEC §2.8·§2.9) — 새 해시는 호출자(PasswordEncoder)가 만들어 넘긴다. */
+    /**
+     * 본인이 비밀번호를 바꾼다(API_SPEC §2.8) — 새 해시는 호출자(PasswordEncoder)가 만들어 넘기고, 강제 변경 표식을
+     * 내린다. 표식을 내리는 자리가 여기 하나뿐이라 초기화 경로가 이 메서드를 부르면 표식이 바로 꺼진다.
+     */
     public void changePassword(String newPasswordHash) {
         this.passwordHash = newPasswordHash;
+        this.mustChangePassword = false;
+    }
+
+    /**
+     * 관리자가 비밀번호를 임시 값으로 초기화한다(API_SPEC §5.22·§6.7, Ruling 540) — 임시 값은 관리자가 알고 있으므로
+     * 표식을 켜 본인이 바꿀 때까지 다른 API 를 막는다. 새 해시는 호출자(PasswordEncoder)가 만들어 넘긴다.
+     */
+    public void issueTemporaryPassword(String temporaryPasswordHash) {
+        this.passwordHash = temporaryPasswordHash;
+        this.mustChangePassword = true;
     }
 
     /**

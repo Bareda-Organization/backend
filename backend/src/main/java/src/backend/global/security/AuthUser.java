@@ -31,10 +31,19 @@ import src.backend.global.common.enums.Role;
  * {@code status.name()}(대문자)을 쓰고 게이트가 소문자 리터럴을 기대하는 식의 불일치가 컴파일
  * 시점에 사라진다(Phase 2 Task 2 리뷰 라운드 1 Important #2).
  *
+ * <p>{@code mustChangePassword} 는 같은 방식으로 토큰에서 옮긴 임시 비밀번호 강제 변경 표식이다(Ruling 540) —
+ * 계정 상태 게이트가 이 값이 참인 동안 비밀번호 변경·본인 조회·로그아웃 외의 API 를 막는다.
+ *
  * <p>{@link Principal}도 구현해 STOMP 세션(CONNECT 시 1회 인증)의 사용자로도 그대로 쓴다 —
  * REST 요청 인증과 WebSocket 세션 인증이 같은 타입을 공유한다.
  */
-public record AuthUser(Long accountId, Long academyId, Role role, AccountStatus status) implements Principal {
+public record AuthUser(Long accountId, Long academyId, Role role, AccountStatus status, boolean mustChangePassword)
+        implements Principal {
+
+    /** 강제 변경 표식이 없는 주체 — 표식은 로그인·재발급이 토큰에 싣는 경우에만 켜진다. */
+    public AuthUser(Long accountId, Long academyId, Role role, AccountStatus status) {
+        this(accountId, academyId, role, status, false);
+    }
 
     /**
      * {@code system_admin} 이 아닌 역할은 {@code academyId} 가 null 일 수 없다(ck_account_academy_scope).

@@ -38,6 +38,7 @@ public class JwtTokenProvider {
     private static final String CLAIM_ACADEMY_ID = "academyId";
     private static final String CLAIM_ROLE = "role";
     private static final String CLAIM_STATUS = "status";
+    private static final String CLAIM_MUST_CHANGE_PASSWORD = "mustChangePassword";
     private static final String CLAIM_TYPE = "type";
     private static final String TYPE_ACCESS = "access";
     private static final String TYPE_REFRESH = "refresh";
@@ -59,11 +60,17 @@ public class JwtTokenProvider {
     }
 
     public String createAccessToken(Long accountId, Long academyId, Role role, AccountStatus status) {
-        return build(accountId, academyId, role, status, TYPE_ACCESS, accessValidityMs);
+        return createAccessToken(accountId, academyId, role, status, false);
+    }
+
+    /** 임시 비밀번호 강제 변경 표식(Ruling 540)을 싣는 발급 — 로그인·재발급이 계정의 표식을 그대로 옮긴다. */
+    public String createAccessToken(Long accountId, Long academyId, Role role, AccountStatus status,
+            boolean mustChangePassword) {
+        return build(accountId, academyId, role, status, mustChangePassword, TYPE_ACCESS, accessValidityMs);
     }
 
     public String createRefreshToken(Long accountId, Long academyId, Role role, AccountStatus status) {
-        return build(accountId, academyId, role, status, TYPE_REFRESH, refreshValidityMs);
+        return build(accountId, academyId, role, status, false, TYPE_REFRESH, refreshValidityMs);
     }
 
     /**
@@ -74,8 +81,8 @@ public class JwtTokenProvider {
      * 직후 곧바로 refresh 하는 것처럼 같은 계정에 대한 토큰 발급이 짧은 간격으로 겹치면 실제로도 날 수
      * 있는 운영 결함이었다).
      */
-    private String build(Long accountId, Long academyId, Role role, AccountStatus status, String type,
-            long validityMs) {
+    private String build(Long accountId, Long academyId, Role role, AccountStatus status,
+            boolean mustChangePassword, String type, long validityMs) {
         Date now = Date.from(clock.instant());
         return Jwts.builder()
                 .id(UUID.randomUUID().toString())
@@ -83,6 +90,7 @@ public class JwtTokenProvider {
                 .claim(CLAIM_ACADEMY_ID, academyId)
                 .claim(CLAIM_ROLE, role.name())
                 .claim(CLAIM_STATUS, status.name())
+                .claim(CLAIM_MUST_CHANGE_PASSWORD, mustChangePassword)
                 .claim(CLAIM_TYPE, type)
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + validityMs))
@@ -152,7 +160,10 @@ public class JwtTokenProvider {
             Number academyId = claims.get(CLAIM_ACADEMY_ID, Number.class);
             Role role = Role.valueOf(claims.get(CLAIM_ROLE, String.class));
             AccountStatus status = AccountStatus.valueOf(claims.get(CLAIM_STATUS, String.class));
-            return new AuthUser(accountId, academyId == null ? null : academyId.longValue(), role, status);
+            // 표식 클레임이 없는 토큰(표식 도입 전 발급분)은 꺼진 것으로 읽는다 — 만료까지만 산다.
+            boolean mustChangePassword = Boolean.TRUE.equals(claims.get(CLAIM_MUST_CHANGE_PASSWORD, Boolean.class));
+            return new AuthUser(accountId, academyId == null ? null : academyId.longValue(), role, status,
+                    mustChangePassword);
         } catch (IllegalArgumentException | NullPointerException e) {
             throw new JwtException("토큰 클레임을 해석할 수 없습니다", e);
         }

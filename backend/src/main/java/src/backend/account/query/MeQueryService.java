@@ -58,7 +58,8 @@ public class MeQueryService {
         return new MeResponse(String.valueOf(account.getId()), account.getLoginId(), account.getName(), account.getPhone(),
                 role.name().toLowerCase(Locale.ROOT), account.getStatus().name().toLowerCase(Locale.ROOT), academy,
                 studentId, manager == null ? null : String.valueOf(manager.getId()),
-                manager == null ? null : manager.getRole().name().toLowerCase(Locale.ROOT), linkedStudentCount);
+                manager == null ? null : manager.getRole().name().toLowerCase(Locale.ROOT), linkedStudentCount,
+                account.isMustChangePassword());
     }
 
     /** {@code system_admin} 은 소속 학원이 없어 {@code null} 을 그대로 돌려준다(API_SPEC §2.10). */

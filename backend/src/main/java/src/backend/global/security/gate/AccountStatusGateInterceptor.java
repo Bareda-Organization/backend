@@ -16,7 +16,8 @@ import src.backend.global.security.AuthUser;
 
 /**
  * 계정 상태 게이트(C-01 · API_SPEC §1.4) — pending·rejected 계정이 허용 목록 밖 핸들러를
- * 호출하면 컨트롤러에 닿기 전에 차단한다. 판정 지점을 이 한 곳으로 모아, 새 엔드포인트가
+ * 호출하면 컨트롤러에 닿기 전에 차단한다. 임시 비밀번호 강제 변경 표식(Ruling 540)이 켜진 계정은 상태와
+ * 무관하게 {@link AllowedWhenPasswordChange} 핸들러 외를 {@code 403 PASSWORD_CHANGE_REQUIRED} 로 막는다. 판정 지점을 이 한 곳으로 모아, 새 엔드포인트가
  * 애너테이션 없이 추가돼도 기본값이 차단이 되게 한다(허용 목록 방식).
  *
  * <p>{@code active} 는 그대로 통과시켜 역할 권한(②층)·자원 격리(③층) 판정으로 넘긴다.
@@ -38,15 +39,30 @@ public class AccountStatusGateInterceptor implements HandlerInterceptor {
             return true; // 정적 리소스 등 컨트롤러가 아닌 핸들러는 게이트 대상이 아니다.
         }
         AuthUser authUser = resolveAuthUser();
-        if (authUser == null || authUser.status() == AccountStatus.ACTIVE) {
-            return true; // 미인증 요청은 인증 계층이 처리하고, active 는 이 게이트를 통과한다.
+        if (authUser == null) {
+            return true; // 미인증 요청은 인증 계층이 처리한다.
         }
+        if (authUser.status() != AccountStatus.ACTIVE) {
+            assertStatusAllows(authUser.status(), handlerMethod);
+        }
+        return assertPasswordChanged(authUser, handlerMethod);
+    }
 
-        return switch (authUser.status()) {
+    /** pending·rejected 는 허용 목록으로, 그 밖(blocked 등)은 전부 차단으로 판정한다 — 통과하면 아무것도 던지지 않는다. */
+    private void assertStatusAllows(AccountStatus status, HandlerMethod handlerMethod) {
+        switch (status) {
             case PENDING -> assertAllowedWhenPending(handlerMethod);
             case REJECTED -> assertAllowedWhenRejected(handlerMethod);
             default -> throw new BusinessException(ErrorCode.AUTH_ACCOUNT_BLOCKED);
-        };
+        }
+    }
+
+    /** 강제 변경 표식이 켜진 동안은 {@link AllowedWhenPasswordChange} 표시 핸들러만 통과한다. */
+    private boolean assertPasswordChanged(AuthUser authUser, HandlerMethod handlerMethod) {
+        if (authUser.mustChangePassword() && !handlerMethod.hasMethodAnnotation(AllowedWhenPasswordChange.class)) {
+            throw new BusinessException(ErrorCode.PASSWORD_CHANGE_REQUIRED);
+        }
+        return true;
     }
 
     /** {@code pending} 계정은 {@link AllowedWhenPending} 표시 핸들러만 통과한다. */

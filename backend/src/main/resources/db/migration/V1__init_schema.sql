@@ -64,6 +64,8 @@ CREATE TABLE account (
     role            varchar(20)  NOT NULL,
     status          varchar(10)  NOT NULL,
     failed_attempts integer      NOT NULL DEFAULT 0,
+    -- 임시 비밀번호 강제 변경 표식(Ruling 540) — 관리자 초기화가 켜고 본인 변경이 끈다.
+    must_change_password boolean NOT NULL DEFAULT false,
     status_before_block varchar(10),
     blocked_at      timestamptz,
     block_reason    varchar(100),
