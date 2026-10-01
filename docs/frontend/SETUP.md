@@ -1,6 +1,6 @@
 # 프론트엔드 개발 환경 셋업
 
-백엔드를 로컬에서 띄우고 관계자 웹(Next.js)과 앱 2종(Flutter)을 그 백엔드에 붙이는 절차. 기준 커밋 `0b8aa3e0`(2026-09-30).
+백엔드를 로컬에서 띄우고 관계자 웹(Next.js)과 앱 2종(Flutter)을 그 백엔드에 붙이는 절차. 기준 커밋 `0b8aa3e0`(2026-09-30) · 2026-10-01 R46 변경(Redis 칸 나누기 · `FIXTURE_DB` · 시뮬레이터 끄기)을 분기점 `66a139f1` 에서 코드와 대조해 반영.
 
 - 제품 구성·라운드 추적: `docs/frontend/IMPLEMENTATION_PLAN.md`
 - 코드 규칙: `docs/frontend/CONVENTIONS_REACT.md` · `docs/frontend/CONVENTIONS_FLUTTER.md`
@@ -127,7 +127,8 @@ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/v3/api-docs   # 2
 
 - `docker compose down` 에는 `-v` 를 붙이지 않음
 - `stop` / `start`(컨테이너 유지)는 데이터가 남음
-- `POST /dev/reset` 이 지우는 위치 캐시는 Redis 키 패턴 전체 — **같은 Redis(`16379`)를 쓰는 다른 백엔드의 최신 좌표도 함께 지워짐**
+- `POST /dev/reset` 이 지우는 위치 캐시는 Redis 키 패턴 전체 — **같은 Redis(`16379`)의 같은 칸(database)을 쓰는 다른 백엔드의 최신 좌표도 함께 지워짐**
+- 백엔드를 둘 이상 동시에 띄우면(예: 작업 창마다 전용 DB) 같은 회차 번호의 위치 키가 섞여 지도의 버스가 두 경로를 번갈아 나옴(2026-10-01 R46-PARENT 실측). 서버마다 `--spring.data.redis.database=<번호>` 로 같은 Redis 안에서 칸을 나눔 — 번호는 (백엔드 포트 ÷ 10)을 16 으로 나눈 나머지(0 이 나오면 15, 0 은 공유용). 시험(`./gradlew test`)은 Testcontainers Redis 라 해당 없음
 - 관계자 웹 머리말의 **[테스트 데이터 초기화]** 버튼은 `NEXT_PUBLIC_TEST_DATA_RESET=true` 로 빌드·기동한 웹에만 보임(기본은 숨김)
 - 시드 SQL 을 고친 뒤 이미 적용된 DB 로 앱만 다시 띄우면 `FlywayValidateException` 으로 기동 실패 — 체크섬 불일치이므로 `down` → `up` 으로 재구성
 
@@ -209,6 +210,8 @@ flutter test --exclude-tags real_backend   # 단위·위젯. 실서버 계약 �
 - `--exclude-tags` 는 패키지의 `dart_test.yaml` 에 태그 선언이 있어야 걸러짐(선언이 없으면 아무것도 안 걸러지는 빈 플래그). 실서버 계약 시험 파일 머리에는 `@Tags(['real_backend'])` 가 붙어 있어야 함
 
 - 실서버 계약 시험은 `flutter test --tags real_backend --dart-define=API_BASE_URL=http://localhost:<전용포트>/api/v1` 로 돌림. 주소를 주지 않으면 스스로 실패함(`test/support/real_backend_target.dart`). **공유 DB(`schoolbus`)가 아닌 전용 DB 로 띄운 백엔드**에만 겨눔 — 이 시험은 실행하면서 DB 의 행을 바꿈
+- 학부모 앱 실서버 시험 중 DB 에 SQL 로 픽스처를 심는 1건은 `--dart-define=FIXTURE_DB=<그 서버가 물고 있는 DB 이름>` 도 같이 받음(`parent-app/test/support/real_backend_target.dart`). 주지 않으면 던지지 않고 그 1건만 건너뜀 — `API_BASE_URL` 과 달리 생략이 실패가 아님
+- 실서버 시험용 백엔드를 다른 서버와 같은 Redis 에 붙여 띄울 때는 `bootRun --args` 에 `--spring.data.redis.database=<번호>`(§6)를 같이 줌. 지도에 자기 위치 송신기를 붙여 확인할 때는 `DemoRunSimulator` 가 같은 회차에 위치를 써서 경로가 섞이므로 `--app.demo.enabled=false`(§9.6)도 줌 — 시뮬레이터가 실서버 시험 결과를 바꾸는지는 확인 못 함
 - 백엔드 시험은 `-PtestDbUrl` 이 필수. `backend/scripts/test.sh` 가 전용 DB 를 만들고 끝나면 지움
 
 ### 8.4 카카오내비 길안내 — 매니저 앱 (RUN-08 · `Ruling 530~534`)
@@ -243,7 +246,7 @@ flutter test --exclude-tags real_backend   # 단위·위젯. 실서버 계약 �
    - 목록 밖 출처는 `403`. `CORS_ALLOWED_ORIGINS`(쉼표 구분)를 주면 **기본 목록 전체를 대체**함 — 예: `CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5555 ./gradlew bootRun`
    - `prod` · `demo` · `staging` 은 기본값이 없어 미지정 시 허용 출처가 0개
 5. **실시간 위치 스트림**: `/ws/location`(STOMP over WebSocket, 접두사 `/api/v1` 없음). 허용 출처는 REST 와 별개인 `app.ws.allowed-origin-patterns`(환경변수 `WS_ALLOWED_ORIGIN_PATTERNS`) — `local` 기본값은 `*`(모든 출처), `prod` · `demo` · `staging` 은 기본값이 없어 미지정 시 기동 실패. Origin 헤더를 보내지 않는 네이티브 앱은 이 제한과 무관
-6. **버스 위치 시뮬레이터**: 위치는 기사 단말이 올리는 값이고 서버는 2분만 유효한 값으로 봄 — 아무도 올리지 않으면 지도가 비어 있음. `local` 프로파일은 `DemoRunSimulator` 가 기동 15초 뒤부터 기사 단말 자리를 대신해 시드 회차를 출발시키고 위치를 올림(별도 설정 스위치 없음)
+6. **버스 위치 시뮬레이터**: 위치는 기사 단말이 올리는 값이고 서버는 2분만 유효한 값으로 봄 — 아무도 올리지 않으면 지도가 비어 있음. `local` 프로파일은 `DemoRunSimulator` 가 기동 15초 뒤부터 기사 단말 자리를 대신해 시드 회차를 출발시키고 위치를 2초마다 올림. 끄려면 `--app.demo.enabled=false`(기본 `true` — `local` 프로파일에서만 존재)
 7. **계약 문서**: 엔드포인트 목록·요청·응답·오류 코드는 `docs/API_SPEC.md`. 실제 스키마는 Swagger UI 가 가장 최신
 
 ## 10. 문제 해결
