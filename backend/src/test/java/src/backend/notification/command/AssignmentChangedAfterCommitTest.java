@@ -13,9 +13,12 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.task.TaskRejectedException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -37,6 +40,7 @@ import src.backend.notification.domain.impl.AssignmentChangedComposer;
  * 다른 시험이 쓰지 않는 회차 식별자로 만든 행만 지운다({@link AssignmentChangedNotificationRunIdTest} 와 같은 형태).
  */
 @SpringBootTest
+@ExtendWith(OutputCaptureExtension.class)
 class AssignmentChangedAfterCommitTest {
 
     private static final long SEED_MANAGER_ID = 1L;
@@ -86,12 +90,14 @@ class AssignmentChangedAfterCommitTest {
 
     @Test
     @DisplayName("T-4 — 실행기가 가득 차 제출이 거절돼도 이미 커밋된 배치의 호출자에게 예외가 퍼지지 않고 통지만 빠진다")
-    void 제출이_거절돼도_예외가_퍼지지_않는다() {
+    void 제출이_거절돼도_예외가_퍼지지_않는다(CapturedOutput output) {
         Mockito.doThrow(new TaskRejectedException("대기열 가득")).when(notificationDispatchExecutor).execute(any());
 
         assertThatCode(this::커밋한다).as("커밋된 배치를 통지 실패로 뒤집을 수 없다").doesNotThrowAnyException();
 
         assertThat(notificationCount()).as("통지는 빠진다").isZero();
+        assertThat(output.getAll()).as("제출 거절은 우리 경고 한 줄로 남는다(프레임워크의 콜백 오류 로그가 아니라)")
+                .contains("배치 변경 통지 대기열이 가득 차 통지를 건너뛴다");
     }
 
     private void 커밋한다() {
