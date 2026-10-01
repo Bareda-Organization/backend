@@ -3,6 +3,7 @@ package src.backend.account.repository;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +34,14 @@ class RefreshTokenRepositoryTest {
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;
 
+    /**
+     * DB(timestamptz)는 마이크로초까지만 저장한다. Linux(CI)의 {@code OffsetDateTime.now()} 는 나노초라
+     * 저장 뒤 다시 읽은 값과 {@code isEqualTo} 가 어긋난다 — macOS 는 마이크로초라 로컬에서만 통과했다(R46-CIFIX).
+     */
+    private static OffsetDateTime now() {
+        return OffsetDateTime.now().truncatedTo(ChronoUnit.MICROS);
+    }
+
     private Long createAccount(String loginId, String phone) {
         Academy academy = academyRepository.save(Academy.register("P2T3RTKQQQQ" + loginId.charAt(loginId.length() - 1),
                 "학원P2T3RTK토큰", "서울", null, null));
@@ -45,7 +54,7 @@ class RefreshTokenRepositoryTest {
     @Test
     void findByTokenHash_은_해시로_토큰을_찾는다() {
         Long accountId = createAccount("p2t3rtkfindqqq1", "010-8888-0001");
-        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime now = now();
         refreshTokenRepository.save(RefreshToken.issue(accountId, "hash-find-1", now, now.plusDays(14), "device-a"));
 
         RefreshToken found = refreshTokenRepository.findByTokenHash("hash-find-1").orElseThrow();
@@ -57,7 +66,7 @@ class RefreshTokenRepositoryTest {
     @Test
     void findAllByAccountIdAndRevokedAtIsNull_은_해지된_토큰을_제외한다() {
         Long accountId = createAccount("p2t3rtkfindqqq2", "010-8888-0002");
-        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime now = now();
         RefreshToken valid = refreshTokenRepository.save(
                 RefreshToken.issue(accountId, "hash-valid-2", now, now.plusDays(14), "device-a"));
         refreshTokenRepository.save(RefreshToken.issue(accountId, "hash-revoked-2", now, now.plusDays(14), "device-b"));
@@ -76,7 +85,7 @@ class RefreshTokenRepositoryTest {
     @Test
     void revokeAllValidByAccountId_은_이미_해지된_토큰의_시각을_바꾸지_않는다() {
         Long accountId = createAccount("p2t3rtkfindqqq3", "010-8888-0003");
-        OffsetDateTime issuedAt = OffsetDateTime.now().minusDays(1);
+        OffsetDateTime issuedAt = now().minusDays(1);
         OffsetDateTime firstRevokedAt = issuedAt.plusHours(1);
         RefreshToken alreadyRevoked = refreshTokenRepository.save(
                 RefreshToken.issue(accountId, "hash-already-3", issuedAt, issuedAt.plusDays(14), "device-a"));
@@ -101,7 +110,7 @@ class RefreshTokenRepositoryTest {
     @Test
     void revokeByTokenHash_은_유효한_토큰을_무효화하고_1을_반환한다() {
         Long accountId = createAccount("p2t3rtkfindqqq4", "010-8888-0004");
-        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime now = now();
         refreshTokenRepository.save(RefreshToken.issue(accountId, "hash-logout-4", now, now.plusDays(14), "device-a"));
         OffsetDateTime revokedAt = now.plusMinutes(1);
 
@@ -116,7 +125,7 @@ class RefreshTokenRepositoryTest {
     @Test
     void revokeByTokenHash_은_이미_해지된_토큰을_다시_해지하지_않는다() {
         Long accountId = createAccount("p2t3rtkfindqqq5", "010-8888-0005");
-        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime now = now();
         refreshTokenRepository.save(RefreshToken.issue(accountId, "hash-logout-5", now, now.plusDays(14), "device-a"));
         OffsetDateTime firstRevokedAt = now.plusMinutes(1);
         int firstCount = refreshTokenRepository.revokeByTokenHash("hash-logout-5", firstRevokedAt);
@@ -134,7 +143,7 @@ class RefreshTokenRepositoryTest {
     @Test
     void revokeByTokenHash_은_같은_계정의_다른_유효_토큰을_건드리지_않는다() {
         Long accountId = createAccount("p2t3rtkfindqqq6", "010-8888-0006");
-        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime now = now();
         refreshTokenRepository.save(RefreshToken.issue(accountId, "hash-logout-6-a", now, now.plusDays(14), "device-a"));
         refreshTokenRepository.save(RefreshToken.issue(accountId, "hash-logout-6-b", now, now.plusDays(14), "device-b"));
 
@@ -163,7 +172,7 @@ class RefreshTokenRepositoryTest {
         Account account = accountRepository.save(Account.forSignup(academy.getId(), "p2t3rtkfindqqq7", "x",
                 "토큰테스트", "010-8888-0007", null, Role.PARENT));
         try {
-            OffsetDateTime now = OffsetDateTime.now();
+            OffsetDateTime now = now();
             refreshTokenRepository.save(
                     RefreshToken.issue(account.getId(), "hash-notx-7", now, now.plusDays(14), "device-a"));
 
