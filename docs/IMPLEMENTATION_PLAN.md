@@ -1089,7 +1089,12 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 591 | 전체 관제 화면도 1100px 이하에서 버스 목록을 지도 아래로(대시보드·금일 운행과 같은 규칙) — 1024 에서 `1호차 · 등원` 이 두 줄로 꺾이던 것 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.28` |
 | 592 | 매니저 앱 비상 발신 이력 카드가 화면 폭 ~30% 로 가운데에 뜨던 것 — 목록 `Column` stretch + 공용 `BaraedaCard` accent 본체가 부모 폭을 채우도록(`StackFit.passthrough`) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.28` |
 | 593 | 오프라인 대기열 빈 상태 안내문 줄임 — 마지막 글자 `다` 가 둘째 줄에 남던 것 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.28` |
-| 594 | 고치지 않은 것 — 한글이 낱말 중간에서 끊기는 줄바꿈(앱 전체 · 관찰 7곳)은 공용 해결 결정이 필요해 사용자 결정으로 보고 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.28` |
+| 594 | 고치지 않은 것 — 한글이 낱말 중간에서 끊기는 줄바꿈(앱 전체 · 관찰 7곳)은 공용 해결 결정이 필요해 사용자 결정으로 보고 → **해소**: 사용자 결정(낱말 단위 공용 도우미)에 따라 공용 위젯 `WordWrapText` 로 적용(`docs/frontend/IMPLEMENTATION_PLAN.md §5.29`) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.28` |
+| 595 | 차단 해제 감사 행에도 처리한 관리자의 접속 IP — 접속 이력 응답의 해제 행은 `ip` 를 `null` 로 유지(해제된 계정의 접속 IP 로 읽히지 않게) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.29` |
+| 596 | 운행 화면 노선 변경 확인 띠 `[변경 목록 확인]` 을 하단 고정 묶음의 접히지 않는 맨 위 칸으로(스크롤 영역 경계에 잘리던 것) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.29` |
+| 597 | 웹 목록 조회 실패 때 머리줄 건수(`총 0대` 등) 숨김 — 같은 구조 14곳 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.29` |
+| 598 | `/schedule` 제목 하나 — 정규 스케줄 구역은 건수 + 등록 버튼 줄만 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.29` |
+| 599 | `RouteDetail` 간헐 실패는 시험의 경합(효과 실행 전 검사) — 시험 수정 · 제품 변경 없음 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.29` |
 
 
 ## 8.73 ⚖ `R46-BE` — 성능 개선(감사 제외) + 바로 고칠 것 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 410~419 · 백엔드 갈래)

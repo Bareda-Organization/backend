@@ -15,6 +15,7 @@ import src.backend.audit.entity.AuditLog;
 import src.backend.audit.repository.AuditLogRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.request.ClientIp;
 
 /**
  * 로그인 차단 해제(AUTH-06 · O-03, API_SPEC §6.12) — 상태 전이와 감사 적재를 한 트랜잭션에서 함께 한다.
@@ -62,7 +63,7 @@ public class AccountUnblockCommandService {
         OffsetDateTime now = OffsetDateTime.now(clock);
         target.unblock(actor.getId(), now);
         auditLogRepository.save(AuditLog.forAccountUnblock(target.getAcademyId(), actor.getId(),
-                actor.getLoginId(), target.getId(), now));
+                actor.getLoginId(), target.getId(), ClientIp.ofCurrentRequest(), now));
 
         return AccountUnblockResponse.from(target);
     }

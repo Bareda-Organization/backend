@@ -113,15 +113,17 @@ public class AuditLog {
      * @param actorAccountId 해제를 실행한 메인 관리자
      * @param actorLoginId   그 관리자의 로그인 아이디 스냅샷 — 계정이 나중에 사라져도 표시값이 남아야 한다
      * @param targetAccountId 차단이 풀린 계정
+     * @param ip 해제를 요청한 관리자의 발신 IP(R46-POLISH Ruling 595) — 요청 밖에서 불렀거나 IP 표기가 아니면 {@code null}
      */
     public static AuditLog forAccountUnblock(Long academyId, Long actorAccountId, String actorLoginId,
-            Long targetAccountId, OffsetDateTime occurredAt) {
+            Long targetAccountId, String ip, OffsetDateTime occurredAt) {
         AuditLog log = new AuditLog(AuditCategory.LOGIN, AuditAction.UNBLOCK, occurredAt);
         log.academyId = academyId;
         log.actorAccountId = actorAccountId;
         log.actorLoginId = actorLoginId;
         log.targetType = TARGET_TYPE_ACCOUNT;
         log.targetId = targetAccountId;
+        log.ip = ip;
         return log;
     }
 

@@ -183,6 +183,24 @@ class AdminBlockedAccountControllerTest {
                 .isEqualTo(SYSTEM_ADMIN_ACCOUNT_ID);
     }
 
+    /**
+     * 해제 감사 행에도 처리한 관리자의 접속 IP 가 남는다(R46-POLISH Ruling 595) — {@code ERD §3.4} 는
+     * {@code category=login} 행에 IP 를 채운다고 정했고, 이 행만 비어 있었다.
+     */
+    @Test
+    void 해제_감사_행에_프록시가_덮어쓴_접속_IP_가_남는다() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/blocked-accounts/" + blockedAccountId + "/unblock")
+                        .header("Authorization", 메인관리자_토큰()).header("X-Real-IP", "203.0.113.41"))
+                .andExpect(status().isOk());
+        동기화한다();
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT host(ip) FROM audit_log WHERE action = 'unblock' AND target_id = ? ORDER BY id DESC LIMIT 1",
+                String.class, blockedAccountId))
+                .as("해제 감사 행의 ip 가 비어 있다")
+                .isEqualTo("203.0.113.41");
+    }
+
     /** 해제한 계정은 차단 목록에서 빠진다 — 목록과 해제가 같은 {@code status} 축을 보고 있다는 증거다. */
     @Test
     void 해제한_계정은_차단_계정_목록에서_사라진다() throws Exception {
