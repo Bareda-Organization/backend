@@ -1,9 +1,11 @@
 package src.backend.student.repository;
 
+import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -79,6 +81,20 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
      * "오늘 명단은 유지" — 이미 편성된 회차의 명단이 학생 행을 참조하는 이상 퇴원 여부와 무관하다).
      */
     List<Student> findAllByAcademyIdAndIdIn(Long academyId, Collection<Long> ids);
+
+    /**
+     * 개인정보 파기 대상 학생 id(Ruling 480 ②·520) — 퇴원한 지 컷오프를 넘었고 아직 익명화하지 않은 학생이다.
+     * {@code ix_student_retention_cutoff}(부분 인덱스)와 조건이 같아야 그 인덱스를 탄다.
+     */
+    @AcademyScopeExempt(reason = "보존 정리 배치(Ruling 480 ②) — 전 학원의 퇴원 90일 경과 학생 전건이 대상이고, "
+            + "부르는 주체가 사용자 요청이 아니라 스케줄러라 요청 주체의 소속 자체가 부재")
+    @Query("select s.id from Student s where s.deletedAt < :cutoff and s.anonymizedAt is null order by s.id")
+    List<Long> findIdsForAnonymization(@Param("cutoff") OffsetDateTime cutoff, Limit limit);
+
+    /** 파기 대상 학생 묶음을 id 로 읽는다(Ruling 480 ②·520) — {@link #findIdsForAnonymization} 이 골라낸 id 만 넘긴다. */
+    @AcademyScopeExempt(reason = "보존 정리 배치(Ruling 480 ②) — id 는 전 학원의 파기 대상 조회가 골라낸 값이고, "
+            + "부르는 주체가 스케줄러라 요청 주체의 소속이 부재")
+    List<Student> findAllByIdIn(Collection<Long> ids);
 
     /** 계정이 연결된 학생들을 계정 id 로 한 번에 읽는다 — 알림 수신자(학생 계정)마다 다시 조회하지 않으려고(BR-143). */
     List<Student> findAllByAcademyIdAndAccountIdIn(Long academyId, Collection<Long> accountIds);

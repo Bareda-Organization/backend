@@ -420,6 +420,9 @@ class AcademyScopeHttpExhaustiveTest {
         cases.add(c("POST /runs/{runId}/riders/{riderId}/revert → B학원 회차 403 FORBIDDEN(§1.11)", HttpMethod.POST,
                 "/runs/{runId}/riders/{riderId}/revert", new Object[] {ACADEMY_B_RUN_ID, PLACEHOLDER_ID}, escortA1(),
                 RIDER_REVERT_BODY, 403, "FORBIDDEN"));
+        cases.add(c("GET /runs/{runId}/riders/{riderId}/guardian-phone → B학원 회차 403 FORBIDDEN(§1.11)", HttpMethod.GET,
+                "/runs/{runId}/riders/{riderId}/guardian-phone", new Object[] {ACADEMY_B_RUN_ID, PLACEHOLDER_ID},
+                escortA1(), null, 403, "FORBIDDEN"));
         cases.add(c("POST /runs/{runId}/riders/{riderId}/no-show-contacts → B학원 회차 403 FORBIDDEN(§1.11)",
                 HttpMethod.POST, "/runs/{runId}/riders/{riderId}/no-show-contacts",
                 new Object[] {ACADEMY_B_RUN_ID, PLACEHOLDER_ID}, escortA1(), NO_SHOW_BODY, 403, "FORBIDDEN"));

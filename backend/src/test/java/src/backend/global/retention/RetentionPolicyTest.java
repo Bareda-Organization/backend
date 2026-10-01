@@ -26,6 +26,12 @@ class RetentionPolicyTest {
     }
 
     @Test
+    void 퇴원_학생_개인정보_파기_컷오프는_90일_전이다() {
+        assertThat(RetentionPolicy.WITHDRAWN_STUDENT_RETENTION).isEqualTo(Duration.ofDays(90));
+        assertThat(policy.withdrawnStudentCutoff(now)).isEqualTo(now.minusDays(90));
+    }
+
+    @Test
     void 위치_이력_컷오프는_90일_전이다() {
         assertThat(RetentionPolicy.RUN_POSITION_RETENTION).isEqualTo(Duration.ofDays(90));
         assertThat(policy.runPositionCutoff(now)).isEqualTo(now.minusDays(90));

@@ -713,7 +713,7 @@ org.springframework.boot:spring-boot-testcontainers
 | 값 | 위치 | 근거 |
 |---|---|---|
 | 학원별 임계값 (미승차 대기 **3분**) | **DB** (`academy_setting`) | 학원마다 다름 (EXC-01) |
-| 전역 정책 상수 (30분 · ±10분 · 14일 · 5회 · 감사 로그 보관 2년 · 반복 조회 묶음 10분) | `application.yml` 아닌 **코드 상수** | 사양이 고정한 값이라 환경별로 달라지면 안 됨. yml 로 빼면 운영에서 조용히 바뀔 수 있음. 감사 2개는 `RetentionPolicy.AUDIT_LOG_RETENTION` · `AuditRecorder.DATA_ACCESS_DEDUP_WINDOW` (`Ruling 445`) |
+| 전역 정책 상수 (30분 · ±10분 · 14일 · 5회 · 감사 로그 보관 2년 · 반복 조회 묶음 10분 · 퇴원 학생 개인정보 파기 90일) | `application.yml` 아닌 **코드 상수** | 사양이 고정한 값이라 환경별로 달라지면 안 됨. yml 로 빼면 운영에서 조용히 바뀔 수 있음. 감사 2개는 `RetentionPolicy.AUDIT_LOG_RETENTION` · `AuditRecorder.DATA_ACCESS_DEDUP_WINDOW` (`Ruling 445`). 파기 기간은 `RetentionPolicy.WITHDRAWN_STUDENT_RETENTION` — 법률 검토(L-06~08)에서 재조정할 때 이 상수 한 곳만 고친다 (`Ruling 480 ②`·`522`) |
 | 폴링 주기 · 워커 수 · 타임아웃 | `application.yml` | 부하에 따라 조정하는 값 |
 | 시크릿 (DB 비밀번호 · 지도 API 키 · 푸시 인증서 · 첫 관리자 해시 · Grafana 비밀번호) | **SSM Parameter Store** | 이미지·저장소에 넣지 않음 |
 

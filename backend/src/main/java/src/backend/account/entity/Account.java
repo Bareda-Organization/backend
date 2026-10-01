@@ -43,6 +43,16 @@ public class Account extends BaseTimeEntity {
      */
     public static final int MAX_FAILED_ATTEMPTS = 5;
 
+    /** 익명화한 계정의 비밀번호 해시 — bcrypt 형식이 아니라 어떤 입력과도 맞지 않는다. */
+    public static final String UNUSABLE_PASSWORD_HASH = "!";
+
+    private static final String ANONYMIZED_LOGIN_ID_PREFIX = "withdrawn-";
+
+    /** {@code phone} 은 NOT NULL 이라 지우지 못한다 — 형식만 갖춘 빈 번호로 덮는다. */
+    private static final String ANONYMIZED_PHONE = "000-0000-0000";
+
+    private static final String RETENTION_BLOCK_REASON = "퇴원 90일 경과 개인정보 파기";
+
     /**
      * 첫 실패 뒤 남는 시도 횟수 — 미등록 {@code login_id} 의 실패 응답이 실어야 하는 값이다
      * ({@code INVALID_CREDENTIALS.details.remaining_attempts}, API_SPEC §2.5).
@@ -282,6 +292,28 @@ public class Account extends BaseTimeEntity {
         this.failedAttempts = 0;
         this.unblockedBy = actorAccountId;
         this.unblockedAt = now;
+    }
+
+    /**
+     * 퇴원 90일이 지난 학생의 앱 계정을 익명화하고 로그인 불가로 만든다(Ruling 480 ②·520) — 계정 행은 남긴다.
+     * 감사 기록·알림 기록이 계정 id 로 이 행을 가리키고, 물리 삭제 경로가 부재하다(ERD §7.1).
+     *
+     * <p>아이디는 {@code UNIQUE} 라 계정 id 로 만든 값으로 바꾸고, 비밀번호 해시는 어떤 입력과도 맞지 않는 값
+     * ({@link #UNUSABLE_PASSWORD_HASH})으로 덮는다. 상태는 {@code blocked} 로 옮기되 차단 직전 상태를 남겨
+     * {@code ck_account_status_before_block_pair} 를 지킨다 — 이미 차단된 계정은 상태·직전 상태를 그대로 둔다.
+     */
+    public void anonymizeForRetention(String anonymizedName, OffsetDateTime at) {
+        this.loginId = ANONYMIZED_LOGIN_ID_PREFIX + id;
+        this.passwordHash = UNUSABLE_PASSWORD_HASH;
+        this.name = anonymizedName;
+        this.phone = ANONYMIZED_PHONE;
+        this.email = null;
+        if (status != AccountStatus.BLOCKED) {
+            this.statusBeforeBlock = status;
+            this.status = AccountStatus.BLOCKED;
+            this.blockedAt = at;
+            this.blockReason = RETENTION_BLOCK_REASON;
+        }
     }
 
     /**

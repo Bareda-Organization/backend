@@ -203,8 +203,9 @@ class AuthFlowIntegrationTest {
                         + " + R36-BE 의 1(이동 대기 취소 §5.8.1)"
                         + " + BR-214 의 1(학생 사진 파일 §5.11.1)"
                         + " + R46 감사 의 1(행위자 찾기 §6.13 · Ruling 447)"
-                        + " + R46-WEBF 의 1(관계자 학생 요일별 주소 조회 §5.11 · Ruling 498)")
-                .hasSize(112);
+                        + " + R46-WEBF 의 1(관계자 학생 요일별 주소 조회 §5.11 · Ruling 498)"
+                        + " + R46 privacy 의 1(보호자 전화 원번호 §4.2.1 · Ruling 482)")
+                .hasSize(113);
 
         assertThat(AccountStatusGateEndpoints.productionEndpoints(
                 handlerMapping, AccountStatusGateEndpoints::deniedWhenPending))

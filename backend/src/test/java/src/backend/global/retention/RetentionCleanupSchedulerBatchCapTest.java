@@ -24,6 +24,7 @@ import src.backend.audit.repository.AuditLogRepository;
 import src.backend.notification.repository.NotificationLogRepository;
 import src.backend.observability.metrics.SchedulerHealthMetrics;
 import src.backend.student.repository.LinkCodeRepository;
+import src.backend.student.repository.StudentRepository;
 
 /**
  * {@link RetentionCleanupScheduler#cleanUp} 이 <b>조회를 부를 때마다</b> 배치 상한을 실제로 넘기는지
@@ -51,6 +52,8 @@ class RetentionCleanupSchedulerBatchCapTest {
     private final RefreshTokenRepository refreshTokenRepository = mock(RefreshTokenRepository.class);
     private final LinkCodeRepository linkCodeRepository = mock(LinkCodeRepository.class);
     private final AuditLogRepository auditLogRepository = mock(AuditLogRepository.class);
+    private final StudentRepository studentRepository = mock(StudentRepository.class);
+    private final StudentAnonymizationService studentAnonymizationService = mock(StudentAnonymizationService.class);
 
     @Test
     void 매_조회_호출마다_배치_상한을_그대로_넘긴다() {
@@ -70,7 +73,8 @@ class RetentionCleanupSchedulerBatchCapTest {
 
         RetentionCleanupScheduler scheduler = new RetentionCleanupScheduler(
                 notificationLogRepository, runPositionRepository, refreshTokenRepository,
-                linkCodeRepository, auditLogRepository, retentionPolicy, clock,
+                linkCodeRepository, auditLogRepository, studentRepository, studentAnonymizationService,
+                retentionPolicy, clock,
                 new SchedulerHealthMetrics(
                         new SimpleMeterRegistry()));
 

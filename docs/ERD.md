@@ -6,7 +6,7 @@
 |---|---|
 | 문서 버전 | v1.1 |
 | 작성일 | 2026-08-24 |
-| 개정일 | 2026-10-01 — §3.4 `audit_log.ip` 를 조회 행까지 확장 · §7.2·§7.3 `audit_log` 무기한 → 2년(`Ruling 445`). 이전 개정 — 2026-09-30 — §5.3 에 조회 인덱스 4개(BR-258, `V1`)와 `V8` 보존 정리 인덱스 5개(BR-259, 실제 `CREATE INDEX` 5문 — 아래 6개는 셈이 어긋난 옛 표기) 등재. 이전 개정 — 2026-09-04 — `V8` 보존 정리 인덱스 6개 반영 · §7.2 `run_position` 90일·`audit_log` 무기한 확정(Ruling 243). 이전 개정 — 2026-09-03 — `V3`~`V7` 반영: `run_stop.proximity_notified_at`(V3) · `shedlock` 테이블 신설(V4) · `notification_log.type` CHECK 확장 확인(V5·V6, 서술 변경 없음) · `emergency_alert.position_recorded_at` 및 `occurred_at`·`received_at` 서술 정정(V7, Ruling 236). DDL-ERD 컬럼 전수 대조로 `academy.lat`·`lng` · `run.consecutive_failures` 보완. `notification_log.acked` 추적 범위 명확화(Ruling 227·228), §8 갱신(X-04·X-05 신설 반영, `academy.code` 해소 반영), 공통 규칙 표기 C-01~C-18. 테이블 41개 · 그룹 5개. Ruling 190·207·210·219·227·228·236 반영 |
+| 개정일 | 2026-10-01 — R46 privacy: `student.anonymized_at`(`V15`) · §5.3 `ix_student_retention_cutoff` · §7.1·§7.2·§7.3 퇴원 학생 개인정보 파기(퇴원 90일 뒤 익명화, `Ruling 480 ②`·`520`~`523`). 이전 개정 — 2026-10-01 — §3.4 `audit_log.ip` 를 조회 행까지 확장 · §7.2·§7.3 `audit_log` 무기한 → 2년(`Ruling 445`). 이전 개정 — 2026-09-30 — §5.3 에 조회 인덱스 4개(BR-258, `V1`)와 `V8` 보존 정리 인덱스 5개(BR-259, 실제 `CREATE INDEX` 5문 — 아래 6개는 셈이 어긋난 옛 표기) 등재. 이전 개정 — 2026-09-04 — `V8` 보존 정리 인덱스 6개 반영 · §7.2 `run_position` 90일·`audit_log` 무기한 확정(Ruling 243). 이전 개정 — 2026-09-03 — `V3`~`V7` 반영: `run_stop.proximity_notified_at`(V3) · `shedlock` 테이블 신설(V4) · `notification_log.type` CHECK 확장 확인(V5·V6, 서술 변경 없음) · `emergency_alert.position_recorded_at` 및 `occurred_at`·`received_at` 서술 정정(V7, Ruling 236). DDL-ERD 컬럼 전수 대조로 `academy.lat`·`lng` · `run.consecutive_failures` 보완. `notification_log.acked` 추적 범위 명확화(Ruling 227·228), §8 갱신(X-04·X-05 신설 반영, `academy.code` 해소 반영), 공통 규칙 표기 C-01~C-18. 테이블 41개 · 그룹 5개. Ruling 190·207·210·219·227·228·236 반영 |
 | 기준 | FEATURE_SPEC.md · PRD.md · USER_FLOWS.md · API_SPEC.md v1.0 (2026-08-24) |
 | DBMS | PostgreSQL |
 | 성격 | **To-Be 설계** — 현 코드베이스의 실측 기록 부재. 구현은 이 문서에 맞춰 갱신 대상 |
@@ -318,6 +318,7 @@ erDiagram
 | `note` | text | | 특이사항 (STU-07) |
 | `can_go_alone` | boolean | NN default false | 혼자 귀가 가능 여부. 하원 하차 판단 근거 (STU-08) |
 | `deleted_at` | timestamptz | | 퇴원 soft delete — **오늘 명단은 유지**, 내일 회차부터 제외 (STU-04) |
+| `anonymized_at` | timestamptz | | **퇴원 90일 뒤 개인정보를 익명화한 시각**(`V15`, `Ruling 480 ②`·`520`). 채워지면 이름은 `퇴원 학생`, 연락처·사진·성별·생년월일·학년·반·특이사항·`account_id` 는 `NULL`. 파기 배치가 이 값으로 이미 처리한 학생을 거른다(멱등) — §7.2 |
 | `created_at` · `updated_at` | timestamptz | NN | |
 
 **존재 이유** — 노선·명단·알림이 모두 참조하는 중심 레코드. 계정보다 먼저 생성되며 계정 연결은 승인 시점. **근거** STU-01~08 · A-10 (연락처·승하차 주소는 관계자 입력 대상 밖 — 2026-08-24 확정) · AUTH-11
@@ -1071,6 +1072,7 @@ erDiagram
 | `assignment(manager_id, run_id)` | 매니저의 배치 회차 판정 — API 접근 범위 검사 경로 (API_SPEC §1.5) |
 | `assignment(run_id)` | 대시보드의 배치 인력·확인 응답 표시 (MON-05). UK `(run_id, role)` 가 겸함 — 별도 인덱스 부재(BR-142) |
 | `student(academy_id, name)` partial `WHERE deleted_at IS NULL` | 학생 목록·검색, 강제 추가 자동완성 (STU-01) |
+| `student(deleted_at)` partial `WHERE deleted_at IS NOT NULL AND anonymized_at IS NULL` (`V15`, `ix_student_retention_cutoff`) | **퇴원 학생 개인정보 파기 배치**가 컷오프 이전에 퇴원한 미익명화 학생을 훑는다 — 부분 인덱스라 재학생·이미 익명화한 학생은 색인 대상 밖 (`Ruling 480 ②`·`522`) |
 | `stop(academy_id, lat, lng)` | 주소 검증 후 **승하차지 매칭** — 좌표 근접 탐색 (STU-05) |
 | `guardian_student(guardian_id)` · `guardian_student(student_id)` | 학부모 접근 범위 판정, 자녀 목록 (P-02 · §1.5). `guardian_id` 쪽은 UK `(guardian_id, student_id)` 가 겸함(BR-142) |
 | `weekly_address(student_id, weekday, direction)` | 확정 배치의 일일 승하차지 수집. UK 가 겸함 (C-16) |
@@ -1140,12 +1142,12 @@ erDiagram
 
 | 대상 | 방식 | 규칙 |
 |---|---|---|
-| `student` | **soft delete** (`deleted_at`) | 퇴원 처리해도 **오늘 명단은 유지**, 내일 회차부터 제외. 과거 탑승 이력 보존 (STU-04 · NFR-07) |
+| `student` | **soft delete** (`deleted_at`) → **퇴원 90일 뒤 익명화** (`anonymized_at`) | 퇴원 처리해도 **오늘 명단은 유지**, 내일 회차부터 제외. 과거 탑승 이력 보존 (STU-04 · NFR-07). 90일 뒤에는 행을 지우지 않고 개인 필드를 익명값으로 바꾼다 — §7.2 |
 | `manager` | **soft delete** (`deleted_at`) | 배치 중인 회차(취소·종료되지 않았고 운행 중이거나 운행일이 오늘 이후)가 있으면 삭제 차단(`409 MANAGER_ASSIGNED`). 해제 후 삭제 (MGR-04 · API_SPEC §5.13) |
 | `academy` | **soft delete** (`status='inactive'`) | 물리 삭제 부재. 검색 제외 + 신규 가입 차단, **기존 사용자 로그인은 유지** (ACAD-04 · O-01). 완전 삭제 조건은 미확정 (PRD §10.1 S) |
 | `academy_staff` | **비활성화** (`status='inactive'`) | 퇴사 시 즉시 권한 회수 (ACAD-06) |
 | `account` | **상태 전이** | `blocked` · `rejected` 는 행 유지. 물리 삭제 경로 부재 |
-| `guardian_student` | **연결 해제** (`unlinked_at`) | 퇴원 시 해제, 과거 이력 보존 (UF-P-01) |
+| `guardian_student` | **연결 해제** (`unlinked_at`) | 퇴원 시 해제, 과거 이력 보존 (UF-P-01). 학생이 파기(§7.2)돼도 이 행은 남는다 — 학생 쪽이 익명이라 개인을 잇는 값이 없다 |
 | `waypoint` | 배포 전 **hard delete** / 배포 후 `removed_at` | 배포 전 취소는 흔적 불필요, 배포 후 제거는 미리보기 → 배포 절차를 거쳐 이력 존치 (A-15) |
 | `link_code` · `refresh_token` | **hard delete** | 만료분 정리 배치 대상. 감사 가치 부재 |
 | `route_version` · `run_stop` | **보존** | 이전 버전을 지우면 승인 화면의 전/후 대조와 배포 이력이 소멸 |
@@ -1154,6 +1156,7 @@ erDiagram
 
 | 대상 | 기간 | 근거 |
 |---|---|---|
+| `student` (퇴원 학생 개인정보) | **퇴원(`deleted_at`) 90일 뒤 익명화 (2026-10-01 사용자 결정 · `Ruling 480 ②`·`520`~`523`)** — 코드 상수 `RetentionPolicy.WITHDRAWN_STUDENT_RETENTION`. **행은 남긴다**: `run_rider` · `boarding_intent` · `change_request` · `run_forced_addition` 이 `ON DELETE RESTRICT` 로 참조하고 승하차 이력은 무기한 보존이라 행을 지우면 이력이 함께 사라진다. 바뀌는 것 — `name` → `퇴원 학생` · `student_phone` · `photo_url` · `gender` · `birth_date` · `grade` · `class_name` · `note` · `account_id` → `NULL`, `anonymized_at` 기록. 같은 트랜잭션에서 `weekly_address`(요일별 주소·좌표) · `link_code` 는 **행 삭제**, `change_request` 의 `new_address`(→ `(파기됨)`, `ck_change_request_new_address` 가 relocate 의 NOT NULL 을 요구) · `new_lat` · `new_lng` · `reason` 은 익명화, **사진 파일은 삭제**(트랜잭션 전에). 학생의 앱 계정(`account.role='student'`)은 행을 남기고 `login_id` → `withdrawn-<id>` · `name` · `phone` · `email` 익명화 · 비밀번호 해시 무효화 · 상태 `blocked` · `refresh_token` · `device_token` 삭제. 시스템 처리 감사 1행(`category=data_access` · `action=delete` · `target_type=student` · 행위자 없음 · `detail.purged_students`) | 개인정보 최소 보유 — 퇴원 학생 정보를 이력 보존 기간 동안 쥘 이유가 부재. 기간은 법률 검토(L-06~08)에서 재조정할 여지 존치. **대상 밖** — `guardian`(별개 정보주체 · 자체 계정 · 다른 자녀 연결 가능, `Ruling 523`) · `stop` 마스터(공유 승하차지) · 자유 문구(`exception_report.memo` 등) · `notification_log`(14일 보존이 먼저 지움) · `audit_log`(학생 이름 컬럼 부재, 2년 보존) |
 | `notification_log` | **14일** | 알림 보관 기간 (NTF-08 · FEATURE_SPEC §2.1) |
 | `rider_status_history` | 무기한 (아카이빙 대상) | 되돌리기 이력 보존 요건 (BRD-05 · NFR-07) |
 | `no_show_case` · `no_show_contact` · `exception_report` · `emergency_alert` | 무기한 (아카이빙 대상) | 사건 대응 이력. 비상 알림은 **사고 시각 판정 근거**(`occurred_at`)라 정리 대상 밖 (EXC-04) |
@@ -1173,6 +1176,7 @@ erDiagram
 | `refresh_token` · `link_code` | 계정·인증 흐름당 소량 | 행 단위 DELETE 배치. 만료·폐기 기준(§7.2) |
 | `audit_log` | 개인정보 조회마다 1행 — 같은 행위자·학생은 10분 안에 묶어 1행(`Ruling 445`) | 행 단위 DELETE 배치. 보유 **2년**(§7.2 · `Ruling 445`) |
 | `rider_status_history` | 탑승자 수 × 상태 전이 수 | 정리 배치 대상 밖 — 무기한 보존. 회차 단위 조회가 지배적이라 인덱스로 충분 |
+| `student` (퇴원 90일 경과) | 퇴원 학생 수 — 일 단위로 소량 | 같은 배치 상한(`BATCH_SIZE`)·같은 잠금(`retention-cleanup`)으로 익명화(행 삭제 아님, `Ruling 522`). 대상 조회는 부분 인덱스 `ix_student_retention_cutoff (deleted_at) WHERE deleted_at IS NOT NULL AND anonymized_at IS NULL` 을 탄다 |
 
 **정리 배치의 전제** — 정리 대상 중 `run_position`·`notification_log` 는 §4.2 에 따라 FK 미설정(대량 적재·독립 보존 주기). `refresh_token`·`link_code` 는 §4.1 대로 FK 를 갖지만 컷오프 판정이 부모 상태가 아니라 자기 컬럼(만료·폐기 시각)만 보므로 행 단위 DELETE 로 지워도 무방.
 
