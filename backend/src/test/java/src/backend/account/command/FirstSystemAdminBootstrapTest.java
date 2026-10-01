@@ -16,6 +16,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
+import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
@@ -60,9 +61,15 @@ class FirstSystemAdminBootstrapTest {
 
     private Logger runnerLogger;
 
+    private Level levelBefore;
+
     @BeforeEach
     void captureRunnerLogs() {
         runnerLogger = (Logger) LoggerFactory.getLogger(FirstSystemAdminBootstrap.class);
+        // CI 의 -PciQuiet 은 루트 로그 수준을 WARN 으로 낮춘다 — INFO 를 이 시험이 직접 켜지 않으면 로그가 하나도 안 잡혀
+        // "비밀번호가 로그에 없다" 를 검사할 대상 자체가 사라진다(R46-CIFIX).
+        levelBefore = runnerLogger.getLevel();
+        runnerLogger.setLevel(Level.INFO);
         logs = new ListAppender<>();
         logs.start();
         runnerLogger.addAppender(logs);
@@ -71,6 +78,7 @@ class FirstSystemAdminBootstrapTest {
     @AfterEach
     void releaseRunnerLogs() {
         runnerLogger.detachAppender(logs);
+        runnerLogger.setLevel(levelBefore);
     }
 
     @Test

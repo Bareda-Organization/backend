@@ -4,10 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.mock.env.MockEnvironment;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
 
 import src.backend.global.sms.impl.LoggingSmsSender;
 import src.backend.global.sms.spec.SmsSender;
@@ -25,8 +29,16 @@ class LoggingSmsSenderTest {
     @Test
     void 번호는_끝_4자리만_본문은_길이만_남긴다(CapturedOutput output) {
         SmsSender sender = new LoggingSmsSender(new MockEnvironment());
-
-        sender.send("010-1234-5678", "[바래다] 인증번호 987654 (5분 안에 입력)");
+        // CI 의 -PciQuiet 은 루트 로그 수준을 WARN 으로 낮추고, 앞서 뜬 Spring 컨텍스트가 그 수준을 같은 JVM 에 남긴다 —
+        // 이 로거의 INFO 를 시험이 직접 켜지 않으면 로그가 안 찍혀 "***5678" 을 못 찾는다(R46-CIFIX).
+        Logger logger = (Logger) LoggerFactory.getLogger(LoggingSmsSender.class);
+        Level levelBefore = logger.getLevel();
+        logger.setLevel(Level.INFO);
+        try {
+            sender.send("010-1234-5678", "[바래다] 인증번호 987654 (5분 안에 입력)");
+        } finally {
+            logger.setLevel(levelBefore);
+        }
 
         assertThat(output.getAll()).contains("***5678").doesNotContain("010-1234").doesNotContain("987654")
                 .doesNotContain("인증번호");
