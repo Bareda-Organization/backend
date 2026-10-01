@@ -140,7 +140,7 @@ docker compose logs -f backend
 
 ## 10. 운영(AWS) 변경 중 스테이징에 해당하지 않는 것 (2026-10-01 R46 확인)
 
-R46 운영 작업(`DEPLOYMENT.md` §7 백업 · §11 관측 · §12 Vercel · §13 운영 규칙)이 이 서버 절차를 바꾸지 않는 근거. `docker-compose.staging.yml` 을 직접 읽은 결과다.
+R46 운영 작업(`DEPLOYMENT §7` 백업 · `DEPLOYMENT §11` 관측 · `DEPLOYMENT §12` Vercel · `DEPLOYMENT §13` 운영 규칙)이 이 서버 절차를 바꾸지 않는 근거. `docker-compose.staging.yml` 을 직접 읽은 결과다.
 
 | 운영 변경 | 스테이징 |
 |---|---|

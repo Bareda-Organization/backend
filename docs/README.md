@@ -95,15 +95,15 @@ grep -n '🔸' docs/FEATURE_SPEC.md docs/PRD.md docs/USER_FLOWS.md docs/API_SPEC
 | **[frontend/IMPLEMENTATION_PLAN.md](frontend/IMPLEMENTATION_PLAN.md)** | **프론트 작업의 단일 창구** — 제품 3종(관계자 웹 Next.js · 학부모 앱 · 매니저 앱) · 최근 라운드 추적(`R46-*`) · 디자인 킷과 정본이 어긋나는 항목. 끝난 F2~F5·라운드 기록은 [archive/rounds/](archive/rounds/README.md) |
 | **[frontend/CONVENTIONS_REACT.md](frontend/CONVENTIONS_REACT.md)** | React·Next.js 규칙 — 기능 폴더 구조 · `index.ts` 공개 창구 · Emotion |
 | **[frontend/CONVENTIONS_FLUTTER.md](frontend/CONVENTIONS_FLUTTER.md)** | Dart·Flutter 규칙 |
-| **[frontend/SETUP.md](frontend/SETUP.md)** | 개발 환경 셋업 — 인프라·백엔드 기동 · 관계자 웹(:3000) · 앱 2종 실행 인자(`API_BASE_URL` · `NAVER_MAP_CLIENT_ID` · 매니저 앱 `KAKAO_NAVI_APP_KEY`) · 카카오내비 사용자 준비물(§8.4) · 여러 백엔드를 동시에 띄울 때 Redis 칸 나누기 · 로그인 계정 (2026-09-30 재작성 · 2026-10-01 R46 반영) |
+| **[frontend/SETUP.md](frontend/SETUP.md)** | 개발 환경 셋업 — 인프라·백엔드 기동 · 관계자 웹(:3000) · 앱 2종 실행 인자(`API_BASE_URL` · `NAVER_MAP_CLIENT_ID` · 매니저 앱 `KAKAO_NAVI_APP_KEY`) · 카카오내비 사용자 준비물(`SETUP §8.4`) · 여러 백엔드를 동시에 띄울 때 Redis 칸 나누기 · 로그인 계정 (2026-09-30 재작성 · 2026-10-01 R46 반영) |
 
 ### 4.3 인프라 — `docs/infra/`
 
 | 문서 | 담는 것 |
 |---|---|
-| **[infra/DEPLOYMENT.md](infra/DEPLOYMENT.md)** | 운영 배포 절차(EC2 1대 + `docker-compose.prod.yml`) · 백업·복구(§7) · 운영 관측·경보(§11) · 관계자 웹 Vercel 배포(§12, `Ruling 481`) · 운영 규칙(§13) · 외부 연동 준비물(§14). 설계 근거는 [archive/specs/2026-08-10-mvp-배포-design.md](archive/specs/2026-08-10-mvp-배포-design.md) |
+| **[infra/DEPLOYMENT.md](infra/DEPLOYMENT.md)** | 운영 배포 절차(EC2 1대 + `docker-compose.prod.yml`) · 백업·복구(`DEPLOYMENT §7`) · 운영 관측·경보(`DEPLOYMENT §11`) · 관계자 웹 Vercel 배포(`DEPLOYMENT §12`, `Ruling 481`) · 운영 규칙(`DEPLOYMENT §13`) · 외부 연동 준비물(`DEPLOYMENT §14`). 설계 근거는 [archive/specs/2026-08-10-mvp-배포-design.md](archive/specs/2026-08-10-mvp-배포-design.md) |
 | `TEST_SCENARIOS.html` | 팀원 테스트 시나리오(사람용 · git 추적 밖) — 역할 6종 체크리스트 74항목 · 초기화 뒤 시간표 · 알려진 문제 K1~K12. 스테이징 `/download/` 로 배포 |
-| **[infra/STAGING.md](infra/STAGING.md)** | 팀원 체험용 서버 — 집 PC + Cloudflare Tunnel + `docker-compose.staging.yml` · Android APK QR 설치(`Ruling 363`) · 운영(AWS) 변경 중 스테이징에 해당하지 않는 것(§10) |
+| **[infra/STAGING.md](infra/STAGING.md)** | 팀원 체험용 서버 — 집 PC + Cloudflare Tunnel + `docker-compose.staging.yml` · Android APK QR 설치(`Ruling 363`) · 운영(AWS) 변경 중 스테이징에 해당하지 않는 것(`STAGING §10`) |
 | `infra/OPERATIONS_PLAN.html` | 운영 계획(사람용 렌더) |
 
 ### 4.4 원본·렌더 — 추적 밖
