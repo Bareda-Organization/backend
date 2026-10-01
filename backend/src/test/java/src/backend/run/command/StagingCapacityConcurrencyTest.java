@@ -193,7 +193,7 @@ class StagingCapacityConcurrencyTest {
 
     /** 학생 정원 1석인 버스. */
     private long oneSeatBus(long academyId) {
-        return busRepository.save(Bus.register(academyId, "정원시험" + System.nanoTime(), "00가0000",
+        return busRepository.save(Bus.register(academyId, "정원시험" + uniqueSuffix(), "00가0000",
                 new BusSeating(3, 1, 1))).getId();
     }
 
@@ -288,5 +288,10 @@ class StagingCapacityConcurrencyTest {
         return jdbcTemplate.queryForObject("SELECT r.id FROM run r JOIN route ro ON ro.bus_id = r.bus_id "
                 + "JOIN route_stop rs ON rs.route_id = ro.id JOIN weekly_address wa ON wa.stop_id = rs.stop_id "
                 + "WHERE wa.student_id = ?", Long.class, studentId);
+    }
+
+    /** 시험 행 이름 뒤에 붙이는 짧은 고유값 — {@code System.nanoTime()} 은 기기 가동 시간이 길면 자릿수가 늘어 {@code varchar(20)} 을 넘는다(2026-10-01 실측 · 가동 약 28시간부터). */
+    private static String uniqueSuffix() {
+        return java.util.UUID.randomUUID().toString().substring(0, 8);
     }
 }
