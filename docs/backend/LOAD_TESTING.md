@@ -191,6 +191,99 @@ docker exec school-bus-postgres-1 psql -U schoolbus -d postgres -c "CREATE DATAB
 - **1초 표본의 최대값은 회차마다 갈린다**(같은 N=1,200 에서 0.19 ~ 0.38). 판정에는 `process_cpu_time_ns_total` **누적 차**를 쓴다 — 표본 시점과 무관하다
 - **macOS Docker Desktop 의 호스트→컨테이너 포트 전달(15432)이 고부하에서 26~29초씩 멈춘다**(O2, `Ruling 353`③, 근거 `FIX-LOAD2.md §3-2`) — 앱은 이미 보낸 쿼리의 응답을 기다리고, 같은 순간 Postgres 는 `ClientRead`(다음 명령을 기다림) 상태다. 즉 어느 쪽도 일을 안 하는 게 아니라 **바이트가 둘 사이 전달 경로에 묶인다** — 스레드 덤프는 전부 소켓 읽기, `pg_stat_activity` 는 실행 중 쿼리 0·잠금 0, CPU 는 한산(서명 3가지). Hikari 풀 크기를 5배로 늘려도 실패율이 그대로면 이 증상을 의심한다. **포화 지점을 찾는 회차는 앱(과 k6)을 Postgres 와 같은 Docker 네트워크에서 띄운다** — 호스트 앱 → 컨테이너 DB 경로로는 재지 않는다. 멈추면 Docker Desktop 을 재시작한다(컨테이너는 보존— `docker compose down` 아님). ⚠ 재시작 뒤 `restart: always` 로 설정된 다른 프로젝트 컨테이너가 같이 켜질 수 있다 — 재시작 후 `docker ps` 로 School-Bus 것만 남았는지 확인할 것
 
+## 6.5 R46-LOAD(2026-10-01) — 폴링·시청 세션·2초 송신을 더한 재측정
+
+R46 에서 서버·웹·앱이 바뀐 뒤(`IMPLEMENTATION_PLAN §8.84`) 09-09 와 **같은 목표 규모 시드**로 다시 쟀다. 09-09 시나리오에 없던 것 — 열린 앱·웹이 주기적으로 치는 REST 와 실제 구독 분포의 시청 세션 — 을 `scenario5_polling.js` 로 더했다. 결과 해석은 `backend/report/2026-10-01-부하-재측정.md`.
+
+### 6.5.1 추가된 파일
+
+| 파일 | 하는 일 |
+|---|---|
+| `sql/r46_parent_seed.sql` | `r0_capacity_seed.sql` **뒤에** 한 번 더 실행. 학생마다 보호자 1명(학부모 계정 `loadcap-…-par` + `guardian` + `guardian_student`) 2,000. 다시 실행해도 겹치지 않는다 |
+| `r46_mint_tokens.py <출력.json> [학부모 수]` | 학부모 N명 · 관계자 11 · 메인 관리자의 접근 토큰을 **회차 직전에** 발급(유효 15분). k6 안에서 로그인하지 않는 이유 — 학부모 수백 명의 BCrypt 로그인 CPU 가 측정 구간(누적 CPU 차)에 섞인다 |
+| `k6/scenario5_polling.js` | 폴링 + 시청 세션. 환경변수로 갈래를 켜고 끈다(0 이면 끔) |
+| `sql/r46_link_position_riders.sql` | 위치용 회차(`LP-…`)에 명단 20명씩을 붙인다 — 없으면 학생 채널로 방송이 안 나가 시청 세션이 아무것도 못 받는다. `r3_mixed.sh` 의 `realistic` 모드가 회차마다 자동 실행 |
+| `r46_judge.py <라벨>` | r3 회차를 사양 기준 5항(아래 6.5.4)으로 판정 |
+| `r46_summarize.py <묶음 출력> <접두사>` | 회차 출력을 표 한 줄로 모은다(호스트 간섭 평균 포함) |
+
+### 6.5.2 폴링 요청 묶음 — 앱·웹 코드에서 센 값
+
+| 갈래 | 간격 | 요청 | 근거 |
+|---|---|---|---|
+| 학부모 앱 홈 | **90초** | `GET /students/{id}/runs` · `GET /students/{id}/change-requests` · `GET /notifications` — 3요청 동시 | 홈 `VisiblePoller`(`pollInterval` 90초)가 회차·변경 신청을 무효화, 탭 막대 `AppShell` 이 알림을 다시 받음. 앱이 백그라운드·다른 화면이 위에 있으면 멈춤 |
+| 관계자 웹 대시보드 | **7초**(응답 뒤 예약) | `GET /staff/runs/live` + `GET /staff/dashboard` | `usePolling` · `LIVE_POLL_INTERVAL_MS` |
+| 관계자 웹 금일 운행 | **7초** | `GET /staff/dashboard` + `GET /staff/runs/{id}/roster` + `GET /staff/runs/live` | 명단 조회는 호출마다 감사 기록(R46-AUDIT 로 10분 묶기) |
+| 관계자 전 화면 공통 | 5초 · 30초 | `GET /staff/emergencies?status=open`(5초) · `GET /staff/signup-requests` + `GET /staff/approvals`(30초) | `EmergencyAlertProvider` · `ApprovalPendingProvider` — 열린 탭마다 돈다 |
+
+환경변수 — `POLL_PARENT_APPS`(열린 앱 수, 기본 570 = 학부모 1,900명의 30%) · `POLL_PARENT_INTERVAL_SEC`(90) · `POLL_STAFF_DASH_TABS`(11) · `POLL_STAFF_TODAY_TABS`(10) · `POLL_STAFF_INTERVAL_SEC`(7) · `WS_VIEWERS`(학부모가 자기 학생 채널 `/topic/students/{id}/run` 구독) · `WS_STAFF`(학원 채널) · `WS_ADMIN`(관제 채널) · `SCENARIO5_DURATION_SEC` · `SCENARIO5_RAMP_SEC`. 열린 앱 비율 30%·관계자 탭 수는 **가정**이다(조사 D 의 값을 그대로 씀).
+
+학부모 폴링은 `constant-arrival-rate`(앱 수 ÷ 주기)로 모사한다 — 앱 570대를 VU 570개로 만들면 k6 가 서버와 CPU 를 다툰다. 관계자 탭은 탭 하나 = VU 하나의 `요청 → sleep(7초)` 반복이라 응답이 늦어지면 요청도 늦어진다(응답 뒤 예약과 같은 형태).
+
+### 6.5.3 `r2_round.sh`·`r3_mixed.sh` 에 더한 환경변수 (기본값은 09-09 와 같은 동작)
+
+| 변수 | 쓰는 곳 | 뜻 |
+|---|---|---|
+| `ROUND_LABEL` | r2 · r3 | 결과 파일 이름표(기본 `r2_n<N>` · `r3_s<세션>_x<배율>`). 09-09 결과 파일과 겹치지 않게 `r46_…` 로 준다 |
+| `SCENARIO2_INTERVAL_SEC` | r2 | 위치 송신 주기. 앱 실제 값은 **2초**(`position_constants.dart` `transmissionInterval`) |
+| `R3_INTERVAL` | r3 | 같음(기본 5) |
+| `R3_POLLING=1` | r3 | 폴링을 같이 돌린다 |
+| `SCENARIO2_FIXED_RATE=true` · `R3_FIXED_RATE=1` | r2(시나리오 2) · r3 | 위치 송신 VU 를 **고정 주기**로 돌린다 — 앱의 `Timer.periodic`(이전 요청이 진행 중이면 그 틱만 건너뜀, `position_transmitter.dart`)과 같다. 기본은 09-09 와 같은 "응답을 받은 뒤 주기만큼 쉼" |
+| `R3_ADMINS=<N>` | r3 | 관계자 웹 동시 사용자 수 — 메인 관리자 10% + 학원 관계자 90%. 폴링을 자동으로 켠다(6.5.4) |
+| `R3_MODE=realistic` | r3 | 세션을 학부모(자기 학생 채널)·관계자 `R3_WS_STAFF`(10)·메인 관리자 `R3_WS_ADMIN`(2)로 나눈다. 기본 `admin` 은 09-09 처럼 세션 전원이 관제 채널 |
+
+두 스크립트는 회차 시작 때 앞 회차가 심은 위치용 회차(`LP-…`, moving)를 종료한다 — 근접 판정 스케줄러가 움직이는 회차 수에 비례해 일해서, 안 끝내면 회차를 거듭할수록 배경 부하가 늘어 회차끼리 비교가 안 된다. 끝에 **서버 방송 전달 건수**(송신 실행기 완료 태스크 차)·**Hikari 연결 대기 시간초과**·**5xx**·**버려진 위치 방송**의 증가분을 낸다.
+
+```bash
+cd backend/load
+docker exec -i school-bus-postgres-1 psql -U schoolbus -d schoolbus_load -q < sql/r0_capacity_seed.sql
+docker exec -i school-bus-postgres-1 psql -U schoolbus -d schoolbus_load -q < sql/r46_parent_seed.sql
+# 서버: §6.1 의 load 기동에 --spring.data.redis.database=<칸> 을 더한다(공유 Redis 를 다른 작업과 나눌 때)
+
+ROUND_LABEL=r46_r2_n100_i2_a SCENARIO2_INTERVAL_SEC=2 ./r2_round.sh 100 60                  # 위치 수신, 2초 송신
+R3_INTERVAL=2 R3_POLLING=1 R3_MODE=realistic ROUND_LABEL=r46_r3_real ./r3_mixed.sh 1900 1  # 혼합 피크: 2초 송신 + 폴링 + 실제 구독 분포
+```
+
+### 6.5.4 통과 판정 — 관리자 동시 50 (`Ruling 484`)
+
+**관제 세션 2,000 은 통과 기준이 아니라 한계 측정 참고값이다**(`IMPLEMENTATION_PLAN §5.3`). 예상 실사용은 약 25명이라 컷 50 은 그 2배 여유다. 2026-10-01 결과 — 관리자 50 은 4회차 전부 통과, 400 까지 통과(고정 주기 모델), 500 이상은 판정 보류(`IMPLEMENTATION_PLAN §8.84`). 통과는 목표 규모(학원 10 · 버스 100 · 학생 2,000 · 위치 2초) + **관리자 동시 50**(학원 관계자 45 + 메인 관리자 5) + 학부모·학생 시청 570~1,900 에서 사양 기준 5항을 지키는가로 정한다.
+
+```bash
+# 관리자 50 · 시청 570 — 통과 판정 회차(위치 2초 · 폴링 · 실제 구독 분포 · 확정 배치 100건)
+ROUND_LABEL=r46_r3_G50_v570_a R3_ADMINS=50 R3_INTERVAL=2 ./r3_mixed.sh 570 1
+# 관리자 수를 올려 여유 배수를 잰다(메인 관리자 10% 비율 유지) — 50 → 200 → 500
+ROUND_LABEL=r46_r3_G200_v570_a R3_ADMINS=200 R3_INTERVAL=2 ./r3_mixed.sh 570 1
+# 판정(회차 결과 파일에서 5항을 읽는다) · 표 요약
+./r46_judge.py r46_r3_G50_v570_a
+./r46_summarize.py <묶음 출력 파일> r46_r3_
+```
+
+`R3_ADMINS` 는 `scenario5_polling.js` 의 `ADMIN_USERS` 로 전달된다 — 메인 관리자 10%(전체 관제 `ADMIN_LIVE` WS + `GET /admin/academies/{id}/runs/live` 7초 + `/admin/emergencies` 5초 + `/admin/runs/attention` 30초), 학원 관계자 90%(절반은 대시보드 탭, 절반은 금일 운행 탭 + 각자 학원 채널 WS · 비상 5초 · 승인 30초). 학원 관계자 계정이 학원당 1개라 45 는 같은 계정의 열린 탭 수이다.
+
+**학원 1 에 탭의 1/9 만 둔다** — 위치용 회차 100대가 전부 학원 1 에 있고 그 학원의 `runs/live` 응답이 2.8MB(회차당 약 28KB)다. 실제는 학원 10곳이 각 10대라, 학원 1 에 탭 1/9 를 두면 응답 총량과 학원 채널 방송 수신 건수가 "45탭 × 10대" 와 같아진다.
+
+| # | 판정 기준 | 사양 | 값을 읽는 곳 |
+|:-:|---|---|---|
+| 1 | 위치 POST 실패 0 | §5.3 | `position_post_failures` |
+| 2 | 송신 주기 2초 유지 | `NFR-03` | 송신 달성률 ≥ 95% · POST p95 < 2,000ms |
+| 3 | WS 배달이 5초 안 | `NFR-02` | 채널마다 방송 지연 p95 ≤ 5,000ms(p99·max 병기) |
+| 4 | 확정이 출발 30분 전 안 | `C-03` · `RTE-02` | 배치 드레인 ≤ 1,800초 |
+| 5 | 미확정 0 | `TECH_DECISIONS §13.4` | 확정 건수 = 도래시킨 건수 · 남은 0건 |
+
+### 6.5.5 이번에 밟은 함정
+
+- **WS 봉투의 `run_id` 는 JSON 문자열이다**(`"192"` — Ruling 332). `scenario2_position.js` 가 숫자와 `===` 로 비교해 **echo 가 항상 0 으로 잡혔다**(`position_echo_received_total: count>0` 임계가 있어도 k6 종료 코드 99 로만 드러남 — 요청 실패 0 인데 99). `Number(body.run_id)` 로 고쳤다. 식별자 문자열화는 09-09 측정 뒤(2026-09-25)에 들어간 변경이라 09-09 수치는 영향이 없고, 이 시나리오를 09-25 이후 코드에서 처음 돌릴 때 걸리는 함정이다
+- **"응답 뒤 쉼" 모델은 송신 달성률을 인위적으로 낮춘다** — 응답이 평균 0.3초면 2초 주기가 2.3초가 되어 달성률 87% 가 나온다(관리자 300·400 회차에서 달성률 86~89% 인데 POST p95 는 1.4~1.7초로 2초 안이었다). 판정 회차는 `R3_FIXED_RATE=1` 로 앱과 같은 고정 주기로 돌린다. 관리자 50 4회차는 응답 20~35ms 라 두 모델의 차이가 1~2% 미만이어서 기본 모델로 쟀다
+- **회차마다 위치용 회차가 쌓인다** — 위 종료 처리가 없으면 같은 N 의 같은 시험이 회차를 거듭할수록 요청당 CPU 가 늘어난다
+- **측정 DB 가 회차를 거듭하며 오염된다** — `scenario2_prep.sql` 은 회차마다 위치용 회차(`LP-…`)를 학원 1 에 새로 심고 지우지 않는다(회차 시작 때 앞 회차를 `finished` 로만 돌림). 2026-10-01 한 번의 측정에서 학원 1 의 오늘 회차가 12,016건이 되어 학원 1 `GET /staff/dashboard` 응답이 **5.1MB · 0.69초**(정상 학원 7.7KB · 13ms)가 됐고, `r46_link_position_riders.sql` 이 붙인 `run_rider` 30,000건은 학원이 다른 학생·정차지를 가리킨다. **다음 측정 전에 비운다**:
+  ```sql
+  DELETE FROM run_rider WHERE run_id IN (SELECT r.id FROM run r JOIN bus b ON b.id = r.bus_id WHERE b.bus_no LIKE 'LP-%');
+  DELETE FROM assignment WHERE run_id IN (SELECT r.id FROM run r JOIN bus b ON b.id = r.bus_id WHERE b.bus_no LIKE 'LP-%');
+  DELETE FROM run WHERE bus_id IN (SELECT id FROM bus WHERE bus_no LIKE 'LP-%');
+  ```
+  (또는 스키마를 비우고 `r0_capacity_seed.sql` · `r46_parent_seed.sql` 부터 다시 심는다)
+- **호스트에 다른 부하가 있으면 수치가 무효다** — 같은 조건 p95 가 54ms → 2,165~2,747ms 로 50배 갈렸다(게임이 도는 동안). 회차 전후 `r46_host_noise.log` 형태로 측정과 무관한 프로세스 CPU 를 남기고, 높으면 시작하지 않는다
+- **접근 토큰 유효시간 15분** — 토큰 발급과 측정 시작 사이가 길면 401 이 난다. 회차 직전에 발급한다
+
 ## 7. 회차를 화면으로 보기 — Grafana "5. 부하 시험" 대시보드
 
 로그·요약 파일을 기다리지 않고, 회차가 도는 동안 사람이 직접 화면으로 본다. 앱은 지금까지와 같이
