@@ -3,6 +3,7 @@ package src.backend.run.scheduler;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
@@ -184,14 +185,52 @@ class RunConfirmationSchedulerTest {
         assertThat(failuresAfterFirstTick).as("실패 기록은 롤백에 휩쓸리지 않고 커밋돼야 한다(REQUIRES_NEW)")
                 .isEqualTo(1);
 
-        // 두 번째 틱 — 실패한 회차는 confirm_at 이 그대로라 여전히 대상이고, 확정된 회차는 status 가
-        // 바뀌어 더 이상 대상이 아니다(WHERE status = idle).
+        // 두 번째 틱 — 대기 시간이 지났다고 치고(시계가 고정이라 대기 시각을 과거로 옮긴다) 실패한 회차는 confirm_at 이 그대로라
+        // 여전히 대상이고, 확정된 회차는 status 가 바뀌어 더 이상 대상이 아니다(WHERE status = idle).
+        jdbcTemplate.update("UPDATE run SET confirm_retry_at = ? WHERE id = ?",
+                OffsetDateTime.now(clock).minusSeconds(1), badRunId);
         scheduler.confirmDueRuns();
 
         Integer failuresAfterSecondTick = jdbcTemplate.queryForObject(
                 "SELECT consecutive_failures FROM run WHERE id = ?", Integer.class, badRunId);
         assertThat(failuresAfterSecondTick).as("재실행에 걸쳐 누적돼야 한다(인메모리가 아니라 행에 저장된 값)")
                 .isEqualTo(2);
+    }
+
+    /**
+     * R46-KFIXBE K-2(Ruling 703) — 영구 실패 회차를 30초마다 다시 시도하지 않는다. 실패할 때마다 다음 시도까지의 간격이 늘고(30초 · 60초 · …),
+     * 그 사이 틱은 그 회차를 집지 않는다. <b>판정 시각({@code confirm_at})은 그대로</b>라 간격이 지나면 다시 대상이 된다 — 두 시계를 섞지 않는다.
+     */
+    @Test
+    @DisplayName("K-2 — 실패한 회차는 간격이 늘어난 뒤에야 다시 집힌다")
+    void 실패한_회차는_대기_시각이_지난_뒤에만_다시_집힌다() {
+        long academyId = fullyConfiguredAcademyAndBus()[0];
+        long badBusId = fixtures.bus(academyId); // 노선 미편성 — 확정 시도 시 반드시 실패한다
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        OffsetDateTime confirmAt = now.minusMinutes(1);
+        long runId = fixtures.idleRun(academyId, badBusId, SERVICE_DATE, Direction.TO_ACADEMY,
+                confirmAt.plusMinutes(30), confirmAt);
+
+        scheduler.confirmDueRuns();
+        assertThat(failuresOf(runId)).isEqualTo(1);
+        assertThat(retryAtOf(runId)).as("첫 실패 — 30초 뒤").isEqualTo(now.plusSeconds(30).toInstant());
+
+        scheduler.confirmDueRuns();
+        assertThat(failuresOf(runId)).as("대기 시각 전의 틱은 집지 않는다").isEqualTo(1);
+
+        jdbcTemplate.update("UPDATE run SET confirm_retry_at = ? WHERE id = ?", now.minusSeconds(1), runId);
+        scheduler.confirmDueRuns();
+        assertThat(failuresOf(runId)).isEqualTo(2);
+        assertThat(retryAtOf(runId)).as("두 번째 실패 — 간격이 두 배").isEqualTo(now.plusSeconds(60).toInstant());
+    }
+
+    private int failuresOf(long runId) {
+        return jdbcTemplate.queryForObject("SELECT consecutive_failures FROM run WHERE id = ?", Integer.class, runId);
+    }
+
+    private Instant retryAtOf(long runId) {
+        return jdbcTemplate.queryForObject("SELECT confirm_retry_at FROM run WHERE id = ?", OffsetDateTime.class,
+                runId).toInstant();
     }
 
     @Test

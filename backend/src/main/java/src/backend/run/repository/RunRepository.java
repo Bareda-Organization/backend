@@ -104,12 +104,19 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      * 미편성 회차가 날마다 쌓여 상한을 전부 차지한다. ② {@code consecutive_failures} 오름차순 — 오늘 이미
      * 실패한 회차는 처음 도래한 회차 뒤로 밀려 빈 자리에서만 재시도된다. 실패 횟수로 <b>제외</b>하지 않는
      * 이유는 관계자가 노선을 편성한 뒤에도 그 회차가 확정돼야 하기 때문이다.
+     *
+     * <p>③ {@code confirm_retry_at} — 실패한 회차는 실패 횟수에 따라 늘어나는 간격(30초부터 두 배 · 최대 10분)이 지난 뒤에야 다시
+     * 집힌다(R46-KFIXBE K-2, Ruling 703). 영구 실패 회차를 30초마다 다시 시도하면 하루 2,880회 시도와 스택 로그가 쌓인다. 이 시각은
+     * <b>실행 시각</b>이고 판정 시각({@code confirm_at})은 그대로다 — 노선·학원 좌표를 저장하면 {@link #resetConfirmationFailures}
+     * 가 비워 다음 틱에 바로 다시 시도한다.
      */
     @AcademyScopeExempt(reason = "확정 배치(RTE-08)는 시각이 촉발하는 전 학원 대상 조회라 좁힐 학원이 부재하다 — "
             + "학원 하나로 좁히면 나머지 학원의 회차가 확정되지 않는다. 호출부는 배치(RunConfirmationScheduler)뿐이라는 "
             + "전제 — 요청 경로에서 부르면 이 예외가 우회로가 된다(ScheduleRepository.findAllByWeekdayAndActiveIsTrue 와 같은 근거)")
     @Query("SELECT r FROM Run r WHERE r.status = :idleStatus AND r.confirmAt <= :now "
-            + "AND r.serviceDate >= :today AND r.canceledAt IS NULL ORDER BY r.consecutiveFailures ASC, r.confirmAt ASC")
+            + "AND r.serviceDate >= :today AND r.canceledAt IS NULL "
+            + "AND (r.confirmRetryAt IS NULL OR r.confirmRetryAt <= :now) "
+            + "ORDER BY r.consecutiveFailures ASC, r.confirmAt ASC")
     List<Run> findDueForConfirmation(@Param("now") OffsetDateTime now, @Param("today") LocalDate today,
             @Param("idleStatus") RunStatus idleStatus, Pageable pageable);
 
@@ -181,7 +188,8 @@ public interface RunRepository extends JpaRepository<Run, Long> {
             + "이미 전 학원 대상으로 골라낸 run.id 하나를 조건부로 갱신하는 단건 호출이다 — 그 조회가 이미 좁힌 대상이라 "
             + "이 시점에 학원을 다시 물을 근거가 없다")
     @Query("UPDATE Run r SET r.status = src.backend.run.entity.RunStatus.CONFIRMED, r.confirmedAt = :confirmedAt, "
-            + "r.consecutiveFailures = 0 WHERE r.id = :id AND r.status = src.backend.run.entity.RunStatus.IDLE "
+            + "r.consecutiveFailures = 0, r.confirmRetryAt = NULL WHERE r.id = :id "
+            + "AND r.status = src.backend.run.entity.RunStatus.IDLE "
             + "AND r.canceledAt IS NULL")
     int confirmIfIdle(@Param("id") Long id, @Param("confirmedAt") OffsetDateTime confirmedAt);
 
@@ -233,8 +241,22 @@ public interface RunRepository extends JpaRepository<Run, Long> {
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @AcademyScopeExempt(reason = "확정 배치가 이미 학원과 무관하게 골라낸 run.id 하나의 실패 카운터만 올리는 단건 "
             + "갱신이다 — confirmIfIdle 과 같은 근거")
-    @Query("UPDATE Run r SET r.consecutiveFailures = r.consecutiveFailures + 1 WHERE r.id = :id")
-    int recordFailure(@Param("id") Long id);
+    @Query("UPDATE Run r SET r.consecutiveFailures = r.consecutiveFailures + 1, r.confirmRetryAt = :retryAt "
+            + "WHERE r.id = :id")
+    int recordFailure(@Param("id") Long id, @Param("retryAt") OffsetDateTime retryAt);
+
+    /**
+     * 그 학원의 확정 실패 이력을 지운다 — 노선·학원 좌표를 저장해 영구 실패의 원인이 고쳐졌을 수 있을 때 호출한다(R46-KFIXBE K-2,
+     * Ruling 703). 아직 {@code idle} 인 회차의 {@code consecutive_failures} 를 0 으로, {@code confirm_retry_at} 을 비워 다음 틱에 바로
+     * 다시 시도하게 한다. 고쳐지지 않았으면 다시 실패해 간격이 처음부터 늘어난다.
+     *
+     * <p>호출자의 트랜잭션에 참여한다({@code recordFailure} 와 달리 {@code REQUIRES_NEW} 가 아니다) — 저장이 롤백되면 이 초기화도 함께
+     * 취소돼야 한다. 영속성 컨텍스트는 비우지 않는다 — 호출 지점(노선·학원 저장)이 방금 읽은 엔티티를 이어 쓴다.
+     */
+    @Modifying(flushAutomatically = true)
+    @Query("UPDATE Run r SET r.consecutiveFailures = 0, r.confirmRetryAt = NULL WHERE r.academyId = :academyId "
+            + "AND r.status = src.backend.run.entity.RunStatus.IDLE AND r.consecutiveFailures > 0")
+    int resetConfirmationFailures(@Param("academyId") Long academyId);
 
     /**
      * 회차 id 목록을 학원 조건 없이 읽는다(AdminEmergencyQueryService, §6.11) — 호출부가 넘기는

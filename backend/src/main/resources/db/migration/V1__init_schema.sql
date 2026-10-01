@@ -385,6 +385,10 @@ CREATE TABLE run (
     -- 확정 배치가 이 회차에서 연속으로 실패한 횟수(Phase 7 목표 4) — 배치 재시작으로 사라지면 안 되는
     -- 값이라 인메모리가 아니라 이 컬럼에 둔다. 확정에 성공하면 0으로 되돌아간다.
     consecutive_failures integer   NOT NULL DEFAULT 0,
+    -- 확정 배치가 이 회차를 다시 시도해도 되는 가장 이른 시각(R46-KFIXBE K-2, Ruling 703) — 실패할 때마다 간격이 늘고(30초부터 두 배 · 최대 10분)
+    -- NULL 이면 바로 대상이다. 판정 시각(confirm_at = 출발 − 30분)과 <b>다른 시계</b>다 — 이쪽은 실행 시각이라 ck_run_confirm_at 에 묶이지 않는다.
+    -- 확정에 성공하거나 노선·학원 좌표를 저장하면 consecutive_failures 와 함께 비워진다.
+    confirm_retry_at timestamptz,
     created_at       timestamptz  NOT NULL DEFAULT now(),
     updated_at       timestamptz  NOT NULL DEFAULT now(),
     -- 복합 FK(학원 경계)의 대상 — 자식이 (id, academy_id) 쌍으로 이 행을 가리킨다(R46-LATERBE B-4, Ruling 675)

@@ -617,6 +617,46 @@ class StaffRouteControllerTest {
                 .andExpect(status().isOk());
     }
 
+    /**
+     * R46-KFIXBE K-2(Ruling 703) — 노선을 편성·수정·승하차지 저장하면 그 학원 회차의 확정 실패 이력이 지워져 고친 즉시 다음 틱에 다시 시도한다
+     * (노선이 없어 영구 실패하던 회차). 다른 학원 회차는 건드리지 않는다.
+     */
+    @Test
+    void 노선을_저장하면_그_학원_회차의_확정_실패_이력이_지워지고_다른_학원은_그대로다() throws Exception {
+        운행_중_회차를_끝낸다();
+        실패_이력을_심는다();
+        long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "sat", "to_academy", STOPS_OF_A);
+        실패_이력이_학원_A_것만_지워졌는지("편성");
+
+        실패_이력을_심는다();
+        수정한다(관계자A_토큰(), routeId, "{\"stop_ids\":[4,3,1]}").andExpect(status().isOk());
+        실패_이력이_학원_A_것만_지워졌는지("수정");
+
+        실패_이력을_심는다();
+        Map<String, Object> 일번 = jdbcTemplate.queryForMap("SELECT name, lat, lng FROM stop WHERE id = 1");
+        승하차지를_저장한다(관계자A_토큰(), routeId, """
+                {"stops":[{"stop_id":1,"name":"%s","lat":%s,"lng":%s}]}"""
+                .formatted(일번.get("name"), 일번.get("lat"), 일번.get("lng")))
+                .andExpect(status().isOk());
+        실패_이력이_학원_A_것만_지워졌는지("승하차지 저장");
+    }
+
+    /** 학원 A 의 시드 회차 1 과 학원 B 의 회차 5(idle 로 되돌린다)를 확정 실패 중으로 만든다. */
+    private void 실패_이력을_심는다() {
+        jdbcTemplate.update("UPDATE run SET consecutive_failures = 4, confirm_retry_at = now() + interval '10 minutes' "
+                + "WHERE id = 1");
+        jdbcTemplate.update("UPDATE run SET status = 'idle', confirmed_at = NULL, consecutive_failures = 4, "
+                + "confirm_retry_at = now() + interval '10 minutes' WHERE id = 5");
+    }
+
+    private void 실패_이력이_학원_A_것만_지워졌는지(String 저장_종류) {
+        assertThat(jdbcTemplate.queryForMap("SELECT consecutive_failures, confirm_retry_at FROM run WHERE id = 1"))
+                .as(저장_종류 + " — 같은 학원 회차는 바로 다시 시도").containsEntry("consecutive_failures", 0)
+                .containsEntry("confirm_retry_at", null);
+        assertThat(jdbcTemplate.queryForObject("SELECT consecutive_failures FROM run WHERE id = 5", Integer.class))
+                .as(저장_종류 + " — 다른 학원 회차는 그대로").isEqualTo(4);
+    }
+
     @Test
     void 남의_학원_노선의_승하차지는_저장할_수_없다() throws Exception {
         long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "mon", "from_academy", STOPS_OF_A);

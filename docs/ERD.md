@@ -472,6 +472,7 @@ erDiagram
 | `canceled_at` | timestamptz | | 임시 취소 (SCH-03) |
 | `cancel_source` | varchar(10) | | 취소를 낸 쪽 — `staff`(관계자 직접 취소) · `schedule`(스케줄 변경 반영). CHECK. 스케줄 재활성이 되살리는 것은 `schedule` 뿐이고, NULL 인 옛 취소는 되살리지 않음 (`Ruling 367`) |
 | `consecutive_failures` | integer | NN default 0 | 확정 배치가 이 회차에서 연속 실패한 횟수(Phase 7 목표 4). 배치 재시작에도 사라지면 안 되는 값이라 인메모리가 아니라 컬럼에 보유. 확정 성공 시 0 으로 복귀 |
+| `confirm_retry_at` | timestamptz | | 확정 배치가 이 회차를 **다시 시도해도 되는 가장 이른 시각**(R46-KFIXBE K-2, `Ruling 703`). 실패할 때마다 `now + min(30초 × 2^(실패 횟수−1), 10분)` 으로 정해져, 노선·학원 좌표를 사람이 고칠 때까지 같은 결과인 영구 실패가 30초마다 반복되지 않는다. NULL 이면 바로 대상. **실행 시각이고 `confirm_at`(판정 시각 = 출발 − 30분)과 별개의 시계**다 — `ck_run_confirm_at` 에 묶이지 않고, 확정 판정은 이 값이 바꾸지 않는다. 확정 성공 · 노선 편성·수정·승하차지 저장 · 학원 좌표 저장 시 `consecutive_failures` 와 함께 비워진다 |
 | `created_at` · `updated_at` | timestamptz | NN | |
 
 **존재 이유** — 3구간 판정 · 확정 배치 · 명단 · 위치 · 알림이 전부 매달리는 중심 축. `confirm_at` 을 파생값이 아니라 컬럼으로 고정한 이유는 배치가 **"실행 시각이 지난 회차"** 를 매 실행마다 조회하기 때문 (§5 인덱스 참조). **근거** SCH-02 · RTE-02 · RUN-02·04·05 · C-04 · C-15

@@ -26,11 +26,30 @@ public final class RunConfirmationPolicy {
      */
     private static final Duration CONFIRM_LEAD = Duration.ofMinutes(30);
 
+    /** 재시도 간격의 첫 값(= 폴링 주기)과 상한. */
+    private static final Duration RETRY_BASE = Duration.ofSeconds(30);
+
+    private static final Duration RETRY_CAP = Duration.ofMinutes(10);
+
+    /** 30초 × 2^5 = 960초가 이미 상한을 넘는다 — 지수를 여기서 막아 큰 실패 횟수에도 넘치지 않게 한다. */
+    private static final int MAX_DOUBLINGS = 5;
+
     private RunConfirmationPolicy() {
     }
 
     /** 그 출발 시각의 확정 예정 시각 — 출발 30분 전이다. */
     public static OffsetDateTime confirmAtOf(OffsetDateTime departAt) {
         return departAt.minus(CONFIRM_LEAD);
+    }
+
+    /**
+     * 확정이 {@code consecutiveFailures} 번째로 실패한 회차를 다시 시도하기까지의 간격(R46-KFIXBE K-2, Ruling 703) — 30초부터 두 배씩 늘어
+     * 10분에서 멈춘다. 첫 실패는 다음 틱(30초)이라 일시적 실패는 전과 같은 속도로 회복하고, 노선·학원 좌표를 사람이 고칠 때까지 같은 결과인
+     * 영구 실패만 하루 2,880회 → 약 150회로 줄어든다. <b>실행 시각</b>을 정하는 값이다 — 판정 시각({@link #confirmAtOf})과 섞지 않는다.
+     */
+    public static Duration retryDelayAfter(int consecutiveFailures) {
+        int doublings = Math.clamp(consecutiveFailures - 1, 0, MAX_DOUBLINGS);
+        Duration delay = RETRY_BASE.multipliedBy(1L << doublings);
+        return delay.compareTo(RETRY_CAP) > 0 ? RETRY_CAP : delay;
     }
 }

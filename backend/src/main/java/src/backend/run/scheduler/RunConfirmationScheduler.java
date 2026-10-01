@@ -1,6 +1,7 @@
 package src.backend.run.scheduler;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -14,8 +15,11 @@ import org.springframework.stereotype.Component;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import src.backend.global.common.logging.RateLimitedWarn;
+import src.backend.global.error.BusinessException;
 import src.backend.observability.metrics.RunConfirmationMetrics;
 import src.backend.run.command.RunConfirmationService;
+import src.backend.run.domain.RunConfirmationPolicy;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
@@ -27,7 +31,7 @@ import src.backend.run.repository.RunRepository;
  * <p><b>한 회차의 실패가 다른 회차를 막지 않는다</b>(목표 4) — 회차마다 개별 {@code try-catch} 로
  * 감싸 어떤 예외든(기대한 업무 규칙 위반이든 예상 못 한 버그든) 그 회차의 실패로만 기록하고 다음
  * 회차로 넘어간다. 실패한 회차는 {@code idle} 로 남아(자동 롤백 — {@code RunConfirmationPersistence}
- * 의 트랜잭션이 되돌린다) 다음 틱에 다시 대상이 된다.
+ * 의 트랜잭션이 되돌린다) 실패 횟수에 따라 늘어나는 간격({@link RunConfirmationPolicy#retryDelayAfter})이 지난 뒤 다시 대상이 된다.
  *
  * <p><b>배치 크기 상한</b>(목표 6)은 {@link #BATCH_SIZE} 가 한 틱이 집는 회차 수를 제한하고,
  * <b>동시 실행 상한</b>은 {@link RunConfirmationWorkerPoolConfig} 가 만드는 고정 크기 스레드 풀이
@@ -55,6 +59,9 @@ public class RunConfirmationScheduler {
 
     private final RunConfirmationMetrics metrics;
 
+    /** 예기치 못한 예외(버그·인프라 장애)의 스택은 분당 한 번만 남긴다 — 설정 오류는 스택 없이 한 줄이라 이 제한을 받지 않는다. */
+    private final RateLimitedWarn unexpectedFailure = RateLimitedWarn.perMinute(log);
+
     /**
      * 판정 시각이 지난 idle 회차를 확정한다.
      *
@@ -75,7 +82,8 @@ public class RunConfirmationScheduler {
                 PageRequest.of(0, BATCH_SIZE));
 
         List<CompletableFuture<Void>> tasks = dueRuns.stream()
-                .map(run -> CompletableFuture.runAsync(() -> confirmSafely(run.getId()), runConfirmationExecutor))
+                .map(run -> CompletableFuture.runAsync(
+                        () -> confirmSafely(run.getId(), run.getConsecutiveFailures()), runConfirmationExecutor))
                 .toList();
         CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new)).join();
     }
@@ -93,13 +101,26 @@ public class RunConfirmationScheduler {
      * ({@code ScheduledTaskMetricsAspect})는 이 실패를 절대 못 본다(TECH_DECISIONS §13.1 3행) —
      * 그래서 {@link RunConfirmationMetrics#recordRetryFailure()} 를 여기서 직접 부른다.
      */
-    private void confirmSafely(Long runId) {
+    private void confirmSafely(Long runId, int failuresSoFar) {
         try {
             confirmationService.confirmOne(runId);
         } catch (Exception e) {
-            log.warn("회차 {} 확정 실패 — 다음 틱에 재시도한다", runId, e);
-            runRepository.recordFailure(runId);
+            Duration delay = RunConfirmationPolicy.retryDelayAfter(failuresSoFar + 1);
+            logFailure(runId, e, delay);
+            runRepository.recordFailure(runId, OffsetDateTime.now(clock).plus(delay));
             metrics.recordRetryFailure();
         }
+    }
+
+    /**
+     * 노선 미편성·학원 좌표 미등록 같은 설정 오류({@link BusinessException})는 사람이 고칠 때까지 같은 결과라 스택 없이 한 줄이다 — 오류 코드와
+     * 다음 시도까지의 간격이 이 줄에 있다(R46-KFIXBE K-2). 그 밖의 예외(버그·인프라 장애)만 스택을 남기되 분당 한 번이다.
+     */
+    private void logFailure(Long runId, Exception e, Duration delay) {
+        if (e instanceof BusinessException business) {
+            log.warn("회차 {} 확정 실패({}) — {} 뒤에 재시도한다", runId, business.getErrorCode(), delay);
+            return;
+        }
+        unexpectedFailure.warn(e, "회차 {} 확정 실패 — {} 뒤에 재시도한다", runId, delay);
     }
 }
