@@ -1113,6 +1113,7 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 587 | 사양 5항의 시험 환산 + 위치 송신 모델을 앱과 같은 고정 주기로 — 응답 뒤 쉼 모델이 달성률을 인위적으로 낮춤 | 본문 §8.84 |
 | 588 | 통과 판정 — 관리자 50 은 4회차 통과 · 200·300·400 통과(컷의 8배 · 예상 25 의 16배) · 500 이상은 판정 보류 | 본문 §8.84 |
 | 589 | 포화 지점 — 위치 수신 포화는 이동 거의 없음 · 09-09 붕괴 두 조건은 통과하나 R46 단독 귀속 불가 · 관계자 폴링 포화 후보(연결 풀 10) | 본문 §8.84 |
+| 615 | 배포 때 nginx 설정 자동 반영 — 프록시 재시작으로 1~2초 끊김 허용, 단 새 설정을 일회용 컨테이너로 `nginx -t` 검사해 통과할 때만 재시작 · 실패하면 배포 중단 (사용자 결정 · 이행은 `Ruling 648·649`) | 본문 §8.87 (결정 원문은 사용자 지시 — 문서에는 이 행이 기록) |
 | 640 | 가용성 경보 6종 — 백엔드 다운(`up==0 or absent`) · 5xx 비율 · DB 연결 대기 · 서킷 닫힘 여부 · 스케줄러 정지 · 보존 정리 정지. 부하 시험은 스크레이프 `job` 라벨로 구분 | 본문 §8.87 |
 | 641 | OOM 이면 JVM 이 프로세스를 끝낸다(`ExitOnOutOfMemoryError`) — 힙 덤프는 개인정보·디스크 때문에 넣지 않는다 | 본문 §8.87 |
 | 642 | 운영 로그 드라이버 `mode: non-blocking`(+ 버퍼 25m) — 버퍼가 차면 로그 유실을 받아들인다. 옵션 키는 `mode`(`awslogs-mode` 는 없음) | 본문 §8.87 |
@@ -1120,7 +1121,9 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 644 | `pg_stat_statements` + `random_page_cost=1.1` — 확장은 마이그레이션이 아니라 초기화 스크립트가 `ops_stats` 스키마에 만든다(Flyway `clean()` 이 `public` 의 확장을 지움) | 본문 §8.87 |
 | 645 | 운영 프록시 `/api/` JSON 압축 — 인증 응답(`/auth/*`)·연결 코드 발급은 제외(BREACH) | 본문 §8.87 |
 | 646 | 스테이징 적용 범위 — OOM 종료·종료 대기·postgres 옵션은 적용, 경보·로그 드라이버·압축은 해당 없음 | 본문 §8.87 |
-| 647 | 운영 설정 가드 시험 `OpsSettingsGuardTest` 신설(조율자 승인) · 남긴 한계 — nginx 설정은 배포가 자동 반영하지 않음 · CI 에 promtool 미연결 | 본문 §8.87 |
+| 647 | 운영 설정 가드 시험 `OpsSettingsGuardTest` 신설(조율자 승인) · 남긴 한계 — nginx 설정은 배포가 자동 반영하지 않음(→ `Ruling 648·649` 로 해소) · CI 에 promtool 미연결 | 본문 §8.87 |
+| 648 | 배포가 nginx 설정을 자동 반영하는 방식 — **`restart proxy`**(매 배포 1~2초 끊김). 폴더 마운트 + `nginx -s reload` 는 버림(`infra/proxy/` 에 다른 설정 파일이 같이 있어 이름 바꿈 20여 곳 필요 · 얻는 것은 무끊김뿐) | 본문 §8.87 · `DEPLOYMENT §5.3` |
+| 649 | 반영 전 검사 — `docker compose run --rm --no-deps -T proxy nginx -t` 를 `up -d` 뒤(backend 이름이 풀리는 시점)에 하고, **실패하면 proxy 를 다시 시작하지 않고 배포를 실패로 끝낸다**(Prometheus 반영처럼 경고만 아님). 가드 시험 `OpsSettingsGuardTest` 가 순서·중단을 고정 | 본문 §8.87 · `DEPLOYMENT §5.3·§8·§11.6` |
 
 
 ## 8.73 ⚖ `R46-BE` — 성능 개선(감사 제외) + 바로 고칠 것 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 410~419 · 백엔드 갈래)
@@ -1459,7 +1462,7 @@ R46 검토 `stab`(경보 · 로그 드라이버 · OOM · 종료 대기) · `idx
 | **644** | **`pg_stat_statements` + `random_page_cost=1.1`**(운영·스테이징 postgres `command`) — **`CREATE EXTENSION` 은 마이그레이션이 아니라 postgres 초기화 스크립트**(`infra/postgres/init/01-pg-stat-statements.sql`)이고 확장은 **`ops_stats` 스키마**에 만든다 | 마이그레이션이 아닌 이유: 확장은 `shared_preload_libraries` 와 짝인 DB 서버 설정이라 앱 스키마 이력에 섞지 않는다(마이그레이션은 스키마 갈래 영역이기도 함). **`public` 이 아닌 이유(실측)**: `public` 에 확장을 만들고 백엔드를 `local` 프로파일로 다시 기동하니 Flyway `clean()` 이 확장을 지웠고(`pg_extension` 에 `plpgsql` 만 남음), `ops_stats` 에 만든 것은 남았다 — 스테이징은 기동·초기화마다 `clean()` 을 한다. 일회용 postgres 컨테이너에서 `shared_preload_libraries` · `random_page_cost` · 스키마 · 뷰 조회(7행)를 확인. 이미 초기화된 볼륨은 스크립트가 안 돌아 `DEPLOYMENT §11.5` 의 한 줄이 필요 |
 | **645** | **운영 프록시 `/api/` 에 JSON 만 압축**(`gzip on` · `gzip_types application/json` · `gzip_min_length 1024` · `gzip_vary on`). **인증 응답 전체(`/api/v1/auth/`)와 연결 코드 발급(`= /api/v1/me/link-code`)은 별도 location 으로 `gzip off`** | 지시서는 "로그인·재발급 응답 제외" 였으나 토큰·코드가 실리는 응답은 이 둘 외에도 있어(`/auth/password` · `/auth/signup-status` · `/me/link-code`) `/auth/*` 전체와 연결 코드 발급으로 넓혔다. 로그인·가입·복구·자녀 연결은 압축을 켜지 않은 기존 속도 제한 location 이 그대로 안전. 일회용 nginx 2개(가짜 백엔드 + 운영 설정)로 동작을 확인: 일반 JSON(2.8KB → 308B)은 `content-encoding: gzip` + `Vary`, 1KB 미만 · 이미지 · 압축 미요청 · `/auth/*` 4경로(재발급 · 가입 상태 · 로그인 · 가입) · 연결 코드 발급 · 자녀 연결은 압축 없음. 인증 location 삭제·`gzip on` 삭제 결함은 각각 토큰 응답이 압축으로 새거나 압축이 사라지는 것으로 드러남 |
 | **646** | **스테이징 적용 범위** — 적용: OOM 종료 · 종료 대기 35초 · postgres 옵션과 초기화 스크립트. 해당 없음: 경보 6종(관측 컨테이너 없음) · 로그 `non-blocking`(`awslogs` 를 안 씀) · 프록시 압축(`nginx.staging.conf` 는 바꾸지 않음 — 터널 뒤라 응답 크기보다 접속이 목적) | `STAGING §10` 표에 행으로 기록. 개발용 `docker-compose.yml` 의 postgres 는 손대지 않았다 — 공유 postgres 가 모든 작업 창의 DB 를 들고 있어 재생성이 금지돼 있고 CI 도 그 파일을 쓴다 |
-| **647** | **운영 설정 가드 시험 `OpsSettingsGuardTest` 신설**(6건 · 조율자 승인 — 새 파일 1개, 기존 파일 수정 없음). 파일 텍스트만 읽어 Docker·DB 없이 돈다. **남긴 한계 2건**: ① nginx 설정(`nginx.prod.conf`)은 파일 하나를 바인드 마운트라 **배포가 자동 반영하지 않는다**(`deploy.sh` 는 Prometheus 만 다시 시작) — 배포 뒤 `restart proxy` 가 필요(`DEPLOYMENT §11.6`) ② CI 에 `promtool test rules` 가 연결돼 있지 않아 경보 시험은 손으로 돈다 | ①을 `deploy.sh` 에 자동화하지 않은 이유: 잘못된 설정이면 proxy 가 못 떠 공개 API 가 끊긴다 — 사전 `nginx -t`(인증서 볼륨 필요)까지 설계해야 해 사용자 결정으로 보고. ②는 `ci.yml` 변경이라 로컬에서 검증이 안 된다 |
+| **647** | **운영 설정 가드 시험 `OpsSettingsGuardTest` 신설**(6건 · 조율자 승인 — 새 파일 1개, 기존 파일 수정 없음). 파일 텍스트만 읽어 Docker·DB 없이 돈다. **남긴 한계 2건**: ① nginx 설정(`nginx.prod.conf`)은 파일 하나를 바인드 마운트라 **배포가 자동 반영하지 않는다**(`deploy.sh` 는 Prometheus 만 다시 시작) — 배포 뒤 `restart proxy` 가 필요(`DEPLOYMENT §11.6`) **→ 후속 `Ruling 648·649` 로 해소(배포가 검사 뒤 자동 반영)** ② CI 에 `promtool test rules` 가 연결돼 있지 않아 경보 시험은 손으로 돈다 | ①을 `deploy.sh` 에 자동화하지 않은 이유: 잘못된 설정이면 proxy 가 못 떠 공개 API 가 끊긴다 — 사전 `nginx -t`(인증서 볼륨 필요)까지 설계해야 해 사용자 결정으로 보고. ②는 `ci.yml` 변경이라 로컬에서 검증이 안 된다 |
 
 ### R46-FIXOPS 목표 표
 
@@ -1473,3 +1476,7 @@ R46 검토 `stab`(경보 · 로그 드라이버 · OOM · 종료 대기) · `idx
 | 6 | 정리 — 띄운 컨테이너·서버 0 · 만든 DB DROP | `docker ps` · `lsof` · `pg_stat_activity` | ✅ |
 
 **결과 (2026-10-01)** — 목표 1~6 ✅. 시험 신설: `alerts.test.yml` 묶음 17개 추가(6 → 23) · `OpsSettingsGuardTest` 6건. 결함 심기: 경보 규칙 15종 · 설정 가드 14종 · nginx 2종 — 전부 그 항목만 실패. **사용자가 준비할 것**: 이미 초기화된 운영 볼륨이 있다면 `DEPLOYMENT §11.5` 의 한 줄 · nginx 설정을 바꾼 배포 뒤 `restart proxy`. **남은 항목(보고)**: 앱에 `server.shutdown`·`timeout-per-shutdown-phase` 명시(백엔드 영역) · 정차지 수 상한 등 이 갈래 밖 검토 항목은 다루지 않음.
+
+### R46-FIXOPS2 — 배포 때 nginx 설정 자동 반영 (2026-10-01 · 분기점 `e38d6f23` · 번호대 648~649 · 사용자 결정 `Ruling 615`)
+
+`Ruling 647` 이 남긴 한계 ① — nginx 설정을 바꾼 배포 뒤에 손으로 `restart proxy` 를 해야 하는 것 — 을 `deploy.sh` 에 넣어 해소했다. **재현**: 파일 하나를 바인드 마운트한 컨테이너는 파일이 `mv` 로 교체돼도 Linux 에서 옛 내용을 계속 보고(다시 마운트하면 새 내용), `nginx -s reload` 는 새 설정을 읽지 못하며, `up -d` 가 backend 를 재생성해도 proxy 는 다시 만들어지지 않는다(compose 5.5.1 실측 · EC2 는 v2.29.7 이라 첫 배포 뒤 확인). **`Ruling 648`**: 반영 방식은 `restart proxy`(1~2초 끊김, 사용자 허용). 폴더 마운트 + reload 는 `infra/proxy/` 에 `nginx.conf`·`nginx.staging.conf` 가 같이 있어 운영 설정을 전용 폴더로 옮겨 이름을 바꿔야 하고, 그 이름이 `application.yml`(다른 갈래 소유)을 포함해 20여 곳에 있어 버렸다. **`Ruling 649`**: `deploy.sh` 3-1 단계 — `up -d` 뒤에 `docker compose run --rm --no-deps -T proxy nginx -t`(새 컨테이너가 교체된 새 파일을 보고 같은 네트워크·볼륨으로 `backend` 이름·인증서를 실제와 같이 본다)를 하고 실패하면 `exit 1`, 통과하면 `restart proxy`. 실제 `docker-compose.prod.yml` proxy 항목으로 만든 일회용 환경에서 정상 설정 통과 · 문법 오류·인증서 경로 없음·backend 이름 해석 실패는 종료코드 1 · 실패 경로에서 proxy 시작 시각 불변·응답 유지를 확인했다. 시험: `OpsSettingsGuardTest` 6 → 7건(검사 → 재시작 순서 · `up -d` 뒤 · 실패 시 `exit 1`) · 결함 심기 6종 전부 그 시험만 실패. 문서: `DEPLOYMENT §5.3`(신설)·`§8`(행 1)·`§10`(행 1)·`§11.6`(정정). **사용자가 준비할 것**: 첫 배포 로그의 `== 3-1.` 아래 `test is successful` 확인 · EC2 compose v2.29.7 에서 "backend 재생성이 proxy 를 다시 만들지 않는다" 확인. 근거 원문 `.claude/r46/report-fixops2.md`(무시 파일).

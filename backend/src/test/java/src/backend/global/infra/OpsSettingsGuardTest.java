@@ -106,6 +106,21 @@ class OpsSettingsGuardTest {
     }
 
     @Test
+    @DisplayName("deploy.sh 는 proxy 를 다시 시작하기 전에 새 nginx 설정을 nginx -t 로 검사하고, 검사가 실패하면 배포를 멈춘다")
+    void deployChecksNginxConfigBeforeRestartingProxy() throws IOException {
+        String deploy = stripComments(read("infra/scripts/deploy.sh"));
+        int up = deploy.indexOf("$COMPOSE up -d");
+        int check = deploy.indexOf("$COMPOSE run --rm --no-deps -T proxy nginx -t");
+        int restart = deploy.indexOf("$COMPOSE restart proxy");
+
+        assertThat(check).as("새 컨테이너로 하는 검사가 있어야 한다 — 설정 파일 하나를 마운트한 proxy 는 교체된 새 파일을 못 본다").isNotNegative();
+        assertThat(up).as("검사는 backend 가 뜬 뒤에 한다 — 아니면 upstream 이름(backend)을 못 풀어 정상 설정도 실패한다").isNotNegative().isLessThan(check);
+        assertThat(restart).as("검사를 통과한 설정을 proxy 에 반영하는 재시작이 있어야 한다").isGreaterThan(check);
+        assertThat(deploy.substring(check, restart)).as("검사 실패 시 재시작에 닿기 전에 배포를 실패로 끝낸다(proxy 가 못 뜨면 API 전체가 멈춘다)")
+                .contains("exit 1");
+    }
+
+    @Test
     @DisplayName("백엔드 가용성 경보 6종이 있고 각각 promtool 시험이 붙어 있으며 BackendDown 은 대상이 사라진 경우도 본다")
     void availabilityAlertsExistWithTests() throws IOException {
         String rules = stripComments(read("infra/observability/prometheus/alerts.yml"));
