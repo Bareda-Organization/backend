@@ -185,6 +185,7 @@ flutter run \
 |---|---|
 | `API_BASE_URL` | 기본값 `http://localhost:8080/api/v1`(`lib/core/constants/api_constants.dart`). 다른 포트·DB 로 띄운 백엔드에 붙일 때 지정 |
 | `NAVER_MAP_CLIENT_ID` | **지도가 그려지지 않고 회색 격자만 표시**(SDK 가 키 없이 초기화되어 `NClientUnspecifiedException` code 800 — 2026-09-30 실측). 키 값은 어떤 파일에도 커밋하지 않음 |
+| `KAKAO_NAVI_APP_KEY` | **매니저 앱만.** 비면 운행 화면의 `[카카오내비 길안내]` 버튼이 없음(§8.4). 키는 사용자 자원이라 저장소에 없음 |
 
 - 키 값: 웹의 `frontend/apps/academy-web/.env.local` 의 `NEXT_PUBLIC_NAVER_MAP_CLIENT_ID` 와 같은 값
 - 로그인 응답의 `refresh_token` 이 본문에 오므로 앱은 `X-Client-Type: app` 을 명시해 호출(`ApiConstants.clientType`)
@@ -209,6 +210,26 @@ flutter test --exclude-tags real_backend   # 단위·위젯. 실서버 계약 �
 
 - 실서버 계약 시험은 `flutter test --tags real_backend --dart-define=API_BASE_URL=http://localhost:<전용포트>/api/v1` 로 돌림. 주소를 주지 않으면 스스로 실패함(`test/support/real_backend_target.dart`). **공유 DB(`schoolbus`)가 아닌 전용 DB 로 띄운 백엔드**에만 겨눔 — 이 시험은 실행하면서 DB 의 행을 바꿈
 - 백엔드 시험은 `-PtestDbUrl` 이 필수. `backend/scripts/test.sh` 가 전용 DB 를 만들고 끝나면 지움
+
+### 8.4 카카오내비 길안내 — 매니저 앱 (RUN-08 · `Ruling 530~534`)
+
+- 동작: 운행 화면 `[카카오내비 길안내]`(확정 ~ 운행 중 · 기사만) → `GET /runs/{runId}/navigation?scope=remaining`(`API_SPEC §4.16`) → 공식 SDK `kakao_flutter_sdk_navi` 의 `NaviApi.navigate` 가 카카오내비를 실행. 미설치면 `[설치하기]` 가 SDK 의 설치 안내 페이지(스토어로 연결)를 엶
+- **키가 없으면 버튼이 없음** — 키 없이도 빌드·시험은 통과. 실기기 동작은 아래 준비물이 끝난 뒤에만 확인 가능
+
+**사용자 준비물**(2026-10-01 Kakao Developers 문서 기준)
+
+| # | 할 일 | 비고 |
+|:-:|---|---|
+| 1 | [Kakao Developers](https://developers.kakao.com/console/app) 에서 앱 생성 | 길안내는 카카오 로그인·동의항목 불필요. **별도 "카카오내비 사용 설정" 스위치는 없음**(문서 확인) |
+| 2 | [앱] > [플랫폼 키] > **네이티브 앱 키** 확인 | 키마다 플랫폼 정보 등록 필요 |
+| 3 | 네이티브 앱 키에 **Android** 등록 | 패키지명 `com.baraeda.manager_app` + **디버그·릴리스 키 해시 모두**(개발자마다 디버그 키스토어가 달라 각자 등록). 카카오내비 앱이 이 값으로 호출 앱을 검증 — 미등록이면 길안내 실패 |
+| 4 | 네이티브 앱 키에 **iOS** 등록 | 번들 ID `com.baraeda.managerApp` |
+| 5 | 빌드에 앱 키 주입 | `--dart-define=KAKAO_NAVI_APP_KEY=<네이티브 앱 키>` (`flutter run` · `flutter build apk/ipa` 공통) |
+| 6 | iOS URL scheme 에 키 주입 | `frontend/apps/manager-app/ios/Flutter/Local.xcconfig`(git 밖 — 없으면 새로 만듦)에 `KAKAO_NATIVE_APP_KEY = <네이티브 앱 키>` 한 줄. 이 값이 `Info.plist` 의 `kakao<키>` 가 됨. 비우면 자리표시 `kakaoplaceholder` |
+| 7 | 카카오내비 앱 설치된 실기기에서 `confirmed` 회차로 확인 | 시뮬레이터·에뮬레이터에는 카카오내비가 없어 `[설치하기]` 안내까지만 확인 가능 |
+
+- 쿼터: 카카오내비 API 는 월간·일간 쿼터가 있고 상향은 카카오와의 협의가 필요(Kakao Developers 카카오내비 개요)
+- 이미 들어 있는 설정(손댈 것 없음): iOS `Info.plist` `LSApplicationQueriesSchemes` = `kakaonavi-sdk`(SDK 의 설치 확인이 이 목록만 봄) · Android `<queries>` 의 카카오내비 패키지(`com.locnall.KimGiSa`)는 SDK 매니페스트가 병합
 
 ## 9. API 연결 시 확인할 것
 
