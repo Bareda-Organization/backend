@@ -17,7 +17,7 @@ import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.event.StopDepartedEvent;
 
 /**
- * 정차지 출발 선점 + {@link StopDepartedEvent} 발행을 한 곳에 모은다(Ruling 308·312, IMPLEMENTATION_PLAN §8.23 T3) —
+ * 정차지 출발 선점 + {@link StopDepartedEvent} 발행을 한 곳에 모은다(Ruling 308·312, docs/archive/rounds/be-rounds-r15-r21.md §8.23 T3) —
  * {@link src.backend.location.proximity.ProximityNotificationService#judgeDeparture}(100m 이탈
  * 판정) · {@code RunArrivalCommandService#arrive}(다음 승하차지 도착 시 폴백) · 운행 종료 강제 적용
  * (Ruling 312) 세 호출부가 이 클래스 하나를 통해서만 {@code claimDeparture} 를 부른다 — 세 곳이

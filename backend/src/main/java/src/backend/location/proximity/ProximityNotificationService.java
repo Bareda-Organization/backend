@@ -135,7 +135,7 @@ public class ProximityNotificationService {
      *
      * <p>선점에 성공하면(1행 갱신) {@link StopDepartureService#claimAndPublish} 가
      * {@code StopDepartedEvent} 를 발행한다 — 그 승하차지의 확정 결과를 학생별로 통지하는 재료다
-     * (Ruling 308, IMPLEMENTATION_PLAN §8.23 T3 목표 2). {@code academyId} 는 그 이벤트에 실어 보낸다.
+     * (Ruling 308, docs/archive/rounds/be-rounds-r15-r21.md §8.23 T3 목표 2). {@code academyId} 는 그 이벤트에 실어 보낸다.
      *
      * <p>CODE_CONVENTIONS §20.2 크기 신호 — 나누지 않는 이유는 {@link #judgeOne} 주석과 같다(조기 반환 체인, 중복은
      * 2벌뿐이라 CODE_CONVENTIONS §20.3-4 의 3번째 추출 기준 미달). 위치 읽기가 트랜잭션 밖인 이유는 클래스 자바독(BR-166).

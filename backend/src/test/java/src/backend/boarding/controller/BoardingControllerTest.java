@@ -646,7 +646,7 @@ class BoardingControllerTest {
     // ── R15-T3(Ruling 308) — 출발 전 되돌리기는 알림 없음, 출발 후 확정 결과 1건 ─────────
 
     /**
-     * §8.23 T3 목표 1·3·4 — 출발 전에는 boarded→revert→boarded 를 반복해도 알림이 전혀 나가지
+     * docs/archive/rounds/be-rounds-r15-r21.md §8.23 T3 목표 1·3·4 — 출발 전에는 boarded→revert→boarded 를 반복해도 알림이 전혀 나가지
      * 않고(정정 알림도 없음, Ruling 219 대체), 출발 시점에야 <b>마지막 상태</b>로 학생당 1건만
      * 적재된다. Phase 9 원본 {@code 되돌리면_원본_알림은_그대로_두고_취소_알림이_새로_적재된다}를
      * Ruling 308 에 맞게 다시 썼다.

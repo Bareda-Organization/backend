@@ -105,7 +105,7 @@ class SchemaContractTest extends MigratedPostgresTestBase {
     /**
      * {@code ddl-auto: validate} 는 <b>엔티티가 요구하는 컬럼이 스키마에 없는</b> 방향만 본다 —
      * 반대로 스키마에만 남아 엔티티 어디에도 매핑되지 않은 컬럼(고아 컬럼)은 그 방향으로도,
-     * 테이블 집합만 보는 위 테스트로도 걸리지 않는다(R12 §8.15, R13-T2).
+     * 테이블 집합만 보는 위 테스트로도 걸리지 않는다(R12 docs/archive/rounds/be-rounds-r5-r14.md §8.15, R13-T2).
      *
      * <p>기대 컬럼 목록은 손으로 옮겨 적지 않고 Hibernate 부트 메타데이터({@link MetadataSources})를
      * 직접 빌드해서 얻는다 — {@code ddl-auto: validate} 가 내부에서 쓰는 것과 같은 모델이라, 엔티티가

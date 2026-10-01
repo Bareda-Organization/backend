@@ -198,7 +198,7 @@ class RunCompletionBoundaryTest {
     }
 
     /**
-     * §8.23 T3 목표 8(Ruling 312) — {@link RunArrivalCommandService} 의 즉시 종료 branch 뿐 아니라,
+     * docs/archive/rounds/be-rounds-r15-r21.md §8.23 T3 목표 8(Ruling 312) — {@link RunArrivalCommandService} 의 즉시 종료 branch 뿐 아니라,
      * 여기(보류됐던 종료가 나중에 완성되는 경로)에서도 도착·미출발 정차지가 강제로 출발 처리돼야
      * 한다. {@code notifyIfRunJustEnded} 가 이 강제 적용을 부르지 않으면 이 학생의 정차지는 영원히
      * {@code departed_at} 이 비고 확정 알림도 나가지 않는다.

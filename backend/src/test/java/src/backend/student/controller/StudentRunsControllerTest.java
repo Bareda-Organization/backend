@@ -33,7 +33,7 @@ import testsupport.clock.SeedDateClockConfig;
  * run1 과 같은 학원·버스·방향이라 같은 고정 노선(route id=1)에 걸려 {@code matchesFixedRoute} 가
  * student1 을 그대로 소속시킨다 — 시드에 노선이 그 하나뿐이라 우연이 아니라 필연이다. 그래서 이
  * 목록에도 네 번째 항목으로 나와야 정확하다(2026-09-12 실측 — run6 추가 후 3→4 로 개정). run8
- * (confirmed) 은 R14-T3 가 경유지 계약 검사 재료로 추가한 전용 회차(§8.19)인데, academy·bus·
+ * (confirmed) 은 R14-T3 가 경유지 계약 검사 재료로 추가한 전용 회차(docs/archive/rounds/be-rounds-r5-r14.md §8.19)인데, academy·bus·
  * direction 이 run1·run6 과 같아 같은 고정 노선에 걸리고 명단에도 student1 이 들어 있어 이 목록에
  * 다섯 번째로 실린다(2026-09-19 실측 — run8 추가 후 4→5 로 개정, R14-T3 후속).
  *

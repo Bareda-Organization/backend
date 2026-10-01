@@ -29,7 +29,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 문서의 `🔸` 는 구 기획에서 흡수해 **존치 미확정**인 항목이다 — 확정 사실로 취급하지 않는다. (근거 없는 신규 설계를 표시하던 `🆕` 는 2026-08-24 전건 승인되어 제거됐다.)
 - **설계 문서는 `docs/ARCHITECTURE.md`(모듈·인가·노선 파이프라인·시간 기반 배치)와 `docs/ERD.md`(테이블·제약·인덱스)** 다. 둘 다 사양 4종에서 유도한 **To-Be 설계**이며 현재 코드와 다르다 — 코드를 이 설계에 맞추는 것이 앞으로의 작업이고, 방향 전환 이전의 코드 실측본은 `git show HEAD:docs/ARCHITECTURE.md` 로 본다.
 - **이 서비스의 중심축은 시간이다** — 회차 `idle → confirmed` 전이는 사용자 조작이 아니라 **출발 30분 전 도래**가 일으킨다(`ARCHITECTURE §9`). 배치는 30초 폴링 + 조건부 UPDATE 멱등이고, "실행 시각"과 "판정 시각(출발−30분)" 두 시계를 절대 섞지 않는다.
-- **구현 계획·진행 추적은 [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) 단일 창구다.** 세션 재개 시 §8 진행 추적 표에서 현재 Phase 를 확인하고, 작업이 끝나면 그 표를 갱신한다. 횡단 규칙은 §7(**24개**).
+- **구현 계획·진행 추적은 [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) 단일 창구다.** 세션 재개 시 §8 진행 추적 표에서 현재 Phase 를 확인하고, 작업이 끝나면 그 표를 갱신한다. 횡단 규칙은 §7(**24개**). **2026-10-01 정리 — 본문은 규칙(§0~§7)·진행 추적 표(§8)·열린 항목(§9)·Ruling 색인(§11)과 최근 라운드 절(`R46-*`)만 두고, 끝난 Phase·라운드 기록은 원문 그대로 `docs/archive/rounds/` 로 옮겼다**(파일·절 번호 범위는 그 폴더의 `README.md` — 옛 절 번호(8.45 등)는 같은 번호 머리글로 찾는다). Ruling 번호는 §11 색인에서 기록 위치를 찾는다.
 - **작업의 최소 단위는 Phase 가 아니라 기능 ID 1개이고, 그 단위를 `IMPLEMENTATION_PLAN §4.6` 의 TDD 사이클로 처리한다** — 목표 → RED(실패를 눈으로 확인) → GREEN(최소 구현) → REFACTOR → 검증. **실패를 보지 않은 테스트는 산출물로 인정하지 않는다.** 이 시스템의 결함 4종(시각·동시성·인가·개인정보 노출)은 전부 "통과하는 빈 테스트"와 구분되지 않는 형태라 RED 확인이 유일한 판별 수단이다.
 - **코드 컨벤션은 `docs/backend/CODE_CONVENTIONS.md`** — 특히 §19(클래스·public 메서드·enum·이벤트·포트에 한 줄 설명 주석)와 §20(SRP·크기 기준·클린 코드)은 매 Phase 채점 대상이다.
 - 기획 원본은 `docs/source/학원 통학버스 통합관리 시스템.docx`(불변) 하나다. 루트 `projectInfo.md` 는 **2026-08-24 삭제** — 내용이 두 세대 낡아 오인용 위험이 컸다. 필요하면 `git show HEAD:projectInfo.md`.
@@ -42,7 +42,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   | `docs/backend/` | `CODE_CONVENTIONS.md`(옛 `reference.md`) · `LOAD_TESTING.md` · `plans/` |
   | `docs/frontend/` | `IMPLEMENTATION_PLAN.md` · `CONVENTIONS_REACT.md`(옛 `CONVENTIONS.md`) · `CONVENTIONS_FLUTTER.md` · `SETUP.md` |
   | `docs/infra/` | `DEPLOYMENT.md` · `OPERATIONS_PLAN.html` |
-  | `docs/archive/` | 끝난 기능별 계획·설계 (옛 `docs/superpowers/`) |
+  | `docs/archive/` | 끝난 기능별 계획·설계 (옛 `docs/superpowers/`) · `rounds/` = 끝난 계획서 라운드·Phase 기록(2026-10-01 이관) |
   | `docs/render/` · `docs/source/` | 사람용 렌더 · 기획 원본. ⚠ **추적 밖이라 워크트리에서 열리지 않는다** |
 
   - **주제 폴더는 한 모듈에만 해당하는 것만 받는다** — 백엔드도 프론트도 보는 사양·설계는 루트에 남는다

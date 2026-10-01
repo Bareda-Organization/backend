@@ -98,7 +98,7 @@ class NotificationEntitySchemaValidationTest extends MigratedPostgresTestBase {
         assertThat(found.getPushAttempts()).isZero();
     }
 
-    /** R13 — forOutbox 의 대상 자녀·호차 12-인자 과부하가 세 값 모두 왕복시키는지 확인한다(§8.16 목표 2). */
+    /** R13 — forOutbox 의 대상 자녀·호차 12-인자 과부하가 세 값 모두 왕복시키는지 확인한다(docs/archive/rounds/be-rounds-r5-r14.md §8.16 목표 2). */
     @Test
     void forOutbox_는_대상_자녀와_호차_스냅샷도_함께_왕복시킨다() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.of("+09:00"));
