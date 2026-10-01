@@ -240,4 +240,30 @@ public interface RunRepository extends JpaRepository<Run, Long> {
             + "AND r.serviceDate >= :today AND r.canceledAt IS NULL")
     long countOverdueUnconfirmed(@Param("status") RunStatus status, @Param("threshold") OffsetDateTime threshold,
             @Param("today") LocalDate today);
+
+    /**
+     * 학원별로 <b>오늘 확정에 실패 중인</b> 회차 수 — 임시 취소를 뺀 오늘 회차 중 아직 {@code idle} 이면서
+     * {@code consecutive_failures > 0} 인 것(§6.15, Ruling 543). 이미 확정된 회차의 옛 실패 횟수는 읽지 않는다.
+     */
+    @AcademyScopeExempt(reason = "메인 관리자 전체 관제(§6.15)가 전 학원을 학원별로 묶어 세는 조회라 좁힐 학원이 부재하다 — "
+            + "호출부는 @CanMonitorAll 로 보호되는 AdminRunAttentionQueryService 뿐이라는 전제 — 요청 경로에서 학원 권한으로 "
+            + "부르면 이 예외가 우회로가 된다(findDueForConfirmation 과 같은 근거)")
+    @Query("SELECT r.academyId AS academyId, COUNT(r) AS runCount FROM Run r "
+            + "WHERE r.serviceDate = :today AND r.canceledAt IS NULL AND r.status = :idleStatus "
+            + "AND r.consecutiveFailures > 0 GROUP BY r.academyId")
+    List<AcademyRunCount> countConfirmFailedByAcademy(@Param("today") LocalDate today,
+            @Param("idleStatus") RunStatus idleStatus);
+
+    /**
+     * 학원별로 <b>오늘 지연 알림이 나간 채 아직 끝나지 않은</b> 회차 수(§6.15, Ruling 543) — 임시 취소를 뺀 오늘
+     * 회차 중 {@code finished} 가 아니고 {@code delay_notice} 가 1건 이상인 것. 알림이 여러 건이어도 회차는 한 번만
+     * 센다({@code EXISTS}).
+     */
+    @AcademyScopeExempt(reason = "메인 관리자 전체 관제(§6.15)가 전 학원을 학원별로 묶어 세는 조회라 좁힐 학원이 부재하다 — "
+            + "countConfirmFailedByAcademy 와 같은 근거와 같은 호출부 전제")
+    @Query("SELECT r.academyId AS academyId, COUNT(r) AS runCount FROM Run r "
+            + "WHERE r.serviceDate = :today AND r.canceledAt IS NULL AND r.status <> :finishedStatus "
+            + "AND EXISTS (SELECT 1 FROM DelayNotice d WHERE d.runId = r.id) GROUP BY r.academyId")
+    List<AcademyRunCount> countDelayedByAcademy(@Param("today") LocalDate today,
+            @Param("finishedStatus") RunStatus finishedStatus);
 }
