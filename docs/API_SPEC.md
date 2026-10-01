@@ -1795,9 +1795,11 @@ STU-05) — 화면이 "이 자리에 이미 있다" 를 알려 관계자가 같�
 
 **미확정으로 남긴 것** — 최적화 **자동 트리거**와 **가중치 기준**. 가중치는 `PRD §7.1` 이 P2 후속(F-01)에 뒀고, 오픈 이슈 G 가 닫히기 전까지 트리거를 만들지 않는다.
 
-**에러** — `409 DUPLICATE_ROUTE`(같은 차량·요일·방향이 이미 편성됨) · `404 ROUTE_NOT_FOUND` · `404 BUS_NOT_FOUND` · `422 VALIDATION_FAILED`(`stop_ids` 중복·학원 밖) · `503 MAP_ROUTE_UNAVAILABLE`(외부 도로 경로 API 서킷 개방 — §8)
+**에러** — `409 DUPLICATE_ROUTE`(같은 차량·요일·방향이 이미 편성됨) · `404 ROUTE_NOT_FOUND` · `404 BUS_NOT_FOUND` · `422 VALIDATION_FAILED`(`stop_ids` 중복·학원 밖·**50개 초과**) · `503 MAP_ROUTE_UNAVAILABLE`(외부 도로 경로 API 서킷 개방 — §8)
 
-⚠ **`stop_ids` 의 두 거부 사유는 코드가 같다** — 중복이든 학원 밖이든 `422 VALIDATION_FAILED` 이고, 사유는 `error.message` 문구로만 갈린다("같은 승하차지를 두 번 담을 수 없습니다" · "편성할 수 없는 승하차지가 있습니다"). 2026-09-25 전에는 `GlobalExceptionHandler` 가 `ErrorCode` 의 고정 문구만 실어 그 문구도 도달하지 않았다(BR-135 로 해소). 화면이 사유를 **코드로** 갈라 분기해야 하면 `ErrorCode` 를 나누는 것이 유일한 수단이다.
+⚠ **`stop_ids` 의 세 거부 사유는 코드가 같다** — 중복이든 학원 밖이든 50개 초과든 `422 VALIDATION_FAILED` 이고, 사유는 `error.message` 문구로만 갈린다("같은 승하차지를 두 번 담을 수 없습니다" · "편성할 수 없는 승하차지가 있습니다" · "정차지는 한 노선에 최대 50개까지 담을 수 있습니다").
+
+**노선 하나의 정차지는 최대 50개다**(2026-10-01 `Ruling 613`) — 적용 대상은 `POST /staff/routes`·`PATCH /staff/routes/{id}` 의 `stop_ids`, `PUT /staff/routes/{id}/stops` 의 `stops[]`, `POST /staff/routes/{id}/optimize` 의 `fixed_stop_ids` 4곳이고 넘으면 `422 VALIDATION_FAILED` 다. 상한이 없으면 정차지 500개짜리 노선 하나를 열 때마다 외부 경로 호출이 구간 수(17지점당 1회)만큼 나가 일일 한도를 갉아먹고 요청 스레드를 수 분 묶는다. 정상 노선은 30개 안쪽이다. 관계자 웹 폼의 사전 안내는 이 판정의 범위 밖이다(서버 거절 문구가 그대로 보인다). 2026-09-25 전에는 `GlobalExceptionHandler` 가 `ErrorCode` 의 고정 문구만 실어 그 문구도 도달하지 않았다(BR-135 로 해소). 화면이 사유를 **코드로** 갈라 분기해야 하면 `ErrorCode` 를 나누는 것이 유일한 수단이다.
 
 **`GET /staff/routes/{id}/path` 응답**(R27-B 신설) — `road_path`(`{lat,lng}[]`, 순서 있음) · `fallback_used`(`true` 면 직선거리 근사) · `stops[]`(`stop_id` · `seq` · `name` · `lat` · `lng`, 상세 응답과 같은 모양)
 
