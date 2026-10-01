@@ -128,9 +128,11 @@ public class AuditLog {
     /**
      * 관계자가 학원 사용자의 비밀번호를 초기화한 사실(API_SPEC §5.22 · Ruling 329) — {@code action=update}.
      * 강제 확정({@link #forRunForceConfirm})처럼 구별 문자열은 {@code detail.action} 에 둔다(Ruling 260).
+     *
+     * @param ip 요청 발신 IP(R46-LAST Ruling 580) — 요청 밖에서 불렀거나 IP 표기가 아니면 {@code null}
      */
     public static AuditLog forAccountPasswordReset(Long academyId, Long actorAccountId, String actorLoginId,
-            Long targetAccountId, OffsetDateTime occurredAt) {
+            Long targetAccountId, String ip, OffsetDateTime occurredAt) {
         AuditLog log = new AuditLog(AuditCategory.DATA_ACCESS, AuditAction.UPDATE, occurredAt);
         log.academyId = academyId;
         log.actorAccountId = actorAccountId;
@@ -138,6 +140,7 @@ public class AuditLog {
         log.targetType = TARGET_TYPE_ACCOUNT;
         log.targetId = targetAccountId;
         log.detail = Map.of("action", "account.password_reset");
+        log.ip = ip;
         return log;
     }
 

@@ -55,7 +55,7 @@ class StaffAccountPasswordResetControllerTest {
                 """, parentId);
 
         String body = mockMvc.perform(post("/api/v1/staff/accounts/" + parentId + "/password-reset")
-                        .header("Authorization", 관계자_A_토큰()))
+                        .header("Authorization", 관계자_A_토큰()).header("X-Real-IP", "203.0.113.31"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.account_id").value(String.valueOf(parentId)))
                 .andExpect(jsonPath("$.data.login_id").value(SeedFixtures.PARENT_A1_LOGIN_ID))
@@ -75,6 +75,11 @@ class StaffAccountPasswordResetControllerTest {
                 WHERE action = 'update' AND target_type = 'account' AND target_id = ? AND actor_account_id = ?
                 """, Integer.class, parentId, STAFF_A_ACCOUNT_ID))
                 .as("초기화는 감사 기록 1행(action=update)").isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT host(ip) FROM audit_log
+                WHERE action = 'update' AND target_type = 'account' AND target_id = ? AND actor_account_id = ?
+                """, String.class, parentId, STAFF_A_ACCOUNT_ID))
+                .as("초기화 감사 행에도 프록시가 덮어쓴 접속 IP 가 남는다(Ruling 580)").isEqualTo("203.0.113.31");
     }
 
     @Test

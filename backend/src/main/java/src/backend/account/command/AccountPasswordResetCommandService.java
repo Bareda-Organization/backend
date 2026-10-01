@@ -20,6 +20,7 @@ import src.backend.audit.repository.AuditLogRepository;
 import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.request.ClientIp;
 import src.backend.global.security.AuthUser;
 
 /**
@@ -68,7 +69,7 @@ public class AccountPasswordResetCommandService {
         String temporaryPassword = temporaryPasswordGenerator.generate();
         target.issueTemporaryPassword(passwordEncoder.encode(temporaryPassword));
         auditLogRepository.save(AuditLog.forAccountPasswordReset(target.getAcademyId(), actor.getId(),
-                actor.getLoginId(), target.getId(), now));
+                actor.getLoginId(), target.getId(), ClientIp.ofCurrentRequest(), now));
         AccountPasswordResetResponse response =
                 new AccountPasswordResetResponse(String.valueOf(target.getId()), target.getLoginId(), temporaryPassword);
         refreshTokenRepository.revokeAllValidByAccountId(target.getId(), now);
