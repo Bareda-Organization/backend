@@ -118,9 +118,21 @@ class DeploymentConfigGuardTest {
         while (proxyPass.find()) {
             assertThat(proxyPass.group(1)).as("프록시 대상은 백엔드뿐이다").startsWith("http://backend_pool");
         }
-        int root = directives.indexOf("location / {");
+        // 80 번 서버 블록에도 `location / {`(HTTPS 리다이렉트)가 있다 — 443 서버의 나머지 경로는 파일의 마지막 것이다.
+        int root = directives.lastIndexOf("location / {");
         assertThat(root).as("나머지 경로 location").isNotNegative();
         assertThat(directives.substring(root, directives.indexOf('}', root))).contains("return 404");
+    }
+
+    @Test
+    @DisplayName("R46 ops2 Ruling 500 — 백업 성공 시각 지표 폴더가 스크립트·부트스트랩·컴포즈 마운트·node-exporter 옵션에서 같다")
+    void backupMetricFolderIsTheSameEverywhere() throws IOException {
+        // 어긋나면 백업은 멀쩡한데 경보가 상시 울리거나(지표 부재), 백업이 멈춰도 못 보는 쪽으로 틀어진다.
+        String folder = "/var/lib/node_exporter/textfile";
+        String nodeExporter = composeServiceBlock("node-exporter");
+        assertThat(nodeExporter).contains("--collector.textfile.directory=/textfile").contains("- " + folder + ":/textfile:ro");
+        assertThat(Files.readString(Path.of("../infra/scripts/backup-db.sh"))).contains("TEXTFILE_DIR=\"${TEXTFILE_DIR:-" + folder + "}\"");
+        assertThat(Files.readString(Path.of("../infra/scripts/bootstrap-ec2.sh"))).contains("TEXTFILE_DIR=" + folder);
     }
 
     @Test
