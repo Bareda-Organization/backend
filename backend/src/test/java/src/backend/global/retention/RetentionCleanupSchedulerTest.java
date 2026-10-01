@@ -22,7 +22,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import src.backend.account.repository.RefreshTokenRepository;
-import src.backend.location.repository.RunPositionRepository;
 import src.backend.notification.repository.NotificationLogRepository;
 import src.backend.student.repository.LinkCodeRepository;
 
@@ -59,9 +58,6 @@ class RetentionCleanupSchedulerTest {
 
     @MockitoSpyBean
     private NotificationLogRepository notificationLogRepository;
-
-    @Autowired
-    private RunPositionRepository runPositionRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -110,7 +106,7 @@ class RetentionCleanupSchedulerTest {
     }
 
     @Test
-    @DisplayName("목표6 — run_position 은 90일 초과 행만 지워지고 기한 안 행은 남는다")
+    @DisplayName("목표6 — 파티션이 없는 기간의 run_position(기본 파티션 행)은 90일 초과 행만 지워지고 기한 안 행은 남는다")
     void 위치_이력은_90일_초과_행만_지워진다() {
         long inWindow = insertRunPosition(now.minusDays(89));
         long outOfWindow = insertRunPosition(now.minusDays(91));

@@ -184,6 +184,11 @@ tasks.withType(Test).configureEach {
     // "지운 건수 · 기한 안 행 생존" 단언이 실행 시각에 따라 갈린다.
     systemProperty 'app.retention.cleanup.cron', '-'
 
+    // 위치 이력 파티션 미리 만들기(RunPositionPartitionScheduler)도 같은 이유로 끈다 — 컨텍스트마다 오늘 이후 파티션이
+    // 생기면 시험이 심은 위치 행이 어느 파티션에 들어가는지가 실행 순서에 따라 갈린다. 파티션 시험은 관리자를 직접 부른다.
+    systemProperty 'app.location.partition.cron', '-'
+    systemProperty 'app.location.partition.on-startup', 'false'
+
     // 확정 배치(RunConfirmationScheduler)의 자동 폴링을 테스트 실행 동안 미룬다(하루) — 위 아웃박스
     // 워커와 같은 이유다. 배경에서 돌면 테스트가 만든 회차를 먼저 집어 확정 건수·멱등성 단언이 실행
     // 순서에 따라 갈린다. cron 이 아니라 fixedDelay 라 '-'(비활성 표현식)를 쓸 수 없어, 대신

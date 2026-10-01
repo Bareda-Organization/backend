@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -11,6 +12,8 @@ import static org.mockito.Mockito.when;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.function.BiConsumer;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +30,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 
 import src.backend.location.command.RunPositionRedisListener;
+import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.location.event.RunPositionReceivedEvent;
 import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.location.proximity.ProximityNotificationService;
@@ -111,9 +115,17 @@ class RedisFailureLogFloodTest {
         when(runRepository.findByStatusAndCanceledAtIsNullAndIdGreaterThanOrderByIdAsc(any(), any(Long.class),
                 any(PageRequest.class))).thenReturn(List.of(run));
         ProximityNotificationService service = mock(ProximityNotificationService.class);
-        doThrow(new RedisConnectionFailureException("redis down")).when(service).judgeOne(any(), any());
-        doThrow(new RedisConnectionFailureException("redis down")).when(service).judgeDeparture(any(), any());
-        ProximityNotificationScheduler scheduler = new ProximityNotificationScheduler(runRepository, service,
+        RunPositionStore store = mock(RunPositionStore.class);
+        when(store.findAll(any())).thenReturn(Map.of(1L, new RunPositionRedisValue(new BigDecimal("37.5"),
+                new BigDecimal("127.0"), OffsetDateTime.now(), OffsetDateTime.now(), null)));
+        // 서비스가 판정 둘의 실패를 각각 알려 온다 — 근접·출발이 따로 센다
+        doAnswer(invocation -> {
+            BiConsumer<ProximityNotificationService.Judgment, Exception> onFailure = invocation.getArgument(3);
+            onFailure.accept(ProximityNotificationService.Judgment.APPROACH, new IllegalStateException("판정 실패"));
+            onFailure.accept(ProximityNotificationService.Judgment.DEPARTURE, new IllegalStateException("판정 실패"));
+            return null;
+        }).when(service).judgeRun(any(), any(), any(), any());
+        ProximityNotificationScheduler scheduler = new ProximityNotificationScheduler(runRepository, service, store,
                 mock(SchedulerHealthMetrics.class));
         collect(ProximityNotificationScheduler.class);
 

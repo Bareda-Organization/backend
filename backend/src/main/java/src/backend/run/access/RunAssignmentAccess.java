@@ -53,6 +53,21 @@ public class RunAssignmentAccess {
     }
 
     /**
+     * {@link #assertAssignedDriver} 와 같은 판정(역할 → {@code DRIVER_ONLY} · 미배치 → {@code FORBIDDEN})을 <b>배치 행을 꺼내지 않고
+     * 존재 확인 한 문장</b>으로 한다 — 행이 필요 없는 위치 수신(2초마다)용이다(R46-LATERBE L2). 미배치의 세 사유(매니저 없음 · 그 회차
+     * 배치 없음 · 다른 매니저 배치)가 전부 같은 {@code FORBIDDEN} 이라 한 문장으로 합쳐도 응답 의미가 같다.
+     */
+    public void assertAssignedDriverExists(AuthUser requester, Long runId) {
+        if (requester.role() != Role.DRIVER) {
+            throw new BusinessException(ErrorCode.DRIVER_ONLY);
+        }
+        if (!assignmentRepository.existsByRunIdAndRoleAndManagerAccountId(runId, ManagerRole.DRIVER,
+                requester.accountId())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+    }
+
+    /**
      * 그 회차에 배치된 기사 또는 동승자인지(§4.11 변경 확인 — 둘 다 응답할 수 있다).
      *
      * @return 그 배치 행 — 변경 확인 처리(§4.11)가 이 행에 그대로 {@code ack} 를 남긴다. 재조회로

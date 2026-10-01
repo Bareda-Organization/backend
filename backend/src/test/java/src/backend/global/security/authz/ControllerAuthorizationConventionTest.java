@@ -59,7 +59,8 @@ class ControllerAuthorizationConventionTest {
      *
      * <p><b>Phase 10 T1 — {@code DriverPositionController} 의 {@code receive} 1개.</b> 근거:
      * {@code RunPositionCommandService#receive} 의 <b>첫 줄</b>이
-     * {@code runAssignmentAccess.assertAssignedDriver(requester, runId)} 를 호출한다 — 위
+     * {@code runAssignmentAccess.assertAssignedDriverExists(requester, runId)}(R46-LATERBE L2 — 행을 꺼내지 않는
+     * {@code assertAssignedDriver} 의 존재 확인형)를 호출한다 — 위
      * {@code DriverRunController} 3개와 <b>완전히 같은 인가 규칙</b>(그 회차에 배치된 기사만)이라
      * 같은 자리에 모은다. 컨트롤러 애너테이션으로 중복 표현하면 두 벌이 되어 한쪽만 고쳐지는 사고가
      * 난다. ⚠ 이 항목은 병합 후 전체 실행에서야 드러났다 — 좌석 단독 실행에서는 이 규약 시험이

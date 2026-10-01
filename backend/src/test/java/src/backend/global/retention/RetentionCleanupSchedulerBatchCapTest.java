@@ -19,7 +19,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.Limit;
 
 import src.backend.account.repository.RefreshTokenRepository;
-import src.backend.location.repository.RunPositionRepository;
+import src.backend.location.infrastructure.RunPositionPartitionManager;
 import src.backend.audit.repository.AuditLogRepository;
 import src.backend.notification.repository.NotificationLogRepository;
 import src.backend.observability.metrics.SchedulerHealthMetrics;
@@ -48,7 +48,7 @@ class RetentionCleanupSchedulerBatchCapTest {
     private final RetentionPolicy retentionPolicy = new RetentionPolicy();
 
     private final NotificationLogRepository notificationLogRepository = mock(NotificationLogRepository.class);
-    private final RunPositionRepository runPositionRepository = mock(RunPositionRepository.class);
+    private final RunPositionPartitionManager runPositionPartitionManager = mock(RunPositionPartitionManager.class);
     private final RefreshTokenRepository refreshTokenRepository = mock(RefreshTokenRepository.class);
     private final LinkCodeRepository linkCodeRepository = mock(LinkCodeRepository.class);
     private final AuditLogRepository auditLogRepository = mock(AuditLogRepository.class);
@@ -58,7 +58,6 @@ class RetentionCleanupSchedulerBatchCapTest {
     @Test
     void 매_조회_호출마다_배치_상한을_그대로_넘긴다() {
         // 다른 4개 테이블은 빈 목록만 반환해 이 시험이 notification_log 호출에만 집중하게 한다.
-        given(runPositionRepository.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
         given(refreshTokenRepository.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
         given(linkCodeRepository.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
         given(auditLogRepository.findIdsForRetentionCleanup(any(), any(), any())).willReturn(List.of());
@@ -72,7 +71,7 @@ class RetentionCleanupSchedulerBatchCapTest {
                 .willReturn(secondRound);
 
         RetentionCleanupScheduler scheduler = new RetentionCleanupScheduler(
-                notificationLogRepository, runPositionRepository, refreshTokenRepository,
+                notificationLogRepository, runPositionPartitionManager, refreshTokenRepository,
                 linkCodeRepository, auditLogRepository, studentRepository, studentAnonymizationService,
                 retentionPolicy, clock,
                 new SchedulerHealthMetrics(
@@ -97,7 +96,6 @@ class RetentionCleanupSchedulerBatchCapTest {
     @Test
     void 학생_파기는_200명씩_끊어_처리한다() {
         given(notificationLogRepository.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
-        given(runPositionRepository.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
         given(refreshTokenRepository.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
         given(linkCodeRepository.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
         given(auditLogRepository.findIdsForRetentionCleanup(any(), any(), any())).willReturn(List.of());
@@ -105,7 +103,7 @@ class RetentionCleanupSchedulerBatchCapTest {
                 .willReturn(fakeIds(200))
                 .willReturn(fakeIds(50));
         RetentionCleanupScheduler scheduler = new RetentionCleanupScheduler(
-                notificationLogRepository, runPositionRepository, refreshTokenRepository,
+                notificationLogRepository, runPositionPartitionManager, refreshTokenRepository,
                 linkCodeRepository, auditLogRepository, studentRepository, studentAnonymizationService,
                 retentionPolicy, clock, new SchedulerHealthMetrics(new SimpleMeterRegistry()));
 
@@ -117,6 +115,30 @@ class RetentionCleanupSchedulerBatchCapTest {
         assertThat(limitCaptor.getAllValues()).as("조회 2회 전부 파기 묶음 200").allSatisfy(
                 limit -> assertThat(limit).isEqualTo(Limit.of(200)));
         org.mockito.Mockito.verify(studentAnonymizationService, org.mockito.Mockito.times(2)).anonymize(any());
+    }
+
+    /**
+     * R46-LATERBE B-1 — 위치 이력은 행이 아니라 파티션 단위로 지운다. 컷오프는 90일 전이고, 파티션 DROP 이 예외를 던져도 다른
+     * 테이블 정리는 이어진다(알림 로그 정리 호출이 실제로 일어난다).
+     */
+    @Test
+    void 위치_이력은_90일_전_컷오프로_파티션_DROP_을_부르고_실패해도_다른_정리는_이어진다() {
+        given(notificationLogRepository.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
+        given(refreshTokenRepository.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
+        given(linkCodeRepository.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
+        given(auditLogRepository.findIdsForRetentionCleanup(any(), any(), any())).willReturn(List.of());
+        given(studentRepository.findIdsForAnonymization(any(), any())).willReturn(List.of());
+        given(runPositionPartitionManager.dropExpired(any())).willThrow(new IllegalStateException("lock timeout"));
+        RetentionCleanupScheduler scheduler = new RetentionCleanupScheduler(
+                notificationLogRepository, runPositionPartitionManager, refreshTokenRepository,
+                linkCodeRepository, auditLogRepository, studentRepository, studentAnonymizationService,
+                retentionPolicy, clock, new SchedulerHealthMetrics(new SimpleMeterRegistry()));
+
+        scheduler.cleanUp();
+
+        org.mockito.Mockito.verify(runPositionPartitionManager)
+                .dropExpired(retentionPolicy.runPositionCutoff(OffsetDateTime.now(clock)));
+        org.mockito.Mockito.verify(refreshTokenRepository).findIdsForRetentionCleanup(any(), any());
     }
 
     private List<Long> fakeIds(int size) {

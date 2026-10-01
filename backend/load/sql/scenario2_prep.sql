@@ -21,7 +21,12 @@
     \quit
 \endif
 
-\set academy_id 1
+-- 위치용 회차를 심을 학원 — 기본 1. 명단(r46_link_position_riders.sql)은 같은 학원의 학생만 붙이므로, realistic 모드는 학생이 있는
+-- LOADCAP 학원마다 이 스크립트를 -v academy_id=<학원 id> 로 한 번씩 부른다(R46-LATERBE B-4). 그 학원에 승하차지가 하나 이상 있어야 한다.
+\if :{?academy_id}
+\else
+    \set academy_id 1
+\endif
 \set seed_password_hash '$2a$10$Noeszx0nzJUfNo4ubCD03eNfMVfMD9feMo04y/8DHiFLUBF.JZ/Fq'
 
 BEGIN;

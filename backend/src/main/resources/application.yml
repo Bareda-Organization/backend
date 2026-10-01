@@ -379,6 +379,15 @@ spring:
       port: ${REDIS_PORT:6379}
   flyway:
     clean-disabled: true   # 공통 섹션과 같은 값이나, 배포 설정은 상속보다 한눈에 보이는 편을 우선한다(demo 섹션과 동일 방침)
+server:
+  tomcat:
+    threads:
+      # 요청 스레드 = DB 연결 풀(20)의 5배(R46-LATERBE L11, Ruling 674) — 명시하지 않으면 기본 200 이라 풀이 마를 때 200개 스레드가 연결을
+      # 3초씩 기다리며 서 있다(부하 측정: 풀 10 에서 tomcatBusy 200 · hikariPend 116~194). 풀의 4~5배면 DB 를 안 쓰는 요청(Redis 읽기·헬스)이
+      # 연결 대기에 막히지 않을 여유가 남고, 대기 스레드는 80개로 한정된다. STOMP 수신·발신은 별도 실행기라 이 스레드를 쓰지 않는다.
+      max: 100
+    # 스레드가 다 찬 뒤 TCP 대기열 — 기본값(100)과 같다. 더 키우면 거절 대신 오래 기다리다 3초 뒤 5xx 가 되는 요청이 늘 뿐이다.
+    accept-count: 100
 
 # 운영은 localhost 개발 출처를 신뢰하면 안 되므로 기본값 없이 환경변수로만 명시 주입(미설정 시 빈 목록 = 전부 차단)
 app:
@@ -438,6 +447,12 @@ spring:
       #    공개 도메인에 PLATFORM_ADMIN 계정이 열린 채 배포된다. 미주입 시 기동 실패가 맞다.
       seedPasswordHash: ${SEED_PASSWORD_HASH}
 
+server:
+  tomcat:
+    threads:
+      max: 100   # prod 섹션과 같은 근거(풀 20 의 5배 — R46-LATERBE L11, Ruling 674)
+    accept-count: 100
+
 app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:}
@@ -466,6 +481,11 @@ spring:
     placeholders:
       # local 의 평문 "password" 해시는 공개 저장소에 있다 — 시드 계정 전부가 이 값으로 바뀐다.
       seedPasswordHash: ${SEED_PASSWORD_HASH}
+server:
+  tomcat:
+    threads:
+      max: 50   # 풀(기본 10)의 5배 — prod 섹션과 같은 근거(R46-LATERBE L11, Ruling 674). 팀원 체험 서버라 50 으로 충분하다
+    accept-count: 100
 jwt:
   # local 기본 키는 공개돼 있어 그대로 두면 아무 역할의 토큰이나 위조할 수 있다.
   secret: ${JWT_SECRET}

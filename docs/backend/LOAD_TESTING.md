@@ -202,7 +202,7 @@ R46 에서 서버·웹·앱이 바뀐 뒤(`IMPLEMENTATION_PLAN §8.84`) 09-09 �
 | `sql/r46_parent_seed.sql` | `r0_capacity_seed.sql` **뒤에** 한 번 더 실행. 학생마다 보호자 1명(학부모 계정 `loadcap-…-par` + `guardian` + `guardian_student`) 2,000. 다시 실행해도 겹치지 않는다 |
 | `r46_mint_tokens.py <출력.json> [학부모 수]` | 학부모 N명 · 관계자 11 · 메인 관리자의 접근 토큰을 **회차 직전에** 발급(유효 15분). k6 안에서 로그인하지 않는 이유 — 학부모 수백 명의 BCrypt 로그인 CPU 가 측정 구간(누적 CPU 차)에 섞인다 |
 | `k6/scenario5_polling.js` | 폴링 + 시청 세션. 환경변수로 갈래를 켜고 끈다(0 이면 끔) |
-| `sql/r46_link_position_riders.sql` | 위치용 회차(`LP-…`)에 명단 20명씩을 붙인다 — 없으면 학생 채널로 방송이 안 나가 시청 세션이 아무것도 못 받는다. `r3_mixed.sh` 의 `realistic` 모드가 회차마다 자동 실행 |
+| `sql/r46_link_position_riders.sql` | 위치용 회차(`LP-…`)에 **같은 학원의** 명단 20명씩을 붙인다 — 없으면 학생 채널로 방송이 안 나가 시청 세션이 아무것도 못 받는다. `r3_mixed.sh` 의 `realistic` 모드가 회차마다 자동 실행하고, 그 모드는 위치용 회차를 LOADCAP 학원마다 나눠 심는다(`scenario2_prep.sql -v academy_id=<학원 id>`). ⚠ 옛 판은 학원 1 의 위치용 회차에 다른 학원 학생을 붙여 `run_rider` 18,000건이 학원 경계를 넘었다 — 점검은 `sql/check_academy_boundary.sql`(전부 0 이어야 함 · `Ruling 675`·`676`), 이미 어긋난 행은 그 파일 머리의 `DELETE` 한 문장으로 지운다 |
 | `r46_judge.py <라벨>` | r3 회차를 사양 기준 5항(아래 6.5.4)으로 판정 |
 | `r46_summarize.py <묶음 출력> <접두사>` | 회차 출력을 표 한 줄로 모은다(호스트 간섭 평균 포함) |
 
@@ -274,7 +274,7 @@ ROUND_LABEL=r46_r3_G200_v570_a R3_ADMINS=200 R3_INTERVAL=2 ./r3_mixed.sh 570 1
 - **WS 봉투의 `run_id` 는 JSON 문자열이다**(`"192"` — Ruling 332). `scenario2_position.js` 가 숫자와 `===` 로 비교해 **echo 가 항상 0 으로 잡혔다**(`position_echo_received_total: count>0` 임계가 있어도 k6 종료 코드 99 로만 드러남 — 요청 실패 0 인데 99). `Number(body.run_id)` 로 고쳤다. 식별자 문자열화는 09-09 측정 뒤(2026-09-25)에 들어간 변경이라 09-09 수치는 영향이 없고, 이 시나리오를 09-25 이후 코드에서 처음 돌릴 때 걸리는 함정이다
 - **"응답 뒤 쉼" 모델은 송신 달성률을 인위적으로 낮춘다** — 응답이 평균 0.3초면 2초 주기가 2.3초가 되어 달성률 87% 가 나온다(관리자 300·400 회차에서 달성률 86~89% 인데 POST p95 는 1.4~1.7초로 2초 안이었다). 판정 회차는 `R3_FIXED_RATE=1` 로 앱과 같은 고정 주기로 돌린다. 관리자 50 4회차는 응답 20~35ms 라 두 모델의 차이가 1~2% 미만이어서 기본 모델로 쟀다
 - **회차마다 위치용 회차가 쌓인다** — 위 종료 처리가 없으면 같은 N 의 같은 시험이 회차를 거듭할수록 요청당 CPU 가 늘어난다
-- **측정 DB 가 회차를 거듭하며 오염된다** — `scenario2_prep.sql` 은 회차마다 위치용 회차(`LP-…`)를 학원 1 에 새로 심고 지우지 않는다(회차 시작 때 앞 회차를 `finished` 로만 돌림). 2026-10-01 한 번의 측정에서 학원 1 의 오늘 회차가 12,016건이 되어 학원 1 `GET /staff/dashboard` 응답이 **5.1MB · 0.69초**(정상 학원 7.7KB · 13ms)가 됐고, `r46_link_position_riders.sql` 이 붙인 `run_rider` 30,000건은 학원이 다른 학생·정차지를 가리킨다. **다음 측정 전에 비운다**:
+- **측정 DB 가 회차를 거듭하며 오염된다** — `scenario2_prep.sql` 은 회차마다 위치용 회차(`LP-…`)를 새로 심고(기본 학원 1 · `realistic` 모드는 LOADCAP 학원마다 — R46-LATERBE `Ruling 676`) 지우지 않는다(회차 시작 때 앞 회차를 `finished` 로만 돌림). 2026-10-01 한 번의 측정에서 학원 1 의 오늘 회차가 12,016건이 되어 학원 1 `GET /staff/dashboard` 응답이 **5.1MB · 0.69초**(정상 학원 7.7KB · 13ms)가 됐고, 옛 `r46_link_position_riders.sql` 이 붙인 `run_rider` 30,000건은 학원이 다른 학생·정차지를 가리킨다(`Ruling 676` 로 원인 수정 — 새 판은 같은 학원만 붙인다). **다음 측정 전에 비운다**:
   ```sql
   DELETE FROM run_rider WHERE run_id IN (SELECT r.id FROM run r JOIN bus b ON b.id = r.bus_id WHERE b.bus_no LIKE 'LP-%');
   DELETE FROM assignment WHERE run_id IN (SELECT r.id FROM run r JOIN bus b ON b.id = r.bus_id WHERE b.bus_no LIKE 'LP-%');

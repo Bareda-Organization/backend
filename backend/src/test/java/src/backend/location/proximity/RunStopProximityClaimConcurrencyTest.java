@@ -41,9 +41,9 @@ import src.backend.student.repository.StudentRepository;
  * 행 잠금에서 경합하므로, 첫 스레드가 커밋을 미루는 동안 Postgres 가 둘째 스레드를
  * {@code wait_event_type='Lock', wait_event='transactionid'} 로 재우는 것을 폴링으로 확인한다.
  *
- * <p>이 클래스는 {@link ProximityNotificationService#judgeOne} 전체가 아니라 저장소 메서드 하나만
+ * <p>이 클래스는 {@link ProximityNotificationService#judgeRun} 전체가 아니라 저장소 메서드 하나만
  * 겨눈다 — 목표 15가 요구하는 것은 그 조건부 UPDATE 의 동시성이지, 위치 읽기·거리 판정까지 포함한
- * 전체 흐름의 동시성이 아니다({@code judgeOne} 은 위치를 Redis 단건 읽기로 얻어 두 스레드가 같은
+ * 전체 흐름의 동시성이 아니다({@code judgeRun} 은 스케줄러가 읽어 넘긴 위치를 받아 두 스레드가 같은
  * 값을 읽는 경쟁이 새로 끼어들 뿐, 이 목표가 검증하려는 지점을 흐린다).
  */
 @SpringBootTest

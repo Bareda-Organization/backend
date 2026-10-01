@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.LockModeType;
 
 import src.backend.global.security.access.AcademyScopeExempt;
+import src.backend.routing.dto.PositionStopView;
 import src.backend.routing.entity.RunStop;
 import src.backend.run.entity.RunStatus;
 
@@ -46,6 +47,24 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
             """)
     List<RunStop> findAllByRouteVersionIdAndAcademyIdOrderBySeq(@Param("routeVersionId") Long routeVersionId,
             @Param("academyId") Long academyId);
+
+    /**
+     * 위치 수신(2초마다)용 — 그 회차의 <b>확정 노선 현재 판본</b> 정차 항목을 이름과 함께 한 문장으로 읽는다(R46-LATERBE L2). 확정 노선 ·
+     * 정차 목록 · 정차 이름 세 조회를 합친 것이다. 확정 노선이 없으면 빈 목록이다. 이름은 승하차지({@code stop.name}) 또는
+     * 경유지({@code waypoint.label}) — 학원 도착지 항목은 둘 다 없어 {@code null}. 학원 조건은 회차({@code Run}) 에 건다
+     * ({@link #findAllByRouteVersionIdAndAcademyIdOrderBySeq} 와 같은 부모 경유 근거).
+     */
+    @Query("""
+            SELECT new src.backend.routing.dto.PositionStopView(rs.seq, rs.arrivedAt, rs.eta, COALESCE(s.name, w.label))
+            FROM Run r
+            JOIN ConfirmedRoute cr ON cr.runId = r.id
+            JOIN RunStop rs ON rs.routeVersionId = cr.currentVersionId
+            LEFT JOIN Stop s ON s.id = rs.stopId
+            LEFT JOIN Waypoint w ON w.id = rs.waypointId
+            WHERE r.id = :runId AND r.academyId = :academyId
+            ORDER BY rs.seq ASC
+            """)
+    List<PositionStopView> findPositionStops(@Param("runId") Long runId, @Param("academyId") Long academyId);
 
     /**
      * 노선 판본 여러 개의 정차 항목을 한 번에(BR-247) — {@link #findAllByRouteVersionIdAndAcademyIdOrderBySeq} 를 회차마다

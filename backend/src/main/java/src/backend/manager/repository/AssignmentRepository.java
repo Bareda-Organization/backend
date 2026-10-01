@@ -56,6 +56,18 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
             @Param("finishedStatus") RunStatus finishedStatus, @Param("movingStatus") RunStatus movingStatus);
 
     /**
+     * 그 계정의 매니저가 그 회차의 그 자리에 배치돼 있는지 한 문장으로 확인한다 — 위치 수신(2초마다)이 매니저 조회 + 배치 조회 + 배치의
+     * 담당자 비교 두 번을 이 하나로 줄인다(R46-LATERBE L2). 행이 필요하면 {@link #findByRunIdAndRole} 를 쓴다.
+     */
+    @AcademyScopeExempt(reason = "findByRunIdAndRole 과 같은 근거 — 배치 생성 시점에 매니저와 회차의 학원이 일치하도록 강제돼 있어 "
+            + "(AssignmentCommandService#place 가 매니저를 학원으로 좁혀 조회) 여기서 찾은 배치는 항상 그 계정의 학원과 일치한다. "
+            + "계정은 토큰에서 얻은 값이고 runId 는 호출부가 인가 확인에 쓰는 값이다")
+    @Query("SELECT CASE WHEN COUNT(a) > 0 THEN TRUE ELSE FALSE END FROM Assignment a, Manager m "
+            + "WHERE m.id = a.managerId AND a.runId = :runId AND a.role = :role AND m.accountId = :accountId")
+    boolean existsByRunIdAndRoleAndManagerAccountId(@Param("runId") Long runId, @Param("role") ManagerRole role,
+            @Param("accountId") Long accountId);
+
+    /**
      * 그 회차의 그 자리에 이미 붙어 있는 배치(MGR-05, §5.14) — 있으면 <b>교체</b>이고 없으면 신규다.
      *
      * <p>이미 배치된 역할에 다른 매니저를 지정하는 것은 관리 화면의 정상 조작이라 거부하지 않는다.

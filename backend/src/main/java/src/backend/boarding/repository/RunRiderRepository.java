@@ -116,6 +116,16 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
     List<RunRider> findAllByRunId(Long runId);
 
     /**
+     * 위치 방송 수신자 — 그 회차 탑승자 중 {@code excludedStatus}(absent) 가 아닌 학생의 id 만(중복 없이). 엔티티 20여 개를 읽어 학생 id 만
+     * 쓰던 {@link #findAllByRunId} 를 투영으로 줄인 것이다(R46-LATERBE L2). 근거는 {@link #findAllByRunId} 와 같다.
+     */
+    @AcademyScopeExempt(reason = "runId 는 호출부가 RunRepository.findByIdAndAcademyId 로 이미 학원 범위에 좁혀 얻은 "
+            + "회차의 식별자라는 전제다(findAllByRunId 와 같은 근거)")
+    @Query("SELECT DISTINCT rr.studentId FROM RunRider rr WHERE rr.runId = :runId AND rr.status <> :excludedStatus")
+    List<Long> findStudentIdsByRunIdAndStatusNot(@Param("runId") Long runId,
+            @Param("excludedStatus") RiderStatus excludedStatus);
+
+    /**
      * 하원 최종 지점 도착 처리에서 종료가 보류될 때(Phase 9 goal 10) 기사 화면에 실을 미하차 잔류
      * 명단 — 이름·현재 승하차지를 이 조회에서 함께 채운다({@code RunArriveResponse.remaining[]}
      * 이 별도 조회 없이 바로 응답에 실릴 수 있게).

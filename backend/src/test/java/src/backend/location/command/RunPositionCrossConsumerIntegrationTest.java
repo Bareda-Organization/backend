@@ -32,6 +32,7 @@ import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
+import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.location.proximity.ProximityNotificationService;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
@@ -47,6 +48,8 @@ import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 import testsupport.clock.FixedClock20300401Config;
 import org.springframework.context.annotation.Import;
+
+import testsupport.location.ProximityJudging;
 
 /**
  * T1 실제 쓰기 → T3·T4 실제 읽기를 잇는 시험(Phase 10 게이트 리뷰 R1 Critical 정정) — {@code POST
@@ -88,6 +91,9 @@ class RunPositionCrossConsumerIntegrationTest {
 
     @Autowired
     private ProximityNotificationService proximityNotificationService;
+
+    @Autowired
+    private RunPositionStore runPositionStore;
 
     @Autowired
     private AcademyRepository academyRepository;
@@ -210,7 +216,7 @@ class RunPositionCrossConsumerIntegrationTest {
         // 2. T3 실제 읽기 — RunPositionStore 가 그 값을 성공적으로 파싱해야만 거리 판정까지 가서
         //    알림이 적재된다. 파싱이 실패하면(다형 태그 혼입 등) judgeOne 이 조용히 아무 것도 안 하고
         //    반환해 이 단언이 실패한다 — 그것이 이 시험이 검사하는 결함이다.
-        proximityNotificationService.judgeOne(runId, academyId);
+        ProximityJudging.judge(proximityNotificationService, runPositionStore, runId, academyId);
 
         // 학생 계정을 연결하지 않아 학부모 몫만 적재된다 — dedup_key 대상 자리는 목표 4 로 "parent"·
         // "student" 로 갈린다(R14).

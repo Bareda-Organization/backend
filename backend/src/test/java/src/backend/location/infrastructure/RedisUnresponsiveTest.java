@@ -32,7 +32,7 @@ import io.lettuce.core.ClientOptions;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.location.proximity.ProximityNotificationService;
+import src.backend.location.scheduler.ProximityNotificationScheduler;
 import testsupport.clock.SeedDateClockConfig;
 import testsupport.redis.RedisFreeze;
 
@@ -73,7 +73,7 @@ class RedisUnresponsiveTest {
     private DataSource dataSource;
 
     @Autowired
-    private ProximityNotificationService proximityNotificationService;
+    private ProximityNotificationScheduler proximityNotificationScheduler;
 
     @Autowired
     private RedisConnectionFactory redisConnectionFactory;
@@ -116,9 +116,11 @@ class RedisUnresponsiveTest {
         int samplesWhileWaiting = 0;
         CompletableFuture<Void> judging;
         try (RedisFreeze ignored = RedisFreeze.start()) {
-            judging = CompletableFuture.runAsync(() -> proximityNotificationService.judgeOne(RUN_MOVING_ID, ACADEMY_A));
-            // 판정이 아직 Redis 를 기다리는 동안(끝나지 않은 동안)에만 표본을 센다 — 명령 상한(1초) 안에서 여러 번 잰다.
-            for (int i = 0; i < 5; i++) {
+            judging = CompletableFuture.runAsync(() -> proximityNotificationScheduler.judgeMovingRuns());
+            // 판정이 아직 Redis 를 기다리는 동안(끝나지 않은 동안)에만 표본을 센다. 표본은 명령 시간 상한(500ms)보다 한참 앞인 300ms 까지만
+            // 잰다 — 상한이 차면 Redis 읽기가 실패해 최신 행 대체 조회(Ruling 624)가 DB 연결을 쓰므로, 그 순간까지 재면 "대기 중 연결을
+            // 쥐었다" 로 잘못 읽는다(전체 시험에서 간헐 실패했다).
+            for (int i = 0; i < 3; i++) {
                 Thread.sleep(100);
                 if (judging.isDone()) {
                     break;

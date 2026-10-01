@@ -16,7 +16,7 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import src.backend.boarding.entity.RunRider;
+import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.global.websocket.WebSocketBroadcastGateway;
 import src.backend.global.websocket.WebSocketDestinations;
@@ -52,11 +52,10 @@ class PositionBroadcastListenerTest {
         RunPositionReceivedEvent event = new RunPositionReceivedEvent(runId, lat, lng, recordedAt, receivedAt,
                 academyId, "정문 앞", nextEta);
 
-        RunRider rider = RunRider.uponConfirmation(runId, studentId, 7L);
-        // 다른 버스로 옮긴 학생(removed) — 학생 채널이 학생 단위라 여기 보내면 학부모 지도에 버스 두 대가 번갈아 뜬다
-        RunRider moved = RunRider.uponConfirmation(runId, 200L, 7L);
-        moved.markRemoved(recordedAt);
-        given(runRiderRepository.findAllByRunId(runId)).willReturn(List.of(rider, moved));
+        // 수신자는 absent(다른 버스로 옮긴 removed 포함)를 뺀 학생 id 만 — 학생 채널이 학생 단위라 여기 보내면 학부모 지도에 버스 두 대가
+        // 번갈아 뜬다. 그 거름은 조회에 absent 제외를 넘기는 것으로 하므로, 그 인자로 부른 경우에만 학생 id 를 돌려준다.
+        given(runRiderRepository.findStudentIdsByRunIdAndStatusNot(runId, RiderStatus.ABSENT))
+                .willReturn(List.of(studentId));
 
         listener.broadcast(event);
 

@@ -44,8 +44,21 @@ echo "== R3 세션=${SESSIONS}(${MODE}) · 위치 VU=${POS_VUS}(${INTERVAL}초 �
 # ① 위치용 회차를 심는다(moving 상태, 기사 계정 포함). 앞 회차가 심은 위치용 회차는 먼저 종료한다 — 근접 판정 스케줄러가
 #    움직이는 회차 수에 비례해 일하므로, 안 끝내면 회차를 거듭할수록 배경 부하가 늘어 회차끼리 비교가 안 된다.
 $PG -c "UPDATE run SET status = 'finished', finished_at = now() WHERE status = 'moving' AND bus_id IN (SELECT id FROM bus WHERE bus_no LIKE 'LP-%')" > /dev/null
-$PG -v n="$POS_VUS" -t -A -F',' < "$DIR/sql/scenario2_prep.sql" | grep -v '^$' > "$DIR/results/${TAG}_runs.csv"
-echo "위치용 회차 $(wc -l < "$DIR/results/${TAG}_runs.csv")건"
+RUNS_CSV="$DIR/results/${TAG}_runs.csv"
+if [ "$MODE" = "realistic" ]; then
+    # 위치용 회차는 명단의 학생이 속한 학원에 심는다 — 학원 1 에 심고 다른 학원(LOADCAP-…) 학생을 붙이면 run_rider 가 학원 경계를 넘는다
+    # (R46-LATERBE B-4). LOADCAP 학원마다 같은 수씩 나눠 심는다(학원 10곳이면 100회차 = 학원당 10).
+    read -r -a CAP_ACADEMIES <<< "$($PGQ "SELECT string_agg(id::text, ' ' ORDER BY id) FROM academy WHERE code LIKE 'LOADCAP-%'")"
+    [ "${#CAP_ACADEMIES[@]}" -gt 0 ] || { echo "LOADCAP 학원이 없다 — r0_capacity_seed.sql 을 먼저 적재한다" >&2; exit 1; }
+    PER_ACADEMY=$(( (POS_VUS + ${#CAP_ACADEMIES[@]} - 1) / ${#CAP_ACADEMIES[@]} ))
+    : > "$RUNS_CSV"
+    for academy in "${CAP_ACADEMIES[@]}"; do
+        $PG -v n="$PER_ACADEMY" -v academy_id="$academy" -t -A -F',' < "$DIR/sql/scenario2_prep.sql" | grep -v '^$' >> "$RUNS_CSV"
+    done
+else
+    $PG -v n="$POS_VUS" -t -A -F',' < "$DIR/sql/scenario2_prep.sql" | grep -v '^$' > "$RUNS_CSV"
+fi
+echo "위치용 회차 $(wc -l < "$RUNS_CSV")건"
 # realistic 모드는 위치용 회차에 명단을 붙인다 — 없으면 학부모의 학생 채널로 방송이 나가지 않아 시청 세션이 아무것도 안 받는다.
 if [ "$MODE" = "realistic" ]; then
     echo "명단 연결: $($PG -t -A -F' 회차 ' < "$DIR/sql/r46_link_position_riders.sql" | tail -1) 건"

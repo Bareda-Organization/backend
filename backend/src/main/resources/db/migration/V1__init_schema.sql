@@ -74,6 +74,8 @@ CREATE TABLE account (
     last_login_at   timestamptz,
     created_at      timestamptz  NOT NULL DEFAULT now(),
     updated_at      timestamptz  NOT NULL DEFAULT now(),
+    -- 복합 FK(학원 경계)의 대상 — 자식이 (id, academy_id) 쌍으로 이 행을 가리킨다(R46-LATERBE B-4, Ruling 675)
+    CONSTRAINT uk_account_id_academy UNIQUE (id, academy_id),
     CONSTRAINT uk_account_login_id UNIQUE (login_id),
     CONSTRAINT fk_account_academy FOREIGN KEY (academy_id) REFERENCES academy (id) ON DELETE RESTRICT,
     CONSTRAINT ck_account_role CHECK (role IN ('parent', 'student', 'driver', 'escort', 'staff', 'system_admin')),
@@ -117,7 +119,7 @@ CREATE TABLE academy_staff (
     -- uk_academy_staff_academy_active 인덱스가 담당한다(Ruling 139).
     CONSTRAINT uk_academy_staff_account UNIQUE (account_id),
     CONSTRAINT fk_academy_staff_academy FOREIGN KEY (academy_id) REFERENCES academy (id) ON DELETE RESTRICT,
-    CONSTRAINT fk_academy_staff_account FOREIGN KEY (account_id) REFERENCES account (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_academy_staff_account FOREIGN KEY (account_id, academy_id) REFERENCES account (id, academy_id) ON DELETE RESTRICT,
     CONSTRAINT ck_academy_staff_status CHECK (status IN ('active', 'inactive'))
 );
 
@@ -153,6 +155,8 @@ CREATE TABLE stop (
     lng        numeric(9,6) NOT NULL,
     created_at timestamptz  NOT NULL DEFAULT now(),
     updated_at timestamptz  NOT NULL DEFAULT now(),
+    -- 복합 FK(학원 경계)의 대상 — 자식이 (id, academy_id) 쌍으로 이 행을 가리킨다(R46-LATERBE B-4, Ruling 675)
+    CONSTRAINT uk_stop_id_academy UNIQUE (id, academy_id),
     CONSTRAINT fk_stop_academy FOREIGN KEY (academy_id) REFERENCES academy (id) ON DELETE RESTRICT,
     CONSTRAINT ck_stop_lat CHECK (lat BETWEEN -90 AND 90),
     CONSTRAINT ck_stop_lng CHECK (lng BETWEEN -180 AND 180)
@@ -180,8 +184,10 @@ CREATE TABLE student (
     deleted_at    timestamptz,
     created_at    timestamptz  NOT NULL DEFAULT now(),
     updated_at    timestamptz  NOT NULL DEFAULT now(),
+    -- 복합 FK(학원 경계)의 대상 — 자식이 (id, academy_id) 쌍으로 이 행을 가리킨다(R46-LATERBE B-4, Ruling 675)
+    CONSTRAINT uk_student_id_academy UNIQUE (id, academy_id),
     CONSTRAINT fk_student_academy FOREIGN KEY (academy_id) REFERENCES academy (id) ON DELETE RESTRICT,
-    CONSTRAINT fk_student_account FOREIGN KEY (account_id) REFERENCES account (id) ON DELETE SET NULL,
+    CONSTRAINT fk_student_account FOREIGN KEY (account_id, academy_id) REFERENCES account (id, academy_id) ON DELETE SET NULL (account_id),
     CONSTRAINT ck_student_gender CHECK (gender IN ('male', 'female'))
 );
 
@@ -199,7 +205,7 @@ CREATE TABLE guardian (
     updated_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT fk_guardian_academy FOREIGN KEY (academy_id) REFERENCES academy (id) ON DELETE RESTRICT,
     -- account_id 가 NN 이라 SET NULL 을 걸면 계정 삭제 시 NOT NULL 위반으로 실패한다 (ERD §4.1 정정, 2026-08-25).
-    CONSTRAINT fk_guardian_account FOREIGN KEY (account_id) REFERENCES account (id) ON DELETE RESTRICT
+    CONSTRAINT fk_guardian_account FOREIGN KEY (account_id, academy_id) REFERENCES account (id, academy_id) ON DELETE RESTRICT
 );
 
 -- 보호자 ↔ 학생 연결. 다자녀를 재가입 없이 연결 추가로 처리하는 유일 경로.
@@ -277,6 +283,8 @@ CREATE TABLE bus (
     operable         boolean     NOT NULL DEFAULT true,
     created_at       timestamptz NOT NULL DEFAULT now(),
     updated_at       timestamptz NOT NULL DEFAULT now(),
+    -- 복합 FK(학원 경계)의 대상 — 자식이 (id, academy_id) 쌍으로 이 행을 가리킨다(R46-LATERBE B-4, Ruling 675)
+    CONSTRAINT uk_bus_id_academy UNIQUE (id, academy_id),
     CONSTRAINT uk_bus_academy_bus_no UNIQUE (academy_id, bus_no),
     CONSTRAINT fk_bus_academy FOREIGN KEY (academy_id) REFERENCES academy (id) ON DELETE RESTRICT,
     CONSTRAINT ck_bus_student_capacity CHECK (student_capacity = capacity - driver_count - escort_count),
@@ -296,7 +304,7 @@ CREATE TABLE manager (
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT fk_manager_academy FOREIGN KEY (academy_id) REFERENCES academy (id) ON DELETE RESTRICT,
-    CONSTRAINT fk_manager_account FOREIGN KEY (account_id) REFERENCES account (id) ON DELETE SET NULL,
+    CONSTRAINT fk_manager_account FOREIGN KEY (account_id, academy_id) REFERENCES account (id, academy_id) ON DELETE SET NULL (account_id),
     CONSTRAINT ck_manager_role CHECK (role IN ('driver', 'escort'))
 );
 
@@ -314,9 +322,11 @@ CREATE TABLE schedule (
     active           boolean      NOT NULL DEFAULT true,
     created_at       timestamptz  NOT NULL DEFAULT now(),
     updated_at       timestamptz  NOT NULL DEFAULT now(),
+    -- 복합 FK(학원 경계)의 대상 — 자식이 (id, academy_id) 쌍으로 이 행을 가리킨다(R46-LATERBE B-4, Ruling 675)
+    CONSTRAINT uk_schedule_id_academy UNIQUE (id, academy_id),
     CONSTRAINT uk_schedule_bus_weekday_direction_depart UNIQUE (bus_id, weekday, direction, depart_time),
     CONSTRAINT fk_schedule_academy FOREIGN KEY (academy_id) REFERENCES academy (id) ON DELETE RESTRICT,
-    CONSTRAINT fk_schedule_bus FOREIGN KEY (bus_id) REFERENCES bus (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_schedule_bus FOREIGN KEY (bus_id, academy_id) REFERENCES bus (id, academy_id) ON DELETE RESTRICT,
     CONSTRAINT ck_schedule_weekday CHECK (weekday IN ('mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun')),
     CONSTRAINT ck_schedule_direction CHECK (direction IN ('to_academy', 'from_academy'))
 );
@@ -334,7 +344,7 @@ CREATE TABLE route (
     updated_at timestamptz  NOT NULL DEFAULT now(),
     CONSTRAINT uk_route_bus_weekday_direction UNIQUE (bus_id, weekday, direction),
     CONSTRAINT fk_route_academy FOREIGN KEY (academy_id) REFERENCES academy (id) ON DELETE RESTRICT,
-    CONSTRAINT fk_route_bus FOREIGN KEY (bus_id) REFERENCES bus (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_route_bus FOREIGN KEY (bus_id, academy_id) REFERENCES bus (id, academy_id) ON DELETE RESTRICT,
     CONSTRAINT ck_route_weekday CHECK (weekday IN ('mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun')),
     CONSTRAINT ck_route_direction CHECK (direction IN ('to_academy', 'from_academy'))
 );
@@ -377,10 +387,12 @@ CREATE TABLE run (
     consecutive_failures integer   NOT NULL DEFAULT 0,
     created_at       timestamptz  NOT NULL DEFAULT now(),
     updated_at       timestamptz  NOT NULL DEFAULT now(),
+    -- 복합 FK(학원 경계)의 대상 — 자식이 (id, academy_id) 쌍으로 이 행을 가리킨다(R46-LATERBE B-4, Ruling 675)
+    CONSTRAINT uk_run_id_academy UNIQUE (id, academy_id),
     CONSTRAINT uk_run_bus_date_direction_depart UNIQUE (bus_id, service_date, direction, depart_time),
     CONSTRAINT fk_run_academy FOREIGN KEY (academy_id) REFERENCES academy (id) ON DELETE RESTRICT,
-    CONSTRAINT fk_run_bus FOREIGN KEY (bus_id) REFERENCES bus (id) ON DELETE RESTRICT,
-    CONSTRAINT fk_run_schedule FOREIGN KEY (schedule_id) REFERENCES schedule (id) ON DELETE SET NULL,
+    CONSTRAINT fk_run_bus FOREIGN KEY (bus_id, academy_id) REFERENCES bus (id, academy_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_run_schedule FOREIGN KEY (schedule_id, academy_id) REFERENCES schedule (id, academy_id) ON DELETE SET NULL (schedule_id),
     CONSTRAINT ck_run_direction CHECK (direction IN ('to_academy', 'from_academy')),
     CONSTRAINT ck_run_status CHECK (status IN ('idle', 'confirmed', 'moving', 'finished')),
     CONSTRAINT ck_run_cancel_source CHECK (cancel_source IN ('staff', 'schedule')),
@@ -569,9 +581,9 @@ CREATE TABLE change_request (
     stop_removed             boolean,
     applied_route_version_id bigint,
     CONSTRAINT fk_change_request_academy FOREIGN KEY (academy_id) REFERENCES academy (id) ON DELETE RESTRICT,
-    CONSTRAINT fk_change_request_run FOREIGN KEY (run_id) REFERENCES run (id) ON DELETE CASCADE,
-    CONSTRAINT fk_change_request_student FOREIGN KEY (student_id) REFERENCES student (id) ON DELETE RESTRICT,
-    CONSTRAINT fk_change_request_new_stop FOREIGN KEY (new_stop_id) REFERENCES stop (id) ON DELETE SET NULL,
+    CONSTRAINT fk_change_request_run FOREIGN KEY (run_id, academy_id) REFERENCES run (id, academy_id) ON DELETE CASCADE,
+    CONSTRAINT fk_change_request_student FOREIGN KEY (student_id, academy_id) REFERENCES student (id, academy_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_change_request_new_stop FOREIGN KEY (new_stop_id, academy_id) REFERENCES stop (id, academy_id) ON DELETE SET NULL (new_stop_id),
     CONSTRAINT fk_change_request_applied_route_version FOREIGN KEY (applied_route_version_id)
         REFERENCES route_version (id) ON DELETE SET NULL,
     CONSTRAINT ck_change_request_source CHECK (source IN ('intent', 'change_request')),
@@ -681,9 +693,11 @@ CREATE TABLE exception_report (
 
 -- 운행 중 버스 위치. 송신 주기가 2초라 한 회차에 약 1,350행이 쌓이는 최대 적재 테이블(ERD §7.3).
 -- run 은 논리적 부모이나 FK 미설정 (ERD §4.2 — 위치 수신마다 부모 행 검사가 붙고, 보존 주기(90일)가 회차와 달라 독립으로 지운다).
--- 파티션은 두지 않는다(Ruling 243) — 보존 정리는 행 단위 DELETE 라 아래 autovacuum 설정이 죽은 행 회수를 맡는다.
+-- recorded_at 기준 일 단위(한국 시간 자정) 범위 파티션이다(R46-LATERBE B-1, Ruling 670 — 이 테이블에 한해 Ruling 243 을 뒤집음).
+-- 보존 정리는 행 DELETE 가 아니라 기간이 지난 파티션 DROP 이라 죽은 행·삭제 전용 인덱스가 생기지 않는다.
+-- 일 파티션은 앱이 미리 만든다(RunPositionPartitionManager — 기동 직후 + 매일). 파티션 키가 PK 에 들어가야 해서 PK 는 (id, recorded_at).
 CREATE TABLE run_position (
-    id          bigint       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id          bigint       GENERATED ALWAYS AS IDENTITY,
     run_id      bigint       NOT NULL,
     lat         numeric(9,6) NOT NULL,
     lng         numeric(9,6) NOT NULL,
@@ -691,13 +705,14 @@ CREATE TABLE run_position (
     received_at timestamptz  NOT NULL,
     speed       numeric(5,2),
     heading     numeric(5,2),
+    PRIMARY KEY (id, recorded_at),
     CONSTRAINT ck_run_position_lat CHECK (lat BETWEEN -90 AND 90),
     CONSTRAINT ck_run_position_lng CHECK (lng BETWEEN -180 AND 180)
-);
+) PARTITION BY RANGE (recorded_at);
 
--- 하루 약 27만 행을 지우는 표라 전역 기준(죽은 행 20%)이면 정상 상태 2,430만 행에서 약 18일치가 쌓인 뒤에야 정리된다.
--- 하루치 삭제(약 1.1%)에 맞춰 1% 로 낮추고, 삽입 기준(가시성 맵 갱신)도 5% 로 낮춘다(R46 I-06).
-ALTER TABLE run_position SET (autovacuum_vacuum_scale_factor = 0.01, autovacuum_vacuum_insert_scale_factor = 0.05);
+-- 안전망 — 해당 날짜 파티션이 없어도 INSERT 가 실패하지 않아 위치 수신이 멈추지 않는다. 평소에는 비어 있어야 하고,
+-- 파티션 미리 만들기가 새 파티션을 만들 때 이 파티션의 그 범위 행을 새 파티션으로 옮긴다.
+CREATE TABLE run_position_default PARTITION OF run_position DEFAULT;
 
 -- 알림 로그. 발송 사실의 근거이자 트랜잭셔널 아웃박스 — 상태 변경과 같은 트랜잭션에서 pending 행을 남긴다.
 -- account·student·run·academy 는 논리적 부모이나 FK 미설정 (ERD §4.2 — 보존 14일, 이름 스냅샷으로 자립).
@@ -819,6 +834,9 @@ CREATE INDEX ix_run_status_confirm_at ON run (service_date, confirm_at) WHERE st
 CREATE INDEX ix_run_academy_date_depart ON run (academy_id, service_date, depart_time);
 -- 스케줄 삭제(ON DELETE SET NULL)가 run 전체를 훑지 않게 한다(R46 I-08). 버스·날짜 조회는 uk_run_bus_date_direction_depart 가 받친다.
 CREATE INDEX ix_run_schedule ON run (schedule_id);
+-- 관리자 "주의 필요 회차" 집계(지연·확정 실패)는 전 학원의 오늘 미완료 회차를 센다 — service_date 선행 인덱스가 없으면
+-- ix_run_academy_date_depart 를 비선두 열로 전체 훑는다. 미완료·미취소만 담아 오늘·내일 분량만 색인한다(R46-LATERBE, Ruling 673).
+CREATE INDEX ix_run_open_service_date ON run (service_date) WHERE canceled_at IS NULL AND status <> 'finished';
 CREATE INDEX ix_run_moving ON run (status) WHERE status = 'moving';
 
 CREATE INDEX ix_run_rider_run_status ON run_rider (run_id, status);
