@@ -8,6 +8,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.common.logging.RateLimitedWarn;
 import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.location.event.RunPositionReceivedEvent;
 import src.backend.location.infrastructure.RunPositionStore;
@@ -34,6 +35,9 @@ public class RunPositionRedisListener {
 
     private final RunPositionStore runPositionStore;
 
+    /** Redis 가 죽으면 위치 수신마다 같은 실패가 난다 — 분당 한 번만 스택과 함께 남긴다(R46 S-3). */
+    private final RateLimitedWarn redisWriteFailure = RateLimitedWarn.perMinute(log);
+
     /**
      * 커밋된 위치 수신 이벤트로 Redis 최신 좌표 키를 덮어쓴다 — 실패는 삼키고 다음 송신에 맡긴다. 발행이 트랜잭션 밖이어도
      * 돈다({@code fallbackExecution}) — 없으면 활성 트랜잭션이 없는 발행은 DEBUG 한 줄만 남기고 버려진다.
@@ -47,7 +51,7 @@ public class RunPositionRedisListener {
                     event.receivedAt(), event.currentStopName());
             runPositionStore.save(event.runId(), value);
         } catch (RuntimeException e) {
-            log.warn("[location] Redis 최신 좌표 갱신이 실패해 다음 송신으로 넘긴다. runId={}", event.runId(), e);
+            redisWriteFailure.warn(e, "[location] Redis 최신 좌표 갱신이 실패해 다음 송신으로 넘긴다. runId={}", event.runId());
         }
     }
 }

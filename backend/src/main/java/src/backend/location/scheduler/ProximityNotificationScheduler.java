@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import src.backend.global.common.logging.RateLimitedWarn;
 import src.backend.location.proximity.ProximityNotificationService;
 import src.backend.observability.metrics.SchedulerHealthMetrics;
 import src.backend.run.entity.Run;
@@ -46,6 +47,11 @@ public class ProximityNotificationScheduler {
     private final ProximityNotificationService proximityNotificationService;
 
     private final SchedulerHealthMetrics schedulerHealthMetrics;
+
+    /** Redis 가 죽으면 운행 중 회차마다 틱마다 같은 실패가 난다 — 판정별로 분당 한 번만 스택과 함께 남긴다(R46 S-3). */
+    private final RateLimitedWarn judgeFailure = RateLimitedWarn.perMinute(log);
+
+    private final RateLimitedWarn departureFailure = RateLimitedWarn.perMinute(log);
 
     /**
      * 운행 중인 회차마다 근접 판정을 시도한다.
@@ -88,13 +94,13 @@ public class ProximityNotificationScheduler {
         try {
             proximityNotificationService.judgeOne(runId, academyId);
         } catch (Exception e) {
-            log.warn("회차 {} 근접 판정 실패 — 다음 틱에 재시도한다", runId, e);
+            judgeFailure.warn(e, "회차 {} 근접 판정 실패 — 다음 틱에 재시도한다", runId);
             schedulerHealthMetrics.recordItemFailure(getClass());
         }
         try {
             proximityNotificationService.judgeDeparture(runId, academyId);
         } catch (Exception e) {
-            log.warn("회차 {} 출발 판정 실패 — 다음 틱에 재시도한다", runId, e);
+            departureFailure.warn(e, "회차 {} 출발 판정 실패 — 다음 틱에 재시도한다", runId);
             schedulerHealthMetrics.recordItemFailure(getClass());
         }
     }

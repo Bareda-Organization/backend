@@ -17,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import tools.jackson.databind.json.JsonMapper;
 
+import src.backend.global.common.logging.RateLimitedWarn;
 import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.location.entity.RunPosition;
 import src.backend.location.repository.RunPositionRepository;
@@ -62,6 +63,10 @@ public class RunPositionStore {
 
     private final RunPositionFallbackMetrics fallbackMetrics;
 
+    /** Redis 가 죽으면 폴링마다 같은 실패가 난다 — 분당 한 번만 스택과 함께 남긴다(R46 S-3). */
+    private final RateLimitedWarn redisReadFailure = RateLimitedWarn.perMinute(
+            org.slf4j.LoggerFactory.getLogger(RunPositionStore.class));
+
     /** 최신 좌표를 덮어쓴다 — 실패는 호출자에게 던진다(위치 수신 리스너가 삼키고 다음 송신에 맡긴다). */
     public void save(Long runId, RunPositionRedisValue value) {
         stringRedisTemplate.opsForValue().set(keyOf(runId), JSON_MAPPER.writeValueAsString(value), TTL);
@@ -85,7 +90,7 @@ public class RunPositionStore {
         try {
             raws = stringRedisTemplate.opsForValue().multiGet(ids.stream().map(this::keyOf).toList());
         } catch (DataAccessException e) {
-            log.warn("[location] Redis 최신 좌표 읽기 실패 — run_position 최신 행으로 대체한다. runIds={}", ids, e);
+            redisReadFailure.warn(e, "[location] Redis 최신 좌표 읽기 실패 — run_position 최신 행으로 대체한다. runIds={}", ids);
             return fromHistory(ids);
         }
         Map<Long, RunPositionRedisValue> positions = new HashMap<>();
