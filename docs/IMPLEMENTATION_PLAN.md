@@ -1117,6 +1117,7 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 651 | 실시간 연결 재연결 — 포기 없이 30초 상한 무한 재시도(Flutter·웹) · 웹 지터 · 정수 `pow` 넘침(64회째 대기 0) 수정 · 앱 복귀(매니저·학부모)·웹 온라인/탭 복귀 때 `reconnectNow` | `docs/frontend/IMPLEMENTATION_PLAN.md §5.30` |
 | 652 | 전체 관제 회차 목록 폴링 — 실시간 `connected` 면 30초 · 아니면 7초 · 재연결 직후 한 번 바로 받음 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.30` |
 | 653 | 이벤트 뒤 재조회 묶기 — 웹 대시보드 300ms 묶음 · 매니저 앱 명단·노선 첫 이벤트 뒤 1초 창 안 한 번(창을 밀지 않음) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.30` |
+| 654 | 오프라인 대기열 카드 폭 — 문구가 짧은 카드만 줄어 가운데에 뜨던 것(`Ruling 592` 와 같은 갈래, 화면 확인에서 발견) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.30` |
 
 
 ## 8.73 ⚖ `R46-BE` — 성능 개선(감사 제외) + 바로 고칠 것 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 410~419 · 백엔드 갈래)
