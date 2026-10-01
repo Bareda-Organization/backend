@@ -60,7 +60,7 @@ import src.backend.student.entity.Gender;
 
 /**
  * enum 30종의 DB 값 집합이 마이그레이션 전체({@code V1__init_schema.sql} 기준 값 목록형 CHECK
- * 38건(Ruling 324 로 ck_link_request_status 삭제 — 39건→38건) + 이후 파일이 같은 이름으로
+ * 45건(R46 A-5 가 5건을 더했다 — 정규식 일치를 직접 센 값) + 이후 파일이 같은 이름으로
  * 재정의한 것)와 정확히 일치하는지 회귀 감시한다 —
  * {@code ddl-auto: validate} 는 CHECK 를 전혀 보지 않으므로(`IMPLEMENTATION_PLAN` 603행), 이
  * 대조가 없으면 오늘 맞는 값이 내일 상수 하나만 고쳐도 어디서도 실패하지 않는다.
@@ -133,14 +133,17 @@ class EnumCheckConstraintParityTest {
     /** enum 이름 · 그 enum 의 DB 값 집합 · 대조할 CHECK 제약 이름들(2개 이상이면 합집합과 비교). */
     static Stream<Arguments> enumToCheckMapping() {
         return Stream.of(
-                Arguments.of("Role", dbValuesOf(Role.class, new Role.Db()), Set.of("ck_account_role")),
+                // 가입 요청은 5종(system_admin 제외) · 알림 수신은 6종 — 합집합이 전체와 같다(R46 A-5)
+                Arguments.of("Role", dbValuesOf(Role.class, new Role.Db()),
+                        Set.of("ck_account_role", "ck_signup_request_requested_role",
+                                "ck_notification_log_recipient_role")),
                 Arguments.of("Weekday", dbValuesOf(Weekday.class, new Weekday.Db()),
                         Set.of("ck_weekly_address_weekday", "ck_schedule_weekday", "ck_route_weekday")),
                 Arguments.of("Direction", dbValuesOf(Direction.class, new Direction.Db()),
                         Set.of("ck_weekly_address_direction", "ck_schedule_direction",
                                 "ck_route_direction", "ck_run_direction")),
                 Arguments.of("ManagerRole", dbValuesOf(ManagerRole.class, new ManagerRole.Db()),
-                        Set.of("ck_manager_role", "ck_assignment_role")),
+                        Set.of("ck_manager_role", "ck_assignment_role", "ck_emergency_alert_raised_by_role")),
                 Arguments.of("ChangeType", dbValuesOf(ChangeType.class, new ChangeType.Db()),
                         Set.of("ck_run_stop_change", "ck_run_rider_change")),
                 Arguments.of("AcademyStatus", dbValuesOf(AcademyStatus.class, new AcademyStatus.Db()),
@@ -167,7 +170,8 @@ class EnumCheckConstraintParityTest {
                 Arguments.of("RouteVersionSource", dbValuesOf(RouteVersionSource.class, new RouteVersionSource.Db()),
                         Set.of("ck_route_version_source")),
                 Arguments.of("RiderStatus", dbValuesOf(RiderStatus.class, new RiderStatus.Db()),
-                        Set.of("ck_run_rider_status")),
+                        Set.of("ck_run_rider_status", "ck_rider_status_history_from_status",
+                                "ck_rider_status_history_to_status")),
                 Arguments.of("VerifyMethod", dbValuesOf(VerifyMethod.class, new VerifyMethod.Db()),
                         Set.of("ck_rider_status_history_verify_method")),
                 Arguments.of("ActorType", dbValuesOf(ActorType.class, new ActorType.Db()),

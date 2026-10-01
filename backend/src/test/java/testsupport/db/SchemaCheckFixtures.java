@@ -26,6 +26,22 @@ final class SchemaCheckFixtures {
                 """);
     }
 
+    /** 가입 승인 대기 계정 1건 — `signup_request` 의 부모다. */
+    static long insertAccount(Connection connection, long academyId) throws SQLException {
+        return insertReturningId(connection, """
+                INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status)
+                VALUES (%d, 'contract-parent', 'hash', '대조테스트', '010-0000-0000', 'parent', 'pending')
+                RETURNING id
+                """.formatted(academyId));
+    }
+
+    /** 학생 1건 — `change_request`·`boarding_intent`·`run_transfer` 의 부모다. */
+    static long insertStudent(Connection connection, long academyId) throws SQLException {
+        return insertReturningId(connection, """
+                INSERT INTO student (academy_id, name) VALUES (%d, '대조학생') RETURNING id
+                """.formatted(academyId));
+    }
+
     /** 계산식(`student_capacity = capacity - driver_count - escort_count`)을 만족하는 차량 1건. */
     static long insertBus(Connection connection, long academyId) throws SQLException {
         return insertReturningId(connection, """

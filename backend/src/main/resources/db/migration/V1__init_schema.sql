@@ -99,6 +99,8 @@ CREATE TABLE signup_request (
     reject_reason  varchar(200),
     CONSTRAINT fk_signup_request_account FOREIGN KEY (account_id) REFERENCES account (id) ON DELETE CASCADE,
     CONSTRAINT fk_signup_request_academy FOREIGN KEY (academy_id) REFERENCES academy (id) ON DELETE RESTRICT,
+    -- 가입 요청이 받는 역할은 가입 API 가 허용하는 5종이다(SignupRequestPayload) — system_admin 은 가입으로 만들 수 없다(R46 A-5).
+    CONSTRAINT ck_signup_request_requested_role CHECK (requested_role IN ('parent', 'student', 'driver', 'escort', 'staff')),
     CONSTRAINT ck_signup_request_approver_type CHECK (approver_type IN ('staff', 'system_admin')),
     CONSTRAINT ck_signup_request_status CHECK (status IN ('pending', 'accepted', 'rejected'))
 );
@@ -489,9 +491,7 @@ CREATE TABLE run_rider (
     stop_id     bigint      NOT NULL,
     status      varchar(10) NOT NULL,
     change      varchar(10),
-    note        text,
-    boarded_at  timestamptz,
-    alighted_at timestamptz,
+    -- 승차·하차 시각은 이 표에 두지 않는다 — 같은 시각이 rider_status_history.changed_at 에 이력으로 있고 되돌리기 뒤에도 맞다(Ruling 614).
     changed_at  timestamptz,
     created_at  timestamptz NOT NULL DEFAULT now(),
     updated_at  timestamptz NOT NULL DEFAULT now(),
@@ -540,7 +540,9 @@ CREATE TABLE boarding_intent (
     CONSTRAINT uk_boarding_intent_run_student UNIQUE (run_id, student_id),
     CONSTRAINT fk_boarding_intent_run FOREIGN KEY (run_id) REFERENCES run (id) ON DELETE CASCADE,
     CONSTRAINT fk_boarding_intent_student FOREIGN KEY (student_id) REFERENCES student (id) ON DELETE RESTRICT,
-    CONSTRAINT ck_boarding_intent_change_used_count CHECK (change_used_count BETWEEN 0 AND 1)
+    CONSTRAINT ck_boarding_intent_change_used_count CHECK (change_used_count BETWEEN 0 AND 1),
+    -- 구간 코드 — ChangeWindow(1 즉시 · 2 승인 필요 · 3 마감). NULL 은 구간을 거치지 않은 행이다(R46 A-5).
+    CONSTRAINT ck_boarding_intent_applied_segment CHECK (applied_segment BETWEEN 1 AND 3)
 );
 
 -- 변경 요청·승인 대기. ②구간 승인 큐의 실체이자 책임 소재 기록이며 토글과 일일 변경을 source 로 가른다.
@@ -575,6 +577,7 @@ CREATE TABLE change_request (
     CONSTRAINT ck_change_request_source CHECK (source IN ('intent', 'change_request')),
     CONSTRAINT ck_change_request_type CHECK (type IN ('relocate', 'cancel')),
     CONSTRAINT ck_change_request_status CHECK (status IN ('pending', 'approved', 'rejected', 'auto_rejected')),
+    CONSTRAINT ck_change_request_window_segment CHECK (window_segment BETWEEN 1 AND 3),
     CONSTRAINT ck_change_request_reject_reason CHECK (status <> 'rejected' OR reject_reason IS NOT NULL),
     CONSTRAINT ck_change_request_new_address CHECK (type <> 'relocate' OR new_address IS NOT NULL)
 );
@@ -595,6 +598,9 @@ CREATE TABLE rider_status_history (
     actor_type   varchar(10) NOT NULL,
     changed_by   bigint,
     CONSTRAINT uk_rider_status_history_client_key UNIQUE (client_key),
+    -- 상태 값은 run_rider.status 와 같은 5종이다 — 잘못된 값은 저장은 되고 이력을 읽는 쪽이 Enum.valueOf 에서 실패한다(R46 A-5).
+    CONSTRAINT ck_rider_status_history_from_status CHECK (from_status IN ('waiting', 'boarded', 'alighted', 'absent', 'no_show')),
+    CONSTRAINT ck_rider_status_history_to_status CHECK (to_status IN ('waiting', 'boarded', 'alighted', 'absent', 'no_show')),
     CONSTRAINT ck_rider_status_history_verify_method CHECK (verify_method IN ('photo', 'manual')),
     CONSTRAINT ck_rider_status_history_actor_type CHECK (actor_type IN ('escort', 'system'))
 );
@@ -652,6 +658,8 @@ CREATE TABLE emergency_alert (
     ack_memo       varchar(200),
     canceled_at    timestamptz,
     CONSTRAINT uk_emergency_alert_client_key UNIQUE (client_key),
+    -- 비상 알림을 올리는 쪽은 회차에 배치된 기사·동승자뿐이다(ManagerRole · R46 A-5).
+    CONSTRAINT ck_emergency_alert_raised_by_role CHECK (raised_by_role IN ('driver', 'escort')),
     CONSTRAINT ck_emergency_alert_type CHECK (type IN ('accident', 'vehicle_fault', 'student_emergency', 'etc')),
     CONSTRAINT ck_emergency_alert_memo CHECK (type <> 'etc' OR memo IS NOT NULL)
 );
@@ -671,8 +679,9 @@ CREATE TABLE exception_report (
     CONSTRAINT ck_exception_report_run_rider CHECK (type <> 'guardian_absent' OR run_rider_id IS NOT NULL)
 );
 
--- 운행 중 버스 위치. 송신 주기가 5~10초라 한 회차에 수백 행이 쌓이는 최대 적재 테이블.
--- run 은 논리적 부모이나 FK 미설정 (ERD §4.2 — 파티션 단위 DROP 으로 정리해야 한다).
+-- 운행 중 버스 위치. 송신 주기가 2초라 한 회차에 약 1,350행이 쌓이는 최대 적재 테이블(ERD §7.3).
+-- run 은 논리적 부모이나 FK 미설정 (ERD §4.2 — 위치 수신마다 부모 행 검사가 붙고, 보존 주기(90일)가 회차와 달라 독립으로 지운다).
+-- 파티션은 두지 않는다(Ruling 243) — 보존 정리는 행 단위 DELETE 라 아래 autovacuum 설정이 죽은 행 회수를 맡는다.
 CREATE TABLE run_position (
     id          bigint       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     run_id      bigint       NOT NULL,
@@ -685,6 +694,10 @@ CREATE TABLE run_position (
     CONSTRAINT ck_run_position_lat CHECK (lat BETWEEN -90 AND 90),
     CONSTRAINT ck_run_position_lng CHECK (lng BETWEEN -180 AND 180)
 );
+
+-- 하루 약 27만 행을 지우는 표라 전역 기준(죽은 행 20%)이면 정상 상태 2,430만 행에서 약 18일치가 쌓인 뒤에야 정리된다.
+-- 하루치 삭제(약 1.1%)에 맞춰 1% 로 낮추고, 삽입 기준(가시성 맵 갱신)도 5% 로 낮춘다(R46 I-06).
+ALTER TABLE run_position SET (autovacuum_vacuum_scale_factor = 0.01, autovacuum_vacuum_insert_scale_factor = 0.05);
 
 -- 알림 로그. 발송 사실의 근거이자 트랜잭셔널 아웃박스 — 상태 변경과 같은 트랜잭션에서 pending 행을 남긴다.
 -- account·student·run·academy 는 논리적 부모이나 FK 미설정 (ERD §4.2 — 보존 14일, 이름 스냅샷으로 자립).
@@ -714,6 +727,8 @@ CREATE TABLE notification_log (
     acked                boolean      NOT NULL DEFAULT false,
     acked_at             timestamptz,
     CONSTRAINT uk_notification_log_dedup_key UNIQUE (dedup_key),
+    -- 수신 역할은 계정 역할 6종 전부다 — 메인 관리자도 비상 알림을 받는다(R46 A-5).
+    CONSTRAINT ck_notification_log_recipient_role CHECK (recipient_role IN ('parent', 'student', 'driver', 'escort', 'staff', 'system_admin')),
     CONSTRAINT ck_notification_log_type CHECK (type IN (
         'boarding', 'alighting', 'no_show', 'absent', 'arrive', 'delay',
         'run_started', 'run_ended', 'signup_decided', 'change_decided',
@@ -784,6 +799,10 @@ CREATE UNIQUE INDEX uk_manager_account_id ON manager (account_id) WHERE account_
 -- 승인할 수 없다(Ruling 139). uk_academy_staff_account 는 account_id 가 NOT NULL 이라 조건 없이 둔다.
 CREATE UNIQUE INDEX uk_academy_staff_academy_active ON academy_staff (academy_id) WHERE status = 'active';
 
+-- 등원 회차의 도착지(학원) 항목은 노선 버전마다 1행이다(Ruling 327) — ck_run_stop_target_exclusive 는 행 하나만 보므로
+-- "버전당 1행" 은 이 인덱스가 담당한다. destination 이 false 인 정차 행은 색인 밖이다(R46 A-5).
+CREATE UNIQUE INDEX uk_run_stop_destination ON run_stop (route_version_id) WHERE destination;
+
 
 -- =====================================================================================
 -- 인덱스 (ERD §5.3) — UNIQUE 제약이 겸하는 것(run_stop(route_version_id, seq) ·
@@ -793,14 +812,20 @@ CREATE UNIQUE INDEX uk_academy_staff_academy_active ON academy_staff (academy_id
 -- =====================================================================================
 
 -- 확정 배치가 30초마다 "실행 시각이 지난 회차" 를 조회한다. 부재하면 전체 회차 전수 스캔.
-CREATE INDEX ix_run_status_confirm_at ON run (status, confirm_at);
+-- 확정 대상 후보(미취소 idle)만 색인하고 날짜를 앞에 둔다(R46 I-09) — 취소된 idle 회차와 지난 날짜에 끝내 확정 못 한 idle 회차를
+-- 인덱스 범위가 아예 건너뛴다(실측 힙 확인 3,000행 → 0행). 확정·운행·종료로 넘어가는 전이는 이 인덱스에서 항목이 빠지기만 한다.
+-- ⚠ 부분 조건(status = 'idle')은 쿼리가 리터럴로 줄 때만 인덱스가 함의로 받아들인다 — 바인딩 파라미터의 일반(generic) 계획은 못 쓴다.
+CREATE INDEX ix_run_status_confirm_at ON run (service_date, confirm_at) WHERE status = 'idle' AND canceled_at IS NULL;
 CREATE INDEX ix_run_academy_date_depart ON run (academy_id, service_date, depart_time);
-CREATE INDEX ix_run_bus_date ON run (bus_id, service_date);
+-- 스케줄 삭제(ON DELETE SET NULL)가 run 전체를 훑지 않게 한다(R46 I-08). 버스·날짜 조회는 uk_run_bus_date_direction_depart 가 받친다.
+CREATE INDEX ix_run_schedule ON run (schedule_id);
 CREATE INDEX ix_run_moving ON run (status) WHERE status = 'moving';
 
 CREATE INDEX ix_run_rider_run_status ON run_rider (run_id, status);
 CREATE INDEX ix_run_rider_student_run ON run_rider (student_id, run_id);
 CREATE INDEX ix_run_stop_stop ON run_stop (stop_id);
+-- 경유지 후보 삭제(RESTRICT 검사)가 무기한 보존인 run_stop 을 훑지 않게 한다 — 경유지 정차는 소수라 NULL 을 뺀다(R46 I-08).
+CREATE INDEX ix_run_stop_waypoint ON run_stop (waypoint_id) WHERE waypoint_id IS NOT NULL;
 
 CREATE INDEX ix_change_request_academy_status ON change_request (academy_id, status);
 CREATE INDEX ix_change_request_run_status ON change_request (run_id, status);
@@ -835,6 +860,11 @@ CREATE INDEX ix_student_academy_name ON student (academy_id, name) WHERE deleted
 CREATE INDEX ix_stop_academy_coord ON stop (academy_id, lat, lng);
 
 CREATE INDEX ix_guardian_student_student ON guardian_student (student_id);
+
+-- 인증 없이 부르는 계정 복구(§2.9)의 번호 조회 — 인덱스가 없던 때는 요청 하나가 두 표를 4번 순차 스캔했다(R46 I-01).
+-- phone 은 거의 바뀌지 않아 account 갱신의 HOT 비율을 깨지 않는다.
+CREATE INDEX ix_account_phone ON account (phone);
+CREATE INDEX ix_verification_code_phone_created ON verification_code (phone, created_at DESC);
 
 -- 조회 조건 컬럼 인덱스(BR-258) — 없으면 전 테이블 순차 스캔이다.
 -- 승하차지가 걸린 주소 조회(확정 배치가 회차마다 · 예정 명단) · stop 삭제 때 FK(ON DELETE SET NULL) 검사.

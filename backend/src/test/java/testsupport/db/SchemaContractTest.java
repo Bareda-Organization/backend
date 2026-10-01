@@ -323,6 +323,208 @@ class SchemaContractTest extends MigratedPostgresTestBase {
     }
 
     /**
+     * R46 A-5 — 코드 enum 으로만 지키던 값 도메인 7곳을 DB 가 거부한다. 잘못된 값은 저장할 때는 통과하고 그 행을 읽는
+     * 목록·집계가 {@code Enum.valueOf} 에서 실패한다(알림 14일·이력 무기한 보존이라 오래 남는다).
+     * {@code requested_role} 은 가입 요청이 받을 수 없는 {@code system_admin} 으로 시험한다 — 허용 값 집합이
+     * 계정 역할 전체가 아니라 가입 가능한 5종임을 함께 고정한다.
+     */
+    @Test
+    void 값_도메인을_어긴_INSERT_7곳은_해당_CHECK_제약_이름과_함께_거부된다() throws SQLException {
+        위반_INSERT_가_제약_이름과_함께_거부되는지_확인한다("ck_rider_status_history_from_status", connection -> execute(connection, """
+                INSERT INTO rider_status_history (run_rider_id, from_status, to_status, changed_at, actor_type)
+                VALUES (1, 'bogus', 'boarded', now(), 'escort')
+                """));
+        위반_INSERT_가_제약_이름과_함께_거부되는지_확인한다("ck_rider_status_history_to_status", connection -> execute(connection, """
+                INSERT INTO rider_status_history (run_rider_id, to_status, changed_at, actor_type)
+                VALUES (1, 'bogus', now(), 'escort')
+                """));
+        위반_INSERT_가_제약_이름과_함께_거부되는지_확인한다("ck_notification_log_recipient_role", connection -> execute(connection, """
+                INSERT INTO notification_log (academy_id, recipient_account_id, recipient_name, recipient_role,
+                                              type, title, body, dedup_key)
+                VALUES (1, 1, '수신자', 'bogus', 'boarding', '제목', '본문', 'contract-dedup')
+                """));
+        위반_INSERT_가_제약_이름과_함께_거부되는지_확인한다("ck_emergency_alert_raised_by_role", connection -> execute(connection, """
+                INSERT INTO emergency_alert (academy_id, run_id, bus_no, raised_by, raised_by_role, type,
+                                             rider_count, occurred_at, client_key)
+                VALUES (1, 1, '1호차', 1, 'staff', 'accident', 0, now(), gen_random_uuid())
+                """));
+        위반_INSERT_가_제약_이름과_함께_거부되는지_확인한다("ck_signup_request_requested_role", connection -> {
+            long academyId = SchemaCheckFixtures.insertAcademy(connection);
+            long accountId = SchemaCheckFixtures.insertAccount(connection, academyId);
+            execute(connection, """
+                    INSERT INTO signup_request (account_id, academy_id, requested_role, approver_type, status, requested_at)
+                    VALUES (%d, %d, 'system_admin', 'staff', 'pending', now())
+                    """.formatted(accountId, academyId));
+        });
+        위반_INSERT_가_제약_이름과_함께_거부되는지_확인한다("ck_change_request_window_segment", connection -> {
+            long academyId = SchemaCheckFixtures.insertAcademy(connection);
+            long runId = SchemaCheckFixtures.insertRun(connection, academyId, SchemaCheckFixtures.insertBus(connection, academyId));
+            long studentId = SchemaCheckFixtures.insertStudent(connection, academyId);
+            execute(connection, """
+                    INSERT INTO change_request (academy_id, run_id, student_id, source, type, status, window_segment,
+                                                requested_by, requested_at)
+                    VALUES (%d, %d, %d, 'intent', 'cancel', 'pending', 4, 1, now())
+                    """.formatted(academyId, runId, studentId));
+        });
+        위반_INSERT_가_제약_이름과_함께_거부되는지_확인한다("ck_boarding_intent_applied_segment", connection -> {
+            long academyId = SchemaCheckFixtures.insertAcademy(connection);
+            long runId = SchemaCheckFixtures.insertRun(connection, academyId, SchemaCheckFixtures.insertBus(connection, academyId));
+            long studentId = SchemaCheckFixtures.insertStudent(connection, academyId);
+            execute(connection, "INSERT INTO boarding_intent (run_id, student_id, applied_segment) VALUES (%d, %d, 0)"
+                    .formatted(runId, studentId));
+        });
+    }
+
+    /** R46 A-5 — 한 노선 버전에 도착지(학원) 항목이 둘 들어가지 못한다(Ruling 327 의 "마지막 순번 1행"). */
+    @Test
+    void 한_노선_버전에_도착지_항목을_둘_넣으면_거부된다() throws SQLException {
+        위반_INSERT_가_제약_이름과_함께_거부되는지_확인한다("uk_run_stop_destination", connection -> {
+            long academyId = SchemaCheckFixtures.insertAcademy(connection);
+            long runId = SchemaCheckFixtures.insertRun(connection, academyId, SchemaCheckFixtures.insertBus(connection, academyId));
+            long routeVersionId = SchemaCheckFixtures.insertRouteVersion(connection, runId);
+            execute(connection, "INSERT INTO run_stop (route_version_id, destination, seq) VALUES (%d, true, 1)"
+                    .formatted(routeVersionId));
+            execute(connection, "INSERT INTO run_stop (route_version_id, destination, seq) VALUES (%d, true, 2)"
+                    .formatted(routeVersionId));
+        });
+    }
+
+    /** R46 A-1 — 같은 학생의 처리 대기({@code staged}) 이동 신청은 DB 가 하나만 받는다. 선검사는 동시 요청 둘을 못 막는다. */
+    @Test
+    void 같은_학생의_대기_이동_신청을_둘_넣으면_거부된다() throws SQLException {
+        위반_INSERT_가_제약_이름과_함께_거부되는지_확인한다("uk_run_transfer_student_staged", connection -> {
+            long academyId = SchemaCheckFixtures.insertAcademy(connection);
+            long runId = SchemaCheckFixtures.insertRun(connection, academyId, SchemaCheckFixtures.insertBus(connection, academyId));
+            long studentId = SchemaCheckFixtures.insertStudent(connection, academyId);
+            String insert = """
+                    INSERT INTO run_transfer (student_id, from_run_id, to_run_id, status, requested_by_account_id)
+                    VALUES (%d, %d, %d, '%s', 1)
+                    """;
+            execute(connection, insert.formatted(studentId, runId, runId, "staged"));
+            // 이미 반영된(applied) 이동은 몇 건이든 남는다 — 막는 것은 대기 중복뿐이다.
+            execute(connection, insert.formatted(studentId, runId, runId, "applied"));
+            execute(connection, insert.formatted(studentId, runId, runId, "applied"));
+            execute(connection, insert.formatted(studentId, runId, runId, "staged"));
+        });
+    }
+
+    /**
+     * R46 I-01 — 인증 없이 부르는 계정 복구 경로(번호로 계정 찾기 · 발급 빈도 세기 · 최신 코드 대조 · 미소비 무효화)가
+     * 표 순차 스캔 4회였다. 번호가 선행인 인덱스 둘이 이 4개 조회를 받친다.
+     */
+    @Test
+    void 계정_복구_조회가_쓰는_번호_컬럼에는_인덱스가_있다() throws SQLException {
+        assertThat(queryColumn("""
+                SELECT indexdef FROM pg_indexes
+                WHERE schemaname = 'public' AND tablename = 'account' AND indexdef LIKE '%(phone)'
+                """)).as("account(phone) — 번호로 계정을 찾는 FOR UPDATE 조회").hasSize(1);
+        assertThat(queryColumn("""
+                SELECT indexdef FROM pg_indexes
+                WHERE schemaname = 'public' AND tablename = 'verification_code'
+                  AND indexdef LIKE '%(phone, created_at DESC)'
+                """)).as("verification_code(phone, created_at DESC) — 발급 개수·최신 1건·무효화").hasSize(1);
+    }
+
+    /**
+     * R46 I-03 — 같은 표에서 한 인덱스의 열이 다른 인덱스의 왼쪽 접두와 같으면(방향까지 같고 둘 다 조건·식이 없으면) 앞의 것은
+     * 읽는 쪽이 없는 채 쓰기만 늘린다. {@code ix_run_bus_date} 가 {@code uk_run_bus_date_direction_depart} 의 접두였다.
+     */
+    @Test
+    void 다른_인덱스의_왼쪽_접두와_같은_비유니크_인덱스는_없다() throws SQLException {
+        List<String> redundant = queryColumn("""
+                SELECT a.indexrelid::regclass || ' 는 ' || b.indexrelid::regclass || ' 의 왼쪽 접두'
+                FROM pg_index a
+                JOIN pg_index b ON a.indrelid = b.indrelid AND a.indexrelid <> b.indexrelid
+                JOIN pg_class c ON c.oid = a.indrelid
+                JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = 'public'
+                WHERE a.indpred IS NULL AND b.indpred IS NULL AND a.indexprs IS NULL AND b.indexprs IS NULL
+                  AND NOT a.indisunique
+                  AND a.indnkeyatts <= b.indnkeyatts
+                  AND (a.indkey::int2[])[0:a.indnkeyatts - 1] = (b.indkey::int2[])[0:a.indnkeyatts - 1]
+                  AND (a.indoption::int2[])[0:a.indnkeyatts - 1] = (b.indoption::int2[])[0:a.indnkeyatts - 1]
+                  AND c.relname <> 'flyway_schema_history'
+                """);
+
+        assertThat(redundant).as("읽는 쪽이 같은 다른 인덱스가 이미 있는 인덱스 — 지우거나, 열을 달리해 읽는 쪽을 만든다").isEmpty();
+    }
+
+    /**
+     * R46 I-09 — 30초 확정 배치가 매 틱 취소된 idle 회차(3,000건)와 지난 날짜에 끝내 확정 못 한 idle 회차를 힙까지 읽어
+     * 걸러 냈다(실측 힙 확인 3,000행 → 0행). 인덱스가 확정 대상 후보(미취소 idle) 만 담고 날짜가 선행이면
+     * 오늘 이후 구간만 훑는다. 계획 확인은 순차 스캔을 꺼 인덱스가 조건을 <b>함의로 받아들이는지</b>만 본다 — 쿼리 조건이
+     * 인덱스 조건(status·canceled_at)을 빠뜨리면 이 인덱스를 못 쓴다.
+     */
+    @Test
+    void 확정_배치_조회는_미취소_idle_회차만_담은_부분_인덱스로_풀린다() throws SQLException {
+        String definition = queryColumn("""
+                SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'ix_run_status_confirm_at'
+                """).getFirst();
+        assertThat(definition)
+                .contains("(service_date, confirm_at)")
+                .contains("canceled_at IS NULL")
+                .contains("(status)::text = 'idle'::text");
+
+        String plan = 순차_스캔을_끄고_계획을_본다("""
+                SELECT r.id FROM run r
+                WHERE r.status = 'idle' AND r.confirm_at <= now() AND r.service_date >= current_date
+                  AND r.canceled_at IS NULL
+                ORDER BY r.consecutive_failures, r.confirm_at LIMIT 50
+                """);
+        assertThat(plan).contains("ix_run_status_confirm_at").doesNotContain("Seq Scan");
+    }
+
+    /** R46 I-08 — 부모 삭제 경로가 있는 FK 둘({@code schedule} 삭제 → run 갱신 · 경유지 후보 삭제 → run_stop 검사)의 선행 인덱스. */
+    @Test
+    void 부모_삭제_경로가_있는_FK_둘은_선행_인덱스를_가진다() throws SQLException {
+        assertThat(queryColumn("""
+                SELECT indexdef FROM pg_indexes
+                WHERE schemaname = 'public' AND tablename = 'run' AND indexdef LIKE '%(schedule_id)'
+                """)).as("run(schedule_id)").hasSize(1);
+        assertThat(queryColumn("""
+                SELECT indexdef FROM pg_indexes
+                WHERE schemaname = 'public' AND tablename = 'run_stop' AND indexdef LIKE '%(waypoint_id)%'
+                """)).as("run_stop(waypoint_id) — 경유지 정차는 소수라 NULL 을 뺀 부분 인덱스").hasSize(1);
+    }
+
+    /** R46 I-06 — 하루 27만 행을 지우는 {@code run_position} 은 전역 기준(20%)이면 약 18일치 죽은 행이 쌓인 뒤에야 정리된다. */
+    @Test
+    void run_position_은_표_단위_autovacuum_설정을_가진다() throws SQLException {
+        assertThat(queryColumn("SELECT array_to_string(reloptions, ',') FROM pg_class WHERE oid = 'public.run_position'::regclass")
+                .getFirst())
+                .contains("autovacuum_vacuum_scale_factor=0.01")
+                .contains("autovacuum_vacuum_insert_scale_factor=0.05");
+    }
+
+    /**
+     * R46 Ruling 614 · A-2 — 읽는 곳이 0 이던 컬럼을 지운다. {@code boarded_at}·{@code alighted_at} 은 되돌리기 뒤 값이 틀렸고
+     * 같은 시각이 {@code rider_status_history.changed_at} 에 있다. {@code note} 는 쓰는 곳도 읽는 곳도 없는데 퇴원 파기 대상
+     * 목록에서 빠진 자유 문구였다.
+     */
+    @Test
+    void run_rider_에_쓰지_않는_컬럼_셋이_남아_있지_않다() throws SQLException {
+        assertThat(queryColumn("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'run_rider'
+                  AND column_name IN ('note', 'boarded_at', 'alighted_at')
+                """)).isEmpty();
+    }
+
+    /** 순차 스캔을 끈 세션에서 계획을 읽는다 — 표가 비어 있어도 "이 인덱스가 이 조건을 받는가" 가 결정적으로 드러난다. */
+    private static String 순차_스캔을_끄고_계획을_본다(String sql) throws SQLException {
+        try (Connection connection = connection();
+                Statement statement = connection.createStatement()) {
+            statement.execute("SET enable_seqscan = off");
+            StringBuilder plan = new StringBuilder();
+            try (ResultSet rows = statement.executeQuery("EXPLAIN " + sql)) {
+                while (rows.next()) {
+                    plan.append(rows.getString(1)).append('\n');
+                }
+            }
+            return plan.toString();
+        }
+    }
+
+    /**
      * {@code shedlock} 은 예외다 — ShedLock 의 {@code JdbcTemplateLockProvider}(.usingDbTime())가
      * {@code timezone('utc', CURRENT_TIMESTAMP)} 로 "지금"을 SQL 서버 쪽에서만 계산한다
      * (shedlock-provider-jdbc-template 6.9.2, {@code PostgresSqlServerTimeStatementsSource}).
