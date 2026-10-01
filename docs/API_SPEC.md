@@ -404,7 +404,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | `role` | enum | `parent` · `student` · `driver` · `escort` · `staff` · `system_admin` |
 | `status` | enum | `pending` · `active` · `rejected` |
 | `account_id` | string | 계정 식별자 |
-| `academy` | object | `id` · `name` — `system_admin` 은 `null` |
+| `academy` | object | `id` · `name` · `contact` — `system_admin` 은 `null`. **`contact`** 는 학원 대표 연락처(`academy.contact`) — 학원이 등록하지 않았으면 **키는 있고 값이 `null`**. 매니저 앱이 통신 두절로 비상 신고가 못 나갔을 때 학원에 전화하는 번호다(`Ruling 460`) |
 
 - `X-Client-Type: web` 이면 응답 헤더에 `Set-Cookie: refresh_token=…; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth; Max-Age={refresh 만료까지의 초}` 가 붙는다 (§1.2.1).
 - `pending` · `rejected` 도 **로그인 성공 + 토큰 발급**. 접근 범위만 §1.4 로 축소.
@@ -483,7 +483,7 @@ form 회원가입 (AUTH-01, C-01). **비인증 허용.** 전 인원이 이 경�
 | `account_id` · `login_id` · `name` · `phone` | — | ● | 계정 기본 |
 | `role` | enum | ● | §9.1 |
 | `status` | enum | ● | `pending` · `active` · `rejected` |
-| `academy` | object | ○ | `id` · `name` — `system_admin` 은 `null` |
+| `academy` | object | ○ | `id` · `name` · `contact`(학원 대표 연락처 — 미등록이면 `null`, §2.5 와 같다 · `Ruling 460`) — `system_admin` 은 `null` |
 | `student_id` | string | ○ | `role=student` 일 때 **본인 학생 레코드** |
 | `manager_id` · `manager_role` | string · enum | ○ | `role=driver`·`escort` 일 때 |
 | `linked_student_count` | integer | ○ | `role=parent` 일 때 연결 자녀 수 |

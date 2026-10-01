@@ -16,5 +16,6 @@ public record LoginResult(
         Long academyId,
         Role role,
         AccountStatus status,
-        String academyName) {
+        String academyName,
+        String academyContact) {
 }

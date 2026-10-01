@@ -19,7 +19,10 @@ public record LoginResponse(
         String accountId,
         Academy academy) {
 
-    /** {@code system_admin} 은 소속 학원이 없어 {@code null} 이다(API_SPEC §2.5). */
-    public record Academy(String id, String name) {
+    /**
+     * {@code system_admin} 은 소속 학원이 없어 {@code null} 이다(API_SPEC §2.5). {@code contact} 는 학원 대표
+     * 연락처 — 학원이 등록하지 않았으면 키는 있고 값이 {@code null} 이다(R46-MGR, Ruling 460).
+     */
+    public record Academy(String id, String name, String contact) {
     }
 }

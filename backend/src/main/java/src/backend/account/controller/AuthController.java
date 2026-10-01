@@ -87,7 +87,8 @@ public class AuthController {
         boolean isWeb = CLIENT_TYPE_WEB.equalsIgnoreCase(clientType);
 
         LoginResponse.Academy academy = result.role().hasPlatformScope() ? null
-                : new LoginResponse.Academy(String.valueOf(result.academyId()), result.academyName());
+                : new LoginResponse.Academy(String.valueOf(result.academyId()), result.academyName(),
+                        result.academyContact());
         LoginResponse body = new LoginResponse(
                 result.accessToken(),
                 isWeb ? null : result.refreshToken(),

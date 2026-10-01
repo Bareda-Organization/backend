@@ -113,9 +113,10 @@ public class LoginSettlement {
         refreshTokenRepository.save(RefreshToken.issue(account.getId(),
                 RefreshTokenHasher.sha256Hex(refreshToken), now, now.plusSeconds(refreshValiditySeconds), null));
 
-        String academyName = resolveAcademyName(account);
+        Academy academy = resolveAcademy(account);
         return new LoginResult(accessToken, refreshToken, refreshValiditySeconds, account.getId(),
-                account.getAcademyId(), account.getRole(), account.getStatus(), academyName);
+                account.getAcademyId(), account.getRole(), account.getStatus(),
+                academy == null ? null : academy.getName(), academy == null ? null : academy.getContact());
     }
 
     /**
@@ -154,10 +155,10 @@ public class LoginSettlement {
     }
 
     /** {@code system_admin} 은 소속 학원이 없다(API_SPEC §2.5 {@code academy} = null). */
-    private String resolveAcademyName(Account account) {
+    private Academy resolveAcademy(Account account) {
         if (account.getAcademyId() == null) {
             return null;
         }
-        return academyRepository.findById(account.getAcademyId()).map(Academy::getName).orElse(null);
+        return academyRepository.findById(account.getAcademyId()).orElse(null);
     }
 }

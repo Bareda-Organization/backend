@@ -68,7 +68,7 @@ public class MeQueryService {
         }
         Academy academy = academyRepository.findById(account.getAcademyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACADEMY_NOT_FOUND));
-        return new MeResponse.Academy(String.valueOf(academy.getId()), academy.getName());
+        return new MeResponse.Academy(String.valueOf(academy.getId()), academy.getName(), academy.getContact());
     }
 
     private String resolveStudentId(Long accountId) {
