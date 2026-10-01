@@ -34,7 +34,7 @@ sudo usermod -aG docker $USER   # 다시 로그인해야 적용
 
 ## 3. 코드와 비밀값 옮기기
 
-⚠ GitHub 의 `main` 은 2026-09-30 23:13 시점(문서 포함 전부 push, `CLAUDE.md` 참고)까지만 반영돼 있고 그 뒤 R46 커밋은 push 전이다(push 는 사용자 확인 후 — `git log origin/main -1` 로 시점 확인). **최신 코드가 필요하면 GitHub 이 아니라 Mac 에서 받는다.**
+⚠ GitHub 의 `main` 은 push 한 시점까지만 반영돼 있다 — 2026-10-01 R46 마무리(마무리 전체 실행 통과 뒤) push 가 마지막이고, 그 뒤 커밋은 push 전일 수 있다(push 는 사용자 확인 후 — `git log origin/main -1` 과 `git log -1` 을 견줘 확인). **둘이 다르면 GitHub 이 아니라 Mac 에서 받는다.**
 
 ```bash
 # Mac: 시스템 설정 → 일반 → 공유 → "원격 로그인" 켜기. 그다음 집 PC 에서
