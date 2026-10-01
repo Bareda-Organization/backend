@@ -12,7 +12,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import src.backend.boarding.entity.RiderStatus;
-import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.global.websocket.WebSocketBroadcastGateway;
 import src.backend.global.websocket.WebSocketDestinations;
@@ -54,12 +53,8 @@ public class PositionBroadcastListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void broadcast(RunPositionReceivedEvent event) {
         try {
-            List<Long> studentIds = runRiderRepository.findAllByRunId(event.runId()).stream()
-                    // absent(다른 버스로 옮긴 removed 포함)는 이 버스에 없다 — 학생 채널은 학생 단위라 보내면 다른 버스와 섞인다
-                    .filter(rider -> rider.getStatus() != RiderStatus.ABSENT)
-                    .map(RunRider::getStudentId)
-                    .distinct()
-                    .toList();
+            // absent(다른 버스로 옮긴 removed 포함)는 이 버스에 없다 — 학생 채널은 학생 단위라 보내면 다른 버스와 섞인다
+            List<Long> studentIds = runRiderRepository.findStudentIdsByRunIdAndStatusNot(event.runId(), RiderStatus.ABSENT);
 
             ParentStudentPayload parentStudentPayload = new ParentStudentPayload(event.lat(), event.lng(),
                     event.receivedAt(), event.currentStopName());

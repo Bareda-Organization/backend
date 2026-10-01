@@ -27,6 +27,7 @@ import jakarta.persistence.EntityManagerFactory;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
+import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
@@ -89,7 +90,9 @@ class RunPositionQueryCountTest {
         for (Long academyId : academyIds) {
             jdbcTemplate.update("DELETE FROM run_position WHERE run_id IN (SELECT id FROM run WHERE academy_id = ?)",
                     academyId);
+            jdbcTemplate.update("DELETE FROM run_rider WHERE run_id IN (SELECT id FROM run WHERE academy_id = ?)", academyId);
             jdbcTemplate.update("DELETE FROM run WHERE academy_id = ?", academyId);
+            jdbcTemplate.update("DELETE FROM student WHERE academy_id = ?", academyId);
             jdbcTemplate.update("DELETE FROM manager WHERE academy_id = ?", academyId);
             jdbcTemplate.update("DELETE FROM account WHERE academy_id = ?", academyId);
             jdbcTemplate.update("DELETE FROM stop WHERE academy_id = ?", academyId);
@@ -102,8 +105,66 @@ class RunPositionQueryCountTest {
     }
 
     @Test
-    @DisplayName("BR-100 — 위치 1건에 정차 목록 조회는 한 번이다(두 리스너가 각자 다시 읽지 않는다)")
+    @DisplayName("BR-100 — 위치 1건에 정차 목록(이름 포함) 조회는 한 번이다(두 리스너가 각자 다시 읽지 않는다)")
     void 위치_1건에_정차_목록_조회는_한_번이다() throws Exception {
+        Seeded seeded = 회차를_심는다(true);
+
+        Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+        long before = 정차_목록_조회_횟수(statistics);
+
+        위치를_보낸다(seeded);
+
+        assertThat(정차_목록_조회_횟수(statistics) - before)
+                .as("정차 목록(RunStopRepository#findPositionStops)을 위치 1건에 두 번 읽으면 안 된다")
+                .isEqualTo(1);
+    }
+
+    /**
+     * R46-LATERBE L2(Ruling 671) — 위치 1건(2초마다)의 SQL 은 5건이다: 인가 exists 1(전 2 — 매니저·배치) · 회차 1 · INSERT 1 ·
+     * 확정 노선+정차 목록+정차 이름 조인 1(전 3 — 확정 노선·정차 목록·정차명) · 커밋 뒤 탑승자 학생 id 1. 전체 8건(첫 도착 전 7건)에서
+     * 줄었다. 캐시가 아니라 쿼리를 합친 것이라 무효화 지점이 없다 — 매 요청이 실시간 값을 읽는다.
+     */
+    @Test
+    @DisplayName("L2 — 위치 1건의 SQL 은 5건이다(첫 도착 뒤 · 전 8건)")
+    void 첫_도착_뒤_위치_1건의_SQL_은_5건이다() throws Exception {
+        Seeded seeded = 회차를_심는다(true);
+
+        assertThat(위치를_보내고_SQL_수를_센다(seeded)).isEqualTo(5);
+    }
+
+    @Test
+    @DisplayName("L2 — 첫 도착 전에도 위치 1건의 SQL 은 5건이다(전 7건)")
+    void 첫_도착_전_위치_1건의_SQL_은_5건이다() throws Exception {
+        Seeded seeded = 회차를_심는다(false);
+
+        assertThat(위치를_보내고_SQL_수를_센다(seeded)).isEqualTo(5);
+    }
+
+    /** 위치 방송 수신자 조회가 absent 를 빼고 학생 id 만 돌려준다(엔티티 목록 대신 투영 — L2). 거르는 일은 조회가 한다. */
+    @Test
+    @DisplayName("L2 — 위치 방송 수신자는 absent 를 뺀 학생 id 만이다")
+    void 방송_수신자는_absent_를_뺀_학생_id_만이다() {
+        Seeded seeded = 회차를_심는다(false);
+        DriverRunFixtures fx = new DriverRunFixtures(academyRepository, busRepository, stopRepository,
+                studentRepository, accountRepository, managerRepository, assignmentRepository, runRepository,
+                confirmedRouteRepository, routeVersionRepository, runStopRepository, runRiderRepository,
+                academyStaffRepository, guardianRepository, guardianStudentRepository, changeRequestRepository);
+        long stopId = fx.stop(seeded.academyId(), "37.570000", "126.980000");
+        long waiting = fx.student(seeded.academyId(), "대기학생");
+        long boarded = fx.student(seeded.academyId(), "탑승학생");
+        long absent = fx.student(seeded.academyId(), "결석학생");
+        fx.rider(seeded.runId(), waiting, stopId, RiderStatus.WAITING, seeded.now());
+        fx.rider(seeded.runId(), boarded, stopId, RiderStatus.BOARDED, seeded.now());
+        fx.rider(seeded.runId(), absent, stopId, RiderStatus.ABSENT, seeded.now());
+
+        assertThat(runRiderRepository.findStudentIdsByRunIdAndStatusNot(seeded.runId(), RiderStatus.ABSENT))
+                .containsExactlyInAnyOrder(waiting, boarded);
+    }
+
+    private record Seeded(long academyId, long runId, long driverAccountId, OffsetDateTime now) {
+    }
+
+    private Seeded 회차를_심는다(boolean firstStopArrived) {
         DriverRunFixtures fx = new DriverRunFixtures(academyRepository, busRepository, stopRepository,
                 studentRepository, accountRepository, managerRepository, assignmentRepository, runRepository,
                 confirmedRouteRepository, routeVersionRepository, runStopRepository, runRiderRepository,
@@ -119,31 +180,36 @@ class RunPositionQueryCountTest {
         long versionId = fx.confirmedRouteWithVersion(runId, now);
         long runStopId = fx.runStopForStop(versionId, stopId, 1, now);
         fx.runStopForDestination(versionId, 2);
-        jdbcTemplate.update("UPDATE run_stop SET arrived_at = now() WHERE id = ?", runStopId);
+        if (firstStopArrived) {
+            jdbcTemplate.update("UPDATE run_stop SET arrived_at = now() WHERE id = ?", runStopId);
+        }
         long driverAccountId = fx.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now);
+        return new Seeded(academyId, runId, driverAccountId, now);
+    }
 
-        Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
-        long before = 정차_목록_조회_횟수(statistics);
-
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/position")
-                        .header("Authorization", "Bearer " + tokenProvider.createAccessToken(driverAccountId,
-                                academyId, Role.DRIVER, AccountStatus.ACTIVE))
+    private void 위치를_보낸다(Seeded seeded) throws Exception {
+        mockMvc.perform(post("/api/v1/runs/" + seeded.runId() + "/position")
+                        .header("Authorization", "Bearer " + tokenProvider.createAccessToken(seeded.driverAccountId(),
+                                seeded.academyId(), Role.DRIVER, AccountStatus.ACTIVE))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"lat": 37.561000, "lng": 126.971000, "recorded_at": "%s"}
-                                """.formatted(now.minusSeconds(2))))
+                                """.formatted(seeded.now().minusSeconds(2))))
                 .andExpect(status().isNoContent());
-
-        assertThat(정차_목록_조회_횟수(statistics) - before)
-                .as("정차 목록(RunStopRepository#findAllByRouteVersionIdAndAcademyIdOrderBySeq)을 위치 1건에 두 번 읽으면 안 된다")
-                .isEqualTo(1);
     }
 
-    /** 정차 목록 조회문(학원 범위 이중 부모 조인)의 누적 실행 횟수 — 문장 원문으로 찾는다. */
+    /** Hibernate 가 준비한 문장 수의 요청 전후 차이 — 커밋 뒤 리스너(탑승자 조회)까지 같은 스레드라 포함된다. */
+    private long 위치를_보내고_SQL_수를_센다(Seeded seeded) throws Exception {
+        Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+        long before = statistics.getPrepareStatementCount();
+        위치를_보낸다(seeded);
+        return statistics.getPrepareStatementCount() - before;
+    }
+
+    /** 정차 목록(이름 포함) 조회문의 누적 실행 횟수 — 문장 원문의 투영 클래스 이름으로 찾는다. */
     private long 정차_목록_조회_횟수(Statistics statistics) {
         return Arrays.stream(statistics.getQueries())
-                .filter(query -> query.contains("FROM RunStop rs") && query.contains("rv.confirmedRouteId")
-                        && query.contains("ORDER BY rs.seq ASC") && !query.contains("rs.stopId IS NOT NULL"))
+                .filter(query -> query.contains("PositionStopView"))
                 .mapToLong(query -> statistics.getQueryStatistics(query).getExecutionCount())
                 .sum();
     }
