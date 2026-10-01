@@ -353,6 +353,16 @@ spring:
       # 빨리 실패하면 요청은 다음 시도에서 회복하고, 알림 발송·확정 배치는 pending 행이 남아 다음 주기에 다시 집힌다.
       # max-lifetime 은 기본 30분이 맞아 그대로 둔다 — postgres·프록시의 유휴 연결 제한이 그보다 길다.
       connection-timeout: 3000
+      # 연결을 5초 넘게 쥔 스레드의 스택을 로그에 남긴다(R46 T-7) — 풀이 마르면 누가 쥐었는지 특정하고, 이후 코드가 외부 호출을
+      # 트랜잭션 안에 되돌려 놓는 회귀도 이 로그로 드러난다. 5초인 이유는 staging 과 같다(정상 요청은 수십 ms · 가장 긴 읽기도 1초 안).
+      leak-detection-threshold: 5000
+      data-source-properties:
+        # DB 세션 시간 상한(R46 S-4) — 연결 3초 대기(connection-timeout)는 "연결을 얻는 대기"만 자르고 잠금 대기·쥔 시간은 못 자른다.
+        # lock_timeout 5초: 행 잠금을 5초 넘게 기다리면 DB 가 포기한다(정상 대기는 수 ms) → 503.
+        # idle_in_transaction_session_timeout 30초: 트랜잭션을 연 채 문장 사이에 30초 쉰 세션을 DB 가 끊는다(앱 쪽 대기는 1초 안).
+        # statement_timeout 은 걸지 않는다 — 보존 정리 DELETE(5,000행)·Flyway 마이그레이션이 같은 계정이다.
+        # JDBC URL 옵션 대신 여기 둔 이유: 운영 compose 가 DB_URL 을 통째로 넘겨 URL 에 붙일 자리가 없다(드라이버 연결 속성으로 같은 효과).
+        options: -c lock_timeout=5000 -c idle_in_transaction_session_timeout=30000
   data:
     redis:
       host: ${REDIS_HOST}
@@ -403,6 +413,9 @@ spring:
       # prod 섹션과 같은 근거(BR-168, Ruling 351) — demo 도 인스턴스 1대라 같은 계산이 그대로 적용된다.
       maximum-pool-size: 20
       connection-timeout: 3000   # prod 섹션과 같은 근거(R46 D #17)
+      leak-detection-threshold: 5000   # prod 섹션과 같은 근거(R46 T-7)
+      data-source-properties:
+        options: -c lock_timeout=5000 -c idle_in_transaction_session_timeout=30000   # prod 섹션과 같은 근거(R46 S-4)
   data:
     redis:
       host: ${REDIS_HOST}
