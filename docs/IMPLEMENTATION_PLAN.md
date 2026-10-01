@@ -1085,6 +1085,11 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 582 | 공용 `RunSummaryCard` 큰 글자 가로 넘침 — 알약 + `호차 · 등원` 줄을 전체 너비 `Wrap` 으로(실측 2.0배에서만 넘침, `Ruling 573` 후속) · 운행 화면 시험의 허용 예외 삭제 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.27` |
 | 583 | 자유 입력 6칸(앱 3·웹 3)에 `학생 이름·연락처는 적지 마세요` 안내 — 퇴원 파기 대상 밖이라 입력 단계에서 줄임 · 학생 특이사항·학원 메모·사유 칸은 제외(근거는 절) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.27` |
 | 584 | 분기점의 기존 실패 2종 정리 — 웹 `useRouter` 가짜 규약 시험 실패(2파일) · 학부모 앱 `analyze` 줄 길이 info 2건 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.27` |
+| 590 | 운행 스케줄 등록·수정 창 폭 480 — 요일 7칸 중 `일` 이 둘째 줄로 내려가던 것(노선 편성 창은 이미 480) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.28` |
+| 591 | 전체 관제 화면도 1100px 이하에서 버스 목록을 지도 아래로(대시보드·금일 운행과 같은 규칙) — 1024 에서 `1호차 · 등원` 이 두 줄로 꺾이던 것 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.28` |
+| 592 | 매니저 앱 비상 발신 이력 카드가 화면 폭 ~30% 로 가운데에 뜨던 것 — 목록 `Column` stretch + 공용 `BaraedaCard` accent 본체가 부모 폭을 채우도록(`StackFit.passthrough`) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.28` |
+| 593 | 오프라인 대기열 빈 상태 안내문 줄임 — 마지막 글자 `다` 가 둘째 줄에 남던 것 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.28` |
+| 594 | 고치지 않은 것 — 한글이 낱말 중간에서 끊기는 줄바꿈(앱 전체 · 관찰 7곳)은 공용 해결 결정이 필요해 사용자 결정으로 보고 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.28` |
 
 
 ## 8.73 ⚖ `R46-BE` — 성능 개선(감사 제외) + 바로 고칠 것 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 410~419 · 백엔드 갈래)
