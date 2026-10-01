@@ -1170,6 +1170,8 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 690 | Tomcat `max-connections` 명시 — prod·demo 4,000 · staging 1,000 · local·load 는 기본 8,192 유지(부하 측정이 한계를 재야 함). 설정 시험이 값과 "local·load 에 상한 없음" 고정 | 본문 §8.89 · `docs/infra/DEPLOYMENT.md §11.7` |
 | 691 | `StompSessionsNearCap` 경보 — `schoolbus_stomp_sessions{job="backend"} > 3000`(상한 75%) 5분 유지 · 경고 · 임계 = prod 상한 × 3/4 관계를 `OpsSettingsGuardTest` 가 고정 | 본문 §8.89 · `docs/infra/DEPLOYMENT.md §11.2` |
 | 692 | 문서 정본 위치 — 운영 쪽(상한 값·근거·도달 동작·경보 대응)과 설계 쪽(세션이 서버 메모리에 남기는 것)을 가름 | 본문 §8.89 · `docs/infra/DEPLOYMENT.md §11.7` · `docs/ARCHITECTURE.md §10.4` |
+| 693 | 유령 세션 방지 — 클라이언트가 `app.ws.idle-timeout-ms`(60초 · yml 공통) 동안 프레임을 하나도 안 보낸 WebSocket 세션을 서버가 닫음(Tomcat 읽기 전용 유휴 속성). 표준 `maxSessionIdleTimeout`·`heart-beat:0` 거부는 버림 | 본문 §8.89 · `docs/ARCHITECTURE.md §10.4` |
+| 694 | 세션 정리 4경로(정상 종료 · 하트비트 30초 · 유휴 60초 · `CONNECT` 없음)를 실서버 시험 2개가 고정 · 정리 시간은 연결 규약 표의 서버 정리 행(미실측 → 실측) · "첫 메시지 60초" 점검은 새 연결 때만이라는 정정 | 본문 §8.89 · `docs/API_SPEC.md §7.2` |
 
 
 ## 8.73 ⚖ `R46-BE` — 성능 개선(감사 제외) + 바로 고칠 것 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 410~419 · 백엔드 갈래)
@@ -1654,17 +1656,36 @@ R46 검토 `stab`(경보 · 로그 드라이버 · OOM · 종료 대기) · `idx
 
 **상한에 닿으면 (Tomcat 11.0.22 소스 `Acceptor` · `AbstractEndpoint` · `SocketWrapperBase` · `AbstractProtocol` 확인)** — ①`Acceptor` 가 소켓을 받기 전에 `countUpOrAwaitConnection` 에서 멈춘다 ②받지 못한 연결은 OS 의 TCP 대기열(`accept-count` 100)에 쌓이고 그것도 차면 OS 가 거절하거나 응답하지 않는다(클라이언트는 연결 거부 또는 시간 초과) ③이미 맺어진 연결은 영향 없음 · 자리가 나면 대기 중이던 연결부터 받음 ④**WebSocket 도 같은 수에 든다** — 업그레이드는 같은 소켓을 그대로 쓰고(`upgradeProtocol.getProcessor(wrapper, …)`) 수는 소켓이 닫힐 때(`SocketWrapperBase.close`)만 줄어든다 ⑤nginx 는 backend 로 요청마다 연결을 닫아(`keepalive` 없음) 연결 수 ≈ 세션 수 + 진행 중 HTTP 요청.
 
-`Ruling 693`·`694` 는 쓰지 않았다.
-
 ### R46-CONNCAP 목표 표
 
 | # | 완료 조건 | 확인 수단 | 결과 |
 |:-:|---|---|:-:|
-| 1 | 프로파일별 `max-connections` 실재 | `TomcatThreadPoolConfigTest` 7건 중 신규 4(prod·demo·staging 값 3 + 공통·local·load 상한 없음 1) — RED(기본 8,192 로 3건 실패)→GREEN · 결함 심기 5종(M1~M5) | ✅ |
+| 1 | 프로파일별 `max-connections` 실재 | `TomcatThreadPoolConfigTest` 의 `max-connections` 시험 4건(prod·demo·staging 값 3 + 공통·local·load 상한 없음 1) — RED(기본 8,192 로 3건 실패)→GREEN · 결함 심기 5종(M1~M5) | ✅ |
 | 2 | 경보 규칙 시험 통과 | `docker run --rm … --entrypoint promtool prom/prometheus:v3.1.0 test rules /p/alerts.test.yml` SUCCESS — 신규 3블록(울림 1 · 안 울림 2 — 경계값 3,000 · 5분 미만 몰림 · 부하 시험 job) · RED(규칙 없이 울림 사례 실패)→GREEN · 결함 심기 5종(D4~D8) | ✅ |
 | 3 | 바뀐 범위 시험 `--rerun` 실패 0 · `OpsSettingsGuardTest` 포함 | 결과 XML 합계 — **11개 클래스 · 78건 · 실패 0 · 오류 0 · 건너뜀 0**(`OpsSettingsGuardTest` 8건 중 신규 1 · 결함 심기 3종 G1~G3) | ✅ |
 | 4 | 정본 반영 · 깨진 참조 0 | `DEPLOYMENT §11.2·§11.7` · `ARCHITECTURE §10.4` · 이 절 · `§11` 색인(619·690~692) · docgraph `build.py` | ✅ |
 
 **재현되지 않았거나 지시와 다르게 판단한 것** — ①지시서 2항 "WebSocket 업그레이드 연결이 상한에 포함되는가" 는 소스로 **포함** 확정 ②09-09 측정 보고서의 필요 서버 사양 절은 "`max-connections` 기본 8,192 유지" 라 했다 — 그 시점 기록(무시 파일)이라 고치지 않고 이 판정이 뒤집는다 ③경보 임계 3,000 은 세션 수 기준이라 실제 연결 수(세션 + 진행 중 HTTP)가 상한에 닿는 지점은 그보다 조금 이르다(요청 스레드 100 이하) — 허용한 오차 ④**결함 심기 중 실수 1건** — 원복 도우미가 빈 문자열 치환을 거부해 demo 상한 줄이 지워진 채 후속 4건이 돌았다. 지운 줄을 손으로 복구하고 `HEAD` 와 동일함을 확인한 뒤 5건을 다시 돌렸다(결과는 재실행값).
 
-**후속(이 갈래 밖)** — ①측정 기계(10코어)·무트래픽 세션 기준 수치라 4 vCPU 재측정 전까지 잠정(`Ruling 351` 과 같은 단서) · 힙 최대값은 G1 이 회수를 미룬 쓰레기를 포함해 보수적 ②스테이징에는 Prometheus·Alertmanager 가 없어 `StompSessionsNearCap` 이 울리지 않는다(상한 1,000 만 적용) ③`DEPLOYMENT §11.2` 표에 `RunPositionPartitionStalled`(`ce46a424`)의 행이 없다 — 이 갈래 밖이라 두었다 ④수평 확장(WS 브로커 릴레이)을 하면 인스턴스마다 상한이 곱해지므로 `docs/ARCHITECTURE.md §9.5` 와 함께 값을 다시 계산한다.
+**후속(이 갈래 밖)** — ①측정 기계(10코어)·무트래픽 세션 기준 수치라 4 vCPU 재측정 전까지 잠정(`Ruling 351` 과 같은 단서) · 힙 최대값은 G1 이 회수를 미룬 쓰레기를 포함해 보수적 ②스테이징에는 Prometheus·Alertmanager 가 없어 `StompSessionsNearCap` 이 울리지 않는다(상한 1,000 만 적용) ③(해소 — 아래 후속 절) `DEPLOYMENT §11.2` 표에 `RunPositionPartitionStalled`(`ce46a424`)의 행이 없었다 ④수평 확장(WS 브로커 릴레이)을 하면 인스턴스마다 상한이 곱해지므로 `docs/ARCHITECTURE.md §9.5` 와 함께 값을 다시 계산한다.
+
+### R46-CONNCAP 후속 — 유령 세션 막기 (`Ruling 693` · `694`)
+
+사용자 질문 *"실제로는 해제되거나 끊겼는데 메모리에 들고 있는 유령 세션 같은 건 없는 건가?"* — 조율자가 Spring 7.0.8 소스로 정리 경로를 확인했고, 이 갈래가 **실서버 시험으로 재확인**한 뒤 빈틈 하나를 막았다. 빈틈은 클라이언트가 `heart-beat:0,0` 으로 붙는 경우다 — Spring 의 읽기 감시가 꺼지고 서버 유휴 제한도 없어서, 전원·망 끊김으로 종료 신호도 못 보낸 클라이언트의 세션(소켓 · 구독 등록부 · 우리 쪽 맵 둘)을 다음 방송 쓰기가 실패할 때까지 쥔다. 시험은 이 구멍을 먼저 실패(RED)로 보였다(조용한 세션이 25초 안에 안 닫힘).
+
+| Ruling | 판정 | 근거 |
+|:-:|---|---|
+| **693** | **WebSocket 읽기 유휴 제한 60초** — `ReadIdleTimeoutFactory`(데코레이터)가 세션이 열릴 때 Tomcat 세션 속성 `org.apache.tomcat.websocket.READ_IDLE_TIMEOUT_MS` 에 `app.ws.idle-timeout-ms`(yml 공통 `60000` · 시험은 3초 주입)를 건다. `WebSocketConfig` 에서 `ForbiddenSubscriptionCloseFactory` **뒤에** 등록(나중이 바깥 — 원본 Tomcat 세션을 먼저 받아야 함) | **Tomcat 11.0.22 `WsSession#checkExpiration` 확인** — 표준 `setMaxSessionIdleTimeout` 은 읽기·쓰기가 **둘 다** 제한을 넘어야 닫는다. 서버가 방송을 계속 쓰면 쓰기 시각이 갱신돼 사라진 클라이언트가 안 걸린다(표준 값으로 바꾼 결함 심기에서 조용한 세션이 안 닫힘을 확인). 읽기 전용 속성은 서버 쓰기와 무관하게 "클라이언트 프레임이 있었는가" 만 본다. **정상 클라이언트는 안 걸린다** — 하트비트 줄바꿈 10초마다(읽기 시각 갱신) vs 60초 · 하트비트를 협상한 세션은 30초에 먼저 닫힌다(대조군: 줄을 1초마다 보낸 세션은 남음). **버린 대안** — `CONNECT` 에서 `heart-beat:0` 거부: 하트비트 헤더 없이 붙는 개발 도구·기존 시험이 깨지고 `CONNECT` 없는 소켓은 못 막는다 |
+| **694** | **세션 정리 4경로를 실서버 시험이 고정하고 문서 정본에 값을 적는다** — `StompHeartbeatReapTest`(하트비트 10초 협상 · 송신을 멈추면 25~50초 창 안에 닫히고 두 맵에서 빠짐) · `StompIdleTimeoutReapTest`(`heart-beat:0,0` · `CONNECT` 없는 소켓 · 서버 방송 지속 중 · 줄을 보낸 세션은 남음). `ARCHITECTURE §10.4` 에 경로 표 · `API_SPEC §7.2` 의 "미실측" 행을 30초/60초로 교체 | **조율자 지시서와 다르게 확인한 것** — `SubProtocolWebSocketHandler.checkSessions`("첫 메시지 60초" 점검)는 타이머가 아니라 **새 WebSocket 연결이 들어올 때만**(마지막 점검 30초 이후) 돈다 → "CONNECT 없음 60초" 는 한가한 때 보장되지 않는다. 같은 유휴 제한이 이 경로도 60~70초에 닫는다(시험에 `CONNECT` 없는 소켓 사례 포함). 하트비트 경로는 `HeartbeatTask` 가 `max(10, 10) × 3 = 30초` 무수신에서 세션·구독을 지우고 `ERROR` 뒤 소켓을 닫으며, 해제 이벤트(`SessionDisconnectEvent`)는 조건 없이 발생해 `StompSessionExpiry`·`StompSessionMetrics` 에서 빠진다 |
+
+`Ruling 693`·`694` 로 이 갈래의 번호대(690~694)를 다 썼다.
+
+| # | 완료 조건 | 확인 수단 | 결과 |
+|:-:|---|---|:-:|
+| 5 | 유휴 제한 설정 실재 | `application.yml` 공통 `app.ws.idle-timeout-ms: 60000` · `TomcatThreadPoolConfigTest` 3건(prod·demo·staging 이 60,000 · 프로파일이 안 덮음) — 결함 심기 F5(값 600000 → 3건 실패) · F6(staging 이 0 으로 덮음 → staging 1건 실패) | ✅ |
+| 6 | 실측 시험 2개 RED→GREEN | `StompIdleTimeoutReapTest` RED(구현 전 조용한 세션 미정리) → GREEN · `StompHeartbeatReapTest` 는 현재 동작을 고정하는 시험이라 RED 가 없고 결함 심기 F4(서버 하트비트 100초 → 이 시험만 실패)로 물림 확인 | ✅ |
+| 7 | 유휴 제한 제거 결함 심기 → 하트비트 0 시험만 실패 | F1(속성 제거): `StompIdleTimeoutReapTest` 만 실패 · `StompHeartbeatReapTest`·설정 시험 통과. F2(표준 `maxIdleTimeout` 로 대체) · F3(데코레이터 등록 순서 뒤집기)도 이 시험만 실패 | ✅ |
+| 8 | 정리 뒤 우리 맵 2개에서도 빠짐 | 두 시험이 `schoolbus.stomp.sessions` 게이지와 `StompSessionExpiry.trackedSessionCount()` 가 연결 전 값으로 돌아오는 것을 센다 — 결함 심기 F7a(만료 맵 미정리)·F7b(활성 집합 미정리) 각각 이 시험만 실패 | ✅ |
+| 9 | `DEPLOYMENT` 경보 표에 `RunPositionPartitionStalled` 행 | `DEPLOYMENT §11.2` 경보 표 + "울렸을 때 첫 확인" 표에 각각 한 행 | ✅ |
+
+**재현되지 않았거나 지시와 다르게 판단한 것** — ①지시서의 `ServletServerContainerFactoryBean.setMaxSessionIdleTimeout`(표준 값)은 쓰지 않았다 — 위 `693` 근거(서버 방송 쓰기가 유휴로 안 세어져 사라진 구독자가 안 걸림). ②"CONNECT 없음 60초 점검"은 보장되는 시각이 아님(위 `694`). ③`CONNECT` 없는 소켓 사례는 `F1` 에서 앞선 조건(조용한 세션 미정리)이 먼저 실패해 단독 검출은 따로 보지 못했다.
