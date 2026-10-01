@@ -63,7 +63,7 @@ class LoginHistoryUnblockRowTest {
         Account target = accountRepository.save(Account.forSignup(academy.getId(), "br219target",
                 passwordEncoder.encode("password1234!"), "해제대상", "010-9200-0000", null, Role.PARENT));
         auditLogRepository.save(AuditLog.forAccountUnblock(academy.getId(), ADMIN_ACCOUNT_ID, "admin", target.getId(),
-                OffsetDateTime.now()));
+                null, OffsetDateTime.now()));
 
         mockMvc.perform(get("/api/v1/admin/login-history").header("Authorization", 관리자())
                         .param("account_id", String.valueOf(target.getId())))
@@ -89,7 +89,7 @@ class LoginHistoryUnblockRowTest {
         auditLogRepository.save(AuditLog.forLoginBlock(academy.getId(), target.getId(), "r37target", "10.0.0.1",
                 blockedAt));
         auditLogRepository.save(AuditLog.forAccountUnblock(academy.getId(), ADMIN_ACCOUNT_ID, "admin", target.getId(),
-                blockedAt.plusMinutes(5)));
+                null, blockedAt.plusMinutes(5)));
 
         // 최신순 — 해제가 먼저, 차단이 다음(Ruling 394)
         mockMvc.perform(get("/api/v1/admin/login-history").header("Authorization", 관리자())
@@ -98,6 +98,27 @@ class LoginHistoryUnblockRowTest {
                 .andExpect(jsonPath("$.data.items", hasSize(2)))
                 .andExpect(jsonPath("$.data.items[0].block_action").value("unblock"))
                 .andExpect(jsonPath("$.data.items[1].block_action").value("block"));
+    }
+
+    /**
+     * 해제 행의 {@code account_id}·{@code login_id} 는 <b>해제된 계정</b>이라, 행에 실린 IP(처리한 관리자의 것 — R46-POLISH
+     * Ruling 595)를 그대로 내보내면 "그 계정이 그 IP 로 접속했다" 로 읽힌다. 접속 이력 응답은 해제 행의 IP 를 비운다 —
+     * 처리자 IP 는 감사 로그 목록이 갖는다.
+     */
+    @Test
+    void 해제_행의_IP_는_해제된_계정의_접속_이력에_실리지_않는다() throws Exception {
+        Academy academy = academyRepository.save(Academy.register("R595AC01", "R595학원", "서울", null, null));
+        Account target = accountRepository.save(Account.forSignup(academy.getId(), "r595target",
+                passwordEncoder.encode("password1234!"), "해제대상", "010-5950-0000", null, Role.PARENT));
+        auditLogRepository.save(AuditLog.forAccountUnblock(academy.getId(), ADMIN_ACCOUNT_ID, "admin", target.getId(),
+                "203.0.113.41", OffsetDateTime.now()));
+
+        mockMvc.perform(get("/api/v1/admin/login-history").header("Authorization", 관리자())
+                        .param("account_id", String.valueOf(target.getId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].block_action").value("unblock"))
+                .andExpect(jsonPath("$.data.items[0].ip").doesNotExist());
     }
 
     private String 관리자() {

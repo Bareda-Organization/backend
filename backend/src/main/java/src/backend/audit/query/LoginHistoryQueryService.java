@@ -95,8 +95,9 @@ public class LoginHistoryQueryService {
         };
         boolean blockEvent = blockAction != null;
         if (log.getAction() == AuditAction.UNBLOCK) {
+            // 행의 IP 는 해제한 관리자의 것이다(Ruling 595) — 이 행은 해제된 계정을 가리키므로 그 계정의 접속 IP 로 읽히지 않게 비운다.
             return new LoginHistoryItemResponse(log.getTargetId(), unblockedLoginIds.get(log.getTargetId()), result,
-                    log.getIp(), log.getOccurredAt(), blockEvent, blockAction);
+                    null, log.getOccurredAt(), blockEvent, blockAction);
         }
         return new LoginHistoryItemResponse(log.getActorAccountId(), log.getActorLoginId(), result, log.getIp(),
                 log.getOccurredAt(), blockEvent, blockAction);
