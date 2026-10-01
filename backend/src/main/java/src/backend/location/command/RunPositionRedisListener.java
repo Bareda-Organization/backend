@@ -34,8 +34,11 @@ public class RunPositionRedisListener {
 
     private final RunPositionStore runPositionStore;
 
-    /** 커밋된 위치 수신 이벤트로 Redis 최신 좌표 키를 덮어쓴다 — 실패는 삼키고 다음 송신에 맡긴다. */
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    /**
+     * 커밋된 위치 수신 이벤트로 Redis 최신 좌표 키를 덮어쓴다 — 실패는 삼키고 다음 송신에 맡긴다. 발행이 트랜잭션 밖이어도
+     * 돈다({@code fallbackExecution}) — 없으면 활성 트랜잭션이 없는 발행은 DEBUG 한 줄만 남기고 버려진다.
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void updateRedisAfterCommit(RunPositionReceivedEvent event) {
         try {
             // 현재 정차지 이름은 위치를 저장한 트랜잭션이 한 번 계산해 이벤트에 실어 보낸다(BR-100) — 여기서 다시

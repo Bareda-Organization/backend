@@ -1,6 +1,8 @@
 package src.backend.location.command;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -9,14 +11,18 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
@@ -33,6 +39,9 @@ import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
+import src.backend.global.websocket.WebSocketBroadcastGateway;
+import src.backend.global.websocket.WebSocketDestinations;
+import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
@@ -79,6 +88,13 @@ class RunPositionRedisIntegrationTest {
 
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
+
+    /** 커밋 뒤 구독자가 부르는 쪽을 감시해 부른 순간 이 스레드가 쥔 트랜잭션 자원을 기록한다(T-1). */
+    @MockitoSpyBean
+    private RunPositionStore runPositionStore;
+
+    @MockitoSpyBean
+    private WebSocketBroadcastGateway gateway;
 
     /** T1 이 실제로 쓰는 것과 같은 기본(camelCase) 네이밍 — {@code RunPositionRedisListener} 참고. */
     private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
@@ -167,15 +183,10 @@ class RunPositionRedisIntegrationTest {
     @Test
     @DisplayName("목표3 — 위치 송신 한 번으로 run_position 적재와 Redis 최신 좌표 갱신이 함께 일어난다")
     void 위치_송신_한_번으로_DB_적재와_Redis_갱신이_함께_일어난다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
-        long academyId = fixtures.academy();
-        academyIds.add(academyId);
-        long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now();
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
-                departTime.minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        MovingRun moving = 움직이는_회차를_만든다();
+        long academyId = moving.academyId();
+        long runId = moving.runId();
+        long driverAccountId = moving.driverAccountId();
 
         BigDecimal lat = new BigDecimal("37.501000");
         BigDecimal lng = new BigDecimal("127.001000");
@@ -207,6 +218,67 @@ class RunPositionRedisIntegrationTest {
         assertThat(value.lat()).isEqualByComparingTo(lat);
         assertThat(value.lng()).isEqualByComparingTo(lng);
         assertThat(value.recordedAt()).isEqualTo(recordedAt);
+    }
+
+    @Test
+    @DisplayName("T-1 — Redis 갱신·방송은 위치 INSERT 가 커밋돼 DB 연결을 반납한 뒤에 돈다")
+    void Redis_갱신과_방송은_DB_연결을_반납한_뒤에_돈다() throws Exception {
+        List<TxObservation> redisCalls = new ArrayList<>();
+        List<TxObservation> broadcastCalls = new ArrayList<>();
+        Mockito.doAnswer(invocation -> {
+            redisCalls.add(TxObservation.now());
+            return invocation.callRealMethod();
+        }).when(runPositionStore).save(any(), any());
+        Mockito.doAnswer(invocation -> {
+            broadcastCalls.add(TxObservation.now());
+            return invocation.callRealMethod();
+        }).when(gateway).send(eq(WebSocketDestinations.ADMIN_LIVE), any(), any(), any(), any());
+        MovingRun moving = 움직이는_회차를_만든다();
+
+        mockMvc.perform(post("/api/v1/runs/" + moving.runId() + "/position")
+                .header("Authorization", 토큰(moving.driverAccountId(), moving.academyId(), Role.DRIVER))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"lat": 37.501000, "lng": 127.001000, "recorded_at": "%s"}
+                        """.formatted(now().minusSeconds(2))))
+                .andExpect(status().isNoContent());
+
+        assertThat(redisCalls).as("Redis 갱신이 실제로 일어나야 한다 — 리스너가 조용히 건너뛰면 비어 있다").hasSize(1);
+        assertThat(broadcastCalls).as("관제 방송이 실제로 일어나야 한다").hasSize(1);
+        assertThat(redisCalls).as("Redis 갱신 시점에 트랜잭션·연결·EntityManager 가 없어야 한다")
+                .allSatisfy(observation -> assertThat(observation.holdsNothing()).isTrue());
+        assertThat(broadcastCalls).as("방송 시점에 트랜잭션·연결·EntityManager 가 없어야 한다")
+                .allSatisfy(observation -> assertThat(observation.holdsNothing()).isTrue());
+    }
+
+    /** 호출 시점에 이 스레드에 묶인 트랜잭션 자원 — {@code resources} 가 비어야 연결(ConnectionHolder)·EntityManagerHolder 가 없다. */
+    private record TxObservation(boolean transactionActive, Map<Object, Object> resources) {
+
+        static TxObservation now() {
+            return new TxObservation(TransactionSynchronizationManager.isActualTransactionActive(),
+                    Map.copyOf(TransactionSynchronizationManager.getResourceMap()));
+        }
+
+        boolean holdsNothing() {
+            return !transactionActive && resources.isEmpty();
+        }
+    }
+
+    private record MovingRun(long academyId, long runId, long driverAccountId) {
+    }
+
+    /** 운행 중 회차와 배치 기사를 만든다 — 실제 커밋을 남기므로 학원 id 를 뒷정리 대상에 등록한다. */
+    private MovingRun 움직이는_회차를_만든다() {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        academyIds.add(academyId);
+        long busId = fixtures.bus(academyId);
+        OffsetDateTime departTime = now();
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        fixtures.startRun(runId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        return new MovingRun(academyId, runId, driverAccountId);
     }
 
     private String 토큰(long accountId, long academyId, Role role) {
