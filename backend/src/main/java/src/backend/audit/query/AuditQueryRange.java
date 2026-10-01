@@ -20,7 +20,7 @@ import src.backend.global.error.ErrorCode;
  * {@code 2026-08-24T08:30:00+09:00}. {@link OffsetDateTime#parse(CharSequence)} 의 기본
  * 포매터({@code ISO_OFFSET_DATE_TIME})가 이 표기와 정확히 일치해 별도 포매터가 필요 없다.
  *
- * <p><b>{@code from} 을 안 주면 {@link #DEFAULT_PERIOD_DAYS}일 전부터다</b>(R46 I-05, Ruling 632) — 연도 1 부터 읽으면 필터 없는 첫
+ * <p><b>{@code from} 을 안 주면 {@link #DEFAULT_PERIOD_DAYS}일 전부터다</b>(Ruling 632) — 연도 1 부터 읽으면 필터 없는 첫
  * 화면의 개수 쿼리가 보존 기간(2년) 전체를 훑는다(실측 순차 스캔 15,674 버퍼 · 137ms → 30일 962 버퍼 · 6.6ms). 기준은 {@code to} 가
  * 있으면 {@code to} 이고 없으면 지금이다 — 옛 기간을 보려고 {@code to} 만 줘도 빈 결과가 되지 않는다. 상한은 열어 둔다(미래 행은
  * 없어 비용이 늘지 않는다).

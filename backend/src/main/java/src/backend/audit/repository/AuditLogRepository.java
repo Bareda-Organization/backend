@@ -79,7 +79,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     /**
      * 학원·계정 둘 다 지정한 접속 이력 검색 — 해제 행은 해제된 계정으로 맞춘다.
      *
-     * <p>{@code unblock} 을 바인딩 파라미터가 아니라 <b>리터럴</b>로 쓴다(R46 I-05) — 해제 행만 색인하는 부분 인덱스
+     * <p>{@code unblock} 을 바인딩 파라미터가 아니라 <b>리터럴</b>로 쓴다(Ruling 632) — 해제 행만 색인하는 부분 인덱스
      * {@code ix_audit_log_unblock_target} 의 조건({@code action = 'unblock'})을 일반(generic) 계획도 함의로 받아들이게 하려는 것이다.
      */
     @Query("""
