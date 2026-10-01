@@ -1080,6 +1080,11 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 545 | 조치 메모 입력은 비상 상세 대화상자에서만 · 행 [확인] 은 메모 없이 그대로 · 메인 관리자 상세 표시 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.24` |
 | 546 | 알림 눌러 이동 — `run_id` 있는 노선 변경 → 노선 화면 · 배치 변경 → 기사 운전 / 동승자 명단 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.24` |
 | 547 | 전체 관제 `지연·확정 실패가 있는 학원` 요약 띠 · 학원 선택 목록 표시 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.24` |
+| 580 | 비밀번호 초기화 감사 행(`data_access` `update`)에도 접속 IP — `AuditLog.forAccountPasswordReset` 에 `ip` 인자 · 호출부 `ClientIp.ofCurrentRequest()`(`Ruling 550` 이 남긴 마지막 1곳) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.27` · `ERD §3.4` |
+| 581 | 학부모·학생 앱도 임시 비밀번호 강제 변경 화면에 고정 — 매니저 앱과 같은 갈래(표식 provider · 라우터 redirect · 변경 화면 뒤로 가기 없음 · `[로그아웃]`) · 표식은 역할 반영 전에 켬 · 초기화 경로(웹 학생 수정 화면)가 실재함을 확인 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.27` |
+| 582 | 공용 `RunSummaryCard` 큰 글자 가로 넘침 — 알약 + `호차 · 등원` 줄을 전체 너비 `Wrap` 으로(실측 2.0배에서만 넘침, `Ruling 573` 후속) · 운행 화면 시험의 허용 예외 삭제 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.27` |
+| 583 | 자유 입력 6칸(앱 3·웹 3)에 `학생 이름·연락처는 적지 마세요` 안내 — 퇴원 파기 대상 밖이라 입력 단계에서 줄임 · 학생 특이사항·학원 메모·사유 칸은 제외(근거는 절) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.27` |
+| 584 | 분기점의 기존 실패 2종 정리 — 웹 `useRouter` 가짜 규약 시험 실패(2파일) · 학부모 앱 `analyze` 줄 길이 info 2건 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.27` |
 
 
 ## 8.73 ⚖ `R46-BE` — 성능 개선(감사 제외) + 바로 고칠 것 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 410~419 · 백엔드 갈래)

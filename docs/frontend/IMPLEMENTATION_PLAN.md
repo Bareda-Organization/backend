@@ -393,7 +393,7 @@ frontend/
   - 한계 — 글자 1.3배 360×640 에서 가장 중요한 알림의 아래 10px, 글자 2.0배에서는 알림의 절반 가량이 묶음 안 스크롤로만 보임(`[설정 열기]` 포함). 조작 버튼 `[도착 처리]` 와 접기 줄은 어느 경우에도 보임
   - 버린 길 — 글자 배율 상한으로 버튼 키 고정(접근성 손실 · 알림 누적은 해소 안 됨) · 알림을 스낵바로(스낵바가 `[도착 처리]` 를 덮어 다음 누름을 가로챈 전례, `Ruling 464`) · 알림을 위쪽 스크롤 본문으로(작은 화면에서 접힌 곳에 숨어 문구 끝이 잘린 전례)
 - **`Ruling 572` — 알림 우선순위는 "지금 조작이 막힌 것 먼저, 끝난 일의 확인은 뒤".** 도착 처리 실패 > 명단 조회 실패 > 위치 송신 불가(권한·서비스) > 카카오내비 미설치 > 길안내 안내(상한으로 잘림) > 도착 처리됨
-- **`Ruling 573` — 공용 `RunSummaryCard`(`baraeda_ui`)의 가로 넘침은 이 라운드에서 고치지 않는다.** 글자 1.3~2.0배에서 상태 알약 · `호차 · 등원` · 출발/도착 칸이 한 줄에 못 들어가 가로 넘침 발생(`run_summary_card.dart`). 이 창의 범위(`features/drive_mode`·`features/navigation`) 밖의 공용 위젯이라 후속으로 넘기고, 하단 레이아웃 시험은 **그 넘침만 허용**하고 하단 알림이 만든 넘침은 실패로 판정
+- **`Ruling 573` — 공용 `RunSummaryCard`(`baraeda_ui`)의 가로 넘침은 이 라운드에서 고치지 않는다.** 글자 1.3~2.0배에서 상태 알약 · `호차 · 등원` · 출발/도착 칸이 한 줄에 못 들어가 가로 넘침 발생(`run_summary_card.dart`). 이 창의 범위(`features/drive_mode`·`features/navigation`) 밖의 공용 위젯이라 후속으로 넘기고, 하단 레이아웃 시험은 **그 넘침만 허용**하고 하단 알림이 만든 넘침은 실패로 판정 → **`R46-LAST` `Ruling 582` 가 고쳤고 이 허용 예외도 걷음(§5.27). 실측은 글자 2.0배에서만 넘침(1.3배 아님).**
 
 번호 `574` 는 쓰지 않음.
 
@@ -407,6 +407,49 @@ frontend/
 | 4 | 정본 | 이 절 · `docs/IMPLEMENTATION_PLAN.md §11` 570~573 행 · `USER_FLOWS UF-D-02·UF-D-03` · `API_SPEC §4.16` |
 | 5 | 정리 | `:8470` LISTEN 0 · `r46_fumgr` 연결 0 확인 뒤 DROP(`FORCE` 없이) · 자기 `flutter_tester` 잔여 0 |
 - 결함 심기 9종(`scope` 고정 3곳 — 화면·저장소·API · 버튼 뒤바꿈 · 알림 상한 변조 3종 · 우선순위 뒤집기 · 전부 펼침) 9/9 — 각 결함에 의도한 시험만 실패
+
+## 5.27 ✅ `R46-LAST` 목표 표 — 학부모·학생 앱 강제 비밀번호 변경 · 자유 메모 안내 · 큰 글자 카드 넘침 · 초기화 감사 IP (2026-10-01 · 기준 HEAD `cbfe7ea4` `mskim98/r46-last` · 판정 `Ruling 580~584`)
+
+R46 의 마지막 잔여 갈래. 앞선 갈래들이 보고서에 "후속" 으로 남긴 4건을 한 창에서 처리함(`report-fufeat` ② 끝 · `report-fube` 항목 2 · `report-fumgr` `Ruling 573` · `DECISIONS` 12:05 자유 문구 행). 사용자 자리 비움 중이라 세부 선택은 작업 창이 `Ruling` 으로 기록함.
+
+- **범위** — 백엔드 `AuditLog`·`AccountPasswordResetCommandService` · 학부모·학생 앱 `core/auth`·`app/router`·`features/auth/login`·`features/settings/password_change` · 공용 `baraeda_ui` `RunSummaryCard` · 매니저 앱 자유 입력 3화면 · 관계자 웹 자유 입력 3화면. 사양(`API_SPEC`) 문구 변경 없음 — 서버 동작·응답은 그대로이고 `ERD §3.4` 한 구절만 정정
+- 화면: 위젯 렌더 PNG 5장 — `frontend/report/r46-last/`(카드 1.0·1.3·2.0배 · 학부모 앱 강제 변경 화면 1.0·2.0배). 시험 환경 글꼴이라 글자는 네모로 그려지고 배치만 확인 가능. 시뮬레이터는 좌표 클릭 금지로 미사용
+
+### 5.27.1 판정
+
+- **`Ruling 580` — 비밀번호 초기화 감사 행에도 접속 IP.** `AuditLog.forAccountPasswordReset` 에 `String ip` 인자를 더하고 호출부(`AccountPasswordResetCommandService.reset`)가 `ClientIp.ofCurrentRequest()` 를 넘김. `Ruling 550` 이 같은 파일의 인접 줄 충돌을 피하려 남긴 마지막 1곳(수정·삭제 행 4곳 중 3곳은 `Ruling 550`). 엔티티가 요청 컨텍스트를 모르게 인자로 받는 방식도 그대로. `ERD §3.4` 의 "비밀번호 초기화 행은 아직 비어 있음" 구절 삭제
+  - 범위 밖 발견 — `AccountUnblockCommandService`(`forAccountUnblock`, `category=login` 의 `unblock`)의 감사 행은 IP 가 비어 있음. `ERD §3.4` 는 `category=login` 행에 IP 를 채운다고 적었으므로 같은 종류의 누락 가능성. 이 갈래에서 고치지 않고 보고서에 기록
+- **`Ruling 581` — 학부모·학생 앱도 임시 비밀번호 강제 변경 화면에 고정(매니저 앱과 같은 갈래).** 학부모·학생 계정의 초기화 경로는 **실재**함 — 관계자 웹 학생 수정 화면의 `AccountPasswordResetDialog`(`StudentForm.tsx`) → `POST /staff/accounts/{accountId}/password-reset`(`§5.22`), 서버 대상 역할 `PARENT`·`STUDENT`·`DRIVER`·`ESCORT`(`AccountPasswordResetCommandService.RESETTABLE_ROLES`)
+  - `mustChangePasswordProvider`(`core/auth/account_session.dart`)가 로그인·`/me`(자동 로그인) 응답의 `mustChangePassword` 로 켜지고, 라우터 `redirect` 가 켜진 동안 `/password-change` 밖으로 못 가게 함. 계정 상태 게이트(`pending`·`rejected` → 대기 화면) 다음 순서
+  - **표식은 역할을 반영하기 전에 켬.** 역할이 서는 순간 라우터가 판정하므로 그 시점에 표식이 있어야 함. 매니저 앱은 역할 → 표식 순서인데 `go_router` 가 판정을 비동기로 미뤄 문제가 없었을 뿐이고, 학부모 앱은 순서 의존을 없애는 쪽을 택함
+  - 변경 화면(`password_change_screen.dart`)은 표식이 켜진 동안 **뒤로 가기 없음**(`AppHeader.onBack` 을 비우면 뒤에 화면이 없어 버튼이 안 그려짐) · 안내 배너 · `[로그아웃]`. 로그아웃은 이 앱 다른 곳과 같은 `confirmLogout`(확인 대화 1회) — 매니저 앱은 대화 없이 즉시이나 학부모 앱은 이미 `settings`·`pending_approval` 이 확인 대화를 쓰므로 맞춤
+  - 표식을 끄는 곳은 역할이 비는 모든 경로(로그아웃·세션 만료·변경 성공 뒤 로그아웃) — `RouterRefreshNotifier` 의 역할 구독이 `이전 역할 있음 → 없음` 전이에서 함께 끔. 로그인 화면의 "이 앱이 지원하지 않는 역할" 갈래도 표식을 되돌림
+  - 서버가 마지막 방어선이므로(`Ruling 540`) 이 이동 처리는 막힌 호출이 오류 화면으로 쏟아지지 않게 하는 쪽
+- **`Ruling 582` — 공용 `RunSummaryCard` 의 큰 글자 가로 넘침은 알약 + `호차 · 등원` 줄을 전체 너비 `Wrap` 으로.** 실측(`R46-FUMGR` 매니저 운행 화면 시험의 허용 예외를 걷은 채 실행) — **글자 2.0배에서만** 360×640 에서 57px · 375×750 에서 42px 가로 넘침, 1.0·1.3배는 넘침 없음(`Ruling 573` 이 적은 "1.3~2.0배" 는 실측과 어긋남). 원인은 `Row[알약, Spacer, 호차·등원]` 의 두 자식이 한 줄에 못 들어가도 줄을 바꿀 수 없는 구조
+  - `SizedBox(width: infinity)` 안의 `Wrap(alignment: spaceBetween)` — 한 줄에 들어가면 예전과 같이 알약 왼쪽 · 호차 오른쪽 끝, 2.0배에서는 `호차 · 등원` 이 둘째 줄 왼쪽으로 내려감. **`Wrap` 만으로는 내용 너비로 줄어들어 오른쪽 끝 정렬이 사라져**(1.0배에서 라벨 위치 229px, 기대 320px — 시험으로 확인) 전체 너비를 줌
+  - 버린 길 — `Flexible` + `ellipsis`(큰 글자를 쓰는 사용자가 호차 번호를 못 읽게 됨) · 글자 배율 상한(접근성 손실)
+  - 매니저 운행 화면 시험(`drive_mode_bottom_layout_test.dart`)의 `_isKnownSharedCardOverflow` 허용 예외를 삭제 — 이제 어떤 넘침도 실패
+- **`Ruling 583` — 자유 입력 6칸에 `학생 이름·연락처는 적지 마세요` 안내.** 이 칸들은 퇴원 학생 개인정보 파기(`Ruling 480 ②`·`520`~`523`) 대상 밖이라 한 번 적히면 남음 → 입력 단계에서 줄임(`DECISIONS` 12:05). 칸 목록은 서버 스키마 자유 문구 컬럼 14개(`memo`·`note`·`reason`·`reject_reason`·`block_reason`·`fail_reason`)를 전수한 뒤 화면 입력칸(`Textarea`·`Input`·`BaraedaTextarea`)과 대조해 정함
+  - **적용 6칸** — 매니저 앱: 비상 신고 상황 메모(`emergency_alert.memo`) · 현장 보고 상황 메모(`exception_report.memo`) · 지연 안내 문구(탑승 학생 전원의 보호자에게 나가므로 다른 학생 정보가 새는 쪽 위험이 큼) / 관계자 웹: 비상 조치 메모(`emergency_alert.ack_memo`) · 임시 추가 메모(`run_forced_addition.note`) · 이동 대기 비고. 안내는 칸의 `hint`(칸 아래 보조 문구)에 붙임. 문구 상수는 앱 `limited_text_controller.dart` 의 `freeTextPrivacyNotice`(이미 자유 입력 메모 도우미가 있는 파일) · 웹 `shared/lib/freeTextNotice.ts`
+  - **제외와 근거** — 학생 특이사항(웹 `StudentForm` 의 "메모", `student.note`): L3 로 관리되고 퇴원 때 파기됨. 학원 메모(`academy.memo`): 플랫폼 관리자의 학원 운영 메모라 학생 맥락 부재. 거절 사유 3종(가입 2 · 학부모 변경 요청 1)·강제 확정 사유: "사유" 칸이고 신청자·시스템 운영 판정 근거이며 학생 식별 맥락이 약함 — **지시서가 말한 `memo`·`note` 류 범위를 지켰고, 넓히려면 같은 상수를 `hint` 에 한 줄씩 연결하면 됨.** 학부모 앱 변경 요청 사유: 학부모가 본인 자녀 정보를 직접 적는 칸이라 안내가 맞지 않고 지시서 범위(매니저 앱·관계자 웹) 밖. 계정·학생 이름·전화 같은 식별 입력칸은 자유 문구가 아님
+  - 웹 `Input`·`Textarea` 는 `hint` 를 `<label>` 안에 두어 접근 가능한 이름이 "메모 + 안내문" 이 됨(스크린 리더가 안내까지 읽음 — 의도에 부합). 그래서 기존 시험의 정확 일치 조회 3곳(`getByLabelText("메모")`·`("비고")`·`(/학생 이름/)`)을 접두 일치로 바꿈
+- **`Ruling 584` — 분기점의 기존 실패 2종을 이 갈래에서 정리.** ① 웹 `stableRouter.test.ts`(렌더마다 새 `useRouter` 가짜를 쓰는 시험 파일 금지, `Ruling 560`)가 병합으로 들어온 `AuthGateGuard.test.tsx`(`R46-FUFEAT`)·`RouteList.test.tsx`(`R46-FUBE`)에 실패 → 공용 `createStableRouter` 로 교체(동작 변경 없음). ② 학부모 앱 `flutter analyze` 줄 길이 info 2건(`account_recovery_screen_test.dart`) → 포맷만 적용(같은 파일의 `account_recovery_screen.dart` 도 포맷만 바뀜). 목표 표가 "웹 실패 0 · analyze 0" 이라 범위 밖이어도 걷음
+
+번호 `585` 이상은 이 갈래가 쓰지 않음.
+
+### 5.27.2 목표 표와 결과 (2026-10-01)
+
+| # | 조건 | 결과 |
+|:-:|---|---|
+| 1 | 학부모 앱 — 표식 계정은 로그인·자동 로그인 뒤 변경 화면에 고정 · 바꾸면 해제 · 표식 없는 계정 영향 0 | 위젯 시험 6건(학부모·학생 로그인 2 · 표식 없음 1 · 자동 로그인 1 · 뒤로 없음+로그아웃 1 · 변경 뒤 해제 1). 새 시험 RED 확인(provider 선언만 둔 상태에서 6건 중 5건 실패, 표식 없는 로그인만 통과) 뒤 GREEN |
+| 2 | 자유 입력 칸 전부에 안내 · 칸 목록과 판정 근거 | 6칸 — 앱 위젯 시험 3 · 웹 vitest 3(각 칸 1건). 목록·제외 근거는 `Ruling 583` |
+| 3 | `RunSummaryCard` 360 폭 × 글자 1.0/1.3/2.0 넘침 0 | `baraeda_ui` 시험 3건(360 폭 × 3 크기, 2.0배 RED 78px→GREEN · 1.0배 오른쪽 끝 정렬 검사 포함) + 매니저 운행 화면 시험 6조합(허용 예외 제거 후 360×640 · 375×750 의 2.0배 RED 57·42px → GREEN) |
+| 4 | 초기화 감사 행에 IP | 백엔드 `StaffAccountPasswordResetControllerTest` 에 `X-Real-IP` 헤더와 `host(ip)` 검사 추가 — RED(`null`) → GREEN |
+| 5 | Flutter 4곳 `analyze` 0 · 시험 실패 0·건너뜀 0 · 웹 `tsc`·`lint`·vitest 실패 0 · 백엔드 `account`·`audit` + 전체를 세는 시험 실패 0 | `baraeda_core` 85 · `baraeda_ui` 240 · `manager-app` 403 · `parent-app` 312(실서버 제외) 전부 `analyze` 0·실패 0·건너뜀 0 · 웹 vitest 136 파일 806건(실서버 14파일 제외) 실패 0 · `tsc`·`eslint` 종료 코드 0 · 백엔드 71 클래스 498건(`account` 27·`audit` 14 클래스 + 규약·계약 클래스 전부) 실패 0·건너뜀 0 |
+| 6 | 실서버 계약(학부모 · core)을 `:8480` 에만 | `parent-app` 28 · `baraeda_core` 9(2회 연속) 실패 0·건너뜀 0 — `--dart-define=API_BASE_URL=http://localhost:8480/api/v1 --dart-define=FIXTURE_DB=r46_last` |
+| 7 | 정본 반영 · `Ruling 580~584` · 깨진 참조 0 | 이 절 · `docs/IMPLEMENTATION_PLAN.md §11` 580~584 행 · `ERD §3.4` · docgraph |
+| 8 | 정리 | 보고서 3항 |
+- 결함 심기 14종 14/14 — 백엔드 1(IP 인자를 `null` 로) · 학부모 앱 5(라우터 무시 · 로그인 미설정 · 자동 로그인 미설정 · 해제 누락 · 강제 중 뒤로 버튼) · 카드 2(`Row` 복귀 · 전체 너비 제거) · 안내 6(앱 3 · 웹 3, 각 칸 안내 삭제) — 각 결함에 의도한 시험만 실패(상세는 보고서 4항)
 
 ## 6. 완료 조건 — 화면 단위
 
@@ -723,7 +766,7 @@ Flutter 패키지가 부재**하다(경로탐색 REST 래퍼조차 없음). 즉 
 
 ### 5.24.1 판정 (클라이언트 몫)
 
-- **`Ruling 544` — 강제 변경 화면은 웹 = 가드가 본문 대신 취소 없는 대화상자 · 앱 = 라우터가 변경 화면에 고정.** 웹: `AuthGateGuard` 가 `session.mustChangePassword` 를 보고 본문 대신 `PasswordChangeDialog forced`(R46-WEBF 헤더 버튼과 **같은 대화상자** — `[취소]` 없음 · Esc 무시 · 안내 한 줄)만 그린다. 별도 라우트를 만들지 않은 이유는 `(staff)`·`(admin)` 두 레이아웃이 같은 가드를 부르므로 판정이 한 곳이고, 라우트로 만들면 사용자가 주소를 바꿔 우회하는 길을 막는 코드가 따로 필요해서다. 서버도 막으므로(`§1.4`) 이 화면은 막힌 호출이 쏟아지지 않게 하는 쪽이다. 변경에 성공하면 서버가 refresh 토큰을 전부 끊으므로 기존 "다시 로그인" 흐름 그대로 로그아웃한다. 로그인·`/me` 가 표식을 세션에 옮기고, 어떤 API 가 `403 PASSWORD_CHANGE_REQUIRED` 를 받으면 http 계층이 `AUTH_PENDING` 과 같은 길(`auth-pending` 통지)로 세션을 다시 확인해 `/me` 의 표식으로 화면을 바꾼다. 앱(매니저): `mustChangePasswordProvider` 가 로그인·`/me` 응답으로 켜지고, 라우터 `redirect` 가 켜진 동안 비밀번호 변경 화면 밖으로 가지 못하게 한다. 그 화면은 뒤로 가기를 없애고 `[로그아웃]` 만 연다. 역할이 비는 모든 경로(로그아웃·세션 만료·변경 뒤 로그아웃)에서 `RouterRefreshNotifier` 가 표식도 함께 끈다. 공용 `baraeda_core` 의 `LoginResponse`·`MeResponse` 는 `mustChangePassword`(기본 `false`)만 더했다 — 학부모 앱은 코드 변경 없이 `analyze` 0. **학부모·학생 앱은 같은 표식을 받는데 아직 이동 처리가 없다 → 학부모 갈래 몫(보고 2항).** 표식이 켜진 학부모 계정은 서버가 막아 `403 PASSWORD_CHANGE_REQUIRED` 오류 화면이 보인다.
+- **`Ruling 544` — 강제 변경 화면은 웹 = 가드가 본문 대신 취소 없는 대화상자 · 앱 = 라우터가 변경 화면에 고정.** 웹: `AuthGateGuard` 가 `session.mustChangePassword` 를 보고 본문 대신 `PasswordChangeDialog forced`(R46-WEBF 헤더 버튼과 **같은 대화상자** — `[취소]` 없음 · Esc 무시 · 안내 한 줄)만 그린다. 별도 라우트를 만들지 않은 이유는 `(staff)`·`(admin)` 두 레이아웃이 같은 가드를 부르므로 판정이 한 곳이고, 라우트로 만들면 사용자가 주소를 바꿔 우회하는 길을 막는 코드가 따로 필요해서다. 서버도 막으므로(`§1.4`) 이 화면은 막힌 호출이 쏟아지지 않게 하는 쪽이다. 변경에 성공하면 서버가 refresh 토큰을 전부 끊으므로 기존 "다시 로그인" 흐름 그대로 로그아웃한다. 로그인·`/me` 가 표식을 세션에 옮기고, 어떤 API 가 `403 PASSWORD_CHANGE_REQUIRED` 를 받으면 http 계층이 `AUTH_PENDING` 과 같은 길(`auth-pending` 통지)로 세션을 다시 확인해 `/me` 의 표식으로 화면을 바꾼다. 앱(매니저): `mustChangePasswordProvider` 가 로그인·`/me` 응답으로 켜지고, 라우터 `redirect` 가 켜진 동안 비밀번호 변경 화면 밖으로 가지 못하게 한다. 그 화면은 뒤로 가기를 없애고 `[로그아웃]` 만 연다. 역할이 비는 모든 경로(로그아웃·세션 만료·변경 뒤 로그아웃)에서 `RouterRefreshNotifier` 가 표식도 함께 끈다. 공용 `baraeda_core` 의 `LoginResponse`·`MeResponse` 는 `mustChangePassword`(기본 `false`)만 더했다 — 학부모 앱은 코드 변경 없이 `analyze` 0. **학부모·학생 앱은 같은 표식을 받는데 이 갈래 시점에는 이동 처리가 없었다 → `R46-LAST` `Ruling 581` 이 매니저 앱과 같은 방식으로 더함(§5.27).** 그 전에는 표식이 켜진 학부모 계정이 서버가 막은 `403 PASSWORD_CHANGE_REQUIRED` 오류 화면을 봄.
 - **`Ruling 545` — 조치 메모 입력은 비상 상세 대화상자에서만, 행의 [확인] 은 메모 없이 그대로.** 비상은 빨리 눌러야 하는 화면이라 행 버튼·팝업의 `[확인]` 은 지금처럼 한 번에 확인한다(메모 선택). 사후 조치를 적고 싶을 때만 행을 열어 상세 대화상자의 `조치 메모(선택)` 칸(최대 200자 · 글자 수 표시)에 적고 `[확인]` 한다. 확인된 건의 상세는 `확인자`·`조치 메모` 두 줄을 보인다. 메인 관리자 상세(`EmergencyDetailDialog`)는 `조치 메모` 줄을 더했다. **기존 결함 1건도 함께 고쳤다** — 메인 관리자 웹이 `acked_by` 를 문자열로 읽었는데 서버는 `{name}`(§5.16 · §6.11) 객체라 `확인됨 ([object Object])` 로 보였을 형태. 타입을 `{name, memo}` 로 정정. 발신자(매니저 앱 §4.15) 응답에는 메모를 싣지 않았다 — 요청 범위 밖이고 현장 메모가 발신자 화면에 어떻게 보일지는 별도 판단(보고 2항).
 - **`Ruling 546` — 알림 눌러 이동은 `run_id` 가 있는 노선·배치 변경 알림만.** `route_changed` → 노선 화면(`/route-map`) · `assignment_changed` → 기사는 운전 화면(`/drive-mode`) · 동승자는 명단 화면(`/roster`)(홈에서 회차 카드를 누를 때 `canOperateRun` 으로 가르는 것과 같은 판정). 이동 전 `selectedRunIdProvider` 에 그 회차를 넣는다(화면들이 이 값을 읽는다). 이미 읽은 알림도 이동하고, `run_id` 가 없는 옛 알림·그 밖의 종류는 읽음 처리만 한다. 가리키는 회차가 오늘 것이 아니면 도착 화면이 조회 오류를 보인다(14일 보관 — 별도 처리를 만들지 않았다).
 - **`Ruling 547` — 전체 관제 요약 띠 하나를 더한다.** 기존 "미확인 비상이 있는 학원" 띠 아래에 `지연·확정 실패가 있는 학원` 띠(호박색) — 학원 버튼 `송파학원 지연 1건 · 확정 실패 2건`(0 인 쪽은 적지 않음)을 누르면 그 학원으로 전환하고 학원 선택 목록에도 같은 표시를 붙인다. `GET /admin/runs/attention` 을 비상 요약과 같은 30초 주기로 읽고, 실패해도 관제 화면을 막지 않는다(요약이 비어 보일 뿐).
