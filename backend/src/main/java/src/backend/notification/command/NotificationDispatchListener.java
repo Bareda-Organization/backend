@@ -28,6 +28,10 @@ public class NotificationDispatchListener {
     @Qualifier("notificationDispatchExecutor")
     private final ThreadPoolTaskExecutor notificationDispatchExecutor;
 
+    /** 비상 종류 전용 — 일반 알림 뒤에 서지 않는다(R46 S-2). */
+    @Qualifier("emergencyDispatchExecutor")
+    private final ThreadPoolTaskExecutor emergencyDispatchExecutor;
+
     /**
      * {@code AFTER_COMMIT} 이라 상태 변경이 확정된 뒤에만 돈다 — 롤백되면 호출 자체가 부재해
      * "일어나지 않은 일" 을 통지하지 않는다.
@@ -39,7 +43,8 @@ public class NotificationDispatchListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void dispatchAfterCommit(NotificationAppendedEvent event) {
         try {
-            notificationDispatchExecutor.execute(() -> dispatch(event.notificationId()));
+            (event.urgent() ? emergencyDispatchExecutor : notificationDispatchExecutor)
+                    .execute(() -> dispatch(event.notificationId()));
         } catch (TaskRejectedException e) {
             log.warn("[outbox] 즉시 발송 대기열이 가득 차 워커 재시도로 넘긴다. id={}", event.notificationId());
         }

@@ -49,7 +49,7 @@ public class NotificationOutbox {
             + "dedup_key, created_at) VALUES ";
 
     /** 멱등은 DB 제약이 보장한다 — 같은 키는 새 행 없이 건너뛰고, 적재된 행의 id 만 돌려받는다. */
-    private static final String INSERT_TAIL = " ON CONFLICT (dedup_key) DO NOTHING RETURNING id";
+    private static final String INSERT_TAIL = " ON CONFLICT (dedup_key) DO NOTHING RETURNING id, popup";
 
     private final EntityManager entityManager;
 
@@ -83,21 +83,25 @@ public class NotificationOutbox {
     @Transactional(propagation = Propagation.MANDATORY)
     public List<Long> appendAll(List<NotificationDraft> drafts) {
         OffsetDateTime now = OffsetDateTime.now(clock);
-        List<Long> appendedIds = new ArrayList<>();
+        List<Appended> appended = new ArrayList<>();
         for (int from = 0; from < drafts.size(); from += CHUNK_SIZE) {
-            appendedIds.addAll(insert(drafts.subList(from, Math.min(from + CHUNK_SIZE, drafts.size())), now));
+            appended.addAll(insert(drafts.subList(from, Math.min(from + CHUNK_SIZE, drafts.size())), now));
         }
-        int skipped = drafts.size() - appendedIds.size();
+        int skipped = drafts.size() - appended.size();
         if (skipped > 0) {
             log.warn("[outbox] 같은 dedup_key 가 이미 있어 {}건의 적재를 건너뛴다(멱등). 첫 키={}", skipped,
                     drafts.get(0).dedupKey());
         }
-        appendedIds.forEach(id -> eventPublisher.publishEvent(new NotificationAppendedEvent(id)));
-        return List.copyOf(appendedIds);
+        appended.forEach(row -> eventPublisher.publishEvent(new NotificationAppendedEvent(row.id(), row.popup())));
+        return appended.stream().map(Appended::id).toList();
     }
 
-    /** 한 묶음을 한 문장으로 넣고 새로 생긴 행의 id 를 돌려받는다 — 비어 있는 값은 문장에 {@code NULL} 로 적는다. */
-    private List<Long> insert(List<NotificationDraft> chunk, OffsetDateTime now) {
+    /** 새로 생긴 행의 식별자와 팝업(비상) 여부 — 즉시 발송을 어느 실행기에 보낼지 가르는 기준이다. */
+    private record Appended(Long id, boolean popup) {
+    }
+
+    /** 한 묶음을 한 문장으로 넣고 새로 생긴 행(id · popup)을 돌려받는다 — 비어 있는 값은 문장에 {@code NULL} 로 적는다. */
+    private List<Appended> insert(List<NotificationDraft> chunk, OffsetDateTime now) {
         List<Object> values = new ArrayList<>();
         StringBuilder sql = new StringBuilder(INSERT_HEAD);
         for (int i = 0; i < chunk.size(); i++) {
@@ -110,7 +114,10 @@ public class NotificationOutbox {
             query.setParameter(i + 1, values.get(i));
         }
         List<?> rows = query.getResultList();
-        return rows.stream().map(row -> ((Number) row).longValue()).toList();
+        return rows.stream()
+                .map(row -> (Object[]) row)
+                .map(row -> new Appended(((Number) row[0]).longValue(), (Boolean) row[1]))
+                .toList();
     }
 
     /** 한 행의 값 목록 — 값이 있으면 {@code ?n} 으로 묶어 {@code values} 에 쌓고, 없으면 {@code NULL} 을 적는다. */

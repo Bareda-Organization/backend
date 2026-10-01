@@ -144,6 +144,16 @@ resilience4j:
         wait-duration-in-open-state: 10s
         permitted-number-of-calls-in-half-open-state: 3
         automatic-transition-from-open-to-half-open-enabled: true
+      # FCM 발송(R46 S-2) — 재시도는 아웃박스 워커가 맡으므로 서킷만 둔다. 값은 placeSearch 와 같다. 열린 동안의 발송은 행이
+      # pending 으로 남아 워커(30초)가 이어받는다 — 알림이 최대 30초 늦어지는 것이 FCM 장애 중 발송 스레드 8개가 묶이는 것보다 낫다.
+      fcm:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
     metrics:
       # 관측 목표 8행(TECH_DECISIONS §13.1) — 이 값이 없으면(기본값 false) resilience4j-spring-boot3
       # 가 만드는 지표 게시자는 CircuitBreakerRegistry 에 실제로 연결되지 않는다. 역참조로 확인한
