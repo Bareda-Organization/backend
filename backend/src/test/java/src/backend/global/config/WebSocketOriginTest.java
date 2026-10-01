@@ -29,7 +29,8 @@ class WebSocketOriginTest {
         // 뒤 네 인자는 팬아웃 실행기 스레드 수·큐 상한·세션 송신 버퍼·시간 한도 — 이 시험은 허용
         // 출처만 보므로 아무 값이나 준다(WebSocketOutboundPoolSizeTest·WebSocketOutboundQueueCapacityTest·
         // WebSocketOutboundSendLimitTest 가 그쪽을 맡는다).
-        WebSocketConfig config = new WebSocketConfig(interceptor, closeFactory, mock(StompSessionExpiry.class), origins, 0, 0, 0, 0);
+        WebSocketConfig config = new WebSocketConfig(interceptor, closeFactory, mock(ReadIdleTimeoutFactory.class),
+                mock(StompSessionExpiry.class), origins, 0, 0, 0, 0);
 
         StompEndpointRegistry registry = mock(StompEndpointRegistry.class);
         StompWebSocketEndpointRegistration registration = mock(StompWebSocketEndpointRegistration.class);

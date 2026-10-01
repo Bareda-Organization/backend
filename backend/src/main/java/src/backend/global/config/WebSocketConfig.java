@@ -37,6 +37,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final StompAuthChannelInterceptor authChannelInterceptor;
     private final ForbiddenSubscriptionCloseFactory forbiddenSubscriptionCloseFactory;
+    private final ReadIdleTimeoutFactory readIdleTimeoutFactory;
     private final StompSessionExpiry sessionExpiry;
     @Value("${app.ws.allowed-origin-patterns}")
     private final String[] allowedOriginPatterns;
@@ -144,6 +145,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void configureWebSocketTransport(WebSocketTransportRegistration registration) {
         registration.addDecoratorFactory(forbiddenSubscriptionCloseFactory);
+        // 나중에 등록한 것이 바깥이다 — 유휴 제한이 원본(Tomcat) 세션을 먼저 받아야 하므로 반드시 위 데코레이터보다 뒤에 둔다.
+        registration.addDecoratorFactory(readIdleTimeoutFactory);
         registration.setSendBufferSizeLimit(outboundSendBufferSizeLimit);
         registration.setSendTimeLimit(outboundSendTimeLimit);
     }
