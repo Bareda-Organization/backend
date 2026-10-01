@@ -26,6 +26,8 @@ import src.backend.routing.dto.RouteListRequest;
 import src.backend.routing.dto.RouteResponse;
 import src.backend.routing.entity.Route;
 import src.backend.routing.repository.RouteRepository;
+import src.backend.routing.repository.RouteStopRepository;
+import src.backend.routing.repository.RouteStopRepository.StopCount;
 
 /** 관계자 웹의 고정 노선 목록·상세 조회(RTE-01 · A-08, API_SPEC §5.9). */
 @Service
@@ -49,6 +51,8 @@ public class RouteQueryService {
 
     private final BusRepository busRepository;
 
+    private final RouteStopRepository routeStopRepository;
+
     private final RouteDetailAssembler routeDetailAssembler;
 
     /** 소속 학원의 고정 노선 목록(§5.9) — 범위는 토큰이 정하고 요청은 페이지 위치만 정한다. */
@@ -57,8 +61,10 @@ public class RouteQueryService {
                 PageParams.of(request.page(), request.size())
                         .toPageable(SortParam.parse(request.sort(), SORTABLE_FIELDS, DEFAULT_SORT)));
         Map<Long, String> busNos = busNosOf(requester, page.getContent());
+        Map<Long, Integer> stopCounts = stopCountsOf(requester, page.getContent());
         List<RouteResponse> items = page.getContent().stream()
-                .map(route -> RouteResponse.of(route, busNos.get(route.getBusId())))
+                .map(route -> RouteResponse.of(route, busNos.get(route.getBusId()),
+                        stopCounts.getOrDefault(route.getId(), 0)))
                 .toList();
         return PageResponse.of(page, items);
     }
@@ -68,6 +74,16 @@ public class RouteQueryService {
         Route route = routeRepository.findByIdAndAcademyId(routeId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.ROUTE_NOT_FOUND));
         return routeDetailAssembler.assemble(route);
+    }
+
+    /** 한 페이지 편성의 정차지 수를 한 번에 센다 — 정차지가 없는 편성은 맵에 없으니 호출부가 0 으로 읽는다. */
+    private Map<Long, Integer> stopCountsOf(AuthUser requester, List<Route> routes) {
+        if (routes.isEmpty()) {
+            return Map.of();
+        }
+        return routeStopRepository.countByRouteIdsAndAcademyId(
+                        routes.stream().map(Route::getId).toList(), requester.academyId()).stream()
+                .collect(Collectors.toMap(StopCount::getRouteId, count -> Math.toIntExact(count.getTotal())));
     }
 
     /** 한 페이지가 물고 있는 차량의 호차를 한 번에 읽는다 — 행마다 조회하면 목록 하나에 N회가 붙는다. */

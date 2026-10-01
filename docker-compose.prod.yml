@@ -111,10 +111,10 @@ services:
       # demo 프로파일의 Flyway placeholder. 미주입 시 기동이 실패하는 게 정상이다 —
       # 조용히 약한 기본값("password")으로 뜨는 것보다 안전하다.
       SEED_PASSWORD_HASH: ${SEED_PASSWORD_HASH:?SEED_PASSWORD_HASH 미설정}
-      # 없으면 배차·시뮬레이션·노선 생성이 전부 500 이 된다. 키를 못 구하면 ROUTING_PROVIDER=osrm 로 우회.
+      # 없으면 도로 경로 호출이 실패해 노선이 직선거리 근사(fallback_used=true)로 나오고 미리보기는 503 이 된다.
+      # 대체 지도 공급자는 없다 — 공급자는 코드가 app.routing.map.provider(naver 기본 · stub 은 시험용)로 고른다(Ruling 551).
       NAVER_DIRECTIONS_KEY_ID: ${NAVER_DIRECTIONS_KEY_ID:-}
       NAVER_DIRECTIONS_KEY: ${NAVER_DIRECTIONS_KEY:-}
-      ROUTING_PROVIDER: ${ROUTING_PROVIDER:-naver}
       # prod 프로파일 전용 — FCM 서비스 계정 자격 증명(Ruling 331). demo 는 읽지 않는다(로그 전용 발송).
       FCM_PROJECT_ID: ${FCM_PROJECT_ID:-}
       FCM_CLIENT_EMAIL: ${FCM_CLIENT_EMAIL:-}

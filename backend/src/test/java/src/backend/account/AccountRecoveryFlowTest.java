@@ -5,7 +5,15 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.regex.Matcher;
@@ -27,10 +35,12 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.ResultActions;
 
 import src.backend.academy.entity.Academy;
 import src.backend.academy.repository.AcademyRepository;
+import src.backend.account.command.AccountRecoveryCommandService;
 import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
 import src.backend.global.common.enums.Role;
@@ -72,6 +82,9 @@ class AccountRecoveryFlowTest {
 
     @Autowired
     private RecordingSmsSender smsSender;
+
+    @Autowired
+    private AccountRecoveryCommandService accountRecoveryCommandService;
 
     private String phone;
 
@@ -203,24 +216,124 @@ class AccountRecoveryFlowTest {
         assertThat(body).doesNotContain(loginId);
     }
 
-    /** 미등록 번호는 404 — 문자도 코드 행도 만들지 않는다. */
+    /**
+     * 번호가 가입돼 있는지 응답으로 알 수 없어야 한다(R46 FUBE · Ruling 553) — 미등록 번호도 발급 요청에 같은 {@code 200} 이고
+     * 응답 본문이 같다. 문자는 가입된 번호에만 나간다.
+     */
     @Test
-    void 미등록_번호는_404이고_아무것도_남기지_않는다() throws Exception {
-        recover("password", null).andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error.code").value("ACCOUNT_NOT_FOUND"));
+    void 미등록_번호의_발급_요청도_등록_번호와_같은_응답이고_문자는_보내지_않는다() throws Exception {
+        String registeredBody = recover("password", null).andExpect(status().isOk()).andReturn().getResponse()
+                .getContentAsString();
+        // 위는 계정이 아직 없던 번호 — 이어서 같은 번호에 계정을 만들고 다른 번호로 같은 요청을 보내 비교한다
+        smsSender.clear();
+        String unregisteredPhone = phone;
+        phone = "010-" + ThreadLocalRandom.current().nextInt(10_000_000, 100_000_000);
+        loginId = "r46recb" + phone.substring(4);
+        createAccount(Role.PARENT);
 
-        assertThat(smsSender.sent()).isEmpty();
-        assertThat(codeRows()).isZero();
+        String body = recover("password", null).andExpect(status().isOk()).andReturn().getResponse()
+                .getContentAsString();
+
+        assertThat(body).as("가입된 번호의 응답 본문").isEqualTo(registeredBody);
+        assertThat(smsSender.sent()).as("문자는 가입된 번호에만").hasSize(1);
+        assertThat(smsSender.sent().get(0).phone()).isEqualTo(phone);
+        jdbcTemplate.update("DELETE FROM verification_code WHERE phone = ?", unregisteredPhone);
     }
 
-    /** 관계자 계정은 문자 복구 대상이 아니다 — 메인 관리자 경로(§6.7)로만 초기화한다(Ruling 513). */
+    /** 빈도 제한도 번호 기준으로 같다 — 미등록 번호만 제한이 안 걸리면 그 차이로 가입 여부가 드러난다. */
     @Test
-    void 관계자_계정은_문자_복구_대상이_아니다() throws Exception {
-        createAccount(Role.STAFF);
+    void 미등록_번호도_60초_안에_다시_발급하면_같은_429_이다() throws Exception {
+        recover("password", null).andExpect(status().isOk());
 
-        recover("password", null).andExpect(status().isNotFound());
+        recover("password", null).andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.error.code").value("RECOVERY_RATE_LIMITED"));
 
         assertThat(smsSender.sent()).isEmpty();
+    }
+
+    @Test
+    void 미등록_번호도_하루_5회를_넘기면_같은_429_이다() throws Exception {
+        insertOldCodes(5);
+
+        recover("password", null).andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.error.code").value("RECOVERY_RATE_LIMITED"));
+    }
+
+    /** 같은 번호로 동시에 들어온 발급은 한 건만 통과한다 — 등록 여부와 무관하게(미등록만 둘 다 통과하면 그 차이가 단서다). */
+    @Test
+    void 미등록_번호로_동시에_발급해도_한_건만_통과한다() throws Exception {
+        int requests = 6;
+        ExecutorService pool = Executors.newFixedThreadPool(requests);
+        CountDownLatch go = new CountDownLatch(1);
+        try {
+            List<Future<Integer>> results = new ArrayList<>();
+            for (int i = 0; i < requests; i++) {
+                results.add(pool.submit(() -> {
+                    go.await();
+                    return recover("password", null).andReturn().getResponse().getStatus();
+                }));
+            }
+            go.countDown();
+            List<Integer> statuses = new ArrayList<>();
+            for (Future<Integer> result : results) {
+                statuses.add(result.get(30, TimeUnit.SECONDS));
+            }
+
+            assertThat(statuses).filteredOn(code -> code == 200).hasSize(1);
+            assertThat(statuses).filteredOn(code -> code == 429).hasSize(requests - 1);
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    /**
+     * 미등록 번호의 요청도 발급 행을 남기므로 하루가 지난 행은 정리한다 — 번호를 바꿔 가며 보내는 요청이 행을 끝없이 쌓지 못하게.
+     * 하루 안의 행은 남아야 한다(그 행이 24시간 한도를 센다).
+     */
+    @Test
+    void 하루가_지난_발급_행은_정리되고_하루_안의_행은_남는다() throws Exception {
+        jdbcTemplate.update("INSERT INTO verification_code (phone, code, purpose, expires_at, created_at) "
+                + "VALUES (?, '111111', 'password', now() - interval '47 hours', now() - interval '2 days')", phone);
+        jdbcTemplate.update("INSERT INTO verification_code (phone, code, purpose, expires_at, created_at) "
+                + "VALUES (?, '222222', 'password', now() - interval '1 hour', now() - interval '2 hours')", phone);
+        // 정리는 10분에 한 번만 도므로, 앞선 시험이 이미 돌았더라도 이 시험에서 돌게 마지막 정리 시각을 되돌린다
+        @SuppressWarnings("unchecked")
+        AtomicReference<Instant> lastPurgeAt = (AtomicReference<Instant>) ReflectionTestUtils
+                .getField(accountRecoveryCommandService, "lastPurgeAt");
+        lastPurgeAt.set(Instant.EPOCH);
+
+        recover("password", null).andExpect(status().isOk());
+
+        assertThat(jdbcTemplate.queryForList("SELECT code FROM verification_code WHERE phone = ? ORDER BY id",
+                String.class, phone)).as("2일 전 행은 지워지고 2시간 전 행과 방금 발급한 행이 남는다")
+                .hasSize(2).contains("222222").doesNotContain("111111");
+    }
+
+    /** 대조 실패도 같은 오류다 — 미등록 번호도, 발급 행이 있는 미등록 번호가 맞는 값을 넣어도 {@code 403} 하나다. */
+    @Test
+    void 미등록_번호의_대조_실패는_틀린_코드와_같은_403_이다() throws Exception {
+        String neverIssued = recover("password", "123456").andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("VERIFICATION_CODE_INVALID")).andReturn().getResponse()
+                .getContentAsString();
+        recover("password", null).andExpect(status().isOk());
+
+        String withStoredCode = recover("password", issuedCode()).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("VERIFICATION_CODE_INVALID")).andReturn().getResponse()
+                .getContentAsString();
+
+        assertThat(withStoredCode).isEqualTo(neverIssued);
+        assertThat(smsSender.sent()).isEmpty();
+    }
+
+    /** 관계자 계정은 문자 복구 대상이 아니다 — 메인 관리자 경로(§6.7)로만 초기화한다(Ruling 513). 응답은 미등록과 같다. */
+    @Test
+    void 관계자_계정은_문자_복구_대상이_아니고_응답은_미등록과_같다() throws Exception {
+        createAccount(Role.STAFF);
+
+        recover("password", null).andExpect(status().isOk());
+
+        assertThat(smsSender.sent()).isEmpty();
+        login(OLD_PASSWORD).andExpect(status().isOk());
     }
 
     private void createAccount(Role role) {

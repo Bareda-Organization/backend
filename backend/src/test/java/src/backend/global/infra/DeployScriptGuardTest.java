@@ -46,7 +46,6 @@ class DeployScriptGuardTest {
         params.put("WS_ALLOWED_ORIGIN_PATTERNS", "https://app.example.com");
         params.put("NAVER_DIRECTIONS_KEY_ID", "key-id");
         params.put("NAVER_DIRECTIONS_KEY", "key");
-        params.put("ROUTING_PROVIDER", "naver");
         params.put("SPRING_PROFILES_ACTIVE", "demo");
         params.put("GRAFANA_ADMIN_PASSWORD", "grafana-pass");
         return params;

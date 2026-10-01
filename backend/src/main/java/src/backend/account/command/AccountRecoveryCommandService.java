@@ -5,10 +5,12 @@ import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.ObjectProvider;
@@ -35,7 +37,8 @@ import src.backend.global.sms.spec.SmsSender;
  * 없으면 아무것도 하지 않고 {@code 503 RECOVERY_UNAVAILABLE} 이다(Ruling 329).
  *
  * <p>두 단계다. <b>발급</b>(코드 없음) — 같은 번호 60초 1회·24시간 5회를 넘지 않았으면 6자리 코드를 저장하고
- * 문자로 보낸다. <b>대조</b>(코드 있음) — 대조 횟수를 조건부 UPDATE 로 올리고(상한 5), 맞으면 코드를 소비한 뒤
+ * 문자로 보낸다. <b>번호가 가입돼 있는지는 응답으로 알 수 없다</b>(Ruling 553) — 미등록 번호도 같은 {@code 200}·같은 한도를
+ * 받고 문자만 나가지 않으며, 대조 실패는 이유를 가르지 않는 같은 {@code 403} 이다. <b>대조</b>(코드 있음) — 대조 횟수를 조건부 UPDATE 로 올리고(상한 5), 맞으면 코드를 소비한 뒤
  * 임시 비밀번호(또는 아이디)를 <b>문자로만</b> 보낸다. 응답 본문에는 코드·비밀번호·아이디가 실리지 않는다.
  *
  * <p>대상은 학부모·학생·매니저 계정이다 — 관계자·메인 관리자는 문자 한 통(SIM 탈취)으로 학원 전체 권한을 얻게 되므로
@@ -64,6 +67,9 @@ public class AccountRecoveryCommandService {
     /** 같은 번호의 24시간 발급 상한(API_SPEC §2.9). */
     private static final int DAILY_ISSUE_LIMIT = 5;
 
+    /** 하루가 지난 발급 행을 지우는 간격 — 매 요청마다 훑지 않는다. */
+    private static final Duration PURGE_INTERVAL = Duration.ofMinutes(10);
+
     private static final int CODE_DIGITS = 6;
 
     private final ObjectProvider<SmsSender> smsSender;
@@ -84,12 +90,14 @@ public class AccountRecoveryCommandService {
 
     private final SecureRandom random = new SecureRandom();
 
+    /** 마지막으로 하루 지난 발급 행을 지운 시각 — {@link #purgeStaleCodes}. */
+    private final AtomicReference<Instant> lastPurgeAt = new AtomicReference<>(Instant.EPOCH);
+
     /**
      * 복구 요청 한 건을 처리한다 — {@code verificationCode} 가 없으면 발급, 있으면 대조.
      *
-     * @throws BusinessException {@code RECOVERY_UNAVAILABLE}(발송기 없음) · {@code ACCOUNT_NOT_FOUND}(발급 때 미등록
-     *                           번호) · {@code RECOVERY_RATE_LIMITED}(발급 빈도 초과) ·
-     *                           {@code VERIFICATION_CODE_INVALID}(대조 실패)
+     * @throws BusinessException {@code RECOVERY_UNAVAILABLE}(발송기 없음) · {@code RECOVERY_RATE_LIMITED}(발급 빈도
+     *                           초과 — 가입 여부와 무관) · {@code VERIFICATION_CODE_INVALID}(대조 실패)
      */
     public void recover(String type, String phone, String verificationCode) {
         SmsSender sender = smsSender.getIfAvailable();
@@ -108,12 +116,13 @@ public class AccountRecoveryCommandService {
     }
 
     private void issue(SmsSender sender, String phone, VerificationPurpose purpose) {
-        // 같은 번호의 계정 행을 잠가 동시 발급을 직렬화한다 — 둘 다 "아직 없음" 을 보고 한도를 넘기지 않게.
+        // 이 번호의 발급을 직렬화한다 — 계정 행 잠금은 미등록 번호에 잠글 행이 없어, 동시 요청의 통과 수가 가입 여부에 따라 갈린다.
+        verificationCodeRepository.lockByPhone(phone);
         List<Account> accounts = accountRepository.findAllByPhoneAndRoleInForUpdate(phone, RECOVERABLE_ROLES);
-        if (accounts.isEmpty()) {
-            throw new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND);
-        }
         OffsetDateTime now = OffsetDateTime.now(clock);
+        purgeStaleCodes(now);
+        // 가입 여부와 무관하게 같은 길을 지난다(Ruling 553) — 미등록 번호도 같은 한도를 받고 발급 행을 남기며, 다른 것은
+        // 문자를 보내는지뿐이다. 미등록·대상 밖 역할이 다른 응답(404 · 한도 없음)을 내면 번호의 가입 여부가 드러난다.
         if (verificationCodeRepository.countByPhoneAndCreatedAtAfter(phone, now.minus(ISSUE_INTERVAL)) > 0
                 || verificationCodeRepository.countByPhoneAndCreatedAtAfter(phone, now.minusDays(1)) >= DAILY_ISSUE_LIMIT) {
             throw new BusinessException(ErrorCode.RECOVERY_RATE_LIMITED);
@@ -121,7 +130,25 @@ public class AccountRecoveryCommandService {
         verificationCodeRepository.invalidateUnconsumedByPhoneAndPurpose(phone, purpose, now);
         String code = newCode();
         verificationCodeRepository.save(VerificationCode.issue(phone, code, purpose, now.plus(CODE_TTL), now));
-        sender.send(phone, "[바래다] 인증번호 " + code + " (" + CODE_TTL.toMinutes() + "분 안에 입력)");
+        if (!accounts.isEmpty()) {
+            sender.send(phone, "[바래다] 인증번호 " + code + " (" + CODE_TTL.toMinutes() + "분 안에 입력)");
+        }
+    }
+
+    /**
+     * 하루가 지난 발급 행을 지운다 — 미등록 번호의 요청도 행을 남기므로 번호를 바꿔 가며 보내는 요청이 행을 쌓지 못하게
+     * 한다. 매 요청마다 훑지 않고 {@link #PURGE_INTERVAL} 에 한 번만 돈다.
+     *
+     * <p>ponytail: 마지막 정리 시각을 메모리에 둔다 — 백엔드가 인스턴스 1개라는 배포 전제(CLAUDE.md)를 따르고, 재기동 직후
+     * 한 번 더 도는 것은 해가 없다. 여러 인스턴스가 되면 스케줄러(보존 정리)로 옮긴다.
+     */
+    private void purgeStaleCodes(OffsetDateTime now) {
+        Instant last = lastPurgeAt.get();
+        Instant current = now.toInstant();
+        if (last.plus(PURGE_INTERVAL).isAfter(current) || !lastPurgeAt.compareAndSet(last, current)) {
+            return;
+        }
+        verificationCodeRepository.deleteCreatedBefore(now.minusDays(1));
     }
 
     /** 통과하면 {@code true} — 실패는 예외가 아니라 값이다(위 클래스 설명, 대조 횟수를 커밋해야 한다). */

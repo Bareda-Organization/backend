@@ -1,10 +1,15 @@
 package src.backend.student.query;
 
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -26,6 +31,7 @@ import src.backend.student.dto.WeeklyAddressResponse;
 import src.backend.student.entity.Student;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StudentRepository;
+import src.backend.student.repository.StudentRepository.NameRow;
 import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
@@ -81,8 +87,7 @@ public class StudentQueryService {
      */
     public PageResponse<StudentSummaryResponse> list(AuthUser requester, StudentListRequest request) {
         Long academyId = academyOf(requester);
-        Page<Student> page = studentRepository.searchByAcademyId(academyId, keyword(request.q()),
-                pageable(request));
+        Page<Student> page = searchInNaturalOrder(academyId, keyword(request.q()), pageable(request));
         GuardianLinks links = guardianLinksOf(academyId, page.getContent());
 
         List<StudentSummaryResponse> items = page.getContent().stream()
@@ -163,6 +168,28 @@ public class StudentQueryService {
 
     /** {@link #guardianLinksOf} 결과 — 대표 연락처(단수)와 연결 수(§5.11 {@code guardian_count})를 함께 담는다. */
     private record GuardianLinks(Map<Long, String> phones, Map<Long, Integer> counts) {}
+
+    /**
+     * 이름 자연 정렬(B1 #27) — DB 정렬은 문자열 순이라 "학생10" 이 "학생2" 앞에 온다. 조건에 맞는 학생의 id·이름만 읽어 자연
+     * 순서로 줄 세우고, 요청한 쪽의 id 만 본 행으로 읽는다(보호자 연락처를 싣는 본 행은 한 쪽 분량만).
+     *
+     * <p>ponytail: 요청마다 그 학원의 일치 학생 전건(id·이름)을 읽는다 — 학원 하나가 수천 명이어도 ms 단위다. 수만 명을
+     * 넘기면 ICU 숫자 정렬 collation + 표현식 인덱스로 DB 에 맡긴다.
+     */
+    private Page<Student> searchInNaturalOrder(Long academyId, String q, Pageable pageable) {
+        Comparator<NameRow> byName = Comparator.comparing(NameRow::getName, NaturalNameOrder.INSTANCE);
+        boolean descending = pageable.getSort().getOrderFor("name").isDescending();
+        List<NameRow> rows = studentRepository.findNamesByAcademyId(academyId, q).stream()
+                .sorted((descending ? byName.reversed() : byName).thenComparing(NameRow::getId))
+                .toList();
+        int from = (int) Math.min(pageable.getOffset(), rows.size());
+        int to = Math.min(from + pageable.getPageSize(), rows.size());
+        List<Long> pageIds = rows.subList(from, to).stream().map(NameRow::getId).toList();
+        Map<Long, Student> byId = studentRepository.findAllByAcademyIdAndIdIn(academyId, pageIds).stream()
+                .collect(Collectors.toMap(Student::getId, Function.identity()));
+        List<Student> content = pageIds.stream().map(byId::get).filter(Objects::nonNull).toList();
+        return new PageImpl<>(content, pageable, rows.size());
+    }
 
     private Pageable pageable(StudentListRequest request) {
         return PageParams.of(request.page(), request.size())

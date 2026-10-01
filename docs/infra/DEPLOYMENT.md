@@ -53,7 +53,7 @@
 
 ### 2.1 리소스 생성 순서 요약
 
-VPC 기본 사용 → EC2(+ 데이터 EBS · EIP) → ECR → S3 버킷 2개 → IAM 인스턴스 역할 → 일일 스냅샷 정책(§2.4.1) → IAM OIDC 역할 → SSM 파라미터 필수 11개 → EC2 부트스트랩 → 도메인 연결 → 인증서 발급 → nginx 설정 치환 → **`.htpasswd` 생성(EC2)** → GitHub 시크릿 등록 → 최초 배포 → **첫 백업 + 복구 연습(§7)**. 웹(Vercel)은 §12 를 따로 진행한다.
+VPC 기본 사용 → EC2(+ 데이터 EBS · EIP) → ECR → S3 버킷 2개 → IAM 인스턴스 역할 → 일일 스냅샷 정책(§2.4.1) → IAM OIDC 역할 → SSM 파라미터 필수 10개 → EC2 부트스트랩 → 도메인 연결 → 인증서 발급 → nginx 설정 치환 → **`.htpasswd` 생성(EC2)** → GitHub 시크릿 등록 → 최초 배포 → **첫 백업 + 복구 연습(§7)**. 웹(Vercel)은 §12 를 따로 진행한다.
 
 **⚠️ 순서가 중요한 지점 셋**: (a) `api` A 레코드(§2.9)를 인증서 발급(§2.10)보다 **먼저** 끝내야 한다 — HTTP-01 챌린지가 도메인을 조회해 EIP 로 접속하므로 A 레코드가 없으면 최초 발급이 실패한다. (b) 그 인증서는 `docker compose up`(proxy 포함)을 **한 번도 돌리기 전에** 발급해야 한다 — 인증서가 없으면 nginx 의 443 블록이 기동 자체를 못 해 순환 의존이 생긴다. (c) `docker-compose.prod.yml` 의 proxy 서비스가 요구하는 `infra/proxy/.htpasswd` 는 `.gitignore:26` 에 등록된 비밀 파일이다 — 저장소에도 배포용 S3 버킷에도 두지 않고 **EC2 에 직접 1회 생성**한다(이유·절차는 §2.12). 최초 배포(§2.14) 전에 반드시 끝낼 것.
 
@@ -356,7 +356,7 @@ aws iam put-role-policy --role-name school-bus-gha-role \
 
 ### 2.7 SSM 파라미터 등록
 
-§3 의 표를 그대로 따라 **필수 11개**(+ `prod` 면 FCM 3개)를 등록한다. 선택 항목은 필요할 때 등록한다. 시드 비밀번호 해시 생성은 §4 참조.
+§3 의 표를 그대로 따라 **필수 10개**(+ `prod` 면 FCM 3개)를 등록한다. 선택 항목은 필요할 때 등록한다. 시드 비밀번호 해시 생성은 §4 참조.
 
 ### 2.8 EC2 부트스트랩
 
@@ -499,7 +499,7 @@ sudo docker compose -f /opt/school-bus/docker-compose.prod.yml \
 
 ## 3. SSM 파라미터 목록
 
-파라미터 경로 접두사는 `/school-bus/demo/` — `infra/scripts/deploy.sh` 의 `PARAM_PREFIX="/school-bus/demo"` 와 일치해야 한다. 아래 **필수 11개**는 `deploy.sh` 가 `get_param` 으로 반드시 조회하는 이름이다(하나라도 빠지거나 값이 비어 있으면 에러를 stderr 에 남기고 배포가 그 자리에서 실패 — 조용히 넘어가지 않는다. 실패한 배포는 기존 `/opt/school-bus/.env` 를 건드리지 않는다).
+파라미터 경로 접두사는 `/school-bus/demo/` — `infra/scripts/deploy.sh` 의 `PARAM_PREFIX="/school-bus/demo"` 와 일치해야 한다. 아래 **필수 10개**는 `deploy.sh` 가 `get_param` 으로 반드시 조회하는 이름이다(하나라도 빠지거나 값이 비어 있으면 에러를 stderr 에 남기고 배포가 그 자리에서 실패 — 조용히 넘어가지 않는다. 실패한 배포는 기존 `/opt/school-bus/.env` 를 건드리지 않는다).
 
 | 이름 | 타입 | 값/생성법 |
 |---|---|---|
@@ -511,7 +511,6 @@ sudo docker compose -f /opt/school-bus/docker-compose.prod.yml \
 | `/school-bus/demo/WS_ALLOWED_ORIGIN_PATTERNS` | String | 위와 같은 값 `https://app.<도메인>`(STOMP 전용. **`CORS_ALLOWED_ORIGINS` 와 별개** — WebSocket 핸드셰이크는 CORS 필터를 타지 않고 `WebSocketConfig` 의 `setAllowedOriginPatterns` 로 별도 검증하므로 이 값이 **유일한 방어선**이다). 같은 검사가 걸린다 |
 | `/school-bus/demo/NAVER_DIRECTIONS_KEY_ID` | SecureString | NCP 콘솔에서 Directions API 발급. **키 미보유 시에도 반드시 등록** — 아래 참고 |
 | `/school-bus/demo/NAVER_DIRECTIONS_KEY` | SecureString | NCP 콘솔에서 Directions API 발급. **키 미보유 시에도 반드시 등록** — 아래 참고 |
-| `/school-bus/demo/ROUTING_PROVIDER` | String | `naver`(NCP 키 없으면 `osrm` 로 무료 대체 — `application.yml` 의 `routing.provider`) |
 | `/school-bus/demo/SPRING_PROFILES_ACTIVE` | String | **`prod` 또는 `demo`** — 다른 값이면 배포 중단. 기본값이 없다: 예전에는 compose 기본값 `demo` 라 이 값이 빠진 배포가 가짜 시드 + 가짜 버스(`DemoRunSimulator`)로 조용히 떴다. `prod` = 실 운영(계정 0개 · 첫 관리자는 아래 선택 항목), `demo` = 데모 시드 |
 | `/school-bus/demo/GRAFANA_ADMIN_PASSWORD` | SecureString | `openssl rand -base64 24`. 운영 Grafana 초기 관리자(`admin`) 비밀번호 — §11. 기본 비밀번호로 뜨지 않게 필수 |
 
@@ -531,7 +530,7 @@ sudo docker compose -f /opt/school-bus/docker-compose.prod.yml \
 
 **첫 메인 관리자(`prod`).** `prod` 는 계정이 0개이고 가입 API 로는 메인 관리자를 만들 수 없다. 앱이 기동할 때 `FirstSystemAdminBootstrap` 이 **메인 관리자가 하나도 없을 때만** 위 두 값으로 활성 계정 1개를 만든다. 이미 있으면 아무것도 하지 않는다(값은 무시 — 첫 배포 뒤 남아 있어도 된다). 값이 잘못됐으면 기동이 멈추고 로그에 이유가 남는다(평문 비밀번호 · 한쪽만 있음 · 이미 쓰는 아이디). 로그에는 비밀번호·해시를 남기지 않는다. 절차: ① §4 로 해시 생성 ② 두 파라미터 등록 ③ 배포 ④ 로그인 ⑤ **비밀번호 변경 후 두 파라미터 삭제**(값이 SSM 에 남는 시간을 줄인다). 로그인이 안 되면 `docker compose logs backend | grep BOOTSTRAP` 로 거부 사유를 본다.
 
-**⚠️ NCP 키가 없어도 위 두 항목은 등록해야 한다.** `deploy.sh` 의 `get_param` 은 필수 11개 전부를 필수로 보고, 파라미터가 없거나 값이 비면 **1단계에서 배포를 중단**한다(`ROUTING_PROVIDER=osrm` 만 등록하고 두 키를 비워두면 배포 자체가 진행되지 않는다). `osrm` 폴백을 쓰려면 두 항목에 `unused` 같은 임의 문자열을 넣어 등록하고 `ROUTING_PROVIDER` 를 `osrm` 으로 둔다 — `osrm` 일 때 앱은 이 두 값을 읽지 않는다. 필수 계약을 단순하게 유지하려는 의도적 설계다 — 그래서 새로 늘린 값 중 없어도 되는 것은 위 "선택 항목" 표에 따로 모으고, 필수 표에는 섞지 않았다(섞으면 어떤 값이 비어도 되는지가 스크립트·문서·compose 세 곳에서 갈린다). `SEED_PASSWORD_HASH` 는 `prod` 에서 쓰이지 않지만 같은 이유로 계속 필수다(임의의 bcrypt 해시를 등록).
+**⚠️ NCP 키가 없어도 위 두 항목은 등록해야 한다.** `deploy.sh` 의 `get_param` 은 필수 10개 전부를 필수로 보고, 파라미터가 없거나 값이 비면 **1단계에서 배포를 중단**한다. 키가 아직 없으면 두 항목에 `unused` 같은 임의 문자열을 넣어 등록한다 — 그러면 도로 경로 호출이 실패해 노선이 직선거리 근사(`fallback_used=true`)로 나오고 미리보기·경유 지점 지정은 `503 MAP_ROUTE_UNAVAILABLE` 이 된다. **대체 지도 공급자는 없다**(`Ruling 551`) — 예전에 `ROUTING_PROVIDER=osrm` 으로 우회한다고 적었으나 OSRM 구현체가 없고 `application.yml` 도 그 이름을 읽지 않아 안내가 효과가 없었다(변수 삭제). 지도 공급자는 코드가 `app.routing.map.provider` 로 고르며 값은 `naver`(기본) · `stub`(시험용 가짜 경로 — 운영에서 쓰지 않는다) 둘뿐이라 SSM 으로 바꾸는 항목을 두지 않는다. 필수 계약을 단순하게 유지하려는 의도적 설계다 — 그래서 새로 늘린 값 중 없어도 되는 것은 위 "선택 항목" 표에 따로 모으고, 필수 표에는 섞지 않았다(섞으면 어떤 값이 비어도 되는지가 스크립트·문서·compose 세 곳에서 갈린다). `SEED_PASSWORD_HASH` 는 `prod` 에서 쓰이지 않지만 같은 이유로 계속 필수다(임의의 bcrypt 해시를 등록). 이미 SSM 에 등록된 `ROUTING_PROVIDER` 파라미터는 아무도 읽지 않으므로 지워도 된다.
 
 ```bash
 # String 예시
@@ -714,7 +713,7 @@ $C start backend
 | 로그인 401 반복 | `.env` 의 `SEED_PASSWORD_HASH` 값과 실제 비밀번호 해시 일치 여부 확인 | 해시 재발급 후 SSM 파라미터 갱신, `deploy.sh` 재실행 | 재발급 사유·시각 |
 | 브라우저 CORS 오류 | `CORS_ALLOWED_ORIGINS` 값에 스킴 포함 정확한 출처 존재 여부 확인 | 누락 출처 추가 후 SSM 갱신·재배포 | 추가한 출처 값 |
 | WebSocket 만 연결 실패(REST 는 정상) | `WS_ALLOWED_ORIGIN_PATTERNS` 값과 nginx `/ws/` 블록 Upgrade 헤더 확인 | 패턴 또는 nginx 설정 수정 후 `proxy` 컨테이너 재기동 | 수정한 패턴·설정 값 |
-| 배차·시뮬레이션 500 | NCP 키 유효성, `ROUTING_PROVIDER` 값 확인 | 키 재발급 또는 `ROUTING_PROVIDER=osrm` 폴백 전환(전환 시에도 `NAVER_DIRECTIONS_KEY_ID`·`NAVER_DIRECTIONS_KEY` 는 임의 값 등록 필수 — 비어 있으면 다음 배포가 `deploy.sh` 1단계에서 중단) | 전환 여부·사유 |
+| 배차·시뮬레이션 `503 MAP_ROUTE_UNAVAILABLE` · 확정 노선에 `fallback_used=true` 다수 | NCP 키 유효성(`.env` 의 `NAVER_DIRECTIONS_KEY_ID`·`NAVER_DIRECTIONS_KEY`) · NCP 콘솔의 Directions 일일 한도 | 키 재발급 후 SSM 갱신·재배포. 대체 공급자는 없다(`Ruling 551`) — 복구될 때까지 직선거리 근사로 계속 확정된다 | 재발급 사유·시각 |
 | 컨테이너 반복 종료 | `free -h` 로 메모리, `docker stats`, 스왑 활성 여부 확인 | 스왑 추가 또는 인스턴스 사양 상향 | 종료 시점·메모리 수치 |
 | 인증서 만료 | `docker compose logs certbot`, 80 포트 개방 여부 확인 | certbot 갱신 재시도, 방화벽 규칙 수정 | 갱신 결과 |
 | Swagger UI 401 · 기동 실패 | §2.12 절차 확인 | EC2 에서 `.htpasswd` 재생성 후 `proxy` 컨테이너 재기동 | 재생성 시각 |

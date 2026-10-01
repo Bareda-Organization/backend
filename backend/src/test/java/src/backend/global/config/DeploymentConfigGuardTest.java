@@ -34,14 +34,24 @@ class DeploymentConfigGuardTest {
             // 하나로 두 API 를 함께 쓴다(application.yml `${NAVER_MAPS_KEY_ID:${NAVER_DIRECTIONS_KEY_ID:}}`).
             "NAVER_MAPS_KEY_ID", "NAVER_MAPS_KEY");
 
+    /**
+     * 운영 compose backend 가 넘기지만 yml 의 {@code ${…}} 에는 없는 이름 — 스프링·JVM 이 직접 읽는 것만 둔다.
+     * 그 밖의 이름이 여기서 걸리면 아무도 읽지 않는 죽은 설정이다(R46 ops 보고: {@code ROUTING_PROVIDER} 를 넘기는데
+     * 읽는 곳이 없어 "{@code osrm} 로 우회" 안내가 효과가 없었다).
+     */
+    private static final Set<String> PLATFORM_READ_ENV = Set.of("SPRING_PROFILES_ACTIVE", "JAVA_TOOL_OPTIONS");
+
     private static String applicationYml;
 
     private static String prodCompose;
+
+    private static String deployScript;
 
     @BeforeAll
     static void readConfig() throws IOException {
         applicationYml = Files.readString(Path.of("src/main/resources/application.yml"));
         prodCompose = Files.readString(Path.of("../docker-compose.prod.yml"));
+        deployScript = Files.readString(Path.of("../infra/scripts/deploy.sh"));
     }
 
     @Test
@@ -63,6 +73,45 @@ class DeploymentConfigGuardTest {
         ymlEnv.removeAll(composeEnv);
         ymlEnv.removeAll(COMPOSE_EXEMPT_ENV);
         assertThat(ymlEnv).as("yml 이 읽는데 운영 compose backend 가 넘기지 않는 환경변수").isEmpty();
+    }
+
+    @Test
+    @DisplayName("R46 FUBE — 운영 compose backend 가 넘기는 환경변수는 yml 이 전부 읽는다(죽은 설정 금지)")
+    void prodComposePassesNoEnvVarNobodyReads() {
+        Set<String> ymlEnv = new TreeSet<>();
+        Matcher yml = Pattern.compile("\\$\\{([A-Z][A-Z0-9_]*)").matcher(applicationYml);
+        while (yml.find()) {
+            ymlEnv.add(yml.group(1));
+        }
+        Set<String> composeEnv = new TreeSet<>();
+        Matcher compose = Pattern.compile("(?m)^ {6}([A-Z][A-Z0-9_]*):").matcher(composeServiceBlock("backend"));
+        while (compose.find()) {
+            composeEnv.add(compose.group(1));
+        }
+
+        composeEnv.removeAll(ymlEnv);
+        composeEnv.removeAll(PLATFORM_READ_ENV);
+        assertThat(composeEnv).as("운영 compose backend 가 넘기는데 yml 이 읽지 않는 환경변수").isEmpty();
+    }
+
+    @Test
+    @DisplayName("R46 FUBE — deploy.sh 가 .env 에 쓰는 이름은 운영 compose 가 전부 쓴다(쓰지 않는 값을 SSM 필수로 요구하지 않는다)")
+    void deployScriptWritesOnlyNamesComposeUses() {
+        // 쓰는 방식이 둘이다 — ${NAME…} 치환, 그리고 값 없는 키(`NAME:`)가 .env 에 있을 때만 컨테이너에 넘어가는 형태
+        Set<String> composeUses = new TreeSet<>();
+        Matcher compose = Pattern.compile("\\$\\{([A-Z][A-Z0-9_]*)|(?m)^ {6}([A-Z][A-Z0-9_]*):").matcher(prodCompose);
+        while (compose.find()) {
+            composeUses.add(compose.group(1) != null ? compose.group(1) : compose.group(2));
+        }
+        Set<String> written = new TreeSet<>();
+        Matcher write = Pattern.compile("(?m)^\\s*write_env(?:_if_set)?\\s+([A-Z][A-Z0-9_]*)").matcher(deployScript);
+        while (write.find()) {
+            written.add(write.group(1));
+        }
+
+        assertThat(written).as("write_env 줄을 하나도 못 읽었다 — 정규식이 스크립트와 어긋났다").isNotEmpty();
+        written.removeAll(composeUses);
+        assertThat(written).as("deploy.sh 가 .env 에 쓰는데 운영 compose 가 쓰지 않는 이름").isEmpty();
     }
 
     @Test

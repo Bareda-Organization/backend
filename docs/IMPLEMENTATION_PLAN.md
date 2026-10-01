@@ -1067,6 +1067,11 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 571 | 운행 화면 하단 알림은 묶음으로 다루고 높이를 화면의 40% 로 막는다 — 가장 중요한 한 건 + `알림 N건 더 보기` · 넘치면 묶음 안 스크롤 · 위쪽 스크롤 영역은 지도 최소 높이 140px 이상 | `docs/frontend/IMPLEMENTATION_PLAN §5.26` |
 | 572 | 하단 알림 우선순위 — 도착 처리 실패 > 명단 조회 실패 > 위치 송신 불가 > 카카오내비 미설치 > 길안내 안내 > 도착 처리됨 | `docs/frontend/IMPLEMENTATION_PLAN §5.26` |
 | 573 | 공용 RunSummaryCard 의 큰 글자 가로 넘침은 이 라운드 범위 밖(후속) — 하단 레이아웃 시험은 그 넘침만 허용 | `docs/frontend/IMPLEMENTATION_PLAN §5.26` |
+| 550 | 수정·삭제 감사 행(`data_access` update·delete)에도 접속 IP — 학생 L3 수정·퇴원 · 이동 대기 취소 · 회차 강제 확정. 비밀번호 초기화 행은 기능 후속 창 병합 뒤 | 본문 §8.83 · `ERD §3.4` |
+| 551 | 죽은 설정 `ROUTING_PROVIDER` 삭제 — OSRM 구현체 부재 · 지도 공급자는 `app.routing.map.provider`(naver·stub) · 장애 때는 직선거리 근사 · compose→yml · deploy.sh→compose 역방향 가드 | 본문 §8.83 · `DEPLOYMENT §3` |
+| 552 | 목록 보강 — 노선 목록 `stop_count`(정차지 수) · 학생 목록 이름 자연 정렬(서버 정렬) | 본문 §8.83 · `API_SPEC §5.9·§5.11` |
+| 553 | 전화번호 복구는 번호의 가입 여부를 응답으로 드러내지 않는다 — 발급 응답·빈도 제한·대조 실패가 가입 여부와 무관하게 같다(`Ruling 513` 의 미등록 404 한계를 닫음) | 본문 §8.83 · `API_SPEC §2.9` |
+| 554 | 위치 요청 SQL 줄이기는 이번 갈래에서 착수하지 않는다 — 실측 기준값 요청당 8건, 무효화 설계안은 아래 절 | 본문 §8.83 |
 
 
 ## 8.73 ⚖ `R46-BE` — 성능 개선(감사 제외) + 바로 고칠 것 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 410~419 · 백엔드 갈래)
@@ -1304,3 +1309,30 @@ R46 개선 항목 중 개인정보 갈래다. 입력은 사용자 결정 2건 �
 | 7 | 정리 — `:8420` 종료 · 시뮬레이터 미사용 · `r46_privacy` DROP | `lsof` · `pg_database` |
 
 **결과 (2026-10-01)** — 목표 1·2 ✅ `StudentRetentionAnonymizationTest` 2건(89일·재학생은 행 전체 비교로 불변 · 91일은 익명화 · `run_rider`·`change_request` 행 수 불변 · 사진 파일 삭제 · 재실행 멱등 · 감사 1행) · RED 로 익명화 0건 확인 · 결함 심기 9종이 이 클래스만 실패. 조회 조건 한쪽만 지운 변형은 서비스의 `anonymizedAt` 필터가 한 번 더 막아 통과(이중 방어 — 두 곳을 함께 지우면 멱등 시험 실패). 목표 3 ✅ `RiderGuardianPhoneControllerTest` 7건(200 · 미배치 403 · 타 학원 403 · 명단 밖 404 · 보호자 없음 `null` · 재호출 묶임 · 명단 조회 뒤에도 별도 기록) · 결함 심기 4종 · 실서버 `:8420` 에서 시드 계정으로 마스킹 `010-1XXX-0001` ↔ 원번호 단건 · 감사 1행 실호출 확인. 목표 4 ✅ `roster_guardian_call_test.dart` 7건 · 결함 심기 6종. 목표 5 — 백엔드 345클래스 1,944건 · 건너뜀 0 · 실패 1건(`RoutePathTransactionTest`: `bus_no = "BR211-" + System.nanoTime()` 이 기기 가동 약 27.8시간부터 21자가 되어 `varchar(20)` 초과 — 이 라운드와 무관한 시험 자체의 환경 의존, 범위 밖이라 미수정) · Flutter 4패키지 analyze 0 · 시험 실패 0(core 77 · ui 237 · manager 378 · parent 257) · 실서버 계약(매니저 26 · core 9, `:8420`) 실패 0 · 건너뜀 0. **시험이 잡은 설계 결함 1건** — 파기 서비스를 `student` 안에 두면 `notification↔student` 양방향 참조가 생겨 `ModuleMutualDependencyTest` · `NotificationModuleIsolationTest` 가 실패해 `global.retention` 으로 이동. 목표 6 ✅ 깨진 참조 0. 목표 7 ✅ `:8420` 종료 · `r46_privacy` DROP.
+
+## 8.83 ⚖ `R46-FUBE` — 감사 IP · 죽은 설정 · 시험 격리 · 목록 보강 · 전화번호 복구 (2026-10-01 · 분기점 `528b4d06` · 번호대 550~559 · 백엔드 후속 갈래)
+
+R46 작업 창 보고서(`R46-AUDIT` · `R46-OPS` · `R46-OPS2` · `R46-WEBF` · `R46-WEB` · `R46-INTEG`)에서 나온 후속 6건 중 5건을 처리했다. 갈래 보고서 `.claude/r46/report-fube.md`(무시 파일). 항목마다 코드로 먼저 재현했다.
+
+### R46-FUBE 판정
+
+| Ruling | 판정 | 근거 |
+|:-:|---|---|
+| **550** | **수정·삭제 감사 행(`data_access` `update`·`delete`)에도 접속 IP 를 남긴다** — 학생 L3 수정·퇴원(`StudentCommandService`) · 이동 대기 취소(`RunTransferRemoval`) · 회차 강제 확정(`RunForceConfirmCommandService`). `AuditLog.forDataAccessChange`·`forRunForceConfirm` 에 `ip` 인자를 더하고 호출부가 `ClientIp.ofCurrentRequest()` 를 넘긴다(요청 밖 배치면 `null`). **비밀번호 초기화 행(`AccountPasswordResetCommandService`)은 남김** — 기능 후속 창이 같은 파일의 인접 줄을 고치는 중이라 충돌 | 조회 행에만 IP 가 있어 "누가 어디서 고쳤나" 를 못 되짚음. 엔티티가 요청 컨텍스트를 모르게 하려고 `@PrePersist` 대신 인자로 받음. 병합 뒤 후속: `forAccountPasswordReset` 에 `ip` 인자 + 호출부 한 줄 |
+| **551** | **죽은 설정 `ROUTING_PROVIDER` 를 삭제한다**(compose 2 · `deploy.sh` 2줄 · SSM 필수 11→10 · `DEPLOYMENT` 안내). `application.yml` 이 읽지 않았고 **OSRM 구현체도 없다** — 지도 공급자는 코드가 `app.routing.map.provider`(`naver` 기본 · `stub` 시험용)로 고르며 장애 때는 직선거리 근사(`fallback_used=true`)·미리보기 `503 MAP_ROUTE_UNAVAILABLE` 이 이미 동작한다. 재발 방지로 `DeploymentConfigGuardTest` 에 역방향 2종(compose backend 가 넘기는 이름은 yml 이 읽는다 · `deploy.sh` 가 `.env` 에 쓰는 이름은 compose 가 쓴다) | 변수를 yml 이 읽게 하면 `osrm` 은 빈 부재로 기동 실패, `stub` 은 운영에서 가짜 경로. 기존 가드는 yml→compose 한 방향만 봐서 못 잡았음 |
+| **552** | **목록 보강** — 노선 목록 항목에 `stop_count`(정차지 수, 빈 편성은 0)를 싣고 관계자 웹 목록에 열을 더한다. 학생 목록 이름은 **자연 정렬**(숫자 덩어리는 크기로 — "학생2" < "학생10")이며 서버가 줄 세운다(쪽 나누기·`sort=name:desc` 유지) | 조사 `B1 #10·#27`. 정차지 수는 한 쪽 편성을 묶음 질의 1회로 셈. 자연 정렬은 PostgreSQL ICU collation 이 마이그레이션·`COLLATE` 표현 문제로 막혀 일치 학생의 id·이름을 줄 세운 뒤 그 쪽만 본 행으로 읽음(수만 명 규모부터 DB 로 이전 — `ponytail:`) |
+| **553** | **전화번호 복구는 번호의 가입 여부를 응답으로 드러내지 않는다**(조율자 결정 2026-10-01 · `Ruling 513` 의 "미등록 `404`" 한계를 닫음). 발급은 미등록·대상 밖 역할 번호도 같은 `200`·같은 한도(번호 기준)·같은 발급 행이고 **문자만 안 나간다**. 같은 번호의 동시 발급은 번호 단위 잠금으로 직렬화, 하루 지난 발급 행은 정리한다. 대조 실패는 이미 이유를 가르지 않는 같은 `403`. `API_SPEC §2.9` 개정 · 학부모 앱 안내를 "가입된 번호라면 문자를 보냈다" 로 | 같은 길을 지나게 하는 것이 두 구현을 맞추는 것보다 어긋남이 적음. **남은 단서** — 응답 시간(문자 발송 지연)과 전수 대입은 서버 응답으로 못 막고 프록시 속도 제한이 담당 |
+| **554** | **위치 요청 SQL 줄이기(`D #5`)는 이번 갈래에서 착수하지 않는다.** 실측 기준값 — 위치 요청 1건당 **준비된 SQL 8건**(Hibernate `getPrepareStatementCount`, 연속 3건 모두 8). 줄일 수 있는 것은 정차 3건(`confirmed_route` · 정차 목록 · 이름 — 8→5)이고 인가·회차 상태는 요청마다 읽어야 한다. 설계안: 회차별 스냅샷 + TTL(≤10초) + 도착(`StopArrivedEvent`)·노선 배포(이벤트 신설)·이름 변경 무효화 + 계산 중 무효화 경합은 세대 번호로 | 무효화 한 곳이라도 빠지면 지난 노선·정차명으로 판정하는 안전 인접 경로라 절반만 넣지 않음 |
+
+**시험 격리 2건(Ruling 불요)** — ①`AuditRecorderDedupTest` 는 `findAll()` 로 전체를 읽어 `actor == log.getActorAccountId()`(`Long` 언박싱)에서 앞선 시험이 남긴 `actor` 없는 행에 NPE → `Objects.equals` · id 정렬. ②`AcademySettingFindOrCreateConcurrencyTest` 의 `TimeoutException` 은 부하가 아니라 **트랜잭션 안에서 `pg_stat_activity` 를 반복 조회**한 것이 원인 — 이 뷰는 접속 목록·상태·쿼리 문장을 트랜잭션 안 첫 조회 때 고정(잠금 대기 여부만 실시간)해, 시험용 풀(`minimum-idle=1`)이 줄어 있으면 뒤 요청이 새로 여는 DB 연결을 영영 세지 못함 → 조회를 시험 스레드(트랜잭션 밖)로 옮기고 풀을 최소로 줄이고 시작해 이 경로를 항상 지나게 함. 대기 상한 20초는 그대로.
+
+### R46-FUBE 목표 표
+
+| # | 완료 조건 | 확인 수단 |
+|:-:|---|---|
+| 5a | 복구 발급·대조 응답이 등록 여부와 무관하게 같다 | `AccountRecoveryFlowTest` · 결함 심기 5종 |
+| 8 | 정리 — 서버 · `r46_fube` DROP | `lsof` · `pg_database` |
+
+**결과 (2026-10-01)** — 목표 1 ✅ 두 시험이 백엔드 전체 `--rerun`(349클래스 · **1,992건 · 실패 0 · 오류 0 · 건너뜀 0**, `NAVER_DIRECTIONS_*` 미설정) 안에서 통과. 목표 2 ✅ 3곳 RED(4건)→GREEN · 결함 심기 3종 전부 잡힘. 목표 3 ✅ 역방향 가드 2종 RED(정확히 `ROUTING_PROVIDER` 1건)→GREEN · 결함 심기 2종. 목표 4 ✅ 서버·웹 시험 + 결함 심기 6종(서버 4 · 웹 2). 목표 5a ✅ `AccountRecoveryFlowTest` 14건 · 결함 심기 5종 + 학부모 앱 1종. 목표 5 ⛔ **미착수(`Ruling 554`)** — 전 8건만 실측. 목표 6 ✅ 백엔드 위 합계 · 웹 `tsc` 0 · `eslint` 0 · vitest 130파일 762건(실서버 시험 제외). 목표 7 ✅ 깨진 참조 0. 목표 8 아래 정리 결과.
+
+**부수 1건** — 전체 실행의 첫 판에서 `RoutePathTransactionTest` 가 실패(`bus_no varchar(20)` 초과 — 기기 가동 시간이 길어져 `System.nanoTime()` 자릿수가 늚)했고, 이 갈래와 무관한 환경 문제라 `main` 에 이미 있는 수정 `c4213f35`(시험 2개 파일)를 **같은 내용으로 가져와**(`cherry-pick`) 다시 돌려 0건. 병합 때 같은 변경이 양쪽에 있어 충돌 없음.

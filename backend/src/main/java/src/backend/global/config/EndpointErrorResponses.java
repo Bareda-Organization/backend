@@ -74,7 +74,7 @@ public final class EndpointErrorResponses {
             entry("POST /auth/login", Map.of("401", "INVALID_CREDENTIALS", "403", "AUTH_ACCOUNT_BLOCKED · AUTH_STAFF_INACTIVE")),
             entry("POST /auth/logout", Map.of("401", "TOKEN_EXPIRED")),
             entry("POST /auth/password", Map.of("401", "INVALID_CREDENTIALS", "422", "VALIDATION_FAILED")),
-            entry("POST /auth/recover", Map.of("403", "VERIFICATION_CODE_INVALID", "404", "ACCOUNT_NOT_FOUND", "422", "VALIDATION_FAILED", "429", "RECOVERY_RATE_LIMITED", "503", "RECOVERY_UNAVAILABLE")),
+            entry("POST /auth/recover", Map.of("403", "VERIFICATION_CODE_INVALID", "422", "VALIDATION_FAILED", "429", "RECOVERY_RATE_LIMITED", "503", "RECOVERY_UNAVAILABLE")),
             entry("POST /auth/refresh", Map.of("401", "TOKEN_EXPIRED")),
             entry("POST /auth/signup", Map.of("404", "ACADEMY_NOT_FOUND", "409", "DUPLICATE_LOGIN_ID", "422", "VALIDATION_FAILED")),
             entry("POST /auth/signup/reapply", Map.of("404", "ACADEMY_NOT_FOUND", "409", "REAPPLY_NOT_ALLOWED")),

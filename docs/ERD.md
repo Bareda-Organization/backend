@@ -850,7 +850,7 @@ erDiagram
 | `action` | varchar(20) | NN | `read` · `update` · `delete` · `login_success` · `login_fail` · `block` · `unblock`. CHECK. `GET /admin/login-history` 는 이 값을 그대로 노출하지 않고 **투영**함 — `login_success`→`result=success` · `login_fail`→`result=fail` · `block`·`unblock`→`block_event` (API_SPEC §6) |
 | `target_type` | varchar(50) | | 대상 자원 종류 |
 | `target_id` | bigint | | 대상 자원 식별자 |
-| `ip` | inet | | 접속 IP. `category=login` 행과 `category=data_access` 의 **조회(`read`) 행**에 채움(`Ruling 445`) — `X-Real-IP`(프록시가 덮어씀) 우선, 없으면 연결 주소, IP 표기가 아니면 null. 수정·삭제 행은 아직 비어 있음 |
+| `ip` | inet | | 접속 IP. `category=login` 행과 `category=data_access` 의 **조회(`read`) 행**에 채움(`Ruling 445`), **수정·삭제 행에도 채움**(학생 L3 수정·퇴원 · 이동 대기 취소 · 회차 강제 확정 — `Ruling 550`) — `X-Real-IP`(프록시가 덮어씀) 우선, 없으면 연결 주소, IP 표기가 아니면 null. 요청 밖(배치)에서 쓴 행은 null. 계정 비밀번호 초기화 행(`action=update`)은 아직 비어 있음 |
 | `block_event` | boolean | NN default false | 이 시도가 차단을 유발했는지 |
 | `detail` | jsonb | | 코드별 부가 정보 |
 | `occurred_at` | timestamptz | NN | 발생 시각 |

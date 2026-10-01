@@ -15,6 +15,7 @@ import src.backend.audit.entity.AuditLog;
 import src.backend.audit.repository.AuditLogRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.request.ClientIp;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.repository.ConfirmedRouteRepository;
@@ -121,7 +122,7 @@ public class RunForceConfirmCommandService {
         String actorLoginId = accountRepository.findById(actorAccountId).map(Account::getLoginId).orElse(null);
         auditLogRepository.save(AuditLog.forRunForceConfirm(run.getAcademyId(), actorAccountId, actorLoginId, runId,
                 reason, routeVersion.isFallbackUsed(), confirmedRoute.getCurrentVersionId(),
-                confirmedRoute.getConfirmedAt()));
+                ClientIp.ofCurrentRequest(), confirmedRoute.getConfirmedAt()));
 
         return new ForceConfirmResponse(runId, confirmedRoute.getCurrentVersionId(), routeVersion.isFallbackUsed(),
                 confirmedRoute.getConfirmedAt());

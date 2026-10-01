@@ -14,7 +14,7 @@ import io.netty.handler.timeout.WriteTimeoutHandler;
 import reactor.netty.http.client.HttpClient;
 
 /**
- * 이 코드베이스 최초의 외부 HTTP 클라이언트 — routing 모듈이 directions API(OSRM/Naver) 호출에 쓴다.
+ * 이 코드베이스 최초의 외부 HTTP 클라이언트 — routing 모듈이 directions API(Naver) 호출에 쓴다.
  * 서블릿(MVC) 앱이라 리액티브 체인 전체를 쓰지 않고 {@code .block()}으로 동기 호출하되,
  * 외부 API 무응답 시 요청 스레드가 무한 대기하지 않도록 connect/read/write 타임아웃을 명시한다.
  */

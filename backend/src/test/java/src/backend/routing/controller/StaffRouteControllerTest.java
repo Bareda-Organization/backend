@@ -300,6 +300,23 @@ class StaffRouteControllerTest {
                         .isEqualTo(ACADEMY_A_ID));
     }
 
+    /**
+     * 목록 항목이 정차지 수({@code stop_count})를 싣는다(R46 FUBE · B1 #10) — 정차지가 없는 빈 편성과 채워진 편성을
+     * 목록만 보고 가르는 데 쓴다. 3곳과 0곳을 함께 만들어 "모두 같은 값" 을 내는 구현을 막는다.
+     */
+    @Test
+    void 노선_목록은_편성마다_정차지_수를_싣는다() throws Exception {
+        long 채운편성 = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "tue", "to_academy", List.of(1L, 2L, 3L));
+        long 빈편성 = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "wed", "to_academy", List.of());
+
+        String body = 목록_본문(관계자A_토큰(), "size=100");
+
+        assertThat(JsonPath.<List<Integer>>read(body, "$.data.items[?(@.id == " + 채운편성 + ")].stop_count"))
+                .as("정차지 3곳으로 편성한 노선").containsExactly(3);
+        assertThat(JsonPath.<List<Integer>>read(body, "$.data.items[?(@.id == " + 빈편성 + ")].stop_count"))
+                .as("정차지 없이 시작한 편성 — 0 이 실려야 빈 편성을 가를 수 있다").containsExactly(0);
+    }
+
     // ── RTE-09 최적화 ─────────────────────────────────────────────────────
 
     /**
