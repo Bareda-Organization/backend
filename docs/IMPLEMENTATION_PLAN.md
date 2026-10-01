@@ -1166,6 +1166,9 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 675 | 학원 경계 복합 FK 11쌍(부모 `UNIQUE (id, academy_id)`) · `academy_id` 없는 자식(`run_rider`·`route_stop`·`run_stop`)은 점검 쿼리·시험 | 본문 §8.88 · `docs/ERD.md §4.1·§5.1` |
 | 676 | 부하 시드 학원 경계 오염 원인 수정 — 위치용 회차를 학생이 속한 학원마다 심고 같은 학원 학생만 붙임 | 본문 §8.88 · `docs/backend/LOAD_TESTING.md` |
 | 677 | `ErrorCode` 열거 ↔ 에러 코드 사전 양방향 일치 시험 · `SERVER_BUSY` 행 등재 | 본문 §8.88 · `docs/API_SPEC.md §8.7` |
+| 680 | 실시간 연결은 접근 토큰 만료 60초 전에 두 번째 연결로 갈아탄다(재발급 → 새 토큰으로 두 번째 연결 → 구독 이전 → 확인 대기 → 옛 연결 종료) · 연결 상태는 `connected` 그대로 · 재발급·새 연결 실패 시 옛 연결을 두고 기존 `TOKEN_EXPIRED` 경로 · 웹·Flutter 공용 클라이언트 둘 다(`Ruling 618` C-14 이행) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.32` · `docs/API_SPEC.md §7.2` |
+| 681 | 갈아타기의 구독 확인 = 새 연결에 구독을 모두 건 뒤 거부 신호(`ERROR`·닫힘) 없이 1.5초(서버가 SUBSCRIBE 의 `RECEIPT` 를 보내지 않음 — 2026-10-01 실측) · 만료 시각 = 토큰 `exp` 클레임(로그인·재발급 응답에 만료 필드 없음 — 서버 변경 없음) · 갈아타기 간격 하한 5초 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.32` · `docs/API_SPEC.md §7.2` |
+| 682 | 갈아타는 동안의 중복 방송 제거 = (구독 + 원문 본문)이 같으면 한 번만 전달 · 옛 연결을 닫은 뒤 5초 더 유지(방송 본문에 고유 식별자가 없고 STOMP `message-id` 는 세션마다 따로 붙음) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.32` · `docs/API_SPEC.md §7.2` |
 
 
 ## 8.73 ⚖ `R46-BE` — 성능 개선(감사 제외) + 바로 고칠 것 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 410~419 · 백엔드 갈래)
