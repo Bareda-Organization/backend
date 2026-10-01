@@ -60,14 +60,14 @@ groups:
       # (한 번은 빠질 수 있고 두 번 연속이면 목표 유실 1시간이 깨진다) · 사진은 매일이라 26시간. `or absent` — 크론이 안 돌아
       # 지표 파일이 없는 경우도 같은 경보다. 첫 배포 직후 첫 백업까지(최대 1시간)는 울릴 수 있어 절차서가 손으로 1회 돌리게 한다.
       - alert: BackupDbStale
-        expr: (time() - schoolbus_backup_last_success_timestamp_seconds{kind="db"} > 7200) or absent(schoolbus_backup_last_success_timestamp_seconds{kind="db"})
+        expr: (time() - schoolbus_backup_db_last_success_timestamp_seconds > 7200) or absent(schoolbus_backup_db_last_success_timestamp_seconds)
         for: 5m
         labels:
           severity: critical
         annotations:
           summary: DB 백업이 2시간 넘게 성공하지 않았다 — 목표 유실 1시간(RPO)이 깨지고 있다
       - alert: BackupPhotosStale
-        expr: (time() - schoolbus_backup_last_success_timestamp_seconds{kind="photos"} > 93600) or absent(schoolbus_backup_last_success_timestamp_seconds{kind="photos"})
+        expr: (time() - schoolbus_backup_photos_last_success_timestamp_seconds > 93600) or absent(schoolbus_backup_photos_last_success_timestamp_seconds)
         for: 5m
         labels:
           severity: warning

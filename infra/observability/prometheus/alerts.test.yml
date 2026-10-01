@@ -78,9 +78,9 @@ tests:
   # 매시 백업이 한 번 빠지는 것(1시간+)은 조용하고 두 번 연속 빠지면 울린다 — 그래야 RPO 1시간이 깨지기 전에 안다.
   - interval: 1m
     input_series:
-      - series: 'schoolbus_backup_last_success_timestamp_seconds{kind="db",instance="stale"}'
+      - series: 'schoolbus_backup_db_last_success_timestamp_seconds{instance="stale"}'
         values: '0x200'
-      - series: 'schoolbus_backup_last_success_timestamp_seconds{kind="db",instance="healthy"}'
+      - series: 'schoolbus_backup_db_last_success_timestamp_seconds{instance="healthy"}'
         values: '0+60x200'   # 값이 시계와 같이 올라간다 — 방금 성공한 것
     alert_rule_test:
       - eval_time: 119m   # 한 번 빠진 정도(경과 7140초)
@@ -94,7 +94,6 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: critical
-              kind: db
               instance: stale
             exp_annotations:
               summary: DB 백업이 2시간 넘게 성공하지 않았다 — 목표 유실 1시간(RPO)이 깨지고 있다
@@ -113,7 +112,6 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: critical
-              kind: db
             exp_annotations:
               summary: DB 백업이 2시간 넘게 성공하지 않았다 — 목표 유실 1시간(RPO)이 깨지고 있다
 
@@ -121,7 +119,7 @@ tests:
   # (입력 간격은 1분 — 15분이면 시계열이 5분 조회 허용 시간 밖으로 끊겨 보여 경보 상태가 계속 초기화된다)
   - interval: 1m
     input_series:
-      - series: 'schoolbus_backup_last_success_timestamp_seconds{kind="photos",instance="h"}'
+      - series: 'schoolbus_backup_photos_last_success_timestamp_seconds{instance="h"}'
         values: '0x1700'
     alert_rule_test:
       - eval_time: 25h
@@ -132,7 +130,6 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
-              kind: photos
               instance: h
             exp_annotations:
               summary: 학생 사진 백업이 26시간 넘게 성공하지 않았다

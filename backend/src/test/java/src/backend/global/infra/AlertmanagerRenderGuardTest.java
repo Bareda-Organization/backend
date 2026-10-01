@@ -128,12 +128,16 @@ class AlertmanagerRenderGuardTest {
     }
 
     @Test
-    @DisplayName("배포 스크립트가 이 렌더러를 호출하고 Alertmanager 에 새 설정을 다시 읽히며, 컴포즈는 렌더된 폴더를 마운트한다")
+    @DisplayName("배포 스크립트가 이 렌더러를 호출하고 Alertmanager 에 새 설정을·Prometheus 에 새 규칙을 읽히며, 컴포즈는 렌더된 폴더를 마운트한다")
     void deployWiresRenderAndReload() throws IOException {
         String deploy = Files.readString(Path.of("..", "infra", "scripts", "deploy.sh"));
         String compose = Files.readString(Path.of("..", "docker-compose.prod.yml"));
 
         assertThat(deploy).contains("render-alertmanager.sh").contains("kill -s HUP alertmanager");
+        // 파일 하나를 바인드 마운트한 컨테이너는 그 파일이 교체되면(s3 sync 는 임시 파일을 옮겨 쓴다) 옛 파일을 계속 본다 —
+        // 경보 규칙(alerts.yml)을 고쳐 배포해도 Prometheus 가 다시 시작되지 않으면 옛 규칙으로 계속 평가한다(실측).
+        assertThat(deploy).contains("restart prometheus");
+        // 폴더를 마운트해야 렌더 결과가 교체돼도 컨테이너가 새 파일을 본다.
         assertThat(compose).contains("./alertmanager:/etc/alertmanager:ro");
     }
 

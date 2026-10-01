@@ -490,7 +490,7 @@ sudo docker compose -f /opt/school-bus/docker-compose.prod.yml \
 6. 재배포(`workflow_dispatch`) 후 1~5 재통과
 7. 브라우저 콘솔에 CORS 오류 부재
 8. `nmap <EIP>` 기준 개방 포트가 80·443 뿐(22·5432·6379·9092 폐쇄)
-9. **첫 배포 직후 백업을 손으로 1회 돌리고**(`sudo BACKUP_BUCKET=<백업버킷> /opt/school-bus/infra/scripts/backup-db.sh` — 인자 없이 DB·사진 둘 다) S3 `db/`·`photos/` 에 적재되고 Prometheus 에서 `schoolbus_backup_last_success_timestamp_seconds` 두 시리즈가 보이는지 확인한다(안 하면 첫 정시 백업까지 최대 1시간 `BackupDbStale` 이 울린다). 그리고 **복구 연습 1회**(§7 · 소요 시간을 §7.1 에 기록)
+9. **첫 배포 직후 백업을 손으로 1회 돌리고**(`sudo BACKUP_BUCKET=<백업버킷> /opt/school-bus/infra/scripts/backup-db.sh` — 인자 없이 DB·사진 둘 다) S3 `db/`·`photos/` 에 적재되고 Prometheus 에서 `schoolbus_backup_db_last_success_timestamp_seconds` · `schoolbus_backup_photos_last_success_timestamp_seconds` 두 시리즈가 보이는지 확인한다(안 하면 첫 정시 백업까지 최대 1시간 `BackupDbStale` 이 울린다). 그리고 **복구 연습 1회**(§7 · 소요 시간을 §7.1 에 기록)
 10. 일일 스냅샷 정책 동작(§2.4.1) · 경보 수신 확인(§11.3 — 테스트 알림 1건) · 첫 메인 관리자 외에 **두 번째 메인 관리자 생성**(§13.1)
 
 **최초 배포는 10분 이상 걸릴 수 있다.** 이미지 5종을 처음 받고(백엔드 ~400MB + 인프라 ~700MB) backend 의 `start_period`(90s)와 Flyway 마이그레이션이 순차로 붙는다. 워크플로의 상태 판정 상한은 이를 감안한 20분(`MAX_WAIT_SECONDS=1200`) — 진행 중인데 실패로 오판해 운영자가 재실행하면 중복 배포가 큐에 쌓인다(`concurrency: cancel-in-progress: false`).
@@ -800,7 +800,7 @@ Grafana 는 볼륨이 없어 컨테이너를 다시 만들 때마다 SSM 값으�
 
 ### 11.2 경보 규칙
 
-규칙은 `infra/observability/prometheus/alerts.yml` 이고, 조건식·`for` 는 `alerts.test.yml`(promtool 단위 시험)이 가짜 시계열로 검사한다. `TECH_DECISIONS §13.4` 표와 행 단위로 대응한다.
+규칙은 `infra/observability/prometheus/alerts.yml` 이고, 조건식·`for` 는 `alerts.test.yml`(promtool 단위 시험)이 가짜 시계열로 검사한다. 규칙을 고친 배포는 `deploy.sh` 가 Prometheus 를 **다시 시작**해 반영한다 — 규칙 파일 하나를 바인드 마운트한 컨테이너는 파일이 교체돼도 옛 파일을 계속 보고, 다시 시작하지 않으면 옛 규칙으로 평가한다(2026-10-01 로컬에서 실측. 지표는 볼륨에 남는다). `TECH_DECISIONS §13.4` 표와 행 단위로 대응한다.
 
 | 경보 | 조건 | 등급 | `TECH_DECISIONS §13.4` 행 |
 |---|---|---|---|

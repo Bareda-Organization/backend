@@ -264,10 +264,16 @@ if ! $COMPOSE up -d; then
     exit 1
 fi
 
-# Alertmanager 설정은 바인드 마운트라 compose 가 바뀐 줄 모른다 — 컨테이너를 다시 만들지 않고 새 설정만 읽힌다(침묵 설정 유지).
-# 읽지 못하면(잘못된 설정이면 기존 설정이 유지된다) 배포는 성공이고 경고만 남긴다.
+# 설정·규칙 파일은 바인드 마운트라 compose 가 바뀐 줄 모른다(컨테이너가 다시 만들어지지 않는다). 반영 방식이 마운트에 따라 다르다 —
+#  - Alertmanager: 폴더를 마운트하므로 렌더된 새 파일이 보인다 → SIGHUP 으로 다시 읽힌다(침묵 설정 유지). 잘못된 설정이면 기존 설정이
+#    유지된다.
+#  - Prometheus: 파일 하나(alerts.yml · prometheus.prod.yml)를 마운트한다. s3 sync 가 임시 파일을 옮겨 쓰면 컨테이너는 옛 파일을 계속
+#    본다(SIGHUP 으로도 안 읽힌다 — 실측) → 다시 시작해야 새 경보 규칙이 반영된다. 지표는 볼륨에 남는다.
+# 둘 다 실패해도 배포는 성공이고 경고만 남긴다.
 $COMPOSE kill -s HUP alertmanager \
     || echo "경고: Alertmanager 가 새 설정을 읽지 못했다 — docker compose logs alertmanager 를 확인할 것(DEPLOYMENT.md §11.3)" >&2
+$COMPOSE restart prometheus \
+    || echo "경고: Prometheus 를 다시 시작하지 못했다 — 새 경보 규칙이 반영되지 않았을 수 있다(DEPLOYMENT.md §11)" >&2
 
 echo "== 4. 스모크 테스트 (최대 3분 대기) =="
 for _ in $(seq 1 36); do

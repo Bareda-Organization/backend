@@ -27,31 +27,34 @@ class BackupScriptGuardTest {
 
     private static final Path BOOTSTRAP_SH = Path.of("..", "infra", "scripts", "bootstrap-ec2.sh").toAbsolutePath().normalize();
 
-    private static final String METRIC = "schoolbus_backup_last_success_timestamp_seconds";
+    /** 종류별로 이름이 다르다 — 같은 이름이면 node-exporter 가 두 파일의 도움말 문구 불일치로 둘 다 버린다(실측). */
+    private static String metric(String kind) {
+        return "schoolbus_backup_" + kind + "_last_success_timestamp_seconds";
+    }
 
     @Test
-    @DisplayName("db 백업은 덤프를 S3 db/ 에 올린 뒤에만 성공 시각 지표(kind=db)를 쓰고 사진은 건드리지 않는다")
+    @DisplayName("db 백업은 덤프를 S3 db/ 에 올린 뒤에만 DB 성공 시각 지표를 쓰고 사진은 건드리지 않는다")
     void dbBackupWritesMetricOnlyAfterUpload(@TempDir Path tmp) throws Exception {
         Run run = run(tmp, List.of("db"), Map.of());
 
         assertThat(run.exitCode()).as("출력:\n%s", run.output()).isZero();
         assertThat(run.awsCalls()).anyMatch(call -> call.contains("s3://test-bucket/db/")).noneMatch(call -> call.contains("/photos/"));
-        assertThat(run.metric("db")).contains(METRIC + "{kind=\"db\"} ");
+        assertThat(run.metric("db")).contains(metric("db") + " ");
         assertThat(run.metric("photos")).isNull();
-        long written = Long.parseLong(run.metric("db").lines().filter(line -> line.startsWith(METRIC)).findFirst().orElseThrow()
+        long written = Long.parseLong(run.metric("db").lines().filter(line -> line.startsWith(metric("db"))).findFirst().orElseThrow()
                 .split(" ")[1]);
         assertThat(written).as("지표 값은 지금 시각(epoch 초)이다").isBetween(System.currentTimeMillis() / 1000 - 60,
                 System.currentTimeMillis() / 1000 + 60);
     }
 
     @Test
-    @DisplayName("photos 백업은 사진 묶음을 S3 photos/ 에 올린 뒤에만 kind=photos 지표를 쓴다")
+    @DisplayName("photos 백업은 사진 묶음을 S3 photos/ 에 올린 뒤에만 사진 성공 시각 지표를 쓴다")
     void photosBackupWritesItsOwnMetric(@TempDir Path tmp) throws Exception {
         Run run = run(tmp, List.of("photos"), Map.of());
 
         assertThat(run.exitCode()).as("출력:\n%s", run.output()).isZero();
         assertThat(run.awsCalls()).anyMatch(call -> call.contains("s3://test-bucket/photos/")).noneMatch(call -> call.contains("/db/"));
-        assertThat(run.metric("photos")).contains(METRIC + "{kind=\"photos\"} ");
+        assertThat(run.metric("photos")).contains(metric("photos") + " ");
         assertThat(run.metric("db")).isNull();
     }
 
@@ -63,6 +66,16 @@ class BackupScriptGuardTest {
         assertThat(run.exitCode()).as("출력:\n%s", run.output()).isZero();
         assertThat(run.metric("db")).isNotNull();
         assertThat(run.metric("photos")).isNotNull();
+    }
+
+    @Test
+    @DisplayName("두 지표 파일은 지표 이름이 서로 다르다 — 같은 이름이면 node-exporter 가 도움말 불일치로 둘 다 버려 경보가 거짓으로 울린다")
+    void metricNamesDifferPerKind(@TempDir Path tmp) throws Exception {
+        Run run = run(tmp, List.of(), Map.of());
+
+        String db = run.metric("db").lines().filter(line -> !line.startsWith("#")).findFirst().orElseThrow().split("[ {]")[0];
+        String photos = run.metric("photos").lines().filter(line -> !line.startsWith("#")).findFirst().orElseThrow().split("[ {]")[0];
+        assertThat(db).isNotEqualTo(photos);
     }
 
     @Test

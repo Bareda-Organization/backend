@@ -8,7 +8,7 @@
 # 보관 기간은 스크립트가 아니라 S3 수명주기 규칙(db/·photos/ 각 7일)으로 관리한다 —
 # 삭제 로직을 스크립트에 두면 버그 하나로 백업 전체가 지워질 수 있다.
 #
-# 성공하면 마지막 줄에서 "성공 시각" 지표 파일을 쓴다(node-exporter textfile 수집기가 읽는다). **S3 에 올린 뒤에만** 쓴다 —
+# 성공하면 "성공 시각" 지표 파일을 쓴다(node-exporter textfile 수집기가 읽는다). **S3 에 올린 뒤에만** 쓴다 —
 # 그래야 Prometheus 경보 BackupDbStale·BackupPhotosStale(infra/observability/prometheus/alerts.yml)이 "백업이 멈춤"을 본다.
 # 실패는 크론 로그(/var/log/schoolbus-backup.log)에만 남고 아무도 읽지 않으므로 지표가 유일한 감지 수단이다.
 set -euo pipefail
@@ -31,10 +31,13 @@ trap 'rm -f "$DUMP"' EXIT
 
 record_success() {
     # textfile 수집기는 *.prom 만 읽는다 — 임시 파일에 쓴 뒤 옮겨 반쯤 쓴 파일을 읽히지 않는다.
-    local kind="$1" file="$TEXTFILE_DIR/schoolbus_backup_$1.prom"
+    # ⚠ 지표 이름이 종류별로 다르다(schoolbus_backup_db_… · schoolbus_backup_photos_…). 같은 이름을 두 파일에 나눠 쓰면
+    #   도움말 문구가 한 글자만 달라도(스크립트를 고친 뒤 한쪽 파일만 새로 쓰였을 때) node-exporter 가 "inconsistent metric help
+    #   text" 로 둘 다 버려 경보가 거짓으로 울린다 — 2026-10-01 로컬 기동에서 실제로 겪었다.
+    local metric="schoolbus_backup_$1_last_success_timestamp_seconds" file="$TEXTFILE_DIR/schoolbus_backup_$1.prom"
     mkdir -p "$TEXTFILE_DIR"
-    printf '# HELP schoolbus_backup_last_success_timestamp_seconds 마지막 백업 성공 시각(S3 업로드 완료, epoch 초)\n# TYPE schoolbus_backup_last_success_timestamp_seconds gauge\nschoolbus_backup_last_success_timestamp_seconds{kind="%s"} %s\n' \
-        "$kind" "$(date +%s)" > "$file.tmp"
+    printf '# HELP %s 마지막 백업 성공 시각(S3 업로드 완료, epoch 초)\n# TYPE %s gauge\n%s %s\n' \
+        "$metric" "$metric" "$metric" "$(date +%s)" > "$file.tmp"
     mv "$file.tmp" "$file"
 }
 
