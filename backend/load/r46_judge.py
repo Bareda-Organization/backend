@@ -9,7 +9,7 @@
 | 2 | 위치 송신 주기 2초 유지 | NFR-03 | 송신 달성률 ≥ 95% (응답이 늦어 다음 송신이 밀리면 줄어든다) **그리고** POST p95 < 2,000ms (응답이 다음 송신을 넘기지 않음) |
 | 3 | WS 배달이 5초 안 | NFR-02 | 구독한 채널마다 방송 지연 p95 ≤ 5,000ms (p99·max 는 같이 적는다) |
 | 4 | 확정이 마감(출발 30분 전) 안 | C-03 · RTE-02 | 배치 도래→전량 확정 드레인 ≤ 1,800초 |
-| 5 | 미확정 0 | TECH_DECISIONS §13.4 | 확정 건수 == 도래시킨 건수 · 드레인 끝의 미확정 0건 |
+| 5 | 미확정 0 | TECH_DECISIONS §13.4 | 확정 건수 ≥ 도래시킨 건수 · 드레인 끝의 남은 건수 ≤ 0 |
 
 실행: ./r46_judge.py <라벨> [라벨 …]   (결과 파일: results/<라벨>_position.json · _poll.json · _sessions.json · _run.out)
 """
@@ -63,7 +63,7 @@ def judge(label):
     detail = ' · '.join(f"{n} p95 {a:.0f}" + (f"/p99 {b:.0f}" if b is not None else '') + f"/max {c:.0f}ms" for n, a, b, c in channels)
     rows.append((3, 'NFR-02 WS 배달 ≤ 5초', detail or '측정 채널 없음', worst is not None and worst <= NFR02_MS))
 
-    drain = re.search(r'배치 드레인: (\S+)초 \(미확정 (\d+)건\)', out)
+    drain = re.search(r'배치 드레인: (\S+)초 \(미확정 (-?\d+)건\)', out)
     drain_sec = float(drain.group(1)) if drain and drain.group(1).isdigit() else None
     remain = int(drain.group(2)) if drain else None
     rows.append((4, '확정 마감(30분) 안', f'드레인 {drain_sec}초' if drain_sec is not None else '드레인 미완',
@@ -72,7 +72,9 @@ def judge(label):
     n_conf = int(confirmed.group(1)) if confirmed else None
     expected = re.search(r'배치=(\d+)회차', out)
     n_exp = int(expected.group(1)) if expected else None
-    rows.append((5, '미확정 0', f'확정 {n_conf}/{n_exp}건 · 남은 {remain}건', remain == 0 and n_conf == n_exp))
+    # 확정 건수는 전 학원의 확정 지연 히스토그램 증가분이라 시드(`db/migration-local`)의 다른 회차 확정이 섞일 수 있다 → "도래시킨 건수 이상 · 남은 0 이하"
+    rows.append((5, '미확정 0', f'확정 {n_conf}/{n_exp}건(시드 회차가 섞이면 초과) · 남은 {remain}건',
+                 remain is not None and remain <= 0 and n_conf is not None and n_exp is not None and n_conf >= n_exp))
 
     # 판정 밖 참고값 — 사양에 수치가 없어 통과·실패에 넣지 않는다
     extra = []

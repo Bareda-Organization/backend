@@ -71,6 +71,7 @@ const OBSERVERS = Number(__ENV.SCENARIO2_OBSERVERS || 0) || runs.length;
 // 100대가 각자 5초마다 보내는 형태에 가까워진다. 어느 쪽도 틀리지 않다 — 끈 쪽은 최악(전 차량이
 // 같은 초에 송신), 켠 쪽은 평시다. 둘을 같은 N 에서 재야 그 차이가 대기열 때문임을 보일 수 있다.
 const JITTER = (__ENV.SCENARIO2_JITTER || 'false') === 'true';
+const FIXED_RATE = (__ENV.SCENARIO2_FIXED_RATE || 'false') === 'true';
 
 export const options = {
     scenarios: {
@@ -122,8 +123,12 @@ export default function () {
     if (!isObserver) {
         const until = Date.now() + durationSec * 1000;
         while (Date.now() < until) {
+            const startedAt = Date.now();
             postPosition(target, driverToken);
-            sleep(intervalSec);
+            // SCENARIO2_FIXED_RATE=true — 기사 앱은 고정 주기 타이머(`Timer.periodic`)이고 이전 요청이 진행 중이면 그 틱만 건너뛴다
+            // (`position_transmitter.dart` `_sending`). 응답을 받은 뒤 주기만큼 쉬면 응답이 0.3초만 걸려도 주기가 2.3초가 되어 송신 달성률이
+            // 인위적으로 떨어진다(R46-LOAD 관리자 300·400 회차에서 달성률 86~89% — 응답 p95 는 2초 안이었다). 기본(false)은 09-09 와 같은 동작.
+            sleep(FIXED_RATE ? Math.max(0, intervalSec - (Date.now() - startedAt) / 1000) : intervalSec);
         }
         return;
     }

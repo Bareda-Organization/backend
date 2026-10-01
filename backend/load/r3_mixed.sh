@@ -12,6 +12,7 @@
 # R46-LOAD 가 더한 환경변수 — 기본값은 전부 2026-09-09 와 같은 동작이다(값을 안 주면 09-09 회차 그대로).
 #   R3_INTERVAL   위치 송신 주기(초). 기본 5(09-09). 앱 실제 값은 2(`position_constants.dart`)
 #   R3_POLLING    1 이면 학부모 홈 폴링 + 관계자 웹 폴링을 더한다(scenario5_polling.js). 기본 0
+#   R3_FIXED_RATE 1 이면 위치 송신 VU 를 고정 주기로 돌린다(앱의 `Timer.periodic` 과 같음 — scenario2 의 SCENARIO2_FIXED_RATE). 기본 0(09-09 와 같은 "응답 뒤 쉼")
 #   R3_ADMINS     관계자 웹 동시 사용자 수(Ruling 484 통과 기준 = 50). 0 보다 크면 realistic 모드의 관계자·관리자 구성을 이 하나로 정한다 —
 #                 메인 관리자 10% + 학원 관계자 90%(절반 대시보드·절반 금일 운행 탭, 각자 학원 채널 WS·공통 폴링). 폴링을 자동으로 켠다
 #   R3_MODE       admin(기본) = 09-09 처럼 세션 전원이 /topic/admin/live 를 구독
@@ -124,6 +125,7 @@ echo "t+$((RAMP + 15))s 위치 부하 시작 (연결 $(metric tomcat_connections
 # ④ 위치 부하.
 k6 run --summary-trend-stats="avg,min,med,max,p(90),p(95),p(99)" $K6_OUT_ARGS_POSITION -e SCENARIO2_CSV="$DIR/results/${TAG}_runs.csv" -e SCENARIO2_DURATION_SEC="$POS_DUR" \
     -e SCENARIO2_INTERVAL_SEC="$INTERVAL" -e SCENARIO2_OBSERVERS=2 -e SCENARIO2_JITTER=true \
+    -e SCENARIO2_FIXED_RATE="$([ "${R3_FIXED_RATE:-0}" = "1" ] && echo true || echo false)" \
     --summary-export="$DIR/results/${TAG}_position.json" scenario2_position.js \
     > "$DIR/results/${TAG}_position.log" 2>&1 &
 K6_P=$!
