@@ -6,7 +6,7 @@
 |---|---|
 | 서버 | 집 PC 1대(i5 10세대 · 16GB) · `docker-compose.staging.yml` 한 파일 |
 | 공개 | Cloudflare Tunnel — 공유기 포트 개방 부재 · HTTPS 는 Cloudflare 가 처리 |
-| 웹 | 같은 서버·같은 주소(Vercel 미사용 — 새로 고침 쿠키가 `SameSite=Strict` 라 주소가 갈리면 로그인 유지 불가) |
+| 웹 | 같은 서버·같은 주소(Vercel 미사용 — 새로 고침 쿠키가 `SameSite=Strict` 라 웹과 API 가 다른 **사이트**가 되면 로그인 유지 불가). 운영은 `Ruling 481` 로 웹만 Vercel 이지만 웹·API 를 같은 사이트의 커스텀 도메인(`app.<도메인>` · `api.<도메인>`)에 두어 `Strict` 가 성립하게 한 것이고(`DEPLOYMENT.md §12.2`), 스테이징은 도메인 1개(`bus.<도메인>`)라 서버 한 곳에 묶음 |
 | 앱 | Android 만 · APK 를 서버의 `/download/` 에 두고 QR 로 설치. iOS 는 제외(원격 설치에 Apple 개발자 등록 필수) |
 | 데이터 | 백엔드 `local,staging` 프로파일 — 데모 시드 + 버스 시뮬레이터. **매일 새벽 시드 상태로 초기화** · 팀원이 웹 머리말 **[테스트 데이터 초기화]** 로 언제든 초기화(`Ruling 364`) |
 
@@ -34,7 +34,7 @@ sudo usermod -aG docker $USER   # 다시 로그인해야 적용
 
 ## 3. 코드와 비밀값 옮기기
 
-⚠ GitHub 의 `main` 은 2026-09-09 이후 push 하지 않았고 문서는 공개 저장소에 올리지 않는다 — **GitHub 에서 받지 말고 Mac 에서 받는다.**
+⚠ GitHub 의 `main` 은 2026-09-30 23:13 시점(문서 포함 전부 push, `CLAUDE.md` 참고)까지만 반영돼 있고 그 뒤 R46 커밋은 push 전이다(push 는 사용자 확인 후 — `git log origin/main -1` 로 시점 확인). **최신 코드가 필요하면 GitHub 이 아니라 Mac 에서 받는다.**
 
 ```bash
 # Mac: 시스템 설정 → 일반 → 공유 → "원격 로그인" 켜기. 그다음 집 PC 에서
@@ -136,3 +136,18 @@ docker compose logs -f backend
 | 웹 로그인 직후 다시 로그인 화면 | `PUBLIC_URL` 과 실제 접속 주소가 다름(쿠키·CORS 둘 다 이 값) |
 | 앱이 서버에 못 붙음 | APK 빌드 때 `API_BASE_URL` 의 `https`·`/api/v1` 누락 |
 | `bus.<도메인>` 이 502/1033 | `cloudflared` 컨테이너 중지 또는 Public Hostname 의 URL 이 `proxy:80` 이 아님 |
+| 요청이 느리거나 실패, 백엔드 로그에 `Connection is not available` | DB 연결 풀(기본 10개)이 마름 — 연결 대기 상한 3초(`connection-timeout`) 뒤 실패. 5초 넘게 연결을 쥔 스레드의 스택이 `leak-detection` 경고로 로그에 남으므로 `docker compose logs backend \| grep -i leak` 로 누가 쥐었는지 찾음 |
+
+## 10. 운영(AWS) 변경 중 스테이징에 해당하지 않는 것 (2026-10-01 R46 확인)
+
+R46 운영 작업(`DEPLOYMENT §7` 백업 · `DEPLOYMENT §11` 관측 · `DEPLOYMENT §12` Vercel · `DEPLOYMENT §13` 운영 규칙)이 이 서버 절차를 바꾸지 않는 근거. `docker-compose.staging.yml` 을 직접 읽은 결과다.
+
+| 운영 변경 | 스테이징 |
+|---|---|
+| 매시 DB 백업 · 매일 사진 백업 · 복구 연습(`Ruling 480`·`500`) | **해당 없음** — postgres 가 `tmpfs`(메모리)라 디스크에 데이터가 없고 매일 새벽 시드로 초기화하는 서버. 백업 대상이 아님 |
+| 경보 수신(텔레그램·이메일, Prometheus·Alertmanager) | **해당 없음** — 컨테이너 6개(postgres · redis · backend · web · proxy · cloudflared)뿐이고 관측·경보 컨테이너가 없음 |
+| 첫 메인 관리자 러너(`FirstSystemAdminBootstrap`) | **동작 안 함** — 시드에 메인 관리자(`sysadmin`)가 이미 있어 이 러너는 값을 읽지 않고 건너뜀. 스테이징에는 `BOOTSTRAP_ADMIN_*` 변수를 넣지 않음 |
+| 웹 Vercel 배포 · 허용 출처 검사(`infra/scripts/deploy.sh`) | **해당 없음** — 이 검사는 운영 배포 스크립트에만 있음. 스테이징은 `PUBLIC_URL` 한 값이 REST 허용 출처(`CORS_ALLOWED_ORIGINS`)와 WebSocket 허용 출처(`WS_ALLOWED_ORIGIN_PATTERNS`)에 그대로 들어감 |
+| prod 프로파일 명시(`b18c60bf`) | **해당 없음** — 스테이징은 `local,staging` 프로파일이고 필수 환경변수는 §6 의 넷 |
+| 이미지 태그 부 버전 고정(`postgres:16.15` · `redis:7.4.11` 등) | **적용됨** — 별도 조치 없음. 태그를 올릴 때는 `docker-compose.staging.yml` 의 값을 바꿈 |
+| 연결 대기 3초 · 누수 감지 5초(`R46 D #17`) | **적용됨** — `staging` 프로파일에 들어 있음(§9 증상표) |

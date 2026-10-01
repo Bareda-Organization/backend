@@ -6,7 +6,7 @@
 
 ⚠ **모델 자리를 채울 때 정의 파일을 `grep -m1 '^model:'` 로 확인한다**(전역 규칙 `parallel-agents-git.md §4.1`). **`head`·`sed` 로 훑으면 전역 rtk hook 이 출력을 압축해 `model:` 줄을 삼킨다** — 2026-08-29 에 실제로 "정의에 `model` 이 없다" 로 잘못 읽었다(아래 "알려진 함정" 의 rtk 압축 항목과 같은 기제다).
 
-작성일 2026-07-28 / 최종 갱신 2026-08-25 · **2026-10-01 일부 절 재확인**(작업 범위 · Kafka 제거 · `maxHeapSize` · 포트 — `CLAUDE.md` 와 코드로 대조, 나머지 절은 미재확인) / 검증 방식: 소스 직접 확인(앱 미기동)
+작성일 2026-07-28 / 최종 갱신 2026-08-25 · **2026-10-01 일부 절 재확인**(작업 범위 · Kafka 제거 · `maxHeapSize` · 포트 — `CLAUDE.md` 와 코드로 대조) · **2026-10-01 R46-DOCSYNC 재확인**(`security-reviewer` · `debugger` 절 · `ApiResponse` 설명 · 테스트 수 기준선 — 코드를 `grep` 으로 직접 대조, 아래 `알려진 함정` 이후 절은 미재확인) / 검증 방식: 소스 직접 확인(앱 미기동)
 
 ---
 
@@ -26,7 +26,7 @@
 - 프론트 문서는 `docs/frontend/` 에 있다 — `IMPLEMENTATION_PLAN.md` · `CONVENTIONS_REACT.md` · `CONVENTIONS_FLUTTER.md` · `SETUP.md`(2026-09-30 재작성). 옛 `frontend/docs/` 3종은 2026-09-20 문서 통합으로 부재
 - 옛 프론트 전용 에이전트 2개(`ui-implementer` · `design-system-auditor`)는 삭제됨(범위 밖이던 시기의 정리) — 프론트 작업은 전역 에이전트와 Skill `baraeda-screen-check` 로 한다
 
-⚠ **아래 절 중 옛 도메인 코드를 서술한 부분은 `IMPLEMENTATION_PLAN` Phase 0(걷어내기) 시점에 무효가 된다.** 해당 위치에 `무효 예정` 표기를 붙여 뒀다 — 표기가 붙은 값을 근거로 지적하지 않는다.
+⚠ **옛 도메인 코드를 서술하던 `무효 예정` 표기는 2026-10-01 R46-DOCSYNC 가 `security-reviewer` · `debugger` 절을 코드와 대조해 다시 쓰면서 전부 해소했다**(표기로 남은 것 0건 — `grep -n '무효 예정' .claude/PROJECT_NOTES.md` 에 걸리는 2곳은 이 문장과 `debugger` 절 머리말의 설명 인용). `알려진 함정` 절의 날짜 붙은 항목은 그 시점의 기록이라 대상 코드가 이후 바뀌었을 수 있다.
 
 ---
 
@@ -61,9 +61,9 @@ cd backend
 - **`-PtestDbUrl` 은 2026-09-14부터 필수 인자다**(커밋 `9dc43753`). 빠뜨리면 공유 `schoolbus` DB로 조용히 떨어지는 대신 **Gradle 설정 단계에서 `GradleException` 으로 즉시 실패한다** — 병렬 좌석이 같은 DB 행을 밟아 코드 결함과 구별 안 되는 실패를 내는 사고(`parallel-agents-git.md §0`)를 막는 장치다. 병렬로 여러 좌석을 띄울 때는 좌석마다 다른 DB 이름을 미리 정해 준다.
 - **Redis 격리는 자동이다**(같은 커밋). `RedisTestContainerContextCustomizerFactory`(`META-INF/spring.factories` 로 등록)가 Spring TestContext 기반 시험 전부에 격리된 Redis 컨테이너를 붙인다 — `RedisTestContainerBase` 를 상속하는지 여부와 무관하다. (예전엔 141+ 클래스 중 11개만 상속으로 격리돼 있었다.)
 - **CI 워크플로 있음** — `.github/workflows/deploy-backend.yml` 의 "테스트" 단계가 `-PtestDbUrl=jdbc:postgresql://localhost:15432/schoolbus` 를 명시해 돈다.
-- **실측 기준선(2026-09-14)**: 테스트 클래스 222개 · 테스트 1,302개, JUnit 5. 같은 명령을 연속 4회 실행해 4회 다 실패 0·건너뜀 0 확인함(회차별 소요 4~5분대). 판정은 콘솔 문자열이 아니라 `build/test-results/test/TEST-*.xml` 의 `tests`·`failures`·`errors`·`skipped` 속성을 직접 집계해서 한다(`phase-goal-loop.md §5.2`).
+- **실측 기준선(2026-10-01 R46 마무리 전체 실행)**: 백엔드 **354 클래스 · 2,019건**, JUnit 5. 판정은 콘솔 문자열이 아니라 `build/test-results/test/TEST-*.xml` 의 `tests`·`failures`·`errors`·`skipped` 속성을 직접 집계해서 한다(`phase-goal-loop.md §5.2`). ⚠ 이 수치는 조율 세션이 전달한 값이고 R46-DOCSYNC 창은 부하 측정 중이라 재실행하지 못했다 — 정적 교차 확인만 했다: `backend/src/test/java` 소스 파일 404 · `@Test`·`@ParameterizedTest`·`@TestFactory`·`@RepeatedTest` 를 가진 파일 357 · 그 애너테이션 줄 1,789(파라미터화·`@Nested` 가 펼쳐지는 만큼 실행 건수가 더 큼). 클래스 수 357 과 354 의 차이 3 은 기본 `test` 에서 빠지는 `@Tag("live")` 3클래스(`NaverGeocodingClientLiveTest` · `NaverDirectionsClientLiveTest` · `RunConfirmationServiceLiveTest`) 수와 같지만, 클래스 단위로 대응하는지는 확인 못 함. 이전 기준선: 2026-09-14 222 클래스 · 1,302건(같은 명령 연속 4회 실패 0·건너뜀 0, 회차별 4~5분대).
 - ⚠ **Postgres `max_connections=100` 은 여러 좌석이 공유한다.** 동시에 뜬 bootRun 서버 + 테스트 JVM 이 많으면 순간적으로 커넥션이 소진돼 `FATAL: sorry, too many clients already`(SQLSTATE 53300)가 `Failed to load ApplicationContext` 형태로 나타난다 — 아래 "알려진 함정" 절 참고.
-- 기동 명령은 **안내만 하고 직접 실행하지 않는다**(사용자에게 요청):
+- Docker 인프라는 **묻지 말고 직접 기동한다**(전역 `CLAUDE.md` 작업 규칙 — `-v` 는 붙이지 않는다. 병렬 작업 창이 도는 동안 `docker compose down` 은 모든 창의 DB 를 날리므로 금지). 기동 명령:
   ```bash
   docker compose up -d postgres redis   # 루트에서
   ```
@@ -79,6 +79,7 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:<포트> npm test
 flutter test --dart-define=API_BASE_URL=http://localhost:<포트>/api/v1
 ```
 
+- **프론트 실측 기준선(2026-10-01 R46 마무리 전체 실행 → 다듬기 뒤)** — 웹 `npx vitest run --exclude '**/*[Rr]ealBackend*.test.ts'` **138 파일 · 823건**(마무리 전체 실행 시점 806). Flutter `flutter test --exclude-tags real_backend`(실서버 시험 제외) — `baraeda_core` **85** · `baraeda_ui` **265**(마무리 시점 240) · `manager-app` **411**(403) · `parent-app` **313**(312). 웹 823 · `baraeda_ui` 265 · `manager-app` 411 · `parent-app` 313 은 R46-POLISH 보고서가 적은 실행 결과이고, 806 · 240 · 403 · 312 · 85 는 R46-LAST 보고서와 조율 세션이 전달한 마무리 시점 값이다. 두 시점 사이 증가분이 R46-POLISH 보고서의 "새 시험" 수(`baraeda_ui` 23 · `manager-app` 7 · `parent-app` 1)와 정확히 맞지는 않는다(240→265 는 25) — 원인 확인 못 함. 이 창은 어느 수치도 재실행하지 않았다. 실서버 시험은 위에서 뺐고 별도로 백엔드를 띄워 돈다.
 - ⚠ **Flutter는 `/api/v1` 접미사를 반드시 붙인다.** 빠뜨리면 실서버 시험이 전부 경로 단계에서 실패한다 — 이 접미사 누락으로 앱 2종이 11건씩 실패한 전례가 있다.
 - ⚠ **`--dart-define=API_BASE_URL` 을 빠뜨리면 실패하지 않고 기본값 `localhost:8080` 으로 조용히 붙는다.** 이 저장소에서 같은 형태로 3번 났다(`parallel-agents-git.md §13.2`) — 인자 누락이 에러가 아니라 남의 서버(조율자 시드 서버 등)를 실제로 호출하는 조용한 오염으로 나타난다. 주소를 직접 문자열로 박지 말고 `requireRealBackendApiBaseUrl()`류의 헬퍼를 쓴다.
 
@@ -125,7 +126,7 @@ flutter test --dart-define=API_BASE_URL=http://localhost:<포트>/api/v1
 - **계층 책임**: Controller는 검증·인증사용자 확인·서비스 호출만 / Service는 HTTP·Redis·JPA를 직접 알지 않고 Port(spec) 경유 / Repository는 JPA 접근만 / 외부 기술은 `infrastructure/`.
 - **DTO**: Entity를 직접 반환하지 않는다. Request DTO → Service → Response DTO.
 - **Event 이름은 과거형** (`LocationUpdatedEvent`, `StudentBoardedEvent`). Command·Query 어휘를 이벤트명에 쓰지 않는다. 서비스 간 직접 체이닝 호출 금지 — 커밋 뒤 도메인 이벤트(`@TransactionalEventListener(AFTER_COMMIT)`)로 잇는다(Kafka 는 제거됨).
-- **응답 규약**: `ApiResponse<T> { success, data, message }` 3필드뿐 — **머신리더블 `errorCode` 필드는 없다**(의도된 설계). 예외는 `BusinessException` + `ErrorCode` enum(8종), 전역 처리는 `GlobalExceptionHandler`. `@Valid` 실패는 `findFirst()`로 **첫 필드 오류 1개만** `"필드명: 메시지"` 형식으로 반환한다.
+- **응답 규약**: 성공은 `ApiResponse<T> { success, data, message }`(`global/response/ApiResponse.java`) 3필드 — **실패는 이 타입을 재사용하지 않는다.** 실패는 `ErrorResponse { error { code, message, details } }`(`API_SPEC §1.10`)이고 `code` 는 `ErrorCode.name()` 그대로라 클라이언트가 문구가 아니라 코드로 분기한다(같은 403 의 `AUTH_PENDING` · `AUTH_REJECTED` · `FORBIDDEN` 구분이 이유 — `ApiResponse` 자바독). 예외는 `BusinessException` + `ErrorCode` enum(**80종** — `ErrorCodeCatalogTest` 는 그중 일부의 HTTP 상태만 `API_SPEC §8` 에서 손으로 옮긴 리터럴과 대조하고 80종 전수를 대조하지는 않음), 전역 처리는 `GlobalExceptionHandler`. `@Valid` 실패(`MethodArgumentNotValidException`)는 `findFirst()` 로 **첫 필드 오류 1개만** `"snake_case_필드명: 메시지"` 형식으로 반환한다(필드명을 `snakeCase()` 로 바꿔 JSON 키와 맞춤).
 - **마이그레이션 — 2026-08-24 방향 전환으로 규칙이 뒤집혔다.** 첫 배포 이전인 현재는 **`V1__init_schema.sql` 을 직접 수정하고 로컬 DB 를 재구성**한다(`docker compose down` → `up -d postgres redis`). 버전을 쌓지 않는다. 옛 규칙("`V{n}` 추가, V1 수정 금지")은 **첫 배포 이후에 되살아난다** — 근거와 전환 시점은 `docs/IMPLEMENTATION_PLAN.md` §2.1·§2.2. 데모 시드는 `db/migration-local/`(**`local`·`demo` 두 프로파일에서만 로드**, prod 미적용). 시드 비밀번호 해시는 Flyway placeholder `seedPasswordHash`로 주입 — local은 `application.yml` 기본값(평문 `password`), demo는 SSM 값(기본값 없음).
 - **`package-info.java`를 두지 않는다** (패키지 레벨 애너테이션이 필요할 때만 예외).
 
@@ -133,30 +134,30 @@ flutter test --dart-define=API_BASE_URL=http://localhost:<포트>/api/v1
 
 ## security-reviewer
 
-> ⚠ **일부 무효 예정** — **살아남는 것**: JWT Bearer 필터 배치 · `STATELESS` · 공개 경로 목록 · `/ws/**` permitAll 의 근거 · 시크릿 보관 · CORS · BCrypt · 로그인 실패 메시지 미구분. **Phase 0·2 에서 소멸하는 것**: Role 5종 목록 · `AuthUser` 의 `List<Membership>` · `TenantGuard` 경유 규칙 — 새 모델은 계정 1개가 학원 1곳에 속하고 역할 6종이며 격리는 저장소 계층에서 강제한다 (`ARCHITECTURE §5`·`§6` · `IMPLEMENTATION_PLAN` Phase 2).
+> **2026-10-01 R46-DOCSYNC 가 코드와 대조해 다시 썼다.** 옛 판의 `Tenant` · `Membership` · `TenantGuard` · Role 5종(`ACADEMY_ADMIN` · `PLATFORM_ADMIN`) · `/api/auth/**` · `/topic/tenant/{id}/**` 는 코드에서 사라졌다(`grep -rn 'TenantGuard\|class Membership' backend/src/main` 0건). 계정 1개가 학원 1곳에 속하는 단일 소속 모델이고(`ARCHITECTURE §5`·`§6`), 아래는 전부 `backend/src/main/java/src/backend/global/security/` 아래 소스를 읽은 결과다.
 
-- **인증 방식**: JWT Bearer. `JwtAuthenticationFilter`를 `UsernamePasswordAuthenticationFilter` **앞에** 삽입, 세션 `STATELESS`, CSRF 비활성 (`global/security/SecurityConfig.java`).
-- **공개 경로(permitAll)** — 이 목록이 늘어나면 반드시 근거를 따진다:
-  `/api/auth/**` · `/actuator/health` · `/ws/**` · `/swagger-ui/**`, `/swagger-ui.html`, `/v3/api-docs/**`. 그 외 `anyRequest().authenticated()`, 미인증은 403이 아니라 **401**(`HttpStatusEntryPoint`).
-- **`/ws/**`가 permitAll인 것은 취약점이 아니다** — WebSocket 핸드셰이크엔 토큰을 못 싣는 클라이언트가 많아, 인증을 **STOMP CONNECT 프레임에서 `StompAuthChannelInterceptor`가 세션당 1회** 검증한다. 추가로 `/topic/tenant/{id}/**` SUBSCRIBE 시 테넌트 인가를 한 번 더 건다.
-- **역할 인가**: `@EnableMethodSecurity` + 컨트롤러 메서드의 `@PreAuthorize`. Role 5종(STUDENT/PARENT/DRIVER/ACADEMY_ADMIN/PLATFORM_ADMIN).
-- **현재 사용자 획득**: `AuthUser`(id, email, `List<Membership{tenantId, role}>`)를 컨트롤러 파라미터로 주입받는다.
-- **멀티테넌트 격리 — 신규 관리자 API 리뷰 시 최우선 체크**: `global/tenant/TenantGuard.resolveTenantId(authUser, tenantId)`를 반드시 경유해야 한다. PLATFORM_ADMIN이 `tenantId`를 생략하면 400, 다른 학원 자원 접근은 403. 이 가드를 우회해 `tenantId`를 그대로 신뢰하는 코드가 크로스테넌트 유출 경로다.
+- **인증 방식**: JWT Bearer. `JwtAuthenticationFilter` 를 `UsernamePasswordAuthenticationFilter` **앞에** 삽입, 세션 `STATELESS`, CSRF 비활성 (`SecurityConfig.java`). 이 필터는 `@Component` 라 자동 등록되지만 `FilterRegistrationBean` 으로 꺼서 **시큐리티 체인 안에서만** 돈다 — 체인 밖 이중 등록이 인증을 지워 유효한 토큰이 401 이 되는 결함을 막는 장치(`SecurityConfig` 자바독).
+- **공개 경로(permitAll)** — 이 목록이 늘어나면 반드시 근거를 따진다. 실제 경로는 `ApiPathPrefixConfig.API_PREFIX`(`/api/v1`)가 붙는다:
+  `GET /academies/search` · `POST /auth/signup` · `POST /auth/login` · `POST /auth/refresh` · `POST /auth/recover`(5개 모두 `PublicEndpoints` 한 곳) + `/actuator/health` · `/actuator/prometheus` · `/ws/**` · `/swagger-ui/**` · `/swagger-ui.html` · `/v3/api-docs/**`. 그 외 `anyRequest().authenticated()`. 미인증은 403 이 아니라 **401** — 본문은 `GlobalExceptionHandler` 가 `ErrorResponse` 로 쓰고, 토큰 부재는 `UNAUTHORIZED` · 만료는 `TOKEN_EXPIRED`(클라이언트가 "재발급" 과 "로그인부터" 를 가르는 근거). `ControllerAuthorizationConventionTest.EXPECTED_PUBLIC_ENDPOINTS` 가 `PublicEndpoints` 를 참조하지 않는 하드코딩 목록으로 독립 대조한다.
+  - `/actuator/prometheus` 가 열린 것은 취약점이 아니다 — 스크레이프가 JWT 를 못 들고 오기 때문이고 경계는 네트워크다(nginx 가 외부의 `/actuator` 를 404 로 막고 Prometheus 는 compose 내부망에서만 닿음 — `SecurityConfig` 주석).
+- **`/ws/**` 가 permitAll 인 것은 취약점이 아니다** — WebSocket 핸드셰이크엔 토큰을 못 싣는 클라이언트가 많아 인증을 **STOMP `CONNECT`(별칭 `STOMP` 포함)에서 `StompAuthChannelInterceptor` 가 세션당 1회** 검증한다. `SUBSCRIBE` 는 목적지 4종만 허용하고 각각 인가한다(Ruling 209) — `/topic/students/{studentId}/run` · `/topic/manager/runs/{runId}` · `/topic/academy/{academyId}/live` · `/topic/admin/live`. 옛 `/topic/tenant/{id}/**` 는 소멸. 클라이언트가 `/topic`·`/queue`·`/user` 로 보내는 SEND 도 같은 인터셉터가 막는다(브로커가 구독자에게 그대로 배달해 서버 방송을 위조할 수 있기 때문 — 소스 주석).
+- **역할 6종** — `Role` enum: `PARENT` · `STUDENT` · `DRIVER` · `ESCORT`(동승자) · `STAFF`(학원 관계자) · `SYSTEM_ADMIN`(메인 관리자). `account.academy_id` 가 null 일 수 있는 것은 `SYSTEM_ADMIN` 뿐이다(`ck_account_academy_scope` — `AuthUser` 컴팩트 생성자도 같은 조건을 강제).
+- **역할 인가**: `@EnableMethodSecurity` + 컨트롤러 메서드의 권한 메타 애너테이션(`global/security/authz/` 의 `@CanXxx` **38개**, 예 `@CanRequestChange` = `@PreAuthorize("hasAuthority('" + Permissions.CHANGE_REQUEST_WRITE + "')")`). 역할 → 권한 부여표는 **`RolePermissions` 한 파일**이고 우변에 `ROLE_` 을 쓰지 않는다(역할 간 상속 금지 — `RolePermissionsTest` 가 고정). 로그인 불요 핸들러는 `@PublicEndpoint`, 로그인만 필요하면 `@AuthenticatedOnly`. **모든 핸들러가 셋 중 하나를 달았는지** 를 `ControllerAuthorizationConventionTest` 가 전수 대조한다 — 새 엔드포인트를 만들거나 지울 때 그 시험의 핸들러 수 하한이 같이 움직인다 — 전수 목록 4곳: `AccountStatusGateEndpoints`(거부 목록, `testsupport/gate`) · `AuthFlowIntegrationTest`(핸들러 수) · `AcademyScopeHttpExhaustiveTest`(경로변수 핸들러 격리 사례) · `ControllerAuthorizationConventionTest`(인가 검사 핸들러 수 하한).
+- **현재 사용자 획득**: `AuthUser(accountId, academyId, role, status, mustChangePassword)` record 를 `@AuthenticationPrincipal` 로 주입받는다(`Principal` 도 구현해 STOMP 세션에도 같은 타입). 옛 `List<Membership>` 은 없다.
+- **계정 상태 게이트**: `global/security/gate` 의 `AccountStatusGateInterceptor` 가 `pending` · `rejected` 계정과 `mustChangePassword`(임시 비밀번호 강제 변경 표식, Ruling 540) 계정의 API 접근을 허용 목록(`@AllowedWhenPending` · `@AllowedWhenRejected` · `@AllowedWhenPasswordChange`)으로 제한한다. **새 엔드포인트는 `AccountStatusGateEndpoints`(거부 목록)에도 등재**한다(위 인가 전수 목록 4곳 중 하나).
+- **학원 격리 — 신규 API 리뷰 시 최우선 체크**: 범위는 **토큰에서만** 온다(요청 본문·쿼리의 학원 id 는 대조에만 쓴다 — `API_SPEC §1.5`). 판정은 `global/security/access/AcademyScope` 한 곳(`resolveListScope` = 목록 조건값, `assertAccessible` = 단건) — 둘을 나눠 두면 "단건은 막는데 목록은 새는" 상태가 된다(`ARCHITECTURE §6.1`). 다른 학원 접근은 `ACADEMY_SCOPE_VIOLATION`. 빈 `Optional` 은 메인 관리자가 학원을 지정하지 않은 경우 하나뿐이라, 호출부가 이를 "조건 없음" 으로 흘리면 곧 격리 구멍이다. 저장소 쿼리에 학원 조건이 있는지는 `AcademyScopeRepositoryConventionTest`(아래 `알려진 함정` 에 한계)가 본다.
 - **시크릿 보관**:
-  - 실제 값은 **`backend/.env`(gitignore, 커밋 금지)**. `backend/.env.example`은 **키 값을 빈 채로 유지**한다 — 여기에 실키가 들어가면 유출이다(특히 `NAVER_DIRECTIONS_KEY_ID` / `NAVER_DIRECTIONS_KEY`).
-  - `JWT_SECRET`은 **공통 섹션에 기본값이 없다**(2026-08-23 변경). 개발용 기본값은 `local` 프로파일 블록에만 있어,
-    `prod`·`demo` 로 뜨면서 `JWT_SECRET` 이 없으면 **애플리케이션이 기동에 실패한다**(플레이스홀더 미해결).
-    `JwtTokenProvider` 가 `@Value` 생성자 주입이라 실패 시점이 첫 토큰 발급이 아니라 기동 시점이다.
-    `DeploymentConfigGuardTest` 가 이 상태를 고정한다 — 공통 섹션에 기본값을 되살리면 테스트가 깨진다.
-  - `docker-compose.yml`의 `schoolbus/schoolbus` DB 자격증명은 로컬 전용이며 prod 프로파일은 `${DB_URL}` 등 환경변수만 쓴다.
-- **CORS**: `app.cors.allowed-origins`(콤마 구분)로 `/api/**`에만 적용. local은 개발 포트 6개 기본 허용, **prod는 기본값이 비어 있어 미설정 시 전부 차단**(의도된 설계).
-- **비밀번호**: BCrypt(`BCryptPasswordEncoder`). 로그인 실패 메시지는 이메일 미존재/비밀번호 불일치를 **의도적으로 구분하지 않는다**(사용자 열거 방지).
+  - 실제 값은 **`backend/.env`(gitignore, 커밋 금지)**. `backend/.env.example` 은 **키 값을 빈 채로 유지**한다 — 여기에 실키가 들어가면 유출이다. 현재 키 이름: `NAVER_MAPS_KEY_ID` · `NAVER_MAPS_KEY` · `NAVER_SEARCH_CLIENT_ID` · `NAVER_SEARCH_CLIENT_SECRET`(옛 이름 `NAVER_DIRECTIONS_KEY_ID` · `NAVER_DIRECTIONS_KEY` 는 `application.yml` 이 폴백으로 읽음). `JWT_SECRET` 은 빈 값이 아니라 `change-me-to-a-long-random-secret` 자리표시자다.
+  - `JWT_SECRET` 은 **공통 섹션에 기본값이 없다**(`application.yml` `jwt.secret: ${JWT_SECRET}`). 개발용 기본값은 `local` 프로파일 블록에만 있어, `prod`·`demo`·`staging` 으로 뜨면서 `JWT_SECRET` 이 없으면 **애플리케이션이 기동에 실패한다**(플레이스홀더 미해결). `JwtTokenProvider` 가 `@Value` 생성자 주입이라 실패 시점이 첫 토큰 발급이 아니라 기동 시점이다. `DeploymentConfigGuardTest` 가 이 상태를 고정한다 — 공통 섹션에 기본값을 되살리면 테스트가 실패한다.
+  - `docker-compose.yml` 의 `schoolbus/schoolbus` DB 자격증명은 로컬 전용이며 prod 프로파일은 `${DB_URL}` 등 환경변수만 쓴다.
+- **CORS**: `app.cors.allowed-origins`(콤마 구분)로 `/api/**` 에만 적용. local 은 개발 출처 6개(`localhost:3000 · 5173 · 4200 · 8081` + `127.0.0.1:3000 · 5173`) 기본 허용, **prod · demo 는 기본값이 비어 있어 미설정 시 전부 차단, staging 은 기본값 자체가 없어 미주입 시 기동 실패**(의도된 설계). `allowCredentials(true)` 인 이유는 웹이 refresh 토큰을 쿠키로 주고받기 때문(`API_SPEC §1.2.1`) — 허용 출처가 `*` 가 아니라 명시 목록이라 성립한다. 응답 헤더는 요청 추적 식별자(`RequestIdFilter.HEADER`)만 노출. **WebSocket 출처는 별개 설정** `app.ws.allowed-origin-patterns`(핸드셰이크가 CORS 필터를 안 타기 때문) — local 기본 `*`, prod·demo·staging 은 기본값이 없어 미주입 시 기동 실패가 맞다.
+- **비밀번호**: BCrypt(`BCryptPasswordEncoder`). 로그인 식별자는 이메일이 아니라 `login_id`. 미등록 아이디도 존재 계정의 첫 실패와 **본문 형태와 값이 같고**(`details.remaining_attempts`), 미등록일 때도 더미 해시 대조(`UNKNOWN_ACCOUNT_HASH`)를 한 번 수행한다 — 그래도 계정 열거는 완전히 닫히지 않는다(잠금 전이 때 403 `AUTH_ACCOUNT_BLOCKED` vs 미등록 401 — `LoginCommandService` 자바독이 한계를 적어 둠). `API_SPEC §2.9` 전화번호 복구(`POST /auth/recover`)는 번호의 가입 여부를 응답으로 드러내지 않는다 — 미등록 번호도 같은 `200`·같은 빈도 제한·같은 대조 실패 코드(`Ruling 553`, `AccountRecoveryCommandService` 자바독으로 확인).
 
 ---
 
 ## debugger
 
-> ⚠ **일부 무효 예정** — **포트별 증상표·로그 포맷·비동기 스레드 모델의 기제(커밋 후 발행 · dedup skip · STOMP push)는 유효**. **Phase 0 에서 소멸하는 것**: `@Scheduled` 4종의 구체 주기 · Mock 위치 소스 기본값 · `V2__seed_data.sql` 의 계정 구성 — 옛 도메인 설정 블록(`app.location.mock` · `app.sos` · `app.drivesession` · `app.connection`)이 폐기 대상이다 (`docs/archive/rounds/be-phases-0-14.md §1.2).
+> **2026-10-01 R46-DOCSYNC 가 코드와 대조해 다시 썼다.** 옛 판이 "무효 예정" 으로 표시했던 `@Scheduled` 4종(위치 tick · 연결끊김 · 등원 접근 · SOS) · 서버측 Mock 위치 소스 · 옛 설정 블록(`app.location.mock` · `app.location.bus-mock` · `app.sos` · `app.drivesession` · `app.connection`) · `PushTargetResolver` 는 코드와 yml 에서 0건이다(`grep -rn` 으로 확인). **포트별 증상표와 커밋 후 이벤트 기제는 유효**.
 
 **포트별 증상표** — 실패를 보면 먼저 여기를 대조한다.
 
@@ -169,15 +170,30 @@ flutter test --dart-define=API_BASE_URL=http://localhost:<포트>/api/v1
 | 8080 | backend | Swagger UI `http://localhost:8080/swagger-ui/index.html` |
 | 3000 | proxy(관계자 웹 · API · Swagger) | `docker-compose.app.yml` 오버레이로만 기동(기본 compose 에서 제외). 네이버 지도 키 서비스 URL 과 CORS 허용 목록이 이 포트로 등록돼 있다 |
 
-- **Docker가 꺼져 있으면 직접 `docker compose up`을 실행하지 말고 사용자에게 요청**한다. 그 실패는 코드 결함이 아니라 **환경 문제로 분류**해 보고한다.
-- **로그 포맷**: 별도 logback 설정이 없어 Spring Boot 기본 콘솔 포맷. `spring.jpa.properties.hibernate.format_sql: true`라 SQL이 정렬 출력된다.
+- **Docker 가 꺼져 있으면 묻지 말고 직접 기동한다**(전역 `CLAUDE.md` 작업 규칙 — `-v` 는 붙이지 않는다. 병렬 작업 창이 도는 동안 `docker compose down` 은 모든 창의 DB 를 날리므로 금지). 꺼진 상태의 실패는 코드 결함이 아니라 **환경 문제로 분류**해 보고한다.
+- **로그 포맷**: 별도 logback 설정이 없어 Spring Boot 기본 콘솔 포맷. `spring.jpa.properties.hibernate.format_sql: true` 라 SQL 이 정렬 출력된다.
 - **비동기·스레드 모델** — "저장은 됐는데 후속이 안 온다"류 버그는 대부분 여기다:
-  1. `@TransactionalEventListener(AFTER_COMMIT)`(`global/event/TransactionalDomainEventRelay`) → **커밋 이후**에야 실행된다(알림·WebSocket 방송 리스너 전부 이 방식). 롤백되면 아무 일도 안 일어난다. (`global/event/TransactionalDomainEventRelay` 는 Kafka 제거 때 사라졌다)
-  2. 알림 리스너(`notification/command/*Listener`)가 알림 행을 만든다. **`dedupKey` 중복이면 조용히 skip**한다(멱등 처리) — "두 번째 요청에 알림이 안 온다"는 정상 동작일 수 있다.
-  3. STOMP 브로커 스레드에서 `/user/queue/**`·`/topic/tenant/{id}/**` push. `PushTargetResolver`가 대상을 못 찾으면 개인 큐뿐 아니라 **토픽 broadcast까지 통째로 skip**된다.
-  4. `@Scheduled` 4종: 위치 tick 3,000ms / 연결끊김 점검 10,000ms(유예 30초) / 등원 접근 점검 15,000ms / SOS 에스컬레이션 30,000ms. 주기값은 `application.yml`의 `app.*` 하위.
-- **Mock 위치 소스가 기본 켜져 있다** — 학생(`app.location.mock.enabled`)·**버스(`app.location.bus-mock.enabled`) 둘 다 local 기본 `true`**. 좌표가 저절로 움직이는 건 버그가 아니다. prod 프로파일에서는 둘 다 `false`, 실 GPS push가 `true`.
-- 로그인 계정은 Flyway 시드(`db/migration-local/V2__seed_data.sql`) 참조 — **로컬**의 비밀번호는 전부 `password`(배포 환경은 다름).
+  1. **알림은 아웃박스다.** 알림 리스너(`notification/command/*Listener`) 대부분이 **평범한 `@EventListener`**(발행한 트랜잭션 안)로 `NotificationOutbox.append`(`Propagation.MANDATORY`)를 불러 `push_state='pending'` 행을 **상태 변경과 같은 트랜잭션**에 남긴다 — 롤백되면 알림 행도 없다. `@TransactionalEventListener(AFTER_COMMIT)` 인 것은 `NotificationDispatchListener`(커밋 직후 즉시 발송, 전용 실행기 `notificationDispatchExecutor`) · `AssignmentChangedNotificationListener` 등 일부뿐이다.
+  2. 커밋과 즉시 발송 사이에 앱이 죽어도 `NotificationOutboxWorker`(`@Scheduled` 30초)가 `pending` 행을 다시 집어 발송한다(`TECH_DECISIONS §7.2`). "알림이 몇십 초 늦게 온다" 는 이 경로일 수 있다.
+  3. **같은 `dedup_key` 는 UNIQUE 제약 `uk_notification_log_dedup_key` 가 막고, `NotificationOutbox.append` 가 `DUPLICATE_NOTIFICATION`(409)을 던진다.** 옛 판의 "조용히 skip" 은 사실이 아니다. 다만 호출한 리스너가 이 예외를 받아 넘기는 코드는 `grep -rn DUPLICATE_NOTIFICATION backend/src/main` 으로 `NotificationOutbox` 외에 0건이라, 같은 키 재적재가 실제로 일어났을 때 예외가 발행 트랜잭션으로 전파되는지는 **재현하지 못해 확인 못 함**.
+  4. **WebSocket 방송**: `WebSocketBroadcastGateway` 가 `WebSocketDestinations` 의 목적지 4종(`/topic/students/{id}/run` · `/topic/manager/runs/{id}` · `/topic/academy/{id}/live` · `/topic/admin/live`)으로 보낸다. 위치 이벤트(`position`)는 `PositionBroadcastListener`(`AFTER_COMMIT`)가 부르고, 게이트웨이는 **브로커 구독 등록부에 구독자가 없으면 직렬화·전송을 생략**한다(R46-BE D #6 — 구독이 등록되기 직전에 지나간 위치 1건은 걸러질 수 있음). 방송이 안 온다면 클라이언트 SUBSCRIBE 가 `StompAuthChannelInterceptor` 에서 거부됐는지(세션 속성 `FORBIDDEN_SUBSCRIPTION_ATTR`)부터 본다.
+  5. **`@Scheduled` 10개** — `SchedulingConfig.POOL_SIZE = 10`(스레드 수 = 메서드 수, 작업을 더하면 같이 올려야 하고 `SchedulingPoolSizeTest` 가 개수를 세어 어긋나면 실패). 주기는 각 클래스의 애너테이션 기본값이고 `application.yml`·`application-load.yml` 에 덮어쓰기는 0건:
+
+     | 작업 | 주기(기본값) | 속성 키 |
+     |---|---|---|
+     | `RunConfirmationScheduler` 회차 확정 | 30,000ms | `app.run.confirmation.poll-interval-ms` |
+     | `NoShowEscalationScheduler` no-show 에스컬레이션 | 30,000ms | `app.exception.noshow-escalation.poll-interval-ms` |
+     | `ChangeRequestAutoRejectionScheduler` 변경 요청 자동 거절 | 30,000ms | `app.request.autoreject.poll-interval-ms` |
+     | `NotificationOutboxWorker` 알림 재발송 | 30,000ms | `app.notification.outbox.poll-interval-ms` |
+     | `ProximityNotificationScheduler` 근접 알림 | 10,000ms | `app.location.proximity.poll-interval-ms` |
+     | `RunUnconfirmedGaugeScheduler` · `RunPositionLostGaugeScheduler` 관측 게이지 2개 | 30,000ms | `app.observability.run-unconfirmed.…` · `run-position-lost.poll-interval-ms` |
+     | `DailyRunGenerator` 당일·익일 회차 생성 | cron `0 5 0 * * *` (Asia/Seoul) | `app.run.generation.cron` |
+     | `RetentionCleanupScheduler` 보존 기한 정리 | cron `0 15 0 * * *` (Asia/Seoul) | `app.retention.cleanup.cron` |
+     | `DemoRunSimulator` (**`local` 프로파일 전용**) | 2,000ms(상수 `TICK_MS`, 시작 지연 15,000ms) | `app.demo.enabled`(기본 `true`) · `app.demo.initial-delay-ms` |
+
+     `DailyRunGenerator` · `RetentionCleanupScheduler` · `NotificationOutboxWorker` · `ProximityNotificationScheduler` · `NoShowEscalationScheduler` · `ChangeRequestAutoRejectionScheduler` · 관측 게이지 2개는 `@SchedulerLock`(ShedLock)이 붙어 인스턴스가 2대 이상이어도 중복 실행을 막는다. `RunConfirmationScheduler` 와 `DemoRunSimulator` 에는 `@SchedulerLock` 이 없다 — 확정은 한 틱을 `join` 으로 끝내 겹침을 막고 조건부 UPDATE 로 멱등을 잡는 구조(`ARCHITECTURE §9`)로 읽히나, 인스턴스 2대에서의 동작은 **확인 못 함**(운영은 인스턴스 1개 전제 — `CLAUDE.md`).
+- **서버측 Mock 위치 소스는 없다.** 위치는 기사 단말이 2초마다 `POST /runs/{runId}/position`(`DriverPositionController`)으로 올린다 → `RunPositionCommandService` 가 `run_position` 에 적재 → 커밋 뒤 `RunPositionRedisListener` 가 Redis 최신 좌표를 갱신(키·값 형식은 `RunPositionStore` 한 곳)하고 `PositionBroadcastListener` 가 방송한다. **`local` 프로파일에서만** `DemoRunSimulator`(`@Profile("local")`, `app.demo.enabled` 기본 `true`)가 기사 단말 자리를 대신해 확정 노선의 `road_path` 를 따라 정식 서비스(`RunStartCommandService` · `RunPositionCommandService`)를 호출한다 — 그래서 로컬에서 버스가 저절로 움직이는 것은 버그가 아니고, **기동 후 약 15초 뒤 시작**한다. 지도에 버스가 없으면 시뮬레이터가 꺼졌는지(`app.demo.enabled`), 프로파일이 `local` 인지부터 본다. 수신 후 2분 이상 지난 값은 오래된 위치로 본다(`StudentBusPositionQueryService.STALE_THRESHOLD`, `RunPositionLostGaugeScheduler` 도 같은 값을 씀).
+- 로그인 계정은 Flyway 시드(`db/migration-local/V2__seed_data.sql`) 참조 — **로컬**의 비밀번호는 전부 `password`(배포 환경은 다름). 데모 규모 시드(`db/migration-demo/V13__demo_fleet.sql` · `V14__demo_scale.sql`, 학원 10곳 · 학생 600명)는 **`local` 프로파일의 `spring.flyway.locations` 에만** 들어 있고 시험 JVM 은 `build.gradle` 이 뺀다(`application.yml` 주석). `demo` 프로파일은 `migration-local` 까지만 읽는다. ⚠ `local` 프로파일은 `LocalFlywayCleanStrategy` 가 **재기동마다 `clean()` 후 `migrate()`** 한다(`clean-disabled: false`) — `CLAUDE.md` 의 "체크섬이 바뀌면 재구성 필요" 설명과의 관계는 아래 R46-DOCSYNC 보고 ②에 적음.
 
 ---
 
@@ -227,7 +243,7 @@ flutter test --dart-define=API_BASE_URL=http://localhost:<포트>/api/v1
 - **코드 그래프 도구 있음**: 루트 `graft/`(2026-09-18 tokensave 에서 교체). 영향범위 확인은 `graft callers <심볼> --depth all`, 위치·이해는 `graft ask "<질문>"`, 전수 검색은 `graft grep "<문자열>"`, 파일 API 개요는 `graft skeleton <파일>` 을 쓰고 Explore agent를 띄우지 않는다. 색인은 파일 편집 훅이 자동 재생성하며 `graft check` 로 신선도를 본다. ⚠ **Java·TypeScript·Dart 가 한 그래프에 같이 들어 있다** — 스택 간 계약 불일치를 한 질의로 잡을 수 있다.
 - **리뷰 시 함께 볼 것**:
   - 엔티티 변경이 스키마에 반영됐는가(`ddl-auto: validate`라 없으면 기동 자체가 실패한다). **반영 방식은 첫 배포 이전인 현재 `V1__init_schema.sql` 직접 수정 + 로컬 DB 재구성**이다 — 위 `convention-auditor` 절 참조.
-  - 새 API 가 학원 격리를 저장소 계층에서 강제하는가 (`ARCHITECTURE §6.1`). **`TenantGuard` 경유 검사는 Phase 0·2 이후 무효** — 옛 N:M 멤버십 전제다.
+  - 새 API 가 학원 격리를 강제하는가 (`ARCHITECTURE §6.1`) — 범위를 토큰에서만 얻고(`global/security/access/AcademyScope`) 저장소 쿼리에 학원 조건이 붙었는지(`AcademyScopeRepositoryConventionTest`). 옛 `TenantGuard` · N:M 멤버십 전제는 코드에서 사라졌다.
   - 전 엔드포인트에 Swagger 가 적용됐고 예시가 `SeedFixtures` 를 참조하는가 (`docs/IMPLEMENTATION_PLAN.md` §3.3). **`"00. MVP 사용 API"` 이중 태깅 체계는 2026-08-24 방향 전환으로 폐기.**
 - **문서 반영 규칙**: 진행 상황·큰 변경은 `docs/IMPLEMENTATION_PLAN.md` §8 진행 추적 표(단일 창구)에 반영한다. **Markdown 원본을 고쳤다고 대응 HTML을 자동 동기화하지 않는다** — HTML은 사용자가 명시 요청할 때만.
 - **보고서 산출물**: 리뷰·감사·분석 결과는 대화에만 남기지 말고 `backend/report/YYYY-MM-DD-주제.md`로 쓴다. **수정 지시가 없으면 보고만 하고 코드는 건드리지 않는다.**
@@ -409,7 +425,7 @@ SPRING_DATA_REDIS_PORT=16379 ./gradlew test -PtestDbUrl=jdbc:postgresql://localh
 - **2026-08-25** — **이 머신은 `pmset` 의 `sleep` 이 `1`(유휴 1분)이라 백그라운드 에이전트가 작업 중 죽는다.** 증상은 `API Error: Your computer went to sleep mid-response` 이고, 한 세션에서 **4회 발생**했다. 도구 호출 사이 유휴가 1분을 넘기는 긴 작업(테스트 실행·컴파일)에서 특히 잘 걸린다. **병렬 에이전트를 띄우기 전에 `nohup caffeinate -i -m -s &` 로 절전을 억제하고 `pmset -g assertions | grep PreventSystemSleep` 으로 확인**한다. 되돌리는 법은 `pkill caffeinate` — `pmset` 설정 자체는 건드리지 않는다. ⚠ **이 사망을 코드 결함이나 에이전트 결함으로 오분류하지 마라** — 워크트리 상태를 확인해 잔여물이 없으면 그대로 재착수한다. resume 보다 **신규 에이전트**가 낫다(죽은 세션의 컨텍스트 무결성을 신뢰할 근거가 부재)
 작업 중 발견한 이 저장소 특유의 함정을 누적한다. 근거(파일:라인, 명령, 날짜)를 같이 남긴다. **날짜가 붙은 항목은 그 시점의 기록**이라 대상 파일이 이후 삭제됐을 수 있다 — 교훈만 취한다.
 
-- **2026-07-28** *(대상 문서 `MVP_API_SPEC.md` 는 이후 삭제 — 교훈만 유효)* — `MVP_API_SPEC.md:503`(§8 비고)이 "버스 위치는 Mock 소스가 없어 기사가 직접 보고해야 한다"고 서술하지만 **사실과 반대**다. `location/source/MockBusLocationSource.java:20,32`가 `app.location.bus-mock.enabled` 기본 `true`(`application.yml:60-61`)로 3초마다 버스 좌표를 자동 생성한다. 같은 문서 `:171`(`"origin":"MOCK"`)·`:191`과도 모순. **문서를 근거로 위치 기능 동작을 판단하면 틀린다.**
+- **2026-07-28** *(대상 문서 `MVP_API_SPEC.md` 는 이후 삭제 — 교훈만 유효)* — `MVP_API_SPEC.md:503`(§8 비고)이 "버스 위치는 Mock 소스가 없어 기사가 직접 보고해야 한다"고 서술하지만 **사실과 반대**다. `location/source/MockBusLocationSource.java:20,32`가 `app.location.bus-mock.enabled` 기본 `true`(`application.yml:60-61`)로 3초마다 버스 좌표를 자동 생성한다. 같은 문서 `:171`(`"origin":"MOCK"`)·`:191`과도 모순. **문서를 근거로 위치 기능 동작을 판단하면 틀린다.** *(2026-10-01 추가: `MockBusLocationSource` 와 `app.location.bus-mock` 자체가 코드·yml 에서 삭제됨 — `grep` 0건. 지금의 위치 소스는 위 `debugger` 절.)*
 - ~~**2026-07-28** — `git symbolic-ref --short refs/remotes/origin/HEAD` 가 실패한다~~ → **2026-08-25 해소.** 같은 명령이 `origin/main` 을 정상 반환한다. 그 사이에 `origin/HEAD` 가 설정된 것으로 보인다. **낡은 함정 항목을 근거로 절차를 건너뛰지 마라 — 명령으로 확인하는 편이 맞다.**
 - **2026-07-28** — 문서 검증 에이전트에게 문서만 지정하면 **`backend/report/` 의 기존 보고서를 먼저 찾아 읽는다**(`docs-drift-auditor` 실측). 그러면 "기존 지적 N건 재현"이 독립 재현이 아니게 된다. 교차검증이 목적이면 프롬프트에 **기존 보고서 열람 금지**를 명시한다.
 - **2026-07-28** — 문서 검증은 **문서 전체를 한 에이전트에 맡기지 말고 섹션별로 쪼개 병렬로 돌린다.** `MVP_API_SPEC.md` 실측: 전체 패스 1개 = 신규 1건 / 섹션 패스 3개 = 신규 11건. 전체 패스는 계약 일치 여부 확인용으로만 쓴다.

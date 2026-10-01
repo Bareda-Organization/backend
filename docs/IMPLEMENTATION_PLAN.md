@@ -977,7 +977,7 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 423 | 대시보드 매니저 미배치 는 "오늘 배치 없는 매니저 N명" 으로 표기한다… | `docs/frontend/IMPLEMENTATION_PLAN §5.17` |
 | 424 | 시각 표기. 운행 출발·도착은 시:분:초 유지(R21-B 사용자 지시 "출발·도착시간 몇시, 몇분, 초"… | `docs/frontend/IMPLEMENTATION_PLAN §5.17` |
 | 425 | 금일 운행 상세는 명단 표를 전체 폭으로 쓴다. 현재 위치… | `docs/frontend/IMPLEMENTATION_PLAN §5.17` |
-| 426 | 학원 등록 주소는 선택 입력 그대로(API_SPEC 6.2), 비우면 경고를 보인다… | `docs/frontend/IMPLEMENTATION_PLAN §5.17` |
+| 426 | 학원 등록 주소는 선택 입력 그대로(API_SPEC 6.2), 비우면 경고를 보인다… → **`450` 으로 뒤집힘**(주소 필수 · 등록 누락 422) | `docs/frontend/IMPLEMENTATION_PLAN §5.17` |
 | 430 | R46-APP 목표 표 — 앱 바로 고칠 것 · 매니저 알림 목록 · 앱 폴링·지도 | `docs/frontend/IMPLEMENTATION_PLAN §5.18` |
 | 431 | 학부모·학생 앱 앱 안 주기 갱신을 30초에서 90초로 늘리고, 앱이 보이는 동안만 돌린다. 대상… | `docs/frontend/IMPLEMENTATION_PLAN §5.18` |
 | 432 | 학부모 지도 문구는 "마지막으로 지난 승하차지" 로 한다… | `docs/frontend/IMPLEMENTATION_PLAN §5.18` |
