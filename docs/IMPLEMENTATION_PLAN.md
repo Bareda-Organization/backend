@@ -6135,3 +6135,38 @@ R46 개선 항목 `A #10`(주소 선택 → 사용자 결정 대기)의 결정 �
 | 8 | 정리 — 서버 종료 · 전용 DB DROP | `lsof` · `pg_database` |
 
 **결과 (2026-10-01)** — 목표 1 ✅ `AdminAcademyCoordinatesTest` 12건(새 시험 5 · 뒤집은 시험 1 — "주소를 비우면 좌표도 비운다" → `422`) · RED 5건 실패 확인 · 결함 4종을 하나씩 심어 해당 시험만 실패. **시험이 기존 결함 1건을 잡았다** — 같은 주소를 다시 보낸 수정이 좌표를 지웠다(웹은 폼 전체를 보내므로 이름만 고쳐도 좌표 소실 → 회차 확정 전부 실패) · `Ruling 451` 로 명문화. 목표 2 ✅ `AcademyFormDialog.test.tsx` 10건 · 결함 3종 · 1440·1024 스크린샷. 목표 3 ✅ `Ruling 451`(서버 `:8360` 실측). 목표 4 ✅ 원인은 **시험의 가짜 `useRouter` 가 렌더마다 새 객체를 돌려줘 effect 가 재예약**된 것이고 제품 결함이 아님 — 단독 20회 연속 실패 0 · 원인 줄 원복 시 재현. 목표 5 ✅ 백엔드 `--rerun` 338클래스 1,895건 실패 0 · 건너뜀 0(첫 실행 21건은 같은 DB 에 서버의 데모 시드가 들어간 **환경 오염** — 스키마를 비운 뒤 0) · 웹 705건 · `tsc`·`lint` 0. 목표 6 ✅ 14파일 77건 실패 0 · 건너뜀 0. 목표 7 ✅ 깨진 참조 0 → 0.
+
+## 8.79 ⚖ `R46-OPS2` — 운영 방침 반영 · 경보 수신 · 웹 Vercel (2026-10-01 · 분기점 `e6376142` · 번호대 500~506 · 운영 2차 갈래 · 사용자 결정 `480`·`481`·`483`)
+
+R46 운영(`§8.76`) 위에 사용자 결정(`Ruling 480`·`481`·`483`)을 얹은 갈래다. **실제 AWS·Vercel·텔레그램·SMTP 에는 요청하지 않았다** — 명령·설정은 문서와 스크립트에만 있고, 로컬에서는 가짜 `aws`·`docker` 로 스크립트를 실행하고 `amtool`·`promtool` 로 설정을 검증했다. 갈래 보고서 `.claude/r46/report-ops2.md`(무시 파일).
+
+### R46-OPS2 판정
+
+| Ruling | 판정 | 근거 |
+|:-:|---|---|
+| **480** | **운영 방침(사용자 결정 · 추천대로)** — ① 백업: 매시 DB 백업 + 매일 디스크 스냅샷 · 목표 유실 최대 1시간(RPO 1h) · 복구 1시간(RTO 1h) · 첫 배포 직후 복구 연습 1회 · `TECH_DECISIONS §12.3` 과 `DEPLOYMENT §10` 모순을 이 값으로 통일 ② 퇴원 학생 개인정보 파기 90일 — **개인정보 갈래 몫** ④ 장애 알림: 텔레그램 봇 + 이메일 예비 ⑤ 저장소 공개 유지 ⑥ 메인 관리자 계정 2개 이상 ⑦ 비용 한도 알림(AWS Budgets · 금액은 배포 때). 이 갈래의 반영: ①→`500` ④→`501` ⑤→`506` ⑥→`504` ⑦→`505` | 사용자 결정. 조사 C #16·#17·#2·#22·#26 |
+| **481** | **관계자 웹 운영 배포는 Vercel**(비용 이유 · 사용자 결정). 백엔드는 EC2 그대로. 운영 compose·nginx 에 웹 컨테이너를 넣지 않는다. 웹=Vercel · API=EC2 가 다른 출처가 되므로 CORS·WebSocket 허용 출처·쿠키(SameSite/Secure)·네이버 지도 키 서비스 URL·`NEXT_PUBLIC_API_BASE_URL` 을 맞춘다. 반영: `502`·`503` | 사용자 결정. 조사 C #1 |
+| **483** | **배포·외부 연동은 자리만 만든다** — 포트 + 키 없을 때 쓰는 기본 구현 + 설정 키 이름 + 사용자가 준비할 목록. 키가 없어도 빌드·시험이 통과해야 한다. 이 갈래의 몫은 **경보 수신(텔레그램 · 이메일) 자리**이고 FCM·이메일·SMS 의 애플리케이션 쪽은 외부 연동 갈래다. 반영: `501` | 사용자 결정 |
+| **500** | **백업 — DB 는 매시 정각, 사진은 매일 03:10.** `backup-db.sh` 에 모드 인자(`db`·`photos`·없으면 둘 다). 백업 성공 시각은 **S3 업로드 뒤에만** node-exporter textfile 지표(`schoolbus_backup_last_success_timestamp_seconds{kind}`)로 내고 경보 `BackupDbStale`(2시간 · 즉시 등급) · `BackupPhotosStale`(26시간 · 경고)이 오래됨과 지표 부재를 본다. **DB 볼륨 분리**: 두 번째 EBS(20GB · `DeleteOnTermination=false`)를 `/var/lib/docker/volumes` 에 XFS 로 마운트(부트스트랩 · 이미 파일시스템이 있으면 포맷하지 않음) + 일일 DLM 스냅샷 7개. 복구 절차서 `DEPLOYMENT §7.3`(경로 A 디스크 생존 · B 디스크 소실+덤프 복원 · C 스냅샷). `TECH_DECISIONS §12.3` 을 이 값으로 다시 썼다(PITR 불채택 · 위치 이력은 덤프에 포함 — 옛 표의 "백업 대상 밖"은 스크립트와 달랐다) | 사진은 매번 전체 묶음이라 매시로 돌릴 수 없고 DB 의 RPO 가 지키려는 것은 이력·감사 로그다. 외부 핑 대신 지표를 고른 이유는 외부 계정이 필요 없고 이미 있는 관측 스택에 얹히기 때문(서버 통째 사망은 `/healthz` 외부 감시 몫). 디스크 분리는 compose 를 바꾸지 않고 named volume 전부(DB·사진·지표·인증서)를 한 번에 옮긴다 |
+| **501** | **경보 수신 — 텔레그램 봇 + 이메일 예비.** 토큰·주소는 SSM **선택 항목** 6종(`ALERT_TELEGRAM_BOT_TOKEN`·`_CHAT_ID` · `ALERT_EMAIL_TO`·`ALERT_SMTP_HOST`·`_USER`·`_PASSWORD`)이고 저장소에 없다. Alertmanager 설정은 환경변수를 읽지 못해 `deploy.sh` 가 `render-alertmanager.sh` 로 매 배포마다 `/opt/school-bus/alertmanager/alertmanager.yml` 을 만든다(저장소 밖 · 무시 목록). **값이 없으면 수신자 없이 뜬다**(기동됨). 한 채널의 값이 **반쪽이거나 형식이 틀리면 배포를 멈춘다**(반쪽 설정은 Alertmanager 기동 실패 = 경보 경로 전체 정지 — `amtool` 로 실제 거부 확인). 두 채널은 한 수신자에 둔다. 새 설정은 배포 때 `kill -s HUP` 로 읽힌다 | 설정 파일이 변수를 못 읽는다. 렌더 결과 3종(없음 · 텔레그램 · 둘 다)은 `amtool check-config` 통과 |
+| **502** | **웹이 Vercel 이어도 refresh 쿠키는 `SameSite=Strict` 를 유지한다**(코드 변경 없음). 웹·API 가 같은 등록 도메인이면 같은 사이트라 성립한다 — **웹을 커스텀 도메인 `app.<도메인>` 에 연결**하는 것이 전제이고 Vercel 기본 주소(`*.vercel.app`)는 다른 사이트라 쿠키가 안 붙는다. access 토큰은 헤더라 영향 없음. 웹 빌드는 `NEXT_PUBLIC_API_BASE_URL`(빠뜨리면 `localhost:8080` 이 박힘) · 지도 키 · `NEXT_PUBLIC_TEST_DATA_RESET` 은 만들지 않는다. `vercel.json` 은 두지 않는다(설정은 Vercel 화면). 운영 compose·nginx 에 웹 서비스가 없음을 시험이 지킨다. nginx `/` 는 404 그대로(주석만 정정) | 로컬 `:8400` 실측 — 응답 `Set-Cookie: …Secure; HttpOnly; SameSite=Strict; Path=/api/v1/auth`. `None` 으로 풀면 CSRF 방어(`TECH_DECISIONS §2.4.3`)가 사라진다 |
+| **503** | **허용 출처는 정확한 `https` 출처만 — Vercel 미리보기 배포 주소는 허용하지 않는다.** `CORS_ALLOWED_ORIGINS`·`WS_ALLOWED_ORIGIN_PATTERNS` 에 와일드카드·`http`·경로·`*.vercel.app` 이 있으면 `deploy.sh` 가 컨테이너에 닿기 전에 멈춘다. 미리보기는 화면 확인용(로그인 불가), 로그인 확인은 스테이징 | 미리보기 주소가 가지·PR 마다 바뀌어 목록에 못 넣고 패턴으로 열면 누구의 미리보기든 운영 API 를 쿠키와 함께 호출할 수 있다. 실측: 허용 출처 preflight 200 + `Allow-Credentials` · 밖 403 · WS 허용 `101` / 밖 `403` |
+| **504** | **메인 관리자는 활성 2명 이상**(서로 다른 사람 · 계정 공유 금지). 두 번째는 가입 경로가 없어 DB 에 직접 넣는다 — 한 트랜잭션 SQL(`DEPLOYMENT §13.1`) · 해시는 `htpasswd -C 12`. 로컬 DB 에서 만들어 로그인 200 · 오답 401 · 메인 관리자 전용 API 200 확인. 이 입력은 `audit_log` 에 남지 않아 운영 기록에 직접 적는다. 사양(`§8.76` `Ruling 453`: 첫 관리자 러너는 0명일 때만)은 바꾸지 않았다 | 차단(5회 실패)은 모든 역할에 걸리고 해제는 메인 관리자만 한다 — 유일한 관리자가 잠기면 DB 직접 수정이 유일한 길이다 |
+| **505** | **비용 한도 알림 — AWS Budgets 이메일 2개**(실제 80% · 예상 100%). 금액은 배포 때(`<월 한도 USD>` 자리표시). 절차는 `DEPLOYMENT §13.2` 명령 | AWS 는 한도를 넘어도 멈추지 않고 알리기만 한다 |
+| **506** | **저장소 공개 유지 — 확인만**(2026-10-01). 실제 비밀 5종(`backend/.env` 의 네이버 키 4 · `.env.local` 의 지도 클라이언트 ID)을 값으로 HEAD·**전 이력**(`git log --all -S`)에서 검색 → **0건**. 같은 점검에서 걸린 6개(`JWT_SECRET` 예제 자리표시자 · `DB_*`(`schoolbus`) · `REDIS_HOST` · 옛 Kafka 주소)는 공개 개발 기본값이다. 비밀 형태 패턴(AWS 키 · Slack · 텔레그램 봇 토큰 · GitHub PAT · Google API 키) 0건, `PRIVATE KEY` 헤더 3곳은 코드의 문자열 치환·가짜 시험값. 추적된 `.env` 류 0개 | `Ruling 480 ⑤`. 렌더된 `alertmanager/` 를 무시 목록에 추가해 새 비밀 파일 사고를 막는다 |
+
+`Ruling 507` 이상은 쓰지 않았다.
+
+### R46-OPS2 목표 표
+
+| # | 완료 조건 | 확인 수단 |
+|:-:|---|---|
+| 1 | 운영 compose·nginx 에 웹 컨테이너 0 · CORS·WS 출처 절차 · 교차 출처 인증 판정 | `DeploymentConfigGuardTest.prodServesNoWebFrontend` · `CorsCredentialsTest` · `DeployScriptGuardTest` 출처 3건 · 로컬 `:8400` 실측 |
+| 2 | 백업 매시 · 스냅샷 · 복구 절차 · 백업 실패 감지 · 문서 모순 0 | `BackupScriptGuardTest` 7 · `promtool test rules` · `grep 'RPO\|24시간\|PITR' docs/TECH_DECISIONS.md docs/infra/DEPLOYMENT.md` · 로컬 복원 실행 |
+| 3 | Alertmanager 텔레그램·이메일 수신자 자리 · 값 없으면 비활성으로 기동 | `AlertmanagerRenderGuardTest` 12 · `amtool check-config` · 로컬 `-p r46ops2` 기동 |
+| 4 | 고친 시험 · 전체를 세는 시험 실패 0 | 결과 XML |
+| 5 | 사용자가 준비할 것 목록 | 보고 2항 |
+| 6 | `Ruling 480`·`481` 정본 반영 · 깨진 참조 증가 0 | 이 절 · `TECH_DECISIONS §12` · `DEPLOYMENT §7·§11·§12·§13` · docgraph |
+| 7 | 정리 — 컨테이너(`-p r46ops2`)·서버 종료 · `r46_ops2` DROP | `docker ps` · `pg_database` |
+
+**결과 (2026-10-01)** — (작성 중)

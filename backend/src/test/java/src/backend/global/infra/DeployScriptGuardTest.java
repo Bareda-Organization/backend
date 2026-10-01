@@ -87,6 +87,12 @@ class DeployScriptGuardTest {
                 Arguments.of("Directions 지점 수만 있고 경로가 없다", pointsOnly, "NAVER_DIRECTIONS_PATH"),
                 Arguments.of("첫 관리자 아이디만 있고 해시가 없다", loginOnly, "BOOTSTRAP_ADMIN_PASSWORD_HASH"),
                 Arguments.of("첫 관리자 해시가 bcrypt 형식이 아니다", plainHash, "bcrypt"),
+                Arguments.of("CORS 허용 출처에 와일드카드가 있다", with("CORS_ALLOWED_ORIGINS", "https://*.example.com"),
+                        "CORS_ALLOWED_ORIGINS"),
+                Arguments.of("WebSocket 허용 출처가 https 가 아니다", with("WS_ALLOWED_ORIGIN_PATTERNS", "http://app.example.com"),
+                        "WS_ALLOWED_ORIGIN_PATTERNS"),
+                Arguments.of("허용 출처에 Vercel 기본 도메인이 있다(다른 사이트라 쿠키가 안 붙고 미리보기가 섞인다)",
+                        with("CORS_ALLOWED_ORIGINS", "https://app.example.com,https://school-bus.vercel.app"), "vercel.app"),
                 Arguments.of("경보 텔레그램 토큰만 있고 채팅 ID 가 없다", with("ALERT_TELEGRAM_BOT_TOKEN", "123456:AAE-token"),
                         "ALERT_TELEGRAM_CHAT_ID"),
                 Arguments.of("경보 이메일 수신 주소만 있고 SMTP 값이 없다", with("ALERT_EMAIL_TO", "ops@example.com"), "ALERT_SMTP_HOST"));

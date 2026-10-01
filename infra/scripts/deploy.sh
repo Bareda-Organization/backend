@@ -91,6 +91,28 @@ require_bcrypt() {
     fi
 }
 
+require_exact_https_origins() {
+    # 브라우저 허용 출처($1 = 이름, $2 = 쉼표로 이은 값)는 정확히 적은 https 출처만이다 — 관계자 웹이 Vercel 이어도 마찬가지다(Ruling 503).
+    #  - 와일드카드(`*`) 금지: Vercel 미리보기 배포 주소는 가지·PR 마다 바뀌어 목록에 못 넣고, 패턴으로 열면 누구의 미리보기든
+    #    운영 API 를 자격 증명(쿠키)과 함께 부를 수 있다. WebSocket 은 이 값이 유일한 방어선이다(CORS 필터를 안 탄다).
+    #  - `*.vercel.app` 금지: 쿠키(refresh_token · SameSite=Strict)는 API 와 같은 사이트일 때만 붙는다 — 웹은 같은 등록 도메인의
+    #    커스텀 도메인(app.<도메인>)에 연결해야 하고, 기본 도메인을 넣으면 로그인은 되는데 15분 뒤 갱신이 안 된다(DEPLOYMENT.md §12).
+    local origin
+    local -a origins
+    IFS=',' read -r -a origins <<< "$2"
+    for origin in "${origins[@]}"; do
+        origin="${origin//[[:space:]]/}"
+        if [[ ! "$origin" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?$ ]]; then
+            echo "오류: $1 에 정확한 https 출처가 아닌 값이 있다 — 와일드카드·http·경로 금지(예 https://app.<도메인>). 값: $origin" >&2
+            return 1
+        fi
+        if [[ "$origin" == *.vercel.app ]]; then
+            echo "오류: $1 에 Vercel 기본 도메인(vercel.app)이 있다 — 쿠키가 안 붙는 다른 사이트다. 커스텀 도메인(app.<도메인>)을 넣는다(DEPLOYMENT.md §12)." >&2
+            return 1
+        fi
+    done
+}
+
 assert_rendered_hash() {
     # compose 가 컨테이너에 넘길 최종 값이 bcrypt 해시 그대로인지 본다($1 = 변수 이름).
     # ⚠️ compose config 는 값 안의 `$` 를 `$$` 로 이스케이프해 출력하므로 되돌린 뒤 비교한다.
@@ -122,6 +144,10 @@ NAVER_DIRECTIONS_KEY_ID="$(get_param NAVER_DIRECTIONS_KEY_ID)"
 NAVER_DIRECTIONS_KEY="$(get_param NAVER_DIRECTIONS_KEY)"
 ROUTING_PROVIDER="$(get_param ROUTING_PROVIDER)"
 GRAFANA_ADMIN_PASSWORD="$(get_param GRAFANA_ADMIN_PASSWORD)"
+
+# 출처 목록 — 값이 틀린 배포는 .env 도 컨테이너도 건드리기 전에 멈춘다.
+require_exact_https_origins CORS_ALLOWED_ORIGINS "$CORS_ALLOWED_ORIGINS"
+require_exact_https_origins WS_ALLOWED_ORIGIN_PATTERNS "$WS_ALLOWED_ORIGIN_PATTERNS"
 
 # 프로파일은 기본값 없이 SSM 에서 명시한다 — 값이 빠진 배포가 가짜 시드 + 가짜 버스(demo)로 뜨는 것을 막는다.
 SPRING_PROFILES_ACTIVE="$(get_param SPRING_PROFILES_ACTIVE)"

@@ -44,6 +44,17 @@ class CorsCredentialsTest {
     }
 
     @Test
+    void 허용_목록에_없는_출처는_preflight_가_거절된다() throws Exception {
+        // R46 ops2 Ruling 503 — 관계자 웹이 Vercel 이어도 허용 출처는 정확히 적은 것만이다. Vercel 미리보기 배포 주소는
+        // 가지·PR 마다 바뀌어 목록에 못 넣고, 패턴(`*`)으로 열면 누구의 미리보기든 운영 API 를 자격 증명과 함께 부를 수 있다.
+        mockMvc.perform(options("/api/v1/auth/login")
+                        .header("Origin", "https://school-bus-git-feature-x-team.vercel.app")
+                        .header("Access-Control-Request-Method", "POST"))
+                .andExpect(status().isForbidden())
+                .andExpect(header().doesNotExist("Access-Control-Allow-Origin"));
+    }
+
+    @Test
     void 실제_요청_응답에도_자격증명_허용이_붙는다() throws Exception {
         // 프리플라이트만 통과시키고 본 응답에서 빠뜨리면 브라우저는 여전히 응답을 버린다 —
         // 두 갈래를 따로 검사하는 이유다. 자격 증명이 틀려 401 이 나도 CORS 헤더는 붙어야 한다.
