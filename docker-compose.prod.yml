@@ -230,7 +230,7 @@ services:
       - "9093"
     logging: *cloudwatch
 
-  # 호스트의 CPU·메모리·디스크 — 디스크 80% 경보(alerts.yml)의 출처다.
+  # 호스트의 CPU·메모리·디스크 — 디스크 80% 경보(alerts.yml)와 백업 성공 시각(textfile)의 출처다.
   # ⚠ rslave 전파는 리눅스 호스트(EC2)에서만 된다. macOS Docker Desktop 에서는 기동이 실패한다.
   node-exporter:
     image: prom/node-exporter:v1.8.2
@@ -238,9 +238,12 @@ services:
     mem_limit: 64m
     command:
       - --path.rootfs=/host
+      # 백업 성공 시각(backup-db.sh 가 쓴 *.prom) — 경보 BackupDbStale·BackupPhotosStale 의 출처. 폴더는 bootstrap-ec2.sh 가 만든다.
+      - --collector.textfile.directory=/textfile
     pid: host
     volumes:
       - /:/host:ro,rslave
+      - /var/lib/node_exporter/textfile:/textfile:ro
     expose:
       - "9100"
     logging: *cloudwatch

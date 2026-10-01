@@ -1,0 +1,184 @@
+package src.backend.global.infra;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+/**
+ * {@code infra/scripts/backup-db.sh} 를 가짜 {@code docker}·{@code aws} 로 실제 실행해 본다 — R46 ops2 `Ruling 500`.
+ *
+ * <p>백업이 조용히 멈추는 것이 이 시험이 막는 사고다. 백업 성공 시각 지표(node-exporter textfile)는
+ * <b>S3 에 올린 뒤에만</b> 갱신돼야 경보({@code BackupDbStale})가 "멈춤"을 본다 — 덤프만 뜨고 업로드가 실패했는데
+ * 지표가 갱신되면 백업이 없는데 초록이다.
+ */
+class BackupScriptGuardTest {
+
+    private static final Path BACKUP_SH = Path.of("..", "infra", "scripts", "backup-db.sh").toAbsolutePath().normalize();
+
+    private static final Path BOOTSTRAP_SH = Path.of("..", "infra", "scripts", "bootstrap-ec2.sh").toAbsolutePath().normalize();
+
+    private static final String METRIC = "schoolbus_backup_last_success_timestamp_seconds";
+
+    @Test
+    @DisplayName("db 백업은 덤프를 S3 db/ 에 올린 뒤에만 성공 시각 지표(kind=db)를 쓰고 사진은 건드리지 않는다")
+    void dbBackupWritesMetricOnlyAfterUpload(@TempDir Path tmp) throws Exception {
+        Run run = run(tmp, List.of("db"), Map.of());
+
+        assertThat(run.exitCode()).as("출력:\n%s", run.output()).isZero();
+        assertThat(run.awsCalls()).anyMatch(call -> call.contains("s3://test-bucket/db/")).noneMatch(call -> call.contains("/photos/"));
+        assertThat(run.metric("db")).contains(METRIC + "{kind=\"db\"} ");
+        assertThat(run.metric("photos")).isNull();
+        long written = Long.parseLong(run.metric("db").lines().filter(line -> line.startsWith(METRIC)).findFirst().orElseThrow()
+                .split(" ")[1]);
+        assertThat(written).as("지표 값은 지금 시각(epoch 초)이다").isBetween(System.currentTimeMillis() / 1000 - 60,
+                System.currentTimeMillis() / 1000 + 60);
+    }
+
+    @Test
+    @DisplayName("photos 백업은 사진 묶음을 S3 photos/ 에 올린 뒤에만 kind=photos 지표를 쓴다")
+    void photosBackupWritesItsOwnMetric(@TempDir Path tmp) throws Exception {
+        Run run = run(tmp, List.of("photos"), Map.of());
+
+        assertThat(run.exitCode()).as("출력:\n%s", run.output()).isZero();
+        assertThat(run.awsCalls()).anyMatch(call -> call.contains("s3://test-bucket/photos/")).noneMatch(call -> call.contains("/db/"));
+        assertThat(run.metric("photos")).contains(METRIC + "{kind=\"photos\"} ");
+        assertThat(run.metric("db")).isNull();
+    }
+
+    @Test
+    @DisplayName("인자가 없으면(손으로 첫 백업) 둘 다 올리고 지표도 둘 다 쓴다")
+    void noArgumentBacksUpBoth(@TempDir Path tmp) throws Exception {
+        Run run = run(tmp, List.of(), Map.of());
+
+        assertThat(run.exitCode()).as("출력:\n%s", run.output()).isZero();
+        assertThat(run.metric("db")).isNotNull();
+        assertThat(run.metric("photos")).isNotNull();
+    }
+
+    @Test
+    @DisplayName("S3 업로드가 실패하면 비영 종료하고 지표를 갱신하지 않는다 — 옛 지표가 그대로 남아 경보가 멈춤을 본다")
+    void failedUploadLeavesTheMetricUntouched(@TempDir Path tmp) throws Exception {
+        Run run = run(tmp, List.of("db"), Map.of("FAKE_AWS_FAIL", "1"), "# 옛 지표\n");
+
+        assertThat(run.exitCode()).isNotZero();
+        assertThat(run.metric("db")).isEqualTo("# 옛 지표\n");
+    }
+
+    @Test
+    @DisplayName("덤프가 10KB 미만이면 업로드도 지표 갱신도 하지 않고 실패한다")
+    void tinyDumpIsNotABackup(@TempDir Path tmp) throws Exception {
+        Run run = run(tmp, List.of("db"), Map.of("FAKE_DUMP_BYTES", "100"));
+
+        assertThat(run.exitCode()).isNotZero();
+        assertThat(run.awsCalls()).isEmpty();
+        assertThat(run.metric("db")).isNull();
+    }
+
+    @Test
+    @DisplayName("알 수 없는 모드는 아무것도 하지 않고 실패한다")
+    void unknownModeFails(@TempDir Path tmp) throws Exception {
+        Run run = run(tmp, List.of("weekly"), Map.of());
+
+        assertThat(run.exitCode()).isNotZero();
+        assertThat(run.awsCalls()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("부트스트랩 — DB 는 매시, 사진은 매일 크론이고 데이터 디스크는 비어 있을 때만 포맷한다")
+    void bootstrapSchedulesHourlyDbBackupAndNeverReformatsData() throws IOException {
+        String script = Files.readString(BOOTSTRAP_SH);
+
+        assertThat(script).contains("0 * * * * root ${APP_DIR}/infra/scripts/backup-db.sh db")
+                .contains("10 3 * * * root ${APP_DIR}/infra/scripts/backup-db.sh photos")
+                .contains("/var/lib/node_exporter/textfile");
+        // 이미 데이터가 든 디스크(인스턴스 교체 때 붙이는 옛 볼륨)를 다시 포맷하면 DB 가 사라진다.
+        int blkid = script.indexOf("blkid");
+        int mkfs = script.indexOf("mkfs");
+        assertThat(blkid).as("파일시스템이 있는지 먼저 본다").isNotNegative().isLessThan(mkfs);
+    }
+
+    // ── 실행 도구 ──
+
+    private Run run(Path tmp, List<String> args, Map<String, String> extraEnv) throws Exception {
+        return run(tmp, args, extraEnv, null);
+    }
+
+    private Run run(Path tmp, List<String> args, Map<String, String> extraEnv, String existingDbMetric) throws Exception {
+        Path bin = Files.createDirectories(tmp.resolve("bin"));
+        Path textfile = Files.createDirectories(tmp.resolve("textfile"));
+        Path work = Files.createDirectories(tmp.resolve("work"));
+        Path awsLog = tmp.resolve("aws.log");
+        writeExecutable(bin.resolve("aws"), FAKE_AWS);
+        writeExecutable(bin.resolve("docker"), FAKE_DOCKER);
+        if (existingDbMetric != null) {
+            Files.writeString(textfile.resolve("schoolbus_backup_db.prom"), existingDbMetric);
+        }
+
+        List<String> command = new java.util.ArrayList<>(List.of("bash", BACKUP_SH.toString()));
+        command.addAll(args);
+        ProcessBuilder builder = new ProcessBuilder(command);
+        builder.redirectErrorStream(true);
+        builder.environment().put("PATH", bin + ":" + System.getenv("PATH"));
+        builder.environment().put("APP_DIR", tmp.toString());
+        builder.environment().put("TEXTFILE_DIR", textfile.toString());
+        builder.environment().put("TMPDIR", work.toString());
+        builder.environment().put("BACKUP_BUCKET", "test-bucket");
+        builder.environment().put("FAKE_AWS_LOG", awsLog.toString());
+        builder.environment().putAll(extraEnv);
+        Process process = builder.start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        if (!process.waitFor(60, TimeUnit.SECONDS)) {
+            process.destroyForcibly();
+            throw new AssertionError("backup-db.sh 가 60초 안에 끝나지 않았다:\n" + output);
+        }
+        return new Run(process.exitValue(), output, textfile, awsLog);
+    }
+
+    private static void writeExecutable(Path file, String content) throws IOException {
+        Files.writeString(file, content);
+        file.toFile().setExecutable(true);
+    }
+
+    /** 실행 결과 — {@code metric(kind)} 는 지표 파일이 없으면 {@code null}. */
+    private record Run(int exitCode, String output, Path textfile, Path awsLog) {
+
+        String metric(String kind) throws IOException {
+            Path file = textfile.resolve("schoolbus_backup_" + kind + ".prom");
+            return Files.exists(file) ? Files.readString(file) : null;
+        }
+
+        List<String> awsCalls() throws IOException {
+            return Files.exists(awsLog) ? Files.readAllLines(awsLog) : List.of();
+        }
+    }
+
+    /** {@code pg_dump} 는 FAKE_DUMP_BYTES(기본 30000) 바이트의 무작위 데이터를, 사진 묶음은 5000 바이트를 낸다. */
+    private static final String FAKE_DOCKER = """
+            #!/usr/bin/env bash
+            case "$*" in
+              *pg_dump*) head -c "${FAKE_DUMP_BYTES:-30000}" /dev/urandom ;;
+              *tar*)     head -c 5000 /dev/urandom ;;
+            esac
+            """;
+
+    /** {@code s3 cp} 호출을 로그에 남기고, 원본이 {@code -} 면 표준입력을 끝까지 읽는다. FAKE_AWS_FAIL 이면 실패한다. */
+    private static final String FAKE_AWS = """
+            #!/usr/bin/env bash
+            [ -n "$FAKE_AWS_FAIL" ] && { echo "fake aws: upload failed" >&2; exit 1; }
+            if [ "$1 $2" = "s3 cp" ]; then
+              for arg in "$@"; do [ "$arg" = "-" ] && cat > /dev/null; done
+              echo "$*" >> "$FAKE_AWS_LOG"
+            fi
+            exit 0
+            """;
+}

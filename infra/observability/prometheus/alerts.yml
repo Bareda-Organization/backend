@@ -55,3 +55,21 @@ groups:
           severity: warning
         annotations:
           summary: 호스트 루트 디스크 사용률이 80% 를 넘은 지 10분 됐다
+      # 백업이 멈추면 아무도 모른다 — 실패는 크론 로그에만 남는다. backup-db.sh 가 S3 업로드를 마친 뒤에만 쓰는 성공 시각을
+      # node-exporter textfile 수집기가 내보내고, 그 시각이 오래되면 울린다(R46 ops2 · Ruling 500). DB 는 매시 백업이라 2시간
+      # (한 번은 빠질 수 있고 두 번 연속이면 목표 유실 1시간이 깨진다) · 사진은 매일이라 26시간. `or absent` — 크론이 안 돌아
+      # 지표 파일이 없는 경우도 같은 경보다. 첫 배포 직후 첫 백업까지(최대 1시간)는 울릴 수 있어 절차서가 손으로 1회 돌리게 한다.
+      - alert: BackupDbStale
+        expr: (time() - schoolbus_backup_last_success_timestamp_seconds{kind="db"} > 7200) or absent(schoolbus_backup_last_success_timestamp_seconds{kind="db"})
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: DB 백업이 2시간 넘게 성공하지 않았다 — 목표 유실 1시간(RPO)이 깨지고 있다
+      - alert: BackupPhotosStale
+        expr: (time() - schoolbus_backup_last_success_timestamp_seconds{kind="photos"} > 93600) or absent(schoolbus_backup_last_success_timestamp_seconds{kind="photos"})
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 학생 사진 백업이 26시간 넘게 성공하지 않았다

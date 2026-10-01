@@ -73,3 +73,66 @@ tests:
               instance: h
             exp_annotations:
               summary: 호스트 루트 디스크 사용률이 80% 를 넘은 지 10분 됐다
+
+  # DB 백업(매시): 마지막 성공 시각(시험에서는 0 = 시계 원점)에서 2시간(7200초)이 지난 뒤 5분 유지돼야 발화한다.
+  # 매시 백업이 한 번 빠지는 것(1시간+)은 조용하고 두 번 연속 빠지면 울린다 — 그래야 RPO 1시간이 깨지기 전에 안다.
+  - interval: 1m
+    input_series:
+      - series: 'schoolbus_backup_last_success_timestamp_seconds{kind="db",instance="stale"}'
+        values: '0x200'
+      - series: 'schoolbus_backup_last_success_timestamp_seconds{kind="db",instance="healthy"}'
+        values: '0+60x200'   # 값이 시계와 같이 올라간다 — 방금 성공한 것
+    alert_rule_test:
+      - eval_time: 119m   # 한 번 빠진 정도(경과 7140초)
+        alertname: BackupDbStale
+        exp_alerts: []
+      - eval_time: 123m   # 7200초를 넘었지만 for(5m)가 안 찼다
+        alertname: BackupDbStale
+        exp_alerts: []
+      - eval_time: 130m
+        alertname: BackupDbStale
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              kind: db
+              instance: stale
+            exp_annotations:
+              summary: DB 백업이 2시간 넘게 성공하지 않았다 — 목표 유실 1시간(RPO)이 깨지고 있다
+
+  # 지표가 아예 없는 경우(크론이 안 돈다 · 한 번도 성공하지 못했다)도 같은 경보다.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="node",instance="h"}'
+        values: '1x30'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: BackupDbStale
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: BackupDbStale
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              kind: db
+            exp_annotations:
+              summary: DB 백업이 2시간 넘게 성공하지 않았다 — 목표 유실 1시간(RPO)이 깨지고 있다
+
+  # 사진 백업(매일): 26시간(93600초) 넘게 성공하지 않으면 발화한다. 25시간은 조용하다.
+  # (입력 간격은 1분 — 15분이면 시계열이 5분 조회 허용 시간 밖으로 끊겨 보여 경보 상태가 계속 초기화된다)
+  - interval: 1m
+    input_series:
+      - series: 'schoolbus_backup_last_success_timestamp_seconds{kind="photos",instance="h"}'
+        values: '0x1700'
+    alert_rule_test:
+      - eval_time: 25h
+        alertname: BackupPhotosStale
+        exp_alerts: []
+      - eval_time: 27h
+        alertname: BackupPhotosStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              kind: photos
+              instance: h
+            exp_annotations:
+              summary: 학생 사진 백업이 26시간 넘게 성공하지 않았다
