@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.jupiter.api.AfterEach;
@@ -78,8 +80,10 @@ class AuditRecorderDedupTest {
 
         roster(actor, "1", "2", "3");
 
+        // 전체 실행에서는 앞선 시험이 actor 없는 행(login_fail 등)을 남긴다 — 언박싱 비교(==)는 그 행에서 NPE
         List<AuditLog> rows = auditLogRepository.findAll().stream()
-                .filter(log -> actor == log.getActorAccountId()).toList();
+                .filter(log -> Objects.equals(actor, log.getActorAccountId()))
+                .sorted(Comparator.comparing(AuditLog::getId)).toList();
         assertThat(rows).hasSize(2);
         assertThat(studentIdsOf(rows.get(1))).as("이미 기록한 1·2 는 빼고 새로 실린 3 만").containsExactly("3");
     }
