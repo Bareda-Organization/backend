@@ -96,3 +96,5 @@ graft/
 .ignore
 # Playwright CLI output (may contain credentials)
 .playwright-cli/
+# 운영 Alertmanager 설정 — deploy.sh 가 SSM 값(봇 토큰·SMTP 비밀번호)으로 만든다. 로컬에서 시험하다 커밋하지 않게 막는다.
+/alertmanager/

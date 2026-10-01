@@ -216,7 +216,10 @@ services:
       - "127.0.0.1:9090:9090"
     logging: *cloudwatch
 
-  # 경보 라우팅 자리 — 수신 채널이 아직 정해지지 않아 어디로도 보내지 않는다(설정 파일 주석 참고).
+  # 경보 수신 — 텔레그램 봇 + 이메일 예비(Ruling 480 ④). 설정 파일은 저장소에 없다: deploy.sh 가 SSM 선택 항목으로
+  # infra/scripts/render-alertmanager.sh 를 불러 /opt/school-bus/alertmanager/alertmanager.yml 을 만든다(비밀값 포함 · 저장소 밖).
+  # 값이 없으면 수신자 없이 뜬다(알림이 어디로도 가지 않는다). 파일 하나가 아니라 폴더를 마운트한다 — 파일 마운트는 파일이
+  # 새로 만들어질 때 컨테이너가 옛 파일을 계속 본다. 절차: docs/infra/DEPLOYMENT.md §11.3
   alertmanager:
     image: prom/alertmanager:v0.28.1
     restart: unless-stopped
@@ -225,7 +228,7 @@ services:
       - --config.file=/etc/alertmanager/alertmanager.yml
       - --storage.path=/alertmanager
     volumes:
-      - ./infra/observability/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./alertmanager:/etc/alertmanager:ro
     expose:
       - "9093"
     logging: *cloudwatch
