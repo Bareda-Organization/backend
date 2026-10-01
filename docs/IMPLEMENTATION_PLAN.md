@@ -1011,6 +1011,17 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 466 | 매니저 앱 용어 통일(미승차) · 홈·운행 카드에 출발 시각 | 프론트 본문 §5.19 |
 | 467 | 지연 알림 보내기 전 문구 미리보기(비우면 자동 문구 안내) | 프론트 본문 §5.19 |
 | 468 | 외부 내비(RUN-08) 연동 · KAKAO_NAVI_APP_KEY 없으면 버튼 숨김 | 프론트 본문 §5.19 |
+| 480 | 운영 방침 — 백업 RPO/RTO 1시간 · 퇴원 90일 파기 · 텔레그램+이메일 경보 · 공개 유지 · 관리자 2명 · 비용 알림(사용자 결정 2026-10-01) | 본문 §8.79 |
+| 481 | 관계자 웹 운영 배포는 Vercel(비용) — 운영 compose 에 웹 없음 · 출처·쿠키 맞춤(사용자 결정) | 본문 §8.79 |
+| 482 | 보호자 전화 — 누를 때만 원번호 단건 조회 + 감사(사용자 결정) | 본문 §8.79(결정 기록) · 구현은 R46-PRIVACY |
+| 483 | 배포·외부 연동(FCM·이메일·SMS·텔레그램·카카오)은 자리만 — 키 없이 빌드·시험 통과(사용자 결정) | 본문 §8.79(결정 기록) · 구현은 R46-INTEG |
+| 500 | 백업 — DB 매시 · 사진 매일 · 업로드 뒤 성공 시각 지표 · 경보 | 본문 §8.79 |
+| 501 | 경보 수신 — 텔레그램 봇 + 이메일 예비 · SSM 선택 항목 · 값 없으면 수신자 없이 기동 | 본문 §8.79 |
+| 502 | 웹이 Vercel 이어도 refresh 쿠키 SameSite=Strict 유지(같은 등록 도메인 전제) | 본문 §8.79 |
+| 503 | 허용 출처는 정확한 https 출처만 — Vercel 미리보기 주소 불허 | 본문 §8.79 |
+| 504 | 메인 관리자 활성 2명 이상(두 번째는 DB 직접 · 절차서) | 본문 §8.79 |
+| 505 | 비용 한도 알림 — AWS Budgets 이메일 2개(금액은 배포 때) | 본문 §8.79 |
+| 506 | 저장소 공개 유지 — 비밀 5종 전 이력 0건 확인 | 본문 §8.79 |
 
 
 ## 8.73 ⚖ `R46-BE` — 성능 개선(감사 제외) + 바로 고칠 것 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 410~419 · 백엔드 갈래)
@@ -1179,6 +1190,6 @@ R46 운영(`IMPLEMENTATION_PLAN §8.76`) 위에 사용자 결정(`Ruling 480`·`
 | 6 | `Ruling 480`·`481` 정본 반영 · 깨진 참조 증가 0 | 이 절 · `TECH_DECISIONS §12` · `DEPLOYMENT §7·§11·§12·§13` · docgraph |
 | 7 | 정리 — 컨테이너(`-p r46ops2`)·서버 종료 · `r46_ops2` DROP | `docker ps` · `pg_database` |
 
-**결과 (2026-10-01)** — 목표 1~7 ✅(아래 예외 1건 명시). 신설·확장 시험 — `BackupScriptGuardTest` 8 · `AlertmanagerRenderGuardTest` 12 · `DeployScriptGuardTest` +6 · `DeploymentConfigGuardTest` +2 · `CorsCredentialsTest` +1 · promtool 시나리오 +3. 새 동작을 요구하는 시험은 구현 전 RED 를 확인했고(이미 동작하는 것을 고정하는 시험은 결함 심기로 확인), **결함 31종**(백업 스크립트 7 · 부트스트랩 2 · 렌더러 5 · `deploy.sh` 7 · compose·nginx 4 · 경보 5 · CORS 1)을 하나씩 심어 31/31 이 해당 시험에 의해 잡히고 원복 뒤 저장소 상태 31/31 빈 결과. 로컬 실측 — `amtool check-config`(렌더 3종 통과 · 반쪽 설정 거부) · `promtool` 통과 · `-p r46ops2` 기동에서 낡은 DB 백업 지표 → `BackupDbStale` 이 5분 뒤 Alertmanager 에 도착 · `:8400` 에서 허용 출처 preflight 200 / 밖 403 · 쿠키 `SameSite=Strict` · WS `101`/`403` · 복구 절차(§7.3 경로 B) 실행으로 원본과 복원본 일치 · 두 번째 메인 관리자 SQL 로 로그인 200. 깨진 참조 0 → 0. 실제 AWS·Vercel·텔레그램·SMTP 는 호출하지 않았다.
+**결과 (2026-10-01)** — 목표 1~7 ✅(아래 예외 1건 명시). 신설·확장 시험 — `BackupScriptGuardTest` 8 · `AlertmanagerRenderGuardTest` 12 · `DeployScriptGuardTest` +6 · `DeploymentConfigGuardTest` +2 · `CorsCredentialsTest` +1 · promtool 시나리오 +3. 새 동작을 요구하는 시험은 구현 전 RED 를 확인했고(이미 동작하는 것을 고정하는 시험은 결함 심기로 확인), **결함 31종**(백업 스크립트 7 · 부트스트랩 2 · 렌더러 5 · `deploy.sh` 7 · compose·nginx 4 · 경보 5 · CORS 1)을 하나씩 심어 31/31 이 해당 시험에 의해 잡히고 원복 뒤 저장소 상태 31/31 빈 결과. 로컬 실측 — `amtool check-config`(렌더 3종 통과 · 반쪽 설정 거부) · `promtool` 통과 · `-p r46ops2` 기동에서 낡은 DB 백업 지표 → `BackupDbStale` 이 5분 뒤 Alertmanager 에 도착 · `:8400` 에서 허용 출처 preflight 200 / 밖 403 · 쿠키 `SameSite=Strict` · WS `101`/`403` · 복구 절차(`DEPLOYMENT §7.3` 경로 B) 실행으로 원본과 복원본 일치 · 두 번째 메인 관리자 SQL 로 로그인 200. 깨진 참조 0 → 0. 실제 AWS·Vercel·텔레그램·SMTP 는 호출하지 않았다.
 
 **전체 백엔드 시험**(`--rerun`) 344클래스 1,960건 **실패 2 · 건너뜀 0** — 둘 다 이 갈래와 무관하고 깨끗한 DB 의 단독 실행에서 통과한다: ① `AcademySettingFindOrCreateConcurrencyTest` 는 동시 실행 시험이 머신 부하 평균 약 47(다른 작업 창이 같은 머신에서 실행 중)에서 `TimeoutException` — 단독 실행 통과(16초). ② `AuditRecorderDedupTest.두_번째_조회에_새_학생이_실리면_그_학생만_기록된다` 는 같은 DB 에서 앞서 돈 시험이 남긴 `actor_account_id` 가 null 인 `login_fail` 행 때문에 NPE(`actor == log.getActorAccountId()` 가 `audit_log` 전체를 읽고 null 을 언박싱) — 그런 행을 직접 넣으면 **결정적으로 재현**되고 스키마를 비우면 통과한다. 시험 소스는 분기점 이후 변경이 없다(범위 밖이라 고치지 않고 보고). 전체를 세는 시험(`ControllerAuthorizationConventionTest` · `AcademyScopeHttpExhaustiveTest` · `AuthFlowIntegrationTest` · `SchemaContractTest` · `EnumCheckConstraintParityTest` · `ErrorCodeCatalogTest` · `MetricsExposureTest` · `AccountStatusGateInterceptorTest` · `AcademyScopeRepositoryConventionTest`)은 결과 XML 에 있고 실패 0. **실제 AWS 실행은 미수행** — 첫 배포 뒤 확인할 것: 데이터 디스크 마운트·`fstab`(`/dev/nvme1n1` 가정) · 백업 지표가 EC2 의 node-exporter 에 읽히는지 · 복구 소요 시간(약 40분은 추정) · Vercel 빌드(`output: "standalone"` 무시 여부 · 요금제).
