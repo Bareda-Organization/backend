@@ -1,6 +1,7 @@
 package src.backend.notification.repository;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -53,4 +54,11 @@ public interface DeviceTokenRepository extends JpaRepository<DeviceToken, Long> 
             + "WHERE d.token = :token AND d.accountId <> :accountId AND d.revokedAt IS NULL")
     int revokeOtherAccounts(@Param("token") String token, @Param("accountId") Long accountId,
             @Param("revokedAt") OffsetDateTime revokedAt);
+
+    /** 익명화한 계정의 푸시 단말을 전량 지운다(개인정보 파기, Ruling 480 ②·520) — 해지 표시가 아니라 행을 지운다. */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @AcademyScopeExempt(reason = "보존 정리 배치(Ruling 480 ②) — 계정 id 는 학생 파기 처리가 고른 값이고, "
+            + "부르는 주체가 스케줄러라 요청 주체의 소속이 부재")
+    @Query("DELETE FROM DeviceToken d WHERE d.accountId IN :accountIds")
+    int deleteAllByAccountIds(@Param("accountIds") Collection<Long> accountIds);
 }

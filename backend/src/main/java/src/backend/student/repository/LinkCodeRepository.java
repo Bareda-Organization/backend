@@ -1,6 +1,7 @@
 package src.backend.student.repository;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.domain.Limit;
@@ -84,4 +85,11 @@ public interface LinkCodeRepository extends JpaRepository<LinkCode, Long> {
             + "부르는 주체가 사용자 요청이 아니라 스케줄러라 요청 주체의 소속 자체가 부재")
     @Query("select c.id from LinkCode c where c.expiresAt < :now order by c.id")
     List<Long> findIdsForRetentionCleanup(@Param("now") OffsetDateTime now, Limit limit);
+
+    /** 퇴원 학생의 연결 코드를 지운다(개인정보 파기, Ruling 480 ②·520) — 만료분 정리를 기다리지 않는다. */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @AcademyScopeExempt(reason = "보존 정리 배치(Ruling 480 ②) — 학생 id 는 전 학원의 파기 대상 조회가 골라낸 값이고, "
+            + "부르는 주체가 스케줄러라 요청 주체의 소속이 부재")
+    @Query("DELETE FROM LinkCode lc WHERE lc.studentId IN :studentIds")
+    int deleteAllByStudentIds(@Param("studentIds") Collection<Long> studentIds);
 }

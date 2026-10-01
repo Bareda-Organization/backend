@@ -5,11 +5,13 @@ import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Weekday;
+import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.student.entity.WeeklyAddress;
 
 /** {@link WeeklyAddress} 영속성 접근. */
@@ -89,4 +91,14 @@ public interface WeeklyAddressRepository extends JpaRepository<WeeklyAddress, Lo
     List<StudentDailyStop> findDailyStopsByStopIds(@Param("academyId") Long academyId,
             @Param("stopIds") Collection<Long> stopIds, @Param("weekday") Weekday weekday,
             @Param("direction") Direction direction, @Param("serviceDayStart") OffsetDateTime serviceDayStart);
+
+    /**
+     * 학생들의 요일별 주소·좌표 행을 지운다(개인정보 파기, Ruling 480 ②·520) — 주소와 좌표가 곧 개인정보라 익명값으로 바꾸지 않고
+     * 행째 지운다. 이 행을 참조하는 이력은 부재하다({@code weekly_address} 는 어느 FK 의 부모도 아니다).
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @AcademyScopeExempt(reason = "보존 정리 배치(Ruling 480 ②) — 학생 id 는 학원 범위와 무관하게 전 학원의 파기 대상 "
+            + "조회가 골라낸 값이고, 부르는 주체가 스케줄러라 요청 주체의 소속이 부재")
+    @Query("DELETE FROM WeeklyAddress wa WHERE wa.studentId IN :studentIds")
+    int deleteAllByStudentIds(@Param("studentIds") Collection<Long> studentIds);
 }

@@ -28,6 +28,13 @@ public class RetentionPolicy {
      */
     public static final Period AUDIT_LOG_RETENTION = Period.ofYears(2);
 
+    /**
+     * 퇴원 학생 개인정보 보관 기간 — <b>2026-10-01 사용자 결정(R46 privacy · Ruling 480 ②)</b>. 퇴원({@code student.deleted_at})
+     * 후 이 기간이 지나면 이름·연락처·주소·특이사항·사진을 파기한다(행은 남기고 익명화 — Ruling 520). 근거 법령 기간은 법률 검토
+     * (L-06~08)에서 재조정할 여지가 있어, 바꿀 때는 이 상수만 고친다.
+     */
+    public static final Duration WITHDRAWN_STUDENT_RETENTION = Duration.ofDays(90);
+
     /** 알림 로그 보관 기간 — 14일 확정(ERD §7.2 "notification_log — 14일 — 알림 보관 기간"). */
     public static final Duration NOTIFICATION_LOG_RETENTION = Duration.ofDays(14);
 
@@ -55,6 +62,11 @@ public class RetentionPolicy {
     /** {@code audit_log} 삭제 기준 시각 — 이보다 이전에 일어난 행이 대상(두 category 모두). */
     public OffsetDateTime auditLogCutoff(OffsetDateTime now) {
         return now.minus(AUDIT_LOG_RETENTION);
+    }
+
+    /** 퇴원 학생 파기 기준 시각 — 이보다 이전에 퇴원한(아직 익명화하지 않은) 학생이 대상이다. */
+    public OffsetDateTime withdrawnStudentCutoff(OffsetDateTime now) {
+        return now.minus(WITHDRAWN_STUDENT_RETENTION);
     }
 
     /** {@code notification_log} 삭제 기준 시각 — 이보다 이전에 생성된 행이 대상. */

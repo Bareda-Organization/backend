@@ -20,13 +20,17 @@ import src.backend.audit.repository.AuditLogRepository;
 import src.backend.location.repository.RunPositionRepository;
 import src.backend.notification.repository.NotificationLogRepository;
 import src.backend.observability.metrics.SchedulerHealthMetrics;
+import src.backend.student.command.StudentAnonymizationService;
 import src.backend.student.repository.LinkCodeRepository;
+import src.backend.student.repository.StudentRepository;
 
 /**
  * 보존 정리 배치의 진입점(목표 6·7, ERD §7 · TECH_DECISIONS §12.2 · Ruling 243) — 보유 기간이 지난
  * 5개 테이블({@code notification_log} · {@code run_position} · {@code refresh_token} ·
  * {@code link_code} · {@code audit_log})의 행을 회차(배치) 단위로 나눠 지운다(Ruling 324 — {@code link_request}
- * 삭제로 5개→4개, Ruling 445 — {@code audit_log} 편입으로 4개→5개).
+ * 삭제로 5개→4개, Ruling 445 — {@code audit_log} 편입으로 4개→5개). 여기에 <b>퇴원 90일이 지난 학생의 개인정보 파기</b>
+ * (Ruling 480 ②·520)가 같은 배치 상한·같은 잠금으로 편입돼 있다 — 이쪽은 행을 지우지 않고 익명화한다
+ * ({@link StudentAnonymizationService}).
  *
  * <p><b>여기 없는 테이블은 지우지 않는 것이 이 클래스의 본체다</b>(목표 6, ERD §7.1·§7.2 무기한 보존
  * 대상 — {@code rider_status_history} · {@code no_show_case} ·
@@ -61,6 +65,10 @@ public class RetentionCleanupScheduler {
 
     private final AuditLogRepository auditLogRepository;
 
+    private final StudentRepository studentRepository;
+
+    private final StudentAnonymizationService studentAnonymizationService;
+
     private final RetentionPolicy retentionPolicy;
 
     private final Clock clock;
@@ -68,7 +76,7 @@ public class RetentionCleanupScheduler {
     private final SchedulerHealthMetrics schedulerHealthMetrics;
 
     /**
-     * 보유 기간이 지난 5개 테이블의 행을 지운다.
+     * 보유 기간이 지난 5개 테이블의 행을 지우고, 퇴원 90일이 지난 학생의 개인정보를 익명화한다.
      *
      * <p>실행 주기를 설정으로 받는 이유는 <b>테스트에서 배경 실행을 끄기 위함</b>이다 —
      * {@code DailyRunGenerator} 와 같은 형태로, {@code build.gradle} 이 {@code -}(비활성)를 넣는다.
@@ -89,6 +97,8 @@ public class RetentionCleanupScheduler {
                 refreshTokenRepository::findIdsForRetentionCleanup, refreshTokenRepository::deleteAllByIdInBatch);
         cleanUpSafely("link_code", now,
                 linkCodeRepository::findIdsForRetentionCleanup, linkCodeRepository::deleteAllByIdInBatch);
+        cleanUpSafely("student_anonymization", retentionPolicy.withdrawnStudentCutoff(now),
+                studentRepository::findIdsForAnonymization, studentAnonymizationService::anonymize);
         for (AuditCategory category : AuditCategory.values()) {
             cleanUpSafely("audit_log/" + category, retentionPolicy.auditLogCutoff(now),
                     (cutoff, limit) -> auditLogRepository.findIdsForRetentionCleanup(category, cutoff, limit),
@@ -131,7 +141,7 @@ public class RetentionCleanupScheduler {
         } while (roundDeleted == RetentionPolicy.BATCH_SIZE);
 
         if (totalDeleted > 0) {
-            log.info("보존 정리 — {} {}행 삭제", tableName, totalDeleted);
+            log.info("보존 정리 — {} {}행 처리", tableName, totalDeleted);
         }
     }
 }

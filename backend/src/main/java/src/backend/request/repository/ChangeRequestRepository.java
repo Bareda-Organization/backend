@@ -1,6 +1,7 @@
 package src.backend.request.repository;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -126,4 +127,21 @@ public interface ChangeRequestRepository extends JpaRepository<ChangeRequest, Lo
             + "c.decidedAt = :decidedAt WHERE c.id = :id "
             + "AND c.status = src.backend.request.entity.ChangeRequestStatus.PENDING")
     int autoRejectIfPending(@Param("id") Long id, @Param("decidedAt") OffsetDateTime decidedAt);
+
+    /**
+     * 학생들의 변경 요청에 남은 주소·좌표·사유를 지운다(개인정보 파기, Ruling 480 ②·520) — 행은 남긴다(승하차 이력이
+     * 이 행을 참조하고 {@code ON DELETE RESTRICT}). relocate 의 {@code new_address} 는 {@code ck_change_request_new_address}
+     * 가 NOT NULL 을 요구해 {@code placeholder} 로 덮고, cancel 처럼 원래 비어 있던 주소는 그대로 비운다.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @AcademyScopeExempt(reason = "보존 정리 배치(Ruling 480 ②) — 학생 id 는 전 학원의 파기 대상 조회가 골라낸 값이고, "
+            + "부르는 주체가 스케줄러라 요청 주체의 소속이 부재")
+    @Query("""
+            UPDATE ChangeRequest c
+            SET c.newAddress = CASE WHEN c.newAddress IS NULL THEN NULL ELSE :placeholder END,
+                c.newLat = NULL, c.newLng = NULL, c.reason = NULL
+            WHERE c.studentId IN :studentIds
+            """)
+    int anonymizeAddressesOfStudents(@Param("studentIds") Collection<Long> studentIds,
+            @Param("placeholder") String placeholder);
 }

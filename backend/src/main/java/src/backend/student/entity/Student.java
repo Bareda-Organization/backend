@@ -35,6 +35,12 @@ import src.backend.global.error.ErrorCode;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Student extends BaseTimeEntity {
 
+    /** 익명화한 학생의 이름 — 승하차 이력 화면에는 이 값이 나온다(Ruling 520). */
+    public static final String ANONYMIZED_NAME = "퇴원 학생";
+
+    /** 익명화한 학생의 변경 요청 주소 자리 — {@code ck_change_request_new_address} 가 relocate 의 주소를 NOT NULL 로 요구해 지우지 못한다. */
+    public static final String ANONYMIZED_ADDRESS = "(파기됨)";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
@@ -76,6 +82,9 @@ public class Student extends BaseTimeEntity {
 
     @Column(name = "deleted_at")
     private OffsetDateTime deletedAt;
+
+    @Column(name = "anonymized_at")
+    private OffsetDateTime anonymizedAt;
 
     private Student(Long academyId, StudentProfile profile) {
         this.academyId = academyId;
@@ -136,6 +145,28 @@ public class Student extends BaseTimeEntity {
      */
     public void withdraw(OffsetDateTime at) {
         this.deletedAt = at;
+    }
+
+    /**
+     * 퇴원 90일이 지난 학생의 개인정보를 익명값으로 바꾼다(Ruling 480 ②·520) — <b>행은 남긴다</b>. 승하차 이력
+     * ({@code run_rider} 등)이 이 행을 {@code ON DELETE RESTRICT} 로 참조하고 무기한 보존 대상이라, 지우면 이력이
+     * 함께 사라진다. 이름은 {@link #ANONYMIZED_NAME}, 나머지 알아볼 수 있는 값(연락처·사진·성별·생년월일·학년·반·특이사항)은
+     * {@code null} 이다. 학생 계정 연결도 끊는다 — 그 계정은 호출부가 따로 로그인 불가로 만든다.
+     *
+     * <p>퇴원 시각({@code deleted_at})과 {@code can_go_alone}(정책 플래그)은 그대로 둔다. 이미 익명화한 학생에게 다시 불러도
+     * 결과가 같다.
+     */
+    public void anonymize(OffsetDateTime at) {
+        this.name = ANONYMIZED_NAME;
+        this.studentPhone = null;
+        this.photoUrl = null;
+        this.gender = null;
+        this.birthDate = null;
+        this.grade = null;
+        this.className = null;
+        this.note = null;
+        this.accountId = null;
+        this.anonymizedAt = this.anonymizedAt == null ? at : this.anonymizedAt;
     }
 
     /**
