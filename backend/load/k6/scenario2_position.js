@@ -155,7 +155,8 @@ export default function () {
                     } catch (e) {
                         body = null;
                     }
-                    if (body && body.event === 'position' && body.run_id === target.runId) {
+                    // Ruling 332 — 식별자는 JSON 에서 문자열로 나간다("192"). 숫자와 직접 비교하면 영원히 안 맞아 echo 가 0 으로 잡힌다.
+                    if (body && body.event === 'position' && Number(body.run_id) === target.runId) {
                         wsFanoutLatencyMs.add(Date.now() - lastSentAt);
                         positionEchoReceivedTotal.add(1);
                         lastSentAt = null;
