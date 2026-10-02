@@ -578,7 +578,7 @@ aws ssm put-parameter --name /school-bus/demo/SEED_PASSWORD_HASH --type SecureSt
 |---|---|---|
 | `backend` | compose 의 postgres(`max_connections=300`)를 띄우고 전용 DB 를 만든 뒤 `./gradlew test -PtestDbUrl=… -PciQuiet`. Redis 는 시험이 Testcontainers 로 붙임 | `@Tag("live")` 실 네이버 API 시험 |
 | `web` | `scripts/verify.sh web` — `next typegen` · `tsc --noEmit` · `lint` · `vitest`(Node 22) | 파일명 `*realBackend*.test.ts`(실서버 계약 시험) |
-| `flutter` | `scripts/verify.sh flutter` — 4개 패키지의 `pub get` · `build_runner`(있는 곳) · `analyze` · `test`(3.44.8) | `@Tags(['real_backend'])` 시험 |
+| `flutter` | `scripts/verify.sh flutter` — 4개 패키지의 `pub get` · `build_runner`(있는 곳) · `analyze` · `test`(3.47.6) | `@Tags(['real_backend'])` 시험 |
 
 - 바뀐 모듈의 job 만 돈다(`dorny/paths-filter`). `ci.yml` 이 바뀌면 전부 돈다. 같은 PR 의 새 커밋은 앞선 실행을 취소한다
 - 로컬 재현: `scripts/verify.sh`(전부) · `scripts/verify.sh web flutter`(골라서). 백엔드는 `backend/scripts/test.sh` 가 전용 DB 를 만들고 지움 — `verify.sh` 는 웹·백엔드를 CI 와 같이 **`TZ=UTC`** 로 돌리고 백엔드에는 `-PciQuiet` 도 준다

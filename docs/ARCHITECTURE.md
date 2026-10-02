@@ -86,7 +86,7 @@
 
 | 항목 | 값 | 채택 이유 |
 |---|---|---|
-| Flutter / Dart | `^3.12.0` | 빌드 이미지의 Dart 버전에 하한을 맞춤 |
+| Flutter / Dart | `^3.13.5`(Flutter 3.47.6) | 빌드 이미지의 Dart 버전에 하한을 맞춤 |
 | 상태관리 | `flutter_riverpod` | 코드생성 미사용 — analyzer 충돌 회피, provider 를 손으로 선언 |
 | 라우팅 | `go_router` | `redirect` 훅 한 곳에서 **계정 상태·역할 분기**를 처리 (§5.2·§5.3) |
 | HTTP | `dio` | interceptor 로 JWT 부착 + 401 자동 refresh 를 한 군데로 모음 |
