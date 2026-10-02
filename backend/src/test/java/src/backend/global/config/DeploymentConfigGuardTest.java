@@ -142,9 +142,48 @@ class DeploymentConfigGuardTest {
         assertThat(healthz).as("외부 가동 감시가 칠 공개 헬스 주소").isNotNegative();
         String block = nginx.substring(healthz, nginx.indexOf('}', healthz));
         // health 상세는 show-details: never 라 {"status":"UP"} 뿐이다 — 정적 200 이면 backend 가 죽어도 감시가 못 안다.
-        assertThat(block).contains("proxy_pass http://backend_pool/actuator/health");
+        // 앱 포트의 /healthz 를 친다(Ruling 740) — /actuator/health 는 관리 포트로 옮겨 갔고 프록시는 그 포트로 가지 않는다.
+        assertThat(block).contains("proxy_pass http://backend_pool/healthz");
         int actuator = nginx.indexOf("location /actuator");
         assertThat(nginx.substring(actuator, nginx.indexOf('}', actuator))).contains("return 404");
+    }
+
+    @Test
+    @DisplayName("R47 Ruling 740 — 운영·demo·스테이징은 같은 관리 포트(헬스·지표)를 앱 포트와 따로 연다")
+    void deployProfilesDeclareTheSameManagementPort() {
+        // 앱 커넥터가 동시 연결 상한(Ruling 690)에 닿으면 같은 커넥터의 헬스·지표도 함께 응답이 없다(R46 누수 검토 R-3) —
+        // 관리 포트가 따로 있어야 "서버는 살아 있는데 보이지 않는" 상태가 안 생긴다. 어느 프로파일에서 빠져도 앱은 정상 기동한다.
+        for (String profile : new String[] {"prod", "demo", "staging"}) {
+            assertThat(managementPort(sectionOf("on-profile: " + profile)))
+                    .as("%s 프로파일의 management.server.port — 앱 포트(8080)와 달라야 한다", profile)
+                    .isEqualTo(managementPort(sectionOf("on-profile: prod")))
+                    .isNotEqualTo(8080);
+        }
+    }
+
+    @Test
+    @DisplayName("R47 Ruling 740 — 컨테이너 헬스체크 · 배포 스모크 · Prometheus 스크레이프가 관리 포트를 본다")
+    void healthcheckSmokeAndScrapeFollowTheManagementPort() throws IOException {
+        // 한쪽만 옮기면 헬스체크는 404 로 계속 실패해 proxy 가 기동하지 않거나, 스크레이프가 실패해 BackendDown 이 상시 울린다.
+        int port = managementPort(sectionOf("on-profile: prod"));
+        assertThat(composeServiceBlock("backend")).contains("curl -fsS http://localhost:" + port + "/actuator/health")
+                .doesNotContain("localhost:8080/actuator");
+        assertThat(deployScript).contains("curl -fsS http://localhost:" + port + "/actuator/health")
+                .doesNotContain("localhost:8080/actuator");
+        String prometheus = Files.readString(Path.of("../infra/observability/prometheus/prometheus.prod.yml"));
+        assertThat(prometheus).contains("targets: ['backend:" + port + "']").doesNotContain("backend:8080");
+    }
+
+    @Test
+    @DisplayName("R47 Ruling 740 — 관리 포트는 호스트에 열지 않고 프록시도 그 포트로 가지 않는다")
+    void managementPortIsNotPublished() throws IOException {
+        // 관리 포트의 /actuator/prometheus 는 인증 없이 열려 있다(접근 경계는 네트워크다 — SecurityConfig). 호스트나 프록시로 나가면
+        // 지표(학원·회차 수 같은 운영 수치)가 인터넷에 열린다.
+        int port = managementPort(sectionOf("on-profile: prod"));
+        assertThat(composeServiceBlock("backend")).as("backend 는 호스트 포트를 열지 않는다").doesNotContain("ports:");
+        String nginx = Files.readString(Path.of("../infra/proxy/nginx.prod.conf")).lines()
+                .filter(line -> !line.strip().startsWith("#")).collect(java.util.stream.Collectors.joining("\n"));
+        assertThat(nginx).as("프록시 설정에 관리 포트가 없다").doesNotContain(String.valueOf(port));
     }
 
     @Test
@@ -398,6 +437,13 @@ class DeploymentConfigGuardTest {
             throw new AssertionError("운영 compose 에서 서비스를 찾지 못했다: " + service);
         }
         return block.group(1);
+    }
+
+    /** 프로파일 문서의 {@code management.server.port} — 없으면 시험을 실패시킨다. */
+    private int managementPort(String section) {
+        Matcher port = Pattern.compile("(?m)^management:\\n  server:\\n(?:    #.*\\n)*    port: (\\d+)").matcher(section);
+        assertThat(port.find()).as("management.server.port 가 이 프로파일 문서에 없다").isTrue();
+        return Integer.parseInt(port.group(1));
     }
 
     /** `---` 로 구분된 프로파일 문서 중 표식(marker)을 포함한 것을 돌려준다. */

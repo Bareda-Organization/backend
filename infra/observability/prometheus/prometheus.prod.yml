@@ -17,10 +17,11 @@ alerting:
 
 scrape_configs:
   # Spring Boot — /actuator 는 외부(nginx)에서 404 이지만 이 컨테이너 네트워크 안에서는 열려 있다.
+  # 앱 포트(8080)가 아니라 관리 포트(8081)를 긁는다 — 앱 커넥터가 동시 연결 상한에 닿아도 지표와 `up` 이 끊기지 않는다(Ruling 740).
   - job_name: backend
     metrics_path: /actuator/prometheus
     static_configs:
-      - targets: ['backend:8080']
+      - targets: ['backend:8081']
 
   - job_name: node
     static_configs:

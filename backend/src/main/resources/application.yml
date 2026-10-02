@@ -294,18 +294,26 @@ logging:
 
 # 배포 검증·컨테이너 healthcheck(health)·Prometheus 스크레이프(prometheus) 전용. 상세는 감춘다 —
 # 상세를 켜면 DB URL·Redis 호스트 같은 인프라 정보가 인증 없이 노출된다.
-# 외부 접근은 nginx(infra/proxy/nginx.prod.conf)가 /actuator 를 404 로 막는다.
+# 외부 접근은 nginx(infra/proxy/nginx.prod.conf)가 /actuator 를 404 로 막는다. 운영 계열(prod·demo·staging)은 이 엔드포인트들이 앱 포트가 아니라
+# **관리 포트**(management.server.port — 각 프로파일 문서)에 있다. local·load 는 따로 열지 않아 앱 포트 그대로다.
 management:
   endpoints:
     web:
       exposure:
         # prometheus 를 더하지만 외부 도달은 여전히 불가하다 —
         # nginx(infra/proxy/nginx.prod.conf)가 /actuator 를 404 로 막고,
-        # Prometheus 는 compose 내부 네트워크에서 backend:8080 으로 직접 스크레이프한다.
+        # Prometheus 는 compose 내부 네트워크에서 backend:<관리 포트> 로 직접 스크레이프한다.
         include: health,prometheus
   endpoint:
     health:
       show-details: never
+      group:
+        # 외부 가동 감시(nginx 의 /healthz)용 — 관리 포트를 따로 연 프로파일(prod·demo·staging)에서도 이 그룹만 **앱 포트**에 /healthz 로 낸다(R47, Ruling 740).
+        # 감시가 앱 커넥터를 거쳐야 연결 상한(Ruling 690)에 닿아 사용자가 못 붙는 상태를 본다. /actuator/health 는 관리 포트로 옮겨 가 컨테이너 헬스체크·
+        # 배포 스모크·Prometheus 가 쓴다 — 거기는 상한에 닿아도 응답한다. 상세는 위 show-details: never 라 상태 문자열뿐이다.
+        external:
+          include: "*"
+          additional-path: "server:/healthz"
   metrics:
     tags:
       # 지표에 붙는 공통 태그. 나중에 인스턴스가 늘면 여기서 구분한다.
@@ -398,6 +406,12 @@ server:
     # 64KB(WebSocketConfig) × 8,192 ≈ 1.85GB 라 운영 힙(컨테이너 3,072MB × 70% ≈ 2.15GB)에 너무 가깝다. 4,000(목표 동시 세션 2,000 의
     # 2배)이면 ≈ 1.05GB. 닿으면 OOM 대신 새 연결이 accept-count 대기열에서 기다리다 거절된다(docs/infra/DEPLOYMENT.md §11.7).
     max-connections: 4000
+management:
+  server:
+    # 헬스·지표를 앱 커넥터와 따로 둔다(R47, Ruling 740) — 앱 포트가 동시 연결 상한(max-connections)에 닿으면 새 연결을 받지 못해 같은 커넥터의
+    # 헬스·지표도 함께 응답이 없었다(R46 누수 검토 R-3). 이 포트는 호스트에 열지 않고 nginx 도 가지 않는다 — compose 네트워크 안의 헬스체크·Prometheus 만 닿는다
+    # (compose·deploy.sh·prometheus.prod.yml 이 같은 값을 쓴다 — DeploymentConfigGuardTest 가 맞는지 본다).
+    port: 8081
 
 # 운영은 localhost 개발 출처를 신뢰하면 안 되므로 기본값 없이 환경변수로만 명시 주입(미설정 시 빈 목록 = 전부 차단)
 app:
@@ -463,6 +477,9 @@ server:
       max: 100   # prod 섹션과 같은 근거(풀 20 의 5배 — R46-LATERBE L11, Ruling 674)
     accept-count: 100
     max-connections: 4000   # prod 섹션과 같은 근거(R46-CONNCAP, Ruling 690)
+management:
+  server:
+    port: 8081   # prod 섹션과 같은 근거(R47, Ruling 740)
 
 app:
   cors:
@@ -499,6 +516,9 @@ server:
     accept-count: 100
     # 팀원 체험 서버(동시 접속 수십 명)라 1,000 이면 충분하다. 힙은 JVM 기본(호스트 메모리의 1/4)이라 prod 의 4,000 보다 낮게 둔다 — Ruling 690
     max-connections: 1000
+management:
+  server:
+    port: 8081   # prod 섹션과 같은 근거(R47, Ruling 740)
 jwt:
   # local 기본 키는 공개돼 있어 그대로 두면 아무 역할의 토큰이나 위조할 수 있다.
   secret: ${JWT_SECRET}

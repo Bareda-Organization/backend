@@ -39,6 +39,16 @@ class ActuatorHealthTest {
     }
 
     @Test
+    @DisplayName("R47 Ruling 740 — 앱 포트의 /healthz 는 인증 없이 UP 만 돌려준다(외부 가동 감시가 프록시로 치는 주소)")
+    void healthzOnAppPortIsPublicAndHidesDetails() throws Exception {
+        // 관리 포트를 따로 연 뒤에도 외부 감시는 앱 커넥터를 거쳐야 한다 — 연결 상한에 닿아 사용자가 못 붙는 상태를 감시가 본다.
+        mockMvc.perform(get("/healthz"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"))
+                .andExpect(jsonPath("$.components").doesNotExist());
+    }
+
+    @Test
     @DisplayName("health 외 액추에이터 엔드포인트는 외부에서 읽을 수 없다")
     void otherEndpointsAreNotReadable() throws Exception {
         int status = mockMvc.perform(get("/actuator/env"))

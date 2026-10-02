@@ -100,19 +100,20 @@ groups:
           severity: critical
         annotations:
           summary: 백엔드가 1분 넘게 응답하지 않는다 — 이 동안 백엔드 지표에 기대는 다른 경보(미확정 회차·위치 유실·푸시 실패)는 값이 없어 울리지 않는다
-      # actuator 는 뺀다 — 스크레이프(15초)와 컨테이너 헬스체크(15초)가 요청 수에 늘 섞이고, Redis 가 죽으면 헬스가 503 이 된다.
+      # actuator 와 /healthz 는 뺀다 — 스크레이프(15초)와 컨테이너 헬스체크(15초)가 요청 수에 늘 섞이고, Redis 가 죽으면 헬스가 503 이 된다.
+      # 운영 계열은 /actuator 가 관리 포트로 옮겨 가 이 지표에 잡히지 않는다(실측) — 앱 포트에 남는 헬스 주소는 외부 감시가 치는 /healthz 뿐이다(Ruling 740).
       # 분당 6건(0.1/s) 미만이면 판정하지 않는다 — 새벽에 한두 건 실패로 비율이 50% 가 되는 것을 막는다.
       - alert: Http5xxRatioHigh
         expr: |
-          sum(rate(http_server_requests_seconds_count{job="backend",status=~"5..",uri!~"/actuator.*"}[5m]))
-            / sum(rate(http_server_requests_seconds_count{job="backend",uri!~"/actuator.*"}[5m])) > 0.05
+          sum(rate(http_server_requests_seconds_count{job="backend",status=~"5..",uri!~"/actuator.*|/healthz"}[5m]))
+            / sum(rate(http_server_requests_seconds_count{job="backend",uri!~"/actuator.*|/healthz"}[5m])) > 0.05
           and
-          sum(rate(http_server_requests_seconds_count{job="backend",uri!~"/actuator.*"}[5m])) > 0.1
+          sum(rate(http_server_requests_seconds_count{job="backend",uri!~"/actuator.*|/healthz"}[5m])) > 0.1
         for: 2m
         labels:
           severity: critical
         annotations:
-          summary: 최근 5분 요청의 5% 넘게 5xx 로 응답했다(actuator 제외 · 분당 6건 이상일 때만 판정)
+          summary: 최근 5분 요청의 5% 넘게 5xx 로 응답했다(actuator·/healthz 제외 · 분당 6건 이상일 때만 판정)
       # 풀(운영 20개)이 마르면 연결을 얻으려고 3초(connection-timeout) 기다린 뒤 500 이 나간다. 대기가 1분 이어지면 순간 몰림이 아니다.
       - alert: HikariPoolWaiting
         expr: hikaricp_connections_pending{job="backend"} > 0

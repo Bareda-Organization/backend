@@ -163,10 +163,14 @@ services:
       - photo-data:/app/var/photos
     expose:
       - "8080"
+      # 관리 포트(헬스·지표 · application.yml management.server.port) — 앱 포트가 동시 연결 상한에 닿아도 응답한다(Ruling 740).
+      # 호스트에 열지 않고 nginx 도 가지 않는다 — 이 compose 네트워크의 healthcheck·Prometheus 만 닿는다.
+      - "8081"
     healthcheck:
       # ⚠️ spring-boot-starter-actuator 를 build.gradle 에 추가해야 동작한다(설계 문서 B5).
       #    추가 전에는 이 healthcheck 가 계속 실패해 proxy 가 기동하지 않는다.
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health || exit 1"]
+      # 앱 포트(8080)가 아니라 관리 포트를 친다 — 연결 상한에 닿은 backend 를 "응답 없음" 으로 오판해 unhealthy 로 만들지 않는다.
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/actuator/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 10
