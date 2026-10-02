@@ -1,5 +1,5 @@
 -- 로컬·데모 전용 데모 시드 — docs/IMPLEMENTATION_PLAN.md §3.4(정본)를 따라 39개 테이블에 채운다.
--- 이 위치(db/migration-local)는 local·demo 프로파일에서만 스캔되므로 prod 에는 적용되지 않는다.
+-- 이 위치(db/fixture)는 시험 JVM 과 fixture 프로파일(local,fixture · 계약 시험 · 부하 측정)에서만 스캔된다 — prod 에는 적용되지 않는다.
 --
 -- ── 판단 원칙 ──────────────────────────────────────────────────────────────
 -- 1) 성공 판단 기준은 행 개수가 아니라 docs/USER_FLOWS.md 의 흐름을 Swagger 로 끝까지 밟을 수

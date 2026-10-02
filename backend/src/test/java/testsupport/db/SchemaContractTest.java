@@ -35,7 +35,7 @@ import jakarta.persistence.Entity;
  * 엔티티가 매핑한 테이블·컬럼만 훑으므로 잉여 테이블도, partial 조건도, FK 의 지연 검사 여부도,
  * CHECK 조건식도 검사 대상 밖이다. 이 테스트가 유일한 검출 수단이다.
  *
- * <p>시드({@code db/migration-local})는 일부러 적재하지 않는다 — 검증 대상이 스키마 자체이고,
+ * <p>시드({@code db/fixture})는 일부러 적재하지 않는다 — 검증 대상이 스키마 자체이고,
  * 시드는 별도 태스크의 산출물이라 여기서 함께 적재하면 시드의 결함이 스키마의 결함처럼 보인다.
  */
 class SchemaContractTest extends MigratedPostgresTestBase {

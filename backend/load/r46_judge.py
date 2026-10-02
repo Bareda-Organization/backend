@@ -72,7 +72,7 @@ def judge(label):
     n_conf = int(confirmed.group(1)) if confirmed else None
     expected = re.search(r'배치=(\d+)회차', out)
     n_exp = int(expected.group(1)) if expected else None
-    # 확정 건수는 전 학원의 확정 지연 히스토그램 증가분이라 시드(`db/migration-local`)의 다른 회차 확정이 섞일 수 있다 → "도래시킨 건수 이상 · 남은 0 이하"
+    # 확정 건수는 전 학원의 확정 지연 히스토그램 증가분이라 시드(`db/fixture`)의 다른 회차 확정이 섞일 수 있다 → "도래시킨 건수 이상 · 남은 0 이하"
     rows.append((5, '미확정 0', f'확정 {n_conf}/{n_exp}건(시드 회차가 섞이면 초과) · 남은 {remain}건',
                  remain is not None and remain <= 0 and n_conf is not None and n_exp is not None and n_conf >= n_exp))
 

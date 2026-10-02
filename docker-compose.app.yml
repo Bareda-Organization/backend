@@ -48,6 +48,9 @@ services:
       # **기동은 되지만 헬스가 DOWN 으로 남는다**(postgres 는 URL 에 포트가 박혀 있어 이 함정이 없다).
       # 2026-09-18 실제로 이것 때문에 컨테이너가 살아 있는 채로 계속 503 이었다.
       SPRING_DATA_REDIS_PORT: 6379
+      # 시드 고르기 — 기본은 QA Mock(local). 웹·앱 실서버 계약 시험은 BACKEND_PROFILES=local,fixture 로 띄운다
+      # (시험이 붙드는 계정·회차 id 가 시험 전용 시드 db/fixture 에 있다 — 2026-10-03 분리)
+      SPRING_PROFILES_ACTIVE: ${BACKEND_PROFILES:-local}
     # ⚠ Flyway clean() 을 끈다 — 이게 없으면 컨테이너가 기동 즉시 죽는다.
     # `local` 프로파일의 LocalFlywayCleanStrategy 는 "데이터소스가 localhost 를 가리킬 때만
     # clean() 한다"는 안전장치(겹③)를 갖는데, 컨테이너 안의 URL 은 `postgres:5432` 라

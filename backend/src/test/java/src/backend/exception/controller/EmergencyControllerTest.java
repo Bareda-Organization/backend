@@ -150,7 +150,7 @@ class EmergencyControllerTest {
      *
      * <p>{@code notified} 의 메인관리자 몫은 {@link AccountRepository#countByRoleAndStatus} 가
      * 학원으로 좁히지 않고 전 플랫폼을 센다(§1.5, {@code Role#hasPlatformScope}) — 이 저장소는 local
-     * 프로파일로 돌아 {@code db/migration-local/V2__seed_data.sql} 의 시드 메인관리자
+     * 프로파일로 돌아 {@code db/fixture/V2__seed_data.sql} 의 시드 메인관리자
      * ({@code sysadmin}, active)가 테스트 DB에 항상 이미 들어 있다. 그래서 기대값을 2 로 박지 않고
      * 이 시험이 만들기 전의 개수를 먼저 재서 기준으로 삼는다 — 그래야 시드 데이터 유무와 무관하게
      * "내가 만든 만큼 늘었는가" 만 검증한다.

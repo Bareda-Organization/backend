@@ -345,8 +345,9 @@ spring:
     activate:
       on-profile: local
   flyway:
-    # 스키마 + 데모 시드데이터(prod엔 적용 안 됨) + 데모 규모 시드(local 전용 — 테스트 JVM 은 build.gradle 이 뺀다)
-    locations: classpath:db/migration,classpath:db/migration-local,classpath:db/migration-demo
+    # 스키마 + QA Mock 데이터(db/qa-seed — 시나리오 문서 docs/qa/QA_SCENARIOS.md 와 짝). 재기동·POST /dev/reset 마다 새로 깐다.
+    # 자동 시험·계약 시험용 시드는 db/fixture 이고 fixture 프로파일(local,fixture)로만 깔린다 — 두 데이터를 섞지 않는다.
+    locations: classpath:db/migration,classpath:db/qa-seed
     clean-disabled: false   # local 만 되살린다 — 재기동마다 LocalFlywayCleanStrategy 가 clean() 후 migrate() 한다(docs/IMPLEMENTATION_PLAN.md §3.2)
     placeholders:
       # BCryptPasswordEncoder(strength 10)로 사전 생성한 평문 "password" 의 해시.
@@ -464,7 +465,7 @@ spring:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT:6379}
   flyway:
-    locations: classpath:db/migration,classpath:db/migration-local
+    locations: classpath:db/migration,classpath:db/qa-seed
     clean-disabled: true   # demo 는 시드를 적재하되 clean() 은 여전히 금지 — 운영과 같은 볼륨 영속 DB 다
     placeholders:
       # ⚠️ 기본값을 두지 않는다. 기본값을 두면 주입을 깜빡했을 때 조용히 "password" 로 떠서
@@ -532,3 +533,15 @@ app:
     allowed-origins: ${CORS_ALLOWED_ORIGINS}
   ws:
     allowed-origin-patterns: ${WS_ALLOWED_ORIGIN_PATTERNS}
+
+---
+# 자동 시험 · 계약 시험 · 부하 측정용 시드 — `local,fixture` 로 켠다(2026-10-03 시험 데이터와 QA 데이터 분리).
+# 웹 실서버 계약 검사(web/scripts/test-contract.sh)·앱 실서버 시험·부하 측정(load 프로파일과 같은 시드)이 이 데이터의
+# 계정·회차 id 를 값으로 붙든다 — QA Mock(db/qa-seed)으로 띄운 서버에 돌리면 깨진다. 시험 JVM 은 build.gradle 이 같은 목록을 준다.
+spring:
+  config:
+    activate:
+      on-profile: fixture
+  flyway:
+    locations: classpath:db/migration,classpath:db/fixture
+

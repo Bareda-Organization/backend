@@ -21,7 +21,7 @@
 --
 -- 실행:
 --   psql "$DB_URL" -v n=20 -f scenario4_prep.sql -t -A -F',' | grep -v '^$' > scenario4_approvals.csv
--- 출력 — (tag, login_id, approval_id) — login_id 는 항상 staffA(academy 1 소속 관계자, db/migration-local
+-- 출력 — (tag, login_id, approval_id) — login_id 는 항상 staffA(academy 1 소속 관계자, db/fixture
 -- V2 시드) 로 고정한다. §5.5 권한은 "학원 관계자" 라 계정을 새로 만들 필요가 없다.
 --
 -- 필수 변수: n.

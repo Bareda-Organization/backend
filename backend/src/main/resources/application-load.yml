@@ -3,7 +3,7 @@
 # `local` 스프링 프로파일을 함께 켜지 않는다 — LocalFlywayCleanStrategy 가 `@Profile("local")`이라
 # `local` 을 켜면 기동마다 DB 를 clean() 한다. 시나리오 1은 N을 10→50→200으로 올리며 같은 DB에
 # 누적 관측해야 하므로 재기동으로 데이터가 사라지면 시험이 성립하지 않는다. 대신 시드데이터
-# (db/migration-local)만 flyway.locations 로 가져오고, 그 시드가 요구하는 placeholder만 이 프로파일에
+# (db/fixture)만 flyway.locations 로 가져오고, 그 시드가 요구하는 placeholder만 이 프로파일에
 # 직접 복제한다(common 블록의 clean-disabled: true 는 그대로 유지되어 이중 안전장치가 된다).
 spring:
   config:
@@ -18,9 +18,9 @@ spring:
       # connection-timeout 은 일부러 기본 30초로 둔다 — 운영값(3초)으로 줄이면 09-09 측정과 대기 시간을 비교할 수 없다.
       leak-detection-threshold: 5000
   flyway:
-    locations: classpath:db/migration,classpath:db/migration-local
+    locations: classpath:db/migration,classpath:db/fixture
     placeholders:
-      # db/migration-local/V2__seed_data.sql 의 계정 시드가 요구하는 placeholder — local 프로파일과
+      # db/fixture/V2__seed_data.sql 의 계정 시드가 요구하는 placeholder — local 프로파일과
       # 동일한 값(BCryptPasswordEncoder strength 10, 평문 "password")을 그대로 복제한다. k6 스크립트가
       # 이 시드 계정(staffA 등)으로 로그인해 access_token 을 얻는다.
       seedPasswordHash: "$2a$10$Noeszx0nzJUfNo4ubCD03eNfMVfMD9feMo04y/8DHiFLUBF.JZ/Fq"

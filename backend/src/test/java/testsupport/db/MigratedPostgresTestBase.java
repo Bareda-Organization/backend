@@ -42,7 +42,7 @@ public abstract class MigratedPostgresTestBase {
     protected static final String SCHEMA_LOCATION = "classpath:db/migration";
 
     /** 데모 시드 위치 — {@code local}·{@code demo} 프로파일에서만 스키마 위치에 더해진다. */
-    protected static final String SEED_LOCATION = "classpath:db/migration-local";
+    protected static final String SEED_LOCATION = "classpath:db/fixture";
 
     protected static final PostgreSQLContainer POSTGRES =
             TestContainerOwner.named(new PostgreSQLContainer("postgres:18"), "postgres");

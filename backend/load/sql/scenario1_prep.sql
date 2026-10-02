@@ -1,6 +1,6 @@
 -- 시나리오 1 준비 — "동시 도래 폭주" (IMPLEMENTATION_PLAN §5.2 #1).
 --
--- academy_id=1(db/migration-local 시드, 좌표 보유)을 재사용하고, 그 위에 N개의 새 bus+route+
+-- academy_id=1(db/fixture 시드, 좌표 보유)을 재사용하고, 그 위에 N개의 새 bus+route+
 -- route_stop+run 을 심는다. run.confirm_at 을 "방금 지난 시각"으로 박아 두면 RunConfirmationScheduler
 -- 의 다음 틱(최대 30초, app.run.confirmation.poll-interval-ms)이 전부를 idle 도래분으로 집어간다.
 --

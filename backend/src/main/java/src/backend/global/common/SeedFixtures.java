@@ -1,7 +1,7 @@
 package src.backend.global.common;
 
 /**
- * {@code db/migration-local/V2__seed_data.sql} 이 적재하는 식별자·코드·로그인 아이디의 단일 원천이다.
+ * {@code db/fixture/V2__seed_data.sql} 이 적재하는 식별자·코드·로그인 아이디의 단일 원천이다.
  * {@code @Schema(example = SeedFixtures.PARENT_A1_LOGIN_ID)} 처럼 Swagger 예시값이 이 상수를 직접
  * 참조하게 해, 시드가 바뀌어도 사람이 손으로 옮겨 적지 않게 한다({@code IMPLEMENTATION_PLAN.md §3.3}).
  *
