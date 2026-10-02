@@ -15,7 +15,11 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+
 import src.backend.exception.scheduler.NoShowEscalationScheduler;
+import src.backend.observability.metrics.RefreshTokenRowsMetrics;
 import src.backend.observability.metrics.SchedulerHealthMetrics;
 import src.backend.schedule.scheduler.DailyRunGenerator;
 
@@ -171,6 +175,18 @@ class OpsSettingsGuardTest {
         assertThat(rules).as("미승차 에스컬레이션 경보도 계측 이름(%s)을 쓴다", noShow)
                 .contains("schoolbus_scheduler_failures_total{scheduler=\"" + noShow + "\"}")
                 .contains("schoolbus_scheduler_last_success_age_seconds{scheduler=\"" + noShow + "\"}");
+    }
+
+    @Test
+    @DisplayName("refresh_token 남은 행 수 게이지를 읽는 대시보드 패널이 있다 — 하루 1회 갱신이라 사람이 7일 이상 시계열을 열어 볼 자리가 있어야 한다(BR-350)")
+    void refreshTokenRowsGaugeHasADashboardPanel() throws IOException {
+        MeterRegistry registry = new SimpleMeterRegistry();
+        new RefreshTokenRowsMetrics(registry);
+        // Prometheus 이름은 점을 밑줄로 바꾼 것이다(게이지라 접미사 없음) — 코드의 이름이 바뀌면 패널이 "데이터 없음" 으로 조용해지지 않게 코드에서 도출한다.
+        String exported = registry.getMeters().get(0).getId().getName().replace('.', '_');
+
+        assertThat(exported).isEqualTo("schoolbus_refresh_token_rows");
+        assertThat(read("infra/observability/grafana/dashboards/3-data.json")).as("데이터 계층 대시보드에 이 게이지를 그리는 패널").contains("\"expr\": \"" + exported + "\"");
     }
 
     @Test
