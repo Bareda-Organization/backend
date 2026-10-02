@@ -70,6 +70,7 @@ public final class EndpointErrorResponses {
             entry("PATCH /students/{id}/weekly-address", Map.of("403", "FORBIDDEN", "404", "STUDENT_NOT_FOUND", "422", "ADDRESS_VERIFICATION_FAILED")),
             entry("POST /admin/blocked-accounts/{id}/unblock", Map.of("404", "ACCOUNT_NOT_FOUND", "409", "ACCOUNT_NOT_BLOCKED")),
             entry("POST /admin/runs/{runId}/force-confirm", Map.of("404", "RUN_NOT_FOUND", "409", "RUN_NOT_IDLE · RUN_NOT_DUE", "422", "VALIDATION_FAILED")),
+            entry("POST /admin/runs/{runId}/force-finish", Map.of("404", "RUN_NOT_FOUND", "409", "RUN_CANCELED · RUN_NOT_MOVING · RUN_NOT_STALE", "422", "VALIDATION_FAILED")),
             entry("POST /admin/staff-signup-requests/{id}/decide", Map.of("404", "SIGNUP_REQUEST_NOT_FOUND", "409", "STAFF_QUOTA_EXCEEDED · APPROVAL_ALREADY_DECIDED · SIGNUP_TARGET_BLOCKED", "422", "VALIDATION_FAILED")),
             entry("POST /auth/login", Map.of("401", "INVALID_CREDENTIALS", "403", "AUTH_ACCOUNT_BLOCKED · AUTH_STAFF_INACTIVE")),
             entry("POST /auth/logout", Map.of("401", "TOKEN_EXPIRED")),
