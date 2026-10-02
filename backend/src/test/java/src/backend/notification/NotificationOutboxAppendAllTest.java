@@ -11,8 +11,11 @@ import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
@@ -38,6 +41,7 @@ import src.backend.notification.repository.NotificationLogRepository;
  */
 @SpringBootTest
 @RecordApplicationEvents
+@ExtendWith(OutputCaptureExtension.class)
 class NotificationOutboxAppendAllTest {
 
     private static final String KEY_PREFIX = "r46appendall:";
@@ -129,6 +133,27 @@ class NotificationOutboxAppendAllTest {
 
         assertThat(행(existing.dedupKey()).getTitle()).as("같은 트랜잭션의 상태 변경이 유지된다").isEqualTo("변경됨");
         assertThat(행(fresh.dedupKey())).as("섞여 있던 새 행도 적재된다").isNotNull();
+    }
+
+    /**
+     * BR-355 — 키 충돌이 조용한 알림 소실이 된 뒤(Ruling 622) 유일한 진단 단서가 경고 한 줄이다. 그 줄은 묶음의 첫 초안이 아니라
+     * <b>실제로 건너뛴 키</b>를 적어야 한다(묶음 안 같은 키는 둘째 이후가 건너뛴 쪽이다).
+     */
+    @Test
+    @DisplayName("건너뜀 경고는 묶음 첫 초안의 키가 아니라 실제로 건너뛴 키를 적는다")
+    void 건너뜀_경고는_건너뛴_키를_적는다(CapturedOutput output) {
+        NotificationDraft existing = draft("skipped-existing", NotificationType.RUN_STARTED, null, null, null, null);
+        NotificationDraft fresh = draft("fresh-first", NotificationType.RUN_STARTED, null, null, null, null);
+        NotificationDraft twice = draft("skipped-twice", NotificationType.RUN_STARTED, null, null, null, null);
+        커밋한다(() -> notificationOutbox.appendAll(List.of(existing)));
+
+        커밋한다(() -> notificationOutbox.appendAll(List.of(fresh, existing, twice, twice)));
+
+        List<String> warnings = output.getAll().lines().filter(line -> line.contains("[outbox] 같은 dedup_key")).toList();
+        assertThat(warnings).as("건너뜀 경고는 한 줄").hasSize(1);
+        assertThat(warnings.get(0)).as("이미 있던 키와 묶음 안 중복 키 둘 다 건너뛴 쪽으로 적힌다")
+                .contains("2건").contains(existing.dedupKey()).contains(twice.dedupKey())
+                .as("새로 적재된 첫 초안의 키는 건너뛴 키가 아니다").doesNotContain(fresh.dedupKey());
     }
 
     @Test

@@ -3,8 +3,10 @@ package src.backend.notification.command;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +43,9 @@ public class NotificationOutbox {
 
     private static final Logger log = LoggerFactory.getLogger(NotificationOutbox.class);
 
+    /** 경고 로그에 싣는 건너뛴 키의 최대 수 — 한 묶음이 수십~수백 건이라 전부 싣지 않는다. */
+    private static final int LOGGED_SKIPPED_KEYS = 5;
+
     /** 한 문장에 묶는 행 수 — 행당 바인드 값이 최대 14개라 PostgreSQL 의 문장당 65,535개 상한에서 한참 아래다. */
     private static final int CHUNK_SIZE = 500;
 
@@ -48,8 +53,8 @@ public class NotificationOutbox {
             + "recipient_name, recipient_role, student_id, student_name, bus_no, run_id, type, title, body, popup, "
             + "dedup_key, created_at) VALUES ";
 
-    /** 멱등은 DB 제약이 보장한다 — 같은 키는 새 행 없이 건너뛰고, 적재된 행의 id 만 돌려받는다. */
-    private static final String INSERT_TAIL = " ON CONFLICT (dedup_key) DO NOTHING RETURNING id, popup";
+    /** 멱등은 DB 제약이 보장한다 — 같은 키는 새 행 없이 건너뛰고, 적재된 행의 id · popup · 키를 돌려받는다. */
+    private static final String INSERT_TAIL = " ON CONFLICT (dedup_key) DO NOTHING RETURNING id, popup, dedup_key";
 
     private final EntityManager entityManager;
 
@@ -89,18 +94,26 @@ public class NotificationOutbox {
         }
         int skipped = drafts.size() - appended.size();
         if (skipped > 0) {
-            log.warn("[outbox] 같은 dedup_key 가 이미 있어 {}건의 적재를 건너뛴다(멱등). 첫 키={}", skipped,
-                    drafts.get(0).dedupKey());
+            log.warn("[outbox] 같은 dedup_key 가 이미 있어 {}건의 적재를 건너뛴다(멱등). 건너뛴 키(앞 {}개)={}", skipped,
+                    LOGGED_SKIPPED_KEYS, skippedKeys(drafts, appended));
         }
         appended.forEach(row -> eventPublisher.publishEvent(new NotificationAppendedEvent(row.id(), row.popup())));
         return appended.stream().map(Appended::id).toList();
     }
 
-    /** 새로 생긴 행의 식별자와 팝업(비상) 여부 — 즉시 발송을 어느 실행기에 보낼지 가르는 기준이다. */
-    private record Appended(Long id, boolean popup) {
+    /** 건너뛴 초안의 키 앞부분 — 적재된 키를 하나씩 소진하고 남는 초안이 건너뛴 쪽이라 묶음 안 같은 키는 둘째 이후가 걸린다. */
+    private static List<String> skippedKeys(List<NotificationDraft> drafts, List<Appended> appended) {
+        Set<String> unmatched = new HashSet<>();
+        appended.forEach(row -> unmatched.add(row.dedupKey()));
+        return drafts.stream().map(NotificationDraft::dedupKey).filter(key -> !unmatched.remove(key))
+                .limit(LOGGED_SKIPPED_KEYS).toList();
     }
 
-    /** 한 묶음을 한 문장으로 넣고 새로 생긴 행(id · popup)을 돌려받는다 — 비어 있는 값은 문장에 {@code NULL} 로 적는다. */
+    /** 새로 생긴 행의 식별자 · 팝업(비상) 여부(즉시 발송을 어느 실행기에 보낼지 가르는 기준) · 키(건너뛴 키를 가려내는 데 쓴다). */
+    private record Appended(Long id, boolean popup, String dedupKey) {
+    }
+
+    /** 한 묶음을 한 문장으로 넣고 새로 생긴 행(id · popup · dedup_key)을 돌려받는다 — 비어 있는 값은 문장에 {@code NULL} 로 적는다. */
     private List<Appended> insert(List<NotificationDraft> chunk, OffsetDateTime now) {
         List<Object> values = new ArrayList<>();
         StringBuilder sql = new StringBuilder(INSERT_HEAD);
@@ -116,7 +129,7 @@ public class NotificationOutbox {
         List<?> rows = query.getResultList();
         return rows.stream()
                 .map(row -> (Object[]) row)
-                .map(row -> new Appended(((Number) row[0]).longValue(), (Boolean) row[1]))
+                .map(row -> new Appended(((Number) row[0]).longValue(), (Boolean) row[1], (String) row[2]))
                 .toList();
     }
 
