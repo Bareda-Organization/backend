@@ -67,7 +67,7 @@ class BaseTimeEntityAuditingTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = TestContainerOwner.named(new PostgreSQLContainer("postgres:16"), "postgres");
+    static PostgreSQLContainer postgres = TestContainerOwner.named(new PostgreSQLContainer("postgres:18"), "postgres");
 
     @Autowired
     private AuditingProbeEntityRepository repository;

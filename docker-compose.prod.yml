@@ -34,7 +34,7 @@ x-logging: &cloudwatch
 
 services:
   postgres:
-    image: postgres:16.15
+    image: postgres:18.6
     restart: unless-stopped
     environment:
       POSTGRES_DB: schoolbus
@@ -46,7 +46,9 @@ services:
     # 확장 생성은 초기화 스크립트가 한다(아래 마운트) — 이 옵션과 짝이다. 이미 초기화된 볼륨에는 스크립트가 돌지 않으니 절차서 §11.5 의 한 줄을 손으로 친다.
     command: ["postgres", "-c", "shared_preload_libraries=pg_stat_statements", "-c", "random_page_cost=1.1"]
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      # postgres 18 부터 공식 이미지가 데이터를 /var/lib/postgresql/18/docker 에 둔다(VOLUME 도 /var/lib/postgresql). 옛 위치
+      # /var/lib/postgresql/data 에 마운트하면 컨테이너가 시작하지 않는다(Ruling 729). 주 버전을 올릴 때는 pg_upgrade 가 필요하다.
+      - postgres-data:/var/lib/postgresql
       # 빈 데이터 디렉터리로 처음 뜰 때 한 번만 실행된다(공식 이미지 규칙).
       - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
     # 호스트에 포트를 열지 않는다. DB 접속이 필요하면 SSM Session Manager 로 EC2 에 들어가
@@ -61,7 +63,7 @@ services:
     logging: *cloudwatch
 
   redis:
-    image: redis:7.4.11
+    image: redis:8.10.1
     restart: unless-stopped
     # 위치 캐시(TTL 9초) 전용이라 영속화가 불필요하다 — 유실돼도 다음 tick 에 복구된다.
     # 대신 메모리 상한을 걸어 Spring 의 몫을 침범하지 않게 한다.
@@ -220,7 +222,7 @@ services:
   # 운영에서 다른 점: 보존 15일 · 메모리 한도 · 컨테이너 로그도 CloudWatch · 호스트 포트는 loopback 만.
   # Prometheus 는 backend 가 healthy 가 아니어도 떠야 한다 — 그때가 관측이 가장 필요한 때라 depends_on 을 걸지 않는다.
   prometheus:
-    image: prom/prometheus:v3.1.0
+    image: prom/prometheus:v3.15.0
     restart: unless-stopped
     mem_limit: 512m
     command:
@@ -241,7 +243,7 @@ services:
   # 값이 없으면 수신자 없이 뜬다(알림이 어디로도 가지 않는다). 파일 하나가 아니라 폴더를 마운트한다 — 파일 마운트는 파일이
   # 새로 만들어질 때 컨테이너가 옛 파일을 계속 본다. 절차: docs/infra/DEPLOYMENT.md §11.3
   alertmanager:
-    image: prom/alertmanager:v0.28.1
+    image: prom/alertmanager:v0.34.1
     restart: unless-stopped
     mem_limit: 96m
     command:
@@ -256,7 +258,7 @@ services:
   # 호스트의 CPU·메모리·디스크 — 디스크 80% 경보(alerts.yml)와 백업 성공 시각(textfile)의 출처다.
   # ⚠ rslave 전파는 리눅스 호스트(EC2)에서만 된다. macOS Docker Desktop 에서는 기동이 실패한다.
   node-exporter:
-    image: prom/node-exporter:v1.8.2
+    image: prom/node-exporter:v1.12.1
     restart: unless-stopped
     mem_limit: 64m
     command:
@@ -275,7 +277,7 @@ services:
   # SSM 포트 포워딩으로 접근한다(DEPLOYMENT.md §11). 초기 관리자 비밀번호는 SSM(GRAFANA_ADMIN_PASSWORD).
   # 볼륨이 없어 컨테이너를 다시 만들 때마다 SSM 값으로 초기화된다 — 저장할 사용자·설정이 없다.
   grafana:
-    image: grafana/grafana:11.5.0
+    image: grafana/grafana:13.2.2
     restart: unless-stopped
     mem_limit: 256m
     environment:

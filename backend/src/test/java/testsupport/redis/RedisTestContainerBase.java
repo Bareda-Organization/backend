@@ -30,7 +30,7 @@ import testsupport.TestContainerOwner;
  * 아니라 "키 이름" 이다. 각 시험이 쓰는 키는 {@code runId} 등 단조 증가 식별자를 접두사로 붙여
  * 만들어지므로(예: {@code RunPositionRedisValue} 사용부) 하위 클래스끼리 같은 키를 밟지 않는다.
  *
- * <p>이미지 태그는 {@code redis:7}(alpine 아님) — {@code docker-compose.yml} 의 운영 컨테이너와
+ * <p>이미지 태그는 {@code redis:8}(alpine 아님) — {@code docker-compose.yml} 의 운영 컨테이너와
  * 같은 태그다. 시험과 운영이 다른 이미지를 쓰면 버전 차이로 나는 결함을 시험이 못 본다.
  *
  * <p>쓰는 법 — 이 클래스를 상속하면 {@code @DynamicPropertySource} 가 함께 상속돼, 그 테스트의
@@ -68,7 +68,7 @@ public abstract class RedisTestContainerBase {
      * singleton container 방식). 회수는 Ryuk 사이드카가 JVM 종료 시점에 한다.
      */
     protected static final GenericContainer<?> REDIS = TestContainerOwner.named(new GenericContainer<>(
-            DockerImageName.parse("redis:7"))
+            DockerImageName.parse("redis:8"))
             .withExposedPorts(6379), "redis");
 
     static {

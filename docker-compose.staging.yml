@@ -19,7 +19,7 @@ name: school-bus-staging
 
 services:
   postgres:
-    image: postgres:16.15
+    image: postgres:18.6
     # 운영 compose 와 같은 두 옵션(쿼리별 통계 · 임의 읽기 비용 1.1 — 메모리 DB 라 더더욱 맞다). 확장은 아래 초기화 스크립트가 `ops_stats` 스키마에 만든다 —
     # 이 서버는 백엔드가 기동·초기화마다 Flyway clean() 으로 public 을 비우는데, public 에 만든 확장은 그때 같이 지워진다(2026-10-01 실측).
     command: ["postgres", "-c", "shared_preload_libraries=pg_stat_statements", "-c", "random_page_cost=1.1"]
@@ -32,7 +32,7 @@ services:
     # 데이터는 메모리에만 — 디스크에 쌓이지 않는다. 초기화 자체는 백엔드가 기동·/dev/reset 때 DB 를 비우고
     # 스키마+시드를 새로 깐다(staging 섹션이 이 컨테이너 이름 `postgres` 를 비워도 되는 호스트로 연다).
     tmpfs:
-      - /var/lib/postgresql/data
+      - /var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U schoolbus"]
       interval: 5s
@@ -41,7 +41,7 @@ services:
     restart: unless-stopped
 
   redis:
-    image: redis:7.4.11
+    image: redis:8.10.1
     # 저장하지 않는다 — DB 와 함께 재시작마다 비워진다(버스 위치는 어차피 2분짜리 값이다).
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     restart: unless-stopped

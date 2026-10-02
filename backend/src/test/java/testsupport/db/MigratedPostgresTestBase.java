@@ -45,7 +45,7 @@ public abstract class MigratedPostgresTestBase {
     protected static final String SEED_LOCATION = "classpath:db/migration-local";
 
     protected static final PostgreSQLContainer POSTGRES =
-            TestContainerOwner.named(new PostgreSQLContainer("postgres:16"), "postgres");
+            TestContainerOwner.named(new PostgreSQLContainer("postgres:18"), "postgres");
 
     static {
         POSTGRES.start();

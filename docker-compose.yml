@@ -13,7 +13,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 services:
   postgres:
-    image: postgres:16.15
+    image: postgres:18.6
     # 접속 상한을 기본 100 에서 300 으로 올린다 (2026-09-17, R7).
     # @SpringBootTest 컨텍스트는 한 번 뜨면 JVM 이 끝날 때까지 캐시에 남고 각자 Hikari 풀을
     # 붙든 채로 있다 — 한 JVM 이 수십 개를 쥔다. 병렬 작업으로 테스트 JVM 이 둘셋 + bootRun
@@ -43,7 +43,7 @@ services:
       retries: 5
 
   redis:
-    image: redis:7.4.11
+    image: redis:8.10.1
     ports:
       # postgres 와 같은 이유로 16379 (다른 프로젝트가 6379 점유).
       # ⚠ 이 16379 는 **호스트에 내는 포트**다. 컨테이너 안에서 redis 는 6379 로 듣는다 —
