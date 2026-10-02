@@ -100,7 +100,7 @@ echo "crond 활성 확인 — DB 백업이 매시, 사진 백업이 매일 03:10
 
 echo
 echo "부트스트랩 완료. 다음 단계:"
-echo "  1) SSM Parameter Store 에 시크릿을 넣는다 (docs/infra/DEPLOYMENT.md §2)"
+echo "  1) SSM Parameter Store 에 시크릿을 넣는다 (docs/backend/infra/DEPLOYMENT.md §2)"
 echo "  2) api.<도메인> A 레코드를 이 EC2 의 EIP 로 연결한다 (§2.9)"
 echo "     — 인증서 HTTP-01 챌린지가 도메인을 조회하므로 발급보다 먼저 끝내야 한다"
 echo "  3) infra/certbot/init-cert.sh 로 인증서를 발급한다 (§2.10)"

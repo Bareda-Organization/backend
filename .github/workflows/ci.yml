@@ -52,6 +52,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # 에러 코드 대조 시험(ErrorCodeSpecParityTest)이 읽는 사양 — 문서는 작업 공간 저장소(같은 조직, 공개)에 있다. 한 파일만 받는다.
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository_owner }}/workspace
+          path: .workspace-docs
+          sparse-checkout: docs/planning/API_SPEC.md
+          sparse-checkout-cone-mode: false
+
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -68,6 +76,8 @@ jobs:
 
       - name: 백엔드 시험(실 API 시험 제외)
         working-directory: backend
+        env:
+          API_SPEC_PATH: ${{ github.workspace }}/.workspace-docs/docs/planning/API_SPEC.md
         run: ./gradlew test -PtestDbUrl=jdbc:postgresql://localhost:15432/schoolbus_ci -PciQuiet --console=plain
 
       - name: 결과 XML 보관

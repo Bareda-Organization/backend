@@ -23,7 +23,7 @@ import src.backend.global.common.SeedFixtures;
  * JWT Bearer 인증 스킴을 등록해 Swagger UI의 "Authorize" 버튼으로 액세스 토큰을 넣으면
  * 이후 모든 요청에 {@code Authorization: Bearer <token>} 헤더가 자동으로 붙는다.
  *
- * <p>{@link #openApi()} 가 등록하는 태그 5개는 `docs/API_SPEC.md` §2~§6 도메인 절과 1:1 대응한다.
+ * <p>{@link #openApi()} 가 등록하는 태그 5개는 `docs/planning/API_SPEC.md` §2~§6 도메인 절과 1:1 대응한다.
  * 태그 목록·순서·설명을 이 클래스 한 곳에서만 관리하고, 컨트롤러는 {@code @Tag(name = "...")} 로
  * 소속만 선언한다(조율자 확정 Ruling 36). {@code X-Client-Type} 헤더 자동 부착
  * ({@code OperationCustomizer})은 이 클래스의 책임이 아니다 — 로그인 컨트롤러 메서드가
@@ -53,7 +53,7 @@ public class OpenApiConfig {
         return new ModelResolver(mapper);
     }
 
-    // ── 태그 — docs/API_SPEC.md §2~§6 도메인 절과 1:1 대응. 숫자 접두사는 정렬 고정용
+    // ── 태그 — docs/planning/API_SPEC.md §2~§6 도메인 절과 1:1 대응. 숫자 접두사는 정렬 고정용
     //    (application.yml 공통 섹션의 springdoc.swagger-ui.tags-sorter: alpha 때문에 필요) ──
 
     private static final String TAG_AUTH = ApiTags.AUTH;
@@ -103,7 +103,7 @@ public class OpenApiConfig {
 
             ### 태그 구성
 
-            API 는 `docs/API_SPEC.md` §2~§6 도메인 절에 대응해 `%s` · `%s` · `%s` · `%s` · `%s`
+            API 는 `docs/planning/API_SPEC.md` §2~§6 도메인 절에 대응해 `%s` · `%s` · `%s` · `%s` · `%s`
             5개 태그로 묶인다.
             """;
 
@@ -159,7 +159,7 @@ public class OpenApiConfig {
     private List<Tag> apiTags() {
         return List.of(
                 new Tag().name(TAG_AUTH)
-                        .description("로그인·가입 신청·학원 검색 (docs/API_SPEC.md §2). 일부는 비인증 허용."),
+                        .description("로그인·가입 신청·학원 검색 (docs/planning/API_SPEC.md §2). 일부는 비인증 허용."),
                 new Tag().name(TAG_PARENT_STUDENT)
                         .description("학부모·학생 앱 — 자녀 조회, 실시간 위치, 승하차지 변경 요청 (§3)."),
                 new Tag().name(TAG_MANAGER)

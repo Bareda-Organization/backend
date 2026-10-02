@@ -41,7 +41,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 class OpenApiCoverageTest {
 
     /**
-     * 사양이 정한 태그 5종({@code docs/API_SPEC.md} §2~§6). 이 밖의 태그는 springdoc 이 클래스명으로 만든 것이다.
+     * 사양이 정한 태그 5종({@code docs/planning/API_SPEC.md} §2~§6). 이 밖의 태그는 springdoc 이 클래스명으로 만든 것이다.
      * 문자열을 여기 다시 적지 않고 {@link ApiTags} 를 가리킨다 — 두 벌로 두면 상수를 고쳤을 때
      * 이 시험만 옛 이름을 검사해 통과하고, 정작 화면에서 그룹이 갈라진 것은 잡히지 않는다.
      */

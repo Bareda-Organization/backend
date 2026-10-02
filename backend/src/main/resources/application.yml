@@ -404,7 +404,7 @@ server:
     # 동시 연결 상한(R46-CONNCAP, Ruling 690) — HTTP 와 WebSocket 연결을 합친 수다(WebSocket 은 업그레이드된 같은 소켓이라 끊길 때까지 센다).
     # 기본 8,192 의 최악 힙 ≈ 기준 274MB + 세션당 0.13MB(09-09 실측: 500세션 339MB · 6,000세션 1,063MB) × 8,192 + 송신 버퍼 상한
     # 64KB(WebSocketConfig) × 8,192 ≈ 1.85GB 라 운영 힙(컨테이너 3,072MB × 70% ≈ 2.15GB)에 너무 가깝다. 4,000(목표 동시 세션 2,000 의
-    # 2배)이면 ≈ 1.05GB. 닿으면 OOM 대신 새 연결이 accept-count 대기열에서 기다리다 거절된다(docs/infra/DEPLOYMENT.md §11.7).
+    # 2배)이면 ≈ 1.05GB. 닿으면 OOM 대신 새 연결이 accept-count 대기열에서 기다리다 거절된다(docs/backend/infra/DEPLOYMENT.md §11.7).
     max-connections: 4000
 management:
   server:

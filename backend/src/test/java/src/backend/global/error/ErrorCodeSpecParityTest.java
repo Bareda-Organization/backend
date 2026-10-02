@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@link ErrorCode} 열거 값 전부가 {@code docs/API_SPEC.md} §8(에러 코드 사전) 표에 있고, 그 반대도 같다(R46-LATERBE, Ruling 677).
+ * {@link ErrorCode} 열거 값 전부가 {@code docs/planning/API_SPEC.md} §8(에러 코드 사전) 표에 있고, 그 반대도 같다(R46-LATERBE, Ruling 677).
  * R46-FIXTX 가 {@code SERVER_BUSY} 를 만들고 §1.11 에만 적어 §8 에는 행이 없었다 — 웹 쪽 시험은 "§8 ⊆ 웹 목록" 한 방향만 봐서 못 잡았다.
  * 사양이 에러 코드의 단일 소스이므로 열거 쪽이 사전보다 앞서가면(사전에 없는 코드를 클라이언트가 처리할 방법이 없다) 이 시험이 실패한다.
  *
@@ -23,7 +23,10 @@ import org.junit.jupiter.api.Test;
  */
 class ErrorCodeSpecParityTest {
 
-    private static final Path API_SPEC = Path.of("..", "docs", "API_SPEC.md");
+    /** 사양은 작업 공간 저장소(이 Gradle 모듈 기준 {@code ../../docs})에 있다 — 2026-10-02 문서 이관. CI 는 {@code API_SPEC_PATH} 로 받는다. */
+    private static final Path API_SPEC = System.getenv("API_SPEC_PATH") != null
+            ? Path.of(System.getenv("API_SPEC_PATH"))
+            : Path.of("..", "..", "docs", "planning", "API_SPEC.md");
 
     private static final String SECTION_START = "## 8. 에러 코드 사전";
 

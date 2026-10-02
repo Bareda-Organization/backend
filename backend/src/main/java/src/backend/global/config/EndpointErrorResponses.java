@@ -5,7 +5,7 @@ import static java.util.Map.entry;
 import java.util.Map;
 
 /**
- * 엔드포인트 고유 실패 응답 표({@code docs/API_SPEC.md} 각 절의 <b>에러</b> 줄).
+ * 엔드포인트 고유 실패 응답 표({@code docs/planning/API_SPEC.md} 각 절의 <b>에러</b> 줄).
  *
  * <p>애너테이션이 아니라 표로 두는 이유는 이름 충돌이다 — 이 저장소의 성공 응답 봉투가
  * {@code src.backend.global.response.ApiResponse} 이고, Swagger 의 애너테이션도 같은 이름이라

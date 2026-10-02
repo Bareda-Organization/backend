@@ -4,7 +4,7 @@ package src.backend.global.config;
  * Swagger 태그 이름 상수. 컨트롤러의 {@code @Tag} 와 {@link OpenApiConfig} 의 태그 설명이
  * 같은 문자열을 가리켜야 Swagger UI 에서 한 그룹으로 묶인다 — 한 글자만 달라도 같은 이름의 그룹이
  * 둘로 갈라지고, 그것이 화면에서만 드러나 컴파일·시험 어디에도 걸리지 않으므로 상수로 고정한다.
- * 구분은 {@code docs/API_SPEC.md} §2~§6 의 도메인 절과 1:1 이다.
+ * 구분은 {@code docs/planning/API_SPEC.md} §2~§6 의 도메인 절과 1:1 이다.
  */
 public final class ApiTags {
 

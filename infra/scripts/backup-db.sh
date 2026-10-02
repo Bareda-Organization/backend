@@ -61,7 +61,7 @@ backup_db() {
 # ⚠ `run` 이 아니라 `exec` 다: run 으로 띄운 컨테이너는 stdout 이 로깅 드라이버(CloudWatch)로도 가서 사진 바이너리가
 #   로그로 올라간다. exec 의 출력은 클라이언트로만 온다. 그래서 backend 가 떠 있어야 하고, 꺼져 있으면 이 단계가 실패한다.
 # 매번 전체를 묶는다(증분 아님) — 사진이 수 GB 를 넘으면 `aws s3 sync` 방식으로 바꾼다.
-# 복원: docs/infra/DEPLOYMENT.md §7.2
+# 복원: docs/backend/infra/DEPLOYMENT.md §7.2
 backup_photos() {
     local key="photos/$STAMP.tar.gz"
     "${COMPOSE[@]}" exec -T backend tar czf - -C /app/var photos | aws s3 cp --region "$AWS_REGION" - "s3://$BUCKET/$key"

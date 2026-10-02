@@ -2,7 +2,7 @@
 
 학원 통학버스의 **노선 편성 · 운행 · 승하차 · 알림**을 다루는 멀티 테넌트 백엔드입니다.
 Spring Boot 4 · Java 25 · PostgreSQL · Redis 로 만들었고, 이 저장소는 **백엔드 전용**입니다.
-관계자 웹(Next.js · Vercel)은 **web** 저장소, 매니저·학부모 앱(Flutter)은 **mobile** 저장소에 있습니다. 세 저장소가 함께 보는 사양 문서는 이 저장소의 `docs/` 입니다.
+관계자 웹(Next.js · Vercel)은 **web** 저장소, 매니저·학부모 앱(Flutter)은 **mobile** 저장소에 있습니다. 사양·설계 문서는 **workspace** 저장소의 `docs/` 에 모여 있습니다 — 네 저장소를 한 폴더(`baraeda/`) 아래 받아 씁니다(workspace 가 그 폴더 자체).
 
 - 엔드포인트 **113개**(+ local 전용 개발 도구 1개) · 테스트 **334클래스 1,895개**
 - API 문서는 실행 후 Swagger UI 에서 봅니다 (아래 §3)

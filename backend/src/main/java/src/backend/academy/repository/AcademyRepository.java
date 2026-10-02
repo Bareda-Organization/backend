@@ -80,7 +80,7 @@ public interface AcademyRepository extends JpaRepository<Academy, Long> {
      * 순서를 고정한다 — 이름이 같은 학원이 있을 수 있어 {@code id} 를 2차 키로 더한다. API_SPEC §1.8
      * 의 페이징 봉투(page/size/total_count)는 채택하지 않는다 — 이 화면은 가입 시 학원 1곳을 고르는
      * 용도라 전체 목록 열람을 허용할 이유가 없고, 봉투를 붙이면 비인증 호출자가 페이지를 넘겨가며
-     * 전체 학원 목록을 훑어볼 수 있게 된다(조율자 판정, docs/API_SPEC.md §2.1 갱신됨).
+     * 전체 학원 목록을 훑어볼 수 있게 된다(조율자 판정, docs/planning/API_SPEC.md §2.1 갱신됨).
      *
      * <p>코드는 대소문자를 가리지 않는다(BR-053) — 대문자로만 발급되지만 사람이 휴대폰 자판으로 옮겨 적는다.
      */

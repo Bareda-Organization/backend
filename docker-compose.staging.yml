@@ -1,7 +1,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # 스테이징 — 팀원 체험용 서버. **이 파일 하나로 혼자 돈다**(개발용 두 파일과 겹쳐 쓰지 않는다).
 # 집 PC 1대에서 전부 돌고, 바깥 공개는 Cloudflare Tunnel 이 맡는다(공유기 포트 개방 불필요).
-# 절차: docs/infra/STAGING.md
+# 절차: docs/backend/infra/STAGING.md
 #
 #   docker compose -f docker-compose.staging.yml up -d --build
 #
