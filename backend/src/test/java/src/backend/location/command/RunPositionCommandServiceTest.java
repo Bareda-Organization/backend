@@ -307,15 +307,20 @@ class RunPositionCommandServiceTest {
         long versionId = fixtures.confirmedRouteWithVersion(runId, now());
         long firstStopId = fixtures.stop(academyId, "37.500000", "127.000000");
         long firstRunStopId = fixtures.runStopForStop(versionId, firstStopId, 1, now().minusMinutes(5));
+        long secondStopId = fixtures.stop(academyId, "37.510000", "127.010000");
+        long secondRunStopId = fixtures.runStopForStop(versionId, secondStopId, 2, now().minusMinutes(2));
         OffsetDateTime nextEta = now().plusMinutes(7);
-        fixtures.runStopForStop(versionId, fixtures.stop(academyId, "37.510000", "127.010000"), 2, nextEta);
-        fixtures.runStopForDestination(versionId, 3);
+        fixtures.runStopForStop(versionId, fixtures.stop(academyId, "37.520000", "127.020000"), 3, nextEta);
+        fixtures.runStopForDestination(versionId, 4);
         // 엔티티로 도착 처리한다 — JDBC 로 바꾸면 같은 트랜잭션의 영속성 컨텍스트가 들고 있는 옛 엔티티가 그대로 읽힌다.
-        RunStop firstRunStop = runStopRepository.findById(firstRunStopId).orElseThrow();
-        firstRunStop.markArrived(now());
-        runStopRepository.saveAndFlush(firstRunStop);
-        String firstStopName = jdbcTemplate.queryForObject("SELECT name FROM stop WHERE id = ?", String.class,
-                firstStopId);
+        // 도착한 정차를 둘로 둔다 — "도착 정차 중 seq 최댓값" 이 현재 정차지이고 다음 ETA 는 그 뒤 첫 정차의 것이다(BR-341)
+        for (long runStopId : new long[] { firstRunStopId, secondRunStopId }) {
+            RunStop arrived = runStopRepository.findById(runStopId).orElseThrow();
+            arrived.markArrived(now());
+            runStopRepository.saveAndFlush(arrived);
+        }
+        String secondStopName = jdbcTemplate.queryForObject("SELECT name FROM stop WHERE id = ?", String.class,
+                secondStopId);
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/position")
                 .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
@@ -327,7 +332,7 @@ class RunPositionCommandServiceTest {
 
         RunPositionReceivedEvent event = capturedEvents.events().get(0);
         assertThat(event.academyId()).isEqualTo(academyId);
-        assertThat(event.currentStopName()).isEqualTo(firstStopName);
+        assertThat(event.currentStopName()).isEqualTo(secondStopName);
         assertThat(event.nextEta()).isEqualTo(nextEta);
     }
 
