@@ -117,7 +117,7 @@ public class AuditRecorder {
      * 이다(BR-213). 자원마다 {@link #recordDataAccessRead} 를 부르면 페이지 100건이 트랜잭션 100개·계정 SELECT 100회가
      * 되고, 그동안 바깥 읽기 트랜잭션이 커넥션을 쥔 채 두 번째 커넥션을 기다린다.
      *
-     * <p>본문이 20줄을 넘는다(§20.2) — 묶기 판정 → 한 트랜잭션 적재 → 실패 때 묶기 기록 반환이 한 호출 안에서 같은 {@code claimed} 목록을
+     * <p>본문이 20줄을 넘는다(CODE_CONVENTIONS §20.2) — 묶기 판정 → 한 트랜잭션 적재 → 실패 때 묶기 기록 반환이 한 호출 안에서 같은 {@code claimed} 목록을
      * 공유해, 나누면 그 목록을 세 곳이 넘겨받는다. 판정(claimNewStudents)과 만료 정리(pruneExpired)는 이미 따로 뺐다.
      *
      * @param detailByTargetId 자원 id → 그 행의 {@code detail}. 삽입 순서대로 적재한다. 비어 있으면 아무것도 하지 않는다
