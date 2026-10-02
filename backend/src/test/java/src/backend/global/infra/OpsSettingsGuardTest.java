@@ -175,6 +175,30 @@ class OpsSettingsGuardTest {
         assertThat(excluded.matcher("/var/lib/docker/containers/abc/mounts/shm").find()).as("컨테이너별 마운트는 계속 버린다").isTrue();
     }
 
+    @Test
+    @DisplayName("프록시(nginx)의 워커당 연결 한도는 Tomcat 동시 연결 상한의 2배 이상이다 — 프록시한 WebSocket 1개가 클라이언트·backend 연결 2개를 쓴다 — BR-328")
+    void proxyConnectionLimitCoversTheTomcatCap() throws IOException {
+        String main = stripComments(read("infra/proxy/nginx.main.prod.conf"));
+        int workerConnections = directive(main, "worker_connections");
+        int openFiles = directive(main, "worker_rlimit_nofile");
+
+        // 기본값(worker_connections 1024)이면 2 vCPU 에서 동시 세션 약 1,000개에서 새 연결(REST 포함)을 버린다 — backend 는 그 연결을 본 적이 없어 STOMP 경보도 안 울린다.
+        // 워커마다 따로 세므로(연결이 한 워커에 몰릴 수 있다) 코어 수와 무관하게 워커 하나가 상한을 담아야 한다.
+        assertThat(workerConnections).as("worker_connections — Tomcat max-connections(%d)의 2배(클라이언트 쪽 + backend 쪽) 이상", prodMaxConnections())
+                .isGreaterThanOrEqualTo(2 * prodMaxConnections());
+        assertThat(openFiles).as("worker_rlimit_nofile — 연결마다 파일 기술자 1개이므로 워커 연결 한도의 2배 이상(로그·소켓 여유)")
+                .isGreaterThanOrEqualTo(2 * workerConnections);
+        assertThat(main).as("server 블록이 든 default.conf 를 이 전역 파일이 읽어야 한다").contains("include /etc/nginx/conf.d/*.conf;");
+
+        String proxy = serviceBlock("docker-compose.prod.yml", "proxy");
+        assertThat(proxy).as("전역 설정 파일을 /etc/nginx/nginx.conf 로 마운트해야 이미지 기본값(1024)이 바뀐다")
+                .contains("./infra/proxy/nginx.main.prod.conf:/etc/nginx/nginx.conf:ro");
+        Matcher hardLimit = Pattern.compile("(?s)nofile:.*?hard:\\s*(\\d+)").matcher(proxy);
+        assertThat(hardLimit.find()).as("컨테이너 파일 기술자 상한(ulimits.nofile.hard)을 명시한다 — 호스트 기본값에 기대지 않는다").isTrue();
+        assertThat(Integer.parseInt(hardLimit.group(1))).as("ulimits.nofile.hard 는 worker_rlimit_nofile 이상이어야 nginx 가 그 값까지 올릴 수 있다")
+                .isGreaterThanOrEqualTo(openFiles);
+    }
+
     /** {@code application.yml} 의 {@code on-profile: prod} 문서에 명시된 {@code server.tomcat.max-connections}. */
     private static int prodMaxConnections() throws IOException {
         for (String document : read("backend/src/main/resources/application.yml").split("(?m)^---\\s*$")) {
@@ -195,6 +219,13 @@ class OpsSettingsGuardTest {
             throw new AssertionError(compose + " 에서 서비스를 찾지 못했다: " + service);
         }
         return block.group(1);
+    }
+
+    /** nginx 전역 지시자 {@code <이름> <숫자>;} 의 숫자. */
+    private static int directive(String nginx, String name) {
+        Matcher value = Pattern.compile("(?m)^\\s*" + name + "\\s+(\\d+)\\s*;").matcher(nginx);
+        assertThat(value.find()).as("nginx 전역 설정에 %s 가 있어야 한다", name).isTrue();
+        return Integer.parseInt(value.group(1));
     }
 
     /** nginx location 하나 — 시작 줄부터 첫 닫는 중괄호까지(이 파일의 location 은 중첩 블록이 없다). */
