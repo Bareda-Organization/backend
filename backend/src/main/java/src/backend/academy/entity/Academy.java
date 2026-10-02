@@ -66,7 +66,7 @@ public class Academy extends BaseTimeEntity {
         this.name = name;
         this.region = region;
         this.address = address;
-        this.contact = contact;
+        this.contact = blankToNull(contact);
         this.status = AcademyStatus.ACTIVE;
     }
 
@@ -85,7 +85,7 @@ public class Academy extends BaseTimeEntity {
         this.name = profile.name() == null ? this.name : profile.name();
         this.region = profile.region() == null ? this.region : profile.region();
         this.address = profile.address() == null ? this.address : profile.address();
-        this.contact = profile.contact() == null ? this.contact : profile.contact();
+        this.contact = profile.contact() == null ? this.contact : blankToNull(profile.contact());
         this.memo = profile.memo() == null ? this.memo : profile.memo();
     }
 
@@ -95,6 +95,11 @@ public class Academy extends BaseTimeEntity {
      */
     public void changeStatus(AcademyStatus status) {
         this.status = status;
+    }
+
+    /** 선택 항목의 빈 값은 미등록이다(BR-380) — {@code ''} 로 남으면 응답에 빈 문자열이 실려 클라이언트의 대체 문구(Ruling 781)가 안 뜬다. */
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     /**
