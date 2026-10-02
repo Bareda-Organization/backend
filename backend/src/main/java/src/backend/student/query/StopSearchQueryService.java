@@ -14,7 +14,6 @@ import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 import src.backend.student.domain.StopProximity;
-import src.backend.student.dto.StopSearchResponse;
 import src.backend.student.dto.StopSuggestResponse;
 import src.backend.student.entity.Stop;
 import src.backend.student.geocoding.spec.GeocodedPoint;
@@ -84,14 +83,14 @@ public class StopSearchQueryService {
                 nearbyOf(requester.academyId(), point));
     }
 
-    private List<StopSearchResponse.NearbyStop> nearbyOf(Long academyId, GeocodedPoint point) {
+    private List<StopSuggestResponse.NearbyStop> nearbyOf(Long academyId, GeocodedPoint point) {
         return stopRepository
                 .findNearby(academyId, point.lat(), point.lng(), StopProximity.searchBoxDegrees(point.lat()))
                 .stream()
-                .map(stop -> new StopSearchResponse.NearbyStop(stop.getId(), stop.getName(), stop.getAddress(),
+                .map(stop -> new StopSuggestResponse.NearbyStop(stop.getId(), stop.getName(), stop.getAddress(),
                         stop.getLat(), stop.getLng(), distanceOf(stop, point)))
                 .filter(nearby -> nearby.distanceM() <= StopProximity.MERGE_RADIUS_METERS)
-                .sorted(Comparator.comparingInt(StopSearchResponse.NearbyStop::distanceM))
+                .sorted(Comparator.comparingInt(StopSuggestResponse.NearbyStop::distanceM))
                 .toList();
     }
 
