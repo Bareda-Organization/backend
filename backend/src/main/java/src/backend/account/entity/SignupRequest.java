@@ -44,9 +44,8 @@ public class SignupRequest {
     private Long academyId;
 
     /**
-     * 신청 역할 — 이 컬럼에는 DB CHECK 가 부재해 스키마가 값을 보장하지 않는다(Ruling 55).
-     * 잘못된 값은 쓸 때가 아니라 다시 읽을 때 {@link Role.Db#convertToEntityAttribute} 의
-     * {@link Enum#valueOf} 에서 실패한다.
+     * 신청 역할 — DB CHECK({@code ck_signup_request_requested_role})가 5종({@code system_admin} 제외)만 받는다(R46 A-5).
+     * 읽을 때는 {@link Role.Db#convertToEntityAttribute} 의 {@link Enum#valueOf} 가 한 번 더 막는다.
      */
     @Convert(converter = Role.Db.class)
     @Column(name = "requested_role", length = 20, nullable = false)

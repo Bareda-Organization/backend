@@ -80,8 +80,18 @@ public class EmergencyBroadcastListener {
 
     private void sendToStaffAndAdmin(Long academyId, Long runId, String eventName, OffsetDateTime occurredAt,
             Object payload) {
-        gateway.send(WebSocketDestinations.academyLive(academyId), eventName, runId, occurredAt, payload);
-        gateway.send(WebSocketDestinations.ADMIN_LIVE, eventName, runId, occurredAt, payload);
+        sendQuietly(WebSocketDestinations.academyLive(academyId), eventName, runId, occurredAt, payload);
+        sendQuietly(WebSocketDestinations.ADMIN_LIVE, eventName, runId, occurredAt, payload);
+    }
+
+    /** 비상은 안전 사안이라 채널 하나의 송신 실패가 다음 채널의 방송을 막지 않게 채널마다 격리한다(BR-353). */
+    private void sendQuietly(String destination, String eventName, Long runId, OffsetDateTime occurredAt,
+            Object payload) {
+        try {
+            gateway.send(destination, eventName, runId, occurredAt, payload);
+        } catch (RuntimeException e) {
+            log.warn("{} 방송 실패 — runId={} destination={}", eventName, runId, destination, e);
+        }
     }
 
     /**

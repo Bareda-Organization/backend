@@ -18,7 +18,7 @@ public class NotificationDispatchConfig {
     /**
      * 기본 스레드 수 8 — 발송 1건은 기기마다 FCM HTTP 를 순차 호출해 대부분 응답 대기라 스레드가 싸고, 건당 DB 연결은
      * 짧은 SQL 4개뿐이다(R46 D #15). 2개일 때 처리율은 FCM 지연 150ms 기준 약 13건/s 로 10대 동시 출발(약 260건)에
-     * 20초가 걸렸다. 8개면 약 4배다. 연결 풀 20 중 스케줄러 최대 10 · 확정 워커 3 과 겹쳐도 풀이 차면
+     * 20초가 걸렸다. 8개면 약 4배다. 연결 풀 20 중 스케줄러 최대 12({@code SchedulingConfig.POOL_SIZE}) · 확정 워커 3 과 겹쳐도 풀이 차면
      * {@code connection-timeout} 3초 뒤 실패해 그 행이 {@code pending} 으로 남고 워커가 다시 집는다.
      */
     private static final int DEFAULT_THREADS = 8;

@@ -28,7 +28,7 @@ public class SchedulingConfig implements SchedulingConfigurer, DisposableBean {
      * 작업도 남의 작업을 기다리지 않는다. 작업을 더하면 이 값도 함께 올린다 — {@code SchedulingPoolSizeTest} 가 개수를 세어 어긋나면 실패한다.
      *
      * <p>DB 커넥션(Hikari 기본 10)과의 관계 — 작업들은 짧은 트랜잭션만 쓰고 외부 호출은 트랜잭션 밖
-     * (§7 규칙 16)이라 10개가 동시에 커넥션을 쥐는 경우는 드물다. 동시 도래가 커넥션을 밀어내는지는
+     * (§7 규칙 16)이라 {@link #POOL_SIZE}개(운영은 {@code local} 전용 데모 시뮬레이터를 뺀 11개)가 동시에 커넥션을 쥐는 경우는 드물다. 동시 도래가 커넥션을 밀어내는지는
      * 관측 지표(hikaricp_connections_pending)로 본다.
      */
     static final int POOL_SIZE = 12;

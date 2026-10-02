@@ -294,6 +294,27 @@ class StaffEmergencyControllerTest {
         assertThat(확인시각(emergencyId)).as("검증에 걸린 요청은 확인으로 이어지지 않는다").isNull();
     }
 
+    /** BR-357 — 201자 거부만으로는 상한을 100 으로 줄여도 통과한다 — 경계(정확히 200자, 한글)는 받아들여야 한다. */
+    @Test
+    void 조치_메모가_정확히_200자면_받아들여_그대로_저장된다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사",
+                OffsetDateTime.now());
+        long staffAccountId = fixtures.staffAccount(academyId, "직원");
+        long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
+
+        mockMvc.perform(post(ACK.formatted(emergencyId))
+                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"memo\":\"%s\"}".formatted("가".repeat(200))))
+                .andExpect(status().isOk());
+
+        assertThat(확인메모(emergencyId)).as("200자는 상한 안이라 그대로 저장된다").hasSize(200);
+    }
+
     // ── Phase 13 목표 13 — §5.16 응답 필드 형태(정본 정합) ────────────────────
 
     @Test

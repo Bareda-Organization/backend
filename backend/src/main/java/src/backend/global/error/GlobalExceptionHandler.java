@@ -1,5 +1,6 @@
 package src.backend.global.error;
 
+import java.sql.SQLException;
 import java.util.Locale;
 
 import org.slf4j.Logger;
@@ -170,10 +171,17 @@ public class GlobalExceptionHandler {
      *
      * <p>로그는 스택 없는 {@code warn} 한 줄이다 — 풀이 마른 동안은 요청마다 이 예외가 나므로 스택을 남기면 같은 스택이
      * 분당 수백 건 쌓여 정작 원인 추적이 어렵다. 이 예외들은 코드 결함이 아니라 자원 상태라 스택이 알려 주는 것이 없다.
+     *
+     * <p>단 잠금 예외 중 <b>교착 · 직렬화 실패</b>는 자원 상태가 아니라 잠금 순서가 어긋난 코드 결함이라 여기서 빼
+     * {@link #handleUnexpected} 로 보낸다(BR-352 — {@code 500} + 스택). 실제 PostgreSQL 에서는 교착도 잠금 대기 초과와
+     * 같은 {@code CannotAcquireLockException} 으로 나와 예외 클래스로는 가를 수 없고 SQLState 로 가른다.
      */
     @ExceptionHandler({CannotCreateTransactionException.class, DataAccessResourceFailureException.class,
             PessimisticLockingFailureException.class, QueryTimeoutException.class})
     public ResponseEntity<ErrorResponse> handleDbResourceUnavailable(Exception e) {
+        if (isDeadlockOrSerializationFailure(e)) {
+            return handleUnexpected(e);
+        }
         ErrorCode code = ErrorCode.SERVER_BUSY;
         log.warn("[db-unavailable] {} — {}", e.getClass().getSimpleName(), e.getMessage());
         return ResponseEntity.status(code.getStatus()).header(HttpHeaders.RETRY_AFTER, DB_RETRY_AFTER_SECONDS)
@@ -204,6 +212,19 @@ public class GlobalExceptionHandler {
         ErrorCode code = ErrorCode.METHOD_NOT_ALLOWED;
         log.warn("[routing] 지원하지 않는 메서드 {}", e.getMessage());
         return ResponseEntity.status(code.getStatus()).body(ErrorResponse.of(code.name(), code.getMessage()));
+    }
+
+    /**
+     * PostgreSQL 교착({@code 40P01}) · 직렬화 실패({@code 40001}) — 원인 사슬에 그 SQLState 가 있다. Spring 7 이 두 전용 예외
+     * ({@code DeadlockLoserDataAccessException} · {@code CannotSerializeTransactionException})를 폐기 예정으로 돌려 클래스로 가르지 않는다.
+     */
+    private static boolean isDeadlockOrSerializationFailure(Throwable e) {
+        for (Throwable cause = e; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SQLException sql && ("40P01".equals(sql.getSQLState()) || "40001".equals(sql.getSQLState()))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** 자바 필드 경로({@code newStudent.name})를 요청 본문의 키 표기({@code new_student.name}, Ruling 104)로 옮긴다. */
