@@ -10,6 +10,9 @@ import src.backend.global.common.enums.AccountStatus;
 /**
  * 승인 대기 화면 응답(API_SPEC §2.3) — {@code pending}·{@code rejected} 토큰으로 호출한다.
  * JSON 필드명은 전역 {@code spring.jackson.property-naming-strategy: SNAKE_CASE}(Ruling 104)가 변환한다.
+ *
+ * <p>Ruling 781 — {@code academy_contact} 는 학원이 연락처를 등록하지 않았으면 키는 있고 값이 {@code null} 이다(§2.5 와 같은 규칙) —
+ * 키를 빼지 않는다({@code @JsonInclude(NON_NULL)} 금지).
  */
 public record SignupStatusResponse(
         String status,

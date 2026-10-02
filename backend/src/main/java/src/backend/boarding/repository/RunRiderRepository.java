@@ -67,6 +67,15 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
     Optional<RunRider> findByRunIdAndStudentId(Long runId, Long studentId);
 
     /**
+     * {@link #findByRunIdAndStudentId} 와 같은 탑승자 행을 <b>행 잠금</b>으로 읽는다(BR-303) — ③구간 미등원 토글이 이
+     * 행을 읽고 {@code absent} 로 바꾸므로, {@link #findByIdAndRunIdAndStatusNot}(승하차·BR-267)와 같은 잠금으로
+     * 직렬화한다. 승차가 먼저 커밋됐다면 토글은 그 뒤의 상태({@code boarded})를 읽어 거절된다. 트랜잭션 안에서만 부른다.
+     */
+    @AcademyScopeExempt(reason = "findByRunIdAndStudentId 와 같은 근거 — 호출부가 학원 범위로 좁힌 회차의 식별자만 넘긴다는 전제")
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<RunRider> findLockedByRunIdAndStudentId(Long runId, Long studentId);
+
+    /**
      * 그 승하차지에 아직 남은(부재 처리되지 않은) 탑승자 수(API_SPEC §3.6 ③ "잔여 0명이면 {@code run_stop}
      * 을 {@code skipped}") — 방금 부재로 바꾼 학생을 포함해 센 뒤 0이면 그 정차지를 건너뛴다.
      *

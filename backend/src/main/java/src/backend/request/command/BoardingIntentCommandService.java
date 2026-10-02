@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.boarding.command.StopSkipJudge;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.event.RiderStatusChangedEvent;
 import src.backend.boarding.entity.RunRider;
@@ -30,9 +31,6 @@ import src.backend.request.event.ApprovalRequestedEvent;
 import src.backend.request.event.IntentChangedEvent;
 import src.backend.request.repository.BoardingIntentRepository;
 import src.backend.request.repository.ChangeRequestRepository;
-import src.backend.routing.entity.ConfirmedRoute;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.entity.Run;
 import src.backend.run.event.RunRouteConfirmedEvent;
 import src.backend.student.access.LinkedChildLookup;
@@ -73,9 +71,7 @@ public class BoardingIntentCommandService {
 
     private final RunRiderRepository runRiderRepository;
 
-    private final RunStopRepository runStopRepository;
-
-    private final ConfirmedRouteRepository confirmedRouteRepository;
+    private final StopSkipJudge stopSkipJudge;
 
     private final ApplicationEventPublisher eventPublisher;
 
@@ -175,10 +171,15 @@ public class BoardingIntentCommandService {
      * <p>{@code run_rider} 행이 없으면(그 학생이 애초에 이 회차 명단에 없을 때 — 이미 ①구간에서
      * {@code riding=false} 로 확정 배치의 제외 목록에 걸렸던 경우가 대표적이다) 부재 표시·정차지
      * 재계산·기사 전달을 조용히 건너뛴다 — 이미 명단에 없는 학생을 다시 없앨 대상이 없다.
+     *
+     * <p>③구간은 동승자의 승하차 처리와 겹치는 때라 탑승자 행을 승하차 경로(BR-267)와 같은 행 잠금으로 읽는다(BR-303) —
+     * 승차가 먼저 커밋됐으면 {@code boarded} 를 읽어 403 이다. "잔여 0명이면 정차 건너뜀" 판정은 승하차 경로와 같은
+     * {@link StopSkipJudge} 가 정차 항목을 잠근 뒤 세고 {@code no_show} 도 잔여에서 뺀다(BR-325).
      */
     private BoardingIntentToggleResponse applyClosed(Run run, Student student, BoardingIntent intent,
             boolean riding, AuthUser requester, OffsetDateTime now) {
-        Optional<RunRider> rider = runRiderRepository.findByRunIdAndStudentId(run.getId(), student.getId());
+        // BR-303 — 탑승자 행을 잠근 채 읽는다: 방금 승차가 커밋됐다면 boarded 를 읽어 아래에서 거절되고, absent 로 덮지 않는다.
+        Optional<RunRider> rider = runRiderRepository.findLockedByRunIdAndStudentId(run.getId(), student.getId());
         if (riding || rider.filter(r -> r.getStatus() != RiderStatus.WAITING).isPresent()) {
             throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);
         }
@@ -186,7 +187,7 @@ public class BoardingIntentCommandService {
 
         rider.ifPresent(r -> {
             r.markAbsent(now);
-            skipStopIfNoRidersRemain(run.getId(), r.getStopId());
+            stopSkipJudge.skipIfNoRidersRemain(run.getId(), r.getStopId(), SKIP_NOTICE);
             eventPublisher.publishEvent(new RiderStatusChangedEvent(run.getId(), run.getAcademyId(),
                     student.getId(), r.getId(), statusNameOf(RiderStatus.ABSENT), now, false));
             eventPublisher.publishEvent(
@@ -197,24 +198,6 @@ public class BoardingIntentCommandService {
                 new IntentChangedEvent(run.getId(), run.getAcademyId(), student.getId(), false, now));
         String riderStatus = rider.map(r -> statusNameOf(r.getStatus())).orElse(statusNameOf(RiderStatus.ABSENT));
         return BoardingIntentToggleResponse.appliedNoReroute(false, riderStatus, quotaLeftOf(intent));
-    }
-
-    /**
-     * 그 정차지에 남은(부재 처리되지 않은) 탑승자가 0명이면 확정 노선의 정차 항목을
-     * {@code skipped} 로 표시한다(§3.6 ③) — {@code seq} 는 손대지 않는다({@link
-     * src.backend.routing.entity.RunStop#markSkipped} 자바독, C-05 순번 불변).
-     */
-    private void skipStopIfNoRidersRemain(Long runId, Long stopId) {
-        long remaining = runRiderRepository.countByRunIdAndStopIdAndStatusNot(runId, stopId, RiderStatus.ABSENT);
-        if (remaining > 0) {
-            return;
-        }
-        Optional<ConfirmedRoute> confirmedRoute = confirmedRouteRepository.findById(runId);
-        if (confirmedRoute.isEmpty() || confirmedRoute.get().getCurrentVersionId() == null) {
-            return;
-        }
-        runStopRepository.findByRouteVersionIdAndStopId(confirmedRoute.get().getCurrentVersionId(), stopId)
-                .ifPresent(runStop -> runStop.markSkipped(SKIP_NOTICE));
     }
 
     /**

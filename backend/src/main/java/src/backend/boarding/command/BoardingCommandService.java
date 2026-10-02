@@ -86,9 +86,8 @@ public class BoardingCommandService {
     private final AcademySettingRepository academySettingRepository;
 
     /**
-     * {@code stop_skipped} 계산·반영(API_SPEC §4.6 · C-05)의 협력자 — {@link src.backend.request.command
-     * .BoardingIntentCommandService#skipStopIfNoRidersRemain}(③구간 결석 신청)이 확정 노선을 찾는 것과
-     * 같은 경로를 그대로 재사용한다.
+     * {@code stop_skipped} 계산·반영(API_SPEC §4.6 · C-05)의 협력자 — ③구간 결석 신청
+     * ({@link src.backend.request.command.BoardingIntentCommandService})도 {@link StopSkipJudge} 로 같은 경로를 쓴다.
      */
     private final ConfirmedRouteRepository confirmedRouteRepository;
 
@@ -296,7 +295,7 @@ public class BoardingCommandService {
      * 알림 + WebSocket {@code rider_changed} 방송(Phase 10 이월 ⑤, 이 클래스 상단 참고) 두 갈래 재료가
      * 될 {@link RiderMarkedNoShowEvent} 를 발행한다.
      *
-     * <p>{@code stop_skipped}(API_SPEC §4.6, C-05)는 {@link #skipStopIfNoRidersRemain} 이 실제로
+     * <p>{@code stop_skipped}(API_SPEC §4.6, C-05)는 {@link StopSkipJudge#skipIfNoRidersRemain} 이 실제로
      * 계산한다 — C-05 가 명시하는 두 발생 경로(③구간 미등원·운행 중 미승차) 중 여기가 후자다. 이벤트
      * 발행을 그 계산 <b>뒤로</b> 옮겼다(Phase 11) — {@code rider_changed} 방송이 그 값을 실어야 하는데,
      * 계산 전에 발행하면 항상 {@code false} 를 실어 보내게 된다.
