@@ -68,11 +68,12 @@ dependencies {
     // 어떤 스케줄러가 락을 쓰는지·왜인지는 global/config/ShedLockConfig 자바독을 본다.
     implementation 'net.javacrumbs.shedlock:shedlock-spring:7.10.1'
     implementation 'net.javacrumbs.shedlock:shedlock-provider-jdbc-template:7.10.1'
-    // 외부 API(지도 경로 API 등) 보호용 서킷 브레이커. 아티팩트명이 spring-boot3 이지만
-    // 이 프로젝트는 Boot 4.1 이다 — 자동설정 충돌 가능성을 build/test 로 확인해야 한다(TECH_DECISIONS §11).
+    // 외부 API(지도 경로 API 등) 보호용 서킷 브레이커. 2.4.0 부터 Boot 4 전용 아티팩트(spring-boot4)가 따로 있다 —
+    // 구 resilience4j-spring-boot3 2.4.0 은 기동 시 Spring Boot 4 를 감지하고 IncompatibleSpringBootVersionException
+    // 으로 컨텍스트를 거부한다(Dependabot PR #7 값 그대로 올리면 시험 430건 이상이 컨텍스트 로딩에서 실패, Ruling 760).
     // Spring Boot BOM 이 관리하지 않는 좌표라 버전을 명시한다. 이 Phase 에서는 의존성만 추가하고
     // @CircuitBreaker 는 붙이지 않는다 — 활성화는 외부 API 클라이언트가 실제로 생기는 Phase 소관.
-    implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.4.0'
+    implementation 'io.github.resilience4j:resilience4j-spring-boot4:2.4.0'
     // 보일러플레이트 축소
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
