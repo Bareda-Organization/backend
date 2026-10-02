@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,7 @@ import src.backend.location.entity.RunPosition;
 import src.backend.location.event.RunPositionReceivedEvent;
 import src.backend.location.repository.RunPositionRepository;
 import src.backend.routing.dto.PositionStopView;
+import src.backend.routing.query.CurrentRunStopResolver;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.access.RunAssignmentAccess;
 import src.backend.run.entity.Run;
@@ -91,30 +93,23 @@ public class RunPositionCommandService {
         runPositionRepository.save(position);
 
         List<PositionStopView> stops = runStopRepository.findPositionStops(runId, run.getAcademyId());
+        // 규칙은 CurrentRunStopResolver 한 곳에만 있다 — 투영을 읽어도 같은 접근자 규칙을 쓴다(BR-341, BR-099)
+        Optional<PositionStopView> current = CurrentRunStopResolver.resolve(stops, PositionStopView::seq,
+                PositionStopView::arrivedAt);
         return new RunPositionReceivedEvent(runId, request.lat(), request.lng(), recordedAt, receivedAt,
-                run.getAcademyId(), currentStopNameOf(stops), nextEtaOf(stops));
+                run.getAcademyId(), current.map(PositionStopView::name).orElse(null),
+                nextEtaAfter(stops, current.map(PositionStopView::seq).orElse(-1)));
     }
 
     private static boolean isSkewed(OffsetDateTime recordedAt, OffsetDateTime receivedAt) {
         return Duration.between(recordedAt, receivedAt).abs().compareTo(RECORDED_AT_TOLERANCE) > 0;
     }
 
-    /** 가장 최근 도착 처리된 정차 항목의 이름(§4.3) — 도착 시각이 채워진 정차 중 {@code seq} 최댓값이다(BR-099). */
-    private static String currentStopNameOf(List<PositionStopView> ordered) {
-        return ordered.stream()
-                .filter(stop -> stop.arrivedAt() != null)
-                .max(Comparator.comparingInt(PositionStopView::seq))
-                .map(PositionStopView::name)
-                .orElse(null);
-    }
-
     /**
-     * 그 뒤 첫 정차 항목의 {@code run_stop.eta} 저장값(Ruling 232 확정 — 계획값, 재계산 부재). "마지막 도착 뒤"
-     * 에서 고른다 — 도착 처리 대상이 아닌 경유 지점이 미도착으로 남아도 지난 것이다(BR-015).
+     * {@code afterSeq}(현재 정차 {@code seq}, 없으면 -1) 뒤 첫 정차 항목의 {@code run_stop.eta} 저장값(Ruling 232 확정 —
+     * 계획값, 재계산 부재). "마지막 도착 뒤" 에서 고른다 — 도착 처리 대상이 아닌 경유 지점이 미도착으로 남아도 지난 것이다(BR-015).
      */
-    private static OffsetDateTime nextEtaOf(List<PositionStopView> ordered) {
-        int afterSeq = ordered.stream().filter(stop -> stop.arrivedAt() != null).mapToInt(PositionStopView::seq)
-                .max().orElse(-1);
+    private static OffsetDateTime nextEtaAfter(List<PositionStopView> ordered, int afterSeq) {
         return ordered.stream()
                 .filter(stop -> stop.seq() > afterSeq)
                 .min(Comparator.comparingInt(PositionStopView::seq))
