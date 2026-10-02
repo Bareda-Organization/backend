@@ -27,6 +27,12 @@ import lombok.NoArgsConstructor;
  * 감사 대상이 삭제돼도 기록은 남아야 하므로 원본 삭제에 연동되면 감사 목적이 소멸한다). {@code action} 은
  * ERD 의 CHECK 값을 그대로 저장하며, "결과 성공/실패" · "차단 이벤트 여부" 로의 투영은 이 엔티티가 하지
  * 않는다(조율자 Ruling 13) — 조회 시점에 다른 Phase 가 계산한다.
+ *
+ * <p><b>크기 기준(§20.2)을 넘긴 이유</b> — 팩토리 {@link #forDataAccessChange}(9개)·{@link #forRunForceConfirm}(9개)·
+ * {@link #forDataAccessRead}·{@link #forRunForceFinish}(8개)의 파라미터와 클래스 길이(300줄 이상)는 행 하나가 행위자 스냅샷
+ * (학원·계정·로그인 아이디·IP)과 시각을 값으로 받는 불변 기록이어서다 — 엔티티가 계정·요청을 다시 조회하면 계정이 사라진 뒤의 표시값이
+ * 부재해진다. 행위자 묶음을 {@code record} 로 줄이면 호출부 6곳이 함께 바뀌어 이 수정의 범위 밖이고, 새 팩토리가 늘어 분리를 다시
+ * 검토할 때 함께 한다.
  */
 @Entity
 @Table(name = "audit_log")

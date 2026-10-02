@@ -251,6 +251,21 @@ class RiderGuardianPhoneControllerTest {
         assertThat(전화_감사_행(otherStudentId)).isEmpty();
     }
 
+    /** 명단에서 빠진 {@code absent} 탑승자는 이 회차 탑승자가 아니라 404 다(API_SPEC §4.2.1) — 번호도 감사 행도 나가지 않는다. */
+    @Test
+    void 결석_처리된_탑승자는_404이고_감사_행이_없다() throws Exception {
+        Scene scene = scene(true);
+        // 엔티티로 바꾼다 — 시험이 한 트랜잭션이라 JDBC 로 바꾸면 이미 적재된 엔티티가 옛 상태 그대로 조회에 쓰인다
+        runRiderRepository.findById(scene.riderId()).orElseThrow().markAbsent(OffsetDateTime.now());
+
+        mockMvc.perform(get(path(scene.runId(), scene.riderId()))
+                .header("Authorization", 토큰(scene.manager().accountId(), scene.academyId())))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("RIDER_NOT_FOUND"));
+
+        assertThat(전화_감사_행(scene.studentId())).isEmpty();
+    }
+
     @Test
     void 보호자가_연결되지_않은_학생은_번호_null이고_감사_행이_없다() throws Exception {
         Scene scene = scene(false);

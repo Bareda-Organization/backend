@@ -104,6 +104,8 @@ class RetentionCleanupSchedulerBatchCapTest {
         given(studentRepository.findIdsForAnonymization(any(), any()))
                 .willReturn(fakeIds(200))
                 .willReturn(fakeIds(50));
+        given(studentAnonymizationService.anonymize(any()))
+                .willAnswer(invocation -> ((List<?>) invocation.getArgument(0)).size());
         RetentionCleanupScheduler scheduler = new RetentionCleanupScheduler(
                 notificationLogRepository, runPositionPartitionManager, refreshTokenRepository,
                 linkCodeRepository, auditLogRepository, studentRepository, studentAnonymizationService,
@@ -118,6 +120,33 @@ class RetentionCleanupSchedulerBatchCapTest {
         assertThat(limitCaptor.getAllValues()).as("조회 2회 전부 파기 묶음 200").allSatisfy(
                 limit -> assertThat(limit).isEqualTo(Limit.of(200)));
         org.mockito.Mockito.verify(studentAnonymizationService, org.mockito.Mockito.times(2)).anonymize(any());
+    }
+
+    /**
+     * BR-311 — 파기 수가 조회 수와 같다는 보장이 없다(사진 파일을 못 지운 학생 · 처리에 실패한 학생은 남는다). 한 묶음에서 하나도 파기하지
+     * 못했는데 상한만 보고 다시 조회하면 같은 200명을 끝없이 되풀이하므로, 그 회차에서 멈추고 건너뛴 학생 수만큼 실패 지표를 올린다.
+     */
+    @Test
+    void 한_묶음에서_하나도_파기하지_못하면_같은_묶음을_되풀이하지_않고_건너뛴_수만큼_실패를_센다() {
+        given(notificationLogRepository.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
+        given(refreshTokenRepository.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
+        given(linkCodeRepository.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
+        given(auditLogRepository.findIdsForRetentionCleanup(any(), any(), any())).willReturn(List.of());
+        given(studentRepository.findIdsForAnonymization(any(), any())).willReturn(fakeIds(200));
+        given(studentAnonymizationService.anonymize(any())).willReturn(0);
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        RetentionCleanupScheduler scheduler = new RetentionCleanupScheduler(
+                notificationLogRepository, runPositionPartitionManager, refreshTokenRepository,
+                linkCodeRepository, auditLogRepository, studentRepository, studentAnonymizationService,
+                retentionPolicy, clock, new SchedulerHealthMetrics(registry),
+                new RefreshTokenRowsMetrics(new SimpleMeterRegistry()));
+
+        scheduler.cleanUp();
+
+        org.mockito.Mockito.verify(studentRepository, org.mockito.Mockito.times(1))
+                .findIdsForAnonymization(any(OffsetDateTime.class), any(Limit.class));
+        assertThat(registry.counter("schoolbus.scheduler.failures", "scheduler", "retention-cleanup").count())
+                .as("파기하지 못한 학생 200명").isEqualTo(200.0);
     }
 
     /**

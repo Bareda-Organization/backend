@@ -46,6 +46,9 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     /**
      * 재신청할 계정을 잠그고 읽는다(§2.4 · BR-063) — 동시 재신청이 둘 다 {@code rejected} 를 보고 요청 행을 두 개
      * 쌓지 않게, 두 번째는 {@code pending} 을 읽어 {@code 409 REAPPLY_NOT_ALLOWED} 가 된다.
+     *
+     * <p>계정 전 컬럼을 쓰는 다른 경로(승인 · 비밀번호 변경·초기화 · 관계자 수정 · 매니저 역할 동기 · 차단 해제)도 같은 읽기를
+     * 쓴다 — 잠금 없이 읽어 쓰면 그 사이 커밋된 로그인 실패 차단을 지운다(BR-249 · BR-335).
      */
     @AcademyScopeExempt(reason = "§2.4 본인 재신청 — 계정 자체의 조회라 학원 조건이 판정에 개입 부재. 재신청은 학원을 다시 "
             + "고르는 흐름이라 좁힐 학원도 미확정. 호출부가 토큰의 accountId 만 넘긴다는 전제")
@@ -75,21 +78,26 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     Optional<Account> findByIdAndAcademyIdForUpdate(@Param("id") Long id, @Param("academyId") Long academyId);
 
     /**
-     * 연락처가 같은 계정을 <b>행 잠금</b>으로 읽는다(API_SPEC §2.9 · Ruling 513) — 전화번호 복구가 코드 발급 빈도를
-     * 세기 전에 같은 번호의 동시 요청을 직렬화하고, 비밀번호를 교체할 때 그 사이 커밋된 로그인 실패 차단을 지우지 않게
-     * 한다(BR-249). 연락처는 유일하지 않아 여러 건일 수 있다.
+     * 연락처가 같은 복구 대상 계정을 <b>행 잠금</b>으로 읽는다(API_SPEC §2.9 · Ruling 513) — 전화번호 복구가 비밀번호를
+     * 교체할 때 그 사이 커밋된 로그인 실패 차단을 지우지 않게 한다(BR-249). 연락처는 유일하지 않아 여러 건일 수 있다.
+     * <b>차단된 계정은 대상이 아니다</b>(BR-336) — 퇴원 파기로 익명화된 계정이 모두 같은 가짜 번호로 걸리고, 차단 계정은
+     * 복구해도 로그인이 {@code 403} 이다. 코드 발급은 존재 여부만 보므로 이 잠금 읽기가 아니라
+     * {@link #findAllByPhoneAndRoleIn} 을 쓴다(BR-308 — 문자 발송 동안 행을 쥐지 않는다).
      */
     @AcademyScopeExempt(reason = "§2.9 계정 복구 — 전화번호만 들고 시작해 소속 학원이 미상")
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT a FROM Account a WHERE a.phone = :phone AND a.role IN :roles ORDER BY a.id")
+    @Query("SELECT a FROM Account a WHERE a.phone = :phone AND a.role IN :roles "
+            + "AND a.status <> src.backend.global.common.enums.AccountStatus.BLOCKED ORDER BY a.id")
     List<Account> findAllByPhoneAndRoleInForUpdate(@Param("phone") String phone, @Param("roles") Collection<Role> roles);
 
     /**
-     * 같은 번호의 복구 대상 계정을 잠금 없이 읽는다 — 임시 비밀번호(BCrypt)를 몇 개 미리 만들지 정할 뿐이고, 저장은
-     * {@link #findAllByPhoneAndRoleInForUpdate} 로 다시 읽은 행에 한다(R46 T-3).
+     * 같은 번호의 복구 대상 계정을 잠금 없이 읽는다(차단 계정 제외 · {@link #findAllByPhoneAndRoleInForUpdate} 와 같은 조건)
+     * — 코드 발급이 문자를 보낼지 정하는 존재 여부와, 대조가 임시 비밀번호(BCrypt)를 몇 개 미리 만들지 정하는 데만 쓴다.
+     * 저장은 {@link #findAllByPhoneAndRoleInForUpdate} 로 다시 읽은 행에 한다(R46 T-3).
      */
     @AcademyScopeExempt(reason = "§2.9 계정 복구 — 전화번호만 들고 시작해 소속 학원이 미상")
-    @Query("SELECT a FROM Account a WHERE a.phone = :phone AND a.role IN :roles ORDER BY a.id")
+    @Query("SELECT a FROM Account a WHERE a.phone = :phone AND a.role IN :roles "
+            + "AND a.status <> src.backend.global.common.enums.AccountStatus.BLOCKED ORDER BY a.id")
     List<Account> findAllByPhoneAndRoleIn(@Param("phone") String phone, @Param("roles") Collection<Role> roles);
 
     /**

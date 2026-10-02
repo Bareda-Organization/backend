@@ -80,6 +80,26 @@ public class LocalDiskPhotoStorage implements PhotoStorage {
     }
 
     /**
+     * 주소의 <b>끝 조각(파일명)</b>으로 저장 영역 안의 파일을 지운다 — 접두사가 지금 설정과 달라도 같은 파일이면 지운다
+     * ({@code existsByPhotoUrlEndingWith…} 와 {@link #read} 가 같은 기준으로 파일을 찾는다). {@link #delete} 의 접두사 검사를 쓰지 않는 이유는
+     * 건너뛰면 파일이 남은 채 호출부가 참조만 지우기 때문이다. 파일명에 경로 구분자가 섞였으면 지우지 않고 {@code false}.
+     */
+    @Override
+    public boolean deleteConfirmed(String photoUrl) {
+        String fileName = photoUrl == null ? null : photoUrl.substring(photoUrl.lastIndexOf('/') + 1);
+        if (!isPlainFileName(fileName)) {
+            return false;
+        }
+        try {
+            Files.deleteIfExists(root.resolve(fileName));
+            return true;
+        } catch (IOException e) {
+            log.warn("[photo] 사진 파일 삭제 실패 fileName={}", fileName, e);
+            return false;
+        }
+    }
+
+    /**
      * 요청의 파일명을 그대로 {@code resolve} 하지 않는다 — {@link #delete} 와 같은 경로 이탈 검사를 거친다. 본문은 열지 않고 파일 핸들만
      * 돌려준다(R46-KFIXBE K-3).
      */

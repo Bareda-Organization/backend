@@ -8,6 +8,11 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.jupiter.api.AfterEach;
@@ -86,6 +91,35 @@ class AuditRecorderDedupTest {
                 .sorted(Comparator.comparing(AuditLog::getId)).toList();
         assertThat(rows).hasSize(2);
         assertThat(studentIdsOf(rows.get(1))).as("이미 기록한 1·2 는 빼고 새로 실린 3 만").containsExactly("3");
+    }
+
+    /**
+     * 같은 행위자의 같은 조회가 동시에 들어와도 행은 1건이다 — "새 학생인가" 판정과 시각 기록이 한 단계로 원자적이어야 한다
+     * ({@code AuditRecorder.claimNewStudents}). 읽고 나서 쓰는 두 단계면 동시 호출이 모두 새 학생으로 판정해 행이 겹쳐 남는다.
+     */
+    @Test
+    void 같은_학생의_같은_조회가_동시에_들어와도_행은_1건이다() throws Exception {
+        int callers = 8;
+        ExecutorService pool = Executors.newFixedThreadPool(callers);
+        CountDownLatch go = new CountDownLatch(1);
+        try {
+            List<Future<?>> calls = new java.util.ArrayList<>();
+            for (int i = 0; i < callers; i++) {
+                calls.add(pool.submit(() -> {
+                    go.await();
+                    roster(actor, "1");
+                    return null;
+                }));
+            }
+            go.countDown();
+            for (Future<?> call : calls) {
+                call.get(30, TimeUnit.SECONDS);
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+
+        assertThat(rowCount(actor)).as("동시 8건 중 새 학생으로 판정된 호출 수").isEqualTo(1);
     }
 
     @Test

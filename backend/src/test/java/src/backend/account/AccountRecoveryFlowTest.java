@@ -210,6 +210,73 @@ class AccountRecoveryFlowTest {
         assertThat(output.getAll()).doesNotContain(code).doesNotContain(tempPassword).doesNotContain(phone);
     }
 
+    /** 문자로 받은 임시 비밀번호에도 강제 변경 표식이 선다(Ruling 785) — 문자함에 평문으로 남는 값을 그대로 쓰게 두지 않는다. */
+    @Test
+    void 문자_복구로_받은_임시_비밀번호는_강제_변경_표식을_세운다() throws Exception {
+        createAccount(Role.PARENT);
+        assertThat(mustChangePassword()).as("복구 전").isFalse();
+        recover("password", null).andExpect(status().isOk());
+
+        recover("password", issuedCode()).andExpect(status().isOk());
+
+        assertThat(mustChangePassword()).as("복구 뒤").isTrue();
+        String tempPassword = lastTemporaryPassword();
+        login(tempPassword).andExpect(status().isOk()).andExpect(jsonPath("$.data.must_change_password").value(true));
+    }
+
+    /**
+     * 코드 발급은 문자를 보내는 동안 계정 행을 잠그지 않는다(BR-308) — 번호 직렬화는 advisory lock 이 맡고 발급은 계정을
+     * 읽기만 한다. 행을 쥐고 있으면 전화번호만 아는 요청이 남의 로그인을 문자 업체 응답 시간만큼 세운다. 발송 도중 다른
+     * 연결에서 그 행을 {@code FOR UPDATE NOWAIT} 로 잡아 본다.
+     */
+    @Test
+    void 코드_발급은_문자를_보내는_동안_계정_행을_잠그지_않는다() throws Exception {
+        createAccount(Role.PARENT);
+        Long accountId = jdbcTemplate.queryForObject("SELECT id FROM account WHERE login_id = ?", Long.class, loginId);
+        ExecutorService otherConnection = Executors.newSingleThreadExecutor();
+        AtomicReference<Throwable> lockFailure = new AtomicReference<>();
+        AtomicReference<Boolean> probed = new AtomicReference<>(false);
+        smsSender.duringSend(() -> {
+            probed.set(true);
+            try {
+                otherConnection.submit(() -> jdbcTemplate
+                        .queryForList("SELECT id FROM account WHERE id = ? FOR UPDATE NOWAIT", accountId)).get(10,
+                                TimeUnit.SECONDS);
+            } catch (Exception e) {
+                lockFailure.set(e);
+            }
+        });
+        try {
+            recover("password", null).andExpect(status().isOk());
+        } finally {
+            otherConnection.shutdownNow();
+        }
+
+        assertThat(probed.get()).as("발송 도중 확인이 실행됐다").isTrue();
+        assertThat(lockFailure.get()).as("발송 도중 다른 연결이 계정 행을 잠글 수 있다").isNull();
+    }
+
+    /**
+     * 차단된 계정은 문자 복구 대상이 아니다(BR-336) — 퇴원 90일 파기로 익명화된 학생 계정이 모두 같은 가짜 번호를 갖고
+     * {@code blocked} 라서, 대상에 두면 그 번호로 파기 계정 전부가 잠기고 문자가 나간다. 차단 계정은 복구해도 로그인이
+     * {@code 403} 이라 빼도 잃는 것이 없다. 발급은 응답이 같고(Ruling 553) 문자만 안 나가며, 대조도 실패한다.
+     */
+    @Test
+    void 차단된_계정은_문자_복구_대상이_아니다() throws Exception {
+        createAccount(Role.PARENT);
+        jdbcTemplate.update("UPDATE account SET status = 'blocked', status_before_block = 'active', "
+                + "blocked_at = now(), block_reason = '시험' WHERE login_id = ?", loginId);
+
+        recover("password", null).andExpect(status().isOk());
+        assertThat(smsSender.sent()).as("발급 문자").isEmpty();
+        recover("password", issuedCode()).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("VERIFICATION_CODE_INVALID"));
+
+        assertThat(smsSender.sent()).as("임시 비밀번호 문자").isEmpty();
+        assertThat(jdbcTemplate.queryForObject("SELECT password_hash FROM account WHERE login_id = ?", String.class,
+                loginId)).as("비밀번호는 그대로").satisfies(hash -> assertThat(passwordEncoder.matches(OLD_PASSWORD, hash)).isTrue());
+    }
+
     /** 틀린 코드 5회로 그 코드는 소진된다 — 6번째에 맞는 값을 넣어도 통과하지 않고, 비밀번호는 그대로다. */
     @Test
     void 틀린_코드_5회_뒤에는_맞는_코드도_통과하지_않는다() throws Exception {
@@ -384,6 +451,18 @@ class AccountRecoveryFlowTest {
                 "SELECT code FROM verification_code WHERE phone = ? ORDER BY id DESC LIMIT 1", String.class, phone);
     }
 
+    private boolean mustChangePassword() {
+        return Boolean.TRUE.equals(jdbcTemplate.queryForObject(
+                "SELECT must_change_password FROM account WHERE login_id = ?", Boolean.class, loginId));
+    }
+
+    /** 가장 최근 문자 본문에서 임시 비밀번호를 꺼낸다. */
+    private String lastTemporaryPassword() {
+        Matcher temp = TEMP_PASSWORD.matcher(smsSender.sent().get(smsSender.sent().size() - 1).text());
+        assertThat(temp.find()).as("문자 본문에 임시 비밀번호").isTrue();
+        return temp.group(1);
+    }
+
     private int codeRows() {
         return jdbcTemplate.queryForObject("SELECT count(*) FROM verification_code WHERE phone = ?", Integer.class,
                 phone);
@@ -410,10 +489,19 @@ class AccountRecoveryFlowTest {
 
         private final SmsSender logging = new LoggingSmsSender(new MockEnvironment());
 
+        /** 발송하는 순간 실행할 확인 — 발송이 잠금·트랜잭션 안에서 일어나는지 본다(기본은 없음). */
+        private volatile Runnable duringSend = () -> {
+        };
+
         @Override
         public void send(String phone, String text) {
+            duringSend.run();
             sent.add(new Sent(phone, text));
             logging.send(phone, text);
+        }
+
+        void duringSend(Runnable check) {
+            duringSend = check;
         }
 
         List<Sent> sent() {
@@ -422,6 +510,8 @@ class AccountRecoveryFlowTest {
 
         void clear() {
             sent.clear();
+            duringSend = () -> {
+            };
         }
     }
 

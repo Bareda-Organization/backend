@@ -33,6 +33,19 @@ public interface PhotoStorage {
     void delete(String photoUrl);
 
     /**
+     * 사진을 지우고 <b>그 파일이 이제 없다고 확인되면</b> {@code true} 다(BR-310 · 퇴원 학생 개인정보 파기) — {@link #delete} 는 지우지 못해도
+     * 조용히 돌아와 호출부가 결과를 모르지만, 파기는 파일이 남은 채 사진 참조만 지우면 다시 찾을 방법이 없어진다.
+     *
+     * <p>이미 없던 파일은 {@code true} 다(다시 시도해도 같은 결과). {@code false} 는 지우지 못했거나({@code IOException}) 이 저장소가 그 주소의
+     * 파일을 가리킬 수 없다는 뜻이고, 호출부는 사진 참조를 남겨 다음에 다시 시도한다. 던지지 않는다.
+     *
+     * <p>기본 구현은 확인할 수 없어 {@code false} 다 — 구현체가 삭제 결과를 알 수 있을 때만 재정의한다.
+     */
+    default boolean deleteConfirmed(String photoUrl) {
+        return false;
+    }
+
+    /**
      * 저장했던 사진 본문의 <b>핸들</b>을 연다(API_SPEC §5.11.1) — {@code fileName} 은 {@link #store} 가 만든 주소의 마지막 조각이다.
      *
      * <p>본문 바이트를 여기서 읽지 않는다 — 호출부가 응답으로 흘려 보낼 때 열린다(R46-KFIXBE K-3). 사진 한 장 약 4MB 를 요청마다 힙에

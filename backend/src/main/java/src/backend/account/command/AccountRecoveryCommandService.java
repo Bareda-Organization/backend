@@ -125,8 +125,9 @@ public class AccountRecoveryCommandService {
 
     private void issue(SmsSender sender, String phone, VerificationPurpose purpose) {
         // 이 번호의 발급을 직렬화한다 — 계정 행 잠금은 미등록 번호에 잠글 행이 없어, 동시 요청의 통과 수가 가입 여부에 따라 갈린다.
+        // 발급은 계정이 있는지만 보고 바꾸지 않으므로 행을 잠그지 않는다 — 잠그면 문자 업체 응답이 올 때까지 그 계정의 로그인이 선다(BR-308).
         verificationCodeRepository.lockByPhone(phone);
-        List<Account> accounts = accountRepository.findAllByPhoneAndRoleInForUpdate(phone, RECOVERABLE_ROLES);
+        List<Account> accounts = accountRepository.findAllByPhoneAndRoleIn(phone, RECOVERABLE_ROLES);
         OffsetDateTime now = OffsetDateTime.now(clock);
         purgeStaleCodes(now);
         // 가입 여부와 무관하게 같은 길을 지난다(Ruling 553) — 미등록 번호도 같은 한도를 받고 발급 행을 남기며, 다른 것은
@@ -216,7 +217,8 @@ public class AccountRecoveryCommandService {
     }
 
     /**
-     * 같은 번호의 계정마다 임시 비밀번호로 바꾸고 문자 본문을 만든다. refresh 토큰 무효화는 영속성 컨텍스트를 비우므로
+     * 같은 번호의 계정마다 임시 비밀번호로 바꾸고 문자 본문을 만든다. 문자함에 평문으로 남는 값이라 강제 변경 표식을 켠다
+     * ({@link Account#issueTemporaryPassword} · Ruling 785). refresh 토큰 무효화는 영속성 컨텍스트를 비우므로
      * 비밀번호 변경이 전부 끝난 뒤에 한다({@code AccountPasswordResetCommandService} 와 같은 순서).
      */
     private String resetPasswords(List<Account> accounts, OffsetDateTime now, Map<Long, TemporaryPassword> prepared) {
@@ -224,7 +226,7 @@ public class AccountRecoveryCommandService {
         for (Account account : accounts) {
             TemporaryPassword temporary = prepared.containsKey(account.getId()) ? prepared.get(account.getId())
                     : issueTemporaryPassword();
-            account.changePassword(temporary.hash());
+            account.issueTemporaryPassword(temporary.hash());
             text.append(" 아이디 ").append(account.getLoginId()).append(" 임시 비밀번호 ").append(temporary.plain())
                     .append(" /");
         }

@@ -20,6 +20,7 @@ import org.springframework.test.util.AopTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 import src.backend.academy.repository.AcademyRepository;
+import src.backend.account.entity.Account;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.routing.repository.RouteRepository;
@@ -148,9 +149,13 @@ class StudentRetentionAnonymizationTest {
             assertThat(행_수("link_code", "student_id", expired)).isZero();
 
             Map<String, Object> account = jdbcTemplate.queryForMap("SELECT * FROM account WHERE id = ?", expiredAccount);
-            assertThat(account.get("login_id")).as("로그인 아이디").isNotEqualTo("student-" + expired);
+            assertThat(account.get("login_id")).as("로그인 아이디 — ERD §7.2 의 withdrawn-<계정 id>")
+                    .isEqualTo("withdrawn-" + expiredAccount);
             assertThat(account.get("name")).isEqualTo(Student.ANONYMIZED_NAME);
+            assertThat(account.get("phone")).as("학생 전화번호가 계정에 남지 않는다").isEqualTo("000-0000-0000");
             assertThat(account.get("email")).isNull();
+            assertThat(account.get("password_hash")).as("비밀번호 해시 무효화 — 어떤 입력과도 맞지 않는 값")
+                    .isEqualTo(Account.UNUSABLE_PASSWORD_HASH);
             assertThat(account.get("status")).as("로그인 불가").isEqualTo("blocked");
             assertThat(행_수("refresh_token", "account_id", expiredAccount)).as("재발급 토큰").isZero();
             assertThat(행_수("device_token", "account_id", expiredAccount)).as("푸시 토큰").isZero();
@@ -159,6 +164,7 @@ class StudentRetentionAnonymizationTest {
             assertThat(행을_읽는다(enrolled)).as("재학생은 한 필드도 안 바뀐다").isEqualTo(enrolledBefore);
             assertThat(photoStorage.read(recentPhotoName)).as("89일 퇴원생의 사진 파일은 남는다").isPresent();
             assertThat(행_수("weekly_address", "student_id", recent)).isEqualTo(1);
+            assertThat(행_수("link_code", "student_id", recent)).as("89일 퇴원생의 연결 코드는 남는다").isEqualTo(1);
         } finally {
             photoStorage.delete("/api/v1/files/photos/" + recentPhotoName);
             photoStorage.delete("/api/v1/files/photos/" + expiredPhotoName);
@@ -282,8 +288,9 @@ class StudentRetentionAnonymizationTest {
                 """, studentId);
         jdbcTemplate.update("INSERT INTO run_rider (run_id, student_id, stop_id, status) VALUES (?, ?, ?, 'waiting')",
                 runId, studentId, stopId);
-        jdbcTemplate.update("INSERT INTO link_code (student_id, code, expires_at) VALUES (?, '123456', now())",
-                studentId);
+        // 아직 만료되지 않은 코드 — 만료된 행은 같은 cleanUp 의 일반 만료 정리가 먼저 지워 파기 서비스의 삭제 줄을 가려 버린다
+        jdbcTemplate.update("INSERT INTO link_code (student_id, code, expires_at) "
+                + "VALUES (?, '123456', now() + interval '30 days')", studentId);
         return studentId;
     }
 
