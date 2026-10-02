@@ -5,9 +5,7 @@ import java.util.Locale;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.CannotSerializeTransactionException;
 import org.springframework.dao.DataAccessResourceFailureException;
-import org.springframework.dao.DeadlockLoserDataAccessException;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.dao.QueryTimeoutException;
 import org.springframework.http.HttpHeaders;
@@ -216,12 +214,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(code.getStatus()).body(ErrorResponse.of(code.name(), code.getMessage()));
     }
 
-    /** PostgreSQL 교착({@code 40P01}) · 직렬화 실패({@code 40001}) — Spring 전용 예외이거나 원인 사슬에 그 SQLState 가 있다. */
+    /**
+     * PostgreSQL 교착({@code 40P01}) · 직렬화 실패({@code 40001}) — 원인 사슬에 그 SQLState 가 있다. Spring 7 이 두 전용 예외
+     * ({@code DeadlockLoserDataAccessException} · {@code CannotSerializeTransactionException})를 폐기 예정으로 돌려 클래스로 가르지 않는다.
+     */
     private static boolean isDeadlockOrSerializationFailure(Throwable e) {
         for (Throwable cause = e; cause != null; cause = cause.getCause()) {
-            if (cause instanceof DeadlockLoserDataAccessException || cause instanceof CannotSerializeTransactionException) {
-                return true;
-            }
             if (cause instanceof SQLException sql && ("40P01".equals(sql.getSQLState()) || "40001".equals(sql.getSQLState()))) {
                 return true;
             }

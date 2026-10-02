@@ -17,9 +17,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.dao.CannotAcquireLockException;
-import org.springframework.dao.CannotSerializeTransactionException;
 import org.springframework.dao.DataAccessResourceFailureException;
-import org.springframework.dao.DeadlockLoserDataAccessException;
 import org.springframework.dao.QueryTimeoutException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -57,7 +55,7 @@ class DbResourceUnavailableHandlingTest {
      * {@code CannotAcquireLockException} 으로 나오므로(잠금 대기 초과와 같은 클래스) 클래스가 아니라 SQLState 로 갈라야 한다.
      */
     @ParameterizedTest
-    @ValueSource(strings = {"deadlock-spring", "serialization-spring", "deadlock-sqlstate", "serialization-sqlstate"})
+    @ValueSource(strings = {"deadlock-sqlstate", "serialization-sqlstate"})
     @DisplayName("교착·직렬화 실패는 503 이 아니라 500 INTERNAL_ERROR 이고 스택트레이스를 로그에 남긴다")
     void 교착과_직렬화_실패는_500_이고_스택을_남긴다(String kind, CapturedOutput output) throws Exception {
         mockMvc.perform(get("/boom/" + kind))
@@ -89,8 +87,6 @@ class DbResourceUnavailableHandlingTest {
                 case "lock-timeout" -> new CannotAcquireLockException("canceling statement due to lock timeout");
                 case "lock-timeout-sqlstate" -> new CannotAcquireLockException("could not obtain lock",
                         new SQLException("canceling statement due to lock timeout", "55P03"));
-                case "deadlock-spring" -> new DeadlockLoserDataAccessException("deadlock detected", null);
-                case "serialization-spring" -> new CannotSerializeTransactionException("could not serialize access");
                 case "deadlock-sqlstate" -> new CannotAcquireLockException("could not obtain lock",
                         new SQLException("deadlock detected", "40P01"));
                 case "serialization-sqlstate" -> new CannotAcquireLockException("could not obtain lock",
