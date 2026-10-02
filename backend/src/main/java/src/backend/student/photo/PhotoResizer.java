@@ -24,7 +24,7 @@ import src.backend.student.photo.spec.StudentPhoto;
  * 업로드 사진을 긴 변 {@value #MAX_EDGE}px 로 줄인다(R46-KFIXBE K-3, Ruling 705) — 학생 목록 한 화면이 행마다 사진 한 장(약 4MB)을 받아 60명이면
  * 약 228MB 가 전송됐다. 표시 크기는 작아 원본 해상도가 필요한 화면이 없다. 새 의존성 없이 JDK {@code ImageIO} 만 쓴다.
  *
- * <p><b>줄이지 못하면 원본 그대로다</b> — {@code ImageIO} 가 읽지 못하는 형식(WebP · CMYK JPEG · 깨진 파일), 이미 작은 사진, 디코딩이 너무 무거운 사진,
+ * <p><b>줄이지 못하면 원본 그대로다</b> — {@code ImageIO} 가 읽지 못하는 형식(CMYK JPEG · 깨진 파일), 이미 작은 사진, 디코딩이 너무 무거운 사진,
  * 다루지 않는 EXIF 회전. 줄이기가 업로드를 막는 이유가 되면 안 된다. 이미 저장된 파일은 바꾸지 않는다(개발 단계).
  *
  * <p><b>신뢰할 수 없는 입력을 디코딩하는 첫 자리</b>다 — 5MB 이하 파일도 해상도가 크면 디코딩에 수백 MB 가 든다(압축 폭탄). 헤더만 읽어 픽셀 수가
@@ -32,6 +32,9 @@ import src.backend.student.photo.spec.StudentPhoto;
  *
  * <p><b>휴대폰 JPEG 의 EXIF 회전을 지킨다</b> — 세로 사진은 픽셀이 가로로 저장되고 EXIF 가 "돌려 보라" 고 적는다. 다시 인코딩하면 그 정보가 사라져
  * 사진이 누워 보인다. 회전 3 · 6 · 8 은 돌려서 줄이고, 거울상(2 · 4 · 5 · 7)은 드물어 원본을 둔다.
+ *
+ * <p><b>WebP 도 줄인다</b>(R47 Ruling 745) — JDK 기본 {@code ImageIO} 는 못 읽어 원본(최대 5MB)이 그대로 저장됐다. 읽기 전용 플러그인
+ * (TwelveMonkeys {@code imageio-webp})이 읽고, 쓰기는 JDK 에 없어 JPEG(투명 배경이면 PNG)로 저장한다. 같은 헤더 크기 검사가 디코딩 앞에 서 있다.
  */
 public final class PhotoResizer {
 
@@ -77,7 +80,8 @@ public final class PhotoResizer {
                     return Optional.empty();
                 }
                 BufferedImage reduced = reduce(orient(reader.read(0), orientation));
-                return encode(reduced, photo.extension()).map(bytes -> new StudentPhoto(photo.extension(), bytes));
+                String extension = storedExtension(photo.extension(), reduced);
+                return encode(reduced, extension).map(bytes -> new StudentPhoto(extension, bytes));
             } finally {
                 reader.dispose();
             }
@@ -135,6 +139,17 @@ public final class PhotoResizer {
 
     private static int typeOf(BufferedImage source) {
         return source.getColorModel().hasAlpha() ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB;
+    }
+
+    /**
+     * 줄인 사진을 저장할 형식 — 대개 받은 형식 그대로다. WebP 는 JDK 에 쓰기가 없어(읽기만 플러그인이 한다) JPEG 로, 투명 배경이 있으면 알파를
+     * 지키려 PNG 로 저장한다. 확장자가 바뀌면 응답 Content-Type 도 그 확장자를 따른다({@link StudentPhoto#contentTypeOf}).
+     */
+    private static String storedExtension(String received, BufferedImage reduced) {
+        if (!"webp".equals(received)) {
+            return received;
+        }
+        return reduced.getColorModel().hasAlpha() ? "png" : "jpg";
     }
 
     private static Optional<byte[]> encode(BufferedImage image, String extension) throws IOException {

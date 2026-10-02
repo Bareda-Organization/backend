@@ -37,13 +37,14 @@ import java.util.List;
  * 보안 설정.
  * 토큰 기반이라 세션을 만들지 않고(STATELESS), CSRF 를 끈다.
  * JwtAuthenticationFilter 를 표준 인증 필터 앞에 끼워 매 요청 토큰을 검증한다.
- * 공개 경로(§2.1·2.2·2.5·2.6·2.9 — 학원검색·회원가입·로그인·토큰재발급·복구)와 헬스체크·Swagger UI·
- * /actuator/prometheus(한 경로만, /actuator/** 전체 아님)만 공개, 그 외는 인증 필요.
+ * 공개 경로(§2.1·2.2·2.5·2.6·2.9 — 학원검색·회원가입·로그인·토큰재발급·복구)와 헬스체크(/actuator/health · /healthz)·Swagger UI·
+ * /actuator/prometheus(한 경로만, /actuator/** 전체 아님)만 공개, 그 외는 인증 필요. 관리 포트를 따로 연 프로파일에서도
+ * 같은 필터 체인이 관리 포트에 걸려(실측: /actuator/env 401) 이 허용 목록 밖은 열리지 않는다.
  * 세밀한 역할 인가는 각 컨트롤러의 @PreAuthorize 로 처리한다(@EnableMethodSecurity).
  *
  * /actuator/prometheus 가 공개인 이유 — Prometheus 는 JWT 를 들고 스크레이프하지 않아 인증으로는
  * 통과할 방법이 없다. 접근 경계는 인증이 아니라 네트워크다(nginx 가 외부의 /actuator 를 404 로 막고,
- * Prometheus 는 compose 내부망에서 backend:8080 으로만 닿는다).
+ * Prometheus 는 compose 내부망에서 backend:<관리 포트> 로만 닿는다 — 관리 포트는 호스트에 열지 않는다).
  *
  * /ws/** 는 예외 — WebSocket 업그레이드(HTTP 핸드셰이크) 자체엔 아직 토큰이 없고(네이티브
  * WebSocket 클라이언트는 임의 헤더를 못 붙이는 경우가 많음), 인증은 STOMP CONNECT 프레임에서
@@ -81,6 +82,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, withPrefix(PublicEndpoints.GET_ENDPOINTS)).permitAll()
                         .requestMatchers(HttpMethod.POST, withPrefix(PublicEndpoints.POST_ENDPOINTS)).permitAll()
                         .requestMatchers("/actuator/health").permitAll()
+                        // 외부 가동 감시용 헬스 그룹(application.yml management.endpoint.health.group.external) — 앱 포트에 낸다(Ruling 740).
+                        .requestMatchers("/healthz").permitAll()
                         // Prometheus 는 JWT 를 들고 스크레이프하지 않는다 — 여기를 막으면 인증을 통과할 방법이 없어
                         // 스크레이프 자체가 401 로 실패한다. 접근 경계는 이 필터가 아니라 네트워크다
                         // (nginx 가 외부의 /actuator 를 404 로 막고, Prometheus 는 compose 내부망에서만 닿는다).

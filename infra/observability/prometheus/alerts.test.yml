@@ -208,7 +208,7 @@ tests:
             exp_annotations:
               summary: 백엔드가 1분 넘게 응답하지 않는다 — 이 동안 백엔드 지표에 기대는 다른 경보(미확정 회차·위치 유실·푸시 실패)는 값이 없어 울리지 않는다
 
-  # 5xx 비율: 최근 5분 창에서 5% 초과가 2분 유지돼야 발화한다(actuator 제외 · 분당 6건 이상일 때만).
+  # 5xx 비율: 최근 5분 창에서 5% 초과가 2분 유지돼야 발화한다(actuator·/healthz 제외 · 분당 6건 이상일 때만).
   - interval: 15s
     input_series:
       - series: 'http_server_requests_seconds_count{job="backend",application="school-bus",uri="/runs/{runId}/position",status="200"}'
@@ -227,7 +227,7 @@ tests:
           - exp_labels:
               severity: critical
             exp_annotations:
-              summary: 최근 5분 요청의 5% 넘게 5xx 로 응답했다(actuator 제외 · 분당 6건 이상일 때만 판정)
+              summary: 최근 5분 요청의 5% 넘게 5xx 로 응답했다(actuator·/healthz 제외 · 분당 6건 이상일 때만 판정)
 
   - interval: 15s   # 1% — 임계 아래
     input_series:
@@ -251,11 +251,13 @@ tests:
         alertname: Http5xxRatioHigh
         exp_alerts: []
 
-  - interval: 15s   # actuator 가 503(Redis 장애로 헬스 DOWN)이어도 · 부하 시험 프로파일(job 이 다르다)이 5xx 여도 울리지 않는다
+  - interval: 15s   # actuator · /healthz(외부 감시용 헬스 — Ruling 740)가 503(Redis 장애로 헬스 DOWN)이어도 · 부하 시험 프로파일(job 이 다르다)이 5xx 여도 울리지 않는다
     input_series:
       - series: 'http_server_requests_seconds_count{job="backend",uri="/runs/{runId}/position",status="200"}'
         values: '0+60x80'
       - series: 'http_server_requests_seconds_count{job="backend",uri="/actuator/health",status="503"}'
+        values: '0+30x80'
+      - series: 'http_server_requests_seconds_count{job="backend",uri="/healthz",status="503"}'
         values: '0+30x80'
       - series: 'http_server_requests_seconds_count{job="school-bus-load",uri="/runs/{runId}/position",status="500"}'
         values: '0+60x80'

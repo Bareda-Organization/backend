@@ -15,7 +15,8 @@ import java.util.List;
  * <p>§5.16 상속분(§6.11 이 "§5.16 항목 + 아래" 로 정의)의 판정 근거는 {@code
  * EmergencyStaffItemResponse} 자바독과 같다 — {@code raisedAt = received_at}(occurred_at 은
  * 조작 가능해 취소 창 판정에도 쓰이지 않는다), {@code contacts} 는 배치 인력 전원(중복 허용),
- * {@code ackedBy} 는 이름만.
+ * {@code ackedBy} 는 이름만. 단말이 누른 시각 {@code occurredAt} 은 정렬·판정·{@code elapsedSinceRaised} 에 쓰지 않는
+ * <b>참고값</b>으로 따로 싣는다(R47 Ruling 744).
  *
  * <p>{@code staffAcked} 는 {@code emergency_alert.acked_at IS NOT NULL} 과 같다 — 확인자가 학원
  * 관계자든 다른 메인관리자든 구분하지 않는다({@link src.backend.exception.entity.EmergencyAlert#ack}
@@ -35,8 +36,8 @@ import java.util.List;
  */
 public record AdminEmergencyItemResponse(Long emergencyId, AcademyInfo academy, String type, String memo,
         RaisedBy raisedBy, Long runId, String busNo, String direction, Position position, Integer riderCount,
-        List<Contact> contacts, OffsetDateTime raisedAt, boolean staffAcked, OffsetDateTime ackedAt,
-        OffsetDateTime canceledAt, AckedBy ackedBy, Long elapsedSinceRaised) {
+        List<Contact> contacts, OffsetDateTime raisedAt, OffsetDateTime occurredAt, boolean staffAcked,
+        OffsetDateTime ackedAt, OffsetDateTime canceledAt, AckedBy ackedBy, Long elapsedSinceRaised) {
 
     /** 신고를 낸 학원(§6.11 고유). */
     public record AcademyInfo(Long id, String name, String contact) {

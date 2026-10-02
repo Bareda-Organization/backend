@@ -23,6 +23,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -33,10 +34,14 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.env.MockEnvironment;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.ResultActions;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
 
 import src.backend.academy.entity.Academy;
 import src.backend.academy.repository.AcademyRepository;
@@ -44,6 +49,7 @@ import src.backend.account.command.AccountRecoveryCommandService;
 import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
 import src.backend.global.common.enums.Role;
+import src.backend.global.sms.impl.LoggingSmsSender;
 import src.backend.global.sms.spec.SmsSender;
 
 /**
@@ -91,6 +97,25 @@ class AccountRecoveryFlowTest {
     private String loginId;
 
     private Long academyId;
+
+    private final Logger smsLogger = (Logger) LoggerFactory.getLogger(LoggingSmsSender.class);
+
+    private Level smsLoggerLevelBefore;
+
+    /**
+     * 문자 발송기의 INFO 로그를 켠다 — CI 의 {@code -PciQuiet} 은 루트 수준을 WARN 으로 낮춰, 안 켜면 로그에 비밀이 없다는 검사가 빈 로그를 보고
+     * 통과한다(공허 통과 · R46-CIFIX 가 {@code LoggingSmsSender} 시험에 한 것과 같은 방식).
+     */
+    @BeforeEach
+    void showSmsLog() {
+        smsLoggerLevelBefore = smsLogger.getLevel();
+        smsLogger.setLevel(Level.INFO);
+    }
+
+    @AfterEach
+    void restoreSmsLogLevel() {
+        smsLogger.setLevel(smsLoggerLevelBefore);
+    }
 
     @BeforeEach
     void setUp() {
@@ -181,6 +206,7 @@ class AccountRecoveryFlowTest {
         login(tempPassword).andExpect(status().isOk());
         recover("password", code).andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("VERIFICATION_CODE_INVALID"));
+        assertThat(output.getAll()).as("검사 대상 로그 — 비어 있으면 아래 '없음' 검사가 아무것도 안 본다").contains("[sms] to=***");
         assertThat(output.getAll()).doesNotContain(code).doesNotContain(tempPassword).doesNotContain(phone);
     }
 
@@ -371,7 +397,10 @@ class AccountRecoveryFlowTest {
         }
     }
 
-    /** 문자 발송기 자리의 가짜 — 보낸 내용을 모아 둔다(업체 없이 활성 경로를 시험한다). */
+    /**
+     * 문자 발송기 자리의 가짜 — 보낸 내용을 모아 둔다(업체 없이 활성 경로를 시험한다). 실제 로그 전용 발송기({@link LoggingSmsSender})에도
+     * 같이 넘긴다 — 이 흐름에서 코드·임시 비밀번호·번호가 지나는 로그 줄은 그 발송기의 것뿐이라, 로그에 비밀이 없다는 검사가 볼 대상이 생긴다.
+     */
     static class RecordingSmsSender implements SmsSender {
 
         record Sent(String phone, String text) {
@@ -379,9 +408,12 @@ class AccountRecoveryFlowTest {
 
         private final List<Sent> sent = new CopyOnWriteArrayList<>();
 
+        private final SmsSender logging = new LoggingSmsSender(new MockEnvironment());
+
         @Override
         public void send(String phone, String text) {
             sent.add(new Sent(phone, text));
+            logging.send(phone, text);
         }
 
         List<Sent> sent() {

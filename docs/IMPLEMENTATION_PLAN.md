@@ -1195,6 +1195,11 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 732 | 일반 종료 후속 중 따르지 않는 것 — `RunEndedEvent`(알림 + `run_ended` 방송을 함께 일으킴) · 정차지 강제 출발 · 탑승자 하차 처리. 새 에러 코드 `RUN_NOT_STALE`(409) 1개, 이동 중 아님·취소는 기존 `RUN_NOT_MOVING`·`RUN_CANCELED` 재사용, 성공 응답 `200` | 본문 §8.92 · `API_SPEC §8` |
 | 733 | 관계자 웹 메인 관리자 콘솔 "끝나지 않은 회차" 화면 — 성공하면 대화상자를 닫고 행 제거 + 저장 알림(강제 확정처럼 결과 화면을 따로 두지 않음) · 학원 선택 필터 없음(서버가 전 학원 목록) | `docs/frontend/IMPLEMENTATION_PLAN.md` 에 별도 절 없음 — 본문 §8.92 |
 | 734 | 권한 상수 "33종" 표기는 낡은 값 — 직접 세어 코드 상수 35 · 표 35행(이번 추가분 포함)으로 정정(정본 `FEATURE_SPEC` 의 권한 카탈로그 절) | 본문 §8.92 |
+| 740 | 관리 포트 분리(R46 누수 검토 R-3) — prod·demo·staging 은 `management.server.port: 8081` 로 헬스·지표를 앱 커넥터(동시 연결 상한 `Ruling 690`)와 따로 연다 · 컨테이너 헬스체크·배포 스모크·Prometheus 스크레이프는 관리 포트 · 외부 감시 `/healthz` 는 헬스 그룹 `external` 로 **앱 포트**에 유지(상한 도달을 감시가 실패로 봄) · 호스트·nginx 에 관리 포트 미공개 · `Http5xxRatioHigh` 제외 목록에 `/healthz` 추가 | 본문 §8.93 · `docs/infra/DEPLOYMENT.md §11.8` |
+| 742 | `refresh_token` 크기·정리 시간(R-4) — 정리 시간은 스프링 기본 지표로 이미 보여 문서만, 크기는 안 보여 게이지 `schoolbus_refresh_token_rows` 1개(정리 직후 `count(*)` · 하루 1회) | 본문 §8.93 · `docs/infra/DEPLOYMENT.md §11.9` |
+| 743 | `AccountRecoveryFlowTest` 로그 검사의 공허 통과 — 이 흐름에는 켤 INFO 로그가 원래 없어 가짜 발송기가 실제 `LoggingSmsSender` 에도 넘기고 그 로거만 INFO 로 켬 · 검사 전 "로그가 비어 있지 않다" 확인 | 본문 §8.93 |
+| 744 | 비상 목록(`§5.16`·`§6.11`)에 `occurred_at`(단말 기록 시각 · 참고값) 추가 — `Ruling 236` 의 "미노출" 을 이 필드에 한해 갱신 · 정렬·판정·취소 창·경과 초는 접수 시각 그대로 · 웹은 두 시각이 60초를 넘게 다를 때만 "단말 기록 HH:mm(참고)" | 본문 §8.93 · `docs/API_SPEC.md §5.16` |
+| 745 | WebP 업로드도 긴 변 512px 로 줄임 — 읽기 전용 디코더 `imageio-webp 3.15.2` 한 줄 · 결과는 JPEG(투명 배경이면 PNG) · 관계자 웹이 WebP 를 올릴 수 있어 허용 형식에서 빼지 않음 | 본문 §8.93 · `docs/API_SPEC.md §5.11` |
 | 750 | 웹 실시간 클라이언트 `connect()` 가 연결 중·연결됨이면 무시(Dart 와 같은 가드) · `doConnect` 가 번호표를 올린 직후 쥐고 있던 연결을 `deactivate` — 재발급 대기 중 `connect()` 가 만든 연결이 덮여 고아가 되던 것(R-1) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.34` |
 | 751 | 갈아타는 두 번째 연결을 버릴 때 서버에 소켓이 남는다는 지적(R-2)은 Chrome 에서 재현 안 됨(지연 중계기 · 소켓 12개 전부 닫힘) → 코드 미변경 · `discardWebsocketOnCommFailure` 는 `deactivate()` 와 무관(stompjs 7.3.0) | `docs/frontend/IMPLEMENTATION_PLAN.md §5.34` |
 | 752 | `vitest` 3.2.7 → 5.0.3 · `@types/node` 20 → 22 계열(peer) · 지도 시험의 `new` 가짜 클래스를 화살표 함수에서 `function` 으로(vitest 4 부터 `Reflect.construct`) · `npm audit` 2건 → 0건 | `docs/frontend/IMPLEMENTATION_PLAN.md §5.34` · `docs/frontend/CONVENTIONS_REACT.md` 시험 절 |
@@ -1822,6 +1827,40 @@ push 직후 CI 가 웹 3건 · 백엔드 5건 실패했고 로컬은 전부 통�
 **동등 변형** — 자동 종료 쪽에서 `status` 재확인만 지우는 변형은 시험이 못 잡음. 강제 종료 UPDATE 가 `finish_pending=false` 도 쓰므로 `finish_pending` 검사만으로 이미 건너뛰는 같은 결과라 시험 구멍이 아님(두 검사를 함께 지우면 잡힘).
 
 **후속(이 갈래 밖)** — 정차지 강제 출발을 생략했으므로 그 회차를 관계자 웹 회차 상세에서 열 때 정차지 진행 표시는 눈으로 확인하지 못함. 목록 상한 200건을 넘기는 규모는 운영에서 예상하지 않으나 화면에 "일부만 표시" 문구는 없음.
+
+## 8.93 ⚖ `R47-BE` — 누수 검토 P3(R-3·R-4) · 시험 공허 통과 · 비상 단말 시각 · WebP 축소 (2026-10-02 · 분기점 `dea049da` · 번호대 740~749 · 사용자 결정 `Ruling 728`)
+
+R46 누수 검토(`leak`)의 P3 지적 두 건과 R46-CIFIX 가 남긴 후속 셋을 한 갈래로 처리했다. 갈래 보고서는 `.claude/r47/report-be.md`(무시 파일). 서버는 `:8710`(Redis 칸 7 · DB `r47_be`) · 웹 개발 서버는 `:4200` 으로 띄웠고 끝난 뒤 내렸다.
+
+### R47-BE 판정
+
+| Ruling | 판정 | 근거 |
+|:-:|---|---|
+| **740** | **관리 포트 분리(R-3) — prod·demo·staging 은 `management.server.port: 8081`.** 헬스·지표가 앱 커넥터와 다른 커넥터에 있어 동시 연결 상한(`Ruling 690`)에 닿아도 응답한다. 컨테이너 헬스체크(`docker-compose.prod.yml`)·배포 스모크(`deploy.sh` 4단계)·Prometheus 스크레이프(`prometheus.prod.yml`)가 같은 포트를 본다. **외부 가동 감시 `/healthz` 는 관리 포트로 옮기지 않고** 헬스 그룹 `external`(`additional-path: server:/healthz`)로 **앱 포트**에 낸다 — nginx 는 `backend_pool/healthz` 를 친다. 호스트(`ports`)에도 nginx 에도 관리 포트를 내지 않는다. `Http5xxRatioHigh` 제외 목록에 `/healthz` 추가 | 지시서는 관리 포트를 프록시로 내보내지 말라고 했는데 운영 nginx `/healthz` 가 `/actuator/health` 를 프록시하고 있었다 — 관리 포트로 옮기면 외부 감시가 404 로 상시 실패하고, 관리 포트로 프록시하면 앱 커넥터가 가득 차 사용자가 못 붙는 동안에도 감시가 초록이라 분리 전의 신호(상한 도달 = 감시 실패)가 사라진다. 앱 포트의 헬스 그룹이 둘 다 피한다. **실측**(상한 40) — 분리 전 앱 포트 `/actuator/health` 3초 안에 응답 없음 · 분리 후(스테이징 프로파일) 앱 `/healthz` 응답 없음 · 관리 포트 헬스·지표 200 · 연결을 놓으면 앱 헬스 복귀(관리 포트 지표의 현재 연결 수가 상한에 붙는 것은 `ManagementPortSaturationTest` 가 확인). 관리 포트에도 같은 보안 필터가 걸려(`/actuator/env`·`/api/v1/me`·`/` 가 `401`) 허용 목록 밖은 열리지 않는다. local·load 는 상한이 없어(`Ruling 690`) 분리하지 않는다 — 컨테이너 모드 local 도 같다 |
+| **741** | 미사용 | — |
+| **742** | **`refresh_token` 크기·정리 시간(R-4).** 정리 시간은 스프링 기본 지표 `tasks_scheduled_execution_seconds_*{code_function="cleanUp"}` 로 **이미 보여** 코드 없이 문서만(`DEPLOYMENT §11.9`). 크기는 운영에 postgres-exporter 가 없어 **안 보여** 게이지 `schoolbus_refresh_token_rows` 1개 — 보존 정리의 `refresh_token` 단계 직후 `count(*)` 1회(하루 1회) · 기동 직후 첫 정리 전은 `NaN` · 학원 범위 저장소 규칙(`AcademyScopeRepositoryConventionTest`)이 상속 `count()` 호출을 막아 예외 근거를 단 전용 조회 `countAllRows` | 20초 주기로 돌린 로컬 서버에서 두 갈래를 모두 확인(정리 3회 · sum 0.798s · max 0.623s). 버린 길 — 스크레이프마다 DB 를 세는 게이지(풀이 마르면 지표도 같이 멈춤) · 게이지 갱신용 별도 스케줄러(시험 JVM 이 끄는 `build.gradle` 시스템 속성을 더해야 함) · `reltuples` 추정(수천만 행 전에는 정확한 `count(*)` 가 하루 1회로 부담 없음). 이 규칙 위반은 **전체 묶음에서만** 잡혔다(첫 전체 실행 1건 실패) |
+| **743** | **`AccountRecoveryFlowTest:184` 공허 통과 — 이 흐름에는 켤 INFO 로그가 원래 없었다.** 가짜 발송기가 실제 `LoggingSmsSender` 에도 같은 호출을 넘기고, 시험이 그 로거만 `@BeforeEach` 에서 INFO 로 켜 `@AfterEach` 에서 되돌린다. 검사 전에 `[sms] to=***` 가 로그에 있는지 먼저 확인 | `-PciQuiet` 으로 `output.getAll()` 이 배너와 DNS 오류 한 줄뿐인 것을 RED 로 확인. R46-CIFIX(`Ruling 722`)의 "자기 로거를 켠다" 를 따르되 켤 로그 문장이 이 흐름에 없어 발송기 로그를 흐름에 연결 |
+| **744** | **비상 목록 `occurred_at`(단말 기록 시각)을 참고값으로 싣는다 — `Ruling 236` 의 "미노출" 을 이 필드에 한해 갱신.** `§5.16`(`EmergencyStaffItemResponse`)·`§6.11`(`AdminEmergencyItemResponse`)에 `occurred_at` 추가만. 정렬·판정·취소 창·`elapsed_since_raised` 는 접수 시각(`raised_at`)만 쓴다. 웹은 두 시각이 **60초를 넘게** 다를 때만 접수 시각 아래에 `단말 기록 HH:mm(참고)` 를 보인다(관계자 "발생 시각" · 메인 관리자 "발신 시각" 칸 · 서울 고정 공용 서식) | 빠져 있던 이유는 `Ruling 236`(Phase 13)의 "단말 시각은 조작 가능" — 그 이유는 판정에 쓰지 않는 것으로 그대로 지키고 참고로 보이는 것만 추가한다. 오프라인 큐로 늦게 도착한 비상(`Ruling 616`)에서 접수 시각과 단말 시각이 벌어진다. 발신 때 단말이 안 보내면 서버가 접수 시각으로 채우므로 응답엔 항상 값이 있으나 클라이언트는 `null` 도 견딘다. 상세 대화상자에는 넣지 않았다(지시가 목록) |
+| **745** | **WebP 도 긴 변 512px 로 줄여 저장한다 — 읽기 전용 디코더 `com.twelvemonkeys.imageio:imageio-webp:3.15.2` 한 줄.** 줄인 결과는 JPEG(투명 배경이면 PNG — 알파를 지킴) · 확장자·`Content-Type` 도 따라 바뀜 · 4천만 화소 검사가 새 디코더 앞에도 섬 | 관계자 웹이 WebP 를 올릴 수 있고(`PhotoUploadField` `accept` 3종) 매니저·학부모 앱은 사진을 올리지 않는다 — (나) 허용 형식에서 빼면 사양 3종(`§1.1`·`§5.11`)을 줄이고 웹 문구를 바꾸는 퇴행. **실행 jar 에서 ImageIO 플러그인 탐색**을 `bootJar` 로 직접 확인(`BOOT-INF/lib/imageio-webp-3.15.2.jar` · 1200×800 WebP 10,120B → JPEG 512×341 9,535B · `image/jpeg`). 38바이트 · 6500×6500 WebP 로 압축 폭탄 검사를 시험 |
+
+`Ruling 746`~`749` 는 쓰지 않았다.
+
+### R47-BE 목표 표
+
+| # | 완료 조건 | 확인 수단 | 결과 |
+|:-:|---|---|:-:|
+| 1 | 앱 커넥터가 상한으로 가득 찬 동안 관리 포트 헬스 200 · 앱 포트 헬스는 응답 없음 · 호스트·프록시 미공개 | `ManagementPortSaturationTest`(상한 20 · 대조군 포함) RED→GREEN · 상한 40 실서버 실측 · `DeploymentConfigGuardTest` 가 `ports` 부재·nginx 에 포트 부재 고정 · `docker compose config` 해석(호스트 공개 포트 3001·9090·80·443 뿐) · 결함 심기 12종(M1~M12) | ✅ |
+| 2 | 헬스체크 포트 = 관리 포트 · Prometheus 대상 = 관리 포트 | `DeploymentConfigGuardTest`(세 곳이 `application.yml` 의 값과 같음) · `promtool check config`(`prometheus.prod.yml`·`prometheus.yml` 모두 SUCCESS · 규칙 17개) · `promtool test rules` SUCCESS(`/healthz` 503 사례 RED→GREEN) | ✅ |
+| 3 | `AccountRecoveryFlowTest` 가 `-PciQuiet` 에서도 실제 로그를 검사 | `-PciQuiet` RED(로그 빈 것 관측) → GREEN · 일반 실행도 14건 통과 · 결함 심기 3종(본문 로그·번호 로그·로그 줄 제거 — 모두 `-PciQuiet` 에서 그 시험만 실패) | ✅ |
+| 4 | `occurred_at` 이 두 목록 응답에 실림 · 웹이 1분 넘게 다를 때만 병기 | 백엔드 `StaffEmergencyControllerTest`·`AdminEmergencyControllerTest` 각 1건 추가 · `deviceTimeNote` 단위 6건(59·60·61초 경계) · 목록 2곳·변환 2곳 시험 · 결함 심기 12종(O1~O4·W1~W8) · 화면 눈 확인 — `:4200` 에서 1440·1024px 로 관계자(`staffA`)·메인 관리자(`sysadmin`) 목록의 7분 차이 행은 병기, 30초 차이 행은 병기 없음 | ✅ |
+| 5 | WebP 판정대로 동작 | `PhotoResizerTest` 3건 추가(큰 WebP → 512px JPEG · 투명 → PNG · 압축 폭탄) · `StudentPhotoUploadTest` 1건(실제 파일 시스템에서 읽음) · 실행 jar 실증 · 결함 심기 4종(P1~P4) | ✅ |
+| 6 | 백엔드 전체 `--rerun` 실패 0 · 건너뜀 0 · `TZ=UTC -PciQuiet` 로도 / 웹 바뀐 범위 `TZ=UTC` | 결과 XML 합계 — `TZ=UTC ./gradlew test -PtestDbUrl=… -PciQuiet --rerun`(전수 · 네이버 환경변수 없이) **382 클래스 · 2,157건 · 실패 0 · 오류 0 · 건너뜀 0**(`BUILD SUCCESSFUL in 5m 32s`) · 기존 조건(`TZ`·`-PciQuiet` 없이) 전수 `--rerun` 도 같은 **382 · 2,157 · 0 · 0 · 0**(`5m 27s`) · 웹 `src/features/emergency`·`src/features/admin`·`src/shared/lib/format` `TZ=UTC` 32 파일 189건 · `next typegen` · `tsc` · `lint` 통과 | ✅ |
+| 7 | 정본 반영 · 깨진 참조 — 착수 때 값 이하 | 이 절 · `§11` 색인(740~745) · `DEPLOYMENT §11.4·§11.8·§11.9` · `API_SPEC §5.11·§5.16·§6.11` · `ERD §3.4` · `ARCHITECTURE`·`TECH_DECISIONS` 관측 서술 · `build.py` 전후 | `python3 ~/.claude/tools/docgraph/build.py .` — 분기점 `dea049da` 의 깨끗한 내보내기(`git archive`)에서 **0건**, 작업 후 **0건**(색인 `ruling 500→508`) | ✅ |
+| 8 | 정리 — `:8710`·`:4200` · 일회용 컨테이너 · DB 는 남김 | `lsof` 로 `:8710`·`:8711`·`:4200` 점유 없음 · `docker ps -a --filter name=^r47-be-` 빈 결과(`promtool` 일회용 컨테이너는 `--rm`) · 잔여 `vitest`·`next`·Chrome 없음 · DB `r47_be` 는 남김(조율자가 병합 뒤 지움) | ✅ |
+
+**재현되지 않았거나 지시와 다르게 판단한 것** — ① 지시서 1항의 "관리 포트는 프록시로 내보내지 않는다" 를 지키되 `/healthz` 를 앱 포트에 그대로 두는 길을 골랐다(위 `Ruling 740`). ② `AccountRecoveryFlowTest` — 지시는 "그 시험이 쓰는 로거 하나만 수준을 켜고 복원" 이었으나 이 흐름은 켤 로그 문장이 없어 가짜 발송기를 실제 로그 발송기와 연결했다(`Ruling 743`). ③ 웹 상세 대화상자 2곳에는 단말 시각 병기를 넣지 않았다.
+
+**후속(이 갈래 밖)** — 관리 포트 분리는 운영 반영 때 backend 재시작이 필요하고 같은 배포에서 compose·`prometheus.prod.yml`·nginx 가 함께 바뀐다(`deploy.sh` 가 Prometheus 와 proxy 를 다시 시작). 스테이징 compose 에는 헬스체크가 없어 관리 포트는 열리지만 소비자가 없다. 기존 저장 사진은 일괄 축소하지 않는다(`Ruling 728 ①`).
 
 ## 8.94 ⚖ `R47-DEPS` — 의존성 올리기 (2026-10-02 · 분기점 `dea049da` · 번호대 760~769 · 사용자 결정 3 `Ruling 726`·`727`·`729`)
 

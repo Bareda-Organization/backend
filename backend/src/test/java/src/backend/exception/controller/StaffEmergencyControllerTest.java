@@ -328,8 +328,8 @@ class StaffEmergencyControllerTest {
         assertThat(item).as("정본 키는 id 가 아니라 emergency_id 다(Phase 13 목표 13 판정 ①)")
                 .doesNotContainKey("id")
                 .containsKey("emergency_id");
-        assertThat(item).as("occurred_at 은 §5.16 응답에 없다(Phase 13 목표 13 판정 ①)")
-                .doesNotContainKey("occurred_at");
+        assertThat(item).as("occurred_at(단말 기록 시각)은 참고값으로 따로 실린다(R47 Ruling 744 — Phase 13 판정 ① 을 이 필드에 한해 바꿈)")
+                .containsKey("occurred_at");
 
         Map<String, Object> raisedBy = (Map<String, Object>) item.get("raised_by");
         assertThat(raisedBy).containsEntry("name", "기사").containsEntry("role", "driver");
@@ -418,6 +418,30 @@ class StaffEmergencyControllerTest {
         Map<String, Object> item = 항목(body, emergencyId);
         OffsetDateTime raisedAt = OffsetDateTime.parse((String) item.get("raised_at"));
         assertThat(raisedAt).as("raised_at = received_at(occurred_at 은 조작 가능, Phase 13 목표 13 판정 ①)")
+                .isEqualToIgnoringNanos(receivedAt);
+    }
+
+    @Test
+    void occurred_at은_단말_기록_시각을_참고값으로_싣고_raised_at은_접수_시각_그대로다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사",
+                OffsetDateTime.now());
+        long staffAccountId = fixtures.staffAccount(academyId, "직원");
+        long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
+
+        // 오프라인 큐로 늦게 도착한 비상 — 단말이 누른 시각이 접수 시각보다 7분 앞선다(Ruling 616)
+        OffsetDateTime receivedAt = 접수시각(emergencyId);
+        OffsetDateTime pressedAt = receivedAt.minusMinutes(7);
+        발신시각을_옮긴다(emergencyId, pressedAt);
+
+        Map<String, Object> item = 항목(목록을_조회한다(staffAccountId, academyId), emergencyId);
+
+        assertThat(OffsetDateTime.parse((String) item.get("occurred_at"))).as("단말 기록 시각 — 참고값")
+                .isEqualToIgnoringNanos(pressedAt);
+        assertThat(OffsetDateTime.parse((String) item.get("raised_at"))).as("raised_at 은 계속 서버 접수 시각이다")
                 .isEqualToIgnoringNanos(receivedAt);
     }
 

@@ -1932,7 +1932,7 @@ STU-05) — 화면이 "이 자리에 이미 있다" 를 알려 관계자가 같�
 
 `photo_url` 값은 `/api/v1/files/photos/<파일명>` 이다. 앱은 로그인 토큰을 헤더에 붙여 요청하고, 웹은 `<img src>` 가 헤더를 실을 수 없어 토큰을 실은 요청의 응답을 blob 으로 그린다. 옛 절대 URL 로 저장된 값은 토큰 없이 그대로 연다(프론트 `Ruling 385`).
 
-**업로드 사진 축소**(`Ruling 705`) — 학생 등록·수정으로 올린 사진은 서버가 **긴 변 512px 로 줄여** 저장한다(JPEG · PNG · 형식 유지 · 비율 유지 · 휴대폰 EXIF 회전 반영). 원본 상한 5MB 와 형식 3종 검사는 그대로이고, 서버 이미지 도구가 읽지 못하는 형식(WebP · 깨진 파일) · 이미 512px 이하 · 디코딩 상한(4천만 화소) 초과 · 거울상 회전은 **원본 그대로** 저장한다. 이미 저장된 파일은 바꾸지 않는다(개발 단계).
+**업로드 사진 축소**(`Ruling 705` · WebP 포함 `Ruling 745`) — 학생 등록·수정으로 올린 사진은 서버가 **긴 변 512px 로 줄여** 저장한다(JPEG · PNG 는 형식 유지 · 비율 유지 · 휴대폰 EXIF 회전 반영). **WebP 도 같은 규칙으로 줄이되 서버에 WebP 쓰기가 없어 JPEG 로 저장한다**(투명 배경이 있으면 PNG — 알파를 지킨다). 그래서 WebP 를 올리면 응답 `photo_url` 의 확장자와 `Content-Type` 은 `jpg`·`image/jpeg`(또는 `png`)다. 원본 상한 5MB 와 형식 3종 검사는 그대로이고, 서버 이미지 도구가 읽지 못하는 파일(깨진 파일 · CMYK JPEG) · 이미 512px 이하 · 디코딩 상한(4천만 화소) 초과 · 거울상 회전은 **원본 그대로** 저장한다. 이미 저장된 파일은 바꾸지 않는다(개발 단계 — 운영·데모 미배포라 축소 도입 이전 사진이 남은 영속 환경이 없다).
 
 **에러** — `404 STUDENT_NOT_FOUND`(파일 부재 · 사진 주인이 타 학원 · 퇴원 학생 — 존재 비노출) · `403 FORBIDDEN`(권한 부재)
 
@@ -2107,7 +2107,8 @@ STU-05) — 화면이 "이 자리에 이미 있다" 를 알려 관계자가 같�
 | `position` | object | ● | `lat` · `lng` · `recorded_at` — **발신 시점 위치** |
 | `rider_count` | integer | ● | 발신 시점 회차에 배정된 라이더 전원 수(승하차 상태 무관) |
 | `contacts` | array | ● | 기사·동승자 연락처 |
-| `raised_at` · `acked_at` · `canceled_at` | datetime | ● / ○ / ○ | |
+| `raised_at` · `acked_at` · `canceled_at` | datetime | ● / ○ / ○ | `raised_at` 은 **서버 접수 시각**(`received_at`)이다 — 정렬·판정은 이 값만 쓴다 |
+| `occurred_at` | datetime | ● | **단말이 누른 시각 — 참고값**(`Ruling 744`, `Ruling 236` 의 "미노출" 을 갱신). 단말 시각은 조작할 수 있어 정렬·판정·취소 창에 쓰지 않는다. 오프라인 큐로 늦게 도착한 비상(`Ruling 616`)에서 `raised_at` 과 벌어진다 — 관계자·메인 관리자 웹은 두 시각이 **1분을 넘게** 다를 때만 "단말 기록 HH:mm(참고)" 를 덧붙인다. 단말이 시각을 안 보냈으면 `raised_at` 과 같다. 클라이언트는 없거나 `null` 이어도 견딘다 |
 | `acked_by` | object | ○ | 확인한 관계자 — `name` · **`memo`**(확인할 때 남긴 **조치 메모**, 없으면 `null` · `Ruling 541`) |
 
 `POST /staff/emergencies/{id}/ack` — 접수 응답. 발신자 앱에 "학원이 확인했습니다" 표시. 확인 이력(누가·언제) 저장. **이미 확인된 건 재확인은 `409 ALREADY_ACKED`**.
@@ -2460,13 +2461,13 @@ SMS 연동(`PRD` F-05) 전까지 §2.9 가 `503` 이라 **학원 사용자의 �
 
 **권한** 메인 관리자 · **요청 (쿼리)** `status` · `academy_id`(선택)
 
-**응답** — `§5.16` 항목 + 아래. WS: `/ws/admin/live` 의 `emergency_raised` 이벤트로 실시간 수신.
+**응답** — `§5.16` 항목(`occurred_at` 참고값 포함 — `Ruling 744`) + 아래. WS: `/ws/admin/live` 의 `emergency_raised` 이벤트로 실시간 수신.
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|:-:|---|
 | `academy` | object | ● | `id` · `name` · `contact` — 학원 연락처 |
 | `staff_acked` | boolean | ● | **학원 관계자의 확인 여부** |
-| `elapsed_since_raised` | integer | ● | 발신 후 경과 초. 관계자 미응답 상황을 운영사가 즉시 인지 |
+| `elapsed_since_raised` | integer | ● | 발신 후 경과 초 — **접수 시각**(`raised_at`) 기준이다(단말 시각 `occurred_at` 을 쓰지 않는다 · `Ruling 744`). 관계자 미응답 상황을 운영사가 즉시 인지 |
 
 `acked_by` 는 `§5.16` 과 같이 `{name, memo}` 객체다 — **`memo`** 는 학원 관계자가 확인할 때 남긴 조치 메모(`Ruling 541`)라 메인 관리자도 상세에서 본다(없으면 `null`).
 

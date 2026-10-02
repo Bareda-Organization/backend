@@ -11,6 +11,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -64,6 +65,9 @@ class RetentionCleanupSchedulerTest {
 
     @Autowired
     private Clock clock;
+
+    @Autowired
+    private MeterRegistry meterRegistry;
 
     private OffsetDateTime now;
 
@@ -135,6 +139,23 @@ class RetentionCleanupSchedulerTest {
         assertThat(existsRefreshToken(expiredInWindow)).as("만료 29일째는 남는다").isTrue();
         assertThat(existsRefreshToken(expiredOutOfWindow)).as("만료 31일째는 지워진다").isFalse();
         assertThat(existsRefreshToken(stillValid)).as("아직 유효한 토큰은 대상이 아니다").isTrue();
+    }
+
+    @Test
+    @DisplayName("R47 Ruling 742 — 정리를 마친 뒤 refresh_token 남은 행 수가 게이지로 노출된다(R46 누수 검토 R-4)")
+    void 정리_뒤_재발급_토큰_남은_행_수가_게이지로_노출된다() {
+        long accountId = insertSystemAdminAccount();
+        insertRefreshToken(accountId, now.minusDays(31), null);
+        insertRefreshToken(accountId, now.minusDays(32), null);
+        insertRefreshToken(accountId, now.plusDays(10), null);
+        long before = countRefreshTokens();
+
+        scheduler.cleanUp();
+
+        long after = countRefreshTokens();
+        assertThat(after).as("정리가 만료 31일째 이상인 2행을 지웠다").isEqualTo(before - 2);
+        assertThat(meterRegistry.get("schoolbus.refresh.token.rows").gauge().value())
+                .as("게이지는 정리 전(%d)이 아니라 정리 뒤 남은 행 수다", before).isEqualTo((double) after);
     }
 
     @Test
@@ -289,6 +310,10 @@ class RetentionCleanupSchedulerTest {
     }
 
     /** {@code revokedAt} 이 null 이면 만료 기준으로만 판정되는 토큰을 만든다. */
+    private long countRefreshTokens() {
+        return jdbcTemplate.queryForObject("SELECT count(*) FROM refresh_token", Long.class);
+    }
+
     private long insertRefreshToken(long accountId, OffsetDateTime expiresAt, OffsetDateTime revokedAt) {
         long id = jdbcTemplate.queryForObject("""
                 INSERT INTO refresh_token (account_id, token_hash, issued_at, expires_at, revoked_at)

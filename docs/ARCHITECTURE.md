@@ -78,7 +78,7 @@
 | 메시징·캐시 | `spring-boot-starter-data-redis` · `-websocket` | 프로세스 밖 메시징 브로커는 두지 않는다(§9.5) |
 | 외부 호출 | `spring-boot-starter-webclient` | 지도 API 어댑터 |
 | API 문서 | springdoc 3.1.1 | Spring Boot 4(Jackson 3) 지원 라인 |
-| 관측 | actuator + micrometer-prometheus | 노출은 `health,prometheus` 2개로 한정 |
+| 관측 | actuator + micrometer-prometheus | 노출은 `health,prometheus` 2개로 한정. 운영 계열(prod·demo·staging)은 이 엔드포인트가 앱 포트가 아니라 **관리 포트**(8081 · 호스트·프록시에 미공개)에 있어 동시 연결 상한에 닿아도 응답한다 — 외부 감시용 `/healthz` 만 앱 포트에 남긴다(`Ruling 740` · DEPLOYMENT §11.8) |
 
 ### 2.2 프론트엔드
 

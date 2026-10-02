@@ -6,9 +6,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.awt.image.BufferedImage;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+
+import javax.imageio.ImageIO;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -80,6 +83,26 @@ class StudentPhotoUploadTest {
         assertThat(저장된_파일(photoUrl))
                 .as("응답이 가리키는 주소에 실제 파일이 있어야 한다 — 없으면 주소만 만든 구현이다")
                 .exists();
+    }
+
+    /**
+     * 진짜 WebP 를 올리면 서버가 긴 변 512px 로 줄여 <b>JPEG 파일</b>로 저장한다(R47 Ruling 745) — 위 "3종 모두 받는다" 시험의 WebP 는 머리만
+     * 맞춘 가짜라 디코딩에 실패해 원본이 남는다. 이 시험은 실제로 디코딩되는 파일로 저장 결과를 파일 시스템에서 읽어 본다.
+     */
+    @Test
+    void 진짜_WebP_를_올리면_512px_JPEG_로_줄어_저장된다() throws Exception {
+        byte[] original;
+        try (var stream = StudentPhotoUploadTest.class.getResourceAsStream("/student/photo/wide-1200x800.webp")) {
+            original = stream.readAllBytes();
+        }
+
+        String photoUrl = 상세의_사진_주소(사진과_함께_등록한다("P5T6웹피축소", original));
+
+        Path stored = 저장된_파일(photoUrl);
+        assertThat(stored.getFileName().toString()).as("확장자가 형식을 따라 jpg 로 바뀐다").endsWith(".jpg");
+        BufferedImage image = ImageIO.read(stored.toFile());
+        assertThat(image).as("저장된 파일이 읽히는 이미지다").isNotNull();
+        assertThat(Math.max(image.getWidth(), image.getHeight())).as("긴 변 512px").isEqualTo(512);
     }
 
     /**

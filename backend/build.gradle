@@ -55,6 +55,8 @@ dependencies {
     // 지표 수집 — actuator 지표를 Prometheus 스크레이프 형식으로 노출한다.
     // 이 의존성 하나로 HTTP 요청·JVM·HikariCP·Tomcat 지표가 자동 등록된다.
     implementation 'io.micrometer:micrometer-registry-prometheus'
+    // 학생 사진 WebP 를 읽는 JDK ImageIO 플러그인(읽기 전용 · 순수 Java) — JDK 는 WebP 를 못 읽어 원본(최대 5MB)이 그대로 저장됐다(R47 Ruling 745).
+    implementation 'com.twelvemonkeys.imageio:imageio-webp:3.15.2'
     // @Scheduled 를 감싸 계측하기 위한 AOP.
     // 계측 호출을 도메인 메서드 안에 넣지 않으려고 쓴다 — observability 가 도메인을 참조할 뿐,
     // 도메인은 observability 를 모른다(설계 문서 §5.3).

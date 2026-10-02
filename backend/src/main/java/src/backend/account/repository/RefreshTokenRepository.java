@@ -97,6 +97,15 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
             + "order by t.id")
     List<Long> findIdsForRetentionCleanup(@Param("cutoff") OffsetDateTime cutoff, Limit limit);
 
+    /**
+     * 남은 행 수(R47, Ruling 742) — 보존 정리 직후 운영 지표 {@code schoolbus.refresh.token.rows} 용이다. {@code count()} 를 직접 부르지 않는 것은
+     * 학원 범위 저장소의 상속 전건 조회 호출을 막는 규칙({@code AcademyScopeRepositoryConventionTest})이 있어, 예외 근거를 적은 전용 조회로 둔다.
+     */
+    @AcademyScopeExempt(reason = "운영 지표(R47 Ruling 742) — 보존 정리가 끝난 직후 전 학원의 refresh_token 남은 행 수를 센다. 개별 행·개인정보를 읽지 않고 "
+            + "부르는 주체가 사용자 요청이 아니라 스케줄러라 요청 주체의 소속 자체가 부재")
+    @Query("select count(t) from RefreshToken t")
+    long countAllRows();
+
     /** 익명화한 계정의 재발급 토큰을 전량 지운다(개인정보 파기, Ruling 480 ②·520) — 만료·폐기 여부와 무관하다. */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @AcademyScopeExempt(reason = "보존 정리 배치(Ruling 480 ②) — 계정 id 는 학생 파기 처리가 고른 값이고, "

@@ -482,7 +482,7 @@ sudo docker compose -f /opt/school-bus/docker-compose.prod.yml \
 
 §2.11 커밋을 push 한 뒤 Actions 탭에서 `deploy-backend.yml` 을 `workflow_dispatch` 로 실행하면 최초 배포가 실행된다(백엔드는 push 자동 배포가 없다. 웹은 Vercel 이 push 로 자동 배포한다 — §12). 검증 기준(설계 문서 §8 의 9개 + 운영 2차의 1개, 전부 통과해야 완료로 간주):
 
-1. 컨테이너 내부 `/actuator/health` 가 `UP`(DataSource·Redis 포함). 외부에서는 `/actuator` 가 404 이고 `https://api.<도메인>/healthz` 만 200(`{"status":"UP"}` — 외부 가동 감시가 칠 주소, §11)
+1. 컨테이너 안에서 관리 포트의 `/actuator/health`(`curl localhost:8081/actuator/health`)가 `UP`(DataSource·Redis 포함). 외부에서는 `/actuator` 가 404 이고 `https://api.<도메인>/healthz` 만 200(`{"status":"UP"}` — 외부 가동 감시가 칠 주소, §11)
 2. `https://app.<도메인>`(Vercel, §12)에서 로그인 성공 — `demo` 는 데모 계정, `prod` 는 첫 메인 관리자(§3 "첫 메인 관리자")
 3. 관리자 관제 화면에서 버스 마커가 실제로 이동
 4. 배차 시뮬레이션 실행이 500 미발생
@@ -847,7 +847,7 @@ Grafana 는 볼륨이 없어 컨테이너를 다시 만들 때마다 SSM 값으�
 | `BackupDbStale` | DB 백업 성공 시각이 2시간 넘게 갱신되지 않거나 지표가 아예 없음(5분 유지) | 즉시(critical) | (표 밖 — 매시 백업 중 두 번 연속 실패하면 RPO 1시간을 못 지킨다, `Ruling 500`) |
 | `BackupPhotosStale` | 사진 백업 성공 시각이 26시간 넘게 갱신되지 않거나 지표가 없음 | 경고 | (표 밖) |
 | `BackendDown` | `up{job="backend"} == 0` 이거나 `up` 시계열이 없음(스크레이프 대상이 목록에서 사라짐)이 1분 유지 | 즉시(critical) | (표 밖 — 백엔드가 죽으면 위 백엔드 지표 경보가 값이 없어 **전부 조용해진다**) |
-| `Http5xxRatioHigh` | 최근 5분 요청의 5% 초과가 5xx(actuator 제외 · 분당 6건 이상일 때만 판정)인 상태가 2분 유지 | 즉시(critical) | (표 밖) |
+| `Http5xxRatioHigh` | 최근 5분 요청의 5% 초과가 5xx(actuator·`/healthz` 제외 · 분당 6건 이상일 때만 판정)인 상태가 2분 유지 | 즉시(critical) | (표 밖) |
 | `HikariPoolWaiting` | `hikaricp_connections_pending > 0` 이 1분 유지 | 경고 | (표 밖 — 풀 20개가 마르면 3초 뒤 500) |
 | `CircuitBreakerNotClosed` | 지도 API 서킷(`geocoding` · `mapRoute` · `placeSearch`)이 열림·반열림으로 2분 넘게 닫히지 않음 | 경고 | 4행 |
 | `SchedulerStalled` | 확정·알림 재전송 스케줄러가 90초, 근접 판정이 30초(각 주기의 3배) 넘게 마지막 성공이 없는 상태가 1분 유지 | 즉시(critical) | (표 밖 — 확정이 멈추면 `RunUnconfirmed` 보다 먼저 안다) |
@@ -862,7 +862,7 @@ Grafana 는 볼륨이 없어 컨테이너를 다시 만들 때마다 SSM 값으�
 - 새 규칙은 전부 스크레이프 `job="backend"` 로 걸러 **부하 시험 프로파일을 보지 않는다** — 부하 시험 앱은 별도 관측 스택(`LOAD_TESTING §6`)이 다른 `job` 이름으로 긁고, 그쪽은 풀 10 · 연결 대기 100~190 · 서킷 실패 주입이 정상이다
 - ⚠ **`BackendDown` 이 울리는 동안 위 `RunUnconfirmed` · `RunPositionLost` · `PushDeliveryFailing` 은 침묵이 정상이 아니다** — 백엔드가 죽으면 Prometheus 가 그 시계열을 즉시 끝난 것으로 표시해 **이미 발화 중이던 경보도 해소로 바뀐다.** 그 사이 미확정 회차·위치 유실·푸시 실패는 지표로 볼 수 없다
 - `SchedulerStalled` 의 숫자(90초·30초)는 스케줄러 주기(`poll-interval-ms` 30초 · 10초)의 3배다 — 주기를 바꾸면 규칙의 숫자도 같이 바꾼다(`alerts.yml` 주석). 앱을 재기동하면 경과가 0 부터 다시 세어지므로 **`RetentionCleanupStalled` 는 3일 안에 한 번이라도 재배포하면 못 본다** — 정리가 계속 실패하는 경우는 건별 실패 카운터(`schoolbus_scheduler_failures_total`)가 따로 있다
-- 5xx 비율은 `/actuator/*` 요청을 뺀다(스크레이프·헬스체크가 요청 수에 늘 섞이고 Redis 장애 때 헬스가 503). 분당 6건 미만이면 판정하지 않는다 — 새벽에 한두 건 실패한 것이 비율 50% 로 보여 울리는 것을 막는 하한이다
+- 5xx 비율은 `/actuator/*` 와 `/healthz` 요청을 뺀다(스크레이프·헬스체크·외부 감시가 요청 수에 늘 섞이고 Redis 장애 때 헬스가 503). 관리 포트(§11.8)의 요청은 `http_server_requests` 에 잡히지 않아 앞의 제외는 운영 계열에서 할 일이 없고, 앱 포트에 남는 헬스 주소 `/healthz` 가 뒤의 제외 대상이다. 분당 6건 미만이면 판정하지 않는다 — 새벽에 한두 건 실패한 것이 비율 50% 로 보여 울리는 것을 막는 하한이다
 
 **울렸을 때 첫 확인**
 
@@ -937,7 +937,7 @@ sudo docker compose -f /opt/school-bus/docker-compose.prod.yml --env-file /opt/s
 
 ### 11.4 외부 가동 감시 — `/healthz`
 
-`https://api.<도메인>/healthz` 는 인터넷에서 닿는 유일한 헬스 주소다(UptimeRobot 같은 외부 감시용). backend 의 `/actuator/health` 를 그대로 프록시하므로 응답은 `{"status":"UP"}` 뿐이고(상세는 `show-details: never`), backend 나 DB·Redis 가 DOWN 이면 503, backend 가 죽으면 502·504 라 외부 감시가 실패를 본다. 정적 200 이 아니다 — 정적 200 은 backend 가 죽어도 초록이다. IP 당 분당 30회로 제한한다(초과 429). `/actuator` 의 나머지(`prometheus` 등)는 계속 404 다.
+`https://api.<도메인>/healthz` 는 인터넷에서 닿는 유일한 헬스 주소다(UptimeRobot 같은 외부 감시용). backend **앱 포트**의 `/healthz`(헬스 그룹 `external` — `application.yml` `management.endpoint.health.group.external.additional-path: server:/healthz`)를 프록시하므로 응답은 `{"status":"UP"}` 뿐이고(상세는 `show-details: never`), backend 나 DB·Redis 가 DOWN 이면 503, backend 가 죽으면 502·504 라 외부 감시가 실패를 본다. 정적 200 이 아니다 — 정적 200 은 backend 가 죽어도 초록이다. IP 당 분당 30회로 제한한다(초과 429). `/actuator` 의 나머지(`prometheus` 등)는 계속 404 다. **관리 포트(§11.8)로는 가지 않는다** — 앱 커넥터가 연결 상한에 닿아 사용자가 못 붙는 동안 이 주소가 실패해야 외부 감시가 그 상태를 본다.
 
 ⚠ EC2 가 통째로 죽으면 Prometheus·Alertmanager 도 함께 죽는다 — 서버 사망은 이 외부 감시로만 알 수 있다(등록은 사용자 작업).
 
@@ -997,10 +997,44 @@ sudo docker compose -f /opt/school-bus/docker-compose.prod.yml --env-file /opt/s
 4. **WebSocket 도 같은 수에 든다** — 업그레이드는 새 연결이 아니라 같은 소켓을 계속 쓰고(`AbstractProtocol` 이 같은 `SocketWrapperBase` 를 업그레이드 처리기에 넘김), 수는 소켓이 닫힐 때(`SocketWrapperBase.close`)만 줄어든다 → 세션이 끊길 때까지 점유. REST 요청도 같은 한도 안에서 센다
 5. 프록시(nginx)가 backend 로 여는 연결은 요청마다 닫힌다(`upstream backend_pool` 에 `keepalive` 없음) → 연결 수 ≈ WebSocket 세션 수 + 진행 중 HTTP 요청(요청 스레드 100 이하)
 6. **서버는 거절을 기록하지 않는다** — 앱이 그 연결을 본 적이 없다. 그래서 상한 도달 전에 `StompSessionsNearCap`(3,000 = 상한의 75% · 5분 유지 · `job="backend"` 만)이 울린다
+7. **헬스·지표는 관리 포트라 상한 밖이다**(§11.8) — 신규 접속·로그인은 응답이 없어도 컨테이너 헬스체크·Prometheus 스크레이프는 계속 응답한다. 대응은 이 절 끝 "울렸을 때 판단" 과 §11.8
 
 **끊긴 연결이 상한을 채우지 않는다** (`Ruling 693`·`694`) — 소리 없이 사라진 클라이언트(전원·망 끊김)의 세션은 하트비트를 협상했으면 무수신 30초, 하트비트를 껐거나 `CONNECT` 를 안 보냈으면 무수신 60초(`app.ws.idle-timeout-ms`, Tomcat 읽기 유휴 점검)에 서버가 닫아 연결 수에서 빠진다(점검 주기 10초라 30~40초 · 60~70초). 정리 경로 4가지와 실서버 시험은 `docs/ARCHITECTURE.md §10.4`. **하트비트를 끄는 클라이언트는 60초마다 아무 프레임이든 보내야 한다** — 서버가 방송을 계속 써도 클라이언트 프레임이 없으면 닫는다. 이 값(60초)은 모든 프로파일 공통이며 `TomcatThreadPoolConfigTest` 가 프로파일이 덮지 않음을 고정한다
 
 **울렸을 때 판단** — 세션 수 그래프(§11.2 표)가 계단이면 이용자 증가라 상한·사양 재계산 대상이다. 위 공식으로 새 연결 수의 최악 힙을 구해 운영 힙(약 2.15GB) 안인지 보고 `application.yml` 의 prod·demo 상한을 올리되 **같은 변경에 경보 임계(상한의 75%)도 함께** 올린다 — `OpsSettingsGuardTest` 가 둘이 맞지 않으면 실패한다. 백엔드는 인스턴스 1대 고정이라(`ARCHITECTURE §9.5`) 한 대로 모자라면 사양을 올리거나 WS 브로커 릴레이를 먼저 만든다. 톱니이면 클라이언트의 재연결 반복(토큰 만료 · 망 불안정 · 앱 버전)이 원인이라 그쪽을 먼저 본다 — **재시작은 모든 세션을 끊어 재연결이 한꺼번에 몰리므로 마지막 수단**.
+
+
+### 11.8 관리 포트 — 헬스·지표를 앱 커넥터와 따로 (`Ruling 740`)
+
+운영·demo·스테이징은 `management.server.port: 8081`(`application.yml` 각 프로파일 문서)로 `/actuator/health` · `/actuator/prometheus` 를 **앱 포트(8080)와 다른 커넥터**에 연다. local·load 는 따로 열지 않아 앱 포트 그대로다.
+
+| 항목 | 값 |
+|---|---|
+| 이유 | 앱 포트가 동시 연결 상한(§11.7)에 닿으면 Tomcat 이 새 연결을 받지 않아 같은 커넥터의 헬스·지표·로그인이 함께 응답이 없었다(R46 누수 검토 R-3 · 상한 40 재현 — `/actuator/health` 5초 안에 응답 없음). 헬스 실패 10회(150초) 뒤 `unhealthy` 로만 표시되고 `restart: unless-stopped` 는 재시작하지 않아 "서버는 살아 있는데 보이지 않는" 상태가 됐다 |
+| 관리 포트를 보는 곳 | 컨테이너 헬스체크(`docker-compose.prod.yml` · `curl localhost:8081/actuator/health`) · 배포 스모크(`deploy.sh` 4단계) · Prometheus 스크레이프(`prometheus.prod.yml` · `backend:8081`) |
+| 앱 포트에 남는 것 | 외부 감시용 `/healthz`(헬스 그룹 `external`). 감시는 앱 커넥터를 거쳐야 "사용자가 못 붙는 상태" 를 실패로 본다(§11.4) |
+| 공개 범위 | **호스트에 열지 않는다**(compose `ports` 부재 — `expose` 만) · **nginx 도 이 포트로 가지 않는다**(`/actuator` 는 404 유지). `/actuator/prometheus` 가 인증 없이 열려 있어(`SecurityConfig`) 접근 경계는 네트워크다 — 호스트 포트나 프록시 경로를 더하면 지표가 인터넷에 열린다. `DeploymentConfigGuardTest` 가 둘 다 고정 |
+| 보안 필터 | 관리 포트에도 같은 필터 체인이 걸린다(실측: `/actuator/env` · `/api/v1/me` · `/` 가 `401`, 허용 목록 두 경로만 `200`) |
+| 지표 | Tomcat 지표는 앱 커넥터(`name="http-nio-8080"`) 한 벌만 나온다 — 대시보드 `tomcat_threads_*` 패널이 두 줄이 되지 않는다. `/actuator/*` 요청은 `http_server_requests` 에 잡히지 않는다 |
+| 로컬 확인 | 개발 PC 에서 같은 상태를 보려면 `--spring.profiles.active=local,staging`(+ 스테이징 필수 환경변수 4개)로 띄우고 `--server.tomcat.max-connections=40` 같은 작은 상한을 준다. 재현 시험은 `ManagementPortSaturationTest`(상한 20) |
+
+**상한에 닿았을 때 보이는 것** — 신규 접속·로그인은 응답이 없다(연결 거부 또는 시간 초과). 관리 포트의 헬스는 `UP` 이고 `tomcat_connections_current_connections` 가 `tomcat_connections_config_max_connections`(4,000)에 붙은 채 지표가 계속 나온다. 외부 감시 `/healthz` 는 앱 포트를 거치므로 **실패로 보인다**(정상 — 사용자가 못 붙는 상태).
+
+**대응** — ① `StompSessionsNearCap`(3,000)이 먼저 울렸는지 확인 ② `schoolbus_stomp_sessions` 와 `tomcat_connections_current_connections` 가 같이 계단이면 접속 폭주(이용자 증가·재연결 반복)이므로 §11.7 "울렸을 때 판단" 을 따른다 ③ 헬스가 `UP` 이라고 재시작하지 않는다 — 재시작은 모든 세션을 끊어 재연결이 한꺼번에 몰린다(마지막 수단)
+
+
+### 11.9 보존 정리 — `refresh_token` 크기 · 정리 시간 (`Ruling 742`)
+
+재발급마다 `refresh_token` 행이 1개 늘고(이전 행은 폐기 표시) 만료·폐기 30일 뒤 야간 보존 정리(00:15 KST · 5,000행씩 반복)가 지운다. 정상 상태의 크기는 **하루 발급 수 × 30** 이다 — 운영 가정(토큰 15분 · 세션 2,000 · 하루 12시간 접속 · 갈아타기 14분마다)에서 하루 약 10.3만 행 · 약 310만 행이며 **측정 전 추정**이다(R46 누수 검토 R-4). 크기와 정리 시간은 아래 지표로 본다 — 운영에는 postgres-exporter 가 없어(§11) 테이블 행 수 지표가 없다.
+
+| 보는 것 | 지표(PromQL) | 판독 |
+|---|---|---|
+| 정리 직후 남은 행 수 | `schoolbus_refresh_token_rows` | 하루 1회(정리 직후) 갱신. 기동 뒤 첫 정리(00:15) 전에는 `NaN`. 30일이 지나도 계속 오르면 정리가 발급을 따라가지 못하는 것 |
+| 마지막 정리 소요 | `increase(tasks_scheduled_execution_seconds_sum{code_function="cleanUp",code_namespace="src.backend.global.retention.RetentionCleanupScheduler"}[25h]) / increase(tasks_scheduled_execution_seconds_count{code_function="cleanUp",code_namespace="src.backend.global.retention.RetentionCleanupScheduler"}[25h])` | 스프링이 `@Scheduled` 실행마다 남기는 기본 지표(로컬에서 20초 주기로 돌려 노출 확인). 정리가 지우는 테이블이 여럿이라 이 값은 **전체 배치** 시간이다. 지우는 행이 늘면 시간이 늘고, 배치 잠금 상한(`lockAtMostFor` 10분)에 닿기 전에 주기·묶음 크기를 재검토 |
+| 마지막 성공 이후 경과 | `schoolbus_scheduler_last_success_age_seconds{scheduler="retention-cleanup"}` | 3일을 넘으면 `RetentionCleanupStalled`(§11.2) |
+
+- 위 쿼리는 Prometheus(SSM 포트 포워딩 — §11.1)에서 본다. 전용 대시보드 패널은 두지 않았다 — 하루 1회 값이라 쿼리 한 줄이면 충분하고, 대시보드 `3. 데이터 계층` 은 exporter 가 없는 운영에서 비어 있다
+- 게이지는 정리 끝에 `count(*)` 1회로 채운다(정상 상태에서도 부담 없는 하루 1회). 수천만 행이 되면 `pg_class.reltuples` 추정으로 바꾼다
 
 ---
 

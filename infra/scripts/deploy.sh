@@ -288,7 +288,7 @@ $COMPOSE restart proxy
 echo "== 4. 스모크 테스트 (최대 3분 대기) =="
 for _ in $(seq 1 36); do
     if $COMPOSE exec -T backend \
-         curl -fsS http://localhost:8080/actuator/health 2>/dev/null | grep -q '"status":"UP"'; then
+         curl -fsS http://localhost:8081/actuator/health 2>/dev/null | grep -q '"status":"UP"'; then
         echo "배포 성공 (tag=$IMAGE_TAG)"
         # 안 쓰는 이미지를 72시간 뒤 전부 지운다 — 매 배포가 새 SHA 태그라 옛 이미지는 이름이 있어 이름 없는 것만
         # 지우는 옵션으로는 남는다(디스크 30GB 를 배포마다 ~400MB 씩 채운다). 컨테이너가 쓰는(정지 포함) 이미지는
