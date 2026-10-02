@@ -148,8 +148,8 @@ public class EmergencyStaffQueryService {
         return new EmergencyStaffItemResponse(alert.getId(), LowerCaseFormatter.lower(alert.getType().name()),
                 alert.getMemo(), raisedBy, alert.getRunId(), alert.getBusNo(),
                 run == null ? null : LowerCaseFormatter.lower(run.getDirection().name()), position,
-                alert.getRiderCount(), contacts, alert.getReceivedAt(), alert.getAckedAt(), alert.getCanceledAt(),
-                alert.isAcked(), ackedBy);
+                alert.getRiderCount(), contacts, alert.getReceivedAt(), alert.getOccurredAt(), alert.getAckedAt(),
+                alert.getCanceledAt(), alert.isAcked(), ackedBy);
     }
 
     /** 삭제된 매니저는 연락처에서 뺀다 — 회차별로 읽던 옛 조회({@code findAssignedManagerAccounts})와 같은 결과. */

@@ -170,8 +170,8 @@ public class AdminEmergencyQueryService {
                 LowerCaseFormatter.lower(alert.getType().name()), alert.getMemo(), raisedBy, alert.getRunId(),
                 alert.getBusNo(),
                 run == null ? null : LowerCaseFormatter.lower(run.getDirection().name()),
-                position, alert.getRiderCount(), contacts, alert.getReceivedAt(), alert.isAcked(), alert.getAckedAt(),
-                alert.getCanceledAt(), ackedBy, elapsedSeconds);
+                position, alert.getRiderCount(), contacts, alert.getReceivedAt(), alert.getOccurredAt(), alert.isAcked(),
+                alert.getAckedAt(), alert.getCanceledAt(), ackedBy, elapsedSeconds);
     }
 
     /** 삭제된 매니저는 연락처에서 뺀다 — 신고별로 읽던 옛 조회({@code findAssignedManagerAccounts})와 같은 결과. */

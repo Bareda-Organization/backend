@@ -12,6 +12,7 @@ import jakarta.persistence.PersistenceContext;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -131,6 +132,27 @@ class AdminEmergencyControllerTest {
     }
 
     @Test
+    void occurred_at은_단말_기록_시각을_참고값으로_싣고_raised_at과_경과시간은_접수_시각을_쓴다() throws Exception {
+        long emergencyId = 신고를_발신한다_기본();
+        OffsetDateTime receivedAt = now().minusSeconds(200);
+        OffsetDateTime pressedAt = receivedAt.minusMinutes(7);
+        접수시각을_옮긴다(emergencyId, receivedAt);
+        발신시각을_옮긴다(emergencyId, pressedAt);
+        long adminAccountId = fixtures().systemAdminAccount("메인관리자");
+
+        String body = 목록을_조회한다(adminAccountId);
+
+        Map<String, Object> item = 항목(body, emergencyId);
+        // 같은 순간이어도 오프셋 표기가 다를 수 있어(시계는 서울 · 응답은 UTC) 순간(Instant)으로 비교한다
+        assertThat(OffsetDateTime.parse((String) item.get("occurred_at")).toInstant().truncatedTo(ChronoUnit.SECONDS))
+                .as("단말 기록 시각 — 참고값").isEqualTo(pressedAt.toInstant().truncatedTo(ChronoUnit.SECONDS));
+        assertThat(OffsetDateTime.parse((String) item.get("raised_at")).toInstant().truncatedTo(ChronoUnit.SECONDS))
+                .as("raised_at 은 계속 서버 접수 시각이다").isEqualTo(receivedAt.toInstant().truncatedTo(ChronoUnit.SECONDS));
+        assertThat(경과시간(body, emergencyId)).as("경과 초도 접수 시각 기준 — 단말 시각을 쓰면 7분(420초)이 더해진다")
+                .isEqualTo(200L);
+    }
+
+    @Test
     void 확인된_신고는_경과시간이_확인_시각에서_멈춘다() throws Exception {
         long emergencyId = 신고를_발신한다_기본();
         접수시각을_옮긴다(emergencyId, now().minusSeconds(300));
@@ -206,7 +228,7 @@ class AdminEmergencyControllerTest {
         assertThat(item).as("§6.11 도 §5.16 과 같은 키를 쓴다 — id 가 아니라 emergency_id")
                 .doesNotContainKey("id")
                 .containsKey("emergency_id");
-        assertThat(item).doesNotContainKey("occurred_at");
+        assertThat(item).as("occurred_at(단말 기록 시각)은 참고값으로 따로 실린다(R47 Ruling 744)").containsKey("occurred_at");
         // BE-R1 목표 3 — §5.16·§6.11 표는 type 값을 소문자 스네이크로 적었으나(accident 등), 정정
         // 전에는 EmergencyType enum 의 name() 을 그대로 실어 대문자(ACCIDENT)로 나갔다.
         assertThat(item.get("type")).as("type 은 정본대로 소문자여야 한다").isEqualTo("accident");
@@ -443,6 +465,11 @@ class AdminEmergencyControllerTest {
     /** {@code EmergencyControllerTest#접수시각을_옮긴다} 와 같은 이유(1차 캐시 우회)로 clear() 를 함께 한다. */
     private void 접수시각을_옮긴다(long emergencyId, OffsetDateTime receivedAt) {
         jdbcTemplate.update("UPDATE emergency_alert SET received_at = ? WHERE id = ?", receivedAt, emergencyId);
+        entityManager.clear();
+    }
+
+    private void 발신시각을_옮긴다(long emergencyId, OffsetDateTime occurredAt) {
+        jdbcTemplate.update("UPDATE emergency_alert SET occurred_at = ? WHERE id = ?", occurredAt, emergencyId);
         entityManager.clear();
     }
 
