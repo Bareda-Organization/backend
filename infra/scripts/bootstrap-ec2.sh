@@ -29,9 +29,13 @@ if ! mountpoint -q "$DOCKER_VOLUMES" && [ -n "$(ls -A "$DOCKER_VOLUMES" 2>/dev/n
     exit 1
 fi
 # ⚠ 파일시스템이 이미 있는 디스크는 절대 포맷하지 않는다 — 옛 DB 가 그 안에 있다.
-if ! blkid "$DATA_DEVICE" >/dev/null 2>&1; then
-    mkfs -t xfs "$DATA_DEVICE"
-fi
+# 함수로 둔 이유 — BackupScriptGuardTest 가 이 함수만 꺼내 가짜 blkid·mkfs 로 실행해 "있으면 안 건드리고 없을 때만 포맷" 을 본다(BR-332).
+format_if_empty() {
+    if ! blkid "$1" >/dev/null 2>&1; then
+        mkfs -t xfs "$1"
+    fi
+}
+format_if_empty "$DATA_DEVICE"
 DATA_UUID="$(blkid -s UUID -o value "$DATA_DEVICE")"
 mkdir -p "$DOCKER_VOLUMES"
 # nofail — 디스크가 안 붙은 채 부팅해도 인스턴스는 뜬다. 그 상태에서 docker 가 켜지면 빈 볼륨으로 뜨므로 아래 마운트 확인을 통과해야 다음으로 간다.

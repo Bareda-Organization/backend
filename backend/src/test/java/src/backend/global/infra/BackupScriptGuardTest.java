@@ -9,6 +9,8 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -137,17 +139,48 @@ class BackupScriptGuardTest {
     }
 
     @Test
-    @DisplayName("부트스트랩 — DB 는 매시, 사진은 매일 크론이고 데이터 디스크는 비어 있을 때만 포맷한다")
-    void bootstrapSchedulesHourlyDbBackupAndNeverReformatsData() throws IOException {
+    @DisplayName("부트스트랩 — DB 는 매시, 사진은 매일 크론이다")
+    void bootstrapSchedulesHourlyDbAndDailyPhotoBackups() throws IOException {
         String script = Files.readString(BOOTSTRAP_SH);
 
         assertThat(script).contains("0 * * * * root ${APP_DIR}/infra/scripts/backup-db.sh db")
                 .contains("10 3 * * * root ${APP_DIR}/infra/scripts/backup-db.sh photos")
                 .contains("/var/lib/node_exporter/textfile");
-        // 이미 데이터가 든 디스크(인스턴스 교체 때 붙이는 옛 볼륨)를 다시 포맷하면 DB 가 사라진다.
-        int blkid = script.indexOf("blkid");
-        int mkfs = script.indexOf("mkfs");
-        assertThat(blkid).as("파일시스템이 있는지 먼저 본다").isNotNegative().isLessThan(mkfs);
+    }
+
+    @Test
+    @DisplayName("데이터 디스크에 파일시스템이 이미 있으면 포맷하지 않는다 — 옛 DB 가 든 디스크를 다시 포맷하면 DB 가 사라진다(BR-332)")
+    void bootstrapNeverFormatsADiskThatHasAFilesystem(@TempDir Path tmp) throws Exception {
+        assertThat(formatCalls(tmp, true)).as("blkid 가 파일시스템을 찾으면 mkfs 를 부르지 않는다").isEmpty();
+    }
+
+    @Test
+    @DisplayName("데이터 디스크가 비어 있으면(파일시스템 없음) 그 디스크를 xfs 로 포맷한다(BR-332)")
+    void bootstrapFormatsAnEmptyDisk(@TempDir Path tmp) throws Exception {
+        assertThat(formatCalls(tmp, false)).as("blkid 가 파일시스템을 못 찾으면 mkfs 를 한 번 부른다").containsExactly("-t xfs /dev/fake-data");
+    }
+
+    /**
+     * bootstrap-ec2.sh 의 {@code format_if_empty} 함수만 꺼내(스크립트 전체는 dnf·fstab 을 건드려 못 돌린다) 가짜 {@code blkid}·{@code mkfs} 로 실행하고,
+     * {@code mkfs} 가 받은 인자를 돌려준다. 가짜 blkid 는 {@code hasFilesystem} 이면 0(찾음), 아니면 2(없음)로 끝난다.
+     */
+    private List<String> formatCalls(Path tmp, boolean hasFilesystem) throws Exception {
+        Matcher function = Pattern.compile("(?ms)^format_if_empty\\(\\) \\{.*?^\\}$").matcher(Files.readString(BOOTSTRAP_SH));
+        assertThat(function.find()).as("bootstrap-ec2.sh 에 format_if_empty 함수가 있어야 한다").isTrue();
+        Path bin = Files.createDirectories(tmp.resolve("bin"));
+        Path mkfsLog = tmp.resolve("mkfs.log");
+        writeExecutable(bin.resolve("blkid"), "#!/usr/bin/env bash\nexit " + (hasFilesystem ? 0 : 2) + "\n");
+        writeExecutable(bin.resolve("mkfs"), "#!/usr/bin/env bash\necho \"$*\" >> \"$FAKE_MKFS_LOG\"\n");
+
+        ProcessBuilder builder = new ProcessBuilder("bash", "-c", "set -euo pipefail\n" + function.group() + "\nformat_if_empty /dev/fake-data");
+        builder.redirectErrorStream(true);
+        builder.environment().put("PATH", bin + ":" + System.getenv("PATH"));
+        builder.environment().put("FAKE_MKFS_LOG", mkfsLog.toString());
+        Process process = builder.start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertThat(process.waitFor(30, TimeUnit.SECONDS)).as("format_if_empty 가 30초 안에 끝나야 한다").isTrue();
+        assertThat(process.exitValue()).as("출력:\n%s", output).isZero();
+        return Files.exists(mkfsLog) ? Files.readAllLines(mkfsLog) : List.of();
     }
 
     // ── 실행 도구 ──
