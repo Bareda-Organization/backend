@@ -106,12 +106,43 @@ public class RetentionCleanupScheduler {
         recordRefreshTokenRowsSafely();
         cleanUpSafely("link_code", now, RetentionPolicy.BATCH_SIZE,
                 linkCodeRepository::findIdsForRetentionCleanup, linkCodeRepository::deleteAllByIdInBatch);
-        cleanUpSafely("student_anonymization", retentionPolicy.withdrawnStudentCutoff(now), ANONYMIZATION_BATCH_SIZE,
-                studentRepository::findIdsForAnonymization, studentAnonymizationService::anonymize);
+        anonymizeWithdrawnStudentsSafely(retentionPolicy.withdrawnStudentCutoff(now));
         for (AuditCategory category : AuditCategory.values()) {
             cleanUpSafely("audit_log/" + category, retentionPolicy.auditLogCutoff(now), RetentionPolicy.BATCH_SIZE,
                     (cutoff, limit) -> auditLogRepository.findIdsForRetentionCleanup(category, cutoff, limit),
                     auditLogRepository::deleteAllByIdInBatch);
+        }
+    }
+
+    /**
+     * 퇴원 90일이 지난 학생을 {@link #ANONYMIZATION_BATCH_SIZE}명씩 파기한다(BR-310 · BR-311) — 사진 파일을 못 지웠거나 처리에 실패해 파기되지
+     * 못한 학생은 조회 조건이 그대로라 다음 틱에 다시 잡히므로, 건너뛴 학생 수만큼 실패 지표를 올린다. 한 회차에서 하나도 파기하지 못했으면
+     * 같은 묶음을 되풀이하지 않고 멈춘다(다른 테이블 정리와 달리 파기 수가 조회 수와 같다는 보장이 없어, 상한만 보면 같은 묶음을 끝없이 돈다).
+     * 실패는 {@link #cleanUpSafely} 와 같이 삼켜 다른 테이블 정리를 막지 않는다.
+     *
+     * <p>ponytail: 파기하지 못하는 학생이 한 묶음(200명)을 넘으면 그 학생들이 조회 앞쪽(id 오름차순)을 채워 뒤의 학생이 파기되지 못한다 — 지표가
+     * 먼저 드러내므로 그때 조회에 id 커서를 더한다.
+     */
+    private void anonymizeWithdrawnStudentsSafely(OffsetDateTime cutoff) {
+        try {
+            int total = 0;
+            int fetched;
+            int purged;
+            do {
+                List<Long> ids = studentRepository.findIdsForAnonymization(cutoff, Limit.of(ANONYMIZATION_BATCH_SIZE));
+                fetched = ids.size();
+                purged = ids.isEmpty() ? 0 : studentAnonymizationService.anonymize(ids);
+                total += purged;
+                for (int skipped = fetched - purged; skipped > 0; skipped--) {
+                    schedulerHealthMetrics.recordItemFailure(getClass());
+                }
+            } while (fetched == ANONYMIZATION_BATCH_SIZE && purged > 0);
+            if (total > 0) {
+                log.info("보존 정리 — student_anonymization {}행 처리", total);
+            }
+        } catch (Exception e) {
+            log.warn("보존 정리 실패 — student_anonymization (다음 틱에 재시도)", e);
+            schedulerHealthMetrics.recordItemFailure(getClass());
         }
     }
 

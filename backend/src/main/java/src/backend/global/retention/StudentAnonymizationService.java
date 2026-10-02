@@ -2,6 +2,7 @@ package src.backend.global.retention;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -43,7 +44,8 @@ import src.backend.student.repository.WeeklyAddressRepository;
  *
  * <p><b>사진 파일은 트랜잭션보다 먼저 지운다.</b> 학생 사진은 저장소 밖(파일)이라 되돌릴 수 없는데, 파기 대상은 이미 퇴원한
  * 학생이라 파일이 먼저 사라져도 잃는 것이 부재하다. 거꾸로 커밋 뒤에 지우면 그 사이에 프로세스가 끝났을 때 아무도 가리키지 않는
- * 파일이 영영 남고 다시 찾을 방법이 없다 — 파일을 먼저 지우면 트랜잭션이 실패해도 다음 틱이 같은 학생을 다시 잡아 마저 처리한다.
+ * 파일이 영영 남고 다시 찾을 방법이 없다 — 파일을 먼저 지우면 트랜잭션이 실패해도 다음 틱이 같은 학생을 다시 잡아 마저 처리한다. 파일을 지웠다고 확인하지 못한 학생은 이번 묶음의
+ * 파기에서 빼 사진 참조를 남긴다(BR-310 — {@link PhotoStorage#deleteConfirmed}).
  *
  * <p><b>이 클래스가 {@code global.retention} 에 있는 이유</b> — 학생·계정·알림·요청 4개 모듈의 행을 한 트랜잭션에서 건드린다.
  * {@code student} 안에 두면 {@code notification↔student} 양방향 참조가 생기고(알림은 이벤트로만 부른다는
@@ -101,23 +103,57 @@ public class StudentAnonymizationService {
         this.transaction = new TransactionTemplate(transactionManager);
     }
 
-    /** 받은 학생 id 묶음을 파기한다 — 묶음 크기는 호출부(배치 상한)가 정한다. */
-    public void anonymize(List<Long> studentIds) {
-        studentRepository.findAllByIdIn(studentIds).stream()
-                .filter(student -> student.getAnonymizedAt() == null)
-                .map(Student::getPhotoUrl)
-                .filter(Objects::nonNull)
-                .forEach(photoStorage::delete);
-        transaction.executeWithoutResult(status -> purge(studentIds));
+    /**
+     * 받은 학생 id 묶음을 파기하고 <b>파기한 학생 수</b>를 돌려준다 — 묶음 크기는 호출부(배치 상한)가 정한다. 못 한 학생은 예외가 아니라 빠진
+     * 수로 드러나고(호출부가 지표로 올린다), 조회 조건이 그대로라 다음 틱에 다시 잡힌다.
+     *
+     * <p>두 가지 이유로 파기하지 못한 학생이 생긴다. ① 사진 파일을 지웠다고 확인하지 못함(BR-310) — 파일이 남은 채 사진 참조만 지우면
+     * 다시 찾을 방법이 없어, 참조를 남겨 둔다. ② 한 학생의 처리 실패(BR-311) — 묶음 트랜잭션이 실패하면 학생 한 명씩 다시 시도해 실패한
+     * 학생만 건너뛴다. 묶음을 그대로 두면 다음 틱도 같은 id 오름차순 묶음에서 같은 학생이 실패해 뒤의 학생 전원이 파기되지 못한다.
+     */
+    public int anonymize(List<Long> studentIds) {
+        List<Long> readyIds = studentsWithPhotoGone(studentIds);
+        return readyIds.isEmpty() ? 0 : purgeIsolatingFailures(readyIds);
     }
 
-    private void purge(List<Long> studentIds) {
+    /** 사진이 없거나 사진 파일이 지워졌다고 확인된 학생 id — 파일을 지우지 못한 학생은 로그만 남기고 뺀다. */
+    private List<Long> studentsWithPhotoGone(List<Long> studentIds) {
+        List<Long> readyIds = new ArrayList<>();
+        for (Student student : studentRepository.findAllByIdIn(studentIds)) {
+            if (student.getAnonymizedAt() != null) {
+                continue;
+            }
+            String photoUrl = student.getPhotoUrl();
+            if (photoUrl == null || photoUrl.isBlank() || photoStorage.deleteConfirmed(photoUrl)) {
+                readyIds.add(student.getId());
+            } else {
+                log.warn("학생 사진 파일을 지우지 못해 파기를 미룬다(다음 틱에 다시 시도) — studentId={}", student.getId());
+            }
+        }
+        return readyIds;
+    }
+
+    /** 한 트랜잭션으로 파기하고, 실패하면 학생 한 명씩 다시 시도한다 — 한 명이면 그 학생만 실패로 남는다. */
+    private int purgeIsolatingFailures(List<Long> studentIds) {
+        try {
+            return transaction.execute(status -> purge(studentIds));
+        } catch (RuntimeException e) {
+            if (studentIds.size() == 1) {
+                log.warn("퇴원 학생 파기 실패(다음 틱에 다시 시도) — studentId={}", studentIds.get(0), e);
+                return 0;
+            }
+            log.warn("퇴원 학생 파기 묶음 실패 — {}명을 한 명씩 다시 시도한다", studentIds.size(), e);
+            return studentIds.stream().mapToInt(id -> purgeIsolatingFailures(List.of(id))).sum();
+        }
+    }
+
+    private int purge(List<Long> studentIds) {
         OffsetDateTime now = OffsetDateTime.now(clock);
         List<Student> students = studentRepository.findAllByIdIn(studentIds).stream()
                 .filter(student -> student.getAnonymizedAt() == null)
                 .toList();
         if (students.isEmpty()) {
-            return;
+            return 0;
         }
         List<Long> ids = students.stream().map(Student::getId).toList();
         List<Long> accountIds = students.stream().map(Student::getAccountId).filter(Objects::nonNull).toList();
@@ -137,5 +173,6 @@ public class StudentAnonymizationService {
         auditLogRepository.save(AuditLog.forDataAccessChange(AuditAction.DELETE, null, null, null, "student", null,
                 Map.of("purged_students", students.size()), null, now));
         log.info("퇴원 학생 개인정보 파기 — {}명 익명화", students.size());
+        return students.size();
     }
 }
