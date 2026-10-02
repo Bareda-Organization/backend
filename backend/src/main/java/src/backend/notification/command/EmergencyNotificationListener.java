@@ -1,5 +1,6 @@
 package src.backend.notification.command;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.context.event.EventListener;
@@ -54,9 +55,7 @@ public class EmergencyNotificationListener {
     @EventListener
     public void appendRaised(EmergencyRaisedEvent event) {
         NotificationMessage message = emergencyRaisedComposer.compose(event);
-        appendToStaff(event.academyId(), event.emergencyId(), RAISED_DEDUP_KEY_FORMAT, NotificationType.EMERGENCY,
-                message, event.busNo());
-        appendToMainAdmins(event.academyId(), event.emergencyId(), RAISED_DEDUP_KEY_FORMAT,
+        appendToStaffAndAdmins(event.academyId(), event.emergencyId(), RAISED_DEDUP_KEY_FORMAT,
                 NotificationType.EMERGENCY, message, event.busNo());
     }
 
@@ -64,22 +63,31 @@ public class EmergencyNotificationListener {
     @EventListener
     public void appendCanceled(EmergencyCanceledEvent event) {
         NotificationMessage message = emergencyCanceledComposer.compose(event);
-        appendToStaff(event.academyId(), event.emergencyId(), CANCELED_DEDUP_KEY_FORMAT,
-                NotificationType.EMERGENCY_CANCELED, message, event.busNo());
-        appendToMainAdmins(event.academyId(), event.emergencyId(), CANCELED_DEDUP_KEY_FORMAT,
+        appendToStaffAndAdmins(event.academyId(), event.emergencyId(), CANCELED_DEDUP_KEY_FORMAT,
                 NotificationType.EMERGENCY_CANCELED, message, event.busNo());
     }
 
-    /** 학원 관계자 — 그 학원 재직 전원(회차의 특정 배치와 무관하다, {@code RunStartedNotificationListener} 와 같은 대상 규칙). */
-    private void appendToStaff(Long academyId, Long emergencyId, String dedupKeyFormat, NotificationType type,
+    /**
+     * 관계자·메인관리자 두 집합의 초안을 모아 한 번에 적재한다({@link NotificationOutbox#appendAll}, BR-354) — 비상 접수는
+     * {@code client_key} 자문 잠금을 쥔 채 이 적재를 하므로 문장 수가 수신자 수에 비례하면 가장 빨라야 할 쓰기 경로가 늘어진다.
+     */
+    private void appendToStaffAndAdmins(Long academyId, Long emergencyId, String dedupKeyFormat, NotificationType type,
             NotificationMessage message, String busNo) {
+        List<NotificationDraft> drafts = new ArrayList<>(
+                draftsForStaff(academyId, emergencyId, dedupKeyFormat, type, message, busNo));
+        drafts.addAll(draftsForMainAdmins(academyId, emergencyId, dedupKeyFormat, type, message, busNo));
+        notificationOutbox.appendAll(drafts);
+    }
+
+    /** 학원 관계자 — 그 학원 재직 전원(회차의 특정 배치와 무관하다, {@code RunStartedNotificationListener} 와 같은 대상 규칙). */
+    private List<NotificationDraft> draftsForStaff(Long academyId, Long emergencyId, String dedupKeyFormat,
+            NotificationType type, NotificationMessage message, String busNo) {
         List<AcademyStaffAccountView> staff = academyStaffRepository.findActiveAccountsByAcademyId(academyId);
-        for (AcademyStaffAccountView recipient : staff) {
-            notificationOutbox.append(new NotificationDraft(academyId, recipient.accountId(), recipient.name(),
-                    Role.STAFF, type, message.title(), message.body(),
-                    dedupKeyFormat.formatted(emergencyId, recipient.accountId()),
-                    null, null, busNo));
-        }
+        return staff.stream()
+                .map(recipient -> new NotificationDraft(academyId, recipient.accountId(), recipient.name(),
+                        Role.STAFF, type, message.title(), message.body(),
+                        dedupKeyFormat.formatted(emergencyId, recipient.accountId()), null, null, busNo))
+                .toList();
     }
 
     /**
@@ -92,14 +100,13 @@ public class EmergencyNotificationListener {
      * null 을 넣을 수 없고, 이 알림이 "어느 학원 일" 인지를 로그가 여전히 답할 수 있어야 한다(메인관리자
      * 화면은 여러 학원의 알림을 한 목록에서 academy_id 로 구분해 보여준다).
      */
-    private void appendToMainAdmins(Long academyId, Long emergencyId, String dedupKeyFormat, NotificationType type,
-            NotificationMessage message, String busNo) {
+    private List<NotificationDraft> draftsForMainAdmins(Long academyId, Long emergencyId, String dedupKeyFormat,
+            NotificationType type, NotificationMessage message, String busNo) {
         List<Account> admins = accountRepository.findAllByRoleAndStatus(Role.SYSTEM_ADMIN, AccountStatus.ACTIVE);
-        for (Account admin : admins) {
-            notificationOutbox.append(new NotificationDraft(academyId, admin.getId(), admin.getName(),
-                    Role.SYSTEM_ADMIN, type, message.title(), message.body(),
-                    dedupKeyFormat.formatted(emergencyId, admin.getId()),
-                    null, null, busNo));
-        }
+        return admins.stream()
+                .map(admin -> new NotificationDraft(academyId, admin.getId(), admin.getName(),
+                        Role.SYSTEM_ADMIN, type, message.title(), message.body(),
+                        dedupKeyFormat.formatted(emergencyId, admin.getId()), null, null, busNo))
+                .toList();
     }
 }
