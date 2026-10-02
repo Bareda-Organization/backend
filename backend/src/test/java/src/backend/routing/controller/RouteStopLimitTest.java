@@ -32,6 +32,7 @@ import src.backend.global.security.AuthUser;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.routing.command.RouteCommandService;
 import src.backend.routing.command.RouteOptimizeService;
+import src.backend.routing.domain.RouteStopLimit;
 import src.backend.routing.dto.RouteOptimizeRequest;
 import src.backend.routing.dto.RouteRegisterRequest;
 import src.backend.routing.dto.RouteStopsSaveRequest;
@@ -121,6 +122,35 @@ class RouteStopLimitTest {
         assertValidationFailed(() -> routeCommandService.saveStops(staff, 999_999L, new RouteStopsSaveRequest(items)));
         assertValidationFailed(() -> routeOptimizeService.optimize(staff, 999_999L,
                 new RouteOptimizeRequest(null, null, tooMany)));
+    }
+
+    /**
+     * BR-362 — 상한 <b>바로 아래</b>(정확히 50개)가 서비스를 통과한다. 51개 거절만 보면 서비스 검사가 {@code >} 에서 {@code >=} 로 어긋나
+     * 정확히 50개 편성이 {@code 422} 가 되어도 초록이다. 새 정차지 50개(서로 50m 넘게 떨어진 점)를 저장하는 경로를 서비스까지 흘려
+     * 노선에 50개가 실제로 담기는 것까지 본다.
+     */
+    @Test
+    @DisplayName("서비스 — 정확히 50개는 통과해 노선에 50개가 담긴다")
+    void 서비스는_정확히_50개를_통과시킨다() {
+        AuthUser staff = new AuthUser(STAFF_A_ACCOUNT_ID, ACADEMY_A_ID, Role.STAFF, AccountStatus.ACTIVE);
+        long routeId = routeCommandService
+                .register(staff, new RouteRegisterRequest(BUS_A_ID, "sun", "from_academy", null, null, List.of())).id();
+        // 위도 0.001° 간격(약 111m)이라 새 승하차지가 50m 안 기존 승하차지로 합쳐지지 않는다
+        List<RouteStopsSaveRequest.Item> fifty = LongStream.rangeClosed(1, LIMIT)
+                .mapToObj(i -> new RouteStopsSaveRequest.Item(null, "한계정차" + i, null,
+                        BigDecimal.valueOf(36.0 + i * 0.001), BigDecimal.valueOf(127.0)))
+                .toList();
+
+        assertThat(routeCommandService.saveStops(staff, routeId, new RouteStopsSaveRequest(fifty)).stops())
+                .as("정확히 50개는 상한 안이다").hasSize(LIMIT);
+    }
+
+    @Test
+    @DisplayName("상한 검사 — 50개는 통과하고 51개부터 거절한다(경계 양쪽)")
+    void 상한_검사는_50개를_통과시키고_51개를_거절한다() {
+        RouteStopLimit.assertWithin(LongStream.rangeClosed(1, LIMIT).boxed().toList());
+
+        assertValidationFailed(() -> RouteStopLimit.assertWithin(LongStream.rangeClosed(1, LIMIT + 1).boxed().toList()));
     }
 
     @Test
