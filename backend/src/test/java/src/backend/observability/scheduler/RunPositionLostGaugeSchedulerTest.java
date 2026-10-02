@@ -14,6 +14,8 @@ import java.time.ZoneId;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 
 import org.junit.jupiter.api.Test;
 
@@ -63,6 +65,42 @@ class RunPositionLostGaugeSchedulerTest {
         scheduler.refresh();
 
         assertThat(registry.get("schoolbus.run.position.lost").gauge().value()).isEqualTo(1.0d);
+    }
+
+    /** 출발한 지 2분이 넘었는데 Redis 에 위치 키가 한 번도 없는 회차 — 이 경보가 잡으려는 대표 상황이다. */
+    @Test
+    void 위치가_한_번도_안_온_회차도_유실로_센다() {
+        Run neverReported = run(1L, 5);
+        given(runRepository.findMovingFromServiceDate(eq(LocalDate.of(2030, 3, 31)), eq(0L), any()))
+                .willReturn(List.of(neverReported));
+        given(runPositionStore.findAll(List.of(1L))).willReturn(Map.of());
+
+        scheduler.refresh();
+
+        assertThat(registry.get("schoolbus.run.position.lost").gauge().value()).isEqualTo(1.0d);
+    }
+
+    /** BR-011 형태 — 첫 묶음만 세면 그 뒤 회차의 유실이 지표에 안 잡힌다. 유실 회차를 둘째 묶음에만 둔다(BR-342). */
+    @Test
+    void 한_묶음을_넘는_회차는_다음_묶음까지_이어_읽어_센다() {
+        LocalDate since = LocalDate.of(2030, 3, 31);
+        List<Long> firstIds = LongStream.rangeClosed(1, RunPositionLostGaugeScheduler.BATCH_SIZE).boxed().toList();
+        long lostId = RunPositionLostGaugeScheduler.BATCH_SIZE + 1L;
+        List<Run> firstBatch = firstIds.stream().map(id -> run(id, 5)).toList();
+        Run lostInSecondBatch = run(lostId, 5);
+        Map<Long, RunPositionRedisValue> fresh = firstIds.stream()
+                .collect(Collectors.toMap(id -> id, id -> receivedMinutesAgo(0)));
+        // 목 호출(getId)을 given 안에서 부르면 스터빙이 끝나지 않은 채로 겹치므로 값은 미리 계산해 둔다
+        given(runRepository.findMovingFromServiceDate(eq(since), eq(0L), any())).willReturn(firstBatch);
+        given(runRepository.findMovingFromServiceDate(eq(since), eq(firstIds.get(firstIds.size() - 1)), any()))
+                .willReturn(List.of(lostInSecondBatch));
+        given(runPositionStore.findAll(firstIds)).willReturn(fresh);
+        given(runPositionStore.findAll(List.of(lostId))).willReturn(Map.of(lostId, receivedMinutesAgo(3)));
+
+        scheduler.refresh();
+
+        assertThat(registry.get("schoolbus.run.position.lost").gauge().value())
+                .as("첫 묶음 500건은 모두 신선하고 유실은 둘째 묶음의 1건뿐이다").isEqualTo(1.0d);
     }
 
     private Run run(long id, int startedMinutesAgo) {

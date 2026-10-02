@@ -36,8 +36,8 @@ import src.backend.student.query.StudentBusPositionQueryService;
 @RequiredArgsConstructor
 public class RunPositionLostGaugeScheduler {
 
-    /** 한 번에 보는 운행 중 회차 상한 — 목표 규모(학원 10곳)의 동시 운행 수보다 넉넉하다. */
-    private static final int BATCH_SIZE = 500;
+    /** 한 번에 보는 운행 중 회차 상한 — 목표 규모(학원 10곳)의 동시 운행 수보다 넉넉하다. 시험이 묶음 경계를 이 값으로 만든다. */
+    static final int BATCH_SIZE = 500;
 
     private final RunRepository runRepository;
 
