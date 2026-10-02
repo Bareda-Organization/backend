@@ -117,7 +117,8 @@ public final class RolePermissions {
                     Permissions.STAFF_APPROVE,
                     Permissions.ACCOUNT_UNBLOCK,
                     Permissions.AUDIT_READ,
-                    Permissions.RUN_FORCE_CONFIRM);
+                    Permissions.RUN_FORCE_CONFIRM,
+                    Permissions.RUN_FORCE_FINISH);
 
     /**
      * 역할 하나에 권한 여러 개를 부여하는 줄들을 만든다. 좌변을 {@link Role} 로만 받기 때문에
