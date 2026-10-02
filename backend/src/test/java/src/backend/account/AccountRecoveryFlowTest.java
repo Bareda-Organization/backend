@@ -210,6 +210,20 @@ class AccountRecoveryFlowTest {
         assertThat(output.getAll()).doesNotContain(code).doesNotContain(tempPassword).doesNotContain(phone);
     }
 
+    /** 문자로 받은 임시 비밀번호에도 강제 변경 표식이 선다(Ruling 785) — 문자함에 평문으로 남는 값을 그대로 쓰게 두지 않는다. */
+    @Test
+    void 문자_복구로_받은_임시_비밀번호는_강제_변경_표식을_세운다() throws Exception {
+        createAccount(Role.PARENT);
+        assertThat(mustChangePassword()).as("복구 전").isFalse();
+        recover("password", null).andExpect(status().isOk());
+
+        recover("password", issuedCode()).andExpect(status().isOk());
+
+        assertThat(mustChangePassword()).as("복구 뒤").isTrue();
+        String tempPassword = lastTemporaryPassword();
+        login(tempPassword).andExpect(status().isOk()).andExpect(jsonPath("$.data.must_change_password").value(true));
+    }
+
     /** 틀린 코드 5회로 그 코드는 소진된다 — 6번째에 맞는 값을 넣어도 통과하지 않고, 비밀번호는 그대로다. */
     @Test
     void 틀린_코드_5회_뒤에는_맞는_코드도_통과하지_않는다() throws Exception {
@@ -382,6 +396,18 @@ class AccountRecoveryFlowTest {
     private String issuedCode() {
         return jdbcTemplate.queryForObject(
                 "SELECT code FROM verification_code WHERE phone = ? ORDER BY id DESC LIMIT 1", String.class, phone);
+    }
+
+    private boolean mustChangePassword() {
+        return Boolean.TRUE.equals(jdbcTemplate.queryForObject(
+                "SELECT must_change_password FROM account WHERE login_id = ?", Boolean.class, loginId));
+    }
+
+    /** 가장 최근 문자 본문에서 임시 비밀번호를 꺼낸다. */
+    private String lastTemporaryPassword() {
+        Matcher temp = TEMP_PASSWORD.matcher(smsSender.sent().get(smsSender.sent().size() - 1).text());
+        assertThat(temp.find()).as("문자 본문에 임시 비밀번호").isTrue();
+        return temp.group(1);
     }
 
     private int codeRows() {

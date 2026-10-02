@@ -269,7 +269,8 @@ public class Account extends BaseTimeEntity {
 
     /**
      * 본인이 비밀번호를 바꾼다(API_SPEC §2.8) — 새 해시는 호출자(PasswordEncoder)가 만들어 넘기고, 강제 변경 표식을
-     * 내린다. 표식을 내리는 자리가 여기 하나뿐이라 초기화 경로가 이 메서드를 부르면 표식이 바로 꺼진다.
+     * 내린다. 표식을 내리는 자리가 여기 하나뿐이라 임시 비밀번호를 주는 경로(관리자 초기화 · 문자 복구 §2.9,
+     * Ruling 785)가 이 메서드를 부르면 표식이 바로 꺼진다 — 그 경로는 {@link #issueTemporaryPassword} 를 쓴다.
      */
     public void changePassword(String newPasswordHash) {
         this.passwordHash = newPasswordHash;
@@ -277,8 +278,9 @@ public class Account extends BaseTimeEntity {
     }
 
     /**
-     * 관리자가 비밀번호를 임시 값으로 초기화한다(API_SPEC §5.22·§6.7, Ruling 540) — 임시 값은 관리자가 알고 있으므로
-     * 표식을 켜 본인이 바꿀 때까지 다른 API 를 막는다. 새 해시는 호출자(PasswordEncoder)가 만들어 넘긴다.
+     * 임시 비밀번호를 준다 — 관리자 초기화(API_SPEC §5.22·§6.7, Ruling 540)와 문자 복구(§2.9, Ruling 785)가 부른다.
+     * 임시 값은 관리자가 알거나 문자함에 평문으로 남으므로 표식을 켜 본인이 바꿀 때까지 다른 API 를 막는다.
+     * 새 해시는 호출자(PasswordEncoder)가 만들어 넘긴다.
      */
     public void issueTemporaryPassword(String temporaryPasswordHash) {
         this.passwordHash = temporaryPasswordHash;

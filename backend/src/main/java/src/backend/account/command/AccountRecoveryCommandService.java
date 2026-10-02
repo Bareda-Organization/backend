@@ -216,7 +216,8 @@ public class AccountRecoveryCommandService {
     }
 
     /**
-     * 같은 번호의 계정마다 임시 비밀번호로 바꾸고 문자 본문을 만든다. refresh 토큰 무효화는 영속성 컨텍스트를 비우므로
+     * 같은 번호의 계정마다 임시 비밀번호로 바꾸고 문자 본문을 만든다. 문자함에 평문으로 남는 값이라 강제 변경 표식을 켠다
+     * ({@link Account#issueTemporaryPassword} · Ruling 785). refresh 토큰 무효화는 영속성 컨텍스트를 비우므로
      * 비밀번호 변경이 전부 끝난 뒤에 한다({@code AccountPasswordResetCommandService} 와 같은 순서).
      */
     private String resetPasswords(List<Account> accounts, OffsetDateTime now, Map<Long, TemporaryPassword> prepared) {
@@ -224,7 +225,7 @@ public class AccountRecoveryCommandService {
         for (Account account : accounts) {
             TemporaryPassword temporary = prepared.containsKey(account.getId()) ? prepared.get(account.getId())
                     : issueTemporaryPassword();
-            account.changePassword(temporary.hash());
+            account.issueTemporaryPassword(temporary.hash());
             text.append(" 아이디 ").append(account.getLoginId()).append(" 임시 비밀번호 ").append(temporary.plain())
                     .append(" /");
         }
