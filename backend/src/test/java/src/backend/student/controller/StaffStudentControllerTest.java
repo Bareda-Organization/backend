@@ -608,6 +608,21 @@ class StaffStudentControllerTest {
     }
 
     /**
+     * 검색어의 {@code %}·{@code _} 는 와일드카드가 아니라 글자다(BR-359) — 이스케이프하지 않으면 {@code _} 하나가 모든 학생을, {@code %} 하나가
+     * 전체를 걸리게 하고, 이름에 그 글자가 든 학생을 정확히 찾지 못한다. 형제 검색(학원·매니저)은 {@code LikeEscape} 로 막는다.
+     */
+    @Test
+    void 검색어의_밑줄과_퍼센트는_와일드카드가_아니라_글자로_찾는다() throws Exception {
+        등록한다(등록_본문("BR359밑_줄", null));
+        등록한다(등록_본문("BR359퍼%센트", null));
+        등록한다(등록_본문("BR359평범", null));
+
+        assertThat(이름_목록_검색("_")).as("밑줄이 든 이름만").contains("BR359밑_줄").doesNotContain("BR359퍼%센트", "BR359평범");
+        assertThat(이름_목록_검색("%")).as("퍼센트가 든 이름만").contains("BR359퍼%센트").doesNotContain("BR359밑_줄", "BR359평범");
+        assertThat(이름_목록_검색("밑_줄")).as("글자 사이의 밑줄도 글자").containsExactly("BR359밑_줄");
+    }
+
+    /**
      * {@code student_id} 는 <b>JSON 문자열</b>이다(Ruling 171) — 목록 · 상세 · 퇴원 응답 셋 다.
      *
      * <p><b>{@code .value(String.valueOf(...))} 로는 이것이 고정되지 않는다.</b> MockMvc 의
@@ -654,6 +669,15 @@ class StaffStudentControllerTest {
 
     private List<String> 이름_목록(String query) throws Exception {
         MvcResult result = mockMvc.perform(get(BASE + "?" + query).header("Authorization", 관계자_토큰(ACADEMY_A)))
+                .andExpect(status().isOk())
+                .andReturn();
+        return JsonPath.read(본문(result), "$.data.items[*].name");
+    }
+
+    /** {@code q} 를 URL 인코딩 걱정 없이 그대로 보낸다({@code %} 가 든 검색어) — 이름만 돌려받는다. */
+    private List<String> 이름_목록_검색(String q) throws Exception {
+        MvcResult result = mockMvc.perform(get(BASE).param("q", q).param("size", "100")
+                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
                 .andExpect(status().isOk())
                 .andReturn();
         return JsonPath.read(본문(result), "$.data.items[*].name");

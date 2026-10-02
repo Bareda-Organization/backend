@@ -74,12 +74,15 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     /**
      * {@link #searchByAcademyId} 와 같은 조건에 맞는 학생의 id·이름 <b>전건</b> — 이름의 자연 정렬(B1 #27)이 DB 정렬로는
      * 되지 않아 서버가 줄 세울 때 쓴다. 본 행(보호자 연락처 포함)은 줄 세운 뒤 그 쪽의 id 로만 읽는다.
+     *
+     * <p>{@code q} 는 호출부가 {@link src.backend.global.persistence.LikeEscape} 로 이스케이프해 넘기고 이 쿼리는 {@code ESCAPE '\'} 로 그것을
+     * 해석만 한다(BR-359) — 학원·매니저 검색과 같은 규칙이다.
      */
     @Query("""
             SELECT s.id AS id, s.name AS name FROM Student s
             WHERE s.academyId = :academyId
               AND s.deletedAt IS NULL
-              AND LOWER(s.name) LIKE LOWER(CONCAT('%', :q, '%'))
+              AND LOWER(s.name) LIKE LOWER(CONCAT('%', :q, '%')) ESCAPE '\\'
             """)
     List<NameRow> findNamesByAcademyId(@Param("academyId") Long academyId, @Param("q") String q);
 
