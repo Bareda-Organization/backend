@@ -1,10 +1,12 @@
 package src.backend.exception.command;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -188,6 +190,48 @@ class EmergencyBroadcastListenerTest {
                 any(), any());
         verify(gateway, never()).send(eq(WebSocketDestinations.managerRun(runId)), any(), any(), any(), any());
         학생_채널로는_절대_보내지_않는다();
+    }
+
+    // ── BR-353 — 채널 하나의 송신 실패가 다른 채널의 방송을 막지 않는다(비상은 안전 사안) ──────────
+
+    @Test
+    @DisplayName("접수 방송 — 학원 채널 송신이 실패해도 메인 관리자 채널(ADMIN_LIVE)은 시도한다")
+    void 접수_방송은_학원_채널이_실패해도_관리자_채널을_시도한다() {
+        doThrow(new IllegalStateException("브로커 채널 포화")).when(gateway)
+                .send(eq(WebSocketDestinations.academyLive(10L)), any(), any(), any(), any());
+
+        listener.broadcastRaised(new EmergencyRaisedEvent(1L, 10L, "테스트학원", 100L, "1호차", EmergencyType.ACCIDENT,
+                new EmergencyRaisedEvent.RaisedBy("김기사", "driver", "010-1234-5678"),
+                new EmergencyRaisedEvent.Position(null, null), 5, OffsetDateTime.now()));
+
+        verify(gateway, times(1)).send(eq(WebSocketDestinations.ADMIN_LIVE), eq("emergency_raised"), eq(100L), any(),
+                any());
+    }
+
+    @Test
+    @DisplayName("취소 방송 — 학원 채널 송신이 실패해도 메인 관리자 채널(ADMIN_LIVE)은 시도한다")
+    void 취소_방송은_학원_채널이_실패해도_관리자_채널을_시도한다() {
+        doThrow(new IllegalStateException("브로커 채널 포화")).when(gateway)
+                .send(eq(WebSocketDestinations.academyLive(10L)), any(), any(), any(), any());
+
+        listener.broadcastCanceled(new EmergencyCanceledEvent(3L, 10L, 100L, "1호차", OffsetDateTime.now()));
+
+        verify(gateway, times(1)).send(eq(WebSocketDestinations.ADMIN_LIVE), eq("emergency_canceled"), eq(100L),
+                any(), any());
+    }
+
+    @Test
+    @DisplayName("접수 방송 — 관리자 채널 송신이 실패해도 학원 채널 방송은 이미 나갔고 예외는 퍼지지 않는다")
+    void 접수_방송은_관리자_채널이_실패해도_예외가_퍼지지_않는다() {
+        doThrow(new IllegalStateException("브로커 채널 포화")).when(gateway)
+                .send(eq(WebSocketDestinations.ADMIN_LIVE), any(), any(), any(), any());
+
+        assertThatCode(() -> listener.broadcastRaised(new EmergencyRaisedEvent(1L, 10L, "테스트학원", 100L, "1호차",
+                EmergencyType.ACCIDENT, new EmergencyRaisedEvent.RaisedBy("김기사", "driver", "010-1234-5678"),
+                new EmergencyRaisedEvent.Position(null, null), 5, OffsetDateTime.now()))).doesNotThrowAnyException();
+
+        verify(gateway, times(1)).send(eq(WebSocketDestinations.academyLive(10L)), eq("emergency_raised"), eq(100L),
+                any(), any());
     }
 
     /**
