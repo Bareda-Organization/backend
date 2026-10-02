@@ -796,6 +796,44 @@ R46 전 갈래(§5.17~§5.27) 병합 뒤 화면 확인 전용 창. 관계자 웹
 | 7 | 정본 반영 · 깨진 참조 | 이 절 · `docs/IMPLEMENTATION_PLAN.md §11` 색인 750~754 · 713 행 이행 표시 · `CONVENTIONS_REACT` 시험 절 |
 | 8 | 정리 | 서버 `:8720` · 웹 `:3000` · 지연 중계기 `:8721` 종료(`lsof` 로 포트 3개 비어 있음 확인) · `vitest`·`next`·Gradle 잔여 프로세스 0 · 내 컨테이너 0 · DB `r47_web` 는 지시대로 남김(연결 0) |
 
+## 5.35 `R47-FLUTTER` — Flutter 3.47.6 · Dart 3.13 · `very_good_analysis` 11 (2026-10-02 · 기준 HEAD `3c222e3c` `mskim98/r47-flutter` · 판정 `Ruling 770~773`)
+
+사용자 지시 *"flutter 버전업"* 이행. `Ruling 762`(Dependabot `#10` 보류)의 선행 조건("Flutter 3.47+ 로 올리는 별도 결정")을 이 지시가 충족해 `#10` 을 4곳 전부 적용. 서버(`backend/**`) 변경 없음. SDK 는 전역 설치(Homebrew 3.44.8)를 건드리지 않고 공식 arm64 압축본(`flutter_macos_arm64_3.47.6-stable.zip` · sha256 `a1946d3b…2e79a` 가 공식 목록과 일치 · Dart 3.13.5)을 `.sdk/flutter-3.47.6` 에 풀어 `PATH` 로만 사용 — 전역 전환은 병합 뒤 조율자.
+
+### 5.35.1 판정
+
+- **`Ruling 770` — `unnecessary_type_name_in_constructor` 를 4곳 `analysis_options.yaml` 에서 끈다.** 새 규칙 위반 573건 중 523건(91%)이 이 규칙 1종 — 생성자 이름의 클래스명을 빼라는 요구로, `dart fix` 가 `SerialSync(this._task)` → `new(this._task)` · `factory Foo.fromJson(...)` → `factory fromJson(...)`(Dart 3.13 새 생성자 문법)로 바꿈. 그 결과 `baraeda_core` 의 `dart run build_runner build` 가 파일마다 *"This requires the experimental 'primary-constructors' language feature to be enabled."* 로 중단돼 freezed 생성 파일이 사라지고 `flutter analyze` 27건(오류 22 — `non_type_as_type_argument` 9 · `cast_to_non_type` 7 · `redirect_to_non_class` 4 · `mixin_of_non_class` 1 · `uri_does_not_exist` 1 · 나머지 5건은 이 라운드가 고치기 전의 위반 안내). 실험 기능을 켜는 길은 선택하지 않음 — 코드 생성 도구가 아직 이 문법을 정식으로 읽지 못하는 상태에서 운영 코드 523곳을 옮기게 됨. 재개 조건 — freezed·build_runner 가 `primary-constructors` 를 정식 문법으로 처리하는 버전이 나온 뒤 규칙을 켜고 `dart fix --apply`. `dart fix` 결과는 되돌렸고(39 파일 · 83줄) 규칙만 끔.
+- **`Ruling 771` — Flutter 3.44.8 → 3.47.6(Dart 3.12.2 → 3.13.5) · `Ruling 762` 해소.** 바꾼 곳 — 4곳 `pubspec.yaml` 의 `environment.sdk` `^3.12.2` → `^3.13.5` · 패키지 2곳(`baraeda_core` · `baraeda_ui`)의 `flutter: ">=1.17.0"`(생성 템플릿 기본값이라 실질 제약 없음) → `">=3.47.6"` · `ci.yml` `flutter-version` · 문서 3곳(`ARCHITECTURE §2.2` 스택 표 · `SETUP.md` · `DEPLOYMENT §5.1` 표). SDK 만 올린 상태(린트 10.3.0)에서 4곳 `pub get` 이 그대로 해석됐고 **새 폐기 경고 0건** · analyze 0 · 시험 수가 기준선과 같음(115 · 265 · 455 · 324) — SDK 때문에 올려야 하는 직접 의존 패키지는 없음. `pub get` 이 바꾼 잠금 값은 SDK 가 고정한 전이 의존뿐(`matcher` 0.12.19→0.12.20 · `meta` 1.18.0→1.19.0 · `test_api` 0.7.11→0.7.12 · `vector_math` 2.2.0→2.4.3 · 앱 2종은 `intl` 0.20.2→0.20.3 추가). Flutter 3.47 의 `pub get` 은 `analysis_options.yaml` 의 `analyzer.exclude` 에 `build/**`(앱은 `android/**`·`ios/**` 포함)를 **자동으로 덧붙임** — CI 에서도 같은 변경이 생기므로 그대로 커밋해 `pub get` 이 파일을 더럽히지 않게 함.
+- **`Ruling 772` — `very_good_analysis` 11 을 4곳에 적용(`baraeda_ui` 는 7 → 11)하고 위반 573건을 0 으로.** 종류별 처리는 아래 표. `dart fix --apply` 결과는 diff 를 읽고 받아들였으며 **틀린 결과 2건은 폐기** — ①`app_header_test.dart` 의 `unnecessary_unawaited` 수정이 `unawaited(` 와 함께 닫는 `;` 까지 지워 문법 오류(`Navigator.push` 가 3.47 에서 `@awaitNotRequired` 라 `unawaited` 감싸기가 불필요 — 손으로 감싸기만 제거) ②`manager-app/pubspec.yaml` 에 `sqlite3: any` 를 끼운 `missing_dependency` 수정(시험 하나가 일부러 직접 의존을 더하지 않고 `// ignore: depend_on_referenced_packages` 로 두는 판단이 파일에 적혀 있음 — 줄 삭제). `async_return_with_no_await` 15곳은 `dart fix` 가 못 고쳐 진단 위치(`return` · `=>` 칸)에 `await` 를 끼움(`return await x`) — `unnecessary_await_in_return` 은 `very_good_analysis` 11 에서 꺼져 있어 충돌 없음 · 운영 코드 3곳(`token_refresher.dart` 2 · `run_card.dart` 1)은 반환 대상이 이미 `await` 되는 `Future` 라 의미 동일.
+- **`Ruling 773` — iOS 배포 대상 13.0 → 15.0(앱 2종 `project.pbxproj` 각 3곳) 채택 · 화면 확인은 서명 빌드로.** Flutter 3.47 도구가 `flutter build ios` 때 자동으로 옮긴 값이며 **선택이 아니라 필수** — 기준선 코드를 3.44.8 로 `flutter build ios --simulator --no-codesign` 하면 `Target Integrity (Xcode): The iOS Simulator deployment target 'IPHONEOS_DEPLOYMENT_TARGET' is set to 13.0, but the range of supported deployment target versions is 15.0 to 27.0.x` 로 현재 Xcode 에서 빌드 실패. 사용자 영향 — iOS 13·14 기기 지원 중단(`flutter_naver_map` 래퍼 하한 iOS 12 는 이보다 낮아 제약이 아님). **`--no-codesign` 산출물은 시뮬레이터에서 앱이 *"네트워크 상태를 확인해 주세요"* 오류 화면에 머무름** — 바이너리에 권한(entitlements) 섹션이 없어(`otool -l` 0건 · 플래그 없는 빌드는 2건) 토큰 저장소(Keychain) 읽기가 실패해 `authBootstrapProvider` 가 오류가 되는 것. 기준선 코드를 3.44.8 로 같은 방식 빌드해도 같은 화면(배포 대상만 15.0 으로 맞춰 시험)이라 **3.47 회귀가 아닌 기존 동작**. 따라서 `--no-codesign` 빌드는 "빌드 성공" 확인에만 쓰고, 화면·동작 확인은 `flutter run` 또는 플래그 없는 `flutter build ios --simulator` 산출물로 함.
+
+### 5.35.2 `very_good_analysis` 11 새 규칙 위반 (Flutter 3.47.6 · 처리 전 573건)
+
+| 규칙 | core | ui | manager | parent | 합 | 처리 |
+|---|--:|--:|--:|--:|--:|---|
+| `unnecessary_type_name_in_constructor` | 82 | 55 | 223 | 163 | **523** | 규칙 끔(`Ruling 770`) |
+| `unnecessary_const_in_enum_constructor` | 3 | 0 | 14 | 2 | 19 | `dart fix` — `const AccountRole(...)` → `AccountRole(...)` · build_runner·시험 통과 |
+| `async_return_with_no_await` | 3 | 0 | 4 | 8 | 15 | 손으로 `await` 추가(`Ruling 772`) |
+| `unnecessary_ignore` | 1 | 0 | 7 | 3 | 11 | 낡은 `// ignore: one_member_abstracts` 삭제(진단 원문 — 그 위치에서 `one_member_abstracts` 가 발생하지 않음) |
+| `specify_nonobvious_property_types` | 0 | 3 | 0 | 0 | 3 | `dart fix` — 타입 명시 |
+| `use_null_aware_elements` | 0 | 1 | 0 | 0 | 1 | `dart fix` — `if (actions != null) actions!,` → `?actions,` |
+| `unnecessary_unawaited` | 0 | 1 | 0 | 0 | 1 | 손으로 감싸기 제거(`Ruling 772`) |
+| **합** | 89 | 60 | 248 | 176 | **573** | → **0** |
+
+`baraeda_ui` 에서만 나온 `specify_nonobvious_property_types` · `use_null_aware_elements` · `unnecessary_unawaited` 3종은 이 패키지가 7 에서 올라가 새로 걸린 것으로 보임(10.3.0 이던 다른 3곳은 0건). 규칙 7개 중 새로 추가된 `use_declaring_parameters` · `initialize_in_field_declaration` · `empty_container_bodies` · `unnecessary_primary_constructor_body` 는 이 코드베이스에서 0건.
+
+### 5.35.3 목표 표와 결과 (2026-10-02)
+
+| # | 조건 | 결과 |
+|:-:|---|---|
+| 1 | 4곳 `flutter analyze` 0 issue — `very_good_analysis` 11 · Flutter 3.47.6 | 4곳 전부 `No issues found!`(처리 전 573건 → 0) |
+| 2 | 4곳 `flutter test` 실패 0 · 시험 수 기준선과 같거나 설명됨 | 기준선(3.44.8) = 3.47.6 + 린트 10.3.0 = 최종: **115 · 265 · 455 · 324**(합 1,159) — 늘거나 줄어든 시험 0 · `--exclude-tags real_backend` |
+| 3 | 앱 2종 실서버 계약 시험 실패 0 · 건너뜀 0 | 자기 서버 `:8740`(DB `r47_flutter` · Redis 칸 10) — 매니저 **27건** · 학부모 **28건**(`--dart-define=FIXTURE_DB=r47_flutter` 포함 · 빼면 `real_backend_p5_test.dart` 의 소프트 삭제 시험 1건이 건너뜀으로 빠짐) · 실패 0 · 건너뜀 0. 덧붙여 `baraeda_core` 9건도 같은 조건으로 통과. 매니저·학부모는 서버를 재기동해 시드를 새로 깐 뒤 1회씩(첫 학부모 실행은 `FIXTURE_DB` 누락으로 27건 통과 · 건너뜀 1 이라 재기동 후 전체를 다시 돎) · `baraeda_core` 는 학부모 실행 직후 상태에서 1회 |
+| 4 | 앱 2종 `build apk --debug` · `build ios --simulator --no-codesign` 성공 | 4개 모두 종료 0(`✓ Built …app-debug.apk` · `✓ Built …/Runner.app`). iOS `project.pbxproj` 배포 대상 13.0 → 15.0 자동 이전(`Ruling 773`). APK 경고 — `flutter_naver_map` 이 Kotlin Gradle Plugin 을 적용 중이며 *"Future versions of Flutter will fail to build"*(Flutter 의 Built-in Kotlin 이행 예고 · 플러그인이 최신판이라 지금 조치 수단 없음) |
+| 5 | 문서·CI 버전 표기 3.47.6 / Dart 3.13 · 남은 `3.44` 0건(역사 기록 제외) | 현재 서술 4곳 갱신(`ci.yml` · `ARCHITECTURE` · `SETUP` · `DEPLOYMENT`). 남은 `3.44` 는 전부 역사 기록 — `docs/IMPLEMENTATION_PLAN.md` `Ruling 762` 2행(색인 1 · 본문 1) · 이 파일 과거 라운드 2건(Flutter 3.44.8 호환 확인) · `docs/archive/rounds/fe-phases-f2-f5.md` 2건 · 이 절의 기준선·판정 서술 |
+| 6 | 화면 눈 확인 스크린샷 | 시뮬레이터 iPhone 17(iOS 26.5) `E8D70118-B5A0-428C-B948-9EFDACA34E98` — 학부모 앱(밝은 테마)·매니저 앱(다크 테마) 로그인 화면 정상 렌더 · 개발용 빠른 로그인 버튼 표시. `frontend/report/r47-flutter/` 4장(로그인 2장 + `--no-codesign` 오류 화면 대조 2장 — 3.47.6·3.44.8) |
+| 7 | 정리 | 서버 `:8740` 종료 · 시뮬레이터 `shutdown` · `flutter_tester` 0 · DB `r47_flutter` 남김 · `.sdk/flutter-3.47.6` 남김 |
+
 ## 6. 완료 조건 — 화면 단위
 
 각 화면은 아래 4개를 전부 통과해야 완료. **"화면이 뜬다" 는 완료가 아님.**
