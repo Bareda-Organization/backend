@@ -127,12 +127,12 @@ class StaffAcademySettingControllerTest {
 
         mockMvc.perform(patch(ACADEMY_SETTINGS).header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"no_show_wait_minutes\":0}"))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
 
         mockMvc.perform(patch(ACADEMY_SETTINGS).header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"no_show_wait_minutes\":-5}"))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
 
         assertThat(academySettingRepository.findById(academyId).orElseThrow().getNoShowWaitMinutes())
@@ -155,7 +155,7 @@ class StaffAcademySettingControllerTest {
 
         mockMvc.perform(patch(ACADEMY_SETTINGS).header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"no_show_wait_minutes\":31}"))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
 
         assertThat(academySettingRepository.findById(academyId).orElseThrow().getNoShowWaitMinutes())

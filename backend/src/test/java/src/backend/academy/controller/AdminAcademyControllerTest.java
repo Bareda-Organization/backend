@@ -160,7 +160,7 @@ class AdminAcademyControllerTest {
         mockMvc.perform(get("/api/v1/admin/academies")
                         .header("Authorization", 메인관리자_토큰())
                         .param("size", String.valueOf(PageParams.MAX_SIZE + 1)))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
@@ -211,7 +211,7 @@ class AdminAcademyControllerTest {
         mockMvc.perform(get("/api/v1/admin/academies")
                         .header("Authorization", 메인관리자_토큰())
                         .param("sort", "password_hash:asc"))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 

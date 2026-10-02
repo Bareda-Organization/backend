@@ -350,7 +350,7 @@ class StaffManagerControllerTest {
         assertThat(escorts).contains("필터동승").doesNotContain("필터기사");
 
         mockMvc.perform(get("/api/v1/staff/managers?role=pilot").header("Authorization", 관계자A_토큰()))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
@@ -380,7 +380,7 @@ class StaffManagerControllerTest {
                 .isLessThan(((Number) JsonPath.read(all, "$.data.total_count")).longValue());
 
         mockMvc.perform(get("/api/v1/staff/managers?linked=maybe").header("Authorization", 관계자A_토큰()))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 

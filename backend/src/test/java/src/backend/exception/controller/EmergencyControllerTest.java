@@ -331,7 +331,7 @@ class EmergencyControllerTest {
                 .andExpect(status().isCreated());
         mockMvc.perform(post(RAISE.formatted(runB)).header("Authorization", 토큰(driverB, academyB, Role.DRIVER))
                         .contentType(MediaType.APPLICATION_JSON).content(요청본문("accident", null, sharedKey)))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.data").doesNotExist());
     }
 

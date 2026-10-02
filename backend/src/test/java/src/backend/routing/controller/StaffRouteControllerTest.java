@@ -156,7 +156,7 @@ class StaffRouteControllerTest {
                 STOP_OF_B)).isEqualTo(ACADEMY_B_ID);
 
         편성한다(관계자A_토큰(), BUS_A_ID, "thu", "to_academy", List.of(1L, STOP_OF_B))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
@@ -164,7 +164,7 @@ class StaffRouteControllerTest {
     @Test
     void 같은_승하차지를_두_번_담은_편성은_거부된다() throws Exception {
         편성한다(관계자A_토큰(), BUS_A_ID, "fri", "to_academy", List.of(1L, 2L, 1L))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
@@ -423,7 +423,7 @@ class StaffRouteControllerTest {
 
         mockMvc.perform(get("/api/v1/staff/routes?sort=academy_id:asc")
                         .header("Authorization", 관계자A_토큰()))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
@@ -584,7 +584,7 @@ class StaffRouteControllerTest {
                   {"stop_id":3,"name":"바뀌면 안 됨","lat":37.555555,"lng":126.955555},
                   {"stop_id":%d,"name":"남의 학원","lat":37.5,"lng":127.0}
                 ]}""".formatted(STOP_OF_B))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
         entityManager.flush();
 
@@ -691,7 +691,7 @@ class StaffRouteControllerTest {
         for (String body : new String[] {"{\"stops\":[null]}",
                 "{\"stops\":[{\"stop_id\":1,\"name\":\"하나\",\"lat\":37.5,\"lng\":127.0},null]}"}) {
             승하차지를_저장한다(관계자A_토큰(), routeId, body)
-                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(status().isUnprocessableContent())
                     .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
         }
 
@@ -760,7 +760,7 @@ class StaffRouteControllerTest {
         long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "sat", "from_academy", List.of(4L, 3L));
 
         최적화_본문으로(관계자A_토큰(), routeId, "{\"fixed_stop_ids\":[1]}")
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
@@ -771,7 +771,7 @@ class StaffRouteControllerTest {
         jdbcTemplate.update("UPDATE academy SET lat = NULL, lng = NULL WHERE id = ?", ACADEMY_A_ID);
 
         최적화_본문으로(관계자A_토큰(), routeId, "{}")
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("ACADEMY_COORDINATES_MISSING"));
     }
 
@@ -781,7 +781,7 @@ class StaffRouteControllerTest {
         long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "thu", "from_academy", STOPS_OF_A);
 
         최적화_본문으로(관계자A_토큰(), routeId, "{\"origin\":{\"lat\":37.5,\"lng\":127.0}}")
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 

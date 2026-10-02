@@ -291,7 +291,7 @@ class NavigationControllerTest {
         정차_추가(versionId, 1, 정차지_생성(1));
 
         조회한다(기사_토큰(), runId, "bogus")
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 

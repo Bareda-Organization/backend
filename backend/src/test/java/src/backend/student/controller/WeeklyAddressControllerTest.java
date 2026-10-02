@@ -182,7 +182,7 @@ class WeeklyAddressControllerTest {
                         .header("Authorization", 토큰(ACADEMY_B_GUARDIAN_ACCOUNT, ACADEMY_B))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(본문(entries)))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
@@ -195,7 +195,7 @@ class WeeklyAddressControllerTest {
                         .header("Authorization", 토큰(ACADEMY_B_GUARDIAN_ACCOUNT, ACADEMY_B))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(본문(항목("thu", "to_academy", UNVERIFIABLE_ADDRESS))))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("ADDRESS_VERIFICATION_FAILED"));
 
         entityManager.flush();
@@ -216,7 +216,7 @@ class WeeklyAddressControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(본문(항목("fri", "to_academy", ADDRESS),
                                 항목("fri", "from_academy", UNVERIFIABLE_ADDRESS))))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.details.failed_entries[0]").value(UNVERIFIABLE_ADDRESS));
 
         entityManager.flush();
@@ -398,7 +398,7 @@ class WeeklyAddressControllerTest {
                         .header("Authorization", 토큰(ACADEMY_B_GUARDIAN_ACCOUNT, ACADEMY_B))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(본문(항목("holiday", "to_academy", ADDRESS))))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 

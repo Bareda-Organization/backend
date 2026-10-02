@@ -364,7 +364,7 @@ class AdminRunForceConfirmControllerTest {
                         .header("Authorization", 메인관리자_토큰())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"%s\"}".formatted("가".repeat(201))))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
 
         동기화한다();
@@ -383,7 +383,7 @@ class AdminRunForceConfirmControllerTest {
                         .header("Authorization", 메인관리자_토큰())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"   \"}"))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
 
         동기화한다();

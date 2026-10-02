@@ -415,7 +415,7 @@ class StaffWaypointControllerTest {
         시나리오 s = 확정된_회차를_만든다();
 
         경유_추가한다(s.runId, 경유_본문(null, "라벨", false))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
@@ -516,7 +516,7 @@ class StaffWaypointControllerTest {
         시나리오 s = 확정된_회차를_만든다();
 
         경유_추가한다(s.runId, 순번_본문("서울시 새길로 7", "너무 뒤", 99, false))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 

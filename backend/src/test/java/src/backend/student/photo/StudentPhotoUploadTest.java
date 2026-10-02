@@ -192,7 +192,7 @@ class StudentPhotoUploadTest {
         mockMvc.perform(multipart(BASE)
                         .file(new MockMultipartFile("photo", "face.png", "image/png", png()))
                         .header("Authorization", 관계자_토큰()))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 

@@ -224,7 +224,7 @@ class StaffForcedAdditionControllerTest {
         long runId = 회차를_만든다(academyId, busId, 31);
 
         강제_추가한다(runId, 학생_추가_본문(null, "새학생", "번지_없는_주소"))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("ADDRESS_VERIFICATION_FAILED"));
 
         entityManager.flush();
@@ -245,7 +245,7 @@ class StaffForcedAdditionControllerTest {
         long studentId = fixtures().student(academyId, "기존학생");
 
         강제_추가한다(runId, 학생_추가_본문(studentId, "새학생", "테스트로 100"))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
@@ -257,7 +257,7 @@ class StaffForcedAdditionControllerTest {
         long runId = 회차를_만든다(academyId, busId, 31);
 
         강제_추가한다(runId, 학생_추가_본문(null, null, "테스트로 100"))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 

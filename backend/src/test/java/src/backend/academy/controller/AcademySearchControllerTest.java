@@ -61,7 +61,7 @@ class AcademySearchControllerTest {
     @Test
     void q_파라미터가_없으면_422_VALIDATION_FAILED_이다() throws Exception {
         mockMvc.perform(get("/api/v1/academies/search"))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 

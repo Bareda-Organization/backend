@@ -39,7 +39,7 @@ class ManagerUpdateBlankFieldTest {
     void 빈_이름은_422_VALIDATION_FAILED_다(String name) throws Exception {
         mockMvc.perform(patch(MANAGER).header("Authorization", 관계자())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"%s\"}".formatted(name)))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
@@ -48,7 +48,7 @@ class ManagerUpdateBlankFieldTest {
     void 빈_연락처는_422_VALIDATION_FAILED_다(String phone) throws Exception {
         mockMvc.perform(patch(MANAGER).header("Authorization", 관계자())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"phone\":\"%s\"}".formatted(phone)))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 

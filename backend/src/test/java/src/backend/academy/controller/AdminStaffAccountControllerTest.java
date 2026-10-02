@@ -292,7 +292,7 @@ class AdminStaffAccountControllerTest {
         for (String body : new String[] {"{\"name\":\"\"}", "{\"name\":\"  \"}", "{\"phone\":\" \"}",
                 "{\"phone\":\"abc\"}"}) {
             수정한다(staff.accountId(), body)
-                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(status().isUnprocessableContent())
                     .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
         }
         동기화한다();

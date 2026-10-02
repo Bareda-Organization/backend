@@ -239,7 +239,7 @@ class AuditQueryControllerTest {
     void audit_logs_의_action_이_조회_수정_삭제_밖이면_422_다() throws Exception {
         mockMvc.perform(get("/api/v1/admin/audit-logs").header("Authorization", 메인관리자_토큰())
                         .param("action", "login_success"))
-                .andExpect(status().isUnprocessableEntity());
+                .andExpect(status().isUnprocessableContent());
     }
 
     /** R46 감사 화면(Ruling 447) — 이름·로그인 아이디 일부로 계정을 찾는다. 검색어가 비면 아무도 안 돌려준다. */

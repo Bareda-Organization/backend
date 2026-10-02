@@ -572,7 +572,7 @@ class StaffStudentControllerTest {
         long studentId = 등록한다(선택_항목_전부);
 
         mockMvc.perform(수정_요청(studentId, body).header("Authorization", 관계자_토큰(ACADEMY_A)))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
         entityManager.flush();
 
@@ -587,7 +587,7 @@ class StaffStudentControllerTest {
 
         mockMvc.perform(수정_요청(studentId, "{\"note\":\"" + "가".repeat(201) + "\"}")
                         .header("Authorization", 관계자_토큰(ACADEMY_A)))
-                .andExpect(status().isUnprocessableEntity());
+                .andExpect(status().isUnprocessableContent());
     }
 
     /**
@@ -744,7 +744,7 @@ class StaffStudentControllerTest {
         mockMvc.perform(수정_요청(SEED_SIBLING_1, """
                         {"guardians":[{"guardian_id":"2","phone":"010-5555-0202"}]}""")
                         .header("Authorization", 관계자_토큰(ACADEMY_A)))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
         entityManager.flush();
 
@@ -758,7 +758,7 @@ class StaffStudentControllerTest {
         mockMvc.perform(수정_요청(SEED_SIBLING_1, """
                         {"guardians":[{"guardian_id":"1","phone":"전화 없음"}]}""")
                         .header("Authorization", 관계자_토큰(ACADEMY_A)))
-                .andExpect(status().isUnprocessableEntity());
+                .andExpect(status().isUnprocessableContent());
     }
 
     private MockMultipartFile 데이터_파트(String json) {

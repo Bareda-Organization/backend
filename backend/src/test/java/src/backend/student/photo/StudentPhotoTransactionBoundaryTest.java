@@ -172,7 +172,7 @@ class StudentPhotoTransactionBoundaryTest {
                         .file(데이터_파트(등록_본문(NAME_PREFIX + "롤백", "\"gender\":\"자몽\"")))
                         .file(사진_파트(png()))
                         .header("Authorization", 관계자_토큰()))
-                .andExpect(status().isUnprocessableEntity());
+                .andExpect(status().isUnprocessableContent());
 
         assertThat(photoStorage.stored)
                 .as("보상 삭제를 검사하려면 저장이 실제로 일어난 뒤여야 한다")
@@ -228,7 +228,7 @@ class StudentPhotoTransactionBoundaryTest {
                         .file(데이터_파트("{\"gender\":\"자몽\"}"))
                         .file(사진_파트(jpeg()))
                         .header("Authorization", 관계자_토큰()))
-                .andExpect(status().isUnprocessableEntity());
+                .andExpect(status().isUnprocessableContent());
 
         assertThat(photoStorage.stored)
                 .as("옛 파일 삭제 시점을 검사하려면 교체 저장이 실제로 일어난 뒤여야 한다")

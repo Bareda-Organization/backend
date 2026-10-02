@@ -365,7 +365,7 @@ class RunPositionCommandServiceTest {
                 .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(template.formatted(now().minusSeconds(1), "1000", "361")))
-                .andExpect(status().isUnprocessableEntity());
+                .andExpect(status().isUnprocessableContent());
     }
 
     // ── goal 2 ───────────────────────────────────────────────────────────

@@ -807,12 +807,12 @@ class BoardingControllerTest {
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderB)).header("Authorization", escortToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(statusUpdateBody("boarded", "manual", sharedKey, now)))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderA)).header("Authorization", escortToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(statusUpdateBody("no_show", "manual", sharedKey, now)))
-                .andExpect(status().isUnprocessableEntity());
+                .andExpect(status().isUnprocessableContent());
         entityManager.flush();
 
         assertThat(jdbcTemplate.queryForObject("SELECT status FROM run_rider WHERE id = ?", String.class, riderB))

@@ -147,7 +147,7 @@ class NotificationSettingControllerTest {
         mockMvc.perform(patch(NOTIFICATION_SETTINGS).header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"arrive\":true,\"boarding\":true,\"no_show\":true,\"delay\":true}"))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
 
         assertThat(notificationSettingRepository.findById(accountId))
@@ -167,7 +167,7 @@ class NotificationSettingControllerTest {
 
         mockMvc.perform(patch(NOTIFICATION_SETTINGS).header("Authorization", 토큰(accountId, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"arrive\":false}"))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 

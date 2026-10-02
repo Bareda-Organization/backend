@@ -229,7 +229,7 @@ class AdminStaffApprovalControllerTest {
     @Test
     void 관계자_요청_거절에_reject_reason_이_없으면_422_VALIDATION_FAILED_다() throws Exception {
         처리한다(STAFF_REQUEST_ON_FULL_ACADEMY, "{\"accept\": false}")
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
 
         assertThat(요청_상태(STAFF_REQUEST_ON_FULL_ACADEMY)).isEqualTo("pending");

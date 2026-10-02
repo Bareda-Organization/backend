@@ -48,7 +48,7 @@ class StudentNoteLengthTest {
                         .file(new MockMultipartFile("data", "", "application/json", data.getBytes(StandardCharsets.UTF_8)))
                         .header("Authorization", "Bearer "
                                 + tokenProvider.createAccessToken(1L, 1L, Role.STAFF, AccountStatus.ACTIVE)))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 }

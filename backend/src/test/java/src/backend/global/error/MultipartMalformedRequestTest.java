@@ -67,7 +67,7 @@ class MultipartMalformedRequestTest {
         MockMvcBuilders.standaloneSetup(new ThrowingController())
                 .setControllerAdvice(new GlobalExceptionHandler()).build()
                 .perform(get("/too-large"))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"))
                 .andExpect(jsonPath("$.error.message").value("첨부 파일이 허용 크기를 넘었습니다"));
     }

@@ -207,7 +207,7 @@ class RunReportControllerTest {
                 .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"type\":\"guardian_absent\",\"memo\":\"보호자가 없음\"}"))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
 
         assertThat(보고_개수(runId)).as("rider_id 누락이면 저장되면 안 된다").isEqualTo(0);

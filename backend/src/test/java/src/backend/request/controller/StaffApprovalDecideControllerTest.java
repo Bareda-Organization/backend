@@ -330,7 +330,7 @@ class StaffApprovalDecideControllerTest {
         결정_시나리오 s = 정상_시나리오();
 
         결정_요청(관계자_토큰(s.academyId), s.approvalId, 거절_바디(null))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 

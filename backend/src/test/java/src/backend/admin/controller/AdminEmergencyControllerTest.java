@@ -347,7 +347,7 @@ class AdminEmergencyControllerTest {
 
         mockMvc.perform(get(LIST).param("status", "bogus")
                         .header("Authorization", 메인관리자_토큰(adminAccountId)))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 

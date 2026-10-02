@@ -1,6 +1,7 @@
 package src.backend.exception.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -11,6 +12,7 @@ import jakarta.persistence.PersistenceContext;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -288,7 +290,7 @@ class StaffEmergencyControllerTest {
                         .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"memo\":\"%s\"}".formatted("가".repeat(201))))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
 
         assertThat(확인시각(emergencyId)).as("검증에 걸린 요청은 확인으로 이어지지 않는다").isNull();
@@ -439,7 +441,7 @@ class StaffEmergencyControllerTest {
         Map<String, Object> item = 항목(body, emergencyId);
         OffsetDateTime raisedAt = OffsetDateTime.parse((String) item.get("raised_at"));
         assertThat(raisedAt).as("raised_at = received_at(occurred_at 은 조작 가능, Phase 13 목표 13 판정 ①)")
-                .isEqualToIgnoringNanos(receivedAt);
+                .isCloseTo(receivedAt, within(1, ChronoUnit.SECONDS));
     }
 
     @Test
@@ -461,9 +463,9 @@ class StaffEmergencyControllerTest {
         Map<String, Object> item = 항목(목록을_조회한다(staffAccountId, academyId), emergencyId);
 
         assertThat(OffsetDateTime.parse((String) item.get("occurred_at"))).as("단말 기록 시각 — 참고값")
-                .isEqualToIgnoringNanos(pressedAt);
+                .isCloseTo(pressedAt, within(1, ChronoUnit.SECONDS));
         assertThat(OffsetDateTime.parse((String) item.get("raised_at"))).as("raised_at 은 계속 서버 접수 시각이다")
-                .isEqualToIgnoringNanos(receivedAt);
+                .isCloseTo(receivedAt, within(1, ChronoUnit.SECONDS));
     }
 
     // ── R7 목표 1 — status·date 쿼리 필터(§5.16, Ruling 297) ────────────────
@@ -544,7 +546,7 @@ class StaffEmergencyControllerTest {
 
         mockMvc.perform(get(LIST).param("status", "bogus")
                         .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 

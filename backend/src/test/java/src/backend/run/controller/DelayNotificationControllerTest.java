@@ -328,7 +328,7 @@ class DelayNotificationControllerTest {
                         .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(7, "traffic", null)))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
 
         assertThat(지연알림_건수(runId)).isEqualTo(0);
@@ -348,7 +348,7 @@ class DelayNotificationControllerTest {
                         .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "typhoon", null)))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
 
         assertThat(지연알림_건수(runId)).isEqualTo(0);
@@ -369,7 +369,7 @@ class DelayNotificationControllerTest {
                         .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"traffic\"}"))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
@@ -387,7 +387,7 @@ class DelayNotificationControllerTest {
                         .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "", null)))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 

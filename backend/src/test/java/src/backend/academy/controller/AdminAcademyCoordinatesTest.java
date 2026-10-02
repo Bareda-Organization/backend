@@ -66,7 +66,7 @@ class AdminAcademyCoordinatesTest {
         mockMvc.perform(post("/api/v1/admin/academies").header("Authorization", 관리자())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(본문("BR202실패학원", "번지없는주소")))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("ADDRESS_VERIFICATION_FAILED"));
 
         assertThat(academyRepository.count()).as("검증 실패는 저장 보류").isEqualTo(before);
@@ -92,7 +92,7 @@ class AdminAcademyCoordinatesTest {
         mockMvc.perform(patch("/api/v1/admin/academies/" + id).header("Authorization", 관리자())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"address\":\"번지없는주소\"}"))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("ADDRESS_VERIFICATION_FAILED"));
 
         Academy kept = 학원(id);
@@ -108,7 +108,7 @@ class AdminAcademyCoordinatesTest {
         mockMvc.perform(post("/api/v1/admin/academies").header("Authorization", 관리자())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"BR450무주소학원\",\"region\":\"서울\"}"))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
 
         assertThat(academyRepository.count()).isEqualTo(before);
@@ -121,7 +121,7 @@ class AdminAcademyCoordinatesTest {
         mockMvc.perform(post("/api/v1/admin/academies").header("Authorization", 관리자())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(본문("BR450공백등록학원", "   ")))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
 
         assertThat(academyRepository.count()).isEqualTo(before);
@@ -143,7 +143,7 @@ class AdminAcademyCoordinatesTest {
         mockMvc.perform(patch("/api/v1/admin/academies/" + id).header("Authorization", 관리자())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"address\":\"\"}"))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
 
         Academy kept = 학원(id);
@@ -158,7 +158,7 @@ class AdminAcademyCoordinatesTest {
         mockMvc.perform(patch("/api/v1/admin/academies/" + id).header("Authorization", 관리자())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"address\":\"   \"}"))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
 
         assertThat(학원(id).getAddress()).isEqualTo(GEOCODABLE);

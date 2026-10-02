@@ -176,7 +176,7 @@ class RouteStopLimitTest {
 
     private void assertValidationFailed(ResultActions result) throws Exception {
         // 같은 422 라도 "없는 승하차지"·"중복" 같은 다른 사유가 아니라 상한 때문이어야 한다 — 문구로 가른다
-        result.andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"))
+        result.andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"))
                 .andExpect(jsonPath("$.error.message").value(containsString(LIMIT_MESSAGE)));
     }
 

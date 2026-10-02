@@ -401,7 +401,7 @@ class ChangeRequestControllerTest {
                 departTime.minusMinutes(30));
 
         신청_요청(accountId, academyId, studentId, "relocate", runId, "번지가 없는 어딘가", null)
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("ADDRESS_VERIFICATION_FAILED"))
                 .andExpect(jsonPath("$.error.details.failed_entries[0]").value("번지가 없는 어딘가"));
         entityManager.flush();

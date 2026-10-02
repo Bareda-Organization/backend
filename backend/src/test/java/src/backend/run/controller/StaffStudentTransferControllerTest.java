@@ -273,7 +273,7 @@ class StaffStudentTransferControllerTest {
         long studentId = fixtures().student(academyId, "이동학생");
 
         이동_신청한다(studentId, academyId, 이동_본문(runId, runId, null, "테스트로 100"))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
@@ -294,10 +294,10 @@ class StaffStudentTransferControllerTest {
         학생을_회차_명단에_넣는다(fromRunId, studentId);
 
         이동_신청한다(studentId, academyId, 이동_본문(fromRunId, tomorrowRunId, stopId, null))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
         이동_신청한다(studentId, academyId, 이동_본문(fromRunId, oppositeRunId, stopId, null))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
@@ -334,12 +334,12 @@ class StaffStudentTransferControllerTest {
         String 둘다있음 = "{\"from_run_id\":" + fromRunId + ",\"to_run_id\":" + toRunId + ",\"stop_id\":" + stopId
                 + ",\"address\":\"테스트로 100\"}";
         이동_신청한다(studentId, academyId, 둘다있음)
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
 
         String 둘다없음 = "{\"from_run_id\":" + fromRunId + ",\"to_run_id\":" + toRunId + "}";
         이동_신청한다(studentId, academyId, 둘다없음)
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 

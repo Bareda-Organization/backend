@@ -219,7 +219,7 @@ class SignupApprovalControllerTest {
     @Test
     void accept_false_인데_reject_reason_이_없으면_422_VALIDATION_FAILED_다() throws Exception {
         처리한다(PARENT_REQUEST, ACADEMY_A, "{\"accept\": false}")
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
 
         assertThat(요청_상태(PARENT_REQUEST))
@@ -400,7 +400,7 @@ class SignupApprovalControllerTest {
     })
     void 기사_수락_시_manager_id_가_없으면_422_LINK_REQUIRED_다() throws Exception {
         처리한다(요청_식별자("p3t2driver"), ACADEMY_A, "{\"accept\": true}")
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("LINK_REQUIRED"));
     }
 
@@ -520,7 +520,7 @@ class SignupApprovalControllerTest {
     })
     void 학생_수락_시_link_가_없으면_422_LINK_REQUIRED_다() throws Exception {
         처리한다(요청_식별자("p3t2student2"), ACADEMY_A, "{\"accept\": true}")
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("LINK_REQUIRED"));
 
         assertThat(계정_상태(계정_식별자("p3t2student2"))).isEqualTo("pending");

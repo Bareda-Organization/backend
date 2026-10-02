@@ -112,7 +112,7 @@ class RequestLengthValidationTest {
         }
 
         mockMvc.perform(request)
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 

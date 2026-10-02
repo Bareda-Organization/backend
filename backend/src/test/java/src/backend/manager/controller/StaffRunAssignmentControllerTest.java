@@ -211,7 +211,7 @@ class StaffRunAssignmentControllerTest {
         long runId = 회차를_만든다(BUS_A1_ID, MORNING);
 
         배치한다(관계자A_토큰(), runId, null, null)
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 

@@ -175,7 +175,7 @@ class StaffScheduleControllerTest {
         long scheduleId = 등록된_스케줄_id(관계자A_토큰(), BUS_A_ID, "thu", "to_academy", FREE_TIME);
 
         수정한다(관계자A_토큰(), scheduleId, body)
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
 
         entityManager.flush();
