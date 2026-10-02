@@ -6,6 +6,8 @@ import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -32,6 +34,7 @@ import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.test.util.ReflectionTestUtils;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
@@ -175,9 +178,7 @@ class FcmPushSenderTest {
         sendStatus = 503;
         given(deviceTokenRepository.findAllByAccountIdAndRevokedAtIsNull(7L))
                 .willReturn(List.of(token(1L, "live-token")));
-        CircuitBreakerRegistry registry = CircuitBreakerRegistry.of(CircuitBreakerConfig.custom()
-                .slidingWindowSize(10).minimumNumberOfCalls(5).failureRateThreshold(50)
-                .waitDurationInOpenState(Duration.ofMinutes(1)).build());
+        CircuitBreakerRegistry registry = openableCircuits();
         FcmPushSender sender = sender(CLOCK, registry);
 
         for (int i = 0; i < 5; i++) {
@@ -195,9 +196,7 @@ class FcmPushSenderTest {
     void 본문_문제의_4xx_는_서킷을_열지_않는다() throws Exception {
         given(deviceTokenRepository.findAllByAccountIdAndRevokedAtIsNull(7L))
                 .willReturn(List.of(token(1L, "bad-payload")));
-        CircuitBreakerRegistry registry = CircuitBreakerRegistry.of(CircuitBreakerConfig.custom()
-                .slidingWindowSize(10).minimumNumberOfCalls(5).failureRateThreshold(50)
-                .waitDurationInOpenState(Duration.ofMinutes(1)).build());
+        CircuitBreakerRegistry registry = openableCircuits();
         FcmPushSender sender = sender(CLOCK, registry);
 
         for (int i = 0; i < 8; i++) {
@@ -208,10 +207,70 @@ class FcmPushSenderTest {
         assertThat(sendRequests).as("8번 모두 서버에 도달했다 — 서킷이 열리지 않았다").hasSize(8);
     }
 
+    /**
+     * BR-318 — 발송 대상 단말 조회가 DB 오류(연결 풀 고갈)로 실패한 것은 FCM 장애가 아니다. FCM 에 한 번도 닿지 않은 실패가
+     * 서킷의 실패 표본이 되면 멀쩡한 FCM 으로의 전 발송이 거절된다.
+     */
+    @Test
+    void 단말_조회가_DB_오류로_실패해도_서킷을_열지_않는다() throws Exception {
+        given(deviceTokenRepository.findAllByAccountIdAndRevokedAtIsNull(7L))
+                .willThrow(new DataAccessResourceFailureException("연결 풀 고갈"));
+        FcmPushSender sender = sender(CLOCK, openableCircuits());
+
+        for (int i = 0; i < 8; i++) {
+            assertThatThrownBy(() -> sender.send(new PushMessage(7L, NotificationType.DELAY, "지연", "본문", false)))
+                    .as("%d번째 — DB 오류가 그대로 나오고 서킷 거절이 아니다", i + 1)
+                    .isInstanceOf(DataAccessResourceFailureException.class);
+        }
+
+        doReturn(List.of(token(1L, "live-token"))).when(deviceTokenRepository)
+                .findAllByAccountIdAndRevokedAtIsNull(7L);
+        sender.send(new PushMessage(7L, NotificationType.DELAY, "지연", "본문", false));
+        assertThat(sendRequests).as("DB 가 회복되면 FCM 으로 바로 나간다").hasSize(1);
+    }
+
+    /** BR-318 — 무효 토큰 해지 UPDATE 의 DB 오류도 FCM 장애가 아니다. */
+    @Test
+    void 해지_UPDATE_가_DB_오류로_실패해도_서킷을_열지_않는다() throws Exception {
+        given(deviceTokenRepository.findAllByAccountIdAndRevokedAtIsNull(7L))
+                .willReturn(List.of(token(2L, "dead-token")));
+        doThrow(new DataAccessResourceFailureException("연결 풀 고갈"))
+                .when(deviceTokenRepository).revokeInvalid(eq(2L), any());
+        FcmPushSender sender = sender(CLOCK, openableCircuits());
+
+        for (int i = 0; i < 8; i++) {
+            assertThatThrownBy(() -> sender.send(new PushMessage(7L, NotificationType.DELAY, "지연", "본문", false)))
+                    .as("%d번째 — DB 오류가 그대로 나오고 서킷 거절이 아니다", i + 1)
+                    .isInstanceOf(DataAccessResourceFailureException.class);
+        }
+
+        assertThat(sendRequests).as("8번 모두 FCM 에 닿았다 — 서킷이 열리지 않았다").hasSize(8);
+    }
+
+    /** BR-318 을 고치며 해지를 서킷 밖으로 뺐어도, 다른 단말이 일시 장애여서 예외가 나는 발송에서 이미 확인한 무효 토큰은 해지한다. */
+    @Test
+    void 다른_단말이_일시_장애여도_이미_확인한_무효_토큰은_해지한다() throws Exception {
+        sendStatus = 503;
+        given(deviceTokenRepository.findAllByAccountIdAndRevokedAtIsNull(7L))
+                .willReturn(List.of(token(2L, "dead-token"), token(1L, "live-token")));
+
+        assertThatThrownBy(() -> sender().send(new PushMessage(7L, NotificationType.DELAY, "지연", "본문", false)))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("503");
+
+        verify(deviceTokenRepository).revokeInvalid(eq(2L), any());
+    }
+
     /** R46 S-2 ② — 응답이 100~300ms 가 정상이라 10초는 발송 스레드를 너무 오래 묶는다(8스레드 전부 묶이면 처리율 0.8건/s). */
     @Test
     void 요청_시간_상한은_4초_이하다() {
         assertThat(FcmPushSender.TIMEOUT).isLessThanOrEqualTo(Duration.ofSeconds(4));
+    }
+
+    /** 실패 5건(실패율 50%)이면 열리는 서킷 — 운영 {@code fcm} 인스턴스와 같은 모양이다. */
+    private static CircuitBreakerRegistry openableCircuits() {
+        return CircuitBreakerRegistry.of(CircuitBreakerConfig.custom()
+                .slidingWindowSize(10).minimumNumberOfCalls(5).failureRateThreshold(50)
+                .waitDurationInOpenState(Duration.ofMinutes(1)).build());
     }
 
     private static void sleepQuietly(long millis) {

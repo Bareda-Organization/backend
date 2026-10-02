@@ -51,6 +51,7 @@ import src.backend.notification.repository.DeviceTokenRepository;
  * <p><b>서킷</b>({@code resilience4j} 인스턴스 {@code fcm} — 값은 {@code placeSearch} 와 같다)은 <b>일시 장애</b>(네트워크 ·
  * 429 · 5xx · 접근 토큰 발급 실패)만 센다. 열리면 호출 없이 즉시 거절하고, 행은 {@code pending} 으로 남아 아웃박스 워커가
  * 이어받는다. 본문·단말 문제의 4xx 는 FCM 이 멀쩡하다는 뜻이라 세지 않는다 — 잘못된 알림 하나가 전 발송을 막으면 안 된다.
+ * 서킷은 FCM 호출만 감싼다 — 단말 조회·무효 토큰 해지의 DB 오류는 FCM 에 닿지 않은 실패라 밖에 둔다(BR-318).
  *
  * <p>일시 장애(429·5xx·네트워크)는 예외로 알려 아웃박스 재시도에 맡긴다({@link PushSender} 계약).
  * ponytail: 재시도는 행 단위라 여러 단말 중 일부만 실패해도 성공한 단말에 다시 보낸다 — 단말별 발송 기록이 필요해지면
@@ -122,7 +123,15 @@ public class FcmPushSender implements PushSender {
     /** 유효한 전 단말에 보낸다 — 단말이 없으면 보낼 곳이 없어 아무것도 하지 않는다(인앱 목록에는 행이 남는다). */
     @Override
     public void send(PushMessage message) {
-        List<String> rejections = circuitBreaker.executeSupplier(() -> sendToAll(message));
+        List<DeviceToken> tokens = deviceTokenRepository.findAllByAccountIdAndRevokedAtIsNull(
+                message.recipientAccountId());
+        List<Long> invalidTokenIds = new ArrayList<>();
+        List<String> rejections;
+        try {
+            rejections = circuitBreaker.executeSupplier(() -> sendToAll(message, tokens, invalidTokenIds));
+        } finally {
+            revoke(invalidTokenIds); // 다른 단말의 일시 장애로 예외가 나도 이미 확인한 무효 토큰은 해지한다
+        }
         if (!rejections.isEmpty()) {
             throw new IllegalStateException("FCM 발송 실패 " + rejections);
         }
@@ -130,11 +139,10 @@ public class FcmPushSender implements PushSender {
 
     /**
      * 단말마다 보내고 FCM 이 거절한 4xx(본문 문제 등)를 모아 돌려준다. <b>일시 장애는 여기서 던진다</b> — 서킷이 센다.
-     * 4xx 는 값으로 돌려줘 서킷 밖에서 실패 처리한다.
+     * 4xx 는 값으로 돌려줘 서킷 밖에서 실패 처리하고, 무효로 답한 토큰의 id 는 {@code invalidTokenIds} 에 모아 DB 해지를
+     * 서킷 밖에 맡긴다.
      */
-    private List<String> sendToAll(PushMessage message) {
-        List<DeviceToken> tokens = deviceTokenRepository.findAllByAccountIdAndRevokedAtIsNull(
-                message.recipientAccountId());
+    private List<String> sendToAll(PushMessage message, List<DeviceToken> tokens, List<Long> invalidTokenIds) {
         List<String> transientFailures = new ArrayList<>();
         List<String> rejections = new ArrayList<>();
         for (DeviceToken token : tokens) {
@@ -144,7 +152,7 @@ public class FcmPushSender implements PushSender {
                 continue;
             }
             if (isInvalidToken(response)) {
-                deviceTokenRepository.revokeInvalid(token.getId(), OffsetDateTime.now(clock));
+                invalidTokenIds.add(token.getId());
                 continue;
             }
             (isTransient(response.statusCode()) ? transientFailures : rejections).add("status=" + response.statusCode());
@@ -153,6 +161,12 @@ public class FcmPushSender implements PushSender {
             throw new IllegalStateException("FCM 발송 실패 " + transientFailures + rejections);
         }
         return rejections;
+    }
+
+    private void revoke(List<Long> invalidTokenIds) {
+        for (Long tokenId : invalidTokenIds) {
+            deviceTokenRepository.revokeInvalid(tokenId, OffsetDateTime.now(clock));
+        }
     }
 
     /** 429 · 5xx — FCM 쪽 사정이라 다시 보내면 도착할 수 있다. */
