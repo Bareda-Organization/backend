@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.sql.SQLException;
 import java.sql.SQLTransientConnectionException;
 
 import org.junit.jupiter.api.DisplayName;
@@ -16,7 +17,9 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.dao.CannotSerializeTransactionException;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.dao.DeadlockLoserDataAccessException;
 import org.springframework.dao.QueryTimeoutException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -37,8 +40,8 @@ class DbResourceUnavailableHandlingTest {
             .setControllerAdvice(new GlobalExceptionHandler()).build();
 
     @ParameterizedTest
-    @ValueSource(strings = {"pool-exhausted", "connection-lost", "lock-timeout", "query-timeout"})
-    @DisplayName("DB 자원 오류 4종은 503 SERVER_BUSY + Retry-After 3초이고 스택트레이스를 로그에 남기지 않는다")
+    @ValueSource(strings = {"pool-exhausted", "connection-lost", "lock-timeout", "lock-timeout-sqlstate", "query-timeout"})
+    @DisplayName("DB 자원 오류 5종은 503 SERVER_BUSY + Retry-After 3초이고 스택트레이스를 로그에 남기지 않는다")
     void DB_자원_오류는_503_이고_스택을_남기지_않는다(String kind, CapturedOutput output) throws Exception {
         mockMvc.perform(get("/boom/" + kind))
                 .andExpect(status().isServiceUnavailable())
@@ -47,6 +50,23 @@ class DbResourceUnavailableHandlingTest {
 
         assertThat(output.getAll()).as("원인 추적용 한 줄은 남는다").contains("[db-unavailable]");
         assertThat(output.getAll()).as("스택트레이스는 남기지 않는다").doesNotContain("\tat ");
+    }
+
+    /**
+     * BR-352 — 교착·직렬화 실패는 과부하가 아니라 잠금 순서가 어긋난 코드 결함이다. 실제 PostgreSQL 에서는 교착도
+     * {@code CannotAcquireLockException} 으로 나오므로(잠금 대기 초과와 같은 클래스) 클래스가 아니라 SQLState 로 갈라야 한다.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"deadlock-spring", "serialization-spring", "deadlock-sqlstate", "serialization-sqlstate"})
+    @DisplayName("교착·직렬화 실패는 503 이 아니라 500 INTERNAL_ERROR 이고 스택트레이스를 로그에 남긴다")
+    void 교착과_직렬화_실패는_500_이고_스택을_남긴다(String kind, CapturedOutput output) throws Exception {
+        mockMvc.perform(get("/boom/" + kind))
+                .andExpect(status().isInternalServerError())
+                .andExpect(header().doesNotExist("Retry-After"))
+                .andExpect(jsonPath("$.error.code").value("INTERNAL_ERROR"));
+
+        assertThat(output.getAll()).as("결함 로그는 스택을 남긴다").contains("[unexpected]").contains("\tat ");
+        assertThat(output.getAll()).doesNotContain("[db-unavailable]");
     }
 
     @Test
@@ -67,6 +87,14 @@ class DbResourceUnavailableHandlingTest {
                         new SQLTransientConnectionException("Connection is not available, request timed out after 3000ms"));
                 case "connection-lost" -> new DataAccessResourceFailureException("Unable to acquire JDBC Connection");
                 case "lock-timeout" -> new CannotAcquireLockException("canceling statement due to lock timeout");
+                case "lock-timeout-sqlstate" -> new CannotAcquireLockException("could not obtain lock",
+                        new SQLException("canceling statement due to lock timeout", "55P03"));
+                case "deadlock-spring" -> new DeadlockLoserDataAccessException("deadlock detected", null);
+                case "serialization-spring" -> new CannotSerializeTransactionException("could not serialize access");
+                case "deadlock-sqlstate" -> new CannotAcquireLockException("could not obtain lock",
+                        new SQLException("deadlock detected", "40P01"));
+                case "serialization-sqlstate" -> new CannotAcquireLockException("could not obtain lock",
+                        new SQLException("could not serialize access due to concurrent update", "40001"));
                 case "query-timeout" -> new QueryTimeoutException("canceling statement due to user request");
                 default -> new IllegalStateException("서버 결함");
             };
