@@ -52,6 +52,10 @@ import src.backend.student.repository.WeeklyAddressRepository;
  * {@code NotificationModuleIsolationTest} 규칙 위반), 계정·요청 쪽에 나눠 두면 한 트랜잭션이 깨진다. 모듈을 가로지르는 보존
  * 정리는 이미 {@link RetentionCleanupScheduler} 가 이 패키지에서 하고 있다.
  *
+ * <p><b>크기 기준(§20.2)을 넘긴 이유</b> — 생성자 인자 12개는 위 4개 모듈의 저장소·사진 저장소·시계·트랜잭션을 각각 받는 것이고, {@code purge}
+ * 본문 25줄 안팎은 한 트랜잭션에서 순서가 정해진 일곱 갈래 삭제·익명화(엔티티 변경이 벌크 쿼리의 영속성 컨텍스트 비우기보다 먼저)라서다. 나누면
+ * 그 순서가 메서드 경계에 흩어진다. 갈래별 협력 객체로 쪼개는 것은 모듈을 가로지르는 이 클래스의 존재 이유와 같은 크기의 재설계다.
+ *
  * <p>같은 id 를 다시 받아도(이미 익명화) 결과가 같다 — 재실행 멱등성은 조회 조건({@code anonymized_at IS NULL})과 이 서비스의
  * 방어 필터가 함께 보장한다.
  */
