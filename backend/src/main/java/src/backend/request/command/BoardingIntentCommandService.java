@@ -96,7 +96,8 @@ public class BoardingIntentCommandService {
         ChangeWindow segment = ChangeWindowPolicy.segmentOf(run, now);
 
         boardingIntentRepository.insertIfAbsent(run.getId(), student.getId(), now);
-        BoardingIntent intent = boardingIntentRepository.findByRunIdAndStudentId(run.getId(), student.getId())
+        // BR-361 — 행 잠금으로 읽는다: 더블탭의 두 번째 요청은 첫 요청이 커밋한 값을 읽어 "같은 값" 으로 판정된다
+        BoardingIntent intent = boardingIntentRepository.findLockedByRunIdAndStudentId(run.getId(), student.getId())
                 .orElseThrow();
 
         return switch (segment) {

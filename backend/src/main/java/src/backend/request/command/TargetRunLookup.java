@@ -35,9 +35,7 @@ class TargetRunLookup {
     Run targetRun(Student student, Long runId) {
         Run run = runRepository.findByIdAndAcademyId(runId, student.getAcademyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
-        boolean ridingOff = boardingIntentRepository.findByRunIdAndStudentId(run.getId(), student.getId())
-                .filter(intent -> !intent.isRiding())
-                .isPresent();
+        boolean ridingOff = boardingIntentRepository.existsByRunIdAndStudentIdAndRidingFalse(run.getId(), student.getId());
         if (!ridingOff && !studentRunResolver.belongsTo(run, student.getId())) {
             throw new BusinessException(ErrorCode.RUN_NOT_FOUND);
         }

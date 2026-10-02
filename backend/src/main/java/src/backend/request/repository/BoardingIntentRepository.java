@@ -4,7 +4,10 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import jakarta.persistence.LockModeType;
+
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -36,6 +39,25 @@ public interface BoardingIntentRepository extends JpaRepository<BoardingIntent, 
             + "이 자리에 닿지 못한다(SCHEDULE_NOT_FOUND·ROUTE_NOT_FOUND 와 같은 {id} 지목 관례, Ruling 153·180). "
             + "boarding_intent 는 academy_id 컬럼이 부재해 부모(run) 조인 없이는 이 조회 하나를 위해 재확인할 수도 없다")
     Optional<BoardingIntent> findByRunIdAndStudentId(Long runId, Long studentId);
+
+    /**
+     * {@link #findByRunIdAndStudentId} 와 같은 행을 <b>행 잠금</b>으로 읽는다(BR-361) — "이미 같은 값인가" 를 판정하기 전에 같은 학생·회차의
+     * 겹친 쓰기(더블탭)가 이 행에서 직렬화된다. 잠금 없이 읽으면 두 요청이 모두 옛 값을 읽고 둘 다 끄기로 통과해 이벤트·승인 행이 둘 생긴다.
+     * 트랜잭션 안에서만 부른다.
+     */
+    @AcademyScopeExempt(reason = "findByRunIdAndStudentId 와 같은 근거 — 호출부가 학원 범위로 좁힌 회차의 식별자만 넘긴다는 전제"
+            + "이고 boarding_intent 는 academy_id 컬럼이 부재하다")
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<BoardingIntent> findLockedByRunIdAndStudentId(Long runId, Long studentId);
+
+    /**
+     * 그 (회차, 학생) 의 탑승 의사가 꺼져 있는지 — 행을 <b>읽어 올리지 않고</b> 참거짓만 돌려준다(BR-361). 같은 트랜잭션에서 뒤이어
+     * {@link #findLockedByRunIdAndStudentId} 로 잠그는 호출부가 있어, 이 조회가 행을 영속성 컨텍스트에 먼저 올려 두면 잠금이 기다린 뒤에도
+     * 옛 값(켜짐)이 그대로 남는다.
+     */
+    @AcademyScopeExempt(reason = "findByRunIdAndStudentId 와 같은 근거 — 호출부가 학원 범위로 좁힌 회차의 식별자만 넘긴다는 전제"
+            + "이고 boarding_intent 는 academy_id 컬럼이 부재하다")
+    boolean existsByRunIdAndStudentIdAndRidingFalse(Long runId, Long studentId);
 
     /**
      * ①구간 토글이 남긴 {@code riding=false} 학생 목록 — 확정 배치(목표 1)가 명단을 만들기 전에 이
