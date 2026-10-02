@@ -141,12 +141,16 @@ class PartialIndexQueryPlanTest {
         softly.assertAll();
     }
 
+    /**
+     * 이 쿼리는 상태가 아니라 값(퇴원 기준 시각)이 파라미터라 맞춤 계획으로 본다 — 일반 계획은 {@code deleted_at < $1} 의 선택도를 기본값(1/3)으로
+     * 잡아 {@code ORDER BY id LIMIT} 를 PK 순서 스캔으로 푼다. 실행은 매번 실제 시각을 넘기므로 맞춤 계획이 실제 경로다.
+     */
     @Test
     void 퇴원_90일_경과_학생_조회는_ix_student_retention_cutoff_로_풀린다() throws Exception {
         String sql = 실행된_SQL(STUDENT_STATEMENT,
                 () -> studentRepository.findIdsForAnonymization(OffsetDateTime.now(), Limit.of(10)));
 
-        String plan = 일반_계획을_본다(sql, List.of());
+        String plan = 맞춤_계획을_본다(sql, List.of("now() - interval '90 days'", "10"), List.of());
 
         assertThat(plan).as("%s%n%s", sql, plan).contains("ix_student_retention_cutoff");
     }
@@ -253,12 +257,33 @@ class PartialIndexQueryPlanTest {
         String read(Connection connection) throws SQLException;
     }
 
-    /** 순차 스캔을 끄고(필요하면 경쟁 인덱스를 이 트랜잭션에서만 지우고) 계획을 읽은 뒤 되돌린다. */
+    /**
+     * 운영 분포 — 끝난 회차와 재원 학생이 대부분이고 부분 인덱스가 겨냥한 행(대기·이동 중 회차, 파기 대상 학생)은 드물다. 시험 DB 는 표가
+     * 작아 통계에 따라 계획이 갈린다(통계가 없으면 부분 인덱스, {@code ANALYZE} 뒤에는 {@code ORDER BY id} 를 PK 순서 스캔으로 푼다 —
+     * 전체 시험 중 자동 통계 갱신이 돌면 실패했다). 그래서 계획을 읽는 트랜잭션에 이 분포의 합성 행을 넣고 {@code ANALYZE} 한다(롤백으로 사라진다).
+     * 회차는 시드의 첫 회차를 운행일만 하루씩 앞당겨 복제한다(유일 제약 {@code uk_run_bus_date_direction_depart} 를 피한다).
+     */
+    private static final List<String> 운영_분포_SQL = List.of("""
+            INSERT INTO run (academy_id, bus_id, service_date, direction, depart_time, confirm_at, status, origin_name,
+                             destination_name, finished_at)
+            SELECT r.academy_id, r.bus_id, r.service_date - g, r.direction, r.depart_time, r.confirm_at, 'finished',
+                   r.origin_name, r.destination_name, now()
+            FROM (SELECT * FROM run ORDER BY id LIMIT 1) r, generate_series(1, 20000) g
+            """, """
+            INSERT INTO student (academy_id, name, can_go_alone, created_at, updated_at)
+            SELECT s.academy_id, '합성' || g, false, now(), now()
+            FROM (SELECT academy_id FROM student ORDER BY id LIMIT 1) s, generate_series(1, 20000) g
+            """, "ANALYZE run", "ANALYZE student");
+
+    /** 순차 스캔을 끄고 운영 분포의 합성 행을 넣은 뒤(필요하면 경쟁 인덱스를 이 트랜잭션에서만 지우고) 계획을 읽고 되돌린다. */
     private String 계획을_본다(PlanReader reader, List<String> 가려둘_인덱스) throws SQLException {
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             try {
                 execute(connection, "SET LOCAL enable_seqscan = off");
+                for (String prepare : 운영_분포_SQL) {
+                    execute(connection, prepare);
+                }
                 for (String index : 가려둘_인덱스) {
                     execute(connection, "DROP INDEX IF EXISTS " + index);
                 }
