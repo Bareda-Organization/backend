@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.manager.event.AssignmentChangedEvent;
@@ -35,6 +37,9 @@ class AssignmentChangedNotificationRunIdTest {
     private AssignmentChangedNotificationListener listener;
 
     @Autowired
+    private PlatformTransactionManager transactionManager;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @AfterEach
@@ -45,8 +50,9 @@ class AssignmentChangedNotificationRunIdTest {
 
     @Test
     void assignment_changed_알림에는_배치된_회차의_식별자가_실린다() {
-        listener.appendAssignmentChanged(new AssignmentChangedEvent(UNUSED_RUN_ID, SEED_ACADEMY_ID, SEED_MANAGER_ID,
-                ManagerRole.DRIVER, OffsetDateTime.now()));
+        new TransactionTemplate(transactionManager).executeWithoutResult(tx -> listener.appendAssignmentChanged(
+                new AssignmentChangedEvent(UNUSED_RUN_ID, SEED_ACADEMY_ID, SEED_MANAGER_ID, ManagerRole.DRIVER,
+                        OffsetDateTime.now())));
 
         assertThat(jdbcTemplate.queryForList(
                 "SELECT run_id FROM notification_log WHERE type = 'assignment_changed' AND dedup_key LIKE ?",

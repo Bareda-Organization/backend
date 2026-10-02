@@ -3,6 +3,7 @@ package src.backend.notification.command;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.LocalDate;
 import java.time.Duration;
@@ -22,6 +23,7 @@ import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
 import src.backend.run.event.RunEndedEvent;
+import testsupport.db.NotificationInsertFailureInjector;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
@@ -146,8 +148,12 @@ class RunEndedAssignmentAbsentNotificationTest {
         assertThat(count("run_ended", staffAccountId)).isEqualTo(1);
     }
 
+    /**
+     * 배치 변경 통지(Ruling 330)는 다른 통지 경로와 같이 배치를 바꾼 트랜잭션 안에서 적재한다 — 롤백되면 통지 행도 함께 사라지고,
+     * 커밋되면 호출이 돌아온 시점에 이미 있다(BR-320 — 커밋 뒤 메모리 큐에 두면 제출 거절·적재 실패·종료 때 흔적 없이 사라진다).
+     */
     @Test
-    void 배치가_바뀌면_커밋_후에만_해당_매니저에게_assignment_changed_가_적재된다() {
+    void 배치가_바뀌면_같은_트랜잭션에서_해당_매니저에게_assignment_changed_가_적재된다() {
         long academyId = fixtures().academyWithCoordinates();
         long runId = run(academyId);
         Account account = accountRepository.save(Account.forSignup(academyId, "mgr" + System.nanoTime(), "x",
@@ -165,18 +171,21 @@ class RunEndedAssignmentAbsentNotificationTest {
         });
         assertThat(count("assignment_changed", account.getId())).as("롤백된 배치는 통지하지 않는다").isZero();
 
-        new TransactionTemplate(transactionManager).executeWithoutResult(tx -> eventPublisher.publishEvent(event));
-        // 커밋 뒤 적재는 알림 실행기에서 비동기로 돈다(R46 T-4) — 커밋한 호출이 돌아온 시점에는 아직 없을 수 있다
-        await().atMost(Duration.ofSeconds(10)).until(() -> count("assignment_changed", account.getId()) == 1);
+        new TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
+            eventPublisher.publishEvent(event);
+            assertThat(count("assignment_changed", account.getId())).as("커밋 전에도 같은 트랜잭션에서 이미 적재돼 있다")
+                    .isEqualTo(1);
+        });
+        assertThat(count("assignment_changed", account.getId())).as("커밋 직후 — 비동기로 늦게 나타나지 않는다").isEqualTo(1);
     }
 
     /**
-     * AFTER_COMMIT 적재가 실패해도(예전에는 같은 {@code dedup_key} 의 중복이 예외였으나 지금은 건너뛴다 — Ruling 622) 이미 커밋된
-     * 배치 변경의 호출자에게 예외가 퍼지면 안 된다(Ruling 379 후속, BR-207 과 같은 형태) — 퍼지면 배치는 저장됐는데
-     * 요청이 500 으로 응답된다. 통지가 빠지는 것은 배치 자체를 되돌릴 이유가 아니다.
+     * 통지 적재가 실패하면 배치를 바꾼 트랜잭션도 되돌려진다 — {@code RunStartedNotificationListener} 등 다른 적재 리스너와 같은
+     * 관례다(BR-320). 예전에는 적재 실패를 삼키고 배치만 남겨 통지가 흔적 없이 사라졌다. 이 저장소의 주입기로 그 학원의
+     * {@code notification_log} INSERT 를 실제로 실패시킨다.
      */
     @Test
-    void 통지_적재가_실패해도_커밋된_배치_변경의_호출자에게_예외가_퍼지지_않는다() {
+    void 통지_적재가_실패하면_배치_변경_트랜잭션도_되돌아간다() {
         long academyId = fixtures().academyWithCoordinates();
         long runId = run(academyId);
         Account account = accountRepository.save(Account.forSignup(academyId, "mgr" + System.nanoTime(), "x",
@@ -187,15 +196,19 @@ class RunEndedAssignmentAbsentNotificationTest {
         managerRepository.save(manager);
         AssignmentChangedEvent event = new AssignmentChangedEvent(runId, academyId, manager.getId(),
                 ManagerRole.DRIVER, OffsetDateTime.now());
-        new TransactionTemplate(transactionManager).executeWithoutResult(tx -> eventPublisher.publishEvent(event));
+        NotificationInsertFailureInjector.failFor(jdbcTemplate, academyId);
+        try {
+            assertThatThrownBy(() -> new TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
+                jdbcTemplate.update("UPDATE account SET name = '배치변경표식' WHERE id = ?", account.getId());
+                eventPublisher.publishEvent(event);
+            })).as("적재 실패는 호출자(배치를 바꾼 트랜잭션)에게 닿는다").hasMessageContaining("injected notification failure");
+        } finally {
+            NotificationInsertFailureInjector.clear(jdbcTemplate);
+        }
 
-        assertThatCode(() -> new TransactionTemplate(transactionManager)
-                .executeWithoutResult(tx -> eventPublisher.publishEvent(event)))
-                .as("같은 이벤트의 두 번째 커밋 — 적재가 중복으로 실패해도 호출자는 성공해야 한다")
-                .doesNotThrowAnyException();
-        // 두 번째 적재의 중복 실패도 실행기에서 삼켜지고 행은 한 건으로 유지된다(비동기라 잠시 지켜본다)
-        await().during(Duration.ofMillis(500)).atMost(Duration.ofSeconds(10))
-                .until(() -> count("assignment_changed", account.getId()) == 1);
+        assertThat(jdbcTemplate.queryForObject("SELECT name FROM account WHERE id = ?", String.class, account.getId()))
+                .as("같은 트랜잭션의 상태 변경도 되돌려졌다").isEqualTo("기사");
+        assertThat(count("assignment_changed", account.getId())).isZero();
     }
 
     @Test
