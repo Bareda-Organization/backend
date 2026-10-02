@@ -3,7 +3,7 @@
 백엔드를 로컬에서 띄우고 관계자 웹(Next.js)과 앱 2종(Flutter)을 그 백엔드에 붙이는 절차. 기준 커밋 `0b8aa3e0`(2026-09-30) · 2026-10-01 R46 변경(Redis 칸 나누기 · `FIXTURE_DB` · 시뮬레이터 끄기)을 분기점 `66a139f1` 에서 코드와 대조해 반영.
 
 - 제품 구성·라운드 추적: `docs/frontend/IMPLEMENTATION_PLAN.md`
-- 코드 규칙: `docs/frontend/CONVENTIONS_REACT.md` · `docs/frontend/CONVENTIONS_FLUTTER.md`
+- 코드 규칙: web 저장소 `docs/CONVENTIONS_REACT.md` · mobile 저장소 `docs/CONVENTIONS_FLUTTER.md`
 - 엔드포인트 계약: `docs/API_SPEC.md`
 - 배포·스테이징: `docs/infra/DEPLOYMENT.md` · `docs/infra/STAGING.md`
 
@@ -13,14 +13,19 @@
 |---|---|
 | 공통 | Git · Docker Desktop(Compose v2, 실행 중) |
 | 백엔드 | Java 25 — `backend/build.gradle` 의 toolchain 고정값 |
-| 관계자 웹 | Node.js 22(`frontend/apps/academy-web/Dockerfile` 의 `node:22-alpine`) · npm |
+| 관계자 웹 | Node.js 22(web 저장소 `Dockerfile` 의 `node:22-alpine`) · npm |
 | 앱 2종 | Flutter 3.47.6(각 `pubspec.yaml` 의 Dart `^3.13.5`) · iOS 는 Xcode |
 
 ## 2. 클론
 
+저장소가 3개다(2026-10-02 분리) — **같은 폴더 아래 나란히** 받는다. 서로의 파일을 상대 경로(`../backend` · `../web`)로 읽는다.
+
 ```bash
-git clone https://github.com/mskim98/School-Bus.git
-cd School-Bus
+mkdir baraeda && cd baraeda
+git clone https://github.com/Bareda-Organization/backend.git   # 백엔드 · 인프라 · 세 저장소 공통 사양 docs/
+git clone https://github.com/Bareda-Organization/web.git       # 관계자 웹(Next.js · Vercel)
+git clone https://github.com/Bareda-Organization/mobile.git    # 앱 2종 + 공용 패키지(Flutter)
+cd backend
 ```
 
 - 백엔드는 설정 파일 없이 기동됨 — `local` 프로파일 기본값(`application.yml`)이 DB `localhost:15432` · Redis `localhost:16379` · JWT 키를 채움
@@ -132,10 +137,10 @@ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/v3/api-docs   # 2
 - 관계자 웹 머리말의 **[테스트 데이터 초기화]** 버튼은 `NEXT_PUBLIC_TEST_DATA_RESET=true` 로 빌드·기동한 웹에만 보임(기본은 숨김)
 - 시드 SQL 을 고친 뒤 이미 적용된 DB 로 앱만 다시 띄우면 `FlywayValidateException` 으로 기동 실패 — 체크섬 불일치이므로 `down` → `up` 으로 재구성. 단 `bootRun`(3.1)은 기동마다 `clean()` 하므로 해당 없고, 컨테이너 모드(3.2)와 `-PtestDbUrl` 시험 DB 에 해당
 
-## 7. 관계자 웹 (`frontend/apps/academy-web`)
+## 7. 관계자 웹 (web 저장소)
 
 ```bash
-cd frontend/apps/academy-web
+cd ../web
 npm install
 ```
 
@@ -158,14 +163,14 @@ npm run dev      # http://localhost:3000
 - ⚠ **웹은 `:3000` 에서만 지도 인증·CORS 가 맞음.** `npm run dev` 는 기본 `3000` 을 쓰므로 3.2 의 proxy 와 동시에 띄울 수 없음 — 둘 중 하나만
 - `NEXT_PUBLIC_*` 값은 브라우저 번들에 그대로 실림. 지도 키는 비밀이 아니고 보호는 NCP 콘솔의 서비스 URL 등록으로 함
 
-## 8. 앱 2종 (`frontend/apps/manager-app` · `frontend/apps/parent-app`)
+## 8. 앱 2종 (mobile 저장소 `apps/manager-app` · `apps/parent-app`)
 
 ### 8.1 최초 1회 — 생성 코드 만들기
 
 `*.g.dart` · `*.freezed.dart` 는 git 이 추적하지 않음. 새로 받은 저장소에서는 없으므로 아래를 먼저 실행:
 
 ```bash
-cd frontend/packages/baraeda_core && flutter pub get && dart run build_runner build --delete-conflicting-outputs
+cd ../mobile/packages/baraeda_core && flutter pub get && dart run build_runner build --delete-conflicting-outputs
 cd ../../apps/manager-app         && flutter pub get && dart run build_runner build --delete-conflicting-outputs
 cd ../parent-app                  && flutter pub get
 ```
@@ -188,7 +193,7 @@ flutter run \
 | `NAVER_MAP_CLIENT_ID` | **지도가 그려지지 않고 회색 격자만 표시**(SDK 가 키 없이 초기화되어 `NClientUnspecifiedException` code 800 — 2026-09-30 실측). 키 값은 어떤 파일에도 커밋하지 않음 |
 | `KAKAO_NAVI_APP_KEY` | **매니저 앱만.** 비면 운행 화면의 `[카카오내비 길안내]` 버튼이 없음(§8.4). 키는 사용자 자원이라 저장소에 없음 |
 
-- 키 값: 웹의 `frontend/apps/academy-web/.env.local` 의 `NEXT_PUBLIC_NAVER_MAP_CLIENT_ID` 와 같은 값
+- 키 값: web 저장소의 `.env.local` 의 `NEXT_PUBLIC_NAVER_MAP_CLIENT_ID` 와 같은 값
 - 로그인 응답의 `refresh_token` 이 본문에 오므로 앱은 `X-Client-Type: app` 을 명시해 호출(`ApiConstants.clientType`)
 
 빌드만 확인할 때(iOS 시뮬레이터용):
@@ -228,7 +233,7 @@ flutter test --exclude-tags real_backend   # 단위·위젯. 실서버 계약 �
 | 3 | 네이티브 앱 키에 **Android** 등록 | 패키지명 `com.baraeda.manager_app` + **디버그·릴리스 키 해시 모두**(개발자마다 디버그 키스토어가 달라 각자 등록). 카카오내비 앱이 이 값으로 호출 앱을 검증 — 미등록이면 길안내 실패 |
 | 4 | 네이티브 앱 키에 **iOS** 등록 | 번들 ID `com.baraeda.managerApp` |
 | 5 | 빌드에 앱 키 주입 | `--dart-define=KAKAO_NAVI_APP_KEY=<네이티브 앱 키>` (`flutter run` · `flutter build apk/ipa` 공통) |
-| 6 | iOS URL scheme 에 키 주입 | `frontend/apps/manager-app/ios/Flutter/Local.xcconfig`(git 밖 — 없으면 새로 만듦)에 `KAKAO_NATIVE_APP_KEY = <네이티브 앱 키>` 한 줄. 이 값이 `Info.plist` 의 `kakao<키>` 가 됨. 비우면 자리표시 `kakaoplaceholder` |
+| 6 | iOS URL scheme 에 키 주입 | mobile 저장소 `apps/manager-app/ios/Flutter/Local.xcconfig`(git 밖 — 없으면 새로 만듦)에 `KAKAO_NATIVE_APP_KEY = <네이티브 앱 키>` 한 줄. 이 값이 `Info.plist` 의 `kakao<키>` 가 됨. 비우면 자리표시 `kakaoplaceholder` |
 | 7 | 카카오내비 앱 설치된 실기기에서 `confirmed` 회차로 확인 | 시뮬레이터·에뮬레이터에는 카카오내비가 없어 `[설치하기]` 안내까지만 확인 가능 |
 
 - 쿼터: 카카오내비 API 는 월간·일간 쿼터가 있고 상향은 카카오와의 협의가 필요(Kakao Developers 카카오내비 개요)

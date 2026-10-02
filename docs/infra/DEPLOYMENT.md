@@ -303,7 +303,7 @@ cat > gha-trust-policy.json <<'JSON'
     "Action": "sts:AssumeRoleWithWebIdentity",
     "Condition": {
       "StringEquals": {"token.actions.githubusercontent.com:aud": "sts.amazonaws.com"},
-      "StringLike": {"token.actions.githubusercontent.com:sub": "repo:mskim98/School-Bus:ref:refs/heads/main"}
+      "StringLike": {"token.actions.githubusercontent.com:sub": "repo:Bareda-Organization/backend:ref:refs/heads/main"}
     }
   }]
 }
@@ -1075,10 +1075,9 @@ sudo docker compose -f /opt/school-bus/docker-compose.prod.yml --env-file /opt/s
 
 | 항목 | 값 |
 |---|---|
-| Import | GitHub `mskim98/School-Bus` |
+| Import | GitHub `Bareda-Organization/web` (2026-10-02 저장소 분리 — 앱이 저장소 루트, `design-system/` 도 그 안) |
 | Framework Preset | Next.js |
-| **Root Directory** | `frontend/apps/academy-web` |
-| **Include source files outside of the Root Directory in the Build Step** | **켠다** — `globals.css` 가 `frontend/design-system/styles.css` 를 상대 경로로 가져온다(루트 밖) |
+| Root Directory | 기본값(저장소 루트) |
 | Install / Build Command | 기본(`npm ci` / `npm run build`) |
 | Node.js Version | 22.x (`Dockerfile` 과 같은 계열) |
 | Production Branch | `main` |
@@ -1177,7 +1176,7 @@ AWS 는 한도를 넘어도 서비스를 멈추지 않는다 — **알림만** �
 
 ### 13.3 저장소 공개 유지 (`Ruling 506`)
 
-저장소 `mskim98/School-Bus` 는 **공개를 유지한다**(사용자 확정). 공개라서 지켜야 할 것:
+저장소는 **공개를 유지한다**(사용자 확정) — 2026-10-02 부터 `Bareda-Organization` 조직의 `backend` · `web` · `mobile` 3개(나누기 전 `mskim98/School-Bus`). 공개라서 지켜야 할 것:
 
 - 비밀값을 커밋하지 않는다 — `backend/.env` · `.env.local` · SSM 값 · `.htpasswd` · 렌더된 `alertmanager/` 는 `.gitignore` 에 있다. 새 비밀 파일을 만들면 먼저 무시 목록에 넣는다
 - Actions 로그도 공개다 — `ci.yml` 은 비밀 없이 돌고 로그를 낮춘다(§5.1). `deploy-backend.yml` 은 실패 때 컨테이너 로그를 찍지 않는다
