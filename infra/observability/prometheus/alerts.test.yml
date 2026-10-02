@@ -285,6 +285,44 @@ tests:
             exp_annotations:
               summary: DB 백업이 2시간 넘게 성공하지 않았다 — 목표 유실 1시간(RPO)이 깨지고 있다
 
+  # 인증서 갱신(BR-334): certbot 컨테이너가 12시간마다 시도하고 오류 없이 끝났을 때만 성공 시각을 쓴다. 2일(172800초) 넘게 성공하지 않으면 — 연속 4번 실패 — for(5m)를 채운 뒤 울린다.
+  # 갱신은 만료 30일 전부터 시도하므로 이 시점에도 만료까지 28일 가까이 남아 있다. 시험에서 시각 0 = 시계 원점.
+  - interval: 1m   # 샘플 간격이 5분(조회 한도)보다 길면 시계열이 사라져 for(5m)가 안 찬다 — 하루를 넘는 시험도 1분 간격으로 둔다
+    input_series:
+      - series: 'schoolbus_certbot_renew_last_success_timestamp_seconds{instance="stale"}'
+        values: '0x3000'
+      - series: 'schoolbus_certbot_renew_last_success_timestamp_seconds{instance="healthy"}'
+        values: '0+60x3000'   # 값이 시계와 같이 올라간다 — 방금 성공한 것
+    alert_rule_test:
+      - eval_time: 47h   # 한두 번 실패한 정도(경과 169200초)
+        alertname: CertbotRenewStale
+        exp_alerts: []
+      - eval_time: 49h   # 172800초를 넘은 지 1시간 — for(5m)를 채웠다
+        alertname: CertbotRenewStale
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              instance: stale
+            exp_annotations:
+              summary: 인증서 갱신(certbot)이 2일 넘게 성공하지 않았다 — 만료 전에 고치지 않으면 모든 클라이언트의 HTTPS 연결이 한꺼번에 거절된다
+
+  # 지표가 아예 없으면(certbot 컨테이너가 안 돈다 · 지표 폴더가 안 맞는다) 같은 경보다.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="node",instance="h"}'
+        values: '1x30'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: CertbotRenewStale
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: CertbotRenewStale
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: 인증서 갱신(certbot)이 2일 넘게 성공하지 않았다 — 만료 전에 고치지 않으면 모든 클라이언트의 HTTPS 연결이 한꺼번에 거절된다
+
   # 지표가 아예 없는 경우(크론이 안 돈다 · 한 번도 성공하지 못했다)도 같은 경보다.
   - interval: 1m
     input_series:

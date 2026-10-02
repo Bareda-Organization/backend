@@ -224,8 +224,10 @@ services:
     volumes:
       - certbot-conf:/etc/letsencrypt
       - certbot-www:/var/www/certbot
-    entrypoint: >
-      /bin/sh -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done"
+      # 갱신 루프 — 12시간마다 renew 를 돌고 성공했을 때만 성공 시각 지표를 쓴다. 지표 폴더는 backup-db.sh 와 같고 node-exporter 가 같은 폴더를 읽는다(BR-334)
+      - ./infra/certbot/renew-loop.sh:/renew-loop.sh:ro
+      - /var/lib/node_exporter/textfile:/textfile
+    entrypoint: ["/bin/sh", "/renew-loop.sh"]
     logging: *cloudwatch
 
   # ── 관측 스택 (R46 ops C #10) ─────────────────────────────────────────────

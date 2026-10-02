@@ -190,6 +190,24 @@ class OpsSettingsGuardTest {
     }
 
     @Test
+    @DisplayName("certbot 컨테이너는 갱신 루프(renew-loop.sh)를 돌며 성공 시각을 textfile 폴더에 쓰고, 경보 CertbotRenewStale 이 같은 지표 이름을 2일 기준으로 본다 — BR-334")
+    void certbotRenewalSuccessIsExportedAndAlertedOn() throws IOException {
+        String certbot = serviceBlock("docker-compose.prod.yml", "certbot");
+        assertThat(certbot).as("갱신 루프 스크립트를 마운트해 entrypoint 로 돈다")
+                .contains("./infra/certbot/renew-loop.sh:/renew-loop.sh:ro").contains("/renew-loop.sh");
+        assertThat(certbot).as("backup-db.sh 와 같은 textfile 폴더를 쓰기 가능으로 마운트한다(node-exporter 는 같은 폴더를 읽기 전용으로 읽는다)")
+                .contains("- /var/lib/node_exporter/textfile:/textfile\n").doesNotContain("/textfile:ro");
+        assertThat(read("infra/certbot/renew-loop.sh")).as("스크립트의 기본 지표 폴더가 컨테이너 안 마운트 위치와 같다")
+                .contains("TEXTFILE_DIR=\"${TEXTFILE_DIR:-/textfile}\"");
+
+        String metric = "schoolbus_certbot_renew_last_success_timestamp_seconds";
+        assertThat(read("infra/certbot/renew-loop.sh")).contains(metric);
+        String rules = stripComments(read("infra/observability/prometheus/alerts.yml"));
+        assertThat(rules).contains("- alert: CertbotRenewStale\n")
+                .contains("(time() - " + metric + " > 172800) or absent(" + metric + ")");
+    }
+
+    @Test
     @DisplayName("STOMP 세션 접근 경보는 시험이 붙어 있고 임계가 운영 동시 연결 상한(max-connections)의 75% 다 — 상한만 바꾸면 실패한다")
     void stompSessionsAlertTracksConnectionCap() throws IOException {
         String rules = stripComments(read("infra/observability/prometheus/alerts.yml"));

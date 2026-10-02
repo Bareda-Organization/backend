@@ -87,6 +87,16 @@ groups:
           severity: warning
         annotations:
           summary: 학생 사진 백업이 26시간 넘게 성공하지 않았다
+      # 인증서 갱신 — certbot 컨테이너(renew-loop.sh)가 12시간마다 시도하고 오류 없이 끝났을 때만 성공 시각을 쓴다(BR-334). 갱신은 만료 30일 전부터 시도하므로
+      # 2일(연속 4번) 넘게 성공하지 않아도 만료까지 28일 가까이 남아 있다 — 그 안에 고치면 된다. 놓치면 만료 당일에 모든 클라이언트의 HTTPS 가 한꺼번에 거절된다.
+      # `or absent` — certbot 컨테이너가 안 돌거나 지표 폴더가 안 맞아 지표 파일이 없는 경우도 같은 경보다.
+      - alert: CertbotRenewStale
+        expr: (time() - schoolbus_certbot_renew_last_success_timestamp_seconds > 172800) or absent(schoolbus_certbot_renew_last_success_timestamp_seconds)
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: 인증서 갱신(certbot)이 2일 넘게 성공하지 않았다 — 만료 전에 고치지 않으면 모든 클라이언트의 HTTPS 연결이 한꺼번에 거절된다
 
   # ── 백엔드 가용성(R46-FIXOPS · review-stab S-1 · Ruling 640) ────────────────────────────────────────────
   # 위 규칙들은 대부분 백엔드가 떠 있어야 값이 생기는 지표를 본다 — 백엔드가 죽으면 시계열이 사라져(스크레이프 실패 때 Prometheus 가 즉시
