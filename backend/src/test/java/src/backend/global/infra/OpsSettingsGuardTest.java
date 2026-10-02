@@ -6,6 +6,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -132,6 +134,25 @@ class OpsSettingsGuardTest {
         }
         assertThat(rules).as("up == 0 만으로는 스크레이프 대상이 목록에서 사라진 경우를 못 본다")
                 .contains("up{job=\"backend\"} == 0 or absent(up{job=\"backend\"})");
+    }
+
+    @Test
+    @DisplayName("alerts.yml 의 모든 경보 규칙에 promtool 시험 사례(alertname)가 있다 — 일부 규칙만 시험하면 나머지 식은 고쳐도 아무도 모른다(BR-329)")
+    void everyAlertRuleHasAPromtoolCase() throws IOException {
+        String rules = stripComments(read("infra/observability/prometheus/alerts.yml"));
+        String tests = stripComments(read("infra/observability/prometheus/alerts.test.yml"));
+
+        Matcher rule = Pattern.compile("(?m)^\\s+- alert: (\\w+)\\s*$").matcher(rules);
+        Set<String> untested = new TreeSet<>();
+        int count = 0;
+        while (rule.find()) {
+            count++;
+            if (!Pattern.compile("(?m)^\\s+alertname: " + rule.group(1) + "\\s*$").matcher(tests).find()) {
+                untested.add(rule.group(1));
+            }
+        }
+        assertThat(count).as("alerts.yml 에서 찾은 규칙 수 — 0 이면 이 검사가 아무것도 못 본 것이다").isGreaterThan(10);
+        assertThat(untested).as("promtool 사례(alerts.test.yml 의 alertname)가 없는 규칙").isEmpty();
     }
 
     @Test

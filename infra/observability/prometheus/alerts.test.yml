@@ -26,6 +26,75 @@ tests:
             exp_annotations:
               summary: 확정 시각을 5분 넘긴 미확정 회차가 있다 — 기사가 노선을 받지 못했다
 
+  # 미승차 에스컬레이션 실패(BR-329): 실패 카운터가 3분 창 안에서 늘었을 때만 발화하고 for 가 없다 — 즉시 critical. 같은 카운터라도 다른 스케줄러(retention-cleanup)의
+  # 실패는 이 경보가 아니다(scheduler 라벨로 거른다). 증가가 멈춘 채 창(3분)을 지나면 꺼진다.
+  - interval: 30s
+    input_series:
+      - series: 'schoolbus_scheduler_failures_total{application="school-bus",scheduler="no-show-escalation"}'
+        values: '0x10 1x40'
+      - series: 'schoolbus_scheduler_failures_total{application="school-bus",scheduler="retention-cleanup"}'
+        values: '0x10 5x40'
+    alert_rule_test:
+      - eval_time: 4m   # 아직 한 번도 안 늘었다
+        alertname: NoShowEscalationFailing
+        exp_alerts: []
+      - eval_time: 6m   # 5분 무렵에 0 → 1 — 3분 창 안
+        alertname: NoShowEscalationFailing
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              application: school-bus
+              scheduler: no-show-escalation
+            exp_annotations:
+              summary: 미승차 에스컬레이션 처리가 실패하고 있다 — 3분 안에 보고되지 않는 미승차가 생긴다
+      - eval_time: 12m   # 증가가 멈춘 지 창(3분)을 넘었다
+        alertname: NoShowEscalationFailing
+        exp_alerts: []
+
+  # 미승차 에스컬레이션 정지(BR-329): 마지막 성공 경과가 180초를 넘으면 발화한다(정확히 180 은 아니다). 다른 스케줄러의 경과는 보지 않는다. for 가 없다.
+  - interval: 15s
+    input_series:
+      - series: 'schoolbus_scheduler_last_success_age_seconds{application="school-bus",scheduler="no-show-escalation"}'
+        values: '0+15x40'
+      - series: 'schoolbus_scheduler_last_success_age_seconds{application="school-bus",scheduler="proximity-notification"}'
+        values: '99999x40'
+    alert_rule_test:
+      - eval_time: 3m   # 경과 정확히 180 — 초과가 아니다
+        alertname: NoShowEscalationStalled
+        exp_alerts: []
+      - eval_time: 3m15s   # 195
+        alertname: NoShowEscalationStalled
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              application: school-bus
+              scheduler: no-show-escalation
+            exp_annotations:
+              summary: 미승차 에스컬레이션 스케줄러가 3분 넘게 성공하지 않았다
+
+  # 운행 중 회차 위치 유실(BR-329): 게이지가 0 → 1 이 된 뒤 1분(for)을 채워야 발화한다. 계속 0 인 시계열은 조용하다.
+  - interval: 15s
+    input_series:
+      - series: 'schoolbus_run_position_lost{application="school-bus"}'
+        values: '0x8 1x40'
+      - series: 'schoolbus_run_position_lost{application="quiet"}'
+        values: '0x48'
+    alert_rule_test:
+      - eval_time: 1m45s   # 아직 0
+        alertname: RunPositionLost
+        exp_alerts: []
+      - eval_time: 2m30s   # 1 이 된 지 30초 — for 가 안 찼다
+        alertname: RunPositionLost
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: RunPositionLost
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              application: school-bus
+            exp_annotations:
+              summary: 위치가 2분 넘게 안 들어오는 운행 중 회차가 있다
+
   # 끝나지 않은 이동 중 회차: 0 → 1 이 된 뒤 30분(for)을 넘겨야 발화한다. 계속 0 인 시계열은 조용하다(R46-KFIXBE K-1).
   - interval: 1m
     input_series:

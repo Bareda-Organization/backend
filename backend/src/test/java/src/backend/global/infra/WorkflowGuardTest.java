@@ -94,6 +94,18 @@ class WorkflowGuardTest {
                 .containsAll(required);
     }
 
+    @Test
+    @DisplayName("ci.yml 이 경보 규칙 시험(promtool test rules alerts.test.yml)을 운영 Prometheus 와 같은 이미지로 돈다 — 식을 고쳐도 시험이 안 도는 상태를 막는다(BR-329)")
+    void ciRunsPromtoolOnTheAlertRulesWithTheProductionPrometheusImage() throws IOException {
+        Matcher image = Pattern.compile("(?m)^\\s*image:\\s*(prom/prometheus:\\S+)")
+                .matcher(stripComments(Files.readString(Path.of("..", "docker-compose.prod.yml"))));
+        assertThat(image.find()).as("운영 compose 에 Prometheus 이미지가 있어야 한다").isTrue();
+
+        String ci = stripComments(Files.readString(WORKFLOWS.resolve("ci.yml")));
+        assertThat(ci).as("ci.yml — 운영 Prometheus(%s)와 같은 이미지의 promtool 로 규칙 시험을 돈다(문법·함수가 버전마다 다르다)", image.group(1))
+                .contains(image.group(1)).contains("promtool").contains("test rules").contains("alerts.test.yml");
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("backendTestWorkflows")
     @DisplayName("공급자(actions · aws-actions) 밖의 제3자 액션은 40자 커밋 SHA 로 고정한다 — 옮길 수 있는 태그로 두지 않는다")

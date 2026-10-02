@@ -69,6 +69,11 @@ jobs:
           java-version: '25'
           cache: gradle
 
+      # 경보 규칙 시험 — alerts.test.yml 이 가짜 시계열로 발화 조건을 본다. 운영 compose 의 Prometheus 와 같은 이미지의 promtool 로 돈다
+      # (WorkflowGuardTest 가 두 이미지가 같은지 본다). 식을 고쳤는데 이 시험이 안 도는 상태를 막는다(BR-329). Gradle 시험이 도는 40분을 기다리지 않게 앞에 둔다.
+      - name: 경보 규칙 시험(promtool)
+        run: docker run --rm -v "$PWD/infra/observability/prometheus:/p" --entrypoint promtool prom/prometheus:v3.15.0 test rules /p/alerts.test.yml
+
       # 서비스 컨테이너 대신 저장소 compose 를 쓴다 — postgres 접속 상한(max_connections=300)이 compose 의 command 에 있고,
       # 서비스 컨테이너는 그 인자를 줄 수 없다(기본 100 이면 컨텍스트 캐시가 쌓이는 전체 실행에서 "too many clients").
       # Redis 는 시험이 Testcontainers 로 자동으로 붙인다(러너에 Docker 가 있다).
