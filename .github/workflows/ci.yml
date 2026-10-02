@@ -23,7 +23,8 @@ permissions:
   contents: read
 
 jobs:
-  # 백엔드 코드·이 파일이 바뀔 때만 시험을 돈다 — 문서만 바뀐 커밋에 40분짜리 시험을 돌리지 않는다.
+  # 백엔드 코드나 시험이 읽는 입력(infra · docker-compose*.yml · .github — 인프라 지침 시험이 읽는다)이 바뀔 때만 시험을 돈다 —
+  # 문서만 바뀐 커밋에 40분짜리 시험을 돌리지 않는다. 시험이 새 입력을 읽게 되면 WorkflowGuardTest 가 여기 빠진 것을 잡는다.
   # ⚠ 워크플로 수준 `on.push.paths` 로 바꾸지 마라 — 2026-10-02 조직 저장소에서 push 두 번이 실행 자체를 만들지 않았다.
   #   워크플로는 늘 시작하고 이 작업이 거른다(통합 저장소에서 쓰던 방식). 손으로 돌리면 거르지 않는다.
   changes:
@@ -41,8 +42,9 @@ jobs:
           filters: |
             backend:
               - 'backend/**'
-              - 'docker-compose.yml'
-              - '.github/workflows/ci.yml'
+              - 'infra/**'
+              - 'docker-compose*.yml'
+              - '.github/**'
 
   backend:
     needs: changes

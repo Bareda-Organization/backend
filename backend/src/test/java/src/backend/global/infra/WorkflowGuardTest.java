@@ -6,6 +6,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -13,6 +15,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -23,6 +26,10 @@ import org.junit.jupiter.params.provider.MethodSource;
  * 받으므로 워크플로가 사양 파일을 따로 받아 {@code API_SPEC_PATH} 로 알려 줘야 한다. 한쪽만 고치면 다른 쪽 시험이 항상 실패한다 — 배포 워크플로가
  * 그랬다(저장소 분리 때 {@code ci.yml} 만 고쳐서, 첫 배포에서야 드러날 상태). 공개 저장소라 Actions 로그가 공개이므로 {@code -PciQuiet} 도 같이 본다.
  *
+ * <p>{@code ci.yml} 의 경로 거르기가 시험이 읽는 저장소 루트 입력을 덮는지도 본다 — BR-327 (R10-03). 인프라 지침 시험은 {@code backend/} 안에 있지만
+ * 읽는 파일은 {@code infra/} · {@code docker-compose*.yml} · {@code .github/} 에 있어, 거르기가 {@code backend/**} 만 보면 그 파일만 바꾼 PR 은
+ * 시험이 통째로 건너뛰어진 채 초록으로 보인다.
+ *
  * <p>파일 텍스트만 읽는다. 주석 줄은 걷어 내고 본다 — 주석이 옛 설정을 설명해도 통과하지 않게.
  */
 class WorkflowGuardTest {
@@ -30,6 +37,10 @@ class WorkflowGuardTest {
     private static final Path WORKFLOWS = Path.of("..", ".github", "workflows");
 
     private static final String WORKSPACE_CHECKOUT = "repository: ${{ github.repository_owner }}/workspace";
+
+    /** 시험 소스에서 저장소 루트 입력을 가리키는 문자열 — {@code "../infra/…"} · {@code "..", "infra"} · {@code read("docker-compose.prod.yml")} 꼴의 첫 경로. */
+    private static final Pattern REPOSITORY_INPUT = Pattern.compile(
+            "\"(?:\\.\\.(?:/|\",\\s*\"))?(infra|\\.github|docker-compose[\\w.-]*\\.yml)(?=[/\"])");
 
     static Stream<String> backendTestWorkflows() {
         return Stream.of("ci.yml", "deploy-backend.yml");
@@ -55,6 +66,29 @@ class WorkflowGuardTest {
         assertThat(testStep).as("%s — 시험 단계가 받은 사양 파일의 경로를 API_SPEC_PATH 로 넘겨야 한다(ErrorCodeSpecParityTest 가 읽는다)", workflow)
                 .contains("API_SPEC_PATH: ${{ github.workspace }}/" + specDir + "/" + specFile);
         assertThat(testStep).as("%s — 공개 저장소의 Actions 로그에 애플리케이션 로그가 실리지 않게 한다", workflow).contains("-PciQuiet");
+    }
+
+    @Test
+    @DisplayName("ci.yml 의 경로 거르기가 시험이 읽는 저장소 루트 입력(infra · docker-compose*.yml · .github)을 덮는다 — 인프라만 바뀐 PR 도 시험이 돈다")
+    void ciPathFilterCoversEveryRepositoryInputTestsRead() throws IOException {
+        Set<String> required = new TreeSet<>();
+        try (Stream<Path> files = Files.walk(Path.of("src", "test", "java"))) {
+            for (Path file : files.filter(path -> path.toString().endsWith(".java")).toList()) {
+                Matcher input = REPOSITORY_INPUT.matcher(Files.readString(file));
+                while (input.find()) {
+                    required.add(input.group(1).startsWith("docker-compose") ? "docker-compose*.yml" : input.group(1) + "/**");
+                }
+            }
+        }
+        assertThat(required).as("시험 소스에서 찾은 저장소 루트 입력 — 비어 있으면 이 검사가 아무것도 못 본다").contains("infra/**", "docker-compose*.yml");
+
+        Matcher listed = Pattern.compile("(?m)^\\s+- '([^']+)'\\s*$").matcher(stripComments(Files.readString(WORKFLOWS.resolve("ci.yml"))));
+        Set<String> filter = new TreeSet<>();
+        while (listed.find()) {
+            filter.add(listed.group(1));
+        }
+        assertThat(filter).as("ci.yml 의 changes 작업 거르기 목록 — 시험이 읽는 입력(%s)을 전부 포함해야 그 파일만 바꾼 PR 에서도 시험이 돈다", required)
+                .containsAll(required);
     }
 
     /** 스텝 목록 — 이 저장소 워크플로의 스텝은 전부 6칸 들여쓴 {@code - } 로 시작한다. 주석 줄은 걷어 낸다. */
