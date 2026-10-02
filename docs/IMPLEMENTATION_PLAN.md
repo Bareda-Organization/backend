@@ -1190,6 +1190,11 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 721 | `RefreshTokenRepositoryTest` 3건 — Linux `OffsetDateTime.now()` 는 나노초 · macOS 는 마이크로초 · `timestamptz` 는 마이크로초라 저장 후 `isEqualTo` 가 CI 에서만 실패. 운영 쿼리는 시각 동치 비교가 없어 제품 결함 아님 → 시험 시각을 `truncatedTo(MICROS)` | 본문 §8.91 |
 | 722 | `FirstSystemAdminBootstrapTest`·`LoggingSmsSenderTest` — `-PciQuiet`(루트 로그 WARN)이 INFO 로그를 지워 로그를 검사하는 시험이 CI 에서만 실패. `-PciQuiet` 은 그대로 두고 두 시험이 **자기 로거의 INFO 를 직접 켜고 복원** | 본문 §8.91 |
 | 723 | 재발 방지 — `scripts/verify.sh` 가 웹·백엔드를 `TZ=UTC` 로 돌리고 백엔드에 `-PciQuiet` 도 줌(CI 와 같은 조건) · `clockTime.test.ts` 의 시간대 순회에 오프셋 없는 입력 추가 · macOS 는 나노초를 못 재현하므로 DB 왕복 시각은 시험에서 `truncatedTo(MICROS)` 를 붙이는 규칙을 `verify.sh` 머리말과 배포 문서의 CI 절에 기록 | 본문 §8.91 · `docs/infra/DEPLOYMENT.md §5.1` |
+| 730 | 끝나지 않은 이동 중 회차 강제 종료 권한을 `RUN_FORCE_CONFIRM` 재사용이 아니라 새 권한 `RUN_FORCE_FINISH`(메인 관리자) 로 분리 — 확정은 idle 회차를 앞으로 보내고 종료는 남은 탑승자를 처리 없이 닫는 별개 동작. 목록 조회는 읽기라 `MONITOR_ALL` | 본문 §8.92 |
+| 731 | 대상 조건(미취소 `moving` · 운행일 < 오늘−1)을 `RunRepository.STALE_MOVING` 한 곳에 두고 경보 집계 · 관리자 목록 · 종료 UPDATE 가 공유 — 목록 건수 = 게이지 값. 종료는 조건부 UPDATE 한 문장이라 마지막 하차(자동 종료)와 겹쳐도 한쪽만 성공 | 본문 §8.92 · `API_SPEC §6.16`·`§6.17` |
+| 732 | 일반 종료 후속 중 따르지 않는 것 — `RunEndedEvent`(알림 + `run_ended` 방송을 함께 일으킴) · 정차지 강제 출발 · 탑승자 하차 처리. 새 에러 코드 `RUN_NOT_STALE`(409) 1개, 이동 중 아님·취소는 기존 `RUN_NOT_MOVING`·`RUN_CANCELED` 재사용, 성공 응답 `200` | 본문 §8.92 · `API_SPEC §8` |
+| 733 | 관계자 웹 메인 관리자 콘솔 "끝나지 않은 회차" 화면 — 성공하면 대화상자를 닫고 행 제거 + 저장 알림(강제 확정처럼 결과 화면을 따로 두지 않음) · 학원 선택 필터 없음(서버가 전 학원 목록) | `docs/frontend/IMPLEMENTATION_PLAN.md` 에 별도 절 없음 — 본문 §8.92 |
+| 734 | 권한 상수 "33종" 표기는 낡은 값 — 직접 세어 코드 상수 35 · 표 35행(이번 추가분 포함)으로 정정(정본 `FEATURE_SPEC` 의 권한 카탈로그 절) | 본문 §8.92 |
 
 
 ## 8.73 ⚖ `R46-BE` — 성능 개선(감사 제외) + 바로 고칠 것 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 410~419 · 백엔드 갈래)
@@ -1769,3 +1774,38 @@ push 직후 CI 가 웹 3건 · 백엔드 5건 실패했고 로컬은 전부 통�
 **재현되지 않았거나 지시와 다르게 판단한 것** — ① 나노초 3건은 macOS 에서 직접 재현되지 않아 시험 헬퍼에 나노초를 주입한 모사로 확인했다(Linux JRE 로 `now()` 가 9자리인 것은 따로 실측). ② 지시서의 "`-PciQuiet` 이 로그를 지우면 그 클래스만 수준 보장" 쪽을 골랐다 — 클래스 단위가 아니라 **로거 단위**(`FirstSystemAdminBootstrap`·`LoggingSmsSender`)로 좁혔다.
 
 **후속(이 갈래 밖)** — Flutter CI 는 이번에 실패하지 않아 건드리지 않았다. 나노초·시간대·로그 수준 말고도 "로컬과 러너가 다른 것"(파일 시스템 대소문자 · 로케일 · CPU 수)은 같은 방식으로 추후 드러날 수 있다.
+
+## 8.92 ⚖ `R47-STALE` — 운행일이 지난 이동 중 회차의 메인 관리자 강제 종료 (2026-10-02 · 분기점 `dea049da` · 번호대 730~739 · 사용자 결정 1 = `Ruling 724`)
+
+`StaleMovingRun` 경보(`Ruling 701`·`702`)가 가리키는 회차를 처리할 화면·API 가 없어 `DEPLOYMENT §11.2` 의 DB 직접 갱신뿐이던 것을 메인 관리자 콘솔로 옮김. 사양 C-15·`TECH_DECISIONS §14.3` ⚠ 의 "미하차 상태로 회차를 끝내는 경로는 두지 않는다" 를 **이 범위(경보가 세는 회차)에 한해** 뒤집음 — 오늘·어제 회차는 그대로 동승자 하차 처리로만 종료. 갈래 보고서는 `.claude/r47/report-stale.md`(무시 파일).
+
+### R47-STALE 판정
+
+| Ruling | 판정 | 근거 |
+|:-:|---|---|
+| **724** | 사용자 결정 1 — 위 범위의 메인 관리자 강제 종료 API·화면. 사유 필수 · 감사 1행 · 탑승자 상태·하차 기록·알림 미생성 | 조율자 기록(`DECISIONS`) |
+| **730** | **권한 분리 `RUN_FORCE_FINISH`.** 종료는 `@CanForceFinishRun`, 목록은 `@CanMonitorAll`. `RUN_FORCE_CONFIRM` 재사용 안 함 | 확정은 idle 회차를 앞으로 보내고 종료는 남은 탑승자를 처리 없이 닫는 별개 동작 — 한 권한에 묶으면 확정 권한만 다른 역할에 열 때 종료까지 같이 열림. 비용: `Permissions` · `RolePermissions` · `RolePermissionsTest` · `FEATURE_SPEC §6.2` 1행 |
+| **731** | **조건 한 벌 + 조건부 UPDATE.** `STALE_MOVING` 문자열 상수를 `countStaleMoving`(경보) · `findStaleMoving`(목록) · `finishIfStaleMoving`(종료)이 이어 쓰고 경계 날짜는 셋 다 `MovingRunWindowPolicy.earliestServiceDate()`. 종료는 먼저 UPDATE 하고 0행일 때만 회차를 다시 읽어 원인 판정(`404 → RUN_CANCELED → RUN_NOT_MOVING → RUN_NOT_STALE`) | 조건이 두 벌이면 경보와 목록이 다른 회차를 가리키고 강제 종료가 목록에 없는 회차를 끝낼 수 있음. 읽어서 판정한 뒤 갱신하면 마지막 하차와 겹칠 때 둘 다 통과 |
+| **732** | **일반 종료 후속 중 생략 3개.** ① `RunEndedEvent` 미발행 — 이 이벤트 하나가 학부모·관계자 알림(`RunEndedNotificationListener`)과 `run_ended` 방송(4채널)을 함께 일으킴 ② 정차지 강제 출발(`forceAllRemaining`) 미실행 — 출발 시각을 지어내게 됨 ③ 탑승자 하차 처리 미실행. 위치 송신 중단·노선 잠금은 이미 처리 집합 밖(`Ruling 701`)이라 닫을 것이 없음. 새 에러 코드 `RUN_NOT_STALE` 1개 · 성공 `200` | `graft callers Run.finish --depth 2` 로 확인한 후속 목록 |
+| **733** | **웹 화면.** 사이드바 "회차 강제 확정" 옆 "끝나지 않은 회차"(`/stale-runs`) · 표 + 행마다 [강제 종료] → 사유 필수 대화상자(남은 탑승자 수 경고) · 성공하면 대화상자를 닫고 목록 재조회로 행 제거 + `useSavedNotice` 알림 · 오류는 서버 메시지 · 빈 상태 문구 | 강제 확정의 결과 고정 화면은 폼으로 돌아갈 길을 없애려는 장치인데, 이 화면은 성공하면 행이 사라져 두 번 누를 수 없음 |
+| **734** | **권한 상수 수 정정.** `FEATURE_SPEC §6.2` "33종" 은 낡은 값 — 직접 세어 코드 35 · 표 35행(`RUN_FORCE_FINISH` 포함)으로 정정 | 정본에서 직접 센 값 |
+
+`Ruling 735`~`739` 는 쓰지 않음.
+
+### R47-STALE 목표 표
+
+| # | 완료 조건 | 확인 수단 | 결과 |
+|:-:|---|---|:-:|
+| 1 | 목록이 경계대로 — 운행일 오늘−2 포함 · 오늘−1·오늘 제외 · 취소·`idle`·`finished` 제외 · 학원 여러 곳 · 남은 탑승자 수 정확 | `AdminStaleMovingRunControllerTest` 3건(경계 · 항목·탑승자 수 · 경보 지표와 건수 일치) · RED 8/8 확인 후 GREEN · 결함 심기 — 경보 집계만 경계 넓힘(1건 실패) · 공유 조건 `<`→`<=`(2건 실패) | ✅ |
+| 2 | 강제 종료 성공 → `finished`·`finished_at`·`finish_pending=false` · 감사 1행 · 알림 행 0 · 종료 이벤트 0 · 탑승자 상태 그대로 / 409 3종 · 422 · 관계자 403 · 없는 회차 404 | 같은 클래스 5건 · 결함 심기 — 감사 저장 제거(2클래스 각 1건 실패) · UPDATE 날짜 조건 제거(1건 실패) | ✅ |
+| 3 | 강제 종료와 마지막 하차(자동 종료)가 동시에 와도 한쪽만 성공 | `RunForceFinishConcurrencyTest` 2건(양방향) — 후행이 선행의 행 잠금에 막힌 것을 DB 에서 확인한 뒤 커밋시켜 순서 고정 · 결함 심기 — UPDATE 상태 조건 제거(2클래스 각 1건 실패) · 자동 종료 쪽 보류·상태 검사 두 개 제거(1건 실패) | ✅ |
+| 4 | 웹 목록·대화상자(사유 필수)·성공 후 행 제거·오류 표시 | `StaleMovingRunsPage.test.tsx` 6건 · 결함 심기 — 재조회 제거 · 사유 비활성 제거 · 저장 알림 제거(각 1건 실패) · 실서버 `:8700` + puppeteer 로 1440·1024px 눈 확인(목록 · 대화상자 · 성공 후 행 제거 · `RUN_NOT_MOVING` 오류) — 1024px 에서 버튼 칸 줄바꿈을 발견해 열 폭으로 수정 | ✅ |
+| 5 | 백엔드 전수 `--rerun` 실패 0 · 건너뜀 0 · `TZ=UTC -PciQuiet` 한 번 더 / 웹 lint · 타입 · `TZ=UTC vitest` 실패 0 | 백엔드 — 목표 범위 198클래스 1,141건 · 전체 `TZ=UTC -PciQuiet --rerun` **383클래스 2,155건 · 건너뜀 0 · 실패 0 · 오류 0**(결과 XML 합계, 새 클래스 2개 포함) / 웹 — `lint` 종료 0 · `next typegen` + `tsc --noEmit` 오류 0 · `vitest`(실서버 계약 파일 제외) **143파일 889건 실패 0** | ✅ |
+| 6 | 정본 반영 · docgraph 깨진 참조 착수 때 값 이하 | `API_SPEC §6.16·§6.17·§8` · `FEATURE_SPEC` · `TECH_DECISIONS §14.3` · `USER_FLOWS` UF-O-08 · `DEPLOYMENT §11.2` · 이 절 · `§11` 색인 — `build.py` 깨진 참조 착수 0건 → 종료 0건 | ✅ |
+| 7 | 정리 — `:8700`·`:5173` 종료 · DB 는 남김 | 두 포트 `lsof` 빈 결과 · DB `r47_stale` 보존 | ✅ |
+
+**시험 도우미 결함(교훈)** — `RunForceFinishConcurrencyTest` 가 전체 묶음에서 간헐로 실패(`TimeoutException`). 원인은 제품 코드가 아니라 시험의 "후행 스레드가 막혔는지" 확인 쿼리 — 선행 스레드의 열린 트랜잭션 안에서 `pg_stat_activity` 를 읽는데 PostgreSQL 은 이 뷰를 트랜잭션이 끝날 때까지 첫 조회 시점 그대로 캐시. 첫 조회가 후행이 막히기 전이면 계속 0 으로 읽음(psql 로 같은 트랜잭션 안 두 번째 조회 0 · `pg_stat_clear_snapshot()` 뒤 1 확인). 조회 전에 스냅샷을 비우도록 수정 — 같은 도우미를 쓰던 첫 번째 시험도 같은 위험을 안고 있었음.
+
+**동등 변형** — 자동 종료 쪽에서 `status` 재확인만 지우는 변형은 시험이 못 잡음. 강제 종료 UPDATE 가 `finish_pending=false` 도 쓰므로 `finish_pending` 검사만으로 이미 건너뛰는 같은 결과라 시험 구멍이 아님(두 검사를 함께 지우면 잡힘).
+
+**후속(이 갈래 밖)** — 정차지 강제 출발을 생략했으므로 그 회차를 관계자 웹 회차 상세에서 열 때 정차지 진행 표시는 눈으로 확인하지 못함. 목록 상한 200건을 넘기는 규모는 운영에서 예상하지 않으나 화면에 "일부만 표시" 문구는 없음.
