@@ -150,6 +150,31 @@ class OpsSettingsGuardTest {
                 .isEqualTo(prodMaxConnections() * 3 / 4);
     }
 
+    @Test
+    @DisplayName("디스크 80% 경보는 루트와 데이터 디스크(bootstrap-ec2.sh 의 DOCKER_VOLUMES)를 함께 보고, node-exporter 는 그 마운트 지점을 버리지 않는다 — BR-305")
+    void diskAlertWatchesTheDataDiskAndExporterKeepsItsSeries() throws IOException {
+        Matcher mount = Pattern.compile("(?m)^DOCKER_VOLUMES=(\\S+)$").matcher(read("infra/scripts/bootstrap-ec2.sh"));
+        assertThat(mount.find()).as("bootstrap-ec2.sh 에 DOCKER_VOLUMES 가 있어야 한다").isTrue();
+        String dataDisk = mount.group(1);
+
+        // PromQL 의 `=~` 는 값 전체가 일치해야 하므로 Java 의 matches 와 같다.
+        String rules = stripComments(read("infra/observability/prometheus/alerts.yml"));
+        Matcher selector = Pattern.compile("(?s)- alert: HostDiskAlmostFull\\n\\s+expr:[^\\n]*?node_filesystem_avail_bytes\\{mountpoint=~\\\"([^\\\"]+)\\\"\\}")
+                .matcher(rules);
+        assertThat(selector.find()).as("HostDiskAlmostFull 은 mountpoint=~\"…\" 로 마운트 지점을 고른다(루트만 보는 mountpoint=\"/\" 가 아니다)").isTrue();
+        assertThat(Pattern.matches(selector.group(1), "/")).as("루트 디스크").isTrue();
+        assertThat(Pattern.matches(selector.group(1), dataDisk)).as("DB·사진·지표가 있는 데이터 디스크 %s", dataDisk).isTrue();
+
+        // node-exporter 는 기본값으로 /var/lib/docker/ 아래 마운트를 전부 버린다 — 데이터 디스크는 그 아래라 시계열이 아예 없다(v1.12.1 기본 정규식).
+        Matcher exclude = Pattern.compile("--collector\\.filesystem\\.mount-points-exclude=(\\S+)")
+                .matcher(serviceBlock("docker-compose.prod.yml", "node-exporter"));
+        assertThat(exclude.find()).as("기본 제외 규칙(var/lib/docker/.+)이 데이터 디스크를 버리므로 node-exporter 에 재정의가 있어야 한다").isTrue();
+        Pattern excluded = Pattern.compile(exclude.group(1).replace("$$", "$")); // compose 에서 `$$` 는 문자 그대로의 `$`
+        assertThat(excluded.matcher(dataDisk).find()).as("제외 규칙이 데이터 디스크 %s 를 버리면 경보 식이 볼 시계열이 없다", dataDisk).isFalse();
+        assertThat(excluded.matcher("/proc").find()).as("가상 파일시스템은 계속 버린다").isTrue();
+        assertThat(excluded.matcher("/var/lib/docker/containers/abc/mounts/shm").find()).as("컨테이너별 마운트는 계속 버린다").isTrue();
+    }
+
     /** {@code application.yml} 의 {@code on-profile: prod} 문서에 명시된 {@code server.tomcat.max-connections}. */
     private static int prodMaxConnections() throws IOException {
         for (String document : read("backend/src/main/resources/application.yml").split("(?m)^---\\s*$")) {

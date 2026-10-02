@@ -56,15 +56,19 @@ groups:
           severity: warning
         annotations:
           summary: 재시도를 소진해 실패로 굳은 푸시 알림이 최근 10분 안에 있다
-      # 호스트 루트 디스크 80% — DB 볼륨 · 사진 · 이미지 · 로그가 같은 디스크라 차면 postgres 쓰기가 실패해 전면 정지다.
-      # 값은 node-exporter(--path.rootfs=/host · pid: host)가 내는 마운트 지점 `/` 기준이다.
+      # 호스트 디스크 80% — 두 곳을 본다(mountpoint 라벨로 갈린다). 루트 `/` 는 OS · 이미지 · 로그, 데이터 디스크 `/var/lib/docker/volumes` 는
+      # DB · 학생 사진 · Prometheus 지표 · 인증서(bootstrap-ec2.sh 0단계가 마운트한 별도 EBS). 어느 쪽이든 차면 postgres 쓰기가 실패해 전면 정지다 —
+      # 가장 먼저 차는 쪽은 사진·지표·DB 가 있는 데이터 디스크라 루트만 보면 무경보로 멈춘다(BR-305).
+      # 값은 node-exporter(--path.rootfs=/host · pid: host)가 내는 마운트 지점 기준이다. ⚠ 그 기본 제외 규칙은 /var/lib/docker/ 아래를 전부 버려
+      # 데이터 디스크 시계열이 아예 없다 — docker-compose.prod.yml 이 --collector.filesystem.mount-points-exclude 를 다시 정하고,
+      # OpsSettingsGuardTest 가 이 식 · 그 인자 · bootstrap-ec2.sh 의 마운트 경로가 서로 맞는지 본다. `=~` 는 값 전체가 일치해야 한다.
       - alert: HostDiskAlmostFull
-        expr: 100 * (1 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) > 80
+        expr: 100 * (1 - node_filesystem_avail_bytes{mountpoint=~"/|/var/lib/docker/volumes"} / node_filesystem_size_bytes{mountpoint=~"/|/var/lib/docker/volumes"}) > 80
         for: 10m
         labels:
           severity: warning
         annotations:
-          summary: 호스트 루트 디스크 사용률이 80% 를 넘은 지 10분 됐다
+          summary: 호스트 디스크 {{ $labels.mountpoint }} 의 사용률이 80% 를 넘은 지 10분 됐다
       # 백업이 멈추면 아무도 모른다 — 실패는 크론 로그에만 남는다. backup-db.sh 가 S3 업로드를 마친 뒤에만 쓰는 성공 시각을
       # node-exporter textfile 수집기가 내보내고, 그 시각이 오래되면 울린다(R46 ops2 · Ruling 500). DB 는 매시 백업이라 2시간
       # (한 번은 빠질 수 있고 두 번 연속이면 목표 유실 1시간이 깨진다) · 사진은 매일이라 26시간. `or absent` — 크론이 안 돌아
