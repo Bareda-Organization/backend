@@ -1,6 +1,8 @@
 package src.backend.account.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -119,6 +121,35 @@ class SignupControllerTest {
         mockMvc.perform(get("/api/v1/auth/signup-status").header("Authorization", token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("pending"));
+    }
+
+    /**
+     * Ruling 781 — 연락처를 등록하지 않은 학원의 {@code academy_contact} 는 <b>키는 있고 값이 {@code null}</b> 이다(§2.3 · §2.5 와 같은
+     * 규칙). 앱은 키가 있어야 "등록된 문의처 없음" 대체 문구를 띄우므로, 키를 빼는 직렬화 설정이 걸려도 이 시험이 잡는다.
+     */
+    @Test
+    @Sql(statements = {
+            "INSERT INTO academy (code, name, region, status) "
+                    + "VALUES ('BR301CTCQQQ', '학원BR301연락처없음', '서울', 'active')",
+            "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) "
+                    + "VALUES ((SELECT id FROM academy WHERE code = 'BR301CTCQQQ'), "
+                    + "'br301contactqqqq', 'x', '연락처없음', '010-0000-0006', 'parent', 'pending')",
+            "INSERT INTO signup_request (account_id, academy_id, requested_role, approver_type, status, requested_at) "
+                    + "VALUES ((SELECT id FROM account WHERE login_id = 'br301contactqqqq'), "
+                    + "(SELECT id FROM academy WHERE code = 'BR301CTCQQQ'), 'parent', 'staff', 'pending', now())"
+    })
+    void 연락처가_없는_학원의_signup_status_는_academy_contact_를_null_로_싣는다() throws Exception {
+        Long accountId = accountRepository.findByLoginId("br301contactqqqq").orElseThrow().getId();
+        Long academyId = academyRepository.findAll().stream()
+                .filter(a -> a.getCode().equals("BR301CTCQQQ"))
+                .findFirst().orElseThrow().getId();
+        String token = "Bearer " + tokenProvider.createAccessToken(accountId, academyId, Role.PARENT,
+                AccountStatus.PENDING);
+
+        mockMvc.perform(get("/api/v1/auth/signup-status").header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasKey("academy_contact")))
+                .andExpect(jsonPath("$.data.academy_contact").value(nullValue()));
     }
 
     @Test
