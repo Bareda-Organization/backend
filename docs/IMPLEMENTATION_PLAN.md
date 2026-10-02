@@ -8,7 +8,7 @@
 | 작성일 | 2026-08-24 |
 | 기준 | FEATURE_SPEC v1.0 · PRD v1.0 · USER_FLOWS v1.0 · API_SPEC v1.0 · ARCHITECTURE v1.0 · ERD v1.0 · TECH_DECISIONS v1.0 (2026-08-24) |
 | 성격 | **구현 추적의 단일 창구.** 사양·설계의 복제 부재, 규칙 ID 참조만 |
-| 대상 코드 | `backend/` (Spring Boot 4.1.0 · Java 25) — **`frontend/` (Flutter) 는 2026-08-25 사용자 확정으로 착수 대상 밖** (Phase F1~F4 절 · §8) |
+| 대상 코드 | `backend/` (Spring Boot 4.1.1 · Java 25) — **`frontend/` (Flutter) 는 2026-08-25 사용자 확정으로 착수 대상 밖** (Phase F1~F4 절 · §8) |
 
 **자매 문서** — [FEATURE_SPEC.md](./FEATURE_SPEC.md) · [PRD.md](./PRD.md) · [USER_FLOWS.md](./USER_FLOWS.md) · [API_SPEC.md](./API_SPEC.md) · [ARCHITECTURE.md](./ARCHITECTURE.md) · [ERD.md](./ERD.md) · [TECH_DECISIONS.md](./TECH_DECISIONS.md)
 
@@ -1190,6 +1190,14 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 721 | `RefreshTokenRepositoryTest` 3건 — Linux `OffsetDateTime.now()` 는 나노초 · macOS 는 마이크로초 · `timestamptz` 는 마이크로초라 저장 후 `isEqualTo` 가 CI 에서만 실패. 운영 쿼리는 시각 동치 비교가 없어 제품 결함 아님 → 시험 시각을 `truncatedTo(MICROS)` | 본문 §8.91 |
 | 722 | `FirstSystemAdminBootstrapTest`·`LoggingSmsSenderTest` — `-PciQuiet`(루트 로그 WARN)이 INFO 로그를 지워 로그를 검사하는 시험이 CI 에서만 실패. `-PciQuiet` 은 그대로 두고 두 시험이 **자기 로거의 INFO 를 직접 켜고 복원** | 본문 §8.91 |
 | 723 | 재발 방지 — `scripts/verify.sh` 가 웹·백엔드를 `TZ=UTC` 로 돌리고 백엔드에 `-PciQuiet` 도 줌(CI 와 같은 조건) · `clockTime.test.ts` 의 시간대 순회에 오프셋 없는 입력 추가 · macOS 는 나노초를 못 재현하므로 DB 왕복 시각은 시험에서 `truncatedTo(MICROS)` 를 붙이는 규칙을 `verify.sh` 머리말과 배포 문서의 CI 절에 기록 | 본문 §8.91 · `docs/infra/DEPLOYMENT.md §5.1` |
+| 760 | Dependabot #7(gradle 9건) — Spring Boot 4.1.1 · jjwt 0.13.0 · springdoc 3.1.1 · shedlock 7.10.1(주 버전 · 코드 변경 0) · Gradle 9.8.0 채택. **resilience4j 는 PR 값(`-spring-boot3` 2.4.0) 거절** — 2.4.0 부터 이 아티팩트가 Spring Boot 4 기동을 거부(`IncompatibleSpringBootVersionException`)해 같은 2.4.0 의 `resilience4j-spring-boot4` 로 교체 | 본문 §8.94 |
+| 761 | Dependabot #6(Actions 3건) — `deploy-backend.yml` 의 `actions/checkout@v7` · `actions/setup-java@v6` · `aws-actions/configure-aws-credentials@v6` 채택. 쓰는 입력 이름이 새 `action.yml` 에 모두 존재 · `actionlint` 통과 · 앞 둘은 `ci.yml` 이 이미 같은 버전으로 초록 | 본문 §8.94 |
+| 762 | Dependabot #10(`very_good_analysis` 11) — **보류**. 11 은 Dart `>=3.13.0` 요구인데 Flutter 는 3.44.8(Dart 3.12.2)로 고정(`ci.yml` · `SETUP.md` · 배포 문서 CI 절) → 4곳 모두 `pub get` 실패. Flutter 3.47+ 로 올리는 별도 결정이 선행 조건 | 본문 §8.94 |
+| 763 | Dependabot #5 의 patch·minor 5종 — prometheus v3.15.0 · alertmanager v0.34.1 · postgres-exporter v0.20.1 · redis_exporter v1.92.1 · node-exporter v1.12.1 채택(`promtool`·`amtool` 새 이미지 SUCCESS · 대시보드·경보 지표 23종 존재) | 본문 §8.94 |
+| 764 | **postgres 16.15 → 18.6 채택(`Ruling 729` 조건 충족)** — compose 3파일 · Testcontainers `postgres:18` · 운영 볼륨·스테이징 `tmpfs` 마운트를 `/var/lib/postgresql` 로(18 이미지는 데이터를 `/var/lib/postgresql/18/docker` 에 두고 옛 위치 마운트면 기동 거부) · 18 위 전체 시험 실패 0 | 본문 §8.94 |
+| 765 | redis 7.4.11 → 8.10.1 채택 — compose 3파일 · Testcontainers `redis:8` · 유휴 메모리 1.53MB · `maxmemory 128mb` 적용 확인 | 본문 §8.94 |
+| 766 | grafana 11.5.0 → 13.2.2 채택 — 프로비저닝을 그대로 물린 일회용 컨테이너에서 대시보드 5/5 · 패널 79/79 · 데이터소스 1/1 로드 | 본문 §8.94 |
+| 767 | 재발 방지 — `RuntimeImageParityTest`: postgres·redis 주 버전이 compose 3파일과 Testcontainers 에서 같은지 · postgres 18 이상이면 데이터 마운트가 `/var/lib/postgresql` 인지(이미지 태그만 올리고 마운트를 두면 운영 배포에서만 드러남) | 본문 §8.94 |
 
 
 ## 8.73 ⚖ `R46-BE` — 성능 개선(감사 제외) + 바로 고칠 것 (2026-10-01 · 분기점 `ea37ba6c` · 번호대 410~419 · 백엔드 갈래)
@@ -1769,3 +1777,41 @@ push 직후 CI 가 웹 3건 · 백엔드 5건 실패했고 로컬은 전부 통�
 **재현되지 않았거나 지시와 다르게 판단한 것** — ① 나노초 3건은 macOS 에서 직접 재현되지 않아 시험 헬퍼에 나노초를 주입한 모사로 확인했다(Linux JRE 로 `now()` 가 9자리인 것은 따로 실측). ② 지시서의 "`-PciQuiet` 이 로그를 지우면 그 클래스만 수준 보장" 쪽을 골랐다 — 클래스 단위가 아니라 **로거 단위**(`FirstSystemAdminBootstrap`·`LoggingSmsSender`)로 좁혔다.
 
 **후속(이 갈래 밖)** — Flutter CI 는 이번에 실패하지 않아 건드리지 않았다. 나노초·시간대·로그 수준 말고도 "로컬과 러너가 다른 것"(파일 시스템 대소문자 · 로케일 · CPU 수)은 같은 방식으로 추후 드러날 수 있다.
+
+## 8.94 ⚖ `R47-DEPS` — 의존성 올리기 (2026-10-02 · 분기점 `dea049da` · 번호대 760~769 · 사용자 결정 3 `Ruling 726`·`727`·`729`)
+
+Dependabot PR #5(compose 8건) · #6(Actions 3건) · #7(gradle 9건) · #10(pub 1건)을 **PR 브랜치를 병합하지 않고 같은 값을 직접 올려** 영역별 전체 검사로 판정. PR 의 CI 는 경로 필터로 대부분 건너뛰어 초록이 검증을 뜻하지 않기 때문(`Ruling 726`). 갈래 보고서는 `.claude/r47/report-deps.md`(무시 파일). 서버는 `bootRun` 1회(`:8730`)만 띄우고 정리. `#8`(런타임 이미지 `temurin` 26 · `node` 26)은 `Ruling 727` 로 거절 — 이 갈래는 Dockerfile 베이스 이미지를 고치지 않음.
+
+### R47-DEPS 판정
+
+| Ruling | 판정 | 근거 |
+|:-:|---|---|
+| **760** | **#7 gradle — 8건 채택 · resilience4j 는 아티팩트 교체.** Spring Boot 4.1.1 · jjwt 0.13.0 · springdoc 3.1.1 · shedlock 7.10.1(주 버전, 소스 변경 0) · Gradle wrapper 9.8.0(`./gradlew wrapper --gradle-version 9.8.0` 을 두 번 돌려 생성). **`resilience4j-spring-boot3:2.4.0` 은 Spring Boot 4 에서 기동 거부** — jar 의 `SpringBoot3Verifier.verifyCompatibility()` 를 `javap -c` 로 읽으면 `SpringBootVersion` 주 버전이 4 일 때 *"only compatible with Spring Boot 3.x · use resilience4j-spring-boot4"* 로 던짐(2.3.0 에는 이 검증 부재). PR 값 그대로 전체 시험을 돌리자 430건 이상이 컨텍스트 로딩 실패. 같은 2.4.0 의 `resilience4j-spring-boot4`(Maven Central 존재 · POM 이 Boot 4 세대) 로 교체 — 코드는 코어 API 만 import 해 소스 변경 0 · 관련 시험 8클래스 43건 통과 · `build.gradle`·`application.yml` 주석·`TECH_DECISIONS §11` 반영. 새 폐기 경고 부재(전부 Spring `isUnprocessableEntity()` 74건 · FCM `single(String)` 1건 · AssertJ `isEqualToIgnoringNanos` 1건 — 앞의 둘은 Spring 7.0.8 에서도 폐기 상태 확인) · 새로 생긴 기동 로그는 springdoc 3.1 의 안내성 WARN 2줄(`/v3/api-docs`·`/swagger-ui.html` 이 기본 활성이라는 안내 — 운영은 프록시 Basic Auth 뒤에서 의도적으로 연다) |
+| **761** | **#6 Actions — 3건 채택(`deploy-backend.yml`).** 쓰는 입력(`distribution` · `java-version` · `cache` · `role-to-assume` · `aws-region`)이 새 태그의 `action.yml` 에 모두 존재 · 릴리스 노트의 파괴적 변경(Node 24 · 불리언 입력 검증 · 포크 PR 체크아웃 차단 · Adopt 배포판 제거)은 이 워크플로에 해당 없음 · `actionlint` 변경 전후 종료 코드 0. `ci.yml` 은 이미 `checkout@v7`·`setup-java@v6` 로 초록 — `configure-aws-credentials` 만 CI 실행 증거가 없어 시크릿 3종이 생기는 첫 배포에서 처음 실행됨 |
+| **762** | **#10 `very_good_analysis` 11 — 보류.** `flutter pub get`: *"very_good_analysis >=11.0.0-rc.1 requires SDK >=3.13.0 · version solving failed"*(4곳 전부). 저장소는 Flutter 3.44.8(Dart 3.12.2) 고정(`ci.yml` `flutter-version` · `SETUP.md` · `DEPLOYMENT §5.1`)이고 PR 은 SDK 하한을 두므로 그대로면 4곳 모두 의존성 해석 실패. 올리려면 Flutter 3.47+ 로 올려야 하는데 이는 린트가 아니라 앱 프레임워크 3단계 상승이라 별도 결정. 11 의 새 규칙 7개 중 3개(`use_declaring_parameters` 등)는 Dart 3.13 기본 생성자 문법이 전제라 3.12 에서는 고칠 수도 없음. 위반 건수 미측정(설치 불가). 재개 조건 — Flutter 고정 버전을 올리는 결정 뒤 새 규칙 위반을 세어 기계적 수정 또는 규칙 끄기 |
+| **763** | **#5 patch·minor 5종 채택.** prometheus v3.1.0→v3.15.0 · alertmanager v0.28.1→v0.34.1 · postgres-exporter v0.16.0→v0.20.1 · redis_exporter v1.67.0→v1.92.1 · node-exporter v1.8.2→v1.12.1. `promtool check config`(개발·운영 2개) · `check rules`(17개) · `test rules`(`alerts.test.yml`) · `amtool check-config`(수신자 있는 설정·없는 설정, 저장소의 `render-alertmanager.sh` 산출물) 전부 새 이미지에서 SUCCESS. 실제 스택 기동 — postgres 18.6·redis 8.10.1 에 붙은 exporter `pg_up=1`·`redis_up=1` · 대시보드·경보가 쓰는 `pg_`·`redis_`·`node_` 지표 23종이 전부 출력에 존재 |
+| **764** | **postgres 16.15 → 18.6 채택(`Ruling 729` 조건 충족).** ①compose — 개발·운영·스테이징 3파일(`docker-compose.app.yml` 에는 postgres 가 없음) ②CI 는 저장소 compose 를 쓰므로(`docker compose up -d --wait postgres`) 자동 일치 ③Testcontainers `postgres:16`→`postgres:18`(2곳) ④**볼륨 위치** — 18 공식 이미지는 `PGDATA=/var/lib/postgresql/18/docker` · `VOLUME /var/lib/postgresql`(16 은 둘 다 `/var/lib/postgresql/data`)이고, 옛 위치에 마운트하면 *"Error: in 18+, these Docker images are configured to store database data in a format ... compatible with pg_ctlcluster"* 로 기동 거부(실측). 운영 `postgres-data` 볼륨과 스테이징 `tmpfs` 를 `/var/lib/postgresql` 로 변경, 개발 compose 는 마운트가 없어 이미지의 익명 볼륨이 그대로(`stop/start` 는 데이터 유지 · `down`→`up` 은 초기화 — 18 에서 실측). ⑤실제 compose 파일로 운영·스테이징 postgres 서비스를 18.6 에서 기동 — 헬스 통과 · `shared_preload_libraries=pg_stat_statements` · `random_page_cost=1.1` · 초기화 스크립트가 `ops_stats` 스키마에 확장 생성 · 운영 볼륨은 `stop/start` 뒤 데이터 유지(볼륨 안 구조 `18/docker`) · 스테이징은 디스크 볼륨 부재 ⑥18.6 위 백엔드 전체 `TZ=UTC -PciQuiet` 실패 0. **다음 주 버전 상승부터는 `pg_upgrade`(단일 마운트 `/var/lib/postgresql` 이 `--link` 를 허용하는 구성)가 필요** — 첫 배포 전인 지금이 영속 데이터 없이 올리는 가장 싼 시점이었음 |
+| **765** | **redis 7.4.11 → 8.10.1 채택.** compose 3파일 · Testcontainers `redis:7`→`redis:8`. 운영과 같은 인자(`--save "" --appendonly no --maxmemory 128mb --maxmemory-policy allkeys-lru`)로 기동 — 유휴 `used_memory` 1.53MB · `maxmemory` 128MB 적용 · `redis_exporter` 정상. 8 은 기본으로 모듈 5종(search·timeseries·ReJSON·bf·vectorset)을 같이 올리며 이미지가 181MB→220MB(미사용 · 메모리 영향은 유휴 1.53MB 로 관측) |
+| **766** | **grafana 11.5.0 → 13.2.2 채택.** 저장소의 `provisioning`·`dashboards` 를 그대로 물린 일회용 컨테이너 — `/api/health` 13.2.2 · 데이터소스 1/1(`Prometheus` · 상태 OK) · 대시보드 5/5(`school-bus-api`·`server`·`data`·`pipeline`·`load`) · 패널 79/79 · Angular 계열·자동 이전 패널 0. 오류 로그는 2줄 — 저장소에 없는 선택 폴더(`provisioning/plugins`·`alerting`) 안내 |
+| **767** | **재발 방지 — `RuntimeImageParityTest`(3건).** postgres·redis 주 버전이 compose 3파일과 Testcontainers 소스 전체에서 같은지(새 시험 컨테이너가 다른 버전을 쓰면 걸림) · postgres 18 이상이면 운영·스테이징 데이터 마운트가 `/var/lib/postgresql`, 미만이면 `/var/lib/postgresql/data` 인지. 이미지 태그만 올리고 마운트를 두면 앱·시험은 정상인데 운영 배포에서만 postgres 가 기동하지 않는 종류 |
+
+`Ruling 768`~`769` 는 쓰지 않았다.
+
+### R47-DEPS 목표 표
+
+| # | 완료 조건 | 확인 수단 | 결과 |
+|:-:|---|---|:-:|
+| 1 | 백엔드 전체 `--rerun`(새 Spring·shedlock·jjwt) 실패 0 · 건너뜀 0 · `TZ=UTC -PciQuiet` 로도 | ①기본 조건·postgres 16.15: `./gradlew test --rerun`(전수 · 네이버 환경변수 없이) — 결과 XML **381 클래스 · 2,145건 · 실패 0 · 오류 0 · 건너뜀 0**(`BUILD SUCCESSFUL in 9m 51s`) ②`TZ=UTC … -PciQuiet`(아래 2번과 같은 실행) | ✅ |
+| 2 | 위 1을 postgres 18 위에서 한 번 더 | `docker exec r47-deps-pg18 psql … "select version()"` → `PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu` · `TZ=UTC ./gradlew test --rerun -PtestDbUrl=…:15433/r47_deps18 -PciQuiet` — 결과 XML **382 클래스 · 2,148건(새 가드 3건 포함) · 실패 0 · 오류 0 · 건너뜀 0**(`BUILD SUCCESSFUL in 9m 49s`) · 그 DB 에 Flyway 이력 14건 · 테이블 44개 · Testcontainers 이미지 `postgres:18`·`redis:8` 수신 확인 | ✅ |
+| 3 | Flutter 4곳 `flutter analyze` 0 · `flutter test` 실패 0 | `scripts/verify.sh flutter` 와 같은 순서(`pub get` → `build_runner` → `flutter analyze` → `flutter test --exclude-tags real_backend`)로 4곳 — 전부 `No issues found!` · `All tests passed!`(baraeda_core 115 · baraeda_ui 265 · manager-app 455 · parent-app 324건). `very_good_analysis` 를 올리지 않았으므로(762) 착수 전 기준선과 같음 | ✅(보류 · 변경 없음) |
+| 4 | 새 이미지로 `promtool test rules` · `check config` · `amtool check-config` SUCCESS · Grafana 대시보드·데이터소스 전부 로드 | 위 763·766 — `promtool` 4종 · `amtool` 2종 SUCCESS · 대시보드 5/5 · 패널 79/79 · 데이터소스 1/1 | ✅ |
+| 5 | Actions 입력 대조 표 | 위 761 · 보고서 1.3 | ✅ |
+| 6 | 채택·거절·보류 표 | 위 판정 표 · 보고서 1.1 | ✅ |
+| 7 | 정본 버전 표기 일치 · docgraph 깨진 참조 착수 때 값 이하 | `python3 ~/.claude/tools/docgraph/build.py .` — 착수 전 **0건** → 작업 후 **0건** | ✅ |
+| 8 | 정리 — `:8730` · `r47-deps-*` 컨테이너 · DB 는 남김 | `lsof -iTCP:8730 -sTCP:LISTEN` 비어 있음 · `docker ps -a --filter name=^r47-deps-` · 볼륨 · 네트워크 모두 0건 · 시험 DB `r47_deps`(공유 postgres 16.15 안)는 남김 | ✅ |
+
+**결함 심기** — `RuntimeImageParityTest` 를 커밋한 뒤 한 줄씩 5종을 심어 해당 시험만 실패하는지 확인하고 손으로 원복: ①스테이징 `tmpfs` 를 옛 위치로 → 마운트 시험 1건 ②운영 볼륨을 옛 위치로 → 마운트 시험 1건 ③`MigratedPostgresTestBase` 를 `postgres:17` 로 → postgres 주 버전 시험 1건 ④`RedisTestContainerBase` 를 `redis:7` 로 → redis 주 버전 시험 1건 ⑤운영 compose redis 를 `7.4.11` 로 → redis 주 버전 시험 1건. 변형마다 `git status` 에서 코드·compose 변경 부재 확인.
+
+**재현되지 않았거나 지시와 다르게 판단한 것** — ①지시서 1번의 "resilience4j 2.3→2.4"는 PR 값 그대로면 기동 불가라 아티팩트 교체로 판단(760). ②`very_good_analysis` 는 "새 규칙 위반을 세고 고친다" 는 지시를 수행할 수 없어(설치 불가) 보류(762). ③8 개 compose 이미지 중 postgres 는 3파일에만 있고 `docker-compose.app.yml` 에는 없음 — 지시서의 "compose 4파일" 은 postgres 기준 3파일. ④`baraeda_ui` 만 `very_good_analysis ^7.0.0` 으로 낮게 남아 있음 — PR 범위 밖이라 그대로.
+
+**후속(이 갈래 밖)** — ①**공유 컨테이너 `school-bus-postgres-1`·`school-bus-redis-1` 은 아직 16.15·7.4.11** — 병합 뒤 모든 창이 끝난 시점에 `docker compose down` → `docker compose up -d postgres redis` 로 18.6·8.10.1 로 전환(조율자 몫 · 컨테이너를 다시 만들면 그 안의 전용 DB 가 전부 사라짐). `down` 없이 `up -d` 만 해도 컨테이너가 다시 만들어져 기동은 되지만(실측: 새 컨테이너가 `/var/lib/postgresql` 에 새 익명 볼륨을 만들어 빈 클러스터로 초기화 · 옛 16 데이터는 `/var/lib/postgresql/data` 익명 볼륨에 고아로 남음), 옛 볼륨은 이름으로 확인해 지울 것 ②`.github/dependabot.yml` — `resilience4j-spring-boot3` 를 추적하는 항목이 있으면 `-boot4` 로, `#10` 은 Flutter 고정 버전 결정 전까지 `very_good_analysis` 주 버전 11 무시 ③첫 배포 때 `configure-aws-credentials@v6` 가 처음 실행됨(CI 증거 부재) ④`OpsSettingsGuardTest.java:29` 의 주석 "Boot 4.1.0 설정 메타데이터" 와 8개 동시성 시험의 "PostgreSQL 16 · stats_fetch_consistency" 주석은 시험이 18 에서 통과해 동작은 맞고 문구만 옛 버전 — `be` 갈래와의 병합 충돌을 피하려 고치지 않음.

@@ -599,7 +599,7 @@ aws ssm put-parameter --name /school-bus/demo/SEED_PASSWORD_HASH --type SecureSt
 
 | 값 | 위치 | 크기 |
 |---|---|:-:|
-| 스프링 정상 종료 대기 — `server.shutdown=graceful` · `spring.lifecycle.timeout-per-shutdown-phase` | **설정 파일에 명시가 없고 Boot 4.1.0 기본값이다**(설정 메타데이터에서 확인) | 30초 |
+| 스프링 정상 종료 대기 — `server.shutdown=graceful` · `spring.lifecycle.timeout-per-shutdown-phase` | **설정 파일에 명시가 없고 Boot 4.1 기본값이다**(4.1.0·4.1.1 설정 메타데이터에서 확인) | 30초 |
 | Docker 가 SIGKILL 을 보내기까지 — `stop_grace_period` | `docker-compose.prod.yml`·`docker-compose.staging.yml` backend | 지정 전 기본 10초 → **35초** |
 
 - 스프링은 신호를 받으면 새 요청을 막고 진행 중인 요청을 최대 30초 기다린다. Docker 기본 10초면 그 사이 SIGKILL 이 와 진행 중이던 요청이 오류로 끊긴다. 데이터는 조건부 UPDATE·단일 트랜잭션·아웃박스 복구로 손상되지 않아 피해는 그 요청의 클라이언트 오류 1건 수준이지만, 막을 수 있는 오류다
