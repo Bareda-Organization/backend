@@ -34,12 +34,14 @@ public class StudentPhotoWriter {
     /**
      * 사진을 저장하고 {@code photo_url} 을 돌려준다 — 사진이 없으면 {@code null} 이고, 그것이
      * 등록에서는 "사진 없음", 수정에서는 "바꾸지 않음" 이다.
+     *
+     * <p>받은 사진을 <b>그대로</b> 저장한다 — 줄이기는 트랜잭션 밖(컨트롤러 진입 단계)에서 끝나 있어야 한다(BR-322).
      */
     public String store(StudentPhoto photo) {
         if (photo == null) {
             return null;
         }
-        String photoUrl = photoStorage.store(PhotoResizer.shrink(photo));
+        String photoUrl = photoStorage.store(photo);
         onRollback(() -> photoStorage.delete(photoUrl));
         return photoUrl;
     }

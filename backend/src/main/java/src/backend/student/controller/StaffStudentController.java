@@ -38,6 +38,7 @@ import src.backend.student.dto.StudentSummaryResponse;
 import src.backend.student.dto.StudentUpdateRequest;
 import src.backend.student.dto.StudentWithdrawalResponse;
 import src.backend.student.dto.WeeklyAddressResponse;
+import src.backend.student.photo.PhotoResizer;
 import src.backend.student.photo.spec.StudentPhoto;
 import src.backend.student.query.StudentQueryService;
 
@@ -139,7 +140,10 @@ public class StaffStudentController {
     }
 
     /**
-     * 파일 파트를 검증된 사진으로 바꾼다 — 서블릿 타입은 여기까지고 아래로 내려가지 않는다.
+     * 파일 파트를 검증하고 <b>줄인</b> 사진으로 바꾼다 — 서블릿 타입은 여기까지고 아래로 내려가지 않는다.
+     *
+     * <p>줄이기(디코딩·축소·재인코딩, 수백 ms)를 <b>트랜잭션이 열리기 전 이 자리에서</b> 한다(BR-322) — 서비스 안에서 하면 그 시간만큼 DB 연결을
+     * 쥔다. 서비스는 이미 줄어든 사진을 저장만 한다.
      *
      * <p>파트를 <b>비워서</b> 보낸 것과 아예 보내지 않은 것을 같게 다룬다. 브라우저 폼은 파일을 고르지
      * 않아도 빈 파트를 실어 보내는데, 그것을 갈라 다루면 같은 화면의 같은 조작이 서버에서 두 갈래가 된다.
@@ -149,7 +153,7 @@ public class StaffStudentController {
             return null;
         }
         try {
-            return StudentPhoto.of(photo.getBytes());
+            return PhotoResizer.shrink(StudentPhoto.of(photo.getBytes()));
         } catch (IOException e) {
             throw new UncheckedIOException("업로드된 사진을 읽지 못했습니다", e);
         }
