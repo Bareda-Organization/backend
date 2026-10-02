@@ -29,6 +29,12 @@ import src.backend.run.repository.RunTransferRepository;
  * <p>관계자 취소({@code RunCommandService#cancel})와 스케줄이 내일 회차를 취소하는 경로({@code ScheduleRunSync})가 모두
  * 여기를 지난다. {@code applied} 이동과 출발 회차가 취소된 이동은 지우지 않는다(후자는 §5.8.1 로 관계자가 지운다).
  * 취소를 푸는 것({@link Run#reinstate})은 이동을 되돌리지 않는다. 호출부 트랜잭션 안에서만 부른다.
+ *
+ * <p><b>출발 회차가 이미 확정된 {@code staged} 이동이 걸린 도착 회차는 취소하지 않는다</b>(BR-314) — 출발 회차의 확정이
+ * 그 학생을 명단·노선에서 이미 뺐고 확정된 노선은 다시 짜지 않으므로, 이동을 지워도 학생이 돌아갈 곳이 없어 두 버스
+ * 어디에도 남지 않는다. 관계자는 {@code 403 CHANGE_WINDOW_CLOSED}(§5.8.1 과 같은 사유·같은 코드)를 받고, 출발 회차를 먼저
+ * 취소하면(그 학생은 어차피 그 버스에 없다) 도착 회차도 취소할 수 있다. 스케줄 경로는 확정된 회차를 건드리지 않는 것과
+ * 같은 이유로 조용히 건너뛴다.
  */
 @Component
 @RequiredArgsConstructor
@@ -67,6 +73,13 @@ public class RunCancellation {
         }
         if (status == RunStatus.MOVING || status == RunStatus.FINISHED) {
             throw new BusinessException(ErrorCode.RUN_ALREADY_STARTED);
+        }
+        if (runTransferRepository.existsStagedFromConfirmedRun(run.getId(), run.getAcademyId(),
+                RunTransferStatus.STAGED, RunStatus.IDLE)) {
+            if (source == RunCancelSource.SCHEDULE) {
+                return;
+            }
+            throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);
         }
         run.cancel(OffsetDateTime.now(clock), source);
         runTransferRepository.findAllByToRunIdAndAcademyId(run.getId(), run.getAcademyId()).stream()

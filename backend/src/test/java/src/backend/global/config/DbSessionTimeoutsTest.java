@@ -19,7 +19,7 @@ import org.springframework.core.io.ClassPathResource;
 import com.zaxxer.hikari.HikariDataSource;
 
 /**
- * 운영·demo 프로파일의 Hikari 설정이 <b>실제 DB 연결</b>에 누수 감지와 세션 시간 상한을 건다(R46 T-7 · S-4) — yml 을
+ * 운영·demo·staging 프로파일의 Hikari 설정이 <b>실제 DB 연결</b>에 누수 감지와 세션 시간 상한을 건다(R46 T-7 · S-4) — yml 을
  * 프로파일 단위로 읽어 {@code spring.datasource.hikari} 를 {@link HikariDataSource} 에 바인딩하고, 시험 DB 에 연결해
  * {@code SHOW} 로 확인한다. 문자열만 찾는 검사는 키 이름이 틀려도(드라이버가 모르는 속성은 조용히 무시된다) 통과한다.
  *
@@ -28,8 +28,8 @@ import com.zaxxer.hikari.HikariDataSource;
 class DbSessionTimeoutsTest {
 
     @ParameterizedTest
-    @ValueSource(strings = {"prod", "demo"})
-    @DisplayName("운영·demo 연결은 누수 감지 5초 · lock_timeout 5초 · 유휴 트랜잭션 30초를 갖고 statement_timeout 은 걸지 않는다")
+    @ValueSource(strings = {"prod", "demo", "staging"})
+    @DisplayName("운영·demo·staging 연결은 누수 감지 5초 · lock_timeout 5초 · 유휴 트랜잭션 30초를 갖고 statement_timeout 은 걸지 않는다")
     void 운영_연결에_누수_감지와_세션_시간_상한이_실제로_걸린다(String profile) throws Exception {
         StandardEnvironment environment = new StandardEnvironment();
         environment.getPropertySources().addFirst(profileDocument(profile));

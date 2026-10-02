@@ -275,6 +275,27 @@ class AdminAcademyControllerTest {
     }
 
     /**
+     * 운행일이 이틀 이상 지난 채 {@code moving} 으로 남은 회차는 "운행 중 차량" 에 세지 않는다(BR-315 · R46 K-1, Ruling 701) —
+     * 그 회차는 {@code StaleMovingRun} 경보·강제 종료 목록(§6.16·§6.17)이 맡는다. 시드의 {@code moving} 회차 3을 3일 전으로 민다.
+     */
+    @Test
+    @Sql(statements = "UPDATE run SET service_date = service_date - 3 WHERE id = 3 AND status = 'moving'")
+    void 학원_상세의_운행_중_차량_수는_끝나지_않은_옛_회차를_세지_않는다() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/academies/1").header("Authorization", 메인관리자_토큰()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.stats.moving_bus_count").value(0));
+    }
+
+    /** 운행일이 어제인 {@code moving} 회차는 자정을 넘겨 달리는 살아 있는 회차라 센다 — 경계가 오늘만으로 좁아지면 실패한다. */
+    @Test
+    @Sql(statements = "UPDATE run SET service_date = service_date - 1 WHERE id = 3 AND status = 'moving'")
+    void 학원_상세의_운행_중_차량_수는_어제_출발해_달리는_회차를_센다() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/academies/1").header("Authorization", 메인관리자_토큰()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.stats.moving_bus_count").value(1));
+    }
+
+    /**
      * {@code user_count} 는 <b>소속이 확정됐고 아직 종료되지 않은</b> 계정만 센다(Ruling 142).
      *
      * <p>같은 학원에 소속 역할 계정 4개를 심는다 — {@code active} · {@code blocked} · {@code pending} ·

@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import src.backend.global.security.access.AcademyScopeExempt;
+import src.backend.run.entity.RunStatus;
 import src.backend.run.entity.RunTransfer;
 import src.backend.run.entity.RunTransferStatus;
 
@@ -92,8 +93,26 @@ public interface RunTransferRepository extends JpaRepository<RunTransfer, Long> 
     @Query("""
             DELETE FROM RunTransfer rt
             WHERE rt.id = :id
-              AND rt.status = src.backend.run.entity.RunTransferStatus.STAGED
+              AND rt.status = :stagedStatus
               AND rt.fromRunId IN (SELECT r.id FROM Run r WHERE r.academyId = :academyId)
             """)
-    int deleteStagedByIdAndAcademyId(@Param("id") Long id, @Param("academyId") Long academyId);
+    int deleteStagedByIdAndAcademyId(@Param("id") Long id, @Param("academyId") Long academyId,
+            @Param("stagedStatus") RunTransferStatus stagedStatus);
+
+    /**
+     * 그 회차로 들어오는 반영 전({@code staged}) 이동 중 <b>출발 회차가 이미 확정된(취소되지 않은) 것</b>이 있는지(BR-314) —
+     * 출발 회차의 확정이 그 학생을 명단·노선에서 이미 뺐으므로, 이동을 지워도 학생은 출발 회차로 돌아가지 못한다.
+     * 호출부({@code RunCancellation})가 도착 회차를 이미 잠근 상태에서 부른다.
+     */
+    @Query("""
+            SELECT COUNT(rt) > 0 FROM RunTransfer rt
+            JOIN Run f ON f.id = rt.fromRunId
+            WHERE rt.toRunId = :toRunId
+              AND f.academyId = :academyId
+              AND rt.status = :stagedStatus
+              AND f.status <> :idleStatus
+              AND f.canceledAt IS NULL
+            """)
+    boolean existsStagedFromConfirmedRun(@Param("toRunId") Long toRunId, @Param("academyId") Long academyId,
+            @Param("stagedStatus") RunTransferStatus stagedStatus, @Param("idleStatus") RunStatus idleStatus);
 }

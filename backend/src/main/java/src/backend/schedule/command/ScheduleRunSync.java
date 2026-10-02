@@ -47,7 +47,8 @@ class ScheduleRunSync {
 
     /**
      * 등록·수정 뒤 — 미래 회차를 맞추고, 활성이고 요일이 내일이면 내일 회차를 (없으면) 만든다. 이미 확정·시작돼 옮기지
-     * 못한 살아 있는 회차가 내일에 있으면 새로 만들지 않는다(같은 스케줄의 회차가 둘이 된다).
+     * 못한 살아 있는 회차가 내일에 있으면 새로 만들지 않는다(같은 스케줄의 회차가 둘이 된다). 관계자가 취소한 내일 회차가
+     * 있어도 만들지 않는다 — 출발 시각·차량을 고쳐 자리가 달라져도 쉬기로 한 날이 되살아나지 않는다(BR-316).
      */
     void reflect(AuthUser requester, Schedule schedule) {
         LocalDate today = LocalDate.now(clock);
@@ -61,8 +62,8 @@ class ScheduleRunSync {
         reinstateBacked(schedule, today);
         LocalDate tomorrow = today.plusDays(1);
         if (schedule.isActive() && schedule.getWeekday() == Weekday.of(tomorrow)
-                && !runRepository.existsByAcademyIdAndScheduleIdAndServiceDateAndDirectionAndCanceledAtIsNull(
-                        schedule.getAcademyId(), schedule.getId(), tomorrow, schedule.getDirection())) {
+                && !runRepository.existsLiveOrNonScheduleCanceled(schedule.getAcademyId(), schedule.getId(),
+                        tomorrow, schedule.getDirection(), RunCancelSource.SCHEDULE)) {
             runCommandService.createIfAbsent(draftOf(schedule, tomorrow));
         }
     }

@@ -225,6 +225,18 @@ class ScheduleRunSyncTest {
     }
 
     @Test
+    void 관계자가_취소한_내일_회차가_있으면_출발_시각을_고쳐도_같은_날_새_회차를_만들지_않는다() {
+        long scheduleId = 시드로_스케줄과_내일_회차를_넣는다();
+        long 회차 = jdbcTemplate.queryForObject("SELECT id FROM run WHERE schedule_id = ?", Long.class, scheduleId);
+        runCommandService.cancel(admin, 회차);
+
+        scheduleCommandService.update(admin, scheduleId, 수정(null, "03:47", null, null));
+
+        assertThat(취소됨(회차)).as("관계자가 취소한 회차는 그대로 취소다").isTrue();
+        assertThat(회차_수(scheduleId)).as("쉬기로 한 날에 같은 날·방향의 새 회차가 살아서 생기면 안 된다(BR-316)").isEqualTo(1);
+    }
+
+    @Test
     void 요일이_복귀하면_스케줄이_취소한_내일_회차가_되살아난다() {
         long scheduleId = 시드로_스케줄과_내일_회차를_넣는다();
 

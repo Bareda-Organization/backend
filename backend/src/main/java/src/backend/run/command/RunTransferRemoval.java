@@ -14,6 +14,7 @@ import src.backend.audit.entity.AuditAction;
 import src.backend.audit.entity.AuditLog;
 import src.backend.audit.repository.AuditLogRepository;
 import src.backend.global.request.ClientIp;
+import src.backend.run.entity.RunTransferStatus;
 import src.backend.run.repository.RunTransferRepository;
 
 /**
@@ -34,7 +35,7 @@ class RunTransferRemoval {
 
     /** @return 지웠으면 {@code true}, 이미 없거나 {@code staged} 가 아니라 지운 행이 없으면 {@code false} */
     boolean removeStaged(Long transferId, Long academyId, Long actorAccountId) {
-        if (runTransferRepository.deleteStagedByIdAndAcademyId(transferId, academyId) == 0) {
+        if (runTransferRepository.deleteStagedByIdAndAcademyId(transferId, academyId, RunTransferStatus.STAGED) == 0) {
             return false;
         }
         String actorLoginId = accountRepository.findById(actorAccountId).map(Account::getLoginId).orElse(null);

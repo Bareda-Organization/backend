@@ -13,7 +13,11 @@ public final class ConstraintViolations {
     }
 
     public static boolean isViolationOf(DataIntegrityViolationException e, String constraintName) {
-        return e.getCause() instanceof ConstraintViolationException cve
-                && constraintName.equals(cve.getConstraintName());
+        for (Throwable cause = e.getCause(); cause != null; cause = cause.getCause()) {
+            if (cause instanceof ConstraintViolationException cve) {
+                return constraintName.equals(cve.getConstraintName());
+            }
+        }
+        return false;
     }
 }

@@ -122,37 +122,15 @@ class RunCancelTransferCleanupTest {
     @Test
     @DisplayName("목표 10a-2 — 스케줄 삭제가 도착 회차를 취소해도 같은 결과다")
     void 스케줄_경로로_도착_회차가_취소돼도_들어오는_이동_대기가_지워진다() throws Exception {
-        RunConfirmationFixtures fixtures = fixtures();
-        long academyId = fixtures.academyWithCoordinates();
-        long toBusId = fixtures.bus(academyId);
-        String register = mockMvc.perform(post("/api/v1/staff/schedules")
-                .header("Authorization", 토큰(academyId))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"bus_id\":" + toBusId + ",\"weekday\":\"fri\",\"direction\":\"to_academy\","
-                        + "\"depart_time\":\"08:00\",\"origin_name\":\"집결지\",\"destination_name\":\"학원\"}"))
-                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
-        long scheduleId = Long.parseLong(JsonPath.read(register, "$.data.id"));
-        entityManager.flush();
-        long toRunId = jdbcTemplate.queryForObject("SELECT id FROM run WHERE schedule_id = ?", Long.class, scheduleId);
-        LocalDate tomorrow = LocalDate.now(clock).plusDays(1);
-        long fromRunId = fixtures.idleRun(academyId, fixtures.bus(academyId), tomorrow, Direction.TO_ACADEMY,
-                tomorrow.atTime(8, 0).atZone(clock.getZone()).toOffsetDateTime(),
-                tomorrow.atTime(7, 30).atZone(clock.getZone()).toOffsetDateTime());
-        long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
-        long studentId = fixtures.student(academyId, "이동학생");
-        runForcedAdditionRepository.save(RunForcedAddition.forRun(fromRunId, studentId,
-                fixtures.stop(academyId, "37.561000", "126.971000"), STAFF_ACCOUNT_ID, OffsetDateTime.now(clock), null));
-        이동_등록한다(new Scene(academyId, fromRunId, toRunId, stopId, studentId, 0L)).andExpect(status().isCreated());
-        entityManager.flush();
-        long transferId = jdbcTemplate.queryForObject("SELECT id FROM run_transfer WHERE student_id = ?", Long.class,
-                studentId);
+        ScheduleScene scheduled = 내일_스케줄_도착_장면();
+        Scene scene = scheduled.scene();
 
-        mockMvc.perform(delete("/api/v1/staff/schedules/" + scheduleId).header("Authorization", 토큰(academyId)))
-                .andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/v1/staff/schedules/" + scheduled.scheduleId())
+                .header("Authorization", 토큰(scene.academyId()))).andExpect(status().isNoContent());
 
-        assertThat(이동_행_수(transferId)).as("이동 행").isZero();
-        assertThat(삭제_감사_수(transferId)).as("감사 기록").isEqualTo(1L);
-        assertThat(예정_명단_학생_id(fromRunId, academyId)).contains(studentId);
+        assertThat(이동_행_수(scene.transferId())).as("이동 행").isZero();
+        assertThat(삭제_감사_수(scene.transferId())).as("감사 기록").isEqualTo(1L);
+        assertThat(예정_명단_학생_id(scene.fromRunId(), scene.academyId())).contains(scene.studentId());
     }
 
     @Test
@@ -197,7 +175,84 @@ class RunCancelTransferCleanupTest {
         assertThat(삭제_감사_수(scene.transferId())).isZero();
     }
 
+    @Test
+    @DisplayName("BR-314 — 출발 회차가 이미 확정됐으면 도착 회차 임시 취소는 403 이고 회차·이동 대기가 그대로다")
+    void 출발_회차가_확정된_뒤에는_도착_회차를_취소할_수_없다() throws Exception {
+        Scene scene = 오늘_장면();
+        jdbcTemplate.update("UPDATE run SET status = 'confirmed' WHERE id = ?", scene.fromRunId());
+
+        mockMvc.perform(delete("/api/v1/staff/runs/" + scene.toRunId()).header("Authorization", 토큰(scene.academyId())))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error.code").value("CHANGE_WINDOW_CLOSED"));
+
+        assertThat(이동_행_수(scene.transferId())).as("이동 행").isEqualTo(1L);
+        assertThat(jdbcTemplate.queryForObject("SELECT canceled_at IS NULL FROM run WHERE id = ?", Boolean.class,
+                scene.toRunId())).as("도착 회차는 취소되지 않음").isTrue();
+    }
+
+    @Test
+    @DisplayName("BR-314 — 출발 회차가 확정이어도 이미 취소돼 있으면 도착 회차 취소는 막지 않는다(학생은 어차피 그 버스에 없다)")
+    void 출발_회차도_취소됐으면_도착_회차를_취소할_수_있다() throws Exception {
+        Scene scene = 오늘_장면();
+        mockMvc.perform(delete("/api/v1/staff/runs/" + scene.fromRunId()).header("Authorization", 토큰(scene.academyId())))
+                .andExpect(status().isNoContent());
+        동기화한다();
+        jdbcTemplate.update("UPDATE run SET status = 'confirmed' WHERE id = ?", scene.fromRunId());
+
+        mockMvc.perform(delete("/api/v1/staff/runs/" + scene.toRunId()).header("Authorization", 토큰(scene.academyId())))
+                .andExpect(status().isNoContent());
+
+        assertThat(이동_행_수(scene.transferId())).as("이동 행").isZero();
+    }
+
+    @Test
+    @DisplayName("BR-314 — 스케줄 삭제는 출발 회차가 확정된 이동이 걸린 도착 회차를 취소하지 않고 건너뛴다(스케줄 삭제 자체는 204)")
+    void 스케줄_경로는_출발_회차가_확정된_도착_회차를_건너뛴다() throws Exception {
+        ScheduleScene scheduled = 내일_스케줄_도착_장면();
+        Scene scene = scheduled.scene();
+        동기화한다();
+        jdbcTemplate.update("UPDATE run SET status = 'confirmed' WHERE id = ?", scene.fromRunId());
+
+        mockMvc.perform(delete("/api/v1/staff/schedules/" + scheduled.scheduleId())
+                .header("Authorization", 토큰(scene.academyId()))).andExpect(status().isNoContent());
+
+        assertThat(이동_행_수(scene.transferId())).as("이동 행").isEqualTo(1L);
+        assertThat(jdbcTemplate.queryForObject("SELECT canceled_at IS NULL FROM run WHERE id = ?", Boolean.class,
+                scene.toRunId())).as("도착 회차는 취소되지 않음").isTrue();
+    }
+
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────
+
+    /** 스케줄이 만든 내일 도착 회차 + 같은 날 출발 회차 + 이동 대기 1건. */
+    private record ScheduleScene(Scene scene, long scheduleId) {
+    }
+
+    private ScheduleScene 내일_스케줄_도착_장면() throws Exception {
+        RunConfirmationFixtures fixtures = fixtures();
+        long academyId = fixtures.academyWithCoordinates();
+        long toBusId = fixtures.bus(academyId);
+        String register = mockMvc.perform(post("/api/v1/staff/schedules")
+                .header("Authorization", 토큰(academyId))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"bus_id\":" + toBusId + ",\"weekday\":\"fri\",\"direction\":\"to_academy\","
+                        + "\"depart_time\":\"08:00\",\"origin_name\":\"집결지\",\"destination_name\":\"학원\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        long scheduleId = Long.parseLong(JsonPath.read(register, "$.data.id"));
+        entityManager.flush();
+        long toRunId = jdbcTemplate.queryForObject("SELECT id FROM run WHERE schedule_id = ?", Long.class, scheduleId);
+        LocalDate tomorrow = LocalDate.now(clock).plusDays(1);
+        long fromRunId = fixtures.idleRun(academyId, fixtures.bus(academyId), tomorrow, Direction.TO_ACADEMY,
+                tomorrow.atTime(8, 0).atZone(clock.getZone()).toOffsetDateTime(),
+                tomorrow.atTime(7, 30).atZone(clock.getZone()).toOffsetDateTime());
+        long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
+        long studentId = fixtures.student(academyId, "이동학생");
+        runForcedAdditionRepository.save(RunForcedAddition.forRun(fromRunId, studentId,
+                fixtures.stop(academyId, "37.561000", "126.971000"), STAFF_ACCOUNT_ID, OffsetDateTime.now(clock), null));
+        이동_등록한다(new Scene(academyId, fromRunId, toRunId, stopId, studentId, 0L)).andExpect(status().isCreated());
+        entityManager.flush();
+        long transferId = jdbcTemplate.queryForObject("SELECT id FROM run_transfer WHERE student_id = ?", Long.class,
+                studentId);
+        return new ScheduleScene(new Scene(academyId, fromRunId, toRunId, stopId, studentId, transferId), scheduleId);
+    }
 
     private RunConfirmationFixtures fixtures() {
         return new RunConfirmationFixtures(academyRepository, busRepository, routeRepository, routeStopRepository,

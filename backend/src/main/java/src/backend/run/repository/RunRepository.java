@@ -49,14 +49,25 @@ public interface RunRepository extends JpaRepository<Run, Long> {
     List<Run> findAllByAcademyIdAndServiceDateOrderByDepartTimeAsc(Long academyId, LocalDate serviceDate);
 
     /**
-     * 한 학원에서 그 상태인 회차 목록 — 지금은 {@code MOVING} 하나만 호출부(데모 시뮬레이터의 운행
-     * 중 버스 판정 · {@code AdminAcademyQueryService} 의 학원 상세 "운행 중 차량 수" 집계)가 넘긴다.
+     * 한 학원에서 그 상태인 회차 목록 — 지금은 {@code MOVING} 하나만 호출부(데모 시뮬레이터의 운행 중 버스 판정)가
+     * 넘긴다. 학원 상세의 "운행 중 차량 수" 는 날짜 범위가 필요해 {@link #countBusesByStatusFromServiceDate} 로 옮겨 갔다(BR-315).
      * §6.8 메인 관리자 관제는 <b>이 메서드를 쓰지 않는다</b> — 오늘 회차를 상태 무관 전부 반환하도록
      * 바뀌며(Ruling 315) 날짜 조건이 있는 {@code findAllByAcademyIdAndServiceDateOrderByDepartTimeAsc}
      * 로 옮겨 갔다. 상태 조건을 고정하지 않고 파라미터로 두는 이유는 서비스 계층이 "운행 중" 이라는
      * 판정을 이 메서드 이름이 아니라 자신의 자바독에 명시하게 하기 위함이다.
      */
     List<Run> findAllByAcademyIdAndStatusOrderByDepartTimeAsc(Long academyId, RunStatus status);
+
+    /**
+     * 한 학원에서 그 상태인 미취소 회차가 있는 <b>차량 수</b>(학원 상세 {@code stats.moving_bus_count}, §6.3) — 운행일이
+     * {@code since} 이후인 회차만 센다. {@code since} 는 {@code MovingRunWindowPolicy#earliestServiceDate} 라
+     * 근접 판정·유실 집계·노선 잠금과 같은 범위다(R46-KFIXBE K-1, Ruling 701) — 그보다 이른 {@code moving} 회차는 끝나지 않은 회차로
+     * {@link #countStaleMoving} 이 센다. 차량이 같으면 한 번만 센다(회차 수가 아니다, BR-057).
+     */
+    @Query("SELECT COUNT(DISTINCT r.busId) FROM Run r WHERE r.academyId = :academyId AND r.status = :status "
+            + "AND r.canceledAt IS NULL AND r.serviceDate >= :since")
+    long countBusesByStatusFromServiceDate(@Param("academyId") Long academyId, @Param("status") RunStatus status,
+            @Param("since") LocalDate since);
 
     /**
      * 임시 취소·배치 대상 회차 1건(SCH-03 · MGR-05, §5.10·§5.14) — 학원이 어긋나면 빈 결과이고
@@ -257,12 +268,25 @@ public interface RunRepository extends JpaRepository<Run, Long> {
             LocalDate serviceDate, Direction direction, OffsetDateTime departTime, Long id);
 
     /**
-     * 그 스케줄이 그날 그 방향으로 <b>살아 있는</b>(미취소) 회차를 이미 가졌는가 — 스케줄 수정 뒤 내일 회차를 만들기
-     * 전에 본다. 확정·시작된 회차는 수정 반영 대상이 아니라 옛 출발 시각으로 남으므로, 유일성 조합만 보면 새 시각으로
-     * 같은 스케줄의 회차가 하나 더 생긴다.
+     * 그 스케줄이 그날 그 방향으로 <b>살아 있는</b>(미취소) 회차를 이미 가졌는가 — 스케줄이 취소했던 회차를 되살리기
+     * 전에 본다(관계자 취소까지 막는 생성 쪽 판정은 {@link #existsLiveOrNonScheduleCanceled}). 확정·시작된 회차는 수정
+     * 반영 대상이 아니라 옛 출발 시각으로 남으므로, 유일성 조합만 보면 같은 스케줄의 회차가 하나 더 살아난다.
      */
     boolean existsByAcademyIdAndScheduleIdAndServiceDateAndDirectionAndCanceledAtIsNull(Long academyId,
             Long scheduleId, LocalDate serviceDate, Direction direction);
+
+    /**
+     * 그 스케줄이 그날 그 방향으로 <b>스케줄이 새로 만들면 안 되는</b> 회차를 이미 가졌는가(BR-316) — 살아 있는(미취소) 회차이거나
+     * {@code scheduleSource} 가 아닌 출처로 취소된 회차다. 관계자가 취소한 날은 스케줄이 어떻게 바뀌어도 되살리지 않으므로(§5.10),
+     * 출발 시각·차량이 바뀌어 유일성 조합이 달라져도 그 자리에 새 회차를 만들지 않는다. 스케줄이 취소한 회차는 세지 않는다 —
+     * 그 회차는 되살림 경로가 맡는다. 출처가 비어 있는 취소(출처를 모르는 옛 행)는 관계자 취소와 같이 취급한다.
+     */
+    @Query("SELECT COUNT(r) > 0 FROM Run r WHERE r.academyId = :academyId AND r.scheduleId = :scheduleId "
+            + "AND r.serviceDate = :serviceDate AND r.direction = :direction "
+            + "AND (r.canceledAt IS NULL OR r.cancelSource IS NULL OR r.cancelSource <> :scheduleSource)")
+    boolean existsLiveOrNonScheduleCanceled(@Param("academyId") Long academyId, @Param("scheduleId") Long scheduleId,
+            @Param("serviceDate") LocalDate serviceDate, @Param("direction") Direction direction,
+            @Param("scheduleSource") RunCancelSource scheduleSource);
 
     /** 차량의 오늘 이후 · 미취소 회차 중 주어진 상태의 것 — 정원 축소 경고(§5.12, BR-116)가 쓴다. */
     List<Run> findAllByAcademyIdAndBusIdAndServiceDateGreaterThanEqualAndCanceledAtIsNullAndStatusIn(Long academyId,
