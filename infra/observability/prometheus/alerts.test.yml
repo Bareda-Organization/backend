@@ -118,6 +118,58 @@ tests:
             exp_annotations:
               summary: 운행일이 어제보다 이른데 끝나지 않은 이동 중 회차가 있다 — 근접 판정과 위치 유실 경보가 더는 보지 않는다
 
+  # 일일 회차 생성 실패(BR-333): 실패 카운터가 1시간 창 안에서 늘면 발화하고 for 가 없다 — 즉시 critical. 다른 스케줄러의 실패 · 다른 job(부하 시험)의 같은 이름은 이 경보가 아니다.
+  - interval: 1m
+    input_series:
+      - series: 'schoolbus_scheduler_failures_total{job="backend",application="school-bus",scheduler="daily-run-generator"}'
+        values: '0x10 1x200'
+      - series: 'schoolbus_scheduler_failures_total{job="backend",application="school-bus",scheduler="retention-cleanup"}'
+        values: '0x10 9x200'
+      - series: 'schoolbus_scheduler_failures_total{job="school-bus-load",application="school-bus",scheduler="daily-run-generator"}'
+        values: '0x10 9x200'
+    alert_rule_test:
+      - eval_time: 5m   # 아직 한 번도 안 늘었다
+        alertname: DailyRunGenerationFailing
+        exp_alerts: []
+      - eval_time: 15m   # 10분 무렵에 0 → 1 — 1시간 창 안
+        alertname: DailyRunGenerationFailing
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: backend
+              application: school-bus
+              scheduler: daily-run-generator
+            exp_annotations:
+              summary: 일일 회차 생성(daily-run-generator)이 실패했다 — 그날 회차가 만들어지지 않아 기사·학부모 알림이 나가지 않는다
+      - eval_time: 90m   # 증가가 멈춘 지 창(1시간)을 넘었다 — 이 뒤는 아래 정지 경보가 이어서 본다
+        alertname: DailyRunGenerationFailing
+        exp_alerts: []
+
+  # 일일 회차 생성 정지(BR-333): 마지막 성공 경과가 25시간(90000초)을 넘으면 발화한다(정확히 25시간은 아니다). 하루 한 번 도는 작업이라 for 가 없다.
+  # 실패 경보가 꺼지는 1시간 뒤부터 이 경보가 이어서 본다. 다른 스케줄러·다른 job 의 경과는 보지 않는다.
+  - interval: 1h
+    input_series:
+      - series: 'schoolbus_scheduler_last_success_age_seconds{job="backend",application="school-bus",scheduler="daily-run-generator"}'
+        values: '0+3600x100'
+      - series: 'schoolbus_scheduler_last_success_age_seconds{job="backend",application="school-bus",scheduler="proximity-notification"}'
+        values: '999999x100'
+      - series: 'schoolbus_scheduler_last_success_age_seconds{job="school-bus-load",application="school-bus",scheduler="daily-run-generator"}'
+        values: '999999x100'
+    alert_rule_test:
+      - eval_time: 25h   # 경과 정확히 90000 — 초과가 아니다
+        alertname: DailyRunGenerationStalled
+        exp_alerts: []
+      - eval_time: 26h   # 93600
+        alertname: DailyRunGenerationStalled
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: backend
+              application: school-bus
+              scheduler: daily-run-generator
+            exp_annotations:
+              summary: 일일 회차 생성(daily-run-generator)이 25시간 넘게 성공하지 않았다 — 오늘 회차가 없을 수 있다(DailyRunStartupCatchUp 은 재기동 때만 보충한다)
+
   # 푸시 실패: 누적 카운터가 늘어난 구간에서만 발화하고, 10분 창을 지나 증가가 멈추면 꺼진다.
   - interval: 15s
     input_series:

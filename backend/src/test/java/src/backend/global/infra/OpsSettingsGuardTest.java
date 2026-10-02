@@ -15,6 +15,10 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import src.backend.exception.scheduler.NoShowEscalationScheduler;
+import src.backend.observability.metrics.SchedulerHealthMetrics;
+import src.backend.schedule.scheduler.DailyRunGenerator;
+
 /**
  * R46-FIXOPS 가 운영·스테이징 설정에 넣은 안전장치가 나중에 조용히 되돌아가는 것을 막는 가드.
  *
@@ -153,6 +157,20 @@ class OpsSettingsGuardTest {
         }
         assertThat(count).as("alerts.yml 에서 찾은 규칙 수 — 0 이면 이 검사가 아무것도 못 본 것이다").isGreaterThan(10);
         assertThat(untested).as("promtool 사례(alerts.test.yml 의 alertname)가 없는 규칙").isEmpty();
+    }
+
+    @Test
+    @DisplayName("일일 회차 생성은 실패 경보와 25시간 정지 경보가 있고, 경보의 스케줄러 이름이 코드의 계측 이름과 같다 — 이름이 어긋나면 값 없이 영영 조용하다(BR-333)")
+    void dailyRunGenerationIsWatchedUnderTheNameTheCodeEmits() throws IOException {
+        String rules = stripComments(read("infra/observability/prometheus/alerts.yml"));
+        String generator = SchedulerHealthMetrics.nameOf(DailyRunGenerator.class);
+        String noShow = SchedulerHealthMetrics.nameOf(NoShowEscalationScheduler.class);
+
+        assertThat(rules).contains("increase(schoolbus_scheduler_failures_total{job=\"backend\",scheduler=\"" + generator + "\"}[1h]) > 0")
+                .contains("schoolbus_scheduler_last_success_age_seconds{job=\"backend\",scheduler=\"" + generator + "\"} > 90000");
+        assertThat(rules).as("미승차 에스컬레이션 경보도 계측 이름(%s)을 쓴다", noShow)
+                .contains("schoolbus_scheduler_failures_total{scheduler=\"" + noShow + "\"}")
+                .contains("schoolbus_scheduler_last_success_age_seconds{scheduler=\"" + noShow + "\"}");
     }
 
     @Test
