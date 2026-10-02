@@ -25,7 +25,9 @@ import src.backend.global.security.StompSessionExpiry;
  * 실시간 위치·알림 채널(STOMP over WebSocket) 설정.
  * heartbeat(ping/pong) 간격은 사양이 정한 정책 값이 아니라 연결 유지용 운영값이라 {@link #HEARTBEAT_MS} 로 코드에 고정한다
  * — 옛 도메인({@code LocationSocketEventListener}·{@code ConnectionLossScheduler})은 바래다 재구축(Phase 0)에서
- * 제거됐고, 이 브로커의 재사용(구독 채널·메시지 규격)은 Phase 10(위치 · 실시간 전달 · 근접 알림)에서 새로 설계한다.
+ * 제거됐고, 이 브로커를 다시 쓰는 구독 채널·메시지 규격은 Phase 10(위치 · 실시간 전달 · 근접 알림)에서 새로 설계해 끝났다.
+ * 지금 구성은 단순 브로커({@code /topic}·{@code /queue}) · 인바운드 인증 인터셉터 · 큐 상한이 있는 팬아웃 실행기 ·
+ * 세션 송신 한도와 종료 코드 데코레이터다.
  */
 @Configuration
 @EnableWebSocketMessageBroker

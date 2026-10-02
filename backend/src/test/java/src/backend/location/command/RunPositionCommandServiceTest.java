@@ -54,11 +54,12 @@ import testsupport.clock.FixedClock20300401Config;
  * 기사 단말의 위치 송신 API(§4.12, 목표 1·2) — {@code moving} 회차만 성공하고, 인가·상태 판정을
  * 어긴 호출은 저장소를 건드리지 않는다.
  *
- * <p>{@code @Transactional} 을 쓴다({@code DriverRunControllerTest} 와 같은 근거 — 커맨드 서비스의
- * {@code @Transactional} 이 기본 전파라 테스트 트랜잭션에 합류해 끝나면 함께 롤백된다). 그래서 이
- * 클래스는 {@link RunPositionReceivedEvent} 가 실제로 커밋되는지(목표 3, Redis 갱신)는 보지 않는다
+ * <p>{@code @Transactional} 을 쓴다({@code DriverRunControllerTest} 와 같은 근거 — 서비스가 쓰는
+ * {@code TransactionTemplate} 이 기본 전파라 테스트 트랜잭션에 합류해 끝나면 함께 롤백된다). 그래서 이
+ * 클래스는 {@link RunPositionReceivedEvent} 가 실제로 커밋되는지(목표 3, Redis 갱신)와, 트랜잭션 없이 발행하는
+ * {@code fallbackExecution} 경로 · "DB 연결을 반납한 뒤 발행" 을 보지 않는다
  * — 그건 커밋이 필요 없는 이벤트 발행 자체(인자 순서)와, 실제 커밋이 필요한 Redis 갱신을 각각
- * {@code RunPositionReceivedEventTest}·{@code RunPositionRedisIntegrationTest} 로 나눠 검사한다.
+ * {@code RunPositionReceivedEventTest}·{@code RunPositionRedisIntegrationTest}(T-1) 로 나눠 검사한다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
