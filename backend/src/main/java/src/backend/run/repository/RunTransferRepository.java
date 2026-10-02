@@ -93,10 +93,11 @@ public interface RunTransferRepository extends JpaRepository<RunTransfer, Long> 
     @Query("""
             DELETE FROM RunTransfer rt
             WHERE rt.id = :id
-              AND rt.status = src.backend.run.entity.RunTransferStatus.STAGED
+              AND rt.status = :stagedStatus
               AND rt.fromRunId IN (SELECT r.id FROM Run r WHERE r.academyId = :academyId)
             """)
-    int deleteStagedByIdAndAcademyId(@Param("id") Long id, @Param("academyId") Long academyId);
+    int deleteStagedByIdAndAcademyId(@Param("id") Long id, @Param("academyId") Long academyId,
+            @Param("stagedStatus") RunTransferStatus stagedStatus);
 
     /**
      * 그 회차로 들어오는 반영 전({@code staged}) 이동 중 <b>출발 회차가 이미 확정된(취소되지 않은) 것</b>이 있는지(BR-314) —
