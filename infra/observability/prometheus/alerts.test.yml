@@ -141,6 +141,16 @@ tests:
               scheduler: daily-run-generator
             exp_annotations:
               summary: 일일 회차 생성(daily-run-generator)이 실패했다 — 그날 회차가 만들어지지 않아 기사·학부모 알림이 나가지 않는다
+      - eval_time: 50m   # 증가 뒤 40분 — 창이 1시간이라 아직 발화 중이다(창이 짧으면 사람이 보기 전에 꺼진다)
+        alertname: DailyRunGenerationFailing
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: backend
+              application: school-bus
+              scheduler: daily-run-generator
+            exp_annotations:
+              summary: 일일 회차 생성(daily-run-generator)이 실패했다 — 그날 회차가 만들어지지 않아 기사·학부모 알림이 나가지 않는다
       - eval_time: 90m   # 증가가 멈춘 지 창(1시간)을 넘었다 — 이 뒤는 아래 정지 경보가 이어서 본다
         alertname: DailyRunGenerationFailing
         exp_alerts: []
