@@ -30,6 +30,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # 에러 코드 대조 시험(ErrorCodeSpecParityTest)이 읽는 사양 — 문서는 작업 공간 저장소(같은 조직, 공개)에 있다. 한 파일만 받는다.
+      # ci.yml 과 같은 준비다(WorkflowGuardTest 가 두 파일을 함께 본다) — 한쪽만 고치면 다른 쪽 시험이 항상 실패한다.
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository_owner }}/workspace
+          path: .workspace-docs
+          sparse-checkout: docs/planning/API_SPEC.md
+          sparse-checkout-cone-mode: false
+
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -45,9 +54,12 @@ jobs:
       # 인자 부재 시 실패 정책). 이 러너는 매번 새로 뜨는 단일 소비자라 공용 이름(schoolbus)을
       # 그대로 써도 안전하지만, 그 값을 여기서도 명시로 준다 — "기본값이 안전" 과 "인자 없이도
       # 안전" 은 다르다.
+      # -PciQuiet: 공개 저장소라 Actions 로그도 공개다 — 애플리케이션 로그를 싣지 않는다(ci.yml 머리 주석의 정책).
       - name: 테스트
         working-directory: backend
-        run: ./gradlew test -PtestDbUrl=jdbc:postgresql://localhost:15432/schoolbus
+        env:
+          API_SPEC_PATH: ${{ github.workspace }}/.workspace-docs/docs/planning/API_SPEC.md
+        run: ./gradlew test -PtestDbUrl=jdbc:postgresql://localhost:15432/schoolbus -PciQuiet --console=plain
 
       - name: AWS 자격 획득 (OIDC)
         uses: aws-actions/configure-aws-credentials@v6
