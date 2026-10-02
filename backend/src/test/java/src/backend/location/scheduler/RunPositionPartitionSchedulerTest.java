@@ -34,7 +34,9 @@ class RunPositionPartitionSchedulerTest {
 
     private final RunPositionPartitionManager manager = mock(RunPositionPartitionManager.class);
 
-    private final SchedulerHealthMetrics metrics = new SchedulerHealthMetrics(new SimpleMeterRegistry());
+    private final SimpleMeterRegistry registry = new SimpleMeterRegistry();
+
+    private final SchedulerHealthMetrics metrics = new SchedulerHealthMetrics(registry);
 
     private final RunPositionPartitionScheduler scheduler = new RunPositionPartitionScheduler(manager, metrics, clock);
 
@@ -57,11 +59,16 @@ class RunPositionPartitionSchedulerTest {
     }
 
     @Test
-    void 기동_직후_실패는_기동을_막지_않는다() {
+    void 기동_직후_실패는_기동을_막지_않고_실패_카운터만_올린다() {
         ReflectionTestUtils.setField(scheduler, "onStartup", true);
         willThrow(new IllegalStateException("db down")).given(manager).ensureAhead(any(), anyInt());
 
         scheduler.ensureOnStartup(); // 예외가 새면 이 시험이 실패한다
+
+        // 경보는 매일 실행 쪽 "마지막 성공 이후 경과" 만 보므로, 기동 직후 실패를 드러내는 신호는 이 카운터뿐이다(BR-343)
+        org.assertj.core.api.Assertions
+                .assertThat(registry.counter("schoolbus.scheduler.failures", "scheduler", "run-position-partition").count())
+                .isEqualTo(1.0d);
     }
 
     @Test
