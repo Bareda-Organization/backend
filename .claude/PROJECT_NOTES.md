@@ -37,11 +37,11 @@
 | 작업 디렉터리 | **`backend/`** — 모든 Gradle 명령은 여기서 실행. 루트는 `docker-compose.yml`·`CLAUDE.md`·문서만 |
 | 빌드 도구 | Gradle wrapper (`./gradlew`), `settings.gradle` |
 | 언어 | **Java 25** (toolchain 고정, `build.gradle:13`) |
-| 프레임워크 | **Spring Boot 4.1.0**, dependency-management 1.1.7 |
+| 프레임워크 | **Spring Boot 4.1.1**, dependency-management 1.1.7 |
 | 웹 스타터 | **`spring-boot-starter-webmvc`** — 구 `spring-boot-starter-web` 아님. 테스트는 `spring-boot-starter-webmvc-test` |
 | group / base package | `group = 'src'` / **`src.backend`** (비관례적) — 새 클래스는 반드시 `src.backend` 하위. 벗어나면 컴포넌트 스캔에서 빠진다 |
-| DB / 스키마 | PostgreSQL 16 + **Flyway**(`ddl-auto: validate`) |
-| 주요 인프라 의존 | PostgreSQL · Redis 7 (Kafka 는 `b48af995` 로 제거 — 실제로 흐르는 메시지가 0이었다) |
+| DB / 스키마 | PostgreSQL 18 + **Flyway**(`ddl-auto: validate`) |
+| 주요 인프라 의존 | PostgreSQL · Redis 8 (Kafka 는 `b48af995` 로 제거 — 실제로 흐르는 메시지가 0이었다) |
 | 코드 그래프 | 루트에 **`graft/` 존재** → 코드 탐색은 graft 우선(`graft ask`·`grep`·`callers`·`skeleton`), Explore agent 금지 |
 
 Boot 4 특유의 아티팩트 분리(주석이 `build.gradle`에 상세히 있음): `spring-boot-starter-flyway` + `flyway-database-postgresql` 둘 다 필요, HTTP 클라이언트는 webflux가 아니라 **`spring-boot-starter-webclient`**.

@@ -2,7 +2,7 @@
 # 전달 경로: 운영 compose 의 Alertmanager 가 텔레그램·이메일로 보낸다(Ruling 480 ④ — 값은 SSM 선택 항목, 없으면 수신자 없음이라
 # Prometheus 화면(/alerts)에서만 보인다). 개발용 compose 에는 Alertmanager 가 없다.
 # 규칙 문법·발화 조건은 alerts.test.yml 이 promtool 로 검사한다:
-#   docker run --rm -v "$PWD/infra/observability/prometheus:/p" --entrypoint promtool prom/prometheus:v3.1.0 test rules /p/alerts.test.yml
+#   docker run --rm -v "$PWD/infra/observability/prometheus:/p" --entrypoint promtool prom/prometheus:v3.15.0 test rules /p/alerts.test.yml
 groups:
   - name: schoolbus
     rules:
