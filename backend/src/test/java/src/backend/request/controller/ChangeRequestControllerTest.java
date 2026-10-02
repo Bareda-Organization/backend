@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
@@ -521,8 +522,8 @@ class ChangeRequestControllerTest {
     // ── 헬퍼 ──────────────────────────────────────────────────────────────────────
 
     private ChangeRequest 그_회차의_신청을_찾는다(long runId, long studentId) {
-        return changeRequestRepository.findAllByAcademyIdAndStudentIdOrderByRequestedAtDesc(
-                        runRepository.findById(runId).orElseThrow().getAcademyId(), studentId)
+        return changeRequestRepository.findByAcademyIdAndStudentIdOrderByRequestedAtDesc(
+                        runRepository.findById(runId).orElseThrow().getAcademyId(), studentId, Pageable.unpaged())
                 .stream()
                 .filter(cr -> cr.getRunId().equals(runId))
                 .findFirst()

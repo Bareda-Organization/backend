@@ -47,11 +47,9 @@ public interface ChangeRequestRepository extends JpaRepository<ChangeRequest, Lo
             ChangeRequestType type, ChangeRequestStatus status);
 
     /**
-     * 한 학생의 변경 요청 이력(§3.9 상태 조회) — 최근 신청이 먼저 보이도록 접수 역순으로 정렬한다.
+     * 한 학생의 변경 요청 이력(§3.9 상태 조회)을 상한({@code limit})만큼만 — 최근 신청이 먼저 보이도록 접수 역순으로 정렬하고, §3.9 가 전 기간을
+     * 무한정 싣지 않게 한다(BR-251).
      */
-    List<ChangeRequest> findAllByAcademyIdAndStudentIdOrderByRequestedAtDesc(Long academyId, Long studentId);
-
-    /** 위와 같은 이력을 상한({@code limit})만큼만 — §3.9 가 전 기간을 무한정 싣지 않게 한다(BR-251). */
     List<ChangeRequest> findByAcademyIdAndStudentIdOrderByRequestedAtDesc(Long academyId, Long studentId,
             org.springframework.data.domain.Pageable limit);
 
