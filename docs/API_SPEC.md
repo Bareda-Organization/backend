@@ -2107,7 +2107,8 @@ STU-05) — 화면이 "이 자리에 이미 있다" 를 알려 관계자가 같�
 | `position` | object | ● | `lat` · `lng` · `recorded_at` — **발신 시점 위치** |
 | `rider_count` | integer | ● | 발신 시점 회차에 배정된 라이더 전원 수(승하차 상태 무관) |
 | `contacts` | array | ● | 기사·동승자 연락처 |
-| `raised_at` · `acked_at` · `canceled_at` | datetime | ● / ○ / ○ | |
+| `raised_at` · `acked_at` · `canceled_at` | datetime | ● / ○ / ○ | `raised_at` 은 **서버 접수 시각**(`received_at`)이다 — 정렬·판정은 이 값만 쓴다 |
+| `occurred_at` | datetime | ● | **단말이 누른 시각 — 참고값**(`Ruling 744`, `Ruling 236` 의 "미노출" 을 갱신). 단말 시각은 조작할 수 있어 정렬·판정·취소 창에 쓰지 않는다. 오프라인 큐로 늦게 도착한 비상(`Ruling 616`)에서 `raised_at` 과 벌어진다 — 관계자·메인 관리자 웹은 두 시각이 **1분을 넘게** 다를 때만 "단말 기록 HH:mm(참고)" 를 덧붙인다. 단말이 시각을 안 보냈으면 `raised_at` 과 같다. 클라이언트는 없거나 `null` 이어도 견딘다 |
 | `acked_by` | object | ○ | 확인한 관계자 — `name` · **`memo`**(확인할 때 남긴 **조치 메모**, 없으면 `null` · `Ruling 541`) |
 
 `POST /staff/emergencies/{id}/ack` — 접수 응답. 발신자 앱에 "학원이 확인했습니다" 표시. 확인 이력(누가·언제) 저장. **이미 확인된 건 재확인은 `409 ALREADY_ACKED`**.
@@ -2460,13 +2461,13 @@ SMS 연동(`PRD` F-05) 전까지 §2.9 가 `503` 이라 **학원 사용자의 �
 
 **권한** 메인 관리자 · **요청 (쿼리)** `status` · `academy_id`(선택)
 
-**응답** — `§5.16` 항목 + 아래. WS: `/ws/admin/live` 의 `emergency_raised` 이벤트로 실시간 수신.
+**응답** — `§5.16` 항목(`occurred_at` 참고값 포함 — `Ruling 744`) + 아래. WS: `/ws/admin/live` 의 `emergency_raised` 이벤트로 실시간 수신.
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|:-:|---|
 | `academy` | object | ● | `id` · `name` · `contact` — 학원 연락처 |
 | `staff_acked` | boolean | ● | **학원 관계자의 확인 여부** |
-| `elapsed_since_raised` | integer | ● | 발신 후 경과 초. 관계자 미응답 상황을 운영사가 즉시 인지 |
+| `elapsed_since_raised` | integer | ● | 발신 후 경과 초 — **접수 시각**(`raised_at`) 기준이다(단말 시각 `occurred_at` 을 쓰지 않는다 · `Ruling 744`). 관계자 미응답 상황을 운영사가 즉시 인지 |
 
 `acked_by` 는 `§5.16` 과 같이 `{name, memo}` 객체다 — **`memo`** 는 학원 관계자가 확인할 때 남긴 조치 메모(`Ruling 541`)라 메인 관리자도 상세에서 본다(없으면 `null`).
 

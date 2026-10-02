@@ -746,8 +746,8 @@ erDiagram
 | `lat` · `lng` | numeric(9,6) | | **발신 시점 위치**. 미전달 시 최신 수신 좌표로 대체 |
 | `position_recorded_at` | timestamptz | | 첨부한 좌표의 **측정 시각**(Redis 최신 좌표의 `recordedAt`). `API_SPEC §5.16` 의 `position.recorded_at` 출처. 좌표 미첨부면 NULL. **2026-09-03 Phase 13 신설(Ruling 236, `V7`)** — 정본이 응답 필드를 요구하는데 출처 컬럼이 없던 어긋남 해소 |
 | `rider_count` | integer | NN | 발신 시점 회차에 배정된 라이더 전원 수(승하차 상태 무관) 스냅샷 |
-| `occurred_at` | timestamptz | NN | 단말 기록 시각. **API 응답에는 미노출** — 감사 목적으로만 보유(Ruling 236) |
-| `received_at` | timestamptz | NN default now() | 서버 수신 시각. 오프라인 발신이면 `occurred_at` 과 벌어짐. **`API_SPEC` 응답의 `raised_at` 이 이 값을 그대로 반환**(단일 소스, Ruling 236) — `occurred_at` 은 별도로 노출하지 않음 |
+| `occurred_at` | timestamptz | NN | 단말 기록 시각. **API 응답에는 참고값으로 노출**(`Ruling 744` — `Ruling 236` 의 "미노출" 을 갱신) — 정렬·판정·취소 창에는 쓰지 않는다(조작할 수 있는 값). 단말이 안 보냈으면 `received_at` 과 같다 |
+| `received_at` | timestamptz | NN default now() | 서버 수신 시각. 오프라인 발신이면 `occurred_at` 과 벌어짐. **`API_SPEC` 응답의 `raised_at` 이 이 값을 그대로 반환**(단일 소스, Ruling 236) — `occurred_at` 은 별도 필드로만 싣는다(참고값, `Ruling 744`) |
 | `client_key` | uuid | NN UK | 오프라인 큐 멱등키 |
 | `acked_by` | bigint | | 확인한 관계자 계정 |
 | `acked_at` | timestamptz | | 관계자 확인 시각 |
