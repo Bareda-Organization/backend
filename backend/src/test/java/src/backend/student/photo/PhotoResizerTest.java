@@ -1,11 +1,16 @@
 package src.backend.student.photo;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 import javax.imageio.ImageIO;
 
@@ -19,6 +24,9 @@ import src.backend.student.photo.spec.StudentPhoto;
  * WebP 는 JDK 가 못 읽어 원본(최대 5MB)으로 남던 형식인데, 읽기 전용 디코더(TwelveMonkeys)를 더해 같은 규칙으로 줄인다(R47 Ruling 745).
  */
 class PhotoResizerTest {
+
+    /** 4000 × 3000 회색조 사진의 원본 해상도 래스터 크기(바이트) — BR-302 시험의 기준선이다. */
+    private static final long ORIGINAL_RASTER_BYTES = 4000L * 3000L;
 
     @Test
     void 큰_PNG_는_긴_변이_512px_로_줄고_형식은_그대로다() throws Exception {
@@ -97,8 +105,16 @@ class PhotoResizerTest {
      */
     @Test
     void 픽셀_수가_상한을_넘는_사진은_디코딩하지_않고_원본_그대로다() throws Exception {
-        BufferedImage huge = new BufferedImage(6500, 6500, BufferedImage.TYPE_BYTE_GRAY); // 42,250,000 픽셀 > 상한 40,000,000
+        BufferedImage huge = new BufferedImage(6500, 6500, BufferedImage.TYPE_BYTE_GRAY); // 42,250,000 픽셀 > 상한 16,000,000
         StudentPhoto original = StudentPhoto.of(encode(huge, "png"));
+
+        assertThat(PhotoResizer.shrink(original)).isSameAs(original);
+    }
+
+    /** BR-302 — 상한은 1,600만 화소다(WebP 플러그인이 전체 프레임을 디코딩해 요청 하나가 화소당 약 5B 를 잡는다). 그 바로 위 크기는 원본을 둔다. */
+    @Test
+    void 천육백만_화소를_넘는_사진은_디코딩하지_않고_원본_그대로다() throws Exception {
+        StudentPhoto original = grayScale(4250, 4000, "png"); // 17,000,000 픽셀 > 상한 16,000,000
 
         assertThat(PhotoResizer.shrink(original)).isSameAs(original);
     }
@@ -109,6 +125,68 @@ class PhotoResizerTest {
         StudentPhoto original = StudentPhoto.of(resource("bomb-6500x6500.webp"));
 
         assertThat(PhotoResizer.shrink(original)).isSameAs(original);
+    }
+
+    /**
+     * BR-302 — 큰 사진을 줄일 때 원본 해상도 래스터를 만들지 않는다. 1,200만 화소(휴대폰 사진 규모) 회색조 사진의 원본 래스터는 12MB 다 —
+     * 줄이는 동안 그 스레드가 할당한 바이트가 그보다 적어야 한다(원본을 통째로 디코딩하면 래스터 하나만으로 이 값에 닿고, 줄이기 중간 복사본까지
+     * 합하면 두 배를 넘는다). 정수 배로 건너뛰며 읽으면(하위 표본 추출) 디코딩 결과가 긴 변 1,024px 근처에 머문다.
+     */
+    @Test
+    void 큰_PNG_를_줄여도_원본_해상도_래스터를_만들지_않는다() throws Exception {
+        assertThat(allocatedWhileShrinking(grayScale(4000, 3000, "png"))).isLessThan(ORIGINAL_RASTER_BYTES);
+    }
+
+    @Test
+    void 큰_JPEG_를_줄여도_원본_해상도_래스터를_만들지_않는다() throws Exception {
+        assertThat(allocatedWhileShrinking(grayScale(4000, 3000, "jpg"))).isLessThan(ORIGINAL_RASTER_BYTES);
+    }
+
+    /** BR-302 — 동시에 줄이는 사진 수에 상한이 있다. 자리가 없으면 대기 한도까지 기다리고, 넘으면 업로드를 막지 않고 원본을 둔다. */
+    @Test
+    void 줄이기_자리가_없고_대기_한도를_넘으면_원본_그대로다() throws Exception {
+        StudentPhoto big = StudentPhoto.of(png(2000, 1000));
+
+        PhotoResizer.RESIZE_SLOTS.acquire(PhotoResizer.MAX_CONCURRENT_RESIZES);
+        try {
+            assertThat(PhotoResizer.shrink(big, Duration.ofMillis(100))).isSameAs(big);
+        } finally {
+            PhotoResizer.RESIZE_SLOTS.release(PhotoResizer.MAX_CONCURRENT_RESIZES);
+        }
+        assertThat(PhotoResizer.shrink(big)).as("자리가 풀리면 다시 줄인다").isNotSameAs(big);
+    }
+
+    @Test
+    void 줄이기_자리가_나면_기다리던_사진을_줄인다() throws Exception {
+        StudentPhoto big = StudentPhoto.of(png(2000, 1000));
+
+        PhotoResizer.RESIZE_SLOTS.acquire(PhotoResizer.MAX_CONCURRENT_RESIZES);
+        CompletableFuture<StudentPhoto> waiting;
+        try {
+            waiting = CompletableFuture.supplyAsync(() -> PhotoResizer.shrink(big, Duration.ofSeconds(30)));
+            Thread.sleep(200);
+            assertThat(waiting).as("자리가 없는 동안은 줄이기를 시작하지 않는다").isNotDone();
+        } finally {
+            PhotoResizer.RESIZE_SLOTS.release(PhotoResizer.MAX_CONCURRENT_RESIZES);
+        }
+
+        assertThat(decode(waiting.get(30, TimeUnit.SECONDS)).getWidth()).isEqualTo(512);
+    }
+
+    /** 같은 형식의 단색 회색조 사진 — 파일은 작아도 디코딩하면 {@code width × height} 바이트다. */
+    private static StudentPhoto grayScale(int width, int height, String format) throws IOException {
+        return StudentPhoto.of(encode(new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY), format));
+    }
+
+    /** 줄이는 동안 이 스레드가 할당한 바이트 — 첫 호출의 클래스 적재·플러그인 탐색 비용은 작은 사진 한 장으로 미리 치른다. */
+    private static long allocatedWhileShrinking(StudentPhoto photo) throws IOException {
+        var threads = (com.sun.management.ThreadMXBean) ManagementFactory.getThreadMXBean();
+        assumeTrue(threads.isThreadAllocatedMemorySupported(), "이 JVM 은 스레드별 할당량을 못 잰다");
+        PhotoResizer.shrink(StudentPhoto.of(png(1000, 600)));
+        long threadId = Thread.currentThread().threadId();
+        long before = threads.getThreadAllocatedBytes(threadId);
+        PhotoResizer.shrink(photo);
+        return threads.getThreadAllocatedBytes(threadId) - before;
     }
 
     private static byte[] resource(String name) throws IOException {

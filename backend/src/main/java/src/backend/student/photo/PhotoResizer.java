@@ -7,11 +7,15 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Optional;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReadParam;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
 
@@ -28,7 +32,8 @@ import src.backend.student.photo.spec.StudentPhoto;
  * 다루지 않는 EXIF 회전. 줄이기가 업로드를 막는 이유가 되면 안 된다. 이미 저장된 파일은 바꾸지 않는다(개발 단계).
  *
  * <p><b>신뢰할 수 없는 입력을 디코딩하는 첫 자리</b>다 — 5MB 이하 파일도 해상도가 크면 디코딩에 수백 MB 가 든다(압축 폭탄). 헤더만 읽어 픽셀 수가
- * {@value #MAX_DECODE_PIXELS} 를 넘으면 디코딩하지 않는다.
+ * {@value #MAX_DECODE_PIXELS} 를 넘으면 디코딩하지 않는다. 그 안의 사진도 <b>원본 해상도 래스터를 만들지 않는다</b>(BR-302) — 정수 배로 건너뛰며
+ * 읽어 디코딩 결과가 긴 변 {@code 2 × MAX_EDGE} 근처에 머문다. 줄이기는 JVM 전체에서 {@value #MAX_CONCURRENT_RESIZES}건까지만 동시에 돈다.
  *
  * <p><b>휴대폰 JPEG 의 EXIF 회전을 지킨다</b> — 세로 사진은 픽셀이 가로로 저장되고 EXIF 가 "돌려 보라" 고 적는다. 다시 인코딩하면 그 정보가 사라져
  * 사진이 누워 보인다. 회전 3 · 6 · 8 은 돌려서 줄이고, 거울상(2 · 4 · 5 · 7)은 드물어 원본을 둔다.
@@ -43,21 +48,60 @@ public final class PhotoResizer {
     /** 긴 변 상한(px) — 정책 상수라 코드에 둔다({@code StudentPhoto} 의 5MB 와 같은 이유). */
     static final int MAX_EDGE = 512;
 
-    /** 디코딩을 허용하는 최대 픽셀 수 — 4천만 화소는 래스터 약 160MB 다. 일반 휴대폰 사진(약 1,200만)은 넉넉히 들어온다. */
-    static final long MAX_DECODE_PIXELS = 40_000_000L;
+    /**
+     * 디코딩을 허용하는 최대 픽셀 수(BR-302) — 1,600만 화소. 일반 휴대폰 사진(약 1,200만)은 들어오고, 5MB 업로드 상한 안에서 이보다 큰 사진은 드물다.
+     * 하위 표본 추출은 JPEG·PNG 의 메모리만 줄인다 — WebP 플러그인은 전체 프레임을 디코딩해(1,200만 화소 손실 WebP 에 힙 64MB 이상, 약 5B/화소 실측)
+     * 4천만 화소였던 옛 상한에서는 요청 하나가 약 200MB 였다.
+     */
+    static final long MAX_DECODE_PIXELS = 16_000_000L;
+
+    /**
+     * 동시에 줄이는 사진 수 상한(BR-302) — 운영 최소 사양이 2 vCPU 이고 줄이기는 CPU 일이라 그 이상은 빨라지지 않고 메모리만 쌓인다. 업로드는
+     * 학원 관계자의 드문 조작이라 평소에는 대기가 없다.
+     */
+    static final int MAX_CONCURRENT_RESIZES = 2;
+
+    /**
+     * 자리가 날 때까지 기다리는 최대 시간 — 줄이기는 학생 저장 트랜잭션 안에서 돌아 기다리는 동안 DB 연결을 쥔다. 무한정 기다리면 연결이 마르므로
+     * 한도를 넘으면 원본을 저장한다(줄이기가 업로드를 막는 이유가 되면 안 된다).
+     */
+    private static final Duration RESIZE_WAIT_LIMIT = Duration.ofSeconds(10);
+
+    /** 줄이는 중인 사진 수를 세는 자리 — 선착순(공정)으로 내준다. 시험이 자리를 모두 쥐어 대기·한도 초과 경로를 만든다. */
+    static final Semaphore RESIZE_SLOTS = new Semaphore(MAX_CONCURRENT_RESIZES, true);
 
     private static final int EXIF_ORIENTATION_TAG = 0x0112;
 
     private PhotoResizer() {
     }
 
-    /** 줄인 사진을 돌려준다 — 줄이지 않기로 했거나 줄이지 못했으면 받은 객체 그대로다. */
+    /** 줄인 사진을 돌려준다 — 줄이지 않기로 했거나 줄이지 못했으면(자리가 안 나는 경우 포함) 받은 객체 그대로다. */
     public static StudentPhoto shrink(StudentPhoto photo) {
+        return shrink(photo, RESIZE_WAIT_LIMIT);
+    }
+
+    static StudentPhoto shrink(StudentPhoto photo, Duration waitLimit) {
+        if (!acquireSlot(waitLimit)) {
+            log.warn("[photo] 줄이기 자리를 {}초 안에 얻지 못해 원본을 저장한다", waitLimit.toSeconds());
+            return photo;
+        }
         try {
             return resize(photo).orElse(photo);
         } catch (IOException | RuntimeException e) {
             log.warn("[photo] 사진을 줄이지 못해 원본을 저장한다", e);
             return photo;
+        } finally {
+            RESIZE_SLOTS.release();
+        }
+    }
+
+    /** 자리를 얻으면 {@code true} — 대기 중 인터럽트되면 신호를 되살리고 {@code false} 다(업로드는 원본으로 이어진다). */
+    private static boolean acquireSlot(Duration waitLimit) {
+        try {
+            return RESIZE_SLOTS.tryAcquire(waitLimit.toNanos(), TimeUnit.NANOSECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
         }
     }
 
@@ -79,13 +123,24 @@ public final class PhotoResizer {
                 if (Math.max(width, height) <= MAX_EDGE || (long) width * height > MAX_DECODE_PIXELS) {
                     return Optional.empty();
                 }
-                BufferedImage reduced = reduce(orient(reader.read(0), orientation));
+                BufferedImage reduced = reduce(orient(reader.read(0, subsamplingFor(reader, width, height)), orientation));
                 String extension = storedExtension(photo.extension(), reduced);
                 return encode(reduced, extension).map(bytes -> new StudentPhoto(extension, bytes));
             } finally {
                 reader.dispose();
             }
         }
+    }
+
+    /**
+     * 긴 변이 {@code 2 × MAX_EDGE} 이상 남는 가장 큰 정수 배로 건너뛰며 읽게 한다(BR-302) — 원본 해상도 래스터를 만들지 않으니 줄이기 한 건의
+     * 메모리가 원본 크기가 아니라 약 1,024 ~ 2,048px 에 묶인다. 2배 이상의 표본을 남겨야 {@link #reduce} 의 마지막 맞춤이 평균을 내 계단이 눈에 띄지 않는다.
+     */
+    private static ImageReadParam subsamplingFor(ImageReader reader, int width, int height) {
+        int step = Math.max(1, Math.max(width, height) / (2 * MAX_EDGE));
+        ImageReadParam param = reader.getDefaultReadParam();
+        param.setSourceSubsampling(step, step, 0, 0);
+        return param;
     }
 
     /** 긴 변이 상한의 2배 아래가 될 때까지 절반으로 줄이고 마지막에 맞춘다 — 한 번에 크게 줄이면 계단·물결무늬가 생긴다. */
