@@ -84,10 +84,13 @@ class DelayNotificationListenerTest {
                 List.of(new DelayNoticeRecipient(900L, "박철수", 900L)));
     }
 
+    /** 지연 신고의 알림 초안은 한 번의 묶음 적재({@code appendAll})로 나간다(BR-354) — 건별 {@code append} 가 아니다. */
+    @SuppressWarnings("unchecked")
     private List<NotificationDraft> drafts() {
-        ArgumentCaptor<NotificationDraft> drafts = ArgumentCaptor.forClass(NotificationDraft.class);
-        verify(outbox, atLeastOnce()).append(drafts.capture());
-        return drafts.getAllValues();
+        ArgumentCaptor<List<NotificationDraft>> drafts = ArgumentCaptor
+                .forClass((Class<List<NotificationDraft>>) (Class<?>) List.class);
+        verify(outbox, atLeastOnce()).appendAll(drafts.capture());
+        return drafts.getValue();
     }
 
     private static String bodyOf(List<NotificationDraft> drafts, Role role, long accountId) {

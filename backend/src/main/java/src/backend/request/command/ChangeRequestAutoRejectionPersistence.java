@@ -64,7 +64,9 @@ public class ChangeRequestAutoRejectionPersistence {
         }
 
         ChangeRequest request = changeRequestRepository.findById(changeRequestId).orElseThrow();
-        boardingIntentRepository.findByRunIdAndStudentId(request.getRunId(), request.getStudentId())
+        // BR-373 — 행 잠금으로 읽는다(BR-361 과 같은 규약): 잠금 없이 읽으면 그 사이 마감구간 미등원 토글이 커밋한 riding=false 를
+        // 이 트랜잭션의 옛 값으로 되덮는다. autoRejectIfPending 이 영속성 컨텍스트를 비우므로 잠금 뒤에는 새 값이 올라온다.
+        boardingIntentRepository.findLockedByRunIdAndStudentId(request.getRunId(), request.getStudentId())
                 .ifPresent(BoardingIntent::restoreChangeQuota);
         previewCache.evict(changeRequestId);
         eventPublisher.publishEvent(new ChangeRequestAutoRejectedEvent(request.getAcademyId(), request.getId(),

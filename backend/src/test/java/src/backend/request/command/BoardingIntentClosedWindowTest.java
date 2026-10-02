@@ -38,9 +38,19 @@ import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
+import src.backend.notification.command.ChangeRequestAutoRejectedNotificationListener;
 import src.backend.notification.command.IntentNotificationListener;
+import src.backend.request.domain.ChangeWindow;
 import src.backend.request.dto.BoardingIntentToggleRequest;
+import src.backend.request.entity.BoardingIntent;
+import src.backend.request.entity.ChangeRequest;
+import src.backend.request.entity.ChangeRequestSource;
+import src.backend.request.entity.ChangeRequestStatus;
+import src.backend.request.entity.ChangeRequestType;
+import src.backend.request.event.ChangeRequestAutoRejectedEvent;
 import src.backend.request.event.IntentChangedEvent;
+import src.backend.request.repository.BoardingIntentRepository;
+import src.backend.request.repository.ChangeRequestRepository;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
@@ -68,8 +78,20 @@ class BoardingIntentClosedWindowTest {
     @Autowired
     private BoardingIntentCommandService boardingIntentCommandService;
 
+    @Autowired
+    private ChangeRequestAutoRejectionPersistence autoRejectionPersistence;
+
+    @Autowired
+    private BoardingIntentRepository boardingIntentRepository;
+
+    @Autowired
+    private ChangeRequestRepository changeRequestRepository;
+
     @MockitoSpyBean
     private IntentNotificationListener intentNotificationListener;
+
+    @MockitoSpyBean
+    private ChangeRequestAutoRejectedNotificationListener autoRejectedNotificationListener;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -293,6 +315,74 @@ class BoardingIntentClosedWindowTest {
                 .isEqualTo("skipped");
     }
 
+    /**
+     * BR-373 — 자동 거절은 한도를 되돌리려고 탑승 의사 행을 읽고, 알림 적재(같은 트랜잭션의 이벤트 리스너)가 영속성 컨텍스트를 비우는 순간
+     * 그 행을 통째로 쓴다. 읽은 뒤 쓰기 전에 마감구간 미등원 토글이 끼어 {@code riding=false} 를 커밋하면, 잠금 없이 읽은 자동 거절이
+     * 옛 값({@code riding=true})으로 그 행을 덮어 탑승자는 {@code absent} 인데 탑승 의사는 켜진 채로 남는다. 행 잠금으로 읽으면 토글이
+     * 그 커밋을 기다렸다가 새 값을 읽는다.
+     */
+    @Test
+    @DisplayName("BR-373 — 자동 거절이 의사 행을 읽은 뒤 마감구간 미등원 토글이 끼어도 riding=false 가 덮이지 않는다")
+    void 자동_거절과_마감구간_미등원_토글이_겹쳐도_탑승_의사_꺼짐이_덮이지_않는다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now();
+        ClosedRun run = closedRun(now, "37.574000", "126.984000");
+        long studentId = fixtures.student(run.academyId(), "자동거절겹침학생");
+        BoardingIntentFixtures.GuardianAccount guardian = rider(run, studentId, now, true);
+        // ②구간 취소 신청이 한도를 쓴 채 대기 중이다 — 출발 시각이 지나 자동 거절 대상이 됐다
+        BoardingIntent intent = BoardingIntent.forRun(run.runId(), studentId, now.minusHours(1));
+        intent.consumeChangeQuota();
+        boardingIntentRepository.save(intent);
+        ChangeRequest request = ChangeRequest.forRequest(run.academyId(), run.runId(), studentId,
+                ChangeRequestSource.INTENT, ChangeRequestType.CANCEL, ChangeWindow.APPROVAL_REQUIRED.code(),
+                guardian.accountId(), now.minusMinutes(40));
+        request.assignDeadline(now.minusMinutes(5));
+        long requestId = changeRequestRepository.save(request).getId();
+        AuthUser requester = new AuthUser(guardian.accountId(), run.academyId(), Role.PARENT, AccountStatus.ACTIVE);
+
+        // 자동 거절이 의사 행을 읽고 알림 리스너에 들어선 때(아직 그 행을 쓰기 전)에 토글을 보낸다 — 토글이 잠금에 막힌 것이 보이거나
+        // 토글이 끝나면 자동 거절이 이어간다. 잠금이 없으면 토글이 먼저 커밋하고 자동 거절이 옛 값으로 그 위에 쓴다.
+        CountDownLatch 자동거절이_의사를_읽었다 = new CountDownLatch(1);
+        CountDownLatch 토글이_끝났다 = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            ChangeRequestAutoRejectedEvent event = invocation.getArgument(0);
+            if (event.runId() == run.runId()) {
+                자동거절이_의사를_읽었다.countDown();
+                상대가_막히거나_끝날_때까지_기다린다(토글이_끝났다);
+            }
+            return invocation.callRealMethod();
+        }).when(autoRejectedNotificationListener).appendChangeDecided(any());
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<Boolean> 자동거절 = pool.submit(() -> autoRejectionPersistence.autoRejectOne(requestId, now));
+            Future<ErrorCode> 토글 = pool.submit(() -> {
+                자동거절이_의사를_읽었다.await(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                try {
+                    return toggleOff(requester, studentId, run.runId());
+                } finally {
+                    토글이_끝났다.countDown();
+                }
+            });
+            assertThat(자동거절.get(TIMEOUT_SECONDS * 2, TimeUnit.SECONDS)).isTrue();
+            assertThat(토글.get(TIMEOUT_SECONDS * 2, TimeUnit.SECONDS)).as("토글은 정상 응답이다").isNull();
+        } finally {
+            pool.shutdownNow();
+            pool.awaitTermination(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        }
+
+        assertThat(changeRequestRepository.findById(requestId).orElseThrow().getStatus())
+                .isEqualTo(ChangeRequestStatus.AUTO_REJECTED);
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM run_rider WHERE run_id = ? AND student_id = ?",
+                String.class, run.runId(), studentId)).isEqualTo("absent");
+        assertThat(jdbcTemplate.queryForObject("SELECT riding FROM boarding_intent WHERE run_id = ? AND student_id = ?",
+                Boolean.class, run.runId(), studentId))
+                .as("탑승자는 absent 인데 탑승 의사가 켜져 있으면 자동 거절이 토글의 riding=false 를 옛 값으로 덮은 것이다")
+                .isFalse();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT change_used_count FROM boarding_intent WHERE run_id = ? AND student_id = ?", Integer.class,
+                run.runId(), studentId)).as("자동 거절이 한도를 되돌린다").isZero();
+    }
+
     /** 확정 노선 현재 버전의 정차 항목 {@code change} — 이 시험의 회차는 정차지가 하나뿐이다. */
     private String stopChangeOf(long runId) {
         return jdbcTemplate.queryForObject("SELECT change FROM run_stop WHERE route_version_id IN "
@@ -309,6 +399,14 @@ class BoardingIntentClosedWindowTest {
     private void 상대가_대기할_때까지_커밋을_미룬다() {
         long 마감 = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS);
         while (!잠금_대기가_있다() && System.nanoTime() < 마감) {
+            잠깐_쉰다();
+        }
+    }
+
+    /** 상대가 잠금에 막혔거나 이미 끝났을 때까지 기다린다 — 잠금이 없으면 상대가 끝나는 것을 기다린다(수정 전에 옛 값이 덮이는 순서). */
+    private void 상대가_막히거나_끝날_때까지_기다린다(CountDownLatch 상대가_끝났다) {
+        long 마감 = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS);
+        while (상대가_끝났다.getCount() > 0 && !잠금_대기가_있다() && System.nanoTime() < 마감) {
             잠깐_쉰다();
         }
     }

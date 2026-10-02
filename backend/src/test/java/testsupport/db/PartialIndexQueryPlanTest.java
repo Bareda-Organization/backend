@@ -21,6 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -28,6 +29,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 
 import src.backend.BackendApplication;
+import src.backend.audit.repository.AuditLogRepository;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
@@ -59,6 +61,8 @@ class PartialIndexQueryPlanTest {
 
     private static final Pattern STUDENT_STATEMENT = Pattern.compile("(?is)^\\s*select\\b.*\\bfrom student\\b.*");
 
+    private static final Pattern AUDIT_LOG_STATEMENT = Pattern.compile("(?is)^\\s*select\\b.*\\bfrom audit_log\\b.*");
+
     @Autowired
     private RunRepository runRepository;
 
@@ -67,6 +71,9 @@ class PartialIndexQueryPlanTest {
 
     @Autowired
     private DataSource dataSource;
+
+    @Autowired
+    private AuditLogRepository auditLogRepository;
 
     /** 확정 배치가 매 틱 읽는 조회 — 상태는 파라미터다(Ruling 631). */
     @Test
@@ -144,6 +151,41 @@ class PartialIndexQueryPlanTest {
         assertThat(plan).as("%s%n%s", sql, plan).contains("ix_student_retention_cutoff");
     }
 
+    /**
+     * R46 I-05(b) · BR-375 — 계정별 접속 이력은 {@code (행위자 = X AND 해제 아님) OR (해제 AND 대상 = X)} 인데 해제 행의 {@code target_id}
+     * 에 접근 경로가 없어, 일치 행이 적은 계정이 기간 전체를 훑었다(실측 15,674 버퍼 · 48ms → 18 버퍼 · 0.07ms). 해제 행만 색인하는 부분
+     * 인덱스가 {@code BitmapOr} 의 한쪽을 받치는지 본다 — 사람이 옮겨 쓴 SQL 이 아니라 {@code AuditLogRepository.searchLoginHistory} 가 낸 SQL 로.
+     *
+     * <p>합성 행 6만 건을 이 트랜잭션에만 넣고 {@code ANALYZE} 한다(롤백해 남지 않는다) — 행은 조회 기간(최근 365일) 안에 퍼뜨린다(기간 밖이면
+     * 플래너가 빈 범위로 보고 다른 계획을 고른다). 이 쿼리는 상태가 아니라 값이 파라미터라 맞춤 계획으로 본다.
+     */
+    @Test
+    void 계정별_접속_이력_조회는_행위자_인덱스와_해제_행의_대상_인덱스를_함께_쓴다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now();
+        Sort order = Sort.by(Sort.Direction.DESC, "occurredAt").and(Sort.by(Sort.Direction.ASC, "id"));
+        String sql = 실행된_SQL(AUDIT_LOG_STATEMENT, () -> auditLogRepository.searchLoginHistory(null, 999L,
+                now.minusDays(365), now, PageRequest.of(0, 20, order)));
+
+        String plan = 맞춤_계획을_본다(sql,
+                List.of("'login'", "now() - interval '365 days'", "now()", "999", "999", "20"), List.of(),
+                List.of("""
+                        INSERT INTO audit_log (actor_account_id, actor_login_id, category, action, target_type, target_id,
+                                               occurred_at)
+                        SELECT 100 + (g % 100), 'u', 'login',
+                               CASE WHEN g % 100 < 85 THEN 'login_success' WHEN g % 100 < 97 THEN 'login_fail'
+                                    WHEN g % 100 < 99 THEN 'block' ELSE 'unblock' END,
+                               'account', CASE WHEN g % 100 >= 99 THEN 100 + ((g / 100) % 100) END,
+                               now() - interval '300 days' + g * interval '430 seconds'
+                        FROM generate_series(1, 60000) g
+                        """, "ANALYZE audit_log"));
+
+        // 인덱스 이름만 보면 모자란다 — 해제 행만 담은 부분 인덱스는 target_id 조건이 색인 조건에서 빠져도(target_id + 0 = ?) 그 인덱스를 통째로
+        // 훑는 비트맵 스캔이 계획에 남는다(합성 행에서 606행). 그래서 target_id = 값 이 색인 조건으로 쓰이는지까지 본다.
+        assertThat(plan).as("%s%n%s", sql, plan).contains("BitmapOr").contains("ix_audit_log_actor_occurred")
+                .containsPattern("ix_audit_log_unblock_target[^\\n]*\\n\\s*Index Cond: \\(target_id = 999\\)")
+                .doesNotContain("Seq Scan");
+    }
+
     /** 저장소 메서드를 부르는 동안 Hibernate 가 낸 SQL 중 패턴에 맞는 첫 문장 — 없으면 시험이 아니라 쿼리 경로의 문제다. */
     private static String 실행된_SQL(Pattern statement, Runnable repositoryCall) {
         Logger logger = (Logger) LoggerFactory.getLogger(SQL_LOGGER);
@@ -164,15 +206,28 @@ class PartialIndexQueryPlanTest {
                 .orElseThrow(() -> new AssertionError("저장소 호출이 기대한 SQL 을 내지 않았다: " + appender.list));
     }
 
-    /** 바인딩 값을 SQL 리터럴로 채운 맞춤 계획 — 파라미터 쿼리가 실제 값으로 계획될 때 인덱스를 받는지 본다. */
     private String 맞춤_계획을_본다(String sql, List<String> bindLiterals, List<String> 가려둘_인덱스) throws SQLException {
+        return 맞춤_계획을_본다(sql, bindLiterals, 가려둘_인덱스, List.of());
+    }
+
+    /**
+     * 바인딩 값을 SQL 리터럴로 채운 맞춤 계획 — 파라미터 쿼리가 실제 값으로 계획될 때 인덱스를 받는지 본다. {@code 준비_SQL} 은 계획을 읽기 전에 같은
+     * 트랜잭션에서 먼저 실행한다(합성 행 적재 · {@code ANALYZE} — 롤백으로 사라진다).
+     */
+    private String 맞춤_계획을_본다(String sql, List<String> bindLiterals, List<String> 가려둘_인덱스, List<String> 준비_SQL)
+            throws SQLException {
         String filled = sql;
         for (String literal : bindLiterals) {
             filled = filled.replaceFirst("\\?", java.util.regex.Matcher.quoteReplacement(literal));
         }
         assertThat(filled).as("채우지 못한 바인딩이 남았다 — 값 목록을 SQL 의 ? 순서와 맞춘다").doesNotContain("?");
         String explained = filled;
-        return 계획을_본다(connection -> 계획(connection, "EXPLAIN " + explained), 가려둘_인덱스);
+        return 계획을_본다(connection -> {
+            for (String prepare : 준비_SQL) {
+                execute(connection, prepare);
+            }
+            return 계획(connection, "EXPLAIN " + explained);
+        }, 가려둘_인덱스);
     }
 
     /** 일반(generic) 계획 — 바인딩 값을 모르는 채 계획한다. 상태가 리터럴이어야만 부분 인덱스가 선택된다. */
