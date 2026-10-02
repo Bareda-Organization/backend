@@ -119,6 +119,10 @@ public final class AccountStatusGateEndpoints {
      * (§6.14, 권한 "메인관리자") — {@code GET /admin/runs/{runId}/roster}(Phase 13 T2)와 같은 계열의
      * 관리자 전용 콘솔 개입이라 대기·거절 계정에는 근거가 부재하다(Ruling 145 와 같은 근거).
      *
+     * <p>R47 stale 이 2개를 더했다 — 끝나지 않은 이동 중 회차 목록 {@code GET /admin/runs/stale-moving}(§6.16)과 강제 종료
+     * {@code POST /admin/runs/{runId}/force-finish}(§6.17, Ruling 724, 권한 "메인관리자") — 강제 확정 콘솔 개입(F3 S2)과 같은
+     * 계열의 관리자 전용 콘솔 개입이라 대기·거절 계정에는 근거가 부재하다(Ruling 145 와 같은 근거).
+     *
      * <p>F4 S1 이 1개를 더했다 — 버스 간 이동 {@code POST /staff/students/{id}/transfer}(§5.8, RTE-07,
      * Ruling 256, 권한 "학원 관계자") — {@code POST /staff/runs/{runId}/forced-add}(Phase 8)와 같은
      * 계열의 관계자 관리 화면 기능이라 대기·거절 계정에는 근거가 부재하다(Ruling 145 와 같은 근거).
@@ -272,6 +276,9 @@ public final class AccountStatusGateEndpoints {
             "POST /runs/{runId}/delay",
             // F3 S2 — 강제 확정 콘솔 개입(§6.14) 메인관리자 전용 기능 1개.
             "POST /admin/runs/{runId}/force-confirm",
+            // R47 stale — 운행일이 지난 이동 중 회차의 목록(§6.16)·강제 종료(§6.17, Ruling 724) 메인관리자 전용 기능 2개.
+            "GET /admin/runs/stale-moving",
+            "POST /admin/runs/{runId}/force-finish",
             // F4 S1 — 버스 간 이동(§5.8, RTE-07, Ruling 256) 관계자 관리 화면 기능 1개.
             "POST /staff/students/{id}/transfer",
             // R36-BE — 이동 대기 취소(§5.8.1, Ruling 369) 관계자 관리 화면 기능 1개.

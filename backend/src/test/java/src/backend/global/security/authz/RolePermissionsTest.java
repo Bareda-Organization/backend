@@ -173,7 +173,7 @@ class RolePermissionsTest {
                 Permissions.ROSTER_READ, Permissions.EMERGENCY_ACK, Permissions.ROUTE_READ,
                 Permissions.MONITOR_ALL, Permissions.DEVICE_REGISTER, Permissions.ACADEMY_MANAGE,
                 Permissions.STAFF_APPROVE, Permissions.ACCOUNT_UNBLOCK, Permissions.AUDIT_READ,
-                Permissions.RUN_FORCE_CONFIRM));
+                Permissions.RUN_FORCE_CONFIRM, Permissions.RUN_FORCE_FINISH));
         return catalog.get(role);
     }
 }

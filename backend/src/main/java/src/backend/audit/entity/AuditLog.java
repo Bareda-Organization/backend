@@ -37,7 +37,7 @@ public class AuditLog {
     /** {@code target_type} 이 계정을 가리킬 때의 값 — 조회 Phase 가 이 문자열로 대상 종류를 가른다. */
     private static final String TARGET_TYPE_ACCOUNT = "account";
 
-    /** {@code target_type} 이 회차를 가리킬 때의 값({@link #forRunForceConfirm}). */
+    /** {@code target_type} 이 회차를 가리킬 때의 값({@link #forRunForceConfirm} · {@link #forRunForceFinish}). */
     private static final String TARGET_TYPE_RUN = "run";
 
     @Id
@@ -284,6 +284,32 @@ public class AuditLog {
         detail.put("reason", reason);
         detail.put("fallback_used", fallbackUsed);
         detail.put("route_version_id", routeVersionId);
+        log.detail = detail;
+        log.ip = ip;
+        return log;
+    }
+
+    /**
+     * 운행일이 지난 이동 중 회차의 강제 종료(API_SPEC §6.17, R47 Ruling 724) — {@link #forRunForceConfirm} 과 같은 형태로
+     * {@code category=data_access}·{@code action=update}·{@code target_type=run} 을 재사용하고, 구별 문자열
+     * {@code run.force_finish} · {@code reason} · 종료 시점에 아직 {@code boarded} 였던 탑승자 수를 {@code detail} 에 싣는다.
+     *
+     * @param academyId     회차의 학원 — 없으면 §6.13 {@code academy_id} 필터 조회에서 빠진다(BR-129)
+     * @param boardedCount  강제 종료로 하차 처리 없이 남겨진 탑승자 수 — 나중에 "누구를 두고 끝냈나" 를 되짚는 재료
+     * @param ip            요청 발신 IP — 요청 밖에서 불렀거나 IP 표기가 아니면 {@code null}
+     */
+    public static AuditLog forRunForceFinish(Long academyId, Long actorAccountId, String actorLoginId, Long runId,
+            String reason, long boardedCount, String ip, OffsetDateTime occurredAt) {
+        AuditLog log = new AuditLog(AuditCategory.DATA_ACCESS, AuditAction.UPDATE, occurredAt);
+        log.academyId = academyId;
+        log.actorAccountId = actorAccountId;
+        log.actorLoginId = actorLoginId;
+        log.targetType = TARGET_TYPE_RUN;
+        log.targetId = runId;
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("action", "run.force_finish");
+        detail.put("reason", reason);
+        detail.put("boarded_count", boardedCount);
         log.detail = detail;
         log.ip = ip;
         return log;

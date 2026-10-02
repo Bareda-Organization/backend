@@ -8,6 +8,7 @@ import java.util.Optional;
 
 import jakarta.persistence.LockModeType;
 
+import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -26,6 +27,15 @@ import src.backend.run.entity.RunStatus;
 
 /** {@link Run} 영속성 접근 — 조회는 전부 학원으로 좁혀져 호출부가 조건을 빼먹을 자리가 부재하다. */
 public interface RunRepository extends JpaRepository<Run, Long> {
+
+    /**
+     * <b>끝나지 않은 이동 중 회차</b>의 조건 한 벌(R46-KFIXBE K-1 Ruling 701 · R47 Ruling 724) — 미취소 {@code moving} 이고 운행일이
+     * {@code :before} 보다 이르다. {@link #countStaleMoving}(경보 지표) · {@link #findStaleMoving}(관리자 목록) ·
+     * {@link #finishIfStaleMoving}(강제 종료)가 이 문자열을 같이 이어 쓴다 — 조건이 두 벌이면 경보가 센 회차와 목록에 뜬 회차가
+     * 어긋나고, 강제 종료가 목록에 없는 회차를 끝낼 수 있다. {@code :before} 는 {@code MovingRunWindowPolicy#earliestServiceDate}.
+     */
+    String STALE_MOVING = "r.status = src.backend.run.entity.RunStatus.MOVING AND r.canceledAt IS NULL "
+            + "AND r.serviceDate < :before";
 
     /**
      * 한 학원의 <b>그 날짜</b> 회차 목록(SCH-02 결과 조회, §5.10 {@code GET /staff/runs}).
@@ -159,9 +169,41 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      */
     @AcademyScopeExempt(reason = "끝나지 않은 이동 중 회차 게이지는 시각이 촉발하는 전 학원 대상 집계라 좁힐 학원이 부재하다 — "
             + "countOverdueUnconfirmed 와 같은 근거. 호출부는 관측 스케줄러(StaleMovingRunGaugeScheduler)뿐이라는 전제")
-    @Query("SELECT COUNT(r) FROM Run r WHERE r.status = src.backend.run.entity.RunStatus.MOVING "
-            + "AND r.canceledAt IS NULL AND r.serviceDate < :before")
+    @Query("SELECT COUNT(r) FROM Run r WHERE " + STALE_MOVING)
     long countStaleMoving(@Param("before") LocalDate before);
+
+    /**
+     * 끝나지 않은 이동 중 회차 목록(R47 Ruling 724) — {@link #countStaleMoving} 이 세는 바로 그 회차를 운행일 오름차순으로,
+     * 학원 이름 · 호차 · 아직 {@code boarded} 인 탑승자 수와 함께 읽는다. 학원·차량은 theta 조인이라 회차마다 한 번에 읽힌다.
+     * {@code limit} 은 목록 상한이다({@code PageParams#UNPAGED_LIST_MAX}) — 오래된 회차부터 자르므로 처리하면 다음 회차가 올라온다.
+     */
+    @AcademyScopeExempt(reason = "메인 관리자 콘솔의 끝나지 않은 이동 중 회차 목록(AdminStaleMovingRunQueryService)은 전 학원 대상 조회라 "
+            + "좁힐 학원이 부재하다 — countStaleMoving 과 같은 근거. 호출부는 @CanMonitorAll 로 보호되는 그 서비스뿐이라는 전제")
+    @Query("SELECT r.id AS runId, r.academyId AS academyId, a.name AS academyName, r.serviceDate AS serviceDate, "
+            + "r.direction AS direction, b.busNo AS busNo, r.startedAt AS startedAt, r.finishPending AS finishPending, "
+            + "(SELECT COUNT(rr) FROM RunRider rr WHERE rr.runId = r.id "
+            + "AND rr.status = src.backend.boarding.entity.RiderStatus.BOARDED) AS boardedCount "
+            + "FROM Run r, Academy a, Bus b WHERE a.id = r.academyId AND b.id = r.busId AND " + STALE_MOVING
+            + " ORDER BY r.serviceDate ASC, r.id ASC")
+    List<StaleMovingRunRow> findStaleMoving(@Param("before") LocalDate before, Limit limit);
+
+    /**
+     * 끝나지 않은 이동 중 회차 1건을 {@code finished} 로 닫는다(R47 Ruling 724) — 영향받은 행 수가 성공 여부다.
+     *
+     * <p><b>{@link #STALE_MOVING} 이 조건에 그대로 들어 있는 것이 동시성 방어의 전부다.</b> 동승자가 같은 순간 마지막 하차를
+     * 눌러 {@code RunCompletionService} 가 회차 행을 잠그고 종료하면, 이 갱신은 그 커밋을 기다렸다가 {@code status = 'moving'}
+     * 조건이 거짓이 되어 0행을 갱신한다 — 반대로 이 갱신이 먼저면 그쪽의 다시 읽기가 {@code finished} 를 보고 종료를 건너뛴다.
+     * 먼저 읽어 판정한 뒤 갱신하면 그 사이에 둘 다 통과한다. 탑승자 상태·하차 기록은 건드리지 않는다(지난 운행의 하차 시각을 지어낼 수 없다).
+     */
+    @Transactional
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @AcademyScopeExempt(reason = "메인 관리자 콘솔이 목록(findStaleMoving)에서 고른 run.id 하나를 조건부로 닫는 단건 호출이다 — "
+            + "그 목록이 이미 전 학원 대상이라 이 시점에 학원을 다시 물을 근거가 없다. 호출부는 @CanForceFinishRun 으로 보호되는 "
+            + "RunForceFinishCommandService 뿐이라는 전제")
+    @Query("UPDATE Run r SET r.status = src.backend.run.entity.RunStatus.FINISHED, r.finishedAt = :finishedAt, "
+            + "r.finishPending = false WHERE r.id = :id AND " + STALE_MOVING)
+    int finishIfStaleMoving(@Param("id") Long id, @Param("before") LocalDate before,
+            @Param("finishedAt") OffsetDateTime finishedAt);
 
     /**
      * 회차를 idle → confirmed 로 전이한다 — 영향받은 행 수로 성공 여부를 판정한다(목표 2).

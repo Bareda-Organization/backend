@@ -144,4 +144,11 @@ public final class Permissions {
 
     /** idle 로 정체된 회차의 강제 확정 콘솔 개입(API_SPEC §6.14, F3 S2 §6.2 신설). 메인관리자. */
     public static final String RUN_FORCE_CONFIRM = "RUN_FORCE_CONFIRM";
+
+    /**
+     * 운행일이 지난 채 끝나지 않은 이동 중 회차의 강제 종료(API_SPEC §6.17, R47 Ruling 724). 메인관리자.
+     * {@link #RUN_FORCE_CONFIRM} 과 따로 둔 이유는 동작이 다르기 때문이다 — 확정은 idle 회차를 앞으로 보내고, 이 동작은
+     * 남은 탑승자를 처리하지 않은 채 회차를 닫는다.
+     */
+    public static final String RUN_FORCE_FINISH = "RUN_FORCE_FINISH";
 }

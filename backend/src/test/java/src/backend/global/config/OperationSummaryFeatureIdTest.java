@@ -27,8 +27,9 @@ class OperationSummaryFeatureIdTest {
 
     private static final Pattern SPEC_ID = Pattern.compile("\\b[A-Z]{1,5}-\\d{2,3}\\b");
 
-    /** 사양 표에 기능 ID 가 없는 예외 — 로컬 전용 개발 도구와, Ruling 254 로만 근거가 있는 강제 확정 콘솔. */
-    private static final Set<String> EXEMPT_FILES = Set.of("DevResetController.java", "AdminRunForceConfirmController.java");
+    /** 사양 표에 기능 ID 가 없는 예외 — 로컬 전용 개발 도구와, Ruling 254 로만 근거가 있는 강제 확정 콘솔, Ruling 724 로만 근거가 있는 끝나지 않은 회차 콘솔(강제 확정과 같은 개입 경로). */
+    private static final Set<String> EXEMPT_FILES = Set.of("DevResetController.java", "AdminRunForceConfirmController.java",
+            "AdminStaleMovingRunController.java");
 
     @Test
     void 모든_Operation_요약에_사양_ID_가_있다() throws IOException {

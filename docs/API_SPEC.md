@@ -2522,7 +2522,7 @@ O-04 · SYS-01·02. 정본 API명세서에 경로 미기재 — 감사 로그 �
 
 **전제** — 회차 `idle` 상태 + `confirm_at` 경과.
 
-**동작** — 확정 계산을 **폴백(직선거리) 강제**로 1회 실행해 `confirmed` 로 전이한다. `route_version` 신규 생성 + 기존 확정 후속(관계자 통지 · `RunRouteConfirmedEvent`)이 그대로 발생한다. **"강제 종료" 가 아니다** — 미하차 상태로 회차를 끝내는 경로는 두지 않는다(`TECH_DECISIONS §14.3` ⚠).
+**동작** — 확정 계산을 **폴백(직선거리) 강제**로 1회 실행해 `confirmed` 로 전이한다. `route_version` 신규 생성 + 기존 확정 후속(관계자 통지 · `RunRouteConfirmedEvent`)이 그대로 발생한다. **"강제 종료" 가 아니다** — 이 API 는 미하차 상태로 회차를 끝내지 않는다. 운행일이 지난 채 끝나지 않은 `moving` 회차에 한해 메인 관리자가 끝내는 별도 경로는 §6.17 이다(`Ruling 724` — `TECH_DECISIONS §14.3` ⚠). 오늘·어제 회차는 그대로 동승자 하차 처리로만 끝난다(C-15).
 
 **응답** `201` — `run_id` · `route_version_id` · `fallback_used`(항상 `true`) · `confirmed_at`
 
@@ -2549,6 +2549,53 @@ O-04 · SYS-01·02. 정본 API명세서에 경로 미기재 — 감사 로그 �
 **왜 새 엔드포인트인가** — 기존 API 로는 셀 수 없다. 확정 실패는 학원마다 §6.8 을 불러야 알 수 있어 **학원 수에 비례해 요청이 늘고**, 지연은 어느 응답에도 필드가 없다(`R46-WEBF Ruling 497`이 지연·확정 실패 집계를 서버 몫으로 남겼다).
 
 **에러** — §1.11 공통 항목 외 고유 에러 부재.
+
+### 6.16 GET /admin/runs/stale-moving
+
+운행일이 지난 채 끝나지 않은 이동 중 회차 목록 (2026-10-02 `Ruling 724`). `StaleMovingRun` 경보(`schoolbus.run.moving.stale`)가 세는 바로 그 회차를 사람이 처리할 수 있게 보인다.
+
+**권한** 메인 관리자 · **요청** 본문·쿼리 부재 · 날짜 기준은 서버 시계(서울)
+
+**대상** — `status=moving` · 미취소(`canceled_at` 이 비어 있음) · `service_date` < 오늘 − 1. 경보 지표와 한 곳(`RunRepository.STALE_MOVING`)에서 조건과 경계 날짜(`MovingRunWindowPolicy.earliestServiceDate`)를 읽으므로 **목록 건수 = 게이지 값**이다. 오늘·어제 회차는 대상이 아니다(자정을 넘기는 운행이 새벽까지 달린다 — `Ruling 701`).
+
+**응답** — `items[]`, 운행일 오름차순(같은 날은 회차 id 오름차순). 페이징 없음 · 최대 200건(오래된 회차부터 자른다 — 처리하면 다음 회차가 올라온다)
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|:-:|---|
+| `run_id` | integer | ● | 회차 식별자 |
+| `academy_id` · `academy_name` | integer · string | ● | 학원 |
+| `service_date` | date | ● | 운행일 |
+| `direction` | enum | ● | `to_academy` · `from_academy` |
+| `bus_no` | string | ● | 호차 |
+| `started_at` | datetime | ○ | 운행 시작 시각 |
+| `finish_pending` | boolean | ● | 하원 최종 지점 도착 뒤 미하차 잔류로 종료가 보류된 회차인지 |
+| `boarded_count` | integer | ● | 아직 `boarded` 인 탑승자 수 — 강제 종료하면 하차 처리 없이 남겨지는 인원 |
+
+**에러** — §1.11 공통 항목 외 고유 에러 부재
+
+### 6.17 POST /admin/runs/{runId}/force-finish
+
+운행일이 지난 채 끝나지 않은 이동 중 회차의 강제 종료 (2026-10-02 `Ruling 724`). 사양 C-15 의 "미하차 상태로 회차를 끝내는 경로는 두지 않는다" 를 **이 범위(§6.16 대상)에 한해** 뒤집는다 — 오늘·어제 회차는 동승자 하차 처리로만 끝난다. 운영 문서(`DEPLOYMENT §11.2`)의 DB 직접 갱신을 화면에서 하는 길이다.
+
+**권한** 메인 관리자(`RUN_FORCE_FINISH`) — 확정(§6.14, `RUN_FORCE_CONFIRM`)과 권한을 따로 둔다
+
+**요청**
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|:-:|---|
+| `reason` | string | ● | 강제 종료 사유. 공백만이면 `422 VALIDATION_FAILED` |
+
+**전제** — §6.16 의 대상 조건과 같다(미취소 `moving` · 운행일 < 오늘 − 1).
+
+**동작** — **조건부 UPDATE 한 문장**(`status='moving' AND canceled_at IS NULL AND service_date < 오늘−1`)으로 `finished` · `finished_at`=지금 · `finish_pending`=false. 동승자가 같은 순간 마지막 하차를 눌러 자동 종료되는 경우와 겹쳐도 한쪽만 성공한다(진 쪽의 강제 종료는 `409 RUN_NOT_MOVING`).
+
+**하지 않는 것** — ① 탑승자 상태·하차 기록을 만들거나 바꾸지 않는다(지난 운행의 하차 시각을 지어낼 수 없다) ② 학부모·관계자 알림을 만들지 않는다 ③ `RunEndedEvent` 를 내지 않으므로 `run_ended` 방송(§7.1)도 나가지 않는다 ④ 정차지 강제 출발을 하지 않는다. 위치 송신 중단·노선 잠금은 이 회차가 이미 처리 집합 밖(`Ruling 701`)이라 닫을 것이 없다.
+
+**응답** `200` — `run_id` · `finished_at` · `boarded_count`(하차 처리 없이 남겨진 탑승자 수)
+
+**감사** — `audit_log` 에 `category=data_access` · `action=update` · `target_type=run` · `target_id=runId` 로 1행, `detail` 에 `{action: "run.force_finish", reason, boarded_count}` 기록(§6.14 와 같은 형태 — `action` CHECK 도메인을 넓히지 않고 구별 문자열은 `detail.action` 에 둔다, `Ruling 260`). 접속 IP 도 남긴다(`Ruling 550`).
+
+**에러** — `404 RUN_NOT_FOUND` · `409 RUN_CANCELED`(임시 취소된 회차) · `409 RUN_NOT_MOVING`(`moving` 아님 — 동시에 끝난 경우 포함) · `409 RUN_NOT_STALE`(운행일이 오늘 또는 어제) · `422 VALIDATION_FAILED`(`reason` 공백)
 
 ---
 
@@ -2687,11 +2734,11 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `DUPLICATE_ARRIVE` | 403 | 동일 승하차지 도착 처리 중복 (RUN-04) |
 | `STOP_ALREADY_DEPARTED` | 409 | 승하차지를 이미 떠난 뒤의 되돌리기 시도(§4.7) — `run_stop.departed_at IS NOT NULL`. 도착 처리된 정차지에서 버스가 100m 밖으로 벗어난 최초 시점에 기록(claimDeparture 조건부 UPDATE). 횟수 제한은 부재하나 이 경계만 막음 (BRD-05, 2026-09-19 사용자 확정 Ruling 305, 판정 방식은 Ruling 307 로 교체) |
 | `RUN_NOT_CONFIRMED` | 409 | 확정 전(`idle`) 회차의 명단·운행 진입·경유 지점 지정(§5.15) |
-| `RUN_NOT_MOVING` | 409 | `moving` 아닌 회차에 위치 업로드·승하차 처리 |
+| `RUN_NOT_MOVING` | 409 | `moving` 아닌 회차에 위치 업로드·승하차 처리 · 강제 종료(§6.17 — 이미 끝난 회차·동시에 마지막 하차로 끝난 회차) |
 | `RIDER_TRANSITION_NOT_ALLOWED` | 409 | 승하차 처리(§4.6)가 FEATURE_SPEC §3.3 전이 표(`waiting→boarded` · `waiting→no_show` · `boarded→alighted`) 밖의 상태를 요청 — 같은 상태 재요청 포함. 표 밖으로 가려면 되돌리기(§4.7)가 먼저다. 422 가 아니라 409 인 이유는 `STOP_ALREADY_DEPARTED` 와 같다 — 요청 형식이 아니라 탑승자의 현재 상태가 막는다 (2026-09-25 신설, Ruling 345) |
 | `RUN_NOT_FOUND` | 404 | 존재하지 않는 회차 · 타 학원 — 존재 비노출, Ruling 163 |
 | `RUN_ALREADY_STARTED` | 409 | 이미 `moving` · `finished` 인 회차에 운행 시작 요청 · 임시 취소(§5.10 — 취소는 `idle`·`confirmed` 만) (RUN-02 · §9.3 운행 상태 전이) |
-| `RUN_CANCELED` | 409 | 임시 취소된 회차(§5.10 `canceled_at`)에 운행 시작(§4.4) · 강제 추가(§5.7) · 이동(§5.8) · 탑승 토글(§3.6) · 변경 신청(§3.8)·승인(§5.6) · 배치 변경(§5.14) · 경유 지점(§5.15) · 강제 확정(§6.14) (`Ruling 375`·`376`). 404 가 아닌 것은 행이 실재하고 관계자 화면에 취소로 보이기 때문 (BR-042) |
+| `RUN_CANCELED` | 409 | 임시 취소된 회차(§5.10 `canceled_at`)에 운행 시작(§4.4) · 강제 추가(§5.7) · 이동(§5.8) · 탑승 토글(§3.6) · 변경 신청(§3.8)·승인(§5.6) · 배치 변경(§5.14) · 경유 지점(§5.15) · 강제 확정(§6.14) · 강제 종료(§6.17) (`Ruling 375`·`376`·`724`). 404 가 아닌 것은 행이 실재하고 관계자 화면에 취소로 보이기 때문 (BR-042) |
 | `DUPLICATE_RUN` | 409 | 같은 차량·날짜·방향·출발 시각의 회차를 **임시 추가**(§5.10 `POST /staff/runs`)로 다시 만들려는 시도, 또는 **스케줄 수정(§5.10 `PATCH /staff/schedules/{id}`)이 미리 만든 회차를 옮기려는 자리가 이미 다른 회차의 것**인 경우(`Ruling 367`). 유일성 근거는 `run(bus_id, service_date, direction, depart_time)` UNIQUE 다. ⚠ **일일 회차 생성 배치(SCH-02)는 이 코드를 내지 않는다** — 배치의 중복 실행은 재기동·수동 재실행이라는 정상 동작이라 오류가 아니라 무시이고, 이미 있는 회차를 조용히 건너뛴다. 같은 제약이 두 경로에서 다르게 읽히는 것이 요점이라 여기 적어 둔다 (2026-08-26 신설, Ruling 153) |
 | `DUPLICATE_ASSIGNMENT` | 409 | 한 회차의 **같은 역할**을 두 요청이 동시에 채우려 함 — `assignment(run_id, role)` UNIQUE 위반 (§5.14 · MGR-05). 순차 요청은 교체로 처리되므로 이 코드가 나오는 것은 경합뿐이다. ⚠ 근무 시간·중복 배치 충돌과 **다른 축**이다 — 그쪽은 경고이고 저장되지만(MGR-06) 이쪽은 저장 자체가 거부된다 (2026-08-26 신설, Ruling 153) |
 | `RIDER_NOT_FOUND` | 404 | 미존재 탑승자, 또는 `absent` 로 명단에서 제외된 탑승자 지정. 보호자 원번호 조회(§4.2.1)에서는 **그 회차 명단에 없는 탑승자**(다른 회차 포함) |
@@ -2700,6 +2747,7 @@ REST 조회의 보완. 접속 시 `Authorization: Bearer {access_token}` 로 인
 | `DELAY_DUPLICATE` | 409 | 같은 회차의 직전 지연 알림과 `minutes`·`reason`·`message` 가 전부 같은 재발신 — 지연 알림은 갱신 의미라 재요청 금지 시간을 두지 않고 내용이 그대로면 거부 (§4.9 · Ruling 253) |
 | `RUN_NOT_IDLE` | 409 | `idle` 이 아닌 회차의 강제 확정 시도 (§6.14) |
 | `RUN_NOT_DUE` | 409 | 판정 시각(`confirm_at`)이 아직 지나지 않은 회차의 강제 확정 시도 (§6.14) |
+| `RUN_NOT_STALE` | 409 | 운행일이 오늘 또는 어제인 회차의 강제 종료 시도 — 이 회차는 동승자 하차 처리로만 끝난다 (§6.17 · `Ruling 724`) |
 | `STUDENT_NOT_IN_RUN` | 409 | 버스 간 이동 대상 학생이 출발 회차의 당일 명단(요일별 주소·탑승 의사·강제 추가 기준)에 부재 (§5.8 · RTE-07) |
 | `TRANSFER_NOT_FOUND` | 404 | 이동 대기 기록 부재 · 타 학원 (§5.8.1, Ruling 369) |
 | `TRANSFER_ALREADY_STAGED` | 409 | 같은 학생의 처리 대기 중인 이동 건이 이미 존재 — 최종 목적지 회차를 판정할 수 없어 새 신청을 막음 (§5.8) |

@@ -208,10 +208,10 @@ class ControllerAuthorizationConventionTest {
         List<MappingMethod> mappings = allMappingMethods(authzAnnotationNames);
 
         assertThat(mappings.size())
-                .as("인가 검사 대상 매핑 메서드가 실제 핸들러 수(114) 아래로 줄었다 — 스캔 경로가 컨트롤러를 "
+                .as("인가 검사 대상 매핑 메서드가 실제 핸들러 수(116) 아래로 줄었다 — 스캔 경로가 컨트롤러를 "
                         + "놓치면 위의 인가 검사들이 '규칙 준수'와 '검사 대상 없음'을 구별하지 못한 채 통과한다. "
                         + "새 엔드포인트를 추가했으면 이 하한을 그만큼 올린다")
-                .isGreaterThanOrEqualTo(114);
+                .isGreaterThanOrEqualTo(116);
     }
 
     /**
