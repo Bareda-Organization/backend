@@ -10,50 +10,16 @@ updates:
       gradle:
         patterns: ["*"]
 
-  - package-ecosystem: npm
-    directory: /frontend/apps/academy-web
-    schedule:
-      interval: weekly
-    groups:
-      npm:
-        patterns: ["*"]
-    # 주 버전 무시 — @types/node 는 런타임 Node 22 에 맞춘다(Ruling 727) · eslint 10 · typescript 7 은 lint 가 실패해 거절했다
-    # (Ruling 753 — 재검토 조건: eslint-config-next 의 ESLint 10 지원 · typescript-eslint 의 TS 7 지원)
-    ignore:
-      - dependency-name: "@types/node"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "eslint"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "typescript"
-        update-types: ["version-update:semver-major"]
-
-  - package-ecosystem: pub
-    directories:
-      - /frontend/packages/baraeda_core
-      - /frontend/packages/baraeda_ui
-      - /frontend/apps/manager-app
-      - /frontend/apps/parent-app
-    schedule:
-      interval: weekly
-    groups:
-      pub:
-        patterns: ["*"]
-
   - package-ecosystem: docker
-    directories:
-      - /backend
-      - /frontend/apps/academy-web
+    directory: /backend
     schedule:
       interval: weekly
     groups:
       docker:
         patterns: ["*"]
-    # 런타임 이미지는 LTS 만(Ruling 727) — temurin 은 Java 툴체인 25 에 맞추고, node 는 운영 웹(Vercel) 런타임 22 에 맞춘다.
-    # 주 버전은 LTS 주기에 맞춰 사람이 따로 올린다
+    # 런타임 이미지는 LTS 만(Ruling 727) — temurin 은 Java 툴체인 25 에 맞춘다. 주 버전은 LTS 주기에 맞춰 사람이 따로 올린다
     ignore:
       - dependency-name: "eclipse-temurin"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "node"
         update-types: ["version-update:semver-major"]
 
   - package-ecosystem: docker-compose

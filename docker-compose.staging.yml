@@ -78,11 +78,10 @@ services:
         condition: service_started
     restart: unless-stopped
 
-  # 관계자 웹 — 빌드 컨텍스트가 ./frontend 인 이유는 docker-compose.app.yml 의 web 주석과 같다.
+  # 관계자 웹 — 빌드 컨텍스트가 형제 저장소 `../web` 인 이유는 docker-compose.app.yml 의 web 주석과 같다.
   web:
     build:
-      context: ./frontend
-      dockerfile: apps/academy-web/Dockerfile
+      context: ../web
       args:
         # 브라우저 번들에 박히는 주소 — 공개 주소 그대로. 바꾸면 web 이미지를 다시 빌드해야 한다.
         NEXT_PUBLIC_API_BASE_URL: ${PUBLIC_URL}

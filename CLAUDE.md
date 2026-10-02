@@ -8,21 +8,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 도메인 모듈 16개 + `demo`(데모 시뮬레이터) · `observability`(지표) + global 인프라(모듈 목록은 `docs/ARCHITECTURE.md §3.1`)가 엔티티~컨트롤러까지 구현돼 있고, 계획서 Phase 0~14 와 이월 묶음 F1~F6 이 전부 완료 상태다.
 
-**⚠ 2026-09-09 저장소를 백엔드 전용으로 정리했다가 2026-09-10 프론트엔드를 다시 열었다.** 옛 `frontend/`(Flutter) 는 디스크·git 양쪽에서 삭제한 상태 그대로이고(`git show <이전 main 해시>:frontend/...`), 지금 `frontend/` 는 **새로 만드는 것**이다. 프론트 배포 워크플로(`deploy-web.yml`)는 제거된 채이며 배포 구성은 다시 만든다.
+**⚠ 2026-10-02 저장소를 3개로 나눴다** — 한 조직 아래 배포처별로 하나씩. 커밋 이력은 `git filter-repo` 로 함께 옮겼고, 나누기 전 통합 저장소는 `mskim98/School-Bus` 에 보관돼 있다.
+
+| 저장소 | 받는 것 | 배포 |
+|---|---|---|
+| **backend**(이 저장소) | `backend/` · `infra/` · `docker-compose*.yml` · **세 저장소 공통 사양 `docs/`** | AWS EC2 · 로컬(집 PC + Cloudflare Tunnel) |
+| **web** | 관계자 웹(Next.js, 옛 `frontend/apps/academy-web`) · `design-system/` · `docs/CONVENTIONS_REACT.md` | Vercel |
+| **mobile** | 앱 2종(`apps/manager-app` · `apps/parent-app`) · 공용 패키지 `packages/baraeda_{core,ui}` · `docs/CONVENTIONS_FLUTTER.md` | App Store · Play Store |
+
+- **로컬에서는 세 저장소를 같은 폴더 아래 나란히 clone 한다**(`…/backend` · `…/web` · `…/mobile`). `docker-compose.app.yml`·`staging.yml` 의 `web` 은 `../web` 을 빌드하고, web 의 사양 대조 시험은 `../backend/docs/API_SPEC.md` 를 읽는다
+- `docs/` 의 `frontend/apps/…` · `frontend/packages/…` 경로 표기는 나누기 전 이름이다 — web 은 저장소 루트, mobile 은 `apps/`·`packages/` 로 읽는다
+- API 를 바꾸는 작업은 **backend 를 먼저 병합하고** web·mobile 을 뒤따라 병합한다
 
 **git 추적 범위 — 앱 동작에 필요한 것 + 에이전트가 읽어야 하는 것 (2026-09-18 확장).** `backend/`(테스트·k6 부하 스크립트 포함) · `infra/` · `docker-compose*.yml` · `.github/workflows/deploy-backend.yml` 에 더해, **문서 Markdown(`docs/**/*.md`) · 이 파일(`CLAUDE.md`) · `.claude/PROJECT_NOTES.md` · `.claude/settings.json`** 을 추적한다.
 
 - **뒤집은 이유** — `git worktree` 는 추적 파일만 체크아웃한다. Orca 가 만든 자식 워크트리에서 뜬 에이전트가 빌드 명령(`-PtestDbUrl` 필수)·Docker 포트·Flyway 재구성 정책·사양 4종을 모르는 채 시작했다. 2026-09-02(docs 전면 제외)·2026-09-09(`.claude`·`CLAUDE.md` 제외) 결정을 이 범위에서 뒤집는다.
 - **여전히 제외** — 사람용 렌더(`docs/**` 의 HTML·PDF·PNG)와 기획 원본 `.docx`(파생본·바이너리) · 보고서(`report/`) · 라운드별 작업 기록(`.claude/` 나머지 — ⚠ **`.superpowers/` 는 2026-09-20 삭제**, 정본이 쓰던 근거 24개는 `docs/archive/sdd/`) · 재생성 가능한 색인(`graft/` · `.docgraph/`).
-- ⚠ **원격은 공개 저장소(`mskim98/School-Bus`)다.** 2026-09-18 결정은 "문서는 로컬 커밋만"이었으나 **2026-09-30 사용자 지시로 문서 포함 전부 push 했다**(1,325 커밋 · 비밀값 검사 0건). 이후 push 는 사용자에게 한 번 확인하고, push 전에는 `backend/.env`·`.env.local` 의 실제 값이 커밋에 없는지 검사한다.
+- ⚠ **원격은 공개 저장소다**(나누기 전 `mskim98/School-Bus`). 2026-09-18 결정은 "문서는 로컬 커밋만"이었으나 **2026-09-30 사용자 지시로 문서 포함 전부 push 했다**(1,325 커밋 · 비밀값 검사 0건). 이후 push 는 사용자에게 한 번 확인하고, push 전에는 `backend/.env`·`.env.local` 의 실제 값이 커밋에 없는지 검사한다.
 - 새 워크트리에서는 색인을 한 번 만든다 — `graft build .` (부모의 캐시를 복사하므로 **1.7초**)
 
 **프론트엔드는 2026-09-10 사용자 결정으로 범위 안이다** — 2026-09-04 Ruling 255(영구 범위 밖)를 뒤집었다. `docs/IMPLEMENTATION_PLAN` 의 Phase F1~F4 `➖` 표기는 옛 Flutter 계획에 대한 것이라 그대로 두고, **프론트 작업의 창구는 `docs/frontend/IMPLEMENTATION_PLAN.md` 로 분리**했다.
 
 - 제품 3개 — 관계자 웹(**Next.js**, 메인 관리자 콘솔을 `(admin)` 라우트 그룹으로 합침) · 학부모·학생 앱(**Flutter**) · 매니저 앱(**Flutter**)
 - **앱 하나가 로그인 결과의 역할로 갈라진다** — 학부모↔학생, 기사↔동승자. 갈리는 것은 화면이 아니라 권한과 진입점
-- 코드 규칙은 `docs/frontend/CONVENTIONS_REACT.md`(React) · `docs/frontend/CONVENTIONS_FLUTTER.md`(Dart) 2종
-- 디자인 시스템 사본은 `frontend/design-system/`(**읽기 전용**, 정본은 claude.ai 원격). ⚠ **킷이 구 기획 기반이라 `docs/` 와 어긋나는 곳이 있다** — 어긋나면 `docs/` 가 기준이고, 확인된 4건은 `docs/frontend/IMPLEMENTATION_PLAN.md §4`
+- 코드 규칙은 web 저장소 `docs/CONVENTIONS_REACT.md`(React) · mobile 저장소 `docs/CONVENTIONS_FLUTTER.md`(Dart) 2종 — 코드 옆에 둔다(2026-10-02)
+- 디자인 시스템 사본은 web 저장소 `design-system/`(**읽기 전용**, 정본은 claude.ai 원격). ⚠ **킷이 구 기획 기반이라 `docs/` 와 어긋나는 곳이 있다** — 어긋나면 `docs/` 가 기준이고, 확인된 4건은 `docs/frontend/IMPLEMENTATION_PLAN.md §4`
 
 - **작업 전 반드시 [`docs/README.md`](docs/README.md) 를 먼저 읽는다.** 제품 사양 4종(`FEATURE_SPEC` · `PRD` · `USER_FLOWS` · `API_SPEC`)의 진입점이며, 이 4개가 **단일 소스(SoT)** 다. **2026-08-24 서비스 방향 전환으로 전면 재작성됐고, 순수 기획(To-Be)이라 구현 상태 표기가 없다** — 현재 코드는 상당 부분이 이 사양과 어긋나며 앞으로 사양에 맞춰 수정할 대상이다.
 - **기반 문서는 `docs/FEATURE_SPEC.md`** — 공통 규칙 C-01~18, 정책 상수(확정 30분 전 · ②구간 회차당 1회 · 운행 시작 ±10분 등), 엔티티·상태머신, 기능 ID 체계가 여기서 정의되고 나머지 3종이 이를 참조한다. 새 기능 ID·상태값을 만들지 않는다.
@@ -40,7 +50,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   |---|---|
   | `docs/` 루트 | **전 모듈 공통 정본** — 사양 4종 · `ARCHITECTURE` · `ERD` · `TECH_DECISIONS` · `IMPLEMENTATION_PLAN` |
   | `docs/backend/` | `CODE_CONVENTIONS.md`(옛 `reference.md`) · `LOAD_TESTING.md` · `plans/` |
-  | `docs/frontend/` | `IMPLEMENTATION_PLAN.md` · `CONVENTIONS_REACT.md`(옛 `CONVENTIONS.md`) · `CONVENTIONS_FLUTTER.md` · `SETUP.md` |
+  | `docs/frontend/` | `IMPLEMENTATION_PLAN.md` · `SETUP.md` (규칙 2종은 2026-10-02 web·mobile 저장소로 이관) |
   | `docs/infra/` | `DEPLOYMENT.md` · `STAGING.md` · `OPERATIONS_PLAN.html` |
   | `docs/archive/` | 끝난 기능별 계획·설계 (옛 `docs/superpowers/`) · `rounds/` = 끝난 계획서 라운드·Phase 기록(2026-10-01 이관) |
   | `docs/render/` · `docs/source/` | 사람용 렌더 · 기획 원본. ⚠ **추적 밖이라 워크트리에서 열리지 않는다** |
@@ -79,7 +89,7 @@ cd backend
 # 병합 직전처럼 "자격증명이 없으면 건너뛰지 말고 실패" 해야 하면 test 에 -PrequireLive 를 주면 라이브 시험까지 포함해 돈다.
 ```
 
-**한 명령 검증.** 저장소 루트의 `scripts/verify.sh` 가 백엔드(전용 DB 자동 생성·삭제) + 관계자 웹 + Flutter 4곳을 CI(`.github/workflows/ci.yml`)와 같은 명령으로 돈다 — `scripts/verify.sh web flutter` 처럼 골라서도 된다. 실서버 계약 시험과 실 API 시험은 뺀다. CI 상세·로그 정책은 `docs/infra/DEPLOYMENT.md §5.1`.
+**한 명령 검증.** 저장소 루트의 `scripts/verify.sh` 가 백엔드 시험(전용 DB 자동 생성·삭제)을 CI(`.github/workflows/ci.yml`)와 같은 명령으로 돈다. 실 API 시험은 뺀다. 관계자 웹·앱은 각 저장소의 `scripts/verify.sh`. CI 상세·로그 정책은 `docs/infra/DEPLOYMENT.md §5.1`.
 
 ## Docker — 개발 / 배포가 파일로 갈려 있다 (2026-09-18 분리)
 

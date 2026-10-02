@@ -68,14 +68,11 @@ services:
       redis:
         condition: service_started
 
-  # 관계자 웹 (Next.js standalone).
-  # ⚠ 빌드 컨텍스트가 `./frontend` 다 — apps/academy-web/ 이 아니다. globals.css 가 상대 경로로
-  #   frontend/design-system/styles.css 를 가리켜, 그 디렉터리가 컨텍스트에 함께 들어와야 한다
-  #   (근거는 그 Dockerfile 머리말).
+  # 관계자 웹 (Next.js standalone). 운영은 Vercel 이고 이 이미지는 로컬 확인용이다.
+  # ⚠ 빌드 컨텍스트가 형제 저장소 `../web` 다 — web 저장소를 이 저장소 옆에 clone 해 둬야 한다(README §2.2).
   web:
     build:
-      context: ./frontend
-      dockerfile: apps/academy-web/Dockerfile
+      context: ../web
       args:
         # 브라우저가 보는 주소다 — 컨테이너 이름(`backend`)이 아니라 프록시 진입점.
         # 브라우저는 호스트에서 돌기 때문이다. 빌드 시점에 번들에 박힌다(그 Dockerfile 참고).

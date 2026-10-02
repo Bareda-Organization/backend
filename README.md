@@ -2,6 +2,7 @@
 
 학원 통학버스의 **노선 편성 · 운행 · 승하차 · 알림**을 다루는 멀티 테넌트 백엔드입니다.
 Spring Boot 4 · Java 25 · PostgreSQL · Redis 로 만들었고, 이 저장소는 **백엔드 전용**입니다.
+관계자 웹(Next.js · Vercel)은 **web** 저장소, 매니저·학부모 앱(Flutter)은 **mobile** 저장소에 있습니다. 세 저장소가 함께 보는 사양 문서는 이 저장소의 `docs/` 입니다.
 
 - 엔드포인트 **113개**(+ local 전용 개발 도구 1개) · 테스트 **334클래스 1,895개**
 - API 문서는 실행 후 Swagger UI 에서 봅니다 (아래 §3)
@@ -33,20 +34,21 @@ cd backend && ./gradlew bootRun         # http://localhost:8080
 ### 2.2 전부 컨테이너로
 
 ```bash
-docker compose up -d --build            # 위 둘 + backend + proxy(nginx)
+docker compose -f docker-compose.yml -f docker-compose.app.yml up -d --build   # 위 둘 + backend + 관계자 웹 + proxy + 관측
 ```
 
-이때 앱은 호스트에 포트를 열지 않고 **프록시(:80)를 통해서만** 닿습니다.
+이때 앱은 호스트에 포트를 열지 않고 **프록시(:3000)를 통해서만** 닿습니다.
+관계자 웹은 형제 저장소 `../web` 에서 빌드하므로 **web 저장소를 이 저장소 옆에 clone** 해 둬야 합니다.
 
 ### 2.3 포트
 
 | 서비스 | 주소 | 비고 |
 |---|---|---|
 | 백엔드 | `localhost:8080` | `bootRun` 으로 띄웠을 때 |
-| 프록시 | `localhost:80` | 전부 컨테이너로 띄웠을 때 |
+| 프록시 | `localhost:3000` | 전부 컨테이너로 띄웠을 때 — 관계자 웹 · API · Swagger 가 모두 여기로 |
 | PostgreSQL | `localhost:15432` | DB 도구로 직접 접속 가능 (`schoolbus` / `schoolbus`) |
 | Redis | `localhost:16379` | |
-| Prometheus · Grafana | `localhost:9090` · `localhost:3000` | 관측 스택. `docker compose up -d` 에 포함(계정 `admin` / `admin`) |
+| Prometheus · Grafana | `localhost:9090` · `localhost:3001` | 관측 스택. 앱 오버레이에 포함(계정 `admin` / `admin`) |
 
 > **5432·6379 가 아닌 이유** — 개발 노트북에서 다른 프로젝트가 기본 포트를 쓰는 경우가 잦고, 그대로 두면 테스트가 남의 DB 에 붙어 **원인을 알기 어려운 인증 실패 수백 건**으로 나타납니다.
 

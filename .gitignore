@@ -44,21 +44,6 @@ backend/.env
 # (절차: docs/infra/DEPLOYMENT.md §2.12). 실수로 만들어졌을 때를 대비해 여기서도 막아 둔다.
 infra/proxy/.htpasswd
 
-# 프론트엔드 — 2026-09-09 재개. 2026-09-09 사용자 결정으로 다시 추적한다
-# (범위 밖 확정이던 Ruling 255 를 뒤집음). 관계자 웹은 Next.js, 학부모·매니저 앱은 Flutter.
-# 소스와 디자인 시스템은 추적하고 빌드 산출물만 제외한다.
-frontend/**/node_modules/
-frontend/**/.next/
-frontend/**/out/
-frontend/**/.turbo/
-frontend/**/build/
-frontend/**/.dart_tool/
-frontend/**/.flutter-plugins
-frontend/**/.flutter-plugins-dependencies
-frontend/**/*.iml
-frontend/**/.env
-frontend/**/.env.local
-
 # Root — 앱 동작과 무관한 도구 의존성
 node_modules/
 /package.json
@@ -77,18 +62,10 @@ node_modules/
 /report/
 backend/report/
 backend/load/results/
-# 화면 확인 스크린샷(메인 저장소 frontend/report/<라운드>/) · 도구가 만드는 .playwright/ — 36MB 안팎이라 실수로 공개 저장소에 올라가지 않게 한다
-frontend/report/
 /.playwright/
 
 # 문서 그래프 색인 — 파생본, 정본은 docs/ (규칙 ~/.claude/rules/docgraph.md)
 .docgraph/
-
-# Flutter — 패키지 잠금·생성물
-frontend/**/.packages
-frontend/**/pubspec.lock
-frontend/**/*.g.dart
-frontend/**/*.freezed.dart
 
 # graft — 코드 구조 그래프 (재생성 가능한 로컬 캐시, tokensave 와 같은 성질)
 graft/
