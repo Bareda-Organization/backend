@@ -87,6 +87,16 @@ groups:
           severity: warning
         annotations:
           summary: 학생 사진 백업이 26시간 넘게 성공하지 않았다
+      # 인증서 갱신 — certbot 컨테이너(renew-loop.sh)가 12시간마다 시도하고 오류 없이 끝났을 때만 성공 시각을 쓴다(BR-334). 갱신은 만료 30일 전부터 시도하므로
+      # 2일(연속 4번) 넘게 성공하지 않아도 만료까지 28일 가까이 남아 있다 — 그 안에 고치면 된다. 놓치면 만료 당일에 모든 클라이언트의 HTTPS 가 한꺼번에 거절된다.
+      # `or absent` — certbot 컨테이너가 안 돌거나 지표 폴더가 안 맞아 지표 파일이 없는 경우도 같은 경보다.
+      - alert: CertbotRenewStale
+        expr: (time() - schoolbus_certbot_renew_last_success_timestamp_seconds > 172800) or absent(schoolbus_certbot_renew_last_success_timestamp_seconds)
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: 인증서 갱신(certbot)이 2일 넘게 성공하지 않았다 — 만료 전에 고치지 않으면 모든 클라이언트의 HTTPS 연결이 한꺼번에 거절된다
 
   # ── 백엔드 가용성(R46-FIXOPS · review-stab S-1 · Ruling 640) ────────────────────────────────────────────
   # 위 규칙들은 대부분 백엔드가 떠 있어야 값이 생기는 지표를 본다 — 백엔드가 죽으면 시계열이 사라져(스크레이프 실패 때 Prometheus 가 즉시
@@ -165,6 +175,23 @@ groups:
           severity: warning
         annotations:
           summary: 위치 이력 파티션 미리 만들기(run-position-partition)가 3일 넘게 성공하지 않았다 — 남은 미리 만든 파티션이 4일치 이하
+      # 일일 회차 생성(DailyRunGenerator · 매일 00:05 · 오늘·내일 회차를 만든다)이 실패하거나 멈추면 그날 회차 행이 없다 — 미확정 회차 · 위치 유실 · 이동 중 회차 경보는
+      # 회차 행이 있어야 값이 생겨 0 으로 조용하고, SchedulerStalled 는 이 이름을 안 본다. 기사·학부모 알림이 하나도 안 가는 날이 경보 없이 시작한다(BR-333).
+      # 재기동 때는 DailyRunStartupCatchUp 이 보충하지만 앱이 살아 있으면 다음 00:05 까지(24시간) 보충하는 장치가 없다 — 수동 재실행(API_SPEC §5.10)은 사람이 알아야 쓴다.
+      # 둘이 이어서 본다 — 실패 경보(1시간 창)가 꺼지는 때(00:05 + 1시간)에 정지 경보(마지막 성공 + 25시간)가 켜진다. 정지 경보는 재기동으로 경과가
+      # 0 부터 다시 세어지는 한계가 RetentionCleanupStalled 와 같다(그 경우는 DailyRunStartupCatchUp 이 이미 보충했다). 이름은 SchedulerHealthMetrics.nameOf 규칙(클래스명 케밥)이다.
+      - alert: DailyRunGenerationFailing
+        expr: increase(schoolbus_scheduler_failures_total{job="backend",scheduler="daily-run-generator"}[1h]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: 일일 회차 생성(daily-run-generator)이 실패했다 — 그날 회차가 만들어지지 않아 기사·학부모 알림이 나가지 않는다
+      - alert: DailyRunGenerationStalled
+        expr: schoolbus_scheduler_last_success_age_seconds{job="backend",scheduler="daily-run-generator"} > 90000
+        labels:
+          severity: critical
+        annotations:
+          summary: 일일 회차 생성(daily-run-generator)이 25시간 넘게 성공하지 않았다 — 오늘 회차가 없을 수 있다(DailyRunStartupCatchUp 은 재기동 때만 보충한다)
       # 동시 연결 상한(Tomcat max-connections 4,000 · Ruling 690)의 75% — STOMP 세션 수가 3,000 을 5분 넘게 넘으면 울린다(Ruling 691).
       # 상한에 닿으면 새 연결이 거절되고(REST 포함) 그때는 이미 늦으니 4분의 1 남았을 때 알린다. for 5분은 서버 재시작 뒤 클라이언트가 한꺼번에
       # 다시 붙는 순간 몰림을 거른다. 목표 동시 세션은 2,000 이라 평소에는 울리지 않는다. 상한(application.yml)을 바꾸면 이 숫자도 75% 로

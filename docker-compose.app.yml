@@ -65,6 +65,15 @@ services:
     # 컨테이너 네트워크 안에서는 `backend:8080` 으로 그대로 닿는다.
     expose:
       - "8080"
+    # 컨테이너 헬스체크 — local 프로파일은 관리 포트를 따로 열지 않아 앱 포트(8080)의 /actuator/health 다(운영 계열은 8081 — docker-compose.prod.yml).
+    # 이미지에 curl 이 있다(backend/Dockerfile). proxy 가 이 값을 기다려, backend 가 안 뜨면 `up` 단계에서 unhealthy 로 드러난다.
+    # Flyway 와 QA 시드를 깔며 기동에 1분쯤 걸려 start_period 를 넉넉히 둔다. OpsSettingsGuardTest 가 포트·proxy 조건을 지킨다.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
     depends_on:
       postgres:
         condition: service_healthy
@@ -102,8 +111,10 @@ services:
       # 읽기 전용 마운트 — 설정만 바꿀 땐 이미지 재빌드 없이 `restart proxy` 면 된다.
       - ./infra/proxy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
-      - backend
-      - web
+      backend:
+        condition: service_healthy
+      web:
+        condition: service_started
 
   # ── 관측 스택 ──────────────────────────────────────────────────────────────
   # 설계 근거: docs/archive/specs/2026-08-21-관제-대시보드-design.md

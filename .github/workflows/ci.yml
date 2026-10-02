@@ -23,7 +23,8 @@ permissions:
   contents: read
 
 jobs:
-  # 백엔드 코드·이 파일이 바뀔 때만 시험을 돈다 — 문서만 바뀐 커밋에 40분짜리 시험을 돌리지 않는다.
+  # 백엔드 코드나 시험이 읽는 입력(infra · docker-compose*.yml · .github — 인프라 지침 시험이 읽는다)이 바뀔 때만 시험을 돈다 —
+  # 문서만 바뀐 커밋에 40분짜리 시험을 돌리지 않는다. 시험이 새 입력을 읽게 되면 WorkflowGuardTest 가 여기 빠진 것을 잡는다.
   # ⚠ 워크플로 수준 `on.push.paths` 로 바꾸지 마라 — 2026-10-02 조직 저장소에서 push 두 번이 실행 자체를 만들지 않았다.
   #   워크플로는 늘 시작하고 이 작업이 거른다(통합 저장소에서 쓰던 방식). 손으로 돌리면 거르지 않는다.
   changes:
@@ -35,14 +36,16 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
     steps:
       - uses: actions/checkout@v7
-      - uses: dorny/paths-filter@v4
+      # 제3자 액션은 움직이는 태그가 아니라 커밋 SHA 로 고정한다(WorkflowGuardTest) — 버전은 줄 끝 주석이고, Dependabot github-actions 가 SHA 와 함께 올린다.
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         with:
           filters: |
             backend:
               - 'backend/**'
-              - 'docker-compose.yml'
-              - '.github/workflows/ci.yml'
+              - 'infra/**'
+              - 'docker-compose*.yml'
+              - '.github/**'
 
   backend:
     needs: changes
@@ -65,6 +68,11 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: gradle
+
+      # 경보 규칙 시험 — alerts.test.yml 이 가짜 시계열로 발화 조건을 본다. 운영 compose 의 Prometheus 와 같은 이미지의 promtool 로 돈다
+      # (WorkflowGuardTest 가 두 이미지가 같은지 본다). 식을 고쳤는데 이 시험이 안 도는 상태를 막는다(BR-329). Gradle 시험이 도는 40분을 기다리지 않게 앞에 둔다.
+      - name: 경보 규칙 시험(promtool)
+        run: docker run --rm -v "$PWD/infra/observability/prometheus:/p" --entrypoint promtool prom/prometheus:v3.15.0 test rules /p/alerts.test.yml
 
       # 서비스 컨테이너 대신 저장소 compose 를 쓴다 — postgres 접속 상한(max_connections=300)이 compose 의 command 에 있고,
       # 서비스 컨테이너는 그 인자를 줄 수 없다(기본 100 이면 컨텍스트 캐시가 쌓이는 전체 실행에서 "too many clients").

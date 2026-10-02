@@ -26,6 +26,75 @@ tests:
             exp_annotations:
               summary: 확정 시각을 5분 넘긴 미확정 회차가 있다 — 기사가 노선을 받지 못했다
 
+  # 미승차 에스컬레이션 실패(BR-329): 실패 카운터가 3분 창 안에서 늘었을 때만 발화하고 for 가 없다 — 즉시 critical. 같은 카운터라도 다른 스케줄러(retention-cleanup)의
+  # 실패는 이 경보가 아니다(scheduler 라벨로 거른다). 증가가 멈춘 채 창(3분)을 지나면 꺼진다.
+  - interval: 30s
+    input_series:
+      - series: 'schoolbus_scheduler_failures_total{application="school-bus",scheduler="no-show-escalation"}'
+        values: '0x10 1x40'
+      - series: 'schoolbus_scheduler_failures_total{application="school-bus",scheduler="retention-cleanup"}'
+        values: '0x10 5x40'
+    alert_rule_test:
+      - eval_time: 4m   # 아직 한 번도 안 늘었다
+        alertname: NoShowEscalationFailing
+        exp_alerts: []
+      - eval_time: 6m   # 5분 무렵에 0 → 1 — 3분 창 안
+        alertname: NoShowEscalationFailing
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              application: school-bus
+              scheduler: no-show-escalation
+            exp_annotations:
+              summary: 미승차 에스컬레이션 처리가 실패하고 있다 — 3분 안에 보고되지 않는 미승차가 생긴다
+      - eval_time: 12m   # 증가가 멈춘 지 창(3분)을 넘었다
+        alertname: NoShowEscalationFailing
+        exp_alerts: []
+
+  # 미승차 에스컬레이션 정지(BR-329): 마지막 성공 경과가 180초를 넘으면 발화한다(정확히 180 은 아니다). 다른 스케줄러의 경과는 보지 않는다. for 가 없다.
+  - interval: 15s
+    input_series:
+      - series: 'schoolbus_scheduler_last_success_age_seconds{application="school-bus",scheduler="no-show-escalation"}'
+        values: '0+15x40'
+      - series: 'schoolbus_scheduler_last_success_age_seconds{application="school-bus",scheduler="proximity-notification"}'
+        values: '99999x40'
+    alert_rule_test:
+      - eval_time: 3m   # 경과 정확히 180 — 초과가 아니다
+        alertname: NoShowEscalationStalled
+        exp_alerts: []
+      - eval_time: 3m15s   # 195
+        alertname: NoShowEscalationStalled
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              application: school-bus
+              scheduler: no-show-escalation
+            exp_annotations:
+              summary: 미승차 에스컬레이션 스케줄러가 3분 넘게 성공하지 않았다
+
+  # 운행 중 회차 위치 유실(BR-329): 게이지가 0 → 1 이 된 뒤 1분(for)을 채워야 발화한다. 계속 0 인 시계열은 조용하다.
+  - interval: 15s
+    input_series:
+      - series: 'schoolbus_run_position_lost{application="school-bus"}'
+        values: '0x8 1x40'
+      - series: 'schoolbus_run_position_lost{application="quiet"}'
+        values: '0x48'
+    alert_rule_test:
+      - eval_time: 1m45s   # 아직 0
+        alertname: RunPositionLost
+        exp_alerts: []
+      - eval_time: 2m30s   # 1 이 된 지 30초 — for 가 안 찼다
+        alertname: RunPositionLost
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: RunPositionLost
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              application: school-bus
+            exp_annotations:
+              summary: 위치가 2분 넘게 안 들어오는 운행 중 회차가 있다
+
   # 끝나지 않은 이동 중 회차: 0 → 1 이 된 뒤 30분(for)을 넘겨야 발화한다. 계속 0 인 시계열은 조용하다(R46-KFIXBE K-1).
   - interval: 1m
     input_series:
@@ -48,6 +117,68 @@ tests:
               application: school-bus
             exp_annotations:
               summary: 운행일이 어제보다 이른데 끝나지 않은 이동 중 회차가 있다 — 근접 판정과 위치 유실 경보가 더는 보지 않는다
+
+  # 일일 회차 생성 실패(BR-333): 실패 카운터가 1시간 창 안에서 늘면 발화하고 for 가 없다 — 즉시 critical. 다른 스케줄러의 실패 · 다른 job(부하 시험)의 같은 이름은 이 경보가 아니다.
+  - interval: 1m
+    input_series:
+      - series: 'schoolbus_scheduler_failures_total{job="backend",application="school-bus",scheduler="daily-run-generator"}'
+        values: '0x10 1x200'
+      - series: 'schoolbus_scheduler_failures_total{job="backend",application="school-bus",scheduler="retention-cleanup"}'
+        values: '0x10 9x200'
+      - series: 'schoolbus_scheduler_failures_total{job="school-bus-load",application="school-bus",scheduler="daily-run-generator"}'
+        values: '0x10 9x200'
+    alert_rule_test:
+      - eval_time: 5m   # 아직 한 번도 안 늘었다
+        alertname: DailyRunGenerationFailing
+        exp_alerts: []
+      - eval_time: 15m   # 10분 무렵에 0 → 1 — 1시간 창 안
+        alertname: DailyRunGenerationFailing
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: backend
+              application: school-bus
+              scheduler: daily-run-generator
+            exp_annotations:
+              summary: 일일 회차 생성(daily-run-generator)이 실패했다 — 그날 회차가 만들어지지 않아 기사·학부모 알림이 나가지 않는다
+      - eval_time: 50m   # 증가 뒤 40분 — 창이 1시간이라 아직 발화 중이다(창이 짧으면 사람이 보기 전에 꺼진다)
+        alertname: DailyRunGenerationFailing
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: backend
+              application: school-bus
+              scheduler: daily-run-generator
+            exp_annotations:
+              summary: 일일 회차 생성(daily-run-generator)이 실패했다 — 그날 회차가 만들어지지 않아 기사·학부모 알림이 나가지 않는다
+      - eval_time: 90m   # 증가가 멈춘 지 창(1시간)을 넘었다 — 이 뒤는 아래 정지 경보가 이어서 본다
+        alertname: DailyRunGenerationFailing
+        exp_alerts: []
+
+  # 일일 회차 생성 정지(BR-333): 마지막 성공 경과가 25시간(90000초)을 넘으면 발화한다(정확히 25시간은 아니다). 하루 한 번 도는 작업이라 for 가 없다.
+  # 실패 경보가 꺼지는 1시간 뒤부터 이 경보가 이어서 본다. 다른 스케줄러·다른 job 의 경과는 보지 않는다.
+  - interval: 1h
+    input_series:
+      - series: 'schoolbus_scheduler_last_success_age_seconds{job="backend",application="school-bus",scheduler="daily-run-generator"}'
+        values: '0+3600x100'
+      - series: 'schoolbus_scheduler_last_success_age_seconds{job="backend",application="school-bus",scheduler="proximity-notification"}'
+        values: '999999x100'
+      - series: 'schoolbus_scheduler_last_success_age_seconds{job="school-bus-load",application="school-bus",scheduler="daily-run-generator"}'
+        values: '999999x100'
+    alert_rule_test:
+      - eval_time: 25h   # 경과 정확히 90000 — 초과가 아니다
+        alertname: DailyRunGenerationStalled
+        exp_alerts: []
+      - eval_time: 26h   # 93600
+        alertname: DailyRunGenerationStalled
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: backend
+              application: school-bus
+              scheduler: daily-run-generator
+            exp_annotations:
+              summary: 일일 회차 생성(daily-run-generator)이 25시간 넘게 성공하지 않았다 — 오늘 회차가 없을 수 있다(DailyRunStartupCatchUp 은 재기동 때만 보충한다)
 
   # 푸시 실패: 누적 카운터가 늘어난 구간에서만 발화하고, 10분 창을 지나 증가가 멈추면 꺼진다.
   - interval: 15s
@@ -153,6 +284,44 @@ tests:
               instance: stale
             exp_annotations:
               summary: DB 백업이 2시간 넘게 성공하지 않았다 — 목표 유실 1시간(RPO)이 깨지고 있다
+
+  # 인증서 갱신(BR-334): certbot 컨테이너가 12시간마다 시도하고 오류 없이 끝났을 때만 성공 시각을 쓴다. 2일(172800초) 넘게 성공하지 않으면 — 연속 4번 실패 — for(5m)를 채운 뒤 울린다.
+  # 갱신은 만료 30일 전부터 시도하므로 이 시점에도 만료까지 28일 가까이 남아 있다. 시험에서 시각 0 = 시계 원점.
+  - interval: 1m   # 샘플 간격이 5분(조회 한도)보다 길면 시계열이 사라져 for(5m)가 안 찬다 — 하루를 넘는 시험도 1분 간격으로 둔다
+    input_series:
+      - series: 'schoolbus_certbot_renew_last_success_timestamp_seconds{instance="stale"}'
+        values: '0x3000'
+      - series: 'schoolbus_certbot_renew_last_success_timestamp_seconds{instance="healthy"}'
+        values: '0+60x3000'   # 값이 시계와 같이 올라간다 — 방금 성공한 것
+    alert_rule_test:
+      - eval_time: 47h   # 한두 번 실패한 정도(경과 169200초)
+        alertname: CertbotRenewStale
+        exp_alerts: []
+      - eval_time: 49h   # 172800초를 넘은 지 1시간 — for(5m)를 채웠다
+        alertname: CertbotRenewStale
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              instance: stale
+            exp_annotations:
+              summary: 인증서 갱신(certbot)이 2일 넘게 성공하지 않았다 — 만료 전에 고치지 않으면 모든 클라이언트의 HTTPS 연결이 한꺼번에 거절된다
+
+  # 지표가 아예 없으면(certbot 컨테이너가 안 돈다 · 지표 폴더가 안 맞는다) 같은 경보다.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="node",instance="h"}'
+        values: '1x30'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: CertbotRenewStale
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: CertbotRenewStale
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: 인증서 갱신(certbot)이 2일 넘게 성공하지 않았다 — 만료 전에 고치지 않으면 모든 클라이언트의 HTTPS 연결이 한꺼번에 거절된다
 
   # 지표가 아예 없는 경우(크론이 안 돈다 · 한 번도 성공하지 못했다)도 같은 경보다.
   - interval: 1m

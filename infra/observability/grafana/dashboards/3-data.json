@@ -619,6 +619,94 @@
       ]
     },
     {
+      "id": 14,
+      "type": "timeseries",
+      "title": "refresh_token 남은 행 수 (보존 정리 직후)",
+      "description": "보존 정리(매일 00:15) 직후 refresh_token 테이블에 남은 행 수 — 하루 한 번 값이 바뀐다. 정상 상태의 크기는 하루 발급 수 × 30 이고, 이 값이 계속 오르면 정리가 발급을 따라가지 못하는 것이다(R47 Ruling 742). 시간 범위를 7일 이상으로 넓혀 본다. 기동 직후 첫 정리 전에는 값이 없다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 25
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max",
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "schoolbus_refresh_token_rows",
+          "legendFormat": "refresh_token 행 수"
+        }
+      ]
+    },
+    {
       "id": 8,
       "type": "row",
       "title": "Redis",
@@ -627,7 +715,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 25
+        "y": 33
       },
       "panels": []
     },
@@ -644,7 +732,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 26
+        "y": 34
       },
       "fieldConfig": {
         "defaults": {
@@ -741,7 +829,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 26
+        "y": 34
       },
       "fieldConfig": {
         "defaults": {
@@ -833,7 +921,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 34
+        "y": 42
       },
       "fieldConfig": {
         "defaults": {
@@ -925,7 +1013,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 34
+        "y": 42
       },
       "fieldConfig": {
         "defaults": {
@@ -1017,7 +1105,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 42
+        "y": 50
       },
       "fieldConfig": {
         "defaults": {

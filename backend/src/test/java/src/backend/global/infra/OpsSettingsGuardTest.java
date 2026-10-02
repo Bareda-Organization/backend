@@ -6,12 +6,22 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+
+import src.backend.exception.scheduler.NoShowEscalationScheduler;
+import src.backend.observability.metrics.RefreshTokenRowsMetrics;
+import src.backend.observability.metrics.SchedulerHealthMetrics;
+import src.backend.schedule.scheduler.DailyRunGenerator;
 
 /**
  * R46-FIXOPS 가 운영·스테이징 설정에 넣은 안전장치가 나중에 조용히 되돌아가는 것을 막는 가드.
@@ -135,6 +145,69 @@ class OpsSettingsGuardTest {
     }
 
     @Test
+    @DisplayName("alerts.yml 의 모든 경보 규칙에 promtool 시험 사례(alertname)가 있다 — 일부 규칙만 시험하면 나머지 식은 고쳐도 아무도 모른다(BR-329)")
+    void everyAlertRuleHasAPromtoolCase() throws IOException {
+        String rules = stripComments(read("infra/observability/prometheus/alerts.yml"));
+        String tests = stripComments(read("infra/observability/prometheus/alerts.test.yml"));
+
+        Matcher rule = Pattern.compile("(?m)^\\s+- alert: (\\w+)\\s*$").matcher(rules);
+        Set<String> untested = new TreeSet<>();
+        int count = 0;
+        while (rule.find()) {
+            count++;
+            if (!Pattern.compile("(?m)^\\s+alertname: " + rule.group(1) + "\\s*$").matcher(tests).find()) {
+                untested.add(rule.group(1));
+            }
+        }
+        assertThat(count).as("alerts.yml 에서 찾은 규칙 수 — 0 이면 이 검사가 아무것도 못 본 것이다").isGreaterThan(10);
+        assertThat(untested).as("promtool 사례(alerts.test.yml 의 alertname)가 없는 규칙").isEmpty();
+    }
+
+    @Test
+    @DisplayName("일일 회차 생성은 실패 경보와 25시간 정지 경보가 있고, 경보의 스케줄러 이름이 코드의 계측 이름과 같다 — 이름이 어긋나면 값 없이 영영 조용하다(BR-333)")
+    void dailyRunGenerationIsWatchedUnderTheNameTheCodeEmits() throws IOException {
+        String rules = stripComments(read("infra/observability/prometheus/alerts.yml"));
+        String generator = SchedulerHealthMetrics.nameOf(DailyRunGenerator.class);
+        String noShow = SchedulerHealthMetrics.nameOf(NoShowEscalationScheduler.class);
+
+        assertThat(rules).contains("increase(schoolbus_scheduler_failures_total{job=\"backend\",scheduler=\"" + generator + "\"}[1h]) > 0")
+                .contains("schoolbus_scheduler_last_success_age_seconds{job=\"backend\",scheduler=\"" + generator + "\"} > 90000");
+        assertThat(rules).as("미승차 에스컬레이션 경보도 계측 이름(%s)을 쓴다", noShow)
+                .contains("schoolbus_scheduler_failures_total{scheduler=\"" + noShow + "\"}")
+                .contains("schoolbus_scheduler_last_success_age_seconds{scheduler=\"" + noShow + "\"}");
+    }
+
+    @Test
+    @DisplayName("refresh_token 남은 행 수 게이지를 읽는 대시보드 패널이 있다 — 하루 1회 갱신이라 사람이 7일 이상 시계열을 열어 볼 자리가 있어야 한다(BR-350)")
+    void refreshTokenRowsGaugeHasADashboardPanel() throws IOException {
+        MeterRegistry registry = new SimpleMeterRegistry();
+        new RefreshTokenRowsMetrics(registry);
+        // Prometheus 이름은 점을 밑줄로 바꾼 것이다(게이지라 접미사 없음) — 코드의 이름이 바뀌면 패널이 "데이터 없음" 으로 조용해지지 않게 코드에서 도출한다.
+        String exported = registry.getMeters().get(0).getId().getName().replace('.', '_');
+
+        assertThat(exported).isEqualTo("schoolbus_refresh_token_rows");
+        assertThat(read("infra/observability/grafana/dashboards/3-data.json")).as("데이터 계층 대시보드에 이 게이지를 그리는 패널").contains("\"expr\": \"" + exported + "\"");
+    }
+
+    @Test
+    @DisplayName("certbot 컨테이너는 갱신 루프(renew-loop.sh)를 돌며 성공 시각을 textfile 폴더에 쓰고, 경보 CertbotRenewStale 이 같은 지표 이름을 2일 기준으로 본다 — BR-334")
+    void certbotRenewalSuccessIsExportedAndAlertedOn() throws IOException {
+        String certbot = serviceBlock("docker-compose.prod.yml", "certbot");
+        assertThat(certbot).as("갱신 루프 스크립트를 마운트해 entrypoint 로 돈다")
+                .contains("./infra/certbot/renew-loop.sh:/renew-loop.sh:ro").contains("/renew-loop.sh");
+        assertThat(certbot).as("backup-db.sh 와 같은 textfile 폴더를 쓰기 가능으로 마운트한다(node-exporter 는 같은 폴더를 읽기 전용으로 읽는다)")
+                .contains("- /var/lib/node_exporter/textfile:/textfile\n").doesNotContain("/textfile:ro");
+        assertThat(read("infra/certbot/renew-loop.sh")).as("스크립트의 기본 지표 폴더가 컨테이너 안 마운트 위치와 같다")
+                .contains("TEXTFILE_DIR=\"${TEXTFILE_DIR:-/textfile}\"");
+
+        String metric = "schoolbus_certbot_renew_last_success_timestamp_seconds";
+        assertThat(read("infra/certbot/renew-loop.sh")).contains(metric);
+        String rules = stripComments(read("infra/observability/prometheus/alerts.yml"));
+        assertThat(rules).contains("- alert: CertbotRenewStale\n")
+                .contains("(time() - " + metric + " > 172800) or absent(" + metric + ")");
+    }
+
+    @Test
     @DisplayName("STOMP 세션 접근 경보는 시험이 붙어 있고 임계가 운영 동시 연결 상한(max-connections)의 75% 다 — 상한만 바꾸면 실패한다")
     void stompSessionsAlertTracksConnectionCap() throws IOException {
         String rules = stripComments(read("infra/observability/prometheus/alerts.yml"));
@@ -175,6 +248,60 @@ class OpsSettingsGuardTest {
         assertThat(excluded.matcher("/var/lib/docker/containers/abc/mounts/shm").find()).as("컨테이너별 마운트는 계속 버린다").isTrue();
     }
 
+    @Test
+    @DisplayName("프록시(nginx)의 워커당 연결 한도는 Tomcat 동시 연결 상한의 2배 이상이다 — 프록시한 WebSocket 1개가 클라이언트·backend 연결 2개를 쓴다 — BR-328")
+    void proxyConnectionLimitCoversTheTomcatCap() throws IOException {
+        String main = stripComments(read("infra/proxy/nginx.main.prod.conf"));
+        int workerConnections = directive(main, "worker_connections");
+        int openFiles = directive(main, "worker_rlimit_nofile");
+
+        // 기본값(worker_connections 1024)이면 2 vCPU 에서 동시 세션 약 1,000개에서 새 연결(REST 포함)을 버린다 — backend 는 그 연결을 본 적이 없어 STOMP 경보도 안 울린다.
+        // 워커마다 따로 세므로(연결이 한 워커에 몰릴 수 있다) 코어 수와 무관하게 워커 하나가 상한을 담아야 한다.
+        assertThat(workerConnections).as("worker_connections — Tomcat max-connections(%d)의 2배(클라이언트 쪽 + backend 쪽) 이상", prodMaxConnections())
+                .isGreaterThanOrEqualTo(2 * prodMaxConnections());
+        assertThat(openFiles).as("worker_rlimit_nofile — 연결마다 파일 기술자 1개이므로 워커 연결 한도의 2배 이상(로그·소켓 여유)")
+                .isGreaterThanOrEqualTo(2 * workerConnections);
+        assertThat(main).as("server 블록이 든 default.conf 를 이 전역 파일이 읽어야 한다").contains("include /etc/nginx/conf.d/*.conf;");
+
+        String proxy = serviceBlock("docker-compose.prod.yml", "proxy");
+        assertThat(proxy).as("전역 설정 파일을 /etc/nginx/nginx.conf 로 마운트해야 이미지 기본값(1024)이 바뀐다")
+                .contains("./infra/proxy/nginx.main.prod.conf:/etc/nginx/nginx.conf:ro");
+        Matcher hardLimit = Pattern.compile("(?s)nofile:.*?hard:\\s*(\\d+)").matcher(proxy);
+        assertThat(hardLimit.find()).as("컨테이너 파일 기술자 상한(ulimits.nofile.hard)을 명시한다 — 호스트 기본값에 기대지 않는다").isTrue();
+        assertThat(Integer.parseInt(hardLimit.group(1))).as("ulimits.nofile.hard 는 worker_rlimit_nofile 이상이어야 nginx 가 그 값까지 올릴 수 있다")
+                .isGreaterThanOrEqualTo(openFiles);
+    }
+
+    @Test
+    @DisplayName("개발 오버레이·스테이징 compose 의 backend 에 healthcheck 가 있고 그 프로파일의 헬스 포트를 친다 — proxy 는 backend 가 healthy 가 된 뒤 시작한다(운영과 같다)")
+    void devAndStagingBackendHaveAHealthcheckThatProxyWaitsFor() throws IOException {
+        // 이 이미지에 curl 이 있어야 healthcheck 가 돈다 — 없으면 영원히 unhealthy 라 proxy 가 못 뜬다.
+        assertThat(read("backend/Dockerfile")).as("런타임 이미지에 curl 을 설치한다(wget 은 없다)").contains("apt-get install -y --no-install-recommends curl");
+
+        for (String[] target : new String[][] {{"docker-compose.app.yml", "local"}, {"docker-compose.staging.yml", "staging"}}) {
+            String compose = target[0];
+            int port = healthPortOf(target[1]);
+            String backend = serviceBlock(compose, "backend");
+
+            assertThat(backend).as("%s backend — %s 프로파일의 헬스 포트(%d)를 친다", compose, target[1], port)
+                    .contains("test: [\"CMD-SHELL\", \"curl -fsS http://localhost:" + port + "/actuator/health || exit 1\"]")
+                    .contains("start_period:").contains("retries:");
+            assertThat(serviceBlock(compose, "proxy")).as("%s proxy — backend 가 healthy 가 되기 전에는 시작하지 않는다(그래야 502 구간과 죽은 backend 가 up 단계에서 드러난다)", compose)
+                    .containsPattern("(?s)depends_on:.*?backend:\\s+condition: service_healthy");
+        }
+    }
+
+    /** 그 프로파일 문서에 {@code management.server.port} 가 있으면 그 값, 없으면 앱 포트(8080) — local 은 관리 포트를 따로 열지 않는다. */
+    private static int healthPortOf(String profile) throws IOException {
+        for (String document : read("backend/src/main/resources/application.yml").split("(?m)^---\\s*$")) {
+            if (Pattern.compile("(?m)^\\s+on-profile:\\s*" + profile + "\\s*$").matcher(document).find()) {
+                Matcher port = Pattern.compile("(?m)^management:\\s*\\n\\s+server:\\s*\\n\\s+port:\\s*(\\d+)").matcher(stripComments(document));
+                return port.find() ? Integer.parseInt(port.group(1)) : 8080;
+            }
+        }
+        throw new AssertionError("application.yml 에 " + profile + " 프로파일 문서가 없다");
+    }
+
     /** {@code application.yml} 의 {@code on-profile: prod} 문서에 명시된 {@code server.tomcat.max-connections}. */
     private static int prodMaxConnections() throws IOException {
         for (String document : read("backend/src/main/resources/application.yml").split("(?m)^---\\s*$")) {
@@ -195,6 +322,13 @@ class OpsSettingsGuardTest {
             throw new AssertionError(compose + " 에서 서비스를 찾지 못했다: " + service);
         }
         return block.group(1);
+    }
+
+    /** nginx 전역 지시자 {@code <이름> <숫자>;} 의 숫자. */
+    private static int directive(String nginx, String name) {
+        Matcher value = Pattern.compile("(?m)^\\s*" + name + "\\s+(\\d+)\\s*;").matcher(nginx);
+        assertThat(value.find()).as("nginx 전역 설정에 %s 가 있어야 한다", name).isTrue();
+        return Integer.parseInt(value.group(1));
     }
 
     /** nginx location 하나 — 시작 줄부터 첫 닫는 중괄호까지(이 파일의 location 은 중첩 블록이 없다). */
