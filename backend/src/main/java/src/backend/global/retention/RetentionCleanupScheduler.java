@@ -19,6 +19,7 @@ import src.backend.audit.entity.AuditCategory;
 import src.backend.audit.repository.AuditLogRepository;
 import src.backend.location.infrastructure.RunPositionPartitionManager;
 import src.backend.notification.repository.NotificationLogRepository;
+import src.backend.observability.metrics.RefreshTokenRowsMetrics;
 import src.backend.observability.metrics.SchedulerHealthMetrics;
 import src.backend.student.repository.LinkCodeRepository;
 import src.backend.student.repository.StudentRepository;
@@ -81,6 +82,8 @@ public class RetentionCleanupScheduler {
 
     private final SchedulerHealthMetrics schedulerHealthMetrics;
 
+    private final RefreshTokenRowsMetrics refreshTokenRowsMetrics;
+
     /**
      * 보유 기간이 지난 5개 테이블의 행을 지우고, 퇴원 90일이 지난 학생의 개인정보를 익명화한다.
      *
@@ -100,6 +103,7 @@ public class RetentionCleanupScheduler {
         dropRunPositionPartitionsSafely(retentionPolicy.runPositionCutoff(now));
         cleanUpSafely("refresh_token", retentionPolicy.refreshTokenCutoff(now), RetentionPolicy.BATCH_SIZE,
                 refreshTokenRepository::findIdsForRetentionCleanup, refreshTokenRepository::deleteAllByIdInBatch);
+        recordRefreshTokenRowsSafely();
         cleanUpSafely("link_code", now, RetentionPolicy.BATCH_SIZE,
                 linkCodeRepository::findIdsForRetentionCleanup, linkCodeRepository::deleteAllByIdInBatch);
         cleanUpSafely("student_anonymization", retentionPolicy.withdrawnStudentCutoff(now), ANONYMIZATION_BATCH_SIZE,
@@ -108,6 +112,20 @@ public class RetentionCleanupScheduler {
             cleanUpSafely("audit_log/" + category, retentionPolicy.auditLogCutoff(now), RetentionPolicy.BATCH_SIZE,
                     (cutoff, limit) -> auditLogRepository.findIdsForRetentionCleanup(category, cutoff, limit),
                     auditLogRepository::deleteAllByIdInBatch);
+        }
+    }
+
+    /**
+     * 정리 직후 {@code refresh_token} 남은 행 수를 게이지에 싣는다(R47, Ruling 742) — 운영에는 테이블 크기를 보는 exporter 가 없다. 하루 한 번
+     * {@code count(*)} 라 정상 상태(약 310만 행 추정)에서도 부담이 없다. 실패는 삼켜 다른 테이블 정리를 막지 않는다.
+     * ponytail: 수천만 행이 되면 {@code pg_class.reltuples} 추정치로 바꾼다.
+     */
+    private void recordRefreshTokenRowsSafely() {
+        try {
+            refreshTokenRowsMetrics.update(refreshTokenRepository.count());
+        } catch (Exception e) {
+            log.warn("refresh_token 행 수를 세지 못했다 — 게이지는 이전 값 그대로", e);
+            schedulerHealthMetrics.recordItemFailure(getClass());
         }
     }
 

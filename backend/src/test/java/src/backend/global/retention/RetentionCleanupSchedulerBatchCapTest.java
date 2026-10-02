@@ -22,6 +22,7 @@ import src.backend.account.repository.RefreshTokenRepository;
 import src.backend.location.infrastructure.RunPositionPartitionManager;
 import src.backend.audit.repository.AuditLogRepository;
 import src.backend.notification.repository.NotificationLogRepository;
+import src.backend.observability.metrics.RefreshTokenRowsMetrics;
 import src.backend.observability.metrics.SchedulerHealthMetrics;
 import src.backend.student.repository.LinkCodeRepository;
 import src.backend.student.repository.StudentRepository;
@@ -75,7 +76,8 @@ class RetentionCleanupSchedulerBatchCapTest {
                 linkCodeRepository, auditLogRepository, studentRepository, studentAnonymizationService,
                 retentionPolicy, clock,
                 new SchedulerHealthMetrics(
-                        new SimpleMeterRegistry()));
+                        new SimpleMeterRegistry()),
+                new RefreshTokenRowsMetrics(new SimpleMeterRegistry()));
 
         scheduler.cleanUp();
 
@@ -105,7 +107,8 @@ class RetentionCleanupSchedulerBatchCapTest {
         RetentionCleanupScheduler scheduler = new RetentionCleanupScheduler(
                 notificationLogRepository, runPositionPartitionManager, refreshTokenRepository,
                 linkCodeRepository, auditLogRepository, studentRepository, studentAnonymizationService,
-                retentionPolicy, clock, new SchedulerHealthMetrics(new SimpleMeterRegistry()));
+                retentionPolicy, clock, new SchedulerHealthMetrics(new SimpleMeterRegistry()),
+                new RefreshTokenRowsMetrics(new SimpleMeterRegistry()));
 
         scheduler.cleanUp();
 
@@ -132,7 +135,8 @@ class RetentionCleanupSchedulerBatchCapTest {
         RetentionCleanupScheduler scheduler = new RetentionCleanupScheduler(
                 notificationLogRepository, runPositionPartitionManager, refreshTokenRepository,
                 linkCodeRepository, auditLogRepository, studentRepository, studentAnonymizationService,
-                retentionPolicy, clock, new SchedulerHealthMetrics(new SimpleMeterRegistry()));
+                retentionPolicy, clock, new SchedulerHealthMetrics(new SimpleMeterRegistry()),
+                new RefreshTokenRowsMetrics(new SimpleMeterRegistry()));
 
         scheduler.cleanUp();
 
