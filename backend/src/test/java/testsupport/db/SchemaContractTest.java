@@ -451,51 +451,65 @@ class SchemaContractTest extends MigratedPostgresTestBase {
     }
 
     /**
-     * R46 I-09 — 30초 확정 배치가 매 틱 취소된 idle 회차(3,000건)와 지난 날짜에 끝내 확정 못 한 idle 회차를 힙까지 읽어
-     * 걸러 냈다(실측 힙 확인 3,000행 → 0행). 인덱스가 확정 대상 후보(미취소 idle) 만 담고 날짜가 선행이면
-     * 오늘 이후 구간만 훑는다. 계획 확인은 순차 스캔을 꺼 인덱스가 조건을 <b>함의로 받아들이는지</b>만 본다 — 쿼리 조건이
-     * 인덱스 조건(status·canceled_at)을 빠뜨리면 이 인덱스를 못 쓴다.
+     * 부분 인덱스(조건이 붙은 {@code CREATE INDEX}) 22개 전수의 정의 — 열·조건이 빠지거나 틀리면 실패한다(BR-326 · BR-348). 목록은 손으로 세지 않고
+     * 카탈로그({@code pg_index.indpred IS NOT NULL})에서 센다 — V1 에 조건 붙은 인덱스를 더하고 여기에 안 적으면 아래 대조가 실패한다.
+     *
+     * <p>이 표는 <b>정의</b>만 고정한다. "실제 쿼리가 그 인덱스를 타는가" 는 사람이 옮겨 쓴 SQL 이 아니라 저장소 메서드가 내는 SQL 로 봐야 해서
+     * {@link PartialIndexQueryPlanTest} 가 맡는다(확정 배치 · 주의 회차 집계 · 이동 중 회차 · 보존 정리 대상). 나머지 인덱스는 쓰는 쿼리가
+     * 계획 시험이 없어 정의 대조까지만 한다 — 유일 인덱스(uk_*)는 위반 INSERT 시험이 따로 있다.
      */
+    private static final Map<String, List<String>> PARTIAL_INDEX_DEFINITIONS = Map.ofEntries(
+            Map.entry("uk_student_account_id", List.of("UNIQUE", "(account_id)", "account_id IS NOT NULL")),
+            Map.entry("uk_guardian_account_id", List.of("UNIQUE", "(account_id)", "account_id IS NOT NULL")),
+            Map.entry("uk_manager_account_id", List.of("UNIQUE", "(account_id)", "account_id IS NOT NULL")),
+            Map.entry("uk_academy_staff_academy_active",
+                    List.of("UNIQUE", "(academy_id)", "(status)::text = 'active'::text")),
+            Map.entry("uk_run_stop_destination", List.of("UNIQUE", "(route_version_id)", "WHERE destination")),
+            Map.entry("uk_run_transfer_student_staged",
+                    List.of("UNIQUE", "(student_id)", "(status)::text = 'staged'::text")),
+            Map.entry("ix_run_status_confirm_at",
+                    List.of("(service_date, confirm_at)", "canceled_at IS NULL", "(status)::text = 'idle'::text")),
+            Map.entry("ix_run_open_service_date",
+                    List.of("(service_date)", "canceled_at IS NULL", "(status)::text <> 'finished'::text")),
+            Map.entry("ix_run_moving", List.of("(status)", "(status)::text = 'moving'::text")),
+            Map.entry("ix_run_stop_waypoint", List.of("(waypoint_id)", "waypoint_id IS NOT NULL")),
+            Map.entry("ix_no_show_case_expires", List.of("(expires_at)", "escalated_at IS NULL")),
+            Map.entry("ix_device_token_account_active", List.of("(account_id)", "revoked_at IS NULL")),
+            Map.entry("ix_notification_log_pending",
+                    List.of("(push_state, created_at)", "(push_state)::text = 'pending'::text")),
+            Map.entry("ix_notification_log_academy_unacked",
+                    List.of("(academy_id)", "acked = false", "'delay'", "'no_show'", "'route_changed'")),
+            Map.entry("ix_student_academy_name", List.of("(academy_id, name)", "deleted_at IS NULL")),
+            Map.entry("ix_weekly_address_stop", List.of("(stop_id)", "stop_id IS NOT NULL")),
+            Map.entry("ix_audit_log_unblock_target", List.of("(target_id)", "(action)::text = 'unblock'::text")),
+            Map.entry("ix_refresh_token_account_active", List.of("(account_id)", "revoked_at IS NULL")),
+            Map.entry("ix_manager_academy_name", List.of("(academy_id, name)", "deleted_at IS NULL")),
+            Map.entry("ix_refresh_token_retention_revoked", List.of("(revoked_at)", "revoked_at IS NOT NULL")),
+            Map.entry("ix_refresh_token_retention_expires", List.of("(expires_at)", "revoked_at IS NULL")),
+            Map.entry("ix_student_retention_cutoff",
+                    List.of("(deleted_at)", "deleted_at IS NOT NULL", "anonymized_at IS NULL")));
+
     @Test
-    void 확정_배치_조회는_미취소_idle_회차만_담은_부분_인덱스로_풀린다() throws SQLException {
-        String definition = queryColumn("""
-                SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'ix_run_status_confirm_at'
-                """).getFirst();
-        assertThat(definition)
-                .contains("(service_date, confirm_at)")
-                .contains("canceled_at IS NULL")
-                .contains("(status)::text = 'idle'::text");
+    void 부분_인덱스_전수의_정의가_표와_일치한다() throws SQLException {
+        Map<String, String> actual = new HashMap<>();
+        try (Connection connection = connection(); Statement statement = connection.createStatement();
+                ResultSet rows = statement.executeQuery("""
+                        SELECT i.indexrelid::regclass::text, pg_get_indexdef(i.indexrelid)
+                        FROM pg_index i
+                        JOIN pg_class c ON c.oid = i.indrelid
+                        JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = 'public'
+                        WHERE i.indpred IS NOT NULL
+                        """)) {
+            while (rows.next()) {
+                actual.put(rows.getString(1), rows.getString(2));
+            }
+        }
 
-        String plan = 순차_스캔을_끄고_계획을_본다("""
-                SELECT r.id FROM run r
-                WHERE r.status = 'idle' AND r.confirm_at <= now() AND r.service_date >= current_date
-                  AND r.canceled_at IS NULL AND (r.confirm_retry_at IS NULL OR r.confirm_retry_at <= now())
-                ORDER BY r.consecutive_failures, r.confirm_at LIMIT 50
-                """, "ix_run_open_service_date");
-        assertThat(plan).contains("ix_run_status_confirm_at").doesNotContain("Seq Scan");
-    }
-
-    /**
-     * R46-LATERBE 주의 회차 집계 인덱스(Ruling 673) — 관리자 "주의 필요 회차" 집계는 <b>전 학원</b>의 오늘 미완료 회차를 센다. {@code service_date} 가 선행인
-     * 인덱스가 없으면 {@code (academy_id, service_date, …)} 인덱스를 비선두 열로 전체 훑는다(회차가 쌓일수록 선형 — 3년치 합성 데이터에서
-     * 버퍼 352 → 후 약 150, 실행 0.37 → 0.08ms). 미완료·미취소만 담은 부분 인덱스는 오늘·내일 분량만 가진다. 계획 확인은 순차 스캔을 꺼
-     * 인덱스가 쿼리 조건을 <b>함의로 받아들이는지</b>와 옛 인덱스가 선택되지 않는지를 본다.
-     */
-    @Test
-    void 관리자_주의_회차_집계는_미완료_회차만_담은_service_date_부분_인덱스로_풀린다() throws SQLException {
-        String definition = queryColumn("""
-                SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'ix_run_open_service_date'
-                """).getFirst();
-        assertThat(definition).contains("(service_date)").contains("canceled_at IS NULL")
-                .contains("(status)::text <> 'finished'::text");
-
-        String plan = 순차_스캔을_끄고_계획을_본다("""
-                SELECT r.academy_id, count(r.id) FROM run r
-                WHERE r.service_date = current_date AND r.canceled_at IS NULL AND r.status <> 'finished'
-                  AND EXISTS (SELECT 1 FROM delay_notice d WHERE d.run_id = r.id)
-                GROUP BY r.academy_id
-                """);
-        assertThat(plan).contains("ix_run_open_service_date").doesNotContain("ix_run_academy_date_depart");
+        assertThat(actual.keySet())
+                .as("조건 붙은 인덱스를 더하거나 지웠으면 PARTIAL_INDEX_DEFINITIONS 도 같이 고친다")
+                .containsExactlyInAnyOrderElementsOf(PARTIAL_INDEX_DEFINITIONS.keySet());
+        PARTIAL_INDEX_DEFINITIONS.forEach((name, fragments) ->
+                assertThat(actual.get(name)).as(name).contains(fragments));
     }
 
     /**
@@ -725,30 +739,6 @@ class SchemaContractTest extends MigratedPostgresTestBase {
 
                 assertThat(plan).contains("BitmapOr").contains("ix_audit_log_actor_occurred")
                         .contains("ix_audit_log_unblock_target").doesNotContain("Seq Scan");
-            } finally {
-                connection.rollback();
-            }
-        }
-    }
-
-    /** 순차 스캔을 끈 세션에서 계획을 읽는다 — 표가 비어 있어도 "이 인덱스가 이 조건을 받는가" 가 결정적으로 드러난다. */
-    private static String 순차_스캔을_끄고_계획을_본다(String sql) throws SQLException {
-        return 순차_스캔을_끄고_계획을_본다(sql, new String[0]);
-    }
-
-    /**
-     * 위와 같되, 같은 조건을 받을 수 있는 <b>다른 인덱스</b>를 이 트랜잭션 안에서만 지우고({@code ROLLBACK}) 계획을 읽는다 — 빈 표에서는 두 후보
-     * 인덱스의 비용이 같아 어느 쪽이 뽑히는지 우연이라, 지켜야 할 인덱스가 조건을 받는지만 따로 볼 때 쓴다.
-     */
-    private static String 순차_스캔을_끄고_계획을_본다(String sql, String... 가려둘_인덱스) throws SQLException {
-        try (Connection connection = connection()) {
-            connection.setAutoCommit(false);
-            execute(connection, "SET LOCAL enable_seqscan = off");
-            for (String index : 가려둘_인덱스) {
-                execute(connection, "DROP INDEX IF EXISTS " + index);
-            }
-            try {
-                return 계획을_본다(connection, sql);
             } finally {
                 connection.rollback();
             }
