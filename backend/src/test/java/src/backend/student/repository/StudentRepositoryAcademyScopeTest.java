@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.data.domain.Pageable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -34,10 +33,10 @@ class StudentRepositoryAcademyScopeTest {
 
     @Test
     void 학원_범위_목록은_그_학원_학생만_반환한다() {
-        List<Student> academyA = 목록(ACADEMY_A);
+        List<Long> academyA = idsOf(ACADEMY_A);
 
         assertThat(academyA).as("대상이 0건이면 아래 단언이 공허하게 통과한다").isNotEmpty();
-        assertThat(academyA).extracting(Student::getAcademyId).containsOnly(ACADEMY_A);
+        assertThat(studentRepository.findAllById(academyA)).extracting(Student::getAcademyId).containsOnly(ACADEMY_A);
     }
 
     /** 대조군이 실재해야 "0건" 이 격리의 결과임이 갈린다 — 원래 없는 행이 안 나온 것과 구별한다. */
@@ -54,14 +53,10 @@ class StudentRepositoryAcademyScopeTest {
         assertThat(viaAcademyA).doesNotContainAnyElementsOf(academyBIdsInDatabase);
     }
 
-    /** 관계자 학생 목록(§5.11)이 쓰는 조회 — 검색어 빈 문자열이 전건이다. */
-    private List<Student> 목록(Long academyId) {
-        return studentRepository.searchByAcademyId(academyId, "", Pageable.unpaged()).getContent();
-    }
-
+    /** 관계자 학생 목록(§5.11)이 쓰는 조회({@code findNamesByAcademyId}) — 검색어 빈 문자열이 전건이다. */
     private List<Long> idsOf(Long academyId) {
-        return 목록(academyId).stream()
-                .map(Student::getId)
+        return studentRepository.findNamesByAcademyId(academyId, "").stream()
+                .map(StudentRepository.NameRow::getId)
                 .toList();
     }
 }

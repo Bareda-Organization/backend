@@ -18,9 +18,9 @@ import src.backend.routing.domain.RouteStopLimit;
  *
  * <p>배열 순서가 그대로 정차 순서다. 배열에 없는 승하차지는 노선에서만 빠진다.
  *
- * @param stops 저장 후의 정차 목록 전체
+ * @param stops 저장 후의 정차 목록 전체 — {@code null} 원소는 {@code 422} 다(BR-363, {@code @Valid} 는 {@code null} 원소를 건너뛴다)
  */
-public record RouteStopsSaveRequest(@NotNull @Valid @Size(max = RouteStopLimit.MAX_STOPS, message = RouteStopLimit.MESSAGE) List<Item> stops) {
+public record RouteStopsSaveRequest(@NotNull @Valid @Size(max = RouteStopLimit.MAX_STOPS, message = RouteStopLimit.MESSAGE) List<@NotNull Item> stops) {
 
     /** 이미 있는 승하차지의 식별자 — 새로 만들 항목({@code stop_id} 부재)은 뺀다. */
     public List<Long> existingStopIds() {

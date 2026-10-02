@@ -62,8 +62,8 @@ public final class PhotoResizer {
     static final int MAX_CONCURRENT_RESIZES = 2;
 
     /**
-     * 자리가 날 때까지 기다리는 최대 시간 — 줄이기는 학생 저장 트랜잭션 안에서 돌아 기다리는 동안 DB 연결을 쥔다. 무한정 기다리면 연결이 마르므로
-     * 한도를 넘으면 원본을 저장한다(줄이기가 업로드를 막는 이유가 되면 안 된다).
+     * 자리가 날 때까지 기다리는 최대 시간 — 줄이기는 트랜잭션 밖(컨트롤러 진입 단계, BR-322)에서 돌아 DB 연결은 쥐지 않지만 요청 스레드를 쥔다. 무한정 기다리면
+     * 스레드가 마르므로 한도를 넘으면 원본을 저장한다(줄이기가 업로드를 막는 이유가 되면 안 된다).
      */
     private static final Duration RESIZE_WAIT_LIMIT = Duration.ofSeconds(10);
 
@@ -113,6 +113,8 @@ public final class PhotoResizer {
         try (ImageInputStream input = ImageIO.createImageInputStream(new ByteArrayInputStream(photo.content()))) {
             Iterator<ImageReader> readers = ImageIO.getImageReaders(input);
             if (!readers.hasNext()) {
+                // 로그 없이 원본을 저장하면 리더 플러그인(WebP)이 실행 환경에서 등록되지 않아 줄이기가 통째로 꺼져도 알 길이 없다(BR-360)
+                log.warn("[photo] 읽을 수 있는 리더가 없어 원본을 저장한다 — 형식={}, 크기={}B", photo.extension(), photo.content().length);
                 return Optional.empty();
             }
             ImageReader reader = readers.next();

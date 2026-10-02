@@ -69,7 +69,7 @@ public class StudentCommandService {
     /**
      * 학생을 등록한다(STU-02) — 소속 학원은 토큰이 정한다(§1.5).
      *
-     * @param photo 올라온 사진. {@code null} 이면 사진 없이 등록되며 그것이 정상이다(§5.11 선택 필드)
+     * @param photo 올라온 사진 — 트랜잭션 밖에서 이미 줄여 온 것이다(BR-322). {@code null} 이면 사진 없이 등록되며 그것이 정상이다(§5.11 선택 필드)
      * @return 등록된 학생의 식별자 — 응답 조립은 조회 쪽이 맡는다(§1.9 "변경 후 자원 상태를 반환")
      */
     public Long register(AuthUser requester, StudentRegisterRequest request, StudentPhoto photo) {

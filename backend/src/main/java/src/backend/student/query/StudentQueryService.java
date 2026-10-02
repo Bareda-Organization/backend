@@ -19,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.audit.service.AuditRecorder;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.persistence.LikeEscape;
 import src.backend.global.request.PageParams;
 import src.backend.global.request.SortParam;
 import src.backend.global.response.PageResponse;
@@ -197,7 +198,7 @@ public class StudentQueryService {
     }
 
     private String keyword(String q) {
-        return q == null || q.isBlank() ? NO_KEYWORD : q.trim();
+        return q == null || q.isBlank() ? NO_KEYWORD : LikeEscape.escape(q.trim());
     }
 
     /** 요청 주체의 소속 학원 — 관계자 웹에는 "전 학원 명단" 이라는 화면이 부재하므로 특정하지 못하면 거부한다. */

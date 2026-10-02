@@ -2,7 +2,6 @@ package src.backend.global.security.access;
 
 import java.util.List;
 
-import org.springframework.data.domain.Pageable;
 
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -47,14 +46,13 @@ class AcademyScopeTestController {
     public List<Long> students(@AuthenticationPrincipal AuthUser authUser,
             @RequestParam(name = "academy_id", required = false) Long requestedAcademyId) {
         return AcademyScope.resolveListScope(authUser, requestedAcademyId)
-                .map(academyId -> studentRepository.searchByAcademyId(academyId, "", Pageable.unpaged())
-                        .getContent())
+                .map(academyId -> studentRepository.findNamesByAcademyId(academyId, "").stream()
+                        .map(StudentRepository.NameRow::getId)
+                        .toList())
                 .orElseGet(() -> studentRepository.findAll().stream()
                         .filter(student -> student.getDeletedAt() == null)
-                        .toList())
-                .stream()
-                .map(Student::getId)
-                .toList();
+                        .map(Student::getId)
+                        .toList());
     }
 
     @AuthenticatedOnly

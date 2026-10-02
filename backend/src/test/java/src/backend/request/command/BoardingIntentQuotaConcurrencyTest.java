@@ -37,6 +37,9 @@ import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
 import src.backend.notification.command.IntentNotificationListener;
 import src.backend.request.dto.BoardingIntentToggleRequest;
+import src.backend.request.entity.ChangeRequest;
+import src.backend.request.event.AbsentRecordedEvent;
+import src.backend.request.event.IntentChangedEvent;
 import src.backend.request.entity.BoardingIntent;
 import src.backend.request.event.ApprovalRequestedEvent;
 import src.backend.request.repository.BoardingIntentRepository;
@@ -45,7 +48,9 @@ import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
+import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
+import src.backend.student.entity.Student;
 import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StopRepository;
@@ -66,6 +71,9 @@ class BoardingIntentQuotaConcurrencyTest {
 
     @Autowired
     private BoardingIntentCommandService boardingIntentCommandService;
+
+    @Autowired
+    private ChangeRequestStore changeRequestStore;
 
     @Autowired
     private BoardingIntentRepository boardingIntentRepository;
@@ -258,6 +266,108 @@ class BoardingIntentQuotaConcurrencyTest {
             pool.shutdownNow();
             pool.awaitTermination(TIMEOUT_SECONDS, TimeUnit.SECONDS);
         }
+    }
+
+    /**
+     * BR-361 — ①구간에서 같은 값의 겹친 두 요청(더블탭)은 관계자 알림 이벤트가 한 번만 나간다. 순차 재전송은 BR-250 이 막지만, 두 요청이
+     * 모두 {@code riding=true} 를 읽은 채 "이미 같은 값인가" 를 판정하면 둘 다 끄기로 통과해 같은 푸시가 두 번 간다. 이벤트 적재 직전에
+     * 서로를 기다리게 해(잠금 대기가 보이면 앞 요청이 진행) 그 창을 결정적으로 만든다.
+     */
+    @Test
+    void 같은_값을_겹쳐_토글해도_이벤트는_한_번만_나간다() throws Exception {
+        겹침_준비 setup = 겹침을_준비한다("더블탭토글학생", "37.565000", "126.975000");
+        AtomicInteger 도착 = new AtomicInteger();
+        AtomicInteger 발행 = new AtomicInteger();
+        doAnswer(invocation -> {
+            IntentChangedEvent event = invocation.getArgument(0);
+            if (event.runId() == setup.runId()) {
+                발행.incrementAndGet();
+                도착.incrementAndGet();
+                상대가_도착하거나_잠금_대기할_때까지_기다린다(도착);
+            }
+            return invocation.callRealMethod();
+        }).when(intentNotificationListener).appendIntentChanged(any());
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            List<Future<ErrorCode>> results = new ArrayList<>();
+            for (int i = 0; i < 2; i++) {
+                results.add(pool.submit(() -> toggleOff(setup.requester(), setup.studentId(), setup.runId())));
+            }
+            for (Future<ErrorCode> result : results) {
+                assertThat(result.get(TIMEOUT_SECONDS * 2, TimeUnit.SECONDS)).as("둘 다 정상 응답이다").isNull();
+            }
+
+            assertThat(발행.get()).as("값이 같은 겹친 요청이 이벤트를 두 번 내면 관계자에게 같은 푸시가 두 번 간다").isEqualTo(1);
+        } finally {
+            pool.shutdownNow();
+            pool.awaitTermination(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        }
+    }
+
+    /** BR-361 — 변경 신청(취소)도 같다: 겹친 두 신청이 승인 행과 {@code absent} 통지를 둘 만들지 않고, 둘째는 앞의 승인 행을 돌려받는다. */
+    @Test
+    void 같은_취소를_겹쳐_신청해도_승인_행은_하나다() throws Exception {
+        겹침_준비 setup = 겹침을_준비한다("더블탭취소학생", "37.566000", "126.976000");
+        Student student = studentRepository.findById(setup.studentId()).orElseThrow();
+        Run run = runRepository.findById(setup.runId()).orElseThrow();
+        AtomicInteger 도착 = new AtomicInteger();
+        AtomicInteger 발행 = new AtomicInteger();
+        doAnswer(invocation -> {
+            AbsentRecordedEvent event = invocation.getArgument(0);
+            if (event.runId() == setup.runId()) {
+                발행.incrementAndGet();
+                도착.incrementAndGet();
+                상대가_도착하거나_잠금_대기할_때까지_기다린다(도착);
+            }
+            return invocation.callRealMethod();
+        }).when(intentNotificationListener).appendAbsent(any());
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            List<Future<ChangeRequest>> results = new ArrayList<>();
+            for (int i = 0; i < 2; i++) {
+                results.add(pool.submit(
+                        () -> changeRequestStore.submitCancel(student, run, setup.requester().accountId(), null)));
+            }
+            List<Long> ids = new ArrayList<>();
+            for (Future<ChangeRequest> result : results) {
+                ids.add(result.get(TIMEOUT_SECONDS * 2, TimeUnit.SECONDS).getId());
+            }
+
+            assertThat(jdbcTemplate.queryForObject(
+                    "SELECT count(*) FROM change_request WHERE run_id = ? AND student_id = ? AND type = 'cancel'",
+                    Integer.class, setup.runId(), setup.studentId())).as("겹친 재전송이 승인 행을 쌓는다").isEqualTo(1);
+            assertThat(발행.get()).as("관계자 absent 통지도 한 번이다").isEqualTo(1);
+            assertThat(ids).as("둘째는 앞의 승인 행을 돌려받는다").containsOnly(ids.get(0));
+        } finally {
+            pool.shutdownNow();
+            pool.awaitTermination(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        }
+    }
+
+    /** ①구간(확정 90분 전)의 회차와 탑승 의사가 켜진 학생·보호자 — 겹침 시험이 같은 값 재전송을 만든다. */
+    private 겹침_준비 겹침을_준비한다(String studentName, String lat, String lng) {
+        BoardingIntentFixtures fixtures = new BoardingIntentFixtures(academyRepository, busRepository,
+                studentRepository, guardianRepository, guardianStudentRepository, accountRepository,
+                academyStaffRepository, runRepository, stopRepository, confirmedRouteRepository,
+                routeVersionRepository, runStopRepository, runRiderRepository, managerRepository,
+                assignmentRepository, routeRepository, routeStopRepository, weeklyAddressRepository);
+        OffsetDateTime now = OffsetDateTime.now();
+        long academyId = fixtures.academy();
+        academyIds.add(academyId);
+        long busId = fixtures.bus(academyId);
+        long studentId = fixtures.student(academyId, studentName);
+        BoardingIntentFixtures.GuardianAccount mother = fixtures.guardian(academyId, "엄마");
+        fixtures.linkChild(mother.guardianId(), studentId, now.minusDays(1));
+        long runId = fixtures.run(academyId, busId, now.plusHours(2), now.plusMinutes(90));
+        fixtures.enrol(academyId, busId, studentId, fixtures.stop(academyId, lat, lng));
+        boardingIntentRepository.save(BoardingIntent.forRun(runId, studentId, now));
+        return new 겹침_준비(runId, studentId,
+                new AuthUser(mother.accountId(), academyId, Role.PARENT, AccountStatus.ACTIVE));
+    }
+
+    private record 겹침_준비(long runId, long studentId, AuthUser requester) {
     }
 
     private void 상대가_도착하거나_잠금_대기할_때까지_기다린다(AtomicInteger 도착) {

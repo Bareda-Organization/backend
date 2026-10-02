@@ -76,7 +76,7 @@ public class ChangeRequestStore {
         OffsetDateTime now = OffsetDateTime.now(clock);
         ChangeWindow window = windowAt(run, now);
         if (window == ChangeWindow.IMMEDIATE) {
-            Optional<ChangeRequest> already = alreadyCanceled(student, run);
+            Optional<ChangeRequest> already = alreadyCanceled(student, run, now);
             if (already.isPresent()) {
                 return already.get();
             }
@@ -90,9 +90,9 @@ public class ChangeRequestStore {
      * ①구간에서 이미 탑승 의사가 꺼져 있고 승인된 취소 신청이 있으면 그 신청을 돌려준다(BR-250) — 재전송(네트워크 재시도·
      * 더블탭)이 승인 행과 관계자 {@code absent} 통지를 그 횟수만큼 쌓지 않는다.
      */
-    private Optional<ChangeRequest> alreadyCanceled(Student student, Run run) {
-        boolean off = boardingIntentRepository.findByRunIdAndStudentId(run.getId(), student.getId())
-                .filter(intent -> !intent.isRiding()).isPresent();
+    private Optional<ChangeRequest> alreadyCanceled(Student student, Run run, OffsetDateTime now) {
+        // BR-361 — 행 잠금으로 읽는다: 겹친 두 번째 신청은 첫 신청이 커밋한 뒤의 값(꺼짐)과 승인 행을 본다
+        boolean off = !findOrCreateIntent(run.getId(), student.getId(), now).isRiding();
         if (!off) {
             return Optional.empty();
         }
@@ -173,9 +173,10 @@ public class ChangeRequestStore {
         changeRequest.assignDeadline(run.getDepartTime());
     }
 
+    /** 탑승 의사 행을 없으면 만들고 <b>행 잠금</b>으로 읽는다(BR-361) — 같은 학생·회차의 겹친 신청이 이 행에서 직렬화된다. */
     private BoardingIntent findOrCreateIntent(Long runId, Long studentId, OffsetDateTime now) {
         boardingIntentRepository.insertIfAbsent(runId, studentId, now);
-        return boardingIntentRepository.findByRunIdAndStudentId(runId, studentId).orElseThrow();
+        return boardingIntentRepository.findLockedByRunIdAndStudentId(runId, studentId).orElseThrow();
     }
 
     /**

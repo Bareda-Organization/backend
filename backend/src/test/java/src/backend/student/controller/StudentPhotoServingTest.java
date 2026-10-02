@@ -150,6 +150,35 @@ class StudentPhotoServingTest {
                 .andExpect(jsonPath("$.error.code").value("STUDENT_NOT_FOUND"));
     }
 
+    /** Ruling 786 — 메인 관리자는 학원 무관이다(O-06 관제 명단이 학생 사진 주소를 싣는다). */
+    @Test
+    void 메인_관리자는_어느_학원_학생의_사진이든_받는다() throws Exception {
+        byte[] body = mockMvc.perform(get("/api/v1/files/photos/" + fileName).header("Authorization", 메인_관리자()))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", MediaType.IMAGE_PNG_VALUE))
+                .andReturn().getResponse().getContentAsByteArray();
+
+        assertThat(body).isEqualTo(PNG);
+    }
+
+    /** 학원 무관이 퇴원·부재까지 열어 주는 것은 아니다 — 존재 비노출 404 는 메인 관리자에게도 같다. */
+    @Test
+    void 메인_관리자도_퇴원한_학생의_사진은_404_STUDENT_NOT_FOUND_이다() throws Exception {
+        jdbcTemplate.update("UPDATE student SET deleted_at = now() WHERE id = ?", studentId);
+
+        mockMvc.perform(get("/api/v1/files/photos/" + fileName).header("Authorization", 메인_관리자()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("STUDENT_NOT_FOUND"));
+    }
+
+    @Test
+    void 메인_관리자도_어떤_학생에도_붙지_않은_파일명은_404_이다() throws Exception {
+        mockMvc.perform(get("/api/v1/files/photos/00000000-0000-0000-0000-000000000000.png")
+                        .header("Authorization", 메인_관리자()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("STUDENT_NOT_FOUND"));
+    }
+
     @Test
     void 사진_읽기_권한이_없는_학부모는_403_이다() throws Exception {
         String parent = "Bearer " + tokenProvider.createAccessToken(1L, ACADEMY_A, Role.PARENT, AccountStatus.ACTIVE);
@@ -161,6 +190,10 @@ class StudentPhotoServingTest {
     @Test
     void 토큰이_없으면_401_이다() throws Exception {
         mockMvc.perform(get("/api/v1/files/photos/" + fileName)).andExpect(status().isUnauthorized());
+    }
+
+    private String 메인_관리자() {
+        return "Bearer " + tokenProvider.createAccessToken(1L, null, Role.SYSTEM_ADMIN, AccountStatus.ACTIVE);
     }
 
     private String 관계자(Long academyId) {

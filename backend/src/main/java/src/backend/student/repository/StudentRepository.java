@@ -6,8 +6,6 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.domain.Limit;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -44,33 +42,31 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     boolean existsByPhotoUrlEndingWithAndAcademyIdAndDeletedAtIsNull(String fileNameTail, Long academyId);
 
     /**
-     * 관계자 웹의 학생 목록·검색(STU-01, API_SPEC §5.11) — 학원과 퇴원 여부가 <b>쿼리에 고정</b>돼
-     * 호출부가 빼먹을 자리가 부재하다.
+     * 이 사진 파일이 <b>어느 학원이든</b> 재학생의 것인지(API_SPEC §5.11.1 · Ruling 786) — 메인 관리자 전용이다. 퇴원 여부는 그대로 쿼리에 고정돼
+     * 퇴원생·부재가 같은 {@code false} 다. 호출부({@code StudentPhotoQueryService})는 {@code AcademyScope.resolveListScope} 가 빈 값(전 학원
+     * 범위)일 때만 부른다.
+     */
+    @AcademyScopeExempt(reason = "§5.11.1 Ruling 786 — 메인 관리자는 학원 무관(O-06 관제 명단의 photo_url). 호출부가 전 학원 범위"
+            + "(AcademyScope.resolveListScope 빈 값)일 때만 부르고, 그 밖의 역할은 위 학원 고정 쿼리를 쓴다")
+    boolean existsByPhotoUrlEndingWithAndDeletedAtIsNull(String fileNameTail);
+
+    /**
+     * 관계자 웹의 학생 목록·검색(STU-01, API_SPEC §5.11)에 맞는 학생의 id·이름 <b>전건</b> — 학원과 퇴원 여부가 <b>쿼리에 고정</b>돼 호출부가
+     * 빼먹을 자리가 부재하다. 이름의 자연 정렬(B1 #27)이 DB 정렬로는 되지 않아 서버가 줄 세울 때 쓴다. 본 행(보호자 연락처 포함)은 줄 세운 뒤 그
+     * 쪽의 id 로만 읽는다.
      *
      * <p>검색어를 {@code IS NULL} 로 가르지 않고 <b>빈 문자열이 전건과 같아지는 형태</b>로 쓴다 —
      * {@code :q IS NULL} 은 PostgreSQL 이 파라미터 타입을 정하지 못해 조회 자체가 실패하는 자리다.
      * 값을 주지 않은 요청을 빈 문자열로 바꾸는 것은 호출부의 몫이다.
      *
-     * <p>정렬은 {@link Pageable} 이 붙인다 — 이 쿼리에 {@code ORDER BY} 를 박으면 정렬 파라미터
-     * ({@code §1.8})가 무시된 채로도 결과가 그럴듯해 아무도 알아채지 못한다.
-     */
-    @Query("""
-            SELECT s FROM Student s
-            WHERE s.academyId = :academyId
-              AND s.deletedAt IS NULL
-              AND LOWER(s.name) LIKE LOWER(CONCAT('%', :q, '%'))
-            """)
-    Page<Student> searchByAcademyId(@Param("academyId") Long academyId, @Param("q") String q, Pageable pageable);
-
-    /**
-     * {@link #searchByAcademyId} 와 같은 조건에 맞는 학생의 id·이름 <b>전건</b> — 이름의 자연 정렬(B1 #27)이 DB 정렬로는
-     * 되지 않아 서버가 줄 세울 때 쓴다. 본 행(보호자 연락처 포함)은 줄 세운 뒤 그 쪽의 id 로만 읽는다.
+     * <p>{@code q} 는 호출부가 {@link src.backend.global.persistence.LikeEscape} 로 이스케이프해 넘기고 이 쿼리는 {@code ESCAPE '\'} 로 그것을
+     * 해석만 한다(BR-359) — 학원·매니저 검색과 같은 규칙이다.
      */
     @Query("""
             SELECT s.id AS id, s.name AS name FROM Student s
             WHERE s.academyId = :academyId
               AND s.deletedAt IS NULL
-              AND LOWER(s.name) LIKE LOWER(CONCAT('%', :q, '%'))
+              AND LOWER(s.name) LIKE LOWER(CONCAT('%', :q, '%')) ESCAPE '\\'
             """)
     List<NameRow> findNamesByAcademyId(@Param("academyId") Long academyId, @Param("q") String q);
 
