@@ -22,8 +22,8 @@ import src.backend.global.common.enums.Role;
  *
  * <p>{@code academy_id}·{@code recipient_account_id}·{@code student_id} 는 논리적
  * 부모이나 DB FK 가 미설정이다(ERD §4.2 — 보존 14일, 이름·버스번호를 스냅샷으로 담아 자립한다).
- * {@code recipient_role} 은 CHECK 가 부재해 스키마가 값을 보장하지 않는다(Ruling 55) — 잘못된 값은
- * 이 행을 다시 읽는 순간 {@link Role.Db#convertToEntityAttribute} 의 {@link Enum#valueOf} 에서 터진다.
+ * {@code recipient_role} 은 CHECK({@code ck_notification_log_recipient_role})로 값이 강제된다(R46 A-5) — 읽을 때는
+ * {@link Role.Db#convertToEntityAttribute} 의 {@link Enum#valueOf} 가 한 번 더 막는다.
  */
 @Entity
 @Table(name = "notification_log")

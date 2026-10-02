@@ -36,9 +36,8 @@ public class RiderStatusHistory {
     @Column(name = "run_rider_id", nullable = false)
     private Long runRiderId;
 
-    /** 이 컬럼과 {@link #toStatus} 는 CHECK 가 부재해 스키마가 값을 보장하지 않는다(조율자 Ruling 55) —
-     * 잘못된 값은 쓸 때가 아니라 이 행을 다시 읽어 {@link RiderStatus.Db#convertToEntityAttribute} 를
-     * 타는 순간 {@link Enum#valueOf} 에서 터진다. */
+    /** 이 컬럼과 {@link #toStatus} 는 CHECK({@code ck_rider_status_history_from_status}·{@code to_status})로 값이 강제된다
+     * (R46 A-5) — 읽을 때는 {@link RiderStatus.Db#convertToEntityAttribute} 의 {@link Enum#valueOf} 가 한 번 더 막는다. */
     @Convert(converter = RiderStatus.Db.class)
     @Column(name = "from_status", length = 10)
     private RiderStatus fromStatus;

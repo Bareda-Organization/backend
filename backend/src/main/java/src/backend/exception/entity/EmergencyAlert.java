@@ -24,9 +24,9 @@ import src.backend.global.common.enums.ManagerRole;
  * 신고 당시 상황을 그대로 재현한다(ERD §3.4 · EXC-04).
  *
  * <p>{@code academy_id}·{@code run_id}·{@code raised_by} 는 논리적 부모이나 DB FK 가 미설정이다
- * (ERD §4.2 — 스냅샷 성격상 원본 정리와 보존 주기가 다르다). {@code raised_by_role} 은 CHECK 가 부재해
- * 스키마가 값을 보장하지 않는다(Ruling 55) — 잘못된 값은 이 행을 다시 읽는 순간
- * {@link ManagerRole.Db#convertToEntityAttribute} 의 {@link Enum#valueOf} 에서 터진다.
+ * (ERD §4.2 — 스냅샷 성격상 원본 정리와 보존 주기가 다르다). {@code raised_by_role} 은 CHECK
+ * ({@code ck_emergency_alert_raised_by_role})로 값이 강제된다(R46 A-5) — 읽을 때는
+ * {@link ManagerRole.Db#convertToEntityAttribute} 의 {@link Enum#valueOf} 가 한 번 더 막는다.
  */
 @Entity
 @Table(name = "emergency_alert")
