@@ -246,7 +246,7 @@ public class FcmPushSender implements PushSender {
         String assertion = Jwts.builder()
                 .issuer(clientEmail)
                 .claim("scope", SCOPE)
-                .audience().single(tokenUri)
+                .claim("aud", tokenUri) // audience().single(String) 이 폐기 예정 — 배열이 아닌 문자열 aud 는 claim 으로 건다
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plus(Duration.ofHours(1))))
                 .signWith(privateKey, Jwts.SIG.RS256)

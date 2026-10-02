@@ -41,6 +41,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.test.util.ReflectionTestUtils;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
@@ -74,6 +76,9 @@ class FcmPushSenderTest {
     /** 가짜 서버에 닿은 토큰 교환 요청 수(응답을 기다리기 전에 센다). */
     private final AtomicInteger tokenArrivals = new AtomicInteger();
 
+    /** 가짜 서버가 받은 토큰 교환 요청 본문(form). */
+    private final List<String> tokenForms = new CopyOnWriteArrayList<>();
+
     private volatile long tokenDelayMillis;
 
     /** {@code messages:send} 가 응답을 미루는 시간 — 발송이 멈춘 FCM 을 흉내 낸다. */
@@ -88,6 +93,7 @@ class FcmPushSenderTest {
         server.setExecutor(serverThreads);
         server.createContext("/token", exchange -> {
             tokenArrivals.incrementAndGet();
+            tokenForms.add(read(exchange.getRequestBody()));
             sleepQuietly(tokenDelayMillis);
             respond(exchange, 200, "{\"access_token\":\"access-" + tokenRequests.incrementAndGet()
                     + "\",\"expires_in\":3600,\"token_type\":\"Bearer\"}");
@@ -189,6 +195,25 @@ class FcmPushSenderTest {
             sender.send(new PushMessage(7L, NotificationType.DELAY, "지연", "본문", false));
             assertThat(sendRequests.get(sendRequests.size() - 1)).as("갱신이 끝난 뒤에는 새 토큰").startsWith("Bearer access-2 ");
         });
+    }
+
+    /**
+     * 접근 토큰 교환의 서명 JWT 는 {@code aud} 를 토큰 끝점 문자열 하나로 싣는다 — Google 이 받는 형태이고 배열({@code ["…"]})이
+     * 아니다. jjwt 의 {@code audience().add(…).and()} 는 배열로 바꾸므로 폐기 예정 API 를 갈아 끼울 때 이 형태를 지킨다.
+     */
+    @Test
+    void 접근_토큰_교환의_JWT_aud_는_토큰_끝점_문자열이다() throws Exception {
+        given(deviceTokenRepository.findAllByAccountIdAndRevokedAtIsNull(7L))
+                .willReturn(List.of(token(1L, "live-token")));
+
+        sender().send(new PushMessage(7L, NotificationType.DELAY, "지연", "본문", false));
+
+        String form = tokenForms.get(0);
+        String jwt = form.substring(form.indexOf("assertion=") + "assertion=".length());
+        JsonNode claims = JsonMapper.builder().build()
+                .readTree(new String(Base64.getUrlDecoder().decode(jwt.split("\\.")[1]), StandardCharsets.UTF_8));
+        assertThat(claims.path("aud").isArray()).as("aud 는 배열이 아니다").isFalse();
+        assertThat(claims.path("aud").asString()).isEqualTo("http://localhost:" + server.getAddress().getPort() + "/token");
     }
 
     /** R46 S-2 ① — 일시 장애가 이어지면 서킷이 열려 FCM 을 더 부르지 않고 즉시 거절한다(행은 {@code pending} 으로 남아 워커가 이어받는다). */
