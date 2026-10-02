@@ -47,7 +47,7 @@ services:
     command: ["postgres", "-c", "shared_preload_libraries=pg_stat_statements", "-c", "random_page_cost=1.1"]
     volumes:
       # postgres 18 부터 공식 이미지가 데이터를 /var/lib/postgresql/18/docker 에 둔다(VOLUME 도 /var/lib/postgresql). 옛 위치
-      # /var/lib/postgresql/data 에 마운트하면 컨테이너가 시작하지 않는다(Ruling 729). 주 버전을 올릴 때는 pg_upgrade 가 필요하다.
+      # /var/lib/postgresql/data 에 마운트하면 컨테이너가 시작하지 않는다(Ruling 729). 주 버전을 올릴 때는 docs/backend/infra/DEPLOYMENT.md §7.4 절차를 따른다.
       - postgres-data:/var/lib/postgresql
       # 빈 데이터 디렉터리로 처음 뜰 때 한 번만 실행된다(공식 이미지 규칙).
       - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
