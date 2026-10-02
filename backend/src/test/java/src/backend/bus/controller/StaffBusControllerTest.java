@@ -305,6 +305,41 @@ class StaffBusControllerTest {
                 .andExpect(jsonPath("$.data.capacity").value(20));
     }
 
+    // ── 필수 항목의 빈 값 (BR-324) ────────────────────────────────────────
+
+    /**
+     * 필수(●) 항목 {@code bus_no}·{@code plate_no} 를 빈 문자열이나 공백뿐으로 고치는 수정은 {@code 422} 다 — 등록은 {@code @NotBlank} 로
+     * 막는데 수정이 그대로 저장하면 이름 없는 차량이 목록·노선 편성·명단에 남는다. 실패한 뒤 값이 그대로인 것까지 본다.
+     */
+    @Test
+    void 필수_항목을_빈_문자열이나_공백뿐으로_고치는_수정은_422_이고_값은_그대로다() throws Exception {
+        long busId = 등록된_차량_id(관계자A_토큰(), "빈값방어호차", "10가8000", 16);
+
+        for (String body : new String[] {"{\"bus_no\":\"\"}", "{\"bus_no\":\"   \"}", "{\"plate_no\":\"\"}",
+                "{\"plate_no\":\"   \"}"}) {
+            수정한다(관계자A_토큰(), busId, body)
+                    .andExpect(status().isUnprocessableContent())
+                    .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+        }
+
+        수정한다(관계자A_토큰(), busId, "{\"capacity\":16}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.bus_no").value("빈값방어호차"))
+                .andExpect(jsonPath("$.data.plate_no").value("10가8000"));
+    }
+
+    /** 빈 값을 막아도 {@code null} 은 "유지" 다(§1.14 — 차량 PATCH 는 {@code null} = 유지) — 막는 대상은 빈 문자열이다. */
+    @Test
+    void 명시적_null_은_422_가_아니라_유지다() throws Exception {
+        long busId = 등록된_차량_id(관계자A_토큰(), "널유지호차", "10가8100", 16);
+
+        수정한다(관계자A_토큰(), busId, "{\"bus_no\":null,\"plate_no\":null,\"capacity\":20}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.bus_no").value("널유지호차"))
+                .andExpect(jsonPath("$.data.plate_no").value("10가8100"))
+                .andExpect(jsonPath("$.data.capacity").value(20));
+    }
+
     // ── 학원 격리 (규칙 7) ────────────────────────────────────────────────
 
     /**
