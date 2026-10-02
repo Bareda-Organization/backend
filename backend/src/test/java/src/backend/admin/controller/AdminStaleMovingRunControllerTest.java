@@ -33,6 +33,7 @@ import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
+import src.backend.global.request.PageParams;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
@@ -193,6 +194,23 @@ class AdminStaleMovingRunControllerTest {
 
         assertThat(listed).contains(oldest, dayMinus2).doesNotContain(dayMinus1, today, canceled, idle, finished);
         assertThat(listed.indexOf(oldest)).as("운행일 오름차순 — 오래된 회차가 먼저").isLessThan(listed.indexOf(dayMinus2));
+    }
+
+    @Test
+    @DisplayName("목록 — 페이징이 없어 상한(200건)에서 자르고, 운행일이 가장 오래된 회차부터 남긴다(BR-317)")
+    void 목록은_상한_건만_돌려주고_오래된_회차부터_남긴다() throws Exception {
+        long academy = fixtures().academyWithCoordinates();
+        // 오래된 날짜(오늘−10)로 상한 건수를 채우고, 상한을 넘는 1건만 더 최근(오늘−3)으로 둔다 — 잘리는 쪽이 새 회차여야 한다.
+        // 남이 만든 행이 섞여도 총 건수가 상한 이상이면 길이는 같고, 가장 최근 회차는 어느 경우에도 잘려 나간다.
+        for (int i = 0; i < PageParams.UNPAGED_LIST_MAX; i++) {
+            run(academy, TODAY.minusDays(10), "moving");
+        }
+        long newestOverLimit = run(academy, TODAY.minusDays(3), "moving");
+
+        List<Long> listed = listedRunIds();
+
+        assertThat(listed).as("상한 건만 싣는다").hasSize(PageParams.UNPAGED_LIST_MAX);
+        assertThat(listed).as("상한을 넘는 가장 최근 회차는 잘린다 — 오래된 회차부터 남긴다").doesNotContain(newestOverLimit);
     }
 
     @Test
