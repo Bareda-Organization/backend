@@ -35,12 +35,15 @@ import org.springframework.core.env.Environment;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "management.server.port=0",
         "server.tomcat.max-connections=" + ManagementPortSaturationTest.CAP,
-        "server.tomcat.accept-count=1",
+        // 상한을 넘은 연결이 OS 대기열에 쌓이게 크게 둔다 — 작으면 대기열이 넘쳐 연결이 거부·시간 초과로 빠져 채워지는 정도가 부하에 따라 달라진다
+        "server.tomcat.accept-count=50",
         // 쥐고 있는 소켓이 시험 도중 시간 초과로 닫히지 않게 한다(기본 20초)
         "server.tomcat.connection-timeout=60s"})
 class ManagementPortSaturationTest {
 
     static final int CAP = 20;
+
+    private static final int EXTRA_CONNECTIONS = 5;
 
     private static final Duration NO_RESPONSE_WITHIN = Duration.ofSeconds(2);
 
@@ -62,9 +65,9 @@ class ManagementPortSaturationTest {
 
         List<Socket> held = new ArrayList<>();
         try {
-            // 상한보다 몇 개 더 시도한다 — 상한을 넘은 연결은 OS 대기열(accept-count 1)에서 기다리다 거절되는데 그 모습(거부·시간 초과)은 OS 마다 달라 무시한다.
-            // 가득 찼는지는 아래에서 Tomcat 의 현재 연결 수로 판정한다.
-            for (int i = 0; i < CAP + 2; i++) {
+            // 상한보다 여유로 더 연다 — 채우기 전 확인 요청이 끝나는 연결이 상한 한 자리를 아직 쥐고 있을 수 있어, 딱 상한만큼만 쥐면 그 자리가 비는 순간
+            // 앱 헬스가 응답한다. 넘친 연결은 OS 대기열에서 기다리다 자리가 나면 이어서 받혀 상한이 계속 찬다. 가득 찼는지는 Tomcat 의 현재 연결 수로 판정한다.
+            for (int i = 0; i < CAP + EXTRA_CONNECTIONS; i++) {
                 Socket socket = new Socket();
                 try {
                     socket.connect(new InetSocketAddress("localhost", appPort), 1_000);
@@ -73,8 +76,8 @@ class ManagementPortSaturationTest {
                     socket.close();
                 }
             }
-            Awaitility.await("앱 커넥터의 현재 연결 수가 상한에 닿는다").atMost(Duration.ofSeconds(10))
-                    .pollInterval(Duration.ofMillis(200))
+            Awaitility.await("앱 커넥터의 현재 연결 수가 상한에 닿는다").atMost(Duration.ofSeconds(30))
+                    .pollInterval(Duration.ofMillis(100))
                     .untilAsserted(() -> assertThat(currentConnections(managementPort)).isEqualTo(CAP));
 
             assertThatThrownBy(() -> get(appPort, "/healthz"))
