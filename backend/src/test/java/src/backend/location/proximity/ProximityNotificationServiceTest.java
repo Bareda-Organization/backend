@@ -15,6 +15,7 @@ import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -108,7 +109,7 @@ class ProximityNotificationServiceTest {
     @Autowired
     private RunRepository runRepository;
 
-    @Autowired
+    @MockitoSpyBean
     private ConfirmedRouteRepository confirmedRouteRepository;
 
     @Autowired
@@ -129,7 +130,7 @@ class ProximityNotificationServiceTest {
      */
     @AfterEach
     void 뒷정리한다() {
-        reset(proximityJudge);
+        reset(proximityJudge, confirmedRouteRepository);
         String academyIds = "(SELECT id FROM academy WHERE name = '근접알림시험학원')";
         jdbcTemplate.update("DELETE FROM notification_log WHERE dedup_key LIKE 'approaching:%'");
         // R15-T3(Ruling 308) — BoardingNotificationListener#appendStopDeparted 가 쓰는 dedup_key.
@@ -464,6 +465,25 @@ class ProximityNotificationServiceTest {
         assertThat(failures).as("출발 판정만 실패로 알려진다").containsExactly(ProximityNotificationService.Judgment.DEPARTURE);
         assertThat(departedAt(arrivedRunStop)).as("출발 판정이 던졌으니 기록되지 않는다").isNull();
         assertThat(notificationCount(runId, nextStop, studentId)).as("출발 판정이 던져도 근접 알림은 적재된다").isEqualTo(1);
+    }
+
+    /**
+     * BR-345 — 읽기 트랜잭션 시작·확정 노선 조회가 실패하면 두 판정 모두 이번 틱에 돌지 못한 것이다. 던지지 않고 근접·출발 각각을 실패로
+     * 알려야 스케줄러가 건별 실패로 세고 다음 회차로 넘어간다.
+     */
+    @Test
+    void 읽기_트랜잭션이_실패하면_두_판정_모두_실패로_알리고_던지지_않는다() {
+        long runId = 987_654_321L;
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        RunPositionRedisValue position = new RunPositionRedisValue(new BigDecimal(NEAR_LAT), new BigDecimal(STOP_LNG), now,
+                now, null);
+        doThrow(new DataAccessResourceFailureException("db down")).when(confirmedRouteRepository).findById(runId);
+        List<ProximityNotificationService.Judgment> failures = new ArrayList<>();
+
+        proximityNotificationService.judgeRun(runId, 1L, position, (judgment, e) -> failures.add(judgment));
+
+        assertThat(failures).containsExactlyInAnyOrder(ProximityNotificationService.Judgment.APPROACH,
+                ProximityNotificationService.Judgment.DEPARTURE);
     }
 
     private int notificationCount(long runId, long stopId, long studentId) {
