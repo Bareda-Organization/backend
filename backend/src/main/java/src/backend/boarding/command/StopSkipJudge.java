@@ -50,6 +50,16 @@ public class StopSkipJudge {
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public boolean skipIfNoRidersRemain(Long runId, Long stopId) {
+        return skipIfNoRidersRemain(runId, stopId, SKIP_NOTICE);
+    }
+
+    /**
+     * {@link #skipIfNoRidersRemain(Long, Long)} 와 같은 판정에 {@code run_stop.skip_notice} 만 호출 경로가 정한다 —
+     * ③구간 미등원 토글({@code request.command.BoardingIntentCommandService}, BR-325)이 같은 잠금·같은 잔여 규칙을 쓰되
+     * 사유 문구는 자기 것을 남긴다.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean skipIfNoRidersRemain(Long runId, Long stopId, String skipNotice) {
         // 정차 항목을 먼저 잠근다(BR-229) — 같은 승하차지의 다른 미승차 처리가 커밋한 뒤에 세야 마지막 한 명이 잔여 0을 본다.
         Optional<RunStop> lockedRunStop = currentRunStop(runId, stopId);
         long remaining = runRiderRepository.countByRunIdAndStopIdAndStatusNotIn(runId, stopId, NOT_REMAINING);
@@ -58,7 +68,7 @@ public class StopSkipJudge {
         }
         return lockedRunStop
                 .map(runStop -> {
-                    runStop.markSkipped(SKIP_NOTICE);
+                    runStop.markSkipped(skipNotice);
                     return true;
                 })
                 .orElse(false);
