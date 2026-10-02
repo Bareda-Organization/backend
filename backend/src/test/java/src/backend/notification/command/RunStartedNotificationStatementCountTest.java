@@ -2,6 +2,10 @@ package src.backend.notification.command;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -14,10 +18,12 @@ import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -31,6 +37,7 @@ import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
+import src.backend.global.common.enums.Role;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
 import src.backend.request.repository.ChangeRequestRepository;
@@ -59,6 +66,10 @@ class RunStartedNotificationStatementCountTest {
 
     /** 두 측정의 차이 허용치 — 다른 스레드(스케줄러)가 같은 통계에 얹는 문장 몇 건의 잡음이다. */
     private static final long NOISE_TOLERANCE = 2;
+
+    /** 적재 호출 모양(건별 {@code append} 인지 {@code appendAll} 한 번인지)을 보려고 실제 아웃박스를 감싼다. */
+    @MockitoSpyBean
+    private NotificationOutbox notificationOutbox;
 
     @Autowired
     private EntityManagerFactory entityManagerFactory;
@@ -146,6 +157,10 @@ class RunStartedNotificationStatementCountTest {
         academyIds.clear();
     }
 
+    /**
+     * 수신자는 보호자와 <b>학생 본인</b>이 학생 수에 따라 는다(학생은 계정이 있는 학생으로 만든다). 관계자는 학원당 재직 1명을
+     * 스키마가 고정하므로(uk_academy_staff_academy_active) 문장 수로는 셀 수 없어 아래 시험이 호출 모양으로 본다.
+     */
     @Test
     @DisplayName("T-6 — 운행 시작 알림 적재의 SQL 문장 수는 학생(수신자) 수와 무관하다")
     void 운행_시작_알림_적재의_문장_수는_수신자_수와_무관하다() {
@@ -156,6 +171,24 @@ class RunStartedNotificationStatementCountTest {
 
         assertThat(many - few).as("학생 2명 %d문장 · 10명 %d문장 — 수신자가 늘면 문장이 늘면 안 된다", few, many)
                 .isLessThanOrEqualTo(NOISE_TOLERANCE);
+    }
+
+    /**
+     * BR-357 — 관계자·보호자·학생 세 갈래 초안이 {@code appendAll} <b>한 번</b>으로만 적재되고 건별 {@code append} 는 없다. 문장 수
+     * 비교는 늘어나는 갈래(보호자·학생)만 잡고 관계자(학원당 1명) 갈래가 건별 {@code append} 로 돌아가도 통과한다.
+     */
+    @Test
+    @DisplayName("BR-357 — 운행 시작 알림은 관계자·보호자·학생 초안을 appendAll 한 번으로만 적재한다")
+    void 세_갈래_초안은_appendAll_한_번으로_적재된다() {
+        적재_문장_수(3);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<NotificationDraft>> drafts = ArgumentCaptor.forClass(List.class);
+        verify(notificationOutbox, times(1)).appendAll(drafts.capture());
+        verify(notificationOutbox, never()).append(any());
+        assertThat(drafts.getValue()).extracting(NotificationDraft::recipientRole)
+                .containsExactlyInAnyOrder(Role.STAFF, Role.PARENT, Role.PARENT, Role.PARENT, Role.STUDENT, Role.STUDENT,
+                        Role.STUDENT);
     }
 
     private int 발송_대기_행_수() {
@@ -178,7 +211,7 @@ class RunStartedNotificationStatementCountTest {
         long stopId = fixtures.stop(academyId, "37.5", "127.0");
         fixtures.staffAccount(academyId, "관계자");
         for (int i = 0; i < students; i++) {
-            long studentId = fixtures.student(academyId, "학생" + i);
+            long studentId = fixtures.studentWithAccount(academyId, "학생" + i);
             fixtures.guardianOf(academyId, studentId, "보호자" + i, now);
             fixtures.rider(runId, studentId, stopId, RiderStatus.WAITING, now);
         }
