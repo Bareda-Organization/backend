@@ -46,6 +46,9 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     /**
      * 재신청할 계정을 잠그고 읽는다(§2.4 · BR-063) — 동시 재신청이 둘 다 {@code rejected} 를 보고 요청 행을 두 개
      * 쌓지 않게, 두 번째는 {@code pending} 을 읽어 {@code 409 REAPPLY_NOT_ALLOWED} 가 된다.
+     *
+     * <p>계정 전 컬럼을 쓰는 다른 경로(승인 · 비밀번호 변경·초기화 · 관계자 수정 · 매니저 역할 동기 · 차단 해제)도 같은 읽기를
+     * 쓴다 — 잠금 없이 읽어 쓰면 그 사이 커밋된 로그인 실패 차단을 지운다(BR-249 · BR-335).
      */
     @AcademyScopeExempt(reason = "§2.4 본인 재신청 — 계정 자체의 조회라 학원 조건이 판정에 개입 부재. 재신청은 학원을 다시 "
             + "고르는 흐름이라 좁힐 학원도 미확정. 호출부가 토큰의 accountId 만 넘긴다는 전제")

@@ -23,10 +23,10 @@ public class ManagerRoleAccountSyncListener {
 
     private final AccountRepository accountRepository;
 
-    /** 연결된 계정의 역할을 매니저 역할에 맞춘다. */
+    /** 연결된 계정의 역할을 매니저 역할에 맞춘다 — 행 잠금으로 읽어, 그 사이 커밋된 로그인 실패 차단을 지우지 않는다(BR-335). */
     @EventListener
     public void syncRole(ManagerRoleChangedEvent event) {
-        accountRepository.findById(event.accountId())
+        accountRepository.findByIdForUpdate(event.accountId())
                 .ifPresent(account -> account.changeRole(event.role() == ManagerRole.DRIVER ? Role.DRIVER : Role.ESCORT));
     }
 }

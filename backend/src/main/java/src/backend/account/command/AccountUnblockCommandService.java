@@ -57,7 +57,7 @@ public class AccountUnblockCommandService {
     public AccountUnblockResponse unblock(Long targetAccountId, Long actorAccountId) {
         Account actor = accountRepository.findById(actorAccountId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
-        Account target = accountRepository.findById(targetAccountId)
+        Account target = accountRepository.findByIdForUpdate(targetAccountId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
 
         OffsetDateTime now = OffsetDateTime.now(clock);

@@ -92,7 +92,8 @@ public class StaffAccountCommandService {
 
     private StaffAccountDetailResponse apply(Long accountId, StaffAccountUpdateRequest request,
             TemporaryPassword temporary) {
-        Account account = accountRepository.findById(accountId)
+        // 행 잠금으로 읽는다 — 잠금 없이 읽어 전 컬럼을 쓰면 그 사이 커밋된 로그인 실패 차단을 지운다(BR-249 · BR-335)
+        Account account = accountRepository.findByIdForUpdate(accountId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
         AcademyStaff staff = academyStaffRepository.findByAccountId(accountId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
