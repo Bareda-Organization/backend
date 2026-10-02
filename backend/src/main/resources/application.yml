@@ -356,6 +356,18 @@ spring:
 # 로컬 전용 개발 키 — 이 값은 저장소에 공개돼 있으므로 로컬 밖에서 쓰지 않는다.
 jwt:
   secret: ${JWT_SECRET:local-dev-secret-change-me-please-32bytes-minimum-length}
+app:
+  run:
+    generation:
+      # 오늘 회차는 QA 시드(db/qa-seed V901)가 초기화 시각 기준으로 직접 만든다 — 기동 직후 보충을 켜 두면 같은 날
+      # 정시 스케줄 회차가 하나씩 더 생긴다. 내일 회차도 시드가 만들고, POST /dev/reset 의 내일 생성은 중복이라 건너뛴다.
+      on-startup: false
+  demo:
+    # 운행 시뮬레이터(DemoRunSimulator) 대상 — 학원 A 는 운행 중 회차에 위치만 올리고(출발은 매니저 앱 QA),
+    # 학원 B 는 확정 회차를 자동 출발시켜 노선을 돈다(관제 화면용). bus-ids 0 은 없는 차량 — A 차량 자동 출발 없음.
+    academy-id: 1
+    academy-ids: 2
+    bus-ids: 0
 
 ---
 # 운영 프로파일 (비밀값은 모두 환경변수)
@@ -544,4 +556,12 @@ spring:
       on-profile: fixture
   flyway:
     locations: classpath:db/migration,classpath:db/fixture
-
+app:
+  run:
+    generation:
+      on-startup: true   # 시험 시드는 기동 때 정기 회차를 보충받는 전제로 짜였다 — 분리 전 local 동작 그대로
+  demo:
+    # 분리 전 local 값 — 시험 시드의 데모 선단(V13: 10·11·12번 차량)만 자동 출발. 계약 시험이 붙드는 1·2번 차량은 건드리지 않는다
+    academy-id: 1
+    academy-ids: 0
+    bus-ids: 10,11,12
