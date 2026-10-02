@@ -107,6 +107,29 @@ class QaSeedCheckTest extends MigratedPostgresTestBase {
         }
     }
 
+    @Test
+    void 행위자_열이_앱과_같은_종류의_id_를_가리킨다() throws Exception {
+        try (Connection connection = connection()) {
+            assertThat(count(connection, "SELECT count(*) FROM emergency_alert")).isPositive();
+            // 비상 신고자는 매니저 id(EmergencyStaffQueryService 가 매니저로 찾는다) — 계정 id 를 넣으면 남의 이름이 뜬다
+            assertThat(count(connection, """
+                    SELECT count(*) FROM emergency_alert e
+                    WHERE NOT EXISTS (SELECT 1 FROM assignment a WHERE a.run_id = e.run_id AND a.manager_id = e.raised_by
+                                                                 AND a.role = e.raised_by_role)""")).isZero();
+            // 예외 보고자 · 승하차 처리자 · 미승차 연락자 · 비상 확인자는 계정 id
+            assertThat(count(connection, """
+                    SELECT (SELECT count(*) FROM exception_report x WHERE NOT EXISTS (
+                                SELECT 1 FROM manager m WHERE m.account_id = x.reported_by))
+                         + (SELECT count(*) FROM rider_status_history h WHERE h.changed_by IS NOT NULL AND NOT EXISTS (
+                                SELECT 1 FROM manager m WHERE m.account_id = h.changed_by AND m.role = 'escort'))
+                         + (SELECT count(*) FROM no_show_contact c WHERE NOT EXISTS (
+                                SELECT 1 FROM manager m WHERE m.account_id = c.attempted_by))
+                         + (SELECT count(*) FROM emergency_alert e WHERE e.acked_by IS NOT NULL AND NOT EXISTS (
+                                SELECT 1 FROM academy_staff s WHERE s.account_id = e.acked_by))
+                    """)).isZero();
+        }
+    }
+
     private static long count(Connection connection, String sql) throws SQLException {
         try (Statement statement = connection.createStatement(); ResultSet rows = statement.executeQuery(sql)) {
             rows.next();

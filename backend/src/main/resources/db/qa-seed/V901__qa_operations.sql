@@ -523,7 +523,8 @@ BEGIN
         ) AS x(bus_id, service_date, direction, type, memo, ack_memo, canceled)
     LOOP
         SELECT r.id, r.academy_id, b.bus_no, r.started_at, rs.lat, rs.lng,
-               (SELECT count(*) FROM run_rider WHERE run_id = r.id AND status <> 'absent') AS riders, m.account_id AS raiser
+               (SELECT count(*) FROM run_rider WHERE run_id = r.id AND status <> 'absent') AS riders,
+               m.id AS raiser   -- raised_by 는 매니저 id(다른 행위자 열은 계정 id — EmergencyStaffQueryService 가 매니저로 찾는다)
           INTO s
           FROM run r JOIN bus b ON b.id = r.bus_id
           JOIN assignment asg ON asg.run_id = r.id AND asg.role = 'escort' JOIN manager m ON m.id = asg.manager_id
