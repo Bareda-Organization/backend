@@ -1020,6 +1020,20 @@ sudo docker compose -f /opt/school-bus/docker-compose.prod.yml --env-file /opt/s
 
 **대응** — ① `StompSessionsNearCap`(3,000)이 먼저 울렸는지 확인 ② `schoolbus_stomp_sessions` 와 `tomcat_connections_current_connections` 가 같이 계단이면 접속 폭주(이용자 증가·재연결 반복)이므로 §11.7 "울렸을 때 판단" 을 따른다 ③ 헬스가 `UP` 이라고 재시작하지 않는다 — 재시작은 모든 세션을 끊어 재연결이 한꺼번에 몰린다(마지막 수단)
 
+
+### 11.9 보존 정리 — `refresh_token` 크기 · 정리 시간 (`Ruling 742`)
+
+재발급마다 `refresh_token` 행이 1개 늘고(이전 행은 폐기 표시) 만료·폐기 30일 뒤 야간 보존 정리(00:15 KST · 5,000행씩 반복)가 지운다. 정상 상태의 크기는 **하루 발급 수 × 30** 이다 — 운영 가정(토큰 15분 · 세션 2,000 · 하루 12시간 접속 · 갈아타기 14분마다)에서 하루 약 10.3만 행 · 약 310만 행이며 **측정 전 추정**이다(R46 누수 검토 R-4). 크기와 정리 시간은 아래 지표로 본다 — 운영에는 postgres-exporter 가 없어(§11) 테이블 행 수 지표가 없다.
+
+| 보는 것 | 지표(PromQL) | 판독 |
+|---|---|---|
+| 정리 직후 남은 행 수 | `schoolbus_refresh_token_rows` | 하루 1회(정리 직후) 갱신. 기동 뒤 첫 정리(00:15) 전에는 `NaN`. 30일이 지나도 계속 오르면 정리가 발급을 따라가지 못하는 것 |
+| 마지막 정리 소요 | `increase(tasks_scheduled_execution_seconds_sum{code_function="cleanUp",code_namespace="src.backend.global.retention.RetentionCleanupScheduler"}[25h]) / increase(tasks_scheduled_execution_seconds_count{code_function="cleanUp",code_namespace="src.backend.global.retention.RetentionCleanupScheduler"}[25h])` | 스프링이 `@Scheduled` 실행마다 남기는 기본 지표(로컬에서 20초 주기로 돌려 노출 확인). 정리가 지우는 테이블이 여럿이라 이 값은 **전체 배치** 시간이다. 지우는 행이 늘면 시간이 늘고, 배치 잠금 상한(`lockAtMostFor` 10분)에 닿기 전에 주기·묶음 크기를 재검토 |
+| 마지막 성공 이후 경과 | `schoolbus_scheduler_last_success_age_seconds{scheduler="retention-cleanup"}` | 3일을 넘으면 `RetentionCleanupStalled`(§11.2) |
+
+- 위 쿼리는 Prometheus(SSM 포트 포워딩 — §11.1)에서 본다. 전용 대시보드 패널은 두지 않았다 — 하루 1회 값이라 쿼리 한 줄이면 충분하고, 대시보드 `3. 데이터 계층` 은 exporter 가 없는 운영에서 비어 있다
+- 게이지는 정리 끝에 `count(*)` 1회로 채운다(정상 상태에서도 부담 없는 하루 1회). 수천만 행이 되면 `pg_class.reltuples` 추정으로 바꾼다
+
 ---
 
 ## 12. 관계자 웹 배포 — Vercel (2026-10-01 · `Ruling 481` · `502` · `503`)
