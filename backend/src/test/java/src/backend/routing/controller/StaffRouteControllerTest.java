@@ -679,6 +679,25 @@ class StaffRouteControllerTest {
         승하차지를_저장한다(관계자A_토큰(), routeId, 좌표_변경).andExpect(status().isOk());
     }
 
+    /**
+     * BR-363 — {@code stops} 배열의 {@code null} 원소는 {@code 500} 이 아니라 {@code 422} 다. {@code @Valid} 는 {@code null} 원소를 건너뛰어
+     * 서비스의 {@code Item::stopId} 가 NPE 를 던졌다. 같은 종류의 {@code stop_ids}·{@code fixed_stop_ids} 는 {@code null} 원소가 {@code 422}
+     * 로 떨어진다. 거절된 뒤 노선의 정차 순서는 그대로다.
+     */
+    @Test
+    void 저장_본문의_stops_에_null_원소가_있으면_422_이고_노선은_그대로다() throws Exception {
+        long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "fri", "from_academy", STOPS_OF_A);
+
+        for (String body : new String[] {"{\"stops\":[null]}",
+                "{\"stops\":[{\"stop_id\":1,\"name\":\"하나\",\"lat\":37.5,\"lng\":127.0},null]}"}) {
+            승하차지를_저장한다(관계자A_토큰(), routeId, body)
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+        }
+
+        assertThat(정차_순서(routeId)).containsExactlyElementsOf(STOPS_OF_A);
+    }
+
     @Test
     void 남의_학원_노선의_승하차지는_저장할_수_없다() throws Exception {
         long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "mon", "from_academy", STOPS_OF_A);
