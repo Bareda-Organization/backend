@@ -30,6 +30,9 @@ import org.junit.jupiter.params.provider.MethodSource;
  * 읽는 파일은 {@code infra/} · {@code docker-compose*.yml} · {@code .github/} 에 있어, 거르기가 {@code backend/**} 만 보면 그 파일만 바꾼 PR 은
  * 시험이 통째로 건너뛰어진 채 초록으로 보인다.
  *
+ * <p>제3자 액션이 커밋 SHA 로 고정됐는지도 본다 — BR-371 (R10-12). 주 버전 태그({@code @v4})는 저장소 소유자가 옮길 수 있어, 탈취되면 그 작업이 임의
+ * 코드를 실행한다. 공급자(GitHub · AWS) 액션은 태그로 둔다 — Dependabot {@code github-actions} 가 SHA 도 같이 올린다.
+ *
  * <p>파일 텍스트만 읽는다. 주석 줄은 걷어 내고 본다 — 주석이 옛 설정을 설명해도 통과하지 않게.
  */
 class WorkflowGuardTest {
@@ -89,6 +92,19 @@ class WorkflowGuardTest {
         }
         assertThat(filter).as("ci.yml 의 changes 작업 거르기 목록 — 시험이 읽는 입력(%s)을 전부 포함해야 그 파일만 바꾼 PR 에서도 시험이 돈다", required)
                 .containsAll(required);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("backendTestWorkflows")
+    @DisplayName("공급자(actions · aws-actions) 밖의 제3자 액션은 40자 커밋 SHA 로 고정한다 — 옮길 수 있는 태그로 두지 않는다")
+    void thirdPartyActionsArePinnedToCommitSha(String workflow) throws IOException {
+        Matcher use = Pattern.compile("(?m)^\\s*(?:- )?uses:\\s*([^\\s#]+)").matcher(stripComments(Files.readString(WORKFLOWS.resolve(workflow))));
+        while (use.find()) {
+            String action = use.group(1);
+            if (!action.startsWith("actions/") && !action.startsWith("aws-actions/")) {
+                assertThat(action).as("%s — 제3자 액션은 `<소유자>/<이름>@<40자 SHA> # <버전 태그>` 로 고정한다", workflow).matches(".+@[0-9a-f]{40}");
+            }
+        }
     }
 
     /** 스텝 목록 — 이 저장소 워크플로의 스텝은 전부 6칸 들여쓴 {@code - } 로 시작한다. 주석 줄은 걷어 낸다. */
