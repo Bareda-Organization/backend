@@ -23,6 +23,10 @@ import org.junit.jupiter.api.Test;
  * 다르다. 특히 postgres 18 부터는 공식 이미지의 데이터 위치가 {@code /var/lib/postgresql/18/docker} 로 바뀌어, 옛 위치
  * {@code /var/lib/postgresql/data} 에 마운트하면 컨테이너가 시작하지 않는다 — 이미지 태그만 올리고 마운트를 두면 운영 배포에서만 드러난다.
  *
+ * <p>Dependabot 이 postgres 주 버전 상향 PR 을 만들지 못하게 막았는지도 본다 — BR-330 (R10-06). 위 시험은 "주 버전이 서로 같은가" 만 보므로 사람이 compose 와
+ * 시험 컨테이너를 같이 19 로 올리면 통과하는데, 이미지 안에서 데이터 위치가 주 버전 하위({@code 19/docker})로 바뀌어 기존 볼륨(18 데이터)을 못 읽고
+ * 빈 DB 로 뜬다 — 헬스는 UP 이고 매시 백업이 빈 DB 를 올려 정상 덤프가 7일 뒤 사라진다. 주 버전 상향은 {@code pg_upgrade} 절차로 사람이 한다.
+ *
  * <p>파일 텍스트만 읽으므로 Docker·DB 없이 실행된다. 주석 줄은 걷어 내고 본다.
  */
 class RuntimeImageParityTest {
@@ -64,6 +68,18 @@ class RuntimeImageParityTest {
             assertThat(actualSuffix).as("%s postgres %d 의 데이터 마운트 위치 끝부분", compose, major)
                     .isEqualTo(expectedSuffix);
         }
+    }
+
+    @Test
+    @DisplayName("Dependabot 은 postgres 주 버전 상향 PR 을 만들지 않는다 — docker-compose 블록이 postgres 의 semver-major 를 무시한다")
+    void dependabotNeverBumpsPostgresMajor() throws IOException {
+        String dependabot = stripComments(read(".github/dependabot.yml"));
+        String composeEcosystem = Stream.of(dependabot.split("(?m)^  - (?=package-ecosystem:)"))
+                .filter(block -> block.startsWith("package-ecosystem: docker-compose")).findFirst().orElse("");
+
+        assertThat(composeEcosystem).as("dependabot.yml 에 docker-compose 생태계 블록(운영 compose 의 postgres 이미지를 갱신 대상으로 본다)이 있어야 한다").isNotEmpty();
+        assertThat(composeEcosystem).as("docker-compose 블록의 ignore — 주 버전 상향은 데이터 위치가 바뀌어 pg_upgrade 가 필요하다")
+                .containsPattern("dependency-name:\\s*[\"']?postgres[\"']?\\s+update-types:\\s*\\[[^\\]]*version-update:semver-major");
     }
 
     /** compose 파일마다 `image: <서비스>:<주>.…` 의 주 버전. 이미지 줄이 없는 파일은 건너뛴다 — 단 하나도 못 찾으면 실패한다. */
