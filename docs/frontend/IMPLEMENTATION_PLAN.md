@@ -756,6 +756,46 @@ R46 전 갈래(§5.17~§5.27) 병합 뒤 화면 확인 전용 창. 관계자 웹
 | 8 | 정리 | 서버 `:8620`·웹 `:3000` 종료 · 브라우저 세션 종료 · DB `r46_kfixfe` 는 지시대로 남김 |
 | 9 | 실서버 시험 3회 연속 | `NEXT_PUBLIC_API_BASE_URL=http://localhost:8620 npx vitest run src/shared/lib/ws/wsTokenRenewalRealBackend.test.ts` 를 사이에 손질 없이 3번 — **3번 모두 1건 통과 · 건너뜀 0**(154.9초 · 159.4초 · 157.2초) · 갈아탄 연결 3개 · 상태 알림 0회 · 중복 0 · 최대 공백 551·536·523ms · 두 연결이 같은 본문을 받은 수 12·7·8 · 시험이 올린 위치 336·338·338건 중 실패 0 · `--app.demo.enabled=false` 서버에서는 0.5초 만에 "운행 중 회차 없음" 문구로 실패 |
 
+## 5.34 `R47-WEB` — 웹 실시간 클라이언트 R-1·R-2 · vitest 5 · 웹 의존성 묶음 (2026-10-02 · 기준 HEAD `dea049da` `mskim98/r47-web` · 판정 `Ruling 725~727`(조율자) + `750~754`)
+
+사용자 지시 *"1,2,3,5번만 진행"* 중 결정 2(vitest 5 — `Ruling 725`) · 결정 3(Dependabot PR 은 GitHub 재실행 대신 로컬에서 올리고 검증 — `Ruling 726`·`727`, 웹 쪽 `#2`·`#4`·`#11`) · 결정 5(누수 검토 P3 중 웹 실시간 클라이언트 R-1·R-2 — `Ruling 728`)를 한 갈래로 처리. 서버(`backend/**`) 변경 없음. R-1·R-2 근거는 `.claude/r46/review-leak.md` F-3.
+
+### 5.34.1 판정
+
+- **`Ruling 750` — `AcademyRealtimeClient.connect()` 는 연결 중·연결됨이면 무시하고, `doConnect` 는 쥐고 있던 연결을 닫고 바꾼다(R-1).** 결함 — `connect()` → `doConnect()` 가 상태를 보지 않고 `this.client` 를 새 클라이언트로 덮어, 덮인 클라이언트를 아무도 닫지 못하고 하트비트만 계속 보내는 고아가 됨(근거 문서 실측 — 갈아타기를 시작한 클라이언트 80개에 `connect()` 를 한 번 더 부르자 서버 STOMP 세션 80 · Tomcat 연결 82 가 75초까지 유지). 고침 2곳 — ① `connect()` 첫 줄에 `connecting`·`connected` 면 반환(Dart `BaraedaWebSocketClient.connect()` 와 같은 가드) ② `doConnect` 가 번호표(`currentAttempt`)를 올린 직후 `this.client?.deactivate()`. ②가 필요한 이유 — `TOKEN_EXPIRED` 재발급을 기다리는 사이(`reconnecting`)에 `reopenIfStalled`(탭 복귀·온라인 복귀)가 부른 `connect()` 는 상태가 `reconnecting` 이라 ①을 통과해 연결을 하나 만들고, 재발급이 끝나면 `doConnect(newToken)` 이 그 연결을 덮음. 번호표를 올린 뒤에 닫는 이유 — 닫힘 신호가 늦게 와도 현재 연결의 끊김으로 오인되지 않게 함(`isCurrent()`). 버린 안 — ①만(재발급 대기 경로가 남음) · ②만(연결된 클라이언트의 `connect()` 가 멀쩡한 연결을 부수고 `connecting` 으로 되돌려 호출부 구독을 끊음). `gaveUp`·`forbidden` 에서의 재시작은 상태가 달라 그대로 동작 — 시험이 지킴
+- **`Ruling 751` — 갈아타는 두 번째 연결을 버릴 때 서버에 소켓이 남는다는 지적(R-2)은 Chrome 에서 재현되지 않아 코드를 고치지 않는다.** 측정 — 서버 `:8720`(토큰 수명 120초) 앞에 방향별 지연 100ms 를 넣는 TCP 중계기를 두고(왕복 200ms — 로컬 왕복 5ms 에서는 소켓 연결 중 구간·열림 후 `CONNECTED` 전 구간이 각각 몇 ms 뿐이라 시점을 맞출 수 없음), Chrome(puppeteer-core)에서 관계자 웹 12페이지가 갈아타기용 두 번째 소켓을 열고 0~2,500ms 뒤 앱의 `disconnect()` 를 호출. `close()` 가 불린 시점의 소켓 상태 — 연결 중(readyState 0) 4 · 열림 후 `CONNECTED` 전 3 · `CONNECTED` 후 5. 결과 — 12개 모두 중계기가 본 브라우저 쪽 TCP FIN 시각이 페이지의 `close` 이벤트 시각과 ±2ms 로 일치(연결 중 4개는 코드 1006 즉시, 나머지 1000) · 서버 쪽 닫힘은 그 뒤 약 100ms(중계 지연) · **브라우저 종료 때까지 열려 있던 웹소켓 연결 0**. 근거 문서의 원인 설명 정정 — `discardWebsocketOnCommFailure` 는 `@stomp/stompjs` 7.3.0 에서 하트비트 소실·`forceDisconnect` 경로(`_closeOrDiscardWebsocket`)만 바꾸고, `force` 없는 `deactivate()` 는 `dispose()` → `WebSocket.close()` 라 이 설정과 무관(`esm6/stomp-handler.js` 212~218·273~296행, `esm6/client.js` 581~620행). Node(undici) 실측에서 남은 것은 undici 쪽 동작 차이로 판단 — 이 클라이언트는 브라우저에서만 돌고 Node 에서 쓰는 곳은 실서버 계약 시험뿐. 미확인 — Safari·Firefox(웹 표준상 `close()` 는 연결 중에도 TCP 를 닫아야 함). 버린 안 — `deactivate({ force: true })` 또는 소켓 직접 `close()` 로 바꾸기(남는 현상이 없는데 정상 종료 핸드셰이크를 포기)
+- **`Ruling 752` — `vitest` 3.2.7 → 5.0.3(`@vitest/mocker` 5.0.3 동반).** `npm audit` 전체 2건(moderate — `vitest`·`@vitest/mocker`, GHSA-82fw-gwwq-j7x9) → 0건 · 운영 의존성(`--omit=dev`) 0건 그대로. `Ruling 713` 의 "올리지 않음" 을 `Ruling 725` 로 뒤집은 이행. 같이 필요했던 것 2가지 — ① vitest 5 의 peer `@types/node ^22.0.0 || >=24.0.0` 때문에 `@types/node` `^20` → `^22.20.5`(`Ruling 727` — 런타임 Node 22 에 맞춤. 이것 없이는 `npm install` 이 `ERESOLVE` 로 중단) ② 시험 코드 — 지도 시험(`NaverMapSurface.test.tsx`)이 SDK 클래스 가짜를 화살표 함수(`vi.fn(() => ({ … }))`)로 만들어 `new` 로 불렀는데, vitest 4 부터 `new` 호출을 `Reflect.construct` 로 처리해 화살표 함수는 `is not a constructor` 로 던짐 → 13건 실패(경고 `[vitest] The vi.fn() mock did not use 'function' or 'class'` 13건과 일치). 15곳을 `function () { return { … }; }` 로 교체 · 앱 코드 변경 없음. 규칙은 `CONVENTIONS_REACT` 시험 절에 추가
+- **`Ruling 753` — 의존성 묶음 `#11` 12개 패키지 판정: 9 채택 · 1 부분 채택(22 계열) · 2 거절.** 단계마다 `next typegen` · `tsc --noEmit` · `npm run lint` · `TZ=UTC vitest run`(실서버 시험 제외) · `next build` 5종을 돌려 가름(표는 아래). 거절 2건 — **`eslint` 9.39.5 → 10.11.0**: `npm run lint` 가 종료 2 로 중단(`TypeError: Error while loading rule 'react/display-name': contextOrFilename.getFilename is not a function`) — `eslint-config-next` 16.3.8 이 끌어오는 `eslint-plugin-react` 7.37.5 가 ESLint 10 에서 제거된 `context.getFilename()` 을 호출하고, `eslint-plugin-import`·`jsx-a11y`·`react-hooks` 의 `eslint` peer 범위도 `^9` 까지. **`typescript` 5.9.3 → 7.0.2**: `npm run lint` 가 종료 2 로 중단(*"typescript-eslint does not support TS 7.0"* — peer `typescript >=4.8.4 <6.1.0`, TS 7.1 이상 지원은 typescript-eslint 이슈 10940 에서 추적 중) · `tsc --noEmit` 은 `@types/navermaps` 전역 네임스페이스를 못 찾는 9건(`TS2503`·`TS2304`). 재검토 조건 — `eslint-config-next` 가 ESLint 10 을 받는 판이 나올 때 · `typescript-eslint` 가 TS 7 을 지원할 때. 부분 채택 — `@types/node` 는 PR 값 26.6.3 이 아니라 `^22.20.5`(`Ruling 727`). `@vitejs/plugin-react` 6.1.1 은 peer `vite ^8` 이라 `vite` 7.3.6 → 8.3.2 가 함께 올라옴(시험 도구 한정 — `next build` 는 vite 를 쓰지 않음)
+- **`Ruling 754` — `#2`(brace-expansion 1.1.18 → 1.1.21)는 해당 없음 · `vitest.config.ts` 를 `.mts` 로.** `#2` — 잠금 파일이 이미 `brace-expansion` 1.1.21(ESLint 쪽) · 5.0.12(typescript-estree 쪽)로, `Ruling 713` 의 `npm audit fix` 가 올려 둔 값이라 PR 의 변경이 남아 있지 않음. `vitest.config.ts` — vite 8 이 설정 파일의 ESM 문법·`__dirname` 이 CommonJS 패키지(`package.json` 에 `"type": "module"` 없음)에서 `configLoader: 'native'`(차기 주 버전의 기본값 예정)로 돌 때 실패한다고 경고 → `vitest.config.mts` 로 확장자 변경 + `__dirname` → `import.meta.dirname`(Node 20.11 이상). 경고 0 · 전체 시험 통과. `"type": "module"` 을 패키지 전체에 거는 안은 `next.config.ts`·`eslint.config.mjs`·스크립트 전체의 모듈 형식을 바꾸게 되어 버림
+
+의존성 판정표(`#11`, 잠금 파일 값 → PR 값):
+
+| 패키지 | 현재 → PR | 판정 | 반영 값 | 이유 |
+|---|---|:-:|---|---|
+| `lucide-react` | 1.47.0 → 1.48.0 | 채택 | 1.49.0 | minor — 그 사이 나온 최신으로 · 5종 통과 |
+| `react` · `react-dom` | 19.2.8 → 19.3.0 | 채택 | 19.3.0 | minor — 5종 통과(정확 고정 관례 유지) |
+| `@types/react` · `@types/react-dom` | 19.2.18 → 19.3.0 · 19.2.7 → 19.3.0 | 채택 | 19.3.0 | react 와 짝 · 범위 표기 `^19` 유지, 잠금 파일만 이동 |
+| `jsdom` | 30.0.1 → 30.1.1 | 채택 | 30.1.1 | patch — 5종 통과 |
+| `@testing-library/jest-dom` | 6.9.1 → 7.0.1 | 채택 | 7.0.1 | major — 5종 통과 · 시험 코드 수정 0 |
+| `vitest` | 3.2.7 → 5.0.2(`#11`) · 5.0.3(`#4`) | 채택 | 5.0.3 | `Ruling 752` |
+| `@types/node` | 20.19.43 → 26.6.3 | 부분 채택 | 22.20.5 | `Ruling 727` — 런타임 Node 22 · vitest 5 peer 충족 |
+| `@vitejs/plugin-react` | 4.7.0 → 6.1.1 | 채택 | 6.1.1 | major — peer `vite ^8` 이라 vite 8.3.2 동반 · 5종 통과 |
+| `eslint` | 9.39.5 → 10.11.0 | **거절** | 9.39.5 | `eslint-plugin-react` 가 ESLint 10 에서 제거된 API 호출 — lint 종료 2 |
+| `typescript` | 5.9.3 → 7.0.2 | **거절** | 5.9.3 | `typescript-eslint` 가 TS 7 미지원 — lint 종료 2 |
+
+### 5.34.2 목표 표와 결과 (2026-10-02)
+
+| # | 조건 | 결과 |
+|:-:|---|---|
+| 1 | 연결된 클라이언트에 `connect()` 를 다시 불러도 활성 클라이언트 1개 · `gaveUp` 재시작 동작 | vitest 3건 추가(`academyRealtimeClient.test.ts`) — RED 2건(가드 시험 `핸들 2개`, 재발급 대기 시험 `deactivate 0회`) → GREEN · 재시작 시험은 수정 전에도 통과(가드가 재시작을 막지 않는지 지키는 용도) · 결함 심기 2건(가드 삭제 · `doConnect` 의 `deactivate` 삭제)이 각각 대응하는 시험 1건에서만 실패 |
+| 2 | R-2 브라우저 재현 결과 + 판정 | `Ruling 751` — 12개 소켓 전부 닫힘(브라우저 종료 때까지 열린 웹소켓 0) · 코드 변경 없음 · 측정 로그·스크립트 `.claude/r47/web-logs/` |
+| 3 | 의존성 단계마다 `next typegen` · `tsc` · `lint` · vitest · `next build` | 기준선(R-1 반영 후) 142 파일 886건. 5종 전부 돈 단계 6곳 — vitest 5(수정 전 13건 실패 → 수정 후 통과) · lucide·jsdom · react 19.3 · jest-dom 7 · plugin-react 6/vite 8 · 최종 — 모두 **142 파일 886건 통과 · 종료 0**. `@types/node` 22 단계는 `typegen`·`tsc`·`lint` 3종만(vitest·`next build` 는 바로 다음 vitest 5 단계에서 함께). eslint 10·TS 7 은 lint 종료 2 로 거절 후 원복 |
+| 4 | 실서버 계약 시험 `:8720` 실패 0 · 건너뜀 0 | 15 파일 **83건 통과** · 건너뜀 0 · 종료 0 · 서버 토큰 수명 120초라 갈아타기 시험(162초)도 실행됨 — 연결 3 · 방송 562건 · 최대 공백 557ms · 중복 0 · 두 연결이 같은 본문을 받은 수 16 |
+| 5 | `npm audit` 전후 | 전체 **2건(moderate) → 0건** · `--omit=dev` 0건 → 0건 |
+| 6 | 화면 눈 확인 — 로그인 · 관제 · 대시보드 1024·1440 | 도구 교체 뒤 빌드(`:8720` 연결)를 Chrome 으로 열어 로그인 · 대시보드(`staffA`) · 전체 관제(`sysadmin`) 각 1024·1440px — 레이아웃·글꼴·색·지도 타일·버스 칩 정상 렌더 · 비상 띠 1건 · 웹소켓 1개 열림 · 연결 끊김 문구 0 · 콘솔 오류는 로그인 전 `POST /auth/refresh` 401 2건(쿠키 없는 세션 복구 시도)뿐 · 스크린샷 6장 `frontend/report/r47-web/` |
+| 7 | 정본 반영 · 깨진 참조 | 이 절 · `docs/IMPLEMENTATION_PLAN.md §11` 색인 750~754 · 713 행 이행 표시 · `CONVENTIONS_REACT` 시험 절 |
+| 8 | 정리 | 서버 `:8720` · 웹 `:3000` · 지연 중계기 `:8721` 종료(`lsof` 로 포트 3개 비어 있음 확인) · `vitest`·`next`·Gradle 잔여 프로세스 0 · 내 컨테이너 0 · DB `r47_web` 는 지시대로 남김(연결 0) |
+
 ## 6. 완료 조건 — 화면 단위
 
 각 화면은 아래 4개를 전부 통과해야 완료. **"화면이 뜬다" 는 완료가 아님.**
