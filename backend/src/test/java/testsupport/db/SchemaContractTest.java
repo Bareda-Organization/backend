@@ -44,7 +44,7 @@ class SchemaContractTest extends MigratedPostgresTestBase {
      * ERD §3 이 정의한 42개 테이블 전수와 정확히 일치해야 한다(Phase 8 신설 run_forced_addition ·
      * F3 S1 신설 delay_notice · F4 S1 신설 run_transfer 포함, Ruling 324 로 link_request 삭제 —
      * 43개→42개). {@code shedlock} 은 도메인 테이블이 아니라 ShedLock 라이브러리가 요구하는 스키마
-     * 그대로이지만, {@code docs/backend/ERD.md} 가 이를 별도 그룹 ⑤ 로 직접 문서화하므로(2026-09-03, V4)
+     * 그대로이지만, {@code docs/backend/ERD.md} 가 이를 별도 그룹 ⑤ 로 직접 문서화하므로(2026-09-03 · 2026-10-03 V1 에 합침)
      * 42개 안에 포함된다 — 이 대조에서 빠지면 오타난 인프라 테이블 이름도 통과하게 되므로 함께 센다.
      * Flyway 자신의 이력 테이블은 대조 대상 밖이다.
      */

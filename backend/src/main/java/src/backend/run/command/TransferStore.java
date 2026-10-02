@@ -37,7 +37,7 @@ import src.backend.student.geocoding.spec.GeocodedPoint;
 @RequiredArgsConstructor
 public class TransferStore {
 
-    /** 같은 학생의 대기(staged) 이동은 하나뿐이라는 DB 판정(V10 의 부분 UNIQUE 인덱스, R46 A-1). */
+    /** 같은 학생의 대기(staged) 이동은 하나뿐이라는 DB 판정(V1 의 부분 UNIQUE 인덱스 uk_run_transfer_student_staged, R46 A-1). */
     private static final String STAGED_UNIQUE_INDEX = "uk_run_transfer_student_staged";
 
     private final StopMatcher stopMatcher;

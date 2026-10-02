@@ -57,7 +57,7 @@ public class AcademySetting extends BaseTimeEntity {
     /**
      * 미승차 대기 시간(분)을 학원 담당자가 바꾼다(Phase 11 목표 4, API_SPEC §5.21
      * {@code PATCH /staff/academy-settings}). 하한·상한 둘 다 여기서 먼저 재확인한다 —
-     * {@code CHECK (no_show_wait_minutes > 0 AND no_show_wait_minutes <= 30)}(V11, X-06,
+     * {@code CHECK (no_show_wait_minutes > 0 AND no_show_wait_minutes <= 30)}(V1, X-06,
      * Ruling 257)이 최후 방어선이고, 이 메서드는 그보다 먼저 422 로 끊어 사용자에게 원인을 알리는 자리다.
      */
     public void changeNoShowWaitMinutes(int noShowWaitMinutes) {

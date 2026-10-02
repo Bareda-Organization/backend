@@ -10,6 +10,8 @@
 --   · 운행일은 date, 스케줄의 시각 원본은 time, 실제 발생 시각은 timestamptz
 --
 -- ⚠️ 첫 배포 이전이라 새 버전을 쌓지 않고 이 파일을 직접 고친다(CLAUDE.md · IMPLEMENTATION_PLAN §2.1).
+--    테이블 정의는 이 파일 하나뿐이다 — 2026-10-03 그 사이 덧붙였던 V3~V11 · V15(컬럼 3 · 테이블 3 · CHECK 2 · 인덱스 9)를
+--    여기로 합쳤다(합치기 전후 pg_dump --schema-only 동일). 데이터는 db/qa-seed(QA) · db/fixture(시험)에 따로 있다.
 --    고치면 체크섬이 바뀌므로 `docker compose down` 후 `up` 으로 로컬 DB 를 재구성해야 한다.
 --    demo·prod 에 한 번이라도 적용된 뒤에는 원칙이 뒤집혀 V{n} 추가만 허용된다 — 그 시점에 이 주석을 갱신할 것.
 
@@ -49,7 +51,8 @@ CREATE TABLE academy_setting (
     created_at           timestamptz NOT NULL DEFAULT now(),
     updated_at           timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT fk_academy_setting_academy FOREIGN KEY (academy_id) REFERENCES academy (id) ON DELETE CASCADE,
-    CONSTRAINT ck_academy_setting_wait_minutes CHECK (no_show_wait_minutes > 0)
+    -- 상한 30분 = ①/② 구간 경계(회차 확정 창, 출발 30분 전) — 넘기면 대기가 회차 운행 자체와 겹쳐 의미를 잃는다(X-06, Ruling 257).
+    CONSTRAINT ck_academy_setting_wait_minutes CHECK (no_show_wait_minutes > 0 AND no_show_wait_minutes <= 30)
 );
 
 -- 로그인 계정. 전 인원이 form 가입으로 만드는 단일 인증 주체이며 역할·상태가 접근 범위를 결정한다.
@@ -184,6 +187,9 @@ CREATE TABLE student (
     deleted_at    timestamptz,
     created_at    timestamptz  NOT NULL DEFAULT now(),
     updated_at    timestamptz  NOT NULL DEFAULT now(),
+    -- 퇴원 90일 개인정보 파기 시각(Ruling 480 ②·520) — 행은 지우지 않고(run_rider 등이 RESTRICT 로 참조 · 승하차 이력 무기한 보존)
+    -- 알아볼 수 있는 값만 지운다. 이 값이 없으면 매 실행이 이미 익명화한 학생을 다시 잡아 멱등성과 파기 건수가 거짓이 된다.
+    anonymized_at timestamptz,
     -- 복합 FK(학원 경계)의 대상 — 자식이 (id, academy_id) 쌍으로 이 행을 가리킨다(R46-LATERBE B-4, Ruling 675)
     CONSTRAINT uk_student_id_academy UNIQUE (id, academy_id),
     CONSTRAINT fk_student_academy FOREIGN KEY (academy_id) REFERENCES academy (id) ON DELETE RESTRICT,
@@ -267,7 +273,7 @@ CREATE TABLE weekly_address (
 
 
 -- =====================================================================================
--- ③ 차량 · 인력 · 운행 · 노선 (13 — `stop` 은 그룹 ① 뒤에 앞당겨 정의)
+-- ③ 차량 · 인력 · 운행 · 노선 (15 — `stop` 은 그룹 ① 뒤에 앞당겨 정의)
 -- =====================================================================================
 
 -- 차량. 정원 초과 차단의 기준값을 보유하며 학생 정원은 CHECK 로 계산식을 강제한다.
@@ -491,6 +497,9 @@ CREATE TABLE run_stop (
     eta              timestamptz,
     -- 등원 회차의 도착지(학원) 항목 — 마지막 순번 1행만 true 이고 그 행은 stop_id·waypoint_id 가 둘 다 NULL(Ruling 327).
     destination      boolean      NOT NULL DEFAULT false,
+    -- 근접 알림(NTF-04, Ruling 207) 최초 1회 발송 판정 — dedup_key UNIQUE 는 같은 알림의 중복 적재만 막고, 스케줄러가 매 틱
+    -- 같은 정차 항목을 다시 판정하지 않게 하는 것은 이 컬럼의 조건부 UPDATE 몫이다(Ruling 210).
+    proximity_notified_at timestamptz,
     CONSTRAINT uk_run_stop_version_seq UNIQUE (route_version_id, seq),
     CONSTRAINT fk_run_stop_route_version FOREIGN KEY (route_version_id) REFERENCES route_version (id) ON DELETE CASCADE,
     CONSTRAINT fk_run_stop_stop FOREIGN KEY (stop_id) REFERENCES stop (id) ON DELETE RESTRICT,
@@ -535,6 +544,43 @@ CREATE TABLE assignment (
     CONSTRAINT fk_assignment_acked_route_version FOREIGN KEY (acked_route_version_id)
         REFERENCES route_version (id) ON DELETE SET NULL,
     CONSTRAINT ck_assignment_role CHECK (role IN ('driver', 'escort'))
+);
+
+-- 지연 알림 발신 이력(NTF-06, API_SPEC §4.9) — 발신 1회 = 1행. Ruling 253 의 중복 판정(같은 회차의 직전 발신과 분·사유·메시지가
+-- 전부 같으면 409)은 "이 회차의 마지막 지연 신고 1건" 이 필요한데, notification_log 는 수신자별로 행이 나뉘어 그 단위와 맞지 않는다.
+CREATE TABLE delay_notice (
+    id                 bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    run_id             bigint      NOT NULL,
+    sent_by_account_id bigint      NOT NULL,
+    minutes            integer     NOT NULL,
+    reason             varchar(20) NOT NULL,
+    message            varchar(500),
+    sent_at            timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT fk_delay_notice_run FOREIGN KEY (run_id) REFERENCES run (id) ON DELETE CASCADE,
+    CONSTRAINT fk_delay_notice_account FOREIGN KEY (sent_by_account_id) REFERENCES account (id) ON DELETE RESTRICT,
+    CONSTRAINT ck_delay_notice_minutes CHECK (minutes > 0 AND minutes % 5 = 0),
+    CONSTRAINT ck_delay_notice_reason CHECK (reason IN ('traffic', 'weather', 'vehicle_check', 'prev_stop_wait'))
+);
+
+-- 버스 간 이동 대기소(RTE-07, API_SPEC §5.8, Ruling 256). run_forced_addition 과 같은 "대기 후 배치 합류" 형태 — 신청 즉시
+-- 재최적화하지 않고, 출발·도착 두 회차의 확정 배치가 각자 자기 쪽 절반(제외 또는 추가)을 반영한다. 배치는 상태로 대상을 거르지
+-- 않고 항상 재계산하므로(자기 치유) staged/applied 는 재시도 정합 조건이 아니라 조회 편의를 위한 기록이다.
+CREATE TABLE run_transfer (
+    id                      bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    student_id              bigint      NOT NULL,
+    from_run_id             bigint      NOT NULL,
+    to_run_id               bigint      NOT NULL,
+    stop_id                 bigint,
+    note                    text,
+    status                  varchar(10) NOT NULL,
+    requested_by_account_id bigint      NOT NULL,
+    created_at              timestamptz NOT NULL DEFAULT now(),
+    applied_at              timestamptz,
+    CONSTRAINT fk_run_transfer_student FOREIGN KEY (student_id) REFERENCES student (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_run_transfer_from_run FOREIGN KEY (from_run_id) REFERENCES run (id) ON DELETE CASCADE,
+    CONSTRAINT fk_run_transfer_to_run FOREIGN KEY (to_run_id) REFERENCES run (id) ON DELETE CASCADE,
+    CONSTRAINT fk_run_transfer_stop FOREIGN KEY (stop_id) REFERENCES stop (id) ON DELETE RESTRICT,
+    CONSTRAINT ck_run_transfer_status CHECK (status IN ('staged', 'applied'))
 );
 
 
@@ -673,6 +719,9 @@ CREATE TABLE emergency_alert (
     -- 확인할 때 남기는 조치 메모(Ruling 541) — 선택 입력, 최대 200자.
     ack_memo       varchar(200),
     canceled_at    timestamptz,
+    -- 응답 position.recorded_at 의 출처(API_SPEC §5.16, Ruling 236) — 위치 발신 장비가 찍은 시각. occurred_at·received_at 은
+    -- 신고 자체의 시각이라 대체하지 않는다. 위치 캐시가 없던 신고는 lat·lng 와 함께 비어 있다.
+    position_recorded_at timestamptz,
     CONSTRAINT uk_emergency_alert_client_key UNIQUE (client_key),
     -- 비상 알림을 올리는 쪽은 회차에 배치된 기사·동승자뿐이다(ManagerRole · R46 A-5).
     CONSTRAINT ck_emergency_alert_raised_by_role CHECK (raised_by_role IN ('driver', 'escort')),
@@ -748,11 +797,15 @@ CREATE TABLE notification_log (
     CONSTRAINT uk_notification_log_dedup_key UNIQUE (dedup_key),
     -- 수신 역할은 계정 역할 6종 전부다 — 메인 관리자도 비상 알림을 받는다(R46 A-5).
     CONSTRAINT ck_notification_log_recipient_role CHECK (recipient_role IN ('parent', 'student', 'driver', 'escort', 'staff', 'system_admin')),
+    -- 마지막 3종 — 예외 보고 접수 통지(EXC-02·03, API_SPEC §4.13) · 승하차 되돌리기 정정 알림(BRD-05, Ruling 219: 나간 알림은 고치지
+    -- 않고 정정 알림을 새로 적재, 승차 취소·하차 취소 문구가 달라 2종). ⚠ 값 목록 안에 주석을 넣지 않는다 — EnumCheckConstraintParityTest 가
+    -- 괄호 기준 정규식으로 목록을 읽는다.
     CONSTRAINT ck_notification_log_type CHECK (type IN (
         'boarding', 'alighting', 'no_show', 'absent', 'arrive', 'delay',
         'run_started', 'run_ended', 'signup_decided', 'change_decided',
         'approval_requested', 'intent_changed', 'route_changed',
-        'assignment_changed', 'no_show_escalated', 'emergency', 'emergency_canceled')),
+        'assignment_changed', 'no_show_escalated', 'emergency', 'emergency_canceled',
+        'exception_reported', 'boarding_canceled', 'alighting_canceled')),
     CONSTRAINT ck_notification_log_push_state CHECK (push_state IN ('pending', 'sent', 'failed', 'skipped'))
 );
 
@@ -800,6 +853,21 @@ CREATE TABLE audit_log (
     CONSTRAINT ck_audit_log_category CHECK (category IN ('data_access', 'login')),
     CONSTRAINT ck_audit_log_action CHECK (action IN (
         'read', 'update', 'delete', 'login_success', 'login_fail', 'block', 'unblock'))
+);
+
+
+-- =====================================================================================
+-- ⑤ 운영 기반 (1)
+-- =====================================================================================
+
+-- ShedLock 분산 락(TECH_DECISIONS §3.2) — 컬럼명·타입은 shedlock-provider-jdbc-template 기본 스키마 그대로.
+-- 인스턴스가 늘어도 같은 @Scheduled 배치가 중복 수행되지 않도록 행 1개당 락 이름 1개를 잠근다.
+CREATE TABLE shedlock (
+    name       VARCHAR(64)  NOT NULL,
+    lock_until TIMESTAMP(3) NOT NULL,
+    locked_at  TIMESTAMP(3) NOT NULL,
+    locked_by  VARCHAR(255) NOT NULL,
+    PRIMARY KEY (name)
 );
 
 
@@ -921,3 +989,26 @@ CREATE INDEX ix_guardian_academy ON guardian (academy_id);
 CREATE INDEX ix_manager_academy_name ON manager (academy_id, name) WHERE deleted_at IS NULL;
 CREATE INDEX ix_schedule_academy ON schedule (academy_id);
 CREATE INDEX ix_route_academy ON route (academy_id);
+
+-- 보존 정리 배치(ERD §7, Ruling 243)가 컷오프로 훑는 컬럼. notification_log 의 기존 복합 인덱스는 선행 컬럼이 recipient_account_id 라
+-- "전 학원의 컷오프 이전 행" 조회에 쓰이지 않는다. run_position 은 일 단위 파티션을 통째로 DROP 해 컷오프 인덱스를 두지 않는다(R46-LATERBE B-1).
+CREATE INDEX ix_notification_log_retention_cutoff ON notification_log (created_at);
+-- refresh_token 은 폐기 여부로 컷오프 기준이 갈린다 — 폐기된 것은 revoked_at, 아닌 것은 expires_at(RetentionPolicy#refreshTokenCutoff).
+CREATE INDEX ix_refresh_token_retention_revoked ON refresh_token (revoked_at) WHERE revoked_at IS NOT NULL;
+CREATE INDEX ix_refresh_token_retention_expires ON refresh_token (expires_at) WHERE revoked_at IS NULL;
+CREATE INDEX ix_link_code_retention_expires ON link_code (expires_at);
+-- 파기 배치가 "퇴원했고 아직 익명화 안 된 학생" 만 컷오프 순서로 훑는다.
+CREATE INDEX ix_student_retention_cutoff ON student (deleted_at)
+    WHERE deleted_at IS NOT NULL AND anonymized_at IS NULL;
+
+-- 지연 알림 — 같은 회차의 "직전 발신" 을 sent_at 내림차순 1건으로 찾는다(DelayNoticeRepository).
+CREATE INDEX idx_delay_notice_run_sent_at ON delay_notice (run_id, sent_at DESC);
+
+-- 버스 간 이동 — 출발 회차 확정 배치는 "빠져나갈 학생", 도착 회차 확정 배치는 "들어올 학생" 을 찾는다.
+CREATE INDEX idx_run_transfer_from_run ON run_transfer (from_run_id);
+CREATE INDEX idx_run_transfer_to_run ON run_transfer (to_run_id);
+-- 같은 학생의 처리 대기 이동 건 선검사(TRANSFER_ALREADY_STAGED).
+CREATE INDEX idx_run_transfer_student_status ON run_transfer (student_id, status);
+-- 같은 학생의 대기(staged) 이동은 DB 가 하나만 받는다(R46 A-1) — 선검사는 잠금 밖이라 동시 요청 둘이 모두 통과해 staged 행이
+-- 둘 생겼다. 위반은 409 TRANSFER_ALREADY_STAGED 로 옮긴다. 반영된(applied) 이동은 학생당 몇 건이든 남는다.
+CREATE UNIQUE INDEX uk_run_transfer_student_staged ON run_transfer (student_id) WHERE status = 'staged';

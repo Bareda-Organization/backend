@@ -414,7 +414,7 @@ class ProximityNotificationSchedulerTest {
      * 목표12(건너뜀), 과거면 목표13(만료돼 이어받음)이다.
      *
      * <p>{@code shedlock} 의 {@code lock_until}·{@code locked_at} 은 {@code TIMESTAMP} 로,
-     * 시간대 정보가 없는 컬럼이다(V4 마이그레이션). 이 프로젝트는 그 컬럼에 항상 <b>UTC 벽시계
+     * 시간대 정보가 없는 컬럼이다(V1 의 shedlock 테이블). 이 프로젝트는 그 컬럼에 항상 <b>UTC 벽시계
      * 숫자</b>를 저장하는 관례를 쓴다({@code JdbcTemplateLockProvider} 가 SQL 쪽에서
      * {@code timezone('utc', CURRENT_TIMESTAMP)} 로 채우는 것과 같다). {@code Timestamp.from(Instant)}
      * 로 바인딩하면 드라이버가 <b>JVM 기본 시간대(KST, UTC+9)로 벽시계 숫자를 다시 계산</b>해

@@ -59,9 +59,9 @@ import src.backend.run.entity.RunTransferStatus;
 import src.backend.student.entity.Gender;
 
 /**
- * enum 30종의 DB 값 집합이 마이그레이션 전체({@code V1__init_schema.sql} 기준 값 목록형 CHECK
- * 45건(R46 A-5 가 5건을 더했다 — 정규식 일치를 직접 센 값) + 이후 파일이 같은 이름으로
- * 재정의한 것)와 정확히 일치하는지 회귀 감시한다 —
+ * enum 30종의 DB 값 집합이 마이그레이션 전체({@code V1__init_schema.sql} 의 값 목록형 CHECK
+ * 47건 — R46 A-5 가 5건을 더했고 2026-10-03 V9·V10 을 합치며 2건이 들어왔다, 정규식 일치를 직접 센 값)와
+ * 정확히 일치하는지 회귀 감시한다 —
  * {@code ddl-auto: validate} 는 CHECK 를 전혀 보지 않으므로(`IMPLEMENTATION_PLAN` 603행), 이
  * 대조가 없으면 오늘 맞는 값이 내일 상수 하나만 고쳐도 어디서도 실패하지 않는다.
  *
@@ -69,11 +69,9 @@ import src.backend.student.entity.Gender;
  * 합집합과 비교한다 — Java 는 하나의 enum 만 두므로 "합쳐서 정확히 일치"가 우리가 확인할 수
  * 있는 전부이고, 부분집합 강제 자체는 여전히 DB CHECK 가 전담한다.
  *
- * <p>Postgres 는 CHECK 에 값을 덧붙일 수 없어 나중 값 목록은 {@code DROP CONSTRAINT} 뒤 같은
- * 이름으로 다시 {@code ADD CONSTRAINT} 하는 형태로 온다({@code V5__add_exception_reported_
- * notification_type.sql} 이 {@code ck_notification_log_type} 을 이렇게 재정의). V1 만 보면
- * 그 재정의는 반영되지 않으므로, 버전 오름차순으로 전 파일을 읽어 같은 제약 이름은 <b>나중
- * 파일의 정의로 덮어쓴다</b> — "지금 실제로 유효한 CHECK" 를 반영하기 위함이다.
+ * <p>2026-10-03 부터 스키마는 {@code V1} 한 파일이다. 그래도 버전 오름차순으로 전 파일을 읽어 같은 제약 이름은 <b>나중
+ * 파일의 정의로 덮어쓴다</b> — 첫 배포 뒤 {@code V{n}} 을 덧붙이면 Postgres 는 CHECK 에 값을 덧붙일 수 없어 {@code DROP CONSTRAINT}
+ * 뒤 같은 이름으로 다시 {@code ADD CONSTRAINT} 하는 형태로 오므로, 그때도 "지금 실제로 유효한 CHECK" 를 보게 하려는 것이다.
  */
 class EnumCheckConstraintParityTest {
 

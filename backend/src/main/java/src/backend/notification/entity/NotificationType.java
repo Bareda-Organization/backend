@@ -46,7 +46,7 @@ public enum NotificationType {
     EMERGENCY,
     /** 비상 상황 해제. */
     EMERGENCY_CANCELED,
-    /** 예외 보고 접수됨(EXC-02·EXC-03, API_SPEC §4.13) — §9.7 표 누락분을 V5 마이그레이션으로 보강. */
+    /** 예외 보고 접수됨(EXC-02·EXC-03, API_SPEC §4.13) — §9.7 표 누락분을 보강(V1 의 ck_notification_log_type). */
     EXCEPTION_REPORTED,
     /** 승차 취소됨(BRD-05, 목표 13, Ruling 219) — 되돌리기로 승차 처리가 취소돼 원래 승차 알림이 거짓이 됐음을 정정. */
     BOARDING_CANCELED,

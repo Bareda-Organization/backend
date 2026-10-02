@@ -255,7 +255,7 @@ public class AuditLog {
      * 문면상 action 을 {@code run.force_confirm} 으로 적지만, {@code ck_audit_log_action} CHECK
      * 제약의 값 도메인은 {@link AuditAction} 7종으로 닫혀 있어 그 문자열을 열 자체에는 담을 수 없다.
      * 조율자 판정(Ruling 260)은 {@code category=DATA_ACCESS}·{@code action=UPDATE}·
-     * {@code target_type="run"} 재사용을 확정했다 — 도메인을 늘리면 V10/V11(F4 선점)·ERD CHECK·
+     * {@code target_type="run"} 재사용을 확정했다 — 도메인을 늘리면 V1 CHECK·ERD CHECK·
      * {@code GET /admin/audit-logs}(§6.12) 의 action 투영까지 번지고, {@code update}+{@code run} 이면
      * 같은 감사 조회 화면에 자연히 나타나기 때문이다. 스펙이 요구하는 정확한 동작 이름·부가 정보는
      * {@code detail} JSON 에 그대로 싣는다 — {@code action}(문자열 {@code "run.force_confirm"}),

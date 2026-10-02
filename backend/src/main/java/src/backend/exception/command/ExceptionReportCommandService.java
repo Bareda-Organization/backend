@@ -38,7 +38,7 @@ import src.backend.run.repository.RunRepository;
  *
  * <p>관계자 통지(§4.13 "즉시 통지")는 저장과 같은 트랜잭션 안에서 {@link ExceptionReportedEvent}
  * 를 발행하는 형태로 처리한다(Ruling 215 — {@code NotificationType} 에 {@code exception_reported}
- * 값과 {@code V5} CHECK 제약이 추가됐다). 실제 적재는 {@code ExceptionReportNotificationListener}
+ * 값과 {@code ck_notification_log_type} CHECK 제약이 추가됐다). 실제 적재는 {@code ExceptionReportNotificationListener}
  * 가 이 이벤트를 구독해 맡는다 — 승인 요청 접수(§9.7 {@code approval_requested})가 같은 형태로
  * {@code ApprovalRequestedEvent} 를 쓰는 것과 같은 이유다.
  */
