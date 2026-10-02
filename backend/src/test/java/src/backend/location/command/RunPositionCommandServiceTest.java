@@ -54,11 +54,12 @@ import testsupport.clock.FixedClock20300401Config;
  * 기사 단말의 위치 송신 API(§4.12, 목표 1·2) — {@code moving} 회차만 성공하고, 인가·상태 판정을
  * 어긴 호출은 저장소를 건드리지 않는다.
  *
- * <p>{@code @Transactional} 을 쓴다({@code DriverRunControllerTest} 와 같은 근거 — 커맨드 서비스의
- * {@code @Transactional} 이 기본 전파라 테스트 트랜잭션에 합류해 끝나면 함께 롤백된다). 그래서 이
- * 클래스는 {@link RunPositionReceivedEvent} 가 실제로 커밋되는지(목표 3, Redis 갱신)는 보지 않는다
+ * <p>{@code @Transactional} 을 쓴다({@code DriverRunControllerTest} 와 같은 근거 — 서비스가 쓰는
+ * {@code TransactionTemplate} 이 기본 전파라 테스트 트랜잭션에 합류해 끝나면 함께 롤백된다). 그래서 이
+ * 클래스는 {@link RunPositionReceivedEvent} 가 실제로 커밋되는지(목표 3, Redis 갱신)와, 트랜잭션 없이 발행하는
+ * {@code fallbackExecution} 경로 · "DB 연결을 반납한 뒤 발행" 을 보지 않는다
  * — 그건 커밋이 필요 없는 이벤트 발행 자체(인자 순서)와, 실제 커밋이 필요한 Redis 갱신을 각각
- * {@code RunPositionReceivedEventTest}·{@code RunPositionRedisIntegrationTest} 로 나눠 검사한다.
+ * {@code RunPositionReceivedEventTest}·{@code RunPositionRedisIntegrationTest}(T-1) 로 나눠 검사한다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -306,15 +307,20 @@ class RunPositionCommandServiceTest {
         long versionId = fixtures.confirmedRouteWithVersion(runId, now());
         long firstStopId = fixtures.stop(academyId, "37.500000", "127.000000");
         long firstRunStopId = fixtures.runStopForStop(versionId, firstStopId, 1, now().minusMinutes(5));
+        long secondStopId = fixtures.stop(academyId, "37.510000", "127.010000");
+        long secondRunStopId = fixtures.runStopForStop(versionId, secondStopId, 2, now().minusMinutes(2));
         OffsetDateTime nextEta = now().plusMinutes(7);
-        fixtures.runStopForStop(versionId, fixtures.stop(academyId, "37.510000", "127.010000"), 2, nextEta);
-        fixtures.runStopForDestination(versionId, 3);
+        fixtures.runStopForStop(versionId, fixtures.stop(academyId, "37.520000", "127.020000"), 3, nextEta);
+        fixtures.runStopForDestination(versionId, 4);
         // 엔티티로 도착 처리한다 — JDBC 로 바꾸면 같은 트랜잭션의 영속성 컨텍스트가 들고 있는 옛 엔티티가 그대로 읽힌다.
-        RunStop firstRunStop = runStopRepository.findById(firstRunStopId).orElseThrow();
-        firstRunStop.markArrived(now());
-        runStopRepository.saveAndFlush(firstRunStop);
-        String firstStopName = jdbcTemplate.queryForObject("SELECT name FROM stop WHERE id = ?", String.class,
-                firstStopId);
+        // 도착한 정차를 둘로 둔다 — "도착 정차 중 seq 최댓값" 이 현재 정차지이고 다음 ETA 는 그 뒤 첫 정차의 것이다(BR-341)
+        for (long runStopId : new long[] { firstRunStopId, secondRunStopId }) {
+            RunStop arrived = runStopRepository.findById(runStopId).orElseThrow();
+            arrived.markArrived(now());
+            runStopRepository.saveAndFlush(arrived);
+        }
+        String secondStopName = jdbcTemplate.queryForObject("SELECT name FROM stop WHERE id = ?", String.class,
+                secondStopId);
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/position")
                 .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
@@ -326,7 +332,7 @@ class RunPositionCommandServiceTest {
 
         RunPositionReceivedEvent event = capturedEvents.events().get(0);
         assertThat(event.academyId()).isEqualTo(academyId);
-        assertThat(event.currentStopName()).isEqualTo(firstStopName);
+        assertThat(event.currentStopName()).isEqualTo(secondStopName);
         assertThat(event.nextEta()).isEqualTo(nextEta);
     }
 

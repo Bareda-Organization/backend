@@ -49,13 +49,29 @@ public class RunPositionPartitionManager {
 
     private final TransactionTemplate transactionTemplate;
 
-    /** {@code today} 부터 {@code lookAheadDays} 일 뒤까지 없는 일 파티션을 만든다 — 만든 개수를 돌려준다(이미 있으면 0). */
+    /**
+     * {@code today} 부터 {@code lookAheadDays} 일 뒤까지 없는 일 파티션을 만든다 — 만든 개수를 돌려준다(이미 있으면 0).
+     * 한 날짜의 생성이 실패해도 뒤 날짜를 이어 만들고, 실패는 끝에서 첫 예외로 던진다(나머지는 suppressed) — 호출자의 실패
+     * 카운터와 "마지막 성공 이후 경과" 게이지가 그대로 실패를 드러낸다(BR-340).
+     */
     public int ensureAhead(LocalDate today, int lookAheadDays) {
         int created = 0;
+        RuntimeException failure = null;
         for (int offset = 0; offset <= lookAheadDays; offset++) {
-            if (ensurePartition(today.plusDays(offset))) {
-                created++;
+            try {
+                if (ensurePartition(today.plusDays(offset))) {
+                    created++;
+                }
+            } catch (RuntimeException e) {
+                if (failure == null) {
+                    failure = e;
+                } else {
+                    failure.addSuppressed(e);
+                }
             }
+        }
+        if (failure != null) {
+            throw failure;
         }
         return created;
     }
@@ -96,6 +112,9 @@ public class RunPositionPartitionManager {
         }
         String lower = boundOf(day);
         String upper = boundOf(day.plusDays(1));
+        // 부모 잠금을 먼저 잡는다 — 진행 중이던 위치 INSERT 가 커밋될 때까지 기다린 뒤 기본 파티션을 읽어야, 그 사이 커밋된
+        // 같은 날짜 행이 이전에서 빠져 CREATE 가 "기본 파티션 제약 위반" 으로 실패하지 않는다(BR-340)
+        jdbc.execute("LOCK TABLE ONLY " + PARENT + " IN ACCESS EXCLUSIVE MODE");
         jdbc.execute("""
                 CREATE TEMP TABLE run_position_moved ON COMMIT DROP AS
                 WITH moved AS (

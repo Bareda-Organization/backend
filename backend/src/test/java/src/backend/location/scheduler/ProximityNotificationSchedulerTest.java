@@ -3,6 +3,7 @@ package src.backend.location.scheduler;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
@@ -23,6 +24,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.AfterEach;
@@ -100,6 +102,9 @@ class ProximityNotificationSchedulerTest {
 
     @Autowired
     private EntityManagerFactory entityManagerFactory;
+
+    @Autowired
+    private MeterRegistry meterRegistry;
 
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
@@ -336,6 +341,45 @@ class ProximityNotificationSchedulerTest {
                         + "WHERE cr.run_id = ? AND rs.stop_id = ?",
                 OffsetDateTime.class, goodRun.runId(), goodRun.stopId());
         assertThat(proximityNotifiedAt).as("앞 회차가 예외를 던져도 뒤 회차는 정상 판정돼야 한다").isNotNull();
+    }
+
+    /**
+     * BR-345 — 한 묶음의 위치 읽기 자체가 실패하면(Redis 와 DB 대체 둘 다) 그 묶음의 이번 틱만 건너뛰고 실패 카운터를 올린다. 틱 전체가
+     * 첫 묶음에서 죽으면 뒤 묶음 회차는 판정되지 않는다. 묶음 경계는 앞자리 시드 회차 때문에 알 수 없으므로 가장 앞 회차의 묶음에만
+     * 예외를 심고, 51개 회차 중 마지막 회차는 반드시 다른 묶음(50건 상한)에 있다는 점을 쓴다.
+     */
+    @Test
+    void 위치_읽기가_실패한_묶음은_건너뛰고_실패를_세며_다음_묶음은_판정한다() {
+        ProximityFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        OffsetDateTime baseDepart = OffsetDateTime.now(ZoneOffset.UTC).plusHours(1);
+        int total = ProximityNotificationScheduler.BATCH_SIZE + 1;
+        List<Long> runIds = new ArrayList<>();
+        for (int i = 0; i < total; i++) {
+            OffsetDateTime departTime = baseDepart.plusMinutes(i);
+            long runId = fx.movingRun(academyId, busId, Direction.FROM_ACADEMY, departTime,
+                    departTime.minusMinutes(30), departTime.minusMinutes(30));
+            writePosition(runId, NEAR_LAT, STOP_LNG);
+            runIds.add(runId);
+        }
+        long firstRunId = runIds.get(0);
+        long lastRunId = runIds.get(total - 1);
+        doThrow(new RuntimeException("의도적 실패 — 묶음 위치 읽기")).when(runPositionStore)
+                .findAll(argThat((Collection<Long> ids) -> ids.contains(firstRunId)));
+        double failuresBefore = schedulerFailures();
+
+        scheduler.judgeMovingRuns();
+
+        verify(proximityNotificationService, never()).judgeRun(eq(firstRunId), anyLong(), any(), any());
+        verify(proximityNotificationService, times(1)).judgeRun(eq(lastRunId), eq(academyId), any(), any());
+        assertThat(schedulerFailures() - failuresBefore).as("읽기에 실패한 묶음 1개 = 건별 실패 1").isEqualTo(1.0d);
+    }
+
+    private double schedulerFailures() {
+        var counter = meterRegistry.find("schoolbus.scheduler.failures").tag("scheduler", "proximity-notification")
+                .counter();
+        return counter == null ? 0.0d : counter.count();
     }
 
     @Test

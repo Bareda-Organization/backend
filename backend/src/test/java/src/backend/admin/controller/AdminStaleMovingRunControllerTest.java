@@ -33,6 +33,7 @@ import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
+import src.backend.global.request.PageParams;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
@@ -196,6 +197,23 @@ class AdminStaleMovingRunControllerTest {
     }
 
     @Test
+    @DisplayName("목록 — 페이징이 없어 상한(200건)에서 자르고, 운행일이 가장 오래된 회차부터 남긴다(BR-317)")
+    void 목록은_상한_건만_돌려주고_오래된_회차부터_남긴다() throws Exception {
+        long academy = fixtures().academyWithCoordinates();
+        // 오래된 날짜(오늘−10)로 상한 건수를 채우고, 상한을 넘는 1건만 더 최근(오늘−3)으로 둔다 — 잘리는 쪽이 새 회차여야 한다.
+        // 남이 만든 행이 섞여도 총 건수가 상한 이상이면 길이는 같고, 가장 최근 회차는 어느 경우에도 잘려 나간다.
+        for (int i = 0; i < PageParams.UNPAGED_LIST_MAX; i++) {
+            run(academy, TODAY.minusDays(10), "moving");
+        }
+        long newestOverLimit = run(academy, TODAY.minusDays(3), "moving");
+
+        List<Long> listed = listedRunIds();
+
+        assertThat(listed).as("상한 건만 싣는다").hasSize(PageParams.UNPAGED_LIST_MAX);
+        assertThat(listed).as("상한을 넘는 가장 최근 회차는 잘린다 — 오래된 회차부터 남긴다").doesNotContain(newestOverLimit);
+    }
+
+    @Test
     @DisplayName("목록 — 항목 필드와 아직 boarded 인 탑승자 수(alighted·대기는 세지 않음)")
     void 목록_항목은_남은_탑승자_수를_정확히_싣는다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
@@ -336,6 +354,27 @@ class AdminStaleMovingRunControllerTest {
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
         assertThat(runStatus(runId)).isEqualTo("moving");
+    }
+
+    @Test
+    @DisplayName("강제 종료 — 사유는 최대 200자다(201자는 422 로 거절되고 회차는 그대로, 200자는 받는다) (BR-349)")
+    void 사유가_200자를_넘으면_422_다() throws Exception {
+        long runId = staleRun(fixtures().academyWithCoordinates());
+
+        mockMvc.perform(post(FORCE_FINISH.formatted(runId))
+                        .header("Authorization", 메인관리자_토큰())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"%s\"}".formatted("가".repeat(201))))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+        assertThat(runStatus(runId)).as("거절된 요청은 회차를 바꾸지 않는다").isEqualTo("moving");
+
+        mockMvc.perform(post(FORCE_FINISH.formatted(runId))
+                        .header("Authorization", 메인관리자_토큰())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"%s\"}".formatted("가".repeat(200))))
+                .andExpect(status().isOk());
+        assertThat(runStatus(runId)).isEqualTo("finished");
     }
 
     @Test

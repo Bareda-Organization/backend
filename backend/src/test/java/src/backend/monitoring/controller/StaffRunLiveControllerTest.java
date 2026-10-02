@@ -158,6 +158,9 @@ class StaffRunLiveControllerTest {
         }
         jdbcTemplate.update("DELETE FROM run_position WHERE run_id IN "
                 + "(SELECT id FROM run WHERE academy_id = ANY(?))", (Object) academyIds.toArray(new Long[0]));
+        // run_stop.waypoint_id 는 ON DELETE RESTRICT — run 삭제의 연쇄가 경유지(waypoint)를 먼저 지우면 걸리므로 참조부터 지운다(BR-351 시험)
+        jdbcTemplate.update("DELETE FROM run_stop WHERE waypoint_id IN (SELECT id FROM waypoint WHERE run_id IN "
+                + "(SELECT id FROM run WHERE academy_id = ANY(?)))", (Object) academyIds.toArray(new Long[0]));
         jdbcTemplate.update("DELETE FROM run WHERE academy_id = ANY(?)", (Object) academyIds.toArray(new Long[0]));
         jdbcTemplate.update("DELETE FROM manager WHERE academy_id = ANY(?)",
                 (Object) academyIds.toArray(new Long[0]));
@@ -304,6 +307,46 @@ class StaffRunLiveControllerTest {
 
         mockMvc.perform(get("/api/v1/staff/runs/live").header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.runs[0].next_stop").value(DriverRunFixtures.ACADEMY_NAME));
+    }
+
+    /**
+     * BR-351(Ruling 327) — 정차 항목 이름은 승하차지 · 강제 경유지 · 학원 항목 세 갈래다. 경유지 갈래가 빠지면(맵 조회 누락) 현재·다음 정차가
+     * 경유지인 회차에서 {@code current_stop}·{@code next_stop} 이 조용히 {@code null} 로 나간다 — 다음 정차가 경유지인 상태와 그 경유지에
+     * 도착한 상태를 둘 다 본다.
+     */
+    @Test
+    @DisplayName("BR-351 — 현재·다음 정차가 강제 경유지이면 이름은 경유지 label 이다")
+    void 현재_다음_정차가_강제_경유지이면_경유지_label_이_나온다() throws Exception {
+        DriverRunFixtures fx = fixtures();
+        long academyId = fx.academy();
+        academyIds.add(academyId);
+        long busId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.500000", "127.000000");
+        OffsetDateTime departTime = now();
+        long runId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
+        fx.startRun(runId, now());
+        long staffAccountId = fx.staffAccount(academyId, "관계자1");
+        long versionId = fx.confirmedRouteWithVersion(runId, departTime.minusMinutes(40));
+        long stopRunStopId = fx.runStopForStop(versionId, stopId, 1, departTime);
+        long waypointId = jdbcTemplate.queryForObject("""
+                INSERT INTO waypoint (run_id, label, lat, lng, applied, created_by)
+                VALUES (?, '임시집결지', 37.510000, 127.010000, true, ?) RETURNING id
+                """, Long.class, runId, staffAccountId);
+        long waypointRunStopId = fx.runStopForWaypoint(versionId, waypointId, 2);
+        fx.runStopForDestination(versionId, 3);
+        jdbcTemplate.update("UPDATE run_stop SET arrived_at = now() WHERE id = ?", stopRunStopId);
+        String token = 토큰(staffAccountId, academyId, Role.STAFF);
+
+        mockMvc.perform(get("/api/v1/staff/runs/live").header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.runs[0].next_stop").value("임시집결지"));
+
+        jdbcTemplate.update("UPDATE run_stop SET arrived_at = now() WHERE id = ?", waypointRunStopId);
+
+        mockMvc.perform(get("/api/v1/staff/runs/live").header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.runs[0].current_stop").value("임시집결지"))
                 .andExpect(jsonPath("$.data.runs[0].next_stop").value(DriverRunFixtures.ACADEMY_NAME));
     }
 
