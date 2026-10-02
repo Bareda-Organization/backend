@@ -42,6 +42,8 @@ class StaffWeeklyAddressControllerTest {
 
     private static final long ACTOR_4 = 7_460_000_004L;
 
+    private static final long ACTOR_5 = 7_460_000_005L;
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -53,7 +55,7 @@ class StaffWeeklyAddressControllerTest {
 
     @AfterEach
     void cleanUp() {
-        jdbcTemplate.update("delete from audit_log where actor_account_id between ? and ?", ACTOR_1, ACTOR_4);
+        jdbcTemplate.update("delete from audit_log where actor_account_id between ? and ?", ACTOR_1, ACTOR_5);
     }
 
     @Test
@@ -74,6 +76,9 @@ class StaffWeeklyAddressControllerTest {
                 "select count(*) from audit_log where actor_account_id = ? and action = 'read' "
                         + "and target_type = 'student' and target_id = ?",
                 Integer.class, ACTOR_2, Long.valueOf(SeedFixtures.STUDENT_SIBLING_2_ID))).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "select detail -> 'fields' from audit_log where actor_account_id = ? and action = 'read'",
+                String.class, ACTOR_2)).as("어떤 필드를 읽었는지 — 주소 원문").isEqualTo("[\"weekly_address\"]");
     }
 
     @Test
@@ -96,6 +101,27 @@ class StaffWeeklyAddressControllerTest {
 
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from audit_log where actor_account_id = ?", Integer.class, ACTOR_4)).isZero();
+    }
+
+    /** 퇴원생은 명단에서 빠진 학생이라 존재를 알리지 않는다 — 404 이고 주소 원문·좌표도 감사 행도 나가지 않는다(API_SPEC §5.11 STU-06). */
+    @Test
+    void 퇴원한_학생은_404_이고_감사_행도_남기지_않는다() throws Exception {
+        long withdrawnId = jdbcTemplate.queryForObject(
+                "insert into student (academy_id, name, deleted_at) values (?, '퇴원시험학생', now()) returning id",
+                Long.class, ACADEMY_A);
+        jdbcTemplate.update("insert into weekly_address (student_id, weekday, direction, address, lat, lng, verified, "
+                + "updated_at) values (?, 'mon', 'to_academy', '서울시 퇴원 1', 37.5, 127.0, true, now())", withdrawnId);
+        try {
+            mockMvc.perform(get(url(String.valueOf(withdrawnId))).header("Authorization", 관계자_토큰(ACTOR_5)))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.error.code").value("STUDENT_NOT_FOUND"));
+
+            assertThat(jdbcTemplate.queryForObject(
+                    "select count(*) from audit_log where actor_account_id = ?", Integer.class, ACTOR_5)).isZero();
+        } finally {
+            jdbcTemplate.update("delete from weekly_address where student_id = ?", withdrawnId);
+            jdbcTemplate.update("delete from student where id = ?", withdrawnId);
+        }
     }
 
     @Test
