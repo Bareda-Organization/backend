@@ -1,5 +1,6 @@
 package src.backend.notification.command;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.context.event.EventListener;
@@ -14,14 +15,13 @@ import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.notification.entity.NotificationType;
 import src.backend.student.entity.Student;
-import src.backend.student.repository.GuardianAccountRecipient;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StudentRepository;
 
 /**
  * 근접 알림(NTF-04, API_SPEC §9.7 {@code arrive})을 옮기는 구독자 — {@link RunApproachingStopEvent}
- * 가 학생 1명당 1건이라 이 리스너도 1건마다 1번 실행되고, 그 호출마다 학부모·학생 합쳐 많아야 2행을
- * 적재한다.
+ * 가 학생 1명당 1건이라 이 리스너도 1건마다 1번 실행되고, 그 호출마다 보호자 전원과 학생 본인의 초안을 모아 한 번에
+ * 적재한다({@link NotificationOutbox#appendAll}, BR-374 — 문장 수가 보호자 수에 비례하지 않게).
  *
  * <p>{@code @TransactionalEventListener} 가 아니라 평범한 {@code @EventListener} 인 이유는
  * {@code RunRouteConfirmedNotificationListener} 와 같다.
@@ -57,35 +57,37 @@ public class RunApproachingStopNotificationListener {
         String studentName = studentRepository.findById(event.studentId()).map(Student::getName).orElse(null);
         NotificationMessage message = runApproachingStopComposer.compose(new RunApproachingStopSubject(studentName));
 
-        appendToGuardian(event, message, studentName);
-        appendToStudent(event, message, studentName);
+        List<NotificationDraft> drafts = new ArrayList<>(draftsForGuardians(event, message, studentName));
+        drafts.addAll(draftsForStudent(event, message, studentName));
+        notificationOutbox.appendAll(drafts);
     }
 
-    /** 그 학생의 보호자 전원에게 적재한다(BR-073) — 수신자 구분 자리에 보호자 계정을 붙여 서로 가른다. */
-    private void appendToGuardian(RunApproachingStopEvent event, NotificationMessage message, String studentName) {
-        List<GuardianAccountRecipient> guardians = guardianStudentRepository
-                .findGuardianAccountsByAcademyId(event.academyId(), List.of(event.studentId()));
-        for (GuardianAccountRecipient guardian : guardians) {
-            notificationOutbox.append(new NotificationDraft(event.academyId(), guardian.getAccountId(),
-                    guardian.getName(), Role.PARENT, NotificationType.ARRIVE, message.title(), message.body(),
-                    DEDUP_KEY_FORMAT.formatted(event.runId(), event.stopId(), event.studentId(),
-                            "parent:" + guardian.getAccountId()),
-                    event.studentId(), studentName, null));
-        }
+    /** 그 학생의 보호자 전원 몫 초안(BR-073) — 수신자 구분 자리에 보호자 계정을 붙여 서로 가른다. */
+    private List<NotificationDraft> draftsForGuardians(RunApproachingStopEvent event, NotificationMessage message,
+            String studentName) {
+        return guardianStudentRepository.findGuardianAccountsByAcademyId(event.academyId(), List.of(event.studentId()))
+                .stream()
+                .map(guardian -> new NotificationDraft(event.academyId(), guardian.getAccountId(),
+                        guardian.getName(), Role.PARENT, NotificationType.ARRIVE, message.title(), message.body(),
+                        DEDUP_KEY_FORMAT.formatted(event.runId(), event.stopId(), event.studentId(),
+                                "parent:" + guardian.getAccountId()),
+                        event.studentId(), studentName, null))
+                .toList();
     }
 
     /**
      * 학생 본인 — API_SPEC §9.7 {@code arrive} 수신자가 "학부모·학생" 이라 학생 계정에도 적재한다
      * (목표 4, R13 이 발견). 계정이 연결된 학생만 대상이다(로그인이 없는 학생은 받을 계정 자체가 없다).
      */
-    private void appendToStudent(RunApproachingStopEvent event, NotificationMessage message, String studentName) {
+    private List<NotificationDraft> draftsForStudent(RunApproachingStopEvent event, NotificationMessage message,
+            String studentName) {
         List<Student> students = studentRepository
                 .findAllByIdInAndAcademyIdAndAccountIdIsNotNull(List.of(event.studentId()), event.academyId());
         if (students.isEmpty()) {
-            return;
+            return List.of();
         }
         Student student = students.get(0);
-        notificationOutbox.append(new NotificationDraft(event.academyId(), student.getAccountId(),
+        return List.of(new NotificationDraft(event.academyId(), student.getAccountId(),
                 student.getName(), Role.STUDENT, NotificationType.ARRIVE, message.title(), message.body(),
                 DEDUP_KEY_FORMAT.formatted(event.runId(), event.stopId(), event.studentId(), "student"),
                 event.studentId(), studentName, null));

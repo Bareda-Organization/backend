@@ -38,21 +38,26 @@ public class RunAutoAlightedNotificationListener {
     private final NotificationComposer<RunAutoAlightedSubject> runAutoAlightedComposer;
 
     /**
-     * 그 학생의 보호자 전원에게 적재한다(BR-073 — 동승자 처리 하차와 같은 수신 규칙, §9.7 {@code alighting}).
+     * 그 학생의 보호자 전원에게 적재한다(BR-073 — 동승자 처리 하차와 같은 수신 규칙, §9.7 {@code alighting}). 초안을 모아
+     * 한 번에 적재해({@link NotificationOutbox#appendAll}, BR-374) 문장 수가 보호자 수에 비례하지 않는다.
      * 연결된 보호자가 없으면(드묾) 아무 것도 하지 않는다.
      */
     @EventListener
     public void appendRunAutoAlighted(RunAutoAlightedEvent event) {
-        List<GuardianAccountRecipient> guardians = guardianStudentRepository
-                .findGuardianAccountsByAcademyId(event.academyId(), List.of(event.studentId()));
-        for (GuardianAccountRecipient guardian : guardians) {
-            NotificationMessage message = runAutoAlightedComposer
-                    .compose(new RunAutoAlightedSubject(guardian.getStudentName()));
-            notificationOutbox.append(new NotificationDraft(event.academyId(), guardian.getAccountId(),
-                    guardian.getName(), Role.PARENT, NotificationType.ALIGHTING, message.title(), message.body(),
-                    DEDUP_KEY_FORMAT.formatted(event.runId(), guardian.getAccountId(), event.studentId(),
-                            event.alightedAt()),
-                    event.studentId(), guardian.getStudentName(), null));
-        }
+        List<NotificationDraft> drafts = guardianStudentRepository
+                .findGuardianAccountsByAcademyId(event.academyId(), List.of(event.studentId())).stream()
+                .map(guardian -> draftFor(event, guardian))
+                .toList();
+        notificationOutbox.appendAll(drafts);
+    }
+
+    private NotificationDraft draftFor(RunAutoAlightedEvent event, GuardianAccountRecipient guardian) {
+        NotificationMessage message = runAutoAlightedComposer
+                .compose(new RunAutoAlightedSubject(guardian.getStudentName()));
+        return new NotificationDraft(event.academyId(), guardian.getAccountId(),
+                guardian.getName(), Role.PARENT, NotificationType.ALIGHTING, message.title(), message.body(),
+                DEDUP_KEY_FORMAT.formatted(event.runId(), guardian.getAccountId(), event.studentId(),
+                        event.alightedAt()),
+                event.studentId(), guardian.getStudentName(), null);
     }
 }

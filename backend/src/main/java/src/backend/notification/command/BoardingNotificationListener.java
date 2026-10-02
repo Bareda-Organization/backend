@@ -1,5 +1,6 @@
 package src.backend.notification.command;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -68,7 +69,8 @@ public class BoardingNotificationListener {
      *
      * <p>보호자 조회는 학생마다 따로 묻지 않고 <b>학생 id 전부를 한 번에</b> 묻는다(BR-134) —
      * {@link GuardianStudentRepository#findActiveGuardianAccountsByStudentIds} 결과를 학생별로
-     * 묶어 두고 그 그룹으로 순회한다.
+     * 묶어 두고 그 그룹으로 순회한다. 적재도 학생별로 하지 않고 정차지 전체의 초안을 모아 <b>한 번에</b> 한다
+     * ({@link NotificationOutbox#appendAll}, BR-374 — 문장 수가 탑승자·보호자 수에 비례하지 않게).
      */
     @EventListener
     public void appendStopDeparted(StopDepartedEvent event) {
@@ -80,6 +82,7 @@ public class BoardingNotificationListener {
         Map<Long, List<GuardianAccountRecipient>> guardiansByStudentId = guardianStudentRepository
                 .findActiveGuardianAccountsByStudentIds(event.academyId(), studentIds).stream()
                 .collect(Collectors.groupingBy(GuardianAccountRecipient::getStudentId));
+        List<NotificationDraft> drafts = new ArrayList<>();
         for (RunRider rider : finalized) {
             List<GuardianAccountRecipient> guardians = guardiansByStudentId
                     .getOrDefault(rider.getStudentId(), List.of());
@@ -89,13 +92,14 @@ public class BoardingNotificationListener {
             NotificationMessage message = composeFor(rider.getStatus(), guardians.get(0).getStudentName());
             NotificationType type = typeOf(rider.getStatus());
             for (GuardianAccountRecipient guardian : guardians) {
-                notificationOutbox.append(new NotificationDraft(event.academyId(), guardian.getAccountId(),
+                drafts.add(new NotificationDraft(event.academyId(), guardian.getAccountId(),
                         guardian.getName(), Role.PARENT, type, message.title(), message.body(),
                         STOP_DEPARTED_DEDUP_KEY_FORMAT.formatted(rider.getId(), guardian.getAccountId(),
                                 event.departedAt()),
                         rider.getStudentId(), guardian.getStudentName(), null));
             }
         }
+        notificationOutbox.appendAll(drafts);
     }
 
     /** {@link RiderStatusChangedComposer}·{@link NoShowParentComposer} 를 최종 상태에 맞게 재사용한다. */

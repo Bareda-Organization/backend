@@ -84,10 +84,14 @@ class BoardingNotificationListenerTest {
         return org.mockito.ArgumentMatchers.anyList();
     }
 
+    /** 정차지 출발의 알림 초안은 한 번의 묶음 적재({@code appendAll})로 나간다(BR-374) — 건별 {@code append} 가 아니다. */
+    @SuppressWarnings("unchecked")
     private List<NotificationDraft> drafts() {
-        ArgumentCaptor<NotificationDraft> drafts = ArgumentCaptor.forClass(NotificationDraft.class);
-        verify(outbox, times(4)).append(drafts.capture());
-        return drafts.getAllValues();
+        ArgumentCaptor<List<NotificationDraft>> drafts = ArgumentCaptor
+                .forClass((Class<List<NotificationDraft>>) (Class<?>) List.class);
+        verify(outbox, times(1)).appendAll(drafts.capture());
+        org.assertj.core.api.Assertions.assertThat(drafts.getValue()).hasSize(4);
+        return drafts.getValue();
     }
 
     private static String nameOf(List<NotificationDraft> drafts, long accountId) {
