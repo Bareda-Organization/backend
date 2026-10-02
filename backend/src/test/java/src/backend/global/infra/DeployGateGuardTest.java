@@ -88,12 +88,12 @@ class DeployGateGuardTest {
     }
 
     @Test
-    @DisplayName("운행 중(moving) 회차가 있으면 건수와 함께 배포를 막는다")
-    void failsWhenARunIsMoving(@TempDir Path tmp) throws Exception {
-        Run run = runGate(tmp, state("1", "1", "2"));
+    @DisplayName("운행 중(moving) 회차가 단 1건이라도 있으면 건수와 함께 배포를 막는다")
+    void failsWhenASingleRunIsMoving(@TempDir Path tmp) throws Exception {
+        Run run = runGate(tmp, state("1", "1", "1"));
 
         assertThat(run.exitCode()).as("종료 코드 — 출력:\n%s", run.output()).isNotZero();
-        assertThat(run.output()).contains("배포 중단").contains("2건");
+        assertThat(run.output()).contains("배포 중단").contains("1건");
     }
 
     @Test
