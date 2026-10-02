@@ -166,6 +166,46 @@ class RunCancellationLockTest {
         assertThat(after.get("canceled_at")).isEqualTo(before.get("canceled_at"));
     }
 
+    @Test
+    @DisplayName("BR-346 — 스케줄이 취소한 회차를 읽은 뒤 그 사이 취소가 풀렸으면 되살림은 계획을 다시 옮기지 않는다")
+    void 그_사이_되살아난_회차에는_되살림이_계획을_옮기지_않는다() {
+        Setup s = 스케줄이_취소한_회차를_만든다();
+        Object departBefore = 행(s.runId).get("depart_time");
+
+        낡게_읽고(s, () -> jdbcTemplate.update("UPDATE run SET canceled_at = NULL, cancel_source = NULL WHERE id = ?",
+                s.runId), run -> runCommandService.reinstateToPlan(run, 옮길_계획(s)));
+
+        Map<String, Object> row = 행(s.runId);
+        assertThat(row.get("depart_time")).as("두 번째 되살림이 계획을 덮어쓰면 안 된다 — 잠그고 다시 읽은 출처로 판정한다")
+                .isEqualTo(departBefore);
+        assertThat(row.get("canceled_at")).isNull();
+    }
+
+    @Test
+    @DisplayName("BR-346 — 스케줄이 취소한 회차를 읽은 뒤 그 사이 idle 이 아니게 됐으면 되살림은 건드리지 않는다")
+    void 그_사이_시작_전이_아니게_된_회차는_되살림이_건너뛴다() {
+        Setup s = 스케줄이_취소한_회차를_만든다();
+        Object departBefore = 행(s.runId).get("depart_time");
+
+        낡게_읽고(s, () -> jdbcTemplate.update("UPDATE run SET status = 'confirmed' WHERE id = ?", s.runId),
+                run -> runCommandService.reinstateToPlan(run, 옮길_계획(s)));
+
+        Map<String, Object> row = 행(s.runId);
+        assertThat(row.get("canceled_at")).as("시작 전이 아닌 회차의 취소를 되살림이 풀면 안 된다").isNotNull();
+        assertThat(row.get("depart_time")).isEqualTo(departBefore);
+    }
+
+    private Setup 스케줄이_취소한_회차를_만든다() {
+        Setup s = 회차를_만든다(false);
+        jdbcTemplate.update("UPDATE run SET canceled_at = now(), cancel_source = 'schedule' WHERE id = ?", s.runId);
+        return s;
+    }
+
+    private RunDraft 옮길_계획(Setup s) {
+        return new RunDraft(s.academyId, s.busId, null, LocalDate.of(2030, 4, 1), Direction.TO_ACADEMY,
+                LocalTime.of(23, 40), "옮긴출발지", "옮긴도착지", null);
+    }
+
     private void 낡게_읽고(Setup s, Runnable competing, Consumer<Run> action) {
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
             Run run = runRepository.findByIdAndAcademyId(s.runId, s.academyId).orElseThrow();
