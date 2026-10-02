@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -139,6 +140,22 @@ class DeployScriptGuardTest {
                 .contains("NAVER_SEARCH_CLIENT_ID='search-id'").contains("NAVER_SEARCH_CLIENT_SECRET='search-secret'")
                 .contains("BOOTSTRAP_ADMIN_LOGIN_ID='owner'").contains("BOOTSTRAP_ADMIN_PASSWORD_HASH='" + BCRYPT_HASH + "'")
                 .contains("FCM_PROJECT_ID='proj'");
+    }
+
+    @Test
+    @DisplayName(".env 는 임시 파일에 다 쓴 뒤 이름을 바꿔 교체한다 — 같은 파일을 비우고 다시 쓰면 그 사이 읽는 호출(백업 크론)이 필수 변수 없는 빈 파일을 본다(BR-372)")
+    void envFileIsReplacedAtomically(@TempDir Path tmp) throws Exception {
+        Path env = Files.createDirectories(tmp.resolve("app")).resolve(".env");
+        Files.writeString(env, "OLD_VALUE='1'\n");
+        Object before = Files.readAttributes(env, BasicFileAttributes.class).fileKey();
+
+        Run run = runDeploy(tmp, requiredParams());
+
+        assertThat(run.envFile()).contains("SPRING_PROFILES_ACTIVE='demo'").doesNotContain("OLD_VALUE");
+        assertThat(Files.readAttributes(env, BasicFileAttributes.class).fileKey())
+                .as("같은 inode 면 기존 파일을 비우고 다시 쓴 것이다 — 새 파일을 만들어 이름으로 덮어야 읽는 쪽이 옛 파일 아니면 새 파일만 본다").isNotEqualTo(before);
+        assertThat(Files.list(env.getParent()).map(path -> path.getFileName().toString()))
+                .as("임시 파일이 남지 않는다").doesNotContain(".env.tmp");
     }
 
     @Test

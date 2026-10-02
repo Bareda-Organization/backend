@@ -204,7 +204,9 @@ if [[ "$(id -u)" -eq 0 ]]; then
     chown -R 65534:65534 "$APP_DIR/alertmanager"
 fi
 
-: > "$ENV_FILE"
+# 같은 파일을 비우고 다시 쓰지 않는다 — 그 사이(밀리초)에 이 파일로 compose 를 읽는 호출이 필수 변수 누락으로 실패한다(BR-372).
+# 같은 폴더의 임시 파일에 다 쓴 뒤 이름을 바꿔 덮는다(mv 는 같은 파일시스템에서 원자적이다). render-alertmanager.sh 와 같은 방식이다.
+ENV_TMP="$ENV_FILE.tmp"
 {
     write_env AWS_REGION                 "$AWS_REGION"
     write_env IMAGE_TAG                  "$IMAGE_TAG"
@@ -227,7 +229,8 @@ fi
     write_env_if_set NAVER_DIRECTIONS_MAX_POINTS     "$NAVER_DIRECTIONS_MAX_POINTS"
     write_env_if_set BOOTSTRAP_ADMIN_LOGIN_ID        "$BOOTSTRAP_ADMIN_LOGIN_ID"
     write_env_if_set BOOTSTRAP_ADMIN_PASSWORD_HASH   "$BOOTSTRAP_ADMIN_PASSWORD_HASH"
-} >> "$ENV_FILE"
+} > "$ENV_TMP"
+mv "$ENV_TMP" "$ENV_FILE"
 
 echo "== 1-1. .env 가 실제로 compose 에 온전히 전달되는지 확인 =="
 # 위 인용이 깨지면 해시가 잘려도 앱은 정상 기동한다(로그인만 전부 실패). 배포가 조용히
