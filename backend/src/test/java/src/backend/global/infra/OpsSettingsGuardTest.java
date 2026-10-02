@@ -272,6 +272,36 @@ class OpsSettingsGuardTest {
                 .isGreaterThanOrEqualTo(openFiles);
     }
 
+    @Test
+    @DisplayName("개발 오버레이·스테이징 compose 의 backend 에 healthcheck 가 있고 그 프로파일의 헬스 포트를 친다 — proxy 는 backend 가 healthy 가 된 뒤 시작한다(운영과 같다)")
+    void devAndStagingBackendHaveAHealthcheckThatProxyWaitsFor() throws IOException {
+        // 이 이미지에 curl 이 있어야 healthcheck 가 돈다 — 없으면 영원히 unhealthy 라 proxy 가 못 뜬다.
+        assertThat(read("backend/Dockerfile")).as("런타임 이미지에 curl 을 설치한다(wget 은 없다)").contains("apt-get install -y --no-install-recommends curl");
+
+        for (String[] target : new String[][] {{"docker-compose.app.yml", "local"}, {"docker-compose.staging.yml", "staging"}}) {
+            String compose = target[0];
+            int port = healthPortOf(target[1]);
+            String backend = serviceBlock(compose, "backend");
+
+            assertThat(backend).as("%s backend — %s 프로파일의 헬스 포트(%d)를 친다", compose, target[1], port)
+                    .contains("test: [\"CMD-SHELL\", \"curl -fsS http://localhost:" + port + "/actuator/health || exit 1\"]")
+                    .contains("start_period:").contains("retries:");
+            assertThat(serviceBlock(compose, "proxy")).as("%s proxy — backend 가 healthy 가 되기 전에는 시작하지 않는다(그래야 502 구간과 죽은 backend 가 up 단계에서 드러난다)", compose)
+                    .containsPattern("(?s)depends_on:.*?backend:\\s+condition: service_healthy");
+        }
+    }
+
+    /** 그 프로파일 문서에 {@code management.server.port} 가 있으면 그 값, 없으면 앱 포트(8080) — local 은 관리 포트를 따로 열지 않는다. */
+    private static int healthPortOf(String profile) throws IOException {
+        for (String document : read("backend/src/main/resources/application.yml").split("(?m)^---\\s*$")) {
+            if (Pattern.compile("(?m)^\\s+on-profile:\\s*" + profile + "\\s*$").matcher(document).find()) {
+                Matcher port = Pattern.compile("(?m)^management:\\s*\\n\\s+server:\\s*\\n\\s+port:\\s*(\\d+)").matcher(stripComments(document));
+                return port.find() ? Integer.parseInt(port.group(1)) : 8080;
+            }
+        }
+        throw new AssertionError("application.yml 에 " + profile + " 프로파일 문서가 없다");
+    }
+
     /** {@code application.yml} 의 {@code on-profile: prod} 문서에 명시된 {@code server.tomcat.max-connections}. */
     private static int prodMaxConnections() throws IOException {
         for (String document : read("backend/src/main/resources/application.yml").split("(?m)^---\\s*$")) {
