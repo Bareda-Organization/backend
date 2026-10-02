@@ -1,11 +1,13 @@
 package src.backend.audit.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +20,8 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.jayway.jsonpath.JsonPath;
 
 import src.backend.academy.entity.Academy;
 import src.backend.academy.repository.AcademyRepository;
@@ -73,8 +77,12 @@ class AuditQueryControllerTest {
 
     private Long createAccount(String academyCode, String loginId) {
         Academy academy = academyRepository.save(Academy.register(academyCode, "학원" + academyCode, "서울", null, null));
+        return createAccountIn(academy, loginId, "감사조회테스트", Role.PARENT);
+    }
+
+    private Long createAccountIn(Academy academy, String loginId, String name, Role role) {
         Account account = accountRepository.save(Account.forSignup(academy.getId(), loginId,
-                passwordEncoder.encode(RAW_PASSWORD), "감사조회테스트", "010-9100-0000", null, Role.PARENT));
+                passwordEncoder.encode(RAW_PASSWORD), name, "010-9100-0000", null, role));
         return account.getId();
     }
 
@@ -249,5 +257,66 @@ class AuditQueryControllerTest {
                         .param("q", "  "))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items").isEmpty());
+    }
+
+    /**
+     * 화면 목적은 "이름으로 고른다" 다(API_SPEC §6.13) — 검색어가 로그인 아이디에는 없고 <b>이름에만</b> 들어 있어도 찾는다.
+     * 대소문자는 구별하지 않는다(이름의 영문 대문자를 소문자로 쳐도 찾는다).
+     */
+    @Test
+    void audit_actors_는_이름에만_들어_있는_검색어로도_계정을_찾는다() throws Exception {
+        Academy academy = academyRepository.save(Academy.register("R339NAME", "학원R339NAME", "서울", null, null));
+        Long accountId = createAccountIn(academy, "r339login1", "이름전용Kim", Role.PARENT);
+
+        mockMvc.perform(get("/api/v1/admin/audit-actors").header("Authorization", 메인관리자_토큰())
+                        .param("q", "이름전용kim"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].account_id").value(String.valueOf(accountId)))
+                .andExpect(jsonPath("$.data.items[0].login_id").value("r339login1"));
+    }
+
+    /** 응답이 같은 이름을 구별하는 단서(역할·소속 학원)를 싣는다 — 역할은 {@code Role} 값 그대로 소문자, 학원은 이름이다. */
+    @Test
+    void audit_actors_는_역할_소문자와_소속_학원_이름을_싣는다() throws Exception {
+        Academy academy = academyRepository.save(Academy.register("R339ROLE", "학원R339ROLE", "서울", null, null));
+        createAccountIn(academy, "r339role1", "단서시험", Role.ESCORT);
+
+        mockMvc.perform(get("/api/v1/admin/audit-actors").header("Authorization", 메인관리자_토큰())
+                        .param("q", "r339role1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].role").value("escort"))
+                .andExpect(jsonPath("$.data.items[0].academy_name").value("학원R339ROLE"));
+    }
+
+    /** 소속 학원이 없는 계정(메인 관리자)은 {@code academy_name} 이 {@code null} 이다 — 학원 이름 조회가 그 계정에서 깨지지 않는다. */
+    @Test
+    void audit_actors_는_소속_없는_계정의_학원_이름을_null_로_돌려준다() throws Exception {
+        String systemAdminLoginId = accountRepository.findById(SYSTEM_ADMIN_ACCOUNT_ID).orElseThrow().getLoginId();
+
+        String body = mockMvc.perform(get("/api/v1/admin/audit-actors").header("Authorization", 메인관리자_토큰())
+                        .param("q", systemAdminLoginId))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+
+        // 필터는 항상 배열을 돌려준다 — 같은 검색어에 다른 계정도 걸릴 수 있어 메인 관리자 항목만 골라 본다
+        Map<String, Object> admin = JsonPath.<List<Map<String, Object>>>read(body,
+                "$.data.items[?(@.account_id == '" + SYSTEM_ADMIN_ACCOUNT_ID + "')]").get(0);
+        assertThat(admin.get("role")).isEqualTo("system_admin");
+        assertThat(admin).as("소속이 없으면 키는 있고 값이 null").containsEntry("academy_name", null);
+    }
+
+    /** 최대 20건에서 자른다(API_SPEC §6.13) — 21건이 걸리는 검색어도 20건만 돌려준다. 자르지 않으면 전 계정이 응답으로 나간다. */
+    @Test
+    void audit_actors_는_21건이_걸리는_검색어에도_20건만_돌려준다() throws Exception {
+        Academy academy = academyRepository.save(Academy.register("R339LIMIT", "학원R339LIMIT", "서울", null, null));
+        for (int i = 0; i < 21; i++) {
+            createAccountIn(academy, "r339limit" + i, "상한시험" + i, Role.PARENT);
+        }
+
+        mockMvc.perform(get("/api/v1/admin/audit-actors").header("Authorization", 메인관리자_토큰())
+                        .param("q", "r339limit"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(20));
     }
 }
