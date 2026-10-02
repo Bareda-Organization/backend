@@ -269,6 +269,9 @@ services:
       - --path.rootfs=/host
       # 백업 성공 시각(backup-db.sh 가 쓴 *.prom) — 경보 BackupDbStale·BackupPhotosStale 의 출처. 폴더는 bootstrap-ec2.sh 가 만든다.
       - --collector.textfile.directory=/textfile
+      # 기본 제외 규칙은 var/lib/docker/.+ 라 데이터 디스크(/var/lib/docker/volumes — DB·사진·지표, bootstrap-ec2.sh)가 시계열에서 빠져
+      # 디스크 경보(HostDiskAlmostFull)가 볼 값이 없다. 컨테이너별 마운트(containers·overlay2)만 계속 버린다. `$$` 는 compose 의 `$` 이스케이프.
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|run/credentials/.+|sys|var/lib/docker/(containers|overlay2)/.+|var/lib/containers/storage/.+)($$|/)
     pid: host
     volumes:
       - /:/host:ro,rslave

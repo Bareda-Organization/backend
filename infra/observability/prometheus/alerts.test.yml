@@ -72,22 +72,27 @@ tests:
         alertname: PushDeliveryFailing
         exp_alerts: []
 
-  # 디스크: `/` 가 80% 를 넘어 10분 유지돼야 발화한다. 다른 마운트 지점은 보지 않는다.
+  # 디스크: 루트(`/`)와 데이터 디스크(`/var/lib/docker/volumes` — DB·사진·지표·인증서, bootstrap-ec2.sh 0단계가 마운트)가 각각
+  # 80% 를 넘어 10분 유지돼야 발화한다. 이름이 비슷한 다른 마운트 지점(`/var/lib/docker`)은 보지 않는다 — 식이 정확히 일치할 때만 본다.
   - interval: 1m
     input_series:
       - series: 'node_filesystem_size_bytes{mountpoint="/",instance="h"}'
         values: '100x30'
       - series: 'node_filesystem_avail_bytes{mountpoint="/",instance="h"}'
         values: '15x30'
+      - series: 'node_filesystem_size_bytes{mountpoint="/var/lib/docker/volumes",instance="h"}'
+        values: '100x30'
+      - series: 'node_filesystem_avail_bytes{mountpoint="/var/lib/docker/volumes",instance="h"}'
+        values: '10x30'
       - series: 'node_filesystem_size_bytes{mountpoint="/var/lib/docker",instance="h"}'
         values: '100x30'
       - series: 'node_filesystem_avail_bytes{mountpoint="/var/lib/docker",instance="h"}'
         values: '5x30'
     alert_rule_test:
-      - eval_time: 5m   # 85% 이지만 아직 10분이 안 됐다
+      - eval_time: 5m   # 둘 다 80% 를 넘었지만 아직 10분이 안 됐다
         alertname: HostDiskAlmostFull
         exp_alerts: []
-      - eval_time: 12m
+      - eval_time: 12m   # 루트 85% · 데이터 디스크 90% 가 각각 발화한다. /var/lib/docker(95%)는 보지 않는다
         alertname: HostDiskAlmostFull
         exp_alerts:
           - exp_labels:
@@ -95,7 +100,35 @@ tests:
               mountpoint: /
               instance: h
             exp_annotations:
-              summary: 호스트 루트 디스크 사용률이 80% 를 넘은 지 10분 됐다
+              summary: 호스트 디스크 / 의 사용률이 80% 를 넘은 지 10분 됐다
+          - exp_labels:
+              severity: warning
+              mountpoint: /var/lib/docker/volumes
+              instance: h
+            exp_annotations:
+              summary: 호스트 디스크 /var/lib/docker/volumes 의 사용률이 80% 를 넘은 지 10분 됐다
+
+  # 루트는 멀쩡한데 데이터 디스크만 찬 경우(BR-305) — DB 쓰기가 실패해 전면 정지하는 바로 그 상황이다. 데이터 디스크 하나만 발화한다.
+  - interval: 1m
+    input_series:
+      - series: 'node_filesystem_size_bytes{mountpoint="/",instance="h"}'
+        values: '100x30'
+      - series: 'node_filesystem_avail_bytes{mountpoint="/",instance="h"}'
+        values: '70x30'
+      - series: 'node_filesystem_size_bytes{mountpoint="/var/lib/docker/volumes",instance="h"}'
+        values: '100x30'
+      - series: 'node_filesystem_avail_bytes{mountpoint="/var/lib/docker/volumes",instance="h"}'
+        values: '8x30'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: HostDiskAlmostFull
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              mountpoint: /var/lib/docker/volumes
+              instance: h
+            exp_annotations:
+              summary: 호스트 디스크 /var/lib/docker/volumes 의 사용률이 80% 를 넘은 지 10분 됐다
 
   # DB 백업(매시): 마지막 성공 시각(시험에서는 0 = 시계 원점)에서 2시간(7200초)이 지난 뒤 5분 유지돼야 발화한다.
   # 매시 백업이 한 번 빠지는 것(1시간+)은 조용하고 두 번 연속 빠지면 울린다 — 그래야 RPO 1시간이 깨지기 전에 안다.
