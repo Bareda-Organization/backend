@@ -15,7 +15,8 @@ import src.backend.student.photo.spec.StudentPhoto;
 
 /**
  * R46-KFIXBE K-3 — 업로드 사진은 긴 변 512px 로 줄여 저장한다. 목록 한 화면이 행마다 사진 한 장(약 4MB)을 받던 것을 줄이는 수정이다.
- * ImageIO 가 못 읽거나(WebP · 깨진 파일) 이미 작으면 원본 그대로이고, 휴대폰 사진의 회전 정보(EXIF)는 지켜서 옆으로 누운 사진을 만들지 않는다.
+ * ImageIO 가 못 읽거나(깨진 파일) 이미 작으면 원본 그대로이고, 휴대폰 사진의 회전 정보(EXIF)는 지켜서 옆으로 누운 사진을 만들지 않는다.
+ * WebP 는 JDK 가 못 읽어 원본(최대 5MB)으로 남던 형식인데, 읽기 전용 디코더(TwelveMonkeys)를 더해 같은 규칙으로 줄인다(R47 Ruling 745).
  */
 class PhotoResizerTest {
 
@@ -37,6 +38,29 @@ class PhotoResizerTest {
         assertThat(image.getWidth()).isEqualTo(256);
         assertThat(image.getHeight()).isEqualTo(512);
         assertThat(shrunk.extension()).isEqualTo("jpg");
+    }
+
+    /** JDK 에 WebP 쓰기가 없어 줄인 결과는 JPEG 로 저장한다 — 확장자도 {@code jpg} 로 바뀐다(응답 Content-Type 은 확장자로 정해진다). */
+    @Test
+    void 큰_WebP_는_긴_변이_512px_로_줄어_JPEG_로_저장된다() throws Exception {
+        StudentPhoto shrunk = PhotoResizer.shrink(StudentPhoto.of(resource("wide-1200x800.webp")));
+
+        BufferedImage image = decode(shrunk);
+        assertThat(image.getWidth()).isEqualTo(512);
+        assertThat(image.getHeight()).as("가로세로 비율을 지킨다(800 × 512 / 1200 ≈ 341)").isEqualTo(341);
+        assertThat(shrunk.extension()).isEqualTo("jpg");
+    }
+
+    /** 투명 배경 WebP 를 JPEG 로 쓰면 JDK 가 못 쓰거나 배경이 검게 변한다 — 알파가 있으면 PNG 로 저장한다. */
+    @Test
+    void 투명_배경_WebP_는_알파를_지킨_PNG_로_저장된다() throws Exception {
+        StudentPhoto shrunk = PhotoResizer.shrink(StudentPhoto.of(resource("alpha-1024x512.webp")));
+
+        BufferedImage image = decode(shrunk);
+        assertThat(image.getWidth()).isEqualTo(512);
+        assertThat(image.getHeight()).isEqualTo(256);
+        assertThat(image.getColorModel().hasAlpha()).as("알파 채널이 남는다").isTrue();
+        assertThat(shrunk.extension()).isEqualTo("png");
     }
 
     @Test
@@ -77,6 +101,20 @@ class PhotoResizerTest {
         StudentPhoto original = StudentPhoto.of(encode(huge, "png"));
 
         assertThat(PhotoResizer.shrink(original)).isSameAs(original);
+    }
+
+    /** 새 디코더(WebP 플러그인)도 신뢰할 수 없는 입력을 읽는다 — 파일은 수 KB 인데 픽셀이 4,225만인 WebP 는 헤더 크기만 보고 디코딩하지 않는다. */
+    @Test
+    void 픽셀_수가_상한을_넘는_WebP_도_디코딩하지_않고_원본_그대로다() throws Exception {
+        StudentPhoto original = StudentPhoto.of(resource("bomb-6500x6500.webp"));
+
+        assertThat(PhotoResizer.shrink(original)).isSameAs(original);
+    }
+
+    private static byte[] resource(String name) throws IOException {
+        try (var stream = PhotoResizerTest.class.getResourceAsStream("/student/photo/" + name)) {
+            return stream.readAllBytes();
+        }
     }
 
     private static byte[] png(int width, int height) throws IOException {
