@@ -357,6 +357,27 @@ class AdminStaleMovingRunControllerTest {
     }
 
     @Test
+    @DisplayName("강제 종료 — 사유는 최대 200자다(201자는 422 로 거절되고 회차는 그대로, 200자는 받는다) (BR-349)")
+    void 사유가_200자를_넘으면_422_다() throws Exception {
+        long runId = staleRun(fixtures().academyWithCoordinates());
+
+        mockMvc.perform(post(FORCE_FINISH.formatted(runId))
+                        .header("Authorization", 메인관리자_토큰())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"%s\"}".formatted("가".repeat(201))))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+        assertThat(runStatus(runId)).as("거절된 요청은 회차를 바꾸지 않는다").isEqualTo("moving");
+
+        mockMvc.perform(post(FORCE_FINISH.formatted(runId))
+                        .header("Authorization", 메인관리자_토큰())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"%s\"}".formatted("가".repeat(200))))
+                .andExpect(status().isOk());
+        assertThat(runStatus(runId)).isEqualTo("finished");
+    }
+
+    @Test
     @DisplayName("메인 관리자 외 역할은 목록·강제 종료 둘 다 403 이고 회차는 그대로다")
     void 메인_관리자_외에는_403_이다() throws Exception {
         long runId = staleRun(fixtures().academyWithCoordinates());

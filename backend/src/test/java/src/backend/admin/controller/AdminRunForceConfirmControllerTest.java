@@ -354,6 +354,25 @@ class AdminRunForceConfirmControllerTest {
                 .andExpect(jsonPath("$.error.code").value("RUN_NOT_FOUND"));
     }
 
+    /** {@code reason} 이 200자를 넘으면 {@code 422 VALIDATION_FAILED} 다 — 감사 행의 {@code detail.reason} 에 무제한 글이 들어가지 않게 한다(BR-349). */
+    @Test
+    @DisplayName("BR-349 — reason 이 201자이면 422 VALIDATION_FAILED 이고 회차는 그대로다")
+    void reason_이_200자를_넘으면_422_VALIDATION_FAILED_다() throws Exception {
+        long runId = dueIdleRun();
+
+        mockMvc.perform(post(FORCE_CONFIRM.formatted(runId))
+                        .header("Authorization", 메인관리자_토큰())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"%s\"}".formatted("가".repeat(201))))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+
+        동기화한다();
+        assertThat(runRepository.findById(runId).orElseThrow().getStatus())
+                .as("검증 실패 요청은 상태를 바꾸면 안 된다")
+                .isEqualTo(RunStatus.IDLE);
+    }
+
     /** {@code reason} 이 공백뿐이면 {@code 422 VALIDATION_FAILED} 다(§6.14). */
     @Test
     @DisplayName("목표11 — reason 이 공백뿐이면 422 VALIDATION_FAILED 다")
