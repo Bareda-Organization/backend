@@ -41,7 +41,7 @@ public abstract class MigratedPostgresTestBase {
     /** 스키마 마이그레이션 위치 — 전 프로파일 공통이며 {@code V1__init_schema.sql} 만 들어 있다. */
     protected static final String SCHEMA_LOCATION = "classpath:db/migration";
 
-    /** 데모 시드 위치 — {@code local}·{@code demo} 프로파일에서만 스키마 위치에 더해진다. */
+    /** 시험 시드 위치 — 시험 JVM 과 {@code fixture} 프로파일에서만 스키마 위치에 더해진다(QA Mock 은 {@code db/qa-seed}). */
     protected static final String SEED_LOCATION = "classpath:db/fixture";
 
     protected static final PostgreSQLContainer POSTGRES =

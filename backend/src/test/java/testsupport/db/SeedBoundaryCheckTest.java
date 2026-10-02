@@ -63,7 +63,8 @@ class SeedBoundaryCheckTest extends MigratedPostgresTestBase {
         }
     }
 
-    private static Map<String, Long> 점검한다(Connection connection) throws SQLException, java.io.IOException {
+    /** 학원 경계 점검 쿼리 결과 — 항목 이름 → 불일치 건수. QA 시드 확인({@code QaSeedCheckTest})도 같은 점검을 쓴다. */
+    static Map<String, Long> 점검한다(Connection connection) throws SQLException, java.io.IOException {
         Map<String, Long> counts = new LinkedHashMap<>();
         try (Statement statement = connection.createStatement();
                 ResultSet rows = statement.executeQuery(Files.readString(CHECK_SCRIPT))) {
