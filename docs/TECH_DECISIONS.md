@@ -681,12 +681,12 @@ try {
 net.javacrumbs.shedlock:shedlock-spring
 net.javacrumbs.shedlock:shedlock-provider-jdbc-template
 // 외부 API 보호
-io.github.resilience4j:resilience4j-spring-boot3
+io.github.resilience4j:resilience4j-spring-boot4   // ⚠ 2.4.0 부터 Boot 4 전용. spring-boot3 2.4.0 은 Boot 4 기동을 거부한다(Ruling 760)
 // 캐시 (Redis 는 이미 있음)
 org.springframework.boot:spring-boot-starter-cache
 // 통합 테스트
 org.testcontainers:testcontainers-postgresql · org.testcontainers:testcontainers-junit-jupiter
-//   ⚠ Boot 4.1.0 이 관리하는 testcontainers-bom:2.0.5 의 개명된 좌표. 구 좌표(postgresql · junit-jupiter)는 이 BOM 에 부재
+//   ⚠ Boot 4.1 이 관리하는 testcontainers-bom:2.0.5 의 개명된 좌표. 구 좌표(postgresql · junit-jupiter)는 이 BOM 에 부재
 org.springframework.boot:spring-boot-testcontainers
 ```
 

@@ -149,7 +149,7 @@ R46 운영 작업(`DEPLOYMENT §7` 백업 · `DEPLOYMENT §11` 관측 · `DEPLOY
 | 첫 메인 관리자 러너(`FirstSystemAdminBootstrap`) | **동작 안 함** — 시드에 메인 관리자(`sysadmin`)가 이미 있어 이 러너는 값을 읽지 않고 건너뜀. 스테이징에는 `BOOTSTRAP_ADMIN_*` 변수를 넣지 않음 |
 | 웹 Vercel 배포 · 허용 출처 검사(`infra/scripts/deploy.sh`) | **해당 없음** — 이 검사는 운영 배포 스크립트에만 있음. 스테이징은 `PUBLIC_URL` 한 값이 REST 허용 출처(`CORS_ALLOWED_ORIGINS`)와 WebSocket 허용 출처(`WS_ALLOWED_ORIGIN_PATTERNS`)에 그대로 들어감 |
 | prod 프로파일 명시(`b18c60bf`) | **해당 없음** — 스테이징은 `local,staging` 프로파일이고 필수 환경변수는 §6 의 넷 |
-| 이미지 태그 부 버전 고정(`postgres:16.15` · `redis:7.4.11` 등) | **적용됨** — 별도 조치 없음. 태그를 올릴 때는 `docker-compose.staging.yml` 의 값을 바꿈 |
+| 이미지 태그 부 버전 고정(`postgres:18.6` · `redis:8.10.1` 등) | **적용됨** — 별도 조치 없음. 태그를 올릴 때는 `docker-compose.staging.yml` 의 값을 바꿈 |
 | 연결 대기 3초 · 누수 감지 5초(`R46 D #17`) | **적용됨** — `staging` 프로파일에 들어 있음(§9 증상표) |
 | 경보 6종 추가(`BackendDown` · `Http5xxRatioHigh` 등 — `R46-FIXOPS`) | **해당 없음** — 관측·경보 컨테이너가 없음 |
 | 로그 `non-blocking` 전송(`awslogs`) · 운영 프록시 JSON 압축(`nginx.prod.conf` `/api/`) | **해당 없음** — 로그는 Docker 기본 드라이버이고 프록시는 `nginx.staging.conf` 라 이번에 바꾸지 않음(터널 뒤라 응답 크기보다 접속이 목적) |

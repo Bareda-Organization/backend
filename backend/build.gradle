@@ -1,6 +1,6 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '4.1.0'
+    id 'org.springframework.boot' version '4.1.1'
     id 'io.spring.dependency-management' version '1.1.7'
 }
 
@@ -30,9 +30,9 @@ dependencies {
     runtimeOnly 'org.flywaydb:flyway-database-postgresql'
     // 보안 (역할 기반 JWT 인증)
     implementation 'org.springframework.boot:spring-boot-starter-security'
-    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
-    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
-    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+    implementation 'io.jsonwebtoken:jjwt-api:0.13.0'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.13.0'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.13.0'
     // 입력값 검증
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     // 캐시·실시간(Pub/Sub)
@@ -47,7 +47,7 @@ dependencies {
     // 실시간 위치 수신 채널(STOMP over WebSocket) — 연결 상태(heartbeat)를 프로토콜 차원에서 감지
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
     // API 문서·테스트용 Swagger UI — 3.x 대가 Spring Boot 4(Jackson 3) 지원 최초 라인
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1'
     // 배포 검증·컨테이너 healthcheck 용 헬스 엔드포인트.
     // ⚠️ 기본 health 가 보는 것은 DataSource·Redis·디스크·ping 이다. 그 밖의 외부 의존(지도 API 등)
     //    장애는 이걸로 감지되지 않으므로 CloudWatch 로그로 확인한다.
@@ -66,13 +66,14 @@ dependencies {
     // 중복 실행되지 않도록 막는다. Spring Boot BOM 이 관리하지 않는 좌표라 버전을 명시한다.
     // 활성화(@EnableSchedulerLock)와 락 테이블(V4 마이그레이션)은 Phase 11 이 배선한다 —
     // 어떤 스케줄러가 락을 쓰는지·왜인지는 global/config/ShedLockConfig 자바독을 본다.
-    implementation 'net.javacrumbs.shedlock:shedlock-spring:6.9.2'
-    implementation 'net.javacrumbs.shedlock:shedlock-provider-jdbc-template:6.9.2'
-    // 외부 API(지도 경로 API 등) 보호용 서킷 브레이커. 아티팩트명이 spring-boot3 이지만
-    // 이 프로젝트는 Boot 4.1.0 이다 — 자동설정 충돌 가능성을 build/test 로 확인해야 한다(TECH_DECISIONS §11).
+    implementation 'net.javacrumbs.shedlock:shedlock-spring:7.10.1'
+    implementation 'net.javacrumbs.shedlock:shedlock-provider-jdbc-template:7.10.1'
+    // 외부 API(지도 경로 API 등) 보호용 서킷 브레이커. 2.4.0 부터 Boot 4 전용 아티팩트(spring-boot4)가 따로 있다 —
+    // 구 resilience4j-spring-boot3 2.4.0 은 기동 시 Spring Boot 4 를 감지하고 IncompatibleSpringBootVersionException
+    // 으로 컨텍스트를 거부한다(Dependabot PR #7 값 그대로 올리면 시험 430건 이상이 컨텍스트 로딩에서 실패, Ruling 760).
     // Spring Boot BOM 이 관리하지 않는 좌표라 버전을 명시한다. 이 Phase 에서는 의존성만 추가하고
     // @CircuitBreaker 는 붙이지 않는다 — 활성화는 외부 API 클라이언트가 실제로 생기는 Phase 소관.
-    implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.3.0'
+    implementation 'io.github.resilience4j:resilience4j-spring-boot4:2.4.0'
     // 보일러플레이트 축소
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
@@ -94,7 +95,7 @@ dependencies {
     testImplementation 'org.awaitility:awaitility'
     // 실제 PostgreSQL 컨테이너로 통합 테스트를 띄우기 위함(H2 미사용, IMPLEMENTATION_PLAN §7 규칙 15) —
     // Flyway 마이그레이션·JPA 매핑이 로컬/배포와 같은 DB 엔진으로 검증돼야 한다.
-    // Spring Boot 4.1.0 이 관리하는 testcontainers-bom 이 2.0.5 다. 이 버전부터 개별 모듈
+    // Spring Boot 4.1 이 관리하는 testcontainers-bom 이 2.0.5 다. 이 버전부터 개별 모듈
     // 아티팩트명이 testcontainers-<모듈명> 형태로 개명됐다(구 좌표 org.testcontainers:postgresql ·
     // org.testcontainers:junit-jupiter 는 2.0.5 BOM 에 존재하지 않음) — webmvc 와 같은 개명 사례.
     testImplementation 'org.testcontainers:testcontainers-postgresql'

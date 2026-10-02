@@ -155,7 +155,7 @@ resilience4j:
         permitted-number-of-calls-in-half-open-state: 3
         automatic-transition-from-open-to-half-open-enabled: true
     metrics:
-      # 관측 목표 8행(TECH_DECISIONS §13.1) — 이 값이 없으면(기본값 false) resilience4j-spring-boot3
+      # 관측 목표 8행(TECH_DECISIONS §13.1) — 이 값이 없으면(기본값 false) resilience4j-spring-boot4
       # 가 만드는 지표 게시자는 CircuitBreakerRegistry 에 실제로 연결되지 않는다. 역참조로 확인한
       # 것: TaggedCircuitBreakerMetricsPublisher(기본 경로)는 MetricsPublisher 인터페이스를 구현하는데,
       # CircuitBreakerRegistry.of(...) 는 RegistryEventConsumer 만 받는 오버로드뿐이라 그 둘을 잇는

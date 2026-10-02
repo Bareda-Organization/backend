@@ -1,5 +1,5 @@
 # alerts.yml 규칙 단위 시험 — promtool 이 가짜 시계열로 발화 여부를 본다(운영 서버 없이 조건식·for 를 검증한다).
-#   docker run --rm -v "$PWD/infra/observability/prometheus:/p" --entrypoint promtool prom/prometheus:v3.1.0 test rules /p/alerts.test.yml
+#   docker run --rm -v "$PWD/infra/observability/prometheus:/p" --entrypoint promtool prom/prometheus:v3.15.0 test rules /p/alerts.test.yml
 rule_files:
   - alerts.yml
 evaluation_interval: 15s

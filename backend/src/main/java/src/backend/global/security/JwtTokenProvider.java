@@ -22,7 +22,7 @@ import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 
 /**
- * JWT 발급·검증 담당(jjwt 0.12.6).
+ * JWT 발급·검증 담당(jjwt 0.13.0).
  * access(짧게)·refresh(길게) 두 종류를 발급하며, 토큰에 담는 정보는
  * subject=accountId, academyId, role, status, type(access/refresh) 이다.
  * secret·유효기간은 application.yml 의 jwt.* 에서 주입한다.

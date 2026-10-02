@@ -70,14 +70,14 @@
 
 | 항목 | 값 | 비고 |
 |---|---|---|
-| Spring Boot | **4.1.0** | 웹 스타터는 신형 아티팩트명 `spring-boot-starter-webmvc` |
+| Spring Boot | **4.1.1** | 웹 스타터는 신형 아티팩트명 `spring-boot-starter-webmvc` |
 | Java toolchain | **25** | |
 | Gradle group | `src`, 기본 패키지 `src.backend` | 비관례적. 새 클래스는 이 하위에 둬야 컴포넌트 스캔이 닿음 |
 | 스키마 관리 | Flyway (`ddl-auto: validate`) | §12 |
-| 보안 | `spring-boot-starter-security` + jjwt 0.12.6 | |
+| 보안 | `spring-boot-starter-security` + jjwt 0.13.0 | |
 | 메시징·캐시 | `spring-boot-starter-data-redis` · `-websocket` | 프로세스 밖 메시징 브로커는 두지 않는다(§9.5) |
 | 외부 호출 | `spring-boot-starter-webclient` | 지도 API 어댑터 |
-| API 문서 | springdoc 3.0.3 | Spring Boot 4(Jackson 3) 지원 라인 |
+| API 문서 | springdoc 3.1.1 | Spring Boot 4(Jackson 3) 지원 라인 |
 | 관측 | actuator + micrometer-prometheus | 노출은 `health,prometheus` 2개로 한정 |
 
 ### 2.2 프론트엔드
@@ -98,7 +98,7 @@
 
 ### 2.3 인프라 이미지
 
-`postgres:16` · `redis:7` · `nginx:alpine`.
+`postgres:18` · `redis:8` · `nginx:alpine`.
 
 ---
 
