@@ -36,7 +36,7 @@ import src.backend.global.persistence.LikeEscape;
 import src.backend.global.request.PageParams;
 import src.backend.global.request.SortParam;
 import src.backend.global.response.PageResponse;
-import src.backend.run.entity.Run;
+import src.backend.run.domain.MovingRunWindowPolicy;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 
@@ -104,6 +104,9 @@ public class AdminAcademyQueryService {
 
     private final RunRepository runRepository;
 
+    /** 운행 중 차량 수가 세는 운행일 범위(K-1) — 근접 판정·유실 집계와 같은 경계를 쓴다. */
+    private final MovingRunWindowPolicy movingRunWindowPolicy;
+
     /** 학원 목록·검색(API_SPEC §6.1) — 검색어는 학원명·코드 부분일치, 상태는 선택 필터다. */
     public PageResponse<AcademySummaryResponse> list(AcademyListRequest request) {
         PageParams pageParams = PageParams.of(request.page(), request.size());
@@ -138,8 +141,8 @@ public class AdminAcademyQueryService {
                 .countByAcademyIdInGroupedByAcademyId(List.of(academyId), MEMBER_ROLES, MEMBER_STATUSES).stream()
                 .mapToLong(AcademyCount::getTotal)
                 .sum();
-        long movingBusCount = runRepository.findAllByAcademyIdAndStatusOrderByDepartTimeAsc(academyId,
-                RunStatus.MOVING).stream().map(Run::getBusId).distinct().count();
+        long movingBusCount = runRepository.countBusesByStatusFromServiceDate(academyId, RunStatus.MOVING,
+                movingRunWindowPolicy.earliestServiceDate());
         return AcademyDetailResponse.from(academy, staffCount, userCount, staffAccounts(academyId),
                 new AcademyStatsResponse(movingBusCount));
     }
