@@ -113,6 +113,8 @@ public final class PhotoResizer {
         try (ImageInputStream input = ImageIO.createImageInputStream(new ByteArrayInputStream(photo.content()))) {
             Iterator<ImageReader> readers = ImageIO.getImageReaders(input);
             if (!readers.hasNext()) {
+                // 로그 없이 원본을 저장하면 리더 플러그인(WebP)이 실행 환경에서 등록되지 않아 줄이기가 통째로 꺼져도 알 길이 없다(BR-360)
+                log.warn("[photo] 읽을 수 있는 리더가 없어 원본을 저장한다 — 형식={}, 크기={}B", photo.extension(), photo.content().length);
                 return Optional.empty();
             }
             ImageReader reader = readers.next();

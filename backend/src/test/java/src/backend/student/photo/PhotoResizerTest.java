@@ -8,6 +8,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -15,6 +16,12 @@ import java.util.concurrent.TimeUnit;
 import javax.imageio.ImageIO;
 
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 import src.backend.student.photo.spec.StudentPhoto;
 
@@ -87,6 +94,32 @@ class PhotoResizerTest {
         // PNG 서명만 있고 본문이 깨진 파일 — 검증(서명)은 통과하지만 ImageIO 가 못 읽는다
         StudentPhoto broken = StudentPhoto.of(new byte[] {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4});
         assertThat(PhotoResizer.shrink(broken)).isSameAs(broken);
+    }
+
+    /**
+     * BR-360 — 읽을 리더가 하나도 없으면 원본을 저장하되 <b>경고를 남긴다</b>. WebP 플러그인이 실행 환경에서 등록되지 않으면(서비스 로더가 못 찾는 경우)
+     * 로그 없이 최대 5MB 원본이 저장돼, 시험은 초록인 채 줄이기가 통째로 꺼져 있어도 운영에서 알 길이 없었다.
+     */
+    @Test
+    void 읽을_리더가_없으면_경고를_남기고_원본_그대로다() {
+        Logger logger = (Logger) LoggerFactory.getLogger(PhotoResizer.class);
+        ListAppender<ILoggingEvent> logs = new ListAppender<>();
+        logs.start();
+        logger.addAppender(logs);
+        try {
+            // 서명 검증(StudentPhoto.of)을 거치지 않고 만든다 — 어떤 리더도 알아보지 못하는 바이트열
+            StudentPhoto unreadable = new StudentPhoto("webp", "이 바이트열은 이미지가 아니다".getBytes(StandardCharsets.UTF_8));
+
+            assertThat(PhotoResizer.shrink(unreadable)).isSameAs(unreadable);
+
+            assertThat(logs.list).as("경고가 한 건 남는다").singleElement().satisfies(event -> {
+                assertThat(event.getLevel()).isEqualTo(Level.WARN);
+                assertThat(event.getFormattedMessage()).as("형식과 크기를 싣는다").contains("webp")
+                        .contains(String.valueOf(unreadable.content().length));
+            });
+        } finally {
+            logger.detachAppender(logs);
+        }
     }
 
     /** 세로로 찍은 휴대폰 사진은 픽셀이 가로로 저장되고 EXIF 가 "90도 돌려 보라" 고 적는다 — 그것을 지우고 줄이면 사진이 누워 보인다. */
