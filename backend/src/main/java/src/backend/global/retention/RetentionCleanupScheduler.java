@@ -122,7 +122,7 @@ public class RetentionCleanupScheduler {
      */
     private void recordRefreshTokenRowsSafely() {
         try {
-            refreshTokenRowsMetrics.update(refreshTokenRepository.count());
+            refreshTokenRowsMetrics.update(refreshTokenRepository.countAllRows());
         } catch (Exception e) {
             log.warn("refresh_token 행 수를 세지 못했다 — 게이지는 이전 값 그대로", e);
             schedulerHealthMetrics.recordItemFailure(getClass());
