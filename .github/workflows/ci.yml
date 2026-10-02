@@ -15,6 +15,8 @@ on:
     paths: ['backend/**', 'docker-compose.yml', '.github/workflows/ci.yml']
   pull_request:
     paths: ['backend/**', 'docker-compose.yml', '.github/workflows/ci.yml']
+  # 손으로 돌리는 버튼 — 경로 필터는 새 브랜치의 첫 push 를 건너뛸 수 있다(2026-10-02 조직 저장소 첫 push 에서 실제로 안 돌았다).
+  workflow_dispatch:
 
 # 같은 PR 에 새 커밋이 오면 앞선 실행을 취소한다. main push 는 취소하지 않는다(모든 커밋의 결과가 남는다).
 concurrency:
