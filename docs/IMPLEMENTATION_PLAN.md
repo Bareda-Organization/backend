@@ -1190,6 +1190,12 @@ Phase 별 범위 · 선행 · 완료 조건 · 산출물 · 이월(Phase 10~14 �
 | 721 | `RefreshTokenRepositoryTest` 3건 — Linux `OffsetDateTime.now()` 는 나노초 · macOS 는 마이크로초 · `timestamptz` 는 마이크로초라 저장 후 `isEqualTo` 가 CI 에서만 실패. 운영 쿼리는 시각 동치 비교가 없어 제품 결함 아님 → 시험 시각을 `truncatedTo(MICROS)` | 본문 §8.91 |
 | 722 | `FirstSystemAdminBootstrapTest`·`LoggingSmsSenderTest` — `-PciQuiet`(루트 로그 WARN)이 INFO 로그를 지워 로그를 검사하는 시험이 CI 에서만 실패. `-PciQuiet` 은 그대로 두고 두 시험이 **자기 로거의 INFO 를 직접 켜고 복원** | 본문 §8.91 |
 | 723 | 재발 방지 — `scripts/verify.sh` 가 웹·백엔드를 `TZ=UTC` 로 돌리고 백엔드에 `-PciQuiet` 도 줌(CI 와 같은 조건) · `clockTime.test.ts` 의 시간대 순회에 오프셋 없는 입력 추가 · macOS 는 나노초를 못 재현하므로 DB 왕복 시각은 시험에서 `truncatedTo(MICROS)` 를 붙이는 규칙을 `verify.sh` 머리말과 배포 문서의 CI 절에 기록 | 본문 §8.91 · `docs/infra/DEPLOYMENT.md §5.1` |
+| 724 | 운행일이 지난 `moving` 회차를 메인 관리자가 끝내는 API·화면(사용자 결정 1) | 본문 §8.95 · 구현 §8.92 |
+| 725 | vitest 5.x(사용자 결정 2) | 본문 §8.95 · 구현 `docs/frontend/IMPLEMENTATION_PLAN §5.34` |
+| 726 | Dependabot PR 을 로컬에서 직접 올려 영역별 전체 검사로 판정(사용자 결정 3) | 본문 §8.95 |
+| 727 | 런타임 이미지는 LTS 만 — `#8` 거절 · `@types/node` 22 | 본문 §8.95 |
+| 728 | 누수 검토 P3·후속 범위 · 기존 사진 일괄 축소·SSE 재평가 하지 않음(사용자 결정 5) | 본문 §8.95 · 구현 §8.93 |
+| 729 | postgres 18 첫 배포 전 조건부 채택 | 본문 §8.95 · 조건 충족 §8.94 `Ruling 764` |
 | 730 | 끝나지 않은 이동 중 회차 강제 종료 권한을 `RUN_FORCE_CONFIRM` 재사용이 아니라 새 권한 `RUN_FORCE_FINISH`(메인 관리자) 로 분리 — 확정은 idle 회차를 앞으로 보내고 종료는 남은 탑승자를 처리 없이 닫는 별개 동작. 목록 조회는 읽기라 `MONITOR_ALL` | 본문 §8.92 |
 | 731 | 대상 조건(미취소 `moving` · 운행일 < 오늘−1)을 `RunRepository.STALE_MOVING` 한 곳에 두고 경보 집계 · 관리자 목록 · 종료 UPDATE 가 공유 — 목록 건수 = 게이지 값. 종료는 조건부 UPDATE 한 문장이라 마지막 하차(자동 종료)와 겹쳐도 한쪽만 성공 | 본문 §8.92 · `API_SPEC §6.16`·`§6.17` |
 | 732 | 일반 종료 후속 중 따르지 않는 것 — `RunEndedEvent`(알림 + `run_ended` 방송을 함께 일으킴) · 정차지 강제 출발 · 탑승자 하차 처리. 새 에러 코드 `RUN_NOT_STALE`(409) 1개, 이동 중 아님·취소는 기존 `RUN_NOT_MOVING`·`RUN_CANCELED` 재사용, 성공 응답 `200` | 본문 §8.92 · `API_SPEC §8` |
@@ -1899,3 +1905,16 @@ Dependabot PR #5(compose 8건) · #6(Actions 3건) · #7(gradle 9건) · #10(pub
 **재현되지 않았거나 지시와 다르게 판단한 것** — ①지시서 1번의 "resilience4j 2.3→2.4"는 PR 값 그대로면 기동 불가라 아티팩트 교체로 판단(760). ②`very_good_analysis` 는 "새 규칙 위반을 세고 고친다" 는 지시를 수행할 수 없어(설치 불가) 보류(762). ③8 개 compose 이미지 중 postgres 는 3파일에만 있고 `docker-compose.app.yml` 에는 없음 — 지시서의 "compose 4파일" 은 postgres 기준 3파일. ④`baraeda_ui` 만 `very_good_analysis ^7.0.0` 으로 낮게 남아 있음 — PR 범위 밖이라 그대로.
 
 **후속(이 갈래 밖)** — ①**공유 컨테이너 `school-bus-postgres-1`·`school-bus-redis-1` 은 아직 16.15·7.4.11** — 병합 뒤 모든 창이 끝난 시점에 `docker compose down` → `docker compose up -d postgres redis` 로 18.6·8.10.1 로 전환(조율자 몫 · 컨테이너를 다시 만들면 그 안의 전용 DB 가 전부 사라짐). `down` 없이 `up -d` 만 해도 컨테이너가 다시 만들어져 기동은 되지만(실측: 새 컨테이너가 `/var/lib/postgresql` 에 새 익명 볼륨을 만들어 빈 클러스터로 초기화 · 옛 16 데이터는 `/var/lib/postgresql/data` 익명 볼륨에 고아로 남음), 옛 볼륨은 이름으로 확인해 지울 것 ②`.github/dependabot.yml` — `resilience4j-spring-boot3` 를 추적하는 항목이 있으면 `-boot4` 로, `#10` 은 Flutter 고정 버전 결정 전까지 `very_good_analysis` 주 버전 11 무시 ③첫 배포 때 `configure-aws-credentials@v6` 가 처음 실행됨(CI 증거 부재) ④`OpsSettingsGuardTest.java:29` 의 주석 "Boot 4.1.0 설정 메타데이터" 와 8개 동시성 시험의 "PostgreSQL 16 · stats_fetch_consistency" 주석은 시험이 18 에서 통과해 동작은 맞고 문구만 옛 버전 — `be` 갈래와의 병합 충돌을 피하려 고치지 않음.
+
+## 8.95 ⚖ `R47` — 사용자 결정 1·2·3·5 와 조율자 판정 (2026-10-02 · 분기점 `dea049da` · 번호대 724~729)
+
+R46 끝에 남긴 사용자 결정 5건 중 사용자가 1·2·3·5 를 추천안대로 진행하라고 지시(4번 — Claude GitHub 앱 권한 — 은 제외). 작업 창 4개(`R47-STALE` `IMPLEMENTATION_PLAN §8.92` · `R47-BE` `IMPLEMENTATION_PLAN §8.93` · `R47-WEB` `docs/frontend/IMPLEMENTATION_PLAN.md §5.34` · `R47-DEPS` `IMPLEMENTATION_PLAN §8.94`)의 입력.
+
+| Ruling | 판정 | 근거 |
+|:-:|---|---|
+| **724** | **(사용자 결정 1) 운행일이 지난 `moving` 회차를 메인 관리자가 끝내는 API·화면.** 대상 = `StaleMovingRun` 경보와 같은 범위(미취소 · `service_date < 오늘 − 1`, 서울 시계) · 사유 필수 · 감사 1행 · `finished`·`finished_at`·`finish_pending=false` 만 쓰고 **탑승자 상태·하차 기록·학부모 알림은 만들지 않음**. C-15 와 `TECH_DECISIONS §14.3` ⚠ 의 "미하차 상태로 끝내는 경로 부재" 를 이 범위에 한해 뒤집음 — 오늘·어제 회차는 그대로 동승자 하차 처리로만 끝남 | 지난 운행의 하차 시각은 지어낼 수 없고 학부모에게 보낼 대상도 아님. 권한을 메인 관리자로 둔 것은 경보를 받는 쪽이 운영자이고 `API_SPEC §6.14` 강제 확정과 같은 개입 경로이기 때문 · 구현은 `IMPLEMENTATION_PLAN §8.92` |
+| **725** | **(사용자 결정 2) vitest 5.x** — Dependabot medium 2건(`vitest` · `@vitest/mocker`) 해소 | 시험 도구라 운영 영향 부재 · 구현 `docs/frontend/IMPLEMENTATION_PLAN.md §5.34` |
+| **726** | **(사용자 결정 3) Dependabot PR 은 GitHub 재실행 대신 작업 창이 로컬에서 같은 값을 직접 올려 영역별 전체 검사로 판정.** patch·minor 채택 · major 는 전체 검사 통과 + 런타임 원칙(727)에 맞을 때만 · PR 은 push 뒤 채택 내역을 적어 닫음 · `.github/dependabot.yml` 무시 규칙은 조율자가 한 번에 | 9건 중 주 버전 변경 다수이고 PR 의 CI 는 경로 필터로 대부분 건너뜀(#5·#6 실행 1·건너뜀 3). 실제로 #7 을 PR 값 그대로 병합했다면 `resilience4j-spring-boot3` 가 Boot 4 기동을 거부해 시험 430건 이상이 실패(`Ruling 760`) |
+| **727** | **런타임 이미지는 LTS 만 — `#8` 거절.** `eclipse-temurin` 25 유지(툴체인 25 고정 · 26 은 비 LTS) · `node` 22 유지(운영 웹은 Vercel — `Ruling 481`) · `@types/node` 주 버전도 런타임 22 에 맞춤 | 런타임 주 버전은 LTS 주기에 맞춰 따로 정함 |
+| **728** | **(사용자 결정 5) 누수 검토 P3·후속 범위** — R-1·R-2·R-3·R-4 · `AccountRecoveryFlowTest:184` 공허 통과 · 비상 접수 화면 단말 시각 · WebP 축소. **하지 않는 것**: ①기존 저장 사진 일괄 축소 ②SSE 재평가(`Ruling 617`) ③경보 재알림 4시간 변경 | ①축소 도입(`R46-KFIXBE`) 이전 사진이 남은 영속 환경 부재 — 운영·데모 미배포 · 스테이징은 DB 가 메모리 ②재평가 조건(인스턴스 2대 · 동시 연결 약 5,000 · FCM 도입 등) 미충족 · 구현은 `IMPLEMENTATION_PLAN §8.93` · `docs/frontend/IMPLEMENTATION_PLAN.md §5.34` |
+| **729** | **postgres 18 은 첫 배포 전에 올림(조건부)** — compose · CI · Testcontainers 가 같은 주 버전 · 18 이미지의 데이터 경로 변경 반영 · 18 위 백엔드 전체 통과가 조건 | 영속 데이터가 없는 지금이 주 버전을 올리는 가장 싼 시점(배포 뒤엔 `pg_upgrade`·덤프 복원) · 조건 충족 `Ruling 764` |
