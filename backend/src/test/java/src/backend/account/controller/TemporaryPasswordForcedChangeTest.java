@@ -11,12 +11,14 @@ import java.nio.charset.StandardCharsets;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 import com.jayway.jsonpath.JsonPath;
 
@@ -24,6 +26,9 @@ import src.backend.global.common.SeedFixtures;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
+import src.backend.global.security.gate.AllowedWhenPasswordChange;
+
+import testsupport.gate.AccountStatusGateEndpoints;
 
 /**
  * 임시 비밀번호 강제 변경(API_SPEC §1.4 · §2.5 · §2.8 · §2.10, Ruling 540) — 관리자가 초기화한 계정은 비밀번호를
@@ -48,6 +53,23 @@ class TemporaryPasswordForcedChangeTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    /** 액추에이터도 같은 타입의 빈을 등록해 이름으로 가른다. */
+    @Autowired
+    @Qualifier("requestMappingHandlerMapping")
+    private RequestMappingHandlerMapping handlerMapping;
+
+    /**
+     * 표식이 켜진 계정에게 열린 핸들러는 정확히 비밀번호 변경 · 본인 조회 · 로그아웃 3개다(BR-309 · §1.4). 허용 목록 방식이라 다른
+     * 핸들러에 {@code @AllowedWhenPasswordChange} 가 붙으면 임시 비밀번호 계정에 그 API 가 열린다 — 붙는 순간 이 시험이 실패한다
+     * (승인 대기 허용 목록을 {@code AccountStatusGateEndpoints} 로 대조하는 것과 같은 형태).
+     */
+    @Test
+    void 강제_변경_표식_허용_핸들러는_비밀번호_변경_본인_조회_로그아웃_3개뿐이다() {
+        assertThat(AccountStatusGateEndpoints.productionEndpoints(handlerMapping,
+                handlerMethod -> handlerMethod.hasMethodAnnotation(AllowedWhenPasswordChange.class)))
+                .containsExactlyInAnyOrder("POST /auth/password", "GET /me", "POST /auth/logout");
+    }
 
     @Test
     void 관계자가_초기화한_계정은_임시_비밀번호_로그인_응답과_me_에_변경_필요_표식이_실린다() throws Exception {

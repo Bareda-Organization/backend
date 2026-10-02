@@ -90,6 +90,18 @@ class StompChannelAuthorizationTest {
     }
 
     /**
+     * 임시 비밀번호 강제 변경 표식(Ruling 540 ④ · BR-309)이 켜진 access 토큰은 상태가 {@code active} 여도 CONNECT 에서
+     * {@code PASSWORD_CHANGE_REQUIRED} 로 거부된다 — REST 게이트와 같은 판정이다. 이 거부가 빠지면 관리자가 아는 임시 비밀번호로
+     * 버스 위치·비상 채널 구독이 열린다.
+     */
+    @Test
+    void 강제_변경_표식이_켜진_토큰은_CONNECT_에서_PASSWORD_CHANGE_REQUIRED_로_거부된다() throws Exception {
+        String token = tokenProvider.createAccessToken(1L, 1L, Role.STAFF, AccountStatus.ACTIVE, true);
+
+        assertThat(connectOutcome("CONNECT", token)).startsWith("ERROR").contains("PASSWORD_CHANGE_REQUIRED");
+    }
+
+    /**
      * BR-112 — CONNECT 거부도 REST 와 같은 어휘로 알린다(API_SPEC §8.1). 만료는 "재발급 후 재연결",
      * 부재·위조는 "로그인부터" 로 클라이언트의 다음 동작이 갈린다.
      */
