@@ -44,6 +44,15 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     boolean existsByPhotoUrlEndingWithAndAcademyIdAndDeletedAtIsNull(String fileNameTail, Long academyId);
 
     /**
+     * 이 사진 파일이 <b>어느 학원이든</b> 재학생의 것인지(API_SPEC §5.11.1 · Ruling 786) — 메인 관리자 전용이다. 퇴원 여부는 그대로 쿼리에 고정돼
+     * 퇴원생·부재가 같은 {@code false} 다. 호출부({@code StudentPhotoQueryService})는 {@code AcademyScope.resolveListScope} 가 빈 값(전 학원
+     * 범위)일 때만 부른다.
+     */
+    @AcademyScopeExempt(reason = "§5.11.1 Ruling 786 — 메인 관리자는 학원 무관(O-06 관제 명단의 photo_url). 호출부가 전 학원 범위"
+            + "(AcademyScope.resolveListScope 빈 값)일 때만 부르고, 그 밖의 역할은 위 학원 고정 쿼리를 쓴다")
+    boolean existsByPhotoUrlEndingWithAndDeletedAtIsNull(String fileNameTail);
+
+    /**
      * 관계자 웹의 학생 목록·검색(STU-01, API_SPEC §5.11) — 학원과 퇴원 여부가 <b>쿼리에 고정</b>돼
      * 호출부가 빼먹을 자리가 부재하다.
      *
