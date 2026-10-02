@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPairGenerator;
 import java.time.Clock;
@@ -26,6 +27,10 @@ import java.time.ZoneOffset;
 import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.sun.net.httpserver.HttpExchange;
@@ -63,19 +68,32 @@ class FcmPushSenderTest {
 
     private int sendStatus = 200;
 
+    /** 가짜 서버가 응답을 마친 토큰 교환 수 — 늦게 응답하는 동안의 중복 요청은 세지 못해 {@link #tokenArrivals} 를 따로 둔다. */
     private final AtomicInteger tokenRequests = new AtomicInteger();
 
+    /** 가짜 서버에 닿은 토큰 교환 요청 수(응답을 기다리기 전에 센다). */
+    private final AtomicInteger tokenArrivals = new AtomicInteger();
+
     private volatile long tokenDelayMillis;
+
+    /** {@code messages:send} 가 응답을 미루는 시간 — 발송이 멈춘 FCM 을 흉내 낸다. */
+    private volatile long sendDelayMillis;
+
+    private ExecutorService serverThreads;
 
     @BeforeEach
     void 가짜_FCM_을_띄운다() throws IOException {
         server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+        serverThreads = Executors.newCachedThreadPool(); // 늦게 응답하는 요청 하나가 나머지를 줄 세우지 않게 한다
+        server.setExecutor(serverThreads);
         server.createContext("/token", exchange -> {
+            tokenArrivals.incrementAndGet();
             sleepQuietly(tokenDelayMillis);
             respond(exchange, 200, "{\"access_token\":\"access-" + tokenRequests.incrementAndGet()
                     + "\",\"expires_in\":3600,\"token_type\":\"Bearer\"}");
         });
         server.createContext("/v1/projects/demo/messages:send", exchange -> {
+            sleepQuietly(sendDelayMillis);
             String body = read(exchange.getRequestBody());
             sendRequests.add(exchange.getRequestHeaders().getFirst("Authorization") + " " + body);
             if (body.contains("\"dead-token\"")) {
@@ -96,6 +114,7 @@ class FcmPushSenderTest {
     @AfterEach
     void 서버를_내린다() {
         server.stop(0);
+        serverThreads.shutdownNow();
     }
 
     @Test
@@ -264,6 +283,65 @@ class FcmPushSenderTest {
     @Test
     void 요청_시간_상한은_4초_이하다() {
         assertThat(FcmPushSender.TIMEOUT).isLessThanOrEqualTo(Duration.ofSeconds(4));
+    }
+
+    /**
+     * BR-319 — 위 상수만으로는 {@code post()} 가 그 상한을 실제로 요청에 거는지 알 수 없다. 응답이 상한보다 1초 늦는 FCM 에서
+     * 호출이 응답을 기다려 성공하지 않고 상한 근처에서 시간 초과로 끝나야 한다(R46 S-2 — 멈춘 FCM 에 발송 스레드가 묶이지 않는다).
+     */
+    @Test
+    void 발송이_멈춘_FCM_은_요청_시간_상한에서_끊는다() throws Exception {
+        given(deviceTokenRepository.findAllByAccountIdAndRevokedAtIsNull(7L))
+                .willReturn(List.of(token(1L, "live-token")));
+        FcmPushSender sender = sender();
+        sender.send(new PushMessage(7L, NotificationType.DELAY, "지연", "본문", false)); // 접근 토큰을 미리 받아 둔다
+        sendDelayMillis = FcmPushSender.TIMEOUT.plusSeconds(1).toMillis();
+
+        long startedAt = System.nanoTime();
+        assertThatThrownBy(() -> sender.send(new PushMessage(7L, NotificationType.DELAY, "지연", "본문", false)))
+                .as("응답을 기다려 성공하지 않고 시간 초과로 끝난다")
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("FCM 호출 실패")
+                .hasRootCauseInstanceOf(HttpTimeoutException.class);
+        long tookMillis = Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
+
+        assertThat(tookMillis).as("상한 근처에서 끊는다").isBetween(FcmPushSender.TIMEOUT.toMillis() - 500,
+                FcmPushSender.TIMEOUT.toMillis() + 900);
+    }
+
+    /**
+     * BR-319 — 미리 갱신 구간에 스레드 여럿이 동시에 발송해도 교환은 한 번만 나간다(최초 1 + 미리 갱신 1). 한 번 보내는 시험은
+     * 동시 갱신 방지 장치({@code refreshingAhead})를 지워도 통과한다. 교환이 늦게 끝나는 동안 모두 구간 안에 머물게 한다.
+     */
+    @Test
+    void 미리_갱신_구간에_동시에_들어온_발송은_교환을_한_번만_한다() throws Exception {
+        given(deviceTokenRepository.findAllByAccountIdAndRevokedAtIsNull(7L))
+                .willReturn(List.of(token(1L, "live-token")));
+        AdjustableClock clock = new AdjustableClock(CLOCK.instant());
+        FcmPushSender sender = sender(clock, CircuitBreakerRegistry.ofDefaults());
+        sender.send(new PushMessage(7L, NotificationType.DELAY, "지연", "본문", false));
+        tokenDelayMillis = 1_500;
+        clock.advance(Duration.ofSeconds(59 * 60 + 30)); // 만료까지 30초 — 미리 갱신 구간
+
+        int threads = 8;
+        CountDownLatch gate = new CountDownLatch(1);
+        ExecutorService callers = Executors.newFixedThreadPool(threads);
+        try {
+            for (int i = 0; i < threads; i++) {
+                callers.submit(() -> {
+                    gate.await();
+                    sender.send(new PushMessage(7L, NotificationType.DELAY, "지연", "본문", false));
+                    return null;
+                });
+            }
+            gate.countDown();
+            callers.shutdown();
+            assertThat(callers.awaitTermination(10, TimeUnit.SECONDS)).as("8개 발송 모두 끝난다").isTrue();
+        } finally {
+            callers.shutdownNow();
+        }
+        await().atMost(Duration.ofSeconds(10)).until(() -> tokenRequests.get() >= 2);
+
+        assertThat(tokenArrivals.get()).as("최초 교환 1 + 미리 갱신 1 — 동시에 들어온 스레드마다 교환하지 않는다").isEqualTo(2);
     }
 
     /** 실패 5건(실패율 50%)이면 열리는 서킷 — 운영 {@code fcm} 인스턴스와 같은 모양이다. */
