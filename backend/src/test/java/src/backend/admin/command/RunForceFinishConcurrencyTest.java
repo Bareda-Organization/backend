@@ -60,6 +60,8 @@ class RunForceFinishConcurrencyTest {
 
     private static final long TIMEOUT_SECONDS = 30;
 
+    private static final long LOCK_WAIT_SECONDS = 10;
+
     private static final String FINISHED_BY_FORCE = "forced";
 
     @Autowired private AcademyRepository academyRepository;
@@ -124,10 +126,19 @@ class RunForceFinishConcurrencyTest {
         return new long[] {runId, riderId};
     }
 
-    /** 락 대기자가 생길 때까지 기다린다 — 후행 스레드가 선행 스레드의 행 잠금에 막힌 것을 데이터베이스에서 직접 본다. */
+    /**
+     * 락 대기자가 생길 때까지 기다린다 — 후행 스레드가 선행 스레드의 행 잠금에 막힌 것을 데이터베이스에서 직접 본다.
+     *
+     * <p><b>조회 전에 통계 스냅샷을 비운다.</b> 이 조회는 선행 스레드의 열린 트랜잭션 안에서 돈다(같은 스레드의 연결을 쓴다).
+     * PostgreSQL 은 {@code pg_stat_activity} 를 트랜잭션이 끝날 때까지 첫 조회 시점 그대로 캐시한다 — 첫 조회가 후행 스레드가 막히기
+     * 전이면 상대가 막혀 있어도 계속 0 으로 읽어 시간 초과가 난다(전체 시험 묶음에서 간헐로 실패했고, psql 로 같은 트랜잭션 안의
+     * 두 번째 조회가 0 · 스냅샷을 비운 뒤 1 로 갈리는 것을 확인했다). 제한 시간은 결과를 받는 쪽({@code TIMEOUT_SECONDS})보다 짧다 —
+     * 같은 시각에 겹치면 원인 없는 {@code TimeoutException} 만 남는다.
+     */
     private void 누군가_행_잠금을_기다릴_때까지_기다린다() throws InterruptedException {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(LOCK_WAIT_SECONDS);
         while (System.nanoTime() < deadline) {
+            jdbcTemplate.queryForObject("SELECT pg_stat_clear_snapshot()::text", String.class);
             Integer waiting = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM pg_stat_activity "
                     + "WHERE datname = current_database() AND wait_event_type = 'Lock'", Integer.class);
             if (waiting != null && waiting > 0) {
@@ -135,7 +146,9 @@ class RunForceFinishConcurrencyTest {
             }
             Thread.sleep(20);
         }
-        throw new IllegalStateException("후행 스레드가 행 잠금을 기다리는 상태가 확인되지 않았다");
+        throw new IllegalStateException("후행 스레드가 행 잠금을 기다리는 상태가 확인되지 않았다 — 세션 상태: "
+                + jdbcTemplate.queryForList("SELECT pid, state, wait_event_type, wait_event, left(query, 100) AS query "
+                        + "FROM pg_stat_activity WHERE datname = current_database()"));
     }
 
     private Callable<Boolean> 하차하고_종료를_묻는다(long runId, long riderId, Runnable 잠금을_쥔_뒤) {
