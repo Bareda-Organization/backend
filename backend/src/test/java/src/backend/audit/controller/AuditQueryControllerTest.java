@@ -306,6 +306,23 @@ class AuditQueryControllerTest {
         assertThat(admin).as("소속이 없으면 키는 있고 값이 null").containsEntry("academy_name", null);
     }
 
+    /**
+     * 검색어의 {@code %}·{@code _} 는 글자 그대로다(BR-376 — 학생·학원·매니저 검색과 같은 {@code LikeEscape} 규칙).
+     * 이스케이프하지 않으면 {@code _} 가 "아무 한 글자" 가 되어 밑줄이 없는 계정까지 걸린다.
+     */
+    @Test
+    void audit_actors_는_검색어의_밑줄을_글자_그대로_찾는다() throws Exception {
+        Academy academy = academyRepository.save(Academy.register("R376LIKE", "학원R376LIKE", "서울", null, null));
+        Long underscored = createAccountIn(academy, "r376_like", "밑줄시험", Role.PARENT);
+        createAccountIn(academy, "r376xlike", "밑줄없음", Role.PARENT);
+
+        mockMvc.perform(get("/api/v1/admin/audit-actors").header("Authorization", 메인관리자_토큰())
+                        .param("q", "r376_like"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].account_id").value(String.valueOf(underscored)));
+    }
+
     /** 최대 20건에서 자른다(API_SPEC §6.13) — 21건이 걸리는 검색어도 20건만 돌려준다. 자르지 않으면 전 계정이 응답으로 나간다. */
     @Test
     void audit_actors_는_21건이_걸리는_검색어에도_20건만_돌려준다() throws Exception {

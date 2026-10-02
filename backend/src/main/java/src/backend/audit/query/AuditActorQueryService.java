@@ -16,6 +16,7 @@ import src.backend.academy.repository.AcademyRepository;
 import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
 import src.backend.audit.dto.AuditActorResponse;
+import src.backend.global.persistence.LikeEscape;
 
 /**
  * 감사 화면의 행위자 찾기(R46 감사, Ruling 447) — 계정 ID 를 손으로 치지 않고 이름·로그인 아이디 일부로 고른다.
@@ -38,7 +39,7 @@ public class AuditActorQueryService {
         if (q == null || q.isBlank()) {
             return List.of();
         }
-        List<Account> accounts = accountRepository.searchByNameOrLoginId(q.trim(), Limit.of(MAX_RESULTS));
+        List<Account> accounts = accountRepository.searchByNameOrLoginId(LikeEscape.escape(q.trim()), Limit.of(MAX_RESULTS));
         Map<Long, String> academyNames = academyNamesOf(accounts);
         return accounts.stream()
                 .map(account -> new AuditActorResponse(String.valueOf(account.getId()), account.getName(),
