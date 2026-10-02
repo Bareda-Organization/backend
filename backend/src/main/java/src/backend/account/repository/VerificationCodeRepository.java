@@ -44,8 +44,8 @@ public interface VerificationCodeRepository extends JpaRepository<VerificationCo
      * 깨지고 깨진 자리는 조용히 실패한다.
      *
      * <p>{@code clearAutomatically} 는 반대 방향의 위험도 함께 만든다 — <b>이 호출 뒤에는 호출 이전에
-     * 로드한 엔티티가 전부 detach 된다.</b> (이 호출은 로드한 계정이 없는 발급 경로에서만 부른다) 이 줄 뒤에 {@code account.changePassword(...)} 같은 변경이 한 줄만
-     * 들어와도 그 변경은 더티 체킹 대상에서 빠져 예외도 로그도 없이 사라진다. 뒤에서 다시 변경하려면
+     * 로드한 엔티티가 전부 detach 된다.</b> (이 호출은 발급 경로에서만 부르고, 발급은 직전에 읽은 계정을 존재 여부({@code isEmpty})로만 쓴다)
+     * 이 줄 뒤에 {@code account.changePassword(...)} 같은 변경이 한 줄만 들어와도 그 변경은 더티 체킹 대상에서 빠져 예외도 로그도 없이 사라진다. 뒤에서 다시 변경하려면
      * 재조회해야 한다(리뷰 라운드 2 m-3).
      *
      * @return 실제로 무효화된 행 수
