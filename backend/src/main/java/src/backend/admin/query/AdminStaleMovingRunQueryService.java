@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.admin.dto.StaleMovingRunItemResponse;
 import src.backend.admin.dto.StaleMovingRunListResponse;
+import src.backend.boarding.entity.RiderStatus;
 import src.backend.global.request.PageParams;
 import src.backend.run.domain.MovingRunWindowPolicy;
 import src.backend.run.repository.RunRepository;
@@ -32,7 +33,7 @@ public class AdminStaleMovingRunQueryService {
     /** 운행일이 어제보다 이른 미취소 이동 중 회차 전부 — 운행일 오름차순. */
     public StaleMovingRunListResponse list() {
         return new StaleMovingRunListResponse(
-                runRepository.findStaleMoving(movingRunWindowPolicy.earliestServiceDate(), LIST_LIMIT).stream()
+                runRepository.findStaleMoving(movingRunWindowPolicy.earliestServiceDate(), RiderStatus.BOARDED, LIST_LIMIT).stream()
                         .map(StaleMovingRunItemResponse::from)
                         .toList());
     }

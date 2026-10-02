@@ -28,6 +28,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 
 import src.backend.BackendApplication;
+import src.backend.boarding.entity.RiderStatus;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.StudentRepository;
@@ -120,7 +121,7 @@ class PartialIndexQueryPlanTest {
         List<Runnable> calls = List.of(
                 () -> runRepository.findMovingFromServiceDate(before, 0L, PageRequest.of(0, 50)),
                 () -> runRepository.countStaleMoving(before),
-                () -> runRepository.findStaleMoving(before, Limit.of(10)),
+                () -> runRepository.findStaleMoving(before, RiderStatus.BOARDED, Limit.of(10)),
                 () -> runRepository.finishIfStaleMoving(-1L, before, OffsetDateTime.now()));
 
         SoftAssertions softly = new SoftAssertions();

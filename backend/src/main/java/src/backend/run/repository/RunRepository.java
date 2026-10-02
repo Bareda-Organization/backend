@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 
+import src.backend.boarding.entity.RiderStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.run.entity.Run;
@@ -185,7 +186,7 @@ public interface RunRepository extends JpaRepository<Run, Long> {
 
     /**
      * 끝나지 않은 이동 중 회차 목록(R47 Ruling 724) — {@link #countStaleMoving} 이 세는 바로 그 회차를 운행일 오름차순으로,
-     * 학원 이름 · 호차 · 아직 {@code boarded} 인 탑승자 수와 함께 읽는다. 학원·차량은 theta 조인이라 회차마다 한 번에 읽힌다.
+     * 학원 이름 · 호차 · 아직 {@code boarded} 인 탑승자 수와 함께 읽는다(그 상태는 §9.1 대로 파라미터 — 호출부가 {@code BOARDED} 를 넘긴다). 학원·차량은 theta 조인이라 회차마다 한 번에 읽힌다.
      * {@code limit} 은 목록 상한이다({@code PageParams#UNPAGED_LIST_MAX}) — 오래된 회차부터 자르므로 처리하면 다음 회차가 올라온다.
      */
     @AcademyScopeExempt(reason = "메인 관리자 콘솔의 끝나지 않은 이동 중 회차 목록(AdminStaleMovingRunQueryService)은 전 학원 대상 조회라 "
@@ -193,10 +194,11 @@ public interface RunRepository extends JpaRepository<Run, Long> {
     @Query("SELECT r.id AS runId, r.academyId AS academyId, a.name AS academyName, r.serviceDate AS serviceDate, "
             + "r.direction AS direction, b.busNo AS busNo, r.startedAt AS startedAt, r.finishPending AS finishPending, "
             + "(SELECT COUNT(rr) FROM RunRider rr WHERE rr.runId = r.id "
-            + "AND rr.status = src.backend.boarding.entity.RiderStatus.BOARDED) AS boardedCount "
+            + "AND rr.status = :boarded) AS boardedCount "
             + "FROM Run r, Academy a, Bus b WHERE a.id = r.academyId AND b.id = r.busId AND " + STALE_MOVING
             + " ORDER BY r.serviceDate ASC, r.id ASC")
-    List<StaleMovingRunRow> findStaleMoving(@Param("before") LocalDate before, Limit limit);
+    List<StaleMovingRunRow> findStaleMoving(@Param("before") LocalDate before, @Param("boarded") RiderStatus boarded,
+            Limit limit);
 
     /**
      * 끝나지 않은 이동 중 회차 1건을 {@code finished} 로 닫는다(R47 Ruling 724) — 영향받은 행 수가 성공 여부다.

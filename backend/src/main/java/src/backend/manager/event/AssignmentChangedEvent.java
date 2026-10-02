@@ -9,7 +9,8 @@ import src.backend.global.common.enums.ManagerRole;
  *
  * <p>발행 지점은 둘이다 — 관계자의 수동 배치(§5.14)와 확정 배치의 동승자 자동 배정(Ruling 330). 두 경로가
  * 같은 이벤트를 쓰는 이유는 매니저가 받는 사실("이 회차에 배치됐다")이 같기 때문이며, 경로를 구별해야 하면
- * 필드를 더한다. 배치를 바꾼 트랜잭션이 롤백되면 발행되지 않아야 하므로 구독자는 커밋 후에 처리한다.
+ * 필드를 더한다. 구독자({@code AssignmentChangedNotificationListener})는 배치를 바꾼 트랜잭션 안에서 적재하므로
+ * 롤백되면 통지 행도 함께 사라진다(Ruling 789).
  *
  * @param managerId 새로 배치된 매니저 — 이 매니저의 계정이 알림 수신자다
  */
