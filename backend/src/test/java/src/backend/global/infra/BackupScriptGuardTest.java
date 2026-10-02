@@ -107,6 +107,36 @@ class BackupScriptGuardTest {
     }
 
     @Test
+    @DisplayName("사진 묶음 만들기(tar)가 치명 오류로 끝나면 최종 이름으로 올리지 않고 비영 종료하며 지표도 쓰지 않는다 — 잘린 묶음이 복원 때 최신 객체가 되지 않게(BR-331)")
+    void truncatedPhotoBundleIsNeverPublished(@TempDir Path tmp) throws Exception {
+        Run run = run(tmp, List.of("photos"), Map.of("FAKE_TAR_EXIT", "2"));
+
+        assertThat(run.exitCode()).as("출력:\n%s", run.output()).isNotZero();
+        assertThat(run.publishedPhotoBundles()).as("묶음이 온전하지 않으면 최종 이름이 생기지 않는다").isEmpty();
+        assertThat(run.metric("photos")).isNull();
+    }
+
+    @Test
+    @DisplayName("tar 가 읽는 사이 파일이 바뀌었다는 경고(종료 코드 1)로 끝나도 묶음은 온전하다 — 최종 이름으로 올리고 성공으로 센다(BR-331)")
+    void photoBundleWithChangedFileWarningStillSucceeds(@TempDir Path tmp) throws Exception {
+        Run run = run(tmp, List.of("photos"), Map.of("FAKE_TAR_EXIT", "1"));
+
+        assertThat(run.exitCode()).as("출력:\n%s", run.output()).isZero();
+        assertThat(run.publishedPhotoBundles()).hasSize(1);
+        assertThat(run.metric("photos")).contains(metric("photos") + " ");
+    }
+
+    @Test
+    @DisplayName("docker exec 자체가 실패하면(backend 가 꺼져 있다 — 종료 코드 1) tar 경고(1)로 오인해 성공으로 세지 않는다(BR-331)")
+    void failedExecIsNotMistakenForTarWarning(@TempDir Path tmp) throws Exception {
+        Run run = run(tmp, List.of("photos"), Map.of("FAKE_PHOTO_EXEC_FAIL", "1"));
+
+        assertThat(run.exitCode()).isNotZero();
+        assertThat(run.publishedPhotoBundles()).isEmpty();
+        assertThat(run.metric("photos")).isNull();
+    }
+
+    @Test
     @DisplayName("부트스트랩 — DB 는 매시, 사진은 매일 크론이고 데이터 디스크는 비어 있을 때만 포맷한다")
     void bootstrapSchedulesHourlyDbBackupAndNeverReformatsData() throws IOException {
         String script = Files.readString(BOOTSTRAP_SH);
@@ -133,6 +163,8 @@ class BackupScriptGuardTest {
         Path awsLog = tmp.resolve("aws.log");
         writeExecutable(bin.resolve("aws"), FAKE_AWS);
         writeExecutable(bin.resolve("docker"), FAKE_DOCKER);
+        writeExecutable(bin.resolve("pg_dump"), FAKE_PG_DUMP);
+        writeExecutable(bin.resolve("tar"), FAKE_TAR);
         if (existingDbMetric != null) {
             Files.writeString(textfile.resolve("schoolbus_backup_db.prom"), existingDbMetric);
         }
@@ -173,15 +205,38 @@ class BackupScriptGuardTest {
         List<String> awsCalls() throws IOException {
             return Files.exists(awsLog) ? Files.readAllLines(awsLog) : List.of();
         }
+
+        /** 복원이 "최신 객체" 로 집는 최종 이름({@code photos/<시각>.tar.gz})으로 간 업로드·복사의 목적지 — 임시 접두사({@code photos/.partial/})는 뺀다. */
+        List<String> publishedPhotoBundles() throws IOException {
+            return awsCalls().stream().map(call -> call.substring(call.lastIndexOf(' ') + 1))
+                    .filter(destination -> destination.startsWith("s3://test-bucket/photos/") && !destination.startsWith("s3://test-bucket/photos/.partial/"))
+                    .toList();
+        }
     }
 
-    /** {@code pg_dump} 는 FAKE_DUMP_BYTES(기본 30000) 바이트의 무작위 데이터를, 사진 묶음은 5000 바이트를 낸다. */
+    /**
+     * {@code docker compose … exec -T <서비스> <명령…>} 을 흉내 낸다 — 서비스 이름 뒤의 명령을 그대로 실행한다(PATH 앞의 가짜 {@code pg_dump} ·
+     * {@code tar} 가 컨테이너 안의 명령을 대신한다). FAKE_PHOTO_EXEC_FAIL 이면 backend 에 대한 exec 자체가 실패한다(컨테이너가 꺼진 경우의 docker 종료 코드 1).
+     */
     private static final String FAKE_DOCKER = """
             #!/usr/bin/env bash
-            case "$*" in
-              *pg_dump*) head -c "${FAKE_DUMP_BYTES:-30000}" /dev/urandom ;;
-              *tar*)     head -c 5000 /dev/urandom ;;
-            esac
+            while [ $# -gt 0 ] && [ "$1" != backend ] && [ "$1" != postgres ]; do shift; done
+            service="$1"; shift
+            [ "$service" = backend ] && [ -n "$FAKE_PHOTO_EXEC_FAIL" ] && exit 1
+            exec "$@"
+            """;
+
+    /** 덤프는 FAKE_DUMP_BYTES(기본 30000) 바이트의 무작위 데이터. */
+    private static final String FAKE_PG_DUMP = """
+            #!/usr/bin/env bash
+            head -c "${FAKE_DUMP_BYTES:-30000}" /dev/urandom
+            """;
+
+    /** 사진 묶음은 5000 바이트를 낸 뒤 FAKE_TAR_EXIT(기본 0)로 끝난다 — 2 는 치명 오류, 1 은 "읽는 사이 파일이 바뀜" 경고. */
+    private static final String FAKE_TAR = """
+            #!/usr/bin/env bash
+            head -c 5000 /dev/urandom
+            exit "${FAKE_TAR_EXIT:-0}"
             """;
 
     /** {@code s3 cp} 호출을 로그에 남기고, 원본이 {@code -} 면 표준입력을 끝까지 읽는다. FAKE_AWS_FAIL 이면 실패한다. */

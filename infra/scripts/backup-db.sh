@@ -61,10 +61,16 @@ backup_db() {
 # ⚠ `run` 이 아니라 `exec` 다: run 으로 띄운 컨테이너는 stdout 이 로깅 드라이버(CloudWatch)로도 가서 사진 바이너리가
 #   로그로 올라간다. exec 의 출력은 클라이언트로만 온다. 그래서 backend 가 떠 있어야 하고, 꺼져 있으면 이 단계가 실패한다.
 # 매번 전체를 묶는다(증분 아님) — 사진이 수 GB 를 넘으면 `aws s3 sync` 방식으로 바꾼다.
+# 복원은 최신 객체를 쓰므로 **온전한 묶음만** 최종 이름(photos/<시각>.tar.gz)에 둔다(BR-331) — `aws s3 cp -` 는 입력이 중간에 끊겨도 받은 만큼으로
+# 업로드를 마치기 때문이다. 그래서 임시 이름(photos/.partial/…)에 먼저 올리고, tar·docker 가 끝까지 성공했을 때만 S3 안에서 최종 이름으로 복사한다.
+# 임시 객체는 지우지 않는다 — EC2 역할에 s3:DeleteObject 가 없다(`mv` 불가). photos/ 7일 수명주기가 치운다.
+# tar 종료 코드 1("읽는 사이 파일이 바뀜")은 묶음이 온전한 경고라 컨테이너 안에서 0 으로 바꾼다 — 그래야 backend 가 꺼져 있어 docker exec 가 낸 1 과 섞이지 않는다.
 # 복원: docs/backend/infra/DEPLOYMENT.md §7.2
 backup_photos() {
-    local key="photos/$STAMP.tar.gz"
-    "${COMPOSE[@]}" exec -T backend tar czf - -C /app/var photos | aws s3 cp --region "$AWS_REGION" - "s3://$BUCKET/$key"
+    local key="photos/$STAMP.tar.gz" partial="photos/.partial/$STAMP.tar.gz"
+    "${COMPOSE[@]}" exec -T backend sh -c 'tar czf - -C /app/var photos || [ $? -eq 1 ]' \
+        | aws s3 cp --region "$AWS_REGION" - "s3://$BUCKET/$partial"
+    aws s3 cp --region "$AWS_REGION" "s3://$BUCKET/$partial" "s3://$BUCKET/$key"
     echo "사진 백업 완료: s3://$BUCKET/$key"
     record_success photos
 }
