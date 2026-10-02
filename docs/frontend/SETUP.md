@@ -14,7 +14,7 @@
 | 공통 | Git · Docker Desktop(Compose v2, 실행 중) |
 | 백엔드 | Java 25 — `backend/build.gradle` 의 toolchain 고정값 |
 | 관계자 웹 | Node.js 22(`frontend/apps/academy-web/Dockerfile` 의 `node:22-alpine`) · npm |
-| 앱 2종 | Flutter(각 `pubspec.yaml` 의 Dart `^3.12.2`) · iOS 는 Xcode |
+| 앱 2종 | Flutter 3.47.6(각 `pubspec.yaml` 의 Dart `^3.13.5`) · iOS 는 Xcode |
 
 ## 2. 클론
 
