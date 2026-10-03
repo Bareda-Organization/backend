@@ -41,7 +41,7 @@ services:
     restart: unless-stopped
 
   redis:
-    image: redis:8.10.1
+    image: redis:8.10.2
     # 저장하지 않는다 — DB 와 함께 재시작마다 비워진다(버스 위치는 어차피 2분짜리 값이다).
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     restart: unless-stopped
