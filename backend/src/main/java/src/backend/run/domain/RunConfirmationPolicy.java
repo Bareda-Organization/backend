@@ -3,6 +3,8 @@ package src.backend.run.domain;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 
+import src.backend.global.policy.PolicyConstants;
+
 /**
  * 회차가 <b>언제 확정되어야 하는가</b>를 정하는 유일한 지점(C-03 · ARCHITECTURE §9.2 ·
  * {@code ck_run_confirm_at}).
@@ -18,13 +20,13 @@ import java.time.OffsetDateTime;
 public final class RunConfirmationPolicy {
 
     /**
-     * 출발 시각으로부터 얼마나 앞서 확정하는가 — 정책 상수이므로 설정이 아니라 코드에 둔다
-     * (횡단 규칙 10: yml 로 빼면 운영에서 사양 값이 조용히 바뀐다).
+     * 출발 시각으로부터 얼마나 앞서 확정하는가 — 정의처는 {@link PolicyConstants#CONFIRM_LEAD} 다(횡단 규칙 10: 정책 상수는 설정이 아니라
+     * 코드에 두고, 학원 설정 응답 {@code policy} 와 같은 값을 읽는다 — Ruling 820).
      *
      * <p>이 값은 {@code ck_run_confirm_at} CHECK 와 <b>같은 값이어야 한다</b> — 어긋나면 저장이
      * 제약 위반으로 거부되므로, DB 가 이 상수의 잘못을 대신 잡아 준다.
      */
-    private static final Duration CONFIRM_LEAD = Duration.ofMinutes(30);
+    private static final Duration CONFIRM_LEAD = PolicyConstants.CONFIRM_LEAD;
 
     /** 재시도 간격의 첫 값(= 폴링 주기)과 상한. */
     private static final Duration RETRY_BASE = Duration.ofSeconds(30);

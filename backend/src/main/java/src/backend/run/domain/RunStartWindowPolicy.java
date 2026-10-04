@@ -5,6 +5,8 @@ import java.time.OffsetDateTime;
 
 import org.springframework.stereotype.Component;
 
+import src.backend.global.policy.PolicyConstants;
+
 /**
  * 운행 시작 가능 시간창 판정(API_SPEC §4.4, RUN-02) — 출발 시각 ±10분(Ruling 202)만 {@code 200} 이다.
  *
@@ -19,7 +21,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class RunStartWindowPolicy {
 
-    private static final Duration WINDOW = Duration.ofMinutes(10);
+    /** 창의 한쪽 폭 — 정의처는 {@link PolicyConstants#START_WINDOW} 다(학원 설정 응답 {@code policy} 와 같은 값을 읽는다, Ruling 820). */
+    private static final Duration WINDOW = PolicyConstants.START_WINDOW;
 
     /** {@code now} 가 {@code departTime} 의 ±10분 창 안(양끝 포함)인지 — 밖이면 호출부가 403 으로 답한다. */
     public boolean isWithinWindow(OffsetDateTime departTime, OffsetDateTime now) {

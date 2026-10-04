@@ -18,6 +18,7 @@ import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.policy.PolicyConstants;
 import src.backend.global.security.AuthUser;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RunStop;
@@ -126,7 +127,7 @@ public class DelayNotificationCommandService {
     }
 
     private int validateMinutes(Integer minutes) {
-        if (minutes == null || minutes <= 0 || minutes % 5 != 0) {
+        if (minutes == null || minutes <= 0 || minutes % PolicyConstants.DELAY_UNIT_MINUTES != 0) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED);
         }
         return minutes;

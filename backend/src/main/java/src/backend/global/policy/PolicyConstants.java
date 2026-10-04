@@ -21,7 +21,7 @@ public final class PolicyConstants {
     /** 운행 시작 버튼이 열리는 창 — 출발 시각 앞뒤 이 시간(양끝 포함, RUN-02 · Ruling 202). */
     public static final Duration START_WINDOW = Duration.ofMinutes(10);
 
-    /** ②구간 변경 한도 — 회차 하나에 이 횟수까지다(C-04). {@code boarding_intent.change_used_count} CHECK 와 같은 값이다. */
+    /** ②구간 변경 한도 — 회차 하나에 이 횟수까지다(C-04). {@code boarding_intent.change_used_count} CHECK(0~1)와 선점 UPDATE(0→1)도 이 값을 쥐고 있어 바꿀 때는 셋을 함께 고친다. */
     public static final int CHANGE_QUOTA_PER_RUN = 1;
 
     /** 지연 알림 단위(분) — 지연 알림의 예상 지연 시간은 이 값의 배수여야 한다(NTF-06). */

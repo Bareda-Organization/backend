@@ -15,6 +15,7 @@ import lombok.NoArgsConstructor;
 
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.policy.PolicyConstants;
 import src.backend.request.domain.ChangeWindow;
 
 /**
@@ -79,7 +80,7 @@ public class BoardingIntent {
 
     /** ②구간 변경 한도가 아직 남아 있는가 — 한도 단위는 이 행 자체(회차 1개), 목표 5. */
     public boolean hasChangeQuota() {
-        return changeUsedCount < 1;
+        return changeUsedCount < PolicyConstants.CHANGE_QUOTA_PER_RUN;
     }
 
     /**
