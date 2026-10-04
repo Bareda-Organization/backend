@@ -28,8 +28,11 @@ public record StudentRouteResponse(Long runId, String busNo, OffsetDateTime depa
     public record EscortContact(String name, String phone) {
     }
 
-    /** {@code change} 는 {@code added}·{@code skipped} 만 온다 — {@code removed} 는 정본에 없다. */
+    /**
+     * {@code change} 는 {@code added}·{@code skipped} 만 온다 — {@code removed} 는 정본에 없다. {@code arrivedAt} 은 그 승하차지의
+     * 도착 처리 시각으로 지나간 곳에만 있고 아직이면 {@code null} 이다 — 지난 사실이라 ETA 비노출(C-08)과 무관하다(Ruling 824).
+     */
     public record Stop(Long stopId, int seq, String name, String address, BigDecimal lat, BigDecimal lng,
-            String change) {
+            String change, OffsetDateTime arrivedAt) {
     }
 }
