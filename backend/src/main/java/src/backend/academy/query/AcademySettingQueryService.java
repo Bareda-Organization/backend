@@ -5,7 +5,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
-import src.backend.academy.dto.AcademySettingResponse;
+import src.backend.academy.dto.AcademySettingDetailResponse;
+import src.backend.academy.entity.Academy;
+import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademySettingRepository;
 import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
@@ -28,11 +30,18 @@ public class AcademySettingQueryService {
 
     private final AcademySettingRepository academySettingRepository;
 
-    /** 요청자 학원의 설정을 돌려준다 — 행이 없으면 기본값(3분)으로 자가 치유해 만든다. */
+    private final AcademyRepository academyRepository;
+
+    /**
+     * 요청자 학원의 설정과 읽기 전용 학원 정보·정책 상수를 돌려준다 — 행이 없으면 기본값(3분)으로 자가 치유해 만든다. 학원은 토큰의
+     * 학원이다(요청이 고르지 않는다).
+     */
     @Transactional
-    public AcademySettingResponse get(AuthUser requester) {
+    public AcademySettingDetailResponse get(AuthUser requester) {
         requireStaff(requester);
-        return AcademySettingResponse.from(academySettingRepository.findOrCreate(requester.academyId()));
+        Academy academy = academyRepository.findById(requester.academyId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.ACADEMY_NOT_FOUND));
+        return AcademySettingDetailResponse.of(academySettingRepository.findOrCreate(requester.academyId()), academy);
     }
 
     private void requireStaff(AuthUser requester) {

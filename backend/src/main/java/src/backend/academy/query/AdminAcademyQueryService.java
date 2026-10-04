@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.academy.dto.AcademyDetailResponse;
 import src.backend.academy.dto.AcademyListRequest;
+import src.backend.academy.dto.AcademyListResponse;
 import src.backend.academy.dto.AcademyStaffAccountResponse;
 import src.backend.academy.dto.AcademyStatsResponse;
 import src.backend.academy.dto.AcademySummaryResponse;
@@ -26,7 +27,10 @@ import src.backend.academy.entity.StaffStatus;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.entity.Account;
+import src.backend.account.entity.ApproverType;
+import src.backend.account.entity.SignupRequestStatus;
 import src.backend.account.repository.AccountRepository;
+import src.backend.account.repository.SignupRequestRepository;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
@@ -104,11 +108,16 @@ public class AdminAcademyQueryService {
 
     private final RunRepository runRepository;
 
+    private final SignupRequestRepository signupRequestRepository;
+
     /** 운행 중 차량 수가 세는 운행일 범위(K-1) — 근접 판정·유실 집계와 같은 경계를 쓴다. */
     private final MovingRunWindowPolicy movingRunWindowPolicy;
 
-    /** 학원 목록·검색(API_SPEC §6.1) — 검색어는 학원명·코드 부분일치, 상태는 선택 필터다. */
-    public PageResponse<AcademySummaryResponse> list(AcademyListRequest request) {
+    /**
+     * 학원 목록·검색(API_SPEC §6.1) — 검색어는 학원명·코드 부분일치, 상태는 선택 필터다. 응답 최상위 {@code summary} 는
+     * 이 필터·쪽과 무관한 전체 값이라(Ruling 806) 결과가 비어도 항상 채운다.
+     */
+    public AcademyListResponse list(AcademyListRequest request) {
         PageParams pageParams = PageParams.of(request.page(), request.size());
         Sort sort = SortParam.parse(request.sort(), SORTABLE_FIELDS, DEFAULT_SORT).and(TIE_BREAKER);
         Page<Academy> page = academyRepository.searchForConsole(
@@ -116,20 +125,36 @@ public class AdminAcademyQueryService {
                 statusFilter(request.status()),
                 pageParams.toPageable(sort));
 
-        List<Long> academyIds = page.getContent().stream().map(Academy::getId).toList();
+        return AcademyListResponse.of(PageResponse.of(page, summaries(page.getContent())), summary());
+    }
+
+    /** 한 페이지의 학원 전부에 관계자 수·사용자 수·대기 가입 요청 수를 한 번에 채운다 — 학원마다 세면 질의가 페이지 크기만큼 늘어난다. */
+    private List<AcademySummaryResponse> summaries(List<Academy> academies) {
+        List<Long> academyIds = academies.stream().map(Academy::getId).toList();
         if (academyIds.isEmpty()) {
-            return PageResponse.of(page, List.of());
+            return List.of();
         }
         Map<Long, Long> staffCounts = countByAcademy(academyStaffRepository
                 .countByAcademyIdInGroupedByAcademyId(academyIds, StaffStatus.ACTIVE));
         Map<Long, Long> userCounts = countByAcademy(accountRepository
                 .countByAcademyIdInGroupedByAcademyId(academyIds, MEMBER_ROLES, MEMBER_STATUSES));
-
-        return PageResponse.of(page, page.getContent().stream()
+        Map<Long, Long> pendingCounts = countByAcademy(signupRequestRepository
+                .countByAcademyIdInGroupedByAcademyId(academyIds, ApproverType.SYSTEM_ADMIN,
+                        SignupRequestStatus.PENDING));
+        return academies.stream()
                 .map(academy -> AcademySummaryResponse.from(academy,
                         staffCounts.getOrDefault(academy.getId(), 0L),
-                        userCounts.getOrDefault(academy.getId(), 0L)))
-                .toList());
+                        userCounts.getOrDefault(academy.getId(), 0L),
+                        pendingCounts.getOrDefault(academy.getId(), 0L)))
+                .toList();
+    }
+
+    /** 목록 {@code summary} — 필터·쪽과 무관한 전 학원 값이다(Ruling 806). 사용자 수는 {@code user_count} 와 같은 역할·상태 기준이다. */
+    private AcademyListResponse.Summary summary() {
+        long active = academyRepository.countByStatus(AcademyStatus.ACTIVE);
+        long inactive = academyRepository.countByStatus(AcademyStatus.INACTIVE);
+        return new AcademyListResponse.Summary(active + inactive, active, inactive,
+                accountRepository.countByRoleInAndStatusIn(MEMBER_ROLES, MEMBER_STATUSES));
     }
 
     /** 학원 상세(API_SPEC §6.3 GET) — 미등록 학원은 {@code 404 ACADEMY_NOT_FOUND} 다. */
@@ -141,10 +166,13 @@ public class AdminAcademyQueryService {
                 .countByAcademyIdInGroupedByAcademyId(List.of(academyId), MEMBER_ROLES, MEMBER_STATUSES).stream()
                 .mapToLong(AcademyCount::getTotal)
                 .sum();
-        long movingBusCount = runRepository.countBusesByStatusFromServiceDate(academyId, RunStatus.MOVING,
+        List<String> movingBusNos = runRepository.findBusNosByStatusFromServiceDate(academyId, RunStatus.MOVING,
                 movingRunWindowPolicy.earliestServiceDate());
-        return AcademyDetailResponse.from(academy, staffCount, userCount, staffAccounts(academyId),
-                new AcademyStatsResponse(movingBusCount));
+        long pendingSignupCount = countByAcademy(signupRequestRepository.countByAcademyIdInGroupedByAcademyId(
+                List.of(academyId), ApproverType.SYSTEM_ADMIN, SignupRequestStatus.PENDING))
+                .getOrDefault(academyId, 0L);
+        return AcademyDetailResponse.from(academy, staffCount, userCount, pendingSignupCount,
+                staffAccounts(academyId), AcademyStatsResponse.of(movingBusNos));
     }
 
     /**

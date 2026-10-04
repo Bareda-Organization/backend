@@ -78,14 +78,14 @@ public interface GuardianStudentRepository extends JpaRepository<GuardianStudent
     /**
      * 한 보호자의 자녀 목록(ATT-03, §3.1) — 해지되지 않은 연결만이다.
      *
-     * <p>{@link LinkedChild} 로 <b>네 값만</b> 꺼낸다. {@code Student} 를 통째로 꺼내면 사진·특이사항이
+     * <p>{@link LinkedChild} 로 <b>다섯 값만</b> 꺼낸다. {@code Student} 를 통째로 꺼내면 사진·특이사항이
      * 함께 손에 들어오고, 그러면 응답 조립이 그것을 빼는 데 성공해야만 §1.12 가 지켜진다.
      *
      * <p>정렬을 고정한다 — 자녀 선택 UI(2명 이상일 때 노출)의 순서가 새로고침마다 바뀌면 사용자가
      * 매번 다른 자리에서 같은 아이를 찾는다.
      */
     @Query("""
-            SELECT gs.studentId AS studentId, s.name AS name, s.className AS className,
+            SELECT gs.studentId AS studentId, s.name AS name, s.className AS className, s.grade AS grade,
                    gs.linkedAt AS linkedAt
             FROM GuardianStudent gs
             JOIN Student s ON s.id = gs.studentId

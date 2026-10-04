@@ -21,14 +21,13 @@ import lombok.RequiredArgsConstructor;
 import src.backend.academy.command.AcademyCommandService;
 import src.backend.academy.dto.AcademyDetailResponse;
 import src.backend.academy.dto.AcademyListRequest;
+import src.backend.academy.dto.AcademyListResponse;
 import src.backend.academy.dto.AcademyRegisterRequest;
 import src.backend.academy.dto.AcademyRegisterResponse;
-import src.backend.academy.dto.AcademySummaryResponse;
 import src.backend.academy.dto.AcademyUpdateRequest;
 import src.backend.academy.query.AdminAcademyQueryService;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
-import src.backend.global.response.PageResponse;
 import src.backend.global.security.authz.CanManageAcademy;
 
 /**
@@ -52,7 +51,7 @@ public class AdminAcademyController {
     @CanManageAcademy
     @Operation(summary = "학원 목록·검색 (ACAD-01, O-01)")
     @GetMapping
-    public ApiResponse<PageResponse<AcademySummaryResponse>> list(@ModelAttribute AcademyListRequest request) {
+    public ApiResponse<AcademyListResponse> list(@ModelAttribute AcademyListRequest request) {
         return ApiResponse.ok(adminAcademyQueryService.list(request));
     }
 

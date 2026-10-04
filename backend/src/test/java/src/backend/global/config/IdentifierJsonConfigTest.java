@@ -43,7 +43,7 @@ class IdentifierJsonConfigTest {
 
     @Test
     void 기존_응답_레코드의_id도_문자열이고_인원수는_숫자로_남는다() {
-        AcademySummaryResponse response = new AcademySummaryResponse(7L, "AC01", "학원", "서울", 3L, 40L, "active");
+        AcademySummaryResponse response = new AcademySummaryResponse(7L, "AC01", "학원", "서울", 3L, 40L, "active", true, 0L);
 
         String json = mapper.writeValueAsString(response);
 

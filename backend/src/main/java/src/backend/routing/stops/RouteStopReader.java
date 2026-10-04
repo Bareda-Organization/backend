@@ -1,5 +1,6 @@
 package src.backend.routing.stops;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -45,7 +46,7 @@ public class RouteStopReader {
                 .map(routeId -> routeStopRepository.findAllOrderedByRouteIdAndAcademyId(routeId, academyId))
                 .orElse(List.of())
                 .stream()
-                .map(routeStop -> new Entry(routeStop.getStopId(), routeStop.getSeq(), null))
+                .map(routeStop -> new Entry(routeStop.getStopId(), routeStop.getSeq(), null, null))
                 .toList();
     }
 
@@ -59,7 +60,8 @@ public class RouteStopReader {
         return runStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeq(currentVersionId, academyId).stream()
                 .filter(runStop -> runStop.getStopId() != null)
                 .map(runStop -> new Entry(runStop.getStopId(), runStop.getSeq(),
-                        runStop.getChange() == null ? null : runStop.getChange().name().toLowerCase(Locale.ROOT)))
+                        runStop.getChange() == null ? null : runStop.getChange().name().toLowerCase(Locale.ROOT),
+                        runStop.getArrivedAt()))
                 .toList();
     }
 
@@ -68,7 +70,10 @@ public class RouteStopReader {
         return Set.copyOf(routeRepository.findBusIdsServingStop(academyId, weekday, direction, stopId));
     }
 
-    /** 정차지 · 순번 · 확정 후 변경 구분(있으면) — 고정 노선 항목은 {@code change} 가 항상 {@code null}. */
-    public record Entry(Long stopId, int seq, String change) {
+    /**
+     * 정차지 · 순번 · 확정 후 변경 구분(있으면) · 도착 처리 시각(있으면) — 고정 노선 항목은 {@code change}·{@code arrivedAt} 이 항상
+     * {@code null}(아직 달리지 않은 노선이다). 확정 노선에서도 지나가지 않은 곳은 {@code arrivedAt} 이 {@code null} 이다.
+     */
+    public record Entry(Long stopId, int seq, String change, OffsetDateTime arrivedAt) {
     }
 }

@@ -70,6 +70,11 @@ public class Academy extends BaseTimeEntity {
         this.status = AcademyStatus.ACTIVE;
     }
 
+    /** 주소가 등록돼 있는가 — 비어 있거나 공백뿐이면 아니다. 주소 없는 학원은 회차 확정이 전부 실패한다(Ruling 450). */
+    public boolean hasAddress() {
+        return address != null && !address.isBlank();
+    }
+
     /** 플랫폼 관리자가 학원을 등록할 때 생성한다(O-01) — 코드는 서버가 자동 생성해 호출 전에 확정된 값으로 넘어온다. */
     public static Academy register(String code, String name, String region, String address, String contact) {
         return new Academy(code, name, region, address, contact);

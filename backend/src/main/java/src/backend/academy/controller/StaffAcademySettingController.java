@@ -15,6 +15,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.academy.command.AcademySettingCommandService;
+import src.backend.academy.dto.AcademySettingDetailResponse;
 import src.backend.academy.dto.AcademySettingResponse;
 import src.backend.academy.dto.AcademySettingUpdateRequest;
 import src.backend.academy.query.AcademySettingQueryService;
@@ -40,11 +41,11 @@ public class StaffAcademySettingController {
 
     private final AcademySettingCommandService academySettingCommandService;
 
-    /** 요청자 학원의 현재 설정을 돌려준다. */
+    /** 요청자 학원의 현재 설정과 읽기 전용 학원 정보 · 전역 정책 상수를 돌려준다(Ruling 820). */
     @AuthenticatedOnly
     @Operation(summary = "학원별 설정 (EXC-01 · M-13 · A-17)")
     @GetMapping
-    public ApiResponse<AcademySettingResponse> get(@AuthenticationPrincipal AuthUser requester) {
+    public ApiResponse<AcademySettingDetailResponse> get(@AuthenticationPrincipal AuthUser requester) {
         return ApiResponse.ok(academySettingQueryService.get(requester));
     }
 

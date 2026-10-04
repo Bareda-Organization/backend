@@ -5,6 +5,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -15,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.academy.entity.Academy;
+import src.backend.academy.entity.AcademyStaff;
 import src.backend.academy.entity.StaffStatus;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
@@ -113,10 +115,15 @@ public class SignupRequestQueryService {
             return PageResponse.of(page, List.of());
         }
 
-        Map<Long, Account> accounts = accountRepository
-                .findAllByIdIn(page.getContent().stream().map(SignupRequest::getAccountId).toList()).stream()
-                .collect(Collectors.toMap(Account::getId, Function.identity()));
         List<Long> academyIds = page.getContent().stream().map(SignupRequest::getAcademyId).distinct().toList();
+        // 재직 관계자는 학원당 최대 1명이다(정원) — 신청자 계정과 한 번에 읽는다
+        Map<Long, Long> currentStaffAccountIds = academyStaffRepository
+                .findAllByAcademyIdInAndStatus(academyIds, StaffStatus.ACTIVE).stream()
+                .collect(Collectors.toMap(AcademyStaff::getAcademyId, AcademyStaff::getAccountId));
+        List<Long> accountIds = Stream.concat(page.getContent().stream().map(SignupRequest::getAccountId),
+                currentStaffAccountIds.values().stream()).distinct().toList();
+        Map<Long, Account> accounts = accountRepository.findAllByIdIn(accountIds).stream()
+                .collect(Collectors.toMap(Account::getId, Function.identity()));
         Map<Long, Academy> academies = academyRepository.findAllById(academyIds).stream()
                 .collect(Collectors.toMap(Academy::getId, Function.identity()));
         Map<Long, Long> staffCounts = academyStaffRepository
@@ -131,9 +138,17 @@ public class SignupRequestQueryService {
                     return StaffSignupRequestSummaryResponse.of(signupRequest, account.getName(),
                             account.getPhone(),
                             SignupRequestAcademyResponse.from(academies.get(signupRequest.getAcademyId())),
-                            staffCounts.getOrDefault(signupRequest.getAcademyId(), 0L));
+                            staffCounts.getOrDefault(signupRequest.getAcademyId(), 0L),
+                            currentStaffOf(currentStaffAccountIds.get(signupRequest.getAcademyId()), accounts));
                 })
                 .toList());
+    }
+
+    /** 재직 관계자 계정을 표시값으로 옮긴다 — 재직자가 없으면(계정 id 가 없으면) {@code null} 이다. */
+    private StaffSignupRequestSummaryResponse.CurrentStaff currentStaffOf(Long accountId,
+            Map<Long, Account> accounts) {
+        Account account = accountId == null ? null : accounts.get(accountId);
+        return account == null ? null : StaffSignupRequestSummaryResponse.CurrentStaff.from(account);
     }
 
     /**

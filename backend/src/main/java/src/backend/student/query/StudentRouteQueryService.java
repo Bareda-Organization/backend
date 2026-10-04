@@ -167,10 +167,11 @@ public class StudentRouteQueryService {
 
     private StudentRouteResponse.Stop toStop(RouteStopReader.Entry entry, Stop stop) {
         if (stop == null) {
-            return new StudentRouteResponse.Stop(entry.stopId(), entry.seq(), null, null, null, null, entry.change());
+            return new StudentRouteResponse.Stop(entry.stopId(), entry.seq(), null, null, null, null, entry.change(),
+                    entry.arrivedAt());
         }
         return new StudentRouteResponse.Stop(stop.getId(), entry.seq(), stop.getName(), stop.getAddress(),
-                stop.getLat(), stop.getLng(), entry.change());
+                stop.getLat(), stop.getLng(), entry.change(), entry.arrivedAt());
     }
 
     /**
@@ -192,7 +193,7 @@ public class StudentRouteQueryService {
 
     private StudentRouteResponse.Stop academyStop(Academy academy, int seq) {
         return new StudentRouteResponse.Stop(null, seq, academy.getName(), academy.getAddress(), academy.getLat(),
-                academy.getLng(), null);
+                academy.getLng(), null, null);
     }
 
     /** 배치가 아직 없으면 이름·전화 전부 {@code null} — §3.10 {@code ◐}(배치가 있을 때만, BR-055). */

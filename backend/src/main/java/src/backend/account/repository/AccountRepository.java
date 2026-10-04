@@ -145,23 +145,21 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     Page<Account> findAllByStatus(AccountStatus status, Pageable pageable);
 
     /**
-     * 관계자 계정 목록(API_SPEC §6.6 {@code GET /admin/staff-accounts}).
-     *
-     * <p>{@code role='staff'} 가 아니라 <b>{@code academy_staff} 행의 존재</b>로 대상을 정한다 — 역할만
-     * 보면 아직 승인되지 않아 어느 학원에도 소속되지 않은 계정이 함께 실리고, 그러면 관리자가 그
-     * 계정을 퇴사·재직 전환하려 하게 된다. 승인 대기 축은 §6.4 승인 큐가 따로 맡는다.
-     *
-     * <p>조인이 아니라 {@code EXISTS} 인 이유는 이 조회의 <b>결과가 계정</b>이어서다 — 조인으로 쓰면
-     * 정렬 속성이 어느 쪽 것인지 호출부에서 갈리고, {@code academy_staff} 행이 늘면 계정이 중복된다.
+     * 전 학원 소속 사용자 수(API_SPEC §6.1 {@code summary.user_count}) — {@link #countByAcademyIdInGroupedByAcademyId} 와 같은 역할·상태
+     * 기준을 학원 구분 없이 한 번에 센다. 역할 4종은 학원 소속이 필수라(ck_account_academy_scope) 메인 관리자는 섞이지 않는다.
      */
-    @AcademyScopeExempt(reason = "§6.6 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
-            + "응답이 academy_name 을 실어 어느 학원 관계자인지 드러내는 것이 이 화면의 요건이라 "
-            + "학원으로 좁히면 화면이 성립하지 않는다. 예외 판정은 컨트롤러의 @CanManageStaffAccount 하나다")
-    @Query(value = "SELECT a FROM Account a WHERE EXISTS "
-            + "(SELECT 1 FROM AcademyStaff s WHERE s.accountId = a.id)",
-            countQuery = "SELECT COUNT(a) FROM Account a WHERE EXISTS "
-                    + "(SELECT 1 FROM AcademyStaff s WHERE s.accountId = a.id)")
-    Page<Account> findStaffAccountsForConsole(Pageable pageable);
+    @AcademyScopeExempt(reason = "§6.1 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
+            + "summary 는 목록 필터·쪽과 무관한 전 학원 합계라 학원으로 좁히면 값의 뜻이 사라진다. 예외 판정은 컨트롤러의 "
+            + "@CanManageAcademy 하나다")
+    long countByRoleInAndStatusIn(Collection<Role> roles, Collection<AccountStatus> statuses);
+
+    /**
+     * 로그인 아이디 여럿의 계정을 한 번에 가져온다(API_SPEC §6.13 {@code actor_name} — 감사 행이 계정 id 를 못 남긴 경우의 대체 경로).
+     */
+    @AcademyScopeExempt(reason = "§6.13 메인 관리자 콘솔 — 감사 이력은 전 학원 범위이고 행위자는 어느 학원의 계정이든 될 수 있어 "
+            + "학원으로 좁히면 화면이 성립하지 않는다. 로그인 아이디는 전 학원 통틀어 유일하다(existsByLoginId). 호출부가 감사 행에서 읽은 "
+            + "값만 넘긴다는 전제 — 요청 파라미터를 직접 넘기면 임의 계정의 이름을 읽는 통로가 된다. 예외 판정은 컨트롤러의 @CanReadAudit 하나다")
+    List<Account> findAllByLoginIdIn(Collection<String> loginIds);
 
     /**
      * 특정 역할·상태의 계정 전부(Phase 11 T2, EXC-04) — 비상 알림이 메인 관리자 전원에게 설정과

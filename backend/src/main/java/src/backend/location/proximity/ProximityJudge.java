@@ -2,6 +2,7 @@ package src.backend.location.proximity;
 
 import org.springframework.stereotype.Component;
 
+import src.backend.global.policy.PolicyConstants;
 import src.backend.routing.domain.GeoPoint;
 
 /**
@@ -16,7 +17,8 @@ import src.backend.routing.domain.GeoPoint;
 @Component
 public class ProximityJudge {
 
-    private static final double PROXIMITY_THRESHOLD_METERS = 300d;
+    /** 근접 기준 — 정의처는 {@link PolicyConstants#PROXIMITY_ALERT_METERS} 다(학원 설정 응답 {@code policy} 와 같은 값을 읽는다, Ruling 820). */
+    private static final double PROXIMITY_THRESHOLD_METERS = PolicyConstants.PROXIMITY_ALERT_METERS;
 
     private static final double DEPARTURE_THRESHOLD_METERS = 100d;
 

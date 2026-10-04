@@ -2,6 +2,7 @@ package src.backend.account.dto;
 
 import java.time.OffsetDateTime;
 
+import src.backend.account.entity.Account;
 import src.backend.account.entity.SignupRequest;
 
 /**
@@ -15,11 +16,27 @@ import src.backend.account.entity.SignupRequest;
  *                          409 를 받아야</b> 정원이 찼다는 것을 알게 된다
  */
 public record StaffSignupRequestSummaryResponse(Long requestId, String name, String phone,
-        SignupRequestAcademyResponse academy, OffsetDateTime requestedAt, long academyStaffCount) {
+        SignupRequestAcademyResponse academy, OffsetDateTime requestedAt, long academyStaffCount,
+        CurrentStaff currentStaff) {
 
+    /**
+     * 그 학원의 재직 관계자(§6.4, Ruling 807) — 정원이 1명이라 객체 하나다. 승인 단추가 꺼진 이유와 푸는 방법(그 사람 퇴사
+     * 처리)을 처리 화면에 보이려는 값이라 마지막 로그인 시각까지 싣는다.
+     *
+     * @param lastLoginAt 로그인한 적 없으면 {@code null}
+     */
+    public record CurrentStaff(String name, String loginId, OffsetDateTime lastLoginAt) {
+
+        /** 계정에서 재직 관계자 표시값을 옮긴다. */
+        public static CurrentStaff from(Account account) {
+            return new CurrentStaff(account.getName(), account.getLoginId(), account.getLastLoginAt());
+        }
+    }
+
+    /** 요청 한 건과 신청자·학원 표시값을 조립한다 — {@code currentStaff} 는 재직 관계자가 없으면 {@code null} 이다. */
     public static StaffSignupRequestSummaryResponse of(SignupRequest request, String name, String phone,
-            SignupRequestAcademyResponse academy, long academyStaffCount) {
+            SignupRequestAcademyResponse academy, long academyStaffCount, CurrentStaff currentStaff) {
         return new StaffSignupRequestSummaryResponse(request.getId(), name, phone, academy,
-                request.getRequestedAt(), academyStaffCount);
+                request.getRequestedAt(), academyStaffCount, currentStaff);
     }
 }

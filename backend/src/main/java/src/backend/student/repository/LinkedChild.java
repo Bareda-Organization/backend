@@ -18,5 +18,8 @@ public interface LinkedChild {
 
     String getClassName();
 
+    /** 학년 — 입력하지 않았으면 {@code null}(API_SPEC §3.1 {@code grade}, Ruling 824). */
+    String getGrade();
+
     OffsetDateTime getLinkedAt();
 }
