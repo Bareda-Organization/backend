@@ -518,6 +518,50 @@ class StaffRouteControllerTest {
         return mockMvc.perform(get("/api/v1/staff/routes/" + routeId + "/path").header("Authorization", token));
     }
 
+    // ── R48 Ruling 818·819 — 목록 쪽 크기 500 · 상세 rider_count ──────────────────────
+
+    /** size 상한은 500 이다(§5.9, §1.8 의 100 예외) — 500 은 받고 501 은 422 로 거부한다(절삭하지 않는다). */
+    @Test
+    void 목록_size_는_500까지_받고_501은_422_다() throws Exception {
+        assertThat((int) JsonPath.read(목록_본문(관계자A_토큰(), "size=500"), "$.data.size")).isEqualTo(500);
+
+        mockMvc.perform(get("/api/v1/staff/routes?size=501").header("Authorization", 관계자A_토큰()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+    }
+
+    /**
+     * {@code stops[].rider_count} — 그 편성의 요일·방향 요일별 주소가 그 승하차지로 매칭된 <b>재원</b> 학생만 센다(§5.9, Ruling 819).
+     * 다른 방향·다른 요일의 주소와 퇴원생은 세지 않는다 — 시드 학생이 섞이지 않게 심기 전후의 차이를 본다.
+     */
+    @Test
+    void 상세_stops_의_rider_count_는_같은_요일_방향의_재원_학생만_센다() throws Exception {
+        long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "sun", "to_academy", List.of(1L, 2L));
+        assertThat(JsonPath.<List<Object>>read(본문(상세를_읽는다(관계자A_토큰(), routeId).andReturn()),
+                "$.data.stops[*].rider_count")).hasSize(2).doesNotContainNull();
+        List<Integer> 전 = JsonPath.read(본문(상세를_읽는다(관계자A_토큰(), routeId).andReturn()),
+                "$.data.stops[*].rider_count");
+
+        학생과_주소를_심는다("카운트재원", false, "sun", "to_academy", 1L);
+        학생과_주소를_심는다("카운트다른방향", false, "sun", "from_academy", 1L);
+        학생과_주소를_심는다("카운트다른요일", false, "mon", "to_academy", 1L);
+        학생과_주소를_심는다("카운트퇴원", true, "sun", "to_academy", 1L);
+        학생과_주소를_심는다("카운트둘째정차지", false, "sun", "to_academy", 2L);
+
+        List<Integer> 후 = JsonPath.read(본문(상세를_읽는다(관계자A_토큰(), routeId).andReturn()),
+                "$.data.stops[*].rider_count");
+        assertThat(후.get(0) - 전.get(0)).as("첫 정차지는 재원 1명만 늘어난다 — 다른 방향·다른 요일·퇴원생은 센 것이다").isEqualTo(1);
+        assertThat(후.get(1) - 전.get(1)).isEqualTo(1);
+    }
+
+    private void 학생과_주소를_심는다(String name, boolean 퇴원, String weekday, String direction, long stopId) {
+        long studentId = jdbcTemplate.queryForObject(
+                "INSERT INTO student (academy_id, name, deleted_at) VALUES (?, ?, ?) RETURNING id", Long.class,
+                ACADEMY_A_ID, name, 퇴원 ? java.time.OffsetDateTime.now() : null);
+        jdbcTemplate.update("INSERT INTO weekly_address (student_id, weekday, direction, address, verified, stop_id) "
+                + "VALUES (?, ?, ?, '테스트 주소', true, ?)", studentId, weekday, direction, stopId);
+    }
+
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────
 
     private List<Long> 정차_순서(long routeId) {

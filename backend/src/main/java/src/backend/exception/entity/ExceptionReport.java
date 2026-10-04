@@ -55,6 +55,14 @@ public class ExceptionReport {
     @Column(name = "reported_at", nullable = false)
     private OffsetDateTime reportedAt;
 
+    /** 관계자가 처리됨으로 표시한 시각 — 미처리면 null(Ruling 814). 쓰기는 조건부 UPDATE 한 곳이라 엔티티에 setter 가 없다. */
+    @Column(name = "handled_at")
+    private OffsetDateTime handledAt;
+
+    /** 처리 표시한 관계자 계정 — {@code handled_at} 과 함께 채워진다(DB CHECK). */
+    @Column(name = "handled_by")
+    private Long handledBy;
+
     private ExceptionReport(Long academyId, Long runId, ExceptionReportType type, String memo,
             Long reportedBy, OffsetDateTime reportedAt) {
         this.academyId = academyId;
@@ -79,5 +87,10 @@ public class ExceptionReport {
      */
     public void assignRunRider(Long runRiderId) {
         this.runRiderId = runRiderId;
+    }
+
+    /** 관계자가 처리됨으로 표시했는지(Ruling 814). */
+    public boolean isHandled() {
+        return handledAt != null;
     }
 }

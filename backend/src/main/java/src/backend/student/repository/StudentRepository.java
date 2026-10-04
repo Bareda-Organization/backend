@@ -67,8 +67,50 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
             WHERE s.academyId = :academyId
               AND s.deletedAt IS NULL
               AND LOWER(s.name) LIKE LOWER(CONCAT('%', :q, '%')) ESCAPE '\\'
+              AND (:className = '' OR s.className = :className)
+              AND (:filter <> 'guardian_unlinked' OR NOT EXISTS (
+                    SELECT 1 FROM GuardianStudent gs JOIN Guardian g ON g.id = gs.guardianId
+                    WHERE gs.studentId = s.id AND g.academyId = s.academyId AND gs.unlinkedAt IS NULL))
+              AND (:filter <> 'address_missing' OR NOT EXISTS (
+                    SELECT 1 FROM WeeklyAddress wa WHERE wa.studentId = s.id))
             """)
-    List<NameRow> findNamesByAcademyId(@Param("academyId") Long academyId, @Param("q") String q);
+    List<NameRow> findNamesByAcademyId(@Param("academyId") Long academyId, @Param("q") String q,
+            @Param("className") String className, @Param("filter") String filter);
+
+    /**
+     * 학원 전체 학생 지표(§5.11 응답 최상위 {@code summary}, Ruling 815) — 쿼리·쪽과 무관하게 재원 학생 전체를 센다. 보호자
+     * 연결 0건·요일별 주소 0건 판정은 목록의 {@code filter} 와 같은 조건이다(두 곳이 갈리면 지표 숫자와 필터 결과가 어긋난다).
+     */
+    @Query("""
+            SELECT COUNT(s) AS total,
+                   COUNT(DISTINCT s.className) AS classCount,
+                   COALESCE(SUM(CASE WHEN s.canGoAlone = true THEN 1 ELSE 0 END), 0) AS canGoAlone,
+                   COALESCE(SUM(CASE WHEN NOT EXISTS (
+                         SELECT 1 FROM GuardianStudent gs JOIN Guardian g ON g.id = gs.guardianId
+                         WHERE gs.studentId = s.id AND g.academyId = s.academyId AND gs.unlinkedAt IS NULL)
+                       THEN 1 ELSE 0 END), 0) AS guardianUnlinked,
+                   COALESCE(SUM(CASE WHEN NOT EXISTS (
+                         SELECT 1 FROM WeeklyAddress wa WHERE wa.studentId = s.id)
+                       THEN 1 ELSE 0 END), 0) AS addressMissing
+            FROM Student s
+            WHERE s.academyId = :academyId
+              AND s.deletedAt IS NULL
+            """)
+    StudentCounts summarizeByAcademyId(@Param("academyId") Long academyId);
+
+    /** {@link #summarizeByAcademyId} 의 한 행. */
+    interface StudentCounts {
+
+        long getTotal();
+
+        long getClassCount();
+
+        long getCanGoAlone();
+
+        long getGuardianUnlinked();
+
+        long getAddressMissing();
+    }
 
     /** {@link #findNamesByAcademyId} 의 한 행. */
     interface NameRow {

@@ -18,6 +18,8 @@ import src.backend.routing.entity.RouteStop;
 import src.backend.routing.repository.RouteStopRepository;
 import src.backend.student.entity.Stop;
 import src.backend.student.repository.StopRepository;
+import src.backend.student.repository.WeeklyAddressRepository;
+import src.backend.student.repository.WeeklyAddressRepository.StopRiderCount;
 
 /**
  * 편성 1건을 상세 응답으로 조립한다(API_SPEC §5.9) — 조회·편성·수정·최적화 넷이 같은 형태를 돌려주므로
@@ -36,6 +38,8 @@ public class RouteDetailAssembler {
 
     private final BusRepository busRepository;
 
+    private final WeeklyAddressRepository weeklyAddressRepository;
+
     /** 편성과 그 정차 순서를 {@code seq} 차례로 담은 상세 응답. */
     public RouteDetailResponse assemble(Route route) {
         List<RouteStop> ordered = routeStopRepository.findAllOrderedByRouteIdAndAcademyId(
@@ -44,7 +48,7 @@ public class RouteDetailAssembler {
     }
 
     /**
-     * 정차 순번마다 승하차지 이름·좌표를 붙인다 — 좌표를 한 번에 읽어 오는 것이 요점이다.
+     * 정차 순번마다 승하차지 이름·좌표·이용 학생 수(Ruling 819)를 붙인다 — 좌표와 인원을 한 번에 읽어 오는 것이 요점이다.
      *
      * <p>{@code RouteStop} 에 {@code Stop} 연관을 매핑하지 않은 이유는 그러면 정차지 수만큼 조회가
      * 붙기 때문이다(횡단 규칙 4).
@@ -56,7 +60,11 @@ public class RouteDetailAssembler {
         Map<Long, Stop> stops = stopRepository.findAllByAcademyIdAndIdIn(route.getAcademyId(),
                         ordered.stream().map(RouteStop::getStopId).toList()).stream()
                 .collect(Collectors.toMap(Stop::getId, Function.identity()));
-        return ordered.stream().map(routeStop -> RouteStopResponse.of(routeStop, stops.get(routeStop.getStopId())))
+        Map<Long, Integer> riderCounts = weeklyAddressRepository
+                .countRidersByStopIds(route.getAcademyId(), stops.keySet(), route.getWeekday(), route.getDirection())
+                .stream().collect(Collectors.toMap(StopRiderCount::getStopId, count -> Math.toIntExact(count.getTotal())));
+        return ordered.stream().map(routeStop -> RouteStopResponse.of(routeStop, stops.get(routeStop.getStopId()),
+                        riderCounts.getOrDefault(routeStop.getStopId(), 0)))
                 .toList();
     }
 

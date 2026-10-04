@@ -22,11 +22,11 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
-import src.backend.global.response.PageResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanManageManager;
 import src.backend.manager.command.ManagerCommandService;
 import src.backend.manager.dto.ManagerListRequest;
+import src.backend.manager.dto.ManagerListResponse;
 import src.backend.manager.dto.ManagerRegisterRequest;
 import src.backend.manager.dto.ManagerResponse;
 import src.backend.manager.dto.ManagerUpdateRequest;
@@ -55,7 +55,7 @@ public class StaffManagerController {
     @CanManageManager
     @Operation(summary = "매니저 관리 — 목록·검색 (MGR-01)")
     @GetMapping
-    public ApiResponse<PageResponse<ManagerResponse>> list(@AuthenticationPrincipal AuthUser requester,
+    public ApiResponse<ManagerListResponse> list(@AuthenticationPrincipal AuthUser requester,
             @ModelAttribute ManagerListRequest request) {
         return ApiResponse.ok(managerQueryService.list(requester, request));
     }

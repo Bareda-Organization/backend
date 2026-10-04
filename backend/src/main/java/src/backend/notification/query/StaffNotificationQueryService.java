@@ -1,11 +1,16 @@
 package src.backend.notification.query;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -14,12 +19,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.request.ApiValues;
 import src.backend.global.request.PageParams;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.access.AcademyScope;
+import src.backend.notification.dto.StaffNotificationGroupResponse;
 import src.backend.notification.dto.StaffNotificationItemResponse;
 import src.backend.notification.dto.StaffNotificationListRequest;
 import src.backend.notification.dto.StaffNotificationListResponse;
@@ -51,6 +58,11 @@ public class StaffNotificationQueryService {
 
     private static final OffsetDateTime UNBOUNDED_TO = OffsetDateTime.parse("9999-12-31T23:59:59Z");
 
+    /** 묶음 쿼리가 수신자 앞 3명을 이어 붙일 때 쓰는 구분자(ASCII 30 = 수신자 사이, 31 = 이름과 역할 사이 — 이름에 들어갈 수 없다). */
+    private static final String RECIPIENT_SEPARATOR = "\u001e";
+
+    private static final String FIELD_SEPARATOR = "\u001f";
+
     private final NotificationLogRepository notificationLogRepository;
 
     private final Clock clock;
@@ -70,15 +82,52 @@ public class StaffNotificationQueryService {
             to = date.plusDays(1).atStartOfDay(zone).toOffsetDateTime();
         }
 
+        Role recipientRole = request.recipientRole() == null ? null : ApiValues.recipientRole(request.recipientRole());
         PageParams pageParams = PageParams.of(request.page(), request.size());
+        long unackedCount = notificationLogRepository.countUnackedForStaffLog(
+                academyId, NotificationType.IMPORTANT_FOR_ACK);
+        if (Boolean.TRUE.equals(ApiValues.groupFilter(request.group()))) {
+            return groupedList(academyId, type, recipientRole, acked, from, to, pageParams, unackedCount);
+        }
         Page<NotificationLog> page = notificationLogRepository.searchForStaffLog(academyId, type, acked,
-                NotificationType.IMPORTANT_FOR_ACK, from, to,
+                NotificationType.IMPORTANT_FOR_ACK, recipientRole, from, to,
                 PageRequest.of(pageParams.page(), pageParams.size()));
 
         List<StaffNotificationItemResponse> items = page.getContent().stream().map(this::toItem).toList();
-        long unackedCount = notificationLogRepository.countUnackedForStaffLog(
-                academyId, NotificationType.IMPORTANT_FOR_ACK);
         return StaffNotificationListResponse.of(page, items, unackedCount);
+    }
+
+    /**
+     * 묶어 보기(Ruling 813) — 같은 사건(같은 type · run_id · body · 적재 시각 초)의 행을 한 항목으로 묶고 쪽 나누기와
+     * {@code total_count} 를 묶음 단위로 센다. 쪽 안에서만 묶으면 쪽 경계에서 같은 알림이 갈린다.
+     */
+    private StaffNotificationListResponse groupedList(Long academyId, NotificationType type, Role recipientRole,
+            Boolean acked, OffsetDateTime from, OffsetDateTime to, PageParams pageParams, long unackedCount) {
+        String typeCode = type == null ? null : lower(type.name());
+        String roleCode = recipientRole == null ? null : lower(recipientRole.name());
+        List<String> importantTypes = NotificationType.IMPORTANT_FOR_ACK.stream().map(t -> lower(t.name())).toList();
+        long total = notificationLogRepository.countGroupsForStaffLog(academyId, typeCode, roleCode, acked,
+                importantTypes, from, to);
+        List<StaffNotificationGroupResponse> items = notificationLogRepository
+                .searchGroupsForStaffLog(academyId, typeCode, roleCode, acked, importantTypes, from, to,
+                        pageParams.size(), (long) pageParams.page() * pageParams.size())
+                .stream().map(this::toGroup).toList();
+        return StaffNotificationListResponse.ofGroups(pageParams.page(), pageParams.size(), total, items,
+                unackedCount);
+    }
+
+    /** 묶음 한 줄 — 키는 구성 값(type · run_id · 초 · body)에서 만든다(같은 사건이면 언제 읽어도 같다). */
+    private StaffNotificationGroupResponse toGroup(NotificationLogRepository.StaffLogGroup row) {
+        OffsetDateTime sentAt = Instant.EPOCH.plus(row.getSentAtMicros(), ChronoUnit.MICROS)
+                .atZone(clock.getZone()).toOffsetDateTime();
+        String groupKey = row.getType() + ":" + row.getRunId() + ":" + row.getBucketSecond() + ":"
+                + UUID.nameUUIDFromBytes(row.getBody().getBytes(StandardCharsets.UTF_8));
+        List<StaffNotificationGroupResponse.Recipient> recipients = Arrays.stream(row.getFirstRecipients().split(RECIPIENT_SEPARATOR))
+                .map(pair -> pair.split(FIELD_SEPARATOR, 2))
+                .map(pair -> new StaffNotificationGroupResponse.Recipient(pair[0], pair[1]))
+                .toList();
+        return new StaffNotificationGroupResponse(groupKey, sentAt, row.getBusNo(), row.getType(), row.getBody(),
+                row.getRecipientCount(), row.getAckedCount(), recipients);
     }
 
     private StaffNotificationItemResponse toItem(NotificationLog log) {

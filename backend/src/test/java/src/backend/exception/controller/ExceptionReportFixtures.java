@@ -151,6 +151,12 @@ public class ExceptionReportFixtures {
         return account.getId();
     }
 
+    /** 재직 행이 없는(퇴직한) 관계자 계정 — 학원당 재직 관계자는 1명이라 "다른 관계자가 먼저 처리한" 상황은 이 계정으로 만든다. */
+    public long formerStaffAccount(long academyId, String name) {
+        return accountRepository.save(Account.forSignup(academyId, "퇴직" + SEQUENCE.incrementAndGet(), "x", name,
+                "010-0000-0000", null, Role.STAFF)).getId();
+    }
+
     /** 그 회차의 라이더 1건(보호자 부재 보고의 {@code rider_id} 대상) — 반환값은 {@code run_rider.id}. */
     public long rider(long runId, long studentId, long stopId) {
         RunRider rider = RunRider.uponConfirmation(runId, studentId, stopId);
@@ -169,5 +175,10 @@ public class ExceptionReportFixtures {
             report.assignRunRider(runRiderId);
         }
         return exceptionReportRepository.save(report).getId();
+    }
+
+    /** 보고를 그 시각에 그 관계자가 처리한 상태로 만든다 — 처음 처리자·시각이 유지되는지 보려는 시험의 준비 단계. */
+    public void markHandled(long academyId, long reportId, long handledByAccountId, OffsetDateTime handledAt) {
+        exceptionReportRepository.handleIfUnhandled(reportId, academyId, handledByAccountId, handledAt);
     }
 }

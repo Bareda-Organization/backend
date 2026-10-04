@@ -252,6 +252,10 @@ public final class AccountStatusGateEndpoints {
             // Phase 11 T3 — 현장 예외 보고 등록(§4.13) 기사·동승자 단말 기능 1개 + 관계자 웹 조회(§5.20) 2개.
             "POST /runs/{runId}/reports",
             "GET /staff/reports",
+            // R48 be3 — 예외 보고 처리 표시(§5.20 · Ruling 814) 관계자 웹 1개.
+            "POST /staff/reports/{id}/handle",
+            // R48 be3 — 퇴원 미리보기(§5.11 · Ruling 815) 관계자 웹 1개.
+            "GET /staff/students/{id}/withdrawal-preview",
             // Phase 12 T1 — 알림 수신 설정 조회·수정(§3.14) 학부모·학생 화면 2개.
             "GET /me/notification-settings",
             "PATCH /me/notification-settings",

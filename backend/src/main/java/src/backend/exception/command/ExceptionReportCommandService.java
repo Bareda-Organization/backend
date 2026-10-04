@@ -14,9 +14,11 @@ import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.exception.dto.ExceptionReportCreateRequest;
 import src.backend.exception.dto.ExceptionReportCreateResponse;
+import src.backend.exception.dto.StaffReportItemResponse;
 import src.backend.exception.entity.ExceptionReport;
 import src.backend.exception.entity.ExceptionReportType;
 import src.backend.exception.event.ExceptionReportedEvent;
+import src.backend.exception.query.ExceptionReportQueryService;
 import src.backend.exception.repository.ExceptionReportRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
@@ -57,6 +59,8 @@ public class ExceptionReportCommandService {
 
     private final ApplicationEventPublisher eventPublisher;
 
+    private final ExceptionReportQueryService exceptionReportQueryService;
+
     private final Clock clock;
 
     /** 현장 예외 보고 등록(§4.13) — 저장과 같은 트랜잭션에서 관계자 통지 이벤트를 발행한다. */
@@ -92,5 +96,17 @@ public class ExceptionReportCommandService {
         RunRider runRider = runRiderRepository.findByIdAndRunIdAndStatusNot(riderId, runId, RiderStatus.ABSENT)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RIDER_NOT_FOUND));
         return runRider.getId();
+    }
+
+    /**
+     * 보고를 처리됨으로 표시한다(§5.20 · Ruling 814) — 이미 처리된 보고에는 아무것도 바꾸지 않아 처음 처리자·시각이
+     * 남는다(멱등, 동시 요청도 행 잠금을 먼저 얻은 쪽만 갱신). 없는 보고·남의 학원 보고는 {@code 404 REPORT_NOT_FOUND}.
+     */
+    public StaffReportItemResponse handle(AuthUser requester, Long reportId) {
+        exceptionReportRepository.findByIdAndAcademyId(reportId, requester.academyId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.REPORT_NOT_FOUND));
+        exceptionReportRepository.handleIfUnhandled(reportId, requester.academyId(), requester.accountId(),
+                OffsetDateTime.now(clock));
+        return exceptionReportQueryService.item(requester.academyId(), reportId);
     }
 }

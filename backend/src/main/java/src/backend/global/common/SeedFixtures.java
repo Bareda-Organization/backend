@@ -165,8 +165,9 @@ public final class SeedFixtures {
 
     /**
      * 학원 A 예외 보고(회차 {@link #RUN_MOVING_ID}, {@code vehicle_issue}, 신고자 driverA2) —
-     * 예외 보고 목록 시험용 시드 행 — 상세 조회({@code GET /staff/reports/{id}})는 R46-BE 가 삭제해 Swagger
-     * 예시({@code StaffReportController#id})는 더 쓰이지 않는다(BR-113 잔여, Ruling 348 의 예시 배선은 폐기).
+     * 예외 보고 시험용 시드 행 — 상세 조회({@code GET /staff/reports/{id}})는 R46-BE 가 삭제해 한동안 Swagger
+     * 예시({@code StaffReportController#id})가 쓰이지 않았으나, 처리 표시({@code POST /staff/reports/{id}/handle},
+     * R48 Ruling 814)가 같은 경로 변수로 이 예시를 다시 쓴다(BR-113 잔여, Ruling 348).
      */
     public static final String EXCEPTION_REPORT_EXAMPLE_ID = "1";
 

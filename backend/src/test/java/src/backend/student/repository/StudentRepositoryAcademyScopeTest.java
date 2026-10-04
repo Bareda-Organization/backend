@@ -55,7 +55,7 @@ class StudentRepositoryAcademyScopeTest {
 
     /** 관계자 학생 목록(§5.11)이 쓰는 조회({@code findNamesByAcademyId}) — 검색어 빈 문자열이 전건이다. */
     private List<Long> idsOf(Long academyId) {
-        return studentRepository.findNamesByAcademyId(academyId, "").stream()
+        return studentRepository.findNamesByAcademyId(academyId, "", "", "").stream()
                 .map(StudentRepository.NameRow::getId)
                 .toList();
     }

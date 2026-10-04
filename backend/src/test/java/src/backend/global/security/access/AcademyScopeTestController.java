@@ -46,7 +46,7 @@ class AcademyScopeTestController {
     public List<Long> students(@AuthenticationPrincipal AuthUser authUser,
             @RequestParam(name = "academy_id", required = false) Long requestedAcademyId) {
         return AcademyScope.resolveListScope(authUser, requestedAcademyId)
-                .map(academyId -> studentRepository.findNamesByAcademyId(academyId, "").stream()
+                .map(academyId -> studentRepository.findNamesByAcademyId(academyId, "", "", "").stream()
                         .map(StudentRepository.NameRow::getId)
                         .toList())
                 .orElseGet(() -> studentRepository.findAll().stream()

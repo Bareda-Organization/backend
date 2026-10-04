@@ -1,5 +1,6 @@
 package src.backend.schedule.command;
 
+import java.util.List;
 import java.util.function.Supplier;
 
 import org.springframework.dao.DataIntegrityViolationException;
@@ -21,6 +22,7 @@ import src.backend.schedule.dto.ScheduleResponse;
 import src.backend.schedule.dto.ScheduleUpdateRequest;
 import src.backend.schedule.entity.Schedule;
 import src.backend.schedule.entity.SchedulePlan;
+import src.backend.schedule.query.ScheduleRouteStopCounter;
 import src.backend.schedule.repository.ScheduleRepository;
 
 /** 운행 스케줄 등록·수정·삭제(SCH-01, API_SPEC §5.10). */
@@ -45,6 +47,8 @@ public class ScheduleCommandService {
 
     private final ScheduleRunSync scheduleRunSync;
 
+    private final ScheduleRouteStopCounter routeStopCounter;
+
     /**
      * 스케줄을 등록한다(§5.10) — 소속 학원은 토큰에서만 온다(§1.5).
      *
@@ -58,7 +62,7 @@ public class ScheduleCommandService {
         return enforcingUniqueSlot(requester.academyId(), plan, () -> {
             Schedule saved = scheduleRepository.save(schedule);
             scheduleRunSync.reflect(requester, saved);
-            return ScheduleResponse.of(saved, bus.getBusNo());
+            return responseOf(requester, saved, bus);
         });
     }
 
@@ -79,9 +83,15 @@ public class ScheduleCommandService {
                 schedule.clearEstDuration();
             }
             scheduleRunSync.reflect(requester, schedule);
-            return ScheduleResponse.of(schedule, bus.getBusNo());
+            return responseOf(requester, schedule, bus);
         };
         return movesSlot ? enforcingUniqueSlot(requester.academyId(), merged(schedule, plan), apply) : apply.get();
+    }
+
+    /** 응답에 같은 차량·요일·방향 편성의 정차지 수를 함께 싣는다(§5.10 {@code route_stop_count}, Ruling 818). */
+    private ScheduleResponse responseOf(AuthUser requester, Schedule schedule, Bus bus) {
+        return ScheduleResponse.of(schedule, bus.getBusNo(),
+                routeStopCounter.countsOf(requester.academyId(), List.of(schedule)).get(schedule.getId()));
     }
 
     /**

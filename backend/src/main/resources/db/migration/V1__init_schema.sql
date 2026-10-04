@@ -740,8 +740,12 @@ CREATE TABLE exception_report (
     memo         text        NOT NULL,
     reported_by  bigint      NOT NULL,
     reported_at  timestamptz NOT NULL,
+    -- 관계자가 처리됨으로 표시한 시각·계정(Ruling 814). 미처리면 둘 다 NULL — 취소 경로는 없다.
+    handled_at   timestamptz,
+    handled_by   bigint,
     CONSTRAINT ck_exception_report_type CHECK (type IN ('guardian_absent', 'road_block', 'vehicle_issue', 'etc')),
-    CONSTRAINT ck_exception_report_run_rider CHECK (type <> 'guardian_absent' OR run_rider_id IS NOT NULL)
+    CONSTRAINT ck_exception_report_run_rider CHECK (type <> 'guardian_absent' OR run_rider_id IS NOT NULL),
+    CONSTRAINT ck_exception_report_handled CHECK ((handled_at IS NULL) = (handled_by IS NULL))
 );
 
 -- 운행 중 버스 위치. 송신 주기가 2초라 한 회차에 약 1,350행이 쌓이는 최대 적재 테이블(ERD §7.3).

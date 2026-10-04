@@ -1,5 +1,6 @@
 package src.backend.manager.repository;
 
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -16,6 +17,13 @@ import src.backend.manager.entity.Manager;
 
 /** {@link Manager} 영속성 접근. */
 public interface ManagerRepository extends JpaRepository<Manager, Long> {
+
+    /**
+     * "오늘 배치" 조건(§5.13, Ruling 817) — 오늘 미취소 회차에 배치가 하나라도 있다(별칭 {@code m} = Manager, 파라미터
+     * {@code academyId}·{@code today}). 목록의 {@code assigned_today} 쿼리와 {@code counts} 가 이 한 조각을 함께 쓴다.
+     */
+    String ASSIGNED_TODAY = "EXISTS (SELECT 1 FROM Assignment a, Run r WHERE r.id = a.runId AND a.managerId = m.id "
+            + "AND r.academyId = :academyId AND r.canceledAt IS NULL AND r.serviceDate = :today)";
 
     @AcademyScopeExempt(reason = "계정 경유 조회 — 계정 자체가 이미 학원 범위 안이라 매니저 쪽에 조건을 더해도 좁혀지는 것이 부재. "
             + "호출부가 토큰의 accountId 만 넘긴다는 전제 — 요청 파라미터의 accountId 를 넘기면 이 예외가 우회로가 된다")
@@ -52,9 +60,23 @@ public interface ManagerRepository extends JpaRepository<Manager, Long> {
             + "AND (:name IS NULL OR LOWER(m.name) LIKE :name ESCAPE '\\') "
             + "AND (:role IS NULL OR m.role = :role) "
             + "AND (:linked IS NULL OR (:linked = true AND m.accountId IS NOT NULL) "
-            + "OR (:linked = false AND m.accountId IS NULL))")
+            + "OR (:linked = false AND m.accountId IS NULL)) "
+            + "AND (:assignedToday IS NULL OR (:assignedToday = true AND " + ASSIGNED_TODAY + ") "
+            + "OR (:assignedToday = false AND NOT " + ASSIGNED_TODAY + "))")
     Page<Manager> searchByAcademyId(@Param("academyId") Long academyId, @Param("name") String namePattern,
-            @Param("role") ManagerRole role, @Param("linked") Boolean linked, Pageable pageable);
+            @Param("role") ManagerRole role, @Param("linked") Boolean linked,
+            @Param("assignedToday") Boolean assignedToday, @Param("today") LocalDate today, Pageable pageable);
+
+    /**
+     * 오늘 미취소 회차에 배치된 재직 매니저 수(§5.13 최상위 {@code counts.assigned_today}, Ruling 817) — 목록의
+     * {@code assigned_today} 쿼리와 같은 조각({@link #ASSIGNED_TODAY})을 쓴다. 쿼리·쪽과 무관하게 학원 전체 재직 매니저를 센다.
+     */
+    @Query("SELECT COUNT(m) FROM Manager m WHERE m.academyId = :academyId AND m.deletedAt IS NULL AND "
+            + ASSIGNED_TODAY)
+    long countAssignedToday(@Param("academyId") Long academyId, @Param("today") LocalDate today);
+
+    /** 학원의 재직(삭제되지 않은) 매니저 수 — {@code counts.unassigned_today} 는 이 값에서 오늘 배치 수를 뺀 값이다. */
+    long countByAcademyIdAndDeletedAtIsNull(Long academyId);
 
     /**
      * 수정·삭제 대상 매니저 1건(MGR-03·04, §5.13) — 학원이 어긋나거나 이미 삭제됐으면 빈 결과이고

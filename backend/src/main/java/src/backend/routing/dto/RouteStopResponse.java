@@ -2,6 +2,8 @@ package src.backend.routing.dto;
 
 import java.math.BigDecimal;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import src.backend.routing.entity.RouteStop;
 import src.backend.student.entity.Stop;
 
@@ -12,11 +14,15 @@ import src.backend.student.entity.Stop;
  * 않는다 — 승하차지 주소는 L3 개인정보 축(FEATURE_SPEC §6.3)이고, 편성 화면이 답해야 하는 질문은
  * "어느 자리를 어느 차례로 도는가" 라 이름과 좌표로 충분하다.
  */
-public record RouteStopResponse(Long stopId, int seq, String name, BigDecimal lat, BigDecimal lng) {
+public record RouteStopResponse(Long stopId, int seq, String name, BigDecimal lat, BigDecimal lng,
+        @JsonInclude(JsonInclude.Include.NON_NULL) Integer riderCount) {
 
-    /** 정차 순서 행({@code routeStop})과 위치 원본({@code stop})을 합쳐 응답 한 자리를 만든다. */
-    public static RouteStopResponse of(RouteStop routeStop, Stop stop) {
+    /**
+     * 정차 순서 행({@code routeStop})과 위치 원본({@code stop})을 합쳐 응답 한 자리를 만든다. {@code riderCount} 는 편성
+     * 상세·편성·수정·최적화 응답이 싣는 이용 학생 수(Ruling 819)이고, 도로 경로 응답은 {@code null} 을 줘 키 자체를 뺀다.
+     */
+    public static RouteStopResponse of(RouteStop routeStop, Stop stop, Integer riderCount) {
         return new RouteStopResponse(routeStop.getStopId(), routeStop.getSeq(), stop.getName(),
-                stop.getLat(), stop.getLng());
+                stop.getLat(), stop.getLng(), riderCount);
     }
 }

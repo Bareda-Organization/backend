@@ -1,6 +1,8 @@
 package src.backend.routing.query;
 
+import java.time.Clock;
 import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +26,7 @@ import src.backend.routing.entity.Route;
 import src.backend.routing.entity.RouteStop;
 import src.backend.routing.map.spec.CallerPolicy;
 import src.backend.routing.map.spec.MapRouteClient;
+import src.backend.routing.map.spec.RoadLeg;
 import src.backend.routing.map.spec.RoadRoute;
 import src.backend.routing.map.spec.RoadRouteRequest;
 import src.backend.routing.repository.RouteRepository;
@@ -59,6 +62,8 @@ public class RoutePathQueryService {
 
     private final MapRouteClient mapRouteClient;
 
+    private final Clock clock;
+
     /** 편성 1건의 도로 경로 — 다른 학원의 편성을 지목하면 {@code 404 ROUTE_NOT_FOUND} 다. */
     public RoutePathResponse path(AuthUser requester, Long routeId) {
         Route route = routeRepository.findByIdAndAcademyId(routeId, requester.academyId())
@@ -67,18 +72,31 @@ public class RoutePathQueryService {
         List<RouteStop> ordered = routeStopRepository.findAllOrderedByRouteIdAndAcademyId(route.getId(),
                 route.getAcademyId());
         if (ordered.isEmpty()) {
-            return new RoutePathResponse(List.of(), false, List.of());
+            return new RoutePathResponse(List.of(), false, List.of(), null, null, OffsetDateTime.now(clock));
         }
 
         List<RouteStopResponse> stops = stopResponsesOf(route, ordered);
         List<GeoPoint> points = pointsOf(route, stops);
         if (points.size() < 2) {
-            return new RoutePathResponse(List.of(), false, stops);
+            return new RoutePathResponse(List.of(), false, stops, null, null, OffsetDateTime.now(clock));
         }
 
         RoadRoute roadRoute = mapRouteClient
                 .route(new RoadRouteRequest(points, ROUTE_PATH_MAP_TIMEOUT, CallerPolicy.ON_DEMAND));
-        return new RoutePathResponse(roadRoute.roadPath(), roadRoute.fallbackUsed(), stops);
+        return pathResponseOf(roadRoute, stops);
+    }
+
+    /**
+     * 도로 경로 응답을 만든다 — {@code distance_m}·{@code duration_s} 는 구간 값의 합이고, 직선 근사이거나 도로 좌표가 빈
+     * 배열이면 둘 다 {@code null} 이다(근사 거리를 도로 거리로 보이지 않는다, Ruling 819). {@code computed_at} 은 이 호출이
+     * 경로를 계산한 시각이다 — 저장해 두고 다시 쓰는 경로가 없어 언제나 지금이다.
+     */
+    private RoutePathResponse pathResponseOf(RoadRoute roadRoute, List<RouteStopResponse> stops) {
+        boolean measured = !roadRoute.fallbackUsed() && !roadRoute.roadPath().isEmpty();
+        Integer distanceMeters = measured ? roadRoute.legs().stream().mapToInt(RoadLeg::distanceMeters).sum() : null;
+        Integer durationSeconds = measured ? roadRoute.legs().stream().mapToInt(RoadLeg::durationSeconds).sum() : null;
+        return new RoutePathResponse(roadRoute.roadPath(), roadRoute.fallbackUsed(), stops, distanceMeters,
+                durationSeconds, OffsetDateTime.now(clock));
     }
 
     /**
@@ -93,7 +111,7 @@ public class RoutePathQueryService {
                 .collect(Collectors.toMap(Stop::getId, Function.identity()));
         return ordered.stream()
                 .filter(routeStop -> stops.containsKey(routeStop.getStopId()))
-                .map(routeStop -> RouteStopResponse.of(routeStop, stops.get(routeStop.getStopId())))
+                .map(routeStop -> RouteStopResponse.of(routeStop, stops.get(routeStop.getStopId()), null))
                 .toList();
     }
 

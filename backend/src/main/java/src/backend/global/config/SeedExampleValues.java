@@ -69,5 +69,7 @@ final class SeedExampleValues {
             Map.entry("SignupApprovalController#id", SeedFixtures.SIGNUP_REQUEST_PARENT_PENDING_ID),
             Map.entry("AdminStaffApprovalController#id", SeedFixtures.SIGNUP_REQUEST_STAFF_PENDING_ID),
             Map.entry("EmergencyController#id", SeedFixtures.EMERGENCY_ALERT_A_ID),
-            Map.entry("StaffEmergencyController#id", SeedFixtures.EMERGENCY_ALERT_A_ID));
+            Map.entry("StaffEmergencyController#id", SeedFixtures.EMERGENCY_ALERT_A_ID),
+            // R48 Ruling 814 — 예외 보고 처리 표시(POST /staff/reports/{id}/handle)의 Try it out 이 시드 보고 1건을 가리킨다.
+            Map.entry("StaffReportController#id", SeedFixtures.EXCEPTION_REPORT_EXAMPLE_ID));
 }

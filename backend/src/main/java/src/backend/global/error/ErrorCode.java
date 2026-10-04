@@ -272,6 +272,10 @@ public enum ErrorCode {
     // NoShowCase 가 없다는 뜻. RIDER_NOT_FOUND(탑승자 자체 부재)와는 다른 자리다.
     NO_SHOW_CASE_NOT_FOUND(HttpStatus.NOT_FOUND, "미승차 처리된 탑승자가 아닙니다"),
 
+    // ── 예외 보고 처리 표시(API_SPEC §5.20, Ruling 814) ───────────────────────────
+    // {id} 로 지목한 예외 보고가 없거나 다른 학원 소속일 때 — EMERGENCY_NOT_FOUND 와 같은 형태로 존재 여부를 드러내지 않는다.
+    REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "예외 보고를 찾을 수 없습니다"),
+
     // ── 비상 알림(Phase 11 T2, EXC-04) ──────────────────────────────────────────
     // {id} 로 지목한 비상 신고가 없거나 다른 회차·학원 소속일 때(취소·확인 공통) — STOP_NOT_FOUND 와
     // 같은 형태로, 존재 여부를 응답에서 드러내지 않는다.

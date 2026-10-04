@@ -1,5 +1,6 @@
 package src.backend.routing.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -45,6 +46,31 @@ public interface RouteRepository extends JpaRepository<Route, Long> {
      */
     boolean existsByAcademyIdAndBusIdAndWeekdayAndDirection(Long academyId, Long busId, Weekday weekday,
             Direction direction);
+
+    /**
+     * 그 차량들의 편성 전부 — 스케줄 응답의 {@code route_stop_count}(§5.10, Ruling 818)가 스케줄마다 같은 차량·요일·방향 편성을
+     * 따로 묻지 않게 한 번에 모은다. 학원 조건을 쿼리에 고정한다.
+     */
+    List<Route> findAllByAcademyIdAndBusIdIn(Long academyId, Collection<Long> busIds);
+
+    /**
+     * 차량별 활성 편성 수(§5.12 {@code route_count}, Ruling 816) — 쉬는 편성({@code active=false})은 세지 않는다. 편성이 없는
+     * 차량은 행이 없으니 호출부가 0 으로 읽는다. 학원 조건을 쿼리에 고정한다.
+     */
+    @Query("""
+            SELECT r.busId AS busId, COUNT(r) AS total FROM Route r
+            WHERE r.academyId = :academyId AND r.busId IN :busIds AND r.active = true
+            GROUP BY r.busId
+            """)
+    List<BusCount> countActiveByBusIds(@Param("academyId") Long academyId, @Param("busIds") Collection<Long> busIds);
+
+    /** {@link #countActiveByBusIds} 의 한 행 — 차량 id 와 그 차량의 활성 편성 수. */
+    interface BusCount {
+
+        Long getBusId();
+
+        long getTotal();
+    }
 
     /**
      * 확정 배치(RTE-08)가 회차의 {@code bus_id}·요일·방향으로 편성을 찾는다(Phase 7) — 편성이 없으면
