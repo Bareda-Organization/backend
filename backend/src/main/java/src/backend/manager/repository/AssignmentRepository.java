@@ -14,6 +14,7 @@ import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.manager.dto.AssignedManagerAccountView;
 import src.backend.manager.dto.AssignedManagerContactView;
 import src.backend.manager.dto.AssignedManagerView;
+import src.backend.manager.dto.ManagerRunAssignment;
 import src.backend.manager.dto.ManagerRunWindow;
 import src.backend.manager.entity.Assignment;
 import src.backend.manager.dto.StaffAssignmentAckView;
@@ -28,6 +29,13 @@ import src.backend.run.entity.RunStatus;
  * {@link AcademyScopeExempt} 로 좁히지 않는 근거를 밝힌다.
  */
 public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
+
+    /**
+     * "배치 중" 회차 조건(§5.13) — 취소되지 않았고 종료되지 않았으며, 운행 중이거나 운행일이 오늘 이후다. 삭제·역할 변경 차단과 목록의
+     * {@code assigned_run_count} 가 이 한 조각을 함께 쓴다(별칭 {@code r} = Run, 파라미터 {@code finishedStatus}·{@code movingStatus}·{@code today}).
+     */
+    String UNFINISHED_RUN = "r.canceledAt IS NULL AND r.status <> :finishedStatus "
+            + "AND (r.status = :movingStatus OR r.serviceDate >= :today)";
 
     /**
      * 이 매니저가 <b>끝나지 않은</b> 회차에 배치돼 있는지 본다 — 있으면 삭제와 역할 변경이
@@ -49,11 +57,42 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
             + "호출부가 학원 조건으로 좁혀 조회한 Manager 의 id 만 넘긴다는 전제 — 요청 파라미터의 "
             + "managerId 를 넘기면 타 학원 매니저의 배치 여부가 새어 이 예외가 우회로가 된다")
     @Query("SELECT CASE WHEN COUNT(a) > 0 THEN TRUE ELSE FALSE END FROM Assignment a, Run r "
-            + "WHERE r.id = a.runId AND a.managerId = :managerId AND r.canceledAt IS NULL "
-            + "AND r.status <> :finishedStatus "
-            + "AND (r.status = :movingStatus OR r.serviceDate >= :today)")
+            + "WHERE r.id = a.runId AND a.managerId = :managerId AND " + UNFINISHED_RUN)
     boolean existsUnfinishedByManagerId(@Param("managerId") Long managerId, @Param("today") LocalDate today,
             @Param("finishedStatus") RunStatus finishedStatus, @Param("movingStatus") RunStatus movingStatus);
+
+    /**
+     * 매니저별 배치 중 회차 수(§5.13 목록 {@code assigned_run_count}, Ruling 817) — {@link #existsUnfinishedByManagerId} 와
+     * <b>같은 조건 상수</b>({@link #UNFINISHED_RUN})를 쓴다. 두 판정이 따로 있으면 목록의 숫자와 삭제 차단이 어긋난다. 배치가 없는
+     * 매니저는 행이 없으니 호출부가 0 으로 읽는다.
+     */
+    @AcademyScopeExempt(reason = "existsUnfinishedByManagerId 와 같은 근거 — 학원으로 좁히면 타 학원 회차에 붙은 배치를 놓쳐 삭제 차단보다 "
+            + "숫자가 작아진다. 호출부(ManagerQueryService)가 학원 조건으로 좁혀 조회한 Manager 의 id 만 넘긴다는 전제다")
+    @Query("SELECT a.managerId AS managerId, COUNT(a) AS total FROM Assignment a, Run r "
+            + "WHERE r.id = a.runId AND a.managerId IN :managerIds AND " + UNFINISHED_RUN + " GROUP BY a.managerId")
+    List<ManagerRunCount> countUnfinishedByManagerIds(@Param("managerIds") Collection<Long> managerIds,
+            @Param("today") LocalDate today, @Param("finishedStatus") RunStatus finishedStatus,
+            @Param("movingStatus") RunStatus movingStatus);
+
+    /** {@link #countUnfinishedByManagerIds} 의 한 행 — 매니저 id 와 배치 중 회차 수. */
+    interface ManagerRunCount {
+
+        Long getManagerId();
+
+        long getTotal();
+    }
+
+    /**
+     * 매니저들의 오늘·내일 미취소 회차 배치(§5.13 목록 {@code assignments[]}, Ruling 817) — 날짜·출발 순. 학원 조건을 회차에 건다.
+     */
+    @Query("SELECT new src.backend.manager.dto.ManagerRunAssignment(a.managerId, r.id, r.serviceDate, b.busNo, "
+            + "r.direction, r.departTime, r.status) FROM Assignment a, Run r, Bus b "
+            + "WHERE r.id = a.runId AND b.id = r.busId AND r.academyId = :academyId AND a.managerId IN :managerIds "
+            + "AND r.canceledAt IS NULL AND r.serviceDate >= :from AND r.serviceDate <= :to "
+            + "ORDER BY r.serviceDate, r.departTime")
+    List<ManagerRunAssignment> findAssignmentsBetween(@Param("academyId") Long academyId,
+            @Param("managerIds") Collection<Long> managerIds, @Param("from") LocalDate from,
+            @Param("to") LocalDate to);
 
     /**
      * 그 계정의 매니저가 그 회차의 그 자리에 배치돼 있는지 한 문장으로 확인한다 — 위치 수신(2초마다)이 매니저 조회 + 배치 조회 + 배치의

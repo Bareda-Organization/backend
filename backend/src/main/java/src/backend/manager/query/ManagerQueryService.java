@@ -1,8 +1,11 @@
 package src.backend.manager.query;
 
+import java.time.Clock;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort;
@@ -18,9 +21,13 @@ import src.backend.global.request.SortParam;
 import src.backend.global.response.PageResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.manager.dto.ManagerListRequest;
+import src.backend.manager.dto.ManagerListResponse;
 import src.backend.manager.dto.ManagerResponse;
+import src.backend.manager.dto.ManagerRunAssignment;
 import src.backend.manager.entity.Manager;
+import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
+import src.backend.run.entity.RunStatus;
 
 /** 관계자 웹의 매니저 목록·검색(MGR-01, API_SPEC §5.13). */
 @Service
@@ -38,6 +45,11 @@ public class ManagerQueryService {
 
     private final ManagerRepository managerRepository;
 
+    private final AssignmentRepository assignmentRepository;
+
+    /** 오늘 날짜를 서비스 시간대로 얻는다(§5.13 {@code assigned_today}·{@code assignments[]}). */
+    private final Clock clock;
+
     /**
      * 소속 학원의 매니저 목록(§5.13) — {@code q} 를 주면 이름 부분 일치로, {@code role}·{@code linked} 를 주면 역할·계정
      * 연결 여부로 좁힌다(Ruling 391). 셋 다 저장소 쿼리 안에서 좁혀 {@code total_count} 가 좁힌 집합의 건수가 된다.
@@ -46,13 +58,31 @@ public class ManagerQueryService {
      * {@code total_count} 와 페이지 경계가 삭제분을 포함한 값으로 남아, 관계자가 2페이지를 눌러도
      * 빈 화면을 받기 때문이다.
      */
-    public PageResponse<ManagerResponse> list(AuthUser requester, ManagerListRequest request) {
+    public ManagerListResponse list(AuthUser requester, ManagerListRequest request) {
+        LocalDate today = LocalDate.now(clock);
         Page<Manager> page = managerRepository.searchByAcademyId(requester.academyId(), namePattern(request.q()),
                 ApiValues.managerRole(request.role()), ApiValues.linkedFilter(request.linked()),
+                ApiValues.assignedTodayFilter(request.assignedToday()), today,
                 PageParams.of(request.page(), request.size())
                         .toPageable(SortParam.parse(request.sort(), SORTABLE_FIELDS, DEFAULT_SORT)));
-        List<ManagerResponse> items = page.getContent().stream().map(ManagerResponse::from).toList();
-        return PageResponse.of(page, items);
+        List<Long> managerIds = page.getContent().stream().map(Manager::getId).toList();
+        // 삭제 차단(ManagerCommandService)과 같은 판정 조각을 쓰는 한 번의 집계 — 매니저마다 묻지 않는다(Ruling 817).
+        Map<Long, Integer> runCounts = assignmentRepository
+                .countUnfinishedByManagerIds(managerIds, today, RunStatus.FINISHED, RunStatus.MOVING).stream()
+                .collect(Collectors.toMap(AssignmentRepository.ManagerRunCount::getManagerId,
+                        count -> Math.toIntExact(count.getTotal())));
+        Map<Long, List<ManagerResponse.RunItem>> assignments = assignmentRepository
+                .findAssignmentsBetween(requester.academyId(), managerIds, today, today.plusDays(1)).stream()
+                .collect(Collectors.groupingBy(ManagerRunAssignment::managerId,
+                        Collectors.mapping(ManagerRunAssignment::toResponse, Collectors.toList())));
+        List<ManagerResponse> items = page.getContent().stream()
+                .map(manager -> ManagerResponse.listItem(manager, runCounts.getOrDefault(manager.getId(), 0),
+                        assignments.getOrDefault(manager.getId(), List.of())))
+                .toList();
+        long assignedToday = managerRepository.countAssignedToday(requester.academyId(), today);
+        long total = managerRepository.countByAcademyIdAndDeletedAtIsNull(requester.academyId());
+        return ManagerListResponse.of(PageResponse.of(page, items),
+                new ManagerListResponse.Counts(assignedToday, total - assignedToday));
     }
 
     /**

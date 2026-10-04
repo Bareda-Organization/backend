@@ -83,6 +83,11 @@ public final class ApiValues {
         return booleanFilter(raw, "handled");
     }
 
+    /** 매니저 목록의 {@code assigned_today} 쿼리 필터(§5.13, Ruling 817) — {@link #ackedFilter} 와 같은 이유로 {@code Boolean.parseBoolean} 을 쓰지 않는다. */
+    public static Boolean assignedTodayFilter(String raw) {
+        return booleanFilter(raw, "assigned_today");
+    }
+
     /** 매니저 목록의 {@code linked} 쿼리 필터 — {@link #ackedFilter} 와 같은 이유로 {@code Boolean.parseBoolean} 을 쓰지 않는다. */
     public static Boolean linkedFilter(String raw) {
         return booleanFilter(raw, "linked");
