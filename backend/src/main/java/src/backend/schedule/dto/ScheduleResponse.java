@@ -15,16 +15,20 @@ import src.backend.schedule.entity.Schedule;
  * @param departTime {@code HH:mm} — 날짜가 없는 시각이고, 회차 생성 시 {@code service_date} 와 합쳐진다
  */
 public record ScheduleResponse(Long id, Long busId, String busNo, String weekday, String direction,
-        String departTime, String originName, String destinationName, Integer estDurationMin, boolean active) {
+        String departTime, String originName, String destinationName, Integer estDurationMin, boolean active,
+        Integer routeStopCount) {
 
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT);
 
-    /** {@link Schedule} 엔티티와 함께 조회한 차량 번호를 응답 형태로 옮긴다. */
-    public static ScheduleResponse of(Schedule schedule, String busNo) {
+    /**
+     * {@link Schedule} 엔티티와 함께 조회한 차량 번호·같은 차량·요일·방향 편성의 정차지 수를 응답 형태로 옮긴다 —
+     * {@code routeStopCount} 는 편성이 없으면 {@code null}, 빈 편성이면 {@code 0}(Ruling 818).
+     */
+    public static ScheduleResponse of(Schedule schedule, String busNo, Integer routeStopCount) {
         return new ScheduleResponse(schedule.getId(), schedule.getBusId(), busNo,
                 lower(schedule.getWeekday().name()), lower(schedule.getDirection().name()),
                 schedule.getDepartTime().format(TIME_FORMAT), schedule.getOriginName(),
-                schedule.getDestinationName(), schedule.getEstDurationMin(), schedule.isActive());
+                schedule.getDestinationName(), schedule.getEstDurationMin(), schedule.isActive(), routeStopCount);
     }
 
     private static String lower(String value) {

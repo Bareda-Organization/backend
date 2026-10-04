@@ -273,6 +273,46 @@ class StaffScheduleControllerTest {
                         .isEqualTo(ACADEMY_A_ID));
     }
 
+    /** size 상한은 500 이다(§5.10, Ruling 818) — 500 은 받고 501 은 422 로 거부한다(절삭하지 않는다). */
+    @Test
+    void 목록_size_는_500까지_받고_501은_422_다() throws Exception {
+        mockMvc.perform(get("/api/v1/staff/schedules?size=500").header("Authorization", 관계자A_토큰()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.size").value(500));
+        mockMvc.perform(get("/api/v1/staff/schedules?size=501").header("Authorization", 관계자A_토큰()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+    }
+
+    /** route_stop_count — 같은 차량·요일·방향 편성이 없으면 null, 정차지 없는 빈 편성은 0, 그 밖에는 정차지 수다(Ruling 818). */
+    @Test
+    void 목록의_route_stop_count_는_편성_없음_null_빈_편성_0_정차지_수다() throws Exception {
+        long 편성없음 = 등록된_스케줄_id(관계자A_토큰(), 2L, "sat", "to_academy", FREE_TIME);
+        long 빈편성 = 등록된_스케줄_id(관계자A_토큰(), 2L, "sun", "to_academy", FREE_TIME);
+        long 정차지셋 = 등록된_스케줄_id(관계자A_토큰(), 2L, "fri", "to_academy", FREE_TIME);
+        편성한다(2L, "sun", "to_academy", "[]");
+        편성한다(2L, "fri", "to_academy", "[1,2,3]");
+
+        String body = 본문(mockMvc.perform(get("/api/v1/staff/schedules?size=500")
+                .header("Authorization", 관계자A_토큰())).andExpect(status().isOk()).andReturn());
+
+        assertThat(JsonPath.<java.util.List<Object>>read(body, "$.data.items[?(@.id=='" + 편성없음 + "')].route_stop_count"))
+                .containsExactly((Object) null);
+        assertThat(JsonPath.<java.util.List<Integer>>read(body, "$.data.items[?(@.id=='" + 빈편성 + "')].route_stop_count"))
+                .containsExactly(0);
+        assertThat(JsonPath.<java.util.List<Integer>>read(body, "$.data.items[?(@.id=='" + 정차지셋 + "')].route_stop_count"))
+                .containsExactly(3);
+    }
+
+    private void 편성한다(long busId, String weekday, String direction, String stopIds) throws Exception {
+        mockMvc.perform(post("/api/v1/staff/routes").header("Authorization", 관계자A_토큰())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"bus_id":%d,"weekday":"%s","direction":"%s","stop_ids":%s}"""
+                        .formatted(busId, weekday, direction, stopIds)))
+                .andExpect(status().isCreated());
+    }
+
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────
 
     /** 시드가 만든 학원 A 의 스케줄 하나 — 회차가 이미 매달려 있어 FK 동작을 볼 수 있다. */
