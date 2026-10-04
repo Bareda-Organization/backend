@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -27,12 +28,15 @@ import src.backend.global.security.AuthUser;
 import src.backend.global.security.access.AcademyScope;
 import src.backend.student.dto.StudentDetailResponse;
 import src.backend.student.dto.StudentListRequest;
+import src.backend.student.dto.StudentListResponse;
 import src.backend.student.dto.StudentSummaryResponse;
 import src.backend.student.dto.WeeklyAddressResponse;
 import src.backend.student.entity.Student;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StudentRepository;
 import src.backend.student.repository.StudentRepository.NameRow;
+import src.backend.student.repository.StudentRepository.StudentCounts;
+import src.backend.student.query.WeeklyAddressStatus.WeeklySlot;
 import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
@@ -68,6 +72,9 @@ public class StudentQueryService {
      */
     private static final Sort TIE_BREAKER = Sort.by(Sort.Direction.ASC, "id");
 
+    /** {@code filter} 쿼리가 받는 값(§5.11, Ruling 815). */
+    private static final Set<String> FILTERS = Set.of("guardian_unlinked", "address_missing");
+
     /** 검색어를 주지 않은 요청 — 빈 문자열이 {@code LIKE '%%'} 가 되어 전건과 같아진다. */
     private static final String NO_KEYWORD = "";
 
@@ -86,14 +93,17 @@ public class StudentQueryService {
      * (Ruling 333 · BR-060) — 목록 한 번이 상세 100건과 같은 양을 내보내는데 상세만 감사하면 노출량이 큰 쪽이
      * 추적되지 않는다.
      */
-    public PageResponse<StudentSummaryResponse> list(AuthUser requester, StudentListRequest request) {
+    public StudentListResponse list(AuthUser requester, StudentListRequest request) {
         Long academyId = academyOf(requester);
-        Page<Student> page = searchInNaturalOrder(academyId, keyword(request.q()), pageable(request));
+        Page<Student> page = searchInNaturalOrder(academyId, keyword(request.q()), classNameOf(request.className()),
+                filterOf(request.filter()), pageable(request));
         GuardianLinks links = guardianLinksOf(academyId, page.getContent());
+        Map<Long, WeeklyAddressStatus> addressStatuses = addressStatusesOf(academyId, page.getContent());
 
         List<StudentSummaryResponse> items = page.getContent().stream()
                 .map(student -> StudentSummaryResponse.of(student, links.phones().get(student.getId()),
-                        links.counts().getOrDefault(student.getId(), 0)))
+                        links.counts().getOrDefault(student.getId(), 0),
+                        addressStatuses.getOrDefault(student.getId(), WeeklyAddressStatus.NONE).code()))
                 .toList();
         // 실린 학생마다 1행(Ruling 333)이되 한 트랜잭션으로 — 학생마다 열면 페이지 100건이 트랜잭션 100개다(BR-213).
         Map<Long, Map<String, Object>> audited = new LinkedHashMap<>();
@@ -101,7 +111,7 @@ public class StudentQueryService {
                 .forEach(item -> audited.put(Long.valueOf(item.studentId()),
                         Map.of("student_ids", List.of(item.studentId()), "fields", List.of("guardian_phone"))));
         auditRecorder.recordDataAccessReads(academyId, requester.accountId(), "student", audited);
-        return PageResponse.of(page, items);
+        return StudentListResponse.of(PageResponse.of(page, items), summaryOf(academyId));
     }
 
     /**
@@ -177,10 +187,11 @@ public class StudentQueryService {
      * <p>ponytail: 요청마다 그 학원의 일치 학생 전건(id·이름)을 읽는다 — 학원 하나가 수천 명이어도 ms 단위다. 수만 명을
      * 넘기면 ICU 숫자 정렬 collation + 표현식 인덱스로 DB 에 맡긴다.
      */
-    private Page<Student> searchInNaturalOrder(Long academyId, String q, Pageable pageable) {
+    private Page<Student> searchInNaturalOrder(Long academyId, String q, String className, String filter,
+            Pageable pageable) {
         Comparator<NameRow> byName = Comparator.comparing(NameRow::getName, NaturalNameOrder.INSTANCE);
         boolean descending = pageable.getSort().getOrderFor("name").isDescending();
-        List<NameRow> rows = studentRepository.findNamesByAcademyId(academyId, q).stream()
+        List<NameRow> rows = studentRepository.findNamesByAcademyId(academyId, q, className, filter).stream()
                 .sorted((descending ? byName.reversed() : byName).thenComparing(NameRow::getId))
                 .toList();
         int from = (int) Math.min(pageable.getOffset(), rows.size());
@@ -195,6 +206,44 @@ public class StudentQueryService {
     private Pageable pageable(StudentListRequest request) {
         return PageParams.of(request.page(), request.size())
                 .toPageable(SortParam.parse(request.sort(), SORTABLE_FIELDS, DEFAULT_SORT).and(TIE_BREAKER));
+    }
+
+    /** 반 이름 필터 — 주지 않았거나 공백이면 전체를 뜻하는 빈 문자열이다(쿼리의 {@code :className = ''} 분기). */
+    private String classNameOf(String className) {
+        return className == null ? NO_KEYWORD : className.trim();
+    }
+
+    /** {@code filter} 는 두 값만 받는다 — 그 밖의 값은 오타를 전체 목록으로 둔갑시키지 않도록 {@code 422} 다(§5.11, Ruling 815). */
+    private String filterOf(String filter) {
+        if (filter == null || filter.isBlank()) {
+            return NO_KEYWORD;
+        }
+        if (!FILTERS.contains(filter)) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "filter 값이 올바르지 않습니다: " + filter);
+        }
+        return filter;
+    }
+
+    /** 이 쪽 학생들의 요일별 주소 등록 상태 — 칸(요일·방향)만 한 번에 읽어 학생 수에 비례해 질의가 늘지 않는다. */
+    private Map<Long, WeeklyAddressStatus> addressStatusesOf(Long academyId, List<Student> students) {
+        if (students.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, List<WeeklySlot>> slotsByStudent = weeklyAddressRepository
+                .findSlotsByStudentIds(academyId, students.stream().map(Student::getId).toList()).stream()
+                .collect(Collectors.groupingBy(slot -> slot.getStudentId(),
+                        Collectors.mapping(slot -> new WeeklySlot(slot.getWeekday(), slot.getDirection()),
+                                Collectors.toList())));
+        Map<Long, WeeklyAddressStatus> statuses = new LinkedHashMap<>();
+        slotsByStudent.forEach((studentId, slots) -> statuses.put(studentId, WeeklyAddressStatus.of(slots)));
+        return statuses;
+    }
+
+    /** 학원 전체 지표(§5.11 {@code summary}) — 쿼리·쪽과 무관하다. */
+    private StudentListResponse.Summary summaryOf(Long academyId) {
+        StudentCounts counts = studentRepository.summarizeByAcademyId(academyId);
+        return new StudentListResponse.Summary(counts.getTotal(), counts.getClassCount(),
+                counts.getGuardianUnlinked(), counts.getAddressMissing(), counts.getCanGoAlone());
     }
 
     private String keyword(String q) {

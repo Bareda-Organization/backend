@@ -26,15 +26,14 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
-import src.backend.global.response.PageResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanManageStudent;
 import src.backend.global.security.authz.CanReadStudentRecord;
 import src.backend.student.command.StudentCommandService;
 import src.backend.student.dto.StudentDetailResponse;
 import src.backend.student.dto.StudentListRequest;
+import src.backend.student.dto.StudentListResponse;
 import src.backend.student.dto.StudentRegisterRequest;
-import src.backend.student.dto.StudentSummaryResponse;
 import src.backend.student.dto.StudentUpdateRequest;
 import src.backend.student.dto.StudentWithdrawalResponse;
 import src.backend.student.dto.WeeklyAddressResponse;
@@ -75,7 +74,7 @@ public class StaffStudentController {
     @CanReadStudentRecord
     @Operation(summary = "학생 관리 — 목록·검색 (STU-01)")
     @GetMapping
-    public ApiResponse<PageResponse<StudentSummaryResponse>> list(@AuthenticationPrincipal AuthUser authUser,
+    public ApiResponse<StudentListResponse> list(@AuthenticationPrincipal AuthUser authUser,
             @ModelAttribute StudentListRequest request) {
         return ApiResponse.ok(studentQueryService.list(authUser, request));
     }

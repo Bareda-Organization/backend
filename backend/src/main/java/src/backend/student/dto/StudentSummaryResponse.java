@@ -26,7 +26,7 @@ import src.backend.student.entity.Student;
  * 요청이 실패하는 것이 아니라 <b>다른 학생을 가리킨다.</b> 지금 안 아픈 이유는 시드 id 가 한 자리여서일 뿐이다.
  */
 public record StudentSummaryResponse(String studentId, String name, String className, String guardianPhone,
-        int guardianCount, boolean accountLinked) {
+        int guardianCount, boolean accountLinked, String grade, boolean canGoAlone, String weeklyAddressStatus) {
 
     /**
      * 목록 1행을 만든다 — 보호자 연락처·연결 수는 학생 레코드가 아니라 <b>밖에서 조회한 값</b>으로
@@ -36,8 +36,10 @@ public record StudentSummaryResponse(String studentId, String name, String class
      * {@code 0} 이고 그것이 정상이다({@code AUTH-11} 계정 미연결) — 감추지 않고 그대로 내보내
      * 관계자 화면이 "아직 연결되지 않음" 을 드러내게 한다.
      */
-    public static StudentSummaryResponse of(Student student, String guardianPhone, int guardianCount) {
+    public static StudentSummaryResponse of(Student student, String guardianPhone, int guardianCount,
+            String weeklyAddressStatus) {
         return new StudentSummaryResponse(String.valueOf(student.getId()), student.getName(),
-                student.getClassName(), guardianPhone, guardianCount, student.getAccountId() != null);
+                student.getClassName(), guardianPhone, guardianCount, student.getAccountId() != null,
+                student.getGrade(), student.isCanGoAlone(), weeklyAddressStatus);
     }
 }

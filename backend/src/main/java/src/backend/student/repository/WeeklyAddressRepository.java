@@ -93,6 +93,30 @@ public interface WeeklyAddressRepository extends JpaRepository<WeeklyAddress, Lo
             @Param("direction") Direction direction, @Param("serviceDayStart") OffsetDateTime serviceDayStart);
 
     /**
+     * 학생들의 요일별 주소 등록 칸(요일·방향)만 한 번에 읽는다 — 목록의 {@code weekly_address_status}(§5.11, Ruling 815)가
+     * 학생마다 따로 묻지 않게 한다. 주소 원문은 읽지 않는다(L3 를 목록 조립에 끌어오지 않는다). 학원 조건은 {@code Student} 조인.
+     */
+    @Query("""
+            SELECT wa.studentId AS studentId, wa.weekday AS weekday, wa.direction AS direction
+            FROM WeeklyAddress wa
+            JOIN Student s ON s.id = wa.studentId
+            WHERE s.academyId = :academyId
+              AND wa.studentId IN :studentIds
+            """)
+    List<AddressSlot> findSlotsByStudentIds(@Param("academyId") Long academyId,
+            @Param("studentIds") Collection<Long> studentIds);
+
+    /** {@link #findSlotsByStudentIds} 의 한 행 — 학생과 그 학생이 등록한 요일·방향. */
+    interface AddressSlot {
+
+        Long getStudentId();
+
+        Weekday getWeekday();
+
+        Direction getDirection();
+    }
+
+    /**
      * 편성의 정차지별 이용 학생 수(§5.9 {@code stops[].rider_count}, Ruling 819) — 그 요일·방향 요일별 주소가 그 승하차지로
      * 매칭된 <b>재원</b> 학생만 센다. 퇴원생({@code deleted_at})은 오늘 명단엔 남아도 편성 화면의 이용 인원은 아니라서 뺀다.
      * 학원 조건은 {@code Student} 조인으로 건다({@code weekly_address} 에 {@code academy_id} 부재 — ERD §6.1).
