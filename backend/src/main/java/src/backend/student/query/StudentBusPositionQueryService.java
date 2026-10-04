@@ -20,7 +20,7 @@ import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
-import src.backend.monitoring.query.RunOrderedStopsLoader;
+import src.backend.routing.query.RunOrderedStopsLoader;
 import src.backend.routing.entity.RunStop;
 import src.backend.routing.query.CurrentRunStopResolver;
 import src.backend.run.entity.Run;

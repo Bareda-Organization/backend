@@ -1,5 +1,7 @@
 package src.backend.bus.repository;
 
+import java.time.LocalDate;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -7,6 +9,8 @@ import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import src.backend.bus.entity.Bus;
 
@@ -51,4 +55,54 @@ public interface BusRepository extends JpaRepository<Bus, Long> {
      * 경합으로 선검사를 지나쳐도 UNIQUE 가 뒤에서 막으므로 중복 행은 생기지 않는다.
      */
     boolean existsByAcademyIdAndBusNo(Long academyId, String busNo);
+
+    /**
+     * 차량별 활성 편성 수(§5.12 {@code route_count}, Ruling 816) — 쉬는 편성({@code active=false})은 세지 않는다. 편성이 없는
+     * 차량은 행이 없으니 호출부가 0 으로 읽는다. 학원 조건을 쿼리에 고정한다.
+     *
+     * <p>편성·스케줄·회차 테이블을 차량 모듈에서 네이티브 질의로 읽는 이유 — 그 모듈의 저장소를 import 하면 차량↔노선 ·
+     * 차량↔스케줄 · 차량↔회차 양방향 참조가 생긴다(그 모듈들이 이미 차량을 참조한다, {@code ModuleMutualDependencyTest} · R48 병합).
+     */
+    @Query(value = "SELECT bus_id AS busId, COUNT(*) AS total FROM route "
+            + "WHERE academy_id = :academyId AND bus_id IN (:busIds) AND active GROUP BY bus_id", nativeQuery = true)
+    List<BusCount> countActiveRoutesByBusIds(@Param("academyId") Long academyId, @Param("busIds") Collection<Long> busIds);
+
+    /** 차량별 활성 스케줄 수(§5.12 {@code schedule_count}, Ruling 816) — 쉬는 스케줄은 세지 않는다. 학원 조건을 쿼리에 고정한다. */
+    @Query(value = "SELECT bus_id AS busId, COUNT(*) AS total FROM schedule "
+            + "WHERE academy_id = :academyId AND bus_id IN (:busIds) AND active GROUP BY bus_id", nativeQuery = true)
+    List<BusCount> countActiveSchedulesByBusIds(@Param("academyId") Long academyId,
+            @Param("busIds") Collection<Long> busIds);
+
+    /**
+     * 그 차량들의 그날 미취소 회차를 출발 순으로(§5.12 {@code today_runs[]}, Ruling 816) — 차량 목록이 차량마다 따로 묻지 않게
+     * 한 번에 모은다. 방향·상태는 DB 저장값(소문자 — {@code ck_run_direction} · {@code ck_run_status})을 그대로 싣는다.
+     */
+    @Query(value = "SELECT id AS runId, bus_id AS busId, direction, depart_time AS departTime, status FROM run "
+            + "WHERE academy_id = :academyId AND bus_id IN (:busIds) AND service_date = :serviceDate "
+            + "AND canceled_at IS NULL ORDER BY depart_time, id", nativeQuery = true)
+    List<BusTodayRun> findTodayRunsByBusIds(@Param("academyId") Long academyId, @Param("busIds") Collection<Long> busIds,
+            @Param("serviceDate") LocalDate serviceDate);
+
+    /** 차량 id 와 그 차량에 걸린 행 수 — {@link #countActiveRoutesByBusIds} · {@link #countActiveSchedulesByBusIds} 의 한 행. */
+    interface BusCount {
+
+        Long getBusId();
+
+        long getTotal();
+    }
+
+    /** {@link #findTodayRunsByBusIds} 의 한 행 — 차량 목록의 오늘 운행 칸. */
+    interface BusTodayRun {
+
+        Long getRunId();
+
+        Long getBusId();
+
+        String getDirection();
+
+        /** 네이티브 질의는 {@code timestamptz} 를 {@link Instant} 로 돌려준다 — 호출부가 서비스 시간대로 바꾼다. */
+        Instant getDepartTime();
+
+        String getStatus();
+    }
 }

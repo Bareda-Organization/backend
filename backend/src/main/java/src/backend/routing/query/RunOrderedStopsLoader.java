@@ -1,4 +1,4 @@
-package src.backend.monitoring.query;
+package src.backend.routing.query;
 
 import java.util.List;
 import java.util.Map;
@@ -16,8 +16,8 @@ import src.backend.run.entity.Run;
 
 /**
  * 회차 여러 개의 정차 항목(확정 노선의 현재 판본, {@code seq} 순)을 <b>회차 수와 무관한 쿼리 2건</b>으로 읽는다(BR-247) —
- * 관제 조회 2종({@link AdminAcademyLiveQueryService} · {@link StaffRunLiveQueryService})이 회차마다
- * 확정 노선·정차 순서를 따로 읽던 것을 한 곳으로 모은다. 확정 노선이 없거나 현재 판본이 없는 회차는 빈 목록이다.
+ * 관제 조회(`monitoring` 의 `AdminAcademyLiveQueryService` · `StaffRunLiveQueryService` 등)와 학부모 위치 조회가 회차마다
+ * 확정 노선·정차 순서를 따로 읽던 것을 한 곳으로 모은다. 확정 노선이 없거나 현재 판본이 없는 회차는 빈 목록이다. 노선 모듈에 두는 이유 — 관제와 학생 두 모듈이 함께 쓰는데 관제에 두면 학생→관제 참조가 생겨 모듈 양방향 참조 규칙(`ModuleMutualDependencyTest`)에 걸린다(R48 병합).
  */
 @Component
 @RequiredArgsConstructor

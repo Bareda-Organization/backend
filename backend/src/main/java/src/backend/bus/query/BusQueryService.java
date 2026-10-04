@@ -3,7 +3,6 @@ package src.backend.bus.query;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -18,10 +17,6 @@ import src.backend.bus.dto.BusListRequest;
 import src.backend.bus.dto.BusResponse;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.BusRepository;
-import src.backend.routing.repository.RouteRepository;
-import src.backend.run.entity.Run;
-import src.backend.run.repository.RunRepository;
-import src.backend.schedule.repository.ScheduleRepository;
 import src.backend.global.request.PageParams;
 import src.backend.global.request.SortParam;
 import src.backend.global.response.PageResponse;
@@ -46,12 +41,6 @@ public class BusQueryService {
 
     private final BusRepository busRepository;
 
-    private final RouteRepository routeRepository;
-
-    private final ScheduleRepository scheduleRepository;
-
-    private final RunRepository runRepository;
-
     /** 오늘 날짜를 서비스 시간대로 얻는다(§5.12 {@code today_runs[]}). */
     private final Clock clock;
 
@@ -61,25 +50,21 @@ public class BusQueryService {
                 PageParams.of(request.page(), request.size())
                         .toPageable(SortParam.parse(request.sort(), SORTABLE_FIELDS, DEFAULT_SORT)));
         List<Long> busIds = page.getContent().stream().map(Bus::getId).toList();
-        Map<Long, Integer> routeCounts = routeRepository.countActiveByBusIds(requester.academyId(), busIds).stream()
-                .collect(Collectors.toMap(RouteRepository.BusCount::getBusId, count -> Math.toIntExact(count.getTotal())));
-        Map<Long, Integer> scheduleCounts = scheduleRepository.countActiveByBusIds(requester.academyId(), busIds)
-                .stream().collect(Collectors.toMap(ScheduleRepository.BusCount::getBusId,
+        Map<Long, Integer> routeCounts = busRepository.countActiveRoutesByBusIds(requester.academyId(), busIds).stream()
+                .collect(Collectors.toMap(BusRepository.BusCount::getBusId, count -> Math.toIntExact(count.getTotal())));
+        Map<Long, Integer> scheduleCounts = busRepository.countActiveSchedulesByBusIds(requester.academyId(), busIds)
+                .stream().collect(Collectors.toMap(BusRepository.BusCount::getBusId,
                         count -> Math.toIntExact(count.getTotal())));
-        Map<Long, List<BusResponse.TodayRun>> todayRuns = runRepository
-                .findAllByAcademyIdAndBusIdInAndServiceDateAndCanceledAtIsNullOrderByDepartTimeAsc(
-                        requester.academyId(), busIds, LocalDate.now(clock))
-                .stream().collect(Collectors.groupingBy(Run::getBusId, Collectors.mapping(
-                        run -> new BusResponse.TodayRun(run.getId(), lower(run.getDirection().name()),
-                                run.getDepartTime(), lower(run.getStatus().name())), Collectors.toList())));
+        Map<Long, List<BusResponse.TodayRun>> todayRuns = busRepository
+                .findTodayRunsByBusIds(requester.academyId(), busIds, LocalDate.now(clock))
+                .stream().collect(Collectors.groupingBy(BusRepository.BusTodayRun::getBusId, Collectors.mapping(
+                        run -> new BusResponse.TodayRun(run.getRunId(), run.getDirection(),
+                                run.getDepartTime().atZone(clock.getZone()).toOffsetDateTime(),
+                                run.getStatus()), Collectors.toList())));
         List<BusResponse> items = page.getContent().stream()
                 .map(bus -> BusResponse.listItem(bus, routeCounts.getOrDefault(bus.getId(), 0),
                         scheduleCounts.getOrDefault(bus.getId(), 0), todayRuns.getOrDefault(bus.getId(), List.of())))
                 .toList();
         return PageResponse.of(page, items);
-    }
-
-    private static String lower(String value) {
-        return value.toLowerCase(Locale.ROOT);
     }
 }

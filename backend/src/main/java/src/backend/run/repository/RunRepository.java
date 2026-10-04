@@ -50,13 +50,6 @@ public interface RunRepository extends JpaRepository<Run, Long> {
     List<Run> findAllByAcademyIdAndServiceDateOrderByDepartTimeAsc(Long academyId, LocalDate serviceDate);
 
     /**
-     * 그 차량들의 그날 미취소 회차를 출발 순으로(§5.12 {@code today_runs[]}, Ruling 816) — 차량 목록이 차량마다 따로 묻지 않게
-     * 한 번에 모은다. 학원 조건을 쿼리 이름에 고정한다.
-     */
-    List<Run> findAllByAcademyIdAndBusIdInAndServiceDateAndCanceledAtIsNullOrderByDepartTimeAsc(Long academyId,
-            Collection<Long> busIds, LocalDate serviceDate);
-
-    /**
      * 한 학원에서 그 상태인 회차 목록 — 지금은 {@code MOVING} 하나만 호출부(데모 시뮬레이터의 운행 중 버스 판정)가
      * 넘긴다. 학원 상세의 "운행 중 차량 수" 는 날짜 범위가 필요해 {@link #findBusNosByStatusFromServiceDate} 로 옮겨 갔다(BR-315).
      * §6.8 메인 관리자 관제는 <b>이 메서드를 쓰지 않는다</b> — 오늘 회차를 상태 무관 전부 반환하도록
