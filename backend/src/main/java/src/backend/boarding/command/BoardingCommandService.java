@@ -308,7 +308,7 @@ public class BoardingCommandService {
                 rider.getId(), noShowCase.caseId(), rider.getStopId(), stopSkipped, now));
 
         RiderStatusUpdateResponse.NoShowCaseSummary summary = new RiderStatusUpdateResponse.NoShowCaseSummary(
-                noShowCase.caseId(), noShowCase.startedAt(), noShowCase.expiresAt());
+                noShowCase.caseId(), noShowCase.startedAt(), noShowCase.expiresAt(), noShowCase.contacts());
         return RiderStatusUpdateResponse.withNoShowCase(rider.getId(), now, summary, stopSkipped);
     }
 
@@ -372,7 +372,7 @@ public class BoardingCommandService {
                 .map(noShowCase -> RiderStatusUpdateResponse.withNoShowCase(history.getRunRiderId(),
                         history.getChangedAt(),
                         new RiderStatusUpdateResponse.NoShowCaseSummary(noShowCase.caseId(),
-                                noShowCase.startedAt(), noShowCase.expiresAt()),
+                                noShowCase.startedAt(), noShowCase.expiresAt(), noShowCase.contacts()),
                         false))
                 .orElseGet(() -> RiderStatusUpdateResponse.of(history.getRunRiderId(), statusName(toStatus),
                         history.getChangedAt(), false));

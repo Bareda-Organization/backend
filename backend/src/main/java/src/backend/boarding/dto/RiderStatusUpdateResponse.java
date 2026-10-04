@@ -1,6 +1,9 @@
 package src.backend.boarding.dto;
 
 import java.time.OffsetDateTime;
+import java.util.List;
+
+import src.backend.exception.dto.NoShowContactView;
 
 /**
  * 승하차 처리 응답(API_SPEC §4.6) — {@code rider_id}·{@code case_id} 필드 타입은 {@code Long} 이지만
@@ -27,7 +30,11 @@ public record RiderStatusUpdateResponse(Long riderId, String status, OffsetDateT
         return new RiderStatusUpdateResponse(riderId, "no_show", changedAt, noShowCase, stopSkipped);
     }
 
-    /** {@code case_id} · {@code started_at} · {@code expires_at}(3분 후, API_SPEC §4.6 표) 3필드. */
-    public record NoShowCaseSummary(Long caseId, OffsetDateTime startedAt, OffsetDateTime expiresAt) {
+    /**
+     * {@code case_id} · {@code started_at} · {@code expires_at}(3분 후, API_SPEC §4.6 표) 3필드와 연락 이력 {@code contacts}(§4.2 명단의 같은 객체 —
+     * 되돌렸다 다시 미승차가 된 케이스는 이전 시도를 갖는다, Ruling 823).
+     */
+    public record NoShowCaseSummary(Long caseId, OffsetDateTime startedAt, OffsetDateTime expiresAt,
+            List<NoShowContactView> contacts) {
     }
 }

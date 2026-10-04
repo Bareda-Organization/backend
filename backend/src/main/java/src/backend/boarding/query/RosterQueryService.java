@@ -25,8 +25,11 @@ import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.BusRepository;
+import src.backend.exception.dto.NoShowContactView;
 import src.backend.exception.entity.NoShowCase;
+import src.backend.exception.entity.NoShowContact;
 import src.backend.exception.repository.NoShowCaseRepository;
+import src.backend.exception.repository.NoShowContactRepository;
 import src.backend.global.common.enums.ChangeType;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
@@ -93,6 +96,8 @@ public class RosterQueryService {
 
     private final NoShowCaseRepository noShowCaseRepository;
 
+    private final NoShowContactRepository noShowContactRepository;
+
     private final ProjectedRosterReader projectedRosterReader;
 
     /**
@@ -121,11 +126,7 @@ public class RosterQueryService {
                 .collect(Collectors.toMap(Stop::getId, stop -> stop));
         Academy academy = academyRepository.findById(run.getAcademyId()).orElse(null);
         Map<Long, List<RunRider>> ridersByStopId = riders.stream().collect(Collectors.groupingBy(RunRider::getStopId));
-        Map<Long, NoShowCountdown> countdownsByRiderId = noShowCaseRepository
-                .findOpenByRunIdAndAcademyId(run.getId(), requester.academyId()).stream()
-                .collect(Collectors.toMap(NoShowCase::getRunRiderId,
-                        noShowCase -> new NoShowCountdown(String.valueOf(noShowCase.getId()), noShowCase.getStartedAt(),
-                                noShowCase.getExpiresAt())));
+        Map<Long, NoShowCountdown> countdownsByRiderId = countdownsOf(run.getId(), requester.academyId());
         List<StopGroup> stops = boardingStops.stream()
                 .map(runStop -> runStop.isDestination()
                         ? destinationGroupOf(runStop, academy)
@@ -294,6 +295,19 @@ public class RosterQueryService {
                 stop == null ? null : stop.getName(), rawPhone,
                 rider.getChange() == null ? null : lower(rider.getChange().name()), lower(rider.getStatus().name()),
                 student.getNote(), null);
+    }
+
+    /** 열린 미승차 케이스를 탑승자별 카운트다운으로 — 연락 이력은 케이스 전체를 쿼리 한 번으로 읽어 시각순으로 붙인다(Ruling 823). */
+    private Map<Long, NoShowCountdown> countdownsOf(Long runId, Long academyId) {
+        List<NoShowCase> openCases = noShowCaseRepository.findOpenByRunIdAndAcademyId(runId, academyId);
+        Map<Long, List<NoShowContactView>> contactsByCaseId = openCases.isEmpty() ? Map.of()
+                : noShowContactRepository.findAllByNoShowCaseIdInOrderByAttemptedAtAscIdAsc(
+                        openCases.stream().map(NoShowCase::getId).toList()).stream()
+                        .collect(Collectors.groupingBy(NoShowContact::getNoShowCaseId,
+                                Collectors.mapping(NoShowContactView::from, Collectors.toList())));
+        return openCases.stream().collect(Collectors.toMap(NoShowCase::getRunRiderId,
+                noShowCase -> new NoShowCountdown(String.valueOf(noShowCase.getId()), noShowCase.getStartedAt(),
+                        noShowCase.getExpiresAt(), contactsByCaseId.getOrDefault(noShowCase.getId(), List.of()))));
     }
 
     private Counts countsOf(List<RunRider> riders) {
