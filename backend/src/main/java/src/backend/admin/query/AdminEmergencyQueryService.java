@@ -129,7 +129,15 @@ public class AdminEmergencyQueryService {
         // 배지는 필터(상태·학원)와 무관하다(BR-066) — 목록에서 세면 "확인됨" 탭에서 0 이 된다.
         long unackedCount = emergencyAlertRepository.countByAckedAtIsNullAndCanceledAtIsNull();
 
-        return new AdminEmergencyListResponse(items, unackedCount);
+        return new AdminEmergencyListResponse(items, unackedCount, new AdminEmergencyListResponse.Counts(
+                countOf(EmergencyStatusFilter.OPEN, academyId), countOf(EmergencyStatusFilter.ACKED, academyId),
+                countOf(EmergencyStatusFilter.CANCELED, academyId)));
+    }
+
+    /** 탭 건수(§6.11 {@code counts}) — {@code status} 쿼리와 무관하게 {@code academy_id} 조건만 걸어 센다. */
+    private long countOf(EmergencyStatusFilter state, Long academyId) {
+        return academyId == null ? emergencyAlertRepository.countAllByState(state.name())
+                : emergencyAlertRepository.countByAcademyIdAndState(academyId, state.name());
     }
 
     /**

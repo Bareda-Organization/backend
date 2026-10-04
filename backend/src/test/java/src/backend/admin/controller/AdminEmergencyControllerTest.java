@@ -369,6 +369,69 @@ class AdminEmergencyControllerTest {
         assertThat(id목록(body)).contains(alertInA).doesNotContain(alertInB);
     }
 
+    // ── R49 — 응답 최상위 counts(Ruling 837) ─────────────────────────────
+
+    /**
+     * {@code counts} 는 {@code status} 쿼리와 무관하게 같은 학원 조건의 세 상태 건수를 전부 싣는다 — 탭 3개의 숫자를 요청 한 번으로
+     * 그린다. 미확인 1 · 확인 2 · 취소 3 으로 상태마다 다른 수를 심어, 어느 한 상태의 수를 다른 상태에 쓰는 구현도 가른다.
+     */
+    @Test
+    void counts_는_status_를_acked_로_불러도_세_상태_건수를_모두_싣는다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long adminAccountId = fixtures.systemAdminAccount("메인관리자");
+        신고를_발신한다(academyId, fixtures);
+        for (int i = 0; i < 2; i++) {
+            확인시각을_옮긴다(신고를_발신한다(academyId, fixtures), now());
+        }
+        for (int i = 0; i < 3; i++) {
+            취소시각을_옮긴다(신고를_발신한다(academyId, fixtures), now());
+        }
+
+        String ackedBody = mockMvc.perform(get(LIST).param("status", "acked").param("academy_id", String.valueOf(academyId))
+                        .header("Authorization", 메인관리자_토큰(adminAccountId)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(id목록(ackedBody)).as("목록은 status 를 따라 확인된 2건뿐").hasSize(2);
+        assertThat(counts(ackedBody)).as("open · acked · canceled").containsExactly(1L, 2L, 3L);
+    }
+
+    /** {@code academy_id} 를 주면 그 학원 것만 세고, 안 주면 전 학원 합이다(시드 행이 섞이므로 증가분으로 비교). */
+    @Test
+    void counts_는_academy_id_를_주면_그_학원만_세고_안_주면_전_학원을_센다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyA = fixtures.academy();
+        long academyB = fixtures.academy();
+        long adminAccountId = fixtures.systemAdminAccount("메인관리자");
+        long[] before = counts(목록을_조회한다(adminAccountId));
+
+        신고를_발신한다(academyA, fixtures);
+        확인시각을_옮긴다(신고를_발신한다(academyA, fixtures), now());
+        신고를_발신한다(academyB, fixtures);
+        신고를_발신한다(academyB, fixtures);
+        취소시각을_옮긴다(신고를_발신한다(academyB, fixtures), now());
+
+        String bodyA = mockMvc.perform(get(LIST).param("academy_id", String.valueOf(academyA))
+                        .header("Authorization", 메인관리자_토큰(adminAccountId)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String bodyB = mockMvc.perform(get(LIST).param("academy_id", String.valueOf(academyB))
+                        .header("Authorization", 메인관리자_토큰(adminAccountId)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        long[] after = counts(목록을_조회한다(adminAccountId));
+
+        assertThat(counts(bodyA)).as("A").containsExactly(1L, 1L, 0L);
+        assertThat(counts(bodyB)).as("B").containsExactly(2L, 0L, 1L);
+        assertThat(new long[] {after[0] - before[0], after[1] - before[1], after[2] - before[2]})
+                .as("전 학원 증가분 = A + B").containsExactly(3L, 1L, 1L);
+    }
+
+    private long[] counts(String body) {
+        return new long[] {((Number) JsonPath.read(body, "$.data.counts.open")).longValue(),
+                ((Number) JsonPath.read(body, "$.data.counts.acked")).longValue(),
+                ((Number) JsonPath.read(body, "$.data.counts.canceled")).longValue()};
+    }
+
     /**
      * 학원 하나에 비상 신고 여러 건을 만들 때 쓴다 — 버스를 매번 새로 만든다. 같은 버스·같은
      * departTime 으로 회차를 두 번 만들면 스케줄 UNIQUE 제약(같은 버스가 같은 시각에 중복 배차되지

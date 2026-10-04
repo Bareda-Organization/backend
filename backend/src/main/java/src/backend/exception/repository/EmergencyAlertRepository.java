@@ -24,8 +24,14 @@ public interface EmergencyAlertRepository extends JpaRepository<EmergencyAlert, 
      * 신고의 처리 상태를 {@code EmergencyStatusFilter} 와 같은 규칙으로 계산해 거른다 — 취소가 확인보다 앞선다
      * (취소 뒤 확인된 신고는 {@code CANCELED}).
      */
-    String SELECT_BY_STATE = "SELECT a FROM EmergencyAlert a WHERE (CASE WHEN a.canceledAt IS NOT NULL THEN 'CANCELED' "
-            + "WHEN a.ackedAt IS NOT NULL THEN 'ACKED' ELSE 'OPEN' END) = :state";
+    String STATE_CASE = "(CASE WHEN a.canceledAt IS NOT NULL THEN 'CANCELED' WHEN a.ackedAt IS NOT NULL THEN 'ACKED' "
+            + "ELSE 'OPEN' END)";
+
+    /** {@link #STATE_CASE} 가 {@code :state} 인 신고를 고른다. */
+    String SELECT_BY_STATE = "SELECT a FROM EmergencyAlert a WHERE " + STATE_CASE + " = :state";
+
+    /** {@link #SELECT_BY_STATE} 와 같은 상태 규칙으로 건수만 센다 — 행 수 상한({@code Limit})을 받지 않는다. */
+    String COUNT_BY_STATE = "SELECT COUNT(a) FROM EmergencyAlert a WHERE " + STATE_CASE + " = :state";
 
     /**
      * {@code client_key} 로 재전송을 가려낸다({@code uk_emergency_alert_client_key}) —
@@ -94,6 +100,16 @@ public interface EmergencyAlertRepository extends JpaRepository<EmergencyAlert, 
             + "예외를 여는 판정은 컨트롤러의 @CanMonitorAll 하나다(AcademyStaffRepository#findStaffAccountsForConsole 과 같은 형태)")
     @Query(SELECT_BY_STATE + " ORDER BY a.receivedAt DESC")
     List<EmergencyAlert> findAllByState(@Param("state") String state, Limit limit);
+
+    /** 한 학원의 그 상태 신고 건수(§6.11 {@code counts}) — 목록의 200건 상한과 무관하다. */
+    @Query(COUNT_BY_STATE + " AND a.academyId = :academyId")
+    long countByAcademyIdAndState(@Param("academyId") Long academyId, @Param("state") String state);
+
+    /** 전 학원의 그 상태 신고 건수(§6.11 {@code counts}, {@code academy_id} 를 안 줬을 때). */
+    @AcademyScopeExempt(reason = "§6.11 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
+            + "academy_id 쿼리를 안 준 목록과 같은 범위의 건수라 좁힐 학원이 부재(findAllByState 와 같은 근거)")
+    @Query(COUNT_BY_STATE)
+    long countAllByState(@Param("state") String state);
 
     /** 학원 관계자의 미확인 배지(§5.16 {@code unacked_count}) — 목록 필터와 무관하게 학원 전체의 미확인·미취소 건수. */
     long countByAcademyIdAndAckedAtIsNullAndCanceledAtIsNull(Long academyId);
