@@ -29,6 +29,7 @@ public record AdminDashboardResponse(OffsetDateTime asOf, Period period, Runs ru
     public record Delays(long count, long todayCount, Peak peak) {
     }
 
+    /** 기간 중 지연 회차가 가장 많았던 날과 그 수. */
     public record Peak(LocalDate date, long count) {
     }
 
@@ -60,6 +61,7 @@ public record AdminDashboardResponse(OffsetDateTime asOf, Period period, Runs ru
     public record SignupBlocked(Long requestId, String name, String academyName, OffsetDateTime requestedAt) {
     }
 
+    /** 오늘 지연 회차 한 줄 — {@code delayMinutes} 는 §5.18 과 같은 계산이다. */
     public record DelayedRun(Long runId, String academyName, String busNo, String direction, int delayMinutes) {
     }
 
