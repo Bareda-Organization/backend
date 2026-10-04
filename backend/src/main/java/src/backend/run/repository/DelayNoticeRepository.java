@@ -46,6 +46,28 @@ public interface DelayNoticeRepository extends JpaRepository<DelayNotice, Long> 
     List<DelayNotice> findLastByRunIds(@Param("academyId") Long academyId, @Param("runIds") Collection<Long> runIds);
 
     /**
+     * 지연 알림 한 건이 적재한 알림 행 수(§5.3 {@code last_delay_notice.recipient_count}, Ruling 810) — 알림 적재(아웃박스)는 지연 알림과 같은
+     * 트랜잭션에서 수신자마다 한 행씩 넣고 {@code dedup_key} 를 {@code delay:{runId}:…} 로 시작하게 한다. 그 행들은 {@code run_id} 를 채우지
+     * 않아 키가 회차를 가리키는 유일한 단서이고, 적재 시각({@code created_at})은 발신 시각({@code delay_notice.sent_at}) 이후라 그 이후 행만 이 알림의
+     * 몫으로 센다 — {@code noticeIds} 는 회차별 마지막 알림이라 뒤에 더 늦은 알림이 없다.
+     *
+     * <p>알림 모듈의 저장소를 거치지 않고 표를 직접 읽는 이유: 다른 모듈이 알림 모듈을 참조하지 않는다는 구조 규칙
+     * ({@code NotificationModuleIsolationTest}) 때문이다 — 읽기 전용이고 알림 적재 모양({@code DelayNotificationListener})에 기대는 값이라
+     * 실제 지연 알림 API 를 거친 건수와 같음을 시험으로 고정했다.
+     */
+    @Query(value = """
+            SELECT d.run_id AS "runId", COUNT(n.id) AS "recipientCount"
+              FROM delay_notice d
+              JOIN run r ON r.id = d.run_id
+              JOIN notification_log n ON n.type = 'delay' AND n.academy_id = r.academy_id
+                                     AND n.dedup_key LIKE 'delay:' || d.run_id || ':%' AND n.created_at >= d.sent_at
+             WHERE r.academy_id = :academyId AND d.id IN (:noticeIds)
+             GROUP BY d.run_id
+            """, nativeQuery = true)
+    List<DelayRecipientCount> countRecipientsOfNotices(@Param("academyId") Long academyId,
+            @Param("noticeIds") Collection<Long> noticeIds);
+
+    /**
      * 최근 발신한 지연 알림(§6.18 {@code recent_events[]} {@code delay_notified}) — 학원 조건은 {@code run} 조인에 건다. 알림은 운행 중 회차에서만 나가므로
      * 운행일 하한({@code sinceDate})으로 먼저 좁히고 발신 시각으로 거른다.
      */

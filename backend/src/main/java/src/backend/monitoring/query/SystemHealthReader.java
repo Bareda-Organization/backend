@@ -21,7 +21,6 @@ import org.springframework.boot.health.contributor.Status;
 import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.monitoring.dto.AdminDashboardResponse.HealthCell;
-import src.backend.notification.repository.NotificationLogRepository;
 import src.backend.observability.metrics.SchedulerHealthMetrics;
 import src.backend.run.domain.MovingRunWindowPolicy;
 import src.backend.run.entity.Run;
@@ -78,7 +77,7 @@ class SystemHealthReader {
 
     private final SchedulerHealthMetrics schedulerHealthMetrics;
 
-    private final NotificationLogRepository notificationLogRepository;
+    private final NotificationBacklogReader notificationBacklogReader;
 
     private final Clock clock;
 
@@ -133,8 +132,8 @@ class SystemHealthReader {
     }
 
     private HealthCell notification() {
-        long stale = notificationLogRepository
-                .countPendingOlderThan(OffsetDateTime.now(clock).minus(NOTIFICATION_LIMIT));
+        long stale = notificationBacklogReader
+                .countPendingCreatedBefore(OffsetDateTime.now(clock).minus(NOTIFICATION_LIMIT));
         return stale == 0 ? new HealthCell(NOTIFICATION, OK, null)
                 : new HealthCell(NOTIFICATION, WARN, "발송 지연 " + stale + "건");
     }

@@ -21,7 +21,6 @@ import org.springframework.boot.health.contributor.Status;
 
 import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.monitoring.dto.AdminDashboardResponse.HealthCell;
-import src.backend.notification.repository.NotificationLogRepository;
 import src.backend.observability.metrics.SchedulerHealthMetrics;
 import src.backend.run.domain.MovingRunWindowPolicy;
 import src.backend.run.repository.RunRepository;
@@ -39,7 +38,7 @@ class SystemHealthReaderTest {
 
     private final SchedulerHealthMetrics schedulerHealthMetrics = mock(SchedulerHealthMetrics.class);
 
-    private final NotificationLogRepository notificationLogRepository = mock(NotificationLogRepository.class);
+    private final NotificationBacklogReader notificationBacklogReader = mock(NotificationBacklogReader.class);
 
     private SystemHealthReader reader;
 
@@ -55,7 +54,7 @@ class SystemHealthReaderTest {
         Clock clock = Clock.fixed(Instant.parse("2030-04-01T03:00:00Z"), ZoneId.of("Asia/Seoul"));
         reader = new SystemHealthReader(healthEndpoint, mock(RunRepository.class), mock(MovingRunWindowPolicy.class),
                 mock(RunPositionStore.class), mock(RunLiveStateResolver.class), schedulerHealthMetrics,
-                notificationLogRepository, clock);
+                notificationBacklogReader, clock);
         정상으로_맞춘다();
     }
 
@@ -63,7 +62,7 @@ class SystemHealthReaderTest {
         when(healthEndpoint.healthForPath("db")).thenReturn(up);
         when(healthEndpoint.healthForPath("redis")).thenReturn(up);
         when(schedulerHealthMetrics.sinceLastSuccess(CONFIRM_SCHEDULER)).thenReturn(Optional.of(Duration.ofSeconds(30)));
-        when(notificationLogRepository.countPendingOlderThan(any())).thenReturn(0L);
+        when(notificationBacklogReader.countPendingCreatedBefore(any())).thenReturn(0L);
     }
 
     private static IndicatedHealthDescriptor descriptor(Status status) {
@@ -117,7 +116,7 @@ class SystemHealthReaderTest {
     @Test
     @DisplayName("notification — 5분 넘게 대기한 알림이 있으면 warn 과 건수")
     void 발송_지연이_있으면_warn() {
-        when(notificationLogRepository.countPendingOlderThan(any())).thenReturn(3L);
+        when(notificationBacklogReader.countPendingCreatedBefore(any())).thenReturn(3L);
 
         assertThat(cell("notification")).isEqualTo(new HealthCell("notification", "warn", "발송 지연 3건"));
     }

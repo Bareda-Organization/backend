@@ -30,13 +30,12 @@ import src.backend.manager.dto.StaffAssignmentAckView;
 import src.backend.monitoring.dto.StaffDashboardResponse;
 import src.backend.exception.dto.StaffNoShowCaseView;
 import src.backend.boarding.dto.StaffRunRiderAggregateView;
-import src.backend.notification.repository.DelayRecipientCount;
-import src.backend.notification.repository.NotificationLogRepository;
 import src.backend.routing.entity.RunStop;
 import src.backend.run.entity.DelayNotice;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.DelayNoticeRepository;
+import src.backend.run.repository.DelayRecipientCount;
 import src.backend.run.repository.RunRepository;
 
 /**
@@ -69,8 +68,6 @@ public class StaffDashboardQueryService {
     private final NoShowContactRepository noShowContactRepository;
 
     private final DelayNoticeRepository delayNoticeRepository;
-
-    private final NotificationLogRepository notificationLogRepository;
 
     private final RunOrderedStopsLoader runOrderedStopsLoader;
 
@@ -127,7 +124,7 @@ public class StaffDashboardQueryService {
 
     /**
      * 회차별 마지막 지연 알림 + 그 알림이 적재한 수신 건수(Ruling 810) — 알림 적재가 지연 알림 행에 회차 식별자를 따로 두지 않아 건수는
-     * {@link NotificationLogRepository#countDelayRecipients} 가 {@code dedup_key} 로 센다.
+     * {@link DelayNoticeRepository#countRecipientsOfNotices} 가 {@code dedup_key} 로 센다.
      */
     private Map<Long, StaffDashboardResponse.LastDelayNotice> lastDelayNoticesOf(AuthUser requester,
             List<Long> runIds) {
@@ -135,8 +132,8 @@ public class StaffDashboardQueryService {
         if (lastNotices.isEmpty()) {
             return Map.of();
         }
-        Map<Long, Long> recipientCounts = notificationLogRepository
-                .countDelayRecipients(requester.academyId(), lastNotices.stream().map(DelayNotice::getId).toList())
+        Map<Long, Long> recipientCounts = delayNoticeRepository
+                .countRecipientsOfNotices(requester.academyId(), lastNotices.stream().map(DelayNotice::getId).toList())
                 .stream().collect(Collectors.toMap(DelayRecipientCount::getRunId, DelayRecipientCount::getRecipientCount));
         return lastNotices.stream().collect(Collectors.toMap(DelayNotice::getRunId,
                 notice -> new StaffDashboardResponse.LastDelayNotice(notice.getMinutes(),

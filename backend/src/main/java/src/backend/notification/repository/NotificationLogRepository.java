@@ -1,7 +1,6 @@
 package src.backend.notification.repository;
 
 import java.time.OffsetDateTime;
-import java.util.Collection;
 import java.util.Set;
 import java.util.List;
 
@@ -41,19 +40,6 @@ import src.backend.notification.entity.PushState;
  * 만들었다가 병합 전 조율자 판정으로 되돌렸다.
  */
 public interface NotificationLogRepository extends JpaRepository<NotificationLog, Long> {
-
-    /**
-     * 지연 알림 한 건이 적재한 알림 행 수(§5.3 {@code last_delay_notice.recipient_count}, Ruling 810) — 알림 적재(아웃박스)는 지연 알림과 같은
-     * 트랜잭션에서 수신자마다 한 행씩 넣고 {@code dedup_key} 를 {@code delay:{runId}:…} 로 시작하게 한다
-     * ({@code DelayNotificationListener}). 이 행들은 {@code run_id} 를 채우지 않아 키가 회차를 가리키는 유일한 단서이고, 알림 시각
-     * ({@code created_at})은 발신 시각({@code delay_notice.sent_at}) 이후라 그 이후 행만 이 알림의 몫으로 센다 — {@code noticeIds} 는 회차별 마지막
-     * 알림이라 뒤에 더 늦은 알림이 없다.
-     */
-    @Query("SELECT d.runId AS runId, COUNT(n) AS recipientCount FROM DelayNotice d, NotificationLog n "
-            + "WHERE d.id IN :noticeIds AND n.academyId = :academyId AND n.type = src.backend.notification.entity.NotificationType.DELAY "
-            + "AND n.dedupKey LIKE CONCAT('delay:', d.runId, ':%') AND n.createdAt >= d.sentAt GROUP BY d.runId")
-    List<DelayRecipientCount> countDelayRecipients(@Param("academyId") Long academyId,
-            @Param("noticeIds") Collection<Long> noticeIds);
 
     /**
      * 발송에 성공한 행을 {@code sent} 로 옮긴다 — {@code pending} 인 행만 대상이라 이미 옮겨진 행을
@@ -316,14 +302,4 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
             + "부르는 주체가 사용자 요청이 아니라 스케줄러라 요청 주체의 소속 자체가 부재")
     @Query("select n.id from NotificationLog n where n.createdAt < :cutoff order by n.id")
     List<Long> findIdsForRetentionCleanup(@Param("cutoff") OffsetDateTime cutoff, Limit limit);
-
-    /**
-     * 적재 뒤 {@code threshold} 이전부터 발송을 기다리는({@code pending}) 알림 수(§6.18 {@code health[]} {@code notification}) — {@code ix_notification_log_pending}
-     * 부분 인덱스가 받친다.
-     */
-    @AcademyScopeExempt(reason = "알림 발송 지연 수(§6.18 health)는 서버 단위 값이라 학원 필터를 걸지 않는다 — 발송 절차가 학원과 무관하게 전 행을 같은 "
-            + "큐로 처리한다. 호출부는 SystemHealthReader 뿐이라는 전제")
-    @Query("SELECT COUNT(n) FROM NotificationLog n WHERE n.pushState = src.backend.notification.entity.PushState.PENDING "
-            + "AND n.createdAt <= :threshold")
-    long countPendingOlderThan(@Param("threshold") OffsetDateTime threshold);
 }
