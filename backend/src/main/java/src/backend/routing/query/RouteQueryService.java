@@ -58,7 +58,7 @@ public class RouteQueryService {
     /** 소속 학원의 고정 노선 목록(§5.9) — 범위는 토큰이 정하고 요청은 페이지 위치만 정한다. */
     public PageResponse<RouteResponse> list(AuthUser requester, RouteListRequest request) {
         Page<Route> page = routeRepository.findAllByAcademyId(requester.academyId(),
-                PageParams.of(request.page(), request.size())
+                PageParams.ofLarge(request.page(), request.size())
                         .toPageable(SortParam.parse(request.sort(), SORTABLE_FIELDS, DEFAULT_SORT)));
         Map<Long, String> busNos = busNosOf(requester, page.getContent());
         Map<Long, Integer> stopCounts = stopCountsOf(requester, page.getContent());

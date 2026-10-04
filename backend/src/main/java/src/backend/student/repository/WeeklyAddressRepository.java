@@ -93,6 +93,35 @@ public interface WeeklyAddressRepository extends JpaRepository<WeeklyAddress, Lo
             @Param("direction") Direction direction, @Param("serviceDayStart") OffsetDateTime serviceDayStart);
 
     /**
+     * 편성의 정차지별 이용 학생 수(§5.9 {@code stops[].rider_count}, Ruling 819) — 그 요일·방향 요일별 주소가 그 승하차지로
+     * 매칭된 <b>재원</b> 학생만 센다. 퇴원생({@code deleted_at})은 오늘 명단엔 남아도 편성 화면의 이용 인원은 아니라서 뺀다.
+     * 학원 조건은 {@code Student} 조인으로 건다({@code weekly_address} 에 {@code academy_id} 부재 — ERD §6.1).
+     */
+    @Query("""
+            SELECT wa.stopId AS stopId, COUNT(DISTINCT wa.studentId) AS total
+            FROM WeeklyAddress wa
+            JOIN Student s ON s.id = wa.studentId
+            WHERE s.academyId = :academyId
+              AND s.deletedAt IS NULL
+              AND wa.stopId IN :stopIds
+              AND wa.weekday = :weekday
+              AND wa.direction = :direction
+              AND wa.verified = true
+            GROUP BY wa.stopId
+            """)
+    List<StopRiderCount> countRidersByStopIds(@Param("academyId") Long academyId,
+            @Param("stopIds") Collection<Long> stopIds, @Param("weekday") Weekday weekday,
+            @Param("direction") Direction direction);
+
+    /** {@link #countRidersByStopIds} 의 한 행 — 승하차지 id 와 그 승하차지를 쓰는 재원 학생 수. */
+    interface StopRiderCount {
+
+        Long getStopId();
+
+        long getTotal();
+    }
+
+    /**
      * 학생들의 요일별 주소·좌표 행을 지운다(개인정보 파기, Ruling 480 ②·520) — 주소와 좌표가 곧 개인정보라 익명값으로 바꾸지 않고
      * 행째 지운다. 이 행을 참조하는 이력은 부재하다({@code weekly_address} 는 어느 FK 의 부모도 아니다).
      */
