@@ -1,8 +1,9 @@
 package src.backend.notification.repository;
 
 import java.time.OffsetDateTime;
-import java.util.Set;
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Page;
@@ -14,6 +15,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import src.backend.global.common.enums.Role;
 import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.notification.entity.NotificationLog;
 import src.backend.notification.entity.NotificationType;
@@ -258,13 +260,86 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
              WHERE n.academyId = :academyId
                AND (:type IS NULL OR n.type = :type)
                AND (:acked IS NULL OR (n.acked = :acked AND n.type IN :importantTypes))
+               AND (:recipientRole IS NULL OR n.recipientRole = :recipientRole)
                AND COALESCE(n.sentAt, n.createdAt) >= :from
                AND COALESCE(n.sentAt, n.createdAt) < :to
              ORDER BY COALESCE(n.sentAt, n.createdAt) DESC, n.id DESC
             """)
     Page<NotificationLog> searchForStaffLog(@Param("academyId") Long academyId, @Param("type") NotificationType type,
             @Param("acked") Boolean acked, @Param("importantTypes") Set<NotificationType> importantTypes,
-            @Param("from") OffsetDateTime from, @Param("to") OffsetDateTime to, Pageable pageable);
+            @Param("recipientRole") Role recipientRole, @Param("from") OffsetDateTime from,
+            @Param("to") OffsetDateTime to, Pageable pageable);
+
+    /**
+     * 묶어 보기({@code group=true}, §5.17, Ruling 813)의 공통 조건 조각 — 묶음 쪽 조회와 묶음 수 조회가 <b>같은</b> 조건을 쓴다
+     * (둘이 갈리면 {@code total_count} 와 쪽 내용이 어긋난다). 묶음 키는 같은 {@code type} · {@code run_id} · {@code body} · 적재 시각
+     * ({@code created_at}) 초 단위이고, 한 사건의 행은 한 트랜잭션에서 같은 시각 값으로 적재된다. 날짜 구간은
+     * {@link #searchForStaffLog} 와 같이 {@code COALESCE(sent_at, created_at)} 기준이다. {@code CAST(:x AS ...) IS NULL} 은 Postgres 가 널
+     * 파라미터 타입을 추론하지 못하는 자리를 피한다.
+     */
+    String STAFF_LOG_GROUP_FILTER = """
+            FROM notification_log n
+            WHERE n.academy_id = :academyId
+              AND (CAST(:type AS text) IS NULL OR n.type = CAST(:type AS text))
+              AND (CAST(:recipientRole AS text) IS NULL OR n.recipient_role = CAST(:recipientRole AS text))
+              AND COALESCE(n.sent_at, n.created_at) >= :from
+              AND COALESCE(n.sent_at, n.created_at) < :to
+            GROUP BY n.type, n.run_id, n.body, date_trunc('second', n.created_at)
+            HAVING (CAST(:acked AS boolean) IS NULL OR SUM(CASE WHEN n.acked = CAST(:acked AS boolean)
+                        AND n.type IN (:importantTypes) THEN 1 ELSE 0 END) > 0)
+            """;
+
+    /**
+     * 묶음 한 쪽(§5.17 {@code group=true}) — 최근 묶음부터 {@code limit} 개를 {@code offset} 부터. {@code acked} 를 주면 묶음 안에 그
+     * 상태 행이 하나라도 있는 묶음을 싣는다. 수신자 앞 3명은 적재 순으로 {@code 이름 + 구분자 + 역할} 을 이어 한 칸에 돌려준다.
+     * 학원 조건을 쿼리에 고정한다.
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT n.type AS "type", n.run_id AS "runId", n.body AS "body",
+                   CAST(EXTRACT(EPOCH FROM date_trunc('second', n.created_at)) AS bigint) AS "bucketSecond",
+                   CAST(EXTRACT(EPOCH FROM MAX(COALESCE(n.sent_at, n.created_at))) * 1000000 AS bigint) AS "sentAtMicros",
+                   MAX(n.bus_no) AS "busNo",
+                   COUNT(*) AS "recipientCount",
+                   SUM(CASE WHEN n.acked THEN 1 ELSE 0 END) AS "ackedCount",
+                   array_to_string((array_agg(n.recipient_name || chr(31) || n.recipient_role ORDER BY n.id))[1:3],
+                                   chr(30)) AS "firstRecipients"
+            """ + STAFF_LOG_GROUP_FILTER + """
+            ORDER BY MAX(COALESCE(n.sent_at, n.created_at)) DESC, MAX(n.id) DESC
+            LIMIT :limit OFFSET :offset
+            """)
+    List<StaffLogGroup> searchGroupsForStaffLog(@Param("academyId") Long academyId, @Param("type") String type,
+            @Param("recipientRole") String recipientRole, @Param("acked") Boolean acked,
+            @Param("importantTypes") Collection<String> importantTypes, @Param("from") OffsetDateTime from,
+            @Param("to") OffsetDateTime to, @Param("limit") int limit, @Param("offset") long offset);
+
+    /** 묶음 수(§5.17 {@code group=true} 의 {@code total_count}) — {@link #searchGroupsForStaffLog} 와 같은 조건 조각을 쓴다. */
+    @Query(nativeQuery = true, value = "SELECT COUNT(*) FROM (SELECT 1 " + STAFF_LOG_GROUP_FILTER + ") g")
+    long countGroupsForStaffLog(@Param("academyId") Long academyId, @Param("type") String type,
+            @Param("recipientRole") String recipientRole, @Param("acked") Boolean acked,
+            @Param("importantTypes") Collection<String> importantTypes, @Param("from") OffsetDateTime from,
+            @Param("to") OffsetDateTime to);
+
+    /** {@link #searchGroupsForStaffLog} 의 한 행 — 묶음 키 구성 값과 집계(시각은 마이크로초 에포크 정수로 받는다). */
+    interface StaffLogGroup {
+
+        String getType();
+
+        Long getRunId();
+
+        String getBody();
+
+        long getBucketSecond();
+
+        long getSentAtMicros();
+
+        String getBusNo();
+
+        long getRecipientCount();
+
+        long getAckedCount();
+
+        String getFirstRecipients();
+    }
 
     /**
      * 미확인 배지(§5.17 {@code unacked_count}, ERD §5 부분 인덱스 {@code notification_log(academy_id,

@@ -9,6 +9,7 @@ import java.util.Locale;
 import src.backend.exception.entity.ExceptionReportType;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
+import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
@@ -62,6 +63,16 @@ public final class ApiValues {
      */
     public static NotificationType notificationType(String raw) {
         return toEnum(NotificationType.class, raw, "알림 종류가 아닙니다: ");
+    }
+
+    /** §5.17 알림 로그의 {@code recipient_role} 필터(§9.1 역할값, Ruling 813) — 알 수 없는 값은 {@code 422} 다. */
+    public static Role recipientRole(String raw) {
+        return toEnum(Role.class, raw, "역할이 아닙니다: ");
+    }
+
+    /** §5.17 알림 로그의 {@code group} 필터(묶어 보기, Ruling 813) — {@link #ackedFilter} 와 같은 이유로 {@code Boolean.parseBoolean} 을 쓰지 않는다. */
+    public static Boolean groupFilter(String raw) {
+        return booleanFilter(raw, "group");
     }
 
     /** §5.5 승인 목록의 {@code status} 필터(§9.8 {@code pending}·{@code approved}·…)를 옮긴다. */
