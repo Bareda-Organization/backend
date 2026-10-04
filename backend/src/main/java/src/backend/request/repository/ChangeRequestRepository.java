@@ -20,6 +20,7 @@ import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.request.entity.ChangeRequest;
 import src.backend.request.entity.ChangeRequestStatus;
 import src.backend.request.entity.ChangeRequestType;
+import src.backend.global.persistence.AcademyCount;
 
 /**
  * {@link ChangeRequest} 영속성 접근 — {@code change_request} 는 {@code academy_id} 컬럼을 직접
@@ -142,4 +143,37 @@ public interface ChangeRequestRepository extends JpaRepository<ChangeRequest, Lo
             """)
     int anonymizeAddressesOfStudents(@Param("studentIds") Collection<Long> studentIds,
             @Param("placeholder") String placeholder);
+
+    /**
+     * 기간에 <b>결정된</b> 변경 요청의 결정별 건수(§6.18 {@code change_requests}) — 승인 · 거절 · 자동 거절만 센다. 시각은 {@code decided_at}, 범위는
+     * 반열림 구간 {@code [from, to)} 이다.
+     */
+    @Query("SELECT c.status AS status, COUNT(c) AS total FROM ChangeRequest c WHERE c.academyId IN :academyIds "
+            + "AND c.status <> src.backend.request.entity.ChangeRequestStatus.PENDING "
+            + "AND c.decidedAt >= :from AND c.decidedAt < :to GROUP BY c.status")
+    List<ChangeRequestStatusCount> countDecidedByStatus(@Param("academyIds") Collection<Long> academyIds,
+            @Param("from") OffsetDateTime from, @Param("to") OffsetDateTime to);
+
+    /** 기간에 <b>접수된</b> 변경 요청의 학원별 건수(§6.18 {@code academies[].change_request_count}) — 시각은 {@code requested_at}, 반열림 구간이다. */
+    @Query("SELECT c.academyId AS academyId, COUNT(c) AS total FROM ChangeRequest c WHERE c.academyId IN :academyIds "
+            + "AND c.requestedAt >= :from AND c.requestedAt < :to GROUP BY c.academyId")
+    List<AcademyCount> countRequestedByAcademy(@Param("academyIds") Collection<Long> academyIds,
+            @Param("from") OffsetDateTime from, @Param("to") OffsetDateTime to);
+
+    /**
+     * 마감이 {@code (now, until]} 안인 대기 중 변경 요청을 회차별로 묶는다(§6.18 {@code attention.expiring_change_requests[]}) — 놓치면 자동 거절된다.
+     * 이미 마감이 지난 요청은 자동 거절 배치가 곧 거두므로 싣지 않는다. 마감이 가장 빠른 회차부터.
+     */
+    @Query("SELECT c.runId AS runId, MIN(c.deadlineAt) AS deadlineAt, COUNT(c) AS total FROM ChangeRequest c "
+            + "WHERE c.academyId IN :academyIds AND c.status = src.backend.request.entity.ChangeRequestStatus.PENDING "
+            + "AND c.deadlineAt > :now AND c.deadlineAt <= :until GROUP BY c.runId ORDER BY MIN(c.deadlineAt), c.runId")
+    List<ExpiringChangeRequestRow> findExpiringByRun(@Param("academyIds") Collection<Long> academyIds,
+            @Param("now") OffsetDateTime now, @Param("until") OffsetDateTime until);
+
+    /** 회차별 대기 중 변경 요청 수(§6.18 {@code pending_change_count}). */
+    @Query("SELECT c.runId AS runId, COUNT(c) AS total FROM ChangeRequest c WHERE c.academyId IN :academyIds "
+            + "AND c.runId IN :runIds AND c.status = src.backend.request.entity.ChangeRequestStatus.PENDING "
+            + "GROUP BY c.runId")
+    List<RunPendingCount> countPendingByRun(@Param("academyIds") Collection<Long> academyIds,
+            @Param("runIds") Collection<Long> runIds);
 }

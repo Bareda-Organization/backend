@@ -199,4 +199,9 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
             ORDER BY a.name, a.id
             """)
     List<Account> searchByNameOrLoginId(@Param("q") String q, Limit limit);
+
+    /** 지금 차단된 계정 수(§6.18 {@code attention.blocked_accounts}, §6.10) — 계정 단위 조치라 전 학원 범위다. */
+    @AcademyScopeExempt(reason = "차단 계정 수(§6.18 · §6.10)는 계정 단위 조치라 전 학원 범위로 센다 — findAllByStatus 와 같은 근거. 호출부는 "
+            + "@CanMonitorAll 로 보호되는 AdminDashboardQueryService 뿐이라는 전제")
+    long countByStatus(AccountStatus status);
 }

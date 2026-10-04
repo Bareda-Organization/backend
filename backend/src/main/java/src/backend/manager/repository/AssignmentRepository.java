@@ -215,4 +215,10 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
             + "WHERE m.academyId = :academyId AND a.runId IN :runIds")
     List<StaffAssignmentAckView> findAckViewsForStaffDashboard(@Param("academyId") Long academyId,
             @Param("runIds") Collection<Long> runIds);
+
+    /** 기사가 배치된 회차 식별자(§6.18 {@code today_runs[].driver_assigned}) — 학원 조건은 {@code run} 조인에 건다. */
+    @Query("SELECT DISTINCT a.runId FROM Assignment a JOIN Run r ON r.id = a.runId WHERE r.academyId IN :academyIds "
+            + "AND a.runId IN :runIds AND a.role = src.backend.global.common.enums.ManagerRole.DRIVER")
+    List<Long> findDriverAssignedRunIds(@Param("academyIds") Collection<Long> academyIds,
+            @Param("runIds") Collection<Long> runIds);
 }

@@ -316,4 +316,14 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
             + "부르는 주체가 사용자 요청이 아니라 스케줄러라 요청 주체의 소속 자체가 부재")
     @Query("select n.id from NotificationLog n where n.createdAt < :cutoff order by n.id")
     List<Long> findIdsForRetentionCleanup(@Param("cutoff") OffsetDateTime cutoff, Limit limit);
+
+    /**
+     * 적재 뒤 {@code threshold} 이전부터 발송을 기다리는({@code pending}) 알림 수(§6.18 {@code health[]} {@code notification}) — {@code ix_notification_log_pending}
+     * 부분 인덱스가 받친다.
+     */
+    @AcademyScopeExempt(reason = "알림 발송 지연 수(§6.18 health)는 서버 단위 값이라 학원 필터를 걸지 않는다 — 발송 절차가 학원과 무관하게 전 행을 같은 "
+            + "큐로 처리한다. 호출부는 SystemHealthReader 뿐이라는 전제")
+    @Query("SELECT COUNT(n) FROM NotificationLog n WHERE n.pushState = src.backend.notification.entity.PushState.PENDING "
+            + "AND n.createdAt <= :threshold")
+    long countPendingOlderThan(@Param("threshold") OffsetDateTime threshold);
 }

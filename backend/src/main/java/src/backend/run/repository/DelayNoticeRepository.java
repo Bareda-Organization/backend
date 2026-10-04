@@ -44,4 +44,14 @@ public interface DelayNoticeRepository extends JpaRepository<DelayNotice, Long> 
             + "WHERE r.academyId = :academyId AND d.runId IN :runIds "
             + "AND d.id = (SELECT MAX(d2.id) FROM DelayNotice d2 WHERE d2.runId = d.runId)")
     List<DelayNotice> findLastByRunIds(@Param("academyId") Long academyId, @Param("runIds") Collection<Long> runIds);
+
+    /**
+     * 최근 발신한 지연 알림(§6.18 {@code recent_events[]} {@code delay_notified}) — 학원 조건은 {@code run} 조인에 건다. 알림은 운행 중 회차에서만 나가므로
+     * 운행일 하한({@code sinceDate})으로 먼저 좁히고 발신 시각으로 거른다.
+     */
+    @Query("SELECT d FROM DelayNotice d JOIN Run r ON r.id = d.runId WHERE r.academyId IN :academyIds "
+            + "AND r.serviceDate >= :sinceDate AND d.sentAt >= :since ORDER BY d.sentAt DESC, d.id DESC")
+    List<DelayNotice> findRecent(@Param("academyIds") Collection<Long> academyIds,
+            @Param("sinceDate") java.time.LocalDate sinceDate, @Param("since") java.time.OffsetDateTime since,
+            org.springframework.data.domain.Limit limit);
 }

@@ -41,6 +41,9 @@ public interface BusRepository extends JpaRepository<Bus, Long> {
      */
     List<Bus> findAllByAcademyIdAndIdIn(Long academyId, Collection<Long> ids);
 
+    /** 학원 여러 곳 안에서 id 로 일괄 조회한다 — 메인 관리자 대시보드(§6.18)가 학원을 가로질러 읽되 선택한 학원 안으로만 좁힌다. */
+    List<Bus> findAllByAcademyIdInAndIdIn(Collection<Long> academyIds, Collection<Long> ids);
+
     /**
      * 같은 학원에 같은 호차가 이미 있는지 본다 — {@code uk_bus_academy_bus_no} 위반을 저장 전에 막는다.
      *
