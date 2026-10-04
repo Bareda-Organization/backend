@@ -80,9 +80,7 @@ public class AdminStaffAccountQueryService {
      * 질의 수가 일정하다 — 계정마다 찾으면 한 페이지(최대 100건)가 질의 수백 건이 된다.
      */
     public StaffAccountListResponse list(StaffAccountListRequest request) {
-        if (request.academyId() != null && !academyRepository.existsById(request.academyId())) {
-            throw new BusinessException(ErrorCode.ACADEMY_NOT_FOUND);
-        }
+        requireRegistered(request.academyId());
         Collection<StaffStatus> statuses = statusFilter(request.status());
         String q = LikeEscape.escape(request.q() == null ? "" : request.q());
         Sort sort = SortParam.parse(request.sort(), SORTABLE_FIELDS, DEFAULT_SORT).and(TIE_BREAKER);
@@ -91,6 +89,13 @@ public class AdminStaffAccountQueryService {
 
         return StaffAccountListResponse.of(PageResponse.of(page, summaries(page.getContent())),
                 counts(request.academyId(), q));
+    }
+
+    /** {@code academy_id} 필터가 미등록 학원을 가리키면 404 다(§6.6 에러 표) — 필터를 안 주면 전 학원이라 검사할 것이 없다. */
+    private void requireRegistered(Long academyId) {
+        if (academyId != null && !academyRepository.existsById(academyId)) {
+            throw new BusinessException(ErrorCode.ACADEMY_NOT_FOUND);
+        }
     }
 
     private List<StaffAccountSummaryResponse> summaries(List<Account> accounts) {
