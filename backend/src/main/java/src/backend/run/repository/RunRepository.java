@@ -191,7 +191,7 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      */
     @AcademyScopeExempt(reason = "메인 관리자 콘솔의 끝나지 않은 이동 중 회차 목록(AdminStaleMovingRunQueryService)은 전 학원 대상 조회라 "
             + "좁힐 학원이 부재하다 — countStaleMoving 과 같은 근거. 호출부는 @CanMonitorAll 로 보호되는 그 서비스뿐이라는 전제")
-    @Query("SELECT r.id AS runId, r.academyId AS academyId, a.name AS academyName, r.serviceDate AS serviceDate, "
+    @Query("SELECT r.id AS runId, r.academyId AS academyId, a.name AS academyName, a.contact AS academyContact, r.serviceDate AS serviceDate, "
             + "r.direction AS direction, b.busNo AS busNo, r.startedAt AS startedAt, r.finishPending AS finishPending, "
             + "(SELECT COUNT(rr) FROM RunRider rr WHERE rr.runId = r.id "
             + "AND rr.status = :boarded) AS boardedCount "

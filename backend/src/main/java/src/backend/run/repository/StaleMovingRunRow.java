@@ -14,6 +14,9 @@ public interface StaleMovingRunRow {
 
     String getAcademyName();
 
+    /** 학원 대표 연락처 — 미등록이면 {@code null}(Ruling 808). */
+    String getAcademyContact();
+
     LocalDate getServiceDate();
 
     Direction getDirection();
