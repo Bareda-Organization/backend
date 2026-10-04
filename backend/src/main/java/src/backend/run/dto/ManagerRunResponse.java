@@ -25,15 +25,19 @@ import src.backend.run.entity.RunStatus;
  * @param ackRequired 노선 변경 확인 응답 미완료 여부(RUN-07) — {@code assignment.acked_route_version_id}
  *         가 {@code confirmed_route.current_version_id} 와 다르면 {@code true}
  * @param roleInRun {@code driver} · {@code escort} — 화면 구성을 가른다
+ * @param plateNo 차량번호 — 내 정보의 "담당 차량"(Ruling 822)
+ * @param riderCount·{@code absentCount}·{@code stopCount} 탑승 예정 · 미등원 · 승하차지 수 — 확정 전이면 셋 다 {@code null}(Ruling 822)
  */
 public record ManagerRunResponse(String runId, String busNo, String direction, OffsetDateTime departTime,
         String origin, String destination, Integer estDurationMin, String runStatus, boolean confirmed,
         OffsetDateTime confirmAt, StartWindow startWindow, long addedCount, long removedCount,
-        boolean ackRequired, String roleInRun) {
+        boolean ackRequired, String roleInRun, String plateNo, Integer riderCount, Integer absentCount,
+        Integer stopCount) {
 
     /** {@link Run}·배치·명단 증감 건수를 매니저 앱 카드 1건으로 조립한다. */
-    public static ManagerRunResponse of(Run run, String busNo, Assignment assignment, long addedCount,
-            long removedCount, boolean ackRequired, RunStartWindowPolicy startWindowPolicy) {
+    public static ManagerRunResponse of(Run run, String busNo, String plateNo, Assignment assignment,
+            long addedCount, long removedCount, boolean ackRequired, Headcount headcount,
+            RunStartWindowPolicy startWindowPolicy) {
         OffsetDateTime departTime = run.getDepartTime();
         // CODE_CONVENTIONS §20.4 — 창 값은 RunStartWindowPolicy 가 유일한 소유(BR-101, 2026-09-25 검사).
         StartWindow startWindow = new StartWindow(startWindowPolicy.earliestStart(departTime),
@@ -41,11 +45,17 @@ public record ManagerRunResponse(String runId, String busNo, String direction, O
         return new ManagerRunResponse(String.valueOf(run.getId()), busNo, lower(run.getDirection().name()),
                 departTime, run.getOriginName(), run.getDestinationName(), run.getEstDurationMin(),
                 lower(run.getStatus().name()), run.getStatus() != RunStatus.IDLE, run.getConfirmAt(),
-                startWindow, addedCount, removedCount, ackRequired, lower(assignment.getRole().name()));
+                startWindow, addedCount, removedCount, ackRequired, lower(assignment.getRole().name()), plateNo,
+                headcount == null ? null : headcount.riders(), headcount == null ? null : headcount.absent(),
+                headcount == null ? null : headcount.stops());
     }
 
     private static String lower(String value) {
         return value.toLowerCase(Locale.ROOT);
+    }
+
+    /** 확정된 회차의 탑승 예정 인원 · 미등원 인원 · 승하차지 수(§4.1, Ruling 822) — 확정 전 회차는 이 값 자체가 부재({@code null})다. */
+    public record Headcount(int riders, int absent, int stops) {
     }
 
     /** 운행 시작 버튼 활성 창(§4.1 {@code start_window}) — 출발 시각 ±10분. */

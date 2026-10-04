@@ -107,6 +107,12 @@ class ManagerRunControllerTest {
     @Autowired
     private RunConfirmationService confirmationService;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
+
     private Phase9RosterFixtures fixtures() {
         RunConfirmationFixtures base = new RunConfirmationFixtures(academyRepository, busRepository, routeRepository,
                 routeStopRepository, stopRepository, studentRepository, weeklyAddressRepository, runRepository);
@@ -158,6 +164,63 @@ class ManagerRunControllerTest {
         assertThat(items).hasSize(1);
         assertThat((String) JsonPath.read(body, "$.data.items[0].run_id")).isEqualTo(String.valueOf(runId));
         assertThat((String) JsonPath.read(body, "$.data.items[0].role_in_run")).isEqualTo("escort");
+    }
+
+    /**
+     * §4.1 {@code plate_no} · {@code rider_count} · {@code absent_count} · {@code stop_count}(Ruling 822) — 탑승 예정 인원은
+     * {@code absent} 를 뺀 명단 수이고, 승하차지 수는 도착지(학원) 항목을 뺀다. 확정 전 회차는 셋 다 {@code null} 이다.
+     */
+    @Test
+    void 확정된_회차는_번호판과_인원과_승하차지_수를_싣고_확정_전_회차는_세_수가_null_이다() throws Exception {
+        Phase9RosterFixtures fx = fixtures();
+        long academyId = fx.academyWithCoordinates();
+        long busId = fx.bus(academyId);
+        long stopA = fx.stop(academyId, "37.500000", "127.000000");
+        long stopB = fx.stop(academyId, "37.501000", "127.001000");
+        long stopC = fx.stop(academyId, "37.502000", "127.002000");
+        fx.route(academyId, busId, Weekday.TUE, Direction.TO_ACADEMY, stopA, stopB, stopC);
+        long studentA = fx.student(academyId, "학생A");
+        long studentB = fx.student(academyId, "학생B");
+        long studentC = fx.student(academyId, "학생C");
+        fx.verifiedAddress(studentA, stopA, Weekday.TUE, Direction.TO_ACADEMY, "37.500000", "127.000000");
+        fx.verifiedAddress(studentB, stopB, Weekday.TUE, Direction.TO_ACADEMY, "37.501000", "127.001000");
+        fx.verifiedAddress(studentC, stopC, Weekday.TUE, Direction.TO_ACADEMY, "37.502000", "127.002000");
+        LocalDate serviceDate = LocalDate.parse(SERVICE_DATE);
+        OffsetDateTime departTime = OffsetDateTime.parse("2031-07-01T08:00:00+09:00");
+        long confirmedRunId = fx.confirmedRun(academyId, busId, serviceDate, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        jdbcTemplate.update("UPDATE run_rider SET status = 'absent' WHERE run_id = ? AND student_id = ?",
+                confirmedRunId, studentC);
+        entityManager.clear(); // 확정이 이미 올려 둔 명단 엔티티가 방금 바꾼 상태를 가리지 않게
+
+        long idleBusId = fx.bus(academyId);
+        long idleRunId = fx.idleRun(academyId, idleBusId, serviceDate, Direction.FROM_ACADEMY,
+                departTime.plusHours(10), departTime.plusHours(10).minusMinutes(30));
+
+        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.ESCORT, "인원동승자");
+        fx.assign(confirmedRunId, manager.managerId(), ManagerRole.ESCORT);
+        fx.assign(idleRunId, manager.managerId(), ManagerRole.ESCORT);
+
+        MvcResult result = mockMvc
+                .perform(get("/api/v1/manager/runs").param("date", SERVICE_DATE).header("Authorization",
+                        토큰(manager.accountId(), academyId, Role.ESCORT)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String body = 본문(result);
+        String plateNo = busRepository.findById(busId).orElseThrow().getPlateNo();
+        String confirmed = "$.data.items[?(@.run_id == '%d')]".formatted(confirmedRunId);
+        assertThat(JsonPath.<java.util.List<Object>>read(body, confirmed + ".plate_no")).containsExactly(plateNo);
+        assertThat(JsonPath.<java.util.List<Object>>read(body, confirmed + ".rider_count")).containsExactly(2);
+        assertThat(JsonPath.<java.util.List<Object>>read(body, confirmed + ".absent_count")).containsExactly(1);
+        assertThat(JsonPath.<java.util.List<Object>>read(body, confirmed + ".stop_count")).containsExactly(3);
+
+        String idle = "$.data.items[?(@.run_id == '%d')]".formatted(idleRunId);
+        assertThat(JsonPath.<java.util.List<Object>>read(body, idle + ".plate_no"))
+                .containsExactly(busRepository.findById(idleBusId).orElseThrow().getPlateNo());
+        for (String field : new String[] { ".rider_count", ".absent_count", ".stop_count" }) {
+            assertThat(JsonPath.<java.util.List<Object>>read(body, idle + field)).containsExactly((Object) null);
+        }
     }
 
     @Test
