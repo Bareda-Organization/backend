@@ -1,5 +1,6 @@
 package src.backend.academy.dto;
 
+import java.time.OffsetDateTime;
 import java.util.Locale;
 
 import src.backend.academy.entity.AcademyStaff;
@@ -10,15 +11,16 @@ import src.backend.account.entity.Account;
  *
  * <p>연락처를 마스킹하지 않는다 — 마스킹 대상은 매니저 앱 응답이고 메인 관리자 콘솔은 원문이다(§1.12).
  *
+ * @param lastLoginAt 마지막 로그인 시각 — 로그인한 적 없으면 {@code null}(§6.3, Ruling 806)
  * @param status 재직 상태. {@code account.status}(계정 상태)가 아니라 {@code academy_staff.status} 다 —
  *               둘은 생명주기가 달라, 계정은 살아 있는데 그 학원에서는 퇴사한 상태가 존재한다
  */
 public record AcademyStaffAccountResponse(Long accountId, String name, String loginId, String phone,
-        String status) {
+        OffsetDateTime lastLoginAt, String status) {
 
     /** 관계자 행과 계정을 합쳐 §6.3 {@code staff_accounts[]} 항목 하나로 조립한다. */
     public static AcademyStaffAccountResponse from(AcademyStaff staff, Account account) {
         return new AcademyStaffAccountResponse(account.getId(), account.getName(), account.getLoginId(),
-                account.getPhone(), staff.getStatus().name().toLowerCase(Locale.ROOT));
+                account.getPhone(), account.getLastLoginAt(), staff.getStatus().name().toLowerCase(Locale.ROOT));
     }
 }

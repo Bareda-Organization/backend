@@ -51,7 +51,7 @@ public interface RunRepository extends JpaRepository<Run, Long> {
 
     /**
      * 한 학원에서 그 상태인 회차 목록 — 지금은 {@code MOVING} 하나만 호출부(데모 시뮬레이터의 운행 중 버스 판정)가
-     * 넘긴다. 학원 상세의 "운행 중 차량 수" 는 날짜 범위가 필요해 {@link #countBusesByStatusFromServiceDate} 로 옮겨 갔다(BR-315).
+     * 넘긴다. 학원 상세의 "운행 중 차량 수" 는 날짜 범위가 필요해 {@link #findBusNosByStatusFromServiceDate} 로 옮겨 갔다(BR-315).
      * §6.8 메인 관리자 관제는 <b>이 메서드를 쓰지 않는다</b> — 오늘 회차를 상태 무관 전부 반환하도록
      * 바뀌며(Ruling 315) 날짜 조건이 있는 {@code findAllByAcademyIdAndServiceDateOrderByDepartTimeAsc}
      * 로 옮겨 갔다. 상태 조건을 고정하지 않고 파라미터로 두는 이유는 서비스 계층이 "운행 중" 이라는
@@ -60,15 +60,17 @@ public interface RunRepository extends JpaRepository<Run, Long> {
     List<Run> findAllByAcademyIdAndStatusOrderByDepartTimeAsc(Long academyId, RunStatus status);
 
     /**
-     * 한 학원에서 그 상태인 미취소 회차가 있는 <b>차량 수</b>(학원 상세 {@code stats.moving_bus_count}, §6.3) — 운행일이
+     * 한 학원에서 그 상태인 미취소 회차가 있는 <b>차량의 호차 이름</b>(학원 상세 {@code stats.moving_bus_nos[]}, §6.3 · Ruling 806) — 운행일이
      * {@code since} 이후인 회차만 센다. {@code since} 는 {@code MovingRunWindowPolicy#earliestServiceDate} 라
      * 근접 판정·유실 집계·노선 잠금과 같은 범위다(R46-KFIXBE K-1, Ruling 701) — 그보다 이른 {@code moving} 회차는 끝나지 않은 회차로
-     * {@link #countStaleMoving} 이 센다. 차량이 같으면 한 번만 센다(회차 수가 아니다, BR-057).
+     * {@link #countStaleMoving} 이 센다. 차량이 같으면 한 번만 나온다(회차 수가 아니다, BR-057). 호차 이름은 학원 안에서 유일하다
+     * ({@code uk_bus_academy_bus_no}) — 그래서 이 목록의 크기가 곧 {@code moving_bus_count} 이고, 두 값이 같은 범위일 수밖에 없다.
      */
-    @Query("SELECT COUNT(DISTINCT r.busId) FROM Run r WHERE r.academyId = :academyId AND r.status = :status "
-            + "AND r.canceledAt IS NULL AND r.serviceDate >= :since")
-    long countBusesByStatusFromServiceDate(@Param("academyId") Long academyId, @Param("status") RunStatus status,
-            @Param("since") LocalDate since);
+    @Query("SELECT DISTINCT b.busNo FROM Run r JOIN Bus b ON b.id = r.busId AND b.academyId = r.academyId "
+            + "WHERE r.academyId = :academyId AND r.status = :status "
+            + "AND r.canceledAt IS NULL AND r.serviceDate >= :since ORDER BY b.busNo")
+    List<String> findBusNosByStatusFromServiceDate(@Param("academyId") Long academyId,
+            @Param("status") RunStatus status, @Param("since") LocalDate since);
 
     /**
      * 임시 취소·배치 대상 회차 1건(SCH-03 · MGR-05, §5.10·§5.14) — 학원이 어긋나면 빈 결과이고

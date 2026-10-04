@@ -22,6 +22,9 @@ import src.backend.academy.entity.AcademyStatus;
  */
 public interface AcademyRepository extends JpaRepository<Academy, Long> {
 
+    /** 상태별 학원 수(API_SPEC §6.1 {@code summary}) — 목록 필터·쪽과 무관한 전체 값이라 조건 없이 센다. */
+    long countByStatus(AcademyStatus status);
+
     /** 학원 코드 중복 확인 — 자동 생성기가 충돌을 흡수하려면 후보값의 사용 여부를 먼저 알아야 한다(ACAD-02). */
     boolean existsByCode(String code);
 

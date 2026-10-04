@@ -164,6 +164,15 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     Page<Account> findStaffAccountsForConsole(Pageable pageable);
 
     /**
+     * 전 학원 소속 사용자 수(API_SPEC §6.1 {@code summary.user_count}) — {@link #countByAcademyIdInGroupedByAcademyId} 와 같은 역할·상태
+     * 기준을 학원 구분 없이 한 번에 센다. 역할 4종은 학원 소속이 필수라(ck_account_academy_scope) 메인 관리자는 섞이지 않는다.
+     */
+    @AcademyScopeExempt(reason = "§6.1 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
+            + "summary 는 목록 필터·쪽과 무관한 전 학원 합계라 학원으로 좁히면 값의 뜻이 사라진다. 예외 판정은 컨트롤러의 "
+            + "@CanManageAcademy 하나다")
+    long countByRoleInAndStatusIn(Collection<Role> roles, Collection<AccountStatus> statuses);
+
+    /**
      * 특정 역할·상태의 계정 전부(Phase 11 T2, EXC-04) — 비상 알림이 메인 관리자 전원에게 설정과
      * 무관하게 동시 도달해야 하는데(목표 6), 메인관리자는 {@code academy_staff} 소속이 없어
      * {@link src.backend.academy.repository.AcademyStaffRepository#findActiveAccountsByAcademyId} 로

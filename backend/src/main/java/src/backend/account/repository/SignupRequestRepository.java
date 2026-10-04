@@ -1,5 +1,7 @@
 package src.backend.account.repository;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 import jakarta.persistence.LockModeType;
@@ -14,6 +16,7 @@ import org.springframework.data.repository.query.Param;
 import src.backend.account.entity.ApproverType;
 import src.backend.account.entity.SignupRequest;
 import src.backend.account.entity.SignupRequestStatus;
+import src.backend.global.persistence.AcademyCount;
 import src.backend.global.security.access.AcademyScopeExempt;
 
 /** {@link SignupRequest} 영속성 접근. */
@@ -56,6 +59,17 @@ public interface SignupRequestRepository extends JpaRepository<SignupRequest, Lo
      */
     long countByAcademyIdAndApproverTypeAndStatus(Long academyId, ApproverType approverType,
             SignupRequestStatus status);
+
+    /**
+     * 학원별 대기 중 가입 요청 수(API_SPEC §6.1 {@code pending_signup_count} · §6.6 {@code academy_pending_signup_count}) —
+     * 한 페이지의 학원 전부를 한 번에 센다. 학원마다 {@link #countByAcademyIdAndApproverTypeAndStatus} 를 부르면 한 페이지(최대
+     * 100건)가 질의 100건이 된다. 요청이 없는 학원은 행이 나오지 않으므로 호출부가 0 으로 채운다.
+     */
+    @Query("SELECT r.academyId AS academyId, COUNT(r) AS total FROM SignupRequest r "
+            + "WHERE r.academyId IN :academyIds AND r.approverType = :approverType AND r.status = :status "
+            + "GROUP BY r.academyId")
+    List<AcademyCount> countByAcademyIdInGroupedByAcademyId(@Param("academyIds") Collection<Long> academyIds,
+            @Param("approverType") ApproverType approverType, @Param("status") SignupRequestStatus status);
 
     /**
      * 메인 관리자가 보는 관계자 가입 요청 목록(API_SPEC §6.4) — 전 학원 범위다.

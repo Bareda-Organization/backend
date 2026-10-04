@@ -10,17 +10,20 @@ import src.backend.academy.entity.Academy;
  * @param staffCount 재직 관계자 수(정원 1명). 퇴사 행은 세지 않는다 — 목록에서 "관계자가 없는 학원"을
  *                   가려내는 것이 이 값의 쓰임이고, 퇴사자를 세면 그 판정이 뒤집힌다
  * @param userCount  소속 사용자 수 — 학부모·학생·기사·동승자 계정 합계
+ * @param hasAddress 주소 등록 여부 — 주소 없는 학원은 회차 확정이 전부 실패해(Ruling 450) 목록에서 바로 가려낸다(Ruling 806)
+ * @param pendingSignupCount 그 학원의 대기 중 관계자 가입 요청 수(§6.4, Ruling 806)
  * @param status     {@code active} · {@code inactive}. enum 이 아니라 소문자 문자열인 것은 사양이
  *                   그 형태를 정하기 때문이다(§6.1) — enum 을 그대로 직렬화하면 상수 이름(대문자)이
  *                   나가 계약과 어긋난다. 이 저장소의 다른 응답 DTO 도 같은 형태다
  */
 public record AcademySummaryResponse(Long id, String code, String name, String region,
-        long staffCount, long userCount, String status) {
+        long staffCount, long userCount, String status, boolean hasAddress, long pendingSignupCount) {
 
     /** 학원 엔티티와 집계값을 §6.1 목록 항목 하나로 조립한다. */
-    public static AcademySummaryResponse from(Academy academy, long staffCount, long userCount) {
+    public static AcademySummaryResponse from(Academy academy, long staffCount, long userCount,
+            long pendingSignupCount) {
         return new AcademySummaryResponse(academy.getId(), academy.getCode(), academy.getName(),
                 academy.getRegion(), staffCount, userCount,
-                academy.getStatus().name().toLowerCase(Locale.ROOT));
+                academy.getStatus().name().toLowerCase(Locale.ROOT), academy.hasAddress(), pendingSignupCount);
     }
 }
