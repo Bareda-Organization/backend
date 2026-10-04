@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
@@ -17,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.academy.entity.Academy;
 import src.backend.academy.repository.AcademyRepository;
+import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
 import src.backend.audit.dto.AuditLogItemResponse;
 import src.backend.audit.entity.AuditAction;
@@ -70,8 +72,9 @@ public class AuditLogQueryService {
                 PageParams.of(filter.page(), filter.size()).toPageable(ORDER));
 
         Map<Long, String> academyNames = academyNamesOf(result.getContent());
-        return PageResponse.of(result,
-                result.getContent().stream().map(log -> toItem(log, academyNames.get(log.getAcademyId()))).toList());
+        ActorNames actorNames = actorNamesOf(result.getContent());
+        return PageResponse.of(result, result.getContent().stream()
+                .map(log -> toItem(log, academyNames.get(log.getAcademyId()), actorNames.of(log))).toList());
     }
 
     private static List<AuditAction> actionsOf(String action) {
@@ -94,9 +97,44 @@ public class AuditLogQueryService {
         }
     }
 
-    private AuditLogItemResponse toItem(AuditLog log, String academyName) {
-        return new AuditLogItemResponse(log.getActorLoginId(), lower(log.getAction().name()), log.getTargetType(),
-                log.getTargetId(), academyName, log.getOccurredAt());
+    private AuditLogItemResponse toItem(AuditLog log, String academyName, String actorName) {
+        return new AuditLogItemResponse(log.getActorLoginId(), actorName, lower(log.getAction().name()),
+                detailActionOf(log), log.getTargetType(), log.getTargetId(), academyName, log.getIp(),
+                log.getOccurredAt());
+    }
+
+    /** 감사 행 {@code detail.action} 원문(Ruling 260 — 구별 문자열은 detail 에 둔다). 없거나 문자열이 아니면 {@code null}. */
+    private static String detailActionOf(AuditLog log) {
+        Object action = log.getDetail() == null ? null : log.getDetail().get("action");
+        return action instanceof String text ? text : null;
+    }
+
+    /**
+     * 행위자 계정의 <b>현재</b> 이름을 한 페이지분 한 번에 모은다 — 행마다 찾으면 질의가 페이지 크기만큼 늘어난다. 감사 행에 계정 id 가
+     * 있으면 그것으로, 없으면 로그인 아이디 스냅샷으로 찾는다(Ruling 809).
+     */
+    private ActorNames actorNamesOf(List<AuditLog> logs) {
+        List<Long> ids = logs.stream().map(AuditLog::getActorAccountId).filter(Objects::nonNull).distinct().toList();
+        List<String> loginIds = logs.stream().filter(log -> log.getActorAccountId() == null)
+                .map(AuditLog::getActorLoginId).filter(Objects::nonNull).distinct().toList();
+        Map<Long, String> byId = ids.isEmpty() ? Map.of() : accountRepository.findAllByIdIn(ids).stream()
+                .collect(Collectors.toMap(Account::getId, Account::getName));
+        Map<String, String> byLoginId = loginIds.isEmpty() ? Map.of() : accountRepository.findAllByLoginIdIn(loginIds)
+                .stream().collect(Collectors.toMap(Account::getLoginId, Account::getName));
+        return new ActorNames(byId, byLoginId);
+    }
+
+    /** 한 페이지의 행위자 이름 조회 결과 — 계정 id 로 찾은 것과 로그인 아이디로 찾은 것. */
+    private record ActorNames(Map<Long, String> byId, Map<String, String> byLoginId) {
+
+        /** 그 행의 행위자 현재 이름 — 계정 id 가 있으면 id 로만 보고(계정이 없으면 {@code null}), 없을 때만 로그인 아이디로 본다. */
+        String of(AuditLog log) {
+            if (log.getActorAccountId() != null) {
+                return byId.get(log.getActorAccountId());
+            }
+            // Map.of() 는 null 키 조회가 NPE 라 로그인 아이디 스냅샷이 없는 행을 먼저 거른다
+            return log.getActorLoginId() == null ? null : byLoginId.get(log.getActorLoginId());
+        }
     }
 
     /**

@@ -154,6 +154,14 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     long countByRoleInAndStatusIn(Collection<Role> roles, Collection<AccountStatus> statuses);
 
     /**
+     * 로그인 아이디 여럿의 계정을 한 번에 가져온다(API_SPEC §6.13 {@code actor_name} — 감사 행이 계정 id 를 못 남긴 경우의 대체 경로).
+     */
+    @AcademyScopeExempt(reason = "§6.13 메인 관리자 콘솔 — 감사 이력은 전 학원 범위이고 행위자는 어느 학원의 계정이든 될 수 있어 "
+            + "학원으로 좁히면 화면이 성립하지 않는다. 로그인 아이디는 전 학원 통틀어 유일하다(existsByLoginId). 호출부가 감사 행에서 읽은 "
+            + "값만 넘긴다는 전제 — 요청 파라미터를 직접 넘기면 임의 계정의 이름을 읽는 통로가 된다. 예외 판정은 컨트롤러의 @CanReadAudit 하나다")
+    List<Account> findAllByLoginIdIn(Collection<String> loginIds);
+
+    /**
      * 특정 역할·상태의 계정 전부(Phase 11 T2, EXC-04) — 비상 알림이 메인 관리자 전원에게 설정과
      * 무관하게 동시 도달해야 하는데(목표 6), 메인관리자는 {@code academy_staff} 소속이 없어
      * {@link src.backend.academy.repository.AcademyStaffRepository#findActiveAccountsByAcademyId} 로
