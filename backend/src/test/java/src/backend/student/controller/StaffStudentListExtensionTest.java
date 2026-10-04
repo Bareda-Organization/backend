@@ -34,7 +34,7 @@ import src.backend.global.security.JwtTokenProvider;
  * 학원 전체 값), 그리고 쿼리 수가 학생 수에 비례하지 않는지를 본다. 시드 학생이 섞이지 않게 시험이 만든 학생은 이름 머리글로
  * 찾고, 학원 전체 값은 심기 전후의 차이로 본다.
  */
-@SpringBootTest
+@SpringBootTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @AutoConfigureMockMvc
 @Transactional
 class StaffStudentListExtensionTest {
@@ -133,6 +133,7 @@ class StaffStudentListExtensionTest {
         long 하나 = 심는다("R48Q학생0", "초1", false, "R48Q반");
         주소를_심는다(하나, "mon", "to_academy");
         long 한명 = 쿼리_수("q=R48Q&size=100");
+        assertThat(한명).as("통계가 꺼져 있으면 0 이라 비교가 빈 시험이 된다").isPositive();
 
         for (int i = 1; i <= 5; i++) {
             long 학생 = 심는다("R48Q학생" + i, "초1", false, "R48Q반");
