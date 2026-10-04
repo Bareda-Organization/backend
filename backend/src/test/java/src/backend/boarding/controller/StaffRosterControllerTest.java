@@ -43,6 +43,9 @@ import src.backend.routing.repository.RouteStopRepository;
 import src.backend.run.command.Phase9RosterFixtures;
 import src.backend.run.command.RunConfirmationFixtures;
 import src.backend.run.command.RunConfirmationService;
+import src.backend.routing.entity.ConfirmedRoute;
+import src.backend.routing.repository.ConfirmedRouteRepository;
+import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
@@ -121,6 +124,12 @@ class StaffRosterControllerTest {
 
     @Autowired
     private RunTransferRepository runTransferRepository;
+
+    @Autowired
+    private ConfirmedRouteRepository confirmedRouteRepository;
+
+    @Autowired
+    private RunStopRepository runStopRepository;
 
     private Phase9RosterFixtures fixtures() {
         RunConfirmationFixtures base = new RunConfirmationFixtures(academyRepository, busRepository, routeRepository,
@@ -201,6 +210,57 @@ class StaffRosterControllerTest {
         assertThat((String) JsonPath.read(body, "$.data[0].status")).isEqualTo("waiting");
         assertThat((Object) JsonPath.read(body, "$.data[0].change")).isNull();
         assertThat((String) JsonPath.read(body, "$.data[0].guardian_phone")).isEqualTo("010-2345-8814");
+    }
+
+    /** 확정 회차 행의 {@code stop_id}·{@code stop_seq} 는 그 승하차지의 정차 항목(run_stop) id·순번이다(§5.4, Ruling 811). */
+    @Test
+    void 확정_회차_행은_정차_항목_id와_순번을_싣는다() throws Exception {
+        Phase9RosterFixtures fx = fixtures();
+        long academyId = fx.academyWithCoordinates();
+        long busId = fx.bus(academyId);
+        long firstStopId = fx.stop(academyId, "37.500000", "127.000000");
+        long secondStopId = fx.stop(academyId, "37.510000", "127.010000");
+        fx.route(academyId, busId, Weekday.THU, Direction.TO_ACADEMY, firstStopId, secondStopId);
+        long firstStudentId = fx.student(academyId, "첫째정차");
+        long secondStudentId = fx.student(academyId, "둘째정차");
+        fx.verifiedAddress(firstStudentId, firstStopId, Weekday.THU, Direction.TO_ACADEMY, "37.500000", "127.000000");
+        fx.verifiedAddress(secondStudentId, secondStopId, Weekday.THU, Direction.TO_ACADEMY, "37.510000", "127.010000");
+        OffsetDateTime departTime = OffsetDateTime.parse("2031-07-03T08:00:00+09:00");
+        long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY,
+                departTime, departTime.minusMinutes(30));
+        long staffAccountId = 관계자_계정을_만든다(academyId);
+        long versionId = confirmedRouteRepository.findById(runId).map(ConfirmedRoute::getCurrentVersionId).orElseThrow();
+
+        String body = 명단을_읽는다(runId, staffAccountId, academyId);
+
+        for (long studentId : new long[] {firstStudentId, secondStudentId}) {
+            long stopId = studentId == firstStudentId ? firstStopId : secondStopId;
+            var runStop = runStopRepository.findByRouteVersionIdAndStopId(versionId, stopId).orElseThrow();
+            String row = "$.data[?(@.student_id=='" + studentId + "')]";
+            assertThat((List<String>) JsonPath.read(body, row + ".stop_id")).containsExactly(String.valueOf(runStop.getId()));
+            assertThat((List<Integer>) JsonPath.read(body, row + ".stop_seq")).containsExactly(runStop.getSeq());
+        }
+    }
+
+    /** 확정 전(idle) 예정 명단은 정차 항목이 없어 {@code stop_id}·{@code stop_seq} 가 {@code null} 이다(§5.4, Ruling 811). */
+    @Test
+    void 확정_전_예정_명단은_정차_항목_id와_순번이_null_이다() throws Exception {
+        Phase9RosterFixtures fx = fixtures();
+        long academyId = fx.academyWithCoordinates();
+        long busId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.500000", "127.000000");
+        fx.route(academyId, busId, Weekday.THU, Direction.TO_ACADEMY, stopId);
+        long studentId = fx.student(academyId, "예정학생");
+        fx.verifiedAddress(studentId, stopId, Weekday.THU, Direction.TO_ACADEMY, "37.500000", "127.000000");
+        long runId = 확정_전_회차(fx, academyId, busId);
+        long staffAccountId = 관계자_계정을_만든다(academyId);
+
+        String body = 명단을_읽는다(runId, staffAccountId, academyId);
+
+        assertThat((List<?>) JsonPath.read(body, "$.data")).hasSize(1);
+        assertThat((Object) JsonPath.read(body, "$.data[0].stop_id")).isNull();
+        assertThat((Object) JsonPath.read(body, "$.data[0].stop_seq")).isNull();
+        assertThat((String) JsonPath.read(body, "$.data[0].stop_name")).isEqualTo("정차지37.500000");
     }
 
     /** 탑승 OFF(riding=false) 학생은 예정 명단에 넣지 않는다. */

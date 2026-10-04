@@ -193,10 +193,28 @@ public class RosterQueryService {
         List<Long> stopIds = riders.stream().map(RunRider::getStopId).distinct().toList();
         Map<Long, Stop> stopsById = stopRepository.findAllByAcademyIdAndIdIn(run.getAcademyId(), stopIds).stream()
                 .collect(Collectors.toMap(Stop::getId, stop -> stop));
+        Map<Long, RunStop> runStopsByStopId = runStopsByStopId(run);
         return riders.stream()
                 .map(rider -> toStaffItem(rider, studentsById.get(rider.getStudentId()), stopsById.get(rider.getStopId()),
-                        rawPhonesById.get(rider.getStudentId())))
+                        runStopsByStopId.get(rider.getStopId()), rawPhonesById.get(rider.getStudentId())))
                 .toList();
+    }
+
+    /**
+     * 확정 노선의 현재 버전에서 승하차지 id → 정차 항목(run_stop)을 찾는 표 — 관계자 명단 행의 {@code stop_id}·{@code stop_seq}
+     * 출처다(§5.4, Ruling 811). 학원은 요청자가 아니라 회차 소속이다(메인 관리자 토큰은 학원 id 가 없다).
+     */
+    private Map<Long, RunStop> runStopsByStopId(Run run) {
+        Long currentVersionId = confirmedRouteRepository.findById(run.getId())
+                .map(ConfirmedRoute::getCurrentVersionId)
+                .orElse(null);
+        if (currentVersionId == null) {
+            return Map.of();
+        }
+        return runStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeq(currentVersionId, run.getAcademyId())
+                .stream()
+                .filter(runStop -> runStop.getStopId() != null)
+                .collect(Collectors.toMap(RunStop::getStopId, runStop -> runStop, (first, duplicate) -> first));
     }
 
     /**
@@ -226,7 +244,7 @@ public class RosterQueryService {
                     Student student = studentsById.get(studentId);
                     Stop stop = stopsById.get(planned.studentStops().get(studentId));
                     return new StaffRosterItemResponse(studentId, student.getName(), student.getClassName(),
-                            stop == null ? null : stop.getName(), rawPhonesById.get(studentId),
+                            stop == null ? null : stop.getName(), null, null, rawPhonesById.get(studentId),
                             planned.addedStudentIds().contains(studentId) ? lower(ChangeType.ADDED.name()) : null,
                             lower(RiderStatus.WAITING.name()), student.getNote(), transferIdsByStudent.get(studentId));
                 })
@@ -289,9 +307,11 @@ public class RosterQueryService {
                 rider.getStatus() == RiderStatus.NO_SHOW ? countdown : null);
     }
 
-    private StaffRosterItemResponse toStaffItem(RunRider rider, Student student, Stop stop, String rawPhone) {
+    private StaffRosterItemResponse toStaffItem(RunRider rider, Student student, Stop stop, RunStop runStop,
+            String rawPhone) {
         return new StaffRosterItemResponse(rider.getStudentId(), student.getName(), student.getClassName(),
-                stop == null ? null : stop.getName(), rawPhone,
+                stop == null ? null : stop.getName(), runStop == null ? null : runStop.getId(),
+                runStop == null ? null : runStop.getSeq(), rawPhone,
                 rider.getChange() == null ? null : lower(rider.getChange().name()), lower(rider.getStatus().name()),
                 student.getNote(), null);
     }
