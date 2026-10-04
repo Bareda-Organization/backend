@@ -158,6 +158,62 @@ class AdminRunAttentionControllerTest {
                 .andExpect(jsonPath("$.data.items[?(@.academy_id == %d)]".formatted(quietAcademy)).isEmpty());
     }
 
+    /**
+     * §6.15 {@code today[]}(Ruling 805) — {@code items[]} 와 달리 문제 없는 학원·비활성 학원도 싣고, 회차 상태별 수(취소 제외)와
+     * 같은 정의의 지연·확정 실패 수를 학원 식별자 오름차순으로 준다.
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    void today_는_문제_없는_학원과_비활성_학원까지_상태별_회차_수와_함께_싣는다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long busyAcademy = fixtures.academy();
+        long quietAcademy = fixtures.academy();
+        long emptyAcademy = fixtures.academy();
+        long senderId = fixtures.staffAccount(busyAcademy, "발신자");
+        long adminId = fixtures.systemAdminAccount("메인관리자");
+
+        회차(fixtures, busyAcademy, TODAY, 0, "idle", false);
+        회차(fixtures, busyAcademy, TODAY, 2, "idle", false); // 확정 실패
+        회차(fixtures, busyAcademy, TODAY, 0, "confirmed", false);
+        지연_알림(회차(fixtures, busyAcademy, TODAY, 0, "moving", false), senderId); // 지연
+        회차(fixtures, busyAcademy, TODAY, 0, "moving", false);
+        회차(fixtures, busyAcademy, TODAY, 0, "finished", false);
+        회차(fixtures, busyAcademy, TODAY, 0, "idle", true); // 취소 — run_count 에도 by_status 에도 안 든다
+        회차(fixtures, busyAcademy, TODAY.minusDays(1), 0, "moving", false); // 어제 — 오늘 요약이 아니다
+        회차(fixtures, quietAcademy, TODAY, 0, "finished", false);
+        academyRepository.findById(quietAcademy).orElseThrow().changeStatus(src.backend.academy.entity.AcademyStatus.INACTIVE);
+        academyRepository.flush();
+
+        String body = mockMvc.perform(get(ATTENTION).header("Authorization", 메인관리자_토큰(adminId)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        List<Map<String, Object>> busy = JsonPath.read(body, "$.data.today[?(@.academy_id == %d)]".formatted(busyAcademy));
+        assertThat(busy).singleElement().satisfies(row -> {
+            assertThat(row).containsEntry("academy_status", "active").containsEntry("run_count", 6)
+                    .containsEntry("delayed_runs", 1).containsEntry("confirm_failed_runs", 1);
+            assertThat((Map<String, Object>) row.get("by_status")).containsEntry("idle", 2)
+                    .containsEntry("confirmed", 1).containsEntry("moving", 2).containsEntry("finished", 1);
+            assertThat(row.get("academy_name")).isNotNull();
+        });
+        List<Map<String, Object>> quiet = JsonPath.read(body, "$.data.today[?(@.academy_id == %d)]".formatted(quietAcademy));
+        assertThat(quiet).singleElement().satisfies(row -> {
+            assertThat(row).containsEntry("academy_status", "inactive").containsEntry("run_count", 1)
+                    .containsEntry("delayed_runs", 0).containsEntry("confirm_failed_runs", 0);
+            assertThat((Map<String, Object>) row.get("by_status")).containsEntry("finished", 1)
+                    .containsEntry("idle", 0).containsEntry("confirmed", 0).containsEntry("moving", 0);
+        });
+        List<Map<String, Object>> empty = JsonPath.read(body, "$.data.today[?(@.academy_id == %d)]".formatted(emptyAcademy));
+        assertThat(empty).singleElement().satisfies(row -> assertThat(row).containsEntry("run_count", 0));
+
+        // 학원 식별자 오름차순, 그리고 문제 없는 학원은 기존 items[] 에는 여전히 없다
+        List<Object> ids = JsonPath.read(body, "$.data.today[*].academy_id");
+        List<Long> asLongs = ids.stream().map(id -> Long.valueOf(id.toString())).toList();
+        assertThat(asLongs).isSorted();
+        assertThat(JsonPath.<List<Object>>read(body, "$.data.items[?(@.academy_id == %d)]".formatted(quietAcademy)))
+                .isEmpty();
+    }
+
     @Test
     void 메인_관리자가_아니면_403_이다() throws Exception {
         EmergencyFixtures fixtures = fixtures();

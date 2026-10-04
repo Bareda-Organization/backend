@@ -369,6 +369,16 @@ public interface RunRepository extends JpaRepository<Run, Long> {
     List<AcademyRunCount> countConfirmFailedByAcademy(@Param("today") LocalDate today);
 
     /**
+     * 학원·상태별로 <b>그날 미취소 회차</b> 수(§6.15 {@code today[]}, Ruling 805) — 전체 관제의 학원 레일·지표 칸이 학원마다 §6.8 을
+     * 부르지 않고 한 번에 읽는다. 회차가 없는 학원·상태는 행이 없다(호출부가 0 으로 채운다).
+     */
+    @AcademyScopeExempt(reason = "메인 관리자 전체 관제(§6.15 today[])가 전 학원을 학원·상태별로 묶어 세는 조회라 좁힐 학원이 부재하다 — "
+            + "countConfirmFailedByAcademy 와 같은 근거와 같은 호출부 전제")
+    @Query("SELECT r.academyId AS academyId, r.status AS status, COUNT(r) AS runCount FROM Run r "
+            + "WHERE r.serviceDate = :day AND r.canceledAt IS NULL GROUP BY r.academyId, r.status")
+    List<AcademyRunStatusCount> countByAcademyAndStatus(@Param("day") LocalDate day);
+
+    /**
      * 학원별로 <b>오늘 지연 알림이 나간 채 아직 끝나지 않은</b> 회차 수(§6.15, Ruling 543) — 임시 취소를 뺀 오늘
      * 회차 중 {@code finished} 가 아니고 {@code delay_notice} 가 1건 이상인 것. 알림이 여러 건이어도 회차는 한 번만
      * 센다({@code EXISTS}). 상태를 파라미터가 아니라 enum 리터럴로 쓰는 이유는 부분 인덱스
