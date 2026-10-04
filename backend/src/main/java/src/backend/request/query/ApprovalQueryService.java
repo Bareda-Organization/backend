@@ -3,6 +3,7 @@ package src.backend.request.query;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -17,16 +18,21 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.academy.entity.Academy;
 import src.backend.academy.repository.AcademyRepository;
+import src.backend.account.entity.Account;
+import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.BusRepository;
+import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.request.PageParams;
 import src.backend.global.security.AuthUser;
+import src.backend.manager.dto.AssignedManagerView;
+import src.backend.manager.repository.AssignmentRepository;
 import src.backend.request.assembly.RoutePreviewAssembler;
 import src.backend.request.domain.ChangeWindow;
 import src.backend.request.dto.AffectedStudentResponse;
@@ -108,6 +114,10 @@ public class ApprovalQueryService {
     private final RouteVersionRepository routeVersionRepository;
 
     private final RunStopRepository runStopRepository;
+
+    private final AccountRepository accountRepository;
+
+    private final AssignmentRepository assignmentRepository;
 
     private final RoutePreviewAssembler routePreviewAssembler;
 
@@ -206,11 +216,12 @@ public class ApprovalQueryService {
         Weekday weekday = Weekday.of(run.getServiceDate());
         List<RunRider> riders = runRiderRepository.findAllByRunIdAndAcademyId(run.getId(), academyId);
         ApprovalSummaryResponse summary = toSummary(cr, run, riders, academyId);
+        ApprovalDetailResponse.Decision decision = decisionOf(cr, run.getId(), academyId);
 
         Bus bus = busRepository.findByIdAndAcademyId(run.getBusId(), academyId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.BUS_NOT_FOUND));
         if (cr.getStatus() != ChangeRequestStatus.PENDING) {
-            return decidedDetailOf(summary, run, riders, bus);
+            return decidedDetailOf(summary, run, riders, bus, decision);
         }
         // ②구간 승인 대기 신청은 confirmAt 도래 즉시(ChangeWindowPolicy) 성립하지만, 회차의 실제
         // idle → confirmed 전이와 그때 함께 만들어지는 confirmed_route 는 30초 폴링 확정 배치가
@@ -276,7 +287,22 @@ public class ApprovalQueryService {
                 routePreviewAssembler.lastEtaOf(stopsBefore), routePreviewAssembler.lastEtaOf(stopsAfter),
                 currentVersion.getEstDistanceKm(), computation.estDistanceKm(), currentVersion.getEstDurationMin(),
                 computation.estDurationMin(), affectedStudents, capacity, previewResult.preview().token(),
-                previewResult.stale());
+                previewResult.stale(), decision);
+    }
+
+    /**
+     * 상세에 붙는 결정·배치 인력 묶음(Ruling 812) — 결정 시각·결정자는 요청 행 그대로({@code 대기} 는 둘 다 null, 자동 거절은
+     * 결정자 없음), 기사·동승자 이름은 그 회차의 현재 배치다(배치 전이면 null). 학원 조건은 두 조회에 각각 건다.
+     */
+    private ApprovalDetailResponse.Decision decisionOf(ChangeRequest cr, Long runId, Long academyId) {
+        String decidedByName = cr.getDecidedBy() == null ? null
+                : accountRepository.findByIdAndAcademyId(cr.getDecidedBy(), academyId).map(Account::getName)
+                        .orElse(null);
+        Map<ManagerRole, String> assignedNames = assignmentRepository.findAssignedManagers(academyId, List.of(runId))
+                .stream().collect(Collectors.toMap(AssignedManagerView::role, AssignedManagerView::name,
+                        (first, duplicate) -> first));
+        return new ApprovalDetailResponse.Decision(cr.getStatus().name().toLowerCase(Locale.ROOT), cr.getDecidedAt(),
+                decidedByName, assignedNames.get(ManagerRole.DRIVER), assignedNames.get(ManagerRole.ESCORT));
     }
 
     /**
@@ -299,11 +325,11 @@ public class ApprovalQueryService {
      * 는 인상을 줄 수 있어서다(보고서 후속 절 참고).
      */
     private ApprovalDetailResponse decidedDetailOf(ApprovalSummaryResponse summary, Run run, List<RunRider> riders,
-            Bus bus) {
+            Bus bus, ApprovalDetailResponse.Decision decision) {
         long assigned = riders.stream().filter(r -> r.getStatus() != RiderStatus.ABSENT).count();
         ApprovalCapacityResponse capacity = new ApprovalCapacityResponse(bus.getStudentCapacity(), (int) assigned);
         return ApprovalDetailResponse.of(summary, null, run.getDepartTime(), null, null, null, null, null, null,
-                List.of(), capacity, null, false);
+                List.of(), capacity, null, false, decision);
     }
 
     /** 요약 1건 — 목록(§5.5 목록)이 회차·명단을 매번 새로 읽어야 할 때 쓰는 얕은 진입점. */

@@ -19,6 +19,10 @@ import java.util.List;
  * <p>{@code departTime}(`R20-A`, 추가 계약)은 그 회차의 출발 예정 시각({@code run.depart_time})이다 —
  * 변경 신청이 출발 시각 자체를 옮기지 않으므로 <b>전/후로 나누지 않는다</b>. 결정된 건에서도 값이
  * 있다 — 회차의 출발 시각은 승인 여부와 무관하게 항상 정해져 있다.
+ *
+ * <p>{@code status}·{@code decidedAt}·{@code decidedByName}·{@code driverName}·{@code escortName}(R48,
+ * {@code Ruling 812})은 결정된 건을 다시 열었을 때 결과 띠와 배포 대상 인력을 그리는 값이다 — {@link Decision}
+ * 한 묶음으로 받아 펼친다. 자동 거절은 {@code decidedByName} 만 {@code null}, 대기 건은 결정 필드 둘 다 {@code null}.
  */
 public record ApprovalDetailResponse(
         Long approvalId,
@@ -43,17 +47,28 @@ public record ApprovalDetailResponse(
         List<AffectedStudentResponse> affectedStudents,
         ApprovalCapacityResponse capacity,
         String previewToken,
-        boolean previewStale) {
+        boolean previewStale,
+        String status,
+        OffsetDateTime decidedAt,
+        String decidedByName,
+        String driverName,
+        String escortName) {
+
+    /** 상세에만 더해지는 결정·배치 인력 묶음(Ruling 812) — {@link #of} 의 인자 수를 줄이려 한 덩어리로 받는다. */
+    public record Decision(String status, OffsetDateTime decidedAt, String decidedByName, String driverName,
+            String escortName) {
+    }
 
     public static ApprovalDetailResponse of(ApprovalSummaryResponse summary, RoutePreviewResponse routePreview,
             OffsetDateTime departTime, OffsetDateTime estTimeBefore, OffsetDateTime estTimeAfter,
             BigDecimal estDistanceBefore, BigDecimal estDistanceAfter, Integer estDurationBefore,
             Integer estDurationAfter, List<AffectedStudentResponse> affectedStudents,
-            ApprovalCapacityResponse capacity, String previewToken, boolean previewStale) {
+            ApprovalCapacityResponse capacity, String previewToken, boolean previewStale, Decision decision) {
         return new ApprovalDetailResponse(summary.approvalId(), summary.source(), summary.studentName(),
                 summary.runId(), summary.busNo(), summary.direction(), summary.deadlineAt(), summary.stopName(),
                 summary.remainingRiders(), summary.willRemoveStop(), summary.requestedAt(), routePreview, departTime,
                 estTimeBefore, estTimeAfter, estDistanceBefore, estDistanceAfter, estDurationBefore, estDurationAfter,
-                List.copyOf(affectedStudents), capacity, previewToken, previewStale);
+                List.copyOf(affectedStudents), capacity, previewToken, previewStale, decision.status(),
+                decision.decidedAt(), decision.decidedByName(), decision.driverName(), decision.escortName());
     }
 }

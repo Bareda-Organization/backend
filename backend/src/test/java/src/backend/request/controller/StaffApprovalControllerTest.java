@@ -26,14 +26,22 @@ import org.springframework.transaction.annotation.Transactional;
 import com.jayway.jsonpath.JsonPath;
 
 import src.backend.academy.repository.AcademyRepository;
+import src.backend.account.entity.Account;
+import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
+import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.security.JwtTokenProvider;
+import src.backend.manager.entity.Assignment;
+import src.backend.manager.entity.Manager;
+import src.backend.manager.entity.ManagerProfile;
+import src.backend.manager.repository.AssignmentRepository;
+import src.backend.manager.repository.ManagerRepository;
 import src.backend.request.entity.ChangeRequest;
 import src.backend.request.entity.ChangeRequestSource;
 import src.backend.request.entity.ChangeRequestType;
@@ -104,6 +112,15 @@ class StaffApprovalControllerTest {
 
     @Autowired
     private ChangeRequestRepository changeRequestRepository;
+
+    @Autowired
+    private AccountRepository accountRepository;
+
+    @Autowired
+    private ManagerRepository managerRepository;
+
+    @Autowired
+    private AssignmentRepository assignmentRepository;
 
     @MockitoSpyBean
     private RunRiderRepository runRiderRepository;
@@ -610,6 +627,64 @@ class StaffApprovalControllerTest {
                 .andExpect(jsonPath("$.data.capacity.assigned").value(3));
 
         verify(pipeline, times(0)).compute(any());
+    }
+
+    // ── R48 Ruling 812 — 상세가 status·결정 정보·배치 인력을 싣는다 ─────────────────────
+
+    /** 대기 건 상세 — {@code status=pending}, 결정 시각·결정자 둘 다 {@code null}, 배치된 기사 이름만 실리고 동승자는 {@code null}. */
+    @Test
+    void 대기_건_상세는_status가_pending이고_결정_필드가_null이며_배치_인력_이름을_싣는다() throws Exception {
+        시나리오 s = 확정된_회차와_승인_대기_건을_만든다();
+        인력을_배치한다(s.academyId, s.runId, ManagerRole.DRIVER, "기사A");
+
+        상세_조회(관계자_토큰(s.academyId), s.approvalId).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("pending"))
+                .andExpect(jsonPath("$.data.decided_at").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.decided_by_name").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.driver_name").value("기사A"))
+                .andExpect(jsonPath("$.data.escort_name").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    /** 결정된 건 상세 — 승인·거절은 결정 시각과 결정한 관계자 이름이 실리고, 자동 거절은 이름만 {@code null} 이다. */
+    @Test
+    void 결정된_건_상세는_결정_시각과_결정자_이름을_싣고_자동_거절은_이름만_null이다() throws Exception {
+        시나리오 s = 확정된_회차와_승인_대기_건을_만든다();
+        long 학생 = studentRepository.findAll().stream().filter(x -> x.getAcademyId() == s.academyId)
+                .findFirst().orElseThrow().getId();
+        long 관계자 = accountRepository.save(Account.forSignup(s.academyId, "r48approver" + s.academyId, "x", "김관계",
+                "010-0000-0000", null, Role.STAFF)).getId();
+        OffsetDateTime 결정시각 = OffsetDateTime.parse("2030-05-05T10:00:00+09:00");
+        long 승인건 = 결정된_건을_저장한다(s, 학생, request -> request.approve(관계자, 결정시각, null, null));
+        long 거절건 = 결정된_건을_저장한다(s, 학생, request -> request.reject(관계자, 결정시각, "마감 시간 경과"));
+        long 자동거절건 = 결정된_건을_저장한다(s, 학생, request -> request.autoReject(결정시각));
+        String 토큰 = 관계자_토큰(s.academyId);
+
+        상세_조회(토큰, 승인건).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("approved"))
+                .andExpect(jsonPath("$.data.decided_at").value(org.hamcrest.Matchers.startsWith("2030-05-05T10:00:00")))
+                .andExpect(jsonPath("$.data.decided_by_name").value("김관계"))
+                .andExpect(jsonPath("$.data.driver_name").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.escort_name").value(org.hamcrest.Matchers.nullValue()));
+        상세_조회(토큰, 거절건).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("rejected"))
+                .andExpect(jsonPath("$.data.decided_by_name").value("김관계"));
+        상세_조회(토큰, 자동거절건).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("auto_rejected"))
+                .andExpect(jsonPath("$.data.decided_at").value(org.hamcrest.Matchers.startsWith("2030-05-05T10:00:00")))
+                .andExpect(jsonPath("$.data.decided_by_name").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    private void 인력을_배치한다(long academyId, long runId, ManagerRole role, String name) {
+        Manager manager = managerRepository
+                .save(Manager.register(academyId, new ManagerProfile(name, "010-0000-0000", role, null)));
+        assignmentRepository.save(Assignment.uponAssignment(runId, manager.getId(), role, OffsetDateTime.now(), null));
+    }
+
+    private long 결정된_건을_저장한다(시나리오 s, long 학생, java.util.function.Consumer<ChangeRequest> 결정) {
+        ChangeRequest request = ChangeRequest.forRequest(s.academyId, s.runId, 학생, ChangeRequestSource.CHANGE_REQUEST,
+                ChangeRequestType.CANCEL, (short) 2, 학생, OffsetDateTime.now());
+        결정.accept(request);
+        return changeRequestRepository.save(request).getId();
     }
 
     // ── 격리·404 ──────────────────────────────────────────────────────────
