@@ -7,6 +7,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Limit;
@@ -16,6 +17,8 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.account.entity.Account;
+import src.backend.account.repository.AccountRepository;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.BusRepository;
 import src.backend.exception.dto.StaffReportItemResponse;
@@ -23,6 +26,7 @@ import src.backend.exception.dto.StaffReportListResponse;
 import src.backend.exception.entity.ExceptionReport;
 import src.backend.exception.entity.ExceptionReportType;
 import src.backend.exception.repository.ExceptionReportRepository;
+import src.backend.exception.repository.ReportHandledCounts;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.request.ApiValues;
@@ -40,8 +44,8 @@ import src.backend.student.repository.StudentRepository;
  *
  * <p>{@code student_name} 은 저장하지 않는다 — {@code type=guardian_absent} 일 때만 {@code run_rider_id}
  * 로 그 시점의 탑승자를 다시 조인해 채운다({@code ApprovalQueryService.toSummary} 와 같은 조회 시점
- * 조립 관례). {@code handled}·{@code handled_at} 은 항상 {@code false}·{@code null} 이다({@link
- * StaffReportItemResponse} javadoc 참고 — 처리 여부 컬럼이 없다).
+ * 조립 관례). 처리 여부는 {@code exception_report.handled_at}·{@code handled_by} 에서 읽고 처리자 이름만 조회
+ * 시점에 계정에서 조인한다(Ruling 814).
  *
  * <p>{@code date} 필터는 {@code reported_at} 의 날짜 성분이다 — {@code run.service_date} 가 아니다
  * ({@link ExceptionReportRepository#search} javadoc 근거). 학원 자정 경계는 {@link Clock#getZone()}
@@ -63,6 +67,8 @@ public class ExceptionReportQueryService {
 
     private final ManagerRepository managerRepository;
 
+    private final AccountRepository accountRepository;
+
     private final Clock clock;
 
     /**
@@ -74,10 +80,14 @@ public class ExceptionReportQueryService {
 
     private static final OffsetDateTime UNBOUNDED_TO = OffsetDateTime.parse("9999-12-31T23:59:59Z");
 
-    /** 목록(§5.20 목록) — {@code type}·{@code date}·{@code run_id} 전부 선택적, 페이지네이션 없음 — 최근 200건까지만 돌려준다(BR-228). */
-    public StaffReportListResponse list(AuthUser requester, String type, String date, Long runId) {
+    /**
+     * 목록(§5.20 목록) — {@code type}·{@code date}·{@code run_id}·{@code handled} 전부 선택적, 페이지네이션 없음 — 최근
+     * 200건까지만 돌려준다(BR-228). 최상위 {@code counts} 는 {@code handled} 만 뺀 같은 조건의 건수다(Ruling 814).
+     */
+    public StaffReportListResponse list(AuthUser requester, String type, String date, Long runId, String handled) {
         ExceptionReportType parsedType = ApiValues.reportType(type);
         LocalDate parsedDate = ApiValues.date(date);
+        Boolean parsedHandled = ApiValues.handledFilter(handled);
 
         OffsetDateTime from = UNBOUNDED_FROM;
         OffsetDateTime to = UNBOUNDED_TO;
@@ -89,8 +99,18 @@ public class ExceptionReportQueryService {
 
         // 페이징이 없어 행 수를 상한으로 자른다(BR-228) — 최근 보고부터 UNPAGED_LIST_MAX 건.
         List<ExceptionReport> reports = exceptionReportRepository.search(requester.academyId(), parsedType, runId,
-                from, to, Limit.of(PageParams.UNPAGED_LIST_MAX));
-        return StaffReportListResponse.of(toItems(reports, requester.academyId()));
+                from, to, parsedHandled, Limit.of(PageParams.UNPAGED_LIST_MAX));
+        ReportHandledCounts counts = exceptionReportRepository.countByHandled(requester.academyId(), parsedType,
+                runId, from, to);
+        return StaffReportListResponse.of(toItems(reports, requester.academyId()),
+                new StaffReportListResponse.Counts(counts.getHandled(), counts.getUnhandled()));
+    }
+
+    /** 처리 표시 응답(§5.20) — 보고 1건을 목록 항목 모양으로 조립한다. 남의 학원·없는 보고는 {@code 404 REPORT_NOT_FOUND}. */
+    public StaffReportItemResponse item(Long academyId, Long reportId) {
+        ExceptionReport report = exceptionReportRepository.findByIdAndAcademyId(reportId, academyId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.REPORT_NOT_FOUND));
+        return toItems(List.of(report), academyId).get(0);
     }
 
     /**
@@ -108,6 +128,10 @@ public class ExceptionReportQueryService {
                 .findAllByAcademyIdAndAccountIdIn(academyId,
                         reports.stream().map(ExceptionReport::getReportedBy).distinct().toList())
                 .stream().collect(Collectors.toMap(Manager::getAccountId, manager -> manager));
+        Map<Long, Account> handlersById = accountRepository
+                .findAllByAcademyIdAndIdIn(academyId, reports.stream().map(ExceptionReport::getHandledBy)
+                        .filter(Objects::nonNull).distinct().toList())
+                .stream().collect(Collectors.toMap(Account::getId, account -> account));
         Map<Long, RunRider> ridersById = runRiderRepository.findAllByRunIdInAndAcademyId(runIds, academyId).stream()
                 .collect(Collectors.toMap(RunRider::getId, rider -> rider));
         Map<Long, Student> studentsById = studentRepository
@@ -116,13 +140,14 @@ public class ExceptionReportQueryService {
                 .stream().collect(Collectors.toMap(Student::getId, student -> student));
 
         return reports.stream()
-                .map(report -> toItem(report, runsById, busesById, reportersByAccountId, ridersById, studentsById))
+                .map(report -> toItem(report, runsById, busesById, reportersByAccountId, handlersById, ridersById,
+                        studentsById))
                 .toList();
     }
 
     private StaffReportItemResponse toItem(ExceptionReport report, Map<Long, Run> runsById,
-            Map<Long, Bus> busesById, Map<Long, Manager> reportersByAccountId, Map<Long, RunRider> ridersById,
-            Map<Long, Student> studentsById) {
+            Map<Long, Bus> busesById, Map<Long, Manager> reportersByAccountId, Map<Long, Account> handlersById,
+            Map<Long, RunRider> ridersById, Map<Long, Student> studentsById) {
         Run run = required(runsById.get(report.getRunId()), "예외 보고의 회차가 없다 — runId=" + report.getRunId());
         Bus bus = required(busesById.get(run.getBusId()), "예외 보고의 버스가 없다 — busId=" + run.getBusId());
         Manager reporter = required(reportersByAccountId.get(report.getReportedBy()),
@@ -131,9 +156,12 @@ public class ExceptionReportQueryService {
                 ? studentNameOf(report.getRunRiderId(), ridersById, studentsById)
                 : null;
 
+        Account handler = report.isHandled() ? handlersById.get(report.getHandledBy()) : null;
+
         return new StaffReportItemResponse(report.getId(), lower(report.getType()), report.getMemo(),
-                report.getRunId(), bus.getBusNo(), studentName, reporter.getName(), report.getReportedAt(),
-                false, null);
+                report.getRunId(), bus.getBusNo(), studentName, reporter.getName(),
+                reporter.getRole().name().toLowerCase(Locale.ROOT), report.getReportedAt(), report.isHandled(),
+                report.getHandledAt(), handler == null ? null : handler.getName());
     }
 
     /** {@code guardian_absent} 보고의 대상 학생 이름 — {@code run_rider} → {@code student} 순서로 조인한다. */

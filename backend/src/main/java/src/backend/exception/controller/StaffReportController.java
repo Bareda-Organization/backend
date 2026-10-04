@@ -2,6 +2,8 @@ package src.backend.exception.controller;
 
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -11,6 +13,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.exception.command.ExceptionReportCommandService;
+import src.backend.exception.dto.StaffReportItemResponse;
 import src.backend.exception.dto.StaffReportListResponse;
 import src.backend.exception.query.ExceptionReportQueryService;
 import src.backend.global.config.ApiTags;
@@ -19,7 +23,7 @@ import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanReadReport;
 
 /**
- * 관계자 웹의 예외 보고 조회 API(API_SPEC §5.20).
+ * 관계자 웹의 예외 보고 조회·처리 표시 API(API_SPEC §5.20).
  *
  * <p>{@code type}·{@code date}·{@code run_id} 를 {@code @RequestParam} 에 손으로 적는다 — 쿼리
  * 파라미터는 요청 본문과 달리 Jackson {@code SNAKE_CASE} 전략을 거치지 않는다({@link
@@ -34,6 +38,8 @@ public class StaffReportController {
 
     private final ExceptionReportQueryService exceptionReportQueryService;
 
+    private final ExceptionReportCommandService exceptionReportCommandService;
+
     /** 예외 보고 목록(§5.20 목록) — 전부 선택적 필터, 페이지네이션 없음. */
     @CanReadReport
     @Operation(summary = "예외 보고 조회 (EXC-02 · EXC-03, M-14)")
@@ -41,7 +47,17 @@ public class StaffReportController {
     public ApiResponse<StaffReportListResponse> list(@AuthenticationPrincipal AuthUser requester,
             @RequestParam(name = "type", required = false) String type,
             @RequestParam(name = "date", required = false) String date,
-            @RequestParam(name = "run_id", required = false) Long runId) {
-        return ApiResponse.ok(exceptionReportQueryService.list(requester, type, date, runId));
+            @RequestParam(name = "run_id", required = false) Long runId,
+            @RequestParam(name = "handled", required = false) String handled) {
+        return ApiResponse.ok(exceptionReportQueryService.list(requester, type, date, runId, handled));
+    }
+
+    /** 예외 보고 처리 표시(§5.20, Ruling 814) — 본문 없음, 이미 처리된 보고에는 바꾸지 않고 그대로 200. */
+    @CanReadReport
+    @Operation(summary = "예외 보고 처리 표시 (EXC-03, M-14)")
+    @PostMapping("/{id}/handle")
+    public ApiResponse<StaffReportItemResponse> handle(@AuthenticationPrincipal AuthUser requester,
+            @PathVariable Long id) {
+        return ApiResponse.ok(exceptionReportCommandService.handle(requester, id));
     }
 }

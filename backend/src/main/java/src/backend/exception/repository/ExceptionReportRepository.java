@@ -5,8 +5,10 @@ import java.util.List;
 
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import src.backend.exception.entity.ExceptionReport;
 import src.backend.exception.entity.ExceptionReportType;
@@ -36,9 +38,44 @@ public interface ExceptionReportRepository extends JpaRepository<ExceptionReport
               AND (:runId IS NULL OR er.runId = :runId)
               AND er.reportedAt >= :from
               AND er.reportedAt < :to
+              AND (:handled IS NULL OR (CASE WHEN er.handledAt IS NULL THEN false ELSE true END) = :handled)
             ORDER BY er.reportedAt DESC
             """)
     List<ExceptionReport> search(@Param("academyId") Long academyId, @Param("type") ExceptionReportType type,
             @Param("runId") Long runId, @Param("from") OffsetDateTime from, @Param("to") OffsetDateTime to,
-            Limit limit);
+            @Param("handled") Boolean handled, Limit limit);
+
+    /**
+     * 목록 상단의 처리·미처리 건수(§5.20 {@code counts}, Ruling 814) — {@link #search} 에서 {@code handled} 조건만 뺀
+     * 같은 조건이라 상한(200건)과 무관하게 조건에 맞는 전량을 센다.
+     */
+    @Query("""
+            SELECT COUNT(er.handledAt) AS handled, COUNT(er) - COUNT(er.handledAt) AS unhandled
+            FROM ExceptionReport er
+            WHERE er.academyId = :academyId
+              AND (:type IS NULL OR er.type = :type)
+              AND (:runId IS NULL OR er.runId = :runId)
+              AND er.reportedAt >= :from
+              AND er.reportedAt < :to
+            """)
+    ReportHandledCounts countByHandled(@Param("academyId") Long academyId,
+            @Param("type") ExceptionReportType type, @Param("runId") Long runId,
+            @Param("from") OffsetDateTime from, @Param("to") OffsetDateTime to);
+
+    /** 학원 안의 보고 1건 — 남의 학원·없는 보고는 빈 결과로 같다(존재 비노출, §5.20 처리 표시). */
+    java.util.Optional<ExceptionReport> findByIdAndAcademyId(Long id, Long academyId);
+
+    /**
+     * 아직 처리되지 않은 보고만 처리됨으로 표시한다(Ruling 814 · §5.20) — 이미 처리된 보고는 0행이라 처음 처리자·시각이
+     * 그대로 남는다. 두 관계자가 동시에 눌러도 행 잠금을 먼저 얻은 쪽만 갱신한다({@code EmergencyAlertRepository#ackIfUnacked}
+     * 와 같은 형태). 학원 조건을 이 쿼리에도 다시 건다.
+     *
+     * @return 영향받은 행 수 — 0 이면 이미 처리된 보고(또는 이 학원 소속이 아님)
+     */
+    @Transactional
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE ExceptionReport er SET er.handledAt = :handledAt, er.handledBy = :handledBy "
+            + "WHERE er.id = :id AND er.academyId = :academyId AND er.handledAt IS NULL")
+    int handleIfUnhandled(@Param("id") Long id, @Param("academyId") Long academyId,
+            @Param("handledBy") Long handledBy, @Param("handledAt") OffsetDateTime handledAt);
 }

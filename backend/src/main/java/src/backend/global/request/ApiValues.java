@@ -78,6 +78,11 @@ public final class ApiValues {
         return booleanFilter(raw, "acked");
     }
 
+    /** 예외 보고 목록의 {@code handled} 쿼리 필터(§5.20) — {@link #ackedFilter} 와 같은 이유로 {@code Boolean.parseBoolean} 을 쓰지 않는다. */
+    public static Boolean handledFilter(String raw) {
+        return booleanFilter(raw, "handled");
+    }
+
     /** 매니저 목록의 {@code linked} 쿼리 필터 — {@link #ackedFilter} 와 같은 이유로 {@code Boolean.parseBoolean} 을 쓰지 않는다. */
     public static Boolean linkedFilter(String raw) {
         return booleanFilter(raw, "linked");

@@ -114,6 +114,8 @@ class AcademyScopeHttpExhaustiveTest {
     private Long academyBChangeRequestId;
     private Long academyBSignupRequestId;
     private Long academyBEmergencyAlertId;
+
+    private Long academyBReportId;
     private Long academyBTransferId;
     private String academyBPhotoFileName;
     private String academyBStudentPhotoUrl;
@@ -161,6 +163,11 @@ class AcademyScopeHttpExhaustiveTest {
                         + "VALUES (?, ?, 'B-TEST', ?, 'driver', 'accident', 0, now(), ?) RETURNING id",
                 Long.class, ACADEMY_B, ACADEMY_B_RUN_ID, academyBAccountId, UUID.randomUUID());
 
+        academyBReportId = jdbcTemplate.queryForObject(
+                "INSERT INTO exception_report (academy_id, run_id, type, memo, reported_by, reported_at) "
+                        + "VALUES (?, ?, 'etc', 'B-TEST', ?, now()) RETURNING id",
+                Long.class, ACADEMY_B, ACADEMY_B_RUN_ID, academyBAccountId);
+
         // 이동 대기 취소(§5.8.1)의 학원 조건은 출발 회차를 거친다 — 같은 회차를 출발·도착으로 두어도 조회는 성립한다.
         academyBTransferId = jdbcTemplate.queryForObject(
                 "INSERT INTO run_transfer (student_id, from_run_id, to_run_id, status, requested_by_account_id) "
@@ -186,6 +193,7 @@ class AcademyScopeHttpExhaustiveTest {
         jdbcTemplate.update("DELETE FROM change_request WHERE id = ?", academyBChangeRequestId);
         jdbcTemplate.update("DELETE FROM signup_request WHERE id = ?", academyBSignupRequestId);
         jdbcTemplate.update("DELETE FROM emergency_alert WHERE id = ?", academyBEmergencyAlertId);
+        jdbcTemplate.update("DELETE FROM exception_report WHERE id = ?", academyBReportId);
         jdbcTemplate.update("DELETE FROM run_transfer WHERE id = ?", academyBTransferId);
         jdbcTemplate.update("UPDATE student SET photo_url = ? WHERE id = ?", academyBStudentPhotoUrl, academyBStudentId);
     }
@@ -441,6 +449,9 @@ class AcademyScopeHttpExhaustiveTest {
         cases.add(c("POST /staff/emergencies/{id}/ack → B학원 신고 404 EMERGENCY_NOT_FOUND", HttpMethod.POST,
                 "/staff/emergencies/{id}/ack", new Object[] {academyBEmergencyAlertId}, staffA(), null, 404,
                 "EMERGENCY_NOT_FOUND"));
+        cases.add(c("POST /staff/reports/{id}/handle → B학원 보고 404 REPORT_NOT_FOUND(§5.20, Ruling 814)",
+                HttpMethod.POST, "/staff/reports/{id}/handle", new Object[] {academyBReportId}, staffA(), null, 404,
+                "REPORT_NOT_FOUND"));
 
         return List.copyOf(cases);
     }

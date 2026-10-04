@@ -3,13 +3,9 @@ package src.backend.exception.dto;
 import java.time.OffsetDateTime;
 
 /**
- * 예외 보고 1건(API_SPEC §5.20) — {@code studentName} 은 {@code type=guardian_absent} 일 때만
- * 채워진다.
- *
- * <p>{@code handled}·{@code handledAt} 은 이 태스크에서 항상 {@code false}·{@code null} 이다 —
- * {@code exception_report} 테이블에 처리 여부 컬럼이 없다(§4.13 은 보고 자체까지만 다루고, 사후
- * 처리·인계 추적은 "2단계"로 미뤄져 있다). 필드를 응답에 남겨 둔 이유는 §5.20 이 명시한 응답
- * 스키마이기 때문이지, 값을 저장·갱신할 수단이 있어서가 아니다.
+ * 예외 보고 1건(API_SPEC §5.20) — {@code studentName} 은 {@code type=guardian_absent} 일 때만 채워지고,
+ * {@code handledAt}·{@code handledByName} 은 처리 표시({@code POST /staff/reports/{id}/handle}, Ruling 814)가 있을
+ * 때만 채워진다. {@code reportedByRole} 은 보고자의 매니저 역할({@code driver}·{@code escort})이다.
  */
 public record StaffReportItemResponse(
         Long reportId,
@@ -19,7 +15,9 @@ public record StaffReportItemResponse(
         String busNo,
         String studentName,
         String reportedBy,
+        String reportedByRole,
         OffsetDateTime reportedAt,
         boolean handled,
-        OffsetDateTime handledAt) {
+        OffsetDateTime handledAt,
+        String handledByName) {
 }

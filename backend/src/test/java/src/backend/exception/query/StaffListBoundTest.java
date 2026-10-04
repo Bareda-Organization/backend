@@ -129,7 +129,10 @@ class StaffListBoundTest {
                 토큰(staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(PageParams.UNPAGED_LIST_MAX))
-                .andExpect(jsonPath("$.data.items[0].memo").value("보고" + (OVER_LIMIT - 1)));
+                .andExpect(jsonPath("$.data.items[0].memo").value("보고" + (OVER_LIMIT - 1)))
+                // counts 는 상한과 무관하게 조건에 맞는 전량이다(Ruling 814)
+                .andExpect(jsonPath("$.data.counts.unhandled").value(OVER_LIMIT))
+                .andExpect(jsonPath("$.data.counts.handled").value(0));
     }
 
     @Test
