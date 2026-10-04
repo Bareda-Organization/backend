@@ -145,25 +145,6 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     Page<Account> findAllByStatus(AccountStatus status, Pageable pageable);
 
     /**
-     * 관계자 계정 목록(API_SPEC §6.6 {@code GET /admin/staff-accounts}).
-     *
-     * <p>{@code role='staff'} 가 아니라 <b>{@code academy_staff} 행의 존재</b>로 대상을 정한다 — 역할만
-     * 보면 아직 승인되지 않아 어느 학원에도 소속되지 않은 계정이 함께 실리고, 그러면 관리자가 그
-     * 계정을 퇴사·재직 전환하려 하게 된다. 승인 대기 축은 §6.4 승인 큐가 따로 맡는다.
-     *
-     * <p>조인이 아니라 {@code EXISTS} 인 이유는 이 조회의 <b>결과가 계정</b>이어서다 — 조인으로 쓰면
-     * 정렬 속성이 어느 쪽 것인지 호출부에서 갈리고, {@code academy_staff} 행이 늘면 계정이 중복된다.
-     */
-    @AcademyScopeExempt(reason = "§6.6 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
-            + "응답이 academy_name 을 실어 어느 학원 관계자인지 드러내는 것이 이 화면의 요건이라 "
-            + "학원으로 좁히면 화면이 성립하지 않는다. 예외 판정은 컨트롤러의 @CanManageStaffAccount 하나다")
-    @Query(value = "SELECT a FROM Account a WHERE EXISTS "
-            + "(SELECT 1 FROM AcademyStaff s WHERE s.accountId = a.id)",
-            countQuery = "SELECT COUNT(a) FROM Account a WHERE EXISTS "
-                    + "(SELECT 1 FROM AcademyStaff s WHERE s.accountId = a.id)")
-    Page<Account> findStaffAccountsForConsole(Pageable pageable);
-
-    /**
      * 전 학원 소속 사용자 수(API_SPEC §6.1 {@code summary.user_count}) — {@link #countByAcademyIdInGroupedByAcademyId} 와 같은 역할·상태
      * 기준을 학원 구분 없이 한 번에 센다. 역할 4종은 학원 소속이 필수라(ck_account_academy_scope) 메인 관리자는 섞이지 않는다.
      */

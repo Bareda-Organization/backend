@@ -84,12 +84,12 @@ public interface EmergencyAlertRepository extends JpaRepository<EmergencyAlert, 
 
     /**
      * 메인 관리자 콘솔의 전 학원 비상 알림 목록(목표 11, {@code GET /admin/emergencies}) —
-     * {@code /admin} 은 학원 격리의 명시적 예외다(§1.5, {@code AccountRepository
+     * {@code /admin} 은 학원 격리의 명시적 예외다(§1.5, {@code AcademyStaffRepository
      * #findStaffAccountsForConsole} 과 같은 근거). 좁힐 학원이 없는 이유도 같다: 이 화면 자체가
      * 여러 학원을 한 목록에서 보기 위한 것이다.
      */
     @AcademyScopeExempt(reason = "§6.x 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
-            + "예외를 여는 판정은 컨트롤러의 @CanMonitorAll 하나다(AccountRepository#findStaffAccountsForConsole 과 같은 형태)")
+            + "예외를 여는 판정은 컨트롤러의 @CanMonitorAll 하나다(AcademyStaffRepository#findStaffAccountsForConsole 과 같은 형태)")
     @Query(SELECT_BY_STATE + " ORDER BY a.receivedAt DESC")
     List<EmergencyAlert> findAllByState(@Param("state") String state, Limit limit);
 

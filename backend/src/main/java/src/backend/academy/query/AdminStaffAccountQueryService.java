@@ -2,6 +2,7 @@ package src.backend.academy.query;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -12,14 +13,23 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.academy.dto.StaffAccountListRequest;
+import src.backend.academy.dto.StaffAccountListResponse;
 import src.backend.academy.dto.StaffAccountSummaryResponse;
 import src.backend.academy.entity.Academy;
 import src.backend.academy.entity.AcademyStaff;
+import src.backend.academy.entity.StaffStatus;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.dto.AdminAccountListRequest;
+import src.backend.academy.repository.StaffStatusCount;
 import src.backend.account.entity.Account;
-import src.backend.account.repository.AccountRepository;
+import src.backend.account.entity.ApproverType;
+import src.backend.account.entity.SignupRequestStatus;
+import src.backend.account.repository.SignupRequestRepository;
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
+import src.backend.global.persistence.AcademyCount;
+import src.backend.global.persistence.LikeEscape;
 import src.backend.global.request.PageParams;
 import src.backend.global.request.SortParam;
 import src.backend.global.response.PageResponse;
@@ -56,39 +66,79 @@ public class AdminStaffAccountQueryService {
      */
     private static final Sort TIE_BREAKER = Sort.by(Sort.Direction.ASC, "id");
 
-    private final AccountRepository accountRepository;
+    private final SignupRequestRepository signupRequestRepository;
 
     private final AcademyStaffRepository academyStaffRepository;
 
     private final AcademyRepository academyRepository;
 
     /**
-     * 관계자 계정 목록(§6.6) — {@code academy_staff} 행을 가진 계정만 실린다.
+     * 관계자 계정 목록(§6.6) — {@code academy_staff} 행을 가진 계정만 실린다. {@code academy_id}·{@code q}·{@code status} 로 거르고
+     * (Ruling 807), 응답 {@code counts} 는 <b>{@code status} 만 뺀</b> 같은 조건의 재직·퇴사 건수다.
      *
-     * <p>계정 → 관계자 행 → 학원 순으로 <b>세 번</b> 조회한다. 한 페이지 전부를 한 번에 묶어 찾으므로
-     * 행 수와 무관하게 질의는 3건이다 — 계정마다 찾으면 한 페이지(최대 100건)가 201건이 된다.
+     * <p>계정 → 관계자 행 → 학원 이름 → 학원별 대기 가입 요청 수 순으로 한 페이지 전부를 한 번에 묶어 찾으므로 행 수와 무관하게
+     * 질의 수가 일정하다 — 계정마다 찾으면 한 페이지(최대 100건)가 질의 수백 건이 된다.
      */
-    public PageResponse<StaffAccountSummaryResponse> list(AdminAccountListRequest request) {
-        PageParams pageParams = PageParams.of(request.page(), request.size());
+    public StaffAccountListResponse list(StaffAccountListRequest request) {
+        if (request.academyId() != null && !academyRepository.existsById(request.academyId())) {
+            throw new BusinessException(ErrorCode.ACADEMY_NOT_FOUND);
+        }
+        Collection<StaffStatus> statuses = statusFilter(request.status());
+        String q = LikeEscape.escape(request.q() == null ? "" : request.q());
         Sort sort = SortParam.parse(request.sort(), SORTABLE_FIELDS, DEFAULT_SORT).and(TIE_BREAKER);
-        Page<Account> page = accountRepository.findStaffAccountsForConsole(pageParams.toPageable(sort));
+        Page<Account> page = academyStaffRepository.findStaffAccountsForConsole(request.academyId(), q, statuses,
+                PageParams.of(request.page(), request.size()).toPageable(sort));
 
-        List<Long> accountIds = page.getContent().stream().map(Account::getId).toList();
+        return StaffAccountListResponse.of(PageResponse.of(page, summaries(page.getContent())),
+                counts(request.academyId(), q));
+    }
+
+    private List<StaffAccountSummaryResponse> summaries(List<Account> accounts) {
+        List<Long> accountIds = accounts.stream().map(Account::getId).toList();
         if (accountIds.isEmpty()) {
-            return PageResponse.of(page, List.of());
+            return List.of();
         }
         Map<Long, AcademyStaff> staffRows = academyStaffRepository.findAllByAccountIdIn(accountIds).stream()
                 .collect(Collectors.toMap(AcademyStaff::getAccountId, staff -> staff, (first, second) -> first));
         Map<Long, String> academyNames = academyNamesOf(staffRows.values());
+        Map<Long, Long> pendingCounts = signupRequestRepository
+                .countByAcademyIdInGroupedByAcademyId(academyNames.keySet(), ApproverType.SYSTEM_ADMIN,
+                        SignupRequestStatus.PENDING).stream()
+                .collect(Collectors.toMap(AcademyCount::getAcademyId, AcademyCount::getTotal));
 
-        return PageResponse.of(page, page.getContent().stream()
+        return accounts.stream()
                 .filter(account -> staffRows.containsKey(account.getId()))
-                .map(account -> toSummary(account, staffRows.get(account.getId()), academyNames))
-                .toList());
+                .map(account -> toSummary(account, staffRows.get(account.getId()), academyNames, pendingCounts))
+                .toList();
     }
 
-    private StaffAccountSummaryResponse toSummary(Account account, AcademyStaff staff, Map<Long, String> names) {
-        return StaffAccountSummaryResponse.from(account, names.get(staff.getAcademyId()), staff.getStatus());
+    private StaffAccountSummaryResponse toSummary(Account account, AcademyStaff staff, Map<Long, String> names,
+            Map<Long, Long> pendingCounts) {
+        return StaffAccountSummaryResponse.from(account, staff.getAcademyId(), names.get(staff.getAcademyId()),
+                staff.getStatus(), pendingCounts.getOrDefault(staff.getAcademyId(), 0L));
+    }
+
+    /** 탭 건수 — 상태 필터는 빼고 학원·검색어 조건만 건다(Ruling 807). 건수가 없는 상태는 0 이다. */
+    private StaffAccountListResponse.Counts counts(Long academyId, String q) {
+        Map<StaffStatus, Long> byStatus = academyStaffRepository.countStaffAccountsByStatusForConsole(academyId, q)
+                .stream().collect(Collectors.toMap(StaffStatusCount::getStatus, StaffStatusCount::getTotal));
+        return new StaffAccountListResponse.Counts(byStatus.getOrDefault(StaffStatus.ACTIVE, 0L),
+                byStatus.getOrDefault(StaffStatus.INACTIVE, 0L));
+    }
+
+    /**
+     * 상태 필터를 상태 <b>집합</b>으로 바꾼다 — 없으면 전체 상태를 넘겨 "필터 없음" 을 인자로 표현한다. 두 값 밖은 조용히 무시하지
+     * 않고 {@code 422} 로 거부한다.
+     */
+    private Collection<StaffStatus> statusFilter(String status) {
+        if (status == null || status.isBlank()) {
+            return List.of(StaffStatus.values());
+        }
+        try {
+            return List.of(StaffStatus.valueOf(status.trim().toUpperCase(Locale.ROOT)));
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED);
+        }
     }
 
     /** 한 페이지에 등장하는 학원 이름을 한 번에 찾는다 — 관계자마다 찾으면 한 페이지가 질의 100건이 된다. */

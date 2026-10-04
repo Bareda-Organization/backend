@@ -1,11 +1,11 @@
 package src.backend.academy.controller;
 
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,13 +17,12 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.academy.command.StaffAccountCommandService;
 import src.backend.academy.dto.StaffAccountDetailResponse;
-import src.backend.academy.dto.StaffAccountSummaryResponse;
+import src.backend.academy.dto.StaffAccountListRequest;
+import src.backend.academy.dto.StaffAccountListResponse;
 import src.backend.academy.dto.StaffAccountUpdateRequest;
 import src.backend.academy.query.AdminStaffAccountQueryService;
-import src.backend.account.dto.AdminAccountListRequest;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
-import src.backend.global.response.PageResponse;
 import src.backend.global.security.authz.CanManageStaffAccount;
 
 /**
@@ -47,9 +46,15 @@ public class AdminStaffAccountController {
     @CanManageStaffAccount
     @Operation(summary = "관계자 계정 목록 (ACAD-06, O-02)")
     @GetMapping
-    public ApiResponse<PageResponse<StaffAccountSummaryResponse>> list(
-            @ModelAttribute AdminAccountListRequest request) {
-        return ApiResponse.ok(adminStaffAccountQueryService.list(request));
+    public ApiResponse<StaffAccountListResponse> list(
+            @RequestParam(name = "academy_id", required = false) Long academyId,
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "status", required = false) String status,
+            @RequestParam(name = "page", required = false) Integer page,
+            @RequestParam(name = "size", required = false) Integer size,
+            @RequestParam(name = "sort", required = false) String sort) {
+        return ApiResponse.ok(adminStaffAccountQueryService.list(
+                new StaffAccountListRequest(academyId, q, status, page, size, sort)));
     }
 
     /**
