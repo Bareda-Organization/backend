@@ -452,6 +452,9 @@ class AcademyScopeHttpExhaustiveTest {
         cases.add(c("POST /staff/reports/{id}/handle → B학원 보고 404 REPORT_NOT_FOUND(§5.20, Ruling 814)",
                 HttpMethod.POST, "/staff/reports/{id}/handle", new Object[] {academyBReportId}, staffA(), null, 404,
                 "REPORT_NOT_FOUND"));
+        cases.add(c("GET /staff/students/{id}/withdrawal-preview → B학원 학생 404 STUDENT_NOT_FOUND(§5.11, Ruling 815)",
+                HttpMethod.GET, "/staff/students/{id}/withdrawal-preview", new Object[] {academyBStudentId}, staffA(),
+                null, 404, "STUDENT_NOT_FOUND"));
 
         return List.copyOf(cases);
     }

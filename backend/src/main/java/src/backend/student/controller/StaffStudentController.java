@@ -37,9 +37,11 @@ import src.backend.student.dto.StudentRegisterRequest;
 import src.backend.student.dto.StudentUpdateRequest;
 import src.backend.student.dto.StudentWithdrawalResponse;
 import src.backend.student.dto.WeeklyAddressResponse;
+import src.backend.student.dto.WithdrawalPreviewResponse;
 import src.backend.student.photo.PhotoResizer;
 import src.backend.student.photo.spec.StudentPhoto;
 import src.backend.student.query.StudentQueryService;
+import src.backend.student.query.WithdrawalPreviewQueryService;
 
 /**
  * 관계자 웹의 학생 관리 API(STU-01~04 · 07 · 08 · A-10, API_SPEC §5.11).
@@ -70,6 +72,8 @@ public class StaffStudentController {
 
     private final StudentCommandService studentCommandService;
 
+    private final WithdrawalPreviewQueryService withdrawalPreviewQueryService;
+
     /** 학생 목록·검색(STU-01, §5.11) — 강제 추가 자동완성과 공용이다. */
     @CanReadStudentRecord
     @Operation(summary = "학생 관리 — 목록·검색 (STU-01)")
@@ -86,6 +90,18 @@ public class StaffStudentController {
     public ApiResponse<StudentDetailResponse> detail(@AuthenticationPrincipal AuthUser authUser,
             @PathVariable Long id) {
         return ApiResponse.ok(studentQueryService.detail(authUser, id));
+    }
+
+    /**
+     * 퇴원 미리보기(STU-04, §5.11 · Ruling 815) — 퇴원 확인 창이 오늘·내일 영향을 보이는 읽기 전용 조회다. 아무것도 바꾸지
+     * 않는다. 권한·에러는 상세와 같다.
+     */
+    @CanReadStudentRecord
+    @Operation(summary = "학생 관리 — 퇴원 미리보기 (STU-04)")
+    @GetMapping("/{id}/withdrawal-preview")
+    public ApiResponse<WithdrawalPreviewResponse> withdrawalPreview(@AuthenticationPrincipal AuthUser authUser,
+            @PathVariable Long id) {
+        return ApiResponse.ok(withdrawalPreviewQueryService.preview(authUser, id));
     }
 
     /**
