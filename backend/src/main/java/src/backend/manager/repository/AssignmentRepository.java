@@ -208,7 +208,7 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
      * 같은 조회 하나를 공유한다. 판정식({@link StaffAssignmentAckView#acked()})은 이 값을 실제로 쓰는
      * 쓰기 경로 {@code RunAckChangesCommandService} 의 조건을 그대로 반대로 읽은 것이다.
      */
-    @Query("SELECT new src.backend.manager.dto.StaffAssignmentAckView(a.runId, a.role, m.name, "
+    @Query("SELECT new src.backend.manager.dto.StaffAssignmentAckView(a.runId, a.role, m.name, m.phone, "
             + "a.ackedRouteVersionId, cr.currentVersionId) "
             + "FROM Assignment a JOIN Manager m ON m.id = a.managerId "
             + "LEFT JOIN ConfirmedRoute cr ON cr.runId = a.runId "

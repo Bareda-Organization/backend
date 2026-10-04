@@ -3,8 +3,8 @@ package src.backend.manager.dto;
 import src.backend.global.common.enums.ManagerRole;
 
 /**
- * 회차 1건에 배치된 매니저 한 명의 이름 + 노선 확인 응답 판정 재료(§5.3 {@code driver_name}·
- * {@code escort_name}·{@code ack_driver}·{@code ack_escort}, RUN-07).
+ * 회차 1건에 배치된 매니저 한 명의 이름·전화 원문 + 노선 확인 응답 판정 재료(§5.3 {@code driver_name}·
+ * {@code escort_name}·{@code driver_phone}·{@code escort_phone}·{@code ack_driver}·{@code ack_escort}, RUN-07, Ruling 810).
  *
  * <p>{@code ackedRouteVersionId}·{@code currentVersionId} 를 판정 결과(boolean)가 아니라 원재료로
  * 싣는다 — 판정 자체({@code assignment.acked_route_version_id} 가 {@code confirmed_route.
@@ -15,7 +15,7 @@ import src.backend.global.common.enums.ManagerRole;
  * <p>{@code currentVersionId} 가 {@code null} 인 경우(노선 미확정) 판정은 항상 거짓이다 — 두 값이
  * 다 null 이어도 "확인함" 으로 셀 근거가 없다.
  */
-public record StaffAssignmentAckView(Long runId, ManagerRole role, String name, Long ackedRouteVersionId,
+public record StaffAssignmentAckView(Long runId, ManagerRole role, String name, String phone, Long ackedRouteVersionId,
         Long currentVersionId) {
 
     /** 이 배치가 현재 노선 버전을 확인했는지 — {@link src.backend.manager.entity.Assignment#ack} 가 쓰는 것과 같은 비교식. */

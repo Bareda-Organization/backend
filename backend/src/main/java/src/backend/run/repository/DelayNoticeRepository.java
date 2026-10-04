@@ -1,8 +1,12 @@
 package src.backend.run.repository;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.run.entity.DelayNotice;
@@ -31,4 +35,13 @@ public interface DelayNoticeRepository extends JpaRepository<DelayNotice, Long> 
     @AcademyScopeExempt(reason = "runId 는 호출부(StudentBusPositionQueryService)가 StudentRunsAccess · StudentRunResolver 로 이미 학원 범위에 "
             + "좁혀 확인한 회차의 식별자라는 전제다 — findFirstByRunIdOrderBySentAtDesc 와 같은 근거")
     Optional<DelayNotice> findFirstByRunIdOrderByIdDesc(Long runId);
+
+    /**
+     * 회차들의 <b>마지막</b> 발신을 회차당 1건씩(§5.3 {@code last_delay_notice}, Ruling 810) — 기준은 {@link #findFirstByRunIdOrderByIdDesc} 와 같은
+     * {@code id} 다. 학원 조건은 {@code run} 조인에 건다({@code delay_notice} 는 {@code academy_id} 컬럼이 없는 부모 경유 자원이다).
+     */
+    @Query("SELECT d FROM DelayNotice d JOIN Run r ON r.id = d.runId "
+            + "WHERE r.academyId = :academyId AND d.runId IN :runIds "
+            + "AND d.id = (SELECT MAX(d2.id) FROM DelayNotice d2 WHERE d2.runId = d.runId)")
+    List<DelayNotice> findLastByRunIds(@Param("academyId") Long academyId, @Param("runIds") Collection<Long> runIds);
 }
