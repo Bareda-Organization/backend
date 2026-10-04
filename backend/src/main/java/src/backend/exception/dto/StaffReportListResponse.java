@@ -12,6 +12,7 @@ public record StaffReportListResponse(List<StaffReportItemResponse> items, Count
     public record Counts(long handled, long unhandled) {
     }
 
+    /** 목록 항목과 처리·미처리 건수를 한 응답으로 묶는다. */
     public static StaffReportListResponse of(List<StaffReportItemResponse> items, Counts counts) {
         return new StaffReportListResponse(items, counts);
     }
