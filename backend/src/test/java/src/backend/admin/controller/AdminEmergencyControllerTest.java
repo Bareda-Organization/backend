@@ -397,14 +397,17 @@ class AdminEmergencyControllerTest {
         assertThat(counts(ackedBody)).as("open · acked · canceled").containsExactly(1L, 2L, 3L);
     }
 
-    /** {@code academy_id} 를 주면 그 학원 것만 세고, 안 주면 전 학원 합이다(시드 행이 섞이므로 증가분으로 비교). */
+    /**
+     * {@code academy_id} 를 주면 그 학원 것만 세고, 안 주면 전 학원 합이다(시드 행이 섞이므로 증가분으로 비교). 학원 조건만 보는 시험이라
+     * 상태마다 <b>그 상태로 불러 그 상태의 건수만</b> 읽는다 — {@code status} 와 무관한 값은 위 시험이 지킨다.
+     */
     @Test
     void counts_는_academy_id_를_주면_그_학원만_세고_안_주면_전_학원을_센다() throws Exception {
         EmergencyFixtures fixtures = fixtures();
         long academyA = fixtures.academy();
         long academyB = fixtures.academy();
         long adminAccountId = fixtures.systemAdminAccount("메인관리자");
-        long[] before = counts(목록을_조회한다(adminAccountId));
+        long[] before = 상태별_건수(adminAccountId, null);
 
         신고를_발신한다(academyA, fixtures);
         확인시각을_옮긴다(신고를_발신한다(academyA, fixtures), now());
@@ -412,18 +415,27 @@ class AdminEmergencyControllerTest {
         신고를_발신한다(academyB, fixtures);
         취소시각을_옮긴다(신고를_발신한다(academyB, fixtures), now());
 
-        String bodyA = mockMvc.perform(get(LIST).param("academy_id", String.valueOf(academyA))
-                        .header("Authorization", 메인관리자_토큰(adminAccountId)))
-                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        String bodyB = mockMvc.perform(get(LIST).param("academy_id", String.valueOf(academyB))
-                        .header("Authorization", 메인관리자_토큰(adminAccountId)))
-                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        long[] after = counts(목록을_조회한다(adminAccountId));
-
-        assertThat(counts(bodyA)).as("A").containsExactly(1L, 1L, 0L);
-        assertThat(counts(bodyB)).as("B").containsExactly(2L, 0L, 1L);
+        long[] after = 상태별_건수(adminAccountId, null);
+        assertThat(상태별_건수(adminAccountId, academyA)).as("A").containsExactly(1L, 1L, 0L);
+        assertThat(상태별_건수(adminAccountId, academyB)).as("B").containsExactly(2L, 0L, 1L);
         assertThat(new long[] {after[0] - before[0], after[1] - before[1], after[2] - before[2]})
                 .as("전 학원 증가분 = A + B").containsExactly(3L, 1L, 1L);
+    }
+
+    /** open · acked · canceled 순으로, 각 상태를 {@code status} 로 불러 그 상태의 {@code counts} 값만 모은다. */
+    private long[] 상태별_건수(long adminAccountId, Long academyId) throws Exception {
+        String[] statuses = {"open", "acked", "canceled"};
+        long[] result = new long[statuses.length];
+        for (int i = 0; i < statuses.length; i++) {
+            var request = get(LIST).param("status", statuses[i]).header("Authorization", 메인관리자_토큰(adminAccountId));
+            if (academyId != null) {
+                request.param("academy_id", String.valueOf(academyId));
+            }
+            String body = mockMvc.perform(request).andExpect(status().isOk()).andReturn().getResponse()
+                    .getContentAsString();
+            result[i] = counts(body)[i];
+        }
+        return result;
     }
 
     private long[] counts(String body) {
