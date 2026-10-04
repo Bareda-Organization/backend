@@ -1,12 +1,15 @@
 package src.backend.schedule.repository;
 
 import java.time.LocalTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Weekday;
@@ -55,4 +58,23 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
             + "좁힐 학원이 부재하다 — 학원을 하나 골라 좁히면 나머지 학원의 회차가 생기지 않는다. "
             + "호출부가 배치(RunGenerationService)뿐이라는 전제 — 요청 경로에서 부르면 이 예외가 우회로가 된다")
     List<Schedule> findAllByWeekdayAndActiveIsTrue(Weekday weekday);
+
+    /**
+     * 차량별 활성 스케줄 수(§5.12 {@code schedule_count}, Ruling 816) — 쉬는 스케줄({@code active=false})은 세지 않는다. 스케줄이
+     * 없는 차량은 행이 없으니 호출부가 0 으로 읽는다. 학원 조건을 쿼리에 고정한다.
+     */
+    @Query("""
+            SELECT s.busId AS busId, COUNT(s) AS total FROM Schedule s
+            WHERE s.academyId = :academyId AND s.busId IN :busIds AND s.active = true
+            GROUP BY s.busId
+            """)
+    List<BusCount> countActiveByBusIds(@Param("academyId") Long academyId, @Param("busIds") Collection<Long> busIds);
+
+    /** {@link #countActiveByBusIds} 의 한 행 — 차량 id 와 그 차량의 활성 스케줄 수. */
+    interface BusCount {
+
+        Long getBusId();
+
+        long getTotal();
+    }
 }
