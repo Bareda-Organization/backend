@@ -124,6 +124,18 @@ class StaffDashboardControllerTest {
     private ChangeRequestRepository changeRequestRepository;
 
     @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private src.backend.run.repository.DelayNoticeRepository delayNoticeRepository;
+
+    @Autowired
+    private src.backend.exception.repository.NoShowCaseRepository noShowCaseRepository;
+
+    @Autowired
+    private src.backend.exception.repository.NoShowContactRepository noShowContactRepository;
+
+    @Autowired
     private Clock clock;
 
     /**
@@ -323,6 +335,227 @@ class StaffDashboardControllerTest {
                 get("/api/v1/staff/dashboard").header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs[0].est_arrival_time").doesNotExist());
+    }
+
+    // ── R48 (Ruling 810) — 회차 표 6필드 + 미승차 케이스 2필드 ─────────────────
+
+    private com.jayway.jsonpath.DocumentContext 대시보드(long staffAccountId, long academyId) throws Exception {
+        return JsonPath.parse(본문(mockMvc.perform(get("/api/v1/staff/dashboard").header("Authorization",
+                        토큰(staffAccountId, academyId, Role.STAFF)))
+                .andExpect(status().isOk()).andReturn()));
+    }
+
+    private Object 회차_값(com.jayway.jsonpath.DocumentContext dashboard, long runId, String field) {
+        List<Object> values = dashboard.read("$.data.runs[?(@.run_id == '%d')].%s".formatted(runId, field));
+        assertThat(values).as("run %d 의 %s".formatted(runId, field)).hasSize(1);
+        return values.get(0);
+    }
+
+    /** 회차별 {@code no_show_count} · {@code absent_count} 는 그 회차의 {@code run_rider} 만 센다 — 다른 회차나 학원 전체 합이 아니다. */
+    @Test
+    @DisplayName("Ruling 810 — no_show_count·absent_count 는 회차별로 따로 센다")
+    void 회차별_미승차_미등원_인원은_다른_회차_값과_섞이지_않는다() throws Exception {
+        DriverRunFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.500000", "127.000000");
+        OffsetDateTime depart = now().plusHours(1);
+        long runA = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, depart, depart.minusMinutes(30));
+        long runB = fx.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, depart.plusHours(1),
+                depart.plusHours(1).minusMinutes(30));
+        fx.rider(runA, fx.student(academyId, "A1"), stopId, src.backend.boarding.entity.RiderStatus.NO_SHOW, now());
+        fx.rider(runA, fx.student(academyId, "A2"), stopId, src.backend.boarding.entity.RiderStatus.ABSENT, now());
+        fx.rider(runA, fx.student(academyId, "A3"), stopId, src.backend.boarding.entity.RiderStatus.ABSENT, now());
+        fx.rider(runA, fx.student(academyId, "A4"), stopId, src.backend.boarding.entity.RiderStatus.BOARDED, now());
+        for (int i = 1; i <= 3; i++) {
+            fx.rider(runB, fx.student(academyId, "B" + i), stopId, src.backend.boarding.entity.RiderStatus.NO_SHOW,
+                    now());
+        }
+        fx.rider(runB, fx.student(academyId, "B4"), stopId, src.backend.boarding.entity.RiderStatus.WAITING, now());
+        long staffAccountId = fx.staffAccount(academyId, "관계자1");
+
+        var dashboard = 대시보드(staffAccountId, academyId);
+
+        assertThat(회차_값(dashboard, runA, "no_show_count")).isEqualTo(1);
+        assertThat(회차_값(dashboard, runA, "absent_count")).isEqualTo(2);
+        assertThat(회차_값(dashboard, runB, "no_show_count")).isEqualTo(3);
+        assertThat(회차_값(dashboard, runB, "absent_count")).isEqualTo(0);
+    }
+
+    /** 매니저 전화는 관계자 웹이 원문으로 보는 값이고(마스킹 대상 밖), 배치 전이면 {@code null} 이다. */
+    @Test
+    @DisplayName("Ruling 810 — driver_phone·escort_phone 은 원문이고 배치 전이면 null")
+    void 매니저_전화는_원문이고_배치_전이면_null_이다() throws Exception {
+        DriverRunFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        OffsetDateTime depart = now().plusHours(1);
+        long assignedRun = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, depart, depart.minusMinutes(30));
+        long emptyRun = fx.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, depart.plusHours(1),
+                depart.plusHours(1).minusMinutes(30));
+        배치(academyId, assignedRun, ManagerRole.DRIVER, "기사", "010-1111-2222");
+        long staffAccountId = fx.staffAccount(academyId, "관계자1");
+
+        var dashboard = 대시보드(staffAccountId, academyId);
+
+        assertThat(회차_값(dashboard, assignedRun, "driver_phone")).isEqualTo("010-1111-2222");
+        assertThat(회차_값(dashboard, assignedRun, "escort_phone")).isNull();
+        assertThat(회차_값(dashboard, emptyRun, "driver_phone")).isNull();
+        assertThat(회차_값(dashboard, emptyRun, "escort_phone")).isNull();
+    }
+
+    /** {@code delay_minutes} 는 {@code moving} 일 때만 값이 있고 §5.18 과 같은 계산이다(출발 지연). */
+    @Test
+    @DisplayName("Ruling 810 — delay_minutes 는 moving 만, 그 밖은 null")
+    void 지연_분은_운행_중_회차에만_싣는다() throws Exception {
+        DriverRunFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        OffsetDateTime depart = now().minusMinutes(30);
+        long movingRun = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, depart, depart.minusMinutes(30));
+        fx.startRun(movingRun, depart.plusMinutes(6));
+        long confirmedRun = fx.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, now().plusHours(1),
+                now().plusMinutes(30));
+        long staffAccountId = fx.staffAccount(academyId, "관계자1");
+
+        var dashboard = 대시보드(staffAccountId, academyId);
+
+        assertThat(회차_값(dashboard, movingRun, "delay_minutes")).isEqualTo(6);
+        assertThat(회차_값(dashboard, confirmedRun, "delay_minutes")).isNull();
+    }
+
+    /**
+     * {@code last_delay_notice} 는 그 회차의 <b>마지막</b> 지연 알림이고, {@code recipient_count} 는 그 알림이 적재한 알림 건수(앞선 알림의
+     * 적재분을 더하지 않는다)다. 알림이 없는 회차는 {@code null}, 다른 회차의 알림은 섞이지 않는다.
+     */
+    @Test
+    @DisplayName("Ruling 810 — last_delay_notice 는 2건 중 뒤 알림이고 recipient_count 는 그 알림 몫만 센다")
+    void 마지막_지연_알림과_수신_건수를_싣는다() throws Exception {
+        DriverRunFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        OffsetDateTime depart = now().minusMinutes(40);
+        long runWithTwo = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, depart, depart.minusMinutes(30));
+        fx.startRun(runWithTwo, depart);
+        long runWithOne = fx.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, depart.plusMinutes(5),
+                depart.minusMinutes(25));
+        fx.startRun(runWithOne, depart.plusMinutes(5));
+        long runWithNone = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, depart.plusMinutes(10),
+                depart.minusMinutes(20));
+        long staffAccountId = fx.staffAccount(academyId, "관계자1");
+
+        OffsetDateTime first = now().minusMinutes(10);
+        OffsetDateTime second = now().minusMinutes(5);
+        delayNoticeRepository.save(src.backend.run.entity.DelayNotice.onSend(runWithTwo, staffAccountId, 5,
+                src.backend.run.entity.DelayReason.TRAFFIC, null, first));
+        delayNoticeRepository.save(src.backend.run.entity.DelayNotice.onSend(runWithTwo, staffAccountId, 10,
+                src.backend.run.entity.DelayReason.WEATHER, "비가 와요", second));
+        delayNoticeRepository.save(src.backend.run.entity.DelayNotice.onSend(runWithOne, staffAccountId, 15,
+                src.backend.run.entity.DelayReason.VEHICLE_CHECK, null, first));
+        지연_알림_적재(academyId, runWithTwo, first, 2);
+        지연_알림_적재(academyId, runWithTwo, second, 3);
+        지연_알림_적재(academyId, runWithOne, first, 1);
+
+        var dashboard = 대시보드(staffAccountId, academyId);
+
+        assertThat(회차_값(dashboard, runWithTwo, "last_delay_notice.minutes")).isEqualTo(10);
+        assertThat(회차_값(dashboard, runWithTwo, "last_delay_notice.reason")).isEqualTo("weather");
+        assertThat(OffsetDateTime.parse((String) 회차_값(dashboard, runWithTwo, "last_delay_notice.sent_at")).toInstant())
+                .isEqualTo(second.toInstant());
+        assertThat(회차_값(dashboard, runWithTwo, "last_delay_notice.recipient_count")).isEqualTo(3);
+        assertThat(회차_값(dashboard, runWithOne, "last_delay_notice.minutes")).isEqualTo(15);
+        assertThat(회차_값(dashboard, runWithOne, "last_delay_notice.recipient_count")).isEqualTo(1);
+        List<Object> none = dashboard.read("$.data.runs[?(@.run_id == '%d')].last_delay_notice".formatted(runWithNone));
+        assertThat(none).containsExactly((Object) null);
+    }
+
+    /** 실제 {@code POST /runs/{runId}/delay} 가 적재한 알림 건수와 {@code recipient_count} 가 같다 — 위 시험의 적재 모양이 실제와 어긋나지 않는다는 근거. */
+    @Test
+    @DisplayName("Ruling 810 — 실제 지연 알림 API 가 적재한 건수가 recipient_count 와 같다")
+    void 실제_지연_알림이_적재한_건수가_수신_건수다() throws Exception {
+        DriverRunFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        OffsetDateTime depart = now().minusMinutes(20);
+        long runId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, depart, depart.minusMinutes(30));
+        fx.confirmedRouteWithVersion(runId, depart.minusMinutes(40));
+        fx.startRun(runId, depart);
+        long escortAccountId = fx.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
+        long staffAccountId = fx.staffAccount(academyId, "관계자1"); // 학원당 재직 관계자는 1명이다
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/delay")
+                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"minutes\":10,\"reason\":\"traffic\"}"))
+                .andExpect(status().isCreated());
+        Integer appended = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM notification_log WHERE type = 'delay' AND academy_id = ?", Integer.class,
+                academyId);
+
+        var dashboard = 대시보드(staffAccountId, academyId);
+
+        assertThat(appended).isEqualTo(1);
+        assertThat(회차_값(dashboard, runId, "last_delay_notice.minutes")).isEqualTo(10);
+        assertThat(회차_값(dashboard, runId, "last_delay_notice.recipient_count")).isEqualTo(appended);
+    }
+
+    /** {@code call_attempts} 는 그 케이스의 연락 시도 수, {@code last_contact_result} 는 가장 늦은 시도의 결과이며 시도가 없으면 0·null 이다. */
+    @Test
+    @DisplayName("Ruling 810 — no_show_cases[] 의 call_attempts·last_contact_result")
+    void 미승차_케이스는_연락_시도_수와_마지막_결과를_싣는다() throws Exception {
+        DriverRunFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.500000", "127.000000");
+        OffsetDateTime depart = now().minusMinutes(20);
+        long runId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, depart, depart.minusMinutes(30));
+        fx.startRun(runId, depart);
+        long contacted = fx.student(academyId, "연락한학생");
+        long untouched = fx.student(academyId, "연락전학생");
+        long riderContacted = fx.rider(runId, contacted, stopId, src.backend.boarding.entity.RiderStatus.NO_SHOW, now());
+        long riderUntouched = fx.rider(runId, untouched, stopId, src.backend.boarding.entity.RiderStatus.NO_SHOW, now());
+        OffsetDateTime started = now().minusMinutes(2);
+        long caseContacted = noShowCaseRepository.save(src.backend.exception.entity.NoShowCase.forRunRider(
+                riderContacted, started, started.plusMinutes(3), started)).getId();
+        noShowCaseRepository.save(src.backend.exception.entity.NoShowCase.forRunRider(riderUntouched, started,
+                started.plusMinutes(3), started));
+        long staffAccountId = fx.staffAccount(academyId, "관계자1");
+        // 저장 순서(늦은 시도가 먼저)와 시각 순서가 다르다 — 마지막 결과는 시각이 가장 늦은 시도의 것이다
+        noShowContactRepository.save(src.backend.exception.entity.NoShowContact.forAttempt(caseContacted,
+                src.backend.exception.entity.ContactAttemptType.MESSAGE,
+                src.backend.exception.entity.ContactResult.ANSWERED, null, staffAccountId, started.plusSeconds(90)));
+        noShowContactRepository.save(src.backend.exception.entity.NoShowContact.forAttempt(caseContacted,
+                src.backend.exception.entity.ContactAttemptType.CALL,
+                src.backend.exception.entity.ContactResult.NO_ANSWER, null, staffAccountId, started.plusSeconds(30)));
+
+        var dashboard = 대시보드(staffAccountId, academyId);
+
+        assertThat(dashboard.<List<Integer>>read("$.data.runs[0].no_show_cases[?(@.student_name == '연락한학생')].call_attempts"))
+                .containsExactly(2);
+        assertThat(dashboard.<List<String>>read("$.data.runs[0].no_show_cases[?(@.student_name == '연락한학생')].last_contact_result"))
+                .containsExactly("answered");
+        assertThat(dashboard.<List<Integer>>read("$.data.runs[0].no_show_cases[?(@.student_name == '연락전학생')].call_attempts"))
+                .containsExactly(0);
+        assertThat(dashboard.<List<Object>>read("$.data.runs[0].no_show_cases[?(@.student_name == '연락전학생')].last_contact_result"))
+                .containsExactly((Object) null);
+    }
+
+    private void 배치(long academyId, long runId, ManagerRole role, String name, String phone) {
+        Manager manager = managerRepository.save(Manager.register(academyId,
+                new src.backend.manager.entity.ManagerProfile(name, phone, role, null)));
+        assignmentRepository.save(src.backend.manager.entity.Assignment.uponAssignment(runId, manager.getId(), role,
+                now(), null));
+    }
+
+    /** 지연 알림 1건이 적재하는 알림 행 {@code count} 개 — 실제 리스너와 같은 {@code dedup_key} 모양·{@code created_at}(= 발신 시각)이다. */
+    private void 지연_알림_적재(long academyId, long runId, OffsetDateTime sentAt, int count) {
+        for (int i = 0; i < count; i++) {
+            jdbcTemplate.update("""
+                    INSERT INTO notification_log (academy_id, recipient_account_id, recipient_name, recipient_role, type,
+                                                  title, body, dedup_key, created_at)
+                    VALUES (?, ?, '수신자', 'staff', 'delay', '지연', '지연 안내', ?, ?)
+                    """, academyId, 9_000_000L + i, "delay:%d:staff:%d:%s".formatted(runId, 9_000_000L + i, sentAt), sentAt);
+        }
     }
 
     // ── 목표 8 — unassigned_managers 는 소프트 삭제된 매니저를 세지 않는다 ─────

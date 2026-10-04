@@ -25,7 +25,6 @@ import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.dto.StaffAssignmentAckView;
 import src.backend.monitoring.dto.StaffRunLiveResponse;
 import src.backend.routing.entity.RunStop;
-import src.backend.routing.query.CurrentRunStopResolver;
 import src.backend.routing.repository.WaypointRepository;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
@@ -119,7 +118,7 @@ public class StaffRunLiveQueryService {
         return new StaffRunLiveResponse.Run(run.getId(), busNos.get(run.getBusId()),
                 lower(run.getDirection().name()), lower(run.getStatus().name()), position,
                 nameOf(stops, state.currentStopId(), names), nameOf(stops, state.nextStopId(), names), progressOf(stops),
-                delayMinutesOf(run, stops), nameOf(acks, ManagerRole.DRIVER), nameOf(acks, ManagerRole.ESCORT),
+                RunDelayCalculator.minutesOf(run, stops), nameOf(acks, ManagerRole.DRIVER), nameOf(acks, ManagerRole.ESCORT),
                 position == null ? state.receivedAt() : null);
     }
 
@@ -130,25 +129,6 @@ public class StaffRunLiveQueryService {
                 .filter(stop -> stop.getChange() != ChangeType.SKIPPED && stop.getArrivedAt() != null)
                 .count();
         return new StaffRunLiveResponse.Progress(done, total);
-    }
-
-    /**
-     * Ruling 232 확정(2026-09-03 사용자) §3.1 — 가장 최근 도착한 정차(정차 순서 {@code seq} 최댓값 중
-     * 도착 처리된 것, {@link RunLiveStateResolver} 의 {@code currentStopId} 판정과 같은 기준)의 지연.
-     * 도착한 정차가 없으면 실제 출발 지연으로 대신한다. 두 갈래 다 음수를 0 으로 내린다 — 정시·조기
-     * 도착을 "마이너스 지연" 으로 보여주는 것은 관계자에게 혼동만 준다는 판단(확신 없는 지점, 보고서 §2).
-     */
-    private int delayMinutesOf(Run run, List<RunStop> stops) {
-        RunStop lastArrived = CurrentRunStopResolver.resolve(stops).orElse(null);
-        if (lastArrived != null && lastArrived.getEta() != null) {
-            long minutes = java.time.Duration.between(lastArrived.getEta(), lastArrived.getArrivedAt()).toMinutes();
-            return (int) Math.max(0, minutes);
-        }
-        if (run.getStartedAt() != null) {
-            long minutes = java.time.Duration.between(run.getDepartTime(), run.getStartedAt()).toMinutes();
-            return (int) Math.max(0, minutes);
-        }
-        return 0;
     }
 
     private String nameOf(List<RunStop> stops, Long runStopId, StopNames names) {

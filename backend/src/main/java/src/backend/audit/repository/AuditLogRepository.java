@@ -144,4 +144,28 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     @Query("select a.id from AuditLog a where a.category = :category and a.occurredAt < :cutoff order by a.occurredAt")
     List<Long> findIdsForRetentionCleanup(@Param("category") AuditCategory category,
             @Param("cutoff") OffsetDateTime cutoff, Limit limit);
+
+    /**
+     * 로그인 이력 행의 날짜별 행위 수(§6.18 {@code logins} · {@code daily}) — 서울 날짜로 가른다. {@code ix_audit_log_category_occurred} 가 받친다.
+     * 학원 필터를 걸지 않는다(계정·서버 단위 값이다, §6.18).
+     */
+    @AcademyScopeExempt(reason = "메인 관리자 대시보드(§6.18)의 로그인 집계는 학원 필터를 걸지 않는 계정·서버 단위 값이다 — 접속 이력 §6.13 과 같은 원천이고 "
+            + "호출부는 @CanMonitorAll 로 보호되는 AdminDashboardQueryService 뿐이라는 전제")
+    @Query(value = """
+            SELECT (a.occurred_at AT TIME ZONE :zone)::date AS "day", a.action AS "action", COUNT(*) AS "total"
+              FROM audit_log a
+             WHERE a.category = 'login' AND a.occurred_at >= :from AND a.occurred_at < :to
+             GROUP BY 1, 2
+            """, nativeQuery = true)
+    List<LoginActionCount> countLoginActionsByDay(@Param("zone") String zone, @Param("from") OffsetDateTime from,
+            @Param("to") OffsetDateTime to);
+
+    /** 기간의 차단 중 <b>지금은 풀린</b> 것의 수(§6.18 {@code logins.blocks_released}) — 차단된 계정이 지금 {@code blocked} 가 아니다. */
+    @AcademyScopeExempt(reason = "countLoginActionsByDay 와 같은 근거와 같은 호출부 전제 — 계정 단위 집계라 학원 필터를 걸지 않는다")
+    @Query(value = """
+            SELECT COUNT(*) FROM audit_log a JOIN account c ON c.id = a.actor_account_id
+             WHERE a.category = 'login' AND a.action = 'block' AND a.occurred_at >= :from AND a.occurred_at < :to
+               AND c.status <> 'blocked'
+            """, nativeQuery = true)
+    long countReleasedBlocks(@Param("from") OffsetDateTime from, @Param("to") OffsetDateTime to);
 }

@@ -208,11 +208,17 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
      * 같은 조회 하나를 공유한다. 판정식({@link StaffAssignmentAckView#acked()})은 이 값을 실제로 쓰는
      * 쓰기 경로 {@code RunAckChangesCommandService} 의 조건을 그대로 반대로 읽은 것이다.
      */
-    @Query("SELECT new src.backend.manager.dto.StaffAssignmentAckView(a.runId, a.role, m.name, "
+    @Query("SELECT new src.backend.manager.dto.StaffAssignmentAckView(a.runId, a.role, m.name, m.phone, "
             + "a.ackedRouteVersionId, cr.currentVersionId) "
             + "FROM Assignment a JOIN Manager m ON m.id = a.managerId "
             + "LEFT JOIN ConfirmedRoute cr ON cr.runId = a.runId "
             + "WHERE m.academyId = :academyId AND a.runId IN :runIds")
     List<StaffAssignmentAckView> findAckViewsForStaffDashboard(@Param("academyId") Long academyId,
+            @Param("runIds") Collection<Long> runIds);
+
+    /** 기사가 배치된 회차 식별자(§6.18 {@code today_runs[].driver_assigned}) — 학원 조건은 {@code run} 조인에 건다. */
+    @Query("SELECT DISTINCT a.runId FROM Assignment a JOIN Run r ON r.id = a.runId WHERE r.academyId IN :academyIds "
+            + "AND a.runId IN :runIds AND a.role = src.backend.global.common.enums.ManagerRole.DRIVER")
+    List<Long> findDriverAssignedRunIds(@Param("academyIds") Collection<Long> academyIds,
             @Param("runIds") Collection<Long> runIds);
 }

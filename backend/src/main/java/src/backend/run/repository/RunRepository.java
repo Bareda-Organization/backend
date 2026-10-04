@@ -101,6 +101,9 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      */
     List<Run> findAllByIdInAndAcademyId(Collection<Long> ids, Long academyId);
 
+    /** 학원 여러 곳 안에서 id 로 일괄 조회한다 — 메인 관리자 대시보드(§6.18)가 학원을 가로질러 읽되 선택한 학원 안으로만 좁힌다. */
+    List<Run> findAllByAcademyIdInAndIdIn(Collection<Long> academyIds, Collection<Long> ids);
+
     /**
      * 같은 유일성 조합의 회차가 이미 있는지 본다 — {@code uk_run_bus_date_direction_depart} 위반을
      * 저장 전에 막는다.
@@ -193,7 +196,7 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      */
     @AcademyScopeExempt(reason = "메인 관리자 콘솔의 끝나지 않은 이동 중 회차 목록(AdminStaleMovingRunQueryService)은 전 학원 대상 조회라 "
             + "좁힐 학원이 부재하다 — countStaleMoving 과 같은 근거. 호출부는 @CanMonitorAll 로 보호되는 그 서비스뿐이라는 전제")
-    @Query("SELECT r.id AS runId, r.academyId AS academyId, a.name AS academyName, r.serviceDate AS serviceDate, "
+    @Query("SELECT r.id AS runId, r.academyId AS academyId, a.name AS academyName, a.contact AS academyContact, r.serviceDate AS serviceDate, "
             + "r.direction AS direction, b.busNo AS busNo, r.startedAt AS startedAt, r.finishPending AS finishPending, "
             + "(SELECT COUNT(rr) FROM RunRider rr WHERE rr.runId = r.id "
             + "AND rr.status = :boarded) AS boardedCount "
@@ -371,6 +374,16 @@ public interface RunRepository extends JpaRepository<Run, Long> {
     List<AcademyRunCount> countConfirmFailedByAcademy(@Param("today") LocalDate today);
 
     /**
+     * 학원·상태별로 <b>그날 미취소 회차</b> 수(§6.15 {@code today[]}, Ruling 805) — 전체 관제의 학원 레일·지표 칸이 학원마다 §6.8 을
+     * 부르지 않고 한 번에 읽는다. 회차가 없는 학원·상태는 행이 없다(호출부가 0 으로 채운다).
+     */
+    @AcademyScopeExempt(reason = "메인 관리자 전체 관제(§6.15 today[])가 전 학원을 학원·상태별로 묶어 세는 조회라 좁힐 학원이 부재하다 — "
+            + "countConfirmFailedByAcademy 와 같은 근거와 같은 호출부 전제")
+    @Query("SELECT r.academyId AS academyId, r.status AS status, COUNT(r) AS runCount FROM Run r "
+            + "WHERE r.serviceDate = :day AND r.canceledAt IS NULL GROUP BY r.academyId, r.status")
+    List<AcademyRunStatusCount> countByAcademyAndStatus(@Param("day") LocalDate day);
+
+    /**
      * 학원별로 <b>오늘 지연 알림이 나간 채 아직 끝나지 않은</b> 회차 수(§6.15, Ruling 543) — 임시 취소를 뺀 오늘
      * 회차 중 {@code finished} 가 아니고 {@code delay_notice} 가 1건 이상인 것. 알림이 여러 건이어도 회차는 한 번만
      * 센다({@code EXISTS}). 상태를 파라미터가 아니라 enum 리터럴로 쓰는 이유는 부분 인덱스
@@ -384,4 +397,63 @@ public interface RunRepository extends JpaRepository<Run, Long> {
             + "AND r.status <> src.backend.run.entity.RunStatus.FINISHED "
             + "AND EXISTS (SELECT 1 FROM DelayNotice d WHERE d.runId = r.id) GROUP BY r.academyId")
     List<AcademyRunCount> countDelayedByAcademy(@Param("today") LocalDate today);
+
+    /**
+     * 학원·운행일별 회차 집계(§6.18, Ruling 801~802) — 미취소 회차 수 · 취소 수 · 시작한 수 · 정시 출발 수(Ruling 802: 실제 시작이 출발 예정 + 5분 이내,
+     * 정확히 +5분은 정시) · 지연 알림이 나간 회차 수(알림이 여러 건이어도 회차는 한 번)를 한 번에 센다. 학원 조건이 {@code academy_id IN} 으로 걸려
+     * {@code ix_run_academy_date_depart} 를 탄다 — 30일 범위에서도 전 행 스캔이 아니다.
+     */
+    @AcademyScopeExempt(reason = "메인 관리자 대시보드(§6.18)가 학원 선택(academy_id) 또는 전 학원 목록으로 묶어 세는 조회다 — academyIds 는 "
+            + "호출부(AdminDashboardQueryService)가 존재하는 학원 식별자로만 채운다. 요청 경로에서 학원 권한으로 부르면 이 예외가 우회로가 된다")
+    @Query(value = """
+            SELECT r.service_date AS "serviceDate", r.academy_id AS "academyId",
+                   COUNT(*) FILTER (WHERE r.canceled_at IS NULL) AS "runCount",
+                   COUNT(*) FILTER (WHERE r.canceled_at IS NOT NULL) AS "canceledCount",
+                   COUNT(*) FILTER (WHERE r.canceled_at IS NULL AND r.started_at IS NOT NULL) AS "startedCount",
+                   COUNT(*) FILTER (WHERE r.canceled_at IS NULL AND r.started_at IS NOT NULL
+                                    AND r.started_at <= r.depart_time + interval '5 minutes') AS "onTimeCount",
+                   COUNT(*) FILTER (WHERE r.canceled_at IS NULL
+                                    AND EXISTS (SELECT 1 FROM delay_notice d WHERE d.run_id = r.id)) AS "delayedCount"
+              FROM run r
+             WHERE r.academy_id IN (:academyIds) AND r.service_date BETWEEN :from AND :to
+             GROUP BY r.service_date, r.academy_id
+            """, nativeQuery = true)
+    List<RunDailyAggregate> aggregateDaily(@Param("academyIds") Collection<Long> academyIds,
+            @Param("from") LocalDate from, @Param("to") LocalDate to);
+
+    /** 그날 미취소 회차 — 출발 순(§6.18 {@code today_runs[]}, 학원 선택에 따라 좁힌다). */
+    List<Run> findAllByAcademyIdInAndServiceDateAndCanceledAtIsNullOrderByDepartTimeAsc(Collection<Long> academyIds,
+            LocalDate serviceDate);
+
+    /**
+     * 오늘 지연 회차(§6.18 {@code attention.delayed_runs[]}) — {@link #countDelayedByAcademy}(§6.15)와 같은 정의다: 미취소 · 아직 {@code finished}
+     * 가 아님 · 지연 알림 1건 이상.
+     */
+    @Query("SELECT r FROM Run r WHERE r.academyId IN :academyIds AND r.serviceDate = :today AND r.canceledAt IS NULL "
+            + "AND r.status <> src.backend.run.entity.RunStatus.FINISHED "
+            + "AND EXISTS (SELECT 1 FROM DelayNotice d WHERE d.runId = r.id) ORDER BY r.departTime ASC, r.id ASC")
+    List<Run> findDelayedToday(@Param("academyIds") Collection<Long> academyIds, @Param("today") LocalDate today);
+
+    /** 학원 선택에 따라 좁힌 끝나지 않은 이동 중 회차 수(§6.18 {@code attention.stale_runs}) — {@link #STALE_MOVING} 조건을 {@link #countStaleMoving} 과 같이 쓴다. */
+    @Query("SELECT COUNT(r) FROM Run r WHERE r.academyId IN :academyIds AND " + STALE_MOVING)
+    long countStaleMovingByAcademyIds(@Param("academyIds") Collection<Long> academyIds,
+            @Param("before") LocalDate before);
+
+    /** 최근 확정된 회차(§6.18 {@code recent_events[]} {@code run_confirmed}) — 시각 내림차순 · 최대 {@code limit} 건. */
+    @Query("SELECT r FROM Run r WHERE r.academyId IN :academyIds AND r.serviceDate >= :sinceDate "
+            + "AND r.canceledAt IS NULL AND r.confirmedAt >= :since ORDER BY r.confirmedAt DESC, r.id DESC")
+    List<Run> findRecentlyConfirmed(@Param("academyIds") Collection<Long> academyIds,
+            @Param("sinceDate") LocalDate sinceDate, @Param("since") OffsetDateTime since, Limit limit);
+
+    /** 최근 출발한 회차({@code run_started}) — 시각 내림차순 · 최대 {@code limit} 건. */
+    @Query("SELECT r FROM Run r WHERE r.academyId IN :academyIds AND r.serviceDate >= :sinceDate "
+            + "AND r.canceledAt IS NULL AND r.startedAt >= :since ORDER BY r.startedAt DESC, r.id DESC")
+    List<Run> findRecentlyStarted(@Param("academyIds") Collection<Long> academyIds,
+            @Param("sinceDate") LocalDate sinceDate, @Param("since") OffsetDateTime since, Limit limit);
+
+    /** 최근 끝난 회차({@code run_finished}) — 시각 내림차순 · 최대 {@code limit} 건. */
+    @Query("SELECT r FROM Run r WHERE r.academyId IN :academyIds AND r.serviceDate >= :sinceDate "
+            + "AND r.canceledAt IS NULL AND r.finishedAt >= :since ORDER BY r.finishedAt DESC, r.id DESC")
+    List<Run> findRecentlyFinished(@Param("academyIds") Collection<Long> academyIds,
+            @Param("sinceDate") LocalDate sinceDate, @Param("since") OffsetDateTime since, Limit limit);
 }

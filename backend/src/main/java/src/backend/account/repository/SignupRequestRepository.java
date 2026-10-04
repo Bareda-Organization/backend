@@ -3,6 +3,9 @@ package src.backend.account.repository;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.time.OffsetDateTime;
+import java.util.Collection;
+import java.util.List;
 
 import jakarta.persistence.LockModeType;
 
@@ -79,4 +82,22 @@ public interface SignupRequestRepository extends JpaRepository<SignupRequest, Lo
             + "타 학원 지원자의 이름·연락처가 그대로 샌다")
     Page<SignupRequest> findAllByApproverTypeAndStatus(ApproverType approverType, SignupRequestStatus status,
             Pageable pageable);
+
+    /**
+     * 그 학원에 재직 관계자가 있어 <b>지금은 승인할 수 없는</b> 대기 중 관계자 가입 요청(§6.18 {@code attention.signup_blocked[]}, §6.4 의
+     * {@code academy_staff_count ≥ 1}) — 먼저 신청한 순.
+     */
+    @Query("SELECT s FROM SignupRequest s WHERE s.academyId IN :academyIds "
+            + "AND s.approverType = src.backend.account.entity.ApproverType.SYSTEM_ADMIN "
+            + "AND s.status = src.backend.account.entity.SignupRequestStatus.PENDING "
+            + "AND EXISTS (SELECT 1 FROM AcademyStaff st WHERE st.academyId = s.academyId "
+            + "AND st.status = src.backend.academy.entity.StaffStatus.ACTIVE) ORDER BY s.requestedAt ASC, s.id ASC")
+    List<SignupRequest> findBlockedStaffSignups(@Param("academyIds") Collection<Long> academyIds);
+
+    /** 최근 관계자 가입 신청(§6.18 {@code recent_events[]} {@code staff_signup_requested}) — 시각 내림차순 · 최대 {@code limit} 건. */
+    @Query("SELECT s FROM SignupRequest s WHERE s.academyId IN :academyIds "
+            + "AND s.approverType = src.backend.account.entity.ApproverType.SYSTEM_ADMIN AND s.requestedAt >= :since "
+            + "ORDER BY s.requestedAt DESC, s.id DESC")
+    List<SignupRequest> findRecentStaffSignups(@Param("academyIds") Collection<Long> academyIds,
+            @Param("since") OffsetDateTime since, org.springframework.data.domain.Limit limit);
 }

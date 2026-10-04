@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.List;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -406,6 +407,54 @@ class AdminMonitoringControllerTest {
                 .andExpect(jsonPath("$.data.runs[0].position").doesNotExist())
                 .andExpect(jsonPath("$.data.runs[0].est_depart_time").doesNotExist())
                 .andExpect(jsonPath("$.data.runs[0].depart_time").exists());
+    }
+
+    /**
+     * §6.8 {@code delay_minutes} · {@code finished_at}(Ruling 805) — 지연 분은 §5.18 과 같은 계산이라 도착한 정차가 있으면
+     * 그 정차의 {@code arrived_at − eta}(출발 지연이 아니다)이고, {@code moving} 이 아니면 {@code null} 이다.
+     * 종료 시각은 {@code finished} 일 때만 채워진다.
+     */
+    @Test
+    void 관제_회차는_moving_일_때만_지연_분을_싣고_finished_일_때만_종료_시각을_싣는다() throws Exception {
+        AdminMonitoringFixtures f = fixtures();
+        long academyId = f.academy();
+        long stopId = f.stop(academyId, "37.500000", "127.030000");
+
+        OffsetDateTime movingDepart = now().minusMinutes(40);
+        long movingRun = f.movingRun(academyId, f.bus(academyId), Direction.TO_ACADEMY, movingDepart,
+                movingDepart.minusMinutes(30), movingDepart.plusMinutes(7), 40);
+        long versionId = f.confirmedRouteWithVersion(movingRun, movingDepart.minusMinutes(25));
+        long runStopId = f.runStopForStop(versionId, stopId, 1, movingDepart.plusMinutes(10));
+        f.markArrived(runStopId, movingDepart.plusMinutes(14));
+
+        OffsetDateTime finishedDepart = now().minusMinutes(90);
+        OffsetDateTime finishedAt = finishedDepart.plusMinutes(45);
+        long finishedRun = f.finishedRun(academyId, f.bus(academyId), Direction.FROM_ACADEMY, finishedDepart,
+                finishedDepart.minusMinutes(30), finishedDepart.plusMinutes(2), finishedAt);
+        long confirmedRun = f.confirmedRun(academyId, f.bus(academyId), Direction.TO_ACADEMY, now().plusMinutes(30),
+                now().minusMinutes(5));
+        long idleRun = f.idleRun(academyId, f.bus(academyId), Direction.FROM_ACADEMY, now().plusMinutes(50));
+        long adminAccountId = f.systemAdminAccount("메인관리자");
+
+        String body = mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 메인관리자_토큰(adminAccountId)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        String filter = "$.data.runs[?(@.run_id == %d)]";
+        assertThat(JsonPath.<List<Object>>read(body, (filter + ".delay_minutes").formatted(movingRun)))
+                .containsExactly(4);
+        assertThat(JsonPath.<List<Object>>read(body, (filter + ".finished_at").formatted(movingRun)))
+                .containsExactly((Object) null);
+        for (long notMoving : new long[] { finishedRun, confirmedRun, idleRun }) {
+            assertThat(JsonPath.<List<Object>>read(body, (filter + ".delay_minutes").formatted(notMoving)))
+                    .containsExactly((Object) null);
+        }
+        List<String> finishedAtOfFinished = JsonPath.read(body, (filter + ".finished_at").formatted(finishedRun));
+        assertThat(OffsetDateTime.parse(finishedAtOfFinished.get(0)).toInstant()).isEqualTo(finishedAt.toInstant());
+        for (long notFinished : new long[] { confirmedRun, idleRun }) {
+            assertThat(JsonPath.<List<Object>>read(body, (filter + ".finished_at").formatted(notFinished)))
+                    .containsExactly((Object) null);
+        }
     }
 
     /** 확정이 계속 실패하는 회차를 강제 확정 대상으로 알아볼 재료(BR-047 · UF-O-07) — 실패 횟수를 싣는다. */

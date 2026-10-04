@@ -4,6 +4,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Collection;
 
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import src.backend.exception.entity.EmergencyAlert;
 import src.backend.global.security.access.AcademyScopeExempt;
+import src.backend.global.persistence.AcademyCount;
 
 /** {@link EmergencyAlert} 영속성 접근(EXC-04, Phase 11 T2). */
 public interface EmergencyAlertRepository extends JpaRepository<EmergencyAlert, Long> {
@@ -100,4 +102,13 @@ public interface EmergencyAlertRepository extends JpaRepository<EmergencyAlert, 
     @AcademyScopeExempt(reason = "§6.11 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
             + "배지는 전 학원의 미확인 신고를 세는 것이 목적이라 좁힐 학원이 부재")
     long countByAckedAtIsNullAndCanceledAtIsNull();
+
+    /** 학원 선택에 따라 좁힌 미확인(확인도 취소도 안 된) 비상 알림 수(§6.18 {@code attention.unacked_emergencies}). */
+    long countByAcademyIdInAndAckedAtIsNullAndCanceledAtIsNull(Collection<Long> academyIds);
+
+    /** 기간의 학원별 비상 알림 수 — 취소된 알림은 뺀다(§6.18 {@code academies[].emergency_count}). 시각은 {@code received_at}, 반열림 구간이다. */
+    @Query("SELECT a.academyId AS academyId, COUNT(a) AS total FROM EmergencyAlert a WHERE a.academyId IN :academyIds "
+            + "AND a.canceledAt IS NULL AND a.receivedAt >= :from AND a.receivedAt < :to GROUP BY a.academyId")
+    List<AcademyCount> countRaisedByAcademy(@Param("academyIds") Collection<Long> academyIds,
+            @Param("from") OffsetDateTime from, @Param("to") OffsetDateTime to);
 }

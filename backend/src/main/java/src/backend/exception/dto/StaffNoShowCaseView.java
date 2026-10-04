@@ -9,5 +9,6 @@ import java.time.OffsetDateTime;
  * <p>{@code resolvedAt IS NULL} 로 이미 좁혀 읽는다 — 대시보드는 "지금 대기 중인 것" 만 보여줘야
  * 하고, 해소된 케이스까지 실으면 관계자가 이미 끝난 건을 다시 처리하려 든다.
  */
-public record StaffNoShowCaseView(Long runId, String studentName, String stopName, OffsetDateTime expiresAt) {
+public record StaffNoShowCaseView(Long runId, Long caseId, String studentName, String stopName,
+        OffsetDateTime expiresAt) {
 }

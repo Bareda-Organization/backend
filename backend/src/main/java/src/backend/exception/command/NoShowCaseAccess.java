@@ -1,6 +1,7 @@
 package src.backend.exception.command;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.stereotype.Component;
@@ -10,8 +11,10 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.exception.dto.NoShowCaseView;
+import src.backend.exception.dto.NoShowContactView;
 import src.backend.exception.entity.NoShowCase;
 import src.backend.exception.repository.NoShowCaseRepository;
+import src.backend.exception.repository.NoShowContactRepository;
 
 /**
  * {@code no_show_case}(소유: exception) 쓰기의 <b>단일 진입점</b>(BR-095) — 승하차 처리
@@ -30,6 +33,8 @@ import src.backend.exception.repository.NoShowCaseRepository;
 public class NoShowCaseAccess {
 
     private final NoShowCaseRepository noShowCaseRepository;
+
+    private final NoShowContactRepository noShowContactRepository;
 
     /**
      * 대기 카운트다운을 연다 — 이미 케이스가 있으면 재개한다(BR-009, 탑승자당 케이스는
@@ -56,10 +61,14 @@ public class NoShowCaseAccess {
 
     /** 재전송 응답 재구성(목표 12)이 최초 처리 때 만들어진 케이스를 다시 찾을 때 쓴다. */
     public Optional<NoShowCaseView> find(Long runRiderId) {
-        return noShowCaseRepository.findByRunRiderId(runRiderId).map(NoShowCaseAccess::toView);
+        return noShowCaseRepository.findByRunRiderId(runRiderId).map(this::toView);
     }
 
-    private static NoShowCaseView toView(NoShowCase noShowCase) {
-        return new NoShowCaseView(noShowCase.getId(), noShowCase.getStartedAt(), noShowCase.getExpiresAt());
+    /** 되돌렸다 다시 미승차가 된 케이스는 이전 연락 이력을 그대로 갖는다 — 시각순으로 함께 싣는다(§4.6, Ruling 823). */
+    private NoShowCaseView toView(NoShowCase noShowCase) {
+        List<NoShowContactView> contacts = noShowContactRepository
+                .findAllByNoShowCaseIdInOrderByAttemptedAtAscIdAsc(List.of(noShowCase.getId())).stream()
+                .map(NoShowContactView::from).toList();
+        return new NoShowCaseView(noShowCase.getId(), noShowCase.getStartedAt(), noShowCase.getExpiresAt(), contacts);
     }
 }

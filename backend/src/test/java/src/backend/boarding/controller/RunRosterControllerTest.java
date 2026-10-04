@@ -29,8 +29,12 @@ import src.backend.academy.repository.AcademyRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.exception.entity.ContactAttemptType;
+import src.backend.exception.entity.ContactResult;
 import src.backend.exception.entity.NoShowCase;
+import src.backend.exception.entity.NoShowContact;
 import src.backend.exception.repository.NoShowCaseRepository;
+import src.backend.exception.repository.NoShowContactRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
@@ -131,6 +135,9 @@ class RunRosterControllerTest {
 
     @Autowired
     private NoShowCaseRepository noShowCaseRepository;
+
+    @Autowired
+    private NoShowContactRepository noShowContactRepository;
 
     /** 학생 승하차지 {@code stopId} 가 실린 정차 항목의 {@code run_stop.id}. */
     private long 정차_항목_id(long runId, long stopId) {
@@ -382,6 +389,73 @@ class RunRosterControllerTest {
         List<Object> waitingCases = JsonPath.read(body,
                 "$.data.stops[0].students[?(@.status == 'waiting')].no_show_case");
         assertThat(waitingCases).as("미승차가 아닌 학생은 케이스가 없다").allMatch(value -> value == null);
+    }
+
+    /**
+     * §4.2 {@code no_show_case.contacts[]}(Ruling 823) — 그 케이스의 연락 시도가 시각순으로 실리고(저장 순서가 아니다), 다른 케이스의
+     * 연락 기록은 섞이지 않으며, 시도가 없는 케이스는 빈 배열이다. 케이스가 없는 학생에는 객체 자체가 없다(기존 규칙).
+     */
+    @Test
+    void 미승차_케이스의_연락_이력은_시각순으로_contacts_에_실리고_다른_케이스와_섞이지_않는다() throws Exception {
+        Phase9RosterFixtures fx = fixtures();
+        long academyId = fx.academyWithCoordinates();
+        long busId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.500000", "127.000000");
+        fx.route(academyId, busId, Weekday.WED, Direction.TO_ACADEMY, stopId);
+        long student1 = fx.student(academyId, "학생1");
+        long student2 = fx.student(academyId, "학생2");
+        long student3 = fx.student(academyId, "학생3");
+        for (long studentId : new long[] { student1, student2, student3 }) {
+            fx.verifiedAddress(studentId, stopId, Weekday.WED, Direction.TO_ACADEMY, "37.500000", "127.000000");
+        }
+        OffsetDateTime departTime = OffsetDateTime.parse("2031-07-02T08:00:00+09:00");
+        long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY,
+                departTime, departTime.minusMinutes(30));
+        OffsetDateTime startedAt = departTime.plusMinutes(5);
+        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.ESCORT, "동승자");
+        fx.assign(runId, manager.managerId(), ManagerRole.ESCORT);
+
+        long caseWithContacts = 미승차_케이스(academyId, runId, student1, startedAt);
+        long caseWithoutContacts = 미승차_케이스(academyId, runId, student2, startedAt);
+        long otherCase = 미승차_케이스(academyId, runId, student3, startedAt);
+        // 저장 순서(늦은 시도가 먼저)와 시각 순서가 다르다 — 응답은 시각순이어야 한다
+        noShowContactRepository.save(NoShowContact.forAttempt(caseWithContacts, ContactAttemptType.MESSAGE,
+                ContactResult.ANSWERED, null, manager.accountId(), startedAt.plusMinutes(2)));
+        noShowContactRepository.save(NoShowContact.forAttempt(caseWithContacts, ContactAttemptType.CALL,
+                ContactResult.NO_ANSWER, null, manager.accountId(), startedAt.plusMinutes(1)));
+        noShowContactRepository.save(NoShowContact.forAttempt(otherCase, ContactAttemptType.CALL,
+                ContactResult.ANSWERED, null, manager.accountId(), startedAt.plusSeconds(30)));
+
+        String body = 본문(mockMvc.perform(get("/api/v1/runs/" + runId + "/roster").header("Authorization",
+                        토큰(manager.accountId(), academyId, Role.ESCORT)))
+                .andExpect(status().isOk())
+                .andReturn());
+
+        String first = "$.data.stops[0].students[?(@.student_id == '%d')].no_show_case.contacts".formatted(student1);
+        assertThat(JsonPath.<List<List<java.util.Map<String, Object>>>>read(body, first)).singleElement()
+                .satisfies(contacts -> {
+                    assertThat(contacts).extracting(c -> c.get("attempt_type")).containsExactly("call", "message");
+                    assertThat(contacts).extracting(c -> c.get("result")).containsExactly("no_answer", "answered");
+                    assertThat(contacts).extracting(c -> OffsetDateTime.parse((String) c.get("attempted_at")).toInstant())
+                            .containsExactly(startedAt.plusMinutes(1).toInstant(),
+                                    startedAt.plusMinutes(2).toInstant());
+                });
+        String second = "$.data.stops[0].students[?(@.student_id == '%d')].no_show_case.contacts".formatted(student2);
+        assertThat(JsonPath.<List<List<Object>>>read(body, second)).singleElement().satisfies(
+                contacts -> assertThat(contacts).isEmpty());
+        String third = "$.data.stops[0].students[?(@.student_id == '%d')].no_show_case.contacts".formatted(student3);
+        assertThat(JsonPath.<List<List<Object>>>read(body, third)).singleElement().satisfies(
+                contacts -> assertThat(contacts).hasSize(1));
+        assertThat(caseWithoutContacts).isNotEqualTo(caseWithContacts);
+    }
+
+    private long 미승차_케이스(long academyId, long runId, long studentId, OffsetDateTime startedAt) {
+        RunRider rider = runRiderRepository.findAllByRunIdAndAcademyId(runId, academyId).stream()
+                .filter(candidate -> candidate.getStudentId() == studentId).findFirst().orElseThrow();
+        rider.markNoShow(startedAt);
+        runRiderRepository.save(rider);
+        return noShowCaseRepository.save(NoShowCase.forRunRider(rider.getId(), startedAt, startedAt.plusMinutes(3),
+                startedAt)).getId();
     }
 
     private void 결석_처리한다(long academyId, long runId, long studentId) {

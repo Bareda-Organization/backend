@@ -26,6 +26,7 @@ import src.backend.manager.repository.AssignmentRepository;
 import src.backend.monitoring.dto.AdminAcademyLiveResponse;
 import src.backend.routing.entity.RunStop;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.entity.Stop;
 import src.backend.student.repository.StopRepository;
@@ -146,7 +147,9 @@ public class AdminAcademyLiveQueryService {
         return new AdminAcademyLiveResponse.Run(run.getId(), busNo, lower(run.getDirection().name()),
                 lower(run.getStatus().name()), position, lastSeenAt, run.getDepartTime(), run.getConfirmAt(), run.getStartedAt(), stops,
                 destinationEtaOf(run), contactOf(contacts, ManagerRole.DRIVER), contactOf(contacts,
-                        ManagerRole.ESCORT), run.getConsecutiveFailures());
+                        ManagerRole.ESCORT), run.getConsecutiveFailures(),
+                run.getStatus() == RunStatus.MOVING ? RunDelayCalculator.minutesOf(run, ordered) : null,
+                run.getStatus() == RunStatus.FINISHED ? run.getFinishedAt() : null);
     }
 
     /**

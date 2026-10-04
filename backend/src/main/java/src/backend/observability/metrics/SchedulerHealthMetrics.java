@@ -1,6 +1,8 @@
 package src.backend.observability.metrics;
 
+import java.time.Duration;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
@@ -56,6 +58,15 @@ public class SchedulerHealthMetrics {
     /** 한 주기가 정상 완료됨. 경과 게이지가 0 으로 돌아간다. */
     public void recordSuccess(String scheduler) {
         anchor(scheduler).set(clockMillis.getAsLong());
+    }
+
+    /**
+     * 그 스케줄러가 마지막으로 성공한 뒤 흐른 시간(§6.18 {@code health[]} {@code confirm_batch}) — 기동 뒤 한 번도 돌지 않았으면 기동 시점(사전 등록 시점)부터 잰다.
+     * 등록된 적 없는 이름이면 비어 있다.
+     */
+    public Optional<Duration> sinceLastSuccess(String scheduler) {
+        AtomicLong anchor = lastSuccessMillis.get(scheduler);
+        return anchor == null ? Optional.empty() : Optional.of(Duration.ofMillis(clockMillis.getAsLong() - anchor.get()));
     }
 
     /** 한 주기가 실패함. 실패 수만 올리고 성공 시각은 갱신하지 않는다 — 경과가 계속 늘어야 정지가 드러난다. */

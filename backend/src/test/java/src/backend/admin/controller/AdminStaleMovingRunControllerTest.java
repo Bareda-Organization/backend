@@ -236,6 +236,26 @@ class AdminStaleMovingRunControllerTest {
     }
 
     @Test
+    @DisplayName("목록 — academy_contact 는 학원 대표 연락처이고 미등록 학원은 null 이다 (Ruling 808)")
+    void 목록은_학원_대표_연락처를_싣고_미등록이면_null_이다() throws Exception {
+        long withContact = fixtures().academyWithCoordinates();
+        long withoutContact = fixtures().academyWithCoordinates();
+        academyRepository.flush(); // 엔티티의 미반영 변경이 아래 JDBC 갱신을 나중에 덮어쓰지 않게 먼저 내보낸다
+        jdbcTemplate.update("UPDATE academy SET contact = ? WHERE id = ?", "032-123-4567", withContact);
+        jdbcTemplate.update("UPDATE academy SET contact = NULL WHERE id = ?", withoutContact);
+        long registeredRun = staleRun(withContact);
+        long unregisteredRun = staleRun(withoutContact);
+
+        mockMvc.perform(get(LIST).header("Authorization", 메인관리자_토큰()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[?(@.run_id == %d)].academy_contact".formatted(registeredRun))
+                        .value("032-123-4567"))
+                .andExpect(jsonPath("$.data.items[?(@.run_id == %d)]".formatted(unregisteredRun)).isNotEmpty())
+                .andExpect(jsonPath("$.data.items[?(@.run_id == %d)].academy_contact".formatted(unregisteredRun))
+                        .value(org.hamcrest.Matchers.contains((Object) null)));
+    }
+
+    @Test
     @DisplayName("목록 건수는 StaleMovingRun 경보 지표(countStaleMoving)와 같은 회차 수다")
     void 목록_건수는_경보_지표와_같다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();

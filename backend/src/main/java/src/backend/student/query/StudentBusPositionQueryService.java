@@ -3,6 +3,7 @@ package src.backend.student.query;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -19,8 +20,12 @@ import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
+import src.backend.monitoring.query.RunOrderedStopsLoader;
+import src.backend.routing.entity.RunStop;
+import src.backend.routing.query.CurrentRunStopResolver;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
+import src.backend.run.repository.DelayNoticeRepository;
 import src.backend.student.access.StudentRunResolver;
 import src.backend.student.access.StudentRunsAccess;
 import src.backend.student.dto.StudentBusPositionResponse;
@@ -62,6 +67,10 @@ public class StudentBusPositionQueryService {
 
     private final RunPositionStore runPositionStore;
 
+    private final DelayNoticeRepository delayNoticeRepository;
+
+    private final RunOrderedStopsLoader runOrderedStopsLoader;
+
     private final Clock clock;
 
     /** 학생 1명의 오늘 회차 버스 위치(§3.11) — 오늘 회차가 없으면 {@code 404 RUN_NOT_FOUND}(W03-16). */
@@ -74,22 +83,47 @@ public class StudentBusPositionQueryService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
         String runStatus = run.getStatus().name().toLowerCase(Locale.ROOT);
 
-        if (run.getStatus() != RunStatus.MOVING || isAbsentToday(run, student.getId())) {
-            return StudentBusPositionResponse.withoutPosition(run.getId(), busNo, runStatus);
+        // 당일 미등원이면 그 버스의 지연 안내도 의미가 없다 — 위치와 함께 비운다(§3.11 "오늘은 버스를 이용하지 않습니다")
+        boolean absentToday = isAbsentToday(run, student.getId());
+        StudentBusPositionResponse.Delay delay = absentToday ? null : lastDelayOf(run);
+        if (run.getStatus() != RunStatus.MOVING || absentToday) {
+            return StudentBusPositionResponse.withoutPosition(run.getId(), busNo, runStatus, run.getStartedAt(),
+                    run.getFinishedAt(), delay);
         }
 
         // Redis 가 죽으면 run_position 최신 행으로 대체된다(BR-167) — 그때 current_stop_name 은 비어 나간다.
         Optional<RunPositionRedisValue> snapshot = runPositionStore.find(run.getId());
         if (snapshot.isEmpty()) {
-            return StudentBusPositionResponse.withoutPosition(run.getId(), busNo, runStatus);
+            return StudentBusPositionResponse.withoutPosition(run.getId(), busNo, runStatus, run.getStartedAt(),
+                    run.getFinishedAt(), delay);
         }
         RunPositionRedisValue position = snapshot.get();
+        OffsetDateTime stopArrivedAt = lastArrivedAtOf(run);
         if (isStale(position.receivedAt())) {
             return new StudentBusPositionResponse(run.getId(), busNo, runStatus, null, null, null,
-                    position.receivedAt(), position.currentStopName());
+                    position.receivedAt(), position.currentStopName(), stopArrivedAt, run.getStartedAt(),
+                    run.getFinishedAt(), delay);
         }
         return new StudentBusPositionResponse(run.getId(), busNo, runStatus, position.lat(), position.lng(),
-                position.receivedAt(), null, position.currentStopName());
+                position.receivedAt(), null, position.currentStopName(), stopArrivedAt, run.getStartedAt(),
+                run.getFinishedAt(), delay);
+    }
+
+    /** 끝나지 않은 회차의 마지막 지연 알림(§4.9) — 없거나 회차가 끝났으면 {@code null}(지연 안내 띠를 걷는다). */
+    private StudentBusPositionResponse.Delay lastDelayOf(Run run) {
+        if (run.getStatus() == RunStatus.FINISHED) {
+            return null;
+        }
+        return delayNoticeRepository.findFirstByRunIdOrderByIdDesc(run.getId())
+                .map(notice -> new StudentBusPositionResponse.Delay(notice.getMinutes(),
+                        notice.getReason().name().toLowerCase(Locale.ROOT), notice.getSentAt()))
+                .orElse(null);
+    }
+
+    /** 마지막으로 도착 처리된 승하차지의 도착 시각(§4.3 {@code current_stop} 과 같은 판정) — 도착 기록이 없으면 {@code null}. */
+    private OffsetDateTime lastArrivedAtOf(Run run) {
+        return CurrentRunStopResolver.resolve(runOrderedStopsLoader.load(run.getAcademyId(), List.of(run))
+                .getOrDefault(run.getId(), List.of())).map(RunStop::getArrivedAt).orElse(null);
     }
 
     /** 당일 미등원이면 운행 중이어도 위치를 보이지 않는다(§3.11 "당일 미등원이면 위치 부재"). */

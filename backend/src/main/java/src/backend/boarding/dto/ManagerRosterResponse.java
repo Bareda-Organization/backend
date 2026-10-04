@@ -3,6 +3,8 @@ package src.backend.boarding.dto;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import src.backend.exception.dto.NoShowContactView;
+
 /**
  * 매니저 앱의 승하차지별 명단(API_SPEC §4.2 {@code GET /runs/{runId}/roster}, RST-01·02·04·M-03,
  * Phase 9 목표 6·15) — 관계자 웹({@code StaffRosterItemResponse})과 <b>같은 원본 데이터를 다른
@@ -34,10 +36,12 @@ public record ManagerRosterResponse(String runId, String busNo, String direction
     }
 
     /**
-     * 미승차 대기 카운트다운(§4.2 {@code no_show_case}) — 열린 케이스가 없으면 {@code null}. {@code caseId} 는
+     * 미승차 대기 카운트다운(§4.2 {@code no_show_case}) — 열린 케이스가 없으면 {@code null}. {@code contacts} 는 그 케이스의 연락
+     * 시도 이력으로 시각순이며 없으면 빈 배열이다(Ruling 823). {@code caseId} 는
      * 문자열이다 — 매니저 앱이 §4.6 응답과 같은 모델({@code NoShowCase.fromJson}, {@code case_id} 필수 문자열)로
      * 읽는다(§1.1 · Ruling 332).
      */
-    public record NoShowCountdown(String caseId, OffsetDateTime startedAt, OffsetDateTime expiresAt) {
+    public record NoShowCountdown(String caseId, OffsetDateTime startedAt, OffsetDateTime expiresAt,
+            List<NoShowContactView> contacts) {
     }
 }
