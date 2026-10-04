@@ -17,12 +17,16 @@ import java.util.List;
  * <p>{@code confirm_at} 은 {@code run.confirm_at} 저장값(출발 30분 전)이다 — 강제 확정 화면의 "확정 예정" 이 읽는다({@code Ruling 393}).
  *
  * <p>{@code consecutive_failures} 는 확정이 계속 실패하는 회차를 강제 확정(§6.14) 대상으로 알아보는 재료다(BR-047).
+ *
+ * <p>{@code delay_minutes} 는 §5.18 과 같은 계산({@code RunDelayCalculator}, Ruling 232)이고 {@code moving} 이 아니면 {@code null},
+ * {@code finished_at} 은 {@code finished} 일 때만 채운다(Ruling 805).
  */
 public record AdminAcademyLiveResponse(List<Run> runs) {
 
     public record Run(Long runId, String busNo, String direction, String runStatus, Position position,
             OffsetDateTime lastSeenAt, OffsetDateTime departTime, OffsetDateTime confirmAt, OffsetDateTime estDepartTime,
-            List<Stop> stops, OffsetDateTime destinationEta, Contact driver, Contact escort, int consecutiveFailures) {
+            List<Stop> stops, OffsetDateTime destinationEta, Contact driver, Contact escort, int consecutiveFailures,
+            Integer delayMinutes, OffsetDateTime finishedAt) {
     }
 
     /** 위치 신호가 아직 한 번도 없거나(Redis 키 부재) 유실(2분 초과)이면 {@code null} — {@link Run#lastSeenAt}. */
