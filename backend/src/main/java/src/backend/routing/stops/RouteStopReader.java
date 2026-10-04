@@ -11,11 +11,13 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Weekday;
+import src.backend.routing.domain.GeoPoint;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.Route;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
+import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
 
 /**
@@ -38,6 +40,8 @@ public class RouteStopReader {
     private final ConfirmedRouteRepository confirmedRouteRepository;
 
     private final RunStopRepository runStopRepository;
+
+    private final RouteVersionRepository routeVersionRepository;
 
     /** 그 요일·방향의 고정 노선 정차지를 순서대로 — 편성이 없으면 빈 목록(§3.10 "미확정이어도 에러 아님"). */
     public List<Entry> fixedRouteStops(Long academyId, Long busId, Weekday weekday, Direction direction) {
@@ -65,6 +69,18 @@ public class RouteStopReader {
                 .toList();
     }
 
+    /**
+     * 확정 노선(현재 버전)에 저장된 도로 좌표와 폴백 여부 — 외부 지도 API 를 부르지 않고 저장값만 읽는다. 아직 확정되지 않았거나
+     * 좌표 컬럼이 빈 옛 버전이면 좌표는 빈 목록이다.
+     */
+    public RoadPath confirmedRoadPath(Long runId) {
+        return confirmedRouteRepository.findById(runId).map(ConfirmedRoute::getCurrentVersionId)
+                .flatMap(routeVersionRepository::findById)
+                .map(version -> new RoadPath(version.getRoadPath() == null ? List.of() : List.copyOf(version.getRoadPath()),
+                        version.isFallbackUsed()))
+                .orElse(RoadPath.EMPTY);
+    }
+
     /** 그 요일·방향에 그 정차지를 고정 노선에 둔 차량 id 전부 — 확정 전(idle) 회차의 소속 판정(BR-058)에 쓰인다. */
     public Set<Long> busIdsServingStop(Long academyId, Weekday weekday, Direction direction, Long stopId) {
         return Set.copyOf(routeRepository.findBusIdsServingStop(academyId, weekday, direction, stopId));
@@ -75,5 +91,11 @@ public class RouteStopReader {
      * {@code null}(아직 달리지 않은 노선이다). 확정 노선에서도 지나가지 않은 곳은 {@code arrivedAt} 이 {@code null} 이다.
      */
     public record Entry(Long stopId, int seq, String change, OffsetDateTime arrivedAt) {
+    }
+
+    /** 확정 노선 버전의 도로 좌표(순서 있음)와 직선 근사 여부({@code fallback_used}) — 확정 전은 {@link #EMPTY}. */
+    public record RoadPath(List<GeoPoint> points, boolean fallbackUsed) {
+
+        public static final RoadPath EMPTY = new RoadPath(List.of(), false);
     }
 }

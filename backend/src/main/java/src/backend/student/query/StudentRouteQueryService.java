@@ -106,8 +106,12 @@ public class StudentRouteQueryService {
         String busNo = busRepository.findByIdAndAcademyId(run.getBusId(), academyId).map(Bus::getBusNo)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
 
+        RouteStopReader.RoadPath stored = run.getStatus() == RunStatus.IDLE ? RouteStopReader.RoadPath.EMPTY
+                : routeStopReader.confirmedRoadPath(run.getId());
+
         return new StudentRouteResponse(run.getId(), busNo, run.getDepartTime(), run.getStatus() != RunStatus.IDLE,
-                contactOf(run, ManagerRole.DRIVER), escortContactOf(run), myStopId, stops);
+                contactOf(run, ManagerRole.DRIVER), escortContactOf(run), myStopId, stops,
+                RoadPathSlicer.slice(stored.points(), stops), stored.fallbackUsed());
     }
 
     /** {@code run_id} 가 있으면 그 회차만, 없으면 {@code date}(또는 오늘)로 가장 관련 있는 회차를 고른다. */
