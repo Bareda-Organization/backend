@@ -71,8 +71,9 @@ services:
       # ⚠ 아래 넷은 `.env` 에서 받는다. 비어 있으면 compose 가 기동 전에 멈춘다.
       SEED_PASSWORD_HASH: ${SEED_PASSWORD_HASH:?.env 에 시드 계정 비밀번호의 BCrypt 해시가 필요하다}
       JWT_SECRET: ${JWT_SECRET:?.env 에 32바이트 이상 임의 문자열이 필요하다}
-      CORS_ALLOWED_ORIGINS: ${PUBLIC_URL:?.env 에 공개 주소(https://...)가 필요하다}
-      WS_ALLOWED_ORIGIN_PATTERNS: ${PUBLIC_URL}
+      # 웹을 다른 주소(Vercel 등)에서 띄우면 WEB_ORIGIN 에 그 출처를 넣는다 — 허용 출처에 함께 실린다.
+      CORS_ALLOWED_ORIGINS: ${PUBLIC_URL:?.env 에 공개 주소(https://...)가 필요하다}${WEB_ORIGIN:+,${WEB_ORIGIN}}
+      WS_ALLOWED_ORIGIN_PATTERNS: ${PUBLIC_URL}${WEB_ORIGIN:+,${WEB_ORIGIN}}
     expose:
       - "8080"
     # 컨테이너 헬스체크 — staging 프로파일은 헬스·지표를 관리 포트(8081)에 둔다(application.yml · 운영과 같은 근거 Ruling 740). 이미지에 curl 이 있다(backend/Dockerfile).
@@ -125,11 +126,14 @@ services:
 
   # Cloudflare Tunnel — 집 PC 가 먼저 Cloudflare 로 연결을 열어 두고, 공개 주소 요청을 그 연결로 받는다.
   # 공개 주소 → 서비스 대상은 Cloudflare 대시보드에서 `http://proxy:80` 으로 지정한다(문서 참고).
+  # ngrok 등 다른 터널을 쓰면 이 서비스는 띄우지 않는다 — `--profile cloudflare` 로 켤 때만 뜬다.
   cloudflared:
+    profiles: ["cloudflare"]
     image: cloudflare/cloudflared:2026.9.3
     command: ["tunnel", "--no-autoupdate", "run"]
     environment:
-      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?.env 에 Cloudflare Tunnel 토큰이 필요하다}
+      # 프로필이 꺼져 있어도 compose 는 파일 전체의 변수를 풀므로 필수(:?)로 두지 않는다 — 토큰이 없으면 이 컨테이너만 실패한다.
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
     depends_on:
       - proxy
     restart: unless-stopped
