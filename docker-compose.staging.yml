@@ -126,6 +126,18 @@ services:
 
   # Cloudflare Tunnel — 집 PC 가 먼저 Cloudflare 로 연결을 열어 두고, 공개 주소 요청을 그 연결로 받는다.
   # 공개 주소 → 서비스 대상은 Cloudflare 대시보드에서 `http://proxy:80` 으로 지정한다(문서 참고).
+  # ngrok — Cloudflare 대신 쓸 때(STAGING.md §4.1 · Ruling 841). 고정 도메인(PUBLIC_URL)으로 온 요청을 proxy:80 으로 보낸다.
+  # Docker Desktop 의 ngrok 확장은 공개를 컨테이너 ID 에 묶어 `up --build` 로 프록시가 새로 만들어질 때마다 끊기므로 쓰지 않는다.
+  ngrok:
+    profiles: ["ngrok"]
+    image: ngrok/ngrok:3.39.8-alpine
+    command: ["http", "proxy:80", "--url", "${PUBLIC_URL}"]
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+    depends_on:
+      - proxy
+    restart: unless-stopped
+
   # ngrok 등 다른 터널을 쓰면 이 서비스는 띄우지 않는다 — `--profile cloudflare` 로 켤 때만 뜬다.
   cloudflared:
     profiles: ["cloudflare"]
