@@ -282,6 +282,11 @@ class SeedFixturesContractTest extends MigratedPostgresTestBase {
                         new Object[] {SeedFixtures.ROUTE_A_FIXED_ID, SeedFixtures.ACADEMY_A_ID}),
                         "ROUTE_A_FIXED_ID"),
                 checked(new FixtureCheck(
+                        "STOP_A_CENTRAL_ID 는 학원 A 소속 승하차지다",
+                        "SELECT 1 FROM stop WHERE id = ?::bigint AND academy_id = ?::bigint",
+                        new Object[] {SeedFixtures.STOP_A_CENTRAL_ID, SeedFixtures.ACADEMY_A_ID}),
+                        "STOP_A_CENTRAL_ID"),
+                checked(new FixtureCheck(
                         "SIGNUP_REQUEST_STAFF_PENDING_ID 는 staffPending 계정의 대기 중 관계자 가입 신청이다",
                         """
                         SELECT 1 FROM signup_request s
