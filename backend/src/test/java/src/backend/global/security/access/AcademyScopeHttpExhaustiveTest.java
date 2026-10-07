@@ -111,6 +111,7 @@ class AcademyScopeHttpExhaustiveTest {
     private Long academyBAccountId;
     private Long academyBParentAccountId;
     private Long academyBRouteId;
+    private Long academyBStopId;
     private Long academyBChangeRequestId;
     private Long academyBSignupRequestId;
     private Long academyBEmergencyAlertId;
@@ -140,6 +141,7 @@ class AcademyScopeHttpExhaustiveTest {
         assertThat(academyBAccountId).as("B학원 계정 시드가 없으면 픽스처를 못 심는다").isNotNull();
         assertThat(academyBParentAccountId).as("B학원 학부모 계정 시드가 없으면 대조 재료가 없다").isNotNull();
 
+        academyBStopId = queryOne("SELECT id FROM stop WHERE academy_id = ? ORDER BY id LIMIT 1", ACADEMY_B);
         academyBRouteId = jdbcTemplate.queryForObject(
                 "INSERT INTO route (academy_id, bus_id, weekday, direction, active) "
                         + "VALUES (?, ?, 'mon', 'to_academy', true) RETURNING id",
@@ -323,6 +325,9 @@ class AcademyScopeHttpExhaustiveTest {
         cases.add(c("POST /staff/routes/{id}/optimize → B학원 노선 404", HttpMethod.POST,
                 "/staff/routes/{id}/optimize", new Object[] {academyBRouteId}, staffA(), OPTIMIZE_BODY, 404,
                 "ROUTE_NOT_FOUND"));
+        // R50c — 승하차지 수정(§5.9, Ruling 849). 남의 학원 승하차지는 없는 것과 같은 404 다.
+        cases.add(c("PATCH /staff/stops/{id} → B학원 승하차지 404", HttpMethod.PATCH, "/staff/stops/{id}",
+                new Object[] {academyBStopId}, staffA(), "{\"name\":\"남의 것\"}", 404, "STOP_NOT_FOUND"));
         cases.add(c("POST /staff/runs/{runId}/forced-add → B학원 회차 404", HttpMethod.POST,
                 "/staff/runs/{runId}/forced-add", new Object[] {ACADEMY_B_RUN_ID}, staffA(), FORCED_ADD_BODY, 404,
                 "RUN_NOT_FOUND"));

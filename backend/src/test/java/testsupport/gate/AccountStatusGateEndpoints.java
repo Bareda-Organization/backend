@@ -195,6 +195,9 @@ public final class AccountStatusGateEndpoints {
             "GET /staff/routes/{id}/path",
             "PUT /staff/routes/{id}/stops",
             "GET /staff/stops/suggest",
+            // 승하차지 관리(§5.9 · Ruling 849) — 같은 관계자 전용 관리 화면이라 근거가 위와 같다.
+            "GET /staff/stops",
+            "PATCH /staff/stops/{id}",
             "PATCH /staff/routes/{id}",
             "DELETE /staff/routes/{id}",
             "POST /staff/routes/{id}/optimize",

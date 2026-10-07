@@ -27,9 +27,6 @@ import src.backend.routing.entity.Route;
 import src.backend.routing.entity.RoutePlan;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
-import src.backend.routing.repository.RunStopRepository;
-import src.backend.run.domain.MovingRunWindowPolicy;
-import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.command.StopMatcher;
 import src.backend.student.entity.Stop;
@@ -62,9 +59,7 @@ public class RouteCommandService {
 
     private final RouteStopArranger routeStopArranger;
 
-    private final RunStopRepository runStopRepository;
-
-    private final MovingRunWindowPolicy movingRunWindowPolicy;
+    private final MovingRunStopLock movingRunStopLock;
 
     private final RunRepository runRepository;
 
@@ -158,23 +153,17 @@ public class RouteCommandService {
     }
 
     /**
-     * 좌표가 바뀌는 승하차지가 운행 중 회차의 노선에 서면 {@code 403 CHANGE_WINDOW_CLOSED} 다(ARCHITECTURE §8.5
-     * 운행 시작과 동시에 노선 잠금, BR-052) — 이름만 고치는 것은 판정에 쓰이지 않아 막지 않는다. 운행일이 어제보다 이른
-     * 끝나지 않은 회차는 잠금 대상이 아니다({@link MovingRunWindowPolicy}, R46-KFIXBE K-1).
+     * 좌표가 바뀌는 승하차지가 운행 중 회차의 노선에 서면 {@code 403 CHANGE_WINDOW_CLOSED} 다 — 판정은 {@link MovingRunStopLock} 이
+     * 맡고, 여기서는 이 요청이 어느 승하차지의 좌표를 옮기는지만 가린다.
      */
     private void assertNotRelocatingStopsOfMovingRun(AuthUser requester, Map<Long, Stop> existing,
             RouteStopsSaveRequest request) {
         List<Long> relocated = request.stops().stream()
                 .filter(item -> item.stopId() != null)
-                .filter(item -> existing.get(item.stopId()).getLat().compareTo(item.lat()) != 0
-                        || existing.get(item.stopId()).getLng().compareTo(item.lng()) != 0)
+                .filter(item -> existing.get(item.stopId()).movesTo(item.lat(), item.lng()))
                 .map(RouteStopsSaveRequest.Item::stopId)
                 .toList();
-        if (!relocated.isEmpty()
-                && runStopRepository.existsOnMovingRun(relocated, requester.academyId(), RunStatus.MOVING,
-                        movingRunWindowPolicy.earliestServiceDate())) {
-            throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);
-        }
+        movingRunStopLock.assertNotRelocating(requester.academyId(), relocated);
     }
 
     /**

@@ -65,6 +65,7 @@ public final class EndpointErrorResponses {
             entry("PATCH /staff/buses/{id}", Map.of("404", "BUS_NOT_FOUND", "409", "CAPACITY_EXCEEDED · DUPLICATE_BUS_NO")),
             entry("PATCH /staff/managers/{id}", Map.of("404", "MANAGER_NOT_FOUND")),
             entry("PATCH /staff/routes/{id}", Map.of("404", "ROUTE_NOT_FOUND · BUS_NOT_FOUND", "409", "DUPLICATE_ROUTE", "422", "VALIDATION_FAILED")),
+            entry("PATCH /staff/stops/{id}", Map.of("403", "CHANGE_WINDOW_CLOSED", "404", "STOP_NOT_FOUND", "422", "VALIDATION_FAILED")),
             entry("PATCH /staff/runs/{runId}/assignment", Map.of("404", "RUN_NOT_FOUND · MANAGER_NOT_FOUND", "409", "DUPLICATE_ASSIGNMENT", "422", "VALIDATION_FAILED")),
             entry("PATCH /staff/schedules/{id}", Map.of("404", "SCHEDULE_NOT_FOUND · BUS_NOT_FOUND", "409", "DUPLICATE_SCHEDULE")),
             entry("PATCH /staff/students/{id}", Map.of("404", "STUDENT_NOT_FOUND")),

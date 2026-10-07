@@ -76,6 +76,11 @@ public class Stop extends BaseTimeEntity {
         this.lng = lng;
     }
 
+    /** 이 좌표로 옮기면 지금 자리와 달라지는가 — 운행 중 노선 잠금(BR-052)이 이름·주소만 고치는 요청과 가르는 기준이다. */
+    public boolean movesTo(BigDecimal lat, BigDecimal lng) {
+        return this.lat.compareTo(lat) != 0 || this.lng.compareTo(lng) != 0;
+    }
+
     /** 주소 검증 결과 기존 승하차지와 매칭되지 않아 새로 만드는 시점에 생성한다(STU-05). */
     public static Stop forVerifiedAddress(Long academyId, String name, String address, BigDecimal lat,
             BigDecimal lng) {

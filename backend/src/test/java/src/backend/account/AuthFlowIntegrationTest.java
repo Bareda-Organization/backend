@@ -170,7 +170,7 @@ class AuthFlowIntegrationTest {
     void 거부측_목록이_허용_목록_밖_실제_핸들러_전부와_일치한다() {
         List<String> all = AccountStatusGateEndpoints.productionEndpoints(handlerMapping, handlerMethod -> true);
         assertThat(all)
-                .as("프로덕션 핸들러 119개(Ruling 324 로 link-requests 제거 106→105, R27-B 가 "
+                .as("프로덕션 핸들러 121개(Ruling 324 로 link-requests 제거 106→105, R27-B 가 "
                         + "GET /staff/routes/{id}/path 를 더해 105→106, 주소 검색·좌표 정차지 추가가 "
                         + "106→108, R30 의 승하차지 한 번에 저장·주소 자동완성이 108→110, Ruling 329 의 "
                         + "관리자 경유 비밀번호 초기화가 110→111, R36-BE 의 이동 대기 취소가 111→112, BR-214 의 학생 사진 서빙이 112→113) — 늘었는데 이 단언만 "
@@ -208,8 +208,9 @@ class AuthFlowIntegrationTest {
                         + " + R46-FUFEAT 의 1(전체 관제 학원별 지연·확정 실패 집계 §6.15 · Ruling 543)"
                         + " + R47 stale 의 2(끝나지 않은 이동 중 회차 목록 §6.16 + 강제 종료 §6.17 · Ruling 724)"
                         + " + R48 의 1(메인관리자 대시보드 집계 §6.18 · Ruling 801)"
-                        + " + R48 be3 의 2(예외 보고 처리 표시 §5.20 · Ruling 814 + 퇴원 미리보기 §5.11 · Ruling 815)")
-                .hasSize(119);
+                        + " + R48 be3 의 2(예외 보고 처리 표시 §5.20 · Ruling 814 + 퇴원 미리보기 §5.11 · Ruling 815)"
+                        + " + R50c 의 2(승하차지 관리 목록·수정 §5.9 · Ruling 849)")
+                .hasSize(121);
 
         assertThat(AccountStatusGateEndpoints.productionEndpoints(
                 handlerMapping, AccountStatusGateEndpoints::deniedWhenPending))

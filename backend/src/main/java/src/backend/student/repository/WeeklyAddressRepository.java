@@ -137,6 +137,24 @@ public interface WeeklyAddressRepository extends JpaRepository<WeeklyAddress, Lo
             @Param("stopIds") Collection<Long> stopIds, @Param("weekday") Weekday weekday,
             @Param("direction") Direction direction);
 
+    /**
+     * 승하차지 관리 목록의 학생 수(§5.9, Ruling 849) — 요일·방향과 무관하게 요일별 주소가 그 승하차지로 매칭된 <b>재원</b> 학생을
+     * <b>학생 단위로 한 번</b> 센다. 한 학생이 요일 × 방향 14칸을 같은 승하차지로 가져도 1명이다. 퇴원생은 뺀다.
+     * 학원 조건은 {@code Student} 조인으로 건다({@code weekly_address} 에 {@code academy_id} 부재 — ERD §6.1).
+     */
+    @Query("""
+            SELECT wa.stopId AS stopId, COUNT(DISTINCT wa.studentId) AS total
+            FROM WeeklyAddress wa
+            JOIN Student s ON s.id = wa.studentId
+            WHERE s.academyId = :academyId
+              AND s.deletedAt IS NULL
+              AND wa.stopId IN :stopIds
+              AND wa.verified = true
+            GROUP BY wa.stopId
+            """)
+    List<StopRiderCount> countStudentsByStopIds(@Param("academyId") Long academyId,
+            @Param("stopIds") Collection<Long> stopIds);
+
     /** {@link #countRidersByStopIds} 의 한 행 — 승하차지 id 와 그 승하차지를 쓰는 재원 학생 수. */
     interface StopRiderCount {
 

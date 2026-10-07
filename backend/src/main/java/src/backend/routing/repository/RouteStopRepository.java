@@ -7,6 +7,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import src.backend.global.common.enums.Direction;
+import src.backend.global.common.enums.Weekday;
 import src.backend.routing.entity.RouteStop;
 
 /**
@@ -45,6 +47,37 @@ public interface RouteStopRepository extends JpaRepository<RouteStop, Long> {
             """)
     List<StopCount> countByRouteIdsAndAcademyId(@Param("routeIds") Collection<Long> routeIds,
             @Param("academyId") Long academyId);
+
+    /**
+     * 승하차지 관리 목록(§5.9, Ruling 849)이 승하차지마다 싣는 편성 — 한 쪽의 승하차지 전부를 한 번에 읽는다. 승하차지마다 읽으면 한
+     * 쪽(최대 100건)이 질의 100건이 된다. 비활성 편성도 싣는다. 학원 조건은 {@link #findAllOrderedByRouteIdAndAcademyId} 와 같은
+     * 이유로 {@code route} 조인에 둔다.
+     */
+    @Query("""
+            SELECT rs.stopId AS stopId, r.id AS routeId, r.busId AS busId, r.weekday AS weekday,
+                   r.direction AS direction, r.active AS active
+            FROM RouteStop rs, Route r
+            WHERE rs.routeId = r.id AND r.academyId = :academyId AND rs.stopId IN :stopIds
+            ORDER BY r.id
+            """)
+    List<StopRoute> findRoutesByStopIdsAndAcademyId(@Param("stopIds") Collection<Long> stopIds,
+            @Param("academyId") Long academyId);
+
+    /** {@link #findRoutesByStopIdsAndAcademyId} 의 한 행 — 승하차지 하나를 담은 편성 하나. */
+    interface StopRoute {
+
+        Long getStopId();
+
+        Long getRouteId();
+
+        Long getBusId();
+
+        Weekday getWeekday();
+
+        Direction getDirection();
+
+        boolean getActive();
+    }
 
     /** {@link #countByRouteIdsAndAcademyId} 의 한 행 — 편성 id 와 그 편성의 정차지 수. */
     interface StopCount {

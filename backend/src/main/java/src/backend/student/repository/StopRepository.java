@@ -3,7 +3,10 @@ package src.backend.student.repository;
 import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -66,4 +69,21 @@ public interface StopRepository extends JpaRepository<Stop, Long>, StopMergeLook
             """)
     List<Stop> findNearby(@Param("academyId") Long academyId, @Param("lat") BigDecimal lat,
             @Param("lng") BigDecimal lng, @Param("box") BigDecimal box);
+
+    /** 승하차지 1건을 학원 안에서 읽는다 — 없는 번호와 남의 학원 번호가 같은 빈 결과로 돌아온다(존재 비노출, Ruling 849). */
+    Optional<Stop> findByIdAndAcademyId(Long id, Long academyId);
+
+    /**
+     * 승하차지 관리 목록(Ruling 849, API_SPEC §5.9) — {@code q} 가 이름 또는 주소에 들어 있으면 걸리고 비우면 전부다.
+     *
+     * <p>{@code LIKE} 가 아니라 {@code LOCATE} 로 찾는 이유는 {@code %}·{@code _} 를 글자로 읽게 하려는 것이다 — {@code LIKE} 는
+     * 사용자가 친 {@code %} 가 와일드카드가 되어 전부를 돌려주고, 이스케이프를 호출부마다 해야 한다. 정렬은 호출부가 이름·{@code id}
+     * 순으로 준다.
+     */
+    @Query("""
+            SELECT s FROM Stop s
+             WHERE s.academyId = :academyId
+               AND (:q = '' OR LOCATE(LOWER(:q), LOWER(s.name)) > 0 OR LOCATE(LOWER(:q), LOWER(s.address)) > 0)
+            """)
+    Page<Stop> searchByAcademyId(@Param("academyId") Long academyId, @Param("q") String q, Pageable pageable);
 }
