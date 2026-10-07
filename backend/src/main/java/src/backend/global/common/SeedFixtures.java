@@ -154,6 +154,9 @@ public final class SeedFixtures {
     /** 학원 A 고정 노선(등원, 1호차) — {@code StaffRouteController#id}. */
     public static final String ROUTE_A_FIXED_ID = "1";
 
+    /** 학원 A 승하차지 "중앙로 스타빌딩 앞" — {@code StaffStopManagementController#id}. */
+    public static final String STOP_A_CENTRAL_ID = "1";
+
     /** 가입 대기 중인 관계자 신청(staffPending, 학원 A) — {@code AdminStaffApprovalController#id}. */
     public static final String SIGNUP_REQUEST_STAFF_PENDING_ID = "1";
 

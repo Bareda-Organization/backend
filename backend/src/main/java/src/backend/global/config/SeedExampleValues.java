@@ -65,6 +65,7 @@ final class SeedExampleValues {
             Map.entry("AdminStaffAccountController#id", SeedFixtures.ACCOUNT_STAFF_A_ID),
             Map.entry("StaffManagerController#id", SeedFixtures.MANAGER_DRIVER_A1_ID),
             Map.entry("StaffRouteController#id", SeedFixtures.ROUTE_A_FIXED_ID),
+            Map.entry("StaffStopManagementController#id", SeedFixtures.STOP_A_CENTRAL_ID),
             Map.entry("AdminBlockedAccountController#id", SeedFixtures.ACCOUNT_DRIVER_BLOCKED_ID),
             Map.entry("SignupApprovalController#id", SeedFixtures.SIGNUP_REQUEST_PARENT_PENDING_ID),
             Map.entry("AdminStaffApprovalController#id", SeedFixtures.SIGNUP_REQUEST_STAFF_PENDING_ID),
