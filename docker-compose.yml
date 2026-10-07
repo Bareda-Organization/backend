@@ -32,6 +32,9 @@ services:
       POSTGRES_DB: schoolbus
       POSTGRES_USER: schoolbus
       POSTGRES_PASSWORD: schoolbus
+      # DB 기본 정렬을 ICU 한국어로 — 이름순 목록(승하차지 · 학원 · 계정 등)이 가나다순이 된다. 이미지 기본값 en_US.utf8 은 한글을
+      # 섞어 세운다(2026-10-07 `Ruling 851`). 빈 데이터 디렉터리를 처음 만들 때만 먹는다 — 이미 만든 DB 는 덤프·복원으로만 바뀐다.
+      POSTGRES_INITDB_ARGS: "--locale-provider=icu --icu-locale=ko-KR"
     ports:
       # 호스트 15432 로 낸다 — 개발 노트북에 다른 프로젝트의 postgres 가 5432 를 쓰고 있어
       # 기본 포트로 두면 테스트가 남의 DB 에 붙어 인증 실패 수백 건으로 나타난다(2026-09-06 실측).

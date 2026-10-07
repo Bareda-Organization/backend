@@ -31,6 +31,9 @@ import org.junit.jupiter.api.Test;
  */
 class RuntimeImageParityTest {
 
+    /** 빈 데이터 디렉터리를 만들 때 DB 기본 정렬을 ICU 한국어로 — compose · Testcontainers 가 같은 문자열을 쓴다(`Ruling 851`). */
+    private static final String KOREAN_INITDB_ARGS = "--locale-provider=icu --icu-locale=ko-KR";
+
     private static final Path ROOT = Path.of("..");
 
     private static final List<String> COMPOSE_FILES = List.of(
@@ -80,6 +83,29 @@ class RuntimeImageParityTest {
         assertThat(composeEcosystem).as("dependabot.yml 에 docker-compose 생태계 블록(운영 compose 의 postgres 이미지를 갱신 대상으로 본다)이 있어야 한다").isNotEmpty();
         assertThat(composeEcosystem).as("docker-compose 블록의 ignore — 주 버전 상향은 데이터 위치가 바뀌어 pg_upgrade 가 필요하다")
                 .containsPattern("dependency-name:\\s*[\"']?postgres[\"']?\\s+update-types:\\s*\\[[^\\]]*version-update:semver-major");
+    }
+
+    /**
+     * 한국어 정렬(ICU) — DB 기본 정렬 규칙이 이름순 목록 전부의 순서를 정한다. 공식 이미지 기본값(`en_US.utf8`)은 한글을
+     * 가나다순으로 세우지 않아 "코스모스 → 한빛 → 그린" 처럼 섞였다(2026-10-07 · `Ruling 851`). 이 인자는 빈 데이터 디렉터리를 처음
+     * 만들 때만 먹으므로, 한 곳에서라도 빠지면 그 환경만 조용히 다르게 정렬된다 — 운영 compose 를 시험하는 다른 수단이 없다.
+     */
+    @Test
+    @DisplayName("postgres 를 만드는 곳(compose 3개 · 시험용 컨테이너) 전부가 한국어 정렬(ICU)로 DB 를 만든다")
+    void postgresUsesKoreanCollationEverywhere() throws IOException {
+        for (String compose : COMPOSE_FILES) {
+            assertThat(stripComments(read(compose))).as("%s 의 postgres 환경 변수", compose)
+                    .contains("POSTGRES_INITDB_ARGS: \"" + KOREAN_INITDB_ARGS + "\"");
+        }
+        try (Stream<Path> files = Files.walk(Path.of("src/test/java"))) {
+            for (Path file : files.filter(path -> path.toString().endsWith(".java")).toList()) {
+                String source = Files.readString(file);
+                if (source.contains("new PostgreSQLContainer(\"postgres:")) {
+                    assertThat(source).as("%s 의 시험용 postgres 컨테이너", file)
+                            .contains("withEnv(\"POSTGRES_INITDB_ARGS\", \"" + KOREAN_INITDB_ARGS + "\")");
+                }
+            }
+        }
     }
 
     /** compose 파일마다 `image: <서비스>:<주>.…` 의 주 버전. 이미지 줄이 없는 파일은 건너뛴다 — 단 하나도 못 찾으면 실패한다. */

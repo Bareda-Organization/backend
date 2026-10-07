@@ -45,7 +45,8 @@ public abstract class MigratedPostgresTestBase {
     protected static final String SEED_LOCATION = "classpath:db/fixture";
 
     protected static final PostgreSQLContainer POSTGRES =
-            TestContainerOwner.named(new PostgreSQLContainer("postgres:18"), "postgres");
+            TestContainerOwner.named(new PostgreSQLContainer("postgres:18")
+            .withEnv("POSTGRES_INITDB_ARGS", "--locale-provider=icu --icu-locale=ko-KR"), "postgres");
 
     static {
         POSTGRES.start();

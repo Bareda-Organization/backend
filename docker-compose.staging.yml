@@ -27,6 +27,8 @@ services:
       POSTGRES_DB: schoolbus
       POSTGRES_USER: schoolbus
       POSTGRES_PASSWORD: schoolbus
+      # DB 기본 정렬을 ICU 한국어로 — 이름순 목록이 가나다순(`Ruling 851` · 개발 compose 와 같은 값). 빈 데이터 디렉터리를 처음 만들 때만 먹는다.
+      POSTGRES_INITDB_ARGS: "--locale-provider=icu --icu-locale=ko-KR"
     volumes:
       - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
     # 데이터는 메모리에만 — 디스크에 쌓이지 않는다. 초기화 자체는 백엔드가 기동·/dev/reset 때 DB 를 비우고

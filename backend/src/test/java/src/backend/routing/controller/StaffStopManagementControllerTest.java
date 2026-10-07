@@ -108,6 +108,22 @@ class StaffStopManagementControllerTest {
         assertThat(목록_ids("정렬시험")).containsExactly(첫째_A, 셋째_A, 둘째_A);
     }
 
+    /**
+     * 한글 이름은 가나다순이다 — 정렬은 DB 기본 정렬 규칙을 따르므로, DB 를 한국어 정렬(ICU)로 만들지 않으면
+     * "코스모스 → 한빛 → 그린 → 계약 → 중앙" 처럼 섞인다(2026-10-07 실측 · `Ruling 851`). 위 시험은 같은 한글 접두어 뒤의
+     * 영문만 비교해 이 결함을 못 본다.
+     */
+    @Test
+    void 한글_이름은_가나다순이다() throws Exception {
+        long 한빛 = 승하차지를_심는다(ACADEMY_A_ID, "가나다시험 한빛", "주소 1");
+        long 계약 = 승하차지를_심는다(ACADEMY_A_ID, "가나다시험 계약", "주소 2");
+        long 코스모스 = 승하차지를_심는다(ACADEMY_A_ID, "가나다시험 코스모스", "주소 3");
+        long 그린 = 승하차지를_심는다(ACADEMY_A_ID, "가나다시험 그린", "주소 4");
+        long 중앙 = 승하차지를_심는다(ACADEMY_A_ID, "가나다시험 중앙", "주소 5");
+
+        assertThat(목록_ids("가나다시험")).containsExactly(계약, 그린, 중앙, 코스모스, 한빛);
+    }
+
     /** 비활성 편성도 싣고, 편성이 없으면 빈 배열이다. */
     @Test
     void routes_는_비활성_편성도_싣고_편성이_없으면_빈_배열이다() throws Exception {
