@@ -124,6 +124,16 @@ class StaffStopManagementControllerTest {
         assertThat(목록_ids("가나다시험")).containsExactly(계약, 그린, 중앙, 코스모스, 한빛);
     }
 
+    /** 이름 속 숫자는 크기순이다 — "1번 · 2번 · 10번"(글자 순이면 "10번" 이 "1번" 앞에 온다). DB 정렬 규칙의 숫자 비교(`kn`) 몫이다(`Ruling 852`). */
+    @Test
+    void 이름_속_숫자는_크기순이다() throws Exception {
+        long 열 = 승하차지를_심는다(ACADEMY_A_ID, "숫자시험 10번", "주소 1");
+        long 둘 = 승하차지를_심는다(ACADEMY_A_ID, "숫자시험 2번", "주소 2");
+        long 하나 = 승하차지를_심는다(ACADEMY_A_ID, "숫자시험 1번", "주소 3");
+
+        assertThat(목록_ids("숫자시험")).containsExactly(하나, 둘, 열);
+    }
+
     /** 비활성 편성도 싣고, 편성이 없으면 빈 배열이다. */
     @Test
     void routes_는_비활성_편성도_싣고_편성이_없으면_빈_배열이다() throws Exception {

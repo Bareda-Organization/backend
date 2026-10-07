@@ -31,8 +31,8 @@ import org.junit.jupiter.api.Test;
  */
 class RuntimeImageParityTest {
 
-    /** 빈 데이터 디렉터리를 만들 때 DB 기본 정렬을 ICU 한국어로 — compose · Testcontainers 가 같은 문자열을 쓴다(`Ruling 851`). */
-    private static final String KOREAN_INITDB_ARGS = "--locale-provider=icu --icu-locale=ko-KR";
+    /** 빈 데이터 디렉터리를 만들 때 DB 기본 정렬을 ICU 한국어 + 숫자 크기순(`kn`)으로 — compose · Testcontainers 가 같은 문자열을 쓴다(`Ruling 851`·`852`). */
+    private static final String KOREAN_INITDB_ARGS = "--locale-provider=icu --icu-locale=ko-KR-u-kn";
 
     private static final Path ROOT = Path.of("..");
 

@@ -68,7 +68,7 @@ class BaseTimeEntityAuditingTest {
     @Container
     @ServiceConnection
     static PostgreSQLContainer postgres = TestContainerOwner.named(new PostgreSQLContainer("postgres:18")
-            .withEnv("POSTGRES_INITDB_ARGS", "--locale-provider=icu --icu-locale=ko-KR"), "postgres");
+            .withEnv("POSTGRES_INITDB_ARGS", "--locale-provider=icu --icu-locale=ko-KR-u-kn"), "postgres");
 
     @Autowired
     private AuditingProbeEntityRepository repository;

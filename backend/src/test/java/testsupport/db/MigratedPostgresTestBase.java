@@ -46,7 +46,7 @@ public abstract class MigratedPostgresTestBase {
 
     protected static final PostgreSQLContainer POSTGRES =
             TestContainerOwner.named(new PostgreSQLContainer("postgres:18")
-            .withEnv("POSTGRES_INITDB_ARGS", "--locale-provider=icu --icu-locale=ko-KR"), "postgres");
+            .withEnv("POSTGRES_INITDB_ARGS", "--locale-provider=icu --icu-locale=ko-KR-u-kn"), "postgres");
 
     static {
         POSTGRES.start();
