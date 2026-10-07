@@ -5,7 +5,9 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort;
@@ -35,7 +37,8 @@ import src.backend.global.response.PageResponse;
  * {@link LoginHistoryItemResponse} 자바독에 적었다.
  *
  * <p><b>{@code unblock} 행의 {@code account_id}·{@code login_id} 는 해제된 계정이다</b>(BR-219) — 나머지 행은
- * 시도한 계정(행위자)이다. 해제 행의 행위자(해제한 관리자)는 {@code AuditLog.actorAccountId} 에 남아 있고 이 응답은 싣지 않는다.
+ * 시도한 계정(행위자)이다. 해제 행의 행위자(해제한 관리자)는 {@code AuditLog.actorAccountId} 에 남아 있고, 이 응답은 그 계정의
+ * 현재 <b>이름</b>만 {@code unblocked_by_name} 으로 싣는다(Ruling 846 — 계정 식별자·로그인 아이디는 싣지 않는다).
  * {@code account_id} 필터도 같은 뜻을 따른다({@link AuditLogRepository#searchLoginHistory}).
  */
 @Service
@@ -60,10 +63,10 @@ public class LoginHistoryQueryService {
         Page<AuditLog> result = auditLogRepository.searchLoginHistory(filter.academyId(), filter.accountId(),
                 range.from(), range.to(),
                 PageParams.of(filter.page(), filter.size()).toPageable(ORDER));
-        Map<Long, String> unblockedLoginIds = loginIdsOfUnblockedAccounts(result.getContent());
+        Map<Long, Account> unblockAccounts = accountsOfUnblockRows(result.getContent());
 
         return PageResponse.of(result,
-                result.getContent().stream().map(log -> toItem(log, unblockedLoginIds)).toList());
+                result.getContent().stream().map(log -> toItem(log, unblockAccounts)).toList());
     }
 
     /** {@code academy_id}·{@code account_id} 필터가 미등록 대상을 가리키면 404 다(§6.13 에러 표). */
@@ -76,18 +79,22 @@ public class LoginHistoryQueryService {
         }
     }
 
-    /** 해제 행이 가리키는 계정들의 로그인 아이디를 한 번에 읽는다 — 행마다 읽으면 페이지 크기만큼 질의가 는다. */
-    private Map<Long, String> loginIdsOfUnblockedAccounts(List<AuditLog> logs) {
-        List<Long> targetIds = logs.stream().filter(log -> log.getAction() == AuditAction.UNBLOCK)
-                .map(AuditLog::getTargetId).filter(Objects::nonNull).distinct().toList();
-        if (targetIds.isEmpty()) {
+    /**
+     * 해제 행이 가리키는 계정(해제된 계정 — 로그인 아이디, 해제한 관리자 — 이름)을 한 번에 읽는다 — 행마다 읽으면 페이지
+     * 크기만큼 질의가 는다.
+     */
+    private Map<Long, Account> accountsOfUnblockRows(List<AuditLog> logs) {
+        List<Long> accountIds = logs.stream().filter(log -> log.getAction() == AuditAction.UNBLOCK)
+                .flatMap(log -> Stream.of(log.getTargetId(), log.getActorAccountId())).filter(Objects::nonNull)
+                .distinct().toList();
+        if (accountIds.isEmpty()) {
             return Map.of();
         }
-        return accountRepository.findAllByIdIn(targetIds).stream()
-                .collect(Collectors.toMap(Account::getId, Account::getLoginId));
+        return accountRepository.findAllByIdIn(accountIds).stream()
+                .collect(Collectors.toMap(Account::getId, Function.identity()));
     }
 
-    private LoginHistoryItemResponse toItem(AuditLog log, Map<Long, String> unblockedLoginIds) {
+    private LoginHistoryItemResponse toItem(AuditLog log, Map<Long, Account> unblockAccounts) {
         String result = switch (log.getAction()) {
             case LOGIN_SUCCESS -> "success";
             case LOGIN_FAIL -> "fail";
@@ -101,10 +108,18 @@ public class LoginHistoryQueryService {
         boolean blockEvent = blockAction != null;
         if (log.getAction() == AuditAction.UNBLOCK) {
             // 행의 IP 는 해제한 관리자의 것이다(Ruling 595) — 이 행은 해제된 계정을 가리키므로 그 계정의 접속 IP 로 읽히지 않게 비운다.
-            return new LoginHistoryItemResponse(log.getTargetId(), unblockedLoginIds.get(log.getTargetId()), result,
-                    null, log.getOccurredAt(), blockEvent, blockAction);
+            Account unblocked = accountOf(unblockAccounts, log.getTargetId());
+            Account unblockedBy = accountOf(unblockAccounts, log.getActorAccountId());
+            return new LoginHistoryItemResponse(log.getTargetId(), unblocked == null ? null : unblocked.getLoginId(),
+                    result, null, log.getOccurredAt(), blockEvent, blockAction,
+                    unblockedBy == null ? null : unblockedBy.getName());
         }
         return new LoginHistoryItemResponse(log.getActorAccountId(), log.getActorLoginId(), result, log.getIp(),
-                log.getOccurredAt(), blockEvent, blockAction);
+                log.getOccurredAt(), blockEvent, blockAction, null);
+    }
+
+    /** 식별자가 없거나 계정을 못 찾으면 {@code null} 이다 — {@code Map.of()} 는 {@code null} 키 조회에 예외를 던져 따로 거른다. */
+    private Account accountOf(Map<Long, Account> accounts, Long accountId) {
+        return accountId == null ? null : accounts.get(accountId);
     }
 }

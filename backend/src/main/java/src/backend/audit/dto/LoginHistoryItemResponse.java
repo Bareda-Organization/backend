@@ -19,7 +19,9 @@ import java.time.OffsetDateTime;
  *                  결과 축이 아니라 {@code blockEvent} 축이라 {@code null}
  * @param blockAction {@code block}·{@code unblock} — 차단 행과 해제 행을 가른다({@code blockEvent} 는 둘 다 true,
  *                   {@code Ruling 394}). 그 밖의 행은 {@code null}
+ * @param unblockedByName 해제 행이면 해제한 메인 관리자 계정의 <b>현재</b> 이름({@code Ruling 846}). 그 밖의 행이거나
+ *                   계정을 못 찾으면 {@code null} — 계정 식별자·로그인 아이디는 싣지 않는다
  */
 public record LoginHistoryItemResponse(Long accountId, String loginId, String result, String ip,
-        OffsetDateTime occurredAt, boolean blockEvent, String blockAction) {
+        OffsetDateTime occurredAt, boolean blockEvent, String blockAction, String unblockedByName) {
 }

@@ -1,7 +1,12 @@
 package src.backend.audit.controller;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -119,6 +124,64 @@ class LoginHistoryUnblockRowTest {
                 .andExpect(jsonPath("$.data.items", hasSize(1)))
                 .andExpect(jsonPath("$.data.items[0].block_action").value("unblock"))
                 .andExpect(jsonPath("$.data.items[0].ip").doesNotExist());
+    }
+
+    /**
+     * 해제 행은 해제한 메인 관리자 계정의 <b>현재 이름</b>을 {@code unblocked_by_name} 으로 싣는다(§6.13, Ruling 846 —
+     * AUTH-06·O-03 의 "처리자·일시 이력"). 감사 행에 남은 로그인 아이디 스냅샷({@code stale-admin-login})이나 계정 식별자는
+     * 싣지 않는다 — 이름만 건넨다.
+     */
+    @Test
+    void 해제_행은_해제한_관리자의_현재_이름을_싣고_계정_식별자와_로그인_아이디는_싣지_않는다() throws Exception {
+        Academy academy = academyRepository.save(Academy.register("R846AC01", "R846학원", "서울", null, null));
+        Account target = accountRepository.save(Account.forSignup(academy.getId(), "r846target",
+                passwordEncoder.encode("password1234!"), "해제대상", "010-8460-0000", null, Role.PARENT));
+        String adminName = accountRepository.findById(ADMIN_ACCOUNT_ID).orElseThrow().getName();
+        auditLogRepository.save(AuditLog.forAccountUnblock(academy.getId(), ADMIN_ACCOUNT_ID, "stale-admin-login",
+                target.getId(), null, OffsetDateTime.now()));
+
+        mockMvc.perform(get("/api/v1/admin/login-history").header("Authorization", 관리자())
+                        .param("account_id", String.valueOf(target.getId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].block_action").value("unblock"))
+                .andExpect(jsonPath("$.data.items[0].unblocked_by_name").value(adminName))
+                .andExpect(jsonPath("$.data.items[0].unblocked_by").doesNotExist())
+                .andExpect(content().string(not(containsString("stale-admin-login"))));
+    }
+
+    /**
+     * 해제 행이 아닌 행(차단 · 로그인 성공)과 해제한 계정이 사라진 해제 행은 {@code unblocked_by_name} 이 {@code null} 이고
+     * <b>키는 언제나 존재</b>한다(§6.13). 차단 행의 행위자는 차단된 본인이라 이름을 아는 계정이지만 싣지 않는다 —
+     * 모든 행에 행위자 이름을 붙이는 구현을 가른다.
+     */
+    @Test
+    void 해제_행이_아니거나_해제한_계정이_없으면_unblocked_by_name_은_null_이고_키는_존재한다() throws Exception {
+        Academy academy = academyRepository.save(Academy.register("R846AC02", "R846학원2", "서울", null, null));
+        Account target = accountRepository.save(Account.forSignup(academy.getId(), "r846other",
+                passwordEncoder.encode("password1234!"), "차단대상", "010-8460-0001", null, Role.PARENT));
+        OffsetDateTime base = OffsetDateTime.now().minusHours(1);
+        auditLogRepository.save(AuditLog.forLoginSuccess(academy.getId(), target.getId(), "r846other", "10.0.0.1",
+                base));
+        auditLogRepository.save(AuditLog.forLoginBlock(academy.getId(), target.getId(), "r846other", "10.0.0.1",
+                base.plusMinutes(1)));
+        auditLogRepository.save(AuditLog.forAccountUnblock(academy.getId(), 987_654_321L, "gone-admin",
+                target.getId(), null, base.plusMinutes(2)));
+
+        // 최신순 — 해제(행위자 계정 없음) · 차단 · 로그인 성공
+        mockMvc.perform(get("/api/v1/admin/login-history").header("Authorization", 관리자())
+                        .param("account_id", String.valueOf(target.getId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items", hasSize(3)))
+                .andExpect(jsonPath("$.data.items[0].block_action").value("unblock"))
+                .andExpect(jsonPath("$.data.items[1].block_action").value("block"))
+                .andExpect(jsonPath("$.data.items[2].result").value("success"))
+                .andExpect(jsonPath("$.data.items[0]", hasKey("unblocked_by_name")))
+                .andExpect(jsonPath("$.data.items[1]", hasKey("unblocked_by_name")))
+                .andExpect(jsonPath("$.data.items[2]", hasKey("unblocked_by_name")))
+                .andExpect(jsonPath("$.data.items[0].unblocked_by_name").value(nullValue()))
+                .andExpect(jsonPath("$.data.items[1].unblocked_by_name").value(nullValue()))
+                .andExpect(jsonPath("$.data.items[2].unblocked_by_name").value(nullValue()));
     }
 
     private String 관리자() {

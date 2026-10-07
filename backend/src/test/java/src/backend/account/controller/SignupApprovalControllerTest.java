@@ -131,6 +131,67 @@ class SignupApprovalControllerTest {
                 .andExpect(jsonPath("$.data.items").isEmpty());
     }
 
+    /**
+     * {@code role} 을 반복해서 주면 그 역할 요청만 싣고 {@code total_count} 도 거른 수다(§5.1, Ruling 846) —
+     * 매니저 관리 화면의 "가입 승인 대기 N건" 이 학부모·학생 요청까지 세던 것을 매니저 요청만으로 바로잡는다.
+     *
+     * <p>{@code pending_count} 가 4(학부모·학생·기사·동승자 각 1건)로 그대로인 것까지 단언하는 이유는, 배지에도
+     * 역할 필터를 건 구현이 {@code items}·{@code total_count} 단언만으로는 통과하기 때문이다.
+     */
+    @Test
+    @Sql(statements = {
+            "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) VALUES "
+                    + "(1, 'r50driver', 'x', 'R50대기기사', '010-0000-5001', 'driver', 'pending'), "
+                    + "(1, 'r50escort', 'x', 'R50대기동승자', '010-0000-5002', 'escort', 'pending'), "
+                    + "(1, 'r50student', 'x', 'R50대기학생', '010-0000-5003', 'student', 'pending')",
+            "INSERT INTO signup_request (account_id, academy_id, requested_role, approver_type, status, requested_at) "
+                    + "SELECT id, 1, role, 'staff', 'pending', now() FROM account "
+                    + "WHERE login_id IN ('r50driver', 'r50escort', 'r50student')"
+    })
+    void role_을_주면_그_역할_요청만_싣고_total_count_는_거른_수이며_pending_count_는_학원_전체다() throws Exception {
+        mockMvc.perform(get("/api/v1/staff/signup-requests?role=driver&role=escort")
+                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total_count").value(2))
+                .andExpect(jsonPath("$.data.items.length()").value(2))
+                .andExpect(jsonPath("$.data.items[?(@.role == 'driver')]").exists())
+                .andExpect(jsonPath("$.data.items[?(@.role == 'escort')]").exists())
+                .andExpect(jsonPath("$.data.items[?(@.role == 'parent')]").doesNotExist())
+                .andExpect(jsonPath("$.data.items[?(@.role == 'student')]").doesNotExist())
+                .andExpect(jsonPath("$.data.pending_count").value(4));
+    }
+
+    /** 역할 하나만 줘도 걸러진다 — 반복 파라미터가 아니라 마지막 값만 읽는 구현을 가른다. */
+    @Test
+    @Sql(statements = {
+            "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) VALUES "
+                    + "(1, 'r50driver', 'x', 'R50대기기사', '010-0000-5001', 'driver', 'pending')",
+            "INSERT INTO signup_request (account_id, academy_id, requested_role, approver_type, status, requested_at) "
+                    + "SELECT id, 1, role, 'staff', 'pending', now() FROM account WHERE login_id = 'r50driver'"
+    })
+    void role_을_하나만_줘도_그_역할_요청만_싣는다() throws Exception {
+        mockMvc.perform(get("/api/v1/staff/signup-requests?role=parent")
+                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total_count").value(1))
+                .andExpect(jsonPath("$.data.items[0].role").value("parent"))
+                .andExpect(jsonPath("$.data.pending_count").value(2));
+    }
+
+    /**
+     * 사양에 없는 역할은 조용히 무시하지 않고 {@code 422 VALIDATION_FAILED} 다(§5.1) — {@code staff} 는 이
+     * 목록의 대상 밖이라 알려진 역할이어도 거부한다. 유효한 값과 섞어 보내도 거부해, 일부만 걸러 돌려주지 않는다.
+     */
+    @Test
+    void role_이_사양_밖_값이면_422_VALIDATION_FAILED_다() throws Exception {
+        for (String query : new String[] { "role=staff", "role=system_admin", "role=bogus", "role=driver&role=staff" }) {
+            mockMvc.perform(get("/api/v1/staff/signup-requests?" + query)
+                            .header("Authorization", 관계자_토큰(ACADEMY_A)))
+                    .andExpect(status().isUnprocessableContent())
+                    .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+        }
+    }
+
     // ── §5.2 축 분리 ───────────────────────────────────────────────────────
 
     /** {@code role=staff} 요청의 승인 주체는 메인 관리자다(§5.2) — 관계자 경로에서는 {@code 403 FORBIDDEN}. */

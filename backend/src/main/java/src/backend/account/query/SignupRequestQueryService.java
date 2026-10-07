@@ -1,8 +1,10 @@
 package src.backend.account.query;
 
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -31,6 +33,7 @@ import src.backend.account.entity.SignupRequest;
 import src.backend.account.entity.SignupRequestStatus;
 import src.backend.account.repository.AccountRepository;
 import src.backend.account.repository.SignupRequestRepository;
+import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.persistence.AcademyCount;
@@ -69,6 +72,9 @@ public class SignupRequestQueryService {
      */
     private static final Sort TIE_BREAKER = Sort.by(Sort.Direction.ASC, "id");
 
+    /** {@code role} 쿼리가 받는 신청 역할(§5.1) — 승인 주체가 관계자인 4종이다. */
+    private static final Set<Role> FILTERABLE_ROLES = EnumSet.of(Role.PARENT, Role.STUDENT, Role.DRIVER, Role.ESCORT);
+
     private final SignupRequestRepository signupRequestRepository;
 
     private final AccountRepository accountRepository;
@@ -82,12 +88,20 @@ public class SignupRequestQueryService {
      *
      * <p>{@code role=staff} 요청을 빼는 것이 이 메서드의 핵심이다. 빼지 않으면 관계자가 자기 후임
      * 요청을 보게 되고, {@code decide} 만 403 이라 화면에 처리할 수 없는 항목이 영영 쌓인다.
+     *
+     * <p>{@code role} 쿼리는 목록과 {@code total_count} 만 거른다 — {@code pending_count} 는 학원 전체 대기 건수 그대로다
+     * (Ruling 846).
      */
     public SignupRequestListResponse forStaff(AuthUser requester, SignupRequestListRequest request) {
         Long academyId = AcademyScope.resolveListScope(requester, null)
                 .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN));
-        Page<SignupRequest> page = signupRequestRepository.findAllByAcademyIdAndApproverTypeAndStatus(
-                academyId, ApproverType.STAFF, statusFilter(request.status()), pageable(request));
+        SignupRequestStatus status = statusFilter(request.status());
+        Set<Role> roles = roleFilter(request.role());
+        Page<SignupRequest> page = roles.isEmpty()
+                ? signupRequestRepository.findAllByAcademyIdAndApproverTypeAndStatus(academyId, ApproverType.STAFF,
+                        status, pageable(request))
+                : signupRequestRepository.findAllByAcademyIdAndApproverTypeAndStatusAndRequestedRoleIn(academyId,
+                        ApproverType.STAFF, status, roles, pageable(request));
 
         Map<Long, Account> accounts = accountsOf(page.getContent(), academyId);
         PageResponse<SignupRequestSummaryResponse> items = PageResponse.of(page, page.getContent().stream()
@@ -171,6 +185,36 @@ public class SignupRequestQueryService {
     private Pageable pageable(SignupRequestListRequest request) {
         return PageParams.of(request.page(), request.size())
                 .toPageable(SortParam.parse(request.sort(), SORTABLE_FIELDS, DEFAULT_SORT).and(TIE_BREAKER));
+    }
+
+    /**
+     * {@code role} 쿼리를 신청 역할 집합으로 옮긴다(§5.1) — 안 주면(공백 포함) 빈 집합이고 거르지 않는다.
+     * 사양 밖 값은 {@code staff}(이 목록의 대상 밖)까지 포함해 조용히 무시하지 않고 422 로 거부한다.
+     */
+    private Set<Role> roleFilter(List<String> roles) {
+        if (roles == null) {
+            return Set.of();
+        }
+        Set<Role> filter = EnumSet.noneOf(Role.class);
+        for (String value : roles) {
+            if (value == null || value.isBlank()) {
+                continue;
+            }
+            Role role = parseRole(value);
+            if (!FILTERABLE_ROLES.contains(role)) {
+                throw new BusinessException(ErrorCode.VALIDATION_FAILED);
+            }
+            filter.add(role);
+        }
+        return filter;
+    }
+
+    private Role parseRole(String value) {
+        try {
+            return Role.valueOf(value.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED);
+        }
     }
 
     /** 값을 주지 않으면 {@code pending} 이다(§5.1) — 사양에 없는 값은 조용히 무시하지 않고 422 로 거부한다. */

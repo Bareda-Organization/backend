@@ -19,6 +19,7 @@ import org.springframework.data.repository.query.Param;
 import src.backend.account.entity.ApproverType;
 import src.backend.account.entity.SignupRequest;
 import src.backend.account.entity.SignupRequestStatus;
+import src.backend.global.common.enums.Role;
 import src.backend.global.persistence.AcademyCount;
 import src.backend.global.security.access.AcademyScopeExempt;
 
@@ -55,7 +56,14 @@ public interface SignupRequestRepository extends JpaRepository<SignupRequest, Lo
             SignupRequestStatus status, Pageable pageable);
 
     /**
-     * 미처리 배지(API_SPEC §5.1 {@code pending_count}) — 상태 필터와 <b>무관하게</b> 대기 건수를 센다.
+     * {@link #findAllByAcademyIdAndApproverTypeAndStatus} 에 신청 역할 조건을 더한 목록(API_SPEC §5.1 {@code role}, Ruling 846) —
+     * 매니저 관리 화면이 기사·동승자 요청만 센다.
+     */
+    Page<SignupRequest> findAllByAcademyIdAndApproverTypeAndStatusAndRequestedRoleIn(Long academyId,
+            ApproverType approverType, SignupRequestStatus status, Collection<Role> requestedRoles, Pageable pageable);
+
+    /**
+     * 미처리 배지(API_SPEC §5.1 {@code pending_count}) — 상태·역할 필터와 <b>무관하게</b> 대기 건수를 센다.
      *
      * <p>목록의 {@code total_count} 로 대신할 수 없다 — 필터를 {@code accepted} 로 걸면 그 값은 처리
      * 완료 건수가 되어 배지가 필터를 따라 흔들린다.
