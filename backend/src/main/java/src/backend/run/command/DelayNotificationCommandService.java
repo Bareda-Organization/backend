@@ -2,10 +2,8 @@ package src.backend.run.command;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -16,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.academy.dto.AcademyStaffAccountView;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.global.common.enums.Direction;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.policy.PolicyConstants;
@@ -36,7 +35,6 @@ import src.backend.run.event.DelayRequestedEvent;
 import src.backend.run.repository.DelayNoticeRepository;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.entity.Student;
-import src.backend.student.repository.GuardianAccountRecipient;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StudentRepository;
 
@@ -155,9 +153,9 @@ public class DelayNotificationCommandService {
     }
 
     /**
-     * 아직 지나지 않은 승하차지({@code arrivedAt IS NULL})의 탑승자 중, 이미 탑승한 학생과 결석
-     * 처리된 학생을 뺀 학생 id(API_SPEC §4.9 수신 범위 · C-02) — {@link RunRiderRepository
-     * #findStudentIdsForDelayNotification} 로 위임한다.
+     * 아직 지나지 않은 승하차지({@code arrivedAt IS NULL})의 탑승자 중 수신 학생 id(API_SPEC §4.9 수신 범위 · C-02) —
+     * 등원은 아직 탑승하지 않은 학생({@link RunRiderRepository#findStudentIdsForDelayNotification}), 하원은 아직 하차하지
+     * 않은 탑승 중 학생({@link RunRiderRepository#findBoardedStudentIdsForDelayNotification}, R51 856).
      */
     private List<Long> pendingStudentIdsOf(Run run) {
         ConfirmedRoute confirmedRoute = confirmedRouteRepository.findById(run.getId())
@@ -171,20 +169,17 @@ public class DelayNotificationCommandService {
         if (pendingStopIds.isEmpty()) {
             return List.of();
         }
-        return runRiderRepository.findStudentIdsForDelayNotification(run.getId(), pendingStopIds);
+        // 하원은 시작 때 전원이 탑승 상태라 "아직 탑승하지 않은 학생" 이 0명이다 — 아직 내리지 않은 학생이 받는다(R51 856).
+        return run.getDirection() == Direction.FROM_ACADEMY
+                ? runRiderRepository.findBoardedStudentIdsForDelayNotification(run.getId(), pendingStopIds)
+                : runRiderRepository.findStudentIdsForDelayNotification(run.getId(), pendingStopIds);
     }
 
-    /** 학부모 — 학생 1명당 첫 보호자 1명(리스너와 같은 규칙). */
+    /** 학부모 — 학생의 보호자 전원(다른 승하차 알림과 같은 규칙, R51 M-B1). 수신자 식별은 (보호자 계정, 학생) 짝이다. */
     private List<DelayNoticeRecipient> guardianRecipientsOf(Run run, List<Long> studentIds) {
-        List<GuardianAccountRecipient> guardians = guardianStudentRepository
-                .findGuardianAccountsByAcademyId(run.getAcademyId(), studentIds);
-        Map<Long, GuardianAccountRecipient> firstGuardianPerStudent = new LinkedHashMap<>();
-        for (GuardianAccountRecipient guardian : guardians) {
-            firstGuardianPerStudent.putIfAbsent(guardian.getStudentId(), guardian);
-        }
-        return firstGuardianPerStudent.entrySet().stream()
-                .map(entry -> new DelayNoticeRecipient(entry.getValue().getAccountId(), entry.getValue().getName(),
-                        entry.getKey()))
+        return guardianStudentRepository.findGuardianAccountsByAcademyId(run.getAcademyId(), studentIds).stream()
+                .map(guardian -> new DelayNoticeRecipient(guardian.getAccountId(), guardian.getName(),
+                        guardian.getStudentId()))
                 .toList();
     }
 

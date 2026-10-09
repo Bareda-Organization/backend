@@ -236,6 +236,24 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
             @Param("stopIds") Collection<Long> stopIds);
 
     /**
+     * 하원 지연 알림 수신 학생(R51 856, API_SPEC §4.9) — 아직 지나지 않은 승하차지의 탑승자 중 <b>탑승 중({@code boarded})</b>
+     * 인 학생. 하원은 시작 때 전원이 탑승 상태라 {@link #findStudentIdsForDelayNotification} 의 "아직 탑승하지 않은 학생"
+     * 조건으로는 수신자가 0명이었다. 결석·하차·미승차·대기는 탑승 중이 아니므로 자연히 빠진다.
+     *
+     * <p>{@code runId} 근거는 {@link #findStudentIdsForDelayNotification} 와 같다.
+     */
+    @AcademyScopeExempt(reason = "runId 는 호출부가 runRepository.findByIdAndAcademyId 로 이미 학원 범위에 "
+            + "좁혀 확인한 회차의 식별자라는 전제다 — findStudentIdsForDelayNotification 와 같은 근거")
+    @Query("""
+            SELECT DISTINCT rr.studentId FROM RunRider rr
+            WHERE rr.runId = :runId
+              AND rr.stopId IN :stopIds
+              AND rr.status = src.backend.boarding.entity.RiderStatus.BOARDED
+            """)
+    List<Long> findBoardedStudentIdsForDelayNotification(@Param("runId") Long runId,
+            @Param("stopIds") Collection<Long> stopIds);
+
+    /**
      * 그 승하차지를 출발할 때(Ruling 308, docs/archive/rounds/be-rounds-r15-r21.md §8.23 T3 목표 3·9) 확정 결과를 통지할 학생 명단 — 승차·
      * 하차·미승차 3종만 대상이다. {@code waiting} 인 채 출발한 학생은 발송 대상이 아니다(목표 9)
      * 이라 이 조회가 이미 걸러 낸다. {@code absent} 도 뺀다 — 결석은 운행 중 승하차 처리 결과가

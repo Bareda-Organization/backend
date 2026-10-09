@@ -461,6 +461,73 @@ class DelayNotificationControllerTest {
     }
 
     @Test
+    @DisplayName("R51 856 — 하원은 아직 하차하지 않은(탑승 중) 학생의 학부모·학생이 받고, 이미 하차한 학생·대기 학생은 받지 않는다")
+    void 하원_지연은_탑승_중인_학생만_받는다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, now(), now().minusMinutes(30));
+        fixtures.startRun(runId, now());
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
+        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
+        fixtures.runStopForStop(versionId, stopId, 1, now());
+        long onBus = fixtures.studentWithAccount(academyId, "탑승중");
+        fixtures.guardianOf(academyId, onBus, "탑승중학부모", now());
+        fixtures.rider(runId, onBus, stopId, RiderStatus.BOARDED, now());
+        long gotOff = fixtures.studentWithAccount(academyId, "하차");
+        fixtures.guardianOf(academyId, gotOff, "하차학부모", now());
+        fixtures.rider(runId, gotOff, stopId, RiderStatus.ALIGHTED, now());
+        long waiting = fixtures.studentWithAccount(academyId, "대기");
+        fixtures.guardianOf(academyId, waiting, "대기학부모", now());
+        fixtures.rider(runId, waiting, stopId, RiderStatus.WAITING, now());
+
+        mockMvc.perform(post(DELAY.formatted(runId))
+                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(요청본문(10, "traffic", null)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.notified_guardians").value(true));
+        entityManager.flush();
+
+        assertThat(학부모_알림수(runId, onBus)).as("하원에서 아직 내리지 않은 학생의 보호자는 받는다").isEqualTo(1);
+        assertThat(학생_알림수(runId, onBus)).as("학생 본인도 받는다").isEqualTo(1);
+        assertThat(학부모_알림수(runId, gotOff)).as("이미 하차한 학생의 보호자는 받지 않는다").isZero();
+        assertThat(학부모_알림수(runId, waiting)).as("하원의 대기 학생은 탑승 전 상태라 대상이 아니다").isZero();
+    }
+
+    @Test
+    @DisplayName("R51 M-B1 — 보호자가 둘인 학생은 보호자 전원이 지연 알림을 받는다")
+    void 지연_알림은_학생의_보호자_전원에게_간다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
+        fixtures.startRun(runId, now());
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
+        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
+        fixtures.runStopForStop(versionId, stopId, 1, now());
+        long studentId = fixtures.studentWithAccount(academyId, "학생");
+        long first = fixtures.guardianOf(academyId, studentId, "엄마", now());
+        long second = fixtures.guardianOf(academyId, studentId, "아빠", now().plusSeconds(1));
+        fixtures.rider(runId, studentId, stopId, RiderStatus.WAITING, now());
+
+        mockMvc.perform(post(DELAY.formatted(runId))
+                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(요청본문(10, "traffic", null)))
+                .andExpect(status().isCreated());
+        entityManager.flush();
+
+        assertThat(학부모_알림수(runId, studentId)).as("첫 보호자만 받던 결함이면 1").isEqualTo(2);
+        assertThat(jdbcTemplate.queryForList(
+                "SELECT recipient_account_id FROM notification_log WHERE type = 'delay' AND recipient_role = 'parent' "
+                        + "AND dedup_key LIKE ?", Long.class, "delay:" + runId + ":guardian:%"))
+                .containsExactlyInAnyOrder(first, second);
+    }
+
+    @Test
     @DisplayName("목표2-c — 결석 처리된(ABSENT) 학생은 수신 대상에서 빠진다")
     void 결석_처리된_학생은_제외된다() throws Exception {
         DriverRunFixtures fixtures = fixtures();
