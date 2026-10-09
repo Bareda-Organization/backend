@@ -196,6 +196,14 @@ class StaffApprovalDecideControllerTest {
                 "SELECT status FROM run_rider WHERE run_id = ? AND stop_id = ?", String.class, s.runId,
                 s.midStopId);
         assertThat(riderStatus).as("취소된 학생의 명단 상태가 absent 로 남아야 한다").isEqualTo("absent");
+        // R51 M-B2 — 취소 승인이 부여한 absent 는 사람(동승자)이 아니라 서버가 한 전이라 이력에 system 으로 남는다.
+        List<java.util.Map<String, Object>> history = jdbcTemplate.queryForList(
+                "SELECT h.from_status, h.to_status, h.actor_type, h.changed_by FROM rider_status_history h "
+                        + "JOIN run_rider r ON r.id = h.run_rider_id WHERE r.run_id = ? AND r.stop_id = ?",
+                s.runId, s.midStopId);
+        assertThat(history).as("absent 부여가 상태 이력에 한 건 남는다").hasSize(1);
+        assertThat(history.get(0)).containsEntry("from_status", "waiting").containsEntry("to_status", "absent")
+                .containsEntry("actor_type", "system").containsEntry("changed_by", null);
 
         Integer routeChangedCount = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM notification_log WHERE recipient_account_id = ? AND type = 'route_changed'",

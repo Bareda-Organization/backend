@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.boarding.command.RunRiderPersistence;
 import src.backend.boarding.command.StopSkipJudge;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.event.RiderStatusChangedEvent;
@@ -70,6 +71,8 @@ public class BoardingIntentCommandService {
     private final ChangeRequestRepository changeRequestRepository;
 
     private final RunRiderRepository runRiderRepository;
+
+    private final RunRiderPersistence runRiderPersistence;
 
     private final StopSkipJudge stopSkipJudge;
 
@@ -187,7 +190,7 @@ public class BoardingIntentCommandService {
         intent.applyRiding(false, ChangeWindow.CLOSED, now, requester.accountId());
 
         rider.ifPresent(r -> {
-            r.markAbsent(now);
+            runRiderPersistence.markAbsentBySystem(r, now);
             stopSkipJudge.skipIfNoRidersRemain(run.getId(), r.getStopId(), SKIP_NOTICE);
             eventPublisher.publishEvent(new RiderStatusChangedEvent(run.getId(), run.getAcademyId(),
                     student.getId(), r.getId(), statusNameOf(RiderStatus.ABSENT), now, false));

@@ -271,6 +271,26 @@ class BoardingIntentClosedWindowTest {
     }
 
     @Test
+    @DisplayName("R51 M-B2 — ③구간 미등원 부여는 상태 이력에 actor_type=system(waiting→absent)으로 남는다")
+    void 마감구간_미등원_부여는_상태_이력에_system_으로_남는다() {
+        OffsetDateTime now = OffsetDateTime.now();
+        ClosedRun run = closedRun(now, "37.572500", "126.982500");
+        long waitingStudent = fixtures.student(run.academyId(), "대기학생");
+        BoardingIntentFixtures.GuardianAccount guardian = rider(run, waitingStudent, now, true);
+
+        toggleOff(new AuthUser(guardian.accountId(), run.academyId(), Role.PARENT, AccountStatus.ACTIVE),
+                waitingStudent, run.runId());
+
+        List<java.util.Map<String, Object>> history = jdbcTemplate.queryForList(
+                "SELECT h.from_status, h.to_status, h.actor_type, h.changed_by FROM rider_status_history h "
+                        + "JOIN run_rider r ON r.id = h.run_rider_id WHERE r.run_id = ? AND r.student_id = ?",
+                run.runId(), waitingStudent);
+        assertThat(history).hasSize(1);
+        assertThat(history.get(0)).containsEntry("from_status", "waiting").containsEntry("to_status", "absent")
+                .containsEntry("actor_type", "system").containsEntry("changed_by", null);
+    }
+
+    @Test
     @DisplayName("BR-325 — 같은 정차지의 마지막 두 학생이 동시에 미등원하면 어느 한쪽이 정차지를 skipped 로 세운다")
     void 마지막_두_학생이_동시에_미등원하면_정차지가_건너뜀이다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now();

@@ -331,6 +331,13 @@ class RunBoardingNotificationTest {
         assertThat(출발시각(versionId, stop1)).isNotNull();
         assertThat(출발_통지_행수(runId, "boarding")).as("승하차지를 출발한 확정 결과(승차)가 통지된다").isEqualTo(1);
         assertThat(라이더_상태(runId, student)).as("그 뒤 학원 도착으로 자동 하차").isEqualTo("alighted");
+        // R51 M-B2 — 등원 종료의 전원 자동 하차도 서버가 한 전이라 이력에 system 으로 남는다.
+        Map<String, Object> history = jdbcTemplate.queryForMap(
+                "SELECT h.from_status, h.to_status, h.actor_type, h.changed_by FROM rider_status_history h "
+                        + "JOIN run_rider r ON r.id = h.run_rider_id WHERE r.run_id = ? AND r.student_id = ?",
+                runId, student);
+        assertThat(history).containsEntry("from_status", "boarded").containsEntry("to_status", "alighted")
+                .containsEntry("actor_type", "system").containsEntry("changed_by", null);
     }
 
     private OffsetDateTime 출발시각(long versionId, long stopId) {

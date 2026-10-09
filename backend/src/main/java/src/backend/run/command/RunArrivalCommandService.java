@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.academy.entity.Academy;
 import src.backend.academy.repository.AcademyRepository;
+import src.backend.boarding.command.RunRiderPersistence;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
 import src.backend.run.event.RunEndedEvent;
@@ -67,6 +68,8 @@ public class RunArrivalCommandService {
     private final ConfirmedRouteRepository confirmedRouteRepository;
 
     private final RunRiderRepository runRiderRepository;
+
+    private final RunRiderPersistence runRiderPersistence;
 
     private final StopRepository stopRepository;
 
@@ -204,7 +207,7 @@ public class RunArrivalCommandService {
                 .filter(rider -> rider.getStatus() == RiderStatus.BOARDED)
                 .toList();
         boarded.forEach(rider -> {
-            rider.alight(now);
+            runRiderPersistence.alightBySystem(rider, now);
             eventPublisher.publishEvent(new RunAutoAlightedEvent(run.getId(), run.getAcademyId(),
                     rider.getStudentId(), now));
         });

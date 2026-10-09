@@ -10,7 +10,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.boarding.entity.ActorType;
+import src.backend.boarding.entity.RiderStatus;
+import src.backend.boarding.entity.RiderStatusHistory;
 import src.backend.boarding.entity.RunRider;
+import src.backend.boarding.repository.RiderStatusHistoryRepository;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.run.roster.ProjectedRoster;
 
@@ -25,6 +29,8 @@ import src.backend.run.roster.ProjectedRoster;
 public class RunRiderPersistence {
 
     private final RunRiderRepository runRiderRepository;
+
+    private final RiderStatusHistoryRepository riderStatusHistoryRepository;
 
     /**
      * 확정 배치가 처음 만드는 탑승자 명단({@code run} 소유 {@code RunConfirmationPersistence#persist}
@@ -46,11 +52,38 @@ public class RunRiderPersistence {
     @Transactional
     public RunRider applyApprovalDecision(RunRider target, boolean cancel, Long newStopId, OffsetDateTime decidedAt) {
         if (cancel) {
-            target.markAbsent(decidedAt);
+            markAbsentBySystem(target, decidedAt);
         } else {
             target.relocateTo(newStopId, decidedAt);
         }
         return runRiderRepository.save(target);
+    }
+
+    /**
+     * 서버가 스스로 하는 결석(absent) 부여 — ③구간 미등원 토글 · ②구간 취소 승인이 쓴다(ERD §3.4 "absent 부여"). 상태를
+     * 바꾸고 {@code rider_status_history} 에 {@code actor_type=system} 이력을 남긴다(R51 M-B2). 이미 결석이면 전이가
+     * 아니므로 이력을 만들지 않는다.
+     */
+    @Transactional
+    public void markAbsentBySystem(RunRider rider, OffsetDateTime changedAt) {
+        RiderStatus from = rider.getStatus();
+        rider.markAbsent(changedAt);
+        if (from != RiderStatus.ABSENT) {
+            recordSystemTransition(rider, from, RiderStatus.ABSENT, changedAt);
+        }
+    }
+
+    /** 등원 최종 도착의 전원 자동 하차 한 건(C-07 · BRD-03) — 상태를 바꾸고 {@code actor_type=system} 이력을 남긴다(R51 M-B2). */
+    @Transactional
+    public void alightBySystem(RunRider rider, OffsetDateTime changedAt) {
+        RiderStatus from = rider.getStatus();
+        rider.alight(changedAt);
+        recordSystemTransition(rider, from, RiderStatus.ALIGHTED, changedAt);
+    }
+
+    private void recordSystemTransition(RunRider rider, RiderStatus from, RiderStatus to, OffsetDateTime changedAt) {
+        riderStatusHistoryRepository.save(
+                RiderStatusHistory.forTransition(rider.getId(), from, to, ActorType.SYSTEM, changedAt));
     }
 
     private static List<RunRider> ridersOf(Long runId, ProjectedRoster roster, List<Long> unresolvedStudentIds,
