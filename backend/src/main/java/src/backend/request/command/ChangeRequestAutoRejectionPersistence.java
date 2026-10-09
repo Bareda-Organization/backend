@@ -11,6 +11,8 @@ import lombok.RequiredArgsConstructor;
 import src.backend.request.entity.ChangeRequest;
 import src.backend.request.entity.BoardingIntent;
 import src.backend.request.event.ChangeRequestAutoRejectedEvent;
+import src.backend.run.entity.Run;
+import src.backend.run.repository.RunRepository;
 import src.backend.request.preview.spec.ApprovalPreviewCache;
 import src.backend.request.repository.BoardingIntentRepository;
 import src.backend.request.repository.ChangeRequestRepository;
@@ -36,6 +38,8 @@ public class ChangeRequestAutoRejectionPersistence {
     private final BoardingIntentRepository boardingIntentRepository;
 
     private final ApprovalPreviewCache previewCache;
+
+    private final RunRepository runRepository;
 
     private final ApplicationEventPublisher eventPublisher;
 
@@ -69,6 +73,10 @@ public class ChangeRequestAutoRejectionPersistence {
         boardingIntentRepository.findLockedByRunIdAndStudentId(request.getRunId(), request.getStudentId())
                 .ifPresent(BoardingIntent::restoreChangeQuota);
         previewCache.evict(changeRequestId);
+        // 취소된 회차는 상태 전이만 하고 알림은 내지 않는다(Ruling 861 ②, R51 L2) — 회차 취소 알림이 이미 나갔다.
+        if (runRepository.findById(request.getRunId()).filter(Run::isCanceled).isPresent()) {
+            return true;
+        }
         eventPublisher.publishEvent(new ChangeRequestAutoRejectedEvent(request.getAcademyId(), request.getId(),
                 request.getRunId(), request.getStudentId(), request.getRequestedBy(), decidedAt));
         return true;

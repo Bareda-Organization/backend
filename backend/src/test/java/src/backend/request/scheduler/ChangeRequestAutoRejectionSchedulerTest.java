@@ -162,6 +162,35 @@ class ChangeRequestAutoRejectionSchedulerTest {
         assertThat(notificationCount).as("신청 학부모에게 change_decided 알림이 남아야 한다").isEqualTo(1);
     }
 
+    /**
+     * R51 Ruling 861 ② — 취소된 회차의 대기 요청도 상태 전이(자동 거절)와 한도 환원은 그대로 하되, 신청자에게 "거절됐다" 는
+     * 알림은 보내지 않는다. 회차 취소 알림이 이미 나갔고, 없어진 운행의 변경 요청 결과를 또 알리면 혼란만 준다.
+     */
+    @Test
+    @DisplayName("R51 L2 — 취소된 회차의 대기 요청은 마감에 자동 거절되지만 change_decided 알림은 나가지 않는다")
+    void 취소된_회차의_대기_요청은_알림_없이_자동_거절된다() {
+        long[] s = baseScenario();
+        long academyId = s[0];
+        long runId = s[1];
+        long studentId = s[2];
+        long parentId = s[3];
+        fixtures.spentBoardingIntent(runId, studentId, now.minusHours(1));
+        long changeRequestId = fixtures.pendingChangeRequest(academyId, runId, studentId, parentId,
+                now.minusMinutes(10), now.minusMinutes(1));
+        jdbcTemplate.update("UPDATE run SET canceled_at = ? WHERE id = ?", now.minusMinutes(5), runId);
+
+        scheduler.rejectDueChangeRequests();
+
+        assertThat(changeRequestRepository.findById(changeRequestId).orElseThrow().getStatus())
+                .as("상태 전이는 그대로").isEqualTo(ChangeRequestStatus.AUTO_REJECTED);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT change_used_count FROM boarding_intent WHERE run_id = ? AND student_id = ?", Integer.class,
+                runId, studentId)).as("소비한 한도 환원도 그대로").isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM notification_log WHERE recipient_account_id = ? AND type = 'change_decided'",
+                Integer.class, parentId)).as("취소된 회차라 알림은 없다").isZero();
+    }
+
     @Test
     @DisplayName("목표1 경계 — 마감이 지금 이 순간이면(같음) 폴링이 즉시 거절한다")
     void 마감이_지금과_같아도_폴링이_거절한다() {
