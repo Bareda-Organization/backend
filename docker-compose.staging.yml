@@ -132,7 +132,7 @@ services:
   # Docker Desktop 의 ngrok 확장은 공개를 컨테이너 ID 에 묶어 `up --build` 로 프록시가 새로 만들어질 때마다 끊기므로 쓰지 않는다.
   ngrok:
     profiles: ["ngrok"]
-    image: ngrok/ngrok:3.39.8-alpine
+    image: ngrok/ngrok:3.39.11-alpine
     command: ["http", "proxy:80", "--url", "${PUBLIC_URL}"]
     environment:
       NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
@@ -143,7 +143,7 @@ services:
   # ngrok 등 다른 터널을 쓰면 이 서비스는 띄우지 않는다 — `--profile cloudflare` 로 켤 때만 뜬다.
   cloudflared:
     profiles: ["cloudflare"]
-    image: cloudflare/cloudflared:2026.9.3
+    image: cloudflare/cloudflared:2026.10.0
     command: ["tunnel", "--no-autoupdate", "run"]
     environment:
       # 프로필이 꺼져 있어도 compose 는 파일 전체의 변수를 풀므로 필수(:?)로 두지 않는다 — 토큰이 없으면 이 컨테이너만 실패한다.
