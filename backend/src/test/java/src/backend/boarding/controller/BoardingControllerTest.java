@@ -944,6 +944,43 @@ class BoardingControllerTest {
     }
 
     /**
+     * R51 C3(등하원 비대칭, C-07 · BRD-01·02) — 승차 처리는 등원에서만, 하차 처리는 하원에서만 받는다. 방향이 맞지 않는
+     * 요청은 전이 표 안의 화살표여도 {@code 409 RIDER_TRANSITION_NOT_ALLOWED} 이고 상태·이력이 그대로다. 하원의 대기
+     * 학생 미승차는 종료 보류를 풀 때 되돌리기 뒤에 쓰는 길(BR-031)이라 막지 않는다.
+     */
+    @ParameterizedTest(name = "{0}: {1} → {2} 는 409 RIDER_TRANSITION_NOT_ALLOWED")
+    @CsvSource({ "to_academy, boarded, alighted", "from_academy, waiting, boarded" })
+    @DisplayName("R51 C3 — 방향이 맞지 않는 승하차 처리는 409 RIDER_TRANSITION_NOT_ALLOWED 이고 상태·이력이 그대로다")
+    void 방향이_맞지_않는_승하차_처리는_409다(String direction, String fromStatus, String targetStatus) throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long stopId = fixtures().stop(academyId, "37.500000", "127.000000");
+        long studentId = fixtures().student(academyId, "학생-C3");
+        long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
+        long riderId = fixtures().runRider(runId, studentId, stopId);
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
+        entityManager.flush();
+        jdbcTemplate.update("UPDATE run SET direction = ? WHERE id = ?", direction, runId);
+        jdbcTemplate.update("UPDATE run_rider SET status = ? WHERE id = ?", fromStatus, riderId);
+        entityManager.clear();
+
+        mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId))
+                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(statusUpdateBody(targetStatus, "manual", UUID.randomUUID(), now)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("RIDER_TRANSITION_NOT_ALLOWED"));
+
+        entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM run_rider WHERE id = ?", String.class, riderId))
+                .as("거부됐으니 상태가 그대로여야 한다").isEqualTo(fromStatus);
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM rider_status_history WHERE run_rider_id = ?",
+                Integer.class, riderId)).as("이력 행이 새로 생기지 않는다").isEqualTo(0);
+    }
+
+    /**
      * 그 승하차지를 실제로 출발 처리한다(Ruling 308, R15-T3 시험 전용) — 근접 알림 스케줄러가 타는
      * 것과 같은 진입점({@link StopDepartureService#claimAndPublish})을 그대로 불러 {@code
      * StopDepartedEvent} 를 발행시킨다. {@code confirmedRunStop} 으로 만든 확정 노선이 있어야 한다.

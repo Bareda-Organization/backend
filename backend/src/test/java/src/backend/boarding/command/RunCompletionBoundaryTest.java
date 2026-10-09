@@ -149,6 +149,8 @@ class RunCompletionBoundaryTest {
         // Ruling 345 — PATCH 는 boarded→alighted 만 받는다. 이 시험의 본체는 완료 판정 경계이지
         // 전이 표 자체가 아니라, 명단 준비 단계에서 미리 boarded 로 세운다.
         jdbcTemplate.update("UPDATE run_rider SET status = 'boarded' WHERE id = ?", alightingRiderId);
+        // R51 C3 — 하차 처리는 하원에서만 받는다(종료 보류·완성도 하원의 개념이다).
+        jdbcTemplate.update("UPDATE run SET direction = 'from_academy' WHERE id = ?", runId);
         jdbcTemplate.update("UPDATE run_rider SET status = 'no_show' WHERE id = ?", noShowRiderId);
         entityManager.clear();
         long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
@@ -181,6 +183,8 @@ class RunCompletionBoundaryTest {
         long alightingRiderId = fixtures().runRider(runId, alightingStudent, stopId);
         // Ruling 345 — PATCH 는 boarded→alighted 만 받는다(이 시험의 본체는 완료 판정 경계다).
         jdbcTemplate.update("UPDATE run_rider SET status = 'boarded' WHERE id = ?", alightingRiderId);
+        // R51 C3 — 하차 처리는 하원에서만 받는다(종료 보류·완성도 하원의 개념이다).
+        jdbcTemplate.update("UPDATE run SET direction = 'from_academy' WHERE id = ?", runId);
         entityManager.clear();
         long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
                 ManagerRole.ESCORT, now);
@@ -226,6 +230,8 @@ class RunCompletionBoundaryTest {
         entityManager.flush();
         // Ruling 345 — PATCH 는 boarded→alighted 만 받는다(이 시험의 본체는 강제 출발 처리 경계다).
         jdbcTemplate.update("UPDATE run_rider SET status = 'boarded' WHERE id = ?", alightingRiderId);
+        // R51 C3 — 하차 처리는 하원에서만 받는다(종료 보류·완성도 하원의 개념이다).
+        jdbcTemplate.update("UPDATE run SET direction = 'from_academy' WHERE id = ?", runId);
         jdbcTemplate.update("UPDATE run_stop SET arrived_at = ? WHERE id = ?", now.minusMinutes(5), runStopId);
         // entityManager.clear() 뒤에는 updateStatus() 내부가 run 을 다시 조회해 새 인스턴스를 얻으므로
         // eq(run) 참조 동일성 매칭이 깨진다 — any(Run.class) 로 완화한다.
