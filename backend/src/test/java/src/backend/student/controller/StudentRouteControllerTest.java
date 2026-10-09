@@ -14,6 +14,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.context.annotation.Import;
 
 import src.backend.global.common.enums.AccountStatus;
@@ -56,6 +57,9 @@ class StudentRouteControllerTest {
 
     private static final long ACADEMY_A = 1L;
 
+    /** 시드의 학원 1 은 주소가 비어 있다 — 학원 주소 시험만 이 값을 넣고, 트랜잭션이 끝나면 되돌아간다. */
+    private static final String ACADEMY_A_ADDRESS = "서울시 바래다로 1";
+
     /** 형제 S1·S2 의 보호자 — student2(맨 앞) · student1(정확히 2개 앞) 을 함께 관측한다. */
     private static final long SIBLINGS_GUARDIAN_ACCOUNT = 5L;
 
@@ -78,6 +82,9 @@ class StudentRouteControllerTest {
 
     @Autowired
     private JwtTokenProvider tokenProvider;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     /** 시드 회차의 {@code service_date} 를 읽어 그 날짜로 Clock 을 이동시킨다 — 클래스 자바독 참고. */
 
@@ -171,7 +178,7 @@ class StudentRouteControllerTest {
                 .andExpect(jsonPath("$.data.stops[2].address").isNotEmpty());
     }
 
-    /** 학생 본인이 불러도 같다 — 같은 응답을 학부모·학생이 함께 쓴다. 하원은 학원이 앞에 붙고 본인 승하차지는 맨 뒤다. */
+    /** 보호자 토큰으로 하원 회차를 불러도 학원이 앞에 붙고, 주소는 본인 승하차지(맨 뒤)에만 실린다. */
     @Test
     void 하원에서도_본인_승하차지에만_주소가_실린다() throws Exception {
         mockMvc.perform(get(ROUTE.formatted(STUDENT_4_ID)).header("Authorization", 토큰(STUDENT_4_GUARDIAN_ACCOUNT)))
@@ -193,6 +200,26 @@ class StudentRouteControllerTest {
                 .andExpect(jsonPath("$.data.my_stop_id").value(3));
         mockMvc.perform(get(ROUTE.formatted(STUDENT_1_ID)).header("Authorization", 학생_토큰()))
                 .andExpect(status().isForbidden());
+    }
+
+    /**
+     * 학생 본인 계정(STUDENT 토큰)도 보호자와 같은 주소 규칙을 받는다 — 본인 승하차지({@code stops[2]})에만 주소가 실리고
+     * 다른 승하차지({@code stops[1]})는 {@code null} 이다. 학원 항목({@code stops[0]}, {@code stop_id} null)은
+     * 학원 주소를 싣는다(Ruling 853). 하원 회차라 학원이 앞에 붙는다.
+     */
+    @Test
+    @Transactional
+    void 학생_본인_계정도_본인_승하차지에만_주소가_실리고_학원은_학원_주소를_싣는다() throws Exception {
+        jdbcTemplate.update("UPDATE academy SET address = ? WHERE id = ?", ACADEMY_A_ADDRESS, ACADEMY_A);
+
+        mockMvc.perform(get(ROUTE.formatted(STUDENT_4_ID)).header("Authorization", 학생_토큰()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.stops[0].stop_id").isEmpty())
+                .andExpect(jsonPath("$.data.stops[0].address").value(ACADEMY_A_ADDRESS))
+                .andExpect(jsonPath("$.data.stops[1].stop_id").value(1))
+                .andExpect(jsonPath("$.data.stops[1].address").isEmpty())
+                .andExpect(jsonPath("$.data.stops[2].stop_id").value(3))
+                .andExpect(jsonPath("$.data.stops[2].address").value("서울시 그린로 33"));
     }
 
     /** 연결 부재 자녀는 노선 조회도 403 이다 — S5 의 보호자가 S1 을 조회한다. */
