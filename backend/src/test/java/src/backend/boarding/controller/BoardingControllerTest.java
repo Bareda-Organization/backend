@@ -268,6 +268,46 @@ class BoardingControllerTest {
         assertThat(parentRows.get(0).get("student_name")).as("⑥student_name 이 채워진다").isEqualTo("학생3");
     }
 
+    /**
+     * R51 Ruling 854 — 학부모 미승차 알림은 기사가 그 승하차지를 출발할 때 확정 결과로 나간다. 잘못 누른 미승차를
+     * 출발 전에 되돌리면 학부모에게는 아무것도 나가지 않는다(관계자 알림은 표시 즉시 나가 이미 있다).
+     */
+    @Test
+    @DisplayName("R51 854 — 미승차를 출발 전에 되돌리면 학부모 알림은 나가지 않는다(관계자 알림은 표시 즉시 1건)")
+    void 미승차를_출발_전에_되돌리면_학부모_알림은_나가지_않는다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long stopId = fixtures().stop(academyId, "37.500000", "127.000000");
+        long studentId = fixtures().student(academyId, "학생854");
+        BoardingCommandFixtures.GuardianAccount guardian = fixtures().guardian(academyId, "보호자854");
+        fixtures().linkChild(guardian.guardianId(), studentId, now.minusDays(1));
+        long staffAccountId = fixtures().staffAccount(academyId);
+        long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
+        fixtures().confirmedRunStop(runId, stopId, now.minusMinutes(30));
+        long riderId = fixtures().runRider(runId, studentId, stopId);
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
+        String escortToken = 토큰(escortAccountId, academyId, Role.ESCORT);
+
+        mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId)).header("Authorization", escortToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(statusUpdateBody("no_show", "manual", UUID.randomUUID(), now)))
+                .andExpect(status().isOk());
+        mockMvc.perform(post(REVERT.formatted(runId, riderId)).header("Authorization", escortToken)
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isOk());
+        출발_처리(runId, academyId, stopId, now.plusMinutes(1));
+        entityManager.flush();
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM notification_log WHERE recipient_account_id = ?", Integer.class,
+                guardian.accountId())).as("출발 시점의 상태는 대기(waiting)라 확정 결과가 없다 — 학부모 알림 0건").isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM notification_log WHERE recipient_account_id = ? AND type = 'no_show'",
+                Integer.class, staffAccountId)).as("관계자 알림은 표시 즉시 나가 되돌려도 남아 있다").isEqualTo(1);
+    }
+
     // ── Phase 11 목표 2 — 학원별 미승차 대기 시간(EXC-01, API_SPEC §5.21)이 실제로 적용된다 ──
 
     /**

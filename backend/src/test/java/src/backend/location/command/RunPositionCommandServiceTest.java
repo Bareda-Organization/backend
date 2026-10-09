@@ -220,6 +220,36 @@ class RunPositionCommandServiceTest {
     }
 
     /**
+     * R51 Ruling 855 — 하원 최종 지점에 도착했지만 미하차 학생이 남아 종료가 보류된 회차(status 는 {@code moving} 그대로,
+     * {@code finish_pending=true})에서도 위치 송신을 받는다. 남은 학생의 학부모가 버스 위치를 봐야 하기 때문이다.
+     */
+    @Test
+    @DisplayName("R51 855 — 하원 종료 보류(finish_pending) 중인 moving 회차에도 위치 송신은 204 이고 이력이 적재된다")
+    void 하원_종료_보류_중에도_위치를_받는다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        OffsetDateTime departTime = now();
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        fixtures.startRun(runId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        jdbcTemplate.update("UPDATE run SET finish_pending = true WHERE id = ?", runId);
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/position")
+                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"lat": 37.501000, "lng": 127.001000, "recorded_at": "%s"}
+                        """.formatted(now().minusSeconds(3))))
+                .andExpect(status().isNoContent());
+
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM run_position WHERE run_id = ?", Integer.class,
+                runId)).as("종료 보류 중에도 위치 이력이 적재된다").isEqualTo(1);
+        assertThat(capturedEvents.events()).as("방송·Redis 갱신 재료 이벤트도 나간다").hasSize(1);
+    }
+
+    /**
      * BR-243 · Ruling 379 ② — 단말 시계가 서버와 5분 넘게 어긋난 recorded_at 은 거절하지 않고 서버 수신 시각으로 바꿔
      * 저장한다. 거절하면 시계가 틀어진 기사의 위치가 전부 사라지고, 그대로 두면 대체 조회·보존 정리 기준이 틀어진다.
      * 저장 행 · 방송·Redis 갱신이 읽는 이벤트 세 곳이 모두 바뀐 값을 써야 한다.
