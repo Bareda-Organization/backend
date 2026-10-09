@@ -310,6 +310,43 @@ class RunBoardingNotificationTest {
     }
 
     @Test
+    @DisplayName("H2 — 최종 지점 뒤에 남은 건너뜀(skipped) 정차지도 운행 종료와 함께 출발 처리되어 미승차 알림이 학부모에게 간다")
+    void 운행_종료가_뒤에_남은_건너뜀_정차지의_미승차를_통지한다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
+        long stop2 = fixtures.stop(academyId, "37.561000", "126.971000");
+        long stop3 = fixtures.stop(academyId, "37.562000", "126.972000");
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, now(), now().minusMinutes(30));
+        fixtures.startRun(runId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
+        fixtures.runStopForStop(versionId, stop1, 1, now());
+        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, now());
+        fixtures.runStopForStop(versionId, stop3, 3, now());
+        // 세 번째 정차지는 전원 미승차로 건너뜀 표시 — 서지 않으니 최종 지점은 둘째이고 도착 처리도 없다.
+        jdbcTemplate.update("UPDATE run_stop SET change = 'skipped' WHERE route_version_id = ? AND stop_id = ?",
+                versionId, stop3);
+        long student2 = fixtures.studentWithAccount(academyId, "학생2");
+        fixtures.guardianOf(academyId, student2, "학부모2", now());
+        fixtures.rider(runId, student2, stop2, RiderStatus.ALIGHTED, now());
+        long student3 = fixtures.studentWithAccount(academyId, "학생3");
+        fixtures.guardianOf(academyId, student3, "학부모3", now());
+        fixtures.rider(runId, student3, stop3, RiderStatus.NO_SHOW, now());
+        entityManager.flush();
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop2 + "/arrive")
+                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.run_status").value("finished"));
+        entityManager.flush();
+
+        assertThat(출발시각(versionId, stop3)).as("도착한 적 없는 건너뜀 정차지도 종료와 함께 출발 처리").isNotNull();
+        assertThat(출발_통지_행수(runId, "no_show")).as("그 정차지의 미승차 결과가 학부모에게 통지된다").isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("H2 — 등원 학원(도착지) 도착 때도 도착을 누르지 않은 승하차지의 승차가 강제 출발·통지된 뒤 자동 하차된다")
     void 등원_도착지_도착이_도착을_누르지_않은_승하차지를_강제_출발시킨다() throws Exception {
         DriverRunFixtures fixtures = fixtures();
