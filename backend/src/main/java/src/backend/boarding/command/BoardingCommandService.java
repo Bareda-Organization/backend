@@ -102,7 +102,7 @@ public class BoardingCommandService {
     private final RunCompletionService runCompletionService;
 
     /**
-     * 운행 종료 시 도착·미출발로 남은 승하차지 전부를 강제로 출발 처리하는 협력자(Ruling 312, 목표
+     * 운행 종료 시 도착 여부와 무관하게 미출발로 남은 승하차지 전부를 강제로 출발 처리하는 협력자(Ruling 312, 목표
      * 8) — 마지막 승하차지는 다음 정차지가 없어 {@code RunArrivalCommandService} 의 폴백(목표 7)을
      * 못 받으므로, 이 시점에 한 번 더 쓸어낸다.
      */

@@ -141,11 +141,10 @@ public interface GuardianStudentRepository extends JpaRepository<GuardianStudent
      * {@code account.id}·{@code name} 을 읽는다 — 알림 적재({@code notification_log})가 필요로
      * 하는 것이 연락처 문자열이 아니라 수신자 계정이기 때문이다.
      *
-     * <p>학생 1명에 보호자가 여럿일 수 있어 <b>한 학생당 한 행만</b> 알림에 쓰기로 한 자리
-     * (goal 9 "알림 행 수 = 자동 하차 인원 수")에서는 <b>호출부가 이 목록을 순회하며 학생당 첫
-     * 행만 취한다</b> — 그 "첫 행" 을 결정론적으로 만드는 것이 아래 정렬이다. 정렬 기준은
-     * {@link #findGuardianPhonesByAcademyId} 와 동일하다(같은 근거 — 없으면 대표 보호자가
-     * 새로고침마다 바뀐다).
+     * <p>학생 1명에 보호자가 여럿이면 알림은 <b>보호자 전원</b>에게 간다 — 호출부
+     * ({@code RunStartedNotificationListener} · {@code RunAutoAlightedNotificationListener})가 이 목록을
+     * 그대로 순회해 보호자마다 1건씩 적재한다. 정렬 기준은 {@link #findGuardianPhonesByAcademyId} 와 같다
+     * (적재 순서를 조회마다 같게 만든다).
      */
     @Query("""
             SELECT gs.studentId AS studentId, a.id AS accountId, a.name AS name, s.name AS studentName
