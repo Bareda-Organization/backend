@@ -295,7 +295,7 @@ services:
   # SSM 포트 포워딩으로 접근한다(DEPLOYMENT.md §11). 초기 관리자 비밀번호는 SSM(GRAFANA_ADMIN_PASSWORD).
   # 볼륨이 없어 컨테이너를 다시 만들 때마다 SSM 값으로 초기화된다 — 저장할 사용자·설정이 없다.
   grafana:
-    image: grafana/grafana:13.2.2
+    image: grafana/grafana:13.2.3
     restart: unless-stopped
     mem_limit: 256m
     environment:
