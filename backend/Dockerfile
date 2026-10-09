@@ -1,5 +1,5 @@
 # --- 빌드 단계: Gradle 로 실행 가능한 jar 생성 ---
-FROM eclipse-temurin:25.0.4_7-jdk AS build
+FROM eclipse-temurin:25.0.4.1_1-jdk AS build
 WORKDIR /app
 # 의존성 캐시 최적화: 빌드 스크립트 먼저 복사.
 # ⚠ lombok.config 를 빠뜨리면 이미지 빌드가 통째로 실패한다 — build.gradle 이 그 파일을
@@ -16,7 +16,7 @@ COPY src ./src
 RUN ./gradlew bootJar --no-daemon
 
 # --- 실행 단계: JRE 만 담아 가볍게 ---
-FROM eclipse-temurin:25.0.4_7-jre
+FROM eclipse-temurin:25.0.4.1_1-jre
 WORKDIR /app
 # docker-compose.prod.yml 의 healthcheck 가 컨테이너 안에서 curl 로 관리 포트(8081)의 /actuator/health 를 친다(Ruling 740).
 # JRE 이미지에 curl 이 포함된다는 보장이 없어 명시적으로 설치한다(없으면 healthcheck 가
