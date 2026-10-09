@@ -19,6 +19,7 @@ import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
+import src.backend.exception.command.NoShowEscalationPersistence;
 import src.backend.exception.entity.NoShowCase;
 import src.backend.exception.repository.NoShowCaseRepository;
 import src.backend.run.repository.RunRepository;
@@ -42,6 +43,9 @@ class NoShowEscalationSchedulerTest {
 
     @Autowired
     private NoShowEscalationScheduler scheduler;
+
+    @Autowired
+    private NoShowEscalationPersistence escalationPersistence;
 
     @Autowired
     private AcademyRepository academyRepository;
@@ -186,6 +190,26 @@ class NoShowEscalationSchedulerTest {
 
         NoShowCase resolved = noShowCaseRepository.findById(resolvedCaseId).orElseThrow();
         assertThat(resolved.getEscalatedAt()).as("연락이 응답으로 해소됐으면 에스컬레이션되면 안 된다").isNull();
+    }
+
+    /**
+     * R51 L1 — 폴링이 만료된 케이스를 집은 뒤 UPDATE 하기 전에 케이스가 재개돼(미승차 되돌림 → 다시 미승차, 만료 시각이 미래로
+     * 갱신) 아직 만료 전이면 에스컬레이션하지 않는다. UPDATE 가 만료 시각을 다시 확인하지 않으면 새 대기 시간이 시작된 케이스를
+     * 곧바로 관계자에게 올린다.
+     */
+    @Test
+    @DisplayName("R51 L1 — 집은 뒤 만료 시각이 미래로 밀린(재개된) 케이스는 조건부 UPDATE 가 0행이라 에스컬레이션되지 않는다")
+    void 만료가_미래로_밀린_케이스는_에스컬레이션하지_않는다() {
+        long[] s = baseScenario();
+        long caseId = fixtures.noShowCase(s[2], now.minusMinutes(10), now.plusMinutes(3));
+
+        boolean escalated = escalationPersistence.escalateOne(caseId, now);
+
+        assertThat(escalated).as("만료 3분 전 케이스를 올리면 안 된다").isFalse();
+        assertThat(noShowCaseRepository.findById(caseId).orElseThrow().getEscalatedAt()).isNull();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM notification_log WHERE recipient_account_id = ? AND type = 'no_show_escalated'",
+                Integer.class, s[1])).as("관계자 알림도 없다").isZero();
     }
 
     @Test

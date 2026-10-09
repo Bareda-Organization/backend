@@ -68,6 +68,9 @@ public interface NoShowCaseRepository extends JpaRepository<NoShowCase, Long> {
      * 시점엔 미해소였어도 UPDATE 시점엔 해소됐을 수 있어, 조건에서 빠뜨리면 이미 끝난 케이스를
      * 에스컬레이션하는 경쟁이 생긴다.
      *
+     * <p>{@code expires_at <= now} 도 재확인한다(R51 L1) — 폴링 뒤 UPDATE 전에 케이스가 재개돼(되돌린 미승차를 다시 미승차 처리하면
+     * 만료 시각이 새 대기 시간 뒤로 갱신된다) 아직 만료 전이면, 새 대기 시간이 시작된 케이스를 곧바로 올리지 않는다.
+     *
      * @return 영향받은 행 수. 0이면 이미 처리됐거나(경쟁 패배·응답 도착) 대상이 없는 것이다.
      */
     @Transactional
@@ -76,7 +79,7 @@ public interface NoShowCaseRepository extends JpaRepository<NoShowCase, Long> {
             + "단건 조건부 갱신이다 — 그 조회가 이미 좁힌 대상이라 이 시점에 학원을 다시 물을 근거가 없다"
             + "(ChangeRequestRepository#autoRejectIfPending 과 같은 근거)")
     @Query("UPDATE NoShowCase c SET c.escalatedAt = :now WHERE c.id = :id "
-            + "AND c.escalatedAt IS NULL AND c.resolvedAt IS NULL")
+            + "AND c.escalatedAt IS NULL AND c.resolvedAt IS NULL AND c.expiresAt <= :now")
     int escalateIfDue(@Param("id") Long id, @Param("now") OffsetDateTime now);
 
     /**
