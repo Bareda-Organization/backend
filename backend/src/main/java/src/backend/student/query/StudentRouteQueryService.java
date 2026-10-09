@@ -99,7 +99,7 @@ public class StudentRouteQueryService {
                 .stream()
                 .collect(Collectors.toMap(Stop::getId, stop -> stop));
         List<StudentRouteResponse.Stop> stops = new ArrayList<>(windowed.stream()
-                .map(entry -> toStop(entry, stopsById.get(entry.stopId())))
+                .map(entry -> toStop(entry, stopsById.get(entry.stopId()), myStopId))
                 .toList());
         addAcademyStop(stops, academyId, run.getDirection());
 
@@ -174,12 +174,18 @@ public class StudentRouteQueryService {
         return entries.subList(Math.max(0, myIndex - 2), myIndex + 1);
     }
 
-    private StudentRouteResponse.Stop toStop(RouteStopReader.Entry entry, Stop stop) {
+    /**
+     * 주소 원문은 이 학생 본인의 승하차지에만 싣는다(Ruling 853) — 앞선 승하차지는 다른 아이의 집 주소에서 만들어졌을
+     * 수 있어 학부모의 주소 원문 조회 불가(FEATURE_SPEC §6.1·§6.3)와 맞춘다. 이름 · 좌표 · 순번은 지도 선과 번호 핀의
+     * 재료라 그대로 둔다.
+     */
+    private StudentRouteResponse.Stop toStop(RouteStopReader.Entry entry, Stop stop, Long myStopId) {
         if (stop == null) {
             return new StudentRouteResponse.Stop(entry.stopId(), entry.seq(), null, null, null, null, entry.change(),
                     entry.arrivedAt());
         }
-        return new StudentRouteResponse.Stop(stop.getId(), entry.seq(), stop.getName(), stop.getAddress(),
+        String address = stop.getId().equals(myStopId) ? stop.getAddress() : null;
+        return new StudentRouteResponse.Stop(stop.getId(), entry.seq(), stop.getName(), address,
                 stop.getLat(), stop.getLng(), entry.change(), entry.arrivedAt());
     }
 

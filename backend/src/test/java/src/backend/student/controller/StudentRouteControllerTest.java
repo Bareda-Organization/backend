@@ -153,6 +153,36 @@ class StudentRouteControllerTest {
     }
 
     /**
+     * R51 Ruling 853 — 앞선 승하차지는 다른 아이의 집 주소에서 만들어졌을 수 있어(FEATURE_SPEC §6.1·§6.3) 주소 원문은
+     * 그 학생 본인의 승하차지에만 싣는다. 이름 · 좌표 · 순번은 그대로 남는다(지도 선·번호 핀의 재료).
+     */
+    @Test
+    void 본인_승하차지가_아닌_앞선_정차지는_주소가_null_이고_이름_좌표_순번은_남는다() throws Exception {
+        mockMvc.perform(get(ROUTE.formatted(STUDENT_5_ID)).header("Authorization", 토큰(STUDENT_5_GUARDIAN_ACCOUNT)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.stops[0].stop_id").value(3))
+                .andExpect(jsonPath("$.data.stops[0].address").isEmpty())
+                .andExpect(jsonPath("$.data.stops[0].name").isNotEmpty())
+                .andExpect(jsonPath("$.data.stops[0].lat").isNotEmpty())
+                .andExpect(jsonPath("$.data.stops[0].seq").isNotEmpty())
+                .andExpect(jsonPath("$.data.stops[1].stop_id").value(1))
+                .andExpect(jsonPath("$.data.stops[1].address").isEmpty())
+                .andExpect(jsonPath("$.data.stops[2].stop_id").value(4))
+                .andExpect(jsonPath("$.data.stops[2].address").isNotEmpty());
+    }
+
+    /** 학생 본인이 불러도 같다 — 같은 응답을 학부모·학생이 함께 쓴다. 하원은 학원이 앞에 붙고 본인 승하차지는 맨 뒤다. */
+    @Test
+    void 하원에서도_본인_승하차지에만_주소가_실린다() throws Exception {
+        mockMvc.perform(get(ROUTE.formatted(STUDENT_4_ID)).header("Authorization", 토큰(STUDENT_4_GUARDIAN_ACCOUNT)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.stops[1].stop_id").value(1))
+                .andExpect(jsonPath("$.data.stops[1].address").isEmpty())
+                .andExpect(jsonPath("$.data.stops[2].stop_id").value(3))
+                .andExpect(jsonPath("$.data.stops[2].address").isNotEmpty());
+    }
+
+    /**
      * 학생 본인도 자기 노선을 본다(§3.10 권한 "학부모 · 학생" · S-04, BR-025) — 학생 계정엔 보호자 행이 없어
      * 보호자 전용 판정만 쓰면 {@code 403} 이 된다. 남의 노선은 여전히 {@code 403}.
      */
