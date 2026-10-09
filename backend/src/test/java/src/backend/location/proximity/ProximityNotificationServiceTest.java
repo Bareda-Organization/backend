@@ -363,7 +363,9 @@ class ProximityNotificationServiceTest {
         long stopId = fx.stop(academyId, "37.500000", STOP_LNG);
         long studentId = fx.student(academyId, "출발학생1");
         fx.guardianOf(academyId, studentId, "출발보호자1", now);
-        long runId = fx.movingRun(academyId, busId, Direction.FROM_ACADEMY, now.plusHours(1), now, now);
+        // 등원 — 승차(boarded)는 그 승하차지를 출발할 때 확정 결과로 나간다. 하원은 승차 알림이 시작 때 나가고 이 자리에서는
+        // 하차만 나간다(R51 H1).
+        long runId = fx.movingRun(academyId, busId, Direction.TO_ACADEMY, now.plusHours(1), now, now);
         long versionId = fx.confirmedRouteWithVersion(runId, now);
         long runStopId = fx.runStopForStop(versionId, stopId, 1, now.plusMinutes(10));
         fx.arriveStop(runStopId, now);
