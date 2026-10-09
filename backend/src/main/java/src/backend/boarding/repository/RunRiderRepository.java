@@ -242,6 +242,10 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
      * 아니라 사전에 확정된 상태라 이 통지의 대상이 아니다(근접 알림의 {@code excludingAbsent} 와
      * 같은 근거).
      *
+     * <p><b>하원은 {@code boarded} 를 뺀다</b>(R51 H1) — 하원의 승차 알림은 시작 때 자동 승차분으로 이미 나갔고
+     * (NTF-01 · {@code RunAutoBoardedEvent}), 하차지를 출발할 때까지 하차 처리를 못 받은 학생은 아직 탑승 중이라
+     * 확정된 결과가 없다. 빼지 않으면 하차지에서 "탑승했습니다" 가 나간다.
+     *
      * <p>{@code runId} 근거는 {@link #findByRunIdAndStudentId} 와 같다 — 호출부(출발 판정, Ruling
      * 307)가 근접 알림과 같은 스케줄러로 이미 학원과 무관하게 골라낸 회차의 식별자라는 전제다.
      */
@@ -249,11 +253,14 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
             + "무관하게 골라낸 회차의 식별자라는 전제다 — findStudentIdsByRunIdAndStopIdExcludingAbsent 와 같은 근거")
     @Query("""
             SELECT rr FROM RunRider rr
+            JOIN Run r ON r.id = rr.runId
             WHERE rr.runId = :runId
               AND rr.stopId = :stopId
               AND rr.status IN (src.backend.boarding.entity.RiderStatus.BOARDED,
                                  src.backend.boarding.entity.RiderStatus.ALIGHTED,
                                  src.backend.boarding.entity.RiderStatus.NO_SHOW)
+              AND NOT (r.direction = src.backend.global.common.enums.Direction.FROM_ACADEMY
+                       AND rr.status = src.backend.boarding.entity.RiderStatus.BOARDED)
             """)
     List<RunRider> findFinalizedByRunIdAndStopId(@Param("runId") Long runId, @Param("stopId") Long stopId);
 

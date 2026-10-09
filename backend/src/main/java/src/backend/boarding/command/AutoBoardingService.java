@@ -1,6 +1,7 @@
 package src.backend.boarding.command;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -35,12 +36,15 @@ public class AutoBoardingService {
      * 대기 중인(아직 부재·미승차로 처리되지 않은) 탑승자만 일괄 승차 처리한다 — 이미 부재·미승차로
      * 빠진 탑승자는 회차 시작 시점에도 여전히 빠진 채로 둔다(그 판단을 이 시점에 되돌릴 근거가 없다).
      *
-     * @return 실제로 승차 처리된 인원 수(목표 11, 호출부의 응답 계산값 재료)
+     * <p>전이마다 {@code rider_status_history} 에 {@code actor_type=system} 행을 남긴다(ERD §3.4, R51 M-B2) —
+     * 호출부가 승차 알림 수신자(R51 H1)를 이 반환값으로 정한다.
+     *
+     * @return 실제로 승차 처리된 탑승자(목표 11, 호출부의 응답 계산값 재료)
      */
     @Transactional
-    public int boardAllForDropOff(Long runId, OffsetDateTime now) {
+    public List<RunRider> boardAllForDropOff(Long runId, OffsetDateTime now) {
         List<RunRider> riders = runRiderRepository.findAllByRunId(runId);
-        int boardedCount = 0;
+        List<RunRider> boarded = new ArrayList<>();
         for (RunRider rider : riders) {
             if (rider.getStatus() != RiderStatus.WAITING) {
                 continue;
@@ -49,8 +53,8 @@ public class AutoBoardingService {
             rider.autoBoard(now);
             riderStatusHistoryRepository.save(RiderStatusHistory.of(new RiderStatusHistory.Context(rider.getId(),
                     fromStatus, RiderStatus.BOARDED, false, null, null, null, null, ActorType.SYSTEM, now, null)));
-            boardedCount++;
+            boarded.add(rider);
         }
-        return boardedCount;
+        return boarded;
     }
 }

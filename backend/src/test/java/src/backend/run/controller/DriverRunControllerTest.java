@@ -643,9 +643,10 @@ class DriverRunControllerTest {
         long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, now());
         long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, now());
 
+        // 하원이라 확정 결과는 "하차" 다 — 탑승 중(boarded)인 채 출발한 학생은 확정된 결과가 없어 알림 대상이 아니다(R51 H1).
         long student1 = fixtures.studentWithAccount(academyId, "학생1");
         fixtures.guardianOf(academyId, student1, "학부모1", now());
-        fixtures.rider(runId, student1, stop1, RiderStatus.BOARDED, now());
+        fixtures.rider(runId, student1, stop1, RiderStatus.ALIGHTED, now());
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop1 + "/arrive")
                         .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
@@ -659,7 +660,7 @@ class DriverRunControllerTest {
 
         entityManager.flush();
         assertThat(출발시각(versionId, stop1)).as("②다음 정차지 도착이 이전 정차지를 강제로 출발시킨다").isNotNull();
-        assertThat(출발_통지_행수(runId, "boarding", "parent")).as("③출발 확정으로 승차 알림 1건").isEqualTo(1);
+        assertThat(출발_통지_행수(runId, "alighting", "parent")).as("③출발 확정으로 하차 알림 1건").isEqualTo(1);
     }
 
     // ── docs/archive/rounds/be-rounds-r15-r21.md §8.23 T3 목표 8(Ruling 312) — 마지막 승하차지는 운행 종료가 출발로 갈음한다 ───────────

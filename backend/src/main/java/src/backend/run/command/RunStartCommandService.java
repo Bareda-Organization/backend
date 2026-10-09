@@ -14,9 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
-import src.backend.boarding.entity.RiderStatus;
+import src.backend.boarding.command.AutoBoardingService;
 import src.backend.boarding.entity.RunRider;
-import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
@@ -27,6 +26,7 @@ import src.backend.run.domain.RunStartWindowPolicy;
 import src.backend.run.dto.RunStartResponse;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
+import src.backend.run.event.RunAutoBoardedEvent;
 import src.backend.run.event.RunStartedEvent;
 import src.backend.run.repository.RunRepository;
 
@@ -48,7 +48,7 @@ public class RunStartCommandService {
     @PersistenceContext
     private EntityManager entityManager;
 
-    private final RunRiderRepository runRiderRepository;
+    private final AutoBoardingService autoBoardingService;
 
     private final RunAssignmentAccess runAssignmentAccess;
 
@@ -107,13 +107,17 @@ public class RunStartCommandService {
         return RunStartResponse.of(run, autoBoardedCount);
     }
 
-    /** 하원 회차 시작 시 대기 중인 탑승자 전원을 태운다(C-07·BRD-03) — 이미 다른 상태인 행은 건드리지 않는다. */
+    /**
+     * 하원 회차 시작 시 대기 중인 탑승자 전원을 태운다(C-07·BRD-03) — 이미 다른 상태인 행은 건드리지 않는다.
+     * 전이 이력(actor_type=system)은 {@link AutoBoardingService} 가 남기고, 태운 학생이 있으면 승차 알림의
+     * 재료({@link RunAutoBoardedEvent})를 발행한다(NTF-01, R51 H1).
+     */
     private int autoBoardWaitingRiders(Run run, OffsetDateTime now) {
-        List<RunRider> waiting = runRiderRepository.findAllByRunIdAndAcademyId(run.getId(), run.getAcademyId())
-                .stream()
-                .filter(rider -> rider.getStatus() == RiderStatus.WAITING)
-                .toList();
-        waiting.forEach(rider -> rider.board(now));
-        return waiting.size();
+        List<RunRider> boarded = autoBoardingService.boardAllForDropOff(run.getId(), now);
+        if (!boarded.isEmpty()) {
+            eventPublisher.publishEvent(new RunAutoBoardedEvent(run.getId(), run.getAcademyId(),
+                    boarded.stream().map(RunRider::getStudentId).toList(), now));
+        }
+        return boarded.size();
     }
 }

@@ -3,6 +3,7 @@ package src.backend.boarding.command;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
+import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.routing.repository.ConfirmedRouteRepository;
@@ -30,8 +32,7 @@ import src.backend.student.repository.StudentRepository;
 
 /**
  * 하원 회차 시작 시 명단 전원 일괄 승차(C-07 · BRD-03, 목표 11) — {@link AutoBoardingService} 를 직접
- * 호출한다. 이 워크트리에는 이 메서드를 부르는 T2 소유의 회차 시작 커맨드가 없어 컨트롤러 경유 시험이
- * 불가능하고, 그래서 컨트롤러 계층 없이 서비스 메서드를 직접 검증한다(T2/T3 경계, 브리프 참고).
+ * 호출한다. 회차 시작 경유(알림·이력)는 {@code RunStartAutoBoardingTest} 가 다룬다.
  */
 @SpringBootTest
 @Transactional
@@ -116,9 +117,10 @@ class AutoBoardingServiceTest {
         jdbcTemplate.update("UPDATE run_rider SET status = 'no_show' WHERE id = ?", riderNoShow);
         entityManager.clear();
 
-        int boardedCount = autoBoardingService.boardAllForDropOff(runId, now);
+        List<RunRider> boarded = autoBoardingService.boardAllForDropOff(runId, now);
 
-        assertThat(boardedCount).as("①응답 계산값 — 대기 중이던 2명만 승차 처리된다").isEqualTo(2);
+        assertThat(boarded).as("①응답 계산값 — 대기 중이던 2명만 승차 처리된다").extracting(RunRider::getId)
+                .containsExactlyInAnyOrder(riderWaiting1, riderWaiting2);
 
         entityManager.flush();
         assertThat(jdbcTemplate.queryForObject("SELECT status FROM run_rider WHERE id = ?", String.class,
