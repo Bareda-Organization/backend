@@ -234,7 +234,10 @@ class RunPositionCommandServiceTest {
                 departTime.minusMinutes(30));
         fixtures.startRun(runId, now());
         long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        jdbcTemplate.update("UPDATE run SET finish_pending = true WHERE id = ?", runId);
+        // 엔티티로 보류를 건다 — JDBC 로 바꾸면 영속성 컨텍스트에 남은 옛 Run 을 서비스가 읽어 보류 상태가 보이지 않는다.
+        Run pending = runRepository.findById(runId).orElseThrow();
+        pending.deferFinish();
+        runRepository.saveAndFlush(pending);
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/position")
                 .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
