@@ -101,14 +101,14 @@ public class RunArrivalCommandService {
     public RunArriveResponse arrive(AuthUser requester, Long runId, Long runStopId) {
         runAssignmentAccess.assertAssignedDriver(requester, runId);
         OffsetDateTime now = OffsetDateTime.now(clock);
-        // 폴백(Ruling 308, 목표 7) — 이 새 도착 처리보다 먼저 도착했지만 아직 출발 판정이 안 된
-        // 정차지가 있으면 강제로 출발 처리한다. run·target 을 로드하기 <b>전에</b> 부른다 —
+        // 폴백(Ruling 308, 목표 7 · R51 H2) — 이 새 도착 처리보다 앞 순번이면서 아직 출발 판정이 안 된
+        // 정차지가 있으면 도착 처리 여부와 무관하게 강제로 출발 처리한다(기사가 도착을 안 누른 정차지 포함). run·target 을 로드하기 <b>전에</b> 부른다 —
         // claimDeparture 의 clearAutomatically 가 영속성 컨텍스트를 비우는데, 그 뒤에 로드한
         // 엔티티만 이 트랜잭션 끝까지 안전하게 관리된다(먼저 로드해 두면 이 호출이 그 엔티티를
         // detach 시켜, 그 뒤의 markArrived·finish 같은 변경이 커밋되지 않고 조용히 사라진다).
         // 등원 학원 항목 도착이면 이 호출이 마지막 승차지까지 전부 출발시킨다 — 그래서 아래 자동
         // 하차보다 먼저 일어나 그 승차지의 확정 결과가 "승차" 로 나간다(R15-T3 후속과 같은 순서).
-        stopDepartureService.forceAllRemaining(runId, requester.academyId(), now);
+        stopDepartureService.forceAllBefore(runId, requester.academyId(), runStopId, now);
 
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));

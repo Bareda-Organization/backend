@@ -100,19 +100,21 @@ class StopDepartureForceAllRemainingTest {
         long stopA = fx.stop(academyId, "37.500000", "127.000000");
         long stopB = fx.stop(academyId, "37.510000", "127.010000");
         long stopC = fx.stop(academyId, "37.520000", "127.020000");
+        long stopD = fx.stop(academyId, "37.530000", "127.030000");
         long runStop1 = fx.runStopForStop(versionId, stopA, 1, now.plusMinutes(10));
         long runStop2 = fx.runStopForStop(versionId, stopB, 2, now.plusMinutes(20));
         long runStop3 = fx.runStopForStop(versionId, stopC, 3, now.plusMinutes(30));
+        long runStop4 = fx.runStopForStop(versionId, stopD, 4, now.plusMinutes(40));
         fx.arriveStop(runStop1, now);
         fx.arriveStop(runStop2, now);
         fx.arriveStop(runStop3, now);
 
-        assertThat(runStopRepository.findAllArrivedNotDeparted(versionId)).as("사전 조건 — 셋 다 아직 미출발")
-                .hasSize(3);
+        assertThat(runStopRepository.findAllNotDeparted(versionId)).as("사전 조건 — 넷 다 아직 미출발(넷째는 도착 처리도 안 됐다)")
+                .hasSize(4);
 
         stopDepartureService.forceAllRemaining(runId, academyId, now.plusHours(1));
 
-        assertThat(runStopRepository.findAllArrivedNotDeparted(versionId)).as("한 번 호출로 대기열이 비어야 한다")
+        assertThat(runStopRepository.findAllNotDeparted(versionId)).as("한 번 호출로 대기열이 비어야 한다")
                 .isEmpty();
         assertThat(runStopRepository.findById(runStop1).orElseThrow().getDepartedAt())
                 .as("①seq 1 개별 확인").isNotNull();
@@ -120,5 +122,7 @@ class StopDepartureForceAllRemainingTest {
                 .as("②seq 2 개별 확인 — 반복문이 첫 건만 처리하는 결함이면 여기서 null 로 남는다").isNotNull();
         assertThat(runStopRepository.findById(runStop3).orElseThrow().getDepartedAt())
                 .as("③seq 3 개별 확인").isNotNull();
+        assertThat(runStopRepository.findById(runStop4).orElseThrow().getDepartedAt())
+                .as("④도착 처리를 한 번도 안 한 정차지도 운행 종료 때 출발 처리(R51 H2)").isNotNull();
     }
 }

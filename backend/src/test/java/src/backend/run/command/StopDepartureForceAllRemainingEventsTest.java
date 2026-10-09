@@ -36,7 +36,7 @@ import src.backend.student.repository.StudentRepository;
  * {@link StopDepartedEvent} 발행을 빠뜨려도(학부모 알림 누락) 잡지 못한다 — 이 클래스가 그 축을 메운다.
  *
  * <p>이미 선점된 정차지 1건을 섞어 두어, {@code forceAllRemaining} 이 그 건을 대상에서 아예 빼는지
- * (재발행하지 않는지)도 같이 본다 — {@link RunStopRepository#findAllArrivedNotDeparted} 의
+ * (재발행하지 않는지)도 같이 본다 — {@link RunStopRepository#findAllNotDeparted} 의
  * {@code departedAt IS NULL} 조건이 실제로 이벤트 발행 단계까지 지켜지는지가 관건이다.
  */
 @SpringBootTest
@@ -121,7 +121,7 @@ class StopDepartureForceAllRemainingEventsTest {
         fx.arriveStop(runStopB, now);
         fx.arriveStop(runStopC, now);
         // 이미 다른 경로(예: judgeRun 의 출발 판정(100m 이탈))가 먼저 선점한 상황을 흉내낸다 —
-        // 도착 처리는 됐지만 findAllArrivedNotDeparted 조건(departedAt IS NULL)에서 이미 빠져 있다.
+        // 도착 처리는 됐지만 findAllNotDeparted 조건(departedAt IS NULL)에서 이미 빠져 있다.
         fx.arriveStop(runStopAlreadyDeparted, now);
         runStopRepository.claimDeparture(runStopAlreadyDeparted, now);
 

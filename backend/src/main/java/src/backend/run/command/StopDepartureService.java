@@ -51,20 +51,39 @@ public class StopDepartureService {
     }
 
     /**
-     * 그 회차에 도착했지만 아직 출발 처리되지 않은 정차지 전부를 강제로 출발 처리한다(Ruling 312) —
-     * 다음 승하차지 도착 시 이전 정차지에 거는 폴백(목표 7), 운행 종료 시 마지막 정차지에 거는 강제
-     * 적용(목표 8) 둘 다 이 메서드 하나로 처리한다. 대상이 없으면(정상적으로 이미 전부 출발
+     * 그 회차에서 아직 출발 처리되지 않은 정차지 전부를 <b>도착 처리 여부와 무관하게</b> 강제로 출발 처리한다(Ruling 312,
+     * R51 H2) — 운행 종료 시 마지막 정차지에 거는 강제 적용(목표 8)이다. 대상이 없으면(정상적으로 이미 전부 출발
      * 처리됐으면) 아무 일도 하지 않는다.
      */
     @Transactional
     public void forceAllRemaining(Long runId, Long academyId, OffsetDateTime now) {
-        Optional<ConfirmedRoute> confirmedRoute = confirmedRouteRepository.findById(runId);
-        if (confirmedRoute.isEmpty() || confirmedRoute.get().getCurrentVersionId() == null) {
+        Optional<Long> versionId = currentVersionIdOf(runId);
+        if (versionId.isEmpty()) {
             return;
         }
-        List<RunStop> remaining = runStopRepository
-                .findAllArrivedNotDeparted(confirmedRoute.get().getCurrentVersionId());
-        for (RunStop stop : remaining) {
+        claimAll(runStopRepository.findAllNotDeparted(versionId.get()), runId, academyId, now);
+    }
+
+    /**
+     * 정차 항목 {@code arrivingRunStopId} 의 도착 처리 직전에, 그보다 <b>앞 순번의 미출발 정차지 전부</b>를 도착 여부와
+     * 무관하게 강제 출발 처리한다(목표 7, R51 H2) — 위치 신호 유실이나 기사의 도착 미처리로 출발 판정이 안 됐어도
+     * 다음 승하차지 도착이 그 정차지의 승차·미승차 알림을 확정한다.
+     */
+    @Transactional
+    public void forceAllBefore(Long runId, Long academyId, Long arrivingRunStopId, OffsetDateTime now) {
+        Optional<Long> versionId = currentVersionIdOf(runId);
+        if (versionId.isEmpty()) {
+            return;
+        }
+        claimAll(runStopRepository.findAllNotDepartedBefore(versionId.get(), arrivingRunStopId), runId, academyId, now);
+    }
+
+    private Optional<Long> currentVersionIdOf(Long runId) {
+        return confirmedRouteRepository.findById(runId).map(ConfirmedRoute::getCurrentVersionId);
+    }
+
+    private void claimAll(List<RunStop> stops, Long runId, Long academyId, OffsetDateTime now) {
+        for (RunStop stop : stops) {
             claimAndPublish(stop, runId, academyId, now);
         }
     }

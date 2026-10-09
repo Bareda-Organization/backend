@@ -201,9 +201,11 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
     List<RunStop> findFirstArrivedNotDeparted(@Param("routeVersionId") Long routeVersionId, Pageable pageable);
 
     /**
-     * 도착했지만 아직 출발 처리되지 않은 정차지 <b>전부</b>(Ruling 312, docs/archive/rounds/be-rounds-r15-r21.md §8.23 T3 목표 8) — 다음
-     * 승하차지 도착 폴백(목표 7)·운행 종료 시 강제 적용(목표 8) 둘 다 "남은 전부"를 한 번에 쓸어야
-     * 해서 {@link #findFirstArrivedNotDeparted} 의 limit 1 로는 못 쓴다. 조건은 그 메서드와 같다.
+     * 아직 출발 처리되지 않은 정차지 <b>전부</b> — <b>도착 처리 여부와 무관</b>하다(Ruling 312, R51 H2). 운행 종료 시
+     * 강제 적용(목표 8)이 "남은 전부"를 한 번에 쓸어야 해서 {@link #findFirstArrivedNotDeparted} 의 limit 1 로는 못 쓴다.
+     * 기사가 도착을 누르지 않은 정차지도 포함하는 이유는 FEATURE_SPEC "위치 유실·기사의 도착 미처리로 출발 판정이 안
+     * 되면 다음 승하차지 도착 시 강제 발송" 때문이다 — {@code arrived_at IS NOT NULL} 을 걸면 그 정차지의 승차·
+     * 미승차 알림이 끝내 나가지 않는다. 강제 경유지·도착지는 학생이 없어 {@code stopId IS NOT NULL} 로 뺀다.
      */
     @AcademyScopeExempt(reason = "findFirstArrivedNotDeparted 와 같은 근거 — routeVersionId 는 호출부(StopDepartureService)가 "
             + "이미 학원과 무관하게 골라낸 회차에서 confirmed_route.current_version_id 로 얻은 값만 넘긴다는 전제다")
@@ -211,11 +213,29 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
             SELECT rs FROM RunStop rs
             WHERE rs.routeVersionId = :routeVersionId
               AND rs.stopId IS NOT NULL
-              AND rs.arrivedAt IS NOT NULL
               AND rs.departedAt IS NULL
             ORDER BY rs.seq ASC
             """)
-    List<RunStop> findAllArrivedNotDeparted(@Param("routeVersionId") Long routeVersionId);
+    List<RunStop> findAllNotDeparted(@Param("routeVersionId") Long routeVersionId);
+
+    /**
+     * {@link #findAllNotDeparted} 중 <b>방금 도착 처리하는 정차 항목보다 앞 순번</b>만(R51 H2) — 다음 승하차지 도착이
+     * 이전 정차지에 거는 폴백(목표 7)이다. 도착하는 항목 자신과 뒤 순번은 아직 버스가 지나지 않았으므로 뺀다.
+     * {@code targetRunStopId} 가 그 버전의 항목이 아니면 하위 질의가 비어 아무 행도 돌려주지 않는다.
+     */
+    @AcademyScopeExempt(reason = "findAllNotDeparted 와 같은 근거 — routeVersionId 는 호출부가 학원 범위로 좁힌 회차의 "
+            + "확정 노선 버전 id 만 넘긴다는 전제다")
+    @Query("""
+            SELECT rs FROM RunStop rs
+            WHERE rs.routeVersionId = :routeVersionId
+              AND rs.stopId IS NOT NULL
+              AND rs.departedAt IS NULL
+              AND rs.seq < (SELECT t.seq FROM RunStop t
+                            WHERE t.id = :targetRunStopId AND t.routeVersionId = :routeVersionId)
+            ORDER BY rs.seq ASC
+            """)
+    List<RunStop> findAllNotDepartedBefore(@Param("routeVersionId") Long routeVersionId,
+            @Param("targetRunStopId") Long targetRunStopId);
 
     /**
      * 정차 항목 1건의 출발을 <b>최초 1회</b>로 선점한다(Ruling 307) — {@link #claimProximityNotice} 와

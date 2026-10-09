@@ -2,6 +2,7 @@ package src.backend.run.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Clock;
@@ -243,6 +244,104 @@ class RunBoardingNotificationTest {
         arrive(runId, runStop2, driverAccountId, academyId);
 
         assertThat(출발_통지_행수(runId, "boarding")).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("H2 — 기사가 도착을 누르지 않은 앞 순번 정차지도 다음 승하차지 도착 때 강제 출발되고 확정 결과가 통지된다")
+    void 도착을_누르지_않은_앞_정차지도_다음_도착이_강제_출발시킨다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
+        long stop2 = fixtures.stop(academyId, "37.561000", "126.971000");
+        long stop3 = fixtures.stop(academyId, "37.562000", "126.972000");
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, now(), now().minusMinutes(30));
+        fixtures.startRun(runId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
+        fixtures.runStopForStop(versionId, stop1, 1, now());
+        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, now());
+        fixtures.runStopForStop(versionId, stop3, 3, now());
+        long student1 = fixtures.studentWithAccount(academyId, "학생1");
+        fixtures.guardianOf(academyId, student1, "학부모1", now());
+        fixtures.rider(runId, student1, stop1, RiderStatus.ALIGHTED, now());
+        long student3 = fixtures.studentWithAccount(academyId, "학생3");
+        fixtures.guardianOf(academyId, student3, "학부모3", now());
+        fixtures.rider(runId, student3, stop3, RiderStatus.BOARDED, now());
+
+        arrive(runId, runStop2, driverAccountId, academyId);
+
+        assertThat(출발시각(versionId, stop1)).as("①도착을 누르지 않은 앞 순번 정차지도 출발 처리").isNotNull();
+        assertThat(출발_통지_행수(runId, "alighting")).as("②그 정차지의 확정 결과(하차)가 통지된다").isEqualTo(1);
+        assertThat(출발시각(versionId, stop2)).as("③방금 도착한 정차지 자신은 아직 출발 전").isNull();
+        assertThat(출발시각(versionId, stop3)).as("④뒤 순번 정차지는 건드리지 않는다").isNull();
+    }
+
+    @Test
+    @DisplayName("H2 — 하원 최종 지점 도착으로 운행이 끝나면 도착을 누르지 않은 정차지 전부가 강제 출발된다")
+    void 운행_종료가_도착을_누르지_않은_정차지_전부를_강제_출발시킨다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
+        long stop2 = fixtures.stop(academyId, "37.561000", "126.971000");
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, now(), now().minusMinutes(30));
+        fixtures.startRun(runId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
+        fixtures.runStopForStop(versionId, stop1, 1, now());
+        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, now());
+        long student1 = fixtures.studentWithAccount(academyId, "학생1");
+        fixtures.guardianOf(academyId, student1, "학부모1", now());
+        fixtures.rider(runId, student1, stop1, RiderStatus.ALIGHTED, now());
+        long student2 = fixtures.studentWithAccount(academyId, "학생2");
+        fixtures.guardianOf(academyId, student2, "학부모2", now());
+        fixtures.rider(runId, student2, stop2, RiderStatus.ALIGHTED, now());
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop2 + "/arrive")
+                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.run_status").value("finished"));
+        entityManager.flush();
+
+        assertThat(출발시각(versionId, stop1)).as("①한 번도 도착 처리하지 않은 정차지도 종료와 함께 출발 처리").isNotNull();
+        assertThat(출발시각(versionId, stop2)).isNotNull();
+        assertThat(출발_통지_행수(runId, "alighting")).as("②두 정차지의 하차 알림").isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("H2 — 등원 학원(도착지) 도착 때도 도착을 누르지 않은 승하차지의 승차가 강제 출발·통지된 뒤 자동 하차된다")
+    void 등원_도착지_도착이_도착을_누르지_않은_승하차지를_강제_출발시킨다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
+        fixtures.startRun(runId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
+        fixtures.runStopForStop(versionId, stop1, 1, now());
+        long destination = fixtures.runStopForDestination(versionId, 2);
+        long student = fixtures.studentWithAccount(academyId, "학생");
+        fixtures.guardianOf(academyId, student, "학부모", now());
+        fixtures.rider(runId, student, stop1, RiderStatus.BOARDED, now());
+
+        arrive(runId, destination, driverAccountId, academyId);
+
+        assertThat(출발시각(versionId, stop1)).isNotNull();
+        assertThat(출발_통지_행수(runId, "boarding")).as("승하차지를 출발한 확정 결과(승차)가 통지된다").isEqualTo(1);
+        assertThat(라이더_상태(runId, student)).as("그 뒤 학원 도착으로 자동 하차").isEqualTo("alighted");
+    }
+
+    private OffsetDateTime 출발시각(long versionId, long stopId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT departed_at FROM run_stop WHERE route_version_id = ? AND stop_id = ?", OffsetDateTime.class,
+                versionId, stopId);
+    }
+
+    private String 라이더_상태(long runId, long studentId) {
+        return jdbcTemplate.queryForObject("SELECT status FROM run_rider WHERE run_id = ? AND student_id = ?",
+                String.class, runId, studentId);
     }
 
     private void arrive(long runId, long runStopId, long driverAccountId, long academyId) throws Exception {
