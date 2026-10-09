@@ -166,6 +166,36 @@ class RunBoardingNotificationTest {
     }
 
     @Test
+    @DisplayName("H1 형제 — 보호자 1명이 같은 회차의 자녀 2명을 가지면 자녀마다 boarding 알림이 1건씩 따로 적재된다")
+    void 형제_두_명을_가진_보호자는_자녀마다_승차_알림을_받는다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, now(), now().minusMinutes(30));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long sibling1 = fixtures.studentWithAccount(academyId, "형");
+        long guardianAccountId = fixtures.guardianOf(academyId, sibling1, "엄마", now());
+        long sibling2 = fixtures.studentWithAccount(academyId, "동생");
+        fixtures.siblingOf(guardianAccountId, sibling2, now());
+        fixtures.rider(runId, sibling1, stopId, RiderStatus.WAITING, now());
+        fixtures.rider(runId, sibling2, stopId, RiderStatus.WAITING, now());
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/start")
+                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isOk());
+        entityManager.flush();
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT student_id FROM notification_log WHERE type = 'boarding' AND dedup_key LIKE ? "
+                        + "AND recipient_account_id = ?", "auto_boarded:" + runId + ":%", guardianAccountId);
+        assertThat(rows).as("보호자 계정 1개가 자녀 2명 — 학생별 1건씩 2건(dedup_key 가 보호자·학생을 함께 봐야 두 건이 남는다)")
+                .hasSize(2);
+        assertThat(rows).extracting(row -> ((Number) row.get("student_id")).longValue())
+                .containsExactlyInAnyOrder(sibling1, sibling2);
+    }
+
+    @Test
     @DisplayName("M-B2 — 하원 시작 자동 승차는 rider_status_history 에 actor_type=system(waiting→boarded)으로 남는다")
     void 하원_시작_자동_승차가_상태_이력에_system_으로_남는다() throws Exception {
         DriverRunFixtures fixtures = fixtures();
@@ -344,6 +374,38 @@ class RunBoardingNotificationTest {
 
         assertThat(출발시각(versionId, stop3)).as("도착한 적 없는 건너뜀 정차지도 종료와 함께 출발 처리").isNotNull();
         assertThat(출발_통지_행수(runId, "no_show")).as("그 정차지의 미승차 결과가 학부모에게 통지된다").isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("H2 — 앞 순번이 건너뜀(skipped)인 정차지도 최종이 아닌 뒤 정차지 도착 때 강제 출발되어 미승차 알림이 학부모에게 간다")
+    void 중간_정차지_도착이_앞의_건너뜀_정차지를_강제_출발시키고_미승차를_통지한다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
+        long stop2 = fixtures.stop(academyId, "37.561000", "126.971000");
+        long stop3 = fixtures.stop(academyId, "37.562000", "126.972000");
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, now(), now().minusMinutes(30));
+        fixtures.startRun(runId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
+        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, now());
+        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, now());
+        fixtures.runStopForStop(versionId, stop3, 3, now());
+        // 첫 정차지는 전원 미승차로 건너뜀 표시 — 서지 않는 정차지이고, 최종 지점은 셋째라 둘째 도착은 최종이 아니다.
+        jdbcTemplate.update("UPDATE run_stop SET change = 'skipped' WHERE route_version_id = ? AND stop_id = ?",
+                versionId, stop1);
+        long student1 = fixtures.studentWithAccount(academyId, "학생1");
+        fixtures.guardianOf(academyId, student1, "학부모1", now());
+        fixtures.rider(runId, student1, stop1, RiderStatus.NO_SHOW, now());
+        entityManager.flush();
+
+        arrive(runId, runStop2, driverAccountId, academyId);
+
+        assertThat(출발시각(versionId, stop1)).as("①도착한 적 없는 건너뜀 정차지도 뒤 정차지 도착 때 출발 처리").isNotNull();
+        assertThat(출발_통지_행수(runId, "no_show")).as("②그 정차지의 미승차 결과가 학부모에게 통지된다").isEqualTo(1);
+        assertThat(출발시각(versionId, stop2)).as("③방금 도착한 정차지 자신은 아직 출발 전").isNull();
+        assertThat(출발시각(versionId, stop3)).as("④뒤 순번 정차지는 건드리지 않는다").isNull();
     }
 
     @Test

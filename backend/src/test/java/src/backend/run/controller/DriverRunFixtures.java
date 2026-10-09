@@ -176,6 +176,12 @@ public class DriverRunFixtures {
         return account.getId();
     }
 
+    /** 이미 있는 보호자 계정에 자녀 1명을 더 잇는다(형제 — 보호자 1명이 학생 2명을 가진다). 보호자 행은 계정당 1개다. */
+    public void siblingOf(long guardianAccountId, long studentId, OffsetDateTime linkedAt) {
+        long guardianId = guardianRepository.findByAccountId(guardianAccountId).orElseThrow().getId();
+        guardianStudentRepository.save(GuardianStudent.uponLink(guardianId, studentId, linkedAt));
+    }
+
     /** confirmed 상태 회차 1건 — {@code RunRepository#confirmIfIdle} 로 정상 경로(조건부 UPDATE)를 그대로 탄다. */
     public long confirmedRun(long academyId, long busId, Direction direction, OffsetDateTime departTime,
             OffsetDateTime confirmedAt) {
