@@ -19,7 +19,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanManageSchedule;
+import src.backend.global.security.authz.CanManageRoute;
 import src.backend.run.command.TransferCommandService;
 import src.backend.run.dto.TransferRequest;
 import src.backend.run.dto.TransferResponse;
@@ -43,7 +43,7 @@ public class StaffStudentTransferController {
      * 정원 초과는 {@code 409 CAPACITY_EXCEEDED}, 학생이 출발 회차 명단 밖이면
      * {@code 409 STUDENT_NOT_IN_RUN}, 도착 회차가 타 학원이면 {@code 403 ACADEMY_SCOPE_VIOLATION}.
      */
-    @CanManageSchedule
+    @CanManageRoute
     @Operation(summary = "수동 조정 · 버스 간 이동 (RTE-07, A-07)")
     @PostMapping("/{id}/transfer")
     @ResponseStatus(HttpStatus.CREATED)

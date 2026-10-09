@@ -19,7 +19,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanManageSchedule;
+import src.backend.global.security.authz.CanManageRoute;
 import src.backend.run.command.ForcedAdditionCommandService;
 import src.backend.run.dto.ForcedAdditionRequest;
 import src.backend.run.dto.ForcedAdditionResponse;
@@ -42,7 +42,7 @@ public class StaffForcedAdditionController {
      * ①구간 강제 추가(§5.7) — ②③구간은 {@code 403 CHANGE_WINDOW_CLOSED}, 정원 초과는
      * {@code 409 CAPACITY_EXCEEDED}, 주소 검증 실패는 {@code 422 ADDRESS_VERIFICATION_FAILED}.
      */
-    @CanManageSchedule
+    @CanManageRoute
     @Operation(summary = "노선 강제 추가 (RTE-06, A-06)")
     @PostMapping("/{runId}/forced-add")
     @ResponseStatus(HttpStatus.CREATED)
