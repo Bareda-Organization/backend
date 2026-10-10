@@ -428,6 +428,43 @@ class StaffApprovalDecideControllerTest {
                 .andExpect(jsonPath("$.data.status").value("rejected"));
     }
 
+    /**
+     * Ruling 870 으로 확정 배치가 못 돈 회차(idle · 확정 노선 부재)도 출발 + 10분까지 ② 라 승인 요청이 접수된다. 이 틈에서 승인은 미리보기
+     * 토큰을 얻을 수 없어(상세 조회가 409 RUN_NOT_CONFIRMED) {@code 409 PREVIEW_STALE} 로 막히고 요청은 대기로 남는다 — 확정 노선 없이
+     * 노선을 배포하지 않는다.
+     */
+    @Test
+    void 확정_전_회차의_승인_결정은_PREVIEW_STALE_이고_요청은_대기로_남는다() throws Exception {
+        OffsetDateTime departTime = OffsetDateTime.now(KST).minusMinutes(3);
+        Weekday weekday = Weekday.valueOf(departTime.getDayOfWeek().name().substring(0, 3));
+        결정_시나리오 s = 결정_시나리오를_만든다(departTime.toLocalDate(), weekday, departTime, false);
+
+        mockMvc.perform(get("/api/v1/staff/approvals/" + s.approvalId).header("Authorization", 관계자_토큰(s.academyId)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("RUN_NOT_CONFIRMED"));
+        결정_요청(관계자_토큰(s.academyId), s.approvalId, 승인_바디("token-that-was-never-issued"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("PREVIEW_STALE"));
+
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM change_request WHERE id = ?", String.class,
+                s.approvalId)).isEqualTo("pending");
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM confirmed_route WHERE run_id = ?", Integer.class,
+                s.runId)).as("승인 시도가 확정 노선을 만들지 않는다").isZero();
+    }
+
+    /** 같은 틈에서 거절은 노선을 건드리지 않으므로 그대로 처리된다 — 확정 노선이 없어 {@code route_version} 은 {@code null} 이다. */
+    @Test
+    void 확정_전_회차의_거절_결정은_처리되고_route_version_은_null_이다() throws Exception {
+        OffsetDateTime departTime = OffsetDateTime.now(KST).minusMinutes(3);
+        Weekday weekday = Weekday.valueOf(departTime.getDayOfWeek().name().substring(0, 3));
+        결정_시나리오 s = 결정_시나리오를_만든다(departTime.toLocalDate(), weekday, departTime, false);
+
+        결정_요청(관계자_토큰(s.academyId), s.approvalId, 거절_바디("사유"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("rejected"))
+                .andExpect(jsonPath("$.data.route_version").value(org.hamcrest.Matchers.nullValue()));
+    }
+
     // 이미 처리된 건을 다시 결정하면 409 APPROVAL_ALREADY_DECIDED — 이 검증은 여기 두지 않는다.
     // 첫 결정의 dirty-check UPDATE(cr.approve(...))는 @Transactional 시험의 커넥션이 실제로
     // 커밋될 때까지 플러시가 미뤄져(신규 INSERT·flushAutomatically UPDATE 와 달리), 같은 시험
@@ -532,6 +569,12 @@ class StaffApprovalDecideControllerTest {
      */
     private 결정_시나리오 결정_시나리오를_만든다(LocalDate serviceDate, Weekday weekday, OffsetDateTime departTime)
             throws Exception {
+        return 결정_시나리오를_만든다(serviceDate, weekday, departTime, true);
+    }
+
+    /** {@code confirm=false} 면 회차를 확정 배치 전(idle · 확정 노선 부재)으로 둔다 — ② 판정은 서는데 노선이 아직 없는 틈이다. */
+    private 결정_시나리오 결정_시나리오를_만든다(LocalDate serviceDate, Weekday weekday, OffsetDateTime departTime,
+            boolean confirm) throws Exception {
         long academyId = fixtures().academyWithCoordinates();
         long busId = fixtures().bus(academyId);
         long firstStop = fixtures().stop(academyId, "37.560000", "126.970000");
@@ -548,7 +591,9 @@ class StaffApprovalDecideControllerTest {
 
         long runId = fixtures().idleRun(academyId, busId, serviceDate, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        confirmationService.confirmOne(runId);
+        if (confirm) {
+            confirmationService.confirmOne(runId);
+        }
         org.mockito.Mockito.clearInvocations(pipeline);
 
         long parentAccountId = accountRepository
