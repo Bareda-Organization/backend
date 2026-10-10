@@ -166,9 +166,9 @@ class RunCompletionBoundaryTest {
         verify(runCompletionService).completeIfAllAlighted(eq(run), any());
         List<RunEndedEvent> runEndedEvents = applicationEvents.stream(RunEndedEvent.class).toList();
         assertThat(runEndedEvents).as("①true 반환 시 RunEndedEvent 발행").hasSize(1);
-        // no_show 탑승자는 ALIGHTED 가 아니라 집계에서 빠져야 한다 — 방금 하차한 1명만 세는지가
-        // 이 단언의 본체다(리뷰 R2 판정문 §②변형9 — 값을 안 보면 집계 대상이 뒤바뀌어도 못 잡는다).
-        assertThat(runEndedEvents.get(0).autoAlightedCount()).as("②ALIGHTED 1명만 센다").isEqualTo(1L);
+        // R52 L2 — auto_alighted_count 는 "등원 종료 때 자동으로 하차 처리된 수" 다(API_SPEC §4.5·§7). 하원은 자동 하차가 없고 방금 한 하차는
+        // 수동이라 0 이다 — 같은 하원 종료가 도착 처리 경로에서는 0, 마지막 하차 경로에서는 수동 하차 전체로 갈리던 것을 0 하나로 한다.
+        assertThat(runEndedEvents.get(0).autoAlightedCount()).as("②하원 종료는 자동 하차가 없어 0").isZero();
     }
 
     @Test

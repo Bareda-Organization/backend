@@ -290,8 +290,9 @@ public class BoardingCommandService {
             // 마지막 승하차지 강제 출발(Ruling 312, 목표 8) — 이 시점의 최종 지점은 다음 정차지가
             // 없어 RunArrivalCommandService 의 폴백(목표 7)을 받지 못한다.
             stopDepartureService.forceAllRemaining(run.getId(), run.getAcademyId(), now);
-            long autoAlightedCount = runRiderRepository.countByRunIdAndStatus(run.getId(), RiderStatus.ALIGHTED);
-            eventPublisher.publishEvent(new RunEndedEvent(run.getId(), run.getAcademyId(), now, autoAlightedCount));
+            // R52 L2 — auto_alighted_count 는 등원 종료 때 자동 하차된 수다. 이 경로는 하원의 마지막 수동 하차라 0 이다
+            // (하원 종료는 어느 경로든 0 — RunArrivalCommandService 의 하원 최종 지점 도착과 같은 값).
+            eventPublisher.publishEvent(new RunEndedEvent(run.getId(), run.getAcademyId(), now, 0));
         }
     }
 
