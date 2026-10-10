@@ -18,6 +18,7 @@ import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Role;
 import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
+import src.backend.notification.domain.spec.RunStartedChildSubject;
 import src.backend.notification.entity.NotificationType;
 import src.backend.run.entity.Run;
 import src.backend.run.event.RunStartedEvent;
@@ -64,6 +65,8 @@ public class RunStartedNotificationListener {
 
     private final NotificationComposer<RunStartedEvent> runStartedComposer;
 
+    private final NotificationComposer<RunStartedChildSubject> runStartedChildComposer;
+
     /**
      * 운행 시작(목표 5, §9.7) — 관계자 전원 + 명단에 남은(absent 제외) 학생의 보호자·본인에게 적재한다. 수신자 전원을
      * 모아 한 번에 적재한다({@link NotificationOutbox#appendAll}, R46 T-6) — 회차 행 잠금 아래에서 문장 수가 수신자 수에
@@ -71,13 +74,13 @@ public class RunStartedNotificationListener {
      */
     @EventListener
     public void appendRunStarted(RunStartedEvent event) {
-        NotificationMessage message = runStartedComposer.compose(event);
+        NotificationMessage staffMessage = runStartedComposer.compose(event);
 
-        List<NotificationDraft> drafts = new ArrayList<>(draftsForStaff(event, message));
+        List<NotificationDraft> drafts = new ArrayList<>(draftsForStaff(event, staffMessage));
         List<Long> studentIds = studentIdsOf(event);
         if (!studentIds.isEmpty()) {
-            drafts.addAll(draftsForGuardians(event, message, studentIds));
-            drafts.addAll(draftsForStudents(event, message, studentIds));
+            drafts.addAll(draftsForGuardians(event, studentIds));
+            drafts.addAll(draftsForStudents(event, studentIds));
         }
         notificationOutbox.appendAll(drafts);
     }
@@ -125,33 +128,34 @@ public class RunStartedNotificationListener {
      * <p>{@code dedup_key} 의 대상 자리에 보호자 계정과 <b>studentId</b> 를 함께 쓴다 — 같은 회차에
      * 형제자매가 함께 타 같은 보호자 계정으로 귀결되면 계정만으로는 두 학생에서 같아진다.
      */
-    private List<NotificationDraft> draftsForGuardians(RunStartedEvent event, NotificationMessage message,
-            List<Long> studentIds) {
+    private List<NotificationDraft> draftsForGuardians(RunStartedEvent event, List<Long> studentIds) {
         List<GuardianAccountRecipient> guardians = guardianStudentRepository
                 .findGuardianAccountsByAcademyId(event.academyId(), studentIds);
-        return guardians.stream()
-                .map(guardian -> new NotificationDraft(event.academyId(), guardian.getAccountId(),
-                        guardian.getName(), Role.PARENT, NotificationType.RUN_STARTED, message.title(),
-                        message.body(),
-                        DEDUP_KEY_FORMAT.formatted(event.runId(),
-                                "guardian:" + guardian.getAccountId() + ":" + guardian.getStudentId(),
-                                event.startedAt()),
-                        guardian.getStudentId(), guardian.getStudentName(), null))
-                .toList();
+        return guardians.stream().map(guardian -> {
+            NotificationMessage message = childMessage(guardian.getStudentName());
+            return new NotificationDraft(event.academyId(), guardian.getAccountId(), guardian.getName(), Role.PARENT,
+                    NotificationType.RUN_STARTED, message.title(), message.body(),
+                    DEDUP_KEY_FORMAT.formatted(event.runId(),
+                            "guardian:" + guardian.getAccountId() + ":" + guardian.getStudentId(), event.startedAt()),
+                    guardian.getStudentId(), guardian.getStudentName(), null);
+        }).toList();
     }
 
     /** 학생 — 계정이 연결된 학생만(로그인이 없는 학생은 알림을 받을 계정 자체가 없다). */
-    private List<NotificationDraft> draftsForStudents(RunStartedEvent event, NotificationMessage message,
-            List<Long> studentIds) {
+    private List<NotificationDraft> draftsForStudents(RunStartedEvent event, List<Long> studentIds) {
         List<Student> students = studentRepository
                 .findAllByIdInAndAcademyIdAndAccountIdIsNotNull(studentIds, event.academyId());
-        return students.stream()
-                .map(student -> new NotificationDraft(event.academyId(), student.getAccountId(),
-                        student.getName(), Role.STUDENT, NotificationType.RUN_STARTED, message.title(),
-                        message.body(),
-                        DEDUP_KEY_FORMAT.formatted(event.runId(), "student:" + student.getAccountId(),
-                                event.startedAt()),
-                        student.getId(), student.getName(), null))
-                .toList();
+        return students.stream().map(student -> {
+            NotificationMessage message = childMessage(student.getName());
+            return new NotificationDraft(event.academyId(), student.getAccountId(), student.getName(), Role.STUDENT,
+                    NotificationType.RUN_STARTED, message.title(), message.body(),
+                    DEDUP_KEY_FORMAT.formatted(event.runId(), "student:" + student.getAccountId(), event.startedAt()),
+                    student.getId(), student.getName(), null);
+        }).toList();
+    }
+
+    /** 학부모·학생 몫 문구 — 자녀 이름을 싣는다(Ruling 868). */
+    private NotificationMessage childMessage(String studentName) {
+        return runStartedChildComposer.compose(new RunStartedChildSubject(studentName));
     }
 }

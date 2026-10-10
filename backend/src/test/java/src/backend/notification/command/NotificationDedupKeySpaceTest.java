@@ -75,7 +75,7 @@ class NotificationDedupKeySpaceTest {
         given(runRepository.findByIdAndAcademyId(anyLong(), anyLong())).willReturn(Optional.empty());
 
         new RunStartedNotificationListener(staffRepository, runRiderRepository, guardianStudentRepository,
-                studentRepository, runRepository, mock(BusRepository.class), outbox, composer())
+                studentRepository, runRepository, mock(BusRepository.class), outbox, composer(), composer())
                 .appendRunStarted(new RunStartedEvent(RUN_ID, ACADEMY_ID, AT, 0));
 
         assertThat(appendedKeys()).hasSize(2).doesNotHaveDuplicates();

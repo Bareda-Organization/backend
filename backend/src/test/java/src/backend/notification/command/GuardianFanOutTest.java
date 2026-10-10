@@ -76,7 +76,7 @@ class GuardianFanOutTest {
 
         new RunStartedNotificationListener(mock(AcademyStaffRepository.class), runRiderRepository,
                 guardianStudentRepository, studentRepository, runRepository, mock(BusRepository.class), outbox,
-                composer()).appendRunStarted(new RunStartedEvent(RUN_ID, ACADEMY_ID, AT, 0));
+                composer(), composer()).appendRunStarted(new RunStartedEvent(RUN_ID, ACADEMY_ID, AT, 0));
 
         assertThat(parentRecipients()).containsExactlyInAnyOrder(11L, 12L);
     }

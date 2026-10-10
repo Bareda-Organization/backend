@@ -7,9 +7,9 @@ import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.run.event.RunStartedEvent;
 
 /**
- * 운행 시작 알림의 문구(API_SPEC §9.7 {@code run_started}) — 수신자는 관계자·학부모·학생 셋이지만
- * 문구는 공통이다(대상마다 다른 정보를 실을 만큼 실릴 개인정보가 없다 — {@link RouteChangedComposer}
- * 와 같은 이유로 학생 이름·노선을 싣지 않는다).
+ * 관계자용 운행 시작 알림의 문구(API_SPEC §9.7 {@code run_started}) — 회차 단위 알림이라 학생 이름·노선을 싣지 않는다
+ * ({@link RouteChangedComposer} 와 같은 이유). 학부모·학생 몫은 자녀 이름을 싣는 {@link RunStartedChildComposer}
+ * 가 맡는다(Ruling 868).
  */
 @Component
 public class RunStartedComposer implements NotificationComposer<RunStartedEvent> {
