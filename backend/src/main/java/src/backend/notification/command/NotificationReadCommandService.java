@@ -61,7 +61,7 @@ public class NotificationReadCommandService {
     public void markRead(AuthUser requester, Long notificationId) {
         NotificationLog notification = notificationLogRepository.findById(notificationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOTIFICATION_NOT_FOUND));
-        // R52 L3 — 알림은 소유 자원이라 남의 것은 타 계정이든 타 학원이든 403 FORBIDDEN 이다(API_SPEC §1.5 표 · §3.13). 소유 검사를
+        // R52 L3 — 알림은 소유 자원이라 남의 것은 타 계정이든 타 학원이든 403 FORBIDDEN 이다(API_SPEC §1.11 표 · §3.13). 소유 검사를
         // 먼저 해야 타 학원 알림이 학원 범위 위반 코드로 갈라지지 않는다.
         if (!notification.getRecipientAccountId().equals(requester.accountId())) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
