@@ -429,6 +429,44 @@ class DelayNotificationControllerTest {
     }
 
     @Test
+    @DisplayName("R51 H2 부작용 — 도착 없이 강제 출발된(departed_at 만 있는) 정류장의 학생도 이미 지나친 곳이라 수신 대상에서 빠진다")
+    void 도착_없이_강제_출발된_정류장의_학생은_제외된다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long stopPassed = fixtures.stop(academyId, "37.560000", "126.970000");
+        long stopFuture = fixtures.stop(academyId, "37.570000", "126.980000");
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
+        fixtures.startRun(runId, now());
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
+        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
+        long passedRunStopId = fixtures.runStopForStop(versionId, stopPassed, 1, now());
+        fixtures.runStopForStop(versionId, stopFuture, 2, now());
+        // 엔티티에는 출발 세터가 없다 — SQL 로 쓰고 영속성 컨텍스트를 비워 서비스가 DB 값을 다시 읽게 한다.
+        entityManager.flush();
+        jdbcTemplate.update("UPDATE run_stop SET departed_at = ? WHERE id = ?", now(), passedRunStopId);
+        entityManager.clear();
+
+        long passedStudentId = fixtures.studentWithAccount(academyId, "강제출발정류장학생");
+        fixtures.guardianOf(academyId, passedStudentId, "강제출발정류장학부모", now());
+        fixtures.rider(runId, passedStudentId, stopPassed, RiderStatus.WAITING, now());
+
+        long futureStudentId = fixtures.studentWithAccount(academyId, "아직정류장학생");
+        fixtures.guardianOf(academyId, futureStudentId, "아직정류장학부모", now());
+        fixtures.rider(runId, futureStudentId, stopFuture, RiderStatus.WAITING, now());
+
+        mockMvc.perform(post(DELAY.formatted(runId))
+                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(요청본문(10, "traffic", null)))
+                .andExpect(status().isCreated());
+
+        entityManager.flush();
+        assertThat(학부모_알림수(runId, passedStudentId)).as("강제 출발돼 이미 지나친 정류장 학생의 보호자는 받지 않아야 한다").isEqualTo(0);
+        assertThat(학부모_알림수(runId, futureStudentId)).as("아직 지나지 않은 정류장 학생의 보호자는 받아야 한다").isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("목표2-b — 이미 탑승한(BOARDED) 학생은 수신 대상에서 빠진다")
     void 이미_탑승한_학생은_제외된다() throws Exception {
         DriverRunFixtures fixtures = fixtures();

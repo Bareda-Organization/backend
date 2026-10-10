@@ -137,6 +137,10 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
      * #markSkipped} 가 표시한 항목은 버스가 실제로 서지 않으므로 근접해도 "곧 도착합니다" 가 거짓이
      * 된다({@code change} 가 {@code null}(정상 배정)인 항목은 그대로 포함).
      *
+     * <p>{@code departedAt IS NULL} 로 <b>이미 지나친 항목</b>도 뺀다(R51 H2 부작용) — 도착을 누르지 않은 채 다음 승하차지
+     * 도착으로 강제 출발된 항목은 {@code arrived_at} 이 비고 {@code departed_at} 만 있다. 이를 "다음" 으로 계속 잡으면 버스가 이미
+     * 지나친 곳을 기다리느라 그 뒤 승하차지의 "곧 도착" 알림이 멈춘다.
+     *
      * <p>{@code routeVersionId} 근거는 {@link #findByRouteVersionIdAndStopId} 와 같다 — 근접 알림
      * 스케줄러가 {@code RunRepository} 로 이미 학원과 무관하게 골라낸 {@code run.id} 에서 파생된 값만
      * 넘긴다는 전제다.
@@ -150,6 +154,7 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
             WHERE rs.routeVersionId = :routeVersionId
               AND rs.stopId IS NOT NULL
               AND rs.arrivedAt IS NULL
+              AND rs.departedAt IS NULL
               AND (rs.change IS NULL OR rs.change <> src.backend.global.common.enums.ChangeType.SKIPPED)
             ORDER BY rs.seq ASC
             """)

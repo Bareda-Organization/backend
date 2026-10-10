@@ -153,7 +153,7 @@ public class DelayNotificationCommandService {
     }
 
     /**
-     * 아직 지나지 않은 승하차지({@code arrivedAt IS NULL})의 탑승자 중 수신 학생 id(API_SPEC §4.9 수신 범위 · C-02) —
+     * 아직 지나지 않은 승하차지({@code arrivedAt IS NULL} 이고 {@code departedAt IS NULL} — 도착 없이 강제 출발된 곳도 지난 곳이다, R51 H2)의 탑승자 중 수신 학생 id(API_SPEC §4.9 수신 범위 · C-02) —
      * 등원은 아직 탑승하지 않은 학생({@link RunRiderRepository#findStudentIdsForDelayNotification}), 하원은 아직 하차하지
      * 않은 탑승 중 학생({@link RunRiderRepository#findBoardedStudentIdsForDelayNotification}, R51 856).
      */
@@ -163,7 +163,7 @@ public class DelayNotificationCommandService {
         List<RunStop> ordered = runStopRepository
                 .findAllByRouteVersionIdAndAcademyIdOrderBySeq(confirmedRoute.getCurrentVersionId(), run.getAcademyId());
         List<Long> pendingStopIds = ordered.stream()
-                .filter(stop -> stop.getArrivedAt() == null && stop.getStopId() != null)
+                .filter(stop -> stop.getArrivedAt() == null && stop.getDepartedAt() == null && stop.getStopId() != null)
                 .map(RunStop::getStopId)
                 .toList();
         if (pendingStopIds.isEmpty()) {

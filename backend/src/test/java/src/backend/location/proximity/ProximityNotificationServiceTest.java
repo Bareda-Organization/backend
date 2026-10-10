@@ -289,6 +289,38 @@ class ProximityNotificationServiceTest {
         assertThat(notificationCount(runId, stopId, waitingStudentId)).isEqualTo(1);
     }
 
+    /**
+     * R51 H2 부작용 — 기사가 도착을 누르지 않은 채 다음 승하차지 도착으로 강제 출발된 정차지는 {@code arrived_at} 이 비고
+     * {@code departed_at} 만 있다. 그 정차지를 "다음 승하차지" 로 계속 잡으면 버스가 이미 지나친 곳을 기다리느라 그 뒤 정차지의
+     * "곧 도착" 알림이 영영 나가지 않는다.
+     */
+    @Test
+    void 도착_없이_강제_출발된_정차지는_다음_승하차지가_아니라서_그_뒤_정차지에_근접_알림이_나간다() {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        ProximityFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        long passedStop = fx.stop(academyId, "37.500000", STOP_LNG);
+        long nextStop = fx.stop(academyId, "37.503599", STOP_LNG);
+        long studentId = fx.student(academyId, "강제출발다음학생");
+        fx.guardianOf(academyId, studentId, "강제출발다음학부모", now);
+        long runId = fx.movingRun(academyId, busId, Direction.FROM_ACADEMY, now.plusHours(1), now, now);
+        long versionId = fx.confirmedRouteWithVersion(runId, now);
+        long passedRunStop = fx.runStopForStop(versionId, passedStop, 1, now.plusMinutes(10));
+        long nextRunStop = fx.runStopForStop(versionId, nextStop, 2, now.plusMinutes(20));
+        jdbcTemplate.update("UPDATE run_stop SET departed_at = ? WHERE id = ?", now, passedRunStop);
+        fx.rider(runId, studentId, nextStop, RiderStatus.WAITING, null);
+
+        // 지나친 정차지에서 약 333m(300m 밖) · 다음 정차지에서 약 67m(300m 안)
+        writePosition(runId, "37.503000", STOP_LNG);
+
+        ProximityJudging.judge(proximityNotificationService, runPositionStore, runId, academyId);
+
+        assertThat(notificationCount(runId, nextStop, studentId)).as("다음 승하차지(2번)에 근접 알림이 1건 적재된다").isEqualTo(1);
+        assertThat(proximityNotifiedAt(nextRunStop)).isNotNull();
+        assertThat(proximityNotifiedAt(passedRunStop)).as("지나친 정차지는 판정 대상이 아니다").isNull();
+    }
+
     // ── 목표 6a(R14-T2, Ruling 307) — 출발 판정: 도착 정차지에서 100m 밖으로 이탈 ──────────
 
     @Test
