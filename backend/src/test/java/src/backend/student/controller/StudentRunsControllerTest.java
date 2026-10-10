@@ -194,6 +194,25 @@ class StudentRunsControllerTest {
                 .andExpect(jsonPath("$.data.items[0].rider_status").value("waiting"));
     }
 
+    /**
+     * 동승자가 [미승차]를 누르는 실제 상태는 도착 처리 뒤·출발 전이다({@code arrived_at} 있음 · {@code departed_at} 없음) — 도착만 한
+     * 승하차지도 아직 출발이 아니라 waiting 이다. 판정 기준이 {@code arrived_at} 으로 옮겨가면 여기서 no_show 가 나간다.
+     */
+    @Test
+    void 도착_처리_뒤_출발_전_미승차도_학부모_응답에서_waiting_으로_나간다() throws Exception {
+        미승차로_표시한다(2L, STUDENT_1_ID, false);
+        jdbcTemplate.update("""
+                UPDATE run_stop SET arrived_at = now()
+                WHERE route_version_id = (SELECT current_version_id FROM confirmed_route WHERE run_id = ?)
+                  AND stop_id = (SELECT stop_id FROM run_rider WHERE run_id = ? AND student_id = ?)
+                """, 2L, 2L, STUDENT_1_ID);
+
+        mockMvc.perform(get(RUNS.formatted(STUDENT_1_ID)).header("Authorization", 토큰(SIBLINGS_GUARDIAN_ACCOUNT)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[1].run_id").value(2))
+                .andExpect(jsonPath("$.data.items[1].rider_status").value("waiting"));
+    }
+
     /** 출발 처리(출발 판정 · 강제 발송) 뒤에는 있는 그대로 no_show 다. */
     @Test
     void 출발_뒤_미승차는_학부모_응답에서_no_show_로_나간다() throws Exception {
