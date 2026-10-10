@@ -184,6 +184,28 @@ class BoardingControllerTest {
                 .isEqualTo("boarded");
     }
 
+    /** R52 L4 · Ruling 874 ⑧ — 관계자·학부모 같은 다른 역할이 동승자 전용 호출을 불러도 코드는 {@code 403 ESCORT_ONLY} 다(FORBIDDEN 이 아니다). */
+    @Test
+    @DisplayName("R52 L4 — 관계자·학부모가 동승자 전용 호출(승하차 처리)을 부르면 403 ESCORT_ONLY 이다")
+    void 다른_역할이_동승자_전용_호출을_부르면_ESCORT_ONLY_이다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.parse("2030-04-01T12:00:00+09:00");
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long stopId = fixtures().stop(academyId, "37.500000", "127.000000");
+        long studentId = fixtures().student(academyId, "학생L4");
+        long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
+        long riderId = fixtures().runRider(runId, studentId, stopId);
+
+        for (Role role : new Role[] {Role.STAFF, Role.PARENT}) {
+            mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId))
+                            .header("Authorization", 토큰(999_999L, academyId, role))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(statusUpdateBody("boarded", "manual", UUID.randomUUID(), now)))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.error.code").value("ESCORT_ONLY"));
+        }
+    }
+
     @Test
     @DisplayName("목표4 — 기사 토큰으로 승하차 상태를 바꾸려 하면 403 ESCORT_ONLY 이고 저장값은 그대로다")
     void 기사_토큰으로_바꾸려_하면_403이고_저장값은_불변이다() throws Exception {

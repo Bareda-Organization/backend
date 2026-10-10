@@ -371,6 +371,26 @@ class DriverRunControllerTest {
 
     // ── goal 5 — 기사 전용 인가 ───────────────────────────────────────────
 
+    /** R52 L4 · Ruling 874 ⑧ — 관계자·학부모 같은 다른 역할이 기사 전용 호출을 불러도 코드는 {@code 403 DRIVER_ONLY} 다(FORBIDDEN 이 아니다). */
+    @Test
+    @DisplayName("R52 L4 — 관계자·학부모가 기사 전용 호출(도착 처리)을 부르면 403 DRIVER_ONLY 이다")
+    void 다른_역할이_기사_전용_호출을_부르면_DRIVER_ONLY_이다() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        OffsetDateTime departTime = now();
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
+        fixtures.startRun(runId, now());
+
+        for (Role role : new Role[] {Role.STAFF, Role.PARENT}) {
+            mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/1/arrive")
+                    .header("Authorization", 토큰(999_999L, academyId, role)))
+                    .andExpect(status().isForbidden())
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error.code")
+                            .value("DRIVER_ONLY"));
+        }
+    }
+
     @Test
     @DisplayName("목표5 — 동승자는 도착 처리를 할 수 없고(403), 배치된 기사만 성공한다")
     void 도착_처리는_배치된_기사만_할_수_있다() throws Exception {
