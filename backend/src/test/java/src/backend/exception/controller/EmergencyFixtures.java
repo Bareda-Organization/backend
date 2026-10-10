@@ -133,8 +133,37 @@ public class EmergencyFixtures {
     }
 
     /**
+     * 로그인 차단(blocked) 상태의 메인관리자 1명(R51 Ruling 865) — 차단은 로그인 보안이지 알림 중단이 아니라 비상 알림을 받는다.
+     * 실패 누적이 차단 직전 상태까지 함께 기록해 {@code ck_account_status_before_block_pair} 를 지킨다.
+     */
+    public long blockedSystemAdminAccount(String name) {
+        Account account = Account.forSignup(null, loginId("차단관리자"), "x", name, "010-0000-0000",
+                null, Role.SYSTEM_ADMIN);
+        account.approveSignup();
+        for (int attempt = 0; attempt < Account.MAX_FAILED_ATTEMPTS; attempt++) {
+            account.recordLoginFailure(OffsetDateTime.now());
+        }
+        return accountRepository.save(account).getId();
+    }
+
+    /** 가입 대기(pending) 상태의 메인관리자 1명(Ruling 865 — 비상 알림을 받지 않는 계정). */
+    public long pendingSystemAdminAccount(String name) {
+        Account account = Account.forSignup(null, loginId("대기관리자"), "x", name, "010-0000-0000",
+                null, Role.SYSTEM_ADMIN);
+        return accountRepository.save(account).getId();
+    }
+
+    /** 가입 거절(rejected) 상태의 메인관리자 1명(Ruling 865 — 비상 알림을 받지 않는 계정). */
+    public long rejectedSystemAdminAccount(String name) {
+        Account account = Account.forSignup(null, loginId("거절관리자"), "x", name, "010-0000-0000",
+                null, Role.SYSTEM_ADMIN);
+        account.rejectSignup();
+        return accountRepository.save(account).getId();
+    }
+
+    /**
      * 학부모 1명(목표 7 — 비상 알림을 받으면 안 되는 계정) — 반환값은 계정 id. 팬아웃 회귀가 흔히
-     * {@code findAllByRoleAndStatus(role, ACTIVE)} 형태로 status 를 조건에 넣으므로, PENDING 인 채로
+     * {@code findAllByRoleAndStatusIn(role, ACTIVE 만)} 형태로 status 를 조건에 넣으므로, PENDING 인 채로
      * 두면 그런 회귀조차 우연히 걸러져 시험이 아무것도 검증하지 못한다 — active 로 승인까지 한다.
      */
     public long parentAccount(long academyId, String name) {

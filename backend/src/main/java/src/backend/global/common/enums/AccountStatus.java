@@ -1,5 +1,7 @@
 package src.backend.global.common.enums;
 
+import java.util.List;
+
 import jakarta.persistence.Converter;
 
 import src.backend.global.common.converter.LowerCaseEnumConverter;
@@ -24,6 +26,12 @@ public enum AccountStatus {
     REJECTED,
     /** 반복 실패 등으로 차단됨. */
     BLOCKED;
+
+    /**
+     * 알림을 받는 계정 상태 — 로그인 차단({@link #BLOCKED})은 로그인 보안이지 알림 중단이 아니다(Ruling 861 ① · 865). 가입 대기·
+     * 거절은 받지 않는다. 비상 알림의 메인 관리자 수신자 선정과 응답 {@code notified} 수가 이 한 곳을 같이 쓴다.
+     */
+    public static final List<AccountStatus> NOTIFIABLE = List.of(ACTIVE, BLOCKED);
 
     /** {@link AccountStatus} 를 소문자 컬럼 값으로 잇는 JPA 컨버터. */
     @Converter

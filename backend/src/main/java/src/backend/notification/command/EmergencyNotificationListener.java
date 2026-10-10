@@ -92,8 +92,8 @@ public class EmergencyNotificationListener {
 
     /**
      * 메인관리자 전원(목표 6) — {@code academy_id} 가 없는 역할이라(§1.5) 신고가 일어난 학원 조건으로
-     * 좁히지 않고 {@link AccountRepository#findAllByRoleAndStatus} 로 전 학원 범위 대상을 그대로
-     * 부른다.
+     * 좁히지 않고 {@link AccountRepository#findAllByRoleAndStatusIn} 로 전 학원 범위 대상을 그대로
+     * 부른다. 로그인 차단({@code BLOCKED}) 계정도 받는다 — {@link AccountStatus#NOTIFIABLE}(Ruling 865).
      *
      * <p>{@link NotificationDraft} 의 {@code academyId} 자리에는 <b>수신자의</b> 학원(=null)이 아니라
      * <b>신고가 발생한</b> 학원을 싣는다 — {@code notification_log.academy_id} 가 NOT NULL 제약이라
@@ -102,7 +102,7 @@ public class EmergencyNotificationListener {
      */
     private List<NotificationDraft> draftsForMainAdmins(Long academyId, Long emergencyId, String dedupKeyFormat,
             NotificationType type, NotificationMessage message, String busNo) {
-        List<Account> admins = accountRepository.findAllByRoleAndStatus(Role.SYSTEM_ADMIN, AccountStatus.ACTIVE);
+        List<Account> admins = accountRepository.findAllByRoleAndStatusIn(Role.SYSTEM_ADMIN, AccountStatus.NOTIFIABLE);
         return admins.stream()
                 .map(admin -> new NotificationDraft(academyId, admin.getId(), admin.getName(),
                         Role.SYSTEM_ADMIN, type, message.title(), message.body(),

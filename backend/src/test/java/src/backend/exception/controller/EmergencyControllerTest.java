@@ -148,7 +148,7 @@ class EmergencyControllerTest {
      * 값으로 고정한다. 위 시험의 존재 확인({@code exists()})만으로는 타입(문자열 vs 숫자)과 실제 값이
      * 틀려도 통과하므로 별도로 둔다.
      *
-     * <p>{@code notified} 의 메인관리자 몫은 {@link AccountRepository#countByRoleAndStatus} 가
+     * <p>{@code notified} 의 메인관리자 몫은 {@link AccountRepository#countByRoleAndStatusIn} 가
      * 학원으로 좁히지 않고 전 플랫폼을 센다(§1.5, {@code Role#hasPlatformScope}) — 이 저장소는 local
      * 프로파일로 돌아 {@code db/fixture/V2__seed_data.sql} 의 시드 메인관리자
      * ({@code sysadmin}, active)가 테스트 DB에 항상 이미 들어 있다. 그래서 기대값을 2 로 박지 않고
@@ -162,8 +162,8 @@ class EmergencyControllerTest {
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, now());
         long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        long baselineActiveSystemAdmins = accountRepository.countByRoleAndStatus(Role.SYSTEM_ADMIN,
-                AccountStatus.ACTIVE);
+        long baselineActiveSystemAdmins = accountRepository.countByRoleAndStatusIn(Role.SYSTEM_ADMIN,
+                AccountStatus.NOTIFIABLE);
         fixtures.staffAccount(academyId, "직원1");
         fixtures.systemAdminAccount("관리자1");
         // jsonPath().value() 는 파싱된 JSON 값과 타입까지 맞아야 같다고 본다(net.minidev.json 은
@@ -187,6 +187,34 @@ class EmergencyControllerTest {
         OffsetDateTime cancelableUntil = OffsetDateTime.parse(data.path("cancelable_until").asText());
         assertThat(raisedAt).isEqualTo(now());
         assertThat(cancelableUntil).isEqualTo(now().plusMinutes(1));
+    }
+
+    /**
+     * R51 Ruling 865 — {@code notified} 는 실제로 알림이 가는 수신자 수라 차단(blocked)된 메인관리자를 센다. 가입 대기·거절은 세지
+     * 않는다. 시드 메인관리자 수는 시험 DB 마다 달라 만들기 전의 수신 가능 계정 수를 기준으로 삼는다.
+     */
+    @Test
+    void 수신자_수는_차단된_메인관리자를_세고_가입_대기와_거절은_세지_않는다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long runId = fixtures.confirmedRun(academyId, busId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        Integer baseline = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM account WHERE role = 'system_admin' AND status IN ('active', 'blocked')",
+                Integer.class);
+        fixtures.staffAccount(academyId, "직원1");
+        fixtures.systemAdminAccount("활성관리자");
+        fixtures.blockedSystemAdminAccount("차단관리자");
+        fixtures.pendingSystemAdminAccount("대기관리자");
+        fixtures.rejectedSystemAdminAccount("거절관리자");
+
+        mockMvc.perform(post(RAISE.formatted(runId))
+                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(요청본문("accident", null, UUID.randomUUID())))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.notified").value(1 + baseline + 2));
     }
 
     @Test

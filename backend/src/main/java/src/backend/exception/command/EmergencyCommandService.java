@@ -255,14 +255,14 @@ public class EmergencyCommandService {
     /**
      * 발신 응답 {@code notified}(목표 1, API_SPEC §4.14) — 이 신고가 실제로 도달할 수신자 수다.
      * {@link src.backend.notification.command.EmergencyNotificationListener} 가 팬아웃하는 대상과
-     * 같은 기준(재직 관계자 + 활성 메인관리자 전원)으로 센다 — 그 리스너는 이벤트 발행 후 별도로
+     * 같은 기준(재직 관계자 + 알림을 받는 상태의 메인관리자 전원 — 차단 포함, {@link AccountStatus#NOTIFIABLE})으로 센다 — 그 리스너는 이벤트 발행 후 별도로
      * 실행돼 개수를 되돌려주지 않으므로, 응답을 만드는 이 자리에서 같은 조건으로 다시 센다(판단
      * 근거, 보고서 항목 — 목록을 불러 크기만 쓰지 않고 count 전용 조회를 골랐다. 팬아웃 자체는
      * 이름까지 필요하지만 이 응답은 개수만 필요하다).
      */
     private long notifiedCount(Long academyId) {
         return academyStaffRepository.countByAcademyIdAndStatus(academyId, StaffStatus.ACTIVE)
-                + accountRepository.countByRoleAndStatus(Role.SYSTEM_ADMIN, AccountStatus.ACTIVE);
+                + accountRepository.countByRoleAndStatusIn(Role.SYSTEM_ADMIN, AccountStatus.NOTIFIABLE);
     }
 
     /**

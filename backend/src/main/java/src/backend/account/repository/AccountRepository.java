@@ -162,25 +162,25 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     List<Account> findAllByLoginIdIn(Collection<String> loginIds);
 
     /**
-     * 특정 역할·상태의 계정 전부(Phase 11 T2, EXC-04) — 비상 알림이 메인 관리자 전원에게 설정과
+     * 특정 역할·상태 집합의 계정 전부(Phase 11 T2, EXC-04) — 비상 알림이 메인 관리자 전원에게 설정과
      * 무관하게 동시 도달해야 하는데(목표 6), 메인관리자는 {@code academy_staff} 소속이 없어
      * {@link src.backend.academy.repository.AcademyStaffRepository#findActiveAccountsByAcademyId} 로
-     * 찾을 수 없다 — 이 조회가 그 갈래를 담당한다.
+     * 찾을 수 없다 — 이 조회가 그 갈래를 담당한다. 상태 집합은 호출부가 {@link AccountStatus#NOTIFIABLE} 로 넘긴다(Ruling 865).
      */
     @AcademyScopeExempt(reason = "메인관리자(SYSTEM_ADMIN)는 academy_id 가 null 이라(ck_account_academy_scope) "
             + "학원으로 좁힐 수 없다 — 이 역할 자체가 전 학원 범위라는 것이 §1.5 의 정의(Role#hasPlatformScope)다. "
             + "role=SYSTEM_ADMIN 조건이 이미 좁힌 대상이라 학원 조건을 더할 근거가 없다")
-    List<Account> findAllByRoleAndStatus(Role role, AccountStatus status);
+    List<Account> findAllByRoleAndStatusIn(Role role, Collection<AccountStatus> statuses);
 
     /**
-     * {@link #findAllByRoleAndStatus} 와 같은 대상을 개수만 센다(API_SPEC §4.14 {@code notified},
+     * {@link #findAllByRoleAndStatusIn} 와 같은 대상을 개수만 센다(API_SPEC §4.14 {@code notified},
      * BE-R1 목표 1) — 비상 신고 응답이 실제 발송 대상 이름까지는 필요 없고 도달 수신자 수만 필요해,
      * 계정 전체를 불러 크기를 재는 대신 count 전용 질의로 좁힌다.
      */
     @AcademyScopeExempt(reason = "메인관리자(SYSTEM_ADMIN)는 academy_id 가 null 이라(ck_account_academy_scope) "
-            + "학원으로 좁힐 수 없다 — §1.5 정의(Role#hasPlatformScope)와 {@link #findAllByRoleAndStatus} 가 "
+            + "학원으로 좁힐 수 없다 — §1.5 정의(Role#hasPlatformScope)와 {@link #findAllByRoleAndStatusIn} 가 "
             + "이미 같은 판단을 내렸다")
-    long countByRoleAndStatus(Role role, AccountStatus status);
+    long countByRoleAndStatusIn(Role role, Collection<AccountStatus> statuses);
 
     /**
      * 감사 화면의 행위자 찾기(R46 감사, API_SPEC §6.13 {@code GET /admin/audit-actors}) — 이름 또는 로그인 아이디에

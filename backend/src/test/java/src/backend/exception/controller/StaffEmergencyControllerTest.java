@@ -131,6 +131,31 @@ class StaffEmergencyControllerTest {
                 .isEqualTo(1);
     }
 
+    /**
+     * R51 Ruling 865 — 로그인 차단(blocked)은 로그인 보안이지 알림 중단이 아니라 차단된 메인관리자도 비상 알림 행을 받는다.
+     * 가입 대기(pending)·거절(rejected) 메인관리자는 받지 않는다.
+     */
+    @Test
+    void 차단된_메인관리자도_비상_알림을_받고_가입_대기_거절은_받지_않는다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사",
+                OffsetDateTime.now());
+        long activeAdminId = fixtures.systemAdminAccount("활성관리자");
+        long blockedAdminId = fixtures.blockedSystemAdminAccount("차단관리자");
+        long pendingAdminId = fixtures.pendingSystemAdminAccount("대기관리자");
+        long rejectedAdminId = fixtures.rejectedSystemAdminAccount("거절관리자");
+
+        long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
+
+        assertThat(알림_행수(emergencyId, activeAdminId, "system_admin")).as("활성 메인관리자는 받는다").isEqualTo(1);
+        assertThat(알림_행수(emergencyId, blockedAdminId, "system_admin")).as("차단된 메인관리자도 받는다(865)").isEqualTo(1);
+        assertThat(전체_수신자_행수(pendingAdminId)).as("가입 대기 메인관리자는 받지 않는다").isZero();
+        assertThat(전체_수신자_행수(rejectedAdminId)).as("가입 거절 메인관리자는 받지 않는다").isZero();
+    }
+
     @Test
     void 학부모와_학생은_비상_신고_알림을_받지_않는다() throws Exception {
         EmergencyFixtures fixtures = fixtures();
