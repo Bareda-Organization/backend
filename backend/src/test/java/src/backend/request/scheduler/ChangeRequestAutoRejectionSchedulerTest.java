@@ -163,12 +163,12 @@ class ChangeRequestAutoRejectionSchedulerTest {
     }
 
     /**
-     * R51 Ruling 861 ② — 취소된 회차의 대기 요청도 상태 전이(자동 거절)와 한도 환원은 그대로 하되, 신청자에게 "거절됐다" 는
-     * 알림은 보내지 않는다. 회차 취소 알림이 이미 나갔고, 없어진 운행의 변경 요청 결과를 또 알리면 혼란만 준다.
+     * R51 Ruling 864(861 ② 를 뒤집음) — 취소된 회차의 대기 요청도 마감 자동 거절 때 신청 학부모에게 알린다. 임시 취소에는 학부모
+     * 알림이 없어(API_SPEC §9.7) 알림을 빼면 그 학부모는 취소도 거절도 모른다. 상태 전이·한도 환원은 그대로다.
      */
     @Test
-    @DisplayName("R51 L2 — 취소된 회차의 대기 요청은 마감에 자동 거절되지만 change_decided 알림은 나가지 않는다")
-    void 취소된_회차의_대기_요청은_알림_없이_자동_거절된다() {
+    @DisplayName("R51 864 — 취소된 회차의 대기 요청도 마감에 자동 거절되고 change_decided 알림이 나간다")
+    void 취소된_회차의_대기_요청도_알림과_함께_자동_거절된다() {
         long[] s = baseScenario();
         long academyId = s[0];
         long runId = s[1];
@@ -188,7 +188,7 @@ class ChangeRequestAutoRejectionSchedulerTest {
                 runId, studentId)).as("소비한 한도 환원도 그대로").isZero();
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM notification_log WHERE recipient_account_id = ? AND type = 'change_decided'",
-                Integer.class, parentId)).as("취소된 회차라 알림은 없다").isZero();
+                Integer.class, parentId)).as("취소된 회차여도 신청 학부모에게 알림이 나간다").isEqualTo(1);
     }
 
     @Test

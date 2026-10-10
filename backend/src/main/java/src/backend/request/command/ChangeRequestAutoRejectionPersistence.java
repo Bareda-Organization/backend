@@ -11,8 +11,6 @@ import lombok.RequiredArgsConstructor;
 import src.backend.request.entity.ChangeRequest;
 import src.backend.request.entity.BoardingIntent;
 import src.backend.request.event.ChangeRequestAutoRejectedEvent;
-import src.backend.run.entity.Run;
-import src.backend.run.repository.RunRepository;
 import src.backend.request.preview.spec.ApprovalPreviewCache;
 import src.backend.request.repository.BoardingIntentRepository;
 import src.backend.request.repository.ChangeRequestRepository;
@@ -39,8 +37,6 @@ public class ChangeRequestAutoRejectionPersistence {
 
     private final ApprovalPreviewCache previewCache;
 
-    private final RunRepository runRepository;
-
     private final ApplicationEventPublisher eventPublisher;
 
     /**
@@ -58,6 +54,9 @@ public class ChangeRequestAutoRejectionPersistence {
      * 거절·자동거절) 중 이 경로만 T4 가 남겨 뒀던 자리다({@code ApprovalPreviewCache} javadoc 참고).
      * 이 호출이 빠지면 자동 거절된 건의 낡은 미리보기가 캐시에 계속 남는다.
      *
+     * <p>취소된 회차의 대기 요청도 알림을 보낸다(Ruling 864) — 임시 취소에는 학부모 알림이 없어(API_SPEC §9.7) 알림을 빼면 그
+     * 학부모는 취소도 거절도 모른다.
+     *
      * @return 실제로 자동 거절을 반영했으면 {@code true}, 아니면(경쟁 패배 포함) {@code false}
      */
     @Transactional
@@ -73,10 +72,6 @@ public class ChangeRequestAutoRejectionPersistence {
         boardingIntentRepository.findLockedByRunIdAndStudentId(request.getRunId(), request.getStudentId())
                 .ifPresent(BoardingIntent::restoreChangeQuota);
         previewCache.evict(changeRequestId);
-        // 취소된 회차는 상태 전이만 하고 알림은 내지 않는다(Ruling 861 ②, R51 L2) — 회차 취소 알림이 이미 나갔다.
-        if (runRepository.findById(request.getRunId()).filter(Run::isCanceled).isPresent()) {
-            return true;
-        }
         eventPublisher.publishEvent(new ChangeRequestAutoRejectedEvent(request.getAcademyId(), request.getId(),
                 request.getRunId(), request.getStudentId(), request.getRequestedBy(), decidedAt));
         return true;
