@@ -81,6 +81,17 @@ public class RouteStopReader {
                 .orElse(RoadPath.EMPTY);
     }
 
+    /**
+     * 그 회차 확정 노선(현재 버전)의 그 승하차지를 이미 출발 처리했는지(Ruling 871) — 출발 판정·강제 발송이 채우는
+     * {@code departed_at} 이 있으면 {@code true}. 확정 노선이나 그 항목이 없으면 출발 전이다.
+     */
+    public boolean isStopDeparted(Long runId, Long stopId) {
+        return confirmedRouteRepository.findById(runId).map(ConfirmedRoute::getCurrentVersionId)
+                .flatMap(versionId -> runStopRepository.findByRouteVersionIdAndStopId(versionId, stopId))
+                .map(runStop -> runStop.getDepartedAt() != null)
+                .orElse(false);
+    }
+
     /** 그 요일·방향에 그 정차지를 고정 노선에 둔 차량 id 전부 — 확정 전(idle) 회차의 소속 판정(BR-058)에 쓰인다. */
     public Set<Long> busIdsServingStop(Long academyId, Weekday weekday, Direction direction, Long stopId) {
         return Set.copyOf(routeRepository.findBusIdsServingStop(academyId, weekday, direction, stopId));

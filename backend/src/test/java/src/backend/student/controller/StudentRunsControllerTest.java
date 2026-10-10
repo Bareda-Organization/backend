@@ -168,6 +168,54 @@ class StudentRunsControllerTest {
                 .andExpect(jsonPath("$.data.items[4].change_quota_left").value(1));
     }
 
+    /**
+     * Ruling 871 — 학부모·학생에게는 그 학생 승하차지를 버스가 출발하기 전의 미승차(no_show)를 대기(waiting)로 보낸다.
+     * 동승자가 [미승차]를 누르자마자 학부모 카드에 빨간 미승차가 뜨고, 되돌리면 안내 없이 사라지던 것(알림은 출발 때 — Ruling 854).
+     */
+    @Test
+    void 출발_전_미승차는_학부모_응답에서_waiting_으로_나간다() throws Exception {
+        미승차로_표시한다(2L, STUDENT_1_ID, false);
+
+        mockMvc.perform(get(RUNS.formatted(STUDENT_1_ID)).header("Authorization", 토큰(SIBLINGS_GUARDIAN_ACCOUNT)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[1].run_id").value(2))
+                .andExpect(jsonPath("$.data.items[1].rider_status").value("waiting"));
+    }
+
+    @Test
+    void 출발_전_미승차는_학생_본인_응답에서도_waiting_으로_나간다() throws Exception {
+        미승차로_표시한다(2L, STUDENT_4_ID, false);
+
+        mockMvc.perform(get(RUNS.formatted(STUDENT_4_ID))
+                        .header("Authorization", "Bearer " + tokenProvider.createAccessToken(STUDENT_4_SELF_ACCOUNT,
+                                ACADEMY_A, Role.STUDENT, AccountStatus.ACTIVE)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].run_id").value(2))
+                .andExpect(jsonPath("$.data.items[0].rider_status").value("waiting"));
+    }
+
+    /** 출발 처리(출발 판정 · 강제 발송) 뒤에는 있는 그대로 no_show 다. */
+    @Test
+    void 출발_뒤_미승차는_학부모_응답에서_no_show_로_나간다() throws Exception {
+        미승차로_표시한다(2L, STUDENT_1_ID, true);
+
+        mockMvc.perform(get(RUNS.formatted(STUDENT_1_ID)).header("Authorization", 토큰(SIBLINGS_GUARDIAN_ACCOUNT)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[1].run_id").value(2))
+                .andExpect(jsonPath("$.data.items[1].rider_status").value("no_show"));
+    }
+
+    /** 그 회차 현재 노선의 학생 승하차지 항목에 출발 시각을 채우거나(출발 처리) 비운 채(출발 전) 학생을 미승차로 둔다. */
+    private void 미승차로_표시한다(long runId, long studentId, boolean departed) {
+        jdbcTemplate.update("UPDATE run_rider SET status = 'no_show' WHERE run_id = ? AND student_id = ?", runId,
+                studentId);
+        jdbcTemplate.update("""
+                UPDATE run_stop SET departed_at = CASE WHEN ? THEN now() ELSE NULL END
+                WHERE route_version_id = (SELECT current_version_id FROM confirmed_route WHERE run_id = ?)
+                  AND stop_id = (SELECT stop_id FROM run_rider WHERE run_id = ? AND student_id = ?)
+                """, departed, runId, runId, studentId);
+    }
+
     /** {@code date} 를 생략하면 당일이다 — 시드가 전부 {@code CURRENT_DATE} 라 쿼리 파라미터 없이도 같은 5건이 나와야 한다. */
     @Test
     void date_파라미터를_생략하면_당일_기준이다() throws Exception {

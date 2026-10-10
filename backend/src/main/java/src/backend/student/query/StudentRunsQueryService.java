@@ -24,6 +24,7 @@ import src.backend.global.error.ErrorCode;
 import src.backend.global.request.ApiValues;
 import src.backend.global.security.AuthUser;
 import src.backend.request.query.BoardingIntentReadQueryService;
+import src.backend.routing.stops.RouteStopReader;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 import src.backend.student.access.StudentRunResolver;
@@ -59,6 +60,8 @@ public class StudentRunsQueryService {
     private final StudentRunResolver studentRunResolver;
 
     private final RunRiderReader runRiderReader;
+
+    private final RouteStopReader routeStopReader;
 
     private final BoardingIntentReadQueryService boardingIntentReadQueryService;
 
@@ -115,7 +118,7 @@ public class StudentRunsQueryService {
                 context.studentId());
         boolean riding = intent.riding();
         int changeQuotaLeft = intent.hasChangeQuota() ? 1 : 0;
-        String riderStatus = context.rider().map(r -> statusNameOf(r.status()))
+        String riderStatus = context.rider().map(r -> statusNameOf(parentFacingStatus(run, r)))
                 .orElse(statusNameOf(riding ? RiderStatus.WAITING : RiderStatus.ABSENT));
         Stop stop = stopsById.get(context.stopId());
         if (stop == null) {
@@ -126,6 +129,20 @@ public class StudentRunsQueryService {
         return new StudentRunsResponse.Item(run.getId(), nameOf(run.getDirection()), busNo, run.getDepartTime(),
                 nameOf(run.getStatus()), run.getStatus() != RunStatus.IDLE, riding, riderStatus, stopDto,
                 changeQuotaLeft);
+    }
+
+    /**
+     * 학부모·학생에게 보이는 탑승 상태(Ruling 871) — 그 학생 승하차지를 버스가 출발하기 전의 미승차({@code no_show})는
+     * 대기({@code waiting})로 보낸다. 학부모 알림이 출발 때 나가는 것(Ruling 854)과 같은 취지로, 동승자가 잘못 눌렀다
+     * 되돌리는 사이 학부모 화면에 빨간 미승차가 떴다 사라지지 않게 한다. 관계자·매니저 응답은 이 값을 쓰지 않는다.
+     * 끝난 회차는 어느 승하차지든 출발한 뒤라 있는 그대로 둔다.
+     */
+    private RiderStatus parentFacingStatus(Run run, RunRiderReader.Entry rider) {
+        if (rider.status() != RiderStatus.NO_SHOW || run.getStatus() == RunStatus.FINISHED
+                || routeStopReader.isStopDeparted(run.getId(), rider.stopId())) {
+            return rider.status();
+        }
+        return RiderStatus.WAITING;
     }
 
     private static String statusNameOf(RiderStatus status) {
