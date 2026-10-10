@@ -439,10 +439,10 @@ INSERT INTO change_request (id, academy_id, run_id, student_id, requested_by, so
                              decided_by, decided_at, applied_route_version_id)
 OVERRIDING SYSTEM VALUE
 VALUES
-    (1, 1, 2, 1, 5, 'intent', 'cancel', NULL, NULL, false, 'pending', NULL, 2, now() - interval '18 minutes', (SELECT depart_time FROM run WHERE id = 2), NULL, NULL, NULL),
-    (2, 1, 2, 4, 6, 'change_request', 'relocate', '서울시 그린로 33', 3, false, 'approved', NULL, 2, now() - interval '17 minutes', (SELECT depart_time FROM run WHERE id = 2), 2, now() - interval '5 minutes', 2),
-    (3, 1, 2, 2, 5, 'change_request', 'relocate', '서울시 새길로 10', NULL, false, 'rejected', '마감 시간 경과', 2, now() - interval '16 minutes', (SELECT depart_time FROM run WHERE id = 2), 2, now() - interval '4 minutes', NULL),
-    (4, 1, 2, 3, 6, 'intent', 'cancel', NULL, NULL, false, 'auto_rejected', NULL, 2, now() - interval '1 minute', (SELECT depart_time FROM run WHERE id = 2), NULL, now(), NULL);
+    (1, 1, 2, 1, 5, 'intent', 'cancel', NULL, NULL, false, 'pending', NULL, 2, now() - interval '18 minutes', (SELECT depart_time + interval '10 minutes' FROM run WHERE id = 2), NULL, NULL, NULL),
+    (2, 1, 2, 4, 6, 'change_request', 'relocate', '서울시 그린로 33', 3, false, 'approved', NULL, 2, now() - interval '17 minutes', (SELECT depart_time + interval '10 minutes' FROM run WHERE id = 2), 2, now() - interval '5 minutes', 2),
+    (3, 1, 2, 2, 5, 'change_request', 'relocate', '서울시 새길로 10', NULL, false, 'rejected', '마감 시간 경과', 2, now() - interval '16 minutes', (SELECT depart_time + interval '10 minutes' FROM run WHERE id = 2), 2, now() - interval '4 minutes', NULL),
+    (4, 1, 2, 3, 6, 'intent', 'cancel', NULL, NULL, false, 'auto_rejected', NULL, 2, now() - interval '1 minute', (SELECT depart_time + interval '10 minutes' FROM run WHERE id = 2), NULL, now(), NULL);
 
 -- 탑승 상태 이력 2건 — run_rider 3(boarded), 4(alighted) 의 전이 기록.
 INSERT INTO rider_status_history (id, run_rider_id, from_status, to_status, changed_at, actor_type, changed_by)
@@ -506,7 +506,7 @@ VALUES
     (7, 1, 2, '김운영', 'staff', 1, '김철수', 'approval_requested', '변경 승인 요청', '학부모의 일일 변경 요청이 접수되어 승인이 필요합니다. 앱에서 확인해 주세요.', 'sent', false, now() - interval '18 minutes', NULL, 1, NULL, 'approval_requested:2:1:seed', now()),
     (8, 1, 2, '김운영', 'staff', NULL, NULL, 'emergency', '비상 상황 발생', '2호차 차량에서 기타 비상 상황이 발생했습니다. 즉시 확인해 주세요.', 'sent', true, now() - interval '3 minutes', NULL, 1, NULL, 'emergency:3:na:seed', now()),
     (9, 1, 6, '정부모', 'parent', 4, '이하늘', 'delay', '지연 알림', '교통 정체로 인해 지연되고 있습니다. 현재 예상 지연 10분입니다.', 'failed', false, NULL, NULL, 3, 'FCM 토큰 만료', 'delay:3:4:seed', now()),
-    (10, 2, 9, '윤부모', 'parent', 6, '정다은', 'run_started', '운행 시작 안내', '배정된 회차의 운행이 시작되었습니다.', 'sent', false, now() - interval '25 minutes', now() - interval '24 minutes', 1, NULL, 'run_started:5:6:seed', now());
+    (10, 2, 9, '윤부모', 'parent', 6, '정다은', 'run_started', '운행 시작 안내', '정다은 학생이 탈 버스의 운행이 시작되었습니다.', 'sent', false, now() - interval '25 minutes', now() - interval '24 minutes', 1, NULL, 'run_started:5:6:seed', now());
 
 -- 기기 토큰 3건.
 INSERT INTO device_token (id, account_id, device_id, token, platform, revoked_at, created_at, updated_at)

@@ -104,7 +104,7 @@ BEGIN
                                 reject_reason)
     VALUES (v_run.academy_id, p_run, p_student, p_source, p_type, p_status, p_segment, v_addr, v_lat, v_lng,
             p_new_stop, p_reason, v_requester, p_requested_at,
-            CASE WHEN p_segment = 2 THEN v_run.depart_time END,
+            CASE WHEN p_segment = 2 THEN v_run.depart_time + interval '10 minutes' END,
             CASE WHEN p_status IN ('approved', 'rejected') AND p_segment = 2 THEN v_staff END,
             CASE WHEN p_status <> 'pending' THEN COALESCE(p_decided_at, p_requested_at) END,
             p_reject_reason)
@@ -293,11 +293,11 @@ BEGIN
         -- 출발 알림(보호자 · 학생 계정)
         IF p_state IN ('moving', 'finished') THEN
             FOR g IN SELECT * FROM pg_temp.qa_guardians(r.sid) LOOP
-                PERFORM pg_temp.qa_notify(g, 'parent', r.sid, v_run, 'run_started', '운행 시작 안내', '배정된 회차의 운행이 시작되었습니다.',
+                PERFORM pg_temp.qa_notify(g, 'parent', r.sid, v_run, 'run_started', '운행 시작 안내', format('%s 학생이 탈 버스의 운행이 시작되었습니다.', r.sname),
                         v_started, format('run_started:%s:guardian:%s:%s:%s', v_run, g, r.sid, v_started));
             END LOOP;
             IF r.sacc IS NOT NULL THEN
-                PERFORM pg_temp.qa_notify(r.sacc, 'student', r.sid, v_run, 'run_started', '운행 시작 안내', '배정된 회차의 운행이 시작되었습니다.',
+                PERFORM pg_temp.qa_notify(r.sacc, 'student', r.sid, v_run, 'run_started', '운행 시작 안내', format('%s 학생이 탈 버스의 운행이 시작되었습니다.', r.sname),
                         v_started, format('run_started:%s:student:%s:%s', v_run, r.sacc, v_started));
             END IF;
         END IF;
