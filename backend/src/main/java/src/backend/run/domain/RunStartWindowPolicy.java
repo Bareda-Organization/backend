@@ -29,6 +29,11 @@ public class RunStartWindowPolicy {
         return !now.isBefore(earliestStart(departTime)) && !now.isAfter(latestStart(departTime));
     }
 
+    /** 시작 창이 이미 닫혔는지 — {@code now} 가 가장 늦은 시작 시각({@link #latestStart})을 지났다(정각은 아직 열려 있다). */
+    public boolean isClosed(OffsetDateTime departTime, OffsetDateTime now) {
+        return now.isAfter(latestStart(departTime));
+    }
+
     /** 운행 시작 버튼이 열리는 가장 이른 시각 — 출발 10분 전(API_SPEC §4.1 {@code start_window.from}). */
     public OffsetDateTime earliestStart(OffsetDateTime departTime) {
         return departTime.minus(WINDOW);

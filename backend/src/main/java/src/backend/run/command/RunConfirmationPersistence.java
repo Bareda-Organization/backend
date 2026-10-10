@@ -15,6 +15,7 @@ import src.backend.routing.command.RouteVersionDeploymentService;
 import src.backend.routing.pipeline.RouteComputation;
 import src.backend.run.domain.RunConfirmationFingerprint;
 import src.backend.run.domain.RunRouteEndpoints;
+import src.backend.run.domain.RunStartWindowPolicy;
 import src.backend.run.entity.Run;
 import src.backend.run.event.RunRouteConfirmedEvent;
 import src.backend.run.entity.RunTransfer;
@@ -56,6 +57,8 @@ public class RunConfirmationPersistence {
     private final AttendantAutoAssignment attendantAutoAssignment;
 
     private final ApplicationEventPublisher eventPublisher;
+
+    private final RunStartWindowPolicy startWindowPolicy;
 
     /**
      * 회차를 확정하고 4종 산출물({@code confirmed_route}·{@code route_version}·{@code run_stop}·
@@ -101,8 +104,11 @@ public class RunConfirmationPersistence {
         // 노선 확정 알림보다 먼저 — 자동 배정된 동승자도 확정 노선 알림(route_changed)의 수신자가 된다.
         attendantAutoAssignment.assignIfVacant(run, computation.estDurationMin(), confirmedAt);
 
-        eventPublisher.publishEvent(
-                new RunRouteConfirmedEvent(run.getId(), run.getAcademyId(), run.getBusId(), confirmedAt));
+        // R52 L1 — 서버가 오래 멈췄다 살아나 운행 시작 창이 이미 닫힌 회차를 확정할 때는 확정만 하고 노선 알림을 보내지 않는다.
+        if (!startWindowPolicy.isClosed(run.getDepartTime(), confirmedAt)) {
+            eventPublisher.publishEvent(
+                    new RunRouteConfirmedEvent(run.getId(), run.getAcademyId(), run.getBusId(), confirmedAt));
+        }
 
         return true;
     }

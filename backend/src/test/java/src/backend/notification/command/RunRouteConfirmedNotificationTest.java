@@ -24,6 +24,7 @@ import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
+import src.backend.global.policy.PolicyConstants;
 import src.backend.manager.entity.Assignment;
 import src.backend.manager.entity.Manager;
 import src.backend.manager.entity.ManagerProfile;
@@ -208,6 +209,49 @@ class RunRouteConfirmedNotificationTest {
                         + "AND dedup_key LIKE ? AND recipient_name = '기사'",
                 String.class, "route_changed:" + runId + ":%");
         assertThat(recipientRole).isEqualTo("driver");
+    }
+
+    /**
+     * R52 L1 — 서버가 오래 멈췄다 살아나 운행 시작 창(출발 + 10분)이 이미 닫힌 회차를 확정할 때는 확정 자체는 그대로 하되
+     * 기사·동승자에게 노선 알림을 보내지 않는다(이미 시작할 수 없는 회차라 알려 봐야 소음이다).
+     */
+    @Test
+    @DisplayName("R52 L1 — 운행 시작 창이 닫힌 회차를 확정해도 확정은 되고 route_changed 알림은 적재되지 않는다")
+    void 시작_창이_닫힌_회차는_확정되어도_알림을_보내지_않는다() {
+        long runId = 지난_회차를_배치해_만든다(PolicyConstants.START_WINDOW.plusMinutes(1));
+
+        confirmationService.confirmOne(runId);
+
+        assertThat(runRepository.findById(runId).orElseThrow().getStatus()).as("확정 자체는 그대로").isEqualTo(RunStatus.CONFIRMED);
+        assertThat(알림_행수(runId)).as("시작 창이 닫혔으니 알림 부재").isZero();
+    }
+
+    /** 경계 — 출발 + 10분 정각은 아직 시작할 수 있는 마지막 시각이라 알림이 나간다. */
+    @Test
+    @DisplayName("R52 L1 — 출발 + 10분 정각(시작 창 마지막 시각)에 확정하면 알림이 적재된다")
+    void 시작_창_마지막_시각의_확정은_알림을_보낸다() {
+        long runId = 지난_회차를_배치해_만든다(PolicyConstants.START_WINDOW);
+
+        confirmationService.confirmOne(runId);
+
+        assertThat(알림_행수(runId)).isEqualTo(1);
+    }
+
+    /** 출발 시각이 {@code elapsed} 만큼 지난(고정 시계 기준) 회차를 만들고 기사 1명을 배치한다. */
+    private long 지난_회차를_배치해_만든다(java.time.Duration elapsed) {
+        RunConfirmationFixtures fixtures = fixtures();
+        long academyId = fixtures.academyWithCoordinates();
+        long busId = fixtures.bus(academyId);
+        long firstStop = fixtures.stop(academyId, "37.560000", "126.970000");
+        long lastStop = fixtures.stop(academyId, "37.561000", "126.971000");
+        fixtures.route(academyId, busId, WEEKDAY, Direction.TO_ACADEMY, firstStop, lastStop);
+        long student = fixtures.student(academyId, "학생1");
+        fixtures.verifiedAddress(student, firstStop, WEEKDAY, Direction.TO_ACADEMY, "37.560000", "126.970000");
+        OffsetDateTime departTime = OffsetDateTime.now(clock).minus(elapsed);
+        long runId = fixtures.idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        배치된_매니저를_만든다(academyId, runId, ManagerRole.DRIVER, "기사");
+        return runId;
     }
 
     @Test
