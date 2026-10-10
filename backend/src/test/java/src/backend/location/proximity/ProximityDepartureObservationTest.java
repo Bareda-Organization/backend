@@ -140,6 +140,19 @@ class ProximityDepartureObservationTest {
         assertThat(departedAt(s.runStopId)).as("안쪽을 본 뒤 바깥 위치").isNotNull();
     }
 
+    /** 안쪽 관측을 기록한 뒤에도 위치가 여전히 100m 안이면(정차 중) 출발이 아니다 — 두 번째 안쪽 틱이 출발을 내지 않는다. */
+    @Test
+    void 안쪽_관측_뒤에도_위치가_계속_100m_안이면_출발이_아니다() {
+        Scenario s = scenario();
+
+        writePosition(s.runId, INSIDE_LAT, ARRIVED_AT.plusSeconds(1));
+        judge(s);
+        writePosition(s.runId, INSIDE_LAT, ARRIVED_AT.plusSeconds(31));
+        judge(s);
+
+        assertThat(departedAt(s.runStopId)).as("정차 중(계속 100m 안)이면 출발이 아니다").isNull();
+    }
+
     /** 도착 처리보다 <b>앞서</b> 받은 100m 안 위치(Redis 에 남은 옛 위치)는 관측으로 세지 않는다. */
     @Test
     void 도착_처리_앞서_받은_100m_안_위치는_관측으로_세지_않는다() {
