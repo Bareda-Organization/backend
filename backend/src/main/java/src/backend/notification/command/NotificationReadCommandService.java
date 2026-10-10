@@ -55,18 +55,20 @@ public class NotificationReadCommandService {
     /**
      * 읽음 처리(§3.13).
      *
-     * @throws BusinessException {@code 404 NOTIFICATION_NOT_FOUND}(미존재) · {@code 403 FORBIDDEN}(타 계정 알림 —
+     * @throws BusinessException {@code 404 NOTIFICATION_NOT_FOUND}(미존재) · {@code 403 FORBIDDEN}(타 계정·타 학원 알림 —
      *     존재는 하나 {@code recipientAccountId} 가 다르다)
      */
     public void markRead(AuthUser requester, Long notificationId) {
         NotificationLog notification = notificationLogRepository.findById(notificationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOTIFICATION_NOT_FOUND));
-        // 학원 대조는 직접 견주지 않고 판정 지점 하나(AcademyScope)에 맡긴다 — 직접 비교하면
-        // 메인 관리자 예외 같은 규칙이 이 자리에서만 갈린다(AcademyScopeSingleJudgmentPointTest).
-        AcademyScope.assertAccessible(requester, notification.getAcademyId());
+        // R52 L3 — 알림은 소유 자원이라 남의 것은 타 계정이든 타 학원이든 403 FORBIDDEN 이다(API_SPEC §1.5 표 · §3.13). 소유 검사를
+        // 먼저 해야 타 학원 알림이 학원 범위 위반 코드로 갈라지지 않는다.
         if (!notification.getRecipientAccountId().equals(requester.accountId())) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
+        // 학원 대조는 직접 견주지 않고 판정 지점 하나(AcademyScope)에 맡긴다 — 직접 비교하면
+        // 메인 관리자 예외 같은 규칙이 이 자리에서만 갈린다(AcademyScopeSingleJudgmentPointTest).
+        AcademyScope.assertAccessible(requester, notification.getAcademyId());
 
         OffsetDateTime now = OffsetDateTime.now(clock);
         notification.markRead(now);

@@ -359,9 +359,10 @@ class AcademyScopeHttpExhaustiveTest {
         cases.add(c("POST /staff/signup-requests/{id}/decide → B학원 신청 403 ACADEMY_SCOPE_VIOLATION",
                 HttpMethod.POST, "/staff/signup-requests/{id}/decide", new Object[] {academyBSignupRequestId},
                 staffA(), DECIDE_SIGNUP_BODY, 403, "ACADEMY_SCOPE_VIOLATION"));
-        cases.add(c("PATCH /notifications/{id}/read → B학원 알림 403 ACADEMY_SCOPE_VIOLATION", HttpMethod.PATCH,
+        // R52 L3 — 알림은 소유 자원이다: 남의 것(타 계정 · 타 학원)은 API_SPEC §1.5 표대로 403 FORBIDDEN (§3.13)
+        cases.add(c("PATCH /notifications/{id}/read → B학원 알림 403 FORBIDDEN", HttpMethod.PATCH,
                 "/notifications/{id}/read", new Object[] {academyBNotificationId}, staffA(), null, 403,
-                "ACADEMY_SCOPE_VIOLATION"));
+                "FORBIDDEN"));
 
         // 학부모 앱 — LinkedChildLookup, 자기 자녀가 아니면 academy 필터에 닿기 전에 403.
         cases.add(c("GET /students/{id}/weekly-address → B학원 학생 403 FORBIDDEN", HttpMethod.GET,
