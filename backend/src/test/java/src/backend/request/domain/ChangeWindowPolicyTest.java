@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import src.backend.global.common.enums.Direction;
+import src.backend.global.policy.PolicyConstants;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 
@@ -62,19 +63,50 @@ class ChangeWindowPolicyTest {
         assertThat(ChangeWindowPolicy.segmentOf(run, now)).isEqualTo(ChangeWindow.APPROVAL_REQUIRED);
     }
 
+    /** Ruling 870 — 출발 시각이 지나도 운행이 시작되지 않았으면 ②다(탑승 끄기가 바로 결석이 되던 빈 구간). */
     @Test
-    void departTime_정각은_불가_구간이다() {
-        Run run = runOf(RunStatus.IDLE, DEPART, CONFIRM_AT);
+    void departTime_정각에_운행_미시작이면_승인필요_구간이다() {
+        Run run = runOf(RunStatus.CONFIRMED, DEPART, CONFIRM_AT);
 
-        assertThat(ChangeWindowPolicy.segmentOf(run, DEPART)).isEqualTo(ChangeWindow.CLOSED);
+        assertThat(ChangeWindowPolicy.segmentOf(run, DEPART)).isEqualTo(ChangeWindow.APPROVAL_REQUIRED);
     }
 
     @Test
-    void departTime_직후는_불가_구간이다() {
+    void departTime_직후_운행_미시작이면_승인필요_구간이다() {
         Run run = runOf(RunStatus.IDLE, DEPART, CONFIRM_AT);
-        OffsetDateTime now = DEPART.plusSeconds(1);
 
-        assertThat(ChangeWindowPolicy.segmentOf(run, now)).isEqualTo(ChangeWindow.CLOSED);
+        assertThat(ChangeWindowPolicy.segmentOf(run, DEPART.plusSeconds(1))).isEqualTo(ChangeWindow.APPROVAL_REQUIRED);
+    }
+
+    @Test
+    void 출발_10분_직전까지_운행_미시작이면_승인필요_구간이다() {
+        Run run = runOf(RunStatus.CONFIRMED, DEPART, CONFIRM_AT);
+        OffsetDateTime now = DEPART.plus(PolicyConstants.START_WINDOW).minusSeconds(1);
+
+        assertThat(ChangeWindowPolicy.segmentOf(run, now)).isEqualTo(ChangeWindow.APPROVAL_REQUIRED);
+    }
+
+    @Test
+    void 출발_10분_정각은_운행_미시작이어도_불가_구간이다() {
+        Run run = runOf(RunStatus.CONFIRMED, DEPART, CONFIRM_AT);
+
+        assertThat(ChangeWindowPolicy.segmentOf(run, DEPART.plus(PolicyConstants.START_WINDOW)))
+                .isEqualTo(ChangeWindow.CLOSED);
+    }
+
+    @Test
+    void 출발_직후라도_운행이_시작됐으면_불가_구간이다() {
+        Run run = runOf(RunStatus.MOVING, DEPART, CONFIRM_AT);
+
+        assertThat(ChangeWindowPolicy.segmentOf(run, DEPART.plusMinutes(1))).isEqualTo(ChangeWindow.CLOSED);
+    }
+
+    /** Ruling 870 — ② 마감(저장·응답의 {@code deadline_at} · 자동 거절 시각)은 출발 시각 + 운행 시작 창이다. */
+    @Test
+    void 승인_마감은_출발_시각_더하기_운행_시작_창이다() {
+        Run run = runOf(RunStatus.CONFIRMED, DEPART, CONFIRM_AT);
+
+        assertThat(ChangeWindowPolicy.deadlineOf(run)).isEqualTo(DEPART.plusMinutes(10));
     }
 
     @Test

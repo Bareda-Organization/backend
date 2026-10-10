@@ -416,6 +416,18 @@ class StaffApprovalDecideControllerTest {
                 .andExpect(jsonPath("$.error.code").value("CHANGE_WINDOW_CLOSED"));
     }
 
+    /** Ruling 870 — 출발 시각이 지났어도 운행이 시작되지 않았고 출발 + 10분 전이면 ②라 승인 처리를 받는다(이전에는 403). */
+    @Test
+    void 출발_직후_운행_미시작이면_거절_결정을_받는다() throws Exception {
+        OffsetDateTime departTime = OffsetDateTime.now(KST).minusMinutes(3);
+        Weekday weekday = Weekday.valueOf(departTime.getDayOfWeek().name().substring(0, 3));
+        결정_시나리오 s = 결정_시나리오를_만든다(departTime.toLocalDate(), weekday, departTime);
+
+        결정_요청(관계자_토큰(s.academyId), s.approvalId, 거절_바디("아무 사유"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("rejected"));
+    }
+
     // 이미 처리된 건을 다시 결정하면 409 APPROVAL_ALREADY_DECIDED — 이 검증은 여기 두지 않는다.
     // 첫 결정의 dirty-check UPDATE(cr.approve(...))는 @Transactional 시험의 커넥션이 실제로
     // 커밋될 때까지 플러시가 미뤄져(신규 INSERT·flushAutomatically UPDATE 와 달리), 같은 시험

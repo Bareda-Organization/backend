@@ -151,7 +151,7 @@ public class BoardingIntentCommandService {
         ChangeRequest changeRequest = ChangeRequest.forRequest(run.getAcademyId(), run.getId(), student.getId(),
                 ChangeRequestSource.INTENT, ChangeRequestType.CANCEL, ChangeWindow.APPROVAL_REQUIRED.code(),
                 requester.accountId(), now);
-        changeRequest.assignDeadline(run.getDepartTime());
+        changeRequest.assignDeadline(ChangeWindowPolicy.deadlineOf(run));
         changeRequest = changeRequestRepository.save(changeRequest);
 
         eventPublisher.publishEvent(new ApprovalRequestedEvent(changeRequest.getId(), run.getAcademyId(),
@@ -160,11 +160,11 @@ public class BoardingIntentCommandService {
         boolean existingRiding = intent.isRiding();
         String riderStatus = riderStatusOf(run.getId(), student.getId(), existingRiding);
         return BoardingIntentToggleResponse.pendingApproval(existingRiding, riderStatus, changeRequest.getId(),
-                quotaLeftOf(intent), run.getDepartTime());
+                quotaLeftOf(intent), ChangeWindowPolicy.deadlineOf(run));
     }
 
     /**
-     * ③구간 — 운행 시작 후(또는 출발 시각 도달)라 재최적화 없이 미등원만 즉시 수용한다.
+     * ③구간 — 운행 시작 후(또는 출발 시각 + 10분 도달)라 재최적화 없이 미등원만 즉시 수용한다.
      * {@code riding=true}(되돌리기 시도)와 아직 타지 않은({@code waiting}) 학생이 아닌 경우는
      * {@code 403 CHANGE_WINDOW_CLOSED} 다(§3.6 ③, Ruling 334) — 이미 탄 학생을 {@code absent} 로
      * 덮으면 종료 판정이 그 아이를 잔류로 세지 않는다.

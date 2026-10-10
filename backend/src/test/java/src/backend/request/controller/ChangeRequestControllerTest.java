@@ -39,6 +39,7 @@ import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
+import src.backend.global.policy.PolicyConstants;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.request.entity.ChangeRequest;
 import src.backend.request.entity.ChangeRequestSource;
@@ -238,6 +239,9 @@ class ChangeRequestControllerTest {
                 .andExpect(jsonPath("$.data.result").value("pending_approval"))
                 .andExpect(jsonPath("$.data.deadline_at").isNotEmpty());
         entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject("SELECT deadline_at FROM change_request WHERE run_id = ?",
+                OffsetDateTime.class, runId).toInstant()).as("Ruling 870 — 마감 = 출발 시각 + 운행 시작 창")
+                .isEqualTo(departTime.plus(PolicyConstants.START_WINDOW).toInstant());
 
         // dedup_key 에 박힌 run_id 로 이 신청이 만든 행인지 가린다(리스너의 DEDUP_KEY_FORMAT).
         Integer notified = jdbcTemplate.queryForObject(

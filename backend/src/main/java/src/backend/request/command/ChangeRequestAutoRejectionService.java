@@ -13,7 +13,7 @@ import src.backend.request.repository.ChangeRequestRepository;
 
 /**
  * 회차가 {@code moving} 으로 전이하는 순간 그 회차의 미처리 변경 요청을 전부 종결하는 서비스
- * (API_SPEC §1.6 "출발 시각 도달 또는 {@code moving} 전이 중 먼저 오는 시점").
+ * (API_SPEC §1.6 "출발 시각 + 10분 도달 또는 {@code moving} 전이 중 먼저 오는 시점").
  *
  * <p>{@code POST /runs/{runId}/start}({@code RunStartCommandService}, Phase 9 소유, Ruling 196)가
  * 회차를 {@code moving} 으로 바꾸는 <b>같은 트랜잭션 안에서</b> {@link #terminateForRun} 을 동기

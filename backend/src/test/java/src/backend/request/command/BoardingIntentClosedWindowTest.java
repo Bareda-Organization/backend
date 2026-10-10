@@ -194,7 +194,7 @@ class BoardingIntentClosedWindowTest {
         long academyId = fixtures.academy();
         academyIds.add(academyId);
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.run(academyId, busId, now.minusMinutes(5), now.minusMinutes(35));
+        long runId = fixtures.run(academyId, busId, now.minusMinutes(15), now.minusMinutes(45));
         long stopId = fixtures.stop(academyId, lat, lng);
         return new ClosedRun(academyId, busId, runId, stopId);
     }

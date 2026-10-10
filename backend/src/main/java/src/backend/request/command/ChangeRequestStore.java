@@ -170,7 +170,7 @@ public class ChangeRequestStore {
     private void applyApprovalRequired(ChangeRequest changeRequest, Student student, Run run, OffsetDateTime now) {
         BoardingIntent boardingIntent = findOrCreateIntent(run.getId(), student.getId(), now);
         consumeChangeQuota(boardingIntentRepository, boardingIntent);
-        changeRequest.assignDeadline(run.getDepartTime());
+        changeRequest.assignDeadline(ChangeWindowPolicy.deadlineOf(run));
     }
 
     /** 탑승 의사 행을 없으면 만들고 <b>행 잠금</b>으로 읽는다(BR-361) — 같은 학생·회차의 겹친 신청이 이 행에서 직렬화된다. */

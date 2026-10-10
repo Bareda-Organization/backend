@@ -44,11 +44,13 @@ import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
+import src.backend.global.policy.PolicyConstants;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
 import src.backend.request.command.BoardingIntentFixtures;
 import src.backend.request.event.IntentChangedEvent;
+import src.backend.request.scheduler.ChangeRequestAutoRejectionScheduler;
 import src.backend.routing.pipeline.RouteComputationPipeline;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteRepository;
@@ -100,6 +102,9 @@ class BoardingIntentControllerTest {
 
     @Autowired
     private ApplicationEvents applicationEvents;
+
+    @Autowired
+    private ChangeRequestAutoRejectionScheduler autoRejectionScheduler;
 
     @MockitoSpyBean
     private RouteComputationPipeline routeComputationPipeline;
@@ -578,6 +583,69 @@ class BoardingIntentControllerTest {
      * 그 정차지에 남은 탑승자가 0명이면 {@code run_stop.change='skipped'} 로 표시된다 — {@code seq} 는
      * 손대지 않는다(목표 8). {@code riding=true}(되돌리기)는 {@code 403 CHANGE_WINDOW_CLOSED} 다.
      */
+    /**
+     * Ruling 870 — 출발 시각이 지났어도 운행이 시작되지 않았으면(출발 + 10분 전) ②다: 탑승 끄기는 즉시 결석이 아니라
+     * 승인 요청이 되고, 응답의 {@code deadline_at} 은 출발 시각 + 10분이다.
+     */
+    @Test
+    @DisplayName("Ruling 870 — 출발 직후 운행 미시작이면 탑승 끄기는 승인 대기로 접수되고 deadline_at 은 출발+10분이다")
+    void 출발_직후_운행_미시작이면_탑승_끄기는_승인_대기이다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long studentId = fixtures().student(academyId, "출발직후학생");
+        BoardingIntentFixtures.GuardianAccount guardian = fixtures().guardian(academyId, "출발직후보호자");
+        fixtures().linkChild(guardian.guardianId(), studentId, now.minusDays(1));
+        OffsetDateTime departTime = now.minusMinutes(3);
+        long runId = fixtures().run(academyId, busId, departTime, departTime.minusMinutes(30));
+        fixtures().enrol(academyId, busId, studentId, fixtures().stop(academyId, "37.551000", "126.961000"));
+
+        mockMvc.perform(patch(INTENT.formatted(studentId, runId))
+                        .header("Authorization", 토큰(guardian.accountId(), academyId, Role.PARENT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"riding\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.result").value("pending_approval"))
+                .andExpect(jsonPath("$.data.riding").value(true));
+
+        entityManager.flush();
+        OffsetDateTime deadline = jdbcTemplate.queryForObject(
+                "SELECT deadline_at FROM change_request WHERE run_id = ? AND student_id = ?", OffsetDateTime.class,
+                runId, studentId);
+        assertThat(deadline.toInstant()).as("저장되는 마감 = 출발 시각 + 운행 시작 창")
+                .isEqualTo(departTime.plus(PolicyConstants.START_WINDOW).toInstant());
+
+        autoRejectionScheduler.rejectDueChangeRequests();
+        entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM change_request WHERE run_id = ? AND student_id = ?",
+                String.class, runId, studentId)).as("출발 시각이 지났어도 마감(+10분) 전이라 자동 거절 배치가 건드리지 않는다")
+                .isEqualTo("pending");
+    }
+
+    /** Ruling 870 — 출발 + 10분 정각부터는 운행이 시작되지 않았어도 ③이라 탑승 끄기가 즉시 수용된다. */
+    @Test
+    @DisplayName("Ruling 870 — 출발 + 10분이 되면 운행 미시작이어도 ③이라 탑승 끄기가 즉시 수용된다")
+    void 출발_10분_뒤에는_운행_미시작이어도_탑승_끄기가_즉시_수용된다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long studentId = fixtures().student(academyId, "출발십분학생");
+        BoardingIntentFixtures.GuardianAccount guardian = fixtures().guardian(academyId, "출발십분보호자");
+        fixtures().linkChild(guardian.guardianId(), studentId, now.minusDays(1));
+        OffsetDateTime departTime = now.minus(PolicyConstants.START_WINDOW);
+        long runId = fixtures().run(academyId, busId, departTime, departTime.minusMinutes(30));
+        long stopId = fixtures().stop(academyId, "37.552000", "126.962000");
+        fixtures().enrol(academyId, busId, studentId, stopId);
+        fixtures().confirmedSingleRiderStop(runId, studentId, stopId, now.minusHours(1));
+
+        mockMvc.perform(patch(INTENT.formatted(studentId, runId))
+                        .header("Authorization", 토큰(guardian.accountId(), academyId, Role.PARENT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"riding\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.result").value("applied_no_reroute"));
+    }
+
     @Test
     @DisplayName("목표8 — 마감구간에서 riding=false는 재최적화 없이 수용되고 riding=true는 403이다")
     void 마감구간에서_미등원은_즉시수용되고_되돌리기는_403이다() throws Exception {
@@ -588,7 +656,7 @@ class BoardingIntentControllerTest {
         BoardingIntentFixtures.GuardianAccount guardian4 = fixtures().guardian(academyId, "보호자4");
         long guardianAccountId = guardian4.accountId();
         fixtures().linkChild(guardian4.guardianId(), studentId, now.minusDays(1));
-        long runId = fixtures().run(academyId, busId, now.minusMinutes(5), now.minusMinutes(35));
+        long runId = fixtures().run(academyId, busId, now.minusMinutes(15), now.minusMinutes(45));
         long stopId = fixtures().stop(academyId, "37.560000", "126.970000");
         fixtures().enrol(academyId, busId, studentId, stopId);
         long runStopId = fixtures().confirmedSingleRiderStop(runId, studentId, stopId, now.minusHours(1));
@@ -639,7 +707,7 @@ class BoardingIntentControllerTest {
         long studentId = fixtures().student(academyId, "탑승중학생");
         BoardingIntentFixtures.GuardianAccount guardian = fixtures().guardian(academyId, "탑승중보호자");
         fixtures().linkChild(guardian.guardianId(), studentId, now.minusDays(1));
-        long runId = fixtures().run(academyId, busId, now.minusMinutes(5), now.minusMinutes(35));
+        long runId = fixtures().run(academyId, busId, now.minusMinutes(15), now.minusMinutes(45));
         long stopId = fixtures().stop(academyId, "37.561000", "126.971000");
         fixtures().enrol(academyId, busId, studentId, stopId);
         long runStopId = fixtures().confirmedSingleRiderStop(runId, studentId, stopId, now.minusHours(1));
@@ -675,7 +743,7 @@ class BoardingIntentControllerTest {
         long studentId = fixtures().student(academyId, "미등원학생");
         BoardingIntentFixtures.GuardianAccount guardian = fixtures().guardian(academyId, "미등원보호자");
         fixtures().linkChild(guardian.guardianId(), studentId, now.minusDays(1));
-        long runId = fixtures().run(academyId, busId, now.minusMinutes(5), now.minusMinutes(35));
+        long runId = fixtures().run(academyId, busId, now.minusMinutes(15), now.minusMinutes(45));
         long stopId = fixtures().stop(academyId, "37.562000", "126.972000");
         fixtures().enrol(academyId, busId, studentId, stopId);
         fixtures().confirmedSingleRiderStop(runId, studentId, stopId, now.minusHours(1));

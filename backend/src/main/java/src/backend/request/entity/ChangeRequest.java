@@ -139,7 +139,7 @@ public class ChangeRequest {
     }
 
     /**
-     * ②구간 접수 시 승인 마감 시각을 정한다(REQ-04) — 회차 출발 시각과 같다(API_SPEC §5.6). ①구간
+     * ②구간 접수 시 승인 마감 시각을 정한다(REQ-04) — 출발 시각 + 운행 시작 창이다(API_SPEC §5.6 · Ruling 870 — {@code ChangeWindowPolicy#deadlineOf}). ①구간
      * 자동 승인 건은 이 메서드를 부르지 않아 {@code deadline_at} 이 {@code null} 로 남는다 — 이미
      * 승인이 끝난 건에 마감을 실을 이유가 없다.
      */
@@ -183,7 +183,7 @@ public class ChangeRequest {
     }
 
     /**
-     * 도래분 자동 거절(API_SPEC §1.6) — 출발 시각 도달 또는 {@code moving} 전이 중 먼저 오는 시점까지
+     * 도래분 자동 거절(API_SPEC §1.6) — 출발 시각 + 10분 도달 또는 {@code moving} 전이 중 먼저 오는 시점까지
      * 미처리로 남은 요청을 서버가 스스로 거절한다. {@code decided_by} 가 없다 — 관리자가 아니라 서버가
      * 한 일이기 때문이다. 재최적화 없이 기존 노선을 유지하고, 소진한 한도는 이 메서드가 아니라
      * {@code BoardingIntent.restoreChangeQuota()} 가 되돌린다(횟수 미소진, C-10).
