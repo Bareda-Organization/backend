@@ -269,6 +269,48 @@ class StaffWaypointControllerTest {
                 .andExpect(jsonPath("$.error.code").value("CHANGE_WINDOW_CLOSED"));
     }
 
+    /**
+     * Ruling 870 — 출발 시각이 지났어도 운행이 시작되지 않았으면 ③이 아니라 ② 다. 미리보기(요청 첫머리 판정)와 배포(배포
+     * 트랜잭션의 재판정) 둘 다 막지 않는다 — 경계를 출발 시각으로 되돌리면 둘 중 하나가 403 이 된다.
+     */
+    @Test
+    void 출발_직후_운행_미시작이면_경유_지점이_미리보기와_배포_모두_된다() throws Exception {
+        시나리오 s = 확정된_회차를_만든다();
+        출발_시각을_분_전으로_옮긴다(s.runId, 1);
+
+        경유_추가한다(s.runId, 경유_본문("새경유로 31", "출발직후", true))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.applied").value(true));
+    }
+
+    /** Ruling 870 — 출발 + 10분(운행 시작 창의 끝)이 지난 미시작 회차는 ③ 이라 미리보기가 {@code 403 CHANGE_WINDOW_CLOSED} 다. */
+    @Test
+    void 출발_10분_뒤에는_운행_미시작이어도_경유_지점_미리보기가_403_이다() throws Exception {
+        시나리오 s = 확정된_회차를_만든다();
+        출발_시각을_분_전으로_옮긴다(s.runId, 11);
+
+        경유_추가한다(s.runId, 경유_본문("새경유로 32", "창마감", false))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("CHANGE_WINDOW_CLOSED"));
+    }
+
+    /** Ruling 870 — 미리보기 뒤 출발 + 10분이 지나면 배포 트랜잭션의 재판정이 {@code 403 CHANGE_WINDOW_CLOSED} 로 막는다. */
+    @Test
+    void 미리보기_뒤_출발_10분이_지나면_저장소가_배포하지_않는다() throws Exception {
+        시나리오 s = 확정된_회차를_만든다();
+        경유_요청한다(s.runId, 경유_본문("창경유로 1", "창마감", false)).andExpect(status().isOk());
+        WaypointPreview preview = previewCache.find(s.runId).orElseThrow();
+        Run 첫머리에_읽은_회차 = runRepository.findById(s.runId).orElseThrow();
+        int versionNo = 현재_버전_번호(s.runId);
+        출발_시각을_분_전으로_옮긴다(s.runId, 11);
+        Waypoint waypoint = waypointRepository.findById(preview.waypointId()).orElseThrow();
+
+        assertThatThrownBy(() -> waypointStore.deployAdd(첫머리에_읽은_회차, waypoint, preview, 1L, OffsetDateTime.now()))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.CHANGE_WINDOW_CLOSED);
+        assertThat(현재_버전_번호(s.runId)).isEqualTo(versionNo);
+    }
+
     /** BR-210(Ruling 376) — 임시 취소된 회차에는 경유 지점 미리보기·배포가 {@code 409 RUN_CANCELED} 다. */
     @Test
     void 취소된_회차는_경유_지점_지정이_409_RUN_CANCELED_다() throws Exception {
@@ -784,6 +826,15 @@ class StaffWaypointControllerTest {
     private long waypointId아이디_읽는다(MvcResult result) throws Exception {
         String body = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
         return Long.parseLong(JsonPath.read(body, "$.data.waypoint_id"));
+    }
+
+    /** 출발 시각을 지금보다 {@code minutes} 분 전으로 옮기고 영속성 컨텍스트를 비운다 — 운행 상태는 그대로(idle). */
+    private void 출발_시각을_분_전으로_옮긴다(long runId, int minutes) {
+        jdbcTemplate.update("UPDATE run SET depart_time = now() - make_interval(mins => ?), "
+                + "confirm_at = now() - make_interval(mins => ?) - interval '30 minutes' WHERE id = ?", minutes, minutes,
+                runId);
+        entityManager.flush();
+        entityManager.clear();
     }
 
     private long 현재_버전_id(long runId) {
