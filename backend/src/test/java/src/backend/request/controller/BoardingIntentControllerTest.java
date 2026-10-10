@@ -579,11 +579,6 @@ class BoardingIntentControllerTest {
     // ── 목표 8 — ③구간 재최적화 없는 즉시 수용 ──────────────────────────────
 
     /**
-     * ③구간(운행 시작 후 또는 출발 시각 도달)에서 {@code riding=false} 는 재최적화 없이 즉시 수용되고,
-     * 그 정차지에 남은 탑승자가 0명이면 {@code run_stop.change='skipped'} 로 표시된다 — {@code seq} 는
-     * 손대지 않는다(목표 8). {@code riding=true}(되돌리기)는 {@code 403 CHANGE_WINDOW_CLOSED} 다.
-     */
-    /**
      * Ruling 870 — 출발 시각이 지났어도 운행이 시작되지 않았으면(출발 + 10분 전) ②다: 탑승 끄기는 즉시 결석이 아니라
      * 승인 요청이 되고, 응답의 {@code deadline_at} 은 출발 시각 + 10분이다.
      */
@@ -646,6 +641,11 @@ class BoardingIntentControllerTest {
                 .andExpect(jsonPath("$.data.result").value("applied_no_reroute"));
     }
 
+    /**
+     * ③구간(운행 시작 후 또는 출발 시각 도달)에서 {@code riding=false} 는 재최적화 없이 즉시 수용되고,
+     * 그 정차지에 남은 탑승자가 0명이면 {@code run_stop.change='skipped'} 로 표시된다 — {@code seq} 는
+     * 손대지 않는다(목표 8). {@code riding=true}(되돌리기)는 {@code 403 CHANGE_WINDOW_CLOSED} 다.
+     */
     @Test
     @DisplayName("목표8 — 마감구간에서 riding=false는 재최적화 없이 수용되고 riding=true는 403이다")
     void 마감구간에서_미등원은_즉시수용되고_되돌리기는_403이다() throws Exception {
