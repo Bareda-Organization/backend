@@ -27,7 +27,7 @@ public class ProximityJudge {
         return busPosition.distanceMetersTo(stopPosition) <= PROXIMITY_THRESHOLD_METERS;
     }
 
-    /** 버스가 도착 처리된 승하차지에서 100m 밖으로 벗어났는가(Ruling 307 — 출발 판정). */
+    /** 버스가 도착 처리된 승하차지에서 100m 밖으로 벗어났는가(Ruling 307 — 출발 판정). 안쪽 관측이 먼저 있어야 출발로 본다는 조건은 호출부가 건다(Ruling 875). */
     public boolean hasDeparted(GeoPoint busPosition, GeoPoint stopPosition) {
         return busPosition.distanceMetersTo(stopPosition) > DEPARTURE_THRESHOLD_METERS;
     }

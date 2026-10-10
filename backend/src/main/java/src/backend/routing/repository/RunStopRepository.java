@@ -255,4 +255,17 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
             + "(claimProximityNotice 와 같은 근거)")
     @Query("UPDATE RunStop rs SET rs.departedAt = :now WHERE rs.id = :id AND rs.departedAt IS NULL")
     int claimDeparture(@Param("id") Long id, @Param("now") OffsetDateTime now);
+
+    /**
+     * 도착 처리 뒤 그 승하차지 100m 안 관측을 <b>최초 1회</b> 기록한다(Ruling 875) — {@link #claimDeparture} 와 같은 조건부 UPDATE
+     * 형태다. 이미 출발 처리된 항목에는 쓰지 않는다. 영향받은 행 수는 쓰지 않는다 — 다른 인스턴스가 먼저 기록했어도 결과가 같다.
+     */
+    @Transactional
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @AcademyScopeExempt(reason = "findFirstArrivedNotDeparted 가 이미 학원과 무관하게 골라낸 정차 항목 id 하나를 조건부로 "
+            + "갱신하는 단건 호출이다 — 그 조회가 이미 좁힌 대상이라 이 시점에 학원을 다시 물을 근거가 없다"
+            + "(claimDeparture 와 같은 근거)")
+    @Query("UPDATE RunStop rs SET rs.nearObservedAt = :now "
+            + "WHERE rs.id = :id AND rs.nearObservedAt IS NULL AND rs.departedAt IS NULL")
+    int claimNearObservation(@Param("id") Long id, @Param("now") OffsetDateTime now);
 }

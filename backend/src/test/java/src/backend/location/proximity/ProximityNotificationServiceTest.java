@@ -335,6 +335,9 @@ class ProximityNotificationServiceTest {
         long runStopId = fx.runStopForStop(versionId, stopId, 1, now.plusMinutes(10));
         fx.arriveStop(runStopId, now);
 
+        // Ruling 875 — 도착 뒤 100m 안 위치를 한 번 받은 다음에야 100m 밖 위치가 출발이다
+        writePosition(runId, WITHIN_DEPARTURE_LAT, STOP_LNG);
+        ProximityJudging.judge(proximityNotificationService, runPositionStore, runId, academyId);
         writePosition(runId, FAR_LAT, STOP_LNG);
 
         ProximityJudging.judge(proximityNotificationService, runPositionStore, runId, academyId);
@@ -480,6 +483,7 @@ class ProximityNotificationServiceTest {
         long arrivedRunStop = fx.runStopForStop(versionId, arrivedStop, 1, now.plusMinutes(10));
         fx.runStopForStop(versionId, nextStop, 2, now.plusMinutes(20));
         fx.arriveStop(arrivedRunStop, now);
+        fx.observeNear(arrivedRunStop, now);
         fx.rider(runId, studentId, nextStop, RiderStatus.WAITING, null);
         writePosition(runId, NEAR_LAT, STOP_LNG);
         RunPositionRedisValue position = runPositionStore.find(runId).orElseThrow();

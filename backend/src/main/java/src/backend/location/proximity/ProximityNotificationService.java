@@ -57,8 +57,13 @@ public class ProximityNotificationService {
     }
 
     /** 읽기 트랜잭션이 알아낸, 이번 틱에 선점을 시도할 정차 항목 — 걸리지 않은 판정은 {@code null}. */
-    private record Targets(RunStop approachStop, RunStop departureStop) {
-        static final Targets NONE = new Targets(null, null);
+    private record Targets(RunStop approachStop, RunStop departureStop, RunStop nearObservedStop) {
+        static final Targets NONE = new Targets(null, null, null);
+    }
+
+    /** 출발 판정의 읽기 결과 — 출발로 볼 정차 항목, 또는 이번 위치로 "100m 안 관측" 을 처음 기록할 정차 항목(둘 다 없을 수 있다). */
+    private record DepartureRead(RunStop departureStop, RunStop nearObservedStop) {
+        static final DepartureRead NONE = new DepartureRead(null, null);
     }
 
     private final ProximityJudge proximityJudge;
@@ -85,7 +90,7 @@ public class ProximityNotificationService {
      * <ul>
      *   <li>확정 노선이 없거나 현재 버전 포인터가 비어 있다(두 판정 모두)</li>
      *   <li>근접: 남은 미도착 정차지가 없다 · 다음 정차지가 300m 밖이다 · 선점이 0행이다(이미 다른 인스턴스가 먼저 선점 — 목표 15)</li>
-     *   <li>출발: 도착했지만 출발 처리 전인 정차지가 없다 · 그 정차지에서 100m 밖이 아니다 · 선점이 0행이다</li>
+     *   <li>출발: 도착했지만 출발 처리 전인 정차지가 없다 · 그 정차지에서 100m 밖이 아니다 · 도착 뒤 그 정차지 100m 안에서 받은 위치가 아직 없다(Ruling 875 — 이 위치를 받으면 관측만 기록하고 출발은 다음 틱) · 선점이 0행이다</li>
      * </ul>
      *
      * @param position 스케줄러가 미리 읽은 이 회차의 최신 위치
@@ -105,6 +110,11 @@ public class ProximityNotificationService {
         if (targets.approachStop() != null) {
             runIsolated(Judgment.APPROACH, onFailure, () -> announceApproach(runId, academyId, targets.approachStop()));
         }
+        if (targets.nearObservedStop() != null) {
+            runIsolated(Judgment.DEPARTURE, onFailure, () -> transactionTemplate.executeWithoutResult(
+                    status -> runStopRepository.claimNearObservation(targets.nearObservedStop().getId(),
+                            OffsetDateTime.now(clock))));
+        }
         if (targets.departureStop() != null) {
             runIsolated(Judgment.DEPARTURE, onFailure, () -> stopDepartureService.claimAndPublish(
                     targets.departureStop(), runId, academyId, OffsetDateTime.now(clock)));
@@ -119,9 +129,10 @@ public class ProximityNotificationService {
         }
         Long versionId = confirmedRoute.get().getCurrentVersionId();
         GeoPoint bus = new GeoPoint(position.lat(), position.lng());
-        RunStop approach = readIsolated(Judgment.APPROACH, onFailure, () -> approachTarget(versionId, bus));
-        RunStop departure = readIsolated(Judgment.DEPARTURE, onFailure, () -> departureTarget(versionId, bus));
-        return new Targets(approach, departure);
+        RunStop approach = readIsolated(Judgment.APPROACH, onFailure, () -> approachTarget(versionId, bus), null);
+        DepartureRead departure = readIsolated(Judgment.DEPARTURE, onFailure,
+                () -> departureTarget(versionId, bus, position), DepartureRead.NONE);
+        return new Targets(approach, departure.departureStop(), departure.nearObservedStop());
     }
 
     /** 다음 미도착 정차지가 300m 안이면 그 정차 항목, 아니면 {@code null}. */
@@ -137,18 +148,26 @@ public class ProximityNotificationService {
                 .orElse(null);
     }
 
-    /** 도착했지만 출발 처리 전인 첫 정차지에서 100m 밖이면 그 정차 항목, 아니면 {@code null}. */
-    private RunStop departureTarget(Long versionId, GeoPoint bus) {
+    /**
+     * 도착했지만 출발 처리 전인 첫 정차지의 출발 판정(Ruling 307·875). 도착 처리 뒤 그 정차지 100m 안에서 받은 위치가 아직 없으면(
+     * {@code near_observed_at} 이 비었으면) 100m 밖 위치는 출발이 아니다 — 안쪽이면서 도착 처리 <b>뒤</b>({@code receivedAt} 기준)에 받은
+     * 위치일 때만 "관측" 으로 기록한다. 관측이 끝내 없는 정차지는 다음 승하차지 도착·운행 종료의 강제 발송(Ruling 854)이 출발 처리한다.
+     */
+    private DepartureRead departureTarget(Long versionId, GeoPoint bus, RunPositionRedisValue position) {
         List<RunStop> arrivedNotDeparted = runStopRepository.findFirstArrivedNotDeparted(versionId,
                 PageRequest.of(0, NEXT_STOP_LIMIT));
         if (arrivedNotDeparted.isEmpty()) {
-            return null;
+            return DepartureRead.NONE;
         }
         RunStop targetStop = arrivedNotDeparted.get(0);
-        return stopRepository.findById(targetStop.getStopId())
-                .filter(stop -> proximityJudge.hasDeparted(bus, new GeoPoint(stop.getLat(), stop.getLng())))
-                .map(stop -> targetStop)
-                .orElse(null);
+        return stopRepository.findById(targetStop.getStopId()).map(stop -> {
+            boolean outside = proximityJudge.hasDeparted(bus, new GeoPoint(stop.getLat(), stop.getLng()));
+            if (targetStop.getNearObservedAt() != null) {
+                return outside ? new DepartureRead(targetStop, null) : DepartureRead.NONE;
+            }
+            boolean receivedAfterArrival = !position.receivedAt().isBefore(targetStop.getArrivedAt());
+            return !outside && receivedAfterArrival ? new DepartureRead(null, targetStop) : DepartureRead.NONE;
+        }).orElse(DepartureRead.NONE);
     }
 
     /**
@@ -171,12 +190,13 @@ public class ProximityNotificationService {
         });
     }
 
-    private RunStop readIsolated(Judgment judgment, BiConsumer<Judgment, Exception> onFailure, Supplier<RunStop> read) {
+    private <T> T readIsolated(Judgment judgment, BiConsumer<Judgment, Exception> onFailure, Supplier<T> read,
+            T onError) {
         try {
             return read.get();
         } catch (Exception e) {
             onFailure.accept(judgment, e);
-            return null;
+            return onError;
         }
     }
 

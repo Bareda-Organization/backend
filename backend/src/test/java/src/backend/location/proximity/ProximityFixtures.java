@@ -176,6 +176,11 @@ public class ProximityFixtures {
         runStopRepository.save(runStop);
     }
 
+    /** 도착 처리 뒤 100m 안 관측을 기록한다(Ruling 875) — 출발 판정의 선행 조건을 직접 채워 이후 틱이 바로 출발을 판정하게 한다. */
+    public void observeNear(long runStopId, OffsetDateTime observedAt) {
+        runStopRepository.claimNearObservation(runStopId, observedAt);
+    }
+
     /** 그 회차의 라이더 1건 — {@code ABSENT} 면 결석 처리까지 마친다(C-02 배제 시험용). */
     public long rider(long runId, long studentId, long stopId, RiderStatus status, OffsetDateTime timestamp) {
         RunRider rider = RunRider.uponConfirmation(runId, studentId, stopId);

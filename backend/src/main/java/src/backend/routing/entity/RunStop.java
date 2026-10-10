@@ -77,6 +77,14 @@ public class RunStop {
     @Column(name = "departed_at")
     private OffsetDateTime departedAt;
 
+    /**
+     * 도착 처리 뒤 그 승하차지 100m 안에서 위치를 받은 최초 시각(Ruling 875) — {@code null} 이면 아직 못 본 것이다. 출발 판정은 이 값이
+     * 있을 때만 100m 밖 위치를 출발로 본다. 엔티티에 세터를 두지 않는다 — {@link src.backend.routing.repository.RunStopRepository
+     * #claimNearObservation} 조건부 UPDATE 만이 채운다({@link #departedAt} 과 같은 근거).
+     */
+    @Column(name = "near_observed_at")
+    private OffsetDateTime nearObservedAt;
+
     /** 승하차지별 도착 예정 시각. 관제 전용이며 학부모·학생 응답에는 포함되지 않는다. */
     @Column(name = "eta")
     private OffsetDateTime eta;

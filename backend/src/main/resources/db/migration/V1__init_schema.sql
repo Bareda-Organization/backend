@@ -500,6 +500,9 @@ CREATE TABLE run_stop (
     -- 근접 알림(NTF-04, Ruling 207) 최초 1회 발송 판정 — dedup_key UNIQUE 는 같은 알림의 중복 적재만 막고, 스케줄러가 매 틱
     -- 같은 정차 항목을 다시 판정하지 않게 하는 것은 이 컬럼의 조건부 UPDATE 몫이다(Ruling 210).
     proximity_notified_at timestamptz,
+    -- 출발 판정(Ruling 307·875) — 도착 처리 뒤 그 승하차지 100m 안에서 위치를 받은 최초 시각. 이 값이 있어야 100m 밖 위치를 출발로 본다
+    -- (진입 직전에 도착을 누르면 다음 위치에서 바로 출발로 판정되던 것을 막는다). 서버 재기동에도 남도록 컬럼에 둔다.
+    near_observed_at timestamptz,
     CONSTRAINT uk_run_stop_version_seq UNIQUE (route_version_id, seq),
     CONSTRAINT fk_run_stop_route_version FOREIGN KEY (route_version_id) REFERENCES route_version (id) ON DELETE CASCADE,
     CONSTRAINT fk_run_stop_stop FOREIGN KEY (stop_id) REFERENCES stop (id) ON DELETE RESTRICT,

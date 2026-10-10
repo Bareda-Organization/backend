@@ -133,6 +133,9 @@ class ProximityNotificationServiceDepartureSelectionTest {
         fx.arriveStop(runStopSeq3, now);
         fx.arriveStop(runStopSeq1, now);
         fx.arriveStop(runStopSeq2, now);
+        fx.observeNear(runStopSeq3, now);
+        fx.observeNear(runStopSeq1, now);
+        fx.observeNear(runStopSeq2, now);
 
         // ①틱1 — 버스를 seq 1(stopB) 기준 100m 밖에 둔다. 정차지끼리 1km+ 떨어져 있으므로, 만약
         // 코드가 seq 최솟값이 아닌 다른 정차지(stopA·stopC)의 좌표로 판정했다면 그 좌표는 이 버스
