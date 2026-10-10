@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.OffsetDateTime;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.DisplayName;
@@ -192,11 +193,14 @@ class NotificationSettingControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"arrive\":true,\"boarding\":false,\"no_show\":true}"))
                 .andExpect(status().isOk());
+        OffsetDateTime 수정_직후_갱신_시각 = notificationSettingRepository.findById(accountId).orElseThrow().getUpdatedAt();
 
         mockMvc.perform(patch(NOTIFICATION_SETTINGS).header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.boarding").value(false));
+        assertThat(notificationSettingRepository.findById(accountId).orElseThrow().getUpdatedAt())
+                .as("바꾼 것이 없으니 갱신 시각도 그대로다").isEqualTo(수정_직후_갱신_시각);
     }
 
     /** §1.14 — 이 PATCH 는 {@code null} = 유지다(키가 없는 것과 같다). */
