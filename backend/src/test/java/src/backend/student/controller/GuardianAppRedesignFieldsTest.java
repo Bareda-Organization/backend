@@ -105,6 +105,27 @@ class GuardianAppRedesignFieldsTest {
                         "$.data.items[?(@.run_id == '2')].service_date"));
     }
 
+    /**
+     * 신청 이력은 저장된 {@code deadline_at}(②구간 승인 마감 — Ruling 870)을 그대로 싣고, 마감이 없는 건(①구간 즉시 반영)은 키는 있되
+     * {@code null} 이다 — 학부모 앱 홈 "마감까지 N분" 이 이 값을 쓴다. 두 건을 값이 다르게 심어 한쪽 값을 상수로 돌려주는 구현을 가른다.
+     */
+    @Test
+    void 변경_신청_이력은_저장된_deadline_at_을_싣고_마감_없는_건은_null_이다() throws Exception {
+        long withDeadline = 신청(MOVING_RUN, "pending", "2030-04-01 09:10:00+09");
+        long withoutDeadline = 신청(RETURN_RUN, "approved", null);
+
+        String body = 읽는다("/api/v1/students/%d/change-requests".formatted(STUDENT_1));
+
+        List<String> deadlines = JsonPath.read(body,
+                "$.data.items[?(@.change_request_id == '" + withDeadline + "')].deadline_at");
+        assertThat(deadlines).hasSize(1);
+        assertThat(OffsetDateTime.parse(deadlines.get(0)).toInstant())
+                .isEqualTo(OffsetDateTime.parse("2030-04-01T09:10:00+09:00").toInstant());
+        List<String> none = JsonPath.read(body,
+                "$.data.items[?(@.change_request_id == '" + withoutDeadline + "')].deadline_at");
+        assertThat(none).hasSize(1).allMatch(Objects::isNull);
+    }
+
     // ── 항목 9: 학생 노선 stops[].arrived_at ─────────────────────────────────
 
     /**
@@ -142,8 +163,14 @@ class GuardianAppRedesignFieldsTest {
     }
 
     private void 신청(long runId, String status) {
-        jdbc.update("INSERT INTO change_request (academy_id, run_id, student_id, source, type, status, window_segment, "
-                + "requested_by, requested_at) VALUES (?, ?, ?, 'change_request', 'cancel', ?, 1, ?, now())",
-                ACADEMY_A, runId, STUDENT_1, status, SIBLINGS_GUARDIAN_ACCOUNT);
+        신청(runId, status, null);
+    }
+
+    /** 신청 한 건을 심고 id 를 돌려준다 — {@code deadlineAt} 이 {@code null} 이면 마감 없는 건이다. */
+    private long 신청(long runId, String status, String deadlineAt) {
+        return jdbc.queryForObject("INSERT INTO change_request (academy_id, run_id, student_id, source, type, status, "
+                + "window_segment, requested_by, requested_at, deadline_at) VALUES (?, ?, ?, 'change_request', 'cancel', "
+                + "?, 1, ?, now(), ?::timestamptz) RETURNING id", Long.class, ACADEMY_A, runId, STUDENT_1, status,
+                SIBLINGS_GUARDIAN_ACCOUNT, deadlineAt);
     }
 }

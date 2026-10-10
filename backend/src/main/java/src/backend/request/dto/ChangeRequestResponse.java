@@ -15,9 +15,11 @@ import src.backend.run.entity.Run;
  *
  * @param serviceDate 대상 회차의 운행일 — 이력에 "오늘 하원" 처럼 쓴다(Ruling 824)
  * @param direction   대상 회차의 방향 {@code to_academy} · {@code from_academy}(Ruling 824)
+ * @param deadlineAt  ②구간 승인 마감 — 저장값 그대로이고 ①구간 즉시 반영 건은 {@code null}(Ruling 870 · 앱 홈 카운트다운)
  */
 public record ChangeRequestResponse(Long changeRequestId, String type, String status, String rejectReason,
-        Long runId, OffsetDateTime requestedAt, OffsetDateTime decidedAt, LocalDate serviceDate, String direction) {
+        Long runId, OffsetDateTime requestedAt, OffsetDateTime decidedAt, LocalDate serviceDate, String direction,
+        OffsetDateTime deadlineAt) {
 
     /** 신청 한 건과 그 대상 회차를 §3.9 이력 항목으로 옮긴다 — 운행일·방향은 신청이 아니라 회차의 값이다. */
     public static ChangeRequestResponse from(ChangeRequest changeRequest, Run run) {
@@ -25,6 +27,6 @@ public record ChangeRequestResponse(Long changeRequestId, String type, String st
                 changeRequest.getType().name().toLowerCase(Locale.ROOT),
                 changeRequest.getStatus().name().toLowerCase(Locale.ROOT), changeRequest.getRejectReason(),
                 changeRequest.getRunId(), changeRequest.getRequestedAt(), changeRequest.getDecidedAt(),
-                run.getServiceDate(), run.getDirection().name().toLowerCase(Locale.ROOT));
+                run.getServiceDate(), run.getDirection().name().toLowerCase(Locale.ROOT), changeRequest.getDeadlineAt());
     }
 }
