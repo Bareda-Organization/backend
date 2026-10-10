@@ -33,9 +33,8 @@ import src.backend.notification.repository.NotificationSettingRepository;
  * 검증은 {@code RiderStatusUpdateRequest} 가 이미 쓰는 관례(자동 바인딩보다 서비스 계층 판정을
  * 우선)와도 같은 방향이다.
  *
- * <p>3개 키를 전부 요구하는(부분 갱신 불허) 이유는 API_SPEC §3.14 필드 표가 GET·PATCH 를 같은 표로
- * 묶고 3개 전부를 "필수" 로 적었기 때문이다 — {@code AcademySettingUpdateRequest} 의 단일 필드
- * 전체 교체와 같은 해석이다.
+ * <p><b>보낸 항목만 바꾼다(Ruling 869)</b> — API_SPEC §1.14 의 공통 규칙대로 빠진 키와 {@code null} 은 유지이고, 아무 키도
+ * 없는 요청은 바꿀 것이 없어 값 그대로 200 이다. 이전에는 세 항목 전부를 요구해 하나만 보내면 422 였다. 대상 밖 키만 422 로 막는다.
  */
 @Service
 @RequiredArgsConstructor
@@ -58,16 +57,11 @@ public class NotificationSettingCommandService {
         return NotificationSettingResponse.from(setting);
     }
 
-    /**
-     * 키 집합이 {@code arrive}·{@code boarding}·{@code no_show} 정확히 3개와 같은지 본다 —
-     * 대상 밖 키가 섞여 있거나(목표 9) 3개 중 하나라도 빠지면 같은 422 다. 값 자체가 {@code null}
-     * (JSON {@code "arrive": null})인 경우도 같이 걸러 {@code changeSettings} 의 오토언박싱
-     * {@code NullPointerException} 이 500 으로 새는 것을 막는다.
-     */
+    /** 대상 밖 키(예: 지연 알림 {@code delay})가 섞이면 422 — 세 항목은 일부만 보내도 된다. */
     private void validate(Map<String, Boolean> request) {
-        if (request == null || !ALLOWED_KEYS.equals(request.keySet()) || request.containsValue(null)) {
+        if (request == null || !ALLOWED_KEYS.containsAll(request.keySet())) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED,
-                    "arrive, boarding, no_show 세 항목만 boolean 값으로 전달해야 합니다");
+                    "arrive, boarding, no_show 항목만 boolean 값으로 전달할 수 있습니다");
         }
     }
 }

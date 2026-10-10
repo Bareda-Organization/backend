@@ -22,6 +22,7 @@ import src.backend.account.repository.AccountRepository;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
+import src.backend.notification.entity.NotificationSetting;
 import src.backend.notification.repository.NotificationSettingRepository;
 
 /**
@@ -156,19 +157,64 @@ class NotificationSettingControllerTest {
     }
 
     /**
-     * 목표 9 는 "대상 밖 항목을 전달하면 422" 이지 "누락하면 통과" 가 아니다 — 3개 필드 표가 전부
-     * 필수라서, 일부만 보내는 부분 갱신도 같은 오류로 거부해야 한다(판단 근거는
-     * {@code NotificationSettingCommandService} 자바독).
+     * Ruling 869 — 보낸 항목만 바꾸고 빠진 키는 그대로 둔다(API_SPEC §1.14). 이전에는 일부만 보내면 422 였다.
      */
     @Test
-    @DisplayName("목표9 — 3개 항목 중 일부만 PATCH 하면(부분 갱신) 422 VALIDATION_FAILED 이다")
-    void 항목이_누락된_PATCH_는_422_VALIDATION_FAILED_이다() throws Exception {
+    @DisplayName("Ruling 869 — 한 항목만 PATCH 하면 그 항목만 바뀌고 나머지는 그대로다")
+    void 한_항목만_PATCH_하면_나머지는_그대로다() throws Exception {
         long accountId = parentAccount();
+        String token = 토큰(accountId, Role.PARENT);
+        mockMvc.perform(patch(NOTIFICATION_SETTINGS).header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"arrive\":true,\"boarding\":false,\"no_show\":true}"))
+                .andExpect(status().isOk());
 
-        mockMvc.perform(patch(NOTIFICATION_SETTINGS).header("Authorization", 토큰(accountId, Role.PARENT))
+        mockMvc.perform(patch(NOTIFICATION_SETTINGS).header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"arrive\":false}"))
-                .andExpect(status().isUnprocessableContent())
-                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.arrive").value(false))
+                .andExpect(jsonPath("$.data.boarding").value(false))
+                .andExpect(jsonPath("$.data.no_show").value(true));
+
+        NotificationSetting saved = notificationSettingRepository.findById(accountId).orElseThrow();
+        assertThat(saved.isArrive()).isFalse();
+        assertThat(saved.isBoarding()).as("보내지 않은 항목은 직전 값(꺼짐)을 유지해야 한다").isFalse();
+        assertThat(saved.isNoShow()).isTrue();
+    }
+
+    /** 아무 키도 없는 요청은 바꿀 것이 없다 — §1.14 "보낸 필드만 고친다" 라 200 이고 값은 그대로다. */
+    @Test
+    @DisplayName("Ruling 869 — 아무 항목도 없는 PATCH 는 200 이고 값은 그대로다")
+    void 빈_본문_PATCH_는_200_이고_값은_그대로다() throws Exception {
+        long accountId = parentAccount();
+        String token = 토큰(accountId, Role.PARENT);
+        mockMvc.perform(patch(NOTIFICATION_SETTINGS).header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"arrive\":true,\"boarding\":false,\"no_show\":true}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(patch(NOTIFICATION_SETTINGS).header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.boarding").value(false));
+    }
+
+    /** §1.14 — 이 PATCH 는 {@code null} = 유지다(키가 없는 것과 같다). */
+    @Test
+    @DisplayName("Ruling 869 — null 로 보낸 항목은 유지된다")
+    void null_항목은_유지된다() throws Exception {
+        long accountId = parentAccount();
+        String token = 토큰(accountId, Role.PARENT);
+        mockMvc.perform(patch(NOTIFICATION_SETTINGS).header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"arrive\":true,\"boarding\":false,\"no_show\":true}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(patch(NOTIFICATION_SETTINGS).header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"boarding\":null,\"no_show\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.boarding").value(false))
+                .andExpect(jsonPath("$.data.no_show").value(false));
     }
 
     // ── 목표9 — 3개 항목만 정확히 보내면(대상 안) 200 이다 — 위 422 의 대응하는 양성 사례 ───

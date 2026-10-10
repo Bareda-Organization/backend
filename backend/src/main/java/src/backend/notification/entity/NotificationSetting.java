@@ -60,15 +60,22 @@ public class NotificationSetting {
     }
 
     /**
-     * 3종 토글을 한 번에 바꾼다(API_SPEC §3.14 PATCH, Phase 12 목표 7) — 부분 갱신이 아니라 전체
-     * 교체다. 대상 밖 필드·누락 필드의 판정(422)은 이 메서드가 아니라 호출부(서비스 계층)가
-     * {@code AcademySettingUpdateRequest} 와 같은 근거로 먼저 끝내고, 이 메서드는 이미 유효한
-     * 3개 값만 받는다.
+     * 보낸 토글만 바꾼다(API_SPEC §3.14 PATCH · §1.14 · Ruling 869) — {@code null} 은 유지다. 셋 다 {@code null} 이면
+     * 바꿀 것이 없어 갱신 시각도 건드리지 않는다. 대상 밖 키의 판정(422)은 호출부(서비스 계층)가 먼저 끝낸다.
      */
-    public void changeSettings(boolean arrive, boolean boarding, boolean noShow, OffsetDateTime updatedAt) {
-        this.arrive = arrive;
-        this.boarding = boarding;
-        this.noShow = noShow;
+    public void changeSettings(Boolean arrive, Boolean boarding, Boolean noShow, OffsetDateTime updatedAt) {
+        if (arrive == null && boarding == null && noShow == null) {
+            return;
+        }
+        if (arrive != null) {
+            this.arrive = arrive;
+        }
+        if (boarding != null) {
+            this.boarding = boarding;
+        }
+        if (noShow != null) {
+            this.noShow = noShow;
+        }
         this.updatedAt = updatedAt;
     }
 
