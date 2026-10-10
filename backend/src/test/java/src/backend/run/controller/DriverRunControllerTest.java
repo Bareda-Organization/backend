@@ -494,6 +494,70 @@ class DriverRunControllerTest {
     }
 
     /**
+     * 최종 지점 도착으로 회차가 {@code finished} 된 뒤의 상태를 만든다 — 등원 회차에서 stop1 → 학원 항목 순으로 도착시키고
+     * (stop2 는 도착하지 않은 채 남긴다), {@code {academyId, runId, driverAccountId, runStop1, runStop2, academyStop}} 을 돌려준다.
+     */
+    private long[] 최종_도착으로_종료된_등원_회차() throws Exception {
+        DriverRunFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
+        long stop2 = fixtures.stop(academyId, "37.561000", "126.971000");
+        OffsetDateTime departTime = now();
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
+        fixtures.startRun(runId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
+        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, now());
+        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, now());
+        long academyStop = fixtures.runStopForDestination(versionId, 3);
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop1 + "/arrive")
+                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))).andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + academyStop + "/arrive")
+                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.run_status").value("finished"));
+        entityManager.flush();
+        return new long[] { academyId, runId, driverAccountId, runStop1, runStop2, academyStop };
+    }
+
+    /**
+     * R51 최종 API 대조(API_SPEC §4.5 · Ruling 859) — 이미 처리된 도착의 재전송은 회차가 끝난 뒤에도 {@code 403 DUPLICATE_ARRIVE}
+     * 다. 회차를 끝내는 도착을 응답만 잃고 다시 보내거나 끝난 뒤 재생되는 앞 도착이 {@code 409 RUN_NOT_MOVING} 으로 돌아오면
+     * 앱이 짝(403 + DUPLICATE_ARRIVE)만 성공으로 흡수하므로 이미 처리된 도착이 "처리 안 됨" 으로 집계된다.
+     */
+    @Test
+    @DisplayName("R51 — 회차가 끝난 뒤 이미 처리된 도착(최종 도착 · 앞 도착)의 재전송은 403 DUPLICATE_ARRIVE 다")
+    void 종료된_회차에_이미_처리된_도착을_다시_보내면_DUPLICATE_ARRIVE_이다() throws Exception {
+        long[] s = 최종_도착으로_종료된_등원_회차();
+        long academyId = s[0];
+        long runId = s[1];
+        String driver = 토큰(s[2], academyId, Role.DRIVER);
+        OffsetDateTime finalArrivedAt = 도착시각_항목(s[5]);
+
+        for (long processedRunStop : new long[] { s[5], s[3] }) {
+            mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + processedRunStop + "/arrive")
+                    .header("Authorization", driver))
+                    .andExpect(status().isForbidden())
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error.code").value("DUPLICATE_ARRIVE"));
+        }
+        assertThat(도착시각_항목(s[5])).as("재전송은 기록을 바꾸지 않는다").isEqualTo(finalArrivedAt);
+    }
+
+    @Test
+    @DisplayName("R51 — 회차가 끝난 뒤 도착하지 않은 정차 항목에 보내면 그대로 409 RUN_NOT_MOVING 이다")
+    void 종료된_회차에_도착하지_않은_정차지를_보내면_RUN_NOT_MOVING_이다() throws Exception {
+        long[] s = 최종_도착으로_종료된_등원_회차();
+
+        mockMvc.perform(post("/api/v1/runs/" + s[1] + "/stops/" + s[4] + "/arrive")
+                .header("Authorization", 토큰(s[2], s[0], Role.DRIVER)))
+                .andExpect(status().isConflict())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error.code").value("RUN_NOT_MOVING"));
+        assertThat(도착시각_항목(s[4])).as("도착하지 않은 정차지는 기록이 생기지 않는다").isNull();
+    }
+
+    /**
      * R15-T3 후속(조율자 지적) — 등원 최종 지점(stop2, 마지막 승차지)에서 <b>그 지점에 배정된
      * 학생이</b> 도착 처리 시점에 이미 승차해 있으면, 그 정차지의 강제 출발 적용이
      * {@code alightAllBoarded} 보다 <b>먼저</b> 일어나야 한다 — 최종 지점은 다음 {@code arrive}
@@ -818,6 +882,11 @@ class DriverRunControllerTest {
         Boolean value = jdbcTemplate.queryForObject("SELECT finish_pending FROM run WHERE id = ?", Boolean.class,
                 runId);
         return value != null && value;
+    }
+
+    /** 정차 항목({@code run_stop.id}) 하나의 도착 시각 — 학원 항목처럼 {@code stop_id} 가 없는 항목도 읽는다. */
+    private OffsetDateTime 도착시각_항목(long runStopId) {
+        return jdbcTemplate.queryForObject("SELECT arrived_at FROM run_stop WHERE id = ?", OffsetDateTime.class, runStopId);
     }
 
     private OffsetDateTime 도착시각(long routeVersionId, long stopId) {

@@ -119,6 +119,11 @@ public class RunArrivalCommandService {
         // 하차({@link RunCompletionService} 도 같은 행을 잠근다)가 겹쳐도 한쪽이 끝난 뒤에 세고 판정한다.
         entityManager.refresh(run, LockModeType.PESSIMISTIC_WRITE);
         if (run.getStatus() != RunStatus.MOVING) {
+            // 이미 처리된 도착의 재전송은 회차가 끝난 뒤에도 DUPLICATE_ARRIVE 다(API_SPEC §4.5 · Ruling 859) — 앱은 이 짝만 성공으로
+            // 흡수하므로, 회차를 끝낸 도착이나 끝난 뒤 재생된 앞 도착이 RUN_NOT_MOVING 으로 돌아오면 처리된 도착이 "안 됨" 으로 센다.
+            if (isAlreadyArrived(runId, requester.academyId(), runStopId)) {
+                throw new BusinessException(ErrorCode.DUPLICATE_ARRIVE);
+            }
             throw new BusinessException(ErrorCode.RUN_NOT_MOVING);
         }
 
@@ -164,6 +169,15 @@ public class RunArrivalCommandService {
         }
 
         return RunArriveResponse.of(now, nextStop, isFinal, run, remaining, autoAlightedCount);
+    }
+
+    /** 이 회차의 확정 노선에서 그 정차 항목이 이미 도착 처리됐는가 — 확정 노선이 없거나 다른 회차의 항목이면 {@code false}. */
+    private boolean isAlreadyArrived(Long runId, Long academyId, Long runStopId) {
+        return confirmedRouteRepository.findById(runId)
+                .map(route -> runStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeq(
+                        route.getCurrentVersionId(), academyId))
+                .orElse(List.of()).stream()
+                .anyMatch(stop -> stop.getId().equals(runStopId) && stop.getArrivedAt() != null);
     }
 
     private Long currentVersionIdOf(Long runId) {
