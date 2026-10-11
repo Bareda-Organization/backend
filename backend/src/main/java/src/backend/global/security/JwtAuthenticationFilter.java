@@ -19,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import src.backend.global.error.BusinessException;
+import src.backend.global.error.DbResourceFailure;
 import src.backend.global.error.ErrorCode;
 
 /**
@@ -72,12 +73,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             SecurityContextHolder.clearContext();
             request.setAttribute(AUTH_FAILURE_ATTR, e.getErrorCode());
         } catch (CannotCreateTransactionException | DataAccessException e) {
-            // 계정 상태 조회가 DB 자원 오류(풀 연결 대기 초과·연결 끊김·쿼리 취소)로 실패했다 — 필터는 컨트롤러 어드바이스 바깥이라
-            // 잡지 않으면 규격 없는 500 이 된다. 모르는 상태를 통과시키지 않고(인증을 세우지 않음) 보호 자원이면 엔트리 포인트가
-            // 503 SERVER_BUSY 를 쓴다(API_SPEC §1.10·§1.11) — 로그는 GlobalExceptionHandler 와 같이 스택 없는 한 줄이다
-            log.warn("[db-unavailable] 인증 필터의 계정 상태 조회 실패 — {}: {}", e.getClass().getSimpleName(), e.getMessage());
+            // 계정 상태 조회가 DB 예외로 실패했다 — 필터는 컨트롤러 어드바이스 바깥이라 잡지 않으면 규격 없는 500 이 된다. 어느 쪽이든
+            // 모르는 상태를 통과시키지 않고(인증을 세우지 않음) 보호 자원이면 엔트리 포인트가 사유 코드로 §1.10 본문을 쓴다.
+            // 자원 오류(풀 연결 대기 초과·연결 끊김·쿼리 취소)만 503 SERVER_BUSY, SQL 문법 오류 같은 코드 결함은 500 INTERNAL_ERROR 다 —
+            // 둘을 가르는 목록은 GlobalExceptionHandler 와 같은 DbResourceFailure 한 곳이다(API_SPEC §1.10·§1.11)
             SecurityContextHolder.clearContext();
-            request.setAttribute(AUTH_FAILURE_ATTR, ErrorCode.SERVER_BUSY);
+            if (DbResourceFailure.isResourceUnavailable(e)) {
+                log.warn("[db-unavailable] 인증 필터의 계정 상태 조회 실패 — {}: {}", e.getClass().getSimpleName(), e.getMessage());
+                request.setAttribute(AUTH_FAILURE_ATTR, ErrorCode.SERVER_BUSY);
+            } else {
+                log.error("[unexpected] 인증 필터의 계정 상태 조회 실패 — {}", e.getMessage(), e);
+                request.setAttribute(AUTH_FAILURE_ATTR, ErrorCode.INTERNAL_ERROR);
+            }
         }
     }
 

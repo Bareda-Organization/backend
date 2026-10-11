@@ -1,13 +1,10 @@
 package src.backend.global.error;
 
-import java.sql.SQLException;
 import java.util.Locale;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.DataAccessResourceFailureException;
-import org.springframework.dao.PessimisticLockingFailureException;
-import org.springframework.dao.QueryTimeoutException;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -169,21 +166,17 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * DB 자원 오류를 {@code 503 SERVER_BUSY} + {@code Retry-After} 로 옮긴다(R46 S-7) — 연결 풀 고갈
-     * ({@link CannotCreateTransactionException}) · 연결 끊김({@link DataAccessResourceFailureException}) · 잠금 대기 초과
-     * ({@link PessimisticLockingFailureException}) · 쿼리 취소({@link QueryTimeoutException}).
+     * DB 자원 오류를 {@code 503 SERVER_BUSY} + {@code Retry-After} 로 옮긴다(R46 S-7) — 어느 예외가 자원 오류인지는
+     * {@link DbResourceFailure} 가 정한다(인증 필터도 같은 목록을 쓴다). 그 밖의 DB 예외는 코드 결함이라 {@link #handleUnexpected}
+     * 의 {@code 500} + 스택이다.
      *
      * <p>로그는 스택 없는 {@code warn} 한 줄이다 — 풀이 마른 동안은 요청마다 이 예외가 나므로 스택을 남기면 같은 스택이
      * 분당 수백 건 쌓여 정작 원인 추적이 어렵다. 이 예외들은 코드 결함이 아니라 자원 상태라 스택이 알려 주는 것이 없다.
-     *
-     * <p>단 잠금 예외 중 <b>교착 · 직렬화 실패</b>는 자원 상태가 아니라 잠금 순서가 어긋난 코드 결함이라 여기서 빼
-     * {@link #handleUnexpected} 로 보낸다(BR-352 — {@code 500} + 스택). 실제 PostgreSQL 에서는 교착도 잠금 대기 초과와
-     * 같은 {@code CannotAcquireLockException} 으로 나와 예외 클래스로는 가를 수 없고 SQLState 로 가른다.
+     * 교착 · 직렬화 실패는 잠금 순서가 어긋난 코드 결함이라 자원 오류에서 빠진다(BR-352 — {@link DbResourceFailure}).
      */
-    @ExceptionHandler({CannotCreateTransactionException.class, DataAccessResourceFailureException.class,
-            PessimisticLockingFailureException.class, QueryTimeoutException.class})
-    public ResponseEntity<ErrorResponse> handleDbResourceUnavailable(Exception e) {
-        if (isDeadlockOrSerializationFailure(e)) {
+    @ExceptionHandler({CannotCreateTransactionException.class, DataAccessException.class})
+    public ResponseEntity<ErrorResponse> handleDbException(Exception e) {
+        if (!DbResourceFailure.isResourceUnavailable(e)) {
             return handleUnexpected(e);
         }
         ErrorCode code = ErrorCode.SERVER_BUSY;
@@ -216,19 +209,6 @@ public class GlobalExceptionHandler {
         ErrorCode code = ErrorCode.METHOD_NOT_ALLOWED;
         log.warn("[routing] 지원하지 않는 메서드 {}", e.getMessage());
         return ResponseEntity.status(code.getStatus()).body(ErrorResponse.of(code.name(), code.getMessage()));
-    }
-
-    /**
-     * PostgreSQL 교착({@code 40P01}) · 직렬화 실패({@code 40001}) — 원인 사슬에 그 SQLState 가 있다. Spring 7 이 두 전용 예외
-     * ({@code DeadlockLoserDataAccessException} · {@code CannotSerializeTransactionException})를 폐기 예정으로 돌려 클래스로 가르지 않는다.
-     */
-    private static boolean isDeadlockOrSerializationFailure(Throwable e) {
-        for (Throwable cause = e; cause != null; cause = cause.getCause()) {
-            if (cause instanceof SQLException sql && ("40P01".equals(sql.getSQLState()) || "40001".equals(sql.getSQLState()))) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /** 자바 필드 경로({@code newStudent.name})를 요청 본문의 키 표기({@code new_student.name}, Ruling 104)로 옮긴다. */
