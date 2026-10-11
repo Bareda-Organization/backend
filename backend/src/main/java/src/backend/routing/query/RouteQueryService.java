@@ -47,6 +47,12 @@ public class RouteQueryService {
     /** 기본 정렬은 차량 — 편성 화면이 차량 단위로 묶어 보여 준다. */
     private static final Sort DEFAULT_SORT = Sort.by(Sort.Direction.ASC, "busId", "weekdayOrder", "direction");
 
+    /**
+     * 어떤 정렬에도 마지막으로 붙는 결정적 순서 — 같은 값의 행(요일·시각이 같은 스케줄 등)의 차례를
+     * DB 가 정하면 페이지를 넘길 때 같은 행이 두 번 나오거나 빠진다(Ruling 887 ⑦).
+     */
+    private static final Sort TIE_BREAKER = Sort.by(Sort.Direction.ASC, "id");
+
     private final RouteRepository routeRepository;
 
     private final BusRepository busRepository;
@@ -59,7 +65,7 @@ public class RouteQueryService {
     public PageResponse<RouteResponse> list(AuthUser requester, RouteListRequest request) {
         Page<Route> page = routeRepository.findAllByAcademyId(requester.academyId(),
                 PageParams.ofLarge(request.page(), request.size())
-                        .toPageable(SortParam.parse(request.sort(), SORTABLE_FIELDS, DEFAULT_SORT)));
+                        .toPageable(SortParam.parse(request.sort(), SORTABLE_FIELDS, DEFAULT_SORT).and(TIE_BREAKER)));
         Map<Long, String> busNos = busNosOf(requester, page.getContent());
         Map<Long, Integer> stopCounts = stopCountsOf(requester, page.getContent());
         List<RouteResponse> items = page.getContent().stream()

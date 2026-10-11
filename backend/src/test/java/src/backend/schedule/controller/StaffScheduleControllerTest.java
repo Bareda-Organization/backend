@@ -100,6 +100,26 @@ class StaffScheduleControllerTest {
         assertThat(descending).containsExactly("sun", "sat", "fri", "thu", "wed", "tue", "mon");
     }
 
+    /**
+     * Ruling 887 ⑦ — 요일·출발 시각이 같은 행(차량 둘이 같은 시각에 도는 계획)은 기본 정렬에서도
+     * {@code sort} 를 줘도 id 오름차순이다. 첫 행을 갱신해 물리 저장 순서를 뒤집어 둔다 — 보조 키가 없으면
+     * DB 가 저장 순서대로 내서 id 순과 어긋난다.
+     */
+    @Test
+    void 요일과_출발_시각이_같은_스케줄은_id_순으로_나온다() throws Exception {
+        long first = 등록된_스케줄_id(관계자A_토큰(), BUS_A_ID, "thu", "to_academy", FREE_TIME);
+        long second = 등록된_스케줄_id(관계자A_토큰(), 2L, "thu", "to_academy", FREE_TIME);
+        entityManager.flush();
+        jdbcTemplate.update("UPDATE schedule SET origin_name = origin_name WHERE id = ?", first);
+        String filter = "$.data.items[?(@.depart_time == '%s' && @.weekday == 'thu')].id".formatted(FREE_TIME);
+
+        List<Long> byDefault = ids(JsonPath.read(목록_본문(관계자A_토큰()), filter));
+        List<Long> byWeekday = ids(JsonPath.read(목록_본문(관계자A_토큰(), "&sort=weekday:asc"), filter));
+
+        assertThat(byDefault).as("기본 정렬 — 같은 요일·시각이면 id 순").containsExactly(first, second);
+        assertThat(byWeekday).as("sort=weekday:asc 도 마지막에 id 가 붙는다").containsExactly(first, second);
+    }
+
     // ── SCH-01 등록 ───────────────────────────────────────────────────────
 
     /**
@@ -373,6 +393,11 @@ class StaffScheduleControllerTest {
 
     private ResultActions 삭제한다(String token, long scheduleId) throws Exception {
         return mockMvc.perform(delete("/api/v1/staff/schedules/" + scheduleId).header("Authorization", token));
+    }
+
+    /** 응답의 id 는 문자열로 온다 — 순서를 숫자로 비교한다(문자열 비교는 "128" 이 "99" 보다 앞선다). */
+    private static List<Long> ids(List<String> raw) {
+        return raw.stream().map(Long::parseLong).toList();
     }
 
     private String 목록_본문(String token) throws Exception {

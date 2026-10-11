@@ -416,6 +416,25 @@ class StaffRouteControllerTest {
     }
 
     /**
+     * Ruling 887 ⑦ — 요일이 같은 노선(차량 둘이 같은 요일에 도는 편성)은 {@code sort=weekday:asc} 에서도
+     * id 오름차순이다. 기본 정렬은 차량이 먼저라 같은 값이 안 생긴다. 첫 행을 갱신해 저장 순서를 뒤집어 둔다.
+     */
+    @Test
+    void 요일이_같은_노선은_sort_를_줘도_id_순으로_나온다() throws Exception {
+        이름을_주어_편성한다("TIE-A", 1L, "wed", "from_academy");
+        이름을_주어_편성한다("TIE-B", 2L, "wed", "from_academy");
+        entityManager.flush();
+        long first = jdbcTemplate.queryForObject("SELECT id FROM route WHERE name = 'TIE-A'", Long.class);
+        jdbcTemplate.update("UPDATE route SET name = name WHERE id = ?", first);
+
+        List<String> raw = JsonPath.read(목록_본문(관계자A_토큰(), "size=100&sort=weekday:asc"),
+                "$.data.items[?(@.name == 'TIE-A' || @.name == 'TIE-B')].id");
+        List<Long> ids = raw.stream().map(Long::parseLong).toList();
+
+        assertThat(ids).as("TIE-A 는 먼저 만든 행이라 id 가 작다").hasSize(2).isSorted();
+    }
+
+    /**
      * {@code sort} 는 허용 목록({@code RouteQueryService.SORTABLE_FIELDS})에 있는 필드만 받고, 그
      * 차례로 돌려준다(§1.8 {@code {필드}:{asc|desc}}).
      *

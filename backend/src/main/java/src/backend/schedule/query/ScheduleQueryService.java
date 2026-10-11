@@ -40,6 +40,12 @@ public class ScheduleQueryService {
     /** 운행 계획은 요일(월~일)·시각 순으로 읽는 것이 기본이다 — 화면이 시간표 형태이기 때문이다. */
     private static final Sort DEFAULT_SORT = Sort.by(Sort.Direction.ASC, "weekdayOrder", "departTime");
 
+    /**
+     * 어떤 정렬에도 마지막으로 붙는 결정적 순서 — 같은 값의 행(요일·시각이 같은 스케줄 등)의 차례를
+     * DB 가 정하면 페이지를 넘길 때 같은 행이 두 번 나오거나 빠진다(Ruling 887 ⑦).
+     */
+    private static final Sort TIE_BREAKER = Sort.by(Sort.Direction.ASC, "id");
+
     private final ScheduleRepository scheduleRepository;
 
     private final BusRepository busRepository;
@@ -50,7 +56,7 @@ public class ScheduleQueryService {
     public PageResponse<ScheduleResponse> list(AuthUser requester, ScheduleListRequest request) {
         Page<Schedule> page = scheduleRepository.findAllByAcademyId(requester.academyId(),
                 PageParams.ofLarge(request.page(), request.size())
-                        .toPageable(SortParam.parse(request.sort(), SORTABLE_FIELDS, DEFAULT_SORT)));
+                        .toPageable(SortParam.parse(request.sort(), SORTABLE_FIELDS, DEFAULT_SORT).and(TIE_BREAKER)));
         Map<Long, String> busNos = busNosOf(requester, page.getContent());
         Map<Long, Integer> routeStopCounts = routeStopCounter.countsOf(requester.academyId(), page.getContent());
         List<ScheduleResponse> items = page.getContent().stream()
