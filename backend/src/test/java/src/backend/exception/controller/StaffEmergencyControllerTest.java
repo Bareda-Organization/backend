@@ -196,7 +196,7 @@ class StaffEmergencyControllerTest {
     }
 
     @Test
-    void 메인관리자도_같은_경로로_확인할_수_있다() throws Exception {
+    void 메인관리자는_비상_신고를_확인할_수_없다_403_이다() throws Exception {
         EmergencyFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
@@ -208,9 +208,35 @@ class StaffEmergencyControllerTest {
 
         mockMvc.perform(post(ACK.formatted(emergencyId))
                         .header("Authorization", 메인관리자_토큰(adminAccountId)))
+                .andExpect(status().isForbidden());
+
+        assertThat(확인시각(emergencyId)).as("Ruling 884 — 메인 관리자는 열람만 하고 확인은 학원 관계자만 한다").isNull();
+    }
+
+    /** Ruling 885 ① — 발신자가 철회한 신고를 확인하면 발신자에게 "학원이 확인했습니다" 가 가므로 막는다. 정상 건은 그대로 통과한다. */
+    @Test
+    void 취소된_신고의_확인은_409_EMERGENCY_CANCELED_이고_취소되지_않은_신고는_확인된다() throws Exception {
+        EmergencyFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사",
+                OffsetDateTime.now());
+        long staffAccountId = fixtures.staffAccount(academyId, "직원");
+        long canceled = 신고를_발신한다(runId, driverAccountId, academyId);
+        long normal = 신고를_발신한다(runId, driverAccountId, academyId);
+        취소시각을_옮긴다(canceled, OffsetDateTime.now());
+
+        mockMvc.perform(post(ACK.formatted(canceled))
+                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("EMERGENCY_CANCELED"));
+        mockMvc.perform(post(ACK.formatted(normal))
+                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk());
 
-        assertThat(확인자(emergencyId)).isEqualTo(adminAccountId);
+        assertThat(확인시각(canceled)).as("취소된 신고는 확인 이력이 남지 않는다").isNull();
+        assertThat(확인시각(normal)).isNotNull();
     }
 
     @Test
@@ -221,10 +247,7 @@ class StaffEmergencyControllerTest {
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
         long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사",
                 OffsetDateTime.now());
-        // 학원당 활성 관계자는 1명 정원(uk_academy_staff_academy_active, Ruling 139)이라 같은 학원에
-        // 직원을 2명 만들 수 없다 — 두 번째 확인 시도자는 메인관리자로 둔다(교차 역할로도 거절되는지 함께 본다).
         long staffAccountId = fixtures.staffAccount(academyId, "직원");
-        long adminAccountId = fixtures.systemAdminAccount("메인관리자");
         long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
 
         mockMvc.perform(post(ACK.formatted(emergencyId))
@@ -232,7 +255,7 @@ class StaffEmergencyControllerTest {
                 .andExpect(status().isOk());
 
         mockMvc.perform(post(ACK.formatted(emergencyId))
-                        .header("Authorization", 메인관리자_토큰(adminAccountId)))
+                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("ALREADY_ACKED"));
 
@@ -281,7 +304,6 @@ class StaffEmergencyControllerTest {
         long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사",
                 OffsetDateTime.now());
         long staffAccountId = fixtures.staffAccount(academyId, "직원");
-        long adminAccountId = fixtures.systemAdminAccount("메인관리자");
         long withoutBody = 신고를_발신한다(runId, driverAccountId, academyId);
         long blankMemo = 신고를_발신한다(runId, driverAccountId, academyId);
 
@@ -289,7 +311,7 @@ class StaffEmergencyControllerTest {
                         .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk());
         mockMvc.perform(post(ACK.formatted(blankMemo))
-                        .header("Authorization", 메인관리자_토큰(adminAccountId))
+                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"memo\":\"   \"}"))
                 .andExpect(status().isOk());

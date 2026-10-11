@@ -109,7 +109,6 @@ public final class RolePermissions {
                     Permissions.STUDENT_READ_SENSITIVE,
                     Permissions.STUDENT_READ_PHOTO,
                     Permissions.ROSTER_READ,
-                    Permissions.EMERGENCY_ACK,
                     Permissions.ROUTE_READ,
                     Permissions.MONITOR_ALL,
                     Permissions.DEVICE_REGISTER,
