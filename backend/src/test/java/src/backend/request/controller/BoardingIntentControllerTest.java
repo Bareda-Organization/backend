@@ -782,6 +782,75 @@ class BoardingIntentControllerTest {
     }
 
     /**
+     * Ruling 885② — 의사가 이미 꺼진 학생의 ③구간 {@code riding=false} 재전송은 탑승자 행이 있든 없든 무변경 성공이다. 행 없이 의사만 꺼진 학생
+     * (확정 뒤 명단에서 빠진 학생)의 재전송이 {@code IntentChangedEvent} 를 다시 내면 관계자 알림이 그 횟수만큼 간다.
+     */
+    @Test
+    @DisplayName("Ruling 885② — 마감구간에서 탑승자 행 없이 의사만 꺼진 학생의 재전송은 이벤트 없이 무변경 200 이다")
+    void 마감구간에서_탑승자_행_없이_의사만_꺼진_학생의_재전송은_이벤트_없이_무변경_성공이다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long studentId = fixtures().student(academyId, "행없는학생");
+        BoardingIntentFixtures.GuardianAccount guardian = fixtures().guardian(academyId, "행없는보호자");
+        fixtures().linkChild(guardian.guardianId(), studentId, now.minusDays(1));
+        long runId = fixtures().run(academyId, busId, now.minusMinutes(15), now.minusMinutes(45));
+        long stopId = fixtures().stop(academyId, "37.563000", "126.973000");
+        fixtures().enrol(academyId, busId, studentId, stopId);
+        fixtures().confirmedSingleRiderStop(runId, studentId, stopId, now.minusHours(1));
+        String 토큰 = 토큰(guardian.accountId(), academyId, Role.PARENT);
+        String off = "{\"riding\":false}";
+        mockMvc.perform(patch(INTENT.formatted(studentId, runId)).header("Authorization", 토큰)
+                        .contentType(MediaType.APPLICATION_JSON).content(off))
+                .andExpect(status().isOk());
+        entityManager.flush();
+        jdbcTemplate.update("DELETE FROM rider_status_history WHERE run_rider_id IN "
+                + "(SELECT id FROM run_rider WHERE run_id = ? AND student_id = ?)", runId, studentId);
+        jdbcTemplate.update("DELETE FROM run_rider WHERE run_id = ? AND student_id = ?", runId, studentId);
+        entityManager.clear();
+        long eventsBefore = applicationEvents.stream(IntentChangedEvent.class).count();
+
+        mockMvc.perform(patch(INTENT.formatted(studentId, runId)).header("Authorization", 토큰)
+                        .contentType(MediaType.APPLICATION_JSON).content(off))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.result").value("applied_no_reroute"))
+                .andExpect(jsonPath("$.data.riding").value(false))
+                .andExpect(jsonPath("$.data.rider_status").value("absent"));
+
+        assertThat(applicationEvents.stream(IntentChangedEvent.class).count())
+                .as("값이 같은 재전송은 관계자 알림의 재료(IntentChangedEvent)를 다시 내지 않는다").isEqualTo(eventsBefore);
+    }
+
+    /** Ruling 885② 의 경계 — 탑승자가 {@code absent} 여도 탑승 의사가 켜져 있으면 무변경이 아니다(③구간 판정을 그대로 탄다: waiting 이 아니므로 403). */
+    @Test
+    @DisplayName("Ruling 885② — 마감구간에서 탑승자가 absent 이지만 의사가 켜져 있으면 무변경 성공이 아니라 403 이고 의사는 그대로다")
+    void 마감구간에서_탑승자가_absent_이지만_의사가_켜져_있으면_무변경이_아니다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long studentId = fixtures().student(academyId, "의사켜진학생");
+        BoardingIntentFixtures.GuardianAccount guardian = fixtures().guardian(academyId, "의사켜진보호자");
+        fixtures().linkChild(guardian.guardianId(), studentId, now.minusDays(1));
+        long runId = fixtures().run(academyId, busId, now.minusMinutes(15), now.minusMinutes(45));
+        long stopId = fixtures().stop(academyId, "37.564000", "126.974000");
+        fixtures().enrol(academyId, busId, studentId, stopId);
+        fixtures().confirmedSingleRiderStop(runId, studentId, stopId, now.minusHours(1));
+        entityManager.flush();
+        jdbcTemplate.update("UPDATE run_rider SET status = 'absent' WHERE run_id = ? AND student_id = ?", runId,
+                studentId);
+        entityManager.clear();
+        long eventsBefore = applicationEvents.stream(IntentChangedEvent.class).count();
+
+        mockMvc.perform(patch(INTENT.formatted(studentId, runId))
+                        .header("Authorization", 토큰(guardian.accountId(), academyId, Role.PARENT))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"riding\":false}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("CHANGE_WINDOW_CLOSED"));
+
+        assertThat(applicationEvents.stream(IntentChangedEvent.class).count()).isEqualTo(eventsBefore);
+    }
+
+    /**
      * BR-068 · Ruling 334 — ③구간 미등원은 기사·동승자에게 전달된다: WS {@code rider_changed}(기존
      * {@link RiderStatusChangedEvent} 방송 경로)와 기존 {@code route_changed} 알림.
      */
