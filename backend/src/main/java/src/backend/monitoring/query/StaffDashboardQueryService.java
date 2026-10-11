@@ -183,7 +183,7 @@ public class StaffDashboardQueryService {
             Map<Long, List<StaffRunRiderAggregateView>> riderAggByRun) {
         int movingBuses = (int) runs.stream().filter(run -> run.getStatus() == RunStatus.MOVING).count();
         List<StaffRunRiderAggregateView> allAgg = riderAggByRun.values().stream().flatMap(List::stream).toList();
-        int boarded = sumByStatus(allAgg, RiderStatus.BOARDED);
+        int boarded = boardedSoFar(allAgg);
         int noShow = sumByStatus(allAgg, RiderStatus.NO_SHOW);
         int absent = sumByStatus(allAgg, RiderStatus.ABSENT);
         int unassignedManagers = (int) managerRepository
@@ -194,7 +194,7 @@ public class StaffDashboardQueryService {
     /** 회차 하나를 응답 한 행으로 접는다 — 재료는 {@link RunLookups} 에 회차 수와 무관하게 미리 모아 둔 조회 결과다(BR-101). */
     private StaffDashboardResponse.Run toRunResponse(Run run, RunLookups lookups) {
         List<StaffRunRiderAggregateView> agg = lookups.riderAggByRun().getOrDefault(run.getId(), List.of());
-        int boardedCount = sumByStatus(agg, RiderStatus.BOARDED);
+        int boardedCount = boardedSoFar(agg);
         int totalCount = (int) agg.stream().mapToLong(StaffRunRiderAggregateView::count).sum();
         int addedCount = sumByChange(agg, ChangeType.ADDED);
         int removedCount = sumByChange(agg, ChangeType.REMOVED);
@@ -242,6 +242,11 @@ public class StaffDashboardQueryService {
     private int sumByStatus(List<StaffRunRiderAggregateView> agg, RiderStatus status) {
         return (int) agg.stream().filter(view -> view.status() == status).mapToLong(StaffRunRiderAggregateView::count)
                 .sum();
+    }
+
+    /** 탑승 완료 누계(Ruling 879) — 지금 타고 있는 학생({@code boarded})과 이미 내린 학생({@code alighted})을 함께 센다. */
+    private int boardedSoFar(List<StaffRunRiderAggregateView> agg) {
+        return sumByStatus(agg, RiderStatus.BOARDED) + sumByStatus(agg, RiderStatus.ALIGHTED);
     }
 
     private int sumByChange(List<StaffRunRiderAggregateView> agg, ChangeType change) {

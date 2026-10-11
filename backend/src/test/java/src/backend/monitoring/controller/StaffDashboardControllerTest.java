@@ -382,6 +382,34 @@ class StaffDashboardControllerTest {
         assertThat(회차_값(dashboard, runB, "absent_count")).isEqualTo(0);
     }
 
+    /**
+     * Ruling 879 — {@code boarded_count} · {@code metrics.boarded} 는 지금 타고 있는 학생이 아니라 탑승 완료 누계({@code boarded} +
+     * {@code alighted})다. 이미 내린 학생이 빠지면 웹이 계산하는 대기(전체 − 탑승 − 미승차 − 미등원)에 섞여 들어간다. 미승차·미등원·대기는 들어가지 않는다.
+     */
+    @Test
+    @DisplayName("Ruling 879 — boarded_count 와 metrics.boarded 는 boarded + alighted 이고 미승차·대기는 세지 않는다")
+    void 탑승_완료_인원은_승차와_하차를_합친다() throws Exception {
+        DriverRunFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.500000", "127.000000");
+        OffsetDateTime depart = now().plusHours(1);
+        long run = fx.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, depart, depart.minusMinutes(30));
+        fx.rider(run, fx.student(academyId, "C1"), stopId, src.backend.boarding.entity.RiderStatus.BOARDED, now());
+        fx.rider(run, fx.student(academyId, "C2"), stopId, src.backend.boarding.entity.RiderStatus.ALIGHTED, now());
+        fx.rider(run, fx.student(academyId, "C3"), stopId, src.backend.boarding.entity.RiderStatus.ALIGHTED, now());
+        fx.rider(run, fx.student(academyId, "C4"), stopId, src.backend.boarding.entity.RiderStatus.NO_SHOW, now());
+        fx.rider(run, fx.student(academyId, "C5"), stopId, src.backend.boarding.entity.RiderStatus.WAITING, now());
+        long staffAccountId = fx.staffAccount(academyId, "관계자1");
+
+        var dashboard = 대시보드(staffAccountId, academyId);
+
+        assertThat(회차_값(dashboard, run, "boarded_count")).isEqualTo(3);
+        assertThat(회차_값(dashboard, run, "total_count")).isEqualTo(5);
+        assertThat((Object) dashboard.read("$.data.metrics.boarded")).isEqualTo(3);
+        assertThat(회차_값(dashboard, run, "no_show_count")).isEqualTo(1);
+    }
+
     /** 매니저 전화는 관계자 웹이 원문으로 보는 값이고(마스킹 대상 밖), 배치 전이면 {@code null} 이다. */
     @Test
     @DisplayName("Ruling 810 — driver_phone·escort_phone 은 원문이고 배치 전이면 null")

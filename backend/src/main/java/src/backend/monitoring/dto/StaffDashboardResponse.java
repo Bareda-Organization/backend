@@ -17,7 +17,7 @@ public record StaffDashboardResponse(Metrics metrics, List<Run> runs) {
      * @param movingBuses 운행 중({@code status=moving}) 회차 수 — 차량이 아니라 회차 기준이다.
      *                    한 차량이 하루에 등원·하원 두 회차를 뛰어도 동시에 {@code moving} 인 회차는
      *                    하나뿐이라 이중 집계가 나지 않는다
-     * @param boarded 금일 전 회차의 승차 완료({@code status=boarded}) 인원 합
+     * @param boarded 금일 전 회차의 탑승 완료 누계({@code boarded} + {@code alighted}, Ruling 879) 인원 합
      * @param noShow 금일 전 회차의 미승차({@code status=no_show}) 인원 합(MON-04)
      * @param absent 금일 전 회차의 미등원({@code status=absent}) 인원 합(MON-06)
      * @param unassignedManagers 오늘 어느 회차에도 배치되지 않은 재직 매니저 수(Ruling 233 — 정본이
@@ -27,7 +27,7 @@ public record StaffDashboardResponse(Metrics metrics, List<Run> runs) {
     }
 
     /**
-     * @param boardedCount 이 회차의 승차 완료 인원(집합은 {@link #totalCount} 와 같은 명단)
+     * @param boardedCount 이 회차의 탑승 완료 누계({@code boarded} + {@code alighted}, Ruling 879) 인원(집합은 {@link #totalCount} 와 같은 명단)
      * @param totalCount 이 회차 명단 전체 인원 — {@code change=removed} 로 표시된 행도 포함한다
      *                   (§5.4 {@code guardian_phone} 자바독과 같은 원칙: 제외는 표시이지 삭제가
      *                   아니다). Ruling 233 이 정본 침묵 필드로 지목한 값 중 하나 — 근거는 서비스
