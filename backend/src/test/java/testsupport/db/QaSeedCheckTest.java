@@ -130,6 +130,26 @@ class QaSeedCheckTest extends MigratedPostgresTestBase {
         }
     }
 
+    /** 시드가 런타임이 만들지 않는 이력·팝업 값을 심지 않는다(R53 t2 A3·A4) — 화면·알림이 실제와 다른 모양을 보이지 않게. */
+    @Test
+    void 이력과_팝업_값이_런타임이_만드는_모양이다() throws Exception {
+        try (Connection connection = connection()) {
+            assertThat(count(connection, "SELECT count(*) FROM run_rider WHERE status = 'absent'"))
+                    .as("미등원 탑승자가 있다").isPositive();
+            assertThat(count(connection, """
+                    SELECT count(*) FROM rider_status_history h JOIN run_rider r ON r.id = h.run_rider_id
+                    WHERE r.status = 'absent' AND h.to_status = 'absent'""")).as("확정 전 미탑승 신청은 이력을 남기지 않는다").isZero();
+            assertThat(count(connection, """
+                    SELECT count(*) FROM rider_status_history h
+                    JOIN run_rider r ON r.id = h.run_rider_id JOIN run u ON u.id = r.run_id
+                    WHERE u.direction = 'from_academy' AND h.to_status = 'boarded' AND h.actor_type = 'escort'"""))
+                    .as("하원 승차는 시스템 자동뿐이다").isZero();
+            assertThat(count(connection, """
+                    SELECT count(*) FROM notification_log
+                    WHERE popup <> (type IN ('emergency', 'emergency_canceled'))""")).as("팝업은 비상 2종만 true").isZero();
+        }
+    }
+
     private static long count(Connection connection, String sql) throws SQLException {
         try (Statement statement = connection.createStatement(); ResultSet rows = statement.executeQuery(sql)) {
             rows.next();

@@ -30,6 +30,9 @@ public final class PolicyConstants {
     /** 근접 알림 기준(m) — 버스가 다음 승하차지에 이 거리 이내로 들어오면 알린다(NTF-04 · Ruling 207). */
     public static final int PROXIMITY_ALERT_METERS = 300;
 
+    /** 출발 판정 기준(m) — 도착 처리된 승하차지에서 버스가 이 거리 밖으로 벗어나면 출발로 본다(Ruling 307 · 875). */
+    public static final int DEPARTURE_DETECTION_METERS = 100;
+
     private PolicyConstants() {
     }
 }

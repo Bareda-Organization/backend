@@ -53,7 +53,7 @@ BEGIN
                                   bus_no, run_id, type, title, body, popup, push_state, push_attempts, last_attempt_at,
                                   dedup_key, created_at, sent_at, read_at)
     SELECT COALESCE(r.academy_id, a.academy_id), a.id, a.name, p_role, s.id, s.name, b.bus_no, p_run, p_type, p_title, p_body,
-           p_type IN ('emergency', 'no_show_escalated'),
+           p_type IN ('emergency', 'emergency_canceled'),
            CASE WHEN v_has_token THEN 'sent' ELSE 'skipped' END,
            CASE WHEN v_has_token THEN 1 ELSE 0 END,
            CASE WHEN v_has_token THEN p_at + interval '1 second' END,
@@ -269,7 +269,7 @@ BEGIN
         v_h := pg_temp.qa_h(v_run || '-' || r.sid);
         v_eta := CASE WHEN p_dir = 'to_academy' THEN p_depart + v_step * (r.seq - 1) ELSE p_depart + v_step * r.seq END;
         v_passed := p_state = 'finished' OR (p_state = 'moving' AND r.seq <= p_progress);
-        v_board_at := CASE WHEN p_dir = 'to_academy' THEN v_eta + interval '20 seconds' ELSE v_started - interval '1 minute' END;
+        v_board_at := CASE WHEN p_dir = 'to_academy' THEN v_eta + interval '20 seconds' ELSE v_started END;
         v_alight_at := CASE WHEN p_dir = 'to_academy' THEN v_finished - interval '50 seconds' ELSE v_eta + interval '30 seconds' END;
         v_status := CASE
             WHEN v_h < 4 THEN 'absent'
@@ -286,8 +286,7 @@ BEGIN
         RETURNING id INTO v_rider;
 
         IF v_status = 'absent' THEN
-            INSERT INTO rider_status_history (run_rider_id, from_status, to_status, reason, changed_at, actor_type)
-            VALUES (v_rider, NULL, 'absent', '확정 전 미탑승 신청', v_confirmed, 'system');
+            -- 확정 전 미탑승 신청은 확정 배치가 명단에서 제외할 뿐 상태 이력을 남기지 않는다(ARCHITECTURE §9.6) — 이력 행 부재.
             CONTINUE;
         END IF;
         -- 출발 알림(보호자 · 학생 계정)
@@ -333,14 +332,22 @@ BEGIN
                     format('no_show_staff:%s:%s:%s', v_rider, v_staff, v_eta));
             CONTINUE;
         END IF;
-        -- 승차
-        INSERT INTO rider_status_history (run_rider_id, from_status, to_status, verify_method, client_key, occurred_at, changed_at,
-                                          actor_type, changed_by)
-        VALUES (v_rider, 'waiting', 'boarded', CASE WHEN v_h % 3 = 0 THEN 'photo' ELSE 'manual' END, gen_random_uuid(),
-                v_board_at, v_board_at, 'escort', v_escort_acc);
+        -- 승차 — 등원은 동승자가 승하차지에서 기록하고 출발 때 알림이 나간다. 하원은 운행 시작 때 서버가 전원 자동 승차시킨다
+        -- (이력은 system · 검증 수단·client_key 부재 · 알림은 auto_boarded 키 — 하원 승차를 동승자가 하는 경로는 없다).
+        IF p_dir = 'to_academy' THEN
+            INSERT INTO rider_status_history (run_rider_id, from_status, to_status, verify_method, client_key, occurred_at, changed_at,
+                                              actor_type, changed_by)
+            VALUES (v_rider, 'waiting', 'boarded', CASE WHEN v_h % 3 = 0 THEN 'photo' ELSE 'manual' END, gen_random_uuid(),
+                    v_board_at, v_board_at, 'escort', v_escort_acc);
+        ELSE
+            INSERT INTO rider_status_history (run_rider_id, from_status, to_status, changed_at, actor_type)
+            VALUES (v_rider, 'waiting', 'boarded', v_board_at, 'system');
+        END IF;
         FOR g IN SELECT * FROM pg_temp.qa_guardians(r.sid) LOOP
             PERFORM pg_temp.qa_notify(g, 'parent', r.sid, v_run, 'boarding', '승하차 안내',
-                    format('%s 학생이 버스에 탑승했습니다.', r.sname), v_board_at, format('stop_departed:%s:%s:boarded', v_rider, g));
+                    format('%s 학생이 버스에 탑승했습니다.', r.sname), v_board_at,
+                    CASE WHEN p_dir = 'to_academy' THEN format('stop_departed:%s:%s:boarded', v_rider, g)
+                         ELSE format('auto_boarded:%s:guardian:%s:%s', v_run, g, r.sid) END);
         END LOOP;
         IF v_status <> 'alighted' THEN
             CONTINUE;
