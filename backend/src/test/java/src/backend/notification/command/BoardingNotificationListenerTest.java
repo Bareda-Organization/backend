@@ -127,6 +127,44 @@ class BoardingNotificationListenerTest {
         assertThat(draft.body()).isEqualTo("김영희 학생의 하차가 확인되지 않았습니다. 학원에 확인해 주세요.");
     }
 
+    /** Ruling 881 — 출발 때 묶음 발송 경로의 하원 미승차도 하원 문구다(출발 뒤 기록 경로만 검사하면 이 경로의 방향 읽기가 빠져도 통과한다). */
+    @Test
+    void 출발_묶음_경로의_하원_미승차는_하차_미확인_문구다() {
+        long otherStopId = 21L;
+        RunRider noShow = RunRider.uponConfirmation(RUN_ID, 104L, otherStopId);
+        noShow.markNoShow(DEPARTED_AT);
+        ReflectionTestUtils.setField(noShow, "id", 4L);
+        given(runRiderRepository.findFinalizedByRunIdAndStopId(RUN_ID, otherStopId)).willReturn(List.of(noShow));
+        givenRunDirection(Direction.FROM_ACADEMY);
+        List<GuardianAccountRecipient> guardians = List.of(guardian(104L, 15L, "하원엄마", "최하원"));
+        given(guardianStudentRepository.findActiveGuardianAccountsByStudentIds(eq(ACADEMY_ID), eq(List.of(104L))))
+                .willReturn(guardians);
+
+        listener.appendStopDeparted(new StopDepartedEvent(RUN_ID, ACADEMY_ID, otherStopId, DEPARTED_AT));
+
+        NotificationDraft draft = capturedDrafts().get(0);
+        assertThat(draft.type()).isEqualTo(NotificationType.NO_SHOW);
+        assertThat(draft.body()).isEqualTo("최하원 학생의 하차가 확인되지 않았습니다. 학원에 확인해 주세요.");
+    }
+
+    /** 중복 방지 키는 보호자마다 다르다 — 같은 학생의 보호자 2명이 같은 키를 쓰면 둘째 보호자의 알림이 중복으로 버려진다. */
+    @Test
+    void 출발_뒤_기록의_중복_방지_키는_보호자마다_다르다() {
+        List<GuardianAccountRecipient> guardians = List.of(guardian(101L, 11L, "영희엄마", "김영희"),
+                guardian(101L, 12L, "영희아빠", "김영희"));
+        given(guardianStudentRepository.findActiveGuardianAccountsByStudentIds(eq(ACADEMY_ID), eq(List.of(101L))))
+                .willReturn(guardians);
+
+        listener.appendRecordedAfterDeparture(new RiderRecordedAfterDepartureEvent(RUN_ID, ACADEMY_ID,
+                Direction.TO_ACADEMY, 101L, 1L, RiderStatus.BOARDED, DEPARTED_AT));
+
+        List<NotificationDraft> drafts = capturedDrafts();
+        assertThat(drafts).extracting(NotificationDraft::dedupKey).hasSize(2).doesNotHaveDuplicates();
+        assertThat(drafts).extracting(NotificationDraft::dedupKey)
+                .containsExactlyInAnyOrder("recorded_after_departure:1:11:" + DEPARTED_AT,
+                        "recorded_after_departure:1:12:" + DEPARTED_AT);
+    }
+
     @SuppressWarnings("unchecked")
     private List<NotificationDraft> capturedDrafts() {
         ArgumentCaptor<List<NotificationDraft>> drafts = ArgumentCaptor
