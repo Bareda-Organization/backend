@@ -352,14 +352,25 @@ BEGIN
         IF v_status <> 'alighted' THEN
             CONTINUE;
         END IF;
-        -- 하차
-        INSERT INTO rider_status_history (run_rider_id, from_status, to_status, verify_method, client_key, occurred_at, changed_at,
-                                          actor_type, changed_by)
-        VALUES (v_rider, 'boarded', 'alighted', 'manual', gen_random_uuid(), v_alight_at, v_alight_at, 'escort', v_escort_acc);
-        FOR g IN SELECT * FROM pg_temp.qa_guardians(r.sid) LOOP
-            PERFORM pg_temp.qa_notify(g, 'parent', r.sid, v_run, 'alighting', '승하차 안내',
-                    format('%s 학생이 버스에서 하차했습니다.', r.sname), v_alight_at, format('stop_departed:%s:%s:alighted', v_rider, g));
-        END LOOP;
+        -- 하차 — 등원은 최종 도착의 자동 처리(이력 행위자 system · 문구는 RunAutoAlightedComposer · 키는 alighting:{run}:guardian:…).
+        -- 하원은 동승자가 내린다(escort · manual · 키 stop_departed). Ruling 887 ④
+        IF p_dir = 'to_academy' THEN
+            INSERT INTO rider_status_history (run_rider_id, from_status, to_status, changed_at, actor_type)
+            VALUES (v_rider, 'boarded', 'alighted', v_alight_at, 'system');
+            FOR g IN SELECT * FROM pg_temp.qa_guardians(r.sid) LOOP
+                PERFORM pg_temp.qa_notify(g, 'parent', r.sid, v_run, 'alighting', '하차 안내',
+                        format('%s 학생이 목적지에 도착해 하차 처리되었습니다.', r.sname), v_alight_at,
+                        format('alighting:%s:guardian:%s:%s:%s', v_run, g, r.sid, v_alight_at));
+            END LOOP;
+        ELSE
+            INSERT INTO rider_status_history (run_rider_id, from_status, to_status, verify_method, client_key, occurred_at, changed_at,
+                                              actor_type, changed_by)
+            VALUES (v_rider, 'boarded', 'alighted', 'manual', gen_random_uuid(), v_alight_at, v_alight_at, 'escort', v_escort_acc);
+            FOR g IN SELECT * FROM pg_temp.qa_guardians(r.sid) LOOP
+                PERFORM pg_temp.qa_notify(g, 'parent', r.sid, v_run, 'alighting', '승하차 안내',
+                        format('%s 학생이 버스에서 하차했습니다.', r.sname), v_alight_at, format('stop_departed:%s:%s:alighted', v_rider, g));
+            END LOOP;
+        END IF;
     END LOOP;
     RETURN v_run;
 END

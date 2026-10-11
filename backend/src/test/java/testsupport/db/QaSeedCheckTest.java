@@ -150,6 +150,24 @@ class QaSeedCheckTest extends MigratedPostgresTestBase {
         }
     }
 
+    /**
+     * Ruling 887 ④ — 등원 하차는 최종 도착의 자동 처리({@code system})뿐이다. 동승자가 하차를 누르는 경로는 등원에 없어,
+     * 시드가 동승자 행위로 심으면 화면 이력이 런타임과 다른 모양이 된다. 하원 하차는 동승자 행위로 둔다.
+     */
+    @Test
+    void 등원_하차_이력은_system_뿐이다() throws Exception {
+        try (Connection connection = connection()) {
+            assertThat(count(connection, """
+                    SELECT count(*) FROM rider_status_history h JOIN run_rider r ON r.id = h.run_rider_id
+                    JOIN run u ON u.id = r.run_id
+                    WHERE u.direction = 'to_academy' AND h.to_status = 'alighted'""")).as("등원 하차 이력이 실제로 있다").isPositive();
+            assertThat(count(connection, """
+                    SELECT count(*) FROM rider_status_history h JOIN run_rider r ON r.id = h.run_rider_id
+                    JOIN run u ON u.id = r.run_id
+                    WHERE u.direction = 'to_academy' AND h.to_status = 'alighted' AND h.actor_type <> 'system'""")).as("등원 하차의 행위자는 system 뿐").isZero();
+        }
+    }
+
     private static long count(Connection connection, String sql) throws SQLException {
         try (Statement statement = connection.createStatement(); ResultSet rows = statement.executeQuery(sql)) {
             rows.next();
