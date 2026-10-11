@@ -499,8 +499,8 @@ OVERRIDING SYSTEM VALUE
 VALUES
     (1, 1, 5, '최부모', 'parent', 1, '김철수', 'boarding', '승하차 안내', '김철수 학생이 버스에 탑승했습니다.', 'sent', false, now() - interval '10 minutes', NULL, 1, NULL, 'boarding:2:1:seed', now()),
     (2, 1, 5, '최부모', 'parent', 1, '김철수', 'alighting', '승하차 안내', '김철수 학생이 버스에서 하차했습니다.', 'sent', false, now() - interval '2 minutes', now() - interval '1 minute', 1, NULL, 'alighting:3:1:seed', now()),
-    (3, 1, 13, '강기사', 'driver', NULL, NULL, 'route_changed', '노선 변경 안내', '배정된 회차의 노선이 확정·변경되었습니다. 앱에서 새 노선을 확인해 주세요.', 'sent', true, now() - interval '5 minutes', NULL, 1, NULL, 'route_changed:2:na:seed', now()),
-    (4, 1, 6, '정부모', 'parent', 3, '박민수', 'no_show', '미승차 안내', '박민수 학생이 아직 버스에 탑승하지 않았습니다. 확인해 주세요.', 'pending', true, NULL, NULL, 0, NULL, 'no_show:3:3:seed', now()),
+    (3, 1, 13, '강기사', 'driver', NULL, NULL, 'route_changed', '노선 변경 안내', '배정된 회차의 노선이 확정·변경되었습니다. 앱에서 새 노선을 확인해 주세요.', 'sent', false, now() - interval '5 minutes', NULL, 1, NULL, 'route_changed:2:na:seed', now()),
+    (4, 1, 6, '정부모', 'parent', 3, '박민수', 'no_show', '미승차 안내', '박민수 학생이 아직 버스에 탑승하지 않았습니다. 확인해 주세요.', 'pending', false, NULL, NULL, 0, NULL, 'no_show:3:3:seed', now()),
     (5, 2, 9, '윤부모', 'parent', 6, '정다은', 'arrive', '곧 도착합니다', '정다은 학생이 탄 버스가 승하차지 근처에 도착했습니다.', 'sent', false, now() - interval '1 minute', NULL, 1, NULL, 'arrive:5:6:seed', now()),
     (6, 1, 11, '거절학생', 'student', NULL, NULL, 'signup_decided', '가입 거절 안내', '가입이 거절되었습니다. 사유: 재학증명서 미제출', 'sent', false, now() - interval '1 day', now() - interval '20 hours', 1, NULL, 'signup_decided:na:11:seed', now()),
     (7, 1, 2, '김운영', 'staff', 1, '김철수', 'approval_requested', '변경 승인 요청', '학부모의 일일 변경 요청이 접수되어 승인이 필요합니다. 앱에서 확인해 주세요.', 'sent', false, now() - interval '18 minutes', NULL, 1, NULL, 'approval_requested:2:1:seed', now()),
