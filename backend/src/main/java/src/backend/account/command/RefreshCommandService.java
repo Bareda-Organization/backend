@@ -18,6 +18,7 @@ import src.backend.account.repository.AccountRepository;
 import src.backend.account.repository.RefreshTokenRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.security.AccountStanding;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
@@ -32,6 +33,7 @@ public class RefreshCommandService {
     private final AccountRepository accountRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtTokenProvider jwtTokenProvider;
+    private final AccountStanding accountStanding;
     private final Clock clock;
     @Value("${jwt.refresh-token-validity-seconds}")
     private final long refreshValiditySeconds;
@@ -71,6 +73,12 @@ public class RefreshCommandService {
 
         Account account = accountRepository.findById(accountId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.TOKEN_EXPIRED));
+
+        // 권한을 잃은 계정(차단 · 퇴사 · 삭제된 매니저)은 재발급하지 않는다(Ruling 880) — access 가 401 TOKEN_EXPIRED 로 막히는데 재발급이
+        // 200 이면 클라이언트가 로그인으로 가지 못하고 재발급 → 401 을 되풀이한다. 삭제된 매니저는 refresh 가 무효화되지 않으므로 여기가 유일한 차단이다
+        if (accountStanding.isLost(accountId)) {
+            throw new BusinessException(ErrorCode.TOKEN_EXPIRED);
+        }
 
         OffsetDateTime now = OffsetDateTime.now(clock);
         // 조건부 무효화의 결과로 선점을 판정한다(BR-061) — 동시 요청이 둘 다 "미해지" 를 읽어도 무효화에 성공한

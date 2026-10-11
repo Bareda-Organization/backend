@@ -52,6 +52,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
     private final RunAssignmentAccess runAssignmentAccess;
     private final StudentRepository studentRepository;
     private final StompSessionExpiry sessionExpiry;
+    private final AccountStanding accountStanding;
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -66,11 +67,24 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             // 연결을 연 토큰이 만료된 세션의 새 구독·송신은 받지 않는다(BR-083)
             throw new BusinessException(ErrorCode.TOKEN_EXPIRED);
         } else if (StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
+            assertStanding(accessor);
             authorizeSubscribe(accessor);
         } else if (StompCommand.SEND.equals(accessor.getCommand())) {
+            assertStanding(accessor);
             rejectBrokerSend(accessor);
         }
         return message;
+    }
+
+    /**
+     * 열린 세션도 새 구독·송신마다 계정의 현재 상태를 다시 확인한다(Ruling 880) — 퇴사·차단·삭제된 매니저면 받지 않고,
+     * 이 세션의 다음 방송도 끊기게 표시한다({@link StompSessionExpiry#expire}).
+     */
+    private void assertStanding(StompHeaderAccessor accessor) {
+        if (accessor.getUser() instanceof AuthUser user && accountStanding.isLost(user.accountId())) {
+            sessionExpiry.expire(accessor.getSessionId());
+            throw new BusinessException(ErrorCode.TOKEN_EXPIRED);
+        }
     }
 
     /**
@@ -92,9 +106,12 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
         AuthUser user = tokenProvider.authenticateAccess(token);
+        if (accountStanding.isLost(user.accountId())) {
+            throw new BusinessException(ErrorCode.TOKEN_EXPIRED); // 새 연결도 같은 규칙(Ruling 880)
+        }
         assertActiveAccount(user);
         accessor.setUser(user);
-        sessionExpiry.record(accessor.getSessionId(), tokenProvider.parse(token).getExpiration().toInstant());
+        sessionExpiry.record(accessor.getSessionId(), user.accountId(), tokenProvider.parse(token).getExpiration().toInstant());
     }
 
     /**

@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -35,6 +36,10 @@ import src.backend.global.common.enums.Role;
 @WebMvcTest(controllers = JwtAuthFilterTestController.class)
 @Import({SecurityConfig.class, JwtTokenProvider.class, src.backend.global.config.ClockConfig.class})
 class JwtAuthenticationFilterTest {
+
+    /** 필터가 계정 현재 상태를 묻는 상대 — 이 시험은 상태 판정이 아니라 토큰 처리를 보므로 "권한 잃지 않음" 으로 둔다(Ruling 880 은 AccountStandingHttpTest). */
+    @MockitoBean
+    private AccountStanding accountStanding;
 
     @Autowired
     private MockMvc mockMvc;

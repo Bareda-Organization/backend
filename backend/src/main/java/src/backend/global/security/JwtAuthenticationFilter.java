@@ -37,6 +37,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     static final String AUTH_FAILURE_ATTR = JwtAuthenticationFilter.class.getName() + ".failure";
 
     private final JwtTokenProvider tokenProvider;
+    private final AccountStanding accountStanding;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
@@ -52,6 +53,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private void authenticate(HttpServletRequest request, String token) {
         try {
             AuthUser principal = tokenProvider.authenticateAccess(token);
+            // 퇴사·차단·삭제된 매니저는 이미 받은 access 토큰도 다음 요청부터 거절한다(Ruling 880) — 재발급 신호(TOKEN_EXPIRED)로
+            // 알려 클라이언트가 재발급을 시도하고, 재발급이 401 이라 로그인으로 가게 한다(API_SPEC §2.6)
+            if (accountStanding.isLost(principal.accountId())) {
+                throw new BusinessException(ErrorCode.TOKEN_EXPIRED);
+            }
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(principal, null, principal.authorities());
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
