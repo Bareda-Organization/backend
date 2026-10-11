@@ -61,6 +61,14 @@ public interface ChangeRequestRepository extends JpaRepository<ChangeRequest, Lo
     Optional<ChangeRequest> findByIdAndAcademyId(Long id, Long academyId);
 
     /**
+     * 그 승인 건의 회차 id 만 잠금 없이 읽는다 — 결정(§5.6)이 요청 행을 잠그기 <b>전에</b> 회차 행을 먼저 쥐려고({@code RunRowLock}) 회차 id 를
+     * 얻는 용도다. 엔티티가 아니라 값만 읽는 것이 요점이다 — 엔티티로 읽으면 영속성 컨텍스트에 낡은 상태가 남아, 이어지는 {@link #findForDecision}
+     * 이 잠금을 쥐고도 그 낡은 상태를 돌려준다. 없거나 다른 학원 건이면 비어 있다(§1.5).
+     */
+    @Query("SELECT c.runId FROM ChangeRequest c WHERE c.id = :id AND c.academyId = :academyId")
+    Optional<Long> findRunIdByIdAndAcademyId(@Param("id") Long id, @Param("academyId") Long academyId);
+
+    /**
      * 승인·거절 결정(§5.6)을 위해 행을 잠그고 읽는다 — 자동 거절(운행 시작·출발 시각 폴링)과 겹치면 먼저 잡은
      * 쪽이 끝날 때까지 기다린 뒤 커밋된 상태를 보므로, 메모리 상태로 판정하고 덮어써 {@code auto_rejected} 를
      * 뒤집던 경합이 사라진다(BR-028). 두 탭의 동시 승인도 두 번째가 결정된 상태를 보고 409 가 된다.
