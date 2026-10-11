@@ -308,7 +308,7 @@ class RunRosterControllerTest {
     }
 
     @Test
-    void 배치는_남아도_탈퇴한_매니저의_토큰은_403이다() throws Exception {
+    void 배치는_남아도_탈퇴한_매니저의_토큰은_401_TOKEN_EXPIRED_다() throws Exception {
         Phase9RosterFixtures fx = fixtures();
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
@@ -323,8 +323,8 @@ class RunRosterControllerTest {
 
         mockMvc.perform(get("/api/v1/runs/" + runId + "/roster").header("Authorization",
                 토큰(manager.accountId(), academyId, Role.DRIVER)))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("TOKEN_EXPIRED")); // Ruling 880 — 인증 필터가 배치 판정(403)보다 먼저 막는다
     }
 
     @Test

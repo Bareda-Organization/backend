@@ -210,12 +210,14 @@ class AdminEmergencyControllerTest {
         long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
         fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
         long adminAccountId = fixtures.systemAdminAccount("메인관리자");
+        long staffAccountId = fixtures.staffAccount(academyId, "직원");
 
         long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
         위치를_기록한다(emergencyId, new BigDecimal("37.500000"), new BigDecimal("127.000000"), now().minusSeconds(30));
 
+        // 확인은 학원 관계자만 한다(Ruling 884) — 메인 관리자는 이 목록을 열람만 한다
         mockMvc.perform(post(ACK.formatted(emergencyId))
-                        .header("Authorization", 메인관리자_토큰(adminAccountId)))
+                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk());
 
         // R6 목표 3 — ack 로 상태가 acked 가 됐으니 기본값(open)으로는 빠진다.
@@ -254,7 +256,7 @@ class AdminEmergencyControllerTest {
 
         Map<String, Object> ackedBy = (Map<String, Object>) item.get("acked_by");
         assertThat(ackedBy).as("acked_by 는 확인한 관계자의 이름을 담아야 한다(수정 라운드 1, R3 Plant #5)")
-                .containsEntry("name", "메인관리자");
+                .containsEntry("name", "직원");
     }
 
     /**

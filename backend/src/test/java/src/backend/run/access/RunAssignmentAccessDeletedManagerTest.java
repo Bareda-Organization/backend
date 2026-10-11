@@ -17,6 +17,7 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
+import src.backend.manager.access.ManagerRunAccess;
 
 /**
  * 삭제된 매니저는 배치 판정을 쓰는 모든 경로에서 {@code 403 FORBIDDEN} 이다 — Ruling 885 ⑥.
@@ -36,6 +37,9 @@ class RunAssignmentAccessDeletedManagerTest {
 
     @Autowired
     private RunAssignmentAccess access;
+
+    @Autowired
+    private ManagerRunAccess managerRunAccess;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -62,6 +66,7 @@ class RunAssignmentAccessDeletedManagerTest {
         assertForbidden(() -> access.assertAssignedDriverOrEscort(DRIVER, RUN_ID));
         assertForbidden(() -> access.assertAssignedDriverOrEscort(ESCORT, RUN_ID));
         assertForbidden(() -> access.assertAssignedDriverExists(DRIVER, RUN_ID));
+        assertForbidden(() -> managerRunAccess.requireAssignedRun(DRIVER, RUN_ID)); // 명단 · 경로 조회의 판정(§4.2.1)
     }
 
     private static void assertForbidden(Runnable judgment) {
