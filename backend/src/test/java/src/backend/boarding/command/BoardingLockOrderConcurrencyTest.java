@@ -360,6 +360,42 @@ class BoardingLockOrderConcurrencyTest {
     }
 
     @Test
+    @DisplayName("I1 교착 — 도착 처리의 앞 승하차지 강제 출발이 회차 행보다 먼저 승하차지 행을 쥐지 않는다(하차 기록이 회차 행을 쥔 채 그 승하차지를 기다릴 때)")
+    void 앞_승하차지_강제_출발과_하차_기록이_겹쳐도_교착하지_않는다() throws Exception {
+        Stage stage = stage("from_academy");
+        long riderId = rider(stage, "앞승하차지학생", "boarded");
+        long finalStopId = fixtures.stop(stage.academyId(), "37.510000", "127.010000");
+        fixtures.addRunStop(stage.runId(), finalStopId, 2, OffsetDateTime.now(clock).minusMinutes(10));
+        long finalRunStopId = jdbcTemplate.queryForObject("SELECT id FROM run_stop WHERE stop_id = ?", Long.class,
+                finalStopId);
+        CountDownLatch patchHoldsRun = new CountDownLatch(1);
+        CountDownLatch arrivalClaimedEarlierStop = new CountDownLatch(1);
+        AtomicBoolean fired = new AtomicBoolean();
+        // PATCH 가 회차 행과 탑승자 행을 쥔 순간 멈추고, 도착 처리가 앞 승하차지 강제 출발을 시작한 뒤에 승하차지 행을 잡으러 가게 한다.
+        RepositoryReadHooks.afterRead("findByIdAndRunIdAndStatusNot", () -> {
+            if (fired.compareAndSet(false, true)) {
+                patchHoldsRun.countDown();
+                await(arrivalClaimedEarlierStop);
+                pause();
+            }
+        });
+        RepositoryReadHooks.afterRead("findAllNotDepartedBefore", arrivalClaimedEarlierStop::countDown);
+
+        List<Throwable> failures = runConcurrently(() -> {
+            record(stage, riderId, "alighted");
+            return null;
+        }, () -> {
+            patchHoldsRun.await(WAIT_LIMIT_SECONDS, TimeUnit.SECONDS);
+            runArrivalCommandService.arrive(stage.driver(), stage.runId(), finalRunStopId);
+            return null;
+        });
+
+        assertThat(failures).isEmpty();
+        assertThat(riderStatus(riderId)).isEqualTo("alighted");
+        assertThat(runStatus(stage.runId())).isEqualTo("finished");
+    }
+
+    @Test
     @DisplayName("되돌리기 경합 — 출발 선점이 겹쳐도 '되돌려졌는데 출발 알림이 나간' 상태가 생기지 않는다")
     void 되돌리기와_출발_선점이_겹쳐도_되돌린_기록의_알림이_나가지_않는다() throws Exception {
         Stage stage = stage("to_academy");
