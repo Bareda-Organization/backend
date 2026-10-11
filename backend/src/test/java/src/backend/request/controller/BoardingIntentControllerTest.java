@@ -731,6 +731,57 @@ class BoardingIntentControllerTest {
     }
 
     /**
+     * Ruling 885② — ③구간에서 이미 {@code absent} 이고 탑승 의사도 꺼진 학생의 {@code riding=false} 재전송은 ①②구간의 같은 값 재전송처럼
+     * 무변경 성공이다(응답은 ③ 정상 응답과 같은 형태). 새 이력·알림을 만들지 않는다. 이미 탄(boarded)·미승차(no_show) 학생은 그대로 403 이다.
+     */
+    @Test
+    @DisplayName("Ruling 885② — 마감구간에서 이미 absent 인 학생의 riding=false 재전송은 무변경 200 이고 다른 상태는 403 이다")
+    void 마감구간에서_이미_미등원인_학생의_재전송은_무변경_성공이다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures().academy();
+        long busId = fixtures().bus(academyId);
+        long studentId = fixtures().student(academyId, "재전송학생");
+        BoardingIntentFixtures.GuardianAccount guardian = fixtures().guardian(academyId, "재전송보호자");
+        fixtures().linkChild(guardian.guardianId(), studentId, now.minusDays(1));
+        long runId = fixtures().run(academyId, busId, now.minusMinutes(15), now.minusMinutes(45));
+        long stopId = fixtures().stop(academyId, "37.562000", "126.972000");
+        fixtures().enrol(academyId, busId, studentId, stopId);
+        fixtures().confirmedSingleRiderStop(runId, studentId, stopId, now.minusHours(1));
+        String 토큰 = 토큰(guardian.accountId(), academyId, Role.PARENT);
+        String off = "{\"riding\":false}";
+
+        mockMvc.perform(patch(INTENT.formatted(studentId, runId)).header("Authorization", 토큰)
+                        .contentType(MediaType.APPLICATION_JSON).content(off))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.result").value("applied_no_reroute"));
+        entityManager.flush();
+        int historyBefore = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM rider_status_history WHERE run_rider_id IN "
+                        + "(SELECT id FROM run_rider WHERE run_id = ? AND student_id = ?)", Integer.class, runId,
+                studentId);
+
+        mockMvc.perform(patch(INTENT.formatted(studentId, runId)).header("Authorization", 토큰)
+                        .contentType(MediaType.APPLICATION_JSON).content(off))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.result").value("applied_no_reroute"))
+                .andExpect(jsonPath("$.data.riding").value(false))
+                .andExpect(jsonPath("$.data.rider_status").value("absent"));
+
+        entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM rider_status_history WHERE run_rider_id IN "
+                        + "(SELECT id FROM run_rider WHERE run_id = ? AND student_id = ?)", Integer.class, runId,
+                studentId)).as("재전송은 새 이력을 만들지 않는다").isEqualTo(historyBefore);
+
+        jdbcTemplate.update("UPDATE run_rider SET status = 'no_show' WHERE run_id = ? AND student_id = ?", runId,
+                studentId);
+        entityManager.clear();
+        mockMvc.perform(patch(INTENT.formatted(studentId, runId)).header("Authorization", 토큰)
+                        .contentType(MediaType.APPLICATION_JSON).content(off))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("CHANGE_WINDOW_CLOSED"));
+    }
+
+    /**
      * BR-068 · Ruling 334 — ③구간 미등원은 기사·동승자에게 전달된다: WS {@code rider_changed}(기존
      * {@link RiderStatusChangedEvent} 방송 경로)와 기존 {@code route_changed} 알림.
      */
