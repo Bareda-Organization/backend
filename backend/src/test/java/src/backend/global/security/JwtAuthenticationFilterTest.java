@@ -1,21 +1,29 @@
 package src.backend.global.security;
 
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Clock;
+import java.util.stream.Stream;
 
 import javax.crypto.SecretKey;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.CannotCreateTransactionException;
 
 import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.Jwts;
@@ -117,6 +125,28 @@ class JwtAuthenticationFilterTest {
 
         mockMvc.perform(get("/api/v1/jwt-filter-test/protected").header("Authorization", "Bearer " + access))
                 .andExpect(status().isOk());
+    }
+
+    /**
+     * 계정 상태 조회(Ruling 880)가 DB 자원 오류로 실패해도 §1.10 규격의 {@code 503 SERVER_BUSY} + {@code Retry-After} 다 —
+     * 필터는 컨트롤러 어드바이스 바깥이라 잡지 않으면 예외가 서블릿 컨테이너로 새어 규격 없는 500 이 된다.
+     * 모르는 상태를 통과시키지도 않는다(상태 조회가 실패하면 인증을 세우지 않는다).
+     */
+    @ParameterizedTest
+    @MethodSource("dbResourceFailures")
+    void 계정_상태_조회가_DB_자원_오류로_실패하면_503_SERVER_BUSY_다(RuntimeException failure) throws Exception {
+        String access = tokenProvider.createAccessToken(7L, 1L, Role.PARENT, AccountStatus.ACTIVE);
+        when(accountStanding.isLost(7L)).thenThrow(failure);
+
+        mockMvc.perform(get("/api/v1/jwt-filter-test/protected").header("Authorization", "Bearer " + access))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(header().string("Retry-After", "3"))
+                .andExpect(jsonPath("$.error.code").value("SERVER_BUSY"));
+    }
+
+    private static Stream<RuntimeException> dbResourceFailures() {
+        return Stream.of(new CannotCreateTransactionException("풀 연결 대기 초과"),
+                new DataAccessResourceFailureException("연결 끊김"), new QueryTimeoutException("쿼리 취소"));
     }
 
     /** {@code missingClaim} 하나만 빼고 나머지는 정상 발급 형태로 채워 직접 서명한다. */

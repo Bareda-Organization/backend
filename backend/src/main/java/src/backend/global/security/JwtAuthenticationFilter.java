@@ -2,10 +2,12 @@ package src.backend.global.security;
 
 import java.io.IOException;
 
+import org.springframework.dao.DataAccessException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import jakarta.servlet.FilterChain;
@@ -14,6 +16,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
@@ -27,6 +30,7 @@ import src.backend.global.error.ErrorCode;
  * 체인 밖에서 중복 실행되지 않도록 {@link SecurityConfig#jwtAuthenticationFilterRegistration}가
  * 그 자동 등록을 꺼 둔다(그 메서드 Javadoc에 이중 실행이 왜 인증을 지우는지 적어 뒀다).
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -67,6 +71,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             // 여기 남긴 코드(TOKEN_EXPIRED · UNAUTHORIZED)로 401 본문을 쓴다(BR-033)
             SecurityContextHolder.clearContext();
             request.setAttribute(AUTH_FAILURE_ATTR, e.getErrorCode());
+        } catch (CannotCreateTransactionException | DataAccessException e) {
+            // 계정 상태 조회가 DB 자원 오류(풀 연결 대기 초과·연결 끊김·쿼리 취소)로 실패했다 — 필터는 컨트롤러 어드바이스 바깥이라
+            // 잡지 않으면 규격 없는 500 이 된다. 모르는 상태를 통과시키지 않고(인증을 세우지 않음) 보호 자원이면 엔트리 포인트가
+            // 503 SERVER_BUSY 를 쓴다(API_SPEC §1.10·§1.11) — 로그는 GlobalExceptionHandler 와 같이 스택 없는 한 줄이다
+            log.warn("[db-unavailable] 인증 필터의 계정 상태 조회 실패 — {}: {}", e.getClass().getSimpleName(), e.getMessage());
+            SecurityContextHolder.clearContext();
+            request.setAttribute(AUTH_FAILURE_ATTR, ErrorCode.SERVER_BUSY);
         }
     }
 

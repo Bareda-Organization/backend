@@ -60,6 +60,10 @@ public class GlobalExceptionHandler {
         ErrorResponse body = e.getDetails() == null
                 ? ErrorResponse.of(code.name(), e.getMessage())
                 : ErrorResponse.of(code.name(), e.getMessage(), e.getDetails());
+        // SERVER_BUSY 는 DB 예외 핸들러 밖(인증 필터의 엔트리 포인트)에서도 BusinessException 으로 온다 — 같은 Retry-After 를 싣는다
+        if (code == ErrorCode.SERVER_BUSY) {
+            return ResponseEntity.status(code.getStatus()).header(HttpHeaders.RETRY_AFTER, DB_RETRY_AFTER_SECONDS).body(body);
+        }
         return ResponseEntity.status(code.getStatus()).body(body);
     }
 
