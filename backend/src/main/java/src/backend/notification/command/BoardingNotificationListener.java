@@ -1,5 +1,6 @@
 package src.backend.notification.command;
 
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -92,9 +93,11 @@ public class BoardingNotificationListener {
                 .collect(Collectors.groupingBy(GuardianAccountRecipient::getStudentId));
         List<NotificationDraft> drafts = new ArrayList<>();
         for (RunRider rider : finalized) {
-            drafts.addAll(parentDrafts(event.academyId(), rider.getId(), rider.getStudentId(), rider.getStatus(),
-                    direction, guardiansByStudentId.getOrDefault(rider.getStudentId(), List.of()),
-                    STOP_DEPARTED_DEDUP_KEY_FORMAT, event.departedAt()));
+            drafts.addAll(parentDrafts(event.academyId(),
+                    new ConfirmedResult(rider.getId(), rider.getStudentId(), rider.getStatus(), direction,
+                            event.departedAt()),
+                    guardiansByStudentId.getOrDefault(rider.getStudentId(), List.of()),
+                    STOP_DEPARTED_DEDUP_KEY_FORMAT));
         }
         notificationOutbox.appendAll(drafts);
     }
@@ -108,25 +111,31 @@ public class BoardingNotificationListener {
     public void appendRecordedAfterDeparture(RiderRecordedAfterDepartureEvent event) {
         List<GuardianAccountRecipient> guardians = guardianStudentRepository
                 .findActiveGuardianAccountsByStudentIds(event.academyId(), List.of(event.studentId()));
-        notificationOutbox.appendAll(parentDrafts(event.academyId(), event.runRiderId(), event.studentId(),
-                event.status(), event.direction(), guardians, RECORDED_AFTER_DEPARTURE_DEDUP_KEY_FORMAT,
-                event.changedAt()));
+        notificationOutbox.appendAll(parentDrafts(event.academyId(),
+                new ConfirmedResult(event.runRiderId(), event.studentId(), event.status(), event.direction(),
+                        event.changedAt()),
+                guardians, RECORDED_AFTER_DEPARTURE_DEDUP_KEY_FORMAT));
+    }
+
+    /** 학부모 알림 1건의 재료인 탑승자 1명의 확정 결과 — {@code decidedAt} 은 중복 방지 키에 들어가는 확정(출발)·기록 시각이다. */
+    private record ConfirmedResult(Long runRiderId, Long studentId, RiderStatus status, Direction direction,
+            OffsetDateTime decidedAt) {
     }
 
     /** 학생 1명의 확정 결과를 보호자마다 1건씩 초안으로 만든다 — 보호자가 없으면 빈 목록이다. */
-    private List<NotificationDraft> parentDrafts(Long academyId, Long runRiderId, Long studentId,
-            RiderStatus status, Direction direction, List<GuardianAccountRecipient> guardians,
-            String dedupKeyFormat, Object dedupKeyTime) {
+    private List<NotificationDraft> parentDrafts(Long academyId, ConfirmedResult result,
+            List<GuardianAccountRecipient> guardians, String dedupKeyFormat) {
         if (guardians.isEmpty()) {
             return List.of();
         }
-        NotificationMessage message = composeFor(status, direction, guardians.get(0).getStudentName());
-        NotificationType type = typeOf(status);
+        NotificationMessage message = composeFor(result.status(), result.direction(),
+                guardians.get(0).getStudentName());
+        NotificationType type = typeOf(result.status());
         return guardians.stream()
                 .map(guardian -> new NotificationDraft(academyId, guardian.getAccountId(), guardian.getName(),
                         Role.PARENT, type, message.title(), message.body(),
-                        dedupKeyFormat.formatted(runRiderId, guardian.getAccountId(), dedupKeyTime),
-                        studentId, guardian.getStudentName(), null))
+                        dedupKeyFormat.formatted(result.runRiderId(), guardian.getAccountId(), result.decidedAt()),
+                        result.studentId(), guardian.getStudentName(), null))
                 .toList();
     }
 
