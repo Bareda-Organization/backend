@@ -18,10 +18,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import src.backend.exception.entity.EmergencyAlert;
+import src.backend.exception.event.EmergencyAckedEvent;
 import src.backend.exception.entity.EmergencyType;
 import src.backend.exception.repository.EmergencyAlertRepository;
 import src.backend.global.common.enums.AccountStatus;
@@ -40,6 +43,7 @@ import src.backend.global.security.AuthUser;
  * 는 FK 가 없어(V1) 실재하지 않는 학원·계정 id 로 신고 행 하나만 만들고 그 행만 지운다.
  */
 @SpringBootTest
+@RecordApplicationEvents
 class EmergencyAckConcurrencyTest {
 
     private static final long TIMEOUT_SECONDS = 20;
@@ -57,6 +61,9 @@ class EmergencyAckConcurrencyTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private ApplicationEvents applicationEvents;
 
     private Long alertId;
 
@@ -116,6 +123,54 @@ class EmergencyAckConcurrencyTest {
                 .satisfies(future -> assertThat(거절_코드(future)).isEqualTo(ErrorCode.ALREADY_ACKED));
         assertThat(jdbcTemplate.queryForObject("SELECT acked_by FROM emergency_alert WHERE id = ?", Long.class,
                 alertId)).as("확인자는 먼저 확인한 쪽 그대로다").isEqualTo(first.accountId());
+    }
+
+    /**
+     * Ruling 885 ① — 확인이 신고를 읽은 뒤 발신자의 취소가 먼저 커밋돼도 취소된 신고는 확인되지 않는다. 읽기와 조건부 UPDATE 사이에
+     * 끼어든 취소를 UPDATE 의 {@code canceled_at IS NULL} 조건이 잡고, 0행이면 다시 읽어 {@code 409 EMERGENCY_CANCELED}
+     * ({@code ALREADY_ACKED} 와 다른 코드)로 가른다. 확인 이벤트도 나가지 않는다(발신자에게 "학원이 확인했습니다" 방송 금지).
+     */
+    @Test
+    @DisplayName("Ruling 885 ① — 취소가 확인보다 먼저 커밋되면 확인은 409 EMERGENCY_CANCELED 이고 확인 이벤트가 나가지 않는다")
+    void 취소와_확인이_겹쳐도_취소된_신고는_확인되지_않는다() throws Exception {
+        long academyId = 900_000_000L + System.nanoTime() % 1_000_000;
+        OffsetDateTime now = OffsetDateTime.now();
+        alertId = emergencyAlertRepository.save(EmergencyAlert.onRaise(academyId, 1L, "비상-취소", 1L,
+                ManagerRole.DRIVER, EmergencyType.ACCIDENT, 0, now, now, UUID.randomUUID())).getId();
+        AuthUser staff = new AuthUser(990_003L, academyId, Role.STAFF, AccountStatus.ACTIVE);
+
+        CountDownLatch 취소가_행을_잡았다 = new CountDownLatch(1);
+        CountDownLatch 확인이_끝났다 = new CountDownLatch(1);
+        ExecutorService pool = Executors.newSingleThreadExecutor();
+        Future<?> 취소;
+        ErrorCode 확인_거절 = null;
+        try {
+            취소 = pool.submit(() -> new TransactionTemplate(transactionManager).executeWithoutResult(s -> {
+                EmergencyAlert alert = emergencyAlertRepository.findById(alertId).orElseThrow();
+                alert.cancel(OffsetDateTime.now());
+                emergencyAlertRepository.saveAndFlush(alert); // 행 잠금을 쥔 채 커밋을 미룬다
+                취소가_행을_잡았다.countDown();
+                상대가_끝나거나_잠금에_막힐_때까지_커밋을_미룬다(확인이_끝났다);
+            }));
+            assertThat(취소가_행을_잡았다.await(TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
+            try {
+                emergencyCommandService.ack(staff, alertId, null); // 취소가 아직 미커밋이라 읽기는 통과하고 UPDATE 에서 기다린다
+            } catch (BusinessException e) {
+                확인_거절 = e.getErrorCode();
+            } finally {
+                확인이_끝났다.countDown();
+            }
+            취소.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        } finally {
+            pool.shutdownNow();
+            pool.awaitTermination(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        }
+
+        assertThat(확인_거절).as("취소가 먼저 커밋된 신고의 확인은 EMERGENCY_CANCELED 로 거절된다").isEqualTo(ErrorCode.EMERGENCY_CANCELED);
+        assertThat(jdbcTemplate.queryForObject("SELECT acked_at FROM emergency_alert WHERE id = ?", OffsetDateTime.class,
+                alertId)).as("취소된 신고에 확인 이력이 남지 않는다").isNull();
+        assertThat(applicationEvents.stream(EmergencyAckedEvent.class).count()).as("확인 이벤트(emergency_acked 방송)가 나가지 않는다")
+                .isZero();
     }
 
     private boolean 성공했다(Future<?> future) {

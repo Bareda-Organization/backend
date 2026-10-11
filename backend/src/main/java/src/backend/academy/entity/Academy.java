@@ -91,7 +91,7 @@ public class Academy extends BaseTimeEntity {
         this.region = profile.region() == null ? this.region : profile.region();
         this.address = profile.address() == null ? this.address : profile.address();
         this.contact = profile.contact() == null ? this.contact : blankToNull(profile.contact());
-        this.memo = profile.memo() == null ? this.memo : profile.memo();
+        this.memo = profile.memo() == null ? this.memo : blankToNull(profile.memo()); // "" 는 지움(Ruling 885 ⑤)
     }
 
     /**

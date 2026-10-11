@@ -162,7 +162,10 @@ public class EmergencyAlert {
 
     /**
      * 발신 1분 이내 취소(EXC-04) — 행을 지우지 않고 {@code canceled_at} 을 채운다({@link
-     * src.backend.run.entity.Run#cancel} 과 같은 이유: 이력 보존).
+     * src.backend.run.entity.Run#cancel} 과 같은 이유: 이력 보존). 서비스의 취소는 이 메서드가 아니라
+     * {@code EmergencyAlertRepository#cancelIfOpen}(조건부 UPDATE)로 쓴다 — 이 변경을 전체 컬럼 UPDATE 로 쓰면 먼저 커밋된
+     * 확인 기록을 지운다. 이 메서드는 이미 취소된 신고를 만드는 시험 시드용이다(프로덕션 코드의 호출은 0건).
+     * 프로덕션 취소는 {@code EmergencyAlertRepository.cancelIfOpen} — 이 메서드로 취소하면 전체 컬럼 UPDATE 로 확인 기록을 덮는다.
      */
     public void cancel(OffsetDateTime canceledAt) {
         this.canceledAt = canceledAt;

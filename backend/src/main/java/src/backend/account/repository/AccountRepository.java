@@ -198,6 +198,21 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
             """)
     List<Account> searchByNameOrLoginId(@Param("q") String q, Limit limit);
 
+    /**
+     * 주어진 계정 중 <b>권한을 잃은</b> 계정의 id(Ruling 880) — 차단(blocked) · 퇴사한 관계자(inactive) · 삭제된 매니저.
+     * 이미 받은 access 토큰이 계정의 현재 상태를 모르고 통하는 것을 요청마다 막는 판정이 이 한 문장이다.
+     *
+     * <p>행이 없는 계정은 결과에 없다 — "권한을 잃었다" 와 "알 수 없다" 를 섞으면 계정 행 없이 발급한 토큰이 전부 거절된다.
+     */
+    @AcademyScopeExempt(reason = "Ruling 880 — 토큰의 계정 id 로 그 계정 자신의 현재 상태만 읽는다. 호출부(AccountStanding)가 토큰·세션이 "
+            + "싣고 있는 accountId 만 넘긴다는 전제 — 요청 파라미터의 id 를 넘기면 타 학원 계정의 상태를 묻는 통로가 된다")
+    @Query("SELECT a.id FROM Account a WHERE a.id IN :ids AND ("
+            + "a.status = src.backend.global.common.enums.AccountStatus.BLOCKED "
+            + "OR EXISTS (SELECT 1 FROM AcademyStaff s WHERE s.accountId = a.id "
+            + "AND s.status = src.backend.academy.entity.StaffStatus.INACTIVE) "
+            + "OR EXISTS (SELECT 1 FROM Manager m WHERE m.accountId = a.id AND m.deletedAt IS NOT NULL))")
+    List<Long> findIdsWithLostStanding(@Param("ids") Collection<Long> ids);
+
     /** 지금 차단된 계정 수(§6.18 {@code attention.blocked_accounts}, §6.10) — 계정 단위 조치라 전 학원 범위다. */
     @AcademyScopeExempt(reason = "차단 계정 수(§6.18 · §6.10)는 계정 단위 조치라 전 학원 범위로 센다 — findAllByStatus 와 같은 근거. 호출부는 "
             + "@CanMonitorAll 로 보호되는 AdminDashboardQueryService 뿐이라는 전제")

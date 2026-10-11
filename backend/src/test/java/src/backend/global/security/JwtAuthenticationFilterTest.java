@@ -1,20 +1,32 @@
 package src.backend.global.security;
 
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.sql.SQLException;
 import java.time.Clock;
+import java.util.stream.Stream;
 
 import javax.crypto.SecretKey;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.dao.QueryTimeoutException;
+import org.springframework.jdbc.BadSqlGrammarException;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.CannotCreateTransactionException;
 
 import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.Jwts;
@@ -35,6 +47,10 @@ import src.backend.global.common.enums.Role;
 @WebMvcTest(controllers = JwtAuthFilterTestController.class)
 @Import({SecurityConfig.class, JwtTokenProvider.class, src.backend.global.config.ClockConfig.class})
 class JwtAuthenticationFilterTest {
+
+    /** 필터가 계정 현재 상태를 묻는 상대 — 이 시험은 상태 판정이 아니라 토큰 처리를 보므로 "권한 잃지 않음" 으로 둔다(Ruling 880 은 AccountStandingHttpTest). */
+    @MockitoBean
+    private AccountStanding accountStanding;
 
     @Autowired
     private MockMvc mockMvc;
@@ -112,6 +128,51 @@ class JwtAuthenticationFilterTest {
 
         mockMvc.perform(get("/api/v1/jwt-filter-test/protected").header("Authorization", "Bearer " + access))
                 .andExpect(status().isOk());
+    }
+
+    /**
+     * 계정 상태 조회(Ruling 880)가 DB 자원 오류로 실패해도 §1.10 규격의 {@code 503 SERVER_BUSY} + {@code Retry-After} 다 —
+     * 필터는 컨트롤러 어드바이스 바깥이라 잡지 않으면 예외가 서블릿 컨테이너로 새어 규격 없는 500 이 된다.
+     * 모르는 상태를 통과시키지도 않는다(상태 조회가 실패하면 인증을 세우지 않는다).
+     */
+    @ParameterizedTest
+    @MethodSource("dbResourceFailures")
+    void 계정_상태_조회가_DB_자원_오류로_실패하면_503_SERVER_BUSY_다(RuntimeException failure) throws Exception {
+        String access = tokenProvider.createAccessToken(7L, 1L, Role.PARENT, AccountStatus.ACTIVE);
+        when(accountStanding.isLost(7L)).thenThrow(failure);
+
+        mockMvc.perform(get("/api/v1/jwt-filter-test/protected").header("Authorization", "Bearer " + access))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(header().string("Retry-After", "3"))
+                .andExpect(jsonPath("$.error.code").value("SERVER_BUSY"));
+    }
+
+    private static Stream<RuntimeException> dbResourceFailures() {
+        return Stream.of(new CannotCreateTransactionException("풀 연결 대기 초과"),
+                new DataAccessResourceFailureException("연결 끊김"), new QueryTimeoutException("쿼리 취소"),
+                new CannotAcquireLockException("잠금 대기 초과"));
+    }
+
+    /**
+     * 계정 상태 조회가 <b>자원 오류가 아닌</b> DB 예외(SQL 문법 오류 · 교착)로 실패하면 503 이 아니라 {@code 500 INTERNAL_ERROR} 다 —
+     * 코드 결함까지 "잠시 후 다시 시도" 로 보이면 안 된다. 어느 쪽이든 모르는 상태를 통과시키지 않는다(200 이 아니다).
+     * 자원 오류의 범위는 {@code GlobalExceptionHandler} 와 같은 {@link src.backend.global.error.DbResourceFailure} 한 곳이다.
+     */
+    @ParameterizedTest
+    @MethodSource("dbCodeDefects")
+    void 계정_상태_조회가_자원_오류가_아닌_DB_예외로_실패하면_500_이고_통과시키지_않는다(RuntimeException failure) throws Exception {
+        String access = tokenProvider.createAccessToken(7L, 1L, Role.PARENT, AccountStatus.ACTIVE);
+        when(accountStanding.isLost(7L)).thenThrow(failure);
+
+        mockMvc.perform(get("/api/v1/jwt-filter-test/protected").header("Authorization", "Bearer " + access))
+                .andExpect(status().isInternalServerError())
+                .andExpect(header().doesNotExist("Retry-After"))
+                .andExpect(jsonPath("$.error.code").value("INTERNAL_ERROR"));
+    }
+
+    private static Stream<RuntimeException> dbCodeDefects() {
+        return Stream.of(new BadSqlGrammarException("select", "SELEC 1", new SQLException("syntax error", "42601")),
+                new CannotAcquireLockException("could not obtain lock", new SQLException("deadlock detected", "40P01")));
     }
 
     /** {@code missingClaim} 하나만 빼고 나머지는 정상 발급 형태로 채워 직접 서명한다. */

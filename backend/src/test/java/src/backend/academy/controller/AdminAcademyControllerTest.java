@@ -131,6 +131,46 @@ class AdminAcademyControllerTest {
                 .isEqualTo(before);
     }
 
+    /** Ruling 885 ⑤ — 내부 메모 {@code ""} 는 지움이다. 비우고 저장하면 성공으로 닫히는데 서버에 남던 결함. */
+    @Test
+    void PATCH_로_memo_를_빈_문자열로_보내면_메모가_지워지고_보내지_않으면_유지된다() throws Exception {
+        long academyId = 등록하고_식별자를_받는다("P3T1메모학원", "인천");
+        mockMvc.perform(patch("/api/v1/admin/academies/" + academyId).header("Authorization", 메인관리자_토큰())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"memo\":\"내부 메모\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(patch("/api/v1/admin/academies/" + academyId).header("Authorization", 메인관리자_토큰())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"P3T1메모학원수정\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.memo").value("내부 메모"));
+
+        mockMvc.perform(patch("/api/v1/admin/academies/" + academyId).header("Authorization", 메인관리자_토큰())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"memo\":\"\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.memo").doesNotExist());
+        mockMvc.perform(get("/api/v1/admin/academies/" + academyId).header("Authorization", 메인관리자_토큰()))
+                .andExpect(jsonPath("$.data.memo").doesNotExist());
+    }
+
+    /** Ruling 885 ⑤ — 대표 연락처는 비울 수 없다. 빈 값·공백은 422 이고 저장값은 그대로다. */
+    @Test
+    void PATCH_로_contact_를_비우면_422_이고_기존_값이_유지된다() throws Exception {
+        long academyId = 등록하고_식별자를_받는다("P3T1연락처학원", "인천");
+        mockMvc.perform(patch("/api/v1/admin/academies/" + academyId).header("Authorization", 메인관리자_토큰())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"contact\":\"032-111-2222\"}"))
+                .andExpect(status().isOk());
+
+        for (String blank : new String[] {"\"\"", "\"   \""}) {
+            mockMvc.perform(patch("/api/v1/admin/academies/" + academyId).header("Authorization", 메인관리자_토큰())
+                            .contentType(MediaType.APPLICATION_JSON).content("{\"contact\":" + blank + "}"))
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+        }
+
+        mockMvc.perform(get("/api/v1/admin/academies/" + academyId).header("Authorization", 메인관리자_토큰()))
+                .andExpect(jsonPath("$.data.contact").value("032-111-2222"));
+    }
+
     /** 비활성화는 상태만 바꾸고 물리 삭제하지 않는다(§6.3) — 상세 조회가 계속 200 이어야 한다. */
     @Test
     void 학원을_비활성화해도_상세_조회는_200_이고_status_만_inactive_가_된다() throws Exception {

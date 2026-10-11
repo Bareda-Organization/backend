@@ -55,11 +55,17 @@ public class AcademyCommandService {
      * <p>주소를 비우거나 공백으로 보내면 {@code 422} 다({@code Ruling 450}) — 지오코딩을 부르기 전에 거른다.
      * 주소를 보내지 않으면 주소·좌표를 그대로 둔다.
      *
+     * <p>대표 연락처도 비우거나 공백으로 보내면 {@code 422} 다(Ruling 885 ⑤ — 웹이 필수로 받는 항목). 내부 메모는 {@code ""} 가
+     * 지움이고(저장값 {@code null}), 보내지 않으면 그대로 둔다.
+     *
      * @return 수정된 학원의 식별자 — 응답 조립은 조회 쪽이 맡는다(§1.9 "변경 후 자원 상태를 반환")
      */
     public Long update(Long academyId, AcademyUpdateRequest request) {
         if (request.address() != null && request.address().isBlank()) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED);
+        }
+        if (request.contact() != null && request.contact().isBlank()) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED); // 대표 연락처는 비울 수 없다(Ruling 885 ⑤)
         }
         GeocodedPoint point = addressChanged(academyId, request.address()) ? coordinatesOf(request.address()) : null;
         return academyStore.update(academyId, request, point);

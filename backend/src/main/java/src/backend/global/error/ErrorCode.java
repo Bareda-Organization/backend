@@ -285,6 +285,8 @@ public enum ErrorCode {
     EMERGENCY_CANCEL_WINDOW_CLOSED(HttpStatus.CONFLICT, "신고 후 1분이 지나 취소할 수 없습니다"),
     // 이미 확인(acked) 처리된 신고에 재확인 시도 — APPROVAL_ALREADY_DECIDED 와 같은 형태.
     ALREADY_ACKED(HttpStatus.CONFLICT, "이미 확인 처리된 신고입니다"),
+    // 발신자가 철회(취소)한 신고의 확인 시도(Ruling 885 ①) — 철회된 신고가 확인 처리되어 발신자에게 "학원이 확인했습니다" 가 가지 않게 한다.
+    EMERGENCY_CANCELED(HttpStatus.CONFLICT, "취소된 비상 신고는 확인할 수 없습니다"),
 
     // ── 알림 목록 · 읽음 처리(Phase 12 T2, NTF-08) ─────────────────────────────
     // {id} 로 지목한 알림이 아예 없을 때(API_SPEC §3.13). 관계자 웹 자원의 404 와 달리 이 엔드포인트는

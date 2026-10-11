@@ -19,6 +19,7 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.QueryTimeoutException;
+import org.springframework.jdbc.BadSqlGrammarException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.CannotCreateTransactionException;
@@ -68,6 +69,15 @@ class DbResourceUnavailableHandlingTest {
     }
 
     @Test
+    @DisplayName("자원 오류가 아닌 DB 예외(SQL 문법 오류)는 503 이 아니라 500 INTERNAL_ERROR 이고 스택을 남긴다")
+    void SQL_문법_오류는_500_이다() throws Exception {
+        mockMvc.perform(get("/boom/bad-sql"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(header().doesNotExist("Retry-After"))
+                .andExpect(jsonPath("$.error.code").value("INTERNAL_ERROR"));
+    }
+
+    @Test
     @DisplayName("그 밖의 예외는 그대로 500 INTERNAL_ERROR 이다 — 서버 결함까지 503 으로 덮지 않는다")
     void 그_밖의_예외는_500_이다() throws Exception {
         mockMvc.perform(get("/boom/bug"))
@@ -92,6 +102,7 @@ class DbResourceUnavailableHandlingTest {
                 case "serialization-sqlstate" -> new CannotAcquireLockException("could not obtain lock",
                         new SQLException("could not serialize access due to concurrent update", "40001"));
                 case "query-timeout" -> new QueryTimeoutException("canceling statement due to user request");
+                case "bad-sql" -> new BadSqlGrammarException("select", "SELEC 1", new SQLException("syntax error", "42601"));
                 default -> new IllegalStateException("서버 결함");
             };
         }

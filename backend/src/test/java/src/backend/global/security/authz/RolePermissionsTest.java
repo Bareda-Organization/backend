@@ -170,7 +170,7 @@ class RolePermissionsTest {
                 Permissions.EXCEPTION_REPORT_READ, Permissions.DEVICE_REGISTER));
         catalog.put(Role.SYSTEM_ADMIN, Set.of(
                 Permissions.STUDENT_READ_BASIC, Permissions.STUDENT_READ_SENSITIVE, Permissions.STUDENT_READ_PHOTO,
-                Permissions.ROSTER_READ, Permissions.EMERGENCY_ACK, Permissions.ROUTE_READ,
+                Permissions.ROSTER_READ, Permissions.ROUTE_READ,
                 Permissions.MONITOR_ALL, Permissions.DEVICE_REGISTER, Permissions.ACADEMY_MANAGE,
                 Permissions.STAFF_APPROVE, Permissions.ACCOUNT_UNBLOCK, Permissions.AUDIT_READ,
                 Permissions.RUN_FORCE_CONFIRM, Permissions.RUN_FORCE_FINISH));

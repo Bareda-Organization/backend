@@ -396,6 +396,25 @@ class StaffRouteControllerTest {
                 .doesNotContainAnyElementsOf(JsonPath.read(끝쪽, "$.data.items[*].id"));
     }
 
+    /** Ruling 885 ⑪ — 기본 정렬은 요일 순(월~일)이고 {@code sort=weekday:desc} 는 그 역순이다. 요일 문자열 알파벳 순이면 깨진다. */
+    @Test
+    void 목록의_정렬은_일곱_요일_전부_월_화_수_순이고_내림차순은_그_역순이다() throws Exception {
+        for (String weekday : new String[] {"sun", "thu", "mon", "sat", "wed", "fri", "tue"}) {
+            이름을_주어_편성한다("ORD-" + weekday.toUpperCase(), BUS_A_ID, weekday, "from_academy");
+        }
+
+        List<String> ascending = JsonPath.<List<String>>read(목록_본문(관계자A_토큰(), "size=100"), "$.data.items[*].name")
+                .stream().filter(name -> name != null && name.startsWith("ORD-")).toList();
+        List<String> descending = JsonPath.<List<String>>read(목록_본문(관계자A_토큰(), "size=100&sort=weekday:desc"),
+                        "$.data.items[*].name")
+                .stream().filter(name -> name != null && name.startsWith("ORD-")).toList();
+
+        assertThat(ascending).as("알파벳 순이면 FRI, MON, SAT, SUN, THU, TUE, WED")
+                .containsExactly("ORD-MON", "ORD-TUE", "ORD-WED", "ORD-THU", "ORD-FRI", "ORD-SAT", "ORD-SUN");
+        assertThat(descending)
+                .containsExactly("ORD-SUN", "ORD-SAT", "ORD-FRI", "ORD-THU", "ORD-WED", "ORD-TUE", "ORD-MON");
+    }
+
     /**
      * {@code sort} 는 허용 목록({@code RouteQueryService.SORTABLE_FIELDS})에 있는 필드만 받고, 그
      * 차례로 돌려준다(§1.8 {@code {필드}:{asc|desc}}).

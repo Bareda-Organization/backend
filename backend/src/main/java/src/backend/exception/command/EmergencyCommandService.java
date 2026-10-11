@@ -193,7 +193,14 @@ public class EmergencyCommandService {
         OffsetDateTime now = OffsetDateTime.now(clock);
         assertWithinCancelWindow(alert.getReceivedAt(), now);
 
-        alert.cancel(now);
+        // 엔티티를 바꿔 전체 컬럼 UPDATE 로 쓰지 않는다 — 읽은 뒤 먼저 커밋된 확인 기록(acked_*)을 null 로 되돌린다
+        if (emergencyAlertRepository.cancelIfOpen(alert.getId(), now) == 0) {
+            // 읽은 뒤 동시에 먼저 취소한 쪽이 있다 — 최초 취소 결과를 그대로 돌려준다(위 재취소와 같다). 조건부 UPDATE 가 영속성 컨텍스트를 비웠으므로 최신 행이다
+            EmergencyAlert canceled = emergencyAlertRepository
+                    .findByIdAndRunIdAndAcademyId(emergencyId, runId, requester.academyId())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.EMERGENCY_NOT_FOUND));
+            return new EmergencyCancelResponse(canceled.getId(), canceled.getCanceledAt());
+        }
 
         eventPublisher.publishEvent(
                 new EmergencyCanceledEvent(alert.getId(), requester.academyId(), runId, alert.getBusNo(), now));
@@ -202,11 +209,12 @@ public class EmergencyCommandService {
     }
 
     /**
-     * 학원 관계자·메인관리자의 확인 처리(목표 10) — {@code /staff/emergencies/{id}/ack} 하나뿐인
-     * 확인 엔드포인트를 두 역할이 공유한다({@link Permissions#EMERGENCY_ACK} 가 이미 둘 다에게
-     * 부여돼 있다, {@code RolePermissions}). 조회 범위만 역할에 따라 가른다 — 메인관리자는
-     * {@code academyId} 가 없어({@code hasPlatformScope()}) 학원으로 좁힌 조회로는 어떤 신고도 찾지
-     * 못해 항상 404 가 나므로, 그 역할만 전 학원 범위로 대상을 찾는다(판단 근거, 보고서 항목).
+     * 학원 관계자의 확인 처리(목표 10) — {@code /staff/emergencies/{id}/ack}. 확인 주체는 발신 학원의 관계자뿐이다(Ruling 884) —
+     * 메인 관리자는 열람만 하며, {@link Permissions#EMERGENCY_ACK} 를 갖지 않아 컨트롤러에서 {@code 403} 으로 막힌다. 그래서 대상은
+     * 호출자의 학원으로 좁혀 찾는다(타 학원 신고는 {@code 404}).
+     *
+     * <p>취소된 신고는 확인할 수 없다 — {@code 409 EMERGENCY_CANCELED}(Ruling 885 ①). 철회된 신고를 확인하면 발신자에게
+     * "학원이 확인했습니다" 가 가기 때문이다.
      *
      * <p>조치 메모({@code ackMemo}, Ruling 541)는 선택이다 — 확인과 같은 조건부 UPDATE 한 문장으로 쓴다. 따로 쓰면 최초 확인자가
      * 아닌 쪽의 메모가 최초 확인자의 기록을 덮을 수 있다.
@@ -220,12 +228,12 @@ public class EmergencyCommandService {
      */
     @Transactional
     public EmergencyAckResponse ack(AuthUser requester, Long emergencyId, String ackMemo) {
-        EmergencyAlert alert = requester.hasPlatformScope()
-                ? emergencyAlertRepository.findById(emergencyId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.EMERGENCY_NOT_FOUND))
-                : emergencyAlertRepository.findByIdAndAcademyId(emergencyId, requester.academyId())
-                        .orElseThrow(() -> new BusinessException(ErrorCode.EMERGENCY_NOT_FOUND));
+        EmergencyAlert alert = emergencyAlertRepository.findByIdAndAcademyId(emergencyId, requester.academyId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.EMERGENCY_NOT_FOUND));
 
+        if (alert.isCanceled()) {
+            throw new BusinessException(ErrorCode.EMERGENCY_CANCELED);
+        }
         if (alert.isAcked()) {
             throw new BusinessException(ErrorCode.ALREADY_ACKED);
         }
@@ -234,7 +242,11 @@ public class EmergencyCommandService {
         int acked = emergencyAlertRepository.ackIfUnacked(alert.getId(), requester.accountId(), now,
                 normalizeMemo(ackMemo));
         if (acked == 0) {
-            throw new BusinessException(ErrorCode.ALREADY_ACKED); // 동시에 먼저 확인한 쪽이 있다(BR-079)
+            // 읽은 뒤 동시에 먼저 처리한 쪽이 있다 — 취소가 먼저면 EMERGENCY_CANCELED, 확인이 먼저면 ALREADY_ACKED(BR-079 · Ruling 885 ①).
+            // 조건부 UPDATE 가 영속성 컨텍스트를 비웠으므로 다시 읽으면 커밋된 최신 행이다
+            boolean canceledFirst = emergencyAlertRepository.findByIdAndAcademyId(emergencyId, requester.academyId())
+                    .map(EmergencyAlert::isCanceled).orElse(false);
+            throw new BusinessException(canceledFirst ? ErrorCode.EMERGENCY_CANCELED : ErrorCode.ALREADY_ACKED);
         }
 
         String ackedByName = accountRepository.findById(requester.accountId()).map(Account::getName).orElse(null);

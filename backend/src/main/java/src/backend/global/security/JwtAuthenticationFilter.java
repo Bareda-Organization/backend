@@ -2,10 +2,12 @@ package src.backend.global.security;
 
 import java.io.IOException;
 
+import org.springframework.dao.DataAccessException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import jakarta.servlet.FilterChain;
@@ -14,8 +16,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import src.backend.global.error.BusinessException;
+import src.backend.global.error.DbResourceFailure;
 import src.backend.global.error.ErrorCode;
 
 /**
@@ -27,6 +31,7 @@ import src.backend.global.error.ErrorCode;
  * 체인 밖에서 중복 실행되지 않도록 {@link SecurityConfig#jwtAuthenticationFilterRegistration}가
  * 그 자동 등록을 꺼 둔다(그 메서드 Javadoc에 이중 실행이 왜 인증을 지우는지 적어 뒀다).
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -37,6 +42,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     static final String AUTH_FAILURE_ATTR = JwtAuthenticationFilter.class.getName() + ".failure";
 
     private final JwtTokenProvider tokenProvider;
+    private final AccountStanding accountStanding;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
@@ -52,6 +58,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private void authenticate(HttpServletRequest request, String token) {
         try {
             AuthUser principal = tokenProvider.authenticateAccess(token);
+            // 퇴사·차단·삭제된 매니저는 이미 받은 access 토큰도 다음 요청부터 거절한다(Ruling 880) — 재발급 신호(TOKEN_EXPIRED)로
+            // 알려 클라이언트가 재발급을 시도하고, 재발급이 401 이라 로그인으로 가게 한다(API_SPEC §2.6)
+            if (accountStanding.isLost(principal.accountId())) {
+                throw new BusinessException(ErrorCode.TOKEN_EXPIRED);
+            }
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(principal, null, principal.authorities());
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
@@ -61,6 +72,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             // 여기 남긴 코드(TOKEN_EXPIRED · UNAUTHORIZED)로 401 본문을 쓴다(BR-033)
             SecurityContextHolder.clearContext();
             request.setAttribute(AUTH_FAILURE_ATTR, e.getErrorCode());
+        } catch (CannotCreateTransactionException | DataAccessException e) {
+            // 계정 상태 조회가 DB 예외로 실패했다 — 필터는 컨트롤러 어드바이스 바깥이라 잡지 않으면 규격 없는 500 이 된다. 어느 쪽이든
+            // 모르는 상태를 통과시키지 않고(인증을 세우지 않음) 보호 자원이면 엔트리 포인트가 사유 코드로 §1.10 본문을 쓴다.
+            // 자원 오류(풀 연결 대기 초과·연결 끊김·쿼리 취소)만 503 SERVER_BUSY, SQL 문법 오류 같은 코드 결함은 500 INTERNAL_ERROR 다 —
+            // 둘을 가르는 목록은 GlobalExceptionHandler 와 같은 DbResourceFailure 한 곳이다(API_SPEC §1.10·§1.11)
+            SecurityContextHolder.clearContext();
+            if (DbResourceFailure.isResourceUnavailable(e)) {
+                log.warn("[db-unavailable] 인증 필터의 계정 상태 조회 실패 — {}: {}", e.getClass().getSimpleName(), e.getMessage());
+                request.setAttribute(AUTH_FAILURE_ATTR, ErrorCode.SERVER_BUSY);
+            } else {
+                log.error("[unexpected] 인증 필터의 계정 상태 조회 실패 — {}", e.getMessage(), e);
+                request.setAttribute(AUTH_FAILURE_ATTR, ErrorCode.INTERNAL_ERROR);
+            }
         }
     }
 

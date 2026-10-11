@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -82,6 +83,22 @@ class StaffScheduleControllerTest {
      */
     @PersistenceContext
     private EntityManager entityManager;
+
+    /** Ruling 885 ⑪ — 기본 정렬은 요일 순(월~일)이고 {@code sort=weekday:desc} 는 그 역순(일~월)이다. 요일 문자열 알파벳 순(금·월·일·토·목·화·수)이면 깨진다. */
+    @Test
+    void 목록의_정렬은_일곱_요일_전부_월_화_수_순이고_내림차순은_그_역순이다() throws Exception {
+        for (String weekday : new String[] {"sun", "thu", "mon", "sat", "wed", "fri", "tue"}) {
+            등록된_스케줄_id(관계자A_토큰(), BUS_A_ID, weekday, "from_academy", FREE_TIME);
+        }
+        String filter = "$.data.items[?(@.depart_time == '%s')].weekday".formatted(FREE_TIME);
+
+        List<String> ascending = JsonPath.read(목록_본문(관계자A_토큰()), filter);
+        List<String> descending = JsonPath.read(목록_본문(관계자A_토큰(), "&sort=weekday:desc"), filter);
+
+        assertThat(ascending).as("알파벳 순이면 fri, mon, sat, sun, thu, tue, wed")
+                .containsExactly("mon", "tue", "wed", "thu", "fri", "sat", "sun");
+        assertThat(descending).containsExactly("sun", "sat", "fri", "thu", "wed", "tue", "mon");
+    }
 
     // ── SCH-01 등록 ───────────────────────────────────────────────────────
 
@@ -359,7 +376,11 @@ class StaffScheduleControllerTest {
     }
 
     private String 목록_본문(String token) throws Exception {
-        return 본문(mockMvc.perform(get("/api/v1/staff/schedules?size=100").header("Authorization", token))
+        return 목록_본문(token, "");
+    }
+
+    private String 목록_본문(String token, String extraQuery) throws Exception {
+        return 본문(mockMvc.perform(get("/api/v1/staff/schedules?size=100" + extraQuery).header("Authorization", token))
                 .andExpect(status().isOk())
                 .andReturn());
     }

@@ -42,10 +42,10 @@ public class RouteQueryService {
      * {@code 500} 이 되고, 그 예외 문구가 엔티티 필드 목록을 밖으로 실어 나르기 때문이다.
      */
     private static final Map<String, String> SORTABLE_FIELDS =
-            Map.of("weekday", "weekday", "direction", "direction", "name", "name");
+            Map.of("weekday", "weekdayOrder", "direction", "direction", "name", "name");
 
     /** 기본 정렬은 차량 — 편성 화면이 차량 단위로 묶어 보여 준다. */
-    private static final Sort DEFAULT_SORT = Sort.by(Sort.Direction.ASC, "busId", "weekday", "direction");
+    private static final Sort DEFAULT_SORT = Sort.by(Sort.Direction.ASC, "busId", "weekdayOrder", "direction");
 
     private final RouteRepository routeRepository;
 

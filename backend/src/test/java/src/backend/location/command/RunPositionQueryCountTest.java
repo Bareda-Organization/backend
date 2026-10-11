@@ -120,24 +120,24 @@ class RunPositionQueryCountTest {
     }
 
     /**
-     * R46-LATERBE L2(Ruling 671) — 위치 1건(2초마다)의 SQL 은 5건이다: 인가 exists 1(전 2 — 매니저·배치) · 회차 1 · INSERT 1 ·
-     * 확정 노선+정차 목록+정차 이름 조인 1(전 3 — 확정 노선·정차 목록·정차명) · 커밋 뒤 탑승자 학생 id 1. 전체 8건(첫 도착 전 7건)에서
-     * 줄었다. 캐시가 아니라 쿼리를 합친 것이라 무효화 지점이 없다 — 매 요청이 실시간 값을 읽는다.
+     * R46-LATERBE L2(Ruling 671) — 위치 1건(2초마다)의 SQL 은 6건이다: <b>인증 필터의 계정 상태 확인 1(Ruling 880)</b> · 인가 exists 1(전 2 — 매니저·배치) · 회차 1 · INSERT 1 ·
+     * 확정 노선+정차 목록+정차 이름 조인 1(전 3 — 확정 노선·정차 목록·정차명) · 커밋 뒤 탑승자 학생 id 1. 전체 9건(첫 도착 전 8건)에서
+     * 줄었다. 880 이 요청마다 더한 1건(기본키 조회)은 의도한 비용이다. 캐시가 아니라 쿼리를 합친 것이라 무효화 지점이 없다 — 매 요청이 실시간 값을 읽는다.
      */
     @Test
-    @DisplayName("L2 — 위치 1건의 SQL 은 5건이다(첫 도착 뒤 · 전 8건)")
-    void 첫_도착_뒤_위치_1건의_SQL_은_5건이다() throws Exception {
+    @DisplayName("L2 — 위치 1건의 SQL 은 6건이다(첫 도착 뒤 · 880 포함)")
+    void 첫_도착_뒤_위치_1건의_SQL_은_6건이다() throws Exception {
         Seeded seeded = 회차를_심는다(true);
 
-        assertThat(위치를_보내고_SQL_수를_센다(seeded)).isEqualTo(5);
+        assertThat(위치를_보내고_SQL_수를_센다(seeded)).isEqualTo(6);
     }
 
     @Test
-    @DisplayName("L2 — 첫 도착 전에도 위치 1건의 SQL 은 5건이다(전 7건)")
-    void 첫_도착_전_위치_1건의_SQL_은_5건이다() throws Exception {
+    @DisplayName("L2 — 첫 도착 전에도 위치 1건의 SQL 은 6건이다(880 포함)")
+    void 첫_도착_전_위치_1건의_SQL_은_6건이다() throws Exception {
         Seeded seeded = 회차를_심는다(false);
 
-        assertThat(위치를_보내고_SQL_수를_센다(seeded)).isEqualTo(5);
+        assertThat(위치를_보내고_SQL_수를_센다(seeded)).isEqualTo(6);
     }
 
     /** 위치 방송 수신자 조회가 absent 를 빼고 학생 id 만 돌려준다(엔티티 목록 대신 투영 — L2). 거르는 일은 조회가 한다. */
