@@ -824,7 +824,7 @@ class BoardingIntentControllerTest {
     /** Ruling 885② 의 경계 — 탑승자가 {@code absent} 여도 탑승 의사가 켜져 있으면 무변경이 아니다(③구간 판정을 그대로 탄다: waiting 이 아니므로 403). */
     @Test
     @DisplayName("Ruling 885② — 마감구간에서 탑승자가 absent 이지만 의사가 켜져 있으면 무변경 성공이 아니라 403 이고 의사는 그대로다")
-    void 마감구간에서_탑승자가_absent_이지만_의사가_켜져_있으면_무변경이_아니다() throws Exception {
+    void 마감구간에서_탑승자가_absent_이고_의사가_켜져_있으면_의사만_끄고_성공한다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long academyId = fixtures().academy();
         long busId = fixtures().bus(academyId);
@@ -840,13 +840,30 @@ class BoardingIntentControllerTest {
                 studentId);
         entityManager.clear();
         long eventsBefore = applicationEvents.stream(IntentChangedEvent.class).count();
+        int historyBefore = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM rider_status_history WHERE run_rider_id IN "
+                        + "(SELECT id FROM run_rider WHERE run_id = ? AND student_id = ?)", Integer.class, runId,
+                studentId);
 
         mockMvc.perform(patch(INTENT.formatted(studentId, runId))
                         .header("Authorization", 토큰(guardian.accountId(), academyId, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"riding\":false}"))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error.code").value("CHANGE_WINDOW_CLOSED"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.result").value("applied_no_reroute"))
+                .andExpect(jsonPath("$.data.riding").value(false))
+                .andExpect(jsonPath("$.data.rider_status").value("absent"));
 
+        entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT riding FROM boarding_intent WHERE run_id = ? AND student_id = ?", Boolean.class, runId,
+                studentId)).as("의사는 꺼져야 한다").isFalse();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status FROM run_rider WHERE run_id = ? AND student_id = ?", String.class, runId, studentId))
+                .as("탑승자는 absent 그대로").isEqualTo("absent");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM rider_status_history WHERE run_rider_id IN "
+                        + "(SELECT id FROM run_rider WHERE run_id = ? AND student_id = ?)", Integer.class, runId,
+                studentId)).as("이력 행 수 불변").isEqualTo(historyBefore);
         assertThat(applicationEvents.stream(IntentChangedEvent.class).count()).isEqualTo(eventsBefore);
     }
 

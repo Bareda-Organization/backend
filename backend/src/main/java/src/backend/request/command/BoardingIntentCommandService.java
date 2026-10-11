@@ -173,10 +173,11 @@ public class BoardingIntentCommandService {
 
     /**
      * ③구간 — 운행 시작 후(또는 출발 시각 + 10분 도달)라 재최적화 없이 미등원만 즉시 수용한다.
-     * {@code riding=true}(되돌리기 시도)와 아직 타지 않은({@code waiting}) 학생이 아닌 경우는
+     * {@code riding=true}(되돌리기 시도)와 탑승자가 {@code boarded · alighted · no_show} 인 경우는
      * {@code 403 CHANGE_WINDOW_CLOSED} 다(§3.6 ③, Ruling 334) — 이미 탄 학생을 {@code absent} 로
      * 덮으면 종료 판정이 그 아이를 잔류로 세지 않는다. 단 이미 {@code absent} 이고 의사도 꺼진 학생의 {@code riding=false} 재전송은
-     * 무변경 성공이다(Ruling 885②) — 탑승자 행이 아예 없어도 같다.
+     * 무변경 성공이다(Ruling 885②) — 탑승자 행이 아예 없어도 같다. 이미 {@code absent} 인데 의사만 켜져 있으면 의사만 끄고 성공한다
+     * (Ruling 885② 보정 — 재경로·이벤트·이력 없음).
      *
      * <p>반영되면 기사·동승자에게 전달한다 — {@link RiderStatusChangedEvent}(WS {@code rider_changed})
      * 와 {@link RunRouteConfirmedEvent}(기존 {@code route_changed} 알림, 해당 승하차지 미정차).
@@ -195,7 +196,12 @@ public class BoardingIntentCommandService {
         Optional<RunRider> rider = runRiderRepository.findLockedByRunIdAndStudentId(run.getId(), student.getId());
         if (!riding && !intent.isRiding() && rider.filter(r -> r.getStatus() != RiderStatus.ABSENT).isEmpty()) {
             // Ruling 885② — 의사가 이미 꺼진 학생의 재전송은 탑승자 행이 없든 absent 든 ①②구간의 같은 값 재전송처럼 무변경 성공이다(이벤트·이력 부재).
-            // 의사가 켜져 있으면 absent 여도 이 길이 아니라 아래 판정을 탄다(waiting 이 아니라 403).
+            return BoardingIntentToggleResponse.appliedNoReroute(false, statusNameOf(RiderStatus.ABSENT),
+                    quotaLeftOf(intent));
+        }
+        if (!riding && rider.filter(r -> r.getStatus() == RiderStatus.ABSENT).isPresent()) {
+            // Ruling 885② 보정 — 탑승자는 이미 absent 이고 의사만 켜져 있으면 의사만 끈다. 재경로·정차 판정·이벤트·이력은 만들지 않는다(§3.6 ③ 403 대상 아님).
+            intent.applyRiding(false, ChangeWindow.CLOSED, now, requester.accountId());
             return BoardingIntentToggleResponse.appliedNoReroute(false, statusNameOf(RiderStatus.ABSENT),
                     quotaLeftOf(intent));
         }
