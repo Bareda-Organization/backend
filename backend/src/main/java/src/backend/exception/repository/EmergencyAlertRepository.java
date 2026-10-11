@@ -73,6 +73,21 @@ public interface EmergencyAlertRepository extends JpaRepository<EmergencyAlert, 
             @Param("ackMemo") String ackMemo);
 
     /**
+     * 취소를 조건부 UPDATE 로 반영한다(EXC-04 "이력 존치") — {@code canceled_at} 한 컬럼만 쓴다. 엔티티를 읽어 바꾼 뒤 전체 컬럼 UPDATE 로
+     * 쓰면, 읽은 뒤 먼저 커밋된 확인의 {@code acked_by} · {@code acked_at} · {@code ack_memo} 를 읽은 시점 값(null)으로 되돌린다.
+     * 확인된 신고도 발신 1분 이내면 취소할 수 있고(사양에 막는 규칙이 없다) 그때 확인 기록은 그대로 남는다.
+     * {@code canceled_at IS NULL} 은 같은 신고를 동시에 두 번 취소해도 최초 취소 시각을 지키는 조건이다.
+     *
+     * @return 영향받은 행 수 — 0 이면 이미 취소된 신고다(호출부가 다시 읽어 그 취소 결과를 돌려준다)
+     */
+    @Transactional
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @AcademyScopeExempt(reason = "호출부(EmergencyCommandService#cancel)가 발신자의 회차·학원(findByIdAndRunIdAndAcademyId)으로 "
+            + "이미 찾은 신고 id 하나에 대한 조건부 갱신이다 — ackIfUnacked 와 같은 근거")
+    @Query("UPDATE EmergencyAlert a SET a.canceledAt = :canceledAt WHERE a.id = :id AND a.canceledAt IS NULL")
+    int cancelIfOpen(@Param("id") Long id, @Param("canceledAt") OffsetDateTime canceledAt);
+
+    /**
      * 학원의 비상 알림 목록 — 상태 필터(§5.16 · §6.11)를 쿼리로 건다(BR-087). 무기한 보존되는 테이블이라 자바에서
      * 거르면 호출마다 학원 전 기간 행을 읽는다. 최근 신고가 먼저 보이게 접수 역순이고, {@code limit} 으로 행 수를
      * 자른다(BR-228 — {@link src.backend.global.request.PageParams#UNPAGED_LIST_MAX}).

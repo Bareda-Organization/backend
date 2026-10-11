@@ -193,7 +193,14 @@ public class EmergencyCommandService {
         OffsetDateTime now = OffsetDateTime.now(clock);
         assertWithinCancelWindow(alert.getReceivedAt(), now);
 
-        alert.cancel(now);
+        // 엔티티를 바꿔 전체 컬럼 UPDATE 로 쓰지 않는다 — 읽은 뒤 먼저 커밋된 확인 기록(acked_*)을 null 로 되돌린다
+        if (emergencyAlertRepository.cancelIfOpen(alert.getId(), now) == 0) {
+            // 읽은 뒤 동시에 먼저 취소한 쪽이 있다 — 최초 취소 결과를 그대로 돌려준다(위 재취소와 같다). 조건부 UPDATE 가 영속성 컨텍스트를 비웠으므로 최신 행이다
+            EmergencyAlert canceled = emergencyAlertRepository
+                    .findByIdAndRunIdAndAcademyId(emergencyId, runId, requester.academyId())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.EMERGENCY_NOT_FOUND));
+            return new EmergencyCancelResponse(canceled.getId(), canceled.getCanceledAt());
+        }
 
         eventPublisher.publishEvent(
                 new EmergencyCanceledEvent(alert.getId(), requester.academyId(), runId, alert.getBusNo(), now));
