@@ -158,11 +158,15 @@ public class ChangeRequestDecisionService {
     private DecideChangeRequestResponse approve(AuthUser requester, ChangeRequest cr, Run run,
             OffsetDateTime decidedAt, String previewToken) {
         Long academyId = cr.getAcademyId();
-        // BR-171 — 이 회차는 decide 가 요청 행보다 먼저 잠갔다(경유 지점 배포 routing/command/WaypointStore#assertStillDeployable 와 같은
-        // 잠금). 두 배포가 같은 순간이면 늦게 온 쪽이 그 잠금에서 기다렸다가 방금 배포된 노선 버전을 보고 다음 판본 번호를 매긴다 —
-        // 잠금이 없으면 둘 다 같은 옛 버전을 기준으로 같은 판본 번호를 써 uk_route_version_confirmed_route_version_no UNIQUE 위반(500)이 난다.
-        // Ruling 376 — 취소된 회차에는 노선을 새로 배포하지 않는다(거절은 허용). 잠근 뒤 읽은 상태로 판정해야 취소와 겹쳐도 안전하다.
-        ChangeWindowPolicy.assertNotCanceled(run);
+        // BR-171 — 경유 지점 배포(routing/command/WaypointStore#assertStillDeployable)와 같은 잠금을
+        // 재사용해 이 회차를 잠근다. 두 배포가 같은 순간이면 늦게 온 쪽이 이 자리에서 기다렸다가 방금
+        // 배포된 노선 버전을 보고 다음 판본 번호를 매겨야 하는데, 잠금이 없으면 둘 다 같은 옛 버전을
+        // 기준으로 같은 판본 번호를 써 uk_route_version_confirmed_route_version_no UNIQUE 위반(500)이
+        // 난다. 새 잠금 수단을 만들지 않고 그쪽이 쓰는 저장소 메서드를 호출만 한다. decide 가 요청 행보다 먼저 쥔 잠금이라 여기서는 기다리지 않는다.
+        Run locked = runRepository.findLockedByIdAndAcademyId(run.getId(), academyId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        // Ruling 376 — 취소된 회차에는 노선을 새로 배포하지 않는다(거절은 허용). 잠근 뒤 판정해야 취소와 겹쳐도 안전하다.
+        ChangeWindowPolicy.assertNotCanceled(locked);
         ApprovalPreview preview = previewCache.find(cr.getId())
                 .filter(cached -> cached.token().equals(previewToken))
                 .orElseThrow(() -> new BusinessException(ErrorCode.PREVIEW_STALE));
