@@ -821,9 +821,9 @@ class BoardingIntentControllerTest {
                 .as("값이 같은 재전송은 관계자 알림의 재료(IntentChangedEvent)를 다시 내지 않는다").isEqualTo(eventsBefore);
     }
 
-    /** Ruling 885② 의 경계 — 탑승자가 {@code absent} 여도 탑승 의사가 켜져 있으면 무변경이 아니다(③구간 판정을 그대로 탄다: waiting 이 아니므로 403). */
+    /** Ruling 885② 보정 — 탑승자가 {@code absent} 이고 탑승 의사가 켜져 있으면 의사만 끄고 성공한다(재경로·이벤트·이력 없음). */
     @Test
-    @DisplayName("Ruling 885② — 마감구간에서 탑승자가 absent 이지만 의사가 켜져 있으면 무변경 성공이 아니라 403 이고 의사는 그대로다")
+    @DisplayName("Ruling 885② 보정 — 마감구간에서 탑승자가 absent 이고 의사가 켜져 있으면 의사만 끄고 성공한다")
     void 마감구간에서_탑승자가_absent_이고_의사가_켜져_있으면_의사만_끄고_성공한다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long academyId = fixtures().academy();
