@@ -55,18 +55,20 @@ public interface EmergencyAlertRepository extends JpaRepository<EmergencyAlert, 
 
     /**
      * 확인 처리를 조건부 UPDATE 로 반영한다(BR-079, §5.16) — {@code acked_at IS NULL} 재확인이 "최초
-     * 확인자만 기록" 의 전부다. 관계자·메인 관리자가 동시에 눌러도 먼저 행 잠금을 얻은 쪽만 갱신하고
+     * 확인자만 기록" 의 전부다. 관계자 둘이 동시에 눌러도 먼저 행 잠금을 얻은 쪽만 갱신하고
      * 나중 쪽은 0행을 받는다({@code NoShowCaseRepository#escalateIfDue} 와 같은 형태).
+     * {@code canceled_at IS NULL} 은 신고를 읽은 뒤 발신자의 취소가 먼저 커밋된 경우를 막는다(Ruling 885 ①) —
+     * 철회된 신고가 확인돼 발신자에게 "학원이 확인했습니다" 가 가면 안 된다.
      *
-     * @return 영향받은 행 수 — 0 이면 이미 확인된 신고다
+     * @return 영향받은 행 수 — 0 이면 이미 확인됐거나 취소된 신고다(호출부가 다시 읽어 가른다)
      */
     @Transactional
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @AcademyScopeExempt(reason = "호출부(EmergencyCommandService#ack)가 역할별 범위(관계자 — findByIdAndAcademyId, "
-            + "메인 관리자 — 전 학원)로 이미 찾은 신고 id 하나에 대한 조건부 갱신이다 — 그 조회가 이미 좁힌 대상이라 "
+    @AcademyScopeExempt(reason = "호출부(EmergencyCommandService#ack)가 호출자의 학원(findByIdAndAcademyId)으로 "
+            + "이미 찾은 신고 id 하나에 대한 조건부 갱신이다 — 그 조회가 이미 좁힌 대상이라 "
             + "이 시점에 학원을 다시 물을 근거가 없다(NoShowCaseRepository#escalateIfDue 와 같은 근거)")
     @Query("UPDATE EmergencyAlert a SET a.ackedBy = :ackedBy, a.ackedAt = :ackedAt, a.ackMemo = :ackMemo "
-            + "WHERE a.id = :id AND a.ackedAt IS NULL")
+            + "WHERE a.id = :id AND a.ackedAt IS NULL AND a.canceledAt IS NULL")
     int ackIfUnacked(@Param("id") Long id, @Param("ackedBy") Long ackedBy, @Param("ackedAt") OffsetDateTime ackedAt,
             @Param("ackMemo") String ackMemo);
 

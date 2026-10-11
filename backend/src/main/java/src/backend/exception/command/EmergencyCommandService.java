@@ -235,7 +235,11 @@ public class EmergencyCommandService {
         int acked = emergencyAlertRepository.ackIfUnacked(alert.getId(), requester.accountId(), now,
                 normalizeMemo(ackMemo));
         if (acked == 0) {
-            throw new BusinessException(ErrorCode.ALREADY_ACKED); // 동시에 먼저 확인한 쪽이 있다(BR-079)
+            // 읽은 뒤 동시에 먼저 처리한 쪽이 있다 — 취소가 먼저면 EMERGENCY_CANCELED, 확인이 먼저면 ALREADY_ACKED(BR-079 · Ruling 885 ①).
+            // 조건부 UPDATE 가 영속성 컨텍스트를 비웠으므로 다시 읽으면 커밋된 최신 행이다
+            boolean canceledFirst = emergencyAlertRepository.findByIdAndAcademyId(emergencyId, requester.academyId())
+                    .map(EmergencyAlert::isCanceled).orElse(false);
+            throw new BusinessException(canceledFirst ? ErrorCode.EMERGENCY_CANCELED : ErrorCode.ALREADY_ACKED);
         }
 
         String ackedByName = accountRepository.findById(requester.accountId()).map(Account::getName).orElse(null);
