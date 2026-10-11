@@ -1,5 +1,6 @@
 package src.backend.global.security;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -88,6 +89,21 @@ class AccountStandingHttpTest {
                 .andExpect(jsonPath("$.error.code").value("TOKEN_EXPIRED"));
     }
 
+    /**
+     * 사진 파일 서빙({@code GET /files/photos/**})도 같은 필터를 지난다 — 권한을 잃은 계정은 컨트롤러에 닿기 전에 401 이다.
+     * 사진은 학생 개인정보(L3)라 필터가 이 경로에서 빠지면 차단된 계정이 이미 받은 토큰으로 사진을 계속 받는다.
+     */
+    @Test
+    void 권한을_잃은_계정의_토큰은_사진_파일_경로에서도_401_TOKEN_EXPIRED_다() throws Exception {
+        String token = bearer(STAFF_A_ACCOUNT, ACADEMY_A, Role.STAFF);
+        callPhoto(token).andExpect(result -> assertThat(result.getResponse().getStatus())
+                .as("대조군 — 재직 중에는 401 이 아니다(없는 파일이라 404)").isNotEqualTo(401));
+
+        jdbcTemplate.update("UPDATE academy_staff SET status = 'inactive' WHERE account_id = ?", STAFF_A_ACCOUNT);
+
+        callPhoto(token).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.error.code").value("TOKEN_EXPIRED"));
+    }
+
     /** 거절만 보면 "전부 거절" 구현이 통과한다 — 같은 학원의 다른 정상 계정은 그대로 통과해야 한다. */
     @Test
     void 다른_계정이_퇴사해도_정상_계정의_토큰은_통과한다() throws Exception {
@@ -119,6 +135,10 @@ class AccountStandingHttpTest {
 
     private ResultActions callStaffApi(String bearer) throws Exception {
         return mockMvc.perform(get("/api/v1/staff/managers").header("Authorization", bearer));
+    }
+
+    private ResultActions callPhoto(String bearer) throws Exception {
+        return mockMvc.perform(get("/api/v1/files/photos/no-such-photo.jpg").header("Authorization", bearer));
     }
 
     private MvcResult login(String loginId) throws Exception {

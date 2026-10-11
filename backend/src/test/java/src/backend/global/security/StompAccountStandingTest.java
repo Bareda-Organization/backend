@@ -65,6 +65,8 @@ class StompAccountStandingTest {
     @AfterEach
     void restore() {
         jdbcTemplate.update("UPDATE academy_staff SET status = 'active' WHERE account_id = ?", STAFF_A_ACCOUNT);
+        jdbcTemplate.update("UPDATE account SET status = 'active', status_before_block = NULL, blocked_at = NULL, "
+                + "block_reason = NULL WHERE id = ?", STAFF_A_ACCOUNT);
         advanceableClock.reset();
     }
 
@@ -73,6 +75,17 @@ class StompAccountStandingTest {
         assertThat(connectOutcome()).as("재직 중에는 연결된다").startsWith("CONNECTED");
 
         retire();
+
+        assertThat(connectOutcome()).startsWith("ERROR").contains("message:TOKEN_EXPIRED");
+    }
+
+    /** 퇴사 외의 갈래 — 차단(blocked)도 같은 규칙이다. 차단은 계정 상태 컬럼이라 퇴사(관계자 재직 표)와 판정 경로가 다르다. */
+    @Test
+    void 차단된_계정의_새_연결은_TOKEN_EXPIRED_로_거부된다() throws Exception {
+        assertThat(connectOutcome()).as("차단 전에는 연결된다").startsWith("CONNECTED");
+
+        jdbcTemplate.update("UPDATE account SET status = 'blocked', status_before_block = 'active', "
+                + "blocked_at = now(), block_reason = '시험' WHERE id = ?", STAFF_A_ACCOUNT);
 
         assertThat(connectOutcome()).startsWith("ERROR").contains("message:TOKEN_EXPIRED");
     }
