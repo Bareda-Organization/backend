@@ -96,13 +96,14 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
 
     /**
      * 그 계정의 매니저가 그 회차의 그 자리에 배치돼 있는지 한 문장으로 확인한다 — 위치 수신(2초마다)이 매니저 조회 + 배치 조회 + 배치의
-     * 담당자 비교 두 번을 이 하나로 줄인다(R46-LATERBE L2). 행이 필요하면 {@link #findByRunIdAndRole} 를 쓴다.
+     * 담당자 비교 두 번을 이 하나로 줄인다(R46-LATERBE L2). 삭제된 매니저는 배치가 남아 있어도 거짓이다(Ruling 885 ⑥). 행이 필요하면 {@link #findByRunIdAndRole} 를 쓴다.
      */
     @AcademyScopeExempt(reason = "findByRunIdAndRole 과 같은 근거 — 배치 생성 시점에 매니저와 회차의 학원이 일치하도록 강제돼 있어 "
             + "(AssignmentCommandService#place 가 매니저를 학원으로 좁혀 조회) 여기서 찾은 배치는 항상 그 계정의 학원과 일치한다. "
             + "계정은 토큰에서 얻은 값이고 runId 는 호출부가 인가 확인에 쓰는 값이다")
     @Query("SELECT CASE WHEN COUNT(a) > 0 THEN TRUE ELSE FALSE END FROM Assignment a, Manager m "
-            + "WHERE m.id = a.managerId AND a.runId = :runId AND a.role = :role AND m.accountId = :accountId")
+            + "WHERE m.id = a.managerId AND a.runId = :runId AND a.role = :role AND m.accountId = :accountId "
+            + "AND m.deletedAt IS NULL")
     boolean existsByRunIdAndRoleAndManagerAccountId(@Param("runId") Long runId, @Param("role") ManagerRole role,
             @Param("accountId") Long accountId);
 

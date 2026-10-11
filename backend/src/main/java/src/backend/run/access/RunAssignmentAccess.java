@@ -99,6 +99,7 @@ public class RunAssignmentAccess {
 
     private Assignment assertAssigned(AuthUser requester, Long runId, ManagerRole managerRole) {
         Manager manager = managerRepository.findByAccountId(requester.accountId())
+                .filter(found -> !found.isDeleted()) // 삭제된 매니저는 배치가 남아 있어도 배치 판정을 쓰는 모든 경로에서 막는다(Ruling 885 ⑥)
                 .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN));
         Assignment assignment = assignmentRepository.findByRunIdAndRole(runId, managerRole)
                 .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN));
