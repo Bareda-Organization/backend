@@ -42,6 +42,7 @@ import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.access.RunAssignmentAccess;
 import src.backend.run.command.RunCompletionService;
+import src.backend.run.command.RunRowLock;
 import src.backend.run.command.StopDepartureService;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
@@ -110,6 +111,9 @@ public class BoardingCommandService {
 
     private final RunAssignmentAccess runAssignmentAccess;
 
+    /** 회차 행 잠금 — 모든 쓰기 경로가 탑승자 · 승하차지 행보다 먼저 쥐는 잠금 순서의 진입점이다({@link RunRowLock}). */
+    private final RunRowLock runRowLock;
+
     /** 같은 {@code client_key} 의 동시 재전송을 직렬화한다(BR-226). */
     private final ClientKeyLock clientKeyLock;
 
@@ -137,6 +141,7 @@ public class BoardingCommandService {
             return replayResponse(assertSameRequest(replay.get(), runId, riderId, request.status()));
         }
 
+        runRowLock.acquire(run);
         if (run.getStatus() != RunStatus.MOVING) {
             throw new BusinessException(ErrorCode.RUN_NOT_MOVING);
         }
@@ -196,6 +201,7 @@ public class BoardingCommandService {
         runAssignmentAccess.assertAssignedDriverOrEscort(requester, runId);
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        runRowLock.acquire(run);
         if (run.getStatus() != RunStatus.MOVING) {
             throw new BusinessException(ErrorCode.RUN_NOT_MOVING);
         }
@@ -238,14 +244,12 @@ public class BoardingCommandService {
      * #judgeRun} 가 도착 후 100m 이탈 최초 1회를 이 컬럼에 기록한다). 뒤 순번 정차지 참조에 기대던 파생 규칙은
      * 폐기했다 — 마지막 승하차지는 뒤 순번이 없어 영원히 되돌릴 수 있는 구멍이 있었다(목표 6c).
      *
-     * <p>확정 노선(버전)이 아직 없거나 그 학생의 정차 항목 자체를 찾지 못하면 판정 재료가 없으므로
-     * 통과시킨다(막을 근거가 없는 채로 막으면 정상 되돌리기까지 거부하게 된다).
+     * <p>출발 여부를 <b>행 잠금</b>으로 읽는다({@link #isStopDepartedLocked}) — 잠금 없이 읽으면 출발 선점이 이 읽기와 커밋 사이에 끼어
+     * 출발 알림이 나간 뒤 되돌려진다(R53 게이트). 확정 노선(버전)이 아직 없거나 그 학생의 정차 항목 자체를 찾지 못하면 판정 재료가
+     * 없으므로 통과시킨다(막을 근거가 없는 채로 막으면 정상 되돌리기까지 거부하게 된다).
      */
     private void assertNotDeparted(Long runId, Long stopId) {
-        boolean departed = currentRouteVersionId(runId)
-                .flatMap(versionId -> runStopRepository.findByRouteVersionIdAndStopId(versionId, stopId))
-                .map(runStop -> runStop.getDepartedAt() != null).orElse(false);
-        if (departed) {
+        if (isStopDepartedLocked(runId, stopId)) {
             throw new BusinessException(ErrorCode.STOP_ALREADY_DEPARTED);
         }
     }
@@ -253,7 +257,7 @@ public class BoardingCommandService {
     /**
      * 그 승하차지가 이미 출발 처리됐는지를 <b>행 잠금</b>으로 읽는다(Ruling 878) — 출발 선점({@code claimDeparture} UPDATE)과 같은
      * {@code run_stop} 행을 쥐므로 둘 중 먼저 온 쪽이 커밋할 때까지 다른 쪽이 기다린다. 기록이 먼저면 출발 때 묶음 발송이 이 기록을
-     * 읽고, 출발이 먼저면 이 기록이 즉시 발송한다. 확정 노선이 없으면 판정 재료가 없어 출발 전으로 본다({@link #assertNotDeparted} 와 같다).
+     * 읽고, 출발이 먼저면 이 기록이 즉시 발송한다. 확정 노선이 없으면 판정 재료가 없어 출발 전으로 본다.
      */
     private boolean isStopDepartedLocked(Long runId, Long stopId) {
         return currentRouteVersionId(runId)

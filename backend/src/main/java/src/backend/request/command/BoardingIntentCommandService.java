@@ -32,6 +32,7 @@ import src.backend.request.event.ApprovalRequestedEvent;
 import src.backend.request.event.IntentChangedEvent;
 import src.backend.request.repository.BoardingIntentRepository;
 import src.backend.request.repository.ChangeRequestRepository;
+import src.backend.run.command.RunRowLock;
 import src.backend.run.entity.Run;
 import src.backend.run.event.RunRouteConfirmedEvent;
 import src.backend.student.access.LinkedChildLookup;
@@ -76,6 +77,9 @@ public class BoardingIntentCommandService {
 
     private final StopSkipJudge stopSkipJudge;
 
+    /** ③구간이 탑승자 · 승하차지 행을 쥐기 전에 먼저 쥐는 회차 행 잠금(승하차 기록 · 도착 처리와 같은 잠금 순서, {@link RunRowLock}). */
+    private final RunRowLock runRowLock;
+
     private final ApplicationEventPublisher eventPublisher;
 
     private final Clock clock;
@@ -97,6 +101,10 @@ public class BoardingIntentCommandService {
 
         OffsetDateTime now = OffsetDateTime.now(clock);
         ChangeWindow segment = ChangeWindowPolicy.segmentOf(run, now);
+        if (segment == ChangeWindow.CLOSED) {
+            // ③구간은 탑승자 · 승하차지 행을 쥐므로 의사 행보다도 먼저 회차 행을 쥔다(R53 I1 — 회차 → 의사 → 탑승자 → 승하차지).
+            runRowLock.acquire(run.getId(), run.getAcademyId());
+        }
 
         boardingIntentRepository.insertIfAbsent(run.getId(), student.getId(), now);
         // BR-361 — 행 잠금으로 읽는다: 더블탭의 두 번째 요청은 첫 요청이 커밋한 값을 읽어 "같은 값" 으로 판정된다

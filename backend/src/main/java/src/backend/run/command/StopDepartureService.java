@@ -35,14 +35,21 @@ public class StopDepartureService {
 
     private final ConfirmedRouteRepository confirmedRouteRepository;
 
+    /** 회차 행 잠금 — 승하차지 행을 건드리기 전에 쥐어 모든 쓰기 경로가 같은 잠금 순서를 지킨다({@link RunRowLock}). */
+    private final RunRowLock runRowLock;
+
     private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 정차 항목 1건의 출발을 선점하고, 실제로 선점됐을 때만(1행 갱신) {@link StopDepartedEvent} 를
      * 발행한다 — 이미 다른 경로가 먼저 선점했으면(0행) 조용히 반환한다(멱등, Ruling 308).
+     *
+     * <p>승하차지 행을 갱신하기 전에 회차 행을 먼저 쥔다(R53 I1) — 근접 판정 스케줄러처럼 아무 행도 쥐지 않고 들어오는 호출이 승하차 기록(PATCH)·
+     * 도착 처리와 같은 순서(회차 → 승하차지)를 지키게 한다. 이미 회차 행을 쥔 호출부(도착 처리 · 승하차 기록의 강제 출발)에서는 기다림 없이 지나간다.
      */
     @Transactional
     public void claimAndPublish(RunStop stop, Long runId, Long academyId, OffsetDateTime now) {
+        runRowLock.acquire(runId, academyId);
         int claimed = runStopRepository.claimDeparture(stop.getId(), now);
         if (claimed == 0) {
             return;

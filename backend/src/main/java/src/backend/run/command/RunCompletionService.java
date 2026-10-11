@@ -49,8 +49,8 @@ public class RunCompletionService {
      * <p>보류 중이 아니면(등원 회차, 또는 하원이라도 최종 지점에서 즉시 종료된 경우) 아무 일도
      * 하지 않고 {@code false} 다 — 이 메서드를 걸 때마다 호출해도 안전하다는 뜻이다.
      *
-     * <p>등원 회차는 잠그지 않고 바로 돌아간다 — 보류가 하원에만 있고, 등원 학원 도착 처리는 회차 행을
-     * 잡은 채 탑승자 행을 고치므로 여기서 회차 행을 기다리면 서로를 기다리는 교착이 된다.
+     * <p>등원 회차는 잠그지 않고 바로 돌아간다 — 보류가 하원에만 있어 판정할 것이 없다. 호출부(승하차 기록)는 이미 회차 행을 쥔 채
+     * 들어오므로({@link RunRowLock}) 하원의 잠금은 기다림 없이 지나간다.
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public boolean completeIfAllAlighted(Run run, OffsetDateTime decidedAt) {

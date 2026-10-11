@@ -4,10 +4,6 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
 
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.LockModeType;
-import jakarta.persistence.PersistenceContext;
-
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -60,8 +56,8 @@ public class RunArrivalCommandService {
 
     private final RunRepository runRepository;
 
-    @PersistenceContext
-    private EntityManager entityManager;
+    /** 회차 행 잠금 — 앞 승하차지 강제 출발보다 먼저 쥐어 승하차 기록(PATCH)과 같은 잠금 순서를 지킨다({@link RunRowLock}). */
+    private final RunRowLock runRowLock;
 
     private final RunStopRepository runStopRepository;
 
@@ -104,6 +100,9 @@ public class RunArrivalCommandService {
     public RunArriveResponse arrive(AuthUser requester, Long runId, Long runStopId) {
         runAssignmentAccess.assertAssignedDriver(requester, runId);
         OffsetDateTime now = OffsetDateTime.now(clock);
+        // 회차 행을 가장 먼저 쥔다(R53 I1) — 아래 앞 승하차지 강제 출발이 승하차지 행을 먼저 쥐면, 승하차지 행을 쥔 채 회차 행을 기다리는
+        // 승하차 기록(PATCH)과 서로를 기다린다. 엔티티는 읽지 않는다 — 강제 출발의 clearAutomatically 가 어차피 컨텍스트를 비운다.
+        runRowLock.acquire(runId, requester.academyId());
         // 폴백(Ruling 308, 목표 7 · R51 H2) — 이 새 도착 처리보다 앞 순번이면서 아직 출발 판정이 안 된
         // 정차지가 있으면 도착 처리 여부와 무관하게 강제로 출발 처리한다(기사가 도착을 안 누른 정차지 포함). run·target 을 로드하기 <b>전에</b> 부른다 —
         // claimDeparture 의 clearAutomatically 가 영속성 컨텍스트를 비우는데, 그 뒤에 로드한
@@ -115,9 +114,9 @@ public class RunArrivalCommandService {
 
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
-        // 회차 행을 잠그고 다시 읽은 뒤 판정한다(BR-041) — 같은 정차 항목 도착 두 건, 하원 최종 도착과 마지막
+        // 회차 행을 다시 읽은 뒤 판정한다(BR-041) — 잠금은 위에서 이미 쥐었고, 같은 정차 항목 도착 두 건, 하원 최종 도착과 마지막
         // 하차({@link RunCompletionService} 도 같은 행을 잠근다)가 겹쳐도 한쪽이 끝난 뒤에 세고 판정한다.
-        entityManager.refresh(run, LockModeType.PESSIMISTIC_WRITE);
+        runRowLock.acquire(run);
         if (run.getStatus() != RunStatus.MOVING) {
             // 이미 처리된 도착의 재전송은 회차가 끝난 뒤에도 DUPLICATE_ARRIVE 다(API_SPEC §4.5 · Ruling 859) — 앱은 이 짝만 성공으로
             // 흡수하므로, 회차를 끝낸 도착이나 끝난 뒤 재생된 앞 도착이 RUN_NOT_MOVING 으로 돌아오면 처리된 도착이 "안 됨" 으로 센다.
