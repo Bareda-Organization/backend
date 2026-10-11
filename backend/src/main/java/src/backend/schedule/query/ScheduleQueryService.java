@@ -35,10 +35,10 @@ public class ScheduleQueryService {
      * {@code 500} 이 되고, 그 예외 문구가 엔티티 필드 목록을 밖으로 실어 나르기 때문이다.
      */
     private static final Map<String, String> SORTABLE_FIELDS =
-            Map.of("weekday", "weekday", "direction", "direction", "depart_time", "departTime");
+            Map.of("weekday", "weekdayOrder", "direction", "direction", "depart_time", "departTime");
 
-    /** 운행 계획은 요일·시각 순으로 읽는 것이 기본이다 — 화면이 시간표 형태이기 때문이다. */
-    private static final Sort DEFAULT_SORT = Sort.by(Sort.Direction.ASC, "weekday", "departTime");
+    /** 운행 계획은 요일(월~일)·시각 순으로 읽는 것이 기본이다 — 화면이 시간표 형태이기 때문이다. */
+    private static final Sort DEFAULT_SORT = Sort.by(Sort.Direction.ASC, "weekdayOrder", "departTime");
 
     private final ScheduleRepository scheduleRepository;
 

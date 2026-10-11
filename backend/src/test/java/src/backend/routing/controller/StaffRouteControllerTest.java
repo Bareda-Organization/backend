@@ -407,6 +407,19 @@ class StaffRouteControllerTest {
      * <p>내가 만든 셋만 골라 차례를 본다 — 시드 편성의 이름이 한글이라 전체 목록의 차례는 DB 대조
      * 순서(collation)에 달려 있고, 그것은 이 코드가 정하는 것이 아니다.
      */
+    /** Ruling 885 ⑪ — 기본 정렬은 요일 순(월~일)이다. 요일 문자열 알파벳 순(금·월·일)이면 이 순서가 깨진다. */
+    @Test
+    void 목록의_기본_정렬은_월_화_수_순의_요일_순이다() throws Exception {
+        이름을_주어_편성한다("ORD-SUN", BUS_A_ID, "sun", "from_academy");
+        이름을_주어_편성한다("ORD-FRI", BUS_A_ID, "fri", "from_academy");
+        이름을_주어_편성한다("ORD-MON", BUS_A_ID, "mon", "from_academy");
+
+        List<String> names = JsonPath.<List<String>>read(목록_본문(관계자A_토큰(), "size=100"), "$.data.items[*].name")
+                .stream().filter(name -> name != null && name.startsWith("ORD-")).toList();
+
+        assertThat(names).as("알파벳 순이면 FRI, MON, SUN").containsExactly("ORD-MON", "ORD-FRI", "ORD-SUN");
+    }
+
     @Test
     void 목록_정렬은_허용_필드만_받고_그_차례로_돌려준다() throws Exception {
         이름을_주어_편성한다("SORT-A", BUS_A_ID, "wed", "to_academy");

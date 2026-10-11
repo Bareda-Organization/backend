@@ -2,6 +2,8 @@ package src.backend.schedule.entity;
 
 import java.time.LocalTime;
 
+import org.hibernate.annotations.Formula;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
@@ -44,6 +46,10 @@ public class Schedule extends BaseTimeEntity {
     @Convert(converter = Weekday.Db.class)
     @Column(name = "weekday", length = 3, nullable = false)
     private Weekday weekday;
+
+    /** 요일 순번(월 1 ~ 일 7) — 읽기 전용이며 목록 정렬에만 쓴다. 저장 컬럼이 아니다(Ruling 885 ⑪). */
+    @Formula(Weekday.ORDINAL_SQL)
+    private int weekdayOrder;
 
     @Convert(converter = Direction.Db.class)
     @Column(name = "direction", length = 20, nullable = false)

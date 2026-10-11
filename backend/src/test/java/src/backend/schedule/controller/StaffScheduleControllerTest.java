@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -82,6 +83,19 @@ class StaffScheduleControllerTest {
      */
     @PersistenceContext
     private EntityManager entityManager;
+
+    /** Ruling 885 ⑪ — 기본 정렬은 요일 순(월~일)이다. 요일 문자열 알파벳 순(금·월·일)이면 이 순서가 깨진다. */
+    @Test
+    void 목록의_기본_정렬은_월_화_수_순의_요일_순이다() throws Exception {
+        for (String weekday : new String[] {"sun", "fri", "mon"}) {
+            등록된_스케줄_id(관계자A_토큰(), BUS_A_ID, weekday, "from_academy", FREE_TIME);
+        }
+
+        List<String> weekdays = JsonPath.<List<String>>read(목록_본문(관계자A_토큰()),
+                "$.data.items[?(@.depart_time == '%s')].weekday".formatted(FREE_TIME));
+
+        assertThat(weekdays).as("알파벳 순이면 fri, mon, sun").containsExactly("mon", "fri", "sun");
+    }
 
     // ── SCH-01 등록 ───────────────────────────────────────────────────────
 
