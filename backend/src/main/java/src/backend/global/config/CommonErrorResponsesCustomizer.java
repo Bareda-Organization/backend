@@ -36,7 +36,9 @@ public class CommonErrorResponsesCustomizer implements OpenApiCustomizer {
     /** 실패 응답 봉투는 전 경로가 같다(§1.10) — 스키마를 한 번만 등록하고 응답들이 참조한다. */
     private static final String SCHEMA_REF = "#/components/schemas/" + SCHEMA_NAME;
 
-    private static final String UNAUTHORIZED = "TOKEN_EXPIRED — access 토큰 만료·로그아웃·차단으로 무효화 (§1.2)";
+    private static final String UNAUTHORIZED =
+            "TOKEN_EXPIRED — access 토큰 만료 · 로그아웃 · 차단 · 퇴사 · 삭제된 매니저 등 권한을 잃은 계정은 "
+                    + "다음 요청부터 무효화(재발급도 401) (§1.2)";
     private static final String FORBIDDEN =
             "AUTH_PENDING · AUTH_REJECTED · AUTH_ACCOUNT_BLOCKED · FORBIDDEN · ACADEMY_SCOPE_VIOLATION (§1.4 · §1.5)";
     private static final String UNPROCESSABLE = "VALIDATION_FAILED — 필수 필드 누락 · 형식 위반";
