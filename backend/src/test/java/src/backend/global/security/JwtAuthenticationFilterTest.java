@@ -149,7 +149,8 @@ class JwtAuthenticationFilterTest {
 
     private static Stream<RuntimeException> dbResourceFailures() {
         return Stream.of(new CannotCreateTransactionException("풀 연결 대기 초과"),
-                new DataAccessResourceFailureException("연결 끊김"), new QueryTimeoutException("쿼리 취소"));
+                new DataAccessResourceFailureException("연결 끊김"), new QueryTimeoutException("쿼리 취소"),
+                new CannotAcquireLockException("잠금 대기 초과"));
     }
 
     /**

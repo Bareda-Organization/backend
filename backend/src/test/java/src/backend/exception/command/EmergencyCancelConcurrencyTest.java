@@ -15,11 +15,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import src.backend.exception.entity.EmergencyAlert;
 import src.backend.exception.entity.EmergencyType;
+import src.backend.exception.event.EmergencyCanceledEvent;
 import src.backend.exception.repository.EmergencyAlertRepository;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.ManagerRole;
@@ -37,6 +40,7 @@ import src.backend.run.access.RunAssignmentAccess;
  * 대체한다 — {@code emergency_alert} 는 FK 가 없어 실재하지 않는 학원·회차 id 로 행 하나만 만들고 그 행만 지운다.
  */
 @SpringBootTest
+@RecordApplicationEvents
 class EmergencyCancelConcurrencyTest {
 
     private static final long TIMEOUT_SECONDS = 20;
@@ -55,6 +59,9 @@ class EmergencyCancelConcurrencyTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private ApplicationEvents applicationEvents;
 
     private Long alertId;
 
@@ -128,5 +135,9 @@ class EmergencyCancelConcurrencyTest {
             pool.shutdownNow();
             pool.awaitTermination(TIMEOUT_SECONDS, TimeUnit.SECONDS);
         }
+
+        assertThat(applicationEvents.stream(EmergencyCanceledEvent.class).count())
+                .as("취소 이벤트(emergency_canceled 방송)는 최초 취소에서만 1건이다 — 늦은 취소는 이벤트를 다시 내지 않는다")
+                .isEqualTo(1);
     }
 }
