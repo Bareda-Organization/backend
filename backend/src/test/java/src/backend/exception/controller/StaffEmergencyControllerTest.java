@@ -213,6 +213,20 @@ class StaffEmergencyControllerTest {
         assertThat(확인시각(emergencyId)).as("Ruling 884 — 메인 관리자는 열람만 하고 확인은 학원 관계자만 한다").isNull();
     }
 
+    /**
+     * Ruling 884 — 메인 관리자는 학원 관계자 경로의 <b>목록 조회</b>도 {@code 403} 이다(전 학원 열람은 {@code /admin/emergencies}).
+     * 확인 시험(위)만으로는 목록 응답이 고정되지 않아, 목록의 권한이 다시 열려도 어떤 검사도 못 잡는다.
+     */
+    @Test
+    void 메인관리자의_학원_관계자_경로_목록_조회는_403_이고_전용_콘솔_목록은_열린다() throws Exception {
+        long adminAccountId = fixtures().systemAdminAccount("메인관리자");
+
+        mockMvc.perform(get(LIST).header("Authorization", 메인관리자_토큰(adminAccountId)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/admin/emergencies").header("Authorization", 메인관리자_토큰(adminAccountId)))
+                .andExpect(status().isOk());
+    }
+
     /** Ruling 885 ① — 발신자가 철회한 신고를 확인하면 발신자에게 "학원이 확인했습니다" 가 가므로 막는다. 정상 건은 그대로 통과한다. */
     @Test
     void 취소된_신고의_확인은_409_EMERGENCY_CANCELED_이고_취소되지_않은_신고는_확인된다() throws Exception {

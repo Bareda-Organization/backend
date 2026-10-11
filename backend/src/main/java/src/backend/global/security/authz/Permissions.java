@@ -66,7 +66,7 @@ public final class Permissions {
     /** 비상 알림 발신(EXC-04). 기사 · 동승자. */
     public static final String EMERGENCY_RAISE = "EMERGENCY_RAISE";
 
-    /** 비상 알림 확인. 관계자 · 메인관리자. */
+    /** 비상 알림 조회·확인. 관계자 전용(Ruling 884) — 메인관리자는 열람 전용 콘솔(MONITOR_ALL)을 쓴다. */
     public static final String EMERGENCY_ACK = "EMERGENCY_ACK";
 
     /** 보호자 부재 · 현장 상황 보고(EXC-02·03). 기사 · 동승자. */

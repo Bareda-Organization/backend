@@ -27,10 +27,9 @@ import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.CanAckEmergency;
 
 /**
- * 학원 관계자 화면의 비상 알림 조회·확인 API(EXC-04, Phase 11 T2 목표 10) — 메인관리자도
- * {@link CanAckEmergency} 를 통해 같은 경로로 확인할 수 있다({@link EmergencyCommandService#ack}
- * 의 역할별 분기 참고). 목록 조회는 학원 범위만 지원한다 — 메인관리자의 전 학원 목록은
- * {@code GET /admin/emergencies} 다.
+ * 학원 관계자 화면의 비상 알림 조회·확인 API(EXC-04, Phase 11 T2 목표 10) — 두 경로 모두 학원 관계자 전용이다
+ * ({@link CanAckEmergency}, Ruling 884). 메인관리자는 이 경로에서 목록도 확인도 {@code 403} 이고, 전 학원 열람은
+ * {@code GET /admin/emergencies} 를 쓴다.
  */
 @Tag(name = ApiTags.STAFF)
 @RestController
