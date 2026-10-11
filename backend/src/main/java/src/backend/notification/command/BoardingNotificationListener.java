@@ -16,7 +16,9 @@ import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.event.RiderMarkedNoShowEvent;
+import src.backend.boarding.event.RiderRecordedAfterDepartureEvent;
 import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.notification.domain.spec.NoShowParentSubject;
 import src.backend.notification.domain.spec.RiderStatusChangedSubject;
@@ -24,6 +26,7 @@ import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
 import src.backend.notification.entity.NotificationType;
 import src.backend.run.event.StopDepartedEvent;
+import src.backend.run.repository.RunRepository;
 import src.backend.student.entity.Student;
 import src.backend.student.repository.GuardianAccountRecipient;
 import src.backend.student.repository.GuardianStudentRepository;
@@ -38,7 +41,8 @@ import src.backend.student.repository.StudentRepository;
  * {@link #appendStopDeparted} 가 {@link StopDepartedEvent} 를 구독해 그 시점의 확정 결과를 학생별로
  * 1건씩 적재한다. 출발 전 되돌리기(승차↔하차↔대기)를 몇 번 반복해도 알림은 나가지 않으므로, 되돌리기
  * 전용 정정 알림({@code Ruling 219})은 더 이상 필요 없어 폐기됐다 — 정정할 대상 자체가 없다(출발
- * 전 수정은 발송 전이다).
+ * 전 수정은 발송 전이다). 단 이미 출발 처리된 승하차지에 뒤늦게 기록된 승차·하차·미승차는 출발 때 묶음이 다시 오지 않으므로
+ * {@link #appendRecordedAfterDeparture} 가 기록 즉시 보낸다(Ruling 878).
  *
  * <p>멱등(목표 12)의 1차 방어선은 이 리스너가 아니라 <b>{@code claimDeparture} 조건부 UPDATE</b>다 —
  * 같은 정차지가 여러 경로로 중복 선점을 시도해도 {@link StopDepartedEvent} 는 최초 1회만 발행된다
@@ -50,12 +54,14 @@ import src.backend.student.repository.StudentRepository;
 public class BoardingNotificationListener {
 
     private static final String STOP_DEPARTED_DEDUP_KEY_FORMAT = "stop_departed:%d:%d:%s";
+    private static final String RECORDED_AFTER_DEPARTURE_DEDUP_KEY_FORMAT = "recorded_after_departure:%d:%d:%s";
     private static final String NO_SHOW_STAFF_DEDUP_KEY_FORMAT = "no_show_staff:%d:%d:%s";
 
     private final GuardianStudentRepository guardianStudentRepository;
     private final AcademyStaffRepository academyStaffRepository;
     private final StudentRepository studentRepository;
     private final RunRiderRepository runRiderRepository;
+    private final RunRepository runRepository;
     private final NotificationOutbox notificationOutbox;
     private final NotificationComposer<RiderStatusChangedSubject> riderStatusChangedComposer;
     private final NotificationComposer<NoShowParentSubject> noShowParentComposer;
@@ -78,34 +84,56 @@ public class BoardingNotificationListener {
         if (finalized.isEmpty()) {
             return;
         }
+        Direction direction = runRepository.findByIdAndAcademyId(event.runId(), event.academyId()).orElseThrow()
+                .getDirection();
         List<Long> studentIds = finalized.stream().map(RunRider::getStudentId).distinct().toList();
         Map<Long, List<GuardianAccountRecipient>> guardiansByStudentId = guardianStudentRepository
                 .findActiveGuardianAccountsByStudentIds(event.academyId(), studentIds).stream()
                 .collect(Collectors.groupingBy(GuardianAccountRecipient::getStudentId));
         List<NotificationDraft> drafts = new ArrayList<>();
         for (RunRider rider : finalized) {
-            List<GuardianAccountRecipient> guardians = guardiansByStudentId
-                    .getOrDefault(rider.getStudentId(), List.of());
-            if (guardians.isEmpty()) {
-                continue;
-            }
-            NotificationMessage message = composeFor(rider.getStatus(), guardians.get(0).getStudentName());
-            NotificationType type = typeOf(rider.getStatus());
-            for (GuardianAccountRecipient guardian : guardians) {
-                drafts.add(new NotificationDraft(event.academyId(), guardian.getAccountId(),
-                        guardian.getName(), Role.PARENT, type, message.title(), message.body(),
-                        STOP_DEPARTED_DEDUP_KEY_FORMAT.formatted(rider.getId(), guardian.getAccountId(),
-                                event.departedAt()),
-                        rider.getStudentId(), guardian.getStudentName(), null));
-            }
+            drafts.addAll(parentDrafts(event.academyId(), rider.getId(), rider.getStudentId(), rider.getStatus(),
+                    direction, guardiansByStudentId.getOrDefault(rider.getStudentId(), List.of()),
+                    STOP_DEPARTED_DEDUP_KEY_FORMAT, event.departedAt()));
         }
         notificationOutbox.appendAll(drafts);
     }
 
+    /**
+     * 이미 출발 처리된 승하차지에서 뒤늦게 기록된 승차·하차·미승차(Ruling 878)는 출발 때 묶음 발송이 다시 오지 않으므로 기록 즉시 그
+     * 학생의 학부모에게 보낸다 — 문구 · 수신자 · 알림 종류(설정 토글)는 출발 때 보내는 것과 같다. 중복은 발행 쪽이 막는다
+     * ({@code run_stop} 행 잠금 아래에서 출발 여부를 읽고 발행하므로 출발 때 묶음과 같은 기록이 두 번 가지 않는다).
+     */
+    @EventListener
+    public void appendRecordedAfterDeparture(RiderRecordedAfterDepartureEvent event) {
+        List<GuardianAccountRecipient> guardians = guardianStudentRepository
+                .findActiveGuardianAccountsByStudentIds(event.academyId(), List.of(event.studentId()));
+        notificationOutbox.appendAll(parentDrafts(event.academyId(), event.runRiderId(), event.studentId(),
+                event.status(), event.direction(), guardians, RECORDED_AFTER_DEPARTURE_DEDUP_KEY_FORMAT,
+                event.changedAt()));
+    }
+
+    /** 학생 1명의 확정 결과를 보호자마다 1건씩 초안으로 만든다 — 보호자가 없으면 빈 목록이다. */
+    private List<NotificationDraft> parentDrafts(Long academyId, Long runRiderId, Long studentId,
+            RiderStatus status, Direction direction, List<GuardianAccountRecipient> guardians,
+            String dedupKeyFormat, Object dedupKeyTime) {
+        if (guardians.isEmpty()) {
+            return List.of();
+        }
+        NotificationMessage message = composeFor(status, direction, guardians.get(0).getStudentName());
+        NotificationType type = typeOf(status);
+        return guardians.stream()
+                .map(guardian -> new NotificationDraft(academyId, guardian.getAccountId(), guardian.getName(),
+                        Role.PARENT, type, message.title(), message.body(),
+                        dedupKeyFormat.formatted(runRiderId, guardian.getAccountId(), dedupKeyTime),
+                        studentId, guardian.getStudentName(), null))
+                .toList();
+    }
+
     /** {@link RiderStatusChangedComposer}·{@link NoShowParentComposer} 를 최종 상태에 맞게 재사용한다. */
-    private NotificationMessage composeFor(RiderStatus status, String studentName) {
+    private NotificationMessage composeFor(RiderStatus status, Direction direction, String studentName) {
         if (status == RiderStatus.NO_SHOW) {
-            return noShowParentComposer.compose(new NoShowParentSubject(studentName));
+            return noShowParentComposer.compose(new NoShowParentSubject(studentName, direction));
         }
         return riderStatusChangedComposer.compose(new RiderStatusChangedSubject(statusName(status), studentName));
     }

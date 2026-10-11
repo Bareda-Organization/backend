@@ -24,6 +24,7 @@ import src.backend.boarding.entity.RiderStatusHistory;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.entity.VerifyMethod;
 import src.backend.boarding.event.RiderMarkedNoShowEvent;
+import src.backend.boarding.event.RiderRecordedAfterDepartureEvent;
 import src.backend.boarding.event.RiderStatusChangedEvent;
 import src.backend.run.event.RunEndedEvent;
 import src.backend.boarding.repository.RiderStatusHistoryRepository;
@@ -37,7 +38,6 @@ import src.backend.global.error.ErrorCode;
 import src.backend.global.persistence.ClientKeyLock;
 import src.backend.global.security.AuthUser;
 import src.backend.routing.entity.ConfirmedRoute;
-import src.backend.routing.entity.RunStop;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.access.RunAssignmentAccess;
@@ -148,10 +148,16 @@ public class BoardingCommandService {
         RiderStatus fromStatus = rider.getStatus();
         OffsetDateTime now = OffsetDateTime.now(clock);
 
+        // 출발 판정과 이 기록이 같은 순간이어도 알림이 0건·2건이 되지 않도록 run_stop 잠금을 먼저 쥐고 출발 여부를 읽는다(Ruling 878).
+        boolean stopDeparted = isStopDepartedLocked(run.getId(), rider.getStopId());
         applyTransition(rider, run.getDirection(), fromStatus, targetStatus, now);
         riderStatusHistoryRepository.save(RiderStatusHistory.of(new RiderStatusHistory.Context(rider.getId(),
                 fromStatus, targetStatus, false, null, verifyMethod, request.clientKey(), request.occurredAt(),
                 ActorType.ESCORT, now, requester.accountId())));
+        if (stopDeparted) {
+            eventPublisher.publishEvent(new RiderRecordedAfterDepartureEvent(run.getId(), run.getAcademyId(),
+                    run.getDirection(), rider.getStudentId(), rider.getId(), targetStatus, now));
+        }
 
         if (targetStatus == RiderStatus.NO_SHOW) {
             RiderStatusUpdateResponse response = handleNoShow(run, rider, now);
@@ -236,18 +242,27 @@ public class BoardingCommandService {
      * 통과시킨다(막을 근거가 없는 채로 막으면 정상 되돌리기까지 거부하게 된다).
      */
     private void assertNotDeparted(Long runId, Long stopId) {
-        Optional<ConfirmedRoute> confirmedRoute = confirmedRouteRepository.findById(runId);
-        if (confirmedRoute.isEmpty() || confirmedRoute.get().getCurrentVersionId() == null) {
-            return;
-        }
-        Long routeVersionId = confirmedRoute.get().getCurrentVersionId();
-        Optional<RunStop> myStop = runStopRepository.findByRouteVersionIdAndStopId(routeVersionId, stopId);
-        if (myStop.isEmpty()) {
-            return;
-        }
-        if (myStop.get().getDepartedAt() != null) {
+        boolean departed = currentRouteVersionId(runId)
+                .flatMap(versionId -> runStopRepository.findByRouteVersionIdAndStopId(versionId, stopId))
+                .map(runStop -> runStop.getDepartedAt() != null).orElse(false);
+        if (departed) {
             throw new BusinessException(ErrorCode.STOP_ALREADY_DEPARTED);
         }
+    }
+
+    /**
+     * 그 승하차지가 이미 출발 처리됐는지를 <b>행 잠금</b>으로 읽는다(Ruling 878) — 출발 선점({@code claimDeparture} UPDATE)과 같은
+     * {@code run_stop} 행을 쥐므로 둘 중 먼저 온 쪽이 커밋할 때까지 다른 쪽이 기다린다. 기록이 먼저면 출발 때 묶음 발송이 이 기록을
+     * 읽고, 출발이 먼저면 이 기록이 즉시 발송한다. 확정 노선이 없으면 판정 재료가 없어 출발 전으로 본다({@link #assertNotDeparted} 와 같다).
+     */
+    private boolean isStopDepartedLocked(Long runId, Long stopId) {
+        return currentRouteVersionId(runId)
+                .flatMap(versionId -> runStopRepository.findLockedByRouteVersionIdAndStopId(versionId, stopId))
+                .map(runStop -> runStop.getDepartedAt() != null).orElse(false);
+    }
+
+    private Optional<Long> currentRouteVersionId(Long runId) {
+        return confirmedRouteRepository.findById(runId).map(ConfirmedRoute::getCurrentVersionId);
     }
 
     /**

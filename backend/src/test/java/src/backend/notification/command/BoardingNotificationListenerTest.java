@@ -10,19 +10,26 @@ import static org.mockito.Mockito.verify;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import src.backend.academy.repository.AcademyStaffRepository;
+import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
+import src.backend.boarding.event.RiderRecordedAfterDepartureEvent;
 import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.notification.domain.impl.NoShowParentComposer;
 import src.backend.notification.domain.impl.NoShowStaffComposer;
 import src.backend.notification.domain.impl.RiderStatusChangedComposer;
+import src.backend.notification.entity.NotificationType;
+import src.backend.run.entity.Run;
 import src.backend.run.event.StopDepartedEvent;
+import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.GuardianAccountRecipient;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StudentRepository;
@@ -42,10 +49,11 @@ class BoardingNotificationListenerTest {
     private final AcademyStaffRepository academyStaffRepository = mock(AcademyStaffRepository.class);
     private final StudentRepository studentRepository = mock(StudentRepository.class);
     private final RunRiderRepository runRiderRepository = mock(RunRiderRepository.class);
+    private final RunRepository runRepository = mock(RunRepository.class);
     private final NotificationOutbox outbox = mock(NotificationOutbox.class);
 
     private final BoardingNotificationListener listener = new BoardingNotificationListener(
-            guardianStudentRepository, academyStaffRepository, studentRepository, runRiderRepository, outbox,
+            guardianStudentRepository, academyStaffRepository, studentRepository, runRiderRepository, runRepository, outbox,
             new RiderStatusChangedComposer(), new NoShowParentComposer(), new NoShowStaffComposer());
 
     BoardingNotificationListenerTest() {
@@ -56,6 +64,7 @@ class BoardingNotificationListenerTest {
                 guardian(102L, 13L, "철수엄마", "박철수"),
                 guardian(103L, 14L, "민수엄마", "이민수"));
         given(runRiderRepository.findFinalizedByRunIdAndStopId(RUN_ID, STOP_ID)).willReturn(finalized);
+        givenRunDirection(Direction.TO_ACADEMY);
         given(guardianStudentRepository.findActiveGuardianAccountsByStudentIds(eq(ACADEMY_ID),
                 eq(List.of(101L, 102L, 103L)))).willReturn(guardians);
     }
@@ -78,6 +87,52 @@ class BoardingNotificationListenerTest {
         assertThat(nameOf(drafts, 12L)).isEqualTo("영희아빠");
         assertThat(nameOf(drafts, 13L)).isEqualTo("철수엄마");
         assertThat(nameOf(drafts, 14L)).isEqualTo("민수엄마");
+    }
+
+    private void givenRunDirection(Direction direction) {
+        Run run = mock(Run.class);
+        given(run.getDirection()).willReturn(direction);
+        given(runRepository.findByIdAndAcademyId(RUN_ID, ACADEMY_ID)).willReturn(Optional.of(run));
+    }
+
+    /** Ruling 878 — 출발 뒤 기록은 기록 즉시 그 학생의 보호자에게만, 출발 때와 같은 종류·문구로 한 번에 적재한다. */
+    @Test
+    void 출발_뒤_기록은_그_학생의_보호자에게_종류별_문구로_즉시_적재한다() {
+        List<GuardianAccountRecipient> guardians = List.of(guardian(101L, 11L, "영희엄마", "김영희"),
+                guardian(101L, 12L, "영희아빠", "김영희"));
+        given(guardianStudentRepository.findActiveGuardianAccountsByStudentIds(eq(ACADEMY_ID), eq(List.of(101L))))
+                .willReturn(guardians);
+
+        listener.appendRecordedAfterDeparture(new RiderRecordedAfterDepartureEvent(RUN_ID, ACADEMY_ID,
+                Direction.TO_ACADEMY, 101L, 1L, RiderStatus.BOARDED, DEPARTED_AT));
+
+        List<NotificationDraft> drafts = capturedDrafts();
+        assertThat(drafts).hasSize(2);
+        assertThat(drafts).extracting(NotificationDraft::type).containsOnly(NotificationType.BOARDING);
+        assertThat(drafts).extracting(NotificationDraft::recipientAccountId).containsExactlyInAnyOrder(11L, 12L);
+        assertThat(drafts.get(0).body()).isEqualTo("김영희 학생이 버스에 탑승했습니다.");
+    }
+
+    @Test
+    void 출발_뒤_하원_미승차는_하원_문구와_미승차_종류로_적재한다() {
+        List<GuardianAccountRecipient> guardians = List.of(guardian(101L, 11L, "영희엄마", "김영희"));
+        given(guardianStudentRepository.findActiveGuardianAccountsByStudentIds(eq(ACADEMY_ID), eq(List.of(101L))))
+                .willReturn(guardians);
+
+        listener.appendRecordedAfterDeparture(new RiderRecordedAfterDepartureEvent(RUN_ID, ACADEMY_ID,
+                Direction.FROM_ACADEMY, 101L, 1L, RiderStatus.NO_SHOW, DEPARTED_AT));
+
+        NotificationDraft draft = capturedDrafts().get(0);
+        assertThat(draft.type()).isEqualTo(NotificationType.NO_SHOW);
+        assertThat(draft.body()).isEqualTo("김영희 학생의 하차가 확인되지 않았습니다. 학원에 확인해 주세요.");
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<NotificationDraft> capturedDrafts() {
+        ArgumentCaptor<List<NotificationDraft>> drafts = ArgumentCaptor
+                .forClass((Class<List<NotificationDraft>>) (Class<?>) List.class);
+        verify(outbox, times(1)).appendAll(drafts.capture());
+        return drafts.getValue();
     }
 
     private static List<Long> anyList() {

@@ -7,6 +7,8 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -40,7 +42,9 @@ import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
+import src.backend.routing.entity.RunStop;
 import src.backend.routing.repository.RunStopRepository;
+import src.backend.run.command.StopDepartureService;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
@@ -130,6 +134,9 @@ class BoardingConcurrencyTest {
 
     @Autowired
     private RunRiderRepository runRiderRepository;
+
+    @Autowired
+    private StopDepartureService stopDepartureService;
 
     private BoardingCommandFixtures fixtures;
 
@@ -331,5 +338,197 @@ class BoardingConcurrencyTest {
         assertThat(jdbcTemplate.queryForObject("SELECT change FROM run_stop WHERE id = ?", String.class, runStopId))
                 .as("남은 사람이 0명이 됐으니 그 승하차지는 건너뜀 표시가 있어야 한다")
                 .isEqualTo("skipped");
+    }
+
+    // ── Ruling 878 — 출발 뒤에 기록된 승차·하차·미승차의 학부모 알림 ─────────────────────────
+
+    /** 이미 확정 노선·정차 항목이 있는 이동 중 회차 한 건과 그 승하차지에 탈 학생(보호자 연결) 한 명. */
+    private record Stage(long academyId, long runId, long stopId, long runStopId, AuthUser escort) {
+    }
+
+    private Stage stage() {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures.academy();
+        long[] escortAccountId = new long[1];
+        long runId = movingRunWithEscort(academyId, escortAccountId);
+        long stopId = fixtures.stop(academyId, "37.500000", "127.000000");
+        long runStopId = fixtures.confirmedRunStop(runId, stopId, now.minusMinutes(30));
+        return new Stage(academyId, runId, stopId, runStopId,
+                new AuthUser(escortAccountId[0], academyId, Role.ESCORT, AccountStatus.ACTIVE));
+    }
+
+    /** 학생 한 명과 그 보호자 — 반환값은 {탑승자 id, 보호자 계정 id}. */
+    private long[] riderWithGuardian(Stage stage, String studentName) {
+        long studentId = fixtures.student(stage.academyId(), studentName);
+        BoardingCommandFixtures.GuardianAccount guardian = fixtures.guardian(stage.academyId(), studentName + "보호자");
+        fixtures.linkChild(guardian.guardianId(), studentId, OffsetDateTime.now(clock).minusDays(1));
+        return new long[] {fixtures.runRider(stage.runId(), studentId, stage.stopId()), guardian.accountId()};
+    }
+
+    private void toFromAcademyWithBoardedRider(Stage stage, long riderId) {
+        jdbcTemplate.update("UPDATE run SET direction = 'from_academy' WHERE id = ?", stage.runId());
+        jdbcTemplate.update("UPDATE run_rider SET status = 'boarded' WHERE id = ?", riderId);
+        entityManager.clear();
+    }
+
+    private void record(Stage stage, long riderId, String status) {
+        boardingCommandService.updateStatus(stage.escort(), stage.runId(), riderId,
+                new RiderStatusUpdateRequest(status, "manual", UUID.randomUUID(), OffsetDateTime.now(clock)));
+    }
+
+    private void depart(Stage stage) {
+        RunStop runStop = runStopRepository.findById(stage.runStopId()).orElseThrow();
+        stopDepartureService.claimAndPublish(runStop, stage.runId(), stage.academyId(), OffsetDateTime.now(clock));
+    }
+
+    private int notifications(long guardianAccountId, String type) {
+        return jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM notification_log WHERE recipient_account_id = ? AND type = ?", Integer.class,
+                guardianAccountId, type);
+    }
+
+    private String notificationBody(long guardianAccountId, String type) {
+        return jdbcTemplate.queryForObject(
+                "SELECT body FROM notification_log WHERE recipient_account_id = ? AND type = ?", String.class,
+                guardianAccountId, type);
+    }
+
+    @Test
+    @DisplayName("Ruling 878 — 출발 전 기록은 알림이 나가지 않고 출발 때 1회만 나간다(Ruling 854 그대로)")
+    void 출발_전_기록은_출발_때_한_번만_알린다() {
+        Stage stage = stage();
+        long[] rider = riderWithGuardian(stage, "출발전학생");
+
+        record(stage, rider[0], "boarded");
+        assertThat(notifications(rider[1], "boarding")).as("출발 전 기록은 즉시 알림이 없다").isZero();
+
+        depart(stage);
+        assertThat(notifications(rider[1], "boarding")).as("출발 때 확정 결과로 1회").isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("Ruling 878 — 출발 뒤 기록한 승차·미승차(등원)는 기록 즉시 그 학생 학부모에게 1건씩 알림이 나간다")
+    void 출발_뒤_등원_승차와_미승차는_즉시_알린다() {
+        Stage stage = stage();
+        long[] boardedRider = riderWithGuardian(stage, "승차학생");
+        long[] noShowRider = riderWithGuardian(stage, "미승차학생");
+        depart(stage);
+        assertThat(notifications(boardedRider[1], "boarding") + notifications(noShowRider[1], "no_show"))
+                .as("둘 다 waiting 인 채 출발했으니 출발 때 알림은 없다").isZero();
+
+        record(stage, boardedRider[0], "boarded");
+        record(stage, noShowRider[0], "no_show");
+
+        assertThat(notifications(boardedRider[1], "boarding")).isEqualTo(1);
+        assertThat(notificationBody(boardedRider[1], "boarding")).isEqualTo("승차학생 학생이 버스에 탑승했습니다.");
+        assertThat(notifications(noShowRider[1], "no_show")).isEqualTo(1);
+        assertThat(notificationBody(noShowRider[1], "no_show"))
+                .isEqualTo("미승차학생 학생이 아직 버스에 탑승하지 않았습니다. 확인해 주세요.");
+        assertThat(notifications(boardedRider[1], "no_show") + notifications(noShowRider[1], "boarding"))
+                .as("다른 학생의 보호자에게는 가지 않는다").isZero();
+    }
+
+    @Test
+    @DisplayName("Ruling 878·881 — 출발 뒤 기록한 하차와 하원 미승차는 즉시 나가고 하원 미승차는 하차 미확인 문구다")
+    void 출발_뒤_하원_하차와_미승차는_즉시_알린다() {
+        Stage stage = stage();
+        long[] alightedRider = riderWithGuardian(stage, "하차학생");
+        long[] noShowRider = riderWithGuardian(stage, "하원미승차학생");
+        toFromAcademyWithBoardedRider(stage, alightedRider[0]);
+        depart(stage);
+
+        record(stage, alightedRider[0], "alighted");
+        record(stage, noShowRider[0], "no_show");
+
+        assertThat(notifications(alightedRider[1], "alighting")).isEqualTo(1);
+        assertThat(notificationBody(alightedRider[1], "alighting")).isEqualTo("하차학생 학생이 버스에서 하차했습니다.");
+        assertThat(notificationBody(noShowRider[1], "no_show"))
+                .isEqualTo("하원미승차학생 학생의 하차가 확인되지 않았습니다. 학원에 확인해 주세요.");
+    }
+
+    @Test
+    @DisplayName("Ruling 878 — 출발 뒤 되돌리기는 거절되고 알림이 늘지 않으며, 같은 client_key 재전송도 알림을 늘리지 않는다")
+    void 출발_뒤_되돌리기와_재전송은_알림을_늘리지_않는다() {
+        Stage stage = stage();
+        long[] rider = riderWithGuardian(stage, "되돌리기학생");
+        depart(stage);
+        UUID clientKey = UUID.randomUUID();
+        RiderStatusUpdateRequest request = new RiderStatusUpdateRequest("boarded", "manual", clientKey,
+                OffsetDateTime.now(clock));
+        boardingCommandService.updateStatus(stage.escort(), stage.runId(), rider[0], request);
+        boardingCommandService.updateStatus(stage.escort(), stage.runId(), rider[0], request);
+
+        assertThat(org.junit.jupiter.api.Assertions.assertThrows(src.backend.global.error.BusinessException.class,
+                () -> boardingCommandService.revert(stage.escort(), stage.runId(), rider[0],
+                        new src.backend.boarding.dto.RiderRevertRequest("잘못 눌렀어요"))).getErrorCode())
+                .isEqualTo(src.backend.global.error.ErrorCode.STOP_ALREADY_DEPARTED);
+
+        assertThat(notifications(rider[1], "boarding")).isEqualTo(1);
+    }
+
+    /** 기록이 run_stop 행 잠금을 쥔 순간에 출발 처리가 들어와도 알림은 정확히 1건이다(출발 때 묶음이 그 기록을 읽는다). */
+    @Test
+    @DisplayName("Ruling 878 동시성 — 기록이 먼저 잠금을 쥔 순간 출발 처리가 들어와도 알림은 정확히 1건이다")
+    void 기록이_먼저면_출발_때_묶음이_읽어_정확히_1건() throws Exception {
+        Stage stage = stage();
+        long[] rider = riderWithGuardian(stage, "경합학생A");
+        CountDownLatch recordHoldsLock = new CountDownLatch(1);
+        AtomicBoolean fired = new AtomicBoolean();
+        Runnable pauseWhileHoldingLock = () -> {
+            if (fired.compareAndSet(false, true)) {
+                recordHoldsLock.countDown();
+                pause();
+            }
+        };
+        RepositoryReadHooks.afterRead("findLockedByRouteVersionIdAndStopId", pauseWhileHoldingLock);
+        RepositoryReadHooks.afterRead("findByRouteVersionIdAndStopId", pauseWhileHoldingLock);
+
+        runConcurrently(() -> {
+            record(stage, rider[0], "boarded");
+            return null;
+        }, () -> {
+            recordHoldsLock.await(WAIT_LIMIT_SECONDS, TimeUnit.SECONDS);
+            depart(stage);
+            return null;
+        });
+
+        assertThat(notifications(rider[1], "boarding")).as("0 이면 둘 다 서로의 미커밋을 못 본 것이다").isEqualTo(1);
+    }
+
+    /** 출발 처리가 먼저 잠금을 쥔 순간에 기록이 들어와도 알림은 정확히 1건이다(기록이 출발을 확인하고 즉시 보낸다). */
+    @Test
+    @DisplayName("Ruling 878 동시성 — 출발 처리가 먼저 잠금을 쥔 순간 기록이 들어와도 알림은 정확히 1건이다")
+    void 출발이_먼저면_기록이_즉시_보내_정확히_1건() throws Exception {
+        Stage stage = stage();
+        long[] rider = riderWithGuardian(stage, "경합학생B");
+        CountDownLatch departureClaimed = new CountDownLatch(1);
+        AtomicBoolean fired = new AtomicBoolean();
+        RepositoryReadHooks.afterRead("findFinalizedByRunIdAndStopId", () -> {
+            if (fired.compareAndSet(false, true)) {
+                departureClaimed.countDown();
+                pause();
+            }
+        });
+
+        runConcurrently(() -> {
+            depart(stage);
+            return null;
+        }, () -> {
+            departureClaimed.await(WAIT_LIMIT_SECONDS, TimeUnit.SECONDS);
+            record(stage, rider[0], "boarded");
+            return null;
+        });
+
+        assertThat(notifications(rider[1], "boarding")).as("0 이면 기록이 출발을 못 보았고 출발 묶음은 기록을 못 본 것이다")
+                .isEqualTo(1);
+    }
+
+    /** 상대가 잠금 대기에 들어갈 시간을 준다 — 잠금이 있으면 상대는 이 시간 동안 기다리고, 없으면 그 사이에 커밋해 버린다. */
+    private static void pause() {
+        try {
+            Thread.sleep(1500);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 }
