@@ -15,6 +15,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,11 +45,21 @@ import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
+import src.backend.request.command.BoardingIntentCommandService;
+import src.backend.request.command.ChangeRequestDecisionService;
+import src.backend.request.domain.ChangeWindow;
+import src.backend.request.dto.BoardingIntentToggleRequest;
+import src.backend.request.dto.DecideChangeRequestRequest;
+import src.backend.request.entity.ChangeRequest;
+import src.backend.request.entity.ChangeRequestSource;
+import src.backend.request.entity.ChangeRequestType;
+import src.backend.request.repository.ChangeRequestRepository;
 import src.backend.routing.entity.RunStop;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.command.RunArrivalCommandService;
+import src.backend.run.command.RunStartCommandService;
 import src.backend.run.command.StopDepartureService;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.GuardianRepository;
@@ -85,6 +97,18 @@ class BoardingLockOrderConcurrencyTest {
 
     @Autowired
     private StopDepartureService stopDepartureService;
+
+    @Autowired
+    private ChangeRequestDecisionService changeRequestDecisionService;
+
+    @Autowired
+    private RunStartCommandService runStartCommandService;
+
+    @Autowired
+    private BoardingIntentCommandService boardingIntentCommandService;
+
+    @Autowired
+    private ChangeRequestRepository changeRequestRepository;
 
     @Autowired
     private AcademyRepository academyRepository;
@@ -163,6 +187,8 @@ class BoardingLockOrderConcurrencyTest {
         String riderIds = "(SELECT id FROM run_rider WHERE run_id IN " + runIds + ")";
         String accountIds = "(SELECT id FROM account WHERE academy_id IN " + academyIds + ")";
         jdbcTemplate.update("DELETE FROM notification_log WHERE recipient_account_id IN " + accountIds);
+        jdbcTemplate.update("DELETE FROM change_request WHERE academy_id IN " + academyIds);
+        jdbcTemplate.update("DELETE FROM boarding_intent WHERE run_id IN " + runIds);
         jdbcTemplate.update("DELETE FROM no_show_contact WHERE no_show_case_id IN "
                 + "(SELECT id FROM no_show_case WHERE run_rider_id IN " + riderIds + ")");
         jdbcTemplate.update("DELETE FROM no_show_case WHERE run_rider_id IN " + riderIds);
@@ -216,6 +242,10 @@ class BoardingLockOrderConcurrencyTest {
         return riderId;
     }
 
+    private long studentOf(long riderId) {
+        return jdbcTemplate.queryForObject("SELECT student_id FROM run_rider WHERE id = ?", Long.class, riderId);
+    }
+
     private void record(Stage stage, long riderId, String status) {
         boardingCommandService.updateStatus(stage.escort(), stage.runId(), riderId,
                 new RiderStatusUpdateRequest(status, "manual", UUID.randomUUID(), OffsetDateTime.now(clock)));
@@ -267,6 +297,11 @@ class BoardingLockOrderConcurrencyTest {
         return patchHoldsStop;
     }
 
+    /** 상대가 겹침 지점에 도달했는지 확인한다 — 도달하지 못했으면 겹침이 만들어지지 않은 시험이라 통과로 치지 않는다. */
+    private static void awaitReached(CountDownLatch latch, String point) throws InterruptedException {
+        assertThat(latch.await(WAIT_LIMIT_SECONDS, TimeUnit.SECONDS)).as("%s 에 도달하지 못했다 — 겹침이 만들어지지 않았다", point).isTrue();
+    }
+
     private static void await(CountDownLatch latch) {
         try {
             latch.await(HOLD_LIMIT_SECONDS, TimeUnit.SECONDS);
@@ -294,7 +329,7 @@ class BoardingLockOrderConcurrencyTest {
             record(stage, riderId, "alighted");
             return null;
         }, () -> {
-            patchHoldsStop.await(WAIT_LIMIT_SECONDS, TimeUnit.SECONDS);
+            awaitReached(patchHoldsStop, "PATCH 가 승하차지 행을 쥔 지점");
             arrive(stage);
             return null;
         });
@@ -316,7 +351,7 @@ class BoardingLockOrderConcurrencyTest {
             record(stage, waitingRiderId, "no_show");
             return null;
         }, () -> {
-            patchHoldsStop.await(WAIT_LIMIT_SECONDS, TimeUnit.SECONDS);
+            awaitReached(patchHoldsStop, "PATCH 가 승하차지 행을 쥔 지점");
             arrive(stage);
             return null;
         });
@@ -334,6 +369,8 @@ class BoardingLockOrderConcurrencyTest {
         Stage stage = stage("from_academy");
         long riderId = rider(stage, "출발경합학생", "boarded");
         long otherRiderId = rider(stage, "남는학생", "boarded");
+        BoardingCommandFixtures.GuardianAccount guardian = fixtures.guardian(stage.academyId(), "출발경합보호자");
+        fixtures.linkChild(guardian.guardianId(), studentOf(riderId), OffsetDateTime.now(clock).minusDays(1));
         CountDownLatch patchHoldsStop = new CountDownLatch(1);
         AtomicBoolean fired = new AtomicBoolean();
         RepositoryReadHooks.afterRead("findLockedByRouteVersionIdAndStopId", () -> {
@@ -347,7 +384,7 @@ class BoardingLockOrderConcurrencyTest {
             record(stage, riderId, "alighted");
             return null;
         }, () -> {
-            patchHoldsStop.await(WAIT_LIMIT_SECONDS, TimeUnit.SECONDS);
+            awaitReached(patchHoldsStop, "PATCH 가 승하차지 행을 쥔 지점");
             depart(stage);
             return null;
         });
@@ -357,6 +394,8 @@ class BoardingLockOrderConcurrencyTest {
         assertThat(riderStatus(otherRiderId)).isEqualTo("boarded");
         assertThat(jdbcTemplate.queryForObject("SELECT departed_at FROM run_stop WHERE id = ?", OffsetDateTime.class,
                 stage.runStopId())).as("근접 출발 판정이 그 승하차지를 출발 처리한다").isNotNull();
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM notification_log WHERE recipient_account_id = ?",
+                Integer.class, guardian.accountId())).as("출발 때 하차 확정 알림이 보호자에게 1건 나간다").isEqualTo(1);
     }
 
     @Test
@@ -385,7 +424,7 @@ class BoardingLockOrderConcurrencyTest {
             record(stage, riderId, "alighted");
             return null;
         }, () -> {
-            patchHoldsRun.await(WAIT_LIMIT_SECONDS, TimeUnit.SECONDS);
+            awaitReached(patchHoldsRun, "PATCH 가 회차 행을 쥔 지점");
             runArrivalCommandService.arrive(stage.driver(), stage.runId(), finalRunStopId);
             return null;
         });
@@ -420,7 +459,7 @@ class BoardingLockOrderConcurrencyTest {
             boardingCommandService.revert(stage.escort(), stage.runId(), riderId, new RiderRevertRequest("잘못 눌렀어요"));
             return null;
         }, () -> {
-            revertChecked.await(WAIT_LIMIT_SECONDS, TimeUnit.SECONDS);
+            awaitReached(revertChecked, "되돌리기가 출발 여부를 읽은 지점");
             depart(stage);
             return null;
         });
@@ -435,6 +474,100 @@ class BoardingLockOrderConcurrencyTest {
         assertThat(reverted && boardingNotices > 0)
                 .as("되돌려진 승차 기록(waiting)에 승차 알림이 나갔다 — 출발 알림이 나간 뒤 되돌려진 것이다").isFalse();
         assertThat(reverted || boardingNotices == 1).as("되돌려지지 않았다면 출발 때 승차 알림이 1건 나간다").isTrue();
+    }
+
+    @Test
+    @DisplayName("I-1 교착 — 변경 승인이 요청 행을 쥔 순간 운행 시작이 들어와도 교착 없이 끝나고 시작이 요청을 자동 거절한다")
+    void 변경_승인과_운행_시작이_겹쳐도_교착하지_않는다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long academyId = fixtures.academy();
+        // 출발 5분 전 — 운행 시작 창(±10분)과 승인 가능 창(출발 +10분까지)이 겹치는 시각이다
+        long runId = fixtures.run(academyId, fixtures.bus(academyId), now.plusMinutes(5), now.minusMinutes(25));
+        jdbcTemplate.update("UPDATE run SET status = 'confirmed', confirmed_at = ? WHERE id = ?", now.minusMinutes(25),
+                runId);
+        long driverAccountId = fixtures.assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.DRIVER, now);
+        long staffAccountId = fixtures.staffAccount(academyId);
+        BoardingCommandFixtures.GuardianAccount guardian = fixtures.guardian(academyId, "승인경합보호자");
+        ChangeRequest request = ChangeRequest.forRequest(academyId, runId, fixtures.student(academyId, "승인경합학생"),
+                ChangeRequestSource.CHANGE_REQUEST, ChangeRequestType.CANCEL, ChangeWindow.APPROVAL_REQUIRED.code(),
+                guardian.accountId(), now.minusMinutes(1));
+        request.assignDeadline(now.plusMinutes(15));
+        long requestId = changeRequestRepository.save(request).getId();
+        entityManager.clear();
+        AuthUser staff = new AuthUser(staffAccountId, academyId, Role.STAFF, AccountStatus.ACTIVE);
+        AuthUser driver = new AuthUser(driverAccountId, academyId, Role.DRIVER, AccountStatus.ACTIVE);
+        CountDownLatch decideHoldsRequest = new CountDownLatch(1);
+        RepositoryReadHooks.afterRead("findForDecision", () -> {
+            decideHoldsRequest.countDown();
+            pause();
+        });
+        AtomicReference<ErrorCode> decideError = new AtomicReference<>();
+
+        List<Throwable> failures = runConcurrently(() -> {
+            try {
+                // 미리보기 토큰이 없으니 회차를 잠근 뒤 PREVIEW_STALE 로 끝난다 — 이 시험의 관심은 잠금 순서이지 승인 성공이 아니다
+                changeRequestDecisionService.decide(staff, requestId, new DecideChangeRequestRequest(true, null, null));
+            } catch (BusinessException e) {
+                decideError.set(e.getErrorCode());
+            }
+            return null;
+        }, () -> {
+            awaitReached(decideHoldsRequest, "승인이 요청 행을 쥔 지점");
+            runStartCommandService.start(driver, runId);
+            return null;
+        });
+
+        assertThat(failures).as("교착이면 한쪽이 deadlock detected 로 던진다").isEmpty();
+        assertThat(decideError.get()).isEqualTo(ErrorCode.PREVIEW_STALE);
+        assertThat(runStatus(runId)).isEqualTo("moving");
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM change_request WHERE id = ?", String.class,
+                requestId)).as("운행 시작이 대기 요청을 자동 거절로 종결한다").isEqualTo("auto_rejected");
+    }
+
+    @Test
+    @DisplayName("I-2 직렬화 — ③구간 미등원 토글이 탑승자 행을 쥔 동안 등원 최종 도착은 회차 행에서 기다렸다가 토글이 커밋된 뒤에 들어선다")
+    void 미등원_토글이_탑승자_행을_쥔_동안_등원_도착은_줄을_선다() throws Exception {
+        Stage stage = stage("to_academy");
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long studentId = fixtures.student(stage.academyId(), "미등원경합학생");
+        BoardingCommandFixtures.GuardianAccount guardian = fixtures.guardian(stage.academyId(), "미등원경합보호자");
+        fixtures.linkChild(guardian.guardianId(), studentId, now.minusDays(1));
+        long riderId = fixtures.runRider(stage.runId(), studentId, stage.stopId());
+        long finalStopId = fixtures.stop(stage.academyId(), "37.510000", "127.010000");
+        fixtures.addRunStop(stage.runId(), finalStopId, 2, now.minusMinutes(10));
+        long finalRunStopId = jdbcTemplate.queryForObject("SELECT id FROM run_stop WHERE stop_id = ?", Long.class,
+                finalStopId);
+        entityManager.clear();
+        AuthUser parent = new AuthUser(guardian.accountId(), stage.academyId(), Role.PARENT, AccountStatus.ACTIVE);
+        CountDownLatch toggleHoldsRider = new CountDownLatch(1);
+        AtomicInteger lockedReads = new AtomicInteger();
+        // 같은 이름의 잠금 조회가 탑승 의사 행(첫 번째)과 탑승자 행(두 번째)에 하나씩 있다 — 토글이 탑승자 행을 쥔 두 번째에서 멈춘다
+        RepositoryReadHooks.afterRead("findLockedByRunIdAndStudentId", () -> {
+            if (lockedReads.incrementAndGet() == 2) {
+                toggleHoldsRider.countDown();
+                pause();
+            }
+        });
+        // 도착이 승하차지 단계(앞 승하차지 강제 출발)에 들어선 순간 토글이 이미 커밋됐는가를 그 자리에서 읽는다
+        AtomicReference<String> riderSeenByArrival = new AtomicReference<>();
+        RepositoryReadHooks.afterRead("findAllNotDepartedBefore",
+                () -> riderSeenByArrival.compareAndSet(null, riderStatus(riderId)));
+
+        List<Throwable> failures = runConcurrently(() -> {
+            boardingIntentCommandService.toggle(parent, studentId, stage.runId(), new BoardingIntentToggleRequest(false));
+            return null;
+        }, () -> {
+            awaitReached(toggleHoldsRider, "미등원 토글이 탑승자 행을 쥔 지점");
+            runArrivalCommandService.arrive(stage.driver(), stage.runId(), finalRunStopId);
+            return null;
+        });
+
+        assertThat(failures).isEmpty();
+        assertThat(riderSeenByArrival.get()).as("회차 행 선점이 없으면 도착이 토글의 커밋을 기다리지 않고 승하차지 단계에 들어선다")
+                .isEqualTo("absent");
+        assertThat(riderStatus(riderId)).isEqualTo("absent");
+        assertThat(runStatus(stage.runId())).isEqualTo("finished");
     }
 
     /** 상대가 잠금 대기에 들어갈 시간을 준다 — 잠금이 있으면 상대는 이 시간 동안 기다리고, 없으면 그 사이에 커밋해 버린다. */
