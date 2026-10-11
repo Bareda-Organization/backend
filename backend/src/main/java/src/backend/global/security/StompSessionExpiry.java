@@ -1,8 +1,8 @@
 package src.backend.global.security;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -119,6 +119,7 @@ public class StompSessionExpiry implements ChannelInterceptor {
             trackedBySession.replaceAll((id, tracked) -> lost.contains(tracked.accountId())
                     ? new Tracked(tracked.accountId(), now) : tracked);
         } catch (RuntimeException e) {
+            // lastSweepAt 은 이미 갱신됐다 — 실패한 점검도 간격 하나를 쓴다. DB 장애 중 방송(초당 수만 건)마다 다시 묻지 않으려는 의도다(회수는 최대 30초 늦어진다)
             log.warn("열린 WebSocket 세션의 계정 상태 점검에 실패했다 — 다음 간격에 다시 한다", e);
         }
     }
