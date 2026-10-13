@@ -163,7 +163,7 @@ class AdminAcademyControllerTest {
         for (String blank : new String[] {"\"\"", "\"   \""}) {
             mockMvc.perform(patch("/api/v1/admin/academies/" + academyId).header("Authorization", 메인관리자_토큰())
                             .contentType(MediaType.APPLICATION_JSON).content("{\"contact\":" + blank + "}"))
-                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(status().isUnprocessableContent())
                     .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
         }
 

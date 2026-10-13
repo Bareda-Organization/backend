@@ -243,7 +243,7 @@ class StaffReportHandleControllerTest {
 
         mockMvc.perform(get("/api/v1/staff/reports").param("handled", "abc")
                 .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
 
         mockMvc.perform(get("/api/v1/staff/reports")

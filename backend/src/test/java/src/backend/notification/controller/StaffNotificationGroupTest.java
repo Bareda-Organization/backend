@@ -159,10 +159,10 @@ class StaffNotificationGroupTest {
 
         mockMvc.perform(get("/api/v1/staff/notifications").param("recipient_role", "unknown")
                 .header("Authorization", token))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
         mockMvc.perform(get("/api/v1/staff/notifications").param("group", "abc").header("Authorization", token))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 

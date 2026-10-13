@@ -221,7 +221,7 @@ class AdminDashboardControllerTest {
         long adminId = f().systemAdminAccount("메인관리자");
         for (String days : new String[] { "0", "2", "31", "-1" }) {
             mockMvc.perform(get(DASHBOARD + "?days=" + days).header("Authorization", 토큰(adminId)))
-                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(status().isUnprocessableContent())
                     .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
         }
         mockMvc.perform(get(DASHBOARD + "?academy_id=999999999").header("Authorization", 토큰(adminId)))

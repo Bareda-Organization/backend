@@ -104,7 +104,7 @@ class StaffStudentListExtensionTest {
     @Test
     void filter_가_허용_값_밖이면_422_다() throws Exception {
         mockMvc.perform(get(BASE).param("filter", "unknown").header("Authorization", 토큰()))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 

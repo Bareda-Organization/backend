@@ -564,7 +564,7 @@ class StaffRouteControllerTest {
         assertThat((int) JsonPath.read(목록_본문(관계자A_토큰(), "size=500"), "$.data.size")).isEqualTo(500);
 
         mockMvc.perform(get("/api/v1/staff/routes?size=501").header("Authorization", 관계자A_토큰()))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
