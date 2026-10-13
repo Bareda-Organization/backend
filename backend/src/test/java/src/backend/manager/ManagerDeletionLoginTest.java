@@ -30,34 +30,26 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
 /**
- * 매니저를 삭제(MGR-04, {@code deleted_at})한 뒤 <b>그 계정의 로그인</b>이 어떻게 되는가 — Phase 5 가
- * 판정해 고정하는 축이다(이월 Ruling 148).
+ * 매니저를 삭제(MGR-04, {@code deleted_at})한 뒤 <b>그 계정의 로그인</b>이 어떻게 되는가 — Ruling 891 이 고정한다.
  *
- * <p><b>확정 — 로그인은 그대로 200 이다. 재직 검사를 매니저로 일반화하지 않는다.</b> 근거 셋.
+ * <p><b>확정 — 비밀번호 대조를 통과한 뒤 {@code 403 AUTH_STAFF_INACTIVE} 다.</b> 옛 판정(Ruling 148)은 "로그인은 200,
+ * 재직 검사를 매니저로 일반화하지 않는다" 였다. 그러나 Ruling 880 이 삭제된 매니저의 모든 요청을
+ * {@code 401 TOKEN_EXPIRED} 로 막은 뒤로는 200 이 곧바로 401 반복이 됐다 — 로그인은 되는데 첫 요청부터 만료로
+ * 읽히고, 앱은 다시 로그인하기를 되풀이한다. 그래서 막는 자리를 로그인 단계로 옮겼고, 오류 코드·서버 메시지는 퇴사한
+ * 관계자와 같은 것을 쓴다(새 코드 없음).
  *
- * <ol>
- *   <li><b>거부의 근거가 될 코드가 정본에 부재하다.</b> {@code AUTH_STAFF_INACTIVE} 는 {@code §8.1} 이
- *       "{@code academy_staff.status='inactive'} 관계자 계정의 로그인" 으로 <b>좁혀 정의</b>한 코드이고,
- *       삭제된 매니저를 가리키는 코드는 {@code §8.1} 어디에도 없다. 새 403 을 지어내는 것은 사양에
- *       근거가 부재한 클라이언트 계약을 만드는 일이다.</li>
- *   <li><b>정본이 그 강제를 다른 층에 맡긴다.</b> {@code §5.2}(AUTH-11)는 "연결 부재 계정은 <b>데이터
- *       접근 불가</b>" 라고 적는다 — 로그인 거부가 아니라 접근 거부다. 로그인은 계정 상태 게이트
- *       ({@code §1.4})의 자리이고, {@code pending} 계정조차 대기 화면을 보려면 로그인해야 하므로
- *       <b>레코드 연결 여부를 재는 관문으로는 애초에 맞지 않는다.</b></li>
- *   <li><b>관계자 쪽은 정본이 따로 요구해서 생긴 예외다.</b> {@code §6.7} 이 "퇴사 즉시 권한 회수" 를
- *       요건으로 적고 그 근거로 "관계자 계정은 학생 개인정보 전체에 접근" 을 든다. 매니저에는 그
- *       문장이 부재하다 — 없는 요건을 유추로 만들면 그것이 곧 사양이 된다.</li>
- * </ol>
+ * <p>대조 <b>뒤에</b> 거절하는 이유는 {@code LoginSettlement} 의 자바독 그대로다 — 앞에 두면 아이디 하나만으로
+ * "삭제된 매니저의 계정" 을 알려 주는 열거 통로가 생긴다. 틀린 비밀번호는 지금처럼 {@code 401 INVALID_CREDENTIALS} 다.
  *
- * <p>⚠ <b>정본이 침묵하는 것은 "삭제된 매니저의 계정이 매니저 앱 자료에 닿는가" 쪽이다.</b> 위 ②가
- * 그 강제를 접근 층에 맡기는데, <b>매니저 앱 엔드포인트는 Phase 9 소유라 이 Phase 에 존재하지
- * 않는다.</b> 즉 지금은 막을 대상 자체가 부재하고, 그것을 검사하는 단언도 여기 둘 수 없다. Phase 9 이
- * 매니저 앱 경로를 만들 때 <b>"삭제된 매니저의 계정은 자기 회차·명단을 볼 수 없다" 를 그 Phase 의
- * 조건으로 받아야 한다</b> — 받지 않으면 ②의 근거가 근거로만 남는다.
+ * <p>대상은 <b>매니저 행이 있고 {@code deleted_at} 이 채워진 계정뿐</b>이다. 매니저 행이 아직 없는(연결 전) 계정은
+ * 로그인된다 — 부재를 삭제로 읽으면 가입 승인을 기다리는 사람이 대기 화면(§1.4)에 닿지 못한다.
  *
- * <p>거부측의 짝은 {@code StaffEmploymentLoginTest} 다 — 그쪽이 {@code academy_staff} 축을, 이쪽이
- * 매니저 축을 맡는다. 두 축이 <b>서로 다른 답</b>을 갖는 것이 이 판정의 내용이므로 한쪽만 읽으면
- * "일관성" 을 이유로 뒤집히기 쉽다.
+ * <p>같은 판정을 두 군데에 쓰지 않는다 — 로그인 거절은 요청마다 쓰는 {@code AccountStanding} 을 그대로 부른다.
+ * 한 계정에 매니저 행이 둘 생길 수도 없다({@code uk_manager_account_id} 는 {@code deleted_at} 과 무관하게
+ * {@code account_id} 를 유일하게 묶는다) — 다시 등록한 매니저는 새 행·새 가입 계정이다.
+ *
+ * <p>거부측의 짝은 {@code StaffEmploymentLoginTest} 다 — 그쪽이 {@code academy_staff} 를, 이쪽이 매니저를 맡고
+ * 같은 코드로 답한다.
  *
  * <p>재료를 SQL 로 심지 않고 <b>실제 등록 경로</b>로 만든다(목표 10 의 취지) — 매니저는 MGR-02 로,
  * 계정 ↔ 매니저 연결은 {@code §5.2} 가입 승인의 {@code link.manager_id} 로 만든다. 그 두 경로를
@@ -123,17 +115,13 @@ class ManagerDeletionLoginTest {
     }
 
     /**
-     * 매니저를 지워도 그 계정의 로그인은 <b>200</b> 이다 — 이 Phase 가 내린 판정 그대로다.
+     * 매니저를 삭제하면 맞는 비밀번호로도 로그인이 {@code 403 AUTH_STAFF_INACTIVE} 다(Ruling 891).
      *
-     * <p>삭제 <b>전</b>도 함께 두드린다. 뒤쪽만 보면 "기사 로그인은 원래 안 된다" 와 구별되지 않아
-     * 삭제가 무엇을 바꿨는지(아무것도 바꾸지 않았다는 것이 답이다) 판정할 수단이 부재해진다.
-     *
-     * <p>이 단언을 바꾸려면 위 클래스 주석의 근거 셋 중 하나가 무너져야 한다 — 예컨대
-     * {@code §8.1} 이 매니저 삭제용 코드를 신설하거나 {@code §5.13} 이 "삭제 시 즉시 권한 회수" 를
-     * 요건으로 적는 경우다. <b>단언을 조용히 뒤집지 말고 정본을 먼저 고쳐라.</b>
+     * <p>삭제 <b>전</b>은 200 으로 함께 두드린다. 뒤쪽만 보면 "기사 로그인은 원래 안 된다" 와 구별되지 않아
+     * 삭제가 무엇을 바꿨는지 판정할 수단이 부재해진다.
      */
     @Test
-    void 매니저를_삭제해도_그_계정의_로그인은_200_이다() throws Exception {
+    void 매니저를_삭제하면_그_계정의_로그인은_403_AUTH_STAFF_INACTIVE_이다() throws Exception {
         로그인한다(DRIVER_LOGIN_ID, NEW_PASSWORD)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("active"));
@@ -141,8 +129,30 @@ class ManagerDeletionLoginTest {
         매니저를_삭제한다();
 
         로그인한다(DRIVER_LOGIN_ID, NEW_PASSWORD)
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("active"));
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("AUTH_STAFF_INACTIVE"));
+    }
+
+    /**
+     * 틀린 비밀번호는 삭제 여부와 상관없이 {@code 401 INVALID_CREDENTIALS} 다 — 거절이 대조 <b>앞</b>에 있으면 아이디만으로
+     * 삭제된 매니저의 계정을 가려내는 열거 통로가 되고, 그 탐색은 실패 카운터도 올리지 않는다.
+     */
+    @Test
+    void 삭제된_매니저의_계정도_틀린_비밀번호는_401_INVALID_CREDENTIALS_이다() throws Exception {
+        매니저를_삭제한다();
+
+        로그인한다(DRIVER_LOGIN_ID, "wrong-password-0!")
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("INVALID_CREDENTIALS"));
+    }
+
+    /** 매니저 행에 아직 연결되지 않은 계정(가입 승인 전)은 지금처럼 로그인된다 — 부재를 삭제로 읽지 않는다. */
+    @Test
+    void 매니저_행에_연결되지_않은_계정의_로그인은_200_이다() throws Exception {
+        String unlinked = "p5t7unlinked";
+        가입한다(unlinked);
+
+        로그인한다(unlinked, NEW_PASSWORD).andExpect(status().isOk());
     }
 
     /**

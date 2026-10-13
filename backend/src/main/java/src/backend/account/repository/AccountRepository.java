@@ -205,7 +205,7 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
      * <p>행이 없는 계정은 결과에 없다 — "권한을 잃었다" 와 "알 수 없다" 를 섞으면 계정 행 없이 발급한 토큰이 전부 거절된다.
      */
     @AcademyScopeExempt(reason = "Ruling 880 — 토큰의 계정 id 로 그 계정 자신의 현재 상태만 읽는다. 호출부(AccountStanding)가 토큰·세션이 "
-            + "싣고 있는 accountId 만 넘긴다는 전제 — 요청 파라미터의 id 를 넘기면 타 학원 계정의 상태를 묻는 통로가 된다")
+            + "싣고 있는 accountId, 또는 로그인이 비밀번호 대조를 마친 계정 자신의 id 만 넘긴다는 전제 — 요청 파라미터의 id 를 넘기면 타 학원 계정의 상태를 묻는 통로가 된다")
     @Query("SELECT a.id FROM Account a WHERE a.id IN :ids AND ("
             + "a.status = src.backend.global.common.enums.AccountStatus.BLOCKED "
             + "OR EXISTS (SELECT 1 FROM AcademyStaff s WHERE s.accountId = a.id "
