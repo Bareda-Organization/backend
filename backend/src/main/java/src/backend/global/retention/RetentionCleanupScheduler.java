@@ -21,6 +21,7 @@ import src.backend.location.infrastructure.RunPositionPartitionManager;
 import src.backend.notification.repository.NotificationLogRepository;
 import src.backend.observability.metrics.RefreshTokenRowsMetrics;
 import src.backend.observability.metrics.SchedulerHealthMetrics;
+import src.backend.run.repository.DelayNoticeRepository;
 import src.backend.student.repository.LinkCodeRepository;
 import src.backend.student.repository.StudentRepository;
 
@@ -30,7 +31,9 @@ import src.backend.student.repository.StudentRepository;
  * {@code link_code} · {@code audit_log})의 행을 회차(배치) 단위로 나눠 지운다(Ruling 324 — {@code link_request}
  * 삭제로 5개→4개, Ruling 445 — {@code audit_log} 편입으로 4개→5개). 여기에 <b>퇴원 90일이 지난 학생의 개인정보 파기</b>
  * (Ruling 480 ②·520)가 같은 배치 상한·같은 잠금으로 편입돼 있다 — 이쪽은 행을 지우지 않고 익명화한다
- * ({@link StudentAnonymizationService}).
+ * ({@link StudentAnonymizationService}). R56(Ruling 894)이 두 가지를 더했다 — 지연 알림 발신 기록({@code delay_notice})을
+ * {@code notification_log} 와 같은 14일로 지우고, 회차 종료 24시간이 지난 멱등 키를 비운다({@link IdempotencyKeyExpiry} — 행은
+ * 무기한 보존이라 키 값만 비운다).
  *
  * <p><b>여기 없는 테이블은 지우지 않는 것이 이 클래스의 본체다</b>(목표 6, ERD §7.1·§7.2 무기한 보존
  * 대상 — {@code rider_status_history} · {@code no_show_case} ·
@@ -76,6 +79,10 @@ public class RetentionCleanupScheduler {
 
     private final StudentAnonymizationService studentAnonymizationService;
 
+    private final DelayNoticeRepository delayNoticeRepository;
+
+    private final IdempotencyKeyExpiry idempotencyKeyExpiry;
+
     private final RetentionPolicy retentionPolicy;
 
     private final Clock clock;
@@ -100,6 +107,10 @@ public class RetentionCleanupScheduler {
 
         cleanUpSafely("notification_log", retentionPolicy.notificationLogCutoff(now), RetentionPolicy.BATCH_SIZE,
                 notificationLogRepository::findIdsForRetentionCleanup, notificationLogRepository::deleteAllByIdInBatch);
+        // 지연 알림 발신 기록은 학부모에게 간 알림 기록이라 notification_log 와 같은 보존 주기를 읽는다(R56 Ruling 894 ⑦)
+        cleanUpSafely("delay_notice", retentionPolicy.notificationLogCutoff(now), RetentionPolicy.BATCH_SIZE,
+                delayNoticeRepository::findIdsForRetentionCleanup, delayNoticeRepository::deleteAllByIdInBatch);
+        expireIdempotencyKeysSafely(retentionPolicy.idempotencyKeyCutoff(now));
         dropRunPositionPartitionsSafely(retentionPolicy.runPositionCutoff(now));
         cleanUpSafely("refresh_token", retentionPolicy.refreshTokenCutoff(now), RetentionPolicy.BATCH_SIZE,
                 refreshTokenRepository::findIdsForRetentionCleanup, refreshTokenRepository::deleteAllByIdInBatch);
@@ -142,6 +153,19 @@ public class RetentionCleanupScheduler {
             }
         } catch (Exception e) {
             log.warn("보존 정리 실패 — student_anonymization (다음 틱에 재시도)", e);
+            schedulerHealthMetrics.recordItemFailure(getClass());
+        }
+    }
+
+    /** 회차 종료 24시간이 지난 멱등 키를 비운다(R56 Ruling 894 ⑥) — 행은 남기고 키만 비운다. 실패는 삼켜 다른 테이블 정리를 막지 않는다. */
+    private void expireIdempotencyKeysSafely(OffsetDateTime cutoff) {
+        try {
+            int cleared = idempotencyKeyExpiry.expire(cutoff, RetentionPolicy.BATCH_SIZE);
+            if (cleared > 0) {
+                log.info("보존 정리 — client_key {}건 비움", cleared);
+            }
+        } catch (Exception e) {
+            log.warn("보존 정리 실패 — client_key (다음 틱에 재시도)", e);
             schedulerHealthMetrics.recordItemFailure(getClass());
         }
     }

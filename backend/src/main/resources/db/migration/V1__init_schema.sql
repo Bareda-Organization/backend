@@ -719,7 +719,8 @@ CREATE TABLE emergency_alert (
     rider_count    integer      NOT NULL,
     occurred_at    timestamptz  NOT NULL,
     received_at    timestamptz  NOT NULL DEFAULT now(),
-    client_key     uuid         NOT NULL,
+    -- 회차 종료 24시간 뒤 값만 비운다(API_SPEC §1.7, R56 Ruling 894 ⑥) — 행은 무기한 보존이라 지우지 않는다. UNIQUE 는 NULL 을 여럿 허용한다.
+    client_key     uuid,
     acked_by       bigint,
     acked_at       timestamptz,
     -- 확인할 때 남기는 조치 메모(Ruling 541) — 선택 입력, 최대 200자.

@@ -68,6 +68,15 @@ public interface DelayNoticeRepository extends JpaRepository<DelayNotice, Long> 
             @Param("noticeIds") Collection<Long> noticeIds);
 
     /**
+     * 보존 기간이 지난 발신 기록의 id(R56 Ruling 894 ⑦) — {@code notification_log} 와 같은 컷오프를 쓴다.
+     */
+    @AcademyScopeExempt(reason = "보존 정리 배치 — 전 학원의 만료 발신 기록 전건이 대상이고, 부르는 주체가 사용자 요청이 아니라 "
+            + "스케줄러라 요청 주체의 소속 자체가 부재(NotificationLogRepository#findIdsForRetentionCleanup 과 같은 근거)")
+    @Query("select d.id from DelayNotice d where d.sentAt < :cutoff order by d.id")
+    List<Long> findIdsForRetentionCleanup(@Param("cutoff") java.time.OffsetDateTime cutoff,
+            org.springframework.data.domain.Limit limit);
+
+    /**
      * 최근 발신한 지연 알림(§6.18 {@code recent_events[]} {@code delay_notified}) — 학원 조건은 {@code run} 조인에 건다. 알림은 운행 중 회차에서만 나가므로
      * 운행일 하한({@code sinceDate})으로 먼저 좁히고 발신 시각으로 거른다.
      */
