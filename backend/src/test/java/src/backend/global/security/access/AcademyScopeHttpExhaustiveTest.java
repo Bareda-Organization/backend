@@ -461,6 +461,9 @@ class AcademyScopeHttpExhaustiveTest {
         cases.add(c("GET /staff/students/{id}/withdrawal-preview → B학원 학생 404 STUDENT_NOT_FOUND(§5.11, Ruling 815)",
                 HttpMethod.GET, "/staff/students/{id}/withdrawal-preview", new Object[] {academyBStudentId}, staffA(),
                 null, 404, "STUDENT_NOT_FOUND"));
+        cases.add(c("DELETE /staff/students/{id}/photo → B학원 학생 404 STUDENT_NOT_FOUND(§5.11, Ruling 894 ③)",
+                HttpMethod.DELETE, "/staff/students/{id}/photo", new Object[] {academyBStudentId}, staffA(), null,
+                404, "STUDENT_NOT_FOUND"));
 
         return List.copyOf(cases);
     }

@@ -173,6 +173,8 @@ public final class AccountStatusGateEndpoints {
             "GET /staff/students/{id}/weekly-address",
             "PATCH /staff/students/{id}",
             "DELETE /staff/students/{id}",
+            // R56 — 학생 사진 삭제(§5.11 · Ruling 894 ③) 관계자 웹 1개.
+            "DELETE /staff/students/{id}/photo",
             "GET /staff/buses",
             "POST /staff/buses",
             "PATCH /staff/buses/{id}",

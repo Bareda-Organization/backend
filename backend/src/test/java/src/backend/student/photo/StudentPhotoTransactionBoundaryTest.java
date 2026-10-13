@@ -1,7 +1,9 @@
 package src.backend.student.photo;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.nio.charset.StandardCharsets;
@@ -135,6 +137,8 @@ class StudentPhotoTransactionBoundaryTest {
 
     @AfterEach
     void 뒷정리한다() {
+        jdbcTemplate.update("DELETE FROM audit_log WHERE target_type = 'student' AND target_id IN "
+                + "(SELECT id FROM student WHERE name LIKE ?)", NAME_PREFIX + "%");
         jdbcTemplate.update("DELETE FROM student WHERE name LIKE ?", NAME_PREFIX + "%");
     }
 
@@ -241,7 +245,78 @@ class StudentPhotoTransactionBoundaryTest {
                 .doesNotExist();
     }
 
+    /**
+     * R56 K2(Ruling 894 ③) — 사진을 지우면 {@code 204} 이고 행의 {@code photo_url} 이 비며 파일이 지워지고 감사 1행이 남는다.
+     *
+     * <p>파일 삭제는 커밋 뒤라 이 클래스(트랜잭션 없음)에서만 관측된다.
+     */
+    @Test
+    void 사진을_지우면_204_이고_photo_url_이_비고_파일이_지워지며_감사가_남는다() throws Exception {
+        long studentId = 등록한다(NAME_PREFIX + "삭제");
+        String 파일_주소 = photoStorage.stored.getFirst();
+        assertThat(파일(파일_주소)).as("지우기 전에는 파일이 있어야 시험이 의미가 있다").exists();
+
+        mockMvc.perform(delete(BASE + "/" + studentId + "/photo").header("Authorization", 관계자_토큰()))
+                .andExpect(status().isNoContent());
+
+        assertThat(jdbcTemplate.queryForObject("SELECT photo_url FROM student WHERE id = ?", String.class, studentId))
+                .as("행의 photo_url 이 비어야 한다").isNull();
+        assertThat(파일(파일_주소)).as("저장 파일도 지워져야 한다 — 행만 비면 디스크에 쌓인다").doesNotExist();
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM audit_log WHERE target_type = 'student' "
+                + "AND target_id = ? AND action = 'update' AND (detail -> 'fields')::text LIKE '%photo_url%'",
+                Integer.class, studentId)).as("사진 교체와 같은 L3 수정 감사 1행").isEqualTo(1);
+    }
+
+    @Test
+    void 사진이_없는_학생의_사진_삭제도_204_이고_감사는_남지_않는다() throws Exception {
+        long studentId = 사진_없이_등록한다(NAME_PREFIX + "사진없음");
+
+        mockMvc.perform(delete(BASE + "/" + studentId + "/photo").header("Authorization", 관계자_토큰()))
+                .andExpect(status().isNoContent());
+
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM audit_log WHERE target_type = 'student' "
+                + "AND target_id = ? AND action = 'update'", Integer.class, studentId)).as("바뀐 게 없으면 수정 감사도 없다").isZero();
+    }
+
+    /** 다른 학원 관계자는 남의 학생 사진을 못 지운다 — 존재 여부가 새지 않게 {@code 404 STUDENT_NOT_FOUND}(§5.11). */
+    @Test
+    void 다른_학원_관계자는_사진을_못_지우고_404_이며_파일이_남는다() throws Exception {
+        long studentId = 등록한다(NAME_PREFIX + "타학원");
+        String 파일_주소 = photoStorage.stored.getFirst();
+        String 타학원_토큰 = "Bearer " + tokenProvider.createAccessToken(1L, Long.valueOf(SeedFixtures.ACADEMY_B_ID),
+                Role.STAFF, AccountStatus.ACTIVE);
+
+        mockMvc.perform(delete(BASE + "/" + studentId + "/photo").header("Authorization", 타학원_토큰))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("STUDENT_NOT_FOUND"));
+
+        assertThat(jdbcTemplate.queryForObject("SELECT photo_url FROM student WHERE id = ?", String.class, studentId))
+                .isNotNull();
+        assertThat(파일(파일_주소)).exists();
+    }
+
+    @Test
+    void 관계자가_아니면_사진_삭제는_403_이다() throws Exception {
+        long studentId = 등록한다(NAME_PREFIX + "권한");
+        String 학부모_토큰 = "Bearer " + tokenProvider.createAccessToken(1L, ACADEMY_A, Role.PARENT, AccountStatus.ACTIVE);
+
+        mockMvc.perform(delete(BASE + "/" + studentId + "/photo").header("Authorization", 학부모_토큰))
+                .andExpect(status().isForbidden());
+
+        assertThat(jdbcTemplate.queryForObject("SELECT photo_url FROM student WHERE id = ?", String.class, studentId))
+                .isNotNull();
+    }
+
     // ── 도우미 ────────────────────────────────────────────────────────────
+
+    private long 사진_없이_등록한다(String name) throws Exception {
+        MvcResult result = mockMvc.perform(multipart(BASE).file(데이터_파트(등록_본문(name, null)))
+                        .header("Authorization", 관계자_토큰()))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return Long.parseLong(JsonPath.read(
+                result.getResponse().getContentAsString(StandardCharsets.UTF_8), "$.data.student_id"));
+    }
 
     private long 등록한다(String name) throws Exception {
         MvcResult result = mockMvc.perform(multipart(BASE).file(데이터_파트(등록_본문(name, null)))
