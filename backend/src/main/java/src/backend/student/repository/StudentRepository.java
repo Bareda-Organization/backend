@@ -98,6 +98,18 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
             """)
     StudentCounts summarizeByAcademyId(@Param("academyId") Long academyId);
 
+    /**
+     * 학원 전체 재원 학생이 가진 반 이름(중복 제거) — {@code summary.class_names}(§5.11, R56 Ruling 894 · R52 A-13). 쿼리·쪽과 무관하다.
+     * 빈 값(공백만 있는 것 포함) 제외와 정렬은 호출부가 한다.
+     */
+    @Query("""
+            SELECT DISTINCT s.className FROM Student s
+            WHERE s.academyId = :academyId
+              AND s.deletedAt IS NULL
+              AND s.className IS NOT NULL
+            """)
+    List<String> findDistinctClassNamesByAcademyId(@Param("academyId") Long academyId);
+
     /** {@link #summarizeByAcademyId} 의 한 행. */
     interface StudentCounts {
 

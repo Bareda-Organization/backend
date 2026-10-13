@@ -242,8 +242,14 @@ public class StudentQueryService {
     /** 학원 전체 지표(§5.11 {@code summary}) — 쿼리·쪽과 무관하다. */
     private StudentListResponse.Summary summaryOf(Long academyId) {
         StudentCounts counts = studentRepository.summarizeByAcademyId(academyId);
+        List<String> classNames = studentRepository.findDistinctClassNamesByAcademyId(academyId).stream()
+                .map(String::trim)
+                .filter(name -> !name.isEmpty())
+                .distinct()
+                .sorted(NaturalNameOrder.INSTANCE)
+                .toList();
         return new StudentListResponse.Summary(counts.getTotal(), counts.getClassCount(),
-                counts.getGuardianUnlinked(), counts.getAddressMissing(), counts.getCanGoAlone());
+                counts.getGuardianUnlinked(), counts.getAddressMissing(), counts.getCanGoAlone(), classNames);
     }
 
     private String keyword(String q) {
