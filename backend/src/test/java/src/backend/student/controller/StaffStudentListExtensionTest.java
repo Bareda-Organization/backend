@@ -152,6 +152,19 @@ class StaffStudentListExtensionTest {
     }
 
     @Test
+    void 반_이름_앞뒤_공백은_저장된_그대로_선택지에_나오고_그_값으로_필터하면_그_학생이_나온다() throws Exception {
+        long 공백반 = 심는다("R56SP공백반", null, false, " 고등 심화반 ");
+        주소를_심는다(공백반, "mon", "to_academy");
+
+        assertThat(classNames(목록("q=R56SP&size=100"))).contains(" 고등 심화반 ");
+        // get(String) 은 URI 템플릿이라 공백을 미리 인코딩하면 이중 인코딩된다 — param() 으로 원문 값을 넘긴다
+        String body = mockMvc.perform(get(BASE).param("q", "R56SP").param("class_name", " 고등 심화반 ")
+                        .param("size", "100").header("Authorization", 토큰()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertThat(JsonPath.<List<String>>read(body, "$.data.items[*].name")).containsExactly("R56SP공백반");
+    }
+
+    @Test
     void 목록의_쿼리_수는_학생_수에_비례하지_않는다() throws Exception {
         long 하나 = 심는다("R48Q학생0", "초1", false, "R48Q반");
         주소를_심는다(하나, "mon", "to_academy");

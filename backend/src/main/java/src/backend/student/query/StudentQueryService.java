@@ -210,7 +210,7 @@ public class StudentQueryService {
 
     /** 반 이름 필터 — 주지 않았거나 공백이면 전체를 뜻하는 빈 문자열이다(쿼리의 {@code :className = ''} 분기). */
     private String classNameOf(String className) {
-        return className == null ? NO_KEYWORD : className.trim();
+        return className == null || className.isBlank() ? NO_KEYWORD : className;
     }
 
     /** {@code filter} 는 두 값만 받는다 — 그 밖의 값은 오타를 전체 목록으로 둔갑시키지 않도록 {@code 422} 다(§5.11, Ruling 815). */
@@ -243,8 +243,7 @@ public class StudentQueryService {
     private StudentListResponse.Summary summaryOf(Long academyId) {
         StudentCounts counts = studentRepository.summarizeByAcademyId(academyId);
         List<String> classNames = studentRepository.findDistinctClassNamesByAcademyId(academyId).stream()
-                .map(String::trim)
-                .filter(name -> !name.isEmpty())
+                .filter(name -> !name.isBlank())
                 .distinct()
                 .sorted(NaturalNameOrder.INSTANCE)
                 .toList();
