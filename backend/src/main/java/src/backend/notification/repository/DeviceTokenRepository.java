@@ -55,10 +55,10 @@ public interface DeviceTokenRepository extends JpaRepository<DeviceToken, Long> 
     int revokeOtherAccounts(@Param("token") String token, @Param("accountId") Long accountId,
             @Param("revokedAt") OffsetDateTime revokedAt);
 
-    /** 익명화한 계정의 푸시 단말을 전량 지운다(개인정보 파기, Ruling 480 ②·520) — 해지 표시가 아니라 행을 지운다. */
+    /** 계정의 푸시 단말을 전량 지운다(익명화 파기 Ruling 480 ②·520 · 매니저 삭제 Ruling 891) — 해지 표시가 아니라 행을 지운다. */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @AcademyScopeExempt(reason = "보존 정리 배치(Ruling 480 ②) — 계정 id 는 학생 파기 처리가 고른 값이고, "
-            + "부르는 주체가 스케줄러라 요청 주체의 소속이 부재")
+    @AcademyScopeExempt(reason = "보존 정리 배치(Ruling 480 ②) · 매니저 삭제(Ruling 891) — 계정 id 는 학생 파기 처리 또는 "
+            + "삭제 이벤트가 고른 값이고, 요청 파라미터가 닿지 않는 내부 경로")
     @Query("DELETE FROM DeviceToken d WHERE d.accountId IN :accountIds")
     int deleteAllByAccountIds(@Param("accountIds") Collection<Long> accountIds);
 }

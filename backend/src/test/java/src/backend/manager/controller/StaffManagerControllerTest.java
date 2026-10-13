@@ -210,6 +210,39 @@ class StaffManagerControllerTest {
     }
 
     /**
+     * 삭제하면 그 계정의 유효 refresh 토큰과 푸시 단말이 함께 사라진다(Ruling 891) — 남으면 삭제된 매니저의 폰으로
+     * 알림이 계속 가고, access 만료 뒤에도 refresh 로 세션이 이어진다. 다른 계정의 행은 그대로여야 한다.
+     */
+    @Test
+    void 매니저를_삭제하면_그_계정의_유효_refresh_토큰과_푸시_단말이_사라진다() throws Exception {
+        long managerId = 등록된_매니저_id(관계자A_토큰(), "정리기사", "010-9100-0011");
+        long accountId = 연결된_계정_id(managerId, Role.DRIVER, "cleanup-driver");
+        세션과_단말을_심는다(accountId, "cleanup-driver");
+        세션과_단말을_심는다(STAFF_A_ACCOUNT_ID, "cleanup-staff");
+
+        삭제한다(관계자A_토큰(), managerId).andExpect(status().isNoContent());
+
+        assertThat(유효_refresh_수(accountId)).as("삭제된 매니저가 refresh 로 세션을 이어 간다").isZero();
+        assertThat(푸시_단말_수(accountId)).as("삭제된 매니저의 폰으로 푸시가 계속 간다").isZero();
+        assertThat(유효_refresh_수(STAFF_A_ACCOUNT_ID)).as("남의 토큰까지 지우면 안 된다").isEqualTo(1);
+        assertThat(푸시_단말_수(STAFF_A_ACCOUNT_ID)).as("남의 단말까지 지우면 안 된다").isEqualTo(1);
+    }
+
+    /** 배치 때문에 삭제가 {@code 409} 로 거절되면 토큰도 단말도 그대로다 — 삭제가 안 된 계정의 세션을 끊으면 안 된다. */
+    @Test
+    void 삭제가_409_로_거절되면_refresh_토큰과_푸시_단말은_그대로다() throws Exception {
+        long managerId = 등록된_매니저_id(관계자A_토큰(), "거절기사", "010-9100-0012");
+        long accountId = 연결된_계정_id(managerId, Role.DRIVER, "refused-driver");
+        세션과_단말을_심는다(accountId, "refused-driver");
+        배치한다(managerId, 회차를_만든다(등록된_차량_id(관계자A_토큰(), "거절용호차", "11나1115", 16)));
+
+        삭제한다(관계자A_토큰(), managerId).andExpect(status().isConflict());
+
+        assertThat(유효_refresh_수(accountId)).isEqualTo(1);
+        assertThat(푸시_단말_수(accountId)).isEqualTo(1);
+    }
+
+    /**
      * 끝난 회차의 배치는 "배치 중" 이 아니다(MGR-04 · BR-023) — 지난 날짜 회차와 오늘 종료된 회차에만
      * 배치된 매니저는 삭제된다. 막으면 한 번이라도 운행한 매니저는 퇴사 처리가 영원히 불가능하다
      * (과거 회차의 배치를 푸는 API 가 부재).
@@ -523,6 +556,29 @@ class StaffManagerControllerTest {
         entityManager.find(Manager.class, managerId).linkAccount(account.getId());
         entityManager.flush();
         return account.getId();
+    }
+
+    /** 계정에 유효 refresh 토큰 1건과 푸시 단말 1건을 심는다 — 삭제 때 정리 대상이 되는 두 행이다. */
+    private void 세션과_단말을_심는다(long accountId, String tag) {
+        jdbcTemplate.update("INSERT INTO refresh_token (account_id, token_hash, issued_at, expires_at) "
+                + "VALUES (?, ?, now(), now() + interval '1 day')", accountId, "hash-" + tag);
+        jdbcTemplate.update("INSERT INTO device_token (account_id, device_id, token, platform) "
+                + "VALUES (?, ?, ?, 'android')", accountId, "device-" + tag, "fcm-" + tag);
+        entityManager.flush();
+        entityManager.clear();
+    }
+
+    private int 유효_refresh_수(long accountId) {
+        entityManager.flush();
+        return jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM refresh_token WHERE account_id = ? AND revoked_at IS NULL", Integer.class,
+                accountId);
+    }
+
+    private int 푸시_단말_수(long accountId) {
+        entityManager.flush();
+        return jdbcTemplate.queryForObject("SELECT count(*) FROM device_token WHERE account_id = ?", Integer.class,
+                accountId);
     }
 
     /** 매니저를 회차에 배치한다 — 배치 API(§5.14)는 T5 소유라 저장소와 정적 팩토리로 만든다. */
