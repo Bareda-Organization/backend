@@ -1,6 +1,7 @@
 package src.backend.exception.entity;
 
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
@@ -63,20 +64,31 @@ public class ExceptionReport {
     @Column(name = "handled_by")
     private Long handledBy;
 
+    /** 오프라인 큐 재전송 키(API_SPEC §1.7) — 키 없이 보낸 요청은 {@code null}. */
+    @Column(name = "client_key")
+    private UUID clientKey;
+
     private ExceptionReport(Long academyId, Long runId, ExceptionReportType type, String memo,
-            Long reportedBy, OffsetDateTime reportedAt) {
+            Long reportedBy, OffsetDateTime reportedAt, UUID clientKey) {
         this.academyId = academyId;
         this.runId = runId;
         this.type = type;
         this.memo = memo;
         this.reportedBy = reportedBy;
         this.reportedAt = reportedAt;
+        this.clientKey = clientKey;
     }
 
     /** 현장에서 예외 상황이 보고됐을 때 생성한다 — {@code run_rider_id} 는 보호자 부재 보고에서만 채워지며 팩토리 밖에서 다룬다. */
     public static ExceptionReport forReport(Long academyId, Long runId, ExceptionReportType type,
             String memo, Long reportedBy, OffsetDateTime reportedAt) {
-        return new ExceptionReport(academyId, runId, type, memo, reportedBy, reportedAt);
+        return forReport(academyId, runId, type, memo, reportedBy, reportedAt, null);
+    }
+
+    /** 오프라인 큐 재전송 키({@code client_key})를 함께 남기는 생성 — 키 없이 보낸 요청은 위 오버로드를 쓴다. */
+    public static ExceptionReport forReport(Long academyId, Long runId, ExceptionReportType type,
+            String memo, Long reportedBy, OffsetDateTime reportedAt, UUID clientKey) {
+        return new ExceptionReport(academyId, runId, type, memo, reportedBy, reportedAt, clientKey);
     }
 
     /**

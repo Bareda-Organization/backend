@@ -5,8 +5,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,7 +18,10 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.jayway.jsonpath.JsonPath;
 import org.springframework.context.annotation.Import;
 
 import src.backend.academy.repository.AcademyStaffRepository;
@@ -154,6 +159,88 @@ class RunReportControllerTest {
 
         assertThat(보고_타입(runId)).isEqualTo("guardian_absent");
         assertThat(보고_라이더(runId)).isEqualTo(runRiderId);
+    }
+
+    // ── R56 K4(Ruling 894 ⑧) — 오프라인 큐 재전송 키 ───────────────────────────
+
+    @Test
+    @DisplayName("R56 K4 — 같은 client_key 를 두 번 보내면 보고 1개·관계자 알림 1건이고 두 번째는 200 으로 같은 report_id 를 돌려준다")
+    void 같은_client_key_재전송은_보고를_늘리지_않고_200이다() throws Exception {
+        ExceptionReportFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long staffAccountId = fixtures.staffAccount(academyId, "관계자1");
+        OffsetDateTime departTime = now();
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        String body = "{\"type\":\"road_block\",\"memo\":\"도로 공사로 우회 중\",\"client_key\":\"" + UUID.randomUUID() + "\"}";
+
+        MvcResult first = mockMvc.perform(post("/api/v1/runs/" + runId + "/reports")
+                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated()).andReturn();
+        MvcResult second = mockMvc.perform(post("/api/v1/runs/" + runId + "/reports")
+                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk()).andReturn();
+
+        assertThat(JsonPath.<Object>read(second.getResponse().getContentAsString(StandardCharsets.UTF_8),
+                "$.data.report_id")).isEqualTo(JsonPath.<Object>read(
+                        first.getResponse().getContentAsString(StandardCharsets.UTF_8), "$.data.report_id"));
+        assertThat(보고_개수(runId)).as("재전송이 보고를 두 번 만들면 안 된다").isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM notification_log WHERE recipient_account_id = ? AND type = 'exception_reported'",
+                Integer.class, staffAccountId)).as("관계자 통지도 한 번이다").isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("R56 K4 — 같은 client_key 로 다른 내용(종류)을 보내면 422 VALIDATION_FAILED 이고 새 보고가 생기지 않는다")
+    void 같은_client_key_다른_내용은_422다() throws Exception {
+        ExceptionReportFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        OffsetDateTime departTime = now();
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        String key = UUID.randomUUID().toString();
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/reports")
+                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"type\":\"road_block\",\"memo\":\"도로 공사\",\"client_key\":\"" + key + "\"}"))
+                .andExpect(status().isCreated());
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/reports")
+                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"type\":\"vehicle_issue\",\"memo\":\"고장\",\"client_key\":\"" + key + "\"}"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+
+        assertThat(보고_개수(runId)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("R56 K4 — client_key 없이 같은 요청을 두 번 보내면 지금처럼 두 번 다 201 이고 보고가 2개다")
+    void client_key_가_없으면_지금과_같다() throws Exception {
+        ExceptionReportFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        OffsetDateTime departTime = now();
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+
+        for (int i = 0; i < 2; i++) {
+            mockMvc.perform(post("/api/v1/runs/" + runId + "/reports")
+                    .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"type\":\"road_block\",\"memo\":\"도로 공사\"}"))
+                    .andExpect(status().isCreated());
+        }
+
+        assertThat(보고_개수(runId)).isEqualTo(2);
     }
 
     // ── goal 15 — 관계자 즉시 통지 ─────────────────────────────────────────

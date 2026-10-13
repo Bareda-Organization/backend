@@ -694,6 +694,9 @@ CREATE TABLE no_show_contact (
     decision        varchar(10),
     attempted_at    timestamptz NOT NULL,
     attempted_by    bigint      NOT NULL,
+    -- 오프라인 큐 재전송 키(API_SPEC §1.7, R56 Ruling 894 ⑧) — 키를 보내지 않은 옛 요청은 NULL 이다(UNIQUE 는 NULL 을 여럿 허용).
+    client_key      uuid,
+    CONSTRAINT uk_no_show_contact_client_key UNIQUE (client_key),
     CONSTRAINT fk_no_show_contact_case FOREIGN KEY (no_show_case_id) REFERENCES no_show_case (id) ON DELETE CASCADE,
     CONSTRAINT ck_no_show_contact_attempt_type CHECK (attempt_type IN ('call', 'message')),
     CONSTRAINT ck_no_show_contact_result CHECK (result IN ('answered', 'no_answer')),
@@ -746,6 +749,9 @@ CREATE TABLE exception_report (
     -- 관계자가 처리됨으로 표시한 시각·계정(Ruling 814). 미처리면 둘 다 NULL — 취소 경로는 없다.
     handled_at   timestamptz,
     handled_by   bigint,
+    -- 오프라인 큐 재전송 키(API_SPEC §1.7, R56 Ruling 894 ⑧) — 키를 보내지 않은 요청은 NULL 이다(UNIQUE 는 NULL 을 여럿 허용).
+    client_key   uuid,
+    CONSTRAINT uk_exception_report_client_key UNIQUE (client_key),
     CONSTRAINT ck_exception_report_type CHECK (type IN ('guardian_absent', 'road_block', 'vehicle_issue', 'etc')),
     CONSTRAINT ck_exception_report_run_rider CHECK (type <> 'guardian_absent' OR run_rider_id IS NOT NULL),
     CONSTRAINT ck_exception_report_handled CHECK ((handled_at IS NULL) = (handled_by IS NULL))

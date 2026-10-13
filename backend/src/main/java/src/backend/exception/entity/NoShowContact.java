@@ -1,6 +1,7 @@
 package src.backend.exception.entity;
 
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
@@ -50,14 +51,19 @@ public class NoShowContact {
     @Column(name = "attempted_by", nullable = false)
     private Long attemptedBy;
 
+    /** 오프라인 큐 재전송 키(API_SPEC §1.7) — 키 없이 보낸 요청은 {@code null}. */
+    @Column(name = "client_key")
+    private UUID clientKey;
+
     private NoShowContact(Long noShowCaseId, ContactAttemptType attemptType, ContactResult result,
-            NoShowDecision decision, Long attemptedBy, OffsetDateTime attemptedAt) {
+            NoShowDecision decision, Long attemptedBy, OffsetDateTime attemptedAt, UUID clientKey) {
         this.noShowCaseId = noShowCaseId;
         this.attemptType = attemptType;
         this.result = result;
         this.decision = decision;
         this.attemptedBy = attemptedBy;
         this.attemptedAt = attemptedAt;
+        this.clientKey = clientKey;
     }
 
     /**
@@ -69,6 +75,13 @@ public class NoShowContact {
      */
     public static NoShowContact forAttempt(Long noShowCaseId, ContactAttemptType attemptType,
             ContactResult result, NoShowDecision decision, Long attemptedBy, OffsetDateTime attemptedAt) {
-        return new NoShowContact(noShowCaseId, attemptType, result, decision, attemptedBy, attemptedAt);
+        return forAttempt(noShowCaseId, attemptType, result, decision, attemptedBy, attemptedAt, null);
+    }
+
+    /** 오프라인 큐 재전송 키({@code client_key})를 함께 남기는 생성 — 키 없이 보낸 요청은 위 오버로드를 쓴다. */
+    public static NoShowContact forAttempt(Long noShowCaseId, ContactAttemptType attemptType,
+            ContactResult result, NoShowDecision decision, Long attemptedBy, OffsetDateTime attemptedAt,
+            UUID clientKey) {
+        return new NoShowContact(noShowCaseId, attemptType, result, decision, attemptedBy, attemptedAt, clientKey);
     }
 }

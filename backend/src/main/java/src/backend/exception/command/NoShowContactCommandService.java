@@ -3,6 +3,7 @@ package src.backend.exception.command;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.Locale;
+import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +25,7 @@ import src.backend.exception.repository.NoShowContactRepository;
 import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.persistence.ClientKeyLock;
 import src.backend.global.security.AuthUser;
 import src.backend.run.access.RunAssignmentAccess;
 import src.backend.run.entity.Run;
@@ -57,6 +59,9 @@ public class NoShowContactCommandService {
 
     private final Clock clock;
 
+    /** 같은 {@code client_key} 의 동시 재전송을 직렬화한다(BR-226). */
+    private final ClientKeyLock clientKeyLock;
+
     /**
      * 연락 시도 1회를 기록한다 — {@code result=answered} 면 카운트다운을 멈추고({@code resolveByAnswer}),
      * {@code decision} 이 왔으면 그와 별개로 최종 판단을 기록한다({@code decide}). 두 갱신이 같은
@@ -70,6 +75,13 @@ public class NoShowContactCommandService {
         runAssignmentAccess.assertAssignedDriverOrEscort(requester, runId);
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        if (request.clientKey() != null) {
+            clientKeyLock.acquire(request.clientKey());
+            Optional<NoShowContact> replay = noShowContactRepository.findByClientKey(request.clientKey());
+            if (replay.isPresent()) {
+                return replayResponse(replay.get(), runId, riderId, request);
+            }
+        }
         if (run.getStatus() != RunStatus.MOVING) {
             throw new BusinessException(ErrorCode.RUN_NOT_MOVING);
         }
@@ -88,7 +100,7 @@ public class NoShowContactCommandService {
         OffsetDateTime now = OffsetDateTime.now(clock);
 
         noShowContactRepository.save(NoShowContact.forAttempt(noShowCase.getId(), attemptType, result, decision,
-                requester.accountId(), now));
+                requester.accountId(), now, request.clientKey()));
 
         if (result == ContactResult.ANSWERED) {
             noShowCase.resolveByAnswer(now);
@@ -98,7 +110,28 @@ public class NoShowContactCommandService {
         }
 
         return new NoShowContactResponse(noShowCase.getId(), lower(attemptType), lower(result),
-                decision == null ? null : lower(decision), now, noShowCase.getResolvedAt());
+                decision == null ? null : lower(decision), now, noShowCase.getResolvedAt(), false);
+    }
+
+    /**
+     * 같은 {@code client_key} 재전송은 시도를 새로 남기지 않고 최초 결과를 돌려준다(API_SPEC §1.7) — 회차 상태·탑승자 상태는 다시
+     * 보지 않는다(그 사이 회차가 끝난 정상 재전송을 {@code 409} 로 막지 않는다, {@code BoardingCommandService#updateStatus} 와 같은
+     * 근거). 키가 다른 처리에 재사용됐으면(탑승자·시도 종류·결과·판단이 다름) {@code 422}. 이 대조는 배치·학원 범위 확인 뒤에 한다.
+     */
+    private NoShowContactResponse replayResponse(NoShowContact existing, Long runId, Long riderId,
+            NoShowContactRequest request) {
+        NoShowCase noShowCase = noShowCaseRepository.findById(existing.getNoShowCaseId()).orElse(null);
+        boolean sameRequest = noShowCase != null && noShowCase.getRunRiderId().equals(riderId)
+                && runRiderRepository.findByIdAndRunIdAndStatusNot(riderId, runId, RiderStatus.ABSENT).isPresent()
+                && existing.getAttemptType() == parseAttemptType(request.attemptType())
+                && existing.getResult() == parseResult(request.result())
+                && existing.getDecision() == parseDecision(request.decision());
+        if (!sameRequest) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED);
+        }
+        return new NoShowContactResponse(noShowCase.getId(), lower(existing.getAttemptType()),
+                lower(existing.getResult()), existing.getDecision() == null ? null : lower(existing.getDecision()),
+                existing.getAttemptedAt(), noShowCase.getResolvedAt(), true);
     }
 
     /** C-06 과 같은 근거 — 동승자가 아니면 회차·탑승자 조회보다 먼저 걸린다. */

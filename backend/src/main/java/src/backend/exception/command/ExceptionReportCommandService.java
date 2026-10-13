@@ -2,6 +2,8 @@ package src.backend.exception.command;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.util.Objects;
+import java.util.Optional;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -22,6 +24,7 @@ import src.backend.exception.query.ExceptionReportQueryService;
 import src.backend.exception.repository.ExceptionReportRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.persistence.ClientKeyLock;
 import src.backend.global.request.ApiValues;
 import src.backend.global.security.AuthUser;
 import src.backend.run.access.RunAssignmentAccess;
@@ -63,6 +66,9 @@ public class ExceptionReportCommandService {
 
     private final Clock clock;
 
+    /** 같은 {@code client_key} 의 동시 재전송을 직렬화한다(BR-226). */
+    private final ClientKeyLock clientKeyLock;
+
     /** 현장 예외 보고 등록(§4.13) — 저장과 같은 트랜잭션에서 관계자 통지 이벤트를 발행한다. */
     public ExceptionReportCreateResponse report(AuthUser requester, Long runId,
             ExceptionReportCreateRequest request) {
@@ -71,13 +77,20 @@ public class ExceptionReportCommandService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
 
         ExceptionReportType type = ApiValues.reportType(request.type());
+        if (request.clientKey() != null) {
+            clientKeyLock.acquire(request.clientKey());
+            Optional<ExceptionReport> replay = exceptionReportRepository.findByClientKey(request.clientKey());
+            if (replay.isPresent()) {
+                return replayResponse(replay.get(), run.getId(), type, request.riderId());
+            }
+        }
         Long runRiderId = type == ExceptionReportType.GUARDIAN_ABSENT
                 ? resolveRunRiderId(request.riderId(), run.getId())
                 : null;
 
         OffsetDateTime now = OffsetDateTime.now(clock);
         ExceptionReport report = ExceptionReport.forReport(requester.academyId(), run.getId(), type,
-                request.memo(), requester.accountId(), now);
+                request.memo(), requester.accountId(), now, request.clientKey());
         if (runRiderId != null) {
             report.assignRunRider(runRiderId);
         }
@@ -85,7 +98,23 @@ public class ExceptionReportCommandService {
         eventPublisher.publishEvent(
                 new ExceptionReportedEvent(report.getId(), requester.academyId(), run.getId(), now));
 
-        return new ExceptionReportCreateResponse(report.getId(), report.getReportedAt());
+        return new ExceptionReportCreateResponse(report.getId(), report.getReportedAt(), false);
+    }
+
+    /**
+     * 같은 {@code client_key} 재전송은 보고·관계자 통지를 새로 만들지 않고 최초 결과를 돌려준다(API_SPEC §1.7). 키가 다른 보고에
+     * 재사용됐으면(회차·종류·탑승자가 다름) 남의 결과를 돌려주고 이번 보고를 버리는 대신 {@code 422} 로 거절한다(BR-078 과 같은 근거).
+     * 이 대조는 배치·학원 범위 확인 뒤에 한다.
+     */
+    private ExceptionReportCreateResponse replayResponse(ExceptionReport existing, Long runId,
+            ExceptionReportType type, Long riderId) {
+        boolean sameRequest = existing.getRunId().equals(runId) && existing.getType() == type
+                && Objects.equals(existing.getRunRiderId(),
+                        type == ExceptionReportType.GUARDIAN_ABSENT ? riderId : null);
+        if (!sameRequest) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED);
+        }
+        return new ExceptionReportCreateResponse(existing.getId(), existing.getReportedAt(), true);
     }
 
     /** {@code guardian_absent} 보고의 {@code riderId} 필수·유효성을 함께 확인한다. */
