@@ -24,6 +24,7 @@ import src.backend.audit.repository.AuditLogRepository;
 import src.backend.notification.repository.NotificationLogRepository;
 import src.backend.observability.metrics.RefreshTokenRowsMetrics;
 import src.backend.observability.metrics.SchedulerHealthMetrics;
+import src.backend.run.repository.DelayNoticeRepository;
 import src.backend.student.repository.LinkCodeRepository;
 import src.backend.student.repository.StudentRepository;
 
@@ -74,6 +75,7 @@ class RetentionCleanupSchedulerBatchCapTest {
         RetentionCleanupScheduler scheduler = new RetentionCleanupScheduler(
                 notificationLogRepository, runPositionPartitionManager, refreshTokenRepository,
                 linkCodeRepository, auditLogRepository, studentRepository, studentAnonymizationService,
+                mock(DelayNoticeRepository.class), mock(IdempotencyKeyExpiry.class),
                 retentionPolicy, clock,
                 new SchedulerHealthMetrics(
                         new SimpleMeterRegistry()),
@@ -109,6 +111,7 @@ class RetentionCleanupSchedulerBatchCapTest {
         RetentionCleanupScheduler scheduler = new RetentionCleanupScheduler(
                 notificationLogRepository, runPositionPartitionManager, refreshTokenRepository,
                 linkCodeRepository, auditLogRepository, studentRepository, studentAnonymizationService,
+                mock(DelayNoticeRepository.class), mock(IdempotencyKeyExpiry.class),
                 retentionPolicy, clock, new SchedulerHealthMetrics(new SimpleMeterRegistry()),
                 new RefreshTokenRowsMetrics(new SimpleMeterRegistry()));
 
@@ -138,6 +141,7 @@ class RetentionCleanupSchedulerBatchCapTest {
         RetentionCleanupScheduler scheduler = new RetentionCleanupScheduler(
                 notificationLogRepository, runPositionPartitionManager, refreshTokenRepository,
                 linkCodeRepository, auditLogRepository, studentRepository, studentAnonymizationService,
+                mock(DelayNoticeRepository.class), mock(IdempotencyKeyExpiry.class),
                 retentionPolicy, clock, new SchedulerHealthMetrics(registry),
                 new RefreshTokenRowsMetrics(new SimpleMeterRegistry()));
 
@@ -164,6 +168,7 @@ class RetentionCleanupSchedulerBatchCapTest {
         RetentionCleanupScheduler scheduler = new RetentionCleanupScheduler(
                 notificationLogRepository, runPositionPartitionManager, refreshTokenRepository,
                 linkCodeRepository, auditLogRepository, studentRepository, studentAnonymizationService,
+                mock(DelayNoticeRepository.class), mock(IdempotencyKeyExpiry.class),
                 retentionPolicy, clock, new SchedulerHealthMetrics(new SimpleMeterRegistry()),
                 new RefreshTokenRowsMetrics(new SimpleMeterRegistry()));
 

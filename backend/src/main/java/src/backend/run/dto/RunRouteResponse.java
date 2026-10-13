@@ -42,8 +42,12 @@ public record RunRouteResponse(List<RouteStop> stops, RouteStop currentStop, Rou
      * <p>{@code isWaypoint} 는 강제 경유 지점(§5.15) 항목에서만 {@code true} 다(Ruling 400) — 경유 지점은
      * 이름·좌표만 있고 태울 학생이 없어 승하차지와 모양이 같아 다른 필드로는 가를 수 없고, 지도가
      * 승하차지와 다른 마커로 그리려면 이 값이 필요하다. 배포 후 제거돼 좌표가 없는 행도 대상이면 {@code true}.
+     *
+     * <p>{@code waypointId} 는 경유 지점 행({@code isWaypoint=true})에서만 그 경유 지점 id({@code waypoint.id})이고
+     * 나머지는 {@code null} 이다(R56 Ruling 893) — {@code stopId}(=run_stop.id)로는 경유 지점 제거
+     * (§5.15 {@code DELETE /staff/runs/{runId}/waypoints/{waypointId}})의 경로 값을 얻을 수 없어 따로 싣는다.
      */
     public record RouteStop(Long stopId, int seq, String name, String address, BigDecimal lat, BigDecimal lng,
-            String change, long studentCount, boolean isDestination, boolean isWaypoint) {
+            String change, long studentCount, boolean isDestination, boolean isWaypoint, Long waypointId) {
     }
 }

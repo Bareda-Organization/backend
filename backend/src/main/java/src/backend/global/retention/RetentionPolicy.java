@@ -53,11 +53,23 @@ public class RetentionPolicy {
     public static final Duration REFRESH_TOKEN_RETENTION_AFTER_EXPIRY_OR_REVOCATION = Duration.ofDays(30);
 
     /**
+     * 멱등 키({@code client_key}) 보존 기간 — API_SPEC §1.7 "최소 회차 종료 후 24시간 보장"(R56 Ruling 894 ⑥). 24시간은 하한이고, 정리는
+     * 다음 배치 틱이라 실제로는 그보다 조금 더 남는다. 키 값만 비우며 비우는 표는 종료 회차를 거절하는 승하차 이력 · 연락 기록
+     * 둘뿐이고(행은 무기한 보존이라 지우지 않는다), 비상 알림 · 예외 보고의 키는 비우지 않는다({@link IdempotencyKeyExpiry}).
+     */
+    public static final Duration IDEMPOTENCY_KEY_RETENTION = Duration.ofHours(24);
+
+    /**
      * 한 번의 삭제 호출이 지우는 행 수 상한(목표 7) — 상한 없이 전건을 한 트랜잭션에서 지우면 오래
      * 쌓인 테이블에서 행 잠금을 길게 붙들어 운영 중 조회를 막는다. 상한을 넘는 나머지는 스케줄러가
      * 같은 틱 안에서 반복 호출해 여러 회차로 나눠 지운다.
      */
     public static final int BATCH_SIZE = 5_000;
+
+    /** 멱등 키 정리 기준 시각 — 회차가 이보다 이전에 끝났으면(미종료 회차는 출발 시각) 그 회차 행의 키를 비운다. */
+    public OffsetDateTime idempotencyKeyCutoff(OffsetDateTime now) {
+        return now.minus(IDEMPOTENCY_KEY_RETENTION);
+    }
 
     /** {@code audit_log} 삭제 기준 시각 — 이보다 이전에 일어난 행이 대상(두 category 모두). */
     public OffsetDateTime auditLogCutoff(OffsetDateTime now) {

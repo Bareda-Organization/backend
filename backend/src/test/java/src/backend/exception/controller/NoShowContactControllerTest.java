@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.UUID;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -330,6 +331,94 @@ class NoShowContactControllerTest {
         entityManager.flush();
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM no_show_contact WHERE no_show_case_id = ?",
                 Integer.class, caseId)).as("거부됐으니 행이 생기면 안 된다").isEqualTo(0);
+    }
+
+    // ── R56 K4(Ruling 894 ⑧) — 오프라인 큐 재전송 키 ─────────────────────────────
+
+    @Test
+    @DisplayName("R56 K4 — 같은 client_key 를 두 번 보내면 행은 1개이고 두 번째는 200 으로 최초 결과를 돌려준다")
+    void 같은_client_key_재전송은_행을_늘리지_않고_200이다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long[] s = caseScenario(now);
+        long academyId = s[0];
+        long runId = s[1];
+        long riderId = s[2];
+        long caseId = s[3];
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
+        String body = "{\"attempt_type\":\"call\",\"result\":\"no_answer\",\"client_key\":\"" + UUID.randomUUID() + "\"}";
+
+        mockMvc.perform(post(RECORD_ATTEMPT.formatted(runId, riderId))
+                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated());
+        mockMvc.perform(post(RECORD_ATTEMPT.formatted(runId, riderId))
+                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.case_id").value(caseId))
+                .andExpect(jsonPath("$.data.attempt_type").value("call"))
+                .andExpect(jsonPath("$.data.result").value("no_answer"))
+                .andExpect(jsonPath("$.data.replayed").doesNotExist());
+
+        entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM no_show_contact WHERE no_show_case_id = ?",
+                Integer.class, caseId)).as("재전송이 연락 기록을 두 번 만들면 안 된다").isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("R56 K4 — 같은 client_key 로 다른 내용(결과)을 보내면 422 VALIDATION_FAILED 이고 새 행이 생기지 않는다")
+    void 같은_client_key_다른_내용은_422다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long[] s = caseScenario(now);
+        long academyId = s[0];
+        long runId = s[1];
+        long riderId = s[2];
+        long caseId = s[3];
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
+        String key = UUID.randomUUID().toString();
+
+        mockMvc.perform(post(RECORD_ATTEMPT.formatted(runId, riderId))
+                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"attempt_type\":\"call\",\"result\":\"no_answer\",\"client_key\":\"" + key + "\"}"))
+                .andExpect(status().isCreated());
+        mockMvc.perform(post(RECORD_ATTEMPT.formatted(runId, riderId))
+                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"attempt_type\":\"message\",\"result\":\"no_answer\",\"client_key\":\"" + key + "\"}"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+
+        entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM no_show_contact WHERE no_show_case_id = ?",
+                Integer.class, caseId)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("R56 K4 — client_key 없이 같은 요청을 두 번 보내면 지금처럼 두 번 다 201 이고 행이 2개다")
+    void client_key_가_없으면_지금과_같다() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        long[] s = caseScenario(now);
+        long academyId = s[0];
+        long runId = s[1];
+        long riderId = s[2];
+        long caseId = s[3];
+        long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
+                ManagerRole.ESCORT, now);
+
+        for (int i = 0; i < 2; i++) {
+            mockMvc.perform(post(RECORD_ATTEMPT.formatted(runId, riderId))
+                            .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"attempt_type\":\"call\",\"result\":\"no_answer\"}"))
+                    .andExpect(status().isCreated());
+        }
+
+        entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM no_show_contact WHERE no_show_case_id = ?",
+                Integer.class, caseId)).isEqualTo(2);
     }
 
     private String 토큰(long accountId, long academyId, Role role) {

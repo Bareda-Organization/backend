@@ -1,12 +1,12 @@
 package src.backend.exception.controller;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -38,12 +38,14 @@ public class RunReportController {
 
     private final ExceptionReportCommandService exceptionReportCommandService;
 
-    /** 현장 예외 상황 보고(§4.13, EXC-02·03) — {@code type=guardian_absent} 는 {@code rider_id} 필수. */
+    /** 현장 예외 상황 보고(§4.13, EXC-02·03) — {@code type=guardian_absent} 는 {@code rider_id} 필수. 같은 {@code client_key} 재전송은 최초 결과를 200 으로 돌려준다(§1.7). */
     @Operation(summary = "현장 상황 보고 (EXC-03) · 보호자 부재 등록 (EXC-02)")
     @PostMapping("/{runId}/reports")
-    @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<ExceptionReportCreateResponse> report(@AuthenticationPrincipal AuthUser requester,
-            @PathVariable Long runId, @Valid @RequestBody ExceptionReportCreateRequest request) {
-        return ApiResponse.ok(exceptionReportCommandService.report(requester, runId, request));
+    public ResponseEntity<ApiResponse<ExceptionReportCreateResponse>> report(
+            @AuthenticationPrincipal AuthUser requester, @PathVariable Long runId,
+            @Valid @RequestBody ExceptionReportCreateRequest request) {
+        ExceptionReportCreateResponse response = exceptionReportCommandService.report(requester, runId, request);
+        return ResponseEntity.status(response.replayed() ? HttpStatus.OK : HttpStatus.CREATED)
+                .body(ApiResponse.ok(response));
     }
 }

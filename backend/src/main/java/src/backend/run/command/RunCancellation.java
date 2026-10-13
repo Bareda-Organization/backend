@@ -3,6 +3,7 @@ package src.backend.run.command;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import jakarta.persistence.EntityManager;
@@ -19,6 +20,7 @@ import src.backend.run.entity.RunCancelSource;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.entity.RunTransfer;
 import src.backend.run.entity.RunTransferStatus;
+import src.backend.run.event.RunCanceledEvent;
 import src.backend.run.repository.RunTransferRepository;
 
 /**
@@ -35,6 +37,9 @@ import src.backend.run.repository.RunTransferRepository;
  * 어디에도 남지 않는다. 관계자는 {@code 403 CHANGE_WINDOW_CLOSED}(§5.8.1 과 같은 사유·같은 코드)를 받고, 출발 회차를 먼저
  * 취소하면(그 학생은 어차피 그 버스에 없다) 도착 회차도 취소할 수 있다. 스케줄 경로는 확정된 회차를 건드리지 않는 것과
  * 같은 이유로 조용히 건너뛴다.
+ *
+ * <p><b>확정된({@code confirmed}) 회차를 취소하면</b> 배치된 기사·동승자에게 알린다({@link RunCanceledEvent}, R56 Ruling 894 ⑤) —
+ * 확정 전 취소는 매니저가 그 회차를 아직 모르므로 알리지 않는다.
  */
 @Component
 @RequiredArgsConstructor
@@ -48,6 +53,8 @@ public class RunCancellation {
     private final RunTransferRemoval transferRemoval;
 
     private final Clock clock;
+
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 회차를 잠그고 <b>다시 읽은 상태로 판정한 뒤</b> 취소 표시하고 들어오는 대기 이동을 지운다 — 잠금은 이동 등록
@@ -81,7 +88,11 @@ public class RunCancellation {
             }
             throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);
         }
-        run.cancel(OffsetDateTime.now(clock), source);
+        OffsetDateTime canceledAt = OffsetDateTime.now(clock);
+        run.cancel(canceledAt, source);
+        if (status == RunStatus.CONFIRMED) {
+            eventPublisher.publishEvent(new RunCanceledEvent(run.getId(), run.getAcademyId(), canceledAt));
+        }
         runTransferRepository.findAllByToRunIdAndAcademyId(run.getId(), run.getAcademyId()).stream()
                 .filter(transfer -> transfer.getStatus() == RunTransferStatus.STAGED)
                 .map(RunTransfer::getId)

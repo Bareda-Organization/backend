@@ -41,11 +41,13 @@ import src.backend.request.repository.ChangeRequestRepository;
 import src.backend.routing.domain.GeoPoint;
 import src.backend.routing.entity.Route;
 import src.backend.routing.entity.RoutePlan;
+import src.backend.routing.entity.Waypoint;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
+import src.backend.routing.repository.WaypointRepository;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.domain.VerifiedAddressEntry;
 import src.backend.student.entity.WeeklyAddress;
@@ -132,6 +134,9 @@ class StaffRunRouteControllerTest {
     @Autowired
     private WeeklyAddressRepository weeklyAddressRepository;
 
+    @Autowired
+    private WaypointRepository waypointRepository;
+
     private DriverRunFixtures fixtures() {
         return new DriverRunFixtures(academyRepository, busRepository, stopRepository, studentRepository,
                 accountRepository, managerRepository, assignmentRepository, runRepository, confirmedRouteRepository,
@@ -172,6 +177,36 @@ class StaffRunRouteControllerTest {
                 .andReturn();
 
         assertThat((Integer) JsonPath.read(본문(result), "$.data.route_version")).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("R56 K1 — 경유 행만 waypoint_id 에 그 경유 지점 id 를 싣고 승하차지 행은 null 이다")
+    void 경유_행은_waypoint_id_를_싣고_승하차지_행은_null_이다() throws Exception {
+        DriverRunFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.500000", "127.000000");
+        OffsetDateTime departTime = OffsetDateTime.now().plusHours(1);
+        long runId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
+        long versionId = fx.confirmedRouteWithVersion(runId, departTime.minusMinutes(40));
+        long driverAccountId = fx.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사1", OffsetDateTime.now());
+        Waypoint waypoint = waypointRepository.save(Waypoint.forRun(runId, "주유소", null,
+                new BigDecimal("37.505000"), new BigDecimal("127.005000"), null, driverAccountId,
+                OffsetDateTime.now()));
+        waypoint.apply();
+        waypointRepository.save(waypoint);
+        fx.runStopForStop(versionId, stopId, 1, departTime);
+        fx.runStopForWaypoint(versionId, waypoint.getId(), 2);
+        long staffAccountId = fx.staffAccount(academyId, "관계자1");
+
+        mockMvc.perform(get("/api/v1/staff/runs/" + runId + "/route")
+                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.stops[?(@.is_waypoint == true)].waypoint_id")
+                        .value(String.valueOf(waypoint.getId())))
+                .andExpect(jsonPath("$.data.stops[?(@.is_waypoint == false)].waypoint_id").value(
+                        org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.nullValue())))
+                .andExpect(jsonPath("$.data.stops[0].waypoint_id").doesNotExist());
     }
 
     @Test

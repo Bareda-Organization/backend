@@ -129,6 +129,42 @@ class StaffStudentListExtensionTest {
     }
 
     @Test
+    void summary_class_names_는_쪽과_필터와_무관한_학원_전체_반_이름이고_다른_학원_반은_없다() throws Exception {
+        // 이름 순으로 첫 쪽(size=1)에는 "R56CN가" 만 오고, "R56반10" · "R56반2" 는 뒤 쪽 학생에게만 있다 — 선택지가 첫 쪽만 보이던 결함(R52 A-13)
+        심는다("R56CN가", null, false, null);
+        심는다("R56CN나", null, false, "R56반10");
+        심는다("R56CN다", null, false, "R56반2");
+        심는다("R56CN라", null, false, "R56반2");
+        심는다("R56CN마", null, false, "  ");
+        long 타학원 = jdbcTemplate.queryForObject(
+                "INSERT INTO student (academy_id, name, class_name) VALUES (2, 'R56CN타학원', 'R56타학원반') RETURNING id",
+                Long.class);
+        assertThat(타학원).isPositive();
+
+        List<String> 첫쪽 = classNames(목록("q=R56CN&size=1&page=0"));
+        List<String> 둘째쪽 = classNames(목록("q=R56CN&size=1&page=1&filter=address_missing"));
+
+        assertThat(첫쪽.stream().filter(name -> name.startsWith("R56")).toList())
+                .as("뒤 쪽 학생의 반도 · 중복 없이 · 자연 정렬(2 가 10 앞) · 빈 값 제외 · 다른 학원 반 제외")
+                .containsExactly("R56반2", "R56반10");
+        assertThat(첫쪽).as("빈 반 이름은 없다").doesNotContain("", "  ");
+        assertThat(둘째쪽).as("쪽·필터와 무관하게 같은 선택지").isEqualTo(첫쪽);
+    }
+
+    @Test
+    void 반_이름_앞뒤_공백은_저장된_그대로_선택지에_나오고_그_값으로_필터하면_그_학생이_나온다() throws Exception {
+        long 공백반 = 심는다("R56SP공백반", null, false, " 고등 심화반 ");
+        주소를_심는다(공백반, "mon", "to_academy");
+
+        assertThat(classNames(목록("q=R56SP&size=100"))).contains(" 고등 심화반 ");
+        // get(String) 은 URI 템플릿이라 공백을 미리 인코딩하면 이중 인코딩된다 — param() 으로 원문 값을 넘긴다
+        String body = mockMvc.perform(get(BASE).param("q", "R56SP").param("class_name", " 고등 심화반 ")
+                        .param("size", "100").header("Authorization", 토큰()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertThat(JsonPath.<List<String>>read(body, "$.data.items[*].name")).containsExactly("R56SP공백반");
+    }
+
+    @Test
     void 목록의_쿼리_수는_학생_수에_비례하지_않는다() throws Exception {
         long 하나 = 심는다("R48Q학생0", "초1", false, "R48Q반");
         주소를_심는다(하나, "mon", "to_academy");
@@ -182,6 +218,10 @@ class StaffStudentListExtensionTest {
 
     private Map<String, Integer> summary(String body) {
         return JsonPath.read(body, "$.data.summary");
+    }
+
+    private List<String> classNames(String body) {
+        return JsonPath.read(body, "$.data.summary.class_names");
     }
 
     private long 쿼리_수(String query) throws Exception {

@@ -234,6 +234,12 @@ class StaffApprovalDecideControllerTest {
         assertThat(decidedStudentId).as("change_decided 의 student_id 가 신청 학생과 일치한다")
                 .isEqualTo(requestedStudentId);
 
+        // R56 Ruling 894 ⑪ — change_decided 수신자는 신청을 낸 보호자 1명뿐이다(다른 보호자 · 학생 계정으로 새지 않는다).
+        List<Long> decidedRecipients = jdbcTemplate.queryForList(
+                "SELECT recipient_account_id FROM notification_log WHERE type = 'change_decided' AND student_id = ?",
+                Long.class, requestedStudentId);
+        assertThat(decidedRecipients).as("change_decided 수신자는 신청한 보호자 1명뿐").containsExactly(s.parentAccountId);
+
         assertThat(previewCache.find(s.approvalId)).as("결정 후 미리보기 캐시는 비어 있어야 한다").isEmpty();
     }
 

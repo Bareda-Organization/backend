@@ -145,6 +145,15 @@ public class StaffStudentController {
                 studentCommandService.update(authUser, id, request, photoOf(photo))));
     }
 
+    /** 학생 사진 삭제(§5.11 · R56 Ruling 894 ③) — 사진이 이미 없어도 {@code 204}(멱등). 권한·학원 범위는 수정과 같다. */
+    @CanManageStudent
+    @Operation(summary = "학생 관리 — 사진 삭제 (STU-03)")
+    @DeleteMapping("/{id}/photo")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void removePhoto(@AuthenticationPrincipal AuthUser authUser, @PathVariable Long id) {
+        studentCommandService.removePhoto(authUser, id);
+    }
+
     /** 퇴원 처리(STU-04, §5.11) — soft delete 이며 오늘 명단은 유지된다. */
     @CanManageStudent
     @Operation(summary = "학생 관리 — 퇴원 soft delete (STU-04)")

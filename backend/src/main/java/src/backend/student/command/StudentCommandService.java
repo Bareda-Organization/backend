@@ -130,6 +130,20 @@ public class StudentCommandService {
     }
 
     /**
+     * 학생 사진을 지운다(R56 Ruling 894 ③) — {@code photo_url} 을 비우고 저장 파일은 커밋 뒤 지운다. 사진이 이미 없으면 아무것도 하지
+     * 않는다(멱등 · 감사도 남기지 않는다 — 바뀐 것이 없다). 감사는 사진 교체와 같은 L3 수정 1행이다.
+     */
+    public void removePhoto(AuthUser requester, Long studentId) {
+        Student student = find(requester, studentId);
+        if (student.getPhotoUrl() == null) {
+            return;
+        }
+        studentPhotoWriter.remove(student.getPhotoUrl());
+        student.removePhoto();
+        recordChange(requester, student, AuditAction.UPDATE, Map.of("fields", List.of("photo_url")));
+    }
+
+    /**
      * 보호자 연락처를 고친다(Ruling 326) — <b>고치기 전에 전부 확인한다.</b> 이 학생과 연결되지 않은 보호자가 하나라도
      * 섞이면 아무것도 바꾸지 않은 채 {@code 422} 다. 확인하지 않으면 학생 id 하나로 학원의 아무 보호자 번호나 바꾼다.
      */

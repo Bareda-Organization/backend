@@ -2,6 +2,8 @@ package src.backend.exception.repository;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -12,9 +14,19 @@ import org.springframework.transaction.annotation.Transactional;
 
 import src.backend.exception.entity.ExceptionReport;
 import src.backend.exception.entity.ExceptionReportType;
+import src.backend.global.security.access.AcademyScopeExempt;
 
 /** {@link ExceptionReport} 영속성 접근 — 조회는 전부 학원으로 좁혀져 호출부가 조건을 빼먹을 자리가 부재하다. */
 public interface ExceptionReportRepository extends JpaRepository<ExceptionReport, Long> {
+
+    /**
+     * {@code client_key} 로 재전송을 가려낸다({@code uk_exception_report_client_key}, API_SPEC §1.7) —
+     * {@link src.backend.boarding.command.BoardingCommandService} 와 같은 멱등성 재생 형태다.
+     */
+    @AcademyScopeExempt(reason = "client_key 는 클라이언트가 생성한 UUID 라 그 자체로 전 학원에서 유일하고 추측 불가능하다"
+            + "(EmergencyAlertRepository#findByClientKey 와 같은 근거). ExceptionReportCommandService#report 가 배치·학원 범위 "
+            + "회차 확인 뒤에 이 조회를 하고, 찾은 행의 회차·종류·탑승자를 요청과 대조한다")
+    Optional<ExceptionReport> findByClientKey(UUID clientKey);
 
     /**
      * 목록 조회(API_SPEC §5.20 목록) — {@code type}·{@code run_id}·{@code reported_at} 구간(= {@code date}
