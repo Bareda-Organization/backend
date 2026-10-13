@@ -183,7 +183,8 @@ class RunReportControllerTest {
         MvcResult second = mockMvc.perform(post("/api/v1/runs/" + runId + "/reports")
                 .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
                 .contentType(MediaType.APPLICATION_JSON).content(body))
-                .andExpect(status().isOk()).andReturn();
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.replayed").doesNotExist()).andReturn();
 
         assertThat(JsonPath.<Object>read(second.getResponse().getContentAsString(StandardCharsets.UTF_8),
                 "$.data.report_id")).isEqualTo(JsonPath.<Object>read(
@@ -241,6 +242,38 @@ class RunReportControllerTest {
         }
 
         assertThat(보고_개수(runId)).isEqualTo(2);
+    }
+
+    // ── Ruling 894 ⑪-c · guardian_absent 를 서버가 거르지 않는다 ─────────────────
+
+    /**
+     * 판정 894 ⑪ — 서버는 {@code guardian_absent} 보고의 대상을 "혼자 귀가 불가 학생" 으로 거르지 않는다. 현장의 보호자 부재는 안전 보고라
+     * 학생 정보({@code can_go_alone})가 틀려 있어도 관계자에게 가야 하므로, 혼자 귀가 가능으로 등록된 학생 · 등원 회차의 보고도 접수된다.
+     * 이 시험을 깨뜨리는 변경(서버가 그 조건으로 보고를 되돌림)은 새 판정이 먼저 있어야 한다.
+     */
+    @Test
+    @DisplayName("Ruling 894 ⑪ — can_go_alone=true 학생·등원 회차의 guardian_absent 보고도 접수되어 201 이다(안전 보고를 되돌리지 않는다)")
+    void 혼자_귀가_가능_학생의_보호자_부재_보고도_접수된다() throws Exception {
+        ExceptionReportFixtures fixtures = fixtures();
+        long academyId = fixtures.academy();
+        long busId = fixtures.bus(academyId);
+        long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
+        OffsetDateTime departTime = now();
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
+        long studentId = fixtures.student(academyId, "혼자귀가학생");
+        jdbcTemplate.update("UPDATE student SET can_go_alone = true WHERE id = ?", studentId);
+        long runRiderId = fixtures.rider(runId, studentId, stopId);
+
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/reports")
+                .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"type\":\"guardian_absent\",\"memo\":\"보호자가 없음\",\"rider_id\":" + runRiderId + "}"))
+                .andExpect(status().isCreated());
+
+        assertThat(보고_개수(runId)).isEqualTo(1);
+        assertThat(보고_라이더(runId)).isEqualTo(runRiderId);
     }
 
     // ── goal 15 — 관계자 즉시 통지 ─────────────────────────────────────────

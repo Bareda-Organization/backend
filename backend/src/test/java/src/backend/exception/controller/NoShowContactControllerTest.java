@@ -358,7 +358,8 @@ class NoShowContactControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.case_id").value(caseId))
                 .andExpect(jsonPath("$.data.attempt_type").value("call"))
-                .andExpect(jsonPath("$.data.result").value("no_answer"));
+                .andExpect(jsonPath("$.data.result").value("no_answer"))
+                .andExpect(jsonPath("$.data.replayed").doesNotExist());
 
         entityManager.flush();
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM no_show_contact WHERE no_show_case_id = ?",
