@@ -54,8 +54,8 @@ public class RetentionPolicy {
 
     /**
      * 멱등 키({@code client_key}) 보존 기간 — API_SPEC §1.7 "최소 회차 종료 후 24시간 보장"(R56 Ruling 894 ⑥). 24시간은 하한이고, 정리는
-     * 다음 배치 틱이라 실제로는 그보다 조금 더 남는다. 키 값만 비우며 키를 가진 행(승하차 이력 · 비상 알림 · 예외 보고 · 연락 기록)은
-     * 무기한 보존 대상이라 지우지 않는다.
+     * 다음 배치 틱이라 실제로는 그보다 조금 더 남는다. 키 값만 비우며 비우는 표는 종료 회차를 거절하는 승하차 이력 · 연락 기록
+     * 둘뿐이고(행은 무기한 보존이라 지우지 않는다), 비상 알림 · 예외 보고의 키는 비우지 않는다({@link IdempotencyKeyExpiry}).
      */
     public static final Duration IDEMPOTENCY_KEY_RETENTION = Duration.ofHours(24);
 

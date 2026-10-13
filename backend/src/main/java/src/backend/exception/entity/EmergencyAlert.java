@@ -87,8 +87,7 @@ public class EmergencyAlert {
     @Column(name = "received_at", nullable = false)
     private OffsetDateTime receivedAt;
 
-    /** 재전송 키 — 회차 종료 24시간 뒤 비워진다(API_SPEC §1.7, R56 Ruling 894 ⑥). */
-    @Column(name = "client_key")
+    @Column(name = "client_key", nullable = false)
     private UUID clientKey;
 
     @Column(name = "acked_by")

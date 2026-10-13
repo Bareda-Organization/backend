@@ -38,9 +38,9 @@ import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * R56 Ruling 894 ⑥ — 멱등 키({@code client_key})는 <b>회차 종료 24시간 뒤</b>에 비워진다(API_SPEC §1.7). 키를 가진 4개 테이블
- * ({@code rider_status_history} · {@code emergency_alert} · {@code exception_report} · {@code no_show_contact})는 무기한 보존 행이라
- * <b>행은 남고 키만 비워진다</b>. 24시간 경계 바로 안쪽(23시간 59분)은 남고 바로 바깥(24시간 1분)은 비워진다 — 한쪽만 보면 "전부 비움"
+ * R56 Ruling 894 ⑥ — 종료 회차를 {@code 409} 로 거절하는 두 표({@code rider_status_history} · {@code no_show_contact})의 멱등 키
+ * ({@code client_key})는 <b>회차 종료 24시간 뒤</b>에 비워지고 행은 남는다(API_SPEC §1.7). 종료 회차도 받는
+ * {@code emergency_alert} · {@code exception_report} 의 키는 <b>비워지지 않는다</b>(늦은 재전송이 새 행을 만들지 않게 — 후속 1). 24시간 경계 바로 안쪽(23시간 59분)은 남고 바로 바깥(24시간 1분)은 비워진다 — 한쪽만 보면 "전부 비움"
  * 이나 "하나도 안 비움" 이 통과한다.
  *
  * <p>{@code @Transactional} 시험이라 JPA 로 만든 회차를 {@link #flush} 로 내보낸 뒤 같은 연결의 {@code JdbcTemplate} 이 읽는다. 기준 시각은 고정
@@ -145,16 +145,16 @@ class IdempotencyKeyExpiryTest {
     }
 
     @Test
-    @DisplayName("R56 ⑥ — 회차가 24시간 1분 전에 끝났으면 4개 테이블의 키가 비워지고 행은 남는다")
+    @DisplayName("R56 ⑥ — 회차가 24시간 1분 전에 끝났으면 승하차 이력·연락 기록 키만 비워지고 행은 남으며 비상·예외 보고 키는 그대로다")
     void 종료_24시간_뒤의_키는_비워지고_행은_남는다() {
         Rows rows = 회차와_키를_심는다(NOW.minusHours(24).minusMinutes(1));
 
         expiry.expire(CUTOFF, RetentionPolicy.BATCH_SIZE);
 
         assertThat(키(("rider_status_history"), rows.history())).as("승하차 이력 키").isNull();
-        assertThat(키("emergency_alert", rows.emergency())).as("비상 알림 키").isNull();
-        assertThat(키("exception_report", rows.report())).as("예외 보고 키").isNull();
         assertThat(키("no_show_contact", rows.contact())).as("연락 기록 키").isNull();
+        assertThat(키("emergency_alert", rows.emergency())).as("비상 알림 키는 비우지 않는다").isNotNull();
+        assertThat(키("exception_report", rows.report())).as("예외 보고 키는 비우지 않는다").isNotNull();
         assertThat(행수("rider_status_history", rows.history())).as("무기한 보존 행은 남는다").isEqualTo(1);
         assertThat(행수("emergency_alert", rows.emergency())).isEqualTo(1);
         assertThat(행수("exception_report", rows.report())).isEqualTo(1);
@@ -180,13 +180,13 @@ class IdempotencyKeyExpiryTest {
         Rows rows = 회차와_키를_심는다(NOW.minusHours(1));
         jdbcTemplate.update("UPDATE rider_status_history SET changed_at = ? WHERE id = ?", NOW.minusDays(3),
                 rows.history());
-        jdbcTemplate.update("UPDATE exception_report SET reported_at = ? WHERE id = ?", NOW.minusDays(3),
-                rows.report());
+        jdbcTemplate.update("UPDATE no_show_contact SET attempted_at = ? WHERE id = ?", NOW.minusDays(3),
+                rows.contact());
 
         expiry.expire(CUTOFF, RetentionPolicy.BATCH_SIZE);
 
         assertThat(키("rider_status_history", rows.history())).as("방금 끝난 회차의 이력 키").isNotNull();
-        assertThat(키("exception_report", rows.report())).as("방금 끝난 회차의 보고 키").isNotNull();
+        assertThat(키("no_show_contact", rows.contact())).as("방금 끝난 회차의 연락 기록 키").isNotNull();
     }
 
     @Test
@@ -198,9 +198,9 @@ class IdempotencyKeyExpiryTest {
         scheduler.cleanUp();
 
         assertThat(키("rider_status_history", rows.history())).isNull();
-        assertThat(키("emergency_alert", rows.emergency())).isNull();
-        assertThat(키("exception_report", rows.report())).isNull();
         assertThat(키("no_show_contact", rows.contact())).isNull();
+        assertThat(키("emergency_alert", rows.emergency())).as("배치를 거쳐도 비상 알림 키는 남는다").isNotNull();
+        assertThat(키("exception_report", rows.report())).as("배치를 거쳐도 예외 보고 키는 남는다").isNotNull();
     }
 
     // ── 도우미 ────────────────────────────────────────────────────────────

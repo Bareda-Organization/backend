@@ -694,7 +694,7 @@ CREATE TABLE no_show_contact (
     decision        varchar(10),
     attempted_at    timestamptz NOT NULL,
     attempted_by    bigint      NOT NULL,
-    -- 오프라인 큐 재전송 키(API_SPEC §1.7, R56 Ruling 894 ⑧) — 키를 보내지 않은 옛 요청은 NULL 이다(UNIQUE 는 NULL 을 여럿 허용).
+    -- 오프라인 큐 재전송 키(API_SPEC §1.7, R56 Ruling 894 ⑧) — 키를 보내지 않은 요청은 NULL 이고, 종료 회차의 키는 회차 종료 24시간 뒤 비워진다(⑥).
     client_key      uuid,
     CONSTRAINT uk_no_show_contact_client_key UNIQUE (client_key),
     CONSTRAINT fk_no_show_contact_case FOREIGN KEY (no_show_case_id) REFERENCES no_show_case (id) ON DELETE CASCADE,
@@ -719,8 +719,7 @@ CREATE TABLE emergency_alert (
     rider_count    integer      NOT NULL,
     occurred_at    timestamptz  NOT NULL,
     received_at    timestamptz  NOT NULL DEFAULT now(),
-    -- 회차 종료 24시간 뒤 값만 비운다(API_SPEC §1.7, R56 Ruling 894 ⑥) — 행은 무기한 보존이라 지우지 않는다. UNIQUE 는 NULL 을 여럿 허용한다.
-    client_key     uuid,
+    client_key     uuid         NOT NULL,
     acked_by       bigint,
     acked_at       timestamptz,
     -- 확인할 때 남기는 조치 메모(Ruling 541) — 선택 입력, 최대 200자.

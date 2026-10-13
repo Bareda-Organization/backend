@@ -32,8 +32,8 @@ import src.backend.student.repository.StudentRepository;
  * 삭제로 5개→4개, Ruling 445 — {@code audit_log} 편입으로 4개→5개). 여기에 <b>퇴원 90일이 지난 학생의 개인정보 파기</b>
  * (Ruling 480 ②·520)가 같은 배치 상한·같은 잠금으로 편입돼 있다 — 이쪽은 행을 지우지 않고 익명화한다
  * ({@link StudentAnonymizationService}). R56(Ruling 894)이 두 가지를 더했다 — 지연 알림 발신 기록({@code delay_notice})을
- * {@code notification_log} 와 같은 14일로 지우고, 회차 종료 24시간이 지난 멱등 키를 비운다({@link IdempotencyKeyExpiry} — 행은
- * 무기한 보존이라 키 값만 비운다).
+ * {@code notification_log} 와 같은 14일로 지우고, 회차 종료 24시간이 지난 멱등 키를 비운다({@link IdempotencyKeyExpiry} — 승하차 이력 · 연락 기록의
+ * 키 값만 비우고 행은 무기한 보존한다).
  *
  * <p><b>여기 없는 테이블은 지우지 않는 것이 이 클래스의 본체다</b>(목표 6, ERD §7.1·§7.2 무기한 보존
  * 대상 — {@code rider_status_history} · {@code no_show_case} ·
