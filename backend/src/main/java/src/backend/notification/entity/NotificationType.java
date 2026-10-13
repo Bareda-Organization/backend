@@ -7,7 +7,7 @@ import jakarta.persistence.Converter;
 import src.backend.global.common.converter.LowerCaseEnumConverter;
 
 /**
- * 알림 종류 20종 — {@code notification_log.type}(CHECK 로 강제, API_SPEC §9.7 과 값 일치 확인)의
+ * 알림 종류 21종 — {@code notification_log.type}(CHECK 로 강제, API_SPEC §9.7 과 값 일치 확인)의
  * 값 도메인이다.
  */
 public enum NotificationType {
@@ -51,7 +51,9 @@ public enum NotificationType {
     /** 승차 취소됨(BRD-05, 목표 13, Ruling 219) — 되돌리기로 승차 처리가 취소돼 원래 승차 알림이 거짓이 됐음을 정정. */
     BOARDING_CANCELED,
     /** 하차 취소됨(BRD-05, 목표 14, Ruling 219) — 되돌리기로 하차 처리가 취소돼 원래 하차 알림이 거짓이 됐음을 정정. */
-    ALIGHTING_CANCELED;
+    ALIGHTING_CANCELED,
+    /** 확정된 회차가 취소됨(SCH-03, R56 Ruling 894 ⑤) — 배치된 기사·동승자가 출발 직전 취소를 알게 한다. 확정 전(idle) 취소에는 보내지 않는다. */
+    RUN_CANCELED;
 
     /**
      * NTF-10 이 수신 확인을 추적하는 <b>중요 통지</b> 3종 — {@code USER_FLOWS §10.2} 규칙4 가

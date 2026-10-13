@@ -812,7 +812,7 @@ CREATE TABLE notification_log (
         'run_started', 'run_ended', 'signup_decided', 'change_decided',
         'approval_requested', 'intent_changed', 'route_changed',
         'assignment_changed', 'no_show_escalated', 'emergency', 'emergency_canceled',
-        'exception_reported', 'boarding_canceled', 'alighting_canceled')),
+        'exception_reported', 'boarding_canceled', 'alighting_canceled', 'run_canceled')),
     CONSTRAINT ck_notification_log_push_state CHECK (push_state IN ('pending', 'sent', 'failed', 'skipped'))
 );
 
