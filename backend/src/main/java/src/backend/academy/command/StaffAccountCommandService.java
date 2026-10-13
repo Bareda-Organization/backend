@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.Locale;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -15,6 +16,7 @@ import src.backend.academy.dto.StaffAccountUpdateRequest;
 import src.backend.academy.entity.Academy;
 import src.backend.academy.entity.AcademyStaff;
 import src.backend.academy.entity.StaffStatus;
+import src.backend.academy.event.StaffResignedEvent;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.entity.Account;
@@ -39,6 +41,8 @@ import src.backend.global.error.ErrorCode;
  * </ul>
  * 이름·연락처·이메일 수정과 {@code status=active}(재직 복귀)는 대상이 <b>아니다</b> — 접근 범위를
  * 좁히지 않으므로, 무효화하면 관리자가 오타 하나를 고칠 때마다 그 관계자가 재로그인을 요구받는다.
+ *
+ * <p>퇴사는 푸시 단말도 지운다({@link StaffResignedEvent}, R56 Ruling 894 ②) — 남으면 퇴사자 기기로 알림이 간다.
  */
 @Service
 @RequiredArgsConstructor
@@ -61,6 +65,8 @@ public class StaffAccountCommandService {
     private final TransactionTemplate transactionTemplate;
 
     private final Clock clock;
+
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 관계자 계정을 고친다 — 미존재 계정·관계자 행 부재는 {@code 404 ACCOUNT_NOT_FOUND}(§6.7).
@@ -102,6 +108,10 @@ public class StaffAccountCommandService {
         String temporaryPassword = applyTemporaryPassword(account, temporary);
         boolean employmentRevoked = applyEmploymentStatus(staff, request.status());
 
+        if (employmentRevoked) {
+            // 푸시 단말 정리(R56 Ruling 894 ②) — 토큰 무효화가 영속성 컨텍스트를 비우기 전에 알린다.
+            eventPublisher.publishEvent(new StaffResignedEvent(accountId, OffsetDateTime.now(clock)));
+        }
         if (temporaryPassword != null || employmentRevoked) {
             refreshTokenRepository.revokeAllValidByAccountId(accountId, OffsetDateTime.now(clock));
         }

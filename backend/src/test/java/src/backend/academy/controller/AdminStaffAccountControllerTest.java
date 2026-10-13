@@ -182,6 +182,38 @@ class AdminStaffAccountControllerTest {
         재발급을_시도한다(refreshToken).andExpect(status().isOk());
     }
 
+    // ── R56 Ruling 894 ② · 퇴사 관계자 푸시 단말 ─────────────────────────────
+
+    /**
+     * 퇴사 처리는 그 계정의 푸시 단말 행을 지운다 — 단말 등록 API 는 역할을 가리지 않아 퇴사자 기기가 남으면 학생 알림이
+     * 퇴사자 폰으로 간다(개인정보). 매니저 삭제(Ruling 891)와 같은 정리다.
+     */
+    @Test
+    void 관계자를_inactive_로_바꾸면_그_계정의_푸시_단말이_지워진다() throws Exception {
+        관계자 staff = 관계자를_만든다("r56dev1");
+        관계자 other = 관계자를_만든다("r56dev2");
+        단말을_등록한다(staff.accountId());
+        단말을_등록한다(other.accountId());
+
+        수정한다(staff.accountId(), "{\"status\":\"inactive\"}").andExpect(status().isOk());
+        동기화한다();
+
+        assertThat(단말_수(staff.accountId())).as("퇴사자의 단말").isZero();
+        assertThat(단말_수(other.accountId())).as("다른 관계자의 단말은 그대로").isEqualTo(1);
+    }
+
+    /** 위 시험의 짝 — 접근 범위를 좁히지 않는 수정(이름)은 단말을 지우지 않는다. */
+    @Test
+    void 이름만_수정하면_푸시_단말은_그대로다() throws Exception {
+        관계자 staff = 관계자를_만든다("r56dev3");
+        단말을_등록한다(staff.accountId());
+
+        수정한다(staff.accountId(), "{\"name\":\"이름만바꿈\"}").andExpect(status().isOk());
+        동기화한다();
+
+        assertThat(단말_수(staff.accountId())).isEqualTo(1);
+    }
+
     // ── §6.7 수정 ─────────────────────────────────────────────────────────
 
     /** 퇴사 처리는 {@code academy_staff.status} 를 {@code inactive} 로 바꾼다 — 계정 상태(4종)는 건드리지 않는다. */
@@ -413,6 +445,16 @@ class AdminStaffAccountControllerTest {
     private <T> T 항목값(String body, String loginId, String field) {
         List<T> values = JsonPath.read(body, "$.data.items[?(@.login_id == '%s')].%s".formatted(loginId, field));
         return values.getFirst();
+    }
+
+    private void 단말을_등록한다(long accountId) {
+        jdbcTemplate.update("INSERT INTO device_token (account_id, device_id, token, platform) "
+                + "VALUES (?, 'r56-device', 'token-r56', 'android')", accountId);
+    }
+
+    private int 단말_수(long accountId) {
+        return jdbcTemplate.queryForObject("SELECT count(*) FROM device_token WHERE account_id = ?", Integer.class,
+                accountId);
     }
 
     private String 재직_상태(long accountId) {
