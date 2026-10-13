@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.util.AopTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.EntityManager;
@@ -131,6 +132,9 @@ class IdempotencyKeyExpiryTest {
 
     @BeforeEach
     void setUp() {
+        // 프록시를 벗긴다 — @SchedulerLock(ShedLock)이 락을 잡고 풀 때 시험 트랜잭션을 커밋해, 심은 행(만료된 미승차 케이스 등)이
+        // 되돌려지지 않고 남아 다른 시험(DomainEventCounterWiringTest)의 에스컬레이션 집계에 섞인다
+        scheduler = AopTestUtils.getUltimateTargetObject(scheduler);
         fx = new DriverRunFixtures(academyRepository, busRepository, stopRepository, studentRepository,
                 accountRepository, managerRepository, assignmentRepository, runRepository, confirmedRouteRepository,
                 routeVersionRepository, runStopRepository, runRiderRepository, academyStaffRepository,
