@@ -21,6 +21,7 @@ import src.backend.manager.dto.ManagerUpdateRequest;
 import src.backend.manager.entity.Manager;
 import src.backend.manager.entity.ManagerProfile;
 import src.backend.manager.entity.WorkHours;
+import src.backend.manager.event.ManagerDeletedEvent;
 import src.backend.manager.event.ManagerRoleChangedEvent;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
@@ -69,7 +70,8 @@ public class ManagerCommandService {
 
     /**
      * 매니저를 삭제한다(MGR-04, §5.13) — 끝나지 않은 회차에 배치돼 있으면 {@code 409 MANAGER_ASSIGNED} 이고
-     * {@code deleted_at} 은 <b>NULL 로 남는다</b>.
+     * {@code deleted_at} 은 <b>NULL 로 남는다</b>. 연결된 계정이 있으면 그 계정의 refresh 토큰·푸시 단말을 정리하도록
+     * 이벤트를 던진다(Ruling 891).
      *
      * <p>배치 확인이 삭제보다 <b>먼저</b> 와야 한다 — soft delete 는 UPDATE 라 FK RESTRICT 가
      * 발동하지 않아, 순서를 뒤집으면 DB 가 되돌려 주지 않는다.
@@ -77,7 +79,11 @@ public class ManagerCommandService {
     public void delete(AuthUser requester, Long managerId) {
         Manager manager = findManageable(requester, managerId);
         assertNoUnfinishedAssignment(manager);
-        manager.delete(OffsetDateTime.now(clock));
+        OffsetDateTime deletedAt = OffsetDateTime.now(clock);
+        manager.delete(deletedAt);
+        if (manager.getAccountId() != null) {
+            eventPublisher.publishEvent(new ManagerDeletedEvent(manager.getAccountId(), deletedAt));
+        }
     }
 
     /** 삭제·역할 변경이 같은 기준("배치 해제 후", MGR-04)을 보도록 판정을 한 곳에 둔다. */

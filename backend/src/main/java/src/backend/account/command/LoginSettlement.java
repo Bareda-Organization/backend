@@ -10,9 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.academy.entity.Academy;
-import src.backend.academy.entity.StaffStatus;
 import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.dto.LoginFailureDetail;
 import src.backend.account.entity.Account;
 import src.backend.account.entity.RefreshToken;
@@ -21,9 +19,9 @@ import src.backend.account.repository.RefreshTokenRepository;
 import src.backend.audit.entity.AuditLog;
 import src.backend.audit.repository.AuditLogRepository;
 import src.backend.global.common.enums.AccountStatus;
-import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.security.AccountStanding;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
@@ -39,7 +37,7 @@ public class LoginSettlement {
 
     private final AccountRepository accountRepository;
     private final AcademyRepository academyRepository;
-    private final AcademyStaffRepository academyStaffRepository;
+    private final AccountStanding accountStanding;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
@@ -101,7 +99,7 @@ public class LoginSettlement {
             }
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS, new LoginFailureDetail(remaining));
         }
-        assertStaffStillEmployed(account);
+        assertStandingKept(account);
         account.recordLoginSuccess(now);
         auditLogRepository.save(
                 AuditLog.forLoginSuccess(account.getAcademyId(), account.getId(), loginId, ip, now));
@@ -121,36 +119,29 @@ public class LoginSettlement {
     }
 
     /**
-     * 퇴사 처리된 관계자의 재로그인을 막는다(API_SPEC §2.5·§6.7·§8.1, Ruling 143).
+     * 권한을 잃은 계정의 재로그인을 막는다 — 퇴사 처리된 관계자(API_SPEC §2.5·§6.7·§8.1, Ruling 143)와 삭제된
+     * 매니저(Ruling 891)가 같은 {@code 403 AUTH_STAFF_INACTIVE} 다.
      *
      * <p>§6.7 의 퇴사 처리는 refresh 토큰을 전량 무효화하지만 그것은 <b>그 순간 열려 있는 세션</b>만
      * 끊는다. 비밀번호를 아는 퇴사자가 다시 로그인하면 {@code role=staff} 권한을 그대로 되찾으므로,
      * §6.7 이 요건으로 규정한 "퇴사 즉시 권한 회수" 가 성립하지 않는다 — 관계자 계정은 학생 개인정보
-     * 전체에 접근한다.
+     * 전체에 접근한다. 삭제된 매니저는 로그인이 200 이면 곧바로 모든 요청이 {@code 401 TOKEN_EXPIRED}
+     * (Ruling 880)라 로그인과 만료가 반복된다.
      *
      * <p><b>비밀번호 대조를 통과한 뒤에 부른다.</b> {@link Account#assertNotBlocked} 처럼 대조 앞에
      * 두면 아이디 하나만으로 "실재하고 퇴사한 관계자" 를 알려 주는 계정 열거 채널이 늘고, 그 탐색은
      * 실패 카운터를 올리지 않아 <b>횟수 제한도 받지 않는다.</b> {@code blocked} 가 대조 앞인 것과
      * 갈리는데, 그쪽은 이미 상한을 채워 카운터가 더 오를 자리가 부재한 상태라 교환의 내용이 다르다.
      *
-     * <p><b>거부 대상은 행이 있고 그 상태가 {@code inactive} 인 경우뿐이다.</b> 행이 아예 없는 것은
+     * <p><b>거부 대상은 행이 있고 그 상태가 {@code inactive}·삭제인 경우뿐이다.</b> 행이 아예 없는 것은
      * 퇴사가 아니라 <b>아직 승인 전</b>(§6.4 승인 큐의 축)이다 — 부재를 퇴사로 읽으면 승인을 기다리는
      * 관계자가 자기 상태를 볼 대기 화면(§1.4)에 닿지 못해 가입 흐름 자체가 성립하지 않는다.
      *
-     * <p>{@code staff} 에만 질의를 거는 이유는 {@code academy_staff} 를 갖는 역할이 그것뿐이어서다.
-     * 역할을 가리지 않으면 학부모·학생·기사·동승자의 매 로그인에 항상 0건인 질의가 붙고, 그 부재를
-     * 퇴사로 읽는 구현으로 한 발짝만 미끄러지면 <b>전 사용자가 로그인 불가</b>가 된다. Phase 5·9 가
-     * {@code manager}·{@code guardian}·{@code student} 레코드를 만들면 같은 축이 생기며, 일반화 여부는
-     * 그 역할들이 실제로 어떻게 갈리는지 드러난 뒤에 정한다(Ruling 143).
+     * <p>판정은 요청마다 쓰는 {@link AccountStanding} 한 곳이다 — 로그인과 매 요청이 다른 기준을 갖지 않는다.
+     * 차단은 앞서 {@link Account#assertNotBlocked} 가 걸러, 여기서 걸리는 것은 퇴사·삭제뿐이다.
      */
-    private void assertStaffStillEmployed(Account account) {
-        if (account.getRole() != Role.STAFF) {
-            return;
-        }
-        boolean resigned = academyStaffRepository.findByAccountId(account.getId())
-                .filter(staff -> staff.getStatus() == StaffStatus.INACTIVE)
-                .isPresent();
-        if (resigned) {
+    private void assertStandingKept(Account account) {
+        if (accountStanding.isLost(account.getId())) {
             throw new BusinessException(ErrorCode.AUTH_STAFF_INACTIVE);
         }
     }

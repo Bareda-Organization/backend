@@ -317,7 +317,7 @@ class StaffScheduleControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.size").value(500));
         mockMvc.perform(get("/api/v1/staff/schedules?size=501").header("Authorization", 관계자A_토큰()))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 

@@ -222,7 +222,7 @@ class StaffManagerListExtensionTest {
         assertThat((int) JsonPath.read(filtered, "$.data.counts.unassigned_today")).isEqualTo(6);
         mockMvc.perform(get("/api/v1/staff/managers").param("assigned_today", "abc")
                 .header("Authorization", 토큰(world.academyId())))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
