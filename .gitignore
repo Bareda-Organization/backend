@@ -20,6 +20,15 @@
 .claude/skills/*
 !.claude/skills/baraeda-screen-check/
 !.claude/skills/orca-launch/
+# Spring 스택 스킬(ECC 사본, MIT) — backend 워크트리의 작업 창은 작업 공간 스킬을 못 본다(2026-10-13 실측 · Skill project-stack)
+!.claude/skills/ECC-LICENSE
+!.claude/skills/springboot-patterns/
+!.claude/skills/springboot-tdd/
+!.claude/skills/springboot-verification/
+!.claude/skills/jpa-patterns/
+!.claude/skills/java-coding-standards/
+!.claude/skills/postgres-patterns/
+!.claude/skills/docker-patterns/
 # .superpowers/ 는 2026-09-20 에 삭제했다 — 그 작업 방식이 ECC·Orca·Skill 로 흡수됐고
 # 정본이 근거로 쓰던 24개는 docs/archive/sdd/ 로 옮겨 추적 대상이 됐다
 
