@@ -11,8 +11,13 @@
 -- 개인정보 — 이름은 가상, 전화는 010-0000-NNNN(실제 번호가 아닌 대역 — 매니저 앱 [전화]로 남에게 걸리지 않게),
 -- 이메일은 example.com(예약 도메인). 학생 사진은 비워 둔다(파일 저장소가 시드 밖이라 — 등록 흐름으로 확인).
 -- 비밀번호 — 전 계정 placeholder seedPasswordHash(local 은 "password").
+--
+-- 시나리오 전용 행(2026-10-16 추가) — 학원 D(재직 관계자 없음 · 가입 대기 staffPendingD) · 퇴사 관계자 staffResignedA ·
+-- 삭제된 매니저 managerDeletedA · 임시 비밀번호 parentTempPwA · 쌍둥이 보호자 parentTwinsA · 변경 한도 소진 보호자 parentQuotaA ·
+-- 보강 운행 짝 driverA5 · escortA5 · 학생 154~160(쌍둥이 · 한도 소진 자녀 · 주소 없음 2 · 일부 등록 2).
+-- 학생 id 154 이상은 V901 이 결석·미승차를 자동 배정하지 않는다(시나리오가 상태를 고정해 두려고).
 
--- ── 학원 3곳 — A(주 시나리오) · B(학원 격리 확인) · C(비활성, 로그인 유지 확인) ─────────────────────────
+-- ── 학원 4곳 — A(주 시나리오) · B(학원 격리 확인) · C(비활성, 로그인 유지 확인) · D(관계자 가입 승인 연습) ─────────────────────────
 INSERT INTO academy (id, code, name, region, address, contact, memo, status, lat, lng, created_at, updated_at)
 OVERRIDING SYSTEM VALUE
 VALUES
@@ -28,7 +33,7 @@ VALUES
     (3, 3),
     (4, 3);
 
--- ── 계정 — 역할 6종 · 상태 4종(active · pending · rejected · blocked) ────────────────────────────────────
+-- ── 계정 — 역할 6종 · 상태 4종(active · pending · rejected · blocked) + 퇴사(academy_staff.inactive) · 삭제(manager.deleted_at) ────────────────────────────────────
 INSERT INTO account (id, academy_id, login_id, password_hash, name, phone, email, role, status, failed_attempts, must_change_password, status_before_block, blocked_at, block_reason, last_login_at, created_at, updated_at)
 OVERRIDING SYSTEM VALUE
 VALUES
