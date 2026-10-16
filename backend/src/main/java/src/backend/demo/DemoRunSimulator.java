@@ -3,6 +3,7 @@ package src.backend.demo;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +25,7 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.security.AuthUser;
 import src.backend.location.command.RunPositionCommandService;
 import src.backend.location.dto.RunPositionRequest;
+import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.manager.entity.Assignment;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
@@ -70,6 +72,16 @@ public class DemoRunSimulator {
     /** 회차별로 지금 road_path 의 몇 번째 좌표에 있는지. 재기동하면 처음으로 돌아간다(데모라 무방). */
     private final Map<Long, Integer> cursorByRun = new ConcurrentHashMap<>();
 
+    /** 회차별로 시뮬레이터가 마지막으로 보낸 위치의 기록 시각 — 최신 위치가 이것과 다르면 다른 주체가 보낸 것이다. */
+    private final Map<Long, OffsetDateTime> lastSentAtByRun = new ConcurrentHashMap<>();
+
+    /**
+     * 기사 단말이 위치를 보내는 회차 — 운행이 끝날 때까지 손대지 않는다. 학원 A 회차를 매니저 앱으로 출발시키면 기사 폰의
+     * 실제 위치와 노선 위 가짜 위치가 번갈아 들어가 지도의 버스가 오가고 근접 · 출발 판정이 기사 조작과 무관해진다
+     * (2026-10-16 팀 QA 준비 중 확인).
+     */
+    private final Set<Long> deviceRunIds = ConcurrentHashMap.newKeySet();
+
     private final RunRepository runRepository;
 
     private final AssignmentRepository assignmentRepository;
@@ -83,6 +95,8 @@ public class DemoRunSimulator {
     private final RunStartCommandService runStartCommandService;
 
     private final RunPositionCommandService runPositionCommandService;
+
+    private final RunPositionStore runPositionStore;
 
     private final Clock clock;
 
@@ -187,7 +201,10 @@ public class DemoRunSimulator {
                         .findAllByAcademyIdAndStatusOrderByDepartTimeAsc(academyId, RunStatus.MOVING).stream())
                 .filter(run -> today.equals(run.getServiceDate()))
                 .toList();
-        cursorByRun.keySet().retainAll(movingRuns.stream().map(Run::getId).toList());
+        List<Long> movingIds = movingRuns.stream().map(Run::getId).toList();
+        cursorByRun.keySet().retainAll(movingIds);
+        lastSentAtByRun.keySet().retainAll(movingIds);
+        deviceRunIds.retainAll(movingIds);
         for (Run run : movingRuns) {
             advanceOne(run);
         }
@@ -195,6 +212,10 @@ public class DemoRunSimulator {
 
     /** 회차 하나를 도로 경로 위 다음 지점으로 옮기고 그 위치를 실 단말과 같은 명령 경로로 보낸다(CODE_CONVENTIONS §20.2, BR-101). */
     private void advanceOne(Run run) {
+        if (deviceRunIds.contains(run.getId()) || sentByOther(run.getId())) {
+            deviceRunIds.add(run.getId());
+            return;
+        }
         List<GeoPoint> path = roadPathOf(run.getId());
         if (path.size() < 2) {
             return;
@@ -203,14 +224,31 @@ public class DemoRunSimulator {
         int cursor = (cursorByRun.getOrDefault(run.getId(), 0) + step) % path.size();
         cursorByRun.put(run.getId(), cursor);
         GeoPoint point = path.get(cursor);
+        OffsetDateTime recordedAt = OffsetDateTime.now(clock);
         driverOf(run).ifPresent(driver -> {
             try {
                 runPositionCommandService.receive(driver, run.getId(),
-                        new RunPositionRequest(point.lat(), point.lng(), OffsetDateTime.now(clock), null, null));
+                        new RunPositionRequest(point.lat(), point.lng(), recordedAt, null, null));
+                lastSentAtByRun.put(run.getId(), recordedAt);
             } catch (RuntimeException e) {
                 log.debug("[데모] 회차 {} 위치 송신 실패: {}", run.getId(), e.getMessage());
             }
         });
+    }
+
+    /**
+     * 이 회차의 최신 위치를 시뮬레이터가 아닌 주체(기사 단말)가 보냈는가. 아직 한 번도 보내지 않은 회차는 판단하지 않는다 —
+     * 재기동 직후 Redis 에 남은 자기 위치를 단말 위치로 오인하지 않기 위해서다.
+     */
+    private boolean sentByOther(Long runId) {
+        OffsetDateTime lastSent = lastSentAtByRun.get(runId);
+        if (lastSent == null) {
+            return false;
+        }
+        return runPositionStore.find(runId)
+                .map(latest -> !latest.recordedAt().truncatedTo(ChronoUnit.MILLIS)
+                        .isEqual(lastSent.truncatedTo(ChronoUnit.MILLIS)))
+                .orElse(false);
     }
 
     /** 확정 노선의 도로 경로. 아직 확정 전이거나 배포된 버전이 없으면 빈 목록이다. */

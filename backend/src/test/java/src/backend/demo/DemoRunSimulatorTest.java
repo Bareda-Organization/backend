@@ -6,11 +6,14 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.time.Clock;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
@@ -23,10 +26,15 @@ import org.springframework.test.util.ReflectionTestUtils;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.security.AuthUser;
 import src.backend.location.command.RunPositionCommandService;
+import src.backend.location.dto.RunPositionRedisValue;
+import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.manager.entity.Assignment;
 import src.backend.manager.entity.Manager;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
+import src.backend.routing.domain.GeoPoint;
+import src.backend.routing.entity.ConfirmedRoute;
+import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.run.command.RunStartCommandService;
@@ -59,9 +67,15 @@ class DemoRunSimulatorTest {
 
     private final ConfirmedRouteRepository confirmedRouteRepository = mock(ConfirmedRouteRepository.class);
 
+    private final RouteVersionRepository routeVersionRepository = mock(RouteVersionRepository.class);
+
+    private final RunPositionCommandService runPositionCommandService = mock(RunPositionCommandService.class);
+
+    private final RunPositionStore runPositionStore = mock(RunPositionStore.class);
+
     private final DemoRunSimulator simulator = new DemoRunSimulator(runRepository, assignmentRepository,
-            managerRepository, confirmedRouteRepository, mock(RouteVersionRepository.class),
-            runStartCommandService, mock(RunPositionCommandService.class), CLOCK);
+            managerRepository, confirmedRouteRepository, routeVersionRepository,
+            runStartCommandService, runPositionCommandService, runPositionStore, CLOCK);
 
     @BeforeEach
     void setUp() {
@@ -140,6 +154,50 @@ class DemoRunSimulatorTest {
         verify(confirmedRouteRepository).findById(1000L);
         verify(confirmedRouteRepository, never()).findById(1001L);
         verify(runStartCommandService, never()).start(any(), eq(1002L));
+    }
+
+    /**
+     * 기사 단말이 위치를 보내는 회차에는 가짜 위치를 더 넣지 않는다 — 학원 A 회차를 매니저 앱으로 출발시키면 기사 폰의
+     * 실제 위치와 시뮬레이터의 노선 위 위치가 2초마다 번갈아 들어가 학부모 지도의 버스가 오가고 근접 · 출발 판정이 기사
+     * 조작과 무관하게 일어난다(2026-10-16 팀 QA 준비 중 확인).
+     */
+    @Test
+    void 기사_단말이_위치를_보낸_회차는_더_전진시키지_않는다() {
+        회차들(MAIN_ACADEMY, RunStatus.MOVING, 회차(7L, 3L, MAIN_ACADEMY));
+        도로_경로(7L);
+
+        simulator.tick();   // 첫 송신 — 아직 이 회차의 위치를 보낸 다른 주체가 없다
+        given(runPositionStore.find(7L)).willReturn(Optional.of(new RunPositionRedisValue(BigDecimal.valueOf(37.0),
+                BigDecimal.valueOf(127.0), OffsetDateTime.now(CLOCK).plusSeconds(1), OffsetDateTime.now(CLOCK), null)));
+        simulator.tick();   // 최신 위치가 시뮬레이터가 보낸 것이 아니다 = 기사 단말이 보내는 중
+        simulator.tick();
+
+        verify(runPositionCommandService, times(1)).receive(any(), eq(7L), any());
+    }
+
+    /** 다른 주체의 위치가 없으면 지금처럼 틱마다 보낸다 — 이미 운행 중인 시드 회차의 관제 화면용 움직임을 지킨다. */
+    @Test
+    void 다른_주체의_위치가_없으면_틱마다_전진시킨다() {
+        회차들(MAIN_ACADEMY, RunStatus.MOVING, 회차(8L, 3L, MAIN_ACADEMY));
+        도로_경로(8L);
+
+        simulator.tick();
+        simulator.tick();
+
+        verify(runPositionCommandService, times(2)).receive(any(), eq(8L), any());
+    }
+
+    private void 도로_경로(long runId) {
+        ConfirmedRoute route = mock(ConfirmedRoute.class);
+        given(route.getCurrentVersionId()).willReturn(runId + 900L);
+        given(confirmedRouteRepository.findById(runId)).willReturn(Optional.of(route));
+        RouteVersion version = mock(RouteVersion.class);
+        given(version.getRoadPath()).willReturn(List.of(점(37.50, 126.76), 점(37.51, 126.77), 점(37.52, 126.78)));
+        given(routeVersionRepository.findById(runId + 900L)).willReturn(Optional.of(version));
+    }
+
+    private static GeoPoint 점(double lat, double lng) {
+        return new GeoPoint(BigDecimal.valueOf(lat), BigDecimal.valueOf(lng));
     }
 
     private void 회차들(long academyId, RunStatus status, Run... runs) {
