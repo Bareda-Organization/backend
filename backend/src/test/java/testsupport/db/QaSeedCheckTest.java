@@ -168,6 +168,227 @@ class QaSeedCheckTest extends MigratedPostgresTestBase {
         }
     }
 
+    /** 변경 요청의 신청자는 보호자·학생 계정이다 — 앱 미가입 학생에게 관계자 계정을 신청자로 두면 알림이 '학부모' 역할로 관계자에게 간다. */
+    @Test
+    void 변경_요청_신청자와_알림_수신자의_역할이_계정과_같다() throws Exception {
+        try (Connection connection = connection()) {
+            assertThat(count(connection, "SELECT count(*) FROM change_request")).isPositive();
+            assertThat(count(connection, """
+                    SELECT count(*) FROM change_request c JOIN account a ON a.id = c.requested_by
+                    WHERE a.role NOT IN ('parent', 'student')""")).as("보호자·학생이 아닌 신청자").isZero();
+            assertThat(count(connection, """
+                    SELECT count(*) FROM notification_log n JOIN account a ON a.id = n.recipient_account_id
+                    WHERE n.recipient_role <> a.role""")).as("수신 역할이 계정 역할과 다른 알림").isZero();
+            assertThat(count(connection, "SELECT count(*) FROM notification_log WHERE type IN ('boarding_canceled', 'alighting_canceled')"))
+                    .as("더 이상 만들지 않는 알림 종류").isZero();
+        }
+    }
+
+    /** ②구간 한도(C-04) — 승인·거절·대기는 1회 소진, 자동 거절은 되돌려 0(ChangeRequestAutoRejectionPersistence). */
+    @Test
+    void 변경_한도_카운터가_요청_상태와_맞다() throws Exception {
+        try (Connection connection = connection()) {
+            assertThat(count(connection, "SELECT count(*) FROM change_request WHERE status = 'auto_rejected'")).isPositive();
+            assertThat(count(connection, """
+                    SELECT count(*) FROM change_request c JOIN boarding_intent b ON b.run_id = c.run_id AND b.student_id = c.student_id
+                    WHERE c.window_segment = 2 AND b.change_used_count <> CASE WHEN c.status = 'auto_rejected' THEN 0 ELSE 1 END"""))
+                    .isZero();
+        }
+    }
+
+    @Test
+    void 오늘_임시_취소된_회차가_1건_있다() throws Exception {
+        try (Connection connection = connection()) {
+            assertThat(count(connection, """
+                    SELECT count(*) FROM run WHERE canceled_at BETWEEN now() - interval '1 hour' AND now()
+                      AND cancel_source = 'staff' AND status = 'idle' AND depart_time > now()""")).isEqualTo(1);
+        }
+    }
+
+    /** C-15 — 하원은 마지막 승하차지 도착만 기록되고 종료는 보류, 남은 탑승자가 하차해야 서버가 종료한다. */
+    @Test
+    void 하원_종료_대기_회차는_마지막_승하차지에_도착했고_탑승자가_남아_있다() throws Exception {
+        try (Connection connection = connection()) {
+            assertThat(count(connection, "SELECT count(*) FROM run WHERE finish_pending AND status <> 'moving'")).isZero();
+            assertThat(count(connection, """
+                    SELECT count(*) FROM run r JOIN confirmed_route cr ON cr.run_id = r.id
+                    JOIN run_stop x ON x.route_version_id = cr.current_version_id
+                    WHERE r.status = 'moving' AND r.direction = 'from_academy' AND r.finish_pending AND r.finished_at IS NULL
+                      AND r.depart_time > now() - interval '3 hours'
+                      AND x.seq = (SELECT max(seq) FROM run_stop WHERE route_version_id = cr.current_version_id)
+                      AND x.arrived_at IS NOT NULL AND x.departed_at IS NULL
+                      AND EXISTS (SELECT 1 FROM run_rider rr WHERE rr.run_id = r.id AND rr.status = 'boarded')""")).isEqualTo(1);
+        }
+    }
+
+    /** 메인 관리자 '회차 강제 확정' 대상 — 확정 시각이 지난 idle 회차, 실패 횟수가 쌓였고 다음 재시도는 아직 멀다. */
+    @Test
+    void 확정이_연속_실패한_회차가_강제_확정_대상으로_1건_있다() throws Exception {
+        try (Connection connection = connection()) {
+            assertThat(count(connection, """
+                    SELECT count(*) FROM run
+                    WHERE status = 'idle' AND canceled_at IS NULL AND confirm_at < now() AND consecutive_failures >= 3
+                      AND confirm_retry_at > now() + interval '1 hour'
+                      AND service_date >= (now() AT TIME ZONE 'Asia/Seoul')::date""")).isEqualTo(1);
+        }
+    }
+
+    /** Ruling 893 — 배포된 경유 지점은 waypoint(applied) + 현재 판본(source = waypoint)의 정차 항목으로 읽힌다. */
+    @Test
+    void 경유_지점이_배포된_확정_회차가_1건_있고_정차_순번이_이어진다() throws Exception {
+        try (Connection connection = connection()) {
+            assertThat(count(connection, """
+                    SELECT count(*) FROM run r JOIN confirmed_route cr ON cr.run_id = r.id
+                    JOIN route_version v ON v.id = cr.current_version_id AND v.source = 'waypoint'
+                    JOIN waypoint w ON w.run_id = r.id AND w.applied AND w.removed_at IS NULL
+                    WHERE r.status = 'confirmed' AND r.canceled_at IS NULL
+                      AND EXISTS (SELECT 1 FROM run_stop x WHERE x.route_version_id = v.id AND x.waypoint_id = w.id)
+                      AND (SELECT count(*) FROM run_stop WHERE route_version_id = v.id)
+                          = (SELECT max(seq) FROM run_stop WHERE route_version_id = v.id)""")).isEqualTo(1);
+        }
+    }
+
+    /** M-04 · RUN-07 — 확정 노선의 현재 판본을 배치된 매니저가 아직 확인하지 않은 확정 회차. */
+    @Test
+    void 노선_확정을_매니저가_아직_확인하지_않은_확정_회차가_1건_있다() throws Exception {
+        try (Connection connection = connection()) {
+            assertThat(count(connection, """
+                    SELECT count(DISTINCT r.id) FROM run r JOIN confirmed_route cr ON cr.run_id = r.id
+                    JOIN assignment a ON a.run_id = r.id
+                    WHERE r.status = 'confirmed' AND r.canceled_at IS NULL
+                      AND a.acked_route_version_id IS DISTINCT FROM cr.current_version_id""")).isEqualTo(1);
+        }
+    }
+
+    @Test
+    void 미확인_비상이_운행_중인_학원_A_회차에_정확히_1건_있다() throws Exception {
+        try (Connection connection = connection()) {
+            assertThat(count(connection, "SELECT count(*) FROM emergency_alert WHERE acked_at IS NULL AND canceled_at IS NULL"))
+                    .as("전체 미확인 비상").isEqualTo(1);
+            assertThat(count(connection, """
+                    SELECT count(*) FROM emergency_alert e JOIN run r ON r.id = e.run_id
+                    WHERE e.academy_id = 1 AND r.status = 'moving' AND e.acked_at IS NULL AND e.canceled_at IS NULL""")).isEqualTo(1);
+        }
+    }
+
+    /** ACAD-06 — 퇴사 관계자는 학원당 재직 1명 정원 밖의 inactive 행이고 계정은 살아 있다(로그인하면 403 AUTH_STAFF_INACTIVE). */
+    @Test
+    void 퇴사한_관계자가_재직_관계자와_함께_있고_학원당_재직은_1명이다() throws Exception {
+        try (Connection connection = connection()) {
+            assertThat(count(connection, """
+                    SELECT count(*) FROM academy_staff s JOIN account a ON a.id = s.account_id
+                    WHERE s.status = 'inactive' AND a.status = 'active' AND a.role = 'staff'
+                      AND EXISTS (SELECT 1 FROM academy_staff t WHERE t.academy_id = s.academy_id AND t.status = 'active')"""))
+                    .isEqualTo(1);
+            assertThat(count(connection, """
+                    SELECT count(*) FROM (SELECT academy_id FROM academy_staff WHERE status = 'active'
+                                          GROUP BY academy_id HAVING count(*) > 1) x""")).isZero();
+        }
+    }
+
+    /** Ruling 891 — 삭제된 매니저는 매니저 행의 deleted_at 으로 나타내고 계정은 활성이다. 배치된 회차는 없다. */
+    @Test
+    void 삭제된_매니저의_계정은_활성이고_배치된_회차가_없다() throws Exception {
+        try (Connection connection = connection()) {
+            assertThat(count(connection, """
+                    SELECT count(*) FROM manager m JOIN account a ON a.id = m.account_id
+                    WHERE m.deleted_at IS NOT NULL AND a.status = 'active'
+                      AND NOT EXISTS (SELECT 1 FROM assignment x WHERE x.manager_id = m.id)""")).isEqualTo(1);
+        }
+    }
+
+    /** Ruling 540 — 관리자가 초기화한 임시 비밀번호 계정은 must_change_password 가 켜져 있고 보호자에 자녀가 연결돼 있다. */
+    @Test
+    void 임시_비밀번호를_가진_활성_계정이_1건_있다() throws Exception {
+        try (Connection connection = connection()) {
+            assertThat(count(connection, """
+                    SELECT count(*) FROM account a JOIN guardian g ON g.account_id = a.id
+                    JOIN guardian_student gs ON gs.guardian_id = g.id AND gs.unlinked_at IS NULL
+                    WHERE a.must_change_password AND a.status = 'active'""")).isEqualTo(1);
+            assertThat(count(connection, "SELECT count(*) FROM account WHERE must_change_password")).isEqualTo(1);
+        }
+    }
+
+    /** 메인 관리자가 다른 학원에 손대지 않고 승인까지 해 볼 신규 학원 — 활성 · 정보 기재 · 재직 관계자 없음 · 관계자 가입 대기 1건. */
+    @Test
+    void 재직_관계자가_없는_활성_학원에_관계자_가입_대기가_1건_있다() throws Exception {
+        try (Connection connection = connection()) {
+            assertThat(count(connection, """
+                    SELECT count(*) FROM academy ac
+                    WHERE ac.status = 'active' AND NOT EXISTS (SELECT 1 FROM academy_staff s WHERE s.academy_id = ac.id)
+                      AND (SELECT count(*) FROM signup_request r JOIN account a ON a.id = r.account_id
+                           WHERE r.academy_id = ac.id AND r.requested_role = 'staff' AND r.approver_type = 'system_admin'
+                             AND r.status = 'pending' AND a.status = 'pending') = 1""")).isEqualTo(1);
+        }
+    }
+
+    /** C-04 — ②구간 한도를 쓴 학부모: 오늘 확정 회차에서 한도가 소진된 채 계속 타는 학생이 있고, 같은 회차의 대기 요청 3건은 그대로. */
+    @Test
+    void 변경_한도를_이미_쓴_학생이_오늘_확정_회차에_있고_대기_요청_3건은_그대로다() throws Exception {
+        try (Connection connection = connection()) {
+            assertThat(count(connection, """
+                    SELECT count(*) FROM boarding_intent b JOIN run r ON r.id = b.run_id
+                    JOIN run_rider rr ON rr.run_id = r.id AND rr.student_id = b.student_id AND rr.status = 'waiting'
+                    JOIN guardian_student gs ON gs.student_id = b.student_id AND gs.unlinked_at IS NULL
+                    JOIN guardian g ON g.id = gs.guardian_id JOIN account a ON a.id = g.account_id
+                    WHERE r.status = 'confirmed' AND r.canceled_at IS NULL AND b.change_used_count = 1 AND b.applied_segment = 2 AND b.riding
+                      AND NOT EXISTS (SELECT 1 FROM change_request c WHERE c.run_id = b.run_id AND c.student_id = b.student_id
+                                      AND c.status = 'pending')
+                      AND a.login_id = 'parentQuotaA'""")).isEqualTo(1);
+            assertThat(count(connection, """
+                    SELECT count(*) FROM change_request c JOIN run r ON r.id = c.run_id
+                    WHERE c.status = 'pending' AND r.status = 'confirmed' AND r.canceled_at IS NULL""")).isEqualTo(3);
+        }
+    }
+
+    /** 관계자 학생 목록 탭 — 주소 미등록(요일별 주소 0건)과 일부 등록(한 방향만 있는 요일이 있음, WeeklyAddressStatus.PARTIAL). */
+    @Test
+    void 요일별_주소가_없는_학생과_일부만_등록한_학생이_재원생에_있다() throws Exception {
+        try (Connection connection = connection()) {
+            assertThat(count(connection, """
+                    SELECT count(*) FROM student s WHERE s.deleted_at IS NULL AND s.academy_id = 1
+                      AND NOT EXISTS (SELECT 1 FROM weekly_address w WHERE w.student_id = s.id)""")).isEqualTo(2);
+            assertThat(count(connection, """
+                    SELECT count(*) FROM student s WHERE s.deleted_at IS NULL AND s.academy_id = 1
+                      AND EXISTS (SELECT 1 FROM weekly_address w WHERE w.student_id = s.id)
+                      AND EXISTS (SELECT 1 FROM weekly_address w WHERE w.student_id = s.id GROUP BY w.weekday HAVING count(*) = 1)"""))
+                    .isEqualTo(2);
+        }
+    }
+
+    /** BUS-04 — 월~금 등·하원 열 노선 모두 학생석이 가득 찬 차량이 있어 강제 추가·이동이 첫 시도에 CAPACITY_EXCEEDED 로 막힌다. */
+    @Test
+    void 월요일부터_금요일까지_학생석이_가득_찬_차량이_2대_있다() throws Exception {
+        try (Connection connection = connection()) {
+            assertThat(count(connection, """
+                    SELECT count(*) FROM bus b WHERE b.student_capacity > 0 AND (
+                        SELECT count(*) FROM route r WHERE r.bus_id = b.id AND r.weekday IN ('mon', 'tue', 'wed', 'thu', 'fri')
+                          AND (SELECT count(DISTINCT wa.student_id) FROM weekly_address wa
+                               JOIN route_stop rs ON rs.route_id = r.id AND rs.stop_id = wa.stop_id
+                               JOIN student s ON s.id = wa.student_id AND s.deleted_at IS NULL
+                               WHERE wa.weekday = r.weekday AND wa.direction = r.direction) = b.student_capacity) = 10""")).isEqualTo(2);
+        }
+    }
+
+    /** QA-PAR-19 — 보호자 계정 하나에 쌍둥이 둘이 매일 같은 승하차지·같은 회차를 탄다(요일 7 × 방향 2 = 14칸이 모두 겹친다). */
+    @Test
+    void 보호자_한_명의_쌍둥이가_모든_요일_같은_승하차지를_탄다() throws Exception {
+        try (Connection connection = connection()) {
+            assertThat(count(connection, """
+                    SELECT count(*) FROM (
+                        SELECT w.weekday, w.direction, w.stop_id FROM weekly_address w
+                        JOIN guardian_student gs ON gs.student_id = w.student_id AND gs.unlinked_at IS NULL
+                        JOIN guardian g ON g.id = gs.guardian_id JOIN account a ON a.id = g.account_id
+                        WHERE a.login_id = 'parentTwinsA' GROUP BY 1, 2, 3 HAVING count(DISTINCT w.student_id) = 2) x""")).isEqualTo(14);
+            assertThat(count(connection, """
+                    SELECT count(*) FROM (
+                        SELECT rr.run_id FROM run_rider rr JOIN guardian_student gs ON gs.student_id = rr.student_id AND gs.unlinked_at IS NULL
+                        JOIN guardian g ON g.id = gs.guardian_id JOIN account a ON a.id = g.account_id
+                        WHERE a.login_id = 'parentTwinsA' GROUP BY rr.run_id HAVING count(DISTINCT rr.student_id) = 2) x"""))
+                    .as("쌍둥이 둘이 함께 탄 오늘·지난 회차").isPositive();
+        }
+    }
+
     private static long count(Connection connection, String sql) throws SQLException {
         try (Statement statement = connection.createStatement(); ResultSet rows = statement.executeQuery(sql)) {
             rows.next();

@@ -91,7 +91,8 @@ BEGIN
     SELECT * INTO v_run FROM run WHERE id = p_run;
     v_staff := (SELECT account_id FROM academy_staff WHERE academy_id = v_run.academy_id AND status = 'active');
     IF v_requester IS NULL THEN
-        v_requester := v_staff;
+        -- 보호자 계정이 없는 학생(앱 미가입)은 요청을 낼 사람이 없다 — 관계자 계정을 신청자로 두면 알림이 '학부모' 역할로 관계자에게 간다
+        RETURN NULL;
     END IF;
     IF p_new_stop IS NOT NULL THEN
         SELECT address, lat, lng INTO v_addr, v_lat, v_lng FROM stop WHERE id = p_new_stop;
@@ -111,8 +112,10 @@ BEGIN
     RETURNING id INTO v_id;
     IF p_segment = 2 THEN
         INSERT INTO boarding_intent (run_id, student_id, riding, change_used_count, applied_segment, changed_at, changed_by, created_at)
-        VALUES (p_run, p_student, NOT (p_type = 'cancel' AND p_status = 'approved'), 1, 2, p_requested_at, v_requester, p_requested_at)
-        ON CONFLICT (run_id, student_id) DO UPDATE SET change_used_count = 1, changed_at = EXCLUDED.changed_at;
+        -- 자동 거절은 한도를 되돌린다(횟수 미소진 — ChangeRequestAutoRejectionPersistence) · 승인·거절·대기는 소진
+        VALUES (p_run, p_student, NOT (p_type = 'cancel' AND p_status = 'approved'),
+                CASE WHEN p_status = 'auto_rejected' THEN 0 ELSE 1 END, 2, p_requested_at, v_requester, p_requested_at)
+        ON CONFLICT (run_id, student_id) DO UPDATE SET change_used_count = EXCLUDED.change_used_count, changed_at = EXCLUDED.changed_at;
         PERFORM pg_temp.qa_notify(v_staff, 'staff', p_student, p_run, 'approval_requested', '변경 승인 요청',
                 '학부모의 일일 변경 요청이 접수되어 승인이 필요합니다. 앱에서 확인해 주세요.', p_requested_at,
                 format('approval_requested:%s:%s:%s', p_run, v_staff, v_id));
@@ -146,8 +149,13 @@ $f$;
 --   p_state     idle · confirmed · moving · finished
 --   p_progress  moving 일 때 지나간 승하차지 수(등원: 태운 곳 · 하원: 내린 곳)
 --   p_assign    정규 기사·동승자 배치 여부(false 면 관계자가 배치할 회차)
+--   p_only      탑승자를 이 학생들로 좁힘(NULL = 그 요일 명단 전원) — 보강 회차가 정규 회차의 명단을 되풀이하지 않게
+--   p_hold      하원 moving 에서 마지막 승하차지 도착 뒤에도 그 승하차지 학생이 내리지 않은 '종료 대기'(finish_pending)
+--   p_driver · p_escort  배치할 매니저 id(p_driver 가 NULL 이면 차량 정규 짝 · p_escort 가 NULL 이면 동승자 없음)
+--   p_ack       배치된 매니저가 확정 노선을 이미 확인했는가(false = 확인 대기)
 CREATE OR REPLACE FUNCTION pg_temp.qa_run(p_bus bigint, p_dir text, p_depart timestamptz, p_state text, p_progress int,
-        p_assign boolean) RETURNS bigint LANGUAGE plpgsql AS $f$
+        p_assign boolean, p_only bigint[] DEFAULT NULL, p_hold boolean DEFAULT false, p_driver bigint DEFAULT NULL,
+        p_escort bigint DEFAULT NULL, p_ack boolean DEFAULT true) RETURNS bigint LANGUAGE plpgsql AS $f$
 DECLARE
     v_academy bigint; v_bus_no text; v_rk text; v_driver bigint; v_escort bigint;
     v_driver_acc bigint; v_escort_acc bigint; v_staff bigint;
@@ -167,6 +175,10 @@ BEGIN
     SELECT b.academy_id, b.bus_no, q.route_key, q.driver_mgr, q.escort_mgr
       INTO v_academy, v_bus_no, v_rk, v_driver, v_escort
       FROM bus b JOIN qa_bus q ON q.bus_id = b.id WHERE b.id = p_bus;
+    IF p_driver IS NOT NULL THEN
+        v_driver := p_driver;
+        v_escort := p_escort;
+    END IF;
     v_driver_acc := (SELECT account_id FROM manager WHERE id = v_driver);
     v_escort_acc := (SELECT account_id FROM manager WHERE id = v_escort);
     v_staff := (SELECT account_id FROM academy_staff WHERE academy_id = v_academy AND status = 'active');
@@ -193,8 +205,11 @@ BEGIN
     END IF;
     IF p_assign THEN
         INSERT INTO assignment (run_id, manager_id, role, assigned_at, assigned_by)
-        VALUES (v_run, v_driver, 'driver', LEAST(now(), v_confirm - interval '3 hours'), v_staff),
-               (v_run, v_escort, 'escort', LEAST(now(), v_confirm - interval '3 hours'), v_staff);
+        VALUES (v_run, v_driver, 'driver', LEAST(now(), v_confirm - interval '3 hours'), v_staff);
+        IF v_escort IS NOT NULL THEN
+            INSERT INTO assignment (run_id, manager_id, role, assigned_at, assigned_by)
+            VALUES (v_run, v_escort, 'escort', LEAST(now(), v_confirm - interval '3 hours'), v_staff);
+        END IF;
     END IF;
     IF p_state = 'idle' THEN
         RETURN v_run;
@@ -207,6 +222,7 @@ BEGIN
         JOIN student s ON s.id = wa.student_id AND s.deleted_at IS NULL AND s.academy_id = v_academy
         JOIN route_stop rs ON rs.route_id = v_route AND rs.stop_id = wa.stop_id
         WHERE wa.weekday = v_wd AND wa.direction = p_dir AND pg_temp.qa_h(v_run || '-' || s.id) < 4
+          AND p_only IS NULL AND s.id < 154 AND EXISTS (SELECT 1 FROM pg_temp.qa_guardians(s.id))
     LOOP
         PERFORM pg_temp.qa_request(v_run, r.sid, 'change_request', 'cancel', 'approved', 1,
                 v_confirm - make_interval(hours => 2 + pg_temp.qa_h(r.sid::text) % 20), NULL,
@@ -227,7 +243,8 @@ BEGIN
         INSERT INTO run_stop (route_version_id, stop_id, seq, eta, arrived_at, departed_at, proximity_notified_at)
         VALUES (v_ver, r.stop_id, r.seq, v_eta,
                 CASE WHEN v_passed THEN v_eta + make_interval(secs => pg_temp.qa_h(v_run || 's' || r.seq) % 50) END,
-                CASE WHEN v_passed THEN v_eta + make_interval(secs => 60 + pg_temp.qa_h(v_run || 's' || r.seq) % 50) END,
+                CASE WHEN v_passed AND NOT (p_hold AND r.seq = 10)
+                     THEN v_eta + make_interval(secs => 60 + pg_temp.qa_h(v_run || 's' || r.seq) % 50) END,
                 CASE WHEN v_passed THEN v_eta - interval '2 minutes' END);
     END LOOP;
     IF p_dir = 'to_academy' THEN
@@ -242,11 +259,15 @@ BEGIN
         PERFORM pg_temp.qa_notify(v_driver_acc, 'driver', NULL, v_run, 'route_changed', '노선 변경 안내',
                 '배정된 회차의 노선이 확정·변경되었습니다. 앱에서 새 노선을 확인해 주세요.', v_confirmed,
                 format('route_changed:%s:%s:%s', v_run, v_driver, v_confirmed));
-        PERFORM pg_temp.qa_notify(v_escort_acc, 'escort', NULL, v_run, 'route_changed', '노선 변경 안내',
-                '배정된 회차의 노선이 확정·변경되었습니다. 앱에서 새 노선을 확인해 주세요.', v_confirmed,
-                format('route_changed:%s:%s:%s', v_run, v_escort, v_confirmed));
-        UPDATE assignment SET acked_route_version_id = v_ver, acked_at = v_confirmed + interval '4 minutes'
-        WHERE run_id = v_run AND v_confirmed + interval '4 minutes' < now();
+        IF v_escort IS NOT NULL THEN
+            PERFORM pg_temp.qa_notify(v_escort_acc, 'escort', NULL, v_run, 'route_changed', '노선 변경 안내',
+                    '배정된 회차의 노선이 확정·변경되었습니다. 앱에서 새 노선을 확인해 주세요.', v_confirmed,
+                    format('route_changed:%s:%s:%s', v_run, v_escort, v_confirmed));
+        END IF;
+        IF p_ack THEN
+            UPDATE assignment SET acked_route_version_id = v_ver, acked_at = v_confirmed + interval '4 minutes'
+            WHERE run_id = v_run AND v_confirmed + interval '4 minutes' < now();
+        END IF;
     END IF;
     IF p_state IN ('moving', 'finished') THEN
         PERFORM pg_temp.qa_notify(v_staff, 'staff', NULL, v_run, 'run_started', '운행 시작 안내', '배정된 회차의 운행이 시작되었습니다.',
@@ -263,10 +284,12 @@ BEGIN
         FROM weekly_address wa
         JOIN student s ON s.id = wa.student_id AND s.deleted_at IS NULL AND s.academy_id = v_academy
         JOIN route_stop rs ON rs.route_id = v_route AND rs.stop_id = wa.stop_id
-        WHERE wa.weekday = v_wd AND wa.direction = p_dir
+        WHERE wa.weekday = v_wd AND wa.direction = p_dir AND (p_only IS NULL OR s.id = ANY(p_only))
         ORDER BY s.id
     LOOP
-        v_h := pg_temp.qa_h(v_run || '-' || r.sid);
+        -- 보호자 계정이 없는 학생(앱 미가입)과 시나리오 전용 학생(id 154 이상)은 결석·미승차를 자동 배정하지 않는다(99 = 해당 없음)
+        v_h := CASE WHEN r.sid >= 154 OR NOT EXISTS (SELECT 1 FROM pg_temp.qa_guardians(r.sid)) THEN 99
+                    ELSE pg_temp.qa_h(v_run || '-' || r.sid) END;
         v_eta := CASE WHEN p_dir = 'to_academy' THEN p_depart + v_step * (r.seq - 1) ELSE p_depart + v_step * r.seq END;
         v_passed := p_state = 'finished' OR (p_state = 'moving' AND r.seq <= p_progress);
         v_board_at := CASE WHEN p_dir = 'to_academy' THEN v_eta + interval '20 seconds' ELSE v_started END;
@@ -276,7 +299,7 @@ BEGIN
             WHEN p_dir = 'to_academy' AND v_h < 6 AND v_passed THEN 'no_show'
             WHEN p_state = 'finished' THEN 'alighted'
             WHEN p_state = 'moving' AND p_dir = 'to_academy' THEN CASE WHEN v_passed THEN 'boarded' ELSE 'waiting' END
-            WHEN p_state = 'moving' THEN CASE WHEN v_passed THEN 'alighted' ELSE 'boarded' END
+            WHEN p_state = 'moving' THEN CASE WHEN v_passed AND NOT (p_hold AND r.seq = 10) THEN 'alighted' ELSE 'boarded' END
             ELSE 'waiting' END;
         INSERT INTO run_rider (run_id, student_id, stop_id, status, changed_at, created_at, updated_at)
         VALUES (v_run, r.sid, r.stop_id, v_status,
@@ -372,7 +395,49 @@ BEGIN
             END LOOP;
         END IF;
     END LOOP;
+    IF p_hold THEN
+        UPDATE run SET finish_pending = true WHERE id = v_run;
+    END IF;
     RETURN v_run;
+END
+$f$;
+
+-- 배포된 경유 지점 1개 — 확정 노선(v1)에 경유 지점 행을 끼운 새 판본(v2, source = waypoint)을 만들고 현재 판본으로 올린다.
+-- 직선 거리로 다시 그린 판본이라 도로 경로가 비고(fallback_used) 소요는 3분 늘어난다. 배정된 기사·동승자에게 노선 변경 알림이 가고
+-- 그 둘은 새 판본을 이미 확인한 상태로 둔다(확인 대기는 별도 회차 — 호출부).  반환 = waypoint id
+CREATE OR REPLACE FUNCTION pg_temp.qa_waypoint(p_run bigint, p_after int, p_label text, p_address text, p_lat numeric,
+        p_lng numeric, p_at timestamptz) RETURNS bigint LANGUAGE plpgsql AS $f$
+DECLARE
+    v_v1 bigint; v_v2 bigint; v_wp bigint; v_staff bigint; a record;
+BEGIN
+    SELECT current_version_id INTO v_v1 FROM confirmed_route WHERE run_id = p_run;
+    v_staff := (SELECT s.account_id FROM academy_staff s JOIN run r ON r.academy_id = s.academy_id
+                WHERE r.id = p_run AND s.status = 'active');
+    INSERT INTO waypoint (run_id, label, address, lat, lng, note, applied, created_by, created_at)
+    VALUES (p_run, p_label, p_address, p_lat, p_lng, NULL, true, v_staff, p_at)
+    RETURNING id INTO v_wp;
+    INSERT INTO route_version (confirmed_route_id, version_no, source, est_duration_min, est_distance_km, published_at,
+                               input_fingerprint, engine_name, policy_snapshot, fallback_used, road_path, created_by, created_at)
+    SELECT v.confirmed_route_id, 2, 'waypoint', v.est_duration_min + 3, v.est_distance_km + 0.6, p_at,
+           md5('qa-seed-waypoint-' || p_run), v.engine_name, '{}'::jsonb, true, NULL, v_staff, p_at
+    FROM route_version v WHERE v.id = v_v1
+    RETURNING id INTO v_v2;
+    INSERT INTO run_stop (route_version_id, stop_id, waypoint_id, seq, change, eta, destination)
+    SELECT v_v2, x.stop_id, x.waypoint_id, CASE WHEN x.seq > p_after THEN x.seq + 1 ELSE x.seq END, x.change,
+           CASE WHEN x.seq > p_after THEN x.eta + interval '3 minutes' ELSE x.eta END, x.destination
+    FROM run_stop x WHERE x.route_version_id = v_v1;
+    INSERT INTO run_stop (route_version_id, waypoint_id, seq, eta)
+    SELECT v_v2, v_wp, p_after + 1, x.eta + interval '90 seconds' FROM run_stop x WHERE x.route_version_id = v_v1 AND x.seq = p_after;
+    UPDATE confirmed_route SET current_version_id = v_v2 WHERE run_id = p_run;
+    UPDATE run SET est_duration_min = est_duration_min + 3 WHERE id = p_run;
+    FOR a IN SELECT asg.role, asg.manager_id, m.account_id FROM assignment asg JOIN manager m ON m.id = asg.manager_id
+             WHERE asg.run_id = p_run LOOP
+        PERFORM pg_temp.qa_notify(a.account_id, a.role, NULL, p_run, 'route_changed', '노선 변경 안내',
+                '배정된 회차의 노선이 확정·변경되었습니다. 앱에서 새 노선을 확인해 주세요.', p_at,
+                format('route_changed:%s:%s:%s', p_run, a.manager_id, p_at));
+    END LOOP;
+    UPDATE assignment SET acked_route_version_id = v_v2, acked_at = LEAST(now(), p_at + interval '1 minute') WHERE run_id = p_run;
+    RETURN v_wp;
 END
 $f$;
 
@@ -385,7 +450,7 @@ DECLARE
     s record;
     v_run bigint;
     v_runs bigint[];
-    v_a3_to bigint; v_a1_from bigint; v_a2_to bigint;
+    v_a3_to bigint; v_a1_from bigint; v_a2_to bigint; v_fail bigint; v_wp_run bigint;
     v_ids bigint[];
     v_cr bigint;
     v_staff_a bigint := (SELECT account_id FROM academy_staff WHERE academy_id = 1 AND status = 'active');
@@ -431,7 +496,7 @@ BEGIN
     END LOOP;
 
     -- ④ 변경 요청 — 오늘 3호차 등원(②구간: 승인 대기 3 · 거절 1)
-    SELECT array_agg(student_id ORDER BY stop_id, student_id) INTO v_ids FROM run_rider WHERE run_id = v_a3_to AND status = 'waiting';
+    SELECT array_agg(student_id ORDER BY stop_id, student_id) INTO v_ids FROM run_rider WHERE run_id = v_a3_to AND status = 'waiting' AND student_id < 154 AND EXISTS (SELECT 1 FROM pg_temp.qa_guardians(student_id));
     IF array_length(v_ids, 1) >= 4 THEN
         PERFORM pg_temp.qa_request(v_a3_to, v_ids[1], 'intent', 'cancel', 'pending', 2, T - interval '9 minutes', NULL, NULL, NULL, NULL);
         PERFORM pg_temp.qa_request(v_a3_to, v_ids[4], 'intent', 'cancel', 'pending', 2, T - interval '6 minutes', NULL, NULL, NULL, NULL);
@@ -441,11 +506,16 @@ BEGIN
         PERFORM pg_temp.qa_request(v_a3_to, v_ids[10], 'intent', 'cancel', 'rejected', 2, T - interval '12 minutes', NULL, NULL,
                 T - interval '8 minutes', '출발이 임박해 명단 변경이 어렵습니다. 결석은 학원으로 전화 주세요.');
     END IF;
+    -- 변경 한도를 이미 쓴 학부모 — parentQuotaA 의 자녀(156, 3호차 마지막 승하차지)는 ②구간 취소 신청이 거절돼 이 회차의 한도 1회가 소진 상태.
+    -- 같은 회차에서 한 번 더 ② 신청을 하면 403 CHANGE_LIMIT_REACHED(위 대기 3건·거절 1건과 별개의 학생)
+    PERFORM pg_temp.qa_request(v_a3_to, 156, 'intent', 'cancel', 'rejected', 2, T - interval '14 minutes', NULL, NULL,
+            T - interval '10 minutes', '출발이 임박해 명단 변경이 어렵습니다. 결석은 학원으로 전화 주세요.');
     -- 오늘 1호차 하원(①구간: 즉시 반영된 취소 2 · 위치 변경 1)
     SELECT array_agg(wa.student_id ORDER BY wa.student_id) INTO v_ids
     FROM weekly_address wa JOIN route r ON r.bus_id = 1 AND r.weekday = wa.weekday AND r.direction = 'from_academy'
     JOIN route_stop rs ON rs.route_id = r.id AND rs.stop_id = wa.stop_id
-    WHERE wa.weekday = pg_temp.qa_wd(((T + interval '50 minutes') AT TIME ZONE 'Asia/Seoul')::date) AND wa.direction = 'from_academy';
+    WHERE wa.weekday = pg_temp.qa_wd(((T + interval '50 minutes') AT TIME ZONE 'Asia/Seoul')::date) AND wa.direction = 'from_academy'
+      AND wa.student_id < 154 AND EXISTS (SELECT 1 FROM pg_temp.qa_guardians(wa.student_id));
     IF array_length(v_ids, 1) >= 6 THEN
         PERFORM pg_temp.qa_request(v_a1_from, v_ids[2], 'change_request', 'cancel', 'approved', 1, T - interval '3 hours', NULL,
                 '병원 진료로 조퇴합니다', NULL, NULL);
@@ -465,6 +535,7 @@ BEGIN
             FROM weekly_address wa JOIN route ro ON ro.bus_id = r.bus_id AND ro.weekday = wa.weekday AND ro.direction = r.direction
             JOIN route_stop rs ON rs.route_id = ro.id AND rs.stop_id = wa.stop_id
             WHERE wa.weekday = pg_temp.qa_wd(r.service_date) AND wa.direction = r.direction
+              AND wa.student_id < 154 AND EXISTS (SELECT 1 FROM pg_temp.qa_guardians(wa.student_id))
         ) rr ON rr.n IN (3, 8)
         JOIN route ro2 ON ro2.bus_id = r.bus_id AND ro2.weekday = pg_temp.qa_wd(r.service_date) AND ro2.direction = r.direction
         JOIN route_stop rs2 ON rs2.route_id = ro2.id AND rs2.seq = 5
@@ -482,7 +553,7 @@ BEGIN
     -- 지난 이력 — ②구간 요청의 승인 · 거절 · 기한 초과(자동 거절)
     FOR a IN
         SELECT r.id AS run_id, r.depart_time, rr.student_id, row_number() OVER (ORDER BY r.depart_time) AS n
-        FROM run r JOIN LATERAL (SELECT student_id FROM run_rider WHERE run_id = r.id AND status = 'alighted' ORDER BY id LIMIT 1) rr ON true
+        FROM run r JOIN LATERAL (SELECT student_id FROM run_rider WHERE run_id = r.id AND status = 'alighted' AND student_id < 154 AND EXISTS (SELECT 1 FROM pg_temp.qa_guardians(student_id)) ORDER BY id LIMIT 1) rr ON true
         WHERE r.service_date BETWEEN v_today - 6 AND v_today - 1 AND r.status = 'finished' AND r.bus_id IN (1, 2, 3, 5)
           AND r.id % 4 = 0
     LOOP
@@ -604,6 +675,50 @@ BEGIN
                 '가입이 승인되었습니다. 로그인 후 이용해 주세요.', a.decided_at, format('signup_decided:na:%s:%s', a.account_id, a.decided_at));
     END LOOP;
 
+    -- ⑩ 특수 상태 회차 — 초기화 직후 화면에서 보이는 드문 상태. 위 정규 회차의 id·결석 배정을 흔들지 않게 맨 끝에 만든다.
+    --   보강 운행은 쌍둥이(154·155, 반달마을 극동)만 태우고 보강 전용 짝(driverA5 · escortA5 = 매니저 12 · 13)이 맡는다.
+    -- (a) 임시 취소된 오늘 회차 — 1호차 심야 하원을 관계자가 25분 전에 취소(cancel_source = staff · 상태는 idle 그대로)
+    INSERT INTO run (academy_id, bus_id, schedule_id, service_date, direction, depart_time, confirm_at, status, origin_name,
+                     destination_name, est_duration_min, canceled_at, cancel_source, created_at)
+    SELECT sc.academy_id, sc.bus_id, sc.id, ((T + interval '170 minutes') AT TIME ZONE 'Asia/Seoul')::date, 'from_academy',
+           T + interval '170 minutes', T + interval '140 minutes', 'idle', sc.origin_name, sc.destination_name,
+           sc.est_duration_min, T - interval '25 minutes', 'staff', LEAST(now(), T - interval '1 day')
+    FROM schedule sc WHERE sc.bus_id = 1 AND sc.direction = 'from_academy'
+      AND sc.weekday = pg_temp.qa_wd(((T + interval '170 minutes') AT TIME ZONE 'Asia/Seoul')::date);
+    -- (b) 하원 종료 대기 — 마지막 승하차지(반달마을 극동)에 도착했지만 쌍둥이가 아직 내리지 않아 운행 중으로 남은 회차(C-15)
+    PERFORM pg_temp.qa_run(1, 'from_academy', T - interval '50 minutes', 'moving', 10, true, ARRAY[154, 155], true, 12, 13);
+    -- (c) 확정이 4번 연속 실패한 회차 — 확정 시각(출발 30분 전 = T-8분)은 지났고 idle 이라 메인 관리자 '회차 강제 확정' 대상.
+    --     다음 재시도(confirm_retry_at)를 8시간 뒤로 둬 확정 배치가 먼저 성공시켜 실패 횟수를 지우지 못하게 한다
+    v_fail := pg_temp.qa_run(1, 'to_academy', T + interval '22 minutes', 'idle', 0, false);
+    UPDATE run SET consecutive_failures = 4, confirm_retry_at = T + interval '8 hours' WHERE id = v_fail;
+    -- (d) 확정 뒤 경유 지점이 배포된 회차 — 판본 2(source = waypoint), 기사·동승자는 새 판본까지 확인함 (Ruling 893)
+    v_wp_run := pg_temp.qa_run(1, 'to_academy', T + interval '27 minutes', 'confirmed', 0, true, ARRAY[154, 155], false, 12, 13);
+    PERFORM pg_temp.qa_waypoint(v_wp_run, 4, '부흥로 임시 승차 구역', '경기도 부천시 원미구 부흥로 30', 37.497050, 126.749230,
+            T - interval '1 minutes');
+    -- (f) 노선 확정을 기사·동승자가 아직 확인하지 않은 회차 (M-04 · RUN-07)
+    PERFORM pg_temp.qa_run(1, 'from_academy', T + interval '29 minutes', 'confirmed', 0, true, ARRAY[154, 155], false, 12, 13, false);
+    -- (e) 운행 중인 학원 A 회차(2호차 등원)의 미확인 비상 1건 — 관계자 웹 비상 목록 · 메인 관리자 비상 목록에 미확인으로 뜬다
+    SELECT r.id AS id, r.academy_id AS academy_id, b.bus_no AS bus_no, asg.manager_id AS raiser,
+           (SELECT count(*) FROM run_rider WHERE run_id = r.id AND status <> 'absent') AS riders, st.lat AS lat, st.lng AS lng
+      INTO s
+      FROM run r JOIN bus b ON b.id = r.bus_id
+      JOIN assignment asg ON asg.run_id = r.id AND asg.role = 'escort'
+      JOIN LATERAL (SELECT sp.lat, sp.lng FROM run_stop x JOIN stop sp ON sp.id = x.stop_id
+                    JOIN route_version v ON v.id = x.route_version_id WHERE v.confirmed_route_id = r.id AND x.seq = 1) st ON true
+     WHERE r.id = v_a2_to;
+    INSERT INTO emergency_alert (academy_id, run_id, bus_no, raised_by, raised_by_role, type, memo, lat, lng, rider_count,
+                                 occurred_at, received_at, client_key, position_recorded_at)
+    VALUES (s.academy_id, s.id, s.bus_no, s.raiser, 'escort', 'vehicle_fault', '차량 시동이 불안정해 갓길에 정차했습니다',
+            s.lat, s.lng, s.riders, T - interval '1 minutes', T - interval '1 minutes' + interval '2 seconds', gen_random_uuid(),
+            T - interval '1 minutes' - interval '2 seconds')
+    RETURNING id INTO v_alert;
+    FOR v_rider IN SELECT account_id FROM academy_staff WHERE academy_id = s.academy_id AND status = 'active'
+                   UNION SELECT v_sys LOOP
+        PERFORM pg_temp.qa_notify(v_rider, CASE WHEN v_rider = v_sys THEN 'system_admin' ELSE 'staff' END, NULL, s.id, 'emergency',
+                '비상 상황 발생', format('%s 차량에서 차량 고장 상황이 발생했습니다. 즉시 확인해 주세요.', s.bus_no),
+                T - interval '1 minutes', format('emergency:%s:%s', v_alert, v_rider));
+    END LOOP;
+
     -- ⑨ 접속 기록 — 마지막 로그인 성공 · 차단 계정의 실패 5회와 차단
     INSERT INTO audit_log (academy_id, actor_account_id, actor_login_id, category, action, target_type, target_id, ip, occurred_at)
     SELECT academy_id, id, login_id, 'login', 'login_success', 'account', id,
@@ -616,7 +731,8 @@ BEGIN
 END
 $main$;
 
-DROP FUNCTION pg_temp.qa_run(bigint, text, timestamptz, text, int, boolean);
+DROP FUNCTION pg_temp.qa_waypoint(bigint, int, text, text, numeric, numeric, timestamptz);
+DROP FUNCTION pg_temp.qa_run(bigint, text, timestamptz, text, int, boolean, bigint[], boolean, bigint, bigint, boolean);
 DROP FUNCTION pg_temp.qa_request(bigint, bigint, text, text, text, int, timestamptz, bigint, text, timestamptz, text);
 DROP FUNCTION pg_temp.qa_guardians(bigint);
 DROP FUNCTION pg_temp.qa_notify(bigint, text, bigint, bigint, text, text, text, timestamptz, text);

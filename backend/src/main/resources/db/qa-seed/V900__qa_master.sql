@@ -18,13 +18,15 @@ OVERRIDING SYSTEM VALUE
 VALUES
     (1, 'HANLJD26', '하늘수학학원 부천중동점', '경기 부천', '경기도 부천시 원미구 석천로 171 중동프라자 4층', '032-000-1100', '초3~중3 수학 전문 · 셔틀 4대(1~3호차 운행 · 4호차 정비 중) · 상동·중동 마을 순회', 'active', 37.502989, 126.76252, now() - interval '370 days 0 hours', now() - interval '3 days 0 hours'),
     (2, 'SBMYGK38', '새봄영어학원 역곡점', '경기 부천', '경기도 부천시 소사구 경인로 520 3층', '032-000-2200', '초등 영어 · 셔틀 1대 · 역곡·괴안·범박동 순회', 'active', 37.484437, 126.812951, now() - interval '340 days 0 hours', now() - interval '3 days 0 hours'),
-    (3, 'KMOJ4R7T', '오정꿈나무미술학원', '경기 부천', '경기도 부천시 오정구 성지로 100 3층', '032-000-3300', '2026-09 운영 일시 중단 — 리모델링 후 재개 예정(셔틀 미운영)', 'inactive', 37.527972, 126.811496, now() - interval '310 days 0 hours', now() - interval '3 days 0 hours');
+    (3, 'KMOJ4R7T', '오정꿈나무미술학원', '경기 부천', '경기도 부천시 오정구 성지로 100 3층', '032-000-3300', '2026-09 운영 일시 중단 — 리모델링 후 재개 예정(셔틀 미운영)', 'inactive', 37.527972, 126.811496, now() - interval '310 days 0 hours', now() - interval '3 days 0 hours'),
+    (4, 'PRSB5K29', '푸른숲과학학원 부천역점', '경기 부천', '경기도 부천시 원미구 부일로 439 3층', '032-000-4400', '초등 과학 실험 · 셔틀 미운영 · 개원 준비 중 — 관계자 가입 승인 시나리오용 신규 학원', 'active', 37.484115, 126.782912, now() - interval '40 days 0 hours', now() - interval '3 days 0 hours');
 
 INSERT INTO academy_setting (academy_id, no_show_wait_minutes)
 VALUES
     (1, 3),
     (2, 5),
-    (3, 3);
+    (3, 3),
+    (4, 3);
 
 -- ── 계정 — 역할 6종 · 상태 4종(active · pending · rejected · blocked) ────────────────────────────────────
 INSERT INTO account (id, academy_id, login_id, password_hash, name, phone, email, role, status, failed_attempts, must_change_password, status_before_block, blocked_at, block_reason, last_login_at, created_at, updated_at)
@@ -214,7 +216,15 @@ VALUES
     (182, 1, 'escortPendingA', '${seedPasswordHash}', '김정은', '010-0000-1334', 'escortpendinga@example.com', 'escort', 'pending', 0, false, NULL, NULL, NULL, NULL, now() - interval '1 days 0 hours', now() - interval '1 days 0 hours'),
     (183, 2, 'staffPendingB', '${seedPasswordHash}', '민창민', '010-0000-1335', 'staffpendingb@example.com', 'staff', 'pending', 0, false, NULL, NULL, NULL, NULL, now() - interval '2 days 0 hours', now() - interval '2 days 0 hours'),
     (184, 1, 'parentRejectedA', '${seedPasswordHash}', '백석진', '010-0000-1336', 'parentrejecteda@example.com', 'parent', 'rejected', 0, false, NULL, NULL, NULL, NULL, now() - interval '6 days 0 hours', now() - interval '3 days 0 hours'),
-    (185, 3, 'parentC1', '${seedPasswordHash}', '문수진', '010-0000-1337', 'parentc1@example.com', 'parent', 'active', 0, false, NULL, NULL, NULL, now() - interval '15 days 5 hours', now() - interval '180 days 0 hours', now() - interval '3 days 0 hours');
+    (185, 3, 'parentC1', '${seedPasswordHash}', '문수진', '010-0000-1337', 'parentc1@example.com', 'parent', 'active', 0, false, NULL, NULL, NULL, now() - interval '15 days 5 hours', now() - interval '180 days 0 hours', now() - interval '3 days 0 hours'),
+    (186, 1, 'staffResignedA', '${seedPasswordHash}', '도민호', '010-0000-2001', 'staffresigneda@example.com', 'staff', 'active', 0, false, NULL, NULL, NULL, now() - interval '48 days 3 hours', now() - interval '420 days 0 hours', now() - interval '45 days 0 hours'),
+    (187, 1, 'managerDeletedA', '${seedPasswordHash}', '남궁철', '010-0000-2002', 'managerdeleteda@example.com', 'driver', 'active', 0, false, NULL, NULL, NULL, now() - interval '12 days 5 hours', now() - interval '230 days 0 hours', now() - interval '10 days 0 hours'),
+    (188, 4, 'staffPendingD', '${seedPasswordHash}', '고은비', '010-0000-2003', 'staffpendingd@example.com', 'staff', 'pending', 0, false, NULL, NULL, NULL, NULL, now() - interval '1 days 6 hours', now() - interval '1 days 6 hours'),
+    (189, 1, 'parentTempPwA', '${seedPasswordHash}', '엄정숙', '010-0000-2004', 'parenttemppwa@example.com', 'parent', 'active', 0, true, NULL, NULL, NULL, now() - interval '9 days 2 hours', now() - interval '140 days 0 hours', now() - interval '0 days 1 hours'),
+    (190, 1, 'parentTwinsA', '${seedPasswordHash}', '표지훈', '010-0000-2005', 'parenttwinsa@example.com', 'parent', 'active', 0, false, NULL, NULL, NULL, now() - interval '0 days 5 hours', now() - interval '66 days 0 hours', now() - interval '3 days 0 hours'),
+    (191, 1, 'parentQuotaA', '${seedPasswordHash}', '석영미', '010-0000-2006', 'parentquotaa@example.com', 'parent', 'active', 0, false, NULL, NULL, NULL, now() - interval '0 days 3 hours', now() - interval '75 days 0 hours', now() - interval '3 days 0 hours'),
+    (192, 1, 'driverA5', '${seedPasswordHash}', '백승환', '010-0000-2007', 'drivera5@example.com', 'driver', 'active', 0, false, NULL, NULL, NULL, now() - interval '0 days 4 hours', now() - interval '90 days 0 hours', now() - interval '3 days 0 hours'),
+    (193, 1, 'escortA5', '${seedPasswordHash}', '탁은지', '010-0000-2008', 'escorta5@example.com', 'escort', 'active', 0, false, NULL, NULL, NULL, now() - interval '0 days 6 hours', now() - interval '90 days 0 hours', now() - interval '3 days 0 hours');
 
 INSERT INTO system_admin (account_id)
 VALUES
@@ -224,7 +234,8 @@ INSERT INTO academy_staff (academy_id, account_id, status)
 VALUES
     (1, 2, 'active'),
     (2, 3, 'active'),
-    (3, 4, 'active');
+    (3, 4, 'active'),
+    (1, 186, 'inactive');
 
 -- ── 가입 신청 — 활성 계정의 승인 이력 · 대기 4건(학부모·학생·동승자 = 관계자 승인, 관계자 = 메인 관리자 승인) · 거절 1건
 INSERT INTO signup_request (account_id, academy_id, requested_role, approver_type, status, requested_at, decided_by, decided_at, reject_reason)
@@ -412,7 +423,15 @@ VALUES
     (182, 1, 'escort', 'staff', 'pending', now() - interval '20 hours', NULL, NULL, NULL),
     (183, 2, 'staff', 'system_admin', 'pending', now() - interval '40 hours', NULL, NULL, NULL),
     (184, 1, 'parent', 'staff', 'rejected', now() - interval '6 days 0 hours', 2, now() - interval '5 days 0 hours', '재원생 명단에서 자녀 이름을 찾을 수 없습니다. 학원에 문의해 주세요.'),
-    (185, 3, 'parent', 'staff', 'accepted', now() - interval '180 days 0 hours', 4, now() - interval '180 days -3 hours', NULL);
+    (185, 3, 'parent', 'staff', 'accepted', now() - interval '180 days 0 hours', 4, now() - interval '180 days -3 hours', NULL),
+    (186, 1, 'staff', 'system_admin', 'accepted', now() - interval '420 days 0 hours', 1, now() - interval '420 days -2 hours', NULL),
+    (187, 1, 'driver', 'staff', 'accepted', now() - interval '230 days 0 hours', 2, now() - interval '230 days -3 hours', NULL),
+    (188, 4, 'staff', 'system_admin', 'pending', now() - interval '30 hours', NULL, NULL, NULL),
+    (189, 1, 'parent', 'staff', 'accepted', now() - interval '140 days 0 hours', 2, now() - interval '140 days -3 hours', NULL),
+    (190, 1, 'parent', 'staff', 'accepted', now() - interval '66 days 0 hours', 2, now() - interval '66 days -3 hours', NULL),
+    (191, 1, 'parent', 'staff', 'accepted', now() - interval '75 days 0 hours', 2, now() - interval '75 days -3 hours', NULL),
+    (192, 1, 'driver', 'staff', 'accepted', now() - interval '90 days 0 hours', 2, now() - interval '90 days -3 hours', NULL),
+    (193, 1, 'escort', 'staff', 'accepted', now() - interval '90 days 0 hours', 2, now() - interval '90 days -3 hours', NULL);
 
 -- ── 차량 — A 1~3호차 운행 · 4호차 정비 중(운행 불가) · B 1호차 ───────────────────────────────────────────
 INSERT INTO bus (id, academy_id, bus_no, plate_no, capacity, driver_count, escort_count, student_capacity, operable)
@@ -437,7 +456,12 @@ VALUES
     (7, 1, 11, '문태호', '010-0000-1011', 'driver', '{"mon": [{"start": "13:00", "end": "22:30"}], "tue": [{"start": "13:00", "end": "22:30"}], "wed": [{"start": "13:00", "end": "22:30"}], "thu": [{"start": "13:00", "end": "22:30"}], "fri": [{"start": "13:00", "end": "22:30"}], "sat": [{"start": "13:00", "end": "22:30"}]}'::jsonb),
     (8, 2, 12, '조현우', '010-0000-1012', 'driver', '{"mon": [{"start": "12:00", "end": "19:00"}], "tue": [{"start": "12:00", "end": "19:00"}], "wed": [{"start": "12:00", "end": "19:00"}], "thu": [{"start": "12:00", "end": "19:00"}], "fri": [{"start": "12:00", "end": "19:00"}], "sat": [{"start": "12:00", "end": "19:00"}], "sun": [{"start": "12:00", "end": "19:00"}]}'::jsonb),
     (9, 2, 13, '임하나', '010-0000-1013', 'escort', '{"mon": [{"start": "12:00", "end": "19:00"}], "tue": [{"start": "12:00", "end": "19:00"}], "wed": [{"start": "12:00", "end": "19:00"}], "thu": [{"start": "12:00", "end": "19:00"}], "fri": [{"start": "12:00", "end": "19:00"}], "sat": [{"start": "12:00", "end": "19:00"}], "sun": [{"start": "12:00", "end": "19:00"}]}'::jsonb),
-    (10, 1, 14, '서진우', '010-0000-1014', 'driver', '{"mon": [{"start": "13:00", "end": "22:30"}], "tue": [{"start": "13:00", "end": "22:30"}], "wed": [{"start": "13:00", "end": "22:30"}], "thu": [{"start": "13:00", "end": "22:30"}], "fri": [{"start": "13:00", "end": "22:30"}], "sat": [{"start": "13:00", "end": "22:30"}]}'::jsonb);
+    (10, 1, 14, '서진우', '010-0000-1014', 'driver', '{"mon": [{"start": "13:00", "end": "22:30"}], "tue": [{"start": "13:00", "end": "22:30"}], "wed": [{"start": "13:00", "end": "22:30"}], "thu": [{"start": "13:00", "end": "22:30"}], "fri": [{"start": "13:00", "end": "22:30"}], "sat": [{"start": "13:00", "end": "22:30"}]}'::jsonb),
+    (11, 1, 187, '남궁철', '010-0000-2002', 'driver', '{"mon": [{"start": "13:00", "end": "22:30"}], "tue": [{"start": "13:00", "end": "22:30"}], "wed": [{"start": "13:00", "end": "22:30"}], "thu": [{"start": "13:00", "end": "22:30"}], "fri": [{"start": "13:00", "end": "22:30"}], "sat": [{"start": "13:00", "end": "22:30"}], "sun": [{"start": "12:00", "end": "18:00"}]}'::jsonb),
+    (12, 1, 192, '백승환', '010-0000-2007', 'driver', '{"mon": [{"start": "13:00", "end": "22:30"}], "tue": [{"start": "13:00", "end": "22:30"}], "wed": [{"start": "13:00", "end": "22:30"}], "thu": [{"start": "13:00", "end": "22:30"}], "fri": [{"start": "13:00", "end": "22:30"}], "sat": [{"start": "13:00", "end": "22:30"}], "sun": [{"start": "12:00", "end": "18:00"}]}'::jsonb),
+    (13, 1, 193, '탁은지', '010-0000-2008', 'escort', '{"mon": [{"start": "13:00", "end": "22:30"}], "tue": [{"start": "13:00", "end": "22:30"}], "wed": [{"start": "13:00", "end": "22:30"}], "thu": [{"start": "13:00", "end": "22:30"}], "fri": [{"start": "13:00", "end": "22:30"}], "sat": [{"start": "13:00", "end": "22:30"}], "sun": [{"start": "12:00", "end": "18:00"}]}'::jsonb);
+
+UPDATE manager SET deleted_at = now() - interval '10 days 0 hours' WHERE id = 11;
 
 -- ── 승하차지 40곳 — 노선마다 서로 다른 마을의 아파트 단지 정문 10곳 ─────────────────────────────────────
 INSERT INTO stop (id, academy_id, name, address, lat, lng)
@@ -1325,7 +1349,14 @@ VALUES
     (150, 2, NULL, '박민서', '010-0000-1164', NULL, 'female', '2015-01-03', '초5', '리딩 심화반', '형과 같은 단지 다른 동 거주', false, NULL, now() - interval '92 days 0 hours'),
     (151, 2, NULL, '성우진', '010-0000-1165', NULL, 'male', '2018-11-03', '초2', '리딩 심화반', '수요일은 피아노 학원 뒤 바로 탑승', false, NULL, now() - interval '230 days 0 hours'),
     (152, 2, NULL, '남소윤', '010-0000-1166', NULL, 'female', '2018-10-17', '초2', '파닉스반', '보호자가 맞벌이라 하원 시 1층 현관에서 대기', false, NULL, now() - interval '256 days 0 hours'),
-    (153, 3, NULL, '백서윤', '010-0000-5999', NULL, 'female', '2017-05-14', '초3', '수채화 기초반', '학원 휴원 중 — 재개 시 연락 예정', false, NULL, now() - interval '200 days 0 hours');
+    (153, 3, NULL, '백서윤', '010-0000-5999', NULL, 'female', '2017-05-14', '초3', '수채화 기초반', '학원 휴원 중 — 재개 시 연락 예정', false, NULL, now() - interval '200 days 0 hours'),
+    (154, 1, NULL, '표다온', '010-0000-2011', NULL, 'male', '2016-05-19', '초4', '초등 기본반 A', '쌍둥이 남매 — 여동생(표다인)과 같은 자리에 앉혀 달라는 요청', false, NULL, now() - interval '66 days 0 hours'),
+    (155, 1, NULL, '표다인', '010-0000-2012', NULL, 'female', '2016-05-19', '초4', '초등 기본반 A', '쌍둥이 남매 — 오빠(표다온)와 항상 함께 승하차', false, NULL, now() - interval '66 days 0 hours'),
+    (156, 1, NULL, '석하준', '010-0000-2013', NULL, 'male', '2015-09-03', '초5', '초등 심화반 A', '하원 때 보호자 전화 확인 뒤 하차', false, NULL, now() - interval '75 days 0 hours'),
+    (157, 1, NULL, '엄태율', '010-0000-2014', NULL, 'male', '2017-02-27', '초3', '초등 기본반 A', '요일별 주소 등록 전 — 승하차지 배정 대기', false, NULL, now() - interval '9 days 0 hours'),
+    (158, 1, NULL, '조하람', '010-0000-2015', NULL, 'female', '2016-12-11', '초4', '초등 기본반 A', '신규 등록 — 보호자 앱 가입 전이고 승하차지 미정', false, NULL, now() - interval '4 days 0 hours'),
+    (159, 1, NULL, '진서아', '010-0000-2016', NULL, 'female', '2015-04-22', '초5', '초등 심화반 A', '일요 보강 등원만 신청 — 하원 요일별 주소 미등록', false, NULL, now() - interval '21 days 0 hours'),
+    (160, 1, NULL, '민지호', '010-0000-2017', NULL, 'male', '2014-08-30', '초6', '중등 내신반', '토요일 하원만 등록 — 등원 요일별 주소 미등록', true, NULL, now() - interval '30 days 0 hours');
 
 INSERT INTO guardian (id, academy_id, account_id, name, phone)
 OVERRIDING SYSTEM VALUE
@@ -1483,7 +1514,10 @@ VALUES
     (151, 2, 177, '이혜진', '010-0000-1329'),
     (152, 2, 178, '남승훈', '010-0000-1330'),
     (153, 2, 179, '황보람', '010-0000-1331'),
-    (154, 3, 185, '문수진', '010-0000-1337');
+    (154, 3, 185, '문수진', '010-0000-1337'),
+    (155, 1, 190, '표지훈', '010-0000-2005'),
+    (156, 1, 191, '석영미', '010-0000-2006'),
+    (157, 1, 189, '엄정숙', '010-0000-2004');
 
 INSERT INTO guardian_student (guardian_id, student_id, linked_at)
 VALUES
@@ -1656,7 +1690,11 @@ VALUES
     (151, 151, now() - interval '174 days 0 hours'),
     (152, 152, now() - interval '146 days 0 hours'),
     (153, 152, now() - interval '136 days 0 hours'),
-    (154, 153, now() - interval '180 days 0 hours');
+    (154, 153, now() - interval '180 days 0 hours'),
+    (155, 154, now() - interval '66 days 0 hours'),
+    (155, 155, now() - interval '66 days 0 hours'),
+    (156, 156, now() - interval '75 days 0 hours'),
+    (157, 157, now() - interval '9 days 0 hours');
 
 -- ── 요일별 승하차 주소 — 수업 요일 묶음(월·수·금 / 화·목·토 / 월~금 / 수·토·일 / 월·화·목·일)마다 등·하원 2칸.
 --    10% 는 한 요일 하원을 같은 노선의 다른 단지(할머니 댁)로 둔다.
@@ -2803,7 +2841,51 @@ VALUES
     (152, 'sat', 'to_academy', '경기도 부천시 소사구 경인로 605', '101동 1704호', 37.489295, 126.820955, true, 40),
     (152, 'sat', 'from_academy', '경기도 부천시 소사구 경인로 605', '101동 1704호', 37.489482, 126.82144, true, 40),
     (152, 'sun', 'to_academy', '경기도 부천시 소사구 경인로 605', '101동 1704호', 37.488771, 126.821527, true, 40),
-    (152, 'sun', 'from_academy', '경기도 부천시 소사구 경인로 605', '101동 1704호', 37.489003, 126.821, true, 40);
+    (152, 'sun', 'from_academy', '경기도 부천시 소사구 경인로 605', '101동 1704호', 37.489003, 126.821, true, 40),
+    (154, 'mon', 'to_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.490208, 126.750382, true, 1),
+    (154, 'mon', 'from_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.490739, 126.750231, true, 1),
+    (154, 'tue', 'to_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.490371, 126.749995, true, 1),
+    (154, 'tue', 'from_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.490783, 126.750775, true, 1),
+    (154, 'wed', 'to_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.490601, 126.750351, true, 1),
+    (154, 'wed', 'from_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.490128, 126.750548, true, 1),
+    (154, 'thu', 'to_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.490887, 126.750449, true, 1),
+    (154, 'thu', 'from_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.490841, 126.750464, true, 1),
+    (154, 'fri', 'to_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.490136, 126.749824, true, 1),
+    (154, 'fri', 'from_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.490968, 126.750293, true, 1),
+    (154, 'sat', 'to_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.490638, 126.750485, true, 1),
+    (154, 'sat', 'from_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.491028, 126.750181, true, 1),
+    (154, 'sun', 'to_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.490469, 126.749942, true, 1),
+    (154, 'sun', 'from_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.490712, 126.750168, true, 1),
+    (155, 'mon', 'to_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.490576, 126.750052, true, 1),
+    (155, 'mon', 'from_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.490780, 126.750296, true, 1),
+    (155, 'tue', 'to_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.490631, 126.750135, true, 1),
+    (155, 'tue', 'from_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.490834, 126.750585, true, 1),
+    (155, 'wed', 'to_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.490327, 126.750678, true, 1),
+    (155, 'wed', 'from_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.490614, 126.750608, true, 1),
+    (155, 'thu', 'to_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.490963, 126.750582, true, 1),
+    (155, 'thu', 'from_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.490478, 126.750295, true, 1),
+    (155, 'fri', 'to_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.490360, 126.749958, true, 1),
+    (155, 'fri', 'from_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.490197, 126.750583, true, 1),
+    (155, 'sat', 'to_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.490706, 126.750450, true, 1),
+    (155, 'sat', 'from_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.490540, 126.750419, true, 1),
+    (155, 'sun', 'to_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.490702, 126.750704, true, 1),
+    (155, 'sun', 'from_academy', '경기도 부천시 원미구 상일로 72', '119동 1204호', 37.490398, 126.749912, true, 1),
+    (156, 'mon', 'to_academy', '경기도 부천시 원미구 중동로279번길 22', '203동 1105호', 37.505526, 126.768645, true, 30),
+    (156, 'mon', 'from_academy', '경기도 부천시 원미구 중동로279번길 22', '203동 1105호', 37.505528, 126.768393, true, 30),
+    (156, 'tue', 'to_academy', '경기도 부천시 원미구 중동로279번길 22', '203동 1105호', 37.506155, 126.768474, true, 30),
+    (156, 'tue', 'from_academy', '경기도 부천시 원미구 중동로279번길 22', '203동 1105호', 37.505591, 126.768604, true, 30),
+    (156, 'wed', 'to_academy', '경기도 부천시 원미구 중동로279번길 22', '203동 1105호', 37.505578, 126.767863, true, 30),
+    (156, 'wed', 'from_academy', '경기도 부천시 원미구 중동로279번길 22', '203동 1105호', 37.506079, 126.767995, true, 30),
+    (156, 'thu', 'to_academy', '경기도 부천시 원미구 중동로279번길 22', '203동 1105호', 37.505903, 126.767803, true, 30),
+    (156, 'thu', 'from_academy', '경기도 부천시 원미구 중동로279번길 22', '203동 1105호', 37.506198, 126.768275, true, 30),
+    (156, 'fri', 'to_academy', '경기도 부천시 원미구 중동로279번길 22', '203동 1105호', 37.506072, 126.767886, true, 30),
+    (156, 'fri', 'from_academy', '경기도 부천시 원미구 중동로279번길 22', '203동 1105호', 37.505937, 126.768326, true, 30),
+    (156, 'sat', 'to_academy', '경기도 부천시 원미구 중동로279번길 22', '203동 1105호', 37.505488, 126.768167, true, 30),
+    (156, 'sat', 'from_academy', '경기도 부천시 원미구 중동로279번길 22', '203동 1105호', 37.505527, 126.768468, true, 30),
+    (156, 'sun', 'to_academy', '경기도 부천시 원미구 중동로279번길 22', '203동 1105호', 37.505503, 126.768583, true, 30),
+    (156, 'sun', 'from_academy', '경기도 부천시 원미구 중동로279번길 22', '203동 1105호', 37.506143, 126.767988, true, 30),
+    (159, 'sun', 'to_academy', '경기도 부천시 원미구 계남로 19', '105동 702호', 37.511121, 126.751268, true, 11),
+    (160, 'sat', 'from_academy', '경기도 부천시 원미구 장말로 102', '102동 1503호', 37.493899, 126.752411, true, 3);
 
 -- ── 연결 코드 — 보호자가 아직 앱에 가입하지 않은 학생 6명(가입 → 자녀 연결 시나리오) ──────────────────────
 INSERT INTO link_code (student_id, code, expires_at, used_at, created_at)
@@ -2813,7 +2895,10 @@ VALUES
     (42, '692373', now() + interval '7 days', NULL, now() - interval '1 days 0 hours'),
     (59, '797102', now() + interval '7 days', NULL, now() - interval '1 days 0 hours'),
     (135, '901831', now() + interval '7 days', NULL, now() - interval '1 days 0 hours'),
-    (137, '006560', now() + interval '7 days', NULL, now() - interval '1 days 0 hours');
+    (137, '006560', now() + interval '7 days', NULL, now() - interval '1 days 0 hours'),
+    (158, '135790', now() + interval '7 days', NULL, now() - interval '1 days 0 hours'),
+    (159, '246801', now() + interval '7 days', NULL, now() - interval '1 days 0 hours'),
+    (160, '112358', now() + interval '7 days', NULL, now() - interval '1 days 0 hours');
 
 -- ── 알림 설정 · 단말 토큰 — 학부모 일부는 도착 알림을 꺼 둠 · 앱 설치 계정의 약 80% 에 토큰 ─────────────────
 INSERT INTO notification_setting (account_id, arrive, boarding, no_show)
@@ -2971,7 +3056,12 @@ VALUES
     (177, true, true, true),
     (178, true, true, true),
     (179, true, true, true),
-    (185, true, true, true);
+    (185, true, true, true),
+    (189, true, true, true),
+    (190, true, true, true),
+    (191, true, true, true),
+    (192, true, true, true),
+    (193, true, true, true);
 
 INSERT INTO device_token (account_id, device_id, token, platform, app_version, created_at)
 VALUES
@@ -3103,7 +3193,11 @@ VALUES
     (177, 'qa-parentB35-phone', 'qa-fcm-token-parentB35', 'ios', '1.4.0', now() - interval '44 days 0 hours'),
     (178, 'qa-parentB36-phone', 'qa-fcm-token-parentB36', 'android', '1.4.0', now() - interval '10 days 0 hours'),
     (179, 'qa-parentB37-phone', 'qa-fcm-token-parentB37', 'android', '1.4.0', now() - interval '7 days 0 hours'),
-    (185, 'qa-parentC1-phone', 'qa-fcm-token-parentC1', 'android', '1.4.0', now() - interval '43 days 0 hours');
+    (185, 'qa-parentC1-phone', 'qa-fcm-token-parentC1', 'android', '1.4.0', now() - interval '43 days 0 hours'),
+    (190, 'qa-parentTwinsA-phone', 'qa-fcm-token-parentTwinsA', 'android', '1.4.0', now() - interval '30 days 0 hours'),
+    (191, 'qa-parentQuotaA-phone', 'qa-fcm-token-parentQuotaA', 'ios', '1.4.0', now() - interval '25 days 0 hours'),
+    (192, 'qa-driverA5-phone', 'qa-fcm-token-driverA5', 'android', '1.4.0', now() - interval '20 days 0 hours'),
+    (193, 'qa-escortA5-phone', 'qa-fcm-token-escortA5', 'android', '1.4.0', now() - interval '20 days 0 hours');
 
 -- ── 식별자 시퀀스 맞춤 — 명시 id 로 넣은 표 ─────────────────────────────────────────────────────────────
 SELECT setval(pg_get_serial_sequence('academy', 'id'), (SELECT max(id) FROM academy));
