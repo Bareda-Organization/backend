@@ -35,11 +35,15 @@ class AlertSchedulerNamesTest {
         assertThat(unresolvedIn(yaml)).as("클래스가 없거나 @Scheduled 메서드가 없는 code_namespace").isEmpty();
     }
 
+    /** 파일 내용과 무관한 고정 예시로 검사기 자체를 확인한다 — 실제 클래스 하나와 없는 클래스 하나를 정규식 형태로도 적어 본다. */
     @Test
-    void 클래스_이름이_틀리면_찾아낸다() throws IOException {
-        String renamed = Files.readString(ALERTS).replace("DailyRunGenerator", "DailyRunGeneratorRenamed");
+    void 클래스_이름이_틀리면_찾아낸다() {
+        String sample = """
+                expr: x{code_namespace="src.backend.schedule.scheduler.DailyRunGenerator"}
+                expr: y{code_namespace=~"src\\\\.backend\\\\.run\\\\.scheduler\\\\.RunConfirmationScheduler|src\\\\.backend\\\\.run\\\\.scheduler\\\\.NoSuchScheduler"}
+                """;
 
-        assertThat(unresolvedIn(renamed)).containsExactly("src.backend.schedule.scheduler.DailyRunGeneratorRenamed");
+        assertThat(unresolvedIn(sample)).containsExactly("src.backend.run.scheduler.NoSuchScheduler");
     }
 
     private static List<String> unresolvedIn(String yaml) {
