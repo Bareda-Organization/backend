@@ -3,6 +3,7 @@ package src.backend.audit.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.메인관리자_토큰;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -22,7 +23,6 @@ import src.backend.audit.entity.AuditCategory;
 import src.backend.audit.entity.AuditLog;
 import src.backend.audit.repository.AuditLogRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
@@ -128,7 +128,7 @@ class AdminRunRosterAuditIntegrationTest {
         long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY,
                 departTime, departTime.minusMinutes(30));
 
-        mockMvc.perform(get("/api/v1/admin/runs/" + runId + "/roster").header("Authorization", 메인관리자_토큰()))
+        mockMvc.perform(get("/api/v1/admin/runs/" + runId + "/roster").header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID)))
                 .andExpect(status().isOk());
 
         List<AuditLog> rows = auditLogRepository.findAll().stream()
@@ -147,10 +147,5 @@ class AdminRunRosterAuditIntegrationTest {
         @SuppressWarnings("unchecked")
         List<String> fields = (List<String>) row.getDetail().get("fields");
         assertThat(fields).containsExactlyInAnyOrder("photo_url", "guardian_phone");
-    }
-
-    private String 메인관리자_토큰() {
-        return "Bearer " + tokenProvider.createAccessToken(SYSTEM_ADMIN_ACCOUNT_ID, null, Role.SYSTEM_ADMIN,
-                AccountStatus.ACTIVE);
     }
 }

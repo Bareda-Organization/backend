@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -31,7 +32,6 @@ import com.jayway.jsonpath.JsonPath;
 
 import src.backend.boarding.query.RosterQueryService;
 import src.backend.global.common.SeedFixtures;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.monitoring.query.AdminRunRosterQueryService;
@@ -70,7 +70,7 @@ class AuditReadRequestIntegrationTest {
             return invocation.callRealMethod();
         }).when(auditRecorder).recordDataAccessRead(any(), anyLong(), eq("student"), eq(studentId), any());
 
-        mockMvc.perform(get("/api/v1/staff/students/" + studentId).header("Authorization", 관계자_토큰()))
+        mockMvc.perform(get("/api/v1/staff/students/" + studentId).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk());
 
         assertThat(transactionActive.get()).as("감사 호출이 일어났고, 그때 트랜잭션이 없었다").isFalse();
@@ -78,7 +78,7 @@ class AuditReadRequestIntegrationTest {
 
     @Test
     void 조회가_실패하면_감사_기록을_시도하지_않는다() throws Exception {
-        mockMvc.perform(get("/api/v1/staff/students/" + Long.MAX_VALUE).header("Authorization", 관계자_토큰()))
+        mockMvc.perform(get("/api/v1/staff/students/" + Long.MAX_VALUE).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isNotFound());
 
         verify(auditRecorder, never()).recordDataAccessRead(any(), anyLong(), any(), any(), any());
@@ -109,14 +109,10 @@ class AuditReadRequestIntegrationTest {
         MockMultipartFile part = new MockMultipartFile("data", "", "application/json",
                 "{\"name\":\"R46감사IP\",\"can_go_alone\":false}".getBytes(StandardCharsets.UTF_8));
         MvcResult result = mockMvc.perform(multipart("/api/v1/staff/students").file(part)
-                        .header("Authorization", 관계자_토큰()).header("X-Real-IP", realIp))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)).header("X-Real-IP", realIp))
                 .andExpect(status().isCreated())
                 .andReturn();
         return Long.parseLong(JsonPath.read(result.getResponse().getContentAsString(StandardCharsets.UTF_8),
                 "$.data.student_id"));
-    }
-
-    private String 관계자_토큰() {
-        return "Bearer " + tokenProvider.createAccessToken(1L, ACADEMY_A, Role.STAFF, AccountStatus.ACTIVE);
     }
 }
