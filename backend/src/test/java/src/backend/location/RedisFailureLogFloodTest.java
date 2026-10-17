@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -39,7 +40,6 @@ import src.backend.location.proximity.ProximityNotificationService;
 import src.backend.location.repository.RunPositionRepository;
 import src.backend.location.scheduler.ProximityNotificationScheduler;
 import src.backend.observability.metrics.RunPositionFallbackMetrics;
-import src.backend.observability.metrics.SchedulerHealthMetrics;
 import src.backend.run.domain.MovingRunWindowPolicy;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
@@ -129,7 +129,7 @@ class RedisFailureLogFloodTest {
             return null;
         }).when(service).judgeRun(any(), any(), any(), any(), any());
         ProximityNotificationScheduler scheduler = new ProximityNotificationScheduler(runRepository,
-                new MovingRunWindowPolicy(Clock.systemUTC()), service, store, mock(SchedulerHealthMetrics.class));
+                new MovingRunWindowPolicy(Clock.systemUTC()), service, store, new SimpleMeterRegistry());
         collect(ProximityNotificationScheduler.class);
 
         for (int i = 0; i < FAILURES; i++) {

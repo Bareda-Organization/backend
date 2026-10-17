@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -22,6 +23,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,12 +42,12 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
-import src.backend.observability.metrics.SchedulerHealthMetrics;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
+import src.backend.run.scheduler.RunConfirmationScheduler;
 import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StopRepository;
@@ -83,7 +85,7 @@ class AdminDashboardControllerTest {
     private StringRedisTemplate stringRedisTemplate;
 
     @Autowired
-    private SchedulerHealthMetrics schedulerHealthMetrics;
+    private RunConfirmationScheduler runConfirmationScheduler;
 
     @Autowired
     private RunRepository runRepository;
@@ -540,7 +542,7 @@ class AdminDashboardControllerTest {
     void 시스템_상태_4칸() throws Exception {
         // 정상 기준선 — 다른 시험이 남긴 대기 알림을 걷고 확정 배치의 마지막 성공을 지금으로 맞춘다
         jdbcTemplate.update("UPDATE notification_log SET push_state = 'sent' WHERE push_state = 'pending'");
-        schedulerHealthMetrics.recordSuccess(SchedulerHealthMetrics.nameOf(src.backend.run.scheduler.RunConfirmationScheduler.class));
+        ReflectionTestUtils.setField(runConfirmationScheduler, "lastSuccessAt", Instant.now());
         DocumentContext healthy = 대시보드("?days=1");
         assertThat(healthy.<List<Object>>read("$.data.health")).hasSize(4);
         for (String key : new String[] { "api", "position", "confirm_batch", "notification" }) {

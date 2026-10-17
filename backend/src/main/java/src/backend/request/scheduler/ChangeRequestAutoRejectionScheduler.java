@@ -9,11 +9,11 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import src.backend.observability.metrics.ChangeRequestAutoRejectionMetrics;
-import src.backend.observability.metrics.SchedulerHealthMetrics;
 import src.backend.request.command.ChangeRequestAutoRejectionPersistence;
 import src.backend.request.entity.ChangeRequest;
 import src.backend.request.entity.ChangeRequestStatus;
@@ -51,7 +51,7 @@ public class ChangeRequestAutoRejectionScheduler {
 
     private final ChangeRequestAutoRejectionMetrics metrics;
 
-    private final SchedulerHealthMetrics schedulerHealthMetrics;
+    private final MeterRegistry meterRegistry;
 
     /**
      * 마감이 지난 대기 요청을 자동 거절한다.
@@ -94,7 +94,12 @@ public class ChangeRequestAutoRejectionScheduler {
             }
         } catch (Exception e) {
             log.warn("변경 요청 {} 자동 거절 실패 — 다음 틱에 재시도한다", changeRequestId, e);
-            schedulerHealthMetrics.recordItemFailure(getClass());
+            recordItemFailure();
         }
+    }
+
+    /** 잡아 삼킨 건별 실패 1건(BR-064) — 주기 전체의 예외는 스프링 기본 계측({@code tasks.scheduled.execution} {@code outcome=ERROR})이 센다. */
+    private void recordItemFailure() {
+        meterRegistry.counter("schoolbus.scheduler.failures", "scheduler", "change-request-auto-rejection").increment();
     }
 }

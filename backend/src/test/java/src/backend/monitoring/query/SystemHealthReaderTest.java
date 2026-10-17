@@ -10,7 +10,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
-import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -21,7 +20,6 @@ import org.springframework.boot.health.contributor.Status;
 
 import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.monitoring.dto.AdminDashboardResponse.HealthCell;
-import src.backend.observability.metrics.SchedulerHealthMetrics;
 import src.backend.run.domain.MovingRunWindowPolicy;
 import src.backend.run.repository.RunRepository;
 import src.backend.run.scheduler.RunConfirmationScheduler;
@@ -32,11 +30,9 @@ import src.backend.run.scheduler.RunConfirmationScheduler;
  */
 class SystemHealthReaderTest {
 
-    private static final String CONFIRM_SCHEDULER = SchedulerHealthMetrics.nameOf(RunConfirmationScheduler.class);
-
     private final HealthEndpoint healthEndpoint = mock(HealthEndpoint.class);
 
-    private final SchedulerHealthMetrics schedulerHealthMetrics = mock(SchedulerHealthMetrics.class);
+    private final RunConfirmationScheduler confirmationScheduler = mock(RunConfirmationScheduler.class);
 
     private final NotificationBacklogReader notificationBacklogReader = mock(NotificationBacklogReader.class);
 
@@ -53,7 +49,7 @@ class SystemHealthReaderTest {
         down = descriptor(Status.DOWN);
         Clock clock = Clock.fixed(Instant.parse("2030-04-01T03:00:00Z"), ZoneId.of("Asia/Seoul"));
         reader = new SystemHealthReader(healthEndpoint, mock(RunRepository.class), mock(MovingRunWindowPolicy.class),
-                mock(RunPositionStore.class), mock(RunLiveStateResolver.class), schedulerHealthMetrics,
+                mock(RunPositionStore.class), mock(RunLiveStateResolver.class), confirmationScheduler,
                 notificationBacklogReader, clock);
         정상으로_맞춘다();
     }
@@ -61,7 +57,7 @@ class SystemHealthReaderTest {
     private void 정상으로_맞춘다() {
         when(healthEndpoint.healthForPath("db")).thenReturn(up);
         when(healthEndpoint.healthForPath("redis")).thenReturn(up);
-        when(schedulerHealthMetrics.sinceLastSuccess(CONFIRM_SCHEDULER)).thenReturn(Optional.of(Duration.ofSeconds(30)));
+        when(confirmationScheduler.sinceLastSuccess()).thenReturn(Duration.ofSeconds(30));
         when(notificationBacklogReader.countPendingCreatedBefore(any())).thenReturn(0L);
     }
 
@@ -101,16 +97,13 @@ class SystemHealthReaderTest {
     }
 
     @Test
-    @DisplayName("confirm_batch — 마지막 성공이 정확히 2분이면 ok, 2분을 넘으면 down, 기록이 없으면 down")
+    @DisplayName("confirm_batch — 마지막 성공이 정확히 2분이면 ok, 2분을 넘으면 down")
     void 확정_배치는_2분을_넘으면_down() {
-        when(schedulerHealthMetrics.sinceLastSuccess(CONFIRM_SCHEDULER)).thenReturn(Optional.of(Duration.ofSeconds(120)));
+        when(confirmationScheduler.sinceLastSuccess()).thenReturn(Duration.ofSeconds(120));
         assertThat(cell("confirm_batch").status()).isEqualTo("ok");
 
-        when(schedulerHealthMetrics.sinceLastSuccess(CONFIRM_SCHEDULER)).thenReturn(Optional.of(Duration.ofSeconds(121)));
+        when(confirmationScheduler.sinceLastSuccess()).thenReturn(Duration.ofSeconds(121));
         assertThat(cell("confirm_batch")).isEqualTo(new HealthCell("confirm_batch", "down", "확정 배치 마지막 실행 2분 전"));
-
-        when(schedulerHealthMetrics.sinceLastSuccess(CONFIRM_SCHEDULER)).thenReturn(Optional.empty());
-        assertThat(cell("confirm_batch").status()).isEqualTo("down");
     }
 
     @Test

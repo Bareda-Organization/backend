@@ -9,6 +9,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -18,7 +19,6 @@ import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.location.proximity.ProximityNotificationService;
 import src.backend.location.proximity.ProximityNotificationService.Judgment;
 import src.backend.location.proximity.ProximityNotificationService.RunTargets;
-import src.backend.observability.metrics.SchedulerHealthMetrics;
 import src.backend.run.domain.MovingRunWindowPolicy;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
@@ -57,7 +57,7 @@ public class ProximityNotificationScheduler {
 
     private final RunPositionStore runPositionStore;
 
-    private final SchedulerHealthMetrics schedulerHealthMetrics;
+    private final MeterRegistry meterRegistry;
 
     /** Redis 가 죽으면 운행 중 회차마다 틱마다 같은 실패가 난다 — 판정별로 분당 한 번만 스택과 함께 남긴다(R46 S-3). */
     private final RateLimitedWarn judgeFailure = RateLimitedWarn.perMinute(log);
@@ -111,7 +111,7 @@ public class ProximityNotificationScheduler {
             positions = runPositionStore.findAll(runs.stream().map(Run::getId).toList());
         } catch (Exception e) {
             positionReadFailure.warn(e, "근접 판정 위치 읽기 실패 — 이 묶음({}회차)의 이번 틱을 건너뛴다", runs.size());
-            schedulerHealthMetrics.recordItemFailure(getClass());
+            recordItemFailure();
             return;
         }
         // 두 판정의 재료는 이 묶음 전체에 대해 SQL 4건으로 한 번에 읽는다(DA-1) — 회차마다 읽지 않는다
@@ -136,7 +136,7 @@ public class ProximityNotificationScheduler {
                     (judgment, e) -> recordJudgmentFailure(runId, judgment, e));
         } catch (Exception e) {
             judgeFailure.warn(e, "회차 {} 판정 실패 — 다음 틱에 재시도한다", runId);
-            schedulerHealthMetrics.recordItemFailure(getClass());
+            recordItemFailure();
         }
     }
 
@@ -146,6 +146,11 @@ public class ProximityNotificationScheduler {
         } else {
             departureFailure.warn(e, "회차 {} 출발 판정 실패 — 다음 틱에 재시도한다", runId);
         }
-        schedulerHealthMetrics.recordItemFailure(getClass());
+        recordItemFailure();
+    }
+
+    /** 잡아 삼킨 건별 실패 1건(BR-064) — 주기 전체의 예외는 스프링 기본 계측({@code tasks.scheduled.execution} {@code outcome=ERROR})이 센다. */
+    private void recordItemFailure() {
+        meterRegistry.counter("schoolbus.scheduler.failures", "scheduler", "proximity-notification").increment();
     }
 }

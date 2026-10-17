@@ -10,19 +10,19 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import src.backend.location.infrastructure.RunPositionPartitionManager;
-import src.backend.observability.metrics.SchedulerHealthMetrics;
 
 /**
  * {@code run_position} 일 단위 파티션을 앞으로 쓸 날짜까지 미리 만든다(R46-LATERBE B-1, Ruling 670) — 기동 직후 한 번과 매일 한 번.
  *
  * <p>미리 만들기가 멈춰도 위치 수신은 기본 파티션({@code run_position_default})이 받아 이어진다. 그래서 여유를
  * {@link #LOOK_AHEAD_DAYS} 일로 두어, 하루 이틀 실패해도 파티션이 없는 날이 오지 않게 한다. 매일 도는 쪽의 실패는
- * {@code ScheduledTaskMetricsAspect} 가 실패 카운터와 "마지막 성공 이후 경과" 게이지로 드러내고(scheduler 태그
- * {@code run-position-partition}), 기동 직후 쪽은 기동을 막지 않고 같은 실패 카운터만 올린다.
+ * 스프링 기본 계측({@code tasks.scheduled.execution} 의 {@code outcome=ERROR})이 드러내고, 기동 직후 쪽은 기동을 막지 않고
+ * 건별 실패 카운터({@code schoolbus.scheduler.failures}, scheduler 태그 {@code run-position-partition})만 올린다.
  */
 @Slf4j
 @Component
@@ -34,7 +34,7 @@ public class RunPositionPartitionScheduler {
 
     private final RunPositionPartitionManager partitionManager;
 
-    private final SchedulerHealthMetrics schedulerHealthMetrics;
+    private final MeterRegistry meterRegistry;
 
     private final Clock clock;
 
@@ -65,7 +65,12 @@ public class RunPositionPartitionScheduler {
             ensureAhead();
         } catch (RuntimeException e) {
             log.warn("기동 직후 위치 이력 파티션 미리 만들기 실패 — 기본 파티션이 받고 매일 실행이 다시 돈다", e);
-            schedulerHealthMetrics.recordItemFailure(getClass());
+            recordItemFailure();
         }
+    }
+
+    /** 잡아 삼킨 건별 실패 1건(BR-064) — 주기 전체의 예외는 스프링 기본 계측({@code tasks.scheduled.execution} {@code outcome=ERROR})이 센다. */
+    private void recordItemFailure() {
+        meterRegistry.counter("schoolbus.scheduler.failures", "scheduler", "run-position-partition").increment();
     }
 }

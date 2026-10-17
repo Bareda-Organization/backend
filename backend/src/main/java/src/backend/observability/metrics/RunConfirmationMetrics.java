@@ -23,8 +23,7 @@ import io.micrometer.core.instrument.Timer;
  * 지표에 섞이는 것을 막는다. 이 저장소의 모든 지표가 같은 규칙을 따른다.
  *
  * <p>{@code schoolbus.run.confirmation.retry_failures} 는 {@code schoolbus.scheduler.failures}
- * ({@link src.backend.observability.aspect.ScheduledTaskMetricsAspect})와 다른 신호다. 저 카운터는
- * {@code @Scheduled} 메서드 자체가 예외를 던질 때만 오르는데, {@code RunConfirmationScheduler} 는
+ * 와 다른 신호다. 주기 전체의 예외는 스프링 기본 계측({@code tasks.scheduled.execution})이 세는데, {@code RunConfirmationScheduler} 는
  * 회차 단위로 {@code try-catch} 를 격리해(목표 4) 개별 실패를 삼키고 {@code consecutive_failures} 에만
  * 남긴다 — TECH_DECISIONS §13.1 3행이 정확히 "회차 단위로 격리되므로 실패가 로그에만 남고 응답에
  * 미노출"이라 지적하는 지점이다. 즉 이 카운터가 없으면 회차별 확정 실패는 Prometheus 에 영원히

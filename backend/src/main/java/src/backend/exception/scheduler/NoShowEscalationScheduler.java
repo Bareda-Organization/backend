@@ -9,6 +9,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -16,7 +17,6 @@ import src.backend.exception.command.NoShowEscalationPersistence;
 import src.backend.exception.entity.NoShowCase;
 import src.backend.exception.repository.NoShowCaseRepository;
 import src.backend.observability.metrics.NoShowEscalationMetrics;
-import src.backend.observability.metrics.SchedulerHealthMetrics;
 
 /**
  * 미승차 에스컬레이션 폴링의 진입점(목표 1, API_SPEC §4.8) — 대기 만료 + 무응답 케이스를 모아
@@ -55,7 +55,7 @@ public class NoShowEscalationScheduler {
 
     private final NoShowEscalationMetrics metrics;
 
-    private final SchedulerHealthMetrics schedulerHealthMetrics;
+    private final MeterRegistry meterRegistry;
 
     /**
      * 대기 만료 + 무응답 케이스를 에스컬레이션한다.
@@ -92,7 +92,12 @@ public class NoShowEscalationScheduler {
             }
         } catch (Exception e) {
             log.warn("미승차 케이스 {} 에스컬레이션 실패 — 다음 틱에 재시도한다", caseId, e);
-            schedulerHealthMetrics.recordItemFailure(getClass());
+            recordItemFailure();
         }
+    }
+
+    /** 잡아 삼킨 건별 실패 1건(BR-064) — 주기 전체의 예외는 스프링 기본 계측({@code tasks.scheduled.execution} {@code outcome=ERROR})이 센다. */
+    private void recordItemFailure() {
+        meterRegistry.counter("schoolbus.scheduler.failures", "scheduler", "no-show-escalation").increment();
     }
 }

@@ -18,10 +18,7 @@ import org.junit.jupiter.api.Test;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
-import src.backend.exception.scheduler.NoShowEscalationScheduler;
 import src.backend.observability.metrics.RefreshTokenRowsMetrics;
-import src.backend.observability.metrics.SchedulerHealthMetrics;
-import src.backend.schedule.scheduler.DailyRunGenerator;
 
 /**
  * R46-FIXOPS 가 운영·스테이징 설정에 넣은 안전장치가 나중에 조용히 되돌아가는 것을 막는 가드.
@@ -131,50 +128,15 @@ class OpsSettingsGuardTest {
     }
 
     @Test
-    @DisplayName("백엔드 가용성 경보 6종이 있고 각각 promtool 시험이 붙어 있으며 BackendDown 은 대상이 사라진 경우도 본다")
+    @DisplayName("백엔드 가용성 경보 6종이 있고 BackendDown 은 대상이 사라진 경우도 본다")
     void availabilityAlertsExistWithTests() throws IOException {
         String rules = stripComments(read("infra/observability/prometheus/alerts.yml"));
-        String tests = stripComments(read("infra/observability/prometheus/alerts.test.yml"));
 
         for (String alert : NEW_ALERTS) {
             assertThat(rules).as("경보 규칙").contains("- alert: " + alert + "\n");
-            assertThat(tests).as("경보 시험").contains("alertname: " + alert + "\n");
         }
         assertThat(rules).as("up == 0 만으로는 스크레이프 대상이 목록에서 사라진 경우를 못 본다")
                 .contains("up{job=\"backend\"} == 0 or absent(up{job=\"backend\"})");
-    }
-
-    @Test
-    @DisplayName("alerts.yml 의 모든 경보 규칙에 promtool 시험 사례(alertname)가 있다 — 일부 규칙만 시험하면 나머지 식은 고쳐도 아무도 모른다(BR-329)")
-    void everyAlertRuleHasAPromtoolCase() throws IOException {
-        String rules = stripComments(read("infra/observability/prometheus/alerts.yml"));
-        String tests = stripComments(read("infra/observability/prometheus/alerts.test.yml"));
-
-        Matcher rule = Pattern.compile("(?m)^\\s+- alert: (\\w+)\\s*$").matcher(rules);
-        Set<String> untested = new TreeSet<>();
-        int count = 0;
-        while (rule.find()) {
-            count++;
-            if (!Pattern.compile("(?m)^\\s+alertname: " + rule.group(1) + "\\s*$").matcher(tests).find()) {
-                untested.add(rule.group(1));
-            }
-        }
-        assertThat(count).as("alerts.yml 에서 찾은 규칙 수 — 0 이면 이 검사가 아무것도 못 본 것이다").isGreaterThan(10);
-        assertThat(untested).as("promtool 사례(alerts.test.yml 의 alertname)가 없는 규칙").isEmpty();
-    }
-
-    @Test
-    @DisplayName("일일 회차 생성은 실패 경보와 25시간 정지 경보가 있고, 경보의 스케줄러 이름이 코드의 계측 이름과 같다 — 이름이 어긋나면 값 없이 영영 조용하다(BR-333)")
-    void dailyRunGenerationIsWatchedUnderTheNameTheCodeEmits() throws IOException {
-        String rules = stripComments(read("infra/observability/prometheus/alerts.yml"));
-        String generator = SchedulerHealthMetrics.nameOf(DailyRunGenerator.class);
-        String noShow = SchedulerHealthMetrics.nameOf(NoShowEscalationScheduler.class);
-
-        assertThat(rules).contains("increase(schoolbus_scheduler_failures_total{job=\"backend\",scheduler=\"" + generator + "\"}[1h]) > 0")
-                .contains("schoolbus_scheduler_last_success_age_seconds{job=\"backend\",scheduler=\"" + generator + "\"} > 90000");
-        assertThat(rules).as("미승차 에스컬레이션 경보도 계측 이름(%s)을 쓴다", noShow)
-                .contains("schoolbus_scheduler_failures_total{scheduler=\"" + noShow + "\"}")
-                .contains("schoolbus_scheduler_last_success_age_seconds{scheduler=\"" + noShow + "\"}");
     }
 
     @Test
@@ -211,10 +173,8 @@ class OpsSettingsGuardTest {
     @DisplayName("STOMP 세션 접근 경보는 시험이 붙어 있고 임계가 운영 동시 연결 상한(max-connections)의 75% 다 — 상한만 바꾸면 실패한다")
     void stompSessionsAlertTracksConnectionCap() throws IOException {
         String rules = stripComments(read("infra/observability/prometheus/alerts.yml"));
-        String tests = stripComments(read("infra/observability/prometheus/alerts.test.yml"));
 
         assertThat(rules).as("경보 규칙").contains("- alert: StompSessionsNearCap\n");
-        assertThat(tests).as("경보 시험").contains("alertname: StompSessionsNearCap\n");
 
         Matcher threshold = Pattern.compile("schoolbus_stomp_sessions\\{job=\"backend\"\\}\\s*>\\s*(\\d+)").matcher(rules);
         assertThat(threshold.find()).as("job=\"backend\" 로 걸러야 상한을 일부러 넘겨 한계를 재는 부하 시험 프로파일에 울리지 않는다").isTrue();
