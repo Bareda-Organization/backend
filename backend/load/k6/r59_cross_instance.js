@@ -32,11 +32,20 @@ for (const inst of ['be1', 'be2']) {
     }
 }
 const subscribeFailures = new Counter('subscribe_failures');
+const subscribersConnected = new Counter('subscribers_connected');
 const sendFailures = new Counter('send_failures');
+
+// 구독자 4명은 시나리오 하나씩이다 — 이름표(SUB)를 환경변수로 받는다. VU 번호로 가르면 안 된다: 번호는 시나리오를 가로질러 매겨져
+// 보내는 쪽 VU 가 구독자 번호 사이(예: 1 2 3 5)에 끼면 같은 이름표가 두 번 나오고 다른 이름표는 빠진다.
+const SUBSCRIBERS = ['be2-student', 'be2-academy', 'be1-student', 'be1-academy'];
+const subscriberScenarios = {};
+for (const sub of SUBSCRIBERS) {
+    subscriberScenarios[sub] = { executor: 'per-vu-iterations', vus: 1, iterations: 1, exec: 'subscriber', env: { SUB: sub }, maxDuration: '2m' };
+}
 
 export const options = {
     scenarios: {
-        subscribers: { executor: 'per-vu-iterations', vus: 4, iterations: 1, exec: 'subscriber', maxDuration: '2m' },
+        ...subscriberScenarios,
         sender: { executor: 'per-vu-iterations', vus: 1, iterations: 1, exec: 'sender', startTime: '0s', maxDuration: '2m' },
     },
 };
@@ -52,11 +61,9 @@ export function setup() {
     return { parent: login(BE1, 'parentA1'), staff: login(BE1, 'staffA'), driver: login(BE1, 'driverA2') };
 }
 
-// VU 1~4 = (BE2 학부모, BE2 관계자, BE1 학부모, BE1 관계자)
+// SUB = <인스턴스>-<채널> (be2-student · be2-academy · be1-student · be1-academy)
 export function subscriber(tokens) {
-    const idx = (__VU - 1) % 4;
-    const inst = idx < 2 ? 'be2' : 'be1';
-    const channel = idx % 2 === 0 ? 'student' : 'academy';
+    const [inst, channel] = __ENV.SUB.split('-');
     const baseUrl = inst === 'be2' ? BE2 : BE1;
     const token = channel === 'student' ? tokens.parent : tokens.staff;
     const destination = channel === 'student' ? `/topic/students/${STUDENT_ID}/run` : `/topic/academy/${ACADEMY_ID}/live`;
@@ -65,6 +72,7 @@ export function subscriber(tokens) {
         socket.on('message', (raw) => {
             for (const frame of parseFrames(raw)) {
                 if (frame.command === 'CONNECTED') {
+                    subscribersConnected.add(1);
                     socket.send(subscribeFrame('sub-1', destination));
                 } else if (frame.command === 'ERROR') {
                     subscribeFailures.add(1);
@@ -102,7 +110,7 @@ function uuid() {
 export function handleSummary(data) {
     const count = (name) => (data.metrics[name] ? data.metrics[name].values.count : 0);
     const result = { sent: { position: count('sent_position'), emergency_raised: count('sent_emergency_raised') },
-        subscribe_failures: count('subscribe_failures'), send_failures: count('send_failures'), received: {} };
+        subscribe_failures: count('subscribe_failures'), subscribers_connected: count('subscribers_connected'), send_failures: count('send_failures'), received: {} };
     for (const key of Object.keys(received)) result.received[key] = count(`recv_${key}`);
     return { [__ENV.RESULT_FILE || '/tmp/r59-cross-instance.json']: JSON.stringify(result) };
 }

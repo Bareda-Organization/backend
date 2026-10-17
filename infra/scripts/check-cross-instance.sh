@@ -31,7 +31,7 @@ echo "== 결과 =="
 report "학생 채널  position         " "$sent_pos" be2_student_position be1_student_position
 report "학원 채널  position         " "$sent_pos" be2_academy_position be1_academy_position
 report "학원 채널  emergency_raised " "$sent_emg" be2_academy_emergency_raised be1_academy_emergency_raised
-[[ "$(jq '.subscribe_failures + .send_failures' "$RESULT")" -eq 0 && "$sent_pos" -gt 0 && "$sent_emg" -eq 1 ]] || { echo "구독 실패 또는 전송 실패가 있다 — 확인이 깨졌다 ($(jq -c '{subscribe_failures,send_failures,sent}' "$RESULT"))"; verdict=2; }
+[[ "$(jq '.subscribe_failures + .send_failures' "$RESULT")" -eq 0 && "$(jq .subscribers_connected "$RESULT")" -eq 4 && "$sent_pos" -gt 0 && "$sent_emg" -eq 1 ]] || { echo "구독 실패 · 전송 실패가 있거나 구독자 4명이 모두 붙지 않았다 — 확인이 깨졌다 ($(jq -c '{subscribe_failures,subscribers_connected,send_failures,sent}' "$RESULT"))"; verdict=2; }
 rm -f "$RESULT"
 case $verdict in
     0) echo "PASS — 받은 건수 = 보낸 건수" ;;
