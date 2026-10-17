@@ -23,10 +23,21 @@ import org.junit.jupiter.api.Test;
  */
 class ErrorCodeSpecParityTest {
 
-    /** 사양은 작업 공간 저장소(이 Gradle 모듈 기준 {@code ../../docs})에 있다 — 2026-10-02 문서 이관. CI 는 {@code API_SPEC_PATH} 로 받는다. */
+    private static final Path SPEC_IN_WORKSPACE = Path.of("docs", "planning", "API_SPEC.md");
+
+    /** 사양은 작업 공간 저장소에 있다. CI 는 {@code API_SPEC_PATH} 로 받고, 없으면 현재 폴더의 상위 폴더를 올라가며 찾는다(워크트리는 깊이가 달라 고정 상대 경로가 어긋난다). */
     private static final Path API_SPEC = System.getenv("API_SPEC_PATH") != null
             ? Path.of(System.getenv("API_SPEC_PATH"))
-            : Path.of("..", "..", "docs", "planning", "API_SPEC.md");
+            : 상위_폴더에서_찾는다();
+
+    private static Path 상위_폴더에서_찾는다() {
+        for (Path dir = Path.of("").toAbsolutePath(); dir != null; dir = dir.getParent()) {
+            if (Files.exists(dir.resolve(SPEC_IN_WORKSPACE))) {
+                return dir.resolve(SPEC_IN_WORKSPACE);
+            }
+        }
+        return Path.of("..", "..").resolve(SPEC_IN_WORKSPACE);
+    }
 
     private static final String SECTION_START = "## 8. 에러 코드 사전";
 
