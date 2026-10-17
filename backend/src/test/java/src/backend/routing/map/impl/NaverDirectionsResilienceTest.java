@@ -82,7 +82,7 @@ class NaverDirectionsResilienceTest {
      * {@code NaverDirectionsGateway.unavailable} 리플렉션 경합(실측)이 <b>스레드
      * 스케줄러의 실제 선점 여부</b>에 달려 있어, 거절 호출을 몇 개만 동시에 걸면 한산한 머신에서는
      * 경합 구간이 열리지 않고 그냥 통과하기 때문이다({@code +4} 로는 단독 실행 3회 중 1회 재현,
-     * {@code +500} 으로는 5회 중 5회 재현 — 조율자 실측). 경합을 여는 것은 대기시간이 아니라
+     * {@code +500} 으로는 5회 중 5회 재현 — 실측). 경합을 여는 것은 대기시간이 아니라
      * <b>동시에 거절되는 호출 수 자체</b>라, sleep 을 늘리지 않고 이 값을 늘린다.
      */
     private static final int REJECTED_CALLS_TO_RACE_THE_FALLBACK = 500;
@@ -278,7 +278,7 @@ class NaverDirectionsResilienceTest {
     }
 
     /**
-     * 목표 3 — 타임아웃이 나면 직선거리 근사로 결과가 나오고 <b>구간 수가 그대로 복원</b>된다.
+     * 타임아웃이 나면 직선거리 근사로 결과가 나오고 <b>구간 수가 그대로 복원</b>된다.
      *
      * <p>구간 수를 함께 보는 이유는 폴백이 "빈 결과" 로 끝나도 {@code fallbackUsed} 만으로는 그것을
      * 알 수 없기 때문이다. 거리까지 보는 것은 폴백이 0을 채워 넣어도 형태는 맞기 때문이다.
@@ -328,7 +328,7 @@ class NaverDirectionsResilienceTest {
     }
 
     /**
-     * 목표 4 — 경유지 상한을 넘으면 <b>나눠 부르고</b>, 이어 붙인 구간 수가 복원된다.
+     * 경유지 상한을 넘으면 <b>나눠 부르고</b>, 이어 붙인 구간 수가 복원된다.
      *
      * <p>세 가지를 함께 본다. ①호출이 2회 이상이다 ②요청마다 실린 지점이 상한을 넘지 않는다
      * ③요청별 구간 수의 합이 입력 구간 수와 <b>정확히</b> 같다. ③이 없으면 상한까지만 보내고 나머지를
@@ -355,7 +355,7 @@ class NaverDirectionsResilienceTest {
     }
 
     /**
-     * 목표 6(BE-R1) — 경유지 상한 자체가 17(경유지 15 + start/goal)이다.
+     * 경유지 상한 자체가 17(경유지 15 + start/goal)이다.
      *
      * <p>사양에서 손으로 옮긴 리터럴을 쓴다 — 위 분할 시험은 {@code maxWaypoints} 를 그대로 되받아
      * 입력을 만들므로, 설정값이 7 로 되돌아가도 분할 로직은 여전히 성립해 <b>아무것도 잡지 못한다</b>
@@ -370,7 +370,7 @@ class NaverDirectionsResilienceTest {
     }
 
     /**
-     * 목표 6(BE-R1) — 정류장 10개(출발·도착 포함 12개 지점) 경로의 외부 호출 횟수 실측.
+     * 정류장 10개(출발·도착 포함 12개 지점) 경로의 외부 호출 횟수 실측.
      *
      * <p>구 상한 7 이었으면 {@code ⌈11/6⌉ = 2} 회, 신 상한 17 이면 {@code ⌈11/16⌉ = 1} 회로 줄어든다
      * (스텁 공급자로 직접 실측 — {@code max-waypoints: 7} 로 되돌려 같은 시험을 다시 돌려
@@ -389,7 +389,7 @@ class NaverDirectionsResilienceTest {
     }
 
     /**
-     * 목표 5 — 서킷이 열리면 온디맨드는 즉시 오류, 배치는 폴백이다.
+     * 서킷이 열리면 온디맨드는 즉시 오류, 배치는 폴백이다.
      *
      * <p>둘을 안 가르면 관리자가 근사 경로를 실제 경로로 믿고 승인한다. <b>응답 시간이 주입한
      * 타임아웃보다 짧다</b>는 것을 함께 보는 이유는, 서킷이 열려 있어도 공급자를 두드리는 구현이면
@@ -434,7 +434,7 @@ class NaverDirectionsResilienceTest {
     }
 
     /**
-     * 목표 5 하위 — 동시 호출이 상한을 넘으면 <b>공급자에 그만큼만 들어간다</b>
+     * 동시 호출이 상한을 넘으면 <b>공급자에 그만큼만 들어간다</b>
      * ({@code TECH_DECISIONS §8} 격벽 · {@code ARCHITECTURE §9.4} 레이트리밋 초과 방지).
      *
      * <p>이 검사가 없으면 {@code max-concurrent-calls: 4} 를 적어 둔 채 아무것도 막지 않는 상태와
@@ -554,7 +554,7 @@ class NaverDirectionsResilienceTest {
     }
 
     /**
-     * 목표 6(BE-R1) — 어댑터가 실제로 두드리는 경로가 Directions 15 다.
+     * 어댑터가 실제로 두드리는 경로가 Directions 15 다.
      *
      * <p>사양에서 손으로 옮긴 리터럴을 쓴다 — {@code DRIVING_PATH} 상수에서 유도하면 그 상수가
      * 옛 값({@code /map-direction/v1/driving})으로 되돌아가도 대조 대상이 같은 값을 베껴 항상

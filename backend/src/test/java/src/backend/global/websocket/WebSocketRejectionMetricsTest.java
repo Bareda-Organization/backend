@@ -44,7 +44,7 @@ class WebSocketRejectionMetricsTest {
     private static final long PARENT_ACCOUNT = 6L;
     private static final char NULL_TERMINATOR = '\0';
 
-    /** K1 ② — ERROR 프레임 뒤 Spring 이 세션을 닫는 코드({@code CloseStatus.PROTOCOL_ERROR} = 1002). 보고서 ② 에 이 값을 적는다. */
+    /** ERROR 프레임 뒤 Spring 이 세션을 닫는 코드({@code CloseStatus.PROTOCOL_ERROR} = 1002). */
     private static final int CLOSE_CODE_AFTER_ERROR_FRAME = 1002;
 
     @LocalServerPort

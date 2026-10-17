@@ -10,7 +10,7 @@ import java.time.ZoneOffset;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@link RetentionPolicy} 컷오프 계산 단위 시험(목표 6) — DB 없이 순수 계산만 검증한다. 각 테이블의
+ * {@link RetentionPolicy} 컷오프 계산 단위 시험 — DB 없이 순수 계산만 검증한다. 각 테이블의
  * 실제 삭제 여부는 {@link RetentionCleanupSchedulerTest} 가 담당한다.
  */
 class RetentionPolicyTest {

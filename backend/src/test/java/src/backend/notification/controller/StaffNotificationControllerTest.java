@@ -29,9 +29,8 @@ import testsupport.clock.FixedClock20300401Config;
  * unacked_count} 가 페이지·필터와 무관하게 학원 전체 미확인 건수인지, 푸시 off 로 막힌 행도 전수
  * 조회에서 빠지지 않는지 검사한다.
  *
- * <p>{@code acked} 필드가 T2 의 실제 확인 처리 쓰기 경로를 거쳐 채워지는지 검증하는 경계 시험은
- * 이 워크트리에 그 경로가 부재해 미포함이다 — {@link StaffNotificationFixtures} 클래스 javadoc과
- * report-p12-t3.md 2항 참고. 여기서 쓰는 "이미 확인된" 행은 구조적 시험 데이터일 뿐이다.
+ * <p>{@code acked} 필드가 실제 확인 처리 쓰기 경로를 거쳐 채워지는지 검증하는 경계 시험은
+ * 이 워크트리에 그 경로가 부재해 미포함이다 — {@link StaffNotificationFixtures} 클래스 javadoc 참고. 여기서 쓰는 "이미 확인된" 행은 구조적 시험 데이터일 뿐이다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -53,7 +52,7 @@ class StaffNotificationControllerTest {
 
 
 
-    // ── goal 10 — type 필터 ───────────────────────────────────────────────
+    // ── type 필터 ───────────────────────────────────────────────
 
     @Test
     @DisplayName("goal10 — type 필터는 매칭 종류만 남기고 비매칭 종류는 뺀다")
@@ -74,7 +73,7 @@ class StaffNotificationControllerTest {
                 .andExpect(jsonPath("$.data.items[0].type").value("boarding"));
     }
 
-    // ── goal 10 — date 필터(sent_at, 없으면 created_at) ─────────────────────
+    // ── date 필터(sent_at, 없으면 created_at) ─────────────────────
 
     @Test
     @DisplayName("goal10 — date 필터는 sent_at(없으면 created_at) 이 그 날짜인 행만 남기고 하루 밖은 뺀다")
@@ -100,7 +99,7 @@ class StaffNotificationControllerTest {
                                 String.valueOf(matchingSent), String.valueOf(matchingPending))));
     }
 
-    // ── goal 10 — acked 필터 ─────────────────────────────────────────────
+    // ── acked 필터 ─────────────────────────────────────────────
 
     @Test
     @DisplayName("goal10 — acked 필터는 매칭 확인 상태만 남긴다")
@@ -152,7 +151,7 @@ class StaffNotificationControllerTest {
                 .andExpect(jsonPath("$.data.items[0].notification_id").value(importantId));
     }
 
-    // ── goal 10 — 푸시 off 로 차단된 건도 전수 조회에 남는다 ─────────────────
+    // ── 푸시 off 로 차단된 건도 전수 조회에 남는다 ─────────────────
 
     @Test
     @DisplayName("goal10 — 푸시 off 로 차단(SKIPPED)된 행도 필터 없는 목록에서 빠지지 않는다")
@@ -170,7 +169,7 @@ class StaffNotificationControllerTest {
                 .andExpect(jsonPath("$.data.items[0].notification_id").value(skippedId));
     }
 
-    // ── goal 11 — unacked_count 는 페이지·필터와 무관 ─────────────────────
+    // ── unacked_count 는 페이지·필터와 무관 ─────────────────────
 
     @Test
     @DisplayName("goal11 — unacked_count 는 type 필터를 걸어도 학원 전체 미확인 건수를 그대로 돌려준다")
@@ -198,7 +197,7 @@ class StaffNotificationControllerTest {
                 .andExpect(jsonPath("$.data.unacked_count").value(2));
     }
 
-    // ── goal 10·11 — 필드 조립(snake_case 리터럴 검사) ───────────────────
+    // ── 필드 조립(snake_case 리터럴 검사) ───────────────────
 
     @Test
     @DisplayName("goal10·11 — 응답 항목 필드가 §5.17 대로 snake_case 로 실린다(bus_no 는 선택)")

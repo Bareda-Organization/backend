@@ -40,8 +40,8 @@ import src.backend.global.security.JwtTokenProvider;
  * 학원 관계자·메인관리자 단말의 비상 알림 수신 범위·확인(ack) API(EXC-04) —
  * {@code /staff/emergencies/{id}/ack}.
  *
- * <p>목표 6·7 은 컨트롤러가 아니라 신고 접수 시점에 {@code EmergencyNotificationListener} 가 채우는
- * {@code notification_log} 를 직접 SQL 로 대조한다 — 그 리스너가 목표 6·7 이 실제로 등재되는
+ * <p>수신 규칙은 컨트롤러가 아니라 신고 접수 시점에 {@code EmergencyNotificationListener} 가 채우는
+ * {@code notification_log} 를 직접 SQL 로 대조한다 — 그 리스너가 수신 규칙이 실제로 등재되는
  * 유일한 지점이라({@code exception/controller} 밖의 소유 경로 산출물) API 응답만으로는 "누가 못
  * 받았는가" 를 검증할 수 없다.
  */
@@ -73,7 +73,7 @@ class StaffEmergencyControllerTest {
 
 
 
-    // ── goal 6 — 학원 관계자 + 메인관리자 동시 수신, 목표 7 — 학부모·학생 미수신 ──────────
+    // ── 학원 관계자 + 메인관리자 동시 수신, 학부모·학생 미수신 ──────────
 
     @Test
     void 비상_신고는_학원_관계자와_메인관리자_각각에게_한_건씩_알림을_남긴다() throws Exception {
@@ -147,7 +147,7 @@ class StaffEmergencyControllerTest {
         assertThat(전체_수신자_행수(studentAccountId)).as("목표 7 — 학생은 비상 알림을 받으면 안 된다").isZero();
     }
 
-    // ── goal 10 — 확인(ack) 처리 · 이력 반영 · 중복 확인 거절 ────────────────
+    // ── 확인(ack) 처리 · 이력 반영 · 중복 확인 거절 ────────────────
 
     @Test
     void 학원_관계자의_확인은_발신자에게_반영되고_이력에_남는다() throws Exception {
@@ -373,15 +373,14 @@ class StaffEmergencyControllerTest {
                         .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk());
 
-        // R7 목표 1 — 기본값은 open 이라 방금 확인(ack)한 신고를 보려면 status 를 명시해야 한다.
+        // 기본값은 open 이라 방금 확인(ack)한 신고를 보려면 status 를 명시해야 한다.
         String body = 목록을_조회한다(staffAccountId, academyId, "status", "acked");
 
         Map<String, Object> item = 항목(body, emergencyId);
         assertThat(item).as("§5.16 이 요구하는 7키 전부가 있어야 한다(Phase 13 목표 13 완료 기준 2)")
                 .containsKeys("emergency_id", "raised_by", "position", "direction", "contacts", "raised_at",
                         "acked_by");
-        // BE-R1 목표 3 — §5.16 표는 type 값을 소문자 스네이크로 적었으나(accident 등), 정정 전에는
-        // EmergencyType enum 의 name() 을 그대로 실어 대문자(ACCIDENT)로 나갔다.
+        // type 은 §5.16 표의 소문자 스네이크(accident 등)로 나가야 한다. EmergencyType enum 의 name() 을 그대로 실으면 대문자(ACCIDENT)가 나간다.
         assertThat(item.get("type")).as("type 은 §5.16 대로 소문자여야 한다").isEqualTo("accident");
         assertThat(item).as("정본 키는 id 가 아니라 emergency_id 다(Phase 13 목표 13 판정 ①)")
                 .doesNotContainKey("id")
@@ -411,7 +410,7 @@ class StaffEmergencyControllerTest {
     }
 
     /**
-     * direction 이 상수 고정이 아니라 회차의 실제 값을 반영하는지 본다(목표 5) — 위 시험은
+     * direction 이 상수 고정이 아니라 회차의 실제 값을 반영하는지 본다 — 위 시험은
      * {@code to_academy} 회차만 써서 필드가 항상 같은 문자열을 돌려줘도 통과한다. 정본
      * ({@code API_SPEC.md}) 과 코드({@code Direction.java}) 어디에도 {@code to_home} 값은 없고
      * {@code to_academy}·{@code from_academy} 둘뿐이라, 반대값은 {@code from_academy} 로 잡는다.
@@ -503,7 +502,7 @@ class StaffEmergencyControllerTest {
                 .isCloseTo(receivedAt, within(1, ChronoUnit.SECONDS));
     }
 
-    // ── R7 목표 1 — status·date 쿼리 필터(§5.16, Ruling 297) ────────────────
+    // ── status·date 쿼리 필터(§5.16, Ruling 297) ────────────────
 
     @Test
     void status_필터를_생략하면_기본값_open만_담고_acked_canceled는_뺀다() throws Exception {
@@ -641,7 +640,7 @@ class StaffEmergencyControllerTest {
                 .andReturn().getResponse().getContentAsString();
     }
 
-    /** R7 목표 1 — status·date 쿼리 파라미터 1개를 실어 조회한다. */
+    /** status·date 쿼리 파라미터 1개를 실어 조회한다. */
     private String 목록을_조회한다(long staffAccountId, long academyId, String paramName, String paramValue)
             throws Exception {
         return mockMvc.perform(get(LIST).param(paramName, paramValue)
@@ -676,19 +675,19 @@ class StaffEmergencyControllerTest {
                 OffsetDateTime.class, emergencyId);
     }
 
-    /** R7 목표 1 — date 필터(received_at 기준) 검증용. {@code AdminEmergencyControllerTest} 와 같은 패턴. */
+    /** date 필터(received_at 기준) 검증용. {@code AdminEmergencyControllerTest} 와 같은 패턴. */
     private void 접수시각을_옮긴다(long emergencyId, OffsetDateTime receivedAt) {
         jdbcTemplate.update("UPDATE emergency_alert SET received_at = ? WHERE id = ?", receivedAt, emergencyId);
         entityManager.clear();
     }
 
-    /** R7 목표 1 — status=acked 필터 검증용. {@code AdminEmergencyControllerTest} 와 같은 패턴. */
+    /** status=acked 필터 검증용. {@code AdminEmergencyControllerTest} 와 같은 패턴. */
     private void 확인시각을_옮긴다(long emergencyId, OffsetDateTime ackedAt) {
         jdbcTemplate.update("UPDATE emergency_alert SET acked_at = ? WHERE id = ?", ackedAt, emergencyId);
         entityManager.clear();
     }
 
-    /** R7 목표 1 — status=canceled 필터 검증용. {@code AdminEmergencyControllerTest} 와 같은 패턴. */
+    /** status=canceled 필터 검증용. {@code AdminEmergencyControllerTest} 와 같은 패턴. */
     private void 취소시각을_옮긴다(long emergencyId, OffsetDateTime canceledAt) {
         jdbcTemplate.update("UPDATE emergency_alert SET canceled_at = ? WHERE id = ?", canceledAt, emergencyId);
         entityManager.clear();

@@ -41,7 +41,7 @@ import testsupport.clock.FixedClock20300401Config;
  * 경계로 검증한다.
  *
  * <p>{@code @Transactional} 을 쓰지 않는다({@code RunConfirmationConcurrencyTest} 와 같은 근거) —
- * 롤백 시 미발행(목표 7의 급소)을 검사하려면 실제 트랜잭션 경계가 있어야 하는데, 클래스에 붙이면
+ * 롤백 시 미발행을 검사하려면 실제 트랜잭션 경계가 있어야 하는데, 클래스에 붙이면
  * {@link TransactionTemplate} 이 테스트 트랜잭션에 합류해 {@code setRollbackOnly} 가 테스트 전체를
  * 되돌릴 뿐 커밋 여부를 가려낼 수단이 없어진다.
  */

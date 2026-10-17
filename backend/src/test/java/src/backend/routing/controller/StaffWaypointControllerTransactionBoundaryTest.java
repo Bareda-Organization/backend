@@ -106,7 +106,7 @@ class StaffWaypointControllerTransactionBoundaryTest {
      * 트랜잭션 경계가 없으면(결함) {@code deleteAllUnappliedByRunIdAndAcademyId} 에서
      * {@code TransactionRequiredException} 이 나 {@code 500} 이 나가고 저장까지 못 간다. 고쳤으면
      * 저장은 성공하고(행 1개가 실제로 커밋됨) 그다음 {@code routeContextOf} 가 미확정 회차를 걸러
-     * {@code 409 RUN_NOT_CONFIRMED} 로 응답한다 — 목표 4 의 완료 조건이 POST 경로에서도 성립함을
+     * {@code 409 RUN_NOT_CONFIRMED} 로 응답한다 — 완료 조건이 POST 경로에서도 성립함을
      * 이 단언이 고정한다.
      */
     @Test

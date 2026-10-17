@@ -43,7 +43,7 @@ class EmergencyBroadcastListenerTest {
 
     private final EmergencyBroadcastListener listener = new EmergencyBroadcastListener(gateway, Runnable::run);
 
-    // ── goal 6·7 — 접수 방송은 학원·관리자 채널로만, 학생 채널은 절대 안 됨 ──────────
+    // ── 접수 방송은 학원·관리자 채널로만, 학생 채널은 절대 안 됨 ──────────
 
     @Test
     @DisplayName("접수 방송은 academyLive·ADMIN_LIVE 로만 가고, 학생 채널·managerRun 은 타지 않는다")
@@ -121,7 +121,7 @@ class EmergencyBroadcastListenerTest {
         assertThat(json.get("position").get("lng").isNull()).isTrue();
     }
 
-    // ── goal 10, Ruling 277 — 확인(ack) 방송은 매니저 채널 전용(API_SPEC §7.1) ──────────
+    // ── Ruling 277 — 확인(ack) 방송은 매니저 채널 전용(API_SPEC §7.1) ──────────
 
     @Test
     @DisplayName("확인 방송은 발신자 채널(managerRun) 하나로만 가고, 학원·관리자·학생 채널은 타지 않는다")
@@ -190,7 +190,7 @@ class EmergencyBroadcastListenerTest {
     }
 
     /**
-     * 목표 7(학부모·학생은 비상 알림을 받지 않는다)이 WebSocket 계층에도 다시 어긋나지 않는지
+     * 학부모·학생은 비상 알림을 받지 않는다는 규칙이 WebSocket 계층에도 다시 어긋나지 않는지
      * 고정한다 — {@code send} 가 이미 다른 목적지로 호출된 뒤라 {@code never().send(any(), ...)} 를
      * 쓰면 그 호출 자체와 충돌하므로, 목적지 문자열이 학생 채널 접두사인 호출만 골라 없음을 검증한다.
      */

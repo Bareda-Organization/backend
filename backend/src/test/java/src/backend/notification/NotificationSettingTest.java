@@ -70,7 +70,7 @@ class NotificationSettingTest {
     }
 
     /**
-     * 목표 9 의 핵심 — 지연·비상 2종은 <b>설정 항목 자체가 없다</b>(NTF-07). 3종 토글을 전부 꺼도
+     * 지연·비상 2종은 <b>설정 항목 자체가 없다</b>(NTF-07). 3종 토글을 전부 꺼도
      * 이 종류들은 항상 켜진 것으로 판정돼야, {@code NotificationDispatcher} 가 이 값만 보고도
      * 절대 막지 않는다.
      */

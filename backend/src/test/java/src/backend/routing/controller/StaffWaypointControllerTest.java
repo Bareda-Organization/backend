@@ -61,8 +61,8 @@ import src.backend.run.repository.RunRepository;
  *
  * <p><b>이 클래스의 최우선 단언은 {@code apply} 가 실제로 미리보기와 배포를 가르는가</b>다 —
  * {@code apply=false} 는 {@code confirmed_route}·{@code route_version} 을 건드리지 않아야 하고,
- * {@code apply=true} 라야 새 버전이 배포되고 {@code route_changed} 알림이 나간다(목표 11). 두 번째
- * 축은 이미 배포된 경유 지점이 재최적화를 다시 돌려도 <b>자리를 지키는가</b>다(목표 7) — 아니면 매번
+ * {@code apply=true} 라야 새 버전이 배포되고 {@code route_changed} 알림이 나간다. 두 번째
+ * 축은 이미 배포된 경유 지점이 재최적화를 다시 돌려도 <b>자리를 지키는가</b>다 — 아니면 매번
  * 추가·삭제할 때마다 앞서 고정한 지점이 흔들려 "고정" 의 의미가 없다.
  *
  * <p>{@code SERVICE_DATE} 를 먼 미래(2030년 월요일)로 두어 실제 시계로도 항상 ①·②구간(허용)이
@@ -122,7 +122,7 @@ class StaffWaypointControllerTest {
         return fixtures;
     }
 
-    // ── 목표 11 — apply 가 미리보기·배포를 가른다 ─────────────────────────
+    // ── apply 가 미리보기·배포를 가른다 ─────────────────────────
 
     /** {@code apply=false} 는 미리보기만 계산하고 확정 노선(현재 버전·버전 개수)은 그대로다. */
     @Test
@@ -230,7 +230,7 @@ class StaffWaypointControllerTest {
                 .isEqualTo(1);
     }
 
-    // ── 목표 9 — 운행 시작 후는 403 ───────────────────────────────────────
+    // ── 운행 시작 후는 403 ───────────────────────────────────────
 
     /** 운행 중(③구간)인 회차는 관계자 요청이라도 403 이다. */
     @Test
@@ -314,7 +314,7 @@ class StaffWaypointControllerTest {
                 .andExpect(jsonPath("$.error.code").value("RUN_CANCELED"));
     }
 
-    // ── 목표 4 — 확정 노선이 아직 산출되지 않은 회차는 409 ────────────────
+    // ── 확정 노선이 아직 산출되지 않은 회차는 409 ────────────────
 
     /**
      * idle 회차(확정 배치가 아직 안 돈 상태)로 경유 지점을 지정하면 날것 {@code 500} 이 아니라
@@ -435,7 +435,7 @@ class StaffWaypointControllerTest {
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
-    // ── 목표 7 — 이미 배포된 경유 지점은 재최적화에서도 자리를 지킨다 ──────
+    // ── 이미 배포된 경유 지점은 재최적화에서도 자리를 지킨다 ──────
 
     /**
      * 경유 지점 A 를 배포한 뒤 경유 지점 B 를 추가로 배포하면(A 입장에선 재최적화가 다시 도는 것) A 의

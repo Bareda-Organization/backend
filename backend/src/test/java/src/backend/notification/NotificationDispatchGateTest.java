@@ -80,7 +80,7 @@ class NotificationDispatchGateTest {
     }
 
     /**
-     * 목표 8 의 부정 사례 — 도착 알림 설정을 끄면 그 종류의 알림은 푸시가 나가지 않지만,
+     * 부정 사례 — 도착 알림 설정을 끄면 그 종류의 알림은 푸시가 나가지 않지만,
      * {@code notification_log} 행은 {@code skipped} 로 여전히 남는다(사라지지 않는다).
      *
      * <p>{@code push_attempts} 가 그대로 0 인지도 본다 — {@code markSkipped} 는 {@code claim} 을
@@ -151,7 +151,7 @@ class NotificationDispatchGateTest {
     }
 
     /**
-     * 목표 9 — 지연 알림은 설정 항목 자체가 없어(NTF-07) 3종 토글을 전부 꺼도 항상 발송돼야 한다.
+     * 지연 알림은 설정 항목 자체가 없어(NTF-07) 3종 토글을 전부 꺼도 항상 발송돼야 한다.
      * {@link NotificationSettingTest} 가 판정값을 이미 고정했으니, 여기서는 그 값이 실제 발송
      * 경로에서도 그대로 지켜지는지를 본다.
      */
