@@ -301,7 +301,7 @@ class NotificationOutboxWorkerTest {
 
     /** 지금 시각 기준으로 워커가 집을 후보의 식별자 목록 — 워커가 쓰는 인자를 그대로 넘긴다. */
     private List<Long> 회수_후보() {
-        return notificationLogRepository.findRetryCandidates(PushState.PENDING,
+        return notificationLogRepository.findRetryCandidates(
                         NotificationRetryPolicy.MAX_ATTEMPTS,
                         retryPolicy.attemptedBefore(OffsetDateTime.now(clock)), PageRequest.of(0, 100))
                 .stream()

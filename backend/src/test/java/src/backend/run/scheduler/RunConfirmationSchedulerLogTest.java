@@ -55,7 +55,7 @@ class RunConfirmationSchedulerLogTest {
         logger.addAppender(appender);
         Run run = mock(Run.class);
         when(run.getId()).thenReturn(1L);
-        when(runRepository.findDueForConfirmation(any(), any(), any(), any(Pageable.class))).thenReturn(List.of(run));
+        when(runRepository.findDueForConfirmation(any(), any(), any(Pageable.class))).thenReturn(List.of(run));
     }
 
     @AfterEach

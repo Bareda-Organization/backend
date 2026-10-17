@@ -21,7 +21,6 @@ import src.backend.observability.metrics.RunConfirmationMetrics;
 import src.backend.run.command.RunConfirmationService;
 import src.backend.run.domain.RunConfirmationPolicy;
 import src.backend.run.entity.Run;
-import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 
 /**
@@ -78,7 +77,7 @@ public class RunConfirmationScheduler {
             initialDelayString = "${app.run.confirmation.initial-delay-ms:0}")
     public void confirmDueRuns() {
         OffsetDateTime now = OffsetDateTime.now(clock);
-        List<Run> dueRuns = runRepository.findDueForConfirmation(now, LocalDate.now(clock), RunStatus.IDLE,
+        List<Run> dueRuns = runRepository.findDueForConfirmation(now, LocalDate.now(clock),
                 PageRequest.of(0, BATCH_SIZE));
 
         List<CompletableFuture<Void>> tasks = dueRuns.stream()
