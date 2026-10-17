@@ -200,7 +200,7 @@ class StompChannelAuthorizationTest {
     }
 
     /**
-     * BR-008 — 브로커 목적지({@code /topic/**}·{@code /queue/**}·{@code /user/**})로 온 클라이언트 SEND 는
+     * BR-008 — 브로커 목적지({@code /topic/**})로 온 클라이언트 SEND 는
      * 심플 브로커가 구독자에게 그대로 배달한다. 서버 발행분과 구별할 수단이 없으므로 SEND 자체를 거부해야
      * 한다. 구독자 쪽에 가짜 본문이 <b>도착하지 않는다</b>는 것까지 봐야 "거부 프레임만 오고 배달은 됐다" 가 갈린다.
      */
