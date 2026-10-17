@@ -28,7 +28,7 @@ import src.backend.account.repository.AccountRepository;
  * 기본키 조회(위치 송신 2초 × 기사 수)가 연결 풀을 채웠다. "다음 요청부터" 가 "5초 뒤부터" 로 늦어지지 않게, 상태를 바꾸는 쪽이
  * 커밋 직후 {@link #evict} 로 그 계정 항목을 비운다({@link AccountStandingEvictionListener}). 비우는 쪽이 하나라도 빠지면 응답이 200 그대로라
  * 어떤 검사도 못 잡으므로 {@code AccountStandingCacheTest} 가 경로마다 실제 커밋으로 확인한다. 0초면 캐시를 쓰지 않는다 — 시험 묶음이 그 값으로
- * 돌아 직접 SQL 로 상태를 바꾸는 옛 시험이 그대로 통한다. 인스턴스마다 따로 보관하므로 2대가 되면 비움 신호 전파가 필요하다.
+ * 돌아 직접 SQL 로 상태를 바꾸는 옛 시험이 그대로 통한다. 인스턴스마다 따로 보관하므로 비움은 다른 인스턴스에도 신호로 알린다({@link AccountStandingEvictionListener}) — 신호를 놓쳐도 이 보관 시간이 낡은 값의 상한이다.
  */
 @Component
 public class AccountStanding {

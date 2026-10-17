@@ -17,8 +17,8 @@ import src.backend.routing.dto.PositionStopView;
 
 /**
  * 위치 1건(2초마다)이 읽던 회차별 정차 목록 · 탑승 학생 목록의 메모리 캐시(RT-5, Ruling 899 K) — 두 목록은 도착 · 결석 · 운행 전환 때만
- * 바뀌므로 그 이벤트가 커밋될 때 비우고({@code RunBroadcastCacheEvictionListener}) 그 사이에는 다시 읽지 않는다. 1대 운영 기준이라 인스턴스 간
- * 비움 전파가 없다.
+ * 바뀌므로 그 이벤트가 커밋될 때 비우고({@code RunBroadcastCacheEvictionListener}) 그 사이에는 다시 읽지 않는다. 인스턴스마다 따로 보관하므로 비움은 다른
+ * 인스턴스에도 신호로 알린다({@code RunBroadcastCacheEvictionListener}).
  *
  * <p><b>비움과 읽기가 겹쳐도 낡은 목록이 남지 않는다</b> — 읽기가 시작된 뒤 비움이 한 번이라도 일어났으면 읽은 값을 넣지 않는다(비움 횟수
  * 비교, 확인과 저장은 한 키의 {@code compute} 안에서 원자적으로). 놓친 이벤트가 있어도 {@value #BACKSTOP_MINUTES}분 뒤에는 스스로 다시 읽는다.

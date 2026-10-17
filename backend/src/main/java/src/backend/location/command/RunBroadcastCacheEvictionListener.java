@@ -4,9 +4,12 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import jakarta.annotation.PostConstruct;
+
 import lombok.RequiredArgsConstructor;
 
 import src.backend.global.location.RunRidersChangedEvent;
+import src.backend.global.cache.CacheEvictionRelay;
 import src.backend.location.infrastructure.RunBroadcastCache;
 import src.backend.run.event.RunCanceledEvent;
 import src.backend.run.event.RunEndedEvent;
@@ -24,39 +27,55 @@ public class RunBroadcastCacheEvictionListener {
 
     private final RunBroadcastCache cache;
 
+    private final CacheEvictionRelay evictionRelay;
+
+    /** 다른 인스턴스가 회차의 목록을 비웠다는 신호가 오면 이 인스턴스의 목록도 비운다(Ruling 900 D). */
+    @PostConstruct
+    void listenForOtherInstances() {
+        evictionRelay.register(CacheEvictionRelay.RUN_ALL, cache::evict);
+        evictionRelay.register(CacheEvictionRelay.RUN_STOPS, cache::evictStops);
+        evictionRelay.register(CacheEvictionRelay.RUN_STUDENTS, cache::evictStudents);
+    }
+
     /** 정류장 도착 — 현재 정차지와 다음 도착 예정 시각이 바뀐다(탑승 학생 목록은 그대로). */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onStopArrived(StopArrivedEvent event) {
         cache.evictStops(event.runId());
+        evictionRelay.publish(CacheEvictionRelay.RUN_STOPS, event.runId());
     }
 
     /** 운행 시작. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onRunStarted(RunStartedEvent event) {
         cache.evict(event.runId());
+        evictionRelay.publish(CacheEvictionRelay.RUN_ALL, event.runId());
     }
 
     /** 운행 종료. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onRunEnded(RunEndedEvent event) {
         cache.evict(event.runId());
+        evictionRelay.publish(CacheEvictionRelay.RUN_ALL, event.runId());
     }
 
     /** 회차 취소. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onRunCanceled(RunCanceledEvent event) {
         cache.evict(event.runId());
+        evictionRelay.publish(CacheEvictionRelay.RUN_ALL, event.runId());
     }
 
     /** 노선 확정(새 판본) — 정차 목록 자체가 바뀐다. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onRouteConfirmed(RunRouteConfirmedEvent event) {
         cache.evict(event.runId());
+        evictionRelay.publish(CacheEvictionRelay.RUN_ALL, event.runId());
     }
 
     /** 탑승 학생 목록 변경 — 결석 전이 · 탑승자 최초 생성. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onRidersChanged(RunRidersChangedEvent event) {
         cache.evictStudents(event.runId());
+        evictionRelay.publish(CacheEvictionRelay.RUN_STUDENTS, event.runId());
     }
 }
