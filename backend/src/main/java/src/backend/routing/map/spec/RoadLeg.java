@@ -2,7 +2,7 @@ package src.backend.routing.map.spec;
 
 import java.util.List;
 
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 
 /**
  * 이웃한 두 지점 사이의 한 구간 — ETA 산출(④단계)이 이 값을 누적한다.

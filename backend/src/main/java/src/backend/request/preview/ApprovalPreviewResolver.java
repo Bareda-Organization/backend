@@ -26,7 +26,7 @@ import src.backend.request.entity.ChangeRequest;
 import src.backend.request.entity.ChangeRequestType;
 import src.backend.request.preview.spec.ApprovalPreview;
 import src.backend.request.preview.spec.ApprovalPreviewCache;
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 import src.backend.routing.engine.spec.FixedStop;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RouteStop;

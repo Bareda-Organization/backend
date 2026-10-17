@@ -3,7 +3,7 @@ package src.backend.location.proximity;
 import org.springframework.stereotype.Component;
 
 import src.backend.global.policy.PolicyConstants;
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 
 /**
  * 승하차지 거리 판정 — 근접(NTF-04, Ruling 207: 다음 미도착 승하차지까지 300m 이내 진입) · 출발

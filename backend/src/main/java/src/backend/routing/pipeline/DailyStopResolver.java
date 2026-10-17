@@ -10,7 +10,7 @@ import java.util.TreeMap;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 import src.backend.routing.engine.spec.OrderableStop;
 import src.backend.student.entity.Stop;
 import src.backend.student.repository.StopRepository;

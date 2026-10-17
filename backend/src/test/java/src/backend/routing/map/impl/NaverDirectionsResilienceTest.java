@@ -43,7 +43,7 @@ import io.github.resilience4j.retry.Retry;
 import io.github.resilience4j.retry.RetryRegistry;
 
 import src.backend.global.error.ErrorCode;
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 import src.backend.routing.map.spec.CallerPolicy;
 import src.backend.routing.map.spec.MapRouteClient;
 import src.backend.routing.map.spec.MapRouteUnavailableException;

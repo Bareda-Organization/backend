@@ -35,7 +35,7 @@ import src.backend.global.retention.RetentionPolicy;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.location.proximity.ProximityJudge;
 import src.backend.request.entity.BoardingIntent;
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 import src.backend.run.domain.RunConfirmationPolicy;
 import src.backend.run.domain.RunStartWindowPolicy;
 

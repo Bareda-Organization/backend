@@ -3,7 +3,7 @@ package src.backend.routing.map.spec;
 import java.util.ArrayList;
 import java.util.List;
 
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 
 /**
  * 지점열 전체의 도로 경로 — {@code legs.size() == points.size() - 1} 이 <b>폴백에서도</b> 성립한다.

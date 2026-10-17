@@ -3,7 +3,7 @@ package src.backend.routing.map.impl;
 import java.util.ArrayList;
 import java.util.List;
 
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 
 /**
  * 지점열을 공급자 1회 호출이 감당하는 크기로 나눈다 — 경유지 상한 초과 시 구간 분할

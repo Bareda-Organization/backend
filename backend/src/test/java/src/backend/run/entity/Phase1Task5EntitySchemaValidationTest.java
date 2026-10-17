@@ -37,7 +37,7 @@ import src.backend.manager.entity.Assignment;
 import src.backend.manager.entity.Manager;
 import src.backend.manager.entity.ManagerProfile;
 import src.backend.manager.entity.WorkHours;
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.Route;
 import src.backend.routing.entity.RoutePlan;

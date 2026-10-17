@@ -1,6 +1,6 @@
 package src.backend.routing.engine.impl;
 
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 
 /**
  * 계산 도중의 한 자리 — 순번을 아직 달지 않은 {@code OrderedStop} 이다.

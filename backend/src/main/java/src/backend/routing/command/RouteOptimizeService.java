@@ -17,7 +17,7 @@ import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 import src.backend.routing.domain.RouteStopLimit;
 import src.backend.routing.assembly.RouteDetailAssembler;
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 import src.backend.routing.dto.RouteDetailResponse;
 import src.backend.routing.dto.RouteOptimizeRequest;
 import src.backend.routing.engine.spec.FixedStop;

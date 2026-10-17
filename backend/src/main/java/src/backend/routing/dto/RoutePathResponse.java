@@ -3,7 +3,7 @@ package src.backend.routing.dto;
 import java.time.OffsetDateTime;
 import java.util.List;
 
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 
 /**
  * 고정 노선의 <b>도로 경로</b>(API_SPEC §5.9 {@code GET /staff/routes/{id}/path} 신설, RTE-01) —

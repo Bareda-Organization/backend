@@ -20,7 +20,7 @@ import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 import src.backend.manager.access.ManagerRunAccess;
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.entity.RunStop;

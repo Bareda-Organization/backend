@@ -33,7 +33,7 @@ import src.backend.request.entity.ChangeRequest;
 import src.backend.request.entity.ChangeRequestSource;
 import src.backend.request.entity.ChangeRequestType;
 import src.backend.request.repository.ChangeRequestRepository;
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.entity.RouteVersionSource;

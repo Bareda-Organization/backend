@@ -32,7 +32,7 @@ import src.backend.manager.entity.Assignment;
 import src.backend.manager.entity.Manager;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.repository.ConfirmedRouteRepository;

@@ -38,7 +38,7 @@ import src.backend.global.security.JwtTokenProvider;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
 import src.backend.request.repository.ChangeRequestRepository;
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 import src.backend.routing.entity.Route;
 import src.backend.routing.entity.RoutePlan;
 import src.backend.routing.entity.Waypoint;

@@ -25,7 +25,7 @@ import com.jayway.jsonpath.JsonPath;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 import src.backend.routing.map.spec.MapRouteClient;
 import src.backend.routing.map.spec.RoadLeg;
 import src.backend.routing.map.spec.RoadRoute;

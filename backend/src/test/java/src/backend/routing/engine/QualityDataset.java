@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import src.backend.global.common.enums.Direction;
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 import src.backend.routing.engine.spec.FixedStop;
 import src.backend.routing.engine.spec.OrderableStop;
 import src.backend.routing.engine.spec.OrderedStop;

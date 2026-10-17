@@ -23,7 +23,7 @@ import src.backend.request.domain.ChangeWindow;
 import src.backend.request.domain.ChangeWindowPolicy;
 import src.backend.request.dto.PreviewStopResponse;
 import src.backend.request.dto.RoutePreviewResponse;
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 import src.backend.routing.dto.WaypointRequest;
 import src.backend.routing.command.WaypointPreviewCache.WaypointPreview;
 import src.backend.routing.dto.WaypointResponse;

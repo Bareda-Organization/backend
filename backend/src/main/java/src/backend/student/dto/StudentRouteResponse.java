@@ -1,5 +1,7 @@
 package src.backend.student.dto;
 
+import src.backend.global.location.GeoPoint;
+
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -23,7 +25,7 @@ import java.util.List;
  * (확정 전은 {@code false})이다.
  */
 public record StudentRouteResponse(Long runId, String busNo, OffsetDateTime departTime, boolean confirmed,
-        Contact driver, EscortContact escort, Long myStopId, List<Stop> stops, List<RoadPoint> roadPath,
+        Contact driver, EscortContact escort, Long myStopId, List<Stop> stops, List<GeoPoint> roadPath,
         boolean fallbackUsed) {
 
     /** 기사 표시용 이름만 — 연락처는 없다(위 클래스 자바독). */

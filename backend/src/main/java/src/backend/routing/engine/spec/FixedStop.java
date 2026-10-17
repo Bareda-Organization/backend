@@ -2,7 +2,7 @@ package src.backend.routing.engine.spec;
 
 import java.util.Objects;
 
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 
 /**
  * 위치가 고정된 정차지 — 경유 지점(RTE-10)이 이 형태로 들어온다.

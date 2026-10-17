@@ -1,4 +1,4 @@
-package src.backend.routing.domain;
+package src.backend.global.location;
 
 import java.math.BigDecimal;
 

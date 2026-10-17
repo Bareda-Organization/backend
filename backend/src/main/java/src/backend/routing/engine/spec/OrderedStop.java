@@ -2,7 +2,7 @@ package src.backend.routing.engine.spec;
 
 import java.util.Objects;
 
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 
 /**
  * 산출 순서의 한 자리 — 승하차지이거나 경유 지점이고, 둘 다이거나 둘 다 아닐 수는 없다.

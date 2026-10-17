@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 import src.backend.global.common.enums.Direction;
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 import src.backend.routing.engine.spec.OrderableStop;
 import src.backend.routing.engine.spec.OrderedStop;
 import src.backend.routing.engine.spec.RouteOrderInput;

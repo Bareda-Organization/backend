@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Objects;
 
 import src.backend.global.common.enums.Direction;
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 
 /**
  * 순서 최적화 입력 — 회차 1건(버스 1대 · 방향 1개)이 도는 구간 전체를 담는다.

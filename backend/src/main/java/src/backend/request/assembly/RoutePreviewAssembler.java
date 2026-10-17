@@ -19,7 +19,7 @@ import src.backend.boarding.entity.RunRider;
 import src.backend.request.dto.AffectedStudentResponse;
 import src.backend.request.dto.PreviewStopResponse;
 import src.backend.request.dto.StopRefResponse;
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 import src.backend.routing.engine.spec.OrderedStop;
 import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.entity.RunStop;
