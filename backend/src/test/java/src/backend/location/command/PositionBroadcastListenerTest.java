@@ -25,7 +25,7 @@ import src.backend.location.event.RunPositionReceivedEvent;
 /**
  * {@code position} 방송(C-08)의 채널별 payload 분기를 고정한다 — 학부모·학생 채널은
  * {@code eta} 키 자체가 부재해야 하고, 관제 채널(academy·admin)만 그 키를 가져야 한다. 두 단언을
- * 한 시험 안에 둔 이유는 {@code phase-goal-loop.md §5} 의 짝 규칙과 같다 — 부재만 보면 방송 자체가
+ * 한 시험 안에 둔 이유는 짝 검사 규칙과 같다 — 부재만 보면 방송 자체가
  * 죽어도 통과하고, 존재만 보면 채널 구분이 사라져도 통과한다.
  *
  * <p>현재 정차지 이름·다음 ETA 는 이벤트에 실려 온다(BR-100) — 그 값을 고르는 규칙은

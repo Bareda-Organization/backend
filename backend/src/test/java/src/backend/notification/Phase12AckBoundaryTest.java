@@ -29,16 +29,16 @@ import src.backend.notification.entity.NotificationType;
 import src.backend.notification.repository.NotificationLogRepository;
 
 /**
- * 좌석 경계 시험 — <b>쓰는 쪽(T2 읽음 처리)과 세는 쪽(T3 미확인 배지)을 한 시험에서 잇는다.</b>
+ * 경계 시험 — <b>쓰는 쪽(읽음 처리)과 세는 쪽(미확인 배지)을 한 시험에서 잇는다.</b>
  *
- * <p>왜 별도 클래스인가 — 두 기능이 서로 다른 격리 워크트리에서 만들어져 <b>병합 전에는 한쪽 코드가
- * 다른 쪽 트리에 물리적으로 없었다.</b> 그래서 어느 좌석도 이 시험을 만들 수 없었고 조율자 몫으로
- * 이관됐다(Ruling 222). {@code Phase9CrossSeatWiringTest} 와 같은 자리다.
+ * <p>왜 별도 클래스인가 — 두 기능을 한 시험에서 잇는 일은 <b>한 기능 담당이 만들 수 없다.</b>
+ * 그래서 조율자 몫으로 둔다
+ * (Ruling 222). {@code Phase9CrossSeatWiringTest} 와 같은 자리다.
  *
- * <p>🔴 <b>이 시험이 실제로 결함을 잡았다.</b> 병합 시점에 쓰는 쪽은 중요 통지 3종에만
+ * <p>🔴 <b>이 시험이 실제로 결함을 잡았다.</b> 쓰는 쪽은 중요 통지 3종에만
  * {@code acked} 를 남기는데 세는 쪽은 <b>전 종류</b>를 세고 있었다 — 승하차·도착 알림은 영원히
  * {@code acked=false} 라 미확인 배지가 0 이 되지 않고 발송할 때마다 단조 증가했다(Ruling 227).
- * <b>양쪽 좌석의 시험은 각자 전건 통과였다</b> — 각자 자기 쪽만 검사했기 때문이다.
+ * <b>양쪽 시험은 각자 전건 통과였다</b> — 각자 자기 쪽만 검사했기 때문이다.
  *
  * <p>대상 집합은 {@link NotificationType#IMPORTANT_FOR_ACK} 한 곳에서만 정의하고 양쪽이 참조한다.
  * 그 상수를 넓히거나 좁히면 이 시험의 두 메서드가 함께 움직인다.

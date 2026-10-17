@@ -119,7 +119,7 @@ class RunPositionCommandServiceTest {
         capturedEvents.events().clear();
     }
 
-    // ── goal 1 ───────────────────────────────────────────────────────────
+    // ── 위치 송신 성공───────────────────────────────────────────────────────────
 
     @Test
     @DisplayName("목표1 — moving 회차에 배치된 기사가 위치를 송신하면 204 이고 이력이 적재된다")
@@ -340,7 +340,7 @@ class RunPositionCommandServiceTest {
                 .andExpect(status().isUnprocessableContent());
     }
 
-    // ── goal 2 ───────────────────────────────────────────────────────────
+    // ── idle 회차 거부───────────────────────────────────────────────────────────
 
     @Test
     @DisplayName("목표2 — idle 회차에 위치를 송신하면 409 RUN_NOT_MOVING 이고 이력이 남지 않는다")

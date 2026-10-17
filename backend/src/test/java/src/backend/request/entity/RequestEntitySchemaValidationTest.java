@@ -27,8 +27,8 @@ import testsupport.db.MigratedPostgresTestBase;
  * request 모듈 엔티티 2개({@link BoardingIntent} · {@link ChangeRequest})가 실제 V1 스키마와
  * 정확히 맞는지 확인한다.
  *
- * <p>{@code @EntityScan} 으로 {@code request.entity} 패키지만 매핑 대상에 넣는다(다른 모듈 엔티티가
- * 이 워크트리에 없다). {@code academy}·{@code bus}·{@code run}·{@code student} 는 엔티티가 없는
+ * <p>{@code @EntityScan} 으로 {@code request.entity} 패키지만 매핑 대상에 넣는다(다른 모듈 엔티티는
+ * 매핑하지 않는다). {@code academy}·{@code bus}·{@code run}·{@code student} 는 매핑하지 않는
  * 테이블이라 네이티브 SQL로 FK 를 만족시키는 최소 행을 직접 넣는다.
  */
 @DataJpaTest(properties = {

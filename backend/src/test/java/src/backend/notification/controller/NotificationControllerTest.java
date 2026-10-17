@@ -74,7 +74,7 @@ class NotificationControllerTest {
         return new NotificationLogFixtures(academyRepository, accountRepository, jdbcTemplate);
     }
 
-    // ── goal 1 — type 필터 ────────────────────────────────────────────────
+    // ── type 필터 ────────────────────────────────────────────────
 
     @Test
     @DisplayName("goal1 — type 필터는 매칭 타입만 남기고 비매칭 타입은 뺀다")
@@ -122,7 +122,7 @@ class NotificationControllerTest {
                 .andExpect(jsonPath("$.data.items[0]", org.hamcrest.Matchers.hasKey("run_id")));
     }
 
-    // ── goal 1 — unread_only 필터 ─────────────────────────────────────────
+    // ── unread_only 필터 ─────────────────────────────────────────
 
     @Test
     @DisplayName("goal1 — unread_only=true 는 미읽음만 남기고 이미 읽은 것은 뺀다")
@@ -142,7 +142,7 @@ class NotificationControllerTest {
                 .andExpect(jsonPath("$.data.items[0].notification_id").value(unread));
     }
 
-    // ── goal 1 — 페이징 ───────────────────────────────────────────────────
+    // ── 페이징 ───────────────────────────────────────────────────
 
     @Test
     @DisplayName("goal1 — size 로 페이지를 나누면 has_next 가 다음 페이지 존재를 알린다")
@@ -169,7 +169,7 @@ class NotificationControllerTest {
                 .andExpect(jsonPath("$.data.has_next").value(false));
     }
 
-    // ── goal 2 — unread_count ────────────────────────────────────────────
+    // ── unread_count ────────────────────────────────────────────
 
     @Test
     @DisplayName("goal2 — 실제 읽음 처리 엔드포인트를 거치면 unread_count 가 1 줄어든다")
@@ -195,7 +195,7 @@ class NotificationControllerTest {
                 .andExpect(jsonPath("$.data.unread_count").value(1));
     }
 
-    // ── goal 3 — 읽음 처리 성공·403·404 ──────────────────────────────────
+    // ── 읽음 처리 성공·403·404 ──────────────────────────────────
 
     @Test
     @DisplayName("goal3 — 본인 알림 읽음 처리는 204 이고 read_at 이 남는다")
@@ -244,8 +244,8 @@ class NotificationControllerTest {
                 .andExpect(jsonPath("$.error.code").value("NOTIFICATION_NOT_FOUND"));
     }
 
-    // ── goal 3 — 중요 통지의 acked (NTF-10, USER_FLOWS §10.2 규칙4·5) ────────
-    // acked 는 응답 DTO 에 없다(§3.12 표에 없음, T3 의 관계자 알림 로그가 그대로 읽는 내부 필드다) —
+    // ── 중요 통지의 acked (NTF-10, USER_FLOWS §10.2 규칙4·5) ────────
+    // acked 는 응답 DTO 에 없다(§3.12 표에 없음, 관계자 알림 로그가 그대로 읽는 내부 필드다) —
     // 그래서 DB 를 직접 조회해 검사한다.
 
     @Test
@@ -289,7 +289,7 @@ class NotificationControllerTest {
         assertThat(acked).isFalse();
     }
 
-    // ── goal 4 — 보관 14일 ────────────────────────────────────────────────
+    // ── 보관 14일 ────────────────────────────────────────────────
 
     @Test
     @DisplayName("goal4 — 13일 전 알림은 보이고 15일 전 알림은 목록에서 빠진다")
@@ -308,7 +308,7 @@ class NotificationControllerTest {
                 .andExpect(jsonPath("$.data.items[0].notification_id").value(within));
     }
 
-    // ── goal 5 — popup ───────────────────────────────────────────────────
+    // ── popup ───────────────────────────────────────────────────
 
     @Test
     @DisplayName("goal5 — popup 필드는 심은 값을 그대로 반영한다")
@@ -328,7 +328,7 @@ class NotificationControllerTest {
                 .andExpect(jsonPath("$.data.items[1].popup").value(false));
     }
 
-    // ── goal 6 — student_id · student_name 조립 ──────────────────────────
+    // ── student_id · student_name 조립 ──────────────────────────
 
     @Test
     @DisplayName("goal6 — 학생 관련 알림은 student_id·student_name 이 그대로 실린다")

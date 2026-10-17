@@ -781,7 +781,7 @@ class StaffStudentControllerTest {
     }
 
     /**
-     * 보호자 ↔ 학생 연결을 SQL 로 심는다 — 연결을 만드는 API 는 이 태스크 범위 밖(P5-T3)이라
+     * 보호자 ↔ 학생 연결을 SQL 로 심는다 — 연결을 만드는 API 를 거치지 않고
      * 재료를 직접 넣는다.
      *
      * <p>{@code linkedAtExpression} 을 문자열로 받는 것은 <b>같은 시각</b>과 <b>1시간 전</b>을

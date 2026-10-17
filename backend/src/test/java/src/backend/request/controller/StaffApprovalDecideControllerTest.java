@@ -522,7 +522,7 @@ class StaffApprovalDecideControllerTest {
 
     /**
      * 자동 거절({@code ChangeRequestAutoRejectionPersistence.autoRejectOne})도 승인·거절과 같이
-     * 미리보기 캐시를 지워야 한다 — 세 종결 경로 중 이 경로의 배선은 이 태스크의 몫이다
+     * 미리보기 캐시를 지워야 한다 — 세 종결 경로 중 이 경로의 배선도 이 시험이 검사한다
      * ({@link ApprovalPreviewCache#evict} 자바독). 인메모리 캐시라 트랜잭션 경계와 무관하게 즉시
      * 관측된다.
      */

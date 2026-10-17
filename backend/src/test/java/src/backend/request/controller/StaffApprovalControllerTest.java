@@ -458,7 +458,7 @@ class StaffApprovalControllerTest {
      * {@link RouteComputationPipeline#compute} 는 <b>더 불리지 않는다</b>(캐시 안정성).
      *
      * <p>시간만 흘러도(만료 없음) 값이 바뀌지 않는다는 것도 이 반복 호출로 함께 확인된다 —
-     * {@code preview_stale} 이 만료 기반이 아니라 <b>입력 변경</b> 기반이라는 것이 이 태스크의 계약이다.
+     * {@code preview_stale} 이 만료 기반이 아니라 <b>입력 변경</b> 기반이라는 것이 계약이다.
      */
     @Test
     void 입력이_그대로면_같은_토큰을_돌려주고_추가_호출이_없다() throws Exception {

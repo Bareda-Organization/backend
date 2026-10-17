@@ -35,9 +35,9 @@ import testsupport.db.MigratedPostgresTestBase;
  * {@link LinkCode} · {@link WeeklyAddress} · {@link Stop})가 실제 V1
  * 스키마와 정확히 맞는지 확인한다(Ruling 324 로 LinkRequest 삭제 — 7개→6개).
  *
- * <p>{@code @EntityScan} 으로 {@code student.entity} 패키지만 매핑 대상에 넣는다 — 다른
- * 에이전트가 각자 워크트리에서 만드는 나머지 32개 테이블용 엔티티는 이 워크트리에 없다.
- * FK 대상인 {@code academy}·{@code account} 는 이 태스크 범위 밖이라 엔티티가 없어, 최소
+ * <p>{@code @EntityScan} 으로 {@code student.entity} 패키지만 매핑 대상에 넣는다.
+ * 나머지 32개 테이블용 엔티티는 이 시험에서 매핑하지 않는다.
+ * FK 대상인 {@code academy}·{@code account} 는 이 시험이 매핑하지 않아, 최소
  * 컬럼만 채운 행을 네이티브 SQL 로 직접 넣는다.
  */
 @DataJpaTest(properties = {
@@ -65,7 +65,7 @@ class StudentEntitySchemaValidationTest extends MigratedPostgresTestBase {
     @Autowired
     private EntityManager entityManager;
 
-    /** {@code academy} 엔티티가 이 워크트리에 없어, FK 를 만족시키는 최소 행을 네이티브 SQL 로 만든다. */
+    /** {@code academy} 엔티티를 이 시험이 매핑하지 않아, FK 를 만족시키는 최소 행을 네이티브 SQL 로 만든다. */
     private Long insertAcademy(String code) {
         Number academyId = (Number) entityManager.createNativeQuery(
                         "INSERT INTO academy (code, name, region, status) "
@@ -75,7 +75,7 @@ class StudentEntitySchemaValidationTest extends MigratedPostgresTestBase {
         return academyId.longValue();
     }
 
-    /** {@code account} 엔티티가 이 워크트리에 없어, FK 를 만족시키는 최소 행을 네이티브 SQL 로 만든다. */
+    /** {@code account} 엔티티를 이 시험이 매핑하지 않아, FK 를 만족시키는 최소 행을 네이티브 SQL 로 만든다. */
     private Long insertAccount(Long academyId, String loginId, String role) {
         Number accountId = (Number) entityManager.createNativeQuery(
                         "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) "

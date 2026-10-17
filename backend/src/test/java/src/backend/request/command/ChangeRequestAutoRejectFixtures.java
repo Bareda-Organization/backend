@@ -43,7 +43,7 @@ import src.backend.student.repository.StudentRepository;
  *
  * <p>{@link ChangeRequest#deadlineAt} 은 팩토리·전이 메서드 어디에도 값을 실을 자리가 없다 — 이
  * 컬럼을 채우는 생성 경로(마감 = {@code run.depart_time}, {@code ChangeWindowPolicy} 자바독)가 아직
- * 이 저장소에 존재하지 않기 때문이다(그 경로는 이 태스크의 범위 밖인 별도 태스크의 몫이다). 그래서
+ * 이 저장소에 존재하지 않기 때문이다. 그래서
  * {@link #pendingChangeRequest} 는 이 프로젝트에서 이미 쓰이는 패턴({@code AccountTest}·
  * {@code ChangeWindowPolicyTest} 의 {@code ReflectionTestUtils})으로 저장 전 필드를 직접 채운다.
  */

@@ -25,8 +25,8 @@ import src.backend.notification.repository.NotificationLogRepository;
  * 그 저장소 하나만 쓴다.
  *
  * <p>{@link NotificationLog#acked}·{@link NotificationLog#ackedAt}·{@link NotificationLog#readAt} 을
- * 채우는 실제 "확인 처리" 쓰기 경로는 이 워크트리에는 아직 존재하지 않는다(격리
- * 워크트리 기준 실측 — grep 무결과). 그 경로가 아직 이 저장소에 없다는
+ * 채우는 실제 "확인 처리" 쓰기 경로는 이 저장소에 존재하지 않는다.
+ * 그 경로가 아직 이 저장소에 없다는
  * 점이 {@link src.backend.request.command.ChangeRequestAutoRejectFixtures#pendingChangeRequest} 가
  * {@code deadlineAt} 을 채우는 근거와 같아, 같은 패턴({@code ReflectionTestUtils})으로 저장 전 필드를
  * 직접 채운다. 이렇게 만든 "이미 확인된" 행은 <b>구조적 시험 데이터</b>일 뿐, 실제 쓰기 경로를

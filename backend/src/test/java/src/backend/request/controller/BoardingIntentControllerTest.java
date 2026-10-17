@@ -869,7 +869,7 @@ class BoardingIntentControllerTest {
 
     /**
      * ①·②구간 모두 관계자에게 알림이 적재된다(API_SPEC §9.7, Ruling 195) — 여기서는
-     * {@code notification_log} 적재만 본다. 웹소켓 발행은 이 태스크 범위 밖이라 단언하지 않는다.
+     * {@code notification_log} 적재만 본다. 웹소켓 발행은 단언하지 않는다.
      */
     @Test
     @DisplayName("목표9(부분) — 즉시반영·승인대기 모두 notification_log 에 적재된다")

@@ -37,8 +37,8 @@ import src.backend.global.security.JwtTokenProvider;
  * 에서 비는지는 둘 다 반대 방향까지 함께 건다 — 한쪽만 검사하면 계산값이 갈리는 지점을
  * 놓친다(공통 규칙 §4).
  *
- * <p>{@code run_stop.status='skipped'} 판정은 다른 좌석의 몫이라 그 코드를 부르지 않는다 — 이
- * 클래스는 그 컬럼 값을 시험 데이터로 직접 심어 저장 컬럼 값만으로 계약한다({@code p9-t4.md} 경계).
+ * <p>{@code run_stop.status='skipped'} 판정 코드는 이 클래스가 부르지 않는다 — 이
+ * 클래스는 그 컬럼 값을 시험 데이터로 직접 심어 저장 컬럼 값만으로 계약한다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc

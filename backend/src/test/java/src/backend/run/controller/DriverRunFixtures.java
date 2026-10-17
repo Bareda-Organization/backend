@@ -264,8 +264,8 @@ public class DriverRunFixtures {
     }
 
     /**
-     * 같은 학원 소속으로 역할은 맞지만 <b>어떤 회차에도 배치되지 않은</b> 기사·동승자(
-     * {@code FORBIDDEN} 분기 — {@link #assignedManager} 와 달리 {@code Assignment} 행을 만들지
+     * 같은 학원 소속으로 역할은 맞지만 <b>어떤 회차에도 배치되지 않은</b> 기사·동승자
+     * ({@code FORBIDDEN} 분기 — {@link #assignedManager} 와 달리 {@code Assignment} 행을 만들지
      * 않는다). 반환값은 로그인 토큰에 실을 계정 id.
      */
     public long unassignedManager(long academyId, ManagerRole role, String name) {

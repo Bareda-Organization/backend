@@ -527,7 +527,7 @@ class NaverDirectionsResilienceTest {
      * 동시 진입은 같은 값으로 묶인다. 순서가 어긋난 상태 — {@code fallbackMethod} 가 안쪽에 붙어
      * {@code BulkheadFullException} 이 바깥 {@code @Retry} 에 닿기 전에 포트 예외로 바뀌는 형태 —
      * 는 {@code ignore-exceptions} 가 그것을 못 알아봐 <b>거부를 세 번 재시도</b>하는 것으로만
-     * 드러난다. 이 태스크가 이미 한 번 밟은 함정이라(도달 호출 수로는 안 잡힌다) 지표로 잰다.
+     * 드러난다. 도달 호출 수로는 안 잡히는 함정이라 지표로 잰다.
      *
      * <p>서킷이 닫힌 채로 남는지를 함께 보는 이유는, 격벽 거부가 실패로 집계되면 <b>동시 도래가 한 번
      * 몰린 것만으로 서킷이 열려</b> 그 뒤의 온디맨드가 전부 {@code 503} 을 받기 때문이다. 공급자는

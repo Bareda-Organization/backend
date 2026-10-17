@@ -30,7 +30,7 @@ import testsupport.clock.FixedClock20300401Config;
  * 조회에서 빠지지 않는지 검사한다.
  *
  * <p>{@code acked} 필드가 실제 확인 처리 쓰기 경로를 거쳐 채워지는지 검증하는 경계 시험은
- * 이 워크트리에 그 경로가 부재해 미포함이다 — {@link StaffNotificationFixtures} 클래스 javadoc 참고. 여기서 쓰는 "이미 확인된" 행은 구조적 시험 데이터일 뿐이다.
+ * 그 경로가 이 저장소에 없어 미포함이다 — {@link StaffNotificationFixtures} 클래스 javadoc 참고. 여기서 쓰는 "이미 확인된" 행은 구조적 시험 데이터일 뿐이다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc

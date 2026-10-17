@@ -84,11 +84,11 @@ class RunPositionRedisIntegrationTest {
     @MockitoSpyBean
     private WebSocketBroadcastGateway gateway;
 
-    /** T1 이 실제로 쓰는 것과 같은 기본(camelCase) 네이밍 — {@code RunPositionRedisListener} 참고. */
+    /** 위치 송신이 실제로 쓰는 것과 같은 기본(camelCase) 네이밍 — {@code RunPositionRedisListener} 참고. */
     private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
 
 
-    /** 이 클래스가 만든 학원 id — 뒷정리가 이 값으로만 지운다(다른 좌석·다른 테스트의 행을 건드리지 않는다). */
+    /** 이 클래스가 만든 학원 id — 뒷정리가 이 값으로만 지운다(다른 테스트의 행을 건드리지 않는다). */
     private final List<Long> academyIds = new ArrayList<>();
 
 

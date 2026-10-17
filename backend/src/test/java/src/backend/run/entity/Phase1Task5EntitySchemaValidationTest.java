@@ -100,7 +100,7 @@ class Phase1Task5EntitySchemaValidationTest extends MigratedPostgresTestBase {
         return bus.getId();
     }
 
-    /** {@code stop} 은 이 태스크 담당이 아니라 엔티티가 없다 — FK({@code fk_route_stop_stop} 등)를 만족시킬 최소 컬럼만 네이티브 SQL로 채운다. */
+    /** {@code stop} 은 이 시험이 매핑하지 않아 FK({@code fk_route_stop_stop} 등)를 만족시킬 최소 컬럼만 네이티브 SQL로 채운다. */
     private Long insertStop(Long academyId) {
         Number stopId = (Number) entityManager.createNativeQuery(
                         "INSERT INTO stop (academy_id, name, address, lat, lng) "

@@ -532,7 +532,7 @@ class StaffManagerControllerTest {
      * 배치 대상 회차를 만든다 — {@code assignment.run_id} 가 FK NN 이라 회차가 없으면 배치 행이 없다.
      *
      * <p>{@code RunRepository} 를 만들지 않고 {@link EntityManager} 로 저장한다 — 회차를 만드는
-     * 프로덕션 경로(SCH-02·03)가 이 태스크 범위 밖이라, 저장소를 두면 호출자 없는 프로덕션 코드가 된다.
+     * 프로덕션 경로(SCH-02·03)를 이 시험이 거치지 않아, 저장소를 두면 호출자 없는 프로덕션 코드가 된다.
      * 정적 팩토리를 거치므로 상태 자체는 그 경로가 만들 것과 같다.
      */
     private long 회차를_만든다(long busId) {
