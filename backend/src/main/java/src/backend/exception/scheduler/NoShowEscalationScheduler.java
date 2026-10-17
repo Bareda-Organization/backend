@@ -106,5 +106,7 @@ public class NoShowEscalationScheduler {
     @PostConstruct
     void registerMetrics() {
         Counter.builder(ESCALATED_METRIC).description("대기 만료 + 무응답으로 에스컬레이션된 미승차 케이스 건수").register(meterRegistry);
+        // 건별 실패 카운터도 0 으로 미리 등록한다 — 지연 등록이면 첫 실패 때 1 로 태어나 증가분이 0 으로 보인다
+        meterRegistry.counter("schoolbus.scheduler.failures", "scheduler", "no-show-escalation");
     }
 }

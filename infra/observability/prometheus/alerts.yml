@@ -6,20 +6,28 @@
 groups:
   - name: schoolbus
     rules:
+      # 시리즈는 첫 사건 때 이미 1 이상으로 태어난다(0 → 1 이 아니다) — increase() 는 태어난 샘플 앞이 없어 0 이다. 그래서 실패 경보는 "창 밖 오프셋에 없던 시리즈"(`x unless x offset 창`)도 함께 보고,
+      # 정지 경보는 같은 식으로 "방금 태어난 시리즈"(성공이 있었다)를 정지에서 뺀다. 두 식 모두 job · code_namespace 로 합쳐 같은 라벨 집합이 겹치지 않게 한다.
       # "미승차 에스컬레이션이 3분 초과 미보고 — 즉시" — 건별 실패(스케줄러가 삼킨 것)와 주기 정지 둘 다 본다. 스케줄러 실행 지표는 스프링 기본 계측
       # (tasks_scheduled_execution_seconds_count · code_namespace 가 클래스 전체 이름 · outcome 이 SUCCESS | ERROR)이고, 시리즈는 그 스케줄러의 첫 실행 때 생긴다.
       - alert: NoShowEscalationFailing
         expr: |
-          increase(tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.exception.scheduler.NoShowEscalationScheduler",outcome="ERROR"}[3m]) > 0
+          sum by (job, code_namespace) (increase(tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.exception.scheduler.NoShowEscalationScheduler",outcome="ERROR"}[3m])) > 0
           or
-          increase(schoolbus_scheduler_failures_total{scheduler="no-show-escalation"}[3m]) > 0
+          sum by (job, code_namespace) (tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.exception.scheduler.NoShowEscalationScheduler",outcome="ERROR"} unless tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.exception.scheduler.NoShowEscalationScheduler",outcome="ERROR"} offset 3m) > 0
+          or
+          sum by (job, scheduler) (increase(schoolbus_scheduler_failures_total{scheduler="no-show-escalation"}[3m])) > 0
+          or
+          sum by (job, scheduler) (schoolbus_scheduler_failures_total{scheduler="no-show-escalation"} unless schoolbus_scheduler_failures_total{scheduler="no-show-escalation"} offset 3m) > 0
         labels:
           severity: critical
         annotations:
           summary: 미승차 에스컬레이션 처리가 실패하고 있다 — 3분 안에 보고되지 않는 미승차가 생긴다
       - alert: NoShowEscalationStalled
         expr: |
-          increase(tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.exception.scheduler.NoShowEscalationScheduler",outcome="SUCCESS"}[3m]) == 0
+          sum by (job, code_namespace) (increase(tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.exception.scheduler.NoShowEscalationScheduler",outcome="SUCCESS"}[3m])) == 0
+          unless
+          sum by (job, code_namespace) (tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.exception.scheduler.NoShowEscalationScheduler",outcome="SUCCESS"} unless tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.exception.scheduler.NoShowEscalationScheduler",outcome="SUCCESS"} offset 3m) > 0
           or
           absent(tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.exception.scheduler.NoShowEscalationScheduler",outcome="SUCCESS"})
         for: 1m
@@ -159,9 +167,13 @@ groups:
       # 주기를 yml(poll-interval-ms)로 바꾸면 창도 같이 바꾼다. 미승차 에스컬레이션은 위의 전용 규칙이 따로 본다.
       - alert: SchedulerStalled
         expr: |
-          increase(tasks_scheduled_execution_seconds_count{job="backend",code_namespace=~"src\\.backend\\.run\\.scheduler\\.RunConfirmationScheduler|src\\.backend\\.notification\\.scheduler\\.NotificationOutboxWorker",outcome="SUCCESS"}[2m]) == 0
+          sum by (job, code_namespace) (increase(tasks_scheduled_execution_seconds_count{job="backend",code_namespace=~"src\\.backend\\.run\\.scheduler\\.RunConfirmationScheduler|src\\.backend\\.notification\\.scheduler\\.NotificationOutboxWorker",outcome="SUCCESS"}[2m])) == 0
+          unless
+          sum by (job, code_namespace) (tasks_scheduled_execution_seconds_count{job="backend",code_namespace=~"src\\.backend\\.run\\.scheduler\\.RunConfirmationScheduler|src\\.backend\\.notification\\.scheduler\\.NotificationOutboxWorker",outcome="SUCCESS"} unless tasks_scheduled_execution_seconds_count{job="backend",code_namespace=~"src\\.backend\\.run\\.scheduler\\.RunConfirmationScheduler|src\\.backend\\.notification\\.scheduler\\.NotificationOutboxWorker",outcome="SUCCESS"} offset 2m) > 0
           or
-          increase(tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.location.scheduler.ProximityNotificationScheduler",outcome="SUCCESS"}[1m]) == 0
+          sum by (job, code_namespace) (increase(tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.location.scheduler.ProximityNotificationScheduler",outcome="SUCCESS"}[1m])) == 0
+          unless
+          sum by (job, code_namespace) (tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.location.scheduler.ProximityNotificationScheduler",outcome="SUCCESS"} unless tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.location.scheduler.ProximityNotificationScheduler",outcome="SUCCESS"} offset 1m) > 0
           or
           absent(tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.run.scheduler.RunConfirmationScheduler",outcome="SUCCESS"})
         for: 1m
@@ -172,7 +184,10 @@ groups:
       # 하루 한 번(00:15) 도는 작업이라 3일 창. 시리즈는 첫 성공 실행 때 생기므로 기동 뒤 한 번도 성공하지 못한 경우는 못 본다 —
       # 정리가 계속 실패하는 경우는 건별 실패 카운터(schoolbus_scheduler_failures_total)가 따로 있다.
       - alert: RetentionCleanupStalled
-        expr: increase(tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.global.retention.RetentionCleanupScheduler",outcome="SUCCESS"}[3d]) == 0
+        expr: |
+          sum by (job, code_namespace) (increase(tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.global.retention.RetentionCleanupScheduler",outcome="SUCCESS"}[3d])) == 0
+          unless
+          sum by (job, code_namespace) (tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.global.retention.RetentionCleanupScheduler",outcome="SUCCESS"} unless tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.global.retention.RetentionCleanupScheduler",outcome="SUCCESS"} offset 3d) > 0
         labels:
           severity: warning
         annotations:
@@ -180,7 +195,10 @@ groups:
       # 위치 이력 파티션 미리 만들기(매일 00:10 · 7일 앞까지, Ruling 670). 3일 멈춰도 아직 4일치가 남아 있어 그 안에 알린다 —
       # 8일 넘게 멈추면 기본 파티션에 행이 쌓이고, 뒤늦게 그 날짜 파티션을 만들 때 하루치(약 27만 행)를 한 번에 옮긴다.
       - alert: RunPositionPartitionStalled
-        expr: increase(tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.location.scheduler.RunPositionPartitionScheduler",outcome="SUCCESS"}[3d]) == 0
+        expr: |
+          sum by (job, code_namespace) (increase(tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.location.scheduler.RunPositionPartitionScheduler",outcome="SUCCESS"}[3d])) == 0
+          unless
+          sum by (job, code_namespace) (tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.location.scheduler.RunPositionPartitionScheduler",outcome="SUCCESS"} unless tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.location.scheduler.RunPositionPartitionScheduler",outcome="SUCCESS"} offset 3d) > 0
         labels:
           severity: warning
         annotations:
@@ -191,13 +209,19 @@ groups:
       # 둘이 이어서 본다 — 실패 경보(1시간 창)가 꺼지는 때(00:05 + 1시간)에 정지 경보(성공 실행이 25시간 창에 없음)가 켜진다. 정지 경보는 시리즈가
       # 첫 성공 실행 때 생기므로 기동 뒤 한 번도 성공하지 못한 경우는 못 본다(그 경우는 DailyRunStartupCatchUp 이 이미 보충했다).
       - alert: DailyRunGenerationFailing
-        expr: increase(tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.schedule.scheduler.DailyRunGenerator",outcome="ERROR"}[1h]) > 0
+        expr: |
+          sum by (job, code_namespace) (increase(tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.schedule.scheduler.DailyRunGenerator",outcome="ERROR"}[1h])) > 0
+          or
+          sum by (job, code_namespace) (tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.schedule.scheduler.DailyRunGenerator",outcome="ERROR"} unless tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.schedule.scheduler.DailyRunGenerator",outcome="ERROR"} offset 1h) > 0
         labels:
           severity: critical
         annotations:
           summary: 일일 회차 생성(DailyRunGenerator)이 실패했다 — 그날 회차가 만들어지지 않아 기사·학부모 알림이 나가지 않는다
       - alert: DailyRunGenerationStalled
-        expr: increase(tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.schedule.scheduler.DailyRunGenerator",outcome="SUCCESS"}[25h]) == 0
+        expr: |
+          sum by (job, code_namespace) (increase(tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.schedule.scheduler.DailyRunGenerator",outcome="SUCCESS"}[25h])) == 0
+          unless
+          sum by (job, code_namespace) (tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.schedule.scheduler.DailyRunGenerator",outcome="SUCCESS"} unless tasks_scheduled_execution_seconds_count{job="backend",code_namespace="src.backend.schedule.scheduler.DailyRunGenerator",outcome="SUCCESS"} offset 25h) > 0
         labels:
           severity: critical
         annotations:
