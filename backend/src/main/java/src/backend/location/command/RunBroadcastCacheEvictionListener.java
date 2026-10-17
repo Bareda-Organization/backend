@@ -24,10 +24,10 @@ public class RunBroadcastCacheEvictionListener {
 
     private final RunBroadcastCache cache;
 
-    /** 정류장 도착 — 현재 정차지와 다음 도착 예정 시각이 바뀐다. */
+    /** 정류장 도착 — 현재 정차지와 다음 도착 예정 시각이 바뀐다(탑승 학생 목록은 그대로). */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onStopArrived(StopArrivedEvent event) {
-        cache.evict(event.runId());
+        cache.evictStops(event.runId());
     }
 
     /** 운행 시작. */

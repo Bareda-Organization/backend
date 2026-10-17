@@ -60,6 +60,12 @@ public class RunBroadcastCache {
         students.remove(runId);
     }
 
+    /** 회차의 정차 목록만 비운다 — 정류장 도착(탑승 학생 목록은 그대로다). */
+    public void evictStops(Long runId) {
+        evictions.incrementAndGet();
+        stops.remove(runId);
+    }
+
     /** 회차의 학생 목록만 비운다 — 결석 전이 · 탑승자 최초 생성. */
     public void evictStudents(Long runId) {
         evictions.incrementAndGet();
