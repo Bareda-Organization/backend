@@ -160,6 +160,10 @@ resilience4j:
         sliding-window-size: 10
         minimum-number-of-calls: 5
         failure-rate-threshold: 50
+        # 느린 호출 규칙(Ruling 904 ③) — 문자 업체 응답은 보통 1초 안이다. 2초를 넘는 호출이 절반이면 서킷을 연다. 업체 구현의 연결·읽기 시간 상한(3초)보다
+        # 짧아야 업체가 매달려도 상한에 닿기 전에 서킷이 먼저 열린다.
+        slow-call-duration-threshold: 2s
+        slow-call-rate-threshold: 50
         wait-duration-in-open-state: 10s
         permitted-number-of-calls-in-half-open-state: 3
         automatic-transition-from-open-to-half-open-enabled: true
