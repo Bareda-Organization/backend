@@ -39,7 +39,7 @@ class RiderChangedBroadcastListenerTest {
     private final WebSocketBroadcastGateway gateway = mock(WebSocketBroadcastGateway.class);
 
     private final RiderChangedBroadcastListener listener =
-            new RiderChangedBroadcastListener(studentRepository, runRiderRepository, gateway);
+            new RiderChangedBroadcastListener(studentRepository, runRiderRepository, gateway, Runnable::run);
 
     @Test
     @DisplayName("목표 5 — 학생 채널로는 절대 보내지 않는다, 매니저·학원·관리자 3채널로만 보낸다")

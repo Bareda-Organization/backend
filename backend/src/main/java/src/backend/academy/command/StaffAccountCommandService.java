@@ -24,6 +24,7 @@ import src.backend.account.repository.AccountRepository;
 import src.backend.account.repository.RefreshTokenRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.security.AccountStandingChangedEvent;
 
 /**
  * 관계자 계정 관리(ACAD-06 · O-02, API_SPEC §6.7) — 정보 수정 · 비밀번호 초기화 · 퇴사·재직 전환.
@@ -111,6 +112,10 @@ public class StaffAccountCommandService {
         if (employmentRevoked) {
             // 푸시 단말 정리(R56 Ruling 894 ②) — 토큰 무효화가 영속성 컨텍스트를 비우기 전에 알린다.
             eventPublisher.publishEvent(new StaffResignedEvent(accountId, OffsetDateTime.now(clock)));
+        }
+        if (!employmentRevoked && request.status() != null) {
+            // 재직 복귀도 계정 상태 보관 항목을 비운다 — 퇴사 때 보관된 "권한 잃음" 이 5초 남지 않게(R57 RT-1)
+            eventPublisher.publishEvent(new AccountStandingChangedEvent(accountId));
         }
         if (temporaryPassword != null || employmentRevoked) {
             refreshTokenRepository.revokeAllValidByAccountId(accountId, OffsetDateTime.now(clock));

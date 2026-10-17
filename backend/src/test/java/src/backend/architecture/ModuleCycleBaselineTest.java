@@ -29,7 +29,7 @@ class ModuleCycleBaselineTest {
             "audit→academy", "audit→account",
             "boarding→academy", "boarding→audit", "boarding→exception", "boarding→manager", "boarding→routing", "boarding→run", "boarding→student",
             "exception→academy", "exception→account", "exception→boarding", "exception→location", "exception→manager", "exception→run", "exception→student",
-            "location→boarding", "location→routing", "location→run", "location→student",
+            "location→routing", "location→run", "location→student",
             "manager→run",
             "request→academy", "request→account", "request→boarding", "request→manager", "request→routing", "request→run", "request→student",
             "routing→academy", "routing→boarding", "routing→manager", "routing→request", "routing→run", "routing→student",

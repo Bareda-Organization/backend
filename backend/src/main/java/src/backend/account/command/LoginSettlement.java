@@ -3,6 +3,7 @@ package src.backend.account.command;
 import java.time.OffsetDateTime;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +23,7 @@ import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AccountStanding;
+import src.backend.global.security.AccountStandingChangedEvent;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
@@ -38,6 +40,7 @@ public class LoginSettlement {
     private final AccountRepository accountRepository;
     private final AcademyRepository academyRepository;
     private final AccountStanding accountStanding;
+    private final ApplicationEventPublisher eventPublisher;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
@@ -95,6 +98,7 @@ public class LoginSettlement {
                 refreshTokenRepository.revokeAllValidByAccountId(account.getId(), now);
                 auditLogRepository.save(
                         AuditLog.forLoginBlock(account.getAcademyId(), account.getId(), loginId, ip, now));
+                eventPublisher.publishEvent(new AccountStandingChangedEvent(account.getId())); // 커밋 직후 계정 상태 보관 항목을 비운다(R57 RT-1)
                 throw new BusinessException(ErrorCode.AUTH_ACCOUNT_BLOCKED);
             }
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS, new LoginFailureDetail(remaining));

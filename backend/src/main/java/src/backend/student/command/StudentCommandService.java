@@ -3,11 +3,14 @@ package src.backend.student.command;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +27,7 @@ import src.backend.global.request.ClientIp;
 import src.backend.global.request.Patch;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.access.AcademyScope;
+import src.backend.global.websocket.AccountSessionsRevokeEvent;
 import src.backend.student.dto.StudentRegisterRequest;
 import src.backend.student.dto.StudentUpdateRequest;
 import src.backend.student.dto.StudentWithdrawalResponse;
@@ -33,6 +37,7 @@ import src.backend.student.entity.Student;
 import src.backend.student.entity.StudentProfile;
 import src.backend.student.photo.StudentPhotoWriter;
 import src.backend.student.photo.spec.StudentPhoto;
+import src.backend.student.repository.GuardianAccountRecipient;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StudentRepository;
 
@@ -65,6 +70,8 @@ public class StudentCommandService {
     private final AccountRepository accountRepository;
 
     private final Clock clock;
+
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 학생을 등록한다(STU-02) — 소속 학원은 토큰이 정한다(§1.5).
@@ -173,7 +180,9 @@ public class StudentCommandService {
         Student student = find(requester, studentId);
         OffsetDateTime at = OffsetDateTime.now(clock);
         student.withdraw(at);
+        Set<Long> affectedAccounts = openChannelAccountsOf(student); // 연결을 끊기 전에 모은다 — 끊은 뒤에는 보호자를 찾을 수 없다
         unlinkGuardians(student, at);
+        eventPublisher.publishEvent(new AccountSessionsRevokeEvent(affectedAccounts)); // 커밋 직후 그 계정들의 열린 세션을 닫는다(R57 RT-2)
         recordChange(requester, student, AuditAction.DELETE, Map.of());
         return StudentWithdrawalResponse.from(student);
     }
@@ -198,6 +207,18 @@ public class StudentCommandService {
     private void unlinkGuardians(Student student, OffsetDateTime at) {
         guardianStudentRepository.findActiveLinksOfStudent(student.getId(), student.getAcademyId())
                 .forEach(link -> link.unlink(at));
+    }
+
+    /** 이 학생의 채널을 구독할 수 있던 계정 — 살아 있는 보호자 연결의 계정과 학생 본인 계정(R57 K2 ⓑ). */
+    private Set<Long> openChannelAccountsOf(Student student) {
+        Set<Long> accounts = guardianStudentRepository
+                .findActiveGuardianAccountsByStudentIds(student.getAcademyId(), List.of(student.getId())).stream()
+                .map(GuardianAccountRecipient::getAccountId)
+                .collect(Collectors.toCollection(HashSet::new));
+        if (student.getAccountId() != null) {
+            accounts.add(student.getAccountId());
+        }
+        return accounts;
     }
 
     private Student find(AuthUser requester, Long studentId) {

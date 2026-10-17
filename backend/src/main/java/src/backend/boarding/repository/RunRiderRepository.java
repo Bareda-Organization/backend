@@ -98,6 +98,15 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
     long countByRunIdAndStatus(Long runId, RiderStatus status);
 
     /**
+     * 그 회차 라이더를 상태별로 센 값을 질의 1번으로 읽는다(R57 RT-4) — 승하차 방송이 5상태를 {@link #countByRunIdAndStatus} 로 5번 묻던 것을 하나로 묶는다.
+     * 인원이 0인 상태는 결과에 없다. {@code runId} 근거는 {@link #countByRunIdAndStatus} 와 같다.
+     */
+    @AcademyScopeExempt(reason = "runId 는 호출부가 이미 학원 소속을 확인한 회차의 식별자라는 전제다 — "
+            + "countByRunIdAndStatus 와 같은 근거(AcademyScope.assertAccessible 선확인)")
+    @Query("SELECT r.status AS status, COUNT(r) AS total FROM RunRider r WHERE r.runId = :runId GROUP BY r.status")
+    List<RiderStatusCount> countGroupedByStatus(@Param("runId") Long runId);
+
+    /**
      * 승하차 처리(API_SPEC §4.6·§4.7)가 다룰 탑승자 1건 — {@code status} 가 {@link RiderStatus#ABSENT}
      * 인 행은 제외한다. §4.6 이 "{@code absent} 로 명단에서 제외된 탑승자"를 {@code 404 RIDER_NOT_FOUND}
      * 로 명시하기 때문에, 존재하지 않는 {@code riderId} 와 이미 제외된 탑승자를 이 메서드 하나로

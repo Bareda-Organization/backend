@@ -12,6 +12,8 @@ import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.stereotype.Component;
 
+import io.micrometer.core.instrument.MeterRegistry;
+
 import lombok.RequiredArgsConstructor;
 
 import src.backend.global.common.enums.Role;
@@ -52,14 +54,34 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
     private final RunAssignmentAccess runAssignmentAccess;
     private final StudentRepository studentRepository;
     private final StompSessionExpiry sessionExpiry;
+    private final MeterRegistry meterRegistry;
     private final AccountStanding accountStanding;
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
+        StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
+        try {
+            return admit(message, accessor);
+        } catch (BusinessException e) {
+            countRejection(accessor, e);
+            throw e;
+        }
+    }
+
+    /** 접속 · 구독 · 송신 거절을 단계와 사유별로 센다(R57 RT-11) — 사유는 ERROR 프레임의 message 와 같은 {@link ErrorCode} 이름이다. */
+    private void countRejection(StompHeaderAccessor accessor, BusinessException e) {
+        String phase = StompCommand.SUBSCRIBE.equals(accessor.getCommand()) ? "subscribe"
+                : StompCommand.SEND.equals(accessor.getCommand()) ? "send" : "connect";
+        meterRegistry.counter("schoolbus.ws.rejected", "phase", phase, "reason", e.getErrorCode().name()).increment();
+        if (e.getErrorCode() == ErrorCode.TOKEN_EXPIRED) {
+            meterRegistry.counter("schoolbus.ws.closed", "reason", ErrorCode.TOKEN_EXPIRED.name()).increment();
+        }
+    }
+
+    private Message<?> admit(Message<?> message, StompHeaderAccessor accessor) {
         // 주의: StompHeaderAccessor.wrap(message)로 얻은 접근자는 새 복사본이라 mutate 해도
         // 원본 message 에 반영되지 않는다. 인바운드 STOMP 채널의 메시지는 mutable 접근자와 함께
         // 만들어지므로, getAccessor 로 "그 접근자"를 그대로 받아와야 setUser 가 세션에 실제로 남는다.
-        StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
         // STOMP 는 CONNECT 의 별칭 명령이다 — 둘 중 하나만 보면 다른 쪽으로 인증 없이 세션이 선다(BR-112)
         if (StompCommand.CONNECT.equals(accessor.getCommand()) || StompCommand.STOMP.equals(accessor.getCommand())) {
             authenticateConnect(accessor);
@@ -77,7 +99,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
     }
 
     /**
-     * 열린 세션도 새 구독·송신마다 계정의 현재 상태를 다시 확인한다(Ruling 880) — 퇴사·차단·삭제된 매니저면 받지 않고,
+     * 열린 세션도 새 구독·송신마다 계정의 상태를 다시 확인한다(Ruling 880) — {@link AccountStanding} 이 최대 5초 보관한 값이고 상태 변경이 커밋되면 바로 비워진다(R57 RT-1). 퇴사·차단·삭제된 매니저면 받지 않고,
      * 이 세션의 다음 방송도 끊기게 표시한다({@link StompSessionExpiry#expire}).
      */
     private void assertStanding(StompHeaderAccessor accessor) {

@@ -6,8 +6,8 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.concurrent.ThreadPoolExecutor;
 
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessageType;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -16,6 +16,8 @@ import org.springframework.messaging.simp.broker.SimpleBrokerMessageHandler;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Component;
+
+import io.micrometer.core.instrument.MeterRegistry;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,6 +56,7 @@ public class WebSocketBroadcastGateway {
     @Qualifier("outboundTaskExecutor")
     private final ThreadPoolTaskExecutor outboundTaskExecutor;
     private final Clock clock;
+    private final MeterRegistry meterRegistry;
 
     /**
      * 구독 여부를 묻는 심플 브로커 — 시험이 게이트웨이를 직접 만드는 곳이 있어 생성자가 아니라 세터로 받는다. 없으면(null)
@@ -125,10 +128,23 @@ public class WebSocketBroadcastGateway {
     public void broadcastToRunChannels(Long runId, Long academyId, List<Long> studentIds, String event,
             OffsetDateTime occurredAt, Object studentPayload, Object payload) {
         for (Long studentId : studentIds) {
-            send(WebSocketDestinations.studentRun(studentId), event, runId, occurredAt, studentPayload);
+            sendIsolated(WebSocketDestinations.studentRun(studentId), event, runId, occurredAt, studentPayload);
         }
-        send(WebSocketDestinations.managerRun(runId), event, runId, occurredAt, payload);
-        send(WebSocketDestinations.academyLive(academyId), event, runId, occurredAt, payload);
-        send(WebSocketDestinations.ADMIN_LIVE, event, runId, occurredAt, payload);
+        sendIsolated(WebSocketDestinations.managerRun(runId), event, runId, occurredAt, payload);
+        sendIsolated(WebSocketDestinations.academyLive(academyId), event, runId, occurredAt, payload);
+        sendIsolated(WebSocketDestinations.ADMIN_LIVE, event, runId, occurredAt, payload);
+    }
+
+    /**
+     * 목적지 하나의 전송 예외를 그 목적지에서 끝낸다(R57 RT-9) — 학생 채널 하나가 실패해도 뒤 학생 채널과 매니저 · 학원 · 관리자 채널의 방송이 이어진다.
+     * 삼킨 실패는 {@code schoolbus.ws.broadcast.failed}(event 태그)로 센다. 앞에서 예외가 번지면 관제 화면이 그 이벤트를 통째로 못 받는다.
+     */
+    public void sendIsolated(String destination, String event, Long runId, OffsetDateTime occurredAt, Object payload) {
+        try {
+            send(destination, event, runId, occurredAt, payload);
+        } catch (RuntimeException e) {
+            meterRegistry.counter("schoolbus.ws.broadcast.failed", "event", event).increment();
+            log.warn("{} 방송 실패 — runId={} destination={}", event, runId, destination, e);
+        }
     }
 }

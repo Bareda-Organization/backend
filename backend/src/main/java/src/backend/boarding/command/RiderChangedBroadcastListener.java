@@ -1,7 +1,11 @@
 package src.backend.boarding.command;
 
 import java.time.OffsetDateTime;
+import java.util.EnumMap;
+import java.util.Map;
+import java.util.concurrent.Executor;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -42,9 +46,17 @@ public class RiderChangedBroadcastListener {
 
     private final WebSocketBroadcastGateway gateway;
 
+    /** 커밋 콜백이 요청 스레드의 트랜잭션 · 커넥션을 쥐고 방송하지 않도록 방송 작업을 넘기는 전용 실행기(R57 RT-4) — 단일 스레드라 커밋 순서가 유지된다. */
+    @Qualifier("broadcastListenerExecutor")
+    private final Executor broadcastExecutor;
+
     /** 승하차 상태 변경을 매니저·학원·관리자 채널에 방송한다({@code stop_skipped} 는 항상 false). */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcast(RiderStatusChangedEvent event) {
+        broadcastExecutor.execute(() -> deliverRiderStatusChangedEvent(event));
+    }
+
+    private void deliverRiderStatusChangedEvent(RiderStatusChangedEvent event) {
         try {
             String studentName = studentRepository.findById(event.studentId())
                     .map(student -> student.getName())
@@ -74,6 +86,10 @@ public class RiderChangedBroadcastListener {
      */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcast(RiderMarkedNoShowEvent event) {
+        broadcastExecutor.execute(() -> deliverRiderMarkedNoShowEvent(event));
+    }
+
+    private void deliverRiderMarkedNoShowEvent(RiderMarkedNoShowEvent event) {
         try {
             String studentName = studentRepository.findById(event.studentId())
                     .map(student -> student.getName())
@@ -92,13 +108,16 @@ public class RiderChangedBroadcastListener {
         }
     }
 
+    /** 상태별 인원을 질의 1번으로 읽는다(R57 RT-4) — 인원이 없는 상태는 0 이다. */
     private Counts countsOf(Long runId) {
+        Map<RiderStatus, Long> totals = new EnumMap<>(RiderStatus.class);
+        runRiderRepository.countGroupedByStatus(runId).forEach(row -> totals.put(row.getStatus(), row.getTotal()));
         return new Counts(
-                runRiderRepository.countByRunIdAndStatus(runId, RiderStatus.WAITING),
-                runRiderRepository.countByRunIdAndStatus(runId, RiderStatus.BOARDED),
-                runRiderRepository.countByRunIdAndStatus(runId, RiderStatus.ALIGHTED),
-                runRiderRepository.countByRunIdAndStatus(runId, RiderStatus.ABSENT),
-                runRiderRepository.countByRunIdAndStatus(runId, RiderStatus.NO_SHOW));
+                totals.getOrDefault(RiderStatus.WAITING, 0L),
+                totals.getOrDefault(RiderStatus.BOARDED, 0L),
+                totals.getOrDefault(RiderStatus.ALIGHTED, 0L),
+                totals.getOrDefault(RiderStatus.ABSENT, 0L),
+                totals.getOrDefault(RiderStatus.NO_SHOW, 0L));
     }
 
     /**

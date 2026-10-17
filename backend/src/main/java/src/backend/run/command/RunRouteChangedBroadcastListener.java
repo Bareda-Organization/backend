@@ -1,7 +1,9 @@
 package src.backend.run.command;
 
 import java.time.OffsetDateTime;
+import java.util.concurrent.Executor;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -32,9 +34,17 @@ public class RunRouteChangedBroadcastListener {
 
     private final WebSocketBroadcastGateway gateway;
 
+    /** 커밋 콜백이 요청 스레드의 트랜잭션 · 커넥션을 쥐고 방송하지 않도록 방송 작업을 넘기는 전용 실행기(R57 RT-4) — 단일 스레드라 커밋 순서가 유지된다. */
+    @Qualifier("broadcastListenerExecutor")
+    private final Executor broadcastExecutor;
+
     /** 노선 확정 이벤트를 매니저 채널 1곳에 방송한다. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcast(RunRouteConfirmedEvent event) {
+        broadcastExecutor.execute(() -> deliverRunRouteConfirmedEvent(event));
+    }
+
+    private void deliverRunRouteConfirmedEvent(RunRouteConfirmedEvent event) {
         try {
             gateway.send(WebSocketDestinations.managerRun(event.runId()), EVENT, event.runId(), event.confirmedAt(),
                     new Payload(event.runId(), event.confirmedAt()));

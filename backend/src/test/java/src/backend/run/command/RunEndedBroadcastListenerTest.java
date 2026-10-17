@@ -14,6 +14,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.global.websocket.WebSocketBroadcastGateway;
@@ -31,9 +33,9 @@ class RunEndedBroadcastListenerTest {
     private final SimpMessagingTemplate template = mock(SimpMessagingTemplate.class);
     private final WebSocketBroadcastGateway gateway = new WebSocketBroadcastGateway(template,
             mock(WebSocketPublishMetrics.class), mock(WebSocketOutboundDropMetrics.class),
-            mock(ThreadPoolTaskExecutor.class), Clock.systemUTC());
+            mock(ThreadPoolTaskExecutor.class), Clock.systemUTC(), new SimpleMeterRegistry());
 
-    private final RunEndedBroadcastListener listener = new RunEndedBroadcastListener(runRiderRepository, gateway);
+    private final RunEndedBroadcastListener listener = new RunEndedBroadcastListener(runRiderRepository, gateway, Runnable::run);
 
     /** Ruling 335 — 학생 채널에는 {@code auto_alighted_count} 를 싣지 않는다(C-08). 나머지 3채널은 싣는다. */
     @Test

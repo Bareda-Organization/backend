@@ -1,7 +1,9 @@
 package src.backend.request.command;
 
 import java.time.OffsetDateTime;
+import java.util.concurrent.Executor;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -44,9 +46,17 @@ public class ApprovalRequestedBroadcastListener {
 
     private final WebSocketBroadcastGateway gateway;
 
+    /** 커밋 콜백이 요청 스레드의 트랜잭션 · 커넥션을 쥐고 방송하지 않도록 방송 작업을 넘기는 전용 실행기(R57 RT-4) — 단일 스레드라 커밋 순서가 유지된다. */
+    @Qualifier("broadcastListenerExecutor")
+    private final Executor broadcastExecutor;
+
     /** 커밋 후 학생·정차지·마감을 채워 {@code approval_requested} 를 학원 관제 채널에 방송한다. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcast(ApprovalRequestedEvent event) {
+        broadcastExecutor.execute(() -> deliverApprovalRequestedEvent(event));
+    }
+
+    private void deliverApprovalRequestedEvent(ApprovalRequestedEvent event) {
         try {
             String studentName = studentRepository.findById(event.studentId())
                     .map(student -> student.getName())

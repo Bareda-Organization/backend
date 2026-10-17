@@ -18,6 +18,8 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.global.websocket.WebSocketBroadcastGateway;
@@ -37,9 +39,9 @@ class RunStartedBroadcastListenerTest {
     private final SimpMessagingTemplate template = mock(SimpMessagingTemplate.class);
     private final WebSocketBroadcastGateway gateway = new WebSocketBroadcastGateway(template,
             mock(WebSocketPublishMetrics.class), mock(WebSocketOutboundDropMetrics.class),
-            mock(ThreadPoolTaskExecutor.class), Clock.systemUTC());
+            mock(ThreadPoolTaskExecutor.class), Clock.systemUTC(), new SimpleMeterRegistry());
 
-    private final RunStartedBroadcastListener listener = new RunStartedBroadcastListener(runRiderRepository, gateway);
+    private final RunStartedBroadcastListener listener = new RunStartedBroadcastListener(runRiderRepository, gateway, Runnable::run);
 
     /**
      * Ruling 335 — 학생 채널(학부모·학생 앱)에는 인원수를 싣지 않는다(C-08 "탑승 인원 미표시"). 매니저·관제·

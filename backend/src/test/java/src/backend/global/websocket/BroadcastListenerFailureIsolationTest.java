@@ -73,13 +73,13 @@ class BroadcastListenerFailureIsolationTest {
 
         PositionBroadcastListener position = new PositionBroadcastListener(repo(RunRiderDirectory.class, repoAnswer),
                 new RunBroadcastCache(java.time.Clock.systemUTC()), gateway);
-        RunStartedBroadcastListener started = new RunStartedBroadcastListener(runRiders, gateway);
-        RunEndedBroadcastListener ended = new RunEndedBroadcastListener(runRiders, gateway);
-        StopArrivedBroadcastListener arrived = new StopArrivedBroadcastListener(runRiders, gateway);
-        RiderChangedBroadcastListener rider = new RiderChangedBroadcastListener(students, runRiders, gateway);
+        RunStartedBroadcastListener started = new RunStartedBroadcastListener(runRiders, gateway, Runnable::run);
+        RunEndedBroadcastListener ended = new RunEndedBroadcastListener(runRiders, gateway, Runnable::run);
+        StopArrivedBroadcastListener arrived = new StopArrivedBroadcastListener(runRiders, gateway, Runnable::run);
+        RiderChangedBroadcastListener rider = new RiderChangedBroadcastListener(students, runRiders, gateway, Runnable::run);
         ApprovalRequestedBroadcastListener approval = new ApprovalRequestedBroadcastListener(students, runRiders,
-                stops, changeRequests, gateway);
-        EmergencyBroadcastListener emergency = new EmergencyBroadcastListener(gateway);
+                stops, changeRequests, gateway, Runnable::run);
+        EmergencyBroadcastListener emergency = new EmergencyBroadcastListener(gateway, Runnable::run);
 
         return Stream.of(
                 call("position", () -> position.broadcast(new RunPositionReceivedEvent(1L, BigDecimal.ONE,

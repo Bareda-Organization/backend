@@ -234,6 +234,10 @@ resilience4j:
         max-wait-duration: 0
 
 app:
+  security:
+    # 계정 상태(차단 · 퇴사 · 삭제된 매니저) 확인 결과를 계정별로 보관하는 최대 시간(R57 RT-1 · Ruling 899 A). 상태를 바꾸는 쪽이 커밋 직후 그 계정 항목을
+    # 비우므로 Ruling 880 의 "다음 요청부터 거절" 은 유지된다. 0초면 보관하지 않는다(시험 묶음이 그 값으로 돈다).
+    account-standing-cache-ttl: 5s
   # 장소 이름 검색(주소 자동완성의 보조 후보, 2026-09-23) — NAVER API HUB 지역 검색. 지도 API 와 다른 애플리케이션
   # 키라 따로 받는다(NCP 콘솔 → NAVER API HUB → Application). 키가 비면 호출이 401 로 실패하고 주소 후보만 나간다.
   place-search:

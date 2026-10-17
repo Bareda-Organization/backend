@@ -2,7 +2,9 @@ package src.backend.exception.command;
 
 import java.time.OffsetDateTime;
 import java.util.Locale;
+import java.util.concurrent.Executor;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -43,9 +45,17 @@ public class EmergencyBroadcastListener {
 
     private final WebSocketBroadcastGateway gateway;
 
+    /** 커밋 콜백이 요청 스레드의 트랜잭션 · 커넥션을 쥐고 방송하지 않도록 방송 작업을 넘기는 전용 실행기(R57 RT-4) — 단일 스레드라 커밋 순서가 유지된다. */
+    @Qualifier("broadcastListenerExecutor")
+    private final Executor broadcastExecutor;
+
     /** 비상 신고 접수를 관계자·관리자 채널에만 방송한다(학생 채널 제외). */
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void broadcastRaised(EmergencyRaisedEvent event) {
+        broadcastExecutor.execute(() -> deliverEmergencyRaisedEvent(event));
+    }
+
+    private void deliverEmergencyRaisedEvent(EmergencyRaisedEvent event) {
         try {
             RaisedPayload payload = new RaisedPayload(event.emergencyId(), event.academyId(), event.academyName(),
                     event.type().name().toLowerCase(Locale.ROOT), event.busNo(), event.raisedBy(), event.position(), event.riderCount(), event.raisedAt());
@@ -56,8 +66,12 @@ public class EmergencyBroadcastListener {
     }
 
     /** 비상 신고 확인을 발신자가 보는 매니저 채널에만 방송한다. */
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void broadcastAcked(EmergencyAckedEvent event) {
+        broadcastExecutor.execute(() -> deliverEmergencyAckedEvent(event));
+    }
+
+    private void deliverEmergencyAckedEvent(EmergencyAckedEvent event) {
         try {
             AckedPayload payload = new AckedPayload(event.emergencyId(), event.ackedByName(), event.ackedAt());
             gateway.send(WebSocketDestinations.managerRun(event.runId()), ACKED_EVENT, event.runId(), event.ackedAt(),
@@ -68,8 +82,12 @@ public class EmergencyBroadcastListener {
     }
 
     /** 비상 신고 취소를 관계자·관리자 채널에만 방송한다(학생 채널 제외). */
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void broadcastCanceled(EmergencyCanceledEvent event) {
+        broadcastExecutor.execute(() -> deliverEmergencyCanceledEvent(event));
+    }
+
+    private void deliverEmergencyCanceledEvent(EmergencyCanceledEvent event) {
         try {
             CanceledPayload payload = new CanceledPayload(event.emergencyId(), event.busNo(), event.canceledAt());
             sendToStaffAndAdmin(event.academyId(), event.runId(), CANCELED_EVENT, event.canceledAt(), payload);

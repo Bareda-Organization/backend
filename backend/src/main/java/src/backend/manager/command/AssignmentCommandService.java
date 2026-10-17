@@ -5,6 +5,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import org.springframework.context.ApplicationEventPublisher;
@@ -23,6 +24,7 @@ import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.persistence.ConstraintViolations;
 import src.backend.global.security.AuthUser;
+import src.backend.global.websocket.AccountSessionsRevokeEvent;
 import src.backend.manager.domain.AssignmentConflictDetector;
 import src.backend.manager.dto.AssignedManagerResponse;
 import src.backend.manager.dto.AssignedManagerView;
@@ -132,6 +134,7 @@ public class AssignmentCommandService {
         List<AssignmentWarning> warnings = conflictDetector.detect(run, manager, role, otherWindows);
         OffsetDateTime now = OffsetDateTime.now(clock);
         Optional<Assignment> current = assignmentRepository.findByRunIdAndRole(run.getId(), role);
+        Long previousManagerId = current.map(Assignment::getManagerId).orElse(null); // 교체되면 사라질 값 — reassign 이 덮기 전에 읽는다
         boolean newlyPlaced = current.map(assignment -> !assignment.getManagerId().equals(manager.getId()))
                 .orElse(true);
         current.ifPresentOrElse(
@@ -141,8 +144,18 @@ public class AssignmentCommandService {
         if (newlyPlaced) {
             eventPublisher.publishEvent(new AssignmentChangedEvent(run.getId(), run.getAcademyId(), manager.getId(),
                     role, now));
+            revokeReplacedSessions(previousManagerId);
         }
         return warnings;
+    }
+
+    /** 자리에서 빠진 매니저의 열린 세션을 커밋 직후 닫는다 — 그 회차 채널을 계속 받지 못하게(R57 RT-2 · K2 ⓒ). */
+    private void revokeReplacedSessions(Long previousManagerId) {
+        if (previousManagerId == null) {
+            return;
+        }
+        managerRepository.findById(previousManagerId).map(Manager::getAccountId)
+                .ifPresent(accountId -> eventPublisher.publishEvent(new AccountSessionsRevokeEvent(Set.of(accountId))));
     }
 
     /**

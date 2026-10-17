@@ -3,9 +3,12 @@ package src.backend.global.config;
 import java.util.concurrent.ThreadPoolExecutor;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.ChannelRegistration;
+import org.springframework.messaging.simp.broker.DefaultSubscriptionRegistry;
+import org.springframework.messaging.simp.broker.SimpleBrokerMessageHandler;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -20,6 +23,8 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.error.StompErrorFrameHandler;
 import src.backend.global.security.StompAuthChannelInterceptor;
 import src.backend.global.security.StompSessionExpiry;
+import src.backend.global.websocket.ConnectDeadlineFactory;
+import src.backend.global.websocket.OpenWebSocketSessions;
 
 /**
  * 실시간 위치·알림 채널(STOMP over WebSocket) 설정.
@@ -34,6 +39,12 @@ import src.backend.global.security.StompSessionExpiry;
 @RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
+    /** 하트비트 스케줄러 스레드 수(R57 RT-6) — 브로커 하트비트와 CONNECT 마감({@link ConnectDeadlineFactory})이 함께 쓴다. 1개면 하나가 막힐 때 다른 쪽이 멈춘다. */
+    static final int HEARTBEAT_SCHEDULER_POOL_SIZE = 2;
+
+    /** 심플 브로커 목적지별 구독 조회 보관 상한(R57 RT-6) — 기본 1024 는 학생 채널 수천 개를 담지 못해 조회가 계속 다시 계산된다. */
+    static final int SUBSCRIPTION_CACHE_LIMIT = 8192;
+
     /** STOMP heartbeat(ping/pong) 간격(ms) — 사양이 정한 정책 값이 아니라 연결 유지용 운영값이라 코드에 고정한다(IMPLEMENTATION_PLAN §7 규칙 10). */
     private static final long HEARTBEAT_MS = 10_000;
 
@@ -41,8 +52,16 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private final ForbiddenSubscriptionCloseFactory forbiddenSubscriptionCloseFactory;
     private final ReadIdleTimeoutFactory readIdleTimeoutFactory;
     private final StompSessionExpiry sessionExpiry;
+    private final OpenWebSocketSessions openWebSocketSessions;
+    private final ConnectDeadlineFactory connectDeadlineFactory;
     @Value("${app.ws.allowed-origin-patterns}")
     private final String[] allowedOriginPatterns;
+    /** 수신 채널 실행기 스레드 수(R57 RT-6) — CONNECT · SUBSCRIBE · SEND 인가가 DB 를 읽으므로 코어 수에 묶지 않고 값으로 둔다. */
+    @Value("${app.ws.inbound.core-pool-size:8}")
+    private final int inboundCorePoolSize;
+    /** 수신 채널 실행기 큐 상한(R57 RT-6) — 기본은 무한이라 DB 가 느려지면 프레임이 힙에 쌓인다. 넘치면 읽는 스레드가 직접 처리해 그 연결만 느려진다. */
+    @Value("${app.ws.inbound.queue-capacity:1000}")
+    private final int inboundQueueCapacity;
     @Value("${app.ws.outbound.core-pool-size:0}")
     private final int outboundCorePoolSize;
     /** 팬아웃 실행기 큐 상한(BR-170) — 무한 큐는 느린 구독자가 있을 때 힙을 채운다. */
@@ -76,6 +95,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         // Phase 3: /user 프리픽스로 보낸 메시지는 세션별 목적지(/queue/**-user<sessionId>)로
         // 재작성되어 심플 브로커를 거쳐 배달된다 — 그래서 /queue 도 브로커 프리픽스로 열어둬야 한다.
         registry.setUserDestinationPrefix("/user");
+        // 같은 세션에 같은 순서로 발행한 메시지가 뒤집혀 도착하지 않게 한다(R57 RT-3 · Ruling 899 C) — 클라이언트는 화면 값보다 오래된 시각의 메시지를 버린다.
+        registry.setPreservePublishOrder(true);
         registry.enableSimpleBroker("/topic", "/queue")
                 .setHeartbeatValue(new long[]{HEARTBEAT_MS, HEARTBEAT_MS})
                 .setTaskScheduler(heartbeatScheduler());
@@ -84,6 +105,58 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
         registration.interceptors(authChannelInterceptor);
+        registration.taskExecutor(inboundTaskExecutor());
+    }
+
+    /**
+     * 수신 채널 실행기 — 스레드 수 · 큐 상한을 명시한다(R57 RT-6). 기본 실행기는 큐가 무한이다. {@code outboundTaskExecutor} 와 같은 이유로 일반 후보에서 뺀다.
+     * 큐가 차면 거부하지 않고 읽는 스레드가 직접 처리한다 — 프레임을 잃지 않고 그 연결의 읽기만 느려진다.
+     */
+    @Bean(defaultCandidate = false)
+    public ThreadPoolTaskExecutor inboundTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setThreadNamePrefix("clientInboundChannel-");
+        executor.setCorePoolSize(inboundCorePoolSize);
+        executor.setMaxPoolSize(inboundCorePoolSize);
+        executor.setQueueCapacity(inboundQueueCapacity);
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+        return executor;
+    }
+
+    /** 심플 브로커의 구독 조회 보관 상한을 올린다(R57 RT-6). 브로커 빈이 만들어진 직후에 손댄다. */
+    @Bean
+    static BeanPostProcessor subscriptionCacheLimitPostProcessor() {
+        return new BeanPostProcessor() {
+            @Override
+            public Object postProcessAfterInitialization(Object bean, String beanName) {
+                if (bean instanceof SimpleBrokerMessageHandler broker
+                        && broker.getSubscriptionRegistry() instanceof DefaultSubscriptionRegistry registry) {
+                    registry.setCacheLimit(SUBSCRIPTION_CACHE_LIMIT);
+                }
+                return bean;
+            }
+        };
+    }
+
+    /**
+     * 커밋 뒤 방송 리스너가 방송 작업을 넘기는 실행기(R57 RT-4) — {@code AFTER_COMMIT} 콜백은 요청 트랜잭션이 활성이고 커넥션을 아직 쥔 채 돌아서(실측), 그
+     * 안에서 조회 · 방송하면 방송 시간만큼 커넥션을 더 쥔다. 콜백은 이 실행기에 제출만 하고 돌아가 요청 스레드가 커넥션을 먼저 반납한다.
+     *
+     * <p>스레드는 1개다 — 승하차 · 운행 상태 방송은 사람 속도(분당 수십 건 이하)라 1개로 충분하고, 커밋 순서대로 방송돼야 클라이언트가 오래된 메시지를 버리는 기준
+     * ({@code changed_at})과 방송 순서가 어긋나지 않는다. 큐가 차면 제출한 스레드가 직접 방송해 메시지를 잃지 않는다. 위치(position) 방송은 이 실행기를 쓰지 않는다.
+     */
+    @Bean(defaultCandidate = false)
+    public ThreadPoolTaskExecutor broadcastListenerExecutor(
+            @Value("${app.ws.broadcast.queue-capacity:1000}") int queueCapacity) {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setThreadNamePrefix("broadcast-listener-");
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(1);
+        executor.setQueueCapacity(queueCapacity);
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+        return executor;
     }
 
     /**
@@ -149,6 +222,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registration.addDecoratorFactory(forbiddenSubscriptionCloseFactory);
         // 나중에 등록한 것이 바깥이다 — 유휴 제한이 원본(Tomcat) 세션을 먼저 받아야 하므로 반드시 위 데코레이터보다 뒤에 둔다.
         registration.addDecoratorFactory(readIdleTimeoutFactory);
+        // 열린 세션 보관소는 가장 바깥에 둔다 — 원본 세션을 받아야 계정 단위 종료(4500)가 그 세션을 직접 닫는다(R57 RT-2).
+        registration.addDecoratorFactory(openWebSocketSessions);
+        // CONNECT 마감(R57 RT-8) — 인증 전 소켓을 10초 뒤 닫는다. 원본 세션에 대고 close 하므로 위 데코레이터들과 순서가 상관없지만 한곳에 모은다.
+        registration.addDecoratorFactory(connectDeadlineFactory);
         registration.setSendBufferSizeLimit(outboundSendBufferSizeLimit);
         registration.setSendTimeLimit(outboundSendTimeLimit);
     }
@@ -156,7 +233,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Bean
     public TaskScheduler heartbeatScheduler() {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
-        scheduler.setPoolSize(1);
+        scheduler.setPoolSize(HEARTBEAT_SCHEDULER_POOL_SIZE);
         scheduler.setThreadNamePrefix("ws-heartbeat-");
         scheduler.initialize();
         return scheduler;

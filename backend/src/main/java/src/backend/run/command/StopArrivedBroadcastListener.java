@@ -2,7 +2,9 @@ package src.backend.run.command;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.concurrent.Executor;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -31,9 +33,17 @@ public class StopArrivedBroadcastListener {
 
     private final WebSocketBroadcastGateway gateway;
 
+    /** 커밋 콜백이 요청 스레드의 트랜잭션 · 커넥션을 쥐고 방송하지 않도록 방송 작업을 넘기는 전용 실행기(R57 RT-4) — 단일 스레드라 커밋 순서가 유지된다. */
+    @Qualifier("broadcastListenerExecutor")
+    private final Executor broadcastExecutor;
+
     /** 승하차지 도착을 학생·매니저·학원·관리자 채널 4종 전부에 방송한다. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcast(StopArrivedEvent event) {
+        broadcastExecutor.execute(() -> deliverStopArrivedEvent(event));
+    }
+
+    private void deliverStopArrivedEvent(StopArrivedEvent event) {
         try {
             List<Long> studentIds = runRiderRepository.findAllByRunId(event.runId()).stream()
                     // absent(다른 버스로 옮긴 removed 포함)는 이 버스에 없다 — 다른 방송 리스너와 같은 필터(BR-233)

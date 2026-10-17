@@ -41,7 +41,7 @@ class RunRouteChangedBroadcastListenerTest {
 
     private final WebSocketBroadcastGateway gateway = mock(WebSocketBroadcastGateway.class);
 
-    private final RunRouteChangedBroadcastListener listener = new RunRouteChangedBroadcastListener(gateway);
+    private final RunRouteChangedBroadcastListener listener = new RunRouteChangedBroadcastListener(gateway, Runnable::run);
 
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule())
             .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
