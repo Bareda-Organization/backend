@@ -36,6 +36,9 @@ import src.backend.observability.metrics.WebSocketPublishMetrics;
  * {@link #broadcastToRunChannels} 하나로 묶는다 — 리스너 3개가 각자 다시 구현하면 그중 하나만 고쳐
  * 채널이 갈리는 사고가 난다.
  *
+ * <p><b>이벤트 1건은 Redis 중계({@link BroadcastRelay}) 메시지 1건이다</b>(Ruling 900 A) — 목적지 전부를 한 메시지에 담아 내보내고, 모든 인스턴스(발행한 쪽 포함)가
+ * 받아 {@link #deliverLocal} 로 자기에게 붙은 구독자에게만 보낸다. 그래서 위치 · 큐 포화 판정은 받는 쪽에서 한다.
+ *
  * <p>발행 지연 계측이 이 게이트에 붙는 이유도 같다 — 리스너 8곳이 이미 넘기는 {@code occurredAt}
  * (원본 도메인 이벤트 시각)을 여기서 한 번만 현재 시각과 비교하면, 리스너가 늘어도 계측이 따라온다.
  *

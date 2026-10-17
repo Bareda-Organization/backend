@@ -23,7 +23,7 @@ import src.backend.global.common.enums.Role;
  * 배포가 성공해도 로그인할 사람이 없기 때문이다.
  *
  * <p>이미 메인 관리자가 있으면 값을 읽지도 검증하지도 않는다 — 첫 배포 뒤 SSM 에 남은 값이 이후 배포·롤백을 막으면 안 된다.
- * 인스턴스가 1개라(replicas 금지) 동시 생성 경합은 없고, 있더라도 아이디·등록부 UNIQUE 제약이 한쪽을 거절한다.
+ * 인스턴스 두 대가 처음에 동시에 기동해 둘 다 계정이 없다고 보고 만들려 하면 아이디·등록부 UNIQUE 제약이 한쪽을 거절해 그 인스턴스의 기동만 실패한다(다시 기동하면 이미 있어 건너뛴다). 한 대씩 기동하면 겹치지 않는다.
  */
 @Component
 public class FirstSystemAdminBootstrap implements ApplicationRunner {

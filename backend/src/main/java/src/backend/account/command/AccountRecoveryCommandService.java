@@ -183,8 +183,8 @@ public class AccountRecoveryCommandService {
      * 하루가 지난 발급 행을 지운다 — 미등록 번호의 요청도 행을 남기므로 번호를 바꿔 가며 보내는 요청이 행을 쌓지 못하게
      * 한다. 매 요청마다 훑지 않고 {@link #PURGE_INTERVAL} 에 한 번만 돈다.
      *
-     * <p>ponytail: 마지막 정리 시각을 메모리에 둔다 — 백엔드가 인스턴스 1개라는 배포 전제(CLAUDE.md)를 따르고, 재기동 직후
-     * 한 번 더 도는 것은 해가 없다. 여러 인스턴스가 되면 스케줄러(보존 정리)로 옮긴다.
+     * <p>ponytail: 마지막 정리 시각을 인스턴스 메모리에 둔다 — 인스턴스마다 {@link #PURGE_INTERVAL} 에 한 번씩 돌아 여러 대면 그만큼 겹쳐 돌지만,
+     * 같은 행을 지우는 멱등 삭제라 해가 없다(재기동 직후 한 번 더 도는 것도 같다). 삭제 부하가 문제가 되면 스케줄러(보존 정리)로 옮긴다.
      */
     private void purgeStaleCodes(OffsetDateTime now) {
         Instant last = lastPurgeAt.get();
