@@ -41,7 +41,7 @@ class ApprovalRequestedBroadcastListenerTest {
     private final WebSocketBroadcastGateway gateway = mock(WebSocketBroadcastGateway.class);
 
     private final ApprovalRequestedBroadcastListener listener = new ApprovalRequestedBroadcastListener(
-            studentRepository, runRiderRepository, stopRepository, changeRequestRepository, gateway);
+            studentRepository, runRiderRepository, stopRepository, changeRequestRepository, gateway, Runnable::run);
 
     @Test
     @DisplayName("목표 4 — 학원 관제 채널로만 나간다, 다른 3채널은 호출조차 되지 않는다")

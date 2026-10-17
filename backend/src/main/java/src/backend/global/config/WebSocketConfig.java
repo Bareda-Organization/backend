@@ -140,6 +140,26 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     }
 
     /**
+     * 커밋 뒤 방송 리스너가 방송 작업을 넘기는 실행기(R57 RT-4) — {@code AFTER_COMMIT} 콜백은 요청 트랜잭션이 활성이고 커넥션을 아직 쥔 채 돌아서(실측), 그
+     * 안에서 조회 · 방송하면 방송 시간만큼 커넥션을 더 쥔다. 콜백은 이 실행기에 제출만 하고 돌아가 요청 스레드가 커넥션을 먼저 반납한다.
+     *
+     * <p>스레드는 1개다 — 승하차 · 운행 상태 방송은 사람 속도(분당 수십 건 이하)라 1개로 충분하고, 커밋 순서대로 방송돼야 클라이언트가 오래된 메시지를 버리는 기준
+     * ({@code changed_at})과 방송 순서가 어긋나지 않는다. 큐가 차면 제출한 스레드가 직접 방송해 메시지를 잃지 않는다. 위치(position) 방송은 이 실행기를 쓰지 않는다.
+     */
+    @Bean(defaultCandidate = false)
+    public ThreadPoolTaskExecutor broadcastListenerExecutor(
+            @Value("${app.ws.broadcast.queue-capacity:1000}") int queueCapacity) {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setThreadNamePrefix("broadcast-listener-");
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(1);
+        executor.setQueueCapacity(queueCapacity);
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+        return executor;
+    }
+
+    /**
      * 구독자에게 프레임을 실제로 써 내보내는 실행기의 스레드 수 — 팬아웃 처리량의 상한이다.
      *
      * <p>구독자 N명 토픽에 1건을 보내면 이 실행기에 <b>N건의 쓰기 태스크</b>가 쌓인다. 그래서 이

@@ -27,7 +27,7 @@ class StopArrivedBroadcastListenerTest {
     private final RunRiderRepository runRiderRepository = mock(RunRiderRepository.class);
     private final WebSocketBroadcastGateway gateway = mock(WebSocketBroadcastGateway.class);
 
-    private final StopArrivedBroadcastListener listener = new StopArrivedBroadcastListener(runRiderRepository, gateway);
+    private final StopArrivedBroadcastListener listener = new StopArrivedBroadcastListener(runRiderRepository, gateway, Runnable::run);
 
     @Test
     @DisplayName("정차지 정보를 payload 에 그대로 싣고, 명단으로 팬아웃한다")

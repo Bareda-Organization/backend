@@ -1,21 +1,19 @@
 package src.backend.global.websocket;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.clearInvocations;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.mockingDetails;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -111,7 +109,7 @@ class RunBroadcastWiringIntegrationTest {
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/start").header("Authorization", token(driver, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
-        assertThat(sentEvents()).contains("run_started");
+        assertThat(sentEvents("run_started")).contains("run_started");
 
         // 위치 방송은 구독자가 있는 채널에만 나간다(R46 D #6) — 학원 관제 채널에 구독자 1명을 브로커 등록부에 직접 둔다.
         구독자를_둔다(WebSocketDestinations.academyLive(academyId));
@@ -119,12 +117,12 @@ class RunBroadcastWiringIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"lat\":37.5601,\"lng\":126.9701,\"recorded_at\":\"%s\"}".formatted(OffsetDateTime.now())))
                 .andExpect(status().is2xxSuccessful());
-        assertThat(sentEvents()).contains("position");
+        assertThat(sentEvents("position")).contains("position");
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStopId + "/arrive")
                         .header("Authorization", token(driver, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
-        assertThat(sentEvents()).contains("stop_arrived");
+        assertThat(sentEvents("stop_arrived")).contains("stop_arrived");
 
         mockMvc.perform(patch("/api/v1/runs/" + runId + "/riders/" + riderId)
                         .header("Authorization", token(escort, academyId, Role.ESCORT))
@@ -132,7 +130,7 @@ class RunBroadcastWiringIntegrationTest {
                         .content("{\"status\":\"alighted\",\"verify_method\":\"manual\",\"client_key\":\"%s\",\"occurred_at\":\"%s\"}"
                                 .formatted(UUID.randomUUID(), OffsetDateTime.now())))
                 .andExpect(status().isOk());
-        assertThat(sentEvents()).as("마지막 하차가 종료 보류 회차를 끝낸다").contains("rider_changed", "run_ended");
+        assertThat(sentEvents("rider_changed", "run_ended")).as("마지막 하차가 종료 보류 회차를 끝낸다").contains("rider_changed", "run_ended");
     }
 
     @AfterEach
@@ -149,14 +147,26 @@ class RunBroadcastWiringIntegrationTest {
                 .registerSubscription(MessageBuilder.createMessage(new byte[0], headers.getMessageHeaders()));
     }
 
-    /** 직전 단계 뒤로 나간 방송의 이벤트 이름들 — 읽은 뒤 기록을 비워 단계마다 새로 센다. */
-    private List<String> sentEvents() {
-        ArgumentCaptor<Object> envelopes = ArgumentCaptor.forClass(Object.class);
-        verify(messagingTemplate, atLeastOnce()).convertAndSend(anyString(), envelopes.capture());
-        List<String> events = envelopes.getAllValues().stream()
-                .map(envelope -> ((WebSocketEnvelope) envelope).event())
-                .distinct()
-                .toList();
+    /**
+     * 직전 단계 뒤로 나간 방송의 이벤트 이름들 — 읽은 뒤 기록을 비워 단계마다 새로 센다. 커밋 뒤 방송은 전용 실행기에서 돌아(R57 RT-4) 요청이 돌아온 직후에는
+     * 아직 안 나갔을 수 있으므로 기대한 이벤트가 모두 나올 때까지 최대 5초 기다린다.
+     */
+    private List<String> sentEvents(String... expected) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        List<String> events;
+        do {
+            events = mockingDetails(messagingTemplate).getInvocations().stream()
+                    .filter(invocation -> invocation.getMethod().getName().equals("convertAndSend")
+                            && invocation.getArguments().length == 2
+                            && invocation.getArgument(1) instanceof WebSocketEnvelope)
+                    .map(invocation -> ((WebSocketEnvelope) invocation.getArgument(1)).event())
+                    .distinct()
+                    .toList();
+            if (events.containsAll(List.of(expected))) {
+                break;
+            }
+            Thread.sleep(50);
+        } while (System.nanoTime() < deadline);
         clearInvocations(messagingTemplate);
         return events;
     }

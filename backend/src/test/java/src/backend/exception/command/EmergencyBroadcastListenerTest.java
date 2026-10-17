@@ -44,7 +44,7 @@ class EmergencyBroadcastListenerTest {
 
     private final WebSocketBroadcastGateway gateway = mock(WebSocketBroadcastGateway.class);
 
-    private final EmergencyBroadcastListener listener = new EmergencyBroadcastListener(gateway);
+    private final EmergencyBroadcastListener listener = new EmergencyBroadcastListener(gateway, Runnable::run);
 
     // ── goal 6·7 — 접수 방송은 학원·관리자 채널로만, 학생 채널은 절대 안 됨 ──────────
 
