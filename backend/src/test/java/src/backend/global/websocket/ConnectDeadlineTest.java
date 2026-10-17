@@ -55,7 +55,7 @@ class ConnectDeadlineTest {
         long elapsedSeconds = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startedAt);
 
         assertThat(code).as("정책 위반(1008)로 닫힌다").isEqualTo(1008);
-        assertThat(elapsedSeconds).as("마감은 10초 — 그 전에 닫히면 정상 클라이언트의 CONNECT 를 자른다").isGreaterThanOrEqualTo(8);
+        assertThat(elapsedSeconds).as("마감은 10초 — 그 전에 닫히면 정상 클라이언트의 CONNECT 를 자른다").isGreaterThanOrEqualTo(9);
         assertThat(connected.session().isOpen()).as("CONNECT 한 소켓은 마감에 걸리지 않는다").isTrue();
         assertThat(meterRegistry.counter("schoolbus.ws.closed", "reason", "CONNECT_TIMEOUT").count())
                 .as("마감 종료는 사유별 카운터에 센다(RT-11)").isEqualTo(timedOutBefore + 1);
