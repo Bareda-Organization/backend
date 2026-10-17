@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * {@code infra/scripts/backup-db.sh} 를 가짜 {@code docker}·{@code aws} 로 실제 실행해 본다 — R46 ops2 `Ruling 500`.
+ * {@code infra/scripts/backup-db.sh} 를 가짜 {@code docker}·{@code aws} 로 실제 실행해 본다 — `Ruling 500`.
  *
  * <p>백업이 조용히 멈추는 것이 이 시험이 막는 사고다. 백업 성공 시각 지표(node-exporter textfile)는
  * <b>S3 에 올린 뒤에만</b> 갱신돼야 경보({@code BackupDbStale})가 "멈춤"을 본다 — 덤프만 뜨고 업로드가 실패했는데

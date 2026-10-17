@@ -38,7 +38,7 @@ import src.backend.global.security.JwtTokenProvider;
 import testsupport.gate.AccountStatusGateEndpoints;
 
 /**
- * 학원 격리 HTTP 전수 검사(X-08 후속, F3 목표 10) — 경로 변수를 받는 프로덕션 핸들러 전부를 A학원
+ * 학원 격리 HTTP 전수 검사— 경로 변수를 받는 프로덕션 핸들러 전부를 A학원
  * 계정이 B학원 자원 id 로 두드렸을 때의 응답을 표로 고정한다.
  *
  * <p>검사 대상 개수는 손으로 세지 않는다 — {@link #검사_대상이_런타임_추출_전체_경로변수_핸들러와_정확히_일치한다}
@@ -206,7 +206,7 @@ class AcademyScopeHttpExhaustiveTest {
     }
 
     /**
-     * 검사 대상 개수를 정본이 아니라 런타임에서 잰다(목표 10 의 핵심 요구) — {@code /admin/*} 는
+     * 검사 대상 개수를 정본이 아니라 런타임에서 잰다 — {@code /admin/*} 는
      * 메인관리자 콘솔이라 학원 격리 대조 자체가 성립하지 않아 뺀다({@code hasPlatformScope()} 가 학원
      * 조건을 우회하는 것이 설계다). {@code DELETE /me/devices/{token}} 은 학원 자원이 아니라 호출자
      * 자신의 기기 토큰이라 "B학원 자원 id" 를 구성할 수 없어 뺀다(정본 침묵 — 보고서 항목②).
@@ -257,10 +257,9 @@ class AcademyScopeHttpExhaustiveTest {
 
     /**
      * 49개 경로 변수 핸들러 전부(50건 — 탑승 의사 토글이 studentId·runId 두 축을 따로 검사해 하나
-     * 늘어난다) — {@code POST /runs/{runId}/delay} 는 F3 S5 가 §1.11 매니저 앱 회차 자원 그룹에
-     * 추가(합류 정정, Ruling 259(b)). {@code POST /staff/students/{id}/transfer} 는 F4 S1 이
-     * 버스 간 이동(§5.8)으로, {@code DELETE /staff/transfers/{transferId}} 는 R36-BE 가 이동 대기 취소(§5.8.1)로, {@code GET /files/photos/{fileName}} 은 BR-214 가 학생 사진 서빙(§5.11.1)으로 추가. 패턴별 근거는 클래스 javadoc, 개별 근거는 각 케이스 옆
-     * 주석(보고서 항목①).
+     * 늘어난다) — {@code POST /runs/{runId}/delay} 는 §1.11 매니저 앱 회차 자원 그룹에
+     * 속한다(Ruling 259(b)). {@code POST /staff/students/{id}/transfer} 는 버스 간 이동(§5.8)이고,
+     * {@code DELETE /staff/transfers/{transferId}} 는 이동 대기 취소(§5.8.1), {@code GET /files/photos/{fileName}} 은 학생 사진 서빙(§5.11.1, BR-214)이다. 패턴별 근거는 클래스 javadoc, 개별 근거는 각 케이스 옆 주석.
      */
     private List<ScopeCase> buildCases() {
         String emergencyRaiseBody = "{\"type\":\"accident\",\"client_key\":\"" + UUID.randomUUID() + "\"}";
@@ -281,12 +280,12 @@ class AcademyScopeHttpExhaustiveTest {
                 new Object[] {academyBStudentId}, staffA(), EMPTY_BODY, 404, "STUDENT_NOT_FOUND"));
         cases.add(c("DELETE /staff/students/{id} → B학원 학생 404", HttpMethod.DELETE, "/staff/students/{id}",
                 new Object[] {academyBStudentId}, staffA(), null, 404, "STUDENT_NOT_FOUND"));
-        // F4 S1 — 버스 간 이동(§5.8) — findByIdAndAcademyIdAndDeletedAtIsNull 이 fromRunId·toRunId
+        // 버스 간 이동(§5.8) — findByIdAndAcademyIdAndDeletedAtIsNull 이 fromRunId·toRunId
         // 조회보다 먼저다(TransferCommandService, 판단 근거①).
         cases.add(c("POST /staff/students/{id}/transfer → B학원 학생 404", HttpMethod.POST,
                 "/staff/students/{id}/transfer", new Object[] {academyBStudentId}, staffA(), TRANSFER_BODY, 404,
                 "STUDENT_NOT_FOUND"));
-        // R36-BE — 이동 대기 취소(§5.8.1) — findByIdAndAcademyId 가 출발 회차의 학원으로 좁힌다.
+        // 이동 대기 취소(§5.8.1) — findByIdAndAcademyId 가 출발 회차의 학원으로 좁힌다.
         cases.add(c("DELETE /staff/transfers/{transferId} → B학원 이동 404", HttpMethod.DELETE,
                 "/staff/transfers/{transferId}", new Object[] {academyBTransferId}, staffA(), null, 404,
                 "TRANSFER_NOT_FOUND"));
@@ -316,10 +315,10 @@ class AcademyScopeHttpExhaustiveTest {
                 new Object[] {academyBRouteId}, staffA(), null, 404, "ROUTE_NOT_FOUND"));
         cases.add(c("GET /staff/routes/{id} → B학원 노선 404", HttpMethod.GET, "/staff/routes/{id}",
                 new Object[] {academyBRouteId}, staffA(), null, 404, "ROUTE_NOT_FOUND"));
-        // R30 — 승하차지 한 번에 저장(§5.9, Ruling 325). 남의 학원 노선은 존재를 드러내지 않고 404 다.
+        // 승하차지 한 번에 저장(§5.9, Ruling 325). 남의 학원 노선은 존재를 드러내지 않고 404 다.
         cases.add(c("PUT /staff/routes/{id}/stops → B학원 노선 404", HttpMethod.PUT, "/staff/routes/{id}/stops",
                 new Object[] {academyBRouteId}, staffA(), "{\"stops\":[]}", 404, "ROUTE_NOT_FOUND"));
-        // R27-B — 고정 노선 도로 경로 조회(§5.9). 남의 학원 노선은 존재를 드러내지 않고 404 다.
+        // 고정 노선 도로 경로 조회(§5.9). 남의 학원 노선은 존재를 드러내지 않고 404 다.
         cases.add(c("GET /staff/routes/{id}/path → B학원 노선 404", HttpMethod.GET, "/staff/routes/{id}/path",
                 new Object[] {academyBRouteId}, staffA(), null, 404, "ROUTE_NOT_FOUND"));
         cases.add(c("POST /staff/routes/{id}/optimize → B학원 노선 404", HttpMethod.POST,
@@ -359,7 +358,7 @@ class AcademyScopeHttpExhaustiveTest {
         cases.add(c("POST /staff/signup-requests/{id}/decide → B학원 신청 403 ACADEMY_SCOPE_VIOLATION",
                 HttpMethod.POST, "/staff/signup-requests/{id}/decide", new Object[] {academyBSignupRequestId},
                 staffA(), DECIDE_SIGNUP_BODY, 403, "ACADEMY_SCOPE_VIOLATION"));
-        // R52 L3 — 알림은 소유 자원이다: 남의 것(타 계정 · 타 학원)은 API_SPEC §1.5 표대로 403 FORBIDDEN (§3.13)
+        // 알림은 소유 자원이다: 남의 것(타 계정 · 타 학원)은 API_SPEC §1.5 표대로 403 FORBIDDEN (§3.13)
         cases.add(c("PATCH /notifications/{id}/read → B학원 알림 403 FORBIDDEN", HttpMethod.PATCH,
                 "/notifications/{id}/read", new Object[] {academyBNotificationId}, staffA(), null, 403,
                 "FORBIDDEN"));
@@ -413,11 +412,10 @@ class AcademyScopeHttpExhaustiveTest {
                 new Object[] {ACADEMY_B_RUN_ID}, driverA1(), REPORT_CREATE_BODY, 403, "FORBIDDEN"));
 
         // 매니저 앱 — §1.11 "매니저 앱 회차 자원의 403 FORBIDDEN(배치되지 않은 회차)" 명시(Ruling
-        // 259(b), review-f3-r4 #38~43). 회차 없음·타 학원·미배치 세 경우 모두 배치 확인이 회차 조회
+        // 259(b)). 회차 없음·타 학원·미배치 세 경우 모두 배치 확인이 회차 조회
         // 보다 먼저라 구별 없이 403 이다 — roster·route 는 ManagerRunAccess, navigation 은
         // NavigationQueryService.assertAssigned, 동승자 승하차·되돌리기·미승차 연락은
-        // BoardingCommandService/NoShowContactCommandService 가 RunAssignmentAccess 를 각각 호출한다
-        // (라운드 2, 소유 파일 확장).
+        // BoardingCommandService/NoShowContactCommandService 가 RunAssignmentAccess 를 각각 호출한다.
         cases.add(c("GET /runs/{runId}/roster → B학원 회차 403 FORBIDDEN(§1.11)", HttpMethod.GET,
                 "/runs/{runId}/roster", new Object[] {ACADEMY_B_RUN_ID}, driverA1(), null, 403, "FORBIDDEN"));
         cases.add(c("GET /runs/{runId}/route → B학원 회차 403 FORBIDDEN(§1.11)", HttpMethod.GET,
@@ -440,7 +438,7 @@ class AcademyScopeHttpExhaustiveTest {
         cases.add(c("POST /runs/{runId}/riders/{riderId}/no-show-contacts → B학원 회차 403 FORBIDDEN(§1.11)",
                 HttpMethod.POST, "/runs/{runId}/riders/{riderId}/no-show-contacts",
                 new Object[] {ACADEMY_B_RUN_ID, PLACEHOLDER_ID}, escortA1(), NO_SHOW_BODY, 403, "FORBIDDEN"));
-        // DelayNotificationCommandService 도 같은 RunAssignmentAccess 규약(F3 S5, Ruling 259(b) 정정
+        // DelayNotificationCommandService 도 같은 RunAssignmentAccess 규약(Ruling 259(b) 정정
         // — §4.9 에러 문면을 §1.11 매니저 앱 회차 자원과 같은 값으로 정정).
         cases.add(c("POST /runs/{runId}/delay → B학원 회차 403 FORBIDDEN(§1.11)", HttpMethod.POST,
                 "/runs/{runId}/delay", new Object[] {ACADEMY_B_RUN_ID}, escortA1(), DELAY_BODY, 403, "FORBIDDEN"));

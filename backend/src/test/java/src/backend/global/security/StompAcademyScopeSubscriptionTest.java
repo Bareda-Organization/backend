@@ -31,9 +31,7 @@ import src.backend.global.common.enums.Role;
  * "거부되는가" 가 아니라 <b>"거부가 무엇을 실어 오는가"</b> 이기 때문이다. 클라이언트 라이브러리를 끼우면
  * 그 라이브러리가 프레임을 해석한 결과만 보게 되어, 프레임에 식별자가 없어도 테스트가 통과한다.
  *
- * <p>옛 경로 {@code /topic/tenant/{id}/positions} 는 이 클래스가 원래 검사하던 대상이었으나
- * {@code /topic/academy/{id}/live} 로 완전히 대체돼 소멸했다(Ruling 121 해소, T2 Phase 10) — 이
- * 클래스가 여기로 재배치된다.
+ * <p>{@code /topic/tenant/{id}/positions} 경로는 현재 없고 {@code /topic/academy/{id}/live} 가 대신한다(Ruling 121).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class StompAcademyScopeSubscriptionTest {

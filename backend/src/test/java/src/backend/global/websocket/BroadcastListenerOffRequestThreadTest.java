@@ -53,11 +53,11 @@ import src.backend.run.event.RunStartedEvent;
 import src.backend.run.event.StopArrivedEvent;
 
 /**
- * 커밋 뒤 방송 리스너는 요청 스레드의 트랜잭션 · 커넥션을 쥐고 돌지 않는다(R57 RT-4 · RT-10 · RT-9).
+ * 커밋 뒤 방송 리스너는 요청 스레드의 트랜잭션 · 커넥션을 쥐고 돌지 않는다.
  *
- * <p>{@code AFTER_COMMIT} 콜백은 커밋 직후에도 요청 트랜잭션이 활성이고 커넥션이 반납되기 전이라(2026-10-17 실측: 활성 트랜잭션 참 · 풀 사용 중 1),
+ * <p>{@code AFTER_COMMIT} 콜백은 커밋 직후에도 요청 트랜잭션이 활성이고 커넥션이 반납되기 전이라(실측: 활성 트랜잭션 참 · 풀 사용 중 1),
  * 리스너가 그 안에서 조회 · 방송하면 방송 시간만큼 커넥션을 더 쥔다. 그래서 콜백은 방송 작업을 전용 실행기에 넘기기만 한다. 승하차 방송의 상태별 인원
- * 조회는 5번에서 1번으로 줄였다. 비상 방송은 트랜잭션 없이 발행돼도 나간다. 학생 채널 하나의 전송 예외가 나머지 채널 방송을 막지 않는다.
+ * 조회는 1번이다. 비상 방송은 트랜잭션 없이 발행돼도 나간다. 학생 채널 하나의 전송 예외가 나머지 채널 방송을 막지 않는다.
  */
 @SpringBootTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 class BroadcastListenerOffRequestThreadTest {

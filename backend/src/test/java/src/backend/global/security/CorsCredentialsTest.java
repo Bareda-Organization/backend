@@ -18,7 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * {@code Access-Control-Allow-Credentials: true} 가 있어야 하고, 없으면 브라우저가
  * 응답을 통째로 버려 <b>웹 로그인 자체가 성립하지 않는다.</b>
  *
- * <p>이 검사가 없던 동안 실제로 그 헤더가 빠져 있었다(2026-09-10 F2 착수 시 발견).
+ * <p>이 검사가 없으면 그 헤더가 빠져 있어도 아무 시험도 실패하지 않는다.
  * curl 은 CORS 를 강제하지 않아 서버 응답만 보면 정상으로 보이고,
  * <b>실제 브라우저에서만</b> 드러나는 형태였다 — 그래서 여기서 헤더로 고정한다.
  */
@@ -45,7 +45,7 @@ class CorsCredentialsTest {
 
     @Test
     void 허용_목록에_없는_출처는_preflight_가_거절된다() throws Exception {
-        // R46 ops2 Ruling 503 — 관계자 웹이 Vercel 이어도 허용 출처는 정확히 적은 것만이다. Vercel 미리보기 배포 주소는
+        // Ruling 503 — 관계자 웹이 Vercel 이어도 허용 출처는 정확히 적은 것만이다. Vercel 미리보기 배포 주소는
         // 가지·PR 마다 바뀌어 목록에 못 넣고, 패턴(`*`)으로 열면 누구의 미리보기든 운영 API 를 자격 증명과 함께 부를 수 있다.
         mockMvc.perform(options("/api/v1/auth/login")
                         .header("Origin", "https://school-bus-git-feature-x-team.vercel.app")

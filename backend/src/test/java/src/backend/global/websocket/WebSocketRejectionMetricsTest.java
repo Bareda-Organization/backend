@@ -33,8 +33,8 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
- * 접속 · 구독 거절과 종료 사유별 카운터(R57 RT-11 · K7) — {@code schoolbus.ws.rejected{phase,reason}} 와 {@code schoolbus.ws.closed{reason}}
- * ({@code 4403} · {@code TOKEN_EXPIRED} · {@code 4500} · {@code CONNECT_TIMEOUT})가 실제 거절 뒤에 오르고 Prometheus 출력에 나온다. 시험 하나는 K1 ② 도 잰다:
+ * 접속 · 구독 거절과 종료 사유별 카운터 — {@code schoolbus.ws.rejected{phase,reason}} 와 {@code schoolbus.ws.closed{reason}}
+ * ({@code 4403} · {@code TOKEN_EXPIRED} · {@code 4500} · {@code CONNECT_TIMEOUT})가 실제 거절 뒤에 오르고 Prometheus 출력에 나온다. 시험 하나는 다음도 잰다:
  * ERROR 프레임(TOKEN_EXPIRED) 뒤 서버가 실제로 쓰는 종료 코드.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)

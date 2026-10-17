@@ -29,7 +29,7 @@ import src.backend.student.repository.StudentRepository;
 
 /**
  * {@link RetentionCleanupScheduler#cleanUp} 이 <b>조회를 부를 때마다</b> 배치 상한을 실제로 넘기는지
- * 순수 단위 시험(Mockito, Spring 컨텍스트 없음)으로 확인한다(목표 7).
+ * 순수 단위 시험(Mockito, Spring 컨텍스트 없음)으로 확인한다.
  *
  * <p>{@code RetentionCleanupSchedulerTest} 의 배치 상한 시험은 리포지토리 메서드를 <b>직접</b>
  * {@code Limit.of(BATCH_SIZE)} 를 넘겨 호출해, "그 값을 주면 그 값만큼만 돌아오는가"(JPQL 이 {@code
@@ -92,7 +92,7 @@ class RetentionCleanupSchedulerBatchCapTest {
     }
 
     /**
-     * R46 T-8 — 퇴원 학생 파기는 5,000명이 아니라 <b>200명씩</b> 끊어 처리한다. 한 트랜잭션이 학생·계정 엔티티를 전부 적재하고
+     * 퇴원 학생 파기는 5,000명이 아니라 <b>200명씩</b> 끊어 처리한다. 한 트랜잭션이 학생·계정 엔티티를 전부 적재하고
      * 커밋 때 건별 UPDATE 를 쏟아내므로 묶음이 크면 연결을 오래 쥔다(삭제용 상수 5,000 은 한 문장짜리 벌크 DELETE 기준이다).
      */
     @Test
@@ -152,7 +152,7 @@ class RetentionCleanupSchedulerBatchCapTest {
     }
 
     /**
-     * R46-LATERBE B-1 — 위치 이력은 행이 아니라 파티션 단위로 지운다. 컷오프는 90일 전이고, 파티션 DROP 이 예외를 던져도 다른
+     * 위치 이력은 행이 아니라 파티션 단위로 지운다. 컷오프는 90일 전이고, 파티션 DROP 이 예외를 던져도 다른
      * 테이블 정리는 이어진다(알림 로그 정리 호출이 실제로 일어난다).
      */
     @Test

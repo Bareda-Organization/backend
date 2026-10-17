@@ -20,19 +20,18 @@ import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 
 /**
  * {@code @Scheduled} 가 붙은 메서드에 {@code @SchedulerLock} 이 함께 붙어 있는지 소스 수준에서
- * 고정하는 회귀 방지 시험(Phase 11 마무리 라운드) — {@code ControllerAuthorizationConventionTest}
+ * 고정하는 회귀 방지 시험 — {@code ControllerAuthorizationConventionTest}
  * 와 같은 관례(면제 목록에 근거를 함께 적는다)를 그대로 따른다.
  *
  * <p>같은 형태의 누락이 이 저장소에서 반복됐다 — 규약 시험이 좌석 단독 실행에서는 걸리지 않고
- * 병합 후 전체 실행에서야 드러난 전례가 있다({@code ControllerAuthorizationConventionTest} 의
- * Phase 10 T1·Phase 11 T3 항목 참고). 이 시험도 새 스케줄러를 추가하는 좌석이 이 파일이 같은
+ * 병합 후 전체 실행에서야 드러난 전례가 있다({@code ControllerAuthorizationConventionTest}). 이 시험도 새 스케줄러를 추가하는 좌석이 이 파일이 같은
  * 모듈에 있는지 모른 채 넘어갈 수 있으므로, 병합 뒤 전체 실행에서 이 클래스가 실제로 도는지 매번
  * 확인한다.
  *
  * <p><b>텍스트 스캔이 아니라 리플렉션으로 실제 애너테이션을 확인한다.</b> 이 저장소는 자바독에
  * {@code {@code @Scheduled}} 처럼 애너테이션 이름을 그대로 인용하는 관례가 있어(예:
  * {@code RunConfirmationScheduler}), 문자열 검색은 그 인용까지 스케줄 메서드로 잘못 센다
- * (Phase 11 T4 가 조율자의 {@code grep} 오독을 실측으로 정정한 사례). {@link Class#getDeclaredMethods()}
+ * (조율자의 {@code grep} 오독을 실측으로 정정한 사례). {@link Class#getDeclaredMethods()}
  * 와 {@link Method#getAnnotation(Class)} 는 컴파일된 실제 애너테이션만 본다.
  */
 class SchedulerLockConventionTest {
@@ -44,14 +43,14 @@ class SchedulerLockConventionTest {
      * 않는 {@code @Scheduled} 메서드. 항목마다 근거를 남긴다. 근거 없이 이름만 추가하면, 같은
      * 클래스에 락 없는 메서드가 하나 더 늘어도 이 목록이 통째로 가려 회귀를 못 잡는다.
      *
-     * <p>{@code RunConfirmationScheduler#confirmDueRuns} 는 R57(DA-12, Ruling 899 J)에서 {@code @SchedulerLock} 을 달아 이 목록에서 뺐다.
+     * <p>{@code RunConfirmationScheduler#confirmDueRuns} 는 Ruling 899 J 에 따라 {@code @SchedulerLock} 을 달아 이 목록에 없다.
      */
     private static final List<String> EXEMPT = List.of(
             // DemoRunSimulator 는 @Profile("local") 전용 데모 코드라 운영에 실리지 않는다 — 분산 락이
-            // 막으려는 "인스턴스 2대가 같은 배치를 동시에" 상황 자체가 성립하지 않는다(R23 신설).
+            // 막으려는 "인스턴스 2대가 같은 배치를 동시에" 상황 자체가 성립하지 않는다.
             "DemoRunSimulator#tick",
             // StompStandingSweepScheduler 는 이 인스턴스가 쥔 WebSocket 세션만 점검한다 — 세션은 인스턴스마다 따로 있어, 락을 놓친 인스턴스의
-            // 세션은 아무도 점검하지 않는다. 인스턴스마다 자기 세션을 도는 것이 맞아 락이 막을 "중복 수행" 이 성립하지 않는다(R57 RT-7 · Ruling 899 M).
+            // 세션은 아무도 점검하지 않는다. 인스턴스마다 자기 세션을 도는 것이 맞아 락이 막을 "중복 수행" 이 성립하지 않는다(Ruling 899 M).
             "StompStandingSweepScheduler#sweep");
 
     /**
@@ -88,7 +87,7 @@ class SchedulerLockConventionTest {
     /**
      * 조율자 실측 — 검사 대상 하한을 건다. 0개면 위 시험이 "위반 없음"과 "검사 대상 없음"을
      * 구별하지 못한 채 항상 통과한다({@code ControllerAuthorizationConventionTest} 의
-     * {@code 검사_대상_핸들러가_하나도_없으면_실패한다} 와 같은 취지). 2026-09-02 시점 실제
+     * {@code 검사_대상_핸들러가_하나도_없으면_실패한다} 와 같은 취지). 실제
      * {@code @Scheduled} 메서드는 6개다.
      */
     @Test
@@ -99,9 +98,9 @@ class SchedulerLockConventionTest {
     }
 
     /**
-     * Phase 11 이월 ③ 해소(2026-09-03, 조율자) — 면제 목록 <b>자체</b>를 검사한다. 위 시험은 면제
+     * 면제 목록 <b>자체</b>를 검사한다. 위 시험은 면제
      * 항목을 건너뛰므로, 면제가 근거 없이 늘거나 개명·삭제된 대상을 가리킨 채 남아도 아무 시험도
-     * 실패하지 않았다(Phase 11 좌석이 변형으로 실증). 개수를 고정해 항목 추가가 이 단언을 깨뜨리게
+     * 실패하지 않는다(변형으로 실증). 개수를 고정해 항목 추가가 이 단언을 깨뜨리게
      * 하고(계정 상태 게이트 {@code hasSize} 와 같은 방식), 각 항목이 실재하는 {@code @Scheduled}
      * 메서드를 가리키는지 확인해 낡은 면제를 잡는다.
      */
@@ -120,12 +119,12 @@ class SchedulerLockConventionTest {
     }
 
     /**
-     * F6(2026-09-06) — 모든 {@code @Scheduled} 메서드가 <b>테스트 JVM 에서 배경 실행이 미뤄져 있는지</b>
+     * 모든 {@code @Scheduled} 메서드가 <b>테스트 JVM 에서 배경 실행이 미뤄져 있는지</b>
      * 고정한다. {@code build.gradle} 의 {@code test} 블록은 스케줄러마다 {@code systemProperty} 로
      * 첫 실행을 하루 미루거나(fixedDelay 형) cron 을 비활성 표현식 {@code '-'} 으로 바꾸는데(cron 형),
      * 새 스케줄러를 추가한 좌석이 그 등재를 빠뜨려도 컴파일·테스트가 전부 초록이라 아무도 모른다 —
-     * 실제로 {@code RunUnconfirmedGaugeScheduler}·{@code NoShowEscalationScheduler} 가 그렇게 두 Phase
-     * 동안 30초 주기로 돌았고, F5 S3 가 동시성 원인을 추적하다 부수로 발견했다.
+     * 실제로 {@code RunUnconfirmedGaugeScheduler}·{@code NoShowEscalationScheduler} 가 그렇게
+     * 30초 주기로 돌았고, 동시성 원인 추적 중 부수로 발견됐다.
      *
      * <p>검사 방식 — 애너테이션의 {@code cron}·{@code initialDelayString} 자리표시자에서 속성 이름을
      * 꺼내 {@link System#getProperty(String)} 로 읽는다. Gradle 의 {@code systemProperty} 는 이 JVM 에

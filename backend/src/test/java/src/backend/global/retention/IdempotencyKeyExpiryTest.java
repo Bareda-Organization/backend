@@ -39,9 +39,9 @@ import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * R56 Ruling 894 ⑥ — 종료 회차를 {@code 409} 로 거절하는 두 표({@code rider_status_history} · {@code no_show_contact})의 멱등 키
+ * Ruling 894 ⑥ — 종료 회차를 {@code 409} 로 거절하는 두 표({@code rider_status_history} · {@code no_show_contact})의 멱등 키
  * ({@code client_key})는 <b>회차 종료 24시간 뒤</b>에 비워지고 행은 남는다(API_SPEC §1.7). 종료 회차도 받는
- * {@code emergency_alert} · {@code exception_report} 의 키는 <b>비워지지 않는다</b>(늦은 재전송이 새 행을 만들지 않게 — 후속 1). 24시간 경계 바로 안쪽(23시간 59분)은 남고 바로 바깥(24시간 1분)은 비워진다 — 한쪽만 보면 "전부 비움"
+ * {@code emergency_alert} · {@code exception_report} 의 키는 <b>비워지지 않는다</b>(늦은 재전송이 새 행을 만들지 않게). 24시간 경계 바로 안쪽(23시간 59분)은 남고 바로 바깥(24시간 1분)은 비워진다 — 한쪽만 보면 "전부 비움"
  * 이나 "하나도 안 비움" 이 통과한다.
  *
  * <p>{@code @Transactional} 시험이라 JPA 로 만든 회차를 {@link #flush} 로 내보낸 뒤 같은 연결의 {@code JdbcTemplate} 이 읽는다. 기준 시각은 고정

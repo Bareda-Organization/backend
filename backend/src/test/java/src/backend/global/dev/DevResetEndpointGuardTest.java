@@ -76,7 +76,7 @@ class DevResetEndpointGuardTest {
      * 컨트롤러는 안 뜨는데 서비스는 뜨고, 그 서비스가 주입받는 {@code FlywayMigrationStrategy}
      * (= {@code LocalFlywayCleanStrategy})는 {@code @Profile("local")} 이라 존재하지 않기 때문이다.
      * 위 세 단언은 전부 {@code local} 컨텍스트에서만 보므로 이 형태를 하나도 잡지 못한다
-     * (2026-09-09 {@code load} 프로파일 기동 실패로 실제 발생).
+     * ({@code load} 프로파일 기동 실패로 실제 발생).
      */
     @Test
     void 서비스가_프로파일과_속성_두_겹을_모두_달고_있다() {

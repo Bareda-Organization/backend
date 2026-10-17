@@ -53,6 +53,6 @@ class PrometheusEndpointTest {
         assertThat(response.getBody()).contains("http_server_requests_seconds_bucket");
     }
 
-    // uriTag_isPathPattern_notRawId(경로 패턴 태그 묶임 검증)는 검증 대상이던 옛 버스 조회 API가
-    // 삭제되며 함께 없앴다 — 새 컨트롤러가 생기는 대로(Phase 2+) 그 엔드포인트를 대상으로 되돌린다.
+    // uriTag_isPathPattern_notRawId(경로 패턴 태그 묶임 검증)는 검증 대상 API 가 없어 두지 않는다 —
+    // 새 컨트롤러가 생기면 그 엔드포인트를 대상으로 되살린다.
 }

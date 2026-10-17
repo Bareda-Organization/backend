@@ -14,7 +14,7 @@ import org.springframework.http.ResponseEntity;
 import src.backend.global.common.SeedFixtures;
 
 /**
- * Swagger 문서 골격(Phase 1 Task 9) 검증. {@code bootRun} 없이 실서버(RANDOM_PORT)를 띄워
+ * Swagger 문서 골격 검증. {@code bootRun} 없이 실서버(RANDOM_PORT)를 띄워
  * springdoc 이 실제로 생성한 {@code /v3/api-docs} 응답을 대조한다 — {@code OpenApiConfig} 빈
  * 구성이 애너테이션 조합 오류로 무력화돼도 컴파일은 통과하므로, 런타임 응답 확인이 유일한 판별 수단이다.
  */

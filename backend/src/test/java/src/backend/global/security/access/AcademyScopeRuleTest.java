@@ -5,8 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@link AcademyScopeRule#conditionClauseContainsAcademyId} 를 <b>직접</b> 겨냥한 단위 시험
- * (Phase 7 이월 4 · Phase 8 목표 16).
+ * {@link AcademyScopeRule#conditionClauseContainsAcademyId} 를 <b>직접</b> 겨냥한 단위 시험.
  *
  * <p>{@link AcademyScopeRepositoryConventionTest} 는 이 술어를 프로덕션 {@code @Query} 를 거쳐
  * <b>간접</b>으로만 검증한다 — 결함을 심어야만 드러난다. 이 술어 자신이 틀리면 그것이 지키는

@@ -13,7 +13,7 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 
-/** 같은 곳의 반복 실패는 한 간격에 한 번만 스택과 함께 남기고, 다음에 남길 때 생략 건수를 알린다(R46 S-3). */
+/** 같은 곳의 반복 실패는 한 간격에 한 번만 스택과 함께 남기고, 다음에 남길 때 생략 건수를 알린다. */
 class RateLimitedWarnTest {
 
     private final AtomicLong nanos = new AtomicLong();

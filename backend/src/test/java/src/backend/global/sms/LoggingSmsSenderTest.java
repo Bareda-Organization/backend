@@ -30,7 +30,7 @@ class LoggingSmsSenderTest {
     void 번호는_끝_4자리만_본문은_길이만_남긴다(CapturedOutput output) {
         SmsSender sender = new LoggingSmsSender(new MockEnvironment());
         // CI 의 -PciQuiet 은 루트 로그 수준을 WARN 으로 낮추고, 앞서 뜬 Spring 컨텍스트가 그 수준을 같은 JVM 에 남긴다 —
-        // 이 로거의 INFO 를 시험이 직접 켜지 않으면 로그가 안 찍혀 "***5678" 을 못 찾는다(R46-CIFIX).
+        // 이 로거의 INFO 를 시험이 직접 켜지 않으면 로그가 안 찍혀 "***5678" 을 못 찾는다.
         Logger logger = (Logger) LoggerFactory.getLogger(LoggingSmsSender.class);
         Level levelBefore = logger.getLevel();
         logger.setLevel(Level.INFO);

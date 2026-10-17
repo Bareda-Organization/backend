@@ -71,7 +71,7 @@ class DevResetServiceTest {
 
     /**
      * 초기화가 도는 동안 다른 트랜잭션(배치·요청)이 같은 테이블을 잡고 있으면 Postgres 가 교착을 감지해 한쪽을
-     * 중단시키고, 그 희생자가 {@code DROP TABLE academy CASCADE} 였을 때 첫 호출이 {@code 500} 이었다(R38-B).
+     * 중단시키고, 그 희생자가 {@code DROP TABLE academy CASCADE} 였을 때 첫 호출이 {@code 500} 이었다.
      * {@code clean()} 은 몇 번을 다시 해도 같은 결과라 교착이면 처음부터 다시 한다.
      */
     @Test
