@@ -9,7 +9,6 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.after;
 import static org.mockito.Mockito.mockingDetails;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
@@ -17,6 +16,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static testsupport.auth.TestTokens.관계자_토큰;
+import static testsupport.web.BroadcastWaits.방송이_끝날_때까지;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -30,12 +30,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -91,6 +93,10 @@ class RunRouteChangedBroadcastWiringTest {
     private SimpMessagingTemplate messagingTemplate;
 
     @Autowired
+    @Qualifier("broadcastListenerExecutor")
+    private ThreadPoolTaskExecutor broadcastExecutor;
+
+    @Autowired
     private ApplicationEventPublisher eventPublisher;
 
     @Autowired
@@ -135,7 +141,9 @@ class RunRouteChangedBroadcastWiringTest {
     private RunConfirmationFixtures fixtures;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws InterruptedException {
+        방송이_끝날_때까지(broadcastExecutor); // 앞 시험이 남긴 늦은 방송이 이 시험의 목에 잡히지 않게
+        clearInvocations(messagingTemplate);
         fixtures = new RunConfirmationFixtures(academyRepository, busRepository, routeRepository,
                 routeStopRepository, stopRepository, studentRepository, weeklyAddressRepository, runRepository);
         cleanUpMarkedRows();
@@ -184,14 +192,15 @@ class RunRouteChangedBroadcastWiringTest {
 
     @Test
     @DisplayName("롤백된 트랜잭션에서는 방송이 나가지 않는다")
-    void 롤백되면_방송되지_않는다() {
+    void 롤백되면_방송되지_않는다() throws InterruptedException {
         new TransactionTemplate(transactionManager).executeWithoutResult(s -> {
             eventPublisher.publishEvent(new RunRouteConfirmedEvent(78L, 1L, 2L, OffsetDateTime.now(KST)));
             s.setRollbackOnly();
         });
 
-        // 방송이 비동기라 바로 확인하면 잘못 나가도 놓친다 — 실행기가 일을 집을 시간을 준 뒤 본다
-        verify(messagingTemplate, after(500).never()).convertAndSend(anyString(), any(Object.class));
+        // 방송이 비동기라 바로 확인하면 잘못 나가도 놓친다 — 실행기가 빌 때까지 기다린 뒤 본다
+        방송이_끝날_때까지(broadcastExecutor);
+        verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
     }
 
     // ── 실제 경로 2개 ───────────────────────────────────────────
@@ -211,6 +220,7 @@ class RunRouteChangedBroadcastWiringTest {
     void 경유_지점_배포_뒤_방송된다() throws Exception {
         long academyId = 확정된_회차를_만든다();
         long runId = jdbcTemplate.queryForObject("SELECT id FROM run WHERE academy_id = ?", Long.class, academyId);
+        방송이_끝날_때까지(broadcastExecutor); // 회차를 만들며 나간 방송이 비운 뒤에 들어오지 않게
         clearInvocations(messagingTemplate);
 
         경유_지점을_배포한다(academyId, runId);
@@ -233,28 +243,20 @@ class RunRouteChangedBroadcastWiringTest {
                 s.approvalId())).isEqualTo("approved");
     }
 
-    /** 지금까지 나간 방송 중 {@code route_changed} 봉투의 목적지들. 커밋 뒤 방송은 비동기라 하나라도 나올 때까지 최대 5초 기다린다. */
+    /** 지금까지 나간 방송 중 {@code route_changed} 봉투의 목적지들 — 커밋 뒤 방송은 비동기라 실행기가 빌 때까지 기다린 뒤 센다. */
     private List<String> routeChangedTargets(long runId) throws InterruptedException {
-        long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
-        List<String> targets;
-        do {
-            targets = mockingDetails(messagingTemplate).getInvocations().stream()
-                    .filter(invocation -> invocation.getMethod().getName().equals("convertAndSend")
-                            && invocation.getArguments().length == 2
-                            && invocation.getArgument(1) instanceof WebSocketEnvelope envelope
-                            && "route_changed".equals(envelope.event()) && runId == envelope.runId())
-                    .map(invocation -> (String) invocation.getArgument(0))
-                    .toList();
-            if (!targets.isEmpty()) {
-                return targets;
-            }
-            Thread.sleep(50);
-        } while (System.nanoTime() < deadline);
-        return targets;
+        방송이_끝날_때까지(broadcastExecutor);
+        return mockingDetails(messagingTemplate).getInvocations().stream()
+                .filter(invocation -> invocation.getMethod().getName().equals("convertAndSend")
+                        && invocation.getArguments().length == 2
+                        && invocation.getArgument(1) instanceof WebSocketEnvelope envelope
+                        && "route_changed".equals(envelope.event()) && runId == envelope.runId())
+                .map(invocation -> (String) invocation.getArgument(0))
+                .toList();
     }
 
     /** 확정 노선 위에 승인 대기 1건(학생2 취소)을 올린다 — 준비 중 나간 방송은 지워 기준선을 0 으로 둔다. */
-    private 승인_시나리오 승인_시나리오를_만든다() {
+    private 승인_시나리오 승인_시나리오를_만든다() throws InterruptedException {
         long academyId = 확정된_회차를_만든다();
         long runId = jdbcTemplate.queryForObject("SELECT id FROM run WHERE academy_id = ?", Long.class, academyId);
         long studentId = jdbcTemplate.queryForObject(
@@ -266,6 +268,7 @@ class RunRouteChangedBroadcastWiringTest {
         long approvalId = changeRequestRepository.save(ChangeRequest.forRequest(academyId, runId, studentId,
                 ChangeRequestSource.CHANGE_REQUEST, ChangeRequestType.CANCEL, (short) 2, parentAccountId,
                 OffsetDateTime.now())).getId();
+        방송이_끝날_때까지(broadcastExecutor);
         clearInvocations(messagingTemplate);
         return new 승인_시나리오(academyId, runId, approvalId);
     }

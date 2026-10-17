@@ -2,23 +2,28 @@ package src.backend.global.websocket;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static testsupport.auth.TestTokens.토큰;
+import static testsupport.web.BroadcastWaits.방송이_끝날_때까지;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Propagation;
@@ -85,6 +90,17 @@ class EmergencyAckedBroadcastIntegrationTest {
     @MockitoBean
     private SimpMessagingTemplate messagingTemplate;
 
+    @Autowired
+    @Qualifier("broadcastListenerExecutor")
+    private ThreadPoolTaskExecutor broadcastExecutor;
+
+    /** 앞 시험이 남긴 늦은 방송이 이 시험의 목에 잡히지 않게 실행기를 비우고 시작한다. */
+    @BeforeEach
+    void 앞_시험의_방송을_비운다() throws InterruptedException {
+        방송이_끝날_때까지(broadcastExecutor);
+        clearInvocations(messagingTemplate);
+    }
+
 
 
     @Test
@@ -119,6 +135,7 @@ class EmergencyAckedBroadcastIntegrationTest {
         // (Ruling 277, 채널 audience 는 EmergencyBroadcastListenerTest 의 시험이 이미 고정
         // 하므로 여기서는 페이로드 내용에 집중한다).
         ArgumentCaptor<Object> envelopeCaptor = ArgumentCaptor.forClass(Object.class);
+        방송이_끝날_때까지(broadcastExecutor);
         verify(messagingTemplate, times(1)).convertAndSend(eq(WebSocketDestinations.managerRun(runId)),
                 envelopeCaptor.capture());
 

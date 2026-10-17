@@ -3,26 +3,31 @@ package src.backend.global.websocket;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static testsupport.auth.TestTokens.토큰;
+import static testsupport.web.BroadcastWaits.방송이_끝날_때까지;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.ApplicationContext;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Propagation;
@@ -98,6 +103,17 @@ class EmergencyRaisedBroadcastIntegrationTest {
     private SimpMessagingTemplate messagingTemplate;
 
     @Autowired
+    @Qualifier("broadcastListenerExecutor")
+    private ThreadPoolTaskExecutor broadcastExecutor;
+
+    /** 앞 시험이 남긴 늦은 방송이 이 시험의 목에 잡히지 않게 실행기를 비우고 시작한다. */
+    @BeforeEach
+    void 앞_시험의_방송을_비운다() throws InterruptedException {
+        방송이_끝날_때까지(broadcastExecutor);
+        clearInvocations(messagingTemplate);
+    }
+
+    @Autowired
     private StudentRepository studentRepository;
 
     @Autowired
@@ -155,6 +171,7 @@ class EmergencyRaisedBroadcastIntegrationTest {
         // (EmergencyBroadcastListenerTest 의 시험이 이미 이 사실을 고정하므로 여기서는
         // 페이로드 내용에만 집중하고 목적지 개수만 가볍게 확인한다).
         ArgumentCaptor<Object> envelopeCaptor = ArgumentCaptor.forClass(Object.class);
+        방송이_끝날_때까지(broadcastExecutor);
         verify(messagingTemplate, times(2)).convertAndSend(anyString(), envelopeCaptor.capture());
 
         JsonNode envelope = objectMapper.valueToTree(envelopeCaptor.getValue());
@@ -198,6 +215,7 @@ class EmergencyRaisedBroadcastIntegrationTest {
         // 목적지와 봉투를 짝으로 잡아 /topic/admin/live 로 나간 것만 본다 — Ruling 395
         ArgumentCaptor<String> destinationCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<Object> envelopeCaptor = ArgumentCaptor.forClass(Object.class);
+        방송이_끝날_때까지(broadcastExecutor);
         verify(messagingTemplate, times(2)).convertAndSend(destinationCaptor.capture(), envelopeCaptor.capture());
         int adminIndex = destinationCaptor.getAllValues().indexOf(WebSocketDestinations.ADMIN_LIVE);
         assertThat(adminIndex).as("관리자 채널로 방송이 나가지 않았다").isGreaterThanOrEqualTo(0);
