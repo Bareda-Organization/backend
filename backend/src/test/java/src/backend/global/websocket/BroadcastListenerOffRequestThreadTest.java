@@ -9,19 +9,23 @@ import static org.mockito.Mockito.doThrow;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
-import org.junit.jupiter.api.MethodOrderer;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestMethodOrder;
+import org.mockito.stubbing.Answer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -29,12 +33,24 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import jakarta.persistence.EntityManagerFactory;
 
+import io.micrometer.core.instrument.MeterRegistry;
+
 import src.backend.boarding.command.RiderChangedBroadcastListener;
 import src.backend.boarding.event.RiderStatusChangedEvent;
+import src.backend.exception.command.EmergencyBroadcastListener;
 import src.backend.exception.entity.EmergencyType;
 import src.backend.exception.event.EmergencyRaisedEvent;
 import src.backend.notification.command.EmergencyNotificationListener;
+import src.backend.request.command.ApprovalRequestedBroadcastListener;
+import src.backend.request.event.ApprovalRequestedEvent;
+import src.backend.run.command.RunEndedBroadcastListener;
+import src.backend.run.command.RunRouteChangedBroadcastListener;
+import src.backend.run.command.RunStartedBroadcastListener;
+import src.backend.run.command.StopArrivedBroadcastListener;
+import src.backend.run.event.RunEndedEvent;
+import src.backend.run.event.RunRouteConfirmedEvent;
 import src.backend.run.event.RunStartedEvent;
+import src.backend.run.event.StopArrivedEvent;
 
 /**
  * 커밋 뒤 방송 리스너는 요청 스레드의 트랜잭션 · 커넥션을 쥐고 돌지 않는다(R57 RT-4 · RT-10 · RT-9).
@@ -44,7 +60,6 @@ import src.backend.run.event.RunStartedEvent;
  * 조회는 5번에서 1번으로 줄였다. 비상 방송은 트랜잭션 없이 발행돼도 나간다. 학생 채널 하나의 전송 예외가 나머지 채널 방송을 막지 않는다.
  */
 @SpringBootTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class BroadcastListenerOffRequestThreadTest {
 
     private static final OffsetDateTime AT = OffsetDateTime.parse("2030-05-06T07:30:00+09:00");
@@ -61,6 +76,30 @@ class BroadcastListenerOffRequestThreadTest {
     private RiderChangedBroadcastListener riderChangedListener;
 
     @Autowired
+    private RunStartedBroadcastListener runStartedListener;
+
+    @Autowired
+    private RunEndedBroadcastListener runEndedListener;
+
+    @Autowired
+    private StopArrivedBroadcastListener stopArrivedListener;
+
+    @Autowired
+    private RunRouteChangedBroadcastListener runRouteChangedListener;
+
+    @Autowired
+    private ApprovalRequestedBroadcastListener approvalRequestedListener;
+
+    @Autowired
+    private EmergencyBroadcastListener emergencyListener;
+
+    @Autowired
+    private MeterRegistry meterRegistry;
+
+    @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private ApplicationEventPublisher publisher;
 
     @Autowired
@@ -69,29 +108,47 @@ class BroadcastListenerOffRequestThreadTest {
     @Autowired
     private EntityManagerFactory entityManagerFactory;
 
+    /**
+     * 옮긴 리스너 7개 전부 — 리스너 메서드를 트랜잭션 안에서 부르면 방송(게이트웨이 호출)은 그 트랜잭션 밖 · 다른 스레드에서 나가야 한다. 하나라도 다시 제자리(인라인)로
+     * 돌아오면 그 이름이 실패 메시지에 나온다. 이벤트를 발행하지 않고 리스너만 부르므로 같은 이벤트를 받는 다른 리스너(알림 등)가 섞이지 않는다.
+     */
     @Test
-    void 방송_리스너는_요청_스레드가_아닌_트랜잭션_밖에서_돈다() throws Exception {
-        CountDownLatch broadcast = new CountDownLatch(1);
-        List<String> seen = Collections.synchronizedList(new ArrayList<>());
-        doAnswer(invocation -> {
+    void 방송_리스너_7개는_모두_요청_스레드가_아닌_트랜잭션_밖에서_돈다() throws Exception {
+        BlockingQueue<String> seen = new LinkedBlockingQueue<>();
+        Answer<Object> record = invocation -> {
             seen.add("tx=" + TransactionSynchronizationManager.isActualTransactionActive()
                     + " thread=" + Thread.currentThread().getName());
-            broadcast.countDown();
             return null;
-        }).when(gateway).broadcastToRunChannels(any(), any(), any(), any(), any(), any(), any());
+        };
+        doAnswer(record).when(gateway).send(any(), any(), any(), any(), any());
+        doAnswer(record).when(gateway).broadcastToRunChannels(any(), any(), any(), any(), any(), any());
+        doAnswer(record).when(gateway).broadcastToRunChannels(any(), any(), any(), any(), any(), any(), any());
         String requestThread = Thread.currentThread().getName();
 
-        transactionTemplate.executeWithoutResult(status -> publisher.publishEvent(new RunStartedEvent(1L, 1L, AT, 0)));
+        Map<String, Runnable> listeners = new LinkedHashMap<>();
+        listeners.put("RunStarted", () -> runStartedListener.broadcast(new RunStartedEvent(1L, 1L, AT, 0)));
+        listeners.put("RunEnded", () -> runEndedListener.broadcast(new RunEndedEvent(1L, 1L, AT, 0)));
+        listeners.put("StopArrived", () -> stopArrivedListener.broadcast(new StopArrivedEvent(1L, 1L, 1L, 1, "정차지", AT, null)));
+        listeners.put("RunRouteChanged", () -> runRouteChangedListener.broadcast(new RunRouteConfirmedEvent(1L, 1L, 1L, AT)));
+        listeners.put("RiderChanged", () -> riderChangedListener.broadcast(new RiderStatusChangedEvent(2L, 1L, 1L, 1L, "boarded", AT, false)));
+        listeners.put("ApprovalRequested", () -> approvalRequestedListener.broadcast(new ApprovalRequestedEvent(1L, 1L, 1L, 1L, AT)));
+        listeners.put("Emergency", () -> emergencyListener.broadcastRaised(new EmergencyRaisedEvent(1L, 1L, "학원", 1L, "1호차",
+                EmergencyType.ACCIDENT, new EmergencyRaisedEvent.RaisedBy("기사", "driver", "010-0000-0000"),
+                new EmergencyRaisedEvent.Position(null, null), 3, AT)));
+        assertThat(listeners).hasSize(7);
 
-        assertThat(broadcast.await(AWAIT_SECONDS, TimeUnit.SECONDS)).as("방송이 나가야 한다").isTrue();
-        assertThat(seen).hasSize(1);
-        assertThat(seen.get(0)).as("요청 트랜잭션이 아직 활성인 채 방송하면 방송 시간만큼 커넥션을 더 쥔다").startsWith("tx=false")
-                .doesNotContain("thread=" + requestThread);
+        for (Map.Entry<String, Runnable> listener : listeners.entrySet()) {
+            seen.clear();
+            transactionTemplate.executeWithoutResult(status -> listener.getValue().run());
+
+            String first = seen.poll(AWAIT_SECONDS, TimeUnit.SECONDS);
+            assertThat(first).as("%s 리스너가 방송해야 한다", listener.getKey()).isNotNull();
+            assertThat(first).as("%s — 요청 트랜잭션이 활성인 채 방송하면 방송 시간만큼 커넥션을 더 쥔다", listener.getKey())
+                    .startsWith("tx=false").doesNotContain("thread=" + requestThread);
+        }
     }
 
-    /** 먼저 돈다 — Hibernate 통계는 JVM 전체 값이라, 앞 시험이 낸 이벤트의 뒤늦은 비동기 질의(알림 발송 등)가 셈에 섞이지 않게 한다. */
     @Test
-    @Order(1)
     void 승하차_방송은_상태별_인원을_한_번에_센다() throws Exception {
         SessionFactory sessionFactory = entityManagerFactory.unwrap(SessionFactory.class);
         Statistics statistics = sessionFactory.getStatistics();
@@ -100,6 +157,7 @@ class BroadcastListenerOffRequestThreadTest {
             broadcast.countDown();
             return null;
         }).when(gateway).send(any(), eq("rider_changed"), any(), any(), any());
+        awaitAsyncWorkDrained(); // 앞 시험이 남긴 비동기 일(알림 발송 등)이 통계에 섞이지 않게 한다
         long before = statistics.getPrepareStatementCount();
 
         // 이벤트 발행이 아니라 이 리스너만 직접 부른다 — 같은 이벤트를 받는 다른 리스너(알림 등)의 질의가 셈에 섞이지 않게
@@ -108,6 +166,21 @@ class BroadcastListenerOffRequestThreadTest {
         assertThat(broadcast.await(AWAIT_SECONDS, TimeUnit.SECONDS)).isTrue();
         assertThat(statistics.getPrepareStatementCount() - before)
                 .as("학생 이름 1 + 정차지 1 + 상태별 인원 1 — 인원을 상태마다 따로 세면 7이 된다").isLessThanOrEqualTo(3);
+    }
+
+    /** 컨텍스트의 모든 스레드 풀 실행기가 일을 끝내고 큐가 빌 때까지 기다린다 — 통계 측정 앞의 기준선을 고정한다. */
+    private void awaitAsyncWorkDrained() throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(AWAIT_SECONDS);
+        while (System.nanoTime() < deadline) {
+            boolean busy = applicationContext.getBeansOfType(ThreadPoolTaskExecutor.class).values().stream()
+                    .map(ThreadPoolTaskExecutor::getThreadPoolExecutor)
+                    .anyMatch(pool -> pool.getActiveCount() > 0 || !pool.getQueue().isEmpty());
+            if (!busy) {
+                return;
+            }
+            Thread.sleep(20);
+        }
+        throw new AssertionError("비동기 실행기가 " + AWAIT_SECONDS + "초 안에 비지 않았다");
     }
 
     @Test
@@ -139,9 +212,13 @@ class BroadcastListenerOffRequestThreadTest {
             return null;
         }).when(gateway).send(eq(WebSocketDestinations.managerRun(1L)), any(), any(), any(), any());
 
+        double failedBefore = meterRegistry.counter("schoolbus.ws.broadcast.failed", "event", "stop_arrived").count();
+
         gateway.broadcastToRunChannels(1L, 1L, List.of(10L, 11L), "stop_arrived", AT, "payload", "payload");
 
         assertThat(sent).as("앞 학생 채널이 실패해도 뒤 학생 채널과 매니저 채널은 나간다")
                 .contains(WebSocketDestinations.studentRun(11L), WebSocketDestinations.managerRun(1L));
+        assertThat(meterRegistry.counter("schoolbus.ws.broadcast.failed", "event", "stop_arrived").count())
+                .as("삼킨 전송 실패는 실패 카운터를 정확히 1 올린다").isEqualTo(failedBefore + 1);
     }
 }
