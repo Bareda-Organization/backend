@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.관계자_토큰;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -32,7 +33,6 @@ import src.backend.academy.repository.AcademyRepository;
 import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
@@ -164,7 +164,7 @@ class StaffApprovalDecideControllerTest {
         String token = 미리보기_토큰_조회(s);
         clearInvocations(pipeline); // 미리보기 조회(GET) 가 이미 1회 호출해 둔 기록을 지운다.
 
-        결정_요청(관계자_토큰(s.academyId), s.approvalId, 승인_바디(token))
+        결정_요청(관계자_토큰(tokenProvider, s.academyId), s.approvalId, 승인_바디(token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("approved"))
                 .andExpect(jsonPath("$.data.stop_removed").value(true))
@@ -257,7 +257,7 @@ class StaffApprovalDecideControllerTest {
         jdbcTemplate.update("INSERT INTO boarding_intent (run_id, student_id, riding, change_used_count, created_at) "
                 + "VALUES (?, ?, true, 1, now())", s.runId, studentId);
 
-        결정_요청(관계자_토큰(s.academyId), s.approvalId, 승인_바디(token)).andExpect(status().isOk());
+        결정_요청(관계자_토큰(tokenProvider, s.academyId), s.approvalId, 승인_바디(token)).andExpect(status().isOk());
 
         Boolean riding = jdbcTemplate.queryForObject(
                 "SELECT riding FROM boarding_intent WHERE run_id = ? AND student_id = ?", Boolean.class, s.runId,
@@ -272,7 +272,7 @@ class StaffApprovalDecideControllerTest {
         String token = 미리보기_토큰_조회(s);
         runRepository.findById(s.runId).orElseThrow().cancel(OffsetDateTime.now(), RunCancelSource.STAFF);
 
-        결정_요청(관계자_토큰(s.academyId), s.approvalId, 승인_바디(token))
+        결정_요청(관계자_토큰(tokenProvider, s.academyId), s.approvalId, 승인_바디(token))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("RUN_CANCELED"));
 
@@ -287,7 +287,7 @@ class StaffApprovalDecideControllerTest {
         결정_시나리오 s = 정상_시나리오();
         runRepository.findById(s.runId).orElseThrow().cancel(OffsetDateTime.now(), RunCancelSource.STAFF);
 
-        결정_요청(관계자_토큰(s.academyId), s.approvalId, 거절_바디("회차 취소"))
+        결정_요청(관계자_토큰(tokenProvider, s.academyId), s.approvalId, 거절_바디("회차 취소"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("rejected"));
     }
@@ -305,7 +305,7 @@ class StaffApprovalDecideControllerTest {
         clearInvocations(pipeline); // 위 GET 이 이미 1회 호출해 둔 기록을 지운다.
         String 사유 = "학부모가 직접 등원시키기로 함";
 
-        결정_요청(관계자_토큰(s.academyId), s.approvalId, 거절_바디(사유))
+        결정_요청(관계자_토큰(tokenProvider, s.academyId), s.approvalId, 거절_바디(사유))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("rejected"))
                 .andExpect(jsonPath("$.data.stop_removed").value(false))
@@ -343,7 +343,7 @@ class StaffApprovalDecideControllerTest {
     void 거절_사유가_없으면_422_이다() throws Exception {
         결정_시나리오 s = 정상_시나리오();
 
-        결정_요청(관계자_토큰(s.academyId), s.approvalId, 거절_바디(null))
+        결정_요청(관계자_토큰(tokenProvider, s.academyId), s.approvalId, 거절_바디(null))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
@@ -356,7 +356,7 @@ class StaffApprovalDecideControllerTest {
         결정_시나리오 s = 정상_시나리오();
         미리보기_토큰_조회(s);
 
-        결정_요청(관계자_토큰(s.academyId), s.approvalId, 승인_바디(null))
+        결정_요청(관계자_토큰(tokenProvider, s.academyId), s.approvalId, 승인_바디(null))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("PREVIEW_STALE"));
     }
@@ -367,7 +367,7 @@ class StaffApprovalDecideControllerTest {
         결정_시나리오 s = 정상_시나리오();
         미리보기_토큰_조회(s);
 
-        결정_요청(관계자_토큰(s.academyId), s.approvalId, 승인_바디("가짜-토큰"))
+        결정_요청(관계자_토큰(tokenProvider, s.academyId), s.approvalId, 승인_바디("가짜-토큰"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("PREVIEW_STALE"));
     }
@@ -390,11 +390,11 @@ class StaffApprovalDecideControllerTest {
         String tokenB = 미리보기_토큰_조회(approvalIdB, s.academyId); // A 승인 이전에 발급된 토큰
         clearInvocations(pipeline);
 
-        결정_요청(관계자_토큰(s.academyId), s.approvalId, 승인_바디(tokenA))
+        결정_요청(관계자_토큰(tokenProvider, s.academyId), s.approvalId, 승인_바디(tokenA))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("approved"));
 
-        결정_요청(관계자_토큰(s.academyId), approvalIdB, 승인_바디(tokenB))
+        결정_요청(관계자_토큰(tokenProvider, s.academyId), approvalIdB, 승인_바디(tokenB))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("PREVIEW_STALE"));
 
@@ -417,7 +417,7 @@ class StaffApprovalDecideControllerTest {
     void 창이_닫힌_뒤_도달한_결정은_403_이다() throws Exception {
         결정_시나리오 s = 창이_닫힌_시나리오();
 
-        결정_요청(관계자_토큰(s.academyId), s.approvalId, 거절_바디("아무 사유"))
+        결정_요청(관계자_토큰(tokenProvider, s.academyId), s.approvalId, 거절_바디("아무 사유"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("CHANGE_WINDOW_CLOSED"));
     }
@@ -429,7 +429,7 @@ class StaffApprovalDecideControllerTest {
         Weekday weekday = Weekday.valueOf(departTime.getDayOfWeek().name().substring(0, 3));
         결정_시나리오 s = 결정_시나리오를_만든다(departTime.toLocalDate(), weekday, departTime);
 
-        결정_요청(관계자_토큰(s.academyId), s.approvalId, 거절_바디("아무 사유"))
+        결정_요청(관계자_토큰(tokenProvider, s.academyId), s.approvalId, 거절_바디("아무 사유"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("rejected"));
     }
@@ -445,10 +445,10 @@ class StaffApprovalDecideControllerTest {
         Weekday weekday = Weekday.valueOf(departTime.getDayOfWeek().name().substring(0, 3));
         결정_시나리오 s = 결정_시나리오를_만든다(departTime.toLocalDate(), weekday, departTime, false);
 
-        mockMvc.perform(get("/api/v1/staff/approvals/" + s.approvalId).header("Authorization", 관계자_토큰(s.academyId)))
+        mockMvc.perform(get("/api/v1/staff/approvals/" + s.approvalId).header("Authorization", 관계자_토큰(tokenProvider, s.academyId)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("RUN_NOT_CONFIRMED"));
-        결정_요청(관계자_토큰(s.academyId), s.approvalId, 승인_바디("token-that-was-never-issued"))
+        결정_요청(관계자_토큰(tokenProvider, s.academyId), s.approvalId, 승인_바디("token-that-was-never-issued"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("PREVIEW_STALE"));
 
@@ -465,7 +465,7 @@ class StaffApprovalDecideControllerTest {
         Weekday weekday = Weekday.valueOf(departTime.getDayOfWeek().name().substring(0, 3));
         결정_시나리오 s = 결정_시나리오를_만든다(departTime.toLocalDate(), weekday, departTime, false);
 
-        결정_요청(관계자_토큰(s.academyId), s.approvalId, 거절_바디("사유"))
+        결정_요청(관계자_토큰(tokenProvider, s.academyId), s.approvalId, 거절_바디("사유"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("rejected"))
                 .andExpect(jsonPath("$.data.route_version").value(org.hamcrest.Matchers.nullValue()));
@@ -484,7 +484,7 @@ class StaffApprovalDecideControllerTest {
         결정_시나리오 s = 정상_시나리오();
         long 남의학원 = fixtures().academyWithCoordinates();
 
-        결정_요청(관계자_토큰(남의학원), s.approvalId, 거절_바디("아무 사유"))
+        결정_요청(관계자_토큰(tokenProvider, 남의학원), s.approvalId, 거절_바디("아무 사유"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("APPROVAL_NOT_FOUND"));
 
@@ -503,7 +503,7 @@ class StaffApprovalDecideControllerTest {
         jdbcTemplate.update("DELETE FROM run_rider WHERE run_id = ? AND student_id = ?", s.runId, studentId);
         String token = 미리보기_토큰_조회(s);
 
-        결정_요청(관계자_토큰(s.academyId), s.approvalId, 승인_바디(token))
+        결정_요청(관계자_토큰(tokenProvider, s.academyId), s.approvalId, 승인_바디(token))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("STUDENT_NOT_IN_RUN"));
     }
@@ -525,7 +525,7 @@ class StaffApprovalDecideControllerTest {
                 waypointId, lastSeq + 1);
         String token = 미리보기_토큰_조회(s);
 
-        결정_요청(관계자_토큰(s.academyId), s.approvalId, 승인_바디(token)).andExpect(status().isOk());
+        결정_요청(관계자_토큰(tokenProvider, s.academyId), s.approvalId, 승인_바디(token)).andExpect(status().isOk());
 
         Long newVersionId = jdbcTemplate.queryForObject(
                 "SELECT current_version_id FROM confirmed_route WHERE run_id = ?", Long.class, s.runId);
@@ -540,7 +540,7 @@ class StaffApprovalDecideControllerTest {
     void 존재하지_않는_승인_건은_404_이다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
 
-        결정_요청(관계자_토큰(academyId), 999_999_999L, 거절_바디("아무 사유"))
+        결정_요청(관계자_토큰(tokenProvider, academyId), 999_999_999L, 거절_바디("아무 사유"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("APPROVAL_NOT_FOUND"));
     }
@@ -646,7 +646,7 @@ class StaffApprovalDecideControllerTest {
 
     private String 미리보기_토큰_조회(long approvalId, long academyId) throws Exception {
         String body = mockMvc
-                .perform(get("/api/v1/staff/approvals/" + approvalId).header("Authorization", 관계자_토큰(academyId)))
+                .perform(get("/api/v1/staff/approvals/" + approvalId).header("Authorization", 관계자_토큰(tokenProvider, academyId)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         return JsonPath.read(body, "$.data.preview_token");
@@ -665,11 +665,6 @@ class StaffApprovalDecideControllerTest {
                 .header("Authorization", token)
                 .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                 .content(body));
-    }
-
-    private String 관계자_토큰(long academyId) {
-        return "Bearer " + tokenProvider.createAccessToken(academyId * 1000 + 1, academyId, Role.STAFF,
-                AccountStatus.ACTIVE);
     }
 
     /** 결정 시나리오 픽스처 값 묶음. */

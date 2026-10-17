@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.관계자_토큰;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -31,7 +32,6 @@ import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
@@ -149,7 +149,7 @@ class StaffApprovalControllerTest {
     void 목록_조회는_재최적화를_실행하지_않는다() throws Exception {
         long academyId = 확정된_회차와_승인_대기_3건을_만든다();
 
-        목록_조회(관계자_토큰(academyId), null).andExpect(status().isOk())
+        목록_조회(관계자_토큰(tokenProvider, academyId), null).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items", org.hamcrest.Matchers.hasSize(3)))
                 .andExpect(jsonPath("$.data.pending_count").value(3));
 
@@ -165,7 +165,7 @@ class StaffApprovalControllerTest {
         long academyId = 확정된_회차와_승인_대기_3건을_만든다();
         org.mockito.Mockito.clearInvocations(runRiderRepository);
 
-        목록_조회(관계자_토큰(academyId), null).andExpect(status().isOk())
+        목록_조회(관계자_토큰(tokenProvider, academyId), null).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items", org.hamcrest.Matchers.hasSize(3)));
 
         verify(runRiderRepository, times(1)).findAllByRunIdInAndAcademyId(any(), anyLong());
@@ -177,7 +177,7 @@ class StaffApprovalControllerTest {
     void 대기_건이_없으면_빈_목록이다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
 
-        목록_조회(관계자_토큰(academyId), null).andExpect(status().isOk())
+        목록_조회(관계자_토큰(tokenProvider, academyId), null).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items", org.hamcrest.Matchers.hasSize(0)))
                 .andExpect(jsonPath("$.data.pending_count").value(0));
 
@@ -203,7 +203,7 @@ class StaffApprovalControllerTest {
                 .forClass(java.util.Collection.class);
         long academyId = 학원과_승인_대기_N건을_만든다(25);
 
-        목록_조회(관계자_토큰(academyId), null, 0, 20).andExpect(status().isOk())
+        목록_조회(관계자_토큰(tokenProvider, academyId), null, 0, 20).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items", org.hamcrest.Matchers.hasSize(20)))
                 .andExpect(jsonPath("$.data.page").value(0))
                 .andExpect(jsonPath("$.data.size").value(20))
@@ -216,7 +216,7 @@ class StaffApprovalControllerTest {
 
         org.mockito.Mockito.clearInvocations(runRiderRepository);
 
-        목록_조회(관계자_토큰(academyId), null, 1, 20).andExpect(status().isOk())
+        목록_조회(관계자_토큰(tokenProvider, academyId), null, 1, 20).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items", org.hamcrest.Matchers.hasSize(5)))
                 .andExpect(jsonPath("$.data.page").value(1))
                 .andExpect(jsonPath("$.data.has_next").value(false))
@@ -230,7 +230,7 @@ class StaffApprovalControllerTest {
     void size_가_상한을_넘으면_422_다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
 
-        목록_조회(관계자_토큰(academyId), null, 0, 101).andExpect(status().is(422))
+        목록_조회(관계자_토큰(tokenProvider, academyId), null, 0, 101).andExpect(status().is(422))
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
@@ -285,13 +285,13 @@ class StaffApprovalControllerTest {
         자동거절건.autoReject(OffsetDateTime.now());
         changeRequestRepository.save(자동거절건);
 
-        목록_조회(관계자_토큰(academyId), "rejected").andExpect(status().isOk())
+        목록_조회(관계자_토큰(tokenProvider, academyId), "rejected").andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items", org.hamcrest.Matchers.hasSize(1)))
                 .andExpect(jsonPath("$.data.items[0].stop_name").value("정차지37.900000"))
                 .andExpect(jsonPath("$.data.items[0].remaining_riders").value(0))
                 .andExpect(jsonPath("$.data.items[0].will_remove_stop").value(false));
 
-        목록_조회(관계자_토큰(academyId), "auto_rejected").andExpect(status().isOk())
+        목록_조회(관계자_토큰(tokenProvider, academyId), "auto_rejected").andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items", org.hamcrest.Matchers.hasSize(1)))
                 .andExpect(jsonPath("$.data.items[0].stop_name").value("정차지37.900000"))
                 .andExpect(jsonPath("$.data.items[0].remaining_riders").value(0))
@@ -330,7 +330,7 @@ class StaffApprovalControllerTest {
         changeRequestRepository.save(승인건);
         runRiderRepository.deleteAll(runRiderRepository.findAllByRunIdAndAcademyId(runId, academyId));
 
-        목록_조회(관계자_토큰(academyId), "approved").andExpect(status().isOk())
+        목록_조회(관계자_토큰(tokenProvider, academyId), "approved").andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items", org.hamcrest.Matchers.hasSize(1)))
                 .andExpect(jsonPath("$.data.items[0].will_remove_stop").value(false));
     }
@@ -358,7 +358,7 @@ class StaffApprovalControllerTest {
         즉시반영건.approve(null, OffsetDateTime.now(), null, null);
         changeRequestRepository.save(즉시반영건);
 
-        목록_조회(관계자_토큰(academyId), "approved").andExpect(status().isOk())
+        목록_조회(관계자_토큰(tokenProvider, academyId), "approved").andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items", org.hamcrest.Matchers.hasSize(0)));
     }
 
@@ -369,7 +369,7 @@ class StaffApprovalControllerTest {
     void 상세_조회는_재최적화를_1회만_실행한다() throws Exception {
         시나리오 s = 확정된_회차와_승인_대기_건을_만든다();
 
-        상세_조회(관계자_토큰(s.academyId), s.approvalId).andExpect(status().isOk())
+        상세_조회(관계자_토큰(tokenProvider, s.academyId), s.approvalId).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.preview_token").isNotEmpty())
                 .andExpect(jsonPath("$.data.preview_stale").value(false));
 
@@ -386,7 +386,7 @@ class StaffApprovalControllerTest {
     void 상세_응답이_노선_전체_소요시간과_전후_도로좌표를_낸다() throws Exception {
         시나리오 s = 확정된_회차와_승인_대기_건을_만든다();
 
-        MvcResult result = 상세_조회(관계자_토큰(s.academyId), s.approvalId).andExpect(status().isOk())
+        MvcResult result = 상세_조회(관계자_토큰(tokenProvider, s.academyId), s.approvalId).andExpect(status().isOk())
                 // R20-A(Ruling 321) — depart_time 은 전/후로 나뉘지 않는 단일 값이다. 정확값(SERVICE_DATE
                 // 08:00, 확정된_회차와_승인_대기_건을_만든다 가 심은 값)으로 대조한다 — notNull 만으로는
                 // 응답이 다른 회차의 시각을 잘못 실어도 못 잡는다.
@@ -434,7 +434,7 @@ class StaffApprovalControllerTest {
         시나리오 s = 확정된_회차와_승인_대기_건을_만든다();
         String 취소된_정류장 = "정차지37.562000";
 
-        상세_조회(관계자_토큰(s.academyId), s.approvalId).andExpect(status().isOk())
+        상세_조회(관계자_토큰(tokenProvider, s.academyId), s.approvalId).andExpect(status().isOk())
                 // 영향 학생 — 취소 대상 본인(학생2)과, 순번이 밀린 학생3 이 실려 있어야 한다.
                 // 빈 목록이면(변형 1: affectedStudentsOf 가 항상 빈 목록) 실패해야 한다.
                 .andExpect(jsonPath("$.data.affected_students", org.hamcrest.Matchers.hasSize(2)))
@@ -460,7 +460,7 @@ class StaffApprovalControllerTest {
     void 상세_응답의_stops_와_removed_가_지도용_좌표를_낸다() throws Exception {
         시나리오 s = 확정된_회차와_승인_대기_건을_만든다();
 
-        상세_조회(관계자_토큰(s.academyId), s.approvalId).andExpect(status().isOk())
+        상세_조회(관계자_토큰(tokenProvider, s.academyId), s.approvalId).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.route_preview.stops_before[1].stop_name").value("정차지37.562000"))
                 .andExpect(jsonPath("$.data.route_preview.stops_before[1].lat").value(37.562))
                 .andExpect(jsonPath("$.data.route_preview.stops_before[1].lng").value(126.972))
@@ -476,7 +476,7 @@ class StaffApprovalControllerTest {
     void 상세_응답의_seq_는_1부터_정차_순서대로_매겨진다() throws Exception {
         시나리오 s = 확정된_회차와_승인_대기_건을_만든다();
 
-        상세_조회(관계자_토큰(s.academyId), s.approvalId).andExpect(status().isOk())
+        상세_조회(관계자_토큰(tokenProvider, s.academyId), s.approvalId).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.route_preview.stops_before[*].seq",
                         org.hamcrest.Matchers.contains(1, 2, 3)))
                 // 취소 후 정차지 2개(firstStop·lastStop)만 남고, 순번은 1·2 로 다시 매겨진다.
@@ -505,7 +505,7 @@ class StaffApprovalControllerTest {
         assertThat(셋째토큰).isEqualTo(첫토큰);
         verify(pipeline, times(1)).compute(any());
 
-        상세_조회(관계자_토큰(s.academyId), s.approvalId)
+        상세_조회(관계자_토큰(tokenProvider, s.academyId), s.approvalId)
                 .andExpect(jsonPath("$.data.preview_stale").value(false));
     }
 
@@ -518,14 +518,14 @@ class StaffApprovalControllerTest {
     void 명단이_바뀌면_다음_조회에서_stale_이_참이_되고_재계산한다() throws Exception {
         시나리오 s = 확정된_회차와_승인_대기_건을_만든다();
 
-        상세_조회(관계자_토큰(s.academyId), s.approvalId)
+        상세_조회(관계자_토큰(tokenProvider, s.academyId), s.approvalId)
                 .andExpect(jsonPath("$.data.preview_stale").value(false));
         verify(pipeline, times(1)).compute(any());
 
         long 넷째학생 = fixtures().student(s.academyId, "학생4");
         runRiderRepository.save(RunRider.uponConfirmation(s.runId, 넷째학생, s.midStopId));
 
-        String 두번째토큰 = 상세_조회(관계자_토큰(s.academyId), s.approvalId)
+        String 두번째토큰 = 상세_조회(관계자_토큰(tokenProvider, s.academyId), s.approvalId)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.preview_stale").value(true))
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
@@ -595,7 +595,7 @@ class StaffApprovalControllerTest {
         승인건.approve(1L, OffsetDateTime.now(), null, null);
         long 승인건ID = changeRequestRepository.save(승인건).getId();
 
-        String 토큰 = 관계자_토큰(academyId);
+        String 토큰 = 관계자_토큰(tokenProvider, academyId);
 
         // 셋 다 재최적화가 손대지 않은 필드(요약 필드·capacity)는 정상 응답하고, 재최적화 전용
         // 필드는 null(배열은 빈 배열)이다 — 이 요청 3건 모두 엔티티 메서드만 직접 불렀을 뿐
@@ -637,7 +637,7 @@ class StaffApprovalControllerTest {
         시나리오 s = 확정된_회차와_승인_대기_건을_만든다();
         인력을_배치한다(s.academyId, s.runId, ManagerRole.DRIVER, "기사A");
 
-        상세_조회(관계자_토큰(s.academyId), s.approvalId).andExpect(status().isOk())
+        상세_조회(관계자_토큰(tokenProvider, s.academyId), s.approvalId).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("pending"))
                 .andExpect(jsonPath("$.data.decided_at").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.data.decided_by_name").value(org.hamcrest.Matchers.nullValue()))
@@ -657,7 +657,7 @@ class StaffApprovalControllerTest {
         long 승인건 = 결정된_건을_저장한다(s, 학생, request -> request.approve(관계자, 결정시각, null, null));
         long 거절건 = 결정된_건을_저장한다(s, 학생, request -> request.reject(관계자, 결정시각, "마감 시간 경과"));
         long 자동거절건 = 결정된_건을_저장한다(s, 학생, request -> request.autoReject(결정시각));
-        String 토큰 = 관계자_토큰(s.academyId);
+        String 토큰 = 관계자_토큰(tokenProvider, s.academyId);
 
         상세_조회(토큰, 승인건).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("approved"))
@@ -695,7 +695,7 @@ class StaffApprovalControllerTest {
         시나리오 s = 확정된_회차와_승인_대기_건을_만든다();
         long 남의학원 = fixtures().academyWithCoordinates();
 
-        상세_조회(관계자_토큰(남의학원), s.approvalId)
+        상세_조회(관계자_토큰(tokenProvider, 남의학원), s.approvalId)
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("APPROVAL_NOT_FOUND"));
 
@@ -707,7 +707,7 @@ class StaffApprovalControllerTest {
     void 존재하지_않는_승인_건은_404_이다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
 
-        상세_조회(관계자_토큰(academyId), 999_999_999L)
+        상세_조회(관계자_토큰(tokenProvider, academyId), 999_999_999L)
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("APPROVAL_NOT_FOUND"));
 
@@ -817,7 +817,7 @@ class StaffApprovalControllerTest {
     }
 
     private String 상세_본문에서_토큰(시나리오 s) throws Exception {
-        String body = 상세_조회(관계자_토큰(s.academyId), s.approvalId)
+        String body = 상세_조회(관계자_토큰(tokenProvider, s.academyId), s.approvalId)
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         String token = JsonPath.read(body, "$.data.preview_token");
@@ -843,11 +843,6 @@ class StaffApprovalControllerTest {
 
     private ResultActions 상세_조회(String token, long approvalId) throws Exception {
         return mockMvc.perform(get("/api/v1/staff/approvals/" + approvalId).header("Authorization", token));
-    }
-
-    private String 관계자_토큰(long academyId) {
-        return "Bearer " + tokenProvider.createAccessToken(academyId * 1000 + 1, academyId, Role.STAFF,
-                AccountStatus.ACTIVE);
     }
 
     /** 시나리오 픽스처 값 묶음 — {@code 첫토큰} 은 반복 조회 도우미가 최초 호출 시 채워 넣는다. */
