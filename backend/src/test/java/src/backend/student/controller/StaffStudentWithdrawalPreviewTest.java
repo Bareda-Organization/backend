@@ -4,8 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.관계자_토큰;
+import static testsupport.web.TestResponses.본문;
 
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -17,7 +18,6 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.jayway.jsonpath.JsonPath;
@@ -28,7 +28,6 @@ import jakarta.persistence.PersistenceContext;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
@@ -155,7 +154,7 @@ class StaffStudentWithdrawalPreviewTest {
         // JDBC 로 바꾼 값이 같은 트랜잭션의 JPA 캐시에 가려지지 않게 비운다
         entityManager.flush();
         entityManager.clear();
-        String token = 토큰(academyId);
+        String token = 관계자_토큰(tokenProvider, academyId);
 
         String body = 본문(mockMvc.perform(get("/api/v1/staff/students/" + studentId + "/withdrawal-preview")
                 .header("Authorization", token)).andExpect(status().isOk()).andReturn());
@@ -191,7 +190,7 @@ class StaffStudentWithdrawalPreviewTest {
         fx.verifiedAddress(studentId, stopId, Weekday.MON, Direction.TO_ACADEMY, "37.500000", "127.000000");
         fx.confirmedRun(academyId, busId, TODAY, Direction.TO_ACADEMY, at(TODAY, 8), at(TODAY, 8).minusMinutes(30));
         int ridersBefore = jdbcTemplate.queryForObject("SELECT count(*) FROM run_rider", Integer.class);
-        String token = 토큰(academyId);
+        String token = 관계자_토큰(tokenProvider, academyId);
 
         String first = 본문(mockMvc.perform(get("/api/v1/staff/students/" + studentId + "/withdrawal-preview")
                 .header("Authorization", token)).andExpect(status().isOk()).andReturn());
@@ -214,7 +213,7 @@ class StaffStudentWithdrawalPreviewTest {
         long others = fx.student(otherAcademyId, "남의학생");
         long withdrawn = fx.student(academyId, "퇴원생");
         jdbcTemplate.update("UPDATE student SET deleted_at = now() WHERE id = ?", withdrawn);
-        String token = 토큰(academyId);
+        String token = 관계자_토큰(tokenProvider, academyId);
 
         for (long studentId : new long[] {others, withdrawn, 999_999_999L}) {
             mockMvc.perform(get("/api/v1/staff/students/" + studentId + "/withdrawal-preview")
@@ -230,13 +229,5 @@ class StaffStudentWithdrawalPreviewTest {
 
     private OffsetDateTime at(LocalDate date, int hour) {
         return date.atTime(hour, 0).atOffset(java.time.ZoneOffset.ofHours(9));
-    }
-
-    private String 본문(MvcResult result) throws Exception {
-        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
-    }
-
-    private String 토큰(long academyId) {
-        return "Bearer " + tokenProvider.createAccessToken(academyId * 1000 + 1, academyId, Role.STAFF, AccountStatus.ACTIVE);
     }
 }

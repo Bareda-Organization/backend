@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.Clock;
 import java.time.LocalDate;
@@ -104,7 +105,7 @@ class StudentBusPositionControllerTest {
         OffsetDateTime received = OffsetDateTime.now(clock);
         위치를_기록한다(received);
 
-        mockMvc.perform(get(POSITION.formatted(SIBLING_2_ID)).header("Authorization", 토큰(SIBLINGS_GUARDIAN_ACCOUNT)))
+        mockMvc.perform(get(POSITION.formatted(SIBLING_2_ID)).header("Authorization", 토큰(tokenProvider, SIBLINGS_GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.run_status").value("moving"))
                 .andExpect(jsonPath("$.data.lat").value(37.400000))
@@ -124,7 +125,7 @@ class StudentBusPositionControllerTest {
         OffsetDateTime staleReceived = OffsetDateTime.now(clock).minusMinutes(3);
         위치를_기록한다(staleReceived);
 
-        mockMvc.perform(get(POSITION.formatted(SIBLING_2_ID)).header("Authorization", 토큰(SIBLINGS_GUARDIAN_ACCOUNT)))
+        mockMvc.perform(get(POSITION.formatted(SIBLING_2_ID)).header("Authorization", 토큰(tokenProvider, SIBLINGS_GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.lat").doesNotExist())
                 .andExpect(jsonPath("$.data.lng").doesNotExist())
@@ -154,7 +155,7 @@ class StudentBusPositionControllerTest {
         지연_알림(RUN_MOVING_ID, 10, "weather", lateNotice);
 
         String body = mockMvc.perform(get(POSITION.formatted(SIBLING_2_ID)).header("Authorization",
-                        토큰(SIBLINGS_GUARDIAN_ACCOUNT)))
+                        토큰(tokenProvider, SIBLINGS_GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.run_status").value("moving"))
                 .andExpect(jsonPath("$.data.started_at").isNotEmpty())
@@ -174,7 +175,7 @@ class StudentBusPositionControllerTest {
     @Transactional
     void 지연_알림이_없거나_회차가_끝났으면_delay_는_null_이고_끝난_회차는_종료_시각을_싣는다() throws Exception {
         위치를_기록한다(OffsetDateTime.now(clock));
-        mockMvc.perform(get(POSITION.formatted(SIBLING_2_ID)).header("Authorization", 토큰(SIBLINGS_GUARDIAN_ACCOUNT)))
+        mockMvc.perform(get(POSITION.formatted(SIBLING_2_ID)).header("Authorization", 토큰(tokenProvider, SIBLINGS_GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.delay").doesNotExist());
 
@@ -187,7 +188,7 @@ class StudentBusPositionControllerTest {
         entityManager.clear(); // 앞선 호출이 올려 둔 회차 엔티티가 방금 바꾼 상태를 가리지 않게
 
         mockMvc.perform(get(POSITION.formatted(STUDENT_4_ID)).header("Authorization",
-                        토큰(STUDENT_4_GUARDIAN_ACCOUNT)))
+                        토큰(tokenProvider, STUDENT_4_GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.run_status").value("finished"))
                 .andExpect(jsonPath("$.data.delay").doesNotExist())
@@ -220,7 +221,7 @@ class StudentBusPositionControllerTest {
     void 당일_결석이면_운행중이어도_좌표가_부재하다() throws Exception {
         위치를_기록한다(OffsetDateTime.now(clock));
 
-        mockMvc.perform(get(POSITION.formatted(SIBLING_1_ID)).header("Authorization", 토큰(SIBLINGS_GUARDIAN_ACCOUNT)))
+        mockMvc.perform(get(POSITION.formatted(SIBLING_1_ID)).header("Authorization", 토큰(tokenProvider, SIBLINGS_GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.run_status").value("moving"))
                 .andExpect(jsonPath("$.data.lat").doesNotExist())
@@ -241,7 +242,7 @@ class StudentBusPositionControllerTest {
                 .formatted(OffsetDateTime.now(clock));
         stringRedisTemplate.opsForValue().set(key, json);
 
-        mockMvc.perform(get(POSITION.formatted(STUDENT_4_ID)).header("Authorization", 토큰(STUDENT_4_GUARDIAN_ACCOUNT)))
+        mockMvc.perform(get(POSITION.formatted(STUDENT_4_ID)).header("Authorization", 토큰(tokenProvider, STUDENT_4_GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.run_status").value("confirmed"))
                 .andExpect(jsonPath("$.data.lat").doesNotExist())
@@ -251,7 +252,7 @@ class StudentBusPositionControllerTest {
     /** 연결 부재 자녀는 위치 조회도 403 이다(목표 11) — S5 의 보호자가 S1 을 조회한다. */
     @Test
     void 연결_부재_자녀의_위치_조회는_403_이다() throws Exception {
-        mockMvc.perform(get(POSITION.formatted(SIBLING_1_ID)).header("Authorization", 토큰(UNLINKED_GUARDIAN_ACCOUNT)))
+        mockMvc.perform(get(POSITION.formatted(SIBLING_1_ID)).header("Authorization", 토큰(tokenProvider, UNLINKED_GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
     }
@@ -268,9 +269,5 @@ class StudentBusPositionControllerTest {
                 INSERT INTO delay_notice (run_id, sent_by_account_id, minutes, reason, sent_at)
                 VALUES (?, ?, ?, ?, ?)
                 """, runId, SIBLINGS_GUARDIAN_ACCOUNT, minutes, reason, sentAt);
-    }
-
-    private String 토큰(long accountId) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, ACADEMY_A, Role.PARENT, AccountStatus.ACTIVE);
     }
 }

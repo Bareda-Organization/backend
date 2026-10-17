@@ -5,6 +5,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
+import static testsupport.web.TestResponses.본문;
 
 import java.awt.image.BufferedImage;
 import java.nio.charset.StandardCharsets;
@@ -27,7 +29,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.jayway.jsonpath.JsonPath;
 
 import src.backend.global.common.SeedFixtures;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
@@ -74,7 +75,7 @@ class StudentPhotoUploadTest {
                         .file(데이터_파트("""
                                 {"name":"P5T6사진등록","can_go_alone":false}"""))
                         .file(new MockMultipartFile("photo", "face.png", "image/png", png()))
-                        .header("Authorization", 관계자_토큰()))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.photo_url").isNotEmpty())
                 .andReturn();
@@ -115,7 +116,7 @@ class StudentPhotoUploadTest {
     void 관계자_상세_응답에는_photo_url_이_있다() throws Exception {
         long studentId = 사진과_함께_등록한다("P5T6상세사진", png());
 
-        mockMvc.perform(get(BASE + "/" + studentId).header("Authorization", 관계자_토큰()))
+        mockMvc.perform(get(BASE + "/" + studentId).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.photo_url").isNotEmpty());
     }
@@ -126,7 +127,7 @@ class StudentPhotoUploadTest {
         mockMvc.perform(multipart(BASE)
                         .file(데이터_파트("""
                                 {"name":"P5T6사진없음","can_go_alone":false}"""))
-                        .header("Authorization", 관계자_토큰()))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.photo_url").value((Object) null));
     }
@@ -144,7 +145,7 @@ class StudentPhotoUploadTest {
                                 {"name":"P5T6형식위반","can_go_alone":false}"""))
                         .file(new MockMultipartFile("photo", "face.png", "image/png",
                                 "%PDF-1.7 not an image".getBytes(StandardCharsets.UTF_8)))
-                        .header("Authorization", 관계자_토큰()))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().is4xxClientError())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
@@ -169,7 +170,7 @@ class StudentPhotoUploadTest {
                         .file(데이터_파트("""
                                 {"name":"P5T6용량초과","can_go_alone":false}"""))
                         .file(new MockMultipartFile("photo", "big.png", "image/png", png(MAX_BYTES + 1)))
-                        .header("Authorization", 관계자_토큰()))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().is4xxClientError())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
 
@@ -177,7 +178,7 @@ class StudentPhotoUploadTest {
                         .file(데이터_파트("""
                                 {"name":"P5T6경계허용","can_go_alone":false}"""))
                         .file(new MockMultipartFile("photo", "edge.png", "image/png", png(MAX_BYTES)))
-                        .header("Authorization", 관계자_토큰()))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isCreated());
     }
 
@@ -191,7 +192,7 @@ class StudentPhotoUploadTest {
     void 데이터_파트가_없는_요청은_422_다() throws Exception {
         mockMvc.perform(multipart(BASE)
                         .file(new MockMultipartFile("photo", "face.png", "image/png", png()))
-                        .header("Authorization", 관계자_토큰()))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
@@ -205,7 +206,7 @@ class StudentPhotoUploadTest {
         mockMvc.perform(multipart(HttpMethod.PATCH, BASE + "/" + studentId)
                         .file(데이터_파트("{}"))
                         .file(new MockMultipartFile("photo", "new.jpg", "image/jpeg", jpeg()))
-                        .header("Authorization", 관계자_토큰()))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk());
 
         assertThat(상세의_사진_주소(studentId))
@@ -214,10 +215,6 @@ class StudentPhotoUploadTest {
     }
 
     // ── 도우미 ────────────────────────────────────────────────────────────
-
-    private String 관계자_토큰() {
-        return "Bearer " + tokenProvider.createAccessToken(1L, ACADEMY_A, Role.STAFF, AccountStatus.ACTIVE);
-    }
 
     /** JSON 파트 — 사양이 "JSON 파트 + 파일 파트" 로 정한 앞쪽이다(§1.1). */
     private MockMultipartFile 데이터_파트(String json) {
@@ -228,7 +225,7 @@ class StudentPhotoUploadTest {
         MvcResult result = mockMvc.perform(multipart(BASE)
                         .file(데이터_파트("{\"name\":\"%s\",\"can_go_alone\":false}".formatted(name)))
                         .file(new MockMultipartFile("photo", "face.bin", "image/png", photo))
-                        .header("Authorization", 관계자_토큰()))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isCreated())
                 .andReturn();
         return Long.parseLong(JsonPath.read(본문(result), "$.data.student_id"));
@@ -236,7 +233,7 @@ class StudentPhotoUploadTest {
 
     private String 상세의_사진_주소(long studentId) throws Exception {
         MvcResult result = mockMvc.perform(get(BASE + "/" + studentId)
-                        .header("Authorization", 관계자_토큰()))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andReturn();
         return JsonPath.read(본문(result), "$.data.photo_url");
@@ -244,10 +241,6 @@ class StudentPhotoUploadTest {
 
     private Path 저장된_파일(String photoUrl) {
         return Path.of(photoRoot, photoUrl.substring(photoUrl.lastIndexOf('/') + 1));
-    }
-
-    private String 본문(MvcResult result) throws Exception {
-        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 
     /** PNG 서명 8바이트 — 실제 디코딩은 하지 않으므로 머리만 맞으면 된다. */

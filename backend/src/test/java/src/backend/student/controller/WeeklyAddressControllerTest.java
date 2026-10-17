@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.nio.charset.StandardCharsets;
 
@@ -25,7 +26,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.jayway.jsonpath.JsonPath;
 
 import src.backend.global.common.SeedFixtures;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.student.geocoding.impl.StubGeocodingClient;
@@ -160,7 +160,7 @@ class WeeklyAddressControllerTest {
     @Test
     void 한_요청에_같은_요일과_방향을_두_번_담으면_409_다() throws Exception {
         mockMvc.perform(patch(WEEKLY_ADDRESS.formatted(ACADEMY_B_STUDENT_ID))
-                        .header("Authorization", 토큰(ACADEMY_B_GUARDIAN_ACCOUNT, ACADEMY_B))
+                        .header("Authorization", 토큰(tokenProvider, ACADEMY_B_GUARDIAN_ACCOUNT, ACADEMY_B, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(본문(항목("wed", "to_academy", ADDRESS), 항목("wed", "to_academy", FAR_ADDRESS))))
                 .andExpect(status().isConflict())
@@ -179,7 +179,7 @@ class WeeklyAddressControllerTest {
         java.util.Arrays.fill(entries, 항목("wed", "to_academy", ADDRESS));
 
         mockMvc.perform(patch(WEEKLY_ADDRESS.formatted(ACADEMY_B_STUDENT_ID))
-                        .header("Authorization", 토큰(ACADEMY_B_GUARDIAN_ACCOUNT, ACADEMY_B))
+                        .header("Authorization", 토큰(tokenProvider, ACADEMY_B_GUARDIAN_ACCOUNT, ACADEMY_B, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(본문(entries)))
                 .andExpect(status().isUnprocessableContent())
@@ -192,7 +192,7 @@ class WeeklyAddressControllerTest {
     @Test
     void 검증에_실패한_주소는_422_이고_weekly_address_행이_남지_않는다() throws Exception {
         mockMvc.perform(patch(WEEKLY_ADDRESS.formatted(ACADEMY_B_STUDENT_ID))
-                        .header("Authorization", 토큰(ACADEMY_B_GUARDIAN_ACCOUNT, ACADEMY_B))
+                        .header("Authorization", 토큰(tokenProvider, ACADEMY_B_GUARDIAN_ACCOUNT, ACADEMY_B, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(본문(항목("thu", "to_academy", UNVERIFIABLE_ADDRESS))))
                 .andExpect(status().isUnprocessableContent())
@@ -212,7 +212,7 @@ class WeeklyAddressControllerTest {
     @Test
     void 일부만_실패해도_같은_요청의_성공분이_저장되지_않는다() throws Exception {
         mockMvc.perform(patch(WEEKLY_ADDRESS.formatted(ACADEMY_B_STUDENT_ID))
-                        .header("Authorization", 토큰(ACADEMY_B_GUARDIAN_ACCOUNT, ACADEMY_B))
+                        .header("Authorization", 토큰(tokenProvider, ACADEMY_B_GUARDIAN_ACCOUNT, ACADEMY_B, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(본문(항목("fri", "to_academy", ADDRESS),
                                 항목("fri", "from_academy", UNVERIFIABLE_ADDRESS))))
@@ -232,7 +232,7 @@ class WeeklyAddressControllerTest {
     @Test
     void 공급자에_닿지_못하면_422_가_아니라_503_이다() throws Exception {
         mockMvc.perform(patch(WEEKLY_ADDRESS.formatted(ACADEMY_B_STUDENT_ID))
-                        .header("Authorization", 토큰(ACADEMY_B_GUARDIAN_ACCOUNT, ACADEMY_B))
+                        .header("Authorization", 토큰(tokenProvider, ACADEMY_B_GUARDIAN_ACCOUNT, ACADEMY_B, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(본문(항목("sat", "to_academy", UNAVAILABLE_ADDRESS))))
                 .andExpect(status().isServiceUnavailable())
@@ -353,7 +353,7 @@ class WeeklyAddressControllerTest {
         entityManager.flush();
 
         mockMvc.perform(get(WEEKLY_ADDRESS.formatted(SIBLING_1_ID))
-                        .header("Authorization", 토큰(GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A)))
+                        .header("Authorization", 토큰(tokenProvider, GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.entries[?(@.weekday == 'fri' && @.direction == 'to_academy')].address")
                         .value(Matchers.contains(FAR_ADDRESS)));
@@ -363,7 +363,7 @@ class WeeklyAddressControllerTest {
     @Test
     void 조회는_요일_7종과_방향_2종의_14칸을_돌려준다() throws Exception {
         mockMvc.perform(get(WEEKLY_ADDRESS.formatted(SIBLING_1_ID))
-                        .header("Authorization", 토큰(GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A)))
+                        .header("Authorization", 토큰(tokenProvider, GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.entries.length()").value(14))
                 .andExpect(jsonPath("$.data.entries[0].weekday").value("mon"));
@@ -379,12 +379,12 @@ class WeeklyAddressControllerTest {
     @Test
     void 연결_부재_자녀의_주소는_조회도_저장도_403_이다() throws Exception {
         mockMvc.perform(get(WEEKLY_ADDRESS.formatted(SIBLING_1_ID))
-                        .header("Authorization", 토큰(UNLINKED_GUARDIAN_ACCOUNT, ACADEMY_A)))
+                        .header("Authorization", 토큰(tokenProvider, UNLINKED_GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
 
         mockMvc.perform(patch(WEEKLY_ADDRESS.formatted(SIBLING_1_ID))
-                        .header("Authorization", 토큰(UNLINKED_GUARDIAN_ACCOUNT, ACADEMY_A))
+                        .header("Authorization", 토큰(tokenProvider, UNLINKED_GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(본문(항목("mon", "to_academy", ADDRESS))))
                 .andExpect(status().isForbidden())
@@ -395,7 +395,7 @@ class WeeklyAddressControllerTest {
     @Test
     void 사양에_없는_요일은_422_다() throws Exception {
         mockMvc.perform(patch(WEEKLY_ADDRESS.formatted(ACADEMY_B_STUDENT_ID))
-                        .header("Authorization", 토큰(ACADEMY_B_GUARDIAN_ACCOUNT, ACADEMY_B))
+                        .header("Authorization", 토큰(tokenProvider, ACADEMY_B_GUARDIAN_ACCOUNT, ACADEMY_B, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(본문(항목("holiday", "to_academy", ADDRESS))))
                 .andExpect(status().isUnprocessableContent())
@@ -407,7 +407,7 @@ class WeeklyAddressControllerTest {
     private MvcResult 주소를_저장한다(long accountId, Long academyId, long studentId, String... entries)
             throws Exception {
         MvcResult result = mockMvc.perform(patch(WEEKLY_ADDRESS.formatted(studentId))
-                        .header("Authorization", 토큰(accountId, academyId))
+                        .header("Authorization", 토큰(tokenProvider, accountId, academyId, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(본문(entries)))
                 .andExpect(status().isOk())
@@ -423,10 +423,6 @@ class WeeklyAddressControllerTest {
 
     private static String 본문(String... entries) {
         return "{\"entries\":[" + String.join(",", entries) + "]}";
-    }
-
-    private String 토큰(long accountId, Long academyId) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, Role.PARENT, AccountStatus.ACTIVE);
     }
 
     private static String 본문(MvcResult result) throws Exception {
