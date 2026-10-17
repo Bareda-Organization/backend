@@ -17,10 +17,10 @@ SCALE_BE2=http://localhost:28082
 SCALE_NGINX_HTTPS=https://localhost:28443
 SCALE_PROM=http://localhost:29090
 
+# 문자열로도 둔다 — rolling-restart.sh 가 deploy.sh 와 같은 COMPOSE 문자열 규약으로 받는다(경로에 공백이 없다고 본다).
+SCALE_COMPOSE="docker compose -p $SCALE_PROJECT -f $SCALE_REPO/docker-compose.prod.yml -f $SCALE_REPO/docker-compose.scale.yml -f $SCALE_REPO/docker-compose.scale-local.yml --env-file $SCALE_REPO/infra/scale-check/placeholder.env"
 scale_dc() {
-    docker compose -p "$SCALE_PROJECT" \
-        -f "$SCALE_REPO/docker-compose.prod.yml" -f "$SCALE_REPO/docker-compose.scale.yml" -f "$SCALE_REPO/docker-compose.scale-local.yml" \
-        --env-file "$SCALE_REPO/infra/scale-check/placeholder.env" "$@"
+    $SCALE_COMPOSE "$@"
 }
 
 # 자체 서명 인증서 · 빈 계정 파일 — nginx.prod.conf 가 443 과 .htpasswd 를 요구한다. 확인 때마다 새로 만든다.
