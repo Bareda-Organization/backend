@@ -2,8 +2,9 @@ package src.backend.account.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static testsupport.auth.TestTokens.메인관리자_토큰;
+import static testsupport.web.TestResponses.본문;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -25,7 +26,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
@@ -138,15 +138,11 @@ class StaffApprovalConcurrencyTest {
         return () -> {
             출발.await(TIMEOUT_SECONDS, TimeUnit.SECONDS);
             return mockMvc.perform(post("/api/v1/admin/staff-signup-requests/" + requestId + "/decide")
-                            .header("Authorization", 메인관리자_토큰())
+                            .header("Authorization", 메인관리자_토큰(tokenProvider, 1L))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"accept\": true}"))
                     .andReturn();
         };
-    }
-
-    private String 메인관리자_토큰() {
-        return "Bearer " + tokenProvider.createAccessToken(1L, null, Role.SYSTEM_ADMIN, AccountStatus.ACTIVE);
     }
 
     private long 대기_요청을_만든다(String loginId, String phone) {
@@ -168,9 +164,5 @@ class StaffApprovalConcurrencyTest {
         return jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM academy_staff WHERE academy_id = ? AND status = 'active'",
                 Integer.class, academyId);
-    }
-
-    private String 본문(MvcResult result) throws Exception {
-        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 }
