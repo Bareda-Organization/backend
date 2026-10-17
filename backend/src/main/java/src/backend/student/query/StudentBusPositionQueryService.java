@@ -39,7 +39,7 @@ import src.backend.student.entity.Student;
  * <p>학부모(연결 자녀)와 학생(본인) 둘 다 부른다 — 판정은 {@link StudentRunsAccess}(BR-025).
  *
  * <p>클래스에 {@code @Transactional} 을 두지 않는다 — Redis 좌표 읽기({@code RunPositionStore}, 최대 명령 시간 상한
- * 500ms)가 트랜잭션 안에 있으면 그 동안 DB 연결을 쥔다(R46 D #13). 저장소 호출마다 짧은 읽기 트랜잭션이 돈다.
+ * 500ms)가 트랜잭션 안에 있으면 그 동안 DB 연결을 쥔다. 저장소 호출마다 짧은 읽기 트랜잭션이 돈다.
  */
 @Service
 @RequiredArgsConstructor
@@ -48,7 +48,7 @@ public class StudentBusPositionQueryService {
     /**
      * Ruling 208 — 마지막 수신(§3.11 {@code received_at}) 후 이 이상 지나면 신호 유실로 본다.
      *
-     * <p>{@code public} 인 이유 — Phase 13 {@code monitoring.query.RunLiveStateResolver}(§5.18·§6.8)가
+     * <p>{@code public} 인 이유 — {@code monitoring.query.RunLiveStateResolver}(§5.18·§6.8)가
      * 같은 유실 판정을 쓴다. 값을 복사하면 이 상수가 바뀔 때 관제 쪽만 조용히 낡은 값으로 남는다
      * (API_SPEC:644 "관제엔 경고, 학부모 화면은 정상" 구간 경고) — 그래서 리터럴을 새로 두지 않고
      * 이 필드를 그대로 참조한다.

@@ -27,7 +27,7 @@ import src.backend.global.security.authz.Can;
 import src.backend.global.security.authz.Permissions;
 
 /**
- * 운행일이 지난 채 끝나지 않은 이동 중 회차의 목록·강제 종료 콘솔 개입(API_SPEC §6.16·§6.17, R47 Ruling 724) — 메인관리자 전용.
+ * 운행일이 지난 채 끝나지 않은 이동 중 회차의 목록·강제 종료 콘솔 개입(API_SPEC §6.16·§6.17, Ruling 724) — 메인관리자 전용.
  *
  * <p>전 학원 범위이며 학원 격리의 예외다({@link AdminRunForceConfirmController} 와 같은 근거). {@link AuthUser} 를 받는 것은 처리자를
  * 감사 기록에 남기기 위해서다.

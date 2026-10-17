@@ -20,7 +20,7 @@ import src.backend.exception.dto.EmergencyStaffItemResponse.RaisedBy;
  * EmergencyStaffItemResponse} 자바독과 같다 — {@code raisedAt = received_at}(occurred_at 은
  * 조작 가능해 취소 창 판정에도 쓰이지 않는다), {@code contacts} 는 배치 인력 전원(중복 허용),
  * {@code ackedBy} 는 이름만. 단말이 누른 시각 {@code occurredAt} 은 정렬·판정·{@code elapsedSinceRaised} 에 쓰지 않는
- * <b>참고값</b>으로 따로 싣는다(R47 Ruling 744).
+ * <b>참고값</b>으로 따로 싣는다(Ruling 744).
  *
  * <p>{@code staffAcked} 는 {@code emergency_alert.acked_at IS NOT NULL} 과 같다 — 확인자가 학원
  * 관계자든 다른 메인관리자든 구분하지 않는다({@link src.backend.exception.entity.EmergencyAlert#ack}
@@ -30,9 +30,7 @@ import src.backend.exception.dto.EmergencyStaffItemResponse.RaisedBy;
  * 파생값이다(목표 11 요구 — 저장하면 조회할 때마다 갱신 배치가 따로 필요해진다). 단위는 <b>초</b>다
  * (정본이 "경과 초" 로 요구, {@code API_SPEC.md:1923}). 취소된 신고는 더 흐르지 않도록
  * {@code canceledAt} 을, 확인된 신고는 {@code ackedAt} 을 종료 시점으로 우선한다 — 그렇지 않으면
- * 이미 끝난 신고의 경과 시간이 콘솔을 열어 둔 만큼 계속 늘어난다. 이 계산식 자체는 Phase 13 T3
- * 소유가 아니다 — 건드리지 않는다.
- *
+ * 이미 끝난 신고의 경과 시간이 콘솔을 열어 둔 만큼 계속 늘어난다. *
  * <p>타입을 {@code Duration} 이 아니라 {@code Long}(초)으로 둔다 — 이 저장소에 {@code Duration} 을
  * 응답 필드로 노출한 전례가 없고({@code StudentBusPositionQueryService} 도 내부 계산에만 쓰고
  * 응답에는 원본 시각만 싣는다), 전역 {@code ObjectMapper} 에 {@code WRITE_DURATIONS_AS_TIMESTAMPS}

@@ -23,7 +23,7 @@ import src.backend.student.geocoding.spec.GeocodingUnavailableException;
 import src.backend.student.geocoding.spec.PlaceSearchClient;
 
 /**
- * NAVER API HUB 지역 검색(2026-09-23 실측) — 개발자센터 검색 API 가 2026-07-31 부터 신규 발급을 멈추고
+ * NAVER API HUB 지역 검색(실측) — 개발자센터 검색 API 가 2026-07-31 부터 신규 발급을 멈추고
  * 네이버 클라우드 플랫폼 HUB 로 옮겨졌다.
  *
  * <p>⚠ 헤더는 NCP 방식({@code x-ncp-apigw-api-key-id}·{@code x-ncp-apigw-api-key})이다 — 옛

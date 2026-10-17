@@ -14,7 +14,7 @@ import src.backend.run.domain.MovingRunWindowPolicy;
 import src.backend.run.repository.RunRepository;
 
 /**
- * 메인 관리자 콘솔의 끝나지 않은 이동 중 회차 목록(API_SPEC §6.16, R47 Ruling 724) — {@code StaleMovingRun} 경보가 세는 회차를
+ * 메인 관리자 콘솔의 끝나지 않은 이동 중 회차 목록(API_SPEC §6.16, Ruling 724) — {@code StaleMovingRun} 경보가 세는 회차를
  * 사람이 처리할 수 있게 보인다. 대상 조건과 경계 운행일은 경보 지표와 같은 곳({@code RunRepository#STALE_MOVING} ·
  * {@link MovingRunWindowPolicy})에서 오므로 경보와 목록이 서로 다른 회차를 가리키지 않는다.
  */

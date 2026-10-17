@@ -25,7 +25,7 @@ import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.AuthenticatedOnly;
 
 /**
- * 학원별 설정 조회·수정 API(API_SPEC §5.21, Phase 11 목표 4) — 학원 관계자 전용이지만 그 판정은
+ * 학원별 설정 조회·수정 API(API_SPEC §5.21) — 학원 관계자 전용이지만 그 판정은
  * {@code hasAuthority(...)} 애너테이션이 아니라 서비스 계층({@link AcademySettingQueryService}·
  * {@link AcademySettingCommandService})이 직접 한다 — {@code Permissions} 카탈로그가 이 값을
  * 권한 상수로 매핑하지 않았기 때문이다(각 서비스 자바독 참고). 이 컨트롤러는 {@code @AuthenticatedOnly}

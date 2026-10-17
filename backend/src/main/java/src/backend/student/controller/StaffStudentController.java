@@ -145,7 +145,7 @@ public class StaffStudentController {
                 studentCommandService.update(authUser, id, request, photoOf(photo))));
     }
 
-    /** 학생 사진 삭제(§5.11 · R56 Ruling 894 ③) — 사진이 이미 없어도 {@code 204}(멱등). 권한·학원 범위는 수정과 같다. */
+    /** 학생 사진 삭제(§5.11 · Ruling 894 ③) — 사진이 이미 없어도 {@code 204}(멱등). 권한·학원 범위는 수정과 같다. */
     @Can(Permissions.STUDENT_WRITE)
     @Operation(summary = "학생 관리 — 사진 삭제 (STU-03)")
     @DeleteMapping("/{id}/photo")

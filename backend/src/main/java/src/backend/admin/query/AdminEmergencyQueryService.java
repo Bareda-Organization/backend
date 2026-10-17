@@ -38,7 +38,7 @@ import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
 
 /**
- * 메인 관리자 콘솔의 전 학원 비상 알림 조회(Phase 11 목표 11, Phase 13 목표 13) — {@code
+ * 메인 관리자 콘솔의 전 학원 비상 알림 조회 — {@code
  * emergency_alert} 를 {@code academy_id} 로 좁히지 않는 유일한 읽기 경로다({@link
  * EmergencyAlertRepository#findAllByState} 의 {@code @AcademyScopeExempt} 참고).
  *
@@ -143,9 +143,7 @@ public class AdminEmergencyQueryService {
 
     /**
      * 경과 시간(목표 11)의 종료 시점 — 취소·확인으로 이미 끝난 신고는 그 시각에서 멈춘다({@link
-     * AdminEmergencyItemResponse} 자바독). 아직 열려 있는 신고만 {@code now} 까지 계속 흐른다. 이
-     * 계산식은 Phase 13 T3 소유가 아니라 그대로 둔다.
-     */
+     * AdminEmergencyItemResponse} 자바독). 아직 열려 있는 신고만 {@code now} 까지 계속 흐른다.     */
     private AdminEmergencyItemResponse toItem(EmergencyAlert alert, Academy academy, Manager raiser, Account acker,
             Run run, List<AssignedManagerContactView> assigned, Map<Long, Manager> managersById,
             OffsetDateTime now) {

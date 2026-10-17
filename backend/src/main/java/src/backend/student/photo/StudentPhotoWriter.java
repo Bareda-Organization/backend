@@ -60,7 +60,7 @@ public class StudentPhotoWriter {
     }
 
     /**
-     * 사진을 지운다(R56 Ruling 894 ③) — 저장 파일은 <b>커밋이 끝난 뒤</b> 지운다. 교체와 같은 근거로, 트랜잭션 안에서 지운 뒤 롤백되면
+     * 사진을 지운다(Ruling 894 ③) — 저장 파일은 <b>커밋이 끝난 뒤</b> 지운다. 교체와 같은 근거로, 트랜잭션 안에서 지운 뒤 롤백되면
      * 행은 옛 주소를 가리키는데 그 파일이 사라진 상태가 된다.
      */
     public void remove(String currentPhotoUrl) {

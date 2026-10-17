@@ -13,7 +13,7 @@ public record StudentListResponse(List<StudentSummaryResponse> items, int page, 
 
     /**
      * 학원 전체 재원 학생 지표 — 총원 · 반 종류 수 · 보호자 미연결 · 주소 미등록 · 혼자 귀가 가능 · 반 이름 목록.
-     * {@code classNames} 는 반 필터의 선택지다(중복·빈 값 제외, 이름 자연 정렬) — 쪽·필터와 무관하게 학원 전체 기준이다(R56 Ruling 894).
+     * {@code classNames} 는 반 필터의 선택지다(중복·빈 값 제외, 이름 자연 정렬) — 쪽·필터와 무관하게 학원 전체 기준이다(Ruling 894).
      */
     public record Summary(long total, long classCount, long guardianUnlinked, long addressMissing,
             long canGoAlone, List<String> classNames) {

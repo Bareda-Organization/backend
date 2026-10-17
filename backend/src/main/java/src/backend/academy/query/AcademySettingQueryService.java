@@ -15,7 +15,7 @@ import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 
 /**
- * 학원별 설정 조회(API_SPEC §5.21 GET, Phase 11 목표 4) — 학원 관계자 전용. {@code Permissions} 카탈로그에
+ * 학원별 설정 조회(API_SPEC §5.21 GET) — 학원 관계자 전용. {@code Permissions} 카탈로그에
  * 이 값이 없다(§6.2 표 자체가 "학원 설정(미승차 대기)" 행을 권한 상수로 매핑하지 않은 3종 중 하나) —
  * 그래서 {@code @PreAuthorize} 대신 {@link #requireStaff} 로 이 클래스 안에서 직접 판정한다
  * ({@code BoardingCommandService.requireEscort} 와 같은 근거).

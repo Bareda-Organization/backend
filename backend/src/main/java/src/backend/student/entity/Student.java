@@ -134,7 +134,7 @@ public class Student extends BaseTimeEntity {
         this.canGoAlone = profile.canGoAlone();
     }
 
-    /** 관계자가 사진만 지운다(R56 Ruling 894 ③) — 사진 외 항목은 건드리지 않는다. 호출부가 저장 파일 삭제를 맡는다. */
+    /** 관계자가 사진만 지운다(Ruling 894 ③) — 사진 외 항목은 건드리지 않는다. 호출부가 저장 파일 삭제를 맡는다. */
     public void removePhoto() {
         this.photoUrl = null;
     }
