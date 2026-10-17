@@ -2,6 +2,7 @@ package src.backend.global.security;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -70,6 +71,19 @@ public class StompSessionExpiry implements ChannelInterceptor {
         if (sessionId != null) {
             trackedBySession.computeIfPresent(sessionId, (id, tracked) -> new Tracked(tracked.accountId(), Instant.now(clock)));
         }
+    }
+
+    /** 이 세션이 인증된 CONNECT 를 마쳤는지 — CONNECT 마감({@code ConnectDeadlineFactory})이 묻는다. */
+    public boolean isConnected(String sessionId) {
+        return sessionId != null && trackedBySession.containsKey(sessionId);
+    }
+
+    /** 주어진 계정이 연 세션의 id — 권한이 바뀐 계정의 세션을 닫을 때 쓴다(한 계정이 여러 기기로 여러 세션을 연다). */
+    public Set<String> sessionIdsOf(Collection<Long> accountIds) {
+        return trackedBySession.entrySet().stream()
+                .filter(entry -> accountIds.contains(entry.getValue().accountId()))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
     }
 
     /** 만료 시각을 들고 있는 세션 수 — 끊긴 세션이 이 맵에 남지 않는지 실서버 시험이 센다. */
