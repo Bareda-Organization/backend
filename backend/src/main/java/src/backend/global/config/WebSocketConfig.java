@@ -19,6 +19,7 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 import org.springframework.web.socket.config.annotation.WebSocketTransportRegistration;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import src.backend.global.error.StompErrorFrameHandler;
 import src.backend.global.security.StompAuthChannelInterceptor;
@@ -37,6 +38,7 @@ import src.backend.global.websocket.OpenWebSocketSessions;
 @Configuration
 @EnableWebSocketMessageBroker
 @RequiredArgsConstructor
+@Slf4j
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     /** 하트비트 스케줄러 스레드 수(R57 RT-6) — 브로커 하트비트와 CONNECT 마감({@link ConnectDeadlineFactory})이 함께 쓴다. 1개면 하나가 막힐 때 다른 쪽이 멈춘다. */
@@ -155,6 +157,14 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         executor.setMaxPoolSize(1);
         executor.setQueueCapacity(queueCapacity);
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        // 리스너가 읽는 DB 조회 같은 방송 밖의 실패가 작업 스레드를 죽이지 않게 여기서 한 번 로그로 남긴다 — 목적지별 전송 실패는 게이트웨이가 센다
+        executor.setTaskDecorator(task -> () -> {
+            try {
+                task.run();
+            } catch (RuntimeException e) {
+                log.warn("방송 리스너 작업 실패", e);
+            }
+        });
         executor.initialize();
         return executor;
     }

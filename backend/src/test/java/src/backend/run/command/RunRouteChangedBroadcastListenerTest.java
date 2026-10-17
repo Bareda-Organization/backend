@@ -1,12 +1,10 @@
 package src.backend.run.command;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -73,14 +71,5 @@ class RunRouteChangedBroadcastListenerTest {
 
         verify(gateway, times(1)).send(anyString(), anyString(), anyLong(), any(), any());
         verifyNoMoreInteractions(gateway);
-    }
-
-    @Test
-    @DisplayName("게이트웨이가 예외를 던져도 리스너 밖으로 퍼지지 않는다")
-    void 방송_실패는_밖으로_퍼지지_않는다() {
-        doThrow(new IllegalStateException("브로커 다운")).when(gateway).send(anyString(), anyString(), anyLong(),
-                any(), any());
-
-        assertThatCode(() -> listener.broadcast(event())).doesNotThrowAnyException();
     }
 }

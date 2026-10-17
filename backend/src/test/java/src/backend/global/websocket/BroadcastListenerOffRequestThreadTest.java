@@ -5,10 +5,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
@@ -67,6 +67,9 @@ class BroadcastListenerOffRequestThreadTest {
 
     @MockitoSpyBean
     private WebSocketBroadcastGateway gateway;
+
+    @MockitoSpyBean
+    private SimpMessagingTemplate messagingTemplate;
 
     /** 비상 알림 적재는 트랜잭션 안에서만 부를 수 있다(MANDATORY) — 방송 리스너만 보려고 이 시험에서는 끈다. */
     @MockitoBean
@@ -201,23 +204,14 @@ class BroadcastListenerOffRequestThreadTest {
 
     @Test
     void 학생_채널_하나의_전송_예외가_나머지_채널_방송을_막지_않고_실패로_센다() {
-        doThrow(new IllegalStateException("전송 실패")).when(gateway).send(eq(WebSocketDestinations.studentRun(10L)), any(), any(), any(), any());
-        List<String> sent = Collections.synchronizedList(new ArrayList<>());
-        doAnswer(invocation -> {
-            sent.add(invocation.getArgument(0));
-            return null;
-        }).when(gateway).send(eq(WebSocketDestinations.studentRun(11L)), any(), any(), any(), any());
-        doAnswer(invocation -> {
-            sent.add(invocation.getArgument(0));
-            return null;
-        }).when(gateway).send(eq(WebSocketDestinations.managerRun(1L)), any(), any(), any(), any());
-
+        doThrow(new IllegalStateException("전송 실패")).when(messagingTemplate)
+                .convertAndSend(eq(WebSocketDestinations.studentRun(10L)), any(Object.class));
         double failedBefore = meterRegistry.counter("schoolbus.ws.broadcast.failed", "event", "stop_arrived").count();
 
         gateway.broadcastToRunChannels(1L, 1L, List.of(10L, 11L), "stop_arrived", AT, "payload", "payload");
 
-        assertThat(sent).as("앞 학생 채널이 실패해도 뒤 학생 채널과 매니저 채널은 나간다")
-                .contains(WebSocketDestinations.studentRun(11L), WebSocketDestinations.managerRun(1L));
+        verify(messagingTemplate).convertAndSend(eq(WebSocketDestinations.studentRun(11L)), any(Object.class));
+        verify(messagingTemplate).convertAndSend(eq(WebSocketDestinations.managerRun(1L)), any(Object.class));
         assertThat(meterRegistry.counter("schoolbus.ws.broadcast.failed", "event", "stop_arrived").count())
                 .as("삼킨 전송 실패는 실패 카운터를 정확히 1 올린다").isEqualTo(failedBefore + 1);
     }

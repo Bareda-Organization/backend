@@ -9,7 +9,6 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 import src.backend.global.websocket.WebSocketBroadcastGateway;
 import src.backend.global.websocket.WebSocketDestinations;
@@ -35,7 +34,6 @@ import src.backend.global.location.RunRiderDirectory;
  * 계산해 두 리스너(이 방송 · Redis 최신 좌표)가 같은 값을 쓴다(BR-100). 전에는 두 리스너가 커밋 뒤 같은
  * 회차·확정 노선·정차 목록·정차지 이름을 각자 다시 읽어 위치 1건(2초마다)에 SELECT 가 약 9개였다.
  */
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class PositionBroadcastListener {
@@ -54,27 +52,23 @@ public class PositionBroadcastListener {
      */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void broadcast(RunPositionReceivedEvent event) {
-        try {
-            // absent(다른 버스로 옮긴 removed 포함)는 이 버스에 없다 — 학생 채널은 학생 단위라 보내면 다른 버스와 섞인다
-            // 목록은 결석 · 전환 이벤트가 커밋될 때만 다시 읽는다(RT-5) — 결석 학생 채널로는 그 뒤 첫 위치부터 방송하지 않는다
-            List<Long> studentIds = runBroadcastCache.students(event.runId(),
-                    () -> runRiderDirectory.studentIdsExcludingAbsent(event.runId()));
+        // absent(다른 버스로 옮긴 removed 포함)는 이 버스에 없다 — 학생 채널은 학생 단위라 보내면 다른 버스와 섞인다
+        // 목록은 결석 · 전환 이벤트가 커밋될 때만 다시 읽는다(RT-5) — 결석 학생 채널로는 그 뒤 첫 위치부터 방송하지 않는다
+        List<Long> studentIds = runBroadcastCache.students(event.runId(),
+                () -> runRiderDirectory.studentIdsExcludingAbsent(event.runId()));
 
-            ParentStudentPayload parentStudentPayload = new ParentStudentPayload(event.lat(), event.lng(),
-                    event.receivedAt(), event.currentStopName());
-            for (Long studentId : studentIds) {
-                gateway.send(WebSocketDestinations.studentRun(studentId), EVENT, event.runId(), event.receivedAt(),
-                        parentStudentPayload);
-            }
-
-            ControlPayload controlPayload = new ControlPayload(event.lat(), event.lng(), event.receivedAt(),
-                    event.currentStopName(), event.nextEta());
-            gateway.send(WebSocketDestinations.academyLive(event.academyId()), EVENT, event.runId(), event.receivedAt(),
-                    controlPayload);
-            gateway.send(WebSocketDestinations.ADMIN_LIVE, EVENT, event.runId(), event.receivedAt(), controlPayload);
-        } catch (RuntimeException e) {
-            log.warn("position 방송 실패 — runId={}", event.runId(), e);
+        ParentStudentPayload parentStudentPayload = new ParentStudentPayload(event.lat(), event.lng(),
+                event.receivedAt(), event.currentStopName());
+        for (Long studentId : studentIds) {
+            gateway.send(WebSocketDestinations.studentRun(studentId), EVENT, event.runId(), event.receivedAt(),
+                    parentStudentPayload);
         }
+
+        ControlPayload controlPayload = new ControlPayload(event.lat(), event.lng(), event.receivedAt(),
+                event.currentStopName(), event.nextEta());
+        gateway.send(WebSocketDestinations.academyLive(event.academyId()), EVENT, event.runId(), event.receivedAt(),
+                controlPayload);
+        gateway.send(WebSocketDestinations.ADMIN_LIVE, EVENT, event.runId(), event.receivedAt(), controlPayload);
     }
 
     /** {@code lat} · {@code lng} · {@code received_at} · {@code current_stop_name}. {@code eta} 키 자체가 없다(C-08). */
