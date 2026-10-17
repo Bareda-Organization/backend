@@ -17,7 +17,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import src.backend.location.infrastructure.RunBroadcastCache;
-import src.backend.location.spec.RunRiderDirectory;
+import src.backend.global.location.RunRiderDirectory;
 import src.backend.global.websocket.WebSocketBroadcastGateway;
 import src.backend.global.websocket.WebSocketDestinations;
 import src.backend.location.event.RunPositionReceivedEvent;

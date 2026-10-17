@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * AR-4 의 {@code location→boarding} 부분(Ruling 899) — {@code location} 모듈은 {@code boarding} 을 import 하지 않는다. 탑승 학생은
- * {@code location.spec.RunRiderDirectory} 포트로 얻고 구현은 {@code boarding} 이 낸다. 방향을 되돌리는 import 하나가 순환을 되살린다.
+ * {@code global.location.RunRiderDirectory} 포트로 얻고 구현은 {@code boarding} 이 낸다. 방향을 되돌리는 import 하나가 순환을 되살린다.
  */
 class LocationBoardingIndependenceTest {
 

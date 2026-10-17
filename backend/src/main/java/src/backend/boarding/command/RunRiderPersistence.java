@@ -19,7 +19,7 @@ import src.backend.boarding.entity.RiderStatusHistory;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RiderStatusHistoryRepository;
 import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.location.event.RunRidersChangedEvent;
+import src.backend.global.location.RunRidersChangedEvent;
 import src.backend.run.roster.ProjectedRoster;
 
 /**

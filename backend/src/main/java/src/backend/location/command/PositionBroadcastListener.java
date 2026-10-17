@@ -15,7 +15,7 @@ import src.backend.global.websocket.WebSocketBroadcastGateway;
 import src.backend.global.websocket.WebSocketDestinations;
 import src.backend.location.event.RunPositionReceivedEvent;
 import src.backend.location.infrastructure.RunBroadcastCache;
-import src.backend.location.spec.RunRiderDirectory;
+import src.backend.global.location.RunRiderDirectory;
 
 /**
  * {@code position} 방송(API_SPEC §7·§7.1, 목표 4·6) — 채널 3종뿐이다. {@code /ws/manager/runs/{id}}

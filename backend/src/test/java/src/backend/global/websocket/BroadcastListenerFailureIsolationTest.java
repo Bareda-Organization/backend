@@ -24,7 +24,7 @@ import src.backend.exception.event.EmergencyCanceledEvent;
 import src.backend.exception.event.EmergencyRaisedEvent;
 import src.backend.location.command.PositionBroadcastListener;
 import src.backend.location.infrastructure.RunBroadcastCache;
-import src.backend.location.spec.RunRiderDirectory;
+import src.backend.global.location.RunRiderDirectory;
 import src.backend.location.event.RunPositionReceivedEvent;
 import src.backend.request.command.ApprovalRequestedBroadcastListener;
 import src.backend.request.event.ApprovalRequestedEvent;

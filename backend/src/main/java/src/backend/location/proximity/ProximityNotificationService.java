@@ -21,7 +21,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.location.event.RunApproachingStopEvent;
-import src.backend.location.spec.RunRiderDirectory;
+import src.backend.global.location.RunRiderDirectory;
 import src.backend.routing.domain.GeoPoint;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RunStop;

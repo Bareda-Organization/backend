@@ -6,7 +6,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 import lombok.RequiredArgsConstructor;
 
-import src.backend.location.event.RunRidersChangedEvent;
+import src.backend.global.location.RunRidersChangedEvent;
 import src.backend.location.infrastructure.RunBroadcastCache;
 import src.backend.run.event.RunCanceledEvent;
 import src.backend.run.event.RunEndedEvent;

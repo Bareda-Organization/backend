@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.location.spec.RunRiderDirectory;
+import src.backend.global.location.RunRiderDirectory;
 
 /** {@link RunRiderDirectory} 의 {@code run_rider} 구현 — 결석 제외 조건은 저장소 조회가 건다. */
 @Component
