@@ -183,7 +183,7 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
 
     /**
      * 정차 항목 1건의 근접 알림을 <b>최초 1회</b>로 선점한다 — 영향받은 행 수로 성공 여부를 판정한다
-     * (목표 15, Ruling 210 조건부 UPDATE 선점).
+     * (Ruling 210 조건부 UPDATE 선점).
      *
      * <p><b>{@code WHERE proximity_notified_at IS NULL} 조건이 멱등성의 전부다</b>({@link
      * src.backend.run.repository.RunRepository#confirmIfIdle} 과 같은 근거) — 스케줄러 인스턴스 2개가
@@ -245,7 +245,7 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
 
     /**
      * 아직 출발 처리되지 않은 정차지 <b>전부</b> — <b>도착 처리 여부와 무관</b>하다(Ruling 312). 운행 종료 시
-     * 강제 적용(목표 8)이 "남은 전부"를 한 번에 쓸어야 해서 {@link #findFirstArrivedNotDeparted} 의 limit 1 로는 못 쓴다.
+     * 강제 적용이 "남은 전부"를 한 번에 쓸어야 해서 {@link #findFirstArrivedNotDeparted} 의 limit 1 로는 못 쓴다.
      * 기사가 도착을 누르지 않은 정차지도 포함하는 이유는 FEATURE_SPEC "위치 유실·기사의 도착 미처리로 출발 판정이 안
      * 되면 다음 승하차지 도착 시 강제 발송" 때문이다 — {@code arrived_at IS NOT NULL} 을 걸면 그 정차지의 승차·
      * 미승차 알림이 끝내 나가지 않는다. 강제 경유지·도착지는 학생이 없어 {@code stopId IS NOT NULL} 로 뺀다.
@@ -263,7 +263,7 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
 
     /**
      * {@link #findAllNotDeparted} 중 <b>방금 도착 처리하는 정차 항목보다 앞 순번</b>만 — 다음 승하차지 도착이
-     * 이전 정차지에 거는 폴백(목표 7)이다. 도착하는 항목 자신과 뒤 순번은 아직 버스가 지나지 않았으므로 뺀다.
+     * 이전 정차지에 거는 폴백이다. 도착하는 항목 자신과 뒤 순번은 아직 버스가 지나지 않았으므로 뺀다.
      * {@code targetRunStopId} 가 그 버전의 항목이 아니면 하위 질의가 비어 아무 행도 돌려주지 않는다.
      */
     @AcademyScopeExempt(reason = "findAllNotDeparted 와 같은 근거 — routeVersionId 는 호출부가 학원 범위로 좁힌 회차의 "

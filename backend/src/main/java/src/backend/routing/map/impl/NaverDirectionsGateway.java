@@ -116,8 +116,8 @@ public class NaverDirectionsGateway {
      * 경로로 흡수되어 직선거리 근사가 된다 — 서킷 개방과 달리 {@code ON_DEMAND} 라도 오류가 아니다.
      *
      * <p>⚠ <b>격벽은 {@link #ON_DEMAND_BULKHEAD_INSTANCE} 와 칸을 나눈다</b>(`Ruling 350`, BR-169) —
-     * 이름을 공유하던 시절에는 화면 조회 1건이 배치 칸을 빼앗아, 07:30 같은 확정 시각에 회차 1건이
-     * 직선거리 근사로 확정됐다. 서킷·재시도는 그대로 공급자 단위로 공유한다({@link #RESILIENCE_INSTANCE}) —
+     * 이름을 공유하면 화면 조회 1건이 배치 칸을 빼앗아, 07:30 같은 확정 시각에 회차 1건이
+     * 직선거리 근사로 확정된다. 서킷·재시도는 그대로 공급자 단위로 공유한다({@link #RESILIENCE_INSTANCE}) —
      * 공급자 장애 여부는 배치·온디맨드가 같은 사실을 봐야 하지만, 동시성 칸은 그렇지 않다.
      *
      * <p><b>{@code fallbackMethod} 가 {@code @Retry} 쪽에 있어야 한다.</b> 두 애스펙트의 순서는

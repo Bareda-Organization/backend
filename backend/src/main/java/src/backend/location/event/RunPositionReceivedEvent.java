@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 /**
- * 위치 송신 1건이 저장된 뒤 발행하는 도메인 이벤트(목표 3) — 이 저장소의 다른 좌석 2개(T2 WebSocket
+ * 위치 송신 1건이 저장된 뒤 발행하는 도메인 이벤트 — 이 저장소의 다른 좌석 2개(T2 WebSocket
  * 팬아웃 · T3 근접 판정)가 그대로 구독하는 공유 계약이다.
  *
  * <p>⚠ <b>인자 순서를 바꾸지 마라.</b> {@code recordedAt}(단말이 찍은 시각)과 {@code receivedAt}

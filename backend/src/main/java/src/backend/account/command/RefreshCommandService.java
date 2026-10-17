@@ -48,7 +48,7 @@ public class RefreshCommandService {
      * 로그인 시점에 이미 그 계정의 refresh 토큰 전량을 무효화하므로(§ {@link LoginCommandService}),
      * 차단된 계정의 토큰은 이 메서드의 "이미 무효화됨" 분기에서 자연히 걸러진다. 여기서 별도로
      * {@code AUTH_ACCOUNT_BLOCKED}(403)를 던지면 API_SPEC §2.6 에 없는 에러 코드를 이 경로에
-     * 새로 만드는 셈이라 하지 않았다(Task 4 판단, 보고서 ⑥).
+     * 새로 만드는 셈이라 하지 않았다.
      *
      * <p><b>그 근거는 차단 하나가 아니라 "접근을 끊는 모든 경로가 무효화한다" 는 전제 위에 선다.</b>
      * 지금 그 경로는 셋이다 — 로그인 실패 누적 차단({@code LoginCommandService}) · 비밀번호 변경·복구

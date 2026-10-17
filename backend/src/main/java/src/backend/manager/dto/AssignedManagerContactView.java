@@ -3,7 +3,7 @@ package src.backend.manager.dto;
 import src.backend.global.common.enums.ManagerRole;
 
 /**
- * §6.8 메인 관리자 관제(목표 8)가 쓰는 배치 조회 프로젝션 — {@link AssignedManagerView} 에 원문
+ * §6.8 메인 관리자 관제가 쓰는 배치 조회 프로젝션 — {@link AssignedManagerView} 에 원문
  * {@code phone} 을 더한 것과 같은 모양이다.
  *
  * <p>별도 레코드로 두는 이유는 {@link AssignedManagerView} 가 §5.10·§5.14 응답 조립에 이미 쓰이고

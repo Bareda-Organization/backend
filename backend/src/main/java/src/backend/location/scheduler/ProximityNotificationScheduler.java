@@ -76,7 +76,7 @@ public class ProximityNotificationScheduler {
      * <p>{@code @SchedulerLock}(TECH_DECISIONS §3.2) — 인스턴스 2개가 같은 틱을 동시에 돌면
      * 락을 놓친 쪽은 {@code judgeRun} 을 한 번도 부르지 않고 돌아간다. {@code lockAtMostFor} 를
      * 폴링 주기(10초)의 3배로 잡은 이유는, 그 시간을 넘겨도 락이 안 풀리면 죽은 인스턴스가 락을
-     * 들고 있다고 보고 다음 인스턴스가 이어받게 하려는 것이다(목표 13) — 정상 틱은 로컬 Redis
+     * 들고 있다고 보고 다음 인스턴스가 이어받게 하려는 것이다 — 정상 틱은 로컬 Redis
      * 묶음 읽기와 회차별 읽기 트랜잭션뿐이므로 이 상한에 걸릴 일이 없다. {@code lockAtLeastFor} 는 두지 않는다 —
      * 최솟값을 두면 같은 시험 클래스 안의 서로 다른 시험 메서드가 짧은 간격으로 이 메서드를
      * 각각 부를 때 뒤쪽 호출이 조용히 건너뛰어질 수 있다.

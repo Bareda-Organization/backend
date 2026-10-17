@@ -118,7 +118,7 @@ public class StudentQueryService {
      * 학생 상세(STU-01) — 남의 학원 학생과 퇴원생은 모두 {@code 404 STUDENT_NOT_FOUND} 다.
      *
      * <p>{@code photo_url}·{@code note}·{@code guardian_phone} 이 L3 다(FEATURE_SPEC §6.3) — 조회가
-     * 성공한 뒤에만 감사를 남긴다(예외로 끝난 요청은 L3 를 아무것도 응답에 싣지 않았으므로 목표 1의
+     * 성공한 뒤에만 감사를 남긴다(예외로 끝난 요청은 L3 를 아무것도 응답에 싣지 않았으므로
      * "L3 필드가 실린 응답을 실제로 읽었을 때" 조건에 들지 않는다).
      */
     public StudentDetailResponse detail(AuthUser requester, Long studentId) {

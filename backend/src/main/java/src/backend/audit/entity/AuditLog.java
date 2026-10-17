@@ -234,12 +234,12 @@ public class AuditLog {
     /**
      * 실패 누적이 상한(5회)에 닿아 계정이 {@code blocked} 로 전이된 바로 그 시도를 별도 행으로 남긴다.
      *
-     * <p>{@link #forLoginFail} 과 <b>별행</b>인 이유 — 목표 2 판정표 문면이 "5회 도달 →
+     * <p>{@link #forLoginFail} 과 <b>별행</b>인 이유 — 판정표 문면이 "5회 도달 →
      * {@code login_fail} + {@code block}(block_event=true) 행" 으로 둘을 나열하고, {@code action}
      * 값 도메인이 {@code login_fail}·{@code block} 을 별개 원소로 이미 갖고 있어(ERD §3.4) 한 행에
      * 두 action 을 동시에 담을 수 없다. {@code blockEvent=true} 는 이 행에만 서고
      * {@link #forLoginFail}·{@link #forLoginSuccess} 는 항상 false 다 — "이 시도가 차단을
-     * 유발했는지" 축을 {@code action=block} 하나로 좁혀 둔 것이 이 태스크의 판단이다.
+     * 유발했는지" 축을 {@code action=block} 하나로 좁혀 둔 것이다.
      */
     public static AuditLog forLoginBlock(Long academyId, Long actorAccountId, String actorLoginId, String ip,
             OffsetDateTime occurredAt) {
@@ -255,7 +255,7 @@ public class AuditLog {
     }
 
     /**
-     * 강제 확정 콘솔 개입(API_SPEC §6.14, F3 S2 목표 11)을 남긴다.
+     * 강제 확정 콘솔 개입(API_SPEC §6.14)을 남긴다.
      *
      * <p><b>{@code category}·{@code action} 이 스펙 문면과 다르다 — Ruling 260 확정.</b> §6.14 는
      * 문면상 action 을 {@code run.force_confirm} 으로 적지만, {@code ck_audit_log_action} CHECK
@@ -265,8 +265,7 @@ public class AuditLog {
      * {@code GET /admin/audit-logs}(§6.12) 의 action 투영까지 번지고, {@code update}+{@code run} 이면
      * 같은 감사 조회 화면에 자연히 나타나기 때문이다. 스펙이 요구하는 정확한 동작 이름·부가 정보는
      * {@code detail} JSON 에 그대로 싣는다 — {@code action}(문자열 {@code "run.force_confirm"}),
-     * {@code reason}, {@code fallback_used}, {@code route_version_id}. API_SPEC §6.14 감사 문장은
-     * 조율자가 이 판정과 같은 내용으로 정본을 정정한다.
+     * {@code reason}, {@code fallback_used}, {@code route_version_id}.
      *
      * @param academyId      회차의 학원 — 없으면 §6.13 {@code academy_id} 필터 조회에서 빠진다(BR-129)
      * @param actorAccountId 강제 확정을 실행한 메인 관리자

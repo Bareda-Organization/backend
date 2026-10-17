@@ -21,7 +21,7 @@ import src.backend.student.dto.StudentRouteResponse;
 import src.backend.student.query.StudentRouteQueryService;
 
 /**
- * 학부모 앱의 자녀 노선 조회 API(LOC-03, API_SPEC §3.10, 목표 12).
+ * 학부모 앱의 자녀 노선 조회 API(LOC-03, API_SPEC §3.10).
  *
  * <p>{@code date}·{@code run_id} 둘 다 선택이다(§3.10). {@code run_id} 는 명세상 문자열 타입으로
  * 문서화돼 있어 — 내부적으로는 {@code Long} 이지만 — {@code String} 그대로 받아

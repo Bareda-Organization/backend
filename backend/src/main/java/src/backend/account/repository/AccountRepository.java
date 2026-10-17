@@ -174,8 +174,7 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     List<Account> findAllByRoleAndStatusIn(Role role, Collection<AccountStatus> statuses);
 
     /**
-     * {@link #findAllByRoleAndStatusIn} 와 같은 대상을 개수만 센다(API_SPEC §4.14 {@code notified},
-     * BE-R1 목표 1) — 비상 신고 응답이 실제 발송 대상 이름까지는 필요 없고 도달 수신자 수만 필요해,
+     * {@link #findAllByRoleAndStatusIn} 와 같은 대상을 개수만 센다(API_SPEC §4.14 {@code notified}) — 비상 신고 응답이 실제 발송 대상 이름까지는 필요 없고 도달 수신자 수만 필요해,
      * 계정 전체를 불러 크기를 재는 대신 count 전용 질의로 좁힌다.
      */
     @AcademyScopeExempt(reason = "메인관리자(SYSTEM_ADMIN)는 academy_id 가 null 이라(ck_account_academy_scope) "

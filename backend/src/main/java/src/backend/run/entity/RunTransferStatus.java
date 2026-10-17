@@ -5,7 +5,7 @@ import jakarta.persistence.Converter;
 import src.backend.global.common.converter.LowerCaseEnumConverter;
 
 /**
- * 버스 간 이동(F4 S1, API_SPEC §5.8, RTE-07, Ruling 256) 신청의 처리 상태 2종 —
+ * 버스 간 이동(API_SPEC §5.8, RTE-07, Ruling 256) 신청의 처리 상태 2종 —
  * {@code run_transfer.status}(CHECK 로 강제)의 값 도메인이다.
  *
  * <p>{@code staged → applied} 전이는 사용자 조작이 아니라 도착·출발 두 회차 중 먼저 도는

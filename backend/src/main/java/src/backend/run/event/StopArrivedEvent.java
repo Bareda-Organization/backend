@@ -4,7 +4,7 @@ import java.time.OffsetDateTime;
 
 /**
  * 기사가 정차지 도착을 확정했음을 알리는 도메인 이벤트(API_SPEC §4.5·§7.1 {@code stop_arrived}) —
- * WebSocket 방송(T2 소유 목표 4·10)이 이 이벤트를 구독한다. §4.5 자체는 알림 트리거가 아니라(기사
+ * WebSocket 방송이 이 이벤트를 구독한다. §4.5 자체는 알림 트리거가 아니라(기사
  * 전용 조작) REST 응답만 갖고 있었는데, §7.1 이 4채널(학생·매니저·학원·관리자) 전부에 이 이벤트를
  * 요구해 {@link RunArrivalCommandService#arrive} 가 새로 발행한다.
  *

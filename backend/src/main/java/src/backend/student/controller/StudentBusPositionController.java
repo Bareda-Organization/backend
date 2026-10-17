@@ -19,7 +19,7 @@ import src.backend.student.dto.StudentBusPositionResponse;
 import src.backend.student.query.StudentBusPositionQueryService;
 
 /**
- * 학부모 앱의 실시간 버스 위치 API(LOC-02, API_SPEC §3.11, 목표 9·11).
+ * 학부모 앱의 실시간 버스 위치 API(LOC-02, API_SPEC §3.11).
  *
  * <p>쿼리 파라미터가 없다 — §3.11 은 항상 오늘 날짜, 그 학생의 오늘 회차를 답한다.
  *

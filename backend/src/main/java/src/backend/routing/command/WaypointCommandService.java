@@ -220,7 +220,7 @@ public class WaypointCommandService {
         return new GeoPoint(geocoded.lat(), geocoded.lng());
     }
 
-    /** 이미 배포된 경유 지점을 지금 노선의 정차 순번 그대로 고정 지점으로 옮긴다 — 위치를 다시 흔들지 않는다(목표 7). */
+    /** 이미 배포된 경유 지점을 지금 노선의 정차 순번 그대로 고정 지점으로 옮긴다 — 위치를 다시 흔들지 않는다. */
     private static List<FixedStop> existingFixedStopsOf(RouteContext ctx) {
         Map<Long, Integer> seqByWaypointId = new LinkedHashMap<>();
         for (RunStop rs : ctx.beforeRunStops()) {

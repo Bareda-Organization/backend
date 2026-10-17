@@ -30,7 +30,7 @@ import src.backend.student.dto.StudentBusPositionResponse;
 import src.backend.student.entity.Student;
 
 /**
- * 학부모 앱의 실시간 버스 위치(LOC-02, API_SPEC §3.11, 목표 9·11).
+ * 학부모 앱의 실시간 버스 위치(LOC-02, API_SPEC §3.11).
  *
  * <p>쿼리 파라미터가 없다(§3.11) — 항상 오늘 날짜로 {@link StudentRunResolver#resolveForToday} 를
  * 부른다. 오늘 그 학생 회차가 아예 없으면 {@link ErrorCode#RUN_NOT_FOUND} 다(§3.11 에러 — §3.10 과

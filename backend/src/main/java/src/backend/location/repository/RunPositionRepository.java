@@ -12,7 +12,7 @@ import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.location.entity.RunPosition;
 
 /**
- * {@link RunPosition} 영속성 접근(목표 3) — 적재(save) · Redis 장애 시 최신 행 대체 조회(BR-167) — 보존 정리는 일 단위 파티션 DROP 이라 여기 없다({@link src.backend.location.infrastructure.RunPositionPartitionManager}).
+ * {@link RunPosition} 영속성 접근 — 적재(save) · Redis 장애 시 최신 행 대체 조회(BR-167) — 보존 정리는 일 단위 파티션 DROP 이라 여기 없다({@link src.backend.location.infrastructure.RunPositionPartitionManager}).
  */
 public interface RunPositionRepository extends JpaRepository<RunPosition, Long> {
 

@@ -135,8 +135,8 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
             @Param("runIds") Collection<Long> runIds);
 
     /**
-     * 여러 회차의 배치를 기사·동승자 원문 연락처와 함께 한 번에 읽는다(§6.8 메인 관리자 관제,
-     * 목표 8) — {@link #findAssignedManagers} 와 조인 구조가 같고 {@code m.phone} 만 더 읽는다.
+     * 여러 회차의 배치를 기사·동승자 원문 연락처와 함께 한 번에 읽는다(§6.8 메인 관리자 관제) —
+     * {@link #findAssignedManagers} 와 조인 구조가 같고 {@code m.phone} 만 더 읽는다.
      *
      * <p>학원 조건이 {@link #findAssignedManagers} 와 같은 자리(조인된 {@code manager})에 걸려 있다.
      * 삭제된 매니저({@code deleted_at})도 싣는다 — {@link #findAssignedManagers} 와 같은 근거로,
