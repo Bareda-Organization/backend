@@ -4,12 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.after;
+import static org.mockito.Mockito.mockingDetails;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -172,7 +174,8 @@ class RunRouteChangedBroadcastWiringTest {
                 .executeWithoutResult(s -> eventPublisher.publishEvent(new RunRouteConfirmedEvent(77L, 1L, 2L, confirmedAt)));
 
         ArgumentCaptor<Object> envelope = ArgumentCaptor.forClass(Object.class);
-        verify(messagingTemplate, times(1)).convertAndSend(eq(WebSocketDestinations.managerRun(77L)),
+        // 커밋 뒤 방송은 전용 실행기에서 돌아(R57 RT-4) 커밋 직후에는 아직 안 나갔을 수 있다 — 최대 5초 기다린다
+        verify(messagingTemplate, timeout(5000).times(1)).convertAndSend(eq(WebSocketDestinations.managerRun(77L)),
                 envelope.capture());
         WebSocketEnvelope sent = (WebSocketEnvelope) envelope.getValue();
         assertThat(sent.event()).isEqualTo("route_changed");
@@ -187,7 +190,8 @@ class RunRouteChangedBroadcastWiringTest {
             s.setRollbackOnly();
         });
 
-        verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
+        // 방송이 비동기라 바로 확인하면 잘못 나가도 놓친다 — 실행기가 일을 집을 시간을 준 뒤 본다(R57 RT-4)
+        verify(messagingTemplate, after(500).never()).convertAndSend(anyString(), any(Object.class));
     }
 
     // ── 목표 4 — 실제 경로 2개 ───────────────────────────────────────────
@@ -229,16 +233,24 @@ class RunRouteChangedBroadcastWiringTest {
                 s.approvalId())).isEqualTo("approved");
     }
 
-    /** 지금까지 나간 방송 중 {@code route_changed} 봉투의 목적지들. */
-    private List<String> routeChangedTargets(long runId) {
-        ArgumentCaptor<String> destinations = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<Object> envelopes = ArgumentCaptor.forClass(Object.class);
-        verify(messagingTemplate, atLeastOnce()).convertAndSend(destinations.capture(), envelopes.capture());
-        return java.util.stream.IntStream.range(0, destinations.getAllValues().size())
-                .filter(i -> "route_changed".equals(((WebSocketEnvelope) envelopes.getAllValues().get(i)).event()))
-                .filter(i -> runId == ((WebSocketEnvelope) envelopes.getAllValues().get(i)).runId())
-                .mapToObj(i -> destinations.getAllValues().get(i))
-                .toList();
+    /** 지금까지 나간 방송 중 {@code route_changed} 봉투의 목적지들. 커밋 뒤 방송은 비동기라(R57 RT-4) 하나라도 나올 때까지 최대 5초 기다린다. */
+    private List<String> routeChangedTargets(long runId) throws InterruptedException {
+        long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+        List<String> targets;
+        do {
+            targets = mockingDetails(messagingTemplate).getInvocations().stream()
+                    .filter(invocation -> invocation.getMethod().getName().equals("convertAndSend")
+                            && invocation.getArguments().length == 2
+                            && invocation.getArgument(1) instanceof WebSocketEnvelope envelope
+                            && "route_changed".equals(envelope.event()) && runId == envelope.runId())
+                    .map(invocation -> (String) invocation.getArgument(0))
+                    .toList();
+            if (!targets.isEmpty()) {
+                return targets;
+            }
+            Thread.sleep(50);
+        } while (System.nanoTime() < deadline);
+        return targets;
     }
 
     /** 확정 노선 위에 승인 대기 1건(학생2 취소)을 올린다 — 준비 중 나간 방송은 지워 기준선을 0 으로 둔다. */
