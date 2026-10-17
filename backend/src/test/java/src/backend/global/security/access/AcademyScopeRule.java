@@ -16,10 +16,10 @@ import org.springframework.data.jpa.repository.Query;
  * <p>{@link AcademyScopeScan}(수집)과 가른 축이 하나 더 있다. 이 클래스는 <b>"좁혀졌다"·"전건
  * 조회다" 의 정의</b>를 담고, 테스트 클래스는 <b>ERD §6.1 표와 그 표에 거는 단언</b>만 남긴다.
  * 셋은 바뀌는 계기가 각각 다르다 — 표는 사양이 바뀔 때, 술어는 회피 형태를 새로 발견할 때
- * (라운드 1 의 {@code ::} · 라운드 2 의 개행), 수집은 패키지 구조가 바뀔 때.
+ * ({@code ::} · 개행 형태), 수집은 패키지 구조가 바뀔 때.
  *
  * <p>술어를 표와 한 파일에 두면 회피 형태를 하나 막을 때마다 ERD 표를 함께 읽어야 하고, 실제로
- * 그 누적이 클래스를 {@code CODE_CONVENTIONS.md §20.2} 기준의 두 배로 키웠다(리뷰 라운드 2 m-3).
+ * 그 누적이 클래스를 {@code CODE_CONVENTIONS.md §20.2} 기준의 두 배로 키웠다.
  */
 final class AcademyScopeRule {
 
@@ -50,7 +50,7 @@ final class AcademyScopeRule {
      *   <li><b>접합자 양옆의 공백 허용</b>({@code \s*}) — 셋을 인접으로만 찾으면 개행 한 번으로 검사가
      *       사라진다({@code studentRepository} 줄바꿈 {@code .findAll()}). 체인이 길어지면 개행이
      *       표준 서식이고 이 저장소도 이미 그 서식을 쓰므로, 회피가 <b>서식을 바꾸는 것</b> 하나로
-     *       성립하던 구멍이다(리뷰 라운드 2 I-1)</li>
+     *       성립하는 구멍이다</li>
      * </ul>
      *
      * <p>남는 한계는 <b>공백이 아닌 것이 접합자 사이에 끼어드는 형태</b>다 — 필드와 점 사이의 블록
@@ -73,8 +73,8 @@ final class AcademyScopeRule {
 
     /**
      * 학원 조건이 걸려 있으면 좁혀진 것으로 센다. {@code @Query} 메서드와 파생 조회 메서드가
-     * <b>서로 다른 축</b>을 쓴다 — 하나로 묶었던 것이 Phase 7 이전의 형태였고, 그 형태가 아래 회피를
-     * 놓쳤다(Phase 6 T5 리뷰 실측, Phase 7 T6 이 고쳤다).
+     * <b>서로 다른 축</b>을 쓴다 — 하나로 묶으면 아래 회피를
+     * 놓친다(실측 확인).
      *
      * <p><b>{@code @Query} 가 있으면 이름 · {@code @Param} 을 근거로 쓰지 않는다.</b> 둘 다 쿼리 본문과
      * 무관하게 메서드 시그니처에만 존재해, {@code @Query} 의 {@code WHERE} 절에서 학원 조건만 지워도
@@ -122,7 +122,7 @@ final class AcademyScopeRule {
      * (JPQL 프로퍼티 경로는 앞쪽, {@code nativeQuery} 컬럼명은 뒤쪽). 양옆에 {@code \b} 를 둬
      * {@code academyIdOverride}·{@code academyIdentifier} 처럼 <b>앞만 같고 실제로는 다른
      * 식별자</b>가 부분 일치로 참이 되는 것을 막는다 — 그런 컬럼도 뒤에 글자가 이어지면 단어
-     * 경계가 없어 매치되지 않는다(Phase 8 목표 16).
+     * 경계가 없어 매치되지 않는다.
      */
     private static final Pattern ACADEMY_ID_TOKEN = Pattern.compile("\\bacademyId\\b|\\bacademy_id\\b");
 

@@ -32,7 +32,7 @@ public class LocalFlywayCleanStrategy implements FlywayMigrationStrategy {
 
     /**
      * Gradle {@code test} 태스크만 심는 프로퍼티(build.gradle) — 참이면 clean() 을 건너뛰고 migrate() 만
-     * 한다(Phase 2 Task 3, Ruling 89). 이 클래스가 원래 지키려는 것은 "bootRun 개발 편의" 이지 테스트가
+     * 한다(Ruling 89). 이 클래스가 지키려는 것은 "bootRun 개발 편의" 이지 테스트가
      * 아니다 — 여러 {@code @SpringBootTest} 컨텍스트가 한 JVM 안에서 같은 로컬 Postgres 를 공유할 때,
      * 한쪽의 clean() 이 다른 쪽이 검증 중인 스키마를 지워 {@code SchemaManagementException}(missing
      * table)을 냈다. clean() 을 빼도 migrate() 는 멱등이라 스키마가 이미 있든 없든 안전하다.

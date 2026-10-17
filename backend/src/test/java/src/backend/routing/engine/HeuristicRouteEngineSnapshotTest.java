@@ -11,7 +11,7 @@ import src.backend.routing.engine.impl.HeuristicRouteEngine;
 import src.backend.routing.engine.spec.RouteEngine;
 
 /**
- * 산출 조건을 <b>값으로</b> 남기는지 고정한다 (TECH_DECISIONS §8.5.1, 목표 6 중 엔진 몫).
+ * 산출 조건을 <b>값으로</b> 남기는지 고정한다 (TECH_DECISIONS §8.5.1).
  *
  * <p>{@code engine_name}·{@code policy_snapshot} 두 컬럼은 노선이 배포된 뒤에 "왜 이 순서로
  * 돌았나" 를 되짚는 유일한 근거다. 정책은 바뀌는데 과거 노선은 남으므로, 상수를 가리키기만 하면

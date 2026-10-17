@@ -66,7 +66,7 @@ public class AccountUnblockCommandService {
 
         OffsetDateTime now = OffsetDateTime.now(clock);
         target.unblock(actor.getId(), now);
-        eventPublisher.publishEvent(new AccountStandingChangedEvent(target.getId())); // 커밋 직후 계정 상태 보관 항목을 비운다(R57 RT-1)
+        eventPublisher.publishEvent(new AccountStandingChangedEvent(target.getId())); // 커밋 직후 계정 상태 보관 항목을 비운다
         auditLogRepository.save(AuditLog.forAccountUnblock(target.getAcademyId(), actor.getId(),
                 actor.getLoginId(), target.getId(), ClientIp.ofCurrentRequest(), now));
 

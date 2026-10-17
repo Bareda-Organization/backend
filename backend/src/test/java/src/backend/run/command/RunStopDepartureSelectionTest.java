@@ -29,7 +29,7 @@ import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * {@link RunStopRepository#findFirstArrivedNotDeparted} 의 대상 선정(R17-T1 목표 2, Ruling 307) —
+ * {@link RunStopRepository#findFirstArrivedNotDeparted} 의 대상 선정(Ruling 307) —
  * 신호 유실로 도착·미출발 정차지가 여러 개 쌓였을 때 ①{@code seq} 최솟값 1건만 선정되고
  * ②{@link StopDepartureService#claimAndPublish} 로 그 1건을 처리하면 다음 틱은 그다음
  * {@code seq} 를 순서대로 선정하는지 본다.

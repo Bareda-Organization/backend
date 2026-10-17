@@ -14,7 +14,7 @@ import jakarta.validation.constraints.Size;
 import src.backend.routing.domain.RouteStopLimit;
 
 /**
- * 노선의 승하차지를 한 번에 저장한다(§5.9, 2026-09-23 사용자 지시 — 고친 뒤 저장 버튼 한 번).
+ * 노선의 승하차지를 한 번에 저장한다(§5.9 — 고친 뒤 저장 버튼 한 번).
  *
  * <p>배열 순서가 그대로 정차 순서다. 배열에 없는 승하차지는 노선에서만 빠진다.
  *

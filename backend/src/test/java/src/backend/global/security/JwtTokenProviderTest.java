@@ -89,7 +89,7 @@ class JwtTokenProviderTest {
 
     /**
      * {@code status} 클레임이 없는 토큰은 조용히 통과시키면 안 된다 — 그러면 계정 상태 게이트가
-     * "인증은 됐는데 상태를 모르는 요청" 을 열어 버린다(리뷰 라운드 1 Critical #1). {@link #provider}
+     * "인증은 됐는데 상태를 모르는 요청" 을 열어 버린다. {@link #provider}
      * 가 발급하는 토큰은 항상 status 를 담으므로 그 경로로는 재현할 수 없고, {@code parse()} 가
      * 돌려주는 {@link Claims} 도 불변이라 지울 수 없다 — status 클레임이 애초에 없는 {@link Claims}
      * 를 직접 만들어(서명·발급 경로를 우회) resolveAuthUser 에 바로 넣는다.
@@ -98,7 +98,7 @@ class JwtTokenProviderTest {
      * {@code Enum.valueOf(Class, null)} 이 던지는 실제 타입이 그대로 새 나가면
      * {@link JwtAuthenticationFilter}·{@link StompAuthChannelInterceptor} 의
      * {@code catch (JwtException | IllegalArgumentException e)} 절을 빠져나가 형식 밖 500 이
-     * 된다(리뷰 라운드 2 Important #10). {@code JwtAuthenticationFilterTest} 가 그 예외를 필터가
+     * 된다. {@code JwtAuthenticationFilterTest} 가 그 예외를 필터가
      * 실제로 삼켜 401 로 이어지는지까지 확인한다.
      */
     @Test

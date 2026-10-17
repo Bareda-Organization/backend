@@ -128,7 +128,7 @@ class GuardianFanOutTest {
         };
     }
 
-    /** 적재 호출 전부 — 건별 {@code append} 와 묶음 {@code appendAll}(R46 T-6)을 한 목록으로 모은다. */
+    /** 적재 호출 전부 — 건별 {@code append} 와 묶음 {@code appendAll}을 한 목록으로 모은다. */
     private List<NotificationDraft> appendedDrafts() {
         ArgumentCaptor<NotificationDraft> single = ArgumentCaptor.forClass(NotificationDraft.class);
         verify(outbox, atLeast(0)).append(single.capture());

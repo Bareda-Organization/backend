@@ -49,8 +49,7 @@ import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 
 /**
- * 근접 알림 배치({@link ProximityNotificationScheduler}) 수준의 검증(Phase 10 이월 ②, Phase 11
- * 목표 12·13) — {@code ProximityNotificationServiceTest} 가 회차 1건의 판정 결과(알림·문턱거리·ABSENT
+ * 근접 알림 배치({@link ProximityNotificationScheduler}) 수준의 검증 — {@code ProximityNotificationServiceTest} 가 회차 1건의 판정 결과(알림·문턱거리·ABSENT
  * 배제)를 보는 것과 달리, 이 클래스는 <b>여러 회차 중 무엇을 판정 대상으로 고르는지</b>와
  * <b>인스턴스가 2개일 때 판정을 몇 번 수행하는지</b>를 본다({@code RunConfirmationSchedulerTest} 가
  * 본보기).
@@ -110,7 +109,7 @@ class ProximityNotificationSchedulerTest {
 
 
     /**
-     * 스파이 스터빙과 목표12 시험이 심은 shedlock 행을 함께 정리한다 — 스터빙을 남기면 다음 시험이
+     * 스파이 스터빙과 시험이 심은 shedlock 행을 함께 정리한다 — 스터빙을 남기면 다음 시험이
      * 남의 회차 ID 에 대한 {@code doThrow} 를 물려받을 일은 없지만(인자가 회차 ID 라 매번 새 값이다),
      * 심은 미래 {@code lock_until} 을 풀지 않으면 다음 시험의 {@code judgeMovingRuns()} 호출을 막는다
      * ({@code StaffApprovalDecideAtomicityTest} 의 {@code reset()} 관례를 함께 따른다).
@@ -187,7 +186,7 @@ class ProximityNotificationSchedulerTest {
     }
 
     /**
-     * R46-KFIXBE K-1(Ruling 701) — 운행일이 어제보다 이른 채 끝나지 않은 이동 중 회차는 판정 대상이 아니다. 그 회차를 계속 집으면 처리할 회차가
+     * Ruling 701 — 운행일이 어제보다 이른 채 끝나지 않은 이동 중 회차는 판정 대상이 아니다. 그 회차를 계속 집으면 처리할 회차가
      * 날마다 늘고, 어제 운행일(자정을 넘겨 달리는 회차)은 여전히 판정을 받아야 한다.
      */
     @Test
@@ -237,9 +236,8 @@ class ProximityNotificationSchedulerTest {
     }
 
     /**
-     * R46-LATERBE L5(Ruling 672) — 한 틱에서 위치는 <b>묶음당 한 번</b>({@code findAll} = Redis {@code MGET} 1회) 읽고 회차마다
-     * {@code find} 를 부르지 않으며, 판정이 걸리지 않은 묶음은 읽기 트랜잭션 <b>1개</b>만 쓴다(전에는 판정마다 트랜잭션을
-     * 열었고 R57 DA-1 이 회차마다 1개에서 묶음당 1개로 줄였다). 트랜잭션 수는 Hibernate 통계의 완료 건수 차이로 센다 — 이 틱의 전체는 운행 중 회차를
+     * Ruling 672 — 한 틱에서 위치는 <b>묶음당 한 번</b>({@code findAll} = Redis {@code MGET} 1회) 읽고 회차마다
+     * {@code find} 를 부르지 않으며, 판정이 걸리지 않은 묶음은 읽기 트랜잭션 <b>1개</b>만 쓴다. 트랜잭션 수는 Hibernate 통계의 완료 건수 차이로 센다 — 이 틱의 전체는 운행 중 회차를
      * 한 쪽(page) 읽는 조회 1건 + 묶음 읽기 1건이다.
      */
     @Test
@@ -393,8 +391,8 @@ class ProximityNotificationSchedulerTest {
     }
 
     /**
-     * 목표13 을 "락 회수"(위 시험)와 "회수한 락의 {@code lockAtMostFor} 상한이 실제로 지켜지는가"로
-     * 나눈 두 번째 축 — 리뷰(R4)가 지적한 공백을 메운다. {@code insertLock(과거시각)} 으로 만료된
+     * "락 회수"(위 시험)와 "회수한 락의 {@code lockAtMostFor} 상한이 실제로 지켜지는가"로
+     * 나눈 두 번째 축 — 비어 있던 검사를 메운다. {@code insertLock(과거시각)} 으로 만료된
      * 락을 놓고 재획득시키는 것까지는 위 시험과 같지만, 여기서는 <b>락을 쥐고 있는 동안</b>
      * {@code shedlock.lock_until} 을 읽어 {@code lockAtMostFor} 가 만든 다음 만료 시각을 관측한다.
      *
@@ -439,7 +437,7 @@ class ProximityNotificationSchedulerTest {
 
     /**
      * "다른 인스턴스가 이 락을 쥐고 있다" 를 흉내내는 shedlock 행 — {@code lock_until} 이 미래면
-     * 목표12(건너뜀), 과거면 목표13(만료돼 이어받음)이다.
+     * 건너뜀, 과거면 만료돼 이어받음이다.
      *
      * <p>{@code shedlock} 의 {@code lock_until}·{@code locked_at} 은 {@code TIMESTAMP} 로,
      * 시간대 정보가 없는 컬럼이다(V1 의 shedlock 테이블). 이 프로젝트는 그 컬럼에 항상 <b>UTC 벽시계
@@ -447,7 +445,7 @@ class ProximityNotificationSchedulerTest {
      * {@code timezone('utc', CURRENT_TIMESTAMP)} 로 채우는 것과 같다). {@code Timestamp.from(Instant)}
      * 로 바인딩하면 드라이버가 <b>JVM 기본 시간대(KST, UTC+9)로 벽시계 숫자를 다시 계산</b>해
      * 그 관례를 어기고, 저장된 값이 실제보다 9시간 앞선 것처럼 보여 만료 판정의
-     * {@code lock_until <= now} 가 항상 거짓이 된다 — 목표13 이 이 경로로 늘 실패했던 원인이다.
+     * {@code lock_until <= now} 가 항상 거짓이 된다 — 만료된 락의 재획득이 이 경로에서 실패하는 원인이다.
      * {@code Timestamp.valueOf(LocalDateTime)} 는 그 재계산을 거치지 않고 벽시계 숫자를 그대로 옮긴다.
      *
      * <p>{@code ON CONFLICT (name) DO UPDATE} 를 쓰는 이유 — {@code tearDown()} 이 행을 지우지

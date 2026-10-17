@@ -30,7 +30,7 @@ import src.backend.student.repository.WeeklyAddressRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * {@code schoolbus.run.unconfirmed} 게이지(관측 목표 8)가 <b>값</b>까지 맞게 세는지 본다 —
+ * {@code schoolbus.run.unconfirmed} 게이지가 <b>값</b>까지 맞게 세는지 본다 —
  * {@link src.backend.observability.MetricsExposureTest} 는 이름의 존재만 보고 값은 보지 않는다.
  *
  * <p>문턱은 {@code confirm_at + 5분} 이 지난 {@code idle} 회차다({@link RunUnconfirmedGaugeScheduler}
@@ -39,7 +39,7 @@ import testsupport.clock.FixedClock20300401Config;
  *
  * <p>대상을 <b>2건</b>으로 둔다 — 1건씩만 두면 idle-대상 개수와 confirmed-제외분 개수가 우연히 1:1 로
  * 같아져, 술어를 {@code IDLE}→{@code CONFIRMED} 로 바꿔도 증분 값이 그대로 1 이라 이 시험이 그 결함을
- * 못 잡는다(실측 확인 — F1 S1 목표 2). 대상을 2건으로 늘려 그 우연한 일치를 깬다.
+ * 못 잡는다(실측 확인). 대상을 2건으로 늘려 그 우연한 일치를 깬다.
  *
  * <p>절대값이 아니라 <b>증분</b>으로 단언한다 — 이 게이지는 전 학원 대상 집계라(범위를 좁힐 수 없는
  * 이유는 {@code RunRepository} 의 {@code @AcademyScopeExempt} 근거 참고) 로컬 시드
@@ -133,7 +133,7 @@ class RunUnconfirmedGaugeSchedulerTest {
 
         // 대상 2 — confirm_at 이 9분 지난 idle 회차. idle-대상과 confirmed-제외분의 개수가 우연히
         // 같아지면(1:1) 술어를 IDLE→CONFIRMED 로 바꿔도 카운트가 안 변해 이 시험이 못 잡는다
-        // (실측 확인 — F1 S1 목표 2, 그 우연한 1:1 을 여기서 2:1 로 깨 둔다).
+        // (실측 확인 — 그 우연한 1:1 을 여기서 2:1 로 깨 둔다).
         long secondOverdueRunId = fixtures.idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY,
                 now.minusMinutes(9).plusMinutes(30), now.minusMinutes(9));
 

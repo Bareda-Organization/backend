@@ -12,8 +12,8 @@ import org.springframework.test.context.MergedContextConfiguration;
 
 /**
  * {@link RedisTestContainerBase} 를 상속하지 않은 시험도 전부 전용 Redis 컨테이너로 돌리는
- * 전역 장치(목표 10, 2026-09-14) — 상속을 요구하면 "새 시험 클래스를 만들 때 잊는다" 는 경로가
- * 남는데, 그 경로가 실제로 141개 시험을 공유 Redis(운영 포트 16379)로 가리키게 뒀다.
+ * 전역 장치 — 상속을 요구하면 "새 시험 클래스를 만들 때 잊는다" 는 경로가
+ * 남는데, 그 경로는 141개 시험을 공유 Redis(운영 포트 16379)로 가리킬 수 있다.
  *
  * <p>이 클래스는 {@code META-INF/spring.factories} 로 등록돼 Spring TestContext 프레임워크가
  * {@code @SpringBootTest}·{@code @WebMvcTest}·{@code @DataJpaTest} 등 컨텍스트를 띄우는 시험마다

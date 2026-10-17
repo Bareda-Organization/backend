@@ -26,7 +26,7 @@ import src.backend.global.security.authz.Can;
 import src.backend.global.security.authz.Permissions;
 
 /**
- * idle 로 정체된 회차의 강제 확정 콘솔 개입(API_SPEC §6.14, F3 S2 목표 11) — 메인관리자 전용.
+ * idle 로 정체된 회차의 강제 확정 콘솔 개입(API_SPEC §6.14) — 메인관리자 전용.
  *
  * <p>전 학원 범위이며 학원 격리의 예외다({@link src.backend.account.controller.AdminBlockedAccountController}
  * 와 같은 근거) — 대상은 회차이고, 이 콘솔은 어느 학원 소속인지를 판정에 쓰지 않는다.

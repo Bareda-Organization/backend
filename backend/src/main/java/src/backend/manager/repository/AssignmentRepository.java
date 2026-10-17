@@ -96,7 +96,7 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
 
     /**
      * 그 계정의 매니저가 그 회차의 그 자리에 배치돼 있는지 한 문장으로 확인한다 — 위치 수신(2초마다)이 매니저 조회 + 배치 조회 + 배치의
-     * 담당자 비교 두 번을 이 하나로 줄인다(R46-LATERBE L2). 삭제된 매니저는 배치가 남아 있어도 거짓이다(Ruling 885 ⑥). 행이 필요하면 {@link #findByRunIdAndRole} 를 쓴다.
+     * 담당자 비교 두 번을 이 하나로 줄인다. 삭제된 매니저는 배치가 남아 있어도 거짓이다(Ruling 885 ⑥). 행이 필요하면 {@link #findByRunIdAndRole} 를 쓴다.
      */
     @AcademyScopeExempt(reason = "findByRunIdAndRole 과 같은 근거 — 배치 생성 시점에 매니저와 회차의 학원이 일치하도록 강제돼 있어 "
             + "(AssignmentCommandService#place 가 매니저를 학원으로 좁혀 조회) 여기서 찾은 배치는 항상 그 계정의 학원과 일치한다. "
@@ -135,8 +135,8 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
             @Param("runIds") Collection<Long> runIds);
 
     /**
-     * 여러 회차의 배치를 기사·동승자 원문 연락처와 함께 한 번에 읽는다(§6.8 메인 관리자 관제,
-     * 목표 8) — {@link #findAssignedManagers} 와 조인 구조가 같고 {@code m.phone} 만 더 읽는다.
+     * 여러 회차의 배치를 기사·동승자 원문 연락처와 함께 한 번에 읽는다(§6.8 메인 관리자 관제) —
+     * {@link #findAssignedManagers} 와 조인 구조가 같고 {@code m.phone} 만 더 읽는다.
      *
      * <p>학원 조건이 {@link #findAssignedManagers} 와 같은 자리(조인된 {@code manager})에 걸려 있다.
      * 삭제된 매니저({@code deleted_at})도 싣는다 — {@link #findAssignedManagers} 와 같은 근거로,
@@ -155,9 +155,9 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
      * <p>겹침 자체는 <b>여기서 계산하지 않는다</b> — {@code run.est_duration_min} 이 nullable 이고
      * null 일 때 점으로 접는 규칙이 {@code AssignmentConflictDetector#windowEnd} 에 이미 있는 도메인
      * 판단이다. 같은 규칙을 SQL 에 다시 적으면 둘이 갈릴 때 아무도 못 알아챈다 — 그래서 후보만 좁게
-     * 추리고 겹침 판정은 그 도메인 메서드에 맡긴다. 예전에는 {@code r.departTime = :departTime} 로
-     * <b>출발 시각이 정확히 같을 때만</b> 점 판정했었다 — 근무 시간 축은 이미 구간으로 올라가 있는데
-     * 이쪽만 점으로 남아 등원 직후 하원처럼 <b>구간이 겹치지만 출발 시각이 다른</b> 배치를 놓쳤다.
+     * 추리고 겹침 판정은 그 도메인 메서드에 맡긴다. {@code r.departTime = :departTime} 로 점 판정하면
+     * <b>출발 시각이 정확히 같을 때만</b> 걸린다 — 근무 시간 축은 구간인데
+     * 이쪽만 점이면 등원 직후 하원처럼 <b>구간이 겹치지만 출발 시각이 다른</b> 배치를 놓친다.
      *
      * <p>취소된 회차를 세지 않는다 — 임시 취소한 회차의 배치는 그 시각을 점유하지 않는다.
      *
@@ -179,7 +179,7 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
             @Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate);
 
     /**
-     * 그 회차에 배치된 기사·동승자를 계정 식별자와 함께 읽는다 — {@code route_changed} 알림(Phase 7 T3)의
+     * 그 회차에 배치된 기사·동승자를 계정 식별자와 함께 읽는다 — {@code route_changed} 알림의
      * 수신자 조회 전용이다.
      *
      * <p>학원 조건이 {@link #findAssignedManagers} 와 같은 자리(조인된 {@code manager})에 걸려 있다.
@@ -233,8 +233,8 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
 
     /**
      * 회차 목록에 배치된 매니저의 이름과 확인 응답 판정 재료를 한 번에 읽는다(§5.3
-     * {@code driver_name}·{@code escort_name}·{@code ack_driver}·{@code ack_escort}, RUN-07,
-     * Phase 13 T1). 관계자 웹 대시보드 전용이라는 뜻으로 메서드 이름에 용도를 남긴다(Ruling 238).
+     * {@code driver_name}·{@code escort_name}·{@code ack_driver}·{@code ack_escort}, RUN-07).
+     * 관계자 웹 대시보드 전용이라는 뜻으로 메서드 이름에 용도를 남긴다(Ruling 238).
      *
      * <p>{@code ConfirmedRoute} 를 {@code LEFT JOIN} 하는 이유는 노선이 아직 확정되지 않은 회차도
      * 배치는 있을 수 있기 때문이다 — 그때 {@code currentVersionId} 는 {@code null} 이고,

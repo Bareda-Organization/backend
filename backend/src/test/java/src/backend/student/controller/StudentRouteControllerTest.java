@@ -24,7 +24,7 @@ import src.backend.global.security.JwtTokenProvider;
 import testsupport.clock.SeedDateClockConfig;
 
 /**
- * 학부모 앱의 자녀 노선 조회 API(LOC-03, API_SPEC §3.10) — 목표 12, "표시 범위" 절단.
+ * 학부모 앱의 자녀 노선 조회 API(LOC-03, API_SPEC §3.10) — "표시 범위" 절단.
  *
  * <p>R3(moving, route_version 3, to_academy)의 정차 순서는 stop2(seq1) → stop3(seq2) →
  * stop1(seq3) → stop4(seq4) 다(V2 시드, waypoint 는 stop_id 가 없어 항상 제외). 이 순서 하나로
@@ -38,14 +38,14 @@ import testsupport.clock.SeedDateClockConfig;
  *       두 시험은 통과한다</li>
  * </ul>
  *
- * <p><b>Ruling 288(목표 1)</b> — {@code stops[]} 는 등원·하원 두 방향 모두 하차지(도착지)가
+ * <p><b>Ruling 288</b> — {@code stops[]} 는 등원·하원 두 방향 모두 하차지(도착지)가
  * 빠져 있었다. 학원은 {@code run_stop} 행이 없어(ERD.md) windowed 파이프라인만으로는 나오지
  * 않으므로, {@code Academy} 엔티티에서 합성한 항목을 방향별로 끝(등원)·앞(하원)에 덧붙인다. R3
  * (to_academy) 세 시험이 "끝에 학원이 붙는다" 를, R2(confirmed, from_academy) 가 "앞에 학원이
  * 붙는다" 를 각각 검증한다.
  *
  * <p>{@link SeedDateClockConfig} — 시드 회차의 {@code service_date} 를 실제로 읽어 그 날짜로
- * {@link Clock} 을 이동시킨다(Phase 10 T4 재수정, {@code StudentBusPositionControllerTest} 와 같은
+ * {@link Clock} 을 이동시킨다({@code StudentBusPositionControllerTest} 와 같은
  * 설계). 이 시험은 상대 시각을 직접 다루지 않아 얼린 Clock 도 무방하지만, 두 클래스가 같은
  * 원인(시드의 오늘 회차 조회)을 공유하므로 같은 해법을 쓴다.
  */
@@ -91,7 +91,7 @@ class StudentRouteControllerTest {
 
     /**
      * 자기 정차지가 노선의 맨 앞이면 앞에 보여줄 정차지는 없지만, R3 는 등원(to_academy)이라
-     * 하차지인 학원이 끝에 하나 더 붙는다(Ruling 288 — 목표 1).
+     * 하차지인 학원이 끝에 하나 더 붙는다(Ruling 288).
      */
     @Test
     void 정차지가_맨_앞이면_자기_자신과_학원만_반환한다() throws Exception {
@@ -111,7 +111,7 @@ class StudentRouteControllerTest {
 
     /**
      * 앞선 정차지가 정확히 2개면 절단 여부와 무관하게 결과가 같다 — 경계값이지 절단의 증거는 아니다.
-     * R3 는 등원이라 끝에 학원(하차지)이 하나 더 붙는다(목표 1).
+     * R3 는 등원이라 끝에 학원(하차지)이 하나 더 붙는다.
      */
     @Test
     void 앞선_정차지가_정확히_2개면_전부_반환하고_학원이_끝에_붙는다() throws Exception {
@@ -128,8 +128,8 @@ class StudentRouteControllerTest {
 
     /**
      * 앞선 정차지가 3개(stop2·stop3·stop1) 있어도 가장 가까운 2개(stop3·stop1)만 남기고 stop2 는
-     * 잘라낸다(목표 12) — 절단이 실제로 동작함을 보이는 유일한 시험이다. R3 는 등원이라 학원이
-     * 끝에 붙는다(목표 1) — 절단된 창 뒤에 붙는 것까지 함께 확인한다.
+     * 잘라낸다 — 절단이 실제로 동작함을 보이는 유일한 시험이다. R3 는 등원이라 학원이
+     * 끝에 붙는다 — 절단된 창 뒤에 붙는 것까지 함께 확인한다.
      */
     @Test
     void 앞선_정차지가_3개_이상이면_가까운_2개로_절단하고_학원이_끝에_붙는다() throws Exception {
@@ -145,7 +145,7 @@ class StudentRouteControllerTest {
     }
 
     /**
-     * R2(id=2) 는 하원(from_academy) 확정 회차 — 학원이 승차지라 앞에 붙는다(목표 1). student4 는
+     * R2(id=2) 는 하원(from_academy) 확정 회차 — 학원이 승차지라 앞에 붙는다. student4 는
      * v2(S4 재배치로 stop3 추가)의 seq2(stop3) 라 자기 앞에 stop1(seq1) 하나만 있다.
      */
     @Test
@@ -161,7 +161,7 @@ class StudentRouteControllerTest {
     }
 
     /**
-     * R51 Ruling 853 — 앞선 승하차지는 다른 아이의 집 주소에서 만들어졌을 수 있어(FEATURE_SPEC §6.1·§6.3) 주소 원문은
+     * Ruling 853 — 앞선 승하차지는 다른 아이의 집 주소에서 만들어졌을 수 있어(FEATURE_SPEC §6.1·§6.3) 주소 원문은
      * 그 학생 본인의 승하차지에만 싣는다. 이름 · 좌표 · 순번은 그대로 남는다(지도 선·번호 핀의 재료).
      */
     @Test

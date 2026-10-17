@@ -24,11 +24,11 @@ import src.backend.account.repository.AccountRepository;
  * <p>로그인도 같은 판정을 쓴다(Ruling 891) — 비밀번호 대조를 통과한 계정이 이미 권한을 잃었으면 {@code 403 AUTH_STAFF_INACTIVE} 로
  * 거절한다. 로그인은 200 인데 첫 요청부터 401 이 되풀이되는 것을 막고, 두 자리의 기준이 어긋나지 않게 한다.
  *
- * <p><b>계정별 결과를 최대 {@code app.security.account-standing-cache-ttl}(5초) 보관한다</b>(R57 RT-1 · Ruling 899 A) — 요청마다 묻던
+ * <p><b>계정별 결과를 최대 {@code app.security.account-standing-cache-ttl}(5초) 보관한다</b>(Ruling 899 A) — 요청마다 묻던
  * 기본키 조회(위치 송신 2초 × 기사 수)가 연결 풀을 채웠다. "다음 요청부터" 가 "5초 뒤부터" 로 늦어지지 않게, 상태를 바꾸는 쪽이
  * 커밋 직후 {@link #evict} 로 그 계정 항목을 비운다({@link AccountStandingEvictionListener}). 비우는 쪽이 하나라도 빠지면 응답이 200 그대로라
  * 어떤 검사도 못 잡으므로 {@code AccountStandingCacheTest} 가 경로마다 실제 커밋으로 확인한다. 0초면 캐시를 쓰지 않는다 — 시험 묶음이 그 값으로
- * 돌아 직접 SQL 로 상태를 바꾸는 옛 시험이 그대로 통한다. 인스턴스마다 따로 보관하므로 2대가 되면 비움 신호 전파가 필요하다(R59).
+ * 돌아 직접 SQL 로 상태를 바꾸는 옛 시험이 그대로 통한다. 인스턴스마다 따로 보관하므로 2대가 되면 비움 신호 전파가 필요하다.
  */
 @Component
 public class AccountStanding {

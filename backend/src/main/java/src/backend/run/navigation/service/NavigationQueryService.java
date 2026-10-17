@@ -134,7 +134,7 @@ public class NavigationQueryService {
         return confirmedRouteRepository.findById(runId).map(ConfirmedRoute::getCurrentVersionId).orElse(null);
     }
 
-    /** {@code next} 는 1개만, {@code remaining} 은 공급자 상한까지 자른다(목표 19 — 개수는 여기서만 자른다). */
+    /** {@code next} 는 1개만, {@code remaining} 은 공급자 상한까지 자른다(개수는 여기서만 자른다). */
     private List<NavStopRow> select(List<NavStopRow> remaining, NavigationScope scope) {
         int limit = scope == NavigationScope.NEXT ? 1 : navProvider.maxStops();
         return remaining.size() <= limit ? remaining : remaining.subList(0, limit);
@@ -157,7 +157,7 @@ public class NavigationQueryService {
 
     /**
      * {@code confirmed} 에서만 채운다(X-01, Ruling 202) — {@code moving}·{@code finished} 는 앱이
-     * 실측 GPS 를 쓰므로 부재해야 한다(목표 20의 역방향 갈래).
+     * 실측 GPS 를 쓰므로 부재해야 한다.
      *
      * <p>출발점은 방향마다 다르다(Ruling 190, 확정 배치와 같은 규칙 · BR-049) — 등원은 확정 노선의 첫
      * 승차지, 하원은 학원. 이름도 그 지점 것이다. 전에는 방향과 무관하게 학원 좌표에 스케줄의 출발지 이름을

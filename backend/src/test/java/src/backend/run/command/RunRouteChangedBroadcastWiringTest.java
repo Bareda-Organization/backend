@@ -66,7 +66,7 @@ import src.backend.student.repository.StudentRepository;
 import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
- * {@code route_changed} 방송 배선(Ruling 373, R36-BE2 목표 1·2·4·5) — 리스너가 {@code AFTER_COMMIT} 이라
+ * {@code route_changed} 방송 배선(Ruling 373) — 리스너가 {@code AFTER_COMMIT} 이라
  * 시험 트랜잭션을 씌우면 한 번도 불리지 않는다. 그래서 이 클래스는 {@code @Transactional} 없이 실제로 커밋하고
  * 만든 행은 표식 학원({@link RunConfirmationFixtures#ACADEMY_NAME}) 기준으로 직접 지운다
  * ({@code StaffApprovalDecideAtomicityTest} 와 같은 방식). 송신 템플릿만 가짜로 두어 실제로 나간 봉투를 본다.
@@ -163,7 +163,7 @@ class RunRouteChangedBroadcastWiringTest {
         jdbcTemplate.update("DELETE FROM academy WHERE name = '" + RunConfirmationFixtures.ACADEMY_NAME + "'");
     }
 
-    // ── 목표 1·2 — 커밋 뒤에만 나간다 ────────────────────────────────────
+    // ── 커밋 뒤에만 나간다 ────────────────────────────────────
 
     @Test
     @DisplayName("커밋된 트랜잭션에서 발행하면 매니저 채널로 route_changed 1건이 나간다")
@@ -174,7 +174,7 @@ class RunRouteChangedBroadcastWiringTest {
                 .executeWithoutResult(s -> eventPublisher.publishEvent(new RunRouteConfirmedEvent(77L, 1L, 2L, confirmedAt)));
 
         ArgumentCaptor<Object> envelope = ArgumentCaptor.forClass(Object.class);
-        // 커밋 뒤 방송은 전용 실행기에서 돌아(R57 RT-4) 커밋 직후에는 아직 안 나갔을 수 있다 — 최대 5초 기다린다
+        // 커밋 뒤 방송은 전용 실행기에서 돌아 커밋 직후에는 아직 안 나갔을 수 있다 — 최대 5초 기다린다
         verify(messagingTemplate, timeout(5000).times(1)).convertAndSend(eq(WebSocketDestinations.managerRun(77L)),
                 envelope.capture());
         WebSocketEnvelope sent = (WebSocketEnvelope) envelope.getValue();
@@ -190,11 +190,11 @@ class RunRouteChangedBroadcastWiringTest {
             s.setRollbackOnly();
         });
 
-        // 방송이 비동기라 바로 확인하면 잘못 나가도 놓친다 — 실행기가 일을 집을 시간을 준 뒤 본다(R57 RT-4)
+        // 방송이 비동기라 바로 확인하면 잘못 나가도 놓친다 — 실행기가 일을 집을 시간을 준 뒤 본다
         verify(messagingTemplate, after(500).never()).convertAndSend(anyString(), any(Object.class));
     }
 
-    // ── 목표 4 — 실제 경로 2개 ───────────────────────────────────────────
+    // ── 실제 경로 2개 ───────────────────────────────────────────
 
     @Test
     @DisplayName("②구간 변경 승인(§5.6) 뒤에 route_changed 가 매니저 채널로 나간다")
@@ -218,7 +218,7 @@ class RunRouteChangedBroadcastWiringTest {
         assertThat(routeChangedTargets(runId)).containsExactly(WebSocketDestinations.managerRun(runId));
     }
 
-    // ── 목표 5 — 방송 실패가 요청을 깨지 않는다 ────────────────────────────
+    // ── 방송 실패가 요청을 깨지 않는다 ────────────────────────────
 
     @Test
     @DisplayName("방송이 예외를 던져도 변경 승인 응답은 200 이고 결정은 커밋돼 있다")
@@ -233,7 +233,7 @@ class RunRouteChangedBroadcastWiringTest {
                 s.approvalId())).isEqualTo("approved");
     }
 
-    /** 지금까지 나간 방송 중 {@code route_changed} 봉투의 목적지들. 커밋 뒤 방송은 비동기라(R57 RT-4) 하나라도 나올 때까지 최대 5초 기다린다. */
+    /** 지금까지 나간 방송 중 {@code route_changed} 봉투의 목적지들. 커밋 뒤 방송은 비동기라 하나라도 나올 때까지 최대 5초 기다린다. */
     private List<String> routeChangedTargets(long runId) throws InterruptedException {
         long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
         List<String> targets;

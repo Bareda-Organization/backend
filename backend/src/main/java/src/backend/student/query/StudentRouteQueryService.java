@@ -40,7 +40,7 @@ import src.backend.student.repository.StudentDailyStop;
 import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
- * 학부모 앱의 자녀 노선 조회(LOC-03, API_SPEC §3.10, 목표 12).
+ * 학부모 앱의 자녀 노선 조회(LOC-03, API_SPEC §3.10).
  *
  * <p>확정 전(idle)·확정 후 두 갈래를 갖는다 — idle 은 {@code run_stop}(확정 노선) 이 아직 없어
  * 고정 노선({@code route}·{@code route_stop})으로 대신 보여준다(§3.10 "미확정이어도 에러 아님").

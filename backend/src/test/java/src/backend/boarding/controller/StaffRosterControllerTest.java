@@ -43,7 +43,7 @@ import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RunStopRepository;
 
 /**
- * §5.4 {@code GET /staff/runs/{runId}/roster} — RST-03·A-04, Phase 9 목표 6.
+ * §5.4 {@code GET /staff/runs/{runId}/roster} — RST-03·A-04.
  *
  * <p>{@link RunRosterControllerTest}(§4.2)와 정확히 반대되는 두 지점을 본다 — 보호자 연락처가
  * <b>원문 그대로</b> 내려가는지, 결석 학생이 <b>행으로 남아</b> {@code status=absent} 로 표시되는지.
@@ -303,8 +303,8 @@ class StaffRosterControllerTest {
     }
 
     /**
-     * API_SPEC §1.5, Ruling 239, 2026-09-03 사용자 판정 ② — 존재하는 회차라도 요청자 소속 학원과
-     * 다르면 {@code 403 ACADEMY_SCOPE_VIOLATION}(옛 동작은 조회 조건에 학원 id 를 섞어 404 로 뭉갰다).
+     * API_SPEC §1.5, Ruling 239 — 존재하는 회차라도 요청자 소속 학원과
+     * 다르면 {@code 403 ACADEMY_SCOPE_VIOLATION}.
      */
     @Test
     void 타_학원_회차_명단_조회는_403_이다() throws Exception {

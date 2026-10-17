@@ -76,7 +76,7 @@ public class AuditLog {
 
     /** PostgreSQL {@code inet} 타입 — 기본 매핑(VARCHAR)으로 두면 {@code ddl-auto: validate} 가
      * "wrong column type" 으로 실패해 {@code SqlTypes.INET} 을 명시한다(엔티티 작성 규약 §4의
-     * "inet→String" 을 실측으로 보완, 이 태스크 판단). {@code SqlTypes.OTHER} 는 검증은 통과하지만
+     * "inet→String" 을 실측으로 보완).{@code SqlTypes.OTHER} 는 검증은 통과하지만
      * 저장 시 pgjdbc 가 파라미터를 {@code bytea} 로 바인딩해 실패한다 — {@code SqlTypes.INET} 이
      * 검증·저장 둘 다 만족하는 값이다(Hibernate 7.4.1 기준 실측). */
     @JdbcTypeCode(SqlTypes.INET)
@@ -119,7 +119,7 @@ public class AuditLog {
      * @param actorAccountId 해제를 실행한 메인 관리자
      * @param actorLoginId   그 관리자의 로그인 아이디 스냅샷 — 계정이 나중에 사라져도 표시값이 남아야 한다
      * @param targetAccountId 차단이 풀린 계정
-     * @param ip 해제를 요청한 관리자의 발신 IP(R46-POLISH Ruling 595) — 요청 밖에서 불렀거나 IP 표기가 아니면 {@code null}
+     * @param ip 해제를 요청한 관리자의 발신 IP(Ruling 595) — 요청 밖에서 불렀거나 IP 표기가 아니면 {@code null}
      */
     public static AuditLog forAccountUnblock(Long academyId, Long actorAccountId, String actorLoginId,
             Long targetAccountId, String ip, OffsetDateTime occurredAt) {
@@ -137,7 +137,7 @@ public class AuditLog {
      * 관계자가 학원 사용자의 비밀번호를 초기화한 사실(API_SPEC §5.22 · Ruling 329) — {@code action=update}.
      * 강제 확정({@link #forRunForceConfirm})처럼 구별 문자열은 {@code detail.action} 에 둔다(Ruling 260).
      *
-     * @param ip 요청 발신 IP(R46-LAST Ruling 580) — 요청 밖에서 불렀거나 IP 표기가 아니면 {@code null}
+     * @param ip 요청 발신 IP(Ruling 580) — 요청 밖에서 불렀거나 IP 표기가 아니면 {@code null}
      */
     public static AuditLog forAccountPasswordReset(Long academyId, Long actorAccountId, String actorLoginId,
             Long targetAccountId, String ip, OffsetDateTime occurredAt) {
@@ -153,7 +153,7 @@ public class AuditLog {
     }
 
     /**
-     * L3 필드가 실린 응답을 실제로 읽었을 때의 기록(SYS-01 · FEATURE_SPEC §6.3 · Phase 14 T1 목표 1).
+     * L3 필드가 실린 응답을 실제로 읽었을 때의 기록(SYS-01 · FEATURE_SPEC §6.3).
      *
      * <p>요청 1건당 1행이다(Ruling 242 잠정) — 응답에 학생이 여러 명 실려도 행을 늘리지 않는다.
      * {@code detail} 에는 {@code student_ids}(응답에 실제로 실린 학생 식별자 전부)와
@@ -163,7 +163,7 @@ public class AuditLog {
      *
      * @param targetType {@code student}·{@code run_roster} 등 Ruling 242 가 고정한 값 도메인
      * @param targetId   단일 학생 조회면 그 학생 id, 회차 명단이면 그 회차(run) id
-     * @param ip         요청 발신 IP(R46 감사 C) — 요청 밖에서 불렀거나 IP 표기가 아니면 {@code null}
+     * @param ip         요청 발신 IP — 요청 밖에서 불렀거나 IP 표기가 아니면 {@code null}
      */
     public static AuditLog forDataAccessRead(Long academyId, Long actorAccountId, String actorLoginId,
             String targetType, Long targetId, Map<String, Object> detail, String ip, OffsetDateTime occurredAt) {
@@ -234,12 +234,12 @@ public class AuditLog {
     /**
      * 실패 누적이 상한(5회)에 닿아 계정이 {@code blocked} 로 전이된 바로 그 시도를 별도 행으로 남긴다.
      *
-     * <p>{@link #forLoginFail} 과 <b>별행</b>인 이유 — 목표 2 판정표 문면이 "5회 도달 →
+     * <p>{@link #forLoginFail} 과 <b>별행</b>인 이유 — 판정표 문면이 "5회 도달 →
      * {@code login_fail} + {@code block}(block_event=true) 행" 으로 둘을 나열하고, {@code action}
      * 값 도메인이 {@code login_fail}·{@code block} 을 별개 원소로 이미 갖고 있어(ERD §3.4) 한 행에
      * 두 action 을 동시에 담을 수 없다. {@code blockEvent=true} 는 이 행에만 서고
      * {@link #forLoginFail}·{@link #forLoginSuccess} 는 항상 false 다 — "이 시도가 차단을
-     * 유발했는지" 축을 {@code action=block} 하나로 좁혀 둔 것이 이 태스크의 판단이다.
+     * 유발했는지" 축을 {@code action=block} 하나로 좁혀 둔 것이다.
      */
     public static AuditLog forLoginBlock(Long academyId, Long actorAccountId, String actorLoginId, String ip,
             OffsetDateTime occurredAt) {
@@ -255,7 +255,7 @@ public class AuditLog {
     }
 
     /**
-     * 강제 확정 콘솔 개입(API_SPEC §6.14, F3 S2 목표 11)을 남긴다.
+     * 강제 확정 콘솔 개입(API_SPEC §6.14)을 남긴다.
      *
      * <p><b>{@code category}·{@code action} 이 스펙 문면과 다르다 — Ruling 260 확정.</b> §6.14 는
      * 문면상 action 을 {@code run.force_confirm} 으로 적지만, {@code ck_audit_log_action} CHECK
@@ -265,8 +265,7 @@ public class AuditLog {
      * {@code GET /admin/audit-logs}(§6.12) 의 action 투영까지 번지고, {@code update}+{@code run} 이면
      * 같은 감사 조회 화면에 자연히 나타나기 때문이다. 스펙이 요구하는 정확한 동작 이름·부가 정보는
      * {@code detail} JSON 에 그대로 싣는다 — {@code action}(문자열 {@code "run.force_confirm"}),
-     * {@code reason}, {@code fallback_used}, {@code route_version_id}. API_SPEC §6.14 감사 문장은
-     * 조율자가 이 판정과 같은 내용으로 정본을 정정한다.
+     * {@code reason}, {@code fallback_used}, {@code route_version_id}.
      *
      * @param academyId      회차의 학원 — 없으면 §6.13 {@code academy_id} 필터 조회에서 빠진다(BR-129)
      * @param actorAccountId 강제 확정을 실행한 메인 관리자
@@ -296,7 +295,7 @@ public class AuditLog {
     }
 
     /**
-     * 운행일이 지난 이동 중 회차의 강제 종료(API_SPEC §6.17, R47 Ruling 724) — {@link #forRunForceConfirm} 과 같은 형태로
+     * 운행일이 지난 이동 중 회차의 강제 종료(API_SPEC §6.17, Ruling 724) — {@link #forRunForceConfirm} 과 같은 형태로
      * {@code category=data_access}·{@code action=update}·{@code target_type=run} 을 재사용하고, 구별 문자열
      * {@code run.force_finish} · {@code reason} · 종료 시점에 아직 {@code boarded} 였던 탑승자 수를 {@code detail} 에 싣는다.
      *

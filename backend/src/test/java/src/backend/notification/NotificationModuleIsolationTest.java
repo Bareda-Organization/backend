@@ -12,10 +12,10 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 /**
- * Phase 4 목표 5 — {@code notification} 은 <b>이벤트 구독으로만</b> 동작하고 다른 모듈이 직접 부르지
+ * {@code notification} 은 <b>이벤트 구독으로만</b> 동작하고 다른 모듈이 직접 부르지
  * 않는다(§7 규칙 17 · ARCHITECTURE §3.3).
  *
- * <p>실행 단언으로는 잡히지 않는 축이다. 적재를 직접 호출로 해 둔 구현도 목표 1~4 를 전부 통과한다 —
+ * <p>실행 단언으로는 잡히지 않는 축이다. 적재를 직접 호출로 해 둔 구현도 전부 통과한다 —
  * 갈리는 것은 <b>동작이 아니라 구조</b>이고, 그 구조가 무너지면 푸시 발송이 승인 트랜잭션 안으로
  * 들어와 <b>발송 실패가 승인을 롤백</b>시킨다. 그 사고는 실 채널이 죽은 날에만 드러난다.
  *
@@ -83,7 +83,7 @@ class NotificationModuleIsolationTest {
      * 소스에서 <b>주석을 걷어낸 코드 본문</b>만 돌려준다.
      *
      * <p>이 저장소는 자바독에 다른 클래스를 {@code {@link ...}} 로 가리키는 관례가 있어, 주석을 그대로
-     * 두고 문자열을 세면 <b>결함이 없어도 걸린다</b>. 2026-09-13 실제로 걸렸다 —
+     * 두고 문자열을 세면 <b>결함이 없어도 걸린다</b>. 실제로 걸렸다 —
      * {@code EmergencyCommandService} 가 "이 이벤트를 누가 받아 팬아웃하는가" 를 자바독으로 적으면서
      * {@code EmergencyNotificationListener} 를 가리켰는데, 호출도 import 도 아닌 <b>설명</b>이었다.
      *

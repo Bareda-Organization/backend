@@ -59,7 +59,7 @@ public class Account extends BaseTimeEntity {
      *
      * <p>미등록에는 누적할 카운터가 부재해 {@link #recordLoginFailure} 를 부를 수 없다. 그런데 그 응답의
      * 숫자가 존재 계정의 첫 실패와 다르면, 공격자는 후보 아이디에 틀린 비밀번호를 <b>한 번</b> 보내고
-     * 5 인지 4 인지만 보고 계정 존재를 판정한다(계정 열거, 리뷰 라운드 2 I-1).
+     * 5 인지 4 인지만 보고 계정 존재를 판정한다(계정 열거).
      *
      * <p>이름을 붙여 한 곳에서만 정의하는 이유는, 두 자리가 각자 {@code MAX_FAILED_ATTEMPTS - 1} 을
      * 계산하면 C-11 상한이 바뀔 때 한쪽만 따라가고 그 순간 열거가 되살아나기 때문이다.
@@ -147,7 +147,7 @@ public class Account extends BaseTimeEntity {
      * 회원가입 form 제출 시점에 생성한다(AUTH-01) — 승인 대기 상태로 시작한다.
      *
      * <p>플랫폼 관리자({@code system_admin}) 계정처럼 가입 절차 없이 내부 발급되는 경로는
-     * Phase 1 범위 밖이다 — 소유 Phase 가 별도 팩토리로 분화시킨다.
+     * 초기 구현 범위 밖이다 — 소유 기능이 별도 팩토리로 분화시킨다.
      */
     public static Account forSignup(Long academyId, String loginId, String passwordHash, String name,
             String phone, String email, Role role) {

@@ -42,7 +42,7 @@ import src.backend.run.event.RunRouteConfirmedEvent;
 import src.backend.run.event.RunStartedEvent;
 
 /**
- * AR-3(Ruling 898 ④) — 알림 문구 22종이 구현 클래스를 합치기 전과 <b>글자 단위로 같다</b>. 기대값은 합치기 전 커밋(R57 base {@code 5f083a93})의
+ * AR-3(Ruling 898 ④) — 알림 문구 22종이 구현 클래스를 합치기 전과 <b>글자 단위로 같다</b>. 기대값은 합치기 전 커밋({@code 5f083a93})의
  * 컴포저를 돌려 얻은 것이고, 이 시험은 합치기 전후 코드에 그대로 돌아야 한다(컨텍스트에서 {@code NotificationComposer<재료>} 를 제네릭 타입으로
  * 찾으므로 구현이 클래스든 설정 빈이든 상관없다). 문구 한 글자를 바꾸면 이 시험이 실패한다.
  */

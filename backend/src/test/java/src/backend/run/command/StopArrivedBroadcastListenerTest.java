@@ -19,7 +19,7 @@ import src.backend.global.websocket.WebSocketBroadcastGateway;
 import src.backend.run.event.StopArrivedEvent;
 
 /**
- * {@code stop_arrived} 방송(목표 4·10) — {@code nextStopId} 가 최종 지점 도착 시 {@code null} 인
+ * {@code stop_arrived} 방송 — {@code nextStopId} 가 최종 지점 도착 시 {@code null} 인
  * 경우(§4.5 자바독 근거)까지 payload 에 그대로 실리는지를 함께 본다.
  */
 class StopArrivedBroadcastListenerTest {

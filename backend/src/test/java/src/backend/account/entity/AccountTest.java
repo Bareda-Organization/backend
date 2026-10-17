@@ -49,7 +49,7 @@ class AccountTest {
         ReflectionTestUtils.setField(active, "status", AccountStatus.ACTIVE);
 
         // 암묵적 무예외(호출만 하고 끝)로는 assertNotBlocked 가 조용히 삼킨 예외와 구별되지 않는다 —
-        // 명시적으로 "예외가 없다" 를 단언해야 한다(리뷰 라운드 1 Minor #2).
+        // 명시적으로 "예외가 없다" 를 단언해야 한다.
         assertThatCode(pending::assertNotBlocked).doesNotThrowAnyException();
         assertThatCode(rejected::assertNotBlocked).doesNotThrowAnyException();
         assertThatCode(active::assertNotBlocked).doesNotThrowAnyException();

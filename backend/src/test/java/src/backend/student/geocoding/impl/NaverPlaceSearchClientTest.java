@@ -22,14 +22,14 @@ import src.backend.student.geocoding.spec.GeocodingUnavailableException;
 import src.backend.student.geocoding.spec.PlaceSearchClient.FoundPlace;
 
 /**
- * NAVER API HUB 지역 검색 응답을 장소 후보로 옮기는 어댑터(2026-09-23 실측 응답 모양 그대로).
+ * NAVER API HUB 지역 검색 응답을 장소 후보로 옮기는 어댑터(실측 응답 모양 그대로).
  *
  * <p>좌표가 <b>경위도 × 10⁷ 정수 문자열</b>로 온다 — 자릿수를 한 칸만 틀려도 후보가 수십 km 밖(또는 바다)에
  * 찍히는데, 화면에는 그럴듯한 주소가 함께 떠서 눈으로 알아채기 어렵다. 로컬 HTTP 서버를 공급자 자리에 세워
  * 실제 응답 그대로 넘긴다.
  *
  * <p>⚠ <b>앱이 실제로 쓰는 {@link WebClient} 빈</b>으로 부른다. 처음엔 {@code WebClient.create()} 로 시험해
- * 초록이었는데 운영에서 전부 실패했다(2026-09-23) — ①공급자가 JSON 을 {@code text/plain} 으로 보내고
+ * 초록이었는데 운영에서 전부 실패했다 — ①공급자가 JSON 을 {@code text/plain} 으로 보내고
  * ②앱의 JSON 설정이 필드 이름을 snake_case 로 바꿔 {@code roadAddress} 가 비었다. 둘 다 기본 클라이언트로는
  * 안 보인다.
  */

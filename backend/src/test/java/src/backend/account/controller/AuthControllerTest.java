@@ -98,7 +98,7 @@ class AuthControllerTest {
      * {@code role = 'system_admin' OR academy_id IS NOT NULL} 이라 <b>소속을 가진 system_admin 도
      * 스키마가 허용</b>하기 때문이다. §2.5 의 "{@code system_admin} 은 academy 가 null" 이 소속 유무가
      * 아니라 역할로 판정될 때만 참인데, {@code null} 만 넘기면 두 판정이 갈리는 입력이 픽스처에
-     * 부재해 그 차이가 검증되지 않는다(리뷰 라운드 2 m-1).
+     * 부재해 그 차이가 검증되지 않는다.
      */
     private void createSystemAdminAccount(Long academyId, String loginId, String phone) {
         accountRepository.save(Account.forSignup(academyId, loginId, passwordEncoder.encode(RAW_PASSWORD),
@@ -239,7 +239,7 @@ class AuthControllerTest {
             assertThat(accountRepository.findById(accountId).orElseThrow().getFailedAttempts())
                     .isEqualTo(Account.MAX_FAILED_ATTEMPTS);
 
-            // 감사(goal 3) — 실패 5행(login_fail) + 상한을 채운 마지막 시도의 별도 차단 행(block) = 6행.
+            // 감사 — 실패 5행(login_fail) + 상한을 채운 마지막 시도의 별도 차단 행(block) = 6행.
             Integer loginFailRows = jdbcTemplate.queryForObject(
                     "SELECT count(*) FROM audit_log WHERE actor_login_id = ? AND action = 'login_fail'",
                     Integer.class, loginId);
@@ -304,7 +304,7 @@ class AuthControllerTest {
      * 쓰면 한쪽만 바뀌었을 때 둘 다 통과한다.
      *
      * <p><b>키 집합만 견주면 부족하다</b> — 한쪽이 5, 한쪽이 4 여도 키는 같아서 통과하는데 그 숫자
-     * 하나가 곧 계정 존재 신호다(리뷰 라운드 2 I-1). 그래서 {@code details} 를 <b>값까지</b> 통째로
+     * 하나가 곧 계정 존재 신호다. 그래서 {@code details} 를 <b>값까지</b> 통째로
      * 대조하고, 그 값이 {@link Account#REMAINING_AFTER_FIRST_FAILURE} 인지도 함께 못박는다.
      *
      * <p>이 단언이 막는 것은 1회 프로브뿐이며 남는 한계는 {@code LoginCommandService} javadoc 에 적었다.
@@ -339,7 +339,7 @@ class AuthControllerTest {
     }
 
     /**
-     * 목표 문장(Ruling 282, goal 4) — 미등록 login_id 로 로그인을 실패해도 감사 행이 남는다.
+     * 요구 문장(Ruling 282) — 미등록 login_id 로 로그인을 실패해도 감사 행이 남는다.
      *
      * <p>{@code LoginCommandService.login()} 은 계정을 못 찾으면
      * {@code auditLogRepository.save(AuditLog.forLoginFail(null, null, loginId, ip, now))} 를 쓴 뒤
@@ -434,7 +434,7 @@ class AuthControllerTest {
      *
      * <p>{@code AuthController} 가 소속 유무({@code academyId == null})가 아니라 <b>역할</b>로 판정해야만
      * 참인 문장이다 — 위 테스트는 두 판정이 같은 답을 내는 입력만 쓰므로 판정을 소속 유무로 되돌려도
-     * 통과한다(리뷰 라운드 2 m-1). 이 조합은 {@code ck_account_academy_scope} 가 허용하므로 실재 가능한
+     * 통과한다. 이 조합은 {@code ck_account_academy_scope} 가 허용하므로 실재 가능한
      * 입력이고, 소속 유무로 판정하면 이 계정에만 {@code academy} 객체가 실려 §2.5 를 어긴다.
      */
     @Test
@@ -504,7 +504,7 @@ class AuthControllerTest {
      *
      * <p>두 단언을 <b>한 테스트에 함께</b> 둔다. 나누면 무효화 범위가 잘못돼도 한쪽은 통과한다 —
      * 로그아웃이 아무것도 무효화하지 않으면 "A 가 401" 만 깨지고, 계정 전량을 무효화하면 "B 가 200"
-     * 만 깨진다. 지난 라운드에는 둘 다 부재해, 로그아웃 본체를 통째로 지워도 14건이 전건 통과했다.
+     * 만 깨진다. 이 단언이 없으면 로그아웃 본체를 통째로 지워도 14건이 전건 통과한다.
      *
      * <p>말미에 §2.6 회전 검증을 얹는다 — B 가 재발급을 받으면 B 의 <b>옛</b> 토큰은 그 자리에서
      * 무효화돼야 한다. 살아 있으면 한 번 탈취된 refresh 토큰이 영구 유효해진다.
@@ -595,9 +595,9 @@ class AuthControllerTest {
      * §2.8 성공 시 기존 refresh 토큰을 전량 무효화한다 — 회전 전 토큰으로 재발급이 더는 안 된다.
      *
      * <p>말미에 <b>새 비밀번호가 실제로 반영됐는지</b>를 로그인 두 번으로 확인한다. 이 단언이 없으면
-     * 사용자가 204 를 받고도 비밀번호가 그대로인 상태를 테스트 전체 묶음이 검출하지 못한다 — 지난 라운드에
-     * 실재했던 결함({@code RefreshTokenRepository} 의 {@code flushAutomatically} 누락)이 정확히 그
-     * 형태였고, 토큰 무효화만 보는 단언은 그 결함을 통과시켰다.
+     * 사용자가 204 를 받고도 비밀번호가 그대로인 상태를 테스트 전체 묶음이 검출하지 못한다.
+     * {@code RefreshTokenRepository} 의 {@code flushAutomatically} 누락이 정확히 그 형태이며, 토큰 무효화만
+     * 보는 단언은 그 결함을 통과시킨다.
      */
     @Test
     void 비밀번호_변경_성공_시_기존_refresh_토큰이_전량_무효화된다() throws Exception {
@@ -638,8 +638,7 @@ class AuthControllerTest {
      * 브라우저에 남으면 다음 접속이 401 을 한 번 더 거친다.
      *
      * <p>말미에 <b>app 호출에는 붙지 않는 것</b>까지 본다. "붙는다" 만 단언하면 조건을 없애고 무조건
-     * 붙이는 구현이 통과하는데, §2.8 은 "<b>웹 호출이면</b>" 이라 그 조건이 계약의 일부다(리뷰 라운드
-     * 2 m-2). 웹 판정은 쿠키 동봉 여부이므로 app 호출은 쿠키를 보내지 않는 것으로 표현한다.
+     * 붙이는 구현이 통과하는데, §2.8 은 "<b>웹 호출이면</b>" 이라 그 조건이 계약의 일부다. 웹 판정은 쿠키 동봉 여부이므로 app 호출은 쿠키를 보내지 않는 것으로 표현한다.
      */
     @Test
     void web_비밀번호_변경_응답에_Max_Age_0_쿠키_삭제_지시가_있다() throws Exception {

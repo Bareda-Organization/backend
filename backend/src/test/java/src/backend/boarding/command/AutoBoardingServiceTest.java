@@ -19,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import src.backend.boarding.entity.RunRider;
 
 /**
- * 하원 회차 시작 시 명단 전원 일괄 승차(C-07 · BRD-03, 목표 11) — {@link AutoBoardingService} 를 직접
+ * 하원 회차 시작 시 명단 전원 일괄 승차(C-07 · BRD-03) — {@link AutoBoardingService} 를 직접
  * 호출한다. 회차 시작 경유(알림·이력)는 {@code RunBoardingNotificationTest} 가 다룬다.
  */
 @SpringBootTest

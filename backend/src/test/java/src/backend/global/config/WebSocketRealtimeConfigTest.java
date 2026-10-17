@@ -16,7 +16,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 /**
- * 실시간 경로 설정 고정(R57 RT-3 · RT-6) — 기본값이 조용히 되돌아가도 컴파일도 다른 시험도 걸리지 않는 값들이다. 메시지 순서 보장이 켜져 있고, 수신 채널
+ * 실시간 경로 설정 고정 —기본값이 조용히 되돌아가도 컴파일도 다른 시험도 걸리지 않는 값들이다. 메시지 순서 보장이 켜져 있고, 수신 채널
  * 실행기는 스레드 수와 큐 상한이 명시돼 실제 수신 채널이 그것을 쓰며, 하트비트 스케줄러는 2개 이상이고, 구독 조회 보관 상한은 8,192 이상이다.
  */
 @SpringBootTest(properties = {"app.ws.inbound.core-pool-size=6", "app.ws.inbound.queue-capacity=321"})

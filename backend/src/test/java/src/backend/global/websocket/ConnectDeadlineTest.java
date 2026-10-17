@@ -23,7 +23,7 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
- * 소켓만 열고 STOMP {@code CONNECT} 를 보내지 않으면 10초 뒤 서버가 {@code 1008} 로 닫는다(R57 RT-8 · K1 ④). 마감 시간 기본값(10초)을 그대로 쓴다 —
+ * 소켓만 열고 STOMP {@code CONNECT} 를 보내지 않으면 10초 뒤 서버가 {@code 1008} 로 닫는다. 마감 시간 기본값(10초)을 그대로 쓴다 —
  * 대조군으로 같은 시간 안에 CONNECT 를 보낸 소켓은 닫히지 않아야 "무조건 닫는" 구현이 통과하지 못한다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)

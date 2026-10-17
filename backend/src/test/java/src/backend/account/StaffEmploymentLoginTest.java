@@ -154,7 +154,7 @@ class StaffEmploymentLoginTest {
                 .content("{\"login_id\":\"%s\",\"password\":\"%s\"}".formatted(loginId, password)));
     }
 
-    /** 퇴사·재직 전환은 §6.7 엔드포인트를 실제로 거친다 — 두 기능이 이어져 있다는 것이 이 태스크의 요건이다. */
+    /** 퇴사·재직 전환은 §6.7 엔드포인트를 실제로 거친다 — 두 기능이 이어져 있다는 것이 이 시험이 지키는 요건이다. */
     private void 퇴사시킨다(long accountId) throws Exception {
         재직_상태를_바꾼다(accountId, "inactive");
     }
@@ -175,7 +175,7 @@ class StaffEmploymentLoginTest {
      * 학원 1곳 + 재직 관계자 1명을 <b>실제 경로</b>로 만든다 — 학원 등록(§6.2) → 관계자 가입(§2.2) →
      * 메인 관리자 승인(§6.5). 학원마다 재직 1명 정원이라(§6.4) 계정마다 학원을 따로 만든다.
      *
-     * <p>SQL 세 줄이었다가 바뀐 자리다(목표 10). SQL 은 {@code academy_staff} 행을 <b>직접</b> 넣어,
+     * <p>SQL 은 {@code academy_staff} 행을 <b>직접</b> 넣어,
      * 승인이 그 행을 만들지 못하게 되어도 이 테스트는 그대로 초록이다 — 그러면 "퇴사한 관계자를 막는가"
      * 는 검사하면서 <b>애초에 재직 행이 생기는가</b> 는 아무도 검사하지 않는 상태가 된다. 승인 경로로
      * 만들면 그 둘이 한 시험 안에서 함께 선다.

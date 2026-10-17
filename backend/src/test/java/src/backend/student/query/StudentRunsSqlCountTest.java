@@ -24,7 +24,7 @@ import src.backend.global.security.JwtTokenProvider;
 import testsupport.clock.SeedDateClockConfig;
 
 /**
- * 학부모 {@code GET /students/{id}/runs} 의 SQL 수는 같은 학원·같은 날의 회차 수와 무관하다(R46 D #8) — 다른 학생의
+ * 학부모 {@code GET /students/{id}/runs} 의 SQL 수는 같은 학원·같은 날의 회차 수와 무관하다 — 다른 학생의
  * 회차가 늘어도 이 학생의 호출이 회차 수만큼 질의하지 않는다. 시험 트랜잭션이 롤백해 심은 회차는 남지 않는다.
  */
 @SpringBootTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")

@@ -39,10 +39,9 @@ import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * 지연 알림 신고(NTF-06, M-05, API_SPEC §4.9) — F3 S1 목표 1~4.
+ * 지연 알림 신고(NTF-06, M-05, API_SPEC §4.9).
  *
- * <p>수신자 조회·발신은 알림 모듈의 {@code DelayNotificationListener} 로 넘긴다(F3 S1 라운드 1 —
- * 반려 🔴-A 해소, ARCHITECTURE §3.3 규칙 17 · BRD-04). 이 서비스가 그 모듈을 직접 부르면 승인
+ * <p>수신자 조회·발신은 알림 모듈의 {@code DelayNotificationListener} 로 넘긴다(ARCHITECTURE §3.3 규칙 17 · BRD-04). 이 서비스가 그 모듈을 직접 부르면 승인
  * 트랜잭션 안에서 알림 적재가 돌아, 그 적재가 실패했을 때 지연 신고 자체가 롤백된다 — 그래서
  * {@link ApplicationEventPublisher} 로 {@link DelayRequestedEvent} 만 발행한다.
  *
@@ -153,9 +152,9 @@ public class DelayNotificationCommandService {
     }
 
     /**
-     * 아직 지나지 않은 승하차지({@code arrivedAt IS NULL} 이고 {@code departedAt IS NULL} — 도착 없이 강제 출발된 곳도 지난 곳이다, R51 H2)의 탑승자 중 수신 학생 id(API_SPEC §4.9 수신 범위 · C-02) —
+     * 아직 지나지 않은 승하차지({@code arrivedAt IS NULL} 이고 {@code departedAt IS NULL} — 도착 없이 강제 출발된 곳도 지난 곳이다)의 탑승자 중 수신 학생 id(API_SPEC §4.9 수신 범위 · C-02) —
      * 등원은 아직 탑승하지 않은 학생({@link RunRiderRepository#findStudentIdsForDelayNotification}), 하원은 아직 하차하지
-     * 않은 탑승 중 학생({@link RunRiderRepository#findBoardedStudentIdsForDelayNotification}, R51 856).
+     * 않은 탑승 중 학생({@link RunRiderRepository#findBoardedStudentIdsForDelayNotification}).
      */
     private List<Long> pendingStudentIdsOf(Run run) {
         ConfirmedRoute confirmedRoute = confirmedRouteRepository.findById(run.getId())
@@ -169,13 +168,13 @@ public class DelayNotificationCommandService {
         if (pendingStopIds.isEmpty()) {
             return List.of();
         }
-        // 하원은 시작 때 전원이 탑승 상태라 "아직 탑승하지 않은 학생" 이 0명이다 — 아직 내리지 않은 학생이 받는다(R51 856).
+        // 하원은 시작 때 전원이 탑승 상태라 "아직 탑승하지 않은 학생" 이 0명이다 — 아직 내리지 않은 학생이 받는다.
         return run.getDirection() == Direction.FROM_ACADEMY
                 ? runRiderRepository.findBoardedStudentIdsForDelayNotification(run.getId(), pendingStopIds)
                 : runRiderRepository.findStudentIdsForDelayNotification(run.getId(), pendingStopIds);
     }
 
-    /** 학부모 — 학생의 보호자 전원(다른 승하차 알림과 같은 규칙, R51 M-B1). 수신자 식별은 (보호자 계정, 학생) 짝이다. */
+    /** 학부모 — 학생의 보호자 전원(다른 승하차 알림과 같은 규칙). 수신자 식별은 (보호자 계정, 학생) 짝이다. */
     private List<DelayNoticeRecipient> guardianRecipientsOf(Run run, List<Long> studentIds) {
         return guardianStudentRepository.findGuardianAccountsByAcademyId(run.getAcademyId(), studentIds).stream()
                 .map(guardian -> new DelayNoticeRecipient(guardian.getAccountId(), guardian.getName(),

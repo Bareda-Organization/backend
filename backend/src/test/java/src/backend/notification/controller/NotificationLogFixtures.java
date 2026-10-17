@@ -13,7 +13,7 @@ import src.backend.global.common.enums.Role;
 import src.backend.notification.entity.NotificationType;
 
 /**
- * 알림 목록·읽음 처리 시험(Phase 12 T2, goal 1~6)이 쓰는 실제 행 — 학원·계정은
+ * 알림 목록·읽음 처리 시험이 쓰는 실제 행 — 학원·계정은
  * {@code ExceptionReportFixtures} 와 같은 축(정상 경로 팩토리)이지만, {@code notification_log} 는
  * {@link JdbcTemplate} 로 직접 심는다. {@link src.backend.notification.entity.NotificationLog#forOutbox}
  * 가 {@code student_id}·{@code student_name}·{@code popup}·{@code created_at}·{@code sent_at}·

@@ -35,7 +35,7 @@ import src.backend.student.repository.StudentRepository;
 import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
- * 퇴원 학생 개인정보 파기(R46 privacy · Ruling 480 ②·520) — {@link RetentionCleanupScheduler#cleanUp} 이 퇴원 90일을
+ * 퇴원 학생 개인정보 파기(Ruling 480 ②·520) — {@link RetentionCleanupScheduler#cleanUp} 이 퇴원 90일을
  * 넘긴 학생의 개인 필드만 익명값으로 바꾸고, 승하차 이력 행은 그대로 두는지 본다.
  *
  * <p>시계는 앱의 {@link Clock}(실제 시각) 그대로이고 심는 행은 전부 {@code now} 기준 상대 시각이다 —

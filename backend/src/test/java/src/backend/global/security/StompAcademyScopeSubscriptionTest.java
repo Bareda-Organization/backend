@@ -31,9 +31,7 @@ import src.backend.global.common.enums.Role;
  * "거부되는가" 가 아니라 <b>"거부가 무엇을 실어 오는가"</b> 이기 때문이다. 클라이언트 라이브러리를 끼우면
  * 그 라이브러리가 프레임을 해석한 결과만 보게 되어, 프레임에 식별자가 없어도 테스트가 통과한다.
  *
- * <p>옛 경로 {@code /topic/tenant/{id}/positions} 는 이 클래스가 원래 검사하던 대상이었으나
- * {@code /topic/academy/{id}/live} 로 완전히 대체돼 소멸했다(Ruling 121 해소, T2 Phase 10) — 이
- * 클래스가 여기로 재배치된다.
+ * <p>{@code /topic/tenant/{id}/positions} 경로는 현재 없고 {@code /topic/academy/{id}/live} 가 대신한다(Ruling 121).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class StompAcademyScopeSubscriptionTest {
@@ -76,7 +74,7 @@ class StompAcademyScopeSubscriptionTest {
     }
 
     /**
-     * 목표 7 — SUBSCRIBE 인가 실패는 종료 코드 4403 이어야 한다. Spring 기본값(1002)이 아니라는 것이
+     * SUBSCRIBE 인가 실패는 종료 코드 4403 이어야 한다. Spring 기본값(1002)이 아니라는 것이
      * 이 테스트의 핵심이다({@code ForbiddenSubscriptionCloseFactory}).
      */
     @Test
@@ -88,7 +86,7 @@ class StompAcademyScopeSubscriptionTest {
     }
 
     /**
-     * 목표 5·C-08(§1.12) — "해당 학원 관계자"는 {@link Role#STAFF} 뿐이다.
+     * C-08(§1.12) — "해당 학원 관계자"는 {@link Role#STAFF} 뿐이다.
      * {@code AcademyScope} 만으로는 같은 학원 소속 PARENT 도 통과해 관제 채널의 개인정보(타 학생 승하차
      * 현황)가 새는 통로가 된다 — 그 결함을 막는 역할 게이트를 이 테스트가 고정한다.
      */
@@ -169,7 +167,7 @@ class StompAcademyScopeSubscriptionTest {
 
     /**
      * ERROR 프레임까지 받은 뒤, 서버가 연결을 닫을 때까지 기다려 그 {@link CloseStatus} 를 반환한다.
-     * 목표 7 — 종료 코드가 Spring 기본값(1002)이 아니라 4403 이어야 한다는 것을 검증하는 용도다.
+     * 종료 코드가 Spring 기본값(1002)이 아니라 4403 이어야 한다는 것을 검증하는 용도다.
      */
     private CloseStatus subscribeAndAwaitClose(String token, String destination) throws Exception {
         BlockingQueue<String> received = new LinkedBlockingQueue<>();

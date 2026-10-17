@@ -61,15 +61,14 @@ import src.backend.student.repository.WeeklyAddressRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 탑승 의사 토글(ATT-01·02, P-03, API_SPEC §3.6) — Phase 8 목표 1·2·5·8·9(부분).
+ * 탑승 의사 토글(ATT-01·02, P-03, API_SPEC §3.6).
  *
  * <p>3구간 판정 자체({@link src.backend.request.domain.ChangeWindowPolicy})는 별도로 이미 단위
  * 시험이 있다고 가정하지 않는다 — 이 클래스가 그 판정을 <b>엔드포인트 경유로 실제로 타는지</b>까지
  * 함께 본다. {@link RouteComputationPipeline} 을 스파이로 감싸 ①·③ 어느 경로도 이를 부르지 않음을
- * 직접 확인한다(목표 1 — Ruling 198, "재최적화는 결과이지 동기 호출이 아니다").
+ * 직접 확인한다(Ruling 198,"재최적화는 결과이지 동기 호출이 아니다").
  *
- * <p>목표 9 는 부분이다(Ruling 195) — {@code notification_log} 적재까지만 검사하고, 웹소켓 발행은
- * Phase 10 범위라 이 클래스가 단언하지 않는다.
+ * <p>{@code notification_log} 적재까지만 검사하고, 웹소켓 발행은 이 클래스가 단언하지 않는다(Ruling 195).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -124,7 +123,7 @@ class BoardingIntentControllerTest {
 
 
     /**
-     * 목표2(롤백) 시험이 이 저장소를 스파이로 감싸 {@code requestApproval} 의 응답 조립 직전 호출을
+     * 롤백 시험이 이 저장소를 스파이로 감싸 {@code requestApproval} 의 응답 조립 직전 호출을
      * 겨냥해 강제로 예외를 던진다 — 나머지 시험은 실제 구현 그대로 위임되니 영향이 없다.
      */
     @MockitoSpyBean
@@ -139,7 +138,7 @@ class BoardingIntentControllerTest {
     @Autowired
     private WeeklyAddressRepository weeklyAddressRepository;
 
-    /** 목표1 후반부 시험이 "확정 배치 1틱" 을 직접 실행하는 데 쓴다({@code RunConfirmationServiceTest} 와 같은 이유). */
+    /** 후반부 시험이 "확정 배치 1틱" 을 직접 실행하는 데 쓴다({@code RunConfirmationServiceTest} 와 같은 이유). */
     @Autowired
     private RunConfirmationService confirmationService;
 
@@ -163,7 +162,7 @@ class BoardingIntentControllerTest {
         return confirmationFixtures;
     }
 
-    // ── 목표 1 — ①구간 즉시 반영, 재최적화 미호출 ──────────────────────────
+    // ── ①구간 즉시 반영, 재최적화 미호출 ──────────────────────────
 
     /**
      * ①구간에서 토글하면 응답이 즉시 바뀐 값을 싣고, {@link RouteComputationPipeline#compute} 는 <b>한
@@ -200,13 +199,12 @@ class BoardingIntentControllerTest {
     }
 
     /**
-     * 목표1 후반부 — 위 시험은 토글 응답과 {@code boarding_intent.riding} 까지만 보고 끝나, 확정 배치를
-     * 실제로 돌리는 코드가 하나도 없었다(게이트 리뷰 Important 1). 이 시험은 {@link
+     * 후반부 — 위 시험은 토글 응답과 {@code boarding_intent.riding} 까지만 보고 끝나, 확정 배치를
+     * 실제로 돌리는 코드가 하나도 없었다. 이 시험은 {@link
      * RunConfirmationService#confirmOne} 을 직접 1틱 실행해, ①구간에서 제외된 학생이 그 산출물에서
      * 실제로 빠지는지를 본다.
      *
-     * <p>T3 게이트 리뷰가 저장 산출물({@code run_rider}·이 태스크에 대응하는 자리)만 보다가 노선 계산
-     * 산출물({@code run_stop})의 사각지대를 놓친 전례를 따라, 이 시험도 <b>양쪽을 모두</b> 본다 —
+     * <p>저장 산출물({@code run_rider})만 보면 노선 계산 산출물({@code run_stop})의 사각지대를 놓치므로, 이 시험도 <b>양쪽을 모두</b> 본다 —
      * {@code RunConfirmationService} 의 제외 필터가 {@code studentIds}(노선 계산 입력)와
      * {@code studentStops}(저장) 양쪽에 걸려 있으므로, 검사도 양쪽을 봐야 "명단에는 빠졌는데 버스는
      * 그 집에 들르는" 형태의 사각지대를 잡을 수 있다.
@@ -303,7 +301,7 @@ class BoardingIntentControllerTest {
                 .containsExactly("absent");
     }
 
-    // ── 목표 2 — ②구간 승인 대기, 기존값 응답 ───────────────────────────────
+    // ── ②구간 승인 대기, 기존값 응답 ───────────────────────────────
 
     /**
      * ②구간에서 토글하면 즉시 반영되지 않고 승인 대기 큐에 올라간다. 응답의 {@code riding} 은 <b>바뀌지
@@ -350,7 +348,7 @@ class BoardingIntentControllerTest {
     }
 
     /**
-     * 목표2 — 롤백 시 알림 미적재(게이트 리뷰 Important 2). {@code requestApproval} 은 {@code
+     * 롤백 시 알림 미적재. {@code requestApproval} 은 {@code
      * ApprovalRequestedEvent} 를 발행한 뒤에도 응답을 조립하려고 {@link RunRiderRepository
      * #findByRunIdAndStudentId} 를 한 번 더 부른다(§3.6 순서상 마지막) — 그 호출을 스파이로 강제
      * 실패시켜 "리스너가 이미 알림을 적재했는데 그 뒤가 실패한" 상황을 재현한다.
@@ -404,10 +402,10 @@ class BoardingIntentControllerTest {
                 .isZero();
     }
 
-    // ── 목표 5 — 한도 소진 후 재요청은 403 ──────────────────────────────────
+    // ── 한도 소진 후 재요청은 403 ──────────────────────────────────
 
     /**
-     * ②구간 변경 한도는 회차당 1회다 — 소진 후 재요청은 {@code 403 CHANGE_LIMIT_REACHED}(목표 5). 재요청은
+     * ②구간 변경 한도는 회차당 1회다 — 소진 후 재요청은 {@code 403 CHANGE_LIMIT_REACHED}. 재요청은
      * 끄기다 — ②구간 켜기는 승인 경로 자체가 없어 한도와 무관하게 무변경·403 으로 갈린다(BR-029).
      */
     @Test
@@ -540,7 +538,7 @@ class BoardingIntentControllerTest {
                 runId)).isZero();
     }
 
-    // ── 목표 8 — ③구간 재최적화 없는 즉시 수용 ──────────────────────────────
+    // ── ③구간 재최적화 없는 즉시 수용 ──────────────────────────────
 
     /**
      * Ruling 870 — 출발 시각이 지났어도 운행이 시작되지 않았으면(출발 + 10분 전) ②다: 탑승 끄기는 즉시 결석이 아니라
@@ -608,7 +606,7 @@ class BoardingIntentControllerTest {
     /**
      * ③구간(운행 시작 후 또는 출발 시각 도달)에서 {@code riding=false} 는 재최적화 없이 즉시 수용되고,
      * 그 정차지에 남은 탑승자가 0명이면 {@code run_stop.change='skipped'} 로 표시된다 — {@code seq} 는
-     * 손대지 않는다(목표 8). {@code riding=true}(되돌리기)는 {@code 403 CHANGE_WINDOW_CLOSED} 다.
+     * 손대지 않는다. {@code riding=true}(되돌리기)는 {@code 403 CHANGE_WINDOW_CLOSED} 다.
      */
     @Test
     @DisplayName("목표8 — 마감구간에서 riding=false는 재최적화 없이 수용되고 riding=true는 403이다")
@@ -867,11 +865,11 @@ class BoardingIntentControllerTest {
                 .containsExactly("absent");
     }
 
-    // ── 목표 9(부분) — 알림 적재(푸시만, 웹소켓은 Phase 10) ──────────────────
+    // ── 알림 적재(푸시만, 웹소켓은 제외) ──────────────────
 
     /**
      * ①·②구간 모두 관계자에게 알림이 적재된다(API_SPEC §9.7, Ruling 195) — 여기서는
-     * {@code notification_log} 적재만 본다. 웹소켓 발행은 이 태스크 범위 밖이라 단언하지 않는다.
+     * {@code notification_log} 적재만 본다. 웹소켓 발행은 단언하지 않는다.
      */
     @Test
     @DisplayName("목표9(부분) — 즉시반영·승인대기 모두 notification_log 에 적재된다")
@@ -917,8 +915,8 @@ class BoardingIntentControllerTest {
                 "SELECT count(*) FROM notification_log WHERE recipient_account_id = ? AND type = 'approval_requested' AND dedup_key LIKE ?",
                 Integer.class, staffAccountId, "approval_requested:" + approvalRunId + ":%")).isEqualTo(1);
 
-        // R13 — intent_changed·approval_requested 둘 다 studentId 를 들고 있는 단일 학생
-        // 이벤트라 관계자 수신이어도 student_id 가 채워진다(docs/archive/rounds/be-rounds-r5-r14.md §8.16 목표 3).
+        // intent_changed·approval_requested 둘 다 studentId 를 들고 있는 단일 학생
+        // 이벤트라 관계자 수신이어도 student_id 가 채워진다.
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT student_id FROM notification_log WHERE recipient_account_id = ? AND type = 'intent_changed' "
                         + "AND dedup_key LIKE ?",
@@ -975,7 +973,7 @@ class BoardingIntentControllerTest {
     }
 
     /**
-     * T1 인계 사항 — {@code BoardingIntentRepository#findByRunIdAndStudentId} 가
+     * {@code BoardingIntentRepository#findByRunIdAndStudentId} 가
      * {@code @AcademyScopeExempt} 인 전제("호출부가 이미 학원 소속을 확인했다")를 이 서비스가
      * 실제로 지킨다. 회차 조회를 {@link RunRepository#findByIdAndAcademyId} 로 학생의 학원에 직접
      * 좁히므로, 다른 학원의 회차를 지목하면 그 조회가 곧바로 빈 결과가 되어 {@code 404 RUN_NOT_FOUND}

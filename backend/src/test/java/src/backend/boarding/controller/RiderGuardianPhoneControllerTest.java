@@ -37,7 +37,7 @@ import src.backend.run.command.RunConfirmationFixtures;
 import testsupport.auth.TestTokens;
 
 /**
- * 보호자 전화 원번호 단건 조회 {@code GET /runs/{runId}/riders/{riderId}/guardian-phone}(R46 privacy · Ruling 482·521) —
+ * 보호자 전화 원번호 단건 조회 {@code GET /runs/{runId}/riders/{riderId}/guardian-phone}(Ruling 482·521) —
  * 명단(§4.2)은 마스킹(L2)을 유지하고, 매니저가 [전화] 를 누를 때만 그 학생 1명의 원번호를 준다.
  *
  * <p>인가는 명단과 같은 규약이다 — 배치되지 않은 회차 · 다른 학원의 회차는 구별 없이 {@code 403 FORBIDDEN}(§1.11),

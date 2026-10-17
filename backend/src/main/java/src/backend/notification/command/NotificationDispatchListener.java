@@ -28,7 +28,7 @@ public class NotificationDispatchListener {
     @Qualifier("notificationDispatchExecutor")
     private final ThreadPoolTaskExecutor notificationDispatchExecutor;
 
-    /** 비상 종류 전용 — 일반 알림 뒤에 서지 않는다(R46 S-2). */
+    /** 비상 종류 전용 — 일반 알림 뒤에 서지 않는다. */
     @Qualifier("emergencyDispatchExecutor")
     private final ThreadPoolTaskExecutor emergencyDispatchExecutor;
 

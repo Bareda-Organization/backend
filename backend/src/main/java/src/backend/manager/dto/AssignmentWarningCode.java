@@ -19,7 +19,7 @@ public enum AssignmentWarningCode {
     /**
      * 회차 시간대가 그 매니저의 근무 구간 밖 — 그 요일 키가 없거나 어느 구간에도 들지 않는다.
      * {@code est_duration_min} 이 있으면 구간으로, 없으면 출발 시각 점으로 판정한다
-     * (Ruling 165 ② 재판정 · Phase 7 목표 12).
+     * (Ruling 165 ② 재판정).
      */
     WORK_HOURS_MISMATCH("근무 시간 밖입니다"),
 

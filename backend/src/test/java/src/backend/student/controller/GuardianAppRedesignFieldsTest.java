@@ -24,7 +24,7 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
- * R48 이 학부모 앱 응답에 더한 필드(API_SPEC §3.1 · §3.9 · §3.10, Ruling 824) — 자녀 {@code grade} · 변경 신청 이력의
+ * 학부모 앱 응답의 추가 필드(API_SPEC §3.1 · §3.9 · §3.10, Ruling 824) — 자녀 {@code grade} · 변경 신청 이력의
  * {@code service_date}·{@code direction} · 학생 노선 {@code stops[].arrived_at}.
  *
  * <p>시드 보호자 5 는 형제 학생 1·2 의 보호자이고, 회차 3(이동 중 · 등원 · 오늘)에 학생 1 이 탄다. 기대값은 응답 모양이 아니라

@@ -39,7 +39,7 @@ public interface ChangeRequestRepository extends JpaRepository<ChangeRequest, Lo
             Short windowSegment, Pageable pageable);
 
     /**
-     * 한 회차에 승인된 경유지 이동 요청들(P-06, Phase 8) — 확정 배치가 그날의 승하차지를 조립할 때
+     * 한 회차에 승인된 경유지 이동 요청들(P-06) — 확정 배치가 그날의 승하차지를 조립할 때
      * "일일 변경이 요일별 주소를 이긴다" 우선순위를 적용하는 원천이다({@code RunConfirmationService}).
      * 접수 순으로 정렬해, 같은 학생이 같은 회차에 두 번 신청했을 때(② 승인이 겹치는 드문 경우) 호출부가
      * <b>나중 신청이 이긴다</b> 규칙을 "마지막 값으로 덮어쓰기"로 그대로 구현할 수 있게 한다.
@@ -99,8 +99,8 @@ public interface ChangeRequestRepository extends JpaRepository<ChangeRequest, Lo
      * 전제 — 요청 경로에서 부르면 이 예외가 우회로가 된다.
      *
      * <p>{@code pageable} 은 한 틱이 한 번에 집는 상한이다 — 상한 없이 전건을 집으면 마감이 몰린
-     * 틱 하나가 커넥션을 오래 붙든다({@code RunRepository} 의 확정 배치 조회와 같은 근거). T1 이 만든
-     * 시그니처에 이 파라미터를 더한 것(T6) — 기존 조건·정렬은 그대로 두고 상한만 얹었다.
+     * 틱 하나가 커넥션을 오래 붙든다({@code RunRepository} 의 확정 배치 조회와 같은 근거). 기존 시그니처에
+     * 이 파라미터를 더한 것이다 — 기존 조건·정렬은 그대로 두고 상한만 얹었다.
      */
     @AcademyScopeExempt(reason = "자동 거절 폴링은 시각이 촉발하는 전 학원 대상 조회라 좁힐 학원이 부재하다 — "
             + "학원 하나로 좁히면 나머지 학원의 도래분이 거절되지 않는다. 호출부는 자동 거절 스케줄러(T6)뿐이라는 "
@@ -118,7 +118,7 @@ public interface ChangeRequestRepository extends JpaRepository<ChangeRequest, Lo
     List<ChangeRequest> findAllByAcademyIdAndRunIdAndStatus(Long academyId, Long runId, ChangeRequestStatus status);
 
     /**
-     * 도래분 자동 거절을 조건부 UPDATE 로 반영한다(목표 6·목표 4 동시성) — 영향받은 행 수로 성공
+     * 도래분 자동 거절을 조건부 UPDATE 로 반영한다(동시성) — 영향받은 행 수로 성공
      * 여부를 판정한다. {@code WHERE status = 'pending'} 조건 하나가 멱등성의 전부다 — 폴링과
      * {@code moving} 종결 서비스가 같은 건을 동시에 집어도, 먼저 행 잠금을 얻은 쪽만 갱신하고
      * 나중 쪽은 0행을 받는다({@code RunRepository.confirmIfIdle} 과 같은 근거). {@code SELECT} 로

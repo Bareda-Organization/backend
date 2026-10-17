@@ -37,13 +37,13 @@ import src.backend.student.entity.StudentProfile;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * 자동 거절(Phase 8 T6) 시험이 쓰는 실제 행 — {@code RunConfirmationFixtures}(Phase 7)와 같은 이유로
+ * 자동 거절 시험이 쓰는 실제 행 — {@code RunConfirmationFixtures}와 같은 이유로
  * 정상 경로의 팩토리로 쌓는다. {@code public} 인 이유도 같다 — {@code request.scheduler} 패키지의
  * 스케줄러 시험이 이 헬퍼를 재사용해야 해서 패키지 경계를 넘긴다.
  *
  * <p>{@link ChangeRequest#deadlineAt} 은 팩토리·전이 메서드 어디에도 값을 실을 자리가 없다 — 이
  * 컬럼을 채우는 생성 경로(마감 = {@code run.depart_time}, {@code ChangeWindowPolicy} 자바독)가 아직
- * 이 저장소에 존재하지 않기 때문이다(그 경로는 이 태스크의 범위 밖인 별도 태스크의 몫이다). 그래서
+ * 이 저장소에 존재하지 않기 때문이다. 그래서
  * {@link #pendingChangeRequest} 는 이 프로젝트에서 이미 쓰이는 패턴({@code AccountTest}·
  * {@code ChangeWindowPolicyTest} 의 {@code ReflectionTestUtils})으로 저장 전 필드를 직접 채운다.
  */
@@ -117,7 +117,7 @@ public class ChangeRequestAutoRejectFixtures {
         return runRepository.save(run).getId();
     }
 
-    /** 한도를 이미 소진한 탑승 의사 — 자동 거절이 이 값을 0으로 되돌리는지가 목표 3의 핵심이다. */
+    /** 한도를 이미 소진한 탑승 의사 — 자동 거절이 이 값을 0으로 되돌리는지가 핵심이다. */
     public long spentBoardingIntent(long runId, long studentId, OffsetDateTime createdAt) {
         BoardingIntent intent = BoardingIntent.forRun(runId, studentId, createdAt);
         intent.consumeChangeQuota();
@@ -125,7 +125,7 @@ public class ChangeRequestAutoRejectFixtures {
     }
 
     /**
-     * 확정 노선 1버전 — "재최적화 미호출"(목표 3)을 {@code currentVersionId} 불변으로 실측하는 기준선이다.
+     * 확정 노선 1버전 — "재최적화 미호출"을{@code currentVersionId} 불변으로 실측하는 기준선이다.
      *
      * @return 처음 배정된 {@code route_version.id}
      */

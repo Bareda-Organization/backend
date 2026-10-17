@@ -46,7 +46,7 @@ public class StudentPhotoController {
     /**
      * 사진 파일을 내려준다 — 공유 캐시에 남지 않도록 {@code Cache-Control: private} 이고, 하루({@code max-age=86400}) 동안 브라우저·앱이 다시
      * 받지 않는다. 파일명이 서버가 지은 UUID 라 같은 주소의 내용이 바뀌지 않으므로(사진을 바꾸면 새 주소) 파일명이 곧 {@code ETag} 이고,
-     * {@code If-None-Match} 가 일치하면 Spring 이 본문 없이 {@code 304} 로 답한다(R46-KFIXBE K-3). 학원 소속 확인은 이 응답을 만들기 전에
+     * {@code If-None-Match} 가 일치하면 Spring 이 본문 없이 {@code 304} 로 답한다. 학원 소속 확인은 이 응답을 만들기 전에
      * 끝나 있어 {@code 304} 도 접근 권한을 우회하지 못한다. 본문은 파일에서 흘려 보내 힙에 올리지 않는다.
      */
     @Can(Permissions.STUDENT_READ_PHOTO)

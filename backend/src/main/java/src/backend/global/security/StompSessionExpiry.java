@@ -40,7 +40,7 @@ import src.backend.global.error.ErrorCode;
  *
  * <p><b>권한을 잃은 계정의 세션도 같은 길로 끊는다</b>(Ruling 880). 퇴사·차단·삭제된 매니저의 계정이 열어 둔 세션은 토큰 만료를
  * 기다리지 않고, 30초마다 도는 스케줄러({@link StompStandingSweepScheduler})가 열린 세션의 계정을 묶어 점검해 해당 세션의 만료 시각을
- * 지금으로 당긴다. 방송 송신 스레드는 DB 를 묻지 않는다(방송은 초당 수만 건, R57 RT-7) — 그래서 이미 열린 세션이 받는 방송은 최대 이 간격만큼 남는다.
+ * 지금으로 당긴다. 방송 송신 스레드는 DB 를 묻지 않는다(방송은 초당 수만 건) — 그래서 이미 열린 세션이 받는 방송은 최대 이 간격만큼 남는다.
  * 새 구독·송신은 {@link StompAuthChannelInterceptor} 가 요청마다 바로 거절한다.
  */
 @Slf4j
@@ -114,7 +114,7 @@ public class StompSessionExpiry implements ChannelInterceptor {
 
     /**
      * 열린 세션의 계정을 한 번에 점검해 권한을 잃은 계정의 세션을 만료로 표시한다 — {@link StompStandingSweepScheduler} 가 30초마다 부른다
-     * (R57 RT-7 · Ruling 899 M). 방송 송신 스레드({@link #preSend})에서 빼 방송이 DB 를 기다리지 않는다. 점검이 실패해도 예외를 밖으로 내지 않는다
+     * (Ruling 899 M). 방송 송신 스레드({@link #preSend})에서 빼 방송이 DB 를 기다리지 않는다. 점검이 실패해도 예외를 밖으로 내지 않는다
      * — 다음 주기에 다시 한다.
      */
     public void expireLostAccountSessions() {

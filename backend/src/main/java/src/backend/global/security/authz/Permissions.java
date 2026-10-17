@@ -3,14 +3,13 @@ package src.backend.global.security.authz;
 /**
  * 인가 권한(permission) 문자열 상수 — FEATURE_SPEC §6.2 권한 카탈로그를 그대로 옮긴다.
  *
- * <p>브리프는 27종이라 적었으나 §6.2 표를 직접 세면 32종이다(2026-09-01 기준) — {@code RUN_START}·
+ * <p>§6.2 표를 직접 세면 32종이다 — {@code RUN_START}·
  * {@code RUN_ARRIVE}, {@code MANAGER_MANAGE}·{@code BUS_MANAGE}·{@code SCHEDULE_MANAGE} 처럼 한
  * 표 행에 권한 이름이 여럿인 행이 있어서다. §6.2 자체가 "표를 직접 세어 확인하라"고 명시하므로 이
- * 클래스(와 표)가 정본이고, 브리프의 27은 옮겨 적다 생긴 오차다(2026-08-25 확인, p2-task-1-report.md
- * 참조). {@code EXCEPTION_REPORT_READ} 는 Phase 11 이 §6.2 표에 신설했다 — §6.1 매트릭스는 관계자의
+ * 클래스(와 표)가 정본이다. {@code EXCEPTION_REPORT_READ} 는 §6.2 표에 신설된 권한이다 — §6.1 매트릭스는 관계자의
  * 예외 보고 조회를 이미 "조회"로 표기했으나 §6.2 권한 카탈로그에 대응 상수가 누락돼 있었다.
  *
- * <p>{@code RUN_FORCE_CONFIRM} 은 F3 S2(API_SPEC §6.14)가 신설했다 — {@code EXCEPTION_REPORT_READ}
+ * <p>{@code RUN_FORCE_CONFIRM} 은 API_SPEC §6.14 가 신설했다 — {@code EXCEPTION_REPORT_READ}
  * 때와 같은 형태로, §6.2 표에는 아직 대응 행이 없다(문서 쪽 반영은 이 클래스가 아니라 §6.2 표 소유
  * 좌석의 몫이다).
  *
@@ -72,7 +71,7 @@ public final class Permissions {
     /** 보호자 부재 · 현장 상황 보고(EXC-02·03). 기사 · 동승자. */
     public static final String EXCEPTION_REPORT = "EXCEPTION_REPORT";
 
-    /** 예외 보고 조회(§5.20, Phase 11 신설). 관계자. */
+    /** 예외 보고 조회(§5.20). 관계자. */
     public static final String EXCEPTION_REPORT_READ = "EXCEPTION_REPORT_READ";
 
     // ── 노선 ──
@@ -142,11 +141,11 @@ public final class Permissions {
     /** 감사 · 접속 이력(SYS-01). 메인관리자. */
     public static final String AUDIT_READ = "AUDIT_READ";
 
-    /** idle 로 정체된 회차의 강제 확정 콘솔 개입(API_SPEC §6.14, F3 S2 §6.2 신설). 메인관리자. */
+    /** idle 로 정체된 회차의 강제 확정 콘솔 개입(API_SPEC §6.14, §6.2 신설). 메인관리자. */
     public static final String RUN_FORCE_CONFIRM = "RUN_FORCE_CONFIRM";
 
     /**
-     * 운행일이 지난 채 끝나지 않은 이동 중 회차의 강제 종료(API_SPEC §6.17, R47 Ruling 724). 메인관리자.
+     * 운행일이 지난 채 끝나지 않은 이동 중 회차의 강제 종료(API_SPEC §6.17, Ruling 724). 메인관리자.
      * {@link #RUN_FORCE_CONFIRM} 과 따로 둔 이유는 동작이 다르기 때문이다 — 확정은 idle 회차를 앞으로 보내고, 이 동작은
      * 남은 탑승자를 처리하지 않은 채 회차를 닫는다.
      */

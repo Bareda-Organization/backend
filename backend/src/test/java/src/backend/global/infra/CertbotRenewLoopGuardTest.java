@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * {@code infra/certbot/renew-loop.sh}(certbot 컨테이너의 갱신 루프)를 가짜 {@code certbot} 으로 실제 실행해 본다 — BR-334 (R10-11).
+ * {@code infra/certbot/renew-loop.sh}(certbot 컨테이너의 갱신 루프)를 가짜 {@code certbot} 으로 실제 실행해 본다 — BR-334.
  *
  * <p>갱신이 막혀도 컨테이너는 계속 돌고 결과는 로그에만 남아, 90일 인증서가 만료되는 날에야 모든 클라이언트의 HTTPS 가 한꺼번에 거절된다. 그래서 갱신이
  * <b>오류 없이 끝났을 때만</b> 성공 시각 지표(node-exporter textfile)를 쓰고, 경보 {@code CertbotRenewStale} 이 그 시각이 오래되면 울린다 —

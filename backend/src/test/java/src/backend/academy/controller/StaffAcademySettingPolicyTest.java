@@ -40,7 +40,7 @@ import src.backend.run.domain.RunConfirmationPolicy;
 import src.backend.run.domain.RunStartWindowPolicy;
 
 /**
- * R48 이 학원 설정 {@code GET} 에 더한 읽기 전용 {@code academy{}} · {@code policy{}}(API_SPEC §5.21, Ruling 820).
+ * 학원 설정 {@code GET} 응답의 읽기 전용{@code academy{}} · {@code policy{}}(API_SPEC §5.21, Ruling 820).
  *
  * <p>{@code policy} 의 숫자를 시험에 박지 않는다 — 박으면 상수를 바꿀 때 시험도 같이 바뀌어 "화면 값과 서버 동작이 같다" 를
  * 아무것도 보증하지 않는다. 값은 {@link PolicyConstants}(와 보존 상수)를 참조하고, 더 나아가 <b>실제 판정 코드가 그 값대로

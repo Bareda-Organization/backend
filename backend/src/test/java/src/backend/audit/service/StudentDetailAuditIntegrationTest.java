@@ -29,15 +29,14 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
- * Phase 14 수정 라운드 1 — {@link src.backend.student.query.StudentQueryService#detail} 의 감사
- * 호출에 전담 단언을 둔다({@code review-p14-r1.md} 🔴 1건 — R1 이 no-op 변형을 심어 살아남음을 확인한
- * 자리).
+ * {@link src.backend.student.query.StudentQueryService#detail} 의 감사
+ * 호출에 전담 단언을 둔다.
  *
  * <p>시드의 기존 학생(예: {@link SeedFixtures#STUDENT_SIBLING_1_ID})을 재사용하지 않는다 —
  * {@code AuditRecorder} 가 {@code REQUIRES_NEW} 로 감사 행을 커밋하므로, 이 테스트의 트랜잭션이
  * 끝에 롤백돼도 감사 행은 영구히 남는다. 공유 테스트 DB({@code sb_p14_t1})에서 같은 시드 학생 id 를
- * 여러 라운드에 걸쳐 재사용하면 이전 실행이 남긴 행이 누적돼 {@code hasSize(1)} 이 실행 순서에 따라
- * 거짓 실패한다(실측 — 처음엔 size 2 로 실패). 그래서 이 테스트 안에서 학생을 새로 등록해, 실제 DB
+ * 여러 실행에 걸쳐 재사용하면 이전 실행이 남긴 행이 누적돼 {@code hasSize(1)} 이 실행 순서에 따라
+ * 거짓 실패한다. 그래서 이 테스트 안에서 학생을 새로 등록해, 실제 DB
  * 시퀀스가 발급하는 유일한 id 로 대상을 좁힌다.
  *
  * <p>등록 자체도 {@code target_id} 가 같은 감사 행을 하나 남긴다 — {@code StaffStudentController.register}

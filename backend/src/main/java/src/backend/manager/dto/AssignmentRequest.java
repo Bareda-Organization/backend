@@ -10,7 +10,7 @@ package src.backend.manager.dto;
  * {@code manager.role} 이 곧 앱 권한이라(C-06), 기사를 동승자 자리에 넣으면 그 계정이 승하차를 기록할
  * 수 있는지가 보는 곳마다 갈린다.
  *
- * <p><b>동승자 자동 배정은 이 경로가 아니다</b>(Phase 6) — 여기는 관계자가 손으로 지정하는 자리다.
+ * <p><b>동승자 자동 배정은 이 경로가 아니다</b> — 여기는 관계자가 손으로 지정하는 자리다.
  */
 public record AssignmentRequest(Long driverManagerId, Long escortManagerId) {
 

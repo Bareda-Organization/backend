@@ -12,8 +12,7 @@ import src.backend.routing.map.spec.RoadLeg;
 
 /**
  * {@code NaverDirectionsGateway.legsOf(List, Summary)} — NCP 가 준 구간별 실측값을 우선 쓰고,
- * 값이 없거나 개수가 안 맞을 때만 {@link StraightLineLegs#distribute} 로 대체하는 분기를 고정한다
- * (R17 T2 목표 1·2·3).
+ * 값이 없거나 개수가 안 맞을 때만 {@link StraightLineLegs#distribute} 로 대체하는 분기를 고정한다.
  *
  * <p>실 HTTP 호출 없이 {@code Summary} 를 직접 조립해 검사한다 — 파싱된 이후의 분기 로직만 여기서
  * 보고, 실 응답이 이 형태로 오는지는 {@code NaverDirectionsClientLiveTest} 가 딴다.
@@ -21,7 +20,7 @@ import src.backend.routing.map.spec.RoadLeg;
 class NaverDirectionsGatewayLegsTest {
 
     /**
-     * 목표 2·3 — 구간별 거리를 <b>일부러 직선거리 비율과 다르게</b> 잡는다(지점은 등간격이라 직선거리
+     * 구간별 거리를 <b>일부러 직선거리 비율과 다르게</b> 잡는다(지점은 등간격이라 직선거리
      * 비율은 50:50인데, 실측값은 30:170). 그래야 이 시험이 "직선비율로 대체돼도 우연히 같은 값이
      * 나오는" 형태를 피해, 실측값이 실제로 쓰였는지를 가른다.
      *
@@ -57,7 +56,7 @@ class NaverDirectionsGatewayLegsTest {
     }
 
     /**
-     * 목표 3 — 구간이 <b>셋 이상</b>일 때 중간 구간도 누적 반올림으로 정확한지 본다. 구간이 둘뿐이면
+     * 구간이 <b>셋 이상</b>일 때 중간 구간도 누적 반올림으로 정확한지 본다. 구간이 둘뿐이면
      * (경유지 1개) 마지막 구간이 "총합 − 이미 배정한 값"으로 강제로 맞춰지므로, 첫 구간을 구간마다
      * 따로 반올림해도 우연히 값이 같아 이 결함을 못 잡는다(1500ms 값 하나만으로는 누적·개별 반올림이
      * 똑같다) — 구간이 셋이어야 <b>중간</b> 구간에서 누적과 개별 반올림이 갈라진다.
@@ -83,7 +82,7 @@ class NaverDirectionsGatewayLegsTest {
 
     /**
      * 경유지가 없는 2지점 요청은 {@code summary.waypoints}·{@code goal} 자체가 안 온다
-     * (2026-09-19 실 API 확인). 이때는 직선거리 비율 배분({@link StraightLineLegs#distribute})으로
+     * (실 API 확인). 이때는 직선거리 비율 배분({@link StraightLineLegs#distribute})으로
      * 대체하는데, 구간이 하나뿐이라 그 결과는 곧 총합 그대로다.
      */
     @Test
@@ -131,9 +130,9 @@ class NaverDirectionsGatewayLegsTest {
     }
 
     /**
-     * R18 A 목표 1·3 -- 인접한 두 지점이 같으면(등원 origin == 그 자리에 타는 학생의 정차지) 걷어내고,
+     * 인접한 두 지점이 같으면(등원 origin == 그 자리에 타는 학생의 정차지) 걷어내고,
      * 걷어낸 자리를 거리·시간 0 인 leg 로 되돌린다. NCP 는 이런 요청을 {@code 출발지와 도착지가
-     * 동일합니다}(400)로 거절하므로(2026-09-19 실 API 확인), 걷어내지 않으면 이 구간 하나 때문에
+     * 동일합니다}(400)로 거절하므로(실 API 확인), 걷어내지 않으면 이 구간 하나 때문에
      * 노선 전체가 폴백으로 떨어진다.
      */
     @Test

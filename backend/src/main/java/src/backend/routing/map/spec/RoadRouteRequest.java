@@ -38,7 +38,7 @@ public record RoadRouteRequest(List<GeoPoint> points, Duration timeout, CallerPo
         points = List.copyOf(points);
     }
 
-    /** 강제 폴백이 필요 없는 기존 호출을 위한 편의 생성자 — {@code forceFallback=false}(F3 S2). */
+    /** 강제 폴백이 필요 없는 기존 호출을 위한 편의 생성자 — {@code forceFallback=false}. */
     public RoadRouteRequest(List<GeoPoint> points, Duration timeout, CallerPolicy caller) {
         this(points, timeout, caller, false);
     }

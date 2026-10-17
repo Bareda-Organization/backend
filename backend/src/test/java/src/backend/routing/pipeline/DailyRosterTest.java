@@ -14,8 +14,7 @@ import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Weekday;
 
 /**
- * {@link DailyRoster} 가 중복 {@code studentId} 를 안전망으로 흡수하는지 본다
- * (Phase 6 T4 리뷰 계약 공백 · Phase 7 목표 11) — 순수 POJO 라 DB 없이 돈다.
+ * {@link DailyRoster} 가 중복 {@code studentId} 를 안전망으로 흡수하는지 본다 — 순수 POJO 라 DB 없이 돈다.
  */
 class DailyRosterTest {
 

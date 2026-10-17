@@ -36,7 +36,7 @@ import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * {@link ChangeRequestAutoRejectionPersistence#autoRejectOne} 의 <b>동시성</b>(Phase 8 T6 목표 4) —
+ * {@link ChangeRequestAutoRejectionPersistence#autoRejectOne} 의 <b>동시성</b> —
  * 폴링과 {@code moving} 종결이 같은 건을 동시에 집어도 정확히 한 번만 성공해야 한다.
  *
  * <p>{@code RunConfirmationConcurrencyTest} 와 같은 기법이다 — 두 스레드가
@@ -53,13 +53,9 @@ class ChangeRequestAutoRejectionConcurrencyTest {
     /**
      * 스레드 하나가 상대를 기다리는 상한 — 정상 흐름에서는 소진되지 않는다.
      *
-     * <p>20 → 45 로 올림(Phase 10 T1). ⚠ <b>그 인상의 근거였던 진단은 F5 S3 실측으로 반증됐다.</b>
-     * "캐시된 {@code @SpringBootTest} 컨텍스트 다수가 만드는 자원 경합이 20초 예산을 넘긴다" 였는데,
-     * 45초로 올린 뒤에도 전체 실행에서 이 시험이 예산을 다 쓰고 그대로 실패했다. 그 순간 상대는
-     * 44초 내내 {@code Lock/transactionid} 로 대기 중이었다 — 즉 느려서가 아니라 <b>폴링이 상대를
-     * 보지 못했다.</b> 원인은 폴링이 읽는 {@code pg_stat_activity} 가 트랜잭션 단위로 캐시되는 것이고
-     * (PostgreSQL {@code stats_fetch_consistency} 기본값 {@code cache}), 회차마다
-     * {@code pg_stat_clear_snapshot()} 으로 스냅숏을 버리는 것으로 고쳤다. 이 값은 이제 상대가
+     * <p>폴링이 읽는 {@code pg_stat_activity} 는 트랜잭션 단위로 캐시되어(PostgreSQL
+     * {@code stats_fetch_consistency} 기본값 {@code cache}) 상대의 {@code Lock/transactionid} 대기를
+     * 놓친다. 그래서 회차마다 {@code pg_stat_clear_snapshot()} 으로 스냅숏을 버린다. 이 값은 상대가
      * 죽었을 때의 상한으로만 남는다.
      */
     private static final long TIMEOUT_SECONDS = 45;
@@ -118,7 +114,7 @@ class ChangeRequestAutoRejectionConcurrencyTest {
     }
 
     /**
-     * 목표4 — {@code autoRejectOne} 을 동시에 두 번 부르면 정확히 한 번만 실제 전이가 일어나야 한다.
+     * {@code autoRejectOne} 을 동시에 두 번 부르면 정확히 한 번만 실제 전이가 일어나야 한다.
      *
      * <p>폴링과 {@code moving} 종결이 같은 요청을 동시에 집는 상황을 그대로 재현한다 —
      * {@code ChangeRequestRepository.autoRejectIfPending} 의 {@code WHERE status = 'pending'} 조건부
@@ -232,7 +228,7 @@ class ChangeRequestAutoRejectionConcurrencyTest {
             // 기본값 cache) — 이 트랜잭션이 처음 읽은 스냅숏이 끝까지 재사용되므로, 상대가 대기에
             // 들어가기 전에 첫 조회가 나가면 그 뒤로는 몇 번을 물어도 0 이 돌아온다. 그러면 이 루프가
             // 상한을 다 쓰고 바깥 Future.get 이 그보다 먼저 만료해 TimeoutException 만 남는다
-            // (F5 S3 실측 — 상대는 44초 내내 Lock/transactionid 로 대기 중이었는데 0 이 보였다)
+            // (실측 — 상대는 44초 내내 Lock/transactionid 로 대기 중이었는데 0 이 보였다)
             jdbcTemplate.execute("SELECT pg_stat_clear_snapshot()");
             Integer 대기중 = jdbcTemplate.queryForObject(
                     "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() "

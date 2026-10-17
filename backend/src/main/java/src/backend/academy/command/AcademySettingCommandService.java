@@ -15,7 +15,7 @@ import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 
 /**
- * 학원별 설정 수정(API_SPEC §5.21 PATCH, Phase 11 목표 4) — 학원 관계자 전용. 권한 판정 근거는
+ * 학원별 설정 수정(API_SPEC §5.21 PATCH) — 학원 관계자 전용. 권한 판정 근거는
  * {@link src.backend.academy.query.AcademySettingQueryService} 와 같다({@code Permissions} 카탈로그
  * 미매핑 3종 중 하나라 {@code @PreAuthorize} 대신 {@link #requireStaff} 로 직접 판정).
  *

@@ -29,8 +29,7 @@ import testsupport.clock.FixedClock20310401Config;
 import testsupport.db.NotificationInsertFailureInjector;
 
 /**
- * 자동 거절 폴링({@link ChangeRequestAutoRejectionScheduler#rejectDueChangeRequests}) 수준의 검증
- * (Phase 8 T6 목표 1·5·6).
+ * 자동 거절 폴링({@link ChangeRequestAutoRejectionScheduler#rejectDueChangeRequests}) 수준의 검증.
  *
  * <p>{@code @Transactional} 을 쓰지 않는다 — {@link ChangeRequestAutoRejectionScheduler} 가 건마다
  * 별도 빈({@code ChangeRequestAutoRejectionPersistence})의 {@code @Transactional} 메서드를 호출하므로,
@@ -146,7 +145,7 @@ class ChangeRequestAutoRejectionSchedulerTest {
     }
 
     /**
-     * R51 Ruling 864(861 ② 를 뒤집음) — 취소된 회차의 대기 요청도 마감 자동 거절 때 신청 학부모에게 알린다. 임시 취소에는 학부모
+     * Ruling 864(861 ② 를 뒤집음) — 취소된 회차의 대기 요청도 마감 자동 거절 때 신청 학부모에게 알린다. 임시 취소에는 학부모
      * 알림이 없어(API_SPEC §9.7) 알림을 빼면 그 학부모는 취소도 거절도 모른다. 상태 전이·한도 환원은 그대로다.
      */
     @Test

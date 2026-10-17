@@ -27,7 +27,7 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
- * R48 이 감사 로그 목록에 더한 {@code actor_name} · {@code detail_action} · {@code ip}(API_SPEC §6.13, Ruling 809).
+ * 감사 로그 목록 응답 필드 {@code actor_name} · {@code detail_action} · {@code ip}(API_SPEC §6.13, Ruling 809).
  *
  * <p>행은 학원 하나({@code academy_id} 필터)로 가둬 시드 감사 행과 섞이지 않게 한다.
  */

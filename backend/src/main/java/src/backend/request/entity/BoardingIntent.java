@@ -78,7 +78,7 @@ public class BoardingIntent {
         return new BoardingIntent(runId, studentId, createdAt);
     }
 
-    /** ②구간 변경 한도가 아직 남아 있는가 — 한도 단위는 이 행 자체(회차 1개), 목표 5. */
+    /** ②구간 변경 한도가 아직 남아 있는가 — 한도 단위는 이 행 자체(회차 1개). */
     public boolean hasChangeQuota() {
         return changeUsedCount < PolicyConstants.CHANGE_QUOTA_PER_RUN;
     }
@@ -98,7 +98,7 @@ public class BoardingIntent {
     }
 
     /**
-     * 소비한 한도를 되돌린다 — 자동 거절(목표 7)이 "횟수 미소진"(API_SPEC §1.6)을 지키려면 이 메서드가
+     * 소비한 한도를 되돌린다 — 자동 거절이 "횟수 미소진"(API_SPEC §1.6)을 지키려면 이 메서드가
      * 있어야 한다. 서버 처리 실패 시 기존 상태 복구 + 횟수 미소진(C-10)도 같은 메서드를 쓴다.
      */
     public void restoreChangeQuota() {

@@ -28,7 +28,7 @@ import src.backend.notification.push.spec.PushMessage;
 import src.backend.notification.push.spec.PushSender;
 
 /**
- * Phase 4 목표 2 — 발송을 <b>항상 실패</b>시킨 컨텍스트에서 상태 변경이 살아남고, 재시도할 대상이
+ * 발송을 <b>항상 실패</b>시킨 컨텍스트에서 상태 변경이 살아남고, 재시도할 대상이
  * DB 에 남는지 본다(TECH_DECISIONS §7.5 "외부 푸시 발송은 트랜잭션 안에서 하지 않는다").
  *
  * <p>{@code app.push.sender} 로 구현체를 갈아끼운다 — 이 값이 {@code logging} 이 아니면 기본 구현
@@ -97,11 +97,11 @@ class SignupDecidedDispatchFailureTest {
     }
 
     /**
-     * 거절 쪽도 같은 성질을 갖는지 본다 — 목표 2 ③이 {@code active}(승인)와 {@code rejected}(거절)를
+     * 거절 쪽도 같은 성질을 갖는지 본다 — 승인 쪽 시험이 {@code active}(승인)와 {@code rejected}(거절)를
      * 함께 적은 자리다.
      *
      * <p>수락만 보면 부족한 이유는 실제로 <b>거절 경로만 빠뜨리는</b> 사고가 이 축에서 나기
-     * 때문이다(목표 1 의 음성 대조 M1 이 같은 형태였다). 거절이 롤백되면 신청자는 거절된 줄 모른 채
+     * 때문이다. 거절이 롤백되면 신청자는 거절된 줄 모른 채
      * 대기 화면에 남고, 재신청 경로(AUTH-03)는 {@code rejected} 에서만 열리므로 함께 막힌다.
      */
     @Test

@@ -70,7 +70,7 @@ public class NoShowCase {
     }
 
     /**
-     * 연락이 응답(answered)으로 끝났을 때 케이스를 종결한다(목표 3, API_SPEC §4.8
+     * 연락이 응답(answered)으로 끝났을 때 케이스를 종결한다(API_SPEC §4.8
      * "result=answered 면 카운트다운 중단"). {@code decision} 값과 무관하게 항상 종결한다 — 응답을
      * 받았다는 사실 자체가 대기 이유를 없앤다.
      */
@@ -97,7 +97,7 @@ public class NoShowCase {
     }
 
     /**
-     * 최종 판단을 기록한다(목표 3, API_SPEC §4.8 {@code decision} "3분 경과 후 최종 판단").
+     * 최종 판단을 기록한다(API_SPEC §4.8 {@code decision} "3분 경과 후 최종 판단").
      *
      * <p>{@link NoShowDecision#DEPART} 만 케이스를 종결한다(대기 없이 출발이 곧 최종 처리다).
      * {@link NoShowDecision#RETRY} 는 종결하지 않는다 — 이미 대기 시간이 지난 뒤에만 제출되는
@@ -113,7 +113,7 @@ public class NoShowCase {
     }
 
     /**
-     * 대기 만료 + 무응답을 관계자에게 보고했음을 기록한다(목표 1).
+     * 대기 만료 + 무응답을 관계자에게 보고했음을 기록한다.
      *
      * <p>스케줄러가 실제로 행을 갱신하는 경로는 이 메서드가 아니라
      * {@code NoShowCaseRepository#escalateIfDue}(조건부 UPDATE, {@code escalated_at IS NULL AND

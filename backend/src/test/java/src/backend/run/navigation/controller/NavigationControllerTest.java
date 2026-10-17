@@ -27,18 +27,18 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
- * {@code GET /runs/{runId}/navigation}(API_SPEC §4.16, RUN-08 · M-09) — 목표 16·18~21.
+ * {@code GET /runs/{runId}/navigation}(API_SPEC §4.16, RUN-08 · M-09).
  *
- * <p>상한 격리(목표 22)는 소스 수준 검사라 별도 {@code NavigationCapConventionTest} 가 맡는다.
+ * <p>상한 격리는 소스 수준 검사라 별도 {@code NavigationCapConventionTest} 가 맡는다.
  *
  * <p>이 클래스의 최우선 단언은 <b>제외 두 규칙(도착 완료·미경유)이 실제로 다음 지점을 가리는가</b>다
- * (목표 18) — 둘 중 하나만 빼먹어도 기사가 이미 지난 곳이나 안 가는 곳으로 안내받는다.
- * {@code total_remaining_stops} 가 자르기 <b>전</b> 값인지(목표 19)와 {@code origin} 이 {@code moving}
- * 에서 비는지(목표 20)는 둘 다 반대 방향까지 함께 건다 — 한쪽만 검사하면 계산값이 갈리는 지점을
+ * 둘 중 하나만 빼먹어도 기사가 이미 지난 곳이나 안 가는 곳으로 안내받는다.
+ * {@code total_remaining_stops} 가 자르기 <b>전</b> 값인지와 {@code origin} 이 {@code moving}
+ * 에서 비는지는 둘 다 반대 방향까지 함께 건다 — 한쪽만 검사하면 계산값이 갈리는 지점을
  * 놓친다(공통 규칙 §4).
  *
- * <p>{@code run_stop.status='skipped'} 판정은 다른 좌석(T1)의 몫이라 그 코드를 부르지 않는다 — 이
- * 클래스는 그 컬럼 값을 시험 데이터로 직접 심어 저장 컬럼 값만으로 계약한다({@code p9-t4.md} 경계).
+ * <p>{@code run_stop.status='skipped'} 판정 코드는 이 클래스가 부르지 않는다 — 이
+ * 클래스는 그 컬럼 값을 시험 데이터로 직접 심어 저장 컬럼 값만으로 계약한다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -71,7 +71,7 @@ class NavigationControllerTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    // ── 목표 18 — scope=next 는 도착 완료·미경유를 뺀 다음 지점만 ────────────────
+    // ── scope=next 는 도착 완료·미경유를 뺀 다음 지점만 ────────────────
 
     /**
      * 1~3번 지점은 도착 완료, 5번 지점은 미경유(skipped) — 남는 것은 4번 하나뿐이라 그것이 목적지가
@@ -140,7 +140,7 @@ class NavigationControllerTest {
                 .andExpect(jsonPath("$.data.destination.name").value("바래다학원 A"));
     }
 
-    // ── 목표 19 — total_remaining_stops 는 자르기 전 값 ───────────────────
+    // ── total_remaining_stops 는 자르기 전 값 ───────────────────
 
     /** 남은 지점 6곳 → 4개(경유 3 + 목적지 1)로 잘리고 {@code truncated=true}, 총량은 자르기 전 값 6. */
     @Test
@@ -161,7 +161,7 @@ class NavigationControllerTest {
 
     /**
      * 상한 이하일 때의 반대 방향 — 남은 지점 3곳은 자르지 않는다. 여기서 {@code truncated=true} 가
-     * 나오거나 총량이 자르기 전·후로 뒤섞이면 목표 19 가 실제로는 상수만 넣고 통과하는 빈 시험이었다는
+     * 나오거나 총량이 자르기 전·후로 뒤섞이면 상수만 넣고 통과하는 빈 시험이 된다는
      * 뜻이다.
      */
     @Test
@@ -180,7 +180,7 @@ class NavigationControllerTest {
                 .andExpect(jsonPath("$.data.total_remaining_stops").value(3));
     }
 
-    // ── 목표 20 — confirmed 는 origin 이 담기고 moving 은 비어야 한다 ─────────────
+    // ── confirmed 는 origin 이 담기고 moving 은 비어야 한다 ─────────────
 
     /**
      * 출발 30분 전 확정 시점부터 기사가 노선을 미리 볼 수 있어야 한다(X-01) — 그 수단이 origin. 등원의
@@ -241,7 +241,7 @@ class NavigationControllerTest {
                 .andExpect(jsonPath("$.error.code").value("RUN_NOT_CONFIRMED"));
     }
 
-    // ── 목표 21 — 남은 지점 0개는 빈 배열 200 이 아니라 409 ────────────────────
+    // ── 남은 지점 0개는 빈 배열 200 이 아니라 409 ────────────────────
 
     /**
      * 전 지점 도착 완료 → 409. {@code $.data} 가 없는 것까지 함께 본다 — 200 + 빈 배열이면 앱이
@@ -261,7 +261,7 @@ class NavigationControllerTest {
     }
 
     /**
-     * (IMPLEMENTATION_PLAN Phase 9 완료 조건 · 목표 21 복원분) 배치되지 않은 회차는 403 이다 —
+     * 배치되지 않은 회차는 403 이다 —
      * 없으면 배치 안 된 기사·동승자에게 남의 회차 승하차지 좌표(학생 집 근처)가 그대로 나간다.
      * 같은 학원 소속(계정 14)이라 학원 경계는 통과하되, 이 회차의 {@code assignment} 에는 없는
      * 계정으로 호출해 {@code assertAssigned} 경로만 단독으로 걸었다.
@@ -277,7 +277,7 @@ class NavigationControllerTest {
                 .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
     }
 
-    // ── 목표 16(Phase 9 이월 ②) — 잘못된 scope 값 ──────────────────────
+    // ── 잘못된 scope 값 ──────────────────────
 
     /**
      * {@code scope} 는 {@code next}·{@code remaining} 만 유효하다. 목록에 없는 값을 그대로 넘기면

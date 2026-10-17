@@ -7,7 +7,7 @@ import src.backend.global.location.GeoPoint;
 
 /**
  * 매니저 앱의 실시간 노선(API_SPEC §4.3 {@code GET /runs/{runId}/route}, RUN-03·M-08·M-09,
- * Ruling 205, Phase 9 목표 8) — 확정 노선(정차 순서)에 미승차(③구간) 반영 결과만 얹은 <b>표시용</b>
+ * Ruling 205) — 확정 노선(정차 순서)에 미승차(③구간) 반영 결과만 얹은 <b>표시용</b>
  * 뷰다. 미경유(skipped) 는 <b>표시만</b> 하고 재최적화·ETA 재계산은 하지 않는다(C-05, 사양 원문
  * "주행 판단은 기사").
  *
@@ -44,7 +44,7 @@ public record RunRouteResponse(List<RouteStop> stops, RouteStop currentStop, Rou
      * 승하차지와 다른 마커로 그리려면 이 값이 필요하다. 배포 후 제거돼 좌표가 없는 행도 대상이면 {@code true}.
      *
      * <p>{@code waypointId} 는 경유 지점 행({@code isWaypoint=true})에서만 그 경유 지점 id({@code waypoint.id})이고
-     * 나머지는 {@code null} 이다(R56 Ruling 893) — {@code stopId}(=run_stop.id)로는 경유 지점 제거
+     * 나머지는 {@code null} 이다(Ruling 893) — {@code stopId}(=run_stop.id)로는 경유 지점 제거
      * (§5.15 {@code DELETE /staff/runs/{runId}/waypoints/{waypointId}})의 경로 값을 얻을 수 없어 따로 싣는다.
      */
     public record RouteStop(Long stopId, int seq, String name, String address, BigDecimal lat, BigDecimal lng,

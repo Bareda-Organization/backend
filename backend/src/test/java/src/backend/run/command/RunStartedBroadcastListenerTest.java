@@ -28,7 +28,7 @@ import src.backend.observability.metrics.WebSocketPublishMetrics;
 import src.backend.run.event.RunStartedEvent;
 
 /**
- * {@code run_started} 방송(목표 4·10) — 게이트웨이는 진짜를 쓰고 송신 템플릿만 가짜로 둬, 채널마다 <b>실제로
+ * {@code run_started} 방송 — 게이트웨이는 진짜를 쓰고 송신 템플릿만 가짜로 둬, 채널마다 <b>실제로
  * 나간 payload</b> 를 본다. 학생 채널과 나머지 채널의 payload 가 갈리므로(Ruling 335) 게이트웨이 호출 인자만
  * 봐서는 학생 채널에 무엇이 나갔는지 알 수 없다.
  */

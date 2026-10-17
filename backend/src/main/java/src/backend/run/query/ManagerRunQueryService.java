@@ -33,8 +33,7 @@ import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 
 /**
- * 매니저 앱의 담당 회차 목록(API_SPEC §4.1 {@code GET /manager/runs}, RUN-01·M-02·M-07,
- * Phase 9 목표 6·15·16·17) — 배치({@code assignment}) 가 회차 접근 범위 자체다.
+ * 매니저 앱의 담당 회차 목록(API_SPEC §4.1 {@code GET /manager/runs}, RUN-01·M-02·M-07) — 배치({@code assignment}) 가 회차 접근 범위 자체다.
  *
  * <p>배치가 없는 매니저는 빈 목록을 받는다(§4.1 "배정 회차 부재는 빈 items[] 로 반환") — 이 조회는
  * {@link ManagerRunAccess#requireManager} 로 매니저 레코드만 확인하고, 특정 회차 1건에 대한

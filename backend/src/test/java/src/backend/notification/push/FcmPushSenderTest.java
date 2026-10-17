@@ -172,7 +172,7 @@ class FcmPushSenderTest {
     }
 
     /**
-     * R46 S-2 ④ — 접근 토큰 갱신이 느려도 아직 유효한 토큰으로 발송하는 스레드는 막히지 않는다. 만료 5분 전부터는 한 스레드가
+     * 접근 토큰 갱신이 느려도 아직 유효한 토큰으로 발송하는 스레드는 막히지 않는다. 만료 5분 전부터는 한 스레드가
      * 뒤에서 미리 갱신하고, 나머지는 옛 토큰을 그대로 쓴다(락을 쥔 채 교환하면 갱신이 끝날 때까지 전 발송이 줄을 선다).
      */
     @Test
@@ -183,7 +183,7 @@ class FcmPushSenderTest {
         FcmPushSender sender = sender(clock, CircuitBreakerRegistry.ofDefaults());
         sender.send(new PushMessage(7L, NotificationType.DELAY, "지연", "본문", false));
         tokenDelayMillis = 2_500;
-        clock.advance(Duration.ofSeconds(59 * 60 + 30)); // 만료(60분)까지 30초 — 갱신 구간(예전 1분 전 · 지금 5분 전부터)
+        clock.advance(Duration.ofSeconds(59 * 60 + 30)); // 만료(60분)까지 30초 — 갱신 구간(5분 전부터)
 
         long startedAt = System.nanoTime();
         sender.send(new PushMessage(7L, NotificationType.DELAY, "지연", "본문", false));
@@ -216,7 +216,7 @@ class FcmPushSenderTest {
         assertThat(claims.path("aud").asString()).isEqualTo("http://localhost:" + server.getAddress().getPort() + "/token");
     }
 
-    /** R46 S-2 ① — 일시 장애가 이어지면 서킷이 열려 FCM 을 더 부르지 않고 즉시 거절한다(행은 {@code pending} 으로 남아 워커가 이어받는다). */
+    /** 일시 장애가 이어지면 서킷이 열려 FCM 을 더 부르지 않고 즉시 거절한다(행은 {@code pending} 으로 남아 워커가 이어받는다). */
     @Test
     void 일시_장애가_이어지면_서킷이_열려_호출하지_않는다() throws Exception {
         sendStatus = 503;
@@ -304,7 +304,7 @@ class FcmPushSenderTest {
         verify(deviceTokenRepository).revokeInvalid(eq(2L), any());
     }
 
-    /** R46 S-2 ② — 응답이 100~300ms 가 정상이라 10초는 발송 스레드를 너무 오래 묶는다(8스레드 전부 묶이면 처리율 0.8건/s). */
+    /** 응답이 100~300ms 가 정상이라 10초는 발송 스레드를 너무 오래 묶는다(8스레드 전부 묶이면 처리율 0.8건/s). */
     @Test
     void 요청_시간_상한은_4초_이하다() {
         assertThat(FcmPushSender.TIMEOUT).isLessThanOrEqualTo(Duration.ofSeconds(4));
@@ -312,7 +312,7 @@ class FcmPushSenderTest {
 
     /**
      * BR-319 — 위 상수만으로는 {@code post()} 가 그 상한을 실제로 요청에 거는지 알 수 없다. 응답이 상한보다 1초 늦는 FCM 에서
-     * 호출이 응답을 기다려 성공하지 않고 상한 근처에서 시간 초과로 끝나야 한다(R46 S-2 — 멈춘 FCM 에 발송 스레드가 묶이지 않는다).
+     * 호출이 응답을 기다려 성공하지 않고 상한 근처에서 시간 초과로 끝나야 한다(멈춘 FCM 에 발송 스레드가 묶이지 않는다).
      */
     @Test
     void 발송이_멈춘_FCM_은_요청_시간_상한에서_끊는다() throws Exception {

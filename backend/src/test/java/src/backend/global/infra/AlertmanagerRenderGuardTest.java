@@ -20,7 +20,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
- * {@code infra/scripts/render-alertmanager.sh} 를 실제로 실행해 본다 — R46 ops2 `Ruling 480 ④`·`483`.
+ * {@code infra/scripts/render-alertmanager.sh} 를 실제로 실행해 본다 — `Ruling 480 ④`·`483`.
  *
  * <p>Alertmanager 설정 파일은 환경변수를 읽지 못해 배포 때 SSM 값으로 파일을 만든다. 여기서 막는 사고는 두 가지다 —
  * (1) 값이 <b>하나라도 빠졌는데</b> 반쯤 채워진 수신자를 만들어 Alertmanager 가 기동에 실패하는 것(경보 경로 전체가 죽는다),

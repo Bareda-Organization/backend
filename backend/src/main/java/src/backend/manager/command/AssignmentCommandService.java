@@ -47,7 +47,7 @@ import src.backend.run.repository.RunRepository;
  * (Ruling 152), 회차당 기사 1명·동승자 1명은 {@code uk_assignment_run_role} 이 <b>차단</b>한다.
  *
  * <p>동승자 <b>자동</b> 배정은 여기 없다 — 소요 시간(노선 계산의 산출물)이 있어야 근무 시간 충돌을
- * 판정할 수 있어 Phase 6 소유다(Ruling 153).
+ * 판정할 수 있다(Ruling 153).
  */
 @Service
 @RequiredArgsConstructor
@@ -149,7 +149,7 @@ public class AssignmentCommandService {
         return warnings;
     }
 
-    /** 자리에서 빠진 매니저의 열린 세션을 커밋 직후 닫는다 — 그 회차 채널을 계속 받지 못하게(R57 RT-2 · K2 ⓒ). */
+    /** 자리에서 빠진 매니저의 열린 세션을 커밋 직후 닫는다 — 그 회차 채널을 계속 받지 못하게. */
     private void revokeReplacedSessions(Long previousManagerId) {
         if (previousManagerId == null) {
             return;

@@ -33,7 +33,7 @@ import src.backend.notification.entity.NotificationType;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 알림 로그 R48 확장(API_SPEC §5.17, Ruling 813) — {@code recipient_role} 쿼리와 {@code group=true} 묶어 보기. 묶음 키는 같은
+ * 알림 로그 확장(API_SPEC §5.17, Ruling 813) — {@code recipient_role} 쿼리와 {@code group=true} 묶어 보기. 묶음 키는 같은
  * {@code type} · {@code run_id} · {@code body} · 적재 시각({@code created_at}) 초 단위이고, <b>쪽 나누기와 {@code total_count} 가 묶음
  * 단위</b>이며, {@code acked} 필터는 묶음 안에 그 상태 행이 하나라도 있으면 그 묶음을 싣는다.
  */

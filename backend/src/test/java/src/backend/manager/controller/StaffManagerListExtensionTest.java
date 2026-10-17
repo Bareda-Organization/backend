@@ -50,7 +50,7 @@ import src.backend.student.repository.WeeklyAddressRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 매니저 목록의 R48 확장(API_SPEC §5.13, Ruling 817) — {@code assigned_run_count} 가 삭제 차단({@code 409 MANAGER_ASSIGNED})과
+ * 매니저 목록의 확장(API_SPEC §5.13, Ruling 817) — {@code assigned_run_count} 가 삭제 차단({@code 409 MANAGER_ASSIGNED})과
  * <b>같은 판정</b>(취소·종료되지 않고, 운행 중이거나 운행일이 오늘 이후인 회차의 배치)을 쓰는지, {@code assignments[]} 가 오늘·내일
  * 미취소 회차만 싣는지, {@code assigned_today} 쿼리와 최상위 {@code counts} 가 맞는지를 본다. 시계는 2030-04-01(월) 12:00 KST 로
  * 고정이고, 시험이 만든 새 학원 안에서 센다.

@@ -17,7 +17,7 @@ import org.springframework.web.context.WebApplicationContext;
 /**
  * 라우팅되지 않는 요청 — 없는 경로 · 지원하지 않는 HTTP 메서드.
  *
- * <p><b>둘 다 클라이언트의 실수이지 서버 고장이 아니다.</b> 그런데 2026-09-20 실측에서 둘 다
+ * <p><b>둘 다 클라이언트의 실수이지 서버 고장이 아니다.</b> 그런데 실측에서 둘 다
  * {@code 500 INTERNAL_ERROR} 로 나갔다 — {@code GlobalExceptionHandler} 에 대응 처리기가 없어
  * catch-all 로 떨어졌기 때문이다. 그 응답은 <b>"주소를 잘못 불렀다" 와 "서버가 죽었다" 를 구별하지
  * 못하게 만든다</b> — 앱·웹이 재시도할지 고칠지 판단할 근거가 사라지고, 운영 알림도 오탐으로 는다.

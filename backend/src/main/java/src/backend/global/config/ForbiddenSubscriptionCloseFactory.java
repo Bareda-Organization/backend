@@ -17,7 +17,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.security.WebSocketCloseCodes;
 
 /**
- * SUBSCRIBE 인가 실패의 종료 코드를 4403 으로 바꾼다(목표 7, API_SPEC §7) — Spring 은 ERROR 프레임을
+ * SUBSCRIBE 인가 실패의 종료 코드를 4403 으로 바꾼다(API_SPEC §7) — Spring 은 ERROR 프레임을
  * 보낸 뒤 {@code session.close(CloseStatus.PROTOCOL_ERROR)} 를 하드코딩해서 부른다
  * ({@code StompSubProtocolHandler#sendErrorMessage}·{@code #sendToClient} 의 finally 블록, Spring
  * 7.0.8 확인). 커스텀 {@code StompSubProtocolErrorHandler}({@link StompErrorFrameHandler})는 프레임
@@ -62,7 +62,7 @@ public class ForbiddenSubscriptionCloseFactory implements WebSocketHandlerDecora
         @Override
         public void close(CloseStatus status) throws IOException {
             if (CloseStatus.PROTOCOL_ERROR.equals(status) && isMarkedForbidden()) {
-                meterRegistry.counter("schoolbus.ws.closed", "reason", "4403").increment(); // R57 RT-11 — 닫기 전에 센다(닫힌 뒤 센 값을 읽는 쪽이 앞서지 않게)
+                meterRegistry.counter("schoolbus.ws.closed", "reason", "4403").increment(); // 닫기 전에 센다(닫힌 뒤 센 값을 읽는 쪽이 앞서지 않게)
                 super.close(WebSocketCloseCodes.SUBSCRIPTION_FORBIDDEN);
                 return;
             }

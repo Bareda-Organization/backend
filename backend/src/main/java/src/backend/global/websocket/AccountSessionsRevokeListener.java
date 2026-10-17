@@ -6,7 +6,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 import lombok.RequiredArgsConstructor;
 
-/** 채널 권한이 바뀐 계정의 열린 세션을 변경이 커밋된 직후 닫는다(R57 RT-2) — 롤백된 변경으로는 닫지 않는다. */
+/** 채널 권한이 바뀐 계정의 열린 세션을 변경이 커밋된 직후 닫는다 — 롤백된 변경으로는 닫지 않는다. */
 @Component
 @RequiredArgsConstructor
 public class AccountSessionsRevokeListener {

@@ -38,7 +38,7 @@ import src.backend.monitoring.query.AdminRunRosterQueryService;
 import src.backend.student.query.StudentQueryService;
 
 /**
- * R46 감사 #1·C — 조회 감사는 읽기 트랜잭션 <b>밖에서</b> 기록되고(연결 2개를 동시에 쥐지 않음), 조회 기록에 접속 IP 가
+ * 조회 감사는 읽기 트랜잭션 <b>밖에서</b> 기록되고(연결 2개를 동시에 쥐지 않음), 조회 기록에 접속 IP 가
  * 남는다.
  *
  * <p>{@code @Transactional} 이 부재하다 — 시험 자체가 트랜잭션을 열면 "기록 시점에 트랜잭션이 없다" 를 볼 수 없다.

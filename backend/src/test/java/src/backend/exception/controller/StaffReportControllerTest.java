@@ -27,7 +27,7 @@ import src.backend.global.security.JwtTokenProvider;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 관계자 웹의 예외 보고 조회 API(§5.20, Phase 11 goal 16) — {@code type}·{@code date}·{@code run_id}
+ * 관계자 웹의 예외 보고 조회 API(§5.20) — {@code type}·{@code date}·{@code run_id}
  * 필터 각각 매칭·비매칭 행을 함께 심어 필터가 실제로 좁히는지 검사한다.
  */
 @SpringBootTest
@@ -50,7 +50,7 @@ class StaffReportControllerTest {
 
 
 
-    // ── goal 16 — type 필터 ───────────────────────────────────────────────
+    // ── type 필터 ───────────────────────────────────────────────
 
     @Test
     @DisplayName("goal16 — type 필터는 매칭 타입만 남기고 비매칭 타입은 뺀다")
@@ -74,7 +74,7 @@ class StaffReportControllerTest {
                 .andExpect(jsonPath("$.data.items[0].type").value("road_block"));
     }
 
-    // ── goal 16 — run_id 필터 ─────────────────────────────────────────────
+    // ── run_id 필터 ─────────────────────────────────────────────
 
     @Test
     @DisplayName("goal16 — run_id 필터는 매칭 회차만 남기고 다른 회차는 뺀다")
@@ -100,7 +100,7 @@ class StaffReportControllerTest {
                 .andExpect(jsonPath("$.data.items[0].run_id").value(runId1));
     }
 
-    // ── goal 16 — date 필터(reported_at 의 날짜 성분, run.service_date 아님) ──
+    // ── date 필터(reported_at 의 날짜 성분, run.service_date 아님) ──
 
     @Test
     @DisplayName("goal16 — date 필터는 reported_at 이 그 날짜(학원 자정 기준)인 행만 남기고 하루 밖은 뺀다")
@@ -124,7 +124,7 @@ class StaffReportControllerTest {
                 .andExpect(jsonPath("$.data.items[0].report_id").value(matching));
     }
 
-    // ── goal 16 — 필드 조립 ───────────────────────────────────────────────
+    // ── 필드 조립 ───────────────────────────────────────────────
 
     @Test
     @DisplayName("goal16 — 보호자 부재 보고는 student_name 이 채워지고 handled 는 항상 false·handled_at 은 null 이다")
@@ -172,7 +172,7 @@ class StaffReportControllerTest {
                 .andExpect(jsonPath("$.data.items[0].student_name").doesNotExist());
     }
 
-    // ── goal 16 — 학원 격리 ───────────────────────────────────────────────
+    // ── 학원 격리 ───────────────────────────────────────────────
 
     @Test
     @DisplayName("goal16 — 필터 없는 목록은 이 학원 보고만 돌려주고 다른 학원 보고는 새지 않는다")

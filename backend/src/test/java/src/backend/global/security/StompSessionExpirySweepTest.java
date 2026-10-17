@@ -29,7 +29,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import testsupport.clock.AdvanceableClock;
 
 /**
- * 열린 STOMP 세션의 계정 상태 점검(Ruling 880 · R57 RT-7 / Ruling 899 M) — 방송 송신 스레드({@code preSend})는 DB 를 묻지 않고(방송은 초당 수만 건),
+ * 열린 STOMP 세션의 계정 상태 점검(Ruling 880 · Ruling 899 M) — 방송 송신 스레드({@code preSend})는 DB 를 묻지 않고(방송은 초당 수만 건),
  * 점검은 {@link StompStandingSweepScheduler} 가 30초마다 묶음으로 한다. 점검이 실패해도 방송은 막히지 않는다. 고정 시계 위에서 시각만 옮기고, DB 대신
  * {@link AccountStanding} 가짜를 쓴다. 실서버 경로(퇴사 → 세션 종료)는 {@link StompAccountStandingTest} 가 본다.
  */

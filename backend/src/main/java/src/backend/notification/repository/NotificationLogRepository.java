@@ -63,7 +63,7 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
             @Param("now") OffsetDateTime now);
 
     /**
-     * 알림 설정이 꺼져 있어 푸시를 보내지 않고 건너뛴 행을 {@code skipped} 로 옮긴다(Phase 12 목표 8,
+     * 알림 설정이 꺼져 있어 푸시를 보내지 않고 건너뛴 행을 {@code skipped} 로 옮긴다(
      * API_SPEC §3.14). {@code markSent} 와 같은 이유로 {@code pending} 인 행만 대상이다 — 즉시 발송과
      * 워커가 같은 행을 함께 집어도 한쪽만 반영된다.
      *
@@ -205,7 +205,7 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
             @Param("attemptedBefore") OffsetDateTime attemptedBefore, @Param("now") OffsetDateTime now);
 
     /**
-     * 알림 목록 조회(API_SPEC §3.12, Phase 12 T2) — {@code type}·{@code unreadOnly} 가 선택이고
+     * 알림 목록 조회(API_SPEC §3.12) — {@code type}·{@code unreadOnly} 가 선택이고
      * 보관 14일이 항상 걸린다.
      *
      * <p>{@code type} 은 {@code :type IS NULL OR ...} 형태를 쓴다({@code ExceptionReportRepository#search}
@@ -377,7 +377,7 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
             @Param("importantTypes") Set<NotificationType> importantTypes);
 
     /**
-     * 보존 정리 배치 후보 id(목표 6, Phase 14 T2) — {@code created_at} 기준으로 자른다.
+     * 보존 정리 배치 후보 id — {@code created_at} 기준으로 자른다.
      *
      * <p>{@code sent_at} 이 아니라 {@code created_at} 을 쓴 이유 — {@code sent_at} 은
      * {@code push_state='sent'} 일 때만 채워진다(ERD notification_log 컬럼표). {@code failed} ·

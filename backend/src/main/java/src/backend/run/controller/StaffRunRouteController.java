@@ -20,8 +20,7 @@ import src.backend.run.dto.StaffRunRouteResponse;
 import src.backend.run.query.StaffRunRouteQueryService;
 
 /**
- * 관계자 웹의 확정 노선 조회(API_SPEC §5.19 {@code GET /staff/runs/{runId}/route}, RTE-02, F1 S3
- * 목표 11).
+ * 관계자 웹의 확정 노선 조회(API_SPEC §5.19 {@code GET /staff/runs/{runId}/route}, RTE-02).
  *
  * <p>매니저용 {@code RunRouteController}(§4.3, {@code @Can(Permissions.ROUTE_READ)})와 분리한다 — 권한이 다르다
  * (매니저는 자기 배치 회차만, 관계자·메인 관리자는 {@code @Can({Permissions.MONITOR_ACADEMY, Permissions.MONITOR_ALL})} 로 학원 전체를 본다). 경로 접두는

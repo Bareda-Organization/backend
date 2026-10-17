@@ -30,7 +30,7 @@ public record ComputationPolicy(Duration mapTimeout, CallerPolicy caller, RouteV
         Objects.requireNonNull(trigger, "촉발 원인이 있어야 산출 조건을 설명할 수 있다");
     }
 
-    /** 강제 폴백이 필요 없는 기존 호출을 위한 편의 생성자 — {@code forceFallback=false}(F3 S2). */
+    /** 강제 폴백이 필요 없는 기존 호출을 위한 편의 생성자 — {@code forceFallback=false}. */
     public ComputationPolicy(Duration mapTimeout, CallerPolicy caller, RouteVersionSource trigger) {
         this(mapTimeout, caller, trigger, false);
     }

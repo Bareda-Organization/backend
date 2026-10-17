@@ -58,7 +58,7 @@ public class AccountPasswordResetCommandService {
      * <p>무효화가 마지막인 이유는 {@code revokeAllValidByAccountId} 가 영속성 컨텍스트를 비워, 그 뒤의 엔티티
      * 변경이 조용히 사라지기 때문이다({@code StaffAccountCommandService} 와 같은 순서).
      *
-     * <p><b>임시 비밀번호의 BCrypt 는 트랜잭션·행 잠금 밖에서 만든다</b>(R46 T-3) — 새 해시는 저장된 해시와 무관해 잠금을
+     * <p><b>임시 비밀번호의 BCrypt 는 트랜잭션·행 잠금 밖에서 만든다</b> — 새 해시는 저장된 해시와 무관해 잠금을
      * 기다릴 이유가 없고, 안에 두면 그 계정 행을 잡은 채 수십~수백 ms 를 쓴다. 대상이 없어 404 인 요청도 해시를 한 번
      * 만드는 것은 받아들인다 — 관계자 전용 경로라 빈도가 낮다.
      */

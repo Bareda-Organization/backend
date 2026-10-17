@@ -180,7 +180,7 @@ public class WaypointCommandService {
     }
 
     /**
-     * 설 자리 — 생략하면 맨 뒤(2026-09-22 이전의 유일한 동작).
+     * 설 자리 — 생략하면 맨 뒤.
      *
      * <p>상한이 <b>정차지 수 + 1</b> 인 이유는 "맨 뒤에 붙이기" 가 그 값이기 때문이다. 넘으면
      * {@code 422} 다 — 조용히 맨 뒤로 보내면 관계자가 지정한 자리와 다른 결과가 나온 것을 알 수 없다.
@@ -220,7 +220,7 @@ public class WaypointCommandService {
         return new GeoPoint(geocoded.lat(), geocoded.lng());
     }
 
-    /** 이미 배포된 경유 지점을 지금 노선의 정차 순번 그대로 고정 지점으로 옮긴다 — 위치를 다시 흔들지 않는다(목표 7). */
+    /** 이미 배포된 경유 지점을 지금 노선의 정차 순번 그대로 고정 지점으로 옮긴다 — 위치를 다시 흔들지 않는다. */
     private static List<FixedStop> existingFixedStopsOf(RouteContext ctx) {
         Map<Long, Integer> seqByWaypointId = new LinkedHashMap<>();
         for (RunStop rs : ctx.beforeRunStops()) {

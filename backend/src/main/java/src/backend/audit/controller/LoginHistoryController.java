@@ -20,7 +20,7 @@ import src.backend.global.security.authz.Can;
 import src.backend.global.security.authz.Permissions;
 
 /**
- * 메인 관리자 콘솔의 로그인·차단 이력 조회 API(SYS-02, API_SPEC §6.13, Phase 14 T1 목표 4).
+ * 메인 관리자 콘솔의 로그인·차단 이력 조회 API(SYS-02, API_SPEC §6.13).
  *
  * <p>필터 선언 방식은 {@link AuditLogController} 와 같은 근거를 따른다.
  */

@@ -25,7 +25,7 @@ import src.backend.run.repository.RunRepository;
 /**
  * 그 날짜의 회차 목록(SCH-02 결과 조회, API_SPEC §5.10 {@code GET /staff/runs}).
  *
- * <p>{@code §5.18 GET /staff/runs/live}(MON-07, Phase 13)와 <b>다른 것</b>이다 — 이쪽은 날짜로 보는
+ * <p>{@code §5.18 GET /staff/runs/live}(MON-07)와 <b>다른 것</b>이다 — 이쪽은 날짜로 보는
  * 회차 목록이고 저쪽은 관제용 실시간 스냅샷이다. 경로가 비슷해도 합치지 않는다(Ruling 153).
  */
 @Service

@@ -29,12 +29,12 @@ import src.backend.run.repository.RunRepository;
  * 확정 배치의 진입점(RTE-08, ARCHITECTURE §9.2) — 판정 시각이 지난 idle 회차를 모아
  * {@link RunConfirmationService#confirmOne} 을 회차별로 부른다.
  *
- * <p><b>한 회차의 실패가 다른 회차를 막지 않는다</b>(목표 4) — 회차마다 개별 {@code try-catch} 로
+ * <p><b>한 회차의 실패가 다른 회차를 막지 않는다</b> — 회차마다 개별 {@code try-catch} 로
  * 감싸 어떤 예외든(기대한 업무 규칙 위반이든 예상 못 한 버그든) 그 회차의 실패로만 기록하고 다음
  * 회차로 넘어간다. 실패한 회차는 {@code idle} 로 남아(자동 롤백 — {@code RunConfirmationPersistence}
  * 의 트랜잭션이 되돌린다) 실패 횟수에 따라 늘어나는 간격({@link RunConfirmationPolicy#retryDelayAfter})이 지난 뒤 다시 대상이 된다.
  *
- * <p><b>배치 크기 상한</b>(목표 6)은 {@link #BATCH_SIZE} 가 한 틱이 집는 회차 수를 제한하고,
+ * <p><b>배치 크기 상한</b>은 {@link #BATCH_SIZE} 가 한 틱이 집는 회차 수를 제한하고,
  * <b>동시 실행 상한</b>은 {@link RunConfirmationWorkerPoolConfig} 가 만드는 고정 크기 스레드 풀이
  * 제한한다 — 회차 수가 풀 크기를 넘으면 나머지는 앞 작업이 끝날 때까지 큐에서 대기한다.
  */
@@ -44,7 +44,7 @@ import src.backend.run.repository.RunRepository;
 public class RunConfirmationScheduler {
 
     /**
-     * 한 틱이 한 번에 집는 상한(목표 6) — 상한 없이 전건을 집으면 회차가 몰린 틱 하나가 워커 풀을
+     * 한 틱이 한 번에 집는 상한 — 상한 없이 전건을 집으면 회차가 몰린 틱 하나가 워커 풀을
      * 오래 붙든다({@code RunRepository.findDueForConfirmation}
      * 의 {@code pageable} 이 이 값을 받는다).
      */
@@ -104,7 +104,7 @@ public class RunConfirmationScheduler {
     }
 
     /**
-     * 회차 1건을 확정하고, 무엇이 됐든 실패를 삼켜 {@code consecutive_failures} 에만 남긴다(목표 4).
+     * 회차 1건을 확정하고, 무엇이 됐든 실패를 삼켜 {@code consecutive_failures} 에만 남긴다.
      *
      * <p>{@code BusinessException} 처럼 예상한 실패로 좁히지 않고 {@link Exception} 전체를 잡는다 —
      * 좁히면 예상 못 한 버그(널 참조 등)가 이 스레드를 죽여 {@link CompletableFuture} 가 예외로
@@ -129,7 +129,7 @@ public class RunConfirmationScheduler {
 
     /**
      * 노선 미편성·학원 좌표 미등록 같은 설정 오류({@link BusinessException})는 사람이 고칠 때까지 같은 결과라 스택 없이 한 줄이다 — 오류 코드와
-     * 다음 시도까지의 간격이 이 줄에 있다(R46-KFIXBE K-2). 그 밖의 예외(버그·인프라 장애)만 스택을 남기되 분당 한 번이다.
+     * 다음 시도까지의 간격이 이 줄에 있다. 그 밖의 예외(버그·인프라 장애)만 스택을 남기되 분당 한 번이다.
      */
     private void logFailure(Long runId, Exception e, Duration delay) {
         if (e instanceof BusinessException business) {

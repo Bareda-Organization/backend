@@ -34,7 +34,7 @@ import src.backend.run.roster.ProjectedRosterReader;
  *
  * <p><b>{@link #persist} 도중 어디서 예외가 나든 이 트랜잭션 전체가 롤백된다</b> — 그러면
  * {@link RunRepository#confirmIfIdle} 이 표시한 {@code idle → confirmed} 전이도 함께 취소되어 회차가
- * 자동으로 idle 로 되돌아간다(목표 5). 이벤트도 트랜잭션 커밋 안에서만 발행되므로 롤백된 확정에
+ * 자동으로 idle 로 되돌아간다. 이벤트도 트랜잭션 커밋 안에서만 발행되므로 롤백된 확정에
  * 대해서는 발행되지 않는다({@link RunRouteConfirmedEvent} javadoc).
  */
 @Component
@@ -67,17 +67,17 @@ public class RunConfirmationPersistence {
      * {@code applied} 로 표시한다 — 확정이 롤백되면 표시도 함께 되돌아가야 하고, 출발 회차 쪽 확정은
      * 표시하지 않는다(도착 회차 확정 전까지 그 학생은 도착 회차의 대기 인원이다, BR-093).
      *
-     * <p><b>{@code confirmIfIdle} 이 0행을 갱신하면 그 자리에서 조용히 반환한다</b>(목표 2) — 동시
+     * <p><b>{@code confirmIfIdle} 이 0행을 갱신하면 그 자리에서 조용히 반환한다</b> — 동시
      * 스레드 중 나중 것이 진 경우다. 이미 진 경쟁에서 계산 결과를 그대로 버리는 것이 맞다 — 먼저
      * 확정한 스레드의 결과와 이 결과가 같은 입력에서 나왔다는 보장이 없어(그 사이 명단이 바뀌었을 수
      * 있다), 대신 넣으면 먼저 커밋된 버전을 뒤엎는 꼴이 된다.
      *
      * @return 이 호출이 실제로 확정을 저장했으면 {@code true}, 진 경쟁이라 조용히 반환했으면
      *         {@code false} — 호출부({@code RunConfirmationService#confirmOne})가 이 값으로 배치
-     *         지연 지표(목표 8)를 승자 1건에만 기록한다. 반환값이 없던 시절엔 진 스레드도 이 지점까지
-     *         정상 도달해 지표 표본이 확정 사건 수보다 부풀었다 — 이 지표의 존재 목적(증설 판단 신호,
+     *         지연 지표를 승자 1건에만 기록한다. 이 값이 없으면 진 스레드도 이 지점까지
+     *         정상 도달해 지표 표본이 확정 사건 수보다 부푼다 — 이 지표의 존재 목적(증설 판단 신호,
      *         {@code ARCHITECTURE §9.4})이 인스턴스를 늘려 경합이 잦아지는 바로 그 시점에 가장
-     *         부정확해지는 결함이었다.
+     *         부정확해진다.
      */
     public boolean persist(Run run, RouteComputation computation, RunRouteEndpoints.Endpoints endpoints,
             Weekday weekday, ProjectedRoster roster, OffsetDateTime confirmedAt) {
@@ -104,7 +104,7 @@ public class RunConfirmationPersistence {
         // 노선 확정 알림보다 먼저 — 자동 배정된 동승자도 확정 노선 알림(route_changed)의 수신자가 된다.
         attendantAutoAssignment.assignIfVacant(run, computation.estDurationMin(), confirmedAt);
 
-        // R52 L1 — 서버가 오래 멈췄다 살아나 운행 시작 창이 이미 닫힌 회차를 확정할 때는 확정만 하고 노선 알림을 보내지 않는다.
+        // 서버가 오래 멈췄다 살아나 운행 시작 창이 이미 닫힌 회차를 확정할 때는 확정만 하고 노선 알림을 보내지 않는다.
         if (!startWindowPolicy.isClosed(run.getDepartTime(), confirmedAt)) {
             eventPublisher.publishEvent(
                     new RunRouteConfirmedEvent(run.getId(), run.getAcademyId(), run.getBusId(), confirmedAt));

@@ -143,7 +143,7 @@ public class StubMapRouteClient implements MapRouteClient {
             GeoPoint to = points.get(i + 1);
             int meters = (int) Math.round(from.distanceMetersTo(to) * ROAD_DETOUR_FACTOR);
             // 좌표(path)는 승하차지 그대로인 두 점(직선) — local·demo 화면이 빈 경로를 받지 않도록
-            // 한다(R15 T1 목표 7). 실측 도로 형상이 아니라 스텁이라는 한계는 클래스 javadoc 대로다.
+            // 한다. 실측 도로 형상이 아니라 스텁이라는 한계는 클래스 javadoc 대로다.
             legs.add(new RoadLeg(meters, secondsFor(meters), List.of(from, to)));
         }
         return new RoadRoute(legs, false);

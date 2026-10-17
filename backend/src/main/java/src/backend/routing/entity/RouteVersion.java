@@ -78,7 +78,7 @@ public class RouteVersion {
     private boolean fallbackUsed;
 
     /**
-     * 배포 시점의 전체 도로 좌표(Ruling 309 · R15 T1) — §5.19 응답 {@code road_path} 가 이 값을
+     * 배포 시점의 전체 도로 좌표(Ruling 309) — §5.19 응답 {@code road_path} 가 이 값을
      * 그대로 낸다. {@code NULL} 을 허용하는 것은 이 컬럼이 생기기 전에 배포된 옛 버전들과의
      * 하위 호환 때문이고, 새로 만드는 버전은 항상 채운다.
      */

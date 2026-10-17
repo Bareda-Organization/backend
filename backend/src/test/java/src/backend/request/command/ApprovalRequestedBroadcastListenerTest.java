@@ -29,7 +29,7 @@ import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * {@code approval_requested} 방송(목표 4)의 채널 audience — §7 채널 표가 학원 관제 채널 전용으로
+ * {@code approval_requested} 방송의 채널 audience — §7 채널 표가 학원 관제 채널 전용으로
  * 못박은 이벤트라, 매니저·학생·관리자 채널로는 절대 나가지 않는다는 것이 핵심이다.
  */
 class ApprovalRequestedBroadcastListenerTest {
@@ -72,7 +72,7 @@ class ApprovalRequestedBroadcastListenerTest {
 
         listener.broadcast(event);
 
-        // 다른 3채널로는 나가지 않는다(목표 4 본체) — 학생 개인 채널·매니저 채널·관리자 채널 전부 미호출.
+        // 다른 3채널로는 나가지 않는다 — 학생 개인 채널·매니저 채널·관리자 채널 전부 미호출.
         verify(gateway, never()).send(eq(WebSocketDestinations.studentRun(studentId)), any(), any(), any(), any());
         verify(gateway, never()).send(eq(WebSocketDestinations.managerRun(runId)), any(), any(), any(), any());
         verify(gateway, never()).send(eq(WebSocketDestinations.ADMIN_LIVE), any(), any(), any(), any());

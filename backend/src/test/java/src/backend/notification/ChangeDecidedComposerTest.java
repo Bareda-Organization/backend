@@ -11,7 +11,7 @@ import src.backend.notification.domain.spec.NotificationMessage;
 
 /**
  * ②구간 변경 요청 관리자 결정 알림 문구(API_SPEC §5.6·§9.7 {@code change_decided}) — 자녀 이름을
- * 싣는지 본다(ATT-03, R17-T3 목표 1). {@link RiderStatusChangedComposerTest} 와 같은 근거로 Spring
+ * 싣는지 본다(ATT-03). {@link RiderStatusChangedComposerTest} 와 같은 근거로 Spring
  * 컨텍스트를 띄우지 않는다.
  */
 class ChangeDecidedComposerTest {

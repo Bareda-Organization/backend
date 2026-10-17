@@ -108,7 +108,7 @@ class DemoRunSimulatorTest {
         verify(runStartCommandService, never()).start(any(), eq(1001L));
     }
 
-    /** 학원 1 은 계약 검사와 함께 쓰는 학원이라 데모 선단 버스만 출발시킨다(2026-09-20 실측 사고). */
+    /** 학원 1 은 계약 검사와 함께 쓰는 학원이라 데모 선단 버스만 출발시킨다. */
     @Test
     void 학원_1_은_데모_선단_버스만_출발시킨다() {
         회차들(MAIN_ACADEMY, RunStatus.CONFIRMED, 회차(100L, 10L, MAIN_ACADEMY), 회차(6L, 1L, MAIN_ACADEMY));
@@ -159,7 +159,7 @@ class DemoRunSimulatorTest {
     /**
      * 기사 단말이 위치를 보내는 회차에는 가짜 위치를 더 넣지 않는다 — 학원 A 회차를 매니저 앱으로 출발시키면 기사 폰의
      * 실제 위치와 시뮬레이터의 노선 위 위치가 2초마다 번갈아 들어가 학부모 지도의 버스가 오가고 근접 · 출발 판정이 기사
-     * 조작과 무관하게 일어난다(2026-10-16 팀 QA 준비 중 확인).
+     * 조작과 무관하게 일어난다.
      */
     @Test
     void 기사_단말이_위치를_보낸_회차는_더_전진시키지_않는다() {

@@ -19,19 +19,18 @@ import src.backend.notification.entity.PushState;
 import src.backend.notification.repository.NotificationLogRepository;
 
 /**
- * 알림 로그 전수 조회(T3, Phase 12 goal 10·11) 시험이 쓰는 실제 행 — {@code ExceptionReportFixtures}
- * 와 같은 이유로 정상 경로의 팩토리로 쌓는다. 저장은 {@link NotificationLogRepository}(T2·T3 공용,
- * Ruling 222) 로 한다 — 조회 전용 리포지토리를 별도로 만들지 않기로 한 조율자 판정에 따라 이 클래스도
+ * 알림 로그 전수 조회 시험이 쓰는 실제 행 — {@code ExceptionReportFixtures}
+ * 와 같은 이유로 정상 경로의 팩토리로 쌓는다. 저장은 {@link NotificationLogRepository}(공용,
+ * Ruling 222) 로 한다 — 조회 전용 리포지토리를 별도로 만들지 않기로 한 판정에 따라 이 클래스도
  * 그 저장소 하나만 쓴다.
  *
  * <p>{@link NotificationLog#acked}·{@link NotificationLog#ackedAt}·{@link NotificationLog#readAt} 을
- * 채우는 실제 "확인 처리" 쓰기 경로는 T2 담당이고, 이 워크트리에는 아직 존재하지 않는다(격리
- * 워크트리 기준 실측 — grep 무결과, report-p12-t3.md 2항 참고). 그 경로가 아직 이 저장소에 없다는
+ * 채우는 실제 "확인 처리" 쓰기 경로는 이 저장소에 존재하지 않는다.
+ * 그 경로가 아직 이 저장소에 없다는
  * 점이 {@link src.backend.request.command.ChangeRequestAutoRejectFixtures#pendingChangeRequest} 가
  * {@code deadlineAt} 을 채우는 근거와 같아, 같은 패턴({@code ReflectionTestUtils})으로 저장 전 필드를
- * 직접 채운다. 이렇게 만든 "이미 확인된" 행은 <b>구조적 시험 데이터</b>일 뿐, T2 의 실제 쓰기 경로를
- * 검증하는 것이 아니다 — 그 경계 시험은 조율자가 병합 후 통합 검사에서 만든다(Ruling 222, T3 완료
- * 기준 4항).
+ * 직접 채운다. 이렇게 만든 "이미 확인된" 행은 <b>구조적 시험 데이터</b>일 뿐, 실제 쓰기 경로를
+ * 검증하는 것이 아니다 — 그 경계 시험은 병합 후 통합 검사에서 만든다(Ruling 222).
  */
 public class StaffNotificationFixtures {
 
@@ -103,7 +102,7 @@ public class StaffNotificationFixtures {
 
     /**
      * 푸시 off 설정으로 발송이 건너뛰인(SKIPPED) 행 — §5.17 "전송 알림 전수 조회 — 푸시 off 로 차단된
-     * 건도 레코드로 존치" 조건(goal 10)의 대상. {@code sent_at} 은 끝내 비어 있다.
+     * 건도 레코드로 존치" 조건의 대상. {@code sent_at} 은 끝내 비어 있다.
      */
     public long skippedNotification(long academyId, NotificationType type, String recipientName, Role recipientRole,
             String body, String busNo, OffsetDateTime createdAt) {

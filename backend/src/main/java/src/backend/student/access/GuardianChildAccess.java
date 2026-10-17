@@ -22,11 +22,9 @@ import src.backend.student.repository.LinkedChild;
  * 경로가 <b>검사를 빠뜨린 채 태어나고</b>, 그 상태로도 기존 테스트는 전부 초록이다 — 인가 결함은
  * "통과하는 빈 테스트" 와 구별되지 않는 형태라 사고가 화면에 드러나지 않는다.
  *
- * <p>Phase 2 는 이 판정을 만들지 않았다. 당시 소비자가 0곳이라
- * {@code p2-controller-conventions §1}("판정이 2곳 이상에서 필요할 때만") 이 만들지 말라고 했고,
- * {@code global/} 에 두면 {@code global} → {@code student} 역방향 의존이 생기기 때문이다(Ruling 117).
- * 두 조건이 지금 함께 풀렸다 — 소비자가 자녀 목록(§3.1)·연결(§3.4)·요일별 주소(§3.7)로 늘었고,
- * {@code student} 모듈 안에 두면 역방향 의존이 부재하다.
+ * <p>{@code global/} 에 두면 {@code global} → {@code student} 역방향 의존이 생기므로 {@code student} 모듈 안에 둔다(Ruling 117).
+ * 소비자가 자녀 목록(§3.1)·연결(§3.4)·요일별 주소(§3.7)로 여럿이라 공용 판정으로 둔다 — 판정이 2곳 이상에서 필요할 때만 만든다
+ * ({@code p2-controller-conventions §1}).
  *
  * <p>범위를 좁히는 축이 <b>둘</b>이다. 요청 주체 → {@link Guardian}(계정 경유)과
  * {@link Guardian} → 자녀(연결 경유). 앞을 건너뛰면 요청 본문의 보호자 식별자를 믿게 되고, 뒤를

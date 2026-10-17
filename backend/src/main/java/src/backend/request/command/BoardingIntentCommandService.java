@@ -43,7 +43,7 @@ import src.backend.student.entity.Student;
  * 따라 처리 경로가 완전히 갈린다.
  *
  * <p>{@code @Transactional} 을 붙인다 — {@code WeeklyAddressCommandService} 와 달리 이 메서드는
- * 외부 API 호출이 없고(①·③은 {@code RouteComputationPipeline} 을 부르지 않는다, 목표 1), "서버
+ * 외부 API 호출이 없고(①·③은 {@code RouteComputationPipeline} 을 부르지 않는다), "서버
  * 처리 실패 시 기존 상태 복구 + 횟수 미소진"(C-10)을 지키려면 여러 엔티티 변경이 한 트랜잭션으로
  * 묶여야 한다. {@code NotificationOutbox#append} 가 {@code Propagation.MANDATORY} 인 것도 이
  * 메서드가 열린 트랜잭션 안에서 호출된다는 전제다 — 그 알림 적재는 {@link IntentChangedEvent}
@@ -102,7 +102,7 @@ public class BoardingIntentCommandService {
         OffsetDateTime now = OffsetDateTime.now(clock);
         ChangeWindow segment = ChangeWindowPolicy.segmentOf(run, now);
         if (segment == ChangeWindow.CLOSED) {
-            // ③구간은 탑승자 · 승하차지 행을 쥐므로 의사 행보다도 먼저 회차 행을 쥔다(R53 I1 — 회차 → 의사 → 탑승자 → 승하차지).
+            // ③구간은 탑승자 · 승하차지 행을 쥐므로 의사 행보다도 먼저 회차 행을 쥔다(회차 → 의사 → 탑승자 → 승하차지).
             runRowLock.acquire(run.getId(), run.getAcademyId());
         }
 
@@ -121,8 +121,8 @@ public class BoardingIntentCommandService {
     /**
      * ①구간 — 승인 없이 즉시 반영한다. {@link src.backend.routing.pipeline.RouteComputationPipeline}
      * 을 부르지 않는다(Ruling 198) — 이 회차는 아직 {@code idle} 이라 {@code confirmed_route} 자체가
-     * 없고, 방금 바뀐 {@code riding} 값은 확정 배치가 나중에 명단을 만들 때 비로소 읽힌다(목표 1,
-     * {@code RunConfirmationService} 의 제외 목록 필터).
+     * 없고, 방금 바뀐 {@code riding} 값은 확정 배치가 나중에 명단을 만들 때 비로소 읽힌다
+     * ({@code RunConfirmationService} 의 제외 목록 필터).
      */
     private BoardingIntentToggleResponse applyImmediate(Run run, Student student, BoardingIntent intent,
             boolean riding, AuthUser requester, OffsetDateTime now) {

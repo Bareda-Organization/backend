@@ -29,10 +29,10 @@ import testsupport.live.DirectionsQuota;
 
 /**
  * 확정 배치의 <b>진입점 그대로</b>(스케줄러가 부르는 {@code confirmOne(Long)}) 실 NCP API 를
- * 태운다(R18 A 목표 1·3·4). {@code NaverDirectionsClientLiveTest} 는 어댑터 한 겹만 보므로, 정작
+ * 태운다. {@code NaverDirectionsClientLiveTest} 는 어댑터 한 겹만 보므로, 정작
  * "출발지가 그 노선 첫 정차지와 같은 좌표라 waypoint 로도 다시 들어가는" 상황(등원의 정상적인
  * 형태 — {@code RunConfirmationService.confirmOne} 이 origin 을 첫 정차지 좌표로 잡는다) 은
- * 여기서만 재현된다. {@code RunConfirmationServiceTest} 의 목표4 시험과 정차지 구성이 같지만,
+ * 여기서만 재현된다. {@code RunConfirmationServiceTest} 의 시험과 정차지 구성이 같지만,
  * 그 시험은 stub 제공자라 이 결함이 있어도 통과한다 — provider 만 naver 로 바꿔 같은 결함을 잡는다.
  *
  * <p>{@code @EnabledIf} 는 스프링 컨텍스트가 뜨기 전에 평가되어, 자격증명이 없으면 컨텍스트도
@@ -88,7 +88,7 @@ class RunConfirmationServiceLiveTest {
 
     /**
      * 첫 정차지(시청)가 등원 origin 좌표와 같고, 그 자리에 타는 학생이 있어 정차지 목록에도
-     * 다시 들어간다 — 실 NCP 가 이 형태를 400 으로 거절하던 자리다(2026-09-19 curl 실측).
+     * 다시 들어간다 — 실 NCP 가 이 형태를 400 으로 거절하던 자리다(curl 실측).
      */
     @Test
     void 등원_회차를_실_지도_API로_확정해도_폴백_없이_road_path가_정차지_수보다_많다() {

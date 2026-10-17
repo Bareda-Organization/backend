@@ -12,7 +12,7 @@ import src.backend.routing.engine.spec.OrderedStop;
  * 노선 계산 파이프라인의 산출물 — {@code ARCHITECTURE §8.2} ①~④ 를 마친 상태다.
  *
  * <p><b>저장하지 않는다.</b> {@code confirmed_route}·{@code route_version}·{@code run_stop} 행을
- * 만드는 것은 확정 배치(Phase 7)의 일이고, 이 파이프라인은 계산해서 이 값을 돌려주는 데까지다 —
+ * 만드는 것은 확정 배치의 일이고, 이 파이프라인은 계산해서 이 값을 돌려주는 데까지다 —
  * 온디맨드 미리보기는 확정 노선을 건드리지 않은 채 결과만 보여야 하므로(ARCHITECTURE §8.5),
  * 계산과 저장이 한 덩어리면 미리보기라는 개념 자체가 성립하지 않는다.
  *
@@ -20,8 +20,8 @@ import src.backend.routing.engine.spec.OrderedStop;
  * @param estDurationMin      출발부터 도착지까지의 총 소요(분)
  * @param estDistanceKm       총 주행거리 — {@code route_version.est_distance_km numeric(6,2)}
  * @param etas                정차지별 도착 예정 시각. {@code stops} 와 같은 길이·같은 순서다
- * @param unresolvedStudentIds 좌표를 얻지 못해 명단에서 분리된 학생 (목표 2)
- * @param roadPath            전체 구간의 도로 좌표(순서 있음, Ruling 309 · R15 T1) —
+ * @param unresolvedStudentIds 좌표를 얻지 못해 명단에서 분리된 학생
+ * @param roadPath            전체 구간의 도로 좌표(순서 있음, Ruling 309) —
  *                            {@code route_version.road_path} 가 이 값을 그대로 저장한다
  * @param snapshot            산출 조건 4항 (TECH_DECISIONS §8.5.1)
  */

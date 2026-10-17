@@ -174,10 +174,7 @@ public class SecurityConfig {
      * 이 메서드가 인스턴스 상태를 안 쓰기 때문에 가능한 것이고, 옆의 다른 @Bean 들은
      * {@code jwtAuthenticationFilter}·{@code allowedOrigins} 를 쓰므로 static 이 될 수 없다.
      *
-     * <p>부여표는 Phase 2 Task 1 이 {@code RolePermissions.HIERARCHY} 로 재작성했다(권한 31종,
-     * FEATURE_SPEC §6.2). Task 1 은 자리표시자였던 이 반환문을 자신의 소유가 아니라는 이유로
-     * 바꾸지 않았고(Ruling 71), Task 3 가 그 부여표를 실제로 처음 소비하며 이 한 줄을 배선한다
-     * (Ruling 76) — 이전까지는 {@code hasAuthority(...)} 기반 애너테이션이 전부 거부로 떨어졌다.
+     * <p>부여표는 {@code RolePermissions.HIERARCHY} 를 쓴다(권한 31종, FEATURE_SPEC §6.2, Ruling 71 · Ruling 76).
      */
     @Bean
     static RoleHierarchy roleHierarchy() {

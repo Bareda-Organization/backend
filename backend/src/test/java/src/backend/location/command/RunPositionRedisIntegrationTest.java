@@ -44,7 +44,7 @@ import testsupport.clock.FixedClock20300401Config;
 import org.springframework.context.annotation.Import;
 
 /**
- * 목표 3(Phase 10 T1) — 위치 송신 한 번으로 {@code run_position} 적재와 Redis 최신 좌표 갱신이 함께
+ * 위치 송신 한 번으로 {@code run_position} 적재와 Redis 최신 좌표 갱신이 함께
  * 일어나는지 검증한다.
  *
  * <p>{@code @Transactional} 을 <b>의도적으로 쓰지 않는다</b> — Redis 갱신은
@@ -84,11 +84,11 @@ class RunPositionRedisIntegrationTest {
     @MockitoSpyBean
     private WebSocketBroadcastGateway gateway;
 
-    /** T1 이 실제로 쓰는 것과 같은 기본(camelCase) 네이밍 — {@code RunPositionRedisListener} 참고. */
+    /** 위치 송신이 실제로 쓰는 것과 같은 기본(camelCase) 네이밍 — {@code RunPositionRedisListener} 참고. */
     private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
 
 
-    /** 이 클래스가 만든 학원 id — 뒷정리가 이 값으로만 지운다(다른 좌석·다른 테스트의 행을 건드리지 않는다). */
+    /** 이 클래스가 만든 학원 id — 뒷정리가 이 값으로만 지운다(다른 테스트의 행을 건드리지 않는다). */
     private final List<Long> academyIds = new ArrayList<>();
 
 
@@ -143,8 +143,7 @@ class RunPositionRedisIntegrationTest {
 
         // Redis 갱신 — AFTER_COMMIT 이 비동기가 아니라 같은 스레드에서 커밋 직후 동기로 돌므로
         // MockMvc 호출이 끝난 시점에는 이미 반영돼 있어야 한다(폴링 불필요).
-        // 다형 타입 태그가 없는 평문 camelCase JSON 이어야 한다(T3·T4 계약 — RunPositionRedisValue 자바독,
-        // Phase 10 게이트 리뷰 R1 Critical 정정).
+        // 다형 타입 태그가 없는 평문 camelCase JSON 이어야 한다(RunPositionRedisValue 자바독).
         String raw = stringRedisTemplate.opsForValue().get("run:" + runId + ":position");
         assertThat(raw).as("같은 송신에서 Redis 최신 좌표도 갱신돼야 한다").isNotNull();
         assertThat(raw).as("다형 타입 태그(@class)가 없어야 한다 — T3·T4 는 평문만 파싱한다").doesNotContain("@class");

@@ -33,12 +33,10 @@ import src.backend.run.entity.Run;
  * <p>시간대는 <b>주입된 {@code Clock} 의 zone</b> 이다(Ruling 165 ①) — {@code ZoneId} 를 코드에 다시
  * 적으면 테스트가 시계를 갈아끼워도 요일 판정만 시스템 시간대를 따라 남는다.
  *
- * <p><b>두 경고가 이제 같은 구간 판정을 쓴다</b>(Phase 7 목표 12 · Phase 8 목표 13, Ruling 165 ②
+ * <p><b>두 경고가 같은 구간 판정을 쓴다</b>(Ruling 165 ②
  * · Ruling 193) — {@code WORK_HOURS_MISMATCH} 와 {@code MANAGER_DOUBLE_BOOKED} 모두 {@link
  * #windowEnd(OffsetDateTime, Integer)} 가 만든 구간으로 겹침을 가른다. {@code est_duration_min}
- * 이 없으면 시작 시각과 같은 점으로 접혀 예전 점 판정과 값이 같아진다 — 두 판정이 서로 다른 축을
- * 쓰던 비대칭(Ruling 193 이전, {@code AssignmentRepository#existsOverlappingAssignment} 가
- * 출발 시각 일치만 봤다)이 이 판정으로 해소됐다.
+ * 이 없으면 시작 시각과 같은 점으로 접혀 점 판정과 값이 같아진다.
  *
  * <p><b>BR-097 — 저장소를 직접 쥐지 않는다</b>(ARCHITECTURE §3.2 "domain: 저장소 접근 금지"). 겹침
  * 후보({@link ManagerRunWindow} 목록)는 호출부({@code AssignmentCommandService})가 조회해 넘기고,
@@ -111,14 +109,14 @@ public class AssignmentConflictDetector {
 
     /**
      * 회차의 종료 시각 — {@code est_duration_min} 이 채워졌으면 <b>구간</b>으로 올리고
-     * (Ruling 165 ② 재판정, Phase 7 T2 확정 배치가 이 값을 채운다), 없으면 시작 시각과 같은
+     * (Ruling 165 ② 재판정, 확정 배치가 이 값을 채운다), 없으면 시작 시각과 같은
      * <b>점</b>으로 접는다.
      *
      * <p>확정 전 회차에 수동 배치하는 것은 정상 흐름이고 그때는 여전히 값이 없다 — 이 메서드가 그
      * 경우를 "판정 불가" 로 두지 않고 기존 점 판정으로 접어, 값이 없다고 경고가 조용히 사라지지
      * 않는다.
      *
-     * <p>{@code MANAGER_DOUBLE_BOOKED}(Ruling 193, Phase 8 목표 13)도 <b>이제 이 규칙을 그대로
+     * <p>{@code MANAGER_DOUBLE_BOOKED}(Ruling 193)도 <b>이 규칙을 그대로
      * 쓴다</b> — 근무 시간 축과 다른 종료 시각 규칙을 따로 둘 이유가 없고, 두 개를 유지하면 다음
      * 사람이 어느 쪽을 따라야 할지 모른다. {@link #windowEnd(OffsetDateTime, Integer)} 가 실제 계산을
      * 맡는다 — 후보 창(다른 회차)은 {@link Run} 엔티티 없이 저장소 결과로만 들어오기 때문이다.
@@ -136,7 +134,7 @@ public class AssignmentConflictDetector {
     }
 
     /**
-     * 다른 회차와 운행 구간이 겹치는 배치가 있는가(Ruling 193, Phase 8 목표 13) — 이 판정은
+     * 다른 회차와 운행 구간이 겹치는 배치가 있는가(Ruling 193) — 이 판정은
      * {@code work_hours} 를 보지 않는다.
      *
      * <p>지금 배치하려는 회차 자신을 제외한다 — 기사를 그대로 두고 동승자만 바꾸는 요청이 자기 자신을

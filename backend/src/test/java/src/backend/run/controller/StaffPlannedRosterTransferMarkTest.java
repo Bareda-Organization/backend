@@ -46,7 +46,7 @@ import src.backend.student.repository.WeeklyAddressRepository;
 import testsupport.clock.FixedClock20260827Config;
 
 /**
- * §5.4 예정 명단의 {@code change}·{@code transfer_id}(Ruling 369·370) — R36-BE 목표 7·8.
+ * §5.4 예정 명단의 {@code change}·{@code transfer_id}(Ruling 369·370).
  *
  * <p>도착 회차 하나에 세 종류(요일별 주소 · 강제 추가 · 이동 대기)를 함께 두고 행마다 대조한다 —
  * 한 종류씩 따로 재면 "이동 행만 표시하는" 구현도 통과한다.

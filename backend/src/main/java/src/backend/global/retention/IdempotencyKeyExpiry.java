@@ -9,7 +9,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * 종료된 회차를 {@code 409 RUN_NOT_MOVING} 으로 거절하는 두 표의 멱등 키({@code client_key})를 회차 종료 24시간 뒤에 비운다
- * (API_SPEC §1.7, R56 Ruling 894 ⑥) — {@code rider_status_history}(승하차 처리) · {@code no_show_contact}(미승차 연락 기록).
+ * (API_SPEC §1.7, Ruling 894 ⑥) — {@code rider_status_history}(승하차 처리) · {@code no_show_contact}(미승차 연락 기록).
  * 두 표의 행은 무기한 보존 대상이라 <b>행은 지우지 않고 키 값만 {@code NULL} 로</b> 만든다(UNIQUE 는 NULL 을 여럿 허용한다).
  *
  * <p><b>비상 발신({@code emergency_alert}) · 예외 보고({@code exception_report}) 키는 비우지 않는다.</b> 두 요청은 종료된 회차도 받아서,

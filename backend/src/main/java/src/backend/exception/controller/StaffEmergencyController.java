@@ -28,7 +28,7 @@ import src.backend.global.security.authz.Can;
 import src.backend.global.security.authz.Permissions;
 
 /**
- * 학원 관계자 화면의 비상 알림 조회·확인 API(EXC-04, Phase 11 T2 목표 10) — 두 경로 모두 학원 관계자 전용이다
+ * 학원 관계자 화면의 비상 알림 조회·확인 API(EXC-04) — 두 경로 모두 학원 관계자 전용이다
  * ({@code @Can(Permissions.EMERGENCY_ACK)}, Ruling 884). 메인관리자는 이 경로에서 목록도 확인도 {@code 403} 이고, 전 학원 열람은
  * {@code GET /admin/emergencies} 를 쓴다.
  */
@@ -43,7 +43,7 @@ public class StaffEmergencyController {
     private final EmergencyCommandService emergencyCommandService;
 
     /**
-     * 학원 관계자 비상 알림 목록(목표 10, §5.16 필터는 R7 목표 1) — {@code status}·{@code date}
+     * 학원 관계자 비상 알림 목록(§5.16 필터) — {@code status}·{@code date}
      * 는 쿼리 파라미터라 {@code @ModelAttribute} 대신 손으로 적는다({@link
      * src.backend.exception.controller.StaffReportController} 와 같은 근거).
      */
@@ -56,7 +56,7 @@ public class StaffEmergencyController {
         return ApiResponse.ok(emergencyStaffQueryService.list(requester, status, date));
     }
 
-    /** 비상 신고 확인(ack) 처리(목표 10) — 본문은 선택이고, 있으면 조치 메모({@code memo})를 함께 남긴다(Ruling 541). */
+    /** 비상 신고 확인(ack) 처리 — 본문은 선택이고, 있으면 조치 메모({@code memo})를 함께 남긴다(Ruling 541). */
     @Can(Permissions.EMERGENCY_ACK)
     @Operation(summary = "비상 알림 확인 응답 (EXC-04, A-16)")
     @PostMapping("/{id}/ack")

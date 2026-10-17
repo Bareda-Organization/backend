@@ -100,8 +100,8 @@ public interface GuardianStudentRepository extends JpaRepository<GuardianStudent
     /**
      * 학생들의 보호자 연락처를 한 번에 모은다(A-10, API_SPEC §5.11 {@code items[].guardian_phone}).
      *
-     * <p><b>{@code guardian.phone}(학원이 관리하는 보호자 연락처)을 읽는다</b>(2026-09-23, Ruling 326). 관계자가 고칠
-     * 수 있는 값이 이것이다. 예전에는 {@code account.phone}(로그인·계정 복구 번호)을 읽었는데, 관계자에게 그 번호를
+     * <p><b>{@code guardian.phone}(학원이 관리하는 보호자 연락처)을 읽는다</b>(Ruling 326). 관계자가 고칠
+     * 수 있는 값이 이것이다. {@code account.phone}(로그인·계정 복구 번호)을 읽으면 관계자가 그 번호를
      * 고치게 하면 복구 번호를 자기 번호로 바꿔 학부모 계정을 가로챌 수 있다. 두 값은 가입 시점에 같게 출발한다.
      *
      * <p>{@code unlinked_at} 이 채워진 연결은 뺀다 — 퇴원·연결 해제 뒤에도 남으면 더 이상 보호자가
@@ -134,7 +134,7 @@ public interface GuardianStudentRepository extends JpaRepository<GuardianStudent
     List<Guardian> findLinkedGuardians(@Param("academyId") Long academyId, @Param("studentId") Long studentId);
 
     /**
-     * 학생들의 보호자 계정(알림 수신자)을 한 번에 모은다(Phase 9 RUN-05·06, API_SPEC §9.7
+     * 학생들의 보호자 계정(알림 수신자)을 한 번에 모은다(RUN-05·06, API_SPEC §9.7
      * {@code run_started}·{@code alighting}).
      *
      * <p>{@link #findGuardianPhonesByAcademyId} 와 조인 구조는 같지만 {@code phone} 대신

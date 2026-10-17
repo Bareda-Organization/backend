@@ -22,7 +22,7 @@ import src.backend.notification.entity.NotificationType;
 
 /**
  * 비상 신고 접수·취소를 {@code emergency}·{@code emergency_canceled} 알림으로 옮기는 구독자
- * (EXC-04, Phase 11 T2 목표 6·9 — 수신자는 학원 관계자 전원 + 메인관리자 전원, 알림 설정과 무관하게
+ * (EXC-04 — 수신자는 학원 관계자 전원 + 메인관리자 전원, 알림 설정과 무관하게
  * 항상 발송).
  *
  * <p>다른 리스너들({@link RunStartedNotificationListener} 등)과 같은 위치({@code
@@ -51,7 +51,7 @@ public class EmergencyNotificationListener {
 
     private final NotificationComposer<EmergencyCanceledEvent> emergencyCanceledComposer;
 
-    /** 신고 접수(목표 6·9) — 학원 관계자 전원 + 메인관리자 전원에게 {@code emergency} 알림을 적재한다. */
+    /** 신고 접수 — 학원 관계자 전원 + 메인관리자 전원에게 {@code emergency} 알림을 적재한다. */
     @EventListener
     public void appendRaised(EmergencyRaisedEvent event) {
         NotificationMessage message = emergencyRaisedComposer.compose(event);
@@ -59,7 +59,7 @@ public class EmergencyNotificationListener {
                 NotificationType.EMERGENCY, message, event.busNo());
     }
 
-    /** 신고 취소(목표 6·9) — 같은 대상에게 {@code emergency_canceled} 알림을 적재한다. */
+    /** 신고 취소 — 같은 대상에게 {@code emergency_canceled} 알림을 적재한다. */
     @EventListener
     public void appendCanceled(EmergencyCanceledEvent event) {
         NotificationMessage message = emergencyCanceledComposer.compose(event);
@@ -91,7 +91,7 @@ public class EmergencyNotificationListener {
     }
 
     /**
-     * 메인관리자 전원(목표 6) — {@code academy_id} 가 없는 역할이라(§1.5) 신고가 일어난 학원 조건으로
+     * 메인관리자 전원 — {@code academy_id} 가 없는 역할이라(§1.5) 신고가 일어난 학원 조건으로
      * 좁히지 않고 {@link AccountRepository#findAllByRoleAndStatusIn} 로 전 학원 범위 대상을 그대로
      * 부른다. 로그인 차단({@code BLOCKED}) 계정도 받는다 — {@link AccountStatus#NOTIFIABLE}(Ruling 865).
      *

@@ -29,7 +29,7 @@ import src.backend.run.event.RunStartedEvent;
  * 커밋 전에 보내면, 그 뒤 트랜잭션이 롤백됐을 때 "일어나지 않은 회차 시작"이 관제 화면에 남는다.
  *
  * <p>커밋 뒤 방송 리스너는 전부 방송 실패를 WARN 한 줄로 기록하고 삼킨다(BR-207) — 삼키지 않아도 응답은 바뀌지 않지만
- * 스프링이 {@code afterCompletion} 오류 스택으로 남긴다(2026-09-30 F8 관측).
+ * 스프링이 {@code afterCompletion} 오류 스택으로 남긴다.
  */
 @Component
 @RequiredArgsConstructor
@@ -41,7 +41,7 @@ public class RunStartedBroadcastListener {
 
     private final WebSocketBroadcastGateway gateway;
 
-    /** 커밋 콜백이 요청 스레드의 트랜잭션 · 커넥션을 쥐고 방송하지 않도록 방송 작업을 넘기는 전용 실행기(R57 RT-4) — 단일 스레드라 커밋 순서가 유지된다. */
+    /** 커밋 콜백이 요청 스레드의 트랜잭션 · 커넥션을 쥐고 방송하지 않도록 방송 작업을 넘기는 전용 실행기 — 단일 스레드라 커밋 순서가 유지된다. */
     @Qualifier("broadcastListenerExecutor")
     private final Executor broadcastExecutor;
 

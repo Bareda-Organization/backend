@@ -33,7 +33,7 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
- * §5.11 {@code POST · PATCH /staff/students} 의 사진 업로드 — 목표 12 ①~④(Ruling 159 · 160).
+ * §5.11 {@code POST · PATCH /staff/students} 의 사진 업로드(Ruling 159 · 160).
  *
  * <p>이 클래스가 고정하는 것은 <b>요청 형식과 검증 경계</b> 넷이다 — 멀티파트로 올린 사진이
  * {@code photo_url} 로 되돌아오는가 · 사진 없이도 등록되는가 · 이미지 3종 밖이 4xx 인가 ·
@@ -87,7 +87,7 @@ class StudentPhotoUploadTest {
     }
 
     /**
-     * 진짜 WebP 를 올리면 서버가 긴 변 512px 로 줄여 <b>JPEG 파일</b>로 저장한다(R47 Ruling 745) — 위 "3종 모두 받는다" 시험의 WebP 는 머리만
+     * 진짜 WebP 를 올리면 서버가 긴 변 512px 로 줄여 <b>JPEG 파일</b>로 저장한다(Ruling 745) — 위 "3종 모두 받는다" 시험의 WebP 는 머리만
      * 맞춘 가짜라 디코딩에 실패해 원본이 남는다. 이 시험은 실제로 디코딩되는 파일로 저장 결과를 파일 시스템에서 읽어 본다.
      */
     @Test

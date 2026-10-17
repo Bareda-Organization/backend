@@ -53,7 +53,7 @@ import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * R56 후속 1(Ruling 894 ⑥) — 멱등 키 비우기 범위를 HTTP 로 본다.
+ * Ruling 894 ⑥ — 멱등 키 비우기 범위를 HTTP 로 본다.
  *
  * <ul>
  *   <li>비상 발신 키는 회차가 끝나고 25시간이 지나 정리 배치가 돌아도 남아, 같은 {@code client_key} 재전송이 새 행 없이 최초 결과를

@@ -48,7 +48,7 @@ import src.backend.notification.repository.DeviceTokenRepository;
  *
  * <p>인증은 서비스 계정 키로 서명한 JWT 를 접근 토큰으로 바꾸는 OAuth2 흐름이다 — 새 의존성 없이 이미 쓰는 jjwt 로
  * 서명하고 표준 {@link HttpClient} 로 교환한다. 접근 토큰은 만료 5분 전부터 뒤에서 미리 갱신하고 그동안 옛 토큰을 쓴다
- * (R46 S-2 — 교환을 락 안에서 하면 FCM 인증 서버가 느린 동안 전 발송 스레드가 줄을 선다).
+ * (교환을 락 안에서 하면 FCM 인증 서버가 느린 동안 전 발송 스레드가 줄을 선다).
  *
  * <p><b>서킷</b>({@code resilience4j} 인스턴스 {@code fcm} — 값은 {@code placeSearch} 와 같다)은 <b>일시 장애</b>(네트워크 ·
  * 429 · 5xx · 접근 토큰 발급 실패)만 센다. 열리면 호출 없이 즉시 거절하고({@link PushNotAttemptedException} — 시도 횟수에 넣지 않는다), 행은 {@code pending} 으로 남아 아웃박스 워커가
@@ -63,14 +63,14 @@ import src.backend.notification.repository.DeviceTokenRepository;
 @ConditionalOnProperty(name = "app.push.sender", havingValue = "fcm")
 public class FcmPushSender implements PushSender {
 
-    /** {@code resilience4j.circuitbreaker.instances} 의 이름 — 값은 장소 검색({@code placeSearch})과 같다(R46 S-2). */
+    /** {@code resilience4j.circuitbreaker.instances} 의 이름 — 값은 장소 검색({@code placeSearch})과 같다. */
     static final String RESILIENCE_INSTANCE = "fcm";
 
     private static final String SCOPE = "https://www.googleapis.com/auth/firebase.messaging";
 
     /**
      * 연결·요청 시간 상한 — 시험이 값을 못박는다({@code FcmPushSenderTest}). 응답이 100~300ms 가 정상이라 4초면 충분하고,
-     * 10초면 FCM 이 응답하지 않을 때 발송 스레드 8개가 모두 10초씩 묶여 처리율이 0.8건/s 로 떨어진다(R46 S-2).
+     * 10초면 FCM 이 응답하지 않을 때 발송 스레드 8개가 모두 10초씩 묶여 처리율이 0.8건/s 로 떨어진다.
      */
     public static final Duration TIMEOUT = Duration.ofSeconds(4);
 
@@ -205,7 +205,7 @@ public class FcmPushSender implements PushSender {
             }
             return anyViolation;
         } catch (RuntimeException e) {
-            return false; // 읽을 수 없는 본문은 예전처럼 토큰 오류로 본다
+            return false; // 읽을 수 없는 본문은 토큰 오류로 본다
         }
     }
 

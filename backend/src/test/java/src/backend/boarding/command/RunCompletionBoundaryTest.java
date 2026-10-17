@@ -37,9 +37,9 @@ import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
 
 /**
- * T2↔T3 경계 — 하원 자동 종료(목표 10, T2 소유) 판정 서비스를 T3 이 호출하는 지점만 검사한다.
- * {@link RunCompletionService} 전이 로직 자체는 여기서 구현·검사하지 않는다(브리프의 T2/T3 경계) —
- * 이 워크트리의 {@link RunCompletionService} 는 항상 {@code false} 를 반환하는 T2 병합 전 자리표시자라
+ * 하원 자동 종료 판정 서비스를 호출하는 지점만 검사한다.
+ * {@link RunCompletionService} 전이 로직 자체는 여기서 구현·검사하지 않는다 —
+ * {@link RunCompletionService} 는 항상 {@code false} 를 반환하는 자리표시자라
  * {@code @MockitoBean} 으로 대체해 ①마지막 하차 시 호출됐는가 ②반환값에 따라 {@link RunEndedEvent}
  * 발행이 갈리는가 두 가지만 확인한다.
  */
@@ -102,7 +102,7 @@ class RunCompletionBoundaryTest {
         // Ruling 345 — PATCH 는 boarded→alighted 만 받는다. 이 시험의 본체는 완료 판정 경계이지
         // 전이 표 자체가 아니라, 명단 준비 단계에서 미리 boarded 로 세운다.
         jdbcTemplate.update("UPDATE run_rider SET status = 'boarded' WHERE id = ?", alightingRiderId);
-        // R51 C3 — 하차 처리는 하원에서만 받는다(종료 보류·완성도 하원의 개념이다).
+        // 하차 처리는 하원에서만 받는다(종료 보류·완성도 하원의 개념이다).
         jdbcTemplate.update("UPDATE run SET direction = 'from_academy' WHERE id = ?", runId);
         jdbcTemplate.update("UPDATE run_rider SET status = 'no_show' WHERE id = ?", noShowRiderId);
         entityManager.clear();
@@ -119,8 +119,8 @@ class RunCompletionBoundaryTest {
         verify(runCompletionService).completeIfAllAlighted(eq(run), any());
         List<RunEndedEvent> runEndedEvents = applicationEvents.stream(RunEndedEvent.class).toList();
         assertThat(runEndedEvents).as("①true 반환 시 RunEndedEvent 발행").hasSize(1);
-        // R52 L2 — auto_alighted_count 는 "등원 종료 때 자동으로 하차 처리된 수" 다(API_SPEC §4.5·§7). 하원은 자동 하차가 없고 방금 한 하차는
-        // 수동이라 0 이다 — 같은 하원 종료가 도착 처리 경로에서는 0, 마지막 하차 경로에서는 수동 하차 전체로 갈리던 것을 0 하나로 한다.
+        // auto_alighted_count 는 "등원 종료 때 자동으로 하차 처리된 수" 다(API_SPEC §4.5·§7). 하원은 자동 하차가 없고 방금 한 하차는
+        // 수동이라 0 이다.
         assertThat(runEndedEvents.get(0).autoAlightedCount()).as("②하원 종료는 자동 하차가 없어 0").isZero();
     }
 
@@ -136,7 +136,7 @@ class RunCompletionBoundaryTest {
         long alightingRiderId = fixtures().runRider(runId, alightingStudent, stopId);
         // Ruling 345 — PATCH 는 boarded→alighted 만 받는다(이 시험의 본체는 완료 판정 경계다).
         jdbcTemplate.update("UPDATE run_rider SET status = 'boarded' WHERE id = ?", alightingRiderId);
-        // R51 C3 — 하차 처리는 하원에서만 받는다(종료 보류·완성도 하원의 개념이다).
+        // 하차 처리는 하원에서만 받는다(종료 보류·완성도 하원의 개념이다).
         jdbcTemplate.update("UPDATE run SET direction = 'from_academy' WHERE id = ?", runId);
         entityManager.clear();
         long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
@@ -155,7 +155,7 @@ class RunCompletionBoundaryTest {
     }
 
     /**
-     * docs/archive/rounds/be-rounds-r15-r21.md §8.23 T3 목표 8(Ruling 312) — {@link RunArrivalCommandService} 의 즉시 종료 branch 뿐 아니라,
+     * 보류 종료 완성 시 강제 출발(Ruling 312) — {@link RunArrivalCommandService} 의 즉시 종료 branch 뿐 아니라,
      * 여기(보류됐던 종료가 나중에 완성되는 경로)에서도 도착·미출발 정차지가 강제로 출발 처리돼야
      * 한다. {@code notifyIfRunJustEnded} 가 이 강제 적용을 부르지 않으면 이 학생의 정차지는 영원히
      * {@code departed_at} 이 비고 확정 알림도 나가지 않는다.
@@ -177,13 +177,13 @@ class RunCompletionBoundaryTest {
         Run run = runRepository.findById(runId).orElseThrow();
 
         // 그 정차지가 이미 도착 처리는 됐지만 출발 판정은 아직 안 된 상태를 흉내낸다 —
-        // RunArrivalCommandService.arrive 를 거치지 않는(T2 회차 시작·도착 부재 워크트리) 이 시험은
+        // RunArrivalCommandService.arrive 를 거치지 않는 이 시험은
         // run_stop.arrived_at 을 직접 채운다. flush 를 먼저 해야 그 앞의 assignedManager 저장분이
         // 지워지지 않는다(BoardingCommandFixtures#startRun 자바독과 같은 근거).
         entityManager.flush();
         // Ruling 345 — PATCH 는 boarded→alighted 만 받는다(이 시험의 본체는 강제 출발 처리 경계다).
         jdbcTemplate.update("UPDATE run_rider SET status = 'boarded' WHERE id = ?", alightingRiderId);
-        // R51 C3 — 하차 처리는 하원에서만 받는다(종료 보류·완성도 하원의 개념이다).
+        // 하차 처리는 하원에서만 받는다(종료 보류·완성도 하원의 개념이다).
         jdbcTemplate.update("UPDATE run SET direction = 'from_academy' WHERE id = ?", runId);
         jdbcTemplate.update("UPDATE run_stop SET arrived_at = ? WHERE id = ?", now.minusMinutes(5), runStopId);
         // entityManager.clear() 뒤에는 updateStatus() 내부가 run 을 다시 조회해 새 인스턴스를 얻으므로

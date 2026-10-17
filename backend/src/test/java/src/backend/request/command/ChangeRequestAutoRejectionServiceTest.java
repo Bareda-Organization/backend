@@ -27,8 +27,7 @@ import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * {@code moving} 종결({@link ChangeRequestAutoRejectionService#terminateForRun}) 수준의 검증
- * (Phase 8 T6 목표 2·3). 폴링 경로는 {@code ChangeRequestAutoRejectionSchedulerTest} 가 본다 — 이
+ * {@code moving} 종결({@link ChangeRequestAutoRejectionService#terminateForRun}) 수준의 검증. 폴링 경로는 {@code ChangeRequestAutoRejectionSchedulerTest} 가 본다 — 이
  * 클래스는 <b>다른 진입점으로 불러도 같은 세 결과가 남는지</b>와 <b>마감 전에도 즉시 종결되는지</b>를 본다.
  *
  * <p>{@code @Transactional} 을 쓰지 않는다 — {@code terminateForRun} 이 건마다
@@ -153,7 +152,7 @@ class ChangeRequestAutoRejectionServiceTest {
                 Integer.class, parentId);
         assertThat(notificationCount).isEqualTo(1);
 
-        // R13 — 자동 거절 경로의 change_decided 도 studentId 를 채운다(docs/archive/rounds/be-rounds-r5-r14.md §8.16 목표 3).
+        // 자동 거절 경로의 change_decided 도 studentId 를 채운다.
         Long notifiedStudentId = jdbcTemplate.queryForObject(
                 "SELECT student_id FROM notification_log WHERE recipient_account_id = ? AND type = 'change_decided'",
                 Long.class, parentId);

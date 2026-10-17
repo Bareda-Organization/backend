@@ -28,8 +28,8 @@ import src.backend.global.error.ErrorCode;
  * (ERD §3.3 · MGR-01~06 · C-06 · A-12).
  *
  * <p>{@code accountId} 는 가입 승인 전 {@code NULL} 이다(AUTH-11) — 계정 연결은 별도 상태 전이라
- * 이 태스크(Phase 1) 범위 밖이다. {@code deletedAt} 은 soft delete 컬럼이며 필터(`@Where` 등)를
- * 이 태스크에서 붙이지 않는다.
+ * 이 엔티티 범위 밖이다. {@code deletedAt} 은 soft delete 컬럼이며 필터(`@Where` 등)를
+ * 붙이지 않는다.
  *
  * <p>{@code workHours} 는 {@code jsonb} 라 스키마가 부재하고 DB 가 형태를 막지 못한다 — 형태를
  * 고정하고 검증하는 자리는 {@link WorkHours} 이고, 이 엔티티는 <b>그 타입을 거친 값만</b> 담는다.

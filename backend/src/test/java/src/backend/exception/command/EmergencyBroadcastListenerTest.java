@@ -30,9 +30,8 @@ import src.backend.global.websocket.WebSocketBroadcastGateway;
 import src.backend.global.websocket.WebSocketDestinations;
 
 /**
- * 비상 신고 접수·확인·취소 방송의 채널 audience(Phase 11 T2 목표 6·7·10) — 게이트 리뷰(R2)가 지목한
- * 대로 이 리스너를 태우는 시험이 diff 전체에서 0건이었다({@code EmergencyBroadcastListener}
- * 자바독의 "학생 채널을 구조적으로 뺀다" 설계 판단을 고정하는 시험이 없었다는 뜻).
+ * 비상 신고 접수·확인·취소 방송의 채널 audience 를 검사한다. {@code EmergencyBroadcastListener}
+ * 자바독의 "학생 채널을 구조적으로 뺀다" 설계 판단을 이 시험이 고정한다.
  *
  * <p>{@link RiderChangedBroadcastListenerTest} 와 같은 이유로 실제 STOMP 왕복 대신
  * {@link WebSocketBroadcastGateway} 를 목(mock)으로 대체한다 — 검증의 핵심이 "어느 목적지로, 몇 번"
@@ -44,7 +43,7 @@ class EmergencyBroadcastListenerTest {
 
     private final EmergencyBroadcastListener listener = new EmergencyBroadcastListener(gateway, Runnable::run);
 
-    // ── goal 6·7 — 접수 방송은 학원·관리자 채널로만, 학생 채널은 절대 안 됨 ──────────
+    // ── 접수 방송은 학원·관리자 채널로만, 학생 채널은 절대 안 됨 ──────────
 
     @Test
     @DisplayName("접수 방송은 academyLive·ADMIN_LIVE 로만 가고, 학생 채널·managerRun 은 타지 않는다")
@@ -67,7 +66,7 @@ class EmergencyBroadcastListenerTest {
         학생_채널로는_절대_보내지_않는다();
     }
 
-    // ── goal 10 — emergency_raised 페이로드 7필드(API_SPEC §7.1, Phase 14 F1 이월 ②) ──────
+    // ── emergency_raised 페이로드 7필드(API_SPEC §7.1) ──────
 
     @Test
     @DisplayName("접수 방송 페이로드는 snake_case JSON 키 7개(emergency_id·type·bus_no·raised_by·position·rider_count·raised_at)를 싣는다")
@@ -122,7 +121,7 @@ class EmergencyBroadcastListenerTest {
         assertThat(json.get("position").get("lng").isNull()).isTrue();
     }
 
-    // ── goal 10, Ruling 277 — 확인(ack) 방송은 매니저 채널 전용(API_SPEC §7.1) ──────────
+    // ── Ruling 277 — 확인(ack) 방송은 매니저 채널 전용(API_SPEC §7.1) ──────────
 
     @Test
     @DisplayName("확인 방송은 발신자 채널(managerRun) 하나로만 가고, 학원·관리자·학생 채널은 타지 않는다")
@@ -191,7 +190,7 @@ class EmergencyBroadcastListenerTest {
     }
 
     /**
-     * 목표 7(학부모·학생은 비상 알림을 받지 않는다)이 WebSocket 계층에도 다시 어긋나지 않는지
+     * 학부모·학생은 비상 알림을 받지 않는다는 규칙이 WebSocket 계층에도 다시 어긋나지 않는지
      * 고정한다 — {@code send} 가 이미 다른 목적지로 호출된 뒤라 {@code never().send(any(), ...)} 를
      * 쓰면 그 호출 자체와 충돌하므로, 목적지 문자열이 학생 채널 접두사인 호출만 골라 없음을 검증한다.
      */

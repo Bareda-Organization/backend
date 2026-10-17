@@ -25,7 +25,7 @@ import org.junit.jupiter.api.Test;
  * 조용히 깎이므로, 되돌아가는 것 자체를 실패로 만든다.
  *
  * <p>인가 애너테이션 이름을 하드코딩하지 않는다 — {@code src.backend.global.security.authz}
- * 패키지에 실존하는 애너테이션 파일 목록을 매 실행 스캔해 대조한다. 이름이 바뀌거나(Phase 2)
+ * 패키지에 실존하는 애너테이션 파일 목록을 매 실행 스캔해 대조한다. 이름이 바뀌거나
  * 종수가 늘어도 이 테스트를 고치지 않아도 된다.
  *
  * <p>런타임 인가 동작이 아니라 <b>소스 텍스트</b>를 검사한다. 실제 200/403 은 컨트롤러별
@@ -44,7 +44,7 @@ class ControllerAuthorizationConventionTest {
      * 그 근거를 여기에 적는다.</b> 이름만 적고 근거가 없으면, 같은 파일에 인가 없는 매핑이 하나 더
      * 늘어도 이 목록이 통째로 가려 버려 회귀를 못 잡는다.
      *
-     * <p><b>Phase 9 T2 — {@code DriverRunController} 의 {@code start}·{@code arrive}·
+     * <p><b>{@code DriverRunController} 의 {@code start}·{@code arrive}·
      * {@code ackChanges} 3개.</b> 근거: {@link src.backend.run.access.RunAssignmentAccess} 가
      * 세 커맨드 서비스({@code RunStartCommandService}·{@code RunArrivalCommandService}·
      * {@code RunAckChangesCommandService}) 각각의 첫 줄에서 {@code assertAssignedDriver}·
@@ -57,16 +57,16 @@ class ControllerAuthorizationConventionTest {
      * {@code isAuthenticated()} 를 쓰는 것과 같은 카탈로그 공백) — 사양 밖에서 새 권한을 만들지
      * 않고 서비스 계층의 {@code assertAssignedDriverOrEscort} 에 맡긴다.
      *
-     * <p><b>Phase 10 T1 — {@code DriverPositionController} 의 {@code receive} 1개.</b> 근거:
+     * <p><b>{@code DriverPositionController} 의 {@code receive} 1개.</b> 근거:
      * {@code RunPositionCommandService#receive} 의 <b>첫 줄</b>이
-     * {@code runAssignmentAccess.assertAssignedDriverExists(requester, runId)}(R46-LATERBE L2 — 행을 꺼내지 않는
+     * {@code runAssignmentAccess.assertAssignedDriverExists(requester, runId)}(행을 꺼내지 않는
      * {@code assertAssignedDriver} 의 존재 확인형)를 호출한다 — 위
      * {@code DriverRunController} 3개와 <b>완전히 같은 인가 규칙</b>(그 회차에 배치된 기사만)이라
      * 같은 자리에 모은다. 컨트롤러 애너테이션으로 중복 표현하면 두 벌이 되어 한쪽만 고쳐지는 사고가
-     * 난다. ⚠ 이 항목은 병합 후 전체 실행에서야 드러났다 — 좌석 단독 실행에서는 이 규약 시험이
-     * 함께 돌지 않아 조용히 빠졌다.
+     * 난다. ⚠ 이 항목은 병합 후 전체 실행에서만 검사된다 — 좌석 단독 실행에서는 이 규약 시험이
+     * 함께 돌지 않아 조용히 빠진다.
      *
-     * <p><b>Phase 11 T3 — {@code RunReportController} 의 {@code report} 1개.</b> 근거:
+     * <p><b>{@code RunReportController} 의 {@code report} 1개.</b> 근거:
      * {@code ExceptionReportCommandService#report} 의 <b>첫 줄</b>이 {@code
      * runAssignmentAccess.assertAssignedDriverOrEscort(requester, runId)} 를 호출한다 — 위
      * {@code DriverRunController} 3개와 <b>완전히 같은 인가 규칙</b>(그 회차에 배치된 기사·동승자만)
@@ -163,10 +163,9 @@ class ControllerAuthorizationConventionTest {
     }
 
     /**
-     * Phase 11 이월 ③ 해소(2026-09-03, 조율자) — 면제 목록 <b>자체</b>를 검사한다.
+     * 면제 목록 <b>자체</b>를 검사한다.
      * {@link #인가_애너테이션이_없는_매핑_메서드가_없다} 는 면제 항목을 건너뛰므로, 면제가 근거 없이
-     * 늘거나 개명·삭제된 핸들러를 가리킨 채 남아도 아무 시험도 실패하지 않았다(Phase 11 좌석이
-     * 변형으로 실증). 개수를 고정해 항목 추가가 이 단언을 깨뜨리게 하고(계정 상태 게이트
+     * 늘거나 개명·삭제된 핸들러를 가리킨 채 남아도 아무 시험도 실패하지 않는다(변형으로 실증). 개수를 고정해 항목 추가가 이 단언을 깨뜨리게 하고(계정 상태 게이트
      * {@code hasSize} 와 같은 방식), 각 항목이 실재하는 매핑 메서드를 가리키는지 확인해 낡은 면제를
      * 잡는다. {@code EXEMPT_FILES} 는 0개로 고정한다 — 공개 경로는 {@code @PublicEndpoint} 허용
      * 목록(Ruling 77)이 맡고 파일 단위 면제는 쓰지 않는다.
@@ -189,15 +188,14 @@ class ControllerAuthorizationConventionTest {
     }
 
     /**
-     * 조율자 Ruling 73 — 검사 대상 핸들러 수의 하한을 건다(BR-151, 2026-09-26 실측치로 갱신).
+     * 조율자 Ruling 73 — 검사 대상 핸들러 수의 하한을 건다(BR-151, 실측치 기준).
      *
      * <p>스캔 경로가 컨트롤러 일부를 놓쳐도(오타난 경로 · 빠뜨린 패키지) {@link
      * #인가_애너테이션이_없는_매핑_메서드가_없다} 는 "위반이 없다"와 "검사할 게 없다"를 구별하지
      * 못한 채 그대로 초록이 된다 — 이 테스트가 그 구멍을 막는다.
      *
-     * <p>하한값은 실제 핸들러 수({@code 114}, 이 스캔 자체가 센 값)다. 예전에는 "컨트롤러 0개는
-     * 안 된다"만 보는 잠정값 {@code 1} 이었는데, 그 값으로는 스캔 경로가 컨트롤러 전체 중
-     * <b>극히 일부만</b> 찾아도(예: 한 패키지만 보게 좁아짐) 여전히 통과했다 — 실제로 {@code
+     * <p>하한값은 실제 핸들러 수({@code 114}, 이 스캔 자체가 센 값)다. 하한이 {@code 1} 이면 스캔 경로가 컨트롤러 전체 중
+     * <b>극히 일부만</b> 찾아도(예: 한 패키지만 보게 좁아짐) 통과한다 — 실제로 {@code
      * SOURCE_ROOT} 를 {@code account} 패키지 하나로 좁혀 심어 보면 이 값이 한 자리 수로 떨어지며
      * 이 시험이 실패하는 것으로 확인했다. 새 컨트롤러·엔드포인트를 추가했으면 이 하한을 그만큼
      * 올린다 — 낮추는 방향의 변경은 스캔이 무언가를 놓치기 시작했다는 신호로 먼저 의심한다.
@@ -280,7 +278,7 @@ class ControllerAuthorizationConventionTest {
      * 이 패키지에 실존하는 인가 애너테이션의 단순 이름 목록(확장자 제거). 하드코딩하지 않고 매번 스캔한다.
      *
      * <p>파일명만 보고 애너테이션이라 단정하지 않는다 — 이 디렉터리엔 {@code RolePermissions}·
-     * {@code Permissions} 처럼 애너테이션이 아닌 상수 보관용 클래스도 함께 있다(보완 리뷰 Minor #7).
+     * {@code Permissions} 처럼 애너테이션이 아닌 상수 보관용 클래스도 함께 있다.
      * {@link #declaresAnnotationType} 로 실제 {@code @interface} 선언인지 걸러낸다 — 걸러내지
      * 않으면 이 목록의 이름이 "이 디렉터리의 파일" 이 아니라 "인가 애너테이션" 이라는 이 메서드의
      * 이름과 어긋난다.
@@ -300,7 +298,7 @@ class ControllerAuthorizationConventionTest {
         }
     }
 
-    /** 파일 내용에 {@code @interface <파일명>} 선언이 실제로 있는지 본다(보완 리뷰 Minor #7). */
+    /** 파일 내용에 {@code @interface <파일명>} 선언이 실제로 있는지 본다. */
     private boolean declaresAnnotationType(Path file) {
         String fileName = file.getFileName().toString();
         String simpleName = fileName.substring(0, fileName.length() - ".java".length());
@@ -313,8 +311,7 @@ class ControllerAuthorizationConventionTest {
 
     /**
      * {@link #authzAnnotationNames()} 가 파일명만으로 판단하면 {@code RolePermissions}·
-     * {@code Permissions}(애너테이션이 아닌 상수 클래스)까지 인가 애너테이션으로 잘못 취급한다
-     * (보완 리뷰 Minor #7) — 실제 {@code @interface} 선언 3개만 남는지 잠근다.
+     * {@code Permissions}(애너테이션이 아닌 상수 클래스)까지 인가 애너테이션으로 잘못 취급하지 않도록, 실제 {@code @interface} 선언 3개만 남는지 잠근다.
      */
     @Test
     void authzAnnotationNames_은_실제_interface_선언만_포함한다() {

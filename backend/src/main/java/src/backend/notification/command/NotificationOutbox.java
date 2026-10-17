@@ -31,7 +31,7 @@ import src.backend.notification.event.NotificationAppendedEvent;
  * 롤백됐는데 알림만 남는" 창이 생기고, 그 알림은 <b>일어나지 않은 일</b>을 통지한다. 부를 자리가
  * 아니면 조용히 새 트랜잭션을 여는 대신 기동 실패에 준하는 예외로 알린다.
  *
- * <p><b>적재는 한 문장 {@code INSERT ... ON CONFLICT (dedup_key) DO NOTHING} 이다</b>(R46 T-6 · 중복 판정은 Ruling 622) —
+ * <p><b>적재는 한 문장 {@code INSERT ... ON CONFLICT (dedup_key) DO NOTHING} 이다</b>(중복 판정은 Ruling 622) —
  * 건별 {@code saveAndFlush} 면 수신자 수만큼 문장이 나가 회차 행 잠금을 쥔 시간이 수신자 수에 비례한다(운행 시작 약
  * 40~75건). 같은 {@code dedup_key} 가 이미 있으면 <b>건너뛴다</b> — 예외로 알리면 PostgreSQL 은 UNIQUE 위반 즉시 그
  * 트랜잭션을 중단 상태로 만들어, 알림 키 충돌 하나가 운행 시작·비상 신고 같은 상태 변경까지 통째로 되돌렸다. 같은 키는

@@ -113,7 +113,7 @@ class ProximityDepartureObservationTest {
         jdbcTemplate.update("DELETE FROM academy WHERE name = '근접알림시험학원'");
     }
 
-    /** 진입 직전(150m 밖)에 도착을 눌렀다 — 그 뒤 위치가 계속 100m 밖이어도 출발로 보지 않는다(이전에는 다음 틱에 바로 출발). */
+    /** 진입 직전(150m 밖)에 도착을 눌렀다 — 그 뒤 위치가 계속 100m 밖이어도 출발로 보지 않는다. */
     @Test
     void 도착_뒤_100m_안_위치가_없으면_100m_밖_위치만으로는_출발이_아니다() {
         Scenario s = scenario();
@@ -167,7 +167,7 @@ class ProximityDepartureObservationTest {
     }
 
     /**
-     * 도착 뒤 100m 안 관측이 끝내 없으면 다음 승하차지 도착 때의 강제 발송(Ruling 854 · R51 H2)이 앞 승하차지를 출발 처리한다 — 이 판정이
+     * 도착 뒤 100m 안 관측이 끝내 없으면 다음 승하차지 도착 때의 강제 발송(Ruling 854)이 앞 승하차지를 출발 처리한다 — 이 판정이
      * 출발을 못 잡아도 알림이 영영 빠지지 않는다.
      */
     @Test

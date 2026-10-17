@@ -33,11 +33,11 @@ import src.backend.run.command.RunConfirmationFixtures;
 import src.backend.run.repository.RunRepository;
 
 /**
- * §4.1 {@code GET /manager/runs} — RUN-01·M-02·M-07, Phase 9 목표 16·17.
+ * §4.1 {@code GET /manager/runs} — RUN-01·M-02·M-07.
  *
  * <p>이 클래스의 축은 <b>배치 여부가 곧 목록 범위</b>라는 것이다({@code ManagerRunAccess} 대신
- * {@code assignment} 조회 자체가 좁힌다). 배치되지 않은 매니저가 빈 배열을 받는지(목표 17), 삭제된
- * 매니저의 옛 토큰이 로그인은 통과해도 이 목록에서 막히는지(목표 16)를 함께 본다 — 하나만 보면
+ * {@code assignment} 조회 자체가 좁힌다). 배치되지 않은 매니저가 빈 배열을 받는지, 삭제된
+ * 매니저의 옛 토큰이 로그인은 통과해도 이 목록에서 막히는지를 함께 본다 — 하나만 보면
  * "배치가 있어야 보인다" 와 "탈퇴하면 안 보인다" 가 서로 가려서 둘 다 통과하는 반쪽짜리 구현이
  * 나올 수 있다.
  */

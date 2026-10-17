@@ -24,7 +24,7 @@ import src.backend.notification.repository.NotificationLogRepository;
 import src.backend.notification.scheduler.NotificationOutboxWorker;
 
 /**
- * Phase 4 목표 3 — 시드의 미발송 행을 워커가 회수해 재발송하고, <b>이미 끝난 행은 건드리지 않는지</b>
+ * 시드의 미발송 행을 워커가 회수해 재발송하고, <b>이미 끝난 행은 건드리지 않는지</b>
  * 본다(ERD §5 의 부분 인덱스 {@code WHERE push_state='pending'} 가 가리키는 술어).
  *
  * <p>두 단언 중 뒤쪽이 이 클래스의 이유다. 회수 조건에서 {@code push_state='pending'} 이 빠진 워커도
@@ -148,7 +148,7 @@ class NotificationOutboxWorkerTest {
      * 실행에 1회 생존을 실측). 여기서는 시도 시각을 픽스처가 못박고 배달을 <b>한 번만</b> 걸어,
      * 그 순서 자체를 없앤다.
      *
-     * <p>P5-T2 의 {@code pg_stat_activity} 대기 기법은 이 자리에 맞지 않는다. 그쪽 비결정성은
+     * <p>{@code pg_stat_activity} 대기 기법은 이 자리에 맞지 않는다. 그쪽 비결정성은
      * "어느 층이 잡는가"(선검사 vs DB 제약)였고 상대가 잠금을 기다리는 것을 확인하면 층이 고정된다.
      * 여기 비결정성은 <b>두 스레드의 시계 읽기 순서</b>라 잠금 대기 상태가 그것을 말해 주지 않는다.
      * 게다가 선점 UPDATE 는 저장소 안에서 {@code REQUIRES_NEW} 로 열고 닫혀, 테스트가 그 트랜잭션을

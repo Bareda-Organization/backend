@@ -37,7 +37,7 @@ public class RiderStatusHistory {
     private Long runRiderId;
 
     /** 이 컬럼과 {@link #toStatus} 는 CHECK({@code ck_rider_status_history_from_status}·{@code to_status})로 값이 강제된다
-     * (R46 A-5) — 읽을 때는 {@link RiderStatus.Db#convertToEntityAttribute} 의 {@link Enum#valueOf} 가 한 번 더 막는다. */
+     * 읽을 때는 {@link RiderStatus.Db#convertToEntityAttribute} 의 {@link Enum#valueOf} 가 한 번 더 막는다. */
     @Convert(converter = RiderStatus.Db.class)
     @Column(name = "from_status", length = 10)
     private RiderStatus fromStatus;
@@ -98,7 +98,7 @@ public class RiderStatusHistory {
 
     /**
      * 탑승자 상태가 전이될 때 이력 행을 만든다 — 되돌리기 여부·검증 수단·멱등키 등은 이 팩토리가 다루지 않는다
-     * (Phase 1 은 필드 매핑까지, 상태 전이 정책은 도메인 Phase 담당). 파라미터 5개는 CODE_CONVENTIONS.md §20.2 기준(4개)을
+     * (필드 매핑까지만 다룬다, 상태 전이 정책은 도메인 모듈 담당). 파라미터 5개는 CODE_CONVENTIONS.md §20.2 기준(4개)을
      * 넘지만 NN 필드 전부가 생성 시점에 필요해 record 파라미터 객체 도입 대신 규약 §3(팩토리 분화 금지)을 우선했다.
      */
     public static RiderStatusHistory forTransition(Long runRiderId, RiderStatus fromStatus,

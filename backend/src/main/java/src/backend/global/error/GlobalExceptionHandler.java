@@ -33,7 +33,7 @@ import src.backend.routing.map.spec.MapRouteUnavailableException;
  *
  * <p>응답 본문은 {@link ErrorResponse}(§1.10) — {@code error.code} 에 {@link ErrorCode#name()} 을
  * 그대로 실어, 클라이언트가 문구가 아니라 이 값으로 {@code AUTH_PENDING}·{@code AUTH_REJECTED}·
- * {@code FORBIDDEN}(전부 403)을 구별한다(Phase 2 Task 2 리뷰 라운드 1 Important #6).
+ * {@code FORBIDDEN}(전부 403)을 구별한다.
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -76,7 +76,7 @@ public class GlobalExceptionHandler {
 
     /**
      * {@code @Valid} 바디 검증 실패(API_SPEC §1.11 {@code VALIDATION_FAILED}, 422) — 이 핸들러가
-     * 이 저장소 최초의 {@code @Valid} DTO 를 다루는 소비자라(Phase 2 Task 3), 기존
+     * 이 저장소 최초의 {@code @Valid} DTO 를 다루는 소비자라, 기존
      * {@code INVALID_INPUT}(400)을 참조하는 다른 코드가 없어 사양값으로 바로 맞췄다.
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -166,7 +166,7 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * DB 자원 오류를 {@code 503 SERVER_BUSY} + {@code Retry-After} 로 옮긴다(R46 S-7) — 어느 예외가 자원 오류인지는
+     * DB 자원 오류를 {@code 503 SERVER_BUSY} + {@code Retry-After} 로 옮긴다 — 어느 예외가 자원 오류인지는
      * {@link DbResourceFailure} 가 정한다(인증 필터도 같은 목록을 쓴다). 그 밖의 DB 예외는 코드 결함이라 {@link #handleUnexpected}
      * 의 {@code 500} + 스택이다.
      *

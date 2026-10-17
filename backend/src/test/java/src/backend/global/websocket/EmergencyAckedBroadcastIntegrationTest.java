@@ -116,7 +116,7 @@ class EmergencyAckedBroadcastIntegrationTest {
                 .andExpect(status().isOk());
 
         // managerRun 채널 하나로만 정확히 한 번 — 학원·관리자·학생 채널은 이 페이로드를 받지 않는다
-        // (Ruling 277, 채널 audience 는 EmergencyBroadcastListenerTest 의 goal 10 시험이 이미 고정
+        // (Ruling 277, 채널 audience 는 EmergencyBroadcastListenerTest 의 시험이 이미 고정
         // 하므로 여기서는 페이로드 내용에 집중한다).
         ArgumentCaptor<Object> envelopeCaptor = ArgumentCaptor.forClass(Object.class);
         verify(messagingTemplate, times(1)).convertAndSend(eq(WebSocketDestinations.managerRun(runId)),

@@ -94,7 +94,7 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     /**
      * 같은 번호의 복구 대상 계정을 잠금 없이 읽는다(차단 계정 제외 · {@link #findAllByPhoneAndRoleInForUpdate} 와 같은 조건)
      * — 코드 발급이 문자를 보낼지 정하는 존재 여부와, 대조가 임시 비밀번호(BCrypt)를 몇 개 미리 만들지 정하는 데만 쓴다.
-     * 저장은 {@link #findAllByPhoneAndRoleInForUpdate} 로 다시 읽은 행에 한다(R46 T-3).
+     * 저장은 {@link #findAllByPhoneAndRoleInForUpdate} 로 다시 읽은 행에 한다.
      */
     @AcademyScopeExempt(reason = "§2.9 계정 복구 — 전화번호만 들고 시작해 소속 학원이 미상")
     @Query("SELECT a FROM Account a WHERE a.phone = :phone AND a.role IN :roles "
@@ -120,7 +120,7 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     /**
      * 여러 계정의 이름·연락처를 한 번에 가져온다 — 메인 관리자 콘솔의 관계자 가입 요청 목록
      * (API_SPEC §6.4)이 요청 행에 신청자 정보를 채울 때 쓰고, 비상 알림 목록
-     * ({@code EmergencyStaffQueryService}, Phase 11 T2)이 확인자(acked_by)를 이름으로 바꿀 때도 쓴다.
+     * ({@code EmergencyStaffQueryService})이 확인자(acked_by)를 이름으로 바꿀 때도 쓴다.
      *
      * <p>학원 조건을 함께 걸 수 없는 것이 §6.3 의 {@link #findAllByAcademyIdAndIdIn} 과 갈리는
      * 지점이다 — 그쪽은 목록 전체가 한 학원이고 이쪽은 한 페이지(또는 목록)에 여러 학원이 섞일 수 있다.
@@ -163,8 +163,8 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     List<Account> findAllByLoginIdIn(Collection<String> loginIds);
 
     /**
-     * 특정 역할·상태 집합의 계정 전부(Phase 11 T2, EXC-04) — 비상 알림이 메인 관리자 전원에게 설정과
-     * 무관하게 동시 도달해야 하는데(목표 6), 메인관리자는 {@code academy_staff} 소속이 없어
+     * 특정 역할·상태 집합의 계정 전부(EXC-04) — 비상 알림이 메인 관리자 전원에게 설정과
+     * 무관하게 동시 도달해야 하는데, 메인관리자는 {@code academy_staff} 소속이 없어
      * {@link src.backend.academy.repository.AcademyStaffRepository#findActiveAccountsByAcademyId} 로
      * 찾을 수 없다 — 이 조회가 그 갈래를 담당한다. 상태 집합은 호출부가 {@link AccountStatus#NOTIFIABLE} 로 넘긴다(Ruling 865).
      */
@@ -174,8 +174,7 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     List<Account> findAllByRoleAndStatusIn(Role role, Collection<AccountStatus> statuses);
 
     /**
-     * {@link #findAllByRoleAndStatusIn} 와 같은 대상을 개수만 센다(API_SPEC §4.14 {@code notified},
-     * BE-R1 목표 1) — 비상 신고 응답이 실제 발송 대상 이름까지는 필요 없고 도달 수신자 수만 필요해,
+     * {@link #findAllByRoleAndStatusIn} 와 같은 대상을 개수만 센다(API_SPEC §4.14 {@code notified}) — 비상 신고 응답이 실제 발송 대상 이름까지는 필요 없고 도달 수신자 수만 필요해,
      * 계정 전체를 불러 크기를 재는 대신 count 전용 질의로 좁힌다.
      */
     @AcademyScopeExempt(reason = "메인관리자(SYSTEM_ADMIN)는 academy_id 가 null 이라(ck_account_academy_scope) "
@@ -184,7 +183,7 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     long countByRoleAndStatusIn(Role role, Collection<AccountStatus> statuses);
 
     /**
-     * 감사 화면의 행위자 찾기(R46 감사, API_SPEC §6.13 {@code GET /admin/audit-actors}) — 이름 또는 로그인 아이디에
+     * 감사 화면의 행위자 찾기(API_SPEC §6.13 {@code GET /admin/audit-actors}) — 이름 또는 로그인 아이디에
      * {@code q} 가 들어 있는 계정을 이름순으로 {@code limit} 건까지. 빈 검색어는 전건과 같아지므로 호출부가 막는다.
      * {@code q} 는 호출부가 {@link src.backend.global.persistence.LikeEscape} 로 이스케이프해 넘기고 이 쿼리는
      * {@code ESCAPE '\'} 로 해석만 한다(BR-376).

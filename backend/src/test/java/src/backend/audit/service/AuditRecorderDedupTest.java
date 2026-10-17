@@ -29,7 +29,7 @@ import testsupport.clock.AdvanceableClock;
 import testsupport.clock.AdvanceableClockConfig;
 
 /**
- * R46 감사 A(Ruling 445) — 같은 행위자가 같은 학생의 L3 를 10분 안에 다시 조회하면 새 행을 쓰지 않는다.
+ * Ruling 445 — 같은 행위자가 같은 학생의 L3 를 10분 안에 다시 조회하면 새 행을 쓰지 않는다.
  *
  * <p>묶기 키는 <b>행위자·학생</b>이다. 명단·목록 단위로 잡으면 두 번째 조회에 새로 실린 학생의 기록이 빠진다
  * ("누구를 봤나" 가 사라진다) — 그래서 그 경우를 따로 검사한다. {@code @Transactional} 이 부재하다 — 감사 행은

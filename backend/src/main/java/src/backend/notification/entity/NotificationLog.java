@@ -22,7 +22,7 @@ import src.backend.global.common.enums.Role;
  *
  * <p>{@code academy_id}·{@code recipient_account_id}·{@code student_id} 는 논리적
  * 부모이나 DB FK 가 미설정이다(ERD §4.2 — 보존 14일, 이름·버스번호를 스냅샷으로 담아 자립한다).
- * {@code recipient_role} 은 CHECK({@code ck_notification_log_recipient_role})로 값이 강제된다(R46 A-5) — 읽을 때는
+ * {@code recipient_role} 은 CHECK({@code ck_notification_log_recipient_role})로 값이 강제된다 — 읽을 때는
  * {@link Role.Db#convertToEntityAttribute} 의 {@link Enum#valueOf} 가 한 번 더 막는다.
  */
 @Entity
@@ -124,7 +124,7 @@ public class NotificationLog {
         this.acked = false;
     }
 
-    /** 대상 자녀·호차 스냅샷(R13)까지 함께 받는 생성자 — 나머지 필드는 위 9-인자 생성자와 같다. */
+    /** 대상 자녀·호차 스냅샷까지 함께 받는 생성자 — 나머지 필드는 위 9-인자 생성자와 같다. */
     private NotificationLog(Long academyId, Long recipientAccountId, String recipientName,
             Role recipientRole, NotificationType type, String title, String body,
             String dedupKey, OffsetDateTime createdAt, Long studentId, String studentName, String busNo) {
@@ -157,7 +157,7 @@ public class NotificationLog {
     }
 
     /**
-     * 대상 자녀·호차 값까지 함께 적재한다(R13, `docs/archive/rounds/be-rounds-r5-r14.md §8.16`) — 종류마다 채울 수 있는
+     * 대상 자녀·호차 값까지 함께 적재한다 — 종류마다 채울 수 있는
      * 값만 넘기고 나머지는 {@code null}. 기존 9-인자 {@link #forOutbox}는 시험 픽스처가 계속 쓰므로
      * 그대로 남긴다(팩토리 분화가 아니라 과부하 — 규약 §3 은 여러 팩토리로 갈라 성격이 다른 생성
      * 경로를 만드는 것을 금하지, 같은 팩토리의 선택적 인자 확장까지 막지 않는다).
@@ -170,7 +170,7 @@ public class NotificationLog {
                 type, title, body, dedupKey, createdAt, studentId, studentName, busNo);
     }
 
-    /** 가리키는 회차(R46-FUFEAT ③, Ruling 542)까지 적재하는 과부하 — 매니저 알림(노선·배치 변경)이 쓴다. */
+    /** 가리키는 회차(Ruling 542)까지 적재하는 과부하 — 매니저 알림(노선·배치 변경)이 쓴다. */
     public static NotificationLog forOutbox(Long academyId, Long recipientAccountId,
             String recipientName, Role recipientRole, NotificationType type, String title,
             String body, String dedupKey, OffsetDateTime createdAt, Long studentId, String studentName,
@@ -193,7 +193,7 @@ public class NotificationLog {
      * 수신 확인(NTF-10)을 남긴다 — <b>중요 통지에 한해</b> 호출자(읽음 처리 서비스)가 부른다. 어떤
      * 종류가 "중요"인지는 이 엔티티가 판단하지 않는다(USER_FLOWS §10.2 규칙4·5 — 지연·미승차·노선
      * 변경 3종). {@link #markRead} 와 마찬가지로 최초 1회만 기록해 {@code acked_at} 이 재확인으로
-     * 밀리지 않는다. 관계자 알림 로그(API_SPEC §5.17 미확인 배지, T3 담당)가 이 필드를 그대로 읽는다.
+     * 밀리지 않는다. 관계자 알림 로그(API_SPEC §5.17 미확인 배지)가 이 필드를 그대로 읽는다.
      */
     public void ack(OffsetDateTime now) {
         if (!this.acked) {

@@ -77,7 +77,7 @@ public class JwtTokenProvider {
      * {@code jti}(id) 클레임이 반드시 필요하다 — 이것 없이는 같은 계정에 대해 같은 밀리초에 발급된
      * 두 토큰(subject·academyId·role·status·type·issuedAt·expiration 이 전부 같음)이 서명까지
      * 바이트 단위로 동일해져, {@code refresh_token.token_hash} UNIQUE 제약을 어기고 두 번째 저장이
-     * {@code 500}으로 죽는다(Task 4 가 {@code AuthControllerTest} 로 재현·발견, 보고서 ⑤ — 로그인
+     * {@code 500}으로 죽는다({@code AuthControllerTest} 로 재현·발견 — 로그인
      * 직후 곧바로 refresh 하는 것처럼 같은 계정에 대한 토큰 발급이 짧은 간격으로 겹치면 실제로도 날 수
      * 있는 운영 결함이었다).
      */
@@ -146,12 +146,11 @@ public class JwtTokenProvider {
      *
      * <p>{@code role}·{@code status} 클레임이 없는 토큰은 여기서 {@link JwtException}으로 실패한다 —
      * 그런 토큰을 조용히 통과시키면 계정 상태 게이트가 상태 미상 요청 전체를 열어 버리므로, 늦게
-     * 실패하는 것보다 여기서 바로 막는 편이 낫다(리뷰 라운드 1 Critical #1). {@code Enum.valueOf(Class,
+     * 실패하는 것보다 여기서 바로 막는 편이 낫다. {@code Enum.valueOf(Class,
      * null)}은 {@link IllegalArgumentException}이 아니라 {@link NullPointerException}을 던지는데,
      * 그 타입 그대로 호출부까지 새 나가면 {@link JwtAuthenticationFilter}·{@link
      * StompAuthChannelInterceptor}의 {@code catch (JwtException | IllegalArgumentException e)} 절이
-     * 놓쳐 {@code GlobalExceptionHandler}가 못 잡는 API_SPEC §1.10 형식 밖 500이 된다(리뷰 라운드 2
-     * Important #10). 그래서 여기서 {@link IllegalArgumentException}·{@link NullPointerException}을
+     * 놓쳐 {@code GlobalExceptionHandler}가 못 잡는 API_SPEC §1.10 형식 밖 500이 된다. 그래서 여기서 {@link IllegalArgumentException}·{@link NullPointerException}을
      * 전부 붙잡아 {@link JwtException}으로 통일한다 — 호출부 catch 절을 그대로 둬도 계속 막힌다.
      */
     public AuthUser resolveAuthUser(Claims claims) {

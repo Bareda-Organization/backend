@@ -167,7 +167,7 @@ public class AuthController {
     /**
      * 비밀번호 변경(API_SPEC §2.8) — 성공 시 기존 refresh 토큰을 전량 무효화한다. 웹 호출 판단은
      * §2.6·§2.7 과 같은 쿠키 존재 여부다(이 엔드포인트도 {@code Path=/api/v1/auth} 하위라 웹
-     * 세션이면 브라우저가 refresh 쿠키를 자동으로 함께 보낸다 — Task 4 판단, 보고서 ⑥).
+     * 세션이면 브라우저가 refresh 쿠키를 자동으로 함께 보낸다).
      */
     @AuthenticatedOnly
     @AllowedWhenPasswordChange

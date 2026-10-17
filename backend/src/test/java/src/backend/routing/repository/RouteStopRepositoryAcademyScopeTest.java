@@ -15,8 +15,8 @@ import src.backend.routing.entity.RouteStop;
 /**
  * {@code route_stop} 조회의 학원 조건이 <b>JPQL 조인 안에</b> 있음을 컨트롤러·서비스를 거치지 않고 보인다.
  *
- * <p><b>이 클래스가 있는 이유가 게이트 리뷰의 지적이다(수정 라운드 1 Important 1).</b> 조인 조건
- * {@code AND r.academyId = :academyId} 를 지워도 그 전에는 아무 테스트도 실패하지 않았다. 두 가지가
+ * <p><b>이 클래스가 있는 이유는 아래 조인 조건의 누락을 잡기 위해서다.</b> 조인 조건
+ * {@code AND r.academyId = :academyId} 를 지워도 이 클래스가 없으면 아무 테스트도 실패하지 않는다. 두 가지가
  * 겹쳐서다.
  * <ul>
  *   <li>{@code AcademyScopeRepositoryConventionTest} 는 <b>메서드 이름의 {@code AcademyId} 부분

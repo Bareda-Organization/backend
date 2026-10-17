@@ -20,8 +20,7 @@ import src.backend.global.security.gate.AllowedWhenRejected;
  * 계정 상태 게이트(C-01 · API_SPEC §1.4)의 <b>거부측 대상 목록</b>과, 그 목록이 낡지 않았는지 대조할
  * 실측 수단을 함께 둔다.
  *
- * <p>정본 문면은 "허용 목록 밖 <b>전부</b> 403" 이다 — 손으로 적은 목록만 두면 다음 Phase 가
- * 엔드포인트를 늘렸을 때 목록이 조용히 낡아 검사 범위와 문면이 벌어진다. 그래서 목록(사람이 읽는
+ * <p>정본 문면은 "허용 목록 밖 <b>전부</b> 403" 이다 — 손으로 적은 목록만 두면 엔드포인트가 늘어났을 때 목록이 조용히 낡아 검사 범위와 문면이 벌어진다. 그래서 목록(사람이 읽는
  * 정본 대조용)과 {@link #productionEndpoints} 의 런타임 실측(핸들러 매핑에서 직접 뽑음)을 둘 다 두고
  * {@code AuthFlowIntegrationTest} 가 서로 대조한다. 두 출처가 독립이라 한쪽의 누락을 다른 쪽이 잡는다.
  */
@@ -32,125 +31,124 @@ public final class AccountStatusGateEndpoints {
      * ({@code @AllowedWhenPending} 5 + {@code @AllowedWhenRejected} 1)와 {@code @PublicEndpoint} 5개를
      * 뺀 나머지 전부다. 경로는 컨트롤러 소스의 bare path 로 적고 접두사는 {@link #uriOf} 가 붙인다.
      *
-     * <p>Phase 5 가 {@code /staff/buses} 3개와 {@code /staff/managers} 4개를 더했다 — 차량·매니저는
+     * <p>{@code /staff/buses} 3개와 {@code /staff/managers} 4개 — 차량·매니저는
      * 관계자 전용 관리 화면이라 승인 대기·거절 계정에 열어 줄 근거가 부재하다.
      *
-     * <p>이어서 {@code /staff/schedules} 4개와 {@code /staff/runs} 4개(회차 조회·임시 추가·임시 취소·
-     * 매니저 배치)를 더했다 — 운행 계획과 그날의 회차도 같은 관리 화면이라 근거가 같다.
+     * <p>{@code /staff/schedules} 4개와 {@code /staff/runs} 4개(회차 조회·임시 추가·임시 취소·
+     * 매니저 배치) — 운행 계획과 그날의 회차도 같은 관리 화면이라 근거가 같다.
      *
-     * <p>Phase 6 이 {@code /staff/routes} 6개(고정 노선 CRUD 5 + 순서 최적화 1)를 더했다 — 편성은
+     * <p>{@code /staff/routes} 6개(고정 노선 CRUD 5 + 순서 최적화 1) — 편성은
      * 학원 관계자의 관리 화면이라 근거가 같다.
      *
-     * <p>Phase 8 이 9개를 더했다 — 학원 관계자 6개({@code /staff/approvals} 목록·상세·결정 3
+     * <p>학원 관계자 6개({@code /staff/approvals} 목록·상세·결정 3
      * (API_SPEC §5.5·§5.6, 권한 "학원 관계자") + {@code /staff/runs/{runId}/forced-add} 1(§5.7) +
      * {@code /staff/runs/{runId}/waypoints} 배포·해제 2(§5.15, 둘 다 권한 "학원 관계자"))와 학부모
      * 3개({@code /students/{id}/runs/{runId}/intent}(§3.6) · {@code /students/{id}/change-requests}
      * 등록·조회 2(§3.8·§3.9), 셋 다 권한 "학부모") — 둘 다 승인된 계정의 기능이라 허용 목록 밖이다
      * (Ruling 145 와 같은 근거).
      *
-     * <p>Phase 9 가 3개를 더했다 — {@code /runs/{runId}/start}(§4.4, 권한 "기사") ·
+     * <p>{@code /runs/{runId}/start}(§4.4, 권한 "기사") ·
      * {@code /runs/{runId}/stops/{stopId}/arrive}(§4.5, 권한 "기사") ·
      * {@code /runs/{runId}/ack-changes}(§4.11, 권한 "기사 또는 동승자") — 운행 중인 단말(기사·
      * 동승자)의 기능이라 승인 대기·거절 계정에는 근거가 부재하다.
-     * <p>Phase 9 T1 이 4개를 더했다 — 매니저 앱의 회차 목록·명단·노선 조회 3개({@code GET
+     * <p>매니저 앱의 회차 목록·명단·노선 조회 3개({@code GET
      * /manager/runs}(§4.1) · {@code GET /runs/{runId}/roster}(§4.2) · {@code GET /runs/{runId}/route}
      * (§4.3), 셋 다 권한 "매니저")와 관계자 웹의 명단 조회 1개({@code GET /staff/runs/{runId}/roster}
      * (§5.4), 권한 "학원 관계자") — 승인된 계정만 회차 운행에 관여하므로 허용 목록 밖이다(Ruling 145 와
      * 같은 근거).
-     * <p>Phase 10 이 3개를 더했다 — {@code POST /runs/{runId}/position}(§4.12, 권한 "기사") ·
+     * <p>{@code POST /runs/{runId}/position}(§4.12, 권한 "기사") ·
      * {@code GET /students/{id}/bus-position}(§3.11, 권한 "학부모") · {@code GET /students/{id}/route}
-     * (§3.10, 권한 "학부모") — 운행 중인 단말과 승인된 학부모의 기능이라 근거가 앞 Phase 들과 같다.
+     * (§3.10, 권한 "학부모") — 운행 중인 단말과 승인된 학부모의 기능이라 근거가 위와 같다.
      *
-     * <p>⚠ Phase 10 의 산출물 가운데 여기 오르는 것은 이 3개뿐이다 — STOMP 구독 채널은 HTTP 핸들러가
+     * <p>⚠ 여기 오르는 것은 이 3개뿐이다 — STOMP 구독 채널은 HTTP 핸들러가
      * 아니라 {@code RequestMappingHandlerMapping} 에 잡히지 않고, 근접 알림은 스케줄러라 요청 진입점이
      * 부재하다. 개수가 기대만큼 안 늘었다고 누락으로 읽지 마라.
      *
-     * <p>Phase 11 T1 이 3개를 더했다 — {@code POST /runs/{runId}/riders/{riderId}/no-show-contacts}
+     * <p>{@code POST /runs/{runId}/riders/{riderId}/no-show-contacts}
      * (§4.8, 권한 "동승자")와 {@code GET}·{@code PATCH /staff/academy-settings}(§5.21, 권한 "학원
-     * 관계자") — 셋 다 승인된 계정의 기능이라 근거가 앞 Phase 들과 같다({@code Permissions} 카탈로그
+     * 관계자") — 셋 다 승인된 계정의 기능이라 근거가 위와 같다({@code Permissions} 카탈로그
      * 미매핑이라 서비스 계층이 직접 판정하는 것과는 별개 축 — 이 게이트는 그 판정보다 먼저 도는
      * 계정 상태 확인이라 권한 판정 방식과 무관하다).
      *
-     * <p>Phase 11 T2 가 5개를 더했다 — 비상 신고 발신·취소(§EXC-04, 권한 "기사 또는 동승자") 2개,
+     * <p>비상 신고 발신·취소(§EXC-04, 권한 "기사 또는 동승자") 2개,
      * 학원 관계자 화면의 목록·확인(권한 "학원 관계자 또는 메인관리자") 2개, 메인관리자 콘솔 목록
-     * (권한 "메인관리자") 1개 — 운행 중인 단말과 승인된 관계자·관리자의 기능이라 근거가 앞 Phase 들과
+     * (권한 "메인관리자") 1개 — 운행 중인 단말과 승인된 관계자·관리자의 기능이라 근거가 위와
      * 같다(Ruling 145 와 같은 근거).
      *
-     * <p>Phase 11 T3 이 3개를 더했다 — {@code POST /runs/{runId}/reports}(§4.13, 권한 "기사 또는 동승자")는
-     * Phase 9 의 운행 중 단말 엔드포인트와 같은 형태로 {@code @PreAuthorize} 없이 서비스 계층이
+     * <p>{@code POST /runs/{runId}/reports}(§4.13, 권한 "기사 또는 동승자")는
+     * 운행 중 단말 엔드포인트와 같은 형태로 {@code @PreAuthorize} 없이 서비스 계층이
      * 인가한다. {@code GET /staff/reports}(§5.20, 권한 "학원
-     * 관계자")는 관계자 관리 화면이라 근거가 앞 Phase 들과 같다.
+     * 관계자")는 관계자 관리 화면이라 근거가 위와 같다.
      *
-     * <p>Phase 12 T1 이 2개를 더했다 — {@code GET}·{@code PATCH /me/notification-settings}(§3.14,
-     * 권한 "학부모·학생")는 승인된 계정 전용 설정 화면이라 근거가 앞 Phase 들과 같다(Ruling 145 와
+     * <p>{@code GET}·{@code PATCH /me/notification-settings}(§3.14,
+     * 권한 "학부모·학생")는 승인된 계정 전용 설정 화면이라 근거가 위와 같다(Ruling 145 와
      * 같은 근거) — {@code /staff/academy-settings} 와 마찬가지로 대기·거절 계정이 먼저 건드릴 이유가
      * 사양에 없다.
      *
-     * <p>Phase 12 T2 가 2개를 더했다 — 알림 목록 조회 {@code GET /notifications}(§3.12) · 읽음 처리
+     * <p>알림 목록 조회 {@code GET /notifications}(§3.12) · 읽음 처리
      * {@code PATCH /notifications/{id}/read}(§3.13), 둘 다 권한 "전 역할" 이나 §1.4 의 대기·거절 허용
-     * 5개 목록에는 없다 — 승인된 계정의 기능이라 근거가 앞 Phase 들과 같다(Ruling 145 와 같은 근거).
-     * <p>Phase 13 T1 이 2개를 더했다 — 관계자 웹 운행 대시보드 {@code GET /staff/dashboard}(§5.3)와
+     * 5개 목록에는 없다 — 승인된 계정의 기능이라 근거가 위와 같다(Ruling 145 와 같은 근거).
+     * <p>관계자 웹 운행 대시보드 {@code GET /staff/dashboard}(§5.3)와
      * 전 차량 실시간 위치 스냅샷 {@code GET /staff/runs/live}(§5.18), 둘 다 권한 "학원 관계자"
-     * ({@code @Can(Permissions.MONITOR_ACADEMY)}) — 관계자 관리 화면이라 근거가 앞 Phase 들과 같다(Ruling 145 와
+     * ({@code @Can(Permissions.MONITOR_ACADEMY)}) — 관계자 관리 화면이라 근거가 위와 같다(Ruling 145 와
      * 같은 근거).
      *
-     * <p>Phase 13 T2 가 2개를 더했다 — 메인관리자 콘솔의 학원 1곳 실시간 관제 {@code GET
+     * <p>메인관리자 콘솔의 학원 1곳 실시간 관제 {@code GET
      * /admin/academies/{id}/runs/live}(§6.8, 권한 "메인관리자")와 회차별 승하차지·명단 조회
      * {@code GET /admin/runs/{runId}/roster}(§6.9, 권한 "메인관리자") — 관리자 전용 관제 화면이라
      * 대기·거절 계정에는 근거가 부재하다(Ruling 145 와 같은 근거).
      *
-     * <p>Phase 14 T1 이 2개를 더했다 — 메인관리자 콘솔의 감사·접속 이력 조회 {@code GET
+     * <p>메인관리자 콘솔의 감사·접속 이력 조회 {@code GET
      * /admin/audit-logs}·{@code GET /admin/login-history}(§6.13, 권한 "메인관리자") — 관리자 전용
      * 콘솔 화면이라 대기·거절 계정에는 근거가 부재하다(Ruling 145 와 같은 근거).
      *
-     * <p>R46 감사 화면이 1개를 더했다 — 행위자 찾기 {@code GET /admin/audit-actors}(§6.13, 권한 "메인관리자",
+     * <p>행위자 찾기 {@code GET /admin/audit-actors}(§6.13, 권한 "메인관리자",
      * {@code @Can(Permissions.AUDIT_READ)}) — 같은 감사 콘솔의 부속 조회라 근거가 같다(Ruling 145 와 같은 근거).
      *
-     * <p>F1 S3 가 1개를 더했다 — 관계자 웹 확정 노선 조회 {@code GET
+     * <p>관계자 웹 확정 노선 조회 {@code GET
      * /staff/runs/{runId}/route}(§5.19, RTE-02, 권한 "학원 관계자", {@code @Can(Permissions.MONITOR_ACADEMY)}) —
-     * {@code GET /staff/dashboard}(Phase 13 T1)와 같은 계열의 관계자 관리 화면이라 근거가 같다
+     * {@code GET /staff/dashboard}와 같은 계열의 관계자 관리 화면이라 근거가 같다
      * (Ruling 145 와 같은 근거).
      *
-     * <p>F3 S1 이 1개를 더했다 — 지연 알림 신고 {@code POST /runs/{runId}/delay}(§4.9, NTF-06,
-     * 권한 "동승자") — Phase 9 의 {@code POST /runs/{runId}/start} 와 같은 계열인 운행 중 단말
+     * <p>지연 알림 신고 {@code POST /runs/{runId}/delay}(§4.9, NTF-06,
+     * 권한 "동승자") — {@code POST /runs/{runId}/start} 와 같은 계열인 운행 중 단말
      * 기능이라 근거가 같다.
      *
-     * <p>F3 S2 가 1개를 더했다 — 강제 확정 콘솔 개입 {@code POST /admin/runs/{runId}/force-confirm}
-     * (§6.14, 권한 "메인관리자") — {@code GET /admin/runs/{runId}/roster}(Phase 13 T2)와 같은 계열의
+     * <p>강제 확정 콘솔 개입 {@code POST /admin/runs/{runId}/force-confirm}
+     * (§6.14, 권한 "메인관리자") — {@code GET /admin/runs/{runId}/roster}와 같은 계열의
      * 관리자 전용 콘솔 개입이라 대기·거절 계정에는 근거가 부재하다(Ruling 145 와 같은 근거).
      *
-     * <p>R47 stale 이 2개를 더했다 — 끝나지 않은 이동 중 회차 목록 {@code GET /admin/runs/stale-moving}(§6.16)과 강제 종료
-     * {@code POST /admin/runs/{runId}/force-finish}(§6.17, Ruling 724, 권한 "메인관리자") — 강제 확정 콘솔 개입(F3 S2)과 같은
+     * <p>끝나지 않은 이동 중 회차 목록 {@code GET /admin/runs/stale-moving}(§6.16)과 강제 종료
+     * {@code POST /admin/runs/{runId}/force-finish}(§6.17, Ruling 724, 권한 "메인관리자") — 강제 확정 콘솔 개입과 같은
      * 계열의 관리자 전용 콘솔 개입이라 대기·거절 계정에는 근거가 부재하다(Ruling 145 와 같은 근거).
      *
-     * <p>R48 이 1개를 더했다 — 메인관리자 대시보드 {@code GET /admin/dashboard}(§6.18, Ruling 801, 권한 "메인관리자") — 전체 관제 집계
+     * <p>메인관리자 대시보드 {@code GET /admin/dashboard}(§6.18, Ruling 801, 권한 "메인관리자") — 전체 관제 집계
      * {@code GET /admin/runs/attention}(§6.15)과 같은 계열의 관리자 전용 콘솔 조회라 대기·거절 계정에는 근거가 부재하다(Ruling 145 와 같은 근거).
      *
-     * <p>F4 S1 이 1개를 더했다 — 버스 간 이동 {@code POST /staff/students/{id}/transfer}(§5.8, RTE-07,
-     * Ruling 256, 권한 "학원 관계자") — {@code POST /staff/runs/{runId}/forced-add}(Phase 8)와 같은
+     * <p>버스 간 이동 {@code POST /staff/students/{id}/transfer}(§5.8, RTE-07,
+     * Ruling 256, 권한 "학원 관계자") — {@code POST /staff/runs/{runId}/forced-add}와 같은
      * 계열의 관계자 관리 화면 기능이라 대기·거절 계정에는 근거가 부재하다(Ruling 145 와 같은 근거).
      *
-     * <p>R36-BE 가 1개를 더했다 — 이동 대기 취소 {@code DELETE /staff/transfers/{transferId}}(§5.8.1, Ruling 369,
+     * <p>이동 대기 취소 {@code DELETE /staff/transfers/{transferId}}(§5.8.1, Ruling 369,
      * 권한 "학원 관계자") — 버스 간 이동 등록과 같은 계열의 관계자 관리 화면 기능이라 근거가 같다.
      *
-     * <p>S1 이 1개를 더했다 — 자녀·본인 당일 회차 목록 {@code GET /students/{id}/runs}(§3.5,
-     * P-04 · S-01, 권한 "학부모(연결 자녀) · 학생(본인)") — {@code GET /students/{id}/route}
-     * (Phase 10)와 같은 계열의 승인된 학부모·학생 기능이라 대기·거절 계정에는 근거가 부재하다
+     * <p>자녀·본인 당일 회차 목록 {@code GET /students/{id}/runs}(§3.5,
+     * P-04 · S-01, 권한 "학부모(연결 자녀) · 학생(본인)") — {@code GET /students/{id}/route}와 같은 계열의 승인된 학부모·학생 기능이라 대기·거절 계정에는 근거가 부재하다
      * (Ruling 145 와 같은 근거).
 
-     * <p>S2 가 1개를 더했다 — 회차 비상 알림 처리 상태 조회 {@code GET /runs/{runId}/emergencies}
+     * <p>회차 비상 알림 처리 상태 조회 {@code GET /runs/{runId}/emergencies}
      * (§4.15, EXC-04 · M-15, 권한 "그 회차에 배치된 기사·동승자") — 배치된 매니저만 닿는 자리라
      * 대기·거절 계정에는 근거가 부재하다({@code POST /runs/{runId}/emergency} 와 같은 근거).
      *
-     * <p>R46 privacy 가 1개를 더했다 — 보호자 전화 원번호 단건 조회 {@code GET /runs/{runId}/riders/{riderId}/guardian-phone}
+     * <p>보호자 전화 원번호 단건 조회 {@code GET /runs/{runId}/riders/{riderId}/guardian-phone}
      * (§4.2.1, Ruling 482·521, 권한 "그 회차에 배치된 기사·동승자") — 배치된 매니저만 닿는 자리라 대기·거절 계정에는 근거가 부재하다
      * ({@code GET /runs/{runId}/roster} 와 같은 근거).
      *
-     * <p>BR-214 가 1개를 더했다 — 학생 사진 파일 {@code GET /files/photos/{fileName}}(§5.11.1, Ruling 377,
+     * <p>BR-214 — 학생 사진 파일 {@code GET /files/photos/{fileName}}(§5.11.1, Ruling 377,
      * 권한 {@code STUDENT_READ_PHOTO}) — 승인된 계정의 기능이라 대기·거절 계정에는 근거가 부재하다.
      *
-     * <p>⚠ 두 좌석이 각자 자기 것만 더해 <b>병합 뒤에야</b> 개수가 어긋났다 — 이 목록은 전체를 세는
-     * 시험이라 좌석 하나의 워크트리에서는 늘 통과한다(2026-09-09 실측, 전역 규칙 §18 과 같은 형태).
+     * <p>⚠ 여러 작업이 각자 자기 것만 더하면 <b>병합 뒤에야</b> 개수가 어긋난다 — 이 목록은 전체를 세는
+     * 시험이라 작업 하나의 워크트리에서는 늘 통과한다(전역 규칙 §18 과 같은 형태).
      */
     public static final List<String> DENIED_WHEN_REJECTED = List.of(
             "POST /auth/password",
@@ -173,7 +171,7 @@ public final class AccountStatusGateEndpoints {
             "GET /staff/students/{id}/weekly-address",
             "PATCH /staff/students/{id}",
             "DELETE /staff/students/{id}",
-            // R56 — 학생 사진 삭제(§5.11 · Ruling 894 ③) 관계자 웹 1개.
+            // 학생 사진 삭제(§5.11 · Ruling 894 ③) 관계자 웹 1개.
             "DELETE /staff/students/{id}/photo",
             "GET /staff/buses",
             "POST /staff/buses",
@@ -210,96 +208,96 @@ public final class AccountStatusGateEndpoints {
             // 요일별 등하원 주소(§3.7) — 승인된 학부모의 기능이라 허용 목록 밖이다(Ruling 145).
             "GET /students/{id}/weekly-address",
             "PATCH /students/{id}/weekly-address",
-            // Phase 8 — ②구간 승인(§5.5·§5.6)·강제 추가(§5.7)·경유 지점(§5.15) 관계자 관리 화면 6개.
+            // ②구간 승인(§5.5·§5.6)·강제 추가(§5.7)·경유 지점(§5.15) 관계자 관리 화면 6개.
             "GET /staff/approvals",
             "GET /staff/approvals/{id}",
             "POST /staff/approvals/{id}/decide",
             "POST /staff/runs/{runId}/forced-add",
             "POST /staff/runs/{runId}/waypoints",
             "DELETE /staff/runs/{runId}/waypoints/{waypointId}",
-            // Phase 8 — 탑승 토글(§3.6)·변경 신청 등록·조회(§3.8·§3.9) 학부모 기능 3개(Ruling 145).
+            // 탑승 토글(§3.6)·변경 신청 등록·조회(§3.8·§3.9) 학부모 기능 3개(Ruling 145).
             "PATCH /students/{id}/runs/{runId}/intent",
             "POST /students/{id}/change-requests",
             "GET /students/{id}/change-requests",
-            // Phase 9 — 운행 시작·도착·변경 확인(§4.4·§4.5·§4.11) 기사·동승자 단말 기능 3개.
+            // 운행 시작·도착·변경 확인(§4.4·§4.5·§4.11) 기사·동승자 단말 기능 3개.
             "POST /runs/{runId}/start",
             "POST /runs/{runId}/stops/{stopId}/arrive",
             "POST /runs/{runId}/ack-changes",
-            // Phase 9 T1 — 매니저 앱 회차 목록·명단·노선 조회(§4.1~§4.3) 3개 + 관계자 웹 명단 조회(§5.4) 1개.
+            // 매니저 앱 회차 목록·명단·노선 조회(§4.1~§4.3) 3개 + 관계자 웹 명단 조회(§5.4) 1개.
             "GET /manager/runs",
             "GET /runs/{runId}/roster",
             "GET /runs/{runId}/route",
             "GET /staff/runs/{runId}/roster",
-            // R46 privacy(Ruling 482) — 매니저 앱 보호자 전화 원번호 단건 조회(§4.2.1) 1개.
+            // Ruling 482 — 매니저 앱 보호자 전화 원번호 단건 조회(§4.2.1) 1개.
             "GET /runs/{runId}/riders/{riderId}/guardian-phone",
-            // Phase 9 T3 — 승하차 처리·되돌리기(§4.6·§4.7) 동승자 단말 기능 2개.
+            // 승하차 처리·되돌리기(§4.6·§4.7) 동승자 단말 기능 2개.
             "PATCH /runs/{runId}/riders/{riderId}",
             "POST /runs/{runId}/riders/{riderId}/revert",
-            // Phase 9 T4 — 외부 내비 좌표열 조회(§4.16 RUN-08) 1개.
+            // 외부 내비 좌표열 조회(§4.16 RUN-08) 1개.
             "GET /runs/{runId}/navigation",
-            // Phase 10 — 기사 단말 위치 송신(§4.12 LOC-01) 1개 + 학부모 앱 실시간 위치·상세 노선 조회
+            // 기사 단말 위치 송신(§4.12 LOC-01) 1개 + 학부모 앱 실시간 위치·상세 노선 조회
             // (§3.11 LOC-02 · §3.10 LOC-03) 2개.
             "POST /runs/{runId}/position",
             "GET /students/{id}/bus-position",
             "GET /students/{id}/route",
-            // Phase 11 T1 — 미승차 연락 이력 등록(§4.8) 동승자 기능 1개 + 학원 설정 조회·수정(§5.21)
+            // 미승차 연락 이력 등록(§4.8) 동승자 기능 1개 + 학원 설정 조회·수정(§5.21)
             // 관계자 관리 화면 2개.
             "POST /runs/{runId}/riders/{riderId}/no-show-contacts",
             "GET /staff/academy-settings",
             "PATCH /staff/academy-settings",
-            // Phase 11 T2 — 비상 신고 발신·취소(§EXC-04) 2개 + 학원 관계자 목록·확인 2개 +
+            // 비상 신고 발신·취소(§EXC-04) 2개 + 학원 관계자 목록·확인 2개 +
             // 메인관리자 콘솔 목록 1개.
             "POST /runs/{runId}/emergency",
             "DELETE /runs/{runId}/emergency/{id}",
             "GET /staff/emergencies",
             "POST /staff/emergencies/{id}/ack",
             "GET /admin/emergencies",
-            // Phase 11 T3 — 현장 예외 보고 등록(§4.13) 기사·동승자 단말 기능 1개 + 관계자 웹 조회(§5.20) 2개.
+            // 현장 예외 보고 등록(§4.13) 기사·동승자 단말 기능 1개 + 관계자 웹 조회(§5.20) 2개.
             "POST /runs/{runId}/reports",
             "GET /staff/reports",
-            // R48 be3 — 예외 보고 처리 표시(§5.20 · Ruling 814) 관계자 웹 1개.
+            // 예외 보고 처리 표시(§5.20 · Ruling 814) 관계자 웹 1개.
             "POST /staff/reports/{id}/handle",
-            // R48 be3 — 퇴원 미리보기(§5.11 · Ruling 815) 관계자 웹 1개.
+            // 퇴원 미리보기(§5.11 · Ruling 815) 관계자 웹 1개.
             "GET /staff/students/{id}/withdrawal-preview",
-            // Phase 12 T1 — 알림 수신 설정 조회·수정(§3.14) 학부모·학생 화면 2개.
+            // 알림 수신 설정 조회·수정(§3.14) 학부모·학생 화면 2개.
             "GET /me/notification-settings",
             "PATCH /me/notification-settings",
-            // Phase 12 T2 — 알림 목록 조회(§3.12)·읽음 처리(§3.13) 2개.
+            // 알림 목록 조회(§3.12)·읽음 처리(§3.13) 2개.
             "GET /notifications",
             "PATCH /notifications/{id}/read",
-            // Phase 12 T3 — 알림 로그 전수 조회(§5.17, NTF-10·11, A-13) 관계자 웹 기능 1개.
+            // 알림 로그 전수 조회(§5.17, NTF-10·11, A-13) 관계자 웹 기능 1개.
             "GET /staff/notifications",
-            // Phase 13 T1 — 관계자 웹 운행 대시보드(§5.3)·실시간 위치 스냅샷(§5.18) 2개.
+            // 관계자 웹 운행 대시보드(§5.3)·실시간 위치 스냅샷(§5.18) 2개.
             "GET /staff/dashboard",
             "GET /staff/runs/live",
-            // Phase 13 T2 — 메인관리자 콘솔 학원 1곳 실시간 관제(§6.8) 1개 + 회차별 승하차지·명단 조회
+            // 메인관리자 콘솔 학원 1곳 실시간 관제(§6.8) 1개 + 회차별 승하차지·명단 조회
             // (§6.9) 1개.
             "GET /admin/academies/{id}/runs/live",
             "GET /admin/runs/{runId}/roster",
-            // R46-FUFEAT ④ — 메인관리자 전체 관제의 학원별 오늘 지연·확정 실패 집계(§6.15, Ruling 543) 1개.
+            // 메인관리자 전체 관제의 학원별 오늘 지연·확정 실패 집계(§6.15, Ruling 543) 1개.
             "GET /admin/runs/attention",
-            // Phase 14 T1 — 메인관리자 콘솔 감사·접속 이력 조회(§6.13) 2개 + R46 감사 화면의 행위자 찾기 1개.
+            // 메인관리자 콘솔 감사·접속 이력 조회(§6.13) 2개 + 행위자 찾기 1개.
             "GET /admin/audit-logs",
             "GET /admin/login-history",
             "GET /admin/audit-actors",
-            // F1 S3 — 관계자 웹 확정 노선 조회(§5.19) 1개.
+            // 관계자 웹 확정 노선 조회(§5.19) 1개.
             "GET /staff/runs/{runId}/route",
-            // F3 S1 — 지연 알림 신고(§4.9, NTF-06) 동승자 단말 기능 1개.
+            // 지연 알림 신고(§4.9, NTF-06) 동승자 단말 기능 1개.
             "POST /runs/{runId}/delay",
-            // F3 S2 — 강제 확정 콘솔 개입(§6.14) 메인관리자 전용 기능 1개.
+            // 강제 확정 콘솔 개입(§6.14) 메인관리자 전용 기능 1개.
             "POST /admin/runs/{runId}/force-confirm",
-            // R47 stale — 운행일이 지난 이동 중 회차의 목록(§6.16)·강제 종료(§6.17, Ruling 724) 메인관리자 전용 기능 2개.
+            // 운행일이 지난 이동 중 회차의 목록(§6.16)·강제 종료(§6.17, Ruling 724) 메인관리자 전용 기능 2개.
             "GET /admin/runs/stale-moving",
             "POST /admin/runs/{runId}/force-finish",
-            // R48 — 메인관리자 대시보드 집계(§6.18, Ruling 801) 메인관리자 전용 조회 1개.
+            // 메인관리자 대시보드 집계(§6.18, Ruling 801) 메인관리자 전용 조회 1개.
             "GET /admin/dashboard",
-            // F4 S1 — 버스 간 이동(§5.8, RTE-07, Ruling 256) 관계자 관리 화면 기능 1개.
+            // 버스 간 이동(§5.8, RTE-07, Ruling 256) 관계자 관리 화면 기능 1개.
             "POST /staff/students/{id}/transfer",
-            // R36-BE — 이동 대기 취소(§5.8.1, Ruling 369) 관계자 관리 화면 기능 1개.
+            // 이동 대기 취소(§5.8.1, Ruling 369) 관계자 관리 화면 기능 1개.
             "DELETE /staff/transfers/{transferId}",
-            // S1 — 자녀·본인 당일 회차 목록(§3.5, P-04 · S-01) 학부모·학생 기능 1개.
+            // 자녀·본인 당일 회차 목록(§3.5, P-04 · S-01) 학부모·학생 기능 1개.
             "GET /students/{id}/runs",
-            // S2 — 회차 비상 알림 처리 상태 조회(§4.15, EXC-04 · M-15) 매니저 앱 기능 1개.
+            // 회차 비상 알림 처리 상태 조회(§4.15, EXC-04 · M-15) 매니저 앱 기능 1개.
             "GET /runs/{runId}/emergencies",
             // BR-214 — 학생 사진 파일(§5.11.1, Ruling 377) 사진 읽기 권한 보유 역할의 기능 1개.
             "GET /files/photos/{fileName}");

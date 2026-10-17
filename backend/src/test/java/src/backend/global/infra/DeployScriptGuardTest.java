@@ -21,7 +21,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
- * {@code infra/scripts/deploy.sh} 1단계(SSM → {@code .env})를 가짜 {@code aws} 로 실제 실행해 본다 — R46 ops C #3·#4.
+ * {@code infra/scripts/deploy.sh} 1단계(SSM → {@code .env})를 가짜 {@code aws} 로 실제 실행해 본다.
  *
  * <p>텍스트만 읽는 {@code DeploymentConfigGuardTest} 로는 "값이 비면 스크립트가 멈춘다" 를 볼 수 없다. 여기서 막는
  * 사고는 전부 조용히 성공하는 종류다 — 프로파일 값이 빠진 배포가 가짜 시드로 뜨고, Directions 경로만 바꾼 배포가

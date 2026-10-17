@@ -66,7 +66,7 @@ public interface WeeklyAddressRepository extends JpaRepository<WeeklyAddress, Lo
 
     /**
      * {@link #findDailyStops} 의 역방향 — 학생 집합이 아니라 <b>편성된 노선의 정차지 집합</b>에서
-     * 출발해 그 요일·방향에 실제로 그 정차지를 쓰는 학생을 되찾는다(확정 배치 RTE-08, Phase 7).
+     * 출발해 그 요일·방향에 실제로 그 정차지를 쓰는 학생을 되찾는다(확정 배치 RTE-08).
      *
      * <p>확정 배치는 회차의 학생 명단을 먼저 알지 못한다 — 아는 것은 편성된 노선의
      * {@code run_stop}(정차지 순서)뿐이고, 그 정차지에 실제로 서는 학생이 누구인지는 이 조회로

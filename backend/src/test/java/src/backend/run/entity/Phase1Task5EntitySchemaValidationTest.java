@@ -52,14 +52,13 @@ import src.backend.schedule.entity.SchedulePlan;
 import testsupport.db.MigratedPostgresTestBase;
 
 /**
- * Phase 1 · Task 5 담당 11개({@code bus} 1 · {@code manager} 2 · {@code schedule} 1 ·
+ * 이 시험 대상 11개({@code bus} 1 · {@code manager} 2 · {@code schedule} 1 ·
  * {@code routing} 6 · {@code run} 1)가 실제 V1 스키마와 정확히 맞는지 확인한다.
  *
- * <p>{@code @EntityScan} 으로 이 태스크가 만든 5개 패키지(각 패키지 대표 클래스 1개씩)만 매핑
- * 대상에 넣는다 — 같은 시각 다른 두 에이전트가 만드는 나머지 28개는 이 워크트리에 아직 없어,
+ * <p>{@code @EntityScan} 으로 이 시험이 매핑하는 5개 패키지(각 패키지 대표 클래스 1개씩)만 매핑
+ * 대상에 넣는다 — 나머지 28개 엔티티는 아직 없어,
  * {@code BackendApplication} 기본 스캔을 그대로 쓰면 컨텍스트 로딩이 실패한다. {@code academy}
- * 모듈은 Task 3 산출물로 이 브랜치 분기점에 이미 존재해 FK 상대 테이블(academy)을 채우는 데
- * 엔티티로 직접 쓴다 — 아직 소유 에이전트가 없는 {@code stop} 은 {@code AcademyStaffTest} 의
+ * 모듈은 이미 존재해 FK 상대 테이블(academy)을 채우는 데 엔티티로 직접 쓴다 — 이 시험이 엔티티를 매핑하지 않은 {@code stop} 은 {@code AcademyStaffTest} 의
  * {@code account} 처리와 같은 방식(네이티브 SQL로 최소 컬럼만 채운 행 삽입)을 쓴다.
  */
 @DataJpaTest(properties = {
@@ -101,7 +100,7 @@ class Phase1Task5EntitySchemaValidationTest extends MigratedPostgresTestBase {
         return bus.getId();
     }
 
-    /** {@code stop} 은 이 태스크 담당이 아니라 엔티티가 없다 — FK({@code fk_route_stop_stop} 등)를 만족시킬 최소 컬럼만 네이티브 SQL로 채운다. */
+    /** {@code stop} 은 이 시험이 매핑하지 않아 FK({@code fk_route_stop_stop} 등)를 만족시킬 최소 컬럼만 네이티브 SQL로 채운다. */
     private Long insertStop(Long academyId) {
         Number stopId = (Number) entityManager.createNativeQuery(
                         "INSERT INTO stop (academy_id, name, address, lat, lng) "
@@ -278,7 +277,7 @@ class Phase1Task5EntitySchemaValidationTest extends MigratedPostgresTestBase {
         assertThat(found.getEstDistanceKm()).isEqualByComparingTo(new BigDecimal("12.34"));
         assertThat(found.getPolicySnapshot()).containsEntry("noShowWaitMinutes", 3);
         assertThat(found.isFallbackUsed()).isFalse();
-        // R15 T1 목표 4 — 저장 후 재조회한 road_path 가 개수·순서 그대로다.
+        // 저장 후 재조회한 road_path 가 개수·순서 그대로다.
         assertThat(found.getRoadPath()).hasSize(3);
         assertThat(found.getRoadPath()).containsExactlyElementsOf(roadPath);
     }

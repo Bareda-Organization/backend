@@ -9,7 +9,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 
 /**
- * 확정 배치의 도래→완료 지연과 회차 단위 실패를 계측한다(RTE-08, Phase 7 목표 8, {@code ARCHITECTURE
+ * 확정 배치의 도래→완료 지연과 회차 단위 실패를 계측한다(RTE-08, {@code ARCHITECTURE
  * §9.4} 끝 문장 · TECH_DECISIONS §13.1 3행).
  *
  * <p>재는 값은 <b>회차의 판정 시각({@code run.confirm_at})부터 실제 확정 완료 시각까지의 차</b>다 — 배치
@@ -24,7 +24,7 @@ import io.micrometer.core.instrument.Timer;
  *
  * <p>{@code schoolbus.run.confirmation.retry_failures} 는 {@code schoolbus.scheduler.failures}
  * 와 다른 신호다. 주기 전체의 예외는 스프링 기본 계측({@code tasks.scheduled.execution})이 세는데, {@code RunConfirmationScheduler} 는
- * 회차 단위로 {@code try-catch} 를 격리해(목표 4) 개별 실패를 삼키고 {@code consecutive_failures} 에만
+ * 회차 단위로 {@code try-catch} 를 격리해 개별 실패를 삼키고 {@code consecutive_failures} 에만
  * 남긴다 — TECH_DECISIONS §13.1 3행이 정확히 "회차 단위로 격리되므로 실패가 로그에만 남고 응답에
  * 미노출"이라 지적하는 지점이다. 즉 이 카운터가 없으면 회차별 확정 실패는 Prometheus 에 영원히
  * 보이지 않는다.

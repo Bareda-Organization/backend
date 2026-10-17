@@ -26,7 +26,7 @@ import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 
 /**
- * 강제 확정 콘솔 개입(API_SPEC §6.14, F3 S2 목표 11) — idle 로 정체된 회차를 강제 폴백(직선거리)으로
+ * 강제 확정 콘솔 개입(API_SPEC §6.14) — idle 로 정체된 회차를 강제 폴백(직선거리)으로
  * 1회 확정한다. "강제 종료"가 아니다 — 미하차 상태로 회차를 끝내는 경로는 이 서비스에 없고, 통상
  * 확정과 같은 결과(route_version 신규 · 관계자 통지 · {@code RunRouteConfirmedEvent})를 그대로 낸다.
  *

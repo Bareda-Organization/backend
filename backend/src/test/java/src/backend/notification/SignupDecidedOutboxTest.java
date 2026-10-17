@@ -25,7 +25,7 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
- * Phase 4 목표 1 — <b>가입 결정 경로 4개 전부</b>에서 신청자 앞으로 {@code signup_decided} 행이
+ * <b>가입 결정 경로 4개 전부</b>에서 신청자 앞으로 {@code signup_decided} 행이
  * 적재되고 {@code sent} 로 전이하는지 본다(API_SPEC §5.2·§6.5 × 수락·거절).
  *
  * <p>네 경로를 한 클래스에 둔 이유는 <b>빠뜨림이 이 축의 사고 형태</b>이기 때문이다. 한 경로에만

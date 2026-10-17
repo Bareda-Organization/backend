@@ -9,7 +9,7 @@ import src.backend.global.common.converter.LowerCaseEnumConverter;
  *
  * <p>{@code idle → confirmed} 전이는 사용자 조작이 아니라 출발 30분 전 도래가 일으키는
  * 시간 기반 배치의 산출물이다(ARCHITECTURE §9) — 이 enum 은 값 도메인만 정의하고 전이 판정
- * 로직은 이 태스크의 범위 밖(배치·서비스 계층)이다.
+ * 로직은 이 enum 밖(배치·서비스 계층)에 있다.
  */
 public enum RunStatus {
 

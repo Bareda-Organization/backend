@@ -35,7 +35,7 @@ import src.backend.run.repository.RunRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * §6.15 {@code GET /admin/runs/attention} — 전체 관제의 학원별 오늘 지연·확정 실패 집계(R46-FUFEAT ④, Ruling 543).
+ * §6.15 {@code GET /admin/runs/attention} — 전체 관제의 학원별 오늘 지연·확정 실패 집계(Ruling 543).
  *
  * <p>고정 시계가 2030-04-01 이라 그날 회차가 "오늘" 이다. 시드 학원이 같은 날 회차를 가질 수 있어 학원마다 새로 만든
  * 학원 식별자로 걸러 읽는다 — 집계는 학원별이라 다른 학원의 값이 섞이지 않는다.

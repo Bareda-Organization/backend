@@ -15,7 +15,7 @@ import src.backend.request.repository.ChangeRequestRepository;
  * 회차가 {@code moving} 으로 전이하는 순간 그 회차의 미처리 변경 요청을 전부 종결하는 서비스
  * (API_SPEC §1.6 "출발 시각 + 10분 도달 또는 {@code moving} 전이 중 먼저 오는 시점").
  *
- * <p>{@code POST /runs/{runId}/start}({@code RunStartCommandService}, Phase 9 소유, Ruling 196)가
+ * <p>{@code POST /runs/{runId}/start}({@code RunStartCommandService}, Ruling 196)가
  * 회차를 {@code moving} 으로 바꾸는 <b>같은 트랜잭션 안에서</b> {@link #terminateForRun} 을 동기
  * 호출한다 — 아래 "왜 폴링만으로는 부족한가"가 요구하는 배선이 그것이다.
  *
@@ -29,7 +29,7 @@ import src.backend.request.repository.ChangeRequestRepository;
  * <p>처리 로직은 폴링과 동일한 {@link ChangeRequestAutoRejectionPersistence#autoRejectOne} 을
  * 그대로 재사용한다 — 조건부 UPDATE 가 유일한 멱등 장치이므로, 폴링이 이 서비스보다 먼저 같은 건을
  * 집었더라도(먼저 오는 시점이 출발 시각 쪽이었던 경우) 이 서비스의 호출은 0행 갱신으로 조용히
- * 끝난다(목표 3·목표 4).
+ * 끝난다.
  */
 @Component
 @RequiredArgsConstructor

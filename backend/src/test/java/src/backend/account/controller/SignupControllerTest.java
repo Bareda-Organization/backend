@@ -28,9 +28,9 @@ import src.backend.global.security.JwtTokenProvider;
  * §2.2·§2.3·§2.4 {@code POST /auth/signup} · {@code GET /auth/signup-status} ·
  * {@code POST /auth/signup/reapply} — AUTH-01·AUTH-03.
  *
- * <p>{@code pending}·{@code rejected} 상태 계정은 {@link Account}(Phase 1) 의 정적 팩토리로
+ * <p>{@code pending}·{@code rejected} 상태 계정은 {@link Account} 의 정적 팩토리로
  * 곧장 만들 수 없다({@code forSignup} 은 항상 {@code pending} 으로 시작하고, {@code rejected} 는
- * 관리자 승인 절차(Task 4/5 범위)를 거쳐야 한다) — {@code @Sql} 로 고정 상태 행을 직접 심는다.
+ * 관리자 승인 절차를 거쳐야 한다) — {@code @Sql} 로 고정 상태 행을 직접 심는다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc

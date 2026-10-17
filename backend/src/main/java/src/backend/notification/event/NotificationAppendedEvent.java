@@ -7,8 +7,7 @@ package src.backend.notification.event;
  * 같은 트랜잭션 안이어야 하고 발송은 그 밖이어야 한다(TECH_DECISIONS §7.5) — 한 메서드에 두면
  * 발송 실패가 상태 변경을 롤백시킨다.
  *
- * <p>{@code urgent} 는 비상 종류(팝업) 여부다 — 일반 알림 100건 뒤에 서지 않도록 전용 발송 실행기로 갈라 보내는 기준이다
- * (R46 S-2).
+ * <p>{@code urgent} 는 비상 종류(팝업) 여부다 — 일반 알림 100건 뒤에 서지 않도록 전용 발송 실행기로 갈라 보내는 기준이다.
  */
 public record NotificationAppendedEvent(Long notificationId, boolean urgent) {
 }

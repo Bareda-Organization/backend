@@ -33,7 +33,7 @@ import src.backend.global.security.JwtTokenProvider;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 기사·동승자 단말의 현장 예외 보고 등록 API(§4.13, EXC-02·03, Phase 11 goal 15).
+ * 기사·동승자 단말의 현장 예외 보고 등록 API(§4.13, EXC-02·03).
  *
  * <p>{@code @Transactional} 을 쓴다 — {@code DriverRunControllerTest} 와 같은 근거로, 커맨드
  * 서비스의 {@code @Transactional} 은 기본 전파라 테스트 트랜잭션에 합류하고 끝나면 함께 롤백된다.
@@ -61,7 +61,7 @@ class RunReportControllerTest {
 
 
 
-    // ── goal 15 — 등록 성공 ────────────────────────────────────────────────
+    // ── 등록 성공 ────────────────────────────────────────────────
 
     @Test
     @DisplayName("goal15 — 도로 통제(rider_id 불필요) 보고는 배치된 기사가 등록하면 201 이고 저장된다")
@@ -112,7 +112,7 @@ class RunReportControllerTest {
         assertThat(보고_라이더(runId)).isEqualTo(runRiderId);
     }
 
-    // ── R56 K4(Ruling 894 ⑧) — 오프라인 큐 재전송 키 ───────────────────────────
+    // ── Ruling 894 ⑧ — 오프라인 큐 재전송 키 ───────────────────────────
 
     @Test
     @DisplayName("R56 K4 — 같은 client_key 를 두 번 보내면 보고 1개·관계자 알림 1건이고 두 번째는 200 으로 같은 report_id 를 돌려준다")
@@ -227,7 +227,7 @@ class RunReportControllerTest {
         assertThat(보고_라이더(runId)).isEqualTo(runRiderId);
     }
 
-    // ── goal 15 — 관계자 즉시 통지 ─────────────────────────────────────────
+    // ── 관계자 즉시 통지 ─────────────────────────────────────────
 
     /**
      * §4.13 "관계자에게 즉시 통지" — 접수 성공 직후 그 학원 관계자(재직 스태프)에게
@@ -261,7 +261,7 @@ class RunReportControllerTest {
                 Integer.class, staffAccountId, "exception_reported:" + reportId + ":%")).isEqualTo(1);
     }
 
-    // ── goal 15 — 422 vs 404 구분 ──────────────────────────────────────────
+    // ── 422 vs 404 구분 ──────────────────────────────────────────
 
     @Test
     @DisplayName("goal15 급소 — type=guardian_absent 인데 rider_id 가 없으면 422 VALIDATION_FAILED 이고 저장되지 않는다")
@@ -312,7 +312,7 @@ class RunReportControllerTest {
         assertThat(보고_개수(runId)).as("rider_id 가 이 회차 소속이 아니면 저장되면 안 된다").isEqualTo(0);
     }
 
-    // ── goal 15 — 회차·인가 ────────────────────────────────────────────────
+    // ── 회차·인가 ────────────────────────────────────────────────
 
     @Test
     @DisplayName("goal15 — 배치는 통과해도 토큰이 주장하는 academy_id 가 그 회차의 실제 학원과 다르면 404 RUN_NOT_FOUND 이고 저장되지 않는다"

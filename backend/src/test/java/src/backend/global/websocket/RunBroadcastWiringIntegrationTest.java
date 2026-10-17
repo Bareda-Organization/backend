@@ -111,7 +111,7 @@ class RunBroadcastWiringIntegrationTest {
                 .andExpect(status().isOk());
         assertThat(sentEvents("run_started")).contains("run_started");
 
-        // 위치 방송은 구독자가 있는 채널에만 나간다(R46 D #6) — 학원 관제 채널에 구독자 1명을 브로커 등록부에 직접 둔다.
+        // 위치 방송은 구독자가 있는 채널에만 나간다 — 학원 관제 채널에 구독자 1명을 브로커 등록부에 직접 둔다.
         구독자를_둔다(WebSocketDestinations.academyLive(academyId));
         mockMvc.perform(post("/api/v1/runs/" + runId + "/position").header("Authorization", token(driver, academyId, Role.DRIVER))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -148,7 +148,7 @@ class RunBroadcastWiringIntegrationTest {
     }
 
     /**
-     * 직전 단계 뒤로 나간 방송의 이벤트 이름들 — 읽은 뒤 기록을 비워 단계마다 새로 센다. 커밋 뒤 방송은 전용 실행기에서 돌아(R57 RT-4) 요청이 돌아온 직후에는
+     * 직전 단계 뒤로 나간 방송의 이벤트 이름들 — 읽은 뒤 기록을 비워 단계마다 새로 센다. 커밋 뒤 방송은 전용 실행기에서 돌아 요청이 돌아온 직후에는
      * 아직 안 나갔을 수 있으므로 기대한 이벤트가 모두 나올 때까지 최대 5초 기다린다.
      */
     private List<String> sentEvents(String... expected) throws InterruptedException {

@@ -20,7 +20,7 @@ import src.backend.global.security.authz.Permissions;
 
 /**
  * {@link AuditLog} 영속성 접근 — 적재와 조회를 함께 갖는다(API_SPEC §6.13
- * {@code GET /admin/audit-logs}·{@code /admin/login-history}, Phase 14 T1 목표 3·4).
+ * {@code GET /admin/audit-logs}·{@code /admin/login-history}).
  *
  * <p>{@code from}·{@code to} 를 항상 구체값으로 요구한다 — {@code (:from IS NULL OR ...)} 형태로
  * {@code OffsetDateTime} 파라미터를 열어 두면 PostgreSQL 이 그 파라미터의 타입을 못 정해 500
@@ -136,7 +136,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
             Collection<AuditAction> actions, OffsetDateTime from, OffsetDateTime to, Pageable pageable);
 
     /**
-     * 보존 정리 배치(R46 감사 B)가 지울 id 를 오래된 순으로 {@code limit} 만큼 — 카테고리별로 불러 기존
+     * 보존 정리 배치가 지울 id 를 오래된 순으로 {@code limit} 만큼 — 카테고리별로 불러 기존
      * {@code ix_audit_log_category_occurred} 를 탄다(시간만으로 읽는 인덱스를 따로 두면 첫 화면 조회의 실행 계획이
      * 그쪽으로 옮겨 간다). 전 학원의 만료 행이 대상이라 학원 조건을 걸지 않는다.
      */

@@ -226,8 +226,8 @@ public class ApprovalQueryService {
         // ②구간 승인 대기 신청은 confirmAt 도래 즉시(ChangeWindowPolicy) 성립하지만, 회차의 실제
         // idle → confirmed 전이와 그때 함께 만들어지는 confirmed_route 는 30초 폴링 확정 배치가
         // 돌아야 반영된다(RunConfirmationScheduler). 그 사이 창에서 이 조회가 들어오면 아래
-        // ConfirmedRoute 조회가 항상 비어 있어 원래는 원시 IllegalStateException(비구조 500)이
-        // 났다 — RosterQueryService.managerRoster 와 같은 경계에서 같은 코드로 막는다.
+        // ConfirmedRoute 조회가 항상 비어 있어 막지 않으면 원시 IllegalStateException(비구조 500)이
+        // 난다 — RosterQueryService.managerRoster 와 같은 경계에서 같은 코드로 막는다.
         if (run.getStatus() == RunStatus.IDLE) {
             throw new BusinessException(ErrorCode.RUN_NOT_CONFIRMED);
         }
@@ -306,7 +306,7 @@ public class ApprovalQueryService {
     }
 
     /**
-     * 결정이 끝난 건의 상세(§5.5 상세 "왜 결정된 건은 비는가", 2026-09-14 Ruling 265 로 정본에
+     * 결정이 끝난 건의 상세(§5.5 상세 "왜 결정된 건은 비는가", Ruling 265 로 정본에
      * 명시됨 — 재최적화·경유지 조회를 전혀 하지 않는다).
      * {@code route_preview}·{@code est_time_*}·{@code est_distance_*}·{@code preview_token}·
      * {@code preview_stale} 은 전부 "이 건이 승인되면 무엇이 바뀌는가" 를 답하는 필드인데, 결정이
@@ -370,7 +370,7 @@ public class ApprovalQueryService {
     /**
      * 이 학생이 지금 그 회차 명단에 없는 경우 — {@code rejected}·{@code auto_rejected} 는 이것이
      * 정상이다({@code reject}·{@code autoReject} 는 {@code RunRider} 를 건드리지 않는다). API_SPEC
-     * §5.5 목록의 "명단에 없을 때" 표(2026-09-12 Ruling 265)가 이 상황과 아래 우선순위를 정본에
+     * §5.5 목록의 "명단에 없을 때" 표(Ruling 265)가 이 상황과 아래 우선순위를 정본에
      * 명시한다 — "이 학생이 지금 타고 있는 승하차지를 비우면 어떻게 되는가" 라는 질문 자체가 성립하지
      * 않으므로, 저장된 값만으로 "이 요청이 가리키던 승하차지" 를 최선으로 되짚는다(§5.5 가 명시한
      * "재최적화 없이 저장된 값·단순 집계만" 취지를 따름).

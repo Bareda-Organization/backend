@@ -24,7 +24,7 @@ import src.backend.student.photo.spec.PhotoStorage;
 import src.backend.student.photo.spec.StudentPhoto;
 
 /**
- * 퇴원 학생 파기가 <b>실패했을 때</b>의 동작(R02-01 · R02-02) — 사진 파일을 지우지 못한 학생은 파기 완료로 기록하지 않고,
+ * 퇴원 학생 파기가 <b>실패했을 때</b>의 동작 — 사진 파일을 지우지 못한 학생은 파기 완료로 기록하지 않고,
  * 묶음 안의 한 학생이 실패해도 나머지는 파기한다. 정상 경로는 {@code StudentRetentionAnonymizationTest} 가 본다.
  *
  * <p>{@code @Transactional} 을 쓰지 않는다 — 묶음 트랜잭션이 롤백된 뒤 학생별 재시도가 따로 커밋되는지가 이 시험의 대상이라

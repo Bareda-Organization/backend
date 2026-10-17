@@ -11,9 +11,9 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import src.backend.routing.map.spec.CallerPolicy;
 
 /**
- * F5 S2 목표 4 — {@code throttled_total} 이 {@code caller} 태그로 BATCH·ON_DEMAND 를
+ * {@code throttled_total} 이 {@code caller} 태그로 BATCH·ON_DEMAND 를
  * 따로 세는지 검증한다. 이 계측의 존재 이유는 격벽 상한 초과가 어느 호출자에서 더 걸리는지
- * 구별하는 것이라, 태그가 상수로 고정되면(F5 S2 목표 4 결함 심기 ②) 이 시험이 유일하게 잡는다.
+ * 구별하는 것이라, 태그가 상수로 고정되면(결함 심기 ②) 이 시험이 유일하게 잡는다.
  */
 class StubMapRouteLoadMetricsCallerTagTest {
 

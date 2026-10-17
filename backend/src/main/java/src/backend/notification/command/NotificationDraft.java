@@ -10,7 +10,7 @@ import src.backend.notification.entity.NotificationType;
  * 들고 있기 때문이다(ERD §3.4) — 계정이 지워져도 로그가 읽혀야 해 조회 시점에 다시 잇지 않는다.
  *
  * <p>{@code studentId}·{@code studentName}·{@code busNo} 는 종류마다 채울 수 있는 값이 달라
- * (R13, `docs/archive/rounds/be-rounds-r5-r14.md §8.16`) 셋 다 nullable 이다 — 대상 자녀·호차가 없는 종류는 8-인자
+ * 셋 다 nullable 이다 — 대상 자녀·호차가 없는 종류는 8-인자
  * 생성자로 만들면 자동으로 {@code null} 이 된다.
  */
 public record NotificationDraft(Long academyId, Long recipientAccountId, String recipientName,
@@ -20,7 +20,7 @@ public record NotificationDraft(Long academyId, Long recipientAccountId, String 
         String busNo,
         Long runId) {
 
-    /** 가리키는 회차가 없는 알림 — {@code runId} 를 {@code null} 로 채운다(R46-FUFEAT ③, Ruling 542). */
+    /** 가리키는 회차가 없는 알림 — {@code runId} 를 {@code null} 로 채운다(Ruling 542). */
     public NotificationDraft(Long academyId, Long recipientAccountId, String recipientName,
             Role recipientRole, NotificationType type, String title, String body, String dedupKey,
             Long studentId, String studentName, String busNo) {

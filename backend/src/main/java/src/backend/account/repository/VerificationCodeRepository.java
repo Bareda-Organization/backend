@@ -33,8 +33,8 @@ public interface VerificationCodeRepository extends JpaRepository<VerificationCo
      * 같은 연락처·목적의 미소비 코드를 전부 소진 처리한다 — 새 코드를 발급하기 직전에 부른다.
      *
      * <p>이것이 없으면 대조 상한({@code VerificationCode.MAX_ATTEMPTS})을 우회할 수 있다 — 상한에
-     * 닿을 때마다 코드를 재발급받으면 옛 코드도 그대로 살아 있어 유효한 코드가 DB 에 계속 쌓인다
-     * (리뷰 라운드 1 C1-④ · m5). {@code consumed_at} 을 채우는 것이 이 스키마의 유일한 무효화
+     * 닿을 때마다 코드를 재발급받으면 옛 코드도 그대로 살아 있어 유효한 코드가 DB 에 계속 쌓인다.
+     * {@code consumed_at} 을 채우는 것이 이 스키마의 유일한 무효화
      * 수단이라 "소비" 와 "무효화" 가 같은 컬럼을 쓴다.
      *
      * <p>{@code flushAutomatically} 를 {@code clearAutomatically} 와 함께 켠다 —
@@ -46,7 +46,7 @@ public interface VerificationCodeRepository extends JpaRepository<VerificationCo
      * <p>{@code clearAutomatically} 는 반대 방향의 위험도 함께 만든다 — <b>이 호출 뒤에는 호출 이전에
      * 로드한 엔티티가 전부 detach 된다.</b> (이 호출은 발급 경로에서만 부르고, 발급은 직전에 읽은 계정을 존재 여부({@code isEmpty})로만 쓴다)
      * 이 줄 뒤에 {@code account.changePassword(...)} 같은 변경이 한 줄만 들어와도 그 변경은 더티 체킹 대상에서 빠져 예외도 로그도 없이 사라진다. 뒤에서 다시 변경하려면
-     * 재조회해야 한다(리뷰 라운드 2 m-3).
+     * 재조회해야 한다.
      *
      * @return 실제로 무효화된 행 수
      */
@@ -91,7 +91,7 @@ public interface VerificationCodeRepository extends JpaRepository<VerificationCo
     int consumeIfValid(@Param("id") Long id, @Param("now") OffsetDateTime now);
 
     /**
-     * 이 번호의 발급을 트랜잭션이 끝날 때까지 직렬화한다(R46 FUBE · Ruling 553) — 계정 행을 잠그는 방식은 <b>미등록 번호에는
+     * 이 번호의 발급을 트랜잭션이 끝날 때까지 직렬화한다(Ruling 553) — 계정 행을 잠그는 방식은 <b>미등록 번호에는
      * 잠글 행이 없어</b> 동시에 들어온 발급이 둘 다 한도를 통과한다. 등록 번호만 한 건 통과·나머지 429 이면 그 차이가
      * 가입 여부의 단서가 되므로 번호 문자열 자체를 잠금 키로 쓴다.
      *

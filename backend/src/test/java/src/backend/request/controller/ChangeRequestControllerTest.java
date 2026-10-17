@@ -53,8 +53,7 @@ import src.backend.student.repository.GuardianStudentRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 학부모 앱의 일일 변경 신청(P-06, API_SPEC §3.8·§3.9) — Phase 8 목표 9(③구간 전 타입 차단) ·
- * 5(②구간 회차당 1회 한도, 신청 경로) · 2(②구간 approval_requested 알림, 신청 경로).
+ * 학부모 앱의 일일 변경 신청(P-06, API_SPEC §3.8·§3.9) — ③구간 전 타입 차단 · ②구간 회차당 1회 한도(신청 경로) · ②구간 approval_requested 알림(신청 경로).
  *
  * <p>시각은 {@link FixedClockConfig} 로 고정한다({@code RunConfirmationServiceTest} 와 같은
  * 패턴) — 회차의 {@code confirm_at}·{@code depart_time} 을 이 고정 시각 기준 상대값으로 둬야
@@ -131,7 +130,7 @@ class ChangeRequestControllerTest {
         return changeRequestFixtures;
     }
 
-    // ── 목표 1 — ①구간 즉시 반영 + 재최적화 미호출 + 다음 확정 배치에 반영 ──────────────
+    // ── ①구간 즉시 반영 + 재최적화 미호출 + 다음 확정 배치에 반영 ──────────────
 
     @Test
     @DisplayName("목표1 — ①구간 relocate 는 즉시 승인되고, 재최적화를 부르지 않으며, 다음 확정 배치에 반영된다")
@@ -187,7 +186,7 @@ class ChangeRequestControllerTest {
         assertThat(routedStopCount).as("노선 계산 산출물(run_stop)에도 바뀐 승하차지가 실려야 한다").isEqualTo(1);
     }
 
-    // ── 목표 2 — ②구간 승인 대기 + 관계자 approval_requested 적재 ──────────────────────
+    // ── ②구간 승인 대기 + 관계자 approval_requested 적재 ──────────────────────
 
     @Test
     @DisplayName("목표2 — ②구간 신청은 승인 대기로 접수되고 관계자에게 approval_requested 가 적재된다")
@@ -224,7 +223,7 @@ class ChangeRequestControllerTest {
                 Integer.class, academyId, "approval_requested:" + runId + ":%");
         assertThat(notified).as("관계자에게 승인 요청 알림이 적재돼야 한다").isEqualTo(1);
 
-        // R13 — ApprovalRequestedEvent 는 studentId 를 들고 있는 단일 학생 이벤트다(docs/archive/rounds/be-rounds-r5-r14.md §8.16 목표 3).
+        // ApprovalRequestedEvent 는 studentId 를 들고 있는 단일 학생 이벤트다.
         Long notifiedStudentId = jdbcTemplate.queryForObject(
                 "SELECT student_id FROM notification_log WHERE academy_id = ? AND type = 'approval_requested' "
                         + "AND dedup_key LIKE ?",
@@ -265,7 +264,7 @@ class ChangeRequestControllerTest {
                 Integer.class, otherRunId)).isZero();
     }
 
-    // ── 목표 9 — ③구간은 타입을 가리지 않는다 ──────────────────────────────────────────
+    // ── ③구간은 타입을 가리지 않는다 ──────────────────────────────────────────
 
     @Test
     @DisplayName("목표9 — moving 회차는 type=cancel 도 403 CHANGE_WINDOW_CLOSED 다")
@@ -323,7 +322,7 @@ class ChangeRequestControllerTest {
                 .andExpect(jsonPath("$.error.code").value("CHANGE_WINDOW_CLOSED"));
     }
 
-    // ── 목표 5 — ②구간 회차당 1회 한도 ──────────────────────────────────────────────
+    // ── ②구간 회차당 1회 한도 ──────────────────────────────────────────────
 
     @Test
     @DisplayName("목표5 — ②구간 같은 회차 2번째 신청은 403 CHANGE_LIMIT_REACHED, 다른 회차는 201")
@@ -420,8 +419,8 @@ class ChangeRequestControllerTest {
                 .andExpect(status().isCreated());
         entityManager.flush();
 
-        // rejected — ②구간 신청을 접수한 뒤 T5 소유 전이를 엔티티에 직접 걸어 상태만 만든다(조회 판정
-        // 범위 밖 — 이 태스크는 그 전이를 만들지 않고 값만 재사용한다). 출발 시각은 runPending 과
+        // rejected — ②구간 신청을 접수한 뒤 전이를 엔티티에 직접 걸어 상태만 만든다(조회 판정
+        // 범위 밖 — 이 시험은 그 전이를 만들지 않고 값만 재사용한다). 출발 시각은 runPending 과
         // 1분씩 벌려 uk_run_bus_date_direction_depart 충돌을 피한다.
         OffsetDateTime rejectedDepart = pendingDepart.plusMinutes(1);
         long runRejected = fixtures().idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, rejectedDepart,
@@ -433,7 +432,7 @@ class ChangeRequestControllerTest {
         rejected.reject(accountId, OffsetDateTime.now(clock), "일정 조정 불가");
         changeRequestRepository.save(rejected);
 
-        // auto_rejected — 같은 방식으로 T6 소유 자동거절 전이를 값만 재사용한다.
+        // auto_rejected — 같은 방식으로 자동거절 전이를 값만 재사용한다.
         OffsetDateTime autoRejectedDepart = pendingDepart.plusMinutes(2);
         long runAutoRejected = fixtures().idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY,
                 autoRejectedDepart, autoRejectedDepart.minusMinutes(30));

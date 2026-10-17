@@ -33,7 +33,7 @@ import src.backend.run.command.Phase9RosterFixtures;
 import src.backend.run.command.RunConfirmationFixtures;
 
 /**
- * Phase 14 T1 목표 1 음성 대조용 — {@link src.backend.boarding.query.RosterQueryService} 의 두 호출
+ * 음성 대조용 — {@link src.backend.boarding.query.RosterQueryService} 의 두 호출
  * ({@code managerRoster}·{@code staffRoster})이 각각 정확히 감사 로그 1건을 남기는지 실제 DB 로 확인한다.
  *
  * <p>두 메서드가 같은 {@code target_type}("run_roster")을 쓰지만 서로 다른 {@code run_id}(테스트마다
@@ -141,7 +141,7 @@ class RosterAuditIntegrationTest {
     }
 
     /**
-     * BR-236 — 확정 전(idle) 회차의 예정 명단(R33)도 보호자 연락처 원본을 내보내므로 같은 감사가 남아야 한다.
+     * BR-236 — 확정 전(idle) 회차의 예정 명단도 보호자 연락처 원본을 내보내므로 같은 감사가 남아야 한다.
      * 위 두 시험은 확정 뒤 회차만 지나서, 예정 갈래에서 감사 호출이 빠져도 초록이었다.
      */
     @Test

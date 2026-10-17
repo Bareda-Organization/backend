@@ -30,7 +30,7 @@ import testsupport.db.MigratedPostgresTestBase;
  * {@link ExceptionReport})가 실제 V1 스키마와 정확히 맞는지 확인한다.
  *
  * <p>{@code @EntityScan} 으로 {@code exception.entity} 패키지만 매핑 대상에 넣는다(다른 모듈
- * 엔티티가 이 워크트리에 없다). {@code no_show_case}·{@code no_show_contact} 는 {@code run_rider}
+ * 엔티티는 이 시험이 매핑하지 않는다). {@code no_show_case}·{@code no_show_contact} 는 {@code run_rider}
  * 에 실제 FK 가 걸려 있어 네이티브 SQL로 academy→bus→run→student→stop→run_rider 체인을 먼저 채운다.
  * {@code emergency_alert}·{@code exception_report} 는 FK 미설정 테이블이라 임의의 {@code Long} 으로
  * 바로 저장된다.

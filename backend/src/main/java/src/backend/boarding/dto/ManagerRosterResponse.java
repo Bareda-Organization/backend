@@ -6,8 +6,7 @@ import java.util.List;
 import src.backend.exception.dto.NoShowContactView;
 
 /**
- * 매니저 앱의 승하차지별 명단(API_SPEC §4.2 {@code GET /runs/{runId}/roster}, RST-01·02·04·M-03,
- * Phase 9 목표 6·15) — 관계자 웹({@code StaffRosterItemResponse})과 <b>같은 원본 데이터를 다른
+ * 매니저 앱의 승하차지별 명단(API_SPEC §4.2 {@code GET /runs/{runId}/roster}, RST-01·02·04·M-03) — 관계자 웹({@code StaffRosterItemResponse})과 <b>같은 원본 데이터를 다른
  * 모양으로</b> 담는다.
  *
  * <p>{@code no_show_case}(§4.2, EXC-01 카운트다운)는 열린 미승차 케이스가 있는 학생에게만 싣는다 —

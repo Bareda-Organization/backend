@@ -27,10 +27,8 @@ import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
 
 /**
- * 비상 알림(EXC-04, Phase 11 T2 목표 5~11) 시험이 쓰는 실제 행 — {@code DriverRunFixtures} 와 같은
- * 이유로 정상 경로의 팩토리로 쌓는다. 이 태스크의 소유 경로(exception·admin·notification/domain/impl)
- * 밖의 픽스처를 다른 도메인의 클래스와 공유하지 않고 이 패키지에 독립으로 둔다 — 병렬 좌석이 같은
- * 파일을 동시에 건드릴 여지를 없앤다.
+ * 비상 알림(EXC-04) 시험이 쓰는 실제 행 — {@code DriverRunFixtures} 와 같은
+ * 이유로 정상 경로의 팩토리로 쌓는다. 픽스처는 다른 도메인의 클래스와 공유하지 않고 이 패키지에 독립으로 둔다.
  */
 public class EmergencyFixtures {
 
@@ -106,7 +104,7 @@ public class EmergencyFixtures {
     }
 
     /**
-     * 방향을 지정하는 confirmed 상태 회차 1건(목표 5 — direction 필드가 실제 값을 반영하는지 보려면
+     * 방향을 지정하는 confirmed 상태 회차 1건(direction 필드가 실제 값을 반영하는지 보려면
      * to_academy 아닌 값이 필요하다).
      */
     public long confirmedRun(long academyId, long busId, OffsetDateTime departTime, Direction direction) {
@@ -130,7 +128,7 @@ public class EmergencyFixtures {
         return account.getId();
     }
 
-    /** 재직 관계자 1명(목표 6의 STAFF 알림 수신자) — 반환값은 계정 id. */
+    /** 재직 관계자 1명(STAFF 알림 수신자) — 반환값은 계정 id. */
     public long staffAccount(long academyId, String name) {
         Account account = accountRepository.save(Account.forSignup(academyId, loginId("직원"), "x",
                 name, "010-0000-0000", null, Role.STAFF));
@@ -138,7 +136,7 @@ public class EmergencyFixtures {
         return account.getId();
     }
 
-    /** 메인관리자 1명(목표 6의 SYSTEM_ADMIN 알림 수신자) — active 여야 팬아웃 조회에 잡힌다. */
+    /** 메인관리자 1명(SYSTEM_ADMIN 알림 수신자) — active 여야 팬아웃 조회에 잡힌다. */
     public long systemAdminAccount(String name) {
         Account account = Account.forSignup(null, loginId("관리자"), "x", name, "010-0000-0000",
                 null, Role.SYSTEM_ADMIN);
@@ -147,7 +145,7 @@ public class EmergencyFixtures {
     }
 
     /**
-     * 로그인 차단(blocked) 상태의 메인관리자 1명(R51 Ruling 865) — 차단은 로그인 보안이지 알림 중단이 아니라 비상 알림을 받는다.
+     * 로그인 차단(blocked) 상태의 메인관리자 1명(Ruling 865) — 차단은 로그인 보안이지 알림 중단이 아니라 비상 알림을 받는다.
      * 실패 누적이 차단 직전 상태까지 함께 기록해 {@code ck_account_status_before_block_pair} 를 지킨다.
      */
     public long blockedSystemAdminAccount(String name) {
@@ -176,7 +174,7 @@ public class EmergencyFixtures {
     }
 
     /**
-     * 학부모 1명(목표 7 — 비상 알림을 받으면 안 되는 계정) — 반환값은 계정 id. 팬아웃 회귀가 흔히
+     * 학부모 1명(비상 알림을 받으면 안 되는 계정) — 반환값은 계정 id. 팬아웃 회귀가 흔히
      * {@code findAllByRoleAndStatusIn(role, ACTIVE 만)} 형태로 status 를 조건에 넣으므로, PENDING 인 채로
      * 두면 그런 회귀조차 우연히 걸러져 시험이 아무것도 검증하지 못한다 — active 로 승인까지 한다.
      */
@@ -187,7 +185,7 @@ public class EmergencyFixtures {
         return accountRepository.save(account).getId();
     }
 
-    /** 학생 1명(목표 7 — 비상 알림을 받으면 안 되는 계정) — 반환값은 계정 id. 근거는 {@link #parentAccount} 와 같다. */
+    /** 학생 1명(비상 알림을 받으면 안 되는 계정) — 반환값은 계정 id. 근거는 {@link #parentAccount} 와 같다. */
     public long studentAccount(long academyId, String name) {
         Account account = Account.forSignup(academyId, loginId("학생"), "x", name,
                 "010-0000-0000", null, Role.STUDENT);

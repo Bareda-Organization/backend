@@ -17,7 +17,7 @@ import src.backend.location.infrastructure.RunBroadcastCache;
 import src.backend.global.location.RunRiderDirectory;
 
 /**
- * {@code position} 방송(API_SPEC §7·§7.1, 목표 4·6) — 채널 3종뿐이다. {@code /ws/manager/runs/{id}}
+ * {@code position} 방송(API_SPEC §7·§7.1) — 채널 3종뿐이다. {@code /ws/manager/runs/{id}}
  * 는 §7 채널 표에 {@code position} 이 없어 제외한다(매니저 채널은 {@code rider_changed}·{@code
  * stop_arrived}·{@code run_started}·{@code run_ended}·{@code emergency_acked} 만 받는다).
  * {@code @TransactionalEventListener(AFTER_COMMIT)} 근거는 {@code run.command.RunStartedBroadcastListener} 와 같다.

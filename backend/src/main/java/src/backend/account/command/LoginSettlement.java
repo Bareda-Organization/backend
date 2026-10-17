@@ -61,7 +61,7 @@ public class LoginSettlement {
      * <p>실패 시 {@link Account#recordLoginFailure} 가 상한 도달을 판정해 {@code blocked} 로
      * 전이시키면, 그 즉시 계정의 유효 refresh 토큰을 전량 무효화한다 — API_SPEC §1.2 는 "차단 시
      * 무효화"만 적고 트리거를 명시하지 않는데, 이 로그인 경로에서의 차단도 그 트리거에 포함시킨
-     * 판단이다(Task 4 판단, 보고서 ⑥).
+     * 판단이다.
      *
      * <p>감사 기록을 {@code AuditRecorder}(별도 트랜잭션, {@link
      * src.backend.audit.service.AuditRecorder}) 가 아니라 이 메서드와 <b>같은 트랜잭션</b>에서
@@ -98,7 +98,7 @@ public class LoginSettlement {
                 refreshTokenRepository.revokeAllValidByAccountId(account.getId(), now);
                 auditLogRepository.save(
                         AuditLog.forLoginBlock(account.getAcademyId(), account.getId(), loginId, ip, now));
-                eventPublisher.publishEvent(new AccountStandingChangedEvent(account.getId())); // 커밋 직후 계정 상태 보관 항목을 비운다(R57 RT-1)
+                eventPublisher.publishEvent(new AccountStandingChangedEvent(account.getId())); // 커밋 직후 계정 상태 보관 항목을 비운다
                 throw new BusinessException(ErrorCode.AUTH_ACCOUNT_BLOCKED);
             }
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS, new LoginFailureDetail(remaining));

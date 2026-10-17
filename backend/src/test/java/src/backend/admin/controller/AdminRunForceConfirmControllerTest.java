@@ -36,7 +36,7 @@ import src.backend.run.repository.RunRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 강제 확정 콘솔 개입(API_SPEC §6.14, F3 S2 목표 11) — {@code POST
+ * 강제 확정 콘솔 개입(API_SPEC §6.14) — {@code POST
  * /admin/runs/{runId}/force-confirm}.
  *
  * <p>픽스처는 {@code RunConfirmationServiceTest} 와 같은 {@link RunConfirmationFixtures}·고정
@@ -112,7 +112,7 @@ class AdminRunForceConfirmControllerTest {
 
     /**
      * {@code confirm_at} 경과 회차이되 학원 좌표를 등록하지 않는다 — 상태 가드가 idle 이 아닌 회차를
-     * 걸러내지 못하면(목표11 결함) {@link RunConfirmationService#confirmOne} 이 실제로 불려
+     * 걸러내지 못하면 {@link RunConfirmationService#confirmOne} 이 실제로 불려
      * {@code ACADEMY_COORDINATES_MISSING}(422) 으로 표면화된다. 좌표를 등록해 두면 그 결함이 나중의
      * {@code confirmIfIdle} 조건부 UPDATE(idle 만 갱신)에 조용히 흡수돼 결과가 정상 코드와 똑같이
      * {@code 409 RUN_NOT_IDLE} 로 나온다 — 그래서는 이 결함을 이 시험이 구분하지 못한다.
@@ -127,7 +127,7 @@ class AdminRunForceConfirmControllerTest {
     }
 
     /**
-     * 목표 11 — idle 상태이고 {@code confirm_at} 이 지난 회차의 강제 확정은 {@code 201} 이고,
+     * idle 상태이고 {@code confirm_at} 이 지난 회차의 강제 확정은 {@code 201} 이고,
      * {@code route_version.fallback_used} 가 실제로 {@code true} 로 저장된다.
      *
      * <p>{@code fallback_used} 를 <b>DB 컬럼</b>에서 확인하는 것이 핵심이다 — 응답 필드만 보면 그

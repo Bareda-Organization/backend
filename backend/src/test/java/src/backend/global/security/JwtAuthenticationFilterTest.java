@@ -35,7 +35,7 @@ import src.backend.global.common.enums.Role;
 
 /**
  * {@link JwtAuthenticationFilter} 가 {@link JwtTokenProvider#resolveAuthUser} 의 실패를 실제로
- * 삼키는지 확인한다(리뷰 라운드 2 Important #10). {@code JwtTokenProviderTest} 는 원천이 올바른
+ * 삼키는지 확인한다. {@code JwtTokenProviderTest} 는 원천이 올바른
  * 타입({@link io.jsonwebtoken.JwtException})을 던지는지만 보고, 필터의 {@code catch} 절이 그것을
  * 실제로 붙잡아 보호 자원 접근을 401 로 이어가는지는 이 테스트가 본다 — 원천만 고치고 호출부
  * 동작을 확인하지 않으면 "예외 타입만 바꾼" 것이 된다.

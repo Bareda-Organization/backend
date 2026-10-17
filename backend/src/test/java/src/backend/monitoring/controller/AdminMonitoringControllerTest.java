@@ -37,10 +37,9 @@ import testsupport.clock.FixedClock20300401Config;
 import org.springframework.context.annotation.Import;
 
 /**
- * 메인 관리자 콘솔의 전체 관제(§6.8)·회차 명단(§6.9) API 컨트롤러 시험(Phase 13 T2 목표 5(관리자
- * 쪽)·8·9·10·11). {@link AdminMonitoringFixtures} 로 매번 새 학원·회차를 만들어 시드 데이터와
+ * 메인 관리자 콘솔의 전체 관제(§6.8)·회차 명단(§6.9) API 컨트롤러 시험. {@link AdminMonitoringFixtures} 로 매번 새 학원·회차를 만들어 시드 데이터와
  * 겹치지 않는다 — {@code StudentBusPositionControllerTest} 의 시드 의존과 다른 이유는, 이 컨트롤러가
- * 여러 학원을 넘나드는 격리 시험(목표 9)을 요구해 학원 2곳을 매번 새로 만드는 편이 더 좁기 때문이다.
+ * 여러 학원을 넘나드는 격리 시험을 요구해 학원 2곳을 매번 새로 만드는 편이 더 좁기 때문이다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -78,10 +77,10 @@ class AdminMonitoringControllerTest {
 
 
 
-    // ── 목표 8·9 — GET /admin/academies/{id}/runs/live ─────────────────────
+    // ── GET /admin/academies/{id}/runs/live ─────────────────────
 
     /**
-     * §6.8 필드 전부를 항목 단위로 대조한다(목표 8) — position(신선한 위치) · depart_time ·
+     * §6.8 필드 전부를 항목 단위로 대조한다 — position(신선한 위치) · depart_time ·
      * est_depart_time(started_at) · stops[](미도착 정차의 eta 값) · destination_eta
      * (depart_time+est_duration_min) · driver/escort 원문 연락처.
      */
@@ -169,7 +168,7 @@ class AdminMonitoringControllerTest {
     }
 
     /**
-     * {@code est_duration_min} 이 없으면 {@code destination_eta} 가 응답에서 비어야 한다(목표 6) —
+     * {@code est_duration_min} 이 없으면 {@code destination_eta} 가 응답에서 비어야 한다 —
      * {@code AdminAcademyLiveQueryService#destinationEtaOf} 자바독이 Ruling 232 근거로 이미 이 분기를
      * 서술하고 있으나(edge case) 그 분기를 직접 태우는 시험이 없었다.
      */
@@ -211,7 +210,7 @@ class AdminMonitoringControllerTest {
 
     /**
      * 마지막 위치 수신 후 2분 초과(유실)면 {@code position} 을 비우고 {@code last_seen_at} 만 채운다
-     * (목표 9 — Ruling 250 · {@code FEATURE_SPEC §4.16} A-14, {@code §5.18} 과 같은 기준값). 위
+     * (Ruling 250 · {@code FEATURE_SPEC §4.16} A-14, {@code §5.18} 과 같은 기준값). 위
      * 정본 대조 시험은 30초 전 수신값이라 이 분기를 태우지 못한다.
      */
     @Test
@@ -241,7 +240,7 @@ class AdminMonitoringControllerTest {
                 .isEqualTo(received);
     }
 
-    /** 도착 처리된 정차는 {@code eta} 가 {@code null} 이다(목표 8 뒷항). */
+    /** 도착 처리된 정차는 {@code eta} 가 {@code null} 이다. */
     @Test
     void 도착_처리된_정차는_eta가_null이다() throws Exception {
         AdminMonitoringFixtures f = AdminMonitoringFixtures.of(applicationContext);
@@ -265,9 +264,8 @@ class AdminMonitoringControllerTest {
     }
 
     /**
-     * 오늘 회차는 <b>상태와 무관하게 전부</b> 나온다(R16 목표 1, Ruling 315) — 관제 화면이 버스별
-     * 상태 목록을 그리려면 {@code moving} 만으로는 성립하지 않는다. 이 시험이 R15 까지의
-     * {@code moving} 전용 계약을 대체한다.
+     * 오늘 회차는 <b>상태와 무관하게 전부</b> 나온다(Ruling 315) — 관제 화면이 버스별
+     * 상태 목록을 그리려면 {@code moving} 만으로는 성립하지 않는다.
      */
     @Test
     void 오늘_회차는_상태와_무관하게_전부_나온다() throws Exception {
@@ -288,7 +286,7 @@ class AdminMonitoringControllerTest {
         mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs.length()").value(4))
-                // depart_time 오름차순(목표 5) — finished(-90) · moving(-20) · confirmed(0) · idle(+10)
+                // depart_time 오름차순 — finished(-90) · moving(-20) · confirmed(0) · idle(+10)
                 .andExpect(jsonPath("$.data.runs[0].run_status").value("finished"))
                 .andExpect(jsonPath("$.data.runs[1].run_status").value("moving"))
                 .andExpect(jsonPath("$.data.runs[2].run_status").value("confirmed"))
@@ -296,9 +294,7 @@ class AdminMonitoringControllerTest {
     }
 
     /**
-     * 다른 날짜 회차는 나오지 않는다(R16 목표 2) — R15 까지 이 엔드포인트는 <b>날짜로 좁히지
-     * 않았고</b>({@code findAllByAcademyIdAndStatus...}), {@code moving} 이 사실상 오늘 것뿐이라
-     * 드러나지 않았다. 상태 조건을 빼는 순간 과거 회차 전부가 딸려 오므로 단독으로 못박는다.
+     * 다른 날짜 회차는 나오지 않는다. 상태 조건을 빼는 순간 과거 회차 전부가 딸려 오므로 단독으로 못박는다.
      */
     @Test
     void 다른_날짜_회차는_목록에_나오지_않는다() throws Exception {
@@ -320,13 +316,12 @@ class AdminMonitoringControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs.length()").value(1))
                 // ⚠ run_id 로 못박는다 — 세 회차가 전부 confirmed 라 개수·상태만 보면 조회 날짜가
-                // 어제·내일로 밀려도 이 단언이 그대로 통과한다(2026-09-19 음성 대조에서 실제로
-                // 빠져나갔다). "몇 건인가" 가 아니라 "어느 건인가" 를 검사해야 날짜가 고정된다.
+                // 어제·내일로 밀려도 이 단언이 그대로 통과한다. "몇 건인가" 가 아니라 "어느 건인가" 를 검사해야 날짜가 고정된다.
                 .andExpect(jsonPath("$.data.runs[0].run_id").value(todayRunId));
     }
 
     /**
-     * 운행 전 회차는 관제용 필드가 규칙대로 빈다(R16 목표 4) — 노선 확정 전이라 정차지가 없고,
+     * 운행 전 회차는 관제용 필드가 규칙대로 빈다 — 노선 확정 전이라 정차지가 없고,
      * 시작 전이라 실제 출발 시각·위치가 없다. <b>키는 존재하되 값이 비는 것</b>이 계약이다.
      */
     @Test
@@ -415,7 +410,7 @@ class AdminMonitoringControllerTest {
                 .andExpect(jsonPath("$.data.runs[0].consecutive_failures").value(2));
     }
 
-    /** 메인 관리자는 어느 학원이든 조회할 수 있다 + 지정 학원의 회차만 나온다(목표 9). */
+    /** 메인 관리자는 어느 학원이든 조회할 수 있다 + 지정 학원의 회차만 나온다. */
     @Test
     void 메인_관리자는_다른_학원의_관제도_조회하되_그_학원_회차만_나온다() throws Exception {
         AdminMonitoringFixtures f = AdminMonitoringFixtures.of(applicationContext);
@@ -437,7 +432,7 @@ class AdminMonitoringControllerTest {
                 .andExpect(jsonPath("$.data.runs[0].run_id").value(runA));
     }
 
-    /** 없는 학원은 {@code 404 ACADEMY_NOT_FOUND}(목표 9). */
+    /** 없는 학원은 {@code 404 ACADEMY_NOT_FOUND}. */
     @Test
     void 없는_학원의_관제_조회는_404다() throws Exception {
         long adminAccountId = AdminMonitoringFixtures.of(applicationContext).systemAdminAccount("메인관리자");
@@ -447,9 +442,9 @@ class AdminMonitoringControllerTest {
                 .andExpect(jsonPath("$.error.code").value("ACADEMY_NOT_FOUND"));
     }
 
-    // ── 목표 10·11 — GET /admin/runs/{runId}/roster ────────────────────────
+    // ── GET /admin/runs/{runId}/roster ────────────────────────
 
-    /** stops[]→students[] 사진·연락처가 원문 그대로 나온다(목표 10 앞항). */
+    /** stops[]→students[] 사진·연락처가 원문 그대로 나온다. */
     @Test
     void 회차_명단은_학생_사진과_연락처를_원문으로_담는다() throws Exception {
         AdminMonitoringFixtures f = AdminMonitoringFixtures.of(applicationContext);
@@ -479,7 +474,7 @@ class AdminMonitoringControllerTest {
                 .andExpect(jsonPath("$.data.stops[0].students[0].status").value("waiting"));
     }
 
-    /** 없는 회차는 {@code 404 RUN_NOT_FOUND}(목표 11). */
+    /** 없는 회차는 {@code 404 RUN_NOT_FOUND}. */
     @Test
     void 없는_회차의_명단_조회는_404다() throws Exception {
         long adminAccountId = AdminMonitoringFixtures.of(applicationContext).systemAdminAccount("메인관리자");
@@ -489,7 +484,7 @@ class AdminMonitoringControllerTest {
                 .andExpect(jsonPath("$.error.code").value("RUN_NOT_FOUND"));
     }
 
-    // ── 목표 5(관리자 쪽) — 학원 관계자는 403 ───────────────────────────────
+    // ── 학원 관계자는 403 ───────────────────────────────
 
     @Test
     void 학원_관계자는_전체_관제_콘솔을_호출할_수_없다() throws Exception {

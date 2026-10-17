@@ -8,7 +8,7 @@ import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 
 /**
- * 보존 정리를 마친 직후 {@code refresh_token} 에 남은 행 수 게이지(R47, Ruling 742 — R46 누수 검토 R-4). 재발급마다 행이 하나 늘고
+ * 보존 정리를 마친 직후 {@code refresh_token} 에 남은 행 수 게이지(Ruling 742). 재발급마다 행이 하나 늘고
  * 만료·폐기 30일 뒤에 지워지므로 정상 상태의 크기는 하루 발급 수 × 30 이다 — 이 값이 계속 오르면 정리가 발급을 따라가지 못하는 것이다.
  */
 @Component

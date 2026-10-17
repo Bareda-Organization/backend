@@ -75,7 +75,7 @@ public interface LinkCodeRepository extends JpaRepository<LinkCode, Long> {
             @Param("now") OffsetDateTime now, @Param("expiredAt") OffsetDateTime expiredAt);
 
     /**
-     * 보존 정리 배치 후보 id(목표 6, Phase 14 T2) — 만료된 코드 전건이 대상이다(ERD §7.1
+     * 보존 정리 배치 후보 id — 만료된 코드 전건이 대상이다(ERD §7.1
      * "link_code — hard delete — 만료분 정리 배치 대상"). 사용 여부({@code used_at})로 나누지 않는다 —
      * 정본이 삭제 기준으로 든 것은 "만료분" 하나뿐이라, 이미 쓰인 코드도 만료됐으면 함께 지운다.
      *

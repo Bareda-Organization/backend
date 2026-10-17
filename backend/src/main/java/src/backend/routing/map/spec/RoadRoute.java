@@ -24,7 +24,7 @@ public record RoadRoute(List<RoadLeg> legs, boolean fallbackUsed) {
     }
 
     /**
-     * 전체 지점열의 도로 좌표를 하나로 잇는다(Ruling 309 · R15 T1) — {@code route_version.road_path}
+     * 전체 지점열의 도로 좌표를 하나로 잇는다(Ruling 309) — {@code route_version.road_path}
      * 와 §5.19 응답 {@code road_path} 가 이 값을 그대로 쓴다.
      *
      * <p><b>구간 경계에서 좌표가 겹치는 것을 여기서 걷어낸다.</b> {@link RoadLeg#path()} 는 세그먼트

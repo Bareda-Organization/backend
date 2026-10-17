@@ -171,7 +171,7 @@ public class StudentAnonymizationService {
         linkCodeRepository.deleteAllByStudentIds(ids);
         guardianStudentRepository.deleteAllByStudentIds(ids);
         changeRequestRepository.anonymizeAddressesOfStudents(ids, Student.ANONYMIZED_ADDRESS);
-        // 시스템 배치라 요청 IP 가 없다(R46-FUBE 의 ip 인자 — 요청 밖은 null)
+        // 시스템 배치라 요청 IP 가 없다(ip 인자 — 요청 밖은 null)
         auditLogRepository.save(AuditLog.forDataAccessChange(AuditAction.DELETE, null, null, null, "student", null,
                 Map.of("purged_students", students.size()), null, now));
         log.info("퇴원 학생 개인정보 파기 — {}명 익명화", students.size());

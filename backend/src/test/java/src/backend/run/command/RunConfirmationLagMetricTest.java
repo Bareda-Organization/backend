@@ -27,7 +27,7 @@ import src.backend.global.error.ErrorCode;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 배치 도래→완료 지연 지표(Phase 7 목표 8) — {@link RunConfirmationService#confirmOne} 이 확정할
+ * 배치 도래→완료 지연 지표 —{@link RunConfirmationService#confirmOne} 이 확정할
  * 때마다 {@code run.confirm_at} 부터 완료 시각까지의 차를 정확히 기록하는지, 그리고 실패해 {@code idle}
  * 로 되돌아간 시도는 기록에서 빠지되 재시도 성공분이 그 실패 구간까지 포함한 누적 지연으로 잡히는지를
  * 본다. {@code RunConfirmationServiceTest} 는 4종 산출물의 <b>내용</b>을 보고, 이 클래스는 그 확정이

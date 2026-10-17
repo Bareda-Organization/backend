@@ -47,11 +47,11 @@ import src.backend.run.repository.RunRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * §5.3 {@code GET /staff/dashboard} — Phase 13 T1 목표 1·2·3·4(뒷항)·5.
+ * §5.3 {@code GET /staff/dashboard}.
  *
- * <p>{@code p13-task-t1.md §6} 완료 기준 3(목표 3은 실제 {@code PATCH .../riders/{riderId}} 호출을
- * 시험 본문에 담아야 함)·4(목표 4 뒷항은 재배포 후 {@code ack_driver=false} 를 검사해야 함)를 그대로
- * 따른다 — 손으로 {@code run_rider} 행을 UPDATE 하지 않는다(같은 브리프 목표 3).
+ * <p>완료 기준 3(실제 {@code PATCH .../riders/{riderId}} 호출을
+ * 시험 본문에 담아야 함)·4(뒷항은 재배포 후 {@code ack_driver=false} 를 검사해야 함)를 그대로
+ * 따른다 — 손으로 {@code run_rider} 행을 UPDATE 하지 않는다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -100,17 +100,17 @@ class StaffDashboardControllerTest {
 
     /**
      * {@code DriverRunFixtures.confirmedRun}·{@code idleRun} 이 {@code serviceDate} 를
-     * {@code 2030-04-01} 로 고정해서 만든다(자바독 없이 하드코딩 — 다른 T1 시험들의 공통 전제) —
+     * {@code 2030-04-01} 로 고정해서 만든다(자바독 없이 하드코딩 — 다른 시험들의 공통 전제) —
      * 대시보드가 기본값으로 쓰는 "오늘"이 이 날짜와 맞아야 {@code runs[]} 가 비지 않는다.
      */
 
 
-    // ── 목표 1 — §5.3 필드 전부 ──────────────────────────────────────────
+    // ── §5.3 필드 전부 ──────────────────────────────────────────
 
     /**
-     * 목표 1 — {@code metrics} 5종 + {@code runs[]} 14개 필드(정본 {@code API_SPEC.md §5.3} 직접
+     * {@code metrics} 5종 + {@code runs[]} 14개 필드(정본 {@code API_SPEC.md §5.3} 직접
      * 계수, {@code runs[]} 표는 7개 행이지만 {@code driver_name·escort_name} 처럼 한 행이 필드
-     * 여럿을 묶어 실제 JSON 리프 키는 14개다 — 브리프의 "12" 는 이 재계수로 정정해 보고서에 남긴다).
+     * 여럿을 묶어 실제 JSON 리프 키는 14개다).
      */
     @Test
     @DisplayName("목표1 — metrics 5종과 runs[] 14개 필드가 전부 채워진다")
@@ -190,10 +190,10 @@ class StaffDashboardControllerTest {
                 .andExpect(jsonPath("$.data.metrics.unassigned_managers").value(1));
     }
 
-    // ── R21-B 목표 1·2·4 — 실제 출발·도착 시각(started_at·finished_at) ─────────
+    // ── 실제 출발·도착 시각(started_at·finished_at) ─────────
 
     /**
-     * R21-B 목표 1·2·4 — {@code started_at}·{@code finished_at} 은 회차가 실제로 그 상태를
+     * {@code started_at}·{@code finished_at} 은 회차가 실제로 그 상태를
      * 지나야만 값이 찬다("예정"인 {@code depart_time} 과 구별). 확정 직후엔 둘 다 없고, 출발
      * 처리 후엔 {@code started_at} 만, 종료 처리 후엔 둘 다 채워진다 — 세 상태를 한 시험에서
      * 순서대로 확인해 "출발 전에는 실제 값이 없다"는 완료 조건 4의 전제를 직접 본다.
@@ -233,12 +233,12 @@ class StaffDashboardControllerTest {
                 .andExpect(jsonPath("$.data.runs[0].finished_at").exists());
     }
 
-    // ── R21-B2 목표 1·2 — 예정 도착(est_arrival_time = depart_time + est_duration_min) ──
+    // ── 예정 도착(est_arrival_time = depart_time + est_duration_min) ──
 
     /**
-     * R21-B2 목표 1 — {@code est_duration_min} 이 있으면 {@code depart_time} 에 그 분(分)을 더한
-     * 값이 {@code est_arrival_time} 으로 나온다. R20-A 가 시드의 {@code est_duration_min} 을 실
-     * NCP 응답으로 채워(docs/archive/rounds/be-rounds-r15-r21.md §8.33) 이 값이 이제 실측치라는 전제를 그대로 시험한다.
+     * {@code est_duration_min} 이 있으면 {@code depart_time} 에 그 분(分)을 더한
+     * 값이 {@code est_arrival_time} 으로 나온다. 시드의 {@code est_duration_min} 을 실
+     * NCP 응답으로 채운 실측치라는 전제를 그대로 시험한다.
      */
     @Test
     @DisplayName("R21-B2 목표1 — est_arrival_time 은 depart_time + est_duration_min 이다")
@@ -267,7 +267,7 @@ class StaffDashboardControllerTest {
     }
 
     /**
-     * R21-B2 목표 2 — {@code est_duration_min} 이 없는 회차(확정 전 등, 정본이 {@code null} 허용)는
+     * {@code est_duration_min} 이 없는 회차(확정 전 등, 정본이 {@code null} 허용)는
      * {@code est_arrival_time} 도 {@code null} 로 견딘다 — 예외를 던지지 않는다.
      */
     @Test
@@ -287,7 +287,7 @@ class StaffDashboardControllerTest {
                 .andExpect(jsonPath("$.data.runs[0].est_arrival_time").doesNotExist());
     }
 
-    // ── R48 (Ruling 810) — 회차 표 6필드 + 미승차 케이스 2필드 ─────────────────
+    // ── Ruling 810 — 회차 표 6필드 + 미승차 케이스 2필드 ─────────────────
 
     private com.jayway.jsonpath.DocumentContext 대시보드(long staffAccountId, long academyId) throws Exception {
         return JsonPath.parse(본문(mockMvc.perform(get("/api/v1/staff/dashboard").header("Authorization",
@@ -536,16 +536,15 @@ class StaffDashboardControllerTest {
         }
     }
 
-    // ── 목표 8 — unassigned_managers 는 소프트 삭제된 매니저를 세지 않는다 ─────
+    // ── unassigned_managers 는 소프트 삭제된 매니저를 세지 않는다 ─────
 
     /**
-     * 목표 8 — {@code ManagerRepository.countUnassignedForStaffDashboard} 는 이미
-     * {@code deleted_at IS NULL} 조건을 갖고 있다(프로덕션 변경 없음, 회귀 방지 시험만 추가). 소프트
+     * {@code ManagerRepository.countUnassignedForStaffDashboard} 는 이미
+     * {@code deleted_at IS NULL} 조건을 갖고 있다. 소프트
      * 삭제된 미배치 매니저 1명을 심어 두고, 살아있는 미배치 매니저 1명만 집계되는지 본다.
      *
      * <p>오늘 회차를 1건 만들어야 한다 — {@code StaffDashboardQueryService.dashboard} 는 오늘 회차가
-     * 없으면 {@code countActiveForStaffDashboard}(별도 메서드, 이 시험의 검사 대상이 아니다)로 빠진다
-     * (수정 라운드 1 — 팀리드 재지시, 원래 판은 회차를 안 만들어 검사 대상 쿼리를 한 번도 안 태웠다).
+     * 없으면 {@code countActiveForStaffDashboard}(별도 메서드, 이 시험의 검사 대상이 아니다)로 빠진다.
      */
     @Test
     @DisplayName("목표8 — 소프트 삭제된 미배치 매니저는 unassigned_managers 에 잡히지 않는다")
@@ -568,10 +567,10 @@ class StaffDashboardControllerTest {
                         .value(1));
     }
 
-    // ── 목표 2 — §5.4 기존 명단 검증(고치지 않는다) ───────────────────────
+    // ── §5.4 기존 명단 검증(고치지 않는다) ───────────────────────
 
     /**
-     * 목표 2 — {@code StaffRosterController} 를 대시보드가 만든 {@code run_id} 로 그대로 호출해
+     * {@code StaffRosterController} 를 대시보드가 만든 {@code run_id} 로 그대로 호출해
      * §5.4 필드 키를 대조한다. 새 컨트롤러를 만들지 않는다.
      */
     @Test
@@ -612,10 +611,10 @@ class StaffDashboardControllerTest {
         // 기존 관례라 코드 결함이 아니라 정본 산문의 서술 부정확으로 판단(확신 없는 지점, 보고서 §2).
     }
 
-    // ── 목표 3 — 실제 승하차 처리 반영 ──────────────────────────────────
+    // ── 실제 승하차 처리 반영 ──────────────────────────────────
 
     /**
-     * 목표 3 — 실제 {@code PATCH /runs/{runId}/riders/{riderId}} 호출로 {@code boarded_count}·
+     * 실제 {@code PATCH /runs/{runId}/riders/{riderId}} 호출로 {@code boarded_count}·
      * {@code metrics.boarded} 가 반영되고, {@code no_show} 처리는 {@code no_show_cases[]} 에 뜨며,
      * 실제 {@code POST .../no-show-contacts} 응답(해소) 뒤에는 제외된다.
      */
@@ -681,10 +680,10 @@ class StaffDashboardControllerTest {
                 .andExpect(jsonPath("$.data.runs[0].no_show_cases", org.hamcrest.Matchers.hasSize(0)));
     }
 
-    // ── 목표 4(뒷항) — 재배포 후 ack 리셋 ────────────────────────────────
+    // ── 재배포 후 ack 리셋 ────────────────────────────────
 
     /**
-     * 목표 4 뒷항 — 재배포(새 {@code RouteVersion} 이 {@code currentVersionId} 를 갈아치움) 후
+     * 재배포(새 {@code RouteVersion} 이 {@code currentVersionId} 를 갈아치움) 후
      * {@code ack_driver}·{@code ack_escort} 가 {@code false} 로 되돌아간다({@code ERD:632} 판정식,
      * {@code StaffAssignmentAckView#acked} — 버전 비교이지 {@code acked_at != null} 단순 확인이
      * 아님).
@@ -734,14 +733,14 @@ class StaffDashboardControllerTest {
                 .andExpect(jsonPath("$.data.runs[0].ack_escort").value(false));
     }
 
-    // ── 목표 5 — 학원 범위 격리 ──────────────────────────────────────────
+    // ── 학원 범위 격리 ──────────────────────────────────────────
 
     /**
-     * 목표 5 — 관계자 토큰 응답에 타 학원 회차가 부재하고, 타 학원 회차의 명단 조회는 실패한다.
+     * 관계자 토큰 응답에 타 학원 회차가 부재하고, 타 학원 회차의 명단 조회는 실패한다.
      *
      * <p>{@code RosterQueryService.staffRoster} 가 존재 판정({@code findById})과 학원 범위 판정
      * ({@link src.backend.global.security.access.AcademyScope#assertAccessible})을 분리하도록
-     * 고쳐(API_SPEC §1.5, Ruling 239, 2026-09-03 사용자 판정 ②) 타 학원 회차는 {@code 403
+     * 고쳐(API_SPEC §1.5, Ruling 239) 타 학원 회차는 {@code 403
      * ACADEMY_SCOPE_VIOLATION} 을 던진다 — 존재하지 않는 회차 id 만 {@code 404 RUN_NOT_FOUND} 다.
      */
     @Test

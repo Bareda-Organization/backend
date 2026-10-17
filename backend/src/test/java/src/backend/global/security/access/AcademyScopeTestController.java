@@ -16,7 +16,7 @@ import src.backend.student.repository.StudentRepository;
 
 /**
  * 학원 격리 검증 전용 컨트롤러 — 테스트 소스에만 존재한다({@code GateTestController} 와 같은 이유).
- * Phase 2 에는 학원 범위 자원을 조회하는 프로덕션 엔드포인트가 아직 없어(학생·회차는 Phase 5·9),
+ * 학원 범위 자원을 조회하는 프로덕션 엔드포인트가 없어,
  * 격리가 HTTP 왕복에서 {@code 403 ACADEMY_SCOPE_VIOLATION} 으로 드러나는지 볼 다른 수단이 부재하다.
  *
  * <p><b>여기에 격리 판정을 두지 않는다.</b> 판정은 전부 프로덕션 코드({@link AcademyScope} ·
@@ -26,11 +26,10 @@ import src.backend.student.repository.StudentRepository;
  * <p>목록 응답이 학생 id 만 담는 이유는 격리 여부가 <b>어느 학원 행이 섞였는가</b> 로만 판정되기
  * 때문이다. 자원 표현(DTO)은 그 소유 Phase 가 정한다.
  *
- * <p><b>이 형태를 Phase 3 {@code /admin/**} 이 복사할 때</b> — 학원 경로와 메인 관리자 경로는 학원
+ * <p><b>이 형태를 {@code /admin/**} 이 복사할 때</b> — 학원 경로와 메인 관리자 경로는 학원
  * 조건만 다르고 {@code deleted_at IS NULL} 은 <b>양쪽 다 필요</b>하다. 한쪽만 걸면 같은 화면이 학원을
  * 고르느냐에 따라 퇴원생이 나왔다 사라진다. 학원 경로는 관계자 학생 목록(§5.11)이 쓰는 조회를 그대로
- * 부르고, 전 학원 경로는 본체에 해당 조회가 없어(BR-145 — 호출부 없는 전 학원 무제한 조회를 본체에서
- * 뺐다) 여기서 퇴원생을 거른다.
+ * 부르고, 전 학원 경로는 본체에 해당 조회가 없어(BR-145 — 호출부 없는 전 학원 무제한 조회는 본체에 두지 않는다) 여기서 퇴원생을 거른다.
  */
 @RestController
 class AcademyScopeTestController {

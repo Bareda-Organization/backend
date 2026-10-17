@@ -21,7 +21,7 @@ import src.backend.global.security.StompSessionExpiry;
 import src.backend.global.security.WebSocketCloseCodes;
 
 /**
- * 열린 WebSocket 세션을 세션 id 로 들고 있다가 계정 단위로 닫는다(R57 RT-2 · K2). STOMP 쪽({@link StompSessionExpiry})은 계정의 세션 id 만 알고
+ * 열린 WebSocket 세션을 세션 id 로 들고 있다가 계정 단위로 닫는다. STOMP 쪽({@link StompSessionExpiry})은 계정의 세션 id 만 알고
  * 세션 객체는 전송 계층이 쥐고 있어, 데코레이터로 세션이 열리고 닫힐 때 맵을 맞춘다. 원본(Tomcat) 세션을 받도록 {@code WebSocketConfig} 가 가장 마지막에 등록한다.
  */
 @Component

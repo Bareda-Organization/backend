@@ -30,7 +30,7 @@ import testsupport.clock.AdvanceableClock;
 import testsupport.clock.AdvanceableClockConfig;
 
 /**
- * {@link StompAuthChannelInterceptor} 의 계정 상태 게이트(목표 8)와 SUBSCRIBE 기본 차단(목표 7)을
+ * {@link StompAuthChannelInterceptor} 의 계정 상태 게이트와 SUBSCRIBE 기본 차단을
  * {@link StompAcademyScopeSubscriptionTest} 와 별도 파일로 둔다 — 그쪽은 학원 격리 한 갈래만 다루고,
  * 이 파일은 4채널 공통 게이트(계정 상태 · 정의되지 않은 목적지 · 배치 여부)를 다뤄 파일명이 검사
  * 대상을 그대로 말하게 한다.
@@ -62,7 +62,7 @@ class StompChannelAuthorizationTest {
     private String jwtSecret;
 
     /**
-     * 목표 8(Ruling 87 이월) — REST 의 pending 허용 목록에 WebSocket 대응 항목이 없어 CONNECT 자체를
+     * Ruling 87 이월 — REST 의 pending 허용 목록에 WebSocket 대응 항목이 없어 CONNECT 자체를
      * 전면 거부한다(근거는 {@link StompAuthChannelInterceptor#assertActiveAccount} 의 판단 근거 참고).
      * CONNECTED 프레임이 오지 않고 ERROR 로 AUTH_PENDING 이 실리는 것까지 확인해야, "그냥 응답이 없다"
      * 와 "명시적으로 거부한다"가 갈린다.
@@ -155,7 +155,7 @@ class StompChannelAuthorizationTest {
     }
 
     /**
-     * 목표 7 — 정의된 4종 목적지 밖은 기본 차단이다(ARCHITECTURE §5.2). 4종 패턴 중 어느 것에도
+     * 정의된 4종 목적지 밖은 기본 차단이다(ARCHITECTURE §5.2). 4종 패턴 중 어느 것에도
      * 안 걸리는 임의 목적지를 구독해도 조용히 무시되지 않고 명시적으로 거부돼야 한다.
      */
     @Test
@@ -170,7 +170,7 @@ class StompChannelAuthorizationTest {
     }
 
     /**
-     * 목표 7 — 매니저 채널({@code /topic/manager/runs/{runId}})은 그 회차에 배치된 기사·동승자만
+     * 매니저 채널({@code /topic/manager/runs/{runId}})은 그 회차에 배치된 기사·동승자만
      * 구독한다. 역할은 DRIVER 로 맞지만 어떤 회차에도 배치되지 않은(=manager 행이 없는) 계정이면
      * {@link src.backend.run.access.RunAssignmentAccess} 가 FORBIDDEN 으로 막는다.
      */
@@ -186,7 +186,7 @@ class StompChannelAuthorizationTest {
     }
 
     /**
-     * 목표 7 — 관리자 채널({@code /topic/admin/live})은 플랫폼 범위(SYSTEM_ADMIN)만 구독한다.
+     * 관리자 채널({@code /topic/admin/live})은 플랫폼 범위(SYSTEM_ADMIN)만 구독한다.
      * STAFF 는 자기 학원 관제 채널까지는 되지만 전 학원 채널은 넘볼 수 없다.
      */
     @Test

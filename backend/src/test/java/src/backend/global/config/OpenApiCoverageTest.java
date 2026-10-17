@@ -138,7 +138,7 @@ class OpenApiCoverageTest {
     }
 
     /**
-     * 목표 1 — 등록된 핸들러가 문서에서 하나도 빠지지 않는다.
+     * 등록된 핸들러가 문서에서 하나도 빠지지 않는다.
      * 개수 비교가 아니라 항목 대조다. 개수만 맞추면 한 건이 빠지고 다른 한 건이 잘못 실린 상태를 통과시킨다.
      */
     @Test
@@ -155,7 +155,7 @@ class OpenApiCoverageTest {
                 .isEmpty();
     }
 
-    /** 목표 2 — 오퍼레이션마다 사람이 읽을 설명이 붙어 있다. {@code @Operation(summary = ...)} 이 없으면 빈다. */
+    /** 오퍼레이션마다 사람이 읽을 설명이 붙어 있다. {@code @Operation(summary = ...)} 이 없으면 빈다. */
     @Test
     void everyOperationHasSummary() throws Exception {
         List<String> withoutSummary = new ArrayList<>();
@@ -173,7 +173,7 @@ class OpenApiCoverageTest {
                 .isEmpty();
     }
 
-    /** 목표 3 — 오퍼레이션이 사양 태그 5종에만 묶인다. 태그를 안 달면 springdoc 이 클래스명으로 만들어 붙인다. */
+    /** 오퍼레이션이 사양 태그 5종에만 묶인다. 태그를 안 달면 springdoc 이 클래스명으로 만들어 붙인다. */
     @Test
     void everyOperationIsGroupedUnderSpecTags() throws Exception {
         Set<String> foreignTags = new TreeSet<>();
@@ -201,7 +201,7 @@ class OpenApiCoverageTest {
     }
 
     /**
-     * 목표 4 — 공통 실패 응답(§1.11)이 전 오퍼레이션에 실린다.
+     * 공통 실패 응답(§1.11)이 전 오퍼레이션에 실린다.
      * 비인증 허용 경로는 토큰이 없어 401·403 이 나올 수 없으므로 422 만 요구한다.
      */
     @Test
@@ -223,7 +223,7 @@ class OpenApiCoverageTest {
     }
 
     /**
-     * 목표 5 — 문서가 적은 에러 코드가 전부 {@link ErrorCode} 에 실재한다.
+     * 문서가 적은 에러 코드가 전부 {@link ErrorCode} 에 실재한다.
      * 문서의 코드 이름은 클라이언트가 분기에 쓰는 값이라(§1.10), 오타나 폐기된 이름이 남으면
      * 클라이언트가 영원히 걸리지 않는 조건을 코딩하게 된다 — 그 어긋남은 실행해도 드러나지 않는다.
      */
@@ -250,7 +250,7 @@ class OpenApiCoverageTest {
     }
 
     /**
-     * 목표 6 — 에러 표({@link EndpointErrorResponses})의 키가 전부 실재하는 엔드포인트다.
+     * 에러 표({@link EndpointErrorResponses})의 키가 전부 실재하는 엔드포인트다.
      * 표는 사양에서 옮긴 파생본이라 경로가 바뀌면 조용히 낡는다. 실제로 이 검사를 만들면서
      * 사양에만 있고 핸들러가 없는 경로가 드러났다(§4.15).
      */

@@ -24,9 +24,9 @@ import src.backend.run.entity.Run;
  *
  * <p>이 세 테이블은 {@code routing} 소유이지만, 확정 배치(v1, {@code run} 소유)·②구간 승인 배포(v2+,
  * {@code request} 소유)·경유 지점 배포(v2+, {@code routing} 자신)가 각자 이 저장소들을 직접
- * {@code save}/{@code saveAll} 하던 것을 이 클래스로 모았다({@code WaypointStore}·
+ * {@code save}/{@code saveAll} 하던 것을 이 클래스로 모은다({@code WaypointStore}·
  * {@code RunConfirmationPersistence}·{@code ChangeRequestDecisionService} 세 곳이 거의 같은 코드를
- * 중복 소유했다, 2026-09-25 검사 W02-12·W09-10·W09-11). 계산 로직(재최적화·지문)은 그대로 각 호출부에
+ * 중복 소유한다. 계산 로직(재최적화·지문)은 그대로 각 호출부에
  * 남고, 이 클래스는 "그 계산 결과를 어떻게 영속화하는가" 만 담당한다.
  */
 @Component

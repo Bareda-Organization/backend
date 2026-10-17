@@ -33,8 +33,7 @@ import src.backend.student.repository.StudentRepository;
  * <p>구독 목적지 4종({@code /topic/students/{studentId}/run} · {@code /topic/manager/runs/{runId}} ·
  * {@code /topic/academy/{academyId}/live} · {@code /topic/admin/live})은 조율자가 고정한 계약이다
  * (Ruling 209). 옛 {@code /topic/tenant/{id}/**} 정규식은 이 4종으로 완전히 대체되어 소멸한다
- * (Ruling 121 해소) — N:M 멤버십 시절의 어휘가 남아 있던 자리였고, 실제 구독 채널을 처음 만드는 이
- * Phase 가 그 계약을 처음 쓰는 시점이라 여기서 정리한다.
+ * (Ruling 121 해소).
  */
 @Component
 @RequiredArgsConstructor
@@ -68,7 +67,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         }
     }
 
-    /** 접속 · 구독 · 송신 거절을 단계와 사유별로 센다(R57 RT-11) — 사유는 ERROR 프레임의 message 와 같은 {@link ErrorCode} 이름이다. */
+    /** 접속 · 구독 · 송신 거절을 단계와 사유별로 센다 — 사유는 ERROR 프레임의 message 와 같은 {@link ErrorCode} 이름이다. */
     private void countRejection(StompHeaderAccessor accessor, BusinessException e) {
         String phase = StompCommand.SUBSCRIBE.equals(accessor.getCommand()) ? "subscribe"
                 : StompCommand.SEND.equals(accessor.getCommand()) ? "send" : "connect";
@@ -99,7 +98,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
     }
 
     /**
-     * 열린 세션도 새 구독·송신마다 계정의 상태를 다시 확인한다(Ruling 880) — {@link AccountStanding} 이 최대 5초 보관한 값이고 상태 변경이 커밋되면 바로 비워진다(R57 RT-1). 퇴사·차단·삭제된 매니저면 받지 않고,
+     * 열린 세션도 새 구독·송신마다 계정의 상태를 다시 확인한다(Ruling 880) — {@link AccountStanding} 이 최대 5초 보관한 값이고 상태 변경이 커밋되면 바로 비워진다. 퇴사·차단·삭제된 매니저면 받지 않고,
      * 이 세션의 다음 방송도 끊기게 표시한다({@link StompSessionExpiry#expire}).
      */
     private void assertStanding(StompHeaderAccessor accessor) {
@@ -137,14 +136,14 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
     }
 
     /**
-     * 계정 상태 게이트(목표 8, Ruling 87 이월) — REST 축의 {@code pending} 허용 목록(API_SPEC §1.4:
+     * 계정 상태 게이트(Ruling 87 이월) — REST 축의 {@code pending} 허용 목록(API_SPEC §1.4:
      * {@code GET /auth/signup-status} · {@code POST /auth/logout} · {@code GET /me} ·
      * {@code POST|DELETE /me/devices})에 WebSocket 으로 대응되는 항목이 없다. STOMP 연결 자체가
      * "실시간 기능 사용"이라 허용할 대상이 없어 <b>전면 거부</b>로 판단했다(REST 허용 목록을 그대로
-     * 복제하지 않은 근거 — 보고서 ①항).
+     * 복제하지 않은 근거).
      *
      * <p>CONNECT 에서 막으면 {@code accessor.setUser} 가 호출되지 않아 이후 SUBSCRIBE 도 인가 주체가
-     * 없어 {@link ErrorCode#UNAUTHORIZED} 로 함께 거부된다 — 단일 관문으로 목표 8 의 "CONNECT ·
+     * 없어 {@link ErrorCode#UNAUTHORIZED} 로 함께 거부된다 — 단일 관문으로 "CONNECT ·
      * SUBSCRIBE 둘 다 거부" 를 만족시킨다(ARCHITECTURE §5.2 가 선호하는 단일 구현 지점과 일치).
      */
     private void assertActiveAccount(AuthUser user) {
@@ -175,7 +174,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
     }
 
     /**
-     * 목적지 4종을 순서대로 매칭해 채널별 인가로 넘긴다 — 어느 패턴에도 안 걸리면 기본 차단(목표 7).
+     * 목적지 4종을 순서대로 매칭해 채널별 인가로 넘긴다 — 어느 패턴에도 안 걸리면 기본 차단.
      * CODE_CONVENTIONS §20.2 크기 신호(23줄) — 표·루프로 데이터화하면 패턴 4개 각각의 인가 메서드 시그니처가 달라(구독자
      * 만·구독자+id) 오히려 캐스팅이 늘어난다. 순서대로 읽는 조기 반환이 더 단순하다.
      */
@@ -203,7 +202,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             authorizeAdminChannel(subscriber);
             return;
         }
-        // 4종 목적지에 없는 구독 — 기본 차단(목표 7, ARCHITECTURE §5.2 "기본 차단" 원칙)
+        // 4종 목적지에 없는 구독 — 기본 차단(ARCHITECTURE §5.2 "기본 차단" 원칙)
         throw new BusinessException(ErrorCode.FORBIDDEN);
     }
 
@@ -249,7 +248,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
     }
 
     /**
-     * SUBSCRIBE 거부를 세션 속성에 남긴다(목표 7) — {@link WebSocketCloseCodes#FORBIDDEN_SUBSCRIPTION_ATTR}
+     * SUBSCRIBE 거부를 세션 속성에 남긴다 — {@link WebSocketCloseCodes#FORBIDDEN_SUBSCRIPTION_ATTR}
      * 키로, 전송 계층의 {@code ForbiddenSubscriptionCloseFactory} 가 같은 키를 읽어 종료 코드를
      * 4403 으로 바꾼다(두 클래스가 상수를 공유하는 이유는 {@link WebSocketCloseCodes} 참고).
      */

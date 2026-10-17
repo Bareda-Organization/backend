@@ -48,7 +48,7 @@ import src.backend.student.repository.WeeklyAddressRepository;
  *
  * <p>클래스에 {@code @Transactional} 을 두지 않는다 — 감사 기록({@code AuditRecorder}, {@code REQUIRES_NEW})이 읽기
  * 트랜잭션 안에서 돌면 요청 하나가 DB 연결을 둘 쥐고, 동시 요청이 풀 크기에 닿으면 서로의 두 번째 연결을 기다려
- * 풀리지 않는다(R46 감사 #1). 저장소 호출마다 짧은 읽기 트랜잭션이 돌고, 감사는 조회가 끝난 뒤에 기록한다 —
+ * 풀리지 않는다. 저장소 호출마다 짧은 읽기 트랜잭션이 돌고, 감사는 조회가 끝난 뒤에 기록한다 —
  * 조회가 예외로 끝나면 감사 호출에 닿지 않는다.
  */
 @Service
@@ -118,7 +118,7 @@ public class StudentQueryService {
      * 학생 상세(STU-01) — 남의 학원 학생과 퇴원생은 모두 {@code 404 STUDENT_NOT_FOUND} 다.
      *
      * <p>{@code photo_url}·{@code note}·{@code guardian_phone} 이 L3 다(FEATURE_SPEC §6.3) — 조회가
-     * 성공한 뒤에만 감사를 남긴다(예외로 끝난 요청은 L3 를 아무것도 응답에 싣지 않았으므로 목표 1의
+     * 성공한 뒤에만 감사를 남긴다(예외로 끝난 요청은 L3 를 아무것도 응답에 싣지 않았으므로
      * "L3 필드가 실린 응답을 실제로 읽었을 때" 조건에 들지 않는다).
      */
     public StudentDetailResponse detail(AuthUser requester, Long studentId) {

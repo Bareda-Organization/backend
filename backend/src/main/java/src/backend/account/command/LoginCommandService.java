@@ -46,7 +46,7 @@ public class LoginCommandService {
      *
      * <p>미등록 {@code login_id} 도 존재하는 계정의 첫 실패와 <b>본문 형태와 값이 같아야 한다</b> —
      * {@code details.remaining_attempts} 를 한쪽에만 실으면 그 유무가, 양쪽에 싣더라도 값이 갈리면
-     * 그 숫자가 곧 계정 존재 신호다(계정 열거, 리뷰 라운드 1 I5 · 라운드 2 I-1). 미등록에는 누적할
+     * 그 숫자가 곧 계정 존재 신호다(계정 열거). 미등록에는 누적할
      * 카운터가 부재하므로 {@link Account#REMAINING_AFTER_FIRST_FAILURE} 를 싣는다.
      *
      * <p><b>이 조치가 막는 것과 남는 것.</b> 막는 것은 <b>1회 프로브</b>뿐이다 — 2회째부터는 존재
@@ -54,14 +54,13 @@ public class LoginCommandService {
      * 열거는 닫히지 않는다 — 상한을 채운 계정은 {@code blocked} 로 전이해 응답이 403
      * {@code AUTH_ACCOUNT_BLOCKED} 로 바뀌고 미등록은 계속 401 이므로, <b>잠금 동작 자체가 열거
      * 채널</b>이고 응답 본문만으로는 원리상 닫을 수 없다. 실질 대응은 시도 빈도 제한이며 그것은
-     * Phase 14(운영 게이트)에 등재돼 있다(Ruling 127) — 이 경로에서 만들지 않는다.
+     * 운영 게이트 항목에 등재돼 있다(Ruling 127) — 이 경로에서 만들지 않는다.
      *
-     * <p><b>감사(SYS-01, Phase 14 T1 목표 2)</b> — {@code login_success}·{@code login_fail}·
+     * <p><b>감사(SYS-01)</b> — {@code login_success}·{@code login_fail}·
      * {@code block} 세 이벤트만 남긴다. {@link Account#assertNotBlocked} 가 던지는 차단 계정의 대조
      * 전 403 은 남기지 않는다 — 그 요청은 자격 증명을 아직 대조하지 않았고, 실패 카운터도 올리지
      * 않으므로 새 로그인 시도가 아니라 이미 알려진 차단 상태의 반복 확인일 뿐이다. {@code now} 계산을
-     * 메서드 첫 줄로 옮긴 것은 미등록 {@code login_id} 분기에서도 감사 시각이 필요해서다(원래는 대조
-     * 직전에 있었다).
+     * 메서드 첫 줄로 옮긴 것은 미등록 {@code login_id} 분기에서도 감사 시각이 필요해서다.
      *
      * <p><b>비밀번호 대조(BCrypt)는 트랜잭션·행 잠금 밖에서 한다.</b> BCrypt 는 일부러 느린 연산(요청당 수십~수백
      * ms)이라 잠금 트랜잭션 안에 두면 그 시간만큼 DB 연결이 묶이고, 등원 전 로그인이 몰리면 풀이 대조를 기다리는

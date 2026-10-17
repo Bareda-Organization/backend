@@ -14,8 +14,8 @@ import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@link ErrorCode} 열거 값 전부가 {@code docs/planning/API_SPEC.md} §8(에러 코드 사전) 표에 있고, 그 반대도 같다(R46-LATERBE, Ruling 677).
- * R46-FIXTX 가 {@code SERVER_BUSY} 를 만들고 §1.11 에만 적어 §8 에는 행이 없었다 — 웹 쪽 시험은 "§8 ⊆ 웹 목록" 한 방향만 봐서 못 잡았다.
+ * {@link ErrorCode} 열거 값 전부가 {@code docs/planning/API_SPEC.md} §8(에러 코드 사전) 표에 있고, 그 반대도 같다(Ruling 677).
+ * {@code SERVER_BUSY} 가 §1.11 에만 적히고 §8 에는 행이 없는 형태는 웹 쪽 시험이 "§8 ⊆ 웹 목록" 한 방향만 보므로 못 잡는다.
  * 사양이 에러 코드의 단일 소스이므로 열거 쪽이 사전보다 앞서가면(사전에 없는 코드를 클라이언트가 처리할 방법이 없다) 이 시험이 실패한다.
  *
  * <p>사전은 표의 첫 열 {@code `CODE`} 로 읽는다. 취소선({@code ~~`CODE`~~}) 행은 폐지된 코드라 세지 않는다 — 폐지 코드가 열거에 남아

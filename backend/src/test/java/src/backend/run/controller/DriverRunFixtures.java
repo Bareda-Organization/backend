@@ -55,7 +55,7 @@ import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * 기사·동승자 운행 조작(T2, Phase 9 goal 1·2·3·5·9·10) 시험이 쓰는 실제 행 — {@code RunConfirmationFixtures}
+ * 기사·동승자 운행 조작 시험이 쓰는 실제 행 — {@code RunConfirmationFixtures}
  * ·{@code ChangeRequestAutoRejectFixtures} 와 같은 이유로 정상 경로의 팩토리로 쌓는다.
  *
  * <p>{@link ChangeRequest#deadlineAt} 을 저장 전 직접 채우는 이유는 {@code ChangeRequestAutoRejectFixtures}
@@ -169,7 +169,7 @@ public class DriverRunFixtures {
         return studentRepository.save(Student.register(academyId, profile)).getId();
     }
 
-    /** 계정이 연결된 학생(goal 2·9의 학생 알림 수신자 조회 대상, {@code STUDENT_NOT_FOUND} 조회 부재). */
+    /** 계정이 연결된 학생(학생 알림 수신자 조회 대상, {@code STUDENT_NOT_FOUND} 조회 부재). */
     public long studentWithAccount(long academyId, String name) {
         long studentId = student(academyId, name);
         Account account = accountRepository.save(Account.forSignup(academyId, "학생" + SEQUENCE.incrementAndGet(), "x",
@@ -180,7 +180,7 @@ public class DriverRunFixtures {
         return studentId;
     }
 
-    /** 재직 관계자 1명(goal 2의 STAFF 알림 수신자 조회 대상) — 반환값은 계정 id. */
+    /** 재직 관계자 1명(STAFF 알림 수신자 조회 대상) — 반환값은 계정 id. */
     public long staffAccount(long academyId, String name) {
         Account account = accountRepository.save(Account.forSignup(academyId, "직원" + SEQUENCE.incrementAndGet(), "x",
                 name, "010-0000-0000", null, Role.STAFF));
@@ -188,7 +188,7 @@ public class DriverRunFixtures {
         return account.getId();
     }
 
-    /** 그 학생의 보호자 1명(goal 2·9의 PARENT 알림 수신자 조회 대상) — 반환값은 계정 id. */
+    /** 그 학생의 보호자 1명(PARENT 알림 수신자 조회 대상) — 반환값은 계정 id. */
     public long guardianOf(long academyId, long studentId, String name, OffsetDateTime linkedAt) {
         Account account = accountRepository.save(Account.forSignup(academyId, "부모" + SEQUENCE.incrementAndGet(), "x",
                 name, "010-0000-0000", null, Role.PARENT));
@@ -216,9 +216,9 @@ public class DriverRunFixtures {
 
     /**
      * {@code confirmedRun} 과 같지만 소요 시간 추정치({@code est_duration_min})까지 지정한다
-     * (R21-B2 — "예정 도착" = {@code depart_time + est_duration_min} 계산 시험용). 기존
-     * {@code confirmedRun} 은 이 값을 항상 {@code null} 로 둬서(134곳이 그 전제로 이미 시험 중이라
-     * 건드리지 않았다) 별도 오버로드로 둔다.
+     * ("예정 도착" ={@code depart_time + est_duration_min} 계산 시험용). 기존
+     * {@code confirmedRun} 은 이 값을 항상 {@code null} 로 두고, 그 전제로 134곳이 이미 시험 중이라
+     * 건드리지 않는다. 그래서 별도 오버로드로 둔다.
      */
     public long confirmedRunWithDuration(long academyId, long busId, Direction direction, OffsetDateTime departTime,
             OffsetDateTime confirmedAt, int estDurationMin) {
@@ -243,7 +243,7 @@ public class DriverRunFixtures {
         runRepository.save(run);
     }
 
-    /** {@code finished} 상태 회차 — {@link #startRun} 과 같은 이유로 종료 처리만 직접 전이한다(R21-B). */
+    /** {@code finished} 상태 회차 — {@link #startRun} 과 같은 이유로 종료 처리만 직접 전이한다. */
     public void finishRun(long runId, OffsetDateTime finishedAt) {
         Run run = runRepository.findById(runId).orElseThrow();
         run.finish(finishedAt);
@@ -264,8 +264,8 @@ public class DriverRunFixtures {
     }
 
     /**
-     * 같은 학원 소속으로 역할은 맞지만 <b>어떤 회차에도 배치되지 않은</b> 기사·동승자(goal 5 의
-     * {@code FORBIDDEN} 분기 — {@link #assignedManager} 와 달리 {@code Assignment} 행을 만들지
+     * 같은 학원 소속으로 역할은 맞지만 <b>어떤 회차에도 배치되지 않은</b> 기사·동승자
+     * ({@code FORBIDDEN} 분기 — {@link #assignedManager} 와 달리 {@code Assignment} 행을 만들지
      * 않는다). 반환값은 로그인 토큰에 실을 계정 id.
      */
     public long unassignedManager(long academyId, ManagerRole role, String name) {
@@ -284,7 +284,7 @@ public class DriverRunFixtures {
         return confirmedRouteWithVersion(runId, publishedAt, List.of(), false);
     }
 
-    /** R15 T1 목표 5 — {@code road_path}·{@code fallback_used} 를 실제로 채운 확정 노선. 반환값은 {@code route_version.id}. */
+    /** {@code road_path}·{@code fallback_used} 를 실제로 채운 확정 노선. 반환값은 {@code route_version.id}. */
     public long confirmedRouteWithVersion(long runId, OffsetDateTime publishedAt, List<GeoPoint> roadPath,
             boolean fallbackUsed) {
         confirmedRouteRepository.save(ConfirmedRoute.forRun(runId, publishedAt));
@@ -312,7 +312,7 @@ public class DriverRunFixtures {
 
     /**
      * 그 회차의 라이더 1건 — {@code status} 가 {@code BOARDED} 면 {@code timestamp} 로 탑승 처리까지,
-     * {@code ABSENT} 면 결석 처리까지 마친다(목표 10 회귀 시험이 종료 판정에서 무시돼야 함을 검사할 때 씀).
+     * {@code ABSENT} 면 결석 처리까지 마친다(회귀 시험이 종료 판정에서 무시돼야 함을 검사할 때 씀).
      */
     public long rider(long runId, long studentId, long stopId, RiderStatus status, OffsetDateTime timestamp) {
         RunRider rider = RunRider.uponConfirmation(runId, studentId, stopId);
@@ -326,7 +326,7 @@ public class DriverRunFixtures {
         return runRiderRepository.save(rider).getId();
     }
 
-    /** 대기 중인 변경 요청(goal 3) — {@code deadlineAt} 은 공개 API 가 없어 직접 채운다(클래스 자바독 참고). */
+    /** 대기 중인 변경 요청 — {@code deadlineAt} 은 공개 API 가 없어 직접 채운다(클래스 자바독 참고). */
     public long pendingChangeRequest(long academyId, long runId, long studentId, long requestedBy,
             OffsetDateTime requestedAt, OffsetDateTime deadlineAt) {
         ChangeRequest request = ChangeRequest.forRequest(academyId, runId, studentId,

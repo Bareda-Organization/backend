@@ -37,14 +37,14 @@ import org.springframework.context.annotation.Import;
 import testsupport.location.ProximityJudging;
 
 /**
- * T1 실제 쓰기 → T3·T4 실제 읽기를 잇는 시험(Phase 10 게이트 리뷰 R1 Critical 정정) — {@code POST
+ * 실제 쓰기 → 실제 읽기를 잇는 시험 —{@code POST
  * /runs/{runId}/position} 이 남긴 Redis 값을 손으로 만든 JSON 이 아니라 <b>진짜 소비자 코드</b>
  * ({@link ProximityNotificationService#judgeOne}·{@code GET /students/{id}/bus-position})로 읽어
  * 확인한다.
  *
  * <p>이 시험이 필요한 이유 — {@code RunPositionRedisIntegrationTest}·
  * {@code ProximityNotificationServiceTest}·{@code StudentBusPositionControllerTest} 는 전부 각자
- * 손으로 만든 평문 JSON 을 Redis 에 직접 심어 자기 쪽만 검사한다. T1 의 실제 쓰기 직렬화기가 바뀌어도
+ * 손으로 만든 평문 JSON 을 Redis 에 직접 심어 자기 쪽만 검사한다. 위치 쓰기 직렬화기가 바뀌어도
  * (예: 다시 {@code @class} 타입 태그를 심는 다형 직렬화기로) 그 세 시험 중 어느 것도 실패하지 않는다
  * — 이 시험만이 그 경계를 잇는다.
  *
@@ -84,7 +84,7 @@ class RunPositionCrossConsumerIntegrationTest {
     private RunPositionStore runPositionStore;
 
 
-    /** 이 클래스가 만든 학원 id — 뒷정리가 이 값으로만 지운다(다른 좌석·다른 시험의 행을 건드리지 않는다). */
+    /** 이 클래스가 만든 학원 id — 뒷정리가 이 값으로만 지운다(다른 시험의 행을 건드리지 않는다). */
     private final List<Long> academyIds = new ArrayList<>();
 
 
@@ -143,20 +143,20 @@ class RunPositionCrossConsumerIntegrationTest {
                 .content(body))
                 .andExpect(status().isNoContent());
 
-        // 2. T3 실제 읽기 — RunPositionStore 가 그 값을 성공적으로 파싱해야만 거리 판정까지 가서
+        // 2. 근접 판정의 실제 읽기 — RunPositionStore 가 그 값을 성공적으로 파싱해야만 거리 판정까지 가서
         //    알림이 적재된다. 파싱이 실패하면(다형 태그 혼입 등) judgeOne 이 조용히 아무 것도 안 하고
         //    반환해 이 단언이 실패한다 — 그것이 이 시험이 검사하는 결함이다.
         ProximityJudging.judge(proximityNotificationService, runPositionStore, runId, academyId);
 
-        // 학생 계정을 연결하지 않아 학부모 몫만 적재된다 — dedup_key 대상 자리는 목표 4 로 "parent"·
-        // "student" 로 갈린다(R14).
+        // 학생 계정을 연결하지 않아 학부모 몫만 적재된다 — dedup_key 대상 자리는 "parent"·
+        // "student" 로 갈린다.
         String dedupKey = "approaching:%d:%d:%d:parent:%%".formatted(runId, stopId, studentId);
         Integer notificationCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM notification_log WHERE dedup_key LIKE ?", Integer.class, dedupKey);
         assertThat(notificationCount).as("근접 판정(RunPositionStore 경유)이 T1 이 실제로 쓴 값을 파싱해 근접 알림을 적재해야 한다")
                 .isEqualTo(1);
 
-        // 3. T4 실제 읽기 — RunPositionStore 를 거쳐 GET 응답에 좌표가 그대로 나와야 한다.
+        // 3. 학부모 위치 조회의 실제 읽기 — RunPositionStore 를 거쳐 GET 응답에 좌표가 그대로 나와야 한다.
         mockMvc.perform(get("/api/v1/students/" + studentId + "/bus-position")
                 .header("Authorization", 학부모_토큰(guardianAccountId, academyId)))
                 .andExpect(status().isOk())

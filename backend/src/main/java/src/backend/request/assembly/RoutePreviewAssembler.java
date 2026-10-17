@@ -33,7 +33,7 @@ import src.backend.student.repository.StudentRepository;
  * {@code RouteComputation} 과 확정 배치 산출물({@code RunStop})을 견줘 화면에 낼 값을 만든다.
  *
  * <p>여기 모인 메서드는 재최적화를 <b>실행하지 않는다</b> — 이미 계산된 전/후 값을 견주기만 한다.
- * 목표 12 의 호출 수 계약은 {@link ApprovalQueryService#detail} 이 이 클래스를 부르기 전에 이미
+ * 호출 수 계약은 {@link ApprovalQueryService#detail} 이 이 클래스를 부르기 전에 이미
  * 지켜졌으므로, 여기서 호출 횟수를 다시 신경 쓸 필요는 없다.
  *
  * <p><b>BR-101 — CODE_CONVENTIONS §20.2 클래스 200줄 신호를 넘긴 채 두는 이유</b>: 메서드 각각(승하차지 병합·순번

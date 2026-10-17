@@ -39,7 +39,7 @@ import src.backend.student.photo.spec.PhotoStorage;
 import src.backend.student.photo.spec.StudentPhoto;
 
 /**
- * 사진 파일과 학생 행이 <b>같은 결말</b>을 맞는지 — 목표 12 의 트랜잭션 경계 조항(브리프 §5).
+ * 사진 파일과 학생 행이 <b>같은 결말</b>을 맞는지 — 트랜잭션 경계 조항.
  *
  * <p><b>이 클래스만 {@code @Transactional} 이 아니다.</b> 나머지 테스트는 롤백으로 끝나 커밋 뒤에만
  * 도는 정리(옛 파일 삭제)가 한 번도 실행되지 않는다 — 그 상태로 단언하면 구현이 있든 없든 통과한다.
@@ -247,7 +247,7 @@ class StudentPhotoTransactionBoundaryTest {
     }
 
     /**
-     * R56 K2(Ruling 894 ③) — 사진을 지우면 {@code 204} 이고 행의 {@code photo_url} 이 비며 파일이 지워지고 감사 1행이 남는다.
+     * Ruling 894 ③ — 사진을 지우면 {@code 204} 이고 행의 {@code photo_url} 이 비며 파일이 지워지고 감사 1행이 남는다.
      *
      * <p>파일 삭제는 커밋 뒤라 이 클래스(트랜잭션 없음)에서만 관측된다.
      */

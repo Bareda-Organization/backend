@@ -9,12 +9,11 @@ import src.backend.global.error.ErrorCode;
 
 /**
  * {@code GET /admin/audit-logs}·{@code /admin/login-history} 가 공유하는 {@code from}·{@code to}
- * 파싱(API_SPEC §6.13, Phase 14 T1 목표 3·4)과 기본 기간.
+ * 파싱(API_SPEC §6.13)과 기본 기간.
  *
- * <p>{@code global/request/ApiValues}(전역 공용 변환기)에 두지 않는다 — 그 클래스는 이 태스크
- * (p14-task-t1.md)의 소유 파일 목록 밖이라, 공용 클래스를 고치면 다른 좌석의 소유 경계를 넘는다.
- * 또한 {@code ApiValues} 를 직접 확인한 결과 {@code OffsetDateTime} 파싱 메서드가 이미 없다(
- * {@code date()}·{@code time()} 뿐) — 이 태스크가 처음 필요로 하는 값이다.
+ * <p>{@code global/request/ApiValues}(전역 공용 변환기)에 두지 않는다 — 고치면 모든 모듈의 파싱에 영향이 간다.
+ * 또한 {@code ApiValues} 를 직접 확인한 결과 {@code OffsetDateTime} 파싱 메서드가 이미 없다
+ * ({@code date()}·{@code time()} 뿐).
  *
  * <p>포맷은 API_SPEC 전역 규약(문서 44행 "ISO-8601 + 오프셋")을 그대로 따른다 — 예:
  * {@code 2026-08-24T08:30:00+09:00}. {@link OffsetDateTime#parse(CharSequence)} 의 기본

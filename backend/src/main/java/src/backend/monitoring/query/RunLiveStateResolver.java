@@ -17,8 +17,8 @@ import src.backend.routing.query.CurrentRunStopResolver;
 import src.backend.student.query.StudentBusPositionQueryService;
 
 /**
- * 회차 1건의 "지금" 상태 판정 — §5.18({@code GET /staff/runs/live}, T1)과 §6.8(T2)이 공유하는 세 판정을
- * 한 곳에 둔다(Phase 13 §2): ①최신 좌표의 유실 판정 ②현재 정차(도착 처리된 정차 중
+ * 회차 1건의 "지금" 상태 판정 — §5.18({@code GET /staff/runs/live})과 §6.8이 공유하는 세 판정을
+ * 한 곳에 둔다: ①최신 좌표의 유실 판정 ②현재 정차(도착 처리된 정차 중
  * {@code seq} 최댓값) ③다음 정차(미도착·비건너뜀 정차 중 {@code seq} 최솟값).
  *
  * <p>좌표는 호출부가 {@code RunPositionStore#findAll} 로 회차 전부를 한 번에 읽어 넘긴다(BR-166·BR-167) — 여기서
@@ -58,7 +58,7 @@ public class RunLiveStateResolver {
 
     /**
      * {@code StudentBusPositionQueryService.STALE_THRESHOLD} 를 그대로 참조한다 — 값을 복사하지 않는
-     * 이유는 그 상수 자바독과 Phase 13 목표 7 을 본다.
+     * 이유는 그 상수 자바독을 본다.
      */
     private boolean isStale(RunPositionRedisValue position) {
         if (position == null || position.receivedAt() == null) {

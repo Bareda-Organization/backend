@@ -15,7 +15,7 @@ import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 
 /**
- * {@code schoolbus.run.unconfirmed} 게이지(관측 목표 8, TECH_DECISIONS §13.1·§13.4)를 갱신한다 —
+ * {@code schoolbus.run.unconfirmed} 게이지(TECH_DECISIONS §13.1·§13.4)를 갱신한다 —
  * 확정 배치({@code RunConfirmationScheduler})와는 별도로 도는 순수 조회 전용 폴링이다.
  *
  * <p>문턱을 {@code §13.4} 알럿 조건과 맞춰 {@code confirm_at + 5분} 이 지난 idle 회차로 잡는다 —

@@ -13,8 +13,8 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 /**
- * (RUN-08) 상한 4 가 {@code KakaoNavProvider} 한 곳에만 존재하는지 소스 수준에서 고정한다(목표 22,
- * Ruling 201·204, {@code p9-goal-table.md} §7 규칙 12).
+ * (RUN-08) 상한 4 가 {@code KakaoNavProvider} 한 곳에만 존재하는지 소스 수준에서 고정한다
+ * (Ruling 201·204).
  *
  * <p>목표 표의 검사 명령은 {@code grep -rn '\b4\b' run/navigation/} 이지만, 이 모듈의 거의 모든 파일이
  * 자연어 주석으로 {@code API_SPEC §4.16} 을 인용한다 — 그 문자열의 "4" 도 리터럴 경계({@code \b4\b})를

@@ -3,7 +3,7 @@ package src.backend.run.event;
 import java.time.OffsetDateTime;
 
 /**
- * <b>확정된({@code confirmed})</b> 회차가 취소됐음을 알리는 도메인 이벤트(SCH-03, R56 Ruling 894 ⑤) — {@code run_canceled}
+ * <b>확정된({@code confirmed})</b> 회차가 취소됐음을 알리는 도메인 이벤트(SCH-03, Ruling 894 ⑤) — {@code run_canceled}
  * 알림이 이 이벤트를 구독해 배치된 기사·동승자에게 알린다. 확정 전({@code idle}) 회차의 취소에는 발행하지 않는다 — 매니저는
  * 확정 전 회차를 아직 모르므로 알릴 것이 없다.
  *

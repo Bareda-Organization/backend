@@ -25,7 +25,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * {@code run_position} 일 단위 범위 파티션의 미리 만들기 · 기본 파티션 행 이전 · 만료 DROP(R46-LATERBE B-1, Ruling 670).
+ * {@code run_position} 일 단위 범위 파티션의 미리 만들기 · 기본 파티션 행 이전 · 만료 DROP(Ruling 670).
  *
  * <p>실제 DB 에 파티션을 만들고 지우므로 <b>서로 다른 먼 연도</b>(2003 · 2004 · 2005 · 2006 · 2007)를 시험마다 따로 쓴다 — 지금 날짜 근처의
  * 파티션이나 다른 시험이 심은 행을 건드리지 않고(컷오프가 2005 년 안이라 그 뒤 파티션은 대상이 아니다), 시험 뒤 만든 파티션과

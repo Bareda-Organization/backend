@@ -9,10 +9,10 @@ import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 
 /**
- * {@link AuthUser} 컴팩트 생성자의 불변식 단위 테스트 — 지금까지 이 불변식을 실제로 발생시키는
- * 테스트가 없었다(리뷰 라운드 1 Important #8·#9). {@code academyId} 불변식은 학원 격리(Task 5)가
- * "system_admin 이 아니면 academyId 가 반드시 있다"를 전제로 판정 로직을 짤 예정이라, 그 전제를
- * 여기서 고정해 둔다. {@code status} 불변식은 계정 상태 게이트(Critical #1)가 의존하는 안전장치라,
+ * {@link AuthUser} 컴팩트 생성자의 불변식 단위 테스트 — 이 불변식을 실제로 발생시켜 확인한다.
+ * {@code academyId} 불변식은 학원 격리가
+ * "system_admin 이 아니면 academyId 가 반드시 있다"를 전제로 판정하므로, 그 전제를
+ * 여기서 고정한다. {@code status} 불변식은 계정 상태 게이트가 의존하는 안전장치라,
  * 구조로 닫아 둔 것과 별개로 테스트로도 고정한다 — 고정하지 않으면 누가 가드를 지워도 아무 데서도
  * 실패하지 않는다.
  */

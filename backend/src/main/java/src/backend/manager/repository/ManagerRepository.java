@@ -88,7 +88,7 @@ public interface ManagerRepository extends JpaRepository<Manager, Long> {
     Optional<Manager> findByIdAndAcademyIdAndDeletedAtIsNull(Long id, Long academyId);
 
     /**
-     * 여러 매니저의 이름·연락처를 한 번에 가져온다(Phase 11 T2, EXC-04) — 비상 알림 목록
+     * 여러 매니저의 이름·연락처를 한 번에 가져온다(EXC-04) — 비상 알림 목록
      * ({@code EmergencyStaffQueryService})이 신고 행마다 담긴 {@code raised_by}(manager.id)를
      * 이름·전화로 바꿀 때 쓴다.
      */
@@ -99,7 +99,7 @@ public interface ManagerRepository extends JpaRepository<Manager, Long> {
 
     /**
      * 회차 목록 중 어디에도 배치되지 않은 재직({@code deletedAt IS NULL}) 매니저 수(§5.3
-     * {@code metrics.unassigned_managers}, Phase 13 T1) — 관계자 웹 대시보드 전용이라는 뜻으로
+     * {@code metrics.unassigned_managers}) — 관계자 웹 대시보드 전용이라는 뜻으로
      * 메서드 이름에 용도를 남긴다(Ruling 238).
      *
      * <p>{@code runIds} 가 빈 컬렉션이면 이 메서드를 부르지 않는다 — JPQL {@code IN ()} 은 빈
@@ -112,7 +112,7 @@ public interface ManagerRepository extends JpaRepository<Manager, Long> {
             @Param("runIds") Collection<Long> runIds);
 
     /**
-     * 오늘 회차가 하나도 없을 때의 대체 경로(§5.3, Phase 13 T1) — 재직 매니저 전원이 미배치다.
+     * 오늘 회차가 하나도 없을 때의 대체 경로(§5.3) — 재직 매니저 전원이 미배치다.
      * 파생 쿼리 이름({@code countByAcademyIdAndDeletedAtIsNull})에 기대지 않고 {@code @Query} 로
      * 직접 써서, 용도를 드러내는 이름(Ruling 238)과 필드명 유도를 분리한다.
      */

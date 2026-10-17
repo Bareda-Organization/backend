@@ -25,7 +25,7 @@ import src.backend.run.domain.MovingRunWindowPolicy;
 import src.backend.run.entity.RunStatus;
 
 /**
- * R46-KFIXBE K-1(Ruling 701·702) — 운행일이 어제보다 이른 채 끝나지 않은 이동 중 회차는 ① 노선 잠금({@code existsOnMovingRun})에서
+ * Ruling 701·702 — 운행일이 어제보다 이른 채 끝나지 않은 이동 중 회차는 ① 노선 잠금({@code existsOnMovingRun})에서
  * 빠지고 ② {@code schoolbus.run.moving.stale} 게이지로 센다. 어제 운행일(자정을 넘겨 달리는 회차)은 여전히 잠금 대상이고 지표에 안 든다.
  * 근접 판정·유실 집계가 같은 범위를 쓰는지는 각 스케줄러 시험이 본다.
  *

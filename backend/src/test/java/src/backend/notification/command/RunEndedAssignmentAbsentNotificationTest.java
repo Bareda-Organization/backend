@@ -44,7 +44,7 @@ import src.backend.student.repository.StudentRepository;
 /**
  * BR-110 — §9.7 알림 종류 중 적재 코드가 없던 3종: {@code run_ended}(회차 종료 → 관계자) ·
  * {@code assignment_changed}(배치 변경 → 해당 매니저, 커밋 후) · {@code absent}(관계자 통지가 없던 ① 변경 신청
- * 취소 · ② 취소 승인 → 관계자, 조율자 판정 2026-09-25).
+ * 취소 · ② 취소 승인 → 관계자).
  *
  * <p>{@code @Transactional} 을 쓰지 않는다 — {@code assignment_changed} 는 커밋 후에만 적재되므로 실제 커밋·
  * 롤백 경계가 있어야 한다.
@@ -157,7 +157,7 @@ class RunEndedAssignmentAbsentNotificationTest {
 
     /**
      * 통지 적재가 실패하면 배치를 바꾼 트랜잭션도 되돌려진다 — {@code RunStartedNotificationListener} 등 다른 적재 리스너와 같은
-     * 관례다(BR-320). 예전에는 적재 실패를 삼키고 배치만 남겨 통지가 흔적 없이 사라졌다. 이 저장소의 주입기로 그 학원의
+     * 관례다(BR-320). 적재 실패를 삼키고 배치만 남기면 통지가 흔적 없이 사라진다. 이 저장소의 주입기로 그 학원의
      * {@code notification_log} INSERT 를 실제로 실패시킨다.
      */
     @Test

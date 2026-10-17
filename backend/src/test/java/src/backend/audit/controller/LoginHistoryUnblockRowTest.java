@@ -106,8 +106,7 @@ class LoginHistoryUnblockRowTest {
     }
 
     /**
-     * 해제 행의 {@code account_id}·{@code login_id} 는 <b>해제된 계정</b>이라, 행에 실린 IP(처리한 관리자의 것 — R46-POLISH
-     * Ruling 595)를 그대로 내보내면 "그 계정이 그 IP 로 접속했다" 로 읽힌다. 접속 이력 응답은 해제 행의 IP 를 비운다 —
+     * 해제 행의 {@code account_id}·{@code login_id} 는 <b>해제된 계정</b>이라, 행에 실린 IP(처리한 관리자의 것, Ruling 595)를 그대로 내보내면 "그 계정이 그 IP 로 접속했다" 로 읽힌다. 접속 이력 응답은 해제 행의 IP 를 비운다 —
      * 처리자 IP 는 감사 로그 목록이 갖는다.
      */
     @Test

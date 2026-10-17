@@ -22,9 +22,8 @@ import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 
 /**
- * {@link RunCompletionService#completeIfAllAlighted} 회귀 시험(Phase 9 T2 목표 10, 조율자 지정
- * 최우선 미완 항목) — 이전 세션이 직접 진단한 대로 {@code BOARDED} 카운팅이 {@code ALIGHTED} 로
- * 되돌아가도 그때까지의 시험 묶음은 계속 통과했다({@code report-p9-t2.md} §5-1). {@code absent} 학생이
+ * {@link RunCompletionService#completeIfAllAlighted} 회귀 시험 — {@code BOARDED} 카운팅이 {@code ALIGHTED} 로
+ * 되돌아가도 이 시험이 없으면 그때까지의 시험 묶음은 계속 통과한다. {@code absent} 학생이
  * 섞인 하원 회차에서 <b>마지막 탑승자가 하차하는 순간에만</b> {@code finished} 전이가 걸리는지를
  * 직접 검사해 그 결함을 고정한다.
  *

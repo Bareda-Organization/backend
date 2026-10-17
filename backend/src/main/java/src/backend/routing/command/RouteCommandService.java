@@ -116,7 +116,7 @@ public class RouteCommandService {
     }
 
     /**
-     * 노선의 승하차지를 한 번에 저장한다(§5.9, 2026-09-23 사용자 지시) — 추가·수정·삭제·순서를 한
+     * 노선의 승하차지를 한 번에 저장한다(§5.9) — 추가·수정·삭제·순서를 한
      * 트랜잭션으로 반영한다.
      *
      * <p><b>고치기 전에 전부 검증한다.</b> 이미 있는 승하차지가 학원 밖이거나 중복이면 어떤 행도 고치지
@@ -127,7 +127,7 @@ public class RouteCommandService {
      * 승하차지가 두 번 담기면 마지막 검증이 {@code 422} 로 막는다(버스가 같은 자리에 두 번 서는 것).
      *
      * <p>편성·수정·이 저장은 모두 끝에서 그 학원 회차의 확정 실패 이력을 지운다 — 노선이 없어 영구 실패하던 회차가 고친 즉시 다음 틱에 다시
-     * 시도된다(R46-KFIXBE K-2, Ruling 703). 고쳐지지 않았으면 다시 실패해 재시도 간격이 처음부터 늘어난다.
+     * 시도된다(Ruling 703). 고쳐지지 않았으면 다시 실패해 재시도 간격이 처음부터 늘어난다.
      */
     public RouteDetailResponse saveStops(AuthUser requester, Long routeId, RouteStopsSaveRequest request) {
         RouteStopLimit.assertWithin(request.stops());

@@ -46,7 +46,7 @@ import src.backend.manager.event.AssignmentChangedEvent;
  * ({@link #근무_시간_미기재_매니저도_중복_배치_경고를_함께_받는다()}) — 하나로 묶은 구현에서는
  * {@code MANAGER_DOUBLE_BOOKED} 가 근무 시간 미기재 매니저에서 조용히 사라진다(Ruling 165 ③).
  *
- * <p><b>점 판정을 구간으로 올렸다</b>(Ruling 165 ② 재판정 · Phase 7 목표 12) — {@code
+ * <p><b>점 판정을 구간으로 올렸다</b>(Ruling 165 ② 재판정) — {@code
  * est_duration_min} 이 채워진 회차는 출발~종료 구간 전체를 근무 구간과 대조한다
  * ({@link #운행_시간이_근무_구간을_넘기면_구간_판정으로_경고가_난다()}). 값이 비어 있으면(확정 전
  * 수동 배치의 정상 상태) 기존처럼 출발 시각 하나로 접혀 점 판정과 같다 — {@code
@@ -141,7 +141,7 @@ class StaffRunAssignmentControllerTest {
     }
 
     /**
-     * 기사와 동승자를 배치하면 {@code assignment} 행이 <b>역할별로 하나씩</b> 생긴다(목표 3).
+     * 기사와 동승자를 배치하면 {@code assignment} 행이 <b>역할별로 하나씩</b> 생긴다.
      *
      * <p>응답의 {@code assignments[]} 와 DB 행을 둘 다 본다 — 응답만 보면 요청을 그대로 되돌려주는
      * 구현과 구별되지 않고, DB 만 보면 배치 결과를 되읽을 경로가 있는지 검사되지 않는다.
@@ -256,7 +256,7 @@ class StaffRunAssignmentControllerTest {
 
     // ── MGR-06 충돌 경고 ──────────────────────────────────────────────────
 
-    /** 충돌이 없으면 {@code warnings[]} 는 <b>빈 배열</b>이다 — 항상 경고를 다는 구현을 막는다(목표 3). */
+    /** 충돌이 없으면 {@code warnings[]} 는 <b>빈 배열</b>이다 — 항상 경고를 다는 구현을 막는다. */
     @Test
     void 겹치지_않는_배치에서는_warnings_가_빈_배열이다() throws Exception {
         long runId = 회차를_만든다(BUS_A1_ID, MORNING);
@@ -267,7 +267,7 @@ class StaffRunAssignmentControllerTest {
     }
 
     /**
-     * 근무 시간 밖 배치는 <b>저장되고</b> 경고가 실린다(목표 3 · Ruling 152).
+     * 근무 시간 밖 배치는 <b>저장되고</b> 경고가 실린다(Ruling 152).
      *
      * <p>{@code assignment} 행이 실제로 생긴 것을 함께 본다 — 응답 코드만 보면 차단하면서 200 을
      * 돌려주는 구현과 구별되지 않는다.
@@ -288,7 +288,7 @@ class StaffRunAssignmentControllerTest {
     }
 
     /**
-     * 같은 매니저를 <b>같은 시각의 다른 회차</b>에 배치해도 저장되고 경고가 실린다(목표 3).
+     * 같은 매니저를 <b>같은 시각의 다른 회차</b>에 배치해도 저장되고 경고가 실린다.
      *
      * <p>근무 시간 안({@link #MORNING})의 시각을 쓴다 — 근무 시간 밖 시각으로 재면 두 경고가 함께
      * 나와 어느 판정이 실제로 물었는지 알 수 없다.
@@ -374,10 +374,10 @@ class StaffRunAssignmentControllerTest {
     }
 
     /**
-     * <b>출발 시각이 다르지만 운행 구간이 겹치면</b> 중복 배치다(Phase 8 목표 13, Ruling 193).
+     * <b>출발 시각이 다르지만 운행 구간이 겹치면</b> 중복 배치다(Ruling 193).
      *
-     * <p>예전 점 판정({@code r.departTime = :departTime})은 이 형태를 놓쳤다 — 출발 시각이 같을
-     * 때만 잡아, 등원 07:00~08:30 운행 중인 기사에게 08:00 출발 다른 회차를 얹어도 경고가 없었다.
+     * <p>점 판정({@code r.departTime = :departTime})만으로는 이 형태를 놓친다 — 출발 시각이 같을
+     * 때만 잡아, 등원 07:00~08:30 운행 중인 기사에게 08:00 출발 다른 회차를 얹어도 경고가 없다.
      * 두 회차 모두 근무 구간(07:00~10:00) 안이라 {@code WORK_HOURS_MISMATCH} 가 섞이지 않는다.
      */
     @Test
@@ -448,8 +448,7 @@ class StaffRunAssignmentControllerTest {
     }
 
     /**
-     * {@code est_duration_min} 이 채워진 회차는 <b>구간</b>으로 판정한다(Ruling 165 ② 재판정,
-     * Phase 7 목표 12) — 출발 시각만 근무 구간 안이어도 운행이 그 밖까지 이어지면 경고가 난다.
+     * {@code est_duration_min} 이 채워진 회차는 <b>구간</b>으로 판정한다(Ruling 165 ② 재판정) — 출발 시각만 근무 구간 안이어도 운행이 그 밖까지 이어지면 경고가 난다.
      *
      * <p>강기사_종일 의 근무 구간은 {@link #WORK_START}~{@link #WORK_END}(07:00~10:00) 다. 07:00
      * 출발·4시간 운행이면 종료가 11:00 이라 구간을 벗어난다 — <b>점 판정이었다면 출발 시각(07:00)만
@@ -612,7 +611,7 @@ class StaffRunAssignmentControllerTest {
     }
 
     /**
-     * {@code est_duration_min} 을 채워 회차를 만든다 — 구간 판정(Phase 7 목표 12)을 재는 테스트 전용.
+     * {@code est_duration_min} 을 채워 회차를 만든다 — 구간 판정을 재는 테스트 전용.
      * 값을 생략하는 위 오버로드와 달리 노선 계산이 채운 뒤의 상태를 흉내낸다.
      */
     private long 회차를_만든다(long busId, String departTime, int estDurationMin) throws Exception {

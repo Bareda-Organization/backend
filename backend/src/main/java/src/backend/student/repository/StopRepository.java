@@ -21,7 +21,7 @@ import src.backend.student.entity.Stop;
  * 호출부가 잠금을 빠뜨려도 컴파일되고, 그때 같은 자리에 승하차지가 둘 생긴다(Ruling 179).
  *
  * <p><b>{@link #findNearby} 는 그 규칙의 한 자리 예외이며, 쓰기 경로에서 부르면 안 된다</b>
- * (2026-09-22 주소 검색). 검색은 <b>아무것도 만들지 않으므로</b> Ruling 179 가 막으려는 "조회 →
+ * 검색은 <b>아무것도 만들지 않으므로</b> Ruling 179 가 막으려는 "조회 →
  * 판정 → 생성" 임계 구역 자체가 없고, 그 경로에 학원 잠금을 걸면 화면 조회가 그 학원의 주소
  * 등록·강제 추가를 기다리게 한다. 병합은 여전히 {@link StopMergeLookup} 하나뿐이고,
  * {@code StopMatcherUsesLockingLookupTest} 가 쓰기 경로의 호출 대상을 고정한다.
@@ -29,9 +29,9 @@ import src.backend.student.entity.Stop;
 public interface StopRepository extends JpaRepository<Stop, Long>, StopMergeLookup {
 
     /**
-     * ⚠ <b>아래 {@code findAllByIdInAndAcademyId} 와 기능이 같다</b> — Phase 6 의 T5(고정 노선 편성)와
-     * T4(계산 파이프라인)가 서로 다른 워크트리에서 각자 만들었고, 병합 시점에 통합하면 두 모듈의
-     * 호출부를 고치는 리뷰 미경유 변경이 되어 그대로 뒀다. <b>하나로 합치는 것은 별도 단위다.</b>
+     * ⚠ <b>아래 {@code findAllByIdInAndAcademyId} 와 기능이 같다</b> — 고정 노선 편성과
+     * 계산 파이프라인이 각자 만든 중복이라, 통합하면 두 모듈의
+     * 호출부를 고치는 리뷰 미경유 변경이 되므로 그대로 둔다. <b>하나로 합치는 것은 별도 단위다.</b>
      * 승하차지 여러 곳을 한 번에 읽는다 — 고정 노선 편성(RTE-01)이 요청받은 {@code stop_ids} 를
      * 검증할 때와 최적화(RTE-09)가 좌표를 채울 때 쓴다.
      *
@@ -62,7 +62,7 @@ public interface StopRepository extends JpaRepository<Stop, Long>, StopMergeLook
 
     /**
      * 좌표 부근의 승하차지를 <b>잠그지 않고</b> 읽는다 — 화면에 "이 자리에 이미 있다" 를 알리는
-     * 조회 전용 경로다(2026-09-22 주소 검색).
+     * 조회 전용 경로다.
      *
      * <p>{@link StopMergeLookup#lockAcademyAndFindNearby} 와 가르는 이유는 <b>잠금이 쓰기의 것</b>이기
      * 때문이다. 검색은 아무것도 만들지 않으므로 임계 구역이 필요 없고, 학원 잠금을 걸면 그동안 그

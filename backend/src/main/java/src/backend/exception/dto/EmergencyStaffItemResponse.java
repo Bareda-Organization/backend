@@ -5,7 +5,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 /**
- * 학원 관계자 화면의 비상 알림 1건(목표 8·10·13, API_SPEC §5.16) — 발신자·확인자 연락처는
+ * 학원 관계자 화면의 비상 알림 1건(API_SPEC §5.16) — 발신자·확인자 연락처는
  * {@code emergency_alert} 테이블 컬럼이 아니다(스키마에 연락처 칼럼이 없다) — 조회 시점에
  * {@code raisedBy}(manager.id)로 {@code Manager} 를 다시 읽어 채운다.
  *
@@ -13,13 +13,12 @@ import java.util.List;
  * 신고했다고 주장하는 시각, 조작 가능)이 아니라 서버가 실제로 접수한 시각을 쓴다. {@link
  * src.backend.exception.command.EmergencyCommandService#assertWithinCancelWindow} 가 같은 이유로
  * {@code receivedAt} 을 취소 창 기준으로 삼는 것과 같은 원칙이다. 단말이 누른 시각 {@code occurredAt} 은
- * 정렬·판정에 쓰지 않는 <b>참고값</b>으로 따로 싣는다(R47 Ruling 744 — Phase 13 목표 13 판정 ① 의 "싣지 않는다" 를
- * 이 필드에 한해 바꿈). 오프라인 큐로 늦게 도착한 비상(Ruling 616)에서 접수 시각과 벌어진 값을 관계자가 보게 하려는 것이다.
+ * 정렬·판정에 쓰지 않는 <b>참고값</b>으로 따로 싣는다(Ruling 744). 오프라인 큐로 늦게 도착한 비상(Ruling 616)에서 접수 시각과 벌어진 값을 관계자가 보게 하려는 것이다.
  *
  * <p>{@code contacts} 는 그 회차에 배치된 기사·동승자 전원이다 — {@code raisedBy} 본인이 배치
  * 인력이어도 빼지 않는다(중복 허용). 비상 상황에서 관계자가 이 배열만 보고 바로 연락할 수 있어야
  * 하므로, 발신자와 겹친다는 이유로 목록에서 지우면 오히려 그 사람의 연락처를 다시 {@code raised_by}
- * 에서 찾아야 하는 수고가 생긴다(Phase 13 목표 13 판정 ②).
+ * 에서 찾아야 하는 수고가 생긴다.
  *
  * <p>{@code ackedBy} 는 이름만 담는다 — 정본이 "확인한 관계자" 라고만 적고 하위 필드를 명시하지
  * 않는다(§5.16). 역할·연락처까지 필요하다는 정본 문면 근거가 없어 최소 형태로 둔다.

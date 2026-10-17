@@ -27,7 +27,7 @@ public class StudentPhotoQueryService {
 
     private final PhotoStorage photoStorage;
 
-    /** 사진 파일 핸들과 응답 형식 — 본문은 응답으로 흘려 보낼 때 열린다(R46-KFIXBE K-3). */
+    /** 사진 파일 핸들과 응답 형식 — 본문은 응답으로 흘려 보낼 때 열린다. */
     public record PhotoFile(Resource content, String contentType) {
     }
 

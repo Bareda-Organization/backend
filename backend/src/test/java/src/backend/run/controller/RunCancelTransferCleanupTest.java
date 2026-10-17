@@ -40,7 +40,7 @@ import src.backend.run.repository.RunForcedAdditionRepository;
 import testsupport.clock.FixedClock20260827Config;
 
 /**
- * Ruling 372 — 회차 임시 취소와 이동 대기(R36-BE 2차, 목표 10a).
+ * Ruling 372 — 회차 임시 취소와 이동 대기.
  *
  * <p>① 도착 회차가 임시 취소되면 그 회차로 들어오는 {@code staged} 이동을 지운다(관계자 경로 · 스케줄 경로). ② §5.8.1 취소는
  * 임시 취소된 회차를 막지 않는다. {@code applied} 이동은 회차 취소로 지워지지 않는다.

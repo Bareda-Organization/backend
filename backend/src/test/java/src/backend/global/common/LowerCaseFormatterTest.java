@@ -7,7 +7,7 @@ import java.util.Locale;
 import org.junit.jupiter.api.Test;
 
 /**
- * F3 S1 목표 5 — {@link LowerCaseFormatter} 자체의 변환 규칙(그 자바독이 다른 곳에서 검증됐다고
+ * {@link LowerCaseFormatter} 자체의 변환 규칙(그 자바독이 다른 곳에서 검증됐다고
  * 미뤄 두고 있던 것을 여기서 채운다).
  */
 class LowerCaseFormatterTest {

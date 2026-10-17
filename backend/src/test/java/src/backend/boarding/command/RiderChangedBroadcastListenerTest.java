@@ -27,7 +27,7 @@ import src.backend.student.entity.Student;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * {@code rider_changed} 방송의 채널 audience(목표 5, C-08·§1.12)를 고정한다 — 실제 STOMP 왕복 대신
+ * {@code rider_changed} 방송의 채널 audience(C-08·§1.12)를 고정한다 — 실제 STOMP 왕복 대신
  * {@link WebSocketBroadcastGateway} 를 목(mock)으로 대체해 호출 인자만 검증하는 이유는, 이 검사의
  * 핵심이 전송 자체가 아니라 <b>"어느 목적지로, 몇 번" 호출됐는가</b>이기 때문이다 — 실제 소켓을 띄우면
  * 그 사실을 프레임 문자열 파싱으로 우회해서 봐야 해 검증이 간접적이 된다.
@@ -58,7 +58,7 @@ class RiderChangedBroadcastListenerTest {
 
         listener.broadcast(event);
 
-        // 목표 5 본체 — 학생 개인 채널(/topic/students/{id}/run)로 보내는 send 호출이 단 한 번도 없어야 한다.
+        // 학생 개인 채널(/topic/students/{id}/run)로 보내는 send 호출이 단 한 번도 없어야 한다.
         verify(gateway, never()).send(eq(WebSocketDestinations.studentRun(studentId)), any(), any(), any(), any());
         verify(gateway, never()).broadcastToRunChannels(anyLong(), anyLong(), any(), any(), any(), any());
 

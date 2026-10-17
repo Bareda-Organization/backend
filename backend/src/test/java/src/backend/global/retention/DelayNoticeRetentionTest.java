@@ -37,7 +37,7 @@ import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * R56 Ruling 894 ⑦ — 지연 알림 발신 기록({@code delay_notice})은 {@code notification_log} 와 <b>같은 보존 주기</b>(14일, 같은 상수)로 지워진다.
+ * Ruling 894 ⑦ — 지연 알림 발신 기록({@code delay_notice})은 {@code notification_log} 와 <b>같은 보존 주기</b>(14일, 같은 상수)로 지워진다.
  * 경계 바로 안쪽(13일)은 남고 바로 바깥(15일)은 지워진다.
  *
  * <p>{@code @Transactional} 시험이라 배치의 삭제가 같은 연결에서 일어나 시험이 끝나면 되돌려진다. 배치는 실제 시각을 쓰므로 심는 행은 실제

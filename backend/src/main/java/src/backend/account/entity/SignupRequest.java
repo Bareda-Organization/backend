@@ -44,7 +44,7 @@ public class SignupRequest {
     private Long academyId;
 
     /**
-     * 신청 역할 — DB CHECK({@code ck_signup_request_requested_role})가 5종({@code system_admin} 제외)만 받는다(R46 A-5).
+     * 신청 역할 — DB CHECK({@code ck_signup_request_requested_role})가 5종({@code system_admin} 제외)만 받는다.
      * 읽을 때는 {@link Role.Db#convertToEntityAttribute} 의 {@link Enum#valueOf} 가 한 번 더 막는다.
      */
     @Convert(converter = Role.Db.class)

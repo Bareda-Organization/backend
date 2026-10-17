@@ -1,7 +1,7 @@
 package src.backend.student.repository;
 
 /**
- * 학생 1명의 보호자 계정 수신자 1행 — 알림 발신(Phase 9, RUN-05·06 · API_SPEC §9.7 {@code run_started}
+ * 학생 1명의 보호자 계정 수신자 1행 — 알림 발신(RUN-05·06 · API_SPEC §9.7 {@code run_started}
  * · {@code alighting})이 보호자에게 보낼 계정을 {@code guardian_student} → {@code guardian} →
  * {@code account} 조인으로 모아 오는 결과를 담는 조회 전용 투영이다.
  *
@@ -16,6 +16,6 @@ public interface GuardianAccountRecipient {
 
     String getName();
 
-    /** 대상 자녀 이름(R13, {@code notification_log.student_name} 스냅샷 재료). */
+    /** 대상 자녀 이름({@code notification_log.student_name} 스냅샷 재료). */
     String getStudentName();
 }

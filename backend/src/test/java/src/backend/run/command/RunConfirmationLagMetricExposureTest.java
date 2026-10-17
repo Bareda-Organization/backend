@@ -30,7 +30,7 @@ import src.backend.student.repository.WeeklyAddressRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 배치 지연 지표가 실제 {@code /actuator/prometheus} 경로에 노출되는지를 본다(Phase 7 목표 8).
+ * 배치 지연 지표가 실제 {@code /actuator/prometheus} 경로에 노출되는지를 본다.
  *
  * <p>{@code ./gradlew bootRun} 은 고정 포트 8080 을 다른 태스크와 공유해 쓸 수 없다(브리프 경계) —
  * 대신 {@code PrometheusEndpointTest} 와 같은 근거로 {@code RANDOM_PORT} 실서버 + {@code TestRestTemplate}

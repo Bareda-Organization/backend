@@ -18,7 +18,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 
 /**
  * 확정 배치 워커 풀({@link RunConfirmationWorkerPoolConfig#runConfirmationExecutor})의 <b>동시 실행
- * 상한</b>(Phase 7 목표 6-b) — 확정 도메인 로직과 무관하게 이 빈 하나만 떼어 재는 것이 요점이다.
+ * 상한</b> — 확정 도메인 로직과 무관하게 이 빈 하나만 떼어 재는 것이 요점이다.
  * 회차 확정을 통해 재려면 외부 지도 API 호출을 인위로 지연시켜야 하는데, 그러면 무엇을 재는지가
  * 흐려진다({@code RunConfirmationSchedulerTest} 는 "무엇이 확정되는가", 이 시험은 "몇 개가 동시에
  * 도는가" 로 관심사를 가른다).
@@ -57,7 +57,7 @@ class RunConfirmationWorkerPoolConfigTest {
 
     /**
      * 풀이 격벽보다 크면 한 틱에 도래한 회차 중 격벽을 넘는 몫은 <b>공급자에 닿지도 못하고</b> 직선 근사로
-     * 확정된다(격벽 대기 0). 2026-09-23 실측 — 풀 8 · 격벽 4 에서 데모 회차 60건 중 53건이 직선 근사였다.
+     * 확정된다(격벽 대기 0). 실측 — 풀 8 · 격벽 4 에서 데모 회차 60건 중 53건이 직선 근사였다.
      * ARCHITECTURE §9.4 는 "계산 워커 풀 크기를 외부 지도 API 레이트리밋에 맞춤" 이다.
      */
     @Test

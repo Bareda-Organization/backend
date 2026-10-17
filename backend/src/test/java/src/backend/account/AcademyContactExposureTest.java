@@ -27,7 +27,7 @@ import src.backend.global.common.enums.Role;
 
 /**
  * 로그인(§2.5)·{@code GET /me}(§2.10) 응답의 {@code academy.contact} — 매니저 앱이 학원 전화 안내(USER_FLOWS §12.7,
- * 통신 두절 포함)에 쓸 학원 대표 연락처를 받는 경로다(R46-MGR, Ruling 460). 승인 대기 화면은 가입 상태 응답의
+ * 통신 두절 포함)에 쓸 학원 대표 연락처를 받는 경로다(Ruling 460). 승인 대기 화면은 가입 상태 응답의
  * {@code academy_contact}(§2.3, Ruling 781)로 따로 받는다.
  *
  * <p>학원이 연락처를 등록하지 않았으면 키는 있고 값이 {@code null} 이다(§2.5 의 "키는 있고 값이 null" 규칙과

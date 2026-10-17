@@ -99,7 +99,7 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     StudentCounts summarizeByAcademyId(@Param("academyId") Long academyId);
 
     /**
-     * 학원 전체 재원 학생이 가진 반 이름(중복 제거) — {@code summary.class_names}(§5.11, R56 Ruling 894 · R52 A-13). 쿼리·쪽과 무관하다.
+     * 학원 전체 재원 학생이 가진 반 이름(중복 제거) — {@code summary.class_names}(§5.11, Ruling 894). 쿼리·쪽과 무관하다.
      * 빈 값(공백만 있는 것 포함) 제외와 정렬은 호출부가 한다.
      */
     @Query("""
@@ -133,7 +133,7 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     }
 
     /**
-     * 그 학생들 중 <b>계정이 연결된</b> 학생만(Phase 9 RUN-05, API_SPEC §9.7 {@code run_started}
+     * 그 학생들 중 <b>계정이 연결된</b> 학생만(RUN-05, API_SPEC §9.7 {@code run_started}
      * 의 "학생" 수신자) — {@code account_id} 가 없는 학생은 로그인이 없어 알림을 받을 계정 자체가
      * 없다.
      *

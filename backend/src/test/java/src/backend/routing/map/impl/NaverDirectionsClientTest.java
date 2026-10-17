@@ -18,7 +18,7 @@ import src.backend.routing.map.spec.RoadRoute;
 import src.backend.routing.map.spec.RoadRouteRequest;
 
 /**
- * 구간 분할 이어 붙이기(R15 T1 목표 3, Ruling 309) — 공급자 호출({@link NaverDirectionsGateway})은
+ * 구간 분할 이어 붙이기(Ruling 309) — 공급자 호출({@link NaverDirectionsGateway})은
  * 가짜로 세운다.
  *
  * <p>실 호출 보호(재시도·서킷·격벽)는 {@code NaverDirectionsResilienceTest} 가 로컬 HTTP 서버로

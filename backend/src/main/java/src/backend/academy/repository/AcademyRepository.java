@@ -70,7 +70,7 @@ public interface AcademyRepository extends JpaRepository<Academy, Long> {
      * 가입용 학원 검색(API_SPEC §2.1) — 이름·코드 양쪽 부분일치, 지정한 상태만.
      *
      * <p>비활성 학원 제외 조건을 이 쿼리에 직접 넣는다 — 학원 격리 강제 장치 자체는 Task 5 소관이지만,
-     * "지금 필요한 격리 조건은 쿼리에 넣는다"(Phase 2 컨벤션 §6)는 이 태스크가 진다.
+     * "지금 필요한 격리 조건은 쿼리에 넣는다"(컨벤션 §6)는 이 쿼리가 진다.
      *
      * <p>{@code q} 는 호출부({@code AcademySearchQueryService})가 {@code %}·{@code _} 를 이스케이프해
      * 넘긴다고 가정한다 — 이 쿼리는 {@code ESCAPE '\'} 로 그 이스케이프를 해석만 한다. {@code Pageable}

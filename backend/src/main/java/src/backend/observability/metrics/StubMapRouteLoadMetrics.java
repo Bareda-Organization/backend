@@ -19,7 +19,7 @@ import src.backend.routing.map.spec.CallerPolicy;
  * <b>스텁이 흉내 낸 것</b>이지 실제 공급자 신호가 아니기 때문이다 — 같은 이름을 쓰면 관측자가 실
  * 공급자 장애로 오인한다.
  *
- * <p>{@code throttled_total} 만 {@code caller} 태그(F5 목표 4)로 갈린다 — 격벽 상한 초과가
+ * <p>{@code throttled_total} 만 {@code caller} 태그로 갈린다 — 격벽 상한 초과가
  * {@code BATCH}·{@code ON_DEMAND} 어느 쪽에서 더 걸리는지가 관측 목적이기 때문이고(§5.3
  * on-demand 재측정), timeout·failure_injected 는 이번 목표 범위 밖이라 태그를 추가하지 않는다.
  */

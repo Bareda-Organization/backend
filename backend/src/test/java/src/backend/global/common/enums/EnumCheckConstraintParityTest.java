@@ -60,7 +60,7 @@ import src.backend.student.entity.Gender;
 
 /**
  * enum 30종의 DB 값 집합이 마이그레이션 전체({@code V1__init_schema.sql} 의 값 목록형 CHECK
- * 47건 — R46 A-5 가 5건을 더했고 2026-10-03 V9·V10 을 합치며 2건이 들어왔다, 정규식 일치를 직접 센 값)와
+ * 47건, 정규식 일치를 직접 센 값)와
  * 정확히 일치하는지 회귀 감시한다 —
  * {@code ddl-auto: validate} 는 CHECK 를 전혀 보지 않으므로(`IMPLEMENTATION_PLAN` 603행), 이
  * 대조가 없으면 오늘 맞는 값이 내일 상수 하나만 고쳐도 어디서도 실패하지 않는다.
@@ -69,7 +69,7 @@ import src.backend.student.entity.Gender;
  * 합집합과 비교한다 — Java 는 하나의 enum 만 두므로 "합쳐서 정확히 일치"가 우리가 확인할 수
  * 있는 전부이고, 부분집합 강제 자체는 여전히 DB CHECK 가 전담한다.
  *
- * <p>2026-10-03 부터 스키마는 {@code V1} 한 파일이다. 그래도 버전 오름차순으로 전 파일을 읽어 같은 제약 이름은 <b>나중
+ * <p>스키마는 {@code V1} 한 파일이다. 그래도 버전 오름차순으로 전 파일을 읽어 같은 제약 이름은 <b>나중
  * 파일의 정의로 덮어쓴다</b> — 첫 배포 뒤 {@code V{n}} 을 덧붙이면 Postgres 는 CHECK 에 값을 덧붙일 수 없어 {@code DROP CONSTRAINT}
  * 뒤 같은 이름으로 다시 {@code ADD CONSTRAINT} 하는 형태로 오므로, 그때도 "지금 실제로 유효한 CHECK" 를 보게 하려는 것이다.
  */
@@ -131,7 +131,7 @@ class EnumCheckConstraintParityTest {
     /** enum 이름 · 그 enum 의 DB 값 집합 · 대조할 CHECK 제약 이름들(2개 이상이면 합집합과 비교). */
     static Stream<Arguments> enumToCheckMapping() {
         return Stream.of(
-                // 가입 요청은 5종(system_admin 제외) · 알림 수신은 6종 — 합집합이 전체와 같다(R46 A-5)
+                // 가입 요청은 5종(system_admin 제외) · 알림 수신은 6종 — 합집합이 전체와 같다
                 Arguments.of("Role", dbValuesOf(Role.class, new Role.Db()),
                         Set.of("ck_account_role", "ck_signup_request_requested_role",
                                 "ck_notification_log_recipient_role")),

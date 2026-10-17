@@ -40,17 +40,16 @@ import src.backend.global.security.JwtTokenProvider;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 메인 관리자 콘솔의 전 학원 비상 알림 조회(EXC-04, Phase 11 T2 목표 11) — {@code GET /admin/emergencies}.
- * 게이트 리뷰(R2)가 지목한 대로 이 컨트롤러를 태우는 시험이 이전 라운드 diff 전체에서 0건이었다 —
- * 그래서 응답 필드명이 정본(API_SPEC.md:1923, {@code elapsed_since_raised})과 어긋난 채
- * ({@code elapsed_seconds_since_raised}) 아무 데도 걸리지 않았다.
+ * 메인 관리자 콘솔의 전 학원 비상 알림 조회(EXC-04) — {@code GET /admin/emergencies}.
+ * 이 컨트롤러를 태우는 시험이 없으면 응답 필드명이 정본(API_SPEC.md:1923, {@code elapsed_since_raised})과 어긋난 채
+ * ({@code elapsed_seconds_since_raised}) 아무 데도 걸리지 않는다.
  *
  * <p>이 조회는 학원으로 좁히지 않는다({@code @AcademyScopeExempt}) — 로컬 시드(V2)가 이미
  * {@code emergency_alert} 행 1건을 심어 두므로, 응답 목록 크기·순서에 기대지 않고 <b>내가 만든
  * 행을 id 로 걸러</b> 검증한다.
  *
  * <p>{@code RedisTestContainerBase} 를 상속하지 않는다 — {@code StaffEmergencyControllerTest} 와 같은
- * 이유로, 발신 자체는 위치 캐시가 비어도(목표 8) 성공하므로 이 시험(목표 11 전용)에는 실제 위치
+ * 이유로, 발신 자체는 위치 캐시가 비어도 성공하므로 이 시험에는 실제 위치
  * 캐싱 검증이 필요 없다.
  */
 @SpringBootTest
@@ -85,7 +84,7 @@ class AdminEmergencyControllerTest {
 
 
 
-    // ── goal 11 — 필드명 · 경과시간(elapsed_since_raised) 계산 ──────────────
+    // ── 필드명 · 경과시간(elapsed_since_raised) 계산 ──────────────
 
     @Test
     void 미확인_신고는_staff_acked가_false이고_경과시간이_now까지_계산된다() throws Exception {
@@ -128,7 +127,7 @@ class AdminEmergencyControllerTest {
         확인시각을_옮긴다(emergencyId, OffsetDateTime.now(clock).minusSeconds(100));
         long adminAccountId = EmergencyFixtures.of(applicationContext).systemAdminAccount("메인관리자");
 
-        // R6 목표 3 — 기본값은 open 이라 acked 신고를 보려면 명시해야 한다(필드 계산 검증이 목적).
+        // 기본값은 open 이라 acked 신고를 보려면 명시해야 한다(필드 계산 검증이 목적).
         String body = 목록을_조회한다(adminAccountId, "acked");
 
         assertThat(확인여부(body, emergencyId)).isTrue();
@@ -144,7 +143,7 @@ class AdminEmergencyControllerTest {
         취소시각을_옮긴다(emergencyId, OffsetDateTime.now(clock).minusSeconds(200));
         long adminAccountId = EmergencyFixtures.of(applicationContext).systemAdminAccount("메인관리자");
 
-        // R6 목표 3 — 기본값은 open 이라 canceled 신고를 보려면 명시해야 한다(필드 계산 검증이 목적).
+        // 기본값은 open 이라 canceled 신고를 보려면 명시해야 한다(필드 계산 검증이 목적).
         String body = 목록을_조회한다(adminAccountId, "canceled");
 
         assertThat(경과시간(body, emergencyId))
@@ -162,13 +161,11 @@ class AdminEmergencyControllerTest {
                 .andExpect(status().isForbidden());
     }
 
-    // ── Phase 13 목표 13 — §6.11 은 §5.16 상속 필드를 독립으로 다시 검증한다 ─────
+    // ── §6.11 은 §5.16 상속 필드를 독립으로 다시 검증한다 ─────
     //
     // 학원 관계자 화면(§5.16)이 통과해도 메인관리자 콘솔(§6.11)이 같은 필드를 담는다는 보장은
     // 되지 않는다 — 두 응답 DTO(EmergencyStaffItemResponse·AdminEmergencyItemResponse)가 서로
-    // 다른 record 라 한쪽만 고치고 한쪽을 빠뜨릴 수 있다(Phase 13 목표 13 goal-table §7 요구,
-    // T2 P13 리뷰의 "§6.11 응답에서 §5.16 상속 필드 하나를 빼면 이 시험만 실패해야 한다" 음성
-    // 대조 대상).
+    // 다른 record 라 한쪽만 고치고 한쪽을 빠뜨릴 수 있다("§6.11 응답에서 §5.16 상속 필드 하나를 빼면 이 시험만 실패해야 한다" 음성 대조 대상).
 
     @Test
     void 목록_응답은_5_16_상속_필드를_academy_own_필드와_함께_담는다() throws Exception {
@@ -189,7 +186,7 @@ class AdminEmergencyControllerTest {
                         .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk());
 
-        // R6 목표 3 — ack 로 상태가 acked 가 됐으니 기본값(open)으로는 빠진다.
+        // ack 로 상태가 acked 가 됐으니 기본값(open)으로는 빠진다.
         String body = 목록을_조회한다(adminAccountId, "acked");
 
         Map<String, Object> item = 항목(body, emergencyId);
@@ -200,8 +197,8 @@ class AdminEmergencyControllerTest {
                 .doesNotContainKey("id")
                 .containsKey("emergency_id");
         assertThat(item).as("occurred_at(단말 기록 시각)은 참고값으로 따로 실린다(R47 Ruling 744)").containsKey("occurred_at");
-        // BE-R1 목표 3 — §5.16·§6.11 표는 type 값을 소문자 스네이크로 적었으나(accident 등), 정정
-        // 전에는 EmergencyType enum 의 name() 을 그대로 실어 대문자(ACCIDENT)로 나갔다.
+        // §5.16·§6.11 표는 type 값을 소문자 스네이크로 적는다(accident 등). enum 의 name() 을 그대로 실으면
+        // 대문자(ACCIDENT)로 나가 이 표와 어긋난다.
         assertThat(item.get("type")).as("type 은 정본대로 소문자여야 한다").isEqualTo("accident");
 
         Map<String, Object> academyInfo = (Map<String, Object>) item.get("academy");
@@ -229,7 +226,7 @@ class AdminEmergencyControllerTest {
     }
 
     /**
-     * direction 이 상수 고정이 아니라 회차의 실제 값을 반영하는지 본다(목표 5, §6.11 쪽) —
+     * direction 이 상수 고정이 아니라 회차의 실제 값을 반영하는지 본다(§6.11 쪽) —
      * {@code StaffEmergencyControllerTest} 의 같은 이름 시험과 근거가 같다.
      */
     @Test
@@ -250,7 +247,7 @@ class AdminEmergencyControllerTest {
                 .isEqualTo("from_academy");
     }
 
-    // ── R6 목표 3·4 — status·academy_id 쿼리 필터 ────────────────────────
+    // ── status·academy_id 쿼리 필터 ────────────────────────
 
     @Test
     void status_필터를_생략하면_기본값_open만_담고_acked_canceled는_뺀다() throws Exception {
@@ -340,7 +337,7 @@ class AdminEmergencyControllerTest {
         assertThat(id목록(body)).contains(alertInA).doesNotContain(alertInB);
     }
 
-    // ── R49 — 응답 최상위 counts(Ruling 837) ─────────────────────────────
+    // ── 응답 최상위 counts(Ruling 837) ─────────────────────────────
 
     /**
      * {@code counts} 는 {@code status} 쿼리와 무관하게 같은 학원 조건의 세 상태 건수를 전부 싣는다 — 탭 3개의 숫자를 요청 한 번으로
@@ -462,8 +459,7 @@ class AdminEmergencyControllerTest {
     }
 
     /**
-     * R6 목표 3 필터 도입 이후 — 기존 시험들이 acked·canceled 신고를 만들고 나서 status 를 주지
-     * 않고 조회했다. 필터가 없던 시절에는 문제가 없었지만, 이제 기본값이 open 이라 그 신고들이
+     * 기본값이 open 이라, acked·canceled 신고를 만들고 나서 status 를 주지 않고 조회하면 그 신고들이
      * 응답에서 빠진다. 그 시험들은 필터링 자체가 아니라 필드 계산을 검증하는 것이므로, 만든
      * 신고의 실제 상태에 맞는 status 를 명시해 원래 검증 대상을 유지한다.
      */
@@ -492,7 +488,7 @@ class AdminEmergencyControllerTest {
 
     /**
      * emergency_id 로 걸러 elapsed_since_raised 값을 읽는다 — 시드 행이 섞여 있어도 흔들리지
-     * 않는다. 키는 {@code id} 가 아니라 {@code emergency_id} 다(Phase 13 목표 13 판정 ①, §5.16 상속).
+     * 않는다. 키는 {@code id} 가 아니라 {@code emergency_id} 다(§5.16 상속).
      */
     private Long 경과시간(String body, long emergencyId) {
         List<Number> values = JsonPath.read(body,

@@ -17,7 +17,7 @@ import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.event.StopDepartedEvent;
 
 /**
- * 정차지 출발 선점 + {@link StopDepartedEvent} 발행을 한 곳에 모은다(Ruling 308·312, docs/archive/rounds/be-rounds-r15-r21.md §8.23 T3) —
+ * 정차지 출발 선점 + {@link StopDepartedEvent} 발행을 한 곳에 모은다(Ruling 308·312) —
  * {@link src.backend.location.proximity.ProximityNotificationService#judgeRun}(100m 이탈
  * 판정) · {@code RunArrivalCommandService#arrive}(다음 승하차지 도착 시 폴백) · 운행 종료 강제 적용
  * (Ruling 312) 세 호출부가 이 클래스 하나를 통해서만 {@code claimDeparture} 를 부른다 — 세 곳이
@@ -41,7 +41,7 @@ public class StopDepartureService {
      * 정차 항목 1건의 출발을 선점하고, 실제로 선점됐을 때만(1행 갱신) {@link StopDepartedEvent} 를
      * 발행한다 — 이미 다른 경로가 먼저 선점했으면(0행) 조용히 반환한다(멱등, Ruling 308).
      *
-     * <p>회차 행을 쥐지 않는다(R53 I1) — 근접 판정 스케줄러가 부르는 이 선점은 승하차지 행 하나만 갱신하고 다른 잠금을 기다리지 않는
+     * <p>회차 행을 쥐지 않는다 — 근접 판정 스케줄러가 부르는 이 선점은 승하차지 행 하나만 갱신하고 다른 잠금을 기다리지 않는
      * 말단이라 어떤 잠금 순서와도 순환이 되지 않는다. 회차 행을 이미 쥔 호출부(도착 처리 · 승하차 기록의 강제 출발)는 {@link RunRowLock} 순서를 지킨 채 들어온다.
      */
     @Transactional
@@ -54,8 +54,7 @@ public class StopDepartureService {
     }
 
     /**
-     * 그 회차에서 아직 출발 처리되지 않은 정차지 전부를 <b>도착 처리 여부와 무관하게</b> 강제로 출발 처리한다(Ruling 312,
-     * R51 H2) — 운행 종료 시 마지막 정차지에 거는 강제 적용(목표 8)이다. 대상이 없으면(정상적으로 이미 전부 출발
+     * 그 회차에서 아직 출발 처리되지 않은 정차지 전부를 <b>도착 처리 여부와 무관하게</b> 강제로 출발 처리한다(Ruling 312) — 운행 종료 시 마지막 정차지에 거는 강제 적용이다. 대상이 없으면(정상적으로 이미 전부 출발
      * 처리됐으면) 아무 일도 하지 않는다.
      */
     @Transactional
@@ -69,7 +68,7 @@ public class StopDepartureService {
 
     /**
      * 정차 항목 {@code arrivingRunStopId} 의 도착 처리 직전에, 그보다 <b>앞 순번의 미출발 정차지 전부</b>를 도착 여부와
-     * 무관하게 강제 출발 처리한다(목표 7, R51 H2) — 위치 신호 유실이나 기사의 도착 미처리로 출발 판정이 안 됐어도
+     * 무관하게 강제 출발 처리한다 — 위치 신호 유실이나 기사의 도착 미처리로 출발 판정이 안 됐어도
      * 다음 승하차지 도착이 그 정차지의 승차·미승차 알림을 확정한다.
      */
     @Transactional

@@ -101,7 +101,7 @@ public class LocalDiskPhotoStorage implements PhotoStorage {
 
     /**
      * 요청의 파일명을 그대로 {@code resolve} 하지 않는다 — {@link #delete} 와 같은 경로 이탈 검사를 거친다. 본문은 열지 않고 파일 핸들만
-     * 돌려준다(R46-KFIXBE K-3).
+     * 돌려준다.
      */
     @Override
     public Optional<Resource> read(String fileName) {

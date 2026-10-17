@@ -1,7 +1,7 @@
 package src.backend.routing.assign.spec;
 
 /**
- * 동승자 자동 배정에서 후보가 걸러지는 사유 3종(목표 9, Ruling 186).
+ * 동승자 자동 배정에서 후보가 걸러지는 사유 3종(Ruling 186).
  *
  * <p>우선순위는 {@code WORK_HOURS_NOT_SET} → {@code OUT_OF_WORK_HOURS} → {@code ALREADY_ASSIGNED}
  * 순이다 — 판정 근거가 아예 없는 상태(미등록)를 판정 결과가 있는 상태(구간 밖)보다 먼저 본다.

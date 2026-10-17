@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * DB 자원 오류(풀 고갈 · 잠금 대기 초과 · 쿼리 취소)는 {@code 500 INTERNAL_ERROR} 가 아니라 {@code 503 SERVER_BUSY} +
- * {@code Retry-After} 이고 로그는 스택 없는 한 줄이다(R46 S-7) — 서버 결함 5xx 와 과부하 5xx 가 섞이면 5xx 경보가
+ * {@code Retry-After} 이고 로그는 스택 없는 한 줄이다 — 서버 결함 5xx 와 과부하 5xx 가 섞이면 5xx 경보가
  * 오탐이 되고, 풀이 마른 동안 요청마다 스택트레이스가 쏟아져 로그가 폭주한다.
  */
 @ExtendWith(OutputCaptureExtension.class)

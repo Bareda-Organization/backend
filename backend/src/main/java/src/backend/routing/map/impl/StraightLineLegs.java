@@ -37,7 +37,7 @@ final class StraightLineLegs {
     /**
      * 지도 API 를 못 부른 경우의 근사 경로 — {@code fallbackUsed} 가 참인 유일한 생산 지점이다.
      *
-     * <p>각 구간의 {@code path} 는 승하차지 좌표 그대로인 두 점(직선)이다(R15 T1 목표 6) — 근사값도
+     * <p>각 구간의 {@code path} 는 승하차지 좌표 그대로인 두 점(직선)이다 — 근사값도
      * 화면에 경로를 그릴 수 있어야 하고, 이웃 구간의 끝점·시작점이 같은 객체이므로
      * {@link RoadRoute#roadPath()} 의 이음매 중복 제거가 그대로 걸린다.
      */
@@ -59,7 +59,7 @@ final class StraightLineLegs {
      * <p>{@code NaverDirectionsGateway.legsOf(List, Summary)} 가 <b>먼저 구간별 실측값
      * ({@code summary.waypoints[]}·{@code goal})을 시도하고, 그 값이 없을 때만</b> 이 메서드로
      * 넘어온다 — 경유지가 없어 구간이 하나뿐이거나(총합 자체가 그 구간 값이라 배분이 무의미) 응답이
-     * 예상과 다른 개수를 줄 때다(2026-09-19 실 API 확인 — NCP 는 경유지가 있으면 구간별 실측값을
+     * 예상과 다른 개수를 줄 때다(실 API 확인 — NCP 는 경유지가 있으면 구간별 실측값을
      * 그대로 준다). 누적값으로 반올림해 마지막 구간에 잔차를 몰지 않으면, 구간 수가 늘수록 합이
      * 총합에서 벌어져 노선 전체의 거리·소요 시간이 조용히 달라진다.
      *

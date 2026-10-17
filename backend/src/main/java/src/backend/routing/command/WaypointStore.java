@@ -32,9 +32,8 @@ import src.backend.run.repository.RunRepository;
  * {@link RunRouteConfirmedEvent} 를 그대로 재사용한다({@code RunRouteConfirmedNotificationListener}
  * 가 이미 재확정 경로를 겨냥해 만들어져 있다, 그 클래스 자바독).
  *
- * <p><b>노선 버전 저장 자체는 {@link RouteVersionDeploymentService} 에 위임한다</b>(BR-094·095,
- * 2026-09-25 검사 W02-17) — ②구간 승인 배포({@code ChangeRequestDecisionService})가 거의 같은 코드를
- * 중복 소유하던 것을 그 공유 클래스로 모았다. 이 클래스는 경유 지점 고유의 배포 전 재확인
+ * <p><b>노선 버전 저장 자체는 {@link RouteVersionDeploymentService} 에 위임한다</b>(BR-094·095) — ②구간 승인 배포({@code ChangeRequestDecisionService})가 거의 같은 코드를
+ * 중복 소유하던 것을 그 공유 클래스로 모은다. 이 클래스는 경유 지점 고유의 배포 전 재확인
  * ({@link #assertStillDeployable})과 {@code waypoint} 행 상태 전이만 담당한다.
  */
 @Component

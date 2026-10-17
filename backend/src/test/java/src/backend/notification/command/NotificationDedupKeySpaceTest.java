@@ -36,7 +36,7 @@ import src.backend.student.repository.StudentRepository;
 /**
  * BR-007 — {@code run_started}·{@code delay} 멱등키의 대상 자리에 계정 ID 와 학생 ID 가 섞이면, 두
  * 시퀀스가 모두 1 부터라 관계자 계정 ID 와 같은 학원 학생 ID 가 같을 때 두 행이 같은 키가 되어 운행
- * 시작·지연 신고에서 한 행이 조용히 건너뛰어진다(예전에는 트랜잭션 전체가 롤백됐다 — 같은 키는 건너뛰도록 바뀐 Ruling 622 뒤로는
+ * 시작·지연 신고에서 한 행이 조용히 건너뛰어진다(같은 키는 건너뛰도록 정한 Ruling 622 에 따라
  * 키 설계가 틀리면 알림이 빠지므로 이 검사가 더 중요하다).
  */
 class NotificationDedupKeySpaceTest {
@@ -125,7 +125,7 @@ class NotificationDedupKeySpaceTest {
         };
     }
 
-    /** 적재 호출 전부 — 건별 {@code append} 와 묶음 {@code appendAll}(R46 T-6)을 한 목록으로 모은다. */
+    /** 적재 호출 전부 — 건별 {@code append} 와 묶음 {@code appendAll}을 한 목록으로 모은다. */
     private List<NotificationDraft> appendedDrafts() {
         ArgumentCaptor<NotificationDraft> single = ArgumentCaptor.forClass(NotificationDraft.class);
         verify(outbox, atLeast(0)).append(single.capture());

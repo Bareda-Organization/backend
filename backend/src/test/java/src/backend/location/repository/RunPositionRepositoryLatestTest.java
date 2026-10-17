@@ -17,8 +17,8 @@ import src.backend.location.entity.RunPosition;
 import src.backend.location.infrastructure.RunPositionPartitionManager;
 
 /**
- * Redis 장애 대체 조회 {@code findLatestByRunIdIn} — 옛 {@code DISTINCT ON} 쿼리와 같은 행을 내고(기록 시각이 같은
- * 동률은 id 가 큰 쪽), 회차의 전 행을 정렬하지 않는다(R46 D #14). 시험 트랜잭션이 롤백해 행이 남지 않는다.
+ * Redis 장애 대체 조회 {@code findLatestByRunIdIn} — {@code DISTINCT ON} 쿼리와 같은 행을 내고(기록 시각이 같은
+ * 동률은 id 가 큰 쪽), 회차의 전 행을 정렬하지 않는다. 시험 트랜잭션이 롤백해 행이 남지 않는다.
  */
 @SpringBootTest
 @Transactional
@@ -68,7 +68,7 @@ class RunPositionRepositoryLatestTest {
     }
 
     /**
-     * R46-LATERBE B-1 — 파티션 테이블에서도 엔티티 저장(IDENTITY id 회수)과 최신 1행 조회가 그대로 동작한다. 행이 일 파티션 둘과
+     * 파티션 테이블에서도 엔티티 저장(IDENTITY id 회수)과 최신 1행 조회가 그대로 동작한다. 행이 일 파티션 둘과
      * 기본 파티션에 흩어져 있어도 회차별 최신 행(기록 시각 → id)이 같다. 시험 트랜잭션이 롤백하므로 만든 파티션도 남지 않는다.
      */
     @Test
@@ -116,7 +116,7 @@ class RunPositionRepositoryLatestTest {
                 .collect(Collectors.joining("\n"));
 
         // 정렬 키 중 recorded_at 은 인덱스가 이미 정렬해 둔 것(Presorted) — 동률 묶음만 id 로 다시 정렬한다
-        // 파티션 테이블의 인덱스는 파티션마다 자동 이름("<파티션>_run_id_recorded_at_idx")으로 생긴다(R46-LATERBE B-1)
+        // 파티션 테이블의 인덱스는 파티션마다 자동 이름("<파티션>_run_id_recorded_at_idx")으로 생긴다
         assertThat(plan).as(plan).contains("_run_id_recorded_at_idx", "Presorted Key: run_position.recorded_at");
     }
 

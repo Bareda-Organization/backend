@@ -16,7 +16,7 @@ import jakarta.validation.constraints.Size;
  * 애너테이션 하나로 "다른 필드 값에 따라 필수 여부가 갈리는 조건"을 표현할 수 없어, 그 검증은 커맨드
  * 서비스가 한다.
  *
- * <p>{@code clientKey} 는 선택이다(API_SPEC §1.7, R56 Ruling 894 ⑧) — 단말의 오프라인 큐가 응답을 놓친 요청을 같은 키로 다시
+ * <p>{@code clientKey} 는 선택이다(API_SPEC §1.7, Ruling 894 ⑧) — 단말의 오프라인 큐가 응답을 놓친 요청을 같은 키로 다시
  * 보내면 보고를 새로 만들지 않고 최초 결과를 돌려준다. 키를 보내지 않으면 지금과 같다.
  */
 public record ExceptionReportCreateRequest(

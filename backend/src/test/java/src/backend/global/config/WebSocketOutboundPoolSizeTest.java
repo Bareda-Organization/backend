@@ -14,7 +14,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
  *
  * <p>이 시험이 없으면 {@code configureClientOutboundChannel} 재정의가 통째로 지워져도 컴파일과 나머지
  * 시험이 전부 통과한다 — 그러면 팬아웃 용량이 조용히 <b>기계의 코어 수 × 2</b> 로 돌아가고, 그 사실은
- * 부하가 걸린 운영 환경에서 방송 지연으로만 드러난다(2026-09-09 부하 한계 측정에서 이 값이 붕괴의
+ * 부하가 걸린 운영 환경에서 방송 지연으로만 드러난다(부하 한계 측정에서 이 값이 붕괴의
  * 1차 지점).
  */
 @SpringBootTest(properties = "app.ws.outbound.core-pool-size=7")

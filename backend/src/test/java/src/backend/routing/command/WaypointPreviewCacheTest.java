@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import src.backend.routing.command.WaypointPreviewCache.WaypointPreview;
 
-/** 경유 지점 미리보기 보관소의 지난 회차 정리(R36-BE 목표 9) — 새 미리보기를 넣을 때 운행일이 오늘보다 앞선 것을 지운다. */
+/** 경유 지점 미리보기 보관소의 지난 회차 정리 — 새 미리보기를 넣을 때 운행일이 오늘보다 앞선 것을 지운다. */
 class WaypointPreviewCacheTest {
 
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");

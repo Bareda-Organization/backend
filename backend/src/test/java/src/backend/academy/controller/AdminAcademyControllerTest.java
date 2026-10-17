@@ -315,7 +315,7 @@ class AdminAcademyControllerTest {
     }
 
     /**
-     * 운행일이 이틀 이상 지난 채 {@code moving} 으로 남은 회차는 "운행 중 차량" 에 세지 않는다(BR-315 · R46 K-1, Ruling 701) —
+     * 운행일이 이틀 이상 지난 채 {@code moving} 으로 남은 회차는 "운행 중 차량" 에 세지 않는다(BR-315, Ruling 701) —
      * 그 회차는 {@code StaleMovingRun} 경보·강제 종료 목록(§6.16·§6.17)이 맡는다. 시드의 {@code moving} 회차 3을 3일 전으로 민다.
      */
     @Test

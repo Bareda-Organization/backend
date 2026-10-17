@@ -33,25 +33,24 @@ import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * 메인 관리자 콘솔의 회차별 승하차지·학생 명단 조회(API_SPEC §6.9, O-06, 목표 10·11).
+ * 메인 관리자 콘솔의 회차별 승하차지·학생 명단 조회(API_SPEC §6.9, O-06).
  *
- * <p>L3 조회다 — 사진·연락처를 원문으로 담는다(SYS-01 감사 대상). Phase 14 T1 목표 1 이 이 감사를
- * 채운다(p13-task-t2.md §6 이 남긴 표시가 이 클래스였다).
+ * <p>L3 조회다 — 사진·연락처를 원문으로 담는다(SYS-01 감사 대상).
  *
  * <p><b>행위자를 {@link SecurityContextHolder} 로 얻는다</b> — 이 저장소의 다른 모든 서비스는
  * {@link AuthUser} 를 메서드 인자로 받는데({@code @AuthenticationPrincipal} 이 컨트롤러에서 주입),
  * {@link src.backend.monitoring.controller.AdminRunRosterController#roster} 는 그 주입이 없다. 컨트롤러는
- * 이 태스크의 소유 파일 목록 밖이라(p14-task-t1.md) 인자를 늘리려면 컨트롤러도 고쳐야 하고, 그러면
- * 감사 요건 하나가 소유 경계를 넘는다 — 대신 이 서비스 안에서 인증 컨텍스트를 직접 읽어 그 경계를
- * 지킨다. 이 저장소에 없던 접근 방식을 이 태스크가 새로 들인 것이라 여기 근거를 남긴다.
+ * 인자를 늘리려면 컨트롤러도 고쳐야 하고, 그러면 감사 요건 하나가 컨트롤러 변경까지 요구한다 —
+ * 대신 이 서비스 안에서 인증 컨텍스트를 직접 읽어 그 경계를 지킨다. 이 저장소에 없던 접근 방식이라
+ * 여기 근거를 남긴다.
  *
  * <p>{@code RosterQueryService#phonesOf} 와 판정 방식은 같지만(학생당 첫 보호자 연락처) 그 메서드가
- * {@code private} 이라 직접 재사용할 수 없어(p13-task-t2.md §1 목표 10) 같은 {@link
+ * {@code private} 이라 직접 재사용할 수 없어 같은 {@link
  * GuardianStudentRepository#findGuardianPhonesByAcademyId} 호출을 이 클래스가 다시 감싼다.
  *
  * <p>클래스에 {@code @Transactional} 을 두지 않는다 — 감사 기록({@code AuditRecorder}, {@code REQUIRES_NEW})이 읽기
  * 트랜잭션 안에서 돌면 요청 하나가 DB 연결을 둘 쥐고, 동시 요청이 풀 크기에 닿으면 서로의 두 번째 연결을 기다려
- * 풀리지 않는다(R46 감사 #1). 저장소 호출마다 짧은 읽기 트랜잭션이 돌고, 감사는 조회가 끝난 뒤에 기록한다 —
+ * 풀리지 않는다. 저장소 호출마다 짧은 읽기 트랜잭션이 돌고, 감사는 조회가 끝난 뒤에 기록한다 —
  * 조회가 예외로 끝나면 감사 호출에 닿지 않는다.
  */
 @Service
@@ -96,7 +95,7 @@ public class AdminRunRosterQueryService {
     }
 
     /**
-     * SYS-01 감사(Phase 14 T1 목표 1) — {@code photo_url}·{@code guardian_phone} 이 L3
+     * SYS-01 감사 — {@code photo_url}·{@code guardian_phone} 이 L3
      * ({@link #toStudent}). {@code student_phone}(학생 본인 번호)은 L3 가 아니다(FEATURE_SPEC §6.3 —
      * 그 항목이 열거한 것은 "보호자 연락처 원본" 이지 학생 본인 번호가 아니다).
      */

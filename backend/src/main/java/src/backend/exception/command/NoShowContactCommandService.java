@@ -33,7 +33,7 @@ import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 
 /**
- * 미승차 연락 시도 기록 커맨드(API_SPEC §4.8, Phase 11 목표 3) — 동승자 전용. 에러 체크 순서는
+ * 미승차 연락 시도 기록 커맨드(API_SPEC §4.8) — 동승자 전용. 에러 체크 순서는
  * {@code BoardingCommandService.updateStatus} 와 같은 근거로 맞춘다(동승자 판정 → 배치 판정 → 회차
  * 조회 → 회차 상태 → 탑승자 조회 → 케이스 조회, 다른 학원 자원 존재 여부를 앞 단계에서부터 흘리지
  * 않기 위해).

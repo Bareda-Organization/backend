@@ -119,7 +119,7 @@ public class Academy extends BaseTimeEntity {
         this.lng = lng;
     }
 
-    /** 확정 배치가 이 학원을 기준점으로 쓸 수 있는지 — 둘 다 있을 때만 참이다(목표 5). */
+    /** 확정 배치가 이 학원을 기준점으로 쓸 수 있는지 — 둘 다 있을 때만 참이다. */
     public boolean hasCoordinates() {
         return lat != null && lng != null;
     }

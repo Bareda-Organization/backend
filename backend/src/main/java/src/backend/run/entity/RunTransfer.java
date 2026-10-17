@@ -15,7 +15,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 버스 간 이동(F4 S1, API_SPEC §5.8, RTE-07, Ruling 256)의 대기 행 — 출발·도착 두 회차
+ * 버스 간 이동(API_SPEC §5.8, RTE-07, Ruling 256)의 대기 행 — 출발·도착 두 회차
  * 어느 쪽도 즉시 재최적화를 부르지 않고, 이 표에 남겨 두었다가 둘 중 먼저 도는 확정 배치
  * ({@code RunConfirmationService#confirmOne})가 그 회차 쪽 절반(제외 또는 추가)을 반영한다 —
  * 강제 추가({@link RunForcedAddition})와 같은 "대기 후 배치 합류" 형태다(Ruling 197·198 계열).

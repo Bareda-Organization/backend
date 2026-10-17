@@ -33,7 +33,7 @@ import src.backend.account.repository.AccountRepository;
 import testsupport.gate.AccountStatusGateEndpoints;
 
 /**
- * 계정 흐름을 <b>실제 엔드포인트</b>로 종단 검증한다(Phase 2 완료 조건 1·2·3) — 학원 검색부터
+ * 계정 흐름을 <b>실제 엔드포인트</b>로 종단 검증한다 — 학원 검색부터
  * 로그아웃까지 한 흐름으로 밟고, 그 흐름이 만든 {@code pending}·{@code rejected} 토큰으로 계정 상태
  * 게이트(C-01 · API_SPEC §1.4)를 왕복한다.
  *
@@ -47,7 +47,7 @@ import testsupport.gate.AccountStatusGateEndpoints;
  * 실제 경로를 두드려야만 드러난다. 애너테이션 <b>부착</b>을 세는 개수 단언도 그 애너테이션이
  * 런타임에 실제로 읽히는지는 보지 않으므로 이 갭을 메우지 못한다.
  *
- * <p>Phase 3 목표 6(Ruling 133)으로 거부측이 <b>허용 목록 밖 실제 핸들러 전부</b>로 확대됐다 —
+ * <p>Ruling 133 에 따라 거부측은 <b>허용 목록 밖 실제 핸들러 전부</b>다 —
  * 대상 목록과 그 목록이 낡지 않았는지 대조하는 수단은 {@code testsupport.gate.AccountStatusGateEndpoints}
  * 에 둔다.
  *
@@ -90,7 +90,7 @@ class AuthFlowIntegrationTest {
      * 완료 조건 1 — 학원 검색 → 가입 → 로그인 → 가입 상태 조회 → 토큰 재발급 → 로그아웃을 한 흐름으로
      * 밟고, 각 단계의 응답값을 다음 단계 입력으로 넘긴다.
      *
-     * <p>정본(docs/IMPLEMENTATION_PLAN Phase 2)은 "가입 → {@code pending} 조회 → 로그인" 순으로
+     * <p>정본(docs/IMPLEMENTATION_PLAN)은 "가입 → {@code pending} 조회 → 로그인" 순으로
      * 적었으나 실제 호출 순서는 <b>로그인이 먼저</b>다 — {@code GET /auth/signup-status} 는
      * {@code @AuthenticatedOnly} 라 토큰이 있어야 부를 수 있고, 가입 응답({@code SignupResponse})은
      * {@code account_status}·{@code requested_at}·{@code approver} 3필드뿐이라 토큰을 주지 않는다.
@@ -140,11 +140,8 @@ class AuthFlowIntegrationTest {
      *
      * <p>거부측은 허용 밖 실제 핸들러 <b>전부</b>다({@code AccountStatusGateEndpoints}) — 정본의
      * 완료 조건 문면이 "허용 5개 외 API 호출 시 <b>전부</b> 403" 이라 일부만 골라 두드리면 고르지 않은
-     * 것이 곧 사고 지점이 된다. Phase 2 시점에는 프로덕션 핸들러가 12개뿐이라 허용 밖이
-     * {@code POST /auth/password}·{@code POST /auth/signup/reapply} 둘이었고 그래서 거부측이 2개였다 —
-     * Phase 3 이 핸들러를 12개 늘려(총 24개) 그 근거가 소멸했으므로 목록을 함께 늘렸다(Ruling 133,
-     * Phase 3 목표 6). Phase 5 가 학생 관리 5개 · 차량·매니저 7개 · 자녀 연결 4개 · 스케줄 4개 ·
-     * 회차와 배치 4개를 같은 이유로 더했다. 개수를 채우려고 엔드포인트를 새로 만들지 않는다.
+     * 것이 곧 사고 지점이 된다. 거부측 목록은 Ruling 133 에 따라 허용 밖 실제 핸들러 전부를 담는다.
+     * 개수를 채우려고 엔드포인트를 새로 만들지 않는다.
      */
     @Test
     void pending_토큰은_허용_5개를_통과하고_허용_밖_실제_엔드포인트_전부에서_403_AUTH_PENDING_이다() throws Exception {
@@ -156,7 +153,7 @@ class AuthFlowIntegrationTest {
     }
 
     /**
-     * 목표 6 — 거부측 목록이 <b>허용 목록 밖 실제 핸들러 전부</b>와 정확히 같은지 런타임 매핑으로 대조한다.
+     * 거부측 목록이 <b>허용 목록 밖 실제 핸들러 전부</b>와 정확히 같은지 런타임 매핑으로 대조한다.
      *
      * <p>손으로 적은 목록만 두면 다음 Phase 가 엔드포인트를 늘렸을 때 위 두 왕복 테스트는 여전히 초록인
      * 채로 검사 범위만 좁아진다 — "전부 403" 이라는 문면과 실제 검사 범위가 벌어지는 그 사고를 여기서

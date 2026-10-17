@@ -30,14 +30,14 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
- * Phase 3 목표 3 — 거절된 계정이 재신청으로 승인 큐에 <b>다시 뜨는가</b>.
+ * 거절된 계정이 재신청으로 승인 큐에 <b>다시 뜨는가</b>.
  *
  * <p>계정 상태만 {@code pending} 으로 되돌리고 새 {@code signup_request} 행을 만들지 않으면, 관계자가
  * 재심사할 대상이 부재해 계정이 영구히 {@code pending} 에 갇힌다 — 계정 상태만 보는 단언은 그 구현을
  * 통과시킨다(ERD §4.1 "재신청마다 행 추가").
  *
  * <p>거절과 재신청은 {@code AuthFlowIntegrationTest} 도 다루지만 그쪽은 raw {@code UPDATE} 로
- * {@code rejected} 를 만든다 — 승인 경로가 없던 Phase 2 의 사정이다. 여기서는 <b>관계자가 실제로
+ * {@code rejected} 를 만든다. 여기서는 <b>관계자가 실제로
  * 거절한 결과</b>가 재신청의 입력이 되므로, 거절이 만든 상태와 재신청이 요구하는 상태가 어긋나면
  * 이 클래스에서 드러난다.
  */

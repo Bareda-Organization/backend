@@ -52,7 +52,7 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
      * 그 요일의 <b>활성</b> 스케줄 전건 — 일일 회차 생성 배치(SCH-02)의 입력이다.
      *
      * <p>{@code active} 조건이 여기 있는 것이 요점이다 — 조건이 빠지면 쉬는 스케줄까지 회차를 만들고,
-     * 그 회차가 확정 배치(Phase 7)의 대상이 되어 운행하지 않는 노선이 계산된다.
+     * 그 회차가 확정 배치의 대상이 되어 운행하지 않는 노선이 계산된다.
      */
     @AcademyScopeExempt(reason = "일일 회차 생성 배치(SCH-02)는 요청이 아니라 시각이 일으키는 전 학원 대상 작업이라 "
             + "좁힐 학원이 부재하다 — 학원을 하나 골라 좁히면 나머지 학원의 회차가 생기지 않는다. "

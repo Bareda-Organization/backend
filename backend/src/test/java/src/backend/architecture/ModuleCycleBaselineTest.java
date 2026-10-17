@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Test;
  */
 class ModuleCycleBaselineTest {
 
-    /** 현재 순환 묶음 안의 간선 {@code 앞→뒤}(2026-10-17, student→routing 제거 뒤) — 이 목록에 없는 간선이 묶음 안에 생기면 새 고리다. */
+    /** 현재 순환 묶음 안의 간선 {@code 앞→뒤} — 이 목록에 없는 간선이 묶음 안에 생기면 새 고리다. */
     private static final Set<String> BASELINE_CYCLE_EDGES = Set.of(
             "academy→account", "academy→run", "academy→student",
             "account→academy", "account→audit", "account→manager", "account→student",

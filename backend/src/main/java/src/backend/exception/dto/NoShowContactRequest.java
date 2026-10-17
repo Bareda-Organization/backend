@@ -12,7 +12,7 @@ import jakarta.validation.constraints.NotBlank;
  *
  * <p>{@code decision} 은 선택이다(§4.8 표) — 3분 경과 전 시도는 아직 최종 판단이 없을 수 있다.
  *
- * <p>{@code clientKey} 도 선택이다(API_SPEC §1.7, R56 Ruling 894 ⑧) — 오프라인 큐가 응답을 놓친 요청을 같은 키로 다시 보내면
+ * <p>{@code clientKey} 도 선택이다(API_SPEC §1.7, Ruling 894 ⑧) — 오프라인 큐가 응답을 놓친 요청을 같은 키로 다시 보내면
  * 시도를 새로 남기지 않고 최초 결과를 돌려준다. 키를 보내지 않으면 지금과 같다.
  */
 public record NoShowContactRequest(@NotBlank String attemptType, @NotBlank String result, String decision, UUID clientKey) {

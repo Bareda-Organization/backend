@@ -1,7 +1,7 @@
 package src.backend.routing.assign.spec;
 
 /**
- * 동승자 자동 배정(T6 소유, Ruling 181) — {@code ARCHITECTURE §8.2} ⑤.
+ * 동승자 자동 배정(Ruling 181) — {@code ARCHITECTURE §8.2} ⑤.
  *
  * <p><b>{@code BusAssigner} 가 아니다.</b> 학생↔버스 대응은 이 포트의 일이 아니라 고정 노선 편성이
  * 이미 결정한다({@code ARCHITECTURE §8.2} — "파이프라인에 학생을 버스에 배정하는 단계가 부재"). 이

@@ -38,12 +38,12 @@ import src.backend.run.repository.RunRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 기사 단말의 위치 송신 API(§4.12, 목표 1·2) — {@code moving} 회차만 성공하고, 인가·상태 판정을
+ * 기사 단말의 위치 송신 API(§4.12) — {@code moving} 회차만 성공하고, 인가·상태 판정을
  * 어긴 호출은 저장소를 건드리지 않는다.
  *
  * <p>{@code @Transactional} 을 쓴다({@code DriverRunControllerTest} 와 같은 근거 — 서비스가 쓰는
  * {@code TransactionTemplate} 이 기본 전파라 테스트 트랜잭션에 합류해 끝나면 함께 롤백된다). 그래서 이
- * 클래스는 {@link RunPositionReceivedEvent} 가 실제로 커밋되는지(목표 3, Redis 갱신)와, 트랜잭션 없이 발행하는
+ * 클래스는 {@link RunPositionReceivedEvent} 가 실제로 커밋되는지(Redis 갱신)와, 트랜잭션 없이 발행하는
  * {@code fallbackExecution} 경로 · "DB 연결을 반납한 뒤 발행" 을 보지 않는다
  * — 그건 커밋이 필요 없는 이벤트 발행 자체(인자 순서)와, 실제 커밋이 필요한 Redis 갱신을 각각
  * {@code RunPositionReceivedEventTest}·{@code RunPositionRedisIntegrationTest}(T-1) 로 나눠 검사한다.
@@ -119,7 +119,7 @@ class RunPositionCommandServiceTest {
         capturedEvents.events().clear();
     }
 
-    // ── goal 1 ───────────────────────────────────────────────────────────
+    // ── 위치 송신 성공───────────────────────────────────────────────────────────
 
     @Test
     @DisplayName("목표1 — moving 회차에 배치된 기사가 위치를 송신하면 204 이고 이력이 적재된다")
@@ -159,7 +159,7 @@ class RunPositionCommandServiceTest {
     }
 
     /**
-     * R51 Ruling 855 — 하원 최종 지점에 도착했지만 미하차 학생이 남아 종료가 보류된 회차(status 는 {@code moving} 그대로,
+     * Ruling 855 — 하원 최종 지점에 도착했지만 미하차 학생이 남아 종료가 보류된 회차(status 는 {@code moving} 그대로,
      * {@code finish_pending=true})에서도 위치 송신을 받는다. 남은 학생의 학부모가 버스 위치를 봐야 하기 때문이다.
      */
     @Test
@@ -340,7 +340,7 @@ class RunPositionCommandServiceTest {
                 .andExpect(status().isUnprocessableContent());
     }
 
-    // ── goal 2 ───────────────────────────────────────────────────────────
+    // ── idle 회차 거부───────────────────────────────────────────────────────────
 
     @Test
     @DisplayName("목표2 — idle 회차에 위치를 송신하면 409 RUN_NOT_MOVING 이고 이력이 남지 않는다")

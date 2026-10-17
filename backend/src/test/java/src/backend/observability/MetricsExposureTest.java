@@ -14,7 +14,7 @@ import org.springframework.http.ResponseEntity;
 
 /**
  * TECH_DECISIONS §13.1 8행이 요구하는 지표 이름이 <b>이벤트 없이도</b> {@code /actuator/prometheus}
- * 본문에 전부 노출되는지 확인한다(관측 목표 8) — 대시보드 패널은 지표가 처음 값을 받기 전에도 그려져야
+ * 본문에 전부 노출되는지 확인한다 — 대시보드 패널은 지표가 처음 값을 받기 전에도 그려져야
  * 하고, Prometheus 는 이름이 한 번도 노출되지 않은 지표를 스크레이프 대상으로 조차 인식하지 못한다.
  *
  * <p>도메인 이벤트를 하나도 발생시키지 않는다 — 이 시험의 요점은 "값이 맞는가" 가 아니라
@@ -82,7 +82,7 @@ class MetricsExposureTest {
      * STOMP 팬아웃 송신 실행기({@code WebSocketConfig.outboundTaskExecutor}) 큐 길이 관측(O4).
      *
      * <p>새 코드를 추가한 게 아니다 — Spring Boot 의 {@code TaskExecutorMetricsAutoConfiguration}
-     * 이 {@code ThreadPoolTaskExecutor} 빈을 <b>빈 이름</b>으로 자동 계측한다(실측 확인, 2026-09-26).
+     * 이 {@code ThreadPoolTaskExecutor} 빈을 <b>빈 이름</b>으로 자동 계측한다(실측 확인).
      * 이 시험이 지키는 것은 그 사실이 아니라 <b>빈 이름</b>이다 — {@code outboundTaskExecutor()} 를
      * 리네임하거나 {@code @Bean(name=...)} 을 다르게 주면 {@code name} 태그가 조용히 바뀌어
      * {@code 5-load.json} 의 "팬아웃 실행기 큐 길이" 패널이 빈 그래프가 된다.

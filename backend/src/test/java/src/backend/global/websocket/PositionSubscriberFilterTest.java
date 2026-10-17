@@ -31,7 +31,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 /**
- * 위치 방송은 <b>구독자가 있는 채널에만</b> 직렬화·전송한다(R46 D #6) — 위치 1건이 채널 22개(학생 20 · 학원 1 · 관리자 1)로
+ * 위치 방송은 <b>구독자가 있는 채널에만</b> 직렬화·전송한다 — 위치 1건이 채널 22개(학생 20 · 학원 1 · 관리자 1)로
  * 나가는데 학부모가 보고 있는 것은 그중 일부라, 구독자 없는 채널까지 JSON 으로 만들면 2초마다 100대 × 22회가 낭비다.
  * 구독자가 있는 채널은 반드시 받는다 — 빠지면 학부모 지도가 멈춘다. 원시 WebSocket 으로 실제 구독한다.
  */

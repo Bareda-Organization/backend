@@ -17,7 +17,7 @@ import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 
 /**
- * 유령 세션 방지 ① — 하트비트를 협상한 클라이언트가 소리 없이 사라지면 서버가 30초대에 세션을 치운다(R46-CONNCAP, Ruling 694).
+ * 유령 세션 방지 ① — 하트비트를 협상한 클라이언트가 소리 없이 사라지면 서버가 30초대에 세션을 치운다(Ruling 694).
  *
  * <p>Spring 단순 브로커는 협상한 하트비트가 10초일 때 무수신 {@code max(10, 10) × 3 = 30초} 가 지나면 세션·구독을 지우고, 점검
  * 주기(10초)라 실제로는 30~40초에 소켓을 닫는다 — 그 뒤 연결 해제 이벤트가 우리 쪽 맵 둘({@code StompSessionMetrics} 의 활성 집합 ·

@@ -14,7 +14,7 @@ import src.backend.student.entity.Student;
 
 /**
  * 학원 조건이 <b>저장소 쿼리 안에</b> 있음을 컨트롤러·서비스를 거치지 않고 보인다 — 호출부가 조건을
- * 빠뜨릴 자리 자체가 없다는 것이 이 태스크가 만든 형태다(ARCHITECTURE §6.1).
+ * 빠뜨릴 자리 자체가 없다는 것이 이 구조가 택한 형태다(ARCHITECTURE §6.1).
  *
  * <p>{@code AcademyScopeIsolationTest} 는 같은 사실을 HTTP 왕복으로 보지만, 그 경로는 컨트롤러가
  * 조건을 넘겨 준 결과일 수도 있다. 여기서 저장소를 직접 불러야 조건이 쿼리에 고정됐음이 갈린다.

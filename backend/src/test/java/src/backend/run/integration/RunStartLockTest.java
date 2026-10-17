@@ -29,12 +29,11 @@ import src.backend.run.controller.DriverRunFixtures;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 목표 18(Phase 9 이월 ④, P9 목표 2) — 운행 시작이 노선을 실제로 잠그는가.
+ * 운행 시작이 노선을 실제로 잠그는가.
  *
- * <p>{@code ChangeRequestControllerTest} 의 목표9 시험은 이미 {@code moving} 회차에서 변경 신청이
+ * <p>{@code ChangeRequestControllerTest} 의 시험은 이미 {@code moving} 회차에서 변경 신청이
  * {@code 403} 임을 검사하지만, 회차를 {@code jdbcTemplate.update(...)} 로 직접 {@code moving} 으로
- * 바꿔 만든다 — 즉 <b>실제 시작 경로가 잠그는지는 검사하지 않는다.</b> Phase 9 좌석은 그 시험으로
- * "기존 커버리지가 방어한다" 고 판단했으나 조율자가 채택하지 않았다(이월 사유) — 시작 처리
+ * 바꿔 만든다 — 즉 <b>실제 시작 경로가 잠그는지는 검사하지 않는다.</b> 시작 처리
  * ({@code RunStartCommandService})와 잠금 판정({@code ChangeWindowPolicy})은 서로 다른 클래스라,
  * 시작 처리가 상태 전이를 빠뜨려도 위 시험은 여전히 통과한다.
  *
@@ -93,7 +92,7 @@ class RunStartLockTest {
                 .as("실제 시작 호출이 DB 상태를 moving 으로 전이시켜야 이 시험의 나머지가 유효하다")
                 .isEqualTo("moving");
 
-        // 같은 회차에 학부모가 변경 신청 — ③구간이므로 타입과 무관하게 잠겨야 한다(목표9와 같은 판정
+        // 같은 회차에 학부모가 변경 신청 — ③구간이므로 타입과 무관하게 잠겨야 한다(같은 판정
         // 지점을 겨누되, 그 판정 지점 앞의 상태가 실제 시작 호출로 만들어졌다는 점이 다르다).
         mockMvc.perform(post("/api/v1/students/" + studentId + "/change-requests")
                         .header("Authorization", 학부모_토큰(parentAccountId, academyId))

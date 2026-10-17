@@ -8,7 +8,7 @@ import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 
 /**
- * 목록 조회의 페이지 위치·크기(API_SPEC §1.8) — Phase 3~14 의 모든 목록 엔드포인트가 공유한다.
+ * 목록 조회의 페이지 위치·크기(API_SPEC §1.8) — 모든 목록 엔드포인트가 공유한다.
  *
  * <p>모듈 안이 아니라 {@code global} 에 둔 이유는 첫 소비자({@code GET /admin/academies}) 옆에 두면
  * 다음 모듈이 같은 규약을 복제하고, 그 순간 상한이 엔드포인트마다 갈리기 때문이다.

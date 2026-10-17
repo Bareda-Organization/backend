@@ -34,8 +34,8 @@ import src.backend.routing.repository.RunStopRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 지연 알림 신고 API(NTF-06, M-05, API_SPEC §4.9) — F3 S1 목표 1(엔드포인트 전체 행동) · 2(수신 범위
- * 3조건) · 3(중복·갱신 판정, Ruling 253).
+ * 지연 알림 신고 API(NTF-06, M-05, API_SPEC §4.9) — 엔드포인트 전체 행동 · 수신 범위
+ * 3조건 · 중복·갱신 판정(Ruling 253).
  *
  * <p>픽스처는 {@code DriverRunFixtures} 를 그대로 재사용한다 — 회차·배치·라이더 생성 경로가 이
  * 시험이 필요로 하는 것과 완전히 같다(동승자 배치는 {@code assignedManager}·
@@ -72,7 +72,7 @@ class DelayNotificationControllerTest {
 
 
 
-    // ── goal 1 — 엔드포인트 전체 행동 ─────────────────────────────────────
+    // ── 엔드포인트 전체 행동 ─────────────────────────────────────
 
     @Test
     @DisplayName("목표1 — 배치된 동승자의 정상 신고는 201 이고 세 수신 갈래 모두 발신되며 이력이 저장된다")
@@ -138,8 +138,8 @@ class DelayNotificationControllerTest {
                 .isEqualTo(1);
         assertThat(학부모_알림수(runId, studentId)).as("학부모도 받아야 한다").isEqualTo(1);
 
-        // R13 — 학부모·학생 갈래는 studentId·studentName 을 채우고, 관계자 갈래는 회차 전체(다수 학생)를
-        // 가리키므로 null 로 남는다(docs/archive/rounds/be-rounds-r5-r14.md §8.16 목표 3·5).
+        // 학부모·학생 갈래는 studentId·studentName 을 채우고, 관계자 갈래는 회차 전체(다수 학생)를
+        // 가리키므로 null 로 남는다.
         Long guardianLegStudentId = jdbcTemplate.queryForObject(
                 "SELECT student_id FROM notification_log WHERE type = 'delay' AND recipient_role = 'parent' "
                         + "AND dedup_key LIKE ?",
@@ -161,7 +161,7 @@ class DelayNotificationControllerTest {
                 Long.class, "delay:" + runId + ":staff:" + staffAccountId + ":%");
         assertThat(staffLegStudentId).as("관계자 갈래는 회차 전체를 알리므로 student_id 가 null 로 남는다").isNull();
 
-        // R14 목표 5 — 관계자 알림에도 호차가 채워진다(Run → Bus 조회).
+        // 관계자 알림에도 호차가 채워진다(Run → Bus 조회).
         String busNo = jdbcTemplate.queryForObject("SELECT bus_no FROM bus WHERE id = ?", String.class, busId);
         String staffLegBusNo = jdbcTemplate.queryForObject(
                 "SELECT bus_no FROM notification_log WHERE type = 'delay' AND recipient_role = 'staff' "
@@ -325,7 +325,7 @@ class DelayNotificationControllerTest {
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
-    // ── goal 2 — 수신 범위 3조건(각각 독립으로 실패해야 한다) ───────────────
+    // ── 수신 범위 3조건(각각 독립으로 실패해야 한다) ───────────────
 
     @Test
     @DisplayName("목표2-a — 이미 지난(도착 완료) 정류장의 학생은 수신 대상에서 빠진다")
@@ -531,7 +531,7 @@ class DelayNotificationControllerTest {
         assertThat(학부모_알림수(runId, waitingStudentId)).as("대기 중인 학생의 보호자는 받아야 한다").isEqualTo(1);
     }
 
-    // ── goal 3 — 중복·갱신 판정(Ruling 253) ─────────────────────────────
+    // ── 중복·갱신 판정(Ruling 253) ─────────────────────────────
 
     @Test
     @DisplayName("목표3-a — 직전 신고와 minutes·reason·message 가 전부 같으면 409 DELAY_DUPLICATE 다")

@@ -23,14 +23,13 @@ import src.backend.run.entity.RunStatus;
 
 /**
  * {@link RunStop} 영속성 접근 — {@code run_stop} 은 {@code academy_id} 컬럼이 부재한 <b>부모 경유</b>
- * 자원이다(ERD §6.1). 확정 배치(Phase 7)는 {@code saveAll()} 로 정차 항목을 한 번에 쌓기만 했으나,
- * Phase 8(②구간 승인 미리보기의 "재최적화 전" 상태)이 처음으로 그 순서를 다시 읽어야 해 조회
- * 메서드를 더한다.
+ * 자원이다(ERD §6.1). 확정 배치는 {@code saveAll()} 로 정차 항목을 한 번에 쌓기만 하고,
+ * ②구간 승인 미리보기("재최적화 전" 상태)가 그 순서를 읽어야 해 조회 메서드를 둔다.
  */
 public interface RunStopRepository extends JpaRepository<RunStop, Long> {
 
     /**
-     * 노선 버전 1건의 정차 순서 전체(Phase 8, 승인 미리보기의 "재최적화 전" 스냅샷) — 이미 저장된
+     * 노선 버전 1건의 정차 순서 전체(승인 미리보기의 "재최적화 전" 스냅샷) — 이미 저장된
      * 값을 그대로 읽으므로 이 조회만으로는 노선 계산이 <b>한 번도 일어나지 않는다.</b>
      *
      * <p>{@code academy_id} 컬럼이 부재해 학원 조건을 붙일 자리가 <b>{@code RouteVersion} →
@@ -50,7 +49,7 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
             @Param("academyId") Long academyId);
 
     /**
-     * 위치 수신(2초마다)용 — 그 회차의 <b>확정 노선 현재 판본</b> 정차 항목을 이름과 함께 한 문장으로 읽는다(R46-LATERBE L2). 확정 노선 ·
+     * 위치 수신(2초마다)용 — 그 회차의 <b>확정 노선 현재 판본</b> 정차 항목을 이름과 함께 한 문장으로 읽는다. 확정 노선 ·
      * 정차 목록 · 정차 이름 세 조회를 합친 것이다. 확정 노선이 없으면 빈 목록이다. 이름은 승하차지({@code stop.name}) 또는
      * 경유지({@code waypoint.label}) — 학원 도착지 항목은 둘 다 없어 {@code null}. 학원 조건은 회차({@code Run}) 에 건다
      * ({@link #findAllByRouteVersionIdAndAcademyIdOrderBySeq} 와 같은 부모 경유 근거).
@@ -87,7 +86,7 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
      * (ARCHITECTURE §8.5 운행 시작과 동시에 노선 잠금, BR-052). 근접 알림·출발 판정이 {@code stop} 좌표를
      * 매번 다시 읽어, 고치는 순간 운행 중인 버스의 판정 좌표가 바뀐다.
      *
-     * <p>운행일이 {@code since} 보다 이른 회차는 세지 않는다(R46-KFIXBE K-1, Ruling 701) — 끝나지 않은 채 남은 옛 회차가
+     * <p>운행일이 {@code since} 보다 이른 회차는 세지 않는다(Ruling 701) — 끝나지 않은 채 남은 옛 회차가
      * 그 노선 승하차지의 좌표 수정을 영구히 막지 않게 한다. {@code since} 는 {@code MovingRunWindowPolicy#earliestServiceDate}.
      */
     @Query("""
@@ -137,7 +136,7 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
      * #markSkipped} 가 표시한 항목은 버스가 실제로 서지 않으므로 근접해도 "곧 도착합니다" 가 거짓이
      * 된다({@code change} 가 {@code null}(정상 배정)인 항목은 그대로 포함).
      *
-     * <p>{@code departedAt IS NULL} 로 <b>이미 지나친 항목</b>도 뺀다(R51 H2 부작용) — 도착을 누르지 않은 채 다음 승하차지
+     * <p>{@code departedAt IS NULL} 로 <b>이미 지나친 항목</b>도 뺀다 — 도착을 누르지 않은 채 다음 승하차지
      * 도착으로 강제 출발된 항목은 {@code arrived_at} 이 비고 {@code departed_at} 만 있다. 이를 "다음" 으로 계속 잡으면 버스가 이미
      * 지나친 곳을 기다리느라 그 뒤 승하차지의 "곧 도착" 알림이 멈춘다.
      *
@@ -184,7 +183,7 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
 
     /**
      * 정차 항목 1건의 근접 알림을 <b>최초 1회</b>로 선점한다 — 영향받은 행 수로 성공 여부를 판정한다
-     * (목표 15, Ruling 210 조건부 UPDATE 선점).
+     * (Ruling 210 조건부 UPDATE 선점).
      *
      * <p><b>{@code WHERE proximity_notified_at IS NULL} 조건이 멱등성의 전부다</b>({@link
      * src.backend.run.repository.RunRepository#confirmIfIdle} 과 같은 근거) — 스케줄러 인스턴스 2개가
@@ -245,8 +244,8 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
     List<RunStop> findFirstArrivedNotDepartedOfVersions(@Param("routeVersionIds") Collection<Long> routeVersionIds);
 
     /**
-     * 아직 출발 처리되지 않은 정차지 <b>전부</b> — <b>도착 처리 여부와 무관</b>하다(Ruling 312, R51 H2). 운행 종료 시
-     * 강제 적용(목표 8)이 "남은 전부"를 한 번에 쓸어야 해서 {@link #findFirstArrivedNotDeparted} 의 limit 1 로는 못 쓴다.
+     * 아직 출발 처리되지 않은 정차지 <b>전부</b> — <b>도착 처리 여부와 무관</b>하다(Ruling 312). 운행 종료 시
+     * 강제 적용이 "남은 전부"를 한 번에 쓸어야 해서 {@link #findFirstArrivedNotDeparted} 의 limit 1 로는 못 쓴다.
      * 기사가 도착을 누르지 않은 정차지도 포함하는 이유는 FEATURE_SPEC "위치 유실·기사의 도착 미처리로 출발 판정이 안
      * 되면 다음 승하차지 도착 시 강제 발송" 때문이다 — {@code arrived_at IS NOT NULL} 을 걸면 그 정차지의 승차·
      * 미승차 알림이 끝내 나가지 않는다. 강제 경유지·도착지는 학생이 없어 {@code stopId IS NOT NULL} 로 뺀다.
@@ -263,8 +262,8 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
     List<RunStop> findAllNotDeparted(@Param("routeVersionId") Long routeVersionId);
 
     /**
-     * {@link #findAllNotDeparted} 중 <b>방금 도착 처리하는 정차 항목보다 앞 순번</b>만(R51 H2) — 다음 승하차지 도착이
-     * 이전 정차지에 거는 폴백(목표 7)이다. 도착하는 항목 자신과 뒤 순번은 아직 버스가 지나지 않았으므로 뺀다.
+     * {@link #findAllNotDeparted} 중 <b>방금 도착 처리하는 정차 항목보다 앞 순번</b>만 — 다음 승하차지 도착이
+     * 이전 정차지에 거는 폴백이다. 도착하는 항목 자신과 뒤 순번은 아직 버스가 지나지 않았으므로 뺀다.
      * {@code targetRunStopId} 가 그 버전의 항목이 아니면 하위 질의가 비어 아무 행도 돌려주지 않는다.
      */
     @AcademyScopeExempt(reason = "findAllNotDeparted 와 같은 근거 — routeVersionId 는 호출부가 학원 범위로 좁힌 회차의 "

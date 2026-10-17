@@ -9,7 +9,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 /**
- * 알림 발송 실행기의 스레드 수를 속성으로 정할 수 있다(R46 D #15) — 코드 상수 2 를 다시 박으면 이 시험이 실패한다.
+ * 알림 발송 실행기의 스레드 수를 속성으로 정할 수 있다 — 코드 상수 2 를 다시 박으면 이 시험이 실패한다.
  * 속성이 없을 때의 기본값 8 은 {@link NotificationDispatchDefaultPoolSizeTest} 가 고정한다.
  */
 @SpringBootTest(properties = "app.notification.dispatch.core-pool-size=5")

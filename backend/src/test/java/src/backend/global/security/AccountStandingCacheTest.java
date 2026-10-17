@@ -35,10 +35,10 @@ import src.backend.global.common.enums.Role;
 import src.backend.manager.event.ManagerDeletedEvent;
 
 /**
- * 계정 상태 확인 캐시(R57 RT-1 · Ruling 899 A) — 같은 계정의 연속 요청은 상태를 한 번만 묻고, 차단 · 퇴사 · 매니저 삭제 · 차단 해제가 커밋되면
+ * 계정 상태 확인 캐시(Ruling 899 A) — 같은 계정의 연속 요청은 상태를 한 번만 묻고, 차단 · 퇴사 · 매니저 삭제 · 차단 해제가 커밋되면
  * 그 계정 항목을 바로 비워 Ruling 880 의 "다음 요청부터 거절" 이 유지된다.
  *
- * <p>시험 묶음 전체는 캐시를 끄고({@code build.gradle} 의 0초) 직접 SQL 로 상태를 바꾸는 옛 시험이 그대로 돈다 — 이 시험만 5초로 켠다. 차단은
+ * <p>시험 묶음 전체는 캐시를 끄고({@code build.gradle} 의 0초) 직접 SQL 로 상태를 바꾸는 시험이 그대로 돈다 — 이 시험만 5초로 켠다. 차단은
  * 로그인 실패 5회라는 실제 경로로 커밋한다. 서버 스레드가 DB 를 읽으므로 시험 트랜잭션에 묶지 않고 {@link #restore} 가 되돌린다.
  */
 @SpringBootTest(properties = "app.security.account-standing-cache-ttl=5s")

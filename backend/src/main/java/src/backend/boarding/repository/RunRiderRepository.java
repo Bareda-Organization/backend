@@ -19,13 +19,12 @@ import src.backend.boarding.dto.StaffRunRiderAggregateView;
 
 /**
  * {@link RunRider} 영속성 접근 — {@code run_rider} 는 {@code academy_id} 컬럼이 부재한 <b>부모 경유</b>
- * 자원이다(ERD §6.1). 확정 배치(Phase 7)는 {@code saveAll()} 로 회차별 명단을 한 번에 쌓기만 했으나,
- * Phase 8(②구간 승인 미리보기)이 처음으로 그 명단을 다시 읽어야 해 조회 메서드를 더한다.
+ * 자원이다(ERD §6.1). 확정 배치는 {@code saveAll()} 로 회차별 명단을 한 번에 쌓는다. 조회 메서드는 ②구간 승인 미리보기가 그 명단을 다시 읽기 위해 둔다.
  */
 public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
 
     /**
-     * 회차 1건의 현재 라이더 명단 전체(Phase 8, ②구간 승인 미리보기의 기준선) — 확정 배치가 쌓은
+     * 회차 1건의 현재 라이더 명단 전체(②구간 승인 미리보기의 기준선) — 확정 배치가 쌓은
      * 뒤 그동안 승인된 변경까지 반영된 <b>지금</b> 상태를 읽는다({@code weekly_address} 가 아니라
      * 이쪽을 기준선으로 삼는 이유는 승인 미리보기 판단 근거 참조).
      *
@@ -86,7 +85,7 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
     long countByRunIdAndStopIdAndStatusNot(Long runId, Long stopId, RiderStatus status);
 
     /**
-     * 그 회차에서 아직 그 상태인 라이더 수(Phase 9, RUN-06·C-15) — 하원 마지막 하차·②구간 종결 뒤의
+     * 그 회차에서 아직 그 상태인 라이더 수(RUN-06·C-15) — 하원 마지막 하차·②구간 종결 뒤의
      * 종료 판정({@code RunCompletionService})이 "아직 탑승 중({@code BOARDED})이 0명인가"를 이 메서드로
      * 묻는다.
      *
@@ -98,7 +97,7 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
     long countByRunIdAndStatus(Long runId, RiderStatus status);
 
     /**
-     * 그 회차 라이더를 상태별로 센 값을 질의 1번으로 읽는다(R57 RT-4) — 승하차 방송이 5상태를 {@link #countByRunIdAndStatus} 로 5번 묻던 것을 하나로 묶는다.
+     * 그 회차 라이더를 상태별로 센 값을 질의 1번으로 읽는다. 승하차 방송이 5상태를 {@link #countByRunIdAndStatus} 로 5번 묻지 않도록 하나로 묶는다.
      * 인원이 0인 상태는 결과에 없다. {@code runId} 근거는 {@link #countByRunIdAndStatus} 와 같다.
      */
     @AcademyScopeExempt(reason = "runId 는 호출부가 이미 학원 소속을 확인한 회차의 식별자라는 전제다 — "
@@ -125,8 +124,8 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
     Optional<RunRider> findByIdAndRunIdAndStatusNot(Long id, Long runId, RiderStatus excludedStatus);
 
     /**
-     * 회차 1건의 명단 전체(목표 11, 하원 시작 시 일괄 승차) — {@link #findAllByRunIdAndAcademyId} 와
-     * 달리 학원 조인이 없다. 호출부(T2 의 회차 시작 커맨드)가 이미 {@code RunRepository
+     * 회차 1건의 명단 전체(하원 시작 시 일괄 승차) — {@link #findAllByRunIdAndAcademyId} 와
+     * 달리 학원 조인이 없다. 호출부(회차 시작 커맨드)가 이미 {@code RunRepository
      * .findByIdAndAcademyId} 로 학원 범위를 확인한 뒤 그 {@code runId} 만 넘긴다는 전제다.
      */
     @AcademyScopeExempt(reason = "runId 는 호출부가 RunRepository.findByIdAndAcademyId 로 이미 학원 범위에 좁혀 얻은 "
@@ -135,7 +134,7 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
 
     /**
      * 위치 방송 수신자 — 그 회차 탑승자 중 {@code excludedStatus}(absent) 가 아닌 학생의 id 만(중복 없이). 엔티티 20여 개를 읽어 학생 id 만
-     * 쓰던 {@link #findAllByRunId} 를 투영으로 줄인 것이다(R46-LATERBE L2). 근거는 {@link #findAllByRunId} 와 같다.
+     * 쓰는 {@link #findAllByRunId} 대신 투영으로 읽는다. 근거는 {@link #findAllByRunId} 와 같다.
      */
     @AcademyScopeExempt(reason = "runId 는 호출부가 RunRepository.findByIdAndAcademyId 로 이미 학원 범위에 좁혀 얻은 "
             + "회차의 식별자라는 전제다(findAllByRunId 와 같은 근거)")
@@ -144,7 +143,7 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
             @Param("excludedStatus") RiderStatus excludedStatus);
 
     /**
-     * 하원 최종 지점 도착 처리에서 종료가 보류될 때(Phase 9 goal 10) 기사 화면에 실을 미하차 잔류
+     * 하원 최종 지점 도착 처리에서 종료가 보류될 때 기사 화면에 실을 미하차 잔류
      * 명단 — 이름·현재 승하차지를 이 조회에서 함께 채운다({@code RunArriveResponse.remaining[]}
      * 이 별도 조회 없이 바로 응답에 실릴 수 있게).
      *
@@ -166,7 +165,7 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
 
     /**
      * 그 승하차지에 아직 남은(부재·미승차 둘 다 빠진) 탑승자 수 — {@code no_show} 도 잔여 0명 판정에서
-     * 빠져야 한다(목표 7). 다중값 NOT 제외를 메서드명만으로 표현할 수 없어 {@code @Query} 로 직접 쓴다.
+     * 빠져야 한다. 다중값 NOT 제외를 메서드명만으로 표현할 수 없어 {@code @Query} 로 직접 쓴다.
      *
      * <p>{@code runId} 근거는 {@link #findByRunIdAndStudentId} 와 같다.
      */
@@ -203,7 +202,7 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
     /**
      * 회차 목록의 탑승자를 {@code (runId, status, change)} 조합으로 묶어 센다(§5.3 {@code metrics.
      * boarded}·{@code no_show}·{@code absent} 및 {@code runs[].boarded_count}·{@code total_count}·
-     * {@code added_count}·{@code removed_count}, Phase 13 T1) — 관계자 웹 대시보드 전용이라는 뜻으로
+     * {@code added_count}·{@code removed_count}) — 관계자 웹 대시보드 전용이라는 뜻으로
      * 메서드 이름에 용도를 남긴다(Ruling 238).
      *
      * <p>한 쿼리로 두 축(상태·변경 구분)을 함께 묶는 이유는 {@link StaffRunRiderAggregateView}
@@ -228,7 +227,7 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
      *
      * <p>{@code runId} 근거는 {@link #findByRunIdAndStudentId} 와 같다 — 호출부(지연 알림 커맨드
      * 서비스)가 이 메서드에 앞서 {@code runRepository.findByIdAndAcademyId} 로 이미 학원 범위에 좁혀
-     * 확인한 회차의 식별자만 넘긴다는 전제다(F3 S1 라운드 1 정정 — {@code RunAssignmentAccess
+     * 확인한 회차의 식별자만 넘긴다는 전제다({@code RunAssignmentAccess
      * #assertAssignedEscort} 는 그 자신의 자바독대로 학원 범위를 확인하지 않는다. 확인은 뒤이은 그
      * 조회가 성공했을 때 비로소 성립한다).
      */
@@ -245,7 +244,7 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
             @Param("stopIds") Collection<Long> stopIds);
 
     /**
-     * 하원 지연 알림 수신 학생(R51 856, API_SPEC §4.9) — 아직 지나지 않은 승하차지의 탑승자 중 <b>탑승 중({@code boarded})</b>
+     * 하원 지연 알림 수신 학생(API_SPEC §4.9) — 아직 지나지 않은 승하차지의 탑승자 중 <b>탑승 중({@code boarded})</b>
      * 인 학생. 하원은 시작 때 전원이 탑승 상태라 {@link #findStudentIdsForDelayNotification} 의 "아직 탑승하지 않은 학생"
      * 조건으로는 수신자가 0명이었다. 결석·하차·미승차·대기는 탑승 중이 아니므로 자연히 빠진다.
      *
@@ -263,13 +262,13 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
             @Param("stopIds") Collection<Long> stopIds);
 
     /**
-     * 그 승하차지를 출발할 때(Ruling 308, docs/archive/rounds/be-rounds-r15-r21.md §8.23 T3 목표 3·9) 확정 결과를 통지할 학생 명단 — 승차·
-     * 하차·미승차 3종만 대상이다. {@code waiting} 인 채 출발한 학생은 발송 대상이 아니다(목표 9)
-     * 이라 이 조회가 이미 걸러 낸다. {@code absent} 도 뺀다 — 결석은 운행 중 승하차 처리 결과가
+     * 그 승하차지를 출발할 때(Ruling 308) 확정 결과를 통지할 학생 명단 — 승차·
+     * 하차·미승차 3종만 대상이다. {@code waiting} 인 채 출발한 학생은 발송 대상이 아니다.
+     * 이 조회가 이미 걸러 낸다. {@code absent} 도 뺀다 — 결석은 운행 중 승하차 처리 결과가
      * 아니라 사전에 확정된 상태라 이 통지의 대상이 아니다(근접 알림의 {@code excludingAbsent} 와
      * 같은 근거).
      *
-     * <p><b>하원은 {@code boarded} 를 뺀다</b>(R51 H1) — 하원의 승차 알림은 시작 때 자동 승차분으로 이미 나갔고
+     * <p><b>하원은 {@code boarded} 를 뺀다</b> — 하원의 승차 알림은 시작 때 자동 승차분으로 이미 나갔고
      * (NTF-01 · {@code RunAutoBoardedEvent}), 하차지를 출발할 때까지 하차 처리를 못 받은 학생은 아직 탑승 중이라
      * 확정된 결과가 없다. 빼지 않으면 하차지에서 "탑승했습니다" 가 나간다.
      *

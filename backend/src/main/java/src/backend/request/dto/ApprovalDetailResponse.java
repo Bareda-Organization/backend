@@ -11,16 +11,16 @@ import java.util.List;
  * 감싸지 않고 요약 필드를 그대로 펼친 뒤 상세 전용 필드를 더한다. 조립은 정적 팩토리
  * {@link #of} 가 요약을 먼저 만들고 그 필드를 복사하는 형태로 맡는다.
  *
- * <p>{@code estDurationBefore}·{@code estDurationAfter}(`R18-C` 목표 2, {@code Ruling 318})는
+ * <p>{@code estDurationBefore}·{@code estDurationAfter}({@code Ruling 318})는
  * 출발지→마지막 정차지까지의 <b>노선 전체 소요(분)</b>다 — 특정 학생의 승하차지까지가 아니다. 새로
  * 계산하지 않고 {@code route_version.est_duration_min}(전)·{@code RouteComputation.estDurationMin()}
  * (후)를 그대로 싣는다. {@code est_time_*}(도착 시각)과 같은 전/후 짝이며, 결정된 건은 {@code null}이다.
  *
- * <p>{@code departTime}(`R20-A`, 추가 계약)은 그 회차의 출발 예정 시각({@code run.depart_time})이다 —
+ * <p>{@code departTime}(추가 계약)은 그 회차의 출발 예정 시각({@code run.depart_time})이다 —
  * 변경 신청이 출발 시각 자체를 옮기지 않으므로 <b>전/후로 나누지 않는다</b>. 결정된 건에서도 값이
  * 있다 — 회차의 출발 시각은 승인 여부와 무관하게 항상 정해져 있다.
  *
- * <p>{@code status}·{@code decidedAt}·{@code decidedByName}·{@code driverName}·{@code escortName}(R48,
+ * <p>{@code status}·{@code decidedAt}·{@code decidedByName}·{@code driverName}·{@code escortName}(
  * {@code Ruling 812})은 결정된 건을 다시 열었을 때 결과 띠와 배포 대상 인력을 그리는 값이다 — {@link Decision}
  * 한 묶음으로 받아 펼친다. 자동 거절은 {@code decidedByName} 만 {@code null}, 대기 건은 결정 필드 둘 다 {@code null}.
  */

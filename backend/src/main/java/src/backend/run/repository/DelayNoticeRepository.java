@@ -68,7 +68,7 @@ public interface DelayNoticeRepository extends JpaRepository<DelayNotice, Long> 
             @Param("noticeIds") Collection<Long> noticeIds);
 
     /**
-     * 보존 기간이 지난 발신 기록의 id(R56 Ruling 894 ⑦) — {@code notification_log} 와 같은 컷오프를 쓴다.
+     * 보존 기간이 지난 발신 기록의 id(Ruling 894 ⑦) — {@code notification_log} 와 같은 컷오프를 쓴다.
      */
     @AcademyScopeExempt(reason = "보존 정리 배치 — 전 학원의 만료 발신 기록 전건이 대상이고, 부르는 주체가 사용자 요청이 아니라 "
             + "스케줄러라 요청 주체의 소속 자체가 부재(NotificationLogRepository#findIdsForRetentionCleanup 과 같은 근거)")

@@ -20,7 +20,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
- * {@code infra/scripts/deploy-gate.sh} 를 가짜 {@code docker} 로 실제 실행해 4갈래를 본다 — BR-306 (R10-07).
+ * {@code infra/scripts/deploy-gate.sh} 를 가짜 {@code docker} 로 실제 실행해 4갈래를 본다 — BR-306.
  *
  * <p>게이트는 "운행 중(moving) 회차가 있으면 배포를 막는" 스크립트인데, 세어야 할 DB 가 아예 없는 최초 배포 · 재해 복구까지 막으면
  * 배포 경로 자체가 닫힌다. 반대로 "세지 못했다" 를 전부 통과로 처리하면 운행 중인 버스를 두고 배포하게 된다. 그래서 갈래가 넷이다 —

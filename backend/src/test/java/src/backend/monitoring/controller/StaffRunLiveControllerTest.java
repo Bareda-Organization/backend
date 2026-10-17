@@ -40,7 +40,7 @@ import testsupport.clock.FixedClock20300401Config;
 import org.springframework.context.annotation.Import;
 
 /**
- * §5.18 {@code GET /staff/runs/live} — Phase 13 T1 목표 6·7.
+ * §5.18 {@code GET /staff/runs/live}.
  *
  * <p>{@code @Transactional} 을 쓰지 않는다 — {@code RunPositionRedisIntegrationTest} 와 같은 이유로,
  * 실제 {@code POST /runs/{runId}/position} 이 {@code AFTER_COMMIT} 리스너로 Redis 를 갱신하려면
@@ -112,7 +112,7 @@ class StaffRunLiveControllerTest {
     }
 
     /**
-     * 목표 6 — {@code moving} 상태 회차만 담고, 정차 중(§5.10 이 다루는 목록 상태)인 회차는 빠지며,
+     * {@code moving} 상태 회차만 담고, 정차 중(§5.10 이 다루는 목록 상태)인 회차는 빠지며,
      * §5.18 필드가 전부 채워진다. 실제 {@code POST /runs/{runId}/position} 으로 Redis 최신 좌표를
      * 만든다.
      */
@@ -136,7 +136,7 @@ class StaffRunLiveControllerTest {
         fx.assignedManager(academyId, movingRunId, ManagerRole.ESCORT, "동승자1", OffsetDateTime.now(clock));
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
-        // 정차 중(idle) 회차 — moving 필터에서 반드시 빠져야 한다(목표 6).
+        // 정차 중(idle) 회차 — moving 필터에서 반드시 빠져야 한다.
         long idleBusId = fx.bus(academyId);
         fx.idleRun(academyId, idleBusId, Direction.TO_ACADEMY, departTime.plusHours(1));
 
@@ -180,7 +180,7 @@ class StaffRunLiveControllerTest {
     }
 
     /**
-     * 목표 7 — 유실(수신 후 {@code STALE_THRESHOLD}=2분 이상 경과) 이면 {@code position=null} 이고
+     * 유실(수신 후 {@code STALE_THRESHOLD}=2분 이상 경과) 이면 {@code position=null} 이고
      * {@code last_seen_at} 이 채워진다.
      *
      * <p>{@code POST /runs/{runId}/position} 은 {@code received_at} 을 서버가 호출 시각으로 항상

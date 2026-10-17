@@ -31,9 +31,8 @@ import src.backend.run.repository.RunTransferRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 확정 배치 오케스트레이터({@link RunConfirmationService#confirmOne})의 <b>내용물</b> 검증
- * (Phase 7 목표 1 · 5) — 스케줄러의 판정 시각 대상 선정은 {@code RunConfirmationSchedulerTest}(목표
- * 3 · 4 · 6)가 맡고, 이 클래스는 회차 1건을 직접 확정했을 때 4종 산출물이 정확한 값으로 남는지만 본다.
+ * 확정 배치 오케스트레이터({@link RunConfirmationService#confirmOne})의 <b>내용물</b> 검증 —
+ * 스케줄러의 판정 시각 대상 선정은 {@code RunConfirmationSchedulerTest}가 맡고, 이 클래스는 회차 1건을 직접 확정했을 때 4종 산출물이 정확한 값으로 남는지만 본다.
  *
  * <p>{@code @Transactional} 을 쓴다({@code RouteComputationPipelineTest} 와 같은 근거) —
  * {@link #confirmOne} 을 메인 스레드에서 직접 부르므로(스케줄러의 비동기 실행 스레드를 거치지 않는다)
@@ -115,8 +114,8 @@ class RunConfirmationServiceTest {
         assertThat(version.get("source")).isEqualTo("confirm_batch");
         assertThat(version.get("confirmed_route_id")).isEqualTo(runId);
 
-        // R15 T1 목표 4 — 확정 배치가 실제로 저장한 road_path 는 비어 있지 않다(스텁도 좌표를 만든다,
-        // 목표 7). jsonb 컬럼이라 count() 로 배열 길이를 직접 센다.
+        // 확정 배치가 실제로 저장한 road_path 는 비어 있지 않다(스텁도 좌표를 만든다).
+        // jsonb 컬럼이라 count() 로 배열 길이를 직접 센다.
         Integer roadPathLength = jdbcTemplate.queryForObject(
                 "SELECT jsonb_array_length(road_path) FROM route_version WHERE id = ?", Integer.class, versionId);
         assertThat(roadPathLength).as("배포된 노선인데 road_path 가 비어 있다").isGreaterThan(0);
@@ -172,7 +171,7 @@ class RunConfirmationServiceTest {
     }
 
     /**
-     * 게이트 리뷰 지적 #5(T7) — 강제 추가(RTE-06, §5.7)는 대기 행만 쌓고, 그 행이 확정 배치를
+     * 강제 추가(RTE-06, §5.7)는 대기 행만 쌓고, 그 행이 확정 배치를
      * 거쳐 {@code run_rider}·{@code run_stop} 에 실제로 반영되는지는 어떤 시험도 보지 않았다.
      * 대상 학생은 요일별 주소를 아예 안 준다 — 정상 경로로는 이 회차 명단에 오를 수 없어야
      * "강제 추가 병합이 했다" 는 것이 이 시험 하나로 갈린다. 정차지도 편성 노선(firstStop·
@@ -231,7 +230,7 @@ class RunConfirmationServiceTest {
     }
 
     /**
-     * F4 S1 목표 7 — 버스 간 이동(RTE-07, §5.8, Ruling 256) 대기 행이 강제 추가와 같은 합류 지점
+     * 버스 간 이동(RTE-07, §5.8, Ruling 256) 대기 행이 강제 추가와 같은 합류 지점
      * ({@code ProjectedRosterReader#read})에서 <b>양쪽 회차</b>에
      * 각각 반영되는지 본다. 대상 학생은 요일별 주소로 출발 회차에 정상 배정돼 있다 — 이동이 실제로
      * 뺐는지가 "원래도 명단에 없었다"와 구별되려면 정상 경로로 이미 태워져 있어야 한다. 도착 정차지는
@@ -311,9 +310,9 @@ class RunConfirmationServiceTest {
     }
 
     /**
-     * F5 S1 목표1(F4 R1 ⚠) — 강제 추가 병합({@code confirmOne} 218행)과 버스 간 이동 제외
-     * ({@code ProjectedRosterReader#read})의 순서가 결과에 드러나는 케이스. 위 F4 S1 목표 7
-     * 시험은 이동 대상이 요일별 주소로 이미 명단에 올라 있어 두 단계의 순서를 가르지 못한다(어느
+     * 강제 추가 병합({@code confirmOne} 218행)과 버스 간 이동 제외
+     * ({@code ProjectedRosterReader#read})의 순서가 결과에 드러나는 케이스. 위 버스 간 이동 시험은
+     * 이동 대상이 요일별 주소로 이미 명단에 올라 있어 두 단계의 순서를 가르지 못한다(어느
      * 순서든 제거된다) — 이 시험은 대상 학생을 강제 추가로만 명단에 올려, 제외가 강제 추가 병합보다
      * 먼저 돌면 "아직 없는 학생을 지우는" 셈이 되어 no-op 이 되고, 뒤이은 강제 추가 병합이 그 학생을
      * 되살리는 것까지 확인한다.

@@ -114,7 +114,7 @@ class AccountRecoveryFlowTest {
 
     /**
      * 문자 발송기의 INFO 로그를 켠다 — CI 의 {@code -PciQuiet} 은 루트 수준을 WARN 으로 낮춰, 안 켜면 로그에 비밀이 없다는 검사가 빈 로그를 보고
-     * 통과한다(공허 통과 · R46-CIFIX 가 {@code LoggingSmsSender} 시험에 한 것과 같은 방식).
+     * 통과한다(공허 통과 · {@code LoggingSmsSender} 시험에 한 것과 같은 방식).
      */
     @BeforeEach
     void showSmsLog() {
@@ -384,7 +384,7 @@ class AccountRecoveryFlowTest {
     }
 
     /**
-     * 번호가 가입돼 있는지 응답으로 알 수 없어야 한다(R46 FUBE · Ruling 553) — 미등록 번호도 발급 요청에 같은 {@code 200} 이고
+     * 번호가 가입돼 있는지 응답으로 알 수 없어야 한다(Ruling 553) — 미등록 번호도 발급 요청에 같은 {@code 200} 이고
      * 응답 본문이 같다. 문자는 가입된 번호에만 나간다.
      */
     @Test

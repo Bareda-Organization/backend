@@ -60,9 +60,9 @@ import src.backend.run.repository.RunRepository;
  * <p><b>확정 배치({@code RunConfirmationPersistence})와 달리 계산·저장을 분리하지 않는다</b> —
  * 그쪽이 분리한 이유는 외부 지도 API 호출을 트랜잭션 밖에 두기 위해서인데, 이 결정 경로는 승인 상세
  * 조회 시점({@code ApprovalQueryService.detail})에 이미 계산해 캐시({@link ApprovalPreviewCache})에
- * 넣어 둔 {@link RouteComputation} 을 <b>그대로 재사용</b>할 뿐 새로 계산하지 않는다(T4 의 온디맨드
+ * 넣어 둔 {@link RouteComputation} 을 <b>그대로 재사용</b>할 뿐 새로 계산하지 않는다(온디맨드
  * 캐싱 설계). 그래서 이 메서드 전체를 하나의 {@code @Transactional} 로 묶어도 커넥션을 오래 붙들
- * 외부 호출이 없고, 그 대신 목표 7(실패 시 원자적 롤백)을 구조적으로 보장한다.
+ * 외부 호출이 없고, 그 대신 실패 시 원자적 롤백을 구조적으로 보장한다.
  *
  * <p><b>{@code preview_token} 검사가 이 클래스에서 가장 위험한 자리다</b> — 캐시에 없거나 토큰이
  * 다르면(완전히 빠진 요청 포함, {@code null} 은 어떤 캐시 토큰과도 같을 수 없다) {@code 409
@@ -123,7 +123,7 @@ public class ChangeRequestDecisionService {
      */
     @Transactional
     public DecideChangeRequestResponse decide(AuthUser requester, Long approvalId, DecideChangeRequestRequest req) {
-        // 회차 행을 요청 행보다 먼저 쥔다(R53 I-1) — 운행 시작은 회차 행 → 요청 행(자동 거절) 순이라, 요청 행을 먼저 쥐고 승인에서 회차 행을
+        // 회차 행을 요청 행보다 먼저 쥔다 — 운행 시작은 회차 행 → 요청 행(자동 거절) 순이라, 요청 행을 먼저 쥐고 승인에서 회차 행을
         // 기다리면 서로를 기다리는 교착(deadlock detected)이 된다. 회차 id 는 잠금 없이 값으로만 읽는다(없거나 다른 학원이면 아래와 같은 404).
         Long runId = changeRequestRepository.findRunIdByIdAndAcademyId(approvalId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.APPROVAL_NOT_FOUND));
@@ -140,7 +140,7 @@ public class ChangeRequestDecisionService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
 
         OffsetDateTime decidedAt = OffsetDateTime.now(clock);
-        // T6 의 폴링(30초)만 믿으면 그 사이 도착한 결정이 새어 나간다 — 여기서 직접·동기로 판정한다.
+        // 자동 거절 스케줄러의 폴링(30초)만 믿으면 그 사이 도착한 결정이 새어 나간다 — 여기서 직접·동기로 판정한다.
         if (ChangeWindowPolicy.segmentOf(run, decidedAt) == ChangeWindow.CLOSED) {
             throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);
         }
@@ -153,7 +153,7 @@ public class ChangeRequestDecisionService {
 
     /**
      * 승인 — 명단 제외(취소형)·경유지 이동(이동형) → 캐시된 재최적화 결과를 새 노선 버전으로 배포 →
-     * 기사·동승자 재배포({@code route_changed}, Phase 7 경로 재사용) + 학부모 통보.
+     * 기사·동승자 재배포({@code route_changed}, 기존 경로 재사용) + 학부모 통보.
      */
     private DecideChangeRequestResponse approve(AuthUser requester, ChangeRequest cr, Run run,
             OffsetDateTime decidedAt, String previewToken) {
@@ -202,7 +202,7 @@ public class ChangeRequestDecisionService {
         changeRequestRepository.save(cr);
         previewCache.evict(cr.getId());
 
-        // route_changed — Phase 7 이 이미 만든 경로를 재사용한다(새 발행 경로를 만들지 않는다).
+        // route_changed — 이미 있는 경로를 재사용한다(새 발행 경로를 만들지 않는다).
         eventPublisher.publishEvent(
                 new RunRouteConfirmedEvent(run.getId(), academyId, run.getBusId(), decidedAt));
         eventPublisher.publishEvent(new ChangeRequestDecidedEvent(academyId, cr.getId(), run.getId(),

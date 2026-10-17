@@ -28,9 +28,8 @@ import src.backend.run.command.Phase9RosterFixtures;
 import src.backend.run.command.RunConfirmationFixtures;
 
 /**
- * Phase 14 수정 라운드 1 — {@link src.backend.monitoring.query.AdminRunRosterQueryService#roster}
- * 의 감사 호출에 전담 단언을 둔다({@code review-p14-r1.md} 🔴 1건 — R1 이 no-op 변형을 심어 살아남음을
- * 확인한 자리). {@link RosterAuditIntegrationTest} 와 같은 {@link Phase9RosterFixtures} 로 확정
+ * {@link src.backend.monitoring.query.AdminRunRosterQueryService#roster}
+ * 의 감사 호출에 전담 단언을 둔다. {@link RosterAuditIntegrationTest} 와 같은 {@link Phase9RosterFixtures} 로 확정
  * 회차·명단을 구성하되, 호출 경로는 메인 관리자 콘솔({@code /admin/runs/{runId}/roster})이다 —
  * {@code AdminRunRosterQueryService} 는 요청자를 파라미터가 아니라 {@code SecurityContextHolder}
  * 에서 읽으므로, 이 테스트는 반드시 실제 HTTP 인증 경로를 태워야 그 경로까지 함께 검증한다.

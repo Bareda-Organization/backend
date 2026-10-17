@@ -51,7 +51,7 @@ public class RouteComputationPipeline {
     /**
      * 회차 1건의 노선을 계산한다 — 좌표를 얻지 못한 학생이 있어도 <b>나머지로 계산을 마친다.</b>
      *
-     * <p>결과를 저장하지 않는다. 확정 노선 행을 만드는 것은 확정 배치(Phase 7)의 일이다.
+     * <p>결과를 저장하지 않는다. 확정 노선 행을 만드는 것은 확정 배치의 일이다.
      */
     public RouteComputation compute(RouteComputationInput input) {
         DailyStopResolution resolution = stopResolver.resolve(input.roster());

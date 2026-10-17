@@ -38,7 +38,7 @@ import src.backend.student.entity.Stop;
 import src.backend.student.repository.StopRepository;
 
 /**
- * 매니저 앱의 실시간 노선 조회(API_SPEC §4.3, RUN-03·M-08·M-09, Ruling 205, Phase 9 목표 8).
+ * 매니저 앱의 실시간 노선 조회(API_SPEC §4.3, RUN-03·M-08·M-09, Ruling 205).
  *
  * <p>{@code current_stop}·{@code next_stop} 은 저장된 포인터가 아니라 {@link RunStop#getArrivedAt()}
  * 에서 <b>매번 계산</b>한다 — {@code RunArrivalCommandService#arrive}(§4.5) 가 도착마다 그 값을
@@ -83,7 +83,7 @@ public class RunRouteQueryService {
 
     /**
      * 정차 목록·현재/다음 정류장·건너뜀 안내 조립 — {@link #route} 와 관계자용 §5.19
-     * {@code StaffRunRouteQueryService}(F1 S3 목표 11)가 공유한다. 두 호출자가 여기 오기 전까지의
+     * {@code StaffRunRouteQueryService}가 공유한다. 두 호출자가 여기 오기 전까지의
      * 경로(배치 확인 vs 학원 범위 확인)와 버전 미확정 시 처리(빈 200 vs 409)만 서로 다르고, 버전이
      * 정해진 뒤의 조립 자체는 같은 판정을 두 벌 만들지 않도록 여기 하나로 묶는다(과업 지시서 판단
      * 근거). 패키지 전용이라 같은 {@code run.query} 패키지의 관계자용 서비스에서만 호출된다.

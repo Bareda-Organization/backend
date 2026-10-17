@@ -37,9 +37,8 @@ import src.backend.run.controller.DriverRunFixtures;
 import testsupport.clock.FixedClock20310801Config;
 
 /**
- * Phase 9 통합 좌석 — T1(로스터·노선 조회) · T2(운행 시작·종료) · T3(승하차·미승차) · T4(내비게이션)가
- * 각자 워크트리에서 {@code @MockitoBean} 이나 직접 seed 로 대체했던 서로의 실제 호출 경로를,
- * 병합된 이 워크트리에서 처음으로 진짜 배선 그대로 잇는다.
+ * 로스터·노선 조회 · 운행 시작·종료 · 승하차·미승차 · 내비게이션 네 흐름이 각자 시험에서 {@code @MockitoBean} 이나 직접 seed 로
+ * 상대 흐름의 실제 호출 경로를 대체해 왔다. 이 시험은 그 호출 경로를 진짜 배선 그대로 잇는다.
  *
  * <p>세 시험 모두 그 좌석 자신의 시험(예 {@code RunCompletionServiceTest}·{@code BoardingControllerTest}
  * ·{@code NavigationControllerTest})이 이미 검사하는 <b>내부 로직</b>은 다시 검사하지 않는다 —
@@ -74,7 +73,7 @@ class Phase9CrossSeatWiringTest {
 
 
 
-    // ── 1. T2(도착·종료 보류) → T3(하차 PATCH) — 마지막 하차가 실제로 회차를 finished 로 전이한다 ──
+    // ── 1. 도착·종료 보류 → 하차 PATCH — 마지막 하차가 실제로 회차를 finished 로 전이한다 ──
 
     /**
      * absent 학생을 로스터에 섞어 둔다(함정) — 잔여 판정이 {@code BOARDED} 만 세지 않고 "ALIGHTED
@@ -103,7 +102,7 @@ class Phase9CrossSeatWiringTest {
         long boardedStudentId = DriverRunFixtures.of(applicationContext).student(academyId, "탑승학생");
         long boardedRiderId = DriverRunFixtures.of(applicationContext).rider(runId, boardedStudentId, stop2, RiderStatus.BOARDED, OffsetDateTime.now(clock));
 
-        // T2 — 최종지점 도착, 탑승자 1명이 남아 있어 종료가 보류된다(실제 arrive 경로).
+        // 최종지점 도착, 탑승자 1명이 남아 있어 종료가 보류된다(실제 arrive 경로).
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop1 + "/arrive")
                         .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
@@ -114,7 +113,7 @@ class Phase9CrossSeatWiringTest {
         entityManager.flush();
         assertThat(회차_상태(runId)).as("아직 1명이 탑승 중이라 종료가 보류돼야 한다").isEqualTo("moving");
 
-        // T3 — 마지막 탑승자의 실제 PATCH 하차(@MockitoBean 없이 RunCompletionService 실물 호출).
+        // 마지막 탑승자의 실제 PATCH 하차(@MockitoBean 없이 RunCompletionService 실물 호출).
         mockMvc.perform(patch("/api/v1/runs/" + runId + "/riders/" + boardedRiderId)
                         .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -132,7 +131,7 @@ class Phase9CrossSeatWiringTest {
                 .getId())).as("absent 학생은 이 하차와 무관하게 그대로 남아야 한다").isEqualTo("absent");
     }
 
-    // ── 2. T2(도착) → T1(노선 조회) — 실제 도착 기록이 current_stop·next_stop 에 그대로 반영된다 ──
+    // ── 2. 도착 → 노선 조회 — 실제 도착 기록이 current_stop·next_stop 에 그대로 반영된다 ──
 
     @Test
     @DisplayName("교차2 — 실제 arrive 로 남긴 도착 기록이 GET route 의 current_stop·next_stop 에 그대로 반영된다")
@@ -152,13 +151,13 @@ class Phase9CrossSeatWiringTest {
         long runStop2 = DriverRunFixtures.of(applicationContext).runStopForStop(versionId, stop2, 2, OffsetDateTime.now(clock));
         DriverRunFixtures.of(applicationContext).runStopForStop(versionId, stop3, 3, OffsetDateTime.now(clock));
 
-        // T2 — 1번 정차지에 실제로 도착(최종이 아니라 회차는 계속 moving).
+        // 1번 정차지에 실제로 도착(최종이 아니라 회차는 계속 moving).
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop1 + "/arrive")
                         .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.is_final").value(false));
 
-        // T1 — 같은 회차의 실시간 노선 조회.
+        // 같은 회차의 실시간 노선 조회.
         mockMvc.perform(get("/api/v1/runs/" + runId + "/route")
                         .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
@@ -166,10 +165,10 @@ class Phase9CrossSeatWiringTest {
                 .andExpect(jsonPath("$.data.next_stop.stop_id").value(runStop2));
     }
 
-    // ── 3. T3(미승차 → 정차지 skip) → T4(내비게이션) — 실제로 skip 된 정차지가 내비 결과에서 빠진다 ──
+    // ── 3. 미승차 PATCH(정차지 skip) → 내비게이션 — 실제로 skip 된 정차지가 내비 결과에서 빠진다 ──
 
     /**
-     * 이미 absent 처리된 학생 + 지금 no_show 처리하는 학생 1명뿐이면(잔여 0명), T3 의 실제 PATCH 가
+     * 이미 absent 처리된 학생 + 지금 no_show 처리하는 학생 1명뿐이면(잔여 0명), 미승차 PATCH 가
      * {@code run_stop.change} 를 {@code skipped} 로 전환한다({@code BoardingControllerTest} 와 같은
      * 함정 — absent 를 잔여로 잘못 세면 stop 이 skip 되지 않아 이 시험 자체가 성립하지 않는다).
      */
@@ -195,7 +194,7 @@ class Phase9CrossSeatWiringTest {
         long targetStudentId = DriverRunFixtures.of(applicationContext).student(academyId, "미승차대상");
         long targetRiderId = DriverRunFixtures.of(applicationContext).rider(runId, targetStudentId, stop1, RiderStatus.WAITING, OffsetDateTime.now(clock));
 
-        // T3 — 실제 미승차 PATCH. stop1 의 잔여가 0명이 되어 run_stop 이 실제로 skipped 로 전환된다.
+        // 실제 미승차 PATCH. stop1 의 잔여가 0명이 되어 run_stop 이 실제로 skipped 로 전환된다.
         mockMvc.perform(patch("/api/v1/runs/" + runId + "/riders/" + targetRiderId)
                         .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -205,7 +204,7 @@ class Phase9CrossSeatWiringTest {
         entityManager.flush();
         assertThat(정차_change(versionId, stop1)).isEqualTo("skipped");
 
-        // T4 — 같은 회차의 내비게이션 조회. skip 된 stop1 은 빠지고 stop2 만 남아야 한다.
+        // 같은 회차의 내비게이션 조회. skip 된 stop1 은 빠지고 stop2 만 남아야 한다.
         mockMvc.perform(get("/api/v1/runs/" + runId + "/navigation").param("scope", "remaining")
                         .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())

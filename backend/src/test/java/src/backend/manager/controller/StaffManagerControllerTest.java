@@ -41,7 +41,7 @@ import src.backend.manager.repository.AssignmentRepository;
 import src.backend.run.entity.Run;
 
 /**
- * §5.13 {@code /staff/managers} — MGR-01·02·03·04 · A-12 (Phase 5 목표 4).
+ * §5.13 {@code /staff/managers} — MGR-01·02·03·04 · A-12.
  *
  * <p><b>이 클래스의 최우선 단언은 배치된 매니저 삭제가 {@code 409} 이고 {@code deleted_at} 이 NULL 로
  * 남는다는 것</b>이다. 응답 코드만 보면 저장 계층에서 새어 나온 {@code 500} 과 구별되지 않고,
@@ -176,7 +176,7 @@ class StaffManagerControllerTest {
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
-    // ── MGR-04 삭제 (목표 4) ──────────────────────────────────────────────
+    // ── MGR-04 삭제 ──────────────────────────────────────────────
 
     /** 배치되지 않은 매니저는 삭제되고 {@code deleted_at} 이 채워진다(soft delete, ERD §7.1). */
     @Test
@@ -189,7 +189,7 @@ class StaffManagerControllerTest {
     }
 
     /**
-     * 목표 4 — 배치된 매니저 삭제는 {@code 409 MANAGER_ASSIGNED} 이고 {@code deleted_at} 이 <b>NULL 로
+     * 배치된 매니저 삭제는 {@code 409 MANAGER_ASSIGNED} 이고 {@code deleted_at} 이 <b>NULL 로
      * 남는다</b>.
      *
      * <p>두 단언이 각각 다른 사고를 막는다. 응답 코드만 보면 {@code 500}(선검사를 건너뛰어 저장 계층
@@ -447,8 +447,8 @@ class StaffManagerControllerTest {
     /**
      * 요청한 {@code size} 가 <b>실제로 반환 건수를 제한</b>하고, 다음 페이지가 나머지를 담는다(§1.8).
      *
-     * <p>차량 목록과 같은 축이다 — 같은 공백이 이 저장소의 목록 API 전반에서 발견됐다(게이트 리뷰
-     * A1). 매니저 쪽에 따로 거는 이유는 두 서비스가 각자 {@code Pageable} 을 만들어, 한쪽을 고쳐도
+     * <p>차량 목록과 같은 축이다 — 같은 공백이 이 저장소의 목록 API 전반에서 발견됐다.
+     * 매니저 쪽에 따로 거는 이유는 두 서비스가 각자 {@code Pageable} 을 만들어, 한쪽을 고쳐도
      * 다른 쪽은 그대로 남기 때문이다.
      */
     @Test
@@ -532,7 +532,7 @@ class StaffManagerControllerTest {
      * 배치 대상 회차를 만든다 — {@code assignment.run_id} 가 FK NN 이라 회차가 없으면 배치 행이 없다.
      *
      * <p>{@code RunRepository} 를 만들지 않고 {@link EntityManager} 로 저장한다 — 회차를 만드는
-     * 프로덕션 경로(SCH-02·03)가 이 태스크 범위 밖이라, 저장소를 두면 호출자 없는 프로덕션 코드가 된다.
+     * 프로덕션 경로(SCH-02·03)를 이 시험이 거치지 않아, 저장소를 두면 호출자 없는 프로덕션 코드가 된다.
      * 정적 팩토리를 거치므로 상태 자체는 그 경로가 만들 것과 같다.
      */
     private long 회차를_만든다(long busId) {
@@ -581,7 +581,7 @@ class StaffManagerControllerTest {
                 accountId);
     }
 
-    /** 매니저를 회차에 배치한다 — 배치 API(§5.14)는 T5 소유라 저장소와 정적 팩토리로 만든다. */
+    /** 매니저를 회차에 배치한다 — 배치 API(§5.14)를 거치지 않고 저장소와 정적 팩토리로 만든다. */
     private void 배치한다(long managerId, long runId) {
         assignmentRepository.save(Assignment.uponAssignment(runId, managerId, ManagerRole.DRIVER,
                 OffsetDateTime.now(clock), STAFF_A_ACCOUNT_ID));

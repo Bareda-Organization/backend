@@ -17,7 +17,7 @@ import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
 
 /**
- * 미승차 케이스 한 건을 에스컬레이션으로 반영하는 <b>단일 진입점</b>(목표 1, API_SPEC §4.8) —
+ * 미승차 케이스 한 건을 에스컬레이션으로 반영하는 <b>단일 진입점</b>(API_SPEC §4.8) —
  * 폴링 스케줄러({@code NoShowEscalationScheduler})만 {@link #escalateOne} 을 부른다.
  *
  * <p>스케줄러와 다른 빈으로 둔 이유는 {@code ChangeRequestAutoRejectionPersistence} 와 같다 — 한

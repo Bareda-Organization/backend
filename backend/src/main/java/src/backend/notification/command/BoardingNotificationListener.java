@@ -38,14 +38,14 @@ import src.backend.student.repository.StudentRepository;
  * 와 같은 형태로 도메인 이벤트를 구독해 {@link NotificationOutbox} 에만 적는다. 승하차 처리 커맨드가
  * 이 클래스를 직접 부르지 않는다(§7 규칙 17).
  *
- * <p><b>발송 시점이 상태 변경 즉시가 아니라 그 승하차지를 출발할 때다(Ruling 308, docs/archive/rounds/be-rounds-r15-r21.md §8.23 T3)</b> —
+ * <p><b>발송 시점이 상태 변경 즉시가 아니라 그 승하차지를 출발할 때다(Ruling 308)</b> —
  * {@link #appendStopDeparted} 가 {@link StopDepartedEvent} 를 구독해 그 시점의 확정 결과를 학생별로
  * 1건씩 적재한다. 출발 전 되돌리기(승차↔하차↔대기)를 몇 번 반복해도 알림은 나가지 않으므로, 되돌리기
  * 전용 정정 알림({@code Ruling 219})은 더 이상 필요 없어 폐기됐다 — 정정할 대상 자체가 없다(출발
  * 전 수정은 발송 전이다). 단 이미 출발 처리된 승하차지에 뒤늦게 기록된 승차·하차·미승차는 출발 때 묶음이 다시 오지 않으므로
  * {@link #appendRecordedAfterDeparture} 가 기록 즉시 보낸다(Ruling 878).
  *
- * <p>멱등(목표 12)의 1차 방어선은 이 리스너가 아니라 <b>{@code claimDeparture} 조건부 UPDATE</b>다 —
+ * <p>멱등의 1차 방어선은 이 리스너가 아니라 <b>{@code claimDeparture} 조건부 UPDATE</b>다 —
  * 같은 정차지가 여러 경로로 중복 선점을 시도해도 {@link StopDepartedEvent} 는 최초 1회만 발행된다
  * ({@link src.backend.run.command.StopDepartureService} 참고). {@code dedup_key} 는
  * {@link NotificationOutbox} 의 통상적인 2차 방어선일 뿐이다.
@@ -71,7 +71,7 @@ public class BoardingNotificationListener {
     /**
      * 그 승하차지를 출발할 때(Ruling 308) 확정 결과를 학생별로 1건씩 적재한다 — 승차·하차·미승차
      * 학부모 알림(BRD-01·02·04)을 여기서 함께 다룬다. {@code waiting} 인 채 출발한 학생은 발송
-     * 대상이 아니다(목표 9) — {@link RunRiderRepository#findFinalizedByRunIdAndStopId} 가 이미 그
+     * 대상이 아니다 — {@link RunRiderRepository#findFinalizedByRunIdAndStopId} 가 이미 그
      * 상태를 걸러 조회한다.
      *
      * <p>보호자 조회는 학생마다 따로 묻지 않고 <b>학생 id 전부를 한 번에</b> 묻는다(BR-134) —

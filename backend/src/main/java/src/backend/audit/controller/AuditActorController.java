@@ -19,7 +19,7 @@ import src.backend.global.response.ApiResponse;
 import src.backend.global.security.authz.Can;
 import src.backend.global.security.authz.Permissions;
 
-/** 감사 화면의 행위자 찾기 API(API_SPEC §6.13 {@code GET /admin/audit-actors}, R46 감사 · Ruling 447). */
+/** 감사 화면의 행위자 찾기 API(API_SPEC §6.13 {@code GET /admin/audit-actors}, Ruling 447). */
 @Tag(name = ApiTags.ADMIN)
 @RestController
 @RequestMapping("/admin/audit-actors")

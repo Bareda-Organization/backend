@@ -30,8 +30,7 @@ import src.backend.student.repository.WeeklyAddressRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 확정 배치 스케줄러({@link RunConfirmationScheduler#confirmDueRuns}) 수준의 검증(Phase 7 목표
- * 3 · 4 · 6) — {@code RunConfirmationServiceTest} 가 회차 1건의 결과물을 보는 것과 달리, 이 클래스는
+ * 확정 배치 스케줄러({@link RunConfirmationScheduler#confirmDueRuns}) 수준의 검증 — {@code RunConfirmationServiceTest} 가 회차 1건의 결과물을 보는 것과 달리, 이 클래스는
  * <b>여러 회차 중 무엇을 언제 얼마나 집는지</b>를 본다.
  *
  * <p>{@code @Transactional} 을 쓰지 않는다 — {@link RunConfirmationScheduler#confirmDueRuns} 가
@@ -181,7 +180,7 @@ class RunConfirmationSchedulerTest {
     }
 
     /**
-     * R46-KFIXBE K-2(Ruling 703) — 영구 실패 회차를 30초마다 다시 시도하지 않는다. 실패할 때마다 다음 시도까지의 간격이 늘고(30초 · 60초 · …),
+     * Ruling 703 — 영구 실패 회차를 30초마다 다시 시도하지 않는다. 실패할 때마다 다음 시도까지의 간격이 늘고(30초 · 60초 · …),
      * 그 사이 틱은 그 회차를 집지 않는다. <b>판정 시각({@code confirm_at})은 그대로</b>라 간격이 지나면 다시 대상이 된다 — 두 시계를 섞지 않는다.
      */
     @Test
@@ -276,7 +275,7 @@ class RunConfirmationSchedulerTest {
         // 5년 전으로 잡는 이유는 이 시험 밖의 확정 대상과 자리를 다투지 않기 위해서다 — 배치는
         // confirm_at 오름차순으로 BATCH_SIZE 건을 집으므로(RunRepository 파인더 이름), 공유 DB 에
         // 남은 다른 idle 회차(예: 시드의 오늘 회차)가 이 시험보다 이른 시각이면 한 자리를 가져가
-        // 자기 회차가 49건만 확정된다 — 실제로 그렇게 실패했다(2026-09-09). 시험이 만든 회차가
+        // 자기 회차가 49건만 확정된다 — 실제로 그렇게 실패했다. 시험이 만든 회차가
         // 항상 가장 오래된 후보가 되게 해 실행 순서·잔여 데이터와 무관하게 만든다.
         OffsetDateTime baseConfirmAt = OffsetDateTime.now(clock).minusYears(5);
         int total = RunConfirmationScheduler.BATCH_SIZE + 1;

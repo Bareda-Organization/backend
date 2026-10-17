@@ -33,9 +33,9 @@ import testsupport.db.MigratedPostgresTestBase;
  * {@link RefreshToken} · {@link VerificationCode})가 실제 V1 스키마와 정확히 맞는지 확인한다.
  *
  * <p>{@code @EntityScan} 으로 {@code account.entity} 패키지만 매핑 대상에 넣는다 — 다른
- * 에이전트가 각자 워크트리에서 만드는 나머지 34개 테이블용 엔티티는 이 워크트리에 없으므로
- * {@code BackendApplication} 기본 스캔을 그대로 쓰면 컨텍스트 로딩이 실패한다(Task 3 선례와 동일
- * 이유). FK 대상인 {@code academy} 는 이 태스크 범위 밖이라 엔티티가 없어, 최소 컬럼만 채운
+ * 모듈의 나머지 34개 테이블용 엔티티는 이 시험에 없으므로
+ * {@code BackendApplication} 기본 스캔을 그대로 쓰면 컨텍스트 로딩이 실패한다(선례와 동일
+ * 이유). FK 대상인 {@code academy} 는 이 시험의 매핑 대상이 아니라서, 최소 컬럼만 채운
  * 행을 네이티브 SQL 로 직접 넣는다.
  */
 @DataJpaTest(properties = {
@@ -63,7 +63,7 @@ class AccountEntitySchemaValidationTest extends MigratedPostgresTestBase {
     @Autowired
     private EntityManager entityManager;
 
-    /** {@code academy} 엔티티가 이 워크트리에 없어, FK 를 만족시키는 최소 행을 네이티브 SQL 로 만든다. */
+    /** {@code academy} 엔티티는 이 시험의 매핑 대상이 아니라서, FK 를 만족시키는 최소 행을 네이티브 SQL 로 만든다. */
     private Long insertAcademy(String code) {
         Number academyId = (Number) entityManager.createNativeQuery(
                         "INSERT INTO academy (code, name, region, status) "

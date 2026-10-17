@@ -43,7 +43,7 @@ import testsupport.db.ConnectionCountingConfig;
 /**
  * DA-6(Ruling 899) — 운행 명단 조회 1회는 풀에서 연결을 <b>한 번</b> 얻는다(읽기 트랜잭션 하나). 감사 기록({@code REQUIRES_NEW})은
  * 그 읽기가 끝나 연결을 돌려준 <b>뒤</b>에 두 번째로 얻는다 — 한 요청이 연결 둘을 동시에 쥐면 동시 요청이 풀 크기에 닿을 때 서로의 두 번째 연결을
- * 기다려 풀리지 않는다(R46 감사 #1).
+ * 기다려 풀리지 않는다.
  */
 @SpringBootTest
 @Import(ConnectionCountingConfig.class)

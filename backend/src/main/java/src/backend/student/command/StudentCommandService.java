@@ -137,7 +137,7 @@ public class StudentCommandService {
     }
 
     /**
-     * 학생 사진을 지운다(R56 Ruling 894 ③) — {@code photo_url} 을 비우고 저장 파일은 커밋 뒤 지운다. 사진이 이미 없으면 아무것도 하지
+     * 학생 사진을 지운다(Ruling 894 ③) — {@code photo_url} 을 비우고 저장 파일은 커밋 뒤 지운다. 사진이 이미 없으면 아무것도 하지
      * 않는다(멱등 · 감사도 남기지 않는다 — 바뀐 것이 없다). 감사는 사진 교체와 같은 L3 수정 1행이다.
      */
     public void removePhoto(AuthUser requester, Long studentId) {
@@ -182,7 +182,7 @@ public class StudentCommandService {
         student.withdraw(at);
         Set<Long> affectedAccounts = openChannelAccountsOf(student); // 연결을 끊기 전에 모은다 — 끊은 뒤에는 보호자를 찾을 수 없다
         unlinkGuardians(student, at);
-        eventPublisher.publishEvent(new AccountSessionsRevokeEvent(affectedAccounts)); // 커밋 직후 그 계정들의 열린 세션을 닫는다(R57 RT-2)
+        eventPublisher.publishEvent(new AccountSessionsRevokeEvent(affectedAccounts)); // 커밋 직후 그 계정들의 열린 세션을 닫는다
         recordChange(requester, student, AuditAction.DELETE, Map.of());
         return StudentWithdrawalResponse.from(student);
     }
@@ -209,7 +209,7 @@ public class StudentCommandService {
                 .forEach(link -> link.unlink(at));
     }
 
-    /** 이 학생의 채널을 구독할 수 있던 계정 — 살아 있는 보호자 연결의 계정과 학생 본인 계정(R57 K2 ⓑ). */
+    /** 이 학생의 채널을 구독할 수 있던 계정 — 살아 있는 보호자 연결의 계정과 학생 본인 계정. */
     private Set<Long> openChannelAccountsOf(Student student) {
         Set<Long> accounts = guardianStudentRepository
                 .findActiveGuardianAccountsByStudentIds(student.getAcademyId(), List.of(student.getId())).stream()

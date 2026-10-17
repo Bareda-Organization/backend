@@ -27,9 +27,9 @@ import src.backend.notification.entity.NotificationSetting;
 import src.backend.notification.repository.NotificationSettingRepository;
 
 /**
- * {@code GET}·{@code PATCH /me/notification-settings}(API_SPEC §3.14, Phase 12 목표 7·9).
- * 목표 7(조회·수정)·목표 9(설정 대상 밖 항목 422) 를 각각 시험한다 — 목표 8(끄면 푸시만 막히고
- * 로그는 남는다)은 발송 경로까지 걸쳐 {@link src.backend.notification.NotificationDispatchGateTest}
+ * {@code GET}·{@code PATCH /me/notification-settings}(API_SPEC §3.14).
+ * 조회·수정, 설정 대상 밖 항목 422 를 각각 시험한다 — 끄면 푸시만 막히고
+ * 로그는 남는다는 것은 발송 경로까지 걸쳐 {@link src.backend.notification.NotificationDispatchGateTest}
  * 가 따로 본다.
  */
 @SpringBootTest
@@ -65,7 +65,7 @@ class NotificationSettingControllerTest {
                 "010-7000-0002", null, Role.STAFF)).getId();
     }
 
-    // ── 목표7 — 조회: 설정 행이 없어도 기본값(전부 on)을 돌려준다(저장은 하지 않는다, BR-096) ─────
+    // ── 조회: 설정 행이 없어도 기본값(전부 on)을 돌려준다(저장은 하지 않는다, BR-096) ─────
 
     @Test
     @DisplayName("목표7 — 설정 행이 없는 계정도 GET 하면 기본값(전부 on)을 돌려주되 행을 만들지 않는다")
@@ -83,7 +83,7 @@ class NotificationSettingControllerTest {
                 .as("조회는 쓰기를 겸하지 않는다(BR-096) — 행을 만드는 것은 PATCH 뿐이다").isEmpty();
     }
 
-    // ── 목표7 — 수정: PATCH 로 바뀐 값이 응답과 다음 GET 조회 모두에 반영된다 ─────
+    // ── 수정: PATCH 로 바뀐 값이 응답과 다음 GET 조회 모두에 반영된다 ─────
 
     @Test
     @DisplayName("목표7 — PATCH 로 바꾼 값이 그 응답과 다음 GET 조회 모두에 반영된다")
@@ -108,7 +108,7 @@ class NotificationSettingControllerTest {
                 .andExpect(jsonPath("$.data.no_show").value(false));
     }
 
-    // ── 목표7 — 학생 계정도 같은 화면을 쓸 수 있다(API_SPEC §3.14 "학부모·학생") ───
+    // ── 학생 계정도 같은 화면을 쓸 수 있다(API_SPEC §3.14 "학부모·학생") ───
 
     @Test
     @DisplayName("목표7 — 학생 계정도 조회·수정할 수 있다")
@@ -134,7 +134,7 @@ class NotificationSettingControllerTest {
                 .andExpect(jsonPath("$.data.arrive").value(false));
     }
 
-    // ── 목표9 — 설정 대상 밖 항목을 PATCH 하면 422 VALIDATION_FAILED ────────────
+    // ── 설정 대상 밖 항목을 PATCH 하면 422 VALIDATION_FAILED ────────────
 
     @Test
     @DisplayName("목표9 — 설정 대상 밖 항목(delay)을 섞어 PATCH 하면 422 VALIDATION_FAILED 이고 값은 바뀌지 않는다")
@@ -154,7 +154,7 @@ class NotificationSettingControllerTest {
     }
 
     /**
-     * Ruling 869 — 보낸 항목만 바꾸고 빠진 키는 그대로 둔다(API_SPEC §1.14). 이전에는 일부만 보내면 422 였다.
+     * Ruling 869 — 보낸 항목만 바꾸고 빠진 키는 그대로 둔다(API_SPEC §1.14). 일부만 보내면 422 가 나면 안 된다.
      */
     @Test
     @DisplayName("Ruling 869 — 한 항목만 PATCH 하면 그 항목만 바뀌고 나머지는 그대로다")
@@ -217,7 +217,7 @@ class NotificationSettingControllerTest {
                 .andExpect(jsonPath("$.data.no_show").value(false));
     }
 
-    // ── 목표9 — 3개 항목만 정확히 보내면(대상 안) 200 이다 — 위 422 의 대응하는 양성 사례 ───
+    // ── 3개 항목만 정확히 보내면(대상 안) 200 이다 — 위 422 의 대응하는 양성 사례 ───
 
     @Test
     @DisplayName("목표9 — 3개 항목만 정확히 PATCH 하면 200 이다")

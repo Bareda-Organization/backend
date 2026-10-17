@@ -117,7 +117,7 @@ class AccountStatusGateInterceptorTest {
      * blocked 는 로그인 단계({@code Account.assertNotBlocked})에서 이미 걸러지는 상태라 이 게이트까지
      * 도달하는 것 자체가 이례적이나, 활성으로 로그인한 뒤 차단되면 기존 토큰이 만료될 때까지는 이
      * 분기가 §1.4 의 "blocked → 접근 부재"를 강제하는 유일한 지점이다 — 허용 애너테이션이 붙은
-     * 핸들러조차 예외 없이 막아야 한다(리뷰 라운드 1 Important #4).
+     * 핸들러조차 예외 없이 막아야 한다.
      */
     @Test
     void blocked_토큰은_허용_애너테이션이_붙은_핸들러에서도_403_AUTH_ACCOUNT_BLOCKED_이다() throws Exception {
@@ -130,10 +130,9 @@ class AccountStatusGateInterceptorTest {
 
     /**
      * {@link GateTestController} 는 이 테스트와 같은 커밋의 같은 저자가 쓴 픽스처라, 그것만 세면
-     * 프로덕션 컨트롤러의 부착 누락을 검출하지 못한다(리뷰 라운드 1 Important #1) —
+     * 프로덕션 컨트롤러의 부착 누락을 검출하지 못한다 —
      * {@code src/main} 을 직접 스캔한다({@code ControllerAuthorizationConventionTest} 의 소스
-     * 스캔·의도적 RED 선례를 따른다, Ruling 73). Task 4 가 로그인·refresh·로그아웃·비밀번호 변경·
-     * 복구와 {@code /me}·기기 등록·해지의 게이트 부착을 마치며 2/3 → 5/6 으로 전환됐다.
+     * 스캔·의도적 RED 선례를 따른다, Ruling 73).
      */
     @Test
     void 허용_애너테이션이_붙은_실제_핸들러_수가_pending_5개_rejected_6개다() {

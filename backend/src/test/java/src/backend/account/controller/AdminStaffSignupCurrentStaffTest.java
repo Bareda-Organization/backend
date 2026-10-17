@@ -24,7 +24,7 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
- * R48 이 관계자 가입 요청 목록에 더한 {@code current_staff}(API_SPEC §6.4, Ruling 807) — 그 학원의 <b>재직</b>
+ * 관계자 가입 요청 목록에 싣는 {@code current_staff}(API_SPEC §6.4, Ruling 807) — 그 학원의 <b>재직</b>
  * 관계자 한 명. 정원이 1명이라 승인이 막힌 이유와 푸는 방법(그 사람 퇴사 처리)을 처리 화면에 보이려는 값이다.
  */
 @SpringBootTest

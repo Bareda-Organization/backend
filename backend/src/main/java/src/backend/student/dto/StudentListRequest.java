@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.BindParam;
  * 때문이다({@code AcademyListRequest} 와 같은 규약).
  *
  * <p>{@code class_name}(반 이름 일치)·{@code filter}({@code guardian_unlinked}·{@code address_missing} — 그 밖의 값은
- * {@code 422})는 R48 이 더했다(Ruling 815). {@code class_name} 은 두 단어라 {@code @ModelAttribute} 가 스네이크케이스
+ * {@code 422})는 Ruling 815 에 따른다. {@code class_name} 은 두 단어라 {@code @ModelAttribute} 가 스네이크케이스
  * 이름을 자바 필드에 못 붙이므로 {@link BindParam} 으로 쿼리 이름을 직접 알려 준다.
  */
 public record StudentListRequest(String q, @BindParam("class_name") String className, String filter, Integer page,

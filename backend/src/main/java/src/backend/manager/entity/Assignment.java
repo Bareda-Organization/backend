@@ -25,7 +25,7 @@ import src.backend.global.common.enums.ManagerRole;
  * {@code assigned_at} 을 배치 발생 시각으로 직접 관리한다.
  *
  * <p>{@code acked_route_version_id}·{@code acked_at} 은 노선 재배포 후 확인 응답을 기록하는
- * 상태 전이 대상이라 이 태스크(Phase 1)에서는 채우지 않고 {@code null} 로 둔다.
+ * 상태 전이 대상이라 채우지 않고 {@code null} 로 둔다.
  */
 @Entity
 @Table(name = "assignment")

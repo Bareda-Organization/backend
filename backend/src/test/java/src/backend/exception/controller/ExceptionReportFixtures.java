@@ -38,9 +38,8 @@ import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * 현장 예외 보고(T3, Phase 11 goal 15·16) 시험이 쓰는 실제 행 — {@code DriverRunFixtures} 와 같은
- * 이유로 정상 경로의 팩토리로 쌓는다(그 클래스는 T2 소유라 직접 재사용하지 않고 필요한 부분집합만
- * 따로 둔다).
+ * 현장 예외 보고 시험이 쓰는 실제 행 — {@code DriverRunFixtures} 와 같은
+ * 이유로 정상 경로의 팩토리로 쌓는다. {@code DriverRunFixtures} 는 공유하지 않고 필요한 부분집합만 따로 둔다.
  */
 public class ExceptionReportFixtures {
 
@@ -182,7 +181,7 @@ public class ExceptionReportFixtures {
     }
 
     /**
-     * 예외 보고 1건을 직접 심는다(goal 16 필터 시험의 매칭·비매칭 행 조성용) — {@code type} 이
+     * 예외 보고 1건을 직접 심는다(필터 시험의 매칭·비매칭 행 조성용) — {@code type} 이
      * {@code GUARDIAN_ABSENT} 면 {@code runRiderId} 를 반드시 넘겨야 한다({@code CommandService} 를
      * 거치지 않고 저장소에 직접 넣으므로 DB CHECK 만 그 조건을 지킨다).
      */

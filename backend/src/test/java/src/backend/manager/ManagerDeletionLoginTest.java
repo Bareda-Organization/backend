@@ -51,7 +51,7 @@ import jakarta.persistence.PersistenceContext;
  * <p>거부측의 짝은 {@code StaffEmploymentLoginTest} 다 — 그쪽이 {@code academy_staff} 를, 이쪽이 매니저를 맡고
  * 같은 코드로 답한다.
  *
- * <p>재료를 SQL 로 심지 않고 <b>실제 등록 경로</b>로 만든다(목표 10 의 취지) — 매니저는 MGR-02 로,
+ * <p>재료를 SQL 로 심지 않고 <b>실제 등록 경로</b>로 만든다 — 매니저는 MGR-02 로,
  * 계정 ↔ 매니저 연결은 {@code §5.2} 가입 승인의 {@code link.manager_id} 로 만든다. 그 두 경로를
  * 거치지 않으면 {@code manager.account_id} 가 실제로 채워지는지가 이 시험의 전제에서 빠진다.
  */

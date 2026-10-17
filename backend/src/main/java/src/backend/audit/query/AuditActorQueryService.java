@@ -19,7 +19,7 @@ import src.backend.audit.dto.AuditActorResponse;
 import src.backend.global.persistence.LikeEscape;
 
 /**
- * 감사 화면의 행위자 찾기(R46 감사, Ruling 447) — 계정 ID 를 손으로 치지 않고 이름·로그인 아이디 일부로 고른다.
+ * 감사 화면의 행위자 찾기(Ruling 447) — 계정 ID 를 손으로 치지 않고 이름·로그인 아이디 일부로 고른다.
  *
  * <p>페이징이 없고 {@link #MAX_RESULTS} 건에서 자른다 — 사람이 글자를 더 쳐서 좁히는 자리이지 훑는 목록이 아니다.
  */

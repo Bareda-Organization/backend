@@ -21,7 +21,7 @@ import src.backend.global.websocket.WebSocketBroadcastGateway;
 
 /**
  * 유령 세션 방지 ② — 하트비트를 끈({@code heart-beat:0,0}) 클라이언트가 조용히 사라져도 유휴 제한 안에 서버가 세션을 치운다
- * (R46-CONNCAP, Ruling 693).
+ * (Ruling 693).
  *
  * <p>하트비트를 협상하지 않으면 Spring 의 읽기 감시가 꺼져 서버는 이 세션을 영원히 살아 있다고 본다 — 다음 방송 쓰기가 실패할
  * 때까지 메모리에 남는다. 그 구멍을 {@code app.ws.idle-timeout-ms}(운영 60초)가 막고, 시험은 3초로 줄여 넣는다. Tomcat 이 유휴를

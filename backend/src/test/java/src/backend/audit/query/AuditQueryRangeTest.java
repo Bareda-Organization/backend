@@ -12,7 +12,7 @@ import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 
 /**
- * 감사·접속 이력 조회 기간의 기본값(R46 I-05, API_SPEC §6.13) — {@code from} 을 안 주면 연도 1 부터 읽어 필터 없는 첫 화면의
+ * 감사·접속 이력 조회 기간의 기본값(API_SPEC §6.13) — {@code from} 을 안 주면 연도 1 부터 읽어 필터 없는 첫 화면의
  * 개수 쿼리가 보존 기간(2년) 전체를 훑었다(실측 순차 스캔 15,674 버퍼 · 137ms → 30일이면 962 버퍼 · 6.6ms).
  */
 class AuditQueryRangeTest {

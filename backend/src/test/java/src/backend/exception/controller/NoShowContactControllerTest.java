@@ -41,7 +41,7 @@ import src.backend.manager.repository.ManagerRepository;
 import testsupport.clock.FixedClock20310401Config;
 
 /**
- * 미승차 연락 시도 기록(API_SPEC §4.8, Phase 11 목표 3) — {@code POST
+ * 미승차 연락 시도 기록(API_SPEC §4.8) — {@code POST
  * /runs/{runId}/riders/{riderId}/no-show-contacts}. 케이스는 {@code BoardingController} 의 no_show
  * 처리 경로를 거치지 않고 {@link NoShowCaseRepository} 로 직접 만든다({@code NoShowEscalationFixtures}
  * 와 같은 근거 — 이 컨트롤러의 관심사는 이미 존재하는 케이스에 연락 시도를 쌓는 것이지 케이스 생성
@@ -113,7 +113,7 @@ class NoShowContactControllerTest {
         return new long[] { academyId, runId, riderId, noShowCase.getId() };
     }
 
-    // ── 목표3 — 적재: 연락 시도가 no_show_contact 에 실제로 쌓인다 ──────────────
+    // ── 적재:연락 시도가 no_show_contact 에 실제로 쌓인다 ──────────────
 
     @Test
     @DisplayName("목표3 — 동승자가 연락 시도를 기록하면 no_show_contact 행이 생기고 201 을 응답한다")
@@ -170,7 +170,7 @@ class NoShowContactControllerTest {
                 Integer.class, caseId)).as("이력이 쌓이지 않아야 한다").isZero();
     }
 
-    // ── 목표3 — 중단: result=answered 면 카운트다운을 멈춘다 ────────────────────
+    // ── 중단:result=answered 면 카운트다운을 멈춘다 ────────────────────
 
     @Test
     @DisplayName("목표3 — result=answered 로 기록하면 케이스가 즉시 종결되고 다음 폴링에서 제외된다")
@@ -229,7 +229,7 @@ class NoShowContactControllerTest {
                 .contains(caseId);
     }
 
-    // ── 목표3 — 권한: 동승자 전용, 다른 역할은 거부된다 ──────────────────────
+    // ── 권한:동승자 전용, 다른 역할은 거부된다 ──────────────────────
 
     @Test
     @DisplayName("목표3 — 기사 토큰으로 연락 시도를 기록하려 하면 403 ESCORT_ONLY 이고 아무 행도 생기지 않는다")
@@ -254,7 +254,7 @@ class NoShowContactControllerTest {
                 Integer.class, caseId)).as("거부됐으니 행이 생기면 안 된다").isEqualTo(0);
     }
 
-    // ── 목표3 — 학원 범위: 남의 학원 회차에는 접근할 수 없다 ────────────────────
+    // ── 학원 범위:남의 학원 회차에는 접근할 수 없다 ────────────────────
 
     @Test
     @DisplayName("목표3 — 다른 학원 동승자가 접근하면 403 FORBIDDEN 이고 아무 행도 생기지 않는다(§1.11, Ruling 259(b))")
@@ -281,7 +281,7 @@ class NoShowContactControllerTest {
                 Integer.class, caseId)).as("거부됐으니 행이 생기면 안 된다").isEqualTo(0);
     }
 
-    // ── R56 K4(Ruling 894 ⑧) — 오프라인 큐 재전송 키 ─────────────────────────────
+    // ── Ruling 894 ⑧ — 오프라인 큐 재전송 키 ─────────────────────────────
 
     @Test
     @DisplayName("R56 K4 — 같은 client_key 를 두 번 보내면 행은 1개이고 두 번째는 200 으로 최초 결과를 돌려준다")

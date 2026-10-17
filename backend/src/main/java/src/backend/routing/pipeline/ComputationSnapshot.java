@@ -28,7 +28,7 @@ public record ComputationSnapshot(
 
     /**
      * 컬럼 폭을 여기서 막는 이유는 {@code varchar(30)} 이 DB 에만 있으면 이름이 긴 전략을 새로
-     * 끼웠을 때 <b>계산은 전부 끝난 뒤 저장(Phase 7)에서만</b> 터지기 때문이다 — 그 시점에는 이미
+     * 끼웠을 때 <b>계산은 전부 끝난 뒤 저장에서만</b> 터지기 때문이다 — 그 시점에는 이미
      * 외부 지도 API 호출까지 마친 상태라 회차 하나가 통째로 버려진다.
      */
     public ComputationSnapshot {

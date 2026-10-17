@@ -35,7 +35,7 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
- * Phase 14 T1 목표 3·4 음성 대조용 — {@code /admin/audit-logs} 와 {@code /admin/login-history} 가
+ * 음성 대조용 — {@code /admin/audit-logs} 와 {@code /admin/login-history} 가
  * 서버 쪽 {@code category} 하드 필터를 지키는지, {@code academy_id}·{@code account_id} 필터가 미등록
  * 대상에서 404 를 내는지 직접 HTTP 로 확인한다.
  *
@@ -151,15 +151,14 @@ class AuditQueryControllerTest {
     }
 
     /**
-     * Phase 14 수정 라운드 1 — §6.13 {@code /admin/audit-logs} 응답 JSON 키 6개를 문자열로 단언한다
-     * (review-p14-r1.md 재판정 ③, {@code AuditLogItemResponse.targetType} → {@code targetKind} 개명이
+     * §6.13 {@code /admin/audit-logs} 응답 JSON 키 6개를 문자열로 단언한다
+     * ({@code AuditLogItemResponse.targetType} → {@code targetKind} 개명이
      * 살아남는지 이 테스트가 가른다).
      *
      * <p>{@code academy_id} 는 실제 사용 경로(학생·회차 명단 조회는 전부 학원 범위 안)와 같게 실
      * 학원을 채운다 — {@code null} 로 두면 {@code AuditLogQueryService.academyNamesOf} 가 만드는
      * {@code Map.of()}(빈 불변 맵)에 {@code null} 키로 {@code get} 을 호출해 NPE 가 나는 별개의
-     * 결함을 이 테스트가 우연히 건드리게 된다 — 그 결함은 이번 라운드 대상(JSON 키 노출)이 아니라
-     * 별도로 보고한다.
+     * 결함을 이 테스트가 우연히 건드리게 된다 — 그 결함은 이 시험의 대상(JSON 키 노출)이 아니다.
      */
     @Test
     void audit_logs_응답은_snake_case_키_6개를_그대로_노출한다() throws Exception {
@@ -183,8 +182,8 @@ class AuditQueryControllerTest {
     }
 
     /**
-     * Phase 14 수정 라운드 1 — §6.13 {@code /admin/login-history} 응답 JSON 키 6개를 문자열로
-     * 단언한다(review-p14-r1.md 재판정 ③).
+     * §6.13 {@code /admin/login-history} 응답 JSON 키 6개를 문자열로
+     * 단언한다.
      */
     @Test
     void login_history_응답은_snake_case_키_6개를_그대로_노출한다() throws Exception {
@@ -207,7 +206,7 @@ class AuditQueryControllerTest {
                 .andExpect(jsonPath("$.data.items[0].block_event").value(false));
     }
 
-    /** R46 감사 화면(Ruling 446) — {@code action} 으로 조회·수정·삭제를 가른다. 안 주면 셋 다 나온다. */
+    /** 감사 화면(Ruling 446) — {@code action} 으로 조회·수정·삭제를 가른다. 안 주면 셋 다 나온다. */
     @Test
     void audit_logs_는_action_필터로_조회_수정_삭제를_가른다() throws Exception {
         Long accountId = createAccount("R46AUD01", "r46actionflt1");
@@ -237,7 +236,7 @@ class AuditQueryControllerTest {
                 .andExpect(status().isUnprocessableContent());
     }
 
-    /** R46 감사 화면(Ruling 447) — 이름·로그인 아이디 일부로 계정을 찾는다. 검색어가 비면 아무도 안 돌려준다. */
+    /** 감사 화면(Ruling 447) — 이름·로그인 아이디 일부로 계정을 찾는다. 검색어가 비면 아무도 안 돌려준다. */
     @Test
     void audit_actors_는_이름_또는_로그인_아이디_일부로_계정을_찾는다() throws Exception {
         Long accountId = createAccount("R46AUD02", "r46actorfind1");

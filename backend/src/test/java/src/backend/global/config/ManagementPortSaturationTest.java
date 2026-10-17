@@ -24,7 +24,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.core.env.Environment;
 
 /**
- * R46 누수 검토 R-3(Ruling 740) — 앱 커넥터가 동시 연결 상한({@code server.tomcat.max-connections}, Ruling 690)에 닿아도 <b>관리 포트의
+ * Ruling 740 — 앱 커넥터가 동시 연결 상한({@code server.tomcat.max-connections}, Ruling 690)에 닿아도 <b>관리 포트의
  * 헬스·지표는 응답</b>한다. 상한에 닿으면 Tomcat 은 새 연결을 받지 않으므로 같은 커넥터에 있던 헬스·로그인이 함께 응답이 없었다 —
  * 서버는 살아 있는데 운영자가 그 사실도, 포화 지표도 못 보는 상태다.
  *

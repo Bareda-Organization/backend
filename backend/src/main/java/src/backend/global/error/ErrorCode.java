@@ -26,7 +26,7 @@ public enum ErrorCode {
     FORBIDDEN(HttpStatus.FORBIDDEN, "접근 권한이 없습니다"),
     // pending 계정이 허용 목록 밖 API 를 호출할 때(API_SPEC §1.4·§8.1) — 401 이 아니라 403.
     AUTH_PENDING(HttpStatus.FORBIDDEN, "승인 대기 중인 계정입니다"),
-    // rejected 계정이 허용 목록 밖 API 를 호출할 때(API_SPEC §8.1, 2026-08-25 신설) — AUTH_PENDING 과
+    // rejected 계정이 허용 목록 밖 API 를 호출할 때(API_SPEC §8.1) — AUTH_PENDING 과
     // 코드를 나눠, "승인 대기 중"과 "거절됨"을 클라이언트가 구별해 대기 화면에 거절 사유를 보여줄 수 있게 한다.
     AUTH_REJECTED(HttpStatus.FORBIDDEN, "가입이 거절된 계정입니다"),
     // 임시 비밀번호 강제 변경 표식(API_SPEC §1.4, Ruling 540)이 켜진 계정이 허용 3개 밖 API 를 호출할 때 — 클라이언트가
@@ -62,10 +62,8 @@ public enum ErrorCode {
     // 때문이다 — 클라이언트가 "없는 자원" 과 "남의 학원 자원" 을 구별해야 화면 문구가 갈린다.
     ACADEMY_SCOPE_VIOLATION(HttpStatus.FORBIDDEN, "소속 학원 밖 자원입니다"),
 
-    // ── 학원 · 관계자 승인 · 계정 관리(Phase 3) ──────────────────────────────────
-    // 이 무리는 Phase 3 의 세 태스크가 나눠 쓴다. 세 태스크가 각자 이 파일에 상수를 더하면 같은 줄
-    // 부근을 셋이 건드려 병합을 손으로 합치게 되므로, 선행 태스크(T1)가 한 번에 전부 더하고 나머지는
-    // 쓰기만 한다. HTTP 코드와 이름은 API_SPEC §8 에러 사전에서 그대로 옮겼다.
+    // ── 학원 · 관계자 승인 · 계정 관리 ──────────────────────────────────
+    // HTTP 코드와 이름은 API_SPEC §8 에러 사전을 따른다.
     //
     // 학원당 재직 관계자 1명 정원 초과(API_SPEC §6.5·§6.7·§8.5) — 승인과 status=active 전환 두 경로가 공유한다.
     STAFF_QUOTA_EXCEEDED(HttpStatus.CONFLICT, "이미 관계자가 있는 학원입니다"),
@@ -82,7 +80,7 @@ public enum ErrorCode {
     // 이미 연결된 자녀 재연결(P-02 · API_SPEC §8.5).
     ALREADY_LINKED(HttpStatus.CONFLICT, "이미 연결된 대상입니다"),
 
-    // ── 자녀 연결 3단계(Phase 5, P-02 · S-05) ────────────────────────────
+    // ── 자녀 연결 3단계(P-02 · S-05) ────────────────────────────
     // 자녀 연결 인증 코드의 만료·불일치·재사용(API_SPEC §3.4·§8.1) — 셋을 같은 코드로 답한다.
     // 갈라 답하면 "이 코드는 실재하는데 만료됐다"·"이 코드는 이미 쓰였다" 가 미인증 응답으로 새어,
     // 6자리 숫자를 훑는 쪽이 어느 값이 실재하는지 가려낼 수 있다.
@@ -104,7 +102,7 @@ public enum ErrorCode {
     // 갈리면 클라이언트가 분기를 두 벌 만들게 된다.
     SIGNUP_TARGET_BLOCKED(HttpStatus.CONFLICT, "차단된 계정은 승인할 수 없습니다"),
 
-    // ── 차량 · 매니저 관리(Phase 5 Task 2) ───────────────────────────────────────
+    // ── 차량 · 매니저 관리 ───────────────────────────────────────
     // 미존재 차량 지정(BUS-03 · API_SPEC §5.12·§8.5). 다른 학원의 차량을 지목한 경우도 이 코드다 —
     // 학원 조건을 쿼리에 넣어 "없음" 과 "남의 학원" 을 같은 빈 결과로 만들면 존재 여부가 응답에서
     // 사라진다(StudentRepository#findByIdAndAcademyIdAndDeletedAtIsNull 과 같은 형태).
@@ -121,7 +119,7 @@ public enum ErrorCode {
     // DB 가 이것을 막지 못하므로 이 코드를 던지는 선검사가 유일한 방어다.
     MANAGER_ASSIGNED(HttpStatus.CONFLICT, "회차에 배치된 매니저는 삭제할 수 없습니다"),
 
-    // ── 스케줄 · 회차 · 배치(Phase 5 Task 5) ─────────────────────────────────────
+    // ── 스케줄 · 회차 · 배치 ─────────────────────────────────────
     // 미존재 스케줄 지정(SCH-01 · API_SPEC §5.10·§8.5). 다른 학원의 스케줄을 지목한 경우도 이 코드다
     // — BUS_NOT_FOUND 와 같은 형태로, 학원 조건을 쿼리에 넣어 "없음" 과 "남의 학원" 을 같은 빈 결과로
     // 만들면 존재 여부가 응답에서 사라진다.
@@ -142,7 +140,7 @@ public enum ErrorCode {
     // ⚠ 근무 시간·중복 배치 충돌과 다른 축이다 — 그쪽은 경고이고 저장되지만(MGR-06 · Ruling 152)
     // 이쪽은 저장 자체가 거부된다. 두 축을 섞으면 경고가 차단으로 굳는다.
     DUPLICATE_ASSIGNMENT(HttpStatus.CONFLICT, "이미 배치된 역할입니다"),
-    // ── 요일별 주소 · 주소 검증 · 승하차지 매칭(Phase 5 Task 4) ──────────────────
+    // ── 요일별 주소 · 주소 검증 · 승하차지 매칭 ──────────────────
     // 지오코딩이 "그런 주소는 없다"(totalCount == 0)고 답했을 때(P-05 · STU-05 · API_SPEC §3.7·§8.5).
     // 이 코드가 나오면 weekly_address 행은 남지 않는다 — 저장 보류가 사양이라 verified=false 행을
     // 적재하지 않는다(ERD weekly_address.verified).
@@ -161,7 +159,7 @@ public enum ErrorCode {
     // DUPLICATE_SCHEDULE 과 같은 형태이며, 판정은 애플리케이션 선검사가 아니라 DB UNIQUE 다.
     DUPLICATE_WEEKLY_ADDRESS(HttpStatus.CONFLICT, "같은 요일·방향의 주소가 중복됐습니다"),
 
-    // ── 고정 노선 편성(Phase 6, RTE-01 · RTE-09 · A-08) ──────────────────────────
+    // ── 고정 노선 편성(RTE-01 · RTE-09 · A-08) ──────────────────────────
     // 미존재 고정 노선 지정(API_SPEC §5.9 · §8.5, Ruling 180). 다른 학원의 노선을 지목한 경우도 이
     // 코드다 — 학원 조건을 쿼리에 넣어 "없음" 과 "남의 학원" 을 같은 빈 결과로 만들면 존재 여부가
     // 응답에서 사라진다(BUS_NOT_FOUND · SCHEDULE_NOT_FOUND 와 같은 형태).
@@ -172,7 +170,7 @@ public enum ErrorCode {
     // ⚠ 판정의 근거는 애플리케이션 선검사가 아니라 DB UNIQUE 다 — 동시 요청 2건은 서로의 미커밋
     // INSERT 를 못 봐 둘 다 선검사를 지나고, 그 거부를 옮기지 않으면 500 이 샌다.
     DUPLICATE_ROUTE(HttpStatus.CONFLICT, "이미 편성된 차량·요일·방향입니다"),
-    // ── 노선 계산 · 외부 지도 API(Phase 6) ────────────────────────────────────
+    // ── 노선 계산 · 외부 지도 API ────────────────────────────────────
     // 외부 도로 경로 API 의 서킷이 열린 상태에서 온디맨드(승인 미리보기 · 경유 지점 지정)가 호출했을 때
     // (API_SPEC §8.5 · TECH_DECISIONS §8 · ARCHITECTURE §8.3).
     // ⚠ 배치 호출은 이 코드를 내지 않는다 — 사용자가 대기 중이 아니라 직선거리 근사로 진행하고
@@ -183,7 +181,7 @@ public enum ErrorCode {
     // (ADDRESS_VERIFICATION_UNAVAILABLE 와 같은 형태).
     MAP_ROUTE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "경로 조회 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요"),
 
-    // ── 회차 확정 배치(Phase 7, RTE-08) ──────────────────────────────────────
+    // ── 회차 확정 배치(RTE-08) ──────────────────────────────────────
     // 두 코드 모두 HTTP 로 노출되지 않는다 — 확정 배치(RunConfirmationService)만 던지고, 배치
     // 오케스트레이터가 잡아 해당 회차만 idle 로 되돌린 뒤 consecutive_failures 를 올린다
     // (DUPLICATE_RUN 이 RunGenerationService 안에서만 잡히는 것과 같은 이중 용도 형태).
@@ -195,7 +193,7 @@ public enum ErrorCode {
     // 편성되지 않았을 때 — origin/destination 을 정할 기준점 자체가 없다.
     ROUTE_NOT_CONFIGURED_FOR_RUN(HttpStatus.UNPROCESSABLE_CONTENT, "회차에 대응하는 고정 노선이 없습니다"),
 
-    // ── 3구간 판정 · 변경 요청(Phase 8) ─────────────────────────────────────────
+    // ── 3구간 판정 · 변경 요청 ─────────────────────────────────────────
     // ③ 구간(운행 시작 후)의 노선 변경·위치 변경·되돌리기·경유 지점 지정 시도, 또는 ② 구간에서
     // 강제 추가 시도(API_SPEC §8.3). ③ 구간의 미등원(riding=false)은 예외로 허용.
     CHANGE_WINDOW_CLOSED(HttpStatus.FORBIDDEN, "지금은 변경할 수 없는 시간입니다"),
@@ -212,13 +210,12 @@ public enum ErrorCode {
     // 이 코드다(ROUTE_NOT_FOUND·BUS_NOT_FOUND 와 같은 형태, 존재 여부를 응답에서 드러내지 않는다).
     WAYPOINT_NOT_FOUND(HttpStatus.NOT_FOUND, "경유 지점을 찾을 수 없습니다"),
 
-    // ── 운행 시작 · 도착 처리 · 변경 확인(Phase 9, RUN-02·04·05·06·07) ──────────────
+    // ── 운행 시작 · 도착 처리 · 변경 확인(RUN-02·04·05·06·07) ──────────────
     // 기사가 아닌 역할(동승자 등)의 운행 시작·도착 처리 시도(API_SPEC §4.4·§4.5) — 역할 자체가
     // 틀린 경우라 전용 코드를 쓴다. 역할은 맞는데 이 회차에 배치되지 않은 경우는 일반
     // FORBIDDEN 이다(배치 여부를 응답에서 드러내지 않는다).
     DRIVER_ONLY(HttpStatus.FORBIDDEN, "기사만 처리할 수 있습니다"),
-    // 출발 시각 ±10분 창 밖의 운행 시작 시도(API_SPEC §4.4). ⚠ 2026-08-31 Ruling 202 — 이 값은
-    // 문서상 ±3분으로 남아 있던 옛 판정이 정정된 것이다. 코드 상수이며 application.yml·DB 로
+    // 출발 시각 ±10분 창 밖의 운행 시작 시도(API_SPEC §4.4). ⚠ Ruling 202 — 이 값은 문서의 ±3분 기준을 정정한 것이다. 코드 상수이며 application.yml·DB 로
     // 바꾸지 않는다(창을 여닫는 기준이 정책이 아니라 안전 여유이기 때문).
     START_WINDOW_CLOSED(HttpStatus.FORBIDDEN, "지금은 운행을 시작할 수 없는 시간입니다"),
     // 이미 moving·finished 인 회차의 재시작 시도(API_SPEC §4.4). 403 이 아니라 409 인 것은 막는
@@ -239,7 +236,7 @@ public enum ErrorCode {
     // 그 배포 버전에 속하지 않는 승하차지 지정(API_SPEC §4.5) — ROUTE_NOT_FOUND 와 같은 형태로,
     // 다른 회차 소속인 경우도 이 코드다.
     STOP_NOT_FOUND(HttpStatus.NOT_FOUND, "승하차지를 찾을 수 없습니다"),
-    // ── 승하차 처리 · 되돌리기(Phase 9, BRD-01~06) ────────────────────────────
+    // ── 승하차 처리 · 되돌리기(BRD-01~06) ────────────────────────────
     // 승하차 상태 변경·되돌리기는 동승자 전용(C-06, API_SPEC §4.6·§4.7) — 기사 등 다른 역할 호출 시.
     // 일반 FORBIDDEN 이 아니라 도메인 코드를 따로 두는 이유는 AuthenticatedOnly.java 의 판단과 같다:
     // 권한 카탈로그의 hasAuthority(...) 를 실제 게이트로 쓰면 Spring Security 의 AccessDeniedException
@@ -260,14 +257,14 @@ public enum ErrorCode {
     // 밖으로 가려면 되돌리기(§4.7)가 먼저다. 422 가 아니라 409 인 이유는 STOP_ALREADY_DEPARTED 와
     // 같다 — 요청 형식이 아니라 탑승자의 현재 상태가 막는다.
     RIDER_TRANSITION_NOT_ALLOWED(HttpStatus.CONFLICT, "허용되지 않는 상태 전이입니다"),
-    // ── 조회 · 명단(Phase 9) ─────────────────────────────────────────────────────
+    // ── 조회 · 명단 ─────────────────────────────────────────────────────
     // 명단·경로·내비의 idle 차단은 위 RUN_NOT_CONFIRMED 를 재사용한다 — 이 구획엔 전용 코드가 없다.
-    // ── 외부 내비 연동(Phase 9, RUN-08) ────────────────────────────────────────
+    // ── 외부 내비 연동(RUN-08) ────────────────────────────────────────
     // confirmed 부터는 내비 조회 허용(X-01, Ruling 202) — 막는 것은 idle 뿐(RUN_NOT_CONFIRMED 재사용).
     // 그 회차의 남은 승하차지가 없을 때(skipped·도착 완료 제외 후 0건) — 200 에 빈 배열을 주지 않는다.
     // 빈 배열을 주면 앱이 목적지 없이 내비를 띄운다(API_SPEC §4.16).
     NAV_NO_REMAINING_STOP(HttpStatus.CONFLICT, "안내할 남은 승하차지가 없습니다"),
-    // ── 미승차 에스컬레이션 · 학원 설정(Phase 11, EXC-01) ─────────────────────
+    // ── 미승차 에스컬레이션 · 학원 설정(EXC-01) ─────────────────────
     // no_show 로 처리되지 않은 탑승자에 연락 기록을 시도할 때(API_SPEC §4.8) — 그 탑승자에 대해
     // NoShowCase 가 없다는 뜻. RIDER_NOT_FOUND(탑승자 자체 부재)와는 다른 자리다.
     NO_SHOW_CASE_NOT_FOUND(HttpStatus.NOT_FOUND, "미승차 처리된 탑승자가 아닙니다"),
@@ -276,7 +273,7 @@ public enum ErrorCode {
     // {id} 로 지목한 예외 보고가 없거나 다른 학원 소속일 때 — EMERGENCY_NOT_FOUND 와 같은 형태로 존재 여부를 드러내지 않는다.
     REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "예외 보고를 찾을 수 없습니다"),
 
-    // ── 비상 알림(Phase 11 T2, EXC-04) ──────────────────────────────────────────
+    // ── 비상 알림(EXC-04) ──────────────────────────────────────────
     // {id} 로 지목한 비상 신고가 없거나 다른 회차·학원 소속일 때(취소·확인 공통) — STOP_NOT_FOUND 와
     // 같은 형태로, 존재 여부를 응답에서 드러내지 않는다.
     EMERGENCY_NOT_FOUND(HttpStatus.NOT_FOUND, "비상 신고를 찾을 수 없습니다"),
@@ -288,19 +285,19 @@ public enum ErrorCode {
     // 발신자가 철회(취소)한 신고의 확인 시도(Ruling 885 ①) — 철회된 신고가 확인 처리되어 발신자에게 "학원이 확인했습니다" 가 가지 않게 한다.
     EMERGENCY_CANCELED(HttpStatus.CONFLICT, "취소된 비상 신고는 확인할 수 없습니다"),
 
-    // ── 알림 목록 · 읽음 처리(Phase 12 T2, NTF-08) ─────────────────────────────
+    // ── 알림 목록 · 읽음 처리(NTF-08) ─────────────────────────────
     // {id} 로 지목한 알림이 아예 없을 때(API_SPEC §3.13). 관계자 웹 자원의 404 와 달리 이 엔드포인트는
     // "없다"와 "있지만 남의 것이다"를 스펙이 명시적으로 갈라 쓴다 — 남의 알림은 이 코드가 아니라
     // FORBIDDEN 이다. 존재를 숨기지 않는 것은, 알림 목록 자체가 이미 그 계정 소유만 보여줘 id 를
     // 추측해도 다른 정보가 새지 않기 때문이다.
     NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "알림을 찾을 수 없습니다"),
 
-    // ── 지연 알림(F3 S1, NTF-06·M-05, API_SPEC §4.9) ───────────────────────────
+    // ── 지연 알림(NTF-06·M-05, API_SPEC §4.9) ───────────────────────────
     // 같은 회차의 직전 발신과 minutes·reason·message 가 전부 같을 때(Ruling 253) — 지연 알림은
     // 갱신 의미라 시간 상수(재요청 금지 시간)를 두지 않고, 내용이 그대로면 거부한다.
     DELAY_DUPLICATE(HttpStatus.CONFLICT, "이미 같은 내용으로 발송된 지연 알림입니다"),
 
-    // ── 강제 확정 콘솔 개입(F3 S2, API_SPEC §6.14) ─────────────────────────────
+    // ── 강제 확정 콘솔 개입(API_SPEC §6.14) ─────────────────────────────
     // 회차가 idle 이 아닐 때의 강제 확정 시도 — 409 인 이유는 RUN_ALREADY_STARTED 와 같다(권한이
     // 아니라 대상 자원의 상태가 막는다).
     RUN_NOT_IDLE(HttpStatus.CONFLICT, "idle 상태의 회차가 아닙니다"),
@@ -308,12 +305,12 @@ public enum ErrorCode {
     // 조건이라 위와 같이 409 다.
     RUN_NOT_DUE(HttpStatus.CONFLICT, "아직 확정 시각이 되지 않았습니다"),
 
-    // ── 끝나지 않은 이동 중 회차의 강제 종료(R47, API_SPEC §6.17, Ruling 724) ──────────────
+    // ── 끝나지 않은 이동 중 회차의 강제 종료(API_SPEC §6.17, Ruling 724) ──────────────
     // 운행일이 오늘·어제인 회차의 강제 종료 시도 — 이 회차는 동승자 하차 처리로만 끝난다(C-15). 이동 중이 아니거나
     // 취소된 회차는 위 RUN_NOT_MOVING · RUN_CANCELED 를 그대로 쓴다. 대상 자원의 상태가 막는 것이라 409 다.
     RUN_NOT_STALE(HttpStatus.CONFLICT, "운행일이 오늘 또는 어제인 회차는 강제 종료할 수 없습니다"),
 
-    // ── 버스 간 이동(F4 S1, API_SPEC §5.8, RTE-07, Ruling 256) ──────────────────
+    // ── 버스 간 이동(API_SPEC §5.8, RTE-07, Ruling 256) ──────────────────
     // 학생이 출발 회차의 당일 명단(확정 전 예정 명단 — 요일별 주소·탑승 의사·강제 추가 기준)에
     // 없을 때. 권한이 아니라 대상 자원의 현재 상태가 막는 것이라 409 다.
     STUDENT_NOT_IN_RUN(HttpStatus.CONFLICT, "학생이 해당 회차 명단에 없습니다"),
@@ -331,12 +328,12 @@ public enum ErrorCode {
     // ── 라우팅 실패 ─────────────────────────────────────────────────────────────
     // 둘 다 **클라이언트의 실수**이지 서버 고장이 아니다. 없으면 catch-all 로 떨어져 500 이 나가고,
     // 그 응답은 "주소를 잘못 불렀다" 와 "서버가 죽었다" 를 구별하지 못하게 만든다 — 앱·웹이
-    // 재시도할지 고칠지 판단할 근거가 사라지고 운영 알림도 오탐으로 는다(2026-09-20 실측).
+    // 재시도할지 고칠지 판단할 근거가 사라지고 운영 알림도 오탐으로 는다(실측).
     ENDPOINT_NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 주소를 찾을 수 없습니다"),
     // 경로는 맞고 메서드만 틀린 경우 — 404 와 가르지 않으면 어느 쪽을 고칠지 알 수 없다.
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "지원하지 않는 요청 방식입니다"),
 
-    // DB 연결을 얻지 못했거나(풀 고갈 · 연결 끊김) 잠금·쿼리가 시간 상한을 넘은 경우(R46 S-7) — 요청이 틀린 것도 서버 결함도 아니고
+    // DB 연결을 얻지 못했거나(풀 고갈 · 연결 끊김) 잠금·쿼리가 시간 상한을 넘은 경우 — 요청이 틀린 것도 서버 결함도 아니고
     // 잠시 뒤 다시 보내면 되는 과부하다. 500 으로 두면 "서버 결함" 5xx 와 섞여 경보가 오탐이 되고 클라이언트가 재시도 여부를 가를 수 없다.
     SERVER_BUSY(HttpStatus.SERVICE_UNAVAILABLE, "서버가 일시적으로 바쁩니다. 잠시 후 다시 시도해 주세요"),
 

@@ -13,8 +13,7 @@ import src.backend.global.common.converter.LowerCaseEnumConverter;
  * ({@code Account})와 {@code AuthUser}(글로벌 보안 계층) 양쪽에서 쓰이는 것과 동일한 이유로,
  * {@code account} 도메인 밖(게이트·JWT)에서도 문자열이 아니라 이 타입으로 상태를 주고받기
  * 위해서다 — 대소문자·오탈자를 컴파일 에러로 만들어, "게이트가 소문자 리터럴을 기대하는데
- * 발급 쪽이 {@code name()}(대문자)을 그대로 넘겨 전부 어긋나는" 사고를 원천 차단한다
- * (Phase 2 Task 2 리뷰 라운드 1 Important #2).
+ * 발급 쪽이 {@code name()}(대문자)을 그대로 넘겨 전부 어긋나는" 사고를 원천 차단한다.
  */
 public enum AccountStatus {
 

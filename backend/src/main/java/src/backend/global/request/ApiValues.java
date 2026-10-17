@@ -49,7 +49,7 @@ public final class ApiValues {
 
     /**
      * {@code guardian_absent}·{@code road_block}·{@code vehicle_issue}·{@code etc}(§9.8 {@code
-     * report_type}) 를 {@link ExceptionReportType} 으로 옮긴다(Phase 11 신설, §4.13 요청 · §5.20
+     * report_type}) 를 {@link ExceptionReportType} 으로 옮긴다(§4.13 요청 · §5.20
      * 쿼리 필터 둘 다 이 메서드를 쓴다).
      */
     public static ExceptionReportType reportType(String raw) {
@@ -57,8 +57,8 @@ public final class ApiValues {
     }
 
     /**
-     * {@code type} 쿼리 필터를 {@link NotificationType} 으로 옮긴다 — 알림 목록(§3.12 · §9.7, Phase 12 T2)과
-     * 관계자 알림 로그(§5.17, Phase 12 T3)가 함께 쓴다. {@code reportType} 과 같은 근거로 Jackson 이 아니라
+     * {@code type} 쿼리 필터를 {@link NotificationType} 으로 옮긴다 — 알림 목록(§3.12 · §9.7)과
+     * 관계자 알림 로그(§5.17)가 함께 쓴다. {@code reportType} 과 같은 근거로 Jackson 이 아니라
      * 여기서 걸러야 {@code 422} 가 유지된다.
      */
     public static NotificationType notificationType(String raw) {

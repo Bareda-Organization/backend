@@ -54,8 +54,7 @@ import src.backend.routing.map.spec.RoadRouteRequest;
  * 도로 경로 어댑터의 보호·분할·폴백을 <b>공급자에 도달한 요청</b>으로 고정한다(§7 규칙 11).
  *
  * <p>응답만 보면 아무것도 가릴 수 없다 — 재시도가 걸린 경우와 걸리지 않은 경우, 구간을 나눠 부른
- * 경우와 상한까지만 보내고 나머지를 버린 경우가 <b>전부 같은 모양의 결과</b>를 낸다. Phase 5 가
- * 실제로 그 상태였다({@code max-attempts: 3} 인데 실 호출은 1회). 그래서 이 클래스는 공급자 자리에
+ * 경우와 상한까지만 보내고 나머지를 버린 경우가 <b>전부 같은 모양의 결과</b>를 낸다({@code max-attempts: 3} 인데 실 호출은 1회인 경우가 그 예다). 그래서 이 클래스는 공급자 자리에
  * <b>로컬 HTTP 서버</b>를 세우고 도달한 요청 수와 <b>요청마다 실린 지점 수</b>를 함께 센다.
  *
  * <p>실 네이버를 부르지 않는 이유는 판정이 네트워크·요금·NCP 계정 상태에 매달리면 그 결과가 코드에
@@ -80,10 +79,10 @@ class NaverDirectionsResilienceTest {
 
     /**
      * 격벽 상한 위로 <b>더</b> 걸 거절 호출 수 — 4가 아니라 이렇게 큰 이유는 아래 두 시험이 잡는
-     * {@code NaverDirectionsGateway.unavailable} 리플렉션 경합(2026-08-29 실측)이 <b>스레드
+     * {@code NaverDirectionsGateway.unavailable} 리플렉션 경합(실측)이 <b>스레드
      * 스케줄러의 실제 선점 여부</b>에 달려 있어, 거절 호출을 몇 개만 동시에 걸면 한산한 머신에서는
      * 경합 구간이 열리지 않고 그냥 통과하기 때문이다({@code +4} 로는 단독 실행 3회 중 1회 재현,
-     * {@code +500} 으로는 5회 중 5회 재현 — 조율자 실측). 경합을 여는 것은 대기시간이 아니라
+     * {@code +500} 으로는 5회 중 5회 재현 — 실측). 경합을 여는 것은 대기시간이 아니라
      * <b>동시에 거절되는 호출 수 자체</b>라, sleep 을 늘리지 않고 이 값을 늘린다.
      */
     private static final int REJECTED_CALLS_TO_RACE_THE_FALLBACK = 500;
@@ -190,7 +189,7 @@ class NaverDirectionsResilienceTest {
      * <p>도달한 호출 수로 세는 이유는, 결과만 보면 재시도가 걸린 경우와 걸리지 않은 경우가 <b>똑같이
      * {@code fallbackUsed=true}</b> 라 구별할 수단이 부재하기 때문이다.
      *
-     * <p>⚠ <b>이 단언은 애스펙트 순서를 고정하지 않는다</b>(2026-08-29 실측) — {@code fallbackMethod}
+     * <p>⚠ <b>이 단언은 애스펙트 순서를 고정하지 않는다</b>(실측) — {@code fallbackMethod}
      * 를 {@code @CircuitBreaker} 쪽으로 옮겨도 폴백이 예외를 던지는 한 호출 수는 그대로 3이다.
      * 순서를 무는 것은 아래 서킷 시험의 <b>재시도 없이 실패한 호출 수</b> 단언이다.
      */
@@ -279,7 +278,7 @@ class NaverDirectionsResilienceTest {
     }
 
     /**
-     * 목표 3 — 타임아웃이 나면 직선거리 근사로 결과가 나오고 <b>구간 수가 그대로 복원</b>된다.
+     * 타임아웃이 나면 직선거리 근사로 결과가 나오고 <b>구간 수가 그대로 복원</b>된다.
      *
      * <p>구간 수를 함께 보는 이유는 폴백이 "빈 결과" 로 끝나도 {@code fallbackUsed} 만으로는 그것을
      * 알 수 없기 때문이다. 거리까지 보는 것은 폴백이 0을 채워 넣어도 형태는 맞기 때문이다.
@@ -329,7 +328,7 @@ class NaverDirectionsResilienceTest {
     }
 
     /**
-     * 목표 4 — 경유지 상한을 넘으면 <b>나눠 부르고</b>, 이어 붙인 구간 수가 복원된다.
+     * 경유지 상한을 넘으면 <b>나눠 부르고</b>, 이어 붙인 구간 수가 복원된다.
      *
      * <p>세 가지를 함께 본다. ①호출이 2회 이상이다 ②요청마다 실린 지점이 상한을 넘지 않는다
      * ③요청별 구간 수의 합이 입력 구간 수와 <b>정확히</b> 같다. ③이 없으면 상한까지만 보내고 나머지를
@@ -356,11 +355,11 @@ class NaverDirectionsResilienceTest {
     }
 
     /**
-     * 목표 6(BE-R1) — 경유지 상한 자체가 17(경유지 15 + start/goal)이다.
+     * 경유지 상한 자체가 17(경유지 15 + start/goal)이다.
      *
      * <p>사양에서 손으로 옮긴 리터럴을 쓴다 — 위 분할 시험은 {@code maxWaypoints} 를 그대로 되받아
      * 입력을 만들므로, 설정값이 7 로 되돌아가도 분할 로직은 여전히 성립해 <b>아무것도 잡지 못한다</b>
-     * (2026-09-13 실측 — {@code max-waypoints: 7} 로 되돌려도 분할 단언 전부 통과). 상한 값 자체가
+     * (실측 — {@code max-waypoints: 7} 로 되돌려도 분할 단언 전부 통과). 상한 값 자체가
      * 17 인지는 이 시험 하나만 본다.
      */
     @Test
@@ -371,10 +370,10 @@ class NaverDirectionsResilienceTest {
     }
 
     /**
-     * 목표 6(BE-R1) — 정류장 10개(출발·도착 포함 12개 지점) 경로의 외부 호출 횟수 실측.
+     * 정류장 10개(출발·도착 포함 12개 지점) 경로의 외부 호출 횟수 실측.
      *
      * <p>구 상한 7 이었으면 {@code ⌈11/6⌉ = 2} 회, 신 상한 17 이면 {@code ⌈11/16⌉ = 1} 회로 줄어든다
-     * (2026-09-13 스텁 공급자로 직접 실측 — {@code max-waypoints: 7} 로 되돌려 같은 시험을 다시 돌려
+     * (스텁 공급자로 직접 실측 — {@code max-waypoints: 7} 로 되돌려 같은 시험을 다시 돌려
      * {@code PROVIDER_HITS == 2} 를 확인했고, 원복 후 이 값 {@code == 1} 을 확인했다).
      */
     @Test
@@ -390,7 +389,7 @@ class NaverDirectionsResilienceTest {
     }
 
     /**
-     * 목표 5 — 서킷이 열리면 온디맨드는 즉시 오류, 배치는 폴백이다.
+     * 서킷이 열리면 온디맨드는 즉시 오류, 배치는 폴백이다.
      *
      * <p>둘을 안 가르면 관리자가 근사 경로를 실제 경로로 믿고 승인한다. <b>응답 시간이 주입한
      * 타임아웃보다 짧다</b>는 것을 함께 보는 이유는, 서킷이 열려 있어도 공급자를 두드리는 구현이면
@@ -435,7 +434,7 @@ class NaverDirectionsResilienceTest {
     }
 
     /**
-     * 목표 5 하위 — 동시 호출이 상한을 넘으면 <b>공급자에 그만큼만 들어간다</b>
+     * 동시 호출이 상한을 넘으면 <b>공급자에 그만큼만 들어간다</b>
      * ({@code TECH_DECISIONS §8} 격벽 · {@code ARCHITECTURE §9.4} 레이트리밋 초과 방지).
      *
      * <p>이 검사가 없으면 {@code max-concurrent-calls: 4} 를 적어 둔 채 아무것도 막지 않는 상태와
@@ -449,7 +448,7 @@ class NaverDirectionsResilienceTest {
      * <p>⚠ 거절 호출을 {@link #REJECTED_CALLS_TO_RACE_THE_FALLBACK} 개나 거는 이유는 격벽 자체가
      * 아니라 <b>거절이 {@code NaverDirectionsGateway.unavailable} 로 번역되는 경로</b>를 겨냥해서다
      * — 그 경로가 리플렉션 경합으로 깨지면 이 시험은 단언 실패가 아니라
-     * {@code UndeclaredThrowableException} 으로 죽는다(2026-08-29 실측).
+     * {@code UndeclaredThrowableException} 으로 죽는다(실측).
      */
     @Test
     void 동시_호출이_상한을_넘으면_공급자에_상한만큼만_들어간다() throws Exception {
@@ -528,7 +527,7 @@ class NaverDirectionsResilienceTest {
      * 동시 진입은 같은 값으로 묶인다. 순서가 어긋난 상태 — {@code fallbackMethod} 가 안쪽에 붙어
      * {@code BulkheadFullException} 이 바깥 {@code @Retry} 에 닿기 전에 포트 예외로 바뀌는 형태 —
      * 는 {@code ignore-exceptions} 가 그것을 못 알아봐 <b>거부를 세 번 재시도</b>하는 것으로만
-     * 드러난다. 이 태스크가 이미 한 번 밟은 함정이라(도달 호출 수로는 안 잡힌다) 지표로 잰다.
+     * 드러난다. 도달 호출 수로는 안 잡히는 함정이라 지표로 잰다.
      *
      * <p>서킷이 닫힌 채로 남는지를 함께 보는 이유는, 격벽 거부가 실패로 집계되면 <b>동시 도래가 한 번
      * 몰린 것만으로 서킷이 열려</b> 그 뒤의 온디맨드가 전부 {@code 503} 을 받기 때문이다. 공급자는
@@ -555,7 +554,7 @@ class NaverDirectionsResilienceTest {
     }
 
     /**
-     * 목표 6(BE-R1) — 어댑터가 실제로 두드리는 경로가 Directions 15 다.
+     * 어댑터가 실제로 두드리는 경로가 Directions 15 다.
      *
      * <p>사양에서 손으로 옮긴 리터럴을 쓴다 — {@code DRIVING_PATH} 상수에서 유도하면 그 상수가
      * 옛 값({@code /map-direction/v1/driving})으로 되돌아가도 대조 대상이 같은 값을 베껴 항상
@@ -739,7 +738,7 @@ class NaverDirectionsResilienceTest {
     }
 
     /**
-     * NCP Direction 응답의 최소 형태 — 거리·시간 총합과 도로 좌표(R15 T1)를 담는다.
+     * NCP Direction 응답의 최소 형태 — 거리·시간 총합과 도로 좌표를 담는다.
      *
      * <p>⚠ {@code traoptimal} 이어야 한다({@code Ruling 276}) — {@code option} 미지정 시 NCP 의 실제
      * 응답 키가 이것이다. 이 시험이 {@code trafast} 로 남아 있던 동안은 우리 파서의 결함(존재하지
@@ -756,7 +755,7 @@ class NaverDirectionsResilienceTest {
     }
 
     /**
-     * R15 T1 목표 1 — {@code route.traoptimal[].path} 를 파싱해 좌표 개수·순서를 그대로 싣는다.
+     * {@code route.traoptimal[].path} 를 파싱해 좌표 개수·순서를 그대로 싣는다.
      *
      * <p>첫·끝 값을 각각 대조하는 것은 [경도, 위도] 를 뒤집어 읽으면(위경도 반전) 좌표가 지구 반대편
      * (바다)으로 가기 때문이다 — {@code lat}·{@code lng} 가 서로 바뀐 값도 "좌표 3개" 라는 형태는

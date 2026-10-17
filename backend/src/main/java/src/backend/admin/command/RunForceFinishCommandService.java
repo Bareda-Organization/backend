@@ -24,7 +24,7 @@ import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 
 /**
- * 운행일이 지난 채 끝나지 않은 이동 중 회차의 강제 종료(API_SPEC §6.17, R47 Ruling 724) — {@code StaleMovingRun} 경보가 가리키는
+ * 운행일이 지난 채 끝나지 않은 이동 중 회차의 강제 종료(API_SPEC §6.17, Ruling 724) — {@code StaleMovingRun} 경보가 가리키는
  * 회차를 메인 관리자가 콘솔에서 닫는다. {@code DEPLOYMENT §11.2} 의 DB 직접 갱신과 같은 동작이다.
  *
  * <p><b>일반 종료({@code Run#finish} 경로)가 따르는 후속을 일부러 따르지 않는다.</b> ① {@code RunEndedEvent} 를 내지 않는다 —

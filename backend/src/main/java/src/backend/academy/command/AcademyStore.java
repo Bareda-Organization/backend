@@ -78,7 +78,7 @@ public class AcademyStore {
                 request.address(), request.contact(), request.memo()));
         if (point != null) {
             academy.assignCoordinates(point.lat(), point.lng());
-            // 좌표가 없어 영구 실패하던 회차가 고친 즉시 다음 틱에 다시 시도된다(R46-KFIXBE K-2, Ruling 703)
+            // 좌표가 없어 영구 실패하던 회차가 고친 즉시 다음 틱에 다시 시도된다(Ruling 703)
             runRepository.resetConfirmationFailures(academyId);
         }
         if (request.status() != null) {

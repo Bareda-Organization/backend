@@ -27,7 +27,7 @@ import src.backend.student.geocoding.spec.GeocodingUnavailableException;
  * 구현이 뜬다.
  *
  * <p>{@code maps.apigw.ntruss.com} 을 쓴다. 구 호스트 {@code naveropenapi.apigw.ntruss.com} 은 이
- * 자격증명으로 {@code 401 Permission Denied}(errorCode 210) 를 낸다 — 2026-08-26 실측이며, 호스트가
+ * 자격증명으로 {@code 401 Permission Denied}(errorCode 210) 를 낸다 — 실측이며, 호스트가
  * 바뀌면 인증 실패가 "키가 틀렸다" 로 오진된다(Ruling 157).
  *
  * <p>보호는 <b>어댑터 설정</b>에 둔다(§7 규칙 11) — 타임아웃은 {@code WebClientConfig},

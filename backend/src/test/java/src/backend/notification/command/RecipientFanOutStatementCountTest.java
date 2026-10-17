@@ -42,7 +42,7 @@ import src.backend.run.event.DelayRequestedEvent;
 
 /**
  * 지연 신고·비상 접수·비상 취소의 알림 적재 SQL 문장 수는 수신자 수와 무관하다(BR-354) — 운행 시작만 묶고({@code
- * RunStartedNotificationStatementCountTest}, R46 T-6) 이 형제 호출부를 건별 {@code append} 로 두면, 지연 신고는 한 요청에서 수십~
+ * RunStartedNotificationStatementCountTest}) 이 형제 호출부를 건별 {@code append} 로 두면, 지연 신고는 한 요청에서 수십~
  * 백여 번의 INSERT 를 내고 비상 접수는 {@code client_key} 자문 잠금을 쥔 채 관계자·메인 관리자 수만큼 문장을 낸다.
  *
  * <p>문장 수는 트랜잭션 안에서 이벤트 발행 전·후의 Hibernate 통계 차이로 센다(커밋 뒤 비동기 발송의 문장은 세지 않는다).

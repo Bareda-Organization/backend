@@ -43,7 +43,7 @@ import src.backend.global.security.AccountStandingChangedEvent;
  * 이름·연락처·이메일 수정과 {@code status=active}(재직 복귀)는 대상이 <b>아니다</b> — 접근 범위를
  * 좁히지 않으므로, 무효화하면 관리자가 오타 하나를 고칠 때마다 그 관계자가 재로그인을 요구받는다.
  *
- * <p>퇴사는 푸시 단말도 지운다({@link StaffResignedEvent}, R56 Ruling 894 ②) — 남으면 퇴사자 기기로 알림이 간다.
+ * <p>퇴사는 푸시 단말도 지운다({@link StaffResignedEvent}, Ruling 894 ②) — 남으면 퇴사자 기기로 알림이 간다.
  */
 @Service
 @RequiredArgsConstructor
@@ -80,7 +80,7 @@ public class StaffAccountCommandService {
      * 그 계정은 아직 어느 학원의 관계자도 아니라 퇴사·재직을 말할 대상 자체가 부재하기 때문이다 —
      * 그 축은 §6.4 승인 큐가 맡는다.
      *
-     * <p><b>임시 비밀번호의 BCrypt 는 트랜잭션 밖에서 만든다</b>(R46 T-3) — 새 해시는 저장된 값과 무관하고, 안에 두면
+     * <p><b>임시 비밀번호의 BCrypt 는 트랜잭션 밖에서 만든다</b> — 새 해시는 저장된 값과 무관하고, 안에 두면
      * 연결을 쥔 채 수십~수백 ms 를 쓴다.
      */
     public StaffAccountDetailResponse update(Long accountId, StaffAccountUpdateRequest request) {
@@ -110,11 +110,11 @@ public class StaffAccountCommandService {
         boolean employmentRevoked = applyEmploymentStatus(staff, request.status());
 
         if (employmentRevoked) {
-            // 푸시 단말 정리(R56 Ruling 894 ②) — 토큰 무효화가 영속성 컨텍스트를 비우기 전에 알린다.
+            // 푸시 단말 정리(Ruling 894 ②) — 토큰 무효화가 영속성 컨텍스트를 비우기 전에 알린다.
             eventPublisher.publishEvent(new StaffResignedEvent(accountId, OffsetDateTime.now(clock)));
         }
         if (!employmentRevoked && request.status() != null) {
-            // 재직 복귀도 계정 상태 보관 항목을 비운다 — 퇴사 때 보관된 "권한 잃음" 이 5초 남지 않게(R57 RT-1)
+            // 재직 복귀도 계정 상태 보관 항목을 비운다 — 퇴사 때 보관된 "권한 잃음" 이 5초 남지 않게
             eventPublisher.publishEvent(new AccountStandingChangedEvent(accountId));
         }
         if (temporaryPassword != null || employmentRevoked) {

@@ -24,7 +24,7 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
- * R48 이 관계자 계정 목록에 더한 쿼리 {@code academy_id}·{@code q}·{@code status} 와 응답 {@code counts} ·
+ * 관계자 계정 목록 쿼리{@code academy_id}·{@code q}·{@code status} 와 응답 {@code counts} ·
  * 항목 {@code academy_id} · {@code academy_pending_signup_count}(API_SPEC §6.6, Ruling 807).
  *
  * <p>시드 학원에도 관계자가 있어 건수 단언은 전부 {@code q=r48}(이 시험이 만든 계정만 걸리는 검색어)로 범위를 좁힌다.

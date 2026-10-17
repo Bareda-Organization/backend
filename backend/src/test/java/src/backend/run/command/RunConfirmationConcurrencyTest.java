@@ -29,7 +29,7 @@ import src.backend.student.repository.StudentRepository;
 import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
- * {@link RunRepository#confirmIfIdle} 의 <b>동시성</b>(Phase 7 목표 2) — 같은 회차를 두 스레드가
+ * {@link RunRepository#confirmIfIdle} 의 <b>동시성</b> — 같은 회차를 두 스레드가
  * 동시에 확정하려 해도 정확히 한 번만 성공해야 한다.
  *
  * <p>{@code RunGenerationConcurrencyTest} 와 같은 기법을 쓰되 대상이 다르다 — 그쪽은 INSERT-INSERT
@@ -86,7 +86,7 @@ class RunConfirmationConcurrencyTest {
     }
 
     /**
-     * 목표2 — {@code confirmIfIdle} 을 동시에 두 번 부르면 갱신 행 수의 합이 정확히 1이어야 한다.
+     * {@code confirmIfIdle} 을 동시에 두 번 부르면 갱신 행 수의 합이 정확히 1이어야 한다.
      *
      * <p>{@code confirmIfIdle} 만 잰다(노선 계산·저장은 범위 밖) — {@code WHERE status = 'idle'} 조건부
      * UPDATE 하나가 멱등성의 전부라는 그 메서드 javadoc 의 단언을, 실제 동시 스레드로 직접 검증한다.
@@ -145,7 +145,7 @@ class RunConfirmationConcurrencyTest {
             // 기본값 cache) — 이 트랜잭션이 처음 읽은 스냅숏이 끝까지 재사용되므로, 상대가 대기에
             // 들어가기 전에 첫 조회가 나가면 그 뒤로는 몇 번을 물어도 0 이 돌아온다. 그러면 이 루프가
             // 상한을 다 쓰고 바깥 Future.get 이 그보다 먼저 만료해 TimeoutException 만 남는다
-            // (F5 S3 실측 — 상대는 44초 내내 Lock/transactionid 로 대기 중이었는데 0 이 보였다)
+            // (실측 — 상대는 44초 내내 Lock/transactionid 로 대기 중이었는데 0 이 보였다)
             jdbcTemplate.execute("SELECT pg_stat_clear_snapshot()");
             Integer 대기중 = jdbcTemplate.queryForObject(
                     "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() "

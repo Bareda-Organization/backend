@@ -28,8 +28,8 @@ import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 
 /**
- * R46 ops C #3 — 첫 배포의 prod 는 계정이 0개인데 가입 API 로는 메인 관리자를 만들 수 없어, 배포가 성공해도 로그인할 사람이
- * 없었다. 환경변수로 메인 관리자가 하나도 없을 때만 1명을 만드는 기동 러너를 본다.
+ * 첫 배포의 prod 는 계정이 0개인데 가입 API 로는 메인 관리자를 만들 수 없어, 배포가 성공해도 로그인할 사람이
+ * 없다. 환경변수로 메인 관리자가 하나도 없을 때만 1명을 만드는 기동 러너를 본다.
  *
  * <p>{@code @Transactional} 로 돌려 시험 DB 를 바꾸지 않는다 — 시드에는 이미 메인 관리자가 있으므로 "없는 상태" 는 등록부 행을
  * 이 트랜잭션 안에서 지워 만든다. 러너는 시험이 직접 생성해(환경변수 값을 생성자로 넣어) 부른다.
@@ -67,7 +67,7 @@ class FirstSystemAdminBootstrapTest {
     void captureRunnerLogs() {
         runnerLogger = (Logger) LoggerFactory.getLogger(FirstSystemAdminBootstrap.class);
         // CI 의 -PciQuiet 은 루트 로그 수준을 WARN 으로 낮춘다 — INFO 를 이 시험이 직접 켜지 않으면 로그가 하나도 안 잡혀
-        // "비밀번호가 로그에 없다" 를 검사할 대상 자체가 사라진다(R46-CIFIX).
+        // "비밀번호가 로그에 없다" 를 검사할 대상 자체가 사라진다.
         levelBefore = runnerLogger.getLevel();
         runnerLogger.setLevel(Level.INFO);
         logs = new ListAppender<>();

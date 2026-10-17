@@ -14,7 +14,7 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 /**
- * 학원 격리를 <b>빠뜨린 저장소 조회를 실패로 만드는</b> 회귀 방지 테스트 — 이 태스크의 핵심 산출물이다.
+ * 학원 격리를 <b>빠뜨린 저장소 조회를 실패로 만드는</b> 회귀 방지 테스트 — 학원 격리 규약의 핵심 산출물이다.
  *
  * <p>격리는 DB 레벨(RLS)이 아니라 애플리케이션 코드가 강제하므로(CLAUDE.md), 조건 하나를 빠뜨리면
  * 그대로 샌다. 특히 목록 조회는 조건이 빠져도 동작해서 기능 테스트를 통과한다(ARCHITECTURE §6.1).
@@ -29,7 +29,7 @@ import org.junit.jupiter.api.Test;
  *       {@code @Query} 메서드는 <b>WHERE 절 조건문</b> 안에 학원 식별자가 있어야 하고, 파생 조회
  *       메서드는 <b>이름</b>에 {@code AcademyId} 가 있어야 한다. {@code @Param} 은 어느 쪽에서도 근거로
  *       쓰지 않는다 — 쿼리 본문·메서드 이름과 무관하게 시그니처에만 존재해, {@code WHERE} 절의 조건을
- *       지워도 그대로 남기 때문이다(Phase 7 T6 실측 결함의 본체)</li>
+ *       지워도 그대로 남기 때문이다(실측 결함의 본체)</li>
  *   <li><b>부모 경유로 좁혀짐</b> — {@code @Query} 가 부모의 {@code academyId} 를 WHERE 절의 조인 조건에
  *       씀. 1과 같은 술어로 판정된다 — 자식 테이블에 컬럼이 없어도 WHERE 절에 조인 조건이 있으면 잡힌다</li>
  *   <li><b>{@link AcademyScopeExempt}</b> 로 좁히지 않는 근거를 밝힘</li>
@@ -82,7 +82,7 @@ class AcademyScopeRepositoryConventionTest {
      * 아니라 조건을 붙일 자리가 부모 조인뿐이라는 뜻이다. 자식 단독 조회 경로를 만들면 조건을 붙일
      * 자리가 사라진다(ERD §6.2).
      *
-     * <p>F4 S1 이 {@code run_transfer} 1개를 더했다(RTE-07, API_SPEC §5.8) — {@code from_run_id}·
+     * <p>{@code run_transfer} 1개가 있다(RTE-07, API_SPEC §5.8) — {@code from_run_id}·
      * {@code to_run_id} 둘 다 {@code run} 이라 부모 경유로 분류된다(ERD §6.1).
      */
     private static final Set<String> ERD_PARENT_ACADEMY_TABLES = Set.of(
@@ -143,9 +143,9 @@ class AcademyScopeRepositoryConventionTest {
      * <p>{@link AcademyScopeScan#repositoryInterfaces()} 가 {@code repository} 라는 <b>패키지 이름</b>에
      * 결합돼 있어, 저장소를 {@code persistence} 같은 다른 이름에 두면 수집이 통째로 공집합이 된다.
      * 엔티티 쪽은 17·20 이라는 정수 하한이 있으나 저장소 쪽에는 부재해, 개별 검사의
-     * {@code isNotEmpty()} 만으로는 <b>9개 중 8개가 사라지는</b> 형태를 못 잡는다(리뷰 라운드 2 m-2).
+     * {@code isNotEmpty()} 만으로는 <b>9개 중 8개가 사라지는</b> 형태를 못 잡는다.
      *
-     * <p>하한을 등호 아닌 <b>이상</b>으로 둔 것은 Phase 5·9 가 저장소를 더할 때 이 단언이 먼저 깨지는
+     * <p>하한을 등호 아닌 <b>이상</b>으로 둔 것은 저장소를 더할 때 이 단언이 먼저 깨지는
      * 것을 피하기 위함이다 — 여기서 막을 것은 증가가 아니라 <b>수집 실패로 인한 감소</b>다.
      */
     @Test
@@ -202,7 +202,7 @@ class AcademyScopeRepositoryConventionTest {
 
     /**
      * ERD §6.1 표에 없는 테이블의 저장소가 조용히 검사 대상 밖으로 빠지는 것을 막는다 — 새 테이블을
-     * 만들면 <b>분류부터</b> 하게 강제한다. 이것이 없으면 Phase 5·9 가 새 테이블을 더할 때 위 두 표에
+     * 만들면 <b>분류부터</b> 하게 강제한다. 이것이 없으면 새 테이블을 더할 때 위 두 표에
      * 등재하지 않는 것만으로 규칙 전체를 우회할 수 있다.
      */
     @Test

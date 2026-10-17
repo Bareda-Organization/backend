@@ -32,7 +32,7 @@ import testsupport.clock.FixedClock20260827Config;
 /**
  * BR-044 — 확정 계산이 끝난 뒤 <b>이동 대기 1건이 취소되고 새 1건이 등록</b>되면 행 수는 그대로인데 명단은
  * 다르다. {@link RunConfirmationPersistence#persist} 가 수가 아니라 행 id 집합으로 비교해 이 낡은 명단을 막는지
- * 재현한다(R36-BE 목표 5).
+ * 재현한다.
  *
  * <p>불일치를 잡으면 {@code confirmIfIdle} 이후 첫 검사에서 던지므로 계산 결과·끝점은 아직 쓰이지 않는다 —
  * 그래서 두 인자에 {@code null} 을 넘긴다. 옛 수 비교로 되돌리면 검사를 통과해 그 {@code null} 을 밟는

@@ -51,12 +51,12 @@ import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * 승하차 처리·되돌리기(§4.6·§4.7) 시험이 쓰는 실제 행 — {@code BoardingIntentFixtures}(Phase 8)와 같은
+ * 승하차 처리·되돌리기(§4.6·§4.7) 시험이 쓰는 실제 행 — {@code BoardingIntentFixtures}와 같은
  * 이유로 정상 경로의 팩토리로 쌓는다.
  *
- * <p>{@code run.status='moving'} 전이는 이 워크트리에 T2 소유의 회차 시작 커맨드가 없어 팩토리로 만들
+ * <p>{@code run.status='moving'} 전이는 회차 시작 커맨드가 없어 팩토리로 만들
  * 수 없다 — {@link #startRun} 이 그 대신 {@link JdbcTemplate} 직접 UPDATE 로 전이시킨다(정상 경로가
- * 아직 없는 협력자를 시험이 대신 흉내 내는 지점, 판단 근거로 보고에 남긴다).
+ * 아직 없는 협력자를 시험이 대신 흉내 내는 지점).
  */
 public class BoardingCommandFixtures {
 
@@ -152,7 +152,7 @@ public class BoardingCommandFixtures {
         return studentRepository.save(Student.register(academyId, profile)).getId();
     }
 
-    /** 보호자 1명 — {@link #guardian} 을 목표 7(학부모 알림) 시험이 수신자 확인에 쓴다. */
+    /** 보호자 1명 — {@link #guardian} 을 학부모 알림 시험이 수신자 확인에 쓴다. */
     public GuardianAccount guardian(long academyId, String name) {
         String loginId = "guardian" + SEQUENCE.incrementAndGet() + "-" + System.nanoTime();
         Account account = accountRepository.save(Account.forSignup(academyId, loginId, "{noop}password", name,
@@ -170,7 +170,7 @@ public class BoardingCommandFixtures {
         guardianStudentRepository.save(GuardianStudent.uponLink(guardianId, studentId, linkedAt));
     }
 
-    /** 목표 7(관계자 통지) 수신 대상 — {@code AcademyStaff} 승인 행까지 함께 만든다. */
+    /** 관계자 통지 수신 대상 — {@code AcademyStaff} 승인 행까지 함께 만든다. */
     public long staffAccount(long academyId) {
         String loginId = "staff" + SEQUENCE.incrementAndGet() + "-" + System.nanoTime();
         Account account = accountRepository.save(Account.forSignup(academyId, loginId, "{noop}password", "관계자",
@@ -180,9 +180,9 @@ public class BoardingCommandFixtures {
     }
 
     /**
-     * 동승자 계정(배치 없음) — 원래는 Ruling 203("동승자가 없는 회차는 없다고 가정한다")에 따라
-     * 역할만으로 권한을 확인했으나, §1.11·Ruling 259(b)(2026-09-05) 가 이 자원군에 배치 확인을
-     * 우선하는 {@code 403 FORBIDDEN} 을 명시하며 이 계정만으로는 승하차·미승차 엔드포인트를 더 통과할
+     * 동승자 계정(배치 없음) — Ruling 203("동승자가 없는 회차는 없다고 가정한다")은
+     * 역할만으로 권한을 확인하지만, §1.11·Ruling 259(b) 가 이 자원군에 배치 확인을
+     * 우선하는 {@code 403 FORBIDDEN} 을 명시하므로 이 계정만으로는 승하차·미승차 엔드포인트를 더 통과할
      * 수 없다. 역할 거부(§4.6 {@code ESCORT_ONLY})·타 학원 거부처럼 **배치 이전에 걸려야 하는 시험**
      * 에서만 쓴다 — 성공 경로 시험은 {@link #assignedManager} 를 쓴다.
      */
@@ -192,7 +192,7 @@ public class BoardingCommandFixtures {
                 "010-2222-2222", null, Role.ESCORT)).getId();
     }
 
-    /** 목표4(권한 거부) 시험용 — 동승자가 아닌 역할의 대표로 기사 계정을 쓴다(역할 판정이 배치 판정보다 먼저라 배치 불필요). */
+    /** 권한 거부 시험용 — 동승자가 아닌 역할의 대표로 기사 계정을 쓴다(역할 판정이 배치 판정보다 먼저라 배치 불필요). */
     public long driverAccount(long academyId) {
         String loginId = "driver" + SEQUENCE.incrementAndGet() + "-" + System.nanoTime();
         return accountRepository.save(Account.forSignup(academyId, loginId, "{noop}password", "기사",
@@ -230,7 +230,7 @@ public class BoardingCommandFixtures {
 
     /**
      * {@code moving} 상태의 회차 — 승하차 처리·되돌리기는 이 상태에서만 통과한다(§4.6·§4.7,
-     * {@code RUN_NOT_MOVING}). T2 소유의 회차 시작 커맨드가 이 워크트리에 없어 직접 UPDATE 로 전이시킨다.
+     * {@code RUN_NOT_MOVING}). 회차 시작 커맨드가 없어 직접 UPDATE 로 전이시킨다.
      */
     public long movingRun(long academyId, long busId, OffsetDateTime departTime, OffsetDateTime confirmAt) {
         long runId = run(academyId, busId, departTime, confirmAt);
@@ -239,7 +239,7 @@ public class BoardingCommandFixtures {
     }
 
     /**
-     * 이미 만든 회차를 {@code moving} 으로 강제 전이한다 — 정상 경로(T2)가 이 워크트리에 부재하다.
+     * 이미 만든 회차를 {@code moving} 으로 강제 전이한다 — 정상 경로가 부재하다.
      *
      * <p>{@link JdbcTemplate} 직접 UPDATE 는 영속성 컨텍스트를 거치지 않아, 이미 관리 중인 {@code Run}
      * 엔티티가 있으면 이후 {@code findByIdAndAcademyId} 가 DB 대신 그 캐시(옛 {@code idle})를 돌려준다.
@@ -265,7 +265,7 @@ public class BoardingCommandFixtures {
     }
 
     /**
-     * {@code stop_skipped}(목표 7 후자 경로, C-05·§4.6) 검증용 확정 노선 1건 — 배포 버전 1건·정차 항목
+     * {@code stop_skipped}(후자 경로, C-05·§4.6) 검증용 확정 노선 1건 — 배포 버전 1건·정차 항목
      * 1건을 실제 행으로 쌓고 {@code run_stop.id} 를 돌려준다. 탑승자 행은 만들지 않는다 — 호출자가
      * {@link #runRider} 로 원하는 수만큼(잔여 판정 시나리오에 맞게) 별도로 붙인다는 전제다
      * ({@code BoardingIntentFixtures#confirmedSingleRiderStop} 과 달리 탑승자를 여러 명 두는 시나리오가
@@ -283,7 +283,7 @@ public class BoardingCommandFixtures {
     }
 
     /**
-     * {@link #confirmedRunStop} 이 만든 버전에 정차 항목을 추가한다(목표 6c 재료, Ruling 307) — "마지막
+     * {@link #confirmedRunStop} 이 만든 버전에 정차 항목을 추가한다(Ruling 307) — "마지막
      * 승하차지에도 되돌리기 제한이 걸리는가"를 보려면 그 뒤에 정차 항목이 없는 상태를 그대로 두고
      * 이 메서드로 <b>앞</b> 순번만 채운다. 도착·출발은 별도로({@link #departStop}) 표시한다.
      */
@@ -294,7 +294,7 @@ public class BoardingCommandFixtures {
     }
 
     /**
-     * 정차 항목을 출발 처리한다(목표 6b·6c, Ruling 307) — 스케줄러의 100m 이탈 판정을 거치지 않고
+     * 정차 항목을 출발 처리한다(Ruling 307) — 스케줄러의 100m 이탈 판정을 거치지 않고
      * {@link RunStopRepository#claimDeparture} 조건부 UPDATE 를 직접 불러 재현한다(운영 경로와 같은
      * 진입점, 가짜 값을 별도로 만들지 않는다). {@link #confirmedRunStop} 로 버전을 만든 뒤에만
      * 호출한다는 전제다.
@@ -306,7 +306,7 @@ public class BoardingCommandFixtures {
         runStopRepository.claimDeparture(runStopId, departedAt);
     }
 
-    /** 잔여 판정의 함정(목표 7)을 걸기 위해 이미 부재 처리된 탑승자를 직접 만든다 — {@code markAbsent} 는 회차 진행 중 경로가 없다. */
+    /** 잔여 판정의 함정을 걸기 위해 이미 부재 처리된 탑승자를 직접 만든다 — {@code markAbsent} 는 회차 진행 중 경로가 없다. */
     public void markAbsent(long riderId) {
         int updated = jdbcTemplate.update("UPDATE run_rider SET status = 'absent' WHERE id = ?", riderId);
         if (updated != 1) {
