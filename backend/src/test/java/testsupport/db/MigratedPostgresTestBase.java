@@ -29,9 +29,9 @@ import testsupport.TestContainerOwner;
  * 기본 컴포넌트·엔티티 스캔 범위에 테스트 전용 클래스가 섞여 들어가는 것을 막기 위함이다.
  *
  * <p>컨테이너는 {@code RedisTestContainerBase} 와 같은 이유로 JVM 당 1회만 기동한다(BR-149) —
- * 예전에는 {@code @Testcontainers}·{@code @Container} 를 썼는데, 그 조합은 컨테이너 수명을
+ * {@code @Testcontainers}·{@code @Container} 를 쓰면 그 조합은 컨테이너 수명을
  * <b>상속한 시험 클래스마다</b> 관리해 14개 클래스가 매번 새 컨테이너를 띄우고 전체 마이그레이션을
- * 다시 적용했다. 정적 초기화로 한 번만 띄우고 클래스별 격리는 {@link #migrate}가 매번 하는
+ * 다시 적용한다. 정적 초기화로 한 번만 띄우고 클래스별 격리는 {@link #migrate}가 매번 하는
  * {@code flyway.clean() → flyway.migrate()} 로 대신한다 — 그래서 이 클래스를 상속하는 시험은
  * 여전히 자기 {@code @BeforeAll} 에서 {@link #migrate} 를 불러야 한다(컨테이너만 공유, 스키마
  * 상태는 공유하지 않음). 회수는 Ryuk 사이드카가 JVM 종료 시점에 한다.

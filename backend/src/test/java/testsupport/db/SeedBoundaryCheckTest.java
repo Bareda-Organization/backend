@@ -15,10 +15,10 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 /**
- * 학원 경계 점검(R46-LATERBE B-4, Ruling 675) — {@code academy_id} 가 없는 자식({@code run_rider} · {@code route_stop} ·
+ * 학원 경계 점검(Ruling 675) — {@code academy_id} 가 없는 자식({@code run_rider} · {@code route_stop} ·
  * {@code run_stop})은 복합 FK 를 걸 수 없어 "다른 학원의 학생·승하차지를 가리키는 행" 을 DB 가 막지 못한다. 점검 쿼리
  * ({@code load/sql/check_academy_boundary.sql} — 부하 DB 점검에도 같은 파일을 쓴다)가 시험 시드({@code db/fixture}) 적재 직후 전부
- * 0건인지 본다. 부하 시드 스크립트가 이 경계를 어겨 {@code run_rider} 18,000건이 학원을 넘은 사례가 있었다(R46 검토 B-4).
+ * 0건인지 본다. 부하 시드 스크립트가 이 경계를 어겨 {@code run_rider} 18,000건이 학원을 넘은 사례가 있었다.
  *
  * <p>점검 쿼리가 실제로 어긋남을 세는지도 한 번 본다 — 항상 0 을 돌려주는 쿼리는 "0건" 시험을 공허하게 통과한다.
  */

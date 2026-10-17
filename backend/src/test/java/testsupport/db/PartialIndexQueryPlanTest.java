@@ -47,7 +47,7 @@ import src.backend.student.repository.StudentRepository;
  *       {@code ix_student_retention_cutoff}). 부분 인덱스는 조건이 리터럴일 때만 일반(generic) 계획에서도 쓰이므로(14.6만 행 실측
  *       20.7ms ↔ 0.033ms, Ruling 673·701) {@code plan_cache_mode = force_generic_plan} 으로 계획하고, SQL 에 상태 리터럴이 있는지를
  *       따로 본다 — 누가 {@code :status} 파라미터로 되돌리면 둘 다 실패한다.</li>
- *   <li><b>파라미터 쿼리</b> — 상태를 바인딩 파라미터로 받는 {@code countOverdueUnconfirmed}(30초 게이지 하나라 R57 에서 리터럴로 옮기지 않았다). ERD §5.3 Ruling 631 이
+ *   <li><b>파라미터 쿼리</b> — 상태를 바인딩 파라미터로 받는 {@code countOverdueUnconfirmed}(30초 게이지 하나라 리터럴로 옮기지 않는다). ERD §5.3 Ruling 631 이
  *       "맞춤(custom) 계획이 유지돼 부분 인덱스를 쓴다" 고 받아들인 쿼리라 실제 값을 넣은 맞춤 계획으로 본다. 쿼리가 인덱스 조건
  *       (status · canceled_at)을 빠뜨리면 이 인덱스를 못 쓴다.</li>
  * </ul>
@@ -188,7 +188,7 @@ class PartialIndexQueryPlanTest {
     }
 
     /**
-     * R46 I-05(b) · BR-375 — 계정별 접속 이력은 {@code (행위자 = X AND 해제 아님) OR (해제 AND 대상 = X)} 인데 해제 행의 {@code target_id}
+     * BR-375 — 계정별 접속 이력은 {@code (행위자 = X AND 해제 아님) OR (해제 AND 대상 = X)} 인데 해제 행의 {@code target_id}
      * 에 접근 경로가 없어, 일치 행이 적은 계정이 기간 전체를 훑었다(실측 15,674 버퍼 · 48ms → 18 버퍼 · 0.07ms). 해제 행만 색인하는 부분
      * 인덱스가 {@code BitmapOr} 의 한쪽을 받치는지 본다 — 사람이 옮겨 쓴 SQL 이 아니라 {@code AuditLogRepository.searchLoginHistory} 가 낸 SQL 로.
      *

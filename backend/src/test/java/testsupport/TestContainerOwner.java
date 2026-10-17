@@ -6,7 +6,7 @@ import org.testcontainers.containers.GenericContainer;
 
 /**
  * 시험 컨테이너에 "누가 띄웠나" 를 이름과 라벨로 붙인다 — 여러 작업 창이 동시에 시험을 돌리면 Docker 화면에
- * 무작위 이름(`dreamy_murdock` 등)만 보여 어느 창의 것인지 가를 수 없었다(2026-10-01 사용자 요청).
+ * 무작위 이름(`dreamy_murdock` 등)만 보여 어느 창의 것인지 가를 수 없다.
  *
  * <p>주인 이름은 Gradle 이 {@code -PtestDbUrl} 의 DB 이름으로 넘긴다({@code testcontainers.owner}) — 그 인자는
  * 창마다 전용이고 빠뜨리면 빌드가 실패하므로(build.gradle) 따로 외울 값이 늘지 않는다. 이름은

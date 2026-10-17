@@ -17,9 +17,8 @@ import org.junit.jupiter.api.Test;
  * {@code V2__seed_data.sql}(로컬 데모 시드)이 {@code V1__init_schema.sql} 위에서 예외 없이
  * 적재되고, Swagger 로 역할·상태별 로그인 흐름을 밟을 수 있을 만큼 계정이 갖춰졌는지 본다.
  *
- * <p>이 클래스는 Phase1·Task7 의 TDD RED→GREEN 대상이다 — 단언 3개를 먼저 쓰고, 옛 시드(tenant
- * 테이블 참조)에 대해 RED 를 확인한 뒤, 새 시드를 채워 GREEN 으로 만든다. {@code SeedFixtures}
- * 상수 클래스와의 전수 대조는 이 태스크 범위 밖이며 별도 후속 태스크(SeedFixturesContractTest)다.
+ * <p>이 클래스는 TDD RED→GREEN 대상이다 — 단언 3개를 먼저 쓰고, RED 를 확인한 뒤, 시드를 채워 GREEN 으로 만든다. {@code SeedFixtures}
+ * 상수 클래스와의 전수 대조는 이 시험 범위 밖이며 별도 후속 시험(SeedFixturesContractTest)이다.
  */
 class SeedDataLoadTest extends MigratedPostgresTestBase {
 
@@ -53,10 +52,10 @@ class SeedDataLoadTest extends MigratedPostgresTestBase {
     }
 
     /**
-     * R20 A 목표 1 — {@code confirmOne} 이 {@code est_duration_min}·{@code est_distance_km} 을
-     * 채우는 것은 이미 실코드로 확인했다({@code RunConfirmationPersistence.persist} →
-     * {@code RouteVersion.forConfirmedRoute}). 시드가 그 두 컬럼을 INSERT 문 자체에서 빠뜨려
-     * 6건 전부 NULL 이었다 — 채워야 할 것은 시드뿐이다.
+     * {@code confirmOne} 이 {@code est_duration_min}·{@code est_distance_km} 을
+     * 채우는 것은 실코드로 확인된다({@code RunConfirmationPersistence.persist} →
+     * {@code RouteVersion.forConfirmedRoute}). 시드 INSERT 문이 그 두 컬럼을 빠뜨리면 행이 NULL 로 남는다
+     * — 채워야 할 것은 시드뿐이다.
      */
     @Test
     void route_version은_est_duration_min과_est_distance_km이_전부_채워진다() throws SQLException {
@@ -67,8 +66,8 @@ class SeedDataLoadTest extends MigratedPostgresTestBase {
     }
 
     /**
-     * R20 A 목표 2 — 운행이 끝난 회차(run id=4)도 확정 노선이 있어야 관계자 웹 지도에 경로가
-     * 남는다. 지금은 confirmed_route 행 자체가 없다.
+     * 운행이 끝난 회차(run id=4)도 확정 노선이 있어야 관계자 웹 지도에 경로가
+     * 남는다.
      */
     @Test
     void 운행_종료_회차도_확정_노선을_가진다() throws SQLException {
@@ -80,7 +79,7 @@ class SeedDataLoadTest extends MigratedPostgresTestBase {
     }
 
     /**
-     * R20 A 목표 3 — 운행 중(moving) 회차(run id=3)는 폴백이 아니라 실제 도로 경로여야 한다.
+     * 운행 중(moving) 회차(run id=3)는 폴백이 아니라 실제 도로 경로여야 한다.
      * {@code road_path} 길이가 정차지 수(5)보다 많아야 도로를 따라 굽은 실측 경로다(정차지 수와
      * 같으면 직선을 그대로 이은 것과 구별되지 않는다 — {@code RunConfirmationServiceLiveTest} 목표
      * 3 과 같은 판단 기준).
@@ -103,7 +102,7 @@ class SeedDataLoadTest extends MigratedPostgresTestBase {
     }
 
     /**
-     * R20 A 목표 3 이월 — 폴백 시연 케이스를 없애지 않는다(과업 지시서). 대신 대상을 run id=3(운행
+     * 폴백 시연 케이스를 없애지 않는다. 대신 대상을 run id=3(운행
      * 중, 화면에서 가장 눈에 띔)에서 run id=5(확정, 학원 B 격리 검증용)로 옮긴다. 시연은 정확히
      * 한 건이어야 한다 — 둘 이상이면 "폴백이 예외" 라는 인상이 무너지고, 0 건이면 근사 경로 화면을
      * 검증할 수단이 사라진다.

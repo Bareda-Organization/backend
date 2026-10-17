@@ -36,7 +36,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
 /**
- * Phase 5 목표 1 — 관계자 로그인 → 학생 등록 → 차량 등록 → 매니저 등록 → 스케줄 등록 →
+ * 관계자 로그인 → 학생 등록 → 차량 등록 → 매니저 등록 → 스케줄 등록 →
  * <b>학부모</b> 로그인 → 자녀 연결(코드 발급 → 입력) → 요일별 주소 설정 → 회차 생성 배치 →
  * 오늘 회차 조회 → 매니저 배치를 <b>한 흐름</b>으로 밟는다(순서는 Ruling 154).
  *
@@ -248,7 +248,7 @@ class OperationSetupFlowTest {
      * 주소가 저장되기만 한 것이 아니라 <b>승하차지에 매칭됐는지</b>까지 본다(STU-05).
      *
      * <p>{@code stop_id} 단언이 없으면 주소만 저장하고 매칭을 건너뛴 구현이 통과하는데, 그 상태로는
-     * Phase 6 노선 계산의 입력이 비어 있다 — 실패가 이 Phase 가 아니라 다음 Phase 에서 드러난다.
+     * 노선 계산의 입력이 비어 있다 — 실패가 이 검사가 아니라 노선 계산 시험에서 드러난다.
      */
     private void 승하차지가_붙었는지_본다(long studentId, String 오늘_요일) {
         entityManager.flush();

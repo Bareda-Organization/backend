@@ -6,7 +6,7 @@ package testsupport.live;
  * <p>자격증명은 gitignore 대상 {@code backend/.env} 에서만 오므로 워크트리·CI 에서는 이 시험들이 조용히
  * 건너뛰어지고, 리포트에는 {@code skipped} 로만 남아 초록과 구별되지 않는다. 그래서 병합 직전 검사처럼
  * "건너뛰면 안 되는" 실행은 {@code -PrequireLive} 를 준다 — 그러면 자격증명이 없을 때 건너뛰는 대신
- * 조건 평가가 예외를 던져 시험이 <b>실패</b>한다. 기본 실행(옵션 없음)은 예전처럼 건너뛴다.
+ * 조건 평가가 예외를 던져 시험이 <b>실패</b>한다. 기본 실행(옵션 없음)은 건너뛴다.
  */
 public final class LiveCredentials {
 

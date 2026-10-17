@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * QA Mock 데이터({@code db/qa-seed}) 확인 — 시나리오 문서(workspace 저장소 {@code docs/qa/QA_SCENARIOS.md})가 약속하는
- * 모양을 데이터가 지키는가(2026-10-03 사용자 요구: 개인정보 빈칸 없음 · 노선당 승하차지 10곳 · 한 승하차지에 학생 여럿).
+ * 모양을 데이터가 지키는가(개인정보 빈칸 없음 · 노선당 승하차지 10곳 · 한 승하차지에 학생 여럿).
  *
  * <p>자동 시험은 QA 데이터를 쓰지 않는다(시험은 {@code db/fixture}). 그래서 스키마가 바뀌어 이 데이터가 깔리지 않게
  * 돼도 다른 시험은 전부 초록이고, 로컬 재기동이 Flyway 오류로 멈춰서야 드러난다 — 그 구멍을 이 시험이 막는다.
@@ -130,7 +130,7 @@ class QaSeedCheckTest extends MigratedPostgresTestBase {
         }
     }
 
-    /** 시드가 런타임이 만들지 않는 이력·팝업 값을 심지 않는다(R53 t2 A3·A4) — 화면·알림이 실제와 다른 모양을 보이지 않게. */
+    /** 시드가 런타임이 만들지 않는 이력·팝업 값을 심지 않는다 — 화면·알림이 실제와 다른 모양을 보이지 않게. */
     @Test
     void 이력과_팝업_값이_런타임이_만드는_모양이다() throws Exception {
         try (Connection connection = connection()) {

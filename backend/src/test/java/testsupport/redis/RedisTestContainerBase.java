@@ -8,8 +8,7 @@ import org.testcontainers.utility.DockerImageName;
 import testsupport.TestContainerOwner;
 
 /**
- * 전용 Redis 컨테이너로 {@code spring.data.redis.*} 를 갈아 끼우는 테스트 베이스(목표 3, Phase 10
- * T1) — 공유 컨테이너 {@code school-bus-redis-1} 은 병렬 좌석(T1·T3·T4)이 동시에 건드리므로 여기서는
+ * 전용 Redis 컨테이너로 {@code spring.data.redis.*} 를 갈아 끼우는 테스트 베이스 — 공유 컨테이너 {@code school-bus-redis-1} 은 병렬로 도는 작업들이 동시에 건드리므로 여기서는
  * 쓰지 않는다.
  *
  * <p>패키지를 {@code src.backend} 트리 밖({@code testsupport}) 에 둔 이유는
@@ -19,10 +18,9 @@ import testsupport.TestContainerOwner;
  * <p>Testcontainers 2.0.5 BOM 에는 Redis 전용 모듈이 없다(build.gradle 의 testImplementation 목록
  * 옆 주석 참고) — 그래서 전용 컨테이너 클래스 대신 {@link GenericContainer} 로 redis 이미지를 직접
  * 띄운다. {@code RedisConnectionFactory} 는 {@code spring.data.redis.host}·{@code port} 만 보고
- * 자동 구성되므로 그 두 값만 갈아 끼우면 충분하다. ⚠ 이 저장소에는 Redis 설정 클래스가 없다 —
- * 예전에 있던 {@code RedisConfig} 는 다형 직렬화 빈을 두었다가, 그 형식이 소비자 두 곳의 평문
- * 파서와 어긋나 위치 조회가 500 을 내는 결함을 만들어 삭제됐다. 되살리지 마라 — 값 형식은
- * {@code RunPositionRedisValue} 자바독이 계약으로 명시한다.
+ * 자동 구성되므로 그 두 값만 갈아 끼우면 충분하다. ⚠ 이 저장소에는 Redis 설정 클래스가 없다 — {@code RedisConfig} 를 되살리지 마라.
+ * 다형 직렬화 빈은 그 형식이 소비자 두 곳의 평문 파서와 어긋나 위치 조회가 500 을 내는 결함을 만든다.
+ * 값 형식은 {@code RunPositionRedisValue} 자바독이 계약으로 명시한다.
  *
  * <p>공유 컨테이너를 못 쓰는 이유가 하나 더 있다 — Postgres 는 {@code @Transactional} 롤백으로
  * 시험 간 격리되지만, Redis 는 트랜잭션이 없어 한 시험이 쓴 키가 다음 시험에 그대로 남는다. 이
@@ -45,7 +43,7 @@ public abstract class RedisTestContainerBase {
      * 컨테이너 수명을 <b>테스트 클래스 단위</b>로 관리하게 만든다 — 클래스가 끝날 때 {@code stop()},
      * 다음 클래스에서 {@code start()} 다. {@code static} 필드라고 해서 공유되지 않는다.
      *
-     * <p>그 형태가 실제로 낸 결함(2026-09-14 실측) — {@code @DynamicPropertySource} 가 준 매핑 포트는
+     * <p>그 형태가 실제로 낸 결함 — {@code @DynamicPropertySource} 가 준 매핑 포트는
      * {@code LettuceConnectionFactory} 빈이 만들어질 때 <b>한 번</b> 읽혀 Spring 컨텍스트에 굳는다.
      * 그런데 그 컨텍스트는 설정이 같은 다음 클래스가 <b>캐시에서 그대로 재사용</b>한다. 그 사이
      * 컨테이너는 파기되고 새 컨테이너가 <b>다른 포트</b>로 뜨므로, 두 번째 클래스는 이미 사라진

@@ -41,10 +41,9 @@ import jakarta.persistence.Entity;
 class SchemaContractTest extends MigratedPostgresTestBase {
 
     /**
-     * ERD §3 이 정의한 42개 테이블 전수와 정확히 일치해야 한다(Phase 8 신설 run_forced_addition ·
-     * F3 S1 신설 delay_notice · F4 S1 신설 run_transfer 포함, Ruling 324 로 link_request 삭제 —
-     * 43개→42개). {@code shedlock} 은 도메인 테이블이 아니라 ShedLock 라이브러리가 요구하는 스키마
-     * 그대로이지만, {@code docs/backend/ERD.md} 가 이를 별도 그룹 ⑤ 로 직접 문서화하므로(2026-09-03 · 2026-10-03 V1 에 합침)
+     * ERD §3 이 정의한 42개 테이블 전수와 정확히 일치해야 한다(run_forced_addition ·
+     * delay_notice · run_transfer 포함, Ruling 324 로 link_request 삭제). {@code shedlock} 은 도메인 테이블이 아니라 ShedLock 라이브러리가 요구하는 스키마
+     * 그대로이지만, {@code docs/backend/ERD.md} 가 이를 별도 그룹 ⑤ 로 직접 문서화하므로
      * 42개 안에 포함된다 — 이 대조에서 빠지면 오타난 인프라 테이블 이름도 통과하게 되므로 함께 센다.
      * Flyway 자신의 이력 테이블은 대조 대상 밖이다.
      */
@@ -59,7 +58,7 @@ class SchemaContractTest extends MigratedPostgresTestBase {
             "bus", "manager", "stop", "schedule", "route", "route_stop", "run",
             "waypoint", "confirmed_route", "route_version", "run_stop", "run_rider", "assignment",
             "run_forced_addition",
-            // ④ 요청 · 예외 · 알림 · 이력 (14, F3 S1 신설 delay_notice · F4 S1 신설 run_transfer 포함)
+            // ④ 요청 · 예외 · 알림 · 이력 (14, delay_notice · run_transfer 포함)
             "boarding_intent", "change_request", "rider_status_history", "no_show_case",
             "no_show_contact", "emergency_alert", "exception_report", "run_position",
             "notification_log", "device_token", "notification_setting", "audit_log", "delay_notice",
@@ -106,7 +105,7 @@ class SchemaContractTest extends MigratedPostgresTestBase {
     /**
      * {@code ddl-auto: validate} 는 <b>엔티티가 요구하는 컬럼이 스키마에 없는</b> 방향만 본다 —
      * 반대로 스키마에만 남아 엔티티 어디에도 매핑되지 않은 컬럼(고아 컬럼)은 그 방향으로도,
-     * 테이블 집합만 보는 위 테스트로도 걸리지 않는다(R12 docs/archive/rounds/be-rounds-r5-r14.md §8.15, R13-T2).
+     * 테이블 집합만 보는 위 테스트로도 걸리지 않는다.
      *
      * <p>기대 컬럼 목록은 손으로 옮겨 적지 않고 Hibernate 부트 메타데이터({@link MetadataSources})를
      * 직접 빌드해서 얻는다 — {@code ddl-auto: validate} 가 내부에서 쓰는 것과 같은 모델이라, 엔티티가
@@ -325,7 +324,7 @@ class SchemaContractTest extends MigratedPostgresTestBase {
     }
 
     /**
-     * R46 A-5 — 코드 enum 으로만 지키던 값 도메인 7곳을 DB 가 거부한다. 잘못된 값은 저장할 때는 통과하고 그 행을 읽는
+     * 코드 enum 에만 기대지 않고 값 도메인 7곳을 DB 가 거부한다. 잘못된 값은 저장할 때는 통과하고 그 행을 읽는
      * 목록·집계가 {@code Enum.valueOf} 에서 실패한다(알림 14일·이력 무기한 보존이라 오래 남는다).
      * {@code requested_role} 은 가입 요청이 받을 수 없는 {@code system_admin} 으로 시험한다 — 허용 값 집합이
      * 계정 역할 전체가 아니라 가입 가능한 5종임을 함께 고정한다.
@@ -377,7 +376,7 @@ class SchemaContractTest extends MigratedPostgresTestBase {
         });
     }
 
-    /** R46 A-5 — 한 노선 버전에 도착지(학원) 항목이 둘 들어가지 못한다(Ruling 327 의 "마지막 순번 1행"). */
+    /** 한 노선 버전에 도착지(학원) 항목이 둘 들어가지 못한다(Ruling 327 의 "마지막 순번 1행"). */
     @Test
     void 한_노선_버전에_도착지_항목을_둘_넣으면_거부된다() throws SQLException {
         위반_INSERT_가_제약_이름과_함께_거부되는지_확인한다("uk_run_stop_destination", connection -> {
@@ -391,7 +390,7 @@ class SchemaContractTest extends MigratedPostgresTestBase {
         });
     }
 
-    /** R46 A-1 — 같은 학생의 처리 대기({@code staged}) 이동 신청은 DB 가 하나만 받는다. 선검사는 동시 요청 둘을 못 막는다. */
+    /** 같은 학생의 처리 대기({@code staged}) 이동 신청은 DB 가 하나만 받는다. 선검사는 동시 요청 둘을 못 막는다. */
     @Test
     void 같은_학생의_대기_이동_신청을_둘_넣으면_거부된다() throws SQLException {
         위반_INSERT_가_제약_이름과_함께_거부되는지_확인한다("uk_run_transfer_student_staged", connection -> {
@@ -411,8 +410,8 @@ class SchemaContractTest extends MigratedPostgresTestBase {
     }
 
     /**
-     * R46 I-01 — 인증 없이 부르는 계정 복구 경로(번호로 계정 찾기 · 발급 빈도 세기 · 최신 코드 대조 · 미소비 무효화)가
-     * 표 순차 스캔 4회였다. 번호가 선행인 인덱스 둘이 이 4개 조회를 받친다.
+     * 인증 없이 부르는 계정 복구 경로(번호로 계정 찾기 · 발급 빈도 세기 · 최신 코드 대조 · 미소비 무효화)가
+     * 표 순차 스캔 4회가 되지 않도록 번호가 선행인 인덱스 둘이 이 4개 조회를 받친다.
      */
     @Test
     void 계정_복구_조회가_쓰는_번호_컬럼에는_인덱스가_있다() throws SQLException {
@@ -428,8 +427,8 @@ class SchemaContractTest extends MigratedPostgresTestBase {
     }
 
     /**
-     * R46 I-03 — 같은 표에서 한 인덱스의 열이 다른 인덱스의 왼쪽 접두와 같으면(방향까지 같고 둘 다 조건·식이 없으면) 앞의 것은
-     * 읽는 쪽이 없는 채 쓰기만 늘린다. {@code ix_run_bus_date} 가 {@code uk_run_bus_date_direction_depart} 의 접두였다.
+     * 같은 표에서 한 인덱스의 열이 다른 인덱스의 왼쪽 접두와 같으면(방향까지 같고 둘 다 조건·식이 없으면) 앞의 것은
+     * 읽는 쪽이 없는 채 쓰기만 늘린다. {@code ix_run_bus_date} 가 {@code uk_run_bus_date_direction_depart} 의 접두인 형태가 그 예다.
      */
     @Test
     void 다른_인덱스의_왼쪽_접두와_같은_비유니크_인덱스는_없다() throws SQLException {
@@ -513,8 +512,8 @@ class SchemaContractTest extends MigratedPostgresTestBase {
     }
 
     /**
-     * R46-LATERBE B-4(Ruling 675) — 학원을 넘는 연결을 DB 가 막는다. 단일 컬럼 FK 는 "다른 학원의 버스·회차·학생·승하차지·계정" 을 가리켜도
-     * 통과시켰다(앱 코드의 학원 조건만 방어선). {@code academy_id} 를 가진 자식 11쌍을 {@code (부모 id, academy_id)} 복합 FK 로 바꿨다 —
+     * Ruling 675 — 학원을 넘는 연결을 DB 가 막는다. 단일 컬럼 FK 는 "다른 학원의 버스·회차·학생·승하차지·계정" 을 가리켜도
+     * 통과시킨다(앱 코드의 학원 조건만 방어선). {@code academy_id} 를 가진 자식 11쌍을 {@code (부모 id, academy_id)} 복합 FK 로 건다 —
      * 자식 학원과 부모 학원이 다르면 FK 이름과 함께 거부된다. 나머지 준비 행은 같은 학원이라 다른 제약에 먼저 걸리지 않는다.
      */
     @Test
@@ -654,7 +653,7 @@ class SchemaContractTest extends MigratedPostgresTestBase {
         return SchemaCheckFixtures.insertAccount(connection, SchemaCheckFixtures.insertAcademy(connection, "CONTRACT-OTHER"));
     }
 
-    /** R46 I-08 — 부모 삭제 경로가 있는 FK 둘({@code schedule} 삭제 → run 갱신 · 경유지 후보 삭제 → run_stop 검사)의 선행 인덱스. */
+    /** 부모 삭제 경로가 있는 FK 둘({@code schedule} 삭제 → run 갱신 · 경유지 후보 삭제 → run_stop 검사)의 선행 인덱스. */
     @Test
     void 부모_삭제_경로가_있는_FK_둘은_선행_인덱스를_가진다() throws SQLException {
         assertThat(queryColumn("""
@@ -668,7 +667,7 @@ class SchemaContractTest extends MigratedPostgresTestBase {
     }
 
     /**
-     * R46-LATERBE B-1(Ruling 670) — {@code run_position} 은 {@code recorded_at} 일 단위 범위 파티션이고 기본 파티션이 있다. 기본
+     * Ruling 670 — {@code run_position} 은 {@code recorded_at} 일 단위 범위 파티션이고 기본 파티션이 있다. 기본
      * 파티션이 없으면 해당 날짜 파티션을 못 만든 날 위치 INSERT 가 실패해 위치 수신이 멈춘다. PK 는 파티션 키를 포함한다
      * ({@code (id, recorded_at)}). 삭제 전용 컷오프 인덱스는 없다 — 만료는 파티션 DROP 이다.
      */
@@ -693,9 +692,9 @@ class SchemaContractTest extends MigratedPostgresTestBase {
     }
 
     /**
-     * R46 Ruling 614 · A-2 — 읽는 곳이 0 이던 컬럼을 지운다. {@code boarded_at}·{@code alighted_at} 은 되돌리기 뒤 값이 틀렸고
-     * 같은 시각이 {@code rider_status_history.changed_at} 에 있다. {@code note} 는 쓰는 곳도 읽는 곳도 없는데 퇴원 파기 대상
-     * 목록에서 빠진 자유 문구였다.
+     * Ruling 614 — 읽는 곳이 없는 컬럼을 지운다. {@code boarded_at}·{@code alighted_at} 은 되돌리기 뒤 값이 틀렸고
+     * 같은 시각이 {@code rider_status_history.changed_at} 에 있다. {@code note} 는 쓰는 곳도 읽는 곳도 없고 퇴원 파기 대상
+     * 목록에서 빠진 자유 문구다.
      */
     @Test
     void run_rider_에_쓰지_않는_컬럼_셋이_남아_있지_않다() throws SQLException {
