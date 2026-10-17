@@ -76,7 +76,7 @@ class RetentionCleanupSchedulerBatchCapTest {
                 notificationLogRepository, runPositionPartitionManager, refreshTokenRepository,
                 linkCodeRepository, auditLogRepository, studentRepository, studentAnonymizationService,
                 mock(DelayNoticeRepository.class), mock(IdempotencyKeyExpiry.class),
-                retentionPolicy, clock,
+                retentionPolicy, passThroughTransactions(), clock,
                 new SchedulerHealthMetrics(
                         new SimpleMeterRegistry()),
                 new RefreshTokenRowsMetrics(new SimpleMeterRegistry()));
@@ -112,7 +112,7 @@ class RetentionCleanupSchedulerBatchCapTest {
                 notificationLogRepository, runPositionPartitionManager, refreshTokenRepository,
                 linkCodeRepository, auditLogRepository, studentRepository, studentAnonymizationService,
                 mock(DelayNoticeRepository.class), mock(IdempotencyKeyExpiry.class),
-                retentionPolicy, clock, new SchedulerHealthMetrics(new SimpleMeterRegistry()),
+                retentionPolicy, passThroughTransactions(), clock, new SchedulerHealthMetrics(new SimpleMeterRegistry()),
                 new RefreshTokenRowsMetrics(new SimpleMeterRegistry()));
 
         scheduler.cleanUp();
@@ -142,7 +142,7 @@ class RetentionCleanupSchedulerBatchCapTest {
                 notificationLogRepository, runPositionPartitionManager, refreshTokenRepository,
                 linkCodeRepository, auditLogRepository, studentRepository, studentAnonymizationService,
                 mock(DelayNoticeRepository.class), mock(IdempotencyKeyExpiry.class),
-                retentionPolicy, clock, new SchedulerHealthMetrics(registry),
+                retentionPolicy, passThroughTransactions(), clock, new SchedulerHealthMetrics(registry),
                 new RefreshTokenRowsMetrics(new SimpleMeterRegistry()));
 
         scheduler.cleanUp();
@@ -169,7 +169,7 @@ class RetentionCleanupSchedulerBatchCapTest {
                 notificationLogRepository, runPositionPartitionManager, refreshTokenRepository,
                 linkCodeRepository, auditLogRepository, studentRepository, studentAnonymizationService,
                 mock(DelayNoticeRepository.class), mock(IdempotencyKeyExpiry.class),
-                retentionPolicy, clock, new SchedulerHealthMetrics(new SimpleMeterRegistry()),
+                retentionPolicy, passThroughTransactions(), clock, new SchedulerHealthMetrics(new SimpleMeterRegistry()),
                 new RefreshTokenRowsMetrics(new SimpleMeterRegistry()));
 
         scheduler.cleanUp();
@@ -185,5 +185,11 @@ class RetentionCleanupSchedulerBatchCapTest {
             ids.add(i);
         }
         return ids;
+    }
+
+    /** 트랜잭션 관리자를 흉내만 내는 통과 장치 — 이 시험은 묶음 상한만 본다(문장 시간 상한은 DataAccessSettingsTest). */
+    private static RetentionTransactions passThroughTransactions() {
+        return new RetentionTransactions(mock(org.springframework.transaction.PlatformTransactionManager.class),
+                mock(org.springframework.jdbc.core.JdbcTemplate.class));
     }
 }

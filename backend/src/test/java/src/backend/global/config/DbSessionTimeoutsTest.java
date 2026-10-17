@@ -23,13 +23,13 @@ import com.zaxxer.hikari.HikariDataSource;
  * 프로파일 단위로 읽어 {@code spring.datasource.hikari} 를 {@link HikariDataSource} 에 바인딩하고, 시험 DB 에 연결해
  * {@code SHOW} 로 확인한다. 문자열만 찾는 검사는 키 이름이 틀려도(드라이버가 모르는 속성은 조용히 무시된다) 통과한다.
  *
- * <p>{@code statement_timeout} 은 일부러 걸지 않는다 — 보존 정리 DELETE(5,000행)와 Flyway 마이그레이션이 같은 계정을 쓴다.
+ * <p>{@code statement_timeout} 30초는 일반 연결에 건다(DA-4, Ruling 899 L). 보존 정리 · 익명화 트랜잭션과 Flyway 연결은 풀지만 그 시험은 {@code DataAccessSettingsTest} 다.
  */
 class DbSessionTimeoutsTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"prod", "demo", "staging"})
-    @DisplayName("운영·demo·staging 연결은 누수 감지 5초 · lock_timeout 5초 · 유휴 트랜잭션 30초를 갖고 statement_timeout 은 걸지 않는다")
+    @DisplayName("운영·demo·staging 연결은 누수 감지 5초 · lock_timeout 5초 · 유휴 트랜잭션 30초 · statement_timeout 30초를 갖는다")
     void 운영_연결에_누수_감지와_세션_시간_상한이_실제로_걸린다(String profile) throws Exception {
         StandardEnvironment environment = new StandardEnvironment();
         environment.getPropertySources().addFirst(profileDocument(profile));
@@ -46,8 +46,8 @@ class DbSessionTimeoutsTest {
                 assertThat(show(statement, "lock_timeout")).as("%s lock_timeout", profile).isEqualTo("5s");
                 assertThat(show(statement, "idle_in_transaction_session_timeout"))
                         .as("%s idle_in_transaction_session_timeout", profile).isEqualTo("30s");
-                assertThat(show(statement, "statement_timeout")).as("%s statement_timeout 은 걸지 않는다", profile)
-                        .isEqualTo("0");
+                assertThat(show(statement, "statement_timeout")).as("%s statement_timeout", profile)
+                        .isEqualTo("30s");
             }
         }
     }
