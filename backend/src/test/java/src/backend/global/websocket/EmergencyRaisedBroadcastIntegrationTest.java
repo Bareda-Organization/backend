@@ -7,6 +7,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -38,7 +39,6 @@ import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.exception.controller.EmergencyFixtures;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
@@ -173,7 +173,7 @@ class EmergencyRaisedBroadcastIntegrationTest {
         stringRedisTemplate.opsForValue().set("run:%d:position".formatted(runId), positionJson);
 
         mockMvc.perform(post(RAISE.formatted(runId))
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"accident\",\"memo\":null,\"client_key\":\"%s\"}"
                                 .formatted(UUID.randomUUID())))
@@ -217,7 +217,7 @@ class EmergencyRaisedBroadcastIntegrationTest {
                 "기사" + System.nanoTime(), OffsetDateTime.now());
 
         mockMvc.perform(post(RAISE.formatted(runId))
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"accident\",\"memo\":null,\"client_key\":\"%s\"}"
                                 .formatted(UUID.randomUUID())))
@@ -233,9 +233,5 @@ class EmergencyRaisedBroadcastIntegrationTest {
         JsonNode payload = objectMapper.valueToTree(envelopeCaptor.getAllValues().get(adminIndex)).get("payload");
         assertThat(payload.get("academy_id").asLong()).isEqualTo(academyId);
         assertThat(payload.get("academy_name").asText()).isEqualTo(EmergencyFixtures.ACADEMY_NAME);
-    }
-
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
     }
 }

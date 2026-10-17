@@ -6,6 +6,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -33,7 +34,6 @@ import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.exception.controller.EmergencyFixtures;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
@@ -130,7 +130,7 @@ class EmergencyAckedBroadcastIntegrationTest {
         long staffAccountId = fixtures.staffAccount(academyId, staffName);
 
         String raiseBody = mockMvc.perform(post(RAISE.formatted(runId))
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"accident\",\"memo\":null,\"client_key\":\"%s\"}"
                                 .formatted(UUID.randomUUID())))
@@ -139,7 +139,7 @@ class EmergencyAckedBroadcastIntegrationTest {
         long emergencyId = Long.parseLong(JsonPath.read(raiseBody, "$.data.emergency_id"));
 
         mockMvc.perform(post(ACK.formatted(emergencyId))
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk());
 
         // managerRun 채널 하나로만 정확히 한 번 — 학원·관리자·학생 채널은 이 페이로드를 받지 않는다
@@ -159,9 +159,5 @@ class EmergencyAckedBroadcastIntegrationTest {
         // 이 시험은 잡아야 한다.
         assertThat(payload.get("acked_by_name").asText()).isEqualTo(staffName);
         assertThat(payload.has("acked_at")).as("acked_at 키가 없다").isTrue();
-    }
-
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
     }
 }

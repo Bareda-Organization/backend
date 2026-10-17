@@ -5,8 +5,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
+import static testsupport.web.TestResponses.본문;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -34,7 +35,6 @@ import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
@@ -175,14 +175,14 @@ class IdempotencyKeyScopeTest {
         String key = UUID.randomUUID().toString();
         String body = "{\"type\":\"accident\",\"client_key\":\"" + key + "\",\"lat\":37.5,\"lng\":127.0}";
         MvcResult first = mockMvc.perform(post("/api/v1/runs/" + runId + "/emergency")
-                        .header("Authorization", 토큰(Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isCreated()).andReturn();
         종료한다(OffsetDateTime.now(clock).minusHours(25));
 
         scheduler.cleanUp();
         MvcResult replay = mockMvc.perform(post("/api/v1/runs/" + runId + "/emergency")
-                        .header("Authorization", 토큰(Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isOk()).andReturn();
 
@@ -219,13 +219,13 @@ class IdempotencyKeyScopeTest {
                 Object.class, contactId)).as("정리가 연락 기록 키를 비웠다").isNull();
 
         mockMvc.perform(patch("/api/v1/runs/" + runId + "/riders/" + riderId)
-                        .header("Authorization", 토큰(Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"boarded\",\"verify_method\":\"manual\",\"client_key\":\"" + key + "\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("RUN_NOT_MOVING"));
         mockMvc.perform(post("/api/v1/runs/" + runId + "/riders/" + riderId + "/no-show-contacts")
-                        .header("Authorization", 토큰(Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"attempt_type\":\"call\",\"result\":\"no_answer\",\"client_key\":\"" + contactKey + "\"}"))
                 .andExpect(status().isConflict())
@@ -242,13 +242,5 @@ class IdempotencyKeyScopeTest {
         fx.finishRun(runId, finishedAt);
         entityManager.flush();
         entityManager.clear();
-    }
-
-    private String 토큰(Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(escortAccountId, academyId, role, AccountStatus.ACTIVE);
-    }
-
-    private String 본문(MvcResult result) throws Exception {
-        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 }
