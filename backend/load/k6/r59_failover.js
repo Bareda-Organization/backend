@@ -7,7 +7,7 @@
 //    세션이 닫힌 횟수(CLOSES)와 다시 붙은 횟수(REOPENS)를 센다.
 // 결과는 RESULT_FILE(JSON)에 쓴다. 판정은 쉘 스크립트가 한다(정지 시각과 비교).
 //
-// 환경변수: NGINX_URL(기본 https://localhost:28443) · BE1_URL(로그인용, 기본 http://localhost:28081) · SESSIONS(기본 20) · DURATION_SEC(기본 60) · SLOW_MS(기본 3000) · RESULT_FILE
+// 환경변수: NGINX_URL(기본 https://localhost:28443) · BE1_URL(로그인용, 기본 http://localhost:28081) · SESSIONS(기본 20) · DURATION_SEC(기본 60)) · SLOW_MS(기본 3000) · RESULT_FILE
 import http from 'k6/http';
 import ws from 'k6/ws';
 import { sleep } from 'k6';
@@ -74,7 +74,13 @@ export function restRead(tokens) {
     sleep(0.3);
 }
 
-// 세션 하나 = 재접속 루프. 끊기면 backoff 후 다시 붙고, 시험 시간이 끝나면 닫는다.
+// 세션 하나 = 재접속 루프. 실제 클라이언트와 같은 규칙을 흉내 낸다(API_SPEC §7.2): 하트비트 10초를 협상하고, 서버에서 20초 넘게 아무것도 오지 않으면
+// 끊긴 것으로 보고 소켓을 버린 뒤 백오프로 다시 붙는다. 서버가 소켓을 닫지 못하고 사라진 경우(컨테이너 소멸)도 이 규칙이 잡는다.
+const SILENCE_LIMIT_MS = 20000;
+function connectWithHeartbeat(token) {
+    return 'CONNECT\naccept-version:1.2\nheart-beat:10000,10000\nAuthorization:Bearer ' + token + '\n\n\0';
+}
+
 export function session(tokens) {
     const endAt = Date.now() + DURATION_SEC * 1000;
     const backoffs = [500, 1000, 2000, 4000, 5000];
@@ -82,9 +88,11 @@ export function session(tokens) {
     let opened = false;
     while (Date.now() < endAt) {
         let connectedThisTime = false;
+        let lastRxAt = Date.now();
         ws.connect(`${NGINX.replace('https', 'wss')}/ws/location`, {}, function (socket) {
-            socket.on('open', () => socket.send(connectFrame(tokens.parent)));
+            socket.on('open', () => socket.send(connectWithHeartbeat(tokens.parent)));
             socket.on('message', (raw) => {
+                lastRxAt = Date.now();
                 if (raw.startsWith('CONNECTED')) {
                     connectedThisTime = true;
                     if (opened) wsReopens.add(1);
@@ -93,6 +101,10 @@ export function session(tokens) {
                     socket.send(subscribeFrame('sub-1', `/topic/students/${STUDENT_ID}/run`));
                 }
             });
+            socket.setInterval(() => {
+                socket.send('\n');
+                if (Date.now() - lastRxAt > SILENCE_LIMIT_MS) socket.close();
+            }, 5000);
             socket.on('close', () => { if (connectedThisTime) wsCloses.add(1); });
             socket.setTimeout(() => socket.close(), Math.max(1, endAt - Date.now()));
         });
