@@ -33,7 +33,7 @@ import src.backend.global.request.PageParams;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
- * §6.6·§6.7 {@code /admin/staff-accounts} — ACAD-06 · O-02 (목표 7 · §6.7).
+ * §6.6·§6.7 {@code /admin/staff-accounts} — ACAD-06 · O-02 (§6.7).
  *
  * <p><b>이 클래스의 최우선 단언은 refresh 토큰 무효화</b>다. 퇴사·비밀번호 초기화는 응답이 200 이라
  * 무효화를 빠뜨려도 어떤 응답 단언도 걸리지 않는다 — 그 상태에서는 퇴사한 관계자가 들고 있던 refresh
@@ -129,10 +129,10 @@ class AdminStaffAccountControllerTest {
                 .andExpect(jsonPath("$.data.total_count").value(staffRows));
     }
 
-    // ── 목표 7 · refresh 토큰 무효화 ──────────────────────────────────────
+    // ── refresh 토큰 무효화 ──────────────────────────────────────
 
     /**
-     * 퇴사 처리는 그 계정의 refresh 토큰을 전량 무효화한다(목표 7).
+     * 퇴사 처리는 그 계정의 refresh 토큰을 전량 무효화한다.
      *
      * <p>무효화하지 않으면 퇴사한 관계자가 기존 토큰으로 access 토큰을 계속 재발급받는다 —
      * 관계자 계정은 학생 개인정보 전체에 접근하므로(§6.7) 이것이 이 태스크에서 가장 값비싼 결함이다.
@@ -150,7 +150,7 @@ class AdminStaffAccountControllerTest {
     }
 
     /**
-     * 비밀번호 초기화도 refresh 토큰을 전량 무효화한다(목표 7).
+     * 비밀번호 초기화도 refresh 토큰을 전량 무효화한다.
      *
      * <p>비밀번호 변경(§2.8)이 이미 같은 처리를 한다 — 초기화만 예외로 두면 관리자가 비밀번호를 새로
      * 발급한 뒤에도 옛 비밀번호로 얻은 세션이 그대로 살아 있어, 초기화의 목적(탈취 대응)이 소멸한다.

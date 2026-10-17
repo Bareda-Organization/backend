@@ -141,7 +141,7 @@ class StaffRunAssignmentControllerTest {
     }
 
     /**
-     * 기사와 동승자를 배치하면 {@code assignment} 행이 <b>역할별로 하나씩</b> 생긴다(목표 3).
+     * 기사와 동승자를 배치하면 {@code assignment} 행이 <b>역할별로 하나씩</b> 생긴다.
      *
      * <p>응답의 {@code assignments[]} 와 DB 행을 둘 다 본다 — 응답만 보면 요청을 그대로 되돌려주는
      * 구현과 구별되지 않고, DB 만 보면 배치 결과를 되읽을 경로가 있는지 검사되지 않는다.
@@ -256,7 +256,7 @@ class StaffRunAssignmentControllerTest {
 
     // ── MGR-06 충돌 경고 ──────────────────────────────────────────────────
 
-    /** 충돌이 없으면 {@code warnings[]} 는 <b>빈 배열</b>이다 — 항상 경고를 다는 구현을 막는다(목표 3). */
+    /** 충돌이 없으면 {@code warnings[]} 는 <b>빈 배열</b>이다 — 항상 경고를 다는 구현을 막는다. */
     @Test
     void 겹치지_않는_배치에서는_warnings_가_빈_배열이다() throws Exception {
         long runId = 회차를_만든다(BUS_A1_ID, MORNING);
@@ -267,7 +267,7 @@ class StaffRunAssignmentControllerTest {
     }
 
     /**
-     * 근무 시간 밖 배치는 <b>저장되고</b> 경고가 실린다(목표 3 · Ruling 152).
+     * 근무 시간 밖 배치는 <b>저장되고</b> 경고가 실린다(Ruling 152).
      *
      * <p>{@code assignment} 행이 실제로 생긴 것을 함께 본다 — 응답 코드만 보면 차단하면서 200 을
      * 돌려주는 구현과 구별되지 않는다.
@@ -288,7 +288,7 @@ class StaffRunAssignmentControllerTest {
     }
 
     /**
-     * 같은 매니저를 <b>같은 시각의 다른 회차</b>에 배치해도 저장되고 경고가 실린다(목표 3).
+     * 같은 매니저를 <b>같은 시각의 다른 회차</b>에 배치해도 저장되고 경고가 실린다.
      *
      * <p>근무 시간 안({@link #MORNING})의 시각을 쓴다 — 근무 시간 밖 시각으로 재면 두 경고가 함께
      * 나와 어느 판정이 실제로 물었는지 알 수 없다.

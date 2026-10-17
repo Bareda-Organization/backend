@@ -151,7 +151,7 @@ class OperationSetupFlowTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.student_id").value(String.valueOf(studentId)));
 
-        // ⑧ 요일별 주소 설정 (P-05 · STU-05·06) — 연결된 학부모만 닿을 수 있는 경로다(목표 8).
+        // ⑧ 요일별 주소 설정 (P-05 · STU-05·06) — 연결된 학부모만 닿을 수 있는 경로다.
         mockMvc.perform(patch("/api/v1/students/" + studentId + "/weekly-address")
                         .header("Authorization", parentToken)
                         .contentType(MediaType.APPLICATION_JSON)

@@ -35,11 +35,11 @@ import src.backend.routing.repository.ConfirmedRouteRepository;
 import testsupport.location.ProximityJudging;
 
 /**
- * {@link ProximityNotificationService#judgeOne} 의 알림 축(NTF-04, 목표 13) — 근접 알림이
+ * {@link ProximityNotificationService#judgeOne} 의 알림 축(NTF-04) — 근접 알림이
  * <b>정확히 최초 1회</b>만 나가고, {@link RiderStatus#ABSENT} 학생은 대상에서 빠지는지 본다
  * (Ruling 207 · C-02).
  *
- * <p>동시 실행 선점(목표 15)은 이 클래스가 아니라 {@link RunStopProximityClaimConcurrencyTest} 가
+ * <p>동시 실행 선점은 이 클래스가 아니라 {@link RunStopProximityClaimConcurrencyTest} 가
  * 맡는다 — 이쪽은 위치·거리·라이더 필터링이라는 <b>판정 로직</b>을, 그쪽은 {@code claimProximityNotice}
  * 조건부 UPDATE 라는 <b>동시성 방어</b>를 검사해 검증 대상이 겹치지 않는다.
  */
@@ -344,7 +344,7 @@ class ProximityNotificationServiceTest {
         assertThat(departedAt(runStopId)).as("③재판정해도 최초 기록값 그대로여야 한다").isEqualTo(firstDepartedAt);
     }
 
-    // ── docs/archive/rounds/be-rounds-r15-r21.md §8.23 T3 목표 2(Ruling 308) — claimDeparture 가 1행을 갱신한 직후에만 알림이 적재된다 ──
+    // ── Ruling 308 — claimDeparture 가 1행을 갱신한 직후에만 알림이 적재된다 ──
 
     @Test
     void 출발_판정이_claimDeparture_에_성공하면_그_승하차지의_확정_결과가_통지된다() {

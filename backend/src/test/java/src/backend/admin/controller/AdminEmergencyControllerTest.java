@@ -49,7 +49,7 @@ import testsupport.clock.FixedClock20300401Config;
  * 행을 id 로 걸러</b> 검증한다.
  *
  * <p>{@code RedisTestContainerBase} 를 상속하지 않는다 — {@code StaffEmergencyControllerTest} 와 같은
- * 이유로, 발신 자체는 위치 캐시가 비어도(목표 8) 성공하므로 이 시험(목표 11 전용)에는 실제 위치
+ * 이유로, 발신 자체는 위치 캐시가 비어도 성공하므로 이 시험에는 실제 위치
  * 캐싱 검증이 필요 없다.
  */
 @SpringBootTest
@@ -127,7 +127,7 @@ class AdminEmergencyControllerTest {
         확인시각을_옮긴다(emergencyId, OffsetDateTime.now(clock).minusSeconds(100));
         long adminAccountId = EmergencyFixtures.of(applicationContext).systemAdminAccount("메인관리자");
 
-        // R6 목표 3 — 기본값은 open 이라 acked 신고를 보려면 명시해야 한다(필드 계산 검증이 목적).
+        // 기본값은 open 이라 acked 신고를 보려면 명시해야 한다(필드 계산 검증이 목적).
         String body = 목록을_조회한다(adminAccountId, "acked");
 
         assertThat(확인여부(body, emergencyId)).isTrue();
@@ -143,7 +143,7 @@ class AdminEmergencyControllerTest {
         취소시각을_옮긴다(emergencyId, OffsetDateTime.now(clock).minusSeconds(200));
         long adminAccountId = EmergencyFixtures.of(applicationContext).systemAdminAccount("메인관리자");
 
-        // R6 목표 3 — 기본값은 open 이라 canceled 신고를 보려면 명시해야 한다(필드 계산 검증이 목적).
+        // 기본값은 open 이라 canceled 신고를 보려면 명시해야 한다(필드 계산 검증이 목적).
         String body = 목록을_조회한다(adminAccountId, "canceled");
 
         assertThat(경과시간(body, emergencyId))
@@ -186,7 +186,7 @@ class AdminEmergencyControllerTest {
                         .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk());
 
-        // R6 목표 3 — ack 로 상태가 acked 가 됐으니 기본값(open)으로는 빠진다.
+        // ack 로 상태가 acked 가 됐으니 기본값(open)으로는 빠진다.
         String body = 목록을_조회한다(adminAccountId, "acked");
 
         Map<String, Object> item = 항목(body, emergencyId);
@@ -197,8 +197,8 @@ class AdminEmergencyControllerTest {
                 .doesNotContainKey("id")
                 .containsKey("emergency_id");
         assertThat(item).as("occurred_at(단말 기록 시각)은 참고값으로 따로 실린다(R47 Ruling 744)").containsKey("occurred_at");
-        // BE-R1 목표 3 — §5.16·§6.11 표는 type 값을 소문자 스네이크로 적었으나(accident 등), 정정
-        // 전에는 EmergencyType enum 의 name() 을 그대로 실어 대문자(ACCIDENT)로 나갔다.
+        // §5.16·§6.11 표는 type 값을 소문자 스네이크로 적는다(accident 등). enum 의 name() 을 그대로 실으면
+        // 대문자(ACCIDENT)로 나가 이 표와 어긋난다.
         assertThat(item.get("type")).as("type 은 정본대로 소문자여야 한다").isEqualTo("accident");
 
         Map<String, Object> academyInfo = (Map<String, Object>) item.get("academy");
@@ -226,7 +226,7 @@ class AdminEmergencyControllerTest {
     }
 
     /**
-     * direction 이 상수 고정이 아니라 회차의 실제 값을 반영하는지 본다(목표 5, §6.11 쪽) —
+     * direction 이 상수 고정이 아니라 회차의 실제 값을 반영하는지 본다(§6.11 쪽) —
      * {@code StaffEmergencyControllerTest} 의 같은 이름 시험과 근거가 같다.
      */
     @Test
@@ -247,7 +247,7 @@ class AdminEmergencyControllerTest {
                 .isEqualTo("from_academy");
     }
 
-    // ── R6 목표 3·4 — status·academy_id 쿼리 필터 ────────────────────────
+    // ── status·academy_id 쿼리 필터 ────────────────────────
 
     @Test
     void status_필터를_생략하면_기본값_open만_담고_acked_canceled는_뺀다() throws Exception {
@@ -459,8 +459,7 @@ class AdminEmergencyControllerTest {
     }
 
     /**
-     * R6 목표 3 필터 도입 이후 — 기존 시험들이 acked·canceled 신고를 만들고 나서 status 를 주지
-     * 않고 조회했다. 필터가 없던 시절에는 문제가 없었지만, 이제 기본값이 open 이라 그 신고들이
+     * 기본값이 open 이라, acked·canceled 신고를 만들고 나서 status 를 주지 않고 조회하면 그 신고들이
      * 응답에서 빠진다. 그 시험들은 필터링 자체가 아니라 필드 계산을 검증하는 것이므로, 만든
      * 신고의 실제 상태에 맞는 status 를 명시해 원래 검증 대상을 유지한다.
      */

@@ -69,9 +69,9 @@ class AcademyDeactivationTest {
     /**
      * 활성 학원 1곳과 그 학원 소속의 <b>활성 기사 계정</b> 1개 — 비활성화 뒤에도 살아 있어야 하는 쪽이다.
      *
-     * <p><b>저장소·raw UPDATE 로 심지 않고 실제 경로를 그대로 탄다</b>(목표 10). 옛 픽스처는 계정을
-     * 만들고 {@code UPDATE account SET status='active'} 로 활성화했는데, 그것은 <b>AUTH-11 이 있을 수
-     * 없다고 규정한 상태</b>다 — 승인은 기사에게 {@code link.manager_id} 를 요구하므로(§5.2) 매니저
+     * <p><b>저장소·raw UPDATE 로 심지 않고 실제 경로를 그대로 탄다</b>. 계정을
+     * 만들고 {@code UPDATE account SET status='active'} 로 활성화하면 <b>AUTH-11 이 있을 수
+     * 없다고 규정한 상태</b>가 된다 — 승인은 기사에게 {@code link.manager_id} 를 요구하므로(§5.2) 매니저
      * 레코드에 연결되지 않은 활성 기사 계정은 운영에서 만들어질 수 없다. 그런 계정으로 로그인 경계를
      * 재면 운영에서 나올 수 없는 데이터를 검사하는 셈이다.
      *

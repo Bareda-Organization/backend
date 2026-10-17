@@ -152,7 +152,7 @@ class RunStopDepartureClaimConcurrencyTest {
         long 마감 = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS);
         while (System.nanoTime() < 마감) {
             // RunStopProximityClaimConcurrencyTest 와 같은 근거 — pg_stat_activity 캐시 스냅숏을
-            // 매번 비워야 상대의 대기가 보인다(F5 S3 실측).
+            // 매번 비워야 상대의 대기가 보인다(실측).
             jdbcTemplate.execute("SELECT pg_stat_clear_snapshot()");
             Integer 대기중 = jdbcTemplate.queryForObject(
                     "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() "

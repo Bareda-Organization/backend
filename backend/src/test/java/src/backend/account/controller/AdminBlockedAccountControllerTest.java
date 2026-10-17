@@ -32,7 +32,7 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
- * §6.10·§6.12 {@code /admin/blocked-accounts} — AUTH-06 · O-03 (목표 5).
+ * §6.10·§6.12 {@code /admin/blocked-accounts} — AUTH-06 · O-03.
  *
  * <p>단언 대상이 응답 본문이 아니라 <b>DB 행</b>인 것이 이 클래스의 핵심이다. 차단 해제는 응답에
  * 드러나지 않는 부수효과({@code failed_attempts} 초기화 · {@code audit_log} 적재)를 함께 내야 하고,

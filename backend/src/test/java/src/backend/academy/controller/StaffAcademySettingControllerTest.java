@@ -78,7 +78,7 @@ class StaffAcademySettingControllerTest {
                 "010-5555-5555", null, Role.DRIVER)).getId();
     }
 
-    // ── 목표4 — 조회: 설정 행이 없으면 기본값(3분)으로 자가 치유해 돌려준다 ─────────
+    // ── 조회: 설정 행이 없으면 기본값(3분)으로 자가 치유해 돌려준다 ─────────
 
     @Test
     @DisplayName("목표4 — 설정 행이 없는 학원도 GET 하면 기본 3분을 돌려주고 행을 자가 치유한다")
@@ -94,7 +94,7 @@ class StaffAcademySettingControllerTest {
         assertThat(academySettingRepository.findById(academyId)).as("자가 치유로 행이 생겨야 한다").isPresent();
     }
 
-    // ── 목표4 — 수정: PATCH 로 바뀐 값이 다음 조회에 그대로 반영된다 ────────────────
+    // ── 수정: PATCH 로 바뀐 값이 다음 조회에 그대로 반영된다 ────────────────
 
     @Test
     @DisplayName("목표4 — PATCH 로 값을 바꾸면 그 응답과 다음 GET 조회 모두 바뀐 값을 돌려준다")
@@ -116,7 +116,7 @@ class StaffAcademySettingControllerTest {
                 .andExpect(jsonPath("$.data.no_show_wait_minutes").value(15));
     }
 
-    // ── 목표4 — 범위 밖 값은 422 VALIDATION_FAILED ──────────────────────────
+    // ── 범위 밖 값은 422 VALIDATION_FAILED ──────────────────────────
 
     @Test
     @DisplayName("목표4 — 0 이하 값을 PATCH 하면 422 VALIDATION_FAILED 이고 값은 기본값(3분)으로 자가 치유만 된다")
@@ -139,7 +139,7 @@ class StaffAcademySettingControllerTest {
                 .as("거부된 값이 아니라 자가 치유 기본값(3분)이어야 한다").isEqualTo(3);
     }
 
-    // ── 목표9(X-06, Ruling 257) — 상한 30분: 경계값은 통과, 31분은 422 ──────────────
+    // ── 상한 30분(X-06, Ruling 257): 경계값은 통과, 31분은 422 ──────────────
 
     @Test
     @DisplayName("목표9 — 30분은 통과하고 31분은 422 VALIDATION_FAILED 이다(X-06 상한)")
@@ -162,7 +162,7 @@ class StaffAcademySettingControllerTest {
                 .as("거부된 31 이 아니라 직전에 통과한 30 이 유지돼야 한다").isEqualTo(30);
     }
 
-    // ── 목표4 — 권한: 학원 관계자(STAFF) 전용, 다른 역할은 거부된다 ────────────────
+    // ── 권한: 학원 관계자(STAFF) 전용, 다른 역할은 거부된다 ────────────────
 
     @Test
     @DisplayName("목표4 — 기사 토큰으로 조회·수정하면 403 FORBIDDEN 이다")
@@ -181,7 +181,7 @@ class StaffAcademySettingControllerTest {
                 .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
     }
 
-    // ── 목표4 — 학원 범위: 자기 학원 값만 바뀌고 남의 학원과 섞이지 않는다 ──────────
+    // ── 학원 범위: 자기 학원 값만 바뀌고 남의 학원과 섞이지 않는다 ──────────
 
     @Test
     @DisplayName("목표4 — 한 학원의 PATCH 가 다른 학원의 설정에 영향을 주지 않는다")

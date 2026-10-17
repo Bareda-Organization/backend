@@ -33,7 +33,7 @@ import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * {@link RunStopRepository#claimProximityNotice} 의 <b>동시성</b>(목표 15, Ruling 210 조건부 UPDATE
+ * {@link RunStopRepository#claimProximityNotice} 의 <b>동시성</b>(Ruling 210 조건부 UPDATE
  * 선점) — 스케줄러 인스턴스 2개가 같은 정차 항목을 동시에 판정해도 선점은 정확히 한 번만 성공해야
  * 한다.
  *
@@ -42,7 +42,7 @@ import src.backend.student.repository.StudentRepository;
  * {@code wait_event_type='Lock', wait_event='transactionid'} 로 재우는 것을 폴링으로 확인한다.
  *
  * <p>이 클래스는 {@link ProximityNotificationService#judgeRun} 전체가 아니라 저장소 메서드 하나만
- * 겨눈다 — 목표 15가 요구하는 것은 그 조건부 UPDATE 의 동시성이지, 위치 읽기·거리 판정까지 포함한
+ * 겨눈다 — 선점이 요구하는 것은 그 조건부 UPDATE 의 동시성이지, 위치 읽기·거리 판정까지 포함한
  * 전체 흐름의 동시성이 아니다({@code judgeRun} 은 스케줄러가 읽어 넘긴 위치를 받아 두 스레드가 같은
  * 값을 읽는 경쟁이 새로 끼어들 뿐, 이 목표가 검증하려는 지점을 흐린다).
  */
@@ -160,7 +160,7 @@ class RunStopProximityClaimConcurrencyTest {
             // 기본값 cache) — 이 트랜잭션이 처음 읽은 스냅숏이 끝까지 재사용되므로, 상대가 대기에
             // 들어가기 전에 첫 조회가 나가면 그 뒤로는 몇 번을 물어도 0 이 돌아온다. 그러면 이 루프가
             // 상한을 다 쓰고 바깥 Future.get 이 그보다 먼저 만료해 TimeoutException 만 남는다
-            // (F5 S3 실측 — 상대는 44초 내내 Lock/transactionid 로 대기 중이었는데 0 이 보였다)
+            // (실측 — 상대는 44초 내내 Lock/transactionid 로 대기 중이었는데 0 이 보였다)
             jdbcTemplate.execute("SELECT pg_stat_clear_snapshot()");
             Integer 대기중 = jdbcTemplate.queryForObject(
                     "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() "
