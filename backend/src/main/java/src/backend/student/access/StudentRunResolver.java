@@ -20,7 +20,6 @@ import src.backend.global.common.enums.ChangeType;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
-import src.backend.routing.stops.RouteStopReader;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.lookup.RunLookup;
@@ -38,7 +37,7 @@ import src.backend.student.repository.WeeklyAddressRepository;
  * 그 뒤 바뀌어도 이 판정은 흔들리지 않는다.
  *
  * <p>{@code run}·{@code routing}·{@code boarding} 의 저장소를 직접 참조하지 않고 각 모듈이 내놓은
- * 읽기 전용 진입점({@link RunLookup}·{@link RouteStopReader}·{@link RunRiderReader})만 부른다
+ * 읽기 전용 진입점({@link RunLookup}·{@link RouteStopSource}·{@link RunRiderReader})만 부른다
  * (BR-094 · BR-162, ARCHITECTURE §3.3 읽기 방향).
  */
 @Component
@@ -49,7 +48,7 @@ public class StudentRunResolver {
 
     private final RunRiderReader runRiderReader;
 
-    private final RouteStopReader routeStopReader;
+    private final RouteStopSource routeStopSource;
 
     private final WeeklyAddressRepository weeklyAddressRepository;
 
@@ -131,7 +130,7 @@ public class StudentRunResolver {
     private Set<Long> busesServing(Long academyId, Long studentId, Weekday weekday, Direction direction) {
         return weeklyAddressRepository.findDailyStops(academyId, List.of(studentId), weekday, direction).stream()
                 .findFirst()
-                .map(stop -> routeStopReader.busIdsServingStop(academyId, weekday, direction, stop.getStopId()))
+                .map(stop -> routeStopSource.busIdsServingStop(academyId, weekday, direction, stop.getStopId()))
                 .orElse(Set.of());
     }
 
@@ -159,8 +158,8 @@ public class StudentRunResolver {
             return false;
         }
         Long studentStopId = dailyStops.get(0).getStopId();
-        return routeStopReader.fixedRouteStops(run.getAcademyId(), run.getBusId(), weekday, run.getDirection())
-                .stream().map(RouteStopReader.Entry::stopId).anyMatch(studentStopId::equals);
+        return routeStopSource.fixedRouteStops(run.getAcademyId(), run.getBusId(), weekday, run.getDirection())
+                .stream().map(RouteStopSource.Entry::stopId).anyMatch(studentStopId::equals);
     }
 
 }

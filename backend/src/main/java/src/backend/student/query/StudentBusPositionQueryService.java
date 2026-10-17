@@ -20,12 +20,10 @@ import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
-import src.backend.routing.query.RunOrderedStopsLoader;
-import src.backend.routing.entity.RunStop;
-import src.backend.routing.query.CurrentRunStopResolver;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.DelayNoticeRepository;
+import src.backend.student.access.RouteStopSource;
 import src.backend.student.access.StudentRunResolver;
 import src.backend.student.access.StudentRunsAccess;
 import src.backend.student.dto.StudentBusPositionResponse;
@@ -69,7 +67,7 @@ public class StudentBusPositionQueryService {
 
     private final DelayNoticeRepository delayNoticeRepository;
 
-    private final RunOrderedStopsLoader runOrderedStopsLoader;
+    private final RouteStopSource routeStopSource;
 
     private final Clock clock;
 
@@ -122,8 +120,7 @@ public class StudentBusPositionQueryService {
 
     /** 마지막으로 도착 처리된 승하차지의 도착 시각(§4.3 {@code current_stop} 과 같은 판정) — 도착 기록이 없으면 {@code null}. */
     private OffsetDateTime lastArrivedAtOf(Run run) {
-        return CurrentRunStopResolver.resolve(runOrderedStopsLoader.load(run.getAcademyId(), List.of(run))
-                .getOrDefault(run.getId(), List.of())).map(RunStop::getArrivedAt).orElse(null);
+        return routeStopSource.lastArrivedAt(run);
     }
 
     /** 당일 미등원이면 운행 중이어도 위치를 보이지 않는다(§3.11 "당일 미등원이면 위치 부재"). */

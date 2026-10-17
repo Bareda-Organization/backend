@@ -4,7 +4,6 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 
-import src.backend.routing.domain.GeoPoint;
 
 /**
  * 학부모 앱의 자녀 노선 조회(LOC-03, API_SPEC §3.10) — {@code stops[]} 는 노선 전체가 아니라
@@ -24,7 +23,7 @@ import src.backend.routing.domain.GeoPoint;
  * (확정 전은 {@code false})이다.
  */
 public record StudentRouteResponse(Long runId, String busNo, OffsetDateTime departTime, boolean confirmed,
-        Contact driver, EscortContact escort, Long myStopId, List<Stop> stops, List<GeoPoint> roadPath,
+        Contact driver, EscortContact escort, Long myStopId, List<Stop> stops, List<RoadPoint> roadPath,
         boolean fallbackUsed) {
 
     /** 기사 표시용 이름만 — 연락처는 없다(위 클래스 자바독). */

@@ -36,7 +36,7 @@ class ModuleMutualDependencyTest {
     private static final Set<String> ALLOWED_MUTUAL_PAIRS = Set.of(
             "academy↔account", "academy↔run", "academy↔student", "account↔audit", "account↔student",
             "boarding↔exception", "boarding↔routing", "boarding↔run", "boarding↔student", "location↔student",
-            "manager↔run", "request↔routing", "request↔run", "request↔student", "routing↔run", "routing↔student",
+            "manager↔run", "request↔routing", "request↔run", "request↔student", "routing↔run",
             "run↔student");
 
     @Test
@@ -57,7 +57,8 @@ class ModuleMutualDependencyTest {
         assertThat(gone).as("이미 끊어진 쌍이 목록에 남아 있다 — ARCHITECTURE §3.3 표와 이 목록에서 지운다").isEmpty();
     }
 
-    private static Map<String, Set<String>> importedModulesByModule() throws IOException {
+    /** 모듈 → 그 모듈이 import 하는 다른 모듈 — {@link ModuleCycleBaselineTest} 와 같은 그래프를 쓴다. */
+    static Map<String, Set<String>> importedModulesByModule() throws IOException {
         Map<String, Set<String>> result = new TreeMap<>();
         try (Stream<Path> files = Files.walk(SOURCE_ROOT)) {
             for (Path file : files.filter(path -> path.toString().endsWith(".java")).toList()) {

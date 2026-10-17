@@ -2,7 +2,7 @@ package src.backend.student.query;
 
 import java.util.List;
 
-import src.backend.routing.domain.GeoPoint;
+import src.backend.student.dto.RoadPoint;
 import src.backend.student.dto.StudentRouteResponse;
 
 /**
@@ -21,21 +21,21 @@ final class RoadPathSlicer {
      * {@code path} 중 {@code stops} 의 처음~끝 좌표 구간. 경로가 2점 미만이거나 좌표를 가진 승하차지가 2개 미만이면 빈 목록 —
      * 앱이 표시 승하차지를 점선으로 잇는다.
      */
-    static List<GeoPoint> slice(List<GeoPoint> path, List<StudentRouteResponse.Stop> stops) {
-        List<GeoPoint> targets = stops.stream().filter(stop -> stop.lat() != null && stop.lng() != null)
-                .map(stop -> new GeoPoint(stop.lat(), stop.lng())).toList();
+    static List<RoadPoint> slice(List<RoadPoint> path, List<StudentRouteResponse.Stop> stops) {
+        List<RoadPoint> targets = stops.stream().filter(stop -> stop.lat() != null && stop.lng() != null)
+                .map(stop -> new RoadPoint(stop.lat(), stop.lng())).toList();
         if (path.size() < 2 || targets.size() < 2) {
             return List.of();
         }
         int start = nearestIndex(path, targets.get(0), 0);
         int end = start;
-        for (GeoPoint target : targets.subList(1, targets.size())) {
+        for (RoadPoint target : targets.subList(1, targets.size())) {
             end = nearestIndex(path, target, end);
         }
         return List.copyOf(path.subList(start, end + 1));
     }
 
-    private static int nearestIndex(List<GeoPoint> path, GeoPoint target, int fromIndex) {
+    private static int nearestIndex(List<RoadPoint> path, RoadPoint target, int fromIndex) {
         int best = fromIndex;
         double bestMeters = path.get(fromIndex).distanceMetersTo(target);
         for (int i = fromIndex + 1; i < path.size(); i++) {

@@ -24,7 +24,7 @@ import src.backend.global.error.ErrorCode;
 import src.backend.global.request.ApiValues;
 import src.backend.global.security.AuthUser;
 import src.backend.request.query.BoardingIntentReadQueryService;
-import src.backend.routing.stops.RouteStopReader;
+import src.backend.student.access.RouteStopSource;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 import src.backend.student.access.StudentRunResolver;
@@ -61,7 +61,7 @@ public class StudentRunsQueryService {
 
     private final RunRiderReader runRiderReader;
 
-    private final RouteStopReader routeStopReader;
+    private final RouteStopSource routeStopSource;
 
     private final BoardingIntentReadQueryService boardingIntentReadQueryService;
 
@@ -139,7 +139,7 @@ public class StudentRunsQueryService {
      */
     private RiderStatus parentFacingStatus(Run run, RunRiderReader.Entry rider) {
         if (rider.status() != RiderStatus.NO_SHOW || run.getStatus() == RunStatus.FINISHED
-                || routeStopReader.isStopDeparted(run.getId(), rider.stopId())) {
+                || routeStopSource.isStopDeparted(run.getId(), rider.stopId())) {
             return rider.status();
         }
         return RiderStatus.WAITING;
