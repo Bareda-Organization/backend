@@ -6,6 +6,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import io.micrometer.observation.ObservationRegistry;
+
 import net.javacrumbs.shedlock.core.LockProvider;
 import net.javacrumbs.shedlock.provider.jdbctemplate.JdbcTemplateLockProvider;
 import net.javacrumbs.shedlock.spring.annotation.EnableSchedulerLock;
@@ -27,12 +29,23 @@ import net.javacrumbs.shedlock.spring.annotation.EnableSchedulerLock;
 @EnableSchedulerLock(defaultLockAtMostFor = "PT1M")
 public class ShedLockConfig {
 
-    /** DB 시각 기준 분산 락 제공자 — 인스턴스별 시스템 시계 어긋남을 없앤다. */
+    /**
+     * DB 시각 기준 분산 락 제공자 — 인스턴스별 시스템 시계 어긋남을 없앤다. 락을 못 얻어 건너뛴 실행을 기본 계측이 성공으로 세지 않도록
+     * 건너뜀 표지를 남기는 제공자로 감싼다({@link LockSkipAwareObservation}).
+     */
     @Bean
-    public LockProvider lockProvider(DataSource dataSource) {
-        return new JdbcTemplateLockProvider(JdbcTemplateLockProvider.Configuration.builder()
-                .withJdbcTemplate(new JdbcTemplate(dataSource))
-                .usingDbTime()
-                .build());
+    public LockProvider lockProvider(DataSource dataSource, ObservationRegistry observationRegistry) {
+        return new LockSkipAwareObservation.SkipMarkingLockProvider(
+                new JdbcTemplateLockProvider(JdbcTemplateLockProvider.Configuration.builder()
+                        .withJdbcTemplate(new JdbcTemplate(dataSource))
+                        .usingDbTime()
+                        .build()),
+                observationRegistry);
+    }
+
+    /** 스케줄 실행 계측의 결과 값에 락을 못 얻어 건너뜀({@code SKIPPED})을 더한다 — 전역 관측 규약 빈은 Boot 가 관측 등록기에 건다. */
+    @Bean
+    public LockSkipAwareObservation.Convention lockSkipAwareScheduledTaskConvention() {
+        return new LockSkipAwareObservation.Convention();
     }
 }

@@ -488,6 +488,44 @@ tests:
             exp_annotations:
               summary: 스케줄러(src.backend.notification.scheduler.NotificationOutboxWorker)가 주기의 3배 넘게 성공하지 않았다
 
+  # 2대 운영(Ruling 915 B): 락을 가진 인스턴스 a 가 멈추고 인스턴스 b 는 락을 못 얻어 건너뛰기만 한다. 건너뜀은 outcome="SKIPPED" 로 따로 세므로 SUCCESS 합계가 늘지 않아
+  # 정지 경보가 발화한다(건너뜀을 SUCCESS 로 세던 때는 b 의 SUCCESS 가 늘어 경보가 영영 꺼져 있었다). b 가 락을 넘겨받아 SUCCESS 가 다시 늘면 꺼진다.
+  - interval: 15s
+    input_series:
+      - series: 'tasks_scheduled_execution_seconds_count{job="backend",application="school-bus",code_function="judgeMovingRuns",code_namespace="src.backend.location.scheduler.ProximityNotificationScheduler",error="none",exception="none",outcome="SUCCESS",instance="a"}'
+        values: '0+1x8 8x70'   # a: 2분 무렵 멈춘다
+      - series: 'tasks_scheduled_execution_seconds_count{job="backend",application="school-bus",code_function="judgeMovingRuns",code_namespace="src.backend.location.scheduler.ProximityNotificationScheduler",error="none",exception="none",outcome="SUCCESS",instance="b"}'
+        values: '0x78'   # b: 성공 실행이 없다
+      - series: 'tasks_scheduled_execution_seconds_count{job="backend",application="school-bus",code_function="judgeMovingRuns",code_namespace="src.backend.location.scheduler.ProximityNotificationScheduler",error="none",exception="none",outcome="SKIPPED",instance="b"}'
+        values: '0+1x78'   # b: 락을 못 얻어 건너뛰기만 한다
+      - series: 'tasks_scheduled_execution_seconds_count{job="backend",application="school-bus",code_function="confirmDueRuns",code_namespace="src.backend.run.scheduler.RunConfirmationScheduler",error="none",exception="none",outcome="SUCCESS",instance="a"}'
+        values: '0+1x80'   # 확정 배치는 계속 돈다
+    alert_rule_test:
+      - eval_time: 3m   # 멈춘 지 1분 — 창에 아직 증가가 남아 for 가 안 찼다
+        alertname: SchedulerStalled
+        exp_alerts: []
+      - eval_time: 4m30s   # b 의 건너뜀이 계속 늘어도 근접 판정 정지가 발화한다
+        alertname: SchedulerStalled
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: backend
+              code_namespace: src.backend.location.scheduler.ProximityNotificationScheduler
+            exp_annotations:
+              summary: 스케줄러(src.backend.location.scheduler.ProximityNotificationScheduler)가 주기의 3배 넘게 성공하지 않았다
+  - interval: 15s   # b 가 락을 넘겨받아 SUCCESS 를 다시 올리면 경보가 없다
+    input_series:
+      - series: 'tasks_scheduled_execution_seconds_count{job="backend",application="school-bus",code_function="judgeMovingRuns",code_namespace="src.backend.location.scheduler.ProximityNotificationScheduler",error="none",exception="none",outcome="SUCCESS",instance="a"}'
+        values: '0+1x8 8x70'
+      - series: 'tasks_scheduled_execution_seconds_count{job="backend",application="school-bus",code_function="judgeMovingRuns",code_namespace="src.backend.location.scheduler.ProximityNotificationScheduler",error="none",exception="none",outcome="SUCCESS",instance="b"}'
+        values: '0x8 0+1x70'   # b: 2분 무렵부터 성공 실행이 늘기 시작한다
+      - series: 'tasks_scheduled_execution_seconds_count{job="backend",application="school-bus",code_function="confirmDueRuns",code_namespace="src.backend.run.scheduler.RunConfirmationScheduler",error="none",exception="none",outcome="SUCCESS",instance="a"}'
+        values: '0+1x80'
+    alert_rule_test:
+      - eval_time: 4m30s
+        alertname: SchedulerStalled
+        exp_alerts: []
+
   - interval: 15s   # 확정 배치의 시리즈가 사라지면(성공 실행이 없다) absent 가 발화한다
     input_series:
       - series: 'up{job="backend"}'
