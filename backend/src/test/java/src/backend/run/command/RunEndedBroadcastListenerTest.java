@@ -23,7 +23,7 @@ import src.backend.observability.metrics.WebSocketPublishMetrics;
 import src.backend.run.event.RunEndedEvent;
 
 /**
- * {@code run_ended} 방송(목표 4·10) — {@code autoAlightedCount} 는 T3 가 이벤트 필드를 비워 둔 채
+ * {@code run_ended} 방송 — {@code autoAlightedCount} 는 이벤트 필드를 비워 둔 채
  * 넘겼으므로(생성 시점 근거는 {@link RunEndedEvent} 자바독), 이 리스너가 직접 채우는지가 검증 핵심이다.
  */
 class RunEndedBroadcastListenerTest {

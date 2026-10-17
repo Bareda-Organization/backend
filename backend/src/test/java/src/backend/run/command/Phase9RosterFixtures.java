@@ -131,14 +131,14 @@ public class Phase9RosterFixtures {
         assignmentRepository.save(Assignment.uponAssignment(runId, managerId, role, OffsetDateTime.now(), managerId));
     }
 
-    /** 배치는 남긴 채로 매니저만 소프트 삭제한다(목표 16 — 탈퇴 매니저의 옛 토큰이 막히는지). */
+    /** 배치는 남긴 채로 매니저만 소프트 삭제한다(탈퇴 매니저의 옛 토큰이 막히는지). */
     public void softDeleteManager(long managerId) {
         Manager manager = managerRepository.findById(managerId).orElseThrow();
         manager.delete(OffsetDateTime.now());
         managerRepository.save(manager);
     }
 
-    /** 그 학생에 보호자 1명을 잇고, 그 보호자 계정의 연락처를 그대로 준다(목표 6 마스킹 시험의 원문). */
+    /** 그 학생에 보호자 1명을 잇고, 그 보호자 계정의 연락처를 그대로 준다(마스킹 시험의 원문). */
     public void guardianWithPhone(long academyId, long studentId, String rawPhone) {
         Account account = accountRepository.save(Account.forSignup(academyId, "p9guardian" + SEQUENCE.incrementAndGet()
                 + System.nanoTime(), "{noop}password", "보호자" + SEQUENCE.get(), rawPhone, null, Role.PARENT));

@@ -38,7 +38,7 @@ import src.backend.student.repository.WeeklyAddressRepository;
  *
  * <p>{@code public} 인 이유는 {@code src.backend.run.scheduler} 패키지의
  * {@code RunConfirmationSchedulerTest} 가 그 패키지 전용({@code package-private}) 상수
- * {@code RunConfirmationScheduler.BATCH_SIZE} 를 직접 읽어야 해서(목표 6) 이 헬퍼와 같은 패키지에
+ * {@code RunConfirmationScheduler.BATCH_SIZE} 를 직접 읽어야 해서 이 헬퍼와 같은 패키지에
  * 둘 수 없기 때문이다 — 헬퍼 쪽을 공개해 패키지 경계를 넘겨 재사용한다.
  */
 public class RunConfirmationFixtures {
@@ -103,7 +103,7 @@ public class RunConfirmationFixtures {
         return academyRepository.save(academy).getId();
     }
 
-    /** 좌표 미등록 학원(목표 5) — {@code assignCoordinates} 를 부르지 않은 채로 남긴다. */
+    /** 좌표 미등록 학원 — {@code assignCoordinates} 를 부르지 않은 채로 남긴다. */
     public long academyWithoutCoordinates() {
         return academyRepository.save(register()).getId();
     }

@@ -40,7 +40,7 @@ import src.backend.student.repository.StopRepository;
 import testsupport.clock.FixedClock20260827Config;
 
 /**
- * §5.8 {@code POST /staff/students/{id}/transfer}(RTE-07, Ruling 256) — F4 S1 목표 6.
+ * §5.8 {@code POST /staff/students/{id}/transfer}(RTE-07, Ruling 256).
  *
  * <p>대상이 두 회차(출발·도착)라 {@code StaffForcedAdditionControllerTest} 와 달리 구간·정원·학원
  * 판정을 <b>어느 쪽 회차 기준인지</b>까지 갈라서 확인한다. 명단 소속(§5.8 이 말하는 "당일 명단")은

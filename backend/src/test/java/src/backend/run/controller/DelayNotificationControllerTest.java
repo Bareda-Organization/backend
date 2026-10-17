@@ -34,8 +34,8 @@ import src.backend.routing.repository.RunStopRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 지연 알림 신고 API(NTF-06, M-05, API_SPEC §4.9) — F3 S1 목표 1(엔드포인트 전체 행동) · 2(수신 범위
- * 3조건) · 3(중복·갱신 판정, Ruling 253).
+ * 지연 알림 신고 API(NTF-06, M-05, API_SPEC §4.9) — 엔드포인트 전체 행동 · 수신 범위
+ * 3조건 · 중복·갱신 판정(Ruling 253).
  *
  * <p>픽스처는 {@code DriverRunFixtures} 를 그대로 재사용한다 — 회차·배치·라이더 생성 경로가 이
  * 시험이 필요로 하는 것과 완전히 같다(동승자 배치는 {@code assignedManager}·
@@ -72,7 +72,7 @@ class DelayNotificationControllerTest {
 
 
 
-    // ── goal 1 — 엔드포인트 전체 행동 ─────────────────────────────────────
+    // ── 엔드포인트 전체 행동 ─────────────────────────────────────
 
     @Test
     @DisplayName("목표1 — 배치된 동승자의 정상 신고는 201 이고 세 수신 갈래 모두 발신되며 이력이 저장된다")
@@ -325,7 +325,7 @@ class DelayNotificationControllerTest {
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
-    // ── goal 2 — 수신 범위 3조건(각각 독립으로 실패해야 한다) ───────────────
+    // ── 수신 범위 3조건(각각 독립으로 실패해야 한다) ───────────────
 
     @Test
     @DisplayName("목표2-a — 이미 지난(도착 완료) 정류장의 학생은 수신 대상에서 빠진다")
@@ -531,7 +531,7 @@ class DelayNotificationControllerTest {
         assertThat(학부모_알림수(runId, waitingStudentId)).as("대기 중인 학생의 보호자는 받아야 한다").isEqualTo(1);
     }
 
-    // ── goal 3 — 중복·갱신 판정(Ruling 253) ─────────────────────────────
+    // ── 중복·갱신 판정(Ruling 253) ─────────────────────────────
 
     @Test
     @DisplayName("목표3-a — 직전 신고와 minutes·reason·message 가 전부 같으면 409 DELAY_DUPLICATE 다")

@@ -65,7 +65,7 @@ public class ChangeRequestFixtures {
 
     /**
      * 그 학원의 활성 관계자 계정 — {@code IntentNotificationListener#appendApprovalRequested} 가
-     * 읽는 수신자다(목표 2). 학원당 활성 관계자 1명 제약(uk_academy_staff_academy_active)이라 학원마다
+     * 읽는 수신자다. 학원당 활성 관계자 1명 제약(uk_academy_staff_academy_active)이라 학원마다
      * 한 번만 부른다.
      */
     public long staffOf(long academyId) {

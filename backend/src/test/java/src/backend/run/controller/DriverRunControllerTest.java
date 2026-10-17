@@ -80,7 +80,7 @@ class DriverRunControllerTest {
     private ApplicationEvents applicationEvents;
 
 
-    // ── goal 1 — 출발 ±10분 창 ──────────────────────────────────────────
+    // ── 출발 ±10분 창 ──────────────────────────────────────────
 
     @Test
     @DisplayName("목표1 — 출발 9분 전은 창 안이라 시작이 성공한다")
@@ -202,7 +202,7 @@ class DriverRunControllerTest {
         assertThat(회차_시작시각(runId)).isNotNull();
     }
 
-    // ── goal 2 — 운행 시작 알림 3종 ──────────────────────────────────────
+    // ── 운행 시작 알림 3종 ──────────────────────────────────────
 
     @Test
     @DisplayName("목표2 — 운행 시작 시 관계자·보호자·학생 앞으로 run_started 알림이 각 1건씩 적재된다")
@@ -271,7 +271,7 @@ class DriverRunControllerTest {
         assertThat(알림_행수(runId, "run_started", "parent")).isZero();
     }
 
-    // ── goal 3 — 미결 변경 요청 즉시 종결 ─────────────────────────────────
+    // ── 미결 변경 요청 즉시 종결 ─────────────────────────────────
 
     @Test
     @DisplayName("목표3 — 운행을 시작하면 그 회차의 미결 변경 요청이 폴링 없이 즉시 자동거절된다")
@@ -296,7 +296,7 @@ class DriverRunControllerTest {
         assertThat(status).as("폴링 틱을 기다리지 않고 시작 트랜잭션 안에서 즉시 종결돼야 한다").isEqualTo("auto_rejected");
     }
 
-    // ── goal 5 — 기사 전용 인가 ───────────────────────────────────────────
+    // ── 기사 전용 인가 ───────────────────────────────────────────
 
     /** Ruling 874 ⑧ — 관계자·학부모 같은 다른 역할이 기사 전용 호출을 불러도 코드는 {@code 403 DRIVER_ONLY} 다(FORBIDDEN 이 아니다). */
     @Test
@@ -372,7 +372,7 @@ class DriverRunControllerTest {
         assertThat(도착시각(versionId, stopId)).as("배치되지 않은 기사 호출은 도착 시각을 건드리면 안 된다").isNull();
     }
 
-    // ── goal 9 — 등원 최종 지점 전원 자동 하차 ────────────────────────────
+    // ── 등원 최종 지점 전원 자동 하차 ────────────────────────────
 
     @Test
     @DisplayName("목표9 · BR-002 — 등원은 마지막 승차지가 아니라 학원 항목 도착에서 전원 자동 하차·종료된다(Ruling 327)")
@@ -531,7 +531,7 @@ class DriverRunControllerTest {
         long academyStop = fixtures.runStopForDestination(versionId, 3);
 
         // 최종 정차지(stop2) 에 배정된 학생이 이미 승차해 있다 — 최종 지점은 그 다음 arrive 호출이
-        // 없어 goal7 의 "다음 도착 시 이전 정차지 강제" 폴백을 받지 못하는 유일한 정차지다.
+        // 없어 "다음 도착 시 이전 정차지 강제" 폴백을 받지 못하는 유일한 정차지다.
         long student2 = fixtures.studentWithAccount(academyId, "학생2");
         fixtures.guardianOf(academyId, student2, "학부모2", OffsetDateTime.now(clock));
         fixtures.rider(runId, student2, stop2, RiderStatus.BOARDED, OffsetDateTime.now(clock));
@@ -561,7 +561,7 @@ class DriverRunControllerTest {
                 .containsExactlyInAnyOrder("boarding", "alighting");
     }
 
-    // ── goal 10 — 하원 최종 지점 미하차 잔류 시 종료 보류 ──────────────────
+    // ── 하원 최종 지점 미하차 잔류 시 종료 보류 ──────────────────
 
     @Test
     @DisplayName("목표10 — 하원 최종 지점에 도착해도 미하차 탑승자가 남아 있으면 종료가 보류된다")
@@ -635,7 +635,7 @@ class DriverRunControllerTest {
                 .singleElement().extracting(RunEndedEvent::autoAlightedCount).isEqualTo(0L);
     }
 
-    // ── docs/archive/rounds/be-rounds-r15-r21.md §8.23 T3 목표 7(Ruling 308) — 다음 승하차지 도착이 이전 정차지의 출발을 강제한다 ──────
+    // ── Ruling 308 — 다음 승하차지 도착이 이전 정차지의 출발을 강제한다 ──────
 
     @Test
     @DisplayName("목표7(Ruling 308) — 위치 신호로 출발 판정이 안 된 이전 정차지도 다음 도착 처리가 강제로 출발시킨다")
@@ -674,7 +674,7 @@ class DriverRunControllerTest {
         assertThat(출발_통지_행수(runId, "alighting", "parent")).as("③출발 확정으로 하차 알림 1건").isEqualTo(1);
     }
 
-    // ── docs/archive/rounds/be-rounds-r15-r21.md §8.23 T3 목표 8(Ruling 312) — 마지막 승하차지는 운행 종료가 출발로 갈음한다 ───────────
+    // ── Ruling 312 — 마지막 승하차지는 운행 종료가 출발로 갈음한다 ───────────
 
     @Test
     @DisplayName("목표8(Ruling 312) — 다음 정차지가 없는 마지막 승하차지도 운행 종료 시 강제로 출발 처리된다")
@@ -694,7 +694,7 @@ class DriverRunControllerTest {
         long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, OffsetDateTime.now(clock));
 
         // stop2 가 마지막이고, 그 탑승자는 이미 하차 처리됐다고 가정한다 — 도착 즉시 종료(stillBoarded=0)되어
-        // 다음 정차지가 없으니 목표7 폴백을 받지 못한다. Ruling 312 가 이 구멍을 막는다.
+        // 다음 정차지가 없으니 폴백을 받지 못한다. Ruling 312 가 이 구멍을 막는다.
         long student2 = fixtures.studentWithAccount(academyId, "학생2");
         fixtures.guardianOf(academyId, student2, "학부모2", OffsetDateTime.now(clock));
         fixtures.rider(runId, student2, stop2, RiderStatus.ALIGHTED, OffsetDateTime.now(clock));

@@ -38,12 +38,12 @@ import src.backend.student.repository.WeeklyAddressRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 배치 지연 지표(목표 8)의 동시성 — 같은 회차를 두 스레드가 동시에 확정 시도해도 지표 표본이
- * <b>확정 사건 수(1)</b>만큼만 늘어나는지를 본다(게이트 리뷰 Important 1 항, 재현본).
+ * 배치 지연 지표의 동시성 — 같은 회차를 두 스레드가 동시에 확정 시도해도 지표 표본이
+ * <b>확정 사건 수(1)</b>만큼만 늘어나는지를 본다(재현본).
  *
  * <p>{@link RunConfirmationPersistence#persist} 는 {@code confirmIfIdle} 이 0행을 갱신하면(진 스레드)
- * 조용히 반환한다 — 반환값이 없던 시절엔 이 반환도 {@code confirmOne} 의 계측 호출까지 그대로
- * 도달해, 확정 사건은 1건인데 표본은 2개 쌓였다(리뷰어 스크래치 시험으로 실측된 결함). 이 클래스는
+ * 조용히 반환한다 — 반환값이 없으면 이 반환도 {@code confirmOne} 의 계측 호출까지 그대로
+ * 도달해, 확정 사건은 1건인데 표본은 2개 쌓인다(실측된 결함). 이 클래스는
  * 그 재현을 이 저장소의 정식 산출물로 남긴다.
  *
  * <p><b>{@code @Transactional} 을 쓰지 않는다</b> — 붙이면 테스트 스레드가 트랜잭션을 쥔 채 두 워커

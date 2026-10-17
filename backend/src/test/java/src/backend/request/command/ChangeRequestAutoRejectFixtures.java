@@ -117,7 +117,7 @@ public class ChangeRequestAutoRejectFixtures {
         return runRepository.save(run).getId();
     }
 
-    /** 한도를 이미 소진한 탑승 의사 — 자동 거절이 이 값을 0으로 되돌리는지가 목표 3의 핵심이다. */
+    /** 한도를 이미 소진한 탑승 의사 — 자동 거절이 이 값을 0으로 되돌리는지가 핵심이다. */
     public long spentBoardingIntent(long runId, long studentId, OffsetDateTime createdAt) {
         BoardingIntent intent = BoardingIntent.forRun(runId, studentId, createdAt);
         intent.consumeChangeQuota();
@@ -125,7 +125,7 @@ public class ChangeRequestAutoRejectFixtures {
     }
 
     /**
-     * 확정 노선 1버전 — "재최적화 미호출"(목표 3)을 {@code currentVersionId} 불변으로 실측하는 기준선이다.
+     * 확정 노선 1버전 — "재최적화 미호출"을{@code currentVersionId} 불변으로 실측하는 기준선이다.
      *
      * @return 처음 배정된 {@code route_version.id}
      */

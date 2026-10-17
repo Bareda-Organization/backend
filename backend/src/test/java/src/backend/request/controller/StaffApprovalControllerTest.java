@@ -50,7 +50,7 @@ import src.backend.run.command.RunConfirmationService;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * §5.5 {@code /staff/approvals} — 목록은 재최적화를 실행하지 않고(목표 12 호출 수 검증), 상세만 그
+ * §5.5 {@code /staff/approvals} — 목록은 재최적화를 실행하지 않고(호출 수 검증), 상세만 그
  * 시점에 1회 실행한다. 미리보기 캐시가 입력이 그대로인 반복 조회를 재계산 없이 같은 토큰으로
  * 돌려주는지, 입력이 바뀌면 갱신되는지도 함께 본다.
  *
@@ -109,7 +109,7 @@ class StaffApprovalControllerTest {
         return fixtures;
     }
 
-    // ── 목표 12 — 목록은 재최적화를 실행하지 않는다 ──────────────────────────
+    // ── 목록은 재최적화를 실행하지 않는다 ──────────────────────────
 
     /**
      * 목록 조회는 대기 건이 있어도 {@link RouteComputationPipeline#compute} 를 <b>한 번도</b> 부르지
@@ -333,7 +333,7 @@ class StaffApprovalControllerTest {
                 .andExpect(jsonPath("$.data.items", org.hamcrest.Matchers.hasSize(0)));
     }
 
-    // ── 목표 12 — 상세는 정확히 1회 실행한다 ──────────────────────────────
+    // ── 상세는 정확히 1회 실행한다 ──────────────────────────────
 
     /** 상세 조회는 {@link RouteComputationPipeline#compute} 를 <b>정확히 1회</b> 부른다. */
     @Test
@@ -689,7 +689,7 @@ class StaffApprovalControllerTest {
      * 확정 노선 위에 승인 대기 1건을 올린 시나리오 — Ruling 198(②구간 요청이 있을 때는 이미 회차가
      * 확정돼 있다) 을 그대로 재현한다: 먼저 {@link RunConfirmationService#confirmOne} 로 회차를
      * 확정해 4종 산출물을 만들고, 그 위에 {@link ChangeRequest} 를 직접 쌓는다(제출 경로 자체는
-     * 이 태스크 범위 밖 — T2·T3 소관).
+     * 이 시험의 범위 밖이다).
      */
     private 시나리오 확정된_회차와_승인_대기_건을_만든다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
@@ -723,7 +723,7 @@ class StaffApprovalControllerTest {
     }
 
     /**
-     * 확정 노선 위에 승인 대기 <b>3건</b>을 올린 시나리오 — 목록 호출 수 검사(목표 12) 전용. 위
+     * 확정 노선 위에 승인 대기 <b>3건</b>을 올린 시나리오 — 목록 호출 수 검사 전용. 위
      * {@link #확정된_회차와_승인_대기_건을_만든다} 와 별개의 학원·회차를 새로 만든다(그 픽스처는 다른
      * 6개 시험이 이미 쓰고 있어 대기 건수를 그대로 두었다). 회차에 탄 학생 3명 전원에 각각 취소
      * 요청을 하나씩 걸어 대기 3건을 만든다.

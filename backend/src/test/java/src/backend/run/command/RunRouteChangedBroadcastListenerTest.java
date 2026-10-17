@@ -28,7 +28,7 @@ import src.backend.run.event.RunRouteConfirmedEvent;
 
 /**
  * {@code route_changed} 방송(Ruling 373) — 게이트웨이를 목으로 대체해 "어느 목적지로,
- * 몇 번, 어떤 페이로드로" 만 본다. 커밋 뒤에만 나가는지(목표 2)·실제 발행 경로(목표 4)는
+ * 몇 번, 어떤 페이로드로" 만 본다. 커밋 뒤에만 나가는지·실제 발행 경로는
  * {@link RunRouteChangedBroadcastWiringTest} 가 맡는다.
  */
 class RunRouteChangedBroadcastListenerTest {

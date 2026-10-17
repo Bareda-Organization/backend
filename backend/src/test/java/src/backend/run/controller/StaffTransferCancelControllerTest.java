@@ -106,8 +106,6 @@ class StaffTransferCancelControllerTest {
     private record Scene(long academyId, long fromRunId, long toRunId, long stopId, long studentId, long transferId) {
     }
 
-    // ── 목표 1 · 6 ────────────────────────────────────────────────────────
-
     @Test
     @DisplayName("목표 1 — staged · 두 회차 idle 이면 204, 행이 지워지고 감사 1행(data_access·delete)이 남는다")
     void 이동_대기를_취소하면_204_이고_행이_지워지며_감사가_남는다() throws Exception {
@@ -137,8 +135,6 @@ class StaffTransferCancelControllerTest {
         이동_등록한다(scene).andExpect(status().isCreated());
     }
 
-    // ── 목표 2 ────────────────────────────────────────────────────────────
-
     @Test
     @DisplayName("목표 2 — 없는 이동은 404 TRANSFER_NOT_FOUND")
     void 없는_이동은_404_이다() throws Exception {
@@ -161,8 +157,6 @@ class StaffTransferCancelControllerTest {
 
         assertThat(이동_행_수(scene.transferId())).isEqualTo(1L);
     }
-
-    // ── 목표 3 ────────────────────────────────────────────────────────────
 
     @Test
     @DisplayName("목표 3 — 도착 회차만 confirmed 여도 403 CHANGE_WINDOW_CLOSED 이고 행이 남는다")
@@ -201,8 +195,6 @@ class StaffTransferCancelControllerTest {
 
         assertThat(이동_행_수(scene.transferId())).isEqualTo(1L);
     }
-
-    // ── 목표 4 ────────────────────────────────────────────────────────────
 
     @Test
     @DisplayName("목표 4 — 학부모·기사 토큰은 403 이고 행이 남는다")

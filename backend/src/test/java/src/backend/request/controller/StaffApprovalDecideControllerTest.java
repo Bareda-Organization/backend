@@ -56,7 +56,7 @@ import src.backend.run.repository.RunRepository;
 
 /**
  * §5.6 {@code POST /staff/approvals/{id}/decide} — 승인·거절·창 닫힘·재처리·범위·부재를 본다
- * ({@link ChangeRequestDecisionServiceAtomicityTest} 는 이 클래스와 분리한다: 목표 7(실패 시 원자적
+ * ({@link ChangeRequestDecisionServiceAtomicityTest} 는 이 클래스와 분리한다: 실패 시 원자적
  * 롤백)은 결정 트랜잭션이 테스트 자신의 트랜잭션에 참여하면 같은 커넥션에서 <b>아직 실제로 롤백되지
  * 않은 플러시 결과</b>가 보여 검증이 거짓으로 통과하므로, 그 시험만 {@code @Transactional} 을 뺀
  * 별도 클래스에 둔다).
@@ -123,7 +123,7 @@ class StaffApprovalDecideControllerTest {
         return fixtures;
     }
 
-    // ── 목표 3 — 승인 ────────────────────────────────────────────────────
+    // ── 승인 ────────────────────────────────────────────────────
 
     /**
      * 승인하면 200 · {@code route_version} 이 직전+1 로 오르고 · <b>실제로 배포된 {@code run_stop}</b>
@@ -265,7 +265,7 @@ class StaffApprovalDecideControllerTest {
                 .andExpect(jsonPath("$.data.status").value("rejected"));
     }
 
-    // ── 목표 4 — 거절 ────────────────────────────────────────────────────
+    // ── 거절 ────────────────────────────────────────────────────
 
     /**
      * 거절하면 재최적화를 전혀 부르지 않고(호출 0회 · {@code route_version} 불변 · {@code run_stop}
@@ -347,7 +347,7 @@ class StaffApprovalDecideControllerTest {
 
     /**
      * 토큰 문자열이 일치해도 <b>그 사이 같은 회차의 다른 승인 건이 먼저 결정</b>돼 명단이 바뀌면
-     * 지문이 어긋나 {@code 409 PREVIEW_STALE} 이어야 한다 — 게이트 리뷰가 재현한 시나리오(대기 A·B
+     * 지문이 어긋나 {@code 409 PREVIEW_STALE} 이어야 한다 — 이 시나리오(대기 A·B
      * 두 건 → 둘 다 미리보기 조회 → A 승인 → B 의 토큰은 A 승인 이전 것) 그대로다. 지문 대조가 없으면
      * B 도 200 으로 통과해 A 가 이미 지운 정류장이 되살아난다.
      */
@@ -522,7 +522,7 @@ class StaffApprovalDecideControllerTest {
 
     /**
      * 자동 거절({@code ChangeRequestAutoRejectionPersistence.autoRejectOne})도 승인·거절과 같이
-     * 미리보기 캐시를 지워야 한다 — 세 종결 경로 중 이 경로의 배선은 이 태스크(T5)의 몫이다
+     * 미리보기 캐시를 지워야 한다 — 세 종결 경로 중 이 경로의 배선은 이 태스크의 몫이다
      * ({@link ApprovalPreviewCache#evict} 자바독). 인메모리 캐시라 트랜잭션 경계와 무관하게 즉시
      * 관측된다.
      */

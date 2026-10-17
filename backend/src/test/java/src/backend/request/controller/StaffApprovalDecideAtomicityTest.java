@@ -54,7 +54,7 @@ import src.backend.student.repository.WeeklyAddressRepository;
 /**
  * {@code @Transactional} 을 쓰지 않는 결정 시험 묶음 — 두 가지 이유로 실제 커밋이 필요하다.
  *
- * <p><b>목표 7(재최적화 저장 실패 시 원자적 롤백)</b> — {@link src.backend.request.command.
+ * <p><b>재최적화 저장 실패 시 원자적 롤백</b> — {@link src.backend.request.command.
  * ChangeRequestDecisionService#decide} 는 그 자체가 {@code @Transactional} 이라, 이 시험 클래스까지
  * {@code @Transactional} 이면 결정 트랜잭션이 <b>테스트 트랜잭션에 참여</b>하게 되어 예외가 나도
  * "롤백 전용" 표시만 남고 실제 {@code ROLLBACK} 은 테스트 메서드가 끝난 뒤에야 실행된다 — 그 사이에

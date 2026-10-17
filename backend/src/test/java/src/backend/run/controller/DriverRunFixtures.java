@@ -169,7 +169,7 @@ public class DriverRunFixtures {
         return studentRepository.save(Student.register(academyId, profile)).getId();
     }
 
-    /** 계정이 연결된 학생(goal 2·9의 학생 알림 수신자 조회 대상, {@code STUDENT_NOT_FOUND} 조회 부재). */
+    /** 계정이 연결된 학생(학생 알림 수신자 조회 대상, {@code STUDENT_NOT_FOUND} 조회 부재). */
     public long studentWithAccount(long academyId, String name) {
         long studentId = student(academyId, name);
         Account account = accountRepository.save(Account.forSignup(academyId, "학생" + SEQUENCE.incrementAndGet(), "x",
@@ -180,7 +180,7 @@ public class DriverRunFixtures {
         return studentId;
     }
 
-    /** 재직 관계자 1명(goal 2의 STAFF 알림 수신자 조회 대상) — 반환값은 계정 id. */
+    /** 재직 관계자 1명(STAFF 알림 수신자 조회 대상) — 반환값은 계정 id. */
     public long staffAccount(long academyId, String name) {
         Account account = accountRepository.save(Account.forSignup(academyId, "직원" + SEQUENCE.incrementAndGet(), "x",
                 name, "010-0000-0000", null, Role.STAFF));
@@ -188,7 +188,7 @@ public class DriverRunFixtures {
         return account.getId();
     }
 
-    /** 그 학생의 보호자 1명(goal 2·9의 PARENT 알림 수신자 조회 대상) — 반환값은 계정 id. */
+    /** 그 학생의 보호자 1명(PARENT 알림 수신자 조회 대상) — 반환값은 계정 id. */
     public long guardianOf(long academyId, long studentId, String name, OffsetDateTime linkedAt) {
         Account account = accountRepository.save(Account.forSignup(academyId, "부모" + SEQUENCE.incrementAndGet(), "x",
                 name, "010-0000-0000", null, Role.PARENT));
@@ -264,7 +264,7 @@ public class DriverRunFixtures {
     }
 
     /**
-     * 같은 학원 소속으로 역할은 맞지만 <b>어떤 회차에도 배치되지 않은</b> 기사·동승자(goal 5 의
+     * 같은 학원 소속으로 역할은 맞지만 <b>어떤 회차에도 배치되지 않은</b> 기사·동승자(
      * {@code FORBIDDEN} 분기 — {@link #assignedManager} 와 달리 {@code Assignment} 행을 만들지
      * 않는다). 반환값은 로그인 토큰에 실을 계정 id.
      */
@@ -312,7 +312,7 @@ public class DriverRunFixtures {
 
     /**
      * 그 회차의 라이더 1건 — {@code status} 가 {@code BOARDED} 면 {@code timestamp} 로 탑승 처리까지,
-     * {@code ABSENT} 면 결석 처리까지 마친다(목표 10 회귀 시험이 종료 판정에서 무시돼야 함을 검사할 때 씀).
+     * {@code ABSENT} 면 결석 처리까지 마친다(회귀 시험이 종료 판정에서 무시돼야 함을 검사할 때 씀).
      */
     public long rider(long runId, long studentId, long stopId, RiderStatus status, OffsetDateTime timestamp) {
         RunRider rider = RunRider.uponConfirmation(runId, studentId, stopId);
@@ -326,7 +326,7 @@ public class DriverRunFixtures {
         return runRiderRepository.save(rider).getId();
     }
 
-    /** 대기 중인 변경 요청(goal 3) — {@code deadlineAt} 은 공개 API 가 없어 직접 채운다(클래스 자바독 참고). */
+    /** 대기 중인 변경 요청 — {@code deadlineAt} 은 공개 API 가 없어 직접 채운다(클래스 자바독 참고). */
     public long pendingChangeRequest(long academyId, long runId, long studentId, long requestedBy,
             OffsetDateTime requestedAt, OffsetDateTime deadlineAt) {
         ChangeRequest request = ChangeRequest.forRequest(academyId, runId, studentId,

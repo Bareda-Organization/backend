@@ -42,7 +42,7 @@ import src.backend.run.command.RunConfirmationFixtures;
  * §4.3 {@code GET /runs/{runId}/route} — RUN-03·M-08·M-09·Ruling 205.
  *
  * <p>이 클래스의 축은 <b>{@code next_stop} 이 결번(SKIPPED) 정차지를 건너뛰고 그 다음 실제
- * 정차지를 가리키는가</b>다(목표 8) — {@code skipped_notice} 가 그 결번 사유를 함께 실어야
+ * 정차지를 가리키는가</b>다 — {@code skipped_notice} 가 그 결번 사유를 함께 실어야
  * "건너뛴 이유를 모르는 다음 정차지 안내" 가 되지 않는다.
  */
 @SpringBootTest

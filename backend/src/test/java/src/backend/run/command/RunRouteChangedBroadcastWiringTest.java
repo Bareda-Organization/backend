@@ -163,7 +163,7 @@ class RunRouteChangedBroadcastWiringTest {
         jdbcTemplate.update("DELETE FROM academy WHERE name = '" + RunConfirmationFixtures.ACADEMY_NAME + "'");
     }
 
-    // ── 목표 1·2 — 커밋 뒤에만 나간다 ────────────────────────────────────
+    // ── 커밋 뒤에만 나간다 ────────────────────────────────────
 
     @Test
     @DisplayName("커밋된 트랜잭션에서 발행하면 매니저 채널로 route_changed 1건이 나간다")
@@ -194,7 +194,7 @@ class RunRouteChangedBroadcastWiringTest {
         verify(messagingTemplate, after(500).never()).convertAndSend(anyString(), any(Object.class));
     }
 
-    // ── 목표 4 — 실제 경로 2개 ───────────────────────────────────────────
+    // ── 실제 경로 2개 ───────────────────────────────────────────
 
     @Test
     @DisplayName("②구간 변경 승인(§5.6) 뒤에 route_changed 가 매니저 채널로 나간다")
@@ -218,7 +218,7 @@ class RunRouteChangedBroadcastWiringTest {
         assertThat(routeChangedTargets(runId)).containsExactly(WebSocketDestinations.managerRun(runId));
     }
 
-    // ── 목표 5 — 방송 실패가 요청을 깨지 않는다 ────────────────────────────
+    // ── 방송 실패가 요청을 깨지 않는다 ────────────────────────────
 
     @Test
     @DisplayName("방송이 예외를 던져도 변경 승인 응답은 200 이고 결정은 커밋돼 있다")

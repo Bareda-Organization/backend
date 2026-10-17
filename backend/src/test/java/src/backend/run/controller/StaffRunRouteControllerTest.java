@@ -46,7 +46,7 @@ import src.backend.student.geocoding.spec.GeocodedPoint;
 import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
- * §5.19 {@code GET /staff/runs/{runId}/route} — RTE-02, F1 S3 목표 11.
+ * §5.19 {@code GET /staff/runs/{runId}/route} — RTE-02.
  *
  * <p>매니저용 {@code RunRouteControllerTest}(§4.3)와 같은 계열이지만 이쪽은 학원 범위·확정 버전
  * 존재를 축으로 삼는다 — 정차 조립 자체({@code next_stop} 건너뛰기 등)는
@@ -99,7 +99,7 @@ class StaffRunRouteControllerTest {
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
         // 기사만 확인 — ack.driver=true·ack.escort=false 비대칭을 실측한다(StaffDashboardControllerTest
-        // 목표1 과 같은 방식, 손으로 assignment 행을 UPDATE 하지 않는다).
+        // 과 같은 방식, 손으로 assignment 행을 UPDATE 하지 않는다).
         mockMvc.perform(post("/api/v1/runs/" + runId + "/ack-changes")
                         .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
