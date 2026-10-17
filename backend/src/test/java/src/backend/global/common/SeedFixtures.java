@@ -1,29 +1,16 @@
 package src.backend.global.common;
 
 /**
- * {@code db/fixture/V2__seed_data.sql} 이 적재하는 식별자·코드·로그인 아이디의 단일 원천이다.
- * {@code @Schema(example = SeedFixtures.PARENT_A1_LOGIN_ID)} 처럼 Swagger 예시값이 이 상수를 직접
- * 참조하게 해, 시드가 바뀌어도 사람이 손으로 옮겨 적지 않게 한다({@code IMPLEMENTATION_PLAN.md §3.3}).
+ * {@code db/fixture/V2__seed_data.sql} 이 적재하는 식별자·코드·로그인 아이디의 단일 원천이다 — 시험이 시드 값을 손으로
+ * 옮겨 적지 않고 이 상수를 참조하고, {@code SeedFixturesContractTest} 가 상수가 실제 시드 행과 같은지 대조한다.
  *
- * <p>모든 상수는 {@code public static final String} 이다 — bigint PK 도 문자열로 담는다. 애너테이션
- * 값은 컴파일 타임 상수식만 허용하므로, 타입을 섞으면 "애너테이션에 쓸 수 있는 상수"와 "못 쓰는
- * 상수"가 갈린다. bigint 컬럼과 비교할 때 문자열을 그대로 바인딩하면 타입 불일치로 죽거나 항상
- * 0건이 되므로, {@code SeedFixturesContractTest} 의 조회는 전부 SQL 에서 {@code ?::bigint} 로
- * 캐스트한다 — 새 체크를 추가할 때 이 캐스트를 빠뜨리면 그 체크는 상시 거짓 실패하거나 거짓
- * 통과한다. ({@code Long.parseLong} 변환 자체는 {@code asBigint} 데모 테스트 1곳에서만 예시로 보인다.)
+ * <p>모든 상수는 {@code public static final String} 이다 — bigint PK 도 문자열로 담는다. bigint 컬럼과 비교할 때
+ * 문자열을 그대로 바인딩하면 타입 불일치로 죽거나 항상 0건이 되므로, {@code SeedFixturesContractTest} 의 조회는 전부
+ * SQL 에서 {@code ?::bigint} 로 캐스트한다 — 새 체크를 추가할 때 이 캐스트를 빠뜨리면 그 체크는 상시 거짓 실패하거나
+ * 거짓 통과한다.
  *
- * <p><b>시각 값은 상수 대상 밖이다.</b> 시드의 출발 시각(depart_time 등)은 {@code now()} 기준 상대값이라
- * 기동마다 달라진다 — 상수로 만들면 이 클래스를 참조하는 계약 테스트가 매 기동마다 실패한다. Swagger
- * 의 시각 예시는 형식만 보여주는 값으로 남기고 대조 대상에서 제외한다.
- *
- * <p><b>이 클래스가 보장하는 것은 "겹① 값 실재 대조"뿐이다({@code IMPLEMENTATION_PLAN.md §3.3}
- * 이 규정한 세 겹 중 하나).</b> 상수는 컴파일 시점에 인라인되므로, 런타임에는
- * {@code @Schema(example = SeedFixtures.PARENT_A1_LOGIN_ID)} 와 {@code @Schema(example = "parentA1")}
- * 를 구분할 수 없다 — 즉 "이 상수를 실제로 참조했는가"는 검증 불가능하다. 그래서 겹②
- * ({@code SwaggerExampleSeedContractTest}, 미착수)는 그 대신 "문서에 실린 예시값이 이 상수
- * 사전에 속하는가"를 본다. 겹③(소스 규약, 미착수)은 컨트롤러 소스에서 리터럴 사용 지점을 찾아
- * 겹②를 보강한다. 두 겹 다 Phase 1 시점에는 대상 컨트롤러가 0개라 "검사할 것이 없어 항상
- * 초록불"인 거짓 통과가 되므로 만들지 않았다 — Phase 2 가 실제 컨트롤러를 붙인 뒤에 착수한다.
+ * <p><b>시각 값은 상수 대상 밖이다.</b> 시드의 출발 시각(depart_time 등)은 {@code now()} 기준 상대값이라 기동마다
+ * 달라진다 — 상수로 만들면 이 클래스를 참조하는 계약 시험이 매 기동마다 실패한다.
  */
 public final class SeedFixtures {
 

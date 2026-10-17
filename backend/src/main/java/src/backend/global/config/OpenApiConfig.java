@@ -16,7 +16,6 @@ import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.tags.Tag;
 
-import src.backend.global.common.SeedFixtures;
 
 /**
  * Swagger UI(springdoc-openapi) 문서 메타데이터.
@@ -63,9 +62,8 @@ public class OpenApiConfig {
     private static final String TAG_ADMIN = ApiTags.ADMIN;
 
     /**
-     * Swagger UI 최상단에 그대로 렌더링되는 안내문(Markdown). {@code %s} 자리는 전부
-     * {@link SeedFixtures} 상수로 채운다({@link #openApi()} 의 {@code .formatted(...)} 호출부 참고) —
-     * 계정표 값을 여기 리터럴로 박으면 시드가 바뀔 때 이 클래스만 낡아 "예시 = 시드 일치"가 깨진다.
+     * Swagger UI 최상단에 그대로 렌더링되는 안내문(Markdown). {@code %s} 자리는 태그 이름이다. 데모 계정표는
+     * {@code db/fixture/V2__seed_data.sql} 의 시드 계정과 같은 값을 적은 것이라, 시드 계정을 바꾸면 이 표도 함께 고친다.
      */
     private static final String DESCRIPTION_TEMPLATE = """
             바래다 — 학원 통원버스 운행·등하원 관리 멀티 테넌트 플랫폼 백엔드 API.
@@ -80,26 +78,26 @@ public class OpenApiConfig {
 
             | 역할 | 로그인 아이디 | 상태 | 소속 학원 | 시험 포인트 |
             |---|---|---|---|---|
-            | system_admin | `%s` | active | 없음(전 학원 범위) | 학원 미소속 — `%s` 콘솔, 학원 생성·목록 |
-            | staff | `%s` | active | `%s` | 학원 A 관계자 정상 시나리오, `%s` |
-            | staff | `%s` | active | `%s` | 학원 B 관계자 — 격리 검증(학원 A 데이터 비노출 확인) |
-            | staff | `%s` | pending | `%s` | 가입 승인 대기 — 로그인은 성공하고 접근 범위만 축소(§1.4) |
-            | staff | `%s` | active | `%s` | 학원이 `inactive` 여도 계정은 로그인 유지(O-01 시연) |
-            | parent | `%s` | active | `%s` | 형제 학생 2명의 보호자 — `%s` |
-            | parent | `%s` | active | `%s` | 계정 미연결 학생의 보호자 |
-            | parent | `%s` | active | `%s` | 학생 A4 의 보호자 |
-            | parent | `%s` | pending | `%s` | 가입 승인 대기 |
-            | parent | `%s` | active | `%s` | 학원 B — 격리 검증 |
-            | student | `%s` | active | `%s` | 본인 계정이 학생 레코드에 연결됨 |
-            | student | `%s` | rejected | `%s` | 가입 거절 — 로그인은 성공하고 접근 범위만 축소(§1.4) |
-            | student | `%s` | active | `%s` | 학원 B — 격리 검증 |
-            | driver | `%s` | active | `%s` | 정상 기사 — `%s` |
-            | driver | `%s` | active | `%s` | 보조 기사 |
-            | driver | `%s` | blocked | `%s` | 로그인 실패 누적 차단 — 로그인 거부 확인 |
-            | driver | `%s` | active | `%s` | 학원 B — 격리 검증 |
-            | escort | `%s` | active | `%s` | 동승자 — 승하차 기록 |
-            | escort | `%s` | active | `%s` | 보조 동승자 |
-            | escort | `%s` | active | `%s` | 학원 B — 격리 검증 |
+            | system_admin | `sysadmin` | active | 없음(전 학원 범위) | 학원 미소속 — `%s` 콘솔, 학원 생성·목록 |
+            | staff | `staffA` | active | `BARAEDA-A` | 학원 A 관계자 정상 시나리오, `%s` |
+            | staff | `staffB` | active | `BARAEDA-B` | 학원 B 관계자 — 격리 검증(학원 A 데이터 비노출 확인) |
+            | staff | `staffPending` | pending | `BARAEDA-A` | 가입 승인 대기 — 로그인은 성공하고 접근 범위만 축소(§1.4) |
+            | staff | `staffC` | active | `BARAEDA-C` | 학원이 `inactive` 여도 계정은 로그인 유지(O-01 시연) |
+            | parent | `parentA1` | active | `BARAEDA-A` | 형제 학생 2명의 보호자 — `%s` |
+            | parent | `parentA2` | active | `BARAEDA-A` | 계정 미연결 학생의 보호자 |
+            | parent | `parentA3` | active | `BARAEDA-A` | 학생 A4 의 보호자 |
+            | parent | `parentPending` | pending | `BARAEDA-A` | 가입 승인 대기 |
+            | parent | `parentB1` | active | `BARAEDA-B` | 학원 B — 격리 검증 |
+            | student | `studentA4` | active | `BARAEDA-A` | 본인 계정이 학생 레코드에 연결됨 |
+            | student | `studentRejected` | rejected | `BARAEDA-A` | 가입 거절 — 로그인은 성공하고 접근 범위만 축소(§1.4) |
+            | student | `studentB1` | active | `BARAEDA-B` | 학원 B — 격리 검증 |
+            | driver | `driverA1` | active | `BARAEDA-A` | 정상 기사 — `%s` |
+            | driver | `driverA2` | active | `BARAEDA-A` | 보조 기사 |
+            | driver | `driverBlocked` | blocked | `BARAEDA-A` | 로그인 실패 누적 차단 — 로그인 거부 확인 |
+            | driver | `driverB1` | active | `BARAEDA-B` | 학원 B — 격리 검증 |
+            | escort | `escortA1` | active | `BARAEDA-A` | 동승자 — 승하차 기록 |
+            | escort | `escortA2` | active | `BARAEDA-A` | 보조 동승자 |
+            | escort | `escortB1` | active | `BARAEDA-B` | 학원 B — 격리 검증 |
 
             ### 태그 구성
 
@@ -107,10 +105,7 @@ public class OpenApiConfig {
             5개 태그로 묶인다.
             """;
 
-    /**
-     * OpenAPI 문서 빈. {@link #DESCRIPTION_TEMPLATE} 의 {@code %s} 자리를 {@link SeedFixtures}
-     * 상수로 채우고, 태그 5개를 등록한다.
-     */
+    /** OpenAPI 문서 빈. 안내문과 태그 5개를 등록한다. */
     @Bean
     public OpenAPI openApi() {
         return new OpenAPI()
@@ -128,31 +123,10 @@ public class OpenApiConfig {
                                 .bearerFormat("JWT")));
     }
 
-    /** {@link #DESCRIPTION_TEMPLATE} 의 {@code %s} 자리를 {@link SeedFixtures} 상수로 채운다. */
+    /** {@link #DESCRIPTION_TEMPLATE} 의 {@code %s} 자리를 태그 이름으로 채운다. */
     private String seedDescription() {
         return DESCRIPTION_TEMPLATE.formatted(
-                TAG_AUTH,
-                SeedFixtures.SYSTEM_ADMIN_LOGIN_ID, TAG_ADMIN,
-                SeedFixtures.STAFF_A_LOGIN_ID, SeedFixtures.ACADEMY_A_CODE, TAG_STAFF,
-                SeedFixtures.STAFF_B_LOGIN_ID, SeedFixtures.ACADEMY_B_CODE,
-                SeedFixtures.STAFF_PENDING_LOGIN_ID, SeedFixtures.ACADEMY_A_CODE,
-                SeedFixtures.STAFF_C_LOGIN_ID, SeedFixtures.ACADEMY_C_CODE,
-                SeedFixtures.PARENT_A1_LOGIN_ID, SeedFixtures.ACADEMY_A_CODE, TAG_PARENT_STUDENT,
-                SeedFixtures.PARENT_A2_LOGIN_ID, SeedFixtures.ACADEMY_A_CODE,
-                SeedFixtures.PARENT_A3_LOGIN_ID, SeedFixtures.ACADEMY_A_CODE,
-                SeedFixtures.PARENT_PENDING_LOGIN_ID, SeedFixtures.ACADEMY_A_CODE,
-                SeedFixtures.PARENT_B1_LOGIN_ID, SeedFixtures.ACADEMY_B_CODE,
-                SeedFixtures.STUDENT_A4_LOGIN_ID, SeedFixtures.ACADEMY_A_CODE,
-                SeedFixtures.STUDENT_REJECTED_LOGIN_ID, SeedFixtures.ACADEMY_A_CODE,
-                SeedFixtures.STUDENT_B1_LOGIN_ID, SeedFixtures.ACADEMY_B_CODE,
-                SeedFixtures.DRIVER_A1_LOGIN_ID, SeedFixtures.ACADEMY_A_CODE, TAG_MANAGER,
-                SeedFixtures.DRIVER_A2_LOGIN_ID, SeedFixtures.ACADEMY_A_CODE,
-                SeedFixtures.DRIVER_BLOCKED_LOGIN_ID, SeedFixtures.ACADEMY_A_CODE,
-                SeedFixtures.DRIVER_B1_LOGIN_ID, SeedFixtures.ACADEMY_B_CODE,
-                SeedFixtures.ESCORT_A1_LOGIN_ID, SeedFixtures.ACADEMY_A_CODE,
-                SeedFixtures.ESCORT_A2_LOGIN_ID, SeedFixtures.ACADEMY_A_CODE,
-                SeedFixtures.ESCORT_B1_LOGIN_ID, SeedFixtures.ACADEMY_B_CODE,
-                TAG_AUTH, TAG_PARENT_STUDENT, TAG_MANAGER, TAG_STAFF, TAG_ADMIN);
+                TAG_AUTH, TAG_ADMIN, TAG_STAFF, TAG_PARENT_STUDENT, TAG_MANAGER, TAG_AUTH, TAG_PARENT_STUDENT, TAG_MANAGER, TAG_STAFF, TAG_ADMIN);
     }
 
     /** Swagger 태그 6개(도메인 5 + local 전용 dev) — 설명은 API_SPEC 도메인 절 대응. */
