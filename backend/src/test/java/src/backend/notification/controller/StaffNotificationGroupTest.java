@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
@@ -26,13 +27,9 @@ import com.jayway.jsonpath.JsonPath;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.notification.entity.NotificationType;
-import src.backend.notification.repository.NotificationLogRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
@@ -45,6 +42,9 @@ import testsupport.clock.FixedClock20300401Config;
 @Transactional
 @Import(FixedClock20300401Config.class)
 class StaffNotificationGroupTest {
+
+    @Autowired
+    private ApplicationContext applicationContext;
 
     @Autowired
     private MockMvc mockMvc;
@@ -61,27 +61,12 @@ class StaffNotificationGroupTest {
     @PersistenceContext
     private EntityManager entityManager;
 
-    @Autowired
-    private AcademyRepository academyRepository;
 
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private AcademyStaffRepository academyStaffRepository;
-
-    @Autowired
-    private NotificationLogRepository notificationLogRepository;
-
-    private StaffNotificationFixtures fixtures() {
-        return new StaffNotificationFixtures(academyRepository, accountRepository, academyStaffRepository,
-                notificationLogRepository);
-    }
 
     /** 같은 사건(type·run·body·초)은 한 묶음이고, 다른 초·다른 body·다른 type·다른 run 은 다른 묶음이다 — 쪽·total_count 는 묶음 단위. */
     @Test
     void 묶음_키가_같으면_한_묶음이고_쪽_나누기와_total_count_는_묶음_단위다() throws Exception {
-        StaffNotificationFixtures fx = fixtures();
+        StaffNotificationFixtures fx = StaffNotificationFixtures.of(applicationContext);
         long academyId = fx.academy();
         long staffAccountId = fx.staffAccount(academyId, "관계자");
         OffsetDateTime t = OffsetDateTime.now(clock);
@@ -139,7 +124,7 @@ class StaffNotificationGroupTest {
 
     @Test
     void recipient_role_쿼리는_묶지_않은_목록과_묶음_목록_모두_그_역할만_남긴다() throws Exception {
-        StaffNotificationFixtures fx = fixtures();
+        StaffNotificationFixtures fx = StaffNotificationFixtures.of(applicationContext);
         long academyId = fx.academy();
         long staffAccountId = fx.staffAccount(academyId, "관계자");
         OffsetDateTime t = OffsetDateTime.now(clock);
@@ -165,7 +150,7 @@ class StaffNotificationGroupTest {
     /** acked 필터 — 묶음 안에 그 상태 행이 하나라도 있으면 그 묶음을 싣는다. */
     @Test
     void acked_필터는_묶음_안에_그_상태_행이_하나라도_있으면_그_묶음을_싣는다() throws Exception {
-        StaffNotificationFixtures fx = fixtures();
+        StaffNotificationFixtures fx = StaffNotificationFixtures.of(applicationContext);
         long academyId = fx.academy();
         long staffAccountId = fx.staffAccount(academyId, "관계자");
         OffsetDateTime t = OffsetDateTime.now(clock);

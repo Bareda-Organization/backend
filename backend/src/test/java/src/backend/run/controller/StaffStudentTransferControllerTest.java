@@ -15,13 +15,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.context.annotation.Import;
 
-import src.backend.academy.repository.AcademyRepository;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.entity.BusSeating;
 import src.backend.bus.repository.BusRepository;
@@ -29,8 +29,6 @@ import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.routing.repository.RouteRepository;
-import src.backend.routing.repository.RouteStopRepository;
 import src.backend.run.command.RunConfirmationFixtures;
 import src.backend.run.command.RunConfirmationService;
 import src.backend.run.entity.RunForcedAddition;
@@ -39,8 +37,6 @@ import src.backend.run.repository.RunForcedAdditionRepository;
 import src.backend.run.repository.RunRepository;
 import src.backend.run.repository.RunTransferRepository;
 import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
-import src.backend.student.repository.WeeklyAddressRepository;
 import testsupport.clock.FixedClock20260827Config;
 
 /**
@@ -60,6 +56,9 @@ class StaffStudentTransferControllerTest {
     private static final long STAFF_ACCOUNT_ID = 9101L;
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -69,25 +68,10 @@ class StaffStudentTransferControllerTest {
     private Clock clock;
 
     @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
     private BusRepository busRepository;
 
     @Autowired
-    private RouteRepository routeRepository;
-
-    @Autowired
-    private RouteStopRepository routeStopRepository;
-
-    @Autowired
     private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private WeeklyAddressRepository weeklyAddressRepository;
 
     @Autowired
     private RunRepository runRepository;
@@ -107,8 +91,7 @@ class StaffStudentTransferControllerTest {
 
     private RunConfirmationFixtures fixtures() {
         if (fixtures == null) {
-            fixtures = new RunConfirmationFixtures(academyRepository, busRepository, routeRepository,
-                    routeStopRepository, stopRepository, studentRepository, weeklyAddressRepository, runRepository);
+            fixtures = RunConfirmationFixtures.of(applicationContext);
         }
         return fixtures;
     }
@@ -121,8 +104,8 @@ class StaffStudentTransferControllerTest {
         long academyId = fixtures().academyWithCoordinates();
         long fromBusId = fixtures().bus(academyId);
         long toBusId = fixtures().bus(academyId);
-        long fromRunId = 회차를_만든다(academyId, fromBusId, 31);
-        long toRunId = 회차를_만든다(academyId, toBusId, 31);
+        long fromRunId = fixtures().idleRunBeforeDeparture(clock, academyId, fromBusId, 31);
+        long toRunId = fixtures().idleRunBeforeDeparture(clock, academyId, toBusId, 31);
         long stopId = fixtures().stop(academyId, "37.560000", "126.970000");
         long studentId = fixtures().student(academyId, "이동학생");
         학생을_회차_명단에_넣는다(fromRunId, studentId);
@@ -147,8 +130,8 @@ class StaffStudentTransferControllerTest {
         long fromBusId = fixtures().bus(academyId);
         long toBusId = busRepository.save(Bus.register(academyId, "이동정원", "00나0000", new BusSeating(3, 1, 1)))
                 .getId();
-        long fromRunId = 회차를_만든다(academyId, fromBusId, 31);
-        long toRunId = 회차를_만든다(academyId, toBusId, 31);
+        long fromRunId = fixtures().idleRunBeforeDeparture(clock, academyId, fromBusId, 31);
+        long toRunId = fixtures().idleRunBeforeDeparture(clock, academyId, toBusId, 31);
         long stopId = fixtures().stop(academyId, "37.560000", "126.970000");
 
         long studentId = fixtures().student(academyId, "이동학생");
@@ -168,8 +151,8 @@ class StaffStudentTransferControllerTest {
         long fromBusId = fixtures().bus(academyId);
         long toBusId = busRepository.save(Bus.register(academyId, "이동정원", "00나0000", new BusSeating(3, 1, 1)))
                 .getId();
-        long fromRunId = 회차를_만든다(academyId, fromBusId, 31);
-        long toRunId = 회차를_만든다(academyId, toBusId, 31);
+        long fromRunId = fixtures().idleRunBeforeDeparture(clock, academyId, fromBusId, 31);
+        long toRunId = fixtures().idleRunBeforeDeparture(clock, academyId, toBusId, 31);
         long stopId = fixtures().stop(academyId, "37.560000", "126.970000");
         long studentId = fixtures().student(academyId, "이동학생");
         학생을_회차_명단에_넣는다(fromRunId, studentId);
@@ -192,9 +175,9 @@ class StaffStudentTransferControllerTest {
         long toBusId = busRepository.save(Bus.register(academyId, "이동정원", "00나0000", new BusSeating(3, 1, 1)))
                 .getId();
         long otherBusId = fixtures().bus(academyId);
-        long fromRunId = 회차를_만든다(academyId, fromBusId, 31);
-        long toRunId = 회차를_만든다(academyId, toBusId, 31);
-        long otherRunId = 회차를_만든다(academyId, otherBusId, 31);
+        long fromRunId = fixtures().idleRunBeforeDeparture(clock, academyId, fromBusId, 31);
+        long toRunId = fixtures().idleRunBeforeDeparture(clock, academyId, toBusId, 31);
+        long otherRunId = fixtures().idleRunBeforeDeparture(clock, academyId, otherBusId, 31);
         long firstStop = fixtures().stop(academyId, "37.560000", "126.970000");
         long lastStop = fixtures().stop(academyId, "37.561000", "126.971000");
         fixtures().route(academyId, fromBusId, Weekday.THU, Direction.TO_ACADEMY, firstStop, lastStop);
@@ -221,8 +204,8 @@ class StaffStudentTransferControllerTest {
         long academyId = fixtures().academyWithCoordinates();
         long fromBusId = fixtures().bus(academyId);
         long toBusId = fixtures().bus(academyId);
-        long fromRunId = 회차를_만든다(academyId, fromBusId, 20);
-        long toRunId = 회차를_만든다(academyId, toBusId, 31);
+        long fromRunId = fixtures().idleRunBeforeDeparture(clock, academyId, fromBusId, 20);
+        long toRunId = fixtures().idleRunBeforeDeparture(clock, academyId, toBusId, 31);
         long studentId = fixtures().student(academyId, "이동학생");
 
         이동_신청한다(studentId, academyId, 이동_본문(fromRunId, toRunId, null, "테스트로 100"))
@@ -236,8 +219,8 @@ class StaffStudentTransferControllerTest {
         long academyId = fixtures().academyWithCoordinates();
         long fromBusId = fixtures().bus(academyId);
         long toBusId = fixtures().bus(academyId);
-        long fromRunId = 회차를_만든다(academyId, fromBusId, 31);
-        long toRunId = 회차를_만든다(academyId, toBusId, 20);
+        long fromRunId = fixtures().idleRunBeforeDeparture(clock, academyId, fromBusId, 31);
+        long toRunId = fixtures().idleRunBeforeDeparture(clock, academyId, toBusId, 20);
         long studentId = fixtures().student(academyId, "이동학생");
 
         이동_신청한다(studentId, academyId, 이동_본문(fromRunId, toRunId, null, "테스트로 100"))
@@ -253,8 +236,8 @@ class StaffStudentTransferControllerTest {
         long academyId = fixtures().academyWithCoordinates();
         long fromBusId = fixtures().bus(academyId);
         long toBusId = fixtures().bus(academyId);
-        long fromRunId = 회차를_만든다(academyId, fromBusId, 31);
-        long toRunId = 회차를_만든다(academyId, toBusId, 31);
+        long fromRunId = fixtures().idleRunBeforeDeparture(clock, academyId, fromBusId, 31);
+        long toRunId = fixtures().idleRunBeforeDeparture(clock, academyId, toBusId, 31);
         long studentId = fixtures().student(academyId, "명단밖학생");
 
         이동_신청한다(studentId, academyId, 이동_본문(fromRunId, toRunId, null, "테스트로 100"))
@@ -269,7 +252,7 @@ class StaffStudentTransferControllerTest {
     void 출발과_도착이_같은_회차면_422_이다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
         long busId = fixtures().bus(academyId);
-        long runId = 회차를_만든다(academyId, busId, 31);
+        long runId = fixtures().idleRunBeforeDeparture(clock, academyId, busId, 31);
         long studentId = fixtures().student(academyId, "이동학생");
 
         이동_신청한다(studentId, academyId, 이동_본문(runId, runId, null, "테스트로 100"))
@@ -283,7 +266,7 @@ class StaffStudentTransferControllerTest {
         long academyId = fixtures().academyWithCoordinates();
         long fromBusId = fixtures().bus(academyId);
         long toBusId = fixtures().bus(academyId);
-        long fromRunId = 회차를_만든다(academyId, fromBusId, 31);
+        long fromRunId = fixtures().idleRunBeforeDeparture(clock, academyId, fromBusId, 31);
         OffsetDateTime depart = OffsetDateTime.now(clock).plusMinutes(31);
         long tomorrowRunId = fixtures().idleRun(academyId, toBusId, depart.toLocalDate().plusDays(1),
                 Direction.TO_ACADEMY, depart.plusDays(1), depart.plusDays(1).minusMinutes(30));
@@ -305,8 +288,8 @@ class StaffStudentTransferControllerTest {
     @DisplayName("BR-042 — 취소된 회차로의 이동은 409 RUN_CANCELED 다")
     void 취소된_회차로_이동하면_409_RUN_CANCELED_다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
-        long fromRunId = 회차를_만든다(academyId, fixtures().bus(academyId), 31);
-        long toRunId = 회차를_만든다(academyId, fixtures().bus(academyId), 31);
+        long fromRunId = fixtures().idleRunBeforeDeparture(clock, academyId, fixtures().bus(academyId), 31);
+        long toRunId = fixtures().idleRunBeforeDeparture(clock, academyId, fixtures().bus(academyId), 31);
         runRepository.findById(toRunId).orElseThrow().cancel(OffsetDateTime.now(clock), RunCancelSource.STAFF);
         long stopId = fixtures().stop(academyId, "37.560000", "126.970000");
         long studentId = fixtures().student(academyId, "이동학생");
@@ -325,8 +308,8 @@ class StaffStudentTransferControllerTest {
         long academyId = fixtures().academyWithCoordinates();
         long fromBusId = fixtures().bus(academyId);
         long toBusId = fixtures().bus(academyId);
-        long fromRunId = 회차를_만든다(academyId, fromBusId, 31);
-        long toRunId = 회차를_만든다(academyId, toBusId, 31);
+        long fromRunId = fixtures().idleRunBeforeDeparture(clock, academyId, fromBusId, 31);
+        long toRunId = fixtures().idleRunBeforeDeparture(clock, academyId, toBusId, 31);
         long stopId = fixtures().stop(academyId, "37.560000", "126.970000");
         long studentId = fixtures().student(academyId, "이동학생");
         학생을_회차_명단에_넣는다(fromRunId, studentId);
@@ -352,9 +335,9 @@ class StaffStudentTransferControllerTest {
         long fromBusId = fixtures().bus(academyId);
         long toBusId = fixtures().bus(academyId);
         long anotherToBusId = fixtures().bus(academyId);
-        long fromRunId = 회차를_만든다(academyId, fromBusId, 31);
-        long toRunId = 회차를_만든다(academyId, toBusId, 31);
-        long anotherToRunId = 회차를_만든다(academyId, anotherToBusId, 31);
+        long fromRunId = fixtures().idleRunBeforeDeparture(clock, academyId, fromBusId, 31);
+        long toRunId = fixtures().idleRunBeforeDeparture(clock, academyId, toBusId, 31);
+        long anotherToRunId = fixtures().idleRunBeforeDeparture(clock, academyId, anotherToBusId, 31);
         long stopId = fixtures().stop(academyId, "37.560000", "126.970000");
         long studentId = fixtures().student(academyId, "이동학생");
         학생을_회차_명단에_넣는다(fromRunId, studentId);
@@ -372,8 +355,8 @@ class StaffStudentTransferControllerTest {
     @DisplayName("BR-271 — 도착 회차 명단에 이미 있는 학생을 옮기면 409 STUDENT_ALREADY_IN_RUN 이고 이동 행이 남지 않는다")
     void 도착_회차_명단에_이미_있는_학생을_옮기면_409_이다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
-        long fromRunId = 회차를_만든다(academyId, fixtures().bus(academyId), 31);
-        long toRunId = 회차를_만든다(academyId, fixtures().bus(academyId), 31);
+        long fromRunId = fixtures().idleRunBeforeDeparture(clock, academyId, fixtures().bus(academyId), 31);
+        long toRunId = fixtures().idleRunBeforeDeparture(clock, academyId, fixtures().bus(academyId), 31);
         long stopId = fixtures().stop(academyId, "37.560000", "126.970000");
         long studentId = fixtures().student(academyId, "양쪽학생");
         학생을_회차_명단에_넣는다(fromRunId, studentId);
@@ -394,8 +377,8 @@ class StaffStudentTransferControllerTest {
         long academyId = fixtures().academyWithCoordinates();
         long fromBusId = fixtures().bus(academyId);
         long toBusId = fixtures().bus(academyId);
-        long fromRunId = 회차를_만든다(academyId, fromBusId, 31);
-        long toRunId = 회차를_만든다(academyId, toBusId, 31);
+        long fromRunId = fixtures().idleRunBeforeDeparture(clock, academyId, fromBusId, 31);
+        long toRunId = fixtures().idleRunBeforeDeparture(clock, academyId, toBusId, 31);
         long studentId = fixtures().student(academyId, "이동학생");
         학생을_회차_명단에_넣는다(fromRunId, studentId);
 
@@ -417,8 +400,8 @@ class StaffStudentTransferControllerTest {
         long academyId = fixtures().academyWithCoordinates();
         long fromBusId = fixtures().bus(academyId);
         long toBusId = fixtures().bus(academyId);
-        long fromRunId = 회차를_만든다(academyId, fromBusId, 31);
-        long toRunId = 회차를_만든다(academyId, toBusId, 31);
+        long fromRunId = fixtures().idleRunBeforeDeparture(clock, academyId, fromBusId, 31);
+        long toRunId = fixtures().idleRunBeforeDeparture(clock, academyId, toBusId, 31);
         long studentId = fixtures().student(academyId, "이동학생");
         학생을_회차_명단에_넣는다(fromRunId, studentId);
 
@@ -437,11 +420,11 @@ class StaffStudentTransferControllerTest {
     void 도착_회차가_타_학원이면_403_이다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
         long busId = fixtures().bus(academyId);
-        long fromRunId = 회차를_만든다(academyId, busId, 31);
+        long fromRunId = fixtures().idleRunBeforeDeparture(clock, academyId, busId, 31);
 
         long otherAcademyId = fixtures().academyWithCoordinates();
         long otherBusId = fixtures().bus(otherAcademyId);
-        long toRunId = 회차를_만든다(otherAcademyId, otherBusId, 31);
+        long toRunId = fixtures().idleRunBeforeDeparture(clock, otherAcademyId, otherBusId, 31);
 
         long studentId = fixtures().student(academyId, "이동학생");
 
@@ -458,8 +441,8 @@ class StaffStudentTransferControllerTest {
         long academyId = fixtures().academyWithCoordinates();
         long fromBusId = fixtures().bus(academyId);
         long toBusId = fixtures().bus(academyId);
-        long fromRunId = 회차를_만든다(academyId, fromBusId, 31);
-        long toRunId = 회차를_만든다(academyId, toBusId, 31);
+        long fromRunId = fixtures().idleRunBeforeDeparture(clock, academyId, fromBusId, 31);
+        long toRunId = fixtures().idleRunBeforeDeparture(clock, academyId, toBusId, 31);
 
         long otherAcademyId = fixtures().academyWithCoordinates();
         long otherAcademyStudentId = fixtures().student(otherAcademyId, "타학원학생");
@@ -474,7 +457,7 @@ class StaffStudentTransferControllerTest {
     void 출발_회차가_없으면_404_이다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
         long busId = fixtures().bus(academyId);
-        long toRunId = 회차를_만든다(academyId, busId, 31);
+        long toRunId = fixtures().idleRunBeforeDeparture(clock, academyId, busId, 31);
         long studentId = fixtures().student(academyId, "이동학생");
 
         이동_신청한다(studentId, academyId, 이동_본문(9_999_999L, toRunId, null, "테스트로 100"))
@@ -487,7 +470,7 @@ class StaffStudentTransferControllerTest {
     void 도착_회차가_없으면_404_이다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
         long busId = fixtures().bus(academyId);
-        long fromRunId = 회차를_만든다(academyId, busId, 31);
+        long fromRunId = fixtures().idleRunBeforeDeparture(clock, academyId, busId, 31);
         long studentId = fixtures().student(academyId, "이동학생");
 
         이동_신청한다(studentId, academyId, 이동_본문(fromRunId, 9_999_999L, null, "테스트로 100"))
@@ -497,12 +480,6 @@ class StaffStudentTransferControllerTest {
 
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────
 
-    private long 회차를_만든다(long academyId, long busId, int minutesBeforeDepart) {
-        OffsetDateTime now = OffsetDateTime.now(clock);
-        OffsetDateTime departTime = now.plusMinutes(minutesBeforeDepart);
-        OffsetDateTime confirmAt = departTime.minusMinutes(30);
-        return fixtures().idleRun(academyId, busId, now.toLocalDate(), Direction.TO_ACADEMY, departTime, confirmAt);
-    }
 
     /** 강제 추가 1건으로 그 회차의 당일 명단에 학생을 올린다({@code ProjectedRosterReader} 가 합친다). */
     private void 학생을_회차_명단에_넣는다(long runId, long studentId) {

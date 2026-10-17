@@ -13,27 +13,17 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.context.annotation.Import;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
-import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.bus.repository.BusRepository;
 import src.backend.exception.entity.ExceptionReportType;
-import src.backend.exception.repository.ExceptionReportRepository;
 import src.backend.global.common.SeedFixtures;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.manager.repository.AssignmentRepository;
-import src.backend.manager.repository.ManagerRepository;
-import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
@@ -47,6 +37,9 @@ import testsupport.clock.FixedClock20300401Config;
 class StaffReportControllerTest {
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -55,51 +48,14 @@ class StaffReportControllerTest {
     @Autowired
     private Clock clock;
 
-    @Autowired
-    private AcademyRepository academyRepository;
 
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private ManagerRepository managerRepository;
-
-    @Autowired
-    private AssignmentRepository assignmentRepository;
-
-    @Autowired
-    private RunRepository runRepository;
-
-    @Autowired
-    private RunRiderRepository runRiderRepository;
-
-    @Autowired
-    private AcademyStaffRepository academyStaffRepository;
-
-    @Autowired
-    private ExceptionReportRepository exceptionReportRepository;
-
-    private ExceptionReportFixtures fixtures() {
-        return new ExceptionReportFixtures(academyRepository, busRepository, stopRepository, studentRepository,
-                accountRepository, managerRepository, assignmentRepository, runRepository, runRiderRepository,
-                academyStaffRepository, exceptionReportRepository);
-    }
 
     // ── goal 16 — type 필터 ───────────────────────────────────────────────
 
     @Test
     @DisplayName("goal16 — type 필터는 매칭 타입만 남기고 비매칭 타입은 뺀다")
     void type_필터는_매칭만_남긴다() throws Exception {
-        ExceptionReportFixtures fixtures = fixtures();
+        ExceptionReportFixtures fixtures = ExceptionReportFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
@@ -123,7 +79,7 @@ class StaffReportControllerTest {
     @Test
     @DisplayName("goal16 — run_id 필터는 매칭 회차만 남기고 다른 회차는 뺀다")
     void run_id_필터는_매칭만_남긴다() throws Exception {
-        ExceptionReportFixtures fixtures = fixtures();
+        ExceptionReportFixtures fixtures = ExceptionReportFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId1 = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
@@ -149,7 +105,7 @@ class StaffReportControllerTest {
     @Test
     @DisplayName("goal16 — date 필터는 reported_at 이 그 날짜(학원 자정 기준)인 행만 남기고 하루 밖은 뺀다")
     void date_필터는_reported_at_기준_매칭만_남긴다() throws Exception {
-        ExceptionReportFixtures fixtures = fixtures();
+        ExceptionReportFixtures fixtures = ExceptionReportFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
@@ -173,7 +129,7 @@ class StaffReportControllerTest {
     @Test
     @DisplayName("goal16 — 보호자 부재 보고는 student_name 이 채워지고 handled 는 항상 false·handled_at 은 null 이다")
     void 보호자_부재_보고는_student_name이_채워지고_handled는_항상_false다() throws Exception {
-        ExceptionReportFixtures fixtures = fixtures();
+        ExceptionReportFixtures fixtures = ExceptionReportFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
@@ -201,7 +157,7 @@ class StaffReportControllerTest {
     @Test
     @DisplayName("goal16 — 보호자 부재가 아닌 보고는 student_name 이 없다")
     void 보호자_부재가_아닌_보고는_student_name이_없다() throws Exception {
-        ExceptionReportFixtures fixtures = fixtures();
+        ExceptionReportFixtures fixtures = ExceptionReportFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
@@ -221,7 +177,7 @@ class StaffReportControllerTest {
     @Test
     @DisplayName("goal16 — 필터 없는 목록은 이 학원 보고만 돌려주고 다른 학원 보고는 새지 않는다")
     void 필터_없는_목록은_다른_학원_보고를_섞지_않는다() throws Exception {
-        ExceptionReportFixtures fixtures = fixtures();
+        ExceptionReportFixtures fixtures = ExceptionReportFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long otherAcademyId = fixtures.academy();
         long busId = fixtures.bus(academyId);

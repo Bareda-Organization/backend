@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
@@ -25,21 +26,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.jayway.jsonpath.JsonPath;
 import org.springframework.context.annotation.Import;
 
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
-import src.backend.bus.repository.BusRepository;
-import src.backend.exception.repository.ExceptionReportRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.manager.repository.AssignmentRepository;
-import src.backend.manager.repository.ManagerRepository;
-import src.backend.run.repository.RunRepository;
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
@@ -55,6 +45,9 @@ import testsupport.clock.FixedClock20300401Config;
 class RunReportControllerTest {
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -66,51 +59,14 @@ class RunReportControllerTest {
     @Autowired
     private Clock clock;
 
-    @Autowired
-    private AcademyRepository academyRepository;
 
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private ManagerRepository managerRepository;
-
-    @Autowired
-    private AssignmentRepository assignmentRepository;
-
-    @Autowired
-    private RunRepository runRepository;
-
-    @Autowired
-    private RunRiderRepository runRiderRepository;
-
-    @Autowired
-    private AcademyStaffRepository academyStaffRepository;
-
-    @Autowired
-    private ExceptionReportRepository exceptionReportRepository;
-
-    private ExceptionReportFixtures fixtures() {
-        return new ExceptionReportFixtures(academyRepository, busRepository, stopRepository, studentRepository,
-                accountRepository, managerRepository, assignmentRepository, runRepository, runRiderRepository,
-                academyStaffRepository, exceptionReportRepository);
-    }
 
     // ── goal 15 — 등록 성공 ────────────────────────────────────────────────
 
     @Test
     @DisplayName("goal15 — 도로 통제(rider_id 불필요) 보고는 배치된 기사가 등록하면 201 이고 저장된다")
     void 도로_통제_보고는_배치된_기사가_등록하면_201이다() throws Exception {
-        ExceptionReportFixtures fixtures = fixtures();
+        ExceptionReportFixtures fixtures = ExceptionReportFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock);
@@ -134,7 +90,7 @@ class RunReportControllerTest {
     @Test
     @DisplayName("goal15 — 보호자 부재 보고는 유효한 rider_id 와 함께 배치된 동승자가 등록하면 201 이고 run_rider_id 가 저장된다")
     void 보호자_부재_보고는_유효한_rider_id로_동승자가_등록하면_201이다() throws Exception {
-        ExceptionReportFixtures fixtures = fixtures();
+        ExceptionReportFixtures fixtures = ExceptionReportFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
@@ -161,7 +117,7 @@ class RunReportControllerTest {
     @Test
     @DisplayName("R56 K4 — 같은 client_key 를 두 번 보내면 보고 1개·관계자 알림 1건이고 두 번째는 200 으로 같은 report_id 를 돌려준다")
     void 같은_client_key_재전송은_보고를_늘리지_않고_200이다() throws Exception {
-        ExceptionReportFixtures fixtures = fixtures();
+        ExceptionReportFixtures fixtures = ExceptionReportFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long staffAccountId = fixtures.staffAccount(academyId, "관계자1");
@@ -193,7 +149,7 @@ class RunReportControllerTest {
     @Test
     @DisplayName("R56 K4 — 같은 client_key 로 다른 내용(종류)을 보내면 422 VALIDATION_FAILED 이고 새 보고가 생기지 않는다")
     void 같은_client_key_다른_내용은_422다() throws Exception {
-        ExceptionReportFixtures fixtures = fixtures();
+        ExceptionReportFixtures fixtures = ExceptionReportFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock);
@@ -220,7 +176,7 @@ class RunReportControllerTest {
     @Test
     @DisplayName("R56 K4 — client_key 없이 같은 요청을 두 번 보내면 지금처럼 두 번 다 201 이고 보고가 2개다")
     void client_key_가_없으면_지금과_같다() throws Exception {
-        ExceptionReportFixtures fixtures = fixtures();
+        ExceptionReportFixtures fixtures = ExceptionReportFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock);
@@ -249,7 +205,7 @@ class RunReportControllerTest {
     @Test
     @DisplayName("Ruling 894 ⑪ — can_go_alone=true 학생·등원 회차의 guardian_absent 보고도 접수되어 201 이다(안전 보고를 되돌리지 않는다)")
     void 혼자_귀가_가능_학생의_보호자_부재_보고도_접수된다() throws Exception {
-        ExceptionReportFixtures fixtures = fixtures();
+        ExceptionReportFixtures fixtures = ExceptionReportFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
@@ -282,7 +238,7 @@ class RunReportControllerTest {
     @Test
     @DisplayName("goal15 — 보고 접수에 성공하면 그 학원 관계자에게 exception_reported 알림이 적재된다")
     void 보고_접수에_성공하면_관계자에게_알림이_적재된다() throws Exception {
-        ExceptionReportFixtures fixtures = fixtures();
+        ExceptionReportFixtures fixtures = ExceptionReportFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long staffAccountId = fixtures.staffAccount(academyId, "관계자1");
@@ -310,7 +266,7 @@ class RunReportControllerTest {
     @Test
     @DisplayName("goal15 급소 — type=guardian_absent 인데 rider_id 가 없으면 422 VALIDATION_FAILED 이고 저장되지 않는다")
     void 보호자_부재_보고에_rider_id가_없으면_422다() throws Exception {
-        ExceptionReportFixtures fixtures = fixtures();
+        ExceptionReportFixtures fixtures = ExceptionReportFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock);
@@ -331,7 +287,7 @@ class RunReportControllerTest {
     @Test
     @DisplayName("goal15 급소 — type=guardian_absent 인데 rider_id 가 이 회차의 탑승자가 아니면 404 RIDER_NOT_FOUND 이고 저장되지 않는다")
     void 보호자_부재_보고에_rider_id가_유효하지_않으면_404다() throws Exception {
-        ExceptionReportFixtures fixtures = fixtures();
+        ExceptionReportFixtures fixtures = ExceptionReportFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
@@ -362,7 +318,7 @@ class RunReportControllerTest {
     @DisplayName("goal15 — 배치는 통과해도 토큰이 주장하는 academy_id 가 그 회차의 실제 학원과 다르면 404 RUN_NOT_FOUND 이고 저장되지 않는다"
             + "(RunAssignmentAccess#assertAssignedDriverOrEscort 는 학원으로 좁히지 않는 조회라 이 뒤 단계의 회차 조회가 학원 경계를 지킨다)")
     void 배치는_맞아도_토큰_academy가_다르면_RUN_NOT_FOUND다() throws Exception {
-        ExceptionReportFixtures fixtures = fixtures();
+        ExceptionReportFixtures fixtures = ExceptionReportFixtures.of(applicationContext);
         long realAcademyId = fixtures.academy();
         long otherAcademyId = fixtures.academy();
         long busId = fixtures.bus(realAcademyId);
@@ -386,7 +342,7 @@ class RunReportControllerTest {
     @Test
     @DisplayName("goal15 FORBIDDEN — 같은 학원의 기사이지만 이 회차에 배치되지 않으면 403 FORBIDDEN 이고 저장되지 않는다")
     void 배치되지_않은_같은_학원_기사는_FORBIDDEN_이다() throws Exception {
-        ExceptionReportFixtures fixtures = fixtures();
+        ExceptionReportFixtures fixtures = ExceptionReportFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock);
@@ -408,7 +364,7 @@ class RunReportControllerTest {
     @Test
     @DisplayName("goal15 FORBIDDEN — 이 회차에 배치된 기사라도 토큰의 역할이 기사·동승자가 아니면 403 FORBIDDEN 이다")
     void 토큰_역할이_기사_동승자가_아니면_FORBIDDEN_이다() throws Exception {
-        ExceptionReportFixtures fixtures = fixtures();
+        ExceptionReportFixtures fixtures = ExceptionReportFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock);

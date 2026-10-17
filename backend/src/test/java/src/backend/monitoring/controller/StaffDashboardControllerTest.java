@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -30,11 +31,6 @@ import org.springframework.context.annotation.Import;
 
 import com.jayway.jsonpath.JsonPath;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
-import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
@@ -42,18 +38,12 @@ import src.backend.global.security.JwtTokenProvider;
 import src.backend.manager.entity.Manager;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
-import src.backend.request.repository.ChangeRequestRepository;
 import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.entity.RouteVersionSource;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
-import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.controller.DriverRunFixtures;
 import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.GuardianRepository;
-import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
@@ -70,25 +60,13 @@ import testsupport.clock.FixedClock20300401Config;
 class StaffDashboardControllerTest {
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
     private JwtTokenProvider tokenProvider;
-
-    @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
 
     @Autowired
     private ManagerRepository managerRepository;
@@ -104,24 +82,6 @@ class StaffDashboardControllerTest {
 
     @Autowired
     private RouteVersionRepository routeVersionRepository;
-
-    @Autowired
-    private RunStopRepository runStopRepository;
-
-    @Autowired
-    private RunRiderRepository runRiderRepository;
-
-    @Autowired
-    private AcademyStaffRepository academyStaffRepository;
-
-    @Autowired
-    private GuardianRepository guardianRepository;
-
-    @Autowired
-    private GuardianStudentRepository guardianStudentRepository;
-
-    @Autowired
-    private ChangeRequestRepository changeRequestRepository;
 
     @Autowired
     private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
@@ -144,12 +104,6 @@ class StaffDashboardControllerTest {
      * 대시보드가 기본값으로 쓰는 "오늘"이 이 날짜와 맞아야 {@code runs[]} 가 비지 않는다.
      */
 
-    private DriverRunFixtures fixtures() {
-        return new DriverRunFixtures(academyRepository, busRepository, stopRepository, studentRepository,
-                accountRepository, managerRepository, assignmentRepository, runRepository, confirmedRouteRepository,
-                routeVersionRepository, runStopRepository, runRiderRepository, academyStaffRepository,
-                guardianRepository, guardianStudentRepository, changeRequestRepository);
-    }
 
     // ── 목표 1 — §5.3 필드 전부 ──────────────────────────────────────────
 
@@ -161,7 +115,7 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("목표1 — metrics 5종과 runs[] 14개 필드가 전부 채워진다")
     void 대시보드_응답이_정본_필드를_전부_담는다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -217,7 +171,7 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("BR-220 — 임시 취소된 회차는 runs[] 에서 빠지고 그 회차에만 배치된 매니저는 미배치로 센다")
     void 임시_취소된_회차는_대시보드에서_빠진다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock).plusHours(1);
@@ -247,7 +201,7 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("R21-B 목표1·2·4 — started_at·finished_at 이 회차 진행 상태에 맞춰 채워진다")
     void 실제_출발_도착_시각이_회차_진행에_맞춰_채워진다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock).plusHours(1);
@@ -289,7 +243,7 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("R21-B2 목표1 — est_arrival_time 은 depart_time + est_duration_min 이다")
     void 예정_도착_시각이_출발_시각과_소요시간의_합이다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock).plusHours(1);
@@ -319,7 +273,7 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("R21-B2 목표2 — est_duration_min 이 없으면 est_arrival_time 도 null 로 견딘다")
     void 소요시간이_없으면_예정_도착_시각도_null_이다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock).plusHours(1);
@@ -351,7 +305,7 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("Ruling 810 — no_show_count·absent_count 는 회차별로 따로 센다")
     void 회차별_미승차_미등원_인원은_다른_회차_값과_섞이지_않는다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -385,7 +339,7 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("Ruling 879 — boarded_count 와 metrics.boarded 는 boarded + alighted 이고 미승차·대기는 세지 않는다")
     void 탑승_완료_인원은_승차와_하차를_합친다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -410,7 +364,7 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("Ruling 810 — driver_phone·escort_phone 은 원문이고 배치 전이면 null")
     void 매니저_전화는_원문이고_배치_전이면_null_이다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         OffsetDateTime depart = OffsetDateTime.now(clock).plusHours(1);
@@ -432,7 +386,7 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("Ruling 810 — delay_minutes 는 moving 만, 그 밖은 null")
     void 지연_분은_운행_중_회차에만_싣는다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         OffsetDateTime depart = OffsetDateTime.now(clock).minusMinutes(30);
@@ -455,7 +409,7 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("Ruling 810 — last_delay_notice 는 2건 중 뒤 알림이고 recipient_count 는 그 알림 몫만 센다")
     void 마지막_지연_알림과_수신_건수를_싣는다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         OffsetDateTime depart = OffsetDateTime.now(clock).minusMinutes(40);
@@ -497,7 +451,7 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("Ruling 810 — 실제 지연 알림 API 가 적재한 건수가 recipient_count 와 같다")
     void 실제_지연_알림이_적재한_건수가_수신_건수다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         OffsetDateTime depart = OffsetDateTime.now(clock).minusMinutes(20);
@@ -527,7 +481,7 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("Ruling 810 — no_show_cases[] 의 call_attempts·last_contact_result")
     void 미승차_케이스는_연락_시도_수와_마지막_결과를_싣는다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -596,7 +550,7 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("목표8 — 소프트 삭제된 미배치 매니저는 unassigned_managers 에 잡히지 않는다")
     void 소프트_삭제된_매니저는_unassigned_managers_에_잡히지_않는다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock).plusHours(1);
@@ -623,7 +577,7 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("목표2 — 대시보드 run_id 로 기존 명단 API 를 호출하면 §5.4 필드가 전부 있다")
     void 대시보드_run_id_로_기존_명단_API_를_검증한다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -668,7 +622,7 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("목표3 — 실제 승하차 PATCH 로 boarded_count 가 반영되고 미승차는 해소되면 제외된다")
     void 실제_승하차_처리가_대시보드에_반영된다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -747,7 +701,7 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("목표4뒷항 — 재배포 후 ack_driver·ack_escort 가 false 로 되돌아간다")
     void 재배포_후_ack_이_리셋된다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock).plusHours(1);
@@ -793,7 +747,7 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("목표5 — 타 학원 회차는 대시보드에 없고 그 회차 명단 조회는 403 이다")
     void 타_학원_회차는_보이지_않고_명단_조회는_실패한다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long myAcademyId = fx.academy();
         long myBusId = fx.bus(myAcademyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock).plusHours(1);

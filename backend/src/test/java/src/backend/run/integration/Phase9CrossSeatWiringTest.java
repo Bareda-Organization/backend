@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
@@ -26,28 +27,13 @@ import org.springframework.context.annotation.Import;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.manager.repository.AssignmentRepository;
-import src.backend.manager.repository.ManagerRepository;
-import src.backend.request.repository.ChangeRequestRepository;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RouteVersionRepository;
-import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.controller.DriverRunFixtures;
-import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.GuardianRepository;
-import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
 import testsupport.clock.FixedClock20310801Config;
 
 /**
@@ -66,6 +52,9 @@ import testsupport.clock.FixedClock20310801Config;
 class Phase9CrossSeatWiringTest {
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -81,59 +70,9 @@ class Phase9CrossSeatWiringTest {
     private EntityManager entityManager;
 
     @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private ManagerRepository managerRepository;
-
-    @Autowired
-    private AssignmentRepository assignmentRepository;
-
-    @Autowired
-    private RunRepository runRepository;
-
-    @Autowired
-    private ConfirmedRouteRepository confirmedRouteRepository;
-
-    @Autowired
-    private RouteVersionRepository routeVersionRepository;
-
-    @Autowired
-    private RunStopRepository runStopRepository;
-
-    @Autowired
     private RunRiderRepository runRiderRepository;
 
-    @Autowired
-    private AcademyStaffRepository academyStaffRepository;
 
-    @Autowired
-    private GuardianRepository guardianRepository;
-
-    @Autowired
-    private GuardianStudentRepository guardianStudentRepository;
-
-    @Autowired
-    private ChangeRequestRepository changeRequestRepository;
-
-    private DriverRunFixtures fixtures() {
-        return new DriverRunFixtures(academyRepository, busRepository, stopRepository, studentRepository,
-                accountRepository, managerRepository, assignmentRepository, runRepository, confirmedRouteRepository,
-                routeVersionRepository, runStopRepository, runRiderRepository, academyStaffRepository,
-                guardianRepository, guardianStudentRepository, changeRequestRepository);
-    }
 
     // ── 1. T2(도착·종료 보류) → T3(하차 PATCH) — 마지막 하차가 실제로 회차를 finished 로 전이한다 ──
 
@@ -145,24 +84,24 @@ class Phase9CrossSeatWiringTest {
     @Test
     @DisplayName("교차1 — 하원 최종지점 도착으로 종료 보류된 회차는, 마지막 탑승자의 실제 PATCH 하차로 finished 가 된다")
     void 하차_PATCH_가_실제로_회차를_종료시킨다() throws Exception {
-        long academyId = fixtures().academy();
-        long busId = fixtures().bus(academyId);
-        long stop1 = fixtures().stop(academyId, "37.560000", "126.970000");
-        long stop2 = fixtures().stop(academyId, "37.561000", "126.971000");
+        long academyId = DriverRunFixtures.of(applicationContext).academy();
+        long busId = DriverRunFixtures.of(applicationContext).bus(academyId);
+        long stop1 = DriverRunFixtures.of(applicationContext).stop(academyId, "37.560000", "126.970000");
+        long stop2 = DriverRunFixtures.of(applicationContext).stop(academyId, "37.561000", "126.971000");
         OffsetDateTime departTime = OffsetDateTime.now(clock);
-        long runId = fixtures().confirmedRun(academyId, busId, Direction.FROM_ACADEMY, departTime,
+        long runId = DriverRunFixtures.of(applicationContext).confirmedRun(academyId, busId, Direction.FROM_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        fixtures().startRun(runId, OffsetDateTime.now(clock));
-        long driverAccountId = fixtures().assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
-        long escortAccountId = fixtures().assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
-        long versionId = fixtures().confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
-        long runStop1 = fixtures().runStopForStop(versionId, stop1, 1, OffsetDateTime.now(clock));
-        long runStop2 = fixtures().runStopForStop(versionId, stop2, 2, OffsetDateTime.now(clock));
+        DriverRunFixtures.of(applicationContext).startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = DriverRunFixtures.of(applicationContext).assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        long escortAccountId = DriverRunFixtures.of(applicationContext).assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
+        long versionId = DriverRunFixtures.of(applicationContext).confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        long runStop1 = DriverRunFixtures.of(applicationContext).runStopForStop(versionId, stop1, 1, OffsetDateTime.now(clock));
+        long runStop2 = DriverRunFixtures.of(applicationContext).runStopForStop(versionId, stop2, 2, OffsetDateTime.now(clock));
 
-        long absentStudentId = fixtures().student(academyId, "결석학생");
-        fixtures().rider(runId, absentStudentId, stop2, RiderStatus.ABSENT, OffsetDateTime.now(clock));
-        long boardedStudentId = fixtures().student(academyId, "탑승학생");
-        long boardedRiderId = fixtures().rider(runId, boardedStudentId, stop2, RiderStatus.BOARDED, OffsetDateTime.now(clock));
+        long absentStudentId = DriverRunFixtures.of(applicationContext).student(academyId, "결석학생");
+        DriverRunFixtures.of(applicationContext).rider(runId, absentStudentId, stop2, RiderStatus.ABSENT, OffsetDateTime.now(clock));
+        long boardedStudentId = DriverRunFixtures.of(applicationContext).student(academyId, "탑승학생");
+        long boardedRiderId = DriverRunFixtures.of(applicationContext).rider(runId, boardedStudentId, stop2, RiderStatus.BOARDED, OffsetDateTime.now(clock));
 
         // T2 — 최종지점 도착, 탑승자 1명이 남아 있어 종료가 보류된다(실제 arrive 경로).
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop1 + "/arrive")
@@ -198,20 +137,20 @@ class Phase9CrossSeatWiringTest {
     @Test
     @DisplayName("교차2 — 실제 arrive 로 남긴 도착 기록이 GET route 의 current_stop·next_stop 에 그대로 반영된다")
     void arrive_기록이_route_조회의_current_next_에_반영된다() throws Exception {
-        long academyId = fixtures().academy();
-        long busId = fixtures().bus(academyId);
-        long stop1 = fixtures().stop(academyId, "37.500000", "127.000000");
-        long stop2 = fixtures().stop(academyId, "37.510000", "127.010000");
-        long stop3 = fixtures().stop(academyId, "37.520000", "127.020000");
+        long academyId = DriverRunFixtures.of(applicationContext).academy();
+        long busId = DriverRunFixtures.of(applicationContext).bus(academyId);
+        long stop1 = DriverRunFixtures.of(applicationContext).stop(academyId, "37.500000", "127.000000");
+        long stop2 = DriverRunFixtures.of(applicationContext).stop(academyId, "37.510000", "127.010000");
+        long stop3 = DriverRunFixtures.of(applicationContext).stop(academyId, "37.520000", "127.020000");
         OffsetDateTime departTime = OffsetDateTime.now(clock);
-        long runId = fixtures().confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
+        long runId = DriverRunFixtures.of(applicationContext).confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        fixtures().startRun(runId, OffsetDateTime.now(clock));
-        long driverAccountId = fixtures().assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
-        long versionId = fixtures().confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
-        long runStop1 = fixtures().runStopForStop(versionId, stop1, 1, OffsetDateTime.now(clock));
-        long runStop2 = fixtures().runStopForStop(versionId, stop2, 2, OffsetDateTime.now(clock));
-        fixtures().runStopForStop(versionId, stop3, 3, OffsetDateTime.now(clock));
+        DriverRunFixtures.of(applicationContext).startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = DriverRunFixtures.of(applicationContext).assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        long versionId = DriverRunFixtures.of(applicationContext).confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        long runStop1 = DriverRunFixtures.of(applicationContext).runStopForStop(versionId, stop1, 1, OffsetDateTime.now(clock));
+        long runStop2 = DriverRunFixtures.of(applicationContext).runStopForStop(versionId, stop2, 2, OffsetDateTime.now(clock));
+        DriverRunFixtures.of(applicationContext).runStopForStop(versionId, stop3, 3, OffsetDateTime.now(clock));
 
         // T2 — 1번 정차지에 실제로 도착(최종이 아니라 회차는 계속 moving).
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop1 + "/arrive")
@@ -237,24 +176,24 @@ class Phase9CrossSeatWiringTest {
     @Test
     @DisplayName("교차3 — 실제 미승차 PATCH 로 skip 된 정차지는 GET navigation 결과에서 실제로 빠진다")
     void no_show_로_skip_된_정차지가_navigation_에서_빠진다() throws Exception {
-        long academyId = fixtures().academy();
-        long busId = fixtures().bus(academyId);
-        long stop1 = fixtures().stop(academyId, "37.530000", "127.030000");
-        long stop2 = fixtures().stop(academyId, "37.540000", "127.040000");
+        long academyId = DriverRunFixtures.of(applicationContext).academy();
+        long busId = DriverRunFixtures.of(applicationContext).bus(academyId);
+        long stop1 = DriverRunFixtures.of(applicationContext).stop(academyId, "37.530000", "127.030000");
+        long stop2 = DriverRunFixtures.of(applicationContext).stop(academyId, "37.540000", "127.040000");
         OffsetDateTime departTime = OffsetDateTime.now(clock);
-        long runId = fixtures().confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
+        long runId = DriverRunFixtures.of(applicationContext).confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        fixtures().startRun(runId, OffsetDateTime.now(clock));
-        long driverAccountId = fixtures().assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
-        long escortAccountId = fixtures().assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
-        long versionId = fixtures().confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
-        fixtures().runStopForStop(versionId, stop1, 1, OffsetDateTime.now(clock));
-        fixtures().runStopForStop(versionId, stop2, 2, OffsetDateTime.now(clock));
+        DriverRunFixtures.of(applicationContext).startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = DriverRunFixtures.of(applicationContext).assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        long escortAccountId = DriverRunFixtures.of(applicationContext).assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
+        long versionId = DriverRunFixtures.of(applicationContext).confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        DriverRunFixtures.of(applicationContext).runStopForStop(versionId, stop1, 1, OffsetDateTime.now(clock));
+        DriverRunFixtures.of(applicationContext).runStopForStop(versionId, stop2, 2, OffsetDateTime.now(clock));
 
-        long alreadyAbsentStudentId = fixtures().student(academyId, "이미결석");
-        fixtures().rider(runId, alreadyAbsentStudentId, stop1, RiderStatus.ABSENT, OffsetDateTime.now(clock));
-        long targetStudentId = fixtures().student(academyId, "미승차대상");
-        long targetRiderId = fixtures().rider(runId, targetStudentId, stop1, RiderStatus.WAITING, OffsetDateTime.now(clock));
+        long alreadyAbsentStudentId = DriverRunFixtures.of(applicationContext).student(academyId, "이미결석");
+        DriverRunFixtures.of(applicationContext).rider(runId, alreadyAbsentStudentId, stop1, RiderStatus.ABSENT, OffsetDateTime.now(clock));
+        long targetStudentId = DriverRunFixtures.of(applicationContext).student(academyId, "미승차대상");
+        long targetRiderId = DriverRunFixtures.of(applicationContext).rider(runId, targetStudentId, stop1, RiderStatus.WAITING, OffsetDateTime.now(clock));
 
         // T3 — 실제 미승차 PATCH. stop1 의 잔여가 0명이 되어 run_stop 이 실제로 skipped 로 전환된다.
         mockMvc.perform(patch("/api/v1/runs/" + runId + "/riders/" + targetRiderId)

@@ -17,35 +17,24 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.transaction.annotation.Transactional;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.dto.RiderStatusUpdateRequest;
 import src.backend.run.event.RunEndedEvent;
-import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.AuthUser;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RouteVersionRepository;
-import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.command.RunCompletionService;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.GuardianRepository;
-import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
 
 /**
  * T2↔T3 경계 — 하원 자동 종료(목표 10, T2 소유) 판정 서비스를 T3 이 호출하는 지점만 검사한다.
@@ -58,6 +47,9 @@ import src.backend.student.repository.StudentRepository;
 @RecordApplicationEvents
 @Transactional
 class RunCompletionBoundaryTest {
+
+    @Autowired
+    private ApplicationContext applicationContext;
 
     @Autowired
     private BoardingCommandService boardingCommandService;
@@ -75,43 +67,7 @@ class RunCompletionBoundaryTest {
     private EntityManager entityManager;
 
     @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private GuardianRepository guardianRepository;
-
-    @Autowired
-    private GuardianStudentRepository guardianStudentRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private AcademyStaffRepository academyStaffRepository;
-
-    @Autowired
     private RunRepository runRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private RunRiderRepository runRiderRepository;
-
-    @Autowired
-    private ConfirmedRouteRepository confirmedRouteRepository;
-
-    @Autowired
-    private RouteVersionRepository routeVersionRepository;
-
-    @Autowired
-    private RunStopRepository runStopRepository;
 
     @Autowired
     private ManagerRepository managerRepository;
@@ -123,10 +79,7 @@ class RunCompletionBoundaryTest {
 
     private BoardingCommandFixtures fixtures() {
         if (fixtures == null) {
-            fixtures = new BoardingCommandFixtures(academyRepository, busRepository, studentRepository,
-                    guardianRepository, guardianStudentRepository, accountRepository, academyStaffRepository,
-                    runRepository, stopRepository, runRiderRepository, confirmedRouteRepository,
-                    routeVersionRepository, runStopRepository, jdbcTemplate, entityManager);
+            fixtures = BoardingCommandFixtures.of(applicationContext, entityManager);
         }
         return fixtures;
     }

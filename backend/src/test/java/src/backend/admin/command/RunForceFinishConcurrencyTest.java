@@ -18,33 +18,20 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.error.BusinessException;
-import src.backend.manager.repository.AssignmentRepository;
-import src.backend.manager.repository.ManagerRepository;
-import src.backend.request.repository.ChangeRequestRepository;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RouteVersionRepository;
-import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.command.RunCompletionService;
 import src.backend.run.controller.DriverRunFixtures;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.GuardianRepository;
-import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
 
 /**
  * 강제 종료와 동승자의 마지막 하차(자동 종료)가 같은 회차에 겹치는 경우(R47 Ruling 724) — 어느 쪽이 먼저 행을 잡든 <b>한쪽만</b>
@@ -64,22 +51,9 @@ class RunForceFinishConcurrencyTest {
 
     private static final String FINISHED_BY_FORCE = "forced";
 
-    @Autowired private AcademyRepository academyRepository;
-    @Autowired private BusRepository busRepository;
-    @Autowired private StopRepository stopRepository;
-    @Autowired private StudentRepository studentRepository;
-    @Autowired private AccountRepository accountRepository;
-    @Autowired private ManagerRepository managerRepository;
-    @Autowired private AssignmentRepository assignmentRepository;
+    @Autowired private ApplicationContext applicationContext;
     @Autowired private RunRepository runRepository;
-    @Autowired private ConfirmedRouteRepository confirmedRouteRepository;
-    @Autowired private RouteVersionRepository routeVersionRepository;
-    @Autowired private RunStopRepository runStopRepository;
     @Autowired private RunRiderRepository runRiderRepository;
-    @Autowired private AcademyStaffRepository academyStaffRepository;
-    @Autowired private GuardianRepository guardianRepository;
-    @Autowired private GuardianStudentRepository guardianStudentRepository;
-    @Autowired private ChangeRequestRepository changeRequestRepository;
     @Autowired private RunCompletionService runCompletionService;
     @Autowired private RunForceFinishCommandService runForceFinishCommandService;
     @Autowired private PlatformTransactionManager transactionManager;
@@ -87,12 +61,6 @@ class RunForceFinishConcurrencyTest {
 
     private final List<Long> academyIds = new ArrayList<>();
 
-    private DriverRunFixtures fixtures() {
-        return new DriverRunFixtures(academyRepository, busRepository, stopRepository, studentRepository,
-                accountRepository, managerRepository, assignmentRepository, runRepository, confirmedRouteRepository,
-                routeVersionRepository, runStopRepository, runRiderRepository, academyStaffRepository,
-                guardianRepository, guardianStudentRepository, changeRequestRepository);
-    }
 
     @AfterEach
     void 뒷정리한다() {
@@ -112,7 +80,7 @@ class RunForceFinishConcurrencyTest {
 
     /** 운행일이 5일 전이고 종료가 보류된 채 탑승자 1명이 남은 하원 회차 — 그 한 명이 하차하면 자동 종료가 성립한다. */
     private long[] 보류된_옛_회차와_마지막_탑승자() {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         academyIds.add(academyId);
         long busId = fx.bus(academyId);

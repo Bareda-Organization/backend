@@ -15,18 +15,17 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.jayway.jsonpath.JsonPath;
 
-import src.backend.academy.repository.AcademyRepository;
 import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
@@ -37,22 +36,11 @@ import src.backend.request.entity.BoardingIntent;
 import src.backend.request.repository.BoardingIntentRepository;
 import src.backend.run.entity.RunTransfer;
 import src.backend.run.repository.RunTransferRepository;
-import src.backend.manager.repository.AssignmentRepository;
-import src.backend.manager.repository.ManagerRepository;
-import src.backend.routing.repository.RouteRepository;
-import src.backend.routing.repository.RouteStopRepository;
 import src.backend.run.command.Phase9RosterFixtures;
 import src.backend.run.command.RunConfirmationFixtures;
-import src.backend.run.command.RunConfirmationService;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RunStopRepository;
-import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.GuardianRepository;
-import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
-import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
  * §5.4 {@code GET /staff/runs/{runId}/roster} — RST-03·A-04, Phase 9 목표 6.
@@ -70,52 +58,16 @@ class StaffRosterControllerTest {
     private static final String SERVICE_DATE = "2031-07-03";
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
     private JwtTokenProvider tokenProvider;
 
     @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private RouteRepository routeRepository;
-
-    @Autowired
-    private RouteStopRepository routeStopRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private WeeklyAddressRepository weeklyAddressRepository;
-
-    @Autowired
-    private RunRepository runRepository;
-
-    @Autowired
-    private ManagerRepository managerRepository;
-
-    @Autowired
     private AccountRepository accountRepository;
-
-    @Autowired
-    private AssignmentRepository assignmentRepository;
-
-    @Autowired
-    private GuardianRepository guardianRepository;
-
-    @Autowired
-    private GuardianStudentRepository guardianStudentRepository;
-
-    @Autowired
-    private RunConfirmationService confirmationService;
 
     @Autowired
     private RunRiderRepository runRiderRepository;
@@ -132,16 +84,10 @@ class StaffRosterControllerTest {
     @Autowired
     private RunStopRepository runStopRepository;
 
-    private Phase9RosterFixtures fixtures() {
-        RunConfirmationFixtures base = new RunConfirmationFixtures(academyRepository, busRepository, routeRepository,
-                routeStopRepository, stopRepository, studentRepository, weeklyAddressRepository, runRepository);
-        return new Phase9RosterFixtures(base, managerRepository, accountRepository, assignmentRepository,
-                guardianRepository, guardianStudentRepository, confirmationService);
-    }
 
     @Test
     void 보호자_연락처는_원문_그대로_내려간다() throws Exception {
-        Phase9RosterFixtures fx = fixtures();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -165,7 +111,7 @@ class StaffRosterControllerTest {
 
     @Test
     void 결석_학생도_행으로_남고_상태만_absent_다() throws Exception {
-        Phase9RosterFixtures fx = fixtures();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -193,7 +139,7 @@ class StaffRosterControllerTest {
     /** 확정 전(idle) 회차는 요일별 주소 기준 예정 명단이다 — {@code status=waiting} · {@code change} 부재(§5.4). */
     @Test
     void 확정_전_회차는_예정_명단을_준다() throws Exception {
-        Phase9RosterFixtures fx = fixtures();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -216,7 +162,7 @@ class StaffRosterControllerTest {
     /** 확정 회차 행의 {@code stop_id}·{@code stop_seq} 는 그 승하차지의 정차 항목(run_stop) id·순번이다(§5.4, Ruling 811). */
     @Test
     void 확정_회차_행은_정차_항목_id와_순번을_싣는다() throws Exception {
-        Phase9RosterFixtures fx = fixtures();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long firstStopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -246,7 +192,7 @@ class StaffRosterControllerTest {
     /** 확정 전(idle) 예정 명단은 정차 항목이 없어 {@code stop_id}·{@code stop_seq} 가 {@code null} 이다(§5.4, Ruling 811). */
     @Test
     void 확정_전_예정_명단은_정차_항목_id와_순번이_null_이다() throws Exception {
-        Phase9RosterFixtures fx = fixtures();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -267,7 +213,7 @@ class StaffRosterControllerTest {
     /** 탑승 OFF(riding=false) 학생은 예정 명단에 넣지 않는다. */
     @Test
     void 확정_전_예정_명단에서_탑승_OFF_학생은_빠진다() throws Exception {
-        Phase9RosterFixtures fx = fixtures();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -294,7 +240,7 @@ class StaffRosterControllerTest {
      */
     @Test
     void 확정_전_예정_명단은_이동_대기를_출발에서_빼고_도착에_넣는다() throws Exception {
-        Phase9RosterFixtures fx = fixtures();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long fromBusId = fx.bus(academyId);
         long toBusId = fx.bus(academyId);
@@ -321,7 +267,7 @@ class StaffRosterControllerTest {
     /** 확정 뒤에는 run_rider 만 읽는다 — 확정 뒤 요일별 주소가 바뀌어도 응답이 그대로다. */
     @Test
     void 확정_뒤_회차는_요일별_주소가_바뀌어도_run_rider_그대로다() throws Exception {
-        Phase9RosterFixtures fx = fixtures();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -362,7 +308,7 @@ class StaffRosterControllerTest {
      */
     @Test
     void 타_학원_회차_명단_조회는_403_이다() throws Exception {
-        Phase9RosterFixtures fx = fixtures();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long myAcademyId = fx.academyWithCoordinates();
         long staffAccountId = 관계자_계정을_만든다(myAcademyId);
 
@@ -383,7 +329,7 @@ class StaffRosterControllerTest {
     /** 존재하지 않는 회차 id 는 학원 범위와 무관하게 {@code 404 RUN_NOT_FOUND} 그대로다. */
     @Test
     void 존재하지_않는_회차는_404_다() throws Exception {
-        Phase9RosterFixtures fx = fixtures();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long staffAccountId = 관계자_계정을_만든다(academyId);
 
@@ -396,7 +342,7 @@ class StaffRosterControllerTest {
     /** BR-227 — 메인 관리자(학원 id 없음)도 권한표상 이 경로를 읽는다: 실재 회차의 명단이 그 회차 학원 기준으로 나와야 한다. */
     @Test
     void 메인_관리자는_실재_회차의_명단을_받는다() throws Exception {
-        Phase9RosterFixtures fx = fixtures();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");

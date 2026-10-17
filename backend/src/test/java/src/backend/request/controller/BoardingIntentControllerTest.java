@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
@@ -35,8 +36,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.context.annotation.Import;
 
 import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.event.RiderStatusChangedEvent;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
@@ -46,23 +45,16 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.policy.PolicyConstants;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.manager.repository.AssignmentRepository;
-import src.backend.manager.repository.ManagerRepository;
 import src.backend.request.command.BoardingIntentFixtures;
 import src.backend.request.event.IntentChangedEvent;
 import src.backend.request.scheduler.ChangeRequestAutoRejectionScheduler;
 import src.backend.routing.pipeline.RouteComputationPipeline;
-import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
-import src.backend.routing.repository.RouteVersionRepository;
-import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.command.RunConfirmationFixtures;
 import src.backend.run.command.RunConfirmationService;
 import src.backend.run.entity.RunCancelSource;
 import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.GuardianRepository;
-import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 import src.backend.student.repository.WeeklyAddressRepository;
@@ -87,6 +79,9 @@ import testsupport.clock.FixedClock20300401Config;
 class BoardingIntentControllerTest {
 
     private static final String INTENT = "/api/v1/students/%d/runs/%d/intent";
+
+    @Autowired
+    private ApplicationContext applicationContext;
 
     @Autowired
     private MockMvc mockMvc;
@@ -122,31 +117,11 @@ class BoardingIntentControllerTest {
     private StudentRepository studentRepository;
 
     @Autowired
-    private GuardianRepository guardianRepository;
-
-    @Autowired
-    private GuardianStudentRepository guardianStudentRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private AcademyStaffRepository academyStaffRepository;
-
-    @Autowired
     private RunRepository runRepository;
 
     @Autowired
     private StopRepository stopRepository;
 
-    @Autowired
-    private ConfirmedRouteRepository confirmedRouteRepository;
-
-    @Autowired
-    private RouteVersionRepository routeVersionRepository;
-
-    @Autowired
-    private RunStopRepository runStopRepository;
 
     /**
      * 목표2(롤백) 시험이 이 저장소를 스파이로 감싸 {@code requestApproval} 의 응답 조립 직전 호출을
@@ -154,12 +129,6 @@ class BoardingIntentControllerTest {
      */
     @MockitoSpyBean
     private RunRiderRepository runRiderRepository;
-
-    @Autowired
-    private ManagerRepository managerRepository;
-
-    @Autowired
-    private AssignmentRepository assignmentRepository;
 
     @Autowired
     private RouteRepository routeRepository;
@@ -180,11 +149,7 @@ class BoardingIntentControllerTest {
 
     private BoardingIntentFixtures fixtures() {
         if (fixtures == null) {
-            fixtures = new BoardingIntentFixtures(academyRepository, busRepository, studentRepository,
-                    guardianRepository, guardianStudentRepository, accountRepository, academyStaffRepository,
-                    runRepository, stopRepository, confirmedRouteRepository, routeVersionRepository,
-                    runStopRepository, runRiderRepository, managerRepository, assignmentRepository, routeRepository,
-                    routeStopRepository, weeklyAddressRepository);
+            fixtures = BoardingIntentFixtures.of(applicationContext);
         }
         return fixtures;
     }

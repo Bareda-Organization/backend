@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
@@ -27,24 +28,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.jayway.jsonpath.JsonPath;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
-import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.manager.repository.AssignmentRepository;
-import src.backend.manager.repository.ManagerRepository;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RouteVersionRepository;
-import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.GuardianRepository;
-import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
 import testsupport.clock.FixedClock20300401Config;
 import org.springframework.context.annotation.Import;
 
@@ -65,6 +53,9 @@ class AdminMonitoringControllerTest {
     private static final String ROSTER = "/api/v1/admin/runs/%d/roster";
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -77,30 +68,6 @@ class AdminMonitoringControllerTest {
     private Clock clock;
 
     @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private AcademyStaffRepository academyStaffRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private GuardianRepository guardianRepository;
-
-    @Autowired
-    private GuardianStudentRepository guardianStudentRepository;
-
-    @Autowired
     private RunRepository runRepository;
 
     @Autowired
@@ -109,30 +76,7 @@ class AdminMonitoringControllerTest {
     @PersistenceContext
     private EntityManager entityManager;
 
-    @Autowired
-    private ConfirmedRouteRepository confirmedRouteRepository;
 
-    @Autowired
-    private RouteVersionRepository routeVersionRepository;
-
-    @Autowired
-    private RunStopRepository runStopRepository;
-
-    @Autowired
-    private src.backend.boarding.repository.RunRiderRepository runRiderRepository;
-
-    @Autowired
-    private ManagerRepository managerRepository;
-
-    @Autowired
-    private AssignmentRepository assignmentRepository;
-
-    private AdminMonitoringFixtures fixtures() {
-        return new AdminMonitoringFixtures(academyRepository, academyStaffRepository, busRepository, stopRepository,
-                studentRepository, accountRepository, guardianRepository, guardianStudentRepository, runRepository,
-                confirmedRouteRepository, routeVersionRepository, runStopRepository, runRiderRepository,
-                managerRepository, assignmentRepository);
-    }
 
     // ── 목표 8·9 — GET /admin/academies/{id}/runs/live ─────────────────────
 
@@ -143,7 +87,7 @@ class AdminMonitoringControllerTest {
      */
     @Test
     void 학원_1곳의_운행중_회차_실시간_관제_필드_전부가_정본과_일치한다() throws Exception {
-        AdminMonitoringFixtures f = fixtures();
+        AdminMonitoringFixtures f = AdminMonitoringFixtures.of(applicationContext);
         long academyId = f.academy();
         long busId = f.bus(academyId);
         long stopId = f.stop(academyId, "37.500000", "127.030000");
@@ -206,7 +150,7 @@ class AdminMonitoringControllerTest {
     /** 강제 확정 화면의 "확정 예정" 이 읽는 {@code confirm_at} = 출발 30분 전(Ruling 393) — 출발 시각을 채우면 이 단언이 문다. */
     @Test
     void 관제_회차는_confirm_at_으로_출발_30분_전_판정_시각을_싣는다() throws Exception {
-        AdminMonitoringFixtures f = fixtures();
+        AdminMonitoringFixtures f = AdminMonitoringFixtures.of(applicationContext);
         long academyId = f.academy();
         long busId = f.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock).minusMinutes(20);
@@ -231,7 +175,7 @@ class AdminMonitoringControllerTest {
      */
     @Test
     void est_duration_min_이_없으면_destination_eta_가_비어있다() throws Exception {
-        AdminMonitoringFixtures f = fixtures();
+        AdminMonitoringFixtures f = AdminMonitoringFixtures.of(applicationContext);
         long academyId = f.academy();
         long busId = f.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock).minusMinutes(20);
@@ -249,7 +193,7 @@ class AdminMonitoringControllerTest {
     /** BR-220(Ruling 375) — 임시 취소된 회차는 관제 회차 목록에서 빠진다(취소 표시 없이 idle 로 섞이지 않는다). */
     @Test
     void 임시_취소된_회차는_관제_목록에서_빠진다() throws Exception {
-        AdminMonitoringFixtures f = fixtures();
+        AdminMonitoringFixtures f = AdminMonitoringFixtures.of(applicationContext);
         long academyId = f.academy();
         long busId = f.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock).plusHours(2);
@@ -272,7 +216,7 @@ class AdminMonitoringControllerTest {
      */
     @Test
     void 마지막_수신이_2분_넘으면_position_은_비고_last_seen_at_만_채운다() throws Exception {
-        AdminMonitoringFixtures f = fixtures();
+        AdminMonitoringFixtures f = AdminMonitoringFixtures.of(applicationContext);
         long academyId = f.academy();
         long busId = f.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock).minusMinutes(20);
@@ -300,7 +244,7 @@ class AdminMonitoringControllerTest {
     /** 도착 처리된 정차는 {@code eta} 가 {@code null} 이다(목표 8 뒷항). */
     @Test
     void 도착_처리된_정차는_eta가_null이다() throws Exception {
-        AdminMonitoringFixtures f = fixtures();
+        AdminMonitoringFixtures f = AdminMonitoringFixtures.of(applicationContext);
         long academyId = f.academy();
         long busId = f.bus(academyId);
         long stopId = f.stop(academyId, "37.500000", "127.030000");
@@ -327,7 +271,7 @@ class AdminMonitoringControllerTest {
      */
     @Test
     void 오늘_회차는_상태와_무관하게_전부_나온다() throws Exception {
-        AdminMonitoringFixtures f = fixtures();
+        AdminMonitoringFixtures f = AdminMonitoringFixtures.of(applicationContext);
         long academyId = f.academy();
         long busId = f.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock).plusMinutes(20);
@@ -358,7 +302,7 @@ class AdminMonitoringControllerTest {
      */
     @Test
     void 다른_날짜_회차는_목록에_나오지_않는다() throws Exception {
-        AdminMonitoringFixtures f = fixtures();
+        AdminMonitoringFixtures f = AdminMonitoringFixtures.of(applicationContext);
         long academyId = f.academy();
         long busId = f.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock).plusMinutes(20);
@@ -387,7 +331,7 @@ class AdminMonitoringControllerTest {
      */
     @Test
     void 대기중_회차는_정차지가_비고_위치와_실제출발시각도_없다() throws Exception {
-        AdminMonitoringFixtures f = fixtures();
+        AdminMonitoringFixtures f = AdminMonitoringFixtures.of(applicationContext);
         long academyId = f.academy();
         long busId = f.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock).plusMinutes(20);
@@ -412,7 +356,7 @@ class AdminMonitoringControllerTest {
      */
     @Test
     void 관제_회차는_moving_일_때만_지연_분을_싣고_finished_일_때만_종료_시각을_싣는다() throws Exception {
-        AdminMonitoringFixtures f = fixtures();
+        AdminMonitoringFixtures f = AdminMonitoringFixtures.of(applicationContext);
         long academyId = f.academy();
         long stopId = f.stop(academyId, "37.500000", "127.030000");
 
@@ -456,7 +400,7 @@ class AdminMonitoringControllerTest {
     /** 확정이 계속 실패하는 회차를 강제 확정 대상으로 알아볼 재료(BR-047 · UF-O-07) — 실패 횟수를 싣는다. */
     @Test
     void 관제_응답은_확정_연속_실패_횟수를_싣는다() throws Exception {
-        AdminMonitoringFixtures f = fixtures();
+        AdminMonitoringFixtures f = AdminMonitoringFixtures.of(applicationContext);
         long academyId = f.academy();
         long busId = f.bus(academyId);
         long runId = f.idleRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock).plusMinutes(20));
@@ -474,7 +418,7 @@ class AdminMonitoringControllerTest {
     /** 메인 관리자는 어느 학원이든 조회할 수 있다 + 지정 학원의 회차만 나온다(목표 9). */
     @Test
     void 메인_관리자는_다른_학원의_관제도_조회하되_그_학원_회차만_나온다() throws Exception {
-        AdminMonitoringFixtures f = fixtures();
+        AdminMonitoringFixtures f = AdminMonitoringFixtures.of(applicationContext);
         long academyA = f.academy();
         long academyB = f.academy();
         long busA = f.bus(academyA);
@@ -496,7 +440,7 @@ class AdminMonitoringControllerTest {
     /** 없는 학원은 {@code 404 ACADEMY_NOT_FOUND}(목표 9). */
     @Test
     void 없는_학원의_관제_조회는_404다() throws Exception {
-        long adminAccountId = fixtures().systemAdminAccount("메인관리자");
+        long adminAccountId = AdminMonitoringFixtures.of(applicationContext).systemAdminAccount("메인관리자");
 
         mockMvc.perform(get(LIVE.formatted(999_999_999L)).header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isNotFound())
@@ -508,7 +452,7 @@ class AdminMonitoringControllerTest {
     /** stops[]→students[] 사진·연락처가 원문 그대로 나온다(목표 10 앞항). */
     @Test
     void 회차_명단은_학생_사진과_연락처를_원문으로_담는다() throws Exception {
-        AdminMonitoringFixtures f = fixtures();
+        AdminMonitoringFixtures f = AdminMonitoringFixtures.of(applicationContext);
         long academyId = f.academy();
         long busId = f.bus(academyId);
         long stopId = f.stop(academyId, "37.500000", "127.030000");
@@ -538,7 +482,7 @@ class AdminMonitoringControllerTest {
     /** 없는 회차는 {@code 404 RUN_NOT_FOUND}(목표 11). */
     @Test
     void 없는_회차의_명단_조회는_404다() throws Exception {
-        long adminAccountId = fixtures().systemAdminAccount("메인관리자");
+        long adminAccountId = AdminMonitoringFixtures.of(applicationContext).systemAdminAccount("메인관리자");
 
         mockMvc.perform(get(ROSTER.formatted(999_999_999L)).header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isNotFound())
@@ -549,7 +493,7 @@ class AdminMonitoringControllerTest {
 
     @Test
     void 학원_관계자는_전체_관제_콘솔을_호출할_수_없다() throws Exception {
-        AdminMonitoringFixtures f = fixtures();
+        AdminMonitoringFixtures f = AdminMonitoringFixtures.of(applicationContext);
         long academyId = f.academy();
         long staffAccountId = f.staffAccount(academyId, "직원");
 
@@ -559,7 +503,7 @@ class AdminMonitoringControllerTest {
 
     @Test
     void 학원_관계자는_회차_명단_콘솔을_호출할_수_없다() throws Exception {
-        AdminMonitoringFixtures f = fixtures();
+        AdminMonitoringFixtures f = AdminMonitoringFixtures.of(applicationContext);
         long academyId = f.academy();
         long busId = f.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock).minusMinutes(20);

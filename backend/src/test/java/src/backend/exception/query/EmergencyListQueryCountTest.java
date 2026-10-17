@@ -17,22 +17,16 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
-import src.backend.bus.repository.BusRepository;
 import src.backend.exception.controller.EmergencyFixtures;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.manager.repository.AssignmentRepository;
-import src.backend.manager.repository.ManagerRepository;
-import src.backend.run.repository.RunRepository;
 
 /**
  * 비상 목록 2종(§5.16 · §6.11)의 쿼리 수가 신고 수에 비례하지 않는다(BR-087) — 신고마다 배치 인력을 따로 읽으면
@@ -48,6 +42,9 @@ class EmergencyListQueryCountTest {
     private static final int EXTRA_ALERTS = 3;
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -56,30 +53,10 @@ class EmergencyListQueryCountTest {
     @Autowired
     private EntityManagerFactory entityManagerFactory;
 
-    @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private ManagerRepository managerRepository;
-
-    @Autowired
-    private AssignmentRepository assignmentRepository;
-
-    @Autowired
-    private RunRepository runRepository;
-
-    @Autowired
-    private AcademyStaffRepository academyStaffRepository;
 
     @Test
     void 관계자_목록의_쿼리_수가_신고_수에_비례하지_않는다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         String staffToken = 토큰(tokenProvider, fixtures.staffAccount(academyId, "직원"), academyId, Role.STAFF);
         신고를_발신한다(fixtures, academyId);
@@ -94,7 +71,7 @@ class EmergencyListQueryCountTest {
 
     @Test
     void 메인_관리자_목록의_쿼리_수가_신고_수에_비례하지_않는다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         String adminToken = "Bearer " + tokenProvider.createAccessToken(fixtures.systemAdminAccount("메인관리자"), null,
                 Role.SYSTEM_ADMIN, AccountStatus.ACTIVE);
@@ -127,8 +104,4 @@ class EmergencyListQueryCountTest {
                 .andExpect(status().isCreated());
     }
 
-    private EmergencyFixtures fixtures() {
-        return new EmergencyFixtures(academyRepository, busRepository, accountRepository, managerRepository,
-                assignmentRepository, runRepository, academyStaffRepository);
-    }
 }

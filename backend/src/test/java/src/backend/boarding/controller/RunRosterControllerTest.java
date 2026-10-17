@@ -17,6 +17,7 @@ import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -26,8 +27,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.jayway.jsonpath.JsonPath;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.exception.entity.ContactAttemptType;
@@ -36,25 +35,13 @@ import src.backend.exception.entity.NoShowCase;
 import src.backend.exception.entity.NoShowContact;
 import src.backend.exception.repository.NoShowCaseRepository;
 import src.backend.exception.repository.NoShowContactRepository;
-import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.manager.repository.AssignmentRepository;
-import src.backend.manager.repository.ManagerRepository;
-import src.backend.routing.repository.RouteRepository;
-import src.backend.routing.repository.RouteStopRepository;
 import src.backend.run.command.Phase9RosterFixtures;
 import src.backend.run.command.RunConfirmationFixtures;
-import src.backend.run.command.RunConfirmationService;
-import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.GuardianRepository;
-import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
-import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
  * §4.2 {@code GET /runs/{runId}/roster} — RST-01·02·04·M-03, Phase 9 목표 6·15·16.
@@ -77,6 +64,9 @@ class RunRosterControllerTest {
     private static final String SERVICE_DATE = "2031-07-02";
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -87,48 +77,6 @@ class RunRosterControllerTest {
 
     @Autowired
     private JwtTokenProvider tokenProvider;
-
-    @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private RouteRepository routeRepository;
-
-    @Autowired
-    private RouteStopRepository routeStopRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private WeeklyAddressRepository weeklyAddressRepository;
-
-    @Autowired
-    private RunRepository runRepository;
-
-    @Autowired
-    private ManagerRepository managerRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private AssignmentRepository assignmentRepository;
-
-    @Autowired
-    private GuardianRepository guardianRepository;
-
-    @Autowired
-    private GuardianStudentRepository guardianStudentRepository;
-
-    @Autowired
-    private RunConfirmationService confirmationService;
 
     @Autowired
     private RunRiderRepository runRiderRepository;
@@ -146,16 +94,10 @@ class RunRosterControllerTest {
                 Long.class, runId, stopId);
     }
 
-    private Phase9RosterFixtures fixtures() {
-        RunConfirmationFixtures base = new RunConfirmationFixtures(academyRepository, busRepository, routeRepository,
-                routeStopRepository, stopRepository, studentRepository, weeklyAddressRepository, runRepository);
-        return new Phase9RosterFixtures(base, managerRepository, accountRepository, assignmentRepository,
-                guardianRepository, guardianStudentRepository, confirmationService);
-    }
 
     @Test
     void 보호자_연락처는_마스킹돼_내려간다() throws Exception {
-        Phase9RosterFixtures fx = fixtures();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -192,7 +134,7 @@ class RunRosterControllerTest {
     @Test
     void BR_002_등원_명단의_마지막_항목은_학생_없는_학원_항목이다() throws Exception {
         // 매니저 앱의 "다음 도착 처리" 버튼이 이 목록에서 나온다 — 학원 항목이 없으면 등원 운행을 끝낼 수단이 없다.
-        Phase9RosterFixtures fx = fixtures();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -222,7 +164,7 @@ class RunRosterControllerTest {
 
     @Test
     void 결석_학생은_명단에서_빠지고_집계에만_남는다() throws Exception {
-        Phase9RosterFixtures fx = fixtures();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -255,7 +197,7 @@ class RunRosterControllerTest {
 
     @Test
     void 버스_간_이동으로_빠진_학생은_removed_로_보이고_미등원에_세지_않는다() throws Exception {
-        Phase9RosterFixtures fx = fixtures();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -290,7 +232,7 @@ class RunRosterControllerTest {
 
     @Test
     void 확정_전_회차는_409_RUN_NOT_CONFIRMED_다() throws Exception {
-        Phase9RosterFixtures fx = fixtures();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -309,7 +251,7 @@ class RunRosterControllerTest {
 
     @Test
     void 배치는_남아도_탈퇴한_매니저의_토큰은_401_TOKEN_EXPIRED_다() throws Exception {
-        Phase9RosterFixtures fx = fixtures();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -329,7 +271,7 @@ class RunRosterControllerTest {
 
     @Test
     void 배치되지_않은_매니저는_403이다() throws Exception {
-        Phase9RosterFixtures fx = fixtures();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -351,7 +293,7 @@ class RunRosterControllerTest {
      */
     @Test
     void 미승차_학생은_열린_케이스의_카운트다운을_함께_싣는다() throws Exception {
-        Phase9RosterFixtures fx = fixtures();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -397,7 +339,7 @@ class RunRosterControllerTest {
      */
     @Test
     void 미승차_케이스의_연락_이력은_시각순으로_contacts_에_실리고_다른_케이스와_섞이지_않는다() throws Exception {
-        Phase9RosterFixtures fx = fixtures();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");

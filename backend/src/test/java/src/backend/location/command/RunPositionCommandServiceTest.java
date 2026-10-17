@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -24,30 +25,16 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
-import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.location.event.RunPositionReceivedEvent;
-import src.backend.manager.repository.AssignmentRepository;
-import src.backend.manager.repository.ManagerRepository;
-import src.backend.request.repository.ChangeRequestRepository;
 import src.backend.routing.entity.RunStop;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.controller.DriverRunFixtures;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.GuardianRepository;
-import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
@@ -68,6 +55,9 @@ import testsupport.clock.FixedClock20300401Config;
 class RunPositionCommandServiceTest {
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -83,49 +73,8 @@ class RunPositionCommandServiceTest {
     private RunRepository runRepository;
 
     @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private ManagerRepository managerRepository;
-
-    @Autowired
-    private AssignmentRepository assignmentRepository;
-
-    @Autowired
-    private ConfirmedRouteRepository confirmedRouteRepository;
-
-    @Autowired
-    private RouteVersionRepository routeVersionRepository;
-
-    @Autowired
     private RunStopRepository runStopRepository;
 
-    @Autowired
-    private RunRiderRepository runRiderRepository;
-
-    @Autowired
-    private AcademyStaffRepository academyStaffRepository;
-
-    @Autowired
-    private GuardianRepository guardianRepository;
-
-    @Autowired
-    private GuardianStudentRepository guardianStudentRepository;
-
-    @Autowired
-    private ChangeRequestRepository changeRequestRepository;
 
     /**
      * 발행된 이벤트를 커밋 여부와 무관하게 그 자리에서 잡는다 — {@code publishEvent(...)} 호출 자체는
@@ -163,12 +112,6 @@ class RunPositionCommandServiceTest {
         }
     }
 
-    private DriverRunFixtures fixtures() {
-        return new DriverRunFixtures(academyRepository, busRepository, stopRepository, studentRepository,
-                accountRepository, managerRepository, assignmentRepository, runRepository, confirmedRouteRepository,
-                routeVersionRepository, runStopRepository, runRiderRepository, academyStaffRepository,
-                guardianRepository, guardianStudentRepository, changeRequestRepository);
-    }
 
     /** 기록 빈은 컨텍스트 하나를 공유하는 시험 전체에서 같은 인스턴스다 — 시험마다 비워야 건수 단언이 순서에 기대지 않는다. */
     @BeforeEach
@@ -181,7 +124,7 @@ class RunPositionCommandServiceTest {
     @Test
     @DisplayName("목표1 — moving 회차에 배치된 기사가 위치를 송신하면 204 이고 이력이 적재된다")
     void moving_회차에_위치를_송신하면_204다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock);
@@ -222,7 +165,7 @@ class RunPositionCommandServiceTest {
     @Test
     @DisplayName("R51 855 — 하원 종료 보류(finish_pending) 중인 moving 회차에도 위치 송신은 204 이고 이력이 적재된다")
     void 하원_종료_보류_중에도_위치를_받는다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock);
@@ -256,7 +199,7 @@ class RunPositionCommandServiceTest {
     @Test
     @DisplayName("BR-243 — recorded_at 이 서버 시각에서 5분 넘게 미래·과거로 어긋나면 204 이고 수신 시각으로 바꿔 저장한다")
     void 단말_시각이_크게_어긋난_위치는_수신_시각으로_저장한다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock);
@@ -290,7 +233,7 @@ class RunPositionCommandServiceTest {
     @Test
     @DisplayName("BR-243 — recorded_at 이 서버 시각 ±4분 안이면 원래 값을 그대로 저장한다")
     void 단말_시각이_허용_오차_안이면_원래_값을_저장한다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock);
@@ -325,7 +268,7 @@ class RunPositionCommandServiceTest {
     @Test
     @DisplayName("BR-100 — 이벤트가 현재 정차지 이름과 다음 정차 항목의 ETA 를 싣는다")
     void 이벤트가_현재_정차지_이름과_다음_ETA_를_싣는다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock);
@@ -368,7 +311,7 @@ class RunPositionCommandServiceTest {
     @Test
     @DisplayName("BR-115 — 요청의 speed·heading 이 이력에 저장되고, 컬럼 범위 밖 값은 500 이 아니라 422 다")
     void speed_heading_을_저장하고_범위_밖은_422다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock);
@@ -402,7 +345,7 @@ class RunPositionCommandServiceTest {
     @Test
     @DisplayName("목표2 — idle 회차에 위치를 송신하면 409 RUN_NOT_MOVING 이고 이력이 남지 않는다")
     void idle_회차는_RUN_NOT_MOVING_이다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock).plusMinutes(9);
@@ -424,7 +367,7 @@ class RunPositionCommandServiceTest {
     @Test
     @DisplayName("목표2 — finished 회차에 위치를 송신하면 409 RUN_NOT_MOVING 이고 이력이 남지 않는다")
     void finished_회차는_RUN_NOT_MOVING_이다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock);
@@ -451,7 +394,7 @@ class RunPositionCommandServiceTest {
     @Test
     @DisplayName("목표2 — 동승자가 위치를 송신하면 403 DRIVER_ONLY 이고 이력이 남지 않는다")
     void 동승자_호출은_DRIVER_ONLY_이다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock);

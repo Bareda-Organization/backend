@@ -32,31 +32,21 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.entity.RiderStatus;
-import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
 import jakarta.persistence.EntityManagerFactory;
 
 import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.location.proximity.ProximityFixtures;
 import src.backend.location.proximity.ProximityNotificationService;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RouteVersionRepository;
-import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.GuardianRepository;
-import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
 
 /**
  * 근접 알림 배치({@link ProximityNotificationScheduler}) 수준의 검증(Phase 10 이월 ②, Phase 11
@@ -89,6 +79,9 @@ class ProximityNotificationSchedulerTest {
     private static final String STOP_LNG = "127.000000";
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private ProximityNotificationScheduler scheduler;
 
     @Autowired
@@ -113,40 +106,8 @@ class ProximityNotificationSchedulerTest {
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private GuardianRepository guardianRepository;
-
-    @Autowired
-    private GuardianStudentRepository guardianStudentRepository;
-
-    @Autowired
     private RunRepository runRepository;
 
-    @Autowired
-    private ConfirmedRouteRepository confirmedRouteRepository;
-
-    @Autowired
-    private RouteVersionRepository routeVersionRepository;
-
-    @Autowired
-    private RunStopRepository runStopRepository;
-
-    @Autowired
-    private RunRiderRepository runRiderRepository;
 
     /**
      * 스파이 스터빙과 목표12 시험이 심은 shedlock 행을 함께 정리한다 — 스터빙을 남기면 다음 시험이
@@ -177,11 +138,6 @@ class ProximityNotificationSchedulerTest {
         jdbcTemplate.update("DELETE FROM academy WHERE name = '근접알림시험학원'");
     }
 
-    private ProximityFixtures fixtures() {
-        return new ProximityFixtures(academyRepository, busRepository, stopRepository, studentRepository,
-                accountRepository, guardianRepository, guardianStudentRepository, runRepository,
-                confirmedRouteRepository, routeVersionRepository, runStopRepository, runRiderRepository);
-    }
 
     /** {@link #fullyWiredMovingRun} 의 반환값 — {@code run_stop.proximity_notified_at} 조회에 stopId 가 필요하다. */
     private record WiredRun(long runId, long stopId) {
@@ -217,7 +173,7 @@ class ProximityNotificationSchedulerTest {
 
     @Test
     void MOVING_상태만_판정_대상이_된다() {
-        ProximityFixtures fx = fixtures();
+        ProximityFixtures fx = ProximityFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long movingRunId = fullyWiredMovingRun(fx, academyId, busId, "근접학생1", "근접학부모1").runId();
@@ -236,7 +192,7 @@ class ProximityNotificationSchedulerTest {
      */
     @Test
     void 이틀_전_운행일의_끝나지_않은_회차는_판정_대상이_아니고_어제_운행일은_대상이다() {
-        ProximityFixtures fx = fixtures();
+        ProximityFixtures fx = ProximityFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         LocalDate today = LocalDate.now(clock);
@@ -260,7 +216,7 @@ class ProximityNotificationSchedulerTest {
      */
     @Test
     void 한_틱은_배치_크기를_넘는_운행_중_회차도_전부_판정한다() {
-        ProximityFixtures fx = fixtures();
+        ProximityFixtures fx = ProximityFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         OffsetDateTime baseDepart = OffsetDateTime.now(ZoneOffset.UTC).plusHours(1);
@@ -288,7 +244,7 @@ class ProximityNotificationSchedulerTest {
      */
     @Test
     void 판정이_걸리지_않는_회차는_읽기_트랜잭션_1개이고_위치는_묶음당_한_번_읽는다() {
-        ProximityFixtures fx = fixtures();
+        ProximityFixtures fx = ProximityFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         List<Long> runIds = new ArrayList<>();
@@ -324,7 +280,7 @@ class ProximityNotificationSchedulerTest {
      */
     @Test
     void 한_틱의_SQL_수는_운행_중_회차_수와_무관하다() {
-        ProximityFixtures fx = fixtures();
+        ProximityFixtures fx = ProximityFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
@@ -348,7 +304,7 @@ class ProximityNotificationSchedulerTest {
 
     @Test
     void 한_회차의_예외가_다른_회차_판정을_막지_않는다() {
-        ProximityFixtures fx = fixtures();
+        ProximityFixtures fx = ProximityFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         // ID 오름차순으로 도는 루프이므로, 예외를 던질 회차를 먼저 만들어야 "앞에서 터지면 뒤가
@@ -378,7 +334,7 @@ class ProximityNotificationSchedulerTest {
      */
     @Test
     void 위치_읽기가_실패한_묶음은_건너뛰고_실패를_세며_다음_묶음은_판정한다() {
-        ProximityFixtures fx = fixtures();
+        ProximityFixtures fx = ProximityFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         OffsetDateTime baseDepart = OffsetDateTime.now(ZoneOffset.UTC).plusHours(1);
@@ -413,7 +369,7 @@ class ProximityNotificationSchedulerTest {
     @Test
     void 목표12_락을_다른_인스턴스가_쥐고_있으면_판정을_건너뛴다() {
         insertLock(OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(5));
-        ProximityFixtures fx = fixtures();
+        ProximityFixtures fx = ProximityFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long runId = fullyWiredMovingRun(fx, academyId, busId, "근접학생락", "근접학부모락").runId();
@@ -426,7 +382,7 @@ class ProximityNotificationSchedulerTest {
     @Test
     void 목표13_락_보유_인스턴스가_죽어도_다음_틱에_이어받는다() {
         insertLock(OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(5));
-        ProximityFixtures fx = fixtures();
+        ProximityFixtures fx = ProximityFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long runId = fullyWiredMovingRun(fx, academyId, busId, "근접학생회수", "근접학부모회수").runId();
@@ -457,7 +413,7 @@ class ProximityNotificationSchedulerTest {
     @Test
     void 목표13_lockAtMostFor_상한이_지켜진다() {
         insertLock(OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(5));
-        ProximityFixtures fx = fixtures();
+        ProximityFixtures fx = ProximityFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         fullyWiredMovingRun(fx, academyId, busId, "근접학생상한", "근접학부모상한");

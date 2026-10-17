@@ -81,24 +81,14 @@ class ChangeRequestAutoRejectionServiceTest {
         fixtures = new ChangeRequestAutoRejectFixtures(academyRepository, busRepository, studentRepository,
                 accountRepository, runRepository, boardingIntentRepository, changeRequestRepository,
                 confirmedRouteRepository, routeVersionRepository);
-        cleanUpMarkedRows();
+        ChangeRequestAutoRejectFixtures.cleanUpMarkedRows(jdbcTemplate);
     }
 
     @AfterEach
     void tearDown() {
-        cleanUpMarkedRows();
+        ChangeRequestAutoRejectFixtures.cleanUpMarkedRows(jdbcTemplate);
     }
 
-    private void cleanUpMarkedRows() {
-        String academyIds = "(SELECT id FROM academy WHERE name = '" + ChangeRequestAutoRejectFixtures.ACADEMY_NAME
-                + "')";
-        jdbcTemplate.update("DELETE FROM notification_log WHERE academy_id IN " + academyIds);
-        jdbcTemplate.update("DELETE FROM run WHERE academy_id IN " + academyIds);
-        jdbcTemplate.update("DELETE FROM student WHERE academy_id IN " + academyIds);
-        jdbcTemplate.update("DELETE FROM account WHERE academy_id IN " + academyIds);
-        jdbcTemplate.update("DELETE FROM bus WHERE academy_id IN " + academyIds);
-        jdbcTemplate.update("DELETE FROM academy WHERE name = '" + ChangeRequestAutoRejectFixtures.ACADEMY_NAME + "'");
-    }
 
     /**
      * BR-067 — 운행 시작은 {@code terminateForRun} 을 자기 트랜잭션 안에서 부른다. 같은 학생의 대기 건이 둘

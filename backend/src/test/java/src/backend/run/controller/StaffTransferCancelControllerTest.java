@@ -226,8 +226,8 @@ class StaffTransferCancelControllerTest {
                 routeRepository, routeStopRepository, stopRepository, studentRepository, weeklyAddressRepository,
                 runRepository);
         long academyId = fixtures.academyWithCoordinates();
-        long fromRunId = 회차를_만든다(fixtures, academyId);
-        long toRunId = 회차를_만든다(fixtures, academyId);
+        long fromRunId = fixtures.idleRunBeforeDeparture(clock, academyId, fixtures.bus(academyId), 31);
+        long toRunId = fixtures.idleRunBeforeDeparture(clock, academyId, fixtures.bus(academyId), 31);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
         long studentId = fixtures.student(academyId, "이동학생");
         runForcedAdditionRepository.save(RunForcedAddition.forRun(fromRunId, studentId,
@@ -241,12 +241,6 @@ class StaffTransferCancelControllerTest {
         return new Scene(academyId, fromRunId, toRunId, stopId, studentId, transferId);
     }
 
-    private long 회차를_만든다(RunConfirmationFixtures fixtures, long academyId) {
-        OffsetDateTime now = OffsetDateTime.now(clock);
-        OffsetDateTime departTime = now.plusMinutes(31);
-        return fixtures.idleRun(academyId, fixtures.bus(academyId), now.toLocalDate(), Direction.TO_ACADEMY,
-                departTime, departTime.minusMinutes(30));
-    }
 
     /**
      * 시험 트랜잭션 안에서 JPA 변경을 DB 로 내리고 영속성 컨텍스트를 비운다 — 운영에서는 요청마다 컨텍스트가 새로

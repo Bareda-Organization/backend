@@ -88,25 +88,14 @@ class RunConfirmationStagingRaceTest {
     void setUp() {
         fixtures = new RunConfirmationFixtures(academyRepository, busRepository, routeRepository,
                 routeStopRepository, stopRepository, studentRepository, weeklyAddressRepository, runRepository);
-        cleanUpMarkedRows();
+        RunConfirmationFixtures.cleanUpMarkedRows(jdbcTemplate);
     }
 
     @AfterEach
     void tearDown() {
-        cleanUpMarkedRows();
+        RunConfirmationFixtures.cleanUpMarkedRows(jdbcTemplate);
     }
 
-    private void cleanUpMarkedRows() {
-        String academyIds = "(SELECT id FROM academy WHERE name = '" + RunConfirmationFixtures.ACADEMY_NAME + "')";
-        jdbcTemplate.update("DELETE FROM run WHERE academy_id IN " + academyIds);
-        jdbcTemplate.update("DELETE FROM route WHERE academy_id IN " + academyIds);
-        jdbcTemplate.update("DELETE FROM weekly_address WHERE student_id IN "
-                + "(SELECT id FROM student WHERE academy_id IN " + academyIds + ")");
-        jdbcTemplate.update("DELETE FROM student WHERE academy_id IN " + academyIds);
-        jdbcTemplate.update("DELETE FROM bus WHERE academy_id IN " + academyIds);
-        jdbcTemplate.update("DELETE FROM stop WHERE academy_id IN " + academyIds);
-        jdbcTemplate.update("DELETE FROM academy WHERE name = '" + RunConfirmationFixtures.ACADEMY_NAME + "'");
-    }
 
     @Test
     @DisplayName("BR-044 — 계산 도중 커밋된 강제 추가는 이번 확정을 무르고 다음 확정에 합류한다")

@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -30,20 +31,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.jayway.jsonpath.JsonPath;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.routing.repository.RouteRepository;
-import src.backend.routing.repository.RouteStopRepository;
 import src.backend.run.command.RunConfirmationFixtures;
 import src.backend.run.entity.RunForcedAddition;
 import src.backend.run.repository.RunForcedAdditionRepository;
-import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
-import src.backend.student.repository.WeeklyAddressRepository;
 import testsupport.clock.FixedClock20260827Config;
 
 /**
@@ -61,6 +54,9 @@ class RunCancelTransferCleanupTest {
     private static final long STAFF_ACCOUNT_ID = 9101L;
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -74,30 +70,6 @@ class RunCancelTransferCleanupTest {
 
     @PersistenceContext
     private EntityManager entityManager;
-
-    @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private RouteRepository routeRepository;
-
-    @Autowired
-    private RouteStopRepository routeStopRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private WeeklyAddressRepository weeklyAddressRepository;
-
-    @Autowired
-    private RunRepository runRepository;
 
     @Autowired
     private RunForcedAdditionRepository runForcedAdditionRepository;
@@ -227,7 +199,7 @@ class RunCancelTransferCleanupTest {
     }
 
     private ScheduleScene 내일_스케줄_도착_장면() throws Exception {
-        RunConfirmationFixtures fixtures = fixtures();
+        RunConfirmationFixtures fixtures = RunConfirmationFixtures.of(applicationContext);
         long academyId = fixtures.academyWithCoordinates();
         long toBusId = fixtures.bus(academyId);
         String register = mockMvc.perform(post("/api/v1/staff/schedules")
@@ -254,16 +226,11 @@ class RunCancelTransferCleanupTest {
         return new ScheduleScene(new Scene(academyId, fromRunId, toRunId, stopId, studentId, transferId), scheduleId);
     }
 
-    private RunConfirmationFixtures fixtures() {
-        return new RunConfirmationFixtures(academyRepository, busRepository, routeRepository, routeStopRepository,
-                stopRepository, studentRepository, weeklyAddressRepository, runRepository);
-    }
-
     private Scene 오늘_장면() throws Exception {
-        RunConfirmationFixtures fixtures = fixtures();
+        RunConfirmationFixtures fixtures = RunConfirmationFixtures.of(applicationContext);
         long academyId = fixtures.academyWithCoordinates();
-        long fromRunId = 회차를_만든다(fixtures, academyId);
-        long toRunId = 회차를_만든다(fixtures, academyId);
+        long fromRunId = fixtures.idleRunBeforeDeparture(clock, academyId, fixtures.bus(academyId), 31);
+        long toRunId = fixtures.idleRunBeforeDeparture(clock, academyId, fixtures.bus(academyId), 31);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
         long studentId = fixtures.student(academyId, "이동학생");
         runForcedAdditionRepository.save(RunForcedAddition.forRun(fromRunId, studentId,
@@ -275,12 +242,6 @@ class RunCancelTransferCleanupTest {
         return new Scene(academyId, fromRunId, toRunId, stopId, studentId, transferId);
     }
 
-    private long 회차를_만든다(RunConfirmationFixtures fixtures, long academyId) {
-        OffsetDateTime now = OffsetDateTime.now(clock);
-        OffsetDateTime departTime = now.plusMinutes(31);
-        return fixtures.idleRun(academyId, fixtures.bus(academyId), now.toLocalDate(), Direction.TO_ACADEMY,
-                departTime, departTime.minusMinutes(30));
-    }
 
     /** 시험 트랜잭션 안에서 JPA 변경을 내리고 컨텍스트를 비운다 — JDBC 로 세고 심는 경계를 운영의 요청 경계처럼 만든다. */
     private void 동기화한다() {

@@ -150,8 +150,8 @@ class StaffPlannedRosterTransferMarkTest {
                 runRepository);
         long academyId = fixtures.academyWithCoordinates();
         long toBusId = fixtures.bus(academyId);
-        long toRunId = 회차를_만든다(fixtures, academyId, toBusId);
-        long fromRunId = 회차를_만든다(fixtures, academyId, fixtures.bus(academyId));
+        long toRunId = fixtures.idleRunBeforeDeparture(clock, academyId, toBusId, 31);
+        long fromRunId = fixtures.idleRunBeforeDeparture(clock, academyId, fixtures.bus(academyId), 31);
         long routeStop = fixtures.stop(academyId, "37.560000", "126.970000");
         long lastStop = fixtures.stop(academyId, "37.562000", "126.972000");
         fixtures.route(academyId, toBusId, Weekday.THU, Direction.TO_ACADEMY, routeStop, lastStop);
@@ -178,12 +178,6 @@ class StaffPlannedRosterTransferMarkTest {
         return new Scene(academyId, toRunId, weeklyStudent, forcedStudent, movedStudent, transferId);
     }
 
-    private long 회차를_만든다(RunConfirmationFixtures fixtures, long academyId, long busId) {
-        OffsetDateTime now = OffsetDateTime.now(clock);
-        OffsetDateTime departTime = now.plusMinutes(31);
-        return fixtures.idleRun(academyId, busId, now.toLocalDate(), Direction.TO_ACADEMY, departTime,
-                departTime.minusMinutes(30));
-    }
 
     /** §5.4 응답을 {@code student_id} 문자열을 키로 한 행 표로 읽는다. */
     private Map<String, Map<String, Object>> 명단(long runId, long academyId) throws Exception {

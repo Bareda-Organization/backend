@@ -9,6 +9,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import jakarta.persistence.EntityManager;
 
+import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import src.backend.academy.entity.Academy;
@@ -113,6 +114,26 @@ public class BoardingCommandFixtures {
         this.runStopRepository = runStopRepository;
         this.jdbcTemplate = jdbcTemplate;
         this.entityManager = entityManager;
+    }
+
+    /** 시험 컨텍스트의 빈으로 BoardingCommandFixtures 를 만든다 — 시험 클래스마다 저장소를 하나씩 넘기던 생성 호출의 단일 정의. */
+    public static BoardingCommandFixtures of(ApplicationContext context, EntityManager entityManager) {
+        return new BoardingCommandFixtures(
+                context.getBean(AcademyRepository.class),
+                context.getBean(BusRepository.class),
+                context.getBean(StudentRepository.class),
+                context.getBean(GuardianRepository.class),
+                context.getBean(GuardianStudentRepository.class),
+                context.getBean(AccountRepository.class),
+                context.getBean(AcademyStaffRepository.class),
+                context.getBean(RunRepository.class),
+                context.getBean(StopRepository.class),
+                context.getBean(RunRiderRepository.class),
+                context.getBean(ConfirmedRouteRepository.class),
+                context.getBean(RouteVersionRepository.class),
+                context.getBean(RunStopRepository.class),
+                context.getBean(JdbcTemplate.class),
+                entityManager);
     }
 
     public long academy() {

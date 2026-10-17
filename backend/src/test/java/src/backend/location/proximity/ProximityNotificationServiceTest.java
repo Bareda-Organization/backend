@@ -15,6 +15,7 @@ import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.springframework.context.ApplicationContext;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,22 +26,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.location.infrastructure.RunPositionStore;
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.entity.RiderStatus;
-import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.location.entity.RunPosition;
 import src.backend.location.repository.RunPositionRepository;
 import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RouteVersionRepository;
-import src.backend.routing.repository.RunStopRepository;
-import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.GuardianRepository;
-import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
 
 import testsupport.location.ProximityJudging;
 
@@ -68,6 +58,9 @@ class ProximityNotificationServiceTest {
     private static final String STOP_LNG = "127.000000";
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private ProximityNotificationService proximityNotificationService;
 
     @Autowired
@@ -85,41 +78,10 @@ class ProximityNotificationServiceTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private GuardianRepository guardianRepository;
-
-    @Autowired
-    private GuardianStudentRepository guardianStudentRepository;
-
-    @Autowired
-    private RunRepository runRepository;
 
     @MockitoSpyBean
     private ConfirmedRouteRepository confirmedRouteRepository;
 
-    @Autowired
-    private RouteVersionRepository routeVersionRepository;
-
-    @Autowired
-    private RunStopRepository runStopRepository;
-
-    @Autowired
-    private RunRiderRepository runRiderRepository;
 
     /**
      * {@code run} 삭제가 {@code confirmed_route}·{@code route_version}·{@code run_stop}·
@@ -145,16 +107,11 @@ class ProximityNotificationServiceTest {
         jdbcTemplate.update("DELETE FROM academy WHERE name = '근접알림시험학원'");
     }
 
-    private ProximityFixtures fixtures() {
-        return new ProximityFixtures(academyRepository, busRepository, stopRepository, studentRepository,
-                accountRepository, guardianRepository, guardianStudentRepository, runRepository,
-                confirmedRouteRepository, routeVersionRepository, runStopRepository, runRiderRepository);
-    }
 
     @Test
     void 문턱_300m_안으로_처음_들어오면_알림이_1건_적재된다() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        ProximityFixtures fx = fixtures();
+        ProximityFixtures fx = ProximityFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", STOP_LNG);
@@ -191,7 +148,7 @@ class ProximityNotificationServiceTest {
     @Test
     void 근접_알림은_문구에_자녀_이름을_싣고_학부모와_학생_본인_모두에게_적재된다() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        ProximityFixtures fx = fixtures();
+        ProximityFixtures fx = ProximityFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", STOP_LNG);
@@ -223,7 +180,7 @@ class ProximityNotificationServiceTest {
     @Test
     void 문턱_300m_밖이면_알림이_적재되지_않는다() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        ProximityFixtures fx = fixtures();
+        ProximityFixtures fx = ProximityFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", STOP_LNG);
@@ -245,7 +202,7 @@ class ProximityNotificationServiceTest {
     @Test
     void 재진입해도_두_번째_틱에서는_다시_적재되지_않는다() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        ProximityFixtures fx = fixtures();
+        ProximityFixtures fx = ProximityFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", STOP_LNG);
@@ -267,7 +224,7 @@ class ProximityNotificationServiceTest {
     @Test
     void ABSENT_학생은_알림_대상에서_빠진다() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        ProximityFixtures fx = fixtures();
+        ProximityFixtures fx = ProximityFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", STOP_LNG);
@@ -297,7 +254,7 @@ class ProximityNotificationServiceTest {
     @Test
     void 도착_없이_강제_출발된_정차지는_다음_승하차지가_아니라서_그_뒤_정차지에_근접_알림이_나간다() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        ProximityFixtures fx = fixtures();
+        ProximityFixtures fx = ProximityFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long passedStop = fx.stop(academyId, "37.500000", STOP_LNG);
@@ -326,7 +283,7 @@ class ProximityNotificationServiceTest {
     @Test
     void 도착_정차지에서_100m_밖으로_벗어나면_departed_at이_최초_1회_기록된다() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        ProximityFixtures fx = fixtures();
+        ProximityFixtures fx = ProximityFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", STOP_LNG);
@@ -348,7 +305,7 @@ class ProximityNotificationServiceTest {
     @Test
     void 도착_정차지에서_100m_안쪽이면_departed_at이_기록되지_않는다() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        ProximityFixtures fx = fixtures();
+        ProximityFixtures fx = ProximityFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", STOP_LNG);
@@ -367,7 +324,7 @@ class ProximityNotificationServiceTest {
     @Test
     void 출발_판정을_반복해도_두_번째_틱에서는_값이_바뀌지_않는다() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        ProximityFixtures fx = fixtures();
+        ProximityFixtures fx = ProximityFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", STOP_LNG);
@@ -392,7 +349,7 @@ class ProximityNotificationServiceTest {
     @Test
     void 출발_판정이_claimDeparture_에_성공하면_그_승하차지의_확정_결과가_통지된다() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        ProximityFixtures fx = fixtures();
+        ProximityFixtures fx = ProximityFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", STOP_LNG);
@@ -436,7 +393,7 @@ class ProximityNotificationServiceTest {
     @Test
     void Redis_읽기가_실패해도_run_position_최신_행으로_근접_판정한다() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        ProximityFixtures fx = fixtures();
+        ProximityFixtures fx = ProximityFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", STOP_LNG);
@@ -471,7 +428,7 @@ class ProximityNotificationServiceTest {
     @Test
     void 근접_판정이_던져도_출발_판정은_기록되고_출발_판정이_던져도_근접_알림은_적재된다() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        ProximityFixtures fx = fixtures();
+        ProximityFixtures fx = ProximityFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long arrivedStop = fx.stop(academyId, "37.500000", STOP_LNG);

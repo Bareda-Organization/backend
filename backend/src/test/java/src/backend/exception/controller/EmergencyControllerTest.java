@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -30,17 +31,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
-import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.manager.repository.AssignmentRepository;
-import src.backend.manager.repository.ManagerRepository;
-import src.backend.run.repository.RunRepository;
 import testsupport.clock.FixedClock20300401Config;
 import testsupport.redis.RedisTestContainerBase;
 import org.springframework.context.annotation.Import;
@@ -74,6 +69,9 @@ class EmergencyControllerTest {
     private static final String ACK = "/api/v1/staff/emergencies/%d/ack";
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -92,36 +90,15 @@ class EmergencyControllerTest {
     private Clock clock;
 
     @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
     private AccountRepository accountRepository;
 
-    @Autowired
-    private ManagerRepository managerRepository;
 
-    @Autowired
-    private AssignmentRepository assignmentRepository;
-
-    @Autowired
-    private RunRepository runRepository;
-
-    @Autowired
-    private AcademyStaffRepository academyStaffRepository;
-
-    private EmergencyFixtures fixtures() {
-        return new EmergencyFixtures(academyRepository, busRepository, accountRepository, managerRepository,
-                assignmentRepository, runRepository, academyStaffRepository);
-    }
 
     // ── goal 5 — 기사·동승자 둘 다 발신 가능 ──────────────────────────────
 
     @Test
     void 배치된_기사는_비상_신고를_발신할_수_있다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
@@ -153,7 +130,7 @@ class EmergencyControllerTest {
      */
     @Test
     void 발신_응답은_문자열_식별자와_취소창과_수신자_수를_담는다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
@@ -191,7 +168,7 @@ class EmergencyControllerTest {
      */
     @Test
     void 수신자_수는_차단된_메인관리자를_세고_가입_대기와_거절은_세지_않는다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
@@ -215,7 +192,7 @@ class EmergencyControllerTest {
 
     @Test
     void 배치된_동승자도_비상_신고를_발신할_수_있다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
@@ -234,7 +211,7 @@ class EmergencyControllerTest {
 
     @Test
     void 위치_캐시가_있으면_신고에_좌표가_자동으로_붙는다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
@@ -253,7 +230,7 @@ class EmergencyControllerTest {
 
     @Test
     void 위치_캐시가_비어도_신고_발신은_성공한다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
@@ -275,7 +252,7 @@ class EmergencyControllerTest {
      */
     @Test
     void 요청_좌표가_오면_캐시보다_우선해_발신_위치로_저장된다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long runId = fixtures.confirmedRun(academyId, fixtures.bus(academyId), OffsetDateTime.now(clock));
         long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
@@ -295,7 +272,7 @@ class EmergencyControllerTest {
     /** BR-109 — 확정 전({@code idle}) 회차 발신은 §4.14 "confirmed 이후면 허용" 에 따라 409 다. */
     @Test
     void 확정_전_회차에서_발신하면_409_RUN_NOT_CONFIRMED다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long runId = fixtures.confirmedRun(academyId, fixtures.bus(academyId), OffsetDateTime.now(clock));
         long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
@@ -316,7 +293,7 @@ class EmergencyControllerTest {
     /** BR-137 — 같은 {@code client_key} 재전송은 새 접수가 아니라 흡수라 §1.7 대로 200 이다(최초 접수만 201). */
     @Test
     void 같은_client_key_재전송은_200이고_최초_신고를_돌려준다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long runId = fixtures.confirmedRun(academyId, fixtures.bus(academyId), OffsetDateTime.now(clock));
         long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
@@ -341,7 +318,7 @@ class EmergencyControllerTest {
     /** BR-078 — 다른 학원 신고에 쓰인 {@code client_key} 가 겹치면 그 신고를 돌려주지 않고 거절한다. */
     @Test
     void 다른_학원_신고에_쓰인_client_key_를_재사용하면_422이고_남의_신고를_돌려주지_않는다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyA = fixtures.academy();
         long runA = fixtures.confirmedRun(academyA, fixtures.bus(academyA), OffsetDateTime.now(clock));
         long driverA = fixtures.assignedManager(academyA, runA, ManagerRole.DRIVER, "기사A", OffsetDateTime.now(clock));
@@ -362,7 +339,7 @@ class EmergencyControllerTest {
     /** BR-039 — 캐시 <b>읽기 실패</b>(여기선 값 형식 불일치로 재현)도 미스와 같이 좌표 없이 접수돼야 한다. */
     @Test
     void 위치_캐시_읽기가_실패해도_신고_발신은_성공한다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
@@ -383,7 +360,7 @@ class EmergencyControllerTest {
 
     @Test
     void 발신_직후_취소는_성공하고_취소시각이_기록된다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
@@ -402,7 +379,7 @@ class EmergencyControllerTest {
 
     @Test
     void 정확히_60초_경계는_포함이라_취소가_성공한다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
@@ -419,7 +396,7 @@ class EmergencyControllerTest {
 
     @Test
     void 급소_60초_1밀리초가_지나면_취소가_거절되고_취소시각이_남지_않는다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
@@ -439,7 +416,7 @@ class EmergencyControllerTest {
 
     @Test
     void 배치된_기사가_목록을_조회하면_응답_계약의_전_필드가_채워진다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
@@ -477,7 +454,7 @@ class EmergencyControllerTest {
      */
     @Test
     void 목록_응답의_emergency_id는_문자열이다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
@@ -497,7 +474,7 @@ class EmergencyControllerTest {
      */
     @Test
     void 취소_가능_시각은_발신_시각의_60초_뒤다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
@@ -518,7 +495,7 @@ class EmergencyControllerTest {
 
     @Test
     void 배치되지_않은_기사가_목록을_조회하면_403이다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
@@ -542,7 +519,7 @@ class EmergencyControllerTest {
      */
     @Test
     void 존재하지_않는_회차를_지목하면_배치_확인에서_걸려_403이다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long realRunId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
@@ -557,7 +534,7 @@ class EmergencyControllerTest {
 
     @Test
     void 확인_처리된_신고는_목록에_acked와_확인자_이름이_반영된다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
@@ -579,7 +556,7 @@ class EmergencyControllerTest {
 
     @Test
     void 취소된_신고는_목록에_취소시각이_반영된다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));

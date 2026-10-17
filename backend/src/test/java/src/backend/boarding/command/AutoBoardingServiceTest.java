@@ -12,23 +12,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.entity.RunRider;
-import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.bus.repository.BusRepository;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RouteVersionRepository;
-import src.backend.routing.repository.RunStopRepository;
-import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.GuardianRepository;
-import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
 
 /**
  * 하원 회차 시작 시 명단 전원 일괄 승차(C-07 · BRD-03, 목표 11) — {@link AutoBoardingService} 를 직접
@@ -39,6 +27,9 @@ import src.backend.student.repository.StudentRepository;
 class AutoBoardingServiceTest {
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private AutoBoardingService autoBoardingService;
 
     @Autowired
@@ -47,53 +38,12 @@ class AutoBoardingServiceTest {
     @PersistenceContext
     private EntityManager entityManager;
 
-    @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private GuardianRepository guardianRepository;
-
-    @Autowired
-    private GuardianStudentRepository guardianStudentRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private AcademyStaffRepository academyStaffRepository;
-
-    @Autowired
-    private RunRepository runRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private RunRiderRepository runRiderRepository;
-
-    @Autowired
-    private ConfirmedRouteRepository confirmedRouteRepository;
-
-    @Autowired
-    private RouteVersionRepository routeVersionRepository;
-
-    @Autowired
-    private RunStopRepository runStopRepository;
 
     private BoardingCommandFixtures fixtures;
 
     private BoardingCommandFixtures fixtures() {
         if (fixtures == null) {
-            fixtures = new BoardingCommandFixtures(academyRepository, busRepository, studentRepository,
-                    guardianRepository, guardianStudentRepository, accountRepository, academyStaffRepository,
-                    runRepository, stopRepository, runRiderRepository, confirmedRouteRepository,
-                    routeVersionRepository, runStopRepository, jdbcTemplate, entityManager);
+            fixtures = BoardingCommandFixtures.of(applicationContext, entityManager);
         }
         return fixtures;
     }

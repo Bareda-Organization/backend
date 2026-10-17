@@ -17,30 +17,16 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.context.annotation.Import;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
-import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.manager.repository.AssignmentRepository;
-import src.backend.manager.repository.ManagerRepository;
 import src.backend.monitoring.controller.AdminMonitoringFixtures;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RouteVersionRepository;
-import src.backend.routing.repository.RunStopRepository;
-import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.GuardianRepository;
-import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
@@ -57,6 +43,9 @@ class AdminAcademyLiveQueryCountTest {
     private static final String LIVE = "/api/v1/admin/academies/%d/runs/live";
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -71,54 +60,10 @@ class AdminAcademyLiveQueryCountTest {
     @Autowired
     private Clock clock;
 
-    @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private AcademyStaffRepository academyStaffRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private GuardianRepository guardianRepository;
-
-    @Autowired
-    private GuardianStudentRepository guardianStudentRepository;
-
-    @Autowired
-    private RunRepository runRepository;
-
-    @Autowired
-    private ConfirmedRouteRepository confirmedRouteRepository;
-
-    @Autowired
-    private RouteVersionRepository routeVersionRepository;
-
-    @Autowired
-    private RunStopRepository runStopRepository;
-
-    @Autowired
-    private RunRiderRepository runRiderRepository;
-
-    @Autowired
-    private ManagerRepository managerRepository;
-
-    @Autowired
-    private AssignmentRepository assignmentRepository;
 
     @Test
     void 정차지가_늘어도_관제_쿼리_수는_같다() throws Exception {
-        AdminMonitoringFixtures f = fixtures();
+        AdminMonitoringFixtures f = AdminMonitoringFixtures.of(applicationContext);
         long academyId = f.academy();
         String token = 메인관리자_토큰(tokenProvider, f.systemAdminAccount("메인관리자"));
         long versionId = 운행_중_회차(f, academyId);
@@ -136,7 +81,7 @@ class AdminAcademyLiveQueryCountTest {
     /** BR-247 — 확정 노선·정차 순서를 회차 수와 무관한 배치 조회로 읽는다(회차마다 2쿼리를 더하던 것을 없앤다). */
     @Test
     void 회차가_늘어도_관제_쿼리_수는_같다() throws Exception {
-        AdminMonitoringFixtures f = fixtures();
+        AdminMonitoringFixtures f = AdminMonitoringFixtures.of(applicationContext);
         long academyId = f.academy();
         String token = 메인관리자_토큰(tokenProvider, f.systemAdminAccount("메인관리자"));
         f.runStopForStop(운행_중_회차(f, academyId), f.stop(academyId, "37.500000", "127.030000"), 1,
@@ -154,7 +99,7 @@ class AdminAcademyLiveQueryCountTest {
     /** BR-247 — 관계자 실시간 조회는 현재·다음 정차명을 회차마다 따로 읽던 것을 한 번에 읽는다. */
     @Test
     void 관계자_실시간_조회도_회차가_늘어도_쿼리_수가_같다() throws Exception {
-        AdminMonitoringFixtures f = fixtures();
+        AdminMonitoringFixtures f = AdminMonitoringFixtures.of(applicationContext);
         long academyId = f.academy();
         String token = "Bearer " + tokenProvider.createAccessToken(f.staffAccount(academyId, "관계자"), academyId,
                 Role.STAFF, AccountStatus.ACTIVE);
@@ -191,10 +136,4 @@ class AdminAcademyLiveQueryCountTest {
         return statistics.getPrepareStatementCount();
     }
 
-    private AdminMonitoringFixtures fixtures() {
-        return new AdminMonitoringFixtures(academyRepository, academyStaffRepository, busRepository, stopRepository,
-                studentRepository, accountRepository, guardianRepository, guardianStudentRepository, runRepository,
-                confirmedRouteRepository, routeVersionRepository, runStopRepository, runRiderRepository,
-                managerRepository, assignmentRepository);
-    }
 }

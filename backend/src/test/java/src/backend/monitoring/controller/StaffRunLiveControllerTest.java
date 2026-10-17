@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -30,27 +31,11 @@ import tools.jackson.databind.json.JsonMapper;
 
 import com.jayway.jsonpath.JsonPath;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
-import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.manager.repository.AssignmentRepository;
-import src.backend.manager.repository.ManagerRepository;
-import src.backend.request.repository.ChangeRequestRepository;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RouteVersionRepository;
-import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.controller.DriverRunFixtures;
-import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.GuardianRepository;
-import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
 import testsupport.clock.FixedClock20300401Config;
 import org.springframework.context.annotation.Import;
 
@@ -69,6 +54,9 @@ import org.springframework.context.annotation.Import;
 class StaffRunLiveControllerTest {
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -85,53 +73,6 @@ class StaffRunLiveControllerTest {
 
     private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
 
-    @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private ManagerRepository managerRepository;
-
-    @Autowired
-    private AssignmentRepository assignmentRepository;
-
-    @Autowired
-    private RunRepository runRepository;
-
-    @Autowired
-    private ConfirmedRouteRepository confirmedRouteRepository;
-
-    @Autowired
-    private RouteVersionRepository routeVersionRepository;
-
-    @Autowired
-    private RunStopRepository runStopRepository;
-
-    @Autowired
-    private RunRiderRepository runRiderRepository;
-
-    @Autowired
-    private AcademyStaffRepository academyStaffRepository;
-
-    @Autowired
-    private GuardianRepository guardianRepository;
-
-    @Autowired
-    private GuardianStudentRepository guardianStudentRepository;
-
-    @Autowired
-    private ChangeRequestRepository changeRequestRepository;
 
     private final List<Long> academyIds = new ArrayList<>();
 
@@ -139,12 +80,6 @@ class StaffRunLiveControllerTest {
      * 다른 테스트의 최신 좌표까지 지운다(§0 병렬 실행 시 공유 자원 오염 방지). */
     private final List<Long> runIdsForRedisCleanup = new ArrayList<>();
 
-    private DriverRunFixtures fixtures() {
-        return new DriverRunFixtures(academyRepository, busRepository, stopRepository, studentRepository,
-                accountRepository, managerRepository, assignmentRepository, runRepository, confirmedRouteRepository,
-                routeVersionRepository, runStopRepository, runRiderRepository, academyStaffRepository,
-                guardianRepository, guardianStudentRepository, changeRequestRepository);
-    }
 
     @AfterEach
     void 뒷정리한다() {
@@ -184,7 +119,7 @@ class StaffRunLiveControllerTest {
     @Test
     @DisplayName("목표6 — moving 회차만 담고 §5.18 필드가 전부 채워진다")
     void moving_회차만_담고_필드가_전부_채워진다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         academyIds.add(academyId);
         long busId = fx.bus(academyId);
@@ -256,7 +191,7 @@ class StaffRunLiveControllerTest {
     @Test
     @DisplayName("목표7 — 2분 이상 유실이면 position=null, last_seen_at 은 채워진다")
     void 유실_2분_이상이면_position_이_null_이고_last_seen_at_은_채워진다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         academyIds.add(academyId);
         long busId = fx.bus(academyId);
@@ -286,7 +221,7 @@ class StaffRunLiveControllerTest {
     @Test
     @DisplayName("BR-002 — 다음 정차가 학원 항목이면 next_stop 에 학원 이름이 나온다")
     void 다음_정차가_학원_항목이면_학원_이름이_나온다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         academyIds.add(academyId);
         long busId = fx.bus(academyId);
@@ -313,7 +248,7 @@ class StaffRunLiveControllerTest {
     @Test
     @DisplayName("BR-351 — 현재·다음 정차가 강제 경유지이면 이름은 경유지 label 이다")
     void 현재_다음_정차가_강제_경유지이면_경유지_label_이_나온다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         academyIds.add(academyId);
         long busId = fx.bus(academyId);

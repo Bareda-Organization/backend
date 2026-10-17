@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,37 +27,22 @@ import com.jayway.jsonpath.JsonPath;
 
 import src.backend.academy.entity.Academy;
 import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.entity.RiderStatus;
-import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.manager.repository.AssignmentRepository;
-import src.backend.manager.repository.ManagerRepository;
-import src.backend.request.repository.ChangeRequestRepository;
 import src.backend.routing.domain.GeoPoint;
 import src.backend.routing.entity.Route;
 import src.backend.routing.entity.RoutePlan;
 import src.backend.routing.entity.Waypoint;
-import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
-import src.backend.routing.repository.RouteVersionRepository;
-import src.backend.routing.repository.RunStopRepository;
 import src.backend.routing.repository.WaypointRepository;
-import src.backend.run.repository.RunRepository;
 import src.backend.student.domain.VerifiedAddressEntry;
 import src.backend.student.entity.WeeklyAddress;
 import src.backend.student.geocoding.spec.GeocodedPoint;
-import src.backend.student.repository.GuardianRepository;
-import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
 import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
@@ -73,6 +59,9 @@ import src.backend.student.repository.WeeklyAddressRepository;
 class StaffRunRouteControllerTest {
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -80,51 +69,6 @@ class StaffRunRouteControllerTest {
 
     @Autowired
     private AcademyRepository academyRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private ManagerRepository managerRepository;
-
-    @Autowired
-    private AssignmentRepository assignmentRepository;
-
-    @Autowired
-    private RunRepository runRepository;
-
-    @Autowired
-    private ConfirmedRouteRepository confirmedRouteRepository;
-
-    @Autowired
-    private RouteVersionRepository routeVersionRepository;
-
-    @Autowired
-    private RunStopRepository runStopRepository;
-
-    @Autowired
-    private RunRiderRepository runRiderRepository;
-
-    @Autowired
-    private AcademyStaffRepository academyStaffRepository;
-
-    @Autowired
-    private GuardianRepository guardianRepository;
-
-    @Autowired
-    private GuardianStudentRepository guardianStudentRepository;
-
-    @Autowired
-    private ChangeRequestRepository changeRequestRepository;
 
     @Autowired
     private RouteRepository routeRepository;
@@ -138,17 +82,11 @@ class StaffRunRouteControllerTest {
     @Autowired
     private WaypointRepository waypointRepository;
 
-    private DriverRunFixtures fixtures() {
-        return new DriverRunFixtures(academyRepository, busRepository, stopRepository, studentRepository,
-                accountRepository, managerRepository, assignmentRepository, runRepository, confirmedRouteRepository,
-                routeVersionRepository, runStopRepository, runRiderRepository, academyStaffRepository,
-                guardianRepository, guardianStudentRepository, changeRequestRepository);
-    }
 
     @Test
     @DisplayName("목표11 — 200: §4.3 정차 구조 + route_version·published_at·ack 전부 채워진다")
     void 확정_노선을_route_version과_ack과_함께_돌려준다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -183,7 +121,7 @@ class StaffRunRouteControllerTest {
     @Test
     @DisplayName("R56 K1 — 경유 행만 waypoint_id 에 그 경유 지점 id 를 싣고 승하차지 행은 null 이다")
     void 경유_행은_waypoint_id_를_싣고_승하차지_행은_null_이다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -213,7 +151,7 @@ class StaffRunRouteControllerTest {
     @Test
     @DisplayName("R15 T1 목표 5 — 응답이 road_path·fallback_used 를 계약대로 낸다")
     void 응답이_road_path와_fallback_used를_계약대로_낸다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now().plusHours(1);
@@ -237,7 +175,7 @@ class StaffRunRouteControllerTest {
     @Test
     @DisplayName("R15 T1 목표 6 — 근사 경로도 좌표를 주고 fallback_used=true 다")
     void 근사_경로도_좌표를_주고_fallback_used가_true다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now().plusHours(1);
@@ -264,7 +202,7 @@ class StaffRunRouteControllerTest {
     @Test
     @DisplayName("R20-A — idle 회차도 고정 노선이 있으면 200 이고 confirmed=false 인 예정 경로를 낸다")
     void idle_회차도_고정_노선이_있으면_200이고_confirmed가_false인_예정_경로를_낸다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         Academy academy = academyRepository.findById(academyId).orElseThrow();
         academy.assignCoordinates(new BigDecimal("37.500000"), new BigDecimal("127.000000"));
@@ -302,7 +240,7 @@ class StaffRunRouteControllerTest {
     @Test
     @DisplayName("R20-A — idle 회차에 고정 노선도 없으면 409 RUN_NOT_CONFIRMED 다")
     void idle_회차에_고정_노선도_없으면_409다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now().plusHours(3);
@@ -320,7 +258,7 @@ class StaffRunRouteControllerTest {
     void ack은_기사와_동승자를_각자_실제로_읽는다() throws Exception {
         // 위 200 시험은 기사만 확인해 ack.driver=true·ack.escort=false 만 실측한다 — 이 시험이 반대
         // 방향(동승자만 확인)을 채워야 "ack.driver 를 항상 true 로 고정" 같은 결함이 실제로 걸린다.
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now().plusHours(1);
@@ -345,7 +283,7 @@ class StaffRunRouteControllerTest {
     @Test
     @DisplayName("목표11 — 409: 확정 노선(route_version) 미배포는 RUN_NOT_CONFIRMED 다")
     void 확정_노선이_없으면_409_RUN_NOT_CONFIRMED_다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now().plusHours(1);
@@ -363,7 +301,7 @@ class StaffRunRouteControllerTest {
     @Test
     @DisplayName("목표11 — 404: 존재하지 않는 회차")
     void 존재하지_않는_회차는_404_RUN_NOT_FOUND_다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
@@ -376,7 +314,7 @@ class StaffRunRouteControllerTest {
     @Test
     @DisplayName("목표11 — 403: 타 학원 관계자는 ACADEMY_SCOPE_VIOLATION")
     void 타_학원_관계자는_403_ACADEMY_SCOPE_VIOLATION_이다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long myAcademyId = fx.academy();
         long myBusId = fx.bus(myAcademyId);
         OffsetDateTime departTime = OffsetDateTime.now().plusHours(1);
@@ -396,7 +334,7 @@ class StaffRunRouteControllerTest {
     @Test
     @DisplayName("목표11 — 403: 매니저(기사) 토큰은 관계자 전용 엔드포인트에 진입 불가")
     void 매니저_토큰은_403_이다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now().plusHours(1);
@@ -413,7 +351,7 @@ class StaffRunRouteControllerTest {
     @Test
     @DisplayName("R22 — 200: 메인 관리자도 회차 노선을 본다(전체 관제 화면이 이 조회를 쓴다)")
     void 메인_관리자는_200_이다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now().plusHours(1);
@@ -429,7 +367,7 @@ class StaffRunRouteControllerTest {
     @Test
     @DisplayName("BR-014 — 메인 관리자에게도 정차지·인원이 채워진다(학원 조건을 요청자가 아니라 회차에서 잡는다)")
     void 메인_관리자에게도_정차지와_인원이_나온다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");

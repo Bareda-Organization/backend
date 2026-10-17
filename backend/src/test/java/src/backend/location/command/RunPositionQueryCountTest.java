@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -70,6 +71,7 @@ import src.backend.student.repository.StudentRepository;
 @AutoConfigureMockMvc
 class RunPositionQueryCountTest {
 
+    @Autowired private ApplicationContext applicationContext;
     @Autowired private MockMvc mockMvc;
     @Autowired private JwtTokenProvider tokenProvider;
     @Autowired private EntityManagerFactory entityManagerFactory;
@@ -175,7 +177,7 @@ class RunPositionQueryCountTest {
     @DisplayName("RT-5 — 결석 전이가 커밋되면 다음 위치 한 번만 학생 목록을 다시 읽고, 결석 학생 채널로는 방송하지 않는다")
     void 결석_뒤_첫_위치에서만_학생_목록을_다시_읽는다() {
         Seeded seeded = 회차를_심는다(false);
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long stopId = fx.stop(seeded.academyId(), "37.570000", "126.980000");
         long staying = fx.student(seeded.academyId(), "남는학생");
         long leaving = fx.student(seeded.academyId(), "결석할학생");
@@ -268,12 +270,6 @@ class RunPositionQueryCountTest {
                 .andExpect(status().isNoContent());
     }
 
-    private DriverRunFixtures fixtures() {
-        return new DriverRunFixtures(academyRepository, busRepository, stopRepository,
-                studentRepository, accountRepository, managerRepository, assignmentRepository, runRepository,
-                confirmedRouteRepository, routeVersionRepository, runStopRepository, runRiderRepository,
-                academyStaffRepository, guardianRepository, guardianStudentRepository, changeRequestRepository);
-    }
 
     /** 인증 필터를 거치지 않고 서비스를 직접 부른다 — 위치 경로의 SQL(인가 · 회차 · INSERT · 목록)만 센다. */
     private void 직접_보낸다(Seeded seeded) {

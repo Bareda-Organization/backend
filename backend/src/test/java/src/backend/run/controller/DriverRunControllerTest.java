@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
@@ -28,30 +29,14 @@ import com.jayway.jsonpath.JsonPath;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.run.event.RunEndedEvent;
-import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.manager.repository.AssignmentRepository;
-import src.backend.manager.repository.ManagerRepository;
-import src.backend.request.repository.ChangeRequestRepository;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RouteVersionRepository;
-import src.backend.routing.repository.RunStopRepository;
 import src.backend.routing.entity.Waypoint;
 import src.backend.routing.repository.WaypointRepository;
-import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.GuardianRepository;
-import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
@@ -72,6 +57,9 @@ import testsupport.clock.FixedClock20300401Config;
 class DriverRunControllerTest {
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -87,72 +75,18 @@ class DriverRunControllerTest {
     private EntityManager entityManager;
 
     @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private ManagerRepository managerRepository;
-
-    @Autowired
-    private AssignmentRepository assignmentRepository;
-
-    @Autowired
-    private RunRepository runRepository;
-
-    @Autowired
-    private ConfirmedRouteRepository confirmedRouteRepository;
-
-    @Autowired
-    private RouteVersionRepository routeVersionRepository;
-
-    @Autowired
-    private RunStopRepository runStopRepository;
-
-    @Autowired
-    private RunRiderRepository runRiderRepository;
-
-    @Autowired
-    private AcademyStaffRepository academyStaffRepository;
-
-    @Autowired
-    private GuardianRepository guardianRepository;
-
-    @Autowired
-    private GuardianStudentRepository guardianStudentRepository;
-
-    @Autowired
-    private ChangeRequestRepository changeRequestRepository;
-
-    @Autowired
     private WaypointRepository waypointRepository;
 
     @Autowired
     private ApplicationEvents applicationEvents;
 
-    private DriverRunFixtures fixtures() {
-        return new DriverRunFixtures(academyRepository, busRepository, stopRepository, studentRepository,
-                accountRepository, managerRepository, assignmentRepository, runRepository, confirmedRouteRepository,
-                routeVersionRepository, runStopRepository, runRiderRepository, academyStaffRepository,
-                guardianRepository, guardianStudentRepository, changeRequestRepository);
-    }
 
     // ── goal 1 — 출발 ±10분 창 ──────────────────────────────────────────
 
     @Test
     @DisplayName("목표1 — 출발 9분 전은 창 안이라 시작이 성공한다")
     void 출발_9분_전은_시작이_성공한다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock).plusMinutes(9);
@@ -169,7 +103,7 @@ class DriverRunControllerTest {
     @Test
     @DisplayName("BR-042 — 취소된 회차는 창 안이어도 시작할 수 없다(409 RUN_CANCELED)")
     void 취소된_회차는_시작할_수_없다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock).plusMinutes(9);
@@ -187,7 +121,7 @@ class DriverRunControllerTest {
     @Test
     @DisplayName("목표1 급소 — 출발 11분 전은 창 밖이라 403 이고 시작 시각이 기록되지 않는다")
     void 출발_11분_전은_창_밖이라_거부된다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock).plusMinutes(11);
@@ -204,7 +138,7 @@ class DriverRunControllerTest {
     @Test
     @DisplayName("목표1 반대편 경계 — 출발 9분 후는 창 안이라 시작이 성공한다")
     void 출발_9분_후는_시작이_성공한다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock).minusMinutes(9);
@@ -221,7 +155,7 @@ class DriverRunControllerTest {
     @Test
     @DisplayName("목표1 반대편 경계 급소 — 출발 11분 후는 창 밖이라 403 이고 시작 시각이 기록되지 않는다")
     void 출발_11분_후는_창_밖이라_거부된다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock).minusMinutes(11);
@@ -238,7 +172,7 @@ class DriverRunControllerTest {
     @Test
     @DisplayName("목표1 경계값 — 정확히 출발 10분 후(창의 끝)는 양끝 포함이라 시작이 성공한다")
     void 출발_정확히_10분_후_경계는_시작이_성공한다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock).minusMinutes(10);
@@ -255,7 +189,7 @@ class DriverRunControllerTest {
     @Test
     @DisplayName("목표1 경계값 — 정확히 출발 10분 전(창의 시작)은 양끝 포함이라 시작이 성공한다")
     void 출발_정확히_10분_전_경계는_시작이_성공한다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock).plusMinutes(10);
@@ -274,7 +208,7 @@ class DriverRunControllerTest {
     @Test
     @DisplayName("목표2 — 운행 시작 시 관계자·보호자·학생 앞으로 run_started 알림이 각 1건씩 적재된다")
     void 운행_시작하면_세_수신자_범주에_알림이_적재된다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
@@ -320,7 +254,7 @@ class DriverRunControllerTest {
     @Test
     @DisplayName("absent 학생(①구간 OFF·다른 버스로 이동)의 보호자에게는 run_started 가 가지 않는다(§9.4 학부모 알림 부재)")
     void 미등원_학생의_보호자에게는_운행_시작_알림이_가지_않는다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
@@ -343,7 +277,7 @@ class DriverRunControllerTest {
     @Test
     @DisplayName("목표3 — 운행을 시작하면 그 회차의 미결 변경 요청이 폴링 없이 즉시 자동거절된다")
     void 운행_시작하면_미결_변경요청이_즉시_자동거절된다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long studentId = fixtures.student(academyId, "학생1");
@@ -369,7 +303,7 @@ class DriverRunControllerTest {
     @Test
     @DisplayName("R52 L4 — 관계자·학부모가 기사 전용 호출(도착 처리)을 부르면 403 DRIVER_ONLY 이다")
     void 다른_역할이_기사_전용_호출을_부르면_DRIVER_ONLY_이다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock);
@@ -388,7 +322,7 @@ class DriverRunControllerTest {
     @Test
     @DisplayName("목표5 — 동승자는 도착 처리를 할 수 없고(403), 배치된 기사만 성공한다")
     void 도착_처리는_배치된_기사만_할_수_있다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
@@ -417,7 +351,7 @@ class DriverRunControllerTest {
     @Test
     @DisplayName("목표5 FORBIDDEN — 같은 학원의 기사이지만 이 회차에 배치되지 않으면 403 FORBIDDEN 이다(DRIVER_ONLY 아님)")
     void 배치되지_않은_같은_학원_기사는_FORBIDDEN_이다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
@@ -444,7 +378,7 @@ class DriverRunControllerTest {
     @Test
     @DisplayName("목표9 · BR-002 — 등원은 마지막 승차지가 아니라 학원 항목 도착에서 전원 자동 하차·종료된다(Ruling 327)")
     void 등원_최종지점_도착시_전원_자동하차하고_종료된다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
@@ -512,7 +446,7 @@ class DriverRunControllerTest {
      * (stop2 는 도착하지 않은 채 남긴다), {@code {academyId, runId, driverAccountId, runStop1, runStop2, academyStop}} 을 돌려준다.
      */
     private long[] 최종_도착으로_종료된_등원_회차() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
@@ -582,7 +516,7 @@ class DriverRunControllerTest {
     @Test
     @DisplayName("R15-T3 후속 — 등원 최종 지점 도착 시 그 지점 강제 출발 적용이 자동 하차보다 먼저 일어나 중복·오분류가 없다")
     void 등원_최종지점_도착시_그_지점_강제_출발_적용이_자동하차보다_먼저_일어난다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
@@ -633,7 +567,7 @@ class DriverRunControllerTest {
     @Test
     @DisplayName("목표10 — 하원 최종 지점에 도착해도 미하차 탑승자가 남아 있으면 종료가 보류된다")
     void 하원_최종지점_미하차_잔류시_종료가_보류된다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
@@ -672,7 +606,7 @@ class DriverRunControllerTest {
     @Test
     @DisplayName("BR-015 — 하원 노선 맨 뒤에 경유 지점이 있어도 마지막 하차지 도착이 최종이고 운행이 끝난다")
     void 맨_뒤_경유_지점이_있어도_마지막_하차지_도착이_최종이다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
@@ -707,7 +641,7 @@ class DriverRunControllerTest {
     @Test
     @DisplayName("목표7(Ruling 308) — 위치 신호로 출발 판정이 안 된 이전 정차지도 다음 도착 처리가 강제로 출발시킨다")
     void 다음_정차지_도착이_이전_정차지의_출발을_강제한다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
@@ -746,7 +680,7 @@ class DriverRunControllerTest {
     @Test
     @DisplayName("목표8(Ruling 312) — 다음 정차지가 없는 마지막 승하차지도 운행 종료 시 강제로 출발 처리된다")
     void 마지막_승하차지는_운행_종료가_출발로_갈음한다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
@@ -787,7 +721,7 @@ class DriverRunControllerTest {
     @Test
     @DisplayName("ackChanges — 배치된 기사의 확인 응답은 200 이고 Assignment.ack 가 현재 배포 버전으로 갱신된다")
     void ackChanges_는_배치된_기사의_확인을_기록하고_200을_반환한다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock);
@@ -809,7 +743,7 @@ class DriverRunControllerTest {
     @Test
     @DisplayName("ackChanges — 확정되지 않은(idle) 회차는 RUN_NOT_CONFIRMED 로 거절되고 Assignment.ack 는 그대로 null 이다")
     void 확정되지_않은_회차의_ackChanges는_RUN_NOT_CONFIRMED_이다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock).plusMinutes(9);
@@ -828,7 +762,7 @@ class DriverRunControllerTest {
     @Test
     @DisplayName("ackChanges FORBIDDEN — 같은 학원의 기사이지만 이 회차에 배치되지 않으면 403 FORBIDDEN 이고 확인 처리가 남지 않는다")
     void 배치되지_않은_같은_학원_기사의_ackChanges는_FORBIDDEN_이다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock);
@@ -853,7 +787,7 @@ class DriverRunControllerTest {
     @Test
     @DisplayName("ackChanges FORBIDDEN — 이 회차에 배치된 기사라도 토큰의 역할이 기사·동승자가 아니면 403 FORBIDDEN 이다")
     void 배치된_기사라도_토큰_역할이_기사_동승자가_아니면_ackChanges는_FORBIDDEN_이다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.now(clock);
