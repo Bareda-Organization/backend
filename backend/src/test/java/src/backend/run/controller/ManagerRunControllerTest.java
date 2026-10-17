@@ -4,8 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
+import static testsupport.web.TestResponses.본문;
 
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
@@ -23,7 +24,6 @@ import src.backend.academy.repository.AcademyRepository;
 import src.backend.run.entity.RunCancelSource;
 import src.backend.account.repository.AccountRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
@@ -128,7 +128,7 @@ class ManagerRunControllerTest {
 
         MvcResult result = mockMvc
                 .perform(get("/api/v1/manager/runs").param("date", SERVICE_DATE).header("Authorization",
-                        토큰(manager.accountId(), academyId, Role.DRIVER)))
+                        토큰(tokenProvider, manager.accountId(), academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -155,7 +155,7 @@ class ManagerRunControllerTest {
 
         MvcResult result = mockMvc
                 .perform(get("/api/v1/manager/runs").param("date", SERVICE_DATE).header("Authorization",
-                        토큰(manager.accountId(), academyId, Role.ESCORT)))
+                        토큰(tokenProvider, manager.accountId(), academyId, Role.ESCORT)))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -203,7 +203,7 @@ class ManagerRunControllerTest {
 
         MvcResult result = mockMvc
                 .perform(get("/api/v1/manager/runs").param("date", SERVICE_DATE).header("Authorization",
-                        토큰(manager.accountId(), academyId, Role.ESCORT)))
+                        토큰(tokenProvider, manager.accountId(), academyId, Role.ESCORT)))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -240,7 +240,7 @@ class ManagerRunControllerTest {
 
         MvcResult result = mockMvc
                 .perform(get("/api/v1/manager/runs").param("date", SERVICE_DATE).header("Authorization",
-                        토큰(manager.accountId(), academyId, Role.ESCORT)))
+                        토큰(tokenProvider, manager.accountId(), academyId, Role.ESCORT)))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -268,7 +268,7 @@ class ManagerRunControllerTest {
         fx.softDeleteManager(manager.managerId());
 
         mockMvc.perform(get("/api/v1/manager/runs").param("date", SERVICE_DATE).header("Authorization",
-                토큰(manager.accountId(), academyId, Role.DRIVER)))
+                토큰(tokenProvider, manager.accountId(), academyId, Role.DRIVER)))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error.code").value("TOKEN_EXPIRED")); // Ruling 880 — 인증 필터가 배치 판정(403)보다 먼저 막는다
     }
@@ -293,19 +293,11 @@ class ManagerRunControllerTest {
 
         MvcResult result = mockMvc
                 .perform(get("/api/v1/manager/runs").param("date", SERVICE_DATE).header("Authorization",
-                        토큰(other.accountId(), academyId, Role.ESCORT)))
+                        토큰(tokenProvider, other.accountId(), academyId, Role.ESCORT)))
                 .andExpect(status().isOk())
                 .andReturn();
 
         java.util.List<?> items = JsonPath.read(본문(result), "$.data.items");
         assertThat(items).isEmpty();
-    }
-
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
-    }
-
-    private String 본문(MvcResult result) throws Exception {
-        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 }

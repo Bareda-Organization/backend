@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -29,7 +30,6 @@ import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
@@ -127,10 +127,6 @@ class RunBoardingNotificationTest {
                 guardianRepository, guardianStudentRepository, changeRequestRepository);
     }
 
-    private OffsetDateTime now() {
-        return OffsetDateTime.now(clock);
-    }
-
     @Test
     @DisplayName("H1 — 하원 시작으로 자동 승차된 학생마다 보호자 전원에게 boarding 알림이 1건씩 적재된다")
     void 하원_시작_자동_승차분의_보호자_전원에게_승차_알림이_간다() throws Exception {
@@ -138,21 +134,21 @@ class RunBoardingNotificationTest {
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, now(), now().minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         long waitingTwoGuardians = fixtures.studentWithAccount(academyId, "학생A");
-        long guardianA1 = fixtures.guardianOf(academyId, waitingTwoGuardians, "A엄마", now());
-        long guardianA2 = fixtures.guardianOf(academyId, waitingTwoGuardians, "A아빠", now().plusSeconds(1));
+        long guardianA1 = fixtures.guardianOf(academyId, waitingTwoGuardians, "A엄마", OffsetDateTime.now(clock));
+        long guardianA2 = fixtures.guardianOf(academyId, waitingTwoGuardians, "A아빠", OffsetDateTime.now(clock).plusSeconds(1));
         long waitingOneGuardian = fixtures.studentWithAccount(academyId, "학생B");
-        long guardianB = fixtures.guardianOf(academyId, waitingOneGuardian, "B엄마", now());
+        long guardianB = fixtures.guardianOf(academyId, waitingOneGuardian, "B엄마", OffsetDateTime.now(clock));
         long absentStudent = fixtures.studentWithAccount(academyId, "학생C");
-        fixtures.guardianOf(academyId, absentStudent, "C엄마", now());
-        fixtures.rider(runId, waitingTwoGuardians, stopId, RiderStatus.WAITING, now());
-        fixtures.rider(runId, waitingOneGuardian, stopId, RiderStatus.WAITING, now());
-        fixtures.rider(runId, absentStudent, stopId, RiderStatus.ABSENT, now());
+        fixtures.guardianOf(academyId, absentStudent, "C엄마", OffsetDateTime.now(clock));
+        fixtures.rider(runId, waitingTwoGuardians, stopId, RiderStatus.WAITING, OffsetDateTime.now(clock));
+        fixtures.rider(runId, waitingOneGuardian, stopId, RiderStatus.WAITING, OffsetDateTime.now(clock));
+        fixtures.rider(runId, absentStudent, stopId, RiderStatus.ABSENT, OffsetDateTime.now(clock));
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/start")
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
         entityManager.flush();
 
@@ -172,17 +168,17 @@ class RunBoardingNotificationTest {
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, now(), now().minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         long sibling1 = fixtures.studentWithAccount(academyId, "형");
-        long guardianAccountId = fixtures.guardianOf(academyId, sibling1, "엄마", now());
+        long guardianAccountId = fixtures.guardianOf(academyId, sibling1, "엄마", OffsetDateTime.now(clock));
         long sibling2 = fixtures.studentWithAccount(academyId, "동생");
-        fixtures.siblingOf(guardianAccountId, sibling2, now());
-        fixtures.rider(runId, sibling1, stopId, RiderStatus.WAITING, now());
-        fixtures.rider(runId, sibling2, stopId, RiderStatus.WAITING, now());
+        fixtures.siblingOf(guardianAccountId, sibling2, OffsetDateTime.now(clock));
+        fixtures.rider(runId, sibling1, stopId, RiderStatus.WAITING, OffsetDateTime.now(clock));
+        fixtures.rider(runId, sibling2, stopId, RiderStatus.WAITING, OffsetDateTime.now(clock));
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/start")
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
         entityManager.flush();
 
@@ -202,14 +198,14 @@ class RunBoardingNotificationTest {
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, now(), now().minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         long studentId = fixtures.student(academyId, "학생");
-        long riderId = fixtures.rider(runId, studentId, stopId, RiderStatus.WAITING, now());
-        long absentRiderId = fixtures.rider(runId, fixtures.student(academyId, "결석"), stopId, RiderStatus.ABSENT, now());
+        long riderId = fixtures.rider(runId, studentId, stopId, RiderStatus.WAITING, OffsetDateTime.now(clock));
+        long absentRiderId = fixtures.rider(runId, fixtures.student(academyId, "결석"), stopId, RiderStatus.ABSENT, OffsetDateTime.now(clock));
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/start")
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
         entityManager.flush();
 
@@ -231,18 +227,18 @@ class RunBoardingNotificationTest {
         long busId = fixtures.bus(academyId);
         long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
         long stop2 = fixtures.stop(academyId, "37.561000", "126.971000");
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, now());
-        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, OffsetDateTime.now(clock));
+        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, OffsetDateTime.now(clock));
         long stillOnBus = fixtures.studentWithAccount(academyId, "탑승중");
-        fixtures.guardianOf(academyId, stillOnBus, "탑승중엄마", now());
-        fixtures.rider(runId, stillOnBus, stop1, RiderStatus.BOARDED, now());
+        fixtures.guardianOf(academyId, stillOnBus, "탑승중엄마", OffsetDateTime.now(clock));
+        fixtures.rider(runId, stillOnBus, stop1, RiderStatus.BOARDED, OffsetDateTime.now(clock));
         long gotOff = fixtures.studentWithAccount(academyId, "하차");
-        fixtures.guardianOf(academyId, gotOff, "하차엄마", now());
-        fixtures.rider(runId, gotOff, stop1, RiderStatus.ALIGHTED, now());
+        fixtures.guardianOf(academyId, gotOff, "하차엄마", OffsetDateTime.now(clock));
+        fixtures.rider(runId, gotOff, stop1, RiderStatus.ALIGHTED, OffsetDateTime.now(clock));
 
         arrive(runId, runStop1, driverAccountId, academyId);
         arrive(runId, runStop2, driverAccountId, academyId);
@@ -259,16 +255,16 @@ class RunBoardingNotificationTest {
         long busId = fixtures.bus(academyId);
         long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
         long stop2 = fixtures.stop(academyId, "37.561000", "126.971000");
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, now());
-        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, OffsetDateTime.now(clock));
+        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, OffsetDateTime.now(clock));
         fixtures.runStopForDestination(versionId, 3);
         long student = fixtures.studentWithAccount(academyId, "탑승");
-        fixtures.guardianOf(academyId, student, "탑승엄마", now());
-        fixtures.rider(runId, student, stop1, RiderStatus.BOARDED, now());
+        fixtures.guardianOf(academyId, student, "탑승엄마", OffsetDateTime.now(clock));
+        fixtures.rider(runId, student, stop1, RiderStatus.BOARDED, OffsetDateTime.now(clock));
 
         arrive(runId, runStop1, driverAccountId, academyId);
         arrive(runId, runStop2, driverAccountId, academyId);
@@ -285,19 +281,19 @@ class RunBoardingNotificationTest {
         long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
         long stop2 = fixtures.stop(academyId, "37.561000", "126.971000");
         long stop3 = fixtures.stop(academyId, "37.562000", "126.972000");
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        fixtures.runStopForStop(versionId, stop1, 1, now());
-        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, now());
-        fixtures.runStopForStop(versionId, stop3, 3, now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        fixtures.runStopForStop(versionId, stop1, 1, OffsetDateTime.now(clock));
+        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, OffsetDateTime.now(clock));
+        fixtures.runStopForStop(versionId, stop3, 3, OffsetDateTime.now(clock));
         long student1 = fixtures.studentWithAccount(academyId, "학생1");
-        fixtures.guardianOf(academyId, student1, "학부모1", now());
-        fixtures.rider(runId, student1, stop1, RiderStatus.ALIGHTED, now());
+        fixtures.guardianOf(academyId, student1, "학부모1", OffsetDateTime.now(clock));
+        fixtures.rider(runId, student1, stop1, RiderStatus.ALIGHTED, OffsetDateTime.now(clock));
         long student3 = fixtures.studentWithAccount(academyId, "학생3");
-        fixtures.guardianOf(academyId, student3, "학부모3", now());
-        fixtures.rider(runId, student3, stop3, RiderStatus.BOARDED, now());
+        fixtures.guardianOf(academyId, student3, "학부모3", OffsetDateTime.now(clock));
+        fixtures.rider(runId, student3, stop3, RiderStatus.BOARDED, OffsetDateTime.now(clock));
 
         arrive(runId, runStop2, driverAccountId, academyId);
 
@@ -315,21 +311,21 @@ class RunBoardingNotificationTest {
         long busId = fixtures.bus(academyId);
         long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
         long stop2 = fixtures.stop(academyId, "37.561000", "126.971000");
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        fixtures.runStopForStop(versionId, stop1, 1, now());
-        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        fixtures.runStopForStop(versionId, stop1, 1, OffsetDateTime.now(clock));
+        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, OffsetDateTime.now(clock));
         long student1 = fixtures.studentWithAccount(academyId, "학생1");
-        fixtures.guardianOf(academyId, student1, "학부모1", now());
-        fixtures.rider(runId, student1, stop1, RiderStatus.ALIGHTED, now());
+        fixtures.guardianOf(academyId, student1, "학부모1", OffsetDateTime.now(clock));
+        fixtures.rider(runId, student1, stop1, RiderStatus.ALIGHTED, OffsetDateTime.now(clock));
         long student2 = fixtures.studentWithAccount(academyId, "학생2");
-        fixtures.guardianOf(academyId, student2, "학부모2", now());
-        fixtures.rider(runId, student2, stop2, RiderStatus.ALIGHTED, now());
+        fixtures.guardianOf(academyId, student2, "학부모2", OffsetDateTime.now(clock));
+        fixtures.rider(runId, student2, stop2, RiderStatus.ALIGHTED, OffsetDateTime.now(clock));
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop2 + "/arrive")
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.run_status").value("finished"));
         entityManager.flush();
@@ -348,26 +344,26 @@ class RunBoardingNotificationTest {
         long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
         long stop2 = fixtures.stop(academyId, "37.561000", "126.971000");
         long stop3 = fixtures.stop(academyId, "37.562000", "126.972000");
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        fixtures.runStopForStop(versionId, stop1, 1, now());
-        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, now());
-        fixtures.runStopForStop(versionId, stop3, 3, now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        fixtures.runStopForStop(versionId, stop1, 1, OffsetDateTime.now(clock));
+        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, OffsetDateTime.now(clock));
+        fixtures.runStopForStop(versionId, stop3, 3, OffsetDateTime.now(clock));
         // 세 번째 정차지는 전원 미승차로 건너뜀 표시 — 서지 않으니 최종 지점은 둘째이고 도착 처리도 없다.
         jdbcTemplate.update("UPDATE run_stop SET change = 'skipped' WHERE route_version_id = ? AND stop_id = ?",
                 versionId, stop3);
         long student2 = fixtures.studentWithAccount(academyId, "학생2");
-        fixtures.guardianOf(academyId, student2, "학부모2", now());
-        fixtures.rider(runId, student2, stop2, RiderStatus.ALIGHTED, now());
+        fixtures.guardianOf(academyId, student2, "학부모2", OffsetDateTime.now(clock));
+        fixtures.rider(runId, student2, stop2, RiderStatus.ALIGHTED, OffsetDateTime.now(clock));
         long student3 = fixtures.studentWithAccount(academyId, "학생3");
-        fixtures.guardianOf(academyId, student3, "학부모3", now());
-        fixtures.rider(runId, student3, stop3, RiderStatus.NO_SHOW, now());
+        fixtures.guardianOf(academyId, student3, "학부모3", OffsetDateTime.now(clock));
+        fixtures.rider(runId, student3, stop3, RiderStatus.NO_SHOW, OffsetDateTime.now(clock));
         entityManager.flush();
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop2 + "/arrive")
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.run_status").value("finished"));
         entityManager.flush();
@@ -385,19 +381,19 @@ class RunBoardingNotificationTest {
         long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
         long stop2 = fixtures.stop(academyId, "37.561000", "126.971000");
         long stop3 = fixtures.stop(academyId, "37.562000", "126.972000");
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, now());
-        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, now());
-        fixtures.runStopForStop(versionId, stop3, 3, now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, OffsetDateTime.now(clock));
+        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, OffsetDateTime.now(clock));
+        fixtures.runStopForStop(versionId, stop3, 3, OffsetDateTime.now(clock));
         // 첫 정차지는 전원 미승차로 건너뜀 표시 — 서지 않는 정차지이고, 최종 지점은 셋째라 둘째 도착은 최종이 아니다.
         jdbcTemplate.update("UPDATE run_stop SET change = 'skipped' WHERE route_version_id = ? AND stop_id = ?",
                 versionId, stop1);
         long student1 = fixtures.studentWithAccount(academyId, "학생1");
-        fixtures.guardianOf(academyId, student1, "학부모1", now());
-        fixtures.rider(runId, student1, stop1, RiderStatus.NO_SHOW, now());
+        fixtures.guardianOf(academyId, student1, "학부모1", OffsetDateTime.now(clock));
+        fixtures.rider(runId, student1, stop1, RiderStatus.NO_SHOW, OffsetDateTime.now(clock));
         entityManager.flush();
 
         arrive(runId, runStop2, driverAccountId, academyId);
@@ -415,15 +411,15 @@ class RunBoardingNotificationTest {
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        fixtures.runStopForStop(versionId, stop1, 1, now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        fixtures.runStopForStop(versionId, stop1, 1, OffsetDateTime.now(clock));
         long destination = fixtures.runStopForDestination(versionId, 2);
         long student = fixtures.studentWithAccount(academyId, "학생");
-        fixtures.guardianOf(academyId, student, "학부모", now());
-        fixtures.rider(runId, student, stop1, RiderStatus.BOARDED, now());
+        fixtures.guardianOf(academyId, student, "학부모", OffsetDateTime.now(clock));
+        fixtures.rider(runId, student, stop1, RiderStatus.BOARDED, OffsetDateTime.now(clock));
 
         arrive(runId, destination, driverAccountId, academyId);
 
@@ -452,7 +448,7 @@ class RunBoardingNotificationTest {
 
     private void arrive(long runId, long runStopId, long driverAccountId, long academyId) throws Exception {
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStopId + "/arrive")
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
         entityManager.flush();
     }
@@ -464,9 +460,5 @@ class RunBoardingNotificationTest {
                         + "AND nl.dedup_key LIKE 'stop_departed:%'",
                 Integer.class, runId, type);
         return count == null ? 0 : count;
-    }
-
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
     }
 }

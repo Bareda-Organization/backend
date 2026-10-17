@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -28,7 +29,6 @@ import com.jayway.jsonpath.JsonPath;
 
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
@@ -168,7 +168,7 @@ class StaffPlannedRosterTransferMarkTest {
                 fixtures.stop(academyId, "37.563000", "126.973000"), STAFF_ACCOUNT_ID, OffsetDateTime.now(clock),
                 null));
         mockMvc.perform(post("/api/v1/staff/students/" + movedStudent + "/transfer")
-                .header("Authorization", 토큰(academyId))
+                .header("Authorization", 토큰(tokenProvider, STAFF_ACCOUNT_ID, academyId, Role.STAFF))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"from_run_id\":" + fromRunId + ",\"to_run_id\":" + toRunId + ",\"stop_id\":" + routeStop
                         + "}")).andExpect(status().isCreated());
@@ -188,15 +188,10 @@ class StaffPlannedRosterTransferMarkTest {
     /** §5.4 응답을 {@code student_id} 문자열을 키로 한 행 표로 읽는다. */
     private Map<String, Map<String, Object>> 명단(long runId, long academyId) throws Exception {
         String json = mockMvc.perform(get("/api/v1/staff/runs/" + runId + "/roster")
-                .header("Authorization", 토큰(academyId)))
+                .header("Authorization", 토큰(tokenProvider, STAFF_ACCOUNT_ID, academyId, Role.STAFF)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         List<Map<String, Object>> rows = JsonPath.read(json, "$.data");
         return rows.stream().collect(java.util.stream.Collectors.toMap(row -> (String) row.get("student_id"),
                 row -> row));
-    }
-
-    private String 토큰(long academyId) {
-        return "Bearer " + tokenProvider.createAccessToken(STAFF_ACCOUNT_ID, academyId, Role.STAFF,
-                AccountStatus.ACTIVE);
     }
 }

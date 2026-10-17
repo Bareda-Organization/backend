@@ -16,6 +16,7 @@ import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.관계자_토큰;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -46,7 +47,6 @@ import src.backend.academy.repository.AcademyRepository;
 import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
@@ -293,12 +293,12 @@ class RunRouteChangedBroadcastWiringTest {
 
     private org.springframework.test.web.servlet.ResultActions 결정한다(승인_시나리오 s) throws Exception {
         String detail = mockMvc
-                .perform(get("/api/v1/staff/approvals/" + s.approvalId()).header("Authorization", 토큰(s.academyId())))
+                .perform(get("/api/v1/staff/approvals/" + s.approvalId()).header("Authorization", 관계자_토큰(tokenProvider, s.academyId())))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         String previewToken = JsonPath.read(detail, "$.data.preview_token");
         return mockMvc.perform(post("/api/v1/staff/approvals/" + s.approvalId() + "/decide")
-                .header("Authorization", 토큰(s.academyId()))
+                .header("Authorization", 관계자_토큰(tokenProvider, s.academyId()))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"approve\":true,\"preview_token\":\"" + previewToken + "\"}"));
     }
@@ -307,20 +307,15 @@ class RunRouteChangedBroadcastWiringTest {
     private void 경유_지점을_배포한다(long academyId, long runId) throws Exception {
         String path = "/api/v1/staff/runs/" + runId + "/waypoints";
         String body = "{\"address\":\"새경유로 20\",\"label\":\"긴급 정류장\",\"apply\":%s%s}";
-        String preview = mockMvc.perform(post(path).header("Authorization", 토큰(academyId))
+        String preview = mockMvc.perform(post(path).header("Authorization", 관계자_토큰(tokenProvider, academyId))
                         .contentType(MediaType.APPLICATION_JSON).content(body.formatted(false, "")))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         String token = JsonPath.read(preview, "$.data.preview_token");
-        mockMvc.perform(post(path).header("Authorization", 토큰(academyId))
+        mockMvc.perform(post(path).header("Authorization", 관계자_토큰(tokenProvider, academyId))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body.formatted(true, ",\"preview_token\":\"" + token + "\"")))
                 .andExpect(status().isOk());
-    }
-
-    private String 토큰(long academyId) {
-        return "Bearer " + tokenProvider.createAccessToken(academyId * 1000 + 1, academyId, Role.STAFF,
-                AccountStatus.ACTIVE);
     }
 
     private record 승인_시나리오(long academyId, long runId, long approvalId) {

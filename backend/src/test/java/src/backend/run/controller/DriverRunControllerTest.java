@@ -3,9 +3,9 @@ package src.backend.run.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -35,7 +35,6 @@ import src.backend.boarding.entity.RiderStatus;
 import src.backend.run.event.RunEndedEvent;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
@@ -141,16 +140,11 @@ class DriverRunControllerTest {
     @Autowired
     private ApplicationEvents applicationEvents;
 
-
     private DriverRunFixtures fixtures() {
         return new DriverRunFixtures(academyRepository, busRepository, stopRepository, studentRepository,
                 accountRepository, managerRepository, assignmentRepository, runRepository, confirmedRouteRepository,
                 routeVersionRepository, runStopRepository, runRiderRepository, academyStaffRepository,
                 guardianRepository, guardianStudentRepository, changeRequestRepository);
-    }
-
-    private OffsetDateTime now() {
-        return OffsetDateTime.now(clock);
     }
 
     // ── goal 1 — 출발 ±10분 창 ──────────────────────────────────────────
@@ -161,11 +155,11 @@ class DriverRunControllerTest {
         DriverRunFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now().plusMinutes(9);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusMinutes(9);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
 
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/start").header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/start").header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.run_status").value("moving"));
 
@@ -178,12 +172,12 @@ class DriverRunControllerTest {
         DriverRunFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now().plusMinutes(9);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusMinutes(9);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         jdbcTemplate.update("UPDATE run SET canceled_at = now() WHERE id = ?", runId);
 
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/start").header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/start").header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isConflict())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error.code").value("RUN_CANCELED"));
 
@@ -196,11 +190,11 @@ class DriverRunControllerTest {
         DriverRunFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now().plusMinutes(11);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusMinutes(11);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
 
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/start").header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/start").header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isForbidden())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error.code").value("START_WINDOW_CLOSED"));
 
@@ -213,11 +207,11 @@ class DriverRunControllerTest {
         DriverRunFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now().minusMinutes(9);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).minusMinutes(9);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
 
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/start").header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/start").header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.run_status").value("moving"));
 
@@ -230,11 +224,11 @@ class DriverRunControllerTest {
         DriverRunFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now().minusMinutes(11);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).minusMinutes(11);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
 
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/start").header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/start").header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isForbidden())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error.code").value("START_WINDOW_CLOSED"));
 
@@ -247,11 +241,11 @@ class DriverRunControllerTest {
         DriverRunFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now().minusMinutes(10);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).minusMinutes(10);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
 
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/start").header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/start").header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.run_status").value("moving"));
 
@@ -264,11 +258,11 @@ class DriverRunControllerTest {
         DriverRunFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now().plusMinutes(10);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusMinutes(10);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
 
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/start").header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/start").header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.run_status").value("moving"));
 
@@ -284,15 +278,15 @@ class DriverRunControllerTest {
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         fixtures.staffAccount(academyId, "관계자1");
         long studentId = fixtures.studentWithAccount(academyId, "학생1");
-        fixtures.guardianOf(academyId, studentId, "학부모1", now());
-        fixtures.rider(runId, studentId, stopId, RiderStatus.WAITING, now());
+        fixtures.guardianOf(academyId, studentId, "학부모1", OffsetDateTime.now(clock));
+        fixtures.rider(runId, studentId, stopId, RiderStatus.WAITING, OffsetDateTime.now(clock));
 
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/start").header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/start").header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
 
         entityManager.flush();
@@ -330,14 +324,14 @@ class DriverRunControllerTest {
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         long studentId = fixtures.student(academyId, "쉬는학생");
-        fixtures.guardianOf(academyId, studentId, "학부모1", now());
-        fixtures.rider(runId, studentId, stopId, RiderStatus.ABSENT, now());
+        fixtures.guardianOf(academyId, studentId, "학부모1", OffsetDateTime.now(clock));
+        fixtures.rider(runId, studentId, stopId, RiderStatus.ABSENT, OffsetDateTime.now(clock));
 
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/start").header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/start").header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
 
         entityManager.flush();
@@ -353,14 +347,14 @@ class DriverRunControllerTest {
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long studentId = fixtures.student(academyId, "학생1");
-        long parentAccountId = fixtures.guardianOf(academyId, studentId, "학부모1", now());
-        OffsetDateTime departTime = now();
+        long parentAccountId = fixtures.guardianOf(academyId, studentId, "학부모1", OffsetDateTime.now(clock));
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         long changeRequestId = fixtures.pendingChangeRequest(academyId, runId, studentId, parentAccountId,
-                now().minusMinutes(10), departTime);
+                OffsetDateTime.now(clock).minusMinutes(10), departTime);
 
-        mockMvc.perform(post("/api/v1/runs/" + runId + "/start").header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+        mockMvc.perform(post("/api/v1/runs/" + runId + "/start").header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
 
         entityManager.flush();
@@ -378,13 +372,13 @@ class DriverRunControllerTest {
         DriverRunFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
-        fixtures.startRun(runId, now());
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
 
         for (Role role : new Role[] {Role.STAFF, Role.PARENT}) {
             mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/1/arrive")
-                    .header("Authorization", 토큰(999_999L, academyId, role)))
+                    .header("Authorization", 토큰(tokenProvider, 999_999L, academyId, role)))
                     .andExpect(status().isForbidden())
                     .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error.code")
                             .value("DRIVER_ONLY"));
@@ -398,23 +392,23 @@ class DriverRunControllerTest {
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        long runStopId = fixtures.runStopForStop(versionId, stopId, 1, now());
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        long runStopId = fixtures.runStopForStop(versionId, stopId, 1, OffsetDateTime.now(clock));
 
         // 동승자(배치와 무관하게 역할 자체가 틀린 경우) — DRIVER_ONLY, run_stop 은 건드려지지 않는다
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStopId + "/arrive")
-                .header("Authorization", 토큰(999_999L, academyId, Role.ESCORT)))
+                .header("Authorization", 토큰(tokenProvider, 999_999L, academyId, Role.ESCORT)))
                 .andExpect(status().isForbidden())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error.code").value("DRIVER_ONLY"));
         assertThat(도착시각(versionId, stopId)).as("동승자 호출은 도착 시각을 건드리면 안 된다").isNull();
 
         // 배치된 기사 — 성공. 경로의 {stopId} 는 run_stop.id 다(Ruling 327)
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStopId + "/arrive")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
         entityManager.flush();
         assertThat(도착시각(versionId, stopId)).as("기사 호출은 도착 시각을 남겨야 한다").isNotNull();
@@ -427,19 +421,19 @@ class DriverRunControllerTest {
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
-        fixtures.startRun(runId, now());
-        fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "배치된기사", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        long runStopId = fixtures.runStopForStop(versionId, stopId, 1, now());
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "배치된기사", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        long runStopId = fixtures.runStopForStop(versionId, stopId, 1, OffsetDateTime.now(clock));
 
         // 같은 학원 소속 기사 계정이지만(역할은 맞다) 이 회차에는 배치되지 않았다 — 다른 회차 계정과
         // 갈리지 않도록 반드시 같은 학원 계정을 쓴다(학원 불일치가 먼저 걸리면 인가 판정 자체를 못 본다).
         long unassignedDriverAccountId = fixtures.unassignedManager(academyId, ManagerRole.DRIVER, "미배치기사");
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStopId + "/arrive")
-                .header("Authorization", 토큰(unassignedDriverAccountId, academyId, Role.DRIVER)))
+                .header("Authorization", 토큰(tokenProvider, unassignedDriverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isForbidden())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error.code").value("FORBIDDEN"));
         assertThat(도착시각(versionId, stopId)).as("배치되지 않은 기사 호출은 도착 시각을 건드리면 안 된다").isNull();
@@ -455,31 +449,31 @@ class DriverRunControllerTest {
         long busId = fixtures.bus(academyId);
         long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
         long stop2 = fixtures.stop(academyId, "37.561000", "126.971000");
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, now());
-        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, now());
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, OffsetDateTime.now(clock));
+        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, OffsetDateTime.now(clock));
         long academyStop = fixtures.runStopForDestination(versionId, 3);
 
         long student1 = fixtures.studentWithAccount(academyId, "학생1");
-        fixtures.guardianOf(academyId, student1, "학부모1", now());
-        fixtures.rider(runId, student1, stop1, RiderStatus.BOARDED, now());
+        fixtures.guardianOf(academyId, student1, "학부모1", OffsetDateTime.now(clock));
+        fixtures.rider(runId, student1, stop1, RiderStatus.BOARDED, OffsetDateTime.now(clock));
         long student2 = fixtures.studentWithAccount(academyId, "학생2");
-        fixtures.guardianOf(academyId, student2, "학부모2", now());
-        fixtures.rider(runId, student2, stop2, RiderStatus.BOARDED, now());
+        fixtures.guardianOf(academyId, student2, "학부모2", OffsetDateTime.now(clock));
+        fixtures.rider(runId, student2, stop2, RiderStatus.BOARDED, OffsetDateTime.now(clock));
 
         // 첫 정차지 — 최종이 아니라 하차가 없다
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop1 + "/arrive")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.is_final").value(false));
 
         // 마지막 승차지 — 일반 도착이다. 학원까지 남은 구간이 있고, 이 승차지 학생의 승차 처리가 계속 가능해야 한다
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop2 + "/arrive")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.is_final").value(false))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.run_status").value("moving"))
@@ -490,7 +484,7 @@ class DriverRunControllerTest {
 
         // 학원 항목 — 전원 자동 하차 + 종료
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + academyStop + "/arrive")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.is_final").value(true))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.run_status").value("finished"))
@@ -523,19 +517,19 @@ class DriverRunControllerTest {
         long busId = fixtures.bus(academyId);
         long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
         long stop2 = fixtures.stop(academyId, "37.561000", "126.971000");
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, now());
-        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, now());
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, OffsetDateTime.now(clock));
+        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, OffsetDateTime.now(clock));
         long academyStop = fixtures.runStopForDestination(versionId, 3);
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop1 + "/arrive")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))).andExpect(status().isOk());
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))).andExpect(status().isOk());
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + academyStop + "/arrive")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.run_status").value("finished"));
         entityManager.flush();
@@ -553,7 +547,7 @@ class DriverRunControllerTest {
         long[] s = 최종_도착으로_종료된_등원_회차();
         long academyId = s[0];
         long runId = s[1];
-        String driver = 토큰(s[2], academyId, Role.DRIVER);
+        String driver = 토큰(tokenProvider, s[2], academyId, Role.DRIVER);
         OffsetDateTime finalArrivedAt = 도착시각_항목(s[5]);
 
         for (long processedRunStop : new long[] { s[5], s[3] }) {
@@ -571,7 +565,7 @@ class DriverRunControllerTest {
         long[] s = 최종_도착으로_종료된_등원_회차();
 
         mockMvc.perform(post("/api/v1/runs/" + s[1] + "/stops/" + s[4] + "/arrive")
-                .header("Authorization", 토큰(s[2], s[0], Role.DRIVER)))
+                .header("Authorization", 토큰(tokenProvider, s[2], s[0], Role.DRIVER)))
                 .andExpect(status().isConflict())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error.code").value("RUN_NOT_MOVING"));
         assertThat(도착시각_항목(s[4])).as("도착하지 않은 정차지는 기록이 생기지 않는다").isNull();
@@ -593,31 +587,31 @@ class DriverRunControllerTest {
         long busId = fixtures.bus(academyId);
         long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
         long stop2 = fixtures.stop(academyId, "37.561000", "126.971000");
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, now());
-        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, now());
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, OffsetDateTime.now(clock));
+        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, OffsetDateTime.now(clock));
         long academyStop = fixtures.runStopForDestination(versionId, 3);
 
         // 최종 정차지(stop2) 에 배정된 학생이 이미 승차해 있다 — 최종 지점은 그 다음 arrive 호출이
         // 없어 goal7 의 "다음 도착 시 이전 정차지 강제" 폴백을 받지 못하는 유일한 정차지다.
         long student2 = fixtures.studentWithAccount(academyId, "학생2");
-        fixtures.guardianOf(academyId, student2, "학부모2", now());
-        fixtures.rider(runId, student2, stop2, RiderStatus.BOARDED, now());
+        fixtures.guardianOf(academyId, student2, "학부모2", OffsetDateTime.now(clock));
+        fixtures.rider(runId, student2, stop2, RiderStatus.BOARDED, OffsetDateTime.now(clock));
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop1 + "/arrive")
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop2 + "/arrive")
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + academyStop + "/arrive")
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.is_final").value(true))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.run_status").value("finished"))
@@ -644,24 +638,24 @@ class DriverRunControllerTest {
         long busId = fixtures.bus(academyId);
         long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
         long stop2 = fixtures.stop(academyId, "37.561000", "126.971000");
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, now());
-        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, now());
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, OffsetDateTime.now(clock));
+        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, OffsetDateTime.now(clock));
 
         long student1 = fixtures.studentWithAccount(academyId, "학생1");
-        fixtures.rider(runId, student1, stop2, RiderStatus.BOARDED, now());
+        fixtures.rider(runId, student1, stop2, RiderStatus.BOARDED, OffsetDateTime.now(clock));
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop1 + "/arrive")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop2 + "/arrive")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.is_final").value(true))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.run_status").value("moving"))
@@ -683,23 +677,23 @@ class DriverRunControllerTest {
         long busId = fixtures.bus(academyId);
         long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
         long stop2 = fixtures.stop(academyId, "37.561000", "126.971000");
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, now());
-        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, now());
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, OffsetDateTime.now(clock));
+        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, OffsetDateTime.now(clock));
         Waypoint waypoint = waypointRepository.save(Waypoint.forRun(runId, "주유소", null, new BigDecimal("37.562000"),
-                new BigDecimal("126.972000"), null, driverAccountId, now()));
+                new BigDecimal("126.972000"), null, driverAccountId, OffsetDateTime.now(clock)));
         fixtures.runStopForWaypoint(versionId, waypoint.getId(), 3);
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop1 + "/arrive")
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop2 + "/arrive")
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.is_final").value(true))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.run_status").value("finished"));
@@ -718,28 +712,28 @@ class DriverRunControllerTest {
         long busId = fixtures.bus(academyId);
         long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
         long stop2 = fixtures.stop(academyId, "37.561000", "126.971000");
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, now());
-        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, now());
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, OffsetDateTime.now(clock));
+        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, OffsetDateTime.now(clock));
 
         // 하원이라 확정 결과는 "하차" 다 — 탑승 중(boarded)인 채 출발한 학생은 확정된 결과가 없어 알림 대상이 아니다(R51 H1).
         long student1 = fixtures.studentWithAccount(academyId, "학생1");
-        fixtures.guardianOf(academyId, student1, "학부모1", now());
-        fixtures.rider(runId, student1, stop1, RiderStatus.ALIGHTED, now());
+        fixtures.guardianOf(academyId, student1, "학부모1", OffsetDateTime.now(clock));
+        fixtures.rider(runId, student1, stop1, RiderStatus.ALIGHTED, OffsetDateTime.now(clock));
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop1 + "/arrive")
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
         entityManager.flush();
         assertThat(출발시각(versionId, stop1)).as("①위치 판정 없이는 아직 출발 처리 전이다").isNull();
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop2 + "/arrive")
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
 
         entityManager.flush();
@@ -757,27 +751,27 @@ class DriverRunControllerTest {
         long busId = fixtures.bus(academyId);
         long stop1 = fixtures.stop(academyId, "37.560000", "126.970000");
         long stop2 = fixtures.stop(academyId, "37.561000", "126.971000");
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, now());
-        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, now());
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, OffsetDateTime.now(clock));
+        long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, OffsetDateTime.now(clock));
 
         // stop2 가 마지막이고, 그 탑승자는 이미 하차 처리됐다고 가정한다 — 도착 즉시 종료(stillBoarded=0)되어
         // 다음 정차지가 없으니 목표7 폴백을 받지 못한다. Ruling 312 가 이 구멍을 막는다.
         long student2 = fixtures.studentWithAccount(academyId, "학생2");
-        fixtures.guardianOf(academyId, student2, "학부모2", now());
-        fixtures.rider(runId, student2, stop2, RiderStatus.ALIGHTED, now());
+        fixtures.guardianOf(academyId, student2, "학부모2", OffsetDateTime.now(clock));
+        fixtures.rider(runId, student2, stop2, RiderStatus.ALIGHTED, OffsetDateTime.now(clock));
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop1 + "/arrive")
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop2 + "/arrive")
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.is_final").value(true))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.run_status").value("finished"));
@@ -796,14 +790,14 @@ class DriverRunControllerTest {
         DriverRunFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/ack-changes")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.acked_at").exists());
 
@@ -818,12 +812,12 @@ class DriverRunControllerTest {
         DriverRunFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now().plusMinutes(9);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusMinutes(9);
         long runId = fixtures.idleRun(academyId, busId, Direction.TO_ACADEMY, departTime);
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/ack-changes")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isConflict())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error.code").value("RUN_NOT_CONFIRMED"));
 
@@ -837,18 +831,18 @@ class DriverRunControllerTest {
         DriverRunFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "배치된기사", now());
-        fixtures.confirmedRouteWithVersion(runId, now());
+        fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "배치된기사", OffsetDateTime.now(clock));
+        fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
 
         // 같은 학원 소속 기사 계정이지만(역할은 맞다) 이 회차에는 배치되지 않았다 — 다른 회차 계정과
         // 갈리지 않도록 반드시 같은 학원 계정을 쓴다(학원 불일치가 먼저 걸리면 인가 판정 자체를 못 본다).
         long unassignedDriverAccountId = fixtures.unassignedManager(academyId, ManagerRole.DRIVER, "미배치기사");
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/ack-changes")
-                .header("Authorization", 토큰(unassignedDriverAccountId, academyId, Role.DRIVER)))
+                .header("Authorization", 토큰(tokenProvider, unassignedDriverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isForbidden())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error.code").value("FORBIDDEN"));
 
@@ -862,17 +856,17 @@ class DriverRunControllerTest {
         DriverRunFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        fixtures.confirmedRouteWithVersion(runId, now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
 
         // 계정 자체는 이 회차에 배치된 기사이지만, 토큰이 주장하는 역할이 STAFF 다 — 역할 판정
         // (assertAssignedDriverOrEscort 의 switch) 이 배치 조회보다 먼저 걸러야 한다. 배치 조회만으로는
         // 이 사람이 실제로 그 회차의 기사라 통과해 버리므로, 역할 분기 자체가 살아 있는지는 이 테스트만이 잡는다.
         mockMvc.perform(post("/api/v1/runs/" + runId + "/ack-changes")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.STAFF)))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isForbidden())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error.code").value("FORBIDDEN"));
 
@@ -881,10 +875,6 @@ class DriverRunControllerTest {
     }
 
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────
-
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
-    }
 
     private OffsetDateTime 회차_시작시각(long runId) {
         return jdbcTemplate.queryForObject("SELECT started_at FROM run WHERE id = ?", OffsetDateTime.class, runId);

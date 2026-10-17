@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -28,7 +29,6 @@ import src.backend.academy.repository.AcademyRepository;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.entity.BusSeating;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
@@ -325,7 +325,7 @@ class StaffForcedAdditionControllerTest {
         long otherAcademyId = fixtures().academyWithCoordinates();
 
         mockMvc.perform(post("/api/v1/staff/runs/" + runId + "/forced-add")
-                .header("Authorization", 토큰(otherAcademyId))
+                .header("Authorization", 토큰(tokenProvider, STAFF_ACCOUNT_ID, otherAcademyId, Role.STAFF))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(학생_추가_본문(null, "새학생", "테스트로 100")))
                 .andExpect(status().isNotFound())
@@ -344,7 +344,7 @@ class StaffForcedAdditionControllerTest {
     private ResultActions 강제_추가한다(long runId, String body) throws Exception {
         long academyId = jdbcTemplate.queryForObject("SELECT academy_id FROM run WHERE id = ?", Long.class, runId);
         return mockMvc.perform(post("/api/v1/staff/runs/" + runId + "/forced-add")
-                .header("Authorization", 토큰(academyId))
+                .header("Authorization", 토큰(tokenProvider, STAFF_ACCOUNT_ID, academyId, Role.STAFF))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body));
     }
@@ -363,10 +363,5 @@ class StaffForcedAdditionControllerTest {
         }
         body.append("\"address\":\"").append(address).append("\"}");
         return body.toString();
-    }
-
-    private String 토큰(long academyId) {
-        return "Bearer " + tokenProvider.createAccessToken(STAFF_ACCOUNT_ID, academyId, Role.STAFF,
-                AccountStatus.ACTIVE);
     }
 }

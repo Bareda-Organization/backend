@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -31,7 +32,6 @@ import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
@@ -128,16 +128,11 @@ class Phase9CrossSeatWiringTest {
     @Autowired
     private ChangeRequestRepository changeRequestRepository;
 
-
     private DriverRunFixtures fixtures() {
         return new DriverRunFixtures(academyRepository, busRepository, stopRepository, studentRepository,
                 accountRepository, managerRepository, assignmentRepository, runRepository, confirmedRouteRepository,
                 routeVersionRepository, runStopRepository, runRiderRepository, academyStaffRepository,
                 guardianRepository, guardianStudentRepository, changeRequestRepository);
-    }
-
-    private OffsetDateTime now() {
-        return OffsetDateTime.now(clock);
     }
 
     // ── 1. T2(도착·종료 보류) → T3(하차 PATCH) — 마지막 하차가 실제로 회차를 finished 로 전이한다 ──
@@ -154,27 +149,27 @@ class Phase9CrossSeatWiringTest {
         long busId = fixtures().bus(academyId);
         long stop1 = fixtures().stop(academyId, "37.560000", "126.970000");
         long stop2 = fixtures().stop(academyId, "37.561000", "126.971000");
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures().confirmedRun(academyId, busId, Direction.FROM_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        fixtures().startRun(runId, now());
-        long driverAccountId = fixtures().assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        long escortAccountId = fixtures().assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
-        long versionId = fixtures().confirmedRouteWithVersion(runId, now());
-        long runStop1 = fixtures().runStopForStop(versionId, stop1, 1, now());
-        long runStop2 = fixtures().runStopForStop(versionId, stop2, 2, now());
+        fixtures().startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures().assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        long escortAccountId = fixtures().assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
+        long versionId = fixtures().confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        long runStop1 = fixtures().runStopForStop(versionId, stop1, 1, OffsetDateTime.now(clock));
+        long runStop2 = fixtures().runStopForStop(versionId, stop2, 2, OffsetDateTime.now(clock));
 
         long absentStudentId = fixtures().student(academyId, "결석학생");
-        fixtures().rider(runId, absentStudentId, stop2, RiderStatus.ABSENT, now());
+        fixtures().rider(runId, absentStudentId, stop2, RiderStatus.ABSENT, OffsetDateTime.now(clock));
         long boardedStudentId = fixtures().student(academyId, "탑승학생");
-        long boardedRiderId = fixtures().rider(runId, boardedStudentId, stop2, RiderStatus.BOARDED, now());
+        long boardedRiderId = fixtures().rider(runId, boardedStudentId, stop2, RiderStatus.BOARDED, OffsetDateTime.now(clock));
 
         // T2 — 최종지점 도착, 탑승자 1명이 남아 있어 종료가 보류된다(실제 arrive 경로).
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop1 + "/arrive")
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop2 + "/arrive")
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.finish_pending").value(true));
         entityManager.flush();
@@ -182,9 +177,9 @@ class Phase9CrossSeatWiringTest {
 
         // T3 — 마지막 탑승자의 실제 PATCH 하차(@MockitoBean 없이 RunCompletionService 실물 호출).
         mockMvc.perform(patch("/api/v1/runs/" + runId + "/riders/" + boardedRiderId)
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(하차_본문(now())))
+                        .content(하차_본문(OffsetDateTime.now(clock))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("alighted"));
 
@@ -208,25 +203,25 @@ class Phase9CrossSeatWiringTest {
         long stop1 = fixtures().stop(academyId, "37.500000", "127.000000");
         long stop2 = fixtures().stop(academyId, "37.510000", "127.010000");
         long stop3 = fixtures().stop(academyId, "37.520000", "127.020000");
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures().confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        fixtures().startRun(runId, now());
-        long driverAccountId = fixtures().assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        long versionId = fixtures().confirmedRouteWithVersion(runId, now());
-        long runStop1 = fixtures().runStopForStop(versionId, stop1, 1, now());
-        long runStop2 = fixtures().runStopForStop(versionId, stop2, 2, now());
-        fixtures().runStopForStop(versionId, stop3, 3, now());
+        fixtures().startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures().assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        long versionId = fixtures().confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        long runStop1 = fixtures().runStopForStop(versionId, stop1, 1, OffsetDateTime.now(clock));
+        long runStop2 = fixtures().runStopForStop(versionId, stop2, 2, OffsetDateTime.now(clock));
+        fixtures().runStopForStop(versionId, stop3, 3, OffsetDateTime.now(clock));
 
         // T2 — 1번 정차지에 실제로 도착(최종이 아니라 회차는 계속 moving).
         mockMvc.perform(post("/api/v1/runs/" + runId + "/stops/" + runStop1 + "/arrive")
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.is_final").value(false));
 
         // T1 — 같은 회차의 실시간 노선 조회.
         mockMvc.perform(get("/api/v1/runs/" + runId + "/route")
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.current_stop.stop_id").value(runStop1))
                 .andExpect(jsonPath("$.data.next_stop.stop_id").value(runStop2));
@@ -246,26 +241,26 @@ class Phase9CrossSeatWiringTest {
         long busId = fixtures().bus(academyId);
         long stop1 = fixtures().stop(academyId, "37.530000", "127.030000");
         long stop2 = fixtures().stop(academyId, "37.540000", "127.040000");
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures().confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        fixtures().startRun(runId, now());
-        long driverAccountId = fixtures().assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        long escortAccountId = fixtures().assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
-        long versionId = fixtures().confirmedRouteWithVersion(runId, now());
-        fixtures().runStopForStop(versionId, stop1, 1, now());
-        fixtures().runStopForStop(versionId, stop2, 2, now());
+        fixtures().startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures().assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        long escortAccountId = fixtures().assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
+        long versionId = fixtures().confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        fixtures().runStopForStop(versionId, stop1, 1, OffsetDateTime.now(clock));
+        fixtures().runStopForStop(versionId, stop2, 2, OffsetDateTime.now(clock));
 
         long alreadyAbsentStudentId = fixtures().student(academyId, "이미결석");
-        fixtures().rider(runId, alreadyAbsentStudentId, stop1, RiderStatus.ABSENT, now());
+        fixtures().rider(runId, alreadyAbsentStudentId, stop1, RiderStatus.ABSENT, OffsetDateTime.now(clock));
         long targetStudentId = fixtures().student(academyId, "미승차대상");
-        long targetRiderId = fixtures().rider(runId, targetStudentId, stop1, RiderStatus.WAITING, now());
+        long targetRiderId = fixtures().rider(runId, targetStudentId, stop1, RiderStatus.WAITING, OffsetDateTime.now(clock));
 
         // T3 — 실제 미승차 PATCH. stop1 의 잔여가 0명이 되어 run_stop 이 실제로 skipped 로 전환된다.
         mockMvc.perform(patch("/api/v1/runs/" + runId + "/riders/" + targetRiderId)
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(미승차_본문(now())))
+                        .content(미승차_본문(OffsetDateTime.now(clock))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.stop_skipped").value(true));
         entityManager.flush();
@@ -273,17 +268,13 @@ class Phase9CrossSeatWiringTest {
 
         // T4 — 같은 회차의 내비게이션 조회. skip 된 stop1 은 빠지고 stop2 만 남아야 한다.
         mockMvc.perform(get("/api/v1/runs/" + runId + "/navigation").param("scope", "remaining")
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total_remaining_stops").value(1))
                 .andExpect(jsonPath("$.data.destination.stop_id").value(stop2));
     }
 
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────
-
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
-    }
 
     private String 하차_본문(OffsetDateTime occurredAt) {
         return "{\"status\":\"alighted\",\"verify_method\":\"manual\",\"client_key\":\"%s\",\"occurred_at\":\"%s\"}"

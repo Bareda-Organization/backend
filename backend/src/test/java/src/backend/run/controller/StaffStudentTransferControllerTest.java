@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -24,7 +25,6 @@ import src.backend.academy.repository.AcademyRepository;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.entity.BusSeating;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
@@ -177,7 +177,7 @@ class StaffStudentTransferControllerTest {
 
         long addedStudentId = fixtures().student(academyId, "추가학생");
         mockMvc.perform(post("/api/v1/staff/runs/" + toRunId + "/forced-add")
-                        .header("Authorization", 토큰(academyId))
+                        .header("Authorization", 토큰(tokenProvider, STAFF_ACCOUNT_ID, academyId, Role.STAFF))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"student_id\":" + addedStudentId + ",\"address\":\"테스트로 100\"}"))
                 .andExpect(status().isConflict())
@@ -530,13 +530,8 @@ class StaffStudentTransferControllerTest {
 
     private ResultActions 이동_신청한다(long studentId, long requesterAcademyId, String body) throws Exception {
         return mockMvc.perform(post("/api/v1/staff/students/" + studentId + "/transfer")
-                .header("Authorization", 토큰(requesterAcademyId))
+                .header("Authorization", 토큰(tokenProvider, STAFF_ACCOUNT_ID, requesterAcademyId, Role.STAFF))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body));
-    }
-
-    private String 토큰(long academyId) {
-        return "Bearer " + tokenProvider.createAccessToken(STAFF_ACCOUNT_ID, academyId, Role.STAFF,
-                AccountStatus.ACTIVE);
     }
 }

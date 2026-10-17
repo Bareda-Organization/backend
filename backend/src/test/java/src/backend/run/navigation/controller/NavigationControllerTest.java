@@ -5,9 +5,9 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.web.TestResponses.본문;
 
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 
 import org.junit.jupiter.api.Test;
@@ -374,9 +374,5 @@ class NavigationControllerTest {
     private String 배치되지_않은_기사_토큰() {
         return "Bearer " + tokenProvider.createAccessToken(UNASSIGNED_DRIVER_ACCOUNT_ID, ACADEMY_A_ID, Role.DRIVER,
                 AccountStatus.ACTIVE);
-    }
-
-    private String 본문(MvcResult result) throws Exception {
-        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 }

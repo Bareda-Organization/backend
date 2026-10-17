@@ -5,9 +5,10 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
+import static testsupport.web.TestResponses.본문;
 
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -25,7 +26,6 @@ import com.jayway.jsonpath.JsonPath;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
@@ -150,7 +150,7 @@ class RunRouteControllerTest {
 
         MvcResult result = mockMvc
                 .perform(get("/api/v1/runs/" + runId + "/route").header("Authorization",
-                        토큰(manager.accountId(), academyId)))
+                        토큰(tokenProvider, manager.accountId(), academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -183,7 +183,7 @@ class RunRouteControllerTest {
 
         // BR-002(Ruling 327) — 등원은 정차 목록 맨 뒤에 학원 항목이 있고, stop_id 는 run_stop.id 다.
         mockMvc.perform(get("/api/v1/runs/" + runId + "/route").header("Authorization",
-                        토큰(manager.accountId(), academyId)))
+                        토큰(tokenProvider, manager.accountId(), academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.stops[0].stop_id").value((int) 정차_항목_id(academyId, runId, stop1)))
                 .andExpect(jsonPath("$.data.stops[0].is_destination").value(false))
@@ -216,7 +216,7 @@ class RunRouteControllerTest {
         fx.assign(runId, manager.managerId(), ManagerRole.DRIVER);
 
         mockMvc.perform(get("/api/v1/runs/" + runId + "/route").header("Authorization",
-                        토큰(manager.accountId(), academyId)))
+                        토큰(tokenProvider, manager.accountId(), academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.road_path").isArray())
                 .andExpect(jsonPath("$.data.road_path.length()").value(org.hamcrest.Matchers.greaterThan(1)))
@@ -257,7 +257,7 @@ class RunRouteControllerTest {
 
         MvcResult result = mockMvc
                 .perform(get("/api/v1/runs/" + runId + "/route").header("Authorization",
-                        토큰(manager.accountId(), academyId)))
+                        토큰(tokenProvider, manager.accountId(), academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -293,7 +293,7 @@ class RunRouteControllerTest {
         runStopRepository.save(RunStop.forWaypoint(versionId, waypoint.getId(), 3, null));
 
         mockMvc.perform(get("/api/v1/runs/" + runId + "/route").header("Authorization",
-                        토큰(manager.accountId(), academyId)))
+                        토큰(tokenProvider, manager.accountId(), academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.stops[?(@.name == '주유소')].is_waypoint").value(true))
                 .andExpect(jsonPath("$.data.stops[?(@.is_waypoint == true)]", hasSize(1)))
@@ -336,7 +336,7 @@ class RunRouteControllerTest {
 
         MvcResult result = mockMvc
                 .perform(get("/api/v1/runs/" + runId + "/route").header("Authorization",
-                        토큰(manager.accountId(), academyId)))
+                        토큰(tokenProvider, manager.accountId(), academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -365,7 +365,7 @@ class RunRouteControllerTest {
         fx.assign(runId, manager.managerId(), ManagerRole.DRIVER);
 
         mockMvc.perform(get("/api/v1/runs/" + runId + "/route").header("Authorization",
-                토큰(manager.accountId(), academyId)))
+                토큰(tokenProvider, manager.accountId(), academyId, Role.DRIVER)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("RUN_NOT_CONFIRMED"));
     }
@@ -399,13 +399,5 @@ class RunRouteControllerTest {
                 .findFirst().orElseThrow();
         target.markArrived(OffsetDateTime.now());
         runStopRepository.save(target);
-    }
-
-    private String 토큰(long accountId, long academyId) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, Role.DRIVER, AccountStatus.ACTIVE);
-    }
-
-    private String 본문(MvcResult result) throws Exception {
-        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 }

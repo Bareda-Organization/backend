@@ -7,8 +7,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.web.TestResponses.본문;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -325,10 +325,6 @@ class StaffRunControllerTest {
     private OffsetDateTime 회차_시각(long runId, String column) {
         return jdbcTemplate.queryForObject("SELECT " + column + " FROM run WHERE id = ?", OffsetDateTime.class,
                 runId);
-    }
-
-    private String 본문(MvcResult result) throws Exception {
-        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 
     private String 관계자A_토큰() {

@@ -122,16 +122,11 @@ class RunStartLockTest {
     @Autowired
     private ChangeRequestRepository changeRequestRepository;
 
-
     private DriverRunFixtures fixtures() {
         return new DriverRunFixtures(academyRepository, busRepository, stopRepository, studentRepository,
                 accountRepository, managerRepository, assignmentRepository, runRepository, confirmedRouteRepository,
                 routeVersionRepository, runStopRepository, runRiderRepository, academyStaffRepository,
                 guardianRepository, guardianStudentRepository, changeRequestRepository);
-    }
-
-    private OffsetDateTime now() {
-        return OffsetDateTime.now(clock);
     }
 
     @Test
@@ -140,16 +135,16 @@ class RunStartLockTest {
         long academyId = fixtures().academy();
         long busId = fixtures().bus(academyId);
         long studentId = fixtures().student(academyId, "학생1");
-        long parentAccountId = fixtures().guardianOf(academyId, studentId, "학부모", now());
+        long parentAccountId = fixtures().guardianOf(academyId, studentId, "학부모", OffsetDateTime.now(clock));
 
         // 출발 5분 전 — RunStartWindowPolicy 의 ±10분 창 안이라 실제 시작이 성공해야 한다.
-        OffsetDateTime departTime = now().plusMinutes(5);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusMinutes(5);
         long runId = fixtures().confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        long driverAccountId = fixtures().assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long driverAccountId = fixtures().assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         // 변경 신청은 그 자녀의 대상 회차만 받는다(BR-084) — 확정 명단에 학생을 둔다.
         fixtures().rider(runId, studentId, fixtures().stop(academyId, "37.560000", "126.970000"), RiderStatus.WAITING,
-                now());
+                OffsetDateTime.now(clock));
 
         // 실제 시작 경로 — jdbcTemplate 로 상태를 직접 바꾸지 않는다.
         mockMvc.perform(post("/api/v1/runs/" + runId + "/start")

@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.Clock;
 import java.time.LocalDate;
@@ -31,7 +32,6 @@ import com.jayway.jsonpath.JsonPath;
 
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
@@ -111,7 +111,7 @@ class RunCancelTransferCleanupTest {
     void 관계자_경로로_도착_회차를_취소하면_들어오는_이동_대기가_지워진다() throws Exception {
         Scene scene = 오늘_장면();
 
-        mockMvc.perform(delete("/api/v1/staff/runs/" + scene.toRunId()).header("Authorization", 토큰(scene.academyId())))
+        mockMvc.perform(delete("/api/v1/staff/runs/" + scene.toRunId()).header("Authorization", 토큰(tokenProvider, STAFF_ACCOUNT_ID, scene.academyId(), Role.STAFF)))
                 .andExpect(status().isNoContent());
 
         assertThat(이동_행_수(scene.transferId())).as("이동 행").isZero();
@@ -126,7 +126,7 @@ class RunCancelTransferCleanupTest {
         Scene scene = scheduled.scene();
 
         mockMvc.perform(delete("/api/v1/staff/schedules/" + scheduled.scheduleId())
-                .header("Authorization", 토큰(scene.academyId()))).andExpect(status().isNoContent());
+                .header("Authorization", 토큰(tokenProvider, STAFF_ACCOUNT_ID, scene.academyId(), Role.STAFF))).andExpect(status().isNoContent());
 
         assertThat(이동_행_수(scene.transferId())).as("이동 행").isZero();
         assertThat(삭제_감사_수(scene.transferId())).as("감사 기록").isEqualTo(1L);
@@ -138,7 +138,7 @@ class RunCancelTransferCleanupTest {
     void 출발_회차가_취소된_이동은_지울_수_있고_도착이_확정이면_막힌다() throws Exception {
         Scene erasable = 오늘_장면();
         mockMvc.perform(delete("/api/v1/staff/runs/" + erasable.fromRunId())
-                .header("Authorization", 토큰(erasable.academyId()))).andExpect(status().isNoContent());
+                .header("Authorization", 토큰(tokenProvider, STAFF_ACCOUNT_ID, erasable.academyId(), Role.STAFF))).andExpect(status().isNoContent());
         assertThat(이동_행_수(erasable.transferId())).as("출발 회차 취소는 이동을 지우지 않는다").isEqualTo(1L);
 
         // 관계자는 확정된 회차도 임시 취소할 수 있다(§5.10) — 취소된 회차는 idle 이 아니어도 판정에서 빠진다.
@@ -146,16 +146,16 @@ class RunCancelTransferCleanupTest {
         jdbcTemplate.update("UPDATE run SET status = 'confirmed' WHERE id = ?", erasable.fromRunId());
 
         mockMvc.perform(delete("/api/v1/staff/transfers/" + erasable.transferId())
-                .header("Authorization", 토큰(erasable.academyId()))).andExpect(status().isNoContent());
+                .header("Authorization", 토큰(tokenProvider, STAFF_ACCOUNT_ID, erasable.academyId(), Role.STAFF))).andExpect(status().isNoContent());
         assertThat(이동_행_수(erasable.transferId())).isZero();
 
         Scene blocked = 오늘_장면();
         mockMvc.perform(delete("/api/v1/staff/runs/" + blocked.fromRunId())
-                .header("Authorization", 토큰(blocked.academyId()))).andExpect(status().isNoContent());
+                .header("Authorization", 토큰(tokenProvider, STAFF_ACCOUNT_ID, blocked.academyId(), Role.STAFF))).andExpect(status().isNoContent());
         동기화한다();
         jdbcTemplate.update("UPDATE run SET status = 'confirmed' WHERE id = ?", blocked.toRunId());
         mockMvc.perform(delete("/api/v1/staff/transfers/" + blocked.transferId())
-                .header("Authorization", 토큰(blocked.academyId()))).andExpect(status().isForbidden())
+                .header("Authorization", 토큰(tokenProvider, STAFF_ACCOUNT_ID, blocked.academyId(), Role.STAFF))).andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("CHANGE_WINDOW_CLOSED"));
         assertThat(이동_행_수(blocked.transferId())).isEqualTo(1L);
     }
@@ -168,7 +168,7 @@ class RunCancelTransferCleanupTest {
         jdbcTemplate.update("UPDATE run_transfer SET status = 'applied', applied_at = now() WHERE id = ?",
                 scene.transferId());
 
-        mockMvc.perform(delete("/api/v1/staff/runs/" + scene.toRunId()).header("Authorization", 토큰(scene.academyId())))
+        mockMvc.perform(delete("/api/v1/staff/runs/" + scene.toRunId()).header("Authorization", 토큰(tokenProvider, STAFF_ACCOUNT_ID, scene.academyId(), Role.STAFF)))
                 .andExpect(status().isNoContent());
 
         assertThat(이동_행_수(scene.transferId())).isEqualTo(1L);
@@ -181,7 +181,7 @@ class RunCancelTransferCleanupTest {
         Scene scene = 오늘_장면();
         jdbcTemplate.update("UPDATE run SET status = 'confirmed' WHERE id = ?", scene.fromRunId());
 
-        mockMvc.perform(delete("/api/v1/staff/runs/" + scene.toRunId()).header("Authorization", 토큰(scene.academyId())))
+        mockMvc.perform(delete("/api/v1/staff/runs/" + scene.toRunId()).header("Authorization", 토큰(tokenProvider, STAFF_ACCOUNT_ID, scene.academyId(), Role.STAFF)))
                 .andExpect(status().isForbidden()).andExpect(jsonPath("$.error.code").value("CHANGE_WINDOW_CLOSED"));
 
         assertThat(이동_행_수(scene.transferId())).as("이동 행").isEqualTo(1L);
@@ -193,12 +193,12 @@ class RunCancelTransferCleanupTest {
     @DisplayName("BR-314 — 출발 회차가 확정이어도 이미 취소돼 있으면 도착 회차 취소는 막지 않는다(학생은 어차피 그 버스에 없다)")
     void 출발_회차도_취소됐으면_도착_회차를_취소할_수_있다() throws Exception {
         Scene scene = 오늘_장면();
-        mockMvc.perform(delete("/api/v1/staff/runs/" + scene.fromRunId()).header("Authorization", 토큰(scene.academyId())))
+        mockMvc.perform(delete("/api/v1/staff/runs/" + scene.fromRunId()).header("Authorization", 토큰(tokenProvider, STAFF_ACCOUNT_ID, scene.academyId(), Role.STAFF)))
                 .andExpect(status().isNoContent());
         동기화한다();
         jdbcTemplate.update("UPDATE run SET status = 'confirmed' WHERE id = ?", scene.fromRunId());
 
-        mockMvc.perform(delete("/api/v1/staff/runs/" + scene.toRunId()).header("Authorization", 토큰(scene.academyId())))
+        mockMvc.perform(delete("/api/v1/staff/runs/" + scene.toRunId()).header("Authorization", 토큰(tokenProvider, STAFF_ACCOUNT_ID, scene.academyId(), Role.STAFF)))
                 .andExpect(status().isNoContent());
 
         assertThat(이동_행_수(scene.transferId())).as("이동 행").isZero();
@@ -213,7 +213,7 @@ class RunCancelTransferCleanupTest {
         jdbcTemplate.update("UPDATE run SET status = 'confirmed' WHERE id = ?", scene.fromRunId());
 
         mockMvc.perform(delete("/api/v1/staff/schedules/" + scheduled.scheduleId())
-                .header("Authorization", 토큰(scene.academyId()))).andExpect(status().isNoContent());
+                .header("Authorization", 토큰(tokenProvider, STAFF_ACCOUNT_ID, scene.academyId(), Role.STAFF))).andExpect(status().isNoContent());
 
         assertThat(이동_행_수(scene.transferId())).as("이동 행").isEqualTo(1L);
         assertThat(jdbcTemplate.queryForObject("SELECT canceled_at IS NULL FROM run WHERE id = ?", Boolean.class,
@@ -231,7 +231,7 @@ class RunCancelTransferCleanupTest {
         long academyId = fixtures.academyWithCoordinates();
         long toBusId = fixtures.bus(academyId);
         String register = mockMvc.perform(post("/api/v1/staff/schedules")
-                .header("Authorization", 토큰(academyId))
+                .header("Authorization", 토큰(tokenProvider, STAFF_ACCOUNT_ID, academyId, Role.STAFF))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"bus_id\":" + toBusId + ",\"weekday\":\"fri\",\"direction\":\"to_academy\","
                         + "\"depart_time\":\"08:00\",\"origin_name\":\"집결지\",\"destination_name\":\"학원\"}"))
@@ -301,7 +301,7 @@ class RunCancelTransferCleanupTest {
 
     private ResultActions 이동_등록한다(Scene scene) throws Exception {
         return mockMvc.perform(post("/api/v1/staff/students/" + scene.studentId() + "/transfer")
-                .header("Authorization", 토큰(scene.academyId()))
+                .header("Authorization", 토큰(tokenProvider, STAFF_ACCOUNT_ID, scene.academyId(), Role.STAFF))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"from_run_id\":" + scene.fromRunId() + ",\"to_run_id\":" + scene.toRunId()
                         + ",\"stop_id\":" + scene.stopId() + "}"));
@@ -310,14 +310,9 @@ class RunCancelTransferCleanupTest {
     private List<Long> 예정_명단_학생_id(long runId, long academyId) throws Exception {
         동기화한다();
         String json = mockMvc.perform(get("/api/v1/staff/runs/" + runId + "/roster")
-                .header("Authorization", 토큰(academyId)))
+                .header("Authorization", 토큰(tokenProvider, STAFF_ACCOUNT_ID, academyId, Role.STAFF)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         List<String> ids = JsonPath.read(json, "$.data[*].student_id");
         return ids.stream().map(Long::valueOf).toList();
-    }
-
-    private String 토큰(long academyId) {
-        return "Bearer " + tokenProvider.createAccessToken(STAFF_ACCOUNT_ID, academyId, Role.STAFF,
-                AccountStatus.ACTIVE);
     }
 }

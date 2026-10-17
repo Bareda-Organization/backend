@@ -5,9 +5,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.메인관리자_토큰;
+import static testsupport.auth.TestTokens.토큰;
+import static testsupport.web.TestResponses.본문;
 
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -29,7 +31,6 @@ import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
@@ -162,12 +163,12 @@ class StaffRunRouteControllerTest {
         // 기사만 확인 — ack.driver=true·ack.escort=false 비대칭을 실측한다(StaffDashboardControllerTest
         // 목표1 과 같은 방식, 손으로 assignment 행을 UPDATE 하지 않는다).
         mockMvc.perform(post("/api/v1/runs/" + runId + "/ack-changes")
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
 
         MvcResult result = mockMvc
                 .perform(get("/api/v1/staff/runs/" + runId + "/route")
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.stops[0].stop_id").value((int) runStopId))
                 .andExpect(jsonPath("$.data.route_version").value(1))
@@ -200,7 +201,7 @@ class StaffRunRouteControllerTest {
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
         mockMvc.perform(get("/api/v1/staff/runs/" + runId + "/route")
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.stops[?(@.is_waypoint == true)].waypoint_id")
                         .value(String.valueOf(waypoint.getId())))
@@ -224,7 +225,7 @@ class StaffRunRouteControllerTest {
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
         mockMvc.perform(get("/api/v1/staff/runs/" + runId + "/route")
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.road_path").isArray())
                 .andExpect(jsonPath("$.data.road_path[0].lat").value(37.5665))
@@ -248,7 +249,7 @@ class StaffRunRouteControllerTest {
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
         mockMvc.perform(get("/api/v1/staff/runs/" + runId + "/route")
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.road_path").isNotEmpty())
                 .andExpect(jsonPath("$.data.fallback_used").value(true));
@@ -287,7 +288,7 @@ class StaffRunRouteControllerTest {
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
         mockMvc.perform(get("/api/v1/staff/runs/" + runId + "/route")
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.confirmed").value(false))
                 .andExpect(jsonPath("$.data.stops[0].stop_id").value((int) stopId))
@@ -309,7 +310,7 @@ class StaffRunRouteControllerTest {
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
         mockMvc.perform(get("/api/v1/staff/runs/" + runId + "/route")
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("RUN_NOT_CONFIRMED"));
     }
@@ -331,11 +332,11 @@ class StaffRunRouteControllerTest {
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/ack-changes")
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT)))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT)))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/v1/staff/runs/" + runId + "/route")
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.ack.driver").value(false))
                 .andExpect(jsonPath("$.data.ack.escort").value(true));
@@ -354,7 +355,7 @@ class StaffRunRouteControllerTest {
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
         mockMvc.perform(get("/api/v1/staff/runs/" + runId + "/route")
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("RUN_NOT_CONFIRMED"));
     }
@@ -367,7 +368,7 @@ class StaffRunRouteControllerTest {
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
         mockMvc.perform(get("/api/v1/staff/runs/999999999/route")
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("RUN_NOT_FOUND"));
     }
@@ -387,7 +388,7 @@ class StaffRunRouteControllerTest {
         long otherStaffAccountId = fx.staffAccount(otherAcademyId, "관계자2");
 
         mockMvc.perform(get("/api/v1/staff/runs/" + runId + "/route")
-                        .header("Authorization", 토큰(otherStaffAccountId, otherAcademyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, otherStaffAccountId, otherAcademyId, Role.STAFF)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("ACADEMY_SCOPE_VIOLATION"));
     }
@@ -404,7 +405,7 @@ class StaffRunRouteControllerTest {
         long driverAccountId = fx.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사1", OffsetDateTime.now());
 
         mockMvc.perform(get("/api/v1/staff/runs/" + runId + "/route")
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
     }
@@ -420,7 +421,7 @@ class StaffRunRouteControllerTest {
         fx.confirmedRouteWithVersion(runId, departTime.minusMinutes(40));
 
         mockMvc.perform(get("/api/v1/staff/runs/" + runId + "/route")
-                        .header("Authorization", 메인관리자_토큰()))
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, 1L)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.confirmed").value(true));
     }
@@ -440,23 +441,10 @@ class StaffRunRouteControllerTest {
         fx.rider(runId, studentId, stopId, RiderStatus.WAITING, departTime.minusMinutes(30));
 
         mockMvc.perform(get("/api/v1/staff/runs/" + runId + "/route")
-                        .header("Authorization", 메인관리자_토큰()))
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, 1L)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.stops.length()").value(1))
                 .andExpect(jsonPath("$.data.stops[0].student_count").value(1))
                 .andExpect(jsonPath("$.data.next_stop.name").exists());
-    }
-
-    /** 메인 관리자는 {@code academyId} 가 null 인 유일한 역할이다 — 토큰도 그 형태여야 실제와 같다. */
-    private String 메인관리자_토큰() {
-        return "Bearer " + tokenProvider.createAccessToken(1L, null, Role.SYSTEM_ADMIN, AccountStatus.ACTIVE);
-    }
-
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
-    }
-
-    private String 본문(MvcResult result) throws Exception {
-        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 }
