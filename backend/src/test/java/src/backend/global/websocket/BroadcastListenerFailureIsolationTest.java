@@ -23,6 +23,8 @@ import src.backend.exception.event.EmergencyAckedEvent;
 import src.backend.exception.event.EmergencyCanceledEvent;
 import src.backend.exception.event.EmergencyRaisedEvent;
 import src.backend.location.command.PositionBroadcastListener;
+import src.backend.location.infrastructure.RunBroadcastCache;
+import src.backend.location.spec.RunRiderDirectory;
 import src.backend.location.event.RunPositionReceivedEvent;
 import src.backend.request.command.ApprovalRequestedBroadcastListener;
 import src.backend.request.event.ApprovalRequestedEvent;
@@ -69,7 +71,8 @@ class BroadcastListenerFailureIsolationTest {
         StopRepository stops = repo(StopRepository.class, repoAnswer);
         ChangeRequestRepository changeRequests = repo(ChangeRequestRepository.class, repoAnswer);
 
-        PositionBroadcastListener position = new PositionBroadcastListener(runRiders, gateway);
+        PositionBroadcastListener position = new PositionBroadcastListener(repo(RunRiderDirectory.class, repoAnswer),
+                new RunBroadcastCache(java.time.Clock.systemUTC()), gateway);
         RunStartedBroadcastListener started = new RunStartedBroadcastListener(runRiders, gateway);
         RunEndedBroadcastListener ended = new RunEndedBroadcastListener(runRiders, gateway);
         StopArrivedBroadcastListener arrived = new StopArrivedBroadcastListener(runRiders, gateway);

@@ -17,6 +17,7 @@ import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.location.proximity.ProximityNotificationService;
 import src.backend.location.proximity.ProximityNotificationService.Judgment;
+import src.backend.location.proximity.ProximityNotificationService.RunTargets;
 import src.backend.observability.metrics.SchedulerHealthMetrics;
 import src.backend.run.domain.MovingRunWindowPolicy;
 import src.backend.run.entity.Run;
@@ -113,10 +114,13 @@ public class ProximityNotificationScheduler {
             schedulerHealthMetrics.recordItemFailure(getClass());
             return;
         }
+        // 두 판정의 재료는 이 묶음 전체에 대해 SQL 4건으로 한 번에 읽는다(DA-1) — 회차마다 읽지 않는다
+        Map<Long, RunTargets> targets = proximityNotificationService.readTargets(positions,
+                (runId, judgment, e) -> recordJudgmentFailure(runId, judgment, e));
         for (Run run : runs) {
             RunPositionRedisValue position = positions.get(run.getId());
             if (position != null) {
-                judgeSafely(run.getId(), run.getAcademyId(), position);
+                judgeSafely(run.getId(), run.getAcademyId(), position, targets.getOrDefault(run.getId(), RunTargets.NONE));
             }
         }
     }
@@ -126,9 +130,9 @@ public class ProximityNotificationScheduler {
      * 실패가 이 틱의 나머지 회차를 막지 않는다). 서비스가 근접·출발을 각자 격리해 한쪽이 실패해도 다른 쪽은 이번 틱에 그대로 돈다(BR-235).
      * 서비스 호출 자체가 던지는 예상 못 한 예외도 삼켜 다음 회차로 넘어간다.
      */
-    private void judgeSafely(Long runId, Long academyId, RunPositionRedisValue position) {
+    private void judgeSafely(Long runId, Long academyId, RunPositionRedisValue position, RunTargets targets) {
         try {
-            proximityNotificationService.judgeRun(runId, academyId, position,
+            proximityNotificationService.judgeRun(runId, academyId, position, targets,
                     (judgment, e) -> recordJudgmentFailure(runId, judgment, e));
         } catch (Exception e) {
             judgeFailure.warn(e, "회차 {} 판정 실패 — 다음 틱에 재시도한다", runId);

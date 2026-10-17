@@ -515,7 +515,7 @@ class ProximityNotificationServiceTest {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         RunPositionRedisValue position = new RunPositionRedisValue(new BigDecimal(NEAR_LAT), new BigDecimal(STOP_LNG), now,
                 now, null);
-        doThrow(new DataAccessResourceFailureException("db down")).when(confirmedRouteRepository).findById(runId);
+        doThrow(new DataAccessResourceFailureException("db down")).when(confirmedRouteRepository).findAllById(any());
         List<ProximityNotificationService.Judgment> failures = new ArrayList<>();
 
         proximityNotificationService.judgeRun(runId, 1L, position, (judgment, e) -> failures.add(judgment));

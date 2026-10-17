@@ -19,6 +19,7 @@ import src.backend.global.security.AuthUser;
 import src.backend.location.dto.RunPositionRequest;
 import src.backend.location.entity.RunPosition;
 import src.backend.location.event.RunPositionReceivedEvent;
+import src.backend.location.infrastructure.RunBroadcastCache;
 import src.backend.location.repository.RunPositionRepository;
 import src.backend.routing.dto.PositionStopView;
 import src.backend.routing.query.CurrentRunStopResolver;
@@ -53,6 +54,8 @@ public class RunPositionCommandService {
     private final RunPositionRepository runPositionRepository;
 
     private final RunStopRepository runStopRepository;
+
+    private final RunBroadcastCache runBroadcastCache;
 
     private final RunAssignmentAccess runAssignmentAccess;
 
@@ -92,7 +95,9 @@ public class RunPositionCommandService {
                 recordedAt, receivedAt, request.speed(), request.heading());
         runPositionRepository.save(position);
 
-        List<PositionStopView> stops = runStopRepository.findPositionStops(runId, run.getAcademyId());
+        // 정차 목록은 도착 · 운행 전환 때만 바뀐다 — 그 이벤트가 커밋될 때 캐시를 비우므로 평소 위치 1건은 다시 읽지 않는다(RT-5)
+        List<PositionStopView> stops = runBroadcastCache.stops(runId,
+                () -> runStopRepository.findPositionStops(runId, run.getAcademyId()));
         // 규칙은 CurrentRunStopResolver 한 곳에만 있다 — 투영을 읽어도 같은 접근자 규칙을 쓴다(BR-341, BR-099)
         Optional<PositionStopView> current = CurrentRunStopResolver.resolve(stops, PositionStopView::seq,
                 PositionStopView::arrivedAt);

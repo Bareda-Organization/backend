@@ -11,11 +11,11 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import src.backend.boarding.entity.RiderStatus;
-import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.global.websocket.WebSocketBroadcastGateway;
 import src.backend.global.websocket.WebSocketDestinations;
 import src.backend.location.event.RunPositionReceivedEvent;
+import src.backend.location.infrastructure.RunBroadcastCache;
+import src.backend.location.spec.RunRiderDirectory;
 
 /**
  * {@code position} 방송(API_SPEC §7·§7.1, 목표 4·6) — 채널 3종뿐이다. {@code /ws/manager/runs/{id}}
@@ -42,7 +42,9 @@ public class PositionBroadcastListener {
 
     private static final String EVENT = "position";
 
-    private final RunRiderRepository runRiderRepository;
+    private final RunRiderDirectory runRiderDirectory;
+
+    private final RunBroadcastCache runBroadcastCache;
 
     private final WebSocketBroadcastGateway gateway;
 
@@ -54,7 +56,9 @@ public class PositionBroadcastListener {
     public void broadcast(RunPositionReceivedEvent event) {
         try {
             // absent(다른 버스로 옮긴 removed 포함)는 이 버스에 없다 — 학생 채널은 학생 단위라 보내면 다른 버스와 섞인다
-            List<Long> studentIds = runRiderRepository.findStudentIdsByRunIdAndStatusNot(event.runId(), RiderStatus.ABSENT);
+            // 목록은 결석 · 전환 이벤트가 커밋될 때만 다시 읽는다(RT-5) — 결석 학생 채널로는 그 뒤 첫 위치부터 방송하지 않는다
+            List<Long> studentIds = runBroadcastCache.students(event.runId(),
+                    () -> runRiderDirectory.studentIdsExcludingAbsent(event.runId()));
 
             ParentStudentPayload parentStudentPayload = new ParentStudentPayload(event.lat(), event.lng(),
                     event.receivedAt(), event.currentStopName());

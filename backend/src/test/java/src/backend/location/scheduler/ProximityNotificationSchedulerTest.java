@@ -226,8 +226,8 @@ class ProximityNotificationSchedulerTest {
 
         scheduler.judgeMovingRuns();
 
-        verify(proximityNotificationService, times(1)).judgeRun(eq(movingRunId), eq(academyId), any(), any());
-        verify(proximityNotificationService, never()).judgeRun(eq(confirmedRunId), anyLong(), any(), any());
+        verify(proximityNotificationService, times(1)).judgeRun(eq(movingRunId), eq(academyId), any(), any(), any());
+        verify(proximityNotificationService, never()).judgeRun(eq(confirmedRunId), anyLong(), any(), any(), any());
     }
 
     /**
@@ -250,8 +250,8 @@ class ProximityNotificationSchedulerTest {
 
         scheduler.judgeMovingRuns();
 
-        verify(proximityNotificationService, never()).judgeRun(eq(staleRunId), anyLong(), any(), any());
-        verify(proximityNotificationService, times(1)).judgeRun(eq(overnightRunId), eq(academyId), any(), any());
+        verify(proximityNotificationService, never()).judgeRun(eq(staleRunId), anyLong(), any(), any(), any());
+        verify(proximityNotificationService, times(1)).judgeRun(eq(overnightRunId), eq(academyId), any(), any(), any());
     }
 
     /**
@@ -277,14 +277,14 @@ class ProximityNotificationSchedulerTest {
         // 이 학원 것만 센다 — 다른 학원의 기존 moving 회차(시드 R3 등)가 앞자리를 차지해도 이 학원 51건은
         // 전부 판정돼야 한다.
         // 두 판정(근접·출발)은 한 호출 안에서 같이 돈다 — 51번째 이후 회차도 위치가 읽혀 이 호출이 가야 판정이 멈추지 않는다.
-        verify(proximityNotificationService, times(total)).judgeRun(anyLong(), eq(academyId), any(), any());
+        verify(proximityNotificationService, times(total)).judgeRun(anyLong(), eq(academyId), any(), any(), any());
     }
 
     /**
      * R46-LATERBE L5(Ruling 672) — 한 틱에서 위치는 <b>묶음당 한 번</b>({@code findAll} = Redis {@code MGET} 1회) 읽고 회차마다
-     * {@code find} 를 부르지 않으며, 판정이 걸리지 않은 회차는 읽기 트랜잭션 <b>1개</b>만 쓴다(전에는 근접·출발 판정이 각자 트랜잭션을
-     * 열어 2개, Redis 읽기도 판정마다 1회씩 2회). 트랜잭션 수는 Hibernate 통계의 완료 건수 차이로 센다 — 이 틱의 전체는 운행 중 회차를
-     * 한 쪽(page) 읽는 조회 1건 + 회차 3개 × 1 이다.
+     * {@code find} 를 부르지 않으며, 판정이 걸리지 않은 묶음은 읽기 트랜잭션 <b>1개</b>만 쓴다(전에는 판정마다 트랜잭션을
+     * 열었고 R57 DA-1 이 회차마다 1개에서 묶음당 1개로 줄였다). 트랜잭션 수는 Hibernate 통계의 완료 건수 차이로 센다 — 이 틱의 전체는 운행 중 회차를
+     * 한 쪽(page) 읽는 조회 1건 + 묶음 읽기 1건이다.
      */
     @Test
     void 판정이_걸리지_않는_회차는_읽기_트랜잭션_1개이고_위치는_묶음당_한_번_읽는다() {
@@ -310,12 +310,41 @@ class ProximityNotificationSchedulerTest {
         // "판정된 회차마다 읽기 트랜잭션 1개" 로 센다(회차당 2개로 늘면 여전히 실패한다)
         assertThat(judgedRunIds).as("이 시험이 심은 세 회차는 판정된다").containsAll(runIds);
         assertThat(statistics.getTransactionCount() - before)
-                .as("운행 중 회차 조회 1 + 판정된 회차 " + judgedRunIds + " × 읽기 트랜잭션 1").isEqualTo(1 + judgedRunIds.size());
+                .as("운행 중 회차 조회 1 + 묶음 전체의 판정 재료 읽기 트랜잭션 1(판정된 회차 " + judgedRunIds + ")").isEqualTo(2);
         ArgumentCaptor<Collection<Long>> batches = ArgumentCaptor.forClass(Collection.class);
         verify(runPositionStore, atLeastOnce()).findAll(batches.capture());
         assertThat(batches.getAllValues()).as("세 회차의 위치를 한 묶음의 한 번 읽기로").anySatisfy(
                 batch -> assertThat(batch).containsAll(runIds));
         verify(runPositionStore, never()).find(anyLong());
+    }
+
+    /**
+     * DA-1(Ruling 899) — 근접 판정 한 틱의 SQL 수는 운행 중 회차가 5개든 40개든 같다(한 쪽 안에서는 회차 수와 무관한 상수). 회차마다 확정 노선 ·
+     * 다음 정차지 · 도착한 정차지 · 정차지 좌표를 따로 읽으면 동시 운행이 늘수록 틱 하나가 연결을 오래 쥔다.
+     */
+    @Test
+    void 한_틱의_SQL_수는_운행_중_회차_수와_무관하다() {
+        ProximityFixtures fx = fixtures();
+        long academyId = fx.academy();
+        long busId = fx.bus(academyId);
+        Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+        statistics.setStatisticsEnabled(true);
+        for (int i = 0; i < 5; i++) {
+            writePosition(fullyWiredMovingRun(fx, academyId, busId, "상수학생" + i, "상수학부모" + i).runId(), FAR_LAT, STOP_LNG);
+        }
+        long before = statistics.getPrepareStatementCount();
+        scheduler.judgeMovingRuns();
+        long withFew = statistics.getPrepareStatementCount() - before;
+
+        for (int i = 5; i < 40; i++) {
+            writePosition(fullyWiredMovingRun(fx, academyId, busId, "상수학생" + i, "상수학부모" + i).runId(), FAR_LAT, STOP_LNG);
+        }
+        before = statistics.getPrepareStatementCount();
+        scheduler.judgeMovingRuns();
+        long withMany = statistics.getPrepareStatementCount() - before;
+
+        System.out.printf("DA-1 근접 판정 한 틱 SQL 수 — 운행 중 회차 5개 %d건 · 40개 %d건%n", withFew, withMany);
+        assertThat(withMany).as("5개 %d건 · 40개 %d건", withFew, withMany).isEqualTo(withFew);
     }
 
     @Test
@@ -329,11 +358,11 @@ class ProximityNotificationSchedulerTest {
         WiredRun goodRun = fullyWiredMovingRun(fx, academyId, busId, "근접학생정상", "근접학부모정상");
 
         doThrow(new RuntimeException("의도적 실패 — 배치 격리 시험")).when(proximityNotificationService)
-                .judgeRun(eq(badRun.runId()), anyLong(), any(), any());
+                .judgeRun(eq(badRun.runId()), anyLong(), any(), any(), any());
 
         scheduler.judgeMovingRuns();
 
-        verify(proximityNotificationService, times(1)).judgeRun(eq(badRun.runId()), eq(academyId), any(), any());
+        verify(proximityNotificationService, times(1)).judgeRun(eq(badRun.runId()), eq(academyId), any(), any(), any());
         OffsetDateTime proximityNotifiedAt = jdbcTemplate.queryForObject(
                 "SELECT rs.proximity_notified_at FROM run_stop rs "
                         + "JOIN route_version rv ON rs.route_version_id = rv.id "
@@ -371,8 +400,8 @@ class ProximityNotificationSchedulerTest {
 
         scheduler.judgeMovingRuns();
 
-        verify(proximityNotificationService, never()).judgeRun(eq(firstRunId), anyLong(), any(), any());
-        verify(proximityNotificationService, times(1)).judgeRun(eq(lastRunId), eq(academyId), any(), any());
+        verify(proximityNotificationService, never()).judgeRun(eq(firstRunId), anyLong(), any(), any(), any());
+        verify(proximityNotificationService, times(1)).judgeRun(eq(lastRunId), eq(academyId), any(), any(), any());
         assertThat(schedulerFailures() - failuresBefore).as("읽기에 실패한 묶음 1개 = 건별 실패 1").isEqualTo(1.0d);
     }
 
@@ -392,7 +421,7 @@ class ProximityNotificationSchedulerTest {
 
         scheduler.judgeMovingRuns();
 
-        verify(proximityNotificationService, never()).judgeRun(eq(runId), anyLong(), any(), any());
+        verify(proximityNotificationService, never()).judgeRun(eq(runId), anyLong(), any(), any(), any());
     }
 
     @Test
@@ -405,7 +434,7 @@ class ProximityNotificationSchedulerTest {
 
         scheduler.judgeMovingRuns();
 
-        verify(proximityNotificationService, times(1)).judgeRun(eq(runId), eq(academyId), any(), any());
+        verify(proximityNotificationService, times(1)).judgeRun(eq(runId), eq(academyId), any(), any(), any());
     }
 
     /**
@@ -440,7 +469,7 @@ class ProximityNotificationSchedulerTest {
                     "SELECT lock_until FROM shedlock WHERE name = ?", Timestamp.class, "proximity-notification");
             heldLockUntil.set(raw.toLocalDateTime().atOffset(ZoneOffset.UTC));
             return invocation.callRealMethod();
-        }).when(proximityNotificationService).judgeRun(anyLong(), anyLong(), any(), any());
+        }).when(proximityNotificationService).judgeRun(anyLong(), anyLong(), any(), any(), any());
 
         scheduler.judgeMovingRuns();
 

@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +19,7 @@ import src.backend.boarding.entity.RiderStatusHistory;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RiderStatusHistoryRepository;
 import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.location.event.RunRidersChangedEvent;
 import src.backend.run.roster.ProjectedRoster;
 
 /**
@@ -37,6 +39,8 @@ public class RunRiderPersistence {
 
     private final JdbcTemplate jdbc;
 
+    private final ApplicationEventPublisher eventPublisher;
+
     private final RiderStatusHistoryRepository riderStatusHistoryRepository;
 
     /**
@@ -52,6 +56,7 @@ public class RunRiderPersistence {
     public void confirmRiders(Long runId, ProjectedRoster roster, List<Long> unresolvedStudentIds,
             OffsetDateTime confirmedAt) {
         List<RunRider> riders = ridersOf(runId, roster, unresolvedStudentIds, confirmedAt);
+        eventPublisher.publishEvent(new RunRidersChangedEvent(runId));
         for (int from = 0; from < riders.size(); from += INSERT_CHUNK) {
             insertRows(riders.subList(from, Math.min(from + INSERT_CHUNK, riders.size())));
         }
@@ -98,6 +103,8 @@ public class RunRiderPersistence {
         rider.markAbsent(changedAt);
         if (from != RiderStatus.ABSENT) {
             recordSystemTransition(rider, from, RiderStatus.ABSENT, changedAt);
+            // 위치 방송 수신자 목록이 바뀐다 — 커밋되면 location 이 캐시를 비운다(RT-5)
+            eventPublisher.publishEvent(new RunRidersChangedEvent(rider.getRunId()));
         }
     }
 
