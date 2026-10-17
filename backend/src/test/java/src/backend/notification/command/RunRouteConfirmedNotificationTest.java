@@ -36,7 +36,7 @@ import src.backend.run.repository.RunRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 확정 시 {@code route_changed} 알림 발행(Phase 7 목표 7) — {@link RunRouteConfirmedNotificationListener}
+ * 확정 시 {@code route_changed} 알림 발행 — {@link RunRouteConfirmedNotificationListener}
  * 가 {@code RunConfirmationPersistence.persist} 와 같은 트랜잭션에서 적재하는지를 실제 커밋·롤백
  * 경계로 검증한다.
  *
@@ -120,7 +120,7 @@ class RunRouteConfirmedNotificationTest {
     }
 
     /**
-     * 계정이 연결된 매니저를 그 회차에 배치한 뒤 <b>엔티티를 직접 조작해</b> 삭제한다(Phase 8 목표 17).
+     * 계정이 연결된 매니저를 그 회차에 배치한 뒤 <b>엔티티를 직접 조작해</b> 삭제한다.
      *
      * <p>{@code ManagerCommandService.delete} 를 거치지 않는다 — MGR-04 가 배치된 매니저의 삭제를
      * 원천 차단해 정상 흐름으로는 "배치는 있는데 매니저는 삭제됨" 이라는 상태 자체를 만들 수 없다.
@@ -183,7 +183,7 @@ class RunRouteConfirmedNotificationTest {
     }
 
     /**
-     * R52 L1 — 서버가 오래 멈췄다 살아나 운행 시작 창(출발 + 10분)이 이미 닫힌 회차를 확정할 때는 확정 자체는 그대로 하되
+     * 서버가 오래 멈췄다 살아나 운행 시작 창(출발 + 10분)이 이미 닫힌 회차를 확정할 때는 확정 자체는 그대로 하되
      * 기사·동승자에게 노선 알림을 보내지 않는다(이미 시작할 수 없는 회차라 알려 봐야 소음이다).
      */
     @Test

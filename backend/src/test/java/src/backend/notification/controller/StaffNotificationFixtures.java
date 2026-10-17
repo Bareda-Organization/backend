@@ -19,8 +19,8 @@ import src.backend.notification.entity.PushState;
 import src.backend.notification.repository.NotificationLogRepository;
 
 /**
- * 알림 로그 전수 조회(T3, Phase 12 goal 10·11) 시험이 쓰는 실제 행 — {@code ExceptionReportFixtures}
- * 와 같은 이유로 정상 경로의 팩토리로 쌓는다. 저장은 {@link NotificationLogRepository}(T2·T3 공용,
+ * 알림 로그 전수 조회 시험이 쓰는 실제 행 — {@code ExceptionReportFixtures}
+ * 와 같은 이유로 정상 경로의 팩토리로 쌓는다. 저장은 {@link NotificationLogRepository}(공용,
  * Ruling 222) 로 한다 — 조회 전용 리포지토리를 별도로 만들지 않기로 한 조율자 판정에 따라 이 클래스도
  * 그 저장소 하나만 쓴다.
  *

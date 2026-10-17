@@ -41,7 +41,7 @@ import testsupport.clock.SeedDateClockConfig;
  * stale)를 검사하는 두 시험은 매번 자기 값으로 덮어써야 하고, 순서에 의존하면 안 된다.
  *
  * <p>{@link SeedDateClockConfig} — 시드 회차의 {@code service_date} 를 실제로 읽어 그 날짜로
- * {@link Clock} 을 이동시킨다(Phase 10 T4 재수정). 얼린 Clock 을 쓰지 않고 흐르는 시계에 날짜
+ * {@link Clock} 을 이동시킨다. 얼린 Clock 을 쓰지 않고 흐르는 시계에 날짜
  * 차이만큼 오프셋만 주는 이유 — 이 시험은 위치 신호의 신선도(2분 임계값, Ruling 208)도 같은
  * Clock 으로 재는데, 얼리면 "방금 기록"과 "3분 전 기록"의 실제 경과 시간이 사라져 신선도 시험
  * 자체가 무너진다. 그래서 이 시험도 {@code OffsetDateTime.now()} 대신 주입받은 {@link #clock} 으로

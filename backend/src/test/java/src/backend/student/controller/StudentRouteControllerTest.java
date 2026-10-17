@@ -45,7 +45,7 @@ import testsupport.clock.SeedDateClockConfig;
  * 붙는다" 를 각각 검증한다.
  *
  * <p>{@link SeedDateClockConfig} — 시드 회차의 {@code service_date} 를 실제로 읽어 그 날짜로
- * {@link Clock} 을 이동시킨다(Phase 10 T4 재수정, {@code StudentBusPositionControllerTest} 와 같은
+ * {@link Clock} 을 이동시킨다({@code StudentBusPositionControllerTest} 와 같은
  * 설계). 이 시험은 상대 시각을 직접 다루지 않아 얼린 Clock 도 무방하지만, 두 클래스가 같은
  * 원인(시드의 오늘 회차 조회)을 공유하므로 같은 해법을 쓴다.
  */
@@ -161,7 +161,7 @@ class StudentRouteControllerTest {
     }
 
     /**
-     * R51 Ruling 853 — 앞선 승하차지는 다른 아이의 집 주소에서 만들어졌을 수 있어(FEATURE_SPEC §6.1·§6.3) 주소 원문은
+     * Ruling 853 — 앞선 승하차지는 다른 아이의 집 주소에서 만들어졌을 수 있어(FEATURE_SPEC §6.1·§6.3) 주소 원문은
      * 그 학생 본인의 승하차지에만 싣는다. 이름 · 좌표 · 순번은 그대로 남는다(지도 선·번호 핀의 재료).
      */
     @Test

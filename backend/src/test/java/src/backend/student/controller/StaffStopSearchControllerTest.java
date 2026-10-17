@@ -19,8 +19,8 @@ import src.backend.student.geocoding.impl.StubGeocodingClient;
 import src.backend.student.geocoding.impl.StubPlaceSearchClient;
 
 /**
- * §5.9 {@code GET /staff/stops/suggest} — 고정 노선 편성 화면의 <b>주소 자동완성</b>(2026-09-23 사용자 지시).
- * 주소 한 건 검색({@code GET /staff/stops/search})은 화면이 쓰지 않아 R46-BE 가 삭제했다(Ruling 410).
+ * §5.9 {@code GET /staff/stops/suggest} — 고정 노선 편성 화면의 <b>주소 자동완성</b>.
+ * 주소 한 건 검색({@code GET /staff/stops/search})은 화면이 쓰지 않아 삭제했다(Ruling 410).
  *
  * <p>이 조회는 <b>아무것도 쓰지 않는다</b>. 관계자가 좌표를 눈으로 확인하고 고칠 기회를 갖기 전에
  * 승하차지가 생기면, 잘못 찍힌 지점이 그대로 남아 다음 편성에서 다시 후보로 뜬다.
@@ -43,7 +43,7 @@ class StaffStopSearchControllerTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    // ── 자동완성(2026-09-23 사용자 지시 — 주소를 끝까지 치지 않아도 비슷한 주소를 알려 달라) ──
+    // ── 자동완성(주소를 끝까지 치지 않아도 비슷한 주소를 알려 달라) ──
 
     /**
      * 번지 없이 도로명만 쳐도 후보 여럿이 나온다. 스텁은 번지 없는 입력을 "그 도로의 1·11·21번지"(서로
@@ -96,7 +96,7 @@ class StaffStopSearchControllerTest {
                 .andExpect(jsonPath("$.data.items[2].nearby.length()").value(0));
     }
 
-    // ── 장소 검색(2026-09-23 — NAVER API HUB 지역 검색) ─────────────────────────────────────
+    // ── 장소 검색(NAVER API HUB 지역 검색) ─────────────────────────────────────
 
     /**
      * 장소 이름(예: "목동 현대백화점")은 지오코딩이 못 찾는다 — 장소 검색 후보를 <b>앞에</b> 싣고 장소 이름을

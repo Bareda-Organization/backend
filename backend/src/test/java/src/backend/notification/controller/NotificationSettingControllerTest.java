@@ -27,7 +27,7 @@ import src.backend.notification.entity.NotificationSetting;
 import src.backend.notification.repository.NotificationSettingRepository;
 
 /**
- * {@code GET}·{@code PATCH /me/notification-settings}(API_SPEC §3.14, Phase 12 목표 7·9).
+ * {@code GET}·{@code PATCH /me/notification-settings}(API_SPEC §3.14).
  * 목표 7(조회·수정)·목표 9(설정 대상 밖 항목 422) 를 각각 시험한다 — 목표 8(끄면 푸시만 막히고
  * 로그는 남는다)은 발송 경로까지 걸쳐 {@link src.backend.notification.NotificationDispatchGateTest}
  * 가 따로 본다.
@@ -154,7 +154,7 @@ class NotificationSettingControllerTest {
     }
 
     /**
-     * Ruling 869 — 보낸 항목만 바꾸고 빠진 키는 그대로 둔다(API_SPEC §1.14). 이전에는 일부만 보내면 422 였다.
+     * Ruling 869 — 보낸 항목만 바꾸고 빠진 키는 그대로 둔다(API_SPEC §1.14). 일부만 보내면 422 가 나면 안 된다.
      */
     @Test
     @DisplayName("Ruling 869 — 한 항목만 PATCH 하면 그 항목만 바뀌고 나머지는 그대로다")

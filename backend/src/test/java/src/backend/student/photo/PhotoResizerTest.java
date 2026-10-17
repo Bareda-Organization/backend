@@ -26,9 +26,9 @@ import ch.qos.logback.core.read.ListAppender;
 import src.backend.student.photo.spec.StudentPhoto;
 
 /**
- * R46-KFIXBE K-3 — 업로드 사진은 긴 변 512px 로 줄여 저장한다. 목록 한 화면이 행마다 사진 한 장(약 4MB)을 받던 것을 줄이는 수정이다.
+ * 업로드 사진은 긴 변 512px 로 줄여 저장한다. 목록 한 화면이 행마다 사진 한 장(약 4MB)을 받지 않도록 하는 것이 목적이다.
  * ImageIO 가 못 읽거나(깨진 파일) 이미 작으면 원본 그대로이고, 휴대폰 사진의 회전 정보(EXIF)는 지켜서 옆으로 누운 사진을 만들지 않는다.
- * WebP 는 JDK 가 못 읽어 원본(최대 5MB)으로 남던 형식인데, 읽기 전용 디코더(TwelveMonkeys)를 더해 같은 규칙으로 줄인다(R47 Ruling 745).
+ * WebP 는 JDK 가 못 읽어 원본(최대 5MB)으로 남던 형식인데, 읽기 전용 디코더(TwelveMonkeys)를 더해 같은 규칙으로 줄인다(Ruling 745).
  */
 class PhotoResizerTest {
 

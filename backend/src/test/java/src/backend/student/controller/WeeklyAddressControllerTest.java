@@ -247,7 +247,7 @@ class WeeklyAddressControllerTest {
     /**
      * 검증에 성공하면 {@code stop_id} 가 채워지고 {@code stop} 행이 실재한다(목표 1 · STU-05).
      *
-     * <p>이 연결이 Phase 6 노선 계산의 입력이다(ARCHITECTURE §8.1) — 단언이 없으면 주소만 저장하고
+     * <p>이 연결이 노선 계산의 입력이다(ARCHITECTURE §8.1) — 단언이 없으면 주소만 저장하고
      * 매칭을 건너뛴 구현이 통과하는데, 그 상태로는 계산할 대상이 비어 있다.
      */
     @Test

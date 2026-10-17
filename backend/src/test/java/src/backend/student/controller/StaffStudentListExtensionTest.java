@@ -29,7 +29,7 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
- * 관계자 학생 목록의 R48 확장(API_SPEC §5.11, Ruling 815) — 항목의 {@code grade}·{@code can_go_alone}·
+ * 관계자 학생 목록 확장(API_SPEC §5.11, Ruling 815) — 항목의 {@code grade}·{@code can_go_alone}·
  * {@code weekly_address_status}(3값 경계), 쿼리 {@code class_name}·{@code filter}, 최상위 {@code summary}(쿼리·쪽과 무관한
  * 학원 전체 값), 그리고 쿼리 수가 학생 수에 비례하지 않는지를 본다. 시드 학생이 섞이지 않게 시험이 만든 학생은 이름 머리글로
  * 찾고, 학원 전체 값은 심기 전후의 차이로 본다.
@@ -130,7 +130,7 @@ class StaffStudentListExtensionTest {
 
     @Test
     void summary_class_names_는_쪽과_필터와_무관한_학원_전체_반_이름이고_다른_학원_반은_없다() throws Exception {
-        // 이름 순으로 첫 쪽(size=1)에는 "R56CN가" 만 오고, "R56반10" · "R56반2" 는 뒤 쪽 학생에게만 있다 — 선택지가 첫 쪽만 보이던 결함(R52 A-13)
+        // 이름 순으로 첫 쪽(size=1)에는 "R56CN가" 만 오고, "R56반10" · "R56반2" 는 뒤 쪽 학생에게만 있다 — 선택지가 첫 쪽만 보이던 결함
         심는다("R56CN가", null, false, null);
         심는다("R56CN나", null, false, "R56반10");
         심는다("R56CN다", null, false, "R56반2");

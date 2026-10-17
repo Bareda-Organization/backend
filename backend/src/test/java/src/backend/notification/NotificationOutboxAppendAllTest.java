@@ -33,7 +33,7 @@ import src.backend.notification.event.NotificationAppendedEvent;
 import src.backend.notification.repository.NotificationLogRepository;
 
 /**
- * 아웃박스 묶음 적재(R46 T-6)와 같은 {@code dedup_key} 건너뜀(Ruling 622).
+ * 아웃박스 묶음 적재와 같은 {@code dedup_key} 건너뜀(Ruling 622).
  *
  * <p>네이티브 {@code INSERT} 는 엔티티 매핑을 거치지 않아 {@code notification_log} 에 컬럼이 늘어도 문장이 따라가지 않는다
  * ({@code ddl-auto: validate} 는 INSERT 문 누락을 못 잡는다) — 그래서 엔티티로 저장한 행과 <b>모든 필드가 같은지</b>
@@ -124,7 +124,7 @@ class NotificationOutboxAppendAllTest {
         커밋한다(() -> notificationOutbox.appendAll(List.of(existing)));
         NotificationDraft fresh = draft("fresh", NotificationType.RUN_STARTED, null, null, null, null);
 
-        // 같은 트랜잭션의 "상태 변경" 자리 — 예전에는 UNIQUE 위반이 트랜잭션을 중단 상태로 만들어 이것까지 되돌렸다
+        // 같은 트랜잭션의 "상태 변경" 자리 — UNIQUE 위반이 트랜잭션을 중단 상태로 만들면 이것까지 되돌아간다
         커밋한다(() -> {
             jdbcTemplate.update("UPDATE notification_log SET title = '변경됨' WHERE dedup_key = ?", existing.dedupKey());
             notificationOutbox.appendAll(List.of(existing, fresh));

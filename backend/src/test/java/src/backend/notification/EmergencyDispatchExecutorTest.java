@@ -29,7 +29,7 @@ import src.backend.notification.command.NotificationOutbox;
 import src.backend.notification.entity.NotificationType;
 
 /**
- * 비상 알림의 즉시 발송은 <b>전용 실행기</b>(스레드 2)에서 돈다(R46 S-2 ③) — 일반 발송 실행기(8스레드·큐 1,000)와 같은 줄에 서면
+ * 비상 알림의 즉시 발송은 <b>전용 실행기</b>(스레드 2)에서 돈다 — 일반 발송 실행기(8스레드·큐 1,000)와 같은 줄에 서면
  * FCM 이 응답하지 않을 때 큐 앞의 일반 알림 100건 뒤에서 비상 알림이 몇 분 늦게 첫 시도를 한다. 반대로 일반 알림이 전용
  * 실행기를 차지해서도 안 된다.
  */

@@ -10,7 +10,7 @@ import src.backend.notification.entity.NotificationSetting;
 import src.backend.notification.entity.NotificationType;
 
 /**
- * {@link NotificationSetting} 의 <b>판정 성질</b>을 고정한다(Phase 12 목표 8·9) — DB·Spring 컨텍스트
+ * {@link NotificationSetting} 의 <b>판정 성질</b>을 고정한다 — DB·Spring 컨텍스트
  * 없이 순수 엔티티만으로 갈리는 것은 여기서 보고, 발송 경로 전체(끄면 로그는 남고 푸시만 막히는지)는
  * {@link NotificationDispatchGateTest} 가 본다. {@link NotificationRetryPolicyTest} 와 같은 축
  * 분리다.

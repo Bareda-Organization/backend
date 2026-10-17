@@ -247,7 +247,7 @@ class StudentPhotoTransactionBoundaryTest {
     }
 
     /**
-     * R56 K2(Ruling 894 ③) — 사진을 지우면 {@code 204} 이고 행의 {@code photo_url} 이 비며 파일이 지워지고 감사 1행이 남는다.
+     * Ruling 894 ③ — 사진을 지우면 {@code 204} 이고 행의 {@code photo_url} 이 비며 파일이 지워지고 감사 1행이 남는다.
      *
      * <p>파일 삭제는 커밋 뒤라 이 클래스(트랜잭션 없음)에서만 관측된다.
      */

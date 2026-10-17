@@ -24,7 +24,7 @@ import src.backend.notification.repository.NotificationLogRepository;
 import src.backend.notification.scheduler.NotificationOutboxWorker;
 
 /**
- * Phase 4 목표 3 — 시드의 미발송 행을 워커가 회수해 재발송하고, <b>이미 끝난 행은 건드리지 않는지</b>
+ * 시드의 미발송 행을 워커가 회수해 재발송하고, <b>이미 끝난 행은 건드리지 않는지</b>
  * 본다(ERD §5 의 부분 인덱스 {@code WHERE push_state='pending'} 가 가리키는 술어).
  *
  * <p>두 단언 중 뒤쪽이 이 클래스의 이유다. 회수 조건에서 {@code push_state='pending'} 이 빠진 워커도

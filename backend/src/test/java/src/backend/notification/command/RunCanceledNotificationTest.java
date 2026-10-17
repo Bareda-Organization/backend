@@ -26,7 +26,7 @@ import src.backend.global.security.JwtTokenProvider;
 import src.backend.run.controller.DriverRunFixtures;
 
 /**
- * R56 K3(Ruling 894 ⑤) — 확정된({@code confirmed}) 회차를 관계자가 취소하면 배치된 기사·동승자에게
+ * Ruling 894 ⑤ — 확정된({@code confirmed}) 회차를 관계자가 취소하면 배치된 기사·동승자에게
  * {@code run_canceled} 알림이 간다. 확정 전({@code idle}) 취소는 매니저가 아직 회차를 모르므로 보내지 않는다.
  *
  * <p>적재는 취소와 같은 트랜잭션 안이라 {@code @Transactional} 시험에서 같은 연결로 행이 보인다.

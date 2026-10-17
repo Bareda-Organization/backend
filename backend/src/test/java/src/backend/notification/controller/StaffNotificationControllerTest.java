@@ -24,7 +24,7 @@ import src.backend.notification.entity.NotificationType;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 관계자 웹의 알림 로그 전수 조회 API(§5.17, Phase 12 T3 goal 10·11) — {@code type}·{@code date}·
+ * 관계자 웹의 알림 로그 전수 조회 API(§5.17) — {@code type}·{@code date}·
  * {@code acked} 필터 각각 매칭·비매칭 행을 함께 심어 필터가 실제로 좁히는지 검사하고, {@code
  * unacked_count} 가 페이지·필터와 무관하게 학원 전체 미확인 건수인지, 푸시 off 로 막힌 행도 전수
  * 조회에서 빠지지 않는지 검사한다.

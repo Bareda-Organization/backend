@@ -28,7 +28,7 @@ import src.backend.notification.push.spec.PushMessage;
 import src.backend.notification.push.spec.PushSender;
 
 /**
- * Phase 4 목표 2 — 발송을 <b>항상 실패</b>시킨 컨텍스트에서 상태 변경이 살아남고, 재시도할 대상이
+ * 발송을 <b>항상 실패</b>시킨 컨텍스트에서 상태 변경이 살아남고, 재시도할 대상이
  * DB 에 남는지 본다(TECH_DECISIONS §7.5 "외부 푸시 발송은 트랜잭션 안에서 하지 않는다").
  *
  * <p>{@code app.push.sender} 로 구현체를 갈아끼운다 — 이 값이 {@code logging} 이 아니면 기본 구현

@@ -31,7 +31,7 @@ import src.backend.notification.push.spec.PushMessage;
 import src.backend.notification.push.spec.PushSender;
 
 /**
- * Phase 4 목표 4 — 중복을 <b>두 축에서 따로</b> 막는지 본다.
+ * 중복을 <b>두 축에서 따로</b> 막는지 본다.
  *
  * <p>두 축이 갈리는 것이 이 클래스의 이유다. {@code dedup_key} UNIQUE 는 <b>같은 알림이 두 행이
  * 되는 것</b>만 막는다 — 이미 적재된 <b>한 행</b>을 즉시 발송과 워커가 함께 집는 것은 INSERT 경합이
@@ -80,7 +80,7 @@ class NotificationOutboxConcurrencyTest {
     }
 
     /**
-     * 적재 축 — UNIQUE 가 두 번째 INSERT 를 막고, 그 거부가 예외가 아니라 <b>건너뜀</b>이다(R46 Ruling 622).
+     * 적재 축 — UNIQUE 가 두 번째 INSERT 를 막고, 그 거부가 예외가 아니라 <b>건너뜀</b>이다(Ruling 622).
      *
      * <p>예외로 알리면 PostgreSQL 은 UNIQUE 위반 즉시 그 트랜잭션을 중단 상태로 만들어 같은 트랜잭션의 상태 변경까지
      * 되돌린다 — 같은 키는 같은 알림이 이미 있다는 뜻이라 건너뛰어도 통지는 빠지지 않는다. 동시에 넣는 두 트랜잭션은 뒤쪽이

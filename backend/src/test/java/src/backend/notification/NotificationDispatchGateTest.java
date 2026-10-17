@@ -27,7 +27,7 @@ import src.backend.notification.push.spec.PushSender;
 import src.backend.notification.repository.NotificationSettingRepository;
 
 /**
- * 알림 설정이 발송 경로를 어떻게 가르는지 본다(Phase 12 목표 8·9) — 판정 값 자체({@code isEnabledFor})는
+ * 알림 설정이 발송 경로를 어떻게 가르는지 본다 — 판정 값 자체({@code isEnabledFor})는
  * {@link NotificationSettingTest} 가 이미 고정했고, 여기서는 그 값이 {@link NotificationDispatcher} 의
  * 실제 발송 경로에서 <b>레코드는 항상 남기고 푸시 채널만 막는지</b>를 본다.
  *

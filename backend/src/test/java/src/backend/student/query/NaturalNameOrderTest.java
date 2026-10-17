@@ -8,7 +8,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
-/** 이름 자연 정렬의 경계(R46 FUBE · B1 #27) — 숫자 크기 · 앞 0 · 긴 숫자 · 짧은 접두어 · 숫자 없는 이름. */
+/** 이름 자연 정렬의 경계 — 숫자 크기 · 앞 0 · 긴 숫자 · 짧은 접두어 · 숫자 없는 이름. */
 class NaturalNameOrderTest {
 
     @Test

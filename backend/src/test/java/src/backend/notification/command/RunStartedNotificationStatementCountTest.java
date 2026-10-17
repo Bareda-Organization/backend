@@ -54,7 +54,7 @@ import src.backend.student.repository.StudentRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 운행 시작 알림 적재의 SQL 문장 수는 수신자 수와 무관하다(R46 T-6) — 건별 {@code saveAndFlush} 면 학부모 수만큼 INSERT 가 나가
+ * 운행 시작 알림 적재의 SQL 문장 수는 수신자 수와 무관하다 — 건별 {@code saveAndFlush} 면 학부모 수만큼 INSERT 가 나가
  * 회차 행 잠금을 쥔 시간이 수신자 수에 비례한다(운행 시작 약 40~75건). 한 문장으로 묶은 뒤에는 학생이 2명이든 10명이든 같다.
  *
  * <p>문장 수는 트랜잭션 안에서 이벤트 발행 전·후의 Hibernate 통계 차이로 센다 — 커밋 뒤 비동기 발송이 만드는 문장은 세지 않는다.

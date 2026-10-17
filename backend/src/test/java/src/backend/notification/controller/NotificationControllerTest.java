@@ -33,7 +33,7 @@ import src.backend.global.security.JwtTokenProvider;
 import src.backend.notification.entity.NotificationType;
 
 /**
- * 알림 목록 조회·읽음 처리(§3.12·§3.13, Phase 12 T2 goal 1~6) — {@code type}·{@code unread_only}
+ * 알림 목록 조회·읽음 처리(§3.12·§3.13) — {@code type}·{@code unread_only}
  * 필터, 봉투 {@code unread_count}, 읽음 처리 성공·403·404, 14일 보관 경계, {@code popup}·
  * {@code student_id}/{@code student_name} 조립을 각각 검사한다.
  *
@@ -95,7 +95,7 @@ class NotificationControllerTest {
                 .andExpect(jsonPath("$.data.items[0].type").value("boarding"));
     }
 
-    // ── R46-FUFEAT ③ — 매니저 알림이 회차를 가리킨다(Ruling 542) ──────────────
+    // ── 매니저 알림이 회차를 가리킨다(Ruling 542) ──────────────
 
     @Test
     @DisplayName("R46-FUFEAT ③ — run_id 가 있는 알림은 목록에 run_id 를 싣고, 없는 알림은 키는 있고 값은 null 이다")

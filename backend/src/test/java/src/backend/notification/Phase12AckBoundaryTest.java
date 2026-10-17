@@ -33,7 +33,7 @@ import src.backend.notification.repository.NotificationLogRepository;
  *
  * <p>왜 별도 클래스인가 — 두 기능이 서로 다른 격리 워크트리에서 만들어져 <b>병합 전에는 한쪽 코드가
  * 다른 쪽 트리에 물리적으로 없었다.</b> 그래서 어느 좌석도 이 시험을 만들 수 없었고 조율자 몫으로
- * 이관됐다(Ruling 222). Phase 9 의 {@code Phase9CrossSeatWiringTest} 와 같은 자리다.
+ * 이관됐다(Ruling 222). {@code Phase9CrossSeatWiringTest} 와 같은 자리다.
  *
  * <p>🔴 <b>이 시험이 실제로 결함을 잡았다.</b> 병합 시점에 쓰는 쪽은 중요 통지 3종에만
  * {@code acked} 를 남기는데 세는 쪽은 <b>전 종류</b>를 세고 있었다 — 승하차·도착 알림은 영원히
