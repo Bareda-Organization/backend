@@ -99,7 +99,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
     }
 
     /**
-     * 열린 세션도 새 구독·송신마다 계정의 현재 상태를 다시 확인한다(Ruling 880) — 퇴사·차단·삭제된 매니저면 받지 않고,
+     * 열린 세션도 새 구독·송신마다 계정의 상태를 다시 확인한다(Ruling 880) — {@link AccountStanding} 이 최대 5초 보관한 값이고 상태 변경이 커밋되면 바로 비워진다(R57 RT-1). 퇴사·차단·삭제된 매니저면 받지 않고,
      * 이 세션의 다음 방송도 끊기게 표시한다({@link StompSessionExpiry#expire}).
      */
     private void assertStanding(StompHeaderAccessor accessor) {
