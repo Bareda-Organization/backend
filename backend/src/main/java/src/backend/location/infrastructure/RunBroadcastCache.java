@@ -21,7 +21,7 @@ import src.backend.routing.dto.PositionStopView;
  * 비움 전파는 R59 에서 한다.
  *
  * <p><b>비움과 읽기가 겹쳐도 낡은 목록이 남지 않는다</b> — 읽기가 시작된 뒤 비움이 한 번이라도 일어났으면 읽은 값을 넣지 않는다(비움 횟수
- * 비교). 놓친 이벤트가 있어도 {@value #BACKSTOP_MINUTES}분 뒤에는 스스로 다시 읽는다.
+ * 비교, 확인과 저장은 한 키의 {@code compute} 안에서 원자적으로). 놓친 이벤트가 있어도 {@value #BACKSTOP_MINUTES}분 뒤에는 스스로 다시 읽는다.
  */
 @Component
 @RequiredArgsConstructor
@@ -80,12 +80,14 @@ public class RunBroadcastCache {
         }
         long evictionsBefore = evictions.get();
         T loaded = loader.get();
-        if (evictions.get() == evictionsBefore) {
-            if (cache.size() >= MAX_RUNS) {
-                cache.clear();
-            }
-            cache.put(runId, new Entry<>(loaded, now.plus(Duration.ofMinutes(BACKSTOP_MINUTES))));
+        if (cache.size() >= MAX_RUNS) {
+            cache.clear();
         }
+        // 비움 횟수 확인과 저장을 한 키의 compute 안에서 한다 — 확인 뒤 저장 전에 비움이 끼면(비움은 횟수를 올린 다음 같은 키를 remove 하므로
+        // compute 가 끝나기를 기다려 방금 저장한 값을 지운다) 낡은 목록이 남지 않는다
+        cache.compute(runId, (key, current) -> evictions.get() == evictionsBefore
+                ? new Entry<>(loaded, now.plus(Duration.ofMinutes(BACKSTOP_MINUTES)))
+                : current);
         return loaded;
     }
 }
